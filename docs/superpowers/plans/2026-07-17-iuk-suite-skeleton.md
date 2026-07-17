@@ -4,7 +4,7 @@
 
 **Goal:** Ein lokal lauffähiger Next.js-16-Monolith, der den Suite-Keystone beweist — ein Container, mehrere Hosts, ein Login, pro Host die richtige Shell — plus Portal als erstes echtes Modul.
 
-**Architecture:** Eine `proxy.ts`-Middleware liest den Host-Header, entscheidet über eine reine, edge-sichere Modul-Registry Zugriff + Ziel und rewritet auf `app/_m/<modul>/…`. Ein einziger next-auth-v5-/Pocket-ID-Client hält die Session über ein auf die Apex gesetztes Cookie (SSO); ein env-gegateter Dev-Login-Provider macht das lokal ohne echten OIDC-Server testbar. Jedes Modul hat eine eigene better-sqlite3-Datei. Drei Shell-Varianten (Voll/Minimal/Kiosk) werden per statischem Modul-Layout aus der Registry gewählt.
+**Architecture:** Eine `proxy.ts`-Middleware liest den Host-Header, entscheidet über eine reine, edge-sichere Modul-Registry Zugriff + Ziel und rewritet auf `app/m/<modul>/…`. Ein einziger next-auth-v5-/Pocket-ID-Client hält die Session über ein auf die Apex gesetztes Cookie (SSO); ein env-gegateter Dev-Login-Provider macht das lokal ohne echten OIDC-Server testbar. Jedes Modul hat eine eigene better-sqlite3-Datei. Drei Shell-Varianten (Voll/Minimal/Kiosk) werden per statischem Modul-Layout aus der Registry gewählt.
 
 **Tech Stack:** Next.js 16.2.6 · React 19.2.6 · next-auth 5.0.0-beta.30 · Tailwind 4.3 · shadcn/ui · Drizzle 0.45.2 · better-sqlite3 12.x · drizzle-kit 0.31.x · Playwright · vitest · pnpm · TypeScript (strict).
 
@@ -381,11 +381,11 @@ describe("decideRoute", () => {
   });
   it("rewrites anonymous module without auth", () => {
     const d = decideRoute({ host: "beta.localtest.me", pathname: "/", groups: null });
-    expect(d).toEqual({ action: "rewrite", target: "/_m/beta", moduleKey: "beta" });
+    expect(d).toEqual({ action: "rewrite", target: "/m/beta", moduleKey: "beta" });
   });
   it("keeps subpaths in rewrite target", () => {
     const d = decideRoute({ host: "beta.localtest.me", pathname: "/foo/bar", groups: null });
-    expect(d).toMatchObject({ action: "rewrite", target: "/_m/beta/foo/bar" });
+    expect(d).toMatchObject({ action: "rewrite", target: "/m/beta/foo/bar" });
   });
   it("redirects to login when auth required and anonymous", () => {
     const d = decideRoute({ host: "alpha.localtest.me", pathname: "/x", groups: null });
@@ -397,11 +397,11 @@ describe("decideRoute", () => {
   });
   it("rewrites when group matches", () => {
     const d = decideRoute({ host: "alpha.localtest.me", pathname: "/", groups: ["alpha-users"] });
-    expect(d).toMatchObject({ action: "rewrite", target: "/_m/alpha", moduleKey: "alpha" });
+    expect(d).toMatchObject({ action: "rewrite", target: "/m/alpha", moduleKey: "alpha" });
   });
   it("unknown host falls back to portal", () => {
     const d = decideRoute({ host: "weird.example.com", pathname: "/", groups: [] });
-    expect(d).toMatchObject({ action: "rewrite", target: "/_m/portal", moduleKey: "portal" });
+    expect(d).toMatchObject({ action: "rewrite", target: "/m/portal", moduleKey: "portal" });
   });
 });
 ```
@@ -445,7 +445,7 @@ export function decideRoute(input: {
   }
 
   const rest = pathname === "/" ? "" : pathname;
-  return { action: "rewrite", target: `/_m/${mod.key}${rest}`, moduleKey: mod.key };
+  return { action: "rewrite", target: `/m/${mod.key}${rest}`, moduleKey: mod.key };
 }
 ```
 
@@ -707,7 +707,7 @@ export const config = {
 
 - [ ] **Step 2: Manuelle Verifikation (Host-Rewrite lebt, keine echten Module nötig)**
 
-Temporär eine Beweisseite anlegen: `src/app/_m/beta/page.tsx` → `export default () => <div data-testid="beta">beta module</div>;`
+Temporär eine Beweisseite anlegen: `src/app/m/beta/page.tsx` → `export default () => <div data-testid="beta">beta module</div>;`
 Run (zwei Terminals oder Hintergrund):
 ```bash
 AUTH_SECRET=dev AUTH_DEV_LOGIN=true AUTH_COOKIE_DOMAIN=.localtest.me pnpm dev
@@ -719,7 +719,7 @@ Danach die temporäre Seite belassen — sie wird in Task 9 durch die echte beta
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/proxy.ts src/app/_m/beta/page.tsx
+git add src/proxy.ts src/app/m/beta/page.tsx
 git commit -m "feat: proxy middleware wires host-rewrite + auth gating"
 ```
 
@@ -1052,10 +1052,10 @@ git commit -m "feat(core): three shell variants + registry-driven app-switcher"
 ### Task 9: Wegwerf-Module alpha/beta/kioskdemo (Keystone-Oberflächen)
 
 **Files:**
-- Create: `src/app/_m/alpha/layout.tsx`, `src/app/_m/alpha/page.tsx`
-- Create: `src/app/_m/gamma/layout.tsx`, `src/app/_m/gamma/page.tsx`
-- Modify/Create: `src/app/_m/beta/layout.tsx`, `src/app/_m/beta/page.tsx` (ersetzt die Task-5-Beweisseite)
-- Create: `src/app/_m/kioskdemo/layout.tsx`, `src/app/_m/kioskdemo/page.tsx`
+- Create: `src/app/m/alpha/layout.tsx`, `src/app/m/alpha/page.tsx`
+- Create: `src/app/m/gamma/layout.tsx`, `src/app/m/gamma/page.tsx`
+- Modify/Create: `src/app/m/beta/layout.tsx`, `src/app/m/beta/page.tsx` (ersetzt die Task-5-Beweisseite)
+- Create: `src/app/m/kioskdemo/layout.tsx`, `src/app/m/kioskdemo/page.tsx`
 
 **Interfaces:**
 - Consumes: `Shell` (Task 8), `getModule` (Task 2).
@@ -1063,7 +1063,7 @@ git commit -m "feat(core): three shell variants + registry-driven app-switcher"
 - [ ] **Step 1: Modul-Layouts (statische Shell-Wahl aus Registry)**
 
 Muster für jedes Modul (Beispiel alpha):
-`src/app/_m/alpha/layout.tsx`:
+`src/app/m/alpha/layout.tsx`:
 ```tsx
 import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";
@@ -1072,24 +1072,24 @@ export default function AlphaLayout({ children }: { children: React.ReactNode })
   return <Shell variant={mod.shell} moduleKey={mod.key}>{children}</Shell>;
 }
 ```
-`src/app/_m/gamma/layout.tsx`, `src/app/_m/beta/layout.tsx` und `src/app/_m/kioskdemo/layout.tsx` analog mit `getModule("gamma")`, `getModule("beta")` bzw. `getModule("kioskdemo")`.
+`src/app/m/gamma/layout.tsx`, `src/app/m/beta/layout.tsx` und `src/app/m/kioskdemo/layout.tsx` analog mit `getModule("gamma")`, `getModule("beta")` bzw. `getModule("kioskdemo")`.
 
 - [ ] **Step 2: Modul-Seiten**
 
 ```tsx
-// src/app/_m/alpha/page.tsx
+// src/app/m/alpha/page.tsx
 export default function AlphaPage() {
   return <div data-testid="alpha-content">Alpha (Voll-Shell, Gruppe alpha-users)</div>;
 }
-// src/app/_m/gamma/page.tsx
+// src/app/m/gamma/page.tsx
 export default function GammaPage() {
   return <div data-testid="gamma-content">Gamma (Voll-Shell, nur Login, keine Gruppe)</div>;
 }
-// src/app/_m/beta/page.tsx
+// src/app/m/beta/page.tsx
 export default function BetaPage() {
   return <div data-testid="beta-content">Beta (Minimal-Shell, anonym)</div>;
 }
-// src/app/_m/kioskdemo/page.tsx
+// src/app/m/kioskdemo/page.tsx
 export default function KioskPage() {
   return <div data-testid="kiosk-content">Kiosk Demo (Fullscreen)</div>;
 }
@@ -1112,7 +1112,7 @@ Expected: `BETA MINIMAL OK`, `KIOSK OK`, `ALPHA GUARDED OK`.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/app/_m/alpha src/app/_m/gamma src/app/_m/beta src/app/_m/kioskdemo
+git add src/app/m/alpha src/app/m/gamma src/app/m/beta src/app/m/kioskdemo
 git commit -m "feat: throwaway alpha/gamma/beta/kioskdemo modules exercising all three shells"
 ```
 
@@ -1232,10 +1232,10 @@ git commit -m "test(e2e): keystone proof — host->shell, SSO, group-gating, kio
 ### Task 11: Portal-Datenschicht (SQLite `services` + rbac + Queries + Seed)
 
 **Files:**
-- Create: `src/app/_m/portal/_db/schema.ts`, `src/app/_m/portal/_db/client.ts`
-- Create: `src/app/_m/portal/_lib/rbac.ts`, `src/app/_m/portal/_lib/services.ts`, `src/app/_m/portal/_lib/seed.ts`
-- Create: `src/app/_m/portal/_db/drizzle.config.ts`
-- Test: `src/app/_m/portal/_lib/rbac.test.ts`, `src/app/_m/portal/_lib/services.test.ts`
+- Create: `src/app/m/portal/_db/schema.ts`, `src/app/m/portal/_db/client.ts`
+- Create: `src/app/m/portal/_lib/rbac.ts`, `src/app/m/portal/_lib/services.ts`, `src/app/m/portal/_lib/seed.ts`
+- Create: `src/app/m/portal/_db/drizzle.config.ts`
+- Test: `src/app/m/portal/_lib/rbac.test.ts`, `src/app/m/portal/_lib/services.test.ts`
 
 **Interfaces:**
 - Consumes: `getModuleDb`, `openModuleDatabase` (Task 6).
@@ -1248,7 +1248,7 @@ git commit -m "test(e2e): keystone proof — host->shell, SSO, group-gating, kio
 
 - [ ] **Step 1: SQLite-Schema (Port des iuk-overview-pg-Schemas)**
 
-`src/app/_m/portal/_db/schema.ts`:
+`src/app/m/portal/_db/schema.ts`:
 ```ts
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
@@ -1275,30 +1275,30 @@ export type Service = typeof services.$inferSelect;
 export type NewService = typeof services.$inferInsert;
 ```
 
-`src/app/_m/portal/_db/client.ts`:
+`src/app/m/portal/_db/client.ts`:
 ```ts
 import { getModuleDb } from "@/core/db";
 import * as schema from "./schema";
 export const getDb = () => getModuleDb("portal", schema);
 ```
 
-`src/app/_m/portal/_db/drizzle.config.ts`:
+`src/app/m/portal/_db/drizzle.config.ts`:
 ```ts
 import { defineConfig } from "drizzle-kit";
 export default defineConfig({
   dialect: "sqlite",
-  schema: "./src/app/_m/portal/_db/schema.ts",
-  out: "./src/app/_m/portal/_db/migrations",
+  schema: "./src/app/m/portal/_db/schema.ts",
+  out: "./src/app/m/portal/_db/migrations",
   dbCredentials: { url: "./.data/portal.db" },
 });
 ```
 
 - [ ] **Step 2: rbac test + impl** (dialekt-neutral, Port aus iuk-overview)
 
-`src/app/_m/portal/_lib/rbac.test.ts`:
+`src/app/m/portal/_lib/rbac.test.ts`:
 ```ts
 import { describe, it, expect } from "vitest";
-import { canViewService, filterVisibleServices } from "@/app/_m/portal/_lib/rbac";
+import { canViewService, filterVisibleServices } from "@/app/m/portal/_lib/rbac";
 
 const base = { isPublic: false, isActive: true, requiredGroups: ["g"] };
 describe("portal rbac", () => {
@@ -1318,24 +1318,24 @@ describe("portal rbac", () => {
   });
 });
 ```
-`src/app/_m/portal/_lib/rbac.ts`: 1:1-Port von `../../../iuk-overview/src/lib/rbac.ts` (`canViewService`, `filterVisibleServices`, `isAdmin`). Reine Funktionen, kein DB-Import.
+`src/app/m/portal/_lib/rbac.ts`: 1:1-Port von `../../../iuk-overview/src/lib/rbac.ts` (`canViewService`, `filterVisibleServices`, `isAdmin`). Reine Funktionen, kein DB-Import.
 
 - [ ] **Step 3: Queries (Port; better-sqlite3-Anpassungen)**
 
-`src/app/_m/portal/_lib/services.ts`: Port von `../../../iuk-overview/src/lib/services.ts` mit diesen Änderungen:
-- `import { getDb } from "@/app/_m/portal/_db/client"` und `const db = getDb()` innerhalb jeder Funktion (nicht Modul-Top, wegen Lazy-Open).
-- `import { services, type Service, type NewService } from "@/app/_m/portal/_db/schema"`.
-- `import { filterVisibleServices } from "@/app/_m/portal/_lib/rbac"`.
+`src/app/m/portal/_lib/services.ts`: Port von `../../../iuk-overview/src/lib/services.ts` mit diesen Änderungen:
+- `import { getDb } from "@/app/m/portal/_db/client"` und `const db = getDb()` innerhalb jeder Funktion (nicht Modul-Top, wegen Lazy-Open).
+- `import { services, type Service, type NewService } from "@/app/m/portal/_db/schema"`.
+- `import { filterVisibleServices } from "@/app/m/portal/_lib/rbac"`.
 - **Nur diese Funktionen übernehmen** (YAGNI): `getAllServices`, `getVisibleServicesForUser`, `getServiceById`, `getServiceBySlug`, `createService`, `updateService`, `deleteService`. `reorderServices` und `getCategories` **weglassen** (nicht im Skeleton-Scope; `reorderServices` nutzte zudem eine async-Transaktion, die better-sqlite3 nicht erlaubt).
 - `updateService`: `updatedAt: new Date()` bleibt (timestamp-mode akzeptiert `Date`).
 
-`src/app/_m/portal/_lib/services.test.ts` — gegen eine frische Temp-DB (Migrationen anwenden), z. B.:
+`src/app/m/portal/_lib/services.test.ts` — gegen eine frische Temp-DB (Migrationen anwenden), z. B.:
 ```ts
 import { describe, it, expect, beforeEach } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
-import * as schema from "@/app/_m/portal/_db/schema";
+import * as schema from "@/app/m/portal/_db/schema";
 
 // getDb() liest DATA_DIR; hier isolierte Datei setzen und Migrationen anwenden
 beforeEach(() => {
@@ -1343,10 +1343,10 @@ beforeEach(() => {
 });
 
 it("create + list visible", async () => {
-  // Migration einmalig anwenden (Task-11-Step-4 erzeugt ./src/app/_m/portal/_db/migrations)
+  // Migration einmalig anwenden (Task-11-Step-4 erzeugt ./src/app/m/portal/_db/migrations)
   const db = drizzle(new Database("./.data/portal-test/portal.db"), { schema });
-  migrate(db, { migrationsFolder: "./src/app/_m/portal/_db/migrations" });
-  const { createService, getVisibleServicesForUser } = await import("@/app/_m/portal/_lib/services");
+  migrate(db, { migrationsFolder: "./src/app/m/portal/_db/migrations" });
+  const { createService, getVisibleServicesForUser } = await import("@/app/m/portal/_lib/services");
   await createService({ slug: "wiki", name: "Wiki", url: "https://wiki", isPublic: true });
   const visible = await getVisibleServicesForUser([]);
   expect(visible.map((s) => s.slug)).toContain("wiki");
@@ -1354,10 +1354,10 @@ it("create + list visible", async () => {
 ```
 > Hinweis: Test-Isolation über eigenes `DATA_DIR` je Lauf; `./.data/portal-test` vor dem Lauf löschen (im Test-Setup oder per `rm -rf` im Script).
 
-`src/app/_m/portal/_lib/seed.ts`:
+`src/app/m/portal/_lib/seed.ts`:
 ```ts
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import * as schema from "@/app/_m/portal/_db/schema";
+import * as schema from "@/app/m/portal/_db/schema";
 
 export async function seedPortal(db: BetterSQLite3Database<typeof schema>) {
   const rows: schema.NewService[] = [
@@ -1372,16 +1372,16 @@ export async function seedPortal(db: BetterSQLite3Database<typeof schema>) {
 
 Run:
 ```bash
-pnpm exec drizzle-kit generate --config src/app/_m/portal/_db/drizzle.config.ts
+pnpm exec drizzle-kit generate --config src/app/m/portal/_db/drizzle.config.ts
 rm -rf ./.data/portal-test
-pnpm test src/app/_m/portal
+pnpm test src/app/m/portal
 ```
 Expected: Migrationsordner entsteht; rbac- und services-Tests PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/app/_m/portal/_db src/app/_m/portal/_lib
+git add src/app/m/portal/_db src/app/m/portal/_lib
 git commit -m "feat(portal): sqlite services schema, rbac, queries, seed"
 ```
 
@@ -1390,10 +1390,10 @@ git commit -m "feat(portal): sqlite services schema, rbac, queries, seed"
 ### Task 12: Portal-UI — Kacheln, Vollbild-Switcher, Admin-CRUD
 
 **Files:**
-- Create: `src/app/_m/portal/layout.tsx`, `src/app/_m/portal/page.tsx`
-- Create: `src/app/_m/portal/actions.ts` (server actions)
-- Create: `src/app/_m/portal/admin/page.tsx`, `src/app/_m/portal/admin/service-form.tsx`
-- Create: `src/app/_m/portal/_lib/instrument.ts` (Migration+Seed beim ersten Zugriff)
+- Create: `src/app/m/portal/layout.tsx`, `src/app/m/portal/page.tsx`
+- Create: `src/app/m/portal/actions.ts` (server actions)
+- Create: `src/app/m/portal/admin/page.tsx`, `src/app/m/portal/admin/service-form.tsx`
+- Create: `src/app/m/portal/_lib/instrument.ts` (Migration+Seed beim ersten Zugriff)
 - Create: `e2e/portal.spec.ts`
 
 **Interfaces:**
@@ -1401,17 +1401,17 @@ git commit -m "feat(portal): sqlite services schema, rbac, queries, seed"
 
 - [ ] **Step 1: Migration+Seed-Bootstrap für lokale Läufe**
 
-`src/app/_m/portal/_lib/instrument.ts`:
+`src/app/m/portal/_lib/instrument.ts`:
 ```ts
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { getDb } from "@/app/_m/portal/_db/client";
-import { seedPortal } from "@/app/_m/portal/_lib/seed";
+import { getDb } from "@/app/m/portal/_db/client";
+import { seedPortal } from "@/app/m/portal/_lib/seed";
 
 let done = false;
 export async function ensurePortalReady() {
   if (done) return;
   const db = getDb();
-  migrate(db, { migrationsFolder: "./src/app/_m/portal/_db/migrations" });
+  migrate(db, { migrationsFolder: "./src/app/m/portal/_db/migrations" });
   await seedPortal(db);
   done = true;
 }
@@ -1420,13 +1420,13 @@ export async function ensurePortalReady() {
 
 - [ ] **Step 2: Portal-Layout + -Seite (Kacheln)**
 
-`src/app/_m/portal/layout.tsx`: wie Task 9, mit `getModule("portal")` → `<Shell variant="full" moduleKey="portal">`.
+`src/app/m/portal/layout.tsx`: wie Task 9, mit `getModule("portal")` → `<Shell variant="full" moduleKey="portal">`.
 
-`src/app/_m/portal/page.tsx` (server component):
+`src/app/m/portal/page.tsx` (server component):
 ```tsx
 import { auth } from "@/core/auth";
-import { ensurePortalReady } from "@/app/_m/portal/_lib/instrument";
-import { getVisibleServicesForUser } from "@/app/_m/portal/_lib/services";
+import { ensurePortalReady } from "@/app/m/portal/_lib/instrument";
+import { getVisibleServicesForUser } from "@/app/m/portal/_lib/services";
 
 export default async function PortalPage() {
   await ensurePortalReady();
@@ -1448,14 +1448,14 @@ export default async function PortalPage() {
 
 - [ ] **Step 3: Admin-CRUD (server actions + Formular)**
 
-`src/app/_m/portal/actions.ts`:
+`src/app/m/portal/actions.ts`:
 ```ts
 "use server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/core/auth";
-import { isAdmin } from "@/app/_m/portal/_lib/rbac";
-import { createService, updateService, deleteService } from "@/app/_m/portal/_lib/services";
-import { ensurePortalReady } from "@/app/_m/portal/_lib/instrument";
+import { isAdmin } from "@/app/m/portal/_lib/rbac";
+import { createService, updateService, deleteService } from "@/app/m/portal/_lib/services";
+import { ensurePortalReady } from "@/app/m/portal/_lib/instrument";
 
 async function assertAdmin() {
   const session = await auth();
@@ -1481,9 +1481,9 @@ export async function deleteServiceAction(formData: FormData) {
 ```
 (update analog; `isPublic` etc. aus dem Formular.)
 
-`src/app/_m/portal/admin/page.tsx` (server component): prüft `isAdmin`, listet alle Services (`getAllServices`), rendert `<ServiceForm>` (create) und je Zeile einen Delete-Button (`<form action={deleteServiceAction}>`). Nicht-Admins → `notFound()` oder 403-Hinweis.
+`src/app/m/portal/admin/page.tsx` (server component): prüft `isAdmin`, listet alle Services (`getAllServices`), rendert `<ServiceForm>` (create) und je Zeile einen Delete-Button (`<form action={deleteServiceAction}>`). Nicht-Admins → `notFound()` oder 403-Hinweis.
 
-`src/app/_m/portal/admin/service-form.tsx`: einfaches `<form action={createServiceAction}>` mit `slug`, `name`, `url`, `isPublic`-Checkbox.
+`src/app/m/portal/admin/service-form.tsx`: einfaches `<form action={createServiceAction}>` mit `slug`, `name`, `url`, `isPublic`-Checkbox.
 
 - [ ] **Step 4: Portal-E2E**
 
@@ -1525,7 +1525,7 @@ Expected: typecheck sauber; alle Unit-Tests grün; alle E2E (keystone + portal) 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/app/_m/portal e2e/portal.spec.ts
+git add src/app/m/portal e2e/portal.spec.ts
 git commit -m "feat(portal): tiles view + admin CRUD + portal e2e"
 ```
 

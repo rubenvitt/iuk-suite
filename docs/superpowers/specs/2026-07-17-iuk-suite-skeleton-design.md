@@ -56,7 +56,7 @@ core/                       Gemeinsames (edge-sicher wo nötig)
   db/                       better-sqlite3-Helper (Node-only)
   health/                   Health-Bausteine
 app/
-  _m/<modul>/               Modul-Routen (host-gerewritet)
+  m/<modul>/               Modul-Routen (host-gerewritet)
     page.tsx  api/  _db/schema.ts  __tests__/
   api/health/<modul>/       Health-Endpoints
 proxy.ts                    Host→Modul-Rewrite (Next-16-Middleware-Datei)
@@ -64,9 +64,12 @@ docs/superpowers/specs/     dieser Spec
 ```
 
 **Bewusste Abweichung vom Plan-Wortlaut:** Der Plan schrieb `modules/<name>/` mit „eigenen Routen".
-Next.js erzwingt Routen unter `app/`. Deshalb leben Modul-Routen unter `app/_m/<modul>/`
-(Next ignoriert `_`-Präfix-Ordner als Nicht-Routen → Schema/Tests colocated daneben),
-Gemeinsames in `core/`. Effekt identisch zum Plan, nur der Ordner heißt anders.
+Next.js erzwingt Routen unter `app/`. Modul-Routen leben deshalb unter `app/m/<modul>/` — einem
+**normalen, routbaren** Pfadsegment `m/`, auf das die Middleware host-basiert rewritet und das die
+Module sauber namespaced (`/m/alpha/…` ≠ `/m/beta/…`); der Nutzer sieht das Segment nie (interner Rewrite).
+⚠️ Wichtig (Next-16-Falle): `_`-präfigierte Ordner sind **Private Folders** und komplett vom Routing
+ausgeschlossen — daher NICHT als Route-Gruppierung nutzbar. Sie eignen sich nur für colocated
+Nicht-Routen wie `_db/`, `_lib/` innerhalb eines Moduls. Gemeinsames in `core/`.
 
 **Next-16-Hinweis (Implementierung):** Die Middleware-Datei heißt `proxy.ts`
 (vgl. `iuk-overview/src/proxy.ts`: `export { auth as proxy }`). Vor dem Schreiben von
@@ -95,7 +98,7 @@ Speist: (a) Host-Routing der Middleware, (b) App-Switcher, (c) Portal-Kacheln,
 
 ## 5. Host-Routing — `proxy.ts`
 
-Liest den Host-Header → `registry.byHost[host]` → `rewrite('/_m/' + modul + pfad)`.
+Liest den Host-Header → `registry.byHost[host]` → `rewrite('/m/' + modul + pfad)`.
 Unbekannter Host → Portal-Fallback bzw. 404. Edge-sicher, weil die Registry pure Daten ist
 (better-sqlite3 wird **nie** in der Middleware importiert).
 Matcher schließt aus: `_next/*`, `api/auth`, `api/health`, statische Assets, `favicon`, `login`.
@@ -131,7 +134,7 @@ Dark Mode via next-themes.
 
 better-sqlite3 (WAL), **eine Datei pro Modul** unter `${DATA_DIR}/<modul>.db`
 (dev → `./.data/`, prod später `/data/` in Spec 2). Jedes Modul besitzt sein Drizzle-Schema
-(`app/_m/<modul>/_db/schema.ts`) und einen `getDb()`-Helper; drizzle-kit pro Modul.
+(`app/m/<modul>/_db/schema.ts`) und einen `getDb()`-Helper; drizzle-kit pro Modul.
 **Nur Node-Runtime** — nie in der Middleware/Edge importieren.
 
 ## 9. Health — `core/health`
