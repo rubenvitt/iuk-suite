@@ -68,28 +68,37 @@ const providers = [
         }),
       ]
     : []),
-  {
-    id: "pocket-id",
-    name: "Pocket ID",
-    type: "oidc" as const,
-    issuer: process.env.POCKET_ID_ISSUER,
-    clientId: process.env.POCKET_ID_CLIENT_ID,
-    clientSecret: process.env.POCKET_ID_CLIENT_SECRET,
-    authorization: {
-      params: {
-        scope: SCOPES,
-      },
-    },
-    profile(profile: Record<string, unknown>) {
-      return {
-        id: profile.sub as string,
-        name: (profile.name ?? profile.preferred_username) as string | undefined,
-        email: profile.email as string | undefined,
-        image: profile.picture as string | undefined,
-        groups: parseGroups(profile),
-      };
-    },
-  },
+  // Register the Pocket ID OIDC provider only when it is actually configured.
+  // Auth.js validates EVERY configured provider on EVERY /api/auth/* request, so an
+  // issuer-less oidc provider makes assertConfig throw (500) for the whole route —
+  // breaking dev-login-only environments where no Pocket ID env vars are set.
+  // Production sets POCKET_ID_ISSUER, so real SSO still registers there.
+  ...(process.env.POCKET_ID_ISSUER
+    ? [
+        {
+          id: "pocket-id",
+          name: "Pocket ID",
+          type: "oidc" as const,
+          issuer: process.env.POCKET_ID_ISSUER,
+          clientId: process.env.POCKET_ID_CLIENT_ID,
+          clientSecret: process.env.POCKET_ID_CLIENT_SECRET,
+          authorization: {
+            params: {
+              scope: SCOPES,
+            },
+          },
+          profile(profile: Record<string, unknown>) {
+            return {
+              id: profile.sub as string,
+              name: (profile.name ?? profile.preferred_username) as string | undefined,
+              email: profile.email as string | undefined,
+              image: profile.picture as string | undefined,
+              groups: parseGroups(profile),
+            };
+          },
+        },
+      ]
+    : []),
 ];
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
