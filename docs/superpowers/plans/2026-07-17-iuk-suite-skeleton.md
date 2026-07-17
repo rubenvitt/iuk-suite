@@ -1103,7 +1103,7 @@ AUTH_SECRET=dev AUTH_DEV_LOGIN=true AUTH_COOKIE_DOMAIN=.localtest.me pnpm dev
 # beta: anonym, Minimal-Shell
 curl -s -H "Host: beta.localtest.me" http://localhost:3000/ | grep -q 'minimal-shell' && echo "BETA MINIMAL OK"
 # kioskdemo: anonym, Kiosk
-curl -s -H "Host: kiosk.localtest.me" http://localhost:3000/ | grep -q 'kiosk-shell' && echo "KIOSK OK"
+curl -s -H "Host: kioskdemo.localtest.me" http://localhost:3000/ | grep -q 'kiosk-shell' && echo "KIOSK OK"
 # alpha: anonym -> redirect zu /login (302)
 curl -s -o /dev/null -w "%{http_code}" -H "Host: alpha.localtest.me" http://localhost:3000/ | grep -q '30' && echo "ALPHA GUARDED OK"
 ```
@@ -1188,7 +1188,7 @@ test("anonymous beta host renders minimal shell, no switcher", async ({ page }) 
 });
 
 test("kiosk host renders fullscreen, no chrome", async ({ page }) => {
-  await page.goto("http://kiosk.localtest.me:3100/");
+  await page.goto("http://kioskdemo.localtest.me:3100/");
   await expect(page.getByTestId("kiosk-shell")).toBeVisible();
   await expect(page.getByTestId("full-shell-header")).toHaveCount(0);
 });
@@ -1534,7 +1534,7 @@ git commit -m "feat(portal): tiles view + admin CRUD + portal e2e"
 ## Definition of Done (Spec 1)
 
 - `pnpm typecheck`, `pnpm test`, `pnpm build` und `pnpm e2e` sind grün.
-- Die Wegwerf-Hosts (`alpha`/`gamma` Voll, `beta` Minimal, `kiosk` Kiosk auf `*.localtest.me`) rendern die drei Shells; ein Dev-Login auf `alpha` trägt per Cookie auf `.localtest.me` nach `gamma` (SSO, kein Re-Login); `alpha` ist ohne `alpha-users`-Gruppe verboten; Portal zeigt gruppen-gefilterte Kacheln und erlaubt Admin-CRUD.
+- Die Wegwerf-Hosts (`alpha`/`gamma` Voll, `beta` Minimal, `kioskdemo` Kiosk auf `*.localtest.me`) rendern die drei Shells; ein Dev-Login auf `alpha` trägt per Cookie auf `.localtest.me` nach `gamma` (SSO, kein Re-Login); `alpha` ist ohne `alpha-users`-Gruppe verboten; Portal zeigt gruppen-gefilterte Kacheln und erlaubt Admin-CRUD.
 - Kein Docker/CI/Sentry/Backup/Import/Cutover (alles Spec 2).
 
 ## Self-Review-Ergebnis (gegen den Spec geprüft)

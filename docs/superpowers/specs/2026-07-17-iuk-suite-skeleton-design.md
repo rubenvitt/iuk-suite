@@ -147,7 +147,7 @@ better-sqlite3 (WAL), **eine Datei pro Modul** unter `${DATA_DIR}/<modul>.db`
 
 - `alpha` — Voll-Shell, Gruppe erforderlich → `alpha.localtest.me`
 - `beta` — Minimal-Shell, anonym → `beta.localtest.me`
-- `kioskdemo` — Kiosk → `kiosk.localtest.me`
+- `kioskdemo` — Kiosk → `kioskdemo.localtest.me`
 
 E2E beweist: Host → richtiges Modul + richtige Shell; Login einmal auf `alpha`, `beta` ohne Re-Login;
 Kiosk ohne Chrome; `alpha` für Unberechtigte verborgen.
