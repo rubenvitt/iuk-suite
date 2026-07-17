@@ -11,7 +11,8 @@
 ## Global Constraints
 
 - **Next.js 16:** Die Middleware-Datei heißt `proxy.ts` (nicht `middleware.ts`). Vor dem Schreiben von Routing-/Auth-Code die relevanten Guides unter `node_modules/next/dist/docs/` lesen (Breaking Changes ggü. Trainingsstand).
-- **Pinned versions (verbatim aus iuk-overview):** `next@16.2.6`, `react@19.2.6`, `react-dom@19.2.6`, `next-auth@5.0.0-beta.30`, `drizzle-orm@^0.45.2`, `drizzle-kit@^0.31.10`, `tailwindcss@^4.3.0`, `@tailwindcss/postcss@^4.3.0`, `typescript@^6.0.3`, `vitest@^4.1.5`. Aus lagerbuch: `better-sqlite3@^12.11.1`, `@types/better-sqlite3@^7.6.13`, `nanoid@^5.1.16`, `@playwright/test@^1.50.0`, `jsdom@^26`.
+- **Pinned versions (verbatim aus iuk-overview):** `next@16.2.6`, `react@19.2.6`, `react-dom@19.2.6`, `next-auth@5.0.0-beta.30`, `@base-ui/react@^1.4.1`, `drizzle-orm@^0.45.2`, `drizzle-kit@^0.31.10`, `tailwindcss@^4.3.0`, `@tailwindcss/postcss@^4.3.0`, `typescript@^6.0.3`, `vitest@^4.1.5`, `babel-plugin-react-compiler@1.0.0`. Aus lagerbuch: `better-sqlite3@^12.11.1`, `@types/better-sqlite3@^7.6.13`, `nanoid@^5.1.16`, `@playwright/test@^1.50.0`, `jsdom@^26`.
+- **Import-Reconcile-Regel (Ports):** Wann immer eine Datei aus iuk-overview/lagerbuch kopiert wird (shadcn-UI-Komponenten, auth, providers), müssen **alle** ihre `import`-Zeilen auf eine gelistete Dependency auflösen. Vorgehen: `grep -h "^import" <kopierte Dateien>` und jede externe Quelle gegen `package.json` abgleichen; fehlende (z. B. `@base-ui/react`, evtl. `cmdk`) ergänzen, bevor der Task-Build/Typecheck läuft.
 - **Pfad-Alias:** `@/*` → `./src/*` (tsconfig `paths`). Alle Imports nutzen `@/…`.
 - **Edge-Sicherheit:** `core/registry.ts` und `core/routing.ts` dürfen **niemals** (auch nicht transitiv) `better-sqlite3` oder Node-`fs` importieren — sie laufen in der Edge-Middleware.
 - **DB-Pfade:** eine Datei pro Modul unter `${DATA_DIR}/<modul>.db`; `DATA_DIR` default `./.data` (dev). E2E nutzt `./.data/e2e/`.
@@ -57,6 +58,7 @@ Pfad-Konvention in diesem Plan: relative Quell-Pfade wie `../../../iuk-overview/
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@base-ui/react": "^1.4.1",
     "better-sqlite3": "^12.11.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -81,6 +83,7 @@ Pfad-Konvention in diesem Plan: relative Quell-Pfade wie `../../../iuk-overview/
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "babel-plugin-react-compiler": "1.0.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.6",
@@ -297,6 +300,9 @@ export const MODULES: ModuleDef[] = [
     requiresAuth: true, requiredGroups: [], prodHosts: [], showInSwitcher: true },
   { key: "alpha", title: "Alpha", icon: "Square", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], prodHosts: [], showInSwitcher: true },
+  // gamma: authentifiziertes Voll-Shell-Modul ohne Gruppenzwang — SSO-Cross-Ziel im Keystone-E2E.
+  { key: "gamma", title: "Gamma", icon: "Triangle", shell: "full",
+    requiresAuth: true, requiredGroups: [], prodHosts: [], showInSwitcher: true },
   { key: "beta", title: "Beta", icon: "Circle", shell: "minimal",
     requiresAuth: false, requiredGroups: [], prodHosts: [], showInSwitcher: false },
   { key: "kioskdemo", title: "Kiosk Demo", icon: "Monitor", shell: "kiosk",
@@ -587,6 +593,7 @@ export const { GET, POST } = handlers;
 
 `src/app/login/page.tsx`:
 ```tsx
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/core/auth";
 import { LoginForm } from "@/components/login-form";
@@ -594,7 +601,14 @@ import { LoginForm } from "@/components/login-form";
 export default async function LoginPage() {
   const session = await auth();
   if (session?.user) redirect("/");
-  return <LoginForm devLogin={process.env.AUTH_DEV_LOGIN === "true"} />;
+  // LoginForm nutzt useSearchParams() — Next 16 verlangt dafür eine Suspense-Boundary,
+  // sonst schlägt `pnpm build` fehl ("useSearchParams should be wrapped in a suspense boundary").
+  // pnpm typecheck fängt das NICHT; erst der Build.
+  return (
+    <Suspense fallback={null}>
+      <LoginForm devLogin={process.env.AUTH_DEV_LOGIN === "true"} />
+    </Suspense>
+  );
 }
 ```
 
@@ -915,6 +929,12 @@ git commit -m "feat(core): per-module health endpoint"
 Aus `../../../iuk-overview/src/components/ui/` diese Dateien nach `src/components/ui/` kopieren: `button.tsx`, `card.tsx`, `dropdown-menu.tsx`, `avatar.tsx`, `sonner.tsx`, `tooltip.tsx`. `src/components/providers.tsx` aus iuk-overview portieren (SessionProvider + ThemeProvider + TooltipProvider + SessionGuard). `src/lib/utils.ts` existiert bereits (Task 1).
 Danach `src/app/layout.tsx` anpassen: `<Providers>{children}<Toaster richColors position="bottom-right" /></Providers>` einhängen (wie iuk-overview).
 
+**Import-Reconcile (Pflicht, siehe Global Constraints):** Nach dem Kopieren
+`grep -h "^import" src/components/ui/*.tsx src/components/providers.tsx` ausführen und
+jede externe Quelle gegen `package.json` prüfen. `dropdown-menu.tsx`/`tooltip.tsx`/`avatar.tsx`
+importieren aus `@base-ui/react` (in Task 1 bereits als Dependency gelistet); falls eine kopierte
+Datei zusätzlich `cmdk` o. Ä. zieht, jetzt nachinstallieren, sonst schlägt der Build fehl.
+
 - [ ] **Step 2: Failing test für moduleUrl**
 
 `src/core/shell/moduleUrl.test.ts`:
@@ -1033,6 +1053,7 @@ git commit -m "feat(core): three shell variants + registry-driven app-switcher"
 
 **Files:**
 - Create: `src/app/_m/alpha/layout.tsx`, `src/app/_m/alpha/page.tsx`
+- Create: `src/app/_m/gamma/layout.tsx`, `src/app/_m/gamma/page.tsx`
 - Modify/Create: `src/app/_m/beta/layout.tsx`, `src/app/_m/beta/page.tsx` (ersetzt die Task-5-Beweisseite)
 - Create: `src/app/_m/kioskdemo/layout.tsx`, `src/app/_m/kioskdemo/page.tsx`
 
@@ -1051,7 +1072,7 @@ export default function AlphaLayout({ children }: { children: React.ReactNode })
   return <Shell variant={mod.shell} moduleKey={mod.key}>{children}</Shell>;
 }
 ```
-`src/app/_m/beta/layout.tsx` und `src/app/_m/kioskdemo/layout.tsx` analog mit `getModule("beta")` bzw. `getModule("kioskdemo")`.
+`src/app/_m/gamma/layout.tsx`, `src/app/_m/beta/layout.tsx` und `src/app/_m/kioskdemo/layout.tsx` analog mit `getModule("gamma")`, `getModule("beta")` bzw. `getModule("kioskdemo")`.
 
 - [ ] **Step 2: Modul-Seiten**
 
@@ -1059,6 +1080,10 @@ export default function AlphaLayout({ children }: { children: React.ReactNode })
 // src/app/_m/alpha/page.tsx
 export default function AlphaPage() {
   return <div data-testid="alpha-content">Alpha (Voll-Shell, Gruppe alpha-users)</div>;
+}
+// src/app/_m/gamma/page.tsx
+export default function GammaPage() {
+  return <div data-testid="gamma-content">Gamma (Voll-Shell, nur Login, keine Gruppe)</div>;
 }
 // src/app/_m/beta/page.tsx
 export default function BetaPage() {
@@ -1087,8 +1112,8 @@ Expected: `BETA MINIMAL OK`, `KIOSK OK`, `ALPHA GUARDED OK`.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/app/_m/alpha src/app/_m/beta src/app/_m/kioskdemo
-git commit -m "feat: throwaway alpha/beta/kioskdemo modules exercising all three shells"
+git add src/app/_m/alpha src/app/_m/gamma src/app/_m/beta src/app/_m/kioskdemo
+git commit -m "feat: throwaway alpha/gamma/beta/kioskdemo modules exercising all three shells"
 ```
 
 ---
@@ -1175,15 +1200,17 @@ test("alpha requires the alpha-users group", async ({ page }) => {
   expect(res?.status()).toBe(403);
 });
 
-test("SSO: one login serves alpha + portal; switcher reflects groups", async ({ page }) => {
+test("SSO: one login serves alpha + gamma; switcher reflects groups", async ({ page }) => {
   await devLogin(page, { host: "alpha.localtest.me", groups: "alpha-users", callbackPath: "/" });
   // now on alpha, full shell, content visible (no second login)
   await expect(page.getByTestId("alpha-content")).toBeVisible();
   await expect(page.getByTestId("full-shell-header")).toBeVisible();
-  // cross to portal host WITHOUT logging in again
-  await page.goto("http://portal.localtest.me:3100/");
+  // cross to gamma host (auth-required, no group) WITHOUT logging in again — proves the cookie
+  // set on .localtest.me carries the session across subdomains
+  await page.goto("http://gamma.localtest.me:3100/");
+  await expect(page.getByTestId("gamma-content")).toBeVisible();
   await expect(page.getByTestId("full-shell-header")).toBeVisible();
-  // switcher contains alpha (group present) and portal
+  // switcher contains Alpha (group present)
   await expect(page.getByRole("link", { name: /Alpha/ })).toBeVisible();
 });
 ```
@@ -1507,7 +1534,7 @@ git commit -m "feat(portal): tiles view + admin CRUD + portal e2e"
 ## Definition of Done (Spec 1)
 
 - `pnpm typecheck`, `pnpm test`, `pnpm build` und `pnpm e2e` sind grün.
-- Drei Hosts (`alpha/beta/kiosk.localtest.me`) rendern die drei Shells; ein Dev-Login auf einem Host trägt per Cookie auf `.localtest.me` zum nächsten (SSO); `alpha` ist ohne `alpha-users`-Gruppe verboten; Portal zeigt gruppen-gefilterte Kacheln und erlaubt Admin-CRUD.
+- Die Wegwerf-Hosts (`alpha`/`gamma` Voll, `beta` Minimal, `kiosk` Kiosk auf `*.localtest.me`) rendern die drei Shells; ein Dev-Login auf `alpha` trägt per Cookie auf `.localtest.me` nach `gamma` (SSO, kein Re-Login); `alpha` ist ohne `alpha-users`-Gruppe verboten; Portal zeigt gruppen-gefilterte Kacheln und erlaubt Admin-CRUD.
 - Kein Docker/CI/Sentry/Backup/Import/Cutover (alles Spec 2).
 
 ## Self-Review-Ergebnis (gegen den Spec geprüft)
@@ -1515,4 +1542,5 @@ git commit -m "feat(portal): tiles view + admin CRUD + portal e2e"
 - **Spec-Coverage:** Registry (T2) · Host-Routing/proxy (T3,T5) · Ein-OIDC-Client-SSO + Cookie-Domain + Dev-Login (T4) · 3 Shells + Switcher (T8,T9) · per-Modul-SQLite (T6,T11) · Health (T7) · Keystone-Beweis (T9,T10) · Portal inkl. Admin-CRUD (T11,T12) · lokale Verifikation (T10,T12). Alle Spec-1-Abschnitte haben einen Task.
 - **Out-of-Scope** (Docker/CI/Sentry/Backup/Import/Cutover) bewusst ausgelassen → Spec 2.
 - **Typ-Konsistenz:** `ModuleDef`/`ShellVariant` (T2) werden in T3/T8/T9 unverändert genutzt; `RouteDecision` (T3) exakt in `proxy.ts` (T5) konsumiert; `getModuleDb` (T6) in Health (T7) und Portal-Client (T11); `Service`/`NewService` (T11) in Queries/UI (T11,T12).
+- **Pre-Flight-Fixes eingearbeitet (Advisor-Review):** (1) fehlende Deps `@base-ui/react` (shadcn base-nova) + `babel-plugin-react-compiler` (reactCompiler) ergänzt + Import-Reconcile-Regel; (2) `gamma`-Wegwerfmodul als authentifiziertes SSO-Cross-Ziel, damit Task 10 self-contained ist und Portal erst in T11/T12 entsteht; (3) `useSearchParams` in Suspense-Boundary (sonst Build-Fehler).
 - **Offene Umsetzungsrisiken (beim Bauen prüfen, nicht raten):** (a) next-auth-v5-Cookie-Domain-Option + Credentials-Provider im Edge-`auth()`-Wrapper — Guide in `node_modules/next/dist/docs/` und next-auth-Beta-Docs lesen; (b) Next-16-`params`-Promise in Route-Handlern; (c) drizzle-better-sqlite3 `RETURNING`/`onConflictDoNothing` Verhalten.
