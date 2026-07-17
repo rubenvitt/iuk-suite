@@ -22,7 +22,7 @@
 - **Scope-Grenze:** Kein Docker, keine CI, kein Sentry, kein Backup, kein Postgres→SQLite-Import (→ Spec 2). Portal läuft auf Seed-Daten.
 - **Commit-Disziplin:** DRY, YAGNI, TDD, häufige Commits. Jeder Task endet mit Commit.
 
-Pfad-Konvention in diesem Plan: relative Quell-Pfade wie `../../../iuk-overview/…` sind vom Repo-Root `iuk-suite/` aus gemeint (die Alt-Repos liegen als Geschwister in `~/dev/personal/drk/`).
+Pfad-Konvention in diesem Plan: die Notation `../../../<repo>/…` bezeichnet die **Geschwister-Repos** der Alt-Apps. Absolut sind das `/Users/rubeen/dev/personal/drk/<repo>/…` — z. B. `/Users/rubeen/dev/personal/drk/iuk-overview/src/app/globals.css` und `/Users/rubeen/dev/personal/drk/lagerbuch/src/db/index.ts`. Beim Kopieren/Portieren immer diese absoluten Pfade verwenden.
 
 ---
 
