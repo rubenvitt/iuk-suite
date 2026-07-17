@@ -3,6 +3,79 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Task 1 dropped the `shadcn` CLI package (and its `@import "shadcn/tailwind.css"`)
+ * as a dependency. `tw-animate-css` (which IS installed) supplies the
+ * animate-in/out, fade, zoom, slide utilities used by the copied shadcn/base-ui
+ * components — but it does NOT define the base-ui data-state custom variants
+ * below. Without them, classes like `data-open:animate-in` and
+ * `data-disabled:opacity-50` (used in dropdown-menu.tsx, tooltip.tsx) are inert:
+ * Tailwind v4 silently drops unknown variants rather than failing the build, so
+ * this doesn't break `pnpm build` — it just leaves popups/menus unanimated and
+ * disabled states unstyled. Re-declaring this block (verbatim from
+ * shadcn@4.7.0's dist/tailwind.css) is the minimal fix, avoiding the heavyweight
+ * CLI package as a dependency.
+ */
+@custom-variant data-open {
+  &:where([data-state="open"]),
+  &:where([data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-closed {
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-checked {
+  &:where([data-state="checked"]),
+  &:where([data-checked]:not([data-checked="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-unchecked {
+  &:where([data-state="unchecked"]),
+  &:where([data-unchecked]:not([data-unchecked="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-selected {
+  &:where([data-selected="true"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-active {
+  &:where([data-state="active"]),
+  &:where([data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-horizontal {
+  &:where([data-orientation="horizontal"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-vertical {
+  &:where([data-orientation="vertical"]) {
+    @slot;
+  }
+}
+
 @theme {
   --color-rot: #c8000f;
   --color-rot-dk: #a2000c;
