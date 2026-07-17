@@ -29,5 +29,5 @@ export function decideRoute(input: {
   }
 
   const rest = pathname === "/" ? "" : pathname;
-  return { action: "rewrite", target: `/_m/${mod.key}${rest}`, moduleKey: mod.key };
+  return { action: "rewrite", target: `/m/${mod.key}${rest}`, moduleKey: mod.key };
 }

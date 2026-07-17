@@ -9,11 +9,11 @@ describe("decideRoute", () => {
   });
   it("rewrites anonymous module without auth", () => {
     const d = decideRoute({ host: "beta.localtest.me", pathname: "/", groups: null });
-    expect(d).toEqual({ action: "rewrite", target: "/_m/beta", moduleKey: "beta" });
+    expect(d).toEqual({ action: "rewrite", target: "/m/beta", moduleKey: "beta" });
   });
   it("keeps subpaths in rewrite target", () => {
     const d = decideRoute({ host: "beta.localtest.me", pathname: "/foo/bar", groups: null });
-    expect(d).toMatchObject({ action: "rewrite", target: "/_m/beta/foo/bar" });
+    expect(d).toMatchObject({ action: "rewrite", target: "/m/beta/foo/bar" });
   });
   it("redirects to login when auth required and anonymous", () => {
     const d = decideRoute({ host: "alpha.localtest.me", pathname: "/x", groups: null });
@@ -25,10 +25,10 @@ describe("decideRoute", () => {
   });
   it("rewrites when group matches", () => {
     const d = decideRoute({ host: "alpha.localtest.me", pathname: "/", groups: ["alpha-users"] });
-    expect(d).toMatchObject({ action: "rewrite", target: "/_m/alpha", moduleKey: "alpha" });
+    expect(d).toMatchObject({ action: "rewrite", target: "/m/alpha", moduleKey: "alpha" });
   });
   it("unknown host falls back to portal", () => {
     const d = decideRoute({ host: "weird.example.com", pathname: "/", groups: [] });
-    expect(d).toMatchObject({ action: "rewrite", target: "/_m/portal", moduleKey: "portal" });
+    expect(d).toMatchObject({ action: "rewrite", target: "/m/portal", moduleKey: "portal" });
   });
 });
