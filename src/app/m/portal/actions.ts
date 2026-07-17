@@ -19,14 +19,14 @@ export async function createServiceAction(formData: FormData) {
     url: String(formData.get("url")),
     isPublic: formData.get("isPublic") === "on",
   });
-  revalidatePath("/admin");
+  revalidatePath("/m/portal");
 }
 
 export async function deleteServiceAction(formData: FormData) {
   await assertAdmin();
   await ensurePortalReady();
   await deleteService(String(formData.get("id")));
-  revalidatePath("/admin");
+  revalidatePath("/m/portal");
 }
 
 // updateServiceAction intentionally omitted (YAGNI): no page or e2e spec

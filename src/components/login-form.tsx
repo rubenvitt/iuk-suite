@@ -27,7 +27,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
             // the host that initiated the login. Production-safe (this branch never renders when
             // AUTH_DEV_LOGIN is unset) and it leaves the real Pocket-ID button's redirect intact.
             await signIn("dev-login", { email, groups, redirect: false });
-            window.location.assign(callbackUrl);
+            window.location.assign(callbackUrl.startsWith("/") ? callbackUrl : "/");
           }}>
           <input aria-label="email" className="rounded border px-2 py-1" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input aria-label="groups" placeholder="comma,separated,groups" className="rounded border px-2 py-1" value={groups} onChange={(e) => setGroups(e.target.value)} />

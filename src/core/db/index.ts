@@ -1,7 +1,7 @@
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
-import { dirname, join, sep } from "node:path";
+import { dirname, sep } from "node:path";
 
 const DATA_DIR = () => process.env.DATA_DIR ?? "./.data";
 
