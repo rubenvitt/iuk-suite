@@ -1,9 +1,7 @@
 import { auth } from "@/core/auth";
-import { ensurePortalReady } from "@/app/m/portal/_lib/instrument";
 import { getVisibleServicesForUser } from "@/app/m/portal/_lib/services";
 
 export default async function PortalPage() {
-  await ensurePortalReady();
   const session = await auth();
   const services = await getVisibleServicesForUser(session?.user?.groups ?? []);
   return (

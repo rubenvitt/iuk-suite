@@ -2,16 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Negative-path security test for the admin mutation boundary: a logged-in
 // non-admin must NOT be able to create/delete services. auth() is mocked so
-// this runs without a real request/session; the DB-touching collaborators
-// (services, instrument) and next/cache are mocked too so a rejection can be
-// proven purely by "was the writer called", independent of the sqlite layer.
+// this runs without a real request/session; the DB-touching collaborator
+// (services) and next/cache are mocked too so a rejection can be proven
+// purely by "was the writer called", independent of the sqlite layer.
 vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/app/m/portal/_lib/services", () => ({
   createService: vi.fn().mockResolvedValue({ id: "svc-1" }),
   deleteService: vi.fn().mockResolvedValue(undefined),
-}));
-vi.mock("@/app/m/portal/_lib/instrument", () => ({
-  ensurePortalReady: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
