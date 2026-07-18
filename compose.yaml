@@ -31,6 +31,7 @@ services:
 
 volumes:
   suite_data:
+    name: suite_data
 
 networks:
   proxy:

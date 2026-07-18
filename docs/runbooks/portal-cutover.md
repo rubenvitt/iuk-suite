@@ -19,13 +19,14 @@ bleibt 2 Wochen in Standby.
    `psql "$DATABASE_URL" -Atc "select row_to_json(t) from services t" > services.ndjson`
 4. **Import** — aus einem **Repo-Checkout**, identisch zum Generalprobe-Befehl,
    nur mit echtem Snapshot + echtem Volume. Das standalone-Image enthält weder
-   `scripts/` noch `tsx` → NICHT aus dem App-Image importieren. `DATA_DIR` auf das
-   gemountete `suite_data`-Volume zeigen:
+   `scripts/` noch `tsx` → NICHT aus dem App-Image importieren. Das Volume heißt
+   dank `name: suite_data` in `compose.yaml` deterministisch `suite_data` (kein
+   Projekt-Präfix). `DATA_DIR` auf dessen Mountpoint zeigen:
    `VOL=$(docker volume inspect suite_data -f '{{ .Mountpoint }}')`
    `DATA_DIR="$VOL" pnpm exec tsx scripts/import/portal.ts services.ndjson`
    (Alternative ohne Host-Pfad: throwaway `node:22-alpine` mit
-   `-v suite_data:/data -v "$PWD":/repo -w /repo`, darin `pnpm install` + derselbe
-   `tsx`-Aufruf mit `DATA_DIR=/data`.) Entscheidend: Ausgabe endet mit `parity green`.
+   `-v suite_data:/data -v "$PWD":/repo -w /repo`, darin `corepack enable && pnpm install`
+   + derselbe `tsx`-Aufruf mit `DATA_DIR=/data`.) Entscheidend: Ausgabe endet mit `parity green`.
 5. **Paritätscheck**: bricht das Skript ab → KEIN Cutover, Report prüfen.
 6. **Verify vor dem Flip** (Router kollidiert noch, daher per Host-Header direkt
    gegen den Suite-Container, nicht über Traefik):
