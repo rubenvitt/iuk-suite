@@ -107,20 +107,19 @@ networks:
 ### 3. CI — `.github/workflows/ci.yml`
 
 - **Job `test`**: `pnpm install --frozen-lockfile`, dann `lint` · `typecheck` · `test`
-  (vitest) · `e2e`. Playwright läuft gegen den **Prod-Build** (`next build` + `next start`
-  bzw. standalone-Server) mit `AUTH_DEV_LOGIN=true`, gesäten Per-Modul-DBs und
-  **ungesetztem** Pocket ID. E2E deckt mehrere Domains/Shells ab: portal (full) + die
-  vorhandenen Minimal-/Kiosk-Hosts über `.localtest.me` (`moduleForHost` matcht
-  `.localtest.me` unabhängig von `prodHosts`).
+  (vitest) · `e2e`. Playwright läuft gegen **`next dev`** (gesät, `AUTH_DEV_LOGIN=true`,
+  **ungesetztem** Pocket ID) — zuverlässiger als gegen den Prod-Build; das echte
+  Artefakt wird separat über `build-push` + `image-smoke` validiert. E2E deckt mehrere
+  Domains/Shells ab: portal (full) + die vorhandenen Minimal-/Kiosk-Hosts über
+  `.localtest.me` (`moduleForHost` matcht `.localtest.me` unabhängig von `prodHosts`).
 - **Job `build-push`** (`needs: test`): Buildx + QEMU, `linux/amd64,linux/arm64` → ghcr.io,
   tags sha/branch/latest, cache=gha. **Push nur auf main** (nicht bei PR).
 - **`image-smoke`** (günstig, nach dem Build): `docker run` des frischen Image, `curl`
   `/api/health/portal` mit Host-Header — validiert das echte Artefakt End-to-End.
 
-> Hinweis: Die Playwright-Config nutzt heute `next dev -p 3100`. Für die CI wird auf einen
-> Prod-Build umgestellt (repräsentativer, fängt Build-Fehler); Dev-Login bleibt per
-> `AUTH_DEV_LOGIN=true` erzwungen. Lokales `pnpm e2e` kann bei `next dev` bleiben oder
-> mitziehen — im Plan zu entscheiden.
+> Entschieden (siehe Plan): CI bleibt bei `next dev -p 3100` (wie lokales `pnpm e2e`) —
+> zuverlässiger als ein Prod-Build im E2E-Job. Dev-Login bleibt per `AUTH_DEV_LOGIN=true`
+> erzwungen. Das Prod-Artefakt selbst wird über `build-push` + `image-smoke` geprüft.
 
 ### 4. Import + Paritäts-Harness — `scripts/import/`
 
@@ -188,8 +187,9 @@ certresolver/TLS-Label (Cloudflare terminiert TLS).
 
 - [ ] `Dockerfile` + `start.sh` + `scripts/migrate.ts`: Image baut, migriert Per-Modul-DBs, startet.
 - [ ] `compose.yaml` + `.env.example` mit Traefik-Labels (Platzhalter markiert).
-- [ ] CI: `test`-Job (lint/typecheck/unit/e2e gegen Prod-Build) grün; `build-push` Multi-Arch
-      nach ghcr.io; `image-smoke` grün.
+- [ ] CI: `test`-Job (lint/typecheck/unit/e2e gegen `next dev`) grün; das Prod-Artefakt wird
+      separat über `build-push` + `image-smoke` validiert; `build-push` Multi-Arch nach
+      ghcr.io; `image-smoke` grün.
 - [ ] `scripts/import/parity.ts` + `scripts/import/portal.ts` mit Unit-Tests (synthetisch) grün.
 - [ ] `scripts/backup.sh` mit lokalem Ziel + Rotation, dokumentiert.
 - [ ] Registry: `portal.prodHosts = ["iuk-ue.de"]`.

@@ -6,9 +6,13 @@ bleibt 2 Wochen in Standby.
 
 ## Vorbedingungen
 - CI grün, Image `ghcr.io/rubenvitt/iuk-suite:latest` gepusht.
-- Suite-Stack am Server deployt (`compose.yaml` + `.env` gesetzt), aber der
-  Router `iuk-suite` (Host `iuk-ue.de`) ist NOCH NICHT aktiv — sonst kollidiert
-  er mit dem iuk-overview-Router auf demselben Host.
+- `.env` für die Suite vorbereitet, Volume `suite_data` existiert. Der
+  Suite-**Stack selbst wird VOR dem Cutover NICHT `up`-gebracht**: `compose.yaml`
+  aktiviert den Traefik-Router `Host(\`iuk-ue.de\`)` unbedingt (kein Feature-Flag),
+  der würde sofort mit dem iuk-overview-Router auf demselben Host kollidieren,
+  solange iuk-overview die Domain noch bedient. Die Pre-Cutover-Verifikation
+  läuft daher gegen einen **ephemeren `docker run`** (Host-Header direkt gegen
+  den Container, an Traefik vorbei) — siehe Schritt 6.
 
 ## Ablauf
 1. **Generalprobe** (lokal/Staging, automatisierbar):
@@ -28,12 +32,23 @@ bleibt 2 Wochen in Standby.
    `-v suite_data:/data -v "$PWD":/repo -w /repo`, darin `corepack enable && pnpm install`
    + derselbe `tsx`-Aufruf mit `DATA_DIR=/data`.) Entscheidend: Ausgabe endet mit `parity green`.
 5. **Paritätscheck**: bricht das Skript ab → KEIN Cutover, Report prüfen.
-6. **Verify vor dem Flip** (Router kollidiert noch, daher per Host-Header direkt
-   gegen den Suite-Container, nicht über Traefik):
-   `curl -H "Host: iuk-ue.de" http://<suite-container>:3000/api/health/portal`
-   und die Portal-Kacheln / Admin-CRUD / Gruppen-Gating stichprobenhaft.
-7. **Cutover**: Traefik-Router `Host(\`iuk-ue.de\`)` bei iuk-overview deaktivieren
-   und bei der Suite aktivieren (genau einer aktiv). `docker compose up -d`.
+6. **Verify vor dem Flip** — gegen das echte Image, per **ephemerem Container ohne
+   Traefik-Labels** (keine Router-Kollision möglich, da dieser Container gar nicht
+   an Traefik hängt):
+   ```
+   docker run --rm -p 3000:3000 -v suite_data:/data \
+     -e AUTH_SECRET=<secret> -e AUTH_DEV_LOGIN=true \
+     ghcr.io/rubenvitt/iuk-suite:latest
+   ```
+   dann in einem zweiten Terminal:
+   `curl -H "Host: iuk-ue.de" http://127.0.0.1:3000/api/health/portal`
+   plus Portal-Kacheln / Admin-CRUD / Gruppen-Gating stichprobenhaft. Danach den
+   Container stoppen (Ctrl-C bzw. `docker stop`).
+7. **Cutover** — Reihenfolge ist entscheidend, nie beide Router gleichzeitig aktiv:
+   1. Traefik-Router `Host(\`iuk-ue.de\`)` bei **iuk-overview zuerst deaktivieren**.
+   2. Erst danach für die Suite: `docker compose pull && docker compose up -d`
+      (holt das aktuelle `:latest`-Image statt einer evtl. veralteten lokalen Kopie
+      und aktiviert dabei deren Router).
 8. **Standby & Abbau**: nach 2 Wochen iuk-overview-Stack + Postgres abbauen,
    Volume-Tarball archivieren, GitHub-Repo archivieren.
 

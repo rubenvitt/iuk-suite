@@ -13,7 +13,7 @@ function pgRow(over: Partial<Record<string, unknown>> = {}) {
   return {
     id: "11111111-1111-1111-1111-111111111111",
     slug: "wiki", name: "Wiki", description: "Doku", url: "https://wiki.iuk-ue.de",
-    icon_url: null, category: "Doku", tags: ["a", "b"], required_groups: ["dashboard-admins"],
+    icon_url: null, category: "Wissen", tags: ["a", "b"], required_groups: ["dashboard-admins"],
     is_public: true, is_active: false, sort_order: 3, open_in_new_tab: true,
     created_at: "2026-01-02T03:04:05.000Z", updated_at: "2026-01-02T03:04:05.000Z",
     ...over,
@@ -50,7 +50,7 @@ describe("toNewService", () => {
     expect(n.createdAt).toBeInstanceOf(Date);
     expect(n.iconUrl).toBeNull();
     expect(n.description).toBe("Doku");
-    expect(n.category).toBe("Doku");
+    expect(n.category).toBe("Wissen");
     expect(n.openInNewTab).toBe(true);
     expect(n.updatedAt).toBeInstanceOf(Date);
     expect(n.slug).toBe("wiki");

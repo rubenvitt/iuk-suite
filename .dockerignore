@@ -8,3 +8,4 @@ playwright-report
 docs
 e2e
 **/*.test.ts
+.env*
