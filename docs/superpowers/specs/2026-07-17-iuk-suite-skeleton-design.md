@@ -26,7 +26,6 @@ mit Ops-/Migrations-Risiko (Spec 2) vermischt wird.
 **Out of Scope (→ Spec 2):**
 - Dockerfile / Compose-Stack / Volume
 - CI (multi-arch-Image nach ghcr.io, E2E-Smoke pro Domain in CI)
-- Sentry-Anbindung
 - Backup-Job für das Datenvolume
 - Postgres→SQLite-**Import-Skript** mit Paritätscheck (Portal läuft in Spec 1 auf Seed-Daten)
 - Generalprobe mit Prod-Snapshot, Proxy-Cutover, Standby/Abbau
@@ -179,4 +178,4 @@ Kiosk ohne Chrome; `alpha` für Unberechtigte verborgen.
 
 - Konkrete Prod-Subdomains je Modul aus der Proxy-Config erfassen (nur Apex `iuk-ue.de` belegt).
 - Import-Skript Portal (Postgres `services` → `portal.db`) + Paritätscheck.
-- Docker/Compose, CI, Sentry, Backup, Generalprobe, Cutover.
+- Docker/Compose, CI, Backup, Generalprobe, Cutover.

@@ -19,7 +19,7 @@
 - **Cookie-Domain per Env:** `AUTH_COOKIE_DOMAIN` (dev `.localtest.me`, prod `.iuk-ue.de` in Spec 2). Ohne Wert: kein `domain`-Attribut (Fallback host-only).
 - **Dev-Login per Env:** `AUTH_DEV_LOGIN=true` aktiviert den Credentials-Dev-Provider; in Prod nie gesetzt.
 - **Design-Tokens:** DRK-`@theme`-Block aus `../../../lagerbuch/src/app/globals.css` (DRK-Rot `#c8000f`, Regalgrau, Ampel) übernehmen; shadcn-Basis-Tokens/Setup aus `../../../iuk-overview/src/app/globals.css`.
-- **Scope-Grenze:** Kein Docker, keine CI, kein Sentry, kein Backup, kein Postgres→SQLite-Import (→ Spec 2). Portal läuft auf Seed-Daten.
+- **Scope-Grenze:** Kein Docker, keine CI, kein Backup, kein Postgres→SQLite-Import (→ Spec 2). Portal läuft auf Seed-Daten.
 - **Commit-Disziplin:** DRY, YAGNI, TDD, häufige Commits. Jeder Task endet mit Commit.
 
 Pfad-Konvention in diesem Plan: die Notation `../../../<repo>/…` bezeichnet die **Geschwister-Repos** der Alt-Apps. Absolut sind das `/Users/rubeen/dev/personal/drk/<repo>/…` — z. B. `/Users/rubeen/dev/personal/drk/iuk-overview/src/app/globals.css` und `/Users/rubeen/dev/personal/drk/lagerbuch/src/db/index.ts`. Beim Kopieren/Portieren immer diese absoluten Pfade verwenden.
@@ -1535,12 +1535,12 @@ git commit -m "feat(portal): tiles view + admin CRUD + portal e2e"
 
 - `pnpm typecheck`, `pnpm test`, `pnpm build` und `pnpm e2e` sind grün.
 - Die Wegwerf-Hosts (`alpha`/`gamma` Voll, `beta` Minimal, `kioskdemo` Kiosk auf `*.localtest.me`) rendern die drei Shells; ein Dev-Login auf `alpha` trägt per Cookie auf `.localtest.me` nach `gamma` (SSO, kein Re-Login); `alpha` ist ohne `alpha-users`-Gruppe verboten; Portal zeigt gruppen-gefilterte Kacheln und erlaubt Admin-CRUD.
-- Kein Docker/CI/Sentry/Backup/Import/Cutover (alles Spec 2).
+- Kein Docker/CI/Backup/Import/Cutover (alles Spec 2).
 
 ## Self-Review-Ergebnis (gegen den Spec geprüft)
 
 - **Spec-Coverage:** Registry (T2) · Host-Routing/proxy (T3,T5) · Ein-OIDC-Client-SSO + Cookie-Domain + Dev-Login (T4) · 3 Shells + Switcher (T8,T9) · per-Modul-SQLite (T6,T11) · Health (T7) · Keystone-Beweis (T9,T10) · Portal inkl. Admin-CRUD (T11,T12) · lokale Verifikation (T10,T12). Alle Spec-1-Abschnitte haben einen Task.
-- **Out-of-Scope** (Docker/CI/Sentry/Backup/Import/Cutover) bewusst ausgelassen → Spec 2.
+- **Out-of-Scope** (Docker/CI/Backup/Import/Cutover) bewusst ausgelassen → Spec 2.
 - **Typ-Konsistenz:** `ModuleDef`/`ShellVariant` (T2) werden in T3/T8/T9 unverändert genutzt; `RouteDecision` (T3) exakt in `proxy.ts` (T5) konsumiert; `getModuleDb` (T6) in Health (T7) und Portal-Client (T11); `Service`/`NewService` (T11) in Queries/UI (T11,T12).
 - **Pre-Flight-Fixes eingearbeitet (Advisor-Review):** (1) fehlende Deps `@base-ui/react` (shadcn base-nova) + `babel-plugin-react-compiler` (reactCompiler) ergänzt + Import-Reconcile-Regel; (2) `gamma`-Wegwerfmodul als authentifiziertes SSO-Cross-Ziel, damit Task 10 self-contained ist und Portal erst in T11/T12 entsteht; (3) `useSearchParams` in Suspense-Boundary (sonst Build-Fehler).
 - **Offene Umsetzungsrisiken (beim Bauen prüfen, nicht raten):** (a) next-auth-v5-Cookie-Domain-Option + Credentials-Provider im Edge-`auth()`-Wrapper — Guide in `node_modules/next/dist/docs/` und next-auth-Beta-Docs lesen; (b) Next-16-`params`-Promise in Route-Handlern; (c) drizzle-better-sqlite3 `RETURNING`/`onConflictDoNothing` Verhalten.
