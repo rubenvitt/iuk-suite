@@ -14,7 +14,10 @@ export interface ParityReport {
 // Arrays elementweise. Gleiche Daten → gleicher Hash, unabhängig von
 // Schlüssel-/Zeilenreihenfolge.
 function canon(value: unknown): unknown {
+  if (value === undefined) return { __undefined: true };
   if (value instanceof Date) return { __date: value.toISOString() };
+  if (typeof value === "bigint") return { __bigint: value.toString() };
+  if (typeof value === "number" && !Number.isFinite(value)) return { __num: String(value) };
   if (Array.isArray(value)) return value.map(canon);
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
