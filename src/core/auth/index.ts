@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import type { JWT } from "next-auth/jwt";
 import { parseGroups, parseDevGroups } from "@/core/auth/groups";
+import { devLoginEnabled } from "@/core/auth/devLogin";
 
 const ADMIN_GROUP = process.env.ADMIN_GROUP ?? "dashboard-admins";
 const SCOPES = process.env.POCKET_ID_SCOPES ?? "openid profile email groups";
@@ -50,7 +51,7 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
 }
 
 const providers = [
-  ...(process.env.AUTH_DEV_LOGIN === "true"
+  ...(devLoginEnabled()
     ? [
         Credentials({
           id: "dev-login",

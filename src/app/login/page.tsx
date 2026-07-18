@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/core/auth";
+import { devLoginEnabled } from "@/core/auth/devLogin";
 import { LoginForm } from "@/components/login-form";
 
 export default async function LoginPage() {
@@ -11,7 +12,7 @@ export default async function LoginPage() {
   // pnpm typecheck fängt das NICHT; erst der Build.
   return (
     <Suspense fallback={null}>
-      <LoginForm devLogin={process.env.AUTH_DEV_LOGIN === "true"} />
+      <LoginForm devLogin={devLoginEnabled()} />
     </Suspense>
   );
 }

@@ -24,8 +24,9 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
             // header), so its own redirect would bounce the browser off the requesting
             // *.localtest.me host. With redirect:false the session cookie is set by the fetch
             // response, and we navigate on the CURRENT origin instead — keeping the browser on
-            // the host that initiated the login. Production-safe (this branch never renders when
-            // AUTH_DEV_LOGIN is unset) and it leaves the real Pocket-ID button's redirect intact.
+            // the host that initiated the login. Production-safe (this branch renders only when
+            // dev-login is enabled — dev mode or explicit AUTH_DEV_LOGIN=true, never in production
+            // builds; see core/auth/devLogin.ts) and it leaves the real Pocket-ID button intact.
             await signIn("dev-login", { email, groups, redirect: false });
             window.location.assign(callbackUrl.startsWith("/") ? callbackUrl : "/");
           }}>
