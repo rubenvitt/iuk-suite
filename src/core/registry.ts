@@ -14,7 +14,7 @@ export interface ModuleDef {
 // Wegwerf-Module (alpha/beta/kioskdemo) beweisen den Keystone; portal ist das erste echte Modul.
 export const MODULES: ModuleDef[] = [
   { key: "portal", title: "Portal", icon: "LayoutGrid", shell: "full",
-    requiresAuth: true, requiredGroups: [], prodHosts: [], showInSwitcher: true },
+    requiresAuth: true, requiredGroups: [], prodHosts: ["iuk-ue.de"], showInSwitcher: true },
   { key: "alpha", title: "Alpha", icon: "Square", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], prodHosts: [], showInSwitcher: true },
   // gamma: authentifiziertes Voll-Shell-Modul ohne Gruppenzwang — SSO-Cross-Ziel im Keystone-E2E.

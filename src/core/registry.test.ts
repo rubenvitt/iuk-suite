@@ -39,3 +39,12 @@ describe("registry", () => {
     expect(withAlpha).not.toContain("kioskdemo");
   });
 });
+
+describe("moduleForHost — prod apex", () => {
+  it("maps iuk-ue.de to portal", () => {
+    expect(moduleForHost("iuk-ue.de")?.key).toBe("portal");
+  });
+  it("ignores the port when matching the apex host", () => {
+    expect(moduleForHost("iuk-ue.de:443")?.key).toBe("portal");
+  });
+});
