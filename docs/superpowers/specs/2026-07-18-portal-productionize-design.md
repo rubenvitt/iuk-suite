@@ -26,7 +26,7 @@ frei (Flip zurück + Alt-Container an), wird also nicht als Tooling gebaut.
 
 | Frage | Antwort |
 |---|---|
-| Proxy/Routing | **Traefik (Docker-Labels)**. Cutover = Host-Regel `iuk-ue.de` vom Alt-Container auf `suite` umhängen. |
+| Proxy/Routing | **Traefik (Docker-Labels)**, Netzwerk `proxy` (extern), Entrypoint `web` (:80). **Kein TLS/certresolver in Traefik** — TLS terminiert an Cloudflares Edge, cloudflared reicht plain HTTP an `traefik:80`. Cutover = Host-Regel `iuk-ue.de` vom Alt-Container auf `suite` umhängen (genau ein Router pro Host aktiv). |
 | Prod-Snapshot für Generalprobe | **Synthetisch für jetzt.** Echten `pg_dump` zieht der Betreiber direkt vor dem Cutover nach demselben Runbook. Entkoppelt die Code-Deliverables von Prod-Zugang. |
 | Backup-Ziel | **Erstmal lokal** (`sqlite .backup` + tar am Host). Externes Ziel (rclone/rsync) bewusst offen für ein Folge-Modul; Portal-Daten bleiben 2 Wochen in Postgres-Standby. |
 | Portal-Domain | **`iuk-ue.de` (Apex)** → `prodHosts: ["iuk-ue.de"]` in der Registry. SSO-Cookie sitzt ohnehin auf `.iuk-ue.de`. |
@@ -82,22 +82,27 @@ services:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health/portal"]
     labels:
       - traefik.enable=true
+      - traefik.docker.network=proxy
       - traefik.http.routers.iuk-suite.rule=Host(`iuk-ue.de`)
-      - traefik.http.routers.iuk-suite.entrypoints=<PLATZHALTER>   # aus bestehendem Setup
-      - traefik.http.routers.iuk-suite.tls.certresolver=<PLATZHALTER>
+      - traefik.http.routers.iuk-suite.entrypoints=web
       - traefik.http.services.iuk-suite.loadbalancer.server.port=3000
 volumes:
   suite_data:
 networks:
   proxy:
-    external: true   # Name aus bestehendem Setup
+    external: true
 ```
 
+- Konkrete Werte: Netzwerk **`proxy`** (extern), Entrypoint **`web`** (:80),
+  Router-/Service-Name **`iuk-suite`**, Container-Port **3000**.
+- **Kein `tls`/`certresolver`-Label** — TLS terminiert an Cloudflares Edge, cloudflared reicht
+  plain HTTP an `traefik:80`; Traefik kennt nur den `web`-Entrypoint. Ein certresolver-Label
+  würde Traefik ein nie gebrauchtes Zertifikat beschaffen lassen.
 - **Ein OIDC-Client**, Session-Cookie auf `.iuk-ue.de`. Kein ClamAV (Phase 4).
-- Entrypoint/certresolver/Netzwerkname sind markierte Platzhalter — aus dem bestehenden
-  Traefik-Setup zu übernehmen.
-- **Cutover** = Traefik-Router-Regel `Host(\`iuk-ue.de\`)` vom iuk-overview-Container auf
-  `suite` umhängen (Runbook §6).
+- **Router-Kollision beim Cutover:** Suite-Router `Host(\`iuk-ue.de\`)` und der gleichnamige
+  iuk-overview-Router dürfen nie gleichzeitig aktiv sein. Cutover = genau einen enablen, den
+  anderen disablen. Pre-Cutover-Verify läuft daher per Host-Header direkt gegen den Container
+  (nicht über den kollidierenden Traefik-Router) — siehe §6.
 
 ### 3. CI — `.github/workflows/ci.yml`
 
@@ -173,10 +178,11 @@ mit Host-Header `iuk-ue.de`: Portal-Kacheln rendern, Admin-CRUD, Gruppen-Gating 
 
 ## Zu klären beim Bauen (keine Blocker)
 
-- Traefik: konkreter `entrypoint`, `certresolver` und externer Netzwerkname aus dem
-  bestehenden Setup.
 - Deploy-Mechanismus bestätigen (Annahme: SSH + `compose pull && up -d`).
 - `AUTH_URL`/Callback-URL des einen OIDC-Clients für die Apex-Domain.
+
+Traefik-Werte sind geklärt: Netzwerk `proxy` (extern), Entrypoint `web`, kein
+certresolver/TLS-Label (Cloudflare terminiert TLS).
 
 ## Definition of Done (Spec 2)
 
