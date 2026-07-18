@@ -70,6 +70,11 @@ function tsSeconds(d: Date | null | undefined): number | null {
   return d ? Math.floor(d.getTime() / 1000) : null;
 }
 
+// NB: parity certifies DB round-trip fidelity of all 15 fields — NOT the correctness
+// of toNewService's Postgres->app mapping (both parity arms derive from toNewService,
+// so a mapping bug hashes identically on both sides). Mapping correctness is guarded
+// solely by the toNewService unit test — keep its fixture values distinct per field.
+//
 // Full-row view: EVERY migrated field enters parity, so "parity green" certifies the
 // whole row, not a hand-picked subset. Optional insert-defaults are normalized
 // (runtime-inert: toNewService and the stored Service always carry concrete values).

@@ -14,7 +14,7 @@ function pgRow(over: Partial<Record<string, unknown>> = {}) {
     id: "11111111-1111-1111-1111-111111111111",
     slug: "wiki", name: "Wiki", description: "Doku", url: "https://wiki.iuk-ue.de",
     icon_url: null, category: "Doku", tags: ["a", "b"], required_groups: ["dashboard-admins"],
-    is_public: true, is_active: true, sort_order: 3, open_in_new_tab: true,
+    is_public: true, is_active: false, sort_order: 3, open_in_new_tab: true,
     created_at: "2026-01-02T03:04:05.000Z", updated_at: "2026-01-02T03:04:05.000Z",
     ...over,
   };
@@ -51,9 +51,12 @@ describe("toNewService", () => {
     expect(n.iconUrl).toBeNull();
     expect(n.description).toBe("Doku");
     expect(n.category).toBe("Doku");
-    expect(n.isActive).toBe(true);
     expect(n.openInNewTab).toBe(true);
     expect(n.updatedAt).toBeInstanceOf(Date);
+    expect(n.slug).toBe("wiki");
+    expect(n.name).toBe("Wiki");
+    expect(n.url).toBe("https://wiki.iuk-ue.de");
+    expect(n.isActive).toBe(false);
   });
 });
 
@@ -96,5 +99,14 @@ describe("importPortalServices", () => {
     const stored = db.select().from(schema.services).all();
     expect(stored).toHaveLength(1);
     expect(stored[0].name).toBe("Wiki v2");
+  });
+
+  it("faithful import with sub-second timestamps still passes full-row parity (seconds-normalized)", () => {
+    const rows = [pgRow({ created_at: "2026-01-02T03:04:05.678Z", updated_at: "2026-01-02T03:04:05.999Z" })];
+    const db = freshDb();
+    importPortalServices(rows as never, db);
+    const stored = db.select().from(schema.services).all();
+    const source = rows.map((r) => parityView(toNewService(r as never)));
+    expect(checkParity(source, stored.map(parityView)).ok).toBe(true);
   });
 });
