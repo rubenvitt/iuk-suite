@@ -1,0 +1,37 @@
+services:
+  suite:
+    image: ghcr.io/rubenvitt/iuk-suite:latest
+    restart: unless-stopped
+    environment:
+      - DATA_DIR=/data
+      - AUTH_URL=${AUTH_URL:-https://iuk-ue.de}
+      - AUTH_SECRET=${AUTH_SECRET:?AUTH_SECRET must be set}
+      - AUTH_TRUST_HOST=true
+      - AUTH_COOKIE_DOMAIN=${AUTH_COOKIE_DOMAIN:-.iuk-ue.de}
+      - POCKET_ID_ISSUER=${POCKET_ID_ISSUER}
+      - POCKET_ID_CLIENT_ID=${POCKET_ID_CLIENT_ID}
+      - POCKET_ID_CLIENT_SECRET=${POCKET_ID_CLIENT_SECRET}
+      - POCKET_ID_SCOPES=${POCKET_ID_SCOPES:-openid profile email groups}
+    volumes:
+      - suite_data:/data
+    networks:
+      - proxy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health/portal"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.iuk-suite.rule=Host(`iuk-ue.de`)
+      - traefik.http.routers.iuk-suite.entrypoints=web
+      - traefik.http.services.iuk-suite.loadbalancer.server.port=3000
+
+volumes:
+  suite_data:
+
+networks:
+  proxy:
+    external: true
