@@ -63,17 +63,42 @@ export function importPortalServices(rows: PgServiceRow[], db: PortalDb): { impo
   return { imported: rows.length };
 }
 
-// Vergleicht auf den Feldern, die den Umzug überleben müssen. sortOrder ist im
-// Insert-Typ optional (hat .default(0)) → auf 0 normalisieren, sonst Typfehler
-// und Quelle/Ziel könnten uneinheitlich (undefined vs 0) hashen.
-function parityView(r: { id?: string | null; slug: string; url: string; sortOrder?: number | null }) {
-  return { id: r.id ?? "", slug: r.slug, url: r.url, sortOrder: r.sortOrder ?? 0 };
+// drizzle integer(mode:"timestamp") stores Unix SECONDS, so sub-second precision
+// is lost on write. Normalize source (ms from NDJSON) and target (already truncated)
+// both to seconds — otherwise faithful imports fail parity purely on precision.
+function tsSeconds(d: Date | null | undefined): number | null {
+  return d ? Math.floor(d.getTime() / 1000) : null;
+}
+
+// Full-row view: EVERY migrated field enters parity, so "parity green" certifies the
+// whole row, not a hand-picked subset. Optional insert-defaults are normalized
+// (runtime-inert: toNewService and the stored Service always carry concrete values).
+export function parityView(r: schema.NewService | schema.Service) {
+  return {
+    id: r.id ?? "",
+    slug: r.slug,
+    name: r.name,
+    description: r.description ?? "",
+    url: r.url,
+    iconUrl: r.iconUrl ?? null,
+    category: r.category ?? null,
+    tags: r.tags ?? [],
+    requiredGroups: r.requiredGroups ?? [],
+    isPublic: r.isPublic ?? true,
+    isActive: r.isActive ?? true,
+    sortOrder: r.sortOrder ?? 0,
+    openInNewTab: r.openInNewTab ?? true,
+    createdAt: tsSeconds(r.createdAt),
+    updatedAt: tsSeconds(r.updatedAt),
+  };
 }
 
 export function runPortalImport(sourcePath: string): ParityReport {
   migrateAllModules();
   const rows = parseNdjson(readFileSync(sourcePath, "utf8"));
   const db = getModuleDb("portal", schema);
+  // NB: parity runs AFTER this (idempotent) write. A thrown parity error means the
+  // target was already mutated with the imported rows — not "nothing happened".
   importPortalServices(rows, db);
   const stored = db.select().from(schema.services).all();
   const report = checkParity(

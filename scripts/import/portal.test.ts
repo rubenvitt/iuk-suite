@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import * as schema from "@/app/m/portal/_db/schema";
-import { parseNdjson, toNewService, importPortalServices } from "./portal";
+import { parseNdjson, toNewService, importPortalServices, parityView } from "./portal";
 import { checkParity } from "./parity";
 
 const DIR = "./.data/portal-import-test";
@@ -49,6 +49,11 @@ describe("toNewService", () => {
     expect(n.sortOrder).toBe(3);
     expect(n.createdAt).toBeInstanceOf(Date);
     expect(n.iconUrl).toBeNull();
+    expect(n.description).toBe("Doku");
+    expect(n.category).toBe("Doku");
+    expect(n.isActive).toBe(true);
+    expect(n.openInNewTab).toBe(true);
+    expect(n.updatedAt).toBeInstanceOf(Date);
   });
 });
 
@@ -70,5 +75,26 @@ describe("importPortalServices", () => {
     importPortalServices(rows as never, db);
     importPortalServices(rows as never, db);
     expect(db.select().from(schema.services).all()).toHaveLength(1);
+  });
+
+  it("full-row parity passes on a faithful import and fails if any content field differs", () => {
+    const rows = [pgRow()];
+    const db = freshDb();
+    importPortalServices(rows as never, db);
+    const stored = db.select().from(schema.services).all();
+    const source = rows.map((r) => parityView(toNewService(r as never)));
+    expect(checkParity(source, stored.map(parityView)).ok).toBe(true);
+    // a corrupted content field MUST now be caught by the full-row parity view
+    const tampered = stored.map((s) => parityView({ ...s, tags: ["CORRUPT"] }));
+    expect(checkParity(source, tampered).ok).toBe(false);
+  });
+
+  it("upserts in place: re-running with a changed field updates the stored row", () => {
+    const db = freshDb();
+    importPortalServices([pgRow()] as never, db);
+    importPortalServices([pgRow({ name: "Wiki v2" })] as never, db);
+    const stored = db.select().from(schema.services).all();
+    expect(stored).toHaveLength(1);
+    expect(stored[0].name).toBe("Wiki v2");
   });
 });
