@@ -104,6 +104,13 @@ const providers = [
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
   providers,
+  // Auth.js always needs a secret to encrypt the session JWT. Use AUTH_SECRET when
+  // set; otherwise fall back to a fixed insecure secret ONLY while dev-login is active
+  // (dev mode) so a bare `pnpm dev` works out of the box. In production dev-login is
+  // off, so this stays undefined and Auth.js fails loudly if AUTH_SECRET is missing.
+  secret:
+    process.env.AUTH_SECRET ??
+    (devLoginEnabled() ? "dev-only-insecure-secret-not-for-production" : undefined),
   session: {
     strategy: "jwt",
   },
