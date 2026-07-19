@@ -11,7 +11,9 @@ import { QrDisplay } from "@/app/m/qr/QrDisplay";
  * Die Seite darf `data` deshalb weder erneut kodieren noch als JSON deuten.
  */
 
-async function render(params: { data?: string; label?: string; kind?: string }) {
+// Genau der Typ, den Next zur Laufzeit liefert (PageProps in routes.d.ts):
+// doppelt gesetzte Query-Parameter kommen als Array an.
+async function render(params: Record<string, string | string[] | undefined>) {
   return (await QrViewPage({ searchParams: Promise.resolve(params) })) as ReactElement;
 }
 
@@ -46,6 +48,22 @@ function qrLabel(tree: ReactElement): string {
   return (display.props as { label: string }).label;
 }
 
+// Die Ueberschrift, die der Nutzer ueber dem Code liest.
+function headingText(tree: ReactElement): unknown {
+  const heading = flatten(tree).find((el) => el.type === "h1");
+  if (!heading) throw new Error("Ueberschrift nicht gerendert");
+  return (heading.props as { children?: unknown }).children;
+}
+
+// Der Rohtext unter dem Code — die Rueckfallebene zum Abtippen.
+function rawText(tree: ReactElement): unknown {
+  const raw = flatten(tree).find(
+    (el) => (el.props as { "data-testid"?: string })["data-testid"] === "qr-raw",
+  );
+  if (!raw) throw new Error("Rohtext nicht gerendert");
+  return (raw.props as { children?: unknown }).children;
+}
+
 describe("QR-Ansicht: URL-Vertrag", () => {
   it("reicht einen tel:-Link unveraendert durch", async () => {
     // Der Erzeuger hat das Präfix bereits gesetzt. Ein zweites `tel:` wäre eine
@@ -69,7 +87,15 @@ describe("QR-Ansicht: URL-Vertrag", () => {
   it("reicht eine URL durch und zeigt das Label als Ueberschrift", async () => {
     const tree = await render({ data: "https://drk.de", label: "Test", kind: "url" });
     expect(qrText(tree)).toBe("https://drk.de");
-    expect(flatten(tree).some((el) => el.type === "h1")).toBe(true);
+    expect(headingText(tree)).toBe("Test");
+  });
+
+  it("reicht das Label bis zu Dateiname und Teilen-Titel durch", async () => {
+    // Landet als `<label>.png` und als Titel im Teilen-Dialog. Faellt das auf
+    // "qr" zurueck, heissen alle Downloads eines Einsatzes qr.png, qr (1).png —
+    // der Code stimmt, die Zuordnung ist weg.
+    const tree = await render({ data: "https://drk.de", label: "Test", kind: "url" });
+    expect(qrLabel(tree)).toBe("Test");
   });
 
   it("kommt ohne kind aus", async () => {
@@ -96,9 +122,15 @@ describe("QR-Ansicht: URL-Vertrag", () => {
 
 describe("QR-Ansicht: Rohtext unter dem Code", () => {
   it("zeigt den Rohtext bei url, tel und text", async () => {
+    // Der Rohtext ist die manuelle Rueckfallebene: klappt der Scan nicht, tippt
+    // jemand ab, was dort steht. Deshalb muss dort die Nutzlast stehen und nicht
+    // irgendein Text — ein falscher fuehrt ins Leere, waehrend der Code daneben
+    // richtig ist, und der Widerspruch faellt erst beim Anruf auf.
     for (const kind of ["url", "tel", "text"]) {
-      const tree = await render({ data: "https://drk.de", kind });
+      const data = `https://drk.de/${kind}`;
+      const tree = await render({ data, kind });
       expect(testIds(tree), kind).toContain("qr-raw");
+      expect(rawText(tree), kind).toBe(data);
     }
   });
 
@@ -109,5 +141,34 @@ describe("QR-Ansicht: Rohtext unter dem Code", () => {
       const tree = await render({ data: "WIFI:T:WPA;S:Netz;P:pw;H:false;;", kind });
       expect(testIds(tree), kind).not.toContain("qr-raw");
     }
+  });
+});
+
+describe("QR-Ansicht: doppelt gesetzte Query-Parameter", () => {
+  it("verbirgt das WLAN-Passwort auch bei doppeltem kind", async () => {
+    // `?kind=wifi&kind=x` liefert ein Array. Ungeprueft ist `kind !== "wifi"`
+    // wahr und das Klartext-Passwort stuende wieder gross unter dem Code.
+    const tree = await render({
+      data: "WIFI:T:WPA;S:DRK-Fuehrung;P:geheim;H:false;;",
+      kind: ["wifi", "x"],
+    });
+    expect(testIds(tree)).not.toContain("qr-raw");
+  });
+
+  it("kodiert bei doppeltem data nur den ersten Wert", async () => {
+    // Ein Array stringifiziert klaglos zu "tel:+49301234,x" — ein Code, den
+    // niemand anwaehlen kann, ohne jede Fehlermeldung.
+    const tree = await render({ data: ["tel:+49301234", "x"], kind: "tel" });
+    expect(qrText(tree)).toBe("tel:+49301234");
+  });
+
+  it("nimmt bei doppeltem label den ersten Wert", async () => {
+    const tree = await render({
+      data: "https://drk.de",
+      label: ["Test", "x"],
+      kind: "url",
+    });
+    expect(headingText(tree)).toBe("Test");
+    expect(qrLabel(tree)).toBe("Test");
   });
 });

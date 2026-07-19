@@ -16,9 +16,21 @@ import { QrDisplay } from "@/app/m/qr/QrDisplay";
 export default async function QrViewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ data?: string; label?: string; kind?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { data, label, kind } = await searchParams;
+  const params = await searchParams;
+
+  // Doppelt gesetzte Parameter (`?kind=wifi&kind=x`) kommen als Array an. Das
+  // ungeprueft durchzureichen hat Zaehne: `kind !== "wifi"` waere fuer ein Array
+  // wahr und stellte die Passwort-Zeile wieder gross unter den Code, und ein
+  // zweites `data` ergaebe still einen Code mit "tel:+49301234,x" statt einer
+  // waehlbaren Nummer. Nur der erste Wert zaehlt — so las easy-qr ueber
+  // `searchParams.get()` schon immer.
+  const first = (value: string | string[] | undefined) =>
+    Array.isArray(value) ? value[0] : value;
+  const data = first(params.data);
+  const label = first(params.label);
+  const kind = first(params.kind);
 
   if (!data) {
     return <p data-testid="qr-missing">Kein Inhalt übergeben.</p>;
