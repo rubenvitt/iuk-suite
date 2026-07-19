@@ -1,13 +1,10 @@
-import { notFound } from "next/navigation";
-import { auth } from "@/core/auth";
-import { isAdmin } from "@/app/m/portal/_lib/rbac";
+import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { getAllServices } from "@/app/m/portal/_lib/services";
 import { deleteServiceAction } from "@/app/m/portal/actions";
 import { ServiceForm } from "@/app/m/portal/admin/service-form";
 
 export default async function PortalAdminPage() {
-  const session = await auth();
-  if (!session?.user || !isAdmin(session.user.groups)) notFound();
+  await moduleAdminPageOrNotFound("portal");
 
   const services = await getAllServices();
 

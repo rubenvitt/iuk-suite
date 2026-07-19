@@ -8,7 +8,14 @@ export interface ModuleDef {
   icon: string; // lucide icon name
   shell: ShellVariant;
   requiresAuth: boolean;
+  /** Zugang zum Modul überhaupt. Leer = jeder Eingeloggte darf. */
   requiredGroups: string[];
+  /**
+   * Wer das Modul **administrieren** darf — zusätzlich zum Suite-Admin, der
+   * überall darf. Überschreibbar per `SUITE_ADMIN_GROUP_<KEY>`.
+   * Nicht direkt lesen, sondern über `isModuleAdmin()` aus `core/groups`.
+   */
+  adminGroups: string[];
   /**
    * Fallback-Hosts, wenn `SUITE_HOST_<KEY>` nicht gesetzt ist. Nicht direkt
    * lesen — immer über `prodHostsFor()`, sonst greift die Env-Konfiguration an
@@ -21,17 +28,25 @@ export interface ModuleDef {
 
 // Wegwerf-Module (alpha/beta/kioskdemo) beweisen den Keystone; portal ist das erste echte Modul.
 export const MODULES: ModuleDef[] = [
+  // portal: keine modul-eigene Admin-Gruppe — Admin ist hier der Suite-Admin
+  // (ADMIN_GROUP). Das ist genau das bisherige Verhalten, nur nicht mehr im
+  // Modul dupliziert.
   { key: "portal", title: "Portal", icon: "LayoutGrid", shell: "full",
-    requiresAuth: true, requiredGroups: [], prodHosts: ["iuk-ue.de"], showInSwitcher: true },
+    requiresAuth: true, requiredGroups: [], adminGroups: [],
+    prodHosts: ["iuk-ue.de"], showInSwitcher: true },
   { key: "alpha", title: "Alpha", icon: "Square", shell: "full",
-    requiresAuth: true, requiredGroups: ["alpha-users"], prodHosts: [], showInSwitcher: true },
+    requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
+    prodHosts: [], showInSwitcher: true },
   // gamma: authentifiziertes Voll-Shell-Modul ohne Gruppenzwang — SSO-Cross-Ziel im Keystone-E2E.
   { key: "gamma", title: "Gamma", icon: "Triangle", shell: "full",
-    requiresAuth: true, requiredGroups: [], prodHosts: [], showInSwitcher: true },
+    requiresAuth: true, requiredGroups: [], adminGroups: [],
+    prodHosts: [], showInSwitcher: true },
   { key: "beta", title: "Beta", icon: "Circle", shell: "minimal",
-    requiresAuth: false, requiredGroups: [], prodHosts: [], showInSwitcher: false },
+    requiresAuth: false, requiredGroups: [], adminGroups: [],
+    prodHosts: [], showInSwitcher: false },
   { key: "kioskdemo", title: "Kiosk Demo", icon: "Monitor", shell: "kiosk",
-    requiresAuth: false, requiredGroups: [], prodHosts: [], showInSwitcher: false },
+    requiresAuth: false, requiredGroups: [], adminGroups: [],
+    prodHosts: [], showInSwitcher: false },
 ];
 
 const BY_KEY = new Map(MODULES.map((m) => [m.key, m]));

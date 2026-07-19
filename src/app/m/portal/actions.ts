@@ -1,13 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/core/auth";
-import { isAdmin } from "@/app/m/portal/_lib/rbac";
+import { requireModuleAdmin } from "@/core/auth/guards";
 import { createService, deleteService } from "@/app/m/portal/_lib/services";
 
-async function assertAdmin() {
-  const session = await auth();
-  if (!session?.user || !isAdmin(session.user.groups)) throw new Error("Forbidden");
-}
+const assertAdmin = () => requireModuleAdmin("portal");
 
 export async function createServiceAction(formData: FormData) {
   await assertAdmin();

@@ -1,8 +1,7 @@
-const ADMIN_GROUP = process.env.ADMIN_GROUP ?? "dashboard-admins";
-
-export function isAdmin(groups: string[]): boolean {
-  return groups.includes(ADMIN_GROUP);
-}
+// Die Admin-Prüfung liegt seit 19.07.2026 in `core/groups` (isModuleAdmin) —
+// sie war hier und in core/auth/index.ts doppelt und hätte sich mit jedem
+// weiteren Modul erneut vervielfacht. Hier bleibt nur, was fachlich zum
+// Portal gehört: welche Kachel wem sichtbar ist.
 
 interface ServiceLike {
   isPublic: boolean;

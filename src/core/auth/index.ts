@@ -5,7 +5,7 @@ import { parseGroups, parseDevGroups } from "@/core/auth/groups";
 import { devLoginEnabled } from "@/core/auth/devLogin";
 import { pocketIdProvider } from "@/core/auth/pocketId";
 
-const ADMIN_GROUP = process.env.ADMIN_GROUP ?? "dashboard-admins";
+import { suiteAdminGroup } from "@/core/groups";
 
 async function getOIDCConfig() {
   const issuer = process.env.POCKET_ID_ISSUER!;
@@ -130,7 +130,10 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     session({ session, token }) {
       const groups = (token.groups as string[]) ?? [];
       session.user.groups = groups;
-      session.user.isAdmin = groups.includes(ADMIN_GROUP);
+      // Suite-weit, nicht modul-bezogen: "ist Betreiber". Für die Frage
+      // "darf dieser Nutzer Modul X administrieren?" gibt es isModuleAdmin
+      // aus core/groups — session.user.isAdmin beantwortet sie NICHT.
+      session.user.isAdmin = groups.includes(suiteAdminGroup());
       if (token.sub) {
         session.user.id = token.sub;
       }
