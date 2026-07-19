@@ -3,9 +3,9 @@ import Credentials from "next-auth/providers/credentials";
 import type { JWT } from "next-auth/jwt";
 import { parseGroups, parseDevGroups } from "@/core/auth/groups";
 import { devLoginEnabled } from "@/core/auth/devLogin";
+import { pocketIdProvider } from "@/core/auth/pocketId";
 
 const ADMIN_GROUP = process.env.ADMIN_GROUP ?? "dashboard-admins";
-const SCOPES = process.env.POCKET_ID_SCOPES ?? "openid profile email groups";
 
 async function getOIDCConfig() {
   const issuer = process.env.POCKET_ID_ISSUER!;
@@ -74,32 +74,7 @@ const providers = [
   // issuer-less oidc provider makes assertConfig throw (500) for the whole route —
   // breaking dev-login-only environments where no Pocket ID env vars are set.
   // Production sets POCKET_ID_ISSUER, so real SSO still registers there.
-  ...(process.env.POCKET_ID_ISSUER
-    ? [
-        {
-          id: "pocket-id",
-          name: "Pocket ID",
-          type: "oidc" as const,
-          issuer: process.env.POCKET_ID_ISSUER,
-          clientId: process.env.POCKET_ID_CLIENT_ID,
-          clientSecret: process.env.POCKET_ID_CLIENT_SECRET,
-          authorization: {
-            params: {
-              scope: SCOPES,
-            },
-          },
-          profile(profile: Record<string, unknown>) {
-            return {
-              id: profile.sub as string,
-              name: (profile.name ?? profile.preferred_username) as string | undefined,
-              email: profile.email as string | undefined,
-              image: profile.picture as string | undefined,
-              groups: parseGroups(profile),
-            };
-          },
-        },
-      ]
-    : []),
+  ...(process.env.POCKET_ID_ISSUER ? [pocketIdProvider()] : []),
 ];
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
