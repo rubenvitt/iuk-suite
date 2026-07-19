@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:pwa": "playwright test --config=playwright.pwa.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
