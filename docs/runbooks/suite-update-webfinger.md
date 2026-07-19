@@ -1,11 +1,20 @@
-# Runbook — Suite-Update (Webfinger + PWA-Spike) und Alt-Stack-Abbau
+# Runbook — Suite-Update (Webfinger, Domains aus der .env) und Alt-Stack-Abbau
 
-Für den Server-Agenten. **Zwei getrennte Teile:**
+Für den Server-Agenten. **Drei Teile:**
 
 - **Teil A — jetzt:** die laufende Suite auf den aktuellen Stand bringen. Bringt die
-  eigene `/.well-known/webfinger`-Route mit. Rein additiv, kein Domain-Umschwenk.
+  eigene `/.well-known/webfinger`-Route mit **und stellt die Modul-Domains auf die
+  `.env` um**. Rein additiv, kein Domain-Umschwenk.
 - **Teil B — frühestens 02.08.2026:** den Alt-Stack `iuk-overview` abbauen, inklusive
   des Webfinger-Containers. **Nicht vorziehen** (Standby-Frist).
+- **Teil C — Referenz:** wie ab jetzt ein Modul-Cutover läuft (ohne Rebuild).
+
+> **Neu in diesem Update: die Prod-Domains kommen aus der `.env`, nicht mehr aus dem
+> Code.** `SUITE_HOST_<MODUL>` legt fest, unter welcher Domain ein Modul läuft; ist
+> nichts gesetzt, gilt weiterhin der Fallback aus dem Code (für `portal`:
+> `iuk-ue.de`). Ein künftiger Cutover ist damit eine `.env`-Zeile plus
+> `docker compose up -d` — kein Commit, kein CI-Lauf, und der Rollback ist das
+> Zurücksetzen derselben Zeile.
 
 Kontext: Der Portal-Cutover lief am 19.07.2026 (Runbook `portal-cutover.md`). Seitdem
 bedient die Suite `iuk-ue.de`; vom Alt-Stack laufen noch `iuk-overview-db` (Rollback-Netz)
@@ -92,19 +101,66 @@ Aufräumen: `docker stop suite-verify`
 > Antworten sind byte-identisch mit denen des Alt-Dienstes. Sie sollten also
 > durchlaufen; tun sie es nicht, stimmt etwas am Image oder an der Umgebung.
 
-## A2. Deployen
+## A2. `.env` und `compose.yaml` angleichen
+
+Die neue `compose.yaml` reicht die `.env` per `env_file` durch und nimmt die
+Traefik-Regel aus einer Variablen. **Beides muss auf dem Server nachgezogen werden** —
+`compose.yaml` liegt dort, nicht im Image.
+
+```bash
+cd <Verzeichnis mit compose.yaml der Suite>
+cp compose.yaml compose.yaml.bak-$(date +%F)      # Rückweg sichern
+docker compose version --short                    # muss >= 2.24 sein (env_file: required)
+```
+
+Neue `compose.yaml` aus dem Repo übernehmen (Branch `main`, Commit `3676f4d` oder
+neuer). Dann in der `.env` **ergänzen**:
+
+```dotenv
+SUITE_HOST_PORTAL=iuk-ue.de
+SUITE_TRAEFIK_RULE=Host(`iuk-ue.de`)
+```
+
+Beides entspricht exakt dem bisherigen Verhalten — dieser Schritt ändert nichts, er
+verlagert nur die Quelle. Vorlage mit allen Kommentaren: `.env.example` im Repo.
+
+Vor dem Anwenden prüfen, dass die Substitution stimmt:
+
+```bash
+docker compose config | grep -E 'routers.iuk-suite.rule|SUITE_HOST'
+# erwartet u. a.: traefik.http.routers.iuk-suite.rule: Host(`iuk-ue.de`)
+```
+
+> **Stolperstelle, die hier bewusst vermieden wird:** `SUITE_HOST_PORTAL` gehört
+> **nicht** als `- SUITE_HOST_PORTAL=${SUITE_HOST_PORTAL:-}` unter `environment`.
+> Compose setzt eine fehlende Variable dann auf einen **leeren String**, und leer
+> bedeutet „dieses Modul hat keine Prod-Domain" — das Portal verschwände aus dem
+> App-Switcher. Über `env_file` bleibt „nicht gesetzt" auch wirklich nicht gesetzt.
+
+## A3. Deployen
 
 Die Suite läuft bereits — das ist ein Container-Austausch, **keine** Router-Änderung.
 Kurze Downtime (wenige Sekunden) beim Neustart einplanen.
 
 ```bash
-cd <Verzeichnis mit compose.yaml der Suite>
 docker compose pull
 docker compose up -d
 docker compose ps          # suite muss "healthy" werden (start_period 40s abwarten)
 ```
 
-## A3. Verify nach dem Deploy
+> ⚠️ **Den Health-Status wirklich abwarten.** Eine ungültige Host-Konfiguration
+> (Tippfehler im Variablennamen, doppelt vergebener Host, Protokoll/Port im Wert)
+> lässt den Server beim Boot abbrechen. Der Container bleibt dabei im Status
+> `running`, antwortet aber auf nichts — `restart: unless-stopped` greift nicht, weil
+> der Prozess nicht beendet wird. Nach außen sind das 502er. Die Ursache steht im Log:
+>
+> ```bash
+> docker compose logs suite | grep -A5 'Ungültige Host-Konfiguration'
+> ```
+>
+> Rückweg: `.env` korrigieren, `docker compose up -d`.
+
+## A4. Verify nach dem Deploy
 
 **Wichtig zur Erwartung:** Über die Domain antwortet auf `/.well-known/webfinger`
 **weiterhin der Alt-Container** — sein Traefik-Router ist spezifischer (`PathPrefix`) als
@@ -133,16 +189,16 @@ curl -si https://iuk-ue.de/manifest.webmanifest | grep -i 'application/manifest'
 docker logs --tail 100 <traefik-container> | grep -o '/m/[^ "]*' | sort -u | head
 ```
 
-## A4. Rollback
+## A5. Rollback
 
 ```bash
-docker compose down
-docker run -d ... ghcr.io/rubenvitt/iuk-suite:<vorheriger-sha-tag>   # oder:
-# in compose.yaml das image-Tag auf den vorherigen type=sha-Tag pinnen, dann up -d
+cp compose.yaml.bak-<datum> compose.yaml    # alte Compose-Datei zurück
+# in compose.yaml das image-Tag auf den vorherigen type=sha-Tag pinnen
+docker compose up -d
 ```
 
-Der Deploy ändert **keine Daten und keine Router** — ein Rückrollen auf das vorherige
-Image genügt. Die Volume-Daten bleiben unberührt.
+Der Deploy ändert **keine Daten und keine Router** — Image-Tag und `compose.yaml`
+zurückzurollen genügt. Die Volume-Daten bleiben unberührt.
 
 ---
 
@@ -198,6 +254,36 @@ Repo `iuk-overview` auf GitHub archivieren.
 Volumes existieren, ist der Alt-Stack in Sekunden zurück.
 
 ---
+
+---
+
+# Teil C — Referenz: so läuft ab jetzt ein Modul-Cutover
+
+Nicht jetzt auszuführen — die Vorlage für QR, Feedback, Files, Lagerbuch und Funk.
+Seit dem Update braucht keiner dieser Schritte einen Commit oder CI-Lauf.
+
+1. **DNS + TLS** für die neue Domain auf den Server zeigen lassen.
+2. **`.env` ergänzen** — beide Zeilen, sonst greift die Umstellung nur halb:
+   ```dotenv
+   SUITE_HOST_QR=qr.iuk-ue.de
+   SUITE_TRAEFIK_RULE=Host(`iuk-ue.de`) || Host(`qr.iuk-ue.de`)
+   ```
+   Ohne `SUITE_HOST_QR` weiß die Suite nichts von der Domain; ohne die Traefik-Regel
+   erreicht die Domain den Container gar nicht erst.
+3. **Alten Stack zuerst vom Router nehmen**, dann `docker compose up -d`. Nie beide
+   Router gleichzeitig auf derselben Domain.
+4. **Verifizieren, dass dort auch das richtige Modul antwortet** — das ist der Schritt,
+   den man nicht auslassen darf:
+   ```bash
+   curl -s https://qr.iuk-ue.de/ | grep -o 'data-testid="[a-z-]*"' | head -3
+   ```
+   Erwartet werden die Test-IDs des QR-Moduls. **Kommt hier das Portal, ist der Wert
+   von `SUITE_HOST_QR` falsch** — ein Tippfehler im *Wert* kann beim Boot nicht
+   erkannt werden, der Host fällt dann still auf den Portal-Fallback zurück. Das ist
+   die einzige Fehlkonfiguration, die durchrutscht, und dieser curl fängt sie.
+5. **Rollback** ist eine Zeile: `SUITE_HOST_QR=` leeren (nicht löschen) und
+   `docker compose up -d`. Das Modul hat dann wieder keine Prod-Domain und
+   verschwindet auch aus dem App-Switcher.
 
 ## Was in diesem Runbook NICHT vorkommt
 
