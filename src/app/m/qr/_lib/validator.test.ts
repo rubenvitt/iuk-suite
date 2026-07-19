@@ -1,10 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { validatePresetInput } from "@/app/m/qr/_lib/validator";
+import { payloadToQrString } from "@/app/m/qr/_lib/payload";
+import type { QrPayload } from "@/app/m/qr/_lib/types";
 
+// Gibt den geprueften Wert zurueck, damit der Erfolgspfad nicht nur auf ok:true endet.
 const ok = (input: unknown) => {
   const r = validatePresetInput(input);
   expect(r.ok).toBe(true);
-  return r;
+  if (!r.ok) throw new Error(`unerwartet abgelehnt: ${r.error}`);
+  return r.value;
 };
 const fails = (input: unknown, part: string) => {
   const r = validatePresetInput(input);
@@ -14,7 +18,24 @@ const fails = (input: unknown, part: string) => {
 
 describe("validatePresetInput", () => {
   it("akzeptiert ein minimales url-Preset", () => {
-    ok({ label: "Test", kind: "url", value: "https://drk.de" });
+    expect(ok({ label: "Test", kind: "url", value: "https://drk.de" })).toEqual({
+      id: undefined,
+      label: "Test",
+      icon: undefined,
+      kind: "url",
+      value: "https://drk.de",
+    });
+  });
+  it("reicht id, label, icon, kind und value unveraendert durch", () => {
+    expect(
+      ok({ label: "Test", kind: "url", value: "https://drk.de", id: "x1", icon: "link" }),
+    ).toEqual({
+      id: "x1",
+      label: "Test",
+      icon: "link",
+      kind: "url",
+      value: "https://drk.de",
+    });
   });
   it("lehnt Nicht-Objekte ab", () => {
     fails("nope", "Objekt");
@@ -35,9 +56,17 @@ describe("validatePresetInput", () => {
     fails({ label: "L", kind: "url", value: "x", id: "-start" }, "id");
     ok({ label: "L", kind: "url", value: "x", id: "gueltig-123" });
   });
+  // Die 60 sind lasttragend: laengere ids kollidieren mit der Slug-Erzeugung.
+  it("begrenzt die id auf 60 Zeichen", () => {
+    ok({ label: "L", kind: "url", value: "x", id: "a".repeat(60) });
+    fails({ label: "L", kind: "url", value: "x", id: "a".repeat(61) }, "id");
+  });
   it("url/tel/text brauchen einen nicht-leeren String", () => {
     fails({ label: "L", kind: "url", value: "" }, "value");
     fails({ label: "L", kind: "tel", value: 42 }, "value");
+    fails({ label: "L", kind: "text", value: "" }, "value");
+    expect(ok({ label: "L", kind: "text", value: "Freitext" }).value).toBe("Freitext");
+    expect(ok({ label: "L", kind: "tel", value: "+49 30 1234" }).value).toBe("+49 30 1234");
   });
   it("wifi: ssid Pflicht, encryption aus der Liste", () => {
     fails({ label: "L", kind: "wifi", value: { encryption: "WPA" } }, "ssid");
@@ -47,9 +76,37 @@ describe("validatePresetInput", () => {
   it("wifi: hidden muss boolean sein", () => {
     fails({ label: "L", kind: "wifi", value: { ssid: "S", encryption: "WPA", hidden: "ja" } }, "hidden");
   });
+  it("wifi: nicht-Objekt als value wird eindeutig abgelehnt", () => {
+    fails({ label: "L", kind: "wifi", value: "S" }, "Objekt");
+    fails({ label: "L", kind: "wifi", value: null }, "Objekt");
+  });
+  // Regression: ein offenes WLAN kommt ohne password an. Reicht die Validierung das so
+  // durch, bricht payloadToQrString beim Escapen mit einer TypeError ab.
+  it("wifi: ergaenzt fehlendes password durch einen leeren String", () => {
+    const v = ok({ label: "L", kind: "wifi", value: { ssid: "Netz", encryption: "nopass" } });
+    expect(v.value).toEqual({ ssid: "Netz", password: "", encryption: "nopass" });
+    expect(payloadToQrString(v as QrPayload)).toBe("WIFI:T:nopass;S:Netz;P:;H:false;;");
+  });
+  it("wifi: uebernimmt password und hidden unveraendert", () => {
+    const v = ok({
+      label: "L",
+      kind: "wifi",
+      value: { ssid: "Netz", password: "geheim", encryption: "WPA", hidden: true },
+    });
+    expect(v.value).toEqual({
+      ssid: "Netz",
+      password: "geheim",
+      encryption: "WPA",
+      hidden: true,
+    });
+  });
   it("vcard: name Pflicht, Optionalfelder müssen Strings sein", () => {
     fails({ label: "L", kind: "vcard", value: {} }, "name");
     fails({ label: "L", kind: "vcard", value: { name: "N", tel: 1 } }, "tel");
-    ok({ label: "L", kind: "vcard", value: { name: "N" } });
+    expect(ok({ label: "L", kind: "vcard", value: { name: "N" } }).value).toEqual({ name: "N" });
+  });
+  it("vcard: nicht-Objekt als value wird eindeutig abgelehnt", () => {
+    fails({ label: "L", kind: "vcard", value: null }, "Objekt");
+    fails({ label: "L", kind: "vcard", value: "N" }, "Objekt");
   });
 });

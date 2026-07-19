@@ -27,6 +27,8 @@ export function validatePresetInput(input: unknown): ValidationResult {
 
   const kind = r.kind as QrKind;
   const v = r.value;
+  // Nutzlast, die gespeichert wird. Nur wifi weicht von der Eingabe ab, siehe dort.
+  let payloadValue: unknown = v;
   switch (kind) {
     case "url":
     case "tel":
@@ -46,6 +48,16 @@ export function validatePresetInput(input: unknown): ValidationResult {
       if (w.hidden !== undefined && typeof w.hidden !== "boolean") {
         return fail("wifi.hidden muss boolean sein");
       }
+      // Ein offenes WLAN (encryption "nopass") kommt ohne password an, Preset verlangt es
+      // aber als Pflichtfeld. Ohne diesen Default reicht die Validierung eine Nutzlast
+      // durch, an der payloadToQrString spaeter mit einer TypeError abbricht - und der
+      // Anlegepfad wuerde sie vorher dauerhaft so in die Datenbank schreiben.
+      payloadValue = {
+        ssid: w.ssid,
+        password: typeof w.password === "string" ? w.password : "",
+        encryption: w.encryption,
+        ...(w.hidden !== undefined ? { hidden: w.hidden } : {}),
+      };
       break;
     }
     case "vcard": {
@@ -68,7 +80,7 @@ export function validatePresetInput(input: unknown): ValidationResult {
       label: r.label,
       icon: r.icon as string | undefined,
       kind,
-      value: v,
+      value: payloadValue,
     } as Omit<Preset, "id"> & { id?: string },
   };
 }
