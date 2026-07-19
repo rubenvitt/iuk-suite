@@ -168,6 +168,16 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /*
+   * Tap-Ziele für die Bedienung mit Handschuhen im Einsatz (übernommen aus
+   * easy-qr). Das ist eine Einsatz-Anforderung, keine Stilfrage — deshalb als
+   * Token an einer Stelle statt als Zahl in jeder Komponente. Ohne diese
+   * Definition fällt `min-h-[var(--tap)]` still auf `auto` zurück und die
+   * Buttons schrumpfen auf Texthöhe, ohne dass ein Gate anschlägt.
+   */
+  --tap: 56px;
+  --tap-xl: 72px;
 }
 
 .dark {
