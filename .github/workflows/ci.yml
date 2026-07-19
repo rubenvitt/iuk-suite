@@ -29,18 +29,98 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e
 
-  build-push:
+  # Je Architektur ein Job auf NATIVEM Runner statt einem Job mit QEMU.
+  # Grund: der emulierte arm64-Build kompiliert better-sqlite3 nativ und lief
+  # >2,5 h ohne fertig zu werden, während amd64 49 s braucht — Prod hing dadurch
+  # auf einem alten Image fest. Nebeneffekt: der image-smoke läuft jetzt auch
+  # auf arm64 wirklich, vorher wurde dort nur gebaut und nie gestartet.
+  build:
     needs: test
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: Log in to ghcr.io
         if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build (lokal, für image-smoke)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: iuk-suite:ci
+          # Cache pro Plattform trennen, sonst überschreiben sich die beiden
+          # Matrix-Jobs gegenseitig und jeder Lauf startet kalt.
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+      - name: image-smoke — Health mit Host-Header
+        run: |
+          docker run -d --rm --name smoke -p 3000:3000 \
+            -e AUTH_SECRET=smoke -e AUTH_DEV_LOGIN=true iuk-suite:ci
+          for i in $(seq 1 20); do
+            if curl -fsS -H "Host: iuk-ue.de" http://127.0.0.1:3000/api/health/portal; then ok=1; break; fi
+            sleep 2
+          done
+          docker logs smoke | tail -30
+          docker stop smoke
+          test "${ok:-0}" = "1"
+      - name: Push by digest (nur main)
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          # Ohne Tag hochladen — die Tags vergibt der merge-Job auf der
+          # Manifest-Liste, sonst würde jede Plattform :latest überschreiben.
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.platform }}
+      - name: Digest als Artefakt ablegen
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: digest-${{ strategy.job-index }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  # Führt die per-Plattform-Digests zu einer Multi-Arch-Manifest-Liste zusammen
+  # und hängt erst hier die Tags (latest/sha/branch) dran.
+  merge:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to ghcr.io
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -55,33 +135,16 @@ jobs:
             type=sha
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
-      - name: Build (amd64 local, für image-smoke)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          load: true
-          tags: iuk-suite:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: image-smoke — Health mit Host-Header
+      - name: Manifest-Liste erzeugen
+        working-directory: /tmp/digests
         run: |
-          docker run -d --rm --name smoke -p 3000:3000 \
-            -e AUTH_SECRET=smoke -e AUTH_DEV_LOGIN=true iuk-suite:ci
-          for i in $(seq 1 20); do
-            if curl -fsS -H "Host: iuk-ue.de" http://127.0.0.1:3000/api/health/portal; then ok=1; break; fi
-            sleep 2
-          done
-          docker logs smoke | tail -30
-          docker stop smoke
-          test "${ok:-0}" = "1"
-      - name: Build + Push (multi-arch, nur main)
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+      - name: Verify — beide Architekturen im Manifest
+        run: |
+          docker buildx imagetools inspect \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} \
+            --format '{{ json .Manifest }}' | jq -r '.manifests[].platform | "\(.os)/\(.architecture)"' | sort -u | tee /tmp/platforms
+          grep -q '^linux/amd64$' /tmp/platforms
+          grep -q '^linux/arm64$' /tmp/platforms
