@@ -1,6 +1,6 @@
 import { auth } from "@/core/auth";
-import { visibleSwitcherModules, getModule } from "@/core/registry";
-import { moduleUrl } from "@/core/shell/moduleUrl";
+import { getModule } from "@/core/registry";
+import { switcherEntries } from "@/core/shell/switcherEntries";
 import { AppSwitcher } from "@/core/shell/AppSwitcher";
 
 export async function FullShell({
@@ -12,13 +12,10 @@ export async function FullShell({
 }) {
   const session = await auth();
   const mod = getModule(moduleKey);
-  // href wird hier (server-seitig) über moduleUrl() gebaut: moduleUrl() liest
-  // process.env.PORT/SUITE_DEV_HOST_SUFFIX, die im Client-Bundle nicht
-  // verfügbar sind. AppSwitcher bekommt nur die fertige href und ruft
-  // moduleUrl() selbst nie auf.
-  const entries = visibleSwitcherModules(session?.user?.groups ?? null).map(
-    (m) => ({ key: m.key, title: m.title, icon: m.icon, href: moduleUrl(m.key) })
-  );
+  // Einträge werden hier (server-seitig) gebaut: switcherEntries() liest über
+  // moduleUrl() process.env, das im Client-Bundle nicht verfügbar ist.
+  // AppSwitcher bekommt nur fertige hrefs.
+  const entries = switcherEntries(session?.user?.groups ?? null);
   return (
     <div className="min-h-screen">
       <header
