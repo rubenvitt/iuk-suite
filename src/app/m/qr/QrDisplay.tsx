@@ -44,11 +44,18 @@ export function QrDisplay({ text, label }: { text: string; label: string }) {
     };
   }, [text]);
 
+  // Überlappende Pointer (Zwei-Finger-Berührung mit Handschuhen, Pinch-Zoom)
+  // dürfen sich nicht auf zwei Timer aufteilen: sonst bleibt der erste
+  // unreferenziert stehen, während endPress nur den zweiten löscht, und der
+  // Code invertiert 600 ms nach dem ersten Tippen, obwohl längst niemand mehr
+  // das Display berührt.
   const startPress = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
     pressTimer.current = setTimeout(() => setInverted((v) => !v), 600);
   };
   const endPress = () => {
     if (pressTimer.current) clearTimeout(pressTimer.current);
+    pressTimer.current = null;
   };
 
   async function downloadPng() {
