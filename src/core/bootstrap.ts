@@ -12,6 +12,7 @@ import { seedPortal } from "@/app/m/portal/_lib/seed";
 // kopiert den Ordner an genau diesen Pfad in das standalone-Image).
 export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   { key: "portal", migrationsFolder: "src/app/m/portal/_db/migrations" },
+  { key: "qr", migrationsFolder: "src/app/m/qr/_db/migrations" },
 ];
 
 /**
