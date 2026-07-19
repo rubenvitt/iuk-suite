@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { payloadToSvg, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
+import { payloadToSvg, exceedsQrCapacity, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
 
 // Golden Output: exakt das SVG, das qrcode 1.5.4 mit den fest verdrahteten
 // Parametern für "https://drk.de" erzeugt. Es nagelt gleichzeitig fest, was
@@ -57,5 +57,31 @@ describe("payloadToSvg", () => {
 
   it("Umlaut-Text knapp unter der Byte-Grenze ist erlaubt", async () => {
     await expect(payloadToSvg("ä".repeat(636))).resolves.toContain("<svg");
+  });
+});
+
+/**
+ * Die Eingabe warnt den Nutzer, bevor er absendet — dafür braucht sie dieselbe
+ * Grenze wie der Guard in payloadToSvg. Zählte die UI Zeichen statt Bytes
+ * (so stand es im Plan), bliebe sie bei Umlaut- oder Emoji-Text still, während
+ * die Erzeugung längst wirft: der Nutzer tippt, drückt und sieht nichts.
+ * Deshalb prüft die Suite nicht nur den Rückgabewert, sondern hält ihn gegen
+ * das tatsächliche Verhalten von payloadToSvg.
+ */
+describe("exceedsQrCapacity", () => {
+  it.each([
+    ["genau am Limit", "a".repeat(QR_MAX_LENGTH), false],
+    ["ein Byte darüber", "a".repeat(QR_MAX_LENGTH + 1), true],
+    ["Umlaute knapp darunter", "ä".repeat(636), false],
+    ["Umlaute knapp darüber", "ä".repeat(637), true],
+    ["Emoji knapp darunter", "😀".repeat(318), false],
+    ["Emoji knapp darüber", "😀".repeat(319), true],
+  ])("%s — Warnung und Erzeugung sind sich einig", async (_name, text, expected) => {
+    expect(exceedsQrCapacity(text)).toBe(expected);
+    const rejected = await payloadToSvg(text).then(
+      () => false,
+      () => true,
+    );
+    expect(rejected).toBe(expected);
   });
 });
