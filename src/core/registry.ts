@@ -34,6 +34,12 @@ export const MODULES: ModuleDef[] = [
   { key: "portal", title: "Portal", icon: "LayoutGrid", shell: "full",
     requiresAuth: true, requiredGroups: [], adminGroups: [],
     prodHosts: ["iuk-ue.de"], showInSwitcher: true },
+  // Anonym, weil der Generator ohne Login funktionieren muss (Offline-PWA im
+  // Einsatz). Der Admin-Bereich schützt sich selbst über core/auth/guards —
+  // requiresAuth: true wäre hier falsch und würde den anonymen Zugang nehmen.
+  { key: "qr", title: "QR-Codes", icon: "QrCode", shell: "minimal",
+    requiresAuth: false, requiredGroups: [], adminGroups: ["drk-qr-admin"],
+    prodHosts: [], showInSwitcher: true },
   { key: "alpha", title: "Alpha", icon: "Square", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true },
