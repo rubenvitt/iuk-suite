@@ -2,6 +2,9 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  // Der PWA-Spike braucht Chrome-Flags für den sicheren Kontext und läuft
+  // deshalb in playwright.pwa.config.ts (eigener Port).
+  testIgnore: /pwa-spike\.spec\.ts/,
   workers: 1,
   use: { baseURL: "http://portal.localtest.me:3100" },
   webServer: {
