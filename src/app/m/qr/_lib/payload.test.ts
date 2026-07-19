@@ -29,6 +29,24 @@ describe("payloadToQrString", () => {
     ).toBe("WIFI:T:WPA;S:S;P:p;H:true;;");
   });
 
+  it("wifi: nopass behält das leere P-Segment", () => {
+    expect(
+      payloadToQrString({
+        kind: "wifi",
+        value: { ssid: "Open", password: "", encryption: "nopass" },
+      }),
+    ).toBe("WIFI:T:nopass;S:Open;P:;H:false;;");
+  });
+
+  it("wifi: WEP", () => {
+    expect(
+      payloadToQrString({
+        kind: "wifi",
+        value: { ssid: "Alt", password: "key", encryption: "WEP" },
+      }),
+    ).toBe("WIFI:T:WEP;S:Alt;P:key;H:false;;");
+  });
+
   it("wifi: Sonderzeichen in SSID und Passwort werden escaped", () => {
     expect(
       payloadToQrString({
@@ -53,9 +71,38 @@ describe("payloadToQrString", () => {
     ).toBe("BEGIN:VCARD\nVERSION:3.0\nFN:N\nTEL:+49\nEMAIL:a@b.de\nORG:DRK\nEND:VCARD");
   });
 
+  it("vcard: nur teilweise befüllt — fehlende Optionalfelder entfallen", () => {
+    expect(payloadToQrString({ kind: "vcard", value: { name: "A", email: "a@b" } })).toBe(
+      "BEGIN:VCARD\nVERSION:3.0\nFN:A\nEMAIL:a@b\nEND:VCARD",
+    );
+  });
+
   it("vcard: Semikolon, Komma, Backslash und Zeilenumbrüche werden escaped", () => {
     expect(payloadToQrString({ kind: "vcard", value: { name: "a;b,c\\d\ne" } })).toBe(
       "BEGIN:VCARD\nVERSION:3.0\nFN:a\\;b\\,c\\\\d\\ne\nEND:VCARD",
     );
+  });
+
+  // Escaping muss auf jedem Feld einzeln festgenagelt sein, sonst bleibt sein Wegfall
+  // auf TEL/EMAIL/ORG unentdeckt: Komma und Semikolon sind in vCard 3.0 Feldtrenner,
+  // ein Scanner würde "DRK; Kreisverband XY" sonst in mehrere Komponenten zerlegen.
+  it("vcard: Semikolon und Komma werden in TEL und ORG escaped", () => {
+    expect(
+      payloadToQrString({
+        kind: "vcard",
+        value: { name: "Mustermann, Max", tel: "+4930123456;ext=7", org: "DRK; Kreisverband XY" },
+      }),
+    ).toBe(
+      "BEGIN:VCARD\nVERSION:3.0\nFN:Mustermann\\, Max\nTEL:+4930123456\\;ext=7\nORG:DRK\\; Kreisverband XY\nEND:VCARD",
+    );
+  });
+
+  it("vcard: Backslash und Zeilenumbruch werden in EMAIL escaped", () => {
+    expect(
+      payloadToQrString({
+        kind: "vcard",
+        value: { name: "A\\B", email: "a\nb@x" },
+      }),
+    ).toBe("BEGIN:VCARD\nVERSION:3.0\nFN:A\\\\B\nEMAIL:a\\nb@x\nEND:VCARD");
   });
 });
