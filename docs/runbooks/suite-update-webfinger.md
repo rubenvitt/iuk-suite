@@ -21,21 +21,25 @@ Der Deploy zieht `ghcr.io/rubenvitt/iuk-suite:latest`. Dieses Tag ist nur dann d
 gewünschte Stand, wenn der CI-Lauf für den aktuellen `main`-Commit **durchgelaufen** ist.
 
 ```bash
-# Auf dem Server oder lokal – erwarteter Commit:
-# 7102a7f  docs(qr): Portierungsanalyse + neun offene Entscheidungen
 docker pull ghcr.io/rubenvitt/iuk-suite:latest
+
+# Welcher Commit steckt drin?
 docker image inspect ghcr.io/rubenvitt/iuk-suite:latest \
   -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+
+# Beide Architekturen im Manifest? (Server-Arch war beim Schreiben unbekannt)
+docker buildx imagetools inspect ghcr.io/rubenvitt/iuk-suite:latest
 ```
 
-Die ausgegebene Revision muss der aktuelle `main`-Commit sein.
+Die Revision muss der aktuelle `main`-Commit sein. **Stimmt sie nicht: hier abbrechen
+und melden** — nicht mit einem alten Image weitermachen. Es hätte die Webfinger-Route
+nicht, und Teil B würde später eine Route abschalten, die nirgends ersetzt ist.
 
-> ⚠️ **Stand 19.07.2026 ist das nicht gegeben.** Der `build-push`-Job der CI hängt seit
-> Stunden im Multi-Arch-Schritt (QEMU-emulierter arm64-Build, `better-sqlite3` wird nativ
-> kompiliert). Der amd64-Build braucht 49 Sekunden, der Multi-Arch-Build läuft nach
-> 2,5 Stunden noch. **Wenn die Revision nicht stimmt: hier abbrechen und melden.** Nicht
-> mit einem alten Image weitermachen — es hätte die Webfinger-Route nicht, und Teil B
-> würde später eine Route abschalten, die nirgends ersetzt ist.
+> **Historie (19.07.2026):** Die CI baute Multi-Arch mit QEMU; der emulierte
+> arm64-Build lief >2,5 h ohne fertig zu werden (amd64: 49 s) und Prod hing dadurch auf
+> einem alten Image fest. Seit `5a39486` baut jede Architektur auf einem nativen Runner
+> — arm64 jetzt 154 s, ganzer Lauf ~6 min. Wenn dieser Schritt also *wieder* ein altes
+> Image zeigt, ist das ein neues Problem, nicht das alte.
 
 ## A1. Neues Image prüfen, bevor es live geht
 
@@ -82,6 +86,11 @@ curl -fsS -H "Host: iuk-ue.de" http://127.0.0.1:3999/api/health/portal
 Aufräumen: `docker stop suite-verify`
 
 **Wenn einer der Punkte abweicht: STOPP, nicht deployen, melden.**
+
+> Diese sechs Prüfungen wurden am 19.07.2026 gegen das publizierte Image
+> (`ghcr.io/rubenvitt/iuk-suite:latest`, arm64) durchgespielt und waren grün — die
+> Antworten sind byte-identisch mit denen des Alt-Dienstes. Sie sollten also
+> durchlaufen; tun sie es nicht, stimmt etwas am Image oder an der Umgebung.
 
 ## A2. Deployen
 

@@ -58,12 +58,22 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Auch im build-Job nötig: die OCI-Labels (u. a. image.revision) stecken in
+      # der Config des jeweiligen Plattform-Images. `imagetools create` im merge
+      # reicht sie nicht nach — ohne das hier ist `docker image inspect` nach dem
+      # Pull label-los und man kann am Server nicht prüfen, welcher Commit läuft.
+      - name: Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
       - name: Build (lokal, für image-smoke)
         uses: docker/build-push-action@v6
         with:
           context: .
           load: true
           tags: iuk-suite:ci
+          labels: ${{ steps.meta.outputs.labels }}
           # Cache pro Plattform trennen, sonst überschreiben sich die beiden
           # Matrix-Jobs gegenseitig und jeder Lauf startet kalt.
           cache-from: type=gha,scope=${{ matrix.platform }}
@@ -86,6 +96,7 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
           # Ohne Tag hochladen — die Tags vergibt der merge-Job auf der
           # Manifest-Liste, sonst würde jede Plattform :latest überschreiben.
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
