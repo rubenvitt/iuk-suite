@@ -7,7 +7,7 @@ import { seedPortal } from "@/app/m/portal/_lib/seed";
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
 // Migrations-Pfad ist cwd-relativ: Dev = Repo-Root, Prod = /app (Dockerfile
 // kopiert den Ordner an genau diesen Pfad in das standalone-Image).
-const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
+export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   { key: "portal", migrationsFolder: "src/app/m/portal/_db/migrations" },
 ];
 
