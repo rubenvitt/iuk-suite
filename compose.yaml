@@ -27,7 +27,11 @@ services:
       - POCKET_ID_CLIENT_ID=${POCKET_ID_CLIENT_ID}
       - POCKET_ID_CLIENT_SECRET=${POCKET_ID_CLIENT_SECRET}
       - POCKET_ID_SCOPES=${POCKET_ID_SCOPES:-openid profile email groups}
-      # SUITE_HOST_* kommen über env_file (siehe oben) und .env.example.
+      # ADMIN_GROUP und SUITE_HOST_* kommen über env_file (siehe oben) — nicht
+      # hier eintragen. Beim Deploy vom 19.07.2026 stellte sich heraus, dass die
+      # Server-Datei ein `ADMIN_GROUP` führte, das diese Repo-Vorlage nie hatte:
+      # wer sie ungeprüft übernimmt, verliert das Admin-Gating. Deshalb gilt für
+      # jede Übernahme der Vorlage: vorher gegen die Server-Datei diffen.
       # Beim Cutover eines Moduls gehört zur .env-Zeile immer auch der Host in
       # der Traefik-Regel unten — sonst erreicht die Domain den Container nie.
     volumes:

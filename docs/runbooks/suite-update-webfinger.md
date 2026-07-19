@@ -113,12 +113,29 @@ cp compose.yaml compose.yaml.bak-$(date +%F)      # Rückweg sichern
 docker compose version --short                    # muss >= 2.24 sein (env_file: required)
 ```
 
-Neue `compose.yaml` aus dem Repo übernehmen (Branch `main`, Commit `3676f4d` oder
-neuer). Dann in der `.env` **ergänzen**:
+**Erst diffen, dann übernehmen.** Die Server-Datei kann Einträge führen, die die
+Repo-Vorlage nie hatte — beim Deploy am 19.07.2026 war das `ADMIN_GROUP`, ohne das
+das Admin-Gating still bricht:
+
+```bash
+diff compose.yaml.bak-$(date +%F) <neue-compose.yaml>
+```
+
+Jede `environment:`-Zeile, die nur in der **alten** Datei steht, gehört als Zeile in
+die `.env` (sie kommt dann über `env_file` in den Container). Danach die neue
+`compose.yaml` übernehmen (Branch `main`) und in der `.env` **ergänzen**:
 
 ```dotenv
 SUITE_HOST_PORTAL=iuk-ue.de
 SUITE_TRAEFIK_RULE=Host(`iuk-ue.de`)
+ADMIN_GROUP=<Wert aus der alten compose.yaml, sonst entfällt die Zeile>
+```
+
+Nach dem Deploy stichprobenhaft im Container gegenprüfen, dass die aus der alten
+`compose.yaml` übernommenen Variablen wirklich ankommen:
+
+```bash
+docker compose exec suite sh -c 'echo "ADMIN_GROUP=$ADMIN_GROUP"'
 ```
 
 Beides entspricht exakt dem bisherigen Verhalten — dieser Schritt ändert nichts, er
