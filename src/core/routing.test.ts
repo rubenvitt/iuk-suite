@@ -32,3 +32,42 @@ describe("decideRoute", () => {
     expect(d).toMatchObject({ action: "rewrite", target: "/m/portal", moduleKey: "portal" });
   });
 });
+
+// Ein bereits interner Pfad darf nicht erneut präfixt werden: proxy.ts rewritet
+// decision.target unverändert, und sein Matcher schließt /m/* nicht aus — sonst
+// akkumuliert jeder RSC-/Prefetch-Request eine weitere /m/<key>-Ebene.
+describe("decideRoute – /m/<key> ist idempotent", () => {
+  it("präfixt einen bereits internen Pfad nicht erneut", () => {
+    const d = decideRoute({ host: "iuk-ue.de", pathname: "/m/portal", groups: [] });
+    expect(d).toEqual({ action: "next" });
+  });
+  it("präfixt interne Unterpfade nicht erneut", () => {
+    const d = decideRoute({ host: "iuk-ue.de", pathname: "/m/portal/settings", groups: [] });
+    expect(d).toEqual({ action: "next" });
+  });
+  it("schickt anonyme Nutzer auf internen Pfaden zum Login", () => {
+    const d = decideRoute({ host: "iuk-ue.de", pathname: "/m/portal", groups: null });
+    expect(d).toEqual({ action: "login", callbackUrl: "/m/portal" });
+  });
+  // Host = portal (nicht alpha): so unterscheidet der Test segment-basiertes
+  // Gating von host-basiertem — letzteres würde hier fälschlich "next" liefern.
+  it("gated interne Pfade nach dem Modul aus dem Segment, nicht nach dem Host", () => {
+    const d = decideRoute({ host: "iuk-ue.de", pathname: "/m/alpha", groups: [] });
+    expect(d.action).toBe("forbidden");
+  });
+  it("lässt unbekannte Modul-Segmente durch (404 statt 500 oder Doppel-Präfix)", () => {
+    const d = decideRoute({ host: "iuk-ue.de", pathname: "/m/does-not-exist", groups: [] });
+    expect(d).toEqual({ action: "next" });
+  });
+  it("rewritet externe Pfade weiterhin auf das Host-Modul", () => {
+    expect(decideRoute({ host: "iuk-ue.de", pathname: "/", groups: [] })).toMatchObject({
+      action: "rewrite",
+      target: "/m/portal",
+      moduleKey: "portal",
+    });
+    expect(decideRoute({ host: "iuk-ue.de", pathname: "/foo", groups: [] })).toMatchObject({
+      action: "rewrite",
+      target: "/m/portal/foo",
+    });
+  });
+});

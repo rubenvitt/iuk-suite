@@ -34,6 +34,11 @@ export function getModule(key: string): ModuleDef {
   return m;
 }
 
+/** Wie getModule, wirft aber nicht — für Keys aus ungeprüftem Input (z. B. URL-Segmenten). */
+export function findModule(key: string): ModuleDef | null {
+  return BY_KEY.get(key) ?? null;
+}
+
 export function moduleForHost(host: string): ModuleDef | null {
   const h = host.split(":")[0].toLowerCase();
   for (const m of MODULES) {
