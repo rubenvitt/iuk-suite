@@ -131,6 +131,11 @@ docker compose config | grep -E 'routers.iuk-suite.rule|SUITE_HOST'
 # erwartet u. a.: traefik.http.routers.iuk-suite.rule: Host(`iuk-ue.de`)
 ```
 
+> **Am 19.07.2026 komplett durchgespielt** — echte `compose.yaml` + `.env` gegen das
+> publizierte Image: die `SUITE_HOST_*` kommen per `env_file` im Container an, der
+> gesetzte Host wird geroutet, der Portal-Fallback bleibt unberührt, die Traefik-Regel
+> wird korrekt substituiert und der Container wird `healthy`.
+>
 > **Stolperstelle, die hier bewusst vermieden wird:** `SUITE_HOST_PORTAL` gehört
 > **nicht** als `- SUITE_HOST_PORTAL=${SUITE_HOST_PORTAL:-}` unter `environment`.
 > Compose setzt eine fehlende Variable dann auf einen **leeren String**, und leer
