@@ -7,6 +7,14 @@ describe("decideRoute", () => {
       expect(decideRoute({ host: "portal.localtest.me", pathname: p, groups: [] }).action).toBe("next");
     }
   });
+  it("lässt /.well-known auch auf auth-pflichtigen Hosts anonym durch", () => {
+    // WebFinger wird von fremden Clients ohne Session abgefragt. Liefe es in
+    // den Modul-Rewrite, bekämen sie den Login-Redirect statt einer Antwort.
+    for (const host of ["portal.localtest.me", "alpha.localtest.me", "iuk-ue.de"]) {
+      const d = decideRoute({ host, pathname: "/.well-known/webfinger", groups: null });
+      expect(d.action).toBe("next");
+    }
+  });
   it("rewrites anonymous module without auth", () => {
     const d = decideRoute({ host: "beta.localtest.me", pathname: "/", groups: null });
     expect(d).toEqual({ action: "rewrite", target: "/m/beta", moduleKey: "beta" });

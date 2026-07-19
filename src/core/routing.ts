@@ -6,7 +6,10 @@ export type RouteDecision =
   | { action: "login"; callbackUrl: string }
   | { action: "forbidden" };
 
-const PASSTHROUGH = ["/api/auth", "/api/health", "/login", "/_next", "/favicon.ico"];
+// `/.well-known` ist per Definition öffentlich und host-übergreifend (aktuell:
+// WebFinger für die OIDC-Discovery). Ohne Passthrough liefe es in den
+// Modul-Rewrite und damit für auth-pflichtige Hosts in den Login-Redirect.
+const PASSTHROUGH = ["/api/auth", "/api/health", "/login", "/_next", "/favicon.ico", "/.well-known"];
 
 export function decideRoute(input: {
   host: string;

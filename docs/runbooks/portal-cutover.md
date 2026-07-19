@@ -52,5 +52,23 @@ bleibt 2 Wochen in Standby.
 8. **Standby & Abbau**: nach 2 Wochen iuk-overview-Stack + Postgres abbauen,
    Volume-Tarball archivieren, GitHub-Repo archivieren.
 
+   ⚠️ **Der Container `iuk-overview-webfinger` gehört mit dazu** — er bedient
+   `Host(\`iuk-ue.de\`) && PathPrefix(/.well-known/webfinger)` und lief nach dem
+   Cutover vom 19.07.2026 bewusst weiter. Die Suite bringt diese Route seit
+   `src/app/.well-known/webfinger/route.ts` selbst mit, aber **der
+   PathPrefix-Router des Alt-Containers ist spezifischer und gewinnt**, solange
+   er existiert. Reihenfolge deshalb wie beim Apex-Router:
+
+   1. Prüfen, dass die Suite die Route hat und `POCKET_ID_ISSUER` im Stack gesetzt
+      ist (ohne Issuer antwortet sie bewusst mit 503):
+      `docker compose exec suite sh -c 'echo $POCKET_ID_ISSUER'`
+   2. Router/Container `iuk-overview-webfinger` **zuerst** abschalten.
+   3. Danach verifizieren — die Antwort muss unverändert bleiben:
+      `curl -s "https://iuk-ue.de/.well-known/webfinger?resource=acct:a@iuk-ue.de"`
+      → `{"subject":"acct:a@iuk-ue.de","links":[{"rel":"http://openid.net/specs/connect/1.0/issuer","href":"https://id.iuk-ue.de"}]}`
+      Ebenso: kein `resource` → 400, fremde Domain → 404.
+
+   Rollback ist derselbe wie oben: Alt-Container wieder starten.
+
 ## Rollback
 Router zurück auf iuk-overview + dessen Container starten. Sekunden.
