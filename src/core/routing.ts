@@ -1,4 +1,4 @@
-import { moduleForHost, getModule, canAccess } from "@/core/registry";
+import { moduleForHost, getModule, findModule, canAccess } from "@/core/registry";
 
 export type RouteDecision =
   | { action: "next" }
@@ -16,6 +16,21 @@ export function decideRoute(input: {
   const { host, pathname, groups } = input;
 
   if (PASSTHROUGH.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    return { action: "next" };
+  }
+
+  // Bereits interner Pfad: nicht erneut präfixen, sonst akkumuliert jeder
+  // RSC-/Prefetch-Request eine weitere /m/<key>-Ebene. Gating bleibt hier
+  // erhalten (der Matcher schließt /m/* bewusst nicht aus) — aber nach dem
+  // Modul aus dem Segment, nicht nach dem Host.
+  const internal = pathname.match(/^\/m\/([^/]+)(?:\/.*)?$/);
+  if (internal) {
+    const target = findModule(internal[1]);
+    if (!target) return { action: "next" }; // unbekanntes Modul → 404, kein 500
+    if (target.requiresAuth && groups === null) {
+      return { action: "login", callbackUrl: pathname };
+    }
+    if (!canAccess(target, groups)) return { action: "forbidden" };
     return { action: "next" };
   }
 
