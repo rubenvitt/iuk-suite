@@ -1,7 +1,11 @@
 const UMLAUT_MAP: Record<string, string> = { ä: "ae", ö: "oe", ü: "ue", ß: "ss" };
 
 export function slugify(input: string): string {
-  const lower = input.toLowerCase();
+  // Erst nach NFC normalisieren: dekomponierte Eingaben (macOS-Dateinamen,
+  // Importdaten) tragen das Umlautzeichen getrennt vom Grundbuchstaben und
+  // liefen sonst an der UMLAUT_MAP vorbei — das Kombinationszeichen fiele dem
+  // Mark-Stripping zum Opfer und "Übung" ergäbe "ubung" statt "uebung".
+  const lower = input.normalize("NFC").toLowerCase();
   const transliterated = lower.replace(/[äöüß]/g, (c) => UMLAUT_MAP[c] ?? c);
   const slug = transliterated
     .normalize("NFKD")
