@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { payloadToQrString } from "@/app/m/qr/_lib/payload";
 import {
   loadHistory,
   addEntry,
@@ -27,6 +28,9 @@ const entry = (id: string) => ({
 
 beforeEach(() => {
   localStorage.clear();
+  // localStorage.clear() allein laesst den zwischengespeicherten Schnappschuss
+  // stehen; ohne dieses invalidate faerbte er auf den naechsten Test ab.
+  clearHistory();
 });
 
 describe("history", () => {
@@ -71,6 +75,53 @@ describe("history", () => {
   it("verwirft nur die kaputten Eintraege, nicht die ganze Liste", () => {
     localStorage.setItem(HISTORY_KEY, JSON.stringify([entry("1"), { id: 2 }]));
     expect(loadHistory().map((e) => e.id)).toEqual(["1"]);
+  });
+
+  /**
+   * Ein Eintrag mit gueltigem `kind`, aber ohne brauchbares `value` kommt durch
+   * die Renderpruefung und faellt erst beim Antippen um: `payloadToQrString`
+   * greift auf `value.ssid` zu und wirft im Klick-Handler, also ohne Navigation
+   * und ohne sichtbare Meldung. Der Eintrag bleibt liegen — ein toter Knopf.
+   */
+  it.each([
+    ["wifi ohne value", { kind: "wifi" }],
+    ["vcard ohne value", { kind: "vcard" }],
+    [
+      "wifi mit unbekannter Verschluesselung",
+      { kind: "wifi", value: { ssid: "A", password: "", encryption: "ROT13" } },
+    ],
+    ["vcard ohne name", { kind: "vcard", value: { tel: "+49" } }],
+    ["url mit einer Zahl als value", { kind: "url", value: 42 }],
+  ])("verwirft %s", (_name, payload) => {
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify([{ id: "x", label: "Kaputt", createdAt: 1, payload }]),
+    );
+    expect(loadHistory()).toEqual([]);
+  });
+
+  it("was die Filterung durchlaesst, kodiert payloadToQrString ohne zu werfen", () => {
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify([
+        { id: "a", label: "WLAN Einsatz", createdAt: 1, payload: { kind: "wifi" } },
+        entry("2"),
+      ]),
+    );
+    const kept = loadHistory();
+    expect(kept.map((e) => e.id)).toEqual(["2"]);
+    for (const e of kept) expect(() => payloadToQrString(e.payload)).not.toThrow();
+  });
+
+  // Gegenprobe zur Filterung: sie darf nicht strenger sein als das, was die
+  // Erzeuger schreiben — sonst verschwinden gueltige Eintraege still.
+  it("behaelt ein offenes WLAN mit leerem Passwort und eine vCard nur mit Namen", () => {
+    recordEntry("Offenes Netz", {
+      kind: "wifi",
+      value: { ssid: "Gast", password: "", encryption: "nopass" },
+    });
+    recordEntry("Nur Name", { kind: "vcard", value: { name: "Max Mustermann" } });
+    expect(loadHistory().map((e) => e.label)).toEqual(["Nur Name", "Offenes Netz"]);
   });
 
   it("clearHistory leert", () => {
@@ -150,6 +201,99 @@ describe("History-Store", () => {
     recordEntry("A", { kind: "url", value: "a" });
     expect(getHistoryServerSnapshot()).toEqual([]);
     expect(getHistoryServerSnapshot()).toBe(getHistoryServerSnapshot());
+  });
+});
+
+/**
+ * Im privaten Modus mancher Browser (Safari) wirft schon `setItem`. Ohne den
+ * Speicher-Fallback verschwaende der Nutzer dort jeden erzeugten Code: der
+ * Verlauf bliebe leer, ohne dass irgendetwas es erklaerte.
+ *
+ * `useFallback` ist Modulzustand — deshalb je Fall `vi.resetModules()` und ein
+ * dynamischer Import, sonst faerbt der einmal gekippte Fallback auf die
+ * uebrigen Tests ab.
+ */
+describe("gesperrter localStorage", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function historyWithLock(locked: ("getItem" | "setItem")[]) {
+    for (const method of locked) {
+      vi.spyOn(Storage.prototype, method).mockImplementation(() => {
+        throw new Error("Speicher gesperrt");
+      });
+    }
+    return import("@/app/m/qr/_lib/history");
+  }
+
+  it("haelt Eintraege im Speicher, wenn das Schreiben wirft", async () => {
+    const h = await historyWithLock(["setItem"]);
+    expect(() => h.recordEntry("A", { kind: "url", value: "https://drk.de" })).not.toThrow();
+    expect(h.loadHistory().map((e) => e.label)).toEqual(["A"]);
+  });
+
+  it("haelt Eintraege im Speicher, wenn das Lesen wirft", async () => {
+    const h = await historyWithLock(["getItem"]);
+    expect(() => h.recordEntry("A", { kind: "url", value: "https://drk.de" })).not.toThrow();
+    expect(h.loadHistory().map((e) => e.label)).toEqual(["A"]);
+  });
+
+  it("clearHistory leert auch den Speicher-Fallback", async () => {
+    const h = await historyWithLock(["setItem"]);
+    h.recordEntry("A", { kind: "url", value: "https://drk.de" });
+    h.clearHistory();
+    expect(h.loadHistory()).toEqual([]);
+  });
+});
+
+/**
+ * Ein zweiter Tab schreibt in denselben Speicher. Ohne das `storage`-Ereignis
+ * zeigte dieser Tab den Verlauf von vorhin weiter an.
+ */
+describe("Tab-Synchronisierung", () => {
+  it("ein Ereignis unter dem eigenen Schluessel meldet und laedt neu", () => {
+    let calls = 0;
+    const unsubscribe = subscribeHistory(() => {
+      calls++;
+    });
+    expect(getHistorySnapshot()).toEqual([]);
+
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([entry("7")]));
+    window.dispatchEvent(new StorageEvent("storage", { key: HISTORY_KEY }));
+
+    expect(calls).toBe(1);
+    expect(getHistorySnapshot().map((e) => e.id)).toEqual(["7"]);
+    unsubscribe();
+  });
+
+  it("ein fremder Schluessel loest nichts aus", () => {
+    let calls = 0;
+    const unsubscribe = subscribeHistory(() => {
+      calls++;
+    });
+    expect(getHistorySnapshot()).toEqual([]);
+
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([entry("7")]));
+    window.dispatchEvent(new StorageEvent("storage", { key: "fremdes-modul" }));
+
+    expect(calls).toBe(0);
+    expect(getHistorySnapshot()).toEqual([]);
+    unsubscribe();
+  });
+
+  it("die Aufraeumfunktion meldet den Zuhoerer wieder ab", () => {
+    let calls = 0;
+    subscribeHistory(() => {
+      calls++;
+    })();
+    window.dispatchEvent(new StorageEvent("storage", { key: HISTORY_KEY }));
+    expect(calls).toBe(0);
   });
 });
 

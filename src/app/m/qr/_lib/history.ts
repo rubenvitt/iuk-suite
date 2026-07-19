@@ -31,6 +31,47 @@ function safeSet(value: string): void {
 }
 
 const VALID_KINDS: ReadonlyArray<QrPayload["kind"]> = ["url", "wifi", "tel", "vcard", "text"];
+const VALID_ENCRYPTIONS = ["WPA", "WEP", "nopass"];
+
+/**
+ * Die `kind` allein zu pruefen genuegt nicht: ein Eintrag wie
+ * `{kind:"wifi"}` ohne `value` ueberlebte die Filterung, liesse sich anzeigen
+ * und risse erst beim Antippen in `payloadToQrString` ab — ein Knopf, der bei
+ * jedem Tippen still nichts tut, und zwar dauerhaft, weil der Eintrag liegen
+ * bleibt.
+ *
+ * Bewusst nicht ueber `validatePresetInput` geloest: der normalisiert
+ * zusaetzlich (offenes WLAN bekommt ein leeres Passwort) und liefert Fehlertexte
+ * fuer den Anlegepfad. Hier zaehlt nur, ob das Payload so geformt ist, wie die
+ * Erzeuger es schreiben — die Pruefung darf deshalb nicht strenger sein als
+ * das, was `recordEntry` tatsaechlich ablegt (leeres WLAN-Passwort, fehlende
+ * vCard-Felder).
+ */
+function isValidPayload(p: Record<string, unknown>): boolean {
+  const v = p.value;
+  switch (p.kind) {
+    case "url":
+    case "tel":
+    case "text":
+      return typeof v === "string";
+    case "wifi": {
+      if (typeof v !== "object" || v === null) return false;
+      const w = v as Record<string, unknown>;
+      return (
+        typeof w.ssid === "string" &&
+        typeof w.password === "string" &&
+        VALID_ENCRYPTIONS.includes(w.encryption as string) &&
+        (w.hidden === undefined || typeof w.hidden === "boolean")
+      );
+    }
+    case "vcard": {
+      if (typeof v !== "object" || v === null) return false;
+      return typeof (v as Record<string, unknown>).name === "string";
+    }
+    default:
+      return false;
+  }
+}
 
 // Der Verlauf kommt aus fremdem Speicher: aelteren Versionen, halb
 // geschriebenen Eintraegen, manuell Editiertem. Ungeprueft weitergereicht
@@ -42,7 +83,10 @@ function isValidEntry(e: unknown): e is HistoryEntry {
     return false;
   if (typeof r.payload !== "object" || r.payload === null) return false;
   const p = r.payload as Record<string, unknown>;
-  return typeof p.kind === "string" && VALID_KINDS.includes(p.kind as QrPayload["kind"]);
+  if (typeof p.kind !== "string" || !VALID_KINDS.includes(p.kind as QrPayload["kind"])) {
+    return false;
+  }
+  return isValidPayload(p);
 }
 
 export function loadHistory(): HistoryEntry[] {

@@ -30,15 +30,25 @@ function flatten(node: unknown, out: ReactElement[] = []): ReactElement[] {
   return out;
 }
 
-/** Was am Ende der Kette tatsaechlich im QR-Code landet. */
-async function qrTextFor(href: string): Promise<string> {
+/** Die Ansicht, wie sie ein geteilter Link tatsaechlich erzeugt. */
+async function viewFor(href: string): Promise<ReactElement> {
   const search = params(href);
-  const tree = (await QrViewPage({
+  return (await QrViewPage({
     searchParams: Promise.resolve(Object.fromEntries(search.entries())),
   })) as ReactElement;
-  const display = flatten(tree).find((el) => el.type === QrDisplay);
+}
+
+/** Was am Ende der Kette tatsaechlich im QR-Code landet. */
+async function qrTextFor(href: string): Promise<string> {
+  const display = flatten(await viewFor(href)).find((el) => el.type === QrDisplay);
   if (!display) throw new Error("QrDisplay nicht gerendert");
   return (display.props as { text: string }).text;
+}
+
+async function testIdsFor(href: string): Promise<string[]> {
+  return flatten(await viewFor(href))
+    .map((el) => (el.props as { "data-testid"?: string })["data-testid"])
+    .filter((id): id is string => typeof id === "string");
 }
 
 const wifi: QrPayload = {
@@ -89,6 +99,30 @@ describe("buildQrUrl", () => {
     ["wifi", wifi] as const,
     ["vcard", vcard] as const,
   ])("Rundlauf %s: was der Leser anzeigt, ist payloadToQrString", async (_name, payload) => {
-    expect(await qrTextFor(buildQrUrl("L", payload))).toBe(payloadToQrString(payload));
+    const href = buildQrUrl("L", payload);
+    expect(await qrTextFor(href)).toBe(payloadToQrString(payload));
+    // `kind` mitgeprueft: der Parameter entscheidet in der Ansicht ueber die
+    // Klartext-Zeile. Ein fest verdrahtetes "url" faellt sonst nicht auf,
+    // solange nur `data` verglichen wird.
+    expect(params(href).get("kind")).toBe(payload.kind);
+  });
+
+  /**
+   * Bindet den `kind`-Parameter an sein Ziel: bei WLAN steht sonst das Passwort
+   * gross und lesbar als Klartext unter dem Code, bei vCard der Maschinentext.
+   */
+  it.each([
+    ["wifi", wifi] as const,
+    ["vcard", vcard] as const,
+  ])("ein %s-Link zeigt keine Klartext-Zeile unter dem Code", async (_name, payload) => {
+    expect(await testIdsFor(buildQrUrl("L", payload))).not.toContain("qr-raw");
+  });
+
+  it.each([
+    ["url", { kind: "url", value: "https://drk.de" }] as const,
+    ["text", { kind: "text", value: "Freitext" }] as const,
+    ["tel", { kind: "tel", value: "+49301234567" }] as const,
+  ])("ein %s-Link zeigt den Rohtext weiterhin an", async (_name, payload) => {
+    expect(await testIdsFor(buildQrUrl("L", payload))).toContain("qr-raw");
   });
 });

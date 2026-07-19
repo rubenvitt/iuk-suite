@@ -77,6 +77,16 @@ describe("payloadToQrString", () => {
     );
   });
 
+  // Leere Optionalfelder gehören nicht in die vCard: an einer nackten `TEL:`-Zeile
+  // bleiben manche Adressbücher hängen. Die Erzeuger geben leere Eingaben zwar als
+  // undefined weiter, aber die Zusicherung gehört hierher — sonst hinge sie allein
+  // an der Disziplin jedes einzelnen Formulars.
+  it("vcard: leere Optionalfelder erzeugen keine leeren Zeilen", () => {
+    expect(
+      payloadToQrString({ kind: "vcard", value: { name: "A", tel: "", email: "", org: "" } }),
+    ).toBe("BEGIN:VCARD\nVERSION:3.0\nFN:A\nEND:VCARD");
+  });
+
   it("vcard: Semikolon, Komma, Backslash und Zeilenumbrüche werden escaped", () => {
     expect(payloadToQrString({ kind: "vcard", value: { name: "a;b,c\\d\ne" } })).toBe(
       "BEGIN:VCARD\nVERSION:3.0\nFN:a\\;b\\,c\\\\d\\ne\nEND:VCARD",

@@ -19,9 +19,10 @@ export default function ContactPage() {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
-    // Leere Felder werden zu undefined, nicht zu "": payloadToQrString lässt
-    // die Zeile dann ganz weg, statt eine leere TEL:-Zeile in die vCard zu
-    // schreiben, an der manche Adressbücher hängen bleiben.
+    // Leere Felder werden zu undefined, nicht zu "": so entspricht das Payload
+    // dem Typ (`tel?: string`) und der Verlauf speichert keine Geisterfelder.
+    // Die vCard selbst bliebe auch mit "" sauber — payloadToQrString prüft auf
+    // Wahrheitswert und lässt leere Zeilen ohnehin weg (siehe payload.test.ts).
     const payload: QrPayload = {
       kind: "vcard",
       value: {
