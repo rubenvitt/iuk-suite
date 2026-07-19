@@ -1,3 +1,5 @@
+import { envHostsFor } from "@/core/hosts";
+
 export type ShellVariant = "full" | "minimal" | "kiosk";
 
 export interface ModuleDef {
@@ -7,7 +9,13 @@ export interface ModuleDef {
   shell: ShellVariant;
   requiresAuth: boolean;
   requiredGroups: string[];
-  prodHosts: string[]; // Spec 2 füllt echte iuk-ue.de-Hosts; vorerst leer
+  /**
+   * Fallback-Hosts, wenn `SUITE_HOST_<KEY>` nicht gesetzt ist. Nicht direkt
+   * lesen — immer über `prodHostsFor()`, sonst greift die Env-Konfiguration an
+   * dieser Stelle nicht (genau so entstand Post-Cutover-Befund 2, als der
+   * App-Switcher an der Registry vorbei baute).
+   */
+  prodHosts: string[];
   showInSwitcher: boolean;
 }
 
@@ -39,11 +47,20 @@ export function findModule(key: string): ModuleDef | null {
   return BY_KEY.get(key) ?? null;
 }
 
+/**
+ * Die geltenden Prod-Hosts eines Moduls: `SUITE_HOST_<KEY>` gewinnt, sonst der
+ * Fallback aus der Registry. Eine leer gesetzte Variable heißt bewusst „keine
+ * Prod-Hosts" — damit lässt sich ein Cutover ohne Rebuild zurücknehmen.
+ */
+export function prodHostsFor(mod: ModuleDef): string[] {
+  return envHostsFor(mod.key) ?? mod.prodHosts;
+}
+
 export function moduleForHost(host: string): ModuleDef | null {
   const h = host.split(":")[0].toLowerCase();
   for (const m of MODULES) {
     if (h === `${m.key}.localtest.me`) return m;
-    if (m.prodHosts.some((p) => p.toLowerCase() === h)) return m;
+    if (prodHostsFor(m).some((p) => p.toLowerCase() === h)) return m;
   }
   return null;
 }

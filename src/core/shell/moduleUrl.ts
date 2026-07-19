@@ -1,19 +1,23 @@
-import { findModule } from "@/core/registry";
+import { findModule, prodHostsFor } from "@/core/registry";
 
 /**
  * URL, unter der ein Modul erreichbar ist — oder null, wenn es das nicht ist.
  *
- * In Prod zählt allein der `prodHost` aus der Registry: kein Eintrag heißt, dass
- * die Domain noch nicht auf die Suite zeigt (oder es nie eine geben wird, wie
- * bei den Wegwerf-Modulen). Dann gibt es keinen Link statt eines toten.
+ * In Prod zählt allein der Prod-Host: kein Eintrag heißt, dass die Domain noch
+ * nicht auf die Suite zeigt (oder es nie eine geben wird, wie bei den
+ * Wegwerf-Modulen). Dann gibt es keinen Link statt eines toten.
  * In Dev/Test bleibt es beim wildcard-DNS-Schema `<key>.localtest.me`.
+ *
+ * Der Host kommt über `prodHostsFor()` — also aus `SUITE_HOST_<KEY>`, wenn
+ * gesetzt. An `mod.prodHosts` vorbeizulesen wäre exakt Post-Cutover-Befund 2 in
+ * neuer Gestalt: Routing kennt die Env-Domain, der Switcher verlinkt eine andere.
  */
 export function moduleUrl(key: string): string | null {
   const mod = findModule(key);
   if (!mod) return null;
 
   if (process.env.NODE_ENV === "production") {
-    const host = mod.prodHosts[0];
+    const host = prodHostsFor(mod)[0];
     return host ? `https://${host}` : null;
   }
 

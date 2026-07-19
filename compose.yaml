@@ -2,6 +2,21 @@ services:
   suite:
     image: ghcr.io/rubenvitt/iuk-suite:latest
     restart: unless-stopped
+    # Reicht die .env vollständig durch — damit ist ein neuer Modul-Host
+    # (SUITE_HOST_QR=…) eine Zeile in der .env und sonst nichts: kein Eingriff
+    # in diese Datei, kein Commit, kein CI-Lauf.
+    #
+    # Bewusst NICHT als `- SUITE_HOST_PORTAL=${SUITE_HOST_PORTAL:-}` unter
+    # `environment`: fehlt die Variable, setzt Compose sie auf einen LEEREN
+    # String — und leer heißt „dieses Modul hat keine Prod-Domain". Das Portal
+    # verschwände damit aus dem App-Switcher, sobald jemand die .env-Zeile
+    # vergisst. Über env_file bleibt „nicht gesetzt" auch wirklich nicht gesetzt.
+    env_file:
+      # required: false -> ohne .env startet der Stack trotzdem (Registry-
+      # Fallbacks greifen). Braucht Docker Compose >= 2.24.
+      - path: .env
+        required: false
+    # `environment` gewinnt über `env_file` — die Werte hier sind fix.
     environment:
       - DATA_DIR=/data
       - AUTH_URL=${AUTH_URL:-https://iuk-ue.de}
@@ -12,6 +27,9 @@ services:
       - POCKET_ID_CLIENT_ID=${POCKET_ID_CLIENT_ID}
       - POCKET_ID_CLIENT_SECRET=${POCKET_ID_CLIENT_SECRET}
       - POCKET_ID_SCOPES=${POCKET_ID_SCOPES:-openid profile email groups}
+      # SUITE_HOST_* kommen über env_file (siehe oben) und .env.example.
+      # Beim Cutover eines Moduls gehört zur .env-Zeile immer auch der Host in
+      # der Traefik-Regel unten — sonst erreicht die Domain den Container nie.
     volumes:
       - suite_data:/data
     networks:
@@ -25,7 +43,11 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=proxy
-      - traefik.http.routers.iuk-suite.rule=Host(`iuk-ue.de`)
+      # Muss dieselben Hosts führen wie die SUITE_HOST_*-Variablen — sonst
+      # erreicht die Domain den Container gar nicht erst. Ebenfalls aus der
+      # .env, damit ein Cutover ohne Eingriff in diese Datei auskommt, z. B.:
+      #   SUITE_TRAEFIK_RULE=Host(`iuk-ue.de`) || Host(`qr.iuk-ue.de`)
+      - traefik.http.routers.iuk-suite.rule=${SUITE_TRAEFIK_RULE:-Host(`iuk-ue.de`)}
       - traefik.http.routers.iuk-suite.entrypoints=web
       - traefik.http.services.iuk-suite.loadbalancer.server.port=3000
 

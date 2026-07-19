@@ -29,6 +29,27 @@ describe("moduleUrl", () => {
     expect(moduleUrl("gamma")).toBeNull();
   });
 
+  // Der Switcher muss dieselbe Domain verlinken, die das Routing bedient.
+  // Läse er weiter mod.prodHosts, wäre das Post-Cutover-Befund 2 in neuer
+  // Gestalt: Routing kennt die Env-Domain, der Link zeigt woandershin.
+  it("nutzt in Prod den Host aus SUITE_HOST_<KEY>", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("SUITE_HOST_GAMMA", "gamma.iuk-ue.de");
+    expect(moduleUrl("gamma")).toBe("https://gamma.iuk-ue.de");
+  });
+
+  it("Env überschreibt den Registry-Fallback", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("SUITE_HOST_PORTAL", "neu.example.org");
+    expect(moduleUrl("portal")).toBe("https://neu.example.org");
+  });
+
+  it("leer gesetzte Env nimmt das Modul aus dem Switcher — auch mit Registry-Fallback", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("SUITE_HOST_PORTAL", "");
+    expect(moduleUrl("portal")).toBeNull();
+  });
+
   it("returns null for unknown keys instead of throwing", () => {
     expect(moduleUrl("does-not-exist")).toBeNull();
     vi.stubEnv("NODE_ENV", "production");

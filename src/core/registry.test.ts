@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   getModule, moduleForHost, canAccess, visibleSwitcherModules, MODULES,
 } from "@/core/registry";
@@ -11,6 +11,20 @@ describe("registry", () => {
   });
   it("returns null for unknown host", () => {
     expect(moduleForHost("nope.example.com")).toBeNull();
+  });
+  it("routet einen Host aus SUITE_HOST_<KEY> auf sein Modul", () => {
+    vi.stubEnv("SUITE_HOST_BETA", "beta.example.com");
+    expect(moduleForHost("beta.example.com")?.key).toBe("beta");
+    expect(moduleForHost("BETA.example.com:8080")?.key).toBe("beta");
+    vi.unstubAllEnvs();
+  });
+  it("Env überschreibt den Registry-Fallback vollständig", () => {
+    // Nicht additiv: nach dem Umschwenken darf die alte Domain nicht
+    // weiterlaufen, sonst hängt ein Modul an zwei Hosts.
+    vi.stubEnv("SUITE_HOST_PORTAL", "neu.example.org");
+    expect(moduleForHost("neu.example.org")?.key).toBe("portal");
+    expect(moduleForHost("iuk-ue.de")).toBeNull();
+    vi.unstubAllEnvs();
   });
   it("getModule throws on unknown key", () => {
     expect(() => getModule("ghost")).toThrow();
