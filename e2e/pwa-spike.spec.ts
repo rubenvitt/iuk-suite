@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { devLogin } from "./fixtures";
 
 /**
  * Phase-2-Spike: Trägt eine domain-scoped Offline-PWA im Monolithen?
@@ -79,9 +80,22 @@ test("anderer Host bleibt sauber: kein Manifest, kein SW, keine Registrierung", 
   const sw = await request.get(`${PORTAL}/sw.js`);
   expect(sw.headers()["content-type"] ?? "").not.toContain("javascript");
 
-  // Login-Seite des Portal-Hosts rendert das beta-Layout nicht -> kein Link.
+  // Anonym: Login-Seite des Portal-Hosts rendert das beta-Layout nicht.
   await page.goto(`${PORTAL}/`);
   await expect(page.locator('link[rel="manifest"]')).toHaveCount(0);
+
+  // Und eingeloggt — das ist die produktiv relevante Oberfläche. Ohne diesen
+  // Schritt bewiese der Test nur etwas über die Login-Seite (derselbe blinde
+  // Fleck wie bei Post-Cutover-Befund 2, wo ein Verify-Schritt nur prüfte,
+  // ob überhaupt etwas lädt).
+  await devLogin(page, { host: "portal.localtest.me", port: 3101, groups: "" });
+  // Auf Präsenz prüfen, nicht auf Sichtbarkeit: die Spike-DB startet leer, das
+  // Kachel-Grid hat dann keine Höhe. Header + Grid belegen, dass hier die
+  // eingeloggte Portal-Seite steht und nicht mehr das Login.
+  await expect(page.getByTestId("full-shell-header")).toBeVisible();
+  await expect(page.getByTestId("portal-grid")).toHaveCount(1);
+  await expect(page.locator('link[rel="manifest"]')).toHaveCount(0);
+
   const regs = await page.evaluate(async () =>
     (await navigator.serviceWorker.getRegistrations()).map((r) => r.scope),
   );

@@ -1,8 +1,9 @@
 import { Page, expect } from "@playwright/test";
 
-export async function devLogin(page: Page, opts: { host: string; email?: string; groups?: string; callbackPath?: string }) {
+export async function devLogin(page: Page, opts: { host: string; email?: string; groups?: string; callbackPath?: string; port?: number }) {
   const cb = encodeURIComponent(opts.callbackPath ?? "/");
-  await page.goto(`http://${opts.host}:3100/login?callbackUrl=${cb}`);
+  // Port ist überschreibbar, weil der PWA-Spike auf einem eigenen Server läuft.
+  await page.goto(`http://${opts.host}:${opts.port ?? 3100}/login?callbackUrl=${cb}`);
   // The login form is a client component; on a cold cross-host load (dev mode,
   // no shared cache across *.localtest.me origins) React can still be
   // hydrating when the click lands, so the browser falls through to a native

@@ -43,6 +43,9 @@ export default defineConfig({
     timeout: 240_000,
     env: {
       AUTH_SECRET: "test-secret",
+      // Für den "Portal bleibt sauber"-Test: die Zusage muss auf der
+      // *eingeloggten* Portal-Seite gelten, nicht nur auf dem Login-Redirect.
+      AUTH_DEV_LOGIN: "true",
       AUTH_COOKIE_DOMAIN: ".localtest.me",
       DATA_DIR: "./.data/pwa-spike",
       PORT: "3101",

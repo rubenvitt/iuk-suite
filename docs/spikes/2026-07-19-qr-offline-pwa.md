@@ -49,7 +49,10 @@ dass die anderen Hosts das Manifest/den SW erst gar nicht angeboten bekommen.
 3. Offline: Seite lädt aus dem SW-Cache **und hydriert** — eine rein clientseitige
    Interaktion (Platzhalter für die QR-Erzeugung) funktioniert ohne Netz.
 4. **Der eigentliche Punkt:** der Portal-Host liefert kein Manifest, kein JS unter
-   `/sw.js`, hat keinen `link[rel=manifest]` im HTML und keine SW-Registrierung.
+   `/sw.js`, hat keinen `link[rel=manifest]` im HTML und keine SW-Registrierung —
+   geprüft **anonym und eingeloggt**. Der eingeloggte Durchlauf ist der wichtigere:
+   ohne ihn bewiese der Test nur etwas über die Login-Seite, nicht über die produktiv
+   sichtbare Portal-Oberfläche (derselbe blinde Fleck wie bei Post-Cutover-Befund 2).
 
 ## Zwei Fallstricke, die den Spike zuerst rot gemacht haben
 
