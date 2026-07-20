@@ -14,6 +14,12 @@ import { devLogin } from "./fixtures";
 
 const BETA = "http://beta.localtest.me:3101";
 const PORTAL = "http://portal.localtest.me:3101";
+const QR = "http://qr.localtest.me:3101";
+
+// Name aus `_lib/sw-source.ts`. Bewusst dupliziert statt importiert: der Test
+// soll nach einem Versionssprung auffallen und nicht stillschweigend
+// mitwandern. Ein leerer Cache laesst die Poll-Zusicherung unten auflaufen.
+const CACHE = "qr-pwa-v2";
 
 test("Modul-Host liefert Manifest, Icon und SW", async ({ page, request }) => {
   await page.goto(`${BETA}/`);
@@ -100,4 +106,76 @@ test("anderer Host bleibt sauber: kein Manifest, kein SW, keine Registrierung", 
     (await navigator.serviceWorker.getRegistrations()).map((r) => r.scope),
   );
   expect(regs).not.toContain(`${PORTAL}/`);
+});
+
+/**
+ * Ab hier: das echte Modul `qr` statt des Stellvertreters `beta`.
+ *
+ * Bewusst in dieser Datei und nicht in einer eigenen `qr-pwa.spec.ts` — der
+ * Plan laesst beides zu. Diese Datei wird von `playwright.pwa.config.ts` bereits
+ * erfasst und von der normalen Config ausgeschlossen; eine neue Datei muesste
+ * in BEIDEN Configs nachgetragen werden, und ein vergessenes `testIgnore` liesse
+ * die Tests zusaetzlich auf dem Dev-Server ohne Service Worker laufen.
+ */
+
+test("QR-Erzeugung funktioniert offline", async ({ page, context }) => {
+  await page.goto(`${QR}/`);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  // Einmal online nachladen, damit die Client-Bundles im Cache liegen.
+  await page.reload();
+
+  await context.setOffline(true);
+  await page.reload();
+  await page.getByLabel("Link oder Text").fill("https://offline.example");
+  await page.getByRole("button", { name: /erzeugen/i }).click();
+  await expect(page.getByTestId("qr-display").locator("svg")).toBeVisible();
+  await context.setOffline(false);
+});
+
+test("Admin-Seite landet nicht im SW-Cache", async ({ page }) => {
+  // Gegenueber dem Plan scharf gestellt. Dort wurde nur anonym "/" aufgerufen
+  // und anschliessend auf einen Cache-Key "/admin" geprueft — der Test war aus
+  // zwei unabhaengigen Gruenden gruen, egal ob die Zusage haelt: /admin wurde
+  // nie besucht und nie eingeloggt, und der Navigations-Zweig legt Antworten
+  // ohnehin nur unter "/" ab, nie unter dem angefragten Pfad.
+  //
+  // Geprueft wird deshalb die Zusage selbst: auch mit aktiver Admin-Session
+  // darf im Cache nur die ANONYME Startseite liegen. Sonst laege das
+  // Preset-Markup (bei WLAN-Presets samt Passwort) nach dem Logout weiter auf
+  // einem geteilten Tablet.
+  await devLogin(page, {
+    host: "qr.localtest.me",
+    port: 3101,
+    groups: "drk-qr-admin",
+    callbackPath: "/admin",
+  });
+  await expect(page.getByTestId("qr-admin")).toBeVisible();
+  await page.evaluate(() => navigator.serviceWorker.ready);
+
+  // Der Cache-Write haengt an `waitUntil` und ist nach der Navigation nicht
+  // zwingend schon durch.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        async (cacheName) => (await (await caches.open(cacheName)).match("/")) !== undefined,
+        CACHE,
+      ),
+    )
+    .toBe(true);
+
+  const cached = await page.evaluate(async (cacheName) => {
+    const cache = await caches.open(cacheName);
+    const shell = await cache.match("/");
+    return {
+      paths: (await cache.keys()).map((r) => new URL(r.url).pathname),
+      html: shell ? await shell.text() : null,
+    };
+  }, CACHE);
+
+  expect(cached.paths.some((p) => p.startsWith("/admin"))).toBe(false);
+  // Positiver Nachweis, dass die gecachte Fassung die anonyme ist — ohne ihn
+  // bliebe der Test auch bei einem leeren, nichtssagenden Dokument gruen.
+  expect(cached.html).toContain("qr-login-hint");
+  expect(cached.html).not.toContain("qr-admin");
+  expect(cached.html).not.toContain("Presets verwalten");
 });
