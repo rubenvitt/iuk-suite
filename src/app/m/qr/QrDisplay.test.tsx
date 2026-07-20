@@ -6,8 +6,9 @@ import { QrDisplay } from "@/app/m/qr/QrDisplay";
 
 /**
  * Deckt gezielt das Long-Press-Invertieren ab. Die restlichen Funktionen
- * (PNG-Export, Vollbild) hängen an Canvas- und Fullscreen-APIs, die jsdom nicht
- * umsetzt — die prüft der E2E-Test.
+ * (PNG-Export, Vollbild, Teilen) hängen an Canvas-, Fullscreen- und
+ * Share-APIs, die jsdom nicht umsetzt — die prüft `e2e/qr.spec.ts` am echten
+ * Browser, samt Zurückdekodieren der heruntergeladenen PNG-Datei.
  */
 
 let host: HTMLDivElement;

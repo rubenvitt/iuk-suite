@@ -1,6 +1,7 @@
+import { readFile } from "node:fs/promises";
 import { test, expect, type Page } from "@playwright/test";
 import { devLogin } from "./fixtures";
-import { decodeQr } from "./helpers/decode-qr";
+import { decodeQr, decodeQrPng } from "./helpers/decode-qr";
 
 /**
  * E2E fuer das Modul `qr`. Die QR-Tests dekodieren den angezeigten Code
@@ -73,10 +74,116 @@ test("drk-qr-admin kann ein Preset anlegen", async ({ page }) => {
   // Preset anlegen" enthaelt denselben Text und machte die Zusicherung
   // mehrdeutig — sie wuerde auch dann gruen, wenn nichts angelegt wurde.
   await expect(page.getByTestId("preset-row").filter({ hasText: "Neues Preset" })).toHaveCount(1);
+
+  // Bis hierher ist nur die BEZEICHNUNG belegt. Die Preset-Zeile rendert den
+  // gespeicherten Wert nirgends — verwirft oder vertauscht die Server-Action
+  // ihn, bliebe der Test gruen und das Preset erzeugte im Einsatz einen Code,
+  // der ins Leere fuehrt. Deshalb dem Preset bis zum fertigen Code folgen:
+  // Formular -> DB -> Kachel -> QR-Code.
+  await page.goto(`${QR}/`);
+  await page.getByTestId("preset-tile").filter({ hasText: "Neues Preset" }).click();
+  expect(await decodeQr(await readQrSvg(page))).toBe("https://neu.example");
 });
 
 test("der QR-URL-Vertrag funktioniert direkt", async ({ page }) => {
   // Dieser Link-Aufbau ist im Umlauf (gebookmarkt, geteilt) — er muss halten.
   await page.goto(`${QR}/qr?data=${encodeURIComponent("https://drk.de")}&label=Test&kind=url`);
   expect(await decodeQr(await readQrSvg(page))).toBe("https://drk.de");
+});
+
+test("anonym: Kontakt-Formular erzeugt eine lesbare vCard", async ({ page }) => {
+  // Bewusst eine LANGE vCard mit allen vier Feldern. Zwei Gruende:
+  //
+  // 1. Alle uebrigen QR-Tests hier tragen 14 bis 40 Bytes und damit kleine
+  //    Codes. Erst ein grosser Code prueft den Dekodier-Helfer ernsthaft: mit
+  //    dem frueheren festen `resize(512, 512)` scheiterte er hier mit
+  //    "QR-Code konnte nicht dekodiert werden", obwohl der Code einwandfrei
+  //    war — und der naechste Entwickler haette den Fehler im vCard-Encoding
+  //    gesucht statt im Testwerkzeug.
+  // 2. /contact war bis hierher gar nicht durch die E2E abgedeckt.
+  const name = "Maximiliane von Musterhausen-Schoenberg";
+  const tel = "+49 30 85404 1234";
+  const email = "maximiliane.von.musterhausen@drk-kreisverband-berlin-nordwest.example";
+  const org =
+    "Deutsches Rotes Kreuz Kreisverband Berlin Nordwest e.V. Fachdienst Information und " +
+    "Kommunikation Einsatzabschnitt Fuehrungsunterstuetzung Bereitschaft 4 Standort Reinickendorf";
+
+  await page.goto(`${QR}/contact`);
+  await page.getByLabel("Name").fill(name);
+  await page.getByLabel("Telefon").fill(tel);
+  await page.getByLabel("E-Mail").fill(email);
+  await page.getByLabel("Organisation").fill(org);
+  await page.getByRole("button", { name: /erzeugen/i }).click();
+
+  expect(await decodeQr(await readQrSvg(page))).toBe(
+    `BEGIN:VCARD\nVERSION:3.0\nFN:${name}\nTEL:${tel}\nEMAIL:${email}\nORG:${org}\nEND:VCARD`,
+  );
+});
+
+/**
+ * Ab hier die drei Einsatz-Funktionen der Anzeige, die Task 8 ausdruecklich
+ * hierher delegiert hat ("eine Unit-Test-Attrappe fuer Canvas/Fullscreen waere
+ * teurer als aussagekraeftig"). Sie tragen echte Logik — 1024x1024-Canvas,
+ * weisser Hintergrund vor dem drawImage, Dateiname aus `label` — und waren
+ * bislang weder hier noch in QrDisplay.test.tsx abgedeckt.
+ */
+
+const VIEW = `/qr?data=${encodeURIComponent("https://drk.de")}&label=Test&kind=url`;
+
+test("PNG speichern laedt eine Datei mit demselben Code herunter", async ({ page }) => {
+  await page.goto(`${QR}${VIEW}`);
+  await readQrSvg(page);
+
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "PNG speichern" }).click(),
+  ]);
+
+  // Der Dateiname kommt aus `label`. Faellt er auf "qr" zurueck, heissen alle
+  // Downloads eines Einsatzes qr.png, qr (1).png — die Zuordnung ist weg.
+  expect(download.suggestedFilename()).toBe("Test.png");
+
+  // Und der entscheidende Teil: dass die Datei denselben Code traegt wie der
+  // Bildschirm. Ein auf 0x0 skaliertes drawImage oder ein fehlender weisser
+  // Hintergrund ergaebe eine Datei, die ankommt und nichts zeigt.
+  const path = await download.path();
+  expect(await decodeQrPng(await readFile(path))).toBe("https://drk.de");
+});
+
+test("Vollbild schaltet die Anzeige in den Vollbildmodus", async ({ page }) => {
+  await page.goto(`${QR}${VIEW}`);
+  await readQrSvg(page);
+
+  expect(await page.evaluate(() => document.fullscreenElement !== null)).toBe(false);
+  await page.getByRole("button", { name: "Vollbild" }).click();
+  await expect
+    .poll(() => page.evaluate(() => document.fullscreenElement?.getAttribute("data-testid")))
+    .toBe("qr-display");
+});
+
+test("Teilen reicht Nutzlast und Bezeichnung an das System weiter", async ({ page }) => {
+  // navigator.share gibt es im Testbrowser nicht — ohne Attrappe verliesse
+  // QrDisplay die Funktion sofort ueber `if (!navigator.share) return`, und der
+  // Test bewiese nichts. Vor der Navigation gesetzt, damit die Attrappe steht,
+  // bevor React haengt.
+  await page.addInitScript(() => {
+    (window as unknown as { __shared: unknown[] }).__shared = [];
+    Object.defineProperty(navigator, "share", {
+      value: (data: unknown) => {
+        (window as unknown as { __shared: unknown[] }).__shared.push(data);
+        return Promise.resolve();
+      },
+      configurable: true,
+    });
+  });
+
+  await page.goto(`${QR}${VIEW}`);
+  await readQrSvg(page);
+  await page.getByRole("button", { name: "Teilen" }).click();
+
+  // Geteilt wird bewusst der Nutzlast-TEXT, nicht das Bild: so kann der
+  // Empfaenger den Link direkt oeffnen, statt einen Code abzuscannen.
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __shared: unknown[] }).__shared))
+    .toEqual([{ title: "Test", text: "https://drk.de" }]);
 });
