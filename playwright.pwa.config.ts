@@ -12,6 +12,7 @@ import { defineConfig } from "@playwright/test";
 const ORIGINS = [
   "http://beta.localtest.me:3101",
   "http://portal.localtest.me:3101",
+  "http://qr.localtest.me:3101",
 ].join(",");
 
 export default defineConfig({

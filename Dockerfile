@@ -33,6 +33,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Migrationen: die Boot-Instrumentation migriert cwd-relativ von /app aus.
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/portal/_db/migrations ./src/app/m/portal/_db/migrations
+COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/qr/_db/migrations ./src/app/m/qr/_db/migrations
 
 # (better-sqlite3 inkl. nativem Binding steckt bereits im standalone-Output —
 #  in dieser Umgebung verifiziert, siehe „Pre-flight". KEIN separater COPY: der

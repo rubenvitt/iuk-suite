@@ -6,6 +6,7 @@ import {
   Triangle,
   Circle,
   Monitor,
+  QrCode,
   Grid3x3,
   type LucideIcon,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const ICONS: Record<string, LucideIcon> = {
   Triangle,
   Circle,
   Monitor,
+  QrCode,
 };
 
 export interface AppSwitcherEntry {
