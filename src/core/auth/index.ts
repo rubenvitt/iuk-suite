@@ -4,6 +4,7 @@ import type { JWT } from "next-auth/jwt";
 import { parseGroups, parseDevGroups } from "@/core/auth/groups";
 import { devLoginEnabled } from "@/core/auth/devLogin";
 import { pocketIdProvider } from "@/core/auth/pocketId";
+import { authCookies } from "@/core/auth/cookies";
 
 import { suiteAdminGroup } from "@/core/groups";
 
@@ -92,16 +93,10 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/login",
   },
-  cookies: {
-    sessionToken: {
-      options: {
-        domain: process.env.AUTH_COOKIE_DOMAIN || undefined,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-  },
+  // Nicht nur das Session-Cookie: state/pkce/nonce brauchen dieselbe Domain,
+  // sonst scheitert jeder Login, der auf einer Modul-Domain beginnt. Warum
+  // csrfToken aussen vor bleibt, steht in cookies.ts.
+  cookies: authCookies(),
   callbacks: {
     async jwt({ token, profile, user, account }) {
       // On initial sign-in, store OAuth tokens
