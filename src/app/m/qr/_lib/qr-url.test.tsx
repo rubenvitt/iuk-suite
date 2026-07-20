@@ -3,11 +3,11 @@ import { isValidElement, type ReactElement } from "react";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import { payloadToQrString } from "@/app/m/qr/_lib/payload";
 import type { QrPayload } from "@/app/m/qr/_lib/types";
-import QrViewPage from "@/app/m/qr/qr/page";
+import { QrViewContent } from "@/app/m/qr/QrView";
 import { QrDisplay } from "@/app/m/qr/QrDisplay";
 
 /**
- * Die Gegenprobe zu `qr/page.test.tsx`: dort steht, dass die Ansicht `data`
+ * Die Gegenprobe zu `QrView.test.tsx`: dort steht, dass die Ansicht `data`
  * unveraendert an die Anzeige durchreicht. Daraus folgt zwingend, dass JEDER
  * Erzeuger `payloadToQrString` selbst aufruft. Genau diese Haelfte des Vertrags
  * sichert diese Suite ab — sie faellt, sobald jemand wieder den Rohwert oder
@@ -30,23 +30,26 @@ function flatten(node: unknown, out: ReactElement[] = []): ReactElement[] {
   return out;
 }
 
-/** Die Ansicht, wie sie ein geteilter Link tatsaechlich erzeugt. */
-async function viewFor(href: string): Promise<ReactElement> {
+/** Die Ansicht, wie sie ein geteilter Link tatsaechlich erzeugt. Gelesen wird
+ *  wie in `QrView`: ueber `URLSearchParams.get`. */
+function viewFor(href: string): ReactElement {
   const search = params(href);
-  return (await QrViewPage({
-    searchParams: Promise.resolve(Object.fromEntries(search.entries())),
-  })) as ReactElement;
+  return QrViewContent({
+    data: search.get("data"),
+    label: search.get("label"),
+    kind: search.get("kind"),
+  }) as ReactElement;
 }
 
 /** Was am Ende der Kette tatsaechlich im QR-Code landet. */
-async function qrTextFor(href: string): Promise<string> {
-  const display = flatten(await viewFor(href)).find((el) => el.type === QrDisplay);
+function qrTextFor(href: string): string {
+  const display = flatten(viewFor(href)).find((el) => el.type === QrDisplay);
   if (!display) throw new Error("QrDisplay nicht gerendert");
   return (display.props as { text: string }).text;
 }
 
-async function testIdsFor(href: string): Promise<string[]> {
-  return flatten(await viewFor(href))
+function testIdsFor(href: string): string[] {
+  return flatten(viewFor(href))
     .map((el) => (el.props as { "data-testid"?: string })["data-testid"])
     .filter((id): id is string => typeof id === "string");
 }
@@ -98,9 +101,9 @@ describe("buildQrUrl", () => {
     ["tel", { kind: "tel", value: "+49 151 12345678" }] as const,
     ["wifi", wifi] as const,
     ["vcard", vcard] as const,
-  ])("Rundlauf %s: was der Leser anzeigt, ist payloadToQrString", async (_name, payload) => {
+  ])("Rundlauf %s: was der Leser anzeigt, ist payloadToQrString", (_name, payload) => {
     const href = buildQrUrl("L", payload);
-    expect(await qrTextFor(href)).toBe(payloadToQrString(payload));
+    expect(qrTextFor(href)).toBe(payloadToQrString(payload));
     // `kind` mitgeprueft: der Parameter entscheidet in der Ansicht ueber die
     // Klartext-Zeile. Ein fest verdrahtetes "url" faellt sonst nicht auf,
     // solange nur `data` verglichen wird.
@@ -114,15 +117,15 @@ describe("buildQrUrl", () => {
   it.each([
     ["wifi", wifi] as const,
     ["vcard", vcard] as const,
-  ])("ein %s-Link zeigt keine Klartext-Zeile unter dem Code", async (_name, payload) => {
-    expect(await testIdsFor(buildQrUrl("L", payload))).not.toContain("qr-raw");
+  ])("ein %s-Link zeigt keine Klartext-Zeile unter dem Code", (_name, payload) => {
+    expect(testIdsFor(buildQrUrl("L", payload))).not.toContain("qr-raw");
   });
 
   it.each([
     ["url", { kind: "url", value: "https://drk.de" }] as const,
     ["text", { kind: "text", value: "Freitext" }] as const,
     ["tel", { kind: "tel", value: "+49301234567" }] as const,
-  ])("ein %s-Link zeigt den Rohtext weiterhin an", async (_name, payload) => {
-    expect(await testIdsFor(buildQrUrl("L", payload))).toContain("qr-raw");
+  ])("ein %s-Link zeigt den Rohtext weiterhin an", (_name, payload) => {
+    expect(testIdsFor(buildQrUrl("L", payload))).toContain("qr-raw");
   });
 });

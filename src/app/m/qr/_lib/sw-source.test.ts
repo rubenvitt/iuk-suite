@@ -13,8 +13,30 @@ const ORIGIN = "https://qr.example.org";
 /** Marker, der eingeloggt in der Client-Payload von "/" steht — bei einem
  *  WLAN-Preset genau so wie das echte Passwort. */
 const PRESET_SECRET = "geheimes-wlan-passwort";
-const AUTH_HTML = `<html><body>Schnellzugriffe ${PRESET_SECRET}</body></html>`;
-const ANON_HTML = "<html><body>Anmelden, um persoenliche Schnellzugriffe zu sehen.</body></html>";
+
+/** Das gemeinsame Buendel beider Seiten. */
+const SHARED_CHUNK = "/_next/static/chunks/shared.js";
+/**
+ * Das Buendel, das NUR die Anzeige-Route laedt. Genau so eines gibt es im
+ * Prod-Build (nachgemessen: ein Chunk, den "/" nicht referenziert) — und genau
+ * daran scheiterte die Offline-Erzeugung, solange der Worker nur HTML cachte.
+ */
+const QR_CHUNK = "/_next/static/chunks/qr-view.js";
+
+const scripts = (...srcs: string[]) =>
+  srcs.map((s) => `<script src="${s}"></script>`).join("");
+
+const AUTH_HTML = `<html><body>${scripts(SHARED_CHUNK)}Schnellzugriffe ${PRESET_SECRET}</body></html>`;
+const ANON_HTML = `<html><body>${scripts(SHARED_CHUNK)}Anmelden, um persoenliche Schnellzugriffe zu sehen.</body></html>`;
+/**
+ * Die Anzeige-Route. Query-los, weil sie ihre Parameter clientseitig liest.
+ *
+ * Der zweite, maskierte Vorkommen von QR_CHUNK bildet Next' eingebetteten
+ * Flight-Payload nach: dort steht derselbe Pfad in einem JSON-String, also mit
+ * \\" statt ". Trennt der Worker nur an Anfuehrungszeichen, klebt der Backslash
+ * am Pfad und der Abruf ginge ins Leere.
+ */
+const QR_HTML = `<html><body>${scripts(SHARED_CHUNK, QR_CHUNK)}qr-view-shell<script>self.__next_f.push([1,"a:{\\"src\\":\\"${QR_CHUNK}\\"}"])</script></body></html>`;
 
 type FetchInit = { credentials?: string } | undefined;
 
@@ -76,6 +98,7 @@ function createNetwork(opts: { offline?: boolean } = {}) {
       const anonymous = init?.credentials === "omit";
       return new Response(anonymous ? ANON_HTML : AUTH_HTML, { status: 200 });
     }
+    if (url.pathname === "/qr") return new Response(QR_HTML, { status: 200 });
     return new Response(`asset:${url.pathname}`, { status: 200 });
   });
 }
@@ -261,6 +284,79 @@ describe("Service Worker: was im Cache landen darf", () => {
     // Derselbe Cache, aber das Netz ist weg.
     const offline = boot(createNetwork({ offline: true }), storage);
     const event = offline.dispatch("fetch", navigation("/"));
+    const res = await event.response;
+    await offline.drain(event);
+
+    expect(await res!.clone().text()).toBe(ANON_HTML);
+  });
+
+  it("legt neben der Startseite auch die Anzeige-Route ab", async () => {
+    const sw = boot(createNetwork());
+    await sw.drain(sw.dispatch("install", navigation("/")));
+
+    expect(sw.cachedPaths()).toContain("/");
+    expect(sw.cachedPaths()).toContain("/qr");
+    expect(await sw.body("/qr")).toBe(QR_HTML);
+  });
+
+  it("zieht die Build-Buendel nach, die die Shell-Seiten referenzieren", async () => {
+    // Ohne das haengt die Offline-Zusage an einem Rennen: das JS-Buendel der
+    // Anzeige-Route holt der Browser sonst erst beim Betreten: bricht das Netz
+    // vorher weg, fehlt genau das, und der Nutzer sieht Next' Fehlerseite statt
+    // seines Codes. Nach dem Install muss alles Noetige beisammen sein.
+    const sw = boot(createNetwork());
+    await sw.drain(sw.dispatch("install", navigation("/")));
+
+    expect(sw.cachedPaths()).toContain(SHARED_CHUNK);
+    expect(sw.cachedPaths()).toContain(QR_CHUNK);
+  });
+
+  it("holt genau die referenzierten Buendel — jedes einmal, keines verstuemmelt", async () => {
+    // Zwei Zusagen in einer Messung, beide an derselben Stelle im Worker:
+    //
+    // - Jede Datei nur einmal. Beide Shell-Seiten laden SHARED_CHUNK; ohne die
+    //   Vorpruefung im Cache zoege der Install ihn doppelt ueber die Leitung.
+    // - Keine verstuemmelten Pfade. Die Anzeige-Route nennt ihr Buendel ein
+    //   zweites Mal im Flight-Payload, dort mit maskierten Anfuehrungszeichen.
+    //   Trennt der Worker nur an ", bleibt ein Backslash am Pfad kleben und der
+    //   Abruf ginge ins Leere — ein Fehlschlag, den das stille .catch schluckt.
+    const net = createNetwork();
+    const sw = boot(net);
+    await sw.drain(sw.dispatch("install", navigation("/")));
+
+    const fetched = net.mock.calls
+      .map(([input]) => new URL(typeof input === "string" ? input : input.url, ORIGIN).pathname)
+      .filter((p) => p.startsWith("/_next/static/"));
+
+    expect(fetched.sort()).toEqual([QR_CHUNK, SHARED_CHUNK].sort());
+  });
+
+  it("beantwortet eine Offline-Navigation nach /qr mit der Anzeige, nicht mit der Startseite", async () => {
+    // Die Zusage, an der das ganze Modul haengt: offline einen Code erzeugen.
+    // Antwortet der Worker pauschal aus NAV_FALLBACK, steht die Adresszeile auf
+    // /qr?data=… und gerendert wird das leere Eingabeformular — kein Fehler,
+    // kein Hinweis, nur kein QR-Code.
+    const storage = createCacheStorage();
+    const online = boot(createNetwork(), storage);
+    await online.drain(online.dispatch("install", navigation("/")));
+
+    const offline = boot(createNetwork({ offline: true }), storage);
+    const event = offline.dispatch("fetch", navigation("/qr?data=https%3A%2F%2Fdrk.de&kind=url"));
+    const res = await event.response;
+    await offline.drain(event);
+
+    expect(await res!.clone().text()).toBe(QR_HTML);
+  });
+
+  it("faellt bei einer unbekannten Route offline weiter auf die Startseite zurueck", async () => {
+    // Der pfadgenaue Treffer darf den Rueckfall nicht ersetzen: /wifi liegt
+    // nicht im Cache, und eine leere Antwort waere schlechter als der Einstieg.
+    const storage = createCacheStorage();
+    const online = boot(createNetwork(), storage);
+    await online.drain(online.dispatch("install", navigation("/")));
+
+    const offline = boot(createNetwork({ offline: true }), storage);
+    const event = offline.dispatch("fetch", navigation("/wifi"));
     const res = await event.response;
     await offline.drain(event);
 

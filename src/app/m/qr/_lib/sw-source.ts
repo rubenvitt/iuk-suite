@@ -6,9 +6,10 @@
  *
  * Bewusst handgeschrieben statt Serwist/next-pwa: das Muster stammt aus dem
  * verifizierten Spike (`docs/spikes/2026-07-19-qr-offline-pwa.md`) und soll
- * keine Precache-Build-Pipeline einfuehren. Precaching der Build-Assets
- * (`/_next/static/**`) fehlt deshalb — offline traegt das Runtime-Caching, der
- * erste Besuch muss online passieren.
+ * keine Precache-Build-Pipeline einfuehren. Die Build-Assets werden trotzdem
+ * vorgehalten — aber zur Laufzeit aus dem HTML der Shell-Seiten gelesen statt
+ * aus einem beim Bauen erzeugten Manifest (siehe `cacheReferencedAssets`).
+ * Der erste Besuch muss weiterhin online passieren.
  */
 export const SW_SOURCE = `
 // v2 statt v1: Geraete, die den alten Worker hatten, tragen unter v1 womoeglich
@@ -20,7 +21,16 @@ const CACHE = "qr-pwa-v2";
 const NAV_FALLBACK = "/";
 
 /**
- * Holt die Offline-Fassung von "/" grundsaetzlich ohne Cookies.
+ * Die Routen, die offline tragen muessen. "/" ist der Einstieg mit den
+ * Eingabefeldern, "/qr" zeigt den erzeugten Code — der Weg Eingabe -> Anzeige
+ * fuehrt zwingend ueber beide. Lag nur "/" im Cache, beantwortete der Worker
+ * die Navigation nach dem Erzeugen mit der Startseite: die Adresszeile stand
+ * richtig auf /qr?data=…, gerendert wurde aber das leere Eingabeformular.
+ */
+const SHELL_ROUTES = [NAV_FALLBACK, "/qr"];
+
+/**
+ * Holt die Offline-Fassungen der Shell-Routen grundsaetzlich ohne Cookies.
  *
  * Grund: "/" zeigt eingeloggt das Preset-Grid. Dessen Props landen als
  * Client-Komponenten-Payload im HTML — bei einem WLAN-Preset samt Passwort.
@@ -35,11 +45,76 @@ const NAV_FALLBACK = "/";
  * die gecachte Fassung dagegen bauartbedingt anonym, unabhaengig von Headern.
  * Der Preis: offline gibt es keine Presets. Die QR-Erzeugung selbst laeuft
  * clientseitig und funktioniert weiter.
+ *
+ * "/qr" wird ohne Query geholt und liegt deshalb query-los im Cache. Das ist
+ * kein Mangel, sondern Voraussetzung: die Ansicht liest \`data\`/\`label\`/\`kind\`
+ * clientseitig aus der Adresszeile, eine einzige gecachte Fassung bedient
+ * darum jeden Payload.
  */
 function cacheAnonymousShell() {
-  return fetch(NAV_FALLBACK, { credentials: "omit" })
-    .then((res) => (res.ok ? caches.open(CACHE).then((c) => c.put(NAV_FALLBACK, res)) : undefined))
+  // Nacheinander, nicht parallel: beide Shell-Seiten teilen sich Buendel.
+  // Parallel sehen beide denselben Cache-Fehltreffer, bevor einer schreibt, und
+  // holen dieselbe Datei doppelt — auf einem Einsatz-Tablet am Mobilfunkrand
+  // nicht egal.
+  return SHELL_ROUTES.reduce(
+    (chain, path) => chain.then(() => cacheShellRoute(path)),
+    Promise.resolve(),
+  );
+}
+
+function cacheShellRoute(path) {
+  return fetch(path, { credentials: "omit" })
+    .then(async (res) => {
+      if (!res.ok) return;
+      const html = await res.clone().text();
+      const cache = await caches.open(CACHE);
+      await cache.put(path, res);
+      await cacheReferencedAssets(html, cache);
+    })
     .catch(() => {});
+}
+
+/**
+ * Zieht die Build-Assets nach, die eine Shell-Seite referenziert.
+ *
+ * Ohne das haengt die Offline-Zusage an einem Rennen: Das JS-Buendel einer
+ * Route holt der Browser erst, wenn sie betreten oder vorgeladen wird. Bricht
+ * das Netz vorher weg, fehlt genau das Buendel, das die Seite braucht, und der
+ * Nutzer sieht statt seines Codes Next' Fehlerseite. Im Prod-Build gemessen:
+ * "/qr" referenziert genau ein Buendel, das "/" nicht laedt.
+ *
+ * Ein \`router.prefetch("/qr")\` auf der Startseite war der erste Versuch und
+ * ist bewusst wieder raus: es laeuft erst nach der Hydrierung an, und bricht
+ * das Netz waehrenddessen weg, werden die Abrufe mittendrin abgebrochen
+ * (gemessen: ERR_ABORTED auf genau jenem Buendel, in 1 von 6 Durchlaeufen).
+ * Hier dagegen haengt alles am install-Handler — ist der Worker aktiv, ist
+ * alles Noetige beisammen, ohne Rennen.
+ *
+ * Bewusst aus dem ausgelieferten HTML gelesen statt aus einem Precache-
+ * Manifest: die Dateinamen sind gehasht und wechseln mit jedem Build, und eine
+ * Build-Pipeline soll dieses Modul laut Plan nicht bekommen. Das HTML kennt
+ * sie zur Laufzeit ohnehin.
+ *
+ * Getrennt wird auch am Backslash, nicht nur an Anfuehrungszeichen: Next legt
+ * denselben Pfad ein zweites Mal im eingebetteten Flight-Payload ab, dort mit
+ * maskierten Anfuehrungszeichen (\\"/_next/…\\"). Ohne den Backslash im Trenner
+ * bliebe er am Pfad kleben und der Abruf ginge ins Leere.
+ */
+function cacheReferencedAssets(html, cache) {
+  const refs = new Set(
+    html.split(/["'()\\\\]/).filter((part) => part.startsWith("/_next/static/")),
+  );
+  return Promise.all(
+    [...refs].map((path) =>
+      cache.match(path).then((hit) =>
+        hit
+          ? undefined
+          : fetch(path)
+              .then((res) => (res.ok ? cache.put(path, res) : undefined))
+              .catch(() => {}),
+      ),
+    ),
+  );
 }
 
 /**
@@ -83,7 +158,16 @@ self.addEventListener("fetch", (event) => {
   if (req.mode === "navigate") {
     event.waitUntil(cacheAnonymousShell());
     event.respondWith(
-      fetch(req).catch(() => caches.open(CACHE).then((c) => c.match(NAV_FALLBACK))),
+      // Offline pfadgenau antworten und erst danach auf "/" zurueckfallen.
+      // Pauschal NAV_FALLBACK auszuliefern hiess: jede Navigation zeigt die
+      // Startseite, egal wohin sie ging. Gematcht wird auf url.pathname statt
+      // auf req — sonst suchte der Cache nach "/qr?data=…" und faende die
+      // query-los abgelegte Fassung nie.
+      fetch(req).catch(() =>
+        caches
+          .open(CACHE)
+          .then(async (c) => (await c.match(url.pathname)) ?? (await c.match(NAV_FALLBACK))),
+      ),
     );
     return;
   }
