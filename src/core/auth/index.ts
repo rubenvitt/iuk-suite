@@ -5,6 +5,7 @@ import { parseGroups, parseDevGroups } from "@/core/auth/groups";
 import { devLoginEnabled } from "@/core/auth/devLogin";
 import { pocketIdProvider } from "@/core/auth/pocketId";
 import { authCookies } from "@/core/auth/cookies";
+import { suiteRedirect } from "@/core/auth/redirect";
 
 import { suiteAdminGroup } from "@/core/groups";
 
@@ -93,8 +94,9 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/login",
   },
-  // Nicht nur das Session-Cookie: state/pkce/nonce brauchen dieselbe Domain,
-  // sonst scheitert jeder Login, der auf einer Modul-Domain beginnt. Warum
+  // Nicht nur das Session-Cookie: state/pkce/nonce/callbackUrl brauchen dieselbe
+  // Domain, sonst scheitert jeder Login, der auf einer Modul-Domain beginnt —
+  // die ersten drei laut, callbackUrl still auf der falschen Seite. Warum
   // csrfToken aussen vor bleibt, steht in cookies.ts.
   cookies: authCookies(),
   callbacks: {
@@ -139,6 +141,12 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     },
     authorized({ auth: session }) {
       return !!session?.user;
+    },
+    // Ohne diesen Callback wirft Auth.js jedes Ziel ausserhalb von AUTH_URL aufs
+    // Portal zurück — und AUTH_URL ist auf jedem Modul-Host derselbe Wert. Warum
+    // eine Allowlist und keine Blanko-Erlaubnis: siehe redirect.ts.
+    redirect({ url, baseUrl }) {
+      return suiteRedirect({ url, baseUrl });
     },
   },
   trustHost: true,

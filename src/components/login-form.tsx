@@ -1,6 +1,7 @@
 "use client";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { absoluteCallbackUrl } from "@/core/auth/callbackUrl";
 import { useState } from "react";
 
 export function LoginForm({ devLogin }: { devLogin: boolean }) {
@@ -11,7 +12,15 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 p-8">
       <h1 className="text-2xl font-bold">IuK-Suite Login</h1>
       <button className="rounded-md bg-[var(--color-rot)] px-4 py-2 text-white"
-        onClick={() => signIn("pocket-id", { redirectTo: callbackUrl })}>
+        // Absolut gegen den Host, auf dem diese Seite läuft — NICHT relativ.
+        // Warum, steht in core/auth/callbackUrl.ts; dass ein präparierter
+        // callbackUrl damit nicht zum offenen Redirector wird, stellt die
+        // Allowlist in core/auth/redirect.ts sicher.
+        onClick={() =>
+          signIn("pocket-id", {
+            redirectTo: absoluteCallbackUrl(callbackUrl, window.location.origin),
+          })
+        }>
         Mit Pocket ID anmelden
       </button>
       {devLogin && (

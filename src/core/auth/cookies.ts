@@ -11,8 +11,18 @@ type EnvLike = Record<string, string | undefined>;
  * `pkceCodeVerifier` und `nonce` **host-only** auf dieser Domain — der Callback
  * landet aber auf `AUTH_URL`. Dort fehlen die Cookies, und Auth.js bricht mit
  * `InvalidCheck: state value could not be parsed` ab; der Nutzer sieht
- * `/api/auth/error?error=Configuration`. Deshalb tragen alle vier Cookies
+ * `/api/auth/error?error=Configuration`. Deshalb tragen alle diese Cookies
  * dieselbe Domain wie das Session-Cookie.
+ *
+ * **`callbackUrl` gehört aus demselben Grund dazu, mit einer anderen Folge.**
+ * Der OIDC-Callback bringt keinen `callbackUrl`-Parameter mit; Auth.js liest das
+ * Ziel dort aus genau diesem Cookie (`createCallbackUrl` in
+ * `@auth/core/lib/utils/callback-url.js`). Host-only auf `qr.iuk-ue.de` gesetzt,
+ * ist es auf `AUTH_URL` unsichtbar — Auth.js fällt still auf `url.origin` zurück
+ * und der Nutzer landet nach dem Login auf dem Portal statt auf der Domain, von
+ * der er kam. Kein Fehler, keine Meldung, nur die falsche Seite. Die Domain hier
+ * ist nötig, aber allein nicht hinreichend: siehe `redirect.ts` (Allowlist) und
+ * `login-form.tsx` (absolutes Ziel beim Absenden).
  *
  * **`csrfToken` bleibt bewusst außen vor.** Auth.js verwendet dafür in
  * Produktion den `__Host-`-Präfix, und der verbietet ein `domain`-Attribut — der
@@ -45,5 +55,6 @@ export function authCookies(env: EnvLike = process.env): NonNullable<NextAuthCon
     state: { options },
     pkceCodeVerifier: { options },
     nonce: { options },
+    callbackUrl: { options },
   };
 }

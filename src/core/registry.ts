@@ -1,5 +1,8 @@
 import { envHostsFor } from "@/core/hosts";
 
+/** Wie in `hosts.ts`: nur „String rein, String oder undefined raus" — bewusst nicht `NodeJS.ProcessEnv`. */
+type EnvLike = Record<string, string | undefined>;
+
 export type ShellVariant = "full" | "minimal" | "kiosk";
 
 export interface ModuleDef {
@@ -73,15 +76,15 @@ export function findModule(key: string): ModuleDef | null {
  * Fallback aus der Registry. Eine leer gesetzte Variable heißt bewusst „keine
  * Prod-Hosts" — damit lässt sich ein Cutover ohne Rebuild zurücknehmen.
  */
-export function prodHostsFor(mod: ModuleDef): string[] {
-  return envHostsFor(mod.key) ?? mod.prodHosts;
+export function prodHostsFor(mod: ModuleDef, env: EnvLike = process.env): string[] {
+  return envHostsFor(mod.key, env) ?? mod.prodHosts;
 }
 
-export function moduleForHost(host: string): ModuleDef | null {
+export function moduleForHost(host: string, env: EnvLike = process.env): ModuleDef | null {
   const h = host.split(":")[0].toLowerCase();
   for (const m of MODULES) {
     if (h === `${m.key}.localtest.me`) return m;
-    if (prodHostsFor(m).some((p) => p.toLowerCase() === h)) return m;
+    if (prodHostsFor(m, env).some((p) => p.toLowerCase() === h)) return m;
   }
   return null;
 }

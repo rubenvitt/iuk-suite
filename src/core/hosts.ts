@@ -55,6 +55,12 @@ export function envHostsFor(key: string, env: EnvLike = process.env): string[] |
  * `moduleForHost` auf das Portal zurück und die QR-Domain zeigt stillschweigend
  * das Portal. Deshalb gehört zu jedem Cutover ein curl gegen die neue Domain,
  * der prüft, dass dort auch wirklich *dieses* Modul antwortet.
+ *
+ * Dazu gehört ein zweiter, manueller Schritt: **einmal von der neuen Domain aus
+ * anmelden und prüfen, dass man dort wieder landet.** Die Allowlist in
+ * `core/auth/redirect.ts` erkennt einen Modul-Host über genau diese Variable —
+ * fehlt sie, wirft Auth.js den Nutzer nach dem Login aufs Portal, ohne Fehler
+ * und ohne Meldung. Ein curl sieht davon nichts.
  */
 export function validateHostConfig(moduleKeys: string[], env: EnvLike = process.env): string[] {
   const errors: string[] = [];

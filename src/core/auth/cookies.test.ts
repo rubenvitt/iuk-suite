@@ -10,11 +10,22 @@ describe("authCookies", () => {
   // Cookies host-only auf der Modul-Domain gesetzt, der Callback landet aber auf
   // AUTH_URL — dort fehlen sie und Auth.js wirft
   // "InvalidCheck: state value could not be parsed".
-  it("setzt die Domain auf allen vier Login-Cookies", () => {
+  it("setzt die Domain auf allen fuenf Login-Cookies", () => {
     expect(WITH.sessionToken?.options?.domain).toBe(DOMAIN);
     expect(WITH.state?.options?.domain).toBe(DOMAIN);
     expect(WITH.pkceCodeVerifier?.options?.domain).toBe(DOMAIN);
     expect(WITH.nonce?.options?.domain).toBe(DOMAIN);
+    expect(WITH.callbackUrl?.options?.domain).toBe(DOMAIN);
+  });
+
+  // callbackUrl ist der Grund, warum ein Login von qr.iuk-ue.de auf dem Portal
+  // endete: der OIDC-Callback bringt keinen callbackUrl-Parameter mit, Auth.js
+  // liest das Ziel dort aus dem Cookie (createCallbackUrl in
+  // @auth/core/lib/utils/callback-url.js). Host-only auf qr gesetzt, ist es auf
+  // iuk-ue.de unsichtbar — und Auth.js faellt auf url.origin, also aufs Portal.
+  it("setzt die Domain auch auf callbackUrl", () => {
+    expect(WITH.callbackUrl?.options?.domain).toBe(DOMAIN);
+    expect(WITHOUT.callbackUrl?.options?.domain).toBeUndefined();
   });
 
   // csrfToken traegt in Produktion den __Host-Praefix, und der verbietet ein
@@ -28,7 +39,7 @@ describe("authCookies", () => {
   // Ohne gesetzte Variable muss das Verhalten exakt dem bisherigen entsprechen:
   // host-only. Sonst braeche die lokale Entwicklung samt Dev-Login.
   it("ohne AUTH_COOKIE_DOMAIN traegt kein Cookie eine Domain", () => {
-    for (const key of ["sessionToken", "state", "pkceCodeVerifier", "nonce"] as const) {
+    for (const key of ["sessionToken", "state", "pkceCodeVerifier", "nonce", "callbackUrl"] as const) {
       expect(WITHOUT[key]?.options?.domain).toBeUndefined();
     }
   });
@@ -41,20 +52,20 @@ describe("authCookies", () => {
 
   it("secure haengt an NODE_ENV — bestehendes Verhalten, nicht am Protokoll", () => {
     const prod = authCookies({ AUTH_COOKIE_DOMAIN: DOMAIN, NODE_ENV: "production" });
-    for (const key of ["sessionToken", "state", "pkceCodeVerifier", "nonce"] as const) {
+    for (const key of ["sessionToken", "state", "pkceCodeVerifier", "nonce", "callbackUrl"] as const) {
       expect(prod[key]?.options?.secure).toBe(true);
     }
     expect(authCookies({ NODE_ENV: "development" }).state?.options?.secure).toBe(false);
   });
 
   /**
-   * Die vier Cookies muessen dieselben Optionen tragen — genau deshalb gibt es
+   * Die fuenf Cookies muessen dieselben Optionen tragen — genau deshalb gibt es
    * den Helper. Liefen sie auseinander, faende man das erst, wenn ein Login von
    * einer Modul-Domain aus fehlschlaegt, und das ist ein Fall, den keine
    * Testsuite hier lokal herstellt.
    */
-  it("alle vier Cookies teilen dieselben Optionen", () => {
-    const [first, ...rest] = (["sessionToken", "state", "pkceCodeVerifier", "nonce"] as const).map(
+  it("alle fuenf Cookies teilen dieselben Optionen", () => {
+    const [first, ...rest] = (["sessionToken", "state", "pkceCodeVerifier", "nonce", "callbackUrl"] as const).map(
       (k) => WITH[k]?.options,
     );
     for (const other of rest) expect(other).toEqual(first);
