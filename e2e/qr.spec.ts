@@ -79,6 +79,18 @@ test("nach dem Logout sieht die naechste Person den Verlauf nicht mehr", async (
   await page.context().clearCookies();
   await page.goto(`${QR}/`);
   await expect(page.getByTestId("qr-login-hint")).toBeVisible();
+
+  // Auf den anonymen Zustand warten, nicht auf ein statisches HTML: der Server
+  // liefert das Login-Hint sofort (anonym), aber `HistoryOwner` liest die
+  // Sitzung clientseitig — in der CI kann das länger dauern als der
+  // Schnappschuss in HistoryList. Ohne diesen Poll kann der Verlauf eines
+  // Angemeldeten noch sichtbar sein, wenn der Test prüft, ob er weg ist.
+  // Das Hook spiegelt denselben Wert, den HistoryOwner in den Store schreibt —
+  // der Test wartet also genau auf den Zustand, den die Komponente auch sieht.
+  await expect
+    .poll(() => page.evaluate(() => window.__historyOwner ?? null), { timeout: 10_000 })
+    .toBeNull();
+
   await expect(page.getByTestId("qr-history")).toHaveCount(0);
 });
 

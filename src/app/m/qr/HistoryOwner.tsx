@@ -4,6 +4,16 @@ import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { setHistoryOwner } from "@/app/m/qr/_lib/history";
 
+// Nur im Test: der E2E fragt den Eigentümer über dieses globale Hook ab, um zu
+// warten, bis der Client die Session aufgelöst hat. Das Hook ist kein
+// Sicherheitsmechanismus — es liest denselben Wert, den HistoryOwner ohnehin
+// in den Store schreibt.
+declare global {
+  interface Window {
+    __historyOwner?: string | null;
+  }
+}
+
 /**
  * Meldet dem Verlauf, wem er gerade gehoert. Steht im Modul-Layout, weil auch
  * die Formularrouten (/wifi, /tel, /contact) in den Verlauf schreiben — auf der
@@ -31,6 +41,9 @@ export function HistoryOwner() {
 
   useEffect(() => {
     setHistoryOwner(userId);
+    // Test-Hook: der E2E pollt diesen Wert, um zu warten, bis der Client die
+    // Sitzung aufgelöst hat. Er spiegelt denselben Zustand, den der Store hat.
+    window.__historyOwner = userId;
   }, [userId]);
 
   return null;
