@@ -1,4 +1,6 @@
-import type { Preset, QrKind } from "./types";
+import type { Preset, QrKind, QrPayload } from "./types";
+import { payloadToQrString } from "./payload";
+import { exceedsQrCapacity, QR_MAX_LENGTH } from "./qr";
 
 export type ValidationResult =
   | { ok: true; value: Omit<Preset, "id"> & { id?: string } }
@@ -71,6 +73,16 @@ export function validatePresetInput(input: unknown): ValidationResult {
       }
       break;
     }
+  }
+
+  // Geprueft wird die fertige Nutzlast, nicht der Rohwert: `tel:`-Praefix,
+  // WIFI-Zeile und vCard-Rumpf zaehlen mit. Ohne diese Schranke liesse sich ein
+  // Preset dauerhaft speichern, das die Ansicht nie rendern kann — der Admin
+  // saehe Erfolg, jeder Nutzer danach nur die Fehlermeldung an der Kachel.
+  // Byte-Laenge, nicht text.length: Umlaute zaehlen doppelt, Emoji vierfach.
+  const qrText = payloadToQrString({ kind, value: payloadValue } as QrPayload);
+  if (exceedsQrCapacity(qrText)) {
+    return fail(`Der erzeugte QR-Text überschreitet ${QR_MAX_LENGTH} Bytes`);
   }
 
   return {

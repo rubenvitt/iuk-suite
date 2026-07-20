@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { validatePresetInput } from "@/app/m/qr/_lib/validator";
 import { payloadToQrString } from "@/app/m/qr/_lib/payload";
+import { QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
 import type { QrPayload } from "@/app/m/qr/_lib/types";
 
 // Gibt den geprueften Wert zurueck, damit der Erfolgspfad nicht nur auf ok:true endet.
@@ -108,5 +109,39 @@ describe("validatePresetInput", () => {
   it("vcard: nicht-Objekt als value wird eindeutig abgelehnt", () => {
     fails({ label: "L", kind: "vcard", value: null }, "Objekt");
     fails({ label: "L", kind: "vcard", value: "N" }, "Objekt");
+  });
+
+  // Ohne diese Schranke speichert der Admin-Pfad ein Preset dauerhaft, das
+  // payloadToSvg spaeter nie rendern kann: Erfolg beim Anlegen, Fehlermeldung
+  // an jeder Kachel.
+  describe("QR-Kapazitaet", () => {
+    it("laesst einen Text genau am Limit durch", () => {
+      expect(ok({ label: "L", kind: "text", value: "a".repeat(QR_MAX_LENGTH) }).value).toHaveLength(
+        QR_MAX_LENGTH,
+      );
+    });
+    it("lehnt ein Byte darueber ab", () => {
+      fails({ label: "L", kind: "text", value: "a".repeat(QR_MAX_LENGTH + 1) }, "überschreitet");
+    });
+    // Byte-Laenge, nicht text.length: nach Zeichen gezaehlt waeren diese
+    // Umlaute laengst erlaubt, waehrend die Erzeugung sie bereits ablehnt.
+    it("zaehlt Umlaute doppelt", () => {
+      const umlauts = "ä".repeat(QR_MAX_LENGTH / 2 + 1);
+      expect(umlauts.length).toBeLessThan(QR_MAX_LENGTH);
+      fails({ label: "L", kind: "text", value: umlauts }, "überschreitet");
+    });
+    // Gemessen wird die fertige Nutzlast: das tel:-Praefix zaehlt mit, sonst
+    // rutschte eine Nummer durch, die als QR-Text vier Bytes zu lang ist.
+    it("rechnet das tel:-Praefix mit ein", () => {
+      fails({ label: "L", kind: "tel", value: "1".repeat(QR_MAX_LENGTH - 3) }, "überschreitet");
+      ok({ label: "L", kind: "tel", value: "1".repeat(QR_MAX_LENGTH - 4) });
+    });
+    // Gegenprobe fuer die Grenze: dieselbe SSID ist als Rohwert kurz genug,
+    // erst die WIFI-Zeile drumherum sprengt die Kapazitaet.
+    it("rechnet den WIFI-Rumpf mit ein", () => {
+      const ssid = "s".repeat(QR_MAX_LENGTH - 10);
+      expect(ssid.length).toBeLessThan(QR_MAX_LENGTH);
+      fails({ label: "L", kind: "wifi", value: { ssid, encryption: "nopass" } }, "überschreitet");
+    });
   });
 });

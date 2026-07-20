@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { createPresetAction } from "@/app/m/qr/actions";
-import type { QrKind } from "@/app/m/qr/_lib/types";
+import { payloadToQrString } from "@/app/m/qr/_lib/payload";
+import { exceedsQrCapacity, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
+import type { QrKind, QrPayload } from "@/app/m/qr/_lib/types";
 
 const KINDS: { value: QrKind; label: string }[] = [
   { value: "url", label: "Web-Adresse" },
@@ -33,6 +35,7 @@ const inputClass = "min-h-[var(--tap)] rounded border border-[var(--color-linie)
  */
 export function PresetForm() {
   const [kind, setKind] = useState<QrKind>("url");
+  const [value, setValue] = useState("");
 
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
@@ -46,19 +49,33 @@ export function PresetForm() {
 
   // Leere Optionalfelder werden weggelassen statt als "" gespeichert — sonst
   // stuenden Geisterfelder in der Datenbank, die niemand eingegeben hat.
-  function jsonValue(): string {
+  function payload(): QrPayload {
     if (kind === "wifi") {
-      return JSON.stringify({ ssid, password, encryption, hidden });
+      return {
+        kind,
+        value: { ssid, password, encryption: encryption as "WPA" | "WEP" | "nopass", hidden },
+      };
     }
-    return JSON.stringify({
-      name,
-      tel: tel.trim() || undefined,
-      email: email.trim() || undefined,
-      org: org.trim() || undefined,
-    });
+    if (kind === "vcard") {
+      return {
+        kind,
+        value: {
+          name,
+          tel: tel.trim() || undefined,
+          email: email.trim() || undefined,
+          org: org.trim() || undefined,
+        },
+      };
+    }
+    return { kind, value };
   }
 
   const isJsonKind = kind === "wifi" || kind === "vcard";
+  // Dieselbe Grenze, die der Validator serverseitig durchsetzt — sonst meldet
+  // das Formular Erfolg fuer ein Preset, das die Ansicht nie rendern kann.
+  // Gemessen am fertigen QR-Text und in Bytes, nicht in Zeichen: Umlaute
+  // zaehlen doppelt, Emoji vierfach.
+  const tooLong = exceedsQrCapacity(payloadToQrString(payload()));
 
   return (
     <form action={createPresetAction} className="flex max-w-md flex-col gap-4" data-testid="preset-form">
@@ -94,21 +111,41 @@ export function PresetForm() {
       {kind === "url" && (
         <label className="flex flex-col gap-1">
           <span className="font-semibold">Web-Adresse</span>
-          <input name="value" type="url" required className={inputClass} />
+          <input
+            name="value"
+            type="url"
+            required
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className={inputClass}
+          />
         </label>
       )}
 
       {kind === "text" && (
         <label className="flex flex-col gap-1">
           <span className="font-semibold">Text</span>
-          <input name="value" required className={inputClass} />
+          <input
+            name="value"
+            required
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className={inputClass}
+          />
         </label>
       )}
 
       {kind === "tel" && (
         <label className="flex flex-col gap-1">
           <span className="font-semibold">Telefonnummer</span>
-          <input name="value" type="tel" required className={inputClass} />
+          <input
+            name="value"
+            type="tel"
+            required
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className={inputClass}
+          />
         </label>
       )}
 
@@ -196,11 +233,19 @@ export function PresetForm() {
         </fieldset>
       )}
 
-      {isJsonKind && <input type="hidden" name="value" value={jsonValue()} />}
+      {isJsonKind && <input type="hidden" name="value" value={JSON.stringify(payload().value)} />}
+
+      {tooLong ? (
+        <p data-testid="preset-too-long" className="text-[var(--color-rot)]">
+          Zu lang für einen QR-Code (max. {QR_MAX_LENGTH} Bytes — Umlaute zählen doppelt, Emoji
+          vierfach).
+        </p>
+      ) : null}
 
       <button
         type="submit"
-        className="min-h-[var(--tap-xl)] rounded border border-[var(--color-linie)] font-semibold"
+        disabled={tooLong}
+        className="min-h-[var(--tap-xl)] rounded border border-[var(--color-linie)] font-semibold disabled:opacity-50"
       >
         Anlegen
       </button>
