@@ -12,11 +12,15 @@ import { act } from "react";
  * Die Action selbst ist gemockt: sie ist ein Server-Modul und wird hier nicht
  * ausgefuehrt, geprueft wird allein das erzeugte Formular.
  */
-vi.mock("@/app/m/qr/actions", () => ({ createPresetAction: vi.fn() }));
+vi.mock("@/app/m/qr/actions", () => ({
+  createPresetAction: vi.fn(),
+  updatePresetAction: vi.fn(),
+}));
 
 import { PresetForm } from "@/app/m/qr/admin/preset-form";
 import { QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
 import { exists, fill, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import type { Preset } from "@/app/m/qr/_lib/types";
 
 afterEach(async () => {
   await unmount();
@@ -115,5 +119,74 @@ describe("PresetForm: QR-Kapazitaet", () => {
     await fill("fieldset input", "s".repeat(QR_MAX_LENGTH - 10));
 
     expect(exists('[data-testid="preset-too-long"]')).toBe(true);
+  });
+});
+
+/**
+ * Der Bearbeiten-Pfad. Ohne ihn blieb einem Admin nach einer WLAN-Passwort-
+ * rotation nur Loeschen und Neuanlegen — mit neuem `sortOrder` (die Kachel
+ * rutscht im Schnellzugriff ans Ende) und verlorenen Audit-Feldern.
+ */
+describe("PresetForm: Bearbeiten", () => {
+  const wlan: Preset = {
+    id: "wlan-einsatzstelle",
+    label: "WLAN Einsatzstelle",
+    icon: "📶",
+    kind: "wifi",
+    value: { ssid: "DRK-Einsatz", password: "altes-geheim", encryption: "WEP", hidden: true },
+  };
+  const link: Preset = {
+    id: "drk",
+    label: "DRK",
+    kind: "url",
+    value: "https://drk.de",
+  };
+
+  it("belegt die Felder eines bestehenden Presets vor", async () => {
+    await mount(<PresetForm preset={link} />);
+
+    expect(query<HTMLInputElement>('input[name="label"]').value).toBe("DRK");
+    expect(query<HTMLInputElement>('input[name="value"]').value).toBe("https://drk.de");
+  });
+
+  it("belegt auch die Unterfelder eines wifi-Presets vor", async () => {
+    await mount(<PresetForm preset={wlan} />);
+
+    expect(JSON.parse(valueFields()[0].value)).toEqual({
+      ssid: "DRK-Einsatz",
+      password: "altes-geheim",
+      encryption: "WEP",
+      hidden: true,
+    });
+  });
+
+  // Ohne dieses Feld adressierte die Action keine Zeile: `updatePreset` liefe
+  // gegen die id "undefined" und aendert schlicht nichts.
+  it("schickt die id des bearbeiteten Presets mit", async () => {
+    await mount(<PresetForm preset={wlan} />);
+    expect(query<HTMLInputElement>('input[type="hidden"][name="id"]').value).toBe(
+      "wlan-einsatzstelle",
+    );
+  });
+
+  /**
+   * Die Sperre aus easy-qr: ein Wechsel der Art machte den gespeicherten `value`
+   * bedeutungslos (eine SSID ist keine URL). Geprueft wird beides — dass das
+   * Auswahlfeld gesperrt ist UND dass die Art trotzdem in der FormData landet.
+   * Ein deaktiviertes Feld schickt der Browser naemlich nicht mit; ohne das
+   * versteckte Feld schluege `parse` mit "kind ungültig: " fehl.
+   */
+  it("sperrt die Art, reicht sie aber weiter", async () => {
+    await mount(<PresetForm preset={wlan} />);
+
+    expect(query<HTMLSelectElement>("select").disabled).toBe(true);
+    const kindFields = queryAll<HTMLInputElement>('[name="kind"]');
+    expect(kindFields).toHaveLength(1);
+    expect(kindFields[0].value).toBe("wifi");
+  });
+
+  it("laesst die Art beim Anlegen frei waehlbar", async () => {
+    await mount(<PresetForm />);
+    expect(query<HTMLSelectElement>('select[name="kind"]').disabled).toBe(false);
   });
 });

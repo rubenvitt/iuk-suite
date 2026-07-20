@@ -51,6 +51,37 @@ test("eingeloggt sieht das Preset-Grid mit dem Seed-Preset", async ({ page }) =>
   await expect(page.getByText("Beispiel-Link")).toBeVisible();
 });
 
+/**
+ * Das geteilte Einsatz-Tablet. Der Verlauf liegt im localStorage und ueberlebt
+ * jeden Logout — ohne Bindung an die Sitzung sah die naechste, anonyme Person
+ * die Schnellzugriffe der vorigen und holte sich mit einem Tipp deren Nutzlast
+ * zurueck, bei einem WLAN-Preset samt Passwort in der Adresszeile.
+ *
+ * Bewusst hier und nicht in `pwa-spike.spec.ts`: der Verlauf haengt am
+ * localStorage, nicht am Service Worker, und die Session-Tests des Moduls stehen
+ * ohnehin in dieser Datei (samt Seed-Preset).
+ */
+test("nach dem Logout sieht die naechste Person den Verlauf nicht mehr", async ({ page }) => {
+  await devLogin(page, { host: "qr.localtest.me", groups: "" });
+  await page.goto(`${QR}/`);
+  await page.getByTestId("preset-tile").filter({ hasText: "Beispiel-Link" }).click();
+  await expect(page.getByTestId("qr-display").locator("svg")).toBeVisible();
+
+  // Erst der Beleg, dass ueberhaupt etwas im Verlauf steht — sonst waere der
+  // Test auch dann gruen, wenn der Schnellzugriff gar nichts geschrieben haette.
+  await page.goto(`${QR}/`);
+  await expect(page.getByTestId("history-entry").filter({ hasText: "Beispiel-Link" })).toHaveCount(
+    1,
+  );
+
+  // Abmelden heisst hier: die Sitzungs-Cookies weg. Der localStorage bleibt
+  // unangetastet — genau das ist der Fall, um den es geht.
+  await page.context().clearCookies();
+  await page.goto(`${QR}/`);
+  await expect(page.getByTestId("qr-login-hint")).toBeVisible();
+  await expect(page.getByTestId("qr-history")).toHaveCount(0);
+});
+
 test("Admin-Route ist ohne die Gruppe nicht vorhanden (404, nicht 403)", async ({ page }) => {
   await devLogin(page, { host: "qr.localtest.me", groups: "drk-qr-user" });
   const res = await page.goto(`${QR}/admin`);
@@ -82,6 +113,54 @@ test("drk-qr-admin kann ein Preset anlegen", async ({ page }) => {
   // Formular -> DB -> Kachel -> QR-Code.
   await page.goto(`${QR}/`);
   await page.getByTestId("preset-tile").filter({ hasText: "Neues Preset" }).click();
+  expect(await decodeQr(await readQrSvg(page))).toBe("https://neu.example");
+});
+
+/**
+ * Der Bearbeiten-Pfad. Ohne ihn blieb einem Admin nach einer WLAN-Passwort-
+ * rotation nur Loeschen und Neuanlegen — und `createPreset` vergibt dabei
+ * sortOrder = max+1, die Kachel rutscht im Schnellzugriff also ans Ende, weg von
+ * der Position, die die Einsatzkraefte kennen.
+ *
+ * Dem Preset wird bis zum fertigen Code gefolgt (Formular -> DB -> Kachel ->
+ * QR-Code): die Preset-Zeile rendert den gespeicherten Wert nirgends, ein Test
+ * bis zur Liste bliebe also auch dann gruen, wenn die Action den Wert verwirft.
+ */
+test("drk-qr-admin kann ein Preset bearbeiten, ohne es neu anzulegen", async ({ page }) => {
+  await devLogin(page, {
+    host: "qr.localtest.me",
+    groups: "drk-qr-admin",
+    callbackPath: "/admin",
+  });
+  await page.getByLabel("Bezeichnung").fill("Preset vor Rotation");
+  await page.getByRole("textbox", { name: "Web-Adresse" }).fill("https://alt.example");
+  await page.getByRole("button", { name: /anlegen/i }).click();
+
+  const row = page.getByTestId("preset-row").filter({ hasText: "Preset vor Rotation" });
+  await expect(row).toHaveCount(1);
+  await row.getByTestId("preset-edit").click();
+
+  // Die Art bleibt beim Bearbeiten gesperrt — ein Wechsel machte den
+  // gespeicherten Wert bedeutungslos.
+  await expect(page.getByLabel("Art")).toBeDisabled();
+  await page.getByLabel("Bezeichnung").fill("Preset nach Rotation");
+  await page.getByRole("textbox", { name: "Web-Adresse" }).fill("https://neu.example");
+  await page.getByRole("button", { name: "Speichern" }).click();
+
+  // Auch die Bezeichnung wird geaendert, damit hier auf etwas SICHTBAR Neues
+  // gewartet werden kann. Auf die unveraenderte Zeile zu pruefen waere sofort
+  // gruen — und das anschliessende page.goto brach die noch laufende Action ab.
+  const updated = page.getByTestId("preset-row").filter({ hasText: "Preset nach Rotation" });
+  await expect(updated).toHaveCount(1);
+  // Dieselbe id wie beim Anlegen: bearbeitet, nicht geloescht und neu angelegt.
+  // An der id haengen sortOrder (die Kachelposition) und die Audit-Felder.
+  await expect(updated.locator("code")).toHaveText("preset-vor-rotation");
+  await expect(page.getByTestId("preset-row").filter({ hasText: "Preset vor Rotation" })).toHaveCount(
+    0,
+  );
+
+  await page.goto(`${QR}/`);
+  await page.getByTestId("preset-tile").filter({ hasText: "Preset nach Rotation" }).click();
   expect(await decodeQr(await readQrSvg(page))).toBe("https://neu.example");
 });
 

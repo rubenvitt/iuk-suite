@@ -29,4 +29,10 @@ export interface HistoryEntry {
   label: string;
   payload: QrPayload;
   createdAt: number;
+  /**
+   * Wer den Eintrag erzeugt hat: die User-ID der Sitzung, `null` fuer anonym.
+   * Optional, weil Eintraege aus easy-qr das Feld nicht tragen — siehe
+   * `history.ts`. Gesetzt wird es ausschliesslich von `addEntry`.
+   */
+  owner?: string | null;
 }

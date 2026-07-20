@@ -10,6 +10,13 @@ import { SW_SOURCE } from "@/app/m/qr/_lib/sw-source";
 
 const ORIGIN = "https://qr.example.org";
 
+/**
+ * Die Shell-Routen aus `sw-source.ts`. Bewusst dupliziert statt importiert — der
+ * Worker liegt als Quelltext-String vor, und eine hier vergessene Route soll
+ * auffallen statt stillschweigend mitzuwandern.
+ */
+const SHELL_ROUTES = ["/", "/qr", "/wifi", "/tel", "/contact"];
+
 /** Marker, der eingeloggt in der Client-Payload von "/" steht — bei einem
  *  WLAN-Preset genau so wie das echte Passwort. */
 const PRESET_SECRET = "geheimes-wlan-passwort";
@@ -22,6 +29,12 @@ const SHARED_CHUNK = "/_next/static/chunks/shared.js";
  * daran scheiterte die Offline-Erzeugung, solange der Worker nur HTML cachte.
  */
 const QR_CHUNK = "/_next/static/chunks/qr-view.js";
+/**
+ * Das Buendel der drei Eingabeformulare. Alle drei teilen es sich — dieselbe
+ * Lage wie im Prod-Build und zugleich die schaerfere Probe fuer die
+ * Doppelabruf-Vorpruefung in `cacheReferencedAssets`.
+ */
+const FORM_CHUNK = "/_next/static/chunks/forms.js";
 
 const scripts = (...srcs: string[]) =>
   srcs.map((s) => `<script src="${s}"></script>`).join("");
@@ -37,6 +50,17 @@ const ANON_HTML = `<html><body>${scripts(SHARED_CHUNK)}Anmelden, um persoenliche
  * am Pfad und der Abruf ginge ins Leere.
  */
 const QR_HTML = `<html><body>${scripts(SHARED_CHUNK, QR_CHUNK)}qr-view-shell<script>self.__next_f.push([1,"a:{\\"src\\":\\"${QR_CHUNK}\\"}"])</script></body></html>`;
+
+/**
+ * Die drei Eingabeformulare, die die Startseite verlinkt (page.tsx, KINDS).
+ * Ohne sie im Cache landete der Nutzer offline beim Antippen der Kachel "WLAN"
+ * stumm wieder auf der Startseite.
+ */
+const FORM_HTML: Record<string, string> = {
+  "/wifi": `<html><body>${scripts(SHARED_CHUNK, FORM_CHUNK)}wifi-form-shell</body></html>`,
+  "/tel": `<html><body>${scripts(SHARED_CHUNK, FORM_CHUNK)}tel-form-shell</body></html>`,
+  "/contact": `<html><body>${scripts(SHARED_CHUNK, FORM_CHUNK)}contact-form-shell</body></html>`,
+};
 
 type FetchInit = { credentials?: string } | undefined;
 
@@ -99,6 +123,8 @@ function createNetwork(opts: { offline?: boolean } = {}) {
       return new Response(anonymous ? ANON_HTML : AUTH_HTML, { status: 200 });
     }
     if (url.pathname === "/qr") return new Response(QR_HTML, { status: 200 });
+    const form = FORM_HTML[url.pathname];
+    if (form) return new Response(form, { status: 200 });
     return new Response(`asset:${url.pathname}`, { status: 200 });
   });
 }
@@ -290,12 +316,11 @@ describe("Service Worker: was im Cache landen darf", () => {
     expect(await res!.clone().text()).toBe(ANON_HTML);
   });
 
-  it("legt neben der Startseite auch die Anzeige-Route ab", async () => {
+  it("legt jede Shell-Route ab, nicht nur die Startseite", async () => {
     const sw = boot(createNetwork());
     await sw.drain(sw.dispatch("install", navigation("/")));
 
-    expect(sw.cachedPaths()).toContain("/");
-    expect(sw.cachedPaths()).toContain("/qr");
+    for (const path of SHELL_ROUTES) expect(sw.cachedPaths()).toContain(path);
     expect(await sw.body("/qr")).toBe(QR_HTML);
   });
 
@@ -314,8 +339,9 @@ describe("Service Worker: was im Cache landen darf", () => {
   it("holt genau die referenzierten Buendel — jedes einmal, keines verstuemmelt", async () => {
     // Zwei Zusagen in einer Messung, beide an derselben Stelle im Worker:
     //
-    // - Jede Datei nur einmal. Beide Shell-Seiten laden SHARED_CHUNK; ohne die
-    //   Vorpruefung im Cache zoege der Install ihn doppelt ueber die Leitung.
+    // - Jede Datei nur einmal. Alle fuenf Shell-Seiten laden SHARED_CHUNK, die
+    //   drei Formulare zusaetzlich FORM_CHUNK; ohne die Vorpruefung im Cache
+    //   zoege der Install beide mehrfach ueber die Leitung.
     // - Keine verstuemmelten Pfade. Die Anzeige-Route nennt ihr Buendel ein
     //   zweites Mal im Flight-Payload, dort mit maskierten Anfuehrungszeichen.
     //   Trennt der Worker nur an ", bleibt ein Backslash am Pfad kleben und der
@@ -328,7 +354,7 @@ describe("Service Worker: was im Cache landen darf", () => {
       .map(([input]) => new URL(typeof input === "string" ? input : input.url, ORIGIN).pathname)
       .filter((p) => p.startsWith("/_next/static/"));
 
-    expect(fetched.sort()).toEqual([QR_CHUNK, SHARED_CHUNK].sort());
+    expect(fetched.sort()).toEqual([QR_CHUNK, SHARED_CHUNK, FORM_CHUNK].sort());
   });
 
   it("beantwortet eine Offline-Navigation nach /qr mit der Anzeige, nicht mit der Startseite", async () => {
@@ -348,18 +374,70 @@ describe("Service Worker: was im Cache landen darf", () => {
     expect(await res!.clone().text()).toBe(QR_HTML);
   });
 
+  // Die Startseite verlinkt /wifi, /tel und /contact (page.tsx, KINDS). Lagen
+  // sie nicht im Cache, lieferte der Worker offline NAV_FALLBACK aus: die
+  // Adresszeile stand auf /wifi, gerendert wurde die Startseite — kein Fehler,
+  // kein Hinweis, nur kein Formular. Drei der vier QR-Typen waren damit offline
+  // nicht erzeugbar, WLAN als der haeufigste zuerst.
+  it.each(["/wifi", "/tel", "/contact"])(
+    "beantwortet eine Offline-Navigation nach %s mit dem Formular, nicht mit der Startseite",
+    async (path) => {
+      const storage = createCacheStorage();
+      const online = boot(createNetwork(), storage);
+      await online.drain(online.dispatch("install", navigation("/")));
+
+      const offline = boot(createNetwork({ offline: true }), storage);
+      const event = offline.dispatch("fetch", navigation(path));
+      const res = await event.response;
+      await offline.drain(event);
+
+      expect(await res!.clone().text()).toBe(FORM_HTML[path]);
+    },
+  );
+
+  it("zieht auch die Buendel der Formularrouten nach", async () => {
+    // Das blosse Nachtragen der Dokumente genuegt: cacheReferencedAssets scannt
+    // das HTML jeder Shell-Route. Ohne diese Zusicherung laege das Formular
+    // offline zwar als HTML bereit, haette aber kein JS zum Hydrieren.
+    const sw = boot(createNetwork());
+    await sw.drain(sw.dispatch("install", navigation("/")));
+
+    expect(sw.cachedPaths()).toContain(FORM_CHUNK);
+  });
+
   it("faellt bei einer unbekannten Route offline weiter auf die Startseite zurueck", async () => {
-    // Der pfadgenaue Treffer darf den Rueckfall nicht ersetzen: /wifi liegt
-    // nicht im Cache, und eine leere Antwort waere schlechter als der Einstieg.
+    // Der pfadgenaue Treffer darf den Rueckfall nicht ersetzen: /gibtsnicht
+    // liegt nicht im Cache, und eine leere Antwort waere schlechter als der
+    // Einstieg. Bewusst eine Route, die es im Modul nicht gibt — /wifi stand
+    // hier frueher und zementierte damit genau den Fehler als gewolltes
+    // Verhalten.
     const storage = createCacheStorage();
     const online = boot(createNetwork(), storage);
     await online.drain(online.dispatch("install", navigation("/")));
 
     const offline = boot(createNetwork({ offline: true }), storage);
-    const event = offline.dispatch("fetch", navigation("/wifi"));
+    const event = offline.dispatch("fetch", navigation("/gibtsnicht"));
     const res = await event.response;
     await offline.drain(event);
 
     expect(await res!.clone().text()).toBe(ANON_HTML);
+  });
+
+  it("holt die Shell bei rasch aufeinanderfolgenden Navigationen nur einmal", async () => {
+    // Der Refresh haengt am navigate-Zweig, weil sich `sw.js` bei einem
+    // Redeploy nicht aendert und der install-Handler deshalb nie wieder laeuft.
+    // Ungedrosselt kostet das je Navigation einen Abruf PRO Shell-Route — mit
+    // fuenf Routen fuenf Dokumente, bei jedem Seitenwechsel.
+    const net = createNetwork();
+    const sw = boot(net);
+
+    for (const path of ["/", "/qr"]) {
+      const event = sw.dispatch("fetch", navigation(path));
+      await event.response;
+      await sw.drain(event);
+    }
+
+    const shellFetches = net.mock.calls.filter(([, init]) => init?.credentials === "omit");
+    expect(shellFetches).toHaveLength(SHELL_ROUTES.length);
   });
 });

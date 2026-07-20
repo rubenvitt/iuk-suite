@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { devLogin } from "./fixtures";
+import { decodeQr } from "./helpers/decode-qr";
 
 /**
  * Phase-2-Spike: Trägt eine domain-scoped Offline-PWA im Monolithen?
@@ -129,6 +130,57 @@ test("QR-Erzeugung funktioniert offline", async ({ page, context }) => {
   await page.getByLabel("Link oder Text").fill("https://offline.example");
   await page.getByRole("button", { name: /erzeugen/i }).click();
   await expect(page.getByTestId("qr-display").locator("svg")).toBeVisible();
+  await context.setOffline(false);
+});
+
+/**
+ * Der Kern-Einsatzfall des Moduls: einen WLAN-Zugang an der Einsatzstelle per
+ * QR-Code teilen — genau das, was am haeufigsten ohne Netz gebraucht wird.
+ *
+ * Der Test daneben deckte nur die URL-Eingabe auf "/" ab. Die drei
+ * Formularrouten, die die Startseite verlinkt, lagen deshalb unbemerkt nicht im
+ * SW-Cache: der navigate-Zweig fand /wifi nicht und lieferte NAV_FALLBACK aus,
+ * die Adresszeile stand auf /wifi und gerendert wurde die Startseite. Kein
+ * Fehler, kein Hinweis, nur kein Formular.
+ */
+test("WLAN-Formular ist offline erreichbar und erzeugt den korrekten Code", async ({
+  page,
+  context,
+}) => {
+  await page.goto(`${QR}/`);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+
+  // Nicht blind offline gehen: der Cache-Write haengt an `waitUntil` und ist
+  // nach der Navigation nicht zwingend schon durch. Ohne dieses Warten scheiterte
+  // der Test am Timing statt an der Zusage.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        async (cacheName) => (await (await caches.open(cacheName)).match("/wifi")) !== undefined,
+        CACHE,
+      ),
+    )
+    .toBe(true);
+
+  await context.setOffline(true);
+  await page.goto(`${QR}/wifi`);
+
+  // Erst der Beleg, dass hier wirklich das Formular steht und nicht die
+  // zurueckgefallene Startseite — sonst schluege der Test unten mit einem
+  // nichtssagenden Locator-Timeout fehl.
+  await expect(page.getByLabel("SSID")).toBeVisible();
+
+  await page.getByLabel("SSID").fill("DRK-Einsatz");
+  await page.getByLabel("Passwort").fill("offline-geheim");
+  await page.getByRole("button", { name: /erzeugen/i }).click();
+
+  const box = page.getByTestId("qr-display");
+  await expect(box.locator("svg")).toBeVisible();
+  expect(await decodeQr(await box.innerHTML())).toBe(
+    "WIFI:T:WPA;S:DRK-Einsatz;P:offline-geheim;H:false;;",
+  );
+
   await context.setOffline(false);
 });
 

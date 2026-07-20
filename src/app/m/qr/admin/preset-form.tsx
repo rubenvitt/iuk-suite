@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { createPresetAction } from "@/app/m/qr/actions";
+import { createPresetAction, updatePresetAction } from "@/app/m/qr/actions";
 import { payloadToQrString } from "@/app/m/qr/_lib/payload";
 import { exceedsQrCapacity, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
-import type { QrKind, QrPayload } from "@/app/m/qr/_lib/types";
+import type { Preset, QrKind, QrPayload } from "@/app/m/qr/_lib/types";
 
 const KINDS: { value: QrKind; label: string }[] = [
   { value: "url", label: "Web-Adresse" },
@@ -32,20 +32,30 @@ const inputClass = "min-h-[var(--tap)] rounded border border-[var(--color-linie)
  * Das JSON wird beim Rendern aus dem State abgeleitet, nicht in einem
  * onSubmit-Handler: `action={...}` serialisiert das Formular selbst, ein
  * nachtraeglich gesetzter Wert kaeme zu spaet.
+ *
+ * Mit `preset` bearbeitet dasselbe Formular einen bestehenden Eintrag. Ohne
+ * diesen Zweig blieb einem Admin nach einer WLAN-Passwortrotation nur Loeschen
+ * und Neuanlegen — dabei vergibt `createPreset` ein neues `sortOrder`, die
+ * Kachel rutscht im Schnellzugriff ans Ende, und `created_at`/`created_by`
+ * gehen verloren. `updatePreset` laesst genau diese Felder stehen.
  */
-export function PresetForm() {
-  const [kind, setKind] = useState<QrKind>("url");
-  const [value, setValue] = useState("");
+export function PresetForm({ preset }: { preset?: Preset } = {}) {
+  const plain = preset && preset.kind !== "wifi" && preset.kind !== "vcard" ? preset.value : "";
+  const wifi = preset?.kind === "wifi" ? preset.value : undefined;
+  const card = preset?.kind === "vcard" ? preset.value : undefined;
 
-  const [ssid, setSsid] = useState("");
-  const [password, setPassword] = useState("");
-  const [encryption, setEncryption] = useState("WPA");
-  const [hidden, setHidden] = useState(false);
+  const [kind, setKind] = useState<QrKind>(preset?.kind ?? "url");
+  const [value, setValue] = useState(plain);
 
-  const [name, setName] = useState("");
-  const [tel, setTel] = useState("");
-  const [email, setEmail] = useState("");
-  const [org, setOrg] = useState("");
+  const [ssid, setSsid] = useState(wifi?.ssid ?? "");
+  const [password, setPassword] = useState(wifi?.password ?? "");
+  const [encryption, setEncryption] = useState<string>(wifi?.encryption ?? "WPA");
+  const [hidden, setHidden] = useState(wifi?.hidden ?? false);
+
+  const [name, setName] = useState(card?.name ?? "");
+  const [tel, setTel] = useState(card?.tel ?? "");
+  const [email, setEmail] = useState(card?.email ?? "");
+  const [org, setOrg] = useState(card?.org ?? "");
 
   // Leere Optionalfelder werden weggelassen statt als "" gespeichert — sonst
   // stuenden Geisterfelder in der Datenbank, die niemand eingegeben hat.
@@ -78,15 +88,34 @@ export function PresetForm() {
   const tooLong = exceedsQrCapacity(payloadToQrString(payload()));
 
   return (
-    <form action={createPresetAction} className="flex max-w-md flex-col gap-4" data-testid="preset-form">
+    <form
+      action={preset ? updatePresetAction : createPresetAction}
+      className="flex max-w-md flex-col gap-4"
+      data-testid="preset-form"
+    >
+      {/* Adressiert die Zeile. `parse` verwirft die mitvalidierte id aus der
+          Nutzlast, damit ein Aktualisieren die Identitaet nie verschiebt. */}
+      {preset && <input type="hidden" name="id" value={preset.id} />}
+
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Bezeichnung</span>
-        <input name="label" required maxLength={80} className={inputClass} />
+        <input
+          name="label"
+          required
+          maxLength={80}
+          defaultValue={preset?.label ?? ""}
+          className={inputClass}
+        />
       </label>
 
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Symbol</span>
-        <input name="icon" placeholder="z. B. 📶" className={inputClass} />
+        <input
+          name="icon"
+          placeholder="z. B. 📶"
+          defaultValue={preset?.icon ?? ""}
+          className={inputClass}
+        />
         <span className="text-sm text-[var(--color-stahl)]">
           Optional. Ohne Symbol zeigt die Kachel den ersten Buchstaben.
         </span>
@@ -94,11 +123,18 @@ export function PresetForm() {
 
       <label className="flex flex-col gap-1">
         <span className="font-semibold">Art</span>
+        {/* Beim Bearbeiten gesperrt — wie in easy-qr: ein Wechsel machte den
+            gespeicherten `value` bedeutungslos (eine SSID ist keine URL). Ein
+            deaktiviertes Feld schickt der Browser nicht mit, deshalb traegt das
+            versteckte Feld den Wert. Es traegt den `name`, das Auswahlfeld
+            nicht — zwei Felder namens `kind` liessen `formData.get("kind")`
+            sonst auf das falsche zeigen. */}
         <select
-          name="kind"
+          name={preset ? undefined : "kind"}
           value={kind}
+          disabled={preset !== undefined}
           onChange={(e) => setKind(e.target.value as QrKind)}
-          className={inputClass}
+          className={`${inputClass} disabled:opacity-50`}
         >
           {KINDS.map((k) => (
             <option key={k.value} value={k.value}>
@@ -106,6 +142,7 @@ export function PresetForm() {
             </option>
           ))}
         </select>
+        {preset && <input type="hidden" name="kind" value={kind} />}
       </label>
 
       {kind === "url" && (
@@ -247,7 +284,7 @@ export function PresetForm() {
         disabled={tooLong}
         className="min-h-[var(--tap-xl)] rounded border border-[var(--color-linie)] font-semibold disabled:opacity-50"
       >
-        Anlegen
+        {preset ? "Speichern" : "Anlegen"}
       </button>
     </form>
   );

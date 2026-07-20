@@ -8,6 +8,7 @@ import {
   recordEntry,
   randomId,
   subscribeHistory,
+  setHistoryOwner,
   getHistorySnapshot,
   getHistoryServerSnapshot,
   HISTORY_KEY,
@@ -19,11 +20,15 @@ import {
  * ein anderer Name liesse den Verlauf jedes Nutzers beim Cutover verschwinden.
  */
 
+// `owner: null` steht hier, weil die Tests unten teils direkt in den
+// localStorage schreiben und damit an `addEntry` vorbei, das den Eigentuemer
+// sonst stempelt. Ohne das Feld verbaerge der Filter den Eintrag.
 const entry = (id: string) => ({
   id,
   label: `L${id}`,
   payload: { kind: "url" as const, value: "https://x" },
   createdAt: Number(id),
+  owner: null,
 });
 
 beforeEach(() => {
@@ -31,6 +36,8 @@ beforeEach(() => {
   // localStorage.clear() allein laesst den zwischengespeicherten Schnappschuss
   // stehen; ohne dieses invalidate faerbte er auf den naechsten Test ab.
   clearHistory();
+  // Modulzustand: ein in einem Test gesetzter Eigentuemer faerbte sonst ab.
+  setHistoryOwner(null);
 });
 
 describe("history", () => {
@@ -145,6 +152,72 @@ describe("history", () => {
     recordEntry("B", { kind: "url", value: "b" });
     const [a, b] = loadHistory();
     expect(a.id).not.toBe(b.id);
+  });
+});
+
+/**
+ * Das Modul ist anonym erreichbar, der localStorage ueberlebt aber jeden Logout.
+ * Ohne Bindung an die Sitzung sah die naechste Person auf einem geteilten
+ * Einsatz-Tablet die Schnellzugriffe der vorigen — und mit einem Tipp auf einen
+ * WLAN-Eintrag dessen Passwort im Klartext in der Adresszeile.
+ */
+describe("Verlauf ist an die Sitzung gebunden", () => {
+  it("verbirgt die Eintraege einer Sitzung nach dem Logout", () => {
+    setHistoryOwner("u1");
+    recordEntry("WLAN Wache 3", {
+      kind: "wifi",
+      value: { ssid: "Wache-3", password: "geheim", encryption: "WPA" },
+    });
+    expect(loadHistory().map((e) => e.label)).toEqual(["WLAN Wache 3"]);
+
+    setHistoryOwner(null);
+    expect(loadHistory()).toEqual([]);
+  });
+
+  it("zeigt einer anderen Sitzung nicht den Verlauf der vorherigen", () => {
+    setHistoryOwner("u1");
+    recordEntry("Von u1", { kind: "url", value: "https://a" });
+    setHistoryOwner("u2");
+    recordEntry("Von u2", { kind: "url", value: "https://b" });
+
+    expect(loadHistory().map((e) => e.label)).toEqual(["Von u2"]);
+  });
+
+  // Verborgen heisst verborgen, nicht geloescht: liefe der Schreibpfad ueber das
+  // gefilterte loadHistory, raeumte der erste Code eines Angemeldeten den
+  // anonymen Verlauf dauerhaft ab.
+  it("laesst fremde Eintraege im Speicher stehen", () => {
+    recordEntry("Anonym", { kind: "url", value: "https://a" });
+    setHistoryOwner("u1");
+    recordEntry("Von u1", { kind: "url", value: "https://b" });
+
+    setHistoryOwner(null);
+    expect(loadHistory().map((e) => e.label)).toEqual(["Anonym"]);
+  });
+
+  // Strikt, bewusst ohne `?? null`: sonst zaehlten die Alt-Eintraege aus easy-qr
+  // als anonym und waeren genau fuer den anonymen Betrachter wieder lesbar.
+  it("verbirgt Eintraege ohne owner-Feld vor jedem", () => {
+    const legacy = { id: "alt", label: "Aus easy-qr", createdAt: 1, payload: entry("1").payload };
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([legacy]));
+
+    expect(loadHistory()).toEqual([]);
+    setHistoryOwner("u1");
+    expect(loadHistory()).toEqual([]);
+  });
+
+  it("meldet den Wechsel an die Abonnenten", () => {
+    let calls = 0;
+    const unsubscribe = subscribeHistory(() => {
+      calls++;
+    });
+    setHistoryOwner("u1");
+    expect(calls).toBe(1);
+    // Derselbe Eigentuemer ist kein Wechsel — sonst renderte das Layout bei
+    // jedem Effektlauf den Verlauf neu.
+    setHistoryOwner("u1");
+    expect(calls).toBe(1);
+    unsubscribe();
   });
 });
 

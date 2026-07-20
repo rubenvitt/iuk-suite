@@ -21,13 +21,35 @@ const CACHE = "qr-pwa-v2";
 const NAV_FALLBACK = "/";
 
 /**
- * Die Routen, die offline tragen muessen. "/" ist der Einstieg mit den
- * Eingabefeldern, "/qr" zeigt den erzeugten Code — der Weg Eingabe -> Anzeige
- * fuehrt zwingend ueber beide. Lag nur "/" im Cache, beantwortete der Worker
- * die Navigation nach dem Erzeugen mit der Startseite: die Adresszeile stand
- * richtig auf /qr?data=…, gerendert wurde aber das leere Eingabeformular.
+ * Die Routen, die offline tragen muessen: JEDE Route, die die Startseite
+ * verlinkt, plus die Anzeige "/qr" am anderen Ende des Weges Eingabe ->
+ * Anzeige.
+ *
+ * Lag eine dieser Routen nicht im Cache, beantwortete der Worker die Navigation
+ * aus NAV_FALLBACK: die Adresszeile stand auf /wifi, gerendert wurde die
+ * Startseite — kein Fehler, kein Hinweis, nur kein Formular. Damit waren offline
+ * drei der vier QR-Typen nicht erzeugbar, darunter WLAN: einen Zugang an der
+ * Einsatzstelle zu teilen, ist genau der Fall, der ohne Netz gebraucht wird.
+ *
+ * Wer in \`page.tsx\` (KINDS) eine Route ergaenzt, muss sie hier nachtragen. Die
+ * JS-Buendel kommen dann von selbst mit, weil \`cacheReferencedAssets\` das HTML
+ * jeder Shell-Route scannt.
  */
-const SHELL_ROUTES = [NAV_FALLBACK, "/qr"];
+const SHELL_ROUTES = [NAV_FALLBACK, "/qr", "/wifi", "/tel", "/contact"];
+
+/**
+ * Wie lange eine geholte Offline-Fassung als frisch genug gilt.
+ *
+ * Der Refresh haengt nicht nur am install-Handler, sondern auch am
+ * navigate-Zweig, weil \`sw.js\` bei einem gewoehnlichen Redeploy Byte fuer Byte
+ * gleich bleibt: der Browser installiert dann nie neu, und die gecachten Buendel
+ * zeigten dauerhaft auf Hashes, die es nicht mehr gibt — offline waere nach dem
+ * ersten Deploy kaputt. Ungedrosselt kostet dieser Selbstheilungspfad aber einen
+ * Dokumentabruf je Shell-Route bei JEDER Navigation; auf einem Einsatz-Tablet am
+ * Mobilfunkrand nicht egal.
+ */
+const SHELL_MAX_AGE_MS = 5 * 60 * 1000;
+let lastShellRefresh = 0;
 
 /**
  * Holt die Offline-Fassungen der Shell-Routen grundsaetzlich ohne Cookies.
@@ -52,14 +74,24 @@ const SHELL_ROUTES = [NAV_FALLBACK, "/qr"];
  * darum jeden Payload.
  */
 function cacheAnonymousShell() {
-  // Nacheinander, nicht parallel: beide Shell-Seiten teilen sich Buendel.
-  // Parallel sehen beide denselben Cache-Fehltreffer, bevor einer schreibt, und
-  // holen dieselbe Datei doppelt — auf einem Einsatz-Tablet am Mobilfunkrand
+  // Der Zeitstempel wird VOR den Abrufen gesetzt: sonst starten zwei rasch
+  // aufeinanderfolgende Navigationen denselben Durchlauf doppelt, weil die erste
+  // ihn erst am Ende vermerkt haette.
+  lastShellRefresh = Date.now();
+  // Nacheinander, nicht parallel: die Shell-Seiten teilen sich Buendel.
+  // Parallel sehen alle denselben Cache-Fehltreffer, bevor einer schreibt, und
+  // holen dieselbe Datei mehrfach — auf einem Einsatz-Tablet am Mobilfunkrand
   // nicht egal.
   return SHELL_ROUTES.reduce(
     (chain, path) => chain.then(() => cacheShellRoute(path)),
     Promise.resolve(),
   );
+}
+
+/** Drosselung des Selbstheilungspfads, siehe SHELL_MAX_AGE_MS. */
+function refreshShellIfStale() {
+  if (Date.now() - lastShellRefresh < SHELL_MAX_AGE_MS) return Promise.resolve();
+  return cacheAnonymousShell();
 }
 
 function cacheShellRoute(path) {
@@ -152,11 +184,11 @@ self.addEventListener("fetch", (event) => {
 
   // Navigationen: erst Netz (frische, ggf. personalisierte Seite), offline aus
   // dem Cache. Die ausgelieferte Antwort wird nie gecacht; die Offline-Fassung
-  // zieht cacheAnonymousShell separat nach. Der Write haengt an waitUntil —
+  // zieht refreshShellIfStale separat nach. Der Write haengt an waitUntil —
   // ohne das darf der Browser den Worker beenden, sobald die Antwort steht, und
   // der Write ginge verloren.
   if (req.mode === "navigate") {
-    event.waitUntil(cacheAnonymousShell());
+    event.waitUntil(refreshShellIfStale());
     event.respondWith(
       // Offline pfadgenau antworten und erst danach auf "/" zurueckfallen.
       // Pauschal NAV_FALLBACK auszuliefern hiess: jede Navigation zeigt die

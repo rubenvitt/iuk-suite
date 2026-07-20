@@ -89,7 +89,41 @@ function isValidEntry(e: unknown): e is HistoryEntry {
   return isValidPayload(p);
 }
 
-export function loadHistory(): HistoryEntry[] {
+/* ---------------------------------------------------------------------------
+ * Eigentuemer des Verlaufs
+ *
+ * Das Modul ist `requiresAuth: false`, der Verlauf liegt aber im localStorage
+ * und ueberlebt jeden Logout. Auf einem geteilten Einsatz-Tablet sah damit die
+ * naechste, anonyme Person die Schnellzugriffe der vorigen — und tippte sie
+ * einen WLAN-Eintrag an, stand dessen Passwort im Klartext in der Adresszeile.
+ * Genau die Zusage "Presets anonym lesbar? Nein", die der Service Worker mit
+ * `credentials: "omit"` bereits schuetzt; ueber den localStorage stand die
+ * Hintertuer offen.
+ *
+ * Der Vorgabewert `null` ist dabei die eigentliche Absicherung: er gilt schon
+ * beim allerersten Rendern, bevor irgendein Effekt gelaufen ist. Eintraege mit
+ * User-ID fallen fuer einen anonymen Betrachter dadurch von vornherein durch den
+ * Filter und blitzen nicht kurz auf.
+ * ------------------------------------------------------------------------ */
+
+let currentOwner: string | null = null;
+
+/** Wird aus dem Modul-Layout mit der laufenden Sitzung gesetzt (`HistoryOwner`). */
+export function setHistoryOwner(id: string | null): void {
+  if (id === currentOwner) return;
+  currentOwner = id;
+  invalidate();
+}
+
+/**
+ * Der rohe Bestand, ohne Eigentuemer-Filter.
+ *
+ * Die Schreibpfade muessen fremde Eintraege sehen: liefe `addEntry` ueber das
+ * gefilterte `loadHistory`, loeschte der erste erzeugte Code eines Angemeldeten
+ * saemtliche anonymen Eintraege dauerhaft aus dem Speicher. Verborgen heisst
+ * hier verborgen, nicht geloescht.
+ */
+function readEntries(): HistoryEntry[] {
   if (useFallback) return [...memoryFallback];
   const raw = safeGet();
   if (!raw) return [];
@@ -102,9 +136,21 @@ export function loadHistory(): HistoryEntry[] {
   }
 }
 
+/**
+ * Strikter Vergleich, bewusst ohne `?? null`: Eintraege aus easy-qr tragen gar
+ * kein `owner` und bleiben damit fuer jeden verborgen. Das kostet beim Cutover
+ * bis zu 20 Bequemlichkeitseintraege — sie auf "anonym" zu normalisieren risse
+ * die Luecke fuer genau die alten WLAN-Eintraege wieder auf, um die es geht.
+ */
+export function loadHistory(): HistoryEntry[] {
+  return readEntries().filter((e) => e.owner === currentOwner);
+}
+
 export function addEntry(entry: HistoryEntry): void {
-  const list = useFallback ? memoryFallback : loadHistory();
-  const next = [entry, ...list].slice(0, HISTORY_LIMIT);
+  // Der Eigentuemer wird hier gestempelt und nicht in `recordEntry`: `addEntry`
+  // ist der einzige Schreibpfad, damit kann ihn kein Erzeuger vergessen.
+  const list = readEntries();
+  const next = [{ ...entry, owner: currentOwner }, ...list].slice(0, HISTORY_LIMIT);
   if (useFallback) {
     memoryFallback = next;
     invalidate();
