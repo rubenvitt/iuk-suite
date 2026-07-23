@@ -1,3 +1,3 @@
 export default function Home() {
-  return <main className="p-8">IuK-Suite Skeleton</main>;
+  return <main style={{ padding: 32 }}>IuK-Suite Skeleton</main>;
 }

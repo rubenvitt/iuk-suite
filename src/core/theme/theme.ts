@@ -42,6 +42,12 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
         bodyBg: dark ? "#000000" : DRK.papier,
         headerHeight: 64,
       },
+      // antd leitet diese beiden NICHT aus controlHeight ab: Radio nimmt
+      // fontSizeLG, Checkbox controlInteractiveSize (= controlHeight / 2).
+      // Ohne diese Overrides schrumpfen die Tap-Ziele der Verschlüsselungswahl
+      // im WLAN-Formular auf ein Drittel — nachgewiesen im Task-4-Review.
+      Radio: { radioSize: 28, dotSize: 14 },
+      Checkbox: { controlInteractiveSize: 28 },
     },
   };
 }

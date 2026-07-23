@@ -38,4 +38,12 @@ describe("buildTheme", () => {
     const dark = antdTheme.getDesignToken(buildTheme("dark"));
     expect(light.colorBgBase).not.toBe(dark.colorBgBase);
   });
+
+  it.each(MODES)("hält die interaktive Größe von Radio/Checkbox im Modus %s", (mode) => {
+    // Eigener Test, weil antd diese beiden Maße NICHT aus controlHeight
+    // ableitet — der Test oben würde die Regression nicht sehen.
+    const cfg = buildTheme(mode);
+    expect(cfg.components?.Radio?.radioSize).toBeGreaterThanOrEqual(28);
+    expect(cfg.components?.Checkbox?.controlInteractiveSize).toBeGreaterThanOrEqual(28);
+  });
 });

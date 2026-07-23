@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Input } from "antd";
 
 /**
  * Stellvertreter für die spätere QR-Generierung: rein clientseitige Berechnung
@@ -11,17 +12,10 @@ import { useState } from "react";
 export function OfflineProbe() {
   const [text, setText] = useState("");
   return (
-    <div className="mt-4 space-y-2">
-      <label className="block text-sm" htmlFor="probe">
-        Eingabe
-      </label>
-      <input
-        id="probe"
-        className="border px-2 py-1"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-      <output data-testid="probe-output" className="block font-mono">
+    <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+      <label htmlFor="probe">Eingabe</label>
+      <Input id="probe" value={text} onChange={(e) => setText(e.target.value)} />
+      <output data-testid="probe-output" style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
         {text.split("").reverse().join("")}
       </output>
     </div>
