@@ -1573,13 +1573,49 @@ globals.css."
 Erst hier verschwindet Tailwind. Bis zu diesem Task laufen Preflight-Reset und antd parallel; migrierte Komponenten sehen zwischendurch stellenweise schief aus. **Das ist erwartet und kein Befund** — bewertet wird der optische Zustand erst nach diesem Task.
 
 **Files:**
+- Modify: `src/core/theme/theme.ts` (Radio-/Checkbox-Tokens, Step 1)
+- Test: `src/core/theme/theme.test.ts` (neuer Test für Step 1)
 - Modify: `src/app/m/beta/OfflineProbe.tsx`, `src/app/m/{alpha,beta,gamma,kioskdemo}/page.tsx`
 - Delete: `src/components/ui/` (komplett), `src/lib/utils.ts`, `src/lib/utils.test.ts`, `postcss.config.mjs`
 - Modify: `src/app/globals.css`, `package.json`
 
 ---
 
-- [ ] **Step 1: Demo-Module entstylen**
+- [ ] **Step 1: Tap-Ziele für `Radio` und `Checkbox` nachziehen**
+
+Der Task-4-Review hat belegt, dass die Annahme „die globalen Tokens tragen die Tap-Höhen" für **zwei** Komponenten nicht gilt:
+
+- `antd/lib/radio/style/index.js` setzt `radioSize = fontSizeLG` — **unabhängig** von `controlHeight`.
+- `antd/lib/checkbox/style/index.js` setzt `checkboxSize = token.controlInteractiveSize`, und `antd/lib/theme/util/alias.js` leitet das aus `controlHeight / 2` ab. Bei `TAP = 56` sind das **28 px**.
+
+Vorher trug jedes `<label>` um Radio und Checkbox ein `min-h-[var(--tap)]`. Die Verschlüsselungswahl im WLAN-Formular ist damit im Einsatz mit Handschuhen schlechter zu treffen als vor dem Umbau — eine echte Regression einer Einsatzanforderung, verursacht von einer falschen Annahme dieses Plans.
+
+In `src/core/theme/theme.ts` den `components`-Block ergänzen:
+
+```ts
+      // antd leitet diese beiden NICHT aus controlHeight ab: Radio nimmt
+      // fontSizeLG, Checkbox controlInteractiveSize (= controlHeight / 2).
+      // Ohne diese Overrides schrumpfen die Tap-Ziele der Verschlüsselungswahl
+      // im WLAN-Formular auf ein Drittel — nachgewiesen im Task-4-Review.
+      Radio: { radioSize: 28, dotSize: 14 },
+      Checkbox: { controlInteractiveSize: 28 },
+```
+
+Und in `src/core/theme/theme.test.ts` einen Test ergänzen, damit genau das nicht wieder still kippt:
+
+```ts
+  it.each(MODES)("hält die interaktive Größe von Radio/Checkbox im Modus %s", (mode) => {
+    // Eigener Test, weil antd diese beiden Maße NICHT aus controlHeight
+    // ableitet — der Test oben würde die Regression nicht sehen.
+    const cfg = buildTheme(mode);
+    expect(cfg.components?.Radio?.radioSize).toBeGreaterThanOrEqual(28);
+    expect(cfg.components?.Checkbox?.controlInteractiveSize).toBeGreaterThanOrEqual(28);
+  });
+```
+
+28 px ist bewusst kein `TAP`: Radio und Checkbox sind Marken neben einem Beschriftungstext, kein flächiger Knopf. Die tatsächliche Trefferfläche ist die Zeile aus Marke + Label; 28 px bringt die Marke von einem Drittel auf die Hälfte des Tap-Ziels und hält die Zeile bedienbar, ohne sie zu einer Kachel aufzublasen.
+
+- [ ] **Step 2: Demo-Module entstylen**
 
 `alpha`, `gamma`, `kioskdemo`: die `page.tsx` tragen kein `className`, bleiben unverändert. Prüfen, nicht raten:
 
@@ -1617,7 +1653,7 @@ export function OfflineProbe() {
 }
 ```
 
-- [ ] **Step 2: Prüfen, dass nichts mehr auf die Altlasten zeigt**
+- [ ] **Step 3: Prüfen, dass nichts mehr auf die Altlasten zeigt**
 
 ```bash
 grep -rn "@/components/ui\|@/lib/utils\|lucide-react\|next-themes\|sonner\|@base-ui" src/
@@ -1625,14 +1661,14 @@ grep -rn "@/components/ui\|@/lib/utils\|lucide-react\|next-themes\|sonner\|@base
 
 Erwartet: keine Treffer. Jeder Treffer ist ein übersehener Import aus den Tasks 2–4 und wird dort behoben, nicht hier umgangen.
 
-- [ ] **Step 3: Altlasten löschen**
+- [ ] **Step 4: Altlasten löschen**
 
 ```bash
 git rm -r src/components/ui
 git rm src/lib/utils.ts src/lib/utils.test.ts postcss.config.mjs
 ```
 
-- [ ] **Step 4: `globals.css` eindampfen**
+- [ ] **Step 5: `globals.css` eindampfen**
 
 `src/app/globals.css` vollständig ersetzen. Die 227 Zeilen Tailwind-Theme und base-ui-Varianten entfallen mit ihrem Gegenstand:
 
@@ -1678,13 +1714,13 @@ body {
 }
 ```
 
-- [ ] **Step 5: Dependencies entfernen**
+- [ ] **Step 6: Dependencies entfernen**
 
 ```bash
 pnpm remove tailwindcss @tailwindcss/postcss tw-animate-css @base-ui/react class-variance-authority clsx tailwind-merge lucide-react sonner next-themes
 ```
 
-- [ ] **Step 6: Gates + Build**
+- [ ] **Step 7: Gates + Build**
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm test && pnpm build
@@ -1692,7 +1728,7 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
 
 Erwartet: alles grün. Der `cn`-Test ist mit `src/lib/utils.test.ts` entfallen, `theme.test.ts` und `mode.test.ts` sind dazugekommen — die Gesamtzahl der Unit-Tests ändert sich entsprechend.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add -A
