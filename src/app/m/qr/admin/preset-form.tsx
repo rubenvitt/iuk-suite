@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { Button, Checkbox, Input, Typography } from "antd";
 import { createPresetAction, updatePresetAction } from "@/app/m/qr/actions";
 import { payloadToQrString } from "@/app/m/qr/_lib/payload";
 import { exceedsQrCapacity, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
+import { TAP_XL } from "@/core/theme/tokens";
 import type { Preset, QrKind, QrPayload } from "@/app/m/qr/_lib/types";
 
 const KINDS: { value: QrKind; label: string }[] = [
@@ -20,7 +22,34 @@ const ENCRYPTIONS = [
   { value: "nopass", label: "Keine" },
 ];
 
-const inputClass = "min-h-[var(--tap)] rounded border border-[var(--color-linie)] px-3";
+/**
+ * Die beiden Auswahlfelder bleiben NATIVE `<select>` statt antds `Select` — das
+ * ist kein Versehen, sondern eine Anforderung dieses Formulars:
+ *
+ * 1. `action={createPresetAction}` serialisiert das Formular selbst. `parse` in
+ *    actions.ts liest `formData.get("kind")`. antds `Select` rendert kein
+ *    namenstragendes Formularelement, das der Browser mitschickte — die Art
+ *    käme als leerer String an und `parse` schlüge mit „kind ungültig: " fehl.
+ * 2. `preset-form.test.tsx` treibt das Feld über den `HTMLSelectElement`-
+ *    Prototyp-Setter und prüft `select[name="kind"]`, `.disabled` und die Zahl
+ *    der Felder namens `kind`; `e2e/qr.spec.ts` prüft `getByLabel("Art")`
+ *    auf `toBeDisabled()`. Keine dieser Zusicherungen überlebt einen Wechsel
+ *    auf ein `div`-basiertes Auswahlfeld.
+ *
+ * Damit steht das Feld ausserhalb von antds Token-System und braucht seine
+ * Masse explizit. Die Hoehe kommt aus derselben Quelle wie die der
+ * antd-Komponenten (`controlHeightLG` = `TAP_XL`), damit sie nicht auseinander
+ * laufen.
+ */
+const nativeSelectStyle: React.CSSProperties = {
+  minHeight: TAP_XL,
+  paddingInline: 12,
+  borderRadius: 8,
+  border: "1px solid var(--iuk-color-border, #d9d9d9)",
+  background: "transparent",
+  color: "inherit",
+  font: "inherit",
+};
 
 /**
  * Client-Komponente, weil die sichtbaren Felder vom gewaehlten `kind` abhaengen.
@@ -90,39 +119,28 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
   return (
     <form
       action={preset ? updatePresetAction : createPresetAction}
-      className="flex max-w-md flex-col gap-4"
+      style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 448 }}
       data-testid="preset-form"
     >
       {/* Adressiert die Zeile. `parse` verwirft die mitvalidierte id aus der
           Nutzlast, damit ein Aktualisieren die Identitaet nie verschiebt. */}
       {preset && <input type="hidden" name="id" value={preset.id} />}
 
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">Bezeichnung</span>
-        <input
-          name="label"
-          required
-          maxLength={80}
-          defaultValue={preset?.label ?? ""}
-          className={inputClass}
-        />
+      <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <span style={{ fontWeight: 600 }}>Bezeichnung</span>
+        <Input name="label" size="large" required maxLength={80} defaultValue={preset?.label ?? ""} />
       </label>
 
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">Symbol</span>
-        <input
-          name="icon"
-          placeholder="z. B. 📶"
-          defaultValue={preset?.icon ?? ""}
-          className={inputClass}
-        />
-        <span className="text-sm text-[var(--color-stahl)]">
+      <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <span style={{ fontWeight: 600 }}>Symbol</span>
+        <Input name="icon" size="large" placeholder="z. B. 📶" defaultValue={preset?.icon ?? ""} />
+        <Typography.Text type="secondary">
           Optional. Ohne Symbol zeigt die Kachel den ersten Buchstaben.
-        </span>
+        </Typography.Text>
       </label>
 
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">Art</span>
+      <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <span style={{ fontWeight: 600 }}>Art</span>
         {/* Beim Bearbeiten gesperrt — wie in easy-qr: ein Wechsel machte den
             gespeicherten `value` bedeutungslos (eine SSID ist keine URL). Ein
             deaktiviertes Feld schickt der Browser nicht mit, deshalb traegt das
@@ -134,7 +152,7 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
           value={kind}
           disabled={preset !== undefined}
           onChange={(e) => setKind(e.target.value as QrKind)}
-          className={`${inputClass} disabled:opacity-50`}
+          style={{ ...nativeSelectStyle, opacity: preset ? 0.5 : 1 }}
         >
           {KINDS.map((k) => (
             <option key={k.value} value={k.value}>
@@ -146,78 +164,86 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
       </label>
 
       {kind === "url" && (
-        <label className="flex flex-col gap-1">
-          <span className="font-semibold">Web-Adresse</span>
-          <input
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontWeight: 600 }}>Web-Adresse</span>
+          <Input
             name="value"
             type="url"
+            size="large"
             required
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            className={inputClass}
           />
         </label>
       )}
 
       {kind === "text" && (
-        <label className="flex flex-col gap-1">
-          <span className="font-semibold">Text</span>
-          <input
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontWeight: 600 }}>Text</span>
+          <Input
             name="value"
+            size="large"
             required
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            className={inputClass}
           />
         </label>
       )}
 
       {kind === "tel" && (
-        <label className="flex flex-col gap-1">
-          <span className="font-semibold">Telefonnummer</span>
-          <input
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontWeight: 600 }}>Telefonnummer</span>
+          <Input
             name="value"
             type="tel"
+            size="large"
             required
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            className={inputClass}
           />
         </label>
       )}
 
       {kind === "wifi" && (
-        <fieldset className="flex flex-col gap-4">
-          <legend className="font-semibold">WLAN-Zugang</legend>
-          <label className="flex flex-col gap-1">
+        /* Das <fieldset> bleibt: preset-form.test.tsx greift ueber
+           `fieldset input` auf das erste Feld (die SSID) zu. */
+        <fieldset
+          style={{ display: "flex", flexDirection: "column", gap: 16, border: 0, margin: 0, padding: 0 }}
+        >
+          <legend style={{ fontWeight: 600 }}>WLAN-Zugang</legend>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span>SSID (Netzwerkname)</span>
-            <input
+            <Input
+              size="large"
               value={ssid}
               onChange={(e) => setSsid(e.target.value)}
               required
               autoComplete="off"
-              className={inputClass}
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span>Passwort</span>
             {/* Wie in den Nutzerformularen bewusst sichtbar: das Passwort steht
                 ohnehin im erzeugten Code, und ein verdecktes Feld provoziert
                 hier nur Tippfehler. */}
-            <input
+            <Input
               type="text"
+              size="large"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="off"
-              className={inputClass}
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span>Verschlüsselung</span>
+            {/* Natives <select> wie das Art-Feld darueber — siehe der Kommentar
+                an `nativeSelectStyle`. Beide gleich zu halten ist die
+                verstaendlichere Oberflaeche als zwei verschiedene Auswahlfelder
+                in einem Formular. */}
             <select
               value={encryption}
               onChange={(e) => setEncryption(e.target.value)}
-              className={inputClass}
+              style={nativeSelectStyle}
             >
               {ENCRYPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -226,46 +252,37 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
               ))}
             </select>
           </label>
-          <label className="flex min-h-[var(--tap)] items-center gap-2">
-            <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
+          <Checkbox checked={hidden} onChange={(e) => setHidden(e.target.checked)}>
             Verstecktes Netzwerk
-          </label>
+          </Checkbox>
         </fieldset>
       )}
 
       {kind === "vcard" && (
-        <fieldset className="flex flex-col gap-4">
-          <legend className="font-semibold">Kontakt</legend>
-          <label className="flex flex-col gap-1">
+        <fieldset
+          style={{ display: "flex", flexDirection: "column", gap: 16, border: 0, margin: 0, padding: 0 }}
+        >
+          <legend style={{ fontWeight: 600 }}>Kontakt</legend>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span>Name</span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className={inputClass}
-            />
+            <Input size="large" value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
-          <label className="flex flex-col gap-1">
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span>Telefon</span>
-            <input
-              type="tel"
-              value={tel}
-              onChange={(e) => setTel(e.target.value)}
-              className={inputClass}
-            />
+            <Input type="tel" size="large" value={tel} onChange={(e) => setTel(e.target.value)} />
           </label>
-          <label className="flex flex-col gap-1">
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span>E-Mail</span>
-            <input
+            <Input
               type="email"
+              size="large"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span>Organisation</span>
-            <input value={org} onChange={(e) => setOrg(e.target.value)} className={inputClass} />
+            <Input size="large" value={org} onChange={(e) => setOrg(e.target.value)} />
           </label>
         </fieldset>
       )}
@@ -273,19 +290,15 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
       {isJsonKind && <input type="hidden" name="value" value={JSON.stringify(payload().value)} />}
 
       {tooLong ? (
-        <p data-testid="preset-too-long" className="text-[var(--color-rot)]">
+        <Typography.Text type="danger" data-testid="preset-too-long">
           Zu lang für einen QR-Code (max. {QR_MAX_LENGTH} Bytes — Umlaute zählen doppelt, Emoji
           vierfach).
-        </p>
+        </Typography.Text>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={tooLong}
-        className="min-h-[var(--tap-xl)] rounded border border-[var(--color-linie)] font-semibold disabled:opacity-50"
-      >
+      <Button htmlType="submit" type="primary" size="large" block disabled={tooLong}>
         {preset ? "Speichern" : "Anlegen"}
-      </button>
+      </Button>
     </form>
   );
 }

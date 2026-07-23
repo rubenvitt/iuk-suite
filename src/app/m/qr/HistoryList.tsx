@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { Button, Typography } from "antd";
 import {
   clearHistory,
   getHistorySnapshot,
@@ -25,32 +26,50 @@ export function HistoryList() {
   if (entries.length === 0) return null;
 
   return (
-    <section aria-label="Verlauf" data-testid="qr-history" className="flex flex-col gap-3">
-      <h2 className="font-semibold">Zuletzt erzeugt</h2>
-      <ul className="flex flex-col gap-2">
+    <section
+      aria-label="Verlauf"
+      data-testid="qr-history"
+      style={{ display: "flex", flexDirection: "column", gap: 12 }}
+    >
+      <Typography.Title level={5} style={{ margin: 0 }}>
+        Zuletzt erzeugt
+      </Typography.Title>
+      <ul
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          listStyle: "none",
+          margin: 0,
+          padding: 0,
+        }}
+      >
         {entries.map((e) => (
           <li key={e.id}>
-            <button
-              type="button"
+            <Button
+              block
+              size="large"
               // Der Verlauf haelt das Payload, nicht den fertigen String —
               // deshalb entsteht die URL hier ueber denselben Weg wie beim
               // ersten Erzeugen und kann gar nicht davon abweichen.
               onClick={() => router.push(buildQrUrl(e.label, e.payload))}
               data-testid="history-entry"
-              className="flex min-h-[var(--tap)] w-full items-center rounded border border-[var(--color-linie)] px-3 text-left"
+              style={{ textAlign: "left" }}
             >
-              <span className="truncate">{e.label}</span>
-            </button>
+              {e.label}
+            </Button>
           </li>
         ))}
       </ul>
-      <button
-        type="button"
+      {/* Direktes Kind von <section>: HistoryList.test.tsx klickt über den
+          Selektor `section > button`. Nicht in einen Wrapper packen. */}
+      <Button
+        type="link"
         onClick={() => clearHistory()}
-        className="min-h-[var(--tap)] self-start text-[var(--color-stahl)] underline"
+        style={{ alignSelf: "flex-start", padding: 0 }}
       >
         Verlauf löschen
-      </button>
+      </Button>
     </section>
   );
 }

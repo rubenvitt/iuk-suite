@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Button, Checkbox, Input, Radio, Typography } from "antd";
 import { recordEntry } from "@/app/m/qr/_lib/history";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import type { QrPayload } from "@/app/m/qr/_lib/types";
@@ -38,80 +38,78 @@ export default function WifiPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Link href="/" className="min-h-[var(--tap)] self-start leading-[var(--tap)]">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Button type="link" href="/" style={{ alignSelf: "flex-start", padding: 0 }}>
         ← Zurück
-      </Link>
-      <h1 className="text-lg font-bold">WLAN-Zugang</h1>
-      <p className="text-[var(--color-stahl)]">
+      </Button>
+      <Typography.Title level={4} style={{ margin: 0 }}>
+        WLAN-Zugang
+      </Typography.Title>
+      <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
         QR-Code zum Beitreten eines Funknetzes. Geräte verbinden sich mit einem Scan.
-      </p>
+      </Typography.Paragraph>
 
-      <form onSubmit={submit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="wifi-ssid" className="font-semibold">
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label htmlFor="wifi-ssid" style={{ fontWeight: 600 }}>
             SSID (Netzwerkname)
           </label>
-          <input
+          <Input
             id="wifi-ssid"
+            size="large"
             value={ssid}
             onChange={(e) => setSsid(e.target.value)}
             required
             autoComplete="off"
-            className="min-h-[var(--tap)] rounded border border-[var(--color-linie)] px-3"
           />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="wifi-pass" className="font-semibold">
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label htmlFor="wifi-pass" style={{ fontWeight: 600 }}>
             Passwort
           </label>
           {/* Bewusst type="text": das Passwort landet ohnehin sichtbar im Code,
               und im Einsatz wird es mit Handschuhen getippt — ein verdecktes
               Feld provoziert hier nur Tippfehler. */}
-          <input
+          <Input
             id="wifi-pass"
             type="text"
+            size="large"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="off"
-            className="min-h-[var(--tap)] rounded border border-[var(--color-linie)] px-3"
           />
-          <p className="text-sm text-[var(--color-stahl)]">Leer lassen, wenn das Netz offen ist.</p>
+          <Typography.Text type="secondary">Leer lassen, wenn das Netz offen ist.</Typography.Text>
         </div>
 
-        <fieldset className="flex flex-col gap-2">
-          <legend className="font-semibold">Verschlüsselung</legend>
-          {ENCRYPTIONS.map((o) => (
-            <label key={o.value} className="flex min-h-[var(--tap)] items-center gap-2">
-              <input
-                type="radio"
-                name="encryption"
-                value={o.value}
-                checked={encryption === o.value}
-                onChange={() => setEncryption(o.value)}
-              />
-              {o.label}
-            </label>
-          ))}
+        {/* Das <fieldset> bleibt: forms.test.tsx und preset-form.test.tsx greifen
+            über `fieldset input` zu. Die Radio-Gruppe liegt DARIN. */}
+        <fieldset style={{ display: "flex", flexDirection: "column", gap: 8, border: 0, margin: 0, padding: 0 }}>
+          <legend style={{ fontWeight: 600 }}>Verschlüsselung</legend>
+          {/* `name` an der Gruppe: forms.test.tsx klickt
+              `input[name="encryption"][value="nopass"]`. antd reicht den Namen
+              der Gruppe an jedes einzelne <input type="radio"> durch. */}
+          <Radio.Group
+            name="encryption"
+            value={encryption}
+            onChange={(e) => setEncryption(e.target.value as Encryption)}
+            style={{ display: "flex", flexDirection: "column", gap: 8 }}
+          >
+            {ENCRYPTIONS.map((o) => (
+              <Radio key={o.value} value={o.value}>
+                {o.label}
+              </Radio>
+            ))}
+          </Radio.Group>
         </fieldset>
 
-        <label className="flex min-h-[var(--tap)] items-center gap-2">
-          <input
-            type="checkbox"
-            checked={hidden}
-            onChange={(e) => setHidden(e.target.checked)}
-          />
+        <Checkbox checked={hidden} onChange={(e) => setHidden(e.target.checked)}>
           Verstecktes Netzwerk
-        </label>
+        </Checkbox>
 
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="min-h-[var(--tap-xl)] rounded border border-[var(--color-linie)] font-semibold disabled:opacity-50"
-        >
+        <Button htmlType="submit" type="primary" size="large" block disabled={!canSubmit}>
           QR-Code erzeugen
-        </button>
+        </Button>
       </form>
     </div>
   );

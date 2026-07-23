@@ -1,10 +1,9 @@
 import Link from "next/link";
+import { Button } from "antd";
 import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { listPresets } from "@/app/m/qr/_lib/presets";
 import { PresetForm } from "@/app/m/qr/admin/preset-form";
 import { deletePresetAction } from "@/app/m/qr/actions";
-
-const buttonClass = "min-h-[var(--tap)] rounded border border-[var(--color-linie)] px-3";
 
 export default async function QrAdminPage({
   searchParams,
@@ -20,50 +19,73 @@ export default async function QrAdminPage({
   const editing = presets.find((p) => p.id === bearbeiten);
 
   return (
-    <div className="flex flex-col gap-8" data-testid="qr-admin">
-      <section className="flex flex-col gap-3">
-        <h1 className="text-xl font-bold">Presets verwalten</h1>
-        <ul className="flex flex-col gap-2">
+    <div style={{ display: "flex", flexDirection: "column", gap: 32 }} data-testid="qr-admin">
+      {/* Server-Komponente: Überschriften als schlichtes HTML, kein
+          `Typography.Title` — `X.Y` auf einem antd-Import ergäbe hier einen 500er
+          (Global Constraints). Aus demselben Grund bleibt die Liste ein
+          <ul>/<li> statt `List`/`List.Item`. */}
+      <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Presets verwalten</h1>
+        <ul
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
+          }}
+        >
           {presets.map((p) => (
             <li
               key={p.id}
               data-testid="preset-row"
-              className="flex items-center justify-between gap-3 rounded border border-[var(--color-linie)] p-2"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                border: "1px solid var(--iuk-color-border, #d9d9d9)",
+                borderRadius: 8,
+                padding: 8,
+              }}
             >
-              <span className="flex items-center gap-2">
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span aria-hidden="true">{p.icon}</span>
-                {p.label} <code className="text-[var(--color-stahl)]">{p.id}</code>
+                {p.label} <code style={{ opacity: 0.65 }}>{p.id}</code>
               </span>
-              <span className="flex items-center gap-2">
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {/* Ein Link, kein Formular: das Bearbeiten aendert nichts, es
                     waehlt nur aus, welches Preset das Formular unten zeigt. */}
                 <Link
                   href={`/admin?bearbeiten=${encodeURIComponent(p.id)}`}
                   data-testid="preset-edit"
-                  className={`${buttonClass} flex items-center`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    minHeight: 56,
+                    paddingInline: 12,
+                    border: "1px solid var(--iuk-color-border, #d9d9d9)",
+                    borderRadius: 8,
+                  }}
                 >
                   Bearbeiten
                 </Link>
                 <form action={deletePresetAction}>
                   <input type="hidden" name="id" value={p.id} />
-                  <button
-                    type="submit"
-                    className="min-h-[var(--tap)] rounded border border-[var(--color-rot)] px-3 text-[var(--color-rot)]"
-                  >
+                  <Button danger htmlType="submit">
                     Löschen
-                  </button>
+                  </Button>
                 </form>
               </span>
             </li>
           ))}
         </ul>
-        {presets.length === 0 && (
-          <p className="text-[var(--color-stahl)]">Noch keine Presets angelegt.</p>
-        )}
+        {presets.length === 0 && <p style={{ opacity: 0.65 }}>Noch keine Presets angelegt.</p>}
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">
+      <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>
           {editing ? `Preset „${editing.label}“ bearbeiten` : "Neues Preset anlegen"}
         </h2>
         {/* `key`: wechselt der Admin von einem Preset direkt zum naechsten,
@@ -71,7 +93,7 @@ export default async function QrAdminPage({
             dieselbe Instanz und die useState-Startwerte laufen nicht erneut. */}
         <PresetForm key={editing?.id ?? "neu"} preset={editing} />
         {editing && (
-          <Link href="/admin" className="self-start underline">
+          <Link href="/admin" style={{ alignSelf: "flex-start" }}>
             Abbrechen
           </Link>
         )}

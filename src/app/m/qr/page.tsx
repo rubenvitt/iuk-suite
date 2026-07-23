@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button, Col, Row } from "antd";
 import { auth } from "@/core/auth";
 import { listPresets } from "@/app/m/qr/_lib/presets";
 import { PresetGrid } from "@/app/m/qr/PresetGrid";
@@ -18,38 +19,43 @@ export default async function QrHomePage() {
   const presets = session?.user ? await listPresets() : [];
 
   return (
-    <div className="flex flex-col gap-6" data-testid="qr-home">
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }} data-testid="qr-home">
       <UrlInput />
 
-      <section aria-label="Weitere Typen" className="flex flex-col gap-3">
-        <h2 className="font-semibold">Andere Typen</h2>
-        <div className="grid grid-cols-3 gap-3">
+      {/* Überschrift und Hinweis als schlichtes HTML: Server-Komponente, also
+          kein `Typography.Title`/`Typography.Paragraph` (Global Constraints). */}
+      <section
+        aria-label="Weitere Typen"
+        style={{ display: "flex", flexDirection: "column", gap: 12 }}
+      >
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Andere Typen</h2>
+        <Row gutter={[12, 12]}>
           {KINDS.map((k) => (
-            <Link
-              key={k.href}
-              href={k.href}
-              className="flex min-h-[var(--tap-xl)] flex-col items-center justify-center gap-1 rounded border border-[var(--color-linie)] p-2"
-            >
-              <span aria-hidden="true" className="text-2xl">
-                {k.icon}
-              </span>
-              <span className="text-sm">{k.label}</span>
-            </Link>
+            <Col key={k.href} span={8}>
+              <Button
+                block
+                href={k.href}
+                style={{ height: 72, display: "flex", flexDirection: "column", gap: 4 }}
+              >
+                <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1 }}>
+                  {k.icon}
+                </span>
+                <span>{k.label}</span>
+              </Button>
+            </Col>
           ))}
-        </div>
+        </Row>
       </section>
 
       {session?.user ? (
         <PresetGrid presets={presets} />
       ) : (
-        <p data-testid="qr-login-hint" className="text-[var(--color-stahl)]">
+        <p data-testid="qr-login-hint" style={{ opacity: 0.65 }}>
           {/* Die MinimalShell hat keinen Login-Einstieg im Header, und ein
               anonymes Modul leitet nirgends automatisch hin — ohne diesen Link
               wüsste der Nutzer vom Anmelden, käme aber nicht hin. */}
-          <Link href={`/login?callbackUrl=${encodeURIComponent("/")}`} className="underline">
-            Anmelden
-          </Link>
-          , um persönliche Schnellzugriffe zu sehen.
+          <Link href={`/login?callbackUrl=${encodeURIComponent("/")}`}>Anmelden</Link>, um
+          persönliche Schnellzugriffe zu sehen.
         </p>
       )}
 

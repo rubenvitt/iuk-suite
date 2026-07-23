@@ -225,3 +225,15 @@
     @apply font-sans;
   }
 }
+
+/*
+ * Das von `qrcode` erzeugte SVG bringt nur eine viewBox mit, keine Breite und
+ * Höhe. Ohne diese Regel fällt es auf die Ersatzgröße des Browsers zurück
+ * statt seine Box zu füllen — der Code wird winzig, ohne dass ein Test
+ * anschlägt. Vorher war das die Tailwind-Variante `[&>svg]:w-full`.
+ */
+[data-testid="qr-display"] > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}

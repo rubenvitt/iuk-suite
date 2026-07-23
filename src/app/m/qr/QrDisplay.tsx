@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button, Space, Typography } from "antd";
 import { payloadToSvg } from "@/app/m/qr/_lib/qr";
 
 /**
@@ -115,51 +116,50 @@ export function QrDisplay({ text, label }: { text: string; label: string }) {
 
   if (error) {
     return (
-      <p data-testid="qr-error" className="text-[var(--color-rot)]">
+      <Typography.Text type="danger" data-testid="qr-error">
         {error}
-      </p>
+      </Typography.Text>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
       <div
         ref={boxRef}
         data-testid="qr-display"
         // Das erzeugte SVG bringt nur eine viewBox mit, keine Breite/Höhe. Ohne
         // die explizite Größe fällt es auf die Ersatzgröße des Browsers zurück
-        // statt die Box zu füllen — easy-qr setzt dieselbe Regel.
-        className="w-full max-w-md bg-white p-4 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full"
-        style={inverted ? { filter: "invert(1)" } : undefined}
+        // statt die Box zu füllen — easy-qr setzt dieselbe Regel. Die Regel für
+        // das Kind-SVG steht in globals.css (`[data-testid="qr-display"] > svg`),
+        // weil sie sich als Inline-Style nicht ausdrücken lässt.
+        //
+        // Der weiße Hintergrund bleibt hart `#ffffff`, auch im Dunkelmodus: ein
+        // QR-Code auf dunklem Grund ist von vielen Scannern nicht lesbar. Das
+        // ist eine Einsatzanforderung, keine Stilfrage.
+        style={{
+          width: "100%",
+          maxWidth: 448,
+          background: "#ffffff",
+          padding: 16,
+          ...(inverted ? { filter: "invert(1)" } : {}),
+        }}
         onPointerDown={startPress}
         onPointerUp={endPress}
         onPointerLeave={endPress}
         onDoubleClick={toggleFullscreen}
         dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
       />
-      <div className="flex flex-wrap justify-center gap-3">
-        <button
-          type="button"
-          onClick={downloadPng}
-          className="min-h-[var(--tap)] rounded border px-4"
-        >
+      <Space wrap>
+        <Button size="large" onClick={downloadPng}>
           PNG speichern
-        </button>
-        <button
-          type="button"
-          onClick={share}
-          className="min-h-[var(--tap)] rounded border px-4"
-        >
+        </Button>
+        <Button size="large" onClick={share}>
           Teilen
-        </button>
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className="min-h-[var(--tap)] rounded border px-4"
-        >
+        </Button>
+        <Button size="large" onClick={toggleFullscreen}>
           Vollbild
-        </button>
-      </div>
+        </Button>
+      </Space>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Button, Col, Row, Typography } from "antd";
 import { recordEntry } from "@/app/m/qr/_lib/history";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import type { Preset } from "@/app/m/qr/_lib/types";
@@ -19,24 +20,37 @@ export function PresetGrid({ presets }: { presets: Preset[] }) {
   }
 
   return (
-    <section aria-label="Schnellzugriffe" className="flex flex-col gap-3">
-      <h2 className="font-semibold">Schnellzugriffe</h2>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="preset-grid">
+    <section
+      aria-label="Schnellzugriffe"
+      style={{ display: "flex", flexDirection: "column", gap: 12 }}
+    >
+      <Typography.Title level={5} style={{ margin: 0 }}>
+        Schnellzugriffe
+      </Typography.Title>
+      <Row gutter={[12, 12]} data-testid="preset-grid">
         {presets.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => open(p)}
-            data-testid="preset-tile"
-            className="flex min-h-32 flex-col items-center justify-center gap-1 rounded border border-[var(--color-linie)] p-2"
-          >
-            <span aria-hidden="true" className="text-3xl">
-              {p.icon ?? p.label.charAt(0).toUpperCase()}
-            </span>
-            <span>{p.label}</span>
-          </button>
+          <Col key={p.id} xs={12} sm={8}>
+            {/* Bleibt ein echter <button>: PresetGrid.test.tsx klickt die Kachel an. */}
+            <Button
+              block
+              onClick={() => open(p)}
+              data-testid="preset-tile"
+              style={{
+                height: 128,
+                whiteSpace: "normal",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <span aria-hidden="true" style={{ fontSize: 30, lineHeight: 1 }}>
+                {p.icon ?? p.label.charAt(0).toUpperCase()}
+              </span>
+              <span>{p.label}</span>
+            </Button>
+          </Col>
         ))}
-      </div>
+      </Row>
     </section>
   );
 }

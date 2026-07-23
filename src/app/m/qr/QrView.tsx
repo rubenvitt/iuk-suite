@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Button, Typography } from "antd";
 import { QrDisplay } from "@/app/m/qr/QrDisplay";
 
 /**
@@ -61,25 +61,41 @@ export function QrViewContent({
   const showRawData = kind !== "wifi" && kind !== "vcard";
 
   return (
-    <div className="flex flex-col items-center gap-4" data-testid="qr-view">
+    <div
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}
+      data-testid="qr-view"
+    >
       {/* Landepunkt geteilter Links: ohne diesen Weg zurück käme man von hier
           nur über die Adresszeile zum Generator. */}
-      <Link href="/" className="min-h-[var(--tap)] self-start leading-[var(--tap)]">
+      <Button type="link" href="/" style={{ alignSelf: "flex-start", padding: 0 }}>
         ← Zurück
-      </Link>
-      {label ? <h1 className="text-lg font-bold">{label}</h1> : null}
+      </Button>
+      {/* Bewusst ein natives <h1> statt `Typography.Title`: QrView.test.tsx
+          durchsucht den UNGERENDERTEN Elementbaum nach `el.type === "h1"`. Ein
+          Komponententyp trüge dort den Titel-Text nicht mehr, und die Zusage
+          „das Label steht als Überschrift über dem Code" fiele still weg. */}
+      {label ? <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{label}</h1> : null}
       <QrDisplay text={data} label={label ?? "qr"} />
-      <p className="text-center text-sm text-[var(--color-stahl)]">
+      <Typography.Text type="secondary" style={{ textAlign: "center" }}>
         <strong>Helligkeit auf Maximum.</strong> Doppeltippen für Vollbild, lang drücken zum
         Invertieren.
-      </p>
+      </Typography.Text>
       {showRawData ? (
-        <p
+        <Typography.Text
+          type="secondary"
           data-testid="qr-raw"
-          className="w-full max-w-md text-center font-mono text-sm break-all text-[var(--color-stahl)]"
+          style={{
+            display: "block",
+            width: "100%",
+            maxWidth: 448,
+            textAlign: "center",
+            fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+            fontSize: 14,
+            wordBreak: "break-all",
+          }}
         >
           {data}
-        </p>
+        </Typography.Text>
       ) : null}
     </div>
   );

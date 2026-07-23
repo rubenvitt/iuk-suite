@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button, Input, Typography } from "antd";
 import { QR_MAX_LENGTH, exceedsQrCapacity } from "@/app/m/qr/_lib/qr";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import { recordEntry } from "@/app/m/qr/_lib/history";
@@ -17,7 +18,7 @@ export function UrlInput() {
 
   return (
     <form
-      className="flex flex-col gap-2"
+      style={{ display: "flex", flexDirection: "column", gap: 8 }}
       onSubmit={(e) => {
         e.preventDefault();
         if (!canSubmit) return;
@@ -26,30 +27,26 @@ export function UrlInput() {
         router.push(buildQrUrl(value, payload));
       }}
     >
-      <label htmlFor="qr-url" className="font-semibold">
+      <label htmlFor="qr-url" style={{ fontWeight: 600 }}>
         Link oder Text
       </label>
-      <input
+      <Input
         id="qr-url"
+        size="large"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         autoComplete="off"
         placeholder="https://…"
-        className="min-h-[var(--tap)] rounded border border-[var(--color-linie)] px-3"
       />
       {tooLong ? (
-        <p data-testid="too-long" className="text-[var(--color-rot)]">
+        <Typography.Text type="danger" data-testid="too-long">
           Zu lang für einen QR-Code (max. {QR_MAX_LENGTH} Bytes — Umlaute zählen doppelt, Emoji
           vierfach).
-        </p>
+        </Typography.Text>
       ) : null}
-      <button
-        type="submit"
-        disabled={!canSubmit}
-        className="min-h-[var(--tap-xl)] rounded border border-[var(--color-linie)] font-semibold disabled:opacity-50"
-      >
+      <Button htmlType="submit" type="primary" size="large" block disabled={!canSubmit}>
         QR-Code erzeugen
-      </button>
+      </Button>
     </form>
   );
 }

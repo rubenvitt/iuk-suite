@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Button, Input, Typography } from "antd";
 import { recordEntry } from "@/app/m/qr/_lib/history";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import type { QrPayload } from "@/app/m/qr/_lib/types";
@@ -25,41 +25,39 @@ export default function TelPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Link href="/" className="min-h-[var(--tap)] self-start leading-[var(--tap)]">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Button type="link" href="/" style={{ alignSelf: "flex-start", padding: 0 }}>
         ← Zurück
-      </Link>
-      <h1 className="text-lg font-bold">Telefonnummer</h1>
-      <p className="text-[var(--color-stahl)]">
+      </Button>
+      <Typography.Title level={4} style={{ margin: 0 }}>
+        Telefonnummer
+      </Typography.Title>
+      <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
         Beim Scannen öffnet sich der Wählvorgang im Telefon.
-      </p>
+      </Typography.Paragraph>
 
-      <form onSubmit={submit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tel-number" className="font-semibold">
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label htmlFor="tel-number" style={{ fontWeight: 600 }}>
             Nummer
           </label>
-          <input
+          <Input
             id="tel-number"
             type="tel"
+            size="large"
             value={number}
             onChange={(e) => setNumber(e.target.value)}
             required
             placeholder="+49 151 12345678"
-            className="min-h-[var(--tap)] rounded border border-[var(--color-linie)] px-3"
           />
-          <p className="text-sm text-[var(--color-stahl)]">
+          <Typography.Text type="secondary">
             Internationales Format mit Ländervorwahl empfohlen (z. B. +49…).
-          </p>
+          </Typography.Text>
         </div>
 
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="min-h-[var(--tap-xl)] rounded border border-[var(--color-linie)] font-semibold disabled:opacity-50"
-        >
+        <Button htmlType="submit" type="primary" size="large" block disabled={!canSubmit}>
           QR-Code erzeugen
-        </button>
+        </Button>
       </form>
     </div>
   );
