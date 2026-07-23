@@ -1,3 +1,4 @@
+import { Card, Col, Row } from "antd";
 import { auth } from "@/core/auth";
 import { getVisibleServicesForUser } from "@/app/m/portal/_lib/services";
 
@@ -5,22 +6,30 @@ export default async function PortalPage() {
   const session = await auth();
   const services = await getVisibleServicesForUser(session?.user?.groups ?? []);
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3" data-testid="portal-grid">
+    <Row gutter={[16, 16]} data-testid="portal-grid">
       {services.map((s) => (
-        <a
-          key={s.id}
-          href={s.url}
-          target={s.openInNewTab ? "_blank" : undefined}
-          rel={s.openInNewTab ? "noopener noreferrer" : undefined}
-          className="rounded-xl border p-4 hover:bg-[var(--color-papier)]"
-          data-testid="service-tile"
-        >
-          <div className="font-semibold">{s.name}</div>
-          {s.description && (
-            <div className="text-sm text-[var(--color-stahl)]">{s.description}</div>
-          )}
-        </a>
+        <Col key={s.id} xs={12} sm={8}>
+          {/* Der Link liegt AUSSEN: antds Card rendert kein <a>, und die Kachel
+              ist die einzige Navigation ins Ziel — sie muss ein Link bleiben. */}
+          <a
+            href={s.url}
+            target={s.openInNewTab ? "_blank" : undefined}
+            rel={s.openInNewTab ? "noopener noreferrer" : undefined}
+            data-testid="service-tile"
+            style={{ display: "block", height: "100%" }}
+          >
+            {/* Kein `Card.Meta`: diese Datei ist eine Server-Komponente, und
+                Property-Zugriffe auf antd-Compounds ergeben dort `undefined`
+                (siehe Global Constraints). Schlichtes Markup tut hier dasselbe. */}
+            <Card hoverable size="small" style={{ height: "100%" }}>
+              <div style={{ fontWeight: 600 }}>{s.name}</div>
+              {s.description ? (
+                <div style={{ fontSize: 14, opacity: 0.65 }}>{s.description}</div>
+              ) : null}
+            </Card>
+          </a>
+        </Col>
       ))}
-    </div>
+    </Row>
   );
 }

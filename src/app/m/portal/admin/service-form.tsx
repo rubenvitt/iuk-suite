@@ -1,30 +1,34 @@
+import { Button, Checkbox, Input } from "antd";
 import { createServiceAction } from "@/app/m/portal/actions";
+
+const field: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4 };
 
 export function ServiceForm() {
   return (
-    <form action={createServiceAction} className="mt-4 flex max-w-md flex-col gap-3">
-      <label className="flex flex-col gap-1 text-sm">
+    <form
+      action={createServiceAction}
+      style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 480, marginTop: 16 }}
+    >
+      <label htmlFor="svc-slug" style={field}>
         Slug
-        <input name="slug" required className="rounded border px-2 py-1" />
+        <Input id="svc-slug" name="slug" required />
       </label>
-      <label className="flex flex-col gap-1 text-sm">
+      <label htmlFor="svc-name" style={field}>
         Name
-        <input name="name" required className="rounded border px-2 py-1" />
+        <Input id="svc-name" name="name" required />
       </label>
-      <label className="flex flex-col gap-1 text-sm">
+      <label htmlFor="svc-url" style={field}>
         URL
-        <input name="url" type="url" required className="rounded border px-2 py-1" />
+        <Input id="svc-url" name="url" type="url" required />
       </label>
-      <label className="flex items-center gap-2 text-sm">
-        <input name="isPublic" type="checkbox" defaultChecked />
+      {/* Ohne `value`-Attribut sendet ein angehakter Checkbox-Input "on" —
+          genau das prüft createServiceAction (`formData.get("isPublic") === "on"`). */}
+      <Checkbox name="isPublic" defaultChecked>
         Öffentlich sichtbar
-      </label>
-      <button
-        type="submit"
-        className="rounded-md bg-[var(--color-tinte)] px-4 py-2 text-white"
-      >
+      </Checkbox>
+      <Button htmlType="submit" type="primary" style={{ alignSelf: "flex-start" }}>
         Anlegen
-      </button>
+      </Button>
     </form>
   );
 }

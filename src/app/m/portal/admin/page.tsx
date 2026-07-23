@@ -2,52 +2,28 @@ import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { getAllServices } from "@/app/m/portal/_lib/services";
 import { deleteServiceAction } from "@/app/m/portal/actions";
 import { ServiceForm } from "@/app/m/portal/admin/service-form";
+import { ServiceTable } from "@/app/m/portal/admin/service-table";
 
 export default async function PortalAdminPage() {
   await moduleAdminPageOrNotFound("portal");
 
   const services = await getAllServices();
 
+  // Überschriften als schlichtes HTML statt `Typography.Title`: diese Datei ist
+  // eine Server-Komponente, und Property-Zugriffe auf antd-Compounds ergeben
+  // dort `undefined` (siehe Global Constraints). Für zwei Überschriften lohnt
+  // weder ein Untermodul-Import noch eine eigene Client-Komponente.
   return (
-    <div className="flex flex-col gap-8" data-testid="portal-admin">
+    <div style={{ display: "flex", flexDirection: "column", gap: 32 }} data-testid="portal-admin">
       <section>
-        <h1 className="text-xl font-bold">Dienste verwalten</h1>
-        <table className="mt-4 w-full text-left text-sm" data-testid="service-table">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2">Name</th>
-              <th className="py-2">Slug</th>
-              <th className="py-2">URL</th>
-              <th className="py-2">Öffentlich</th>
-              <th className="py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {services.map((s) => (
-              <tr key={s.id} className="border-b" data-testid="service-row">
-                <td className="py-2">{s.name}</td>
-                <td className="py-2">{s.slug}</td>
-                <td className="py-2">{s.url}</td>
-                <td className="py-2">{s.isPublic ? "ja" : "nein"}</td>
-                <td className="py-2 text-right">
-                  <form action={deleteServiceAction}>
-                    <input type="hidden" name="id" value={s.id} />
-                    <button
-                      type="submit"
-                      className="rounded-md border border-[var(--color-rot)] px-2 py-1 text-[var(--color-rot)]"
-                    >
-                      Löschen
-                    </button>
-                  </form>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <h1 style={{ fontSize: 24, fontWeight: 600, marginBlock: "0 16px" }}>Dienste verwalten</h1>
+        <ServiceTable services={services} deleteAction={deleteServiceAction} />
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold">Neuen Dienst anlegen</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 600, marginBlock: "0 16px" }}>
+          Neuen Dienst anlegen
+        </h2>
         <ServiceForm />
       </section>
     </div>
