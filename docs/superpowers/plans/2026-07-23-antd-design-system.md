@@ -1613,7 +1613,13 @@ Und in `src/core/theme/theme.test.ts` einen Test ergänzen, damit genau das nich
   });
 ```
 
-28 px ist bewusst kein `TAP`: Radio und Checkbox sind Marken neben einem Beschriftungstext, kein flächiger Knopf. Die tatsächliche Trefferfläche ist die Zeile aus Marke + Label; 28 px bringt die Marke von einem Drittel auf die Hälfte des Tap-Ziels und hält die Zeile bedienbar, ohne sie zu einer Kachel aufzublasen.
+> **Nachtrag nach dem Abschluss-Review — dieser Schritt war unvollständig und teilweise falsch.**
+>
+> 1. **Die Marke zu vergrößern reicht nicht.** Die Trefferfläche ist die **Zeile** aus Marke und Beschriftung, und die trug im Bestand ein `min-h-[var(--tap)]` = **56 px**. Component-Tokens erreichen sie nicht. Der ausgelieferte Stand setzt deshalb zusätzlich `minHeight: TAP` auf die Radio- und Checkbox-Zeilen (Commit `6243ad9`) — das ist der Teil, der die Anforderung tatsächlich trägt.
+> 2. **Das Checkbox-Override war wirkungslos.** antds Checkbox-Token heißt `checkboxSize`, nicht `controlInteractiveSize`; letzteres ist global `controlHeight / 2` und wird von `getComponentToken` aus dem Component-Block gelöscht, weil es dem globalen Wert entspricht. Die Zeile bewirkte nichts und wurde entfernt. Nur `Radio: { radioSize: 28, dotSize: 14 }` ist ein echtes Token.
+> 3. **Der Test hier prüft entsprechend weniger, als er verspricht.** Er fängt „jemand löscht das Radio-Override" — nicht „antd benennt das Token um". Die tatsächliche Zusage wird in `e2e/qr.spec.ts` an der gerenderten Geometrie gemessen.
+>
+> Maßgeblich ist der ausgelieferte Code, nicht dieser Schritt.
 
 - [ ] **Step 2: Demo-Module entstylen**
 
@@ -1795,20 +1801,25 @@ test("Bedienelemente bleiben mit Handschuhen treffbar", async ({ page }) => {
   // Größe nicht aus controlHeight ab (siehe theme.ts).
   await page.goto("http://qr.localtest.me:3100/wifi");
 
+  // Schwellen aus den Tokens, nicht als Literal: `size="large"`-Elemente
+  // tragen controlHeightLG (TAP_XL), Zeilen tragen TAP.
   const feld = await page.locator("#wifi-ssid").boundingBox();
-  expect(feld!.height).toBeGreaterThanOrEqual(56);
+  expect(feld!.height).toBeGreaterThanOrEqual(TAP_XL);
 
   const knopf = await page.getByRole("button", { name: "QR-Code erzeugen" }).boundingBox();
-  expect(knopf!.height).toBeGreaterThanOrEqual(56);
+  expect(knopf!.height).toBeGreaterThanOrEqual(TAP_XL);
 
   // Die tatsächliche Trefferfläche der Verschlüsselungswahl ist die ganze
-  // Zeile aus Marke und Beschriftung, nicht nur der Radio-Punkt.
+  // Zeile aus Marke und Beschriftung, nicht nur der Radio-Punkt — und sie trug
+  // im Bestand 56 px.
   const zeile = await page.locator('label:has(input[name="encryption"])').first().boundingBox();
-  expect(zeile!.height).toBeGreaterThanOrEqual(28);
+  expect(zeile!.height).toBeGreaterThanOrEqual(TAP);
 });
 ```
 
 Läuft der Test rot, ist das ein echter Befund und **kein** Anlass, die Schwelle zu senken.
+
+> **Nachtrag:** Die erste Fassung dieses Schritts prüfte die Radio-Zeile gegen `28` — also gegen den gemessenen Ist-Wert statt gegen die Anforderung — und hätte die Regression damit festgeschrieben statt gemeldet. Der ausgelieferte Stand misst gegen `TAP`/`TAP_XL` und deckt zusätzlich die Checkbox-Zeilen ab.
 
 Danach die Gate-Kette aus Step 1 noch einmal, damit der neue Test darin enthalten ist.
 
