@@ -130,6 +130,37 @@ test("drk-qr-admin kann ein Preset anlegen", async ({ page }) => {
 });
 
 /**
+ * Der Loesch-Pfad. Bis zum antd-Umbau war der Loeschknopf ein
+ * `<button type="submit">`; jetzt ist es `<Button danger htmlType="submit">`.
+ * Genau das `htmlType` ist der einzige Unterschied zwischen "loescht" und
+ * "tut nichts" — antds `Button` faellt ohne es auf `type="button"` zurueck und
+ * der Klick waere ein stiller No-op. Kein anderer Test faehrt diesen Pfad, also
+ * fiele ein vergessenes `htmlType` durch jedes Gate.
+ *
+ * Eigener, eindeutiger Name (nicht "Neues Preset" aus dem Anlege-Test): die
+ * E2E laeuft mit `workers:1` gegen eine einmal gewischte DB, alle Tests dieser
+ * Datei teilen seriell denselben Stand.
+ */
+test("drk-qr-admin kann ein Preset loeschen", async ({ page }) => {
+  await devLogin(page, {
+    host: "qr.localtest.me",
+    groups: "drk-qr-admin",
+    callbackPath: "/admin",
+  });
+  await page.getByLabel("Bezeichnung").fill("Preset zum Loeschen");
+  await page.getByRole("textbox", { name: "Web-Adresse" }).fill("https://weg.example");
+  await page.getByRole("button", { name: /anlegen/i }).click();
+
+  const row = page.getByTestId("preset-row").filter({ hasText: "Preset zum Loeschen" });
+  await expect(row).toHaveCount(1);
+  // Auf die Zielzeile gescopt: "Loeschen" gibt es pro Zeile einmal.
+  await row.getByRole("button", { name: "Löschen" }).click();
+  // Die eigentliche Zusicherung: die Zeile ist wirklich weg. Bliebe sie stehen,
+  // waere der Knopf ein No-op (fehlendes htmlType, siehe Kommentar oben).
+  await expect(row).toHaveCount(0);
+});
+
+/**
  * Der Bearbeiten-Pfad. Ohne ihn blieb einem Admin nach einer WLAN-Passwort-
  * rotation nur Loeschen und Neuanlegen — und `createPreset` vergibt dabei
  * sortOrder = max+1, die Kachel rutscht im Schnellzugriff also ans Ende, weg von

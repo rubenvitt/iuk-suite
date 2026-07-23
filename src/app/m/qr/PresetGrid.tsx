@@ -6,6 +6,7 @@ import { recordEntry } from "@/app/m/qr/_lib/history";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import type { Preset } from "@/app/m/qr/_lib/types";
 
+import { SPACE } from "@/core/theme/tokens";
 /** Client-Komponente, weil ein Tipp in den Verlauf schreibt und dann
  *  navigiert — beides gibt es auf dem Server nicht. */
 export function PresetGrid({ presets }: { presets: Preset[] }) {
@@ -22,12 +23,12 @@ export function PresetGrid({ presets }: { presets: Preset[] }) {
   return (
     <section
       aria-label="Schnellzugriffe"
-      style={{ display: "flex", flexDirection: "column", gap: 12 }}
+      style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}
     >
       <Typography.Title level={5} style={{ margin: 0 }}>
         Schnellzugriffe
       </Typography.Title>
-      <Row gutter={[12, 12]} data-testid="preset-grid">
+      <Row gutter={[SPACE.md, SPACE.md]} data-testid="preset-grid">
         {presets.map((p) => (
           <Col key={p.id} xs={12} sm={8}>
             {/* Bleibt ein echter <button>: PresetGrid.test.tsx klickt die Kachel an. */}
@@ -40,7 +41,7 @@ export function PresetGrid({ presets }: { presets: Preset[] }) {
                 whiteSpace: "normal",
                 display: "flex",
                 flexDirection: "column",
-                gap: 4,
+                gap: SPACE.xs,
               }}
             >
               <span aria-hidden="true" style={{ fontSize: 30, lineHeight: 1 }}>

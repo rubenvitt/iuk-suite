@@ -7,6 +7,7 @@ import { UrlInput } from "@/app/m/qr/UrlInput";
 import { HistoryList } from "@/app/m/qr/HistoryList";
 import { RAHMEN } from "@/app/m/qr/_lib/style";
 
+import { SPACE } from "@/core/theme/tokens";
 const KINDS = [
   { href: "/wifi", label: "WLAN", icon: "📶" },
   { href: "/tel", label: "Telefon", icon: "📞" },
@@ -20,17 +21,17 @@ export default async function QrHomePage() {
   const presets = session?.user ? await listPresets() : [];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }} data-testid="qr-home">
+    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xl }} data-testid="qr-home">
       <UrlInput />
 
       {/* Überschrift und Hinweis als schlichtes HTML: Server-Komponente, also
           kein `Typography.Title`/`Typography.Paragraph` (Global Constraints). */}
       <section
         aria-label="Weitere Typen"
-        style={{ display: "flex", flexDirection: "column", gap: 12 }}
+        style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}
       >
         <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Andere Typen</h2>
-        <Row gutter={[12, 12]}>
+        <Row gutter={[SPACE.md, SPACE.md]}>
           {/* `next/link` statt `Button href`: `next/link` navigiert selbst
               clientseitig (kein Dokumentwechsel), auch ohne `onClick` — und
               genau das braucht eine Server-Komponente, die keinen Event-
@@ -49,7 +50,7 @@ export default async function QrHomePage() {
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 4,
+                  gap: SPACE.xs,
                   border: RAHMEN,
                   borderRadius: 8,
                   color: "inherit",

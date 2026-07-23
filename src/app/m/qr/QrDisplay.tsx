@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Space, Typography } from "antd";
 import { payloadToSvg } from "@/app/m/qr/_lib/qr";
 
+import { SPACE } from "@/core/theme/tokens";
 /**
  * Anzeige plus die vier Einsatz-Funktionen aus easy-qr: Vollbild, Invertieren
  * per Long-Press (600 ms), PNG-Download (1024×1024), Teilen.
@@ -123,7 +124,7 @@ export function QrDisplay({ text, label }: { text: string; label: string }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: SPACE.lg }}>
       <div
         ref={boxRef}
         data-testid="qr-display"
@@ -140,7 +141,7 @@ export function QrDisplay({ text, label }: { text: string; label: string }) {
           width: "100%",
           maxWidth: 448,
           background: "#ffffff",
-          padding: 16,
+          padding: SPACE.lg,
           ...(inverted ? { filter: "invert(1)" } : {}),
         }}
         onPointerDown={startPress}

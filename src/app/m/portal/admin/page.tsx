@@ -4,6 +4,7 @@ import { deleteServiceAction } from "@/app/m/portal/actions";
 import { ServiceForm } from "@/app/m/portal/admin/service-form";
 import { ServiceTable } from "@/app/m/portal/admin/service-table";
 
+import { SPACE } from "@/core/theme/tokens";
 export default async function PortalAdminPage() {
   await moduleAdminPageOrNotFound("portal");
 
@@ -14,7 +15,7 @@ export default async function PortalAdminPage() {
   // dort `undefined` (siehe Global Constraints). Für zwei Überschriften lohnt
   // weder ein Untermodul-Import noch eine eigene Client-Komponente.
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 32 }} data-testid="portal-admin">
+    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl }} data-testid="portal-admin">
       <section>
         <h1 style={{ fontSize: 24, fontWeight: 600, marginBlock: "0 16px" }}>Dienste verwalten</h1>
         <ServiceTable services={services} deleteAction={deleteServiceAction} />

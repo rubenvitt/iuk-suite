@@ -12,6 +12,7 @@ import { Layout } from "antd";
 import { Header, Content } from "antd/es/layout/layout";
 import { getModule } from "@/core/registry";
 
+import { SPACE } from "@/core/theme/tokens";
 export function MinimalShell({
   moduleKey,
   children,
@@ -22,10 +23,10 @@ export function MinimalShell({
   const mod = getModule(moduleKey);
   return (
     <Layout style={{ minHeight: "100vh" }} data-testid="minimal-shell">
-      <Header style={{ paddingInline: 16 }}>
+      <Header style={{ paddingInline: SPACE.lg }}>
         <strong>{mod.title}</strong>
       </Header>
-      <Content style={{ padding: 16 }}>
+      <Content style={{ padding: SPACE.lg }}>
         <div style={{ maxWidth: 640, marginInline: "auto" }}>{children}</div>
       </Content>
     </Layout>

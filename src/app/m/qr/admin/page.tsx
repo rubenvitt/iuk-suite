@@ -5,7 +5,7 @@ import { listPresets } from "@/app/m/qr/_lib/presets";
 import { PresetForm } from "@/app/m/qr/admin/preset-form";
 import { deletePresetAction } from "@/app/m/qr/actions";
 import { RAHMEN } from "@/app/m/qr/_lib/style";
-import { TAP } from "@/core/theme/tokens";
+import { SPACE, TAP } from "@/core/theme/tokens";
 
 export default async function QrAdminPage({
   searchParams,
@@ -21,18 +21,18 @@ export default async function QrAdminPage({
   const editing = presets.find((p) => p.id === bearbeiten);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 32 }} data-testid="qr-admin">
+    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl }} data-testid="qr-admin">
       {/* Server-Komponente: Überschriften als schlichtes HTML, kein
           `Typography.Title` — `X.Y` auf einem antd-Import ergäbe hier einen 500er
           (Global Constraints). Aus demselben Grund bleibt die Liste ein
           <ul>/<li> statt `List`/`List.Item`. */}
-      <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <section style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Presets verwalten</h1>
         <ul
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: 8,
+            gap: SPACE.sm,
             listStyle: "none",
             margin: 0,
             padding: 0,
@@ -46,17 +46,17 @@ export default async function QrAdminPage({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                gap: 12,
+                gap: SPACE.md,
                 border: RAHMEN,
                 borderRadius: 8,
-                padding: 8,
+                padding: SPACE.sm,
               }}
             >
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
                 <span aria-hidden="true">{p.icon}</span>
                 {p.label} <code style={{ opacity: 0.65 }}>{p.id}</code>
               </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
                 {/* Ein Link, kein Formular: das Bearbeiten aendert nichts, es
                     waehlt nur aus, welches Preset das Formular unten zeigt. */}
                 <Link
@@ -66,7 +66,7 @@ export default async function QrAdminPage({
                     display: "inline-flex",
                     alignItems: "center",
                     minHeight: TAP,
-                    paddingInline: 12,
+                    paddingInline: SPACE.md,
                     border: RAHMEN,
                     borderRadius: 8,
                   }}
@@ -86,7 +86,7 @@ export default async function QrAdminPage({
         {presets.length === 0 && <p style={{ opacity: 0.65 }}>Noch keine Presets angelegt.</p>}
       </section>
 
-      <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <section style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>
           {editing ? `Preset „${editing.label}“ bearbeiten` : "Neues Preset anlegen"}
         </h2>

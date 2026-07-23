@@ -27,6 +27,28 @@ export const TAP = 56;
 export const TAP_XL = 72;
 
 /**
+ * Abstands-Skala der Suite (px), 4er-Raster. Die Spec sagt zu, dass Module ihre
+ * Abstände aus `core/theme` beziehen statt sie erneut zu erfinden — vorher
+ * standen dieselben Zahlen (4/8/12/16/24/32) als Literale über ein Dutzend
+ * Dateien verstreut. Plain-Konstanten wie `TAP`, nicht antds `token.padding`:
+ * die bräuchten `theme.useToken()` (client-only) und wären in den
+ * Server-Komponenten (`portal/page`, `qr/page`, `qr/admin/page`) nicht nutzbar.
+ *
+ * Nur für Abstände (`gap`/`padding`/`margin`/`Row gutter`). Dimensionale Werte
+ * (Höhen, `maxWidth`, `borderRadius`, `fontSize`) bleiben bewusst außen vor —
+ * sie gehören zu anderen Achsen und dürfen sich einen Wert nicht mit einem
+ * Abstand teilen, nur weil er zufällig gleich ist.
+ */
+export const SPACE = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+} as const;
+
+/**
  * Inline-Style fürs Wurzel-`<label>` von `<Radio>`/`<Checkbox>`. Beide leiten
  * ihre Marke nicht aus `controlHeight` ab (siehe theme.ts) — selbst mit
  * vergrößerter Marke reicht die allein nicht, denn die tatsächliche

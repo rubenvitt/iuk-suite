@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { absoluteCallbackUrl } from "@/core/auth/callbackUrl";
 import { useState } from "react";
 import { Button, Input } from "antd";
-import { DRK } from "@/core/theme/tokens";
+import { DRK, SPACE } from "@/core/theme/tokens";
 
 // Kleiner, lokaler Helfer: übersetzt einen DRK-Hex-Wert mit Deckkraft in eine
 // CSS-Farbe — Ersatz für Tailwinds Opacity-Modifier (`bg-[..]/NN`), den es
@@ -41,7 +41,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
         alignItems: "center",
         justifyContent: "center",
         overflow: "hidden",
-        padding: 24,
+        padding: SPACE.xl,
       }}
     >
       {/* Hintergrund: generiertes Bild + weiches Overlay, damit die Karte trägt */}
@@ -98,7 +98,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
             borderRadius: 24,
             border: "1px solid rgba(255, 255, 255, 0.6)",
             backgroundColor: "rgba(255, 255, 255, 0.75)",
-            padding: 32,
+            padding: SPACE.xxl,
             boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.10)",
             backdropFilter: "blur(24px)",
           }}
@@ -106,7 +106,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
           {/* Markenzeichen */}
           <div
             style={{
-              marginBottom: 32,
+              marginBottom: SPACE.xxl,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
@@ -147,7 +147,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
             >
               IuK-Suite
             </h1>
-            <p style={{ marginTop: 8, fontSize: 14, color: DRK.stahl }}>
+            <p style={{ marginTop: SPACE.sm, fontSize: 14, color: DRK.stahl }}>
               Internes Service-Dashboard für Information &amp; Kommunikation
             </p>
           </div>
@@ -170,7 +170,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
             Mit Pocket ID anmelden
           </Button>
 
-          <p style={{ marginTop: 16, textAlign: "center", fontSize: 12, color: DRK.stahl }}>
+          <p style={{ marginTop: SPACE.lg, textAlign: "center", fontSize: 12, color: DRK.stahl }}>
             Du wirst zu Pocket ID weitergeleitet und nach der Anmeldung
             zurückgebracht.
           </p>
@@ -178,12 +178,12 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
           {devLogin && (
             <form
               style={{
-                marginTop: 32,
+                marginTop: SPACE.xxl,
                 display: "flex",
                 flexDirection: "column",
-                gap: 12,
+                gap: SPACE.md,
                 borderTop: `1px solid ${DRK.linie}`,
-                paddingTop: 24,
+                paddingTop: SPACE.xl,
               }}
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -227,7 +227,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
 
         <p
           style={{
-            marginTop: 24,
+            marginTop: SPACE.xl,
             textAlign: "center",
             fontSize: 12,
             color: rgba(DRK.stahl, 0.8),

@@ -6,7 +6,7 @@ import { Button, Checkbox, Input, Radio, Typography } from "antd";
 import { recordEntry } from "@/app/m/qr/_lib/history";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import type { QrPayload } from "@/app/m/qr/_lib/types";
-import { TAP_ROW } from "@/core/theme/tokens";
+import { SPACE, TAP_ROW } from "@/core/theme/tokens";
 
 type Encryption = "WPA" | "WEP" | "nopass";
 
@@ -39,7 +39,7 @@ export default function WifiPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
       {/* `onClick` statt `href`: ein echtes `<a>` waere eine volle
           Dokumentnavigation samt Neuhydrierung statt eines Client-Wechsels. */}
       <Button
@@ -56,8 +56,8 @@ export default function WifiPage() {
         QR-Code zum Beitreten eines Funknetzes. Geräte verbinden sich mit einem Scan.
       </Typography.Paragraph>
 
-      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
           <label htmlFor="wifi-ssid" style={{ fontWeight: 600 }}>
             SSID (Netzwerkname)
           </label>
@@ -71,7 +71,7 @@ export default function WifiPage() {
           />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
           <label htmlFor="wifi-pass" style={{ fontWeight: 600 }}>
             Passwort
           </label>
@@ -91,7 +91,7 @@ export default function WifiPage() {
 
         {/* Das <fieldset> bleibt: forms.test.tsx und preset-form.test.tsx greifen
             über `fieldset input` zu. Die Radio-Gruppe liegt DARIN. */}
-        <fieldset style={{ display: "flex", flexDirection: "column", gap: 8, border: 0, margin: 0, padding: 0 }}>
+        <fieldset style={{ display: "flex", flexDirection: "column", gap: SPACE.sm, border: 0, margin: 0, padding: 0 }}>
           <legend style={{ fontWeight: 600 }}>Verschlüsselung</legend>
           {/* `name` an der Gruppe: forms.test.tsx klickt
               `input[name="encryption"][value="nopass"]`. antd reicht den Namen
@@ -100,7 +100,7 @@ export default function WifiPage() {
             name="encryption"
             value={encryption}
             onChange={(e) => setEncryption(e.target.value as Encryption)}
-            style={{ display: "flex", flexDirection: "column", gap: 8 }}
+            style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}
           >
             {ENCRYPTIONS.map((o) => (
               <Radio key={o.value} value={o.value} style={TAP_ROW}>

@@ -7,6 +7,7 @@ import { recordEntry } from "@/app/m/qr/_lib/history";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import type { QrPayload } from "@/app/m/qr/_lib/types";
 
+import { SPACE } from "@/core/theme/tokens";
 export default function TelPage() {
   const [number, setNumber] = useState("");
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function TelPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
       {/* `onClick` statt `href`: ein echtes `<a>` waere eine volle
           Dokumentnavigation samt Neuhydrierung statt eines Client-Wechsels. */}
       <Button
@@ -42,8 +43,8 @@ export default function TelPage() {
         Beim Scannen öffnet sich der Wählvorgang im Telefon.
       </Typography.Paragraph>
 
-      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
           <label htmlFor="tel-number" style={{ fontWeight: 600 }}>
             Nummer
           </label>

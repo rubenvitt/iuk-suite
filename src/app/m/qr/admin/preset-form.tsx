@@ -6,7 +6,7 @@ import { createPresetAction, updatePresetAction } from "@/app/m/qr/actions";
 import { payloadToQrString } from "@/app/m/qr/_lib/payload";
 import { exceedsQrCapacity, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
 import { RAHMEN } from "@/app/m/qr/_lib/style";
-import { TAP_ROW, TAP_XL } from "@/core/theme/tokens";
+import { SPACE, TAP_ROW, TAP_XL } from "@/core/theme/tokens";
 import type { Preset, QrKind, QrPayload } from "@/app/m/qr/_lib/types";
 
 const KINDS: { value: QrKind; label: string }[] = [
@@ -44,7 +44,7 @@ const ENCRYPTIONS = [
  */
 const nativeSelectStyle: React.CSSProperties = {
   minHeight: TAP_XL,
-  paddingInline: 12,
+  paddingInline: SPACE.md,
   borderRadius: 8,
   border: RAHMEN,
   background: "transparent",
@@ -120,19 +120,19 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
   return (
     <form
       action={preset ? updatePresetAction : createPresetAction}
-      style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 448 }}
+      style={{ display: "flex", flexDirection: "column", gap: SPACE.lg, maxWidth: 448 }}
       data-testid="preset-form"
     >
       {/* Adressiert die Zeile. `parse` verwirft die mitvalidierte id aus der
           Nutzlast, damit ein Aktualisieren die Identitaet nie verschiebt. */}
       {preset && <input type="hidden" name="id" value={preset.id} />}
 
-      <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
         <span style={{ fontWeight: 600 }}>Bezeichnung</span>
         <Input name="label" size="large" required maxLength={80} defaultValue={preset?.label ?? ""} />
       </label>
 
-      <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
         <span style={{ fontWeight: 600 }}>Symbol</span>
         <Input name="icon" size="large" placeholder="z. B. 📶" defaultValue={preset?.icon ?? ""} />
         <Typography.Text type="secondary">
@@ -140,7 +140,7 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
         </Typography.Text>
       </label>
 
-      <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
         <span style={{ fontWeight: 600 }}>Art</span>
         {/* Beim Bearbeiten gesperrt — wie in easy-qr: ein Wechsel machte den
             gespeicherten `value` bedeutungslos (eine SSID ist keine URL). Ein
@@ -165,7 +165,7 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
       </label>
 
       {kind === "url" && (
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
           <span style={{ fontWeight: 600 }}>Web-Adresse</span>
           <Input
             name="value"
@@ -179,7 +179,7 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
       )}
 
       {kind === "text" && (
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
           <span style={{ fontWeight: 600 }}>Text</span>
           <Input
             name="value"
@@ -192,7 +192,7 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
       )}
 
       {kind === "tel" && (
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
           <span style={{ fontWeight: 600 }}>Telefonnummer</span>
           <Input
             name="value"
@@ -209,10 +209,10 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
         /* Das <fieldset> bleibt: preset-form.test.tsx greift ueber
            `fieldset input` auf das erste Feld (die SSID) zu. */
         <fieldset
-          style={{ display: "flex", flexDirection: "column", gap: 16, border: 0, margin: 0, padding: 0 }}
+          style={{ display: "flex", flexDirection: "column", gap: SPACE.lg, border: 0, margin: 0, padding: 0 }}
         >
           <legend style={{ fontWeight: 600 }}>WLAN-Zugang</legend>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
             <span>SSID (Netzwerkname)</span>
             <Input
               size="large"
@@ -222,7 +222,7 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
               autoComplete="off"
             />
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
             <span>Passwort</span>
             {/* Wie in den Nutzerformularen bewusst sichtbar: das Passwort steht
                 ohnehin im erzeugten Code, und ein verdecktes Feld provoziert
@@ -235,7 +235,7 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
               autoComplete="off"
             />
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
             <span>Verschlüsselung</span>
             {/* Natives <select> wie das Art-Feld darueber — siehe der Kommentar
                 an `nativeSelectStyle`. Beide gleich zu halten ist die
@@ -261,18 +261,18 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
 
       {kind === "vcard" && (
         <fieldset
-          style={{ display: "flex", flexDirection: "column", gap: 16, border: 0, margin: 0, padding: 0 }}
+          style={{ display: "flex", flexDirection: "column", gap: SPACE.lg, border: 0, margin: 0, padding: 0 }}
         >
           <legend style={{ fontWeight: 600 }}>Kontakt</legend>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
             <span>Name</span>
             <Input size="large" value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
             <span>Telefon</span>
             <Input type="tel" size="large" value={tel} onChange={(e) => setTel(e.target.value)} />
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
             <span>E-Mail</span>
             <Input
               type="email"
@@ -281,7 +281,7 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
               onChange={(e) => setEmail(e.target.value)}
             />
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
             <span>Organisation</span>
             <Input size="large" value={org} onChange={(e) => setOrg(e.target.value)} />
           </label>

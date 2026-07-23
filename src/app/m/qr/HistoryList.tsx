@@ -11,6 +11,7 @@ import {
 } from "@/app/m/qr/_lib/history";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 
+import { SPACE } from "@/core/theme/tokens";
 export function HistoryList() {
   // Der Verlauf liegt im localStorage, den es auf dem Server nicht gibt.
   // useSyncExternalStore rendert deshalb serverseitig die leere Liste und
@@ -29,7 +30,7 @@ export function HistoryList() {
     <section
       aria-label="Verlauf"
       data-testid="qr-history"
-      style={{ display: "flex", flexDirection: "column", gap: 12 }}
+      style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}
     >
       <Typography.Title level={5} style={{ margin: 0 }}>
         Zuletzt erzeugt
@@ -38,7 +39,7 @@ export function HistoryList() {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 8,
+          gap: SPACE.sm,
           listStyle: "none",
           margin: 0,
           padding: 0,

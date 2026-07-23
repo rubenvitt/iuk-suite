@@ -1,13 +1,14 @@
 import { Button, Checkbox, Input } from "antd";
 import { createServiceAction } from "@/app/m/portal/actions";
 
-const field: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4 };
+import { SPACE } from "@/core/theme/tokens";
+const field: React.CSSProperties = { display: "flex", flexDirection: "column", gap: SPACE.xs };
 
 export function ServiceForm() {
   return (
     <form
       action={createServiceAction}
-      style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 480, marginTop: 16 }}
+      style={{ display: "flex", flexDirection: "column", gap: SPACE.md, maxWidth: 480, marginTop: SPACE.lg }}
     >
       <label htmlFor="svc-slug" style={field}>
         Slug

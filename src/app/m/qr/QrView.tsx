@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Typography } from "antd";
 import { QrDisplay } from "@/app/m/qr/QrDisplay";
 
+import { SPACE } from "@/core/theme/tokens";
 /**
  * QR-Ansicht, der URL-Vertrag aus easy-qr: `/qr?data=…&label=…&kind=…`.
  *
@@ -70,7 +71,7 @@ export function QrViewContent({
 
   return (
     <div
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: SPACE.lg }}
       data-testid="qr-view"
     >
       {/* Landepunkt geteilter Links: ohne diesen Weg zurück käme man von hier

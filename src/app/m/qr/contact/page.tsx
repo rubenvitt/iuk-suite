@@ -7,6 +7,7 @@ import { recordEntry } from "@/app/m/qr/_lib/history";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import type { QrPayload } from "@/app/m/qr/_lib/types";
 
+import { SPACE } from "@/core/theme/tokens";
 export default function ContactPage() {
   const [name, setName] = useState("");
   const [tel, setTel] = useState("");
@@ -45,7 +46,7 @@ export default function ContactPage() {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
       {/* `onClick` statt `href`: ein echtes `<a>` waere eine volle
           Dokumentnavigation samt Neuhydrierung statt eines Client-Wechsels. */}
       <Button
@@ -62,9 +63,9 @@ export default function ContactPage() {
         vCard zum Speichern im Adressbuch des Scanners.
       </Typography.Paragraph>
 
-      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
         {fields.map((f) => (
-          <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
             <label htmlFor={f.id} style={{ fontWeight: 600 }}>
               {f.label}
             </label>

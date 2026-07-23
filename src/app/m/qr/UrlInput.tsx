@@ -7,6 +7,7 @@ import { QR_MAX_LENGTH, exceedsQrCapacity } from "@/app/m/qr/_lib/qr";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import { recordEntry } from "@/app/m/qr/_lib/history";
 
+import { SPACE } from "@/core/theme/tokens";
 export function UrlInput() {
   const [value, setValue] = useState("");
   const router = useRouter();
@@ -18,7 +19,7 @@ export function UrlInput() {
 
   return (
     <form
-      style={{ display: "flex", flexDirection: "column", gap: 8 }}
+      style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}
       onSubmit={(e) => {
         e.preventDefault();
         if (!canSubmit) return;

@@ -10,6 +10,7 @@ import { switcherEntries } from "@/core/shell/switcherEntries";
 import { AppSwitcher } from "@/core/shell/AppSwitcher";
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
 
+import { SPACE } from "@/core/theme/tokens";
 export async function FullShell({
   moduleKey,
   children,
@@ -31,17 +32,17 @@ export async function FullShell({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 16,
-          paddingInline: 16,
+          gap: SPACE.lg,
+          paddingInline: SPACE.lg,
         }}
       >
         <strong data-testid="module-title">{mod.title}</strong>
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
           <AppSwitcher entries={entries} userName={session?.user?.name ?? null} />
           <ThemeToggle />
         </span>
       </Header>
-      <Content style={{ padding: 16 }}>{children}</Content>
+      <Content style={{ padding: SPACE.lg }}>{children}</Content>
     </Layout>
   );
 }

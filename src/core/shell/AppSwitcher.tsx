@@ -11,6 +11,7 @@ import {
 import { Avatar, Button, Space } from "antd";
 import type { ComponentType } from "react";
 
+import { SPACE } from "@/core/theme/tokens";
 // Icon-Name (aus ModuleDef.icon, Registry) -> @ant-design/icons Komponente.
 // Deckt die aktuell in MODULES verwendeten Namen ab; unbekannte Namen fallen
 // auf AppstoreOutlined zurück statt den Render zu crashen.
@@ -54,7 +55,7 @@ export function AppSwitcher({
       {/* Die installierte antd-Version kennt an `Space` kein `component`-Prop
           (rendert immer ein div) — deshalb hier ein natives <nav>, das
           aria-label="Module" trägt, mit Space-gleichem Flex-Wrap-Layout. */}
-      <nav aria-label="Module" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+      <nav aria-label="Module" style={{ display: "flex", flexWrap: "wrap", gap: SPACE.xs }}>
         {entries.map((entry) => {
           const Icon = ICONS[entry.icon] ?? AppstoreOutlined;
           return (

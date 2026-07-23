@@ -1,5 +1,6 @@
 import { KioskThemeProvider } from "@/core/theme/KioskThemeProvider";
 
+import { SPACE } from "@/core/theme/tokens";
 export function KioskShell({
   children,
 }: {
@@ -10,7 +11,7 @@ export function KioskShell({
     <KioskThemeProvider>
       <div
         data-testid="kiosk-shell"
-        style={{ height: "100dvh", width: "100vw", overflow: "hidden", padding: 24 }}
+        style={{ height: "100dvh", width: "100vw", overflow: "hidden", padding: SPACE.xl }}
       >
         {children}
       </div>

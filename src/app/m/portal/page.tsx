@@ -2,11 +2,12 @@ import { Card, Col, Row } from "antd";
 import { auth } from "@/core/auth";
 import { getVisibleServicesForUser } from "@/app/m/portal/_lib/services";
 
+import { SPACE } from "@/core/theme/tokens";
 export default async function PortalPage() {
   const session = await auth();
   const services = await getVisibleServicesForUser(session?.user?.groups ?? []);
   return (
-    <Row gutter={[16, 16]} data-testid="portal-grid">
+    <Row gutter={[SPACE.lg, SPACE.lg]} data-testid="portal-grid">
       {services.map((s) => (
         <Col key={s.id} xs={12} sm={8}>
           {/* Der Link liegt AUSSEN: antds Card rendert kein <a>, und die Kachel
