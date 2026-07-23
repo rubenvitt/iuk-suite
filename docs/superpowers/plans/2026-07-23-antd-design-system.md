@@ -933,7 +933,7 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
 - [ ] **Step 9: E2E gegen die Shells**
 
 ```bash
-pnpm e2e -- keystone.spec.ts
+pnpm e2e keystone.spec.ts
 ```
 
 Erwartet: 4 Tests grün. Bricht `SSO: one login serves alpha + gamma` an `getByRole("link", { name: /Alpha/ })`, rendert der `AppSwitcher` seine Einträge nicht als `<a>` — dann prüfen, dass `Button` ein `href` bekommt (mit `href` rendert antd ein `<a>`, ohne ein `<button>`).
@@ -1162,7 +1162,7 @@ pnpm typecheck && pnpm lint && pnpm test
 - [ ] **Step 6: E2E gegen das Portal**
 
 ```bash
-pnpm e2e -- portal.spec.ts
+pnpm e2e portal.spec.ts
 ```
 
 Erwartet: 2 Tests grün.
@@ -1543,7 +1543,7 @@ Bricht ein Test an `#…`-Selektoren, hat antd das `id` nicht ans `<input>` durc
 - [ ] **Step 12: E2E qr + PWA**
 
 ```bash
-pnpm e2e -- qr.spec.ts
+pnpm e2e qr.spec.ts
 pnpm e2e:pwa
 ```
 
