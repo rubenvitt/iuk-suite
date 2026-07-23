@@ -278,3 +278,23 @@ test("Teilen reicht Nutzlast und Bezeichnung an das System weiter", async ({ pag
     .poll(() => page.evaluate(() => (window as unknown as { __shared: unknown[] }).__shared))
     .toEqual([{ title: "Test", text: "https://drk.de" }]);
 });
+
+test("Bedienelemente bleiben mit Handschuhen treffbar", async ({ page }) => {
+  // Einsatzanforderung, keine Stilfrage: die Suite wird im Einsatz mit
+  // Handschuhen bedient. Gemessen wird das GERENDERTE Element, weil weder
+  // theme.test.ts noch getDesignToken das können — antds getDesignToken
+  // verarbeitet `config.components` gar nicht, und Radio/Checkbox leiten ihre
+  // Größe nicht aus controlHeight ab (siehe theme.ts).
+  await page.goto("http://qr.localtest.me:3100/wifi");
+
+  const feld = await page.locator("#wifi-ssid").boundingBox();
+  expect(feld!.height).toBeGreaterThanOrEqual(56);
+
+  const knopf = await page.getByRole("button", { name: "QR-Code erzeugen" }).boundingBox();
+  expect(knopf!.height).toBeGreaterThanOrEqual(56);
+
+  // Die tatsächliche Trefferfläche der Verschlüsselungswahl ist die ganze
+  // Zeile aus Marke und Beschriftung, nicht nur der Radio-Punkt.
+  const zeile = await page.locator('label:has(input[name="encryption"])').first().boundingBox();
+  expect(zeile!.height).toBeGreaterThanOrEqual(28);
+});
