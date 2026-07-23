@@ -76,9 +76,14 @@ export const TAP_XL = 72;
 **`theme.ts`** — `buildTheme(mode: "light" | "dark"): ThemeConfig`. Setzt
 `algorithm` (`defaultAlgorithm` / `darkAlgorithm`), die Seed-Tokens
 (`colorPrimary: DRK.rot`, `colorError`, `colorWarning: DRK.gelb`, `colorSuccess: DRK.ok`,
-`borderRadius`, `fontFamily`) und die Component-Tokens, die die Tap-Höhen tragen
-(`controlHeight`, `controlHeightLG` ← `TAP`/`TAP_XL` für Button/Input/Select/DatePicker).
-Dazu `cssVar: { key: "iuk" }` und `hashed: false`.
+`borderRadius`, `fontFamily`), `cssVar: { key: "iuk" }` und `hashed: false`.
+
+Die Tap-Höhen gehören in die **globalen** Tokens `token.controlHeight` / `controlHeightLG`
+(← `TAP` / `TAP_XL`), **nicht** in `components: { Button: … }`. Zwei Gründe: global
+propagiert es auf alle Controls (Button, Input, Select, DatePicker) statt auf eine
+gepflegte Liste, und nur globale Tokens sind über `theme.getDesignToken()` statisch
+prüfbar — Component-Overrides sind eine separate Schicht, die dort nicht auftaucht. Ohne
+diese Festlegung wäre der Test aus §6 grün und würde nichts absichern.
 
 Reine Funktion, keine React-Abhängigkeit — dadurch unit-testbar (§6).
 
@@ -129,6 +134,17 @@ Komplexität, für Innen-Apps nicht gerechtfertigt.
 `AntdRegistry` ist nicht optional — ohne sie flackert jeder Seitenaufbau ungestylt auf.
 `<Toaster>` (sonner) entfällt ersatzlos; Toasts laufen über `App.useApp().message`.
 
+**`THEME_INIT_SCRIPT` verhindert kein Flackern** — das tut das serverseitig gelesene
+Cookie (§2). Seine einzige Aufgabe ist, beim allerersten Besuch `prefers-color-scheme` ins
+Cookie zu schreiben. Es steht im `<head>`, damit es das vor dem ersten Datenverkehr tut;
+funktional täte es ein `useEffect` genauso. Wer es später anfasst, soll nicht die
+next-themes-Denkweise („Blocking-Script gegen FOUC") hineinlesen — die trägt hier nicht.
+
+**Nicht verlieren:** `SessionGuard` in `providers.tsx` meldet bei
+`session.error === "RefreshTokenError"` über `/api/auth/oidc-signout` ab. Das ist
+Auth-Verhalten, kein UI-Beiwerk. Beim Umbau der Providers (Wegfall von `TooltipProvider`
+und `ThemeProvider`) muss diese Logik unverändert überleben.
+
 Die Geist-Schriften bleiben (`next/font/google`) und werden über `token.fontFamily` an
 antd durchgereicht, statt über eine CSS-Variable in Tailwind.
 
@@ -175,10 +191,12 @@ die Anforderung nicht. `TAP`/`TAP_XL` aus `tokens.ts` fließen in die Component-
 `buildTheme()`.
 
 Weil das damit an genau einer Stelle hängt und beim nächsten Theme-Tweak **still** kippen
-könnte, sichert `src/core/theme/theme.test.ts` es ab: `buildTheme()` durch
-`theme.getDesignToken()` schicken und prüfen, dass die abgeleiteten Höhen für Button und
-Input in beiden Modi ≥ `TAP` sind. Das ist die einzige neue Testdatei dieses Specs — und
-sie testet das einzige, was hier stumm brechen kann.
+könnte, sichert `src/core/theme/theme.test.ts` es ab: `buildTheme(mode)` durch
+`theme.getDesignToken()` schicken und prüfen, dass `controlHeight ≥ TAP` und
+`controlHeightLG ≥ TAP_XL` in **beiden** Modi gelten. Das funktioniert nur, weil §1 die
+Tap-Höhen bewusst global setzt — lägen sie in `components`, sähe `getDesignToken()` sie
+nicht und der Test wäre grüne Dekoration. Das ist die einzige neue Testdatei dieses Specs,
+und sie deckt das einzige ab, was hier stumm brechen kann.
 
 ### 7. Bundle & Offline-PWA
 
@@ -210,6 +228,11 @@ Gegenstand.
 Bestehende Absicherung: ~1.000 LOC Component-Tests (vitest/jsdom) und 651 LOC E2E
 (Playwright). Beide müssen grün bleiben, nicht ausgedünnt werden.
 
+- **jsdom-Umgebung zuerst.** antd greift auf `matchMedia`, `ResizeObserver` und echtes
+  `getComputedStyle` zu — in jsdom fehlen die ersten beiden. Ohne Polyfills im
+  vitest-Setup brechen die Component-Tests **gesammelt** und sehen aus wie
+  Migrationsschaden, obwohl es die Umgebung ist. Das Setup ist deshalb Teil von Schritt 1,
+  nicht Nacharbeit — sonst ist „Tests bleiben grün" kein belastbares Gate.
 - **46 `data-testid`** sind die tragenden Anker und überleben den DOM-Wechsel unverändert —
   sie werden deshalb konsequent an die neuen antd-Wrapper mitgezogen.
 - **`getByRole`/`getByLabelText`-Queries** brechen dort, wo antd das Markup anders
@@ -226,8 +249,14 @@ Bestehende Absicherung: ~1.000 LOC Component-Tests (vitest/jsdom) und 651 LOC E2
 Jeder Schritt endet mit einem lauffähigen Zustand; Tailwind bleibt bis Schritt 5
 installiert, damit noch nicht migrierte Module nicht ungestylt liegen.
 
+**Übergangszustand ist bewusst hässlich.** In den Schritten 2–4 laufen Tailwinds
+Preflight-Reset und antds Styles gleichzeitig — genau der Konflikt, den dieses Spec
+beseitigt. Bereits migrierte Komponenten sehen dabei stellenweise schief aus. Das ist
+erwartet und **kein** Befund; repariert wird es durch Schritt 5, nicht durch Gegen-CSS.
+Bewertet wird der optische Zustand erst nach dem Purge.
+
 1. **Fundament** — Deps, `AntdRegistry`, `core/theme/` (Tokens, `buildTheme`, Provider,
-   Cookie-Modus), Root-Layout, Theme-Unit-Test.
+   Cookie-Modus), Root-Layout, jsdom-Polyfills im vitest-Setup, Theme-Unit-Test.
 2. **Shells** — `FullShell`, `MinimalShell`, `KioskShell`, `AppSwitcher`, Icon-Wechsel in
    der Registry, `login-form`.
 3. **portal** — Kachel-Grid, Admin-CRUD auf `Table`/`Modal`/`Form`.
