@@ -1,22 +1,9 @@
-import { theme as antdTheme, type MappingAlgorithm, type ThemeConfig } from "antd";
+import { theme as antdTheme, type ThemeConfig } from "antd";
 import { DRK, TAP, TAP_XL } from "@/core/theme/tokens";
 
 /** Die beiden Betriebsarten des Suite-Themes. Hier definiert, weil sie zum
  *  Theme gehören — `mode.ts` (Cookie-Transport) reicht den Typ nur weiter. */
 export type ThemeMode = "light" | "dark";
-
-/**
- * antds `darkAlgorithm` berechnet `colorPrimary` im Dark Mode über eine
- * eigene Farbpalette neu (Kontrast-Anpassung für dunklen Grund) und weicht
- * dadurch vom gesetzten DRK-Rot ab (`#c8000f` -> `#ad0310`) — das ist keine
- * Schreibweisen-Frage, sondern eine echte Farbverschiebung, siehe
- * `theme.test.ts`. Die Suite verlangt aber denselben Rotton in beiden Modi
- * (siehe `tokens.ts`), deshalb erzwingt dieser zweite Algorithmus-Schritt
- * `colorPrimary` zurück auf den Marken-Ton, ohne die übrige Dark-Palette
- * (Hover/Active/Bg-Ableitungen etc.) anzufassen.
- */
-const forcePrimary: MappingAlgorithm = (_seed, mapToken) =>
-  ({ ...mapToken, colorPrimary: DRK.rot }) as ReturnType<MappingAlgorithm>;
 
 /**
  * Das Design-System der Suite als eine Funktion. Reine Berechnung, kein React —
@@ -26,7 +13,7 @@ const forcePrimary: MappingAlgorithm = (_seed, mapToken) =>
 export function buildTheme(mode: ThemeMode): ThemeConfig {
   const dark = mode === "dark";
   return {
-    algorithm: dark ? [antdTheme.darkAlgorithm, forcePrimary] : antdTheme.defaultAlgorithm,
+    algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
     // CSS-Variablen statt eingebetteter Werte: der Moduswechsel ist damit ein
     // Variablen-Swap und keine Neu-Serialisierung der Stylesheets.
     cssVar: { key: "iuk" },
