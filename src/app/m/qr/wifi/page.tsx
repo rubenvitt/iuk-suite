@@ -6,6 +6,7 @@ import { Button, Checkbox, Input, Radio, Typography } from "antd";
 import { recordEntry } from "@/app/m/qr/_lib/history";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import type { QrPayload } from "@/app/m/qr/_lib/types";
+import { TAP } from "@/core/theme/tokens";
 
 type Encryption = "WPA" | "WEP" | "nopass";
 
@@ -14,6 +15,17 @@ const ENCRYPTIONS: { value: Encryption; label: string }[] = [
   { value: "WEP", label: "WEP" },
   { value: "nopass", label: "Keine" },
 ];
+
+/**
+ * Radio und Checkbox leiten ihre Groesse nicht aus `controlHeight` ab (siehe
+ * theme.ts) — die Marke ist ueber `components.Radio`/`Checkbox` vergroessert,
+ * aber die ganze ZEILE ist die Trefferflaeche im Einsatz mit Handschuhen.
+ * `style` an `<Radio>`/`<Checkbox>` landet laut antd-Quelle (`useSemanticRootStyle`)
+ * als `root`-Style auf dem aeusseren `<label>` — das ist genau diese Zeile.
+ * `alignItems: "center"` ueberschreibt antds Vorgabe `baseline`, die bei
+ * vergroesserter Zeile Marke und Text auseinanderreisst.
+ */
+const tapRowStyle: React.CSSProperties = { minHeight: TAP, alignItems: "center" };
 
 export default function WifiPage() {
   const [ssid, setSsid] = useState("");
@@ -102,14 +114,14 @@ export default function WifiPage() {
             style={{ display: "flex", flexDirection: "column", gap: 8 }}
           >
             {ENCRYPTIONS.map((o) => (
-              <Radio key={o.value} value={o.value}>
+              <Radio key={o.value} value={o.value} style={tapRowStyle}>
                 {o.label}
               </Radio>
             ))}
           </Radio.Group>
         </fieldset>
 
-        <Checkbox checked={hidden} onChange={(e) => setHidden(e.target.checked)}>
+        <Checkbox checked={hidden} onChange={(e) => setHidden(e.target.checked)} style={tapRowStyle}>
           Verstecktes Netzwerk
         </Checkbox>
 

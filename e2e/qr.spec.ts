@@ -294,7 +294,18 @@ test("Bedienelemente bleiben mit Handschuhen treffbar", async ({ page }) => {
   expect(knopf!.height).toBeGreaterThanOrEqual(56);
 
   // Die tatsächliche Trefferfläche der Verschlüsselungswahl ist die ganze
-  // Zeile aus Marke und Beschriftung, nicht nur der Radio-Punkt.
+  // Zeile aus Marke und Beschriftung, nicht nur der Radio-Punkt — und die
+  // volle Tap-Höhe von 56, nicht die 28 der vergrößerten Marke allein
+  // (`components.Radio.radioSize` in theme.ts betrifft nur den Punkt).
   const zeile = await page.locator('label:has(input[name="encryption"])').first().boundingBox();
-  expect(zeile!.height).toBeGreaterThanOrEqual(28);
+  expect(zeile!.height).toBeGreaterThanOrEqual(56);
+
+  // Dieselbe Anforderung gilt für die Checkbox-Zeile darunter — auch sie ist
+  // im Bestand (vor dem antd-Umbau) mit voller Tap-Höhe gerendert worden.
+  const checkboxZeile = await page
+    .locator('label:has(input[type="checkbox"])')
+    .filter({ hasText: "Verstecktes Netzwerk" })
+    .first()
+    .boundingBox();
+  expect(checkboxZeile!.height).toBeGreaterThanOrEqual(56);
 });
