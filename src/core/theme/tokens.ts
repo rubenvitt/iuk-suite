@@ -25,3 +25,15 @@ export const DRK = {
  */
 export const TAP = 56;
 export const TAP_XL = 72;
+
+/**
+ * Inline-Style fürs Wurzel-`<label>` von `<Radio>`/`<Checkbox>`. Beide leiten
+ * ihre Marke nicht aus `controlHeight` ab (siehe theme.ts) — selbst mit
+ * vergrößerter Marke reicht die allein nicht, denn die tatsächliche
+ * Trefferfläche im Einsatz mit Handschuhen ist die ganze ZEILE aus Marke und
+ * Beschriftung. `style` an `<Radio>`/`<Checkbox>` landet laut antd-Quelle
+ * (`useSemanticRootStyle`) als `root`-Style auf genau diesem `<label>`.
+ * `alignItems: "center"` überschreibt antds Vorgabe `baseline`, die bei
+ * vergrößerter Zeile Marke und Text auseinanderreißt.
+ */
+export const TAP_ROW: React.CSSProperties = { minHeight: TAP, alignItems: "center" };

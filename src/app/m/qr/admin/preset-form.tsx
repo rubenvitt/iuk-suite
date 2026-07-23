@@ -6,7 +6,7 @@ import { createPresetAction, updatePresetAction } from "@/app/m/qr/actions";
 import { payloadToQrString } from "@/app/m/qr/_lib/payload";
 import { exceedsQrCapacity, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
 import { RAHMEN } from "@/app/m/qr/_lib/style";
-import { TAP, TAP_XL } from "@/core/theme/tokens";
+import { TAP_ROW, TAP_XL } from "@/core/theme/tokens";
 import type { Preset, QrKind, QrPayload } from "@/app/m/qr/_lib/types";
 
 const KINDS: { value: QrKind; label: string }[] = [
@@ -51,17 +51,6 @@ const nativeSelectStyle: React.CSSProperties = {
   color: "inherit",
   font: "inherit",
 };
-
-/**
- * Checkbox leitet ihre Groesse nicht aus `controlHeight` ab (siehe theme.ts)
- * — die Marke ist ueber `components.Checkbox` vergroessert, aber die ganze
- * ZEILE ist die Trefferflaeche im Einsatz mit Handschuhen. `style` an
- * `<Checkbox>` landet laut antd-Quelle (`useSemanticRootStyle`) als
- * `root`-Style auf dem aeusseren `<label>` — das ist genau diese Zeile.
- * `alignItems: "center"` ueberschreibt antds Vorgabe `baseline`, die bei
- * vergroesserter Zeile Marke und Text auseinanderreisst.
- */
-const tapRowStyle: React.CSSProperties = { minHeight: TAP, alignItems: "center" };
 
 /**
  * Client-Komponente, weil die sichtbaren Felder vom gewaehlten `kind` abhaengen.
@@ -264,7 +253,7 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
               ))}
             </select>
           </label>
-          <Checkbox checked={hidden} onChange={(e) => setHidden(e.target.checked)} style={tapRowStyle}>
+          <Checkbox checked={hidden} onChange={(e) => setHidden(e.target.checked)} style={TAP_ROW}>
             Verstecktes Netzwerk
           </Checkbox>
         </fieldset>

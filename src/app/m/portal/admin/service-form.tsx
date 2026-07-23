@@ -22,7 +22,12 @@ export function ServiceForm() {
         <Input id="svc-url" name="url" type="url" required />
       </label>
       {/* Ohne `value`-Attribut sendet ein angehakter Checkbox-Input "on" —
-          genau das prüft createServiceAction (`formData.get("isPublic") === "on"`). */}
+          genau das prüft createServiceAction (`formData.get("isPublic") === "on"`).
+          Bewusst OHNE `TAP_ROW` (@/core/theme/tokens): der Portal-Admin ist ein
+          Schreibtisch-Bereich, keine Einsatz-Oberflaeche, und trug auch im
+          Tailwind-Bestand kein vergroessertes Tap-Ziel (`px-2 py-1`). Das steht
+          hier, damit die Stelle beim naechsten Durchgang nicht als Versehen
+          gilt. */}
       <Checkbox name="isPublic" defaultChecked>
         Öffentlich sichtbar
       </Checkbox>

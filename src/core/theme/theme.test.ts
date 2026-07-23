@@ -39,11 +39,17 @@ describe("buildTheme", () => {
     expect(light.colorBgBase).not.toBe(dark.colorBgBase);
   });
 
-  it.each(MODES)("hält die interaktive Größe von Radio/Checkbox im Modus %s", (mode) => {
-    // Eigener Test, weil antd diese beiden Maße NICHT aus controlHeight
-    // ableitet — der Test oben würde die Regression nicht sehen.
+  it.each(MODES)("hält die interaktive Größe der Radio-Marke im Modus %s", (mode) => {
+    // Eigener Test, weil antd dieses Maß NICHT aus controlHeight ableitet —
+    // der Test oben würde die Regression nicht sehen. Kein Checkbox-Gegenstück:
+    // `controlInteractiveSize` ist bei Checkbox ein reines Alias-Token
+    // (= controlHeight / 2) und wird von antds getComponentToken verworfen,
+    // sobald der Component-Token dem globalen Wert gleicht — ein Eintrag hier
+    // fände die Regression also nie. Dieser Test fängt "jemand löscht das
+    // Radio-Override", nicht "antd benennt ein Token um oder honoriert es
+    // nicht mehr" — die tatsächliche Zusage an der gerenderten Geometrie misst
+    // e2e/qr.spec.ts ("Bedienelemente bleiben mit Handschuhen treffbar").
     const cfg = buildTheme(mode);
     expect(cfg.components?.Radio?.radioSize).toBeGreaterThanOrEqual(28);
-    expect(cfg.components?.Checkbox?.controlInteractiveSize).toBeGreaterThanOrEqual(28);
   });
 });

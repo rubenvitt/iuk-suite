@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { test, expect, type Page } from "@playwright/test";
 import { devLogin } from "./fixtures";
 import { decodeQr, decodeQrPng } from "./helpers/decode-qr";
+import { TAP, TAP_XL } from "@/core/theme/tokens";
 
 /**
  * E2E fuer das Modul `qr`. Die QR-Tests dekodieren den angezeigten Code
@@ -287,18 +288,21 @@ test("Bedienelemente bleiben mit Handschuhen treffbar", async ({ page }) => {
   // Größe nicht aus controlHeight ab (siehe theme.ts).
   await page.goto("http://qr.localtest.me:3100/wifi");
 
+  // SSID-Feld und Erzeugen-Knopf tragen `size="large"` und rendern damit
+  // `controlHeightLG` (= TAP_XL = 72), nicht die einfache Tap-Höhe — gegen
+  // TAP geprüft, würde ein verlorenes `size="large"` hier nicht auffallen.
   const feld = await page.locator("#wifi-ssid").boundingBox();
-  expect(feld!.height).toBeGreaterThanOrEqual(56);
+  expect(feld!.height).toBeGreaterThanOrEqual(TAP_XL);
 
   const knopf = await page.getByRole("button", { name: "QR-Code erzeugen" }).boundingBox();
-  expect(knopf!.height).toBeGreaterThanOrEqual(56);
+  expect(knopf!.height).toBeGreaterThanOrEqual(TAP_XL);
 
   // Die tatsächliche Trefferfläche der Verschlüsselungswahl ist die ganze
   // Zeile aus Marke und Beschriftung, nicht nur der Radio-Punkt — und die
-  // volle Tap-Höhe von 56, nicht die 28 der vergrößerten Marke allein
+  // volle Tap-Höhe TAP, nicht die 28 der vergrößerten Marke allein
   // (`components.Radio.radioSize` in theme.ts betrifft nur den Punkt).
   const zeile = await page.locator('label:has(input[name="encryption"])').first().boundingBox();
-  expect(zeile!.height).toBeGreaterThanOrEqual(56);
+  expect(zeile!.height).toBeGreaterThanOrEqual(TAP);
 
   // Dieselbe Anforderung gilt für die Checkbox-Zeile darunter — auch sie ist
   // im Bestand (vor dem antd-Umbau) mit voller Tap-Höhe gerendert worden.
@@ -307,5 +311,33 @@ test("Bedienelemente bleiben mit Handschuhen treffbar", async ({ page }) => {
     .filter({ hasText: "Verstecktes Netzwerk" })
     .first()
     .boundingBox();
-  expect(checkboxZeile!.height).toBeGreaterThanOrEqual(56);
+  expect(checkboxZeile!.height).toBeGreaterThanOrEqual(TAP);
+});
+
+/**
+ * Dieselbe Regel (`TAP_ROW` in @/core/theme/tokens) sitzt zweimal im Code —
+ * einmal hier im qr-Admin, einmal im WLAN-Formular oben. Genau das Paar kann
+ * auseinanderlaufen, wenn nur eine der beiden Stellen gemessen wird — deshalb
+ * hier die zweite Kopie: dieselbe Checkbox-Zeile, diesmal im Preset-Formular
+ * des Admin-Bereichs (`kind="wifi"` blendet sie ein).
+ */
+test("qr-admin: die Checkbox-Zeile im Preset-Formular bleibt mit Handschuhen treffbar", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: "qr.localtest.me",
+    groups: "drk-qr-admin",
+    callbackPath: "/admin",
+  });
+  await expect(page.getByTestId("qr-admin")).toBeVisible();
+  // "Art" auf "WLAN" stellen, damit die Checkbox-Zeile "Verstecktes Netzwerk"
+  // überhaupt rendert.
+  await page.getByLabel("Art").selectOption("wifi");
+
+  const checkboxZeile = await page
+    .locator('label:has(input[type="checkbox"])')
+    .filter({ hasText: "Verstecktes Netzwerk" })
+    .first()
+    .boundingBox();
+  expect(checkboxZeile!.height).toBeGreaterThanOrEqual(TAP);
 });
