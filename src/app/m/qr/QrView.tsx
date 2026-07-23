@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Typography } from "antd";
 import { QrDisplay } from "@/app/m/qr/QrDisplay";
 
@@ -26,6 +26,7 @@ import { QrDisplay } from "@/app/m/qr/QrDisplay";
  */
 export function QrView() {
   const params = useSearchParams();
+  const router = useRouter();
   // `get` liefert bei doppelt gesetzten Parametern (`?kind=wifi&kind=x`) von
   // sich aus den ERSTEN Wert. Das ist keine Nachlässigkeit, sondern die
   // Zusicherung, auf die es ankommt: ein durchgereichtes Array machte
@@ -37,20 +38,27 @@ export function QrView() {
       data={params.get("data")}
       label={params.get("label")}
       kind={params.get("kind")}
+      onBack={() => router.push("/")}
     />
   );
 }
 
-/** Die reine Darstellung, getrennt von der Herkunft der Parameter — so ist der
- *  URL-Vertrag prüfbar, ohne einen Router nachzubauen. */
+/**
+ * Die reine Darstellung, getrennt von der Herkunft der Parameter — so ist der
+ * URL-Vertrag prüfbar, ohne einen Router nachzubauen. `onBack` kommt darum als
+ * schlichter Callback herein statt selbst `useRouter` aufzurufen: der Aufrufer
+ * entscheidet, wie "zurück" aussieht, diese Komponente kennt nur den Knopf.
+ */
 export function QrViewContent({
   data,
   label,
   kind,
+  onBack,
 }: {
   data: string | null;
   label: string | null;
   kind: string | null;
+  onBack?: () => void;
 }) {
   if (!data) {
     return <p data-testid="qr-missing">Kein Inhalt übergeben.</p>;
@@ -66,8 +74,11 @@ export function QrViewContent({
       data-testid="qr-view"
     >
       {/* Landepunkt geteilter Links: ohne diesen Weg zurück käme man von hier
-          nur über die Adresszeile zum Generator. */}
-      <Button type="link" href="/" style={{ alignSelf: "flex-start", padding: 0 }}>
+          nur über die Adresszeile zum Generator. `onClick` statt `href`: ein
+          echtes `<a>` waere eine volle Dokumentnavigation samt Neuhydrierung
+          statt eines Client-Wechsels — auf einem Einsatz-Tablet am
+          Mobilfunkrand ein spuerbarer Rueckschritt. */}
+      <Button type="link" onClick={onBack} style={{ alignSelf: "flex-start", padding: 0 }}>
         ← Zurück
       </Button>
       {/* Bewusst ein natives <h1> statt `Typography.Title`: QrView.test.tsx
@@ -76,7 +87,7 @@ export function QrViewContent({
           „das Label steht als Überschrift über dem Code" fiele still weg. */}
       {label ? <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{label}</h1> : null}
       <QrDisplay text={data} label={label ?? "qr"} />
-      <Typography.Text type="secondary" style={{ textAlign: "center" }}>
+      <Typography.Text type="secondary" style={{ display: "block", textAlign: "center" }}>
         <strong>Helligkeit auf Maximum.</strong> Doppeltippen für Vollbild, lang drücken zum
         Invertieren.
       </Typography.Text>

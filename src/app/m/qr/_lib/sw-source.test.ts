@@ -386,6 +386,61 @@ describe("Service Worker: was im Cache landen darf", () => {
     expect(fetched).not.toContain(TRUNCATED_CHUNK);
   });
 
+  it("nimmt referenzierte Assets mit anderen Endungen als .js an, z. B. .css und .woff2", async () => {
+    // Die Annahme-Seite von isCompleteAssetPath war bislang ungetestet: alle
+    // Fixtures oben referenzieren ausschliesslich .js-Chunks. Waere die
+    // Endungspruefung zu eng (oder ganz falsch), fiele genau das nicht auf.
+    const CSS_ASSET = "/_next/static/css/app.abcdef.css";
+    const FONT_ASSET = "/_next/static/media/font.abcdef.woff2";
+    const HOME_HTML =
+      `<html><body>${scripts(SHARED_CHUNK)}` +
+      `<link rel="stylesheet" href="${CSS_ASSET}">` +
+      `<link rel="preload" href="${FONT_ASSET}" as="font">Anmelden</body></html>`;
+
+    const net = vi.fn(async (input: SwRequest | string, init?: FetchInit) => {
+      const url = new URL(typeof input === "string" ? input : input.url, ORIGIN);
+      if (url.pathname === "/") {
+        return new Response(init?.credentials === "omit" ? HOME_HTML : AUTH_HTML, { status: 200 });
+      }
+      if (url.pathname === "/qr") return new Response(QR_HTML, { status: 200 });
+      const form = FORM_HTML[url.pathname];
+      if (form) return new Response(form, { status: 200 });
+      return new Response(`asset:${url.pathname}`, { status: 200 });
+    });
+
+    const sw = boot(net);
+    await sw.drain(sw.dispatch("install", navigation("/")));
+
+    expect(sw.cachedPaths()).toContain(CSS_ASSET);
+    expect(sw.cachedPaths()).toContain(FONT_ASSET);
+  });
+
+  it("nimmt einen Asset-Pfad mit Query-String an, wie ihn eine gesetzte deploymentId erzeugt", async () => {
+    // Setzt ein Deployment `deploymentId` in next.config, haengt Next `?dpl=…`
+    // an JEDE Asset-URL im HTML. Eine Pruefung, die den GESAMTEN Pfad gegen
+    // eine Endung vergleicht, faellt dann fuer jedes Buendel durch, und der
+    // Precache waere leer — ohne jede Fehlermeldung.
+    const DPL_CHUNK = "/_next/static/chunks/deployed.abcdef.js";
+    const DPL_HREF = `${DPL_CHUNK}?dpl=6602fd7e4a1b`;
+    const HOME_HTML = `<html><body>${scripts(SHARED_CHUNK, DPL_HREF)}Anmelden</body></html>`;
+
+    const net = vi.fn(async (input: SwRequest | string, init?: FetchInit) => {
+      const url = new URL(typeof input === "string" ? input : input.url, ORIGIN);
+      if (url.pathname === "/") {
+        return new Response(init?.credentials === "omit" ? HOME_HTML : AUTH_HTML, { status: 200 });
+      }
+      if (url.pathname === "/qr") return new Response(QR_HTML, { status: 200 });
+      const form = FORM_HTML[url.pathname];
+      if (form) return new Response(form, { status: 200 });
+      return new Response(`asset:${url.pathname}`, { status: 200 });
+    });
+
+    const sw = boot(net);
+    await sw.drain(sw.dispatch("install", navigation("/")));
+
+    expect(sw.cachedPaths()).toContain(DPL_CHUNK);
+  });
+
   it("verwirft den Body einer Fehlantwort, statt ihn offen liegen zu lassen", async () => {
     // Die Zusage, an der die gesamte Offline-Faehigkeit haengt. Im Prod-Build
     // gemessen: laesst der Worker den Body einer 404-Antwort ungelesen liegen,
@@ -422,9 +477,15 @@ describe("Service Worker: was im Cache landen darf", () => {
     await sw.drain(sw.dispatch("install", navigation("/")));
 
     expect(cancelled).toHaveBeenCalled();
-    // Und die Gegenprobe, dass der Install trotz der Fehlantwort durchlief:
-    // alle fuenf Shell-Routen liegen im Cache.
-    expect(sw.cachedPaths()).toEqual(expect.arrayContaining(SHELL_ROUTES));
+    // Keine zusaetzliche Gegenprobe hier ueber "der Install lief trotzdem
+    // durch": der eigentliche Ausfall — der Worker haengt dauerhaft in
+    // "installing" — laesst sich in diesem Mock-Netz nicht nachstellen, weil
+    // es (anders als ein echter Browser bei einem liegen gelassenen Body)
+    // niemals selbst stillsteht. Eine Zusicherung wie "alle Shell-Routen
+    // liegen im Cache" waere darum AUCH ohne die Freigabe in releaseBody
+    // gruen — sie diskriminiert nicht und waere keine echte Gegenprobe,
+    // egal wie sie kommentiert ist. Die Spy-Pruefung oben ist der staerkste
+    // hier verfuegbare Beleg.
   });
 
   it("beantwortet eine Offline-Navigation nach /qr mit der Anzeige, nicht mit der Startseite", async () => {

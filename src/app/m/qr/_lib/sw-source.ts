@@ -155,7 +155,7 @@ function cacheReferencedAssets(html, cache) {
 }
 
 /**
- * Nimmt nur Pfade an, die auf eine bekannte Dateiendung enden.
+ * Nimmt nur Pfade an, deren letztes Segment eine Dateiendung traegt.
  *
  * Next verteilt den eingebetteten Flight-Payload auf mehrere
  * \`self.__next_f.push(...)\`-Bloecke. Seit das HTML dieses Moduls die
@@ -164,12 +164,34 @@ function cacheReferencedAssets(html, cache) {
  * Blockende \`…/chunks/06oawi8h\`. Das Bruchstueck sieht wie ein Pfad aus, ist
  * aber ein 404 — gemessen im Prod-Build, drei Stueck ueber die fuenf
  * Shell-Routen.
+ *
+ * Frueher eine Allowlist bekannter Endungen (\`.js\`, \`.css\`, ...). Zwei
+ * Bruchstellen daran: Erstens vergisst eine Allowlist zwangslaeufig Endungen
+ * (\`.jpeg\` fehlte neben \`.jpg\`, ebenso \`.mp4\`/\`.webm\`/\`.eot\`) — jeder
+ * vergessene Fall verwirft ein GUELTIGES Asset lautlos, ohne Fehlermeldung.
+ * Zweitens prueft \`endsWith\` gegen den GESAMTEN Pfad: haengt ein Deployment
+ * \`deploymentId\` in \`next.config\` ein, haengt Next \`?dpl=…\` an JEDE
+ * Asset-URL, keine endet dann noch auf eine Endung, und der Precache waere
+ * leer. Der eigentliche Zweck ist, Bruchstuecke zu erkennen — ein
+ * abgeschnittener Pfad hat im letzten Segment KEINE Endung
+ * (\`.../chunks/06oawi8h\` statt \`.../chunks/foo.js\`). Genau dieses Merkmal
+ * wird hier direkt geprueft: Query und Fragment werden vor der Pruefung
+ * abgeschnitten, danach zaehlt nur, ob das letzte Pfadsegment ueberhaupt eine
+ * Endung hat — welche, ist fuer die Bruchstueck-Frage unerheblich.
  */
 function isCompleteAssetPath(path) {
-  return ASSET_EXTENSIONS.some((ext) => path.endsWith(ext));
+  const withoutQuery = path.split(/[?#]/)[0];
+  const lastSegment = withoutQuery.slice(withoutQuery.lastIndexOf("/") + 1);
+  // Zwei Backslashes, nicht einer: SW_SOURCE ist selbst ein Template-Literal
+  // (siehe der Trenner-Regex oben in cacheReferencedAssets, ebenfalls
+  // doppelt). \\. wird beim Parsen DIESER Datei zu \. entschaerft — ein
+  // einzelner Backslash vor dem Punkt wuerde beim Parsen ganz verschluckt
+  // (kein bekanntes Escape) und liesse den Punkt zum Platzhalter fuer ein
+  // BELIEBIGES Zeichen werden statt fuer einen echten Punkt zu stehen. Genau
+  // damit haette das Bruchstueck "…/chunks/qr-vi" ("-vi" = ein Zeichen +
+  // Alnum am Ende) faelschlich als vollstaendiger Pfad gegolten.
+  return /\\.[a-zA-Z0-9]+$/.test(lastSegment);
 }
-
-const ASSET_EXTENSIONS = [".js", ".css", ".woff2", ".woff", ".ttf", ".otf", ".svg", ".webp", ".avif", ".png", ".jpg", ".gif", ".ico"];
 
 /**
  * Gibt den Body einer Antwort frei, die nicht in den Cache wandert.

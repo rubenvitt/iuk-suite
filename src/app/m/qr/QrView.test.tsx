@@ -14,16 +14,18 @@ import { isValidElement, type ReactElement } from "react";
  * `URLSearchParams` — eine Attrappe, die schon fertige Einzelwerte
  * zurückgäbe, prüfte genau die Stelle nicht mehr, an der das Problem sitzt.
  */
-vi.mock("next/navigation", () => ({ useSearchParams: vi.fn() }));
+vi.mock("next/navigation", () => ({ useSearchParams: vi.fn(), useRouter: vi.fn() }));
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Button } from "antd";
 import { QrView } from "@/app/m/qr/QrView";
 import { QrDisplay } from "@/app/m/qr/QrDisplay";
 
-function render(query: string): ReactElement {
+function render(query: string, push: (href: string) => void = vi.fn()): ReactElement {
   vi.mocked(useSearchParams).mockReturnValue(
     new URLSearchParams(query) as unknown as ReturnType<typeof useSearchParams>,
   );
+  vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<typeof useRouter>);
   return QrView() as ReactElement;
 }
 
@@ -127,11 +129,18 @@ describe("QR-Ansicht: URL-Vertrag", () => {
 
   it("bietet einen Weg zurueck zum Generator", () => {
     // Diese Seite ist der Landepunkt geteilter Links. Wer so hereinkommt, hat
-    // keine Vorgeschichte im Verlauf — ohne Link bliebe nur die Adresszeile.
-    const hrefs = tree(render(q({ data: "https://drk.de", kind: "url" }))).map(
-      (el) => (el.props as { href?: string }).href,
+    // keine Vorgeschichte im Verlauf — ohne diesen Weg bliebe nur die
+    // Adresszeile. Der Rueckweg geht ueber `router.push`, nicht `href`: ein
+    // echtes `<a>` waere eine volle Dokumentnavigation. Geprueft wird deshalb,
+    // dass der Klick tatsaechlich zu "/" navigiert, nicht nur, dass irgendwo
+    // ein href="/" im Baum steht.
+    const push = vi.fn();
+    const back = tree(render(q({ data: "https://drk.de", kind: "url" }), push)).find(
+      (el) => el.type === Button && (el.props as { children?: unknown }).children === "← Zurück",
     );
-    expect(hrefs).toContain("/");
+    if (!back) throw new Error("Zurueck-Button nicht gerendert");
+    (back.props as { onClick?: () => void }).onClick?.();
+    expect(push).toHaveBeenCalledWith("/");
   });
 });
 

@@ -5,6 +5,7 @@ import { Button, Checkbox, Input, Typography } from "antd";
 import { createPresetAction, updatePresetAction } from "@/app/m/qr/actions";
 import { payloadToQrString } from "@/app/m/qr/_lib/payload";
 import { exceedsQrCapacity, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
+import { RAHMEN } from "@/app/m/qr/_lib/style";
 import { TAP_XL } from "@/core/theme/tokens";
 import type { Preset, QrKind, QrPayload } from "@/app/m/qr/_lib/types";
 
@@ -45,7 +46,7 @@ const nativeSelectStyle: React.CSSProperties = {
   minHeight: TAP_XL,
   paddingInline: 12,
   borderRadius: 8,
-  border: "1px solid var(--iuk-color-border, #d9d9d9)",
+  border: RAHMEN,
   background: "transparent",
   color: "inherit",
   font: "inherit",

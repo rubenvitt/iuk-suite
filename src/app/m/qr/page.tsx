@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { Button, Col, Row } from "antd";
+import { Col, Row } from "antd";
 import { auth } from "@/core/auth";
 import { listPresets } from "@/app/m/qr/_lib/presets";
 import { PresetGrid } from "@/app/m/qr/PresetGrid";
 import { UrlInput } from "@/app/m/qr/UrlInput";
 import { HistoryList } from "@/app/m/qr/HistoryList";
+import { RAHMEN } from "@/app/m/qr/_lib/style";
 
 const KINDS = [
   { href: "/wifi", label: "WLAN", icon: "📶" },
@@ -30,18 +31,36 @@ export default async function QrHomePage() {
       >
         <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Andere Typen</h2>
         <Row gutter={[12, 12]}>
+          {/* `next/link` statt `Button href`: `next/link` navigiert selbst
+              clientseitig (kein Dokumentwechsel), auch ohne `onClick` — und
+              genau das braucht eine Server-Komponente, die keinen Event-
+              Handler anhaengen kann. `Button` bleibt darum aussen vor: ein
+              `Button` in einem `Link` verschachtelte ein `<button>` in einem
+              `<a>`. Der Link wird deshalb selbst gestylt statt eine
+              antd-Komponente hineinzupacken. */}
           {KINDS.map((k) => (
             <Col key={k.href} span={8}>
-              <Button
-                block
+              <Link
                 href={k.href}
-                style={{ height: 72, display: "flex", flexDirection: "column", gap: 4 }}
+                style={{
+                  height: 72,
+                  boxSizing: "border-box",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 4,
+                  border: RAHMEN,
+                  borderRadius: 8,
+                  color: "inherit",
+                  textDecoration: "none",
+                }}
               >
                 <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1 }}>
                   {k.icon}
                 </span>
                 <span>{k.label}</span>
-              </Button>
+              </Link>
             </Col>
           ))}
         </Row>

@@ -4,6 +4,8 @@ import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { listPresets } from "@/app/m/qr/_lib/presets";
 import { PresetForm } from "@/app/m/qr/admin/preset-form";
 import { deletePresetAction } from "@/app/m/qr/actions";
+import { RAHMEN } from "@/app/m/qr/_lib/style";
+import { TAP } from "@/core/theme/tokens";
 
 export default async function QrAdminPage({
   searchParams,
@@ -45,7 +47,7 @@ export default async function QrAdminPage({
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: 12,
-                border: "1px solid var(--iuk-color-border, #d9d9d9)",
+                border: RAHMEN,
                 borderRadius: 8,
                 padding: 8,
               }}
@@ -63,9 +65,9 @@ export default async function QrAdminPage({
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    minHeight: 56,
+                    minHeight: TAP,
                     paddingInline: 12,
-                    border: "1px solid var(--iuk-color-border, #d9d9d9)",
+                    border: RAHMEN,
                     borderRadius: 8,
                   }}
                 >

@@ -39,7 +39,13 @@ export default function WifiPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <Button type="link" href="/" style={{ alignSelf: "flex-start", padding: 0 }}>
+      {/* `onClick` statt `href`: ein echtes `<a>` waere eine volle
+          Dokumentnavigation samt Neuhydrierung statt eines Client-Wechsels. */}
+      <Button
+        type="link"
+        onClick={() => router.push("/")}
+        style={{ alignSelf: "flex-start", padding: 0 }}
+      >
         ← Zurück
       </Button>
       <Typography.Title level={4} style={{ margin: 0 }}>
