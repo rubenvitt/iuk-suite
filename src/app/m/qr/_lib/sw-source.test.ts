@@ -42,6 +42,18 @@ const scripts = (...srcs: string[]) =>
 const AUTH_HTML = `<html><body>${scripts(SHARED_CHUNK)}Schnellzugriffe ${PRESET_SECRET}</body></html>`;
 const ANON_HTML = `<html><body>${scripts(SHARED_CHUNK)}Anmelden, um persoenliche Schnellzugriffe zu sehen.</body></html>`;
 /**
+ * Das Bruchstueck eines Pfades am Ende eines Flight-Bloecks.
+ *
+ * Next verteilt den eingebetteten Payload auf mehrere
+ * `self.__next_f.push(...)`-Bloecke. Seit das Modul die antd-Stile mitliefert,
+ * ist das HTML gross genug, dass eine Trennstelle MITTEN in einen Asset-Pfad
+ * faellt — im Prod-Build nachgemessen, drei Stueck ueber die fuenf
+ * Shell-Routen. Das Bruchstueck sieht wie ein Pfad aus, ist aber ein 404.
+ */
+const TRUNCATED_CHUNK = "/_next/static/chunks/qr-vi";
+const TRUNCATED_PUSH = `<script>self.__next_f.push([1,"b:[\\"${TRUNCATED_CHUNK}"])</script>`;
+
+/**
  * Die Anzeige-Route. Query-los, weil sie ihre Parameter clientseitig liest.
  *
  * Der zweite, maskierte Vorkommen von QR_CHUNK bildet Next' eingebetteten
@@ -49,7 +61,7 @@ const ANON_HTML = `<html><body>${scripts(SHARED_CHUNK)}Anmelden, um persoenliche
  * \\" statt ". Trennt der Worker nur an Anfuehrungszeichen, klebt der Backslash
  * am Pfad und der Abruf ginge ins Leere.
  */
-const QR_HTML = `<html><body>${scripts(SHARED_CHUNK, QR_CHUNK)}qr-view-shell<script>self.__next_f.push([1,"a:{\\"src\\":\\"${QR_CHUNK}\\"}"])</script></body></html>`;
+const QR_HTML = `<html><body>${scripts(SHARED_CHUNK, QR_CHUNK)}qr-view-shell<script>self.__next_f.push([1,"a:{\\"src\\":\\"${QR_CHUNK}\\"}"])</script>${TRUNCATED_PUSH}</body></html>`;
 
 /**
  * Die drei Eingabeformulare, die die Startseite verlinkt (page.tsx, KINDS).
@@ -355,6 +367,64 @@ describe("Service Worker: was im Cache landen darf", () => {
       .filter((p) => p.startsWith("/_next/static/"));
 
     expect(fetched.sort()).toEqual([QR_CHUNK, SHARED_CHUNK, FORM_CHUNK].sort());
+  });
+
+  it("ruft ein am Blockende abgeschnittenes Pfad-Bruchstueck gar nicht erst ab", async () => {
+    // Der Fall, der den Worker beim antd-Umbau dauerhaft im Zustand
+    // "installing" haengen liess: Next verteilt den Flight-Payload auf mehrere
+    // Bloecke, und seit das HTML die antd-Stile mittraegt, faellt eine
+    // Trennstelle mitten in einen Asset-Pfad. Das Bruchstueck ist ein 404 —
+    // ueberfluessige Last im Einsatz und, ohne die Body-Freigabe unten, toedlich.
+    const net = createNetwork();
+    const sw = boot(net);
+    await sw.drain(sw.dispatch("install", navigation("/")));
+
+    const fetched = net.mock.calls.map(([input]) =>
+      new URL(typeof input === "string" ? input : input.url, ORIGIN).pathname,
+    );
+
+    expect(fetched).not.toContain(TRUNCATED_CHUNK);
+  });
+
+  it("verwirft den Body einer Fehlantwort, statt ihn offen liegen zu lassen", async () => {
+    // Die Zusage, an der die gesamte Offline-Faehigkeit haengt. Im Prod-Build
+    // gemessen: laesst der Worker den Body einer 404-Antwort ungelesen liegen,
+    // kommt nach wenigen solchen Antworten KEIN weiterer `fetch` des Workers
+    // mehr zurueck. Der install-Handler laeuft nie zu Ende, der Worker bleibt
+    // dauerhaft "installing", `navigator.serviceWorker.ready` loest nie auf —
+    // es gibt schlicht keine PWA, ohne eine einzige Fehlermeldung.
+    //
+    // Das ist kein Sonderfall: nach einem Redeploy zeigt gecachtes HTML auf
+    // Buendel-Hashes, die es nicht mehr gibt. 404 ist in diesem Entwurf ein
+    // vorgesehener Zustand (siehe SHELL_MAX_AGE_MS) — ohne die Freigabe machte
+    // ausgerechnet der Selbstheilungspfad den Worker unbrauchbar.
+    const MISSING_CHUNK = "/_next/static/chunks/nach-deploy-weg.js";
+    const missing = new Response("weg", { status: 404 });
+    const cancelled = vi.spyOn(missing.body!, "cancel");
+    // Nur "/" verweist auf das verschwundene Buendel — die uebrigen Fixtures
+    // bleiben unangetastet, damit die Mengen-Zusage oben weiter misst, was sie
+    // gemessen hat.
+    const HOME_HTML = `<html><body>${scripts(SHARED_CHUNK, MISSING_CHUNK)}Anmelden</body></html>`;
+
+    const net = vi.fn(async (input: SwRequest | string, init?: FetchInit) => {
+      const url = new URL(typeof input === "string" ? input : input.url, ORIGIN);
+      if (url.pathname === MISSING_CHUNK) return missing;
+      if (url.pathname === "/") {
+        return new Response(init?.credentials === "omit" ? HOME_HTML : AUTH_HTML, { status: 200 });
+      }
+      if (url.pathname === "/qr") return new Response(QR_HTML, { status: 200 });
+      const form = FORM_HTML[url.pathname];
+      if (form) return new Response(form, { status: 200 });
+      return new Response(`asset:${url.pathname}`, { status: 200 });
+    });
+
+    const sw = boot(net);
+    await sw.drain(sw.dispatch("install", navigation("/")));
+
+    expect(cancelled).toHaveBeenCalled();
+    // Und die Gegenprobe, dass der Install trotz der Fehlantwort durchlief:
+    // alle fuenf Shell-Routen liegen im Cache.
+    expect(sw.cachedPaths()).toEqual(expect.arrayContaining(SHELL_ROUTES));
   });
 
   it("beantwortet eine Offline-Navigation nach /qr mit der Anzeige, nicht mit der Startseite", async () => {

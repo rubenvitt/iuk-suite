@@ -97,7 +97,7 @@ function refreshShellIfStale() {
 function cacheShellRoute(path) {
   return fetch(path, { credentials: "omit" })
     .then(async (res) => {
-      if (!res.ok) return;
+      if (!res.ok) return releaseBody(res);
       const html = await res.clone().text();
       const cache = await caches.open(CACHE);
       await cache.put(path, res);
@@ -131,10 +131,15 @@ function cacheShellRoute(path) {
  * denselben Pfad ein zweites Mal im eingebetteten Flight-Payload ab, dort mit
  * maskierten Anfuehrungszeichen (\\"/_next/…\\"). Ohne den Backslash im Trenner
  * bliebe er am Pfad kleben und der Abruf ginge ins Leere.
+ *
+ * Gefiltert wird zusaetzlich auf eine vollstaendige Dateiendung, siehe
+ * \`isCompleteAssetPath\`.
  */
 function cacheReferencedAssets(html, cache) {
   const refs = new Set(
-    html.split(/["'()\\\\]/).filter((part) => part.startsWith("/_next/static/")),
+    html
+      .split(/["'()\\\\]/)
+      .filter((part) => part.startsWith("/_next/static/") && isCompleteAssetPath(part)),
   );
   return Promise.all(
     [...refs].map((path) =>
@@ -142,11 +147,48 @@ function cacheReferencedAssets(html, cache) {
         hit
           ? undefined
           : fetch(path)
-              .then((res) => (res.ok ? cache.put(path, res) : undefined))
+              .then((res) => (res.ok ? cache.put(path, res) : releaseBody(res)))
               .catch(() => {}),
       ),
     ),
   );
+}
+
+/**
+ * Nimmt nur Pfade an, die auf eine bekannte Dateiendung enden.
+ *
+ * Next verteilt den eingebetteten Flight-Payload auf mehrere
+ * \`self.__next_f.push(...)\`-Bloecke. Seit das HTML dieses Moduls die
+ * antd-Stile mitbringt, ist es gross genug, dass eine dieser Trennstellen
+ * MITTEN in einen Asset-Pfad faellt: aus \`…/chunks/06oawi8hdf7uj.js\` wird am
+ * Blockende \`…/chunks/06oawi8h\`. Das Bruchstueck sieht wie ein Pfad aus, ist
+ * aber ein 404 — gemessen im Prod-Build, drei Stueck ueber die fuenf
+ * Shell-Routen.
+ */
+function isCompleteAssetPath(path) {
+  return ASSET_EXTENSIONS.some((ext) => path.endsWith(ext));
+}
+
+const ASSET_EXTENSIONS = [".js", ".css", ".woff2", ".woff", ".ttf", ".otf", ".svg", ".webp", ".avif", ".png", ".jpg", ".gif", ".ico"];
+
+/**
+ * Gibt den Body einer Antwort frei, die nicht in den Cache wandert.
+ *
+ * Klingt nach Kosmetik, ist aber die Zusage, an der die ganze Offline-Faehigkeit
+ * haengt: Eine Antwort, deren Body im Service Worker weder gelesen noch
+ * verworfen wird, legt dessen Abruf-Pipeline still. Gemessen im Prod-Build —
+ * nach drei so liegengelassenen 404-Antworten kam KEIN weiterer \`fetch\` des
+ * Workers mehr zurueck, der install-Handler lief nie zu Ende, der Worker blieb
+ * dauerhaft im Zustand "installing" und \`navigator.serviceWorker.ready\` loeste
+ * nie auf. Ergebnis: gar keine PWA, ohne Fehlermeldung.
+ *
+ * Betrifft nicht nur die oben gefilterten Bruchstuecke: nach einem Redeploy
+ * zeigt gecachtes HTML auf Buendel-Hashes, die es nicht mehr gibt — 404 ist in
+ * diesem Entwurf ein VORGESEHENER Fall (siehe SHELL_MAX_AGE_MS). Ohne diese
+ * Freigabe machte genau der Selbstheilungspfad den Worker unbrauchbar.
+ */
+function releaseBody(res) {
+  return res.body ? res.body.cancel().catch(() => {}) : undefined;
 }
 
 /**
