@@ -23,6 +23,8 @@ Diese Punkte gelten für **jeden** Task. Sie werden nicht pro Task wiederholt.
 - **Diese DOM-`id`s müssen überleben** (Unit-Tests selektieren darüber): `qr-url`, `wifi-ssid`, `wifi-pass`, `tel-number`, `c-name`, `c-tel`, `c-email`, `c-org`, `probe`.
 - **Diese Accessible Names müssen überleben** (E2E selektiert darüber): `aria-label="email"` und `aria-label="groups"` an den Dev-Login-Feldern, der Button-Text `Dev-Login`, die Portal-Admin-Labels `Slug`/`Name`/`URL` und der Button-Text `Anlegen`, die Switcher-Linktexte (`Alpha`, `Gamma`, …).
 - **Server Actions bleiben Server Actions.** Formulare, die heute `<form action={serverAction}>` benutzen, behalten ein natives `<form>` mit `name`-Attributen an den Feldern. antds `Form` sammelt Werte in JavaScript und postet **kein** `FormData` — es ist für diese Formulare das falsche Werkzeug.
+- **In Server-Komponenten niemals `X.Y` auf einem antd-Import schreiben.** Alle Compound-Komponenten von antd entstehen durch Laufzeit-Property-Zuweisung auf einem `"use client"`-Modul (`Typography.Title = Title`, `Card.Meta = CardMeta`, `Layout.Header = Header`, `Form.Item`, `Input.TextArea`, `Space.Compact` …). Eine Server-Komponente sieht davon nur eine opake Client-Referenz; ein Property-Zugriff darauf ergibt `undefined` und die Route antwortet mit HTTP 500 („Element type is invalid"). Auflösung je nach Fall: benannter Import aus dem Untermodul (`import { Header, Content } from "antd/es/layout/layout"`), schlichtes HTML (`<h2>` statt `Typography.Title`), oder die Darstellung in eine Client-Komponente verschieben. **In Client-Komponenten (`"use client"`) ist `X.Y` unproblematisch** und bleibt die bevorzugte Schreibweise.
+- **`pnpm build` ist für diese Fehlerklasse KEIN Gate.** Der Build rendert die dynamischen Modul-Routen nicht mit echten Requests; ein Server-Component-Renderfehler bleibt dort unsichtbar und schlägt erst im Browser oder in den E2E-Tests auf. Jede angefasste Route muss deshalb vor dem Commit tatsächlich abgerufen worden sein — über die E2E-Tests des Tasks oder per `curl` gegen `next dev`.
 - **Sprache:** Alle neuen Kommentare und UI-Texte auf Deutsch, wie im Bestand.
 - **Kein Redesign.** Gleiche Informationsarchitektur, gleiche Texte, gleiche Flows.
 - **Jeder Task endet mit einem Commit.** Commit-Messages auf Deutsch im Conventional-Commits-Format.
@@ -764,6 +766,11 @@ export function ThemeToggle() {
 
 ```tsx
 import { Layout } from "antd";
+// `Header`/`Content` NICHT als `Layout.Header`/`Layout.Content`: diese Datei ist
+// eine Server-Komponente, und antd hängt die Unterkomponenten erst zur Laufzeit
+// per Property-Zuweisung an ein "use client"-Modul. Der Property-Zugriff auf die
+// Client-Referenz ergibt `undefined` → HTTP 500. Siehe Global Constraints.
+import { Header, Content } from "antd/es/layout/layout";
 import { auth } from "@/core/auth";
 import { getModule } from "@/core/registry";
 import { switcherEntries } from "@/core/shell/switcherEntries";
@@ -785,7 +792,7 @@ export async function FullShell({
   const entries = switcherEntries(session?.user?.groups ?? null);
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Layout.Header
+      <Header
         data-testid="full-shell-header"
         style={{
           display: "flex",
@@ -800,8 +807,8 @@ export async function FullShell({
           <AppSwitcher entries={entries} userName={session?.user?.name ?? null} />
           <ThemeToggle />
         </span>
-      </Layout.Header>
-      <Layout.Content style={{ padding: 16 }}>{children}</Layout.Content>
+      </Header>
+      <Content style={{ padding: 16 }}>{children}</Content>
     </Layout>
   );
 }
@@ -813,6 +820,9 @@ export async function FullShell({
 
 ```tsx
 import { Layout } from "antd";
+// Siehe FullShell: Named-Import statt Layout.Header/Layout.Content, weil eine
+// Server-Komponente antds Compound-Zugriff nicht aufloest.
+import { Header, Content } from "antd/es/layout/layout";
 import { getModule } from "@/core/registry";
 
 export function MinimalShell({
@@ -825,12 +835,12 @@ export function MinimalShell({
   const mod = getModule(moduleKey);
   return (
     <Layout style={{ minHeight: "100vh" }} data-testid="minimal-shell">
-      <Layout.Header style={{ paddingInline: 16 }}>
+      <Header style={{ paddingInline: 16 }}>
         <strong>{mod.title}</strong>
-      </Layout.Header>
-      <Layout.Content style={{ padding: 16 }}>
+      </Header>
+      <Content style={{ padding: 16 }}>
         <div style={{ maxWidth: 640, marginInline: "auto" }}>{children}</div>
-      </Layout.Content>
+      </Content>
     </Layout>
   );
 }
@@ -982,8 +992,14 @@ export default async function PortalPage() {
             data-testid="service-tile"
             style={{ display: "block", height: "100%" }}
           >
+            {/* Kein `Card.Meta`: diese Datei ist eine Server-Komponente, und
+                Property-Zugriffe auf antd-Compounds ergeben dort `undefined`
+                (siehe Global Constraints). Schlichtes Markup tut hier dasselbe. */}
             <Card hoverable size="small" style={{ height: "100%" }}>
-              <Card.Meta title={s.name} description={s.description ?? undefined} />
+              <div style={{ fontWeight: 600 }}>{s.name}</div>
+              {s.description ? (
+                <div style={{ fontSize: 14, opacity: 0.65 }}>{s.description}</div>
+              ) : null}
             </Card>
           </a>
         </Col>
@@ -1063,7 +1079,6 @@ export function ServiceTable({
 `src/app/m/portal/admin/page.tsx` vollständig ersetzen:
 
 ```tsx
-import { Typography } from "antd";
 import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { getAllServices } from "@/app/m/portal/_lib/services";
 import { deleteServiceAction } from "@/app/m/portal/actions";
@@ -1075,15 +1090,21 @@ export default async function PortalAdminPage() {
 
   const services = await getAllServices();
 
+  // Überschriften als schlichtes HTML statt `Typography.Title`: diese Datei ist
+  // eine Server-Komponente, und Property-Zugriffe auf antd-Compounds ergeben
+  // dort `undefined` (siehe Global Constraints). Für zwei Überschriften lohnt
+  // weder ein Untermodul-Import noch eine eigene Client-Komponente.
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 32 }} data-testid="portal-admin">
       <section>
-        <Typography.Title level={3}>Dienste verwalten</Typography.Title>
+        <h1 style={{ fontSize: 24, fontWeight: 600, marginBlock: "0 16px" }}>Dienste verwalten</h1>
         <ServiceTable services={services} deleteAction={deleteServiceAction} />
       </section>
 
       <section>
-        <Typography.Title level={4}>Neuen Dienst anlegen</Typography.Title>
+        <h2 style={{ fontSize: 20, fontWeight: 600, marginBlock: "0 16px" }}>
+          Neuen Dienst anlegen
+        </h2>
         <ServiceForm />
       </section>
     </div>
@@ -1405,7 +1426,7 @@ Vollständig ersetzen. `KINDS`, `listPresets()` und der Kommentar zum anonymen Z
 
 ```tsx
 import Link from "next/link";
-import { Button, Col, Row, Typography } from "antd";
+import { Button, Col, Row } from "antd";
 import { auth } from "@/core/auth";
 import { listPresets } from "@/app/m/qr/_lib/presets";
 import { PresetGrid } from "@/app/m/qr/PresetGrid";
@@ -1428,10 +1449,10 @@ export default async function QrHomePage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }} data-testid="qr-home">
       <UrlInput />
 
+      {/* Überschrift und Hinweis als schlichtes HTML: Server-Komponente, also
+          kein `Typography.Title`/`Typography.Paragraph` (Global Constraints). */}
       <section aria-label="Weitere Typen" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Typography.Title level={5} style={{ margin: 0 }}>
-          Andere Typen
-        </Typography.Title>
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Andere Typen</h2>
         <Row gutter={[12, 12]}>
           {KINDS.map((k) => (
             <Col key={k.href} span={8}>
@@ -1453,13 +1474,13 @@ export default async function QrHomePage() {
       {session?.user ? (
         <PresetGrid presets={presets} />
       ) : (
-        <Typography.Paragraph data-testid="qr-login-hint" type="secondary">
+        <p data-testid="qr-login-hint" style={{ opacity: 0.65 }}>
           {/* Die MinimalShell hat keinen Login-Einstieg im Header, und ein
               anonymes Modul leitet nirgends automatisch hin — ohne diesen Link
               wüsste der Nutzer vom Anmelden, käme aber nicht hin. */}
           <Link href={`/login?callbackUrl=${encodeURIComponent("/")}`}>Anmelden</Link>, um
           persönliche Schnellzugriffe zu sehen.
-        </Typography.Paragraph>
+        </p>
       )}
 
       <HistoryList />
@@ -1491,7 +1512,9 @@ Das `<fieldset>` in `wifi` bleibt bestehen: `forms.test.tsx` selektiert über `f
 
 - [ ] **Step 9: `qr/admin` umstellen**
 
-`src/app/m/qr/admin/page.tsx`: Die Liste wird antd `List` mit `data-testid="preset-row"` an jedem `List.Item`; „Bearbeiten" bleibt ein `<Link>` mit `data-testid="preset-edit"` (der Kommentar, warum es ein Link und kein Formular ist, bleibt); „Löschen" bleibt ein `<form action={deletePresetAction}>` mit antd `Button danger htmlType="submit"`. `data-testid="qr-admin"` bleibt. Der `key`-Kommentar an `<PresetForm>` bleibt vollständig erhalten.
+`src/app/m/qr/admin/page.tsx` ist eine **Server-Komponente** — dort gilt das Verbot von `X.Y` auf antd-Importen (Global Constraints). `List.Item` wäre also ein 500er. Entweder die Liste in eine kleine Client-Komponente `admin/preset-list.tsx` auslagern (die Server Action als Prop übergeben, das ist zulässig), oder bei schlichtem `<ul>`/`<li>` mit antd `Button` bleiben — Letzteres ist hier der kleinere Eingriff und erhält die Struktur des Bestands. Überschriften als `<h1>`/`<h2>` statt `Typography.Title`.
+
+Im Detail: Die Liste bekommt `data-testid="preset-row"` an jedem Eintrag; „Bearbeiten" bleibt ein `<Link>` mit `data-testid="preset-edit"` (der Kommentar, warum es ein Link und kein Formular ist, bleibt); „Löschen" bleibt ein `<form action={deletePresetAction}>` mit antd `Button danger htmlType="submit"`. `data-testid="qr-admin"` bleibt. Der `key`-Kommentar an `<PresetForm>` bleibt vollständig erhalten.
 
 `src/app/m/qr/admin/preset-form.tsx` (291 LOC): **State-Modell, Validierung, `submit()` und alle Kommentare bleiben unverändert.** Ersetzt werden nur `<input>` → `Input`, `<select>` → `Select`, `<button>` → `Button`, `<textarea>` → `Input.TextArea`; die Konstante `inputClass` entfällt. Alle vorhandenen `id`-Attribute und das `<fieldset>` bleiben, weil `preset-form.test.tsx` über `fill("fieldset input")` zugreift.
 
