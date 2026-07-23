@@ -1774,15 +1774,43 @@ Dann in einem Browser mit geleerten Cookies:
 
 Schlägt Punkt 4 fehl, ist `AUTH_COOKIE_DOMAIN` in `.env` nicht gesetzt. Für die lokale Prüfung `AUTH_COOKIE_DOMAIN=.localtest.me` setzen.
 
-- [ ] **Step 4: Tap-Ziele im Browser gegenprüfen**
+- [ ] **Step 4: Die Tap-Ziele automatisiert absichern**
 
-Auf `http://qr.localtest.me:3000/` in den DevTools:
+Der Task-5-Review hat belegt, dass die Tap-Ziele bisher **nirgends** verhaltensmäßig geprüft werden:
 
-```js
-document.querySelector("#qr-url").getBoundingClientRect().height
+- `theme.test.ts` liest bei Radio/Checkbox nur die eigene Konfiguration zurück. Er fängt „jemand löscht die zwei Zeilen aus `theme.ts`" — nicht „antd benennt `radioSize` um" oder „antd honoriert das Component-Token nicht mehr".
+- Ein Unit-Test kann das auch nicht besser: `antd/lib/theme/getDesignToken.js` verarbeitet ausschließlich `config.token` und `config.algorithm`, **niemals** `config.components`. Der Weg des Schwestertests ist hier technisch versperrt.
+- Kein E2E-Spec referenziert `Radio` oder `Checkbox`.
+
+Damit hängt eine Einsatzanforderung (Bedienung mit Handschuhen) an einer Zusicherung, die ihren eigenen Gegenstand nicht misst. Das ist genau die stille Regression, gegen die der Test antreten sollte.
+
+In `e2e/qr.spec.ts` ergänzen:
+
+```ts
+test("Bedienelemente bleiben mit Handschuhen treffbar", async ({ page }) => {
+  // Einsatzanforderung, keine Stilfrage: die Suite wird im Einsatz mit
+  // Handschuhen bedient. Gemessen wird das GERENDERTE Element, weil weder
+  // theme.test.ts noch getDesignToken das können — antds getDesignToken
+  // verarbeitet `config.components` gar nicht, und Radio/Checkbox leiten ihre
+  // Größe nicht aus controlHeight ab (siehe theme.ts).
+  await page.goto("http://qr.localtest.me:3100/wifi");
+
+  const feld = await page.locator("#wifi-ssid").boundingBox();
+  expect(feld!.height).toBeGreaterThanOrEqual(56);
+
+  const knopf = await page.getByRole("button", { name: "QR-Code erzeugen" }).boundingBox();
+  expect(knopf!.height).toBeGreaterThanOrEqual(56);
+
+  // Die tatsächliche Trefferfläche der Verschlüsselungswahl ist die ganze
+  // Zeile aus Marke und Beschriftung, nicht nur der Radio-Punkt.
+  const zeile = await page.locator('label:has(input[name="encryption"])').first().boundingBox();
+  expect(zeile!.height).toBeGreaterThanOrEqual(28);
+});
 ```
 
-Erwartet: ≥ 56. Der Unit-Test sichert das Token ab, diese Messung den tatsächlich gerenderten Knopf.
+Läuft der Test rot, ist das ein echter Befund und **kein** Anlass, die Schwelle zu senken.
+
+Danach die Gate-Kette aus Step 1 noch einmal, damit der neue Test darin enthalten ist.
 
 - [ ] **Step 5: Abschluss-Commit**
 
