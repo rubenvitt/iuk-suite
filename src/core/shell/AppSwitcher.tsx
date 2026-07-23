@@ -1,27 +1,26 @@
 "use client";
 
 import {
-  LayoutGrid,
-  Square,
-  Triangle,
-  Circle,
-  Monitor,
-  QrCode,
-  Grid3x3,
-  type LucideIcon,
-} from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+  AppstoreOutlined,
+  BorderOutlined,
+  CaretUpOutlined,
+  DesktopOutlined,
+  GlobalOutlined,
+  QrcodeOutlined,
+} from "@ant-design/icons";
+import { Avatar, Button, Space } from "antd";
+import type { ComponentType } from "react";
 
-// Icon-Name (aus ModuleDef.icon, Registry) -> lucide-react Komponente.
+// Icon-Name (aus ModuleDef.icon, Registry) -> @ant-design/icons Komponente.
 // Deckt die aktuell in MODULES verwendeten Namen ab; unbekannte Namen fallen
-// auf Grid3x3 zurück statt den Render zu crashen.
-const ICONS: Record<string, LucideIcon> = {
-  LayoutGrid,
-  Square,
-  Triangle,
-  Circle,
-  Monitor,
-  QrCode,
+// auf AppstoreOutlined zurück statt den Render zu crashen.
+const ICONS: Record<string, ComponentType> = {
+  AppstoreOutlined,
+  QrcodeOutlined,
+  BorderOutlined,
+  CaretUpOutlined,
+  GlobalOutlined,
+  DesktopOutlined,
 };
 
 export interface AppSwitcherEntry {
@@ -32,9 +31,10 @@ export interface AppSwitcherEntry {
 }
 
 // Always-visible Raster von Modul-Links (Waffel). Bewusst NICHT hinter einem
-// geschlossenen Dropdown/Popup versteckt: Task 10 prüft
+// geschlossenen Dropdown/Popup versteckt: keystone.spec.ts prüft
 // `page.getByRole("link", { name: /Alpha/ }).toBeVisible()` ohne vorheriges
 // Öffnen — die Links müssen also beim Seitenaufbau direkt sichtbar sein.
+// Deshalb `Button href=…` (rendert ein <a>, Rolle "link") statt Menu/Dropdown.
 export function AppSwitcher({
   entries,
   userName,
@@ -50,27 +50,21 @@ export function AppSwitcher({
     .slice(0, 2);
 
   return (
-    <div className="flex items-center gap-3" data-testid="app-switcher">
-      <nav className="flex flex-wrap items-center gap-1" aria-label="Module">
+    <Space size="middle" data-testid="app-switcher">
+      {/* Die installierte antd-Version kennt an `Space` kein `component`-Prop
+          (rendert immer ein div) — deshalb hier ein natives <nav>, das
+          aria-label="Module" trägt, mit Space-gleichem Flex-Wrap-Layout. */}
+      <nav aria-label="Module" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
         {entries.map((entry) => {
-          const Icon = ICONS[entry.icon] ?? Grid3x3;
+          const Icon = ICONS[entry.icon] ?? AppstoreOutlined;
           return (
-            <a
-              key={entry.key}
-              href={entry.href}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm hover:bg-muted hover:text-foreground"
-            >
-              <Icon className="size-4" />
-              <span>{entry.title}</span>
-            </a>
+            <Button key={entry.key} type="text" href={entry.href} icon={<Icon />}>
+              {entry.title}
+            </Button>
           );
         })}
       </nav>
-      {userName ? (
-        <Avatar size="sm">
-          <AvatarFallback>{initials}</AvatarFallback>
-        </Avatar>
-      ) : null}
-    </div>
+      {userName ? <Avatar size="small">{initials}</Avatar> : null}
+    </Space>
   );
 }

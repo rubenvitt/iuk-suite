@@ -3,10 +3,23 @@ import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { absoluteCallbackUrl } from "@/core/auth/callbackUrl";
 import { useState } from "react";
+import { Button, Input } from "antd";
+import { DRK } from "@/core/theme/tokens";
 
-function PocketIdLogo({ className }: { className?: string }) {
+// Kleiner, lokaler Helfer: übersetzt einen DRK-Hex-Wert mit Deckkraft in eine
+// CSS-Farbe — Ersatz für Tailwinds Opacity-Modifier (`bg-[..]/NN`), den es
+// für `style`-Objekte nicht gibt.
+function rgba(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function PocketIdLogo() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" width={20} height={20} aria-hidden>
       <path
         d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm0 13.5c-2.5 0-4.7-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.3 1.94-3.5 3.22-6 3.22Z"
         fill="currentColor"
@@ -20,46 +33,130 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
   const [email, setEmail] = useState("dev@localtest.me");
   const [groups, setGroups] = useState("");
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
+    <main
+      style={{
+        position: "relative",
+        display: "flex",
+        minHeight: "100vh",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        padding: 24,
+      }}
+    >
       {/* Hintergrund: generiertes Bild + weiches Overlay, damit die Karte trägt */}
       <div
         aria-hidden
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url(/login-bg.jpg)" }}
+        style={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage: "url(/login-bg.jpg)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
       />
       <div
         aria-hidden
-        className="absolute inset-0 bg-gradient-to-br from-white/70 via-white/55 to-[#fbe9eb]/60 backdrop-blur-[2px]"
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: `linear-gradient(to bottom right, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.55), ${rgba(DRK.rotBg, 0.6)})`,
+          backdropFilter: "blur(2px)",
+        }}
       />
       {/* Dekorative Farbakzente */}
       <div
         aria-hidden
-        className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-[var(--color-rot)]/10 blur-3xl"
+        style={{
+          position: "absolute",
+          top: -128,
+          right: -128,
+          height: 384,
+          width: 384,
+          borderRadius: 9999,
+          backgroundColor: rgba(DRK.rot, 0.1),
+          filter: "blur(64px)",
+        }}
       />
       <div
         aria-hidden
-        className="absolute -bottom-40 -left-40 h-[28rem] w-[28rem] rounded-full bg-[var(--color-tinte)]/5 blur-3xl"
+        style={{
+          position: "absolute",
+          bottom: -160,
+          left: -160,
+          height: 448,
+          width: 448,
+          borderRadius: 9999,
+          backgroundColor: rgba(DRK.tinte, 0.05),
+          filter: "blur(64px)",
+        }}
       />
 
-      <div className="relative w-full max-w-md">
-        <div className="rounded-3xl border border-white/60 bg-white/75 p-8 shadow-2xl shadow-black/10 backdrop-blur-xl sm:p-10">
+      <div style={{ position: "relative", width: "100%", maxWidth: 448 }}>
+        <div
+          style={{
+            borderRadius: 24,
+            border: "1px solid rgba(255, 255, 255, 0.6)",
+            backgroundColor: "rgba(255, 255, 255, 0.75)",
+            padding: 32,
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.10)",
+            backdropFilter: "blur(24px)",
+          }}
+        >
           {/* Markenzeichen */}
-          <div className="mb-8 flex flex-col items-center text-center">
-            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-rot)] shadow-lg shadow-[var(--color-rot)]/30">
-              <span className="text-2xl font-black tracking-tight text-white">
+          <div
+            style={{
+              marginBottom: 32,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                marginBottom: 20,
+                display: "flex",
+                height: 64,
+                width: 64,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 16,
+                backgroundColor: DRK.rot,
+                boxShadow: `0 10px 15px -3px ${rgba(DRK.rot, 0.3)}, 0 4px 6px -4px ${rgba(DRK.rot, 0.3)}`,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 24,
+                  fontWeight: 900,
+                  letterSpacing: "-0.025em",
+                  color: "#ffffff",
+                }}
+              >
                 I&K
               </span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--color-tinte)]">
+            <h1
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                letterSpacing: "-0.025em",
+                color: DRK.tinte,
+              }}
+            >
               IuK-Suite
             </h1>
-            <p className="mt-2 text-sm text-[var(--color-stahl)]">
+            <p style={{ marginTop: 8, fontSize: 14, color: DRK.stahl }}>
               Internes Service-Dashboard für Information &amp; Kommunikation
             </p>
           </div>
 
-          <button
-            className="group flex min-h-[var(--tap)] w-full items-center justify-center gap-3 rounded-xl bg-[var(--color-rot)] px-4 py-3 text-base font-semibold text-white shadow-lg shadow-[var(--color-rot)]/25 transition-all hover:bg-[var(--color-rot-dk)] hover:shadow-xl hover:shadow-[var(--color-rot)]/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-rot)] active:translate-y-px"
+          <Button
+            type="primary"
+            size="large"
+            block
+            icon={<PocketIdLogo />}
             // Absolut gegen den Host, auf dem diese Seite läuft — NICHT relativ.
             // Warum, steht in core/auth/callbackUrl.ts; dass ein präparierter
             // callbackUrl damit nicht zum offenen Redirector wird, stellt die
@@ -68,19 +165,26 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
               signIn("pocket-id", {
                 redirectTo: absoluteCallbackUrl(callbackUrl, window.location.origin),
               })
-            }>
-            <PocketIdLogo className="size-5 opacity-90 transition-transform group-hover:scale-110" />
+            }
+          >
             Mit Pocket ID anmelden
-          </button>
+          </Button>
 
-          <p className="mt-4 text-center text-xs text-[var(--color-stahl)]">
+          <p style={{ marginTop: 16, textAlign: "center", fontSize: 12, color: DRK.stahl }}>
             Du wirst zu Pocket ID weitergeleitet und nach der Anmeldung
             zurückgebracht.
           </p>
 
           {devLogin && (
             <form
-              className="mt-8 flex flex-col gap-3 border-t border-[var(--color-linie)] pt-6"
+              style={{
+                marginTop: 32,
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                borderTop: `1px solid ${DRK.linie}`,
+                paddingTop: 24,
+              }}
               onSubmit={async (e) => {
                 e.preventDefault();
                 // Dev-login only: post the credentials WITHOUT letting next-auth perform the
@@ -94,33 +198,41 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
                 // builds; see core/auth/devLogin.ts) and it leaves the real Pocket-ID button intact.
                 await signIn("dev-login", { email, groups, redirect: false });
                 window.location.assign(callbackUrl.startsWith("/") ? callbackUrl : "/");
-              }}>
-              <p className="text-xs font-medium tracking-wide text-[var(--color-stahl)] uppercase">
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  letterSpacing: "0.025em",
+                  color: DRK.stahl,
+                  textTransform: "uppercase",
+                }}
+              >
                 Entwicklungs-Login
               </p>
-              <input
-                aria-label="email"
-                className="min-h-[var(--tap)] rounded-lg border border-[var(--color-linie)] bg-white/80 px-3 py-2 text-sm text-[var(--color-tinte)] outline-none transition focus:border-[var(--color-tinte)] focus:ring-2 focus:ring-[var(--color-tinte)]/15"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <input
+              <Input aria-label="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input
                 aria-label="groups"
                 placeholder="comma,separated,groups"
-                className="min-h-[var(--tap)] rounded-lg border border-[var(--color-linie)] bg-white/80 px-3 py-2 text-sm text-[var(--color-tinte)] outline-none transition focus:border-[var(--color-tinte)] focus:ring-2 focus:ring-[var(--color-tinte)]/15"
                 value={groups}
                 onChange={(e) => setGroups(e.target.value)}
               />
-              <button
-                className="min-h-[var(--tap)] rounded-xl bg-[var(--color-tinte)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black/80 active:translate-y-px"
-                type="submit">
+              <Button htmlType="submit" size="large" block>
                 Dev-Login
-              </button>
+              </Button>
             </form>
           )}
         </div>
 
-        <p className="mt-6 text-center text-xs text-[var(--color-stahl)]/80">
+        <p
+          style={{
+            marginTop: 24,
+            textAlign: "center",
+            fontSize: 12,
+            color: rgba(DRK.stahl, 0.8),
+          }}
+        >
           IuK-Suite · Interner Bereich · Zugriff nur für Berechtigte
         </p>
       </div>

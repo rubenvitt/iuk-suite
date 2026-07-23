@@ -1,3 +1,5 @@
+import { KioskThemeProvider } from "@/core/theme/KioskThemeProvider";
+
 export function KioskShell({
   children,
 }: {
@@ -5,8 +7,13 @@ export function KioskShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="h-screen w-screen overflow-hidden" data-testid="kiosk-shell">
-      {children}
-    </div>
+    <KioskThemeProvider>
+      <div
+        data-testid="kiosk-shell"
+        style={{ height: "100dvh", width: "100vw", overflow: "hidden", padding: 24 }}
+      >
+        {children}
+      </div>
+    </KioskThemeProvider>
   );
 }

@@ -8,7 +8,7 @@ export type ShellVariant = "full" | "minimal" | "kiosk";
 export interface ModuleDef {
   key: string;
   title: string;
-  icon: string; // lucide icon name
+  icon: string; // @ant-design/icons Komponentenname
   shell: ShellVariant;
   requiresAuth: boolean;
   /** Zugang zum Modul überhaupt. Leer = jeder Eingeloggte darf. */
@@ -34,26 +34,26 @@ export const MODULES: ModuleDef[] = [
   // portal: keine modul-eigene Admin-Gruppe — Admin ist hier der Suite-Admin
   // (ADMIN_GROUP). Das ist genau das bisherige Verhalten, nur nicht mehr im
   // Modul dupliziert.
-  { key: "portal", title: "Portal", icon: "LayoutGrid", shell: "full",
+  { key: "portal", title: "Portal", icon: "AppstoreOutlined", shell: "full",
     requiresAuth: true, requiredGroups: [], adminGroups: [],
     prodHosts: ["iuk-ue.de"], showInSwitcher: true },
   // Anonym, weil der Generator ohne Login funktionieren muss (Offline-PWA im
   // Einsatz). Der Admin-Bereich schützt sich selbst über core/auth/guards —
   // requiresAuth: true wäre hier falsch und würde den anonymen Zugang nehmen.
-  { key: "qr", title: "QR-Codes", icon: "QrCode", shell: "minimal",
+  { key: "qr", title: "QR-Codes", icon: "QrcodeOutlined", shell: "minimal",
     requiresAuth: false, requiredGroups: [], adminGroups: ["drk-qr-admin"],
     prodHosts: [], showInSwitcher: true },
-  { key: "alpha", title: "Alpha", icon: "Square", shell: "full",
+  { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true },
   // gamma: authentifiziertes Voll-Shell-Modul ohne Gruppenzwang — SSO-Cross-Ziel im Keystone-E2E.
-  { key: "gamma", title: "Gamma", icon: "Triangle", shell: "full",
+  { key: "gamma", title: "Gamma", icon: "CaretUpOutlined", shell: "full",
     requiresAuth: true, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: true },
-  { key: "beta", title: "Beta", icon: "Circle", shell: "minimal",
+  { key: "beta", title: "Beta", icon: "GlobalOutlined", shell: "minimal",
     requiresAuth: false, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: false },
-  { key: "kioskdemo", title: "Kiosk Demo", icon: "Monitor", shell: "kiosk",
+  { key: "kioskdemo", title: "Kiosk Demo", icon: "DesktopOutlined", shell: "kiosk",
     requiresAuth: false, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: false },
 ];

@@ -1,3 +1,15 @@
+import { Layout } from "antd";
+// `Header`/`Content` NICHT als `Layout.Header`/`Layout.Content` referenzieren:
+// antds Layout-Komposition hängt die Unterkomponenten erst zur Laufzeit per
+// Property-Zuweisung an (`Layout.Header = Header`, siehe antd/es/layout/index.js).
+// In einer Server-Komponente löst Next/Turbopack diesen Laufzeit-Property-Zugriff
+// auf einem "use client"-Export nicht auf — das Ergebnis ist `undefined` und ein
+// 500er ("Element type is invalid: … got: undefined"). Der direkte Named-Import
+// umgeht das: dieselbe Komponente, aber als statisch importierte Bindung, die der
+// RSC-Bundler korrekt auflöst. Empirisch verifiziert (curl gegen `next dev`);
+// `pnpm build`/`pnpm typecheck` decken das NICHT ab, weil sie die dynamischen
+// Modul-Routen nicht mit echten Requests rendern.
+import { Header, Content } from "antd/es/layout/layout";
 import { getModule } from "@/core/registry";
 
 export function MinimalShell({
@@ -9,9 +21,13 @@ export function MinimalShell({
 }) {
   const mod = getModule(moduleKey);
   return (
-    <div className="min-h-screen" data-testid="minimal-shell">
-      <header className="border-b px-4 py-3 font-bold">{mod.title}</header>
-      <main className="p-4">{children}</main>
-    </div>
+    <Layout style={{ minHeight: "100vh" }} data-testid="minimal-shell">
+      <Header style={{ paddingInline: 16 }}>
+        <strong>{mod.title}</strong>
+      </Header>
+      <Content style={{ padding: 16 }}>
+        <div style={{ maxWidth: 640, marginInline: "auto" }}>{children}</div>
+      </Content>
+    </Layout>
   );
 }
