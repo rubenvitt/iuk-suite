@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { STANDARD_QUESTIONS, isRatingType, ratingScale } from "./questions";
+import { STANDARD_QUESTIONS, isRatingType, ratingScale, coerceAnswer, type Question } from "./questions";
 
 describe("STANDARD_QUESTIONS", () => {
   it("hat 14 Fragen: 8 schulnote (q1-q8) + 6 text (q9-q14)", () => {
@@ -28,5 +28,42 @@ describe("isRatingType / ratingScale", () => {
   it("schulnote skaliert 1-6, stars 1-5", () => {
     expect(ratingScale("schulnote")).toBe(6);
     expect(ratingScale("stars")).toBe(5);
+  });
+});
+
+describe("coerceAnswer", () => {
+  const schulnote: Question = { id: "q1", type: "schulnote", text: "…" };
+  const stars: Question = { id: "q9", type: "stars", text: "…" };
+  const text: Question = { id: "q9", type: "text", text: "…" };
+
+  it("übernimmt gültige Rating-Werte im Bereich 1..Skala", () => {
+    expect(coerceAnswer(schulnote, "1")).toBe(1);
+    expect(coerceAnswer(schulnote, "6")).toBe(6);
+    expect(coerceAnswer(stars, "5")).toBe(5);
+  });
+
+  it("verwirft Rating-Werte außerhalb des Bereichs (kein Clamping)", () => {
+    expect(coerceAnswer(schulnote, "99999")).toBeUndefined();
+    expect(coerceAnswer(schulnote, "0")).toBeUndefined();
+    expect(coerceAnswer(schulnote, "7")).toBeUndefined();
+    expect(coerceAnswer(stars, "-1")).toBeUndefined();
+    expect(coerceAnswer(stars, "6")).toBeUndefined();
+  });
+
+  it("verwirft nicht-ganzzahlige oder nicht-numerische Rating-Werte", () => {
+    expect(coerceAnswer(schulnote, "3.5")).toBeUndefined();
+    expect(coerceAnswer(schulnote, "abc")).toBeUndefined();
+  });
+
+  it("übernimmt Text-Antworten unverändert (keine Bereichsprüfung)", () => {
+    expect(coerceAnswer(text, "irgendein Text")).toBe("irgendein Text");
+    expect(coerceAnswer(text, "99999")).toBe("99999");
+  });
+
+  it("liefert undefined für leere/fehlende Antworten", () => {
+    expect(coerceAnswer(schulnote, null)).toBeUndefined();
+    expect(coerceAnswer(schulnote, "")).toBeUndefined();
+    expect(coerceAnswer(schulnote, "   ")).toBeUndefined();
+    expect(coerceAnswer(text, null)).toBeUndefined();
   });
 });

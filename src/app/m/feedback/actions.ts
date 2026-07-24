@@ -26,7 +26,7 @@ import {
 import { assertGroupAccess } from "./_lib/access";
 import { viewerFromSession } from "./_lib/viewer";
 import { generateSecret } from "./_lib/token";
-import { STANDARD_QUESTIONS } from "./_lib/questions";
+import { STANDARD_QUESTIONS, coerceAnswer, type Question } from "./_lib/questions";
 import {
   computeClosesAt,
   nextStatusOnAccess,
@@ -207,12 +207,11 @@ export async function submitResponseAction(slugSecret: string, formData: FormDat
     throw new Error("Umfrage bereits geschlossen");
   }
 
-  const questions: { id: string; type: string }[] = JSON.parse(survey.questions);
+  const questions: Question[] = JSON.parse(survey.questions);
   const answers: Record<string, unknown> = {};
   for (const q of questions) {
-    const raw = formData.get(q.id);
-    if (raw === null || String(raw).trim() === "") continue;
-    answers[q.id] = q.type === "text" ? String(raw) : Number(raw);
+    const value = coerceAnswer(q, formData.get(q.id));
+    if (value !== undefined) answers[q.id] = value;
   }
   insertResponse(db, survey.id, answers, now);
 

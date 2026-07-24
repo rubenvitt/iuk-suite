@@ -34,3 +34,24 @@ export function isRatingType(t: QuestionType): boolean {
 export function ratingScale(t: QuestionType): number {
   return t === "schulnote" ? 6 : 5;
 }
+
+/**
+ * Wandelt eine rohe Formular-Antwort in einen speicherbaren Wert um.
+ * Rating-Fragen werden auf den gültigen Wertebereich (1..ratingScale) begrenzt —
+ * liefert `undefined`, wenn der Rohwert leer, keine Ganzzahl oder außerhalb des
+ * Bereichs ist. Aufrufer überspringt die Frage dann, statt die ganze Submission
+ * abzulehnen (ein anonymer Teilnehmer könnte sonst z. B. q1=99999 senden und
+ * jeden Durchschnitt verzerren).
+ */
+export function coerceAnswer(
+  q: Question,
+  raw: FormDataEntryValue | null,
+): string | number | undefined {
+  if (raw === null || String(raw).trim() === "") return undefined;
+  if (isRatingType(q.type)) {
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1 || n > ratingScale(q.type)) return undefined;
+    return n;
+  }
+  return String(raw);
+}
