@@ -1,0 +1,617 @@
+/*
+ * Die komplette Optik der oeffentlichen Ansicht — "Der Abendzettel"
+ * (docs/design/feedback-oeffentliche-ansicht.md §3.2–3.6, §3.10).
+ *
+ * ALLE Farb-, Typo- und Abstandswerte hier stehen WORTGENAU im Entwurf. Sie
+ * sind auf Kontrast geprueft (AA belegt, Werte in §3.4); eigene Werte brechen
+ * die Zusicherung, ohne dass ein Test oder ein Build es merkt.
+ *
+ * ZWEI Dinge stehen absichtlich NICHT hier:
+ *
+ * 1. Die sechs NOTENFARBEN. Sie leben in `_lib/noten.ts` (eine Definition, zwei
+ *    Verwendungen: `/f/**` und `(admin)`). Der Chip bekommt sie als Inline-
+ *    Variablen `--note-hell` / `--note-dunkel` von `Zettel.tsx` gereicht, damit
+ *    hier keine zweite Palette entsteht, die beim naechsten Nachjustieren
+ *    auseinanderlaeuft. `Zettel.test.tsx` haelt fest, dass keiner der sechs
+ *    Hex-Codes in dieser Datei auftaucht.
+ * 2. Der Dunkelmodus haengt an `:root[data-theme="dark"]`, NICHT an
+ *    `prefers-color-scheme` — die Suite hat einen Umschalter (Cookie
+ *    `iuk-theme`), sonst bricht der Fall "System dunkel, Umschalter hell".
+ *
+ * DRK-Rot `#c8000f` kommt in dieser Datei GENAU ZWEIMAL vor: 3px-Fahne und
+ * Wortzeichen "DRK". Nie als Datenflaeche, nie als Fehlerfarbe, nie als
+ * Knopffuellung — sonst kippt die Semantik der Notenskala (Note 6 ist
+ * `#811221`, deutlich dunkler und kuehler). Auch das prueft der Test.
+ */
+
+/*
+ * Die Variablen haengen an den beiden Wurzeln des Moduls (Seite und Formular)
+ * statt an `:root` — ein CSS-Modul kann `:root` nicht scopen, und Namen wie
+ * `--tinte` oder `--linie` global in die Suite zu haengen waere eine Kollision,
+ * die erst in einem fremden Modul auffaellt.
+ */
+.seite,
+.form {
+  --papier: #f4f1ea;
+  --blatt: #fbfaf7;
+  --tinte: #16181a;
+  --graphit: #3a3f44;
+  --gedaempft: #5e625f;
+  --linie: #ddd8ce;
+  --linie-stark: #c9c3b7;
+  --tint: #ede9df;
+
+  /* Tonwertkeil: der Zustand VOR der Auswahl, achromatisch, 6 Stufen a ~4,5%.
+     Er ist Traeger 2 der Richtung — "nach rechts wird es schwerer" — und
+     funktioniert in Graustufen und bei jeder Farbfehlsichtigkeit. */
+  --keil-1: #fbfaf7;
+  --keil-2: #f5f2ea;
+  --keil-3: #efebe1;
+  --keil-4: #e9e4d7;
+  --keil-5: #e3ddce;
+  --keil-6: #ddd6c5;
+
+  /* Primaeraktion ist Graphit-Tinte, NICHT DRK-Rot: 14,8:1. */
+  --knopf-grund: #24282c;
+  --knopf-schrift: #ffffff;
+
+  /* Ziffernfarbe im gewaehlten Chip (§3.4). */
+  --ziffer-gewaehlt: #ffffff;
+
+  --serif: var(--font-newsreader), var(--font-geist-sans), serif;
+}
+
+:root[data-theme="dark"] .seite,
+:root[data-theme="dark"] .form {
+  --papier: #101214;
+  --blatt: #1b1e22;
+  --tinte: #ece9e2;
+  --graphit: #c3c8cd;
+  --gedaempft: #9aa0a6;
+  --linie: #2c3035;
+  --linie-stark: #3a3f45;
+  --tint: #23272c;
+
+  /* Dunkel ist die Richtung des Keils umgekehrt: heller = schwerer. */
+  --keil-1: #1b1e22;
+  --keil-2: #202429;
+  --keil-3: #252a30;
+  --keil-4: #2a2f36;
+  --keil-5: #2f353c;
+  --keil-6: #343b43;
+
+  --knopf-grund: #ece9e2;
+  --knopf-schrift: #101214;
+  --ziffer-gewaehlt: #101214;
+}
+
+/* ---------- Huelle: Fahne, Blatt ---------- */
+
+.seite {
+  background: var(--papier);
+  color: var(--tinte);
+  min-height: 100%;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Traeger 1 von zwei fuer DRK-Rot: 3px, randlos, nie als Flaeche. */
+.fahne {
+  height: 3px;
+  background: #c8000f;
+}
+
+.blatt {
+  background: var(--blatt);
+  max-width: 40rem;
+  margin: 0 auto;
+  padding-inline: 20px;
+  padding-bottom: 32px;
+}
+
+@media (min-width: 600px) {
+  .blatt {
+    margin: 40px auto 64px;
+    padding-inline: 32px;
+    border: 1px solid var(--linie);
+    border-radius: 14px;
+    box-shadow:
+      0 1px 0 rgba(22, 24, 26, 0.04),
+      0 18px 40px -20px rgba(22, 24, 26, 0.18);
+  }
+}
+
+/* ---------- Kopf ---------- */
+
+.kopf {
+  padding-top: 28px;
+  padding-bottom: 20px;
+}
+
+.kicker {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gedaempft);
+}
+
+/* Traeger 2 von zwei fuer DRK-Rot: 13px Wortzeichen. */
+.wortzeichen {
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #c8000f;
+}
+
+.titel {
+  margin: 12px 0 0;
+  max-width: 34rem;
+  font-family: var(--serif);
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+  color: var(--tinte);
+}
+
+@media (min-width: 600px) {
+  .titel {
+    font-size: 32px;
+    line-height: 1.1;
+  }
+}
+
+.meta {
+  margin: 12px 0 0;
+  max-width: 34rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+.datum {
+  color: var(--tinte);
+  font-weight: 600;
+}
+
+.vertrag {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  max-width: 34rem;
+  border-top: 1px solid var(--linie);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+/* ---------- Legende: genau einmal, im Raster der Chips ---------- */
+
+.legende {
+  display: block;
+}
+
+.streifen {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  height: 10px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.streifen[data-stufen="5"] {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+/* Harte Stopps, kein Gradient: die sechs Stufen sind diskret, kein Kontinuum. */
+.segment {
+  background: var(--note-hell);
+}
+
+:root[data-theme="dark"] .segment {
+  background: var(--note-dunkel);
+}
+
+.woerter {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--gedaempft);
+}
+
+.woerter[data-stufen="5"] {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.wort {
+  text-align: center;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* ---------- Matrix ---------- */
+
+.sektion {
+  margin-top: 32px;
+}
+
+/* 20px von der Legende zur ersten Zeile (§3.5). */
+.sektion:first-of-type {
+  margin-top: 20px;
+}
+
+.sektionKicker {
+  margin: 0 0 4px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gedaempft);
+}
+
+/*
+ * `fieldset` bleibt `display: block` — Grid auf einem `fieldset` mit `legend`
+ * ist browserseitig heikel (§3.6). Die Zeilengeometrie traegt deshalb `.reihe`
+ * eine Ebene tiefer; das ist der einzige Zusatz gegenueber der Markup-Vorlage
+ * und er ist genau die dort genannte Vorsichtsmassnahme.
+ */
+.zeile {
+  display: block;
+  margin: 0;
+  padding: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--linie);
+  min-inline-size: 0;
+}
+
+.zeile:last-of-type {
+  border-bottom: 1px solid var(--linie);
+}
+
+.reihe {
+  display: block;
+}
+
+.links {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.nr {
+  flex: none;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--gedaempft);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.frage {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 500;
+  color: var(--tinte);
+}
+
+.rechts {
+  margin-top: 10px;
+}
+
+.chips {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.chips[data-stufen="5"] {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+/*
+ * Der Chip: Ziffer sichtbar, Position fix, Wort im `aria-label`, Farbe erst bei
+ * Auswahl. 44px hoch — normales Touchmass, kein Kiosk-Klotz (bewusste
+ * Abweichung von TAP = 56, diese Ansicht ist nicht einsatzrelevant).
+ */
+.chip {
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border: 1px solid var(--rahmen, var(--linie));
+  border-radius: 8px;
+  background: var(--keil, var(--keil-1));
+  color: var(--gedaempft);
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  cursor: pointer;
+  user-select: none;
+  /* Umwahl asymmetrisch: der alte Chip entfaerbt in 100ms ... */
+  transition:
+    background-color 100ms ease-out,
+    border-color 100ms ease-out,
+    color 100ms ease-out;
+}
+
+.chip:nth-of-type(1) {
+  --keil: var(--keil-1);
+  --rahmen: var(--linie);
+}
+.chip:nth-of-type(2) {
+  --keil: var(--keil-2);
+  --rahmen: var(--linie);
+}
+.chip:nth-of-type(3) {
+  --keil: var(--keil-3);
+  --rahmen: var(--linie);
+}
+.chip:nth-of-type(4) {
+  --keil: var(--keil-4);
+  --rahmen: var(--linie-stark);
+}
+.chip:nth-of-type(5) {
+  --keil: var(--keil-5);
+  --rahmen: var(--linie-stark);
+}
+.chip:nth-of-type(6) {
+  --keil: var(--keil-6);
+  --rahmen: var(--linie-stark);
+}
+
+/* Fuenfstufige Alt-Skala: der Keil bleibt monoton bis zum rechten Rand, die
+   dunkelste Stufe sitzt weiter am Ende der Reihe. */
+.chips[data-stufen="5"] .chip:nth-of-type(4) {
+  --keil: var(--keil-5);
+  --rahmen: var(--linie-stark);
+}
+.chips[data-stufen="5"] .chip:nth-of-type(5) {
+  --keil: var(--keil-6);
+  --rahmen: var(--linie-stark);
+}
+
+/* Geschwister nach der Wahl: der Rahmen faellt auf `--linie`, die Fuellung
+   bleibt der Keil. NICHTS wird ausgegraut — nicht gewaehlte Ziffern sind
+   Bedienelemente, keine deaktivierten Reste. */
+.chips:has(input:checked) .chip {
+  --rahmen: var(--linie);
+}
+
+/* ... und der neue faerbt in 120ms. */
+.chips input:checked + .chip {
+  background: var(--note-hell);
+  color: var(--ziffer-gewaehlt);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+  transition-duration: 120ms;
+  animation: chipWahl 140ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+:root[data-theme="dark"] .chips input:checked + .chip {
+  background: var(--note-dunkel);
+}
+
+/* Hover ohne Farbvorschau: eine Vorschau in der Notenfarbe waere eine
+   Bewertung, die niemand abgegeben hat. */
+@media (hover: hover) {
+  .chip:hover {
+    --rahmen: var(--linie-stark);
+  }
+}
+
+/*
+ * Der Fokusring sitzt am Label, nicht am versteckten Radio: ein `outline` auf
+ * einem 1px-Element ist unsichtbar. Ausschliesslich Tinte — ein roter Ring auf
+ * dem gruenen Chip der Note 1 waere Ampelverschmutzung.
+ */
+.chips input:focus-visible + .chip {
+  outline: 2px solid var(--tinte);
+  outline-offset: 2px;
+}
+
+/* Traeger 3 der Richtung: die Ankerwoerter, dauerhaft unter der ersten Zeile. */
+.anker {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+.fussnote {
+  display: block;
+  margin-top: 8px;
+  text-align: right;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--graphit);
+  animation: fussnoteEin 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (min-width: 600px) {
+  /*
+   * Der Legendenstreifen muss SPALTENGLEICH ueber den Chips stehen (§3.2 Punkt
+   * 3) — sonst zeigt er auf nichts. Am Desktop rutscht die Chipreihe in eine
+   * 336px-Spalte rechts, also muss die Legende in dieselbe Spalte, nicht ueber
+   * die ganze Blattbreite.
+   */
+  .legende {
+    display: grid;
+    grid-template-columns: 1fr 336px;
+    column-gap: 24px;
+  }
+
+  .streifen,
+  .woerter {
+    grid-column: 2;
+  }
+
+  .zeile {
+    padding: 12px 0;
+  }
+
+  /* Am Desktop liest sich die Matrix als Tabelle: 6 x 51px + 5 x 6px = 336px. */
+  .reihe {
+    display: grid;
+    grid-template-columns: 1fr 336px;
+    column-gap: 24px;
+    align-items: center;
+  }
+
+  .rechts {
+    margin-top: 0;
+  }
+
+  .chip {
+    height: 40px;
+  }
+}
+
+/* ---------- Knopf ---------- */
+
+.knopf {
+  display: block;
+  width: 100%;
+  height: 48px;
+  margin-top: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--knopf-grund);
+  color: var(--knopf-schrift);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.knopf:focus-visible {
+  outline: 2px solid var(--tinte);
+  outline-offset: 2px;
+}
+
+@media (min-width: 600px) {
+  .knopf {
+    width: 260px;
+  }
+}
+
+/* ---------- Nur fuer Screenreader ---------- */
+
+/*
+ * `clip-path` haelt den Text im Barrierefreiheitsbaum. `display: none` oder
+ * `visibility: hidden` wuerden die Frage fuer Screenreader LOESCHEN — dann
+ * haette die Radiogruppe keinen Namen mehr. Genau darum prueft
+ * `Zettel.test.tsx` diese Regel im Quelltext.
+ */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Bewegung ---------- */
+
+/*
+ * Der Seitenaufbau ist einmal orchestriert: sieben Bloecke, 320ms, Verzug
+ * 0/60/120/180/240/300/360ms — nach 0,7s steht alles. Kein Scroll-Trigger, kein
+ * Nachladen: reine `animation-delay`-Choreografie auf schon vorhandenem HTML.
+ */
+.aufbau {
+  animation: aufbau 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes aufbau {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes chipWahl {
+  from {
+    transform: scale(0.96);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes fussnoteEin {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Alle Dauern 1ms, keine Transforms — nur der Farbwechsel bleibt. */
+@media (prefers-reduced-motion: reduce) {
+  .aufbau,
+  .chips input:checked + .chip,
+  .fussnote {
+    animation-duration: 1ms;
+  }
+
+  .chip,
+  .chips input:checked + .chip {
+    transition-duration: 1ms;
+  }
+
+  @keyframes aufbau {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes chipWahl {
+    from {
+      transform: none;
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes fussnoteEin {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
