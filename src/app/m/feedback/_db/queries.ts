@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import {
@@ -12,7 +12,8 @@ import {
   type SurveyRow,
   type ResponseRow,
 } from "./schema";
-import type { SurveyStatus } from "@/app/m/feedback/_lib/lifecycle";
+import { computeClosesAt, type SurveyStatus } from "@/app/m/feedback/_lib/lifecycle";
+import { STANDARD_QUESTIONS } from "@/app/m/feedback/_lib/questions";
 
 type DB = BetterSQLite3Database<typeof schema>;
 
@@ -131,6 +132,70 @@ export function activateSurvey(db: DB, surveyId: number, closesAt: Date, now: Da
       .set({ status: "active", activatedAt: now, closesAt, closedAt: null })
       .where(eq(surveys.id, surveyId))
       .run();
+  });
+}
+
+/**
+ * Anlegen IST Starten: Abend und aktive Umfrage entstehen in EINER Transaktion.
+ * Schließt dabei alle aktiven Umfragen derselben Gruppe (Invariante „max. 1 aktiv
+ * pro Gruppe"). Ein DB-seitiger Riegel ist nicht möglich, weil `surveys` kein
+ * group_id trägt — der Gruppenbezug hängt an `evenings`. Bei zwei aktiven
+ * Umfragen liefert `activeSurveyForGroup` per `.get()` stumm eine beliebige,
+ * der gedruckte QR-Code zeigte dann auf die falsche Erhebung.
+ */
+export function createAndStartSurvey(
+  db: DB,
+  input: {
+    groupId: number;
+    date: Date;
+    topic: string | null;
+    notes: string | null;
+    participants: number | null;
+    closeAfterHours: number;
+    now: Date;
+  },
+): { eveningId: number; surveyId: number } {
+  return db.transaction((tx) => {
+    const eve = tx
+      .insert(evenings)
+      .values({
+        groupId: input.groupId,
+        date: input.date,
+        topic: input.topic,
+        notes: input.notes,
+        participantCount: input.participants,
+        createdAt: input.now,
+      })
+      .returning()
+      .get();
+    // Reihenfolge ist tragend: erst die Geschwister schließen, dann die neue
+    // Umfrage einfügen — sonst schließt dieser Schritt sie gleich mit.
+    // Nur `active` wird angefasst; `draft`/`archived` aus dem Altbestand bleiben.
+    const groupEveningIds = tx
+      .select({ id: evenings.id })
+      .from(evenings)
+      .where(eq(evenings.groupId, input.groupId))
+      .all()
+      .map((r) => r.id);
+    tx.update(surveys)
+      .set({ status: "closed", closedAt: input.now })
+      .where(and(eq(surveys.status, "active"), inArray(surveys.eveningId, groupEveningIds)))
+      .run();
+    const survey = tx
+      .insert(surveys)
+      .values({
+        eveningId: eve.id,
+        status: "active",
+        questions: JSON.stringify(STANDARD_QUESTIONS),
+        closeAfterHours: input.closeAfterHours,
+        activatedAt: input.now,
+        closesAt: computeClosesAt(input.date, input.closeAfterHours),
+        closedAt: null,
+        createdAt: input.now,
+      })
+      .returning()
+      .get();
+    return { eveningId: eve.id, surveyId: survey.id };
   });
 }
 

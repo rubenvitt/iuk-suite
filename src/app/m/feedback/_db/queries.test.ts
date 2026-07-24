@@ -9,11 +9,15 @@ import {
   insertEvening,
   insertSurvey,
   activateSurvey,
+  createAndStartSurvey,
   getSurvey,
+  getEvening,
   activeSurveyForGroup,
   insertResponse,
   listResponses,
 } from "./queries";
+import { computeClosesAt } from "@/app/m/feedback/_lib/lifecycle";
+import { STANDARD_QUESTIONS } from "@/app/m/feedback/_lib/questions";
 
 type DB = ReturnType<typeof drizzle<typeof schema>>;
 let sqlite: Database.Database;
@@ -29,6 +33,19 @@ afterEach(() => sqlite.close());
 
 const mkGroup = (name = "G", slug = "g") =>
   insertGroup(db, { name, slug, secret: "abc12", closeAfterHours: null, createdAt: new Date(0) });
+
+// Zählt DIREKT per SQL. activeSurveyForGroup nutzt .get() und liefert bei zwei
+// aktiven Umfragen stumm die erste Zeile — eine Assertion darauf würde die
+// verletzte Invariante nicht bemerken.
+const countActive = (groupId: number): number =>
+  (
+    sqlite
+      .prepare(
+        "SELECT COUNT(*) AS c FROM surveys s JOIN evenings e ON e.id = s.evening_id" +
+          " WHERE e.group_id = ? AND s.status = 'active'",
+      )
+      .get(groupId) as { c: number }
+  ).c;
 
 describe("memberGroupIdsFor", () => {
   it("liefert die zugeordneten Gruppen-IDs", () => {
@@ -80,6 +97,95 @@ describe("activateSurvey — max. 1 aktive pro Gruppe", () => {
     expect(getSurvey(db, sA1.id)!.status).toBe("closed");
     expect(getSurvey(db, sA2.id)!.status).toBe("active");
     expect(activeSurveyForGroup(db, groupA.id)!.survey.id).toBe(sA2.id);
+  });
+});
+
+describe("createAndStartSurvey", () => {
+  const date = new Date("2026-07-20T00:00:00Z");
+  const now = new Date("2026-07-24T09:00:00Z");
+  const start = (groupId: number, over: Partial<Parameters<typeof createAndStartSurvey>[1]> = {}) =>
+    createAndStartSurvey(db, {
+      groupId,
+      date,
+      topic: "Funk",
+      notes: null,
+      participants: 12,
+      closeAfterHours: 48,
+      now,
+      ...over,
+    });
+
+  it("legt Abend und aktive Umfrage in einem Aufruf an", () => {
+    const g = mkGroup();
+    const { eveningId, surveyId } = start(g.id);
+
+    const eve = getEvening(db, eveningId)!;
+    expect(eve.groupId).toBe(g.id);
+    expect(eve.date).toEqual(date);
+    expect(eve.topic).toBe("Funk");
+    expect(eve.participantCount).toBe(12);
+
+    const s = getSurvey(db, surveyId)!;
+    expect(s.eveningId).toBe(eveningId);
+    expect(s.status).toBe("active");
+    expect(s.activatedAt).toEqual(now);
+    expect(s.closedAt).toBeNull();
+    // Frist hängt am Abend-Tag, nicht an `now` (Task 3).
+    expect(s.closesAt).toEqual(computeClosesAt(date, 48));
+    expect(JSON.parse(s.questions)).toHaveLength(STANDARD_QUESTIONS.length);
+  });
+
+  it("Invariante: zwei Starts derselben Gruppe hinterlassen genau eine aktive Umfrage", () => {
+    const g = mkGroup();
+    const first = start(g.id);
+    const second = start(g.id);
+
+    expect(countActive(g.id)).toBe(1);
+    const s1 = getSurvey(db, first.surveyId)!;
+    expect(s1.status).toBe("closed");
+    expect(s1.closedAt).toEqual(now);
+    expect(getSurvey(db, second.surveyId)!.status).toBe("active");
+    expect(activeSurveyForGroup(db, g.id)!.survey.id).toBe(second.surveyId);
+  });
+
+  it("Isolation: ein Start in Gruppe A schließt keine aktive Umfrage in Gruppe B", () => {
+    const groupA = mkGroup("A", "a");
+    const groupB = mkGroup("B", "b");
+    const inB = start(groupB.id);
+    start(groupA.id);
+    start(groupA.id);
+
+    expect(countActive(groupB.id)).toBe(1);
+    expect(getSurvey(db, inB.surveyId)!.status).toBe("active");
+    expect(getSurvey(db, inB.surveyId)!.closedAt).toBeNull();
+    expect(countActive(groupA.id)).toBe(1);
+  });
+
+  it("Rollback: scheitert das Einfügen der Umfrage, bleibt kein Abend zurück", () => {
+    const g = mkGroup();
+    sqlite.exec(
+      "CREATE TRIGGER fail_survey_insert BEFORE INSERT ON surveys BEGIN SELECT RAISE(ABORT, 'boom'); END;",
+    );
+    expect(() => start(g.id)).toThrow();
+    const evenings = (
+      sqlite.prepare("SELECT COUNT(*) AS c FROM evenings WHERE group_id = ?").get(g.id) as {
+        c: number;
+      }
+    ).c;
+    expect(evenings).toBe(0);
+  });
+
+  it("lässt einen Entwurf (Altbestand) derselben Gruppe unangetastet", () => {
+    const g = mkGroup();
+    const eOld = insertEvening(db, { groupId: g.id, date: new Date(0), topic: null, notes: null, participantCount: null, createdAt: new Date(0) });
+    const draft = insertSurvey(db, { eveningId: eOld.id, questions: "[]", closeAfterHours: null, createdAt: new Date(0) });
+
+    start(g.id);
+
+    const after = getSurvey(db, draft.id)!;
+    expect(after.status).toBe("draft");
+    expect(after.closedAt).toBeNull();
+    expect(after.activatedAt).toBeNull();
   });
 });
 
