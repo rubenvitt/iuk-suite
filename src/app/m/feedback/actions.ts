@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { auth } from "@/core/auth";
 import { getDb } from "./_db/client";
 import {
@@ -169,6 +169,23 @@ export async function archiveSurveyAction(formData: FormData) {
   revalidate();
 }
 
+/**
+ * Client-IP aus den Request-Headern (hinter Cloudflare zuverlässig via
+ * cf-connecting-ip, sonst x-forwarded-for). Für Rate-Limiting statt Slug
+ * oder Token: Keyen auf den Token würde jeden Secret-Guess in einen frischen
+ * Bucket legen (kein Brute-Force-Schutz), Keyen auf den Slug würde alle
+ * Teilnehmer eines Dienstabends — die denselben QR-Link scannen — gemeinsam
+ * limitieren. Die IP bremst einen Brute-Forcer (eine IP), ohne echte
+ * Teilnehmer mit verschiedenen Mobilfunk-IPs zu behindern.
+ */
+async function clientIp(): Promise<string> {
+  const h = await headers();
+  const cfIp = h.get("cf-connecting-ip");
+  if (cfIp) return cfIp;
+  const forwardedFor = h.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return forwardedFor || "unknown";
+}
+
 // ---- Öffentliche Teilnahme ----
 export async function submitResponseAction(slugSecret: string, formData: FormData) {
   const db = getDb();
@@ -176,7 +193,7 @@ export async function submitResponseAction(slugSecret: string, formData: FormDat
   const { getGroupBySlug } = await import("./_db/queries");
   const parsed = parseToken(slugSecret);
   if (!parsed) throw new Error("Ungültiger Link");
-  if (!submitLimiter.check(slugSecret)) throw new Error("Zu viele Anfragen — bitte später erneut.");
+  if (!submitLimiter.check(await clientIp())) throw new Error("Zu viele Anfragen — bitte später erneut.");
   const group = getGroupBySlug(db, parsed.slug);
   if (!group || group.secret !== parsed.secret) throw new Error("Ungültiger Link");
 
