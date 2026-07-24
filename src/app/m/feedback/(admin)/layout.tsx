@@ -4,6 +4,8 @@ import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";
 import { viewerFromSession } from "../_lib/viewer";
 import { isFeedbackAdmin } from "../_lib/access";
+import { getDb } from "../_db/client";
+import { upsertKnownUser } from "../_db/queries";
 
 // full-Shell NUR für die Verwaltung: diese Route-Group liegt eine Ebene über
 // `f/` (Task 11), das sein eigenes, chrome-loses Layout hat. Next.js-Layouts
@@ -25,12 +27,22 @@ export default async function FeedbackAdminLayout({
   children: React.ReactNode;
 }) {
   const mod = getModule("feedback");
-  const viewer = viewerFromSession(await auth());
+  const session = await auth();
+  const viewer = viewerFromSession(session);
   if (!viewer) redirect(`/login?callbackUrl=${encodeURIComponent("/m/feedback")}`);
 
   const hasAccess =
     isFeedbackAdmin(viewer) || viewer.groups.some((g) => mod.requiredGroups.includes(g));
   if (!hasAccess) notFound();
+
+  // Verzeichnis-Eintrag NACH dem Auth-Riegel (Task 6): nur wer die Prüfung
+  // oben übersteht, wird zuordenbar. Idempotent auf `userId` (upsertKnownUser).
+  upsertKnownUser(getDb(), {
+    userId: viewer.sub,
+    name: session?.user?.name ?? null,
+    email: session?.user?.email ?? null,
+    seenAt: new Date(),
+  });
 
   return (
     <Shell variant={mod.shell} moduleKey={mod.key}>
