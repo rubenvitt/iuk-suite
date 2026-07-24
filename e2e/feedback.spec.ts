@@ -103,7 +103,10 @@ test("IDOR-Guard: groupleader ohne Zuordnung bekommt auf einer fremden Gruppen-S
   // aus dem Listen-Link lesen (verlässlich, unabhängig von Insert-Reihenfolge
   // über mehrere Testdateien/-läufe hinweg), dann ausloggen.
   await devLogin(page, { host: "feedback.localtest.me", groups: "da-feedback-admin", callbackPath: "/" });
-  const demoLink = page.getByTestId("group-row").filter({ hasText: "Demo" }).getByRole("link");
+  // Exakter Name statt hasText:"Demo" — der Seed (Task 17) legt inzwischen
+  // auch "Demo Jugend" an, dessen Name "Demo" als Teilstring enthält und
+  // sonst zwei group-rows träfe (Playwright-Strict-Mode-Fehler).
+  const demoLink = page.getByTestId("group-row").getByRole("link", { name: "Demo", exact: true });
   const href = await demoLink.getAttribute("href");
   const groupId = href?.match(/\/groups\/(\d+)$/)?.[1];
   expect(groupId, `Demo-Gruppen-Link ohne numerische ID: ${href}`).toBeTruthy();
