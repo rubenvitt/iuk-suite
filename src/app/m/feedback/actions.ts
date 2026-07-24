@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { auth } from "@/core/auth";
 import { getDb } from "./_db/client";
 import {
@@ -26,7 +27,7 @@ import {
 import { assertGroupAccess } from "./_lib/access";
 import { viewerFromSession } from "./_lib/viewer";
 import { generateSecret } from "./_lib/token";
-import { STANDARD_QUESTIONS, coerceAnswer, type Question } from "./_lib/questions";
+import { STANDARD_QUESTIONS, coerceAnswer, isRatingType, type Question } from "./_lib/questions";
 import {
   computeClosesAt,
   nextStatusOnAccess,
@@ -35,7 +36,19 @@ import {
 } from "./_lib/lifecycle";
 import { RateLimiter } from "./_lib/ratelimit";
 
-const TOO_MANY = "Zu viele Anfragen — bitte später erneut.";
+/**
+ * Ergebnis einer öffentlichen Abgabe (Entwurf 3.8). Die Action GIBT ZURÜCK statt
+ * zu werfen — nur so kann die Oberfläche den Fehler an der Stelle zeigen, an der
+ * er entstanden ist, statt auf einer technischen Fehlerseite zu landen (und der
+ * Teilnehmer verliert seine Eingaben nicht).
+ */
+export type SubmitResult =
+  | { ok: true }
+  | {
+      ok: false;
+      code: "invalid" | "none" | "closed" | "ratelimit" | "incomplete";
+      missing?: string[];
+    };
 
 /**
  * ZWEI Limiter, absichtlich getrennt (Entwurf 3.8 „Ratelimit"). Ein einziger
@@ -205,31 +218,38 @@ async function clientIp(): Promise<string> {
  * belasten, dann ablehnen. Wer Secrets rät, wird nach 10 Versuchen pro Minute
  * gebremst — eine legitime Abgabe berührt diesen Zähler nie.
  */
-function rejectInvalidToken(ip: string): never {
-  if (!tokenGuard.check(ip)) throw new Error(TOO_MANY);
-  throw new Error("Ungültiger Link");
+function rejectInvalidToken(ip: string): SubmitResult {
+  if (!tokenGuard.check(ip)) return { ok: false, code: "ratelimit" };
+  return { ok: false, code: "invalid" };
 }
 
 // ---- Öffentliche Teilnahme ----
-export async function submitResponseAction(slugSecret: string, formData: FormData) {
+/**
+ * KEIN try/catch um diesen Rumpf: `redirect()` wirft in Next intern, ein Catch
+ * würde den Erfolgssprung verschlucken und ihn in einen Fehler verwandeln.
+ */
+export async function submitResponseAction(
+  slugSecret: string,
+  formData: FormData,
+): Promise<SubmitResult> {
   const db = getDb();
   const { parseToken } = await import("./_lib/token");
   const { getGroupBySlug } = await import("./_db/queries");
   const ip = await clientIp();
   const parsed = parseToken(slugSecret);
-  if (!parsed) rejectInvalidToken(ip);
+  if (!parsed) return rejectInvalidToken(ip);
   const group = getGroupBySlug(db, parsed.slug);
-  if (!group || group.secret !== parsed.secret) rejectInvalidToken(ip);
+  if (!group || group.secret !== parsed.secret) return rejectInvalidToken(ip);
 
   const active = activeSurveyForGroup(db, group.id);
-  if (!active) throw new Error("Keine aktive Umfrage");
+  if (!active) return { ok: false, code: "none" };
   const survey = active.survey;
-  if (!submitLimiter.check(`${ip}|${survey.id}`)) throw new Error(TOO_MANY);
+  if (!submitLimiter.check(`${ip}|${survey.id}`)) return { ok: false, code: "ratelimit" };
   // closes_at auch auf dem Submit-Pfad prüfen (nicht nur beim Anzeigen).
   const now = new Date();
   if (nextStatusOnAccess("active", survey.closesAt, now) !== "active") {
     setSurveyStatus(db, survey.id, "closed", { closedAt: now });
-    throw new Error("Umfrage bereits geschlossen");
+    return { ok: false, code: "closed" };
   }
 
   const questions: Question[] = JSON.parse(survey.questions);
@@ -238,6 +258,21 @@ export async function submitResponseAction(slugSecret: string, formData: FormDat
     const value = coerceAnswer(q, formData.get(q.id));
     if (value !== undefined) answers[q.id] = value;
   }
+
+  /*
+   * Pflichtprüfung als LETZTE Linie (Entwurf 3.6): die Oberfläche verhindert
+   * Lücken doppelt (mit JS der Lückenspringer, ohne JS `required`) — trotzdem
+   * prüft der Server unabhängig davon, damit eine vollständig leere Absendung
+   * strukturell unmöglich ist. Sie hätte Rücklaufquote und Durchschnitte
+   * verfälscht. Pflicht sind die Noten (auch der `stars`-Zweig importierter
+   * Alt-Umfragen), Freitexte bleiben freiwillig. Eine Note außerhalb der Skala
+   * hat `coerceAnswer` verworfen und fehlt damit hier.
+   */
+  const missing = questions
+    .filter((q) => isRatingType(q.type) && answers[q.id] === undefined)
+    .map((q) => q.id);
+  if (missing.length > 0) return { ok: false, code: "incomplete", missing };
+
   // Zeitstempel = Mitternacht UTC des Abenddatums, nicht `now`: der Siegeltext
   // sagt "keine Uhrzeit" (Entwurf 3.9). Die Sekunde wäre bei ~15 Abgaben ein
   // Deanonymisierungskanal.
@@ -250,6 +285,9 @@ export async function submitResponseAction(slugSecret: string, formData: FormDat
     sameSite: "lax",
     path: "/",
   });
+
+  redirect(`/f/${slugSecret}/thanks`);
+  return { ok: true };
 }
 
 // ---- Parser-Helfer ----

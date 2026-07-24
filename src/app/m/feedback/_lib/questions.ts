@@ -27,6 +27,13 @@ export const STANDARD_QUESTIONS: Question[] = [
   { id: "q14", type: "text", text: "Gibt es sonst noch etwas, das du loswerden möchtest?" },
 ];
 
+/**
+ * Zeichengrenze der Freitexte (Entwurf 3.7). Am Feld ist sie `maxLength` — eine
+ * physische Grenze, die keine Fehlermeldung erzeugen kann. Der Server spiegelt
+ * sie, weil er sich auf das Feld nicht verlassen darf.
+ */
+export const MAX_TEXT_LENGTH = 500;
+
 export function isRatingType(t: QuestionType): boolean {
   return t === "schulnote" || t === "stars";
 }
@@ -39,9 +46,10 @@ export function ratingScale(t: QuestionType): number {
  * Wandelt eine rohe Formular-Antwort in einen speicherbaren Wert um.
  * Rating-Fragen werden auf den gültigen Wertebereich (1..ratingScale) begrenzt —
  * liefert `undefined`, wenn der Rohwert leer, keine Ganzzahl oder außerhalb des
- * Bereichs ist. Aufrufer überspringt die Frage dann, statt die ganze Submission
- * abzulehnen (ein anonymer Teilnehmer könnte sonst z. B. q1=99999 senden und
- * jeden Durchschnitt verzerren).
+ * Bereichs ist. Der Aufrufer überspringt die Frage dann, statt einen erfundenen
+ * Wert zu speichern (ein anonymer Teilnehmer könnte sonst z. B. q1=99999 senden
+ * und jeden Durchschnitt verzerren) — bei Pflichtnoten zählt sie damit als fehlend.
+ * Freitexte werden auf `MAX_TEXT_LENGTH` gekürzt.
  */
 export function coerceAnswer(
   q: Question,
@@ -53,5 +61,5 @@ export function coerceAnswer(
     if (!Number.isInteger(n) || n < 1 || n > ratingScale(q.type)) return undefined;
     return n;
   }
-  return String(raw);
+  return String(raw).slice(0, MAX_TEXT_LENGTH);
 }

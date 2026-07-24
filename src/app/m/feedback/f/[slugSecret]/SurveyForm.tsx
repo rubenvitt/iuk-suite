@@ -5,7 +5,22 @@ import { useRouter } from "next/navigation";
 import { Button, Input, Rate, Typography, Space, Card } from "antd";
 import type { Question } from "../../_lib/questions";
 import { ratingScale } from "../../_lib/questions";
-import { submitResponseAction } from "../../actions";
+import { submitResponseAction, type SubmitResult } from "../../actions";
+
+/**
+ * Klartext je Ergebniscode der Action (Entwurf 3.8). `incomplete` ist über beide
+ * realen Wege unerreichbar (Lückenspringer bzw. `required`) und trägt trotzdem
+ * einen Satz, falls die serverseitige letzte Linie doch greift.
+ */
+const MESSAGES: Record<Extract<SubmitResult, { ok: false }>["code"], string> = {
+  invalid: "Dieser Link ist nicht mehr gültig.",
+  none: "Für diese Gruppe läuft gerade keine Rückmeldung.",
+  closed:
+    "Diese Rückmeldung ist abgeschlossen. Deine Rückmeldung konnte nicht mehr gespeichert werden.",
+  ratelimit:
+    "Gerade sind viele Rückmeldungen gleichzeitig unterwegs. Bitte einmal auf Absenden tippen.",
+  incomplete: "Da fehlten noch Noten.",
+};
 
 // `Typography.Title`, `Input.TextArea`, `Card` etc. sind hier zulässig, weil
 // diese Datei "use client" ist — die Server-Component-Compound-Falle betrifft
@@ -25,16 +40,20 @@ export function SurveyForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  // KEIN try/catch: die Action gibt ihr Ergebnis zurück, und ihr Erfolgs-`redirect`
+  // würde von einem Catch verschluckt und als Fehler angezeigt.
   async function onSubmit(formData: FormData) {
     setPending(true);
     setError(null);
-    try {
-      await submitResponseAction(slugSecret, formData);
-      router.push(`/f/${slugSecret}/thanks`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Fehler beim Absenden");
+    const result = await submitResponseAction(slugSecret, formData);
+    // Erfolg heißt: die Action hat `redirect()` gerufen. Das wirft in Next intern,
+    // der Client bekommt dann den Sprung und KEINEN Rückgabewert — deshalb null-safe.
+    if (result && !result.ok) {
+      setError(MESSAGES[result.code]);
       setPending(false);
+      return;
     }
+    router.push(`/f/${slugSecret}/thanks`);
   }
 
   return (
@@ -52,7 +71,9 @@ export function SurveyForm({
             )}
           </Card>
         ))}
-        {error ? <Typography.Text type="danger">{error}</Typography.Text> : null}
+        {/* Kein `type="danger"`: colorError === colorPrimary === #c8000f, und auf
+            /f/** darf diese Farbe nie auf einer Datenfläche erscheinen. */}
+        {error ? <Typography.Text role="alert">{error}</Typography.Text> : null}
         <Button type="primary" htmlType="submit" loading={pending} block size="large">
           Absenden
         </Button>
