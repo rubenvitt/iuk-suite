@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { rmSync } from "node:fs";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
@@ -7,7 +6,6 @@ import * as schema from "./schema";
 import {
   memberGroupIdsFor,
   insertGroup,
-  listGroups,
   insertEvening,
   insertSurvey,
   activateSurvey,
@@ -54,6 +52,34 @@ describe("activateSurvey — max. 1 aktive pro Gruppe", () => {
     expect(getSurvey(db, s1.id)!.status).toBe("closed"); // durch s2-Aktivierung geschlossen
     expect(getSurvey(db, s2.id)!.status).toBe("active");
     expect(activeSurveyForGroup(db, g.id)!.survey.id).toBe(s2.id);
+  });
+
+  it("schließt beim Aktivieren keine aktive Umfrage einer anderen Gruppe (Cross-Group-Isolation)", () => {
+    const groupA = mkGroup("A", "a");
+    const groupB = mkGroup("B", "b");
+    const eA1 = insertEvening(db, { groupId: groupA.id, date: new Date(0), topic: null, notes: null, participantCount: null, createdAt: new Date(0) });
+    const eA2 = insertEvening(db, { groupId: groupA.id, date: new Date(0), topic: null, notes: null, participantCount: null, createdAt: new Date(0) });
+    const eB = insertEvening(db, { groupId: groupB.id, date: new Date(0), topic: null, notes: null, participantCount: null, createdAt: new Date(0) });
+    const sA1 = insertSurvey(db, { eveningId: eA1.id, questions: "[]", closeAfterHours: null, createdAt: new Date(0) });
+    const sA2 = insertSurvey(db, { eveningId: eA2.id, questions: "[]", closeAfterHours: null, createdAt: new Date(0) });
+    const sB = insertSurvey(db, { eveningId: eB.id, questions: "[]", closeAfterHours: null, createdAt: new Date(0) });
+    const now = new Date("2026-04-09T10:00:00Z");
+    const closesAt = new Date("2026-04-11T10:00:00Z");
+
+    // Gruppe B aktivieren.
+    activateSurvey(db, sB.id, closesAt, now);
+    // Gruppe A aktivieren — darf Gruppe B nicht beeinflussen.
+    activateSurvey(db, sA1.id, closesAt, now);
+    activateSurvey(db, sA2.id, closesAt, now);
+
+    // Gruppe B bleibt unberührt von den Aktivierungen in Gruppe A.
+    expect(getSurvey(db, sB.id)!.status).toBe("active");
+    expect(activeSurveyForGroup(db, groupB.id)!.survey.id).toBe(sB.id);
+
+    // Innerhalb Gruppe A greift weiterhin die max-1-aktiv-Regel.
+    expect(getSurvey(db, sA1.id)!.status).toBe("closed");
+    expect(getSurvey(db, sA2.id)!.status).toBe("active");
+    expect(activeSurveyForGroup(db, groupA.id)!.survey.id).toBe(sA2.id);
   });
 });
 
