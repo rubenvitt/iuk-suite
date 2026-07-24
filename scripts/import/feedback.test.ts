@@ -85,10 +85,12 @@ function buildSourceDb(): Database.Database {
     "2026-04-09 09:24:31.055193 +0200 CEST m=+136.580652293",
   );
 
+  // IDs bewusst disjunkt von group_id (11/12 statt 1/2) — sonst würde eine
+  // Feld-Vertauschung `id`↔`group_id` im Mapping unbemerkt bleiben (beide 1).
   db.prepare(
     `INSERT INTO evenings (id, group_id, date, topic, notes, participant_count, created_at) VALUES (?,?,?,?,?,?,?)`,
   ).run(
-    1,
+    11,
     1,
     "2026-04-09 00:00:00 +0000 UTC",
     "Erste Hilfe",
@@ -99,7 +101,7 @@ function buildSourceDb(): Database.Database {
   db.prepare(
     `INSERT INTO evenings (id, group_id, date, topic, notes, participant_count, created_at) VALUES (?,?,?,?,?,?,?)`,
   ).run(
-    2,
+    12,
     2,
     "2026-04-16 09:24:31.055193 +0200 CEST m=+136.580652293",
     null,
@@ -114,12 +116,13 @@ function buildSourceDb(): Database.Database {
     { id: "q1", type: "stars", text: "Wie war der Abend?" },
     { id: "q2", type: "text", text: "Anmerkungen?" },
   ]);
+  // id/evening_id ebenfalls disjunkt (21/22 statt 1/2 bzw. 11/12) — selbes Motiv.
   db.prepare(
     `INSERT INTO surveys (id, evening_id, status, questions, close_after_hours, activated_at, closes_at, closed_at, created_at)
      VALUES (?,?,?,?,?,?,?,?,?)`,
   ).run(
-    1,
-    1,
+    21,
+    11,
     "closed",
     starsQuestions,
     24,
@@ -132,17 +135,18 @@ function buildSourceDb(): Database.Database {
   db.prepare(
     `INSERT INTO surveys (id, evening_id, status, questions, close_after_hours, activated_at, closes_at, closed_at, created_at)
      VALUES (?,?,?,?,?,?,?,?,?)`,
-  ).run(2, 2, "draft", draftQuestions, null, null, null, null, "2026-04-09 07:24:28");
+  ).run(22, 12, "draft", draftQuestions, null, null, null, null, "2026-04-09 07:24:28");
 
+  // id/survey_id disjunkt (31/32 statt 1/2, survey_id 21 statt 1) — selbes Motiv.
   db.prepare(`INSERT INTO responses (id, survey_id, answers, submitted_at) VALUES (?,?,?,?)`).run(
-    1,
-    1,
+    31,
+    21,
     JSON.stringify({ q1: 4, q2: "Danke, war gut." }),
     "2026-04-09 09:24:31.055193 +0200 CEST m=+136.580652293",
   );
   db.prepare(`INSERT INTO responses (id, survey_id, answers, submitted_at) VALUES (?,?,?,?)`).run(
-    2,
-    1,
+    32,
+    21,
     JSON.stringify({ q1: 5, q2: "" }),
     "2026-04-09 07:24:28",
   );
@@ -176,62 +180,142 @@ describe("readSource", () => {
 });
 
 describe("toNew* Mapping", () => {
-  it("normalisiert Zeitstempel beider Formate und erhält IDs 1:1", () => {
+  // Jeder Test prüft ALLE Zielfelder gegen konkrete Erwartungswerte (nicht nur
+  // Typ-/Null-Checks) — Fixture-Werte sind pro Feld bewusst unterscheidbar, damit
+  // eine Feld-Vertauschung oder ein gedropptes Feld im Mapping rot wird.
+  it("toNewGroup mappt id/name/slug/secret/closeAfterHours/createdAt 1:1", () => {
     const sourceDb = buildSourceDb();
     const source = readSource(sourceDb);
     sourceDb.close();
 
     const g1 = toNewGroup(source.groups[0]);
-    const g2 = toNewGroup(source.groups[1]);
-    expect(g1.id).toBe(1);
-    expect(g1.createdAt).toEqual(new Date(normalizeTimestamp("2026-04-09 07:24:28") * 1000));
-    expect(g2.id).toBe(2);
-    expect(g2.createdAt).toEqual(
-      new Date(normalizeTimestamp("2026-04-09 09:24:31.055193 +0200 CEST m=+136.580652293") * 1000),
-    );
-    expect(g2.closeAfterHours).toBeNull();
+    expect(g1).toEqual({
+      id: 1,
+      name: "Jugendfeuerwehr",
+      slug: "jf",
+      secret: "s3cr3t1",
+      closeAfterHours: 48,
+      createdAt: new Date(normalizeTimestamp("2026-04-09 07:24:28") * 1000),
+    });
 
-    const survey = toNewSurvey(source.surveys[0]);
-    expect(survey.activatedAt).toBeInstanceOf(Date);
-    expect(survey.closesAt).toBeInstanceOf(Date);
-    expect(survey.closedAt).toBeInstanceOf(Date);
-    const draftSurvey = toNewSurvey(source.surveys[1]);
-    expect(draftSurvey.activatedAt).toBeNull();
-    expect(draftSurvey.closesAt).toBeNull();
-    expect(draftSurvey.closedAt).toBeNull();
+    const g2 = toNewGroup(source.groups[1]);
+    expect(g2).toEqual({
+      id: 2,
+      name: "Bereitschaft",
+      slug: "bereitschaft",
+      secret: "s3cr3t2",
+      closeAfterHours: null,
+      createdAt: new Date(
+        normalizeTimestamp("2026-04-09 09:24:31.055193 +0200 CEST m=+136.580652293") * 1000,
+      ),
+    });
   });
 
-  it("übernimmt questions/answers als rohen JSON-String, unverändert (inkl. `stars`-Alt-Umfrage)", () => {
+  it("toNewEvening mappt id/groupId/date/topic/notes/participantCount/createdAt 1:1", () => {
+    const sourceDb = buildSourceDb();
+    const source = readSource(sourceDb);
+    sourceDb.close();
+
+    const e1 = toNewEvening(source.evenings[0]);
+    expect(e1).toEqual({
+      id: 11,
+      groupId: 1,
+      date: new Date(normalizeTimestamp("2026-04-09 00:00:00 +0000 UTC") * 1000),
+      topic: "Erste Hilfe",
+      notes: "gut angenommen",
+      participantCount: 12,
+      createdAt: new Date(normalizeTimestamp("2026-04-09 07:24:28") * 1000),
+    });
+
+    const e2 = toNewEvening(source.evenings[1]);
+    expect(e2).toEqual({
+      id: 12,
+      groupId: 2,
+      date: new Date(
+        normalizeTimestamp("2026-04-16 09:24:31.055193 +0200 CEST m=+136.580652293") * 1000,
+      ),
+      topic: null,
+      notes: null,
+      participantCount: null,
+      createdAt: new Date(normalizeTimestamp("2026-04-09 07:24:28") * 1000),
+    });
+  });
+
+  it("toNewSurvey mappt alle Felder 1:1 (closed- und draft-Fall); questions bleibt roher String", () => {
     const sourceDb = buildSourceDb();
     const source = readSource(sourceDb);
     sourceDb.close();
 
     const survey = toNewSurvey(source.surveys[0] as SourceSurveyRow);
-    expect(survey.questions).toBe(source.surveys[0].questions);
+    expect(survey).toEqual({
+      id: 21,
+      eveningId: 11,
+      status: "closed",
+      questions: source.surveys[0].questions,
+      closeAfterHours: 24,
+      activatedAt: new Date(
+        normalizeTimestamp("2026-04-09 09:24:31.055193 +0200 CEST m=+136.580652293") * 1000,
+      ),
+      closesAt: new Date(
+        normalizeTimestamp("2026-04-10 09:24:31.055193 +0200 CEST m=+136.580652293") * 1000,
+      ),
+      closedAt: new Date(normalizeTimestamp("2026-04-10 09:30:00.000000 +0200 CEST m=+500.0") * 1000),
+      createdAt: new Date(normalizeTimestamp("2026-04-09 07:24:28") * 1000),
+    });
     expect(JSON.parse(survey.questions as string)).toEqual([
       { id: "q1", type: "stars", text: "Wie war der Abend?" },
       { id: "q2", type: "text", text: "Anmerkungen?" },
     ]);
 
-    const response = toNewResponse(source.responses[0]);
-    expect(response.answers).toBe(source.responses[0].answers);
-    expect(JSON.parse(response.answers as string)).toEqual({ q1: 4, q2: "Danke, war gut." });
+    const draftSurvey = toNewSurvey(source.surveys[1]);
+    expect(draftSurvey).toEqual({
+      id: 22,
+      eveningId: 12,
+      status: "draft",
+      questions: source.surveys[1].questions,
+      closeAfterHours: null,
+      activatedAt: null,
+      closesAt: null,
+      closedAt: null,
+      createdAt: new Date(normalizeTimestamp("2026-04-09 07:24:28") * 1000),
+    });
   });
 
-  it("toNewEvening/toNewUserGroup erhalten IDs und Felder 1:1", () => {
+  it("toNewResponse mappt id/surveyId/answers/submittedAt 1:1; answers bleibt roher String", () => {
     const sourceDb = buildSourceDb();
     const source = readSource(sourceDb);
     sourceDb.close();
 
-    const evening = toNewEvening(source.evenings[0]);
-    expect(evening.id).toBe(1);
-    expect(evening.groupId).toBe(1);
-    expect(evening.topic).toBe("Erste Hilfe");
-    expect(evening.participantCount).toBe(12);
+    const response = toNewResponse(source.responses[0]);
+    expect(response).toEqual({
+      id: 31,
+      surveyId: 21,
+      answers: source.responses[0].answers,
+      submittedAt: new Date(
+        normalizeTimestamp("2026-04-09 09:24:31.055193 +0200 CEST m=+136.580652293") * 1000,
+      ),
+    });
+    expect(JSON.parse(response.answers as string)).toEqual({ q1: 4, q2: "Danke, war gut." });
 
-    const ug = toNewUserGroup(source.userGroups[0] as never);
-    expect(ug.userId).toBe("oidc|user-1");
-    expect(ug.groupId).toBe(1);
+    const response2 = toNewResponse(source.responses[1]);
+    expect(response2).toEqual({
+      id: 32,
+      surveyId: 21,
+      answers: source.responses[1].answers,
+      submittedAt: new Date(normalizeTimestamp("2026-04-09 07:24:28") * 1000),
+    });
+  });
+
+  it("toNewUserGroup mappt userId/groupId 1:1", () => {
+    const sourceDb = buildSourceDb();
+    const source = readSource(sourceDb);
+    sourceDb.close();
+
+    const ug1 = toNewUserGroup(source.userGroups[0]);
+    expect(ug1).toEqual({ userId: "oidc|user-1", groupId: 1 });
+
+    const ug2 = toNewUserGroup(source.userGroups[1]);
+    expect(ug2).toEqual({ userId: "oidc|user-2", groupId: 2 });
   });
 });
 
@@ -248,11 +332,11 @@ describe("importFeedback", () => {
     const groups = db.select().from(schema.groups).all();
     expect(groups.map((g) => g.id).sort()).toEqual([1, 2]);
     const evenings = db.select().from(schema.evenings).all();
-    expect(evenings.map((e) => e.id).sort()).toEqual([1, 2]);
+    expect(evenings.map((e) => e.id).sort()).toEqual([11, 12]);
     const surveys = db.select().from(schema.surveys).all();
-    expect(surveys.map((s) => s.id).sort()).toEqual([1, 2]);
+    expect(surveys.map((s) => s.id).sort()).toEqual([21, 22]);
     const responses = db.select().from(schema.responses).all();
-    expect(responses.map((r) => r.id).sort()).toEqual([1, 2]);
+    expect(responses.map((r) => r.id).sort()).toEqual([31, 32]);
     const userGroups = db.select().from(schema.userGroups).all();
     expect(userGroups).toHaveLength(2);
   });
@@ -264,9 +348,9 @@ describe("importFeedback", () => {
     const db = freshDb();
     importFeedback(source, db);
 
-    const storedSurvey = db.select().from(schema.surveys).all().find((s) => s.id === 1)!;
+    const storedSurvey = db.select().from(schema.surveys).all().find((s) => s.id === 21)!;
     expect(storedSurvey.questions).toBe(source.surveys[0].questions);
-    const storedResponse = db.select().from(schema.responses).all().find((r) => r.id === 1)!;
+    const storedResponse = db.select().from(schema.responses).all().find((r) => r.id === 31)!;
     expect(storedResponse.answers).toBe(source.responses[0].answers);
   });
 
@@ -330,7 +414,7 @@ describe("parityView-Funktionen", () => {
     const response = toNewResponse(source.responses[0]);
     expect(responseParityView(response).submittedAt).toEqual(Math.floor(response.submittedAt.getTime() / 1000));
 
-    const ug = toNewUserGroup(source.userGroups[0] as never);
+    const ug = toNewUserGroup(source.userGroups[0]);
     expect(userGroupParityView(ug)).toEqual({ userId: "oidc|user-1", groupId: 1 });
 
     const survey = toNewSurvey(source.surveys[1]);

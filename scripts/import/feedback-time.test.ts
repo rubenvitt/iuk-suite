@@ -15,4 +15,9 @@ describe("normalizeTimestamp", () => {
     const sec = normalizeTimestamp("2026-04-09 00:00:00 +0000 UTC");
     expect(sec).toBe(Math.floor(Date.UTC(2026, 3, 9, 0, 0, 0) / 1000));
   });
+  it("parst Go time.Time mit negativem TZ-Offset (-0700 MST)", () => {
+    // 2026-04-09 02:24:31 -0700 == 09:24:31 UTC
+    const sec = normalizeTimestamp("2026-04-09 02:24:31.055193 -0700 MST m=+136.580652293");
+    expect(sec).toBe(Math.floor(Date.UTC(2026, 3, 9, 9, 24, 31) / 1000));
+  });
 });
