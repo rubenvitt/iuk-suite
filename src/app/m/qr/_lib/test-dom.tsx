@@ -63,11 +63,17 @@ export function exists(selector: string): boolean {
  * React haengt an den value-Setter der Eingabe einen eigenen Tracker. Eine
  * direkte Zuweisung liest der Tracker als "unveraendert", onChange bliebe aus
  * und das Feld waere im Test still leer. Deshalb ueber den Prototyp-Setter.
+ *
+ * Der Setter kommt aus dem Prototyp DES ELEMENTS, nicht fest aus
+ * `HTMLInputElement`: jsdom prueft in seinen Settern die Herkunft von `this`
+ * ("Illegal invocation"), der Input-Setter an einem `<textarea>` wuerde also
+ * werfen. Ein Test der Freitextzeilen scheiterte sonst mit einer Meldung, die
+ * nach Fehler im Harness und nicht nach Fehler im Feld aussieht.
  */
 export async function fill(selector: string, value: string): Promise<void> {
-  const input = query<HTMLInputElement>(selector);
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-  if (!setter) throw new Error("Kein value-Setter am HTMLInputElement-Prototyp");
+  const input = query<HTMLInputElement | HTMLTextAreaElement>(selector);
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value")?.set;
+  if (!setter) throw new Error(`Kein value-Setter am Prototyp von ${input.tagName}`);
   await act(async () => {
     setter.call(input, value);
     input.dispatchEvent(new Event("input", { bubbles: true }));

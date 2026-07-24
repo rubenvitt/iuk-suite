@@ -1,16 +1,19 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
   clickElement,
+  fill,
   mount,
   queryAll,
   unmount,
   query,
   exists,
+  submitForm,
 } from "@/app/m/qr/_lib/test-dom";
-import { Zettel } from "./Zettel";
+import { ENTWURF_VERFALL_MS, entwurfSchluessel, Zettel } from "./Zettel";
 import s from "./zettel.module.css";
 import { STANDARD_QUESTIONS, type Question } from "../../_lib/questions";
 
@@ -42,13 +45,21 @@ const cssOhneKommentare = cssQuelle.replace(/\/\*[\s\S]*?\*\//g, "");
 
 afterEach(async () => {
   await unmount();
+  // jsdom traegt den Speicher ueber die ganze Datei. Ohne diese zwei Zeilen
+  // wuerde der Entwurf des vorigen Tests im naechsten Mount wiederhergestellt —
+  // und der Fehlschlag saehe nach Logikfehler im Zaehler aus, nicht nach
+  // Testrueckstand.
+  sessionStorage.clear();
+  localStorage.clear();
 });
 
 async function nichtsTun(): Promise<void> {}
 
+const TOKEN_HASH = "abc123";
+
 function zeichne(questions: Question[], scale: number) {
   return mount(
-    <Zettel questions={questions} scale={scale} action={nichtsTun} tokenHash="abc123" />,
+    <Zettel questions={questions} scale={scale} action={nichtsTun} tokenHash={TOKEN_HASH} />,
   );
 }
 
@@ -68,6 +79,29 @@ function radios(name: string): HTMLInputElement[] {
 /** Wie ein Mensch: auf das FELD tippen, nicht auf das versteckte Radio. */
 function feld(frage: string, stufe: number): HTMLElement {
   return query(`label[for="${frage}-${stufe}"]`);
+}
+
+/** Die sechs linierten Freitextzeilen (§3.7). */
+function textfelder(): HTMLTextAreaElement[] {
+  return queryAll<HTMLTextAreaElement>("[data-freitexte] textarea");
+}
+
+function textfeld(frage: string): HTMLTextAreaElement {
+  return query<HTMLTextAreaElement>(`textarea[name="${frage}"]`);
+}
+
+async function tippe(frage: string, wert: string): Promise<void> {
+  await fill(`textarea[name="${frage}"]`, wert);
+}
+
+const FREITEXTFRAGEN = STANDARD_QUESTIONS.filter((q) => q.type === "text");
+
+/** Ein Entwurf, wie ihn die Komponente selbst geschrieben haette. */
+function legeEntwurfAb(texte: Record<string, string>, alterMs = 0): void {
+  sessionStorage.setItem(
+    entwurfSchluessel(TOKEN_HASH),
+    JSON.stringify({ at: Date.now() - alterMs, texte }),
+  );
 }
 
 describe("Notenmatrix: echte Radiogruppen statt Sterne", () => {
@@ -242,13 +276,214 @@ describe("Alt-Umfragen mit fuenfstufiger Skala (`stars`)", () => {
   });
 });
 
-describe("Freitextfragen bleiben der Matrix fern (Task 12 setzt sie)", () => {
+describe("Freitextfragen bleiben der Matrix fern", () => {
   it("macht aus `text`-Fragen keine Notenzeile", async () => {
     await zeichneStandard();
     // 14 Standardfragen, davon 8 Bewertungsfragen — die sechs Freitexte duerfen
-    // hier keine Radiogruppe erzeugen.
+    // keine Radiogruppe erzeugen.
     expect(zeilen()).toHaveLength(8);
     expect(radios("q9")).toHaveLength(0);
+  });
+});
+
+/*
+ * §3.7: sechs gleich aussehende leere Kaesten (~540px) werden zu linierten
+ * Zeilen (~300px). Der Preis, den der Entwurf NICHT zahlt: keine Frage wird
+ * versteckt, gekuerzt oder umbenannt. Genau das pruefen die ersten drei Tests —
+ * ein Konkurrenzentwurf hatte fuenf der sechs Fragen hinter erfundene
+ * Kurzlabels gelegt, was funktional nahe an einer Streichung liegt.
+ */
+describe("Freitexte: sechs linierte Zeilen, jede mit ihrer ganzen Frage", () => {
+  it("rendert sechs Zeilen in Fragereihenfolge — q9 zuerst, dann q10–q14", async () => {
+    await zeichneStandard();
+    expect(textfelder().map((t) => t.name)).toEqual(["q9", "q10", "q11", "q12", "q13", "q14"]);
+  });
+
+  it("beschriftet jede Zeile mit dem vollstaendigen Originaltext, nicht mit einem Kurzlabel", async () => {
+    await zeichneStandard();
+    expect(FREITEXTFRAGEN).toHaveLength(6);
+    for (const frage of FREITEXTFRAGEN) {
+      const label = query(`label[for="${textfeld(frage.id).id}"]`);
+      expect(label.textContent).toBe(frage.text);
+    }
+  });
+
+  it("legt keine Frage hinter einen Aufklapper und versteckt kein Feld", async () => {
+    await zeichneStandard();
+    expect(exists("details")).toBe(false);
+    expect(exists("summary")).toBe(false);
+    for (const feld of textfelder()) {
+      expect(feld.className).not.toContain(s.srOnly);
+      expect(feld.hidden).toBe(false);
+    }
+  });
+
+  it("haengt an kein Feld ein `(optional)` — die Freiwilligkeit steht im Einleitungssatz", async () => {
+    await zeichneStandard();
+    const sektion = query("[data-freitexte]");
+    expect(query("form").textContent).not.toContain("optional");
+    expect(sektion.textContent).toContain("04 IN EIGENEN WORTEN");
+    expect(sektion.textContent).toContain(
+      "Alles hier ist freiwillig. Ein Halbsatz hilft uns mehr als ein voller Absatz.",
+    );
+    expect(sektion.textContent).toContain("Schreib nichts, woran man dich erkennt.");
+  });
+
+  it("begrenzt jede Zeile physisch auf 500 Zeichen", async () => {
+    await zeichneStandard();
+    for (const feld of textfelder()) {
+      expect(feld.maxLength).toBe(500);
+    }
+  });
+
+  it("gibt der Zeile die Eingabehilfen der Vorgabe — Enter macht einen Absatz", async () => {
+    await zeichneStandard();
+    for (const feld of textfelder()) {
+      // `textarea` statt `input`: nur so erzeugt Enter einen Absatz und nicht
+      // die Abgabe. Das ist die eigentliche Zusicherung hinter `enterkeyhint`.
+      expect(feld.tagName).toBe("TEXTAREA");
+      expect(feld.rows).toBe(1);
+      expect(feld.getAttribute("autocomplete")).toBe("off");
+      expect(feld.getAttribute("autocapitalize")).toBe("sentences");
+      expect(feld.getAttribute("spellcheck")).toBe("true");
+      expect(feld.getAttribute("enterkeyhint")).toBe("enter");
+    }
+  });
+
+  it("laesst die Zeile beim Tippen mitwachsen", async () => {
+    await zeichneStandard();
+    expect(textfeld("q9").style.height).toBe("");
+    await tippe("q9", "Die Sprechgruppen-Uebung.");
+    // jsdom rechnet kein Layout (`scrollHeight` ist 0) — pruefbar ist deshalb
+    // nur, DASS die Hoehe gesetzt wird, nicht auf welchen Wert.
+    expect(textfeld("q9").style.height).not.toBe("");
+  });
+
+  it("setzt kein Erledigt-Haekchen an eine gefuellte Zeile", async () => {
+    await zeichneStandard();
+    await tippe("q9", "Die Sprechgruppen-Uebung.");
+    // Die gefuellte Zeile besteht aus genau zwei Teilen: Frage und Feld. Kein
+    // dritter Knoten, also kein Haekchen, kein "erledigt", kein Zaehler (dafuer
+    // ist der Text zu kurz). Bei freiwilligen Feldern waere ein Haekchen eine
+    // stille Beschaemung der leeren.
+    const zeile = query(`[data-textzeile="q9"]`);
+    expect(Array.from(zeile.children).map((kind) => kind.tagName)).toEqual(["LABEL", "TEXTAREA"]);
+    expect(zeile.textContent).not.toContain("✓");
+    expect(zeile.textContent?.toLowerCase()).not.toContain("erledigt");
+    expect(query(`label[for="q9-feld"]`).textContent).toBe("Was hat dir am besten gefallen?");
+  });
+});
+
+describe("Freitexte: der Zeichenzaehler bleibt still, bis es knapp wird", () => {
+  it("zeigt bis 419 Zeichen keinen Zaehler", async () => {
+    await zeichneStandard();
+    await tippe("q9", "z".repeat(419));
+    expect(exists("[data-zaehler]")).toBe(false);
+  });
+
+  it("nennt ab 420 Zeichen die Restzahl", async () => {
+    await zeichneStandard();
+    await tippe("q9", "z".repeat(420));
+    const zaehler = queryAll("[data-zaehler]");
+    expect(zaehler).toHaveLength(1);
+    expect(zaehler[0].textContent).toBe("noch 80 Zeichen");
+  });
+
+  it("sagt bei 500 Zeichen `Zeile ist voll` — kein Rot, kein Icon, kein Ausrufezeichen", async () => {
+    await zeichneStandard();
+    await tippe("q9", "z".repeat(500));
+    const zaehler = query("[data-zaehler]");
+    expect(zaehler.textContent).toBe("Zeile ist voll");
+    expect(zaehler.textContent).not.toContain("!");
+    // Warnfarbe ausserhalb der Notenskala ist verboten: der Zaehler laeuft in
+    // `--gedaempft`, also in derselben Farbe wie bei 420 Zeichen.
+    const zaehlerRegel = /\.zaehler\s*\{[^}]*\}/.exec(cssQuelle)?.[0] ?? "";
+    expect(zaehlerRegel).toMatch(/color:\s*var\(--gedaempft\)/);
+    expect(zaehlerRegel).not.toMatch(/#[0-9a-f]{3}/i);
+  });
+});
+
+describe("Freitexte: Entwurf im sessionStorage", () => {
+  it("haelt Eingaben im sessionStorage — nie im localStorage", async () => {
+    await zeichneStandard();
+    await tippe("q9", "Kartenkunde");
+    const roh = sessionStorage.getItem(entwurfSchluessel(TOKEN_HASH));
+    expect(roh).not.toBeNull();
+    expect(JSON.parse(roh as string).texte).toEqual({ q9: "Kartenkunde" });
+    // `localStorage` ueberlebt den Browserneustart — ein anonymer Freitext
+    // gehoert dort nicht hin.
+    expect(localStorage.length).toBe(0);
+  });
+
+  it("stellt einen frischen Entwurf im Effekt wieder her", async () => {
+    legeEntwurfAb({ q9: "halb getippt", q12: "ein Tipp" });
+    await zeichneStandard();
+    expect(textfeld("q9").value).toBe("halb getippt");
+    expect(textfeld("q12").value).toBe("ein Tipp");
+    expect(textfeld("q10").value).toBe("");
+  });
+
+  it("liest den Speicher beim ERSTEN Rendern nicht — sonst Hydration-Konflikt", () => {
+    legeEntwurfAb({ q9: "halb getippt" });
+    const spion = vi.spyOn(Storage.prototype, "getItem");
+    const markup = renderToStaticMarkup(
+      <Zettel
+        questions={STANDARD_QUESTIONS}
+        scale={6}
+        action={nichtsTun}
+        tokenHash={TOKEN_HASH}
+      />,
+    );
+    expect(spion).not.toHaveBeenCalled();
+    expect(markup).not.toContain("halb getippt");
+    spion.mockRestore();
+  });
+
+  it("verwirft einen Entwurf, der aelter als 30 Minuten ist", async () => {
+    legeEntwurfAb({ q9: "von vorletzter Woche" }, ENTWURF_VERFALL_MS + 1000);
+    await zeichneStandard();
+    expect(textfeld("q9").value).toBe("");
+    expect(sessionStorage.getItem(entwurfSchluessel(TOKEN_HASH))).toBeNull();
+  });
+
+  it("loescht den Entwurf bei der Abgabe", async () => {
+    await zeichneStandard();
+    await tippe("q9", "Kartenkunde");
+    expect(sessionStorage.getItem(entwurfSchluessel(TOKEN_HASH))).not.toBeNull();
+    await submitForm();
+    expect(sessionStorage.getItem(entwurfSchluessel(TOKEN_HASH))).toBeNull();
+  });
+
+  it("haelt Entwuerfe zweier Abende auseinander", () => {
+    expect(entwurfSchluessel("abc123")).not.toBe(entwurfSchluessel("def456"));
+    expect(entwurfSchluessel("abc123")).toContain("abc123");
+  });
+});
+
+describe("Freitexte: Zeile statt Kasten (CSS-Zusicherung)", () => {
+  it("gibt dem Feld nur eine Grundlinie — keinen Rahmen, keine Fuellung, keinen Radius", () => {
+    const feldRegel = /\.textfeld\s*\{[^}]*\}/.exec(cssQuelle)?.[0] ?? "";
+    expect(feldRegel).not.toBe("");
+    expect(feldRegel).toMatch(/border:\s*0/);
+    expect(feldRegel).toMatch(/border-bottom:\s*1px solid var\(--linie\)/);
+    expect(feldRegel).toMatch(/border-radius:\s*0/);
+    expect(feldRegel).toMatch(/background:\s*transparent/);
+    expect(feldRegel).toMatch(/min-height:\s*40px/);
+    expect(feldRegel).toMatch(/font-size:\s*18px/);
+    // Ohne JavaScript waechst die Zeile ueber `field-sizing` mit; `rows=1` ist
+    // der Rueckfall dort, wo es noch fehlt. Genau dort darf `overflow` nicht
+    // `hidden` sein — sonst waere alles ab der zweiten Zeile unsichtbar UND
+    // unerreichbar, also stiller Datenverlust ohne JavaScript.
+    expect(feldRegel).toMatch(/field-sizing:\s*content/);
+    expect(feldRegel).not.toMatch(/overflow:\s*hidden/);
+  });
+
+  it("verstaerkt die Grundlinie bei Fokus und bei Inhalt statt einen Kasten zu zeichnen", () => {
+    const fokusRegel = /\.textfeld:focus\s*\{[^}]*\}/.exec(cssQuelle)?.[0] ?? "";
+    expect(fokusRegel).toMatch(/border-bottom:\s*2px solid var\(--graphit\)/);
+    const gefuelltRegel = /\.textfeld\[data-gefuellt\]\s*\{[^}]*\}/.exec(cssQuelle)?.[0] ?? "";
+    expect(gefuelltRegel).toMatch(/border-bottom-width:\s*1\.5px/);
+    expect(gefuelltRegel).toMatch(/border-bottom-color:\s*var\(--graphit\)/);
   });
 });
 

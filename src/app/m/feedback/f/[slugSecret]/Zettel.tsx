@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
 import { NOTEN_DUNKEL, NOTEN_HELL, NOTEN_WORT } from "../../_lib/noten";
-import { isRatingType, ratingScale, type Question } from "../../_lib/questions";
+import { MAX_TEXT_LENGTH, isRatingType, ratingScale, type Question } from "../../_lib/questions";
 import type { SubmitResult } from "../../actions";
 import s from "./zettel.module.css";
 
@@ -43,7 +43,7 @@ export interface ZettelProps {
   /** Stufenzahl der Skala: 6 (`schulnote`) oder 5 (importierte `stars`). */
   scale: number;
   action: (fd: FormData) => Promise<SubmitResult | void>;
-  /** Schluessel des Entwurfsspeichers (Task 12 nutzt ihn). */
+  /** Schluessel des Entwurfsspeichers — siehe `entwurfSchluessel`. */
   tokenHash: string;
 }
 
@@ -55,8 +55,8 @@ const SEKTIONSGRENZEN = [3, 6] as const;
 
 /**
  * Verzug der Aufbau-Choreografie in ms (§3.5): Kopf 0 (in `page.tsx`), Legende
- * 60, Sektion 1–3 120/180/240 — Freitexte 300 und Abschluss 360 folgen in Task
- * 12/13.
+ * 60, Sektion 1–3 120/180/240, Freitexte 300 — der Abschluss-Block mit 360 folgt
+ * in Task 13.
  */
 function verzug(ms: number): CSSProperties {
   return { animationDelay: `${ms}ms` };
@@ -97,11 +97,107 @@ function wort(stufe: number): string {
   return NOTEN_WORT[stufe - 1];
 }
 
+/* ---------- Freitexte (§3.2 Punkt 6, §3.7) ---------- */
+
+/** Wortlaute der Freitextsektion, wortgenau aus dem Entwurf. */
+const FREITEXT_KICKER = "04 IN EIGENEN WORTEN";
+const FREITEXT_EINLEITUNG =
+  "Alles hier ist freiwillig. Ein Halbsatz hilft uns mehr als ein voller Absatz.";
+const FREITEXT_HINWEIS = "Schreib nichts, woran man dich erkennt.";
+
+/**
+ * Ab dieser Laenge zeigt eine Zeile ihre Restzahl. Vorher ist der Zaehler NICHT
+ * vorhanden: eine dauerhafte Zahl unter sechs freiwilligen Zeilen liest sich als
+ * Soll, und die Zusage der Sektion ist "ein Halbsatz genuegt".
+ */
+const ZAEHLER_AB = 420;
+
+/** Verfall des Entwurfs (§3.7): eine halbe Stunde nach dem letzten Tippen. */
+export const ENTWURF_VERFALL_MS = 30 * 60 * 1000;
+
+/**
+ * Der Speicherplatz des Entwurfs, abgeleitet aus dem Token-Hash: zwei Abende am
+ * selben Geraet duerfen sich nicht in dieselbe Zeile schreiben.
+ */
+export function entwurfSchluessel(tokenHash: string): string {
+  return `iuk-feedback-entwurf:${tokenHash}`;
+}
+
+/** Form des Eintrags im `sessionStorage`. `at` ist der letzte Tastendruck. */
+interface Entwurf {
+  at: number;
+  texte: Record<string, string>;
+}
+
+/**
+ * `sessionStorage`, NICHT `localStorage`: der Entwurf ist ein anonymer Freitext
+ * und darf den Browserneustart nicht ueberleben. Jeder Zugriff liegt in
+ * `try/catch` — im privaten Modus einiger Browser wirft schon das Lesen, und ein
+ * gescheiterter Entwurfsspeicher darf niemals das Absenden verhindern.
+ */
+function entwurfLesen(tokenHash: string): Record<string, string> | null {
+  try {
+    const roh = sessionStorage.getItem(entwurfSchluessel(tokenHash));
+    if (roh === null) return null;
+    const entwurf = JSON.parse(roh) as Partial<Entwurf> | null;
+    const frisch =
+      typeof entwurf?.at === "number" && Date.now() - entwurf.at <= ENTWURF_VERFALL_MS;
+    if (!frisch || typeof entwurf?.texte !== "object" || entwurf.texte === null) {
+      entwurfVerwerfen(tokenHash);
+      return null;
+    }
+    // Nur Zeichenketten zurueck: ein manipulierter Eintrag soll kein Objekt in
+    // den Wert eines Feldes legen koennen.
+    const texte: Record<string, string> = {};
+    for (const [id, wert] of Object.entries(entwurf.texte)) {
+      if (typeof wert === "string") texte[id] = wert;
+    }
+    return texte;
+  } catch {
+    return null;
+  }
+}
+
+function entwurfSchreiben(tokenHash: string, texte: Record<string, string>): void {
+  const entwurf: Entwurf = { at: Date.now(), texte };
+  try {
+    sessionStorage.setItem(entwurfSchluessel(tokenHash), JSON.stringify(entwurf));
+  } catch {
+    // Kein Platz, kein Speicher, privater Modus: der Entwurf ist Komfort.
+  }
+}
+
+/** Loescht den Entwurf. Zweiter Aufrufer wird "Leeren Bogen oeffnen" (Task 14). */
+export function entwurfVerwerfen(tokenHash: string): void {
+  try {
+    sessionStorage.removeItem(entwurfSchluessel(tokenHash));
+  } catch {
+    // s. o.
+  }
+}
+
+/**
+ * Autoresize aus `scrollHeight` (§3.7). Eine leere Zeile bekommt KEINE
+ * Inline-Hoehe: dort gilt `min-height: 40px` aus dem CSS, und die Zeile darf
+ * beim Fokus die 8px Innenhoehe gewinnen, ohne gegen einen festen Pixelwert zu
+ * laufen. Genau deshalb messen auch `onFocus`/`onBlur` neu — dort aendert sich
+ * das Innenmass.
+ */
+function hoeheAnpassen(el: HTMLTextAreaElement): void {
+  if (el.value === "") {
+    el.style.height = "";
+    return;
+  }
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 export function Zettel(props: ZettelProps) {
-  const { questions, scale, action } = props;
+  const { questions, scale, action, tokenHash } = props;
   const [noten, setNoten] = useState<Record<string, number>>({});
 
   const notenfragen = questions.filter((q) => isRatingType(q.type));
+  const freitextfragen = questions.filter((q) => q.type === "text");
   const sektionen = [
     notenfragen.slice(0, SEKTIONSGRENZEN[0]),
     notenfragen.slice(SEKTIONSGRENZEN[0], SEKTIONSGRENZEN[1]),
@@ -118,8 +214,17 @@ export function Zettel(props: ZettelProps) {
    */
   const formAction = action as unknown as (fd: FormData) => Promise<void>;
 
+  /*
+   * Der Entwurf faellt beim ABSENDEN, nicht erst beim Ergebnis: der
+   * Rueckgabewert der Action ist hier noch nicht erreichbar (Task 13 holt ihn
+   * ueber den Client-Aufrufer, und ein Wrapper um `action` waere keine
+   * serialisierbare Action mehr). Der Preis ist klein und benannt: bei einem
+   * `{ ok: false }` bleiben die Eingaben im DOM stehen und der naechste
+   * Tastendruck schreibt den Entwurf neu. `onSubmit` aendert am gelieferten HTML
+   * nichts — der Weg ohne JavaScript bleibt unberuehrt.
+   */
   return (
-    <form action={formAction} className={s.form}>
+    <form action={formAction} className={s.form} onSubmit={() => entwurfVerwerfen(tokenHash)}>
       <Legende scale={scale} />
       {sektionen.map((fragen, si) =>
         fragen.length === 0 ? null : (
@@ -141,10 +246,139 @@ export function Zettel(props: ZettelProps) {
           </section>
         ),
       )}
+      {freitextfragen.length === 0 ? null : (
+        <Freitexte fragen={freitextfragen} tokenHash={tokenHash} />
+      )}
       <button type="submit" className={s.knopf}>
         Rückmeldung absenden
       </button>
     </form>
+  );
+}
+
+/**
+ * Die Freitextsektion: sechs LINIERTE ZEILEN statt sechs gleich aussehender
+ * leerer Kaesten (§3.7). Der Gewinn ist Flaeche (~300px statt ~540px), und er
+ * wird NICHT damit bezahlt, dass eine Frage verschwindet: jede Zeile traegt ihre
+ * vollstaendige Originalfrage als Label, keine liegt hinter einem Aufklapper,
+ * keine bekommt ein erfundenes Kurzlabel — ein Kurzlabel wie "Mehr davon"
+ * ersetzt die Frage nicht, es streicht sie.
+ *
+ * Die Freiwilligkeit steht GENAU EINMAL, im Einleitungssatz. Sechs Mal
+ * "(optional)" an sechs Labels erzeugt genau den Druck, den das Wort abbauen
+ * soll.
+ */
+function Freitexte({ fragen, tokenHash }: { fragen: Question[]; tokenHash: string }) {
+  const [texte, setTexte] = useState<Record<string, string>>({});
+  const sektion = useRef<HTMLElement>(null);
+
+  /*
+   * Wiederherstellung im EFFEKT, nicht beim ersten Rendern — der Server kennt
+   * den `sessionStorage` nicht: ein Lesen waehrend des Renderns liefert auf dem
+   * Server leere und im Browser gefuellte Felder, ein Hydration-Konflikt, den
+   * React mit einem verworfenen Baum bezahlt. `Zettel.test.tsx` haelt fest, dass
+   * beim ersten Rendern kein Speicherzugriff stattfindet.
+   */
+  useEffect(() => {
+    const entwurf = entwurfLesen(tokenHash);
+    // Genau EIN Nachrender, absichtlich. `set-state-in-effect` warnt vor
+    // Kaskaden — hier gibt es keine: der Effekt laeuft einmal je `tokenHash`,
+    // und das Nachrendern IST das Muster, das den Hydration-Konflikt vermeidet.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (entwurf) setTexte(entwurf);
+  }, [tokenHash]);
+
+  /* Eine Messung nach jeder Aenderung deckt beides ab: Tippen und Wiederherstellung. */
+  useEffect(() => {
+    const felder = sektion.current?.querySelectorAll("textarea") ?? [];
+    for (const el of felder) hoeheAnpassen(el);
+  }, [texte]);
+
+  function eingabe(id: string, wert: string): void {
+    const neu = { ...texte, [id]: wert };
+    setTexte(neu);
+    entwurfSchreiben(tokenHash, neu);
+  }
+
+  return (
+    <section
+      ref={sektion}
+      className={`${s.sektion} ${s.aufbau}`}
+      style={verzug(300)}
+      data-freitexte=""
+    >
+      <p className={s.sektionKicker}>{FREITEXT_KICKER}</p>
+      <p className={s.einleitung}>{FREITEXT_EINLEITUNG}</p>
+      <p className={s.hinweis}>{FREITEXT_HINWEIS}</p>
+      <div className={s.textzeilen}>
+        {fragen.map((frage) => (
+          <Freitextzeile
+            key={frage.id}
+            frage={frage}
+            wert={texte[frage.id] ?? ""}
+            onEingabe={eingabe}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Eine Zeile: Label mit der ganzen Frage, darunter ein Feld ohne Rahmen, ohne
+ * Fuellung, ohne Radius — nur eine Grundlinie.
+ *
+ * `textarea` und nicht `input`: Enter macht einen Absatz und nicht die Abgabe.
+ * KEIN Erledigt-Haekchen an gefuellten Zeilen (bei freiwilligen Feldern waere es
+ * eine stille Beschaemung der leeren) — sichtbar wird der Inhalt allein durch die
+ * kraeftigere Grundlinie (`data-gefuellt`).
+ */
+function Freitextzeile({
+  frage,
+  wert,
+  onEingabe,
+}: {
+  frage: Question;
+  wert: string;
+  onEingabe: (id: string, wert: string) => void;
+}) {
+  /*
+   * Der Zaehler erscheint erst kurz vor der Grenze und bleibt in `--gedaempft`:
+   * kein Rot, kein Amber, kein Icon. Eine Warnfarbe ausserhalb der Notenskala
+   * wuerde die Bedeutung der Skala verwaessern — und ein voller Freitext ist
+   * kein Fehler, `maxLength` laesst ihn gar nicht erst entstehen.
+   */
+  const rest = MAX_TEXT_LENGTH - wert.length;
+  const zaehler =
+    wert.length < ZAEHLER_AB ? null : rest <= 0 ? "Zeile ist voll" : `noch ${rest} Zeichen`;
+
+  return (
+    <div className={s.textzeile} data-textzeile={frage.id}>
+      <label className={s.textLabel} htmlFor={`${frage.id}-feld`}>
+        {frage.text}
+      </label>
+      <textarea
+        id={`${frage.id}-feld`}
+        name={frage.id}
+        className={s.textfeld}
+        rows={1}
+        maxLength={MAX_TEXT_LENGTH}
+        value={wert}
+        data-gefuellt={wert === "" ? undefined : ""}
+        autoComplete="off"
+        autoCapitalize="sentences"
+        spellCheck={true}
+        enterKeyHint="enter"
+        onChange={(e) => onEingabe(frage.id, e.currentTarget.value)}
+        onFocus={(e) => hoeheAnpassen(e.currentTarget)}
+        onBlur={(e) => hoeheAnpassen(e.currentTarget)}
+      />
+      {zaehler === null ? null : (
+        <span className={s.zaehler} data-zaehler="">
+          {zaehler}
+        </span>
+      )}
+    </div>
   );
 }
 

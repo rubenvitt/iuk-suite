@@ -480,6 +480,122 @@
   }
 }
 
+/* ---------- Freitexte: linierte Zeilen, keine Kaesten (§3.7) ---------- */
+
+/*
+ * Sechs Kaesten mit Rahmen, Fuellung und Radius ergeben ~540px Flaeche und
+ * lesen sich als sechs Formularpflichten. Dieselben sechs Fragen als linierte
+ * Zeilen: ~300px. Der Unterschied ist ausschliesslich hier im CSS — kein
+ * Fragetext wird dafuer gekuerzt, versteckt oder umbenannt.
+ */
+
+/* Einleitungssatz der Sektion — die Freiwilligkeit steht GENAU HIER, einmal. */
+.einleitung {
+  margin: 8px 0 0;
+  font-family: var(--serif);
+  font-size: 22px;
+  line-height: 1.3;
+  color: var(--tinte);
+}
+
+.hinweis {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+.textzeilen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.textzeile {
+  display: block;
+}
+
+.textLabel {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--graphit);
+}
+
+/*
+ * Das Feld: kein Rahmen, keine Fuellung, kein Radius — nur eine Grundlinie.
+ * `border-radius: 0` ist die Zuruecknahme des Radius, den iOS Safari von sich
+ * aus setzt (ohne diese Zeile ist die "Zeile" dort doch ein Kasten).
+ * 18px, weil iOS unter 16px beim Fokus in das Feld zoomt.
+ * `field-sizing: content` laesst die Zeile OHNE JavaScript mitwachsen; wo es
+ * fehlt, traegt `rows=1` plus die `scrollHeight`-Messung in `Zettel.tsx`.
+ */
+.textfeld {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--linie);
+  border-radius: 0;
+  background: transparent;
+  color: var(--tinte);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 400;
+  min-height: 40px;
+  resize: none;
+  /*
+   * `auto`, NICHT `hidden`: mit JavaScript ist die Hoehe immer genau der Inhalt,
+   * ein Balken erscheint also nie. Ohne JavaScript UND ohne `field-sizing` waere
+   * `hidden` bei `rows=1` aber ein stiller Datenverlust — alles ab der zweiten
+   * Zeile unsichtbar und nicht erreichbar.
+   */
+  overflow: auto;
+  field-sizing: content;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/*
+ * Beantwortete Zeilen sind als kraeftigere Striche erkennbar — das ist der
+ * Ersatz fuer das verbotene Erledigt-Haekchen: es zeigt Inhalt, ohne die leeren
+ * Zeilen zu mahnen.
+ */
+.textfeld[data-gefuellt] {
+  border-bottom-width: 1.5px;
+  border-bottom-color: var(--graphit);
+}
+
+/*
+ * NACH der gefuellten Zeile notiert, damit der Fokus bei gleicher Spezifitaet
+ * gewinnt. Die 2px-Grundlinie IST der Fokuszeiger (§3.7) — ein Ring um ein
+ * rahmenloses Feld waere der Kasten, den diese Sektion gerade abgeschafft hat.
+ */
+.textfeld:focus {
+  outline: none;
+  border-bottom: 2px solid var(--graphit);
+  /* Die Zeile gewinnt 8px Innenhoehe (10 + 4 oben und unten). */
+  padding-block: 14px;
+}
+
+.textzeile:has(.textfeld:focus) .textLabel {
+  color: var(--tinte);
+}
+
+.zaehler {
+  display: block;
+  margin-top: 4px;
+  text-align: right;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
 /* ---------- Knopf ---------- */
 
 .knopf {
