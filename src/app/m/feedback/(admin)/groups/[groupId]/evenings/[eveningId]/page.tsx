@@ -32,7 +32,7 @@ export default async function EveningDetail({
   if (!evening) notFound();
   if (evening.groupId !== urlGroupId) notFound(); // URL-Hygiene, nicht der Guard selbst.
 
-  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub) : [];
+  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub, viewer.fachgruppen) : [];
   try {
     assertGroupAccess(viewer, evening.groupId, memberIds);
   } catch {

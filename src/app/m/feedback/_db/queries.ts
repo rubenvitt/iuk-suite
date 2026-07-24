@@ -7,6 +7,7 @@ import {
   surveys,
   responses,
   userGroups,
+  knownUsers,
   type GroupRow,
   type EveningRow,
   type SurveyRow,
@@ -17,18 +18,90 @@ import { STANDARD_QUESTIONS } from "@/app/m/feedback/_lib/questions";
 
 type DB = BetterSQLite3Database<typeof schema>;
 
-export function memberGroupIdsFor(db: DB, sub: string): number[] {
-  return db
+/**
+ * DIE Sicherheitsgrenze, keine Abfrage: speist `assertGroupAccess`. Vereinigung
+ * aus zwei Quellen, absichtlich in dieser Reihenfolge gedacht:
+ *
+ * 1. `user_groups` — im Werkzeug gepflegte Zuordnung.
+ * 2. `fachgruppenSlugs` — das Attribut aus Pocket ID (signiertes ID-Token),
+ *    exakter Abgleich gegen `groups.slug`.
+ *
+ * Der dritte Parameter ist mit Absicht PFLICHT und hat keinen Vorgabewert: ein
+ * `[]`-Default würde das sicherheitsrelevante Argument an jeder Aufrufstelle
+ * still weglassbar machen — aus einem Übersetzungsfehler würde eine Lücke.
+ *
+ * Eine leere Slug-Liste degradiert auf `user_groups` allein — NIEMALS auf „alle
+ * Gruppen". Deshalb der frühe Ausstieg: kein Codepfad, auf dem eine leere Liste
+ * in ein `IN ()` läuft. Verglichen wird exakt und Groß-/Kleinschreibung
+ * beachtend (SQLite-TEXT ohne COLLATE NOCASE, kein LIKE, kein lower()).
+ */
+export function memberGroupIdsFor(db: DB, sub: string, fachgruppenSlugs: string[]): number[] {
+  const assigned = db
     .select({ groupId: userGroups.groupId })
     .from(userGroups)
     .where(eq(userGroups.userId, sub))
     .all()
     .map((r) => r.groupId);
+  if (fachgruppenSlugs.length === 0) return [...new Set(assigned)];
+  const fromClaim = db
+    .select({ id: groups.id })
+    .from(groups)
+    .where(inArray(groups.slug, fachgruppenSlugs))
+    .all()
+    .map((r) => r.id);
+  // Set, nicht Concat: dieselbe Gruppe kann aus BEIDEN Quellen kommen, und
+  // Duplikate schlagen später als doppelte Zeilen in Listen durch.
+  return [...new Set([...assigned, ...fromClaim])];
 }
 // onConflictDoNothing: (userId, groupId) ist Primary Key — ein erneuter Seed-
 // Lauf darf nicht auf einer bereits vorhandenen Zuordnung scheitern.
 export function insertUserGroup(db: DB, userId: string, groupId: number): void {
   db.insert(userGroups).values({ userId, groupId }).onConflictDoNothing().run();
+}
+
+/**
+ * ERSETZT die Zuordnung einer Gruppe vollständig — Entfernen muss genauso
+ * funktionieren wie Hinzufügen, sonst wäre eine Fehlzuordnung nur noch per
+ * Datenbankzugriff korrigierbar. Das `delete` ist auf `groupId` eingegrenzt;
+ * andere Gruppen bleiben unberührt. Beides in einer Transaktion, damit kein
+ * Zwischenzustand ohne Zuordnung sichtbar wird.
+ */
+export function setGroupMembers(db: DB, groupId: number, userIds: string[]): void {
+  db.transaction((tx) => {
+    tx.delete(userGroups).where(eq(userGroups.groupId, groupId)).run();
+    const unique = [...new Set(userIds)];
+    if (unique.length > 0) {
+      tx.insert(userGroups)
+        .values(unique.map((userId) => ({ userId, groupId })))
+        .run();
+    }
+  });
+}
+
+// Idempotent auf `user_id` (Primärschlüssel): jeder Besuch aktualisiert Name,
+// E-Mail und `seen_at`, legt aber keinen zweiten Datensatz an.
+export function upsertKnownUser(
+  db: DB,
+  u: { userId: string; name: string | null; email: string | null; seenAt: Date },
+): void {
+  db.insert(knownUsers)
+    .values(u)
+    .onConflictDoUpdate({
+      target: knownUsers.userId,
+      set: { name: u.name, email: u.email, seenAt: u.seenAt },
+    })
+    .run();
+}
+
+// Ohne `seenAt`: die Zuordnungs-Oberfläche braucht eine Namensliste, kein
+// Anwesenheitsprotokoll.
+export function listKnownUsers(
+  db: DB,
+): Array<{ userId: string; name: string | null; email: string | null }> {
+  return db
+    .select({ userId: knownUsers.userId, name: knownUsers.name, email: knownUsers.email })
+    .from(knownUsers)
+    .all();
 }
 
 export function listGroups(db: DB): GroupRow[] {

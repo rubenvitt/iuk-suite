@@ -42,7 +42,8 @@ describe("seedFeedback", () => {
     expect(demo).toBeTruthy();
     expect(jugend).toBeTruthy();
 
-    const memberIds = memberGroupIdsFor(db, "dev:gl@localtest.me");
+    // Ohne Fachgruppen-Claim: der Seed schreibt ausschließlich user_groups.
+    const memberIds = memberGroupIdsFor(db, "dev:gl@localtest.me", []);
     expect(memberIds).toEqual([jugend!.id]);
   });
 });

@@ -20,7 +20,7 @@ export default async function GroupDetail({
   const id = Number(groupId);
   const viewer = viewerFromSession(await auth());
   const db = getDb();
-  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub) : [];
+  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub, viewer.fachgruppen) : [];
   try {
     assertGroupAccess(viewer, id, memberIds);
   } catch {

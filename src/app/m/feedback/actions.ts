@@ -46,7 +46,7 @@ function revalidate(): void {
 async function guardGroup(groupId: number) {
   const viewer = viewerFromSession(await auth());
   const db = getDb();
-  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub) : [];
+  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub, viewer.fachgruppen) : [];
   assertGroupAccess(viewer, groupId, memberIds);
   return { viewer, db };
 }

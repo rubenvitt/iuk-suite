@@ -15,7 +15,11 @@ import {
   activeSurveyForGroup,
   insertResponse,
   listResponses,
+  upsertKnownUser,
+  listKnownUsers,
+  setGroupMembers,
 } from "./queries";
+import { parseFachgruppen } from "@/core/auth/fachgruppen";
 import { computeClosesAt } from "@/app/m/feedback/_lib/lifecycle";
 import { STANDARD_QUESTIONS } from "@/app/m/feedback/_lib/questions";
 
@@ -47,12 +51,169 @@ const countActive = (groupId: number): number =>
       .get(groupId) as { c: number }
   ).c;
 
+// SICHERHEITSGRENZE, keine Abfrage. Jeder Zweig hat hier einen Negativfall:
+// ein Fehler in dieser Funktion öffnet fremde Gruppen, kein bloßer Anzeigefehler.
 describe("memberGroupIdsFor", () => {
-  it("liefert die zugeordneten Gruppen-IDs", () => {
+  const assign = (userId: string, groupId: number) =>
+    sqlite.prepare("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)").run(userId, groupId);
+
+  it("liefert die über user_groups zugeordneten Gruppen-IDs", () => {
     const g = mkGroup();
-    sqlite.prepare("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)").run("u1", g.id);
-    expect(memberGroupIdsFor(db, "u1")).toEqual([g.id]);
-    expect(memberGroupIdsFor(db, "other")).toEqual([]);
+    assign("u1", g.id);
+    expect(memberGroupIdsFor(db, "u1", [])).toEqual([g.id]);
+    expect(memberGroupIdsFor(db, "other", [])).toEqual([]);
+  });
+
+  it("löst Fachgruppen-Slugs aus dem Claim in Gruppen-IDs auf", () => {
+    const g = mkGroup("Sanität", "sanitaet");
+    expect(memberGroupIdsFor(db, "u1", ["sanitaet"])).toEqual([g.id]);
+  });
+
+  // Claim fehlt ganz (leere Liste vom Aufrufer) → nur user_groups, NICHT alle Gruppen.
+  it("fehlender Claim → nur user_groups, niemals alle Gruppen", () => {
+    const a = mkGroup("A", "a");
+    mkGroup("B", "b");
+    assign("u1", a.id);
+    expect(memberGroupIdsFor(db, "u1", [])).toEqual([a.id]);
+  });
+
+  // Claim ist ein leeres Array → dasselbe Ergebnis wie ohne Claim.
+  it("leeres Claim-Array → nur user_groups", () => {
+    const a = mkGroup("A", "a");
+    mkGroup("B", "b");
+    assign("u1", a.id);
+    const slugs: string[] = [];
+    expect(memberGroupIdsFor(db, "u1", slugs)).toEqual([a.id]);
+  });
+
+  // Eine Zeichenkette statt eines Arrays wird bereits von parseFachgruppen zu []
+  // reduziert. Hier der Beleg, dass auch die Query selbst nicht koerziert und
+  // nicht an Trennzeichen zerlegt: "sanitaet,iuk" ist KEIN Treffer auf "sanitaet".
+  it("Zeichenkette statt Array → leere Menge, keine Koerzion, kein Split", () => {
+    mkGroup("Sanität", "sanitaet");
+    mkGroup("IuK", "iuk");
+    expect(memberGroupIdsFor(db, "u1", parseFachgruppen({ fachgruppen: "sanitaet" }))).toEqual([]);
+    expect(memberGroupIdsFor(db, "u1", ["sanitaet,iuk"])).toEqual([]);
+  });
+
+  it("nicht existierender Slug im Claim → keine Zuordnung", () => {
+    mkGroup("Sanität", "sanitaet");
+    expect(memberGroupIdsFor(db, "u1", ["gibt-es-nicht"])).toEqual([]);
+  });
+
+  // Exakter Vergleich: SQLite vergleicht TEXT ohne COLLATE NOCASE case-sensitiv,
+  // und das muss so bleiben (kein LIKE, kein lower()).
+  it("abweichende Groß-/Kleinschreibung → kein Treffer", () => {
+    mkGroup("Sanität", "sanitaet");
+    expect(memberGroupIdsFor(db, "u1", ["Sanitaet"])).toEqual([]);
+    expect(memberGroupIdsFor(db, "u1", ["SANITAET"])).toEqual([]);
+  });
+
+  it("user_groups leer UND Claim leer → keine Gruppe sichtbar", () => {
+    mkGroup("A", "a");
+    mkGroup("B", "b");
+    expect(memberGroupIdsFor(db, "u1", [])).toEqual([]);
+  });
+
+  it("Vereinigung: user_groups A + Claim B → beide, jede genau einmal", () => {
+    const a = mkGroup("A", "a");
+    const b = mkGroup("B", "b");
+    assign("u1", a.id);
+    const ids = memberGroupIdsFor(db, "u1", ["b"]);
+    expect([...ids].sort((x, y) => x - y)).toEqual([a.id, b.id]);
+    expect(ids).toHaveLength(2);
+  });
+
+  // Dieselbe Gruppe aus BEIDEN Quellen: naives Zusammenhängen liefert [A, A].
+  it("dieselbe Gruppe aus beiden Quellen → genau ein Eintrag", () => {
+    const a = mkGroup("A", "a");
+    assign("u1", a.id);
+    expect(memberGroupIdsFor(db, "u1", ["a"])).toEqual([a.id]);
+  });
+
+  it("Claim-Treffer gilt nur für die genannten Slugs, nicht für fremde Zuordnungen", () => {
+    const a = mkGroup("A", "a");
+    const b = mkGroup("B", "b");
+    assign("other", a.id);
+    expect(memberGroupIdsFor(db, "u1", ["b"])).toEqual([b.id]);
+  });
+});
+
+describe("Nutzerverzeichnis", () => {
+  it("upsertKnownUser ist idempotent und aktualisiert seenAt", () => {
+    upsertKnownUser(db, {
+      userId: "u1",
+      name: "Alt",
+      email: "alt@example.org",
+      seenAt: new Date("2026-01-01T10:00:00Z"),
+    });
+    upsertKnownUser(db, {
+      userId: "u1",
+      name: "Neu",
+      email: "neu@example.org",
+      seenAt: new Date("2026-02-02T11:00:00Z"),
+    });
+    const rows = listKnownUsers(db);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({ userId: "u1", name: "Neu", email: "neu@example.org" });
+    const seenAt = (
+      sqlite.prepare("SELECT seen_at AS s FROM known_users WHERE user_id = 'u1'").get() as {
+        s: number;
+      }
+    ).s;
+    expect(seenAt).toBe(new Date("2026-02-02T11:00:00Z").getTime() / 1000);
+  });
+
+  it("upsertKnownUser akzeptiert fehlenden Namen und fehlende E-Mail", () => {
+    upsertKnownUser(db, { userId: "u1", name: null, email: null, seenAt: new Date(0) });
+    expect(listKnownUsers(db)).toEqual([{ userId: "u1", name: null, email: null }]);
+  });
+
+  it("listKnownUsers liefert alle Einträge", () => {
+    upsertKnownUser(db, { userId: "u1", name: "A", email: null, seenAt: new Date(0) });
+    upsertKnownUser(db, { userId: "u2", name: "B", email: null, seenAt: new Date(0) });
+    expect(listKnownUsers(db).map((u) => u.userId).sort()).toEqual(["u1", "u2"]);
+  });
+});
+
+describe("setGroupMembers", () => {
+  it("setzt die Zuordnung", () => {
+    const g = mkGroup();
+    setGroupMembers(db, g.id, ["u1", "u2"]);
+    expect(memberGroupIdsFor(db, "u1", [])).toEqual([g.id]);
+    expect(memberGroupIdsFor(db, "u2", [])).toEqual([g.id]);
+  });
+
+  // Ersetzen, nicht Ergänzen: Entfernen muss funktionieren.
+  it("ersetzt die Zuordnung vollständig — Entfernen funktioniert", () => {
+    const g = mkGroup();
+    setGroupMembers(db, g.id, ["u1", "u2"]);
+    setGroupMembers(db, g.id, ["u2"]);
+    expect(memberGroupIdsFor(db, "u1", [])).toEqual([]);
+    expect(memberGroupIdsFor(db, "u2", [])).toEqual([g.id]);
+  });
+
+  it("leere Liste entfernt alle Zuordnungen der Gruppe", () => {
+    const g = mkGroup();
+    setGroupMembers(db, g.id, ["u1"]);
+    setGroupMembers(db, g.id, []);
+    expect(memberGroupIdsFor(db, "u1", [])).toEqual([]);
+  });
+
+  it("lässt die Zuordnungen anderer Gruppen unberührt", () => {
+    const a = mkGroup("A", "a");
+    const b = mkGroup("B", "b");
+    setGroupMembers(db, a.id, ["u1"]);
+    setGroupMembers(db, b.id, ["u1"]);
+    setGroupMembers(db, b.id, []);
+    expect(memberGroupIdsFor(db, "u1", [])).toEqual([a.id]);
+  });
+
+  it("ist mit derselben Liste wiederholt aufrufbar (kein PK-Konflikt)", () => {
+    const g = mkGroup();
+    setGroupMembers(db, g.id, ["u1", "u1"]);
+    setGroupMembers(db, g.id, ["u1"]);
+    expect(memberGroupIdsFor(db, "u1", [])).toEqual([g.id]);
   });
 });
 

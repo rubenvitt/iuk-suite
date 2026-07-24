@@ -97,6 +97,17 @@ export const userGroups = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.groupId] })],
 );
 
+// Nutzerverzeichnis: füllt sich beim Betreten des Moduls (idempotenter Upsert),
+// damit eine neue Gruppenleitung ohne Datenbankzugriff zuordenbar ist. Kein
+// Identitätsspeicher — die Wahrheit bleibt das SSO, das hier ist nur eine
+// Namensliste für die Zuordnungs-Oberfläche. Name/E-Mail dürfen fehlen.
+export const knownUsers = sqliteTable("known_users", {
+  userId: text("user_id").primaryKey(),
+  name: text("name"),
+  email: text("email"),
+  seenAt: integer("seen_at", { mode: "timestamp" }).notNull(),
+});
+
 export type GroupRow = typeof groups.$inferSelect;
 export type NewGroupRow = typeof groups.$inferInsert;
 export type EveningRow = typeof evenings.$inferSelect;
@@ -107,3 +118,5 @@ export type ResponseRow = typeof responses.$inferSelect;
 export type NewResponseRow = typeof responses.$inferInsert;
 export type UserGroupRow = typeof userGroups.$inferSelect;
 export type NewUserGroupRow = typeof userGroups.$inferInsert;
+export type KnownUserRow = typeof knownUsers.$inferSelect;
+export type NewKnownUserRow = typeof knownUsers.$inferInsert;

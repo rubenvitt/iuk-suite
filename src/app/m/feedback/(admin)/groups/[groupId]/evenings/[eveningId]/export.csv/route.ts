@@ -41,7 +41,7 @@ export async function GET(
   }
 
   const viewer = viewerFromSession(await auth());
-  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub) : [];
+  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub, viewer.fachgruppen) : [];
   try {
     assertGroupAccess(viewer, evening.groupId, memberIds);
   } catch {

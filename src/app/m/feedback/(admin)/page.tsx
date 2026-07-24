@@ -14,7 +14,7 @@ import { GroupList } from "./GroupList";
 export default async function FeedbackDashboard() {
   const viewer = viewerFromSession(await auth());
   const db = getDb();
-  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub) : [];
+  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub, viewer.fachgruppen) : [];
   const filter = accessibleGroupFilter(viewer, memberIds);
   const all = listGroups(db);
   const groups = filter === "all" ? all : all.filter((g) => filter.includes(g.id));

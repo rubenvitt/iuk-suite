@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { isFeedbackAdmin, assertGroupAccess, accessibleGroupFilter } from "./access";
 
-const admin = { sub: "a", groups: ["da-feedback-admin"] };
-const gl = { sub: "g", groups: ["da-feedback-gl"] };
+const admin = { sub: "a", groups: ["da-feedback-admin"], fachgruppen: [] };
+const gl = { sub: "g", groups: ["da-feedback-gl"], fachgruppen: [] };
 
 describe("isFeedbackAdmin", () => {
   it("true für Admin-Gruppe, false sonst/null", () => {
@@ -22,6 +22,14 @@ describe("assertGroupAccess", () => {
   });
   it("null-Viewer immer verboten", () => {
     expect(() => assertGroupAccess(null, 7, [7])).toThrow("Forbidden");
+  });
+  // Der Fachgruppen-Claim allein öffnet nichts: er wird ausschließlich in
+  // memberGroupIdsFor gegen groups.slug aufgelöst. Wer hier durchkäme, hätte
+  // Zugriff auf jede Gruppen-ID, sobald er irgendeinen Claim trägt.
+  it("Fachgruppen-Claim am Viewer allein gewährt keinen Zugriff", () => {
+    const claimOnly = { sub: "c", groups: [], fachgruppen: ["sanitaet"] };
+    expect(() => assertGroupAccess(claimOnly, 7, [])).toThrow("Forbidden");
+    expect(accessibleGroupFilter(claimOnly, [])).toEqual([]);
   });
 });
 

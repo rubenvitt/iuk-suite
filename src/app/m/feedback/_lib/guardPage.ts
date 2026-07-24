@@ -22,7 +22,7 @@ export async function guardPage(
 ): Promise<{ viewer: Viewer | null; db: ReturnType<typeof getDb> }> {
   const viewer = viewerFromSession(await auth());
   const db = getDb();
-  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub) : [];
+  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub, viewer.fachgruppen) : [];
   try {
     assertGroupAccess(viewer, groupId, memberIds);
   } catch {
