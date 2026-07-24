@@ -1,4 +1,4 @@
-import QRCode from "qrcode";
+import { qrPng } from "@/core/qr";
 import { getDb } from "../../../_db/client";
 import { getGroupBySlug } from "../../../_db/queries";
 import { parseToken } from "../../../_lib/token";
@@ -22,8 +22,8 @@ export async function GET(
   const host = req.headers.get("host") ?? new URL(req.url).host;
   const proto = req.headers.get("x-forwarded-proto") ?? new URL(req.url).protocol.replace(":", "");
   const url = `${proto}://${host}/f/${slugSecret}`;
-  const png = await QRCode.toBuffer(url, { errorCorrectionLevel: "M", margin: 2, width: 512 });
-  return new Response(new Uint8Array(png), {
+  const png = await qrPng(url, { width: 512 });
+  return new Response(Buffer.from(png), {
     headers: { "content-type": "image/png", "cache-control": "public, max-age=3600" },
   });
 }
