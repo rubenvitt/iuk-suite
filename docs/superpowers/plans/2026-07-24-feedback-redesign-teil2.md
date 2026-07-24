@@ -202,40 +202,70 @@ verschluckt werden.
 
 ---
 
-### Task 10: Theme-Signal und Hülle
+### Task 10: Fundament der Oberfläche — Theme-Signal, Hülle, Notenpalette
 
-Kleine Infrastruktur, die der Entwurf voraussetzt: CSS kann heute nicht auf den Hell/Dunkel-Modus
-selektieren, weil `<html>` nur `style={{ colorScheme }}` trägt. Auf `prefers-color-scheme` zu
-selektieren wäre falsch — die Suite hat einen **Umschalter** (Cookie `iuk-theme`, serverseitig
-gelesen), und dann bricht der Fall „System dunkel, Umschalter hell".
+Drei Voraussetzungen in einer Aufgabe, weil alle drei von Task 11 an gebraucht werden.
 
-**Bindend:** Abschnitt 3.4 („Dunkelmodus-Signal") und 3.11 (Hülle, Newsreader).
+**(a) Theme-Signal.** CSS kann heute nicht auf den Hell/Dunkel-Modus selektieren, weil `<html>` nur
+`style={{ colorScheme }}` trägt. Auf `prefers-color-scheme` zu selektieren wäre **falsch** — die Suite
+hat einen **Umschalter** (Cookie `iuk-theme`, serverseitig gelesen), und dann bricht der Fall „System
+dunkel, Umschalter hell". Zusätzlich: `AntdProvider.setMode` wechselt den Modus **ohne Reload** und
+muss `document.documentElement.dataset.theme` mitschreiben — sonst bleiben eigene CSS-Variablen bis zur
+nächsten Navigation auf dem alten Modus stehen.
+
+**(b) Hülle.** Die `/f/`-Hülle verliert `maxWidth`/`padding` — die 3px-Fahne muss randlos laufen.
+
+**(c) Notenpalette als gemeinsame Grundlage.** Die Schulnoten-Palette wird von **beiden** Routen
+gebraucht (`/f/**` und `(admin)`) — „eine Definition, zwei Verwendungen". Sie liegt **beim Modul**,
+nicht in `core/theme/tokens.ts`: die Palette trägt die Bedeutung eines Fachbereichs, nicht den
+Farbeindruck der Suite, und beide Nutznießer sind Routen desselben Moduls. Weil `tokens.ts` im
+Docstring beansprucht, „die einzige Datei mit Hex-Codes" zu sein, wird dieser Anspruch dort präzisiert
+statt stillschweigend verletzt.
+
+**Bindend:** `docs/design/feedback-oeffentliche-ansicht.md` Abschnitt 3.4 (Notenfarben hell/dunkel,
+Tonwertkeil, Dunkelmodus-Signal) und 3.11 (Hülle) · `docs/design/feedback-admin.md` Abschnitt 4.11
+(Ampel-Schwellen), 4.12 (`stars`), 5.1 Punkt 2 und 3.
 
 **Files:**
-- Modify: `src/app/layout.tsx` (zusätzlich `data-theme={mode}` auf `<html>`),
-  `src/app/m/feedback/f/layout.tsx` (verliert `maxWidth`/`padding` — die Fahne muss randlos laufen)
-- Test: `src/app/layout.test.tsx` bzw. Ergänzung im bestehenden Layout-Test
+- Create: `src/app/m/feedback/_lib/noten.ts` + Test
+- Modify: `src/app/layout.tsx`, `src/core/theme/AntdProvider.tsx`, `src/core/theme/tokens.ts`
+  (nur Docstring), `src/app/m/feedback/f/layout.tsx`
+- Test: Ergänzung im bestehenden Layout-Test
 
 **Interfaces:**
-- Produces: `<html data-theme="light" | "dark">` — verbindlicher Selektor für alle künftigen
-  CSS-Module der Suite. `style={{ colorScheme }}` bleibt zusätzlich erhalten.
+- Produces:
+  - `<html data-theme="light" | "dark">` — verbindlicher Selektor für alle künftigen CSS-Module der
+    Suite. `style={{ colorScheme }}` bleibt zusätzlich erhalten.
+  - `NOTEN_HELL: readonly string[]` / `NOTEN_DUNKEL: readonly string[]` — je sechs Werte, Index 0 = Note 1.
+    **Wortgenau** die Werte aus Abschnitt 3.4.
+  - `NOTEN_WORT: readonly string[]` — „sehr gut" … „ungenügend".
+  - `notenFarbe(note: number, mode: "light" | "dark"): string`
+  - `ampelStufe(durchschnitt: number): 1 | 2 | 3 | 4 | 5 | 6` — Einfärbung eines Mittelwerts nach den
+    Schwellen aus Abschnitt 4.11.
 
 - [ ] **Schritt 1: Tests schreiben, die scheitern**
 
-- Bei Modus hell trägt `<html>` `data-theme="light"`, bei dunkel `"dark"`.
-- `colorScheme` bleibt zusätzlich gesetzt (keine Regression).
+- Bei Modus hell trägt `<html>` `data-theme="light"`, bei dunkel `"dark"`; `colorScheme` bleibt
+  zusätzlich gesetzt (keine Regression).
+- `setMode` schreibt `dataset.theme` auf dem Wurzelelement mit — ohne Navigation.
 - Die `/f/`-Hülle setzt **keine** Maximalbreite und **kein** Innenabstand mehr.
 - Die `/f/`-Hülle importiert **kein** antd (Quelltext-Assertion — der Entwurf verlangt antd-Freiheit
   auf dieser Route, und ein späterer „schneller Import" würde sie unbemerkt brechen).
+- `NOTEN_HELL`/`NOTEN_DUNKEL` haben je sechs Einträge und entsprechen **wortgenau** Abschnitt 3.4 —
+  diese Werte sind auf Kontrast geprüft (AA belegt), eigene Werte brechen die Zusicherung.
+- **Luminanz fällt monoton** von Note 1 zu Note 6 (hell) bzw. steigt monoton (dunkel). Das ist der
+  Kanal, der Rot-Grün-Blindheit und Graustufen übersteht — ein Test darauf verhindert, dass ein
+  späterer „schöner" Farbtausch ihn unbemerkt zerstört.
+- `ampelStufe` an jeder Schwellengrenze geprüft (Randwerte, nicht nur Mittelwerte).
 
 - [ ] **Schritt 2: Fehlschlag bestätigen** · **Schritt 3: Umsetzen** · **Schritt 4: Tests**
 
-`pnpm vitest run src/app` — erwartet: PASS. Zusätzlich prüfen, dass die übrigen Module optisch
-unverändert bleiben (`pnpm build`).
+`pnpm vitest run src/app src/core` — erwartet: PASS. Zusätzlich `pnpm build`, um zu prüfen, dass die
+übrigen Module unverändert bauen.
 
 - [ ] **Schritt 5: Commit**
 
-`feat(core): data-theme auf html, feedback-Hülle randlos`
+`feat(core): data-theme auf html, Notenpalette als gemeinsame Grundlage, Hülle randlos`
 
 ---
 
