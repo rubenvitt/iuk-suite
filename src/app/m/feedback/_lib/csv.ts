@@ -7,11 +7,26 @@ export function buildCsv(rows: string[][]): string {
   return rows.map((row) => row.map(csvField).join(",")).join("\r\n");
 }
 
-function csvField(value: string): string {
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+/**
+ * Verhindert CSV/Formula-Injection (OWASP): Der Export wird u.a. aus
+ * anonymem, öffentlichem Teilnehmer-Freitext gespeist (Umfrage-Antworten).
+ * Beginnt ein Feld mit `=`, `+`, `-`, `@`, Tab oder CR, interpretiert
+ * Excel/LibreOffice es beim Öffnen als Formel und führt sie aus. Ein
+ * vorangestelltes `'` neutralisiert das, ohne den Inhalt sonst zu verändern.
+ */
+function neutralizeFormula(value: string): string {
+  if (/^[=+\-@\t\r]/.test(value)) {
+    return `'${value}`;
   }
   return value;
+}
+
+function csvField(value: string): string {
+  const neutralized = neutralizeFormula(value);
+  if (/[",\r\n]/.test(neutralized)) {
+    return `"${neutralized.replace(/"/g, '""')}"`;
+  }
+  return neutralized;
 }
 
 export function joinTexts(values: string[]): string {
