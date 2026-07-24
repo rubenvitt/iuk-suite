@@ -43,6 +43,13 @@ export const MODULES: ModuleDef[] = [
   { key: "qr", title: "QR-Codes", icon: "QrcodeOutlined", shell: "minimal",
     requiresAuth: false, requiredGroups: [], adminGroups: ["drk-qr-admin"],
     prodHosts: [], showInSwitcher: true },
+  // feedback: gemischt wie qr — anonyme Teilnahme (/f/...) braucht keinen Login,
+  // requiresAuth:false. Die Verwaltung schützt sich über core/auth/guards +
+  // die Ownership-Guard (assertGroupAccess). requiredGroups gaten den
+  // Verwaltungs-Zugang, adminGroups den Voll-Admin (alle Gruppen).
+  { key: "feedback", title: "Feedback", icon: "CommentOutlined", shell: "full",
+    requiresAuth: false, requiredGroups: ["da-feedback-gl", "da-feedback-admin"],
+    adminGroups: ["da-feedback-admin"], prodHosts: [], showInSwitcher: true },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true },

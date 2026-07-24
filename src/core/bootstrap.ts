@@ -8,6 +8,8 @@ import * as portalSchema from "@/app/m/portal/_db/schema";
 import { seedPortal } from "@/app/m/portal/_lib/seed";
 import * as qrSchema from "@/app/m/qr/_db/schema";
 import { seedQr } from "@/app/m/qr/_lib/seed";
+import * as feedbackSchema from "@/app/m/feedback/_db/schema";
+import { seedFeedback } from "@/app/m/feedback/_lib/seed";
 
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
 // Migrations-Pfad ist cwd-relativ: Dev = Repo-Root, Prod = /app (Dockerfile
@@ -15,6 +17,7 @@ import { seedQr } from "@/app/m/qr/_lib/seed";
 export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   { key: "portal", migrationsFolder: "src/app/m/portal/_db/migrations" },
   { key: "qr", migrationsFolder: "src/app/m/qr/_db/migrations" },
+  { key: "feedback", migrationsFolder: "src/app/m/feedback/_db/migrations" },
 ];
 
 /**
@@ -49,4 +52,5 @@ export function shouldSeed(): boolean {
 export async function seedAllModules(): Promise<void> {
   await seedPortal(getModuleDb("portal", portalSchema));
   await seedQr(getModuleDb("qr", qrSchema));
+  await seedFeedback(getModuleDb("feedback", feedbackSchema));
 }

@@ -9,7 +9,7 @@ describe("switcherEntries", () => {
   it("verlinkt in Dev alle sichtbaren Module über *.localtest.me", () => {
     vi.stubEnv("PORT", "3000");
     const keys = switcherEntries([]).map((e) => e.key);
-    expect(keys).toEqual(["portal", "qr", "gamma"]);
+    expect(keys).toEqual(["portal", "qr", "feedback", "gamma"]);
     // Nicht über den Index greifen: die Registry-Reihenfolge verschiebt sich mit
     // jedem neuen Modul, das Verhalten dahinter aber nicht.
     const gamma = switcherEntries([]).find((e) => e.key === "gamma");
@@ -28,7 +28,8 @@ describe("switcherEntries", () => {
   it("filtert weiterhin auf die Gruppen der Session", () => {
     expect(switcherEntries(["alpha-users"]).map((e) => e.key)).toContain("alpha");
     // Anonym bleiben genau die Module übrig, die keinen Login verlangen — seit
-    // qr ist das nicht mehr die leere Liste, aber weiterhin nichts Geschütztes.
-    expect(switcherEntries(null).map((e) => e.key)).toEqual(["qr"]);
+    // qr und feedback ist das nicht mehr die leere Liste, aber weiterhin nichts
+    // Geschütztes.
+    expect(switcherEntries(null).map((e) => e.key)).toEqual(["qr", "feedback"]);
   });
 });
