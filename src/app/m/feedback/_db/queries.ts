@@ -24,6 +24,11 @@ export function memberGroupIdsFor(db: DB, sub: string): number[] {
     .all()
     .map((r) => r.groupId);
 }
+// onConflictDoNothing: (userId, groupId) ist Primary Key — ein erneuter Seed-
+// Lauf darf nicht auf einer bereits vorhandenen Zuordnung scheitern.
+export function insertUserGroup(db: DB, userId: string, groupId: number): void {
+  db.insert(userGroups).values({ userId, groupId }).onConflictDoNothing().run();
+}
 
 export function listGroups(db: DB): GroupRow[] {
   return db.select().from(groups).all();
