@@ -99,29 +99,51 @@ describe("core/charts", () => {
     await cleanup(host, root);
   });
 
-  it("leitet Achsen- und Gitterfarbe aus dem Theme-Token ab statt aus einer festen Zeichenkette (BarChart)", async () => {
-    const data = [{ x: "q1", y: 2.5 }];
+  it.each([
+    ["BarChart", BarChart],
+    ["LineChart", LineChart],
+  ] as const)(
+    "leitet Achsen- und Gitterfarbe aus dem Theme-Token ab statt aus einer festen Zeichenkette (%s)",
+    async (_name, Chart) => {
+      const data = [{ x: "q1", y: 2.5 }];
 
-    const light = await renderInto(
-      <ConfigProvider theme={buildTheme("light")}>
-        <BarChart data={data} xKey="x" yKey="y" domain={[1, 6]} />
-      </ConfigProvider>,
-    );
-    const lightGrid = light.host.querySelector(".recharts-cartesian-grid line");
-    const lightStroke = lightGrid?.getAttribute("stroke");
-    await cleanup(light.host, light.root);
+      const light = await renderInto(
+        <ConfigProvider theme={buildTheme("light")}>
+          <Chart data={data} xKey="x" yKey="y" domain={[1, 6]} />
+        </ConfigProvider>,
+      );
+      const lightGrid = light.host.querySelector(".recharts-cartesian-grid line");
+      const lightGridStroke = lightGrid?.getAttribute("stroke");
+      const lightAxisLine = light.host.querySelector(".recharts-cartesian-axis-line");
+      const lightAxisStroke = lightAxisLine?.getAttribute("stroke");
+      const lightTick = light.host.querySelector(".recharts-cartesian-axis-tick-value");
+      const lightTickFill = lightTick?.getAttribute("fill");
+      await cleanup(light.host, light.root);
 
-    const dark = await renderInto(
-      <ConfigProvider theme={buildTheme("dark")}>
-        <BarChart data={data} xKey="x" yKey="y" domain={[1, 6]} />
-      </ConfigProvider>,
-    );
-    const darkGrid = dark.host.querySelector(".recharts-cartesian-grid line");
-    const darkStroke = darkGrid?.getAttribute("stroke");
-    await cleanup(dark.host, dark.root);
+      const dark = await renderInto(
+        <ConfigProvider theme={buildTheme("dark")}>
+          <Chart data={data} xKey="x" yKey="y" domain={[1, 6]} />
+        </ConfigProvider>,
+      );
+      const darkGrid = dark.host.querySelector(".recharts-cartesian-grid line");
+      const darkGridStroke = darkGrid?.getAttribute("stroke");
+      const darkAxisLine = dark.host.querySelector(".recharts-cartesian-axis-line");
+      const darkAxisStroke = darkAxisLine?.getAttribute("stroke");
+      const darkTick = dark.host.querySelector(".recharts-cartesian-axis-tick-value");
+      const darkTickFill = darkTick?.getAttribute("fill");
+      await cleanup(dark.host, dark.root);
 
-    expect(lightStroke).toBeTruthy();
-    expect(darkStroke).toBeTruthy();
-    expect(lightStroke).not.toBe(darkStroke);
-  });
+      expect(lightGridStroke).toBeTruthy();
+      expect(darkGridStroke).toBeTruthy();
+      expect(lightGridStroke).not.toBe(darkGridStroke);
+
+      expect(lightAxisStroke).toBeTruthy();
+      expect(darkAxisStroke).toBeTruthy();
+      expect(lightAxisStroke).not.toBe(darkAxisStroke);
+
+      expect(lightTickFill).toBeTruthy();
+      expect(darkTickFill).toBeTruthy();
+      expect(lightTickFill).not.toBe(darkTickFill);
+    },
+  );
 });
