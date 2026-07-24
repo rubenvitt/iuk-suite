@@ -37,6 +37,14 @@ export default async function RootLayout({
     <html
       lang="de"
       className={`${geistSans.variable} ${geistMono.variable}`}
+      // BEIDES, nicht das eine statt des anderen: `colorScheme` zieht
+      // Scrollbalken und native Bedienelemente mit, aber CSS kann darauf nicht
+      // selektieren. `data-theme` ist der verbindliche Selektor fuer eigene
+      // CSS-Variablen jedes Moduls — bewusst NICHT `prefers-color-scheme`:
+      // die Suite hat einen Umschalter (Cookie `iuk-theme`, oben serverseitig
+      // gelesen), sonst bricht der Fall "System dunkel, Umschalter hell".
+      // Den Wechsel ohne Reload schreibt `AntdProvider.setMode` mit.
+      data-theme={mode}
       style={{ colorScheme: mode }}
       suppressHydrationWarning
     >
