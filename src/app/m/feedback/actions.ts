@@ -238,7 +238,10 @@ export async function submitResponseAction(slugSecret: string, formData: FormDat
     const value = coerceAnswer(q, formData.get(q.id));
     if (value !== undefined) answers[q.id] = value;
   }
-  insertResponse(db, survey.id, answers, now);
+  // Zeitstempel = Mitternacht UTC des Abenddatums, nicht `now`: der Siegeltext
+  // sagt "keine Uhrzeit" (Entwurf 3.9). Die Sekunde wäre bei ~15 Abgaben ein
+  // Deanonymisierungskanal.
+  insertResponse(db, survey.id, answers, active.evening.date);
 
   // Mehrfach-Absende-Schutz per Cookie (24h) — 1:1 zur Alt-App (public.go:105-112).
   (await cookies()).set(`feedback-${survey.id}`, "submitted", {

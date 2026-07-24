@@ -360,4 +360,20 @@ describe("insertResponse / listResponses", () => {
     expect(rows).toHaveLength(1);
     expect(JSON.parse(rows[0].answers)).toEqual({ q1: 2, q9: "gut" });
   });
+
+  /**
+   * Altbestand: der Import (scripts/import/feedback.ts) schreibt sekundengenaue
+   * Zeitstempel aus der Alt-App und muss Parität halten. `insertResponse`
+   * schreibt `at` deshalb unverändert — die Rundung auf das Abenddatum ist
+   * Sache des Aufrufers, nicht dieser Funktion.
+   */
+  it("schreibt den übergebenen Zeitstempel unverändert (Altbestand bleibt sekundengenau lesbar)", () => {
+    const g = mkGroup();
+    const e = insertEvening(db, { groupId: g.id, date: new Date(0), topic: null, notes: null, participantCount: null, createdAt: new Date(0) });
+    const s = insertSurvey(db, { eveningId: e.id, questions: "[]", closeAfterHours: null, createdAt: new Date(0) });
+    const secondPrecise = new Date(Date.UTC(2026, 3, 9, 7, 24, 28));
+    insertResponse(db, s.id, { q1: 2 }, secondPrecise);
+    const rows = listResponses(db, s.id);
+    expect(rows[0].submittedAt.getTime()).toBe(secondPrecise.getTime());
+  });
 });

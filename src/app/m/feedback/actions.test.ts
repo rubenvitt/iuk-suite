@@ -190,3 +190,33 @@ describe("submitResponseAction: Brute-Force-Schutz bleibt", () => {
     await expect(submitResponseAction("x", submission())).rejects.toThrow("Ungültiger Link");
   });
 });
+
+/**
+ * Anonymität (Entwurf 3.9): der Siegeltext sagt "keine Uhrzeit". Deshalb trägt
+ * jede Antwort Mitternacht UTC des Abenddatums, nicht den Abgabezeitpunkt — bei
+ * 15 Personen wäre die Sekunde sonst ein Deanonymisierungskanal.
+ */
+describe("submitResponseAction: Zeitstempel verrät die Uhrzeit nicht", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("zwei Abgaben im Abstand von Sekunden erhalten identisch das Abenddatum", async () => {
+    // Nur Date fälschen: die Actions importieren dynamisch, ein voller
+    // Timer-Fake hängt statt zu scheitern.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const eveningDate = todayMidnightUtc();
+    vi.setSystemTime(new Date(eveningDate.getTime() + 20 * 3600_000)); // 20:00 UTC, Frist offen
+
+    const { submitResponseAction } = await loadActions();
+    const { token, survey } = seedActiveSurvey("bereitschaft", "abc12");
+
+    await submitResponseAction(token, submission());
+    vi.setSystemTime(new Date(eveningDate.getTime() + 20 * 3600_000 + 5_000));
+    await submitResponseAction(token, submission());
+
+    const rows = listResponses(db, survey.id);
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(r.submittedAt.getTime()).toBe(eveningDate.getTime());
+    }
+  });
+});

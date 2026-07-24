@@ -23,10 +23,44 @@ function toFloat(v: unknown): number | null {
   return null;
 }
 
+/** FNV-1a (32 Bit). `Math.imul` hält die Multiplikation in Ganzzahl-Arithmetik. */
+function fnv1a(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Deterministische Durchmischung: sortiert nach FNV-1a-Hash des Schlüssels,
+ * bei Hash-Kollision nach dem Schlüssel selbst. Gleiche Eingabe → gleiche
+ * Ausgabe (testbar), aber vollständig entkoppelt von der Eingangsreihenfolge.
+ *
+ * Anonymität (Entwurf 3.9): bei rund 15 Personen, die über ihre eigene
+ * Gruppenleitung urteilen, ist die Eingangsreihenfolge allein ein
+ * Deanonymisierungskanal — wer als Erster ging, stünde oben. Der Tie-Break auf
+ * den Schlüssel verhindert, dass eine Kollision still auf die Ankunftsordnung
+ * zurückfällt. Die Eingabe wird nicht mutiert.
+ */
+export function shuffleStable<T>(items: T[], keyOf: (t: T) => string): T[] {
+  return items
+    .map((item) => {
+      const key = keyOf(item);
+      return { item, key, h: fnv1a(key) };
+    })
+    .sort((a, b) => a.h - b.h || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+    .map((x) => x.item);
+}
+
 export function computeDAStats(
   questions: Question[],
-  answers: Record<string, unknown>[],
+  rawAnswers: Record<string, unknown>[],
 ): DAStats {
+  // Leseordnung durchmischt (Entwurf 3.9) — dieselbe Ordnung nutzt die
+  // CSV-Route. Durchschnitte und Zählungen bleiben davon unberührt.
+  const answers = shuffleStable(rawAnswers, (a) => JSON.stringify(a));
   const perQuestion: DAStats["perQuestion"] = [];
   const texts: DAStats["texts"] = [];
   const ratingAvgs: number[] = [];

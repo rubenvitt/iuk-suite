@@ -285,9 +285,21 @@ export function activeSurveyForGroup(
   return rows ?? undefined;
 }
 
+/**
+ * Bewusst ohne `ORDER BY`: die Ausgabeordnung ist keine Zusage dieser Funktion.
+ * Wer Antworten Menschen zeigt (Auswertung, CSV-Export), mischt sie über
+ * `shuffleStable` (aggregation.ts) durch — Entwurf 3.9.
+ */
 export function listResponses(db: DB, surveyId: number): ResponseRow[] {
   return db.select().from(responses).where(eq(responses.surveyId, surveyId)).all();
 }
+/**
+ * `at` ist NICHT der Abgabezeitpunkt: der öffentliche Pfad übergibt Mitternacht
+ * UTC des Abenddatums, damit die Zeile keine Uhrzeit trägt (Entwurf 3.9,
+ * Siegeltext "keine Uhrzeit"). Die Rundung bleibt beim Aufrufer, weil der
+ * Import (scripts/import/feedback.ts) die sekundengenauen Alt-Zeitstempel
+ * unverändert behalten muss (Parität).
+ */
 export function insertResponse(
   db: DB,
   surveyId: number,
