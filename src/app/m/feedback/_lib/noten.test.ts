@@ -145,6 +145,19 @@ describe("notenFarbe: Note 1 ist der erste Eintrag, nicht der zweite", () => {
     expect(notenFarbe(0, "light")).toBe("#2F7F59");
     expect(notenFarbe(9, "dark")).toBe("#E55C6E");
   });
+
+  /**
+   * `NaN` ist der real erreichbare Fall, nicht ein konstruierter: `avgSchulnote`
+   * (§4.12/2) mittelt nur `schulnote`-Fragen, und `summe / 0` ergibt bei einem
+   * Abend ohne solche Fragen `NaN` — was jede `!== null`-Pruefung passiert.
+   * Ohne Riegel gibt `notenFarbe` dann `undefined` zurueck, obwohl die Signatur
+   * `string` verspricht, und die Pille rendert ohne Fuellung.
+   */
+  it("gibt auch fuer NaN eine Farbe zurueck, nie undefined", () => {
+    expect(notenFarbe(NaN, "light")).toBe("#811221");
+    expect(notenFarbe(NaN, "dark")).toBe("#E55C6E");
+    expect(typeof notenFarbe(NaN, "light")).toBe("string");
+  });
 });
 
 describe("ampelStufe: die Schwellen aus Abschnitt 4.11, an den Raendern geprueft", () => {
@@ -180,6 +193,28 @@ describe("ampelStufe: die Schwellen aus Abschnitt 4.11, an den Raendern geprueft
     expect(ampelStufe(2.5)).toBe(3);
     expect(notenFarbe(ampelStufe(2.4), "light")).toBe("#54782A");
     expect(notenFarbe(ampelStufe(2.5), "light")).toBe("#7E6103");
+  });
+
+  it("alle drei Kanaele sagen fuer 2,4 dasselbe: Ziffer 2, Farbe der 2, Wort 'gut'", () => {
+    const stufe = ampelStufe(2.4);
+    expect(stufe).toBe(2);
+    expect(notenFarbe(stufe, "light")).toBe("#54782A");
+    expect(NOTEN_WORT[stufe - 1]).toBe("gut");
+  });
+
+  /**
+   * Der Wertebereich-Test unten laeuft nur ueber endliche Zahlen. `NaN` ist der
+   * eine Eingang, der die Signatur `1|2|3|4|5|6` sonst still bricht (siehe
+   * notenFarbe-Test): `Math.round(NaN)` ist `NaN`, und `Math.min`/`Math.max`
+   * reichen es unveraendert durch.
+   */
+  it("NaN faellt nicht aus dem Wertebereich — die Signatur haelt", () => {
+    const stufe: number = ampelStufe(NaN);
+    expect(Number.isNaN(stufe)).toBe(false);
+    expect(Number.isInteger(stufe)).toBe(true);
+    expect(stufe).toBeGreaterThanOrEqual(1);
+    expect(stufe).toBeLessThanOrEqual(6);
+    expect(stufe).toBe(6);
   });
 
   it("keine Stufe faellt aus dem Wertebereich 1..6", () => {

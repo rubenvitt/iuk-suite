@@ -73,6 +73,21 @@ export const NOTEN_WORT: readonly string[] = [
  * keine Stufe ausserhalb 1..6 erzeugt.
  */
 export function ampelStufe(durchschnitt: number): 1 | 2 | 3 | 4 | 5 | 6 {
+  // `NaN` muss ZUERST abgefangen werden: `Math.round(NaN)` ist `NaN`, und
+  // `Math.min`/`Math.max` reichen es unveraendert durch — die Signatur waere
+  // eine Luege und `notenFarbe` gaebe `undefined` zurueck. Der Fall ist real
+  // erreichbar: `avgSchulnote` (§4.12/2) mittelt nur `schulnote`-Fragen, und
+  // `summe / 0` ergibt bei einem Abend ohne solche Fragen `NaN`, was jede
+  // `!== null`-Pruefung passiert.
+  //
+  // 6 ist hier KEINE Aussage ueber die Daten, sondern der lauteste verfuegbare
+  // Fehlalarm. Wer einen unbekannten Wert anzeigt, hat den Riegel des Entwurfs
+  // uebersprungen: bei `null` steht laut §4.11 ein „—" und KEINE Pille. Ein
+  // stilles Ausweichen auf 1 waere die gefaehrlichere Wahl — eine kaputte
+  // Auswertung saehe dann wie „sehr gut" aus und niemand meldete sie.
+  // Nur `NaN` braucht den Riegel: `±Infinity` klemmt die Zeile darunter
+  // korrekt auf 6 bzw. 1.
+  if (Number.isNaN(durchschnitt)) return 6;
   const gerundet = Math.round(durchschnitt);
   return Math.min(6, Math.max(1, gerundet)) as 1 | 2 | 3 | 4 | 5 | 6;
 }
