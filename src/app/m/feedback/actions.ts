@@ -35,7 +35,19 @@ import {
 } from "./_lib/lifecycle";
 import { RateLimiter } from "./_lib/ratelimit";
 
-const submitLimiter = new RateLimiter({ windowMs: 60_000, max: 10 });
+const TOO_MANY = "Zu viele Anfragen — bitte später erneut.";
+
+/**
+ * ZWEI Limiter, absichtlich getrennt (Entwurf 3.8 „Ratelimit"). Ein einziger
+ * IP-Limiter mit 10/min hat den Kernfall getötet: 15 Ehrenamtliche scannen um
+ * 21:30 aus EINEM Vereins-WLAN, teilen also eine NAT-IP — ab der 11. Abgabe
+ * kam „Zu viele Anfragen". Deshalb zählt der IP-Zähler jetzt nur noch
+ * Fehlversuche, und echte Abgaben laufen über einen eigenen, weiten Zähler.
+ */
+// Brute-Force-Schutz UNVERÄNDERT: zählt nur ungültige Token/Secrets, Schlüssel = IP.
+const tokenGuard = new RateLimiter({ windowMs: 60_000, max: 10 });
+// Echte Abgaben: Schlüssel IP+Umfrage, deckt 15 Leute im Vereins-WLAN plus Weitergabe.
+const submitLimiter = new RateLimiter({ windowMs: 600_000, max: 60 });
 
 function revalidate(): void {
   revalidatePath("/m/feedback");
@@ -177,6 +189,8 @@ export async function archiveSurveyAction(formData: FormData) {
  * Teilnehmer eines Dienstabends — die denselben QR-Link scannen — gemeinsam
  * limitieren. Die IP bremst einen Brute-Forcer (eine IP), ohne echte
  * Teilnehmer mit verschiedenen Mobilfunk-IPs zu behindern.
+ * Sie ist deshalb nur noch der Schlüssel des `tokenGuard`; echte Abgaben
+ * zählt `submitLimiter` unter `${ip}|${surveyId}`.
  */
 async function clientIp(): Promise<string> {
   const h = await headers();
@@ -186,20 +200,31 @@ async function clientIp(): Promise<string> {
   return forwardedFor || "unknown";
 }
 
+/**
+ * Ungültiges Token oder falsches Secret: erst das Fehlversuch-Budget der IP
+ * belasten, dann ablehnen. Wer Secrets rät, wird nach 10 Versuchen pro Minute
+ * gebremst — eine legitime Abgabe berührt diesen Zähler nie.
+ */
+function rejectInvalidToken(ip: string): never {
+  if (!tokenGuard.check(ip)) throw new Error(TOO_MANY);
+  throw new Error("Ungültiger Link");
+}
+
 // ---- Öffentliche Teilnahme ----
 export async function submitResponseAction(slugSecret: string, formData: FormData) {
   const db = getDb();
   const { parseToken } = await import("./_lib/token");
   const { getGroupBySlug } = await import("./_db/queries");
+  const ip = await clientIp();
   const parsed = parseToken(slugSecret);
-  if (!parsed) throw new Error("Ungültiger Link");
-  if (!submitLimiter.check(await clientIp())) throw new Error("Zu viele Anfragen — bitte später erneut.");
+  if (!parsed) rejectInvalidToken(ip);
   const group = getGroupBySlug(db, parsed.slug);
-  if (!group || group.secret !== parsed.secret) throw new Error("Ungültiger Link");
+  if (!group || group.secret !== parsed.secret) rejectInvalidToken(ip);
 
   const active = activeSurveyForGroup(db, group.id);
   if (!active) throw new Error("Keine aktive Umfrage");
   const survey = active.survey;
+  if (!submitLimiter.check(`${ip}|${survey.id}`)) throw new Error(TOO_MANY);
   // closes_at auch auf dem Submit-Pfad prüfen (nicht nur beim Anzeigen).
   const now = new Date();
   if (nextStatusOnAccess("active", survey.closesAt, now) !== "active") {
