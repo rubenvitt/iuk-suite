@@ -1,5 +1,9 @@
+import { redirect, notFound } from "next/navigation";
+import { auth } from "@/core/auth";
 import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";
+import { viewerFromSession } from "../_lib/viewer";
+import { isFeedbackAdmin } from "../_lib/access";
 
 // full-Shell NUR für die Verwaltung: diese Route-Group liegt eine Ebene über
 // `f/` (Task 11), das sein eigenes, chrome-loses Layout hat. Next.js-Layouts
@@ -7,12 +11,27 @@ import { getModule } from "@/core/registry";
 // dieses Layout hier also nie, weil `(admin)` und `f` Geschwister-Segmente
 // unter `feedback/` sind (Route-Groups sind reine Ordnungs-Ordner, tragen
 // aber trotzdem die Layout-Verschachtelung nur für ihren eigenen Ast).
-export default function FeedbackAdminLayout({
+//
+// Auth-Backstop (Finding 3): `feedback` ist requiresAuth:false (Pflicht für die
+// anonyme Teilnahme unter /f/) — dadurch gaten core/routing.ts + proxy.ts
+// (die Middleware) die Verwaltung NICHT, und ohne diesen Guard wäre jede
+// Seite unter (admin) allein auf sich gestellt. Zweite Linie hier, zusätzlich
+// zu den Seiten-Guards (guardPage/assertGroupAccess), die unverändert bleiben:
+// keine Session → Login-Redirect mit callbackUrl; Session ohne Zugang → 404
+// (verrät nicht, dass es die Route gibt — konsistent mit den Seiten-Guards).
+export default async function FeedbackAdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const mod = getModule("feedback");
+  const viewer = viewerFromSession(await auth());
+  if (!viewer) redirect(`/login?callbackUrl=${encodeURIComponent("/m/feedback")}`);
+
+  const hasAccess =
+    isFeedbackAdmin(viewer) || viewer.groups.some((g) => mod.requiredGroups.includes(g));
+  if (!hasAccess) notFound();
+
   return (
     <Shell variant={mod.shell} moduleKey={mod.key}>
       {children}

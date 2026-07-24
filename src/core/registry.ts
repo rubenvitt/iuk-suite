@@ -44,9 +44,13 @@ export const MODULES: ModuleDef[] = [
     requiresAuth: false, requiredGroups: [], adminGroups: ["drk-qr-admin"],
     prodHosts: [], showInSwitcher: true },
   // feedback: gemischt wie qr — anonyme Teilnahme (/f/...) braucht keinen Login,
-  // requiresAuth:false. Die Verwaltung schützt sich über core/auth/guards +
-  // die Ownership-Guard (assertGroupAccess). requiredGroups gaten den
-  // Verwaltungs-Zugang, adminGroups den Voll-Admin (alle Gruppen).
+  // requiresAuth:false. Dadurch prüft canAccess() unten requiredGroups HIER
+  // NIE (früher Ausstieg bei !requiresAuth) — die generische Middleware-Gate
+  // (core/routing.ts + proxy.ts) gated die Verwaltung also nicht. Durchgesetzt
+  // wird requiredGroups stattdessen direkt im Verwaltungs-Layout
+  // `(admin)/layout.tsx` (Backstop-Guard, liest dieses Feld selbst), zusammen
+  // mit der Ownership-Guard (assertGroupAccess) auf den einzelnen Seiten.
+  // adminGroups bleibt der Voll-Admin (alle Gruppen, via isFeedbackAdmin).
   { key: "feedback", title: "Feedback", icon: "CommentOutlined", shell: "full",
     requiresAuth: false, requiredGroups: ["da-feedback-gl", "da-feedback-admin"],
     adminGroups: ["da-feedback-admin"], prodHosts: [], showInSwitcher: true },
