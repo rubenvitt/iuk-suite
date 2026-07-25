@@ -786,6 +786,18 @@
 }
 
 /*
+ * Die 20-Sekunden-Sperre nach einem Ratelimit (Entwurf 3.8). Sie muss SICHTBAR
+ * sein, sonst ist der Knopf aus Sicht der Person kaputt: er sieht aus wie immer
+ * und tut nichts — und genau dann wird er mehrfach getippt, also das Verhalten,
+ * das das Ratelimit ausgeloest hat. Gedaempft, nicht gesperrt-rot: der Text im
+ * Panel darueber sagt, dass gleich wieder gesendet werden kann.
+ */
+.knopf:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/*
  * Der unvollstaendige Zustand: UMRISS statt Fuellung, Schrift in Tinte. Er sieht
  * nicht nach Verbot aus und nicht nach Warnung — er sieht nach "noch nicht
  * fertig" aus, und der Text daneben sagt, was fehlt.

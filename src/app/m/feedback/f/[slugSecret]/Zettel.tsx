@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEve
 import { NOTEN_DUNKEL, NOTEN_HELL, NOTEN_WORT } from "../../_lib/noten";
 import { MAX_TEXT_LENGTH, isRatingType, ratingScale, type Question } from "../../_lib/questions";
 import type { SubmitResult } from "../../actions";
+import { JS_FELD } from "../../_lib/absenden";
 import s from "./zettel.module.css";
 
 /**
@@ -131,6 +132,38 @@ const NAVIGATOR_KNOPF = "→ nächste offene";
 const MELDUNG_AUSNAHME =
   "Das Absenden hat gerade nicht geklappt. Deine Eingaben stehen noch — bitte tippe " +
   "noch einmal auf „Rückmeldung absenden“.";
+
+/**
+ * DIE ABWEISUNGEN DER ACTION (Entwurf 3.8), Wortlaute wortgenau — und dieselbe
+ * Flaeche wie die Ausnahme oben: `.meldung`, `role="alert"`, kein Rot.
+ *
+ * Ohne diese Tabelle war die Abgabe im schlimmsten Fall STILL: laeuft die Frist
+ * mitten in der Sitzung ab, gibt die Action `{ ok: false, code: "closed" }`
+ * zurueck, der alte Code las den Rueckgabewert nur fuer den Entwurfsspeicher —
+ * und es aenderte sich kein Pixel. Acht getippte Noten, ein Knopf, der nichts
+ * sagt, und ein zweiter Tipp darauf.
+ *
+ * `closed` und `none` sind ENDSTAENDE: es gibt hier nichts mehr zu senden, also
+ * verschwinden die Absende-Knoepfe (`endstand`). Beide Texte nennen zuerst den
+ * Zustand (die H1 aus 3.2 D bzw. C) und dann, was aus der Abgabe wurde — der
+ * ehrliche Zusatz aus 3.8. `ratelimit` ist das Gegenteil: die Eingaben bleiben
+ * stehen, der Knopf kommt nach 20 Sekunden wieder.
+ */
+const MELDUNG_ABWEISUNG: Record<string, string> = {
+  closed:
+    "Die Umfrage zu diesem Abend ist beendet. Deine Rückmeldung konnte nicht mehr " +
+    "gespeichert werden.",
+  none: "Zurzeit läuft keine Umfrage. Deine Rückmeldung konnte nicht mehr gespeichert werden.",
+  ratelimit:
+    "Gerade sind viele Rückmeldungen gleichzeitig unterwegs. Bitte einmal auf Absenden tippen.",
+  incomplete: "Da fehlten noch Noten.",
+};
+
+/** Nach diesen Abweisungen gibt es nichts mehr zu senden — der Knopf geht. */
+const ENDSTAND = ["closed", "none"];
+
+/** Die Sperre nach einem Ratelimit: „Knopf wird nach 20s wieder aktiv" (3.8). */
+export const SPERRE_MS = 20_000;
 
 /**
  * Zahlwoerter fuer den Satz unter dem ersten Knopf. Der Entwurf schreibt "Die
@@ -295,6 +328,14 @@ export function Zettel(props: ZettelProps) {
    * Zaehler waechst monoton, damit haengt das Verhalten an nichts Zufaelligem.
    */
   const [fehlversuche, setFehlversuche] = useState(0);
+  /**
+   * Endstand nach `closed`/`none`: das Formular bleibt stehen (die Eingaben sind
+   * nicht verloren, nur nicht mehr abgebbar), aber die Absende-Knoepfe gehen. Ein
+   * Knopf, der nur noch dieselbe Abweisung holen kann, ist ein toter Knopf.
+   */
+  const [endstand, setEndstand] = useState(false);
+  /** Ratelimit-Sperre (3.8): der Knopf ist 20 Sekunden lang nicht bedienbar. */
+  const [gesperrt, setGesperrt] = useState(false);
   const [abschlussSichtbar, setAbschlussSichtbar] = useState(false);
   const formular = useRef<HTMLFormElement>(null);
   const abschluss = useRef<HTMLDivElement>(null);
@@ -351,6 +392,17 @@ export function Zettel(props: ZettelProps) {
     // weiter unten weiter und die Meldung bleibt eine Notiz an einem anderen Ort.
     ziel.focus?.();
   }, [fehlversuche]);
+
+  /*
+   * Die 20-Sekunden-Sperre laeuft ab. Der Zeitgeber steht im Effekt und nicht im
+   * Handler, damit er beim Verlassen der Seite aufgeraeumt wird — sonst schriebe
+   * er in einen Zustand, den es nicht mehr gibt.
+   */
+  useEffect(() => {
+    if (!gesperrt) return;
+    const zeitgeber = setTimeout(() => setGesperrt(false), SPERRE_MS);
+    return () => clearTimeout(zeitgeber);
+  }, [gesperrt]);
 
   /*
    * Der Navigator verschwindet, sobald der Abschluss-Block im Bild ist (§3.2
@@ -453,6 +505,15 @@ export function Zettel(props: ZettelProps) {
     // Die Nutzlast wird VOR allem anderen gelesen: nach einem `await` ist
     // `currentTarget` null.
     const daten = new FormData(ereignis.currentTarget);
+    /*
+     * Der Action sagen, dass hier JavaScript laeuft — sie darf dann NICHT
+     * umleiten, sondern muss antworten (Entwurf 3.8: mit JS bleiben alle
+     * Eingaben stehen). Das Feld wird hier gesetzt und steht nicht im Markup:
+     * ein verstecktes Feld haengt an der Hydration, und ein vor der Hydration
+     * abgeschickter Bogen (der Weg, den §3.11 zusagt) wuerde faelschlich als
+     * „mit JS" gelesen — die Action antwortete, und die Antwort laese niemand.
+     */
+    daten.set(JS_FELD, "1");
     // Vor jedem Weg: fehlt eine Note, wird nicht gesendet, sondern gesprungen.
     // Das deckt auch die Enter-Taste ab — `noValidate` hat `required` still gelegt.
     // Gefragt wird das DOM, denn genau das steckt auch in `daten` — ein Riegel,
@@ -467,13 +528,37 @@ export function Zettel(props: ZettelProps) {
     try {
       const ergebnis = await action(daten);
       // Der Entwurf faellt NUR bei einer angenommenen Abgabe. Bei `{ ok: false }`
-      // (geschlossen, Ratelimit — Anzeige in Task 14) bleibt er stehen, sonst
-      // waeren die Freitexte beim Neuladen weg.
-      if (!ergebnis || ergebnis.ok) entwurfVerwerfen(tokenHash);
+      // (geschlossen, Ratelimit) bleibt er stehen, sonst waeren die Freitexte
+      // beim Neuladen weg.
+      if (!ergebnis || ergebnis.ok) {
+        entwurfVerwerfen(tokenHash);
+        return;
+      }
+      abweisungZeigen(ergebnis.code);
     } catch {
       setMeldung(MELDUNG_AUSNAHME);
       setFehlversuche((n) => n + 1);
     }
+  }
+
+  /**
+   * Eine Abweisung der Action sichtbar machen (Entwurf 3.8).
+   *
+   * JEDER Code landet hier auf einem Text — auch `invalid`, das mitten in einer
+   * Sitzung nur entstehen kann, wenn das Token aufgehoert hat zu gelten (Secret
+   * neu gesetzt). Der Grundsatz, an dem die Beanstandung hing: kein Rueckgabewert
+   * darf ohne sichtbare Wirkung bleiben. Deshalb ist der Rueckfall die
+   * Ausnahme-Meldung und nicht Schweigen.
+   *
+   * `setFehlversuche` ist kein Zaehlwerk fuer Statistik, sondern der Anlass fuer
+   * den Effekt oben, die Meldung in den Blick zu holen — beim zweiten Mal auch
+   * dann, wenn der Text derselbe ist.
+   */
+  function abweisungZeigen(code: string): void {
+    setMeldung(MELDUNG_ABWEISUNG[code] ?? MELDUNG_AUSNAHME);
+    setFehlversuche((n) => n + 1);
+    if (ENDSTAND.includes(code)) setEndstand(true);
+    if (code === "ratelimit") setGesperrt(true);
   }
 
   return (
@@ -538,7 +623,14 @@ export function Zettel(props: ZettelProps) {
             {meldung}
           </p>
         )}
-        <Absendeknopf bereit={bereit} offen={offene.length} onLuecke={zurLuecke} />
+        {endstand ? null : (
+          <Absendeknopf
+            bereit={bereit}
+            offen={offene.length}
+            gesperrt={gesperrt}
+            onLuecke={zurLuecke}
+          />
+        )}
         {freitextfragen.length === 0 ? null : (
           <p className={s.knopfHinweis}>{freiwilligSatz(freitextfragen.length)}</p>
         )}
@@ -552,7 +644,14 @@ export function Zettel(props: ZettelProps) {
         <>
           <Freitexte fragen={freitextfragen} tokenHash={tokenHash} />
           <p className={s.kurzzusage}>{KURZZUSAGE}</p>
-          <Absendeknopf bereit={bereit} offen={offene.length} onLuecke={zurLuecke} />
+          {endstand ? null : (
+            <Absendeknopf
+              bereit={bereit}
+              offen={offene.length}
+              gesperrt={gesperrt}
+              onLuecke={zurLuecke}
+            />
+          )}
         </>
       )}
       {gewaehlteAnzahl === 0 || abschlussSichtbar ? null : (
@@ -577,15 +676,22 @@ export function Zettel(props: ZettelProps) {
 function Absendeknopf({
   bereit,
   offen,
+  gesperrt,
   onLuecke,
 }: {
   bereit: boolean;
   offen: number;
+  /**
+   * Die 20-Sekunden-Sperre nach einem Ratelimit (3.8). Sie liegt auf BEIDEN
+   * Knoepfen — beide sind derselbe Knopf, zweimal; ein gesperrter oben und ein
+   * offener unten waere eine Einladung, es genau dort noch einmal zu versuchen.
+   */
+  gesperrt: boolean;
   onLuecke: () => void;
 }) {
   if (bereit) {
     return (
-      <button type="submit" className={s.knopf} data-absenden="">
+      <button type="submit" className={s.knopf} data-absenden="" disabled={gesperrt}>
         {ABSENDEN}
       </button>
     );
@@ -596,6 +702,7 @@ function Absendeknopf({
       className={`${s.knopf} ${s.knopfUmriss}`}
       data-absenden=""
       data-offen=""
+      disabled={gesperrt}
       onClick={onLuecke}
     >
       {offenText(offen)}

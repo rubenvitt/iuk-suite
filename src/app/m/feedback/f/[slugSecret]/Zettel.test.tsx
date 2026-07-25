@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -14,9 +15,17 @@ import {
   exists,
   submitForm,
 } from "@/app/m/qr/_lib/test-dom";
-import { ENTWURF_VERFALL_MS, entwurfSchluessel, Zettel, type ZettelProps } from "./Zettel";
+import {
+  ENTWURF_VERFALL_MS,
+  SPERRE_MS,
+  entwurfSchluessel,
+  Zettel,
+  type ZettelProps,
+} from "./Zettel";
 import s from "./zettel.module.css";
 import { STANDARD_QUESTIONS, type Question } from "../../_lib/questions";
+import { JS_FELD } from "../../_lib/absenden";
+import type { SubmitResult } from "../../actions";
 
 /**
  * Der Zettel traegt den Kern des Entwurfs (§3.2 Punkt 3–4, §3.6, §3.10): die
@@ -1083,6 +1092,164 @@ describe("Unerwartete Ausnahme der Action", () => {
     // Der Fokusrahmen der programmatisch fokussierten Meldung: Tinte, kein Rot.
     expect(cssRegel(".meldung:focus-visible")).toMatch(/outline:\s*2px solid var\(--tinte\)/);
     expect(cssRegel(".meldung:focus-visible")).not.toMatch(/#c8000f/i);
+  });
+});
+
+/*
+ * DIE ABWEISUNGEN DER ACTION (Entwurf 3.8) — vorher der stillste Weg der Route.
+ *
+ * `submitResponseAction` gibt `{ ok: false, code: … }` zurueck, statt zu werfen.
+ * Der Client las diesen Wert aber nur, um zu entscheiden, ob der Entwurf fallen
+ * darf: laeuft die Frist mitten in der Sitzung ab, tippt jemand acht Noten und
+ * drueckt "Rueckmeldung absenden" — und es aenderte sich KEIN PIXEL. Kein Satz,
+ * kein Panel, kein Hinweis; nur ein Knopf, der aussieht wie vorher. Diese Tests
+ * nageln fest, dass jeder Code eine sichtbare Wirkung hat.
+ */
+describe("Abweisungen der Action werden sichtbar", () => {
+  /** Eine Action, die genau einen Code abweist. */
+  function weistAb(code: string, missing?: string[]) {
+    return async (): Promise<SubmitResult> =>
+      ({ ok: false, code, ...(missing ? { missing } : {}) }) as SubmitResult;
+  }
+
+  async function abgesendet(code: string, missing?: string[]): Promise<HTMLElement> {
+    await zeichneStandard(weistAb(code, missing));
+    await alleNoten(3);
+    await submitForm();
+    return query("[data-meldung]");
+  }
+
+  it("nennt bei `closed` den Zustand UND was aus der Abgabe wurde", async () => {
+    const meldung = await abgesendet("closed");
+    expect(meldung.getAttribute("role")).toBe("alert");
+    expect(meldung.textContent).toContain("Die Umfrage zu diesem Abend ist beendet.");
+    // Der ehrliche Zusatz aus 3.8 — ohne ihn bleibt offen, wo die Noten blieben.
+    expect(meldung.textContent).toContain("Deine Rückmeldung konnte nicht mehr gespeichert werden.");
+  });
+
+  it("nimmt bei `closed` beide Absende-Knoepfe weg — es gibt nichts mehr zu senden", async () => {
+    expect((await zeichneStandard(weistAb("closed")), absendeknoepfe())).toHaveLength(2);
+    await alleNoten(3);
+    await submitForm();
+    expect(absendeknoepfe()).toHaveLength(0);
+    // Die Eingaben bleiben trotzdem stehen — sie sind nicht abgebbar, nicht weg.
+    expect(radios("q1")[2].checked).toBe(true);
+  });
+
+  it("behandelt `none` (Umfrage von Hand geschlossen) genauso — nicht stumm", async () => {
+    const meldung = await abgesendet("none");
+    expect(meldung.textContent).toContain("Zurzeit läuft keine Umfrage.");
+    expect(absendeknoepfe()).toHaveLength(0);
+  });
+
+  it("bittet beim Ratelimit um EINEN Tipp und laesst alle Eingaben stehen", async () => {
+    await zeichneStandard(weistAb("ratelimit"));
+    await alleNoten(3);
+    await tippe("q9", "Kartenkunde bitte wiederholen");
+    await submitForm();
+    expect(query("[data-meldung]").textContent).toContain(
+      "Gerade sind viele Rückmeldungen gleichzeitig unterwegs. Bitte einmal auf Absenden tippen.",
+    );
+    expect(radios("q1")[2].checked).toBe(true);
+    expect(textfeld("q9").value).toBe("Kartenkunde bitte wiederholen");
+    // Kein Endstand: nach der Sperre soll die Abgabe noch gehen.
+    expect(absendeknoepfe()).toHaveLength(2);
+  });
+
+  it("sperrt beide Knoepfe 20 Sekunden und gibt sie dann wieder frei", async () => {
+    vi.useFakeTimers();
+    try {
+      await zeichneStandard(weistAb("ratelimit"));
+      await alleNoten(3);
+      await submitForm();
+      // BEIDE: sie sind derselbe Knopf, zweimal — ein offener unten waere die
+      // Einladung, genau dort noch einmal zu tippen.
+      expect(absendeknoepfe().map((k) => k.disabled)).toEqual([true, true]);
+      // In `act`, weil der Zeitgeber einen Zustand setzt: ohne die Klammer laeuft
+      // das Nachrendern erst nach der Zusicherung, und der Test misst den Stand
+      // von vorher.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SPERRE_MS + 100);
+      });
+      expect(absendeknoepfe().map((k) => k.disabled)).toEqual([false, false]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("nennt bei `incomplete` den Satz aus 3.8", async () => {
+    const meldung = await abgesendet("incomplete", ["q5"]);
+    expect(meldung.textContent).toContain("Da fehlten noch Noten.");
+  });
+
+  /*
+   * `invalid` kann mitten in einer Sitzung nur entstehen, wenn das Token
+   * aufgehoert hat zu gelten (die Gruppenleitung hat das Secret neu gesetzt).
+   * Selten — aber ein Code ohne Text waere wieder der stille Knopf, und genau
+   * dagegen steht dieser Test.
+   */
+  it("laesst KEINEN Code ohne sichtbare Wirkung — auch nicht `invalid`", async () => {
+    const meldung = await abgesendet("invalid");
+    expect(meldung.textContent).toContain("Das Absenden hat gerade nicht geklappt");
+  });
+
+  it("nennt in keiner Abweisung das Wort `Fehler`", async () => {
+    for (const code of ["closed", "none", "ratelimit", "incomplete"]) {
+      await zeichneStandard(weistAb(code));
+      await alleNoten(3);
+      await submitForm();
+      expect(query("[data-meldung]").textContent).not.toContain("Fehler");
+      await unmount();
+    }
+  });
+
+  it("holt die Abweisung in den Blick — wie die Ausnahme", async () => {
+    const attrappe = scrollAttrappe();
+    try {
+      await zeichneStandard(weistAb("ratelimit"));
+      await alleNoten(3);
+      await clickElement(absendeknoepfe()[1]);
+      const meldung = query("[data-meldung]");
+      expect(attrappe.ziele).toContain(meldung);
+      expect(document.activeElement).toBe(meldung);
+    } finally {
+      attrappe.zurueck();
+    }
+  });
+
+  /*
+   * Der Unterschied, an dem beide Wege haengen: MIT JavaScript muss die Action
+   * antworten (die Eingaben bleiben stehen), OHNE JavaScript muss sie umleiten
+   * (den Rueckgabewert liest dort niemand). Kenntlich macht ihn dieses Feld — und
+   * zwar erst hier im Handler, nicht als verstecktes Feld im Markup: ein Feld im
+   * Markup haengt an der Hydration, und ein VOR der Hydration abgeschickter Bogen
+   * (der Weg, den §3.11 zusagt) wuerde faelschlich als "mit JS" gelesen.
+   */
+  it("kennzeichnet die Nutzlast als `mit JavaScript`", async () => {
+    const { aufrufe, action } = mitschrift();
+    await zeichneStandard(action);
+    await alleNoten(3);
+    await submitForm();
+    expect(aufrufe[0].get(JS_FELD)).toBe("1");
+  });
+
+  it("schreibt das Kennzeichen NICHT ins Markup — sonst haengt es an der Hydration", () => {
+    const markup = renderToStaticMarkup(
+      <Zettel
+        questions={STANDARD_QUESTIONS}
+        scale={6}
+        action={nichtsTun}
+        tokenHash={TOKEN_HASH}
+        siegel={FASSUNG_A}
+      />,
+    );
+    expect(markup).not.toContain(JS_FELD);
+  });
+
+  it("laesst den gesperrten Knopf gedaempft aussehen — ein Knopf, der nichts tut, wird getippt", () => {
+    const regel = cssRegel(".knopf:disabled");
+    expect(regel).toMatch(/opacity/);
+    expect(regel).not.toMatch(/#c8000f/i);
   });
 });
 

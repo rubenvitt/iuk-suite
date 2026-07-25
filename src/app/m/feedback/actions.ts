@@ -35,6 +35,7 @@ import {
   type SurveyStatus,
 } from "./_lib/lifecycle";
 import { RateLimiter } from "./_lib/ratelimit";
+import { FEHLER_PARAMETER, JS_FELD } from "./_lib/absenden";
 
 /**
  * Ergebnis einer öffentlichen Abgabe (Entwurf 3.8). Die Action GIBT ZURÜCK statt
@@ -49,6 +50,35 @@ export type SubmitResult =
       code: "invalid" | "none" | "closed" | "ratelimit" | "incomplete";
       missing?: string[];
     };
+
+/**
+ * DER WEG OHNE JAVASCRIPT braucht einen zweiten Ausgang (Entwurf 3.8).
+ *
+ * Der Rückgabewert oben ist nur für den Aufrufer im Browser lesbar. Ohne
+ * JavaScript ist die Abgabe ein nativer POST: React ruft die Action selbst auf,
+ * verwirft das Ergebnis und rendert die Seite unverändert neu — bei „Frist
+ * abgelaufen" oder „Ratelimit" ändert sich dann kein Pixel, und die Person tippt
+ * ein zweites Mal auf einen Knopf, der nichts sagt. Deshalb leitet die Action
+ * auf diesem Weg auf `?fehler=…` um; `page.tsx` macht daraus einen sichtbaren
+ * Satz.
+ *
+ * MIT JavaScript darf dieselbe Umleitung NICHT passieren: ein `redirect()` in
+ * einer vom Client aufgerufenen Action navigiert (er lehnt nicht ab), und damit
+ * wären alle Eingaben weg — genau das, was 3.8 für `ratelimit` ausschließt
+ * („mit JS bleiben alle Eingaben im Formular stehen").
+ *
+ * Mit JavaScript als Rückgabewert, ohne JavaScript als Umleitung: `redirect()`
+ * wirft, der `return` danach gilt nur für den ersten Weg.
+ */
+function abweisen(
+  slugSecret: string,
+  ohneJs: boolean,
+  code: keyof typeof FEHLER_PARAMETER,
+  missing?: string[],
+): SubmitResult {
+  if (ohneJs) redirect(`/f/${slugSecret}?fehler=${FEHLER_PARAMETER[code]}`);
+  return missing ? { ok: false, code, missing } : { ok: false, code };
+}
 
 /**
  * ZWEI Limiter, absichtlich getrennt (Entwurf 3.8 „Ratelimit"). Ein einziger
@@ -241,15 +271,22 @@ export async function submitResponseAction(
   const group = getGroupBySlug(db, parsed.slug);
   if (!group || group.secret !== parsed.secret) return rejectInvalidToken(ip);
 
+  /*
+   * `none` und `invalid` brauchen KEINE Umleitung, auch nicht ohne JavaScript:
+   * der native POST rendert dieselbe Route neu, und `page.tsx` liefert dann von
+   * selbst Zustand C bzw. F (Entwurf 3.8: „`none` / `invalid`: Zustand C bzw.
+   * F"). Nur die drei Abweisungen unten hätten ohne Parameter kein Bild.
+   */
+  const ohneJs = formData.get(JS_FELD) !== "1";
   const active = activeSurveyForGroup(db, group.id);
   if (!active) return { ok: false, code: "none" };
   const survey = active.survey;
-  if (!submitLimiter.check(`${ip}|${survey.id}`)) return { ok: false, code: "ratelimit" };
+  if (!submitLimiter.check(`${ip}|${survey.id}`)) return abweisen(slugSecret, ohneJs, "ratelimit");
   // closes_at auch auf dem Submit-Pfad prüfen (nicht nur beim Anzeigen).
   const now = new Date();
   if (nextStatusOnAccess("active", survey.closesAt, now) !== "active") {
     setSurveyStatus(db, survey.id, "closed", { closedAt: now });
-    return { ok: false, code: "closed" };
+    return abweisen(slugSecret, ohneJs, "closed");
   }
 
   const questions: Question[] = JSON.parse(survey.questions);
@@ -271,7 +308,7 @@ export async function submitResponseAction(
   const missing = questions
     .filter((q) => isRatingType(q.type) && answers[q.id] === undefined)
     .map((q) => q.id);
-  if (missing.length > 0) return { ok: false, code: "incomplete", missing };
+  if (missing.length > 0) return abweisen(slugSecret, ohneJs, "incomplete", missing);
 
   // Zeitstempel = Mitternacht UTC des Abenddatums, nicht `now`: der Siegeltext
   // sagt "keine Uhrzeit" (Entwurf 3.9). Die Sekunde wäre bei ~15 Abgaben ein

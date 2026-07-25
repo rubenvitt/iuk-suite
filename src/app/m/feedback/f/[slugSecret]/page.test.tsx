@@ -13,6 +13,7 @@ import {
   insertSurvey,
   activateSurvey,
   setSurveyStatus,
+  getSurvey,
   insertResponse,
 } from "../../_db/queries";
 import { computeClosesAt } from "../../_lib/lifecycle";
@@ -126,12 +127,20 @@ function seedUmfrage(options: {
   return { group, evening, survey, closesAt, token: `${slug}-${secret}` };
 }
 
-async function baum(slugSecret: string): Promise<ReactNode> {
-  return ParticipatePage({ params: Promise.resolve({ slugSecret }) });
+/**
+ * `fehler` ist der Weg OHNE JavaScript (Entwurf 3.8): `submitResponseAction`
+ * leitet dort auf `?fehler=…` um, weil den Rueckgabewert niemand liest. Ohne
+ * Parameter aufgerufen bleibt `searchParams` weg — genau wie bei einem Scan.
+ */
+async function baum(slugSecret: string, fehler?: string | string[]): Promise<ReactNode> {
+  return ParticipatePage({
+    params: Promise.resolve({ slugSecret }),
+    searchParams: fehler === undefined ? undefined : Promise.resolve({ fehler }),
+  });
 }
 
-async function seite(slugSecret: string): Promise<string> {
-  return renderToStaticMarkup(await baum(slugSecret));
+async function seite(slugSecret: string, fehler?: string | string[]): Promise<string> {
+  return renderToStaticMarkup(await baum(slugSecret, fehler));
 }
 
 async function danke(slugSecret: string): Promise<string> {
@@ -266,6 +275,184 @@ describe("Zustand D — die Umfrage zu diesem Abend ist beendet", () => {
     expect(regel.length).toBeGreaterThan(0);
     expect(regel.join("\n")).toMatch(/var\(--linie-stark\)/);
     expect(regel.join("\n")).not.toMatch(/#c8000f/i);
+  });
+});
+
+/**
+ * D IST EIN ZUSTAND MIT HALTBARKEIT, KEIN DAUERZUSTAND.
+ *
+ * D sagt "richtiger Zettel, zu spaet" — eine Aussage ueber DEN Abend, von dem
+ * die Person gerade kommt. Ohne zeitliche Grenze wurde daraus die haeufigste
+ * Belegung dieser Seite: der QR-Code haengt dauerhaft im Gruppenraum, der Bogen
+ * schliesst Donnerstag um 09:00, der naechste Abend wird erst am naechsten
+ * Dienstag angelegt — und JEDER Scan von Donnerstag bis Mittwoch beantwortete mit
+ * "Die Umfrage zu diesem Abend ist beendet." ueber einen wochenalten Abend. Ohne
+ * Knopf, und vor allem ohne den Satz, den der Entwurf genau dafuer in C stellt:
+ * der Aushang bleibt gueltig. Wer das liest, wirft den Zettel weg.
+ */
+describe("Abgrenzung C/D — D nur solange der Schluss frisch ist", () => {
+  const QR_ZUSAGE = "Der QR-Code bleibt gültig — probier es am Ende des nächsten Abends noch einmal.";
+
+  it("zeigt C, nicht D, wenn der beendete Abend drei Wochen her ist", async () => {
+    const { token, survey } = seedUmfrage({
+      slug: "bereitschaft",
+      secret: "abc12",
+      tageZurueck: 21,
+      hours: 9,
+      topic: "Funk-Übung: Sprechgruppen",
+    });
+    // Von Hand geschlossen, gleich nach der Frist — der Regelfall im Betrieb.
+    setSurveyStatus(db, survey.id, "closed", {
+      closedAt: new Date(mitternachtUtc(20).getTime() + 9 * 3600_000),
+    });
+
+    const gelesen = text(await seite(token));
+    expect(gelesen).toContain("Zurzeit läuft keine Umfrage.");
+    expect(gelesen).toContain(QR_ZUSAGE);
+    expect(gelesen).not.toContain("Die Umfrage zu diesem Abend ist beendet.");
+    // Und schon gar nicht das Thema eines Abends von vor drei Wochen.
+    expect(gelesen).not.toContain("Funk-Übung: Sprechgruppen");
+  });
+
+  /*
+   * Derselbe Fall, aber der Bogen steht noch auf `active`: niemand hat die Seite
+   * seit der Frist aufgerufen, also hat der Lazy-Auto-Close nie gegriffen. Er
+   * greift jetzt — und trotzdem ist "dieser Abend" die falsche Auskunft.
+   */
+  it("zeigt C auch dann, wenn der Auto-Close eine drei Wochen alte Frist nachholt", async () => {
+    const { token, survey } = seedUmfrage({
+      slug: "bereitschaft",
+      secret: "abc12",
+      tageZurueck: 21,
+      hours: 9,
+    });
+
+    const gelesen = text(await seite(token));
+    expect(gelesen).toContain("Zurzeit läuft keine Umfrage.");
+    expect(gelesen).not.toContain("Die Umfrage zu diesem Abend ist beendet.");
+    // Geschlossen wird trotzdem: das ist eine Frage der Daten, nicht der Anzeige.
+    expect(getSurvey(db, survey.id)!.status).toBe("closed");
+  });
+
+  it("haelt an D fest, solange der Schluss frisch ist — der Abend von vorgestern", async () => {
+    const { token } = seedUmfrage({
+      slug: "bereitschaft",
+      secret: "abc12",
+      tageZurueck: 2,
+      hours: 9,
+    });
+    expect(text(await seite(token))).toContain("Die Umfrage zu diesem Abend ist beendet.");
+  });
+});
+
+/**
+ * DIE FEHLERPFADE OHNE JAVASCRIPT (Entwurf 3.8).
+ *
+ * Ohne JavaScript ist die Abgabe ein nativer POST, und der Rueckgabewert der
+ * Action erreicht niemanden: die Seite rendert unveraendert neu. Deshalb leitet
+ * `submitResponseAction` dort auf `?fehler=…` um — und diese Seite muss den
+ * Parameter LESEN, sonst ist die Umleitung nur ein anderer Weg zu derselben
+ * Stille.
+ */
+describe("Fehlerpfade ohne JavaScript (`?fehler=`)", () => {
+  it("nennt beim Ratelimit den Satz aus 3.8 samt Zurueck-Pfeil und laesst den Bogen stehen", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    const markup = await seite(token, "ratelimit");
+    const gelesen = text(markup);
+    expect(gelesen).toContain(
+      "Gerade sind viele Rückmeldungen gleichzeitig unterwegs. Bitte einmal auf Absenden tippen.",
+    );
+    expect(gelesen).toContain("Mit dem Zurück-Pfeil des Browsers stehen deine Eingaben noch da.");
+    expect(markup).toContain('role="alert"');
+    // Der Bogen ist weiter da — es soll ja noch einmal gesendet werden.
+    expect(enthaelt(await baum(token, "ratelimit"), Zettel)).toBe(true);
+  });
+
+  it("nennt bei fehlenden Noten den Satz aus 3.8", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    expect(text(await seite(token, "unvollstaendig"))).toContain("Da fehlten noch Noten.");
+  });
+
+  it("zeigt ohne Parameter kein Panel — der Regelfall bleibt der nackte Bogen", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    expect(await seite(token)).not.toContain("data-fehler");
+  });
+
+  /*
+   * Ein Query-Parameter kann doppelt vorkommen; Next liefert dann ein Array. Ohne
+   * Normalisierung faellt jeder Vergleich still durch — und der Fehlerpfad waere
+   * wieder unsichtbar.
+   */
+  it("liest den Parameter auch, wenn er doppelt in der URL steht", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    expect(text(await seite(token, ["ratelimit", "ratelimit"]))).toContain(
+      "Gerade sind viele Rückmeldungen gleichzeitig unterwegs.",
+    );
+  });
+
+  /*
+   * Der Wert kommt aus der URL. Ein Zugriff `FEHLER_TEXT[wert]` ohne
+   * `Object.hasOwn` liefert bei `?fehler=constructor` eine FUNKTION aus dem
+   * Prototyp — die landete als React-Kind im Baum und riss die einzige
+   * oeffentliche Seite dieses Moduls mit.
+   */
+  it("laesst sich mit einem Prototyp-Namen nicht aus der Bahn werfen", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    for (const wert of ["constructor", "toString", "__proto__", "gibtsnicht"]) {
+      const markup = await seite(token, wert);
+      expect(markup).not.toContain("data-fehler");
+      expect(markup).toContain("<form");
+    }
+  });
+
+  it("traegt kein Rot in das Panel", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    expect(await seite(token, "ratelimit")).not.toMatch(/#c8000f/i);
+  });
+
+  /*
+   * DER FALL, IN DEM SICH BEIDE FIXES BEGEGNEN: Frist vor Wochen abgelaufen, aber
+   * niemand hat die Seite seither aufgerufen, also stand der Bogen noch auf
+   * `active`. Jetzt sendet jemand ohne JavaScript ab — die Action schliesst nach,
+   * weist ab und leitet auf `?fehler=geschlossen` um. Das Frische-Fenster wuerde
+   * hier C liefern ("zurzeit laeuft keine Umfrage"), und die Person hat gerade
+   * acht Noten abgeschickt: sie erfaehrt kein Wort darueber, was daraus wurde.
+   * Deshalb hebelt der Parameter das Fenster aus — wer eben abgesendet hat, hat
+   * mit GENAU diesem Bogen interagiert.
+   */
+  it("beantwortet `?fehler=geschlossen` mit D und dem ehrlichen Zusatz — auch bei alter Frist", async () => {
+    const { token, survey } = seedUmfrage({
+      slug: "bereitschaft",
+      secret: "abc12",
+      tageZurueck: 21,
+      hours: 9,
+      topic: "Funk-Übung: Sprechgruppen",
+    });
+    setSurveyStatus(db, survey.id, "closed", {
+      closedAt: new Date(mitternachtUtc(20).getTime() + 9 * 3600_000),
+    });
+
+    const gelesen = text(await seite(token, "geschlossen"));
+    expect(gelesen).toContain("Die Umfrage zu diesem Abend ist beendet.");
+    expect(gelesen).toContain("Deine Rückmeldung konnte nicht mehr gespeichert werden.");
+    // Der richtige Zettel wird benannt — der Abend, den die Person bewertet hat.
+    expect(gelesen).toContain("Funk-Übung: Sprechgruppen");
+  });
+
+  it("nennt den Zusatz auch beim frisch geschlossenen Bogen, und sonst nie", async () => {
+    const { token } = seedUmfrage({
+      slug: "bereitschaft",
+      secret: "abc12",
+      tageZurueck: 2,
+      hours: 9,
+    });
+    expect(text(await seite(token, "geschlossen"))).toContain(
+      "Deine Rückmeldung konnte nicht mehr gespeichert werden.",
+    );
+    // Ohne Parameter ist D der Seitenaufruf-Zustand: da wurde nichts abgesendet.
+    expect(text(await seite(token))).not.toContain(
+      "Deine Rückmeldung konnte nicht mehr gespeichert werden.",
+    );
   });
 });
 

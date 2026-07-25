@@ -83,6 +83,26 @@ function Block({ children }: { children: ReactNode }) {
 }
 
 /**
+ * DAS RUHIGE PANEL DER FEHLERPFADE (Entwurf 3.8): Text in `--tinte` auf
+ * `--tint`, 2px linke Kante in `--graphit`, `role="alert"`. Kein Rot — und das
+ * ist hier keine Geschmacksfrage: `colorError` der Suite IST `#c8000f`, also
+ * identisch mit der Primaerfarbe, und auf dieser Route hat Rot ein Budget von
+ * genau zwei Stellen (Fahne, Wortzeichen).
+ *
+ * Es traegt dieselbe Klasse wie die Meldung im Zettel (`.meldung`), weil der
+ * Entwurf beide Faelle mit derselben Beschreibung belegt. Zwei Klassen mit
+ * identischer Absicht waeren der Anfang der Drift: die eine wird nachjustiert,
+ * die andere bleibt stehen.
+ */
+export function Fehlerpanel({ text }: { text: string }) {
+  return (
+    <p className={s.meldung} data-fehler="" role="alert">
+      {text}
+    </p>
+  );
+}
+
+/**
  * ZUSTAND C — "Zurzeit laeuft keine Umfrage."
  *
  * Kein Rot, kein Warndreieck: hier ist nichts schiefgegangen. Der QR-Code auf
@@ -126,11 +146,20 @@ export function ZustandD({
   datum,
   geschlossenAm,
   stufen,
+  zusatz = null,
 }: {
   thema: string | null;
   datum: string;
   geschlossenAm: string | null;
   stufen: number;
+  /**
+   * Der ehrliche Zusatz aus 3.8, wenn D nicht beim Aufrufen der Seite entsteht,
+   * sondern beim ABSENDEN: "Deine Rueckmeldung konnte nicht mehr gespeichert
+   * werden." Ohne diesen Satz waere D hier eine halbe Auskunft — die Person hat
+   * acht Noten getippt und liest nur, dass die Umfrage beendet ist, ohne zu
+   * erfahren, was aus ihrer Abgabe wurde.
+   */
+  zusatz?: string | null;
 }) {
   return (
     <Huelle
@@ -147,6 +176,7 @@ export function ZustandD({
           {geschlossenAm ? `Sie wurde ${geschlossenAm} geschlossen. ` : ""}
           Danke, falls du schon abgestimmt hast.
         </p>
+        {zusatz === null ? null : <Fehlerpanel text={zusatz} />}
         {/* Der Legendenstreifen, vollstaendig entsaettigt: die Farbe hat den
             Raum verlassen. Ohne Notenwoerter — es gibt nichts mehr zu waehlen. */}
         <div className={s.stummeLegende}>

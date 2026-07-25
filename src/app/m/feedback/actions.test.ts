@@ -13,6 +13,7 @@ import {
 } from "./_db/queries";
 import { computeClosesAt } from "./_lib/lifecycle";
 import { STANDARD_QUESTIONS } from "./_lib/questions";
+import { FEHLER_PARAMETER, JS_FELD } from "./_lib/absenden";
 
 // Der Prüfstand: echte In-Memory-DB (der Limiter-Beweis darf nicht an gemockten
 // Schreibern hängen — 15 Abgaben müssen als 15 ZEILEN nachweisbar sein), aber
@@ -112,6 +113,18 @@ function ratingsOnly(): FormData {
   return f;
 }
 
+/**
+ * Dieselbe Nutzlast, aber gekennzeichnet als „aus dem Browser mit JavaScript"
+ * (Entwurf 3.8) — genau das, was `Zettel.absenden` per `daten.set` tut. Der
+ * Unterschied ist nicht Kosmetik: OHNE dieses Feld leitet die Action bei einer
+ * Abweisung um, statt zu antworten, denn ohne JavaScript liest niemand den
+ * Rückgabewert.
+ */
+function mitJs(f: FormData): FormData {
+  f.set(JS_FELD, "1");
+  return f;
+}
+
 beforeEach(() => {
   sqlite = new Database(":memory:");
   sqlite.pragma("foreign_keys = ON");
@@ -145,7 +158,7 @@ describe("submitResponseAction: Ratelimit sperrt die eigene Gruppe nicht aus", (
     for (let i = 0; i < 60; i++) {
       await submitResponseAction(token, submission());
     }
-    expect(await submitResponseAction(token, submission())).toEqual({
+    expect(await submitResponseAction(token, mitJs(submission()))).toEqual({
       ok: false,
       code: "ratelimit",
     });
@@ -161,7 +174,7 @@ describe("submitResponseAction: Ratelimit sperrt die eigene Gruppe nicht aus", (
     for (let i = 0; i < 60; i++) {
       await submitResponseAction(a.token, submission());
     }
-    expect(await submitResponseAction(a.token, submission())).toEqual({
+    expect(await submitResponseAction(a.token, mitJs(submission()))).toEqual({
       ok: false,
       code: "ratelimit",
     });
@@ -244,7 +257,7 @@ describe("submitResponseAction: Pflichtnoten", () => {
     const { submitResponseAction } = await loadActions();
     const { token, survey } = seedActiveSurvey("bereitschaft", "abc12");
 
-    expect(await submitResponseAction(token, new FormData())).toEqual({
+    expect(await submitResponseAction(token, mitJs(new FormData()))).toEqual({
       ok: false,
       code: "incomplete",
       missing: RATING_IDS,
@@ -252,6 +265,8 @@ describe("submitResponseAction: Pflichtnoten", () => {
 
     expect(listResponses(db, survey.id)).toHaveLength(0);
     expect(cookieSetMock).not.toHaveBeenCalled();
+    // Mit JavaScript wird NICHT umgeleitet: die Meldung gehört ins Formular,
+    // sonst wären acht Noten und sechs Zeilen weg (Entwurf 3.8).
     expect(redirectMock).not.toHaveBeenCalled();
   });
 
@@ -261,7 +276,7 @@ describe("submitResponseAction: Pflichtnoten", () => {
     const form = ratingsOnly();
     form.delete("q5");
 
-    expect(await submitResponseAction(token, form)).toEqual({
+    expect(await submitResponseAction(token, mitJs(form))).toEqual({
       ok: false,
       code: "incomplete",
       missing: ["q5"],
@@ -288,7 +303,7 @@ describe("submitResponseAction: Pflichtnoten", () => {
     const form = ratingsOnly();
     form.set("q3", "99999");
 
-    expect(await submitResponseAction(token, form)).toEqual({
+    expect(await submitResponseAction(token, mitJs(form))).toEqual({
       ok: false,
       code: "incomplete",
       missing: ["q3"],
@@ -323,7 +338,10 @@ describe("submitResponseAction: geschlossene Umfrage", () => {
     // Abend vor 10 Tagen, Frist eine Stunde nach dessen Tagesende → längst vorbei.
     const { token, survey } = seedActiveSurvey("bereitschaft", "abc12", 10, 1);
 
-    expect(await submitResponseAction(token, submission())).toEqual({ ok: false, code: "closed" });
+    expect(await submitResponseAction(token, mitJs(submission()))).toEqual({
+      ok: false,
+      code: "closed",
+    });
 
     expect(listResponses(db, survey.id)).toHaveLength(0);
     expect(getSurvey(db, survey.id)!.status).toBe("closed");
@@ -346,6 +364,95 @@ describe("submitResponseAction: geschlossene Umfrage", () => {
       code: "none",
     });
     expect(cookieSetMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * DIE FEHLERPFADE HABEN ZWEI WEGE (Entwurf 3.8) — und der zweite war still.
+ *
+ * Der Rückgabewert dieser Action ist nur mit JavaScript lesbar. Ohne JavaScript
+ * ist die Abgabe ein nativer POST: React ruft die Action, verwirft das Ergebnis
+ * und rendert dieselbe Seite neu. Läuft die Frist mitten in der Sitzung ab, hieß
+ * das bis hierher: acht Noten getippt, „Rückmeldung absenden" gedrückt — und kein
+ * Pixel ändert sich. Deshalb leitet die Action OHNE JavaScript auf `?fehler=…`
+ * um, und MIT JavaScript darf sie das gerade nicht: ein `redirect()` in einer vom
+ * Client aufgerufenen Action navigiert, und dann sind alle Eingaben weg.
+ */
+describe("submitResponseAction: Fehlerpfade ohne JavaScript", () => {
+  it("leitet bei abgelaufener Frist auf `?fehler=geschlossen` um", async () => {
+    const { submitResponseAction } = await loadActions();
+    const { token, survey } = seedActiveSurvey("bereitschaft", "abc12", 10, 1);
+
+    await submitResponseAction(token, submission());
+
+    expect(redirectMock).toHaveBeenCalledWith(`/f/${token}?fehler=${FEHLER_PARAMETER.closed}`);
+    // Der Nachschluss passiert trotzdem — er ist eine Frage der Daten.
+    expect(getSurvey(db, survey.id)!.status).toBe("closed");
+    expect(listResponses(db, survey.id)).toHaveLength(0);
+  });
+
+  it("leitet beim Ratelimit auf `?fehler=ratelimit` um", async () => {
+    const { submitResponseAction } = await loadActions();
+    const { token } = seedActiveSurvey("bereitschaft", "abc12");
+
+    for (let i = 0; i < 60; i++) await submitResponseAction(token, submission());
+    redirectMock.mockClear();
+    await submitResponseAction(token, submission());
+
+    expect(redirectMock).toHaveBeenCalledWith(`/f/${token}?fehler=${FEHLER_PARAMETER.ratelimit}`);
+  });
+
+  it("leitet bei fehlenden Noten auf `?fehler=unvollstaendig` um", async () => {
+    const { submitResponseAction } = await loadActions();
+    const { token } = seedActiveSurvey("bereitschaft", "abc12");
+
+    await submitResponseAction(token, new FormData());
+
+    expect(redirectMock).toHaveBeenCalledWith(`/f/${token}?fehler=${FEHLER_PARAMETER.incomplete}`);
+  });
+
+  it("leitet MIT JavaScript nicht um, sondern antwortet — die Eingaben bleiben stehen", async () => {
+    const { submitResponseAction } = await loadActions();
+    const abgelaufen = seedActiveSurvey("bereitschaft", "abc12", 10, 1);
+    const offen = seedActiveSurvey("jugendrotkreuz", "xyz98");
+
+    expect(await submitResponseAction(abgelaufen.token, mitJs(submission()))).toEqual({
+      ok: false,
+      code: "closed",
+    });
+    // Das Budget vollmachen: diese 60 Abgaben werden ANGENOMMEN und springen
+    // deshalb auf `/thanks` — der Erfolgssprung, nicht die Fehlerumleitung.
+    for (let i = 0; i < 60; i++) await submitResponseAction(offen.token, submission());
+    redirectMock.mockClear();
+    expect(await submitResponseAction(offen.token, mitJs(submission()))).toEqual({
+      ok: false,
+      code: "ratelimit",
+    });
+
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  /*
+   * `none` und `invalid` brauchen keinen Parameter: der native POST rendert
+   * dieselbe Route neu, und `page.tsx` liefert dann von selbst Zustand C bzw. F
+   * (3.8). Eine Umleitung wäre hier ein zweiter Weg zum selben Bild — und der
+   * `invalid`-Fall würde sie ausgerechnet einem Slug-Rater ausliefern.
+   */
+  it("leitet bei `none` und `invalid` NICHT um — C und F entstehen beim Neurendern", async () => {
+    const { submitResponseAction } = await loadActions();
+    insertGroup(db, {
+      name: "leer",
+      slug: "leer",
+      secret: "abc12",
+      closeAfterHours: null,
+      createdAt: new Date(),
+    });
+
+    await submitResponseAction("leer-abc12", submission());
+    await submitResponseAction("leer-zzz99", submission());
+    await submitResponseAction("x", submission());
+
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 });
 
