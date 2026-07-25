@@ -34,13 +34,17 @@ import { renderToStaticMarkup } from "react-dom/server";
  * 6. LEER IST EIN ZUSTAND, KEINE LEERE TABELLE (§4.3, wortgenau).
  */
 
-const { activateSurveyActionMock, createEveningActionMock, deleteEveningActionMock } = vi.hoisted(
-  () => ({
-    activateSurveyActionMock: vi.fn(),
-    createEveningActionMock: vi.fn(),
-    deleteEveningActionMock: vi.fn(),
-  }),
-);
+const {
+  activateSurveyActionMock,
+  createEveningActionMock,
+  deleteEveningActionMock,
+  updateEveningActionMock,
+} = vi.hoisted(() => ({
+  activateSurveyActionMock: vi.fn(),
+  createEveningActionMock: vi.fn(),
+  deleteEveningActionMock: vi.fn(),
+  updateEveningActionMock: vi.fn(),
+}));
 
 // Die Actions liegen hinter `"use server"` und ziehen Datenbank und `next/*`
 // nach — hier interessiert nur, DASS die richtige mit dem richtigen Schluessel
@@ -49,6 +53,7 @@ vi.mock("../actions", () => ({
   activateSurveyAction: activateSurveyActionMock,
   createEveningAction: createEveningActionMock,
   deleteEveningAction: deleteEveningActionMock,
+  updateEveningAction: updateEveningActionMock,
 }));
 
 import { Verlauf, type VerlaufZeile } from "./Verlauf";
@@ -117,6 +122,7 @@ afterEach(async () => {
   activateSurveyActionMock.mockReset();
   createEveningActionMock.mockReset();
   deleteEveningActionMock.mockReset();
+  updateEveningActionMock.mockReset();
 });
 
 describe("Verlauf — die Ordnung gehoert der Komponente (§2.5)", () => {
@@ -446,5 +452,89 @@ describe("Verlauf — Quelltext-Zusagen, die im Markup nicht sichtbar sind", () 
   it("formatiert Datum und Wochentag ueber `datum.ts`, nicht mit eigenem `toLocaleDateString`", () => {
     expect(CODE).not.toContain("toLocaleDateString");
     expect(CODE).not.toContain("toISOString");
+  });
+});
+
+/**
+ * DIE ZEILENBEARBEITUNG (§2.5 „Bearbeiten", §2.3/§2.4).
+ *
+ * `updateEveningAction` hatte keinen Aufrufer — die TEILNEHMERZAHL war damit
+ * nicht nachtragbar, und genau sie ist der Nenner jeder Ruecklaufquote und wird
+ * typischerweise erst am Abend selbst bekannt. Der Entwurf schickt sie und die
+ * weggefallenen `notes` (§2.3) ausdruecklich hierher.
+ *
+ * Vorher zeigte der Menuepunkt auf die alte Detailseite, die nur die
+ * Umfragesteuerung traegt und kein einziges Feld des Abends — ein Weg, der nach
+ * „Bearbeiten" heisst und nichts bearbeiten kann.
+ */
+describe("Verlauf — Abend bearbeiten (§2.5)", () => {
+  /** Der „…"-Knopf der ersten Zeile; die schmale Darstellung liegt mit im DOM. */
+  async function menueOeffnen(): Promise<void> {
+    const punkte = [...document.querySelectorAll<HTMLElement>("button")].filter(
+      (b) => (b.textContent ?? "").trim() === "…",
+    );
+    if (punkte.length === 0) throw new Error("Kein Aktionsmenue in der Zeile");
+    await clickElement(punkte[0]);
+  }
+
+  async function bearbeitenWaehlen(): Promise<HTMLFormElement> {
+    const eintrag = [...document.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item")].find(
+      (e) => (e.textContent ?? "").trim() === "Bearbeiten",
+    );
+    if (!eintrag) throw new Error("Kein Menuepunkt „Bearbeiten“");
+    await clickElement(eintrag);
+    const form = document.querySelector<HTMLFormElement>("form[data-testid='verlauf-bearbeiten']");
+    if (!form) throw new Error("Kein Bearbeiten-Formular");
+    return form;
+  }
+
+  const einer = [
+    zeile({ eveningId: 42, datum: "2026-07-22", thema: "Funkübung", teilnehmer: null }),
+  ];
+
+  it("oeffnet einen Dialog mit den Feldern des Abends statt zu navigieren", async () => {
+    await mount(zone(einer));
+    await menueOeffnen();
+    const form = await bearbeitenWaehlen();
+
+    expect(form.querySelector<HTMLInputElement>("input[name='id']")!.value).toBe("42");
+    expect(form.querySelector<HTMLInputElement>("input[name='date']")!.value).toBe("2026-07-22");
+    expect(form.querySelector<HTMLInputElement>("input[name='topic']")!.value).toBe("Funkübung");
+    // Der Nenner ist leer und damit nachtragbar — nie erfunden (§2.3).
+    expect(form.querySelector<HTMLInputElement>("input[name='participantCount']")!.value).toBe("");
+    // `notes` ist in §2.3 aus dem Startformular gefallen und NUR hier erreichbar.
+    expect(form.querySelector("[name='notes']")).not.toBeNull();
+  });
+
+  it("schickt die nachgetragene Teilnehmerzahl an updateEveningAction", async () => {
+    await mount(zone(einer));
+    await menueOeffnen();
+    const form = await bearbeitenWaehlen();
+
+    const feld = form.querySelector<HTMLInputElement>("input[name='participantCount']")!;
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(feld), "value")!.set!;
+    await act(async () => {
+      setter.call(feld, "18");
+      feld.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await abschicken(form);
+
+    expect(updateEveningActionMock).toHaveBeenCalledTimes(1);
+    const daten = updateEveningActionMock.mock.calls[0][0] as FormData;
+    expect(daten.get("id")).toBe("42");
+    expect(daten.get("participantCount")).toBe("18");
+    // Das Datum faehrt mit: aendert es sich, ankert die Action `closesAt` neu.
+    expect(daten.get("date")).toBe("2026-07-22");
+  });
+
+  it("nennt die Folge einer Datumsaenderung, damit die Frist keine Ueberraschung ist", async () => {
+    await mount(zone(einer));
+    await menueOeffnen();
+    const form = await bearbeitenWaehlen();
+
+    expect(form.textContent).toContain(
+      "Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit.",
+    );
   });
 });

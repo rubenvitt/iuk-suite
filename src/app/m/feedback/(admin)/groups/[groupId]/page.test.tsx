@@ -45,7 +45,7 @@ vi.mock("next/navigation", () => ({
   },
   // `useRouter` wirft ausserhalb des `AppRouterContext`; die Lagekarte traegt
   // seit `Aktualisierer` eine Client-Insel, die ihn liest.
-  useRouter: () => ({ refresh: () => {} }),
+  useRouter: () => ({ refresh: () => {}, push: () => {} }),
 }));
 vi.mock("next/headers", () => ({
   headers: async () =>
@@ -65,9 +65,18 @@ vi.mock("../../../actions", () => ({
   activateSurveyAction: vi.fn(),
   createEveningAction: vi.fn(),
   deleteEveningAction: vi.fn(),
+  updateEveningAction: vi.fn(),
+  // Zone e (Einstellungen) braucht diese vier — ohne sie ist der Import
+  // `undefined` und die Zone wirft beim Rendern.
+  updateGroupAction: vi.fn(),
+  regenerateSecretAction: vi.fn(),
+  deleteGroupAction: vi.fn(),
+  addGroupLeaderAction: vi.fn(),
+  removeGroupLeaderAction: vi.fn(),
 }));
 
 import Cockpit, { kontextzeile } from "./page";
+import { clickElement, mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
 
 const FRAGEN: Question[] = [
   { id: "q1", type: "schulnote", text: "Wie war der Dienstabend insgesamt?" },
@@ -387,5 +396,53 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
     // Satz, den es nur in der Einrichtung gibt.
     expect(wirt.textContent).toContain("feedback.iuk-ue.de/f/");
     expect(wirt.textContent).toContain("Aushang");
+  });
+});
+
+/**
+ * ZONE e — DIE VERDRAHTUNG (§2.6, §4.6).
+ *
+ * Die Zone selbst ist in `EinstellungenPanel.test.tsx` geprueft; hier geht es um
+ * das, was nur die SEITE zusagen kann: dass die Zone ueberhaupt haengt, dass sie
+ * in JEDEM Zustand haengt (anders als der Verlauf) — und dass die Zahlen im
+ * Loeschdialog aus derselben Aggregation kommen wie die Tabelle. Ein
+ * unwiderruflicher Loeschdialog mit einer geschaetzten Zahl waere die schlimmste
+ * Stelle des Moduls fuer eine Behauptung.
+ */
+describe("Zone e — Einstellungen haengt an der Seite (§2.6)", () => {
+  it("steht eingeklappt auf der Seite — der Inhalt entsteht erst beim Aufklappen", async () => {
+    abend("2026-07-22", [2, 3]);
+    const wirt = await zeichne();
+
+    expect(wirt.textContent).toContain("Einstellungen");
+    expect(wirt.textContent).toContain("Name, Frist, Zugang");
+    expect(wirt.textContent).not.toContain("Speichern");
+  });
+
+  it("steht auch in der Betriebsart Einrichtung — anders als der Verlauf", async () => {
+    const wirt = await zeichne();
+
+    expect(wirt.querySelectorAll("[data-testid='verlauf-kopf']")).toHaveLength(0);
+    expect(wirt.textContent).toContain("Einstellungen");
+  });
+
+  it("der Loeschdialog nennt die gezaehlten Abende und Rueckmeldungen der Seite", async () => {
+    abend("2026-07-22", [2, 3]); // 2 Rueckmeldungen
+    abend("2026-07-15", [1]); // 1 Rueckmeldung
+    const element = await Cockpit({ params: Promise.resolve({ groupId: "1" }) });
+
+    await mount(element);
+    await clickElement(query(".ant-collapse-header"));
+    const knopf = [...document.querySelectorAll<HTMLElement>("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Gruppe löschen",
+    );
+    if (!knopf) throw new Error("Kein Knopf „Gruppe löschen“");
+    await clickElement(knopf);
+
+    expect(document.body.textContent).toContain(
+      "Löscht 2 Dienstabende und 3 Rückmeldungen unwiderruflich.",
+    );
+    await unmount();
+    document.body.replaceChildren();
   });
 });

@@ -19,6 +19,7 @@ import {
   upsertKnownUser,
   listKnownUsers,
   setGroupMembers,
+  listGroupMembers,
 } from "./queries";
 import { parseFachgruppen } from "@/core/auth/fachgruppen";
 import { computeClosesAt } from "@/app/m/feedback/_lib/lifecycle";
@@ -215,6 +216,30 @@ describe("setGroupMembers", () => {
     setGroupMembers(db, g.id, ["u1", "u1"]);
     setGroupMembers(db, g.id, ["u1"]);
     expect(memberGroupIdsFor(db, "u1", [])).toEqual([g.id]);
+  });
+});
+
+/**
+ * DIE GEGENRICHTUNG zu `memberGroupIdsFor` — und der Grund, warum sie existieren
+ * muss: `setGroupMembers` ERSETZT die Liste. Die Zuordnungs-Oberfläche darf die
+ * gewünschte Liste deshalb nicht vom Client geschickt bekommen (das wäre
+ * Mass-Assignment: ein manipulierter Formularwert würde die ganze Leitung einer
+ * Gruppe austauschen). Sie liest den Ist-Stand hier serverseitig und rechnet
+ * eine Kennung dazu bzw. weg.
+ */
+describe("listGroupMembers", () => {
+  it("liefert die Kennungen genau dieser Gruppe", () => {
+    const a = mkGroup("A", "a");
+    const b = mkGroup("B", "b");
+    setGroupMembers(db, a.id, ["u1", "u2"]);
+    setGroupMembers(db, b.id, ["u3"]);
+    expect(listGroupMembers(db, a.id).sort()).toEqual(["u1", "u2"]);
+    expect(listGroupMembers(db, b.id)).toEqual(["u3"]);
+  });
+
+  it("liefert eine leere Liste, nicht undefined, wenn niemand zugeordnet ist", () => {
+    const g = mkGroup();
+    expect(listGroupMembers(db, g.id)).toEqual([]);
   });
 });
 

@@ -10,8 +10,13 @@ import {
   activateSurvey,
   activeSurveyForGroup,
   getSurvey,
+  getGroup,
+  getEvening,
   listEvenings,
   listResponses,
+  listGroupMembers,
+  setGroupMembers,
+  upsertKnownUser,
 } from "./_db/queries";
 import { computeClosesAt, DEFAULT_CLOSE_AFTER_HOURS } from "./_lib/lifecycle";
 import { STANDARD_QUESTIONS } from "./_lib/questions";
@@ -848,5 +853,343 @@ describe("beendeFeedbackAction: der geplante Schluss-Schritt", () => {
     f.set("surveyId", String(fremd.survey.id));
     await expect(beendeFeedbackAction(f)).rejects.toThrow();
     expect(getSurvey(db, fremd.survey.id)!.status).toBe("active");
+  });
+});
+
+/** Suite-Admin: `groups` trägt die Suite-Admin-Gruppe, `fachgruppen` ist leer. */
+function alsAdmin(): void {
+  authMock.mockResolvedValue({
+    user: { id: "admin-1", groups: ["dashboard-admins"], fachgruppen: [] },
+  });
+}
+
+/**
+ * ZONE e — GRUPPE BEARBEITEN (Entwurf §2.6, §4.4). Die Action hatte keinen
+ * Aufrufer und deshalb auch keine Feldfehler: sie schrieb, was ankam, und einen
+ * leeren Namen ebenso still wie eine unlesbare Frist.
+ *
+ * `slug` ist NICHT editierbar (§2.6): er steckt in jedem gedruckten QR-Code. Ein
+ * Slug-Wechsel ist funktional dasselbe wie „Neues Secret erzeugen" und gehört
+ * nicht in ein Speichern-Formular — die Action muss das Feld deshalb ignorieren,
+ * auch wenn es im POST steht.
+ */
+describe("updateGroupAction: Name und Frist ändern, Slug nie", () => {
+  function seedGroup(slug = "bereitschaft", closeAfterHours: number | null = 48) {
+    return insertGroup(db, {
+      name: "Bereitschaft",
+      slug,
+      secret: "abc12",
+      closeAfterHours,
+      createdAt: new Date(),
+    });
+  }
+  function form(id: number, over: Record<string, string> = {}): FormData {
+    const f = new FormData();
+    f.set("id", String(id));
+    f.set("name", "Bereitschaft Mitte");
+    f.set("closeAfterHours", "72");
+    for (const [k, v] of Object.entries(over)) f.set(k, v);
+    return f;
+  }
+
+  it("speichert Name und Standard-Schließfrist", async () => {
+    const { updateGroupAction } = await loadActions();
+    const g = seedGroup();
+    alsGruppenleitung("bereitschaft");
+
+    const ergebnis = await updateGroupAction({ ok: true }, form(g.id));
+
+    expect(ergebnis.ok).toBe(true);
+    const nachher = getGroup(db, g.id)!;
+    expect(nachher.name).toBe("Bereitschaft Mitte");
+    expect(nachher.closeAfterHours).toBe(72);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+  });
+
+  it("ignoriert ein mitgeschicktes slug-Feld — der Slug steht auf jedem Aushang", async () => {
+    const { updateGroupAction } = await loadActions();
+    const g = seedGroup();
+    alsGruppenleitung("bereitschaft");
+
+    await updateGroupAction({ ok: true }, form(g.id, { slug: "neuer-slug" }));
+
+    expect(getGroup(db, g.id)!.slug).toBe("bereitschaft");
+  });
+
+  it("leerer Name: Fehler am Feld, nichts geschrieben, nichts revalidiert", async () => {
+    const { updateGroupAction } = await loadActions();
+    const g = seedGroup();
+    alsGruppenleitung("bereitschaft");
+
+    const ergebnis = await updateGroupAction({ ok: true }, form(g.id, { name: "  " }));
+
+    if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
+    expect(ergebnis.fieldErrors.name).toBeTruthy();
+    expect(ergebnis.values.closeAfterHours).toBe("72"); // Eingaben gehen nicht verloren
+    expect(getGroup(db, g.id)!.name).toBe("Bereitschaft");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("unlesbare Frist: Fehler am Feld statt stillem Zurücksetzen auf die Vorgabe", async () => {
+    const { updateGroupAction } = await loadActions();
+    const g = seedGroup("bereitschaft", 48);
+    alsGruppenleitung("bereitschaft");
+
+    const ergebnis = await updateGroupAction({ ok: true }, form(g.id, { closeAfterHours: "x" }));
+
+    if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
+    expect(ergebnis.fieldErrors.closeAfterHours).toBeTruthy();
+    expect(getGroup(db, g.id)!.closeAfterHours).toBe(48);
+  });
+
+  it("leere Frist heisst Vorgabe-benutzen und ist kein Fehler", async () => {
+    const { updateGroupAction } = await loadActions();
+    const g = seedGroup("bereitschaft", 48);
+    alsGruppenleitung("bereitschaft");
+
+    const ergebnis = await updateGroupAction({ ok: true }, form(g.id, { closeAfterHours: "" }));
+
+    expect(ergebnis.ok).toBe(true);
+    expect(getGroup(db, g.id)!.closeAfterHours).toBeNull();
+  });
+
+  it("eine fremde Gruppe wirft — eine Zugriffsverletzung ist kein Feldfehler", async () => {
+    const { updateGroupAction } = await loadActions();
+    const fremd = seedGroup("jugendrotkreuz");
+    alsGruppenleitung("bereitschaft");
+
+    await expect(updateGroupAction({ ok: true }, form(fremd.id))).rejects.toThrow();
+    expect(getGroup(db, fremd.id)!.name).toBe("Bereitschaft");
+  });
+});
+
+/**
+ * ABEND BEARBEITEN (Entwurf §2.5 „Bearbeiten", §2.4). Zwei Zusagen, die still
+ * brechen:
+ *
+ * 1. DIE TEILNEHMERZAHL IST NACHTRAGBAR. Sie ist der Nenner jeder Rücklaufquote
+ *    und wird typischerweise erst am Abend selbst bekannt. Ein Patch, der die
+ *    ganze Zeile überschreibt, hätte dabei Thema und Notizen genullt — der
+ *    Dialog schickt nur, was er zeigt.
+ * 2. WIRD DAS DATUM EINES LAUFENDEN ABENDS GEÄNDERT, WIRD DIE FRIST NEU
+ *    GERECHNET. `evenings.date` ist der Anker von `computeClosesAt`; ohne
+ *    Neurechnung zeigte die Frist auf den alten Anker, und die Umfrage schließt
+ *    zu einem Zeitpunkt, der zu keinem Datum auf der Seite passt.
+ */
+describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () => {
+  it("trägt die Teilnehmerzahl nach, ohne Thema und Notizen zu nullen", async () => {
+    const { updateEveningAction } = await loadActions();
+    const group = insertGroup(db, {
+      name: "Bereitschaft",
+      slug: "bereitschaft",
+      secret: "abc12",
+      closeAfterHours: null,
+      createdAt: new Date(),
+    });
+    const evening = insertEvening(db, {
+      groupId: group.id,
+      date: todayMidnightUtc(),
+      topic: "Funkübung",
+      notes: "Kartenmaterial fehlte",
+      participantCount: null,
+      createdAt: new Date(),
+    });
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("id", String(evening.id));
+    f.set("participantCount", "18");
+    await updateEveningAction(f);
+
+    const nachher = getEvening(db, evening.id)!;
+    expect(nachher.participantCount).toBe(18);
+    expect(nachher.topic).toBe("Funkübung");
+    expect(nachher.notes).toBe("Kartenmaterial fehlte");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+  });
+
+  it("neues Datum bei laufender Umfrage: closesAt kommt aus computeClosesAt(neuesDatum, h)", async () => {
+    const { updateEveningAction } = await loadActions();
+    const { survey } = seedActiveSurvey("bereitschaft", "abc12", 0, 48);
+    const eveningId = getSurvey(db, survey.id)!.eveningId;
+    alsGruppenleitung("bereitschaft");
+
+    const neu = "2026-07-22";
+    const f = new FormData();
+    f.set("id", String(eveningId));
+    f.set("date", neu);
+    await updateEveningAction(f);
+
+    const nachher = getSurvey(db, survey.id)!;
+    expect(getEvening(db, eveningId)!.date).toEqual(new Date(`${neu}T00:00:00Z`));
+    // Dieselbe Vorrangregel wie activateSurveyAction: survey → group → Vorgabe.
+    expect(nachher.closesAt).toEqual(computeClosesAt(new Date(`${neu}T00:00:00Z`), 48));
+    expect(nachher.status).toBe("active");
+  });
+
+  it("unverändertes Datum lässt closesAt unangetastet", async () => {
+    const { updateEveningAction } = await loadActions();
+    const { survey } = seedActiveSurvey("bereitschaft", "abc12", 0, 48);
+    const eveningId = getSurvey(db, survey.id)!.eveningId;
+    const vorher = getSurvey(db, survey.id)!.closesAt;
+    alsGruppenleitung("bereitschaft");
+
+    const iso = new Date(getEvening(db, eveningId)!.date).toISOString().slice(0, 10);
+    const f = new FormData();
+    f.set("id", String(eveningId));
+    f.set("date", iso);
+    f.set("participantCount", "18");
+    await updateEveningAction(f);
+
+    expect(getSurvey(db, survey.id)!.closesAt).toEqual(vorher);
+  });
+
+  it("eine geschlossene Umfrage bekommt keine neue Frist — sie läuft nicht mehr", async () => {
+    const { updateEveningAction, closeSurveyAction } = await loadActions();
+    const { survey } = seedActiveSurvey("bereitschaft", "abc12", 0, 48);
+    const eveningId = getSurvey(db, survey.id)!.eveningId;
+    alsGruppenleitung("bereitschaft");
+    const zu = new FormData();
+    zu.set("id", String(survey.id));
+    await closeSurveyAction(zu);
+    const vorher = getSurvey(db, survey.id)!.closesAt;
+
+    const f = new FormData();
+    f.set("id", String(eveningId));
+    f.set("date", "2026-07-22");
+    await updateEveningAction(f);
+
+    expect(getSurvey(db, survey.id)!.closesAt).toEqual(vorher);
+    expect(getSurvey(db, survey.id)!.status).toBe("closed");
+  });
+
+  it("ein fremder Abend wirft", async () => {
+    const { updateEveningAction } = await loadActions();
+    const { survey } = seedActiveSurvey("jugendrotkreuz", "xyz98");
+    const eveningId = getSurvey(db, survey.id)!.eveningId;
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("id", String(eveningId));
+    f.set("participantCount", "18");
+    await expect(updateEveningAction(f)).rejects.toThrow();
+    expect(getEvening(db, eveningId)!.participantCount).toBeNull();
+  });
+});
+
+/**
+ * DIE ZUORDNUNG DER GRUPPENLEITER (Entwurf §2.6 Punkt 2). Ohne sie sieht in
+ * Produktion kein Gruppenleiter seine Gruppe — die Zuordnung war ausschließlich
+ * per Datenbankeingriff möglich.
+ *
+ * SIE IST ADMIN-SACHE, und das ist der wichtigste Test der Aufgabe: würde die
+ * Action nur `guardGroup` benutzen, dürfte eine Gruppenleitung sich beliebige
+ * Personen in die EIGENE Gruppe holen — und damit auch sich selbst weitere
+ * Gruppen, sobald sie eine einzige geschenkt bekommt. Der Negativtest läuft
+ * deshalb gegen die eigene Gruppe, nicht gegen eine fremde: gegen eine fremde
+ * würde schon `guardGroup` werfen und der Test wäre blind.
+ *
+ * Beide Richtungen gehen über `setGroupMembers` (ersetzt vollständig) mit einer
+ * SERVERSEITIG gelesenen Ist-Liste — die gewünschte Liste vom Client zu
+ * übernehmen wäre Mass-Assignment.
+ */
+describe("Zuordnung der Leitung: Admin-Sache, Hinzufügen und Entfernen", () => {
+  function seedGroup(slug = "bereitschaft") {
+    return insertGroup(db, {
+      name: slug,
+      slug,
+      secret: "abc12",
+      closeAfterHours: null,
+      createdAt: new Date(),
+    });
+  }
+  function form(groupId: number, kennung: string): FormData {
+    const f = new FormData();
+    f.set("groupId", String(groupId));
+    f.set("kennung", kennung);
+    return f;
+  }
+
+  it("Admin ordnet eine Kennung zu — die bestehende Zuordnung bleibt", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGroup();
+    setGroupMembers(db, g.id, ["alt-1"]);
+    alsAdmin();
+
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "neu-1"));
+
+    expect(ergebnis.ok).toBe(true);
+    expect(listGroupMembers(db, g.id).sort()).toEqual(["alt-1", "neu-1"]);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+  });
+
+  it("eine E-Mail wird über das Nutzerverzeichnis auf die Kennung aufgelöst", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGroup();
+    upsertKnownUser(db, {
+      userId: "sub-abc",
+      name: "Anna Beispiel",
+      email: "anna@drk.example",
+      seenAt: new Date(),
+    });
+    alsAdmin();
+
+    await addGroupLeaderAction({ ok: true }, form(g.id, "Anna@DRK.example"));
+
+    expect(listGroupMembers(db, g.id)).toEqual(["sub-abc"]);
+  });
+
+  it("unbekannte E-Mail: Fehler am Feld, keine Zuordnung auf eine E-Mail-Adresse", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGroup();
+    alsAdmin();
+
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@drk.example"));
+
+    if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
+    expect(ergebnis.fieldErrors.kennung).toBeTruthy();
+    expect(listGroupMembers(db, g.id)).toEqual([]);
+  });
+
+  it("leere Eingabe: Fehler am Feld, nichts geschrieben", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGroup();
+    alsAdmin();
+
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "   "));
+
+    if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
+    expect(ergebnis.fieldErrors.kennung).toBeTruthy();
+    expect(listGroupMembers(db, g.id)).toEqual([]);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("Entfernen funktioniert, nicht nur Hinzufügen — und trifft nur die genannte Kennung", async () => {
+    const { removeGroupLeaderAction } = await loadActions();
+    const g = seedGroup();
+    setGroupMembers(db, g.id, ["u1", "u2"]);
+    alsAdmin();
+
+    const f = new FormData();
+    f.set("groupId", String(g.id));
+    f.set("userId", "u1");
+    await removeGroupLeaderAction(f);
+
+    expect(listGroupMembers(db, g.id)).toEqual(["u2"]);
+  });
+
+  it("NEGATIVTEST: eine Gruppenleitung darf nicht einmal die EIGENE Gruppe zuordnen", async () => {
+    const { addGroupLeaderAction, removeGroupLeaderAction } = await loadActions();
+    const g = seedGroup("bereitschaft");
+    setGroupMembers(db, g.id, ["leitung-1"]);
+    alsGruppenleitung("bereitschaft");
+
+    await expect(addGroupLeaderAction({ ok: true }, form(g.id, "kumpel-1"))).rejects.toThrow();
+    const raus = new FormData();
+    raus.set("groupId", String(g.id));
+    raus.set("userId", "leitung-1");
+    await expect(removeGroupLeaderAction(raus)).rejects.toThrow();
+
+    expect(listGroupMembers(db, g.id)).toEqual(["leitung-1"]);
   });
 });

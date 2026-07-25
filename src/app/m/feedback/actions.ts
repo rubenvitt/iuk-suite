@@ -24,9 +24,12 @@ import {
   createAndStartSurvey,
   activeSurveyForGroup,
   insertResponse,
+  listGroupMembers,
+  setGroupMembers,
+  listKnownUsers,
 } from "./_db/queries";
 import type { FormState } from "./_lib/formState";
-import { assertGroupAccess } from "./_lib/access";
+import { assertGroupAccess, isFeedbackAdmin } from "./_lib/access";
 import { viewerFromSession } from "./_lib/viewer";
 import { generateSecret } from "./_lib/token";
 import { STANDARD_QUESTIONS, coerceAnswer, isRatingType, type Question } from "./_lib/questions";
@@ -143,15 +146,52 @@ export async function createGroupAction(formData: FormData) {
   insertGroup(db, { name, slug, secret: generateSecret(), closeAfterHours, createdAt: new Date() });
   revalidate();
 }
-export async function updateGroupAction(formData: FormData) {
+/**
+ * GRUPPE BEARBEITEN (Entwurf §2.6 Punkt 1, §4.4).
+ *
+ * `(prev, formData)` wegen `useActionState`: Feldfehler werden ZURÜCKGEGEBEN.
+ * Vorher schrieb die Action, was ankam — ein leerer Name genauso still wie eine
+ * unlesbare Frist, die `parseHours` zu `null` verschluckte und damit die Gruppe
+ * heimlich auf die Vorgabe zurückstellte.
+ *
+ * `slug` WIRD NICHT GESCHRIEBEN, auch wenn das Feld im POST steht: er steckt in
+ * jedem gedruckten QR-Code (§2.6). Ein Slug-Wechsel ist funktional dasselbe wie
+ * „Neues Secret erzeugen" und gehört deshalb nicht in ein Speichern-Formular.
+ * Die Zeile fehlt hier nicht aus Versehen — sie darf nicht existieren.
+ */
+export async function updateGroupAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
   const id = num(formData.get("id"));
   const { db } = await guardGroup(id);
-  updateGroup(db, id, {
-    name: String(formData.get("name") ?? "").trim(),
-    slug: String(formData.get("slug") ?? "").trim(),
-    closeAfterHours: parseHours(formData.get("closeAfterHours")),
-  });
+
+  const values = {
+    name: String(formData.get("name") ?? ""),
+    closeAfterHours: String(formData.get("closeAfterHours") ?? ""),
+  };
+  const name = values.name.trim();
+  const fieldErrors: Record<string, string> = {};
+  if (name === "") fieldErrors.name = "Name fehlt";
+
+  // Leer heißt „Vorgabe benutzen" und ist kein Fehler; alles andere muss eine
+  // ganze Zahl über 0 sein. `parseHours` allein würde „x" zu `null` machen —
+  // ein stilles Zurücksetzen der Frist auf 48 Stunden.
+  const rohStunden = values.closeAfterHours.trim();
+  let closeAfterHours: number | null = null;
+  if (rohStunden !== "") {
+    const n = Number(rohStunden);
+    if (!Number.isInteger(n) || n <= 0) {
+      fieldErrors.closeAfterHours = "Frist ungültig — ganze Stunden über 0";
+    } else {
+      closeAfterHours = n;
+    }
+  }
+  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+
+  updateGroup(db, id, { name, closeAfterHours });
   revalidate();
+  return { ok: true };
 }
 export async function regenerateSecretAction(formData: FormData) {
   const id = num(formData.get("id"));
@@ -163,6 +203,85 @@ export async function deleteGroupAction(formData: FormData) {
   const id = num(formData.get("id"));
   const { db } = await guardGroup(id);
   deleteGroup(db, id);
+  revalidate();
+}
+
+/**
+ * DIE ZUORDNUNG DER LEITUNG (Entwurf §2.6 Punkt 2) — ohne sie sieht in Produktion
+ * kein Gruppenleiter seine Gruppe, und eine Fehlzuordnung ist nur per
+ * Datenbankeingriff korrigierbar.
+ *
+ * SIE IST ADMIN-SACHE, und das ist keine Kosmetik: mit `guardGroup` statt
+ * `guardAdmin` dürfte eine Gruppenleitung sich beliebige Personen in die EIGENE
+ * Gruppe holen — und damit, sobald sie eine einzige Gruppe geschenkt bekommt, die
+ * Zuordnung selbst in die Hand nehmen. Der Guard prüft deshalb NICHT die
+ * Gruppenzugehörigkeit, sondern die Admin-Rolle; für eine Gruppenleitung wirft er
+ * auch bei der eigenen Gruppe.
+ */
+async function guardAdmin() {
+  const viewer = viewerFromSession(await auth());
+  if (!isFeedbackAdmin(viewer)) throw new Error("Forbidden");
+  return { viewer, db: getDb() };
+}
+
+/**
+ * Kennung ODER E-Mail (§2.6): getippt wird meist die Mailadresse, gespeichert
+ * werden muss der `sub` aus Pocket ID — nur der steht später in `user_groups` und
+ * im ID-Token. Eine E-Mail, die im Nutzerverzeichnis nicht auftaucht, wird
+ * ABGEWIESEN statt als Kennung gespeichert: sonst läge in der Zuordnung eine
+ * Adresse, die zu keinem `sub` passt, und die Person käme trotz Eintrag nie in
+ * ihre Gruppe. `useActionState`-Signatur, weil das die dritte Stelle mit einem
+ * Eingabefeld ist (§4.4).
+ */
+export async function addGroupLeaderAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const groupId = num(formData.get("groupId"));
+  const { db } = await guardAdmin();
+
+  const values = { kennung: String(formData.get("kennung") ?? "") };
+  const eingabe = values.kennung.trim();
+  if (eingabe === "") {
+    return { ok: false, fieldErrors: { kennung: "Kennung oder E-Mail fehlt" }, values };
+  }
+
+  let userId = eingabe;
+  if (eingabe.includes("@")) {
+    const klein = eingabe.toLowerCase();
+    const treffer = listKnownUsers(db).find((u) => (u.email ?? "").toLowerCase() === klein);
+    if (!treffer) {
+      return {
+        ok: false,
+        fieldErrors: {
+          kennung: "Diese E-Mail ist unbekannt — die Person muss sich einmal angemeldet haben.",
+        },
+        values,
+      };
+    }
+    userId = treffer.userId;
+  }
+
+  // Ist-Stand SERVERSEITIG gelesen und ergänzt. Die gewünschte Liste vom Client
+  // zu übernehmen wäre Mass-Assignment: ein manipulierter Formularwert würde die
+  // ganze Leitung der Gruppe austauschen. `setGroupMembers` entdoppelt selbst.
+  setGroupMembers(db, groupId, [...listGroupMembers(db, groupId), userId]);
+  revalidate();
+  return { ok: true };
+}
+
+/** Entfernen muss genauso funktionieren wie Hinzufügen (§2.6) — sonst bleibt eine
+ *  Fehlzuordnung stehen. Kein Formularzustand: es gibt keine Eingabe. */
+export async function removeGroupLeaderAction(formData: FormData): Promise<void> {
+  const groupId = num(formData.get("groupId"));
+  const { db } = await guardAdmin();
+  const userId = String(formData.get("userId") ?? "").trim();
+  if (userId === "") throw new Error("Kennung fehlt");
+  setGroupMembers(
+    db,
+    groupId,
+    listGroupMembers(db, groupId).filter((u) => u !== userId),
+  );
   revalidate();
 }
 
@@ -180,15 +299,50 @@ export async function createEveningAction(formData: FormData) {
   });
   revalidate();
 }
+/**
+ * ABEND BEARBEITEN — zwei Zusagen, die vorher still brachen.
+ *
+ * 1. **Es wird nur gepatcht, was mitgeschickt wurde.** Die alte Fassung schrieb
+ *    alle vier Felder aus dem POST; ein Dialog, der nur die Teilnehmerzahl zeigt
+ *    (§2.4 „Teilnehmerzahl nachtragen"), hätte damit Thema und Notizen genullt.
+ *    Die Teilnehmerzahl ist der Nenner jeder Rücklaufquote und wird typischerweise
+ *    erst am Abend selbst bekannt — sie MUSS einzeln nachtragbar sein.
+ * 2. **Ändert sich das Datum, wird die Frist neu geankert.** `evenings.date` ist
+ *    der Anker von `computeClosesAt` (nie „jetzt + Stunden"). Ohne Neurechnung
+ *    zeigte `closesAt` weiter auf den alten Anker, und die laufende Umfrage
+ *    schloss zu einem Zeitpunkt, der zu keinem Datum auf der Seite passt.
+ *    Neu gerechnet wird NUR für eine `active`-Umfrage: eine geschlossene läuft
+ *    nicht mehr, ihre Frist ist Vergangenheit und Teil der Historie.
+ */
 export async function updateEveningAction(formData: FormData) {
   const id = num(formData.get("id"));
   const { db } = await guardGroup(await groupIdOfEvening(id));
-  updateEvening(db, id, {
-    date: parseDate(formData.get("date")),
-    topic: strOrNull(formData.get("topic")),
-    notes: strOrNull(formData.get("notes")),
-    participantCount: parseCount(formData.get("participantCount")),
-  });
+  const vorher = getEvening(db, id)!;
+
+  const patch: Partial<{
+    date: Date;
+    topic: string | null;
+    notes: string | null;
+    participantCount: number | null;
+  }> = {};
+  if (formData.has("date")) patch.date = parseDate(formData.get("date"));
+  if (formData.has("topic")) patch.topic = strOrNull(formData.get("topic"));
+  if (formData.has("notes")) patch.notes = strOrNull(formData.get("notes"));
+  if (formData.has("participantCount")) {
+    patch.participantCount = parseCount(formData.get("participantCount"));
+  }
+  updateEvening(db, id, patch);
+
+  const datumNeu = patch.date;
+  if (datumNeu && datumNeu.getTime() !== new Date(vorher.date).getTime()) {
+    const survey = getSurveyByEvening(db, id);
+    if (survey && survey.status === "active") {
+      const group = getGroup(db, vorher.groupId)!;
+      // Dieselbe Vorrangregel wie `activateSurveyAction`: Umfrage → Gruppe → Vorgabe.
+      const hours = survey.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
+      setSurveyStatus(db, survey.id, "active", { closesAt: computeClosesAt(datumNeu, hours) });
+    }
+  }
   revalidate();
 }
 export async function deleteEveningAction(formData: FormData) {

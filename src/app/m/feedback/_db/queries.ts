@@ -104,6 +104,26 @@ export function listKnownUsers(
     .all();
 }
 
+/**
+ * DIE GEGENRICHTUNG zu `memberGroupIdsFor` — und der Grund, warum sie existieren
+ * muss: `setGroupMembers` ERSETZT die Liste. Die Zuordnungs-Oberfläche darf die
+ * gewünschte Liste deshalb nicht vom Client geschickt bekommen (ein manipulierter
+ * Formularwert würde die ganze Leitung einer Gruppe austauschen). Sie liest den
+ * Ist-Stand hier serverseitig und rechnet eine Kennung dazu bzw. weg.
+ *
+ * Ausschließlich `user_groups`: der `fachgruppen`-Claim aus Pocket ID ist im
+ * Werkzeug nicht editierbar und darf hier nicht als „zugeordnet" auftauchen,
+ * sonst zeigte die Tabelle Zeilen mit einem Entfernen-Knopf, der nichts tut.
+ */
+export function listGroupMembers(db: DB, groupId: number): string[] {
+  return db
+    .select({ userId: userGroups.userId })
+    .from(userGroups)
+    .where(eq(userGroups.groupId, groupId))
+    .all()
+    .map((r) => r.userId);
+}
+
 export function listGroups(db: DB): GroupRow[] {
   return db.select().from(groups).all();
 }

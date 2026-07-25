@@ -4,10 +4,15 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Button, Dropdown, Input, Modal, Popconfirm, Table, Tag } from "antd";
 import { SPACE } from "@/core/theme/tokens";
-import { activateSurveyAction, createEveningAction, deleteEveningAction } from "../actions";
+import {
+  activateSurveyAction,
+  createEveningAction,
+  deleteEveningAction,
+  updateEveningAction,
+} from "../actions";
 import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../_lib/noten";
 import { Altbestandsfussnote, Notenfunke, Notenpille } from "./Noten";
-import { formatDatumLang, formatWochentag } from "./datum";
+import { formatDatumLang, formatWochentag, tagInZone } from "./datum";
 import { T } from "./typo";
 
 /**
@@ -55,6 +60,13 @@ export type VerlaufZeile = {
   /** Mitternacht UTC, wie `evenings.date` es speichert. */
   datum: Date;
   thema: string | null;
+  /**
+   * `notes` des Abends — nur die Zeilenbearbeitung liest und schreibt sie. §2.3
+   * hat das Feld aus dem Startformular genommen („ein viertes Feld ohne Leser")
+   * und ausdruecklich hierher verwiesen. Optional, weil keine Darstellung der Zone
+   * es zeigt: eine Zeile ohne den Wert bleibt vollstaendig lesbar.
+   */
+  notizen?: string | null;
   rueckmeldungen: number;
   /** Der Nenner der Ruecklaufquote — `null` heisst: es gibt keinen (§2.3). */
   teilnehmer: number | null;
@@ -302,7 +314,7 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
                 {z.surveyId !== null ? "Auswertung" : "Bearbeiten"}
               </Link>
               {z.entwurf && z.surveyId !== null && <StartenKnopf surveyId={z.surveyId} />}
-              <AbendMenue groupId={groupId} zeile={z} />
+              <AbendMenue zeile={z} />
             </span>
           ),
         },
@@ -397,7 +409,7 @@ function SchmaleListe({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZei
            */}
           {z.entwurf && z.surveyId !== null && <StartenKnopf surveyId={z.surveyId} />}
           <span style={{ width: 44, display: "flex", justifyContent: "center" }}>
-            <AbendMenue groupId={groupId} zeile={z} />
+            <AbendMenue zeile={z} />
           </span>
         </div>
       ))}
@@ -499,13 +511,15 @@ function StartenKnopf({ surveyId }: { surveyId: number }) {
 }
 
 /**
- * Das „…"-Menue der Zeile (§2.5). „Bearbeiten" fuehrt auf die Abendseite, die
- * heute die Umfragesteuerung traegt; die Feldform (Teilnehmerzahl nachtragen)
- * kommt laut Plan mit den Einstellungen. „Loeschen" fragt nach und nennt die
- * Folge — es nimmt die Rueckmeldungen mit.
+ * Das „…"-Menue der Zeile (§2.5). „Bearbeiten" oeffnet die ZEILENBEARBEITUNG —
+ * frueher fuehrte der Punkt auf die alte Abendseite, die ausschliesslich die
+ * Umfragesteuerung traegt und kein einziges Feld des Abends: ein Weg, der
+ * „Bearbeiten" heisst und nichts bearbeiten kann. „Loeschen" fragt nach und nennt
+ * die Folge — es nimmt die Rueckmeldungen mit.
  */
-function AbendMenue({ groupId, zeile }: { groupId: number; zeile: VerlaufZeile }) {
+function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
   const [offen, setOffen] = useState(false);
+  const [bearbeiten, setBearbeiten] = useState(false);
   const [laeuft, starte] = useTransition();
 
   const loeschen = () =>
@@ -521,14 +535,7 @@ function AbendMenue({ groupId, zeile }: { groupId: number; zeile: VerlaufZeile }
         trigger={["click"]}
         menu={{
           items: [
-            {
-              key: "bearbeiten",
-              label: (
-                <Link href={`/m/feedback/groups/${groupId}/evenings/${zeile.eveningId}`}>
-                  Bearbeiten
-                </Link>
-              ),
-            },
+            { key: "bearbeiten", label: "Bearbeiten", onClick: () => setBearbeiten(true) },
             { key: "loeschen", label: "Löschen", onClick: () => setOffen(true) },
           ],
         }}
@@ -559,7 +566,94 @@ function AbendMenue({ groupId, zeile }: { groupId: number; zeile: VerlaufZeile }
       >
         <span />
       </Popconfirm>
+      <BearbeitenDialog
+        zeile={zeile}
+        offen={bearbeiten}
+        schliessen={() => setBearbeiten(false)}
+      />
     </>
+  );
+}
+
+/**
+ * DIE ZEILENBEARBEITUNG (§2.5 „Bearbeiten", §2.3, §2.4).
+ *
+ * Sie traegt die TEILNEHMERZAHL nach — den Nenner jeder Ruecklaufquote, der
+ * typischerweise erst am Abend selbst bekannt ist — und die `notes`, die §2.3 aus
+ * dem Startformular genommen und ausdruecklich hierher verwiesen hat.
+ *
+ * WARUM DAS DATUM MITFAEHRT und der Satz darunter steht: `evenings.date` ist der
+ * Anker von `computeClosesAt`. Aendert er sich, rechnet `updateEveningAction` die
+ * Frist einer laufenden Umfrage neu — sonst zeigte sie auf den alten Anker. Wer
+ * das Datum korrigiert, muss wissen, dass die Frist mitwandert.
+ *
+ * Kein `useActionState`: §4.4 nennt GENAU DREI Formulare mit Feldfehlern, und
+ * dieses ist keins davon. Dasselbe Muster wie `NachtragenDialog`, inklusive des
+ * Schliessens NACH der Action (`destroyOnHidden` baut das Formular sonst mitten
+ * im Absenden aus).
+ */
+function BearbeitenDialog({
+  zeile,
+  offen,
+  schliessen,
+}: {
+  zeile: VerlaufZeile;
+  offen: boolean;
+  schliessen: () => void;
+}) {
+  // Ueber `datum.ts`, nicht `toISOString()`: die Vorbelegung eines Datumsfelds
+  // kippt damit nicht auf den Vortag (§4.5).
+  const isoTag = tagInZone(zeile.datum);
+
+  return (
+    <Modal
+      open={offen}
+      onCancel={schliessen}
+      title="Dienstabend bearbeiten"
+      footer={null}
+      destroyOnHidden
+    >
+      <form
+        data-testid="verlauf-bearbeiten"
+        action={async (daten: FormData) => {
+          await updateEveningAction(daten);
+          schliessen();
+        }}
+        className="fb-form"
+        style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
+      >
+        <input type="hidden" name="id" value={zeile.eveningId} />
+        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+          <span style={T.kicker}>Datum</span>
+          <Input type="date" name="date" defaultValue={isoTag} required />
+          <span style={T.meta}>
+            Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit.
+          </span>
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+          <span style={T.kicker}>Thema</span>
+          <Input name="topic" defaultValue={zeile.thema ?? ""} placeholder="z. B. Funkübung" />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+          <span style={T.kicker}>Teilnehmerzahl</span>
+          <Input
+            type="number"
+            name="participantCount"
+            min={0}
+            defaultValue={zeile.teilnehmer?.toString() ?? ""}
+            placeholder="optional"
+          />
+          <span style={T.meta}>Der Nenner der Rücklaufquote — nachtragbar, nie geraten.</span>
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+          <span style={T.kicker}>Notizen</span>
+          <Input name="notes" defaultValue={zeile.notizen ?? ""} placeholder="optional" />
+        </label>
+        <Button type="primary" htmlType="submit">
+          Speichern
+        </Button>
+      </form>
+    </Modal>
   );
 }
 

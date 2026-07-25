@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { Breadcrumb, Button, Card, Col, Row, Statistic } from "antd";
 import { getDb } from "../../../_db/client";
-import { getGroup, listResponses } from "../../../_db/queries";
+import { getGroup, listGroupMembers, listKnownUsers, listResponses } from "../../../_db/queries";
 import type { SurveyRow } from "../../../_db/schema";
 import { guardPage } from "../../../_lib/guardPage";
 import { cockpitZustand } from "../../../_lib/cockpit";
@@ -18,6 +18,9 @@ import { Notenpille } from "../../../_ui/Noten";
 import { Lagekarte } from "../../../_ui/Lagekarte";
 import { Teilnahme, teilnahmeUrlAus } from "../../../_ui/Teilnahme";
 import { Verlauf, type VerlaufZeile } from "../../../_ui/Verlauf";
+import { EinstellungenPanel } from "../../../_ui/EinstellungenPanel";
+import type { ZuordnungPerson } from "../../../_ui/Zuordnung";
+import { isFeedbackAdmin } from "../../../_lib/access";
 
 /**
  * DAS COCKPIT (Entwurf §2.1). Die einzige Arbeitsseite des Moduls.
@@ -42,9 +45,10 @@ export default async function Cockpit({
   const id = Number(groupId);
   // Guard zuerst, mit derselben `id`, die anschließend lädt: kein Auseinanderlaufen
   // zwischen geprüftem und geladenem Schlüssel.
-  const { db } = await guardPage(id);
+  const { viewer, db } = await guardPage(id);
   const group = getGroup(db, id);
   if (!group) notFound();
+  const istAdmin = isFeedbackAdmin(viewer);
 
   const jetzt = new Date();
   const zustand = cockpitZustand(db, id, jetzt);
@@ -99,6 +103,9 @@ export default async function Cockpit({
       surveyId: abend.survey?.id ?? null,
       datum: abend.evening.date,
       thema: abend.evening.topic,
+      // Nur die Zeilenbearbeitung liest sie (§2.3 hat `notes` dorthin verwiesen);
+      // keine Darstellung der Zone zeigt den Wert.
+      notizen: abend.evening.notes,
       rueckmeldungen: abend.responseCount,
       teilnehmer: abend.evening.participantCount,
       avgSchulnote: stats?.avgSchulnote ?? null,
@@ -111,6 +118,34 @@ export default async function Cockpit({
   // durch `computeDAStats` und damit keine Chance, dass Kopfzeile und Tabelle
   // verschiedene Durchschnitte zeigen.
   const letzteNoten = verlaufZeilen.slice(0, OE_FENSTER).map((z) => z.avgSchulnote);
+
+  /*
+   * DIE ZAHLEN DES LOESCHDIALOGS (§4.6). Gerechnet aus DERSELBEN Liste, die die
+   * Zone d zeigt, plus der laufenden Umfrage — behauptete Zahlen („12 Abende")
+   * waeren in einem Dialog, der unwiderruflich loescht, die schlimmste Stelle fuer
+   * eine Schaetzung.
+   */
+  const rueckmeldungenGesamt =
+    verlaufZeilen.reduce((summe, z) => summe + z.rueckmeldungen, 0) +
+    (zustand.laufend?.responseCount ?? 0);
+
+  /*
+   * DIE ZUGEORDNETE LEITUNG — NUR fuer Admins geladen (§2.6 Punkt 2). Ein
+   * Nicht-Admin bekaeme die Kennungen fremder Personen sonst in seine
+   * Client-Nutzlast serialisiert, auch wenn der Block ungerendert bliebe.
+   * `listKnownUsers` liefert die Namen; wer noch nie angemeldet war, steht mit
+   * seiner Kennung und ohne Namen in der Liste.
+   */
+  const leitung: ZuordnungPerson[] | undefined = istAdmin
+    ? (() => {
+        const verzeichnis = new Map(listKnownUsers(db).map((u) => [u.userId, u]));
+        return listGroupMembers(db, id).map((userId) => ({
+          userId,
+          name: verzeichnis.get(userId)?.name ?? null,
+          email: verzeichnis.get(userId)?.email ?? null,
+        }));
+      })()
+    : undefined;
 
   /**
    * DIE TEILNAHME-ADRESSE — GENAU EINMAL hergeleitet und dann an BEIDE
@@ -205,6 +240,25 @@ export default async function Cockpit({
       {!einrichtung && (
         <Verlauf groupId={id} zeilen={verlaufZeilen} heute={heuteInZone(jetzt)} />
       )}
+
+      {/*
+       * ZONE e — EINSTELLUNGEN (§2.6). Sie steht in JEDEM Zustand, auch in der
+       * Betriebsart „Einrichtung": anders als der Verlauf ist sie dort nicht leer,
+       * sondern die einzige Stelle, an der Name, Frist und (fuer Admins) die
+       * Leitung einer neuen Gruppe korrigierbar sind. Eingeklappt, mit 32px
+       * Abstand nach oben (§4.8) — der `gap: 24` des Wrappers plus diese 8.
+       */}
+      <div style={{ marginTop: 8 }}>
+        <EinstellungenPanel
+          groupId={id}
+          name={group.name}
+          closeAfterHours={group.closeAfterHours}
+          istAdmin={istAdmin}
+          leitung={leitung}
+          abende={abendZahl}
+          rueckmeldungen={rueckmeldungenGesamt}
+        />
+      </div>
     </div>
   );
 }

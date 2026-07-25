@@ -107,6 +107,17 @@ export function heuteInZone(jetzt: Date = new Date()): string {
 }
 
 /**
+ * EIN GESPEICHERTER Abendtag als `YYYY-MM-DD` — die Vorbelegung eines
+ * Bearbeiten-Feldes. Dieselbe Formatierung wie `heuteInZone`, nur ohne den
+ * Vorgabewert „jetzt": ein `toISOString().slice(0,10)` waere hier die Falle, die
+ * §4.5 fuer die Vorbelegung nennt (zwischen 00:00 und 02:00 Ortszeit kippt sie auf
+ * den Vortag), und `evenings.date` steht als Mitternacht UTC in der Datenbank.
+ */
+export function tagInZone(datum: Date): string {
+  return ISO_TAG.format(datum);
+}
+
+/**
  * `YYYY-MM-DD` → Mitternacht UTC, genau wie `evenings.date` es speichert.
  * `null`, wenn die Eingabe kein Datum ist — der Aufrufer entscheidet, ob daraus
  * ein Feldfehler oder eine ausgelassene Vorschau wird.
