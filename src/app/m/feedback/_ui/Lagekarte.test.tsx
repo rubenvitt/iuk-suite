@@ -1,0 +1,488 @@
+// @vitest-environment jsdom
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import type { ReactElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+/**
+ * DIE LAGEKARTE (Entwurf §2.3, §2.7, §4.4, §4.5). Der einzige Platz der Seite,
+ * der seinen Inhalt wechselt: entweder Startformular oder laufende Umfrage — nie
+ * beides, nie keins. Was hier bewacht wird, sind fuenf Zusagen, die still
+ * brechen:
+ *
+ * 1. Die Karte hat in JEDER Belegung Inhalt. Ein leerer Zweig auf der einzigen
+ *    Arbeitsseite waere ein Ehrenamtlicher, der einmal pro Woche zwei Minuten
+ *    hat und nicht weiss, was er tun soll.
+ * 2. „Feedback jetzt beenden" ist KEINE Gefahr (§2.3): es ist der geplante
+ *    Schluss-Schritt. `danger` faerbt in diesem Projekt mit `colorError ===
+ *    colorPrimary === #c8000f` — Rot auf einer Datenflaeche (Farb-Klausel §4.9).
+ * 3. Der Ruecklaufbalken ist NIE rot: antds Vorgabe ist `colorPrimary`, also
+ *    DRK-Rot, und ein roter Balken liest sich als Alarm.
+ * 4. Es wird nie ein Nenner erfunden: ohne `participantCount` gibt es „12
+ *    Rueckmeldungen", keinen Prozentwert und keinen Balken.
+ * 5. Ein Altbestands-Entwurf kapert die Karte nicht (Belegung E).
+ *
+ * Der Pruefstand: `renderToStaticMarkup` unter jsdom (dieselbe Wahl wie
+ * `Noten.test.tsx`) plus Quelltext-Assertionen fuer das, was im Markup nicht
+ * sichtbar ist. `useActionState` ist ersetzt, weil sonst ausschliesslich der
+ * Startzustand pruefbar waere — der Feldfehler aus §4.4 kommt aber erst im
+ * zweiten Zustand.
+ */
+
+const { useActionStateMock, startFeedbackActionMock, beendeFeedbackActionMock } = vi.hoisted(() => ({
+  useActionStateMock: vi.fn(),
+  startFeedbackActionMock: vi.fn(),
+  beendeFeedbackActionMock: vi.fn(),
+}));
+
+vi.mock("react", async (importOriginal) => {
+  const react = await importOriginal<typeof import("react")>();
+  return { ...react, useActionState: useActionStateMock };
+});
+// Die Actions liegen hinter `"use server"` und ziehen Datenbank und `next/*`
+// nach — hier interessiert nur, DASS die richtige uebergeben wird.
+vi.mock("../actions", () => ({
+  startFeedbackAction: startFeedbackActionMock,
+  beendeFeedbackAction: beendeFeedbackActionMock,
+}));
+
+import { computeClosesAt, DEFAULT_CLOSE_AFTER_HOURS } from "../_lib/lifecycle";
+import type { AbendLage, CockpitZustand, LaufendeLage } from "../_lib/cockpit";
+import { Lagekarte } from "./Lagekarte";
+import { StartFormular } from "./StartFormular";
+import { BeendenKnopf } from "./BeendenKnopf";
+import { formatDatumKurz, formatUhrzeit, formatZeitpunkt, heuteInZone } from "./datum";
+import type { FormState } from "../_lib/formState";
+
+const UI = join(process.cwd(), "src/app/m/feedback/_ui");
+const quelle = (datei: string) => readFileSync(join(UI, datei), "utf8");
+const ohneKommentare = (text: string) =>
+  text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
+const JETZT = new Date("2026-07-22T19:47:00Z");
+const tag = (iso: string) => new Date(`${iso}T00:00:00Z`);
+
+function zeichne(element: ReactElement): HTMLElement {
+  const wirt = document.createElement("div");
+  wirt.innerHTML = renderToStaticMarkup(element);
+  return wirt;
+}
+const text = (element: ReactElement): string => zeichne(element).textContent ?? "";
+
+/** Ein Abend samt (optionaler) Umfrage — nur die Felder, die die Karte liest. */
+function lage(over: {
+  id?: number;
+  datum?: string;
+  topic?: string | null;
+  teilnehmer?: number | null;
+  antworten?: number;
+  status?: "draft" | "active" | "closed" | "archived";
+  activatedAt?: Date;
+  stunden?: number;
+}): AbendLage {
+  const datum = tag(over.datum ?? "2026-07-22");
+  const stunden = over.stunden ?? 48;
+  const status = over.status ?? "active";
+  return {
+    evening: {
+      id: over.id ?? 1,
+      groupId: 7,
+      date: datum,
+      topic: over.topic === undefined ? "Erste Hilfe Auffrischung" : over.topic,
+      notes: null,
+      participantCount: over.teilnehmer === undefined ? 20 : over.teilnehmer,
+      createdAt: JETZT,
+    },
+    survey: {
+      id: 10 + (over.id ?? 1),
+      eveningId: over.id ?? 1,
+      status,
+      questions: "[]",
+      closeAfterHours: stunden,
+      activatedAt: over.activatedAt ?? new Date("2026-07-22T17:32:00Z"),
+      closesAt: computeClosesAt(datum, stunden),
+      closedAt: null,
+      createdAt: JETZT,
+    },
+    effektiv: status,
+    responseCount: over.antworten ?? 0,
+  };
+}
+
+const laufendeLage = (over: Parameters<typeof lage>[0]) => lage(over) as LaufendeLage;
+
+function zustand(over: Partial<CockpitZustand> = {}): CockpitZustand {
+  const laufend = over.laufend ?? null;
+  const belegung =
+    over.belegung ??
+    (laufend
+      ? laufend.responseCount === 0
+        ? "C"
+        : "D"
+      : (over.verlauf ?? []).length === 0
+        ? "A"
+        : "B");
+  return {
+    belegung,
+    modus: over.modus ?? (belegung === "A" ? "einrichtung" : "betrieb"),
+    laufend,
+    weitereAktive: over.weitereAktive ?? [],
+    verlauf: over.verlauf ?? [],
+    letzterAbend: over.letzterAbend ?? null,
+    altbestand: over.altbestand ?? [],
+    letzteTeilnehmerzahl: over.letzteTeilnehmerzahl ?? null,
+  };
+}
+
+const karte = (z: CockpitZustand) => (
+  <Lagekarte
+    groupId={7}
+    zustand={z}
+    jetzt={JETZT}
+    stunden={DEFAULT_CLOSE_AFTER_HOURS}
+    heute="2026-07-22"
+  />
+);
+
+beforeEach(() => {
+  useActionStateMock.mockReset();
+  // Vorgabe: der Startzustand, wie ihn `useActionState` beim ersten Rendern gibt.
+  useActionStateMock.mockImplementation((_action: unknown, init: FormState) => [
+    init,
+    () => {},
+    false,
+  ]);
+});
+
+describe("Lagekarte — Belegung A (Erststart)", () => {
+  const z = zustand({ belegung: "A", modus: "einrichtung" });
+
+  it("nennt den ersten Schritt und die zwei Schritte des Einrichtens", () => {
+    const t = text(karte(z));
+    expect(t).toContain("ERSTER SCHRITT");
+    expect(t).toContain("Ersten Dienstabend anlegen und Feedback starten");
+    expect(t).toContain("Schritt 1");
+    expect(t).toContain("Schritt 2");
+    expect(t).toContain("der Code gilt dauerhaft");
+    expect(t).toContain("Gerade läuft kein Feedback.");
+  });
+
+  it("traegt das Startformular mit drei Feldern und dem Primaerknopf", () => {
+    const wirt = zeichne(karte(z));
+    expect(wirt.querySelector('input[name="date"]')).not.toBeNull();
+    expect(wirt.querySelector('input[name="topic"]')).not.toBeNull();
+    expect(wirt.querySelector('input[name="participantCount"]')).not.toBeNull();
+    expect(wirt.querySelector('input[name="groupId"]')?.getAttribute("value")).toBe("7");
+    expect(wirt.textContent).toContain("Feedback starten");
+    // `notes` ist weg (§2.3): viertes Feld ohne Leser.
+    expect(wirt.querySelector('[name="notes"]')).toBeNull();
+  });
+
+  it("zeigt keinen Zaehler und keinen Beenden-Knopf", () => {
+    const t = text(karte(z));
+    expect(t).not.toContain("Feedback jetzt beenden");
+    expect(zeichne(karte(z)).querySelector(".ant-progress")).toBeNull();
+  });
+});
+
+describe("Lagekarte — Belegung B (ruhend)", () => {
+  const z = zustand({
+    belegung: "B",
+    modus: "betrieb",
+    verlauf: [lage({ id: 2, status: "closed", antworten: 4 })],
+    letzteTeilnehmerzahl: 17,
+  });
+
+  it("nennt den naechsten Schritt statt des ersten", () => {
+    const t = text(karte(z));
+    expect(t).toContain("NÄCHSTER SCHRITT");
+    expect(t).toContain("Feedback für heute starten");
+    expect(t).not.toContain("Schritt 1");
+    expect(t).toContain("Gerade läuft kein Feedback.");
+  });
+
+  it("belegt die Teilnehmerzahl mit der des letzten Abends vor", () => {
+    const wirt = zeichne(karte(z));
+    expect(wirt.querySelector('input[name="participantCount"]')?.getAttribute("value")).toBe("17");
+  });
+});
+
+describe("Lagekarte — Belegung C (laeuft, 0 Antworten)", () => {
+  const laufend = laufendeLage({ antworten: 0 });
+  const z = zustand({ belegung: "C", modus: "betrieb", laufend });
+
+  it("sagt „laeuft seit“ mit Wochentag und Uhrzeit — vier Kanaele, keiner Farbe allein", () => {
+    const t = text(karte(z));
+    expect(t).toContain("LÄUFT SEIT");
+    expect(t).toContain(formatUhrzeit(laufend.survey.activatedAt!));
+    expect(t).toContain("Erste Hilfe Auffrischung");
+    expect(t).toContain(formatDatumKurz(laufend.evening.date));
+  });
+
+  it("bittet um den QR-Code statt leere Notenspuren zu zeigen", () => {
+    const t = text(karte(z));
+    expect(t).toContain("Noch keine Rückmeldung — zeig den QR-Code am Ende des Abends.");
+    expect(zeichne(karte(z)).querySelector(".ant-progress")).toBeNull();
+  });
+
+  it("nennt den Schliesszeitpunkt aus closesAt und den Stand der Anzeige", () => {
+    const t = text(karte(z));
+    expect(t).toContain(formatZeitpunkt(laufend.survey.closesAt!));
+    // Ohne diese Zeile sieht eine gecachte Zahl aus wie eine live gemessene (§4.5).
+    expect(t).toContain(`Stand: ${formatUhrzeit(JETZT)}`);
+  });
+
+  it("zeigt „Feedback jetzt beenden“ — und NICHT als Gefahr", () => {
+    const wirt = zeichne(karte(z));
+    expect(wirt.textContent).toContain("Feedback jetzt beenden");
+    const knopf = [...wirt.querySelectorAll("button")].find((b) =>
+      (b.textContent ?? "").includes("Feedback jetzt beenden"),
+    );
+    expect(knopf).toBeDefined();
+    // antd 6 kennzeichnet `danger` mit `ant-btn-dangerous`/`ant-btn-color-dangerous`.
+    expect(knopf!.className).not.toContain("dangerous");
+    expect(knopf!.className).not.toContain("ant-btn-primary");
+    expect(knopf!.className).toContain("ant-btn-default");
+  });
+
+  it("bietet das Startformular nur noch als eingeklappten Slot an", () => {
+    const t = text(karte(z));
+    expect(t).toContain("Nächsten Dienstabend starten");
+    expect(t).toContain("beendet die laufende Umfrage");
+    // Zu — der Slot darf die laufende Umfrage nicht ueberdecken.
+    expect(zeichne(karte(z)).querySelector(".ant-collapse-item-active")).toBeNull();
+  });
+});
+
+describe("Lagekarte — Belegung D (laeuft, Antworten da)", () => {
+  it("zeigt Zahl, Nenner, Balken und Quote", () => {
+    const laufend = laufendeLage({ antworten: 12, teilnehmer: 20 });
+    const wirt = zeichne(karte(zustand({ belegung: "D", modus: "betrieb", laufend })));
+
+    expect(wirt.textContent).toContain("12");
+    expect(wirt.textContent).toContain("von 20");
+    expect(wirt.textContent).toContain("60 % Rücklauf");
+    const balken = wirt.querySelector(".ant-progress");
+    expect(balken).not.toBeNull();
+    expect(balken!.getAttribute("aria-valuenow")).toBe("60");
+    // Der Balken traegt die eigene Tinte, NICHT antds colorPrimary (= DRK-Rot).
+    expect(balken!.innerHTML).toContain("var(--fb-ink)");
+    expect(balken!.innerHTML).toContain("var(--fb-fill)");
+  });
+
+  it("erfindet ohne Teilnehmerzahl keinen Nenner", () => {
+    const laufend = laufendeLage({ antworten: 12, teilnehmer: null });
+    const wirt = zeichne(karte(zustand({ belegung: "D", modus: "betrieb", laufend })));
+
+    expect(wirt.textContent).toContain("12");
+    expect(wirt.textContent).toContain("Rückmeldungen");
+    expect(wirt.textContent).not.toContain("von ");
+    expect(wirt.textContent).not.toContain("%");
+    expect(wirt.querySelector(".ant-progress")).toBeNull();
+  });
+
+  it("behandelt die Teilnehmerzahl 0 wie „keine Angabe“ — nie „12 von 0“", () => {
+    // Ueber das Formular erreichbar (`min={0}`): eine 0 ist kein Nenner, sondern
+    // eine Null. „12 von 0" waere ein erfundener Nenner und eine Division, die
+    // nur zufaellig keinen Prozentwert produziert.
+    const laufend = laufendeLage({ antworten: 12, teilnehmer: 0 });
+    const wirt = zeichne(karte(zustand({ belegung: "D", modus: "betrieb", laufend })));
+
+    expect(wirt.textContent).toContain("Rückmeldungen");
+    expect(wirt.textContent).not.toContain("von 0");
+    expect(wirt.textContent).not.toContain("%");
+    expect(wirt.querySelector(".ant-progress")).toBeNull();
+  });
+
+  it("kappt bei mehr Rueckmeldungen als Teilnehmern neutral bei 100 %", () => {
+    const laufend = laufendeLage({ antworten: 24, teilnehmer: 20 });
+    const wirt = zeichne(karte(zustand({ belegung: "D", modus: "betrieb", laufend })));
+
+    expect(wirt.querySelector(".ant-progress")!.getAttribute("aria-valuenow")).toBe("100");
+    expect(wirt.textContent).toContain("mehr Rückmeldungen als erfasste Teilnehmer");
+    // Neutral, kein Fehler: keine Warn-/Fehlerform von antd.
+    expect(wirt.querySelector(".ant-alert-error")).toBeNull();
+  });
+});
+
+describe("Lagekarte — Belegung E und Nebenlagen", () => {
+  it("laesst einen Altbestands-Entwurf die Karte NICHT kapern", () => {
+    const alt = lage({ id: 9, datum: "2026-05-06", status: "draft", topic: "Alter Abend" });
+    const z = zustand({
+      belegung: "B",
+      modus: "betrieb",
+      verlauf: [alt],
+      altbestand: [alt],
+    });
+    const t = text(karte(z));
+
+    expect(t).toContain("NÄCHSTER SCHRITT");
+    expect(t).not.toContain("Entwurf");
+    expect(t).not.toContain("Alter Abend");
+  });
+
+  it("nennt eine zweite aktive Umfrage neutral mit Ausweg", () => {
+    const laufend = laufendeLage({ id: 1, antworten: 3 });
+    const zweite = laufendeLage({ id: 5, datum: "2026-03-12", topic: "Funk" });
+    const t = text(
+      karte(zustand({ belegung: "D", modus: "betrieb", laufend, weitereAktive: [zweite] })),
+    );
+
+    expect(t).toContain("Eine weitere Umfrage ist aktiv");
+    expect(t).toContain(formatDatumKurz(zweite.evening.date));
+    expect(t).toContain("beenden");
+  });
+
+  it("hat in jeder Belegung Inhalt — nie eine leere Karte", () => {
+    const belegungen: CockpitZustand[] = [
+      zustand({ belegung: "A", modus: "einrichtung" }),
+      zustand({ belegung: "B", modus: "betrieb", verlauf: [lage({ status: "closed" })] }),
+      zustand({ belegung: "C", modus: "betrieb", laufend: laufendeLage({ antworten: 0 }) }),
+      zustand({ belegung: "D", modus: "betrieb", laufend: laufendeLage({ antworten: 7 }) }),
+    ];
+    for (const z of belegungen) {
+      const t = text(karte(z));
+      expect(t.trim().length).toBeGreaterThan(40);
+      expect(zeichne(karte(z)).querySelector(".ant-card")).not.toBeNull();
+    }
+  });
+});
+
+describe("StartFormular — Fehler am Feld statt technischer Fehlerseite (§4.4)", () => {
+  const formular = (
+    <StartFormular groupId={7} heute="2026-07-22" teilnehmerVorbelegung={20} stunden={48} />
+  );
+
+  it("uebergibt startFeedbackAction an useActionState", () => {
+    zeichne(formular);
+    expect(useActionStateMock).toHaveBeenCalledWith(startFeedbackActionMock, { ok: true });
+  });
+
+  it("zeigt den Feldfehler am Feld und behaelt die Eingaben", () => {
+    useActionStateMock.mockImplementation(() => [
+      {
+        ok: false,
+        fieldErrors: { date: "Datum fehlt" },
+        values: { date: "", topic: "Funkübung", participantCount: "18" },
+      } satisfies FormState,
+      () => {},
+      false,
+    ]);
+    const wirt = zeichne(formular);
+
+    const feld = wirt.querySelector('input[name="date"]')!;
+    expect(feld.getAttribute("aria-invalid")).toBe("true");
+    const meldungsId = feld.getAttribute("aria-describedby")!;
+    expect(wirt.querySelector(`#${meldungsId}`)?.textContent).toContain("Datum fehlt");
+    // 1px-Rahmen von antd ist der vierte, farbige Kanal — erlaubt (§4.4).
+    expect(feld.className).toContain("ant-input-status-error");
+    // Eingaben gehen nie verloren.
+    expect(wirt.querySelector('input[name="topic"]')?.getAttribute("value")).toBe("Funkübung");
+    expect(wirt.querySelector('input[name="participantCount"]')?.getAttribute("value")).toBe("18");
+  });
+
+  it("sperrt den Primaerknopf waehrend des Absendens, ohne die Beschriftung zu wechseln (§4.5)", () => {
+    useActionStateMock.mockImplementation(() => [{ ok: true } satisfies FormState, () => {}, true]);
+    const wirt = zeichne(formular);
+    const knopf = [...wirt.querySelectorAll("button")].find((b) =>
+      (b.textContent ?? "").includes("Feedback starten"),
+    )!;
+
+    expect(knopf.hasAttribute("disabled")).toBe(true);
+    expect(knopf.className).toContain("ant-btn-loading");
+    expect(knopf.textContent).toContain("Feedback starten");
+  });
+
+  it("rechnet die Frist aus dem gewaehlten Datum, nicht aus „jetzt + Stunden“", () => {
+    const t = text(formular);
+    expect(t).toContain(formatZeitpunkt(computeClosesAt(tag("2026-07-22"), 48)));
+    expect(t).not.toContain("48 Stunden");
+  });
+
+  it("belegt das Datum mit heute in Europe/Berlin vor", () => {
+    const wirt = zeichne(formular);
+    expect(wirt.querySelector('input[name="date"]')?.getAttribute("value")).toBe("2026-07-22");
+    // Nie `toISOString()`: zwischen 00:00 und 02:00 Ortszeit kippt es auf den Vortag.
+    expect(ohneKommentare(quelle("datum.ts"))).not.toContain("toISOString");
+  });
+});
+
+describe("BeendenKnopf", () => {
+  it("ist ein geplanter Schritt, keine Gefahr, und nennt die Folge", () => {
+    const wirt = zeichne(<BeendenKnopf surveyId={11} />);
+    const knopf = wirt.querySelector("button")!;
+
+    expect(knopf.textContent).toContain("Feedback jetzt beenden");
+    expect(knopf.className).not.toContain("dangerous");
+    const code = ohneKommentare(quelle("BeendenKnopf.tsx"));
+    expect(code).not.toMatch(/\bdanger\b/);
+    expect(code).toContain("Danach kann niemand mehr antworten. Die Auswertung bleibt erhalten.");
+    expect(code).toContain("beendeFeedbackAction");
+  });
+});
+
+describe("Zeitangaben in Europe/Berlin", () => {
+  it("formatiert Mitternacht UTC als denselben Kalendertag", () => {
+    // `evenings.date` ist Mitternacht UTC — in Berlin 01:00/02:00 desselben Tages.
+    expect(formatDatumKurz(tag("2026-07-22"))).toBe("Mi., 22.07.");
+    expect(formatDatumKurz(tag("2026-01-01"))).toBe("Do., 01.01.");
+  });
+
+  it("nennt Uhrzeit und Zeitpunkt in Ortszeit", () => {
+    expect(formatUhrzeit(new Date("2026-07-22T17:32:00Z"))).toBe("19:32");
+    // Ende des Abendtags in Ortszeit (25.07., 00:00) plus 48 Stunden — die Frist
+    // haengt am Abend, nicht am Klick, und wird hier nur formatiert.
+    expect(formatZeitpunkt(computeClosesAt(tag("2026-07-24"), 48))).toBe("Mo., 27.07., 00:00");
+  });
+
+  it("liefert heute als ISO-Tag der Zone", () => {
+    expect(heuteInZone(new Date("2026-07-24T23:30:00Z"))).toBe("2026-07-25");
+    expect(heuteInZone(new Date("2026-07-24T00:30:00Z"))).toBe("2026-07-24");
+  });
+});
+
+describe("Quelltext-Assertionen — die RSC-Grenze und die Farb-Klausel", () => {
+  it("haelt die Lagekarte serverfest: kein `use client`, kein Compound-Zugriff, keine Funktions-Props", () => {
+    const code = ohneKommentare(quelle("Lagekarte.tsx"));
+    expect(code).not.toContain("use client");
+    // Falle 1 (§4.13): Compound-Zugriff auf antd in einer Server Component = HTTP 500.
+    for (const compound of [
+      "Typography.",
+      "Form.Item",
+      "Descriptions.Item",
+      "List.Item",
+      "Card.Meta",
+      "Collapse.Panel",
+      "Breadcrumb.Item",
+      "Input.TextArea",
+      "Space.Compact",
+      "Table.Summary",
+      "Grid.useBreakpoint",
+    ]) {
+      expect(code).not.toContain(compound);
+    }
+    // Falle 2: Funktions-Props kann eine Server Component nicht uebergeben.
+    expect(code).not.toMatch(/\b(formatter|onChange|onConfirm|onRow)=/);
+    // `Space` nimmt `orientation`, nicht `direction` (antd 6).
+    expect(code).not.toMatch(/direction=/);
+  });
+
+  it("faerbt nirgends eine Datenflaeche rot (Farb-Klausel §4.9)", () => {
+    for (const datei of ["Lagekarte.tsx", "StartFormular.tsx", "BeendenKnopf.tsx", "datum.ts"]) {
+      const code = ohneKommentare(quelle(datei));
+      expect(code.toLowerCase()).not.toContain("#c8000f");
+      expect(code).not.toMatch(/\bdanger\b/);
+      expect(code).not.toMatch(/type="error"/);
+    }
+  });
+
+  it("baut das Rezept der Transaktion nicht nach", () => {
+    // Die Karte startet ueber die Action; `createAndStartSurvey` bleibt die
+    // EINE Stelle mit der Ein-aktive-Invariante.
+    const code = ohneKommentare(quelle("StartFormular.tsx"));
+    expect(code).toContain("startFeedbackAction");
+    expect(code).not.toContain("insertEvening");
+    expect(code).not.toContain("activateSurvey");
+  });
+});

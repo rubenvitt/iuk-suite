@@ -149,3 +149,51 @@
   outline: 2px solid var(--fb-ink);
   outline-offset: 2px;
 }
+
+/*
+ * DER PUNKT DER LAUFENDEN LAGEKARTE (§2.3). Die Bewegung ist NICHT der Traeger
+ * der Aussage: „laeuft" steht als Wort im Kicker, als Toenung der Flaeche und
+ * als Anwesenheit des Zaehlerblocks daneben (§4.14, vier Kanaele). Deshalb darf
+ * `prefers-reduced-motion` den Puls abstellen, ohne dass Information verloren
+ * geht — der Punkt bleibt sichtbar.
+ */
+@keyframes fb-puls {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.35;
+  }
+}
+
+.fb-puls {
+  animation: fb-puls 2s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-puls {
+    animation: none;
+  }
+}
+
+/*
+ * MOBILE FELDSCHRIFT (§4.14). `token.fontSize` ist 14 — unter 16px zoomt iOS
+ * beim Fokus in das Feld hinein, und danach steht die halbe Karte ausserhalb des
+ * Bildschirms. Die Regel gilt nur fuer Formularfelder des Moduls.
+ */
+@media (max-width: 600px) {
+  .fb-form input,
+  .fb-form textarea {
+    font-size: 16px;
+  }
+
+  /*
+   * Auf 390px ist jeder Handlungsknopf volle Breite und steht UNTER dem
+   * naechsten — nie daneben (§2.3). Am Laptop bleibt er so breit wie seine
+   * Beschriftung: ein 630px breiter Knopf liest sich als Flaeche, nicht als Ziel.
+   */
+  .fb-block-mobil {
+    width: 100%;
+  }
+}

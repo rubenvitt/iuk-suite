@@ -21,9 +21,11 @@ import {
   insertSurvey,
   setSurveyStatus,
   activateSurvey,
+  createAndStartSurvey,
   activeSurveyForGroup,
   insertResponse,
 } from "./_db/queries";
+import type { FormState } from "./_lib/formState";
 import { assertGroupAccess } from "./_lib/access";
 import { viewerFromSession } from "./_lib/viewer";
 import { generateSecret } from "./_lib/token";
@@ -361,6 +363,86 @@ export async function releaseDeviceAction(slugSecret: string, surveyId: number) 
   redirect(`/f/${slugSecret}`);
 }
 
+// ---- Das Cockpit: ein Klick statt fünf ----
+
+/**
+ * FEEDBACK STARTEN (Entwurf §2.3, §4.15/1).
+ *
+ * Der Hauptablauf war fünf Klicks über drei Seiten: Gruppe öffnen → Abend-Formular
+ * absenden → Abend öffnen → „Umfrage erstellen" → „Aktivieren". Diese Action macht
+ * daraus einen, und zwar OHNE eine zweite Wahrheit: `createAndStartSurvey`
+ * (`_db/queries.ts`) legt Abend und aktive Umfrage in EINER Transaktion an,
+ * schließt aktive Geschwister derselben Gruppe darin mit und rechnet die Frist aus
+ * `computeClosesAt(date, hours)`. Würde hier `insertEvening` → `insertSurvey` →
+ * `activateSurvey` nachgebaut, läge die „genau eine aktive Umfrage"-Invariante an
+ * zwei Stellen — und die zweite wäre die ungetestete.
+ *
+ * `(prev, formData)`-Signatur wegen `useActionState` (§4.4): Feldfehler werden
+ * ZURÜCKGEGEBEN, nicht geworfen, sonst landet der Nutzer auf einer technischen
+ * Fehlerseite und seine Eingaben sind weg. Die Zugriffsprüfung wirft weiterhin —
+ * das ist kein Feldfehler.
+ */
+export async function startFeedbackAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const groupId = num(formData.get("groupId"));
+  const { db } = await guardGroup(groupId);
+
+  // Eingaben zuerst einsammeln: sie müssen im Fehlerfall vollständig zurück.
+  const values = {
+    date: String(formData.get("date") ?? "").trim(),
+    topic: String(formData.get("topic") ?? ""),
+    participantCount: String(formData.get("participantCount") ?? ""),
+  };
+  const date = values.date === "" ? null : parseDateOrNull(values.date);
+  if (!date) {
+    return {
+      ok: false,
+      fieldErrors: {
+        date: values.date === "" ? "Datum fehlt" : "Datum ungültig — bitte als Tag auswählen",
+      },
+      values,
+    };
+  }
+
+  const group = getGroup(db, groupId)!;
+  const hours = group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
+  createAndStartSurvey(db, {
+    groupId,
+    date,
+    topic: strOrNull(values.topic),
+    // `notes` fällt in der neuen Oberfläche weg (§2.3): ein viertes Feld ohne
+    // Leser. Nachtragbar über die Zeilenbearbeitung im Verlauf.
+    notes: null,
+    participants: parseCount(values.participantCount),
+    closeAfterHours: hours,
+    now: new Date(),
+  });
+  // Nur im Erfolgsfall (§4.4) — ein Feldfehler hat nichts revalidiert.
+  revalidate();
+  return { ok: true };
+}
+
+/**
+ * FEEDBACK BEENDEN — der geplante Schluss-Schritt, kein Notausgang (§2.3).
+ *
+ * Deshalb im Knopf ohne `danger` und ohne eigenen Formularzustand: es gibt keine
+ * Eingabe, die scheitern könnte. Die Bestätigung liegt im `Popconfirm` und nennt
+ * die Folge wörtlich („Danach kann niemand mehr antworten. Die Auswertung bleibt
+ * erhalten.").
+ *
+ * Schreibt explizit, weil das Falten in `_lib/cockpit.ts` bewusst nur liest: die
+ * Umfrage soll auch für den öffentlichen Pfad geschlossen sein, nicht nur in der
+ * Anzeige des Cockpits.
+ */
+export async function beendeFeedbackAction(formData: FormData): Promise<void> {
+  const surveyId = num(formData.get("surveyId"));
+  const { db } = await guardGroup(await groupIdOfSurvey(surveyId));
+  setSurveyStatus(db, surveyId, "closed", { closedAt: new Date() });
+  revalidate();
+}
+
 // ---- Parser-Helfer ----
 function num(v: FormDataEntryValue | null): number {
   const n = Number(v);
@@ -382,6 +464,17 @@ function parseDate(v: FormDataEntryValue | null): Date {
   const d = new Date(`${s}T00:00:00Z`); // YYYY-MM-DD → Mitternacht UTC
   if (Number.isNaN(d.getTime())) throw new Error("Ungültiges Datum");
   return d;
+}
+/**
+ * Dieselbe Umrechnung, aber ohne zu werfen: die Formular-Actions brauchen den
+ * Fehlschlag als WERT, um ihn am Feld zeigen zu können (§4.4). Das strenge Muster
+ * ist Absicht — `new Date("22.07.2026T00:00:00Z")` ist in manchen Laufzeiten
+ * gültig und ergäbe ein stilles Falschdatum.
+ */
+function parseDateOrNull(s: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = new Date(`${s}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 function strOrNull(v: FormDataEntryValue | null): string | null {
   const s = String(v ?? "").trim();

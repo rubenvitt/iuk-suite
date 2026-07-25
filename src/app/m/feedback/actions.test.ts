@@ -8,10 +8,12 @@ import {
   insertEvening,
   insertSurvey,
   activateSurvey,
+  activeSurveyForGroup,
   getSurvey,
+  listEvenings,
   listResponses,
 } from "./_db/queries";
-import { computeClosesAt } from "./_lib/lifecycle";
+import { computeClosesAt, DEFAULT_CLOSE_AFTER_HOURS } from "./_lib/lifecycle";
 import { STANDARD_QUESTIONS } from "./_lib/questions";
 import { FEHLER_PARAMETER, JS_FELD } from "./_lib/absenden";
 
@@ -660,5 +662,191 @@ describe("revalidate: der Pfad schließt das Cockpit ein", () => {
     await closeSurveyAction(f);
 
     expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+  });
+});
+
+/**
+ * EIN KLICK STATT FÜNF (Entwurf §2.3, §4.15/1). Der Hauptablauf war: Gruppe
+ * öffnen → Abend-Formular absenden → Abend öffnen → „Umfrage erstellen" →
+ * „Aktivieren". `createAndStartSurvey` (transaktional, `queries.ts:230`) hat das
+ * Rezept längst — es fehlte nur der Aufrufer. Diese Action ist deshalb
+ * absichtlich ein Zehnzeiler: sie parst, guardet und delegiert. Würde sie
+ * `insertEvening` + `insertSurvey` + `activateSurvey` nachbauen, läge die
+ * Ein-aktive-Invariante an zwei Stellen — und die zweite ist die ungetestete.
+ */
+describe("startFeedbackAction: Abend, aktive Umfrage und Frist in einem Klick", () => {
+  /** Gruppe ohne eigene Frist — die Vorgabe DEFAULT_CLOSE_AFTER_HOURS greift. */
+  function seedGroup(slug: string, closeAfterHours: number | null = null) {
+    return insertGroup(db, {
+      name: slug,
+      slug,
+      secret: "abc12",
+      closeAfterHours,
+      createdAt: new Date(),
+    });
+  }
+
+  function startForm(groupId: number, over: Record<string, string> = {}): FormData {
+    const f = new FormData();
+    f.set("groupId", String(groupId));
+    f.set("date", "2026-07-22");
+    f.set("topic", "Erste Hilfe Auffrischung");
+    f.set("participantCount", "20");
+    for (const [k, v] of Object.entries(over)) f.set(k, v);
+    return f;
+  }
+
+  it("ein Aufruf genügt: danach ist activeSurveyForGroup gesetzt", async () => {
+    const { startFeedbackAction } = await loadActions();
+    const g = seedGroup("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    const ergebnis = await startFeedbackAction({ ok: true }, startForm(g.id));
+
+    expect(ergebnis).toEqual({ ok: true });
+    const laufend = activeSurveyForGroup(db, g.id);
+    expect(laufend).toBeDefined();
+    expect(laufend!.survey.status).toBe("active");
+    expect(laufend!.survey.activatedAt).not.toBeNull();
+    expect(laufend!.evening.topic).toBe("Erste Hilfe Auffrischung");
+    expect(laufend!.evening.participantCount).toBe(20);
+    // Mitternacht UTC, so wie `evenings.date` es speichert.
+    expect(laufend!.evening.date).toEqual(new Date("2026-07-22T00:00:00Z"));
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+  });
+
+  it("die Frist kommt aus computeClosesAt(evening.date, hours) und liegt nach dem Abend", async () => {
+    const { startFeedbackAction } = await loadActions();
+    const g = seedGroup("bereitschaft", 48);
+    alsGruppenleitung("bereitschaft");
+
+    // Abend in der ZUKUNFT: eine Frist „jetzt + 48h" läge davor und wäre sofort
+    // sichtbar falsch — genau der Fund 1.5/2 an der zweiten Stelle.
+    const abend = new Date(todayMidnightUtc().getTime() + 7 * 86400_000);
+    const iso = abend.toISOString().slice(0, 10);
+    await startFeedbackAction({ ok: true }, startForm(g.id, { date: iso }));
+
+    const laufend = activeSurveyForGroup(db, g.id)!;
+    expect(laufend.survey.closesAt).toEqual(computeClosesAt(abend, 48));
+    expect(laufend.survey.closesAt!.getTime()).toBeGreaterThan(abend.getTime());
+    expect(laufend.survey.closesAt).not.toEqual(computeClosesAt(todayMidnightUtc(), 48));
+  });
+
+  it("ohne eigene Frist der Gruppe gilt DEFAULT_CLOSE_AFTER_HOURS", async () => {
+    const { startFeedbackAction } = await loadActions();
+    const g = seedGroup("bereitschaft", null);
+    alsGruppenleitung("bereitschaft");
+
+    await startFeedbackAction({ ok: true }, startForm(g.id, { date: "2026-07-22" }));
+
+    const laufend = activeSurveyForGroup(db, g.id)!;
+    expect(laufend.survey.closeAfterHours).toBe(DEFAULT_CLOSE_AFTER_HOURS);
+    expect(laufend.survey.closesAt).toEqual(
+      computeClosesAt(new Date("2026-07-22T00:00:00Z"), DEFAULT_CLOSE_AFTER_HOURS),
+    );
+  });
+
+  it("nutzt die Transaktion: bei laufender Umfrage bleibt danach genau EINE aktiv", async () => {
+    const { startFeedbackAction } = await loadActions();
+    const { group, survey } = seedActiveSurvey("bereitschaft", "abc12");
+    alsGruppenleitung("bereitschaft");
+
+    await startFeedbackAction({ ok: true }, startForm(group.id, { date: "2026-07-23" }));
+
+    // Direkt per SQL gezählt: `activeSurveyForGroup` nutzt `.get()` und würde
+    // eine verletzte Invariante stumm verdecken.
+    const aktive = (
+      sqlite
+        .prepare(
+          "SELECT COUNT(*) AS c FROM surveys s JOIN evenings e ON e.id = s.evening_id" +
+            " WHERE e.group_id = ? AND s.status = 'active'",
+        )
+        .get(group.id) as { c: number }
+    ).c;
+    expect(aktive).toBe(1);
+    expect(getSurvey(db, survey.id)!.status).toBe("closed");
+    expect(activeSurveyForGroup(db, group.id)!.survey.id).not.toBe(survey.id);
+  });
+
+  it("fehlendes Datum: Fehler am Feld, Eingaben bleiben stehen, nichts wird angelegt", async () => {
+    const { startFeedbackAction } = await loadActions();
+    const g = seedGroup("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    const ergebnis = await startFeedbackAction({ ok: true }, startForm(g.id, { date: "" }));
+
+    // KEIN throw: eine technische Fehlerseite kann keinen Feldfehler tragen und
+    // wirft die Eingaben weg.
+    expect(ergebnis.ok).toBe(false);
+    if (ergebnis.ok) throw new Error("unerreichbar");
+    expect(ergebnis.fieldErrors.date).toMatch(/fehlt/i);
+    expect(ergebnis.values.topic).toBe("Erste Hilfe Auffrischung");
+    expect(ergebnis.values.participantCount).toBe("20");
+    expect(activeSurveyForGroup(db, g.id)).toBeUndefined();
+    expect(listEvenings(db, g.id)).toHaveLength(0);
+    // Kein Erfolg, kein revalidate.
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("unlesbares Datum: ebenfalls Feldfehler statt Ausnahme", async () => {
+    const { startFeedbackAction } = await loadActions();
+    const g = seedGroup("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    const ergebnis = await startFeedbackAction({ ok: true }, startForm(g.id, { date: "22.07.2026" }));
+
+    expect(ergebnis.ok).toBe(false);
+    if (ergebnis.ok) throw new Error("unerreichbar");
+    expect(ergebnis.fieldErrors.date).toBeTruthy();
+    expect(listEvenings(db, g.id)).toHaveLength(0);
+  });
+
+  it("eine fremde Gruppe wirft — eine Zugriffsverletzung ist kein Feldfehler", async () => {
+    const { startFeedbackAction } = await loadActions();
+    const fremd = seedGroup("jugendrotkreuz");
+    alsGruppenleitung("bereitschaft");
+
+    await expect(startFeedbackAction({ ok: true }, startForm(fremd.id))).rejects.toThrow();
+    expect(listEvenings(db, fremd.id)).toHaveLength(0);
+  });
+
+  it("leere Teilnehmerzahl bleibt leer — es wird kein Nenner erfunden", async () => {
+    const { startFeedbackAction } = await loadActions();
+    const g = seedGroup("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    await startFeedbackAction({ ok: true }, startForm(g.id, { participantCount: "", topic: "" }));
+
+    const laufend = activeSurveyForGroup(db, g.id)!;
+    expect(laufend.evening.participantCount).toBeNull();
+    expect(laufend.evening.topic).toBeNull();
+  });
+});
+
+describe("beendeFeedbackAction: der geplante Schluss-Schritt", () => {
+  it("schließt genau die genannte Umfrage und revalidiert das Cockpit", async () => {
+    const { beendeFeedbackAction } = await loadActions();
+    const { survey } = seedActiveSurvey("bereitschaft", "abc12");
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("surveyId", String(survey.id));
+    await beendeFeedbackAction(f);
+
+    const nachher = getSurvey(db, survey.id)!;
+    expect(nachher.status).toBe("closed");
+    expect(nachher.closedAt).not.toBeNull();
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+  });
+
+  it("eine fremde Gruppe wirft", async () => {
+    const { beendeFeedbackAction } = await loadActions();
+    const fremd = seedActiveSurvey("jugendrotkreuz", "xyz98");
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("surveyId", String(fremd.survey.id));
+    await expect(beendeFeedbackAction(f)).rejects.toThrow();
+    expect(getSurvey(db, fremd.survey.id)!.status).toBe("active");
   });
 });
