@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NOTEN_DUNKEL, NOTEN_HELL, NOTEN_WORT, formatiereNote } from "../_lib/noten";
 import { T } from "./typo";
-import { Notenlegende, Notenpille, Notenplakette, Notenspur } from "./Noten";
+import {
+  Altbestandsfussnote,
+  Notenlegende,
+  Notenpille,
+  Notenplakette,
+  Notenspur,
+} from "./Noten";
 
 /**
  * DIE WIEDERKEHRENDEN ANZEIGEN AN EINER STELLE (Entwurf §4.7, §4.8, §4.10–§4.12,
@@ -49,10 +56,24 @@ const TYPO_TS = ohneKommentare(quelle("typo.ts"));
  * Farb-Klausel und die `--ant-*`-Sperre sollen auch fuer die Bauteile gelten,
  * die die naechsten Aufgaben hier ablegen. Testdateien sind ausgenommen — sie
  * MUESSEN die verbotene Zeichenfolge nennen, um sie zu verbieten.
+ *
+ * REKURSIV, und das ist der ganze Punkt: die erste Fassung las nur die oberste
+ * Ebene und verwarf Unterverzeichnisse STILL. Eine spaetere Datei
+ * `_ui/charts/Foo.tsx` haette sich damit beiden Sperren entzogen, ohne dass
+ * etwas anschlaegt — und „still" ist der einzige Grund, aus dem diese
+ * Assertionen ueberhaupt existieren. Zurueck kommen Pfade RELATIV zu `wurzel`,
+ * damit `quelle()` sie weiter direkt lesen kann.
  */
-const UI_DATEIEN = readdirSync(UI, { withFileTypes: true })
-  .filter((eintrag) => eintrag.isFile() && !eintrag.name.includes(".test."))
-  .map((eintrag) => eintrag.name);
+function dateienRekursiv(wurzel: string, unter = ""): string[] {
+  return readdirSync(join(wurzel, unter), { withFileTypes: true }).flatMap((eintrag) => {
+    const pfad = unter ? join(unter, eintrag.name) : eintrag.name;
+    if (eintrag.isDirectory()) return dateienRekursiv(wurzel, pfad);
+    if (!eintrag.isFile() || eintrag.name.includes(".test.")) return [];
+    return [pfad];
+  });
+}
+
+const UI_DATEIEN = dateienRekursiv(UI);
 
 function zeichne(element: ReactElement): HTMLElement {
   const wirt = document.createElement("div");
@@ -345,7 +366,44 @@ describe("Invariante: eine Toenung traegt keinen Text", () => {
   });
 });
 
+describe("Fussnote zur Alt-Skala (§4.12)", () => {
+  it("nennt Herkunft UND Folge wortgenau", () => {
+    const wirt = zeichne(<Altbestandsfussnote />);
+    expect(wirt.textContent).toBe(
+      "enthält Altbestands-Fragen (Skala 1–5) — nicht in den Durchschnitt gerechnet",
+    );
+  });
+
+  it("ist eine Herkunftsangabe in T.meta, kein Warnton", () => {
+    const wirt = zeichne(<Altbestandsfussnote />);
+    const satz = alle(wirt)[0];
+    expect(stil(satz)).toContain(`font-size:${T.meta.fontSize}px`);
+    expect(stil(satz)).toContain("color:var(--fb-muted)");
+    // Keine Notenfarbe: die Fussnote bewertet nicht.
+    expect(wirt.innerHTML).not.toContain("var(--note-");
+  });
+});
+
 describe("Quelltext-Assertionen — was jsdom nicht sehen kann", () => {
+  /**
+   * Der Riegel gegen das stille Loch: ohne Rekursion entzieht sich eine Datei in
+   * einem Unterverzeichnis der Farb-Klausel UND der `--ant-*`-Sperre. `_ui/` hat
+   * heute keine Unterverzeichnisse — „die Tests sind gruen" ist hier also kein
+   * Beleg, deshalb ein echter Baum in einem Wegwerf-Verzeichnis.
+   */
+  it("sammelt `_ui/**` rekursiv — ein Unterverzeichnis entzieht sich nicht", () => {
+    const wurzel = mkdtempSync(join(tmpdir(), "fb-ui-"));
+    try {
+      mkdirSync(join(wurzel, "charts"));
+      writeFileSync(join(wurzel, "Oben.tsx"), "x");
+      writeFileSync(join(wurzel, "charts", "Foo.tsx"), "x");
+      writeFileSync(join(wurzel, "charts", "Foo.test.tsx"), "x");
+      expect(dateienRekursiv(wurzel).sort()).toEqual(["Oben.tsx", join("charts", "Foo.tsx")]);
+    } finally {
+      rmSync(wurzel, { recursive: true, force: true });
+    }
+  });
+
   it("nennt in `_ui/**` nirgends `#c8000f` (Farb-Klausel)", () => {
     for (const datei of UI_DATEIEN) {
       expect(ohneKommentare(quelle(datei)).toLowerCase()).not.toContain("#c8000f");

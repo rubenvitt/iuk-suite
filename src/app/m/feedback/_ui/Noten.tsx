@@ -366,6 +366,28 @@ export function Notenlegende({ groesse = "kompakt" }: NotenlegendeProps = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Die Fussnote zur Alt-Skala
+// ---------------------------------------------------------------------------
+
+/**
+ * DIE FUSSNOTE AUS §4.12 — genau einmal formuliert. Sie steht an jeder Zeile,
+ * deren Bogen eine `stars`-Frage traegt (Verlauf, Trend, Vergleich,
+ * Auswertung): dort ist der Ø aus WENIGER Fragen gebildet als der Bogen hat,
+ * und ohne diesen Satz bliebe unerklaerlich, warum ein Abend mit
+ * Rueckmeldungen keine oder eine „zu gute" Note zeigt.
+ *
+ * Kein Warnton, keine Kante, kein Icon: es ist eine Herkunftsangabe, keine
+ * Warnung — und Rot faellt im Modul `feedback` ohnehin aus (§4.9).
+ */
+export function Altbestandsfussnote() {
+  return (
+    <span style={T.meta}>
+      enthält Altbestands-Fragen (Skala 1–5) — nicht in den Durchschnitt gerechnet
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Bauteil 4 — Notenplakette
 // ---------------------------------------------------------------------------
 

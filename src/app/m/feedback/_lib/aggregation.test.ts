@@ -99,11 +99,26 @@ describe("computeDAStats: getrennter Schulnoten-Mittelwert (gemischte Skalen)", 
 
 describe("computeGroupTrend", () => {
   const utc = (y: number, m: number, d: number) => Math.floor(Date.UTC(y, m - 1, d) / 1000);
-  const st = (avg: number | null, count: number): ReturnType<typeof computeDAStats> => ({
+  /**
+   * Ein Abend als Attrappe mit ABSICHTLICH VERSCHIEDENEN Mittelwerten: `note` ist
+   * der Schulnoten-Ø (den die Kurve lesen MUSS), `gemischt` der bedeutungslose
+   * Mischwert aus 1–6 und 1–5 (`overallAvg`).
+   *
+   * Die erste Fassung dieser Attrappe setzte beide Felder auf denselben Wert —
+   * damit bestand jede Erwartung unten auch dann, wenn die Kurve den falschen
+   * Wert liest, und `avgSchulnote: null` hätte hier nichts rot gemacht. Genau
+   * das war der Beweis, dass `avgSchulnote` keinen Leser hatte.
+   */
+  const st = (
+    note: number | null,
+    gemischt: number | null,
+    count: number,
+    altbestand = false,
+  ): ReturnType<typeof computeDAStats> => ({
     perQuestion: [],
-    overallAvg: avg,
-    avgSchulnote: avg,
-    hasLegacyScale: false,
+    overallAvg: gemischt,
+    avgSchulnote: note,
+    hasLegacyScale: altbestand,
     texts: [],
     responseCount: count,
   });
@@ -111,8 +126,8 @@ describe("computeGroupTrend", () => {
   it("bucketet nach Monat, füllt leere Monate mit avg=null", () => {
     const trend = computeGroupTrend(
       [
-        { date: utc(2026, 1, 10), stats: st(2, 5) },
-        { date: utc(2026, 3, 5), stats: st(4, 3) },
+        { date: utc(2026, 1, 10), stats: st(2, 5.5, 5) },
+        { date: utc(2026, 3, 5), stats: st(4, 1.5, 3) },
       ],
       utc(2026, 1, 1),
       utc(2026, 3, 31),
@@ -125,7 +140,7 @@ describe("computeGroupTrend", () => {
 
   it("Range inklusiv an den Grenzen (kein off-by-one)", () => {
     const trend = computeGroupTrend(
-      [{ date: utc(2026, 1, 31), stats: st(3, 1) }],
+      [{ date: utc(2026, 1, 31), stats: st(3, 4.75, 1) }],
       utc(2026, 1, 1),
       utc(2026, 1, 31),
     );
@@ -136,15 +151,72 @@ describe("computeGroupTrend", () => {
   it("mittelt mehrere Dienstabende im selben Monat gewichtet nach responseCount", () => {
     const trend = computeGroupTrend(
       [
-        { date: utc(2026, 1, 5), stats: st(2, 1) },
-        { date: utc(2026, 1, 20), stats: st(4, 3) },
+        { date: utc(2026, 1, 5), stats: st(2, 5, 1) },
+        { date: utc(2026, 1, 20), stats: st(4, 1, 3) },
       ],
       utc(2026, 1, 1),
       utc(2026, 1, 31),
     );
-    // (2*1 + 4*3) / (1+3) = 3.5
+    // (2*1 + 4*3) / (1+3) = 3.5 — aus den SCHULNOTEN. Aus `overallAvg` wären es
+    // (5*1 + 1*3) / 4 = 2.0.
     expect(trend[0].avg).toBeCloseTo(3.5);
     expect(trend[0].responseCount).toBe(4);
+  });
+
+  it("gewichtet mit avgSchulnote, nicht mit dem gemischten overallAvg", () => {
+    // Ein Bogen mit Alt-Frage: Schulnote 1,0 („sehr gut"), Sterne 5 von 5 —
+    // `overallAvg` mittelt beide zu 3,0 („befriedigend"). Die Kurve muss 1,0
+    // zeigen; 3,0 wäre die still falsch eingefärbte Ampel aus §4.12.
+    const trend = computeGroupTrend(
+      [{ date: utc(2026, 5, 6), stats: st(1, 3, 12, true) }],
+      utc(2026, 5, 1),
+      utc(2026, 5, 31),
+    );
+    expect(trend[0].avg).toBeCloseTo(1);
+    expect(trend[0].hasLegacyScale).toBe(true);
+  });
+
+  it("ein Abend ohne Schulnotenfrage fällt aus der Kurve, bleibt aber gezählt", () => {
+    // Reiner Altbestands-Bogen: `avgSchulnote` ist null, `overallAvg` 4,2 (von
+    // 5!). Läse die Kurve `overallAvg`, stünde dort „ausreichend" für einen
+    // Abend, der gut bewertet wurde.
+    const trend = computeGroupTrend(
+      [{ date: utc(2026, 5, 6), stats: st(null, 4.2, 7, true) }],
+      utc(2026, 5, 1),
+      utc(2026, 5, 31),
+    );
+    expect(trend[0].avg).toBeNull();
+    expect(trend[0].responseCount).toBe(7); // die Rückmeldungen gab es
+    expect(trend[0].hasLegacyScale).toBe(true);
+  });
+
+  it("verfälscht den Monats-Ø nicht mit dem Abend ohne Schulnote", () => {
+    const trend = computeGroupTrend(
+      [
+        { date: utc(2026, 5, 6), stats: st(2, 2, 1) },
+        { date: utc(2026, 5, 20), stats: st(null, 4.5, 3, true) },
+      ],
+      utc(2026, 5, 1),
+      utc(2026, 5, 31),
+    );
+    // Nur der Abend MIT Schulnote trägt den Ø: 2,0 — nicht (2*1 + 4,5*3)/4 = 3,875.
+    expect(trend[0].avg).toBeCloseTo(2);
+    expect(trend[0].responseCount).toBe(4);
+    expect(trend[0].hasLegacyScale).toBe(true);
+  });
+
+  it("meldet hasLegacyScale nur, wo ein Altbestands-Bogen im Bucket liegt", () => {
+    const trend = computeGroupTrend(
+      [
+        { date: utc(2026, 1, 5), stats: st(2, 2, 4) },
+        { date: utc(2026, 3, 5), stats: st(2, 3, 4, true) },
+      ],
+      utc(2026, 1, 1),
+      utc(2026, 3, 31),
+    );
+    expect(trend[0].hasLegacyScale).toBe(false);
+    expect(trend[1].hasLegacyScale).toBe(false); // leerer Februar
+    expect(trend[2].hasLegacyScale).toBe(true);
   });
 });
 

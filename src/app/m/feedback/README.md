@@ -24,7 +24,7 @@ Teilnehmende und muss den Siegeltext mitändern — nicht stillschweigend seine 
 |---|---|
 | kein Name, keine E-Mail | `responses` trägt nur `survey_id`, `answers`, `submitted_at` (`_db/schema.ts`). Der öffentliche Pfad hat keine Sitzung. |
 | **keine Geräte- oder IP-Kennung** | siehe unten. |
-| keine Uhrzeit | `insertResponse` schreibt `evening.date` (Mitternacht UTC) als `submitted_at`, nicht `now` (`actions.ts`, `submitResponseAction`). Der CSV-Export gibt in der Spalte „Zeitstempel" den **Abendtag** aus — auch für importierte Antworten, deren Wert in der Datenbank aus Gründen der Import-Parität sekundengenau bleibt. |
+| keine Uhrzeit | `insertResponse` schreibt `evening.date` (Mitternacht UTC) als `submitted_at`, nicht `now` (`actions.ts`, `submitResponseAction`). Der CSV-Export gibt in der Spalte „Abendtag" (früher „Zeitstempel" — der Name versprach eine Genauigkeit, die die Ausgabe nicht mehr hat) den **Abendtag** aus — auch für importierte Antworten, deren Wert in der Datenbank aus Gründen der Import-Parität sekundengenau bleibt. |
 | in zufälliger Reihenfolge | `shuffleStable` (`_lib/aggregation.ts`) — deterministische Durchmischung nach FNV-1a-Hash der Antwort, entkoppelt von der Eingangsreihenfolge. Auswertung UND Export benutzen dieselbe Ordnung. |
 
 ## Die IP: nur Ratenbegrenzung, flüchtig, nie an der Antwort

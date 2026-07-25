@@ -82,13 +82,21 @@ export async function GET(
    */
   const abendtag = new Date(evening.date).toISOString().slice(0, 10);
 
+  /*
+   * DER SPALTENNAME (Fund aus dem Review von Task 8). „Zeitstempel" versprach
+   * eine Genauigkeit, die die Ausgabe nach der Normalisierung bewusst NICHT mehr
+   * hat: dort steht ein Kalendertag, in jeder Zeile derselbe. „Abendtag" sagt
+   * genau das — und bleibt unterscheidbar von der Metadatenzeile „Datum", die
+   * denselben Wert trägt (ein zweites „Datum" hier machte jede Suche nach der
+   * Kopfzeile zweideutig).
+   */
   const rows: string[][] = [
     ["Gruppe", group.name],
     ["Datum", abendtag],
     ["Thema", evening.topic ?? ""],
     ["Anzahl Rückmeldungen", String(responses.length)],
     [],
-    ["Zeitstempel", ...questions.map((q) => q.text)],
+    ["Abendtag", ...questions.map((q) => q.text)],
     ...responses.map((r) => [
       abendtag,
       ...questions.map((q) => {

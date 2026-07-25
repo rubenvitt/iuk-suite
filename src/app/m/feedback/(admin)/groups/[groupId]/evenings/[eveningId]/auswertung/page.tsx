@@ -7,6 +7,7 @@ import { computeDAStats } from "@/app/m/feedback/_lib/aggregation";
 import { isRatingType, ratingScale, type Question, type QuestionType } from "@/app/m/feedback/_lib/questions";
 import { SPACE } from "@/core/theme/tokens";
 import { BarChart } from "@/core/charts/BarChart";
+import { Altbestandsfussnote, Notenpille } from "@/app/m/feedback/_ui/Noten";
 
 // Server-Komponente: kein antd-Compound-Zugriff — der Chart-Wrapper ist eine
 // eigene Client-Komponente (`@/core/charts/BarChart`). Eine Server-Komponente
@@ -62,10 +63,29 @@ export default async function AuswertungPage({
           {group.name} — {new Date(evening.date).toISOString().slice(0, 10)}
           {evening.topic ? ` — ${evening.topic}` : ""}
         </p>
-        <p style={{ margin: 0 }}>
-          {stats.responseCount} Rückmeldung{stats.responseCount === 1 ? "" : "en"} · Gesamt-Ø:{" "}
-          {stats.overallAvg !== null ? stats.overallAvg.toFixed(2) : "–"}
+        {/*
+         * Der Ø kommt aus `avgSchulnote`, NICHT aus `overallAvg` (§4.12): der
+         * gemischte Wert schiebt Alt-Sterne (1–5) auf die Schulnotenrampe (1–6)
+         * — „Schulnote 1 und 5 von 5 Sternen" ergäbe dort 3,0, also
+         * „befriedigend" für zwei Bestnoten. `overallAvg` bleibt unverändert im
+         * CSV-/Prompt-Pfad.
+         */}
+        <p
+          style={{
+            margin: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: SPACE.sm,
+            flexWrap: "wrap",
+          }}
+        >
+          <span>
+            {stats.responseCount} Rückmeldung{stats.responseCount === 1 ? "" : "en"} · Ø Note (1 =
+            beste):
+          </span>
+          <Notenpille note={stats.avgSchulnote} />
         </p>
+        {stats.hasLegacyScale && <Altbestandsfussnote />}
         <div style={{ display: "flex", gap: SPACE.lg }}>
           <Link href={`/m/feedback/groups/${group.id}/evenings/${id}/export.csv`}>CSV-Export</Link>
           <Link href={`/m/feedback/groups/${group.id}/evenings/${id}/prompt`}>KI-Prompt</Link>

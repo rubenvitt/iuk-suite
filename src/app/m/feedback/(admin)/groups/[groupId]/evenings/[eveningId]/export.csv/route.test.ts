@@ -88,7 +88,18 @@ async function exportiere(groupId: number, eveningId: number): Promise<string[]>
   return (await res.text()).split("\r\n");
 }
 
-describe("GET export.csv — die Spalte „Zeitstempel“ verrät die Uhrzeit nicht", () => {
+/**
+ * Die Kopfzeile der Matrix ist die Zeile NACH der Leerzeile — geankert an der
+ * Struktur, nicht an einem Wort: „Datum" käme in den Metadatenzeilen zuerst und
+ * würde die Datenzeilen still falsch schneiden.
+ */
+function kopfIndexVon(zeilen: string[]): number {
+  const leer = zeilen.findIndex((z) => z === "");
+  expect(leer).toBeGreaterThan(0);
+  return leer + 1;
+}
+
+describe("GET export.csv — die erste Spalte verrät die Uhrzeit nicht", () => {
   /**
    * Restkanal (Fund aus dem Review von Task 8): die Datenbank bleibt unangetastet
    * (Import-Parität), aber die AUSGABE normalisiert die Spalte auf das Abenddatum.
@@ -96,12 +107,23 @@ describe("GET export.csv — die Spalte „Zeitstempel“ verrät die Uhrzeit ni
    * die Spalte in Excel sortiert, stellte damit die Eingangsreihenfolge wieder her
    * und hob die Durchmischung im Export wieder auf.
    */
+  it("heißt „Abendtag“ — kein Name, der eine Uhrzeit verspricht", async () => {
+    const { group, evening } = seedImportierterAbend();
+    const zeilen = await exportiere(group.id, evening.id);
+    const kopf = zeilen[kopfIndexVon(zeilen)];
+
+    expect(kopf.split(",")[0]).toBe("Abendtag");
+    // „Zeitstempel" versprach eine Genauigkeit, die die Ausgabe bewusst nicht hat.
+    expect(zeilen.join("\n")).not.toContain("Zeitstempel");
+    // Die Fragen bleiben die übrigen Spalten — die Spaltenzahl ändert sich nicht.
+    expect(kopf.split(",").slice(1)).toEqual(FRAGEN.map((f) => f.text));
+  });
+
   it("alle Datenzeilen tragen dasselbe Datum, keine Uhrzeit", async () => {
     const { group, evening, antworten } = seedImportierterAbend();
 
     const zeilen = await exportiere(group.id, evening.id);
-    const kopfIndex = zeilen.findIndex((z) => z.startsWith("Zeitstempel"));
-    const datenzeilen = zeilen.slice(kopfIndex + 1);
+    const datenzeilen = zeilen.slice(kopfIndexVon(zeilen) + 1);
 
     expect(datenzeilen).toHaveLength(antworten.length);
     const stempel = datenzeilen.map((z) => z.split(",")[0]);
@@ -123,8 +145,7 @@ describe("GET export.csv — die Spalte „Zeitstempel“ verrät die Uhrzeit ni
     const { group, evening, antworten } = seedImportierterAbend();
 
     const zeilen = await exportiere(group.id, evening.id);
-    const kopfIndex = zeilen.findIndex((z) => z.startsWith("Zeitstempel"));
-    const freitexte = zeilen.slice(kopfIndex + 1).map((z) => z.split(",")[2]);
+    const freitexte = zeilen.slice(kopfIndexVon(zeilen) + 1).map((z) => z.split(",")[2]);
 
     const erwartet = shuffleStable(antworten, (a) => JSON.stringify(a)).map((a) => a.q9);
     expect(freitexte).toEqual(erwartet);

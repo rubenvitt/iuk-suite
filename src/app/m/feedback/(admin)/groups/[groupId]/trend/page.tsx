@@ -5,6 +5,7 @@ import { computeDAStats, computeGroupTrend, type DAStats } from "@/app/m/feedbac
 import type { Question } from "@/app/m/feedback/_lib/questions";
 import { SPACE } from "@/core/theme/tokens";
 import { LineChart } from "@/core/charts/LineChart";
+import { Altbestandsfussnote, Notenpille } from "@/app/m/feedback/_ui/Noten";
 
 // Server-Komponente: kein antd-Compound-Zugriff — LineChart ist eine eigene
 // Client-Komponente, die diese Server-Komponente direkt rendern darf.
@@ -46,7 +47,9 @@ export default async function TrendPage({
     <section style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl, padding: SPACE.lg }}>
       <section style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Trend — {group.name}</h1>
-        <p style={{ margin: 0 }}>Gesamtdurchschnitt je Monat, letzte 12 Monate.</p>
+        {/* „Ø Note (1 = beste)" wortgenau wie der Spaltenkopf aus §4.11: ohne
+            die Richtung liest sich eine 2,0 wie eine schwache Bewertung. */}
+        <p style={{ margin: 0 }}>Ø Note (1 = beste) je Monat, letzte 12 Monate.</p>
       </section>
 
       <LineChart data={trend.map((t) => ({ x: t.label, y: t.avg }))} xKey="x" yKey="y" domain={[1, 6]} />
@@ -60,10 +63,23 @@ export default async function TrendPage({
           gap: SPACE.xs,
         }}
       >
+        {/*
+         * `t.avg` ist der SCHULNOTEN-Ø (§4.12) — die Notenpille trägt ihn mit
+         * Ziffer, Wort und Farbe, damit die Zeile nicht allein an der Zahl
+         * hängt. Monate mit Altbestands-Fragen bekommen die Fußnote: ihr Ø ist
+         * aus weniger Fragen gebildet als der Bogen hat, und ohne den Satz
+         * bliebe unerklärt, warum ein Monat mit Rückmeldungen „—" zeigt.
+         */}
         {trend.map((t) => (
           <li key={t.label}>
-            {t.label}: {t.avg !== null ? t.avg.toFixed(2) : "–"} ({t.responseCount} Rückmeldung
-            {t.responseCount === 1 ? "" : "en"})
+            <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm, flexWrap: "wrap" }}>
+              <span>{t.label}:</span>
+              <Notenpille note={t.avg} />
+              <span>
+                ({t.responseCount} Rückmeldung{t.responseCount === 1 ? "" : "en"})
+              </span>
+              {t.hasLegacyScale && <Altbestandsfussnote />}
+            </span>
           </li>
         ))}
       </ul>

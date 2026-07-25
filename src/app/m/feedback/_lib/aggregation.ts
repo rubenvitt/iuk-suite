@@ -138,8 +138,15 @@ export function computeDAStats(
 export interface TrendPoint {
   periodStart: number; // Unix-Sekunden, Monatsanfang UTC
   label: string; // "YYYY-MM"
+  /** Der Schulnoten-Ø des Monats (aus `avgSchulnote`), nie der gemischte. */
   avg: number | null;
   responseCount: number;
+  /**
+   * Mindestens ein Bogen des Monats trägt eine `stars`-Frage. Die Zeile bekommt
+   * dafür die Fußnote aus §4.12 — sonst bliebe unerklärt, warum ein Monat mit
+   * Rückmeldungen keinen (oder einen aus weniger Fragen gebildeten) Ø hat.
+   */
+  hasLegacyScale: boolean;
 }
 
 /**
@@ -147,6 +154,12 @@ export interface TrendPoint {
  * den alten lexikografischen YYYY-MM-DD-Präfix-Filter (aggregation.go:178-179),
  * der mit der Zeitstempel-Normalisierung stirbt. Monats-Ø wird nach
  * responseCount gewichtet; leere Monate bekommen avg=null.
+ *
+ * GEWICHTET WIRD `avgSchulnote`, NICHT `overallAvg` (§4.12): der gemischte Wert
+ * schiebt Alt-Sterne (1–5) auf dieselbe Rampe wie Schulnoten (1–6) — ein Ø von
+ * 4,2 aus fünf Sternen erschiene in der Kurve als „ausreichend". Ein Abend ohne
+ * beantwortete Schulnotenfrage fällt damit aus der KURVE (kein Gewicht), bleibt
+ * aber in `responseCount`: die Rückmeldungen gab es, nur eine Note gab es nicht.
  */
 export function computeGroupTrend(
   evenings: { date: number; stats: DAStats }[],
@@ -154,15 +167,19 @@ export function computeGroupTrend(
   to: number,
 ): TrendPoint[] {
   const months = enumerateMonths(from, to);
-  const buckets = new Map<string, { weighted: number; weight: number; count: number }>();
+  const buckets = new Map<
+    string,
+    { weighted: number; weight: number; count: number; legacy: boolean }
+  >();
 
   for (const e of evenings) {
     if (e.date < from || e.date > to) continue;
     const label = monthLabel(e.date);
-    const b = buckets.get(label) ?? { weighted: 0, weight: 0, count: 0 };
+    const b = buckets.get(label) ?? { weighted: 0, weight: 0, count: 0, legacy: false };
     b.count += e.stats.responseCount;
-    if (e.stats.overallAvg !== null) {
-      b.weighted += e.stats.overallAvg * e.stats.responseCount;
+    b.legacy = b.legacy || e.stats.hasLegacyScale;
+    if (e.stats.avgSchulnote !== null) {
+      b.weighted += e.stats.avgSchulnote * e.stats.responseCount;
       b.weight += e.stats.responseCount;
     }
     buckets.set(label, b);
@@ -175,6 +192,7 @@ export function computeGroupTrend(
       label,
       avg: b && b.weight > 0 ? b.weighted / b.weight : null,
       responseCount: b?.count ?? 0,
+      hasLegacyScale: b?.legacy ?? false,
     };
   });
 }
@@ -210,6 +228,13 @@ function enumerateMonths(from: number, to: number): { label: string; periodStart
 export interface GroupComparison {
   groupId: number;
   groupName: string;
-  overallAvg: number | null;
+  /**
+   * Der Schulnoten-Ø der Gruppe über alle Dienstabende (§4.12). Das Feld hieß
+   * `overallAvg` und trug damit den gemischten Wert in die Ampel des
+   * Vergleichs — der Name war der Fehler, nicht nur der Wert.
+   */
+  avgSchulnote: number | null;
   responseCount: number;
+  /** Mindestens ein Bogen der Gruppe trägt eine `stars`-Frage (Fußnote §4.12). */
+  hasLegacyScale: boolean;
 }
