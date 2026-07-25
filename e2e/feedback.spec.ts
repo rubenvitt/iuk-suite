@@ -1,99 +1,286 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { devLogin } from "./fixtures";
 
 /**
- * E2E fuer das Modul `feedback`. Deckt die drei Szenarien aus dem Task-16-
- * Brief ab: anonyme Teilnahme + Dedup-Redirect, den vollen Admin-Lebenszyklus
- * (Gruppe -> Dienstabend -> Umfrage erstellen/aktivieren/schliessen ->
- * Auswertung) und die IDOR-Guard fuer fremde Gruppen-Seiten.
+ * E2E DER OEFFENTLICHEN STRECKE `/f/**` (Plan Teil 2, Task 15).
  *
- * Server Actions (actions.ts) haben laut Brief bewusst keine isolierten Unit-
- * Tests — diese Datei ist die einzige Stelle, die den kompletten Draht von
- * Formular -> Server Action -> DB -> Re-Render tatsaechlich durchspielt.
+ * WAS HIER ERSETZT WURDE: die alte Fassung dieser Datei kodierte die
+ * Sterne-Oberflaeche (`[role="radio"][aria-setsize="6"]` — rc-rate, existiert
+ * nicht mehr) und den Admin-Ablauf draft -> active. Beides ist Vergangenheit;
+ * die Admin-Szenarien kommen in Teil 3 (Task 23) neu in diese Datei zurueck.
+ * Der IDOR-Guard unten bleibt: er haengt an keiner der beiden abgeloesten
+ * Oberflaechen und waere sonst bis Teil 3 ungedeckt.
+ *
+ * DIE KERNZUSAGE, die hier automatisiert belegt wird (Entwurf 3.11): die Seite
+ * ist OHNE JavaScript vollstaendig bedienbar. `page.tsx` ist Server Component,
+ * `Zettel.tsx` wird serverseitig mitgerendert, und nach der Hydration wird die
+ * Oberflaeche NICHT ausgetauscht — dieselbe Bestandsaufnahme (acht Notenzeilen,
+ * 48 Chips, sechs Freitextzeilen, zwei Absende-Knoepfe) rendert in beiden
+ * Kontexten, und in beiden fuehrt Absenden zur Danke-Seite.
  */
 
 const FEEDBACK = "http://feedback.localtest.me:3100";
-// Aus dem Seed (Task 14, seedFeedback): Gruppe "Demo", slug "demo", secret
-// "demo1", eine bereits AKTIVE Umfrage mit den 14 STANDARD_QUESTIONS.
+// Aus dem Seed (`_lib/seed.ts`): zwei Gruppen, beide mit AKTIVER Umfrage aus den
+// 14 STANDARD_QUESTIONS (acht `schulnote`, sechs `text`). "demo" ist der Zettel
+// aller Formular-Szenarien; "jugend" wird fuer Zustand D geschlossen und
+// deshalb bewusst NICHT von den anderen Tests benutzt.
 const DEMO_TOKEN = "demo-demo1";
+const JUGEND_TOKEN = "jugend-jgnd1";
 
-test("anonym: Ratings + Freitext absenden, danach Dedup-Redirect auf /thanks", async ({ page }) => {
-  await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+const NOTENFRAGEN = 8;
+const STUFEN = 6;
+const FREITEXTE = 6;
+/** Zwei austauschbare Absende-Knoepfe (Abschluss-Block und unter den Freitexten). */
+const ABSENDEKNOEPFE = 2;
 
-  // Acht Bewertungsfragen (schulnote, Skala 1-6). Jede rendert einen eigenen
-  // rc-rate-Satz aus role="radio"-Elementen (aria-setsize = Skala, aria-
-  // posinset = Position). Der 5. Stern jeder 6er-Skala trifft GENAU einen
-  // Radio pro Bewertungsfrage — robuster als eine Kopplung an Kartentitel
-  // oder DOM-Reihenfolge, und beweist nebenbei, dass alle acht Rating-Felder
-  // ueberhaupt rendern und klickbar sind.
-  const fifthStars = page.locator('[role="radio"][aria-setsize="6"][aria-posinset="5"]');
-  await expect(fifthStars).toHaveCount(8);
-  const starCount = await fifthStars.count();
-  for (let i = 0; i < starCount; i++) {
-    await fifthStars.nth(i).click();
-  }
+const ABSENDEN = "Rückmeldung absenden";
 
-  // Ein Freitext (q9 = erste Textfrage) reicht laut Brief.
-  await page.locator('textarea[name="q9"]').fill("Die praktischen Übungen waren super.");
+/**
+ * Die Notenzeilen. Selektiert wird ueber `fieldset` + Radio und nicht ueber
+ * Klassennamen: die kommen aus einem CSS-Modul und tragen einen Hash.
+ */
+function notenzeilen(page: Page): Locator {
+  return page.locator('form fieldset:has(input[type="radio"])');
+}
 
-  await page.getByRole("button", { name: "Absenden" }).click();
-  await page.waitForURL(`${FEEDBACK}/f/${DEMO_TOKEN}/thanks`);
-  await expect(page.getByText(/Vielen Dank für deine Rückmeldung/)).toBeVisible();
+/** Der Chip einer Stufe in einer Zeile — die Radios selbst sind sr-only. */
+function chip(zeile: Locator, stufe: number): Locator {
+  return zeile.locator(`label[aria-label^="Note ${stufe} "]`);
+}
 
-  // Erneuter Aufruf: das Dedup-Cookie `feedback-{surveyId}` (submitResponse-
-  // Action, 24h) steht bereits — ParticipatePage muss auf /thanks
-  // redirecten statt das Formular ein zweites Mal zu zeigen.
-  await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
-  await expect(page).toHaveURL(`${FEEDBACK}/f/${DEMO_TOKEN}/thanks`);
-  await expect(page.getByText(/Vielen Dank für deine Rückmeldung/)).toBeVisible();
+/** Der `name` der Radiogruppe einer Zeile (= Frage-Id, ohne Seed-Annahme). */
+async function frageId(zeile: Locator): Promise<string> {
+  const name = await zeile.locator('input[type="radio"]').first().getAttribute("name");
+  expect(name, "Notenzeile ohne name am Radio").toBeTruthy();
+  return name as string;
+}
+
+/** Note `stufe` in den Zeilen `von`…`bis-1` antippen. */
+async function notenSetzen(page: Page, stufe: number, von = 0, bis = NOTENFRAGEN): Promise<void> {
+  const zeilen = notenzeilen(page);
+  for (let i = von; i < bis; i++) await chip(zeilen.nth(i), stufe).click();
+}
+
+/**
+ * Die Bestandsaufnahme des Bogens. Sie ist der Kern des Ohne-JavaScript-Belegs:
+ * verglichen wird nicht "es rendert irgendwas", sondern dass beide Kontexte
+ * dieselbe Oberflaeche zeigen.
+ */
+async function inventar(page: Page) {
+  return {
+    zeilen: await notenzeilen(page).count(),
+    chips: await page.locator('form fieldset label[aria-label^="Note "]').count(),
+    textfelder: await page.locator("form textarea").count(),
+    absendeknoepfe: await page.locator("[data-absenden]").count(),
+  };
+}
+
+const SOLL_INVENTAR = {
+  zeilen: NOTENFRAGEN,
+  chips: NOTENFRAGEN * STUFEN,
+  textfelder: FREITEXTE,
+  absendeknoepfe: ABSENDEKNOEPFE,
+};
+
+/**
+ * Warten, bis die Client Component uebernommen hat: vor der Hydration tragen
+ * beide Knoepfe das regulaere Absende-Label (der Weg ohne JavaScript), danach
+ * den Lueckentext. Ohne dieses Warten wuerde ein Test, der "Rückmeldung
+ * absenden" erwartet, auch dann gruen, wenn JavaScript gar nicht angekommen
+ * ist — und der Unterschied zum Ohne-JavaScript-Test waere verloren.
+ */
+async function hydriert(page: Page): Promise<void> {
+  await expect(page.locator("[data-absenden][data-offen]").first()).toHaveText(
+    `Noch ${NOTENFRAGEN} Noten offen`,
+  );
+}
+
+test.describe("mobil (390×844)", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("vollständige Abgabe: acht Noten antippen, absenden, Danke-Seite", async ({ page }) => {
+    await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+    expect(await inventar(page)).toEqual(SOLL_INVENTAR);
+    await hydriert(page);
+
+    await notenSetzen(page, 2);
+    // Die Fussnote am Zeilenende ist der dritte Kanal neben Ziffer und Farbe
+    // (Entwurf 3.10) — sie belegt, dass die Wahl auch angekommen ist.
+    await expect(notenzeilen(page).first().locator("[data-fussnote]")).toHaveText("2 · gut");
+
+    // Ein Freitext genuegt; die sechs Zeilen sind freiwillig.
+    await page.locator("form textarea").first().fill("Die praktischen Übungen waren super.");
+
+    const knoepfe = page.locator("[data-absenden]");
+    await expect(knoepfe).toHaveCount(ABSENDEKNOEPFE);
+    await expect(knoepfe.first()).toHaveText(ABSENDEN);
+    await knoepfe.first().click();
+
+    await page.waitForURL(`${FEEDBACK}/f/${DEMO_TOKEN}/thanks`);
+    await expect(page.getByRole("heading", { level: 1, name: "Danke." })).toBeVisible();
+  });
 });
 
-test("Admin: Gruppe -> Dienstabend -> Umfrage erstellen/aktivieren/schliessen -> Auswertung", async ({
+test("unvollständige Abgabe: Knopf zeigt „Noch 3 Noten offen“, Tipp springt zur Lücke, sendet nicht", async ({
   page,
 }) => {
-  await devLogin(page, { host: "feedback.localtest.me", groups: "da-feedback-admin", callbackPath: "/" });
+  await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+  await hydriert(page);
 
-  // Nur Voll-Admin darf Gruppen anlegen (createGroupAction wirft sonst) — die
-  // Rolle "da-feedback-admin" ist hier bewusst gesetzt, nicht "da-feedback-gl".
-  await page.getByPlaceholder("Name").fill("E2E Gruppe");
-  await page.getByPlaceholder("slug").fill("e2e-gruppe");
-  await page.getByRole("button", { name: "Gruppe anlegen" }).click();
+  await notenSetzen(page, 3, 0, 5);
+  const knopf = page.locator("[data-absenden]").first();
+  await expect(knopf).toHaveText("Noch 3 Noten offen");
 
-  const groupRow = page.getByTestId("group-row").filter({ hasText: "E2E Gruppe" });
-  await expect(groupRow).toHaveCount(1);
-  await groupRow.getByRole("link", { name: "E2E Gruppe" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "E2E Gruppe" })).toBeVisible();
+  await knopf.click();
 
-  // Dienstabend anlegen. Das Datumsfeld traegt kein Label (nur `name="date"`
-  // in EveningForm.tsx), deshalb ueber den name-Attribut-Selektor statt
-  // getByLabel.
-  const today = new Date().toISOString().slice(0, 10);
-  await page.locator('input[name="date"]').fill(today);
-  await page.getByPlaceholder("Thema (optional)").fill("E2E Dienstabend");
-  await page.getByRole("button", { name: "Dienstabend anlegen" }).click();
+  // Der Tipp ist Navigation, keine Ruege: Fokus auf dem ERSTEN Feld der
+  // Ziel-Zeile, genau eine Ansage im Live-Bereich — und nichts wurde gesendet.
+  const luecke = notenzeilen(page).nth(5);
+  await expect(luecke.locator('input[type="radio"]').first()).toBeFocused();
+  await expect(page.locator("[data-ansage]")).toHaveText("Noch 3 Noten offen — Frage 6.");
+  await expect(page).toHaveURL(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+  await expect(knopf).toHaveText("Noch 3 Noten offen");
+});
 
-  await page.getByRole("link", { name: /E2E Dienstabend/ }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "E2E Dienstabend" })).toBeVisible();
+test("Freitext wird an der Grenze von 500 Zeichen gestoppt", async ({ page }) => {
+  await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+  await hydriert(page);
 
-  // Umfrage erstellen (draft) -> aktivieren -> schliessen. Genau ein Aktions-
-  // Button pro Status (SurveyControls.tsx), die Tag-Beschriftung ist der
-  // sichtbare Statuswechsel.
-  await page.getByRole("button", { name: "Umfrage erstellen" }).click();
-  await expect(page.getByText("Entwurf", { exact: true })).toBeVisible();
+  const zeile = page.locator("[data-textzeile]").first();
+  const feld = zeile.locator("textarea");
+  // 495 Zeichen: ueber der Zaehlerschwelle (420), noch unter der Grenze.
+  await feld.fill("a".repeat(495));
+  await expect(zeile.locator("[data-zaehler]")).toHaveText("noch 5 Zeichen");
 
-  await page.getByRole("button", { name: "Aktivieren" }).click();
-  await expect(page.getByText("Aktiv", { exact: true })).toBeVisible();
+  // ECHTE Tastendrucke: `fill` setzt den Wert programmatisch und `maxLength`
+  // greift nur bei Nutzereingaben — mit `fill` wuerde der Test die Grenze
+  // gar nicht pruefen, sondern nur den Zaehler.
+  await feld.pressSequentially("bbbbbbbbbbbbbbbbbbbb");
+  expect((await feld.inputValue()).length).toBe(500);
+  await expect(zeile.locator("[data-zaehler]")).toHaveText("Zeile ist voll");
+});
 
+test("geschlossene Umfrage: Zustand D statt Formular", async ({ page }) => {
+  // Der Bogen wird ueber den Admin-Bereich geschlossen — bewusst die Gruppe
+  // "Demo Jugend", damit der Zettel der anderen Szenarien ("demo") offen
+  // bleibt. KOPPLUNG: Teil 3 benennt diesen Knopf in „Feedback jetzt beenden"
+  // um, dann aendert sich hier eine Zeile.
+  await devLogin(page, {
+    host: "feedback.localtest.me",
+    groups: "da-feedback-admin",
+    callbackPath: "/",
+  });
+  await page
+    .getByTestId("group-row")
+    .getByRole("link", { name: "Demo Jugend", exact: true })
+    .click();
+  await page.getByRole("link", { name: /Erlebnispädagogischer Abend/ }).click();
   await page.getByRole("button", { name: "Schließen" }).click();
   await expect(page.getByText("Geschlossen", { exact: true })).toBeVisible();
 
-  // Erst nach dem Schliessen zeigt EveningDetail den Link zur Auswertung.
-  await page.getByRole("link", { name: "Auswertung ansehen" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Auswertung" })).toBeVisible();
-  // Ø sichtbar — auch ohne Rückmeldungen zeigt die Seite die Zeile ("–" statt
-  // Zahl), der Brief verlangt nur, dass die Auswertungsseite laedt und die
-  // Durchschnittszeile da ist, nicht einen bestimmten Wert.
-  await expect(page.getByText(/Gesamt-Ø:/)).toBeVisible();
+  await page.goto(`${FEEDBACK}/f/${JUGEND_TOKEN}`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Die Umfrage zu diesem Abend ist beendet." }),
+  ).toBeVisible();
+  // Kein Formular mehr — und der Legendenstreifen ist entsaettigt (3.2 D).
+  await expect(notenzeilen(page)).toHaveCount(0);
+  await expect(page.locator("[data-absenden]")).toHaveCount(0);
+  await expect(page.locator("[data-stumm]")).toBeVisible();
+});
+
+test("geteiltes Gerät: nach der Abgabe „Leeren Bogen öffnen“ → zweite Abgabe möglich", async ({
+  page,
+}) => {
+  await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+  await hydriert(page);
+  await notenSetzen(page, 1);
+  await page.locator("[data-absenden]").first().click();
+  await page.waitForURL(`${FEEDBACK}/f/${DEMO_TOKEN}/thanks`);
+
+  // Das Dedup-Cookie `feedback-{surveyId}` steht jetzt. Der Knopf loescht es
+  // (nativer `<form action>`, kein Client-Wrapper) und fuehrt zurueck.
+  await page.getByRole("button", { name: "Leeren Bogen öffnen" }).click();
+  await page.waitForURL(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+  await expect(notenzeilen(page)).toHaveCount(NOTENFRAGEN);
+
+  await hydriert(page);
+  await notenSetzen(page, 4);
+  await page.locator("[data-absenden]").first().click();
+  // Der Beleg ist die zweite DANKE-Seite: ohne die Freigabe waere hier
+  // Zustand E ("Von diesem Gerät ist schon eine Rückmeldung abgegeben.").
+  await page.waitForURL(`${FEEDBACK}/f/${DEMO_TOKEN}/thanks`);
+  await expect(page.getByRole("heading", { level: 1, name: "Danke." })).toBeVisible();
+});
+
+test("ohne JavaScript: dieselbe Oberfläche, Absenden funktioniert, `required` greift", async ({
+  page,
+  browser,
+}) => {
+  // Die Vergleichsgroesse zuerst: derselbe Bogen MIT JavaScript.
+  await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+  const mitJs = await inventar(page);
+  expect(mitJs).toEqual(SOLL_INVENTAR);
+
+  const ohneJsKontext = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const seite = await ohneJsKontext.newPage();
+    await seite.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+
+    // 1. Kein Austausch der Oberflaeche: identische Bestandsaufnahme.
+    expect(await inventar(seite)).toEqual(mitJs);
+    // 2. Das Formular ist ohne JavaScript abschickbar: `method="POST"` auf die
+    //    eigene URL (`action=""`) plus die versteckten `$ACTION_*`-Felder, mit
+    //    denen React die Server Action ansprechbar macht. Ein Client-Wrapper um
+    //    die Action waere nicht serialisierbar — React DOM gaebe dem Formular
+    //    dann `action="javascript:throw …"` und es gaebe keine `$ACTION`-Felder;
+    //    ein Bruch, den weder Typecheck noch Build sehen.
+    const formular = seite.locator("form");
+    await expect(formular).toHaveAttribute("method", "POST");
+    expect(await formular.getAttribute("action")).not.toContain("javascript:");
+    expect(await seite.locator('form input[name^="$ACTION"]').count()).toBeGreaterThan(0);
+    // 3. Beide Knoepfe sind regulaere Absende-Knoepfe (kein Lueckentext).
+    await expect(seite.locator("[data-absenden]").first()).toHaveText(ABSENDEN);
+
+    // 4. `required` greift bei einer Luecke: sieben Zeilen gesetzt, absenden
+    //    bleibt auf der Seite, die achte Radiogruppe ist ungueltig.
+    await notenSetzen(seite, 2, 0, NOTENFRAGEN - 1);
+    await seite.locator("[data-absenden]").first().click();
+    await expect(seite).toHaveURL(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+    const offen = await frageId(notenzeilen(seite).nth(NOTENFRAGEN - 1));
+    expect(await seite.locator(`input[name="${offen}"]:invalid`).count()).toBe(STUFEN);
+
+    // 5. Vollstaendig: die Abgabe geht durch — nativer POST, ohne eine Zeile
+    //    JavaScript.
+    await chip(notenzeilen(seite).nth(NOTENFRAGEN - 1), 2).click();
+    await seite.locator("form textarea").first().fill("Ohne JavaScript getippt.");
+    await seite.locator("[data-absenden]").first().click();
+    await seite.waitForURL(`${FEEDBACK}/f/${DEMO_TOKEN}/thanks`);
+    await expect(seite.getByRole("heading", { level: 1, name: "Danke." })).toBeVisible();
+  } finally {
+    await ohneJsKontext.close();
+  }
+});
+
+test("Dunkelmodus: die Notenfelder tragen die Dunkel-Palette", async ({ page, context }) => {
+  // Der Umschalter der Suite IST dieses Cookie (`core/theme/mode.ts`,
+  // serverseitig gelesen) — er gilt auch ohne Login. Beide Richtungen werden
+  // geprueft: eine Zusicherung nur fuer dunkel wuerde auch eine fest
+  // eingebaute Dunkelfarbe durchlassen.
+  await context.addCookies([{ name: "iuk-theme", value: "light", url: FEEDBACK }]);
+  await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  const gewaehlt = chip(notenzeilen(page).first(), 1);
+  await gewaehlt.click();
+  // NOTEN_HELL[0] = #2F7F59 (`_lib/noten.ts`).
+  await expect(gewaehlt).toHaveCSS("background-color", "rgb(47, 127, 89)");
+
+  await context.addCookies([{ name: "iuk-theme", value: "dark", url: FEEDBACK }]);
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const dunkel = chip(notenzeilen(page).first(), 1);
+  await dunkel.click();
+  // NOTEN_DUNKEL[0] = #A1DBC0 — Luminanz umgekehrt, dieselbe Rangfolge.
+  await expect(dunkel).toHaveCSS("background-color", "rgb(161, 219, 192)");
 });
 
 test("IDOR-Guard: groupleader ohne Zuordnung bekommt auf einer fremden Gruppen-Seite 404", async ({
@@ -103,9 +290,9 @@ test("IDOR-Guard: groupleader ohne Zuordnung bekommt auf einer fremden Gruppen-S
   // aus dem Listen-Link lesen (verlässlich, unabhängig von Insert-Reihenfolge
   // über mehrere Testdateien/-läufe hinweg), dann ausloggen.
   await devLogin(page, { host: "feedback.localtest.me", groups: "da-feedback-admin", callbackPath: "/" });
-  // Exakter Name statt hasText:"Demo" — der Seed (Task 17) legt inzwischen
-  // auch "Demo Jugend" an, dessen Name "Demo" als Teilstring enthält und
-  // sonst zwei group-rows träfe (Playwright-Strict-Mode-Fehler).
+  // Exakter Name statt hasText:"Demo" — der Seed legt inzwischen auch
+  // "Demo Jugend" an, dessen Name "Demo" als Teilstring enthält und sonst zwei
+  // group-rows träfe (Playwright-Strict-Mode-Fehler).
   const demoLink = page.getByTestId("group-row").getByRole("link", { name: "Demo", exact: true });
   const href = await demoLink.getAttribute("href");
   const groupId = href?.match(/\/groups\/(\d+)$/)?.[1];
@@ -115,10 +302,7 @@ test("IDOR-Guard: groupleader ohne Zuordnung bekommt auf einer fremden Gruppen-S
 
   // "da-feedback-gl" reicht für den (ungegateten) Modul-Zugang, aber ohne
   // Zeile in user_groups bleibt memberGroupIdsFor leer — genau der Fall, den
-  // assertGroupAccess/guardPage abfangen muss (die Alt-IDOR). Der Dev-Login
-  // kennt keine Gruppen-Zuordnung feiner als die OIDC-Gruppen-Claims, daher
-  // dieser Ansatz statt eines echten "eingeloggt aber nicht zugeordnet"-
-  // Setups über user_groups (das nur der Import-Pfad befüllt).
+  // assertGroupAccess/guardPage abfangen muss (die Alt-IDOR).
   await devLogin(page, { host: "feedback.localtest.me", groups: "da-feedback-gl" });
   const res = await page.goto(`${FEEDBACK}/groups/${groupId}`);
   expect(res?.status()).toBe(404);
