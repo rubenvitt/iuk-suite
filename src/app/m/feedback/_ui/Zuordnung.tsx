@@ -76,12 +76,16 @@ export function Zuordnung({ groupId, personen }: ZuordnungProps) {
          * sehen nur Admins diese Gruppe" waere die Falschaussage, die einen Admin
          * die Gruppe fuer dicht halten laesst. „Kann", nicht „hat": die Slugs sind
          * von hier aus nicht bekannt.
+         *
+         * Der Anbietername („Pocket ID") bleibt im Kommentar und NICHT im Satz:
+         * er ist sonst die einzige gerenderte Nennung im ganzen Modul und
+         * ueberlebt keinen Anbieterwechsel.
          */
         locale={{
           emptyText: (
             <span style={T.meta}>
               Niemand einzeln zugeordnet — Zugang kann zusätzlich über das
-              Fachgruppen-Attribut aus Pocket ID bestehen.
+              Fachgruppen-Attribut der Anmeldung bestehen.
             </span>
           ),
         }}
