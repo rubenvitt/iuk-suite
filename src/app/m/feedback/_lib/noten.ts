@@ -114,3 +114,54 @@ export function notenFarbe(note: number, mode: "light" | "dark"): string {
   const palette = mode === "dark" ? NOTEN_DUNKEL : NOTEN_HELL;
   return palette[ampelStufe(note) - 1];
 }
+
+/**
+ * DAS FENSTER DES „Ø DER LETZTEN SECHS" (Entwurf §4.2 Zeile 3, §2.5 Kopfzeile).
+ *
+ * Sechs Dienstabende sind etwa ein Halbjahr — lang genug, dass ein einzelner
+ * schlechter Abend die Zeile nicht kippt, kurz genug, dass sie noch von HEUTE
+ * spricht.
+ */
+export const NOTEN_FENSTER = 6;
+
+/**
+ * Der Mittelwert der jüngsten (höchstens `NOTEN_FENSTER`) Noten samt der Zahl
+ * der Werte, die tatsächlich eingeflossen sind — `null`, wenn keiner übrig
+ * bleibt.
+ *
+ * Er steht hier und nicht am Ort der Verwendung, weil ihn ZWEI Stellen brauchen:
+ * die Kontextzeile der Kopfzone (§4.2) und die Kopfzeile des Verlaufs (§2.5).
+ * Zwei Rechnungen wären zwei Fenster, und niemand würde merken, dass die eine
+ * Zeile fünf und die andere sechs Abende mittelt.
+ *
+ * DREI ENTSCHEIDUNGEN, DIE HIER LIEGEN:
+ *
+ * 1. GESCHNITTEN WIRD VOR DEM FILTERN. Sonst wären es „die letzten sechs MIT
+ *    Note" und damit ein anderes Fenster als das versprochene.
+ * 2. AUS `null` WIRD NIE EINE 0. Ein Abend ohne beantwortete Schulnoten-Frage hat
+ *    `avgSchulnote === null` (§4.12); als 0 gemittelt sähe der Durchschnitt mit
+ *    jedem Freitext-Abend besser aus.
+ * 3. `anzahl` KOMMT MIT ZURÜCK, damit der Aufrufer „der letzten sechs" nicht
+ *    behauptet, wenn es zwei waren.
+ */
+export function fensterMittel(
+  notenJuengsteZuerst: readonly (number | null)[],
+): { mittel: number; anzahl: number } | null {
+  const noten = notenJuengsteZuerst
+    .slice(0, NOTEN_FENSTER)
+    .filter((n): n is number => n !== null && Number.isFinite(n));
+  if (noten.length === 0) return null;
+  return {
+    mittel: noten.reduce((summe, n) => summe + n, 0) / noten.length,
+    anzahl: noten.length,
+  };
+}
+
+/**
+ * „2,1 gut" — Ziffer UND Wort, die beiden Kanäle, die auch in Graustufen und bei
+ * Deuteranopie tragen (§4.14). Beide kommen aus derselben Rundungsregel; eine
+ * handgeschriebene Fassung wäre eine zweite Schwellentabelle.
+ */
+export function notenSatz(durchschnitt: number): string {
+  return `${formatiereNote(durchschnitt)} ${NOTEN_WORT[ampelStufe(durchschnitt) - 1]}`;
+}

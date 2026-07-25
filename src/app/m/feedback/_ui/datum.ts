@@ -52,11 +52,38 @@ const WOCHENTAG_ZEIT = new Intl.DateTimeFormat("de-DE", {
   minute: "2-digit",
 });
 
+const TAG_LANG = new Intl.DateTimeFormat("de-DE", {
+  timeZone: TIME_ZONE,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+const WOCHENTAG = new Intl.DateTimeFormat("de-DE", { timeZone: TIME_ZONE, weekday: "long" });
+
 const ISO_TAG = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE });
 
 /** „Mi., 22.07." — Abenddatum in Karten, Zeilen und Überschriften. */
 export function formatDatumKurz(datum: Date): string {
   return TAG_KURZ.format(datum);
+}
+
+/**
+ * „22.07.2026" — die erste Zeile der Datumsspalte im Verlauf (§2.5). MIT Jahr,
+ * anders als `formatDatumKurz`: der Verlauf reicht über Jahresgrenzen, und „22.07."
+ * allein wäre in einer Tabelle mit zwei Jahren zweideutig.
+ */
+export function formatDatumLang(datum: Date): string {
+  return TAG_LANG.format(datum);
+}
+
+/**
+ * „Mittwoch" — die zweite, gedämpfte Zeile der Datumsspalte (§2.5). Der
+ * Wochentag ist die Angabe, an der ein Gruppenleiter den Abend wiedererkennt;
+ * ausgeschrieben, weil er unter dem Datum steht und dort Platz hat.
+ */
+export function formatWochentag(datum: Date): string {
+  return WOCHENTAG.format(datum);
 }
 
 /** „19:32" — Startzeit einer Umfrage, Stand der Anzeige. */

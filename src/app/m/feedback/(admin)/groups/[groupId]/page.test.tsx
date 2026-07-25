@@ -60,6 +60,11 @@ vi.mock("next/headers", () => ({
 vi.mock("../../../actions", () => ({
   startFeedbackAction: vi.fn(),
   beendeFeedbackAction: vi.fn(),
+  // Zone d (Verlauf) braucht drei weitere — ohne sie ist der Import `undefined`
+  // und die Zone wirft beim Rendern.
+  activateSurveyAction: vi.fn(),
+  createEveningAction: vi.fn(),
+  deleteEveningAction: vi.fn(),
 }));
 
 import Cockpit, { kontextzeile } from "./page";
@@ -254,5 +259,114 @@ describe("Slot „Letzter Abend“ (§2.7)", () => {
     );
     expect(rumpf).toBeDefined();
     expect(rumpf!.getAttribute("style")).toContain("padding:var(--fb-kartenpolster)");
+  });
+});
+
+/**
+ * ZONE d — VERLAUF, VERDRAHTET (§2.1 Punkt 3, §2.5, §4.12).
+ *
+ * Die Zone selbst ist in `_ui/Verlauf.test.tsx` geprüft. Hier hängen die drei
+ * Zusagen, die nur die SEITE halten kann, weil `Verlauf` eine Client-Komponente
+ * ist und keine Datenbank sieht:
+ *
+ * 1. Die Zeile trägt `avgSchulnote`, NICHT `overallAvg`. Das entscheidet der
+ *    Aufbau der Zeilen hier — die Zone bekommt nur eine Zahl und kann den Fehler
+ *    nicht mehr sehen.
+ * 2. Der LAUFENDE Abend steht NICHT in der Tabelle (§2.5): derselbe Abend zweimal
+ *    auf einer Seite ist genau die Unschärfe, die den Ist-Zustand unlesbar macht.
+ * 3. In der Betriebsart „Einrichtung" entfällt die Zone vollständig (§2.1) — ein
+ *    leeres Fach ist schlimmer als kein Fach.
+ */
+describe("Zone d — VERLAUF, verdrahtet", () => {
+  /** Die Zeilen der breiten Verlaufsdarstellung. */
+  const verlaufszeilen = (wirt: HTMLElement) => [
+    ...wirt.querySelectorAll<HTMLElement>(".fb-verlauf-breit tbody tr.ant-table-row"),
+  ];
+
+  it("zeigt jeden abgeschlossenen Abend mit Rücklauf und Notenpille", async () => {
+    abend("2026-06-01", [2, 2, 3]);
+    abend("2026-07-06", [1, 1]);
+
+    const wirt = await zeichne();
+    const zeilen = verlaufszeilen(wirt);
+
+    expect(zeilen).toHaveLength(2);
+    // Absteigend: der jüngste Abend steht oben.
+    expect(zeilen[0].textContent).toContain("06.07.2026");
+    expect(zeilen[0].textContent).toContain("2 / 20");
+    expect(zeilen[0].textContent).toContain("1,0");
+    expect(zeilen[1].textContent).toContain("2,3");
+  });
+
+  it("trägt `avgSchulnote` in die Pille, nicht `overallAvg`", async () => {
+    /*
+     * Derselbe Aufbau wie in der Kopfzeile: eine `stars`-Antwort 5 heisst auf der
+     * Alt-Skala „sehr gut", auf der Schulnotenrampe „mangelhaft". `overallAvg`
+     * mittelt beide zu 3,0 („befriedigend"), `avgSchulnote` bleibt bei 1,0.
+     */
+    const evening = insertEvening(db, {
+      groupId: 1,
+      date: tag("2026-07-06"),
+      topic: "Alt-Import",
+      notes: null,
+      participantCount: 12,
+      createdAt: tag("2026-07-06"),
+    });
+    const survey = insertSurvey(db, {
+      eveningId: evening.id,
+      questions: JSON.stringify([
+        { id: "q1", type: "schulnote", text: "Wie war der Dienstabend insgesamt?" },
+        { id: "alt", type: "stars", text: "Alt-Frage" },
+      ] satisfies Question[]),
+      closeAfterHours: 48,
+      createdAt: tag("2026-07-06"),
+    });
+    setSurveyStatus(db, survey.id, "closed", { closesAt: tag("2026-07-06") });
+    insertResponse(db, survey.id, { q1: 1, alt: 5 }, tag("2026-07-06"));
+
+    const zeile = verlaufszeilen(await zeichne())[0];
+
+    expect(zeile.textContent).toContain("1,0");
+    expect(zeile.textContent).toContain("sehr gut");
+    // 3,0 wäre der gemischte Wert — und damit der stille Rechenfehler aus §4.12.
+    expect(zeile.textContent).not.toContain("3,0");
+    // Und die Fußnote, weil der Bogen eine `stars`-Frage trägt.
+    expect(zeile.textContent).toContain("enthält Altbestands-Fragen (Skala 1–5)");
+  });
+
+  it("führt den laufenden Abend NICHT in der Tabelle — er steht in der Lagekarte", async () => {
+    abend("2026-06-01", [2]);
+    const laufend = insertEvening(db, {
+      groupId: 1,
+      date: tag("2026-07-22"),
+      topic: "Läuft gerade",
+      notes: null,
+      participantCount: 20,
+      createdAt: tag("2026-07-22"),
+    });
+    const survey = insertSurvey(db, {
+      eveningId: laufend.id,
+      questions: JSON.stringify(FRAGEN),
+      closeAfterHours: 48,
+      createdAt: tag("2026-07-22"),
+    });
+    // Frist weit in der Zukunft, damit `nextStatusOnAccess` nicht faltet.
+    setSurveyStatus(db, survey.id, "active", {
+      activatedAt: tag("2026-07-22"),
+      closesAt: new Date("2099-01-01T00:00:00Z"),
+    });
+
+    const wirt = await zeichne();
+    const zeilen = verlaufszeilen(wirt);
+
+    expect(zeilen).toHaveLength(1);
+    expect(zeilen[0].textContent).toContain("01.06.2026");
+    expect(zeilen.map((z) => z.textContent ?? "").join()).not.toContain("Läuft gerade");
+  });
+
+  it("entfällt in der Betriebsart Einrichtung vollständig", async () => {
+    const wirt = await zeichne();
+    expect(wirt.querySelectorAll("[data-testid='verlauf-kopf']")).toHaveLength(0);
+    expect(wirt.textContent).not.toContain("Noch keine vergangenen Dienstabende.");
   });
 });

@@ -4,8 +4,8 @@ import { guardPage } from "@/app/m/feedback/_lib/guardPage";
 import { computeDAStats, computeGroupTrend, type DAStats } from "@/app/m/feedback/_lib/aggregation";
 import type { Question } from "@/app/m/feedback/_lib/questions";
 import { SPACE } from "@/core/theme/tokens";
-import { LineChart } from "@/core/charts/LineChart";
 import { Altbestandsfussnote, Notenpille } from "@/app/m/feedback/_ui/Noten";
+import { NotenVerlauf } from "@/app/m/feedback/_ui/NotenVerlauf";
 
 // Server-Komponente: kein antd-Compound-Zugriff — LineChart ist eine eigene
 // Client-Komponente, die diese Server-Komponente direkt rendern darf.
@@ -52,7 +52,19 @@ export default async function TrendPage({
         <p style={{ margin: 0 }}>Ø Note (1 = beste) je Monat, letzte 12 Monate.</p>
       </section>
 
-      <LineChart data={trend.map((t) => ({ x: t.label, y: t.avg }))} xKey="x" yKey="y" domain={[1, 6]} />
+      {/*
+       * `_ui/NotenVerlauf.tsx` und NICHT `core/charts/LineChart` (§5.3): der dort
+       * faerbt mit `token.colorPrimary` (= DRK-Rot) und kennt keine umgekehrte
+       * Achse — diese Seite zeichnete Noten also bislang in Markenrot mit
+       * „hoeher = schlechter". Eine 6 hoeher als eine 1 ist ein SACHFEHLER, kein
+       * Geschmacksfehler. `core/charts` bleibt fuer Nicht-Noten-Daten anderer
+       * Module unveraendert nutzbar.
+       *
+       * §3.3 verlangt zusaetzlich `Segmented` „6 / 12 / 24 Monate" und die
+       * Monatstabelle mit „CSV" — beides haengt laut Plan an Task 22, zusammen mit
+       * der Kopfzone dieser Seite.
+       */}
+      <NotenVerlauf punkte={trend.map((t) => ({ label: t.label, note: t.avg }))} />
 
       <ul
         style={{

@@ -165,6 +165,67 @@
 }
 
 /*
+ * DIE ZWEI DARSTELLUNGEN DES VERLAUFS (§2.5).
+ *
+ * Der Entwurf schliesst BEIDE naheliegenden Loesungen ausdruecklich aus: kein
+ * horizontal scrollendes `Table` (sechs Spalten auf 390px sind unbedienbar) und
+ * kein `Grid.useBreakpoint()` (in einer Server Component ist es RSC-Falle 1,
+ * und in einer Client-Insel liefert es beim ersten Rendern ALLE Werte `false` —
+ * die Zone bliebe einen Wimpernschlag leer und springt danach). Also liegen
+ * beide Darstellungen im HTML, und diese Medienabfrage schaltet.
+ *
+ * WARUM HIER UND NICHT INLINE: eine Medienabfrage laesst sich nicht inline
+ * setzen, und eine Klasse mit `display: none` verliert gegen ein inline
+ * gesetztes `display` — dieselbe Falle, die `.fb-legende-woerter` oben
+ * dokumentiert. Deshalb setzt `Verlauf.tsx` an diesen vier Klassen KEIN
+ * `display`.
+ *
+ * 768px ist der Umbruch des Entwurfs (§2.5) und bewusst NICHT die 600px der
+ * uebrigen Regeln dieser Datei: die sechsspaltige Tabelle braucht mehr Breite
+ * als eine Knopfzeile oder eine Legende.
+ */
+.fb-verlauf-breit,
+.fb-nur-breit {
+  display: none;
+}
+
+.fb-verlauf-schmal,
+.fb-nur-schmal {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .fb-verlauf-breit,
+  .fb-nur-breit {
+    display: block;
+  }
+
+  .fb-verlauf-schmal,
+  .fb-nur-schmal {
+    display: none;
+  }
+}
+
+/*
+ * „Kein Zebra, 1px `var(--fb-split)` zwischen den Zeilen, Hover `var(--fb-tint)`"
+ * (§2.5, wortgenau). antds Vorgaben sind `colorBorderSecondary` und
+ * `controlItemBgHover` — beide sind zwar unauffaellig, aber sie sind NICHT die
+ * Haarlinie, mit der jede andere Zone des Moduls gliedert. Eine Seite mit zwei
+ * Trennlinienfarben liest sich als zwei Bauteile.
+ *
+ * Hier als Regel und nicht als Token in `theme.ts`: die Farbe gilt fuer DIESE
+ * Tabelle, nicht fuer die aller Module. `!important` steht bewusst nicht dort —
+ * die Selektoren sind spezifisch genug, weil `.fb-verlauf-breit` davorsteht.
+ */
+.fb-verlauf-breit .ant-table-tbody > tr > td {
+  border-bottom-color: var(--fb-split);
+}
+
+.fb-verlauf-breit .ant-table-tbody > tr.ant-table-row:hover > td {
+  background: var(--fb-tint);
+}
+
+/*
  * FOKUS (§4.8). antd bringt seinen Ring fuer antd-Komponenten mit; eigene
  * interaktive Flaechen (Gruppenkarten-Link, Verlaufszeile, Kopierzeile) tragen
  * `fb-fokus`. Nie `outline: none` ohne Ersatz — wer die Maus nicht benutzt,

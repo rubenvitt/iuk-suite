@@ -4,11 +4,12 @@ import { NOTEN_WORT, ampelStufe, formatiereNote } from "../_lib/noten";
 import { T, ZIFFERN } from "./typo";
 
 /**
- * DIE VIER NOTENBAUTEILE DES MODULS (Entwurf §4.11, §4.12, §4.14).
+ * DIE NOTENBAUTEILE DES MODULS (Entwurf §4.11, §4.12, §4.14).
  *
  * Sie liegen hier zusammen, damit sie nicht siebenmal frei erfunden werden:
  * Pille (jeder Mittelwert), Spur (nur wo eine echte Verteilung existiert),
- * Legende (einmal pro Karte) und Plakette (die Gesamtnote der Auswertung).
+ * Legende (einmal pro Karte), Funke (der Trend auf 132×28) und Plakette (die
+ * Gesamtnote der Auswertung — §3.2, nicht §4.11).
  *
  * DREI ZUSAGEN, DIE HIER EINGEBAUT SIND — nicht dokumentiert, sondern erzwungen:
  *
@@ -366,6 +367,109 @@ export function Notenlegende({ groesse = "kompakt" }: NotenlegendeProps = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Bauteil 4 — Notenfunke
+// ---------------------------------------------------------------------------
+
+export type NotenfunkeProps = {
+  /**
+   * Die Noten der letzten Abende MIT Rueckmeldungen, AELTESTE ZUERST. Die
+   * Richtung steht in der Signatur und nicht in einem Kommentar am Aufrufer:
+   * ein rueckwaerts gezeichneter Trend behauptet das Gegenteil.
+   */
+  noten: readonly number[];
+  /** 132 laut §2.5. Am Handy laeuft der Funke volle Breite (§2.5, Schmalvariante). */
+  breite?: number;
+  /** 28 laut §2.5; 56 in der Schmalvariante. */
+  hoehe?: number;
+  /** Skaliert das SVG auf die Elternbreite — das `viewBox` bleibt `breite`. */
+  volleBreite?: boolean;
+};
+
+/** Rand im SVG, damit der 3px-Punkt des letzten Wertes nicht angeschnitten wird. */
+const FUNKE_RAND = 4;
+
+/**
+ * DER NOTENFUNKE (§4.11, Bauteil 4) — Server-SVG, KEIN recharts: 132×28 traegt
+ * keine Achse, keinen Tooltip und keine Legende, also braucht es auch keine
+ * Diagrammbibliothek. Er steht in der Kopfzeile des Verlaufs und ist am Handy
+ * der einzige Trend, den man ohne Scrollen erfasst (§2.5).
+ *
+ * DREI ZUSAGEN:
+ *
+ * 1. Y IST INVERTIERT — Note 1 OBEN. Ein Funke, in dem eine 6 hoeher steht als
+ *    eine 1, ist ein Sachfehler und keine Geschmacksfrage.
+ * 2. DAS DOMAIN IST FEST 1–6, nicht datenabhaengig. Ein auf die Daten gespanntes
+ *    Domain macht aus dem Unterschied 2,0 → 2,1 einen Absturz: die Steigung
+ *    wuerde luegen.
+ * 3. UNTER ZWEI PUNKTEN GIBT ES KEINEN FUNKEN, sondern „—". Eine Linie durch
+ *    einen Punkt ist keine Entwicklung.
+ *
+ * Die Farbe traegt nur der LETZTE Punkt (der aktuelle Stand); die Linie bleibt
+ * `--fb-ink`, damit sechs Farbwechsel auf 132px nicht als Muster gelesen werden.
+ */
+export function Notenfunke({
+  noten,
+  breite = 132,
+  hoehe = 28,
+  volleBreite = false,
+}: NotenfunkeProps) {
+  if (noten.length < 2) return <KeineNote />;
+
+  const innen = hoehe - 2 * FUNKE_RAND;
+  // Geklemmt, NICHT gerundet: `ampelStufe` bleibt die einzige Rundungsregel des
+  // Moduls (§4.11). Geklemmt wird, damit ein Wert aus fehlerhaften Daten die
+  // Linie nicht aus dem Bild schiebt.
+  const y = (note: number) => FUNKE_RAND + ((Math.min(6, Math.max(1, note)) - 1) / 5) * innen;
+  const x = (i: number) => FUNKE_RAND + (i / (noten.length - 1)) * (breite - 2 * FUNKE_RAND);
+
+  const punkte = noten.map((note, i) => `${x(i).toFixed(1)},${y(note).toFixed(1)}`).join(" ");
+  const letzte = noten[noten.length - 1];
+
+  return (
+    <svg
+      data-testid="notenfunke"
+      role="img"
+      aria-label={funkenBeschriftung(noten)}
+      viewBox={`0 0 ${breite} ${hoehe}`}
+      width={volleBreite ? "100%" : breite}
+      height={hoehe}
+      style={{ display: "block", overflow: "visible" }}
+    >
+      <polyline
+        points={punkte}
+        fill="none"
+        stroke="var(--fb-ink)"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+      />
+      <circle
+        cx={x(noten.length - 1)}
+        cy={y(letzte)}
+        r={3}
+        fill={`var(--note-${ampelStufe(letzte)})`}
+      />
+    </svg>
+  );
+}
+
+/**
+ * Der Funke ist ein Bild — ohne diesen Satz ist er fuer eine Vorleseschicht
+ * nicht vorhanden. Er nennt beide Enden mit Ziffer UND Wort und sagt die
+ * Richtung der Skala ausdruecklich; ein Pfeil ↑/↓ waere zweideutig, weil „hoch"
+ * hier „schlechter" heisst (§4.11).
+ */
+function funkenBeschriftung(noten: readonly number[]): string {
+  const erste = noten[0];
+  const letzte = noten[noten.length - 1];
+  return (
+    `Notenverlauf der letzten ${noten.length} Abende: von ` +
+    `${formatiereNote(erste)} ${NOTEN_WORT[ampelStufe(erste) - 1]} auf ` +
+    `${formatiereNote(letzte)} ${NOTEN_WORT[ampelStufe(letzte) - 1]}. ` +
+    `1 ist die beste Note, 6 die schlechteste.`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Die Fussnote zur Alt-Skala
 // ---------------------------------------------------------------------------
 
@@ -388,7 +492,7 @@ export function Altbestandsfussnote() {
 }
 
 // ---------------------------------------------------------------------------
-// Bauteil 4 — Notenplakette
+// Notenplakette (§3.2 — die Bauteilnummern von §4.11 enden bei 4/Funke)
 // ---------------------------------------------------------------------------
 
 export type NotenplaketteProps = {

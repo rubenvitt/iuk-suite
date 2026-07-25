@@ -199,7 +199,19 @@ describe("Cockpit-Seite — EINE Herleitung, zwei Verbraucher", () => {
   it("zeigt die Zone auch in der Betriebsart Einrichtung — sonst ist §2.4/A unerreichbar", () => {
     expect(quelle).toContain("<Teilnahme");
     expect(quelle.match(/<Teilnahme/g)?.length).toBe(1);
-    expect(quelle).not.toContain("!einrichtung &&");
+    /*
+     * Geprüft wird GENAU DIE SPALTE, in der die Zone hängt — nicht die ganze
+     * Datei. `!einrichtung &&` ist auf dieser Seite ein legitimes Mittel: §2.1
+     * verlangt es für Zone d (VERLAUF entfällt in der Einrichtung, ein leeres
+     * Fach ist schlimmer als kein Fach). Verboten ist es NUR vor `<Teilnahme`:
+     * §2.4/A ist der einzige Ort, an dem der Satz „Du kannst den Aushang schon
+     * vor dem ersten Abend drucken" steht, und mit der Spalte wäre er
+     * unerreichbar. Die Spalte darf ihre BREITE von `einrichtung` abhängig
+     * machen (`? :`) — nur nicht ihre Existenz (`&&`).
+     */
+    const beginnZone = quelle.indexOf("<Teilnahme");
+    const spalte = quelle.slice(quelle.lastIndexOf("<Col", beginnZone), beginnZone);
+    expect(spalte).not.toContain("einrichtung &&");
   });
 
   it("die Zone lebt in `_ui/Teilnahme.tsx` und ist keine Client-Komponente", () => {

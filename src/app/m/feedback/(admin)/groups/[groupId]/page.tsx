@@ -13,10 +13,11 @@ import { buildToken } from "../../../_lib/token";
 import type { Question } from "../../../_lib/questions";
 import { T } from "../../../_ui/typo";
 import { formatDatumKurz, heuteInZone } from "../../../_ui/datum";
-import { NOTEN_WORT, ampelStufe, formatiereNote } from "../../../_lib/noten";
+import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../../../_lib/noten";
 import { Notenpille } from "../../../_ui/Noten";
 import { Lagekarte } from "../../../_ui/Lagekarte";
 import { Teilnahme, teilnahmeUrlAus } from "../../../_ui/Teilnahme";
+import { Verlauf, type VerlaufZeile } from "../../../_ui/Verlauf";
 
 /**
  * DAS COCKPIT (Entwurf §2.1). Die einzige Arbeitsseite des Moduls.
@@ -70,9 +71,40 @@ export default async function Cockpit({
    * unabhängig davon, wie viele Jahre die Gruppe schon läuft.
    */
   const abendZahl = zustand.verlauf.length + (zustand.laufend ? 1 : 0);
-  const letzteNoten = zustand.verlauf
-    .slice(0, OE_FENSTER)
-    .map((abend) => (abend.survey ? abendStats(db, abend.survey).avgSchulnote : null));
+
+  /*
+   * DIE ZEILEN DES VERLAUFS (§2.5). Sie entstehen HIER und nicht in `Verlauf.tsx`:
+   * die Zone ist eine Client-Komponente (Funktions-Props in `columns[].render`,
+   * `Dropdown`-`items`, `Popconfirm`-Handler) und sieht keine Datenbank. Was über
+   * die RSC-Grenze geht, sind reine Werte — `Date` überlebt, Funktionen nicht.
+   *
+   * AGGREGIERT WIRD MIT `abendStats` — derselben EINEN Stelle, die auch „Letzter
+   * Abend" und der Zwischenstand der Lagekarte lesen. Damit trägt die Zeile
+   * `avgSchulnote` und nicht `overallAvg` (§4.12); eine zweite Zählschleife hier
+   * wäre eine zweite Wahrheit über denselben Datensatz.
+   *
+   * In der Betriebsart „Einrichtung" ist `zustand.verlauf` leer, die Schleife
+   * läuft also gar nicht — die Zone entfällt weiter unten vollständig.
+   */
+  const verlaufZeilen: VerlaufZeile[] = zustand.verlauf.map((abend) => {
+    const stats = abend.survey ? abendStats(db, abend.survey) : null;
+    return {
+      eveningId: abend.evening.id,
+      surveyId: abend.survey?.id ?? null,
+      datum: abend.evening.date,
+      thema: abend.evening.topic,
+      rueckmeldungen: abend.responseCount,
+      teilnehmer: abend.evening.participantCount,
+      avgSchulnote: stats?.avgSchulnote ?? null,
+      hasLegacyScale: stats?.hasLegacyScale ?? false,
+      entwurf: abend.effektiv === "draft",
+    };
+  });
+
+  // Die Kontextzeile liest DIESELBEN Zahlen wie die Zone — kein zweiter Durchlauf
+  // durch `computeDAStats` und damit keine Chance, dass Kopfzeile und Tabelle
+  // verschiedene Durchschnitte zeigen.
+  const letzteNoten = verlaufZeilen.slice(0, OE_FENSTER).map((z) => z.avgSchulnote);
 
   /**
    * DIE TEILNAHME-ADRESSE — GENAU EINMAL hergeleitet und dann an BEIDE
@@ -157,16 +189,27 @@ export default async function Cockpit({
           </div>
         </Col>
       </Row>
+
+      {/*
+       * ZONE d — VERLAUF (§2.1 Punkt 3), volle Breite unter dem Arbeitsfeld. In
+       * der Betriebsart „Einrichtung" entfällt sie VOLLSTÄNDIG: ein leeres Fach
+       * ist schlimmer als kein Fach (§4.3), und die Lagekarte trägt dort die
+       * Schrittzeile.
+       */}
+      {!einrichtung && (
+        <Verlauf groupId={id} zeilen={verlaufZeilen} heute={heuteInZone(jetzt)} />
+      )}
     </div>
   );
 }
 
 /**
- * Das Fenster des Ø aus §4.2: „Ø der letzten sechs". Sechs Dienstabende sind
- * etwa ein Halbjahr — lang genug, dass ein einzelner schlechter Abend die Zeile
- * nicht kippt, kurz genug, dass sie noch von HEUTE spricht.
+ * Das Fenster des Ø aus §4.2: „Ø der letzten sechs". Begründet und definiert in
+ * `_lib/noten.ts` (`NOTEN_FENSTER`), weil es die Kopfzeile des Verlaufs (§2.5)
+ * genauso braucht — hier steht nur der Name, unter dem die Kopfzone es kennt.
+ * Zwei Zahlen wären zwei Fenster.
  */
-export const OE_FENSTER = 6;
+export const OE_FENSTER = NOTEN_FENSTER;
 
 /**
  * DIE KONTEXTZEILE DER KOPFZONE (§4.2, Zeile 3): „14 Dienstabende erfasst · Ø
@@ -195,17 +238,16 @@ export function kontextzeile(abende: number, notenJuengsteZuerst: (number | null
   if (abende === 0) return "Noch kein Dienstabend erfasst.";
   const kopf = `${abende} Dienstabende erfasst`;
 
-  const noten = notenJuengsteZuerst
-    .slice(0, OE_FENSTER)
-    .filter((n): n is number => n !== null && Number.isFinite(n));
-  if (noten.length === 0) return kopf;
+  // Gerechnet wird in `_lib/noten.ts` (`fensterMittel`) — dieselbe Funktion nutzt
+  // die Kopfzeile des Verlaufs (§2.5). Zwei Rechnungen waeren zwei Fenster.
+  const gemittelt = fensterMittel(notenJuengsteZuerst);
+  if (!gemittelt) return kopf;
 
-  const mittel = noten.reduce((summe, n) => summe + n, 0) / noten.length;
   const fenster =
-    noten.length === OE_FENSTER
+    gemittelt.anzahl === OE_FENSTER
       ? "der letzten sechs"
-      : `aus ${noten.length} ${noten.length === 1 ? "Abend" : "Abenden"}`;
-  return `${kopf} · Ø ${fenster}: ${formatiereNote(mittel)} ${NOTEN_WORT[ampelStufe(mittel) - 1]}`;
+      : `aus ${gemittelt.anzahl} ${gemittelt.anzahl === 1 ? "Abend" : "Abenden"}`;
+  return `${kopf} · Ø ${fenster}: ${notenSatz(gemittelt.mittel)}`;
 }
 
 /**
