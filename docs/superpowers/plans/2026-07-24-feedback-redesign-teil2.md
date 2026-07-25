@@ -394,9 +394,20 @@ verbindlich, weil Task 8 die Zusage wahr macht), 3.10.
 - `noValidate` wird beim Mounten gesetzt (mit JS übernimmt der gestaltete Lückenspringer), ohne JS
   bleibt `required` wirksam.
 - Der Anonymitätstext entspricht **wortgenau** Fassung A aus Abschnitt 3.9 und enthält den Satz
-  „Schreib nichts, woran man dich erkennt."
+  „Schreib nichts, woran man dich erkennt." (Fassung A ist zulässig, weil Task 8 ihre beiden
+  Voraussetzungen erfüllt hat — Zeitstempel ohne Uhrzeit und zufällige Leseordnung. Der Text steht
+  bislang **nirgends** in der Anwendung; diese Aufgabe setzt ihn ein.)
 - Navigator: erscheint erst nach der ersten Note, trägt **keine** Ampelfarbe und **keinen**
   Absende-Knopf.
+- **Unerwartete Ausnahmen der Action landen als Inline-Meldung im Formular, nicht auf einer
+  technischen Fehlerseite.** Der Aufrufer im Client fängt sie ab und die Eingaben bleiben stehen.
+  Hintergrund: Task 9 hat das `try/catch` im Client entfernt mit der Begründung, ein Catch würde den
+  Erfolgs-`redirect` verschlucken — das gilt aber nur für den **Rumpf der Action**, nicht für den
+  Aufrufer (Next transportiert den Redirect in der Action-Antwort, der Client-Aufruf lehnt dafür nicht
+  ab). Seitdem führen kaputtes `questions`-JSON einer importierten Umfrage und ein Schreibfehler beim
+  Speichern zur Fehlerseite **mit Datenverlust** — genau das Ergebnis, das der Umbau beseitigen
+  sollte. Test: wirft die Action unerwartet, erscheint eine Fehlerzeile und die eingegebenen Noten
+  sind noch da.
 
 - [ ] **Schritt 2: Fehlschlag bestätigen** · **Schritt 3: Umsetzen** · **Schritt 4: Tests**
 
@@ -437,6 +448,10 @@ am geteilten Handy aus.
   möglich. Das Formular ist ein natives `<form action={…}>` — **ohne JS bedienbar**.
 - **Zustand F** („Link stimmt nicht"): gestaltete Seite statt nacktem 404 — und sie verrät **nicht**,
   ob die Gruppe existiert (kein Orakel für geratene Slugs).
+- **Wortlaute:** Für `invalid` und `none` stehen in `MESSAGES` derzeit **Platzhalter** aus Task 9, die
+  der Entwurf so nicht vorgibt (er delegiert dort auf die Zustände C und F). Diese Aufgabe setzt die
+  Texte aus Abschnitt 3.2 C bzw. F ein — die Platzhalter dürfen **nicht** als gesetzter Wortlaut
+  stehen bleiben.
 - **Danke-Seite:** keine Antworten mehr auf dem Schirm, Weitergabe-Abschnitt vorhanden.
 - Alle Zustände teilen Fahne und Kopfrhythmus (gemeinsame Hülle, nicht kopierte Markup-Blöcke).
 

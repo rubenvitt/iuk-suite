@@ -77,6 +77,28 @@ an Actions und Queries).
 - **`activateSurvey`-Alt-Test härten:** er prüft die Invariante heute nur über
   `activeSurveyForGroup().survey.id` und würde zwei aktive Zeilen **nicht** erkennen. Auf `COUNT(*)`
   umstellen.
+- **Restkanal im CSV-Export schließen** (Fund aus dem Review von Task 8): Die Spalte „Zeitstempel" gibt
+  `submittedAt` unverändert aus. Für **importierte** Antworten ist der Wert weiterhin sekundengenau
+  (der Importer schreibt direkt, nicht über `insertResponse`) — wer die Spalte in Excel sortiert, stellt
+  für historische Abende die Eingangsreihenfolge wieder her und hebt die Durchmischung im Export
+  wieder auf. Die Datenbank bleibt unangetastet (Import-Parität!), aber die **Ausgabe** normalisiert
+  die Spalte auf das Abenddatum. Test: Export eines importierten Abends mit sekundengenauen
+  Zeitstempeln → alle Zeilen tragen dasselbe Datum, die Zeilenordnung entspricht der durchmischten
+  Leseordnung.
+- **Derselbe Host-Defekt in der QR-Route** (Nebenbefund aus der Nacharbeit N1, **hohe Wirkung**): Die
+  Route `f/[slugSecret]/qr.png/route.ts` baut die kodierte URL aus `req.headers.get("host")` und
+  berücksichtigt `x-forwarded-host` **nicht** (`x-forwarded-proto` liest sie immerhin). Schreibt der
+  Reverse-Proxy den Host auf die Upstream-Adresse um, **kodiert der QR-Code eine unerreichbare
+  Adresse** — und zwar in ein Druckstück, das an der Wand hängt. Fix: dieselbe Vorrangregel wie in
+  `src/core/routing.ts` verwenden (die dort nach N1 vorhandene Funktion **wiederverwenden**, keine
+  zweite Auflösung schreiben). Test: mit `x-forwarded-host` gesetzt kodiert der QR den öffentlichen
+  Host, nicht die interne Adresse.
+- **Modul-README anlegen** (offene Auflage aus Abschnitt 3.9 der öffentlichen Spezifikation): Es muss
+  dokumentiert stehen, dass die IP ausschließlich für die Ratenbegrenzung in einer flüchtigen
+  In-Memory-Struktur verwendet wird und **nie** an der Antwort gespeichert wird — sonst ist der Satz
+  „keine Geräte- oder IP-Kennung" im Anonymitätssiegel eine unbelegte Behauptung. Kommt später ein
+  persistenter Limiter mit IP-Spalte, muss der Siegeltext geändert werden und nicht stillschweigend
+  seine Bedeutung.
 
 - [ ] **Schritt 2: Fehlschlag bestätigen** · **Schritt 3: Umsetzen** · **Schritt 4: Tests**
 
