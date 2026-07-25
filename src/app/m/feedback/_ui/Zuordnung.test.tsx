@@ -84,7 +84,22 @@ describe("Zuordnung — die Liste", () => {
 
   it("leer ist ein Zustand, keine leere Tabelle (§4.3)", () => {
     const t = markup([]);
-    expect(t).toContain("Niemand zugeordnet");
+    expect(t).toContain("Niemand einzeln zugeordnet");
+  });
+
+  /**
+   * KEINE AUSSAGE UEBER SICHTBARKEIT im Leerzustand. `memberGroupIdsFor`
+   * (`queries.ts:38-55`) gewaehrt Zugang zusaetzlich ueber das Fachgruppen-
+   * Attribut per Abgleich mit `groups.slug` — der uebliche Weg im Projekt (siehe
+   * `alsGruppenleitung` in `actions.test.ts`). Eine leere `user_groups`-Liste ist
+   * deshalb NICHT „nur fuer Admins sichtbar", und dieser Test haelt die
+   * Falschaussage draussen, statt sich auf den Wortlaut zu verlassen.
+   */
+  it("behauptet im Leerzustand nicht, nur Admins koennten die Gruppe sehen", () => {
+    const t = markup([]);
+    expect(t).not.toContain("nur Admins");
+    // Der Fachgruppen-Weg wird stattdessen benannt.
+    expect(t).toContain("Fachgruppen-Attribut");
   });
 
   it("bietet zu jeder Person eine Entfernen-Aktion", () => {

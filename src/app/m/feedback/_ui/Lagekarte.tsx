@@ -335,27 +335,38 @@ function LaufendeKarte({
               mehr Rückmeldungen als erfasste Teilnehmer
             </p>
           )}
-          {/*
-           * §2.4, wortgenau: „Fehlt `participantCount`: … dazu ein Textknopf
-           * ‚Teilnehmerzahl nachtragen‘, der die Zeilenbearbeitung öffnet."
-           *
-           * Er steht HIER und nicht nur in Zone d, weil `cockpitZustand.verlauf`
-           * den laufenden Abend ausschließt (§2.2) — ohne diesen Knopf wäre der
-           * Hauptfall unerreichbar: die Teilnehmerzahl wird typischerweise erst
-           * am Abend selbst bekannt, und sie ist der Nenner jeder Rücklaufquote.
-           */}
-          {nenner === null && (
-            <TeilnehmerzahlNachtragen
-              abend={{
-                eveningId: evening.id,
-                datum: evening.date,
-                thema: evening.topic,
-                teilnehmer: evening.participantCount,
-                notizen: evening.notes,
-              }}
-            />
-          )}
         </div>
+      )}
+
+      {/*
+       * §2.4, wortgenau: „Fehlt `participantCount`: … dazu ein Textknopf
+       * ‚Teilnehmerzahl nachtragen‘, der die Zeilenbearbeitung öffnet."
+       *
+       * Er steht HIER und nicht nur in Zone d, weil `cockpitZustand.verlauf` den
+       * laufenden Abend ausschließt (§2.2) — ohne diesen Knopf wäre der
+       * Hauptfall unerreichbar: die Teilnehmerzahl wird typischerweise erst am
+       * Abend selbst bekannt, und sie ist der Nenner jeder Rücklaufquote.
+       *
+       * AUSSERHALB der `nullAntworten`-Ternäre, und das ist die eigentliche
+       * Aussage: gerade in Belegung C — läuft, noch keine Rückmeldung — fehlt die
+       * Teilnehmerzahl am häufigsten, weil sie am Abend nachgetragen wird, bevor
+       * jemand antwortet. Im `else`-Zweig eingeschlossen wäre er dort NICHT
+       * gerendert, und weil `verlauf` den laufenden Abend ausschließt, gäbe es in
+       * diesem Zustand keinen Weg zu `updateEveningAction` — auch nicht für die
+       * Datumskorrektur, an der die Neuankerung von `closesAt` hängt. Der Entwurf
+       * knüpft den Knopf an „Fehlt `participantCount`", nicht an „es gibt schon
+       * Rückmeldungen": nicht wieder in einen Zweig einrücken.
+       */}
+      {nenner === null && (
+        <TeilnehmerzahlNachtragen
+          abend={{
+            eveningId: evening.id,
+            datum: evening.date,
+            thema: evening.topic,
+            teilnehmer: evening.participantCount,
+            notizen: evening.notes,
+          }}
+        />
       )}
 
       <hr style={HAARLINIE} />

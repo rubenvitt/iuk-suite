@@ -884,6 +884,39 @@ describe("Lagekarte — „Teilnehmerzahl nachtragen“ (2.4)", () => {
     expect(zeichne(karte(mitNenner)).textContent).not.toContain("Teilnehmerzahl nachtragen");
   });
 
+  /**
+   * BELEGUNG C IST DER HAUPTFALL, nicht der Randfall: die Teilnehmerzahl wird
+   * typischerweise am Abend eingetragen, also BEVOR die erste Rueckmeldung da
+   * ist. Stand der Knopf im `else`-Zweig der `nullAntworten`-Ternaere, gab es in
+   * genau diesem Zustand keinen einzigen Weg zu `updateEveningAction` — `verlauf`
+   * schliesst den laufenden Abend aus (`cockpit.ts:96`), und damit war auch die
+   * Neuankerung von `closesAt` bei einer Datumskorrektur unerreichbar.
+   *
+   * Der Entwurf knuepft den Knopf an „Fehlt `participantCount`"
+   * (feedback-admin.md:291), NICHT an „es gibt schon Rueckmeldungen".
+   */
+  it("bietet ihn auch in Belegung C an — 0 Rueckmeldungen, kein Nenner", () => {
+    const c = zustand({
+      belegung: "C",
+      modus: "betrieb",
+      laufend: laufendeLage({ id: 42, antworten: 0, teilnehmer: null }),
+    });
+    const t = zeichne(karte(c)).textContent ?? "";
+    // Der Satz aus Belegung C bleibt — der Knopf tritt NEBEN ihn, nicht an
+    // seine Stelle (§2.3, Zeile 249 der Entwurfstabelle).
+    expect(t).toContain("Noch keine Rückmeldung — zeig den QR-Code am Ende des Abends.");
+    expect(t).toContain("Teilnehmerzahl nachtragen");
+  });
+
+  it("laesst ihn in Belegung C weg, sobald ein Nenner steht", () => {
+    const c = zustand({
+      belegung: "C",
+      modus: "betrieb",
+      laufend: laufendeLage({ antworten: 0, teilnehmer: 20 }),
+    });
+    expect(zeichne(karte(c)).textContent).not.toContain("Teilnehmerzahl nachtragen");
+  });
+
   it("oeffnet die Zeilenbearbeitung des LAUFENDEN Abends und schickt sie ab", async () => {
     await mount(karte(ohneNenner));
 

@@ -64,11 +64,24 @@ export function Zuordnung({ groupId, personen }: ZuordnungProps) {
         rowKey="userId"
         pagination={false}
         dataSource={personen}
-        /* §4.3: leer ist ein Zustand, keine leere Tabelle. */
+        /*
+         * §4.3: leer ist ein Zustand, keine leere Tabelle.
+         *
+         * Der Satz sagt AUSDRUECKLICH nichts darueber, wer die Gruppe sehen kann,
+         * denn diese Tabelle ist nur die eine von ZWEI Quellen:
+         * `memberGroupIdsFor` (`queries.ts:38-55`) gewaehrt Zugang zusaetzlich
+         * ueber das Fachgruppen-Attribut aus Pocket ID per Abgleich mit
+         * `groups.slug` — im Projekt der uebliche Weg. Eine leere `user_groups`-
+         * Liste ist also KEIN abgeschotteter Zustand, und ein Satz wie „bis dahin
+         * sehen nur Admins diese Gruppe" waere die Falschaussage, die einen Admin
+         * die Gruppe fuer dicht halten laesst. „Kann", nicht „hat": die Slugs sind
+         * von hier aus nicht bekannt.
+         */
         locale={{
           emptyText: (
             <span style={T.meta}>
-              Niemand zugeordnet — bis dahin sehen nur Admins diese Gruppe.
+              Niemand einzeln zugeordnet — Zugang kann zusätzlich über das
+              Fachgruppen-Attribut aus Pocket ID bestehen.
             </span>
           ),
         }}
