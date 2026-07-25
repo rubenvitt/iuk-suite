@@ -680,6 +680,15 @@ describe("Lagekarte — „QR-Code groß zeigen“ ist in jeder Belegung erreich
     expect(qr.className).not.toContain("ant-btn-primary");
     expect(knopfMit(z, "Feedback starten").className).toContain("ant-btn-primary");
     expect(stelle(z, QR_KNOPF)).toBeGreaterThan(stelle(z, "Feedback starten"));
+    /*
+     * Der Knopf steht IM `<form>` des Startformulars (dort gehoert die
+     * Sekundaeraktion neben den Primaerknopf). Waere er `type="submit"`, wuerde
+     * „QR-Code gross zeigen" eine UMFRAGE STARTEN — antds Vorgabe ist `button`,
+     * und genau das wird hier festgehalten, weil `QrGross.test.tsx` die
+     * Komponente allein mountet und den Nebeneffekt nie sehen koennte.
+     */
+    expect(qr.getAttribute("type")).toBe("button");
+    expect(qr.closest("form")).not.toBeNull();
   });
 
   it("Belegung B: Sekundäraktion nach „Feedback starten“, nicht der Primärknopf", () => {

@@ -16,13 +16,28 @@ import { Button } from "antd";
  * `className="noprint"`: der Knopf darf nicht auf dem Blatt landen. Er ist damit
  * das einzige Element der Seite, das die Druckregeln ausblenden.
  *
- * Absichtlich OHNE Verzögerung/`onload`-Kunststücke: der Dialog braucht das
- * Bild nicht — der Browser druckt erst, wenn er die Seite fertig hat, und ein
- * `setTimeout` wäre eine geratene Zahl, die auf langsamen Geräten falsch ist.
+ * GEWARTET WIRD AUF DAS BILD, nicht auf eine geratene Zahl. Der 1024px-Code
+ * kommt aus einem Route Handler, der ihn erst kodieren muss; ein `print()` davor
+ * druckt ein leeres Kästchen — also genau das Gegenteil dessen, wofür diese
+ * Seite existiert. `img.complete` deckt den Fall ab, dass das Bild beim Mount
+ * schon im Cache liegt (dann feuert `load` nie mehr), und `error` löst den
+ * Dialog trotzdem aus, damit ein kaputter Endpunkt nicht in einem Tab ohne
+ * Dialog endet — der Knopf bleibt daneben stehen.
  */
 export function Drucken() {
   useEffect(() => {
-    window.print();
+    const bild = document.querySelector<HTMLImageElement>(".fb-aushang-qr img");
+    if (!bild || bild.complete) {
+      window.print();
+      return;
+    }
+    const drucke = () => window.print();
+    bild.addEventListener("load", drucke, { once: true });
+    bild.addEventListener("error", drucke, { once: true });
+    return () => {
+      bild.removeEventListener("load", drucke);
+      bild.removeEventListener("error", drucke);
+    };
   }, []);
 
   return (
