@@ -224,15 +224,34 @@ Der Daseinsgrund des Werkzeugs, der bisher komplett fehlte: heute steht auf der 
 Rohtoken `demo–demo1` ohne Host und Protokoll, und die funktionierende `qr.png`-Route ist von keiner
 Seite verlinkt.
 
-**Bindend:** Abschnitte 2.4 (Teilnahme-Zone mit zwei Client-Inseln), 3.5 (Aushang-Druckansicht).
+**Bindend:** Abschnitte 2.4 (Teilnahme-Zone mit zwei Client-Inseln), 3.5 (Aushang-Druckansicht), 2.3
+(**nur** die Zeile „QR-Code groß zeigen" der Belegungstabelle — der Rest der Lagekarte steht in Task 18).
 
 **Files:**
 - Create: `_ui/Teilnahme.tsx`, `_ui/KopierZeile.tsx`, `_ui/QrGross.tsx`,
   `(admin)/groups/[groupId]/aushang/page.tsx` (+ Druck-Layout) + Tests
+- Modify: `_ui/Lagekarte.tsx` (der Knopf „QR-Code groß zeigen" in allen vier Belegungen — in C/D als
+  Primäraktion über „Feedback jetzt beenden", in A/B als Sekundäraktion neben „Feedback starten") +
+  `_ui/Lagekarte.test.tsx`
+- Modify: `(admin)/groups/[groupId]/page.tsx` (Teilnahme-Zone in die rechte Spalte; die Teilnahme-URL
+  aus `headers().get("host")` wird dort gebaut und an **beide** Stellen gegeben — Zone a und der
+  Lagekarten-Knopf zeigen denselben Code, nicht zwei Herleitungen)
 
 **Interfaces:**
 - Consumes: `qrSvg` aus `src/core/qr` (Task 2) für die eingebettete Vorschau; die `qr.png`-Route bleibt
   für den Download.
+- `QrGross({ url, gruppenname, darstellung })` → Modal-Insel; `darstellung: "primaer" | "sekundaer"`
+  deckt die beiden Rollen aus §2.3 ab, damit die Lagekarte keinen zweiten Knopf-Typ erfindet.
+
+**Warum der Knopf hier hängt (nicht optional).** §2.3 nennt „QR-Code groß zeigen" als **Primäraktion**
+von C und D und als **Sekundäraktion** von A und B; §2.4 nennt ihn ausdrücklich „den zeitkritischen
+Handgriff im Gruppenraum … in jedem Zustand ein Tipp weit oben" (J-B-2, die Antwort auf „Zone a ist auf
+390px im Zustand RUHEND nicht immer sichtbar"). Task 18 hat ihn **nicht** gebaut, weil er `QrGross.tsx`
+(Modal, Client) und die vollständige Teilnahme-URL braucht — beides entsteht erst hier. Ohne diese
+Zuordnung hätte die Lagekarte dauerhaft **keine** Primäraktion in C/D und keine Sekundäraktion in A/B,
+ohne dass es noch jemand merkt; wer Task 19 nur nach 2.4/3.5 arbeitet, erfährt nie, dass die Lagekarte
+einen Knopf braucht. Der Merkposten steht zusätzlich als Kommentar im Dateikopf und an beiden Fehlstellen
+in `_ui/Lagekarte.tsx` (Task 18).
 
 - [ ] **Schritt 1: Tests schreiben, die scheitern**
 
@@ -241,6 +260,10 @@ Seite verlinkt.
   zeigt `req.url` auf die interne Adresse. (Die `qr.png`-Route löst das bereits korrekt und dokumentiert
   den Grund — dieselbe Lösung, nicht eine zweite erfinden.)
 - Der QR ist **eingebettet** sichtbar, nicht nur als Download-Link.
+- **In jeder Belegung ist „QR-Code groß zeigen" erreichbar** — in C/D als Primäraktion, in A/B als
+  Sekundäraktion (§2.3-Tabelle, §2.4 J-B-2). Vier Tests an der `Lagekarte`, einer je Belegung; in C/D
+  steht der Knopf **vor** „Feedback jetzt beenden", in A/B **neben** „Feedback starten" und ist dort
+  nicht der Primärknopf (es gibt genau einen pro Seite, §2.6).
 - Kopier-Knopf kopiert die vollständige URL.
 - Die Zone ist **auch sichtbar, wenn keine Umfrage läuft** — mit dem Hinweis, dass der Code dauerhaft
   gültig ist und einmal drucken für alle künftigen Dienstabende reicht.

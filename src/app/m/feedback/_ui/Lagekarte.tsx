@@ -5,6 +5,7 @@ import { T } from "./typo";
 import { formatDatumKurz, formatUhrzeit, formatWochentagZeit, formatZeitpunkt } from "./datum";
 import { StartFormular } from "./StartFormular";
 import { BeendenKnopf } from "./BeendenKnopf";
+import { Aktualisierer, AktualisierenKnopf } from "./Aktualisierer";
 
 /**
  * DIE LAGEKARTE (Entwurf §2.3).
@@ -19,7 +20,19 @@ import { BeendenKnopf } from "./BeendenKnopf";
  * SERVER COMPONENT. Deshalb: kein Compound-Zugriff auf antd (`Typography.*`,
  * `Card.Meta`, … ergeben HTTP 500, den `pnpm build` nicht sieht), keine
  * Funktions-Props (`Statistic.formatter`, `Progress.format`), Kartentitel immer
- * ein String. Alles Interaktive liegt in `StartFormular` und `BeendenKnopf`.
+ * ein String. Alles Interaktive liegt in `StartFormular`, `BeendenKnopf` und
+ * `Aktualisierer`.
+ *
+ * NOCH NICHT HIER: „QR-CODE GROSS ZEIGEN". §2.3 nennt den Knopf in der Tabelle
+ * der fünf Belegungen als Primäraktion von C/D und als Sekundäraktion von A/B,
+ * §2.4 nennt ihn „den zeitkritischen Handgriff im Gruppenraum … in jedem
+ * Zustand ein Tipp weit oben" (J-B-2). Er fehlt hier, weil er `_ui/QrGross.tsx`
+ * (Modal, Client-Insel) und die vollständige Teilnahme-URL aus
+ * `headers().get("host")` braucht — beides entsteht in **Task 19**, das dafür
+ * `_ui/Lagekarte.tsx` und `(admin)/groups/[groupId]/page.tsx` in seiner
+ * Files-Liste und §2.3 in seiner Bindungsliste führt. Ein Knopf ohne Modal wäre
+ * die beschriftete leere Schublade aus §4.3; die Zuordnung stellt sicher, dass
+ * die Lücke einen Eigentümer hat statt zu verschwinden.
  *
  * FARBE: die getönte Fläche in C/D ist `--fb-tint`, der Rücklaufbalken trägt
  * `--fb-ink` auf `--fb-fill`. antds Vorgabe für `Progress` wäre `colorPrimary`,
@@ -170,6 +183,11 @@ function StartKarte({
         teilnehmerVorbelegung={teilnehmerVorbelegung}
         stunden={stunden}
       />
+      {/*
+       * FEHLT NOCH (Task 19): die Sekundäraktion „QR-Code groß zeigen" neben
+       * „Feedback starten" (§2.3, Belegungen A und B). Begründung und Zuordnung
+       * stehen im Dateikopf — sie hängt an `_ui/QrGross.tsx`.
+       */}
     </Card>
   );
 }
@@ -310,15 +328,35 @@ function LaufendeKarte({
         </p>
       )}
       {/*
-       * „Stand" ist keine Zierde (§4.5): ohne diese Zeile sieht eine gecachte
-       * Zahl aus wie eine live gemessene — die einzige Art, wie diese Karte
-       * falsch informieren kann. `aria-live` genau hier und nirgends sonst.
+       * FUSSZEILE (§4.5, §2.3): „Stand: 21:47" + Textknopf „Aktualisieren", und
+       * daneben die Insel, die alle 30s von selbst nachfragt.
+       *
+       * „Stand" ist keine Zierde: ohne diese Zeile sieht eine gecachte Zahl aus
+       * wie eine live gemessene — die einzige Art, wie diese Karte falsch
+       * informieren kann. `aria-live` genau hier und nirgends sonst (§4.14).
+       * Der Knopf ist deshalb GESCHWISTER der Zeile, nicht ihr Kind: seine
+       * Beschriftung gehört nicht in die Live-Region.
+       *
+       * Und erst mit `Aktualisierer` bekommt dieses `aria-live` überhaupt etwas
+       * zu melden: ein Knoten, der nach dem Server-Rendern nie mutiert, ist eine
+       * tote Vorlesehilfe. Die Bedingung „nur bei laufender Umfrage" aus §4.5
+       * ist hier baulich erfüllt — `LaufendeKarte` existiert nur im Zweig
+       * `laufend !== null` von `Lagekarte` (§2.2: eine Stelle entscheidet).
        */}
-      <p style={{ ...T.meta, margin: "4px 0 0" }} aria-live="polite">
-        Stand: {formatUhrzeit(jetzt)}
-      </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+        <p style={{ ...T.meta, margin: 0 }} aria-live="polite">
+          Stand: {formatUhrzeit(jetzt)}
+        </p>
+        <AktualisierenKnopf />
+        <Aktualisierer />
+      </div>
 
       <hr style={HAARLINIE} />
+      {/*
+       * FEHLT NOCH (Task 19): die PRIMÄRAKTION „QR-Code groß zeigen" über
+       * „Feedback jetzt beenden" (§2.3, Belegungen C und D). In C/D ist sie die
+       * laute Aktion der Karte — Begründung und Zuordnung stehen im Dateikopf.
+       */}
       <BeendenKnopf surveyId={survey.id} />
     </Card>
   );

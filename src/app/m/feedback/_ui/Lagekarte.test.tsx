@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ReactElement } from "react";
+import { act, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 /**
@@ -30,11 +30,13 @@ import { renderToStaticMarkup } from "react-dom/server";
  * zweiten Zustand.
  */
 
-const { useActionStateMock, startFeedbackActionMock, beendeFeedbackActionMock } = vi.hoisted(() => ({
-  useActionStateMock: vi.fn(),
-  startFeedbackActionMock: vi.fn(),
-  beendeFeedbackActionMock: vi.fn(),
-}));
+const { useActionStateMock, startFeedbackActionMock, beendeFeedbackActionMock, refreshMock } =
+  vi.hoisted(() => ({
+    useActionStateMock: vi.fn(),
+    startFeedbackActionMock: vi.fn(),
+    beendeFeedbackActionMock: vi.fn(),
+    refreshMock: vi.fn(),
+  }));
 
 vi.mock("react", async (importOriginal) => {
   const react = await importOriginal<typeof import("react")>();
@@ -46,12 +48,24 @@ vi.mock("../actions", () => ({
   startFeedbackAction: startFeedbackActionMock,
   beendeFeedbackAction: beendeFeedbackActionMock,
 }));
+/**
+ * `useRouter` WIRFT ausserhalb des `AppRouterContext` ("invariant expected app
+ * router to be mounted") — ohne diesen Mock scheitert jeder Test der laufenden
+ * Karte, seit `Aktualisierer` darin haengt. Derselbe Zuschnitt wie in den
+ * `qr`-Tests, nur mit festem Rueckgabewert: geprueft wird, DASS `refresh`
+ * gerufen wird, nicht was Next daraus macht.
+ */
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) }));
 
 import { computeClosesAt, DEFAULT_CLOSE_AFTER_HOURS } from "../_lib/lifecycle";
 import type { AbendLage, CockpitZustand, LaufendeLage } from "../_lib/cockpit";
 import { Lagekarte } from "./Lagekarte";
 import { StartFormular } from "./StartFormular";
 import { BeendenKnopf } from "./BeendenKnopf";
+import { Aktualisierer, AKTUALISIERUNGS_TAKT_MS } from "./Aktualisierer";
+// Kein zweites Mount-Harness erfinden (CLAUDE.md): `mount`/`queryAll`/`click`
+// liegen in `qr/_lib/test-dom.tsx` und fahren schon `Zettel.test.tsx`.
+import { clickElement, mount, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { formatDatumKurz, formatUhrzeit, formatZeitpunkt, heuteInZone } from "./datum";
 import type { FormState } from "../_lib/formState";
 
@@ -411,6 +425,127 @@ describe("Lagekarte — Belegung E und Nebenlagen", () => {
   });
 });
 
+/**
+ * SELBSTAKTUALISIERUNG (§4.5) — der Grund, warum „Stand: 21:47" ueberhaupt
+ * tragbar ist. Ohne den Takt behauptet die Zeile Aktualitaet fuer eine Zahl, die
+ * seit dem Server-Rendern feststeht, und das `aria-live="polite"` an derselben
+ * Zeile (§4.14, genau einmal) hat nie etwas zu melden.
+ *
+ * Diese Tests laufen ueber den ECHTEN Mountweg (`react-dom/client`), nicht ueber
+ * `renderToStaticMarkup`: `useEffect` laeuft serverseitig nicht, der Takt waere
+ * dort unsichtbar. Gefaked sind nur `setInterval`/`clearInterval` — antds
+ * Innenleben haengt an weiteren Timern und `Date`, und ein pauschales
+ * `useFakeTimers()` friert die auch ein.
+ *
+ * Die Bedingung „nur bei laufender Umfrage" wird am VERHALTEN der `Lagekarte`
+ * geprueft, nicht an einem Flag: `Aktualisierer` traegt bewusst kein
+ * `laeuft`-Prop, weil `LaufendeKarte` nur im Zweig `laufend !== null` entsteht
+ * (§2.2 — eine Stelle entscheidet). Faellt diese Verdrahtung, faellt dieser Test.
+ */
+describe("Selbstaktualisierung der laufenden Karte (§4.5)", () => {
+  const sichtbarkeit = (wert: "visible" | "hidden") =>
+    Object.defineProperty(document, "visibilityState", { value: wert, configurable: true });
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    refreshMock.mockClear();
+    sichtbarkeit("visible");
+  });
+
+  afterEach(async () => {
+    await unmount();
+    vi.useRealTimers();
+  });
+
+  const weiter = async (ms: number) => {
+    await act(async () => {
+      vi.advanceTimersByTime(ms);
+    });
+  };
+
+  it("fragt bei laufender Umfrage alle 30 s beim Server nach", async () => {
+    await mount(karte(zustand({ belegung: "D", laufend: laufendeLage({ antworten: 7 }) })));
+    expect(refreshMock).not.toHaveBeenCalled();
+
+    await weiter(AKTUALISIERUNGS_TAKT_MS - 1);
+    expect(refreshMock).not.toHaveBeenCalled();
+
+    await weiter(1);
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+
+    await weiter(AKTUALISIERUNGS_TAKT_MS);
+    expect(refreshMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("montiert die Insel nicht, wenn keine Umfrage laeuft", async () => {
+    await mount(karte(zustand({ belegung: "B", verlauf: [lage({ status: "closed" })] })));
+    await weiter(AKTUALISIERUNGS_TAKT_MS * 4);
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it("laesst ein unsichtbares Dokument in Ruhe — kein Refresh im Hintergrundtab", async () => {
+    await mount(karte(zustand({ belegung: "D", laufend: laufendeLage({ antworten: 7 }) })));
+    sichtbarkeit("hidden");
+
+    await weiter(AKTUALISIERUNGS_TAKT_MS * 3);
+    expect(refreshMock).not.toHaveBeenCalled();
+
+    // Und nimmt den Takt wieder auf, sobald die Karte wieder angesehen wird —
+    // der Tab muss nicht neu geladen werden.
+    sichtbarkeit("visible");
+    await weiter(AKTUALISIERUNGS_TAKT_MS);
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stellt den Takt beim Verlassen der Seite ab", async () => {
+    await mount(karte(zustand({ belegung: "C", laufend: laufendeLage({ antworten: 0 }) })));
+    await unmount();
+    await weiter(AKTUALISIERUNGS_TAKT_MS * 3);
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it("aktualisiert auf Knopfdruck sofort, ohne bis zu 30 s zu warten", async () => {
+    await mount(karte(zustand({ belegung: "D", laufend: laufendeLage({ antworten: 7 }) })));
+    const knopf = queryAll("button").find((b) => (b.textContent ?? "").trim() === "Aktualisieren");
+    expect(knopf).toBeDefined();
+
+    await clickElement(knopf!);
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Fusszeile der laufenden Karte (§2.3, §4.14)", () => {
+  const z = zustand({ belegung: "D", laufend: laufendeLage({ antworten: 7 }) });
+
+  it("traegt „Stand“ UND den Textknopf „Aktualisieren“", () => {
+    const wirt = zeichne(karte(z));
+    expect(wirt.textContent).toContain(`Stand: ${formatUhrzeit(JETZT)}`);
+    const knopf = [...wirt.querySelectorAll("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Aktualisieren",
+    );
+    expect(knopf).toBeDefined();
+    // Textknopf, kein zweiter Primaerknopf: pro Seite gibt es genau einen (§2.6).
+    expect(knopf!.className).toContain("ant-btn-text");
+    expect(knopf!.className).not.toContain("ant-btn-primary");
+  });
+
+  it("haelt die Knopfbeschriftung AUSSERHALB der Live-Region", () => {
+    const wirt = zeichne(karte(z));
+    const lebend = wirt.querySelectorAll('[aria-live="polite"]');
+    // §4.14: genau einmal im ganzen Modul, und zwar an der Stand-Zeile.
+    expect(lebend.length).toBe(1);
+    expect(lebend[0].textContent).toBe(`Stand: ${formatUhrzeit(JETZT)}`);
+    expect(lebend[0].querySelector("button")).toBeNull();
+  });
+
+  it("rendert die Insel selbst nichts — sie ist nur ein Takt", () => {
+    const markup = renderToStaticMarkup(<Aktualisierer />);
+    expect(markup).toBe("");
+    // Kein zweites `aria-live`, keine Ersatzflaeche (§2.3: „rendert nichts“).
+    expect(ohneKommentare(quelle("Aktualisierer.tsx"))).toContain("return null");
+  });
+});
+
 describe("StartFormular — Fehler am Feld statt technischer Fehlerseite (§4.4)", () => {
   const formular = (
     <StartFormular groupId={7} heute="2026-07-22" teilnehmerVorbelegung={20} stunden={48} />
@@ -531,7 +666,13 @@ describe("Quelltext-Assertionen — die RSC-Grenze und die Farb-Klausel", () => 
   });
 
   it("faerbt nirgends eine Datenflaeche rot (Farb-Klausel §4.9)", () => {
-    for (const datei of ["Lagekarte.tsx", "StartFormular.tsx", "BeendenKnopf.tsx", "datum.ts"]) {
+    for (const datei of [
+      "Lagekarte.tsx",
+      "StartFormular.tsx",
+      "BeendenKnopf.tsx",
+      "Aktualisierer.tsx",
+      "datum.ts",
+    ]) {
       const code = ohneKommentare(quelle(datei));
       expect(code.toLowerCase()).not.toContain("#c8000f");
       expect(code).not.toMatch(/\bdanger\b/);
