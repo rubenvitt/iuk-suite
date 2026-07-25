@@ -135,6 +135,65 @@ export function computeDAStats(
   };
 }
 
+/** Eine Bewertungsfrage samt ihrer Notenverteilung (§3.2 Punkt 2, §2.3). */
+export interface FrageVerteilung {
+  id: string;
+  text: string;
+  /**
+   * Anzahl je Note, LÄNGE 6, **Index 0 = Note 1**. Genau diese Ordnung erwartet
+   * `NotenspurProps.verteilung` (`_ui/Noten.tsx:169`) — der Wert geht ohne
+   * Umrechnung dorthin. Eine Umrechnung am Aufrufer wäre eine zweite Stelle, an
+   * der sich die Richtung der Skala umdrehen kann, und eine gespiegelte
+   * Notenspur behauptet das Gegenteil der Antworten.
+   */
+  verteilung: number[];
+  /** Anzahl der Antworten, die in einer Zelle gelandet sind — das „n=14" der Zeile. */
+  count: number;
+}
+
+/**
+ * DIE VERTEILUNG JE BEWERTUNGSFRAGE (§3.2 Punkt 2 und §2.3 lesen DIESELBE
+ * Datenlage: acht Verteilungen, sechs Zellen je Frage).
+ *
+ * WARUM ES DEN MITTELWERT NICHT ERSETZT, SONDERN ERGÄNZT: 6×Note 1 und 6×Note 5
+ * ergeben den Mittelwert 3,0. Ein Balken zeigte dort „befriedigend" — die eine
+ * Note, die niemand gegeben hat. Die Verteilung zeigt zwei Säulen und damit die
+ * Aussage, die für den Abend zählt: die Gruppe ist gespalten.
+ *
+ * REIN ADDITIV: `computeDAStats`, `overallAvg` und `avgSchulnote` sind
+ * unverändert, der CSV- und Prompt-Pfad liest weiter dieselben Zahlen wie vorher.
+ *
+ * NUR `schulnote`. `stars` (Alt-Skala 1–5) wird NICHT auf die Sechser-Rampe
+ * abgetastet (§4.12): vier von fünf Sternen wären sonst Zelle 4 („ausreichend")
+ * — eine gute Bewertung, in der Farbe einer schwachen. Alt-Bögen tragen
+ * stattdessen die bestehende Fußnote.
+ *
+ * Kein `shuffleStable` (anders als `computeDAStats`): eine Verteilung ist von der
+ * Eingangsreihenfolge unabhängig, sie kann also keinen Anonymitätskanal öffnen.
+ */
+export function verteilungJeFrage(
+  questions: Question[],
+  answers: Record<string, unknown>[],
+): FrageVerteilung[] {
+  const out: FrageVerteilung[] = [];
+  for (const q of questions) {
+    if (q.type !== "schulnote") continue;
+    const verteilung = [0, 0, 0, 0, 0, 0];
+    let count = 0;
+    for (const a of answers) {
+      const n = toFloat(a[q.id]);
+      // EINE Regel für die drei Fälle „unbeantwortet", „nicht lesbar" und
+      // „außerhalb 1–6": nur eine ganze Zahl von 1 bis 6 hat eine Zelle. Nichts
+      // wird gerundet — eine 2,5 in Zelle 2 oder 3 wäre eine erfundene Antwort.
+      if (n === null || !Number.isInteger(n) || n < 1 || n > 6) continue;
+      verteilung[n - 1] += 1;
+      count += 1;
+    }
+    out.push({ id: q.id, text: q.text, verteilung, count });
+  }
+  return out;
+}
+
 export interface TrendPoint {
   periodStart: number; // Unix-Sekunden, Monatsanfang UTC
   label: string; // "YYYY-MM"

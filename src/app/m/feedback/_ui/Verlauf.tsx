@@ -21,8 +21,8 @@ import { T } from "./typo";
  * WARUM CLIENT (§2.5): `columns[].render`, `onRow`, `Dropdown`-`items` und die
  * `Popconfirm`-Handler sind FUNKTIONEN. Eine Server Component kann sie nicht
  * uebergeben („Functions cannot be passed to Client Components"). Genau darum
- * traegt schon das heutige `GroupList.tsx` `"use client"`, obwohl `Table` selbst
- * als RSC-sicher gilt.
+ * tragen auch die Gruppenkarten des Einstiegs `"use client"`, obwohl `Table` und
+ * `Card` selbst als RSC-sicher gelten.
  *
  * FUENF ENTSCHEIDUNGEN, DIE HIER UND NUR HIER LIEGEN:
  *

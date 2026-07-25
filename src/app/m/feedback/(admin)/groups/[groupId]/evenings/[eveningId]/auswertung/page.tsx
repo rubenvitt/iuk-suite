@@ -1,18 +1,49 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Breadcrumb, Button, Card, Col, Result, Row } from "antd";
 import { getDb } from "@/app/m/feedback/_db/client";
 import { getEvening, getGroup, getSurveyByEvening, listResponses } from "@/app/m/feedback/_db/queries";
 import { guardPage } from "@/app/m/feedback/_lib/guardPage";
-import { computeDAStats } from "@/app/m/feedback/_lib/aggregation";
-import { isRatingType, ratingScale, type Question, type QuestionType } from "@/app/m/feedback/_lib/questions";
-import { SPACE } from "@/core/theme/tokens";
-import { BarChart } from "@/core/charts/BarChart";
-import { Altbestandsfussnote, Notenpille } from "@/app/m/feedback/_ui/Noten";
+import { computeDAStats, verteilungJeFrage } from "@/app/m/feedback/_lib/aggregation";
+import { buildAnalysisPrompt } from "@/app/m/feedback/_lib/prompt";
+import { nextStatusOnAccess, type SurveyStatus } from "@/app/m/feedback/_lib/lifecycle";
+import { SEKTIONEN, sektionVon, type Question } from "@/app/m/feedback/_lib/questions";
+import { T, ZIFFERN } from "@/app/m/feedback/_ui/typo";
+import { formatAbendtag, formatDatumLang } from "@/app/m/feedback/_ui/datum";
+import {
+  Altbestandsfussnote,
+  Notenlegende,
+  Notenplakette,
+  Notenspur,
+} from "@/app/m/feedback/_ui/Noten";
+import { PromptBlock } from "@/app/m/feedback/_ui/PromptBlock";
 
-// Server-Komponente: kein antd-Compound-Zugriff — der Chart-Wrapper ist eine
-// eigene Client-Komponente (`@/core/charts/BarChart`). Eine Server-Komponente
-// darf eine Client-Komponente direkt rendern (die RSC-Grenze verbietet nur die
-// umgekehrte Richtung), deshalb bleibt diese Seite bewusst frei von "use client".
+/**
+ * DIE AUSWERTUNG EINES DIENSTABENDS (Entwurf §3.2, Kopfzone §4.2, Breadcrumb
+ * §4.1, Leerzustände §4.3).
+ *
+ * VIER ENTSCHEIDUNGEN, DIE HIER UND NUR HIER LIEGEN:
+ *
+ * 1. DIE NOTENSPUR ERSETZT DEN `BarChart` VOLLSTÄNDIG (§3.2 Punkt 2). Acht
+ *    Verteilungen übereinander zeigen, ob der Abend gleichmäßig gut war oder eine
+ *    Frage die Gruppe gespalten hat. Ein Balken mit dem Mittelwert 3,0 aus 6×1 und
+ *    6×5 zeigt „befriedigend" — die einzige Note, die niemand gegeben hat. Das
+ *    Diagramm aus `core/charts` fehlt hier nicht aus Bequemlichkeit: es färbt mit
+ *    `colorPrimary` (DRK-Rot, Farb-Klausel §4.9) und kennt keine invertierte
+ *    Skala.
+ * 2. DIE AMPEL LIEST `avgSchulnote`, NIE `overallAvg` (§4.12) — der gemischte Wert
+ *    schiebt Alt-Sterne (1–5) auf die Schulnotenrampe (1–6). `overallAvg` bleibt
+ *    unverändert im CSV- und Prompt-Pfad.
+ * 3. DER KI-PROMPT IST EIN ABSCHNITT DIESER SEITE (§3.2 Punkt 4), keine eigene
+ *    Route mehr: die alte Seite lud dieselben Antworten ein zweites Mal und war
+ *    nur über einen Textlink erreichbar.
+ * 4. EIN NENNER WIRD NIE ERFUNDEN (§2.3, hier für den Rücklauf): ohne
+ *    `participantCount` steht „3 Rückmeldungen", kein „von", kein Prozentwert.
+ *
+ * SERVER COMPONENT: kein Compound-Zugriff auf antd (§4.13) — `Breadcrumb` über
+ * `items`, Überschriften nativ mit `T.*`, `Collapse` + `Input.TextArea` des
+ * Prompts liegen in der Client-Insel `PromptBlock`.
+ */
 export default async function AuswertungPage({
   params,
 }: {
@@ -27,7 +58,7 @@ export default async function AuswertungPage({
   if (evening.groupId !== urlGroupId) notFound(); // URL-Hygiene, nicht der Guard selbst.
 
   // Guard gegen die ECHTE group_id des Dienstabends, nicht den URL-Parameter
-  // (IDOR-Schutz, siehe guardPage.ts / EveningDetail aus Task 12).
+  // (IDOR-Schutz, siehe guardPage.ts).
   const { db } = await guardPage(evening.groupId);
   const group = getGroup(db, evening.groupId);
   if (!group) notFound();
@@ -40,89 +71,244 @@ export default async function AuswertungPage({
     (r) => JSON.parse(r.answers) as Record<string, unknown>,
   );
   const stats = computeDAStats(questions, answers);
+  /**
+   * DIESELBE Funktion, die der Zwischenstand der Lagekarte liest (§2.3) — acht
+   * Verteilungen, sechs Zellen je Frage. `stars` fehlt darin absichtlich (§4.12):
+   * vier von fünf Sternen wären Zelle 4 („ausreichend"), also eine gute Bewertung
+   * in der Farbe einer schwachen.
+   */
+  const verteilungen = verteilungJeFrage(questions, answers);
 
-  // Ein Balkendiagramm je Rating-Skala: aktuell erzeugen neue Umfragen nur
-  // "schulnote" (Skala 1–6), aber importierte Alt-Umfragen können "stars"
-  // (Skala 1–5) enthalten — beide teilen sich kein Diagramm, weil sie sich
-  // eine y-Achsen-Domain nicht sinnvoll teilen können.
-  const ratingGroups = new Map<QuestionType, { text: string; avg: number | null }[]>();
-  for (const q of stats.perQuestion) {
-    if (!isRatingType(q.type)) continue;
-    const bucket = ratingGroups.get(q.type) ?? [];
-    bucket.push({ text: q.text, avg: q.avg });
-    ratingGroups.set(q.type, bucket);
-  }
+  /*
+   * Wie in der alten Prompt-Route: rein gelesen, nicht persistiert — ein
+   * Auto-Close hier wäre ein Seiteneffekt eines GETs (auch per Link-Prefetch
+   * auslösbar). Die Sperre gilt für den EFFEKTIVEN Status, damit eine abgelaufene,
+   * aber noch nicht geschlossene Umfrage nicht fälschlich gesperrt bleibt.
+   */
+  const effektiv = nextStatusOnAccess(survey.status as SurveyStatus, survey.closesAt, new Date());
+  const prompt =
+    effektiv === "active"
+      ? null
+      : buildAnalysisPrompt({
+          groupName: group.name,
+          eveningDate: formatDatumLang(evening.date),
+          topic: evening.topic ?? undefined,
+          participantCount: evening.participantCount ?? undefined,
+          stats,
+          rawAnswers: answers,
+        });
 
-  const hasTexts = stats.texts.some((t) => t.values.length > 0);
+  const csv = `/m/feedback/groups/${group.id}/evenings/${id}/export.csv`;
+  const teilnehmer = evening.participantCount;
+  const nenner = teilnehmer !== null && teilnehmer > 0 ? teilnehmer : null;
+  const quote = nenner === null ? null : Math.round((stats.responseCount / nenner) * 100);
+  const freitexte = stats.texts.reduce((summe, frage) => summe + frage.values.length, 0);
+  /**
+   * „Ø aus 8 Fragen" muss den Nenner nennen, den `avgSchulnote` WIRKLICH benutzt
+   * hat: `computeDAStats` mittelt nur Schulnotenfragen MIT mindestens einer
+   * Antwort. `verteilungen.length` wäre die Zahl der Fragen IM BOGEN — bei drei
+   * beantworteten von acht stünde dort „Ø aus 8 Fragen" über einem Mittelwert aus
+   * drei. Das ist derselbe stille Rechenfehler, den §4.12 gerade beseitigt hat,
+   * nur eine Zeile weiter.
+   */
+  const gemitteltAus = stats.perQuestion.filter((q) => q.type === "schulnote" && q.avg !== null)
+    .length;
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl, padding: SPACE.lg }}>
-      <section style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Auswertung</h1>
-        <p style={{ margin: 0 }}>
-          {group.name} — {new Date(evening.date).toISOString().slice(0, 10)}
-          {evening.topic ? ` — ${evening.topic}` : ""}
-        </p>
-        {/*
-         * Der Ø kommt aus `avgSchulnote`, NICHT aus `overallAvg` (§4.12): der
-         * gemischte Wert schiebt Alt-Sterne (1–5) auf die Schulnotenrampe (1–6)
-         * — „Schulnote 1 und 5 von 5 Sternen" ergäbe dort 3,0, also
-         * „befriedigend" für zwei Bestnoten. `overallAvg` bleibt unverändert im
-         * CSV-/Prompt-Pfad.
-         */}
-        <p
+    <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
+      {/*
+       * KOPFZONE (§4.2): drei Zeilen, flach, keine Karte. Die Breadcrumb IST der
+       * Zurück-Weg (§4.1) — ein zusätzlicher „← Zurück"-Knopf entfällt, zwei
+       * Rückwege sind ein Rückweg zu viel.
+       */}
+      <header style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <Breadcrumb
+          style={T.meta}
+          items={[
+            { title: <Link href="/m/feedback">Gruppen</Link> },
+            { title: <Link href={`/m/feedback/groups/${group.id}`}>{group.name}</Link> },
+            { title: "Auswertung" },
+          ]}
+        />
+        <div
           style={{
-            margin: 0,
             display: "flex",
-            alignItems: "center",
-            gap: SPACE.sm,
+            justifyContent: "space-between",
+            alignItems: "flex-end",
             flexWrap: "wrap",
+            gap: 8,
           }}
         >
-          <span>
-            {stats.responseCount} Rückmeldung{stats.responseCount === 1 ? "" : "en"} · Ø Note (1 =
-            beste):
+          <h1 style={{ ...T.h1, margin: 0, textWrap: "balance" }}>
+            Auswertung — {formatAbendtag(evening.date)}
+          </h1>
+          {/* Textknöpfe der Seite, in derselben Zeile wie die Überschrift; auf
+              390px rutschen sie darunter (`flexWrap`). */}
+          <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Button type="text" href={csv}>
+              CSV
+            </Button>
+            <Button type="text" href={`/m/feedback/groups/${group.id}/trend`}>
+              Trend
+            </Button>
           </span>
-          <Notenpille note={stats.avgSchulnote} />
-        </p>
-        {stats.hasLegacyScale && <Altbestandsfussnote />}
-        <div style={{ display: "flex", gap: SPACE.lg }}>
-          <Link href={`/m/feedback/groups/${group.id}/evenings/${id}/export.csv`}>CSV-Export</Link>
-          <Link href={`/m/feedback/groups/${group.id}/evenings/${id}/prompt`}>KI-Prompt</Link>
         </div>
-      </section>
+        <p style={{ ...T.body, margin: 0, color: "var(--fb-muted)" }}>
+          {group.name}
+          {evening.topic ? ` · ${evening.topic}` : ""}
+        </p>
+      </header>
 
-      {[...ratingGroups.entries()].map(([type, items]) => (
-        <section key={type} style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
-          <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Bewertungen (1–{ratingScale(type)})</h2>
-          <BarChart
-            data={items.map((i) => ({ x: i.text, y: i.avg }))}
-            xKey="x"
-            yKey="y"
-            domain={[1, ratingScale(type)]}
-          />
-        </section>
-      ))}
+      {stats.responseCount === 0 ? (
+        /* §4.3: der Satz statt leerer Spuren — der CSV-Link bleibt in der Kopfzone. */
+        <Result status="info" title="Zu diesem Abend ist keine Rückmeldung eingegangen." />
+      ) : (
+        <>
+          <Card variant="outlined" data-testid="kennzahlen" styles={KARTE}>
+            {stats.responseCount < 3 && (
+              /*
+               * Kein Rot, kein Amber, kein Icon (§3.2 Punkt 1) — eine 3px linke
+               * Kante in `--fb-line`. Ein `Alert type="error"` sähe hier aus wie
+               * eine Primäraktion: `colorError === colorPrimary === #c8000f`.
+               */
+              <p
+                style={{
+                  ...T.body,
+                  margin: "0 0 16px",
+                  paddingLeft: 12,
+                  borderLeft: "3px solid var(--fb-line)",
+                }}
+              >
+                Nur {stats.responseCount} {stats.responseCount === 1 ? "Rückmeldung" : "Rückmeldungen"}{" "}
+                — bitte nicht als Urteil über den Abend lesen.
+              </p>
+            )}
+            <Row gutter={[24, 16]}>
+              <Col xs={24} sm={8}>
+                <p style={{ ...T.kicker, margin: 0 }}>RÜCKLAUF</p>
+                <p style={{ ...T.zahl, margin: "4px 0 0" }}>
+                  {nenner === null
+                    ? `${stats.responseCount} ${stats.responseCount === 1 ? "Rückmeldung" : "Rückmeldungen"}`
+                    : `${stats.responseCount} von ${nenner}`}
+                </p>
+                {quote !== null && <p style={{ ...T.meta, margin: 0 }}>{quote} %</p>}
+              </Col>
+              <Col xs={24} sm={8}>
+                <p style={{ ...T.kicker, margin: 0 }}>GESAMTNOTE</p>
+                <div style={{ marginTop: 4 }}>
+                  <Notenplakette note={stats.avgSchulnote} fragen={gemitteltAus} />
+                </div>
+                {stats.hasLegacyScale && (
+                  <p style={{ margin: "4px 0 0" }}>
+                    <Altbestandsfussnote />
+                  </p>
+                )}
+              </Col>
+              <Col xs={24} sm={8}>
+                <p style={{ ...T.kicker, margin: 0 }}>FREITEXTE</p>
+                <p style={{ ...T.zahl, margin: "4px 0 0" }}>{freitexte}</p>
+              </Col>
+            </Row>
+          </Card>
 
-      {hasTexts && (
-        <section style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
-          <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Freitextantworten</h2>
-          {stats.texts.map((t) => (
-            <div key={t.questionId} style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
-              <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{t.text}</h3>
-              {t.values.length === 0 ? (
-                <p style={{ opacity: 0.65, margin: 0 }}>Keine Antworten.</p>
-              ) : (
-                <ul style={{ margin: 0, paddingLeft: SPACE.lg }}>
-                  {t.values.map((v, i) => (
-                    <li key={i}>{v}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
-        </section>
+          {verteilungen.length > 0 && (
+            <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <h2 style={{ ...T.lead, margin: 0 }}>Bewertungsfragen</h2>
+              {/*
+               * Die Legende EINMAL, im identischen Sechs-Spalten-Raster der Spuren
+               * darunter — dasselbe Raster, das der Teilnehmer im Fragebogen sieht.
+               * Sie steht eingerückt wie die Spuren, damit Farbfeld und Zelle in
+               * derselben Spalte sitzen.
+               */}
+              <div className="fb-spurzeile" style={{ borderBottom: "none" }}>
+                <span />
+                <span />
+                <div className="fb-spur">
+                  <Notenlegende groesse="gross" />
+                </div>
+                <span className="fb-anzahl" />
+              </div>
+              {verteilungen.map((frage, i) => (
+                <div key={frage.id}>
+                  {/* Sektions-Kicker aus `_lib/questions.ts` — dieselben drei
+                      Namen, unter denen der Teilnehmer geantwortet hat (§3.2). */}
+                  {(i === 0 || sektionVon(i) !== sektionVon(i - 1)) && (
+                    <p style={{ ...T.kicker, margin: "12px 0 4px" }}>{SEKTIONEN[sektionVon(i)]}</p>
+                  )}
+                  <div className="fb-spurzeile">
+                    <span style={{ ...T.meta, textAlign: "right" }}>{i + 1}</span>
+                    <span style={T.body}>{frage.text}</span>
+                    <div className="fb-spur">
+                      <Notenspur verteilung={frage.verteilung} groesse="gross" />
+                    </div>
+                    <span className="fb-anzahl" style={{ ...T.meta, whiteSpace: "nowrap" }}>
+                      n={frage.count}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </section>
+          )}
+
+          {freitexte > 0 && (
+            /*
+             * Einspaltig und auf 68ch begrenzt (§3.2 Punkt 3): Zitate liest man
+             * nicht über die volle Fensterbreite. Ab vier Antworten steht der Rest
+             * hinter „alle 7 anzeigen" — als natives `<details>`, damit dafür keine
+             * Client-Insel und kein JavaScript nötig ist.
+             */
+            <section style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: "68ch" }}>
+              <h2 style={{ ...T.lead, margin: 0 }}>Freitexte</h2>
+              {stats.texts
+                .filter((frage) => frage.values.length > 0)
+                .map((frage) => (
+                  <div key={frage.questionId}>
+                    <h3 style={{ ...T.body, fontWeight: 600, margin: "0 0 8px" }}>{frage.text}</h3>
+                    {frage.values.slice(0, SICHTBARE_ZITATE).map((wert, i) => (
+                      <Zitat key={i} text={wert} />
+                    ))}
+                    {frage.values.length > SICHTBARE_ZITATE && (
+                      <details>
+                        <summary style={{ ...T.meta, cursor: "pointer" }}>
+                          alle {frage.values.length} anzeigen
+                        </summary>
+                        {frage.values.slice(SICHTBARE_ZITATE).map((wert, i) => (
+                          <Zitat key={i} text={wert} />
+                        ))}
+                      </details>
+                    )}
+                  </div>
+                ))}
+            </section>
+          )}
+
+          <PromptBlock prompt={prompt} />
+        </>
       )}
-    </section>
+    </div>
+  );
+}
+
+/** Kartenpolster wie in jeder Zone des Moduls (§4.8, `--fb-kartenpolster`). */
+const KARTE = { body: { padding: "var(--fb-kartenpolster)" } };
+
+/** Ab der vierten Antwort verschwindet der Rest hinter „alle … anzeigen" (§3.2). */
+const SICHTBARE_ZITATE = 3;
+
+/** Ein Zitatblock: 15/1,6 wäre eine achte Schriftgröße — die Leiter gilt (§4.7). */
+function Zitat({ text }: { text: string }) {
+  return (
+    <p
+      style={{
+        ...ZIFFERN,
+        fontSize: 14,
+        lineHeight: 1.6,
+        margin: "0 0 8px",
+        paddingLeft: 12,
+        borderLeft: "2px solid var(--fb-split)",
+      }}
+    >
+      {text}
+    </p>
   );
 }

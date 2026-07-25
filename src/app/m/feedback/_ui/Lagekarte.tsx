@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 import { Card, Progress, Statistic } from "antd";
 import type { CockpitZustand, LaufendeLage } from "../_lib/cockpit";
+import type { FrageVerteilung } from "../_lib/aggregation";
+import { Notenlegende, Notenspur } from "./Noten";
 import { T } from "./typo";
 import { formatDatumKurz, formatUhrzeit, formatWochentagZeit, formatZeitpunkt } from "./datum";
 import { StartFormular } from "./StartFormular";
@@ -87,6 +89,19 @@ export type LagekarteProps = {
    */
   freitexte: number;
   /**
+   * Die Notenverteilungen der LAUFENDEN Umfrage — je Bewertungsfrage sechs
+   * Zellen (§2.3: „Notenlegende einmal, dann acht kompakte Notenspuren").
+   *
+   * Kommt aus `verteilungJeFrage` in der Seite, DERSELBEN Datenlage, die die
+   * Auswertung gross zeigt (§3.2 Punkt 2). Leere Liste heißt: der Bogen hat
+   * keine Schulnotenfrage (reiner Freitext- oder Altbestandsbogen) — dann
+   * entfällt der Block, statt eine beschriftete leere Schublade zu zeigen (§4.3).
+   *
+   * Pflicht wie `freitexte`, aus demselben Grund: `pnpm typecheck` erzwingt die
+   * Verdrahtung, für die es keine Seitentests gibt.
+   */
+  verteilungen: FrageVerteilung[];
+  /**
    * Die vollständige Teilnahme-Adresse (`https://host/f/{slug}-{secret}`),
    * hergeleitet in der Seite mit `teilnahmeUrlAus` — DERSELBE Wert, den Zone a
    * zeigt. Die Karte setzt hier nie selbst einen Token zusammen: zwei
@@ -105,6 +120,7 @@ export function Lagekarte({
   stunden,
   heute,
   freitexte,
+  verteilungen,
   teilnahmeUrl,
   gruppenname,
 }: LagekarteProps) {
@@ -118,6 +134,7 @@ export function Lagekarte({
           jetzt={jetzt}
           nullAntworten={belegung === "C"}
           freitexte={freitexte}
+          verteilungen={verteilungen}
           teilnahmeUrl={teilnahmeUrl}
           gruppenname={gruppenname}
         />
@@ -227,6 +244,7 @@ function LaufendeKarte({
   jetzt,
   nullAntworten,
   freitexte,
+  verteilungen,
   teilnahmeUrl,
   gruppenname,
 }: {
@@ -234,6 +252,7 @@ function LaufendeKarte({
   jetzt: Date;
   nullAntworten: boolean;
   freitexte: number;
+  verteilungen: FrageVerteilung[];
   teilnahmeUrl: string;
   gruppenname: string;
 }) {
@@ -259,19 +278,19 @@ function LaufendeKarte({
    * Wahrheit dafür, keine zweite Zählung. Freitexte werden hier NUR gezählt, nie
    * gezeigt.
    *
-   * NOCH NICHT HIER: Notenlegende + acht kompakte Notenspuren. `Notenspur`
-   * verlangt eine Verteilung je Frage (`NotenspurProps.verteilung`, Index 0 =
-   * Note 1), `computeDAStats` liefert aber nur Mittelwerte. Die fehlende
-   * `verteilungJeFrage` gehört nach `_lib/aggregation.ts` und ist ausdrücklich
-   * Task 22 zugeordnet (dieselbe Datenlage braucht §3.2 für die
-   * Auswertungsseite) — bis dahin ist §2.3 an dieser Stelle unvollständig, und
-   * zwar sichtbar statt vergessen.
+   * Die Notenlegende steht EINMAL über den acht kompakten Spuren, im identischen
+   * Sechs-Spalten-Raster (dasselbe, das der Teilnehmer im Fragebogen sieht). Die
+   * Verteilungen kommen fertig aus der Seite (`verteilungJeFrage`) — dieselbe
+   * Datenlage, die die Auswertung groß zeigt (§3.2 Punkt 2).
    *
    * Die Überschrift erscheint NUR, wenn etwas darunter steht: eine beschriftete
-   * leere Schublade ist schlimmer als keine (§4.3).
+   * leere Schublade ist schlimmer als keine (§4.3). In Belegung C (0 Antworten)
+   * entfällt der ganze Block — leere Spuren wären eine Fehlform, nicht eine leere
+   * Anzeige.
    */
   const schwankt = responseCount > 0 && responseCount <= 2;
-  const zwischenstand = !nullAntworten && (schwankt || freitexte > 0);
+  const spuren = nullAntworten ? [] : verteilungen;
+  const zwischenstand = !nullAntworten && (spuren.length > 0 || schwankt || freitexte > 0);
 
   return (
     <Card variant="outlined" styles={KARTE_LAUFEND} style={{ background: "var(--fb-tint)" }}>
@@ -383,6 +402,21 @@ function LaufendeKarte({
             <p style={{ ...T.meta, margin: "8px 0 0" }}>
               {freitexte} {freitexte === 1 ? "Freitext" : "Freitexte"} — in der Auswertung nachlesen
             </p>
+          )}
+          {spuren.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              {/* Die Legende trägt den Abstand der KOMPAKTEN Spur (2px), sonst
+                  sitzen Farbfeld und Zelle nicht in derselben Spalte. */}
+              <Notenlegende groesse="kompakt" />
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                {spuren.map((frage) => (
+                  <div key={frage.id} className="fb-spurzeile-kompakt">
+                    <span style={{ ...T.meta, minWidth: 0 }}>{frage.text}</span>
+                    <Notenspur verteilung={frage.verteilung} groesse="kompakt" />
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}

@@ -7,7 +7,7 @@ import { getGroup, listGroupMembers, listKnownUsers, listResponses } from "../..
 import type { SurveyRow } from "../../../_db/schema";
 import { guardPage } from "../../../_lib/guardPage";
 import { cockpitZustand } from "../../../_lib/cockpit";
-import { computeDAStats } from "../../../_lib/aggregation";
+import { computeDAStats, verteilungJeFrage } from "../../../_lib/aggregation";
 import { DEFAULT_CLOSE_AFTER_HOURS } from "../../../_lib/lifecycle";
 import { buildToken } from "../../../_lib/token";
 import type { Question } from "../../../_lib/questions";
@@ -63,6 +63,13 @@ export default async function Cockpit({
   const laufendeFreitexte = zustand.laufend
     ? zaehleFreitexte(abendStats(db, zustand.laufend.survey))
     : 0;
+  /**
+   * Die Notenspuren des Zwischenstands (§2.3). Ohne laufende Umfrage eine leere
+   * Liste — die Karte steht dann in A/B und zeigt das Startformular.
+   */
+  const laufendeVerteilungen = zustand.laufend
+    ? abendVerteilungen(db, zustand.laufend.survey)
+    : [];
 
   /**
    * DIE KONTEXTZEILE DER KOPFZONE (§4.2). Gezählt werden ALLE Dienstabende
@@ -172,7 +179,9 @@ export default async function Cockpit({
         <Breadcrumb
           style={T.meta}
           items={[
-            { title: <Link href="/m/feedback">Feedback</Link> },
+            // „Gruppen" wortgenau wie §4.1 — dasselbe Wort tragen die Breadcrumbs
+            // der Unterseiten, sonst heißt die Wurzel je nach Seite anders.
+            { title: <Link href="/m/feedback">Gruppen</Link> },
             { title: group.name },
           ]}
         />
@@ -203,6 +212,7 @@ export default async function Cockpit({
               stunden={stunden}
               heute={heuteInZone(jetzt)}
               freitexte={laufendeFreitexte}
+              verteilungen={laufendeVerteilungen}
               teilnahmeUrl={teilnahmeUrl}
               gruppenname={group.name}
             />
@@ -316,13 +326,30 @@ export function kontextzeile(abende: number, notenJuengsteZuerst: (number | null
  * Weg von den Rohantworten zu Zahlen gibt.
  */
 function abendStats(db: ReturnType<typeof getDb>, survey: SurveyRow) {
+  const { questions, antworten } = abendRohdaten(db, survey);
+  // `avgSchulnote`, NICHT `overallAvg`: eine 1–5-Altbestandsfrage darf nicht auf
+  // die Sechser-Rampe abgetastet werden (§4.12).
+  return computeDAStats(questions, antworten);
+}
+
+/** Bogen und Rohantworten einer Umfrage — EIN Weg vom `SurveyRow` zu den Werten. */
+function abendRohdaten(db: ReturnType<typeof getDb>, survey: SurveyRow) {
   const questions: Question[] = JSON.parse(survey.questions);
   const antworten = listResponses(db, survey.id).map(
     (r) => JSON.parse(r.answers) as Record<string, unknown>,
   );
-  // `avgSchulnote`, NICHT `overallAvg`: eine 1–5-Altbestandsfrage darf nicht auf
-  // die Sechser-Rampe abgetastet werden (§4.12).
-  return computeDAStats(questions, antworten);
+  return { questions, antworten };
+}
+
+/**
+ * DIE NOTENSPUREN DES ZWISCHENSTANDS (§2.3). Aus DERSELBEN Funktion, die auch die
+ * Auswertung groß zeigt (`verteilungJeFrage`, §3.2 Punkt 2) — acht Verteilungen,
+ * sechs Zellen je Frage. Der Mittelwert der Karte und die Spuren stammen damit aus
+ * demselben Bogen und denselben Antworten.
+ */
+function abendVerteilungen(db: ReturnType<typeof getDb>, survey: SurveyRow) {
+  const { questions, antworten } = abendRohdaten(db, survey);
+  return verteilungJeFrage(questions, antworten);
 }
 
 /** Freitext-ANTWORTEN, nicht Freitext-FRAGEN: die Karte nennt „5 Freitexte". */

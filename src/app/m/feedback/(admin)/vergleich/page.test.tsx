@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
@@ -31,8 +33,6 @@ vi.mock("next/navigation", () => ({
     throw new Error("notFound(): die Seite bleibt Admins vorbehalten");
   },
 }));
-// recharts + `theme.useToken()` — die Zusage haengt an den Zeilen, nicht am Bild.
-vi.mock("@/core/charts/BarChart", () => ({ BarChart: () => null }));
 
 import VergleichPage from "./page";
 
@@ -41,6 +41,7 @@ const GEMISCHT: Question[] = [
   { id: "s1", type: "stars", text: "Alt-Frage" },
 ];
 const NUR_SCHULNOTE: Question[] = [{ id: "q1", type: "schulnote", text: "Insgesamt?" }];
+const NUR_STERNE: Question[] = [{ id: "s1", type: "stars", text: "Alt-Frage" }];
 const ABEND = new Date("2026-07-06T00:00:00Z");
 
 let sqlite: Database.Database;
@@ -97,8 +98,8 @@ async function zeichne(): Promise<HTMLElement> {
 }
 
 async function zeile(name: string): Promise<HTMLElement> {
-  const treffer = [...(await zeichne()).querySelectorAll<HTMLElement>("li")].find((li) =>
-    (li.textContent ?? "").includes(name),
+  const treffer = [...(await zeichne()).querySelectorAll<HTMLElement>("tbody tr")].find((tr) =>
+    (tr.textContent ?? "").includes(name),
   );
   expect(treffer).toBeDefined();
   return treffer!;
@@ -132,7 +133,11 @@ describe("Vergleich — je Gruppe der Schulnoten-Ø, nicht der Mischwert", () =>
     expect((await zeichne()).textContent).toContain("Ø Note (1 = beste)");
   });
 
-  it("zeigt eine Gruppe ohne Schulnote als „—“ und zaehlt ihre Rueckmeldungen", async () => {
+  it("zeigt eine Gruppe ohne Schulnote als „—“ — mit Abend, Ruecklauf und Fussnote", async () => {
+    // Der Abend bleibt gezaehlt und seine Quote gerechnet: die Rueckmeldungen gab
+    // es, nur eine Note gab es nicht. Vier von fuenf Sternen auf die Sechser-Rampe
+    // abzutasten waere genau der Fehler aus §4.12 — deshalb KEINE Notenfarbe, und
+    // zwar in der ganzen Tabelle (die Seite hat keine Legende).
     gruppeMitAbend("Alt-Gruppe", "alt-gruppe", [{ id: "s1", type: "stars", text: "Alt" }], [
       { s1: 4 },
       { s1: 5 },
@@ -141,7 +146,7 @@ describe("Vergleich — je Gruppe der Schulnoten-Ø, nicht der Mischwert", () =>
     expect(wirt.innerHTML).not.toContain("var(--note-");
     const text = (await zeile("Alt-Gruppe")).textContent ?? "";
     expect(text).toContain("—");
-    expect(text).toContain("2 Rückmeldungen");
+    expect(text).toContain("10 %"); // 2 von 20
     expect(text).toContain(FUSSNOTE);
   });
 
@@ -150,5 +155,76 @@ describe("Vergleich — je Gruppe der Schulnoten-Ø, nicht der Mischwert", () =>
       user: { id: "gl-1", groups: ["da-feedback-gl"], fachgruppen: ["bereitschaft"] },
     });
     await expect(zeichne()).rejects.toThrow("notFound()");
+  });
+});
+
+/**
+ * DIE FORM DES VERGLEICHS (§3.4).
+ *
+ * Das Balkendiagramm ist weg, und zwar aus einem Sachgrund: `core/charts` faerbt
+ * mit `token.colorPrimary` (DRK-Rot, §4.9), und ein Balken „laenger = schlechter"
+ * auf einer invertierten Skala behauptet das Gegenteil der Daten. Die
+ * Pillenspalte ist vertikal gelesen selbst der Vergleich — vorausgesetzt, die
+ * ORDNUNG traegt: bester zuerst.
+ */
+describe("Vergleich — Tabelle, Ordnung, Spalten", () => {
+  it("sortiert aufsteigend nach Ø — bester zuerst, Gruppen ohne Ø am Ende", async () => {
+    gruppeMitAbend("Mittel", "mittel", NUR_SCHULNOTE, [{ q1: 3 }]);
+    gruppeMitAbend("Beste", "beste", NUR_SCHULNOTE, [{ q1: 1 }]);
+    gruppeMitAbend("Ohne", "ohne", NUR_STERNE, [{ s1: 5 }]);
+    gruppeMitAbend("Schlecht", "schlecht", NUR_SCHULNOTE, [{ q1: 5 }]);
+
+    const namen = [...(await zeichne()).querySelectorAll<HTMLElement>("tbody tr")].map((tr) =>
+      (tr.querySelector("a")?.textContent ?? "").trim(),
+    );
+    expect(namen).toEqual(["Beste", "Mittel", "Schlecht", "Ohne"]);
+  });
+
+  it("nennt die Richtung im SPALTENKOPF (§3.4, wortgenau)", async () => {
+    gruppeMitAbend("Bereitschaft", "bereitschaft", NUR_SCHULNOTE, [{ q1: 2 }]);
+    const kopf = [...(await zeichne()).querySelectorAll<HTMLElement>("thead th")].map(
+      (th) => th.textContent,
+    );
+    expect(kopf.some((k) => (k ?? "").includes("Ø NOTE (1 = BESTE)"))).toBe(true);
+    expect(kopf.some((k) => (k ?? "").includes("ABENDE"))).toBe(true);
+    expect(kopf.some((k) => (k ?? "").includes("RÜCKLAUF Ø"))).toBe(true);
+  });
+
+  it("verlinkt die Gruppe auf ihr Cockpit", async () => {
+    const g = gruppeMitAbend("Bereitschaft", "bereitschaft", NUR_SCHULNOTE, [{ q1: 2 }]);
+    expect((await zeile("Bereitschaft")).querySelector("a")?.getAttribute("href")).toBe(
+      `/m/feedback/groups/${g.id}`,
+    );
+  });
+
+  it("zaehlt Abende und mittelt den Ruecklauf", async () => {
+    // Ein Abend, 20 Teilnehmer, 2 Rueckmeldungen → 10 %.
+    gruppeMitAbend("Bereitschaft", "bereitschaft", NUR_SCHULNOTE, [{ q1: 2 }, { q1: 2 }]);
+    const text = (await zeile("Bereitschaft")).textContent ?? "";
+    expect(text).toContain("10 %");
+  });
+
+  it("setzt Gruppen unter fuenf Rueckmeldungen kursiv und sagt es", async () => {
+    gruppeMitAbend("Wenig", "wenig", NUR_SCHULNOTE, [{ q1: 2 }]);
+    gruppeMitAbend(
+      "Viel",
+      "viel",
+      NUR_SCHULNOTE,
+      Array.from({ length: 5 }, () => ({ q1: 2 })),
+    );
+    const wenig = await zeile("Wenig");
+    expect(wenig.textContent).toContain("nicht vergleichbar");
+    expect(wenig.innerHTML).toContain("italic");
+    const viel = await zeile("Viel");
+    expect(viel.textContent).not.toContain("nicht vergleichbar");
+  });
+
+  it("importiert `core/charts` nicht mehr", () => {
+    const quelle = readFileSync(
+      join(process.cwd(), "src/app/m/feedback/(admin)/vergleich/page.tsx"),
+      "utf8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(quelle).not.toContain("core/charts");
+    expect(quelle).toContain("VergleichTabelle");
   });
 });

@@ -3,7 +3,14 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { flushSync } from "react-dom";
 import { NOTEN_DUNKEL, NOTEN_HELL, NOTEN_WORT } from "../../_lib/noten";
-import { MAX_TEXT_LENGTH, isRatingType, ratingScale, type Question } from "../../_lib/questions";
+import {
+  MAX_TEXT_LENGTH,
+  SEKTIONEN,
+  SEKTIONSGRENZEN,
+  isRatingType,
+  ratingScale,
+  type Question,
+} from "../../_lib/questions";
 import type { SubmitResult } from "../../actions";
 import { JS_FELD } from "../../_lib/absenden";
 import s from "./zettel.module.css";
@@ -63,11 +70,12 @@ export interface ZettelProps {
   siegel: string;
 }
 
-/** Sektions-Kicker aus §3.2 Punkt 4 — die Fragereihenfolge bleibt unangetastet. */
-const SEKTIONEN = ["01 DER ABEND", "02 ABLAUF & VORBEREITUNG", "03 DU UND DER ABEND"] as const;
-
-/** Grenzen der drei Sektionen: q1–q3 · q4–q6 · q7–q8 (Rest in die letzte). */
-const SEKTIONSGRENZEN = [3, 6] as const;
+/*
+ * Sektions-Kicker und Sektionsgrenzen kommen aus `_lib/questions.ts`: die
+ * Auswertung gliedert ihre acht Notenspuren mit DENSELBEN drei Namen (§3.2), und
+ * §4.7 nennt sie ausdrücklich als geteilte Bedeutung. Zwei Listen wären zwei
+ * Gliederungen desselben Bogens.
+ */
 
 /**
  * Verzug der Aufbau-Choreografie in ms (§3.5): Kopf 0 (in `page.tsx`), Legende

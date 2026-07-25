@@ -344,3 +344,78 @@
     width: 100%;
   }
 }
+
+/*
+ * DIE NOTENSPUR-ZEILEN (§3.2 Punkt 2, §2.3).
+ *
+ * Zwei Raster, dieselbe Regel: der Fragetext links, die Spur rechts in ihrer
+ * festen Breite (336px laut §3.2) — und auf schmalen Fenstern bricht die Zeile
+ * auf zwei Reihen, Text oben, Spur darunter volle Breite (§2.3, Schmalvariante).
+ * Ohne den Umbruch quetscht das Raster sechs Zellen in den Rest von 390px, und
+ * eine Saeule von 4px Breite ist keine Aussage mehr.
+ *
+ * WARUM HIER UND NICHT INLINE: eine Medienabfrage laesst sich nicht inline
+ * setzen, und `grid-template-columns` inline gesetzt kann eine Klasse nicht mehr
+ * schlagen — dieselbe Falle, die `.fb-legende-woerter` dokumentiert.
+ *
+ * Die Auswertungszeile traegt zusaetzlich Ordnungszahl und „n=14" (Raster
+ * `28px 1fr 336px 56px`, §3.2 wortgenau) und die Haarlinie zwischen den Zeilen;
+ * die kompakte Zeile des Zwischenstands nur Text und Spur.
+ */
+.fb-spurzeile {
+  display: grid;
+  grid-template-columns: 28px 1fr 336px 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--fb-split);
+}
+
+.fb-spurzeile-kompakt {
+  display: grid;
+  grid-template-columns: 1fr 336px;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .fb-spurzeile {
+    /* Ordnungszahl + Fragetext oben, „n=" daneben, die Spur darunter. */
+    grid-template-columns: 28px 1fr 56px;
+  }
+
+  /*
+   * Beide Platzierungen stehen ausdruecklich da: ohne sie schiebt die
+   * automatische Verteilung das „n=" hinter die volle Spurbreite in eine dritte
+   * Reihe, und die Zeile waere drei Reihen hoch statt zwei.
+   */
+  .fb-spurzeile > .fb-anzahl {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .fb-spurzeile > .fb-spur {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .fb-spurzeile-kompakt {
+    grid-template-columns: 1fr;
+  }
+}
+
+/*
+ * DIE GRUPPENKARTE DES EINSTIEGS (§3.1): „Hover hebt nur die Rahmenfarbe (120ms)".
+ * antds `hoverable` legt stattdessen einen Schatten unter die Karte — und ein
+ * Schatten ist auf einer Seite mit einer Bewegung und drei Radien (§4.8) ein
+ * vierter Kanal, den der Entwurf nicht vorsieht. Die zweite Bewegung des Moduls ist
+ * genau diese Rahmenfarbe, nicht ein Anheben der Flaeche.
+ */
+.fb-gruppenkarte.ant-card {
+  transition: border-color 120ms ease;
+}
+
+.fb-gruppenkarte.ant-card-hoverable:hover {
+  border-color: var(--fb-ink);
+  box-shadow: none;
+}

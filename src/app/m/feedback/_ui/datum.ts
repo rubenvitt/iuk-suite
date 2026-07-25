@@ -59,6 +59,20 @@ const TAG_LANG = new Intl.DateTimeFormat("de-DE", {
   year: "numeric",
 });
 
+const TAG_MONAT = new Intl.DateTimeFormat("de-DE", {
+  timeZone: TIME_ZONE,
+  day: "2-digit",
+  month: "2-digit",
+});
+
+const ABENDTAG = new Intl.DateTimeFormat("de-DE", {
+  timeZone: TIME_ZONE,
+  weekday: "short",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
 const WOCHENTAG = new Intl.DateTimeFormat("de-DE", { timeZone: TIME_ZONE, weekday: "long" });
 
 const ISO_TAG = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE });
@@ -84,6 +98,25 @@ export function formatDatumLang(datum: Date): string {
  */
 export function formatWochentag(datum: Date): string {
   return WOCHENTAG.format(datum);
+}
+
+/**
+ * „12.03." — die Zustandszeile der Einstiegskarte („nichts aktiv · letzter Abend
+ * 12.03.", §3.1 wortgenau). Ohne Wochentag: auf der Karte steht daneben schon der
+ * Zustand, und drei Angaben in einer 13px-Zeile sind eine zu viel.
+ */
+export function formatTagMonat(datum: Date): string {
+  return TAG_MONAT.format(datum);
+}
+
+/**
+ * „Mi., 22.07.2026" — die Überschrift der Auswertung (§3.2) und die Breadcrumb
+ * einer Unterseite. MIT Wochentag und MIT Jahr: der Wochentag ist die Angabe, an
+ * der ein Gruppenleiter den Abend wiedererkennt, das Jahr trennt zwei Abende
+ * desselben Datums in verschiedenen Jahren. Nie ISO (§4.7).
+ */
+export function formatAbendtag(datum: Date): string {
+  return ABENDTAG.format(datum);
 }
 
 /** „19:32" — Startzeit einer Umfrage, Stand der Anzeige. */

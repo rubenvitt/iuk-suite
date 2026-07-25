@@ -68,6 +68,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) 
 
 import { computeClosesAt, DEFAULT_CLOSE_AFTER_HOURS } from "../_lib/lifecycle";
 import type { AbendLage, CockpitZustand, LaufendeLage } from "../_lib/cockpit";
+import type { FrageVerteilung } from "../_lib/aggregation";
 import { Lagekarte } from "./Lagekarte";
 import { StartFormular } from "./StartFormular";
 import { BeendenKnopf } from "./BeendenKnopf";
@@ -160,7 +161,19 @@ function zustand(over: Partial<CockpitZustand> = {}): CockpitZustand {
 
 const TEILNAHME_URL = "https://feedback.iuk-ue.de/f/bereitschaft-abc12";
 
-const karte = (z: CockpitZustand, freitexte = 0) => (
+/**
+ * Acht Verteilungen wie der Standardbogen (§3.2, §2.3) — die Notenspuren des
+ * Zwischenstands. Frage 1 ist ABSICHTLICH gespalten (6×Note 1 + 6×Note 5): eine
+ * Karte, die nur den Mittelwert 3,0 zeigte, verschwiege genau das.
+ */
+const ACHT_VERTEILUNGEN: FrageVerteilung[] = Array.from({ length: 8 }, (_, i) => ({
+  id: `q${i + 1}`,
+  text: `Frage ${i + 1}`,
+  verteilung: i === 0 ? [6, 0, 0, 0, 6, 0] : [0, 6, 6, 0, 0, 0],
+  count: 12,
+}));
+
+const karte = (z: CockpitZustand, freitexte = 0, verteilungen: FrageVerteilung[] = []) => (
   <Lagekarte
     groupId={7}
     zustand={z}
@@ -168,6 +181,7 @@ const karte = (z: CockpitZustand, freitexte = 0) => (
     stunden={DEFAULT_CLOSE_AFTER_HOURS}
     heute="2026-07-22"
     freitexte={freitexte}
+    verteilungen={verteilungen}
     teilnahmeUrl={TEILNAHME_URL}
     gruppenname="Bereitschaft Übach-Palenberg"
   />
@@ -360,13 +374,16 @@ describe("Lagekarte — Belegung D (laeuft, Antworten da)", () => {
  * 3. Die Überschrift erscheint nur mit Inhalt darunter — ein beschriftetes leeres
  *    Fach ist schlimmer als kein Fach (§4.3).
  *
- * Notenlegende + acht Notenspuren fehlen hier bewusst und nachvollziehbar: sie
- * brauchen `verteilungJeFrage` in `_lib/aggregation.ts` (Task 22, §3.2). Diese
- * Tests decken genau den Teil ab, der ohne diese Funktion baubar ist.
+ * 4. Notenlegende EINMAL und darunter die acht kompakten Notenspuren — dieselbe
+ *    Datenlage, die die Auswertung gross zeigt (`verteilungJeFrage`, §3.2).
  */
 describe("Lagekarte — Zwischenstand (§2.3)", () => {
-  const laufende = (antworten: number, freitexte = 0) =>
-    karte(zustand({ modus: "betrieb", laufend: laufendeLage({ antworten }) }), freitexte);
+  const laufende = (antworten: number, freitexte = 0, verteilungen: FrageVerteilung[] = []) =>
+    karte(
+      zustand({ modus: "betrieb", laufend: laufendeLage({ antworten }) }),
+      freitexte,
+      verteilungen,
+    );
 
   it("sagt bei zwei Rueckmeldungen, dass die Zahlen noch stark schwanken", () => {
     const t = text(laufende(2));
@@ -394,19 +411,65 @@ describe("Lagekarte — Zwischenstand (§2.3)", () => {
   });
 
   it("laesst die Ueberschrift weg, wenn nichts darunter stuende", () => {
-    // Sieben Rueckmeldungen, keine Freitexte: der Hinweis entfaellt, die
-    // Notenspuren gibt es noch nicht — eine beschriftete leere Schublade waere
-    // schlimmer als keine (§4.3).
-    const t = text(laufende(7, 0));
+    // Sieben Rueckmeldungen, keine Freitexte, KEINE Bewertungsfrage im Bogen
+    // (ein reiner Freitext- oder Altbestandsbogen liefert keine Verteilung) —
+    // eine beschriftete leere Schublade waere schlimmer als keine (§4.3).
+    const t = text(laufende(7, 0, []));
     expect(t).not.toContain("ZWISCHENSTAND");
     expect(t).not.toContain("Freitext");
   });
 
-  it("bleibt in Belegung C ganz weg — auch mit gezaehlten Freitexten", () => {
-    const t = text(laufende(0, 3));
+  it("bleibt in Belegung C ganz weg — auch mit gezaehlten Freitexten und Verteilungen", () => {
+    // 0 Rueckmeldungen: der Satz statt leerer Spuren (§4.3). Die Verteilungen
+    // sind hier sechs Nullen je Frage — eine Spur ohne Saeule ist eine Fehlform,
+    // nicht eine leere Anzeige.
+    const leer: FrageVerteilung[] = ACHT_VERTEILUNGEN.map((v) => ({
+      ...v,
+      verteilung: [0, 0, 0, 0, 0, 0],
+      count: 0,
+    }));
+    const t = text(laufende(0, 3, leer));
     expect(t).toContain("Noch keine Rückmeldung");
     expect(t).not.toContain("ZWISCHENSTAND");
     expect(t).not.toContain("Freitext");
+  });
+
+  it("traegt die Notenlegende EINMAL und darunter acht kompakte Spuren", () => {
+    const wirt = zeichne(laufende(12, 0, ACHT_VERTEILUNGEN));
+    expect(wirt.textContent).toContain("ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG");
+
+    // Die Legende genau einmal: ihre Ankerzeile („1 sehr gut"/„6 ungenügend")
+    // steht in jeder Legende genau einmal, also ist sie der Zaehler.
+    const anker = [...wirt.querySelectorAll(".fb-legende-anker")];
+    expect(anker).toHaveLength(1);
+
+    // Acht Spuren, jede mit ihrer vollstaendigen Beschriftung (§4.14: EIN
+    // `aria-label` je Spur, nicht sechs an den Zellen).
+    const spuren = [...wirt.querySelectorAll('[role="img"]')].filter((el) =>
+      (el.getAttribute("aria-label") ?? "").startsWith("Notenverteilung"),
+    );
+    expect(spuren).toHaveLength(8);
+    // Die gespaltene Frage 1: zwei Saeulen, die Mitte leer — genau die Aussage,
+    // die ein Mittelwert von 3,0 verschweigt.
+    expect(spuren[0].getAttribute("aria-label")).toContain("sechsmal Note 1");
+    expect(spuren[0].getAttribute("aria-label")).toContain("sechsmal Note 5");
+    expect(wirt.textContent).toContain("Frage 1");
+    expect(wirt.textContent).toContain("Frage 8");
+  });
+
+  it("zeigt die Spuren kompakt (24px Zellhoehe), nicht in der Auswertungsgroesse", () => {
+    const wirt = zeichne(laufende(12, 0, ACHT_VERTEILUNGEN));
+    const html = wirt.innerHTML.replace(/\s/g, "");
+    expect(html).toContain("height:24px");
+    expect(html).not.toContain("height:44px");
+  });
+
+  it("zeigt die Spuren auch ohne Schwankungshinweis und ohne Freitexte", () => {
+    // Der Fall, der bis hierher gar keinen Zwischenstand hatte: sieben
+    // Rueckmeldungen, keine Freitexte — vorher blieb die Karte hier stumm.
+    const t = text(laufende(7, 0, ACHT_VERTEILUNGEN));
+    expect(t).toContain("ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG");
+    expect(t).not.toContain("schwanken");
   });
 });
 

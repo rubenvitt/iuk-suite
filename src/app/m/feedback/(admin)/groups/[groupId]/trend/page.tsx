@@ -1,28 +1,50 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { Breadcrumb, Button } from "antd";
 import { getGroup, listEvenings, getSurveyByEvening, listResponses } from "@/app/m/feedback/_db/queries";
 import { guardPage } from "@/app/m/feedback/_lib/guardPage";
 import { computeDAStats, computeGroupTrend, type DAStats } from "@/app/m/feedback/_lib/aggregation";
 import type { Question } from "@/app/m/feedback/_lib/questions";
-import { SPACE } from "@/core/theme/tokens";
+import { T } from "@/app/m/feedback/_ui/typo";
 import { Altbestandsfussnote, Notenpille } from "@/app/m/feedback/_ui/Noten";
 import { NotenVerlauf } from "@/app/m/feedback/_ui/NotenVerlauf";
+import { MONATS_FENSTER, MonatsSegment } from "@/app/m/feedback/_ui/Segment";
 
-// Server-Komponente: kein antd-Compound-Zugriff — LineChart ist eine eigene
-// Client-Komponente, die diese Server-Komponente direkt rendern darf.
+/**
+ * DER TREND EINER GRUPPE (Entwurf §3.3, Kopfzone §4.2, Breadcrumb §4.1).
+ *
+ * DREI ENTSCHEIDUNGEN:
+ *
+ * 1. DAS DIAGRAMM IST MODUL-LOKAL (`_ui/NotenVerlauf.tsx`, §5.3) und NICHT
+ *    `core/charts/LineChart`: der färbt mit `token.colorPrimary` (DRK-Rot) und
+ *    kennt keine umgekehrte Achse. Eine 6 höher als eine 1 ist ein SACHFEHLER,
+ *    kein Geschmacksfehler.
+ * 2. DAS ZEITFENSTER STEHT IN DER URL (`?monate=`, §3.3). Es entscheidet, welche
+ *    Abende in die Kurve kommen — eine Datenfrage, die der Server beantwortet.
+ *    Fremde oder fehlende Werte fallen auf 12 zurück; geklemmt wird HIER, damit
+ *    `?monate=9999` keine 833 Monatsbuckets aufzählt.
+ * 3. DER Ø IST `avgSchulnote` (§4.12), nie der gemischte `overallAvg`.
+ *
+ * SERVER COMPONENT: `Breadcrumb` über `items`, `Segmented` in der Client-Insel
+ * `_ui/Segment.tsx` (§4.13).
+ */
 export default async function TrendPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ groupId: string }>;
+  searchParams?: Promise<{ monate?: string }>;
 }) {
   const { groupId } = await params;
   const id = Number(groupId);
 
   // `id` ist hier zugleich Prüf- und Ladeschlüssel — die Gruppe SELBST ist die
-  // geschützte Ressource (wie bei GroupDetail aus Task 12), keine Ableitung
-  // über ein untergeordnetes evening/survey nötig.
+  // geschützte Ressource, keine Ableitung über ein untergeordnetes evening/survey.
   const { db } = await guardPage(id);
   const group = getGroup(db, id);
   if (!group) notFound();
+
+  const monate = fensterAus((await searchParams)?.monate);
 
   const evenings: { date: number; stats: DAStats }[] = [];
   for (const evening of listEvenings(db, id)) {
@@ -40,39 +62,55 @@ export default async function TrendPage({
 
   const now = new Date();
   const to = Math.floor(now.getTime() / 1000);
-  const from = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1) / 1000);
+  const from = Math.floor(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (monate - 1), 1) / 1000,
+  );
   const trend = computeGroupTrend(evenings, from, to);
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl, padding: SPACE.lg }}>
-      <section style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Trend — {group.name}</h1>
+    <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
+      <header style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <Breadcrumb
+          style={T.meta}
+          items={[
+            { title: <Link href="/m/feedback">Gruppen</Link> },
+            { title: <Link href={`/m/feedback/groups/${group.id}`}>{group.name}</Link> },
+            { title: "Trend" },
+          ]}
+        />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          <h1 style={{ ...T.h1, margin: 0, textWrap: "balance" }}>Trend — {group.name}</h1>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <MonatsSegment monate={monate} />
+            <Button type="text" href={`/m/feedback/groups/${group.id}/export.csv`}>
+              CSV
+            </Button>
+          </span>
+        </div>
         {/* „Ø Note (1 = beste)" wortgenau wie der Spaltenkopf aus §4.11: ohne
             die Richtung liest sich eine 2,0 wie eine schwache Bewertung. */}
-        <p style={{ margin: 0 }}>Ø Note (1 = beste) je Monat, letzte 12 Monate.</p>
-      </section>
+        <p style={{ ...T.meta, margin: 0 }}>
+          Ø Note (1 = beste) je Monat, letzte {monate} Monate.
+        </p>
+      </header>
 
-      {/*
-       * `_ui/NotenVerlauf.tsx` und NICHT `core/charts/LineChart` (§5.3): der dort
-       * faerbt mit `token.colorPrimary` (= DRK-Rot) und kennt keine umgekehrte
-       * Achse — diese Seite zeichnete Noten also bislang in Markenrot mit
-       * „hoeher = schlechter". Eine 6 hoeher als eine 1 ist ein SACHFEHLER, kein
-       * Geschmacksfehler. `core/charts` bleibt fuer Nicht-Noten-Daten anderer
-       * Module unveraendert nutzbar.
-       *
-       * §3.3 verlangt zusaetzlich `Segmented` „6 / 12 / 24 Monate" und die
-       * Monatstabelle mit „CSV" — beides haengt laut Plan an Task 22, zusammen mit
-       * der Kopfzone dieser Seite.
-       */}
       <NotenVerlauf punkte={trend.map((t) => ({ label: t.label, note: t.avg }))} />
 
       <ul
         style={{
           margin: 0,
-          paddingLeft: SPACE.lg,
+          paddingLeft: 24,
           display: "flex",
           flexDirection: "column",
-          gap: SPACE.xs,
+          gap: 4,
         }}
       >
         {/*
@@ -84,10 +122,10 @@ export default async function TrendPage({
          */}
         {trend.map((t) => (
           <li key={t.label}>
-            <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm, flexWrap: "wrap" }}>
-              <span>{t.label}:</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={T.body}>{t.label}:</span>
               <Notenpille note={t.avg} />
-              <span>
+              <span style={T.meta}>
                 ({t.responseCount} Rückmeldung{t.responseCount === 1 ? "" : "en"})
               </span>
               {t.hasLegacyScale && <Altbestandsfussnote />}
@@ -95,6 +133,12 @@ export default async function TrendPage({
           </li>
         ))}
       </ul>
-    </section>
+    </div>
   );
+}
+
+/** Nur 6, 12 oder 24 (§3.3) — alles andere ist 12, ohne Fehlermeldung. */
+function fensterAus(roh: string | undefined): number {
+  const n = Number(roh);
+  return (MONATS_FENSTER as readonly number[]).includes(n) ? n : 12;
 }

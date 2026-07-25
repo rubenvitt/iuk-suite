@@ -28,6 +28,29 @@ export const STANDARD_QUESTIONS: Question[] = [
 ];
 
 /**
+ * DIE DREI SEKTIONSNAMEN DES FRAGEBOGENS (§3.2 Punkt 2, öffentliche Ansicht §3.2
+ * Punkt 4).
+ *
+ * Sie liegen HIER und nicht bei einer der beiden Ansichten, weil §4.7 sie
+ * ausdrücklich als geteilt benennt: „Geteilt wird, was Bedeutung trägt: die
+ * Notenpalette und die drei Sektionsnamen." Der Teilnehmer beantwortet seine
+ * Noten unter diesen Überschriften, und die Auswertung gliedert die acht
+ * Notenspuren mit denselben — zwei Listen wären zwei Gliederungen desselben
+ * Bogens.
+ */
+export const SEKTIONEN = ["01 DER ABEND", "02 ABLAUF & VORBEREITUNG", "03 DU UND DER ABEND"] as const;
+
+/** Grenzen der drei Sektionen über die BEWERTUNGSFRAGEN: q1–q3 · q4–q6 · Rest. */
+export const SEKTIONSGRENZEN = [3, 6] as const;
+
+/** Der Sektionsindex einer Bewertungsfrage nach ihrer Position im Bogen (0-basiert). */
+export function sektionVon(index: number): number {
+  if (index < SEKTIONSGRENZEN[0]) return 0;
+  if (index < SEKTIONSGRENZEN[1]) return 1;
+  return 2;
+}
+
+/**
  * Zeichengrenze der Freitexte (Entwurf 3.7). Am Feld ist sie `maxLength` — eine
  * physische Grenze, die keine Fehlermeldung erzeugen kann. Der Server spiegelt
  * sie, weil er sich auf das Feld nicht verlassen darf.

@@ -32,6 +32,11 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("notFound(): die Gruppe wurde nicht geladen");
   },
+  // `MonatsSegment` (Client-Insel) liest beide Haken: `useRouter` wirft ausserhalb
+  // des `AppRouterContext`, `usePathname` gibt es dort ebenfalls nicht. Geprueft
+  // wird hier, WAS der Server rechnet — nicht was Next aus einem Klick macht.
+  useRouter: () => ({ replace: () => {} }),
+  usePathname: () => "/m/feedback/groups/1/trend",
 }));
 /*
  * KEIN Diagramm-Mock mehr: `_ui/NotenVerlauf.tsx` braucht keinen `theme.useToken()`
@@ -100,8 +105,11 @@ beforeEach(() => {
 });
 afterEach(() => sqlite.close());
 
-async function zeichne(): Promise<HTMLElement> {
-  const element = await TrendPage({ params: Promise.resolve({ groupId: "1" }) });
+async function zeichne(monate?: string): Promise<HTMLElement> {
+  const element = await TrendPage({
+    params: Promise.resolve({ groupId: "1" }),
+    searchParams: Promise.resolve(monate === undefined ? {} : { monate }),
+  });
   const wirt = document.createElement("div");
   wirt.innerHTML = renderToStaticMarkup(element);
   return wirt;
@@ -213,5 +221,76 @@ describe("Trend — die Kurve laeuft ueber `_ui/NotenVerlauf`, nicht ueber `core
     ).replace(/\/\*[\s\S]*?\*\//g, "");
     expect(quelle).not.toContain("core/charts");
     expect(quelle).toContain("_ui/NotenVerlauf");
+  });
+});
+
+/**
+ * KOPFZONE, ZEITFENSTER UND DER WEG ZURUECK (§3.3, §4.1, §4.2).
+ *
+ * Die Seite war per URL-Eingabe erreichbar und danach eine Sackgasse: keine
+ * Breadcrumb, kein Zeitfenster, kein CSV. Alle drei haengen an dieser Kopfzone.
+ */
+describe("Trend — Kopfzone, Zeitfenster, Rueckweg", () => {
+  /** Ein Abend `zurueck` Monate in der Vergangenheit, mit einer Note. */
+  function abendVorMonaten(zurueck: number, note: number) {
+    const h = heuteUtc();
+    const datum = new Date(Date.UTC(h.getUTCFullYear(), h.getUTCMonth() - zurueck, 15));
+    const evening = insertEvening(db, {
+      groupId: 1,
+      date: datum,
+      topic: "Alt",
+      notes: null,
+      participantCount: 20,
+      createdAt: datum,
+    });
+    const survey = insertSurvey(db, {
+      eveningId: evening.id,
+      questions: JSON.stringify(NUR_SCHULNOTE),
+      closeAfterHours: 48,
+      createdAt: datum,
+    });
+    insertResponse(db, survey.id, { q1: note }, datum);
+    return datum;
+  }
+
+  it("traegt Breadcrumb mit dem Weg aufs Cockpit und den CSV-Knopf", async () => {
+    abend(NUR_SCHULNOTE, [{ q1: 2 }]);
+    const wirt = await zeichne();
+    const brotkrumen = [...wirt.querySelectorAll<HTMLElement>(".ant-breadcrumb a")].map((a) => ({
+      text: a.textContent,
+      href: a.getAttribute("href"),
+    }));
+    expect(brotkrumen).toEqual([
+      { text: "Gruppen", href: "/m/feedback" },
+      { text: "Bereitschaft", href: "/m/feedback/groups/1" },
+    ]);
+    const ziele = [...wirt.querySelectorAll<HTMLElement>("a")].map((a) => a.getAttribute("href"));
+    expect(ziele).toContain("/m/feedback/groups/1/export.csv");
+  });
+
+  it("bietet die drei Zeitfenster aus §3.3 an", async () => {
+    abend(NUR_SCHULNOTE, [{ q1: 2 }]);
+    const t = (await zeichne()).textContent ?? "";
+    expect(t).toContain("6 Monate");
+    expect(t).toContain("12 Monate");
+    expect(t).toContain("24 Monate");
+  });
+
+  it("laesst `?monate=` das Fenster wirklich aendern — nicht nur die Beschriftung", async () => {
+    // Ein Abend vor 18 Monaten: im Zwoelfer-Fenster gibt es seinen Monat nicht,
+    // im Vierundzwanziger schon.
+    const datum = abendVorMonaten(18, 3);
+    const label = monatsLabel(datum);
+    expect((await zeichne("12")).textContent).not.toContain(label);
+    expect((await zeichne("24")).textContent).toContain(label);
+    expect((await zeichne("24")).textContent).toContain("letzte 24 Monate");
+  });
+
+  it("faellt bei fremden Werten auf zwoelf Monate zurueck, ohne Fehlermeldung", async () => {
+    abend(NUR_SCHULNOTE, [{ q1: 2 }]);
+    for (const roh of ["9999", "0", "abc", "-6"]) {
+      const t = (await zeichne(roh)).textContent ?? "";
+      expect(t).toContain("letzte 12 Monate");
+    }
   });
 });

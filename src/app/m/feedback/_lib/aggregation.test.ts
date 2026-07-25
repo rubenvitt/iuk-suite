@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { computeDAStats, computeGroupTrend, shuffleStable } from "./aggregation";
+import {
+  computeDAStats,
+  computeGroupTrend,
+  shuffleStable,
+  verteilungJeFrage,
+} from "./aggregation";
 import type { Question } from "./questions";
 
 const Q: Question[] = [
@@ -285,5 +290,109 @@ describe("computeDAStats: Durchmischung ändert die Auswertung nicht", () => {
     );
     expect(values).not.toEqual(fifteen.map((a) => a.q9));
     expect([...values].sort()).toEqual(fifteen.map((a) => a.q9).sort());
+  });
+});
+
+/**
+ * DIE VERTEILUNG JE FRAGE (§3.2 Punkt 2, §2.3).
+ *
+ * Der Grund dieser Funktion steht in ihrem ersten Test: 6×Note 1 und 6×Note 5
+ * ergeben den Mittelwert 3,0. Ein Balken zeigte dort „befriedigend" — also genau
+ * das, was NIEMAND geantwortet hat. Die Verteilung zeigt zwei Säulen und damit
+ * die eine Aussage, die für den Abend zählt: die Gruppe ist gespalten.
+ *
+ * `Index 0 = Note 1`, damit der Wert ohne Umrechnung in
+ * `NotenspurProps.verteilung` passt (`_ui/Noten.tsx:169`). Eine Umrechnung am
+ * Aufrufer wäre eine zweite Stelle, an der sich die Richtung der Skala umdrehen
+ * kann — und eine gespiegelte Notenspur behauptet das Gegenteil.
+ */
+describe("verteilungJeFrage (§3.2 Punkt 2)", () => {
+  const EINE: Question[] = [{ id: "q1", type: "schulnote", text: "Insgesamt?" }];
+
+  it("zeigt aus 6×1 und 6×5 ZWEI Säulen, nicht eine bei 3,0", () => {
+    const antworten = [
+      ...Array.from({ length: 6 }, () => ({ q1: 1 })),
+      ...Array.from({ length: 6 }, () => ({ q1: 5 })),
+    ];
+    // Der Mittelwert, den ein Balken zeigen würde — belegt, nicht behauptet.
+    expect(computeDAStats(EINE, antworten).avgSchulnote).toBeCloseTo(3);
+
+    const [frage] = verteilungJeFrage(EINE, antworten);
+    expect(frage.verteilung).toEqual([6, 0, 0, 0, 6, 0]);
+    expect(frage.verteilung[2]).toBe(0); // die Mitte ist LEER
+    expect(frage.count).toBe(12);
+  });
+
+  it("legt Note 1 auf Index 0 und Note 6 auf Index 5", () => {
+    expect(verteilungJeFrage(EINE, [{ q1: 1 }])[0].verteilung).toEqual([1, 0, 0, 0, 0, 0]);
+    expect(verteilungJeFrage(EINE, [{ q1: 6 }])[0].verteilung).toEqual([0, 0, 0, 0, 0, 1]);
+  });
+
+  it("gibt bei leerer Antwortmenge sechs Nullen — keine `null`-Sonderform", () => {
+    const [frage] = verteilungJeFrage(EINE, []);
+    expect(frage.verteilung).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(frage.count).toBe(0);
+    expect(frage.id).toBe("q1");
+    expect(frage.text).toBe("Insgesamt?");
+  });
+
+  it("zählt eine unbeantwortete Frage nicht mit", () => {
+    const zwei: Question[] = [
+      { id: "q1", type: "schulnote", text: "Insgesamt?" },
+      { id: "q2", type: "schulnote", text: "Thema?" },
+    ];
+    // Drei Bögen, q2 nur einmal beantwortet (fehlend, leer, `null`).
+    const out = verteilungJeFrage(zwei, [{ q1: 2, q2: 4 }, { q1: 2 }, { q1: 2, q2: null }]);
+    expect(out.find((f) => f.id === "q1")!.count).toBe(3);
+    const q2 = out.find((f) => f.id === "q2")!;
+    expect(q2.count).toBe(1);
+    expect(q2.verteilung).toEqual([0, 0, 0, 1, 0, 0]);
+  });
+
+  it("legt Werte außerhalb 1–6 in KEINE Zelle", () => {
+    const [frage] = verteilungJeFrage(EINE, [
+      { q1: 0 },
+      { q1: 7 },
+      { q1: 99 },
+      { q1: -3 },
+      { q1: 2.5 },
+      { q1: "keine Zahl" },
+      { q1: 3 },
+    ]);
+    expect(frage.verteilung).toEqual([0, 0, 1, 0, 0, 0]);
+    expect(frage.count).toBe(1);
+  });
+
+  it("liest die tolerante Zahlform der Alt-App (`\"4\"` wie `4`)", () => {
+    const [frage] = verteilungJeFrage(EINE, [{ q1: "4" }, { q1: 4 }]);
+    expect(frage.verteilung).toEqual([0, 0, 0, 2, 0, 0]);
+  });
+
+  it("tastet `stars` NICHT auf die Sechser-Rampe ab (§4.12) — die Frage fehlt", () => {
+    const gemischt: Question[] = [
+      { id: "q1", type: "schulnote", text: "Insgesamt?" },
+      { id: "s1", type: "stars", text: "Alt-Frage" },
+      { id: "q9", type: "text", text: "Bestes?" },
+    ];
+    const out = verteilungJeFrage(gemischt, [{ q1: 1, s1: 4, q9: "gut" }]);
+    expect(out.map((f) => f.id)).toEqual(["q1"]);
+  });
+
+  it("behält die Reihenfolge des Bogens", () => {
+    const acht: Question[] = Array.from({ length: 8 }, (_, i) => ({
+      id: `q${i + 1}`,
+      type: "schulnote" as const,
+      text: `Frage ${i + 1}`,
+    }));
+    expect(verteilungJeFrage(acht, []).map((f) => f.id)).toEqual([
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+      "q5",
+      "q6",
+      "q7",
+      "q8",
+    ]);
   });
 });
