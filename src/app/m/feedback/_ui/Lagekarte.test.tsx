@@ -149,6 +149,8 @@ function zustand(over: Partial<CockpitZustand> = {}): CockpitZustand {
   };
 }
 
+const TEILNAHME_URL = "https://feedback.iuk-ue.de/f/bereitschaft-abc12";
+
 const karte = (z: CockpitZustand, freitexte = 0) => (
   <Lagekarte
     groupId={7}
@@ -157,8 +159,25 @@ const karte = (z: CockpitZustand, freitexte = 0) => (
     stunden={DEFAULT_CLOSE_AFTER_HOURS}
     heute="2026-07-22"
     freitexte={freitexte}
+    teilnahmeUrl={TEILNAHME_URL}
+    gruppenname="Bereitschaft Übach-Palenberg"
   />
 );
+
+/** Alle antd-Knöpfe der Karte in DOM-Reihenfolge — die Reihenfolge IST die Aussage. */
+const knoepfe = (z: CockpitZustand): HTMLElement[] =>
+  [...zeichne(karte(z)).querySelectorAll<HTMLElement>("button")];
+
+const knopfMit = (z: CockpitZustand, beschriftung: string): HTMLElement => {
+  const treffer = knoepfe(z).find((b) => (b.textContent ?? "").includes(beschriftung));
+  if (!treffer) throw new Error(`Kein Knopf mit „${beschriftung}"`);
+  return treffer;
+};
+
+const stelle = (z: CockpitZustand, beschriftung: string): number =>
+  knoepfe(z).findIndex((b) => (b.textContent ?? "").includes(beschriftung));
+
+const QR_KNOPF = "QR-Code groß zeigen";
 
 beforeEach(() => {
   useActionStateMock.mockReset();
@@ -636,6 +655,72 @@ describe("Zeitangaben in Europe/Berlin", () => {
   it("liefert heute als ISO-Tag der Zone", () => {
     expect(heuteInZone(new Date("2026-07-24T23:30:00Z"))).toBe("2026-07-25");
     expect(heuteInZone(new Date("2026-07-24T00:30:00Z"))).toBe("2026-07-24");
+  });
+});
+
+/**
+ * „QR-CODE GROSS ZEIGEN" IN JEDER BELEGUNG (§2.3-Tabelle, §2.4 J-B-2).
+ *
+ * Der Knopf ist der zeitkritische Handgriff im Gruppenraum: am Ende des Abends
+ * muss der Code in zwei Metern Entfernung lesbar sein. Zone a leistet das nicht
+ * — auf 390px steht sie an DOM-Position 3 und ist im Zustand RUHEND nicht
+ * immer sichtbar. Deshalb hängt der Knopf an der Lagekarte, und deshalb wird
+ * jede der vier Belegungen einzeln geprüft: ein Knopf, der in einem Zustand
+ * fehlt, fehlt genau an dem Abend, an dem ihn jemand braucht.
+ *
+ * Die ROLLE wird mitgeprüft, nicht nur die Anwesenheit: es gibt genau EINEN
+ * Primärknopf pro Seite (§2.6). In C/D ist das dieser Knopf, in A/B ist es
+ * „Feedback starten" — dort darf er es nicht auch sein.
+ */
+describe("Lagekarte — „QR-Code groß zeigen“ ist in jeder Belegung erreichbar", () => {
+  it("Belegung A: Sekundäraktion nach „Feedback starten“, nicht der Primärknopf", () => {
+    const z = zustand({ belegung: "A", modus: "einrichtung" });
+
+    const qr = knopfMit(z, QR_KNOPF);
+    expect(qr.className).not.toContain("ant-btn-primary");
+    expect(knopfMit(z, "Feedback starten").className).toContain("ant-btn-primary");
+    expect(stelle(z, QR_KNOPF)).toBeGreaterThan(stelle(z, "Feedback starten"));
+  });
+
+  it("Belegung B: Sekundäraktion nach „Feedback starten“, nicht der Primärknopf", () => {
+    const z = zustand({
+      belegung: "B",
+      modus: "betrieb",
+      verlauf: [lage({ id: 2, status: "closed", antworten: 4 })],
+    });
+
+    expect(knopfMit(z, QR_KNOPF).className).not.toContain("ant-btn-primary");
+    expect(stelle(z, QR_KNOPF)).toBeGreaterThan(stelle(z, "Feedback starten"));
+  });
+
+  it("Belegung C: Primäraktion VOR „Feedback jetzt beenden“", () => {
+    const z = zustand({ belegung: "C", modus: "betrieb", laufend: laufendeLage({ antworten: 0 }) });
+
+    expect(knopfMit(z, QR_KNOPF).className).toContain("ant-btn-primary");
+    expect(knopfMit(z, "Feedback jetzt beenden").className).not.toContain("ant-btn-primary");
+    expect(stelle(z, QR_KNOPF)).toBeLessThan(stelle(z, "Feedback jetzt beenden"));
+  });
+
+  it("Belegung D: Primäraktion VOR „Feedback jetzt beenden“", () => {
+    const z = zustand({
+      belegung: "D",
+      modus: "betrieb",
+      laufend: laufendeLage({ antworten: 12, teilnehmer: 20 }),
+    });
+
+    expect(knopfMit(z, QR_KNOPF).className).toContain("ant-btn-primary");
+    expect(stelle(z, QR_KNOPF)).toBeLessThan(stelle(z, "Feedback jetzt beenden"));
+  });
+
+  it("gibt dem Modal die vollständige Adresse — nicht den Rohtoken", () => {
+    const z = zustand({ belegung: "C", modus: "betrieb", laufend: laufendeLage({ antworten: 0 }) });
+    // Der Knopf traegt die Adresse als Prop; sichtbar wird sie erst im Modal
+    // (`QrGross.test.tsx`). Hier zaehlt, dass die Karte sie DURCHREICHT und
+    // nicht selbst einen Token zusammensetzt.
+    const code = ohneKommentare(quelle("Lagekarte.tsx"));
+    expect(code).toContain("url={teilnahmeUrl}");
+    expect(code).not.toContain("buildToken");
+    expect(knoepfe(z).some((b) => (b.textContent ?? "").includes(QR_KNOPF))).toBe(true);
   });
 });
 

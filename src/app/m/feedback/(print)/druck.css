@@ -1,0 +1,125 @@
+/*
+ * DER AUSHANG (Entwurf §3.5) — ein A4-Blatt, das JAHRE an der Wand des
+ * Gruppenraums haengt.
+ *
+ * WARUM EINE DATEI UND KEINE INLINE-STYLES: `@page` und `@media print` sind in
+ * einem `style`-Attribut nicht ausdrueckbar. Und weil die Datei im
+ * `(print)`-Layout haengt, gilt sie ausschliesslich fuer diesen Ast — die
+ * Verwaltung bekommt keine Druckregeln ab.
+ *
+ * NUR `--fb-*`, nie `--ant-*` (§4.10): antd deklariert seine Variablen auf der
+ * Scope-Klasse SEINER Komponenten, und dieses Blatt besteht fast vollstaendig
+ * aus eigenem Markup. Ein `--ant-*` hier waere still leer.
+ *
+ * DRK-Rot `#c8000f` kommt in dieser Datei GENAU ZWEIMAL vor: 3px-Fahne am
+ * Oberrand und Wortzeichen "DRK" in der Fusszeile — beide sind Marke, keine
+ * Datenflaeche (§4.9, dieselbe Zweiteilung wie in `zettel.module.css`). Der
+ * Aushang zeigt ueberhaupt keine Daten, also auch keine Notenfarben.
+ */
+
+@page {
+  size: A4;
+  margin: 18mm;
+}
+
+@media print {
+  .noprint {
+    display: none;
+  }
+
+  /*
+   * `print-color-adjust: exact` ist PFLICHT: ohne sie schluckt der Browser die
+   * rote Fahne und das Wortzeichen — beim Sparen von Farbe faengt er genau bei
+   * grossen und bei kleinen Farbflaechen an.
+   */
+  body {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+.fb-aushang {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  /* A4 minus 2x18mm Rand — am Bildschirm dieselbe Vorschau wie auf Papier. */
+  max-width: 174mm;
+  margin: 0 auto;
+  color: var(--fb-ink);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Traeger 1 von zwei fuer DRK-Rot: 3px, randlos, nie als Flaeche. */
+.fb-aushang-fahne {
+  align-self: stretch;
+  height: 3px;
+  background: #c8000f;
+  margin-bottom: 12mm;
+}
+
+.fb-aushang-frage {
+  font-size: 40pt;
+  font-weight: 600;
+  line-height: 1.1;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.fb-aushang-gruppe {
+  font-size: 16pt;
+  font-weight: 400;
+  color: var(--fb-muted);
+  margin: 4mm 0 0;
+}
+
+/*
+ * 90mm — die AUFLOESUNG (`?w=1024`) macht den Code nicht gross, nur scharf.
+ * Weisser Grund hart, auch im Dunkelmodus: ein QR auf dunklem Grund ist von
+ * vielen Scannern nicht lesbar.
+ */
+.fb-aushang-qr {
+  background: #ffffff;
+  padding: 4mm;
+  margin: 10mm 0 0;
+}
+
+.fb-aushang-qr img {
+  display: block;
+  width: 90mm;
+  height: 90mm;
+}
+
+.fb-aushang-url {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12pt;
+  word-break: break-all;
+  margin: 8mm 0 0;
+}
+
+.fb-aushang-zeile {
+  font-size: 12pt;
+  color: var(--fb-muted);
+  margin: 6mm 0 0;
+}
+
+.fb-aushang-fuss {
+  display: flex;
+  align-items: baseline;
+  gap: 4mm;
+  margin-top: 12mm;
+  font-size: 12pt;
+  color: var(--fb-muted);
+}
+
+/* Traeger 2 von zwei fuer DRK-Rot: das Wortzeichen. */
+.fb-aushang-wortzeichen {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #c8000f;
+}
+
+.fb-aushang-drucken {
+  margin-top: 10mm;
+}

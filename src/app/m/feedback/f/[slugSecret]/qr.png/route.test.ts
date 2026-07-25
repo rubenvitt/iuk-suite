@@ -46,11 +46,16 @@ function kodierteUrl(): string {
   return qrPngMock.mock.calls[0][0];
 }
 
-async function ruf(headers: Record<string, string>): Promise<Response> {
+async function ruf(headers: Record<string, string>, query = ""): Promise<Response> {
   const { GET } = await import("./route");
   // `req.url` trägt bewusst die INTERNE Adresse: genau die Lage nach dem
   // Host-Rewrite der Middleware.
-  return GET(new Request("http://localhost:3000/f/" + TOKEN, { headers }), { params });
+  return GET(new Request("http://localhost:3000/f/" + TOKEN + query, { headers }), { params });
+}
+
+/** Die Kantenlänge, die der Kodierer bekommen hat. */
+function kodierteBreite(): number | undefined {
+  return qrPngMock.mock.calls[0][1]?.width;
 }
 
 describe("GET /f/[slugSecret]/qr.png — der kodierte Host", () => {
@@ -91,6 +96,39 @@ describe("GET /f/[slugSecret]/qr.png — der kodierte Host", () => {
     await ruf({ host: "feedback.localtest.me:3000", "x-forwarded-host": "" });
 
     expect(kodierteUrl()).toBe(`http://feedback.localtest.me:3000/f/${TOKEN}`);
+  });
+
+  /**
+   * `?w=` gibt es, weil der Aushang den Code auf 90mm druckt: 512px sind dort
+   * ~145 dpi und sichtbar ausgefranst (§3.5). Die Route ist ÖFFENTLICH und
+   * unangemeldet, und `cache-control: public` schlüsselt auf die ganze URL —
+   * ein ungeprüftes `?w=` wäre Rechenlast- und Cache-Verstärkung mit einer
+   * Zeichenfolge als Eintrittskarte. Deshalb: geklemmt, nicht durchgereicht.
+   */
+  it("druckt auf Wunsch in 1024px — der Aushang braucht die Auflösung", async () => {
+    await ruf({ host: "feedback.localtest.me:3000" }, "/qr.png?w=1024");
+
+    expect(kodierteBreite()).toBe(1024);
+  });
+
+  it("ohne Parameter bleibt es bei 512px", async () => {
+    await ruf({ host: "feedback.localtest.me:3000" });
+
+    expect(kodierteBreite()).toBe(512);
+  });
+
+  it("klemmt absurde und unsinnige Werte, statt sie zu kodieren", async () => {
+    for (const [wert, erwartet] of [
+      ["?w=100000", 2048],
+      ["?w=0", 512],
+      ["?w=-5", 512],
+      ["?w=abc", 512],
+      ["?w=", 512],
+    ] as const) {
+      qrPngMock.mockClear();
+      await ruf({ host: "feedback.localtest.me:3000" }, "/qr.png" + wert);
+      expect(kodierteBreite(), `w=${wert}`).toBe(erwartet);
+    }
   });
 
   it("falsches Secret: 404 und kein QR-Code", async () => {

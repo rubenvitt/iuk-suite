@@ -36,6 +36,15 @@ export type StartFormularProps = {
   /** `group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS` — nur für die Vorschau. */
   stunden: number;
   variante?: StartVariante;
+  /**
+   * Die SEKUNDÄRAKTION neben dem Primärknopf — in den Belegungen A/B ist das
+   * „QR-Code groß zeigen" (§2.3-Tabelle). Sie kommt als Element herein, statt
+   * hier gebaut zu werden: der Knopf braucht die vollständige Teilnahme-Adresse,
+   * und die wird an EINER Stelle hergeleitet (der Seite), nicht in einem
+   * Formular. Ohne diese Aufnahme stünde die Sekundäraktion UNTER der Frist
+   * statt neben dem Knopf, zu dem sie gehört.
+   */
+  nebenaktion?: React.ReactNode;
 };
 
 export function StartFormular({
@@ -44,6 +53,7 @@ export function StartFormular({
   teilnehmerVorbelegung,
   stunden,
   variante = "primaer",
+  nebenaktion,
 }: StartFormularProps) {
   const [state, formAction, isPending] = useActionState(startFeedbackAction, FORM_START);
   const [datum, setDatum] = useState(feldWert(state, "date", heute));
@@ -123,15 +133,21 @@ export function StartFormular({
         }}
       >
         {variante === "primaer" ? (
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={isPending}
-            disabled={isPending}
-            className="fb-block-mobil"
-          >
-            {beschriftung}
-          </Button>
+          // Primärknopf und Sekundäraktion in EINER Reihe: auf 390px bricht sie
+          // (`fb-knopfzeile`), am Laptop steht „QR-Code groß zeigen" daneben —
+          // nie darunter, denn dort steht die gerechnete Frist.
+          <div className="fb-knopfzeile">
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={isPending}
+              disabled={isPending}
+              className="fb-block-mobil"
+            >
+              {beschriftung}
+            </Button>
+            {nebenaktion}
+          </div>
         ) : (
           // Zweistufig ist reine UI: `createAndStartSurvey` schließt die laufende
           // Umfrage in DERSELBEN Transaktion — es kann kein Zwischenzustand

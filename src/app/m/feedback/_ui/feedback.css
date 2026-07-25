@@ -178,6 +178,58 @@
 }
 
 /*
+ * DIE STICKY RECHTE SPALTE (§2.1, §2.4). Als KLASSE und nicht als Inline-Style,
+ * weil sie erst ab `lg` (992) gilt: unter 992px ist die Seite einspaltig, und
+ * eine mitfahrende Karte wuerde dort ueber der Lagekarte kleben. Ein inline
+ * gesetztes `position: sticky` ist nicht medienabfragbar — dieselbe Falle, die
+ * `.fb-legende-woerter` oben dokumentiert.
+ *
+ * 80 = Suite-Header 64 + 16 Luft; die Karte darf nie hoeher als das Fenster
+ * werden, sonst ist ihr unteres Ende nicht erreichbar.
+ */
+@media (min-width: 992px) {
+  .fb-sticky {
+    position: sticky;
+    top: 80px;
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+  }
+}
+
+/*
+ * KNOPFZEILE (§2.3, §2.4). Am Laptop stehen Primaeraktion und Sekundaeraktion
+ * nebeneinander, auf 390px gestapelt und jede volle Breite — nie daneben
+ * (§2.3). Die Regel liegt hier und nicht inline, weil sie eine Medienabfrage
+ * braucht; `fb-block-mobil` allein reicht in einem `Space` nicht, dessen
+ * Elemente ihre Breite aus dem Inhalt nehmen.
+ */
+.fb-knopfzeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .fb-knopfzeile {
+    flex-direction: column;
+    align-items: stretch;
+    /* 16px zwischen zwei Handlungsknoepfen (§2.3), nicht die 12 der Laptopreihe. */
+    gap: 16px;
+    width: 100%;
+  }
+
+  /* `Space` traegt `inline-flex` und eigene Elementhuellen — beide mitnehmen. */
+  .fb-knopfzeile.ant-space {
+    display: flex;
+  }
+
+  .fb-knopfzeile > .ant-space-item {
+    width: 100%;
+  }
+}
+
+/*
  * MOBILE FELDSCHRIFT (§4.14). `token.fontSize` ist 14 — unter 16px zoomt iOS
  * beim Fokus in das Feld hinein, und danach steht die halbe Karte ausserhalb des
  * Bildschirms. Die Regel gilt nur fuer Formularfelder des Moduls.

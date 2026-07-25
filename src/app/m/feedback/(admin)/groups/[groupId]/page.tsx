@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { Breadcrumb, Card, Col, Row, Statistic } from "antd";
 import { getDb } from "../../../_db/client";
@@ -8,11 +9,13 @@ import { guardPage } from "../../../_lib/guardPage";
 import { cockpitZustand } from "../../../_lib/cockpit";
 import { computeDAStats } from "../../../_lib/aggregation";
 import { DEFAULT_CLOSE_AFTER_HOURS } from "../../../_lib/lifecycle";
+import { buildToken } from "../../../_lib/token";
 import type { Question } from "../../../_lib/questions";
 import { T } from "../../../_ui/typo";
 import { formatDatumKurz, heuteInZone } from "../../../_ui/datum";
 import { Notenpille } from "../../../_ui/Noten";
 import { Lagekarte } from "../../../_ui/Lagekarte";
+import { Teilnahme, teilnahmeUrlAus } from "../../../_ui/Teilnahme";
 
 /**
  * DAS COCKPIT (Entwurf §2.1). Die einzige Arbeitsseite des Moduls.
@@ -54,6 +57,17 @@ export default async function Cockpit({
   const laufendeFreitexte = zustand.laufend
     ? zaehleFreitexte(abendStats(db, zustand.laufend.survey))
     : 0;
+
+  /**
+   * DIE TEILNAHME-ADRESSE — GENAU EINMAL hergeleitet und dann an BEIDE
+   * Verbraucher gegeben: Zone a zeigt sie, der Lagekarten-Knopf zeigt sie groß.
+   * Zwei Herleitungen wären zwei Adressen, und eine davon steht dann gedruckt an
+   * der Wand. Der Host kommt aus den Headern (Vorrang `x-forwarded-host`, Regel
+   * aus `core/routing.resolveHost`) — nie aus einer Anfrage-URL, die nach dem
+   * Host-Rewrite der Middleware auf die interne Adresse zeigt. Begründung
+   * vollständig in `_ui/Teilnahme.tsx`.
+   */
+  const teilnahmeUrl = teilnahmeUrlAus(await headers(), buildToken(group.slug, group.secret));
 
   return (
     <div
@@ -104,16 +118,32 @@ export default async function Cockpit({
               stunden={stunden}
               heute={heuteInZone(jetzt)}
               freitexte={laufendeFreitexte}
+              teilnahmeUrl={teilnahmeUrl}
+              gruppenname={group.name}
             />
           </div>
         </Col>
         {/*
-         * Rechte Spalte: die Teilnahme-Zone (QR, Link, Aushang) zieht hier ein.
-         * Sie hängt an der Gruppe, nicht an der Umfrage, und ist deshalb in jeder
-         * Belegung identisch. Bis dahin bleibt die Spalte leer statt einen
-         * Platzhalter zu zeigen (§4.3: kein leeres Fach mit Illustration).
+         * Rechte Spalte: die Teilnahme-Zone (QR, Link, Aushang). Sie hängt an der
+         * GRUPPE, nicht an der Umfrage, und steht deshalb in JEDER Belegung —
+         * auch in der Betriebsart „Einrichtung", wo sie einspaltig unter die
+         * Lagekarte rutscht (§2.1: „Die Reihenfolge bleibt Lagekarte →
+         * Teilnahme"). Genau dort trägt sie ihre einzige Variante: „Du kannst den
+         * Aushang schon vor dem ersten Abend drucken." Würde die Spalte in der
+         * Einrichtung entfallen, wäre dieser Satz unerreichbar.
+         *
+         * `fb-sticky` klebt erst ab `lg` (Klasse, nicht inline — §2.1).
          */}
-        {!einrichtung && <Col xs={24} lg={9} style={{ alignSelf: "flex-start" }} />}
+        <Col xs={24} lg={einrichtung ? 24 : 9} style={{ alignSelf: "flex-start" }}>
+          <div className={einrichtung ? undefined : "fb-sticky"}>
+            <Teilnahme
+              url={teilnahmeUrl}
+              token={buildToken(group.slug, group.secret)}
+              groupId={id}
+              erststart={zustand.belegung === "A"}
+            />
+          </div>
+        </Col>
       </Row>
     </div>
   );

@@ -5,6 +5,7 @@ import { T } from "./typo";
 import { formatDatumKurz, formatUhrzeit, formatWochentagZeit, formatZeitpunkt } from "./datum";
 import { StartFormular } from "./StartFormular";
 import { BeendenKnopf } from "./BeendenKnopf";
+import { QrGross } from "./QrGross";
 import { Aktualisierer, AktualisierenKnopf } from "./Aktualisierer";
 
 /**
@@ -23,16 +24,13 @@ import { Aktualisierer, AktualisierenKnopf } from "./Aktualisierer";
  * ein String. Alles Interaktive liegt in `StartFormular`, `BeendenKnopf` und
  * `Aktualisierer`.
  *
- * NOCH NICHT HIER: „QR-CODE GROSS ZEIGEN". §2.3 nennt den Knopf in der Tabelle
- * der fünf Belegungen als Primäraktion von C/D und als Sekundäraktion von A/B,
+ * „QR-CODE GROSS ZEIGEN" (`QrGross`) HÄNGT HIER, und zwar in JEDER Belegung:
+ * §2.3 nennt den Knopf als Primäraktion von C/D und als Sekundäraktion von A/B,
  * §2.4 nennt ihn „den zeitkritischen Handgriff im Gruppenraum … in jedem
- * Zustand ein Tipp weit oben" (J-B-2). Er fehlt hier, weil er `_ui/QrGross.tsx`
- * (Modal, Client-Insel) und die vollständige Teilnahme-URL aus
- * `headers().get("host")` braucht — beides entsteht in **Task 19**, das dafür
- * `_ui/Lagekarte.tsx` und `(admin)/groups/[groupId]/page.tsx` in seiner
- * Files-Liste und §2.3 in seiner Bindungsliste führt. Ein Knopf ohne Modal wäre
- * die beschriftete leere Schublade aus §4.3; die Zuordnung stellt sicher, dass
- * die Lücke einen Eigentümer hat statt zu verschwinden.
+ * Zustand ein Tipp weit oben" (J-B-2). Die Zone a leistet das nicht: auf 390px
+ * steht sie an DOM-Position 3 und ist im Zustand RUHEND nicht immer sichtbar.
+ * Die Karte BAUT die Adresse nicht — sie bekommt sie als `teilnahmeUrl` von der
+ * Seite, die sie genau einmal aus den Headern herleitet (`teilnahmeUrlAus`).
  *
  * FARBE: die getönte Fläche in C/D ist `--fb-tint`, der Rücklaufbalken trägt
  * `--fb-ink` auf `--fb-fill`. antds Vorgabe für `Progress` wäre `colorPrimary`,
@@ -81,6 +79,16 @@ export type LagekarteProps = {
    * die Verdrahtung, für die es keine Seitentests gibt.
    */
   freitexte: number;
+  /**
+   * Die vollständige Teilnahme-Adresse (`https://host/f/{slug}-{secret}`),
+   * hergeleitet in der Seite mit `teilnahmeUrlAus` — DERSELBE Wert, den Zone a
+   * zeigt. Die Karte setzt hier nie selbst einen Token zusammen: zwei
+   * Herleitungen wären zwei Adressen, und eine davon steht dann gedruckt an der
+   * Wand.
+   */
+  teilnahmeUrl: string;
+  /** Nur für die Kopfzeile des Vollbild-Modals — die Karte selbst zeigt ihn nicht. */
+  gruppenname: string;
 };
 
 export function Lagekarte({
@@ -90,6 +98,8 @@ export function Lagekarte({
   stunden,
   heute,
   freitexte,
+  teilnahmeUrl,
+  gruppenname,
 }: LagekarteProps) {
   const { belegung, laufend, weitereAktive } = zustand;
 
@@ -101,6 +111,8 @@ export function Lagekarte({
           jetzt={jetzt}
           nullAntworten={belegung === "C"}
           freitexte={freitexte}
+          teilnahmeUrl={teilnahmeUrl}
+          gruppenname={gruppenname}
         />
       ) : (
         <StartKarte
@@ -109,6 +121,8 @@ export function Lagekarte({
           heute={heute}
           stunden={stunden}
           teilnehmerVorbelegung={zustand.letzteTeilnehmerzahl}
+          teilnahmeUrl={teilnahmeUrl}
+          gruppenname={gruppenname}
         />
       )}
 
@@ -152,12 +166,16 @@ function StartKarte({
   heute,
   stunden,
   teilnehmerVorbelegung,
+  teilnahmeUrl,
+  gruppenname,
 }: {
   groupId: number;
   erststart: boolean;
   heute: string;
   stunden: number;
   teilnehmerVorbelegung: number | null;
+  teilnahmeUrl: string;
+  gruppenname: string;
 }) {
   return (
     <Card
@@ -177,17 +195,21 @@ function StartKarte({
           ? "Ersten Dienstabend anlegen und Feedback starten"
           : "Feedback für heute starten"}
       </h2>
+      {/*
+       * SEKUNDÄRAKTION „QR-Code groß zeigen" NEBEN „Feedback starten" (§2.3,
+       * Belegungen A und B). `darstellung="sekundaer"`, weil „Feedback starten"
+       * hier der EINE Primärknopf der Seite ist (§2.6) — zwei gefüllte Knöpfe
+       * nebeneinander sind keine Rangfolge, sondern eine Frage.
+       */}
       <StartFormular
         groupId={groupId}
         heute={heute}
         teilnehmerVorbelegung={teilnehmerVorbelegung}
         stunden={stunden}
+        nebenaktion={
+          <QrGross url={teilnahmeUrl} gruppenname={gruppenname} darstellung="sekundaer" />
+        }
       />
-      {/*
-       * FEHLT NOCH (Task 19): die Sekundäraktion „QR-Code groß zeigen" neben
-       * „Feedback starten" (§2.3, Belegungen A und B). Begründung und Zuordnung
-       * stehen im Dateikopf — sie hängt an `_ui/QrGross.tsx`.
-       */}
     </Card>
   );
 }
@@ -198,11 +220,15 @@ function LaufendeKarte({
   jetzt,
   nullAntworten,
   freitexte,
+  teilnahmeUrl,
+  gruppenname,
 }: {
   laufend: LaufendeLage;
   jetzt: Date;
   nullAntworten: boolean;
   freitexte: number;
+  teilnahmeUrl: string;
+  gruppenname: string;
 }) {
   const { evening, survey, responseCount } = laufend;
   /**
@@ -353,11 +379,16 @@ function LaufendeKarte({
 
       <hr style={HAARLINIE} />
       {/*
-       * FEHLT NOCH (Task 19): die PRIMÄRAKTION „QR-Code groß zeigen" über
-       * „Feedback jetzt beenden" (§2.3, Belegungen C und D). In C/D ist sie die
-       * laute Aktion der Karte — Begründung und Zuordnung stehen im Dateikopf.
+       * PRIMÄRAKTION „QR-Code groß zeigen" VOR „Feedback jetzt beenden" (§2.3,
+       * Belegungen C und D). Die Reihenfolge ist die Aussage: solange die Umfrage
+       * läuft, ist der laute Handgriff „zeig den Leuten den Code", nicht
+       * „beende". Auf 390px stapelt `fb-knopfzeile` beide auf volle Breite —
+       * „Feedback jetzt beenden" steht dann DARUNTER, nie daneben (§2.3).
        */}
-      <BeendenKnopf surveyId={survey.id} />
+      <div className="fb-knopfzeile">
+        <QrGross url={teilnahmeUrl} gruppenname={gruppenname} darstellung="primaer" />
+        <BeendenKnopf surveyId={survey.id} />
+      </div>
     </Card>
   );
 }
