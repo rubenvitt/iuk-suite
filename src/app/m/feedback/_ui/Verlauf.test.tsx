@@ -221,7 +221,7 @@ describe("Verlauf — jede Zeile beantwortet „was war da“ (§2.5, §4.11)", 
     expect(ohne).not.toContain(satz);
   });
 
-  it("verlinkt jede Zeile auf die Auswertung — in beiden Darstellungen", () => {
+  it("verlinkt jede Zeile MIT Umfrage auf die Auswertung — in beiden Darstellungen", () => {
     const wirt = zeichne([zeile({ eveningId: 42 })]);
     const ziele = [...wirt.querySelectorAll<HTMLAnchorElement>("a")].map((a) =>
       a.getAttribute("href"),
@@ -229,6 +229,27 @@ describe("Verlauf — jede Zeile beantwortet „was war da“ (§2.5, §4.11)", 
     const auswertung = "/m/feedback/groups/7/evenings/42/auswertung";
 
     expect(ziele.filter((z) => z === auswertung).length).toBeGreaterThanOrEqual(2);
+  });
+
+  /*
+   * Ein nachgetragener Abend (`createEveningAction` legt nie eine Umfrage an) hat
+   * `surveyId === null`, und `.../auswertung` antwortet dafuer mit 404 („ohne
+   * Umfrage nichts auszuwerten"). KEIN Anker der Zone darf dort landen — auch
+   * nicht der, der in der Schmalvariante die ganze 68px-Flaeche ist.
+   */
+  it("schickt einen Abend ohne Umfrage NICHT in die Auswertung, sondern auf die Abendseite", () => {
+    const wirt = zeichne([zeile({ eveningId: 42, surveyId: null })]);
+    const ziele = [...wirt.querySelectorAll<HTMLAnchorElement>("a")].map((a) =>
+      a.getAttribute("href"),
+    );
+
+    expect(ziele.length).toBeGreaterThan(0);
+    expect(ziele.some((z) => z?.endsWith("/auswertung"))).toBe(false);
+    expect(ziele).toContain("/m/feedback/groups/7/evenings/42");
+    // Die Beschriftung wandert mit: kein Link „Auswertung" auf die Abendseite.
+    // Nur die ZEILE geprueft, nicht die ganze Zone — sonst stolpert der Test
+    // ueber die naechste Auswertungs-Schaltflaeche in der Kopfzeile.
+    expect(tabellenzeilen(wirt)[0].textContent ?? "").not.toContain("Auswertung");
   });
 });
 

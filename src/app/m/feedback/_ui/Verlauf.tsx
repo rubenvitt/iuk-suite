@@ -181,6 +181,31 @@ export function Verlauf({ groupId, zeilen, heute }: VerlaufProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Das Ziel einer Zeile
+// ---------------------------------------------------------------------------
+
+/**
+ * Wohin eine Verlaufszeile fuehrt — EINE Stelle fuer beide Darstellungen.
+ *
+ * §2.5 nennt in der Aktionsspalte den Link „Auswertung" und macht in der
+ * Schmalvariante die ganze 68px-Flaeche zu diesem Link. Das setzt eine Umfrage
+ * voraus, und genau die fehlt bei einem Abend aus „Abend ohne Feedback
+ * nachtragen": `createEveningAction` legt nur den Abend an, nie eine Umfrage.
+ * `.../auswertung` antwortet fuer solche Abende mit 404 (`if (!survey)
+ * notFound()` — „ohne Umfrage nichts auszuwerten"). Ein spec-treuer Link in
+ * einen garantierten 404 ist schlechter als die Abweichung, also fuehrt eine
+ * umfragelose Zeile auf die Abendseite, die den Fall traegt (`survey === null`
+ * dort erlaubt, `SurveyControls` bekommt `null`).
+ *
+ * Bewusst eine Funktion und nicht zwei gleiche Ternaere an den beiden
+ * Aufrufstellen: zwei Kopien sind der Weg, auf dem dieser Fehler zurueckkommt.
+ */
+const zielFuer = (groupId: number, z: VerlaufZeile) =>
+  z.surveyId !== null
+    ? `/m/feedback/groups/${groupId}/evenings/${z.eveningId}/auswertung`
+    : `/m/feedback/groups/${groupId}/evenings/${z.eveningId}`;
+
+// ---------------------------------------------------------------------------
 // Die breite Darstellung — Tabelle ohne Karte, direkt auf dem Seitengrund
 // ---------------------------------------------------------------------------
 
@@ -268,12 +293,13 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
                 gap: SPACE.sm,
               }}
             >
-              <Link
-                className="fb-fokus"
-                style={T.body}
-                href={`/m/feedback/groups/${groupId}/evenings/${z.eveningId}/auswertung`}
-              >
-                Auswertung
+              {/*
+               * Die Beschriftung wandert mit dem Ziel: ein Link „Auswertung",
+               * der auf der Abendseite landet, ist derselbe Fehler in anderem
+               * Gewand.
+               */}
+              <Link className="fb-fokus" style={T.body} href={zielFuer(groupId, z)}>
+                {z.surveyId !== null ? "Auswertung" : "Bearbeiten"}
               </Link>
               {z.entwurf && z.surveyId !== null && <StartenKnopf surveyId={z.surveyId} />}
               <AbendMenue groupId={groupId} zeile={z} />
@@ -290,7 +316,10 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
 // ---------------------------------------------------------------------------
 
 /**
- * 390px (§2.5): pro Abend ein Block, die ganze Flaeche ein Link zur Auswertung.
+ * 390px (§2.5): pro Abend ein Block, die ganze Flaeche ein Link — Ziel aus
+ * `zielFuer`, also nur bei vorhandener Umfrage die Auswertung. Sonst waere die
+ * GANZE 68px-Flaeche eines nachgetragenen Abends ein 404 und die Zeile am Handy
+ * nur noch ueber „…" → Bearbeiten erreichbar.
  * Haarlinien zwischen den Zeilen, KEINE Karte pro Zeile — sechs Karten
  * untereinander sind sechs Rahmen fuer eine Liste.
  *
@@ -315,7 +344,7 @@ function SchmaleListe({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZei
         >
           <Link
             className="fb-fokus"
-            href={`/m/feedback/groups/${groupId}/evenings/${z.eveningId}/auswertung`}
+            href={zielFuer(groupId, z)}
             style={{
               flex: 1,
               minHeight: 68,
