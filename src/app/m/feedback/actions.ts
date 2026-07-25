@@ -311,8 +311,18 @@ export async function createEveningAction(formData: FormData) {
  *    der Anker von `computeClosesAt` (nie „jetzt + Stunden"). Ohne Neurechnung
  *    zeigte `closesAt` weiter auf den alten Anker, und die laufende Umfrage
  *    schloss zu einem Zeitpunkt, der zu keinem Datum auf der Seite passt.
- *    Neu gerechnet wird NUR für eine `active`-Umfrage: eine geschlossene läuft
- *    nicht mehr, ihre Frist ist Vergangenheit und Teil der Historie.
+ *    Neu gerechnet wird NUR für eine LAUFENDE Umfrage, und „laufend" ist der
+ *    EFFEKTIVE Status (`nextStatusOnAccess`), nicht der rohe Datenbankwert.
+ *    Es gibt keinen Cron (§1.4/J-A-2): eine abgelaufene Umfrage steht im
+ *    Normalbetrieb weiter als `status: 'active'` mit `closesAt` in der
+ *    Vergangenheit in der Datenbank und faltet erst beim Zugriff in RUHEND.
+ *    Am rohen Status hätte eine bloße Datumskorrektur im Verlauf (Zone d, „…"
+ *    → „Bearbeiten") diese tote Umfrage mit einer ZUKÜNFTIGEN Frist wieder
+ *    geöffnet — der öffentliche Pfad hätte erneut Antworten angenommen, und
+ *    neben einer schon laufenden Umfrage derselben Gruppe stünden zwei auf
+ *    `active`, genau die Invariante, die `activateSurvey` transaktional hütet.
+ *    Eine geschlossene oder abgelaufene Umfrage läuft nicht mehr, ihre Frist
+ *    ist Vergangenheit und Teil der Historie.
  */
 export async function updateEveningAction(formData: FormData) {
   const id = num(formData.get("id"));
@@ -336,7 +346,10 @@ export async function updateEveningAction(formData: FormData) {
   const datumNeu = patch.date;
   if (datumNeu && datumNeu.getTime() !== new Date(vorher.date).getTime()) {
     const survey = getSurveyByEvening(db, id);
-    if (survey && survey.status === "active") {
+    const effektiv = survey
+      ? nextStatusOnAccess(survey.status as SurveyStatus, survey.closesAt, new Date())
+      : null;
+    if (survey && effektiv === "active") {
       const group = getGroup(db, vorher.groupId)!;
       // Dieselbe Vorrangregel wie `activateSurveyAction`: Umfrage → Gruppe → Vorgabe.
       const hours = survey.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;

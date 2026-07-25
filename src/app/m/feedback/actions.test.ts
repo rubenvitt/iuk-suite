@@ -18,7 +18,12 @@ import {
   setGroupMembers,
   upsertKnownUser,
 } from "./_db/queries";
-import { computeClosesAt, DEFAULT_CLOSE_AFTER_HOURS } from "./_lib/lifecycle";
+import {
+  computeClosesAt,
+  nextStatusOnAccess,
+  DEFAULT_CLOSE_AFTER_HOURS,
+  type SurveyStatus,
+} from "./_lib/lifecycle";
 import { STANDARD_QUESTIONS } from "./_lib/questions";
 import { FEHLER_PARAMETER, JS_FELD } from "./_lib/absenden";
 
@@ -1061,6 +1066,45 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
 
     expect(getSurvey(db, survey.id)!.closesAt).toEqual(vorher);
     expect(getSurvey(db, survey.id)!.status).toBe("closed");
+  });
+
+  /**
+   * DER FALL, DEN DER `closed`-TEST OBEN NICHT TRIFFT. Es gibt keinen Cron
+   * (§1.4/J-A-2): eine abgelaufene Umfrage steht in der Datenbank weiter als
+   * `status: 'active'` mit `closesAt` in der Vergangenheit und faltet erst beim
+   * Zugriff in RUHEND. Genau diese Zeile ist über die Oberfläche erreichbar —
+   * sie liegt im Verlauf und trägt dort „…" → „Bearbeiten".
+   *
+   * Die entscheidende Zusicherung ist `closesAt` UNVERÄNDERT: das neue Datum
+   * (heute) hätte über den rohen Status eine ZUKÜNFTIGE Frist ergeben und die
+   * tote Umfrage wieder geöffnet. Der rohe Status bleibt `active` — das ist der
+   * dokumentierte Zustand ohne Cron und deshalb KEIN Beweis; bewiesen wird, dass
+   * die Umfrage effektiv weiter RUHEND ist.
+   */
+  it("abgelaufene aktive Umfrage: Datumskorrektur weckt sie nicht wieder auf", async () => {
+    const { updateEveningAction } = await loadActions();
+    const { survey } = seedActiveSurvey("bereitschaft", "abc12", 10, 48);
+    const eveningId = getSurvey(db, survey.id)!.eveningId;
+    const vorher = getSurvey(db, survey.id)!;
+    // Der Prüfstand muss der Fall sein, den er behauptet: roh aktiv, Frist verstrichen.
+    expect(vorher.status).toBe("active");
+    expect(vorher.closesAt!.getTime()).toBeLessThan(Date.now());
+    alsGruppenleitung("bereitschaft");
+
+    // Heute — unter dem rohen Status läge die neue Frist 48h in der ZUKUNFT.
+    const heute = todayMidnightUtc();
+    const f = new FormData();
+    f.set("id", String(eveningId));
+    f.set("date", heute.toISOString().slice(0, 10));
+    await updateEveningAction(f);
+
+    const nachher = getSurvey(db, survey.id)!;
+    expect(getEvening(db, eveningId)!.date).toEqual(heute);
+    expect(nachher.closesAt).toEqual(vorher.closesAt);
+    expect(nachher.status).toBe("active");
+    expect(nextStatusOnAccess(nachher.status as SurveyStatus, nachher.closesAt, new Date())).toBe(
+      "closed",
+    );
   });
 
   it("ein fremder Abend wirft", async () => {
