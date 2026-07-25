@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Breadcrumb, Card, Col, Row, Statistic } from "antd";
 import { getDb } from "../../../_db/client";
 import { getGroup, listResponses } from "../../../_db/queries";
+import type { SurveyRow } from "../../../_db/schema";
 import { guardPage } from "../../../_lib/guardPage";
 import { cockpitZustand } from "../../../_lib/cockpit";
 import { computeDAStats } from "../../../_lib/aggregation";
@@ -44,6 +45,15 @@ export default async function Cockpit({
   const zustand = cockpitZustand(db, id, jetzt);
   const stunden = group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
   const einrichtung = zustand.modus === "einrichtung";
+  /**
+   * Freitextzählung für den Zwischenstand der Lagekarte (§2.3: „5 Freitexte — in
+   * der Auswertung nachlesen"). Gerechnet HIER, mit `computeDAStats` — derselben
+   * EINEN Aggregationsstelle, die auch „Letzter Abend" liest. Eine zweite
+   * Zählschleife wäre eine zweite Wahrheit über denselben Datensatz.
+   */
+  const laufendeFreitexte = zustand.laufend
+    ? zaehleFreitexte(abendStats(db, zustand.laufend.survey))
+    : 0;
 
   return (
     <div
@@ -93,6 +103,7 @@ export default async function Cockpit({
               jetzt={jetzt}
               stunden={stunden}
               heute={heuteInZone(jetzt)}
+              freitexte={laufendeFreitexte}
             />
           </div>
         </Col>
@@ -109,6 +120,25 @@ export default async function Cockpit({
 }
 
 /**
+ * Kennzahlen EINES Abends. Beide Leser der Seite („Letzter Abend" und der
+ * Zwischenstand der Lagekarte) gehen durch diese Funktion, damit es genau einen
+ * Weg von den Rohantworten zu Zahlen gibt.
+ */
+function abendStats(db: ReturnType<typeof getDb>, survey: SurveyRow) {
+  const questions: Question[] = JSON.parse(survey.questions);
+  const antworten = listResponses(db, survey.id).map(
+    (r) => JSON.parse(r.answers) as Record<string, unknown>,
+  );
+  // `avgSchulnote`, NICHT `overallAvg`: eine 1–5-Altbestandsfrage darf nicht auf
+  // die Sechser-Rampe abgetastet werden (§4.12).
+  return computeDAStats(questions, antworten);
+}
+
+/** Freitext-ANTWORTEN, nicht Freitext-FRAGEN: die Karte nennt „5 Freitexte". */
+const zaehleFreitexte = (stats: ReturnType<typeof abendStats>) =>
+  stats.texts.reduce((summe, frage) => summe + frage.values.length, 0);
+
+/**
  * SLOT „LETZTER ABEND" (§2.7). Beantwortet „habe ich das schon gelesen?" ohne
  * Klick — und zwar AUCH, während eine Umfrage läuft. Bewusst kein Primärknopf:
  * der Primärknopf der Seite ist immer die Zustandsaktion.
@@ -122,14 +152,7 @@ function LetzterAbend({
   lage: NonNullable<ReturnType<typeof cockpitZustand>["letzterAbend"]>;
   db: ReturnType<typeof getDb>;
 }) {
-  const survey = lage.survey!;
-  const questions: Question[] = JSON.parse(survey.questions);
-  const antworten = listResponses(db, survey.id).map(
-    (r) => JSON.parse(r.answers) as Record<string, unknown>,
-  );
-  // `avgSchulnote`, NICHT `overallAvg`: eine 1–5-Altbestandsfrage darf nicht auf
-  // die Sechser-Rampe abgetastet werden (§4.12).
-  const stats = computeDAStats(questions, antworten);
+  const stats = abendStats(db, lage.survey!);
 
   return (
     <Card

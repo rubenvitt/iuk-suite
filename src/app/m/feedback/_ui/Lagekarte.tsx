@@ -57,9 +57,27 @@ export type LagekarteProps = {
   stunden: number;
   /** Heute in `Europe/Berlin` (`YYYY-MM-DD`) — Vorbelegung des Datumsfelds. */
   heute: string;
+  /**
+   * Anzahl der Freitext-Antworten der LAUFENDEN Umfrage — der Zwischenstand
+   * zählt sie nur (§2.3), er zeigt sie nicht: die Karte hängt im Gruppenraum,
+   * während die Leute noch tippen.
+   *
+   * ABSICHTLICH PFLICHT, nicht `?: number` mit Vorgabe 0: die Zahl kommt aus
+   * `computeDAStats` in der Seite (die EINE Aggregationsstelle), und eine stille
+   * 0 wäre von einer echten 0 nicht unterscheidbar. So erzwingt `pnpm typecheck`
+   * die Verdrahtung, für die es keine Seitentests gibt.
+   */
+  freitexte: number;
 };
 
-export function Lagekarte({ groupId, zustand, jetzt, stunden, heute }: LagekarteProps) {
+export function Lagekarte({
+  groupId,
+  zustand,
+  jetzt,
+  stunden,
+  heute,
+  freitexte,
+}: LagekarteProps) {
   const { belegung, laufend, weitereAktive } = zustand;
 
   return (
@@ -69,6 +87,7 @@ export function Lagekarte({ groupId, zustand, jetzt, stunden, heute }: Lagekarte
           laufend={laufend}
           jetzt={jetzt}
           nullAntworten={belegung === "C"}
+          freitexte={freitexte}
         />
       ) : (
         <StartKarte
@@ -160,10 +179,12 @@ function LaufendeKarte({
   laufend,
   jetzt,
   nullAntworten,
+  freitexte,
 }: {
   laufend: LaufendeLage;
   jetzt: Date;
   nullAntworten: boolean;
+  freitexte: number;
 }) {
   const { evening, survey, responseCount } = laufend;
   /**
@@ -178,6 +199,28 @@ function LaufendeKarte({
   // Alltagsfall (Gäste), kein Fehler — der Balken bleibt voll, der Satz erklärt.
   const quote = nenner === null ? null : Math.min(100, Math.round((responseCount / nenner) * 100));
   const ueberzaehlig = nenner !== null && responseCount > nenner;
+
+  /**
+   * ZWISCHENSTAND (§2.3). „Noch nicht endgültig" ist hier keine Höflichkeit: die
+   * Karte hängt im Gruppenraum, während die Leute noch tippen.
+   *
+   * Bei 1–2 Rückmeldungen der Schwankungshinweis — `responseCount` ist die EINE
+   * Wahrheit dafür, keine zweite Zählung. Freitexte werden hier NUR gezählt, nie
+   * gezeigt.
+   *
+   * NOCH NICHT HIER: Notenlegende + acht kompakte Notenspuren. `Notenspur`
+   * verlangt eine Verteilung je Frage (`NotenspurProps.verteilung`, Index 0 =
+   * Note 1), `computeDAStats` liefert aber nur Mittelwerte. Die fehlende
+   * `verteilungJeFrage` gehört nach `_lib/aggregation.ts` und ist ausdrücklich
+   * Task 22 zugeordnet (dieselbe Datenlage braucht §3.2 für die
+   * Auswertungsseite) — bis dahin ist §2.3 an dieser Stelle unvollständig, und
+   * zwar sichtbar statt vergessen.
+   *
+   * Die Überschrift erscheint NUR, wenn etwas darunter steht: eine beschriftete
+   * leere Schublade ist schlimmer als keine (§4.3).
+   */
+  const schwankt = responseCount > 0 && responseCount <= 2;
+  const zwischenstand = !nullAntworten && (schwankt || freitexte > 0);
 
   return (
     <Card variant="outlined" styles={KARTE_LAUFEND} style={{ background: "var(--fb-tint)" }}>
@@ -245,6 +288,22 @@ function LaufendeKarte({
       )}
 
       <hr style={HAARLINIE} />
+      {zwischenstand && (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ ...T.kicker, margin: 0 }}>ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG</p>
+          {schwankt && (
+            <p style={{ ...T.meta, margin: "8px 0 0" }}>
+              Erst {responseCount} {responseCount === 1 ? "Rückmeldung" : "Rückmeldungen"} — die
+              Zahlen schwanken noch stark.
+            </p>
+          )}
+          {freitexte > 0 && (
+            <p style={{ ...T.meta, margin: "8px 0 0" }}>
+              {freitexte} {freitexte === 1 ? "Freitext" : "Freitexte"} — in der Auswertung nachlesen
+            </p>
+          )}
+        </div>
+      )}
       {survey.closesAt && (
         <p style={{ ...T.meta, margin: 0 }}>
           Antworten sind bis {formatZeitpunkt(survey.closesAt)} möglich.

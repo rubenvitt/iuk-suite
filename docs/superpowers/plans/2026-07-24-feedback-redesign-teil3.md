@@ -206,6 +206,16 @@ nicht auf — deshalb zusätzlich die Compound-Liste aus 4.13 gegen den Diff pr�
 
 `feat(feedback): Gruppen-Cockpit mit Zustands-Selektor, Feedback starten in einem Klick`
 
+**Abgrenzung zum Zwischenstand (§2.3), damit nichts durchs Raster fällt.** Hier entstehen der Block
+„ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG", der Schwankungs-Hinweis bei 1–2 Rückmeldungen
+(`laufend.responseCount`) und die **gezählten** Freitexte (Summe über `DAStats.texts`, gerechnet in
+`page.tsx` mit dem dort schon importierten `computeDAStats` — keine zweite Aggregationsstelle).
+**Notenlegende und die acht kompakten Notenspuren nicht**: sie brauchen eine Verteilung je Frage, die
+`computeDAStats` nicht liefert. Diese Funktion (`verteilungJeFrage`) ist **Task 22** zugeordnet, weil
+§3.2 dieselbe Datenlage für die Auswertungsseite braucht. Die Überschrift des Blocks erscheint bis
+dahin nur, wenn Inhalt darunter steht — ein beschriftetes leeres Fach ist schlimmer als kein Fach
+(§4.3).
+
 ---
 
 ### Task 19: Teilnahme-Zone und Aushang — der QR wird sichtbar
@@ -324,11 +334,37 @@ erreichbar oder gar nicht.
 **Files:**
 - Modify: `(admin)/page.tsx` (Einstieg), `…/auswertung/page.tsx`, `…/trend/page.tsx`,
   `vergleich/page.tsx`, `src/core/shell/FullShell.tsx`
+- Modify: `_lib/aggregation.ts` (`verteilungJeFrage` ergänzen) + `_lib/aggregation.test.ts` — die
+  **ausdrücklich erlaubte Ausnahme** von „aggregation nicht antasten": rein additiv, `computeDAStats`,
+  `overallAvg`, `avgSchulnote`, CSV- und Prompt-Pfad bleiben Zeichen für Zeichen unverändert
+- Modify: `_ui/Lagekarte.tsx` (Notenlegende + acht kompakte Notenspuren in den Zwischenstand)
 - Delete: `…/prompt/page.tsx` (wird aufklappbarer Abschnitt der Auswertung)
 - Test: entsprechende Tests + `FullShell`-Test
 
+**Interfaces:**
+- `verteilungJeFrage(questions, answers)` → je Bewertungsfrage
+  `{ id, text, verteilung: number[] /* Länge 6 */, count }`. **Index 0 = Note 1**, damit der Wert ohne
+  Umrechnung in `NotenspurProps.verteilung` (`_ui/Noten.tsx:169`) passt. `stars`-Fragen (Alt-Skala
+  1–5) werden **nicht** auf die Sechser-Rampe abgetastet (§4.12) — sie tragen die bestehende Fußnote.
+
+**Warum diese Funktion hier hängt (nicht optional):** §3.2 Punkt 2 (Auswertung) und §2.3
+(Zwischenstand der Lagekarte) brauchen **dieselbe** Datenlage — acht Verteilungen, sechs Zellen je
+Frage. Task 18 hat vom Zwischenstand nur geliefert, was ohne diese Funktion baubar war (Schwankungs-
+Hinweis bei 1–2 Rückmeldungen, gezählte Freitexte); die **Notenlegende und die acht Notenspuren
+fehlen dort weiterhin** und werden hier fertiggestellt. Ohne diese Zuordnung bleibt §2.3 dauerhaft
+unerfüllt, ohne dass es noch jemand merkt. Der Merkposten steht zusätzlich als Kommentar am
+Zwischenstand-Block in `_ui/Lagekarte.tsx`.
+
 - [ ] **Schritt 1: Tests schreiben, die scheitern**
 
+- `verteilungJeFrage`: eine Frage mit 6×Note 1 und 6×Note 5 ergibt **zwei** Säulen (Index 0 und 4),
+  **nicht** eine bei 3,0 — genau die Aussage, die ein Mittelwertbalken verschweigt. Dazu: leere
+  Antwortmenge → sechs Nullen (keine `null`-Sonderform), unbeantwortete Frage zählt nicht mit,
+  Werte außerhalb 1–6 landen in keiner Zelle.
+- Die Auswertung zeigt Notenlegende **einmal** und acht Spuren im identischen Sechs-Spalten-Raster;
+  der `BarChart` ist auf dieser Seite **weg** (§3.2 Punkt 2).
+- Die Lagekarte trägt im Zwischenstand dieselben Spuren in `groesse="kompakt"` — und weiterhin die
+  Überschrift „ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG" sowie den Schwankungs-Hinweis aus Task 18.
 - **Genau eine Gruppe** → Weiterleitung direkt ins Cockpit (0 Klicks).
 - **Mehrere Gruppen** → Karten mit Zustand *auf* der Karte („läuft — 12 von 20" / „nichts aktiv,
   letzter Abend …").
@@ -342,7 +378,8 @@ erreichbar oder gar nicht.
 
 - [ ] **Schritt 2–4** wie gehabt · [ ] **Schritt 5: Commit**
 
-`feat(feedback): Einstieg mit Zustandskarten, Breadcrumbs, Trend und Vergleich angebunden`
+`feat(feedback): Einstieg mit Zustandskarten, Notenspuren aus der Verteilung, Trend und Vergleich
+angebunden`
 
 ---
 

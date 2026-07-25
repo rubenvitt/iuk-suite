@@ -135,13 +135,14 @@ function zustand(over: Partial<CockpitZustand> = {}): CockpitZustand {
   };
 }
 
-const karte = (z: CockpitZustand) => (
+const karte = (z: CockpitZustand, freitexte = 0) => (
   <Lagekarte
     groupId={7}
     zustand={z}
     jetzt={JETZT}
     stunden={DEFAULT_CLOSE_AFTER_HOURS}
     heute="2026-07-22"
+    freitexte={freitexte}
   />
 );
 
@@ -303,6 +304,67 @@ describe("Lagekarte — Belegung D (laeuft, Antworten da)", () => {
     expect(wirt.textContent).toContain("mehr Rückmeldungen als erfasste Teilnehmer");
     // Neutral, kein Fehler: keine Warn-/Fehlerform von antd.
     expect(wirt.querySelector(".ant-alert-error")).toBeNull();
+  });
+});
+
+/**
+ * DER ZWISCHENSTAND (§2.3). Die laufende Karte hängt im Gruppenraum, während die
+ * Leute noch tippen — deshalb sind hier drei Zusagen fällig, die still brechen:
+ *
+ * 1. Bei 1–2 Rückmeldungen steht dabei, dass die Zahlen noch schwanken. Ohne den
+ *    Satz liest eine Gruppe zwei Meinungen als Urteil über den Abend.
+ * 2. Freitexte werden GEZÄHLT, nie gezeigt: sichtbarer Freitext im Gruppenraum
+ *    ist ein gebrochenes Versprechen gegenüber dem, der ihn gerade tippt.
+ * 3. Die Überschrift erscheint nur mit Inhalt darunter — ein beschriftetes leeres
+ *    Fach ist schlimmer als kein Fach (§4.3).
+ *
+ * Notenlegende + acht Notenspuren fehlen hier bewusst und nachvollziehbar: sie
+ * brauchen `verteilungJeFrage` in `_lib/aggregation.ts` (Task 22, §3.2). Diese
+ * Tests decken genau den Teil ab, der ohne diese Funktion baubar ist.
+ */
+describe("Lagekarte — Zwischenstand (§2.3)", () => {
+  const laufende = (antworten: number, freitexte = 0) =>
+    karte(zustand({ modus: "betrieb", laufend: laufendeLage({ antworten }) }), freitexte);
+
+  it("sagt bei zwei Rueckmeldungen, dass die Zahlen noch stark schwanken", () => {
+    const t = text(laufende(2));
+    expect(t).toContain("ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG");
+    expect(t).toContain("Erst 2 Rückmeldungen — die Zahlen schwanken noch stark.");
+  });
+
+  it("beugt den Hinweis bei genau einer Rueckmeldung", () => {
+    const t = text(laufende(1));
+    expect(t).toContain("Erst 1 Rückmeldung — die Zahlen schwanken noch stark.");
+    expect(t).not.toContain("Rückmeldungen — die Zahlen");
+  });
+
+  it("laesst den Hinweis ab drei Rueckmeldungen weg", () => {
+    const t = text(laufende(3, 4));
+    expect(t).toContain("ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG");
+    expect(t).not.toContain("schwanken");
+  });
+
+  it("zaehlt die Freitexte und zeigt sie nicht", () => {
+    expect(text(laufende(12, 5))).toContain("5 Freitexte — in der Auswertung nachlesen");
+    const t = text(laufende(12, 1));
+    expect(t).toContain("1 Freitext — in der Auswertung nachlesen");
+    expect(t).not.toContain("Freitexte");
+  });
+
+  it("laesst die Ueberschrift weg, wenn nichts darunter stuende", () => {
+    // Sieben Rueckmeldungen, keine Freitexte: der Hinweis entfaellt, die
+    // Notenspuren gibt es noch nicht — eine beschriftete leere Schublade waere
+    // schlimmer als keine (§4.3).
+    const t = text(laufende(7, 0));
+    expect(t).not.toContain("ZWISCHENSTAND");
+    expect(t).not.toContain("Freitext");
+  });
+
+  it("bleibt in Belegung C ganz weg — auch mit gezaehlten Freitexten", () => {
+    const t = text(laufende(0, 3));
+    expect(t).toContain("Noch keine Rückmeldung");
+    expect(t).not.toContain("ZWISCHENSTAND");
+    expect(t).not.toContain("Freitext");
   });
 });
 
