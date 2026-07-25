@@ -16,7 +16,7 @@ import {
   getSurvey,
   insertResponse,
 } from "../../_db/queries";
-import { computeClosesAt } from "../../_lib/lifecycle";
+import { computeClosesAt, TIME_ZONE } from "../../_lib/lifecycle";
 import { STANDARD_QUESTIONS } from "../../_lib/questions";
 import s from "./zettel.module.css";
 
@@ -80,6 +80,30 @@ const quelle = (name: string) =>
 function mitternachtUtc(tageZurueck = 0): Date {
   const n = new Date();
   return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() - tageZurueck));
+}
+
+/**
+ * Spiegelt `geschlossenAm` aus page.tsx: "am 23. Juli um 09:00" — in der
+ * Zeitzone, in der die Frist GERECHNET wurde, nicht in UTC.
+ *
+ * ZWEI Formatierer, kein kombinierter: ein kombinierter setzt eigene
+ * Trennzeichen ("23. Juli, 09:00") und traefe den Satz der Seite nie. Und der
+ * erwartete Satz wird HIER aus dem Zeitpunkt abgeleitet, statt als "23. Juli um
+ * 09:00" hart zu stehen — ein hart geschriebener Kalendertag ist bei einem
+ * relativen Fixture per Definition ab morgen falsch.
+ */
+function geschlossenAm(zeit: Date): string {
+  const tag = new Intl.DateTimeFormat("de-DE", {
+    day: "numeric",
+    month: "long",
+    timeZone: TIME_ZONE,
+  }).format(zeit);
+  const uhr = new Intl.DateTimeFormat("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: TIME_ZONE,
+  }).format(zeit);
+  return `am ${tag} um ${uhr}`;
 }
 
 function seedGruppe(slug: string, secret: string) {
@@ -247,15 +271,35 @@ describe("Zustand D — die Umfrage zu diesem Abend ist beendet", () => {
   it("nennt bei manuell geschlossener Umfrage den frueheren der beiden Zeitpunkte", async () => {
     // Frist noch Tage entfernt, aber die Gruppenleitung hat von Hand geschlossen:
     // `closesAt` waere hier eine Luege ueber die Zukunft.
-    const { token, survey } = seedUmfrage({
+    //
+    // Der Schluss liegt RELATIV zu jetzt, nicht auf einem festen Kalendertag.
+    // Zustand D hat mit `D_FENSTER_MS` eine Haltbarkeit (page.tsx): ein
+    // absoluter Fixture-Zeitpunkt waechst mit jeder Wanduhr-Stunde weiter aus
+    // dem Fenster heraus, und ab dem Tag, an dem er es verlaesst, antwortet die
+    // Seite mit C statt D — der Test schlaegt dann DAUERHAFT fehl, ohne dass
+    // sich eine Zeile Code geaendert haette. Auf die ganze Minute gerundet,
+    // damit zwischen dem Formatieren hier und dem in der Seite keine Sekunde
+    // driftet.
+    const { token, survey, closesAt } = seedUmfrage({
       slug: "bereitschaft",
       secret: "abc12",
       hours: 240,
     });
-    const geschlossen = new Date(Date.UTC(2026, 6, 23, 7, 0, 0));
+    const geschlossen = new Date(Math.floor((Date.now() - 3 * 3600_000) / 60_000) * 60_000);
     setSurveyStatus(db, survey.id, "closed", { closedAt: geschlossen });
+    /*
+     * Beide Kandidaten muessen NACH dem Schliessen in der Zeile stehen, sonst
+     * waehlt `schliesszeit` aus einem einelementigen Feld und das `min()` ist
+     * gar nicht im Spiel — die Zusicherung unten waere dann aus dem trivialen
+     * Grund gruen, dass es keine zweite Zeit zu verwechseln gibt.
+     */
+    expect(getSurvey(db, survey.id)?.closesAt).toBeInstanceOf(Date);
     const gelesen = text(await seite(token));
-    expect(gelesen).toContain("Sie wurde am 23. Juli um 09:00 geschlossen.");
+    expect(gelesen).toContain(`Sie wurde ${geschlossenAm(geschlossen)} geschlossen.`);
+    // Die andere Haelfte von "der FRUEHERE der beiden": die Frist — gut zehn Tage
+    // voraus — darf nicht auf dem Zettel stehen. Ohne diese Zusicherung wuerde
+    // der Test auch ein `max()` durchlassen, solange irgendein Datum erscheint.
+    expect(gelesen).not.toContain(`Sie wurde ${geschlossenAm(closesAt)} geschlossen.`);
     expect(gelesen).toContain("Danke, falls du schon abgestimmt hast.");
   });
 

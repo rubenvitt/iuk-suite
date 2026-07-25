@@ -519,15 +519,24 @@ describe("releaseDeviceAction: leerer Bogen für die nächste Person", () => {
     expect(redirectMock).toHaveBeenCalledWith(`/f/${token}`);
   });
 
-  it("die nächste Abgabe derselben IP landet als eigene Zeile", async () => {
-    // Der Kernfall des geteilten Geräts: zwei Personen, ein Handy, eine IP.
-    const { submitResponseAction, releaseDeviceAction } = await loadActions();
-    const { token, survey } = seedActiveSurvey("bereitschaft", "abc12");
-
-    await submitResponseAction(token, submission());
-    await releaseDeviceAction(token, survey.id);
-    await submitResponseAction(token, submission());
-
-    expect(listResponses(db, survey.id)).toHaveLength(2);
-  });
+  /*
+   * HIER STAND EIN TEST, DER NICHTS PRUEFEN KONNTE.
+   *
+   * "die naechste Abgabe derselben IP landet als eigene Zeile": zwei Abgaben mit
+   * einem `releaseDeviceAction` dazwischen, erwartet zwei Zeilen. Er war gruen —
+   * aber auch ohne die Freigabe. `submitResponseAction` LIEST das Dedup-Cookie
+   * nie (es wird in dieser Datei nur gesetzt, gelesen wird es ausschliesslich in
+   * page.tsx); zwei aufeinanderfolgende Abgaben ergeben immer zwei Zeilen. Der
+   * Test konnte also nicht fehlschlagen, wenn die Freigabe kaputtgeht — genau die
+   * Zusage, die er im Namen trug. Und solange der `cookies()`-Mock dieser Datei
+   * `get: vi.fn()` ist, kann hier ueberhaupt keine Cookie-Zusage geprueft werden.
+   *
+   * Die beiden Zusagen liegen dort, wo sie fehlschlagen KOENNEN:
+   *   - "zwei Abgaben derselben IP sind zwei Zeilen": oben, "15 Abgaben derselben
+   *     IP …" (`toHaveLength(15)`) — strikt staerker.
+   *   - "danach ist eine neue Abgabe moeglich": die Freigabe setzt `maxAge: 0`
+   *     mit `path: "/"` und leitet aufs Formular (die zwei Tests direkt hier
+   *     darueber), und ohne Cookie zeigt die Seite wieder den Bogen
+   *     (page.test.tsx, "Zustand E — zeigt ohne Cookie wieder das Formular").
+   */
 });
