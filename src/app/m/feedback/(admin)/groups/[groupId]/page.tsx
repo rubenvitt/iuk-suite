@@ -20,7 +20,8 @@ import { Teilnahme, teilnahmeUrlAus } from "../../../_ui/Teilnahme";
 import { Verlauf, type VerlaufZeile } from "../../../_ui/Verlauf";
 import { EinstellungenPanel } from "../../../_ui/EinstellungenPanel";
 import type { ZuordnungPerson } from "../../../_ui/Zuordnung";
-import { isFeedbackAdmin } from "../../../_lib/access";
+import { accessibleGroupFilter, isFeedbackAdmin } from "../../../_lib/access";
+import { einstiegZiel } from "../../../_lib/einstieg";
 
 /**
  * DAS COCKPIT (Entwurf §2.1). Die einzige Arbeitsseite des Moduls.
@@ -35,6 +36,15 @@ import { isFeedbackAdmin } from "../../../_lib/access";
  * Betriebsart „Einrichtung" (kein Dienstabend) ist die Seite schmaler und
  * einspaltig, und der Verlauf entfällt vollständig — ein leeres Fach ist
  * schlimmer als kein Fach (§4.3).
+ *
+ * DIE BREADCRUMB IST BEDINGT (§4.1). „Gruppen › Bereitschaft" gibt es nur für
+ * Nutzer, für die der Einstieg eine Seite MIT Inhalt ist — also ab zwei
+ * zugänglichen Gruppen oder für einen Voll-Admin. Für den häufigsten Nutzer des
+ * Moduls (Gruppenleiter, kein Voll-Admin, genau eine Gruppe) leitet
+ * `/m/feedback` per `redirect` sofort wieder hierher: der Krümel wäre garantiert
+ * ein Weg auf die Seite zurück, auf der man steht. Entschieden wird das von
+ * `einstiegZiel` — DERSELBEN Funktion, die den `redirect` auslöst (§3.1), damit
+ * Weiterleitung und Krümel nicht auseinanderlaufen können.
  */
 export default async function Cockpit({
   params,
@@ -45,10 +55,15 @@ export default async function Cockpit({
   const id = Number(groupId);
   // Guard zuerst, mit derselben `id`, die anschließend lädt: kein Auseinanderlaufen
   // zwischen geprüftem und geladenem Schlüssel.
-  const { viewer, db } = await guardPage(id);
+  const { viewer, db, memberIds } = await guardPage(id);
   const group = getGroup(db, id);
   if (!group) notFound();
   const istAdmin = isFeedbackAdmin(viewer);
+  // Kein zweiter Datenbankgriff: `memberIds` kommt aus dem Guard, der sie
+  // ohnehin gerechnet hat. `einstiegZiel !== null` heißt „der Einstieg leitet
+  // diesen Nutzer hierher zurück" — dann keine Breadcrumb (§4.1).
+  const einstiegLeitetZurueck =
+    einstiegZiel(accessibleGroupFilter(viewer, memberIds), istAdmin) !== null;
 
   const jetzt = new Date();
   const zustand = cockpitZustand(db, id, jetzt);
@@ -176,15 +191,17 @@ export default async function Cockpit({
       }}
     >
       <header style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <Breadcrumb
-          style={T.meta}
-          items={[
-            // „Gruppen" wortgenau wie §4.1 — dasselbe Wort tragen die Breadcrumbs
-            // der Unterseiten, sonst heißt die Wurzel je nach Seite anders.
-            { title: <Link href="/m/feedback">Gruppen</Link> },
-            { title: group.name },
-          ]}
-        />
+        {!einstiegLeitetZurueck && (
+          <Breadcrumb
+            style={T.meta}
+            items={[
+              // „Gruppen" wortgenau wie §4.1 — dasselbe Wort tragen die Breadcrumbs
+              // der Unterseiten, sonst heißt die Wurzel je nach Seite anders.
+              { title: <Link href="/m/feedback">Gruppen</Link> },
+              { title: group.name },
+            ]}
+          />
+        )}
         <div
           style={{
             display: "flex",

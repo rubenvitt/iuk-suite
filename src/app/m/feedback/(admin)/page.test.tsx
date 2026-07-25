@@ -32,9 +32,13 @@ import type { Question } from "@/app/m/feedback/_lib/questions";
  * 3. EIN GRUPPENLEITER SIEHT NUR SEINE GRUPPEN. Das ist die einzige echte
  *    Verbesserung des Ports gegenueber der Alt-Anwendung und darf nicht verloren
  *    gehen (Negativtest).
- * 4. DIE TEST-HOOKS BLEIBEN: `data-testid="group-row"` auf der Gruppenkarte und
- *    `href="/m/feedback/groups/{id}"` — der IDOR-E2E liest die ID per Regex aus
- *    genau diesem `href` (§4.16).
+ * 4. DIE TEST-HOOKS BLEIBEN: `data-testid="group-row"` und
+ *    `href="/m/feedback/groups/{id}"` sitzen am SELBEN Knoten (dem `<Link>`, in
+ *    den die Karte gewickelt ist) — der IDOR-E2E liest die ID per Regex aus dem
+ *    `href` des Knotens, den er per Hook findet (§4.16). Der Test unten prüft
+ *    deshalb `karte.getAttribute("href")` und NICHT `karte.closest("a")`: „ein
+ *    Vorfahre trägt irgendwo ein href" wäre die umgekehrte Beziehung und ginge
+ *    auch dann grün durch, wenn der Hook auf einem Knoten ohne `href` läge.
  */
 const { authMock, redirectMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
@@ -211,12 +215,16 @@ describe("Einstieg — der Zustand steht auf der Karte (§3.1)", () => {
     expect(namen).toEqual(["Laeuft", "Neu", "Alt"]);
   });
 
-  it("behaelt `data-testid=\"group-row\"` und den `href` aufs Cockpit (§4.16)", async () => {
+  it("traegt `data-testid=\"group-row\"` und den `href` aufs Cockpit am SELBEN Knoten (§4.16)", async () => {
     const a = gruppe("Bereitschaft", "bereitschaft");
     gruppe("Jugend", "jugend");
     authMock.mockResolvedValue(ADMIN);
     const karte = karteMit(await zeichne(), "Bereitschaft");
-    expect(karte.closest("a")?.getAttribute("href")).toBe(`/m/feedback/groups/${a.id}`);
+    // Direkt am Hook-Knoten, nicht per `closest("a")`: der E2E ruft
+    // `getByTestId("group-row").getAttribute("href")` — sitzt der Hook auf einem
+    // Kind ohne `href`, liest er `null` und der IDOR-Test bricht.
+    expect(karte.getAttribute("href")).toBe(`/m/feedback/groups/${a.id}`);
+    expect(karte.tagName).toBe("A");
   });
 });
 

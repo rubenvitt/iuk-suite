@@ -135,7 +135,15 @@ beforeEach(() => {
     createdAt: new Date(0),
   });
   guardPageMock.mockReset();
-  guardPageMock.mockResolvedValue({ viewer: { sub: "u1" }, db });
+  // Der Standardfall des Moduls: ein Gruppenleiter, kein Voll-Admin, GENAU EINE
+  // zugaengliche Gruppe. `memberIds` kommt seit §4.1 aus dem Guard, weil die
+  // Seite daran die Breadcrumb entscheidet — mit dieser Belegung traegt sie
+  // keine (der Einstieg leitete sofort wieder hierher).
+  guardPageMock.mockResolvedValue({
+    viewer: { sub: "u1", groups: [], fachgruppen: [] },
+    db,
+    memberIds: [1],
+  });
 });
 afterEach(() => sqlite.close());
 
@@ -466,6 +474,7 @@ describe("Zone e — die Leitung ist Admin-Sache (§2.6)", () => {
     guardPageMock.mockResolvedValue({
       viewer: { sub: "admin-1", groups: ["dashboard-admins"], fachgruppen: [] },
       db,
+      memberIds: [],
     });
   }
 
@@ -503,5 +512,67 @@ describe("Zone e — die Leitung ist Admin-Sache (§2.6)", () => {
 
     await unmount();
     document.body.replaceChildren();
+  });
+});
+
+/**
+ * DIE BEDINGTE BREADCRUMB (§4.1) — der Kruemel darf keine Schleife sein.
+ *
+ * §4.1 nennt drei Faelle, und der erste ist der HAEUFIGSTE Nutzer des Moduls:
+ * Gruppenleiter, kein Voll-Admin, genau eine Gruppe. Fuer den leitet der Einstieg
+ * `/m/feedback` per `redirect` sofort wieder ins Cockpit (§3.1) — eine Breadcrumb
+ * „Gruppen › …" waere damit garantiert ein Weg zurueck auf die Seite, auf der er
+ * steht. Ab zwei Gruppen ist der Einstieg dagegen eine echte Auswahlseite, und
+ * die Breadcrumb ist der einzige Rueckweg (ein „← Zurueck"-Knopf entfaellt
+ * ausdruecklich).
+ *
+ * Der dritte Fall ist der stille: ein VOLL-ADMIN mit genau einer Gruppe wird vom
+ * Einstieg NICHT weitergeleitet (sonst kaeme er nie an „Gruppenvergleich" und
+ * „+ Neue Gruppe") — er braucht die Breadcrumb also, obwohl die Gruppenzahl
+ * dieselbe ist. Wer nur auf `laenge === 1` prueft, verliert genau ihn.
+ */
+describe("Kopfzone — Breadcrumb nur, wenn der Einstieg nicht zurueckleitet (§4.1)", () => {
+  const zweiteGruppe = () =>
+    insertGroup(db, {
+      name: "Bereitschaft Zweitdorf",
+      slug: "zweitdorf",
+      secret: "def34",
+      closeAfterHours: null,
+      createdAt: new Date(0),
+    });
+
+  const kruemel = (wirt: HTMLElement) => wirt.querySelector(".ant-breadcrumb");
+
+  it("laesst sie bei genau einer Gruppe und ohne Voll-Admin WEG", async () => {
+    // Belegung aus `beforeEach`: memberIds [1], kein Admin.
+    const wirt = await zeichne();
+    expect(kruemel(wirt)).toBeNull();
+    // Der Gruppenname steht weiterhin als `<h1>` da — es fehlt der Kruemel, nicht
+    // die Ueberschrift.
+    expect(wirt.querySelector("h1")?.textContent).toBe("Bereitschaft Übach-Palenberg");
+  });
+
+  it("zeigt sie ab zwei Gruppen mit der Wurzel Gruppen aufs Cockpit", async () => {
+    const zweite = zweiteGruppe();
+    guardPageMock.mockResolvedValue({
+      viewer: { sub: "u1", groups: [], fachgruppen: [] },
+      db,
+      memberIds: [1, zweite.id],
+    });
+    const wirt = await zeichne();
+    const nav = kruemel(wirt);
+    expect(nav).not.toBeNull();
+    expect(nav?.textContent).toContain("Gruppen");
+    expect(nav?.textContent).toContain("Bereitschaft Übach-Palenberg");
+    expect(nav?.querySelector("a")?.getAttribute("href")).toBe("/m/feedback");
+  });
+
+  it("zeigt sie einem Voll-Admin AUCH bei genau einer Gruppe", async () => {
+    guardPageMock.mockResolvedValue({
+      viewer: { sub: "admin-1", groups: ["dashboard-admins"], fachgruppen: [] },
+      db,
+      memberIds: [1],
+    });
+    expect(kruemel(await zeichne())).not.toBeNull();
   });
 });

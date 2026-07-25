@@ -23,9 +23,12 @@ import { T } from "./typo";
  * gehört in ein `<a>` und nicht auf ein `div` mit `onClick` (§4.14, Tastatur). Der
  * Fokusring kommt aus `fb-fokus`.
  *
- * `data-testid="group-row"` und `href="/m/feedback/groups/{id}"` bleiben
- * unverändert: der IDOR-E2E liest die ID per Regex aus genau diesem `href`
- * (§4.16). Der Name des Hooks ist historisch („row"), die Zusage ist die ID.
+ * `data-testid="group-row"` sitzt auf dem `<Link>` — dem Knoten, der den `href`
+ * trägt. Die Zusage von §3.1/§4.16 ist „der Hook UND `href=/m/feedback/groups/
+ * {id}` am selben Knoten", denn der IDOR-E2E liest die ID per Regex aus genau
+ * diesem `href`. Auf der `<Card>` DARIN wäre der Hook gebrochen: dort gibt es
+ * keinen `href`, und unter ihr liegt kein zweites `<a>`. Der Name des Hooks ist
+ * historisch („row" — früher eine Tabellenzeile), die Zusage ist die ID.
  */
 
 export type Gruppenkarte = {
@@ -84,15 +87,10 @@ export function Gruppenkarten({
             <Link
               href={`/m/feedback/groups/${g.id}`}
               className="fb-fokus"
+              data-testid="group-row"
               style={{ display: "block", textDecoration: "none", color: "inherit" }}
             >
-              <Card
-                variant="outlined"
-                hoverable
-                className="fb-gruppenkarte"
-                data-testid="group-row"
-                styles={KARTE}
-              >
+              <Card variant="outlined" hoverable className="fb-gruppenkarte" styles={KARTE}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                   <div style={{ minWidth: 0 }}>
                     <h2 style={{ ...T.lead, margin: 0 }}>{g.name}</h2>

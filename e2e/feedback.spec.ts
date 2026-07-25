@@ -36,6 +36,22 @@ const ABSENDEKNOEPFE = 2;
 const ABSENDEN = "Rückmeldung absenden";
 
 /**
+ * DIE GRUPPENKARTE DES EINSTIEGS, an ihrem Namen erkannt.
+ *
+ * `data-testid="group-row"` und `href="/m/feedback/groups/{id}"` sitzen am selben
+ * Knoten: dem `<Link>`, in den die komplette Karte gewickelt ist (§3.1/§4.16).
+ * Deshalb `filter({ has: heading })` statt `.getByRole("link", …)` — ein Link IM
+ * Hook-Knoten existiert nicht, und der barrierefreie Name des Hook-Knotens ist
+ * der ganze Kartentext. Die Ueberschrift traegt den Gruppennamen exakt und
+ * unterscheidet damit "Demo" von "Demo Jugend" (beide im Seed).
+ */
+function gruppenkarte(page: Page, name: string): Locator {
+  return page
+    .getByTestId("group-row")
+    .filter({ has: page.getByRole("heading", { name, exact: true }) });
+}
+
+/**
  * Die Notenzeilen. Selektiert wird ueber `fieldset` + Radio und nicht ueber
  * Klassennamen: die kommen aus einem CSS-Modul und tragen einen Hash.
  */
@@ -172,10 +188,12 @@ test("geschlossene Umfrage: Zustand D — zwischen zwei Abenden dagegen Zustand 
     groups: "da-feedback-admin",
     callbackPath: "/",
   });
-  await page
-    .getByTestId("group-row")
-    .getByRole("link", { name: "Demo Jugend", exact: true })
-    .click();
+  // Der Hook `group-row` sitzt seit Teil 3 auf dem `<Link>`, in den die ganze
+  // Karte gewickelt ist (§3.1) — er IST also der Link, und ein Link DARIN gibt es
+  // nicht mehr. Unterschieden wird ueber die Ueberschrift der Karte: der
+  // barrierefreie Name des Links ist der komplette Kartentext (Zustandszeile,
+  // Note …), ein `name: "Demo Jugend", exact: true` traefe damit nichts.
+  await gruppenkarte(page, "Demo Jugend").click();
   // Die Gruppen-Seite ist der Ausgangspunkt fuer den zweiten Teil (unten) — die
   // ID steht nur hier, nicht hart im Test. Erst `waitForURL`, dann `page.url()`:
   // die Navigation laeuft clientseitig, ohne das Warten stuende hier noch die
@@ -327,11 +345,11 @@ test("IDOR-Guard: groupleader ohne Zuordnung bekommt auf einer fremden Gruppen-S
   // aus dem Listen-Link lesen (verlässlich, unabhängig von Insert-Reihenfolge
   // über mehrere Testdateien/-läufe hinweg), dann ausloggen.
   await devLogin(page, { host: "feedback.localtest.me", groups: "da-feedback-admin", callbackPath: "/" });
-  // Exakter Name statt hasText:"Demo" — der Seed legt inzwischen auch
+  // Exakte Überschrift statt hasText:"Demo" — der Seed legt inzwischen auch
   // "Demo Jugend" an, dessen Name "Demo" als Teilstring enthält und sonst zwei
-  // group-rows träfe (Playwright-Strict-Mode-Fehler).
-  const demoLink = page.getByTestId("group-row").getByRole("link", { name: "Demo", exact: true });
-  const href = await demoLink.getAttribute("href");
+  // group-rows träfe (Playwright-Strict-Mode-Fehler). Das `href` steht am
+  // Hook-Knoten selbst (§4.16), nicht an einem Kind.
+  const href = await gruppenkarte(page, "Demo").getAttribute("href");
   const groupId = href?.match(/\/groups\/(\d+)$/)?.[1];
   expect(groupId, `Demo-Gruppen-Link ohne numerische ID: ${href}`).toBeTruthy();
 

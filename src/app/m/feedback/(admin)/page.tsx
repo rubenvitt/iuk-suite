@@ -5,6 +5,7 @@ import { getDb } from "../_db/client";
 import { listGroups, memberGroupIdsFor } from "../_db/queries";
 import { viewerFromSession } from "../_lib/viewer";
 import { accessibleGroupFilter, isFeedbackAdmin } from "../_lib/access";
+import { einstiegZiel } from "../_lib/einstieg";
 import { cockpitZustand } from "../_lib/cockpit";
 import { computeDAStats } from "../_lib/aggregation";
 import type { Question } from "../_lib/questions";
@@ -46,7 +47,13 @@ export default async function FeedbackEinstieg() {
 
   // Der Sprung ins Cockpit passiert VOR jeder Aggregation: er ist der häufigste
   // Fall des Moduls, und die Zahlen der Karte braucht dafür niemand.
-  if (gruppen.length === 1 && !istAdmin) redirect(`/m/feedback/groups/${gruppen[0].id}`);
+  //
+  // Das Prädikat liegt in `_lib/einstieg.ts` und NICHT hier, weil das Cockpit
+  // dieselbe Frage stellen muss: es darf genau dann keine Breadcrumb „Gruppen"
+  // tragen, wenn dieser Krümel hier landete und sofort wieder zurückleitete
+  // (§4.1). Zwei Rechnungen wären die Schleife beim ersten Auseinanderlaufen.
+  const ziel = einstiegZiel(filter, istAdmin);
+  if (ziel !== null) redirect(`/m/feedback/groups/${ziel}`);
 
   const jetzt = new Date();
   const karten = gruppen
