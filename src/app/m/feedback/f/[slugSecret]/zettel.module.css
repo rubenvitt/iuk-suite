@@ -197,20 +197,32 @@
   display: block;
 }
 
+/*
+ * DASSELBE RASTER WIE DIE CHIPS, `gap` eingeschlossen (§3.2 Punkt 3). Ohne den
+ * gleichen Abstand teilen sich sechs Segmente die volle Breite, waehrend sich
+ * sechs Chips darunter fuenf Luecken von 6px teilen: die Farbstopps liegen dann
+ * bis ~5px neben der Spalte, auf die sie zeigen. Der Streifen ist Traeger 1 der
+ * Richtungserkennung (§3.6) — er darf nicht daneben zeigen.
+ */
 .streifen {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
   height: 10px;
-  border-radius: 3px;
-  overflow: hidden;
 }
 
 .streifen[data-stufen="5"] {
   grid-template-columns: repeat(5, 1fr);
 }
 
-/* Harte Stopps, kein Gradient: die sechs Stufen sind diskret, kein Kontinuum. */
+/*
+ * Harte Stopps, kein Gradient: die sechs Stufen sind diskret, kein Kontinuum.
+ * Der Radius sitzt am SEGMENT und nicht mehr am Streifen — mit `gap` klippt der
+ * Container die inneren Ecken nicht, vier eckige Kloetzchen zwischen zwei runden
+ * waeren die Folge. 3 ist der fuer den Streifen vorgesehene Radius (§3.5).
+ */
 .segment {
+  border-radius: 3px;
   background: var(--note-hell);
 }
 
@@ -422,10 +434,19 @@
   background: var(--note-dunkel);
 }
 
-/* Hover ohne Farbvorschau: eine Vorschau in der Notenfarbe waere eine
-   Bewertung, die niemand abgegeben hat. */
+/*
+ * Hover ohne Farbvorschau: eine Vorschau in der Notenfarbe waere eine Bewertung,
+ * die niemand abgegeben hat.
+ *
+ * DIE ZWEITE ZEILE IST DER GRUND, WARUM DIESE REGEL ZWEI SELEKTOREN HAT: die
+ * Geschwister-Regel oben hat Spezifitaet (0,3,1) und ueberschrieb `.chip:hover`
+ * (0,2,0). In jeder SCHON BEANTWORTETEN Zeile gab es damit keine
+ * Hover-Rueckmeldung mehr — also genau dort, wo jemand eine Note aendern will.
+ * `.chips:has(input:checked) .chip:hover` liegt bei (0,4,1) und gewinnt.
+ */
 @media (hover: hover) {
-  .chip:hover {
+  .chip:hover,
+  .chips:has(input:checked) .chip:hover {
     --rahmen: var(--linie-stark);
   }
 }
@@ -451,13 +472,42 @@
   color: var(--gedaempft);
 }
 
+/*
+ * DIE FUSSNOTE BELEGT IHREN PLATZ VON ANFANG AN.
+ *
+ * Vorher erschien sie erst mit der Wahl und verlaengerte die Zeile um ~27px
+ * (18,85px Textzeile plus 8px Abstand) — waehrend der Finger schon zur naechsten
+ * Zeile wanderte. Acht Zeilen, achtmal ein Sprung unter dem Daumen. Deshalb:
+ * Hoehe vorhalten, nur die SICHTBARKEIT umschalten. `visibility: hidden` nimmt
+ * sie auch aus dem Barrierefreiheitsbaum, ein `aria-hidden` braucht es nicht.
+ *
+ * `min-height` in `em`, damit der Platz an der Typo haengt und nicht an einem
+ * Pixelwert, der beim naechsten Nachjustieren stehen bleibt: 1,45 ist genau die
+ * `line-height` dieser Zeile.
+ *
+ * Der Preis, benannt: am Desktop ist die Matrixzeile damit immer 91px hoch statt
+ * 64px im unberuehrten und 91px im beantworteten Zustand (§3.5 nennt 64px/512px
+ * fuer die LEERE Matrix). Der Endstand — acht gewaehlte Noten — ist unveraendert,
+ * und gleich hohe Zeilen lesen sich als Tabelle, gemischte nicht.
+ */
 .fussnote {
   display: block;
+  visibility: hidden;
+  min-height: 1.45em;
   margin-top: 8px;
   text-align: right;
   font-size: 13px;
   line-height: 1.45;
   color: var(--graphit);
+}
+
+/*
+ * Die 160ms-Einblendung (§3.5) haengt am GESETZTEN Zustand, nicht am Platz: an
+ * `.fussnote` liefe sie beim Seitenaufbau achtmal ins Leere und bei der Wahl —
+ * dem einzigen Moment, in dem sie etwas zeigt — gar nicht mehr.
+ */
+.fussnote[data-fussnote] {
+  visibility: visible;
   animation: fussnoteEin 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
@@ -609,11 +659,20 @@
 
 .zaehler {
   display: block;
-  margin-top: 4px;
   text-align: right;
   font-size: 13px;
   line-height: 1.45;
   color: var(--gedaempft);
+}
+
+/*
+ * Der Abstand haengt an der SICHTBAREN Zahl, nicht am Element: die Live-Region
+ * steht auch leer im Baum (sonst kuendigt sie ihren ersten Inhalt nicht an), und
+ * ein leerer Block mit 4px Aussenabstand machte aus den 16px zwischen zwei
+ * Freitextzeilen (§3.5) stillschweigend 20px.
+ */
+.zaehler[data-zaehler] {
+  margin-top: 4px;
 }
 
 /* ---------- Abschluss-Block: der Angelpunkt (§3.2 Punkt 5) ---------- */
@@ -733,15 +792,11 @@
 }
 
 /*
- * Die Meldung wird programmatisch fokussiert (`tabIndex={-1}`), weil sie im
- * Abschluss-Block steht und mit dem zweiten Knopf 400-500px weiter unten
- * abgesendet wird. Der Rahmen ist derselbe wie am Knopf — Tinte, KEIN Rot: es ist
- * dieselbe Flaeche, nur eben die, die gerade den Blick bekommt.
+ * KEIN `:focus-visible` hier, und kein `tabindex` am Element: die Meldung traegt
+ * `role="alert"` (§3.8 schreibt sie fuer das `closed`-Panel fest), und Rolle PLUS
+ * programmatischer Fokus kuendigen sie moeglicherweise ZWEIMAL an. Zum Blick der
+ * Sehenden kommt sie ueber `scrollIntoView` — das leistet die Rolle nicht.
  */
-.meldung:focus-visible {
-  outline: 2px solid var(--tinte);
-  outline-offset: 2px;
-}
 
 .knopfHinweis {
   margin: 8px 0 0;

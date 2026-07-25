@@ -235,11 +235,17 @@ export function ZustandF() {
 
 /**
  * Der Weitergabe-Abschnitt der Danke-Seite (Entwurf 3.2 B): Haarlinie, 32px
- * Abstand, Kicker, Satz, Sekundaerknopf. Er steht unbedingt da, nicht nur wenn
- * ein Cookie gefunden wurde — auf einem geteilten Handy ist die naechste Person
- * der Regelfall, nicht die Ausnahme.
+ * Abstand, Kicker, Satz, Sekundaerknopf. Er steht UNBEDINGT da, nicht nur wenn
+ * ein Cookie oder eine aktive Umfrage gefunden wurde — auf einem geteilten Handy
+ * ist die naechste Person der Regelfall, nicht die Ausnahme.
+ *
+ * `surveyId` ist deshalb optional. Ohne aktive Umfrage (die Frist kann zwischen
+ * dem Absenden und dieser Seite ablaufen — Lazy-Auto-Close) gibt es kein Cookie
+ * freizugeben: `page.tsx` liest es nur im aktiven Zweig, und ohne Umfrage rendert
+ * es ohnehin Zustand C. Der Weg zum leeren Bogen ist dann eine gewoehnliche
+ * Navigation — sichtbar gleich, ohne Action, und ohne JavaScript bedienbar.
  */
-export function Weitergabe({ slugSecret, surveyId }: { slugSecret: string; surveyId: number }) {
+export function Weitergabe({ slugSecret, surveyId }: { slugSecret: string; surveyId?: number }) {
   return (
     <section className={s.weitergabe}>
       <p className={s.sektionKicker}>Handy wandert weiter?</p>
@@ -247,7 +253,13 @@ export function Weitergabe({ slugSecret, surveyId }: { slugSecret: string; surve
         Deine Antwort ist gespeichert und lässt sich nicht mehr ändern. Für die nächste Person kannst
         du einen leeren Bogen öffnen.
       </p>
-      <LeererBogen slugSecret={slugSecret} surveyId={surveyId} umriss />
+      {surveyId === undefined ? (
+        <a className={`${s.knopf} ${s.knopfUmriss} ${s.knopfLink}`} href={`/f/${slugSecret}`}>
+          Leeren Bogen öffnen
+        </a>
+      ) : (
+        <LeererBogen slugSecret={slugSecret} surveyId={surveyId} umriss />
+      )}
     </section>
   );
 }

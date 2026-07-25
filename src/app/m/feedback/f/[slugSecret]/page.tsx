@@ -14,6 +14,7 @@ import { parseToken } from "../../_lib/token";
 import { nextStatusOnAccess, TIME_ZONE } from "../../_lib/lifecycle";
 import { isRatingType, ratingScale, type Question } from "../../_lib/questions";
 import { FEHLER_PARAMETER } from "../../_lib/absenden";
+import { thema } from "../../_lib/thema";
 import { submitResponseAction } from "../../actions";
 import { Fehlerpanel, Huelle, ZustandC, ZustandD, ZustandE, ZustandF } from "./Zustaende";
 import { Zettel } from "./Zettel";
@@ -167,8 +168,10 @@ function skala(survey: SurveyRow): number {
 function beendet(survey: SurveyRow, evening: EveningRow, zusatz: string | null = null) {
   const zeit = schliesszeit(survey);
   return (
+    /* `thema(…, "")`: leer heisst leer. `ZustandD` prueft auf Wahrheit, und ein
+       Thema aus reinem Leerraum ergaebe dort " · Mittwoch, 22. Juli 2026". */
     <ZustandD
-      thema={evening.topic}
+      thema={thema(evening.topic, "")}
       datum={langesDatum(evening.date)}
       geschlossenAm={zeit ? geschlossenAm(zeit) : null}
       stufen={skala(survey)}
@@ -318,7 +321,7 @@ export default async function ParticipatePage({
 
   return (
     <Huelle
-      titel={active.evening.topic ?? `Dienstabend am ${tagUndMonat(active.evening.date)}`}
+      titel={thema(active.evening.topic, `Dienstabend am ${tagUndMonat(active.evening.date)}`)}
       kopf={
         <>
           {/* Ohne Uhrzeit, anders als im Entwurfsbeispiel "… · 19:30": `evenings`

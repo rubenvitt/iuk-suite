@@ -199,6 +199,30 @@ beforeEach(() => {
 });
 afterEach(() => sqlite.close());
 
+/*
+ * DIE H1 MUSS DEN ABEND BENENNEN (Entwurf 3.2 A Punkt 2). `topic ?? "Dienstabend
+ * am …"` fing nur `null` — nicht den LEEREN String. Der Admin-Pfad normalisiert
+ * leere Eingaben zu `null`, der IMPORT der Alt-Anwendung tut das nicht: dort
+ * stand die Ueberschrift des Zettels leer da.
+ */
+describe("Zustand A — die Ueberschrift benennt den Abend", () => {
+  it("nimmt das Thema, wenn eines gesetzt ist", async () => {
+    const { token } = seedUmfrage({
+      slug: "bereitschaft",
+      secret: "abc12",
+      topic: "Funk-Übung: Sprechgruppen",
+    });
+    expect(text(await seite(token))).toContain("Funk-Übung: Sprechgruppen");
+  });
+
+  it("faellt bei einem Thema aus reinem Leerraum auf `Dienstabend am …` zurueck", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12", topic: "   " });
+    const markup = await seite(token);
+    expect(text(markup)).toContain("Dienstabend am ");
+    expect(markup).not.toMatch(/<h1[^>]*>\s*<\/h1>/);
+  });
+});
+
 describe("Zustand C — zurzeit laeuft keine Umfrage", () => {
   it("nennt Gruppe, H1 und die Gueltigkeit des QR-Codes", async () => {
     seedGruppe("bereitschaft", "abc12");
@@ -596,6 +620,32 @@ describe("Danke-Seite (Zustand B)", () => {
 
   it("lehnt einen falschen Link genauso ab wie das Formular", async () => {
     expect(text(await danke("gibtsnicht-abc12"))).toContain("Dieser Link stimmt nicht.");
+  });
+
+  /*
+   * DER WEITERGABE-ABSCHNITT IST UNBEDINGT (Entwurf 3.2 B). Er hing an einer
+   * aktiven Umfrage — und genau dieser Weg loest das Problem des geteilten
+   * Handys. Der Zustand ist erreichbar: die Frist kann zwischen dem Absenden und
+   * dem Rendern dieser Seite ablaufen (Lazy-Auto-Close aus `lifecycle.ts`), und
+   * dann stand die naechste Person vor einer Danke-Seite ohne jeden Ausweg.
+   */
+  it("stellt den Weitergabe-Abschnitt auch OHNE aktive Umfrage hin", async () => {
+    const { token } = seedUmfrage({
+      slug: "bereitschaft",
+      secret: "abc12",
+      aktivieren: false,
+    });
+    const markup = await danke(token);
+    const gelesen = text(markup);
+    expect(gelesen).toContain("Handy wandert weiter?");
+    expect(gelesen).toContain("Leeren Bogen öffnen");
+    /*
+     * Ohne aktive Umfrage gibt es kein Cookie freizugeben (`page.tsx` liest es
+     * nur im aktiven Zweig) — der Weg zum leeren Bogen ist dann eine gewoehnliche
+     * Navigation. Kein Knopf, der eine Action ohne Umfrage-Id ruft.
+     */
+    expect(markup).toContain(`href="/f/${token}"`);
+    expect(markup).not.toMatch(/<button[^>]*>Leeren Bogen öffnen<\/button>/);
   });
 });
 

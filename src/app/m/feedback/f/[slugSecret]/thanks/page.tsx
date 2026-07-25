@@ -27,10 +27,12 @@ export default async function ThanksPage({
   const group = getGroupBySlug(db, parsed.slug);
   if (!group || group.secret !== parsed.secret) return <ZustandF />;
   /*
-   * Der Knopf braucht die Umfrage-Id, denn das Cookie heisst `feedback-${id}`.
-   * Ist die Umfrage inzwischen geschlossen, gibt es nichts freizugeben — dann
-   * bleibt die Seite beim Dank, statt einen Knopf anzubieten, der ins Leere
-   * fuehrt.
+   * Die Umfrage-Id, WENN es eine aktive gibt: das Cookie heisst `feedback-${id}`,
+   * und nur mit ihr kann `releaseDeviceAction` es loeschen. Fehlt sie (die Frist
+   * kann zwischen dem Absenden und dieser Seite ablaufen), bleibt der Abschnitt
+   * trotzdem stehen und fuehrt per Link auf das Formular — genau dieser Weg loest
+   * das Problem des geteilten Handys, und ohne aktive Umfrage gibt es dort auch
+   * nichts freizugeben.
    */
   const active = activeSurveyForGroup(db, group.id);
 
@@ -38,7 +40,7 @@ export default async function ThanksPage({
     <Huelle titel="Danke." gross>
       <div className={s.zustand}>
         <p className={s.text}>Deine Rückmeldung ist eingegangen — anonym.</p>
-        {active ? <Weitergabe slugSecret={slugSecret} surveyId={active.survey.id} /> : null}
+        <Weitergabe slugSecret={slugSecret} surveyId={active?.survey.id} />
       </div>
     </Huelle>
   );

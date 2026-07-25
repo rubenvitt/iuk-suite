@@ -488,12 +488,19 @@ describe("Freitexte: sechs linierte Zeilen, jede mit ihrer ganzen Frage", () => 
   it("setzt kein Erledigt-Haekchen an eine gefuellte Zeile", async () => {
     await zeichneStandard();
     await tippe("q9", "Die Sprechgruppen-Uebung.");
-    // Die gefuellte Zeile besteht aus genau zwei Teilen: Frage und Feld. Kein
-    // dritter Knoten, also kein Haekchen, kein "erledigt", kein Zaehler (dafuer
-    // ist der Text zu kurz). Bei freiwilligen Feldern waere ein Haekchen eine
-    // stille Beschaemung der leeren.
+    /*
+     * Die gefuellte Zeile besteht aus Frage, Feld und der LEEREN Live-Region des
+     * Zeichenzaehlers (§3.10 — sie steht immer im Baum, sonst kuendigt sie ihren
+     * ersten Inhalt nicht an; bei diesem kurzen Text hat sie nichts zu sagen).
+     * Kein weiterer Knoten, also kein Haekchen und kein "erledigt": bei
+     * freiwilligen Feldern waere ein Haekchen eine stille Beschaemung der leeren.
+     */
     const zeile = query(`[data-textzeile="q9"]`);
-    expect(Array.from(zeile.children).map((kind) => kind.tagName)).toEqual(["LABEL", "TEXTAREA"]);
+    expect(Array.from(zeile.children).map((kind) => kind.tagName)).toEqual([
+      "LABEL",
+      "TEXTAREA",
+      "SPAN",
+    ]);
     expect(zeile.textContent).not.toContain("✓");
     expect(zeile.textContent?.toLowerCase()).not.toContain("erledigt");
     expect(query(`label[for="q9-feld"]`).textContent).toBe("Was hat dir am besten gefallen?");
@@ -896,10 +903,12 @@ describe("Absende-Riegel: gesetzt ist gesetzt, auch ohne change-Ereignis", () =>
     await clickElement(absendeknoepfe()[0]);
     expect(aufrufe).toHaveLength(1);
     expect(aufrufe[0].get("q4")).toBe("3");
-    // Und danach ist er wieder der regulaere Absende-Knopf, beide Male.
+    // Und danach traegt keiner von beiden mehr den veralteten Lueckentext. Der
+    // Wortlaut steht hier absichtlich nicht: die Abgabe LAEUFT in diesem Moment,
+    // also traegt der Knopf den Pending-Zustand aus 3.8 ("Wird gesendet…").
     for (const knopf of absendeknoepfe()) {
       expect(knopf.type).toBe("submit");
-      expect(knopf.textContent).toBe("Rückmeldung absenden");
+      expect(knopf.textContent).not.toBe("Noch 8 Noten offen");
     }
     expect(queryAll("[data-kachel][data-offen]")).toHaveLength(0);
   });
@@ -1055,10 +1064,11 @@ describe("Unerwartete Ausnahme der Action", () => {
       await clickElement(zweiter);
       const meldung = query("[data-meldung]");
       expect(attrappe.ziele).toContain(meldung);
-      // Der Fokus wandert mit — sonst tippt eine Tastaturbedienung weiter unten
-      // weiter und die Meldung bleibt eine Notiz an einem anderen Ort.
-      expect(document.activeElement).toBe(meldung);
-      expect(meldung.tabIndex).toBe(-1);
+      // Der Fokus wandert NICHT mit: die Meldung traegt `role="alert"` (3.8
+      // schreibt sie fuer das `closed`-Panel fest), und Rolle PLUS programmatischer
+      // Fokus kuendigen sie moeglicherweise zweimal an. Das Scrollen bleibt — es
+      // dient den Sehenden, was die Rolle nicht leistet.
+      expect(document.activeElement).not.toBe(meldung);
     } finally {
       attrappe.zurueck();
     }
@@ -1089,9 +1099,6 @@ describe("Unerwartete Ausnahme der Action", () => {
     expect(regel).toMatch(/color:\s*var\(--tinte\)/);
     expect(regel).toMatch(/border-left:\s*2px solid var\(--graphit\)/);
     expect(regel).not.toMatch(/#c8000f/i);
-    // Der Fokusrahmen der programmatisch fokussierten Meldung: Tinte, kein Rot.
-    expect(cssRegel(".meldung:focus-visible")).toMatch(/outline:\s*2px solid var\(--tinte\)/);
-    expect(cssRegel(".meldung:focus-visible")).not.toMatch(/#c8000f/i);
   });
 });
 
@@ -1211,7 +1218,6 @@ describe("Abweisungen der Action werden sichtbar", () => {
       await clickElement(absendeknoepfe()[1]);
       const meldung = query("[data-meldung]");
       expect(attrappe.ziele).toContain(meldung);
-      expect(document.activeElement).toBe(meldung);
     } finally {
       attrappe.zurueck();
     }
@@ -1250,6 +1256,294 @@ describe("Abweisungen der Action werden sichtbar", () => {
     const regel = cssRegel(".knopf:disabled");
     expect(regel).toMatch(/opacity/);
     expect(regel).not.toMatch(/#c8000f/i);
+  });
+});
+
+/*
+ * DIE POLITUR (Task N3): die gesammelten Detailfunde aus den Reviews der Tasks
+ * 11–14. Einzeln je "Minor", zusammen genau der Unterschied zwischen
+ * "funktioniert" und "ist schoen". Zwei davon treffen TRAEGER des Entwurfs
+ * selbst: der Legendenstreifen zeigte bis ~5px neben die Chips, auf die er zeigt
+ * (er ist Traeger 1 der Richtungserkennung, §3.6), und in jeder schon
+ * beantworteten Zeile fehlte die Hover-Rueckmeldung — also genau dort, wo jemand
+ * eine Note AENDERN will.
+ *
+ * Die Nummern folgen der Fundliste, damit ein Fehlschlag auf einen Fund zeigt.
+ */
+describe("Politur der oeffentlichen Ansicht", () => {
+  /** Fuenfstufige Alt-Umfrage: dort wird die Rampe abgetastet (§3.6). */
+  const starsFragen: Question[] = [
+    { id: "s1", type: "stars", text: "Wie war der Dienstabend insgesamt?" },
+    { id: "s2", type: "stars", text: "Wie spannend war das Thema fuer dich?" },
+  ];
+
+  /** Spalten und Abstand einer Regel — jsdom rechnet kein CSS, also Quelltext. */
+  function raster(selektor: string): { spalten: string; abstand: string } {
+    const regel = cssRegel(selektor);
+    expect(regel).not.toBe("");
+    return {
+      spalten: /grid-template-columns:\s*([^;]+);/.exec(regel)?.[1]?.trim() ?? "",
+      abstand: /(?:^|[\s;{])gap:\s*([^;]+);/.exec(regel)?.[1]?.trim() ?? "",
+    };
+  }
+
+  it("1. legt Legendenstreifen, Notenwoerter und Chips auf DASSELBE Raster", () => {
+    const chips = raster(".chips");
+    expect(chips).toEqual({ spalten: "repeat(6, 1fr)", abstand: "6px" });
+    /*
+     * Ohne denselben `gap` liegen die sechs Farbstopps bis ~5px neben der Spalte,
+     * auf die sie zeigen. §3.2 Punkt 3 verlangt das "identische 6-Spalten-Raster",
+     * und §3.6 nennt die Spaltengleichheit Traeger 1 der Richtungserkennung —
+     * geprueft wird deshalb die GLEICHHEIT, nicht ein Literal: sie bleibt wahr,
+     * wenn jemand spaeter eine Seite aendert.
+     */
+    expect(raster(".streifen")).toEqual(chips);
+    expect(raster(".woerter")).toEqual(chips);
+    const chips5 = raster('.chips[data-stufen="5"]');
+    expect(chips5.spalten).toBe("repeat(5, 1fr)");
+    expect(raster('.streifen[data-stufen="5"]').spalten).toBe(chips5.spalten);
+    expect(raster('.woerter[data-stufen="5"]').spalten).toBe(chips5.spalten);
+    // Der Radius sitzt jetzt am Segment: mit `gap` klippt der Container die
+    // inneren Ecken nicht mehr, vier eckige Kloetzchen waeren die Folge.
+    expect(cssRegel(".segment")).toMatch(/border-radius:\s*3px/);
+  });
+
+  it("2. laesst den Hover auch in einer schon beantworteten Zeile durch", () => {
+    /*
+     * `.chips:has(input:checked) .chip` hat Spezifitaet (0,3,1) und ueberschrieb
+     * `.chip:hover` (0,2,0): in JEDER beantworteten Zeile gab es keine
+     * Hover-Rueckmeldung mehr — also beim Aendern einer Note.
+     */
+    expect(cssOhneKommentare).toMatch(
+      /\.chips:has\(input:checked\)\s+\.chip\s*\{[^}]*--rahmen:\s*var\(--linie\)/,
+    );
+    const hoverBlock = /@media \(hover: hover\)\s*\{([\s\S]*?)\n\}/.exec(cssOhneKommentare)?.[1];
+    expect(hoverBlock).toBeDefined();
+    expect(hoverBlock).toMatch(/\.chips:has\(input:checked\)\s+\.chip:hover/);
+    expect(hoverBlock).toMatch(/--rahmen:\s*var\(--linie-stark\)/);
+    // Und weiterhin KEINE Farbvorschau: eine Vorschau in der Notenfarbe waere
+    // eine Bewertung, die niemand abgegeben hat (§3.6).
+    expect(hoverBlock).not.toMatch(/--note-/);
+  });
+
+  it("3. haelt den Platz der Fussnote frei, damit die Notenwahl nichts verschiebt", async () => {
+    await zeichneStandard();
+    // Der Platz steht von Anfang an im Baum — acht Zeilen, acht Plaetze …
+    const plaetze = queryAll(`.${s.fussnote}`);
+    expect(plaetze).toHaveLength(8);
+    // … aber ohne Text und ohne `data-fussnote`, also unsichtbar.
+    expect(plaetze.every((p) => p.textContent === "")).toBe(true);
+    expect(exists("[data-fussnote]")).toBe(false);
+    await clickElement(feld("q1", 3));
+    expect(queryAll("[data-fussnote]")).toHaveLength(1);
+    /*
+     * Sichtbarkeit umschalten statt ein-/ausbauen, und die Hoehe steht vorher:
+     * 13px x 1,45 = 18,85px plus 8px Abstand — genau die ~27px, um die die Zeile
+     * sonst bei jeder Notenwahl wuchs, waehrend der Finger schon zur naechsten
+     * Zeile wanderte.
+     */
+    const regel = cssRegel(".fussnote");
+    expect(regel).toMatch(/visibility:\s*hidden/);
+    expect(regel).toMatch(/min-height:\s*1\.45em/);
+    expect(cssRegel(".fussnote[data-fussnote]")).toMatch(/visibility:\s*visible/);
+    /*
+     * Die 160ms-Einblendung (§3.5) haengt am GESETZTEN Zustand, nicht am Platz:
+     * stuende sie an `.fussnote`, liefe sie beim Seitenaufbau achtmal ins Leere
+     * und bei der Wahl gar nicht mehr.
+     */
+    expect(cssRegel(".fussnote[data-fussnote]")).toMatch(/animation:\s*fussnoteEin/);
+    expect(regel).not.toMatch(/animation:/);
+  });
+
+  it("4. laesst den Entwurf nach einer ABGEWIESENEN Abgabe stehen", async () => {
+    const abweisen = async (): Promise<SubmitResult> => ({ ok: false, code: "closed" });
+    await zeichneStandard(abweisen);
+    await alleNoten(3);
+    await tippe("q9", "Kartenkunde");
+    await submitForm();
+    expect(exists("[data-meldung]")).toBe(true);
+    // Geloescht wird NUR bei erfolgreichem Absenden (§3.7) — sonst waeren die
+    // Freitexte nach einem abgelehnten Absenden und einem Reload weg.
+    expect(sessionStorage.getItem(entwurfSchluessel(TOKEN_HASH))).not.toBeNull();
+    expect(textfeld("q9").value).toBe("Kartenkunde");
+  });
+
+  it("5. nennt eine Zeile aus reinem Leerraum NICHT beantwortet", async () => {
+    await zeichneStandard();
+    await tippe("q9", "   ");
+    /*
+     * `coerceAnswer` verwirft genau diesen Wert (`String(raw).trim() === ""`).
+     * Da die kraeftigere Grundlinie ausdruecklich das verbotene Erledigt-Haekchen
+     * ersetzt (§3.7), truege sie hier eine Falschaussage.
+     */
+    expect(textfeld("q9").hasAttribute("data-gefuellt")).toBe(false);
+    await tippe("q9", " Kartenkunde ");
+    expect(textfeld("q9").hasAttribute("data-gefuellt")).toBe(true);
+    // Getrimmt wird die PRUEFUNG, nicht der Wert — die Person schreibt, was sie will.
+    expect(textfeld("q9").value).toBe(" Kartenkunde ");
+  });
+
+  it("6. macht den Zeichenzaehler fuer Screenreader lesbar", async () => {
+    await zeichneStandard();
+    const beschreibung = textfeld("q9").getAttribute("aria-describedby");
+    expect(beschreibung).toBe("q9-zaehler");
+    /*
+     * Die Region steht IMMER im Baum, auch leer: eine erst bei 420 Zeichen
+     * eingebaute Live-Region kuendigt ihren ersten Inhalt nicht zuverlaessig an,
+     * und `aria-describedby` braucht ein stabiles Ziel. Die 420-Zeichen-Schwelle
+     * IST die Drosselung aus §3.10 — vorher gibt es nichts zu sagen.
+     */
+    const region = query(`#${beschreibung}`);
+    expect(region.getAttribute("aria-live")).toBe("polite");
+    expect(region.textContent).toBe("");
+    expect(exists("[data-zaehler]")).toBe(false);
+    await tippe("q9", "z".repeat(420));
+    expect(query(`#${beschreibung}`).textContent).toBe("noch 80 Zeichen");
+    expect(query(`#${beschreibung}`).hasAttribute("data-zaehler")).toBe(true);
+  });
+
+  it("7. kuendigt denselben Lueckenstand auch beim ZWEITEN Tipp an", async () => {
+    await zeichneStandard();
+    await fuenfVonAchtNoten();
+    await clickElement(absendeknoepfe()[0]);
+    const erste = query("[data-ansage]").textContent ?? "";
+    expect(erste).toBe("Noch 3 Noten offen — Frage 4.");
+    await clickElement(absendeknoepfe()[0]);
+    const zweite = query("[data-ansage]").textContent ?? "";
+    /*
+     * Schreibt der Zustand denselben String, rendert React nicht neu und die
+     * Ansage bleibt stumm. Der Text muss sich also unterscheiden — im WORTLAUT
+     * aber nicht, sonst stuende dort etwas anderes als beim ersten Mal.
+     */
+    expect(zweite).not.toBe(erste);
+    expect(zweite.trim()).toBe(erste.trim());
+  });
+
+  it("8. kuendigt die Meldung genau einmal an — Rolle ODER Fokus", async () => {
+    const attrappe = scrollAttrappe();
+    try {
+      await zeichneStandard(async () => {
+        throw new Error("SQLITE_READONLY");
+      });
+      await alleNoten(4);
+      await clickElement(absendeknoepfe()[1]);
+      const meldung = query("[data-meldung]");
+      // §3.8 schreibt `role="alert"` fest (fuer das `closed`-Panel) — also faellt
+      // der programmatische Fokus, nicht die Rolle.
+      expect(meldung.getAttribute("role")).toBe("alert");
+      expect(document.activeElement).not.toBe(meldung);
+      expect(meldung.hasAttribute("tabindex")).toBe(false);
+      // Das Scrollen bleibt: es dient den Sehenden, was die Rolle nicht leistet.
+      expect(attrappe.ziele).toContain(meldung);
+    } finally {
+      attrappe.zurueck();
+    }
+  });
+
+  it("9. gleicht den Zustand an, BEVOR der Lueckenspringer sendet", async () => {
+    const offeneKachelnBeimSenden: string[][] = [];
+    const action = async (): Promise<void> => {
+      offeneKachelnBeimSenden.push(
+        queryAll("[data-kachel][data-offen]").map((k) => k.getAttribute("data-kachel") ?? ""),
+      );
+    };
+    await zeichneStandard(action);
+    for (let i = 1; i <= 8; i++) setzeOhneEreignis(query("form"), `q${i}`, 3);
+    // Der Knopf traegt den veralteten Lueckentext (kein change-Ereignis) …
+    expect(absendeknoepfe()[0].textContent).toBe("Noch 8 Noten offen");
+    await clickElement(absendeknoepfe()[0]);
+    /*
+     * … und in genau diesem Zweig wird GESENDET. Ohne Angleichen VOR dem
+     * `requestSubmit` zeigt die Uebersicht in dem Moment acht gestrichelte
+     * Kacheln — die Abgabe laeuft, und die Seite behauptet, es fehle alles.
+     */
+    expect(offeneKachelnBeimSenden).toEqual([[]]);
+  });
+
+  it("10. traegt beim Absenden den Pending-Zustand: `aria-busy`, Label, `disabled`", async () => {
+    let loesen = (): void => {};
+    const haengt = (): Promise<void> =>
+      new Promise((fertig) => {
+        loesen = fertig;
+      });
+    await zeichneStandard(haengt);
+    await alleNoten(3);
+    await submitForm();
+    const knoepfe = absendeknoepfe();
+    expect(knoepfe.map((k) => k.textContent)).toEqual(["Wird gesendet…", "Wird gesendet…"]);
+    expect(knoepfe.map((k) => k.getAttribute("aria-busy"))).toEqual(["true", "true"]);
+    expect(knoepfe.map((k) => k.disabled)).toEqual([true, true]);
+    // Ohne Spinner (§3.8): ein Spinner waere ein Kindelement im Knopf.
+    expect(knoepfe.every((k) => k.children.length === 0)).toBe(true);
+    /*
+     * Und ohne Layoutverschiebung: der Knopf hat feste Masse, das laengere Label
+     * kann ihn nicht wachsen lassen. Nicht ueber `cssRegel`, denn dessen Muster
+     * greift auch in `.kurzzusage + .knopf` — hier muss die Grundregel her.
+     */
+    const knopfRegel = /\n\.knopf\s*\{[^}]*\}/.exec(cssOhneKommentare)?.[0] ?? "";
+    expect(knopfRegel).toMatch(/width:\s*100%/);
+    expect(knopfRegel).toMatch(/height:\s*48px/);
+    await act(async () => {
+      loesen();
+    });
+  });
+
+  it("10b. nimmt den Pending-Zustand nach einer Ausnahme zurueck", async () => {
+    await zeichneStandard(async () => {
+      throw new Error("SQLITE_READONLY");
+    });
+    await alleNoten(3);
+    await submitForm();
+    const knoepfe = absendeknoepfe();
+    // Bliebe er stehen, waeren nach einer Ausnahme BEIDE Knoepfe dauerhaft tot.
+    expect(knoepfe.map((k) => k.textContent)).toEqual([
+      "Rückmeldung absenden",
+      "Rückmeldung absenden",
+    ]);
+    expect(knoepfe.map((k) => k.disabled)).toEqual([false, false]);
+    expect(knoepfe.some((k) => k.hasAttribute("aria-busy"))).toBe(false);
+  });
+
+  it("10c. nimmt ihn auch nach einer Abweisung zurueck", async () => {
+    await zeichneStandard(async (): Promise<SubmitResult> => ({ ok: false, code: "incomplete" }));
+    await alleNoten(3);
+    await submitForm();
+    expect(absendeknoepfe().map((k) => k.disabled)).toEqual([false, false]);
+    expect(absendeknoepfe().map((k) => k.textContent)).toEqual([
+      "Rückmeldung absenden",
+      "Rückmeldung absenden",
+    ]);
+  });
+
+  it("13. reicht dem Chip eine VOLLFARBE statt `color-mix`", () => {
+    /*
+     * Im `stars`-Zweig wird die Sechser-Rampe abgetastet (1, 2, 3½, 5, 6): die
+     * halben Indizes waren ein `color-mix(...)` in `--note-hell`. Kennt ein
+     * Browser `color-mix` nicht, ist `background: var(--note-hell)` ungueltig →
+     * `unset` → transparent, und die weisse Ziffer stand unsichtbar auf dem
+     * hellen Blatt. Ein Rueckfall-`background` DAVOR hilft dagegen NICHT: eine
+     * ungueltige var()-Ersetzung faellt auf `unset` zurueck, nicht auf die vorige
+     * Deklaration — sie greift erst nach der Kaskade. Deshalb wird gerechnet.
+     *
+     * Ueber `renderToStaticMarkup` und nicht ueber das DOM: jsdom fuehrt keine
+     * eigene CSSOM fuer Custom Properties, das `style`-Attribut waere dort leer.
+     */
+    const markup = renderToStaticMarkup(
+      <Zettel
+        questions={starsFragen}
+        scale={5}
+        action={nichtsTun}
+        tokenHash={TOKEN_HASH}
+        siegel={FASSUNG_A}
+      />,
+    );
+    expect(markup).not.toContain("color-mix");
+    // Note 3 der Fuenfer-Skala liegt bei Index 2½, also kanalweise mittig
+    // zwischen `#7E6103` und `#904708` bzw. `#DAB22F` und `#EB9549`.
+    expect(markup.toLowerCase()).toContain("#875406");
+    expect(markup.toLowerCase()).toContain("#e3a43c");
+    // Und die Vollstufen bleiben unveraendert die Palette aus `_lib/noten.ts`.
+    expect(markup).toContain("#2F7F59");
   });
 });
 

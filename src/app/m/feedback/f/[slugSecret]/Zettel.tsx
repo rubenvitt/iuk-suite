@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { flushSync } from "react-dom";
 import { NOTEN_DUNKEL, NOTEN_HELL, NOTEN_WORT } from "../../_lib/noten";
 import { MAX_TEXT_LENGTH, isRatingType, ratingScale, type Question } from "../../_lib/questions";
 import type { SubmitResult } from "../../actions";
@@ -104,7 +105,34 @@ function rampenIndex(stufe: number, scale: number): number {
 function mischung(palette: readonly string[], index: number): string {
   const unten = Math.floor(index);
   if (unten === index) return palette[unten];
-  return `color-mix(in srgb, ${palette[unten]} 50%, ${palette[unten + 1]})`;
+  return halbeStufe(palette[unten], palette[unten + 1]);
+}
+
+/**
+ * Zwei Vollfarben halbe-halbe — GERECHNET, nicht als `color-mix` weitergegeben.
+ *
+ * Vorher stand in `--note-hell` bei halben Indizes ein `color-mix(...)`. Kennt
+ * ein Browser die Funktion nicht, ist `background: var(--note-hell)` nach der
+ * Ersetzung ungueltig; eine ungueltige `var()`-Ersetzung faellt aber nicht auf die
+ * vorige Deklaration zurueck, sondern auf `unset` — der Chip waere TRANSPARENT
+ * und die weisse Ziffer unsichtbar auf dem hellen Blatt. Ein Rueckfall-
+ * `background` davor hilft deshalb NICHT (er wird von der Kaskade vorher schon
+ * verworfen); nur eine Vollfarbe im Wert selbst hilft.
+ *
+ * Kanalweiser Mittelwert der sRGB-Bytes ist genau das, was ein Browser fuer
+ * `color-mix(in srgb, A 50%, B)` mit zwei opaken Farben zeichnet — die Optik
+ * aendert sich nicht, und die streng fallende Luminanz der Rampe bleibt
+ * erhalten, weil der Mittelwert je Kanal zwischen beiden Nachbarn liegt.
+ */
+function halbeStufe(a: string, b: string): string {
+  const kanaele = [1, 3, 5].map((stelle) => {
+    const links = Number.parseInt(a.slice(stelle, stelle + 2), 16);
+    const rechts = Number.parseInt(b.slice(stelle, stelle + 2), 16);
+    return Math.round((links + rechts) / 2)
+      .toString(16)
+      .padStart(2, "0");
+  });
+  return `#${kanaele.join("")}`;
 }
 
 /** Notenwort einer Stufe. Bei fuenf Stufen endet die Skala bei "mangelhaft". */
@@ -118,6 +146,8 @@ function wort(stufe: number): string {
 const ABSCHLUSS_TITEL = "Das war der Pflichtteil.";
 const UEBERSICHT_HINWEIS = "Tippe eine Zahl an, um sie zu ändern.";
 const ABSENDEN = "Rückmeldung absenden";
+/** Der Pending-Zustand aus 3.8: Label, `aria-busy`, `disabled` — kein Spinner. */
+const SENDET = "Wird gesendet…";
 const KURZZUSAGE = "Anonym — kein Name, kein Gerät, keine Uhrzeit.";
 const NAVIGATOR_KNOPF = "→ nächste offene";
 
@@ -185,6 +215,30 @@ function freiwilligSatz(zeilen: number): string {
 /** "Noch 3 Noten offen" — der Zustand als Text, nicht als Farbe (§3.6). */
 function offenText(anzahl: number): string {
   return anzahl === 1 ? "Noch 1 Note offen" : `Noch ${anzahl} Noten offen`;
+}
+
+/** Der Stand der Ansage: Wortlaut plus Zaehler der Ansagen — siehe `ansageText`. */
+interface Ansage {
+  text: string;
+  n: number;
+}
+
+/**
+ * Der Inhalt der Live-Region.
+ *
+ * Angekuendigt wird nur, was sich im DOM AENDERT. Wird zweimal mit derselben
+ * Lueckenlage getippt, ist der Wortlaut derselbe, React schreibt nichts neu und
+ * die Ansage bleibt stumm — ausgerechnet beim zweiten Versuch, also dann, wenn
+ * jemand nicht verstanden hat, was passiert ist. Deshalb traegt jede zweite
+ * Ansage ein GESCHUETZTES LEERZEICHEN am Ende: es aendert den Textknoten, ist
+ * unsichtbar, und Screenreader sprechen es nicht aus. Ein Zaehler im Wortlaut
+ * ("… (2)") waere hoerbar und damit eine Aussage, die niemand gemacht hat.
+ */
+const ANSAGE_MARKE = "\u00A0";
+
+function ansageText(ansage: Ansage): string {
+  if (ansage.text === "") return "";
+  return ansage.n % 2 === 1 ? ansage.text : `${ansage.text}${ANSAGE_MARKE}`;
 }
 
 /**
@@ -317,7 +371,16 @@ export function Zettel(props: ZettelProps) {
    * KEINEN Austausch der Oberflaeche (§3.11), nur diese drei Attribute wechseln.
    */
   const [mitJs, setMitJs] = useState(false);
-  const [ansage, setAnsage] = useState("");
+  /**
+   * Die Ansage des Lueckenspringers — Text UND ein Zaehler.
+   *
+   * Der Zaehler ist der Fund: wird zweimal mit DERSELBEN Lueckenlage getippt,
+   * setzt der Zustand denselben String, React rendert die Live-Region nicht neu
+   * und kein Screenreader sagt etwas. Angekuendigt wird nur, was sich im DOM
+   * aendert — deshalb traegt jede zweite Ansage ein geschuetztes Leerzeichen am
+   * Ende: unsichtbar, unhoerbar, aber eine Aenderung.
+   */
+  const [ansage, setAnsage] = useState({ text: "", n: 0 });
   const [lesezeichen, setLesezeichen] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   /**
@@ -336,6 +399,27 @@ export function Zettel(props: ZettelProps) {
   const [endstand, setEndstand] = useState(false);
   /** Ratelimit-Sperre (3.8): der Knopf ist 20 Sekunden lang nicht bedienbar. */
   const [gesperrt, setGesperrt] = useState(false);
+  /**
+   * Die Abgabe laeuft (3.8). Sie wird NICHT zurueckgenommen, wenn die Action
+   * durchgeht: dann leitet der Server um, und ein Knopf, der in der letzten
+   * Zehntelsekunde vor dem Seitenwechsel wieder "Rückmeldung absenden" sagt, ist
+   * eine Einladung, ein zweites Mal zu tippen. Zurueckgenommen wird sie in beiden
+   * Zweigen, in denen die Seite stehen bleibt — Abweisung und Ausnahme.
+   */
+  const [sendet, setSendet] = useState(false);
+  /**
+   * Derselbe Sachverhalt wie `sendet`, nur als Ref — und beides ist noetig.
+   *
+   * `sendet` gehoert in den Zustand, weil der Knopf sich danach richtet. Der
+   * RIEGEL kann aber nicht am Zustand haengen: seit der Lueckenspringer den
+   * Abgleich synchron durchschreibt (`flushSync`), ist der Knopf am Ende des
+   * Klicks unter Umstaenden schon ein `submit` — die Aktivierung des Klicks
+   * schickt dann eine ZWEITE Abgabe hinter der, die `requestSubmit` gerade
+   * ausgeloest hat. Dieses zweite Ereignis kommt VOR dem Nachrendern an, liest im
+   * Zustand also noch `false`. Ein Ref ist sofort wahr. (Und derselbe Riegel deckt
+   * den Doppeltipp ab, der die Ratelimit-Bremse ueberhaupt ausloest.)
+   */
+  const laeuft = useRef(false);
   const [abschlussSichtbar, setAbschlussSichtbar] = useState(false);
   const formular = useRef<HTMLFormElement>(null);
   const abschluss = useRef<HTMLDivElement>(null);
@@ -387,10 +471,15 @@ export function Zettel(props: ZettelProps) {
     const ziel = meldungsZeile.current;
     if (!ziel) return;
     const ruhig = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    /*
+     * NUR SCROLLEN, kein Fokus. Das Scrollen ist der Kanal fuer die Sehenden —
+     * den leistet `role="alert"` nicht. Umgekehrt kuendigt die Rolle die Meldung
+     * fuer Screenreader an, und beides zusammen (Rolle UND programmatischer
+     * Fokus) kuendigt sie moeglicherweise ZWEIMAL an. §3.8 schreibt die Rolle
+     * fest, also faellt der Fokus — deshalb traegt die Meldung auch kein
+     * `tabindex` mehr.
+     */
     ziel.scrollIntoView?.({ behavior: ruhig ? "auto" : "smooth", block: "center" });
-    // Der Fokus wandert mit: sonst tippt eine Person, die per Tastatur bedient,
-    // weiter unten weiter und die Meldung bleibt eine Notiz an einem anderen Ort.
-    ziel.focus?.();
   }, [fehlversuche]);
 
   /*
@@ -460,7 +549,8 @@ export function Zettel(props: ZettelProps) {
   function lueckeZeigen(luecken: Question[]): void {
     const erste = luecken[0];
     if (!erste) return;
-    setAnsage(`${offenText(luecken.length)} — Frage ${notenfragen.indexOf(erste) + 1}.`);
+    const text = `${offenText(luecken.length)} — Frage ${notenfragen.indexOf(erste) + 1}.`;
+    setAnsage((alt) => ({ text, n: alt.n + 1 }));
     springen(erste.id);
   }
 
@@ -479,7 +569,13 @@ export function Zettel(props: ZettelProps) {
    * Ausnahmefehler und kein toter Knopf.
    */
   function zurLuecke(): void {
-    const luecken = abgleichen();
+    /*
+     * `flushSync`, damit der Abgleich VOR dem `requestSubmit` auf dem Schirm ist:
+     * ohne ihn steht das Nachrendern hinter dem synchronen Submit, und in genau
+     * diesem Zweig traegt der Knopf noch "Noch 8 Noten offen" und die Uebersicht
+     * acht gestrichelte Kacheln — waehrend die Abgabe schon laeuft.
+     */
+    const luecken = flushSync(() => abgleichen());
     if (luecken.length === 0) {
       const form = formular.current;
       if (typeof form?.requestSubmit === "function") form.requestSubmit();
@@ -502,6 +598,8 @@ export function Zettel(props: ZettelProps) {
    */
   async function absenden(ereignis: FormEvent<HTMLFormElement>): Promise<void> {
     ereignis.preventDefault();
+    // Eine Abgabe laeuft schon: die zweite waere derselbe Bogen ein zweites Mal.
+    if (laeuft.current) return;
     // Die Nutzlast wird VOR allem anderen gelesen: nach einem `await` ist
     // `currentTarget` null.
     const daten = new FormData(ereignis.currentTarget);
@@ -525,6 +623,8 @@ export function Zettel(props: ZettelProps) {
       return;
     }
     setMeldung(null);
+    laeuft.current = true;
+    setSendet(true);
     try {
       const ergebnis = await action(daten);
       // Der Entwurf faellt NUR bei einer angenommenen Abgabe. Bei `{ ok: false }`
@@ -536,6 +636,8 @@ export function Zettel(props: ZettelProps) {
       }
       abweisungZeigen(ergebnis.code);
     } catch {
+      laeuft.current = false;
+      setSendet(false);
       setMeldung(MELDUNG_AUSNAHME);
       setFehlversuche((n) => n + 1);
     }
@@ -555,6 +657,10 @@ export function Zettel(props: ZettelProps) {
    * dann, wenn der Text derselbe ist.
    */
   function abweisungZeigen(code: string): void {
+    // Die Seite bleibt stehen, also endet die Abgabe hier: bliebe `sendet` wahr,
+    // waeren beide Knoepfe dauerhaft mit "Wird gesendet…" gesperrt.
+    laeuft.current = false;
+    setSendet(false);
     setMeldung(MELDUNG_ABWEISUNG[code] ?? MELDUNG_AUSNAHME);
     setFehlversuche((n) => n + 1);
     if (ENDSTAND.includes(code)) setEndstand(true);
@@ -610,16 +716,11 @@ export function Zettel(props: ZettelProps) {
           {siegel}
         </p>
         {meldung === null ? null : (
-          /* `tabIndex={-1}`: nicht in der Tabreihenfolge, aber programmatisch
-             fokussierbar — nur so kann der Effekt oben den Blick hierher holen,
-             wenn mit dem zweiten Knopf weiter unten abgesendet wurde. */
-          <p
-            ref={meldungsZeile}
-            className={s.meldung}
-            data-meldung=""
-            role="alert"
-            tabIndex={-1}
-          >
+          /* `role="alert"` UND kein programmatischer Fokus: 3.8 schreibt die Rolle
+             fest, und beides zusammen kuendigen Screenreader moeglicherweise
+             zweimal an. Zum Blick der Sehenden kommt die Meldung ueber
+             `scrollIntoView` im Effekt oben — das leistet die Rolle nicht. */
+          <p ref={meldungsZeile} className={s.meldung} data-meldung="" role="alert">
             {meldung}
           </p>
         )}
@@ -628,6 +729,7 @@ export function Zettel(props: ZettelProps) {
             bereit={bereit}
             offen={offene.length}
             gesperrt={gesperrt}
+            sendet={sendet}
             onLuecke={zurLuecke}
           />
         )}
@@ -637,7 +739,7 @@ export function Zettel(props: ZettelProps) {
         {/* GENAU EINE Meldezeile fuer beide Knoepfe — zwei Live-Bereiche
             wuerden jede Ansage doppelt sprechen (§3.10). */}
         <p className={s.srOnly} aria-live="polite" data-ansage="">
-          {ansage}
+          {ansageText(ansage)}
         </p>
       </div>
       {freitextfragen.length === 0 ? null : (
@@ -649,6 +751,7 @@ export function Zettel(props: ZettelProps) {
               bereit={bereit}
               offen={offene.length}
               gesperrt={gesperrt}
+              sendet={sendet}
               onLuecke={zurLuecke}
             />
           )}
@@ -677,6 +780,7 @@ function Absendeknopf({
   bereit,
   offen,
   gesperrt,
+  sendet,
   onLuecke,
 }: {
   bereit: boolean;
@@ -687,8 +791,27 @@ function Absendeknopf({
    * offener unten waere eine Einladung, es genau dort noch einmal zu versuchen.
    */
   gesperrt: boolean;
+  /**
+   * Die Abgabe laeuft (3.8). Auch dieser Zustand liegt auf BEIDEN Knoepfen: der
+   * untere ist derselbe Knopf, und ein bedienbarer Zwilling waehrend der Abgabe
+   * schickt den Bogen ein zweites Mal.
+   */
+  sendet: boolean;
   onLuecke: () => void;
 }) {
+  /*
+   * PENDING (3.8): Label als Text, `aria-busy`, `disabled` — und KEIN Spinner.
+   * Der Knopf hat feste Masse (100% bzw. 260px x 48px), das laengere Label
+   * verschiebt also nichts. Er bleibt `type="submit"`: waere er ein `button`,
+   * verlöre er waehrend der Abgabe seine Verbindung zum Formular.
+   */
+  if (sendet) {
+    return (
+      <button type="submit" className={s.knopf} data-absenden="" aria-busy="true" disabled>
+        {SENDET}
+      </button>
+    );
+  }
   if (bereit) {
     return (
       <button type="submit" className={s.knopf} data-absenden="" disabled={gesperrt}>
@@ -893,6 +1016,7 @@ function Freitextzeile({
   const rest = MAX_TEXT_LENGTH - wert.length;
   const zaehler =
     wert.length < ZAEHLER_AB ? null : rest <= 0 ? "Zeile ist voll" : `noch ${rest} Zeichen`;
+  const zaehlerId = `${frage.id}-zaehler`;
 
   return (
     <div className={s.textzeile} data-textzeile={frage.id}>
@@ -906,7 +1030,14 @@ function Freitextzeile({
         rows={1}
         maxLength={MAX_TEXT_LENGTH}
         value={wert}
-        data-gefuellt={wert === "" ? undefined : ""}
+        /*
+         * GEGEN DEN GETRIMMTEN WERT: `coerceAnswer` verwirft eine Zeile aus reinem
+         * Leerraum, der Server speichert sie also NICHT. Die kraeftigere Grundlinie
+         * ersetzt ausdruecklich das verbotene Erledigt-Haekchen (§3.7) — sie darf
+         * nicht "beantwortet" sagen, wo nichts ankommt.
+         */
+        data-gefuellt={wert.trim() === "" ? undefined : ""}
+        aria-describedby={zaehlerId}
         autoComplete="off"
         autoCapitalize="sentences"
         spellCheck={true}
@@ -915,11 +1046,23 @@ function Freitextzeile({
         onFocus={(e) => hoeheAnpassen(e.currentTarget)}
         onBlur={(e) => hoeheAnpassen(e.currentTarget)}
       />
-      {zaehler === null ? null : (
-        <span className={s.zaehler} data-zaehler="">
-          {zaehler}
-        </span>
-      )}
+      {/*
+        DIE LIVE-REGION STEHT IMMER IM BAUM, auch leer (§3.10). Zwei Gruende, beide
+        zwingend: eine erst bei 420 Zeichen EINGEBAUTE Region kuendigt ihren ersten
+        Inhalt nicht zuverlaessig an, und `aria-describedby` braucht ein stabiles
+        Ziel. Die 420-Zeichen-Schwelle IST die Drosselung — vorher gibt es nichts
+        zu sagen, und ein Zeitgeber je Zeile waere ein Werk, das niemand verlangt
+        hat. `data-zaehler` traegt nur die SICHTBARE Zahl, damit "unsichtbar bis
+        419" pruefbar bleibt.
+      */}
+      <span
+        id={zaehlerId}
+        className={s.zaehler}
+        data-zaehler={zaehler === null ? undefined : ""}
+        aria-live="polite"
+      >
+        {zaehler}
+      </span>
     </div>
   );
 }
@@ -1028,11 +1171,15 @@ function Notenzeile({
               </span>
             </div>
           ) : null}
-          {gewaehlt === undefined ? null : (
-            <span className={s.fussnote} data-fussnote="">
-              {gewaehlt} · {wort(gewaehlt)}
-            </span>
-          )}
+          {/*
+            DIE FUSSNOTE STEHT IMMER IM BAUM, auch unbeschriftet: sie haelt ihren
+            Platz frei (CSS `visibility` plus `min-height`). Baute sie sich erst
+            mit der Wahl ein, wuechse die Zeile um ~27px — und zwar genau in dem
+            Moment, in dem der Finger schon zur naechsten Zeile wandert.
+          */}
+          <span className={s.fussnote} data-fussnote={gewaehlt === undefined ? undefined : ""}>
+            {gewaehlt === undefined ? null : `${gewaehlt} · ${wort(gewaehlt)}`}
+          </span>
         </div>
       </div>
     </fieldset>

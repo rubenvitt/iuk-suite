@@ -5,6 +5,7 @@ import { getDb } from "../../../_db/client";
 import { getGroup, listEvenings, memberGroupIdsFor } from "../../../_db/queries";
 import { viewerFromSession } from "../../../_lib/viewer";
 import { assertGroupAccess } from "../../../_lib/access";
+import { thema } from "../../../_lib/thema";
 import { SPACE } from "@/core/theme/tokens";
 import { EveningForm } from "../../EveningForm";
 
@@ -45,7 +46,7 @@ export default async function GroupDetail({
           {evenings.map((e) => (
             <li key={e.id}>
               <Link href={`/m/feedback/groups/${id}/evenings/${e.id}`}>
-                {new Date(e.date).toISOString().slice(0, 10)} — {e.topic ?? "(ohne Thema)"}
+                {new Date(e.date).toISOString().slice(0, 10)} — {thema(e.topic, "(ohne Thema)")}
               </Link>
             </li>
           ))}

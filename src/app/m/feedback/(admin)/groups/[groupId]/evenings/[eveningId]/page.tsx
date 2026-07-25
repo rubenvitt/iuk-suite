@@ -5,6 +5,7 @@ import { getDb } from "../../../../../_db/client";
 import { getGroup, getEvening, getSurveyByEvening, memberGroupIdsFor } from "../../../../../_db/queries";
 import { viewerFromSession } from "../../../../../_lib/viewer";
 import { assertGroupAccess } from "../../../../../_lib/access";
+import { thema } from "../../../../../_lib/thema";
 import { nextStatusOnAccess, type SurveyStatus } from "../../../../../_lib/lifecycle";
 import { SPACE } from "@/core/theme/tokens";
 import { SurveyControls } from "../../../../SurveyControls";
@@ -57,7 +58,7 @@ export default async function EveningDetail({
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl, padding: SPACE.lg }}>
       <section style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>{evening.topic ?? "(ohne Thema)"}</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>{thema(evening.topic, "(ohne Thema)")}</h1>
         <p style={{ margin: 0 }}>
           {group.name} — {new Date(evening.date).toISOString().slice(0, 10)}
         </p>
