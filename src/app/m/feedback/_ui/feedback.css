@@ -1,0 +1,421 @@
+/*
+ * DIE EIGENEN CSS-VARIABLEN DES MODULS `feedback` (Entwurf §4.10, §4.11).
+ *
+ * WARUM NICHT `--ant-*`: antd deklariert seine Variablen auf der Scope-Klasse
+ * `css-var-iuk` an den Wurzelelementen SEINER EIGENEN Komponenten, nicht auf
+ * `:root`. Eigenes Markup, eigene Diagramme und die Druckansicht sehen sie
+ * deshalb nie — und der Fehler ist STILL: die Haarlinie verschwindet einfach,
+ * `pnpm build` meldet nichts. Regel: in Props von antd-Komponenten sind
+ * `--ant-*` erlaubt, in eigenem Markup ausschliesslich `--fb-*` / `--note-*`.
+ *
+ * WARUM EINE DATEI: der Entwurf nennt in §4.11 ein `_ui/noten.css` — das ist
+ * eine WERTEREFERENZ, kein zweiter Dateiname. Der Plan (Task 17) legt genau
+ * eine Datei fest, und genau eine wird importiert. Zwei Dateien mit
+ * Themenwechsel in der Mitte kosten nur einen weiteren Import, den irgendwer
+ * vergisst.
+ *
+ * DIE PALETTE IST GESPIEGELT, NICHT ZWEITDEFINIERT: Quelle ist
+ * `_lib/noten.ts`. `Noten.test.tsx` rechnet dieses Stylesheet gegen die
+ * TypeScript-Konstanten nach — ohne diesen Test bricht die Zusage „eine
+ * Definition" beim ersten hastigen Fix, ohne dass etwas anschlaegt.
+ *
+ * DIE SKALA IST INVERTIERT: 1 = sehr gut, 6 = ungenuegend. `--note-1` ist
+ * gruen, weil 1 die BESTE Note ist — nicht weil viel gut waere.
+ *
+ * UMSCHALTUNG ueber `:root[data-theme="light"|"dark"]` (gesetzt in
+ * `src/app/layout.tsx`), bewusst NICHT ueber `prefers-color-scheme`: die Suite
+ * hat einen Umschalter, sonst bricht der Fall „System dunkel, Umschalter hell".
+ * Die Hellwerte liegen zusaetzlich auf dem nackten `:root`, damit ein Kontext
+ * ohne Attribut (Druck, isolierte Vorschau) nicht ohne Farben dasteht.
+ */
+
+:root,
+:root[data-theme="light"] {
+  /* Die Hellwerte sind die Suite-Tokens (DRK.tinte / stahl / linie). */
+  --fb-ink: #1a1d20;
+  --fb-muted: #5b6570;
+  --fb-line: #d9dde1;
+  --fb-split: #e8ebee;
+  --fb-card: #ffffff;
+  --fb-tint: #f2f4f5;
+  --fb-fill: #e6e9eb;
+
+  /* Schulnote 1–6, Ziffernfarbe `--note-ink`. Spiegel von `_lib/noten.ts`. */
+  --note-1: #2f7f59;
+  --note-2: #54782a;
+  --note-3: #7e6103;
+  --note-4: #904708;
+  --note-5: #912e10;
+  --note-6: #811221;
+  --note-ink: #ffffff;
+
+  /*
+   * Toenungen (12 % ueber #ffffff) — AUSSCHLIESSLICH als textfreie
+   * Diagrammbaender. Eine Toenung traegt NIE Text: die Notenfarbe auf ihrer
+   * eigenen Toenung erreicht nur ~2:1. Vorberechnet als Hex, damit sie ohne
+   * `color-mix` auch im Druck stimmen.
+   */
+  --note-tint-1: #e6f0eb;
+  --note-tint-2: #eaefe5;
+  --note-tint-3: #f0ece1;
+  --note-tint-4: #f2e9e1;
+  --note-tint-5: #f2e6e2;
+  --note-tint-6: #f0e3e4;
+
+  /*
+   * Achromatischer Tonwertkeil der Notenspur-Zellen: dunkelt nach rechts,
+   * damit die Richtung „nach rechts wird es schwerer" auch ohne Farbe traegt.
+   * Kein Notenwert — deshalb `--fb-`, nicht `--note-`.
+   */
+  --fb-keil-1: #f5f6f7;
+  --fb-keil-2: #eef0f2;
+  --fb-keil-3: #e8ebed;
+  --fb-keil-4: #e2e5e9;
+  --fb-keil-5: #dcdfe4;
+  --fb-keil-6: #d6dae0;
+}
+
+:root[data-theme="dark"] {
+  /* Die Dunkelwerte sind antds Vorgaben — kein zweiter Farbeindruck. */
+  --fb-ink: rgba(255, 255, 255, 0.88);
+  --fb-muted: rgba(255, 255, 255, 0.55);
+  --fb-line: #303030;
+  --fb-split: #262626;
+  --fb-card: #141414;
+  --fb-tint: #1e1e1e;
+  --fb-fill: #2a2a2a;
+
+  --note-1: #a1dbc0;
+  --note-2: #aacf7f;
+  --note-3: #dab22f;
+  --note-4: #eb9549;
+  --note-5: #ea7a58;
+  --note-6: #e55c6e;
+  --note-ink: #101214;
+
+  /* Toenungen, 18 % ueber #141414 — ebenfalls textfrei. */
+  --note-tint-1: #2d3833;
+  --note-tint-2: #2f3627;
+  --note-tint-3: #383019;
+  --note-tint-4: #3b2b1e;
+  --note-tint-5: #3b2620;
+  --note-tint-6: #3a2124;
+
+  /* Richtung umgekehrt: nach rechts wird es HELLER, also weiterhin schwerer. */
+  --fb-keil-1: #1d1e20;
+  --fb-keil-2: #232427;
+  --fb-keil-3: #292a2e;
+  --fb-keil-4: #2f3034;
+  --fb-keil-5: #35363b;
+  --fb-keil-6: #3b3c42;
+}
+
+/*
+ * DAS KARTENPOLSTER (§2.1: „`body: { padding: 20 }` … mobil `body.padding: 16`").
+ *
+ * WARUM EINE VARIABLE UND KEINE KLASSE: `styles.body` ist bei antd ein
+ * INLINE-Style. Eine Klasse `.fb-karte-body { padding: 16px }` verliert gegen
+ * `style="padding:20px"` — dieselbe Falle, die `.fb-legende-woerter` und
+ * `.fb-sticky` weiter unten dokumentieren. Die Karten reichen deshalb nur
+ * `padding: var(--fb-kartenpolster)` ein; die Medienabfrage sitzt hier an der
+ * Variable. Nebenwirkung, die wir wollen: EIN Wert fuer alle Zonen statt einer
+ * Zahl pro Karte.
+ *
+ * 600px statt 390px: alle uebrigen mobilen Regeln dieser Datei schalten dort
+ * (Legende, Knopfzeile, Feldschrift). Ein zweiter Umbruch bei 390 liesse
+ * 391–600px mit Polster 20 stehen, obwohl die Knopfzeile dort schon gestapelt
+ * ist — zwei Umbrueche, die niemand zusammenhaelt.
+ */
+:root {
+  --fb-kartenpolster: 20px;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --fb-kartenpolster: 16px;
+  }
+}
+
+/*
+ * NOTENLEGENDE (§4.11, Bauteil 3). Das Umschalten unter 600px liegt HIER und
+ * nicht in einem Inline-Style: eine Klasse mit `display: none` kann ein inline
+ * gesetztes `display: grid` nicht schlagen. Deshalb definiert die Klasse das
+ * Raster, und die Komponente reicht nur den Spaltenabstand ein — der muss zum
+ * Abstand der Spur darunter passen (kompakt 2, gross 4).
+ */
+.fb-legende-woerter {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.fb-legende-anker {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  /* Sechs Woerter à 12px passen nicht in 335px — es bleiben die zwei Anker. */
+  .fb-legende-woerter {
+    display: none;
+  }
+
+  .fb-legende-anker {
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
+/*
+ * DIE ZWEI DARSTELLUNGEN DES VERLAUFS (§2.5).
+ *
+ * Der Entwurf schliesst BEIDE naheliegenden Loesungen ausdruecklich aus: kein
+ * horizontal scrollendes `Table` (sechs Spalten auf 390px sind unbedienbar) und
+ * kein `Grid.useBreakpoint()` (in einer Server Component ist es RSC-Falle 1,
+ * und in einer Client-Insel liefert es beim ersten Rendern ALLE Werte `false` —
+ * die Zone bliebe einen Wimpernschlag leer und springt danach). Also liegen
+ * beide Darstellungen im HTML, und diese Medienabfrage schaltet.
+ *
+ * WARUM HIER UND NICHT INLINE: eine Medienabfrage laesst sich nicht inline
+ * setzen, und eine Klasse mit `display: none` verliert gegen ein inline
+ * gesetztes `display` — dieselbe Falle, die `.fb-legende-woerter` oben
+ * dokumentiert. Deshalb setzt `Verlauf.tsx` an diesen vier Klassen KEIN
+ * `display`.
+ *
+ * 768px ist der Umbruch des Entwurfs (§2.5) und bewusst NICHT die 600px der
+ * uebrigen Regeln dieser Datei: die sechsspaltige Tabelle braucht mehr Breite
+ * als eine Knopfzeile oder eine Legende.
+ */
+.fb-verlauf-breit,
+.fb-nur-breit {
+  display: none;
+}
+
+.fb-verlauf-schmal,
+.fb-nur-schmal {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .fb-verlauf-breit,
+  .fb-nur-breit {
+    display: block;
+  }
+
+  .fb-verlauf-schmal,
+  .fb-nur-schmal {
+    display: none;
+  }
+}
+
+/*
+ * „Kein Zebra, 1px `var(--fb-split)` zwischen den Zeilen, Hover `var(--fb-tint)`"
+ * (§2.5, wortgenau). antds Vorgaben sind `colorBorderSecondary` und
+ * `controlItemBgHover` — beide sind zwar unauffaellig, aber sie sind NICHT die
+ * Haarlinie, mit der jede andere Zone des Moduls gliedert. Eine Seite mit zwei
+ * Trennlinienfarben liest sich als zwei Bauteile.
+ *
+ * Hier als Regel und nicht als Token in `theme.ts`: die Farbe gilt fuer DIESE
+ * Tabelle, nicht fuer die aller Module. `!important` steht bewusst nicht dort —
+ * die Selektoren sind spezifisch genug, weil `.fb-verlauf-breit` davorsteht.
+ */
+.fb-verlauf-breit .ant-table-tbody > tr > td {
+  border-bottom-color: var(--fb-split);
+}
+
+.fb-verlauf-breit .ant-table-tbody > tr.ant-table-row:hover > td {
+  background: var(--fb-tint);
+}
+
+/*
+ * FOKUS (§4.8). antd bringt seinen Ring fuer antd-Komponenten mit; eigene
+ * interaktive Flaechen (Gruppenkarten-Link, Verlaufszeile, Kopierzeile) tragen
+ * `fb-fokus`. Nie `outline: none` ohne Ersatz — wer die Maus nicht benutzt,
+ * verliert sonst die Orientierung, und im Modul gibt es genau eine
+ * Bedienreihenfolge.
+ */
+.fb-fokus:focus-visible {
+  outline: 2px solid var(--fb-ink);
+  outline-offset: 2px;
+}
+
+/*
+ * DER PUNKT DER LAUFENDEN LAGEKARTE (§2.3). Die Bewegung ist NICHT der Traeger
+ * der Aussage: „laeuft" steht als Wort im Kicker, als Toenung der Flaeche und
+ * als Anwesenheit des Zaehlerblocks daneben (§4.14, vier Kanaele). Deshalb darf
+ * `prefers-reduced-motion` den Puls abstellen, ohne dass Information verloren
+ * geht — der Punkt bleibt sichtbar.
+ */
+@keyframes fb-puls {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.35;
+  }
+}
+
+.fb-puls {
+  animation: fb-puls 2s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-puls {
+    animation: none;
+  }
+}
+
+/*
+ * DIE STICKY RECHTE SPALTE (§2.1, §2.4). Als KLASSE und nicht als Inline-Style,
+ * weil sie erst ab `lg` (992) gilt: unter 992px ist die Seite einspaltig, und
+ * eine mitfahrende Karte wuerde dort ueber der Lagekarte kleben. Ein inline
+ * gesetztes `position: sticky` ist nicht medienabfragbar — dieselbe Falle, die
+ * `.fb-legende-woerter` oben dokumentiert.
+ *
+ * 80 = Suite-Header 64 + 16 Luft; die Karte darf nie hoeher als das Fenster
+ * werden, sonst ist ihr unteres Ende nicht erreichbar.
+ */
+@media (min-width: 992px) {
+  .fb-sticky {
+    position: sticky;
+    top: 80px;
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+  }
+}
+
+/*
+ * KNOPFZEILE (§2.3, §2.4). Am Laptop stehen Primaeraktion und Sekundaeraktion
+ * nebeneinander, auf 390px gestapelt und jede volle Breite — nie daneben
+ * (§2.3). Die Regel liegt hier und nicht inline, weil sie eine Medienabfrage
+ * braucht; `fb-block-mobil` allein reicht in einem `Space` nicht, dessen
+ * Elemente ihre Breite aus dem Inhalt nehmen.
+ */
+.fb-knopfzeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .fb-knopfzeile {
+    flex-direction: column;
+    align-items: stretch;
+    /* 16px zwischen zwei Handlungsknoepfen (§2.3), nicht die 12 der Laptopreihe. */
+    gap: 16px;
+    width: 100%;
+  }
+
+  /* `Space` traegt `inline-flex` und eigene Elementhuellen — beide mitnehmen. */
+  .fb-knopfzeile.ant-space {
+    display: flex;
+  }
+
+  .fb-knopfzeile > .ant-space-item {
+    width: 100%;
+  }
+}
+
+/*
+ * MOBILE FELDSCHRIFT (§4.14, dort wortgenau vorgegeben). `token.fontSize` ist
+ * 14 — unter 16px zoomt iOS beim Fokus in das Feld hinein, und danach steht die
+ * halbe Karte ausserhalb des Bildschirms. Die Regel gilt nur fuer Formularfelder
+ * des Moduls.
+ *
+ * `.ant-select-selector` gehoert dazu, obwohl das Modul heute kein `Select`
+ * zeigt: antd baut die Auswahl aus einem `<div>` mit eigener Schriftgroesse, das
+ * `input` darin ist unsichtbar und traegt sie nicht. Faellt die Zeile weg, zoomt
+ * das erste `Select`, das jemand in ein Modulformular setzt — und niemand sucht
+ * den Grund in dieser Datei.
+ */
+@media (max-width: 600px) {
+  .fb-form input,
+  .fb-form textarea,
+  .fb-form .ant-select-selector {
+    font-size: 16px;
+  }
+
+  /*
+   * Auf 390px ist jeder Handlungsknopf volle Breite und steht UNTER dem
+   * naechsten — nie daneben (§2.3). Am Laptop bleibt er so breit wie seine
+   * Beschriftung: ein 630px breiter Knopf liest sich als Flaeche, nicht als Ziel.
+   */
+  .fb-block-mobil {
+    width: 100%;
+  }
+}
+
+/*
+ * DIE NOTENSPUR-ZEILEN (§3.2 Punkt 2, §2.3).
+ *
+ * Zwei Raster, dieselbe Regel: der Fragetext links, die Spur rechts in ihrer
+ * festen Breite (336px laut §3.2) — und auf schmalen Fenstern bricht die Zeile
+ * auf zwei Reihen, Text oben, Spur darunter volle Breite (§2.3, Schmalvariante).
+ * Ohne den Umbruch quetscht das Raster sechs Zellen in den Rest von 390px, und
+ * eine Saeule von 4px Breite ist keine Aussage mehr.
+ *
+ * WARUM HIER UND NICHT INLINE: eine Medienabfrage laesst sich nicht inline
+ * setzen, und `grid-template-columns` inline gesetzt kann eine Klasse nicht mehr
+ * schlagen — dieselbe Falle, die `.fb-legende-woerter` dokumentiert.
+ *
+ * Die Auswertungszeile traegt zusaetzlich Ordnungszahl und „n=14" (Raster
+ * `28px 1fr 336px 56px`, §3.2 wortgenau) und die Haarlinie zwischen den Zeilen;
+ * die kompakte Zeile des Zwischenstands nur Text und Spur.
+ */
+.fb-spurzeile {
+  display: grid;
+  grid-template-columns: 28px 1fr 336px 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--fb-split);
+}
+
+.fb-spurzeile-kompakt {
+  display: grid;
+  grid-template-columns: 1fr 336px;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .fb-spurzeile {
+    /* Ordnungszahl + Fragetext oben, „n=" daneben, die Spur darunter. */
+    grid-template-columns: 28px 1fr 56px;
+  }
+
+  /*
+   * Beide Platzierungen stehen ausdruecklich da: ohne sie schiebt die
+   * automatische Verteilung das „n=" hinter die volle Spurbreite in eine dritte
+   * Reihe, und die Zeile waere drei Reihen hoch statt zwei.
+   */
+  .fb-spurzeile > .fb-anzahl {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .fb-spurzeile > .fb-spur {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .fb-spurzeile-kompakt {
+    grid-template-columns: 1fr;
+  }
+}
+
+/*
+ * DIE GRUPPENKARTE DES EINSTIEGS (§3.1): „Hover hebt nur die Rahmenfarbe (120ms)".
+ * antds `hoverable` legt stattdessen einen Schatten unter die Karte — und ein
+ * Schatten ist auf einer Seite mit einer Bewegung und drei Radien (§4.8) ein
+ * vierter Kanal, den der Entwurf nicht vorsieht. Die zweite Bewegung des Moduls ist
+ * genau diese Rahmenfarbe, nicht ein Anheben der Flaeche.
+ */
+.fb-gruppenkarte.ant-card {
+  transition: border-color 120ms ease;
+}
+
+.fb-gruppenkarte.ant-card-hoverable:hover {
+  border-color: var(--fb-ink);
+  box-shadow: none;
+}

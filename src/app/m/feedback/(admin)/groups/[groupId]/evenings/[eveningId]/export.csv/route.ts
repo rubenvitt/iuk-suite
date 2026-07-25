@@ -11,6 +11,7 @@ import { viewerFromSession } from "@/app/m/feedback/_lib/viewer";
 import { assertGroupAccess } from "@/app/m/feedback/_lib/access";
 import type { Question } from "@/app/m/feedback/_lib/questions";
 import { buildCsv } from "@/app/m/feedback/_lib/csv";
+import { shuffleStable } from "@/app/m/feedback/_lib/aggregation";
 
 /**
  * Route Handler statt Seite: `notFound()` (aus `guardPage.ts`) ist auf
@@ -41,7 +42,7 @@ export async function GET(
   }
 
   const viewer = viewerFromSession(await auth());
-  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub) : [];
+  const memberIds = viewer ? memberGroupIdsFor(db, viewer.sub, viewer.fachgruppen) : [];
   try {
     assertGroupAccess(viewer, evening.groupId, memberIds);
   } catch {
@@ -55,25 +56,54 @@ export async function GET(
   }
 
   const questions: Question[] = JSON.parse(survey.questions);
-  const responses = listResponses(db, survey.id);
+  // Dieselbe durchmischte Ordnung wie die Auswertung (Entwurf 3.9): Schlüssel
+  // ist das re-serialisierte Antwort-Objekt, nicht die rohe Spalte — importierte
+  // Zeilen tragen den Alt-JSON-String und würden sonst anders sortieren.
+  const responses = shuffleStable(
+    listResponses(db, survey.id).map((r) => ({
+      answers: JSON.parse(r.answers) as Record<string, unknown>,
+    })),
+    (r) => JSON.stringify(r.answers),
+  );
 
+  /*
+   * DER LETZTE RESTKANAL (Entwurf 3.9). `submittedAt` ist für neue Abgaben schon
+   * Mitternacht des Abendtags — für IMPORTIERTE Antworten aber weiterhin
+   * sekundengenau, weil der Importer direkt schreibt und nicht über
+   * `insertResponse` geht. Stand dieser Wert in der Spalte, ließ sich die
+   * Eingangsreihenfolge historischer Abende in Excel durch einfaches Sortieren
+   * wiederherstellen — und die Durchmischung der Leseordnung war für den Export
+   * aufgehoben. Bei ~15 Personen, die über ihre eigene Gruppenleitung urteilen,
+   * ist „wer war zuerst" ein Deanonymisierungskanal.
+   *
+   * Die DATENBANK bleibt unangetastet (Import-Parität mit der Alt-Anwendung);
+   * normalisiert wird nur die AUSGABE, und zwar auf denselben Ausdruck wie die
+   * Metadaten-Zeile „Datum" — ein Kalendertag ohne Uhrzeit.
+   */
+  const abendtag = new Date(evening.date).toISOString().slice(0, 10);
+
+  /*
+   * DER SPALTENNAME (Fund aus dem Review von Task 8). „Zeitstempel" versprach
+   * eine Genauigkeit, die die Ausgabe nach der Normalisierung bewusst NICHT mehr
+   * hat: dort steht ein Kalendertag, in jeder Zeile derselbe. „Abendtag" sagt
+   * genau das — und bleibt unterscheidbar von der Metadatenzeile „Datum", die
+   * denselben Wert trägt (ein zweites „Datum" hier machte jede Suche nach der
+   * Kopfzeile zweideutig).
+   */
   const rows: string[][] = [
     ["Gruppe", group.name],
-    ["Datum", new Date(evening.date).toISOString().slice(0, 10)],
+    ["Datum", abendtag],
     ["Thema", evening.topic ?? ""],
     ["Anzahl Rückmeldungen", String(responses.length)],
     [],
-    ["Zeitstempel", ...questions.map((q) => q.text)],
-    ...responses.map((r) => {
-      const answers = JSON.parse(r.answers) as Record<string, unknown>;
-      return [
-        new Date(r.submittedAt).toISOString(),
-        ...questions.map((q) => {
-          const v = answers[q.id];
-          return v === undefined || v === null ? "" : String(v);
-        }),
-      ];
-    }),
+    ["Abendtag", ...questions.map((q) => q.text)],
+    ...responses.map((r) => [
+      abendtag,
+      ...questions.map((q) => {
+        const v = r.answers[q.id];
+        return v === undefined || v === null ? "" : String(v);
+      }),
+    ]),
   ];
 
   const csv = buildCsv(rows);

@@ -45,6 +45,11 @@ export function AntdProvider({
       document.cookie = themeCookieString(next, cookieDomain);
       // Scrollbalken und native Bedienelemente ziehen sonst nicht mit.
       document.documentElement.style.colorScheme = next;
+      // Und der Selektor, auf den eigene CSS-Variablen haengen (siehe
+      // `app/layout.tsx`). Ohne diese Zeile wechselt antd sofort, jedes
+      // CSS-Modul der Suite aber erst bei der naechsten Navigation — der
+      // Umschalter waere fuer eigene Flaechen sichtbar wirkungslos.
+      document.documentElement.dataset.theme = next;
     },
     [cookieDomain],
   );

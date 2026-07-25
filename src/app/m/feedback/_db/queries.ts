@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import {
@@ -7,27 +7,121 @@ import {
   surveys,
   responses,
   userGroups,
+  knownUsers,
   type GroupRow,
   type EveningRow,
   type SurveyRow,
   type ResponseRow,
 } from "./schema";
-import type { SurveyStatus } from "@/app/m/feedback/_lib/lifecycle";
+import { computeClosesAt, type SurveyStatus } from "@/app/m/feedback/_lib/lifecycle";
+import { STANDARD_QUESTIONS } from "@/app/m/feedback/_lib/questions";
 
 type DB = BetterSQLite3Database<typeof schema>;
 
-export function memberGroupIdsFor(db: DB, sub: string): number[] {
-  return db
+/**
+ * DIE Sicherheitsgrenze, keine Abfrage: speist `assertGroupAccess`. Vereinigung
+ * aus zwei Quellen, absichtlich in dieser Reihenfolge gedacht:
+ *
+ * 1. `user_groups` — im Werkzeug gepflegte Zuordnung.
+ * 2. `fachgruppenSlugs` — das Attribut aus Pocket ID (signiertes ID-Token),
+ *    exakter Abgleich gegen `groups.slug`.
+ *
+ * Der dritte Parameter ist mit Absicht PFLICHT und hat keinen Vorgabewert: ein
+ * `[]`-Default würde das sicherheitsrelevante Argument an jeder Aufrufstelle
+ * still weglassbar machen — aus einem Übersetzungsfehler würde eine Lücke.
+ *
+ * Eine leere Slug-Liste degradiert auf `user_groups` allein — NIEMALS auf „alle
+ * Gruppen". Deshalb der frühe Ausstieg: kein Codepfad, auf dem eine leere Liste
+ * in ein `IN ()` läuft. Verglichen wird exakt und Groß-/Kleinschreibung
+ * beachtend (SQLite-TEXT ohne COLLATE NOCASE, kein LIKE, kein lower()).
+ */
+export function memberGroupIdsFor(db: DB, sub: string, fachgruppenSlugs: string[]): number[] {
+  const assigned = db
     .select({ groupId: userGroups.groupId })
     .from(userGroups)
     .where(eq(userGroups.userId, sub))
     .all()
     .map((r) => r.groupId);
+  if (fachgruppenSlugs.length === 0) return [...new Set(assigned)];
+  const fromClaim = db
+    .select({ id: groups.id })
+    .from(groups)
+    .where(inArray(groups.slug, fachgruppenSlugs))
+    .all()
+    .map((r) => r.id);
+  // Set, nicht Concat: dieselbe Gruppe kann aus BEIDEN Quellen kommen, und
+  // Duplikate schlagen später als doppelte Zeilen in Listen durch.
+  return [...new Set([...assigned, ...fromClaim])];
 }
 // onConflictDoNothing: (userId, groupId) ist Primary Key — ein erneuter Seed-
 // Lauf darf nicht auf einer bereits vorhandenen Zuordnung scheitern.
 export function insertUserGroup(db: DB, userId: string, groupId: number): void {
   db.insert(userGroups).values({ userId, groupId }).onConflictDoNothing().run();
+}
+
+/**
+ * ERSETZT die Zuordnung einer Gruppe vollständig — Entfernen muss genauso
+ * funktionieren wie Hinzufügen, sonst wäre eine Fehlzuordnung nur noch per
+ * Datenbankzugriff korrigierbar. Das `delete` ist auf `groupId` eingegrenzt;
+ * andere Gruppen bleiben unberührt. Beides in einer Transaktion, damit kein
+ * Zwischenzustand ohne Zuordnung sichtbar wird.
+ */
+export function setGroupMembers(db: DB, groupId: number, userIds: string[]): void {
+  db.transaction((tx) => {
+    tx.delete(userGroups).where(eq(userGroups.groupId, groupId)).run();
+    const unique = [...new Set(userIds)];
+    if (unique.length > 0) {
+      tx.insert(userGroups)
+        .values(unique.map((userId) => ({ userId, groupId })))
+        .run();
+    }
+  });
+}
+
+// Idempotent auf `user_id` (Primärschlüssel): jeder Besuch aktualisiert Name,
+// E-Mail und `seen_at`, legt aber keinen zweiten Datensatz an.
+export function upsertKnownUser(
+  db: DB,
+  u: { userId: string; name: string | null; email: string | null; seenAt: Date },
+): void {
+  db.insert(knownUsers)
+    .values(u)
+    .onConflictDoUpdate({
+      target: knownUsers.userId,
+      set: { name: u.name, email: u.email, seenAt: u.seenAt },
+    })
+    .run();
+}
+
+// Ohne `seenAt`: die Zuordnungs-Oberfläche braucht eine Namensliste, kein
+// Anwesenheitsprotokoll.
+export function listKnownUsers(
+  db: DB,
+): Array<{ userId: string; name: string | null; email: string | null }> {
+  return db
+    .select({ userId: knownUsers.userId, name: knownUsers.name, email: knownUsers.email })
+    .from(knownUsers)
+    .all();
+}
+
+/**
+ * DIE GEGENRICHTUNG zu `memberGroupIdsFor` — und der Grund, warum sie existieren
+ * muss: `setGroupMembers` ERSETZT die Liste. Die Zuordnungs-Oberfläche darf die
+ * gewünschte Liste deshalb nicht vom Client geschickt bekommen (ein manipulierter
+ * Formularwert würde die ganze Leitung einer Gruppe austauschen). Sie liest den
+ * Ist-Stand hier serverseitig und rechnet eine Kennung dazu bzw. weg.
+ *
+ * Ausschließlich `user_groups`: der `fachgruppen`-Claim aus Pocket ID ist im
+ * Werkzeug nicht editierbar und darf hier nicht als „zugeordnet" auftauchen,
+ * sonst zeigte die Tabelle Zeilen mit einem Entfernen-Knopf, der nichts tut.
+ */
+export function listGroupMembers(db: DB, groupId: number): string[] {
+  return db
+    .select({ userId: userGroups.userId })
+    .from(userGroups)
+    .where(eq(userGroups.groupId, groupId))
+    .all()
+    .map((r) => r.userId);
 }
 
 export function listGroups(db: DB): GroupRow[] {
@@ -59,8 +153,19 @@ export function deleteGroup(db: DB, id: number): void {
   db.delete(groups).where(eq(groups.id, id)).run();
 }
 
+/**
+ * Neuester Abend zuerst. Ohne `ORDER BY` war die Ordnung die Einfüge-/Rowid-
+ * Reihenfolge: ein NACHGETRAGENER älterer Abend landete still am falschen Ende,
+ * und jeder Aufrufer, der sich auf die Abfrage verlässt, zeigte eine falsch
+ * sortierte Tabelle ohne Fehlermeldung.
+ */
 export function listEvenings(db: DB, groupId: number): EveningRow[] {
-  return db.select().from(evenings).where(eq(evenings.groupId, groupId)).all();
+  return db
+    .select()
+    .from(evenings)
+    .where(eq(evenings.groupId, groupId))
+    .orderBy(desc(evenings.date))
+    .all();
 }
 export function getEvening(db: DB, id: number): EveningRow | undefined {
   return db.select().from(evenings).where(eq(evenings.id, id)).get();
@@ -134,6 +239,70 @@ export function activateSurvey(db: DB, surveyId: number, closesAt: Date, now: Da
   });
 }
 
+/**
+ * Anlegen IST Starten: Abend und aktive Umfrage entstehen in EINER Transaktion.
+ * Schließt dabei alle aktiven Umfragen derselben Gruppe (Invariante „max. 1 aktiv
+ * pro Gruppe"). Ein DB-seitiger Riegel ist nicht möglich, weil `surveys` kein
+ * group_id trägt — der Gruppenbezug hängt an `evenings`. Bei zwei aktiven
+ * Umfragen liefert `activeSurveyForGroup` per `.get()` stumm eine beliebige,
+ * der gedruckte QR-Code zeigte dann auf die falsche Erhebung.
+ */
+export function createAndStartSurvey(
+  db: DB,
+  input: {
+    groupId: number;
+    date: Date;
+    topic: string | null;
+    notes: string | null;
+    participants: number | null;
+    closeAfterHours: number;
+    now: Date;
+  },
+): { eveningId: number; surveyId: number } {
+  return db.transaction((tx) => {
+    const eve = tx
+      .insert(evenings)
+      .values({
+        groupId: input.groupId,
+        date: input.date,
+        topic: input.topic,
+        notes: input.notes,
+        participantCount: input.participants,
+        createdAt: input.now,
+      })
+      .returning()
+      .get();
+    // Reihenfolge ist tragend: erst die Geschwister schließen, dann die neue
+    // Umfrage einfügen — sonst schließt dieser Schritt sie gleich mit.
+    // Nur `active` wird angefasst; `draft`/`archived` aus dem Altbestand bleiben.
+    const groupEveningIds = tx
+      .select({ id: evenings.id })
+      .from(evenings)
+      .where(eq(evenings.groupId, input.groupId))
+      .all()
+      .map((r) => r.id);
+    tx.update(surveys)
+      .set({ status: "closed", closedAt: input.now })
+      .where(and(eq(surveys.status, "active"), inArray(surveys.eveningId, groupEveningIds)))
+      .run();
+    const survey = tx
+      .insert(surveys)
+      .values({
+        eveningId: eve.id,
+        status: "active",
+        questions: JSON.stringify(STANDARD_QUESTIONS),
+        closeAfterHours: input.closeAfterHours,
+        activatedAt: input.now,
+        closesAt: computeClosesAt(input.date, input.closeAfterHours),
+        closedAt: null,
+        createdAt: input.now,
+      })
+      .returning()
+      .get();
+    return { eveningId: eve.id, surveyId: survey.id };
+  });
+}
+
 export function activeSurveyForGroup(
   db: DB,
   groupId: number,
@@ -147,9 +316,21 @@ export function activeSurveyForGroup(
   return rows ?? undefined;
 }
 
+/**
+ * Bewusst ohne `ORDER BY`: die Ausgabeordnung ist keine Zusage dieser Funktion.
+ * Wer Antworten Menschen zeigt (Auswertung, CSV-Export), mischt sie über
+ * `shuffleStable` (aggregation.ts) durch — Entwurf 3.9.
+ */
 export function listResponses(db: DB, surveyId: number): ResponseRow[] {
   return db.select().from(responses).where(eq(responses.surveyId, surveyId)).all();
 }
+/**
+ * `at` ist NICHT der Abgabezeitpunkt: der öffentliche Pfad übergibt Mitternacht
+ * UTC des Abenddatums, damit die Zeile keine Uhrzeit trägt (Entwurf 3.9,
+ * Siegeltext "keine Uhrzeit"). Die Rundung bleibt beim Aufrufer, weil der
+ * Import (scripts/import/feedback.ts) die sekundengenauen Alt-Zeitstempel
+ * unverändert behalten muss (Parität).
+ */
 export function insertResponse(
   db: DB,
   surveyId: number,

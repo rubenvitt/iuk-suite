@@ -60,6 +60,14 @@ describe("coerceAnswer", () => {
     expect(coerceAnswer(text, "99999")).toBe("99999");
   });
 
+  // Entwurf 3.7: 500 Zeichen sind die physische Grenze am Feld (maxLength) UND
+  // serverseitig — der Server darf sich nicht auf das Feld verlassen.
+  it("schneidet Freitexte auf 500 Zeichen", () => {
+    expect(coerceAnswer(text, "a".repeat(600))).toBe("a".repeat(500));
+    expect(coerceAnswer(text, "a".repeat(500))).toHaveLength(500);
+    expect(coerceAnswer(text, "a".repeat(499))).toHaveLength(499);
+  });
+
   it("liefert undefined für leere/fehlende Antworten", () => {
     expect(coerceAnswer(schulnote, null)).toBeUndefined();
     expect(coerceAnswer(schulnote, "")).toBeUndefined();

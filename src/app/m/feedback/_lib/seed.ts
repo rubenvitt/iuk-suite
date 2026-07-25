@@ -80,9 +80,13 @@ function seedGroup(
     createdAt: now,
   });
 
-  activateSurvey(db, survey.id, computeClosesAt(now, DEFAULT_CLOSE_AFTER_HOURS), now);
+  // `today`, nicht `now`: `computeClosesAt` rechnet vom Abend-TAG. Mit `now` lag
+  // die Frist bei einem Boot nach 22:00 UTC (= Folgetag in Europe/Berlin) einen
+  // Tag zu spät — derselbe Defekt wie in `activateSurveyAction`.
+  activateSurvey(db, survey.id, computeClosesAt(today, DEFAULT_CLOSE_AFTER_HOURS), now);
 
-  for (const r of opts.responses) insertResponse(db, survey.id, r, now);
+  // Abenddatum statt `now` — wie der öffentliche Abgabepfad (Entwurf 3.9).
+  for (const r of opts.responses) insertResponse(db, survey.id, r, today);
 
   return group;
 }

@@ -1,7 +1,10 @@
 import { getModule } from "@/core/registry";
 import { isModuleAdmin } from "@/core/groups";
 
-export type Viewer = { sub: string; groups: string[] };
+// `groups` = Suite-Gruppen (Admin-Frage), `fachgruppen` = Slugs der Gruppen, für
+// die die Person Gruppenleitung ist. Letzteres gewährt NICHTS für sich: es wird
+// ausschließlich in memberGroupIdsFor gegen groups.slug aufgelöst.
+export type Viewer = { sub: string; groups: string[]; fachgruppen: string[] };
 
 export function isFeedbackAdmin(viewer: Viewer | null): boolean {
   if (!viewer) return false;
