@@ -67,8 +67,14 @@ export default async function Cockpit({
    * vorläufige Zahl gehört in den Zwischenstand der Lagekarte, nicht in die
    * Kopfzeile, die den Stand der Gruppe zusammenfasst.
    *
-   * `slice` VOR der Aggregation: so kostet die Zeile höchstens sechs Abfragen,
-   * unabhängig davon, wie viele Jahre die Gruppe schon läuft.
+   * SEIT ZONE d GILT DER ALTE AUFWANDSSATZ NICHT MEHR, und das ist gewollt: die
+   * Zeile aggregierte früher nur die jüngsten sechs Abende (`slice` VOR der
+   * Aggregation). Der Verlauf braucht aber eine Note in JEDER Zeile, also läuft
+   * `abendStats` ohnehin über alle Abende. Die Kontextzeile schneidet deshalb
+   * `verlaufZeilen` — eine bereits gerechnete Liste — statt einen zweiten
+   * Sechser-Durchlauf zu fahren. Ein zweiter Durchlauf wäre nicht nur doppelte
+   * Arbeit, sondern die Chance, dass Kopfzeile und Tabelle verschiedene
+   * Durchschnitte zeigen.
    */
   const abendZahl = zustand.verlauf.length + (zustand.laufend ? 1 : 0);
 

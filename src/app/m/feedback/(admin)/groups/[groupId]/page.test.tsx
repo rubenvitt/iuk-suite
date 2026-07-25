@@ -364,9 +364,28 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
     expect(zeilen.map((z) => z.textContent ?? "").join()).not.toContain("Läuft gerade");
   });
 
-  it("entfällt in der Betriebsart Einrichtung vollständig", async () => {
+  /**
+   * DIE ZWEITE HÄLFTE DIESER ZUSAGE IST DIE WICHTIGERE. Zone d entfällt in der
+   * Einrichtung — Zone a (Teilnahme) aber NICHT: §2.4/A ist der einzige Ort mit
+   * dem Satz „Du kannst den Aushang schon vor dem ersten Abend drucken", und mit
+   * der Spalte wäre er unerreichbar.
+   *
+   * Geprüft wird das HIER am gerenderten Baum und nicht als Quelltextregel in
+   * `Teilnahme.test.tsx`: seit Zone d ist `!einrichtung &&` auf dieser Seite ein
+   * legitimes Mittel, und eine Textregel, die es irgendwo in der Datei verbietet,
+   * müsste entweder falsch anschlagen oder so aufgeweicht werden, dass sie einen
+   * Gate um `<Col><Teilnahme/></Col>` durchlässt. Ein Rendering kann nichts
+   * vortäuschen.
+   */
+  it("entfällt in der Betriebsart Einrichtung — die Teilnahme-Zone aber nicht", async () => {
     const wirt = await zeichne();
+
     expect(wirt.querySelectorAll("[data-testid='verlauf-kopf']")).toHaveLength(0);
     expect(wirt.textContent).not.toContain("Noch keine vergangenen Dienstabende.");
+
+    // Zone a steht da: die Teilnahme-Adresse aus den (gemockten) Headern und der
+    // Satz, den es nur in der Einrichtung gibt.
+    expect(wirt.textContent).toContain("feedback.iuk-ue.de/f/");
+    expect(wirt.textContent).toContain("Aushang");
   });
 });

@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ReactElement } from "react";
+import { act, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 /**
@@ -53,6 +53,18 @@ vi.mock("../actions", () => ({
 
 import { Verlauf, type VerlaufZeile } from "./Verlauf";
 import { clickElement, mount, unmount } from "@/app/m/qr/_lib/test-dom";
+
+/**
+ * `submitForm` aus dem Harness sucht INNERHALB des gemounteten Wirts; der Dialog
+ * haengt aber (antd `Modal`) in einem Portal an `document.body`. Deshalb dasselbe
+ * Muster wie `clickElement`, nur fuer `submit` — am Formular selbst und nicht am
+ * Knopf, damit der Test nicht an einem deaktivierten Knopf haengen bleibt.
+ */
+async function abschicken(form: HTMLFormElement): Promise<void> {
+  await act(async () => {
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
+}
 
 const UI = join(process.cwd(), "src/app/m/feedback/_ui");
 const quelle = (datei: string) => readFileSync(join(UI, datei), "utf8");
@@ -343,6 +355,19 @@ describe("Verlauf — die Kopfzeile (§2.5)", () => {
     const form = document.querySelector<HTMLFormElement>("form[data-testid='verlauf-nachtragen']");
     expect(form).not.toBeNull();
     expect(form!.querySelector<HTMLInputElement>("input[name='groupId']")!.value).toBe("7");
+
+    /*
+     * ABGESCHICKT, nicht nur angezeigt. Der Knopf waere sonst genau der Fall, der
+     * schlimmer ist als ein fehlender Knopf: sichtbar, bedienbar, wirkungslos.
+     * Der Riegel liegt an der Reihenfolge — die Karte darf sich erst schliessen,
+     * NACHDEM die Action gelaufen ist, sonst wird das Formular (`destroyOnHidden`)
+     * mitten im Absenden ausgebaut.
+     */
+    await abschicken(form!);
+    expect(createEveningActionMock).toHaveBeenCalledTimes(1);
+    const daten = createEveningActionMock.mock.calls[0][0] as FormData;
+    expect(daten.get("groupId")).toBe("7");
+    expect(daten.get("date")).toBe("2026-07-25");
   });
 });
 

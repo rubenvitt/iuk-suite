@@ -355,18 +355,20 @@ function SchmaleListe({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZei
             {z.hasLegacyScale && <Altbestandsfussnote />}
           </Link>
           {/*
-           * 44px-Bereich GANZ RECHTS, als GESCHWISTER des Zeilenlinks und nicht
-           * darin. §2.5 nennt hier `stopPropagation` — das braucht nur, wer das
-           * Menue INNERHALB der Linkflaeche haengt. Ein Geschwister kollidiert
-           * nicht: ein Klick auf das „…" erreicht den Link nie, und der Link
-           * bleibt ein einziges, zusammenhaengendes Ziel (§4.14).
+           * Rechts neben dem Zeilenlink, als GESCHWISTER und nicht darin. §2.5
+           * nennt hier `stopPropagation` — das braucht nur, wer das Menue
+           * INNERHALB der Linkflaeche haengt. Ein Geschwister kollidiert nicht:
+           * ein Klick auf das „…" erreicht den Link nie, und der Link bleibt ein
+           * einziges, zusammenhaengendes Ziel (§4.14). Ein Knopf IM `<a>` waere
+           * zudem verschachtelt Interaktives.
+           *
+           * „Jetzt starten" steht NEBEN dem Menue und ersetzt es nicht: sonst
+           * waeren Bearbeiten und Loeschen am Handy genau fuer die Zeilen
+           * unerreichbar, die am haeufigsten aufgeraeumt werden muessen.
            */}
+          {z.entwurf && z.surveyId !== null && <StartenKnopf surveyId={z.surveyId} />}
           <span style={{ width: 44, display: "flex", justifyContent: "center" }}>
-            {z.entwurf && z.surveyId !== null ? (
-              <StartenKnopf surveyId={z.surveyId} />
-            ) : (
-              <AbendMenue groupId={groupId} zeile={z} />
-            )}
+            <AbendMenue groupId={groupId} zeile={z} />
           </span>
         </div>
       ))}
@@ -563,8 +565,17 @@ function NachtragenDialog({
     >
       <form
         data-testid="verlauf-nachtragen"
-        action={createEveningAction}
-        onSubmit={schliessen}
+        /*
+         * GESCHLOSSEN WIRD DANACH, nicht im `onSubmit`. Mit `destroyOnHidden` baut
+         * der `Modal` sein Kind aus, sobald `open` auf `false` faellt — ein
+         * `onSubmit={schliessen}` riss das Formular also mitten aus der laufenden
+         * Action. Der Knopf haette weiter geklickt, nur nichts mehr angelegt, und
+         * genau das ist schlimmer als ein fehlender Knopf.
+         */
+        action={async (daten: FormData) => {
+          await createEveningAction(daten);
+          schliessen();
+        }}
         className="fb-form"
         style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
       >
