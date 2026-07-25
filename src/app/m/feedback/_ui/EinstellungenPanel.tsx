@@ -170,7 +170,14 @@ function GruppenFormular({
         <span style={T.kicker}>Standard-Schließfrist</span>
         <InputNumber
           name="closeAfterHours"
-          min={1}
+          /*
+           * BEWUSST OHNE `min`: `InputNumber` klemmt den Wert bei `changeOnBlur`
+           * (Vorgabe) auf die Grenze: eine getippte 0 waere beim Verlassen des
+           * Feldes still eine 1 — der Nutzer bekaeme nie zu sehen, dass seine
+           * Eingabe verworfen wurde, und die Feldmeldung der Action („ganze
+           * Stunden über 0") waere unerreichbar. Die Untergrenze gehoert dorthin,
+           * wo sie auch ohne JavaScript gilt: in die Action.
+           */
           step={1}
           suffix="Stunden"
           style={{ width: "100%", maxWidth: 240 }}

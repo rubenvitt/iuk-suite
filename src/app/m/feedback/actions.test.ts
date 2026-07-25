@@ -1176,6 +1176,9 @@ describe("Zuordnung der Leitung: Admin-Sache, Hinzufügen und Entfernen", () => 
     await removeGroupLeaderAction(f);
 
     expect(listGroupMembers(db, g.id)).toEqual(["u2"]);
+    // Ohne Revalidierung saehe die entfernte Person ihre Gruppe bis zum harten
+    // Neuladen weiter — der Entzug waere erst nach einem Zufall wirksam.
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
   });
 
   it("NEGATIVTEST: eine Gruppenleitung darf nicht einmal die EIGENE Gruppe zuordnen", async () => {
