@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { Breadcrumb, Card, Col, Row, Statistic } from "antd";
+import { Breadcrumb, Button, Card, Col, Row, Statistic } from "antd";
 import { getDb } from "../../../_db/client";
 import { getGroup, listResponses } from "../../../_db/queries";
 import type { SurveyRow } from "../../../_db/schema";
@@ -13,6 +13,7 @@ import { buildToken } from "../../../_lib/token";
 import type { Question } from "../../../_lib/questions";
 import { T } from "../../../_ui/typo";
 import { formatDatumKurz, heuteInZone } from "../../../_ui/datum";
+import { NOTEN_WORT, ampelStufe, formatiereNote } from "../../../_lib/noten";
 import { Notenpille } from "../../../_ui/Noten";
 import { Lagekarte } from "../../../_ui/Lagekarte";
 import { Teilnahme, teilnahmeUrlAus } from "../../../_ui/Teilnahme";
@@ -59,6 +60,21 @@ export default async function Cockpit({
     : 0;
 
   /**
+   * DIE KONTEXTZEILE DER KOPFZONE (§4.2). Gezählt werden ALLE Dienstabende
+   * (auch der laufende — er ist erfasst), gemittelt nur die ABGESCHLOSSENEN:
+   * `zustand.verlauf` schließt die laufende Umfrage aus (§2.2), und eine
+   * vorläufige Zahl gehört in den Zwischenstand der Lagekarte, nicht in die
+   * Kopfzeile, die den Stand der Gruppe zusammenfasst.
+   *
+   * `slice` VOR der Aggregation: so kostet die Zeile höchstens sechs Abfragen,
+   * unabhängig davon, wie viele Jahre die Gruppe schon läuft.
+   */
+  const abendZahl = zustand.verlauf.length + (zustand.laufend ? 1 : 0);
+  const letzteNoten = zustand.verlauf
+    .slice(0, OE_FENSTER)
+    .map((abend) => (abend.survey ? abendStats(db, abend.survey).avgSchulnote : null));
+
+  /**
    * DIE TEILNAHME-ADRESSE — GENAU EINMAL hergeleitet und dann an BEIDE
    * Verbraucher gegeben: Zone a zeigt sie, der Lagekarten-Knopf zeigt sie groß.
    * Zwei Herleitungen wären zwei Adressen, und eine davon steht dann gedruckt an
@@ -98,11 +114,7 @@ export default async function Cockpit({
         >
           <h1 style={{ ...T.h1, margin: 0, textWrap: "balance" }}>{group.name}</h1>
         </div>
-        <p style={{ ...T.meta, margin: 0 }}>
-          {zustand.verlauf.length + (zustand.laufend ? 1 : 0) === 0
-            ? "Noch kein Dienstabend erfasst."
-            : `${zustand.verlauf.length + (zustand.laufend ? 1 : 0)} Dienstabende erfasst`}
-        </p>
+        <p style={{ ...T.meta, margin: 0 }}>{kontextzeile(abendZahl, letzteNoten)}</p>
       </header>
 
       <Row gutter={[24, 24]}>
@@ -147,6 +159,53 @@ export default async function Cockpit({
       </Row>
     </div>
   );
+}
+
+/**
+ * Das Fenster des Ø aus §4.2: „Ø der letzten sechs". Sechs Dienstabende sind
+ * etwa ein Halbjahr — lang genug, dass ein einzelner schlechter Abend die Zeile
+ * nicht kippt, kurz genug, dass sie noch von HEUTE spricht.
+ */
+export const OE_FENSTER = 6;
+
+/**
+ * DIE KONTEXTZEILE DER KOPFZONE (§4.2, Zeile 3): „14 Dienstabende erfasst · Ø
+ * der letzten sechs: 2,1 gut" — leer: „Noch kein Dienstabend erfasst."
+ *
+ * Rein und exportiert, weil an ihr drei Zusagen hängen, die im Markup nicht
+ * sichtbar sind:
+ *
+ * 1. **Der Halbsatz entfällt, wenn es keine Note gibt** — statt „Ø: —". Ein
+ *    Abend ohne beantwortete Schulnoten-Frage hat `avgSchulnote === null`
+ *    (§4.12), und aus `null` wird hier nie eine 0: der Mittelwert würde sonst
+ *    mit jedem Freitext-Abend besser aussehen.
+ * 2. **„sechs" wird nicht behauptet, wenn es weniger sind.** Bei vollem Fenster
+ *    steht die Formulierung des Entwurfs wortgenau, darunter „Ø aus 2 Abenden" —
+ *    dieselbe Haltung wie der nie erfundene Nenner der Lagekarte (§2.3).
+ * 3. **Ziffer UND Wort** (§4.14: Farbe ist der letzte Kanal). Beide kommen aus
+ *    `_lib/noten.ts`, damit die Zeile dieselbe Rampe und dieselbe Rundung nutzt
+ *    wie Pille, Plakette und Spur — eine handgeschriebene „2,1 gut" wäre eine
+ *    zweite Schwellentabelle.
+ *
+ * `notenJuengsteZuerst` ist die Reihenfolge von `zustand.verlauf` (Datum
+ * absteigend); geschnitten wird VOR dem Filtern, sonst wären es „die letzten
+ * sechs MIT Note" und damit ein anderes Fenster als das versprochene.
+ */
+export function kontextzeile(abende: number, notenJuengsteZuerst: (number | null)[]): string {
+  if (abende === 0) return "Noch kein Dienstabend erfasst.";
+  const kopf = `${abende} Dienstabende erfasst`;
+
+  const noten = notenJuengsteZuerst
+    .slice(0, OE_FENSTER)
+    .filter((n): n is number => n !== null && Number.isFinite(n));
+  if (noten.length === 0) return kopf;
+
+  const mittel = noten.reduce((summe, n) => summe + n, 0) / noten.length;
+  const fenster =
+    noten.length === OE_FENSTER
+      ? "der letzten sechs"
+      : `aus ${noten.length} ${noten.length === 1 ? "Abend" : "Abenden"}`;
+  return `${kopf} · Ø ${fenster}: ${formatiereNote(mittel)} ${NOTEN_WORT[ampelStufe(mittel) - 1]}`;
 }
 
 /**
@@ -195,7 +254,9 @@ function LetzterAbend({
           paddingInline: 20,
           borderBottomColor: "var(--fb-split)",
         },
-        body: { padding: 20 },
+        // Polster als Variable, damit 390px 16 bekommt (§2.1) — `styles.body`
+        // ist inline und liesse sich von keiner Klasse überstimmen.
+        body: { padding: "var(--fb-kartenpolster)" },
       }}
     >
       <p style={{ ...T.body, margin: "0 0 12px" }}>
@@ -209,13 +270,21 @@ function LetzterAbend({
           suffix={<span style={{ ...T.body, color: "var(--fb-muted)" }}>Rückmeldungen</span>}
         />
         <Notenpille note={stats.avgSchulnote} />
-        <Link
-          href={`/m/feedback/groups/${groupId}/evenings/${lage.evening.id}/auswertung`}
-          style={{ ...T.body, fontWeight: 600 }}
-          className="fb-fokus"
-        >
+        {/*
+         * §2.7: ein `Button` in `default` — „bewusst kein Primärknopf" meint die
+         * STUFE, nicht die Bauform: der Primärknopf der Seite ist immer die
+         * Zustandsaktion der Lagekarte. Ein nackter Textlink neben Zahl und
+         * Notenpille ist kein erkennbares Ziel.
+         *
+         * `href` statt `<Link>` um den Knopf: antd rendert daraus EIN `<a>` —
+         * ein Tabstop, ein Fokusring (§4.14), und der Weg zur Auswertung
+         * funktioniert ohne JavaScript. `<Link><Button>` wäre `<a><button>`,
+         * also verschachtelt Interaktives, und `fb-fokus` würde einen zweiten
+         * Ring über antds eigenen legen.
+         */}
+        <Button href={`/m/feedback/groups/${groupId}/evenings/${lage.evening.id}/auswertung`}>
           Auswertung ansehen
-        </Link>
+        </Button>
       </div>
     </Card>
   );

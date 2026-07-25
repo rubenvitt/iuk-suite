@@ -38,9 +38,15 @@ import { Aktualisierer, AktualisierenKnopf } from "./Aktualisierer";
  * Alarm, und Rot gehört im Modul `feedback` nie auf eine Datenfläche (§4.9).
  */
 
+/**
+ * Kartenstil aus §2.1. Das Polster steht als VARIABLE, nicht als 20: derselbe
+ * Abschnitt verlangt „mobil `body.padding: 16`", und `styles.body` ist bei antd
+ * ein Inline-Style — eine Klasse mit Medienabfrage verliert dagegen. Der Wert
+ * und sein mobiler Zwilling liegen in `feedback.css` (`--fb-kartenpolster`).
+ */
 const KARTE = {
   header: { ...T.kicker, minHeight: 40, paddingInline: 20, borderBottomColor: "var(--fb-split)" },
-  body: { padding: 20 },
+  body: { padding: "var(--fb-kartenpolster)" },
 } satisfies Record<string, CSSProperties>;
 
 /**

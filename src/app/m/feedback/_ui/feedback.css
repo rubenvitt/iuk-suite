@@ -111,6 +111,32 @@
 }
 
 /*
+ * DAS KARTENPOLSTER (§2.1: „`body: { padding: 20 }` … mobil `body.padding: 16`").
+ *
+ * WARUM EINE VARIABLE UND KEINE KLASSE: `styles.body` ist bei antd ein
+ * INLINE-Style. Eine Klasse `.fb-karte-body { padding: 16px }` verliert gegen
+ * `style="padding:20px"` — dieselbe Falle, die `.fb-legende-woerter` und
+ * `.fb-sticky` weiter unten dokumentieren. Die Karten reichen deshalb nur
+ * `padding: var(--fb-kartenpolster)` ein; die Medienabfrage sitzt hier an der
+ * Variable. Nebenwirkung, die wir wollen: EIN Wert fuer alle Zonen statt einer
+ * Zahl pro Karte.
+ *
+ * 600px statt 390px: alle uebrigen mobilen Regeln dieser Datei schalten dort
+ * (Legende, Knopfzeile, Feldschrift). Ein zweiter Umbruch bei 390 liesse
+ * 391–600px mit Polster 20 stehen, obwohl die Knopfzeile dort schon gestapelt
+ * ist — zwei Umbrueche, die niemand zusammenhaelt.
+ */
+:root {
+  --fb-kartenpolster: 20px;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --fb-kartenpolster: 16px;
+  }
+}
+
+/*
  * NOTENLEGENDE (§4.11, Bauteil 3). Das Umschalten unter 600px liegt HIER und
  * nicht in einem Inline-Style: eine Klasse mit `display: none` kann ein inline
  * gesetztes `display: grid` nicht schlagen. Deshalb definiert die Klasse das
@@ -230,13 +256,21 @@
 }
 
 /*
- * MOBILE FELDSCHRIFT (§4.14). `token.fontSize` ist 14 — unter 16px zoomt iOS
- * beim Fokus in das Feld hinein, und danach steht die halbe Karte ausserhalb des
- * Bildschirms. Die Regel gilt nur fuer Formularfelder des Moduls.
+ * MOBILE FELDSCHRIFT (§4.14, dort wortgenau vorgegeben). `token.fontSize` ist
+ * 14 — unter 16px zoomt iOS beim Fokus in das Feld hinein, und danach steht die
+ * halbe Karte ausserhalb des Bildschirms. Die Regel gilt nur fuer Formularfelder
+ * des Moduls.
+ *
+ * `.ant-select-selector` gehoert dazu, obwohl das Modul heute kein `Select`
+ * zeigt: antd baut die Auswahl aus einem `<div>` mit eigener Schriftgroesse, das
+ * `input` darin ist unsichtbar und traegt sie nicht. Faellt die Zeile weg, zoomt
+ * das erste `Select`, das jemand in ein Modulformular setzt — und niemand sucht
+ * den Grund in dieser Datei.
  */
 @media (max-width: 600px) {
   .fb-form input,
-  .fb-form textarea {
+  .fb-form textarea,
+  .fb-form .ant-select-selector {
     font-size: 16px;
   }
 

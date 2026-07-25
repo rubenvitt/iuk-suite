@@ -733,6 +733,69 @@ describe("Lagekarte — „QR-Code groß zeigen“ ist in jeder Belegung erreich
   });
 });
 
+/**
+ * MOBILE WERTE (§2.1 „Kartenstil (alle Zonen) … mobil `body.padding: 16`",
+ * §4.14 „Mobile Feldschrift").
+ *
+ * Beide Zusagen brechen STILL: ein zu grosses Kartenpolster auf 390px fällt in
+ * keinem Test auf, und ein 14px-Feld zoomt nur auf einem echten iPhone.
+ * Deshalb werden hier der Wert IM MARKUP und die Regel IM STYLESHEET geprüft,
+ * nicht das Ergebnis im Browser.
+ *
+ * Warum eine CSS-Variable und keine Klasse: `styles.body` ist bei antd ein
+ * INLINE-Style. Eine Klasse `.fb-karte-body { padding: 16px }` verliert gegen
+ * `style="padding:20px"` — dieselbe Falle, die `.fb-legende-woerter` und
+ * `.fb-sticky` im Stylesheet dokumentieren. Die Karte reicht deshalb nur den
+ * Variablennamen ein, und die Medienabfrage sitzt an der Variable.
+ */
+describe("Mobile Werte — Kartenpolster und Feldschrift", () => {
+  const kartenRumpf = (z: CockpitZustand): HTMLElement => {
+    const rumpf = zeichne(karte(z)).querySelector<HTMLElement>(".ant-card-body");
+    if (!rumpf) throw new Error("Kein Kartenrumpf gerendert");
+    return rumpf;
+  };
+
+  it("polstert die ruhende Karte über die Variable, nicht mit einer festen 20", () => {
+    const rumpf = kartenRumpf(zustand({ belegung: "A", modus: "einrichtung" }));
+    const stil = rumpf.getAttribute("style");
+    expect(stil).toContain("padding:var(--fb-kartenpolster)");
+    expect(stil).not.toMatch(/padding:\s*20px/);
+  });
+
+  it("polstert die laufende Karte genauso — ein Wert, nicht einer pro Belegung", () => {
+    const z = zustand({ belegung: "D", modus: "betrieb", laufend: laufendeLage({ antworten: 12 }) });
+    const stil = kartenRumpf(z).getAttribute("style");
+    expect(stil).toContain("padding:var(--fb-kartenpolster)");
+    // Die Tönung bleibt: sie ist die Flächenaussage „hier läuft etwas" (§2.3).
+    expect(stil).toContain("var(--fb-tint)");
+  });
+
+  it("setzt die Variable auf 20 und unter 600px auf 16", () => {
+    const css = quelle("feedback.css");
+    expect(css).toMatch(/:root\s*\{[^}]*--fb-kartenpolster:\s*20px/);
+
+    const stelleMobil = css.indexOf("--fb-kartenpolster: 16px");
+    expect(stelleMobil).toBeGreaterThan(-1);
+    // Die 16 liegt IN einer Medienabfrage — sonst waere sie der neue Grundwert.
+    const davor = css.slice(0, stelleMobil);
+    expect(davor.lastIndexOf("@media (max-width: 600px)")).toBeGreaterThan(davor.lastIndexOf("}"));
+  });
+
+  it("hebt Formularfelder unter 600px auf 16px — auch das antd-Auswahlfeld (§4.14)", () => {
+    const css = quelle("feedback.css");
+    const ab = css.slice(css.indexOf(".fb-form input"));
+    const regel = ab.slice(0, ab.indexOf("}"));
+    for (const selektor of [
+      ".fb-form input",
+      ".fb-form textarea",
+      ".fb-form .ant-select-selector",
+    ]) {
+      expect(regel).toContain(selektor);
+    }
+    expect(regel).toContain("font-size: 16px");
+  });
+});
+
 describe("Quelltext-Assertionen — die RSC-Grenze und die Farb-Klausel", () => {
   it("haelt die Lagekarte serverfest: kein `use client`, kein Compound-Zugriff, keine Funktions-Props", () => {
     const code = ohneKommentare(quelle("Lagekarte.tsx"));
