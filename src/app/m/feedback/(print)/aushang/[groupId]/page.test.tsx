@@ -123,6 +123,13 @@ describe("Aushang — Inhalt (§3.5)", () => {
 
 describe("Aushang — Druck-CSS (§3.5)", () => {
   const css = readFileSync(join(process.cwd(), "src/app/m/feedback/(print)/druck.css"), "utf8");
+  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  /** Der Rumpf einer Regel — die Datei hat keine verschachtelten Bloecke. */
+  const rumpf = (selektor: string) => {
+    const treffer = new RegExp(`\\${selektor}\\s*\\{([^}]*)\\}`).exec(ohneKommentare);
+    expect(treffer, `Regel ${selektor} fehlt in druck.css`).not.toBeNull();
+    return treffer![1];
+  };
 
   it("legt A4 mit 18mm Rand fest", () => {
     expect(css).toMatch(/@page\s*\{[^}]*size:\s*A4/);
@@ -139,6 +146,51 @@ describe("Aushang — Druck-CSS (§3.5)", () => {
 
   it("gibt dem QR 90mm — die Auflösung allein macht ihn nicht groß", () => {
     expect(css).toContain("90mm");
+  });
+
+  /*
+   * EIN BLATT PAPIER HAT KEINEN DUNKELMODUS.
+   *
+   * `feedback.css` setzt `--fb-ink`/`--fb-muted` bei `data-theme="dark"` auf
+   * near-white. Der Aushang druckt aber immer auf `body { background: #fff }`,
+   * und `print-color-adjust: exact` verbietet dem Browser jede Notrechnung:
+   * ohne festgenagelte Farben bliebe vom A4-Blatt nur der QR-Kasten uebrig,
+   * Frage, Gruppenname, Adresse, Erklaerzeile und Fusszeile druckten unsichtbar.
+   *
+   * WARUM DIESE TESTS DIE QUELLE LESEN und nicht das DOM: jsdom rechnet keine
+   * Custom Properties aus, und am Bildschirm faellt der Fehler ohnehin nicht auf
+   * (das Root-Layout fuehrt `color-scheme` mit, die UA-Leinwand ist dunkel).
+   * Genau deshalb hat ihn kein gerendeter Test gesehen.
+   */
+  it("nagelt `--fb-ink`/`--fb-muted` auf dem Blatt fest — Papier hat keinen Dunkelmodus", () => {
+    const aushang = rumpf(".fb-aushang");
+    expect(aushang).toMatch(/--fb-ink:\s*#1a1d20/);
+    expect(aushang).toMatch(/--fb-muted:\s*#5b6570/);
+  });
+
+  it("setzt die weisse Flaeche mit — Bildschirmvorschau und Papier zeigen denselben Kontrast", () => {
+    expect(rumpf(".fb-aushang")).toMatch(/background:\s*#ffffff/);
+  });
+
+  it("kennt kein `data-theme` — keine Regel der Datei faerbt nach Umschalterstand", () => {
+    expect(ohneKommentare).not.toContain("data-theme");
+    expect(ohneKommentare).not.toContain("prefers-color-scheme");
+  });
+
+  it("faerbt Text ausschliesslich mit den festgenagelten Namen", () => {
+    // Erlaubt ist nur, was `.fb-aushang` selbst mit einem harten Wert
+    // ueberschreibt — die Liste wird aus der Datei gelesen, nicht behauptet.
+    const festgenagelt = [...rumpf(".fb-aushang").matchAll(/(--[\w-]+):\s*(#[0-9a-f]{3,8})/gi)].map(
+      (deklaration) => deklaration[1],
+    );
+    const farben = [...ohneKommentare.matchAll(/\.fb-aushang[\w-]*\s*(?:img\s*)?\{([^}]*)\}/g)]
+      .flatMap((regel) => [...regel[1].matchAll(/(?:^|[\s;])color:\s*([^;]+)/g)])
+      .map((deklaration) => deklaration[1].trim());
+    expect(farben.length).toBeGreaterThan(0);
+    for (const wert of farben) {
+      const variable = /var\(\s*(--[\w-]+)/.exec(wert)?.[1];
+      if (variable) expect(festgenagelt).toContain(variable);
+    }
   });
 
   it("trägt DRK-Rot GENAU ZWEIMAL: 3px-Fahne und Wortzeichen (§4.9)", () => {

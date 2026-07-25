@@ -40,6 +40,26 @@
 }
 
 .fb-aushang {
+  /*
+   * EIN BLATT PAPIER HAT KEINEN DUNKELMODUS. `feedback.css` setzt `--fb-ink` /
+   * `--fb-muted` bei `data-theme="dark"` auf near-white — auf dem Blatt (Zeile
+   * 36: `body { background: #fff }`) waere das weisse Schrift auf weissem
+   * Papier, und `print-color-adjust: exact` verbietet dem Browser jede
+   * Notrechnung. Gedruckt kaeme nur der QR-Kasten heraus. Am BILDSCHIRM faellt
+   * es nicht auf, weil das Root-Layout `color-scheme` mitfuehrt und die
+   * UA-Leinwand dunkel ist — deshalb steht der Fix hier und nicht im Markup.
+   *
+   * Die zwei Namen sind auf dem Aushang festgenagelt (Hellwerte aus
+   * `feedback.css`), einmal und unbedingt: die Deklaration liegt auf dem
+   * `<main>`, alle Kinder erben sie: kein `@media print`-Zweitschlag, keine
+   * zweite Fassung derselben Farbe. Dazu die weisse Flaeche, damit die
+   * Bildschirmvorschau denselben Kontrast zeigt wie das Papier (dieselbe
+   * Zweiteilung wie in `zettel.module.css`: Flaeche UND Schrift).
+   */
+  --fb-ink: #1a1d20;
+  --fb-muted: #5b6570;
+  background: #ffffff;
+
   display: flex;
   flex-direction: column;
   align-items: center;
