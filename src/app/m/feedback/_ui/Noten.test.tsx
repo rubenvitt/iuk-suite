@@ -66,9 +66,23 @@ const alle = (wirt: HTMLElement) => Array.from(wirt.querySelectorAll<HTMLElement
 /** Das `style`-Attribut als Rohtext: jsdom parst `var(--x)` in Kurzschreibweisen nicht. */
 const stil = (el: Element) => el.getAttribute("style") ?? "";
 
-/** Der Stil der ersten Rasterzeile — Legende und Spur muessen ihn teilen. */
-const raster = (wirt: HTMLElement) =>
-  stil(alle(wirt).find((el) => stil(el).includes("grid-template-columns"))!);
+/** Die erste Rasterzeile — Legende und Spur muessen sie teilen. */
+const rasterzeile = (wirt: HTMLElement) =>
+  alle(wirt).find((el) => stil(el).includes("grid-template-columns"))!;
+
+/** Der Stil der ersten Rasterzeile. */
+const raster = (wirt: HTMLElement) => stil(rasterzeile(wirt));
+
+/**
+ * Die sechs Rasterfelder in DOKUMENTREIHENFOLGE — der Anker jeder
+ * positionsbezogenen Farbzusage. Eine Pruefung per Mengenzugehoerigkeit
+ * (`innerHTML` enthaelt `var(--note-1)` … `var(--note-6)`) besteht auch eine
+ * Permutation der Palette, also auch die vollstaendig invertierte Ampel — und
+ * eine Ampel, die hohe Noten gruen faerbt, ist hier ein Sachfehler. Deshalb
+ * wird ueber `children` indiziert (nicht gefiltert): faellt eine Farbe ganz
+ * weg, schrumpft eine gefilterte Liste still, eine indizierte nicht.
+ */
+const felder = (wirt: HTMLElement) => Array.from(rasterzeile(wirt).children) as HTMLElement[];
 
 /** Den Block eines Selektors aus dem Stylesheet holen. */
 function cssBlock(selektor: string): string {
@@ -159,25 +173,57 @@ describe("Notenpille — `stars` (Skala 1–5) bleibt neutral", () => {
 describe("Notenspur — nur wo eine Verteilung existiert", () => {
   const VERTEILUNG = [1, 4, 3, 0, 0, 0] as const;
 
-  it("zeichnet sechs Zellen im Tonwertkeil", () => {
+  // Die Keil-Nummer je Position ist der Anker: sie bindet die
+  // Dokumentreihenfolge an die Notenziffer. Erst dadurch heisst „das dritte
+  // Feld" auch wirklich „Note 3".
+  it("zeichnet sechs Zellen im Tonwertkeil, aufsteigend von links", () => {
     const wirt = zeichne(<Notenspur verteilung={VERTEILUNG} />);
-    for (let n = 1; n <= 6; n += 1) expect(wirt.innerHTML).toContain(`var(--fb-keil-${n})`);
+    const zellen = felder(wirt);
+    expect(zellen).toHaveLength(6);
+    expect(zellen.map((el) => stil(el).match(/background:var\(--fb-keil-(\d)\)/)?.[1])).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+    ]);
+  });
+
+  it("faerbt die Saeule in Zelle n mit GENAU der Farbe der Note n", () => {
+    const wirt = zeichne(<Notenspur verteilung={[1, 4, 3, 2, 1, 1]} />);
+    felder(wirt).forEach((zelle, i) => {
+      // Selbst verankert: `felder` nimmt die ERSTE Rasterzeile, und die grosse
+      // Spur hat drei. Ohne diese Zeile wuerde ein Umsortieren im Markup nicht
+      // die Farbzusage melden, sondern eine raetselhafte Folgemeldung.
+      expect(stil(zelle)).toContain(`background:var(--fb-keil-${i + 1})`);
+      const saeule = zelle.querySelector("span")!;
+      // Kein `var(--note-`-Praefix: `--note-tint-n` beginnt genauso. Positions-
+      // treu, damit eine invertierte oder vertauschte Palette auffaellt.
+      expect(stil(saeule)).toContain(`background:var(--note-${i + 1})`);
+    });
   });
 
   it("macht die Saeulenhoehe zum Anteil und laesst leere Noten leer", () => {
     const wirt = zeichne(<Notenspur verteilung={VERTEILUNG} />);
-    const saeulen = alle(wirt).filter((el) => stil(el).includes("var(--note-"));
-    // Drei Noten haben Antworten, drei nicht — drei Saeulen.
-    expect(saeulen).toHaveLength(3);
-    // Zellhoehe kompakt 24, Gesamt 8: 1→3px, 4→12px, 3→9px.
-    expect(saeulen.map((el) => stil(el).match(/height:(\d+)px/)?.[1])).toEqual(["3", "12", "9"]);
+    // Zellhoehe kompakt 24, Gesamt 8: 1→3px, 4→12px, 3→9px; Note 4 bis 6 leer.
+    const erwartet = ["3", "12", "9", null, null, null];
+    felder(wirt).forEach((zelle, i) => {
+      expect(stil(zelle)).toContain(`background:var(--fb-keil-${i + 1})`);
+      const saeule = zelle.querySelector<HTMLElement>("span");
+      if (erwartet[i] === null) {
+        expect(saeule).toBeNull();
+        return;
+      }
+      expect(stil(saeule!)).toContain(`background:var(--note-${i + 1})`);
+      expect(stil(saeule!).match(/height:(\d+)px/)?.[1]).toBe(erwartet[i]);
+    });
   });
 
   it("gibt einer einzigen Rueckmeldung mindestens 2px", () => {
     // 1 von 50 waere 0,48px — gerundet 0 und damit unsichtbar.
     const wirt = zeichne(<Notenspur verteilung={[1, 49, 0, 0, 0, 0]} />);
-    const saeulen = alle(wirt).filter((el) => stil(el).includes("var(--note-"));
-    expect(stil(saeulen[0])).toContain("height:2px");
+    expect(stil(felder(wirt)[0].querySelector("span")!)).toContain("height:2px");
   });
 
   it("traegt EIN vollstaendiges aria-label, damit nichts an Hoehe oder Farbe haengt", () => {
@@ -208,8 +254,17 @@ describe("Notenspur — nur wo eine Verteilung existiert", () => {
 describe("Notenlegende", () => {
   it("zeigt sechs Segmente in Palettenreihenfolge und die sechs Notenwoerter", () => {
     const wirt = zeichne(<Notenlegende />);
-    for (let n = 1; n <= 6; n += 1) expect(wirt.innerHTML).toContain(`var(--note-${n})`);
-    for (const wort of NOTEN_WORT) expect(wirt.textContent).toContain(wort);
+    const segmente = felder(wirt);
+    expect(segmente).toHaveLength(6);
+    // Positionsbezogen, nicht als Menge: die Legende erklaert die Spur darunter.
+    // Steht auf Platz 1 die Farbe der Note 6, erklaert sie das Gegenteil.
+    segmente.forEach((el, i) => {
+      expect(stil(el)).toContain(`background:var(--note-${i + 1})`);
+    });
+    // Und die Woerter in derselben Reihenfolge — sonst sitzt „sehr gut" ueber
+    // der Spalte der Note 6.
+    const woerter = Array.from(wirt.querySelectorAll(".fb-legende-woerter span"));
+    expect(woerter.map((el) => el.textContent)).toEqual([...NOTEN_WORT]);
   });
 
   it("haelt fuer unter 600px die zwei Ankerwoerter bereit", () => {
