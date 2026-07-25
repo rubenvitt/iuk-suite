@@ -666,9 +666,9 @@
 }
 
 /*
- * Der Abstand haengt an der SICHTBAREN Zahl, nicht am Element: die Live-Region
- * steht auch leer im Baum (sonst kuendigt sie ihren ersten Inhalt nicht an), und
- * ein leerer Block mit 4px Aussenabstand machte aus den 16px zwischen zwei
+ * Der Abstand haengt an der SICHTBAREN Zahl, nicht am Element: der Zaehler steht
+ * auch leer im Baum (er ist das stabile Ziel von `aria-describedby`), und ein
+ * leerer Block mit 4px Aussenabstand machte aus den 16px zwischen zwei
  * Freitextzeilen (§3.5) stillschweigend 20px.
  */
 .zaehler[data-zaehler] {

@@ -281,6 +281,14 @@ const FREITEXT_HINWEIS = "Schreib nichts, woran man dich erkennt.";
  */
 const ZAEHLER_AB = 420;
 
+/**
+ * Stufenweite der ANSAGE (§3.10: "nur ab 420 Zeichen, gedrosselt"). Der sichtbare
+ * Zaehler bleibt zeichengenau; die Live-Region wechselt ihren Text nur an jeder
+ * 20er-Marke. Zwischen 420 und 500 sind das fuenf Ansagen statt achtzig — ohne
+ * Zeitgeber, also ohne einen Aufraeum-Effekt je Freitextzeile.
+ */
+const ANSAGE_STUFE = 20;
+
 /** Verfall des Entwurfs (§3.7): eine halbe Stunde nach dem letzten Tippen. */
 export const ENTWURF_VERFALL_MS = 30 * 60 * 1000;
 
@@ -1017,6 +1025,22 @@ function Freitextzeile({
   const zaehler =
     wert.length < ZAEHLER_AB ? null : rest <= 0 ? "Zeile ist voll" : `noch ${rest} Zeichen`;
   const zaehlerId = `${frage.id}-zaehler`;
+  /*
+   * DIE ANSAGE IST GEDROSSELT, DIE ZAHL NICHT. Der sichtbare Text oben aendert
+   * sich bei jedem Tastendruck — richtig so, die Zahl soll stimmen. Genau deshalb
+   * darf er NICHT die Live-Region sein: 80 Mutationen einer `aria-live`-Region
+   * zwischen Zeichen 420 und 500 sind das Geplapper, das §3.10 im selben Satz
+   * verbietet ("nicht fuer jede Note — sonst plappert die Seite"). Die Ansage
+   * rastet stattdessen auf 20er-Stufen ein: einmal bei 420, dann bei 440, 460,
+   * 480 und bei 500 "Zeile ist voll". "etwa", weil die Stufe rundet — eine exakte
+   * Zahl anzukuendigen, die schon drei Zeichen alt ist, waere gelogen.
+   */
+  const ansage =
+    wert.length < ZAEHLER_AB
+      ? ""
+      : rest <= 0
+        ? "Zeile ist voll"
+        : `noch etwa ${Math.ceil(rest / ANSAGE_STUFE) * ANSAGE_STUFE} Zeichen`;
 
   return (
     <div className={s.textzeile} data-textzeile={frage.id}>
@@ -1047,21 +1071,23 @@ function Freitextzeile({
         onBlur={(e) => hoeheAnpassen(e.currentTarget)}
       />
       {/*
-        DIE LIVE-REGION STEHT IMMER IM BAUM, auch leer (§3.10). Zwei Gruende, beide
-        zwingend: eine erst bei 420 Zeichen EINGEBAUTE Region kuendigt ihren ersten
-        Inhalt nicht zuverlaessig an, und `aria-describedby` braucht ein stabiles
-        Ziel. Die 420-Zeichen-Schwelle IST die Drosselung — vorher gibt es nichts
-        zu sagen, und ein Zeitgeber je Zeile waere ein Werk, das niemand verlangt
-        hat. `data-zaehler` traegt nur die SICHTBARE Zahl, damit "unsichtbar bis
-        419" pruefbar bleibt.
+        DER SICHTBARE ZAEHLER: zeichengenau, IMMER im Baum (auch leer), und das
+        stabile Ziel von `aria-describedby` — ein erst bei 420 Zeichen eingebautes
+        Ziel waere zwischenzeitlich eine baumelnde Id. KEIN `aria-live`: der Knoten
+        traegt genau eine Rolle, die Beschreibung des Feldes. `data-zaehler` traegt
+        nur die SICHTBARE Zahl, damit "unsichtbar bis 419" pruefbar bleibt.
       */}
-      <span
-        id={zaehlerId}
-        className={s.zaehler}
-        data-zaehler={zaehler === null ? undefined : ""}
-        aria-live="polite"
-      >
+      <span id={zaehlerId} className={s.zaehler} data-zaehler={zaehler === null ? undefined : ""}>
         {zaehler}
+      </span>
+      {/*
+        DIE ANSAGE: ein zweiter, nur fuer Screenreader vorhandener Knoten. Er steht
+        immer im Baum, auch leer — eine erst bei 420 Zeichen EINGEBAUTE Live-Region
+        kuendigt ihren ersten Inhalt nicht zuverlaessig an. Sein Text wechselt in
+        20er-Stufen (siehe `ANSAGE_STUFE`), also fuenfmal statt achtzigmal.
+      */}
+      <span className={s.srOnly} data-zaehler-ansage="" aria-live="polite">
+        {ansage}
       </span>
     </div>
   );

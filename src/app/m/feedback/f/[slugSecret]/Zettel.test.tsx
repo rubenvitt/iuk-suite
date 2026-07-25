@@ -23,7 +23,7 @@ import {
   type ZettelProps,
 } from "./Zettel";
 import s from "./zettel.module.css";
-import { STANDARD_QUESTIONS, type Question } from "../../_lib/questions";
+import { MAX_TEXT_LENGTH, STANDARD_QUESTIONS, type Question } from "../../_lib/questions";
 import { JS_FELD } from "../../_lib/absenden";
 import type { SubmitResult } from "../../actions";
 
@@ -489,16 +489,17 @@ describe("Freitexte: sechs linierte Zeilen, jede mit ihrer ganzen Frage", () => 
     await zeichneStandard();
     await tippe("q9", "Die Sprechgruppen-Uebung.");
     /*
-     * Die gefuellte Zeile besteht aus Frage, Feld und der LEEREN Live-Region des
-     * Zeichenzaehlers (§3.10 — sie steht immer im Baum, sonst kuendigt sie ihren
-     * ersten Inhalt nicht an; bei diesem kurzen Text hat sie nichts zu sagen).
-     * Kein weiterer Knoten, also kein Haekchen und kein "erledigt": bei
-     * freiwilligen Feldern waere ein Haekchen eine stille Beschaemung der leeren.
+     * Die gefuellte Zeile besteht aus Frage, Feld, dem leeren sichtbaren Zaehler
+     * und der leeren Live-Region der Ansage (§3.10 — beide stehen immer im Baum;
+     * bei diesem kurzen Text haben beide nichts zu sagen). Kein weiterer Knoten,
+     * also kein Haekchen und kein "erledigt": bei freiwilligen Feldern waere ein
+     * Haekchen eine stille Beschaemung der leeren.
      */
     const zeile = query(`[data-textzeile="q9"]`);
     expect(Array.from(zeile.children).map((kind) => kind.tagName)).toEqual([
       "LABEL",
       "TEXTAREA",
+      "SPAN",
       "SPAN",
     ]);
     expect(zeile.textContent).not.toContain("✓");
@@ -1388,18 +1389,63 @@ describe("Politur der oeffentlichen Ansicht", () => {
     const beschreibung = textfeld("q9").getAttribute("aria-describedby");
     expect(beschreibung).toBe("q9-zaehler");
     /*
-     * Die Region steht IMMER im Baum, auch leer: eine erst bei 420 Zeichen
-     * eingebaute Live-Region kuendigt ihren ersten Inhalt nicht zuverlaessig an,
-     * und `aria-describedby` braucht ein stabiles Ziel. Die 420-Zeichen-Schwelle
-     * IST die Drosselung aus §3.10 — vorher gibt es nichts zu sagen.
+     * Der SICHTBARE Zaehler steht immer im Baum, auch leer — `aria-describedby`
+     * braucht ein stabiles Ziel. Er traegt aber KEIN `aria-live`: er wird bei
+     * jedem Tastendruck neu geschrieben, und §3.10 verlangt die Ansage
+     * "gedrosselt". Ein Knoten, eine Rolle.
      */
-    const region = query(`#${beschreibung}`);
-    expect(region.getAttribute("aria-live")).toBe("polite");
-    expect(region.textContent).toBe("");
+    const sichtbar = query(`#${beschreibung}`);
+    expect(sichtbar.hasAttribute("aria-live")).toBe(false);
+    expect(sichtbar.textContent).toBe("");
     expect(exists("[data-zaehler]")).toBe(false);
+
+    // Die Ansage ist ein zweiter, nur fuer Screenreader vorhandener Knoten.
+    const ansage = query("[data-zaehler-ansage]");
+    expect(ansage.getAttribute("aria-live")).toBe("polite");
+    expect(ansage.className).toBe(s.srOnly);
+    expect(ansage.hasAttribute("data-zaehler")).toBe(false);
+    expect(ansage.textContent).toBe("");
+
     await tippe("q9", "z".repeat(420));
     expect(query(`#${beschreibung}`).textContent).toBe("noch 80 Zeichen");
     expect(query(`#${beschreibung}`).hasAttribute("data-zaehler")).toBe(true);
+    expect(query("[data-zaehler-ansage]").textContent).toBe("noch etwa 80 Zeichen");
+  });
+
+  it("6b. drosselt die ANSAGE auf Stufen, waehrend die sichtbare Zahl zeichengenau bleibt", async () => {
+    await zeichneStandard();
+    // Bewusst als Literal aus §3.10 und nicht aus dem Modul importiert: der Test
+    // haelt die ZUSAGE fest, nicht die Konstante, die sie umsetzt.
+    const ZAEHLER_AB = 420;
+    const gesehen: string[] = [];
+    const gesagt: string[] = [];
+    for (let laenge = ZAEHLER_AB; laenge <= MAX_TEXT_LENGTH; laenge++) {
+      await tippe("q9", "z".repeat(laenge));
+      gesehen.push(query("[data-zaehler]").textContent ?? "");
+      gesagt.push(query("[data-zaehler-ansage]").textContent ?? "");
+    }
+    /*
+     * DAS PAAR IST DIE AUSSAGE. Sichtbar: 81 verschiedene Texte, also jede Zahl
+     * einzeln — wer hinsieht, liest die Wahrheit. Gesagt: fuenf verschiedene
+     * Texte auf denselben 81 Tastendruecken. Genau das meint §3.10 mit
+     * "gedrosselt"; eine Live-Region, die 80-mal in wenigen Sekunden mutiert,
+     * plappert.
+     */
+    expect(new Set(gesehen).size).toBe(81);
+    expect(new Set(gesagt).size).toBe(5);
+    expect([...new Set(gesagt)]).toEqual([
+      "noch etwa 80 Zeichen",
+      "noch etwa 60 Zeichen",
+      "noch etwa 40 Zeichen",
+      "noch etwa 20 Zeichen",
+      "Zeile ist voll",
+    ]);
+    // Die Ansage laeuft der sichtbaren Zahl nie voraus: "etwa 60" heisst <= 60.
+    for (const [i, text] of gesagt.entries()) {
+      const rest = MAX_TEXT_LENGTH - (ZAEHLER_AB + i);
+      const stufe = Number(/\d+/.exec(text)?.[0] ?? 0);
+      if (stufe > 0) expect(rest).toBeLessThanOrEqual(stufe);
+    }
   });
 
   it("7. kuendigt denselben Lueckenstand auch beim ZWEITEN Tipp an", async () => {
