@@ -899,6 +899,72 @@
   border: 0;
 }
 
+/* ---------- Zustaende B–F (§3.2) ---------- */
+
+/*
+ * Die Zustaende teilen mit dem Formular Fahne, Kopf, Satzbreite und Typo-Skala;
+ * ihr Koerper ist nur ein Textblock und hoechstens ein Knopf. Der Abstand ist
+ * derselbe wie von der Legende zur ersten Notenzeile (§3.5): 24px.
+ */
+.zustand {
+  margin-top: 24px;
+}
+
+/* t2 (15px/1,55): der Fliesstext dieser Route. */
+.text {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--tinte);
+}
+
+/*
+ * "Danke." steht auf t6, auch mobil (§3.3): die Danke-Seite hat keine
+ * konkurrierende Zeile, dort darf die Ueberschrift den Schirm tragen. Die Regel
+ * steht NACH der 600px-Regel von `.titel` — sonst gewaenne die Media Query.
+ */
+.gross {
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+/*
+ * Ein `<a>` in Knopfgestalt (Zustand C, "Neu laden"): `.knopf` ist auf
+ * `<button>` gemuenzt, dort zentriert der Text sich selbst. Ein Link braucht die
+ * Zentrierung explizit — und keine Unterstreichung, sonst liest er sich als
+ * zweite Sorte Knopf.
+ */
+.knopfLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+/* Der entsaettigte Legendenstreifen des Zustands D. */
+.stummeLegende {
+  margin-top: 24px;
+}
+
+/*
+ * Hell UND dunkel ausdruecklich: die Dunkelregel fuer `.segment` haengt an
+ * `:root[data-theme="dark"]` und gewaenne sonst ueber die Spezifitaet — der
+ * Streifen bliebe im Dunkelmodus farbig, und die Farbe hat den Raum verlassen.
+ */
+.streifen[data-stumm] .segment,
+:root[data-theme="dark"] .streifen[data-stumm] .segment {
+  background: var(--linie-stark);
+}
+
+/* Weitergabe-Abschnitt der Danke-Seite: Haarlinie, dann 32px (§3.2 B). */
+.weitergabe {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px solid var(--linie);
+}
+
 /* ---------- Bewegung ---------- */
 
 /*

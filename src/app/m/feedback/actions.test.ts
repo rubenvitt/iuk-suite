@@ -26,16 +26,17 @@ let currentIp = "203.0.113.7";
  * `cookies().set` ist ein geteilter Spion — bei einer abgelehnten Abgabe darf kein
  * Cookie gesetzt werden (sonst wäre das Gerät für 24h gesperrt, ohne abgestimmt zu haben).
  */
-const { redirectMock, cookieSetMock } = vi.hoisted(() => ({
+const { redirectMock, cookieSetMock, cookieDeleteMock } = vi.hoisted(() => ({
   redirectMock: vi.fn(),
   cookieSetMock: vi.fn(),
+  cookieDeleteMock: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "cf-connecting-ip": currentIp }),
-  cookies: async () => ({ set: cookieSetMock, get: vi.fn(), delete: vi.fn() }),
+  cookies: async () => ({ set: cookieSetMock, get: vi.fn(), delete: cookieDeleteMock }),
 }));
 vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
 vi.mock("./_db/client", () => ({ getDb: () => db }));
@@ -119,6 +120,7 @@ beforeEach(() => {
   currentIp = "203.0.113.7";
   redirectMock.mockClear();
   cookieSetMock.mockClear();
+  cookieDeleteMock.mockClear();
 });
 afterEach(() => sqlite.close());
 
@@ -374,5 +376,51 @@ describe("submitResponseAction: Zeitstempel verrät die Uhrzeit nicht", () => {
     for (const r of rows) {
       expect(r.submittedAt.getTime()).toBe(eveningDate.getTime());
     }
+  });
+});
+
+/**
+ * HANDY-WEITERGABE (Entwurf 3.8).
+ *
+ * Handys werden in einer Gruppe herumgegeben. Die 24-Stunden-Cookie-Sperre machte
+ * die zweite Abgabe am geteilten Gerät unmöglich — und zwar stumm. Diese Action
+ * ist der Ausweg, und sie hat genau zwei Zusagen: das Cookie ist WEG (auch für
+ * `path: "/"`, sonst liefert der Browser den Löschbefehl für den falschen Pfad
+ * aus und die Sperre bleibt), und danach steht das Formular wieder da.
+ */
+describe("releaseDeviceAction: leerer Bogen für die nächste Person", () => {
+  it("löscht das Cookie per `set` mit maxAge 0 und path /, nicht per `delete`", async () => {
+    const { releaseDeviceAction } = await loadActions();
+    const { token, survey } = seedActiveSurvey("bereitschaft", "abc12");
+
+    await releaseDeviceAction(token, survey.id);
+
+    expect(cookieSetMock).toHaveBeenCalledWith(
+      `feedback-${survey.id}`,
+      "",
+      expect.objectContaining({ maxAge: 0, path: "/" }),
+    );
+    expect(cookieDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("leitet auf das Formular derselben Gruppe, nicht auf die Danke-Seite", async () => {
+    const { releaseDeviceAction } = await loadActions();
+    const { token, survey } = seedActiveSurvey("bereitschaft", "abc12");
+
+    await releaseDeviceAction(token, survey.id);
+
+    expect(redirectMock).toHaveBeenCalledWith(`/f/${token}`);
+  });
+
+  it("die nächste Abgabe derselben IP landet als eigene Zeile", async () => {
+    // Der Kernfall des geteilten Geräts: zwei Personen, ein Handy, eine IP.
+    const { submitResponseAction, releaseDeviceAction } = await loadActions();
+    const { token, survey } = seedActiveSurvey("bereitschaft", "abc12");
+
+    await submitResponseAction(token, submission());
+    await releaseDeviceAction(token, survey.id);
+    await submitResponseAction(token, submission());
+
+    expect(listResponses(db, survey.id)).toHaveLength(2);
   });
 });

@@ -290,6 +290,27 @@ export async function submitResponseAction(
   return { ok: true };
 }
 
+/**
+ * HANDY-WEITERGABE (Entwurf 3.8): das Gerät für die nächste Person freigeben.
+ *
+ * Handys werden in einer Gruppe herumgegeben. Der 24-Stunden-Cookie sperrte die
+ * zweite Abgabe am geteilten Gerät aus — stumm, ohne ein Wort dazu. Dieser Weg
+ * ist der Ausweg, und er ist ein natives `<form action={…}>`: er funktioniert
+ * ohne JavaScript.
+ *
+ * `set` mit `maxAge: 0` statt `delete`, damit der Löschbefehl garantiert mit
+ * `path: "/"` ausgeliefert wird — `delete` ohne Pfad räumt unter einem anderen
+ * Pfad gesetzte Cookies nicht ab, und die Sperre bliebe unsichtbar stehen.
+ *
+ * Kein Zugriffsschutz nötig: der einzige Effekt ist, dass der Aufrufer sein
+ * EIGENES Cookie verliert. Wer das ohne Grund tut, schadet nur seiner eigenen
+ * Mehrfach-Absende-Sperre.
+ */
+export async function releaseDeviceAction(slugSecret: string, surveyId: number) {
+  (await cookies()).set(`feedback-${surveyId}`, "", { maxAge: 0, path: "/" });
+  redirect(`/f/${slugSecret}`);
+}
+
 // ---- Parser-Helfer ----
 function num(v: FormDataEntryValue | null): number {
   const n = Number(v);

@@ -1,30 +1,22 @@
-import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createHash } from "node:crypto";
-import { Newsreader } from "next/font/google";
+import type { ReactElement } from "react";
 import { getDb } from "../../_db/client";
-import { getGroupBySlug, activeSurveyForGroup, setSurveyStatus } from "../../_db/queries";
+import {
+  getGroupBySlug,
+  activeSurveyForGroup,
+  setSurveyStatus,
+  listEvenings,
+  getSurveyByEvening,
+} from "../../_db/queries";
+import type { EveningRow, GroupRow, SurveyRow } from "../../_db/schema";
 import { parseToken } from "../../_lib/token";
-import { nextStatusOnAccess } from "../../_lib/lifecycle";
+import { nextStatusOnAccess, TIME_ZONE } from "../../_lib/lifecycle";
 import { isRatingType, ratingScale, type Question } from "../../_lib/questions";
 import { submitResponseAction } from "../../actions";
+import { Huelle, ZustandC, ZustandD, ZustandE, ZustandF } from "./Zustaende";
 import { Zettel } from "./Zettel";
 import s from "./zettel.module.css";
-
-/**
- * Der EINE zusaetzliche Webfont dieser Route (Entwurf §3.3/§3.11), nur fuer H1,
- * "Danke." und die t4-Serifsaetze. Hier statt im Root-Layout, damit ihn
- * ausschliesslich diese Route laedt. Faellt er aus, greift die im Entwurf
- * benannte Ruecklinie: Geist Sans 600 (`--serif` in `zettel.module.css`) — der
- * Entwurf verliert Ton, nicht Funktion.
- */
-const newsreader = Newsreader({
-  variable: "--font-newsreader",
-  subsets: ["latin"],
-  weight: ["400", "600"],
-  display: "swap",
-  preload: true,
-});
 
 /**
  * DAS ANONYMITAETSSIEGEL — Wortlaut A aus Entwurf §3.9, wortgenau.
@@ -83,6 +75,91 @@ function vertragszeile(questions: Question[]): string {
   return `Anonym · ${notenteil}, ${zeilenteil} · etwa 2 Minuten`;
 }
 
+/**
+ * Der Schliesszeitpunkt fuer Zustand D — der FRUEHERE der beiden Kandidaten.
+ *
+ * Beide Spalten koennen luegen, jede in eine Richtung: `closesAt` ist bei einer
+ * von Hand geschlossenen Umfrage noch Tage entfernt (eine Zusage ueber die
+ * Zukunft), `closedAt` ist beim Lazy-Auto-Close der Zeitpunkt DIESES Aufrufs
+ * (21:47, obwohl seit 09:00 zu ist). Das Minimum trifft in beiden Faellen zu.
+ * `null` heisst "kein belegter Zeitpunkt" — bei importierten Altbestaenden wird
+ * dann keiner behauptet.
+ */
+function schliesszeit(survey: SurveyRow): Date | null {
+  const kandidaten = [survey.closesAt, survey.closedAt].filter((d): d is Date => d instanceof Date);
+  if (kandidaten.length === 0) return null;
+  return new Date(Math.min(...kandidaten.map((d) => d.getTime())));
+}
+
+/**
+ * "am 23. Juli um 09:00" — in der Zeitzone, in der die Frist GERECHNET wurde.
+ *
+ * Hier ist `timeZone: "UTC"` falsch, anders als beim Abenddatum: `closesAt` ist
+ * ein Zeitpunkt aus `computeClosesAt(..., TIME_ZONE)`, kein Kalendertag. In UTC
+ * formatiert stuende auf dem Zettel 07:00 — eine Uhrzeit, zu der noch offen war.
+ */
+function geschlossenAm(zeit: Date): string {
+  const tag = new Intl.DateTimeFormat("de-DE", {
+    day: "numeric",
+    month: "long",
+    timeZone: TIME_ZONE,
+  }).format(zeit);
+  const uhr = new Intl.DateTimeFormat("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: TIME_ZONE,
+  }).format(zeit);
+  return `am ${tag} um ${uhr}`;
+}
+
+/** Die Skala der Umfrage: 6 bei `schulnote`, 5 bei importierten `stars`. */
+function skala(survey: SurveyRow): number {
+  const questions: Question[] = JSON.parse(survey.questions);
+  return ratingScale(questions.find((q) => isRatingType(q.type))?.type ?? "schulnote");
+}
+
+/** Zustand D aus Umfrage und Abend — an zwei Stellen gebraucht, einmal gebaut. */
+function beendet(survey: SurveyRow, evening: EveningRow) {
+  const zeit = schliesszeit(survey);
+  return (
+    <ZustandD
+      thema={evening.topic}
+      datum={langesDatum(evening.date)}
+      geschlossenAm={zeit ? geschlossenAm(zeit) : null}
+      stufen={skala(survey)}
+    />
+  );
+}
+
+/**
+ * Ohne aktive Umfrage: Zustand D, wenn der LETZTE Abend der Gruppe einen
+ * beendeten Bogen hat — sonst C.
+ *
+ * Ohne diesen Blick waere D praktisch unerreichbar: nur der erste Besucher nach
+ * Fristende loest den Lazy-Auto-Close aus und sieht "beendet", jeder danach
+ * bekaeme "zurzeit laeuft keine Umfrage" — obwohl er den richtigen Zettel zu
+ * spaet erwischt hat. Bewusst nur der NEUESTE Abend: auf ihn zeigt der QR-Code
+ * gerade, ein Bogen von vor drei Wochen wuerde ein falsches "dieser Abend"
+ * behaupten. `draft` (noch nicht freigegeben) fuehrt zu C, `archived` wird
+ * tolerant wie `closed` gelesen.
+ */
+function ohneAktiveUmfrage(
+  db: ReturnType<typeof getDb>,
+  group: GroupRow,
+  slugSecret: string,
+): ReactElement {
+  const abende = listEvenings(db, group.id);
+  const letzter = abende.reduce<EveningRow | undefined>(
+    (spitze, abend) => (!spitze || abend.date > spitze.date ? abend : spitze),
+    undefined,
+  );
+  const survey = letzter ? getSurveyByEvening(db, letzter.id) : undefined;
+  if (letzter && survey && (survey.status === "closed" || survey.status === "archived")) {
+    return beendet(survey, letzter);
+  }
+  return <ZustandC gruppe={group.name} url={`/f/${slugSecret}`} />;
+}
+
 export default async function ParticipatePage({
   params,
 }: {
@@ -90,25 +167,33 @@ export default async function ParticipatePage({
 }) {
   const { slugSecret } = await params;
   const parsed = parseToken(slugSecret);
-  if (!parsed) notFound();
+  /*
+   * Zustand F statt `notFound()`: eine gestaltete Seite (3.2 F). Und sie bekommt
+   * KEINE Daten — kaputtes Token, unbekannter Slug und falsches Secret ergeben
+   * Zeichen fuer Zeichen dieselbe Antwort, sonst waere die Seite ein Orakel fuer
+   * geratene Slugs.
+   */
+  if (!parsed) return <ZustandF />;
   const db = getDb();
   const group = getGroupBySlug(db, parsed.slug);
-  if (!group || group.secret !== parsed.secret) notFound();
+  if (!group || group.secret !== parsed.secret) return <ZustandF />;
 
   const active = activeSurveyForGroup(db, group.id);
-  if (!active) {
-    return <p>Zurzeit ist keine Umfrage aktiv. Vielen Dank für dein Interesse!</p>;
-  }
+  if (!active) return ohneAktiveUmfrage(db, group, slugSecret);
   const survey = active.survey;
   // Lazy Auto-Close: abgelaufene aktive Umfrage sofort schließen.
-  if (nextStatusOnAccess("active", survey.closesAt, new Date()) !== "active") {
-    setSurveyStatus(db, survey.id, "closed", { closedAt: new Date() });
-    return <p>Diese Umfrage ist inzwischen geschlossen.</p>;
+  const jetzt = new Date();
+  if (nextStatusOnAccess("active", survey.closesAt, jetzt) !== "active") {
+    setSurveyStatus(db, survey.id, "closed", { closedAt: jetzt });
+    return beendet({ ...survey, status: "closed", closedAt: jetzt }, active.evening);
   }
-  // Bereits abgegeben? (Cookie) — die submit-Action SETZT den Cookie nur; das
-  // Enforcement (Redirect zu /thanks statt erneutem Formular) liegt hier.
+  /*
+   * Bereits von DIESEM Geraet abgegeben (3.2 E): Zustand E statt einer stummen
+   * Weiterleitung nach /thanks. Handys werden in einer Gruppe herumgegeben — die
+   * Weiterleitung sperrte die zweite Person aus, ohne ein Wort zu sagen.
+   */
   const already = (await cookies()).get(`feedback-${survey.id}`);
-  if (already) redirect(`/f/${slugSecret}/thanks`);
+  if (already) return <ZustandE slugSecret={slugSecret} surveyId={survey.id} />;
 
   const questions: Question[] = JSON.parse(survey.questions);
   // Die Skala der UMFRAGE (Legendenstreifen, Ankerwoerter): 6 bei `schulnote`,
@@ -122,19 +207,10 @@ export default async function ParticipatePage({
   const tokenHash = createHash("sha256").update(slugSecret).digest("hex").slice(0, 16);
 
   return (
-    <div className={`${s.seite} ${newsreader.variable}`}>
-      {/* Fahne: 3px DRK-Rot, randlos am Oberrand. Reine Marke, kein Inhalt —
-          deshalb `aria-hidden`. Eine der genau ZWEI Stellen mit #c8000f. */}
-      <div className={s.fahne} aria-hidden="true" />
-      <div className={s.blatt}>
-        <header className={`${s.kopf} ${s.aufbau}`}>
-          <p className={s.kicker}>
-            Rückmeldung zum Dienstabend
-            <span className={s.wortzeichen}>DRK</span>
-          </p>
-          <h1 className={s.titel}>
-            {active.evening.topic ?? `Dienstabend am ${tagUndMonat(active.evening.date)}`}
-          </h1>
+    <Huelle
+      titel={active.evening.topic ?? `Dienstabend am ${tagUndMonat(active.evening.date)}`}
+      kopf={
+        <>
           {/* Ohne Uhrzeit, anders als im Entwurfsbeispiel "… · 19:30": `evenings`
               traegt nur ein Kalenderdatum (Mitternacht UTC), eine Startzeit gibt
               es im Schema nicht. Eine erfundene Uhrzeit waere schlimmer als
@@ -143,21 +219,22 @@ export default async function ParticipatePage({
             {group.name} · <span className={s.datum}>{langesDatum(active.evening.date)}</span>
           </p>
           <p className={s.vertrag}>{vertragszeile(questions)}</p>
-        </header>
-        {/*
-          Die Action wird GEBUNDEN uebergeben und im Formular unveraendert als
-          `action` verwendet — nur so bleibt die Abgabe ohne JavaScript moeglich
-          (§3.11). Ein Client-Wrapper waere keine serialisierbare Server Action
-          mehr, und dieser Bruch ist fuer Typecheck und Build unsichtbar.
-        */}
-        <Zettel
-          questions={questions}
-          scale={scale}
-          action={submitResponseAction.bind(null, slugSecret)}
-          tokenHash={tokenHash}
-          siegel={ANONYMITAETSSIEGEL}
-        />
-      </div>
-    </div>
+        </>
+      }
+    >
+      {/*
+        Die Action wird GEBUNDEN uebergeben und im Formular unveraendert als
+        `action` verwendet — nur so bleibt die Abgabe ohne JavaScript moeglich
+        (§3.11). Ein Client-Wrapper waere keine serialisierbare Server Action
+        mehr, und dieser Bruch ist fuer Typecheck und Build unsichtbar.
+      */}
+      <Zettel
+        questions={questions}
+        scale={scale}
+        action={submitResponseAction.bind(null, slugSecret)}
+        tokenHash={tokenHash}
+        siegel={ANONYMITAETSSIEGEL}
+      />
+    </Huelle>
   );
 }
