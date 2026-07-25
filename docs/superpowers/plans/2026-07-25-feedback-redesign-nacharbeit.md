@@ -182,3 +182,92 @@ draft→active-Ablauf und die Sterne-Oberfläche)
 - [ ] **Schritt 3: Commit**
 
 `test(feedback): E2E der öffentlichen Strecke inkl. ohne JavaScript, mobil und geteiltem Gerät`
+
+---
+
+# Nacharbeit zu Teil 3 (Admin)
+
+### Task N5: Druck-Aushang im Dunkelmodus — weiß auf weiß
+
+**CRITICAL.** `(print)/druck.css` setzt `color: var(--fb-ink)` bzw. `var(--fb-muted)`; bei
+`data-theme="dark"` sind das `rgba(255,255,255,.88)` / `.55`. Auf Papier ist das **unlesbar** — und am
+Bildschirm fällt es nicht auf, weil das Root-Layout `colorScheme` setzt und die Leinwand mit
+einfärbt. Wer im Dunkelmodus auf „Aushang drucken" tippt, bekommt ein weißes Blatt.
+
+**Files:** `src/app/m/feedback/(print)/druck.css` (+ Test)
+
+- [ ] **Schritt 1: Test** — im Druckstylesheet sind die Textfarben **modusunabhängig** (Quelltext-
+  Assertion: im `@media print`-Block keine Variable, die vom Theme abhängt; stattdessen feste dunkle
+  Werte auf weißem Grund). Zusätzlich: `-webkit-print-color-adjust: exact` dort, wo Farbe tragend ist.
+- [ ] **Schritt 2: Umsetzen** — Druck erzwingt Schwarz auf Weiß, unabhängig von `data-theme`.
+- [ ] **Schritt 3: Commit** — `fix(feedback): Aushang druckt schwarz auf weiss, auch im Dunkelmodus`
+
+---
+
+### Task N6: Lagekarte vervollständigen — Zwischenstand, Aktualisierer, QR-Handgriff
+
+Vier Anforderungen der bindenden Abschnitte sind nicht umgesetzt; eine davon hat mein Plan selbst
+übersehen. **Bindend:** `docs/design/feedback-admin.md` §2.1, §2.3, §2.4, §4.2, §4.5, §2.7.
+
+**Files:** `_ui/Lagekarte.tsx`, `_ui/Aktualisierer.tsx` (neu), `(admin)/groups/[groupId]/page.tsx`,
+`_ui/feedback.css` (+ Tests)
+
+- [ ] **Schritt 1: Je Anforderung ein Test, dann umsetzen**
+
+1. **Der Block ZWISCHENSTAND fehlt vollständig** (§2.3) — das ist die Live-Auswertung, deren Fehlen der
+   Auftraggeber ausdrücklich beanstandet hat („während des Dienstabends sieht der Gruppenleiter null
+   Rückmeldungen"). Verlangt: Kicker „ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG", Notenlegende + acht
+   Notenspuren, bei 1–2 Antworten der Hinweis „Erst 2 Rückmeldungen — die Zahlen schwanken noch stark.",
+   und die **gezählten** Freitexte („5 Freitexte — in der Auswertung nachlesen").
+2. **`_ui/Aktualisierer.tsx` fehlt** (§4.5): alle 30 s `router.refresh()`, **nur** bei laufender Umfrage
+   **und** `document.visibilityState === "visible"`; unter dem Zähler „Stand: 21:47" plus einen
+   „Aktualisieren"-Textknopf. (Mein Plan nennt die Insel nirgends — das ist eine Planlücke, nicht ein
+   Fehler der Umsetzung.)
+3. **„QR-Code groß zeigen" fehlt als Handgriff** (§2.3/§2.4): Primäraktion in den Belegungen C und D,
+   Sekundäraktion in A und B. §2.4 nennt ihn „den zeitkritischen Handgriff im Gruppenraum … in jedem
+   Zustand ein Tipp weit oben". In `LaufendeKarte` gibt es derzeit **keine** Primäraktion.
+4. **Mobile Werte und zwei Textstellen:** `body.padding: 16` auf 390px (§2.1, gebaut ist fest 20) · der
+   Ø-Halbsatz der Kontextzeile („… · Ø der letzten sechs: 2,1 gut", §4.2) · „Letzter Abend" als
+   `Button` in `default` statt als nackter Link (§2.7 sagt ausdrücklich „bewusst kein Primärknopf",
+   meint aber einen Knopf).
+5. **iOS-Zoom-Riegel** (§4.14, wörtlich vorgegeben und bislang nicht in `feedback.css`):
+   unter 600px `font-size: 16px` für `input`/`textarea`/`.ant-select-selector` — `token.fontSize` ist
+   14, darunter zoomt iOS beim Fokus.
+
+- [ ] **Schritt 2: Tests laufen lassen** · [ ] **Schritt 3: Commit**
+
+`feat(feedback): Zwischenstand in der Lagekarte, Auto-Aktualisierung, QR-Handgriff`
+
+---
+
+### Task N7: `avgSchulnote` in der Anzeige ankommen lassen
+
+Der stille Rechenfehler ist **berechnet, aber nicht beseitigt**: `avgSchulnote` hat keinen einzigen
+Leser. `computeGroupTrend`, `(admin)/vergleich/page.tsx` und die Auswertungsseite lesen weiterhin
+`overallAvg` — obwohl §4.12 sagt, dass **jede** Ampeldarstellung (Pille, Plakette, Funke, Trendlinie,
+Vergleich) `avgSchulnote` liest. Belegt: die `computeGroupTrend`-Tests bleiben identisch grün, wenn im
+Fixture `avgSchulnote: null` stünde.
+
+**Files:** `_lib/aggregation.ts`, `(admin)/vergleich/page.tsx`,
+`…/evenings/[eveningId]/auswertung/page.tsx`, `…/export.csv/route.ts` (+ Tests)
+
+- [ ] **Schritt 1: Tests**
+
+- Ein Fragebogen mit gemischten Skalen: die **Ampelfarbe** richtet sich nach `avgSchulnote`, nicht nach
+  `overallAvg`. Mutationsprobe: `avgSchulnote` im Fixture auf `null` → der Test **muss** fehlschlagen
+  (genau das tut er heute nicht).
+- `computeGroupTrend` gewichtet mit `avgSchulnote`; Abende ohne Schulnotenfrage fallen aus der Kurve
+  statt sie zu verfälschen.
+- Zeilen mit `hasLegacyScale` tragen die Fußnote aus §4.12.
+- **CSV-Spaltenname:** Die Spalte heißt „Zeitstempel", enthält nach der Normalisierung aber nur einen
+  Kalendertag — und in jeder Zeile denselben, der schon in der Metadatenzeile „Datum" steht. Umbenennen
+  (oder streichen), damit der Name nicht eine Genauigkeit verspricht, die die Ausgabe bewusst nicht mehr
+  hat.
+- **Farb-Klausel-Riegel rekursiv machen:** der Test liest `_ui/` mit `readdirSync` **ohne** Rekursion und
+  verwirft Unterverzeichnisse still. Eine spätere Datei `_ui/charts/Foo.tsx` entzieht sich damit sowohl
+  der Farb-Klausel als auch der `--ant-*`-Sperre — und „still" ist der einzige Grund, aus dem diese
+  Assertionen existieren.
+
+- [ ] **Schritt 2: Tests laufen lassen** · [ ] **Schritt 3: Commit**
+
+`fix(feedback): Ampel und Trend lesen den Schulnoten-Mittelwert statt des gemischten`
