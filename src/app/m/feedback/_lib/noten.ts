@@ -93,6 +93,19 @@ export function ampelStufe(durchschnitt: number): 1 | 2 | 3 | 4 | 5 | 6 {
 }
 
 /**
+ * Der ANGEZEIGTE Wert: eine Dezimale, Komma statt Punkt („2,4"). Gerundet wird
+ * fuer die Farbe (`ampelStufe`), formatiert wird fuer das Auge — und beides
+ * steht hier, damit nicht die eine Anzeige „2,4" und die naechste „2.40"
+ * schreibt.
+ *
+ * Der Entwurf fuehrt diese Funktion in §4.11 als Teil desselben Moduls
+ * (`formatNote`); die deutschen Namen hier sind die verbindliche Schnittstelle.
+ */
+export function formatiereNote(durchschnitt: number): string {
+  return durchschnitt.toFixed(1).replace(".", ",");
+}
+
+/**
  * Die Farbe einer Note im jeweiligen Modus. Nimmt auch einen Mittelwert an
  * (2,4 → Farbe der Note 2), weil `ampelStufe` die einzige Rundungsregel des
  * Moduls ist und hier nicht ein zweites Mal entstehen soll.

@@ -1,4 +1,10 @@
 import { redirect, notFound } from "next/navigation";
+// Die eigenen CSS-Variablen des Moduls (`--fb-*`, `--note-*`). Sie liegen NICHT
+// bei antd: antd deklariert `--ant-*` auf seiner Scope-Klasse, nicht auf
+// `:root` — eigenes Markup sieht sie nie, und der Fehler ist still. Der Import
+// steht im Layout, damit jede Seite unter `(admin)` sie hat, ohne ihn zu
+// wiederholen.
+import "../_ui/feedback.css";
 import { auth } from "@/core/auth";
 import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";

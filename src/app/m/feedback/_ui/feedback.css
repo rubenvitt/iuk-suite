@@ -1,0 +1,151 @@
+/*
+ * DIE EIGENEN CSS-VARIABLEN DES MODULS `feedback` (Entwurf §4.10, §4.11).
+ *
+ * WARUM NICHT `--ant-*`: antd deklariert seine Variablen auf der Scope-Klasse
+ * `css-var-iuk` an den Wurzelelementen SEINER EIGENEN Komponenten, nicht auf
+ * `:root`. Eigenes Markup, eigene Diagramme und die Druckansicht sehen sie
+ * deshalb nie — und der Fehler ist STILL: die Haarlinie verschwindet einfach,
+ * `pnpm build` meldet nichts. Regel: in Props von antd-Komponenten sind
+ * `--ant-*` erlaubt, in eigenem Markup ausschliesslich `--fb-*` / `--note-*`.
+ *
+ * WARUM EINE DATEI: der Entwurf nennt in §4.11 ein `_ui/noten.css` — das ist
+ * eine WERTEREFERENZ, kein zweiter Dateiname. Der Plan (Task 17) legt genau
+ * eine Datei fest, und genau eine wird importiert. Zwei Dateien mit
+ * Themenwechsel in der Mitte kosten nur einen weiteren Import, den irgendwer
+ * vergisst.
+ *
+ * DIE PALETTE IST GESPIEGELT, NICHT ZWEITDEFINIERT: Quelle ist
+ * `_lib/noten.ts`. `Noten.test.tsx` rechnet dieses Stylesheet gegen die
+ * TypeScript-Konstanten nach — ohne diesen Test bricht die Zusage „eine
+ * Definition" beim ersten hastigen Fix, ohne dass etwas anschlaegt.
+ *
+ * DIE SKALA IST INVERTIERT: 1 = sehr gut, 6 = ungenuegend. `--note-1` ist
+ * gruen, weil 1 die BESTE Note ist — nicht weil viel gut waere.
+ *
+ * UMSCHALTUNG ueber `:root[data-theme="light"|"dark"]` (gesetzt in
+ * `src/app/layout.tsx`), bewusst NICHT ueber `prefers-color-scheme`: die Suite
+ * hat einen Umschalter, sonst bricht der Fall „System dunkel, Umschalter hell".
+ * Die Hellwerte liegen zusaetzlich auf dem nackten `:root`, damit ein Kontext
+ * ohne Attribut (Druck, isolierte Vorschau) nicht ohne Farben dasteht.
+ */
+
+:root,
+:root[data-theme="light"] {
+  /* Die Hellwerte sind die Suite-Tokens (DRK.tinte / stahl / linie). */
+  --fb-ink: #1a1d20;
+  --fb-muted: #5b6570;
+  --fb-line: #d9dde1;
+  --fb-split: #e8ebee;
+  --fb-card: #ffffff;
+  --fb-tint: #f2f4f5;
+  --fb-fill: #e6e9eb;
+
+  /* Schulnote 1–6, Ziffernfarbe `--note-ink`. Spiegel von `_lib/noten.ts`. */
+  --note-1: #2f7f59;
+  --note-2: #54782a;
+  --note-3: #7e6103;
+  --note-4: #904708;
+  --note-5: #912e10;
+  --note-6: #811221;
+  --note-ink: #ffffff;
+
+  /*
+   * Toenungen (12 % ueber #ffffff) — AUSSCHLIESSLICH als textfreie
+   * Diagrammbaender. Eine Toenung traegt NIE Text: die Notenfarbe auf ihrer
+   * eigenen Toenung erreicht nur ~2:1. Vorberechnet als Hex, damit sie ohne
+   * `color-mix` auch im Druck stimmen.
+   */
+  --note-tint-1: #e6f0eb;
+  --note-tint-2: #eaefe5;
+  --note-tint-3: #f0ece1;
+  --note-tint-4: #f2e9e1;
+  --note-tint-5: #f2e6e2;
+  --note-tint-6: #f0e3e4;
+
+  /*
+   * Achromatischer Tonwertkeil der Notenspur-Zellen: dunkelt nach rechts,
+   * damit die Richtung „nach rechts wird es schwerer" auch ohne Farbe traegt.
+   * Kein Notenwert — deshalb `--fb-`, nicht `--note-`.
+   */
+  --fb-keil-1: #f5f6f7;
+  --fb-keil-2: #eef0f2;
+  --fb-keil-3: #e8ebed;
+  --fb-keil-4: #e2e5e9;
+  --fb-keil-5: #dcdfe4;
+  --fb-keil-6: #d6dae0;
+}
+
+:root[data-theme="dark"] {
+  /* Die Dunkelwerte sind antds Vorgaben — kein zweiter Farbeindruck. */
+  --fb-ink: rgba(255, 255, 255, 0.88);
+  --fb-muted: rgba(255, 255, 255, 0.55);
+  --fb-line: #303030;
+  --fb-split: #262626;
+  --fb-card: #141414;
+  --fb-tint: #1e1e1e;
+  --fb-fill: #2a2a2a;
+
+  --note-1: #a1dbc0;
+  --note-2: #aacf7f;
+  --note-3: #dab22f;
+  --note-4: #eb9549;
+  --note-5: #ea7a58;
+  --note-6: #e55c6e;
+  --note-ink: #101214;
+
+  /* Toenungen, 18 % ueber #141414 — ebenfalls textfrei. */
+  --note-tint-1: #2d3833;
+  --note-tint-2: #2f3627;
+  --note-tint-3: #383019;
+  --note-tint-4: #3b2b1e;
+  --note-tint-5: #3b2620;
+  --note-tint-6: #3a2124;
+
+  /* Richtung umgekehrt: nach rechts wird es HELLER, also weiterhin schwerer. */
+  --fb-keil-1: #1d1e20;
+  --fb-keil-2: #232427;
+  --fb-keil-3: #292a2e;
+  --fb-keil-4: #2f3034;
+  --fb-keil-5: #35363b;
+  --fb-keil-6: #3b3c42;
+}
+
+/*
+ * NOTENLEGENDE (§4.11, Bauteil 3). Das Umschalten unter 600px liegt HIER und
+ * nicht in einem Inline-Style: eine Klasse mit `display: none` kann ein inline
+ * gesetztes `display: grid` nicht schlagen. Deshalb definiert die Klasse das
+ * Raster, und die Komponente reicht nur den Spaltenabstand ein — der muss zum
+ * Abstand der Spur darunter passen (kompakt 2, gross 4).
+ */
+.fb-legende-woerter {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.fb-legende-anker {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  /* Sechs Woerter à 12px passen nicht in 335px — es bleiben die zwei Anker. */
+  .fb-legende-woerter {
+    display: none;
+  }
+
+  .fb-legende-anker {
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
+/*
+ * FOKUS (§4.8). antd bringt seinen Ring fuer antd-Komponenten mit; eigene
+ * interaktive Flaechen (Gruppenkarten-Link, Verlaufszeile, Kopierzeile) tragen
+ * `fb-fokus`. Nie `outline: none` ohne Ersatz — wer die Maus nicht benutzt,
+ * verliert sonst die Orientierung, und im Modul gibt es genau eine
+ * Bedienreihenfolge.
+ */
+.fb-fokus:focus-visible {
+  outline: 2px solid var(--fb-ink);
+  outline-offset: 2px;
+}
