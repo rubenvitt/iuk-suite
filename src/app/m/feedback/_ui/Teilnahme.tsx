@@ -58,9 +58,20 @@ export function teilnahmeUrlAus(headers: Headers, token: string): string {
   return `${proto}://${host}/f/${token}`;
 }
 
+/**
+ * Kartenstil aus §2.1 — dort ausdrücklich „Kartenstil (ALLE Zonen)", also
+ * derselbe Stil wie in der Lagekarte und in „Letzter Abend", nicht ein eigener.
+ * Das Polster steht als VARIABLE, nicht als 20: derselbe Abschnitt verlangt
+ * „mobil `body.padding: 16`", und `styles.body` ist bei antd ein Inline-Style —
+ * eine Klasse mit Medienabfrage verliert dagegen. Der Wert und sein mobiler
+ * Zwilling liegen in `feedback.css` (`--fb-kartenpolster`).
+ *
+ * `paddingInline: 20` im Kopf bleibt eine Zahl: §2.1 gibt genau diesen Wert
+ * wörtlich vor, der mobile Zwilling gilt nur für `body.padding`.
+ */
 const KARTE = {
   header: { ...T.kicker, minHeight: 40, paddingInline: 20, borderBottomColor: "var(--fb-split)" },
-  body: { padding: 20 },
+  body: { padding: "var(--fb-kartenpolster)" },
 } satisfies Record<string, CSSProperties>;
 
 const HAARLINIE: CSSProperties = {

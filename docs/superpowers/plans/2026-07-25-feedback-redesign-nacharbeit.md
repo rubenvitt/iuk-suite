@@ -210,15 +210,34 @@ Vier Anforderungen der bindenden Abschnitte sind nicht umgesetzt; eine davon hat
 übersehen. **Bindend:** `docs/design/feedback-admin.md` §2.1, §2.3, §2.4, §4.2, §4.5, §2.7.
 
 **Files:** `_ui/Lagekarte.tsx`, `_ui/Aktualisierer.tsx` (neu), `(admin)/groups/[groupId]/page.tsx`,
-`_ui/feedback.css` (+ Tests)
+`_ui/Teilnahme.tsx`, `_ui/feedback.css` (+ Tests)
+
+**NICHT in dieser Aufgabe:** `_lib/aggregation.ts`. Die Datei ist von der globalen Randbedingung
+„aggregation nicht antasten" geschützt; die **einzige** erlaubte Ausnahme ist **Task 22** in
+`2026-07-24-feedback-redesign-teil3.md` (Zeilen 360–378), die `verteilungJeFrage` dort als „rein
+additiv" ausweist. Siehe die Abgrenzung unter Anforderung 1.
 
 - [ ] **Schritt 1: Je Anforderung ein Test, dann umsetzen**
 
 1. **Der Block ZWISCHENSTAND fehlt vollständig** (§2.3) — das ist die Live-Auswertung, deren Fehlen der
    Auftraggeber ausdrücklich beanstandet hat („während des Dienstabends sieht der Gruppenleiter null
-   Rückmeldungen"). Verlangt: Kicker „ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG", Notenlegende + acht
-   Notenspuren, bei 1–2 Antworten der Hinweis „Erst 2 Rückmeldungen — die Zahlen schwanken noch stark.",
-   und die **gezählten** Freitexte („5 Freitexte — in der Auswertung nachlesen").
+   Rückmeldungen"). Verlangt **hier**: Kicker „ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG", bei 1–2 Antworten
+   der Hinweis „Erst 2 Rückmeldungen — die Zahlen schwanken noch stark.", und die **gezählten**
+   Freitexte („5 Freitexte — in der Auswertung nachlesen").
+
+   **Abgrenzung — Notenlegende und die acht kompakten Notenspuren gehören NICHT in diese Aufgabe.**
+   Dieser Absatz hat §2.3 zunächst vollständig zitiert und dabei die Abgrenzung übersehen, die im
+   Vorgängerplan schon steht: `2026-07-24-feedback-redesign-teil3.md`, Task 18 („**Notenlegende und die
+   acht kompakten Notenspuren nicht**: sie brauchen eine Verteilung je Frage, die `computeDAStats` nicht
+   liefert. Diese Funktion (`verteilungJeFrage`) ist **Task 22** zugeordnet, weil §3.2 dieselbe
+   Datenlage für die Auswertungsseite braucht") und Task 22 selbst, der `_lib/aggregation.ts` als
+   „ausdrücklich erlaubte Ausnahme" führt und die beiden Bauteile der Lagekarte dort fertigstellt.
+   `NotenspurProps.verteilung` verlangt laut `_ui/Noten.tsx:161-171` eine ECHTE Verteilung („ein
+   Mittelwert hat hier nichts zu suchen"); `DAStats` liefert nur `avg`/`overallAvg`/`avgSchulnote`. Ohne
+   `verteilungJeFrage` ist der Abschnitt hier nicht baubar, und die Funktion in dieser Aufgabe zu
+   ergänzen hieße, Task 22 halb zu erledigen (§3.2-Verdrahtung, `prompt/page.tsx`, FullShell-Link
+   blieben offen) und die Randbedingung ohne Auftrag zu brechen. Der Merkposten steht als Kommentar am
+   Zwischenstand-Block in `_ui/Lagekarte.tsx` und fällt mit Task 22.
 2. **`_ui/Aktualisierer.tsx` fehlt** (§4.5): alle 30 s `router.refresh()`, **nur** bei laufender Umfrage
    **und** `document.visibilityState === "visible"`; unter dem Zähler „Stand: 21:47" plus einen
    „Aktualisieren"-Textknopf. (Mein Plan nennt die Insel nirgends — das ist eine Planlücke, nicht ein
@@ -226,7 +245,10 @@ Vier Anforderungen der bindenden Abschnitte sind nicht umgesetzt; eine davon hat
 3. **„QR-Code groß zeigen" fehlt als Handgriff** (§2.3/§2.4): Primäraktion in den Belegungen C und D,
    Sekundäraktion in A und B. §2.4 nennt ihn „den zeitkritischen Handgriff im Gruppenraum … in jedem
    Zustand ein Tipp weit oben". In `LaufendeKarte` gibt es derzeit **keine** Primäraktion.
-4. **Mobile Werte und zwei Textstellen:** `body.padding: 16` auf 390px (§2.1, gebaut ist fest 20) · der
+4. **Mobile Werte und zwei Textstellen:** `body.padding: 16` auf 390px (§2.1, gebaut ist fest 20) — §2.1
+   ist mit „Kartenstil (**alle** Zonen)" überschrieben, das gilt also auch für Zone a
+   (`_ui/Teilnahme.tsx`) und „Letzter Abend"; ein Polster nur in der Lagekarte erzeugt auf 390px eine
+   Ungleichheit, die vorher nicht existierte · der
    Ø-Halbsatz der Kontextzeile („… · Ø der letzten sechs: 2,1 gut", §4.2) · „Letzter Abend" als
    `Button` in `default` statt als nackter Link (§2.7 sagt ausdrücklich „bewusst kein Primärknopf",
    meint aber einen Knopf).

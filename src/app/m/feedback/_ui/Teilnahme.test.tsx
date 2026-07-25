@@ -155,6 +155,24 @@ describe("Teilnahme — Zone a (§2.4)", () => {
     expect(zeichne(zone({ erststart: false })).textContent).toContain("Einmal ausdrucken reicht.");
   });
 
+  /**
+   * §2.1 ist mit „Kartenstil (ALLE Zonen)" überschrieben, und Teilnahme ist Zone
+   * a (§2.4). Eine feste 20 hier bricht STILL und nur auf 390px: Lagekarte und
+   * „Letzter Abend" polstern dann mit 16, die Karte daneben mit 20 — im Test
+   * fällt das nirgends auf, auf dem Telefon schon. Deshalb wird der
+   * Variablenname im Markup geprüft (`styles.body` ist bei antd ein
+   * Inline-Style, gegen den eine Klasse mit Medienabfrage verliert) und die
+   * feste 20 ausdrücklich ausgeschlossen, damit die nächste neue Karte nicht
+   * wieder mit einer Zahl anfängt.
+   */
+  it("polstert den Kartenrumpf über --fb-kartenpolster, nicht mit einer festen 20 (§2.1)", () => {
+    const rumpf = zeichne(zone()).querySelector<HTMLElement>(".ant-card-body");
+    expect(rumpf).not.toBeNull();
+    const stil = rumpf!.getAttribute("style");
+    expect(stil).toContain("padding:var(--fb-kartenpolster)");
+    expect(stil).not.toMatch(/padding:\s*20px/);
+  });
+
   it("trägt kein DRK-Rot und keinen zweiten Primärknopf (Farb-Klausel §4.9, §2.6)", () => {
     const markup = renderToStaticMarkup(zone());
     expect(markup.toLowerCase()).not.toContain("#c8000f");
