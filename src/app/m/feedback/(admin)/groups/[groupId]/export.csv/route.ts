@@ -34,7 +34,11 @@ import { isRatingType, ratingScale, type Question } from "@/app/m/feedback/_lib/
  * 2. `stars` BEKOMMT EINE EIGENE SPALTE MIT DER SKALA IM KOPF (§4.12). Eine
  *    1–5-Bewertung in dieselbe Spalte wie eine Schulnote zu schreiben legte zwei
  *    verschiedene Bedeutungen in eine Zahlenreihe — genau der stille Rechenfehler,
- *    den `avgSchulnote` beseitigt.
+ *    den `avgSchulnote` beseitigt. Das gilt AUCH BEI GLEICHER FRAGE-ID: der
+ *    normale Cutover bringt `q1` im importierten Alt-Bogen als `stars` und im
+ *    neuen Bogen derselben Gruppe als `schulnote` (`STANDARD_QUESTIONS`), und
+ *    eine ID-only-Vereinigung legte beide Mittelwerte unter EINEN Kopf. Deshalb
+ *    ist der Spaltenschluessel `id|type` (siehe unten).
  * 3. AUFSTEIGEND NACH DATUM. Die Oberflaeche zeigt den jüngsten Abend oben (man
  *    sucht das Letzte); eine Tabellenkalkulation liest dieselben Zahlen als
  *    ZEITREIHE, und ein absteigend sortierter Verlauf ergibt dort eine
@@ -77,12 +81,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
   );
 
   /*
-   * DIE SPALTENVEREINIGUNG. Schlüssel ist die Frage-ID (stabil über Bögen
-   * hinweg), Reihenfolge die des ersten Auftretens — chronologisch, damit die
-   * ältesten Fragen links stehen und eine später ergänzte Frage die bestehenden
-   * Spalten nicht verschiebt. Der Kopftext ist der ERSTE gesehene: ein
-   * umformulierter Fragetext ergibt keine zweite Spalte, sonst stünden zwei
-   * halbe Zeitreihen nebeneinander.
+   * DIE SPALTENVEREINIGUNG. Schlüssel ist `id|type`, NICHT die Frage-ID allein.
+   * Die ID ist über Bögen hinweg stabil, die BEDEUTUNG ist es nicht: derselbe
+   * `q1` ist im importierten Alt-Bogen eine 1–5-Bewertung (`stars`) und im neuen
+   * Bogen derselben Gruppe eine Schulnote 1–6 — eine 5 heißt dort „sehr gut" und
+   * hier „mangelhaft". Auf die ID allein geschlüsselt landeten beide Mittelwerte
+   * in EINER Spalte unter EINEM Kopf, und der Kopf (der erste gesehene) log über
+   * die Hälfte der Zahlen darunter. Die Skala gehört also in den Schlüssel.
+   *
+   * Der TEXT gehört ausdrücklich NICHT hinein: Reihenfolge ist die des ersten
+   * Auftretens — chronologisch, damit die ältesten Fragen links stehen und eine
+   * später ergänzte Frage die bestehenden Spalten nicht verschiebt — und der
+   * Kopftext ist der ERSTE gesehene. Ein bloß umformulierter Fragetext ergibt
+   * keine zweite Spalte, sonst stünden zwei halbe Zeitreihen nebeneinander.
    */
   const spalten = new Map<string, { kopf: string }>();
   const zeilen: { datum: string; thema: string; rueckmeldungen: number; teilnehmer: string; werte: Map<string, string> }[] = [];
@@ -100,8 +111,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
       // Nur Bewertungsfragen haben einen Ø. Freitexte gehören in den
       // Abend-Export, wo sie einzeln nachlesbar sind — als „Ø" gäbe es sie nicht.
       if (!isRatingType(frage.type)) continue;
-      if (!spalten.has(frage.id)) spalten.set(frage.id, { kopf: kopfMitSkala(frage.text, frage.type) });
-      if (frage.avg !== null) werte.set(frage.id, formatiereNote(frage.avg));
+      // Schlüssel ist `id|type` — dieselbe ID mit anderer Skala ist eine andere
+      // Spalte (Entscheidung 2). `|` kommt in keinem `QuestionType` vor.
+      const key = `${frage.id}|${frage.type}`;
+      if (!spalten.has(key)) spalten.set(key, { kopf: kopfMitSkala(frage.text, frage.type) });
+      if (frage.avg !== null) werte.set(key, formatiereNote(frage.avg));
     }
 
     zeilen.push({
@@ -115,18 +129,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
     });
   }
 
-  const spaltenIds = [...spalten.keys()];
+  // `spaltenSchluessel`, nicht `spaltenIds`: die Einträge sind `id|type`, keine
+  // Frage-IDs. `werte` ist auf denselben Schlüssel gelegt, deshalb greift der
+  // Zugriff unten unverändert.
+  const spaltenSchluessel = [...spalten.keys()];
   const rows: string[][] = [
     ["Gruppe", group.name],
     ["Dienstabende", String(zeilen.length)],
     [],
-    ["Datum", "Thema", "Rückmeldungen", "Teilnehmer", ...spaltenIds.map((sid) => spalten.get(sid)!.kopf)],
+    ["Datum", "Thema", "Rückmeldungen", "Teilnehmer", ...spaltenSchluessel.map((k) => spalten.get(k)!.kopf)],
     ...zeilen.map((z) => [
       z.datum,
       z.thema,
       String(z.rueckmeldungen),
       z.teilnehmer,
-      ...spaltenIds.map((sid) => z.werte.get(sid) ?? ""),
+      ...spaltenSchluessel.map((k) => z.werte.get(k) ?? ""),
     ]),
   ];
 

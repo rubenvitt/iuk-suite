@@ -33,7 +33,11 @@ import type { Question } from "@/app/m/feedback/_lib/questions";
  *    bei fehlendem Zugriff (nie 403 — das verriete die Existenz).
  * 4. GERECHNET WIRD `avgSchulnote`, NICHT `overallAvg` — auf Fragenebene heißt
  *    das: `stars`-Fragen (Alt-Skala 1–5) stehen NICHT in derselben Spalte wie
- *    Schulnoten und tragen ihre Skala im Spaltenkopf (§4.12).
+ *    Schulnoten und tragen ihre Skala im Spaltenkopf (§4.12). Das muss AUCH BEI
+ *    GLEICHER FRAGE-ID gelten: der Cutover bringt `q1` im importierten Alt-Bogen
+ *    als `stars` und im nächsten Bogen derselben Gruppe als `schulnote`. Ein Test
+ *    mit disjunkten IDs (`q1`/`s1`) kann diese Kollision nicht sehen — deshalb
+ *    stehen hier BEIDE Fälle.
  */
 
 const { authMock } = vi.hoisted(() => ({ authMock: vi.fn() }));
@@ -235,6 +239,51 @@ describe("GET groups/[groupId]/export.csv — eine Zeile je Dienstabend", () => 
     expect(kopf).toContain("Insgesamt?");
     expect(kopf).toContain("Ausbilder? (Skala 1–5)");
     expect(kopf).not.toContain("Ausbilder?");
+  });
+
+  /*
+   * DER CUTOVER-FALL, und der Grund, warum der Spaltenschlüssel `id|type` ist.
+   * Der Import trägt Alt-Gruppen samt ihrer `stars`-Bögen fort (der Alt-Bogen
+   * benutzt `q1`, siehe scripts/import/feedback.test.ts), und die nächste neu
+   * gestartete Umfrage DERSELBEN Gruppe bringt `q1` als Schulnote mit
+   * (`STANDARD_QUESTIONS`). Auf die Frage-ID allein geschlüsselt fielen beide in
+   * eine Spalte: die 5 des Alt-Abends heißt „sehr gut", die 5 des neuen Abends
+   * „mangelhaft" — dieselbe Ziffer, gegenteilige Aussage, unter einem Kopf, der
+   * über die Hälfte der Zahlen lügt. Tragend ist hier die LEERE Zelle je Zeile:
+   * nur sie beweist, dass die Werte in VERSCHIEDENEN Spalten stehen.
+   */
+  it("trennt gleiche Frage-ID mit verschiedener Skala in zwei Spalten (`q1` stars, später `q1` schulnote)", async () => {
+    const g = gruppe();
+    abend(
+      g.id,
+      "2026-03-04",
+      [{ id: "q1", type: "stars", text: "Wie war der Abend?" }],
+      [{ q1: 5 }],
+    );
+    abend(
+      g.id,
+      "2026-04-01",
+      [{ id: "q1", type: "schulnote", text: "Wie war der Dienstabend insgesamt?" }],
+      [{ q1: 5 }],
+    );
+
+    const zeilen = await exportiere(g.id);
+    const kopf = zeilen[kopfIndex(zeilen)];
+    const daten = zeilen.slice(kopfIndex(zeilen) + 1);
+
+    // Zwei Spalten, jede mit ihrem eigenen, richtigen Kopf — und der Fragetext
+    // des NEUEN Bogens fehlt nicht mehr in der Datei.
+    expect(kopf).toEqual([
+      "Datum",
+      "Thema",
+      "Rückmeldungen",
+      "Teilnehmer",
+      "Wie war der Abend? (Skala 1–5)",
+      "Wie war der Dienstabend insgesamt?",
+    ]);
+    // Die 1–6-Note steht NICHT unter dem Kopf, der Skala 1–5 behauptet.
+    expect(daten[0].slice(4)).toEqual(["5,0", ""]);
+    expect(daten[1].slice(4)).toEqual(["", "5,0"]);
   });
 
   it("bleibt ein anderes Artefakt als der Abend-Export: keine Rohantwort-Zeilen", async () => {
