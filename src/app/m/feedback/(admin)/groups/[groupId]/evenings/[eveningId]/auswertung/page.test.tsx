@@ -16,6 +16,7 @@ import {
   setSurveyStatus,
 } from "@/app/m/feedback/_db/queries";
 import { STANDARD_QUESTIONS, type Question } from "@/app/m/feedback/_lib/questions";
+import { shuffleStable } from "@/app/m/feedback/_lib/aggregation";
 
 /**
  * DIE AUSWERTUNG (Entwurf §3.2, §4.1, §4.2, §4.3).
@@ -119,6 +120,19 @@ const kennzahlen = (wirt: HTMLElement): HTMLElement => {
   const block = wirt.querySelector<HTMLElement>('[data-testid="kennzahlen"]');
   expect(block).not.toBeNull();
   return block!;
+};
+
+/**
+ * Die EINE Kennzahl, nicht der ganze Block. `toContain("2")` war im
+ * Kennzahlenblock bereits durch Ruecklauf, Quote und Notenziffer erfuellt — die
+ * Freitextzahl selbst war damit nirgends festgenagelt.
+ */
+const kennzahl = (wirt: HTMLElement, kicker: string): string => {
+  const spalte = [...kennzahlen(wirt).querySelectorAll<HTMLElement>(".ant-col")].find((c) =>
+    (c.textContent ?? "").startsWith(kicker),
+  );
+  if (!spalte) throw new Error(`Keine Kennzahl mit dem Kicker ${kicker}`);
+  return (spalte.textContent ?? "").slice(kicker.length);
 };
 
 /** Die Notenspuren: EIN `aria-label` je Spur (§4.14), nicht sechs an den Zellen. */
@@ -244,13 +258,15 @@ describe("Auswertung — Kennzahlen, Kopfzone und Leerzustand (§3.2, §4.2, §4
       { q1: 2, q9: "sehr gut" },
       { q1: 2 },
     ]);
-    const block = kennzahlen(await zeichne(evening.id));
-    const t = block.textContent ?? "";
+    const wirt = await zeichne(evening.id);
+    const t = kennzahlen(wirt).textContent ?? "";
     expect(t).toContain("3 von 18");
     expect(t).toContain("17 %"); // 3/18 gerundet
     expect(t).toContain("2,0");
     expect(t).toContain("gut");
-    expect(t).toContain("2"); // zwei Freitexte
+    // AN DER EIGENEN SPALTE: „2" stand auch in „2,0" und in „17 %" ist eine 7 —
+    // die Freitextzahl war ueber den Blocktext nicht unterscheidbar.
+    expect(kennzahl(wirt, "FREITEXTE")).toBe("2");
   });
 
   it("nennt als Nenner der Plakette die BEANTWORTETEN Bewertungsfragen", async () => {
@@ -354,6 +370,43 @@ describe("Auswertung — der KI-Prompt ist ein Abschnitt DIESER Seite (§3.2 Pun
       "Die Umfrage ist noch aktiv. Der KI-Prompt steht zur Verfügung, sobald sie geschlossen wurde.",
     );
     expect(wirt.querySelector("textarea")).toBeNull();
+  });
+
+  /**
+   * DAS ANONYMITAETSSIEGEL GILT AUCH IM PROMPT (§3.9 Wortlaut A).
+   *
+   * Der oeffentliche Zettel sagt der abgebenden Person wortwoertlich zu: „Die
+   * Gruppenleitung sieht Durchschnitte und die Texte in ZUFAELLIGER
+   * REIHENFOLGE." Der Abschnitt „Einzelne Rueckmeldungen (Rohdaten)" bricht das
+   * am direktesten von allen Ausgaben: er bildet je Person EINEN Block mit allen
+   * Noten UND allen Freitexten. Steht dieser Block in der Datenbankordnung, ist
+   * „Rueckmeldung 1" die Person, die als erste abgegeben hat — genau der
+   * Deanonymisierungskanal, den das Siegel bestreitet. `computeDAStats`
+   * durchmischt (deshalb ist der Sammel-Abschnitt in Ordnung), `listResponses`
+   * nicht: die Durchmischung ist laut eigener Zusage Sache des LESERS, und der
+   * CSV-Export haelt sie ein.
+   */
+  it("mischt die Rohdaten-Bloecke — „Rueckmeldung 1“ ist nicht die erste Abgabe", async () => {
+    const antworten = Array.from({ length: 6 }, (_, i) => ({
+      q1: ((i % 5) + 1) as number,
+      q9: `Freitext ${i + 1}`,
+    }));
+    const evening = seed(STANDARD_QUESTIONS, antworten);
+    const wirt = await zeichne(evening.id);
+    const prompt = wirt.querySelector("textarea")?.textContent ?? "";
+
+    const rohteil = prompt.slice(prompt.indexOf("## Einzelne Rückmeldungen (Rohdaten)"));
+    expect(rohteil).not.toBe("");
+    const gelesen = [...rohteil.matchAll(/Freitext (\d)/g)].map((m) => Number(m[1]));
+
+    const erwartet = shuffleStable(antworten, (a) => JSON.stringify(a)).map((a) =>
+      Number(String(a.q9).replace("Freitext ", "")),
+    );
+    // Der Pruefstand muss die beiden Ordnungen ueberhaupt unterscheiden koennen —
+    // waere die Durchmischung fuer diese Eingabe die Identitaet, wuerde der Test
+    // auch den Defekt bestehen.
+    expect(erwartet).not.toEqual([1, 2, 3, 4, 5, 6]);
+    expect(gelesen).toEqual(erwartet);
   });
 
   it("hat die alte Prompt-Route nicht mehr", () => {

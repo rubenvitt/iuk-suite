@@ -266,8 +266,22 @@ describe("EinstellungenPanel — FOLGENSCHWER: neues Secret (§4.6)", () => {
 });
 
 describe("EinstellungenPanel — FOLGENSCHWER: Gruppe loeschen (§4.6)", () => {
+  /**
+   * „Gruppe loeschen" ist ADMIN-SACHE (Spec-IA). Der Knopf darf nicht sichtbar
+   * sein, wenn `deleteGroupAction` ihn abweist — ein Knopf, der beim Klick auf
+   * die Fehlerseite fuehrt, ist schlimmer als kein Knopf. Der Zugang darueber
+   * („Neues Secret erzeugen") bleibt der Gruppenleitung, er ist ihre Aufgabe.
+   */
+  it("Nicht-Admins sehen den Loeschknopf gar nicht — die Action wuerde sie abweisen", async () => {
+    await aufklappen({ istAdmin: false });
+    const inhalt = query(".ant-collapse-body").textContent ?? "";
+    expect(inhalt).toContain("Neues Secret erzeugen");
+    expect(inhalt).not.toContain("Gruppe löschen");
+    expect(queryAll('[data-testid="loeschen-bestaetigung"]')).toHaveLength(0);
+  });
+
   it("nennt die ECHTEN Zahlen der Seite, nicht behauptete", async () => {
-    await aufklappen();
+    await aufklappen({ istAdmin: true });
     await clickElement(knopfMit("Gruppe löschen"));
 
     expect(document.body.textContent).toContain(
@@ -276,7 +290,7 @@ describe("EinstellungenPanel — FOLGENSCHWER: Gruppe loeschen (§4.6)", () => {
   });
 
   it("zaehlt im Singular richtig — „1 Dienstabend“, nicht „1 Dienstabende“", async () => {
-    await aufklappen({ abende: 1, rueckmeldungen: 1 });
+    await aufklappen({ istAdmin: true, abende: 1, rueckmeldungen: 1 });
     await clickElement(knopfMit("Gruppe löschen"));
 
     expect(document.body.textContent).toContain(
@@ -285,7 +299,7 @@ describe("EinstellungenPanel — FOLGENSCHWER: Gruppe loeschen (§4.6)", () => {
   });
 
   it("der okButton bleibt gesperrt, bis der Gruppenname abgetippt ist", async () => {
-    await aufklappen();
+    await aufklappen({ istAdmin: true });
     await clickElement(knopfMit("Gruppe löschen"));
 
     const bestaetigen = document.body.querySelector<HTMLButtonElement>(
@@ -299,7 +313,7 @@ describe("EinstellungenPanel — FOLGENSCHWER: Gruppe loeschen (§4.6)", () => {
   });
 
   it("abgetippter Name entsperrt, loescht und springt auf die Uebersicht", async () => {
-    await aufklappen();
+    await aufklappen({ istAdmin: true });
     await clickElement(knopfMit("Gruppe löschen"));
 
     const feld = document.body.querySelector<HTMLInputElement>(
@@ -338,7 +352,7 @@ describe("EinstellungenPanel — Farb-Klausel (§4.9)", () => {
   });
 
   it("die Gefahrenknoepfe sind Umrisse — danger ohne type", async () => {
-    await aufklappen();
+    await aufklappen({ istAdmin: true });
     for (const label of ["Neues Secret erzeugen", "Gruppe löschen"]) {
       const b = knopfMit(label);
       expect(b.className).toContain("ant-btn-dangerous");

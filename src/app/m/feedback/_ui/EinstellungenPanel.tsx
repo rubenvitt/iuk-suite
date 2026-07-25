@@ -115,6 +115,7 @@ export function EinstellungenPanel({
                   name={name}
                   abende={abende}
                   rueckmeldungen={rueckmeldungen}
+                  istAdmin={istAdmin}
                 />
               </div>
             ),
@@ -214,17 +215,26 @@ function GruppenFormular({
  * KEIN `type="primary" danger` — `colorError === colorPrimary === #c8000f`
  * (§4.9), ein gefuellter Gefahrenknopf waere pixelgleich mit dem normalen
  * Primaerknopf. Rot erscheint nur am Knopfrand und im okButton des Dialogs.
+ *
+ * ZWEI ZEILEN, ZWEI ZUSTAENDIGKEITEN. „Zugang neu vergeben" ist Sache der
+ * Gruppenleitung — sie merkt als erste, dass der Aushang in falsche Haende
+ * geraten ist. „Gruppe loeschen" ist ADMIN-SACHE (Spec-IA), und der Knopf ist
+ * deshalb fuer Nicht-Admins GAR NICHT DA: `deleteGroupAction` haengt an
+ * `guardAdmin` und wuerde ihn abweisen, ein Knopf, der beim Klick auf die
+ * Fehlerseite fuehrt, ist schlimmer als kein Knopf.
  */
 function Folgenschwer({
   groupId,
   name,
   abende,
   rueckmeldungen,
+  istAdmin,
 }: {
   groupId: number;
   name: string;
   abende: number;
   rueckmeldungen: number;
+  istAdmin: boolean;
 }) {
   const router = useRouter();
   const [secretLaeuft, starteSecret] = useTransition();
@@ -272,14 +282,16 @@ function Folgenschwer({
         </Popconfirm>
       </Zeile>
 
-      <Zeile
-        titel="Gruppe löschen"
-        erklaerung="Die Gruppe, ihre Dienstabende und alle Rückmeldungen verschwinden."
-      >
-        <Button danger onClick={() => setOffen(true)}>
-          Gruppe löschen
-        </Button>
-      </Zeile>
+      {istAdmin && (
+        <Zeile
+          titel="Gruppe löschen"
+          erklaerung="Die Gruppe, ihre Dienstabende und alle Rückmeldungen verschwinden."
+        >
+          <Button danger onClick={() => setOffen(true)}>
+            Gruppe löschen
+          </Button>
+        </Zeile>
+      )}
 
       {/*
        * `Modal` mit TIPPBESTAETIGUNG, nicht `Popconfirm` (§4.6): sobald der
@@ -287,7 +299,7 @@ function Folgenschwer({
        * der Nutzer etwas tippen. Die Zahlen kommen aus der Seite — nie behauptet.
        */}
       <Modal
-        open={offen}
+        open={istAdmin && offen}
         title="Gruppe löschen"
         okText="Gruppe löschen"
         cancelText="Abbrechen"

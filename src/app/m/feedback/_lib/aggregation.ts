@@ -206,6 +206,29 @@ export interface TrendPoint {
    * Rückmeldungen keinen (oder einen aus weniger Fragen gebildeten) Ø hat.
    */
   hasLegacyScale: boolean;
+  /**
+   * DER MONATS-Ø JE FRAGE — Grundlage der zuschaltbaren Fragekurven (§3.3: „Nur
+   * die Gesamtdurchschnittslinie ist Vorgabe; einzelne Fragen sind zuschaltbar").
+   *
+   * DREI ENTSCHEIDUNGEN, DIE HIER UND NUR HIER LIEGEN:
+   *
+   * 1. GEWICHTET WIRD MIT `count` DER FRAGE, nicht mit `responseCount` des
+   *    Abends. `avgSchulnote` spannt alle Fragen, eine EINZELNE Frage darf aber
+   *    übersprungen werden: mit dem Abend-Nenner zöge ein Abend, an dem drei von
+   *    vierzehn Leuten diese Frage beantwortet haben, mit vollem Gewicht in die
+   *    Kurve.
+   * 2. NUR `schulnote`. `stars` bleibt draußen, aus demselben Grund wie in
+   *    `verteilungJeFrage` (§4.12): vier von fünf Sternen wären auf der
+   *    umgekehrten 1–6-Achse „ausreichend" — eine gute Bewertung an der Stelle
+   *    einer schwachen.
+   * 3. GESCHLÜSSELT ÜBER DIE FRAGEN-`id`, nie über den Index. Der Fragebogen ist
+   *    je Umfrage gespeichertes JSON; ein Alt-Import kann von Monat zu Monat eine
+   *    andere Reihenfolge tragen, und ein Index verglich dann zwei verschiedene
+   *    Fragen in derselben Kurve. Jeder Monat trägt einen Eintrag für JEDE Frage
+   *    des Zeitraums — fehlt sie dort, ist `avg` `null` und die Kurve reißt auf
+   *    (`connectNulls={false}`), statt eine Lücke gerade zu ziehen.
+   */
+  perQuestion: { id: string; text: string; avg: number | null }[];
 }
 
 /**
@@ -228,18 +251,42 @@ export function computeGroupTrend(
   const months = enumerateMonths(from, to);
   const buckets = new Map<
     string,
-    { weighted: number; weight: number; count: number; legacy: boolean }
+    {
+      weighted: number;
+      weight: number;
+      count: number;
+      legacy: boolean;
+      /** Je Fragen-`id` gewichtete Summe und Gewicht — Gewicht ist `count` DER FRAGE. */
+      fragen: Map<string, { weighted: number; weight: number }>;
+    }
   >();
+  /** Die Fragen des Zeitraums in der Ordnung ihres ersten Auftretens (Text: erster gesehener). */
+  const fragen: { id: string; text: string }[] = [];
+  const fragenIndex = new Map<string, number>();
 
   for (const e of evenings) {
     if (e.date < from || e.date > to) continue;
     const label = monthLabel(e.date);
-    const b = buckets.get(label) ?? { weighted: 0, weight: 0, count: 0, legacy: false };
+    const b =
+      buckets.get(label) ??
+      { weighted: 0, weight: 0, count: 0, legacy: false, fragen: new Map() };
     b.count += e.stats.responseCount;
     b.legacy = b.legacy || e.stats.hasLegacyScale;
     if (e.stats.avgSchulnote !== null) {
       b.weighted += e.stats.avgSchulnote * e.stats.responseCount;
       b.weight += e.stats.responseCount;
+    }
+    for (const q of e.stats.perQuestion) {
+      if (q.type !== "schulnote") continue;
+      if (!fragenIndex.has(q.id)) {
+        fragenIndex.set(q.id, fragen.length);
+        fragen.push({ id: q.id, text: q.text });
+      }
+      if (q.avg === null || q.count <= 0) continue;
+      const f = b.fragen.get(q.id) ?? { weighted: 0, weight: 0 };
+      f.weighted += q.avg * q.count;
+      f.weight += q.count;
+      b.fragen.set(q.id, f);
     }
     buckets.set(label, b);
   }
@@ -252,6 +299,10 @@ export function computeGroupTrend(
       avg: b && b.weight > 0 ? b.weighted / b.weight : null,
       responseCount: b?.count ?? 0,
       hasLegacyScale: b?.legacy ?? false,
+      perQuestion: fragen.map((q) => {
+        const f = b?.fragen.get(q.id);
+        return { id: q.id, text: q.text, avg: f && f.weight > 0 ? f.weighted / f.weight : null };
+      }),
     };
   });
 }

@@ -17,6 +17,7 @@ import {
   listGroupMembers,
   setGroupMembers,
   upsertKnownUser,
+  insertResponse,
 } from "./_db/queries";
 import {
   computeClosesAt,
@@ -965,6 +966,104 @@ describe("updateGroupAction: Name und Frist ändern, Slug nie", () => {
 
     await expect(updateGroupAction({ ok: true }, form(fremd.id))).rejects.toThrow();
     expect(getGroup(db, fremd.id)!.name).toBe("Bereitschaft");
+  });
+});
+
+/**
+ * GRUPPE LÖSCHEN (Entwurf §2.6 Punkt 3, §4.6) — die destruktivste Action des
+ * Moduls, und bis hierher die einzige ohne einen einzigen Verhaltenstest. Eine
+ * Mutationsprobe belegte die Lücke: `deleteGroupAction` auf einen leeren Rumpf
+ * reduziert (ohne Guard, ohne `deleteGroup`) blieb die ganze Suite grün.
+ *
+ * DREI ZUSAGEN, DIE STILL BRECHEN KÖNNEN:
+ *
+ * 1. SIE IST ADMIN-SACHE, nicht Sache der Gruppenleitung (Spec-IA: „‚Gruppe
+ *    löschen' (Admin)"). Mit `guardGroup` statt `guardAdmin` löschte jede
+ *    Gruppenleitung ihre eigene Bereitschaft samt allen Dienstabenden und allen
+ *    Rückmeldungen — ohne dass jemand mit Admin-Rolle beteiligt war.
+ * 2. GELÖSCHT WIRD MIT KASKADE: Abende, Umfragen und Rückmeldungen gehen mit
+ *    (ON DELETE cascade, Migration 0000). Ein `deleteGroup` ohne Wirkung wäre
+ *    grün gegen einen Spion, aber die Gruppe stünde noch da.
+ * 3. GELÖSCHT WIRD GENAU EINE GRUPPE. Verliert `deleteGroup` bei einem
+ *    Drizzle-Update seine `where`-Klausel, räumt ein Klick die ganze Tabelle —
+ *    nur eine zweite, unbeteiligte Gruppe im Prüfstand macht das sichtbar.
+ */
+describe("deleteGroupAction: Admin-Sache, mit Kaskade, genau eine Gruppe", () => {
+  function seedGruppeMitAbend(slug: string, name: string) {
+    const group = insertGroup(db, {
+      name,
+      slug,
+      secret: "abc12",
+      closeAfterHours: null,
+      createdAt: new Date(),
+    });
+    const evening = insertEvening(db, {
+      groupId: group.id,
+      date: todayMidnightUtc(),
+      topic: "Funkübung",
+      notes: null,
+      participantCount: 18,
+      createdAt: new Date(),
+    });
+    const survey = insertSurvey(db, {
+      eveningId: evening.id,
+      questions: JSON.stringify(STANDARD_QUESTIONS),
+      closeAfterHours: 48,
+      createdAt: new Date(),
+    });
+    insertResponse(db, survey.id, { q1: 2 }, new Date());
+    return { group, evening, survey };
+  }
+  const form = (id: number): FormData => {
+    const f = new FormData();
+    f.set("id", String(id));
+    return f;
+  };
+
+  it("der Admin löscht die Gruppe samt Abenden, Umfragen und Rückmeldungen", async () => {
+    const { deleteGroupAction } = await loadActions();
+    const ziel = seedGruppeMitAbend("bereitschaft", "Bereitschaft Mitte");
+    const unbeteiligt = seedGruppeMitAbend("jugendrotkreuz", "Jugendrotkreuz");
+    alsAdmin();
+
+    await deleteGroupAction(form(ziel.group.id));
+
+    expect(getGroup(db, ziel.group.id)).toBeUndefined();
+    expect(listEvenings(db, ziel.group.id)).toEqual([]);
+    expect(getEvening(db, ziel.evening.id)).toBeUndefined();
+    expect(getSurvey(db, ziel.survey.id)).toBeUndefined();
+    expect(listResponses(db, ziel.survey.id)).toEqual([]);
+    // Ohne Revalidierung stünde die gelöschte Gruppe auf dem Einstieg weiter.
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+
+    // Die zweite Gruppe ist der Zeuge gegen ein verlorenes `where`.
+    expect(getGroup(db, unbeteiligt.group.id)!.name).toBe("Jugendrotkreuz");
+    expect(listEvenings(db, unbeteiligt.group.id)).toHaveLength(1);
+    expect(listResponses(db, unbeteiligt.survey.id)).toHaveLength(1);
+  });
+
+  it("NEGATIVTEST: eine Gruppenleitung darf nicht einmal die EIGENE Gruppe löschen", async () => {
+    const { deleteGroupAction } = await loadActions();
+    const eigen = seedGruppeMitAbend("bereitschaft", "Bereitschaft Mitte");
+    alsGruppenleitung("bereitschaft");
+
+    await expect(deleteGroupAction(form(eigen.group.id))).rejects.toThrow();
+
+    // Nicht nur der Wurf zählt: die Gruppe MUSS danach noch stehen.
+    expect(getGroup(db, eigen.group.id)!.name).toBe("Bereitschaft Mitte");
+    expect(listEvenings(db, eigen.group.id)).toHaveLength(1);
+    expect(listResponses(db, eigen.survey.id)).toHaveLength(1);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("NEGATIVTEST: eine fremde Gruppe wirft und bleibt vollständig stehen", async () => {
+    const { deleteGroupAction } = await loadActions();
+    const fremd = seedGruppeMitAbend("jugendrotkreuz", "Jugendrotkreuz");
+    alsGruppenleitung("bereitschaft");
+
+    await expect(deleteGroupAction(form(fremd.group.id))).rejects.toThrow();
+    expect(getGroup(db, fremd.group.id)!.name).toBe("Jugendrotkreuz");
+    expect(listResponses(db, fremd.survey.id)).toHaveLength(1);
   });
 });
 

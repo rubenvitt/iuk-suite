@@ -193,25 +193,93 @@ export function Verlauf({ groupId, zeilen, heute }: VerlaufProps) {
 // ---------------------------------------------------------------------------
 
 /**
- * Wohin eine Verlaufszeile fuehrt — EINE Stelle fuer beide Darstellungen.
+ * DAS ZIEL EINER VERLAUFSZEILE — EINE Stelle fuer beide Darstellungen.
  *
  * §2.5 nennt in der Aktionsspalte den Link „Auswertung" und macht in der
- * Schmalvariante die ganze 68px-Flaeche zu diesem Link. Das setzt eine Umfrage
+ * Schmalvariante die ganze 68px-Flaeche zu diesem Ziel. Das setzt eine Umfrage
  * voraus, und genau die fehlt bei einem Abend aus „Abend ohne Feedback
  * nachtragen": `createEveningAction` legt nur den Abend an, nie eine Umfrage.
- * `.../auswertung` antwortet fuer solche Abende mit 404 (`if (!survey)
- * notFound()` — „ohne Umfrage nichts auszuwerten"). Ein spec-treuer Link in
- * einen garantierten 404 ist schlechter als die Abweichung, also fuehrt eine
- * umfragelose Zeile auf die Abendseite, die den Fall traegt (`survey === null`
- * dort erlaubt, `SurveyControls` bekommt `null`).
+ * `.../auswertung` antwortet fuer solche Abende mit 404 („ohne Umfrage nichts
+ * auszuwerten").
  *
- * Bewusst eine Funktion und nicht zwei gleiche Ternaere an den beiden
- * Aufrufstellen: zwei Kopien sind der Weg, auf dem dieser Fehler zurueckkommt.
+ * FRUEHER FUEHRTE DIESE ZEILE AUF `evenings/[eveningId]`. Diese Seite gibt es
+ * nicht mehr als eigenen Screen (§4.16: „Redirect auf die Auswertung") — und sie
+ * war der falsche Ort ohnehin: sie trug ausschliesslich die abgeschaffte
+ * Umfragesteuerung und kein einziges Feld des Abends. Ein Weg, der „Bearbeiten"
+ * heisst und nichts bearbeiten kann; heute waere er ueber den Redirect derselbe
+ * 404 wie oben, nur mit Umweg.
+ *
+ * ALSO: MIT Umfrage ein `<Link>` auf die Auswertung, OHNE Umfrage ein Knopf, der
+ * die ZEILENBEARBEITUNG oeffnet — dieselbe, die das „…"-Menue oeffnet. Beide
+ * Darstellungen benutzen dasselbe Bauteil, weil zwei Kopien der Weg sind, auf
+ * dem dieser Fehler zurueckkommt.
+ *
+ * Ein umfrageloser Abend traegt damit zwei `AbendBearbeiten`-Instanzen (hier und
+ * im Menue). Der `Modal` steht auf `destroyOnHidden`, rendert geschlossen also
+ * NICHTS: es gibt zu jedem Zeitpunkt hoechstens einen Dialog im DOM.
  */
-const zielFuer = (groupId: number, z: VerlaufZeile) =>
-  z.surveyId !== null
-    ? `/m/feedback/groups/${groupId}/evenings/${z.eveningId}/auswertung`
-    : `/m/feedback/groups/${groupId}/evenings/${z.eveningId}`;
+const AUSWERTUNG = (groupId: number, eveningId: number) =>
+  `/m/feedback/groups/${groupId}/evenings/${eveningId}/auswertung`;
+
+/**
+ * Der Knopf soll wie sein Link-Geschwister aussehen, nicht wie ein Knopf. Die
+ * Vorgaben des Browsers (Rahmen, Flaeche, eigene Schrift, `padding`, zentrierter
+ * Text) muessen dafuer ALLE weg — sonst steht in der Aktionsspalte ein grauer
+ * Kasten neben lauter Links, und in der Schmalvariante zentriert der Block seinen
+ * Text und weicht sichtbar von seinen Nachbarn ab. Ein `style` des Aufrufers
+ * gewinnt (er wird spaeter gespreizt): die Schmalvariante setzt ihr eigenes
+ * `padding`.
+ */
+const KNOPF_WIE_LINK: React.CSSProperties = {
+  appearance: "none",
+  background: "none",
+  border: 0,
+  padding: 0,
+  font: "inherit",
+  color: "inherit",
+  textAlign: "left",
+  cursor: "pointer",
+};
+
+function Zeilenziel({
+  groupId,
+  zeile,
+  style,
+  children,
+}: {
+  groupId: number;
+  zeile: VerlaufZeile;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  const [bearbeiten, setBearbeiten] = useState(false);
+
+  if (zeile.surveyId !== null) {
+    return (
+      <Link className="fb-fokus" style={style} href={AUSWERTUNG(groupId, zeile.eveningId)}>
+        {children}
+      </Link>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="fb-fokus"
+        style={{ ...KNOPF_WIE_LINK, ...style }}
+        onClick={() => setBearbeiten(true)}
+      >
+        {children}
+      </button>
+      <AbendBearbeiten
+        abend={zeile}
+        offen={bearbeiten}
+        schliessen={() => setBearbeiten(false)}
+      />
+    </>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Die breite Darstellung — Tabelle ohne Karte, direkt auf dem Seitengrund
@@ -303,12 +371,12 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
             >
               {/*
                * Die Beschriftung wandert mit dem Ziel: ein Link „Auswertung",
-               * der auf der Abendseite landet, ist derselbe Fehler in anderem
-               * Gewand.
+               * der nicht in der Auswertung landet, ist derselbe Fehler in
+               * anderem Gewand.
                */}
-              <Link className="fb-fokus" style={T.body} href={zielFuer(groupId, z)}>
+              <Zeilenziel groupId={groupId} zeile={z} style={T.body}>
                 {z.surveyId !== null ? "Auswertung" : "Bearbeiten"}
-              </Link>
+              </Zeilenziel>
               {z.entwurf && z.surveyId !== null && <StartenKnopf surveyId={z.surveyId} />}
               <AbendMenue zeile={z} />
             </span>
@@ -350,9 +418,9 @@ function SchmaleListe({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZei
             borderTop: "1px solid var(--fb-split)",
           }}
         >
-          <Link
-            className="fb-fokus"
-            href={zielFuer(groupId, z)}
+          <Zeilenziel
+            groupId={groupId}
+            zeile={z}
             style={{
               flex: 1,
               minHeight: 68,
@@ -390,7 +458,7 @@ function SchmaleListe({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZei
               </Tag>
             )}
             {z.hasLegacyScale && <Altbestandsfussnote />}
-          </Link>
+          </Zeilenziel>
           {/*
            * Rechts neben dem Zeilenlink, als GESCHWISTER und nicht darin. §2.5
            * nennt hier `stopPropagation` — das braucht nur, wer das Menue
@@ -513,6 +581,17 @@ function StartenKnopf({ surveyId }: { surveyId: number }) {
  * „Bearbeiten" heisst und nichts bearbeiten kann. „Loeschen" fragt nach und nennt
  * die Folge — es nimmt die Rueckmeldungen mit.
  */
+/**
+ * §4.6 wortgenau, mit der ECHTEN Zahl der Zeile. Der Nullfall bekommt einen
+ * eigenen Satz: „und seine 0 Rueckmeldungen" liest sich wie ein Fehler in der
+ * Zaehlung und nicht wie „an diesem Abend hat niemand geantwortet".
+ */
+function loeschsatz(rueckmeldungen: number): string {
+  if (rueckmeldungen === 0) return "Löscht den Abend. Rückmeldungen gibt es zu ihm keine.";
+  if (rueckmeldungen === 1) return "Löscht den Abend und seine 1 Rückmeldung.";
+  return `Löscht den Abend und seine ${rueckmeldungen} Rückmeldungen.`;
+}
+
 function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
   const [offen, setOffen] = useState(false);
   const [bearbeiten, setBearbeiten] = useState(false);
@@ -544,16 +623,26 @@ function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
        * Der `Popconfirm` haengt NICHT am Menuepunkt: antd schliesst das Menue
        * beim Klick, und ein Bestaetigungsfenster an einem verschwindenden Anker
        * schliesst mit. Deshalb ein eigener, unsichtbarer Anker mit `open`.
-       * Kein `okButtonProps={{ danger: true }}`: `colorError === colorPrimary`
-       * (§4.9) — der Satz traegt die Warnung, nicht die Farbe.
+       *
+       * ROT IM okButton IST HIER RICHTIG (§4.6, Zeile „Abend loeschen
+       * (Verlaufszeile) | `Popconfirm`, `danger`-okButton"): die Farb-Klausel
+       * verbietet Rot auf einer DATENFLAECHE und erlaubt es ausdruecklich „am
+       * Knopfrand und im okButton des Dialogs". Der Menuepunkt selbst bleibt
+       * farblos — ein rotes „Loeschen" in der Liste waere die Datenflaeche.
+       *
+       * UND DER SATZ NENNT DIE ZAHL (§4.6 wortgenau: „Loescht den Abend und
+       * seine 14 Rueckmeldungen."). „Die Rueckmeldungen dieses Abends" liess
+       * offen, ob es drei oder dreissig sind — die Zahl ist der einzige Teil der
+       * Warnung, der die Entscheidung wirklich traegt, und sie liegt in der Zeile
+       * bereit.
        */}
       <Popconfirm
         open={offen}
         title="Diesen Dienstabend löschen?"
-        description="Die Rückmeldungen dieses Abends werden mit gelöscht und sind nicht wiederherstellbar."
+        description={loeschsatz(zeile.rueckmeldungen)}
         okText="Löschen"
         cancelText="Abbrechen"
-        okButtonProps={{ loading: laeuft }}
+        okButtonProps={{ danger: true, loading: laeuft }}
         onConfirm={() => {
           setOffen(false);
           loeschen();

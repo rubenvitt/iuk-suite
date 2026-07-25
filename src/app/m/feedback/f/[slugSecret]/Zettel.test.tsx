@@ -1594,9 +1594,12 @@ describe("Politur der oeffentlichen Ansicht", () => {
 });
 
 describe("Rot-Budget der Route", () => {
-  it("nennt `#c8000f` hoechstens zweimal — Fahne und Wortzeichen", () => {
+  it("nennt `#c8000f` GENAU zweimal — Fahne und Wortzeichen", () => {
+    // Nach OBEN begrenzt war die Zusage halb: verschwindet das DRK-Rot ganz,
+    // druckt die Route ohne Marke, und kein Test meldete etwas. Der Entwurf legt
+    // zwei Stellen fest, nicht „bis zu zwei".
     const treffer = cssOhneKommentare.match(/#c8000f/gi) ?? [];
-    expect(treffer.length).toBeLessThanOrEqual(2);
+    expect(treffer.length).toBe(2);
   });
 
   it("faerbt keine Notenflaeche mit einer zweiten Palette", () => {

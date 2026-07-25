@@ -4,7 +4,7 @@ import { Breadcrumb, Button, Card, Col, Result, Row } from "antd";
 import { getDb } from "@/app/m/feedback/_db/client";
 import { getEvening, getGroup, getSurveyByEvening, listResponses } from "@/app/m/feedback/_db/queries";
 import { guardPage } from "@/app/m/feedback/_lib/guardPage";
-import { computeDAStats, verteilungJeFrage } from "@/app/m/feedback/_lib/aggregation";
+import { computeDAStats, shuffleStable, verteilungJeFrage } from "@/app/m/feedback/_lib/aggregation";
 import { buildAnalysisPrompt } from "@/app/m/feedback/_lib/prompt";
 import { nextStatusOnAccess, type SurveyStatus } from "@/app/m/feedback/_lib/lifecycle";
 import { SEKTIONEN, sektionVon, type Question } from "@/app/m/feedback/_lib/questions";
@@ -95,7 +95,17 @@ export default async function AuswertungPage({
           topic: evening.topic ?? undefined,
           participantCount: evening.participantCount ?? undefined,
           stats,
-          rawAnswers: answers,
+          /*
+           * DURCHMISCHT, wie im CSV-Pfad (§3.9 Wortlaut A). `listResponses`
+           * liefert Datenbankordnung und sagt selbst zu, dass der LESER
+           * durchmischen muss. `buildAnalysisPrompt` bildet unter „Einzelne
+           * Rueckmeldungen (Rohdaten)" je Person EINEN Block mit allen Noten und
+           * allen Freitexten — in ungemischter Ordnung waere „Rueckmeldung 1" die
+           * Person, die als erste abgegeben hat, und der Zettel hat ihr vorher
+           * zugesagt, dass es diesen Kanal nicht gibt. `stats.texts` ist bereits
+           * gemischt (`computeDAStats`), diese Liste war die letzte Ausnahme.
+           */
+          rawAnswers: shuffleStable(answers, (a) => JSON.stringify(a)),
         });
 
   const csv = `/m/feedback/groups/${group.id}/evenings/${id}/export.csv`;

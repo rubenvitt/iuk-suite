@@ -220,7 +220,9 @@ describe("Trend — die Kurve laeuft ueber `_ui/NotenVerlauf`, nicht ueber `core
       "utf8",
     ).replace(/\/\*[\s\S]*?\*\//g, "");
     expect(quelle).not.toContain("core/charts");
-    expect(quelle).toContain("_ui/NotenVerlauf");
+    // Der Weg geht seit §3.3 ueber die Client-Insel `_ui/TrendDiagramm`, die
+    // `_ui/NotenVerlauf` traegt — die Umschalter brauchen Zustand.
+    expect(quelle).toContain("_ui/TrendDiagramm");
   });
 });
 
@@ -292,5 +294,53 @@ describe("Trend — Kopfzone, Zeitfenster, Rueckweg", () => {
       const t = (await zeichne(roh)).textContent ?? "";
       expect(t).toContain("letzte 12 Monate");
     }
+  });
+});
+
+/**
+ * DIE ZUSCHALTBAREN FRAGEN AUF DEM SCREEN (§3.3: „Nur die
+ * Gesamtdurchschnittslinie ist Vorgabe; einzelne Fragen sind zuschaltbar, maximal
+ * drei gleichzeitig, gestrichelt und direkt beschriftet").
+ *
+ * Vorher trug die Seite nur `<NotenVerlauf punkte={…} />` — es gab kein
+ * Bedienelement fuer eine einzelne Frage. Geprueft wird hier die VERDRAHTUNG: dass
+ * die Fragen des Bogens als Schalter auf der Seite ankommen, mit ihrem Text, und
+ * dass `stars` draussen bleibt (§4.12). Das Verhalten des Umschalters liegt in
+ * `_ui/TrendDiagramm.test.tsx`.
+ */
+describe("Trend — die Fragekurven sind zuschaltbar (§3.3)", () => {
+  it("traegt je Schulnotenfrage einen Schalter mit dem Fragetext", async () => {
+    abend(
+      [
+        { id: "q1", type: "schulnote", text: "Insgesamt?" },
+        { id: "q2", type: "schulnote", text: "Wie gut war alles vorbereitet?" },
+      ],
+      [{ q1: 2, q2: 3 }],
+    );
+    const wirt = await zeichne();
+    const reihe = wirt.querySelector<HTMLElement>("[data-testid='trend-fragen']");
+
+    expect(reihe).not.toBeNull();
+    const beschriftungen = [...reihe!.querySelectorAll<HTMLElement>("button")].map((b) =>
+      (b.textContent ?? "").trim(),
+    );
+    expect(beschriftungen).toEqual(["Insgesamt?", "Wie gut war alles vorbereitet?"]);
+    expect(reihe!.textContent).toContain("EINZELNE FRAGEN ZUSCHALTEN (MAX. 3)");
+  });
+
+  it("laesst `stars`-Fragen aus der Schalterreihe heraus (§4.12)", async () => {
+    abend(GEMISCHT, [{ q1: 2, s1: 4 }]);
+    const reihe = (await zeichne()).querySelector<HTMLElement>("[data-testid='trend-fragen']")!;
+    const beschriftungen = [...reihe.querySelectorAll<HTMLElement>("button")].map((b) =>
+      (b.textContent ?? "").trim(),
+    );
+    expect(beschriftungen).toEqual(["Insgesamt?"]);
+    expect(beschriftungen).not.toContain("Alt-Frage");
+  });
+
+  it("zeigt keine Schalterreihe, wo es keine Schulnotenfrage gibt (§4.3)", async () => {
+    abend([{ id: "s1", type: "stars", text: "Alt-Frage" }], [{ s1: 4 }]);
+    const wirt = await zeichne();
+    expect(wirt.querySelectorAll("[data-testid='trend-fragen']")).toHaveLength(0);
   });
 });

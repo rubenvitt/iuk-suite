@@ -22,7 +22,9 @@ import { devLogin } from "./fixtures";
  *    dem Einstieg und der sichtbaren Adresse liegen genau zwei `click()`.
  *
  * WAS HIER ERSETZT WURDE (§4.16): die Admin-Szenarien hingen an der alten
- * Oberflaeche — `SurveyControls` („Umfrage erstellen"/„Aktivieren"/„Schließen"),
+ * Oberflaeche — der geloeschten Umfragesteuerung („Umfrage erstellen"/
+ * „Aktivieren"/„Schließen"/„Archivieren", samt der Abend-Detailseite, die sie
+ * trug — heute nur noch ein Redirect auf die Auswertung),
  * dem Abend-Link der Gruppenliste und dem Einstiegsformular ohne Modal. Sie sind
  * auf die neue Oberflaeche umgestellt: „Feedback starten"/„Feedback jetzt
  * beenden" mit Popconfirm, Lagekarte statt Abend-Detailseite, „+ Neue Gruppe"

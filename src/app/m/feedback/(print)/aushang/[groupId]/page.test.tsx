@@ -188,8 +188,18 @@ describe("Aushang — Druck-CSS (§3.5)", () => {
       .map((deklaration) => deklaration[1].trim());
     expect(farben.length).toBeGreaterThan(0);
     for (const wert of farben) {
+      // DIE EINE ERLAUBTE LITERALFARBE ist das DRK-Rot des Wortzeichens (Marke,
+      // nicht Datenflaeche) — der Test darunter deckelt es auf genau zwei
+      // Vorkommen in der Datei.
+      if (wert.toLowerCase() === "#c8000f") continue;
+      // UNBEDINGT, nicht `if (variable)`: ein harter Hexwert ist GENAU die
+      // Wertklasse, die dieser Waechter verbieten soll. Mit der bedingten
+      // Fassung assertierte die Iteration fuer `color: #eeeeee` gar nichts — die
+      // 40pt-Ueberschrift konnte unsichtbar drucken, und alle 20 Tests des
+      // Verzeichnisses blieben gruen (Mutationsprobe).
+      expect(wert, `Literalfarbe statt festgenagelter Variable: ${wert}`).toMatch(/^var\(\s*--/);
       const variable = /var\(\s*(--[\w-]+)/.exec(wert)?.[1];
-      if (variable) expect(festgenagelt).toContain(variable);
+      expect(festgenagelt).toContain(variable);
     }
   });
 

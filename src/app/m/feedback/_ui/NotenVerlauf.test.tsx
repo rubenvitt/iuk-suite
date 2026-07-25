@@ -5,7 +5,15 @@ import { join } from "node:path";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Line, ReferenceArea, YAxis } from "recharts";
-import { NotenVerlauf, type NotenVerlaufPunkt } from "./NotenVerlauf";
+import { LabelList } from "recharts";
+import {
+  MAX_SERIEN,
+  NotenVerlauf,
+  endBeschriftung,
+  letzterWert,
+  type NotenVerlaufPunkt,
+  type NotenVerlaufSerie,
+} from "./NotenVerlauf";
 
 /**
  * DER NOTENVERLAUF (Entwurf §3.3, §5.3).
@@ -58,8 +66,10 @@ const PUNKTE: NotenVerlaufPunkt[] = [
  * die Farben kommen als `--fb-*`/`--note-*` aus `feedback.css`, §4.10). Deshalb
  * darf der Test sie direkt aufrufen und den Baum begehen.
  */
-const baum = (punkte = PUNKTE, extra: { hoehe?: number } = {}) =>
-  alleElemente(NotenVerlauf({ punkte, ...extra }) as ReactElement);
+const baum = (
+  punkte = PUNKTE,
+  extra: { hoehe?: number; serien?: NotenVerlaufSerie[] } = {},
+) => alleElemente(NotenVerlauf({ punkte, ...extra }) as ReactElement);
 
 const markup = (punkte = PUNKTE) =>
   renderToStaticMarkup(NotenVerlauf({ punkte }) as ReactElement);
@@ -149,5 +159,95 @@ describe("NotenVerlauf — Leerzustand und Herkunft", () => {
     expect(QUELLE.toLowerCase()).not.toContain("#c8000f");
     // Keine `--ant-*`-Variable in eigenem Markup (§4.10).
     expect(QUELLE).not.toMatch(/--ant-/);
+  });
+});
+
+/**
+ * DIE ZUSCHALTBAREN FRAGEKURVEN (§3.3, wortgenau: „Nur die
+ * Gesamtdurchschnittslinie ist Vorgabe; einzelne Fragen sind zuschaltbar, maximal
+ * drei gleichzeitig, gestrichelt und direkt beschriftet — acht Kurven in einem
+ * Bild waeren Spaghetti").
+ *
+ * DIE EINE ZUSAGE, DIE HIER EIN SACHFEHLER WAERE: eine Fragekurve darf KEINE
+ * Notenfarbe tragen. Die Notenpalette gehoert WERTEN der Schulnotenskala, nie
+ * einer Serie — eine gruen gezeichnete Frage behauptete, die Frage sei gut.
+ */
+describe("NotenVerlauf — zuschaltbare Fragekurven (§3.3)", () => {
+  const SERIEN: NotenVerlaufSerie[] = [
+    { id: "q1", label: "Insgesamt?", werte: [2, 2.5, 1.5, null] },
+    { id: "q2", label: "Vorbereitet?", werte: [3, null, 3.5, 4] },
+  ];
+
+  /** Nur die gestrichelten Serienlinien, ohne die Gesamtlinie. */
+  const serienlinien = (serien: NotenVerlaufSerie[]) =>
+    baum(PUNKTE, { serien }).filter(
+      (e) => e.type === Line && (e.props as { dataKey?: string }).dataKey !== "note",
+    );
+
+  it("zeichnet ohne Serien genau EINE Linie — die Gesamtdurchschnittslinie", () => {
+    const linien = baum().filter((e) => e.type === Line);
+    expect(linien).toHaveLength(1);
+    expect((linien[0].props as { dataKey?: string }).dataKey).toBe("note");
+  });
+
+  it("zeichnet je zugeschalteter Frage eine GESTRICHELTE Linie", () => {
+    const linien = serienlinien(SERIEN);
+    expect(linien).toHaveLength(2);
+    for (const l of linien) {
+      const props = l.props as {
+        strokeDasharray?: string;
+        stroke?: string;
+        connectNulls?: boolean;
+        dot?: unknown;
+      };
+      expect(props.strokeDasharray).toBeTruthy();
+      // Ein Monat ohne Wert reisst die Kurve auf, wie bei der Gesamtlinie.
+      expect(props.connectNulls).toBe(false);
+      // Keine Punkte: acht Punktreihen uebereinander waeren das Spaghettibild.
+      expect(props.dot).toBe(false);
+    }
+    // Und die Gesamtlinie bleibt durchgezogen — sie ist die Vorgabe (§3.3).
+    const gesamt = baum(PUNKTE, { serien: SERIEN }).find(
+      (e) => e.type === Line && (e.props as { dataKey?: string }).dataKey === "note",
+    )!;
+    expect((gesamt.props as { strokeDasharray?: string }).strokeDasharray).toBeUndefined();
+  });
+
+  it("faerbt keine Serie mit einer NOTENFARBE — die gehoert Werten, nicht Kategorien", () => {
+    for (const l of serienlinien(SERIEN)) {
+      const stroke = (l.props as { stroke?: string }).stroke ?? "";
+      expect(stroke).not.toMatch(/--note-/);
+      expect(stroke).toBe("var(--fb-muted)");
+    }
+  });
+
+  it("beschriftet jede Kurve DIREKT — keine Legende", () => {
+    const beschriftungen = baum(PUNKTE, { serien: SERIEN }).filter((e) => e.type === LabelList);
+    expect(beschriftungen).toHaveLength(2);
+    // Eine `Legend` waere die Loesung, die §3.3 ausschliesst.
+    expect(QUELLE).not.toContain("Legend");
+  });
+
+  it("deckelt auf drei Kurven, auch wenn der Aufrufer mehr uebergibt", () => {
+    const vier: NotenVerlaufSerie[] = ["q1", "q2", "q3", "q4"].map((id) => ({
+      id,
+      label: id,
+      werte: [2, 2, 2, 2],
+    }));
+    expect(MAX_SERIEN).toBe(3);
+    expect(serienlinien(vier)).toHaveLength(3);
+  });
+
+  it("setzt die Beschriftung an den letzten Punkt MIT Wert, nicht an den Rand", () => {
+    // [2, 2.5, 1.5, null] → letzter Wert bei Index 2.
+    expect(letzterWert(SERIEN[0].werte)).toBe(2);
+    expect(letzterWert([null, null])).toBe(-1);
+
+    const inhalt = endBeschriftung("Insgesamt?", 2);
+    expect(renderToStaticMarkup(inhalt({ x: 100, y: 50, index: 2 }) as ReactElement)).toContain(
+      "Insgesamt?",
+    );
+    // An jedem anderen Punkt NICHTS: sonst stuende der Text vier Mal im Plot.
+    expect(inhalt({ x: 100, y: 50, index: 1 })).toBeNull();
   });
 });

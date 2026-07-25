@@ -165,6 +165,13 @@ describe("Kontextzeile — die reine Rechnung (§4.2, §4.12)", () => {
     expect(kontextzeile(0, [])).toBe("Noch kein Dienstabend erfasst.");
   });
 
+  it("bildet bei genau einem Abend den Singular — nicht „1 Dienstabende“", () => {
+    // Der Satz steht in der Kopfzone jeder frisch angelegten Gruppe: der erste
+    // Dienstabend ist der Regelfall, nicht der Randfall.
+    expect(kontextzeile(1, [null])).toBe("1 Dienstabend erfasst");
+    expect(kontextzeile(1, [2])).toBe("1 Dienstabend erfasst · Ø aus 1 Abend: 2,0 gut");
+  });
+
   it("hängt bei sechs Noten den Halbsatz wortgenau an", () => {
     // Ø = 2,1 → gerundet Stufe 2 → „gut" (§4.11-Schwellen).
     expect(kontextzeile(14, [1.6, 2, 2.2, 2.4, 2, 2.4])).toBe(
@@ -439,6 +446,14 @@ describe("Zone e — Einstellungen haengt an der Seite (§2.6)", () => {
   it("der Loeschdialog nennt die gezaehlten Abende und Rueckmeldungen der Seite", async () => {
     abend("2026-07-22", [2, 3]); // 2 Rueckmeldungen
     abend("2026-07-15", [1]); // 1 Rueckmeldung
+    // ALS ADMIN: „Gruppe loeschen" ist Admin-Sache (Spec-IA), `deleteGroupAction`
+    // haengt an `guardAdmin`. Fuer eine Gruppenleitung ist der Knopf nicht da —
+    // das prueft `EinstellungenPanel.test.tsx`, hier geht es um die Zahlen.
+    guardPageMock.mockResolvedValue({
+      viewer: { sub: "admin-1", groups: ["dashboard-admins"], fachgruppen: [] },
+      db,
+      memberIds: [1],
+    });
     const element = await Cockpit({ params: Promise.resolve({ groupId: "1" }) });
 
     await mount(element);

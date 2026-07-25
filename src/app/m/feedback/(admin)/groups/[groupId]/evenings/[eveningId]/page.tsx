@@ -1,23 +1,40 @@
-import { notFound } from "next/navigation";
-import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/core/auth";
 import { getDb } from "../../../../../_db/client";
-import { getGroup, getEvening, getSurveyByEvening, memberGroupIdsFor } from "../../../../../_db/queries";
+import { getEvening, getSurveyByEvening, memberGroupIdsFor } from "../../../../../_db/queries";
 import { viewerFromSession } from "../../../../../_lib/viewer";
 import { assertGroupAccess } from "../../../../../_lib/access";
-import { thema } from "../../../../../_lib/thema";
-import { nextStatusOnAccess, type SurveyStatus } from "../../../../../_lib/lifecycle";
-import { SPACE } from "@/core/theme/tokens";
-import { SurveyControls } from "../../../../SurveyControls";
 
-// Server-Komponente: kein antd-Compound-Zugriff. Der Guard prüft die ECHTE
-// group_id des Dienstabends (nicht den `groupId`-URL-Parameter) — sonst
-// könnte jemand mit Zugriff auf Gruppe A über
-// `/groups/<A>/evenings/<evening-von-B>` eine fremde Umfrage sehen, weil der
-// Check nur gegen den (frei wählbaren) URL-Teil liefe, während die
-// tatsächlich geladenen Daten zu einer anderen Gruppe gehören (IDOR). Der
-// URL-`groupId` wird NUR zur Hygiene abgeglichen (falsche Kombination →
-// 404), nicht für den Zugriffsentscheid selbst verwendet.
+/**
+ * DIE ABEND-DETAILSEITE IST KEIN SCREEN MEHR — sie leitet weiter
+ * (`docs/design/feedback-admin.md` §4.16: „Abend-Detailseite
+ * `evenings/[eveningId]` entfällt als eigener Screen (Redirect auf die
+ * Auswertung, damit alte Links und Prefetches nicht ins Leere laufen)").
+ *
+ * WAS HIER GESTANDEN HAT und warum es weg musste: der Screen trug
+ * ausschließlich `SurveyControls` — „Umfrage erstellen" / „Aktivieren" /
+ * „Schließen" / „Archivieren", also genau den Dreischritt, den dieses Release
+ * den Nutzern als abgeschafft ankündigt („ein separates Aktivieren gibt es nicht
+ * mehr", `docs/runbooks/feedback-cutover.md`). Kein einziges Feld des Abends war
+ * dort bearbeitbar; ein Weg, der „Bearbeiten" heißt und nichts bearbeiten kann.
+ * Über „Umfrage erstellen" entstand außerdem eine Umfrage im Status `draft`, den
+ * das Cockpit als „Entwurf (Altbestand)" ausweist — ein Datensatz von heute, dem
+ * Nutzer als Altbestand der Vorgängeranwendung vorgelegt.
+ *
+ * DREI ENTSCHEIDUNGEN, DIE HIER LIEGEN:
+ *
+ * 1. DER GUARD BLEIBT VOR DEM SPRUNG. Er prüft die ECHTE `group_id` des
+ *    Dienstabends, nicht den `groupId`-URL-Parameter — sonst verriete allein das
+ *    Sprungziel, zu welcher Gruppe ein fremder Abend gehört (IDOR). Ohne Zugang:
+ *    404, nicht 403, und ausdrücklich KEIN Redirect.
+ * 2. OHNE UMFRAGE FÜHRT DER SPRUNG AUFS COCKPIT, nicht in die Auswertung: die
+ *    antwortet für einen nachgetragenen Abend mit 404 („ohne Umfrage nichts
+ *    auszuwerten"), und ein Redirect in einen garantierten 404 wäre schlechter
+ *    als der Zustand vorher. Das Cockpit trägt die Zeile samt Bearbeiten-Dialog.
+ * 3. KEIN SCHREIBEN. Ein Server-Component-GET feuert auch per Link-Prefetch; der
+ *    Auto-Close bleibt an der einzigen Stelle, die einen echten Zugriff belegt
+ *    (`f/[slugSecret]/page.tsx`).
+ */
 export default async function EveningDetail({
   params,
 }: {
@@ -39,47 +56,11 @@ export default async function EveningDetail({
   } catch {
     notFound(); // 404 statt 403 — verrät die Existenz nicht.
   }
-  const group = getGroup(db, evening.groupId);
-  if (!group) notFound();
 
   const survey = getSurveyByEvening(db, id);
-  // Anzeige-Status = derselbe Wert, der auch die Button-Auswahl in
-  // SurveyControls treibt (kein Auseinanderlaufen von Badge und Buttons).
-  // BEWUSST kein Schreiben hier (anders als ParticipatePage aus Task 11):
-  // ein Server-Component-GET kann durch Next.js-Link-Prefetch (Hover) ohne
-  // echten Seitenaufruf feuern — ein DB-Write dort würde eine Umfrage
-  // schließen, die niemand tatsächlich geöffnet hat. Der tatsächliche
-  // Auto-Close bleibt an der einzigen Stelle, die einen echten Zugriff
-  // bestätigt: `f/[slugSecret]/page.tsx`.
-  const effectiveStatus: SurveyStatus | null = survey
-    ? nextStatusOnAccess(survey.status as SurveyStatus, survey.closesAt, new Date())
-    : null;
-
-  return (
-    <section style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl, padding: SPACE.lg }}>
-      <section style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>{thema(evening.topic, "(ohne Thema)")}</h1>
-        <p style={{ margin: 0 }}>
-          {group.name} — {new Date(evening.date).toISOString().slice(0, 10)}
-        </p>
-      </section>
-
-      <section style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
-        <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Umfrage</h2>
-        <SurveyControls
-          eveningId={id}
-          survey={survey ? { id: survey.id, status: effectiveStatus! } : null}
-        />
-        {(effectiveStatus === "closed" || effectiveStatus === "archived") && (
-          <p style={{ margin: 0 }}>
-            {/* Ziel entsteht erst in Task 13 (Auswertungs-UI) — Vorgriff laut
-                Brief ("Link zur Auswertung (Task 13)"); bis dahin 404. */}
-            <Link href={`/m/feedback/groups/${evening.groupId}/evenings/${id}/auswertung`}>
-              Auswertung ansehen
-            </Link>
-          </p>
-        )}
-      </section>
-    </section>
+  redirect(
+    survey
+      ? `/m/feedback/groups/${evening.groupId}/evenings/${id}/auswertung`
+      : `/m/feedback/groups/${evening.groupId}`,
   );
 }

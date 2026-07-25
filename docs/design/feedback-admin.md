@@ -317,7 +317,8 @@ Dunkelmodus** (ein QR auf dunklem Grund ist von vielen Scannern nicht lesbar; di
 `QrDisplay`), `padding: 12`, `borderRadius: 8`, `border: 1px solid var(--fb-line)` · Klartext-URL:
 eigener Block, `background: var(--fb-tint)`, `padding: 8px 12px`, `borderRadius: 6`,
 `fontFamily: var(--font-geist-mono)`, 13px, `wordBreak: break-all`, `userSelect: all` · Knopfzeile
-`Space wrap` (**`orientation`**, nicht `direction` — antd 6, belegt in `EveningForm.tsx:10`):
+`Space wrap` (**`orientation`**, nicht `direction` — antd 6 hat die Prop umbenannt; der frühere
+Belegort `(admin)/EveningForm.tsx` ist mit dem Umbau entfallen, das Modul benutzt heute Flexbox):
 „Kopieren" (default), „PNG" (`<a download>`), „Aushang drucken" (`type="text"`, neuer Tab) ·
 Haarlinie · Kernaussage T.body, **nicht gedämpft**: „Einmal ausdrucken reicht. Der Code bleibt für
 alle künftigen Dienstabende gültig — er hängt an der Gruppe, nicht am Abend."

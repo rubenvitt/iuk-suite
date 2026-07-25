@@ -199,9 +199,26 @@ export async function regenerateSecretAction(formData: FormData) {
   setGroupSecret(db, id, generateSecret());
   revalidate();
 }
+/**
+ * GRUPPE LÖSCHEN (Entwurf §2.6 Punkt 3, §4.6) — `guardAdmin`, NICHT `guardGroup`.
+ *
+ * Die IA weist diese Aktion dem Voll-Admin zu, und das ist keine Kosmetik: mit
+ * `guardGroup` genügte die Gruppenzugehörigkeit, also hätte jede Gruppenleitung
+ * ihre eigene Bereitschaft samt allen Dienstabenden, Umfragen und Rückmeldungen
+ * unwiderruflich löschen können (ON DELETE cascade, Migration 0000) — ohne dass
+ * jemand mit Admin-Rolle beteiligt war, und der gedruckte Aushang an der Wand
+ * zeigte danach auf eine Gruppe, die es nicht mehr gibt. Derselbe Grund, aus dem
+ * die Zuordnung der Leitung an `guardAdmin` hängt.
+ *
+ * Die Existenzprüfung ist nicht Zierde: `deleteGroup` ist für eine unbekannte id
+ * ein stiller No-op, und ein Aufrufer, der „gelöscht" gemeldet bekommt, ohne dass
+ * etwas gelöscht wurde, springt auf die Übersicht und hält den Tippfehler in der
+ * id für einen Erfolg.
+ */
 export async function deleteGroupAction(formData: FormData) {
   const id = num(formData.get("id"));
-  const { db } = await guardGroup(id);
+  const { db } = await guardAdmin();
+  if (!getGroup(db, id)) throw new Error("Not found");
   deleteGroup(db, id);
   revalidate();
 }
@@ -399,12 +416,15 @@ export async function closeSurveyAction(formData: FormData) {
   setSurveyStatus(db, id, "closed", { closedAt: new Date() });
   revalidate();
 }
-export async function archiveSurveyAction(formData: FormData) {
-  const id = num(formData.get("id"));
-  const { db } = await guardGroup(await groupIdOfSurvey(id));
-  setSurveyStatus(db, id, "archived");
-  revalidate();
-}
+/*
+ * `archiveSurveyAction` IST ENTFALLEN (Spec: „`archived` verliert die
+ * Oberflächen-Aktion", „Ausdrücklich nicht gebaut: `archived` als Bedienschritt").
+ * Geschrieben werden nur noch `active` und `closed`; `draft` und `archived`
+ * bleiben tolerant LESBAR (Altbestand, Import) — `nextStatusOnAccess` kennt sie
+ * weiter, und der Verlauf weist einen Entwurf als Altbestand aus. Ihr einziger
+ * Aufrufer war `(admin)/SurveyControls.tsx`, das mit der Abend-Detailseite
+ * gelöscht wurde (§4.16).
+ */
 
 /**
  * Client-IP aus den Request-Headern (hinter Cloudflare zuverlässig via

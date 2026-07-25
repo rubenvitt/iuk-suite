@@ -3,6 +3,7 @@
 import type { ReactElement } from "react";
 import {
   CartesianGrid,
+  LabelList,
   Line,
   LineChart,
   ReferenceArea,
@@ -51,16 +52,63 @@ export type NotenVerlaufPunkt = {
   note: number | null;
 };
 
+/**
+ * EINE ZUGESCHALTETE FRAGE (§3.3: „einzelne Fragen sind zuschaltbar, maximal drei
+ * gleichzeitig, gestrichelt und direkt beschriftet — acht Kurven in einem Bild
+ * waeren Spaghetti").
+ *
+ * ZWEI ENTSCHEIDUNGEN, DIE HIER SACHFEHLER WAEREN:
+ *
+ * 1. KEINE NOTENFARBE. Die Notenpalette gehoert WERTEN der Schulnotenskala, nie
+ *    einer Serie oder Kategorie — eine gruen gezeichnete Frage behauptete, die
+ *    Frage selbst sei gut. Also alle Fragekurven in `--fb-muted`, unterschieden
+ *    durch die Beschriftung, nicht durch Farbe.
+ * 2. KEINE LEGENDE, sondern eine Beschriftung AM LINIENENDE. Eine Legende neben
+ *    dem Plot verlangt, zwei Stellen zu vergleichen; §3.3 sagt „direkt
+ *    beschriftet".
+ */
+export type NotenVerlaufSerie = {
+  /** Stabiler Schluessel: die Fragen-`id`, nie der Index (Boegen tauschen die Ordnung). */
+  id: string;
+  /** Der Fragetext — er steht am Ende der Kurve. */
+  label: string;
+  /** Ein Wert je Punkt, gleiche Laenge und Ordnung wie `punkte`. */
+  werte: (number | null)[];
+};
+
 export type NotenVerlaufProps = {
   punkte: NotenVerlaufPunkt[];
   /** 320 laut §3.3; mobil 240. */
   hoehe?: number;
+  /** Zugeschaltete Fragekurven — mehr als `MAX_SERIEN` werden abgeschnitten. */
+  serien?: NotenVerlaufSerie[];
 };
 
 const NOTEN = [1, 2, 3, 4, 5, 6] as const;
 
-export function NotenVerlauf({ punkte, hoehe = 320 }: NotenVerlaufProps) {
+/** §3.3 wortgenau: „maximal drei gleichzeitig". Der Deckel steht HIER, damit er
+ *  auch haelt, wenn ein Aufrufer mehr uebergibt. */
+export const MAX_SERIEN = 3;
+
+/** Der Datenschluessel einer Serie im recharts-Datensatz. */
+const serienSchluessel = (i: number) => `serie${i}`;
+
+export function NotenVerlauf({ punkte, hoehe = 320, serien = [] }: NotenVerlaufProps) {
   const werte = punkte.filter((p) => p.note !== null);
+  const gezeigt = serien.slice(0, MAX_SERIEN);
+  /*
+   * recharts liest ALLE Linien aus EINEM Datensatz — die Serienwerte muessen
+   * deshalb als zusaetzliche Schluessel in denselben Zeilen liegen. `?? null`
+   * statt `undefined`: eine fehlende Frage soll die Kurve AUFREISSEN
+   * (`connectNulls={false}`), nicht stillschweigend uebersprungen werden.
+   */
+  const daten = punkte.map((p, i) => {
+    const zeile: Record<string, string | number | null> = { label: p.label, note: p.note };
+    gezeigt.forEach((s, si) => {
+      zeile[serienSchluessel(si)] = s.werte[i] ?? null;
+    });
+    return zeile;
+  });
 
   /*
    * §4.3: „Weniger als zwei ausgewertete Abende — fuer einen Verlauf zu frueh."
@@ -95,7 +143,7 @@ export function NotenVerlauf({ punkte, hoehe = 320 }: NotenVerlaufProps) {
         1 OBEN = BESSER
       </span>
       <ResponsiveContainer width="100%" height={hoehe}>
-        <LineChart data={punkte} margin={{ top: 24, right: 12, bottom: 4, left: 0 }}>
+        <LineChart data={daten} margin={{ top: 24, right: 12, bottom: 4, left: 0 }}>
           {/*
            * Sechs textfreie Baender als Diagrammgrund (§4.11): eine Toenung
            * traegt NIE Text — die Notenfarbe auf ihrer eigenen Toenung erreicht
@@ -127,6 +175,29 @@ export function NotenVerlauf({ punkte, hoehe = 320 }: NotenVerlaufProps) {
             width={40}
           />
           <Tooltip formatter={(wert) => notenText(wert)} />
+          {/*
+           * DIE FRAGEKURVEN LIEGEN VOR DER GESAMTLINIE, damit die Vorgabe (§3.3:
+           * „Nur die Gesamtdurchschnittslinie ist Vorgabe") oben bleibt und nicht
+           * von einer zugeschalteten Frage ueberzeichnet wird.
+           */}
+          {gezeigt.map((s, si) => (
+            <Line
+              key={s.id}
+              dataKey={serienSchluessel(si)}
+              stroke="var(--fb-muted)"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+              connectNulls={false}
+              dot={false}
+              activeDot={false}
+              isAnimationActive={false}
+            >
+              <LabelList
+                dataKey={serienSchluessel(si)}
+                content={endBeschriftung(s.label, letzterWert(s.werte))}
+              />
+            </Line>
+          ))}
           <Line
             dataKey="note"
             stroke="var(--fb-ink)"
@@ -170,4 +241,44 @@ function notenPunkt(props: {
 function notenText(wert: unknown): string {
   if (typeof wert !== "number" || !Number.isFinite(wert)) return "—";
   return notenSatz(wert);
+}
+
+/** Der letzte Punkt MIT Wert — dort steht die Beschriftung, nicht am Rand. */
+export function letzterWert(werte: (number | null)[]): number {
+  for (let i = werte.length - 1; i >= 0; i--) {
+    if (werte[i] !== null && werte[i] !== undefined) return i;
+  }
+  return -1;
+}
+
+/**
+ * „Direkt beschriftet" (§3.3): der Fragetext steht am Ende SEINER Kurve, nicht in
+ * einer Legende. Nur der letzte Punkt mit Wert traegt ihn — an jedem Punkt stuende
+ * der Text acht Mal, und `LabelList` ruft dieses `content` je Punkt einmal auf.
+ *
+ * `textAnchor="end"` und ein negativer Versatz: am rechten Plotrand liegt der
+ * letzte Punkt, ein Label RECHTS davon waere abgeschnitten.
+ */
+export function endBeschriftung(text: string, index: number) {
+  return function Beschriftung(props: {
+    x?: number | string;
+    y?: number | string;
+    index?: number;
+  }): ReactElement | null {
+    if (props.index !== index) return null;
+    const x = Number(props.x);
+    const y = Number(props.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return (
+      <text
+        x={x - 6}
+        y={y - 6}
+        textAnchor="end"
+        fill="var(--fb-muted)"
+        fontSize={11}
+      >
+        {text}
+      </text>
+    );
+  };
 }

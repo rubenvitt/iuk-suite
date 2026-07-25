@@ -226,6 +226,128 @@ describe("computeGroupTrend", () => {
 });
 
 /**
+ * DIE FRAGEN-Ø JE MONAT — Grundlage der zuschaltbaren Fragekurven (§3.3).
+ *
+ * DREI ZUSAGEN, DIE STILL BRECHEN KOENNEN, und jede waere im Diagramm eine
+ * falsche Steigung, die niemand nachrechnet:
+ *
+ * 1. GEWICHTET WIRD MIT `count` DER FRAGE, nicht mit `responseCount` des Abends.
+ * 2. `stars` bleibt draussen — vier von fuenf Sternen waeren auf der umgekehrten
+ *    Sechser-Achse „ausreichend" (§4.12).
+ * 3. GESCHLUESSELT WIRD UEBER DIE `id`, nie ueber den Index: der Bogen ist je
+ *    Umfrage gespeichertes JSON, und ein Alt-Import kann die Reihenfolge tauschen.
+ */
+describe("computeGroupTrend — die Frage-Ø je Monat (§3.3)", () => {
+  const utc = (y: number, m: number, d: number) => Math.floor(Date.UTC(y, m - 1, d) / 1000);
+  const st = (
+    note: number | null,
+    count: number,
+    perQuestion: ReturnType<typeof computeDAStats>["perQuestion"],
+  ): ReturnType<typeof computeDAStats> => ({
+    perQuestion,
+    overallAvg: note,
+    avgSchulnote: note,
+    hasLegacyScale: perQuestion.some((q) => q.type === "stars"),
+    texts: [],
+    responseCount: count,
+  });
+  const frage = (
+    id: string,
+    avg: number | null,
+    anzahl: number,
+    typ: "schulnote" | "stars" = "schulnote",
+  ) => ({ id, text: `Frage ${id}`, type: typ as never, avg, count: anzahl });
+
+  it("gibt je Monat einen Eintrag fuer JEDE Frage des Zeitraums — fehlende als null", () => {
+    const trend = computeGroupTrend(
+      [
+        { date: utc(2026, 1, 5), stats: st(2, 4, [frage("q1", 2, 4)]) },
+        { date: utc(2026, 3, 5), stats: st(3, 4, [frage("q2", 3, 4)]) },
+      ],
+      utc(2026, 1, 1),
+      utc(2026, 3, 31),
+    );
+    expect(trend.map((p) => p.perQuestion.map((q) => q.id))).toEqual([
+      ["q1", "q2"],
+      ["q1", "q2"],
+      ["q1", "q2"],
+    ]);
+    expect(trend[0].perQuestion[0].avg).toBeCloseTo(2);
+    expect(trend[0].perQuestion[1].avg).toBeNull(); // q1-Monat kennt q2 nicht
+    expect(trend[1].perQuestion.every((q) => q.avg === null)).toBe(true); // leerer Februar
+    expect(trend[2].perQuestion[1].avg).toBeCloseTo(3);
+  });
+
+  it("gewichtet mit `count` DER FRAGE, nicht mit `responseCount` des Abends", () => {
+    // Abend A: 14 Rueckmeldungen, aber nur 3 haben q1 beantwortet (Ø 1,0).
+    // Abend B: 4 Rueckmeldungen, alle 4 haben q1 beantwortet (Ø 5,0).
+    const trend = computeGroupTrend(
+      [
+        { date: utc(2026, 4, 5), stats: st(1, 14, [frage("q1", 1, 3)]) },
+        { date: utc(2026, 4, 20), stats: st(5, 4, [frage("q1", 5, 4)]) },
+      ],
+      utc(2026, 4, 1),
+      utc(2026, 4, 30),
+    );
+    // Richtig: (1*3 + 5*4) / 7 = 3,2857…
+    expect(trend[0].perQuestion[0].avg).toBeCloseTo(23 / 7, 5);
+    // Mit dem Abend-Nenner waeren es (1*14 + 5*4) / 18 = 1,888… — ein Monat, in
+    // dem die Frage sichtbar schlecht lief, saehe fast „sehr gut" aus.
+    expect(trend[0].perQuestion[0].avg).not.toBeCloseTo(34 / 18, 3);
+  });
+
+  it("laesst `stars`-Fragen ganz aus den Kurven heraus (§4.12)", () => {
+    const trend = computeGroupTrend(
+      [{ date: utc(2026, 4, 5), stats: st(2, 4, [frage("q1", 2, 4), frage("s1", 4, 4, "stars")]) }],
+      utc(2026, 4, 1),
+      utc(2026, 4, 30),
+    );
+    expect(trend[0].perQuestion.map((q) => q.id)).toEqual(["q1"]);
+    expect(trend[0].hasLegacyScale).toBe(true); // die Fussnote bleibt
+  });
+
+  it("ordnet ueber die `id` zu, auch wenn der Bogen die Reihenfolge tauscht", () => {
+    const trend = computeGroupTrend(
+      [
+        { date: utc(2026, 1, 5), stats: st(2, 4, [frage("q1", 1, 4), frage("q2", 5, 4)]) },
+        // Zweiter Monat: dieselben Fragen, VERTAUSCHT — ein Index-Vergleich
+        // haette hier q1 mit q2 gemittelt.
+        { date: utc(2026, 2, 5), stats: st(2, 4, [frage("q2", 5, 4), frage("q1", 1, 4)]) },
+      ],
+      utc(2026, 1, 1),
+      utc(2026, 2, 28),
+    );
+    for (const punkt of trend) {
+      const q1 = punkt.perQuestion.find((q) => q.id === "q1")!;
+      const q2 = punkt.perQuestion.find((q) => q.id === "q2")!;
+      expect(q1.avg).toBeCloseTo(1);
+      expect(q2.avg).toBeCloseTo(5);
+    }
+  });
+
+  it("traegt den Fragetext mit — die Kurve wird direkt beschriftet, nicht mit einer id", () => {
+    const trend = computeGroupTrend(
+      [{ date: utc(2026, 4, 5), stats: st(2, 4, [frage("q1", 2, 4)]) }],
+      utc(2026, 4, 1),
+      utc(2026, 4, 30),
+    );
+    expect(trend[0].perQuestion[0].text).toBe("Frage q1");
+  });
+
+  it("zaehlt eine unbeantwortete Frage nicht als Null mit", () => {
+    const trend = computeGroupTrend(
+      [
+        { date: utc(2026, 4, 5), stats: st(2, 4, [frage("q1", null, 0)]) },
+        { date: utc(2026, 4, 20), stats: st(2, 4, [frage("q1", 2, 4)]) },
+      ],
+      utc(2026, 4, 1),
+      utc(2026, 4, 30),
+    );
+    expect(trend[0].perQuestion[0].avg).toBeCloseTo(2);
+  });
+});
+
+/**
  * Anonymität (Entwurf 3.9): die Leseordnung darf die Eingangsreihenfolge nicht
  * verraten — bei 15 Personen ist "wer zuerst ging, steht oben" allein ein
  * Deanonymisierungskanal.

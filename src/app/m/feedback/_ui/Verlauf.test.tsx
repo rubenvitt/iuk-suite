@@ -242,20 +242,45 @@ describe("Verlauf — jede Zeile beantwortet „was war da“ (§2.5, §4.11)", 
    * `surveyId === null`, und `.../auswertung` antwortet dafuer mit 404 („ohne
    * Umfrage nichts auszuwerten"). KEIN Anker der Zone darf dort landen — auch
    * nicht der, der in der Schmalvariante die ganze 68px-Flaeche ist.
+   *
+   * UND ER DARF AUCH NICHT AUF `evenings/[eveningId]` FUEHREN: diese Seite ist
+   * seit §4.16 nur noch ein Redirect auf die Auswertung, also fuer genau diese
+   * Zeilen derselbe 404 mit Umweg. Der Weg ist stattdessen die
+   * ZEILENBEARBEITUNG — die einzige Oberflaeche, die die Felder des Abends
+   * wirklich traegt.
    */
-  it("schickt einen Abend ohne Umfrage NICHT in die Auswertung, sondern auf die Abendseite", () => {
+  it("schickt einen Abend ohne Umfrage in KEINE Route — der Weg ist die Zeilenbearbeitung", () => {
     const wirt = zeichne([zeile({ eveningId: 42, surveyId: null })]);
     const ziele = [...wirt.querySelectorAll<HTMLAnchorElement>("a")].map((a) =>
       a.getAttribute("href"),
     );
 
-    expect(ziele.length).toBeGreaterThan(0);
     expect(ziele.some((z) => z?.endsWith("/auswertung"))).toBe(false);
-    expect(ziele).toContain("/m/feedback/groups/7/evenings/42");
-    // Die Beschriftung wandert mit: kein Link „Auswertung" auf die Abendseite.
-    // Nur die ZEILE geprueft, nicht die ganze Zone — sonst stolpert der Test
-    // ueber die naechste Auswertungs-Schaltflaeche in der Kopfzeile.
-    expect(tabellenzeilen(wirt)[0].textContent ?? "").not.toContain("Auswertung");
+    // Die alte Abendseite ist weg; ein Link dorthin waere ein Redirect in den 404.
+    expect(ziele.some((z) => z === "/m/feedback/groups/7/evenings/42")).toBe(false);
+    // Die Beschriftung wandert mit dem Ziel.
+    const reihe = tabellenzeilen(wirt)[0].textContent ?? "";
+    expect(reihe).not.toContain("Auswertung");
+    expect(reihe).toContain("Bearbeiten");
+  });
+
+  it("oeffnet aus der umfragelosen Zeile heraus die Zeilenbearbeitung", async () => {
+    await mount(zone([zeile({ eveningId: 42, datum: "2026-07-22", surveyId: null })]));
+
+    const knopf = [...document.querySelectorAll<HTMLElement>("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Bearbeiten",
+    );
+    expect(knopf).toBeDefined();
+    // Geschlossen liegt KEIN Dialog im DOM (`destroyOnHidden`) — sonst haetten
+    // umfragelose Zeilen zwei Formulare gleichen Namens.
+    expect(document.querySelectorAll("form[data-testid='abend-bearbeiten']")).toHaveLength(0);
+
+    await clickElement(knopf!);
+    const formulare = document.querySelectorAll<HTMLFormElement>(
+      "form[data-testid='abend-bearbeiten']",
+    );
+    expect(formulare).toHaveLength(1);
+    expect(formulare[0].querySelector<HTMLInputElement>("input[name='id']")!.value).toBe("42");
   });
 });
 
@@ -446,7 +471,19 @@ describe("Verlauf — Quelltext-Zusagen, die im Markup nicht sichtbar sind", () 
   it("nennt `#c8000f` nicht und benutzt keine `--ant-*`-Variable (§4.9, §4.10)", () => {
     expect(CODE.toLowerCase()).not.toContain("#c8000f");
     expect(CODE).not.toMatch(/--ant-/);
-    expect(CODE).not.toContain('danger');
+    // KEIN pauschales `not.toContain("danger")` mehr: §4.6 verlangt fuer „Abend
+    // loeschen (Verlaufszeile)" ausdruecklich einen `danger`-okButton, und die
+    // Klausel selbst erlaubt Rot „am Knopfrand und im okButton des Dialogs".
+    // Verboten bleibt Rot als FLAECHE und an einem Knopf der Zeile.
+    expect(CODE).not.toMatch(/type="primary"[^>]*danger/);
+    expect(CODE).not.toMatch(/danger[^>]*type="primary"/);
+    expect(CODE).not.toMatch(/<Button[^>]*\sdanger/);
+  });
+
+  it("traegt den `danger`-okButton des Loeschdialogs (§4.6)", () => {
+    // Positiv geprueft, sonst haette der praezisierte Waechter oben die Zusage
+    // nur gelockert statt sie zu halten.
+    expect(CODE).toMatch(/okButtonProps=\{\{\s*danger:\s*true/);
   });
 
   it("formatiert Datum und Wochentag ueber `datum.ts`, nicht mit eigenem `toLocaleDateString`", () => {
@@ -536,5 +573,77 @@ describe("Verlauf — Abend bearbeiten (§2.5)", () => {
     expect(form.textContent).toContain(
       "Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit.",
     );
+  });
+});
+
+/**
+ * ABEND LOESCHEN AUS DER VERLAUFSZEILE (§4.6, Zeile „Abend loeschen
+ * (Verlaufszeile) | `Popconfirm`, `danger`-okButton | „Loescht den Abend und
+ * seine 14 Rueckmeldungen."").
+ *
+ * Die Zahl ist der einzige Teil der Warnung, der die Entscheidung wirklich
+ * traegt: „Die Rueckmeldungen dieses Abends" liess offen, ob es drei oder
+ * dreissig sind — und der Wert liegt in der Zeile bereit.
+ */
+describe("Verlauf — Abend loeschen (§4.6)", () => {
+  async function loeschdialog(rueckmeldungen: number): Promise<HTMLElement> {
+    await mount(zone([zeile({ eveningId: 42, rueckmeldungen })]));
+    const punkte = [...document.querySelectorAll<HTMLElement>("button")].filter(
+      (b) => (b.textContent ?? "").trim() === "…",
+    );
+    await clickElement(punkte[0]);
+    const eintrag = [...document.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item")].find(
+      (e) => (e.textContent ?? "").trim() === "Löschen",
+    );
+    if (!eintrag) throw new Error("Kein Menuepunkt „Löschen“");
+    await clickElement(eintrag);
+    const dialog = document.querySelector<HTMLElement>(".ant-popconfirm");
+    if (!dialog) throw new Error("Kein Loeschdialog");
+    return dialog;
+  }
+
+  it("nennt die Zahl der mitgeloeschten Rueckmeldungen — wortgenau nach §4.6", async () => {
+    expect((await loeschdialog(14)).textContent).toContain(
+      "Löscht den Abend und seine 14 Rückmeldungen.",
+    );
+  });
+
+  it("bildet den Singular und den Nullfall", async () => {
+    expect((await loeschdialog(1)).textContent).toContain(
+      "Löscht den Abend und seine 1 Rückmeldung.",
+    );
+    await unmount();
+    document.body.replaceChildren();
+    expect((await loeschdialog(0)).textContent).toContain(
+      "Löscht den Abend. Rückmeldungen gibt es zu ihm keine.",
+    );
+  });
+
+  it("traegt Rot im okButton des Dialogs — nicht am Menuepunkt (§4.6/§4.9)", async () => {
+    const dialog = await loeschdialog(14);
+    const bestaetigen = [...dialog.querySelectorAll<HTMLElement>("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Löschen",
+    );
+    expect(bestaetigen).toBeDefined();
+    expect(bestaetigen!.className).toContain("ant-btn-dangerous");
+
+    // Und der Menuepunkt, der den Dialog oeffnet, bleibt farblos: §4.6 erlaubt
+    // Rot „am Knopfrand und im okButton des Dialogs", nicht in der Liste.
+    const menuepunkte = [...document.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item")];
+    expect(menuepunkte.length).toBeGreaterThan(0);
+    for (const p of menuepunkte) expect(p.className).not.toContain("danger");
+  });
+
+  it("loescht erst nach der Bestaetigung, mit der Kennung des Abends", async () => {
+    const dialog = await loeschdialog(14);
+    expect(deleteEveningActionMock).not.toHaveBeenCalled();
+
+    const bestaetigen = [...dialog.querySelectorAll<HTMLElement>("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Löschen",
+    )!;
+    await clickElement(bestaetigen);
+
+    expect(deleteEveningActionMock).toHaveBeenCalledTimes(1);
+    expect((deleteEveningActionMock.mock.calls[0][0] as FormData).get("id")).toBe("42");
   });
 });

@@ -7,7 +7,7 @@ import { computeDAStats, computeGroupTrend, type DAStats } from "@/app/m/feedbac
 import type { Question } from "@/app/m/feedback/_lib/questions";
 import { T } from "@/app/m/feedback/_ui/typo";
 import { Altbestandsfussnote, Notenpille } from "@/app/m/feedback/_ui/Noten";
-import { NotenVerlauf } from "@/app/m/feedback/_ui/NotenVerlauf";
+import { TrendDiagramm, type TrendFrage } from "@/app/m/feedback/_ui/TrendDiagramm";
 import { MONATS_FENSTER, MonatsSegment } from "@/app/m/feedback/_ui/Segment";
 
 /**
@@ -24,6 +24,14 @@ import { MONATS_FENSTER, MonatsSegment } from "@/app/m/feedback/_ui/Segment";
  *    Fremde oder fehlende Werte fallen auf 12 zurück; geklemmt wird HIER, damit
  *    `?monate=9999` keine 833 Monatsbuckets aufzählt.
  * 3. DER Ø IST `avgSchulnote` (§4.12), nie der gemischte `overallAvg`.
+ * 4. DIE FRAGEKURVEN SIND ZUSCHALTBAR (§3.3): „Nur die Gesamtdurchschnittslinie
+ *    ist Vorgabe; einzelne Fragen sind zuschaltbar, maximal drei gleichzeitig,
+ *    gestrichelt und direkt beschriftet." Der Umschalter braucht Zustand, also
+ *    liegen Schalterreihe und Diagramm zusammen in der Client-Insel
+ *    `_ui/TrendDiagramm.tsx`. Die Monats-Ø je Frage kommen aus
+ *    `computeGroupTrend` (`perQuestion`) — dieselbe Aggregationsstelle wie die
+ *    Gesamtlinie, damit nicht zwei Rechnungen zwei Kurven fuer dieselbe Frage
+ *    ergeben.
  *
  * SERVER COMPONENT: `Breadcrumb` über `items`, `Segmented` in der Client-Insel
  * `_ui/Segment.tsx` (§4.13).
@@ -102,7 +110,10 @@ export default async function TrendPage({
         </p>
       </header>
 
-      <NotenVerlauf punkte={trend.map((t) => ({ label: t.label, note: t.avg }))} />
+      <TrendDiagramm
+        punkte={trend.map((t) => ({ label: t.label, note: t.avg }))}
+        fragen={fragenAus(trend)}
+      />
 
       <ul
         style={{
@@ -135,6 +146,21 @@ export default async function TrendPage({
       </ul>
     </div>
   );
+}
+
+/**
+ * Die zuschaltbaren Fragen als eine Reihe je Frage (§3.3). `computeGroupTrend`
+ * garantiert, dass JEDER Monat einen Eintrag fuer JEDE Frage des Zeitraums traegt
+ * — deshalb genuegt der erste Punkt als Fragenliste, und die Werte liegen in
+ * derselben Ordnung wie die Monate. Fehlt die Frage in einem Monat, ist der Wert
+ * `null` und die Kurve reisst dort auf, statt eine Luecke gerade zu ziehen.
+ */
+function fragenAus(trend: ReturnType<typeof computeGroupTrend>): TrendFrage[] {
+  return (trend[0]?.perQuestion ?? []).map((q, i) => ({
+    id: q.id,
+    text: q.text,
+    werte: trend.map((t) => t.perQuestion[i]?.avg ?? null),
+  }));
 }
 
 /** Nur 6, 12 oder 24 (§3.3) — alles andere ist 12, ohne Fehlermeldung. */

@@ -323,7 +323,7 @@ export const OE_FENSTER = NOTEN_FENSTER;
  */
 export function kontextzeile(abende: number, notenJuengsteZuerst: (number | null)[]): string {
   if (abende === 0) return "Noch kein Dienstabend erfasst.";
-  const kopf = `${abende} Dienstabende erfasst`;
+  const kopf = `${abende} ${abende === 1 ? "Dienstabend" : "Dienstabende"} erfasst`;
 
   // Gerechnet wird in `_lib/noten.ts` (`fensterMittel`) — dieselbe Funktion nutzt
   // die Kopfzeile des Verlaufs (§2.5). Zwei Rechnungen waeren zwei Fenster.
