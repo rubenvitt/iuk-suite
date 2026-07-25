@@ -160,7 +160,9 @@ test("Freitext wird an der Grenze von 500 Zeichen gestoppt", async ({ page }) =>
   await expect(zeile.locator("[data-zaehler]")).toHaveText("Zeile ist voll");
 });
 
-test("geschlossene Umfrage: Zustand D statt Formular", async ({ page }) => {
+test("geschlossene Umfrage: Zustand D — zwischen zwei Abenden dagegen Zustand C", async ({
+  page,
+}) => {
   // Der Bogen wird ueber den Admin-Bereich geschlossen — bewusst die Gruppe
   // "Demo Jugend", damit der Zettel der anderen Szenarien ("demo") offen
   // bleibt. KOPPLUNG: Teil 3 benennt diesen Knopf in „Feedback jetzt beenden"
@@ -174,6 +176,12 @@ test("geschlossene Umfrage: Zustand D statt Formular", async ({ page }) => {
     .getByTestId("group-row")
     .getByRole("link", { name: "Demo Jugend", exact: true })
     .click();
+  // Die Gruppen-Seite ist der Ausgangspunkt fuer den zweiten Teil (unten) — die
+  // ID steht nur hier, nicht hart im Test. Erst `waitForURL`, dann `page.url()`:
+  // die Navigation laeuft clientseitig, ohne das Warten stuende hier noch die
+  // Adresse der Gruppenliste.
+  await page.waitForURL(/\/groups\/\d+$/);
+  const gruppenSeite = page.url();
   await page.getByRole("link", { name: /Erlebnispädagogischer Abend/ }).click();
   await page.getByRole("button", { name: "Schließen" }).click();
   await expect(page.getByText("Geschlossen", { exact: true })).toBeVisible();
@@ -186,6 +194,35 @@ test("geschlossene Umfrage: Zustand D statt Formular", async ({ page }) => {
   await expect(notenzeilen(page)).toHaveCount(0);
   await expect(page.locator("[data-absenden]")).toHaveCount(0);
   await expect(page.locator("[data-stumm]")).toBeVisible();
+
+  /*
+   * ZWISCHEN ZWEI ABENDEN — derselbe Token, dieselbe geschlossene Umfrage, aber
+   * der naechste Dienstabend steht schon im Kalender und ist noch nicht
+   * freigegeben. Dann ist "die Umfrage zu DIESEM Abend ist beendet" die falsche
+   * Auskunft: der Abend, von dem der Scanner kommt, ist nicht der geschlossene.
+   * Der Unterschied haengt an genau einer Stelle — `ohneAktiveUmfrage` waehlt den
+   * JUENGSTEN Abend und findet dort keine Umfrage -> Zustand C statt D.
+   */
+  await page.goto(gruppenSeite);
+  // Streng SPAETER als der Seed-Abend (heute, Mitternacht UTC): `ohneAktiveUmfrage`
+  // vergleicht mit `>`, ein Abend von heute wuerde den geschlossenen nicht abloesen.
+  const naechsterAbend = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+  await page.locator('form input[name="date"]').fill(naechsterAbend);
+  await page.locator('form input[name="topic"]').fill("Kartenkunde");
+  await page.getByRole("button", { name: "Dienstabend anlegen" }).click();
+  await expect(page.getByRole("link", { name: new RegExp(naechsterAbend) })).toBeVisible();
+
+  await page.goto(`${FEEDBACK}/f/${JUGEND_TOKEN}`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Zurzeit läuft keine Umfrage." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Die Umfrage zu diesem Abend ist beendet." }),
+  ).toHaveCount(0);
+  await expect(notenzeilen(page)).toHaveCount(0);
+  // "Neu laden" ist ein `<a href>` und kein Knopf — wer gerade nichts sieht, hat
+  // vielleicht auch kein JavaScript (Zustaende.tsx).
+  await expect(page.getByRole("link", { name: "Neu laden" })).toBeVisible();
 });
 
 test("geteiltes Gerät: nach der Abgabe „Leeren Bogen öffnen“ → zweite Abgabe möglich", async ({
