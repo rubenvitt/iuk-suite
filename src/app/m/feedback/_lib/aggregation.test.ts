@@ -41,11 +41,69 @@ describe("computeDAStats", () => {
   });
 });
 
+/**
+ * Der stille Rechenfehler (Entwurf 1.5/5, Entscheidung 4.12): `overallAvg` mischt
+ * Schulnoten (1–6) und Alt-Sterne (1–5) in DENSELBEN Mittelwert. Ein 1–5-Ø von 4,2
+ * würde in der Ampel wie eine Schulnote 4,2 eingefärbt — also gelb-rot, obwohl 4,2
+ * von 5 eine gute Bewertung ist. `avgSchulnote` ist der Wert, den jede
+ * Ampeldarstellung liest; `overallAvg` bleibt für die CSV-Kompatibilität, wie er ist.
+ */
+describe("computeDAStats: getrennter Schulnoten-Mittelwert (gemischte Skalen)", () => {
+  const gemischt: Question[] = [
+    { id: "q1", type: "schulnote", text: "Insgesamt?" },
+    { id: "q2", type: "schulnote", text: "Thema?" },
+    { id: "s1", type: "stars", text: "Alt-Bewertung?" },
+    { id: "q9", type: "text", text: "Bestes?" },
+  ];
+
+  it("mittelt in avgSchulnote nur die schulnote-Fragen und meldet hasLegacyScale", () => {
+    // schulnote: q1 Ø 2, q2 Ø 3 → avgSchulnote 2,5. stars: s1 Ø 5 — nicht darin.
+    const stats = computeDAStats(gemischt, [
+      { q1: 2, q2: 3, s1: 5 },
+      { q1: 2, q2: 3, s1: 5 },
+    ]);
+    expect(stats.avgSchulnote).toBeCloseTo(2.5);
+    expect(stats.hasLegacyScale).toBe(true);
+    // overallAvg bleibt unangetastet: (2 + 3 + 5) / 3 — bewusst bedeutungslos,
+    // aber CSV-kompatibel.
+    expect(stats.overallAvg).toBeCloseTo(10 / 3);
+  });
+
+  it("reiner stars-Fragebogen: avgSchulnote ist null, overallAvg wie bisher", () => {
+    const qs: Question[] = [{ id: "s1", type: "stars", text: "Bewertung?" }];
+    const stats = computeDAStats(qs, [{ s1: 5 }, { s1: 3 }]);
+    expect(stats.avgSchulnote).toBeNull();
+    expect(stats.hasLegacyScale).toBe(true);
+    expect(stats.overallAvg).toBeCloseTo(4);
+  });
+
+  it("reiner Schulnoten-Fragebogen: hasLegacyScale false, avgSchulnote == overallAvg", () => {
+    const stats = computeDAStats(Q, [{ q1: 2 }, { q1: 4 }]);
+    expect(stats.hasLegacyScale).toBe(false);
+    expect(stats.avgSchulnote).toBeCloseTo(3);
+    expect(stats.overallAvg).toBeCloseTo(3);
+  });
+
+  it("stars-Frage ohne Antworten: hasLegacyScale bleibt true (der Bogen enthält sie)", () => {
+    const stats = computeDAStats(gemischt, [{ q1: 1, q2: 1 }]);
+    expect(stats.hasLegacyScale).toBe(true);
+    expect(stats.avgSchulnote).toBeCloseTo(1);
+  });
+
+  it("gemischter Bogen ohne Schulnoten-Antworten: avgSchulnote null, overallAvg gesetzt", () => {
+    const stats = computeDAStats(gemischt, [{ s1: 4 }]);
+    expect(stats.avgSchulnote).toBeNull();
+    expect(stats.overallAvg).toBeCloseTo(4);
+  });
+});
+
 describe("computeGroupTrend", () => {
   const utc = (y: number, m: number, d: number) => Math.floor(Date.UTC(y, m - 1, d) / 1000);
   const st = (avg: number | null, count: number): ReturnType<typeof computeDAStats> => ({
     perQuestion: [],
     overallAvg: avg,
+    avgSchulnote: avg,
+    hasLegacyScale: false,
     texts: [],
     responseCount: count,
   });

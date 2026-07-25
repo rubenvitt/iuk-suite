@@ -8,7 +8,29 @@ export interface DAStats {
     avg: number | null;
     count: number;
   }[];
+  /**
+   * Mittelwert über ALLE Rating-Fragen — auch über Skalengrenzen hinweg (1–6 und
+   * 1–5 gemischt). Bleibt UNVERÄNDERT erhalten, weil der CSV-/Prompt-Pfad ihn
+   * seit dem Alt-Import ausgibt. Für jede Ampeldarstellung ist er der falsche
+   * Wert: dafür ist `avgSchulnote` da (Entwurf 4.12).
+   */
   overallAvg: number | null;
+  /**
+   * Mittelwert NUR über `schulnote`-Fragen (deutsche Schulnote 1–6, invertiert).
+   * `null`, wenn der Bogen keine beantwortete Schulnoten-Frage hat. Jede
+   * Ampeldarstellung (Pille, Plakette, Funke, Trendlinie, Vergleich) liest
+   * diesen Wert — eine 1–5-Bewertung auf die 6er-Rampe abzutasten legte zwei
+   * verschiedene Bedeutungen in dieselbe Farbe (Entwurf 4.12).
+   */
+  avgSchulnote: number | null;
+  /**
+   * Der Bogen enthält mindestens eine `stars`-Frage (Alt-Skala 1–5, nur
+   * Lesepfad importierter Umfragen). Trägt im Verlauf und im Trend die Fußnote
+   * „enthält Altbestands-Fragen (Skala 1–5) — nicht in den Durchschnitt
+   * gerechnet". Hängt am FRAGEBOGEN, nicht an den Antworten: eine unbeantwortete
+   * `stars`-Frage bleibt eine Altbestands-Frage.
+   */
+  hasLegacyScale: boolean;
   texts: { questionId: string; text: string; values: string[] }[];
   responseCount: number;
 }
@@ -64,15 +86,23 @@ export function computeDAStats(
   const perQuestion: DAStats["perQuestion"] = [];
   const texts: DAStats["texts"] = [];
   const ratingAvgs: number[] = [];
+  // Zweiter, getrennter Eimer — `ratingAvgs` bleibt Zeichen für Zeichen, was es
+  // war (CSV-Kompatibilität, siehe overallAvg).
+  const schulnoteAvgs: number[] = [];
+  let hasLegacyScale = false;
 
   for (const q of questions) {
+    if (q.type === "stars") hasLegacyScale = true;
     if (isRatingType(q.type)) {
       const vals = answers
         .map((a) => toFloat(a[q.id]))
         .filter((n): n is number => n !== null);
       const avg = vals.length ? vals.reduce((s, n) => s + n, 0) / vals.length : null;
       perQuestion.push({ id: q.id, text: q.text, type: q.type, avg, count: vals.length });
-      if (avg !== null) ratingAvgs.push(avg);
+      if (avg !== null) {
+        ratingAvgs.push(avg);
+        if (q.type === "schulnote") schulnoteAvgs.push(avg);
+      }
     } else {
       const values = answers
         .map((a) => a[q.id])
@@ -91,8 +121,18 @@ export function computeDAStats(
   const overallAvg = ratingAvgs.length
     ? ratingAvgs.reduce((s, n) => s + n, 0) / ratingAvgs.length
     : null;
+  const avgSchulnote = schulnoteAvgs.length
+    ? schulnoteAvgs.reduce((s, n) => s + n, 0) / schulnoteAvgs.length
+    : null;
 
-  return { perQuestion, overallAvg, texts, responseCount: answers.length };
+  return {
+    perQuestion,
+    overallAvg,
+    avgSchulnote,
+    hasLegacyScale,
+    texts,
+    responseCount: answers.length,
+  };
 }
 
 export interface TrendPoint {

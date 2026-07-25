@@ -7,6 +7,7 @@ import {
   memberGroupIdsFor,
   insertGroup,
   insertEvening,
+  listEvenings,
   insertSurvey,
   activateSurvey,
   createAndStartSurvey,
@@ -217,6 +218,46 @@ describe("setGroupMembers", () => {
   });
 });
 
+/**
+ * Fund 1.5/3: `listEvenings` hatte kein `ORDER BY` — die Reihenfolge war die
+ * Einfüge-/Rowid-Reihenfolge. Wer einen älteren Abend NACHTRÄGT, bekam ihn ohne
+ * Fehlermeldung an das falsche Ende der Tabelle. Der Verlauf verlässt sich auf
+ * die Ordnung der Abfrage.
+ */
+describe("listEvenings — Datum absteigend", () => {
+  const abend = (groupId: number, iso: string) =>
+    insertEvening(db, {
+      groupId,
+      date: new Date(iso),
+      topic: iso,
+      notes: null,
+      participantCount: null,
+      createdAt: new Date(0),
+    });
+
+  it("sortiert nach Datum absteigend, nicht nach Einfügereihenfolge", () => {
+    const g = mkGroup();
+    // Einfügereihenfolge bewusst umgekehrt: der älteste Abend wird zuletzt
+    // nachgetragen — genau der Fall, der vorher still falsch sortierte.
+    abend(g.id, "2026-07-15T00:00:00Z");
+    abend(g.id, "2026-07-22T00:00:00Z");
+    const nachgetragen = abend(g.id, "2026-07-01T00:00:00Z");
+
+    const dates = listEvenings(db, g.id).map((e) => e.date.toISOString().slice(0, 10));
+    expect(dates).toEqual(["2026-07-22", "2026-07-15", "2026-07-01"]);
+    // Der nachgetragene älteste Abend steht am Ende, obwohl er die höchste rowid hat.
+    expect(listEvenings(db, g.id).at(-1)!.id).toBe(nachgetragen.id);
+  });
+
+  it("liefert nur die Abende der eigenen Gruppe", () => {
+    const a = mkGroup("A", "a");
+    const b = mkGroup("B", "b");
+    abend(a.id, "2026-07-10T00:00:00Z");
+    abend(b.id, "2026-07-20T00:00:00Z");
+    expect(listEvenings(db, a.id).map((e) => e.groupId)).toEqual([a.id]);
+  });
+});
+
 describe("activateSurvey — max. 1 aktive pro Gruppe", () => {
   it("schließt andere aktive Umfragen derselben Gruppe", () => {
     const g = mkGroup();
@@ -229,6 +270,9 @@ describe("activateSurvey — max. 1 aktive pro Gruppe", () => {
     activateSurvey(db, s2.id, new Date("2026-04-11T10:00:00Z"), now);
     expect(getSurvey(db, s1.id)!.status).toBe("closed"); // durch s2-Aktivierung geschlossen
     expect(getSurvey(db, s2.id)!.status).toBe("active");
+    // Die Invariante zählt per SQL: `activeSurveyForGroup` nutzt `.get()` und
+    // hätte bei ZWEI aktiven Zeilen stumm s2 geliefert (Fund aus Task 16).
+    expect(countActive(g.id)).toBe(1);
     expect(activeSurveyForGroup(db, g.id)!.survey.id).toBe(s2.id);
   });
 
@@ -252,11 +296,14 @@ describe("activateSurvey — max. 1 aktive pro Gruppe", () => {
 
     // Gruppe B bleibt unberührt von den Aktivierungen in Gruppe A.
     expect(getSurvey(db, sB.id)!.status).toBe("active");
+    expect(countActive(groupB.id)).toBe(1);
     expect(activeSurveyForGroup(db, groupB.id)!.survey.id).toBe(sB.id);
 
-    // Innerhalb Gruppe A greift weiterhin die max-1-aktiv-Regel.
+    // Innerhalb Gruppe A greift weiterhin die max-1-aktiv-Regel — per COUNT(*),
+    // nicht über `.get()`.
     expect(getSurvey(db, sA1.id)!.status).toBe("closed");
     expect(getSurvey(db, sA2.id)!.status).toBe("active");
+    expect(countActive(groupA.id)).toBe(1);
     expect(activeSurveyForGroup(db, groupA.id)!.survey.id).toBe(sA2.id);
   });
 });

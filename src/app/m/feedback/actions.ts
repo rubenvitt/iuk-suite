@@ -92,9 +92,18 @@ const tokenGuard = new RateLimiter({ windowMs: 60_000, max: 10 });
 // Echte Abgaben: Schlüssel IP+Umfrage, deckt 15 Leute im Vereins-WLAN plus Weitergabe.
 const submitLimiter = new RateLimiter({ windowMs: 600_000, max: 60 });
 
+/**
+ * EIN Aufruf mit `"layout"`, nicht zwei mit `"page"`.
+ *
+ * Vorher standen hier `/m/feedback` und `/m/feedback/admin`. Die zweite Route
+ * existiert wegen der Klammer-Route-Group `(admin)` NIE — sie taucht in keinem
+ * URL-Pfad auf. Und die Arbeitsseite `/m/feedback/groups/{id}` stand in keiner
+ * der beiden Listen: nach dem Klick zeigte genau die Seite, von der der Klick
+ * kam, weiter den alten Zustand. `"layout"` revalidiert das Segment MIT allen
+ * Unterrouten und trifft damit Cockpit, Verlauf und Auswertung mit.
+ */
 function revalidate(): void {
-  revalidatePath("/m/feedback");
-  revalidatePath("/m/feedback/admin");
+  revalidatePath("/m/feedback", "layout");
 }
 
 /** Guard-Helfer: aktueller Viewer + seine Gruppen-IDs, wirft Forbidden ohne Zugang. */
@@ -208,7 +217,11 @@ export async function activateSurveyAction(formData: FormData) {
   const group = getGroup(db, eve.groupId)!;
   const hours = survey.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
   const now = new Date();
-  activateSurvey(db, id, computeClosesAt(now, hours), now);
+  // `eve.date`, NICHT `now`: `computeClosesAt` rechnet vom Abend-Tag, nicht ab
+  // jetzt. Mit `now` hing die Frist eines nachträglich gestarteten
+  // Altbestands-Entwurfs am Klickzeitpunkt — ein Abend von Montag lief bis
+  // Donnerstag, weil jemand am Mittwoch auf „Starten" geklickt hat.
+  activateSurvey(db, id, computeClosesAt(eve.date, hours), now);
   revalidate();
 }
 export async function closeSurveyAction(formData: FormData) {

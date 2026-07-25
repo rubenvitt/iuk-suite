@@ -1,4 +1,5 @@
 import { qrPng } from "@/core/qr";
+import { resolveHost } from "@/core/routing";
 import { getDb } from "../../../_db/client";
 import { getGroupBySlug } from "../../../_db/queries";
 import { parseToken } from "../../../_lib/token";
@@ -16,10 +17,15 @@ export async function GET(
   // req.url trägt NICHT den öffentlichen Host: nach dem Host-Middleware-Rewrite
   // (proxy.ts/decideRoute) zeigt req.url auf die interne next-Adresse (verifiziert
   // in Task 11: req.url=http://localhost:3000/... während der Client
-  // feedback.localtest.me:3000 anfragte) — der Host-Header trägt dagegen
-  // korrekt den Original-Host. Ohne diese Korrektur würde ein gedruckter
-  // QR-Code auf eine falsche/unerreichbare Adresse zeigen.
-  const host = req.headers.get("host") ?? new URL(req.url).host;
+  // feedback.localtest.me:3000 anfragte) — die Header tragen dagegen korrekt den
+  // Original-Host. Ohne diese Korrektur würde ein gedruckter QR-Code auf eine
+  // falsche/unerreichbare Adresse zeigen.
+  //
+  // `host` ALLEIN reicht dafür nicht: schreibt der Reverse-Proxy ihn auf die
+  // Upstream-Adresse um, steht der öffentliche Host nur in `x-forwarded-host`.
+  // Die Vorrangregel kommt aus `core/routing.resolveHost` — WIEDERVERWENDET, weil
+  // eine zweite Auflösung genau der Ort wäre, an dem beide auseinanderlaufen.
+  const host = resolveHost(req.headers) || new URL(req.url).host;
   const proto = req.headers.get("x-forwarded-proto") ?? new URL(req.url).protocol.replace(":", "");
   const url = `${proto}://${host}/f/${slugSecret}`;
   const png = await qrPng(url, { width: 512 });

@@ -27,19 +27,29 @@ let currentIp = "203.0.113.7";
  * `cookies().set` ist ein geteilter Spion — bei einer abgelehnten Abgabe darf kein
  * Cookie gesetzt werden (sonst wäre das Gerät für 24h gesperrt, ohne abgestimmt zu haben).
  */
-const { redirectMock, cookieSetMock, cookieDeleteMock } = vi.hoisted(() => ({
-  redirectMock: vi.fn(),
-  cookieSetMock: vi.fn(),
-  cookieDeleteMock: vi.fn(),
-}));
+/**
+ * `revalidatePath` und `auth` liegen ebenfalls im hoisted-Block: `loadActions()`
+ * ruft `vi.resetModules()`, und ein im Factory erzeugtes `vi.fn()` wäre danach
+ * ein ANDERER Spion als der, den die Action aufgerufen hat — die Assertion liefe
+ * gegen eine leere Aufrufliste.
+ */
+const { redirectMock, cookieSetMock, cookieDeleteMock, revalidatePathMock, authMock } = vi.hoisted(
+  () => ({
+    redirectMock: vi.fn(),
+    cookieSetMock: vi.fn(),
+    cookieDeleteMock: vi.fn(),
+    revalidatePathMock: vi.fn(),
+    authMock: vi.fn(),
+  }),
+);
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "cf-connecting-ip": currentIp }),
   cookies: async () => ({ set: cookieSetMock, get: vi.fn(), delete: cookieDeleteMock }),
 }));
-vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
+vi.mock("@/core/auth", () => ({ auth: authMock }));
 vi.mock("./_db/client", () => ({ getDb: () => db }));
 
 type DB = ReturnType<typeof drizzle<typeof schema>>;
@@ -134,6 +144,9 @@ beforeEach(() => {
   redirectMock.mockClear();
   cookieSetMock.mockClear();
   cookieDeleteMock.mockClear();
+  revalidatePathMock.mockClear();
+  authMock.mockReset();
+  authMock.mockResolvedValue(null); // öffentliche Pfade: keine Sitzung
 });
 afterEach(() => sqlite.close());
 
@@ -539,4 +552,113 @@ describe("releaseDeviceAction: leerer Bogen für die nächste Person", () => {
    *     darueber), und ohne Cookie zeigt die Seite wieder den Bogen
    *     (page.test.tsx, "Zustand E — zeigt ohne Cookie wieder das Formular").
    */
+});
+
+/**
+ * Ein angemeldeter Viewer, der Gruppenleitung EINER Gruppe ist: der Claim
+ * `fachgruppen` trägt den Slug, `memberGroupIdsFor` löst ihn gegen `groups.slug`
+ * auf. Kein Suite-Admin — der Zugang hängt damit an derselben Auflösung, die die
+ * Oberfläche benutzt.
+ */
+function alsGruppenleitung(slug: string): void {
+  authMock.mockResolvedValue({ user: { id: "leitung-1", groups: [], fachgruppen: [slug] } });
+}
+
+/** Gruppe + Abend (`daysAgo` Tage zurück) + Umfrage im Zustand `draft`. */
+function seedDraftSurvey(slug: string, daysAgo: number, hours: number) {
+  const group = insertGroup(db, {
+    name: slug,
+    slug,
+    secret: "abc12",
+    closeAfterHours: null,
+    createdAt: new Date(),
+  });
+  const eveningDate = new Date(todayMidnightUtc().getTime() - daysAgo * 86400_000);
+  const evening = insertEvening(db, {
+    groupId: group.id,
+    date: eveningDate,
+    topic: null,
+    notes: null,
+    participantCount: null,
+    createdAt: new Date(),
+  });
+  const survey = insertSurvey(db, {
+    eveningId: evening.id,
+    questions: JSON.stringify(STANDARD_QUESTIONS),
+    closeAfterHours: hours,
+    createdAt: new Date(),
+  });
+  return { group, evening, survey, eveningDate };
+}
+
+/**
+ * Fund 1.5/2: `activateSurveyAction` übergab `now` als `eveningDate`. Ein
+ * Altbestands-Entwurf, der drei Tage später gestartet wird, bekam damit eine
+ * Frist, die am KLICKZEITPUNKT hängt statt am Abenddatum — die Umfrage zu einem
+ * Abend von Montag lief bis Donnerstag, weil sie am Mittwoch gestartet wurde.
+ * Fristen kommen ausschließlich aus `computeClosesAt(evening.date, hours)`.
+ */
+describe("activateSurveyAction: die Frist hängt am Abenddatum, nicht am Klick", () => {
+  it("Entwurf für einen Abend vor drei Tagen: closesAt richtet sich nach dem Abenddatum", async () => {
+    const { activateSurveyAction } = await loadActions();
+    const { survey, eveningDate } = seedDraftSurvey("bereitschaft", 3, 48);
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("id", String(survey.id));
+    await activateSurveyAction(f);
+
+    const nachher = getSurvey(db, survey.id)!;
+    expect(nachher.status).toBe("active");
+    expect(nachher.closesAt).toEqual(computeClosesAt(eveningDate, 48));
+    // Und ausdrücklich NICHT die Frist ab jetzt — sonst wäre der Defekt zurück.
+    expect(nachher.closesAt).not.toEqual(computeClosesAt(todayMidnightUtc(), 48));
+  });
+
+  it("die Stunden kommen aus der Umfrage, das Datum aus dem Abend (kein Vermischen)", async () => {
+    const { activateSurveyAction } = await loadActions();
+    const { survey, eveningDate } = seedDraftSurvey("jugend", 10, 24);
+    alsGruppenleitung("jugend");
+
+    const f = new FormData();
+    f.set("id", String(survey.id));
+    await activateSurveyAction(f);
+
+    expect(getSurvey(db, survey.id)!.closesAt).toEqual(computeClosesAt(eveningDate, 24));
+  });
+});
+
+/**
+ * Fund 1.5/4: revalidiert wurden `/m/feedback` und `/m/feedback/admin` — letztere
+ * Route existiert wegen der Klammer-Route-Group `(admin)` NIE, und das Cockpit
+ * `/m/feedback/groups/{id}` stand in keiner der beiden Listen. Nach dem Klick
+ * zeigte dieselbe Seite den alten Zustand. `"layout"` schließt die Unterrouten ein.
+ */
+describe("revalidate: der Pfad schließt das Cockpit ein", () => {
+  it("nach dem Starten einer Umfrage wird /m/feedback als layout revalidiert", async () => {
+    const { activateSurveyAction } = await loadActions();
+    const { survey } = seedDraftSurvey("bereitschaft", 1, 48);
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("id", String(survey.id));
+    await activateSurveyAction(f);
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+    // Die nie existierende Route ist weg — sie war der Grund, warum niemand
+    // gemerkt hat, dass das Cockpit fehlt.
+    expect(revalidatePathMock).not.toHaveBeenCalledWith("/m/feedback/admin");
+  });
+
+  it("auch beim Beenden — dieselbe Seite muss den neuen Zustand zeigen", async () => {
+    const { closeSurveyAction } = await loadActions();
+    const { survey } = seedActiveSurvey("bereitschaft", "abc12");
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("id", String(survey.id));
+    await closeSurveyAction(f);
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+  });
 });

@@ -8,6 +8,8 @@ const stats: DAStats = {
     { id: "q9", text: "Bestes?", type: "text", avg: null, count: 1 },
   ],
   overallAvg: 2.5,
+  avgSchulnote: 2.5,
+  hasLegacyScale: false,
   texts: [{ questionId: "q9", text: "Bestes?", values: ["super Praxis"] }],
   responseCount: 4,
 };

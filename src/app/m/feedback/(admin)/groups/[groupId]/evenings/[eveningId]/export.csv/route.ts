@@ -61,21 +61,36 @@ export async function GET(
   // Zeilen tragen den Alt-JSON-String und würden sonst anders sortieren.
   const responses = shuffleStable(
     listResponses(db, survey.id).map((r) => ({
-      submittedAt: r.submittedAt,
       answers: JSON.parse(r.answers) as Record<string, unknown>,
     })),
     (r) => JSON.stringify(r.answers),
   );
 
+  /*
+   * DER LETZTE RESTKANAL (Entwurf 3.9). `submittedAt` ist für neue Abgaben schon
+   * Mitternacht des Abendtags — für IMPORTIERTE Antworten aber weiterhin
+   * sekundengenau, weil der Importer direkt schreibt und nicht über
+   * `insertResponse` geht. Stand dieser Wert in der Spalte, ließ sich die
+   * Eingangsreihenfolge historischer Abende in Excel durch einfaches Sortieren
+   * wiederherstellen — und die Durchmischung der Leseordnung war für den Export
+   * aufgehoben. Bei ~15 Personen, die über ihre eigene Gruppenleitung urteilen,
+   * ist „wer war zuerst" ein Deanonymisierungskanal.
+   *
+   * Die DATENBANK bleibt unangetastet (Import-Parität mit der Alt-Anwendung);
+   * normalisiert wird nur die AUSGABE, und zwar auf denselben Ausdruck wie die
+   * Metadaten-Zeile „Datum" — ein Kalendertag ohne Uhrzeit.
+   */
+  const abendtag = new Date(evening.date).toISOString().slice(0, 10);
+
   const rows: string[][] = [
     ["Gruppe", group.name],
-    ["Datum", new Date(evening.date).toISOString().slice(0, 10)],
+    ["Datum", abendtag],
     ["Thema", evening.topic ?? ""],
     ["Anzahl Rückmeldungen", String(responses.length)],
     [],
     ["Zeitstempel", ...questions.map((q) => q.text)],
     ...responses.map((r) => [
-      new Date(r.submittedAt).toISOString(),
+      abendtag,
       ...questions.map((q) => {
         const v = r.answers[q.id];
         return v === undefined || v === null ? "" : String(v);

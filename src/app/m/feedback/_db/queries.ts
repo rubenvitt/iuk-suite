@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import {
@@ -133,8 +133,19 @@ export function deleteGroup(db: DB, id: number): void {
   db.delete(groups).where(eq(groups.id, id)).run();
 }
 
+/**
+ * Neuester Abend zuerst. Ohne `ORDER BY` war die Ordnung die Einfüge-/Rowid-
+ * Reihenfolge: ein NACHGETRAGENER älterer Abend landete still am falschen Ende,
+ * und jeder Aufrufer, der sich auf die Abfrage verlässt, zeigte eine falsch
+ * sortierte Tabelle ohne Fehlermeldung.
+ */
 export function listEvenings(db: DB, groupId: number): EveningRow[] {
-  return db.select().from(evenings).where(eq(evenings.groupId, groupId)).all();
+  return db
+    .select()
+    .from(evenings)
+    .where(eq(evenings.groupId, groupId))
+    .orderBy(desc(evenings.date))
+    .all();
 }
 export function getEvening(db: DB, id: number): EveningRow | undefined {
   return db.select().from(evenings).where(eq(evenings.id, id)).get();
