@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/core/auth";
-import { decideRoute } from "@/core/routing";
+import { decideRoute, resolveHost } from "@/core/routing";
 
 export default auth((req) => {
-  const host = req.headers.get("host") ?? "";
+  // Nicht `req.headers.get("host")`: hinter dem Reverse-Proxy und bei der
+  // internen Render-Anfrage nach einem `redirect()` steht der echte Host nur in
+  // `x-forwarded-host`. Siehe resolveHost.
+  const host = resolveHost(req.headers);
   const { nextUrl } = req;
   const groups = req.auth?.user?.groups ?? null;
 

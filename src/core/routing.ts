@@ -11,6 +11,35 @@ export type RouteDecision =
 // Modul-Rewrite und damit für auth-pflichtige Hosts in den Login-Redirect.
 const PASSTHROUGH = ["/api/auth", "/api/health", "/login", "/_next", "/favicon.ico", "/.well-known"];
 
+/**
+ * Der Host, nach dem das Modul aufgelöst wird: `x-forwarded-host` vor `host`.
+ *
+ * Warum nicht einfach `host`: hinter einem Reverse-Proxy trägt `host` dessen
+ * eigenen Namen — und nach einem `redirect()` in einer Server Action rendert
+ * Next das Ziel über eine **interne** Anfrage mit `host: localhost:<port>`. Der
+ * echte Host steht dann nur in `x-forwarded-host`. Ohne diesen Vorrang findet
+ * `moduleForHost` kein Modul, `decideRoute` fällt auf `portal` zurück, `portal`
+ * verlangt Auth: die anonyme Teilnehmerin landet nach dem Absenden im Login
+ * statt auf der Danke-Seite.
+ *
+ * Bei einer Kommaliste gewinnt der **erste** Wert — das ist der ursprüngliche
+ * Client-Host, der Rest sind Zwischenstationen. Ein leerer oder fehlender
+ * `x-forwarded-host` fällt auf `host` zurück, fehlt auch der, ist das Ergebnis
+ * der leere String (→ Portal-Fallback), nicht `null`.
+ *
+ * Sicherheitsgrenze: Der Header ist fälschbar, verschiebt aber nur die
+ * Modul**auswahl**. Die Berechtigung entscheidet `decideRoute` danach über
+ * `requiresAuth`/`canAccess` gegen die Gruppen aus der Session — ein gefälschter
+ * Header führt auf einem geschützten Modul weiter zu `login`/`forbidden`.
+ * Normalisierung (Port abschneiden, Kleinschreibung) bleibt in `moduleForHost`.
+ */
+export function resolveHost(headers: Headers): string {
+  const forwarded = headers.get("x-forwarded-host");
+  const first = forwarded?.split(",")[0].trim();
+  if (first) return first;
+  return headers.get("host") ?? "";
+}
+
 export function decideRoute(input: {
   host: string;
   pathname: string;
