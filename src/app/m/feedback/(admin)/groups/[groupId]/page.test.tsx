@@ -11,6 +11,8 @@ import {
   insertResponse,
   insertSurvey,
   setSurveyStatus,
+  setGroupMembers,
+  upsertKnownUser,
 } from "../../../_db/queries";
 import type { Question } from "../../../_lib/questions";
 
@@ -442,6 +444,63 @@ describe("Zone e — Einstellungen haengt an der Seite (§2.6)", () => {
     expect(document.body.textContent).toContain(
       "Löscht 2 Dienstabende und 3 Rückmeldungen unwiderruflich.",
     );
+    await unmount();
+    document.body.replaceChildren();
+  });
+});
+
+/**
+ * DIE ZUORDNUNG DER LEITUNG HAENGT AN `isFeedbackAdmin` DER SEITE (2.6 Punkt 2).
+ *
+ * Die Zone selbst ist geprueft; hier geht es um die Ableitung, die NUR die Seite
+ * macht: `istAdmin` kommt aus dem Viewer, und die Namen kommen aus dem
+ * Nutzerverzeichnis. Ohne diesen Test wuerde ein hartes `istAdmin={false}` gruen
+ * bleiben — und dann sieht in Produktion kein Gruppenleiter seine Gruppe, weil
+ * niemand ihn zuordnen kann.
+ *
+ * Die umgeschaltete Metazeile („…, Leitung, …") ist die Probe darauf, dass
+ * `istAdmin` wirklich aus dem Viewer stammt und nicht aus einer Vorgabe.
+ */
+describe("Zone e — die Leitung ist Admin-Sache (§2.6)", () => {
+  function alsAdmin(): void {
+    guardPageMock.mockResolvedValue({
+      viewer: { sub: "admin-1", groups: ["dashboard-admins"], fachgruppen: [] },
+      db,
+    });
+  }
+
+  it("Nicht-Admin: die Metazeile nennt die Leitung nicht", async () => {
+    const wirt = await zeichne();
+    expect(wirt.textContent).toContain("Name, Frist, Zugang");
+    expect(wirt.textContent).not.toContain("Name, Frist, Leitung, Zugang");
+  });
+
+  it("Admin: Metazeile umgeschaltet, Namen aus dem Nutzerverzeichnis, Kennung dabei", async () => {
+    upsertKnownUser(db, {
+      userId: "sub-anna",
+      name: "Anna Beispiel",
+      email: "anna@drk.example",
+      seenAt: new Date(0),
+    });
+    setGroupMembers(db, 1, ["sub-anna", "sub-nie-da"]);
+    alsAdmin();
+
+    const element = await Cockpit({ params: Promise.resolve({ groupId: "1" }) });
+    const wirt = document.createElement("div");
+    wirt.innerHTML = renderToStaticMarkup(element);
+    expect(wirt.textContent).toContain("Name, Frist, Leitung, Zugang");
+
+    await mount(element);
+    await clickElement(query(".ant-collapse-header"));
+    const inhalt = query(".ant-collapse-body").textContent ?? "";
+
+    expect(inhalt).toContain("LEITUNG");
+    expect(inhalt).toContain("Anna Beispiel");
+    expect(inhalt).toContain("sub-anna");
+    // Wer noch nie angemeldet war, steht mit Kennung und ohne Namen da (§2.6).
+    expect(inhalt).toContain("sub-nie-da");
+    expect(inhalt).toContain("hat sich noch nicht angemeldet");
+
     await unmount();
     document.body.replaceChildren();
   });

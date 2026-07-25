@@ -7,6 +7,7 @@ import { StartFormular } from "./StartFormular";
 import { BeendenKnopf } from "./BeendenKnopf";
 import { QrGross } from "./QrGross";
 import { Aktualisierer, AktualisierenKnopf } from "./Aktualisierer";
+import { TeilnehmerzahlNachtragen } from "./AbendBearbeiten";
 
 /**
  * DIE LAGEKARTE (Entwurf §2.3).
@@ -333,6 +334,26 @@ function LaufendeKarte({
             <p style={{ ...T.meta, margin: "4px 0 0" }}>
               mehr Rückmeldungen als erfasste Teilnehmer
             </p>
+          )}
+          {/*
+           * §2.4, wortgenau: „Fehlt `participantCount`: … dazu ein Textknopf
+           * ‚Teilnehmerzahl nachtragen‘, der die Zeilenbearbeitung öffnet."
+           *
+           * Er steht HIER und nicht nur in Zone d, weil `cockpitZustand.verlauf`
+           * den laufenden Abend ausschließt (§2.2) — ohne diesen Knopf wäre der
+           * Hauptfall unerreichbar: die Teilnehmerzahl wird typischerweise erst
+           * am Abend selbst bekannt, und sie ist der Nenner jeder Rücklaufquote.
+           */}
+          {nenner === null && (
+            <TeilnehmerzahlNachtragen
+              abend={{
+                eveningId: evening.id,
+                datum: evening.date,
+                thema: evening.topic,
+                teilnehmer: evening.participantCount,
+                notizen: evening.notes,
+              }}
+            />
           )}
         </div>
       )}

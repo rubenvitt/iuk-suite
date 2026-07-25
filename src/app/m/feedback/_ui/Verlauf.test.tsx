@@ -483,7 +483,7 @@ describe("Verlauf — Abend bearbeiten (§2.5)", () => {
     );
     if (!eintrag) throw new Error("Kein Menuepunkt „Bearbeiten“");
     await clickElement(eintrag);
-    const form = document.querySelector<HTMLFormElement>("form[data-testid='verlauf-bearbeiten']");
+    const form = document.querySelector<HTMLFormElement>("form[data-testid='abend-bearbeiten']");
     if (!form) throw new Error("Kein Bearbeiten-Formular");
     return form;
   }

@@ -204,6 +204,27 @@ describe("EinstellungenPanel — Gruppe bearbeiten (§2.6 Punkt 1)", () => {
 });
 
 describe("EinstellungenPanel — Leitung (§2.6 Punkt 2)", () => {
+  it("die getippte Null der Frist geht nicht verloren (§4.4)", async () => {
+    // `0` ist falsy: ein `Number(...) || undefined` haette hier ein LEERES Feld
+    // gezeigt — Fehlermeldung plus geloeschte Eingabe.
+    useActionStateMock.mockImplementation(() => [
+      {
+        ok: false,
+        fieldErrors: { closeAfterHours: "Frist ungültig — ganze Stunden über 0" },
+        values: { name: "Bereitschaft Mitte", closeAfterHours: "0" },
+      } satisfies FormState,
+      () => {},
+      false,
+    ]);
+
+    await aufklappen();
+
+    expect(query<HTMLInputElement>('input[name="closeAfterHours"]').value).toBe("0");
+    expect(query(".ant-collapse-body").textContent).toContain("Frist ungültig");
+  });
+});
+
+describe("EinstellungenPanel — Leitung, die Zone (§2.6 Punkt 2)", () => {
   it("Nicht-Admins sehen die Zone nicht", async () => {
     await aufklappen();
     expect(query(".ant-collapse-body").textContent).not.toContain("LEITUNG");

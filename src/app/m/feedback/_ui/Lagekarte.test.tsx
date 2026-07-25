@@ -30,13 +30,19 @@ import { renderToStaticMarkup } from "react-dom/server";
  * zweiten Zustand.
  */
 
-const { useActionStateMock, startFeedbackActionMock, beendeFeedbackActionMock, refreshMock } =
-  vi.hoisted(() => ({
-    useActionStateMock: vi.fn(),
-    startFeedbackActionMock: vi.fn(),
-    beendeFeedbackActionMock: vi.fn(),
-    refreshMock: vi.fn(),
-  }));
+const {
+  useActionStateMock,
+  startFeedbackActionMock,
+  beendeFeedbackActionMock,
+  updateEveningActionMock,
+  refreshMock,
+} = vi.hoisted(() => ({
+  useActionStateMock: vi.fn(),
+  startFeedbackActionMock: vi.fn(),
+  beendeFeedbackActionMock: vi.fn(),
+  updateEveningActionMock: vi.fn(),
+  refreshMock: vi.fn(),
+}));
 
 vi.mock("react", async (importOriginal) => {
   const react = await importOriginal<typeof import("react")>();
@@ -47,6 +53,9 @@ vi.mock("react", async (importOriginal) => {
 vi.mock("../actions", () => ({
   startFeedbackAction: startFeedbackActionMock,
   beendeFeedbackAction: beendeFeedbackActionMock,
+  // Der Textknopf "Teilnehmerzahl nachtragen" (2.4) traegt die
+  // Zeilenbearbeitung des LAUFENDEN Abends.
+  updateEveningAction: updateEveningActionMock,
 }));
 /**
  * `useRouter` WIRFT ausserhalb des `AppRouterContext` ("invariant expected app
@@ -844,5 +853,61 @@ describe("Quelltext-Assertionen — die RSC-Grenze und die Farb-Klausel", () => 
     expect(code).toContain("startFeedbackAction");
     expect(code).not.toContain("insertEvening");
     expect(code).not.toContain("activateSurvey");
+  });
+});
+
+/**
+ * DER WEG ZUR TEILNEHMERZAHL DES LAUFENDEN ABENDS (2.4, wortgenau).
+ *
+ * `cockpitZustand.verlauf` schliesst den laufenden Abend aus (2.2) — Zone d zeigt
+ * ihn also nicht, und ohne diesen Textknopf waere genau der Hauptfall
+ * unerreichbar: die Teilnehmerzahl ist der Nenner jeder Ruecklaufquote und wird
+ * typischerweise erst am Abend selbst bekannt. Am selben Weg haengt die einzige
+ * erreichbare Datumskorrektur eines laufenden Abends, und damit die Neuankerung
+ * der Frist in `updateEveningAction`.
+ */
+describe("Lagekarte — „Teilnehmerzahl nachtragen“ (2.4)", () => {
+  const ohneNenner = zustand({
+    belegung: "D",
+    modus: "betrieb",
+    laufend: laufendeLage({ id: 42, antworten: 12, teilnehmer: null }),
+  });
+
+  it("bietet den Textknopf genau dann an, wenn es keinen Nenner gibt", () => {
+    expect(zeichne(karte(ohneNenner)).textContent).toContain("Teilnehmerzahl nachtragen");
+
+    const mitNenner = zustand({
+      belegung: "D",
+      modus: "betrieb",
+      laufend: laufendeLage({ antworten: 12, teilnehmer: 20 }),
+    });
+    expect(zeichne(karte(mitNenner)).textContent).not.toContain("Teilnehmerzahl nachtragen");
+  });
+
+  it("oeffnet die Zeilenbearbeitung des LAUFENDEN Abends und schickt sie ab", async () => {
+    await mount(karte(ohneNenner));
+
+    const knopf = [...document.querySelectorAll<HTMLElement>("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Teilnehmerzahl nachtragen",
+    );
+    if (!knopf) throw new Error("Kein Knopf „Teilnehmerzahl nachtragen“");
+    await clickElement(knopf);
+
+    const form = document.querySelector<HTMLFormElement>("form[data-testid='abend-bearbeiten']");
+    if (!form) throw new Error("Keine Zeilenbearbeitung geoeffnet");
+    // Der LAUFENDE Abend, nicht irgendeiner: `id` und Datum kommen aus `laufend`.
+    expect(form.querySelector<HTMLInputElement>("input[name='id']")!.value).toBe("42");
+    expect(form.querySelector<HTMLInputElement>("input[name='date']")!.value).toBe("2026-07-22");
+    expect(form.querySelector<HTMLInputElement>("input[name='participantCount']")!.value).toBe("");
+
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(updateEveningActionMock).toHaveBeenCalledTimes(1);
+    const daten = updateEveningActionMock.mock.calls[0][0] as FormData;
+    expect(daten.get("id")).toBe("42");
+    expect(daten.get("date")).toBe("2026-07-22");
+    expect(daten.has("participantCount")).toBe(true);
   });
 });

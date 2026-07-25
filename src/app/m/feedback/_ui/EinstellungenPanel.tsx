@@ -56,6 +56,22 @@ const HAARLINIE: CSSProperties = {
 
 const FELD: CSSProperties = { display: "flex", flexDirection: "column", gap: SPACE.xs };
 
+/**
+ * Der zurueckgegebene Fristwert als Zahl fuer `InputNumber` — und `0` bleibt `0`.
+ *
+ * Ein `Number(roh) || undefined` haette die getippte Null geloescht: `0` ist
+ * falsy. Der Nutzer bekaeme dann eine Fehlermeldung UND ein leeres Feld, also
+ * genau den Verlust, den §4.4 ausschliesst („Eingaben gehen nie verloren").
+ * Unparsbarer Text kann in einem `InputNumber` nicht stehen; uebrig bleibt der
+ * leere Fall, und der heisst „Vorgabe benutzen".
+ */
+function fristVorbelegung(roh: string): number | undefined {
+  const geputzt = roh.trim();
+  if (geputzt === "") return undefined;
+  const n = Number(geputzt);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 export function EinstellungenPanel({
   groupId,
   name,
@@ -161,7 +177,7 @@ function GruppenFormular({
           defaultValue={
             state.ok
               ? (closeAfterHours ?? undefined)
-              : (Number(feldWert(state, "closeAfterHours", "")) || undefined)
+              : fristVorbelegung(feldWert(state, "closeAfterHours", ""))
           }
           status={fristFehler ? "error" : undefined}
           aria-invalid={fristFehler ? true : undefined}
