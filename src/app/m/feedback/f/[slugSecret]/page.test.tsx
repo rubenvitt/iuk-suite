@@ -256,16 +256,26 @@ describe("Zustand D — die Umfrage zu diesem Abend ist beendet", () => {
   });
 
   it("nennt den Schliesszeitpunkt in der Zeitzone der Frist, nicht in UTC", async () => {
-    // `computeClosesAt` rechnet in Europe/Berlin: Ende des Abendtags + 9h = 09:00
-    // ORTSZEIT. Mit `timeZone: "UTC"` formatiert stuende hier 07:00 oder 08:00 —
+    // Der Zettel muss den Schluss in der ORTSZEIT DER FRIST nennen — in der
+    // Zeitzone also, in der `computeClosesAt` gerechnet hat. Formatierte die
+    // Seite mit `timeZone: "UTC"`, stuende dort ein bis zwei Stunden zu frueh,
     // und der Zettel nennte eine Uhrzeit, zu der noch offen war.
-    const { token } = seedUmfrage({
+    //
+    // Die Uhrzeit steht hier NICHT hart. `computeClosesAt` addiert die Stunden
+    // als absolute Millisekunden auf das Ende des Abendtags (lifecycle.ts) — die
+    // Wanduhrzeit bleibt ueber eine Zeitumstellung hinweg also gerade NICHT
+    // erhalten: derselbe Fixture ergibt am Tag nach der Umstellung 08:00 bzw.
+    // 10:00 statt 09:00. Eine hart geschriebene "09:00" macht die Suite zweimal
+    // im Jahr rot, ohne dass sich eine Zeile Code geaendert hat. Erwartet wird
+    // darum das aus dem geseedeten `closesAt` abgeleitete Wort — genau wie beim
+    // manuellen Schluss weiter unten.
+    const { token, closesAt } = seedUmfrage({
       slug: "bereitschaft",
       secret: "abc12",
       tageZurueck: 2,
       hours: 9,
     });
-    expect(text(await seite(token))).toMatch(/Sie wurde am .+ um 09:00 geschlossen\./);
+    expect(text(await seite(token))).toContain(`Sie wurde ${geschlossenAm(closesAt)} geschlossen.`);
   });
 
   it("nennt bei manuell geschlossener Umfrage den frueheren der beiden Zeitpunkte", async () => {
