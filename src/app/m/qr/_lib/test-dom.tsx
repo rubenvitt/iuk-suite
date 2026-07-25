@@ -1,5 +1,6 @@
 import { act, type ReactElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 
 /**
  * Mount-Hilfe fuer die Client-Komponenten des Moduls.
@@ -24,6 +25,32 @@ export async function mount(element: ReactElement): Promise<void> {
   root = created;
   await act(async () => {
     created.render(element);
+  });
+}
+
+/**
+ * Wie `mount`, nur ueber den ECHTEN Hydrationsweg: erst das serverseitige HTML,
+ * dann `hydrateRoot`. Damit — und nur damit — ist der Zustand pruefbar, in dem
+ * eine Person das Formular BEDIENT, BEVOR das JavaScript da ist: `vorbereiten`
+ * laeuft genau in diesem Fenster und darf am gelieferten HTML herumtippen.
+ *
+ * `renderToString` und nicht `renderToStaticMarkup`: letzteres liefert keine
+ * Hydrationsmarken, React erkennt eine Abweichung und rendert den Baum NEU —
+ * dabei geht jede Vorbereitung verloren, und der Test misst dann das Gegenteil
+ * von dem, was er behauptet (empirisch belegt: `checked` faellt von 8 auf 0).
+ */
+export async function hydrate(
+  element: ReactElement,
+  vorbereiten?: (host: HTMLElement) => void,
+): Promise<void> {
+  (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  const created = document.createElement("div");
+  created.innerHTML = renderToString(element);
+  document.body.appendChild(created);
+  host = created;
+  vorbereiten?.(created);
+  await act(async () => {
+    root = hydrateRoot(created, element);
   });
 }
 

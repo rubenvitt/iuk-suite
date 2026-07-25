@@ -732,6 +732,17 @@
   color: var(--tinte);
 }
 
+/*
+ * Die Meldung wird programmatisch fokussiert (`tabIndex={-1}`), weil sie im
+ * Abschluss-Block steht und mit dem zweiten Knopf 400-500px weiter unten
+ * abgesendet wird. Der Rahmen ist derselbe wie am Knopf — Tinte, KEIN Rot: es ist
+ * dieselbe Flaeche, nur eben die, die gerade den Blick bekommt.
+ */
+.meldung:focus-visible {
+  outline: 2px solid var(--tinte);
+  outline-offset: 2px;
+}
+
 .knopfHinweis {
   margin: 8px 0 0;
   font-size: 13px;

@@ -154,6 +154,31 @@ function offenText(anzahl: number): string {
   return anzahl === 1 ? "Noch 1 Note offen" : `Noch ${anzahl} Noten offen`;
 }
 
+/**
+ * Die gesetzten Noten, gelesen aus dem DOM statt aus dem Zustand.
+ *
+ * Das DOM ist hier die WAHRHEIT und nicht die Kopie: `new FormData(form)` liest
+ * genau diese Radios, CSS faerbt die Chips ueber `input:checked + .chip`, und der
+ * Zustand `noten` fuellt sich nur ueber `onChange`. Jede Auswahl OHNE
+ * change-Ereignis — Formular-Wiederherstellung des Browsers, Antippen vor der
+ * Hydration — steht also im DOM und fehlt im Zustand. Ein Absende-Riegel, der nur
+ * den Zustand liest, sperrt dann eine vollstaendig ausgefuellte Abgabe.
+ *
+ * `null` heisst "kein Formular greifbar" (vor dem Mounten) — nicht "nichts
+ * gesetzt". Die Unterscheidung ist wichtig: sonst waere ein fehlender Ref
+ * gleichbedeutend mit acht offenen Noten.
+ */
+function notenAusDom(form: HTMLFormElement | null): Record<string, number> | null {
+  if (!form) return null;
+  const gesetzt: Record<string, number> = {};
+  for (const feld of Array.from(
+    form.querySelectorAll<HTMLInputElement>('input[type="radio"]:checked'),
+  )) {
+    gesetzt[feld.name] = Number(feld.value);
+  }
+  return gesetzt;
+}
+
 /* ---------- Freitexte (§3.2 Punkt 6, §3.7) ---------- */
 
 /** Wortlaute der Freitextsektion, wortgenau aus dem Entwurf. */
@@ -262,9 +287,18 @@ export function Zettel(props: ZettelProps) {
   const [ansage, setAnsage] = useState("");
   const [lesezeichen, setLesezeichen] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
+  /**
+   * Zaehlt die Fehlversuche. Er ist kein Zierrat, sondern der Anlass, die Meldung
+   * ERNEUT in den Blick zu holen: beim zweiten Fehlversuch ist der Text derselbe,
+   * ein Effekt an `meldung` allein liefe also nur, wenn React das Zwischenrendern
+   * mit `null` wirklich festschreibt — eine Zusage, die React nirgends macht. Der
+   * Zaehler waechst monoton, damit haengt das Verhalten an nichts Zufaelligem.
+   */
+  const [fehlversuche, setFehlversuche] = useState(0);
   const [abschlussSichtbar, setAbschlussSichtbar] = useState(false);
   const formular = useRef<HTMLFormElement>(null);
   const abschluss = useRef<HTMLDivElement>(null);
+  const meldungsZeile = useRef<HTMLParagraphElement>(null);
 
   const notenfragen = questions.filter((q) => isRatingType(q.type));
   const freitextfragen = questions.filter((q) => q.type === "text");
@@ -284,7 +318,39 @@ export function Zettel(props: ZettelProps) {
     // waere das serverseitige HTML ein anderes und React verwuerfe den Baum.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMitJs(true);
+    /*
+     * Und im gleichen Atemzug: was beim Mounten SCHON im DOM steht, in den
+     * Zustand saeen. Die Radios sind unkontrolliert (kein `checked`-Prop), der
+     * Zustand fuellt sich also nur ueber `onChange` — eine Auswahl OHNE
+     * change-Ereignis kennt er nicht. Zwei Wege setzen genau so: die
+     * Formular-Wiederherstellung des Browsers beim Neuladen/Zuruecknavigieren
+     * und das Antippen VOR der Hydration (der Weg, den §3.11 zusagt; belegt:
+     * `checked` ueberlebt `hydrateRoot`). Ohne diese Zeilen saehe der Nutzer
+     * acht farbige Chips und dazu "Noch 8 Noten offen" — und der Zustand heilte
+     * nicht von selbst, denn ein zweiter Tipp auf die schon gesetzte Note feuert
+     * kein change-Ereignis.
+     */
+    const gesetzt = notenAusDom(formular.current);
+    if (gesetzt && Object.keys(gesetzt).length > 0) setNoten((alt) => ({ ...alt, ...gesetzt }));
   }, []);
+
+  /*
+   * Die Meldung liegt im Abschluss-Block, also OBERHALB der Freitexte. Wer mit
+   * dem ZWEITEN Knopf absendet, steht 400-500px darunter: ohne diese Zeilen
+   * passiert nach dem Tippen sichtbar nichts, und ein Knopf, der nichts tut,
+   * wird noch einmal getippt. Beide Knoepfe sind absichtlich austauschbar — dann
+   * muss auch die Rueckmeldung von beiden aus ankommen.
+   */
+  useEffect(() => {
+    if (fehlversuche === 0) return;
+    const ziel = meldungsZeile.current;
+    if (!ziel) return;
+    const ruhig = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    ziel.scrollIntoView?.({ behavior: ruhig ? "auto" : "smooth", block: "center" });
+    // Der Fokus wandert mit: sonst tippt eine Person, die per Tastatur bedient,
+    // weiter unten weiter und die Meldung bleibt eine Notiz an einem anderen Ort.
+    ziel.focus?.();
+  }, [fehlversuche]);
 
   /*
    * Der Navigator verschwindet, sobald der Abschluss-Block im Bild ist (§3.2
@@ -322,15 +388,52 @@ export function Zettel(props: ZettelProps) {
   }
 
   /**
-   * Ein Tipp auf den unvollstaendigen Knopf ist NAVIGATION, keine Ruege: er
-   * springt zur ersten Luecke und sagt einmal hoeflich, was noch fehlt. Kein Rot,
-   * kein Alert, nie das Wort "Fehler".
+   * Gleicht den Zustand an das DOM an und gibt die WIRKLICH offenen Fragen
+   * zurueck. Jeder Weg, der den Absende-Riegel befragt, geht hier durch: der
+   * Zustand allein wuerde eine Auswahl ohne change-Ereignis uebersehen, und er
+   * heilt auch nicht von selbst (ein zweiter Tipp auf dieselbe Note feuert kein
+   * change-Ereignis). Ist kein Formular greifbar, bleibt es beim Zustand.
+   */
+  function abgleichen(): Question[] {
+    const gesetzt = notenAusDom(formular.current);
+    if (!gesetzt) return offene;
+    setNoten((alt) => ({ ...alt, ...gesetzt }));
+    return notenfragen.filter((q) => gesetzt[q.id] === undefined);
+  }
+
+  /**
+   * Der Sprung zur ersten Luecke: einmal hoeflich sagen, was noch fehlt, und
+   * hinspringen. Kein Rot, kein Alert, nie das Wort "Fehler".
+   */
+  function lueckeZeigen(luecken: Question[]): void {
+    const erste = luecken[0];
+    if (!erste) return;
+    setAnsage(`${offenText(luecken.length)} — Frage ${notenfragen.indexOf(erste) + 1}.`);
+    springen(erste.id);
+  }
+
+  /**
+   * Ein Tipp auf den unvollstaendigen Knopf ist NAVIGATION, keine Ruege.
+   *
+   * Zuerst wird abgeglichen: sagt das DOM, dass gar nichts fehlt, war der Zustand
+   * veraltet und der Knopf trug faelschlich den Lueckentext. Dann wird GESENDET,
+   * nicht gesprungen — ein Tipp, nicht zwei. `requestSubmit` laeuft in `absenden`
+   * wieder hier vorbei, diesmal mit gleichem Stand, also ohne Schleife.
+   *
+   * Die Pruefung auf `requestSubmit` ist kein Zierrat: in aelteren Umgebungen
+   * (vor Safari 16) fehlt die Methode. Der Abgleich oben ist dann schon
+   * geschrieben, der Knopf traegt beim naechsten Rendern wieder das regulaere
+   * Label und sendet beim zweiten Tipp — zwei Tipps statt einem, aber kein
+   * Ausnahmefehler und kein toter Knopf.
    */
   function zurLuecke(): void {
-    const erste = offene[0];
-    if (!erste) return;
-    setAnsage(`${offenText(offene.length)} — Frage ${notenfragen.indexOf(erste) + 1}.`);
-    springen(erste.id);
+    const luecken = abgleichen();
+    if (luecken.length === 0) {
+      const form = formular.current;
+      if (typeof form?.requestSubmit === "function") form.requestSubmit();
+      return;
+    }
+    lueckeZeigen(luecken);
   }
 
   /*
@@ -347,13 +450,19 @@ export function Zettel(props: ZettelProps) {
    */
   async function absenden(ereignis: FormEvent<HTMLFormElement>): Promise<void> {
     ereignis.preventDefault();
+    // Die Nutzlast wird VOR allem anderen gelesen: nach einem `await` ist
+    // `currentTarget` null.
+    const daten = new FormData(ereignis.currentTarget);
     // Vor jedem Weg: fehlt eine Note, wird nicht gesendet, sondern gesprungen.
     // Das deckt auch die Enter-Taste ab — `noValidate` hat `required` still gelegt.
-    if (offene.length > 0) {
-      zurLuecke();
+    // Gefragt wird das DOM, denn genau das steckt auch in `daten` — ein Riegel,
+    // der etwas anderes liest als das, was abgeschickt wuerde, sperrt irgendwann
+    // eine vollstaendige Abgabe.
+    const luecken = abgleichen();
+    if (luecken.length > 0) {
+      lueckeZeigen(luecken);
       return;
     }
-    const daten = new FormData(ereignis.currentTarget);
     setMeldung(null);
     try {
       const ergebnis = await action(daten);
@@ -363,6 +472,7 @@ export function Zettel(props: ZettelProps) {
       if (!ergebnis || ergebnis.ok) entwurfVerwerfen(tokenHash);
     } catch {
       setMeldung(MELDUNG_AUSNAHME);
+      setFehlversuche((n) => n + 1);
     }
   }
 
@@ -415,7 +525,16 @@ export function Zettel(props: ZettelProps) {
           {siegel}
         </p>
         {meldung === null ? null : (
-          <p className={s.meldung} data-meldung="" role="alert">
+          /* `tabIndex={-1}`: nicht in der Tabreihenfolge, aber programmatisch
+             fokussierbar — nur so kann der Effekt oben den Blick hierher holen,
+             wenn mit dem zweiten Knopf weiter unten abgesendet wurde. */
+          <p
+            ref={meldungsZeile}
+            className={s.meldung}
+            data-meldung=""
+            role="alert"
+            tabIndex={-1}
+          >
             {meldung}
           </p>
         )}

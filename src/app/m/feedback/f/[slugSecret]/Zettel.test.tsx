@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   clickElement,
   fill,
+  hydrate,
   mount,
   queryAll,
   unmount,
@@ -99,6 +100,56 @@ function zeichne(questions: Question[], scale: number, action: ZettelProps["acti
 
 function zeichneStandard(action: ZettelProps["action"] = nichtsTun) {
   return zeichne(STANDARD_QUESTIONS, 6, action);
+}
+
+/**
+ * Derselbe Zettel ueber den ECHTEN Hydrationsweg. `vorbereiten` laeuft in dem
+ * Fenster, in dem das HTML schon steht und das JavaScript noch nicht laeuft —
+ * dem Weg, den §3.11 zusagt.
+ */
+function hydriereStandard(
+  vorbereiten?: (host: HTMLElement) => void,
+  action: ZettelProps["action"] = nichtsTun,
+) {
+  return hydrate(
+    <Zettel
+      questions={STANDARD_QUESTIONS}
+      scale={6}
+      action={action}
+      tokenHash={TOKEN_HASH}
+      siegel={FASSUNG_A}
+    />,
+    vorbereiten,
+  );
+}
+
+/**
+ * jsdom kennt `scrollIntoView` nicht (der Code ruft es deshalb optional auf).
+ * Diese Attrappe merkt sich, WORAUF gescrollt wurde — `this` ist der
+ * Pruefgegenstand, nicht die Argumente. Sie wird nach dem Test zurueckgenommen,
+ * damit sie nicht in andere Tests derselben Datei blutet.
+ */
+function scrollAttrappe(): { ziele: Element[]; zurueck: () => void } {
+  const ziele: Element[] = [];
+  const echt = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function (this: Element) {
+    ziele.push(this);
+  };
+  return {
+    ziele,
+    zurueck: () => {
+      Element.prototype.scrollIntoView = echt;
+    },
+  };
+}
+
+/** Setzt `checked` OHNE change-Ereignis — so wirkt eine Formular-Wiederherstellung. */
+function setzeOhneEreignis(host: ParentNode, frage: string, stufe: number): void {
+  const feld = host.querySelector<HTMLInputElement>(
+    `input[name="${frage}"][value="${stufe}"]`,
+  );
+  if (!feld) throw new Error(`Radio nicht gefunden: ${frage}=${stufe}`);
+  feld.checked = true;
 }
 
 /**
@@ -801,6 +852,104 @@ describe("Pflicht ohne Pruefungsgefuehl", () => {
 });
 
 /*
+ * DER RIEGEL DARF NICHT AM ZUSTAND ALLEIN HAENGEN.
+ *
+ * Die Radios sind unkontrolliert (kein `checked`-Prop), der Zustand `noten`
+ * fuellt sich nur ueber `onChange`. Zwei Wege setzen eine Note OHNE
+ * change-Ereignis: die Formular-Wiederherstellung des Browsers beim
+ * Neuladen/Zuruecknavigieren und das Antippen VOR der Hydration — genau der Weg,
+ * den §3.11 zusagt. Liest der Riegel nur den Zustand, dann faerbt CSS acht Chips
+ * (`input:checked + .chip`), `new FormData(form)` traegt acht Noten, und der Knopf
+ * behauptet trotzdem "Noch 8 Noten offen" und sendet nicht. Und er heilt NICHT:
+ * ein zweiter Tipp auf die schon gesetzte Note feuert kein change-Ereignis, die
+ * Person muesste achtmal erst eine FALSCHE Note waehlen und dann die richtige.
+ * Deshalb ist das DOM hier die Wahrheit.
+ */
+describe("Absende-Riegel: gesetzt ist gesetzt, auch ohne change-Ereignis", () => {
+  it("sendet, wenn die Noten nur im DOM stehen (Formular-Wiederherstellung)", async () => {
+    const { aufrufe, action } = mitschrift();
+    await zeichneStandard(action);
+    for (let i = 1; i <= 8; i++) setzeOhneEreignis(query("form"), `q${i}`, 2);
+    await submitForm();
+    expect(aufrufe).toHaveLength(1);
+    expect(aufrufe[0].get("q1")).toBe("2");
+    expect(aufrufe[0].get("q8")).toBe("2");
+  });
+
+  it("heilt beim ersten Tipp auf den Knopf und sendet — nicht zwei Tipps", async () => {
+    const { aufrufe, action } = mitschrift();
+    await zeichneStandard(action);
+    for (let i = 1; i <= 8; i++) setzeOhneEreignis(query("form"), `q${i}`, 3);
+    // Der Knopf traegt noch den veralteten Lueckentext …
+    expect(absendeknoepfe()[0].type).toBe("button");
+    expect(absendeknoepfe()[0].textContent).toBe("Noch 8 Noten offen");
+    // … EIN Tipp muss reichen.
+    await clickElement(absendeknoepfe()[0]);
+    expect(aufrufe).toHaveLength(1);
+    expect(aufrufe[0].get("q4")).toBe("3");
+    // Und danach ist er wieder der regulaere Absende-Knopf, beide Male.
+    for (const knopf of absendeknoepfe()) {
+      expect(knopf.type).toBe("submit");
+      expect(knopf.textContent).toBe("Rückmeldung absenden");
+    }
+    expect(queryAll("[data-kachel][data-offen]")).toHaveLength(0);
+  });
+
+  it("springt weiterhin, wenn im DOM wirklich noch Noten fehlen", async () => {
+    const { aufrufe, action } = mitschrift();
+    await zeichneStandard(action);
+    // Fuenf per Tipp (q1–q3, q5, q6), q4 nur im DOM: offen bleiben q7 und q8.
+    await fuenfVonAchtNoten();
+    setzeOhneEreignis(query("form"), "q4", 2);
+    await clickElement(absendeknoepfe()[0]);
+    expect(aufrufe).toHaveLength(0);
+    expect(query("[data-ansage]").textContent).toBe("Noch 2 Noten offen — Frage 7.");
+    expect(document.activeElement).toBe(radios("q7")[0]);
+  });
+
+  it("uebernimmt beim Hydrieren, was schon angetippt war (§3.11)", async () => {
+    // Der Weg ohne JavaScript: das HTML steht, acht Noten sind gesetzt, DANN
+    // kommt React. Belegt, dass `checked` die Hydration ueberlebt — der Zustand
+    // muss also nachziehen, sonst steht die Person vor einem toten Knopf.
+    const { aufrufe, action } = mitschrift();
+    await hydriereStandard((host) => {
+      for (let i = 1; i <= 8; i++) setzeOhneEreignis(host, `q${i}`, 2);
+    }, action);
+    expect(queryAll('input[type="radio"]:checked')).toHaveLength(8);
+    for (const knopf of absendeknoepfe()) {
+      expect(knopf.type).toBe("submit");
+      expect(knopf.textContent).toBe("Rückmeldung absenden");
+    }
+    // Und die Uebersicht zeigt die Ziffern, nicht acht gestrichelte Kacheln.
+    expect(queryAll("[data-kachel][data-offen]")).toHaveLength(0);
+    expect(queryAll("[data-kachel]").map((k) => k.textContent)).toEqual([
+      "2",
+      "2",
+      "2",
+      "2",
+      "2",
+      "2",
+      "2",
+      "2",
+    ]);
+    // Und die Zusage ganz: „Knopf ist `submit` UND die Abgabe geht durch."
+    await submitForm();
+    expect(aufrufe).toHaveLength(1);
+    expect(aufrufe[0].get("q1")).toBe("2");
+    expect(aufrufe[0].get("q8")).toBe("2");
+  });
+
+  it("laesst den Knopf beim Hydrieren ohne Vorauswahl unveraendert", async () => {
+    // Gegenprobe: ohne gesetzte Radios darf der Abgleich nichts erfinden.
+    await hydriereStandard();
+    for (const knopf of absendeknoepfe()) {
+      expect(knopf.type).toBe("button");
+      expect(knopf.textContent).toBe("Noch 8 Noten offen");
+    }
+  });
+});
+
+/*
  * §3.2 Punkt 8 und §3.10: der Navigator zeigt FORTSCHRITT, keine Bewertung. Die
  * 15px-Farbmarke des Konkurrenzentwurfs waere reine Farbkodierung ohne lesbare
  * Ziffer — die farbige Notenuebersicht steht dafuer im Abschluss-Block.
@@ -879,12 +1028,61 @@ describe("Unerwartete Ausnahme der Action", () => {
     expect(query("form").textContent).not.toContain("Fehler");
   });
 
+  /*
+   * Die Meldung liegt im Abschluss-Block, also OBERHALB der Freitexte. Wer mit
+   * dem ZWEITEN Knopf absendet, steht 400-500px darunter — ohne Scroll und Fokus
+   * passiert nach dem Tippen sichtbar NICHTS, nicht unterscheidbar von einem
+   * toten Knopf. Beide Knoepfe sind absichtlich austauschbar; eine Fehlerflaeche,
+   * die nur von einem der beiden aus sichtbar ist, waere intern widersprüchlich.
+   */
+  it("holt die Meldung in den Blick, auch beim Absenden mit dem ZWEITEN Knopf", async () => {
+    const attrappe = scrollAttrappe();
+    try {
+      await zeichneStandard(wirft);
+      await alleNoten(4);
+      const zweiter = absendeknoepfe()[1];
+      // Der zweite Knopf steht hinter den Freitexten, nicht im Abschluss-Block.
+      expect(query("[data-abschluss]").contains(zweiter)).toBe(false);
+      await clickElement(zweiter);
+      const meldung = query("[data-meldung]");
+      expect(attrappe.ziele).toContain(meldung);
+      // Der Fokus wandert mit — sonst tippt eine Tastaturbedienung weiter unten
+      // weiter und die Meldung bleibt eine Notiz an einem anderen Ort.
+      expect(document.activeElement).toBe(meldung);
+      expect(meldung.tabIndex).toBe(-1);
+    } finally {
+      attrappe.zurueck();
+    }
+  });
+
+  it("holt sie beim ZWEITEN Fehlversuch wieder in den Blick", async () => {
+    // Der eigentliche Schaden war mehrfaches Tippen. Bleibt die Meldung beim
+    // zweiten Versuch stumm, ist der Knopf aus Sicht der Person wieder tot —
+    // obwohl der Text derselbe ist.
+    const attrappe = scrollAttrappe();
+    try {
+      await zeichneStandard(wirft);
+      await alleNoten(4);
+      await clickElement(absendeknoepfe()[1]);
+      const nachErstem = attrappe.ziele.length;
+      expect(nachErstem).toBeGreaterThan(0);
+      await clickElement(absendeknoepfe()[1]);
+      expect(attrappe.ziele.length).toBe(nachErstem + 1);
+      expect(attrappe.ziele.at(-1)).toBe(query("[data-meldung]"));
+    } finally {
+      attrappe.zurueck();
+    }
+  });
+
   it("laesst die Meldung in `--tint` mit Graphit-Kante laufen, nicht in Rot", () => {
     const regel = cssRegel(".meldung");
     expect(regel).toMatch(/background:\s*var\(--tint\)/);
     expect(regel).toMatch(/color:\s*var\(--tinte\)/);
     expect(regel).toMatch(/border-left:\s*2px solid var\(--graphit\)/);
     expect(regel).not.toMatch(/#c8000f/i);
+    // Der Fokusrahmen der programmatisch fokussierten Meldung: Tinte, kein Rot.
+    expect(cssRegel(".meldung:focus-visible")).toMatch(/outline:\s*2px solid var\(--tinte\)/);
+    expect(cssRegel(".meldung:focus-visible")).not.toMatch(/#c8000f/i);
   });
 });
 
