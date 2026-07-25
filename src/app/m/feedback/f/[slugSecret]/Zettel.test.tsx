@@ -13,7 +13,7 @@ import {
   exists,
   submitForm,
 } from "@/app/m/qr/_lib/test-dom";
-import { ENTWURF_VERFALL_MS, entwurfSchluessel, Zettel } from "./Zettel";
+import { ENTWURF_VERFALL_MS, entwurfSchluessel, Zettel, type ZettelProps } from "./Zettel";
 import s from "./zettel.module.css";
 import { STANDARD_QUESTIONS, type Question } from "../../_lib/questions";
 
@@ -43,6 +43,23 @@ const cssQuelle = readFileSync(
 /** Kommentare raus: die Begruendung DARF eine Farbe nennen, der Code nicht. */
 const cssOhneKommentare = cssQuelle.replace(/\/\*[\s\S]*?\*\//g, "");
 
+/** Der Quelltext der Server Component — sie liefert den Siegeltext (Task 13). */
+const pageQuelle = readFileSync(
+  join(process.cwd(), "src/app/m/feedback/f/[slugSecret]/page.tsx"),
+  "utf8",
+);
+
+const zettelQuelle = readFileSync(
+  join(process.cwd(), "src/app/m/feedback/f/[slugSecret]/Zettel.tsx"),
+  "utf8",
+);
+
+/** Die Regel eines Selektors aus dem Quelltext — jsdom rechnet kein CSS. */
+function cssRegel(selektor: string): string {
+  const muster = new RegExp(`${selektor.replace(/[.[\]()]/g, "\\$&")}\\s*\\{[^}]*\\}`);
+  return muster.exec(cssOhneKommentare)?.[0] ?? "";
+}
+
 afterEach(async () => {
   await unmount();
   // jsdom traegt den Speicher ueber die ganze Datei. Ohne diese zwei Zeilen
@@ -57,14 +74,63 @@ async function nichtsTun(): Promise<void> {}
 
 const TOKEN_HASH = "abc123";
 
-function zeichne(questions: Question[], scale: number) {
+/**
+ * WORTLAUT A aus Entwurf §3.9, wortgenau. Er ist nur zulaessig, weil Task 8
+ * beide Voraussetzungen erfuellt hat: `insertResponse` speichert den Zeitstempel
+ * auf Mitternacht UTC des Abends (`actions.ts` — "keine Uhrzeit") und
+ * `shuffleStable` mischt die Leseordnung deterministisch (`aggregation.ts`, auch
+ * von der CSV-Route benutzt — "in zufaelliger Reihenfolge"). Faellt eine der
+ * beiden weg, luegt dieser Text und es gilt Fassung B.
+ */
+const FASSUNG_A =
+  "Diese Rückmeldung ist anonym. Gespeichert werden nur deine Noten und deine Texte — kein Name, keine E-Mail, keine Geräte- oder IP-Kennung, keine Uhrzeit. Die Gruppenleitung sieht Durchschnitte und die Texte in zufälliger Reihenfolge, nie eine Person.";
+
+function zeichne(questions: Question[], scale: number, action: ZettelProps["action"] = nichtsTun) {
   return mount(
-    <Zettel questions={questions} scale={scale} action={nichtsTun} tokenHash={TOKEN_HASH} />,
+    <Zettel
+      questions={questions}
+      scale={scale}
+      action={action}
+      tokenHash={TOKEN_HASH}
+      siegel={FASSUNG_A}
+    />,
   );
 }
 
-function zeichneStandard() {
-  return zeichne(STANDARD_QUESTIONS, 6);
+function zeichneStandard(action: ZettelProps["action"] = nichtsTun) {
+  return zeichne(STANDARD_QUESTIONS, 6, action);
+}
+
+/**
+ * Merkt sich die Aufrufe der Action samt Nutzlast. Bewusst kein `vi.fn` mit
+ * leerer Signatur: die Nutzlast IST der Pruefgegenstand ("kommen alle acht Noten
+ * an?"), und ein Mock ohne Parametertyp macht `calls[0][0]` untypisiert.
+ */
+function mitschrift() {
+  const aufrufe: FormData[] = [];
+  const action = async (fd: FormData): Promise<void> => {
+    aufrufe.push(fd);
+  };
+  return { aufrufe, action };
+}
+
+/** Die beiden Absende-Knoepfe (§3.2 Punkt 5 und 7). */
+function absendeknoepfe(): HTMLButtonElement[] {
+  return queryAll<HTMLButtonElement>("[data-absenden]");
+}
+
+/** Alle acht Noten setzen — der Zustand, in dem der Zettel absendbar ist. */
+async function alleNoten(stufe = 2): Promise<void> {
+  for (let i = 1; i <= 8; i++) await clickElement(feld(`q${i}`, stufe));
+}
+
+/**
+ * Fuenf von acht Noten: offen bleiben q4, q7 und q8 — die erste Luecke ist
+ * damit Frage 4, genau der Fall aus der Anforderungsliste ("Noch 3 Noten offen
+ * — Frage 4.").
+ */
+async function fuenfVonAchtNoten(): Promise<void> {
+  for (const nr of [1, 2, 3, 5, 6]) await clickElement(feld(`q${nr}`, 2));
 }
 
 /** Die Notenzeilen sind `fieldset`s — eine echte Radiogruppe je Frage. */
@@ -432,6 +498,7 @@ describe("Freitexte: Entwurf im sessionStorage", () => {
         scale={6}
         action={nichtsTun}
         tokenHash={TOKEN_HASH}
+        siegel={FASSUNG_A}
       />,
     );
     expect(spion).not.toHaveBeenCalled();
@@ -446,12 +513,26 @@ describe("Freitexte: Entwurf im sessionStorage", () => {
     expect(sessionStorage.getItem(entwurfSchluessel(TOKEN_HASH))).toBeNull();
   });
 
+  /*
+   * Mit allen acht Noten, denn seit Task 13 ist eine Abgabe mit Luecken kein
+   * Absenden mehr, sondern ein Sprung zur Luecke — und dann darf der Entwurf
+   * gerade NICHT fallen. Genau das prueft der zweite Test.
+   */
   it("loescht den Entwurf bei der Abgabe", async () => {
     await zeichneStandard();
+    await alleNoten();
     await tippe("q9", "Kartenkunde");
     expect(sessionStorage.getItem(entwurfSchluessel(TOKEN_HASH))).not.toBeNull();
     await submitForm();
     expect(sessionStorage.getItem(entwurfSchluessel(TOKEN_HASH))).toBeNull();
+  });
+
+  it("behaelt den Entwurf, wenn Noten fehlen und der Sprung zur Luecke greift", async () => {
+    await zeichneStandard();
+    await tippe("q9", "Kartenkunde");
+    await submitForm();
+    expect(sessionStorage.getItem(entwurfSchluessel(TOKEN_HASH))).not.toBeNull();
+    expect(textfeld("q9").value).toBe("Kartenkunde");
   });
 
   it("haelt Entwuerfe zweier Abende auseinander", () => {
@@ -484,6 +565,326 @@ describe("Freitexte: Zeile statt Kasten (CSS-Zusicherung)", () => {
     const gefuelltRegel = /\.textfeld\[data-gefuellt\]\s*\{[^}]*\}/.exec(cssQuelle)?.[0] ?? "";
     expect(gefuelltRegel).toMatch(/border-bottom-width:\s*1\.5px/);
     expect(gefuelltRegel).toMatch(/border-bottom-color:\s*var\(--graphit\)/);
+  });
+});
+
+/*
+ * DER ANGELPUNKT DES ENTWURFS (§3.2 Punkt 5): nach der achten Note kommt der
+ * Abschluss mit Siegel und Absende-Knopf, die Freitexte liegen DARUNTER. Wer um
+ * 21:31 gehen will, ist nach acht Tipps fertig; wer schreiben will, scrollt
+ * weiter. Der Preis ist benannt (freiwilliger Text kann ungeschrieben bleiben),
+ * der Gewinn ist die Zusage: es koennen NIEMALS Pflichtnoten verloren gehen.
+ */
+describe("Abschluss-Block: der Pflichtteil endet VOR den Freitexten", () => {
+  it("stellt den Abschluss-Block vor die Freitextsektion", async () => {
+    await zeichneStandard();
+    const abschluss = query("[data-abschluss]");
+    const freitexte = query("[data-freitexte]");
+    // Bit 4 = DOCUMENT_POSITION_FOLLOWING: die Freitexte kommen NACH dem Abschluss.
+    expect(abschluss.compareDocumentPosition(freitexte) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    // Und der erste Absende-Knopf steht im Abschluss-Block, nicht dahinter.
+    expect(abschluss.contains(absendeknoepfe()[0])).toBe(true);
+  });
+
+  it("nennt den Pflichtteil beendet und erklaert die Notenuebersicht", async () => {
+    await zeichneStandard();
+    const abschluss = query("[data-abschluss]");
+    expect(abschluss.textContent).toContain("Das war der Pflichtteil.");
+    expect(abschluss.textContent).toContain("Tippe eine Zahl an, um sie zu ändern.");
+  });
+
+  it("traegt das Anonymitaetssiegel wortgenau in Fassung A", async () => {
+    await zeichneStandard();
+    const siegel = query("[data-siegel]");
+    expect(query("[data-abschluss]").contains(siegel)).toBe(true);
+    expect(siegel.textContent).toBe(FASSUNG_A);
+    // Der Satz aus Entwurf 1 steht im Formular (§3.2 Punkt 6: in der
+    // Freitextsektion, wo er wirkt — nicht zweimal auf 200px).
+    expect(query("form").textContent).toContain("Schreib nichts, woran man dich erkennt.");
+  });
+
+  it("laesst die Server Component den Siegeltext liefern", () => {
+    // Das Siegel ist eine Zusage ueber SERVER-Verhalten (gerundeter Zeitstempel,
+    // gemischte Leseordnung). Sie gehoert neben den Code, der sie wahr macht —
+    // deshalb liegt der Wortlaut in `page.tsx` und reist als Prop.
+    expect(pageQuelle).toContain(FASSUNG_A);
+    expect(pageQuelle).toContain("siegel={");
+  });
+
+  it("stellt Siegel und Kacheln nicht in Rot dar", () => {
+    expect(cssRegel(".siegel")).toMatch(/border-left:\s*2px solid var\(--graphit\)/);
+    expect(cssRegel(".siegel")).toMatch(/background:\s*var\(--tint\)/);
+    for (const selektor of [".siegel", ".kachel", ".kachel[data-offen]"]) {
+      expect(cssRegel(selektor)).not.toBe("");
+      expect(cssRegel(selektor)).not.toMatch(/#c8000f/i);
+    }
+  });
+});
+
+describe("Zwei Absenden-Knoepfe desselben Formulars", () => {
+  it("beschriftet beide gleich und macht beide zu `submit`, sobald alle Noten stehen", async () => {
+    await zeichneStandard();
+    await alleNoten();
+    const knoepfe = absendeknoepfe();
+    expect(knoepfe).toHaveLength(2);
+    expect(knoepfe.map((k) => k.textContent)).toEqual([
+      "Rückmeldung absenden",
+      "Rückmeldung absenden",
+    ]);
+    expect(knoepfe.map((k) => k.type)).toEqual(["submit", "submit"]);
+    // Beide gehoeren zum SELBEN Formular — sonst waere unklar, welcher sendet.
+    const formular = query<HTMLFormElement>("form");
+    for (const knopf of knoepfe) expect(knopf.form).toBe(formular);
+  });
+
+  it("liefert schon ohne JavaScript zwei `submit`-Knoepfe mit dem regulaeren Label", () => {
+    const markup = renderToStaticMarkup(
+      <Zettel
+        questions={STANDARD_QUESTIONS}
+        scale={6}
+        action={nichtsTun}
+        tokenHash={TOKEN_HASH}
+        siegel={FASSUNG_A}
+      />,
+    );
+    expect(markup.match(/type="submit"/g)).toHaveLength(2);
+    expect(markup.match(/Rückmeldung absenden/g)).toHaveLength(2);
+    // Ohne JavaScript gibt es keinen Lueckenspringer — dann muss `required`
+    // greifen, also darf `novalidate` NICHT im gelieferten HTML stehen.
+    expect(markup.toLowerCase()).not.toContain("novalidate");
+    expect(markup).not.toContain("Noten offen");
+  });
+
+  it("gibt dem Formular die Server Action unveraendert — sonst faellt der Weg ohne JS", () => {
+    /*
+     * Die einzige Zusage dieser Aufgabe, deren Bruch fuer Typecheck, Lint, Build
+     * UND jeden Mounttest unsichtbar ist. Belegt: `renderToStaticMarkup` rendert
+     * fuer eine gewoehnliche Client-Funktion
+     *   action="javascript:throw new Error('React form unexpectedly submitted.')"
+     * — eine Abgabe ohne JavaScript ist dann unmoeglich. Nur eine
+     * SERIALISIERBARE Server Action bekommt das echte POST-Ziel, und die ueberlebt
+     * keinen Wrapper. Deshalb hier an beiden Enden der Kette im Quelltext
+     * festgenagelt; das Verhalten selbst belegt der E2E-Lauf ohne JavaScript
+     * (Task 15).
+     */
+    expect(pageQuelle).toMatch(/action=\{submitResponseAction\.bind\(null, slugSecret\)\}/);
+    expect(zettelQuelle).toMatch(/<form[\s\S]{0,120}action=\{action as unknown as/);
+    // Mit JavaScript uebernimmt `onSubmit` per `preventDefault` — React ruft die
+    // Action dann nicht auf (react-dom 19.2), der Aufrufer kann fangen.
+    expect(zettelQuelle).toMatch(/ereignis\.preventDefault\(\)/);
+  });
+
+  it("stellt den Freiwilligkeits-Hinweis unter den ersten, die Kurzzusage ueber den zweiten Knopf", async () => {
+    await zeichneStandard();
+    const [erster, zweiter] = absendeknoepfe();
+    expect(erster.nextElementSibling?.textContent).toBe(
+      "Die sechs freien Zeilen darunter sind freiwillig — du kannst auch direkt absenden.",
+    );
+    expect(zweiter.previousElementSibling?.textContent).toBe(
+      "Anonym — kein Name, kein Gerät, keine Uhrzeit.",
+    );
+  });
+});
+
+describe("Notenuebersicht als Lueckenspringer", () => {
+  it("zeigt acht Kacheln in Fragereihenfolge — offene mit Fragenummer", async () => {
+    await zeichneStandard();
+    const kacheln = queryAll("[data-kachel]");
+    expect(kacheln).toHaveLength(8);
+    expect(kacheln.map((k) => k.getAttribute("data-kachel"))).toEqual([
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+      "q5",
+      "q6",
+      "q7",
+      "q8",
+    ]);
+    // Offen: gestrichelte Kontur (CSS) plus die Fragenummer als Text.
+    expect(kacheln.every((k) => k.hasAttribute("data-offen"))).toBe(true);
+    expect(kacheln.map((k) => k.textContent)).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
+    expect(cssRegel(".kachel[data-offen]")).toMatch(/border:\s*1px dashed var\(--linie-stark\)/);
+  });
+
+  it("zeigt an einer beantworteten Kachel die Ziffer der Note", async () => {
+    await zeichneStandard();
+    await clickElement(feld("q3", 5));
+    const kachel = query('[data-kachel="q3"]');
+    expect(kachel.hasAttribute("data-offen")).toBe(false);
+    expect(kachel.textContent).toBe("5");
+    expect(kachel.getAttribute("aria-label")).toContain("Note 5 – mangelhaft");
+  });
+
+  it("springt zur Frage und setzt den Fokus auf ihr erstes Feld", async () => {
+    await zeichneStandard();
+    await clickElement(query('[data-kachel="q6"]'));
+    expect(document.activeElement).toBe(radios("q6")[0]);
+    // Lesezeichen statt Ruege: 2px-Balken an der linken Kante der Zielzeile.
+    expect(zeilen()[5].hasAttribute("data-lesezeichen")).toBe(true);
+    expect(cssRegel(".zeile[data-lesezeichen]")).toMatch(/var\(--graphit\)/);
+  });
+});
+
+/*
+ * §3.6 "Pflicht ohne Pruefungsgefuehl": mit JavaScript uebernimmt der gestaltete
+ * Lueckenspringer (`noValidate`), ohne JavaScript bleibt `required` das Netz.
+ * Kein Rot, kein Alert, nie das Wort "Fehler" — eine Sammelfehlermeldung nach
+ * dem Serverweg (mit Datenverlust) ist genau der Zustand, den der Umbau beendet.
+ */
+describe("Pflicht ohne Pruefungsgefuehl", () => {
+  it("setzt `noValidate` erst beim Mounten und laesst `required` stehen", async () => {
+    await zeichneStandard();
+    expect(query<HTMLFormElement>("form").noValidate).toBe(true);
+    expect(queryAll<HTMLInputElement>('input[type="radio"]').every((r) => r.required)).toBe(true);
+  });
+
+  it("traegt den Zustand als Text und wird zum Navigations-Knopf", async () => {
+    await zeichneStandard();
+    await fuenfVonAchtNoten();
+    for (const knopf of absendeknoepfe()) {
+      expect(knopf.textContent).toBe("Noch 3 Noten offen");
+      expect(knopf.type).toBe("button");
+    }
+    await clickElement(feld("q4", 3));
+    await clickElement(feld("q7", 3));
+    for (const knopf of absendeknoepfe()) {
+      expect(knopf.textContent).toBe("Noch 1 Note offen");
+    }
+  });
+
+  it("navigiert zur ersten Luecke, meldet sie hoeflich und sendet NICHT", async () => {
+    const { aufrufe, action } = mitschrift();
+    await zeichneStandard(action);
+    await fuenfVonAchtNoten();
+    await clickElement(absendeknoepfe()[0]);
+    expect(aufrufe).toHaveLength(0);
+    expect(document.activeElement).toBe(radios("q4")[0]);
+    const ansage = query("[data-ansage]");
+    expect(ansage.getAttribute("aria-live")).toBe("polite");
+    expect(ansage.textContent).toBe("Noch 3 Noten offen — Frage 4.");
+  });
+
+  it("sendet auch bei einer Abgabe aus dem Formular nicht, solange Noten fehlen", async () => {
+    const { aufrufe, action } = mitschrift();
+    await zeichneStandard(action);
+    await fuenfVonAchtNoten();
+    await submitForm();
+    expect(aufrufe).toHaveLength(0);
+    expect(document.activeElement).toBe(radios("q4")[0]);
+  });
+
+  it("sendet, sobald alle acht Noten stehen", async () => {
+    const { aufrufe, action } = mitschrift();
+    await zeichneStandard(action);
+    await alleNoten(3);
+    await submitForm();
+    expect(aufrufe).toHaveLength(1);
+    expect(aufrufe[0].get("q1")).toBe("3");
+    expect(aufrufe[0].get("q8")).toBe("3");
+  });
+
+  it("kennt im Lueckenpfad kein Rot und nie das Wort `Fehler`", async () => {
+    await zeichneStandard();
+    await fuenfVonAchtNoten();
+    await clickElement(absendeknoepfe()[0]);
+    expect(query("form").textContent).not.toContain("Fehler");
+    // Und der Pfad traegt auch in CSS keine Warnfarbe: der Umriss-Knopf, das
+    // Lesezeichen und der Puls laufen in Graphit bzw. `--tint`.
+    expect(cssRegel(".knopfUmriss")).toMatch(/var\(--graphit\)/);
+    expect(cssRegel(".knopfUmriss")).not.toMatch(/#c8000f/i);
+    expect(cssRegel("@keyframes puls")).toMatch(/var\(--tint\)/);
+    expect(cssRegel("@keyframes puls")).not.toMatch(/#c8000f/i);
+  });
+});
+
+/*
+ * §3.2 Punkt 8 und §3.10: der Navigator zeigt FORTSCHRITT, keine Bewertung. Die
+ * 15px-Farbmarke des Konkurrenzentwurfs waere reine Farbkodierung ohne lesbare
+ * Ziffer — die farbige Notenuebersicht steht dafuer im Abschluss-Block.
+ */
+describe("Navigator: Fortschritt, kein zweiter Absende-Knopf", () => {
+  it("erscheint erst nach der ersten Note", async () => {
+    await zeichneStandard();
+    expect(exists("[data-navigator]")).toBe(false);
+    await clickElement(feld("q1", 2));
+    expect(exists("[data-navigator]")).toBe(true);
+  });
+
+  it("traegt acht Striche, den Ankersatz und keinen Absende-Knopf", async () => {
+    await zeichneStandard();
+    await clickElement(feld("q1", 2));
+    const navigator = query("[data-navigator]");
+    expect(navigator.querySelectorAll("[data-strich]")).toHaveLength(8);
+    expect(navigator.querySelectorAll("[data-strich][data-voll]")).toHaveLength(1);
+    expect(navigator.textContent).toContain("1 = sehr gut · 6 = ungenügend");
+    expect(navigator.querySelector("[data-absenden]")).toBeNull();
+    expect(navigator.querySelector('button[type="submit"]')).toBeNull();
+  });
+
+  it("verdeckt den zweiten Absende-Knopf nicht", () => {
+    // Die Leiste liegt fest am Unterrand (56px), das Blatt hat 32px Bodenabstand:
+    // ohne diese Regel laege sie ueber dem Knopf am Fuss des Zettels.
+    expect(cssRegel(".navigator")).toMatch(/position:\s*fixed/);
+    expect(cssRegel(".form:has([data-navigator])")).toMatch(/padding-bottom:\s*calc\(56px/);
+  });
+
+  it("faerbt die Striche in Tinte statt in einer Notenfarbe", () => {
+    // Keine Ampelfarbe: der Navigator kennt `--tinte` und `--linie-stark`,
+    // NICHT `--note-hell`/`--note-dunkel`.
+    expect(cssRegel(".strich")).toMatch(/var\(--linie-stark\)/);
+    expect(cssRegel(".strich[data-voll]")).toMatch(/var\(--tinte\)/);
+    for (const selektor of [".navigator", ".strich", ".strich[data-voll]"]) {
+      expect(cssRegel(selektor)).not.toMatch(/--note-/);
+      expect(cssRegel(selektor)).not.toMatch(/#c8000f/i);
+    }
+  });
+});
+
+/*
+ * Task 9 hat das `try/catch` im Client entfernt, weil ein Catch den
+ * Erfolgs-`redirect` verschluckt haette. Das gilt fuer den RUMPF der Action —
+ * nicht fuer den Aufrufer: Next transportiert den Redirect in der Antwort, der
+ * Client-Aufruf lehnt dafuer nicht ab. Seitdem landeten kaputtes `questions`-JSON
+ * und ein Schreibfehler auf der technischen Fehlerseite, MIT Datenverlust.
+ */
+describe("Unerwartete Ausnahme der Action", () => {
+  async function wirft(): Promise<void> {
+    throw new Error("SQLITE_READONLY");
+  }
+
+  it("zeigt eine Zeile im Formular und laesst alle Eingaben stehen", async () => {
+    await zeichneStandard(wirft);
+    await alleNoten(4);
+    await tippe("q9", "Kartenkunde bitte wiederholen");
+    await submitForm();
+    const meldung = query("[data-meldung]");
+    expect(query("form").contains(meldung)).toBe(true);
+    expect(meldung.getAttribute("role")).toBe("alert");
+    expect(meldung.textContent).toContain("Deine Eingaben stehen noch");
+    // Die Noten sind noch da — kein Datenverlust, keine Fehlerseite.
+    expect(radios("q1")[3].checked).toBe(true);
+    expect(radios("q8")[3].checked).toBe(true);
+    expect(textfeld("q9").value).toBe("Kartenkunde bitte wiederholen");
+    expect(sessionStorage.getItem(entwurfSchluessel(TOKEN_HASH))).not.toBeNull();
+  });
+
+  it("nennt das Wort `Fehler` auch dann nicht", async () => {
+    await zeichneStandard(wirft);
+    await alleNoten();
+    await submitForm();
+    expect(exists("[data-meldung]")).toBe(true);
+    expect(query("form").textContent).not.toContain("Fehler");
+  });
+
+  it("laesst die Meldung in `--tint` mit Graphit-Kante laufen, nicht in Rot", () => {
+    const regel = cssRegel(".meldung");
+    expect(regel).toMatch(/background:\s*var\(--tint\)/);
+    expect(regel).toMatch(/color:\s*var\(--tinte\)/);
+    expect(regel).toMatch(/border-left:\s*2px solid var\(--graphit\)/);
+    expect(regel).not.toMatch(/#c8000f/i);
   });
 });
 

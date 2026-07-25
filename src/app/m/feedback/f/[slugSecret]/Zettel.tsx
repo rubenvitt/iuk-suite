@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { NOTEN_DUNKEL, NOTEN_HELL, NOTEN_WORT } from "../../_lib/noten";
 import { MAX_TEXT_LENGTH, isRatingType, ratingScale, type Question } from "../../_lib/questions";
 import type { SubmitResult } from "../../actions";
@@ -34,9 +34,15 @@ import s from "./zettel.module.css";
  * `<form action={action}>` bekommt die Server Action DIREKT, nicht ueber einen
  * Client-Wrapper: ein Wrapper waere keine serialisierbare Action mehr und die
  * Abgabe OHNE JavaScript — die Kernzusage des Entwurfs (§3.11) — waere still
- * kaputt, ohne dass Typecheck oder Build es merken. Der Preis in dieser Stufe:
- * ein `{ ok: false }` der Action bleibt unsichtbar. Die Inline-Meldung dafuer
- * (und die zwei Absende-Knoepfe, Notenuebersicht, Navigator) baut Task 13.
+ * kaputt, ohne dass Typecheck oder Build es merken. Mit JavaScript uebernimmt
+ * `onSubmit` per `preventDefault` (siehe `absenden`), damit eine unerwartete
+ * Ausnahme im Formular landet statt auf einer technischen Fehlerseite.
+ *
+ * DER AUFBAU (§3.2): Legende, acht Notenzeilen, ABSCHLUSS-BLOCK, Freitexte,
+ * zweiter Absende-Knopf, Navigator. Der Abschluss steht VOR den Freitexten —
+ * daran haengt die Zusage, dass Pflichtnoten niemals verloren gehen: wer nach
+ * der achten Note weggeht, hat abgesendet, statt in einem Assistenten zu stehen,
+ * dessen erste Seiten beim Schliessen des Tabs verfallen.
  */
 export interface ZettelProps {
   questions: Question[];
@@ -45,6 +51,14 @@ export interface ZettelProps {
   action: (fd: FormData) => Promise<SubmitResult | void>;
   /** Schluessel des Entwurfsspeichers — siehe `entwurfSchluessel`. */
   tokenHash: string;
+  /**
+   * Der Wortlaut des Anonymitaetssiegels (§3.9). Er kommt aus `page.tsx` und
+   * nicht von hier: das Siegel ist eine Zusage ueber SERVER-Verhalten (der
+   * Zeitstempel wird auf den Abend gerundet, die Leseordnung ist gemischt) und
+   * gehoert damit neben den Code, der sie wahr macht. Wandert eine der beiden
+   * Zusagen, faellt der Text im selben Modul auf.
+   */
+  siegel: string;
 }
 
 /** Sektions-Kicker aus §3.2 Punkt 4 — die Fragereihenfolge bleibt unangetastet. */
@@ -55,8 +69,8 @@ const SEKTIONSGRENZEN = [3, 6] as const;
 
 /**
  * Verzug der Aufbau-Choreografie in ms (§3.5): Kopf 0 (in `page.tsx`), Legende
- * 60, Sektion 1–3 120/180/240, Freitexte 300 — der Abschluss-Block mit 360 folgt
- * in Task 13.
+ * 60, Sektion 1–3 120/180/240, Freitexte 300, Abschluss 360 — nach 0,7s steht
+ * alles.
  */
 function verzug(ms: number): CSSProperties {
   return { animationDelay: `${ms}ms` };
@@ -95,6 +109,49 @@ function mischung(palette: readonly string[], index: number): string {
 /** Notenwort einer Stufe. Bei fuenf Stufen endet die Skala bei "mangelhaft". */
 function wort(stufe: number): string {
   return NOTEN_WORT[stufe - 1];
+}
+
+/* ---------- Abschluss-Block (§3.2 Punkt 5 und 7, §3.6) ---------- */
+
+/** Wortlaute des Abschlusses, wortgenau aus dem Entwurf. */
+const ABSCHLUSS_TITEL = "Das war der Pflichtteil.";
+const UEBERSICHT_HINWEIS = "Tippe eine Zahl an, um sie zu ändern.";
+const ABSENDEN = "Rückmeldung absenden";
+const KURZZUSAGE = "Anonym — kein Name, kein Gerät, keine Uhrzeit.";
+const NAVIGATOR_KNOPF = "→ nächste offene";
+
+/**
+ * Die Meldung fuer eine UNERWARTETE Ausnahme der Action (kaputtes
+ * `questions`-JSON einer importierten Umfrage, Schreibfehler der Datenbank).
+ * Sie steht im Formular, nicht auf einer technischen Fehlerseite — dort waeren
+ * acht Noten und sechs Zeilen verloren, genau das Ergebnis, das der Umbau
+ * beseitigt. Das Wort "Fehler" kommt nicht vor: es beschreibt hier niemanden,
+ * der etwas falsch gemacht hat.
+ */
+const MELDUNG_AUSNAHME =
+  "Das Absenden hat gerade nicht geklappt. Deine Eingaben stehen noch — bitte tippe " +
+  "noch einmal auf „Rückmeldung absenden“.";
+
+/**
+ * Zahlwoerter fuer den Satz unter dem ersten Knopf. Der Entwurf schreibt "Die
+ * sechs freien Zeilen …" — die Zahl kommt aber aus den TATSAECHLICHEN Fragen
+ * (importierte Alt-Umfragen haben andere Zuschnitte), denn eine Zusage, die
+ * nicht zum Bogen passt, ist schlimmer als keine. Dieselbe Abweichung wie bei
+ * der Vertragszeile in `page.tsx`.
+ */
+const ZAHLWORT = ["null", "eine", "zwei", "drei", "vier", "fünf", "sechs"] as const;
+
+function freiwilligSatz(zeilen: number): string {
+  if (zeilen === 1) {
+    return "Die freie Zeile darunter ist freiwillig — du kannst auch direkt absenden.";
+  }
+  const zahl = ZAHLWORT[zeilen] ?? String(zeilen);
+  return `Die ${zahl} freien Zeilen darunter sind freiwillig — du kannst auch direkt absenden.`;
+}
+
+/** "Noch 3 Noten offen" — der Zustand als Text, nicht als Farbe (§3.6). */
+function offenText(anzahl: number): string {
+  return anzahl === 1 ? "Noch 1 Note offen" : `Noch ${anzahl} Noten offen`;
 }
 
 /* ---------- Freitexte (§3.2 Punkt 6, §3.7) ---------- */
@@ -193,8 +250,21 @@ function hoeheAnpassen(el: HTMLTextAreaElement): void {
 }
 
 export function Zettel(props: ZettelProps) {
-  const { questions, scale, action, tokenHash } = props;
+  const { questions, scale, action, tokenHash, siegel } = props;
   const [noten, setNoten] = useState<Record<string, number>>({});
+  /**
+   * Erst nach der Hydration wahr. Solange sie falsch ist, sieht der Zettel genau
+   * so aus wie ausgeliefert: zwei `submit`-Knoepfe mit dem regulaeren Label und
+   * ein Formular OHNE `noValidate` — das ist der Weg ohne JavaScript. Es gibt
+   * KEINEN Austausch der Oberflaeche (§3.11), nur diese drei Attribute wechseln.
+   */
+  const [mitJs, setMitJs] = useState(false);
+  const [ansage, setAnsage] = useState("");
+  const [lesezeichen, setLesezeichen] = useState<string | null>(null);
+  const [meldung, setMeldung] = useState<string | null>(null);
+  const [abschlussSichtbar, setAbschlussSichtbar] = useState(false);
+  const formular = useRef<HTMLFormElement>(null);
+  const abschluss = useRef<HTMLDivElement>(null);
 
   const notenfragen = questions.filter((q) => isRatingType(q.type));
   const freitextfragen = questions.filter((q) => q.type === "text");
@@ -203,28 +273,107 @@ export function Zettel(props: ZettelProps) {
     notenfragen.slice(SEKTIONSGRENZEN[0], SEKTIONSGRENZEN[1]),
     notenfragen.slice(SEKTIONSGRENZEN[1]),
   ];
+  const offene = notenfragen.filter((q) => noten[q.id] === undefined);
+  const gewaehlteAnzahl = notenfragen.length - offene.length;
+  /* Ohne JavaScript ist der Knopf IMMER der regulaere Absende-Knopf. */
+  const bereit = !mitJs || offene.length === 0;
+
+  useEffect(() => {
+    // Genau ein Nachrender nach der Hydration — dasselbe Muster wie die
+    // Entwurfs-Wiederherstellung: waere der Wert schon beim ersten Rendern wahr,
+    // waere das serverseitige HTML ein anderes und React verwuerfe den Baum.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMitJs(true);
+  }, []);
 
   /*
-   * Die Action gibt ein Ergebnis zurueck (`SubmitResult`), `<form action>`
-   * typisiert nur `void`. Zur Laufzeit verwirft React den Rueckgabewert
-   * geraeuschlos — die Umgehung ist deshalb eine Typ-Umschreibung und KEIN
-   * Wrapper: eine Pfeilfunktion um die Action herum verliert deren
-   * Serialisierungs-Kennung, und damit waere die Abgabe ohne JavaScript still
-   * kaputt. Task 13 holt das Ergebnis ueber den Weg ab, der es auch anzeigt.
+   * Der Navigator verschwindet, sobald der Abschluss-Block im Bild ist (§3.2
+   * Punkt 8) — dort steht alles, was er anbietet, in Gross. Der Beobachter ist
+   * optional: fehlt er (aeltere Umgebungen, Tests), bleibt die Leiste stehen.
    */
-  const formAction = action as unknown as (fd: FormData) => Promise<void>;
+  useEffect(() => {
+    const ziel = abschluss.current;
+    if (!ziel || typeof IntersectionObserver !== "function") return;
+    const beobachter = new IntersectionObserver((eintraege) => {
+      setAbschlussSichtbar(eintraege.some((e) => e.isIntersecting));
+    });
+    beobachter.observe(ziel);
+    return () => beobachter.disconnect();
+  }, []);
+
+  /**
+   * Der Sprung zur Frage: scrollen, Lesezeichen setzen, Fokus auf das ERSTE Feld
+   * der Zielzeile. Der Puls laeuft ueber ein Attribut plus erzwungenen Reflow und
+   * nicht ueber einen Timer im Zustand — so pulst dieselbe Zeile auch beim
+   * zweiten Sprung wieder, ohne Nachrender und ohne aufraeumbaren Zeitgeber.
+   */
+  function springen(frageId: string): void {
+    const feld = formular.current?.querySelector<HTMLInputElement>(`input[name="${frageId}"]`);
+    const zeile = feld?.closest("fieldset");
+    if (zeile) {
+      zeile.removeAttribute("data-puls");
+      void zeile.offsetWidth;
+      zeile.setAttribute("data-puls", "");
+      const ruhig = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+      zeile.scrollIntoView?.({ behavior: ruhig ? "auto" : "smooth", block: "center" });
+    }
+    setLesezeichen(frageId);
+    feld?.focus();
+  }
+
+  /**
+   * Ein Tipp auf den unvollstaendigen Knopf ist NAVIGATION, keine Ruege: er
+   * springt zur ersten Luecke und sagt einmal hoeflich, was noch fehlt. Kein Rot,
+   * kein Alert, nie das Wort "Fehler".
+   */
+  function zurLuecke(): void {
+    const erste = offene[0];
+    if (!erste) return;
+    setAnsage(`${offenText(offene.length)} — Frage ${notenfragen.indexOf(erste) + 1}.`);
+    springen(erste.id);
+  }
 
   /*
-   * Der Entwurf faellt beim ABSENDEN, nicht erst beim Ergebnis: der
-   * Rueckgabewert der Action ist hier noch nicht erreichbar (Task 13 holt ihn
-   * ueber den Client-Aufrufer, und ein Wrapper um `action` waere keine
-   * serialisierbare Action mehr). Der Preis ist klein und benannt: bei einem
-   * `{ ok: false }` bleiben die Eingaben im DOM stehen und der naechste
-   * Tastendruck schreibt den Entwurf neu. `onSubmit` aendert am gelieferten HTML
-   * nichts — der Weg ohne JavaScript bleibt unberuehrt.
+   * `<form action={…}>` bekommt die Server Action DIREKT — nur so rendert React
+   * das `action`-Attribut, und nur damit funktioniert die Abgabe OHNE
+   * JavaScript (§3.11). Mit JavaScript uebernimmt dieser Handler: er verhindert
+   * die Voreinstellung, und React ruft die Action daraufhin NICHT auf (geprueft
+   * in react-dom 19.2: der Action-Listener steigt bei `defaultPrevented` aus).
+   * Wir rufen sie selbst — und das ist der Punkt: nur der AUFRUFER kann eine
+   * unerwartete Ausnahme abfangen. Task 9 hat das `try/catch` aus gutem Grund
+   * aus dem RUMPF der Action entfernt (es haette den Erfolgs-`redirect`
+   * verschluckt); hier lehnt der Aufruf beim Redirect nicht ab, Next transportiert
+   * ihn in der Antwort.
    */
+  async function absenden(ereignis: FormEvent<HTMLFormElement>): Promise<void> {
+    ereignis.preventDefault();
+    // Vor jedem Weg: fehlt eine Note, wird nicht gesendet, sondern gesprungen.
+    // Das deckt auch die Enter-Taste ab — `noValidate` hat `required` still gelegt.
+    if (offene.length > 0) {
+      zurLuecke();
+      return;
+    }
+    const daten = new FormData(ereignis.currentTarget);
+    setMeldung(null);
+    try {
+      const ergebnis = await action(daten);
+      // Der Entwurf faellt NUR bei einer angenommenen Abgabe. Bei `{ ok: false }`
+      // (geschlossen, Ratelimit — Anzeige in Task 14) bleibt er stehen, sonst
+      // waeren die Freitexte beim Neuladen weg.
+      if (!ergebnis || ergebnis.ok) entwurfVerwerfen(tokenHash);
+    } catch {
+      setMeldung(MELDUNG_AUSNAHME);
+    }
+  }
+
   return (
-    <form action={formAction} className={s.form} onSubmit={() => entwurfVerwerfen(tokenHash)}>
+    <form
+      ref={formular}
+      action={action as unknown as (fd: FormData) => Promise<void>}
+      className={s.form}
+      noValidate={mitJs}
+      onSubmit={absenden}
+    >
       <Legende scale={scale} />
       {sektionen.map((fragen, si) =>
         fragen.length === 0 ? null : (
@@ -240,19 +389,186 @@ export function Zettel(props: ZettelProps) {
                 frage={q}
                 nummer={notenfragen.indexOf(q) + 1}
                 gewaehlt={noten[q.id]}
+                lesezeichen={lesezeichen === q.id && noten[q.id] === undefined}
                 onWahl={(stufe) => setNoten((alt) => ({ ...alt, [q.id]: stufe }))}
               />
             ))}
           </section>
         ),
       )}
+      {/*
+        DER ANGELPUNKT: der Abschluss steht VOR den Freitexten. Wer nach der
+        achten Note gehen will, ist fertig; wer schreiben will, scrollt weiter.
+        Der Preis ist benannt (freiwilliger Text kann ungeschrieben bleiben), der
+        Gewinn ist die Zusage: Pflichtnoten koennen niemals verloren gehen.
+      */}
+      <div
+        ref={abschluss}
+        className={`${s.abschluss} ${s.aufbau}`}
+        style={verzug(360)}
+        data-abschluss=""
+      >
+        <h2 className={s.abschlussTitel}>{ABSCHLUSS_TITEL}</h2>
+        <Uebersicht fragen={notenfragen} noten={noten} onSprung={springen} />
+        <p className={s.uebersichtHinweis}>{UEBERSICHT_HINWEIS}</p>
+        <p className={s.siegel} data-siegel="">
+          {siegel}
+        </p>
+        {meldung === null ? null : (
+          <p className={s.meldung} data-meldung="" role="alert">
+            {meldung}
+          </p>
+        )}
+        <Absendeknopf bereit={bereit} offen={offene.length} onLuecke={zurLuecke} />
+        {freitextfragen.length === 0 ? null : (
+          <p className={s.knopfHinweis}>{freiwilligSatz(freitextfragen.length)}</p>
+        )}
+        {/* GENAU EINE Meldezeile fuer beide Knoepfe — zwei Live-Bereiche
+            wuerden jede Ansage doppelt sprechen (§3.10). */}
+        <p className={s.srOnly} aria-live="polite" data-ansage="">
+          {ansage}
+        </p>
+      </div>
       {freitextfragen.length === 0 ? null : (
-        <Freitexte fragen={freitextfragen} tokenHash={tokenHash} />
+        <>
+          <Freitexte fragen={freitextfragen} tokenHash={tokenHash} />
+          <p className={s.kurzzusage}>{KURZZUSAGE}</p>
+          <Absendeknopf bereit={bereit} offen={offene.length} onLuecke={zurLuecke} />
+        </>
       )}
-      <button type="submit" className={s.knopf}>
-        Rückmeldung absenden
-      </button>
+      {gewaehlteAnzahl === 0 || abschlussSichtbar ? null : (
+        <Navigator
+          fragen={notenfragen}
+          noten={noten}
+          scale={scale}
+          offen={offene[0]?.id}
+          onSprung={springen}
+        />
+      )}
     </form>
+  );
+}
+
+/**
+ * Beide Absende-Knoepfe sind derselbe Knopf, zweimal: identisch beschriftet,
+ * `type="submit"` desselben Formulars — damit nie unklar ist, welcher sendet.
+ * Fehlt eine Note, wird derselbe Knopf zum Navigations-Knopf (`type="button"`)
+ * und traegt den Zustand als TEXT. Ein Umriss statt der Fuellung, kein Rot.
+ */
+function Absendeknopf({
+  bereit,
+  offen,
+  onLuecke,
+}: {
+  bereit: boolean;
+  offen: number;
+  onLuecke: () => void;
+}) {
+  if (bereit) {
+    return (
+      <button type="submit" className={s.knopf} data-absenden="">
+        {ABSENDEN}
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={`${s.knopf} ${s.knopfUmriss}`}
+      data-absenden=""
+      data-offen=""
+      onClick={onLuecke}
+    >
+      {offenText(offen)}
+    </button>
+  );
+}
+
+/**
+ * Die Notenuebersicht im Abschluss-Block: acht Kacheln 34x34 in Fragereihenfolge.
+ * Beantwortet traegt die Kachel die ZIFFER in der Notenfarbe auf einer Toenung
+ * derselben Farbe; offen eine gestrichelte Kontur mit der Fragenummer. Anders als
+ * eine 15px-Farbmarke ist die Ziffer hier lesbar — die Marke waere reine
+ * Farbkodierung (§3.10), deshalb traegt der Navigator gar keine Farbe.
+ */
+function Uebersicht({
+  fragen,
+  noten,
+  onSprung,
+}: {
+  fragen: Question[];
+  noten: Record<string, number>;
+  onSprung: (frageId: string) => void;
+}) {
+  return (
+    <div className={s.uebersicht}>
+      {fragen.map((frage, i) => {
+        const stufe = noten[frage.id];
+        const nummer = i + 1;
+        return (
+          <button
+            key={frage.id}
+            type="button"
+            className={s.kachel}
+            data-kachel={frage.id}
+            data-offen={stufe === undefined ? "" : undefined}
+            style={stufe === undefined ? undefined : notenVariablen(stufe, ratingScale(frage.type))}
+            aria-label={
+              stufe === undefined
+                ? `Frage ${nummer}: noch keine Note — zur Frage`
+                : `Frage ${nummer}: Note ${stufe} – ${wort(stufe)} — ändern`
+            }
+            onClick={() => onSprung(frage.id)}
+          >
+            {stufe === undefined ? nummer : stufe}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Der Navigator (§3.2 Punkt 8): Fortschritt, Ankersatz, Sprung zur naechsten
+ * Luecke. KEINE Ampelfarbe (die Striche kennen nur Tinte und Linie) und KEIN
+ * Absende-Knopf — gesendet wird an den zwei Stellen im Textfluss, sonst gaebe es
+ * drei Knoepfe mit derselben Aufgabe.
+ */
+function Navigator({
+  fragen,
+  noten,
+  scale,
+  offen,
+  onSprung,
+}: {
+  fragen: Question[];
+  noten: Record<string, number>;
+  scale: number;
+  offen: string | undefined;
+  onSprung: (frageId: string) => void;
+}) {
+  return (
+    <div className={s.navigator} data-navigator="">
+      <div className={s.striche} aria-hidden="true">
+        {fragen.map((frage) => (
+          <span
+            key={frage.id}
+            className={s.strich}
+            data-strich=""
+            data-voll={noten[frage.id] === undefined ? undefined : ""}
+          />
+        ))}
+      </div>
+      {/* Traeger 3 der Richtung, sobald die Legende aus dem Bild gescrollt ist. */}
+      <p className={s.navLegende}>
+        1 = {wort(1)} · {scale} = {wort(scale)}
+      </p>
+      {offen === undefined ? null : (
+        <button type="button" className={s.navKnopf} onClick={() => onSprung(offen)}>
+          {NAVIGATOR_KNOPF}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -426,11 +742,14 @@ function Notenzeile({
   frage,
   nummer,
   gewaehlt,
+  lesezeichen,
   onWahl,
 }: {
   frage: Question;
   nummer: number;
   gewaehlt: number | undefined;
+  /** Ziel des letzten Sprungs: 2px-Balken an der linken Kante, keine Ruege. */
+  lesezeichen: boolean;
   onWahl: (stufe: number) => void;
 }) {
   // `switch` auf den Fragetyp statt Improvisieren: `stars` (importierte
@@ -438,7 +757,7 @@ function Notenzeile({
   const stufenzahl = ratingScale(frage.type);
   const stufen = Array.from({ length: stufenzahl }, (_, i) => i + 1);
   return (
-    <fieldset className={s.zeile}>
+    <fieldset className={s.zeile} data-lesezeichen={lesezeichen ? "" : undefined}>
       <legend className={s.srOnly}>{frage.text}</legend>
       <div className={s.reihe}>
         <div className={s.links} aria-hidden="true">

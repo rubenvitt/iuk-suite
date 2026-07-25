@@ -27,6 +27,25 @@ const newsreader = Newsreader({
 });
 
 /**
+ * DAS ANONYMITAETSSIEGEL — Wortlaut A aus Entwurf §3.9, wortgenau.
+ *
+ * Er steht hier und nicht im Client, weil er eine Zusage ueber SERVER-Verhalten
+ * ist und neben den Code gehoert, der sie wahr macht. Beide Voraussetzungen sind
+ * erfuellt, sonst waere nur die schwaechere Fassung B zulaessig:
+ *   1. "keine Uhrzeit" — `submitResponseAction` speichert `active.evening.date`
+ *      (Mitternacht UTC des Abends) als `submitted_at`, nicht `new Date()`. Bei
+ *      ~15 Abgaben waere die Sekunde allein ein Deanonymisierungskanal.
+ *   2. "in zufaelliger Reihenfolge" — `shuffleStable` (FNV-1a) mischt die
+ *      Leseordnung deterministisch; Aggregation UND CSV-Export nutzen sie.
+ * Die IP wird fuer das Ratelimit gebraucht, liegt aber nur in einer fluechtigen
+ * In-Memory-Map (`_lib/ratelimit.ts`) und nie an der Antwort. Kommt jemals ein
+ * persistenter Limiter mit IP-Spalte, aendert sich DIESER TEXT — nicht
+ * stillschweigend seine Bedeutung.
+ */
+const ANONYMITAETSSIEGEL =
+  "Diese Rückmeldung ist anonym. Gespeichert werden nur deine Noten und deine Texte — kein Name, keine E-Mail, keine Geräte- oder IP-Kennung, keine Uhrzeit. Die Gruppenleitung sieht Durchschnitte und die Texte in zufälliger Reihenfolge, nie eine Person.";
+
+/**
  * Datum eines Abends. `timeZone: "UTC"` ist PFLICHT, nicht Geschmack:
  * `evenings.date` ist Mitternacht UTC, und jede negative Zeitzone schiebt den
  * Kalendertag sonst um einen Tag nach vorn — dann steht auf dem Zettel der
@@ -136,6 +155,7 @@ export default async function ParticipatePage({
           scale={scale}
           action={submitResponseAction.bind(null, slugSecret)}
           tokenHash={tokenHash}
+          siegel={ANONYMITAETSSIEGEL}
         />
       </div>
     </div>
