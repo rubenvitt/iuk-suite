@@ -1442,10 +1442,15 @@ describe("suchePersonenAction: Autofill aus dem Personenverzeichnis", () => {
 
     const treffer = await suchePersonenAction("da");
 
-    expect(treffer.map((p) => [p.userId, p.angemeldet])).toEqual([
-      ["sub-nie", false],
-      ["sub-da", true],
-    ]);
+    // Reihenfolgeunabhängig: geprüft wird die KENNZEICHNUNG, nicht die Sortierung
+    // (die prüft `personen.test.ts`, und `da@drk.example` gewinnt dort zu Recht,
+    // weil die E-Mail mit dem Suchbegriff beginnt).
+    expect(new Map(treffer.map((p) => [p.userId, p.angemeldet]))).toEqual(
+      new Map([
+        ["sub-nie", false],
+        ["sub-da", true],
+      ]),
+    );
   });
 
   it("vereinigt Verzeichnis und known_users ohne Duplikate", async () => {

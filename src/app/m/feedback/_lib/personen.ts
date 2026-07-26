@@ -84,8 +84,25 @@ export function passtAufSuche(p: BekanntePerson, query: string): boolean {
   return suchfeld(p).includes(q);
 }
 
-/** Ohne Namen ans Ende, sonst alphabetisch — eine Liste ohne Ordnung ist keine. */
-function nachNamen(a: PersonVorschlag, b: PersonVorschlag): number {
+/**
+ * Reihenfolge der Vorschlaege: wer VORNE passt zuerst, dann der Rest, innerhalb
+ * beider Gruppen ohne Namen ans Ende und sonst alphabetisch.
+ *
+ * DER SUCHBEGRIFF GEHOERT HIER HEREIN, weil sonst zweimal hintereinander mit
+ * VERSCHIEDENEN Massstaeben sortiert und geschnitten wird: `core/directory`
+ * liefert seine 20 besten Treffer nach Relevanz, und ein rein alphabetisches
+ * Nachsortieren wuerde beim zweiten Schnitt genau die vordersten davon
+ * wegwerfen — bei „ann" verdraengte ein „Ahrens" die gesuchte „Anna".
+ */
+function nachRelevanz(a: PersonVorschlag, b: PersonVorschlag, q: string): number {
+  if (q !== "") {
+    const rang = (p: PersonVorschlag) =>
+      (p.name ?? "").toLowerCase().startsWith(q) || (p.email ?? "").toLowerCase().startsWith(q)
+        ? 0
+        : 1;
+    const d = rang(a) - rang(b);
+    if (d !== 0) return d;
+  }
   if ((a.name === null) !== (b.name === null)) return a.name === null ? 1 : -1;
   return (a.name ?? a.userId).localeCompare(b.name ?? b.userId, "de");
 }
@@ -101,7 +118,10 @@ export function vereinigePersonen(
   ausVerzeichnis: DirectoryPerson[],
   ausBekannten: BekanntePerson[],
   limit: number = SUCHE_MAX_TREFFER,
+  /** Der Suchbegriff, der die Trefferlisten erzeugt hat — siehe `nachRelevanz`. */
+  query = "",
 ): PersonVorschlag[] {
+  const q = query.trim().toLowerCase();
   const bekannt = new Map(ausBekannten.map((p) => [p.userId, p]));
   const zusammen = new Map<string, PersonVorschlag>();
 
@@ -119,7 +139,9 @@ export function vereinigePersonen(
     zusammen.set(p.userId, { ...p, angemeldet: true });
   }
 
-  return [...zusammen.values()].sort(nachNamen).slice(0, Math.max(0, limit));
+  return [...zusammen.values()]
+    .sort((a, b) => nachRelevanz(a, b, q))
+    .slice(0, Math.max(0, limit));
 }
 
 /**

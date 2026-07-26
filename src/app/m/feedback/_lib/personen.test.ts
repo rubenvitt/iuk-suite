@@ -195,3 +195,60 @@ describe("vorschlagOptionen", () => {
     expect(SUCHE_MAX_TREFFER).toBeLessThanOrEqual(25);
   });
 });
+
+/**
+ * DIE RELEVANZ UEBERLEBT DIE VEREINIGUNG.
+ *
+ * `core/directory` sortiert seine Treffer nach Relevanz und schneidet auf 20.
+ * Sortiert die Vereinigung danach rein alphabetisch und schneidet erneut auf 20,
+ * fallen genau die vordersten Treffer heraus — und zwar unsichtbar: die Liste
+ * sieht vollstaendig aus und enthaelt die gesuchte Person nicht.
+ */
+describe("vereinigePersonen — Reihenfolge mit Suchbegriff", () => {
+  it("wer vorne passt, steht vorne", () => {
+    const r = vereinigePersonen(
+      [
+        { userId: "s1", name: "Ahrens Bertram", email: null },
+        { userId: "s2", name: "Hermann Zann", email: null },
+        { userId: "s3", name: "Anna Beispiel", email: null },
+      ],
+      [],
+      10,
+      "ann",
+    );
+
+    expect(r[0].userId).toBe("s3");
+  });
+
+  it("ohne Suchbegriff bleibt es alphabetisch", () => {
+    const r = vereinigePersonen(
+      [
+        { userId: "s2", name: "Berta", email: null },
+        { userId: "s1", name: "Anton", email: null },
+      ],
+      [],
+      10,
+    );
+
+    expect(r.map((p) => p.userId)).toEqual(["s1", "s2"]);
+  });
+
+  it("ein Treffer aus dem Verzeichnis faellt nicht wegen lokaler Namen aus der Liste", () => {
+    // Zwanzig lokal Bekannte, alle alphabetisch VOR der gesuchten Person.
+    const lokal = Array.from({ length: 20 }, (_, i) => ({
+      userId: `lokal-${i}`,
+      name: `Aaa Person ${i}`,
+      email: null,
+    }));
+
+    const r = vereinigePersonen(
+      [{ userId: "sub-ziel", name: "Zoe Ziel", email: null }],
+      lokal,
+      20,
+      "zoe",
+    );
+
+    expect(r.map((p) => p.userId)).toContain("sub-ziel");
+    expect(r[0].userId).toBe("sub-ziel");
+  });
+});

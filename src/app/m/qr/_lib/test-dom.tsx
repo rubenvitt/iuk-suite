@@ -54,6 +54,20 @@ export async function hydrate(
   });
 }
 
+/**
+ * Denselben Baum erneut rendern — fuer Zusagen, die erst an einem UEBERGANG
+ * sichtbar werden (z. B. „nach dem Serverergebnis steht das Feld wieder auf dem
+ * Stand des Servers"). Ein zweites `mount` waere ein frischer Baum und wuerde
+ * genau den Uebergang ueberspringen, um den es geht.
+ */
+export async function rerender(element: ReactElement): Promise<void> {
+  const current = root;
+  if (!current) throw new Error("Es ist nichts gemountet");
+  await act(async () => {
+    current.render(element);
+  });
+}
+
 export async function unmount(): Promise<void> {
   const current = root;
   const currentHost = host;

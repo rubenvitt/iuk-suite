@@ -103,6 +103,39 @@ export function Zuordnung({
   const [state, formAction, isPending] = useActionState(addGroupLeaderAction, FORM_START);
   const [laeuft, starte] = useTransition();
   const fehler = feldFehler(state, "kennung");
+  const serverWert = feldWert(state, "kennung", "");
+
+  /*
+   * DER RUECKSETZER DES SUCHFELDES (§4.4).
+   *
+   * Nach einer Action muss das Feld auf dem Stand des Servers stehen: leer bei
+   * Erfolg, mit der Eingabe bei einem Feldfehler. Fuer UNKONTROLLIERTE Felder
+   * macht React das selbst (so arbeitet der Zweig ohne Verzeichnis, und so
+   * arbeitet jedes andere Formular im Modul) — die Combobox muss aber
+   * kontrolliert sein, damit die Auswahl den `sub` setzen kann, und
+   * kontrollierte Felder setzt React nicht zurueck.
+   *
+   * Deshalb ein Remount ueber den `key`. Der Zaehler steigt beim ABSENDEN, nicht
+   * beim Ergebnis, und das ist der Kern:
+   *
+   *   - Erfolg: `FORM_START` und ein erfolgreiches Ergebnis sind BEIDE
+   *     `{ ok: true }` und liefern beide `""`. Ein `key` allein aus `serverWert`
+   *     aendert sich also nicht — das Feld bliebe mit der eben gewaehlten Person
+   *     stehen, samt geladenem `sub`, und die naechste Zuordnung waere aus
+   *     Versehen dieselbe. Der Zaehler sieht diesen Fall.
+   *   - Feldfehler: `serverWert` traegt die Eingabe zurueck und aendert den `key`
+   *     ein zweites Mal — sie geht nicht verloren.
+   *
+   * Ein `useEffect`, der denselben Abgleich macht, ist in diesem Projekt ein
+   * Lint-FEHLER (`react-hooks/set-state-in-effect`) und blockiert die CI; ein
+   * Abgleich waehrend des Renderns ebenfalls (`react-hooks/refs`). Das Setzen im
+   * Absende-Handler ist der Weg, der ohne Ausnahmeregel auskommt.
+   */
+  const [absendeZaehler, setAbsendeZaehler] = useState(0);
+  const absenden = (daten: FormData) => {
+    setAbsendeZaehler((n) => n + 1);
+    formAction(daten);
+  };
 
   const entfernen = (userId: string) =>
     starte(async () => {
@@ -178,26 +211,16 @@ export function Zuordnung({
       />
 
       <form
-        action={formAction}
+        action={absenden}
         className="fb-form"
         style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}
       >
         <input type="hidden" name="groupId" value={groupId} />
         <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
           {verzeichnisAktiv ? (
-            /*
-             * `key` STATT ZUSTANDSABGLEICH: Nach jedem Serverergebnis muss das
-             * Feld auf den Stand zurueck, den der Server kennt — bei Erfolg leer,
-             * bei Feldfehler die Eingabe (§4.4, sie geht nie verloren). Ein
-             * `useEffect`, der das nachzieht, ist genau das Muster, das React
-             * abraet (`set-state-in-effect`); ein Remount ueber den Schluessel
-             * erledigt dasselbe ohne Zusatzzustand. Der Schluessel ist der
-             * SERVERWERT, nicht das Zustandsobjekt: waehrend des Tippens aendert
-             * er sich nicht, das Feld bleibt also stehen.
-             */
             <Verzeichnisfeld
-              key={feldWert(state, "kennung", "")}
-              serverWert={feldWert(state, "kennung", "")}
+              key={`${absendeZaehler}:${serverWert}`}
+              serverWert={serverWert}
               fehler={fehler}
               sucheVerzoegerungMs={sucheVerzoegerungMs}
             />
@@ -207,7 +230,7 @@ export function Zuordnung({
               name="kennung"
               style={{ flex: "1 1 220px" }}
               placeholder="Kennung oder E-Mail"
-              defaultValue={feldWert(state, "kennung", "")}
+              defaultValue={serverWert}
               status={fehler ? "error" : undefined}
               aria-invalid={fehler ? true : undefined}
               aria-describedby={fehler ? "fb-kennung-err" : undefined}
@@ -283,7 +306,11 @@ function Verzeichnisfeld({
   fehler,
   sucheVerzoegerungMs,
 }: {
-  /** Der Stand, den der Server kennt. Die Komponente wird darauf neu gesetzt. */
+  /**
+   * Der Stand, den der Server kennt: leer nach Erfolg, die Eingabe nach einem
+   * Feldfehler. Die Komponente wird bei jedem Absenden ueber ihren `key` neu
+   * aufgesetzt (Begruendung an der Aufrufstelle) und startet auf diesem Wert.
+   */
   serverWert: string;
   fehler: string | undefined;
   sucheVerzoegerungMs: number;

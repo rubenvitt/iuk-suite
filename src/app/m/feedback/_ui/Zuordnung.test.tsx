@@ -51,7 +51,16 @@ vi.mock("../actions", () => ({
 import { Zuordnung, type ZuordnungPerson } from "./Zuordnung";
 import type { FormState } from "../_lib/formState";
 import { act } from "react";
-import { clickElement, fill, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import {
+  clickElement,
+  fill,
+  mount,
+  query,
+  queryAll,
+  rerender,
+  submitForm,
+  unmount,
+} from "@/app/m/qr/_lib/test-dom";
 
 const quelle = () =>
   readFileSync(join(process.cwd(), "src/app/m/feedback/_ui/Zuordnung.tsx"), "utf8");
@@ -358,5 +367,95 @@ describe("Zuordnung — Autofill", () => {
 
     // Nur der Hinweis unter dem Formular — die Zeile behauptet nichts.
     expect(t.match(/noch nie angemeldet/g) ?? []).toHaveLength(1);
+  });
+});
+
+/**
+ * DER RUECKSETZER UND DIE FEHLERANBINDUNG DES SUCHFELDES (§4.4).
+ *
+ * Beide Zusagen sind auf dem alten, unkontrollierten Feld selbstverstaendlich —
+ * React setzt Formulare nach einer Action selbst zurueck, und `aria-invalid` am
+ * `Input` landet garantiert am Eingabeelement. Die Combobox muss KONTROLLIERT
+ * sein, damit die Auswahl den `sub` setzen kann; beide Selbstverstaendlichkeiten
+ * fallen damit weg und muessen einzeln belegt werden:
+ *
+ * 1. NACH ERFOLG IST DAS FELD LEER. Sonst steht die eben zugeordnete Person noch
+ *    drin, samt geladenem `sub` im versteckten Feld — und die naechste Zuordnung
+ *    ist aus Versehen dieselbe. `FORM_START` und ein erfolgreiches Ergebnis sind
+ *    BEIDE `{ ok: true }`; ein Ruecksetzer, der nur den Wert vergleicht, sieht
+ *    diesen Fall nicht.
+ * 2. NACH EINEM FELDFEHLER IST DIE EINGABE NOCH DA (§4.4: sie geht nie verloren).
+ * 3. DER FEHLER HAENGT AM EINGABEELEMENT, nicht am Rahmen-`div`. Sonst liest ein
+ *    Screenreader die Meldung nie vor, und §4.4 ist nur optisch erfuellt.
+ */
+describe("Zuordnung — Suchfeld nach dem Serverergebnis", () => {
+  const feld = () => (
+    <Zuordnung groupId={7} personen={PERSONEN} verzeichnisAktiv sucheVerzoegerungMs={0} />
+  );
+
+  beforeEach(() => {
+    suchePersonenActionMock.mockReset();
+    suchePersonenActionMock.mockResolvedValue([]);
+  });
+
+  it("nach ERFOLG ist das Feld leer — auch wenn der Serverwert vorher schon leer war", async () => {
+    // Genau die Falle: `FORM_START` und das Erfolgsergebnis liefern beide "".
+    let aktuell: FormState = { ok: true };
+    useActionStateMock.mockImplementation(() => [aktuell, () => {}, false]);
+    await mount(feld());
+    await tippe("sub-von-hand");
+    expect(query<HTMLInputElement>('input[name="kennung"]').value).toBe("sub-von-hand");
+
+    await submitForm();
+    aktuell = { ok: true }; // neues Erfolgsobjekt, gleicher Wert
+    await rerender(feld());
+
+    expect(query<HTMLInputElement>('input[name="kennung"]').value).toBe("");
+    expect(query<HTMLInputElement>(SUCHFELD).value).toBe("");
+  });
+
+  it("nach einem FELDFEHLER steht die Eingabe wieder da (§4.4)", async () => {
+    let aktuell: FormState = { ok: true };
+    useActionStateMock.mockImplementation(() => [aktuell, () => {}, false]);
+    await mount(feld());
+    await tippe("wer@drk.example");
+
+    await submitForm();
+    aktuell = {
+      ok: false,
+      fieldErrors: { kennung: "Diese E-Mail ist unbekannt." },
+      values: { kennung: "wer@drk.example" },
+    };
+    await rerender(feld());
+
+    expect(query<HTMLInputElement>(SUCHFELD).value).toBe("wer@drk.example");
+    expect(query<HTMLInputElement>('input[name="kennung"]').value).toBe("wer@drk.example");
+  });
+
+  it("der Feldfehler haengt am Eingabeelement mit role=combobox, nicht am Rahmen", () => {
+    useActionStateMock.mockImplementation(() => [
+      {
+        ok: false,
+        fieldErrors: { kennung: "Diese E-Mail ist unbekannt." },
+        values: { kennung: "wer@drk.example" },
+      } satisfies FormState,
+      () => {},
+      false,
+    ]);
+
+    const wirt = document.createElement("div");
+    wirt.innerHTML = renderToStaticMarkup(
+      <Zuordnung groupId={7} personen={PERSONEN} verzeichnisAktiv />,
+    );
+
+    const eingabe = wirt.querySelector('[role="combobox"]');
+    expect(eingabe).not.toBeNull();
+    expect(eingabe?.getAttribute("aria-invalid")).toBe("true");
+    expect(eingabe?.getAttribute("aria-describedby")).toBe("fb-kennung-err");
+    // Und das Ziel des Verweises existiert wirklich — ein Verweis ins Leere ist
+    // fuer einen Screenreader dasselbe wie gar keiner.
+    expect(wirt.querySelector("#fb-kennung-err")?.textContent).toContain(
+      "Diese E-Mail ist unbekannt.",
+    );
   });
 });

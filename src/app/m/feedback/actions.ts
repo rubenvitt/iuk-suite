@@ -305,7 +305,10 @@ export async function suchePersonenAction(eingabe: string): Promise<PersonVorsch
   if (q.length < SUCHE_MIN_ZEICHEN) return [];
   const ausVerzeichnis = await ohneAusfall(() => getDirectory().search(q, SUCHE_MAX_TREFFER));
   const ausBekannten = listKnownUsers(db).filter((p) => passtAufSuche(p, q));
-  return vereinigePersonen(ausVerzeichnis.people, ausBekannten, SUCHE_MAX_TREFFER);
+  // `q` mit hinein: das Verzeichnis liefert seine besten Treffer nach Relevanz,
+  // und ein rein alphabetisches Nachsortieren würde beim zweiten Schnitt genau
+  // die vordersten davon wegwerfen.
+  return vereinigePersonen(ausVerzeichnis.people, ausBekannten, SUCHE_MAX_TREFFER, q);
 }
 
 /**
