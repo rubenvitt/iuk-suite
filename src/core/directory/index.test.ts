@@ -207,6 +207,25 @@ describe("Verzeichnis — Ausfall bricht nichts", () => {
     await expect(v.list()).resolves.toEqual({ status: "error", people: [] });
   });
 
+  it("ein haengender Abruf wird nach der Zeitgrenze ABGEBROCHEN, nicht abgewartet", async () => {
+    // Der Test, den die simulierte Ausnahme darunter NICHT ersetzt: er beweist,
+    // dass der AbortController wirklich verdrahtet ist. Ohne ihn haengt die
+    // Cockpit-Seite an einem Identitaetsanbieter, der nicht mehr antwortet — und
+    // eine haengende Seite ist schlimmer als eine ohne Namen.
+    const v = createDirectory({
+      ...KONFIG,
+      timeoutMs: 5,
+      transport: (_url, init) =>
+        new Promise((_erfuellen, ablehnen) => {
+          init.signal?.addEventListener("abort", () =>
+            ablehnen(Object.assign(new Error("aborted"), { name: "AbortError" })),
+          );
+        }),
+    });
+
+    await expect(v.list()).resolves.toEqual({ status: "error", people: [] });
+  });
+
   it("Zeitueberschreitung: Status error, kein Wurf", async () => {
     const v = createDirectory({
       ...KONFIG,
