@@ -1,0 +1,1163 @@
+/*
+ * Die komplette Optik der oeffentlichen Ansicht — "Der Abendzettel"
+ * (docs/design/feedback-oeffentliche-ansicht.md §3.2–3.6, §3.10).
+ *
+ * ALLE Farb-, Typo- und Abstandswerte hier stehen WORTGENAU im Entwurf. Sie
+ * sind auf Kontrast geprueft (AA belegt, Werte in §3.4); eigene Werte brechen
+ * die Zusicherung, ohne dass ein Test oder ein Build es merkt.
+ *
+ * ZWEI Dinge stehen absichtlich NICHT hier:
+ *
+ * 1. Die sechs NOTENFARBEN. Sie leben in `_lib/noten.ts` (eine Definition, zwei
+ *    Verwendungen: `/f/**` und `(admin)`). Der Chip bekommt sie als Inline-
+ *    Variablen `--note-hell` / `--note-dunkel` von `Zettel.tsx` gereicht, damit
+ *    hier keine zweite Palette entsteht, die beim naechsten Nachjustieren
+ *    auseinanderlaeuft. `Zettel.test.tsx` haelt fest, dass keiner der sechs
+ *    Hex-Codes in dieser Datei auftaucht.
+ * 2. Der Dunkelmodus haengt an `:root[data-theme="dark"]`, NICHT an
+ *    `prefers-color-scheme` — die Suite hat einen Umschalter (Cookie
+ *    `iuk-theme`), sonst bricht der Fall "System dunkel, Umschalter hell".
+ *
+ * DRK-Rot `#c8000f` kommt in dieser Datei GENAU ZWEIMAL vor: 3px-Fahne und
+ * Wortzeichen "DRK". Nie als Datenflaeche, nie als Fehlerfarbe, nie als
+ * Knopffuellung — sonst kippt die Semantik der Notenskala (Note 6 ist
+ * `#811221`, deutlich dunkler und kuehler). Auch das prueft der Test.
+ */
+
+/*
+ * Die Variablen haengen an den beiden Wurzeln des Moduls (Seite und Formular)
+ * statt an `:root` — ein CSS-Modul kann `:root` nicht scopen, und Namen wie
+ * `--tinte` oder `--linie` global in die Suite zu haengen waere eine Kollision,
+ * die erst in einem fremden Modul auffaellt.
+ */
+.seite,
+.form {
+  --papier: #f4f1ea;
+  --blatt: #fbfaf7;
+  --tinte: #16181a;
+  --graphit: #3a3f44;
+  --gedaempft: #5e625f;
+  --linie: #ddd8ce;
+  --linie-stark: #c9c3b7;
+  --tint: #ede9df;
+
+  /* Tonwertkeil: der Zustand VOR der Auswahl, achromatisch, 6 Stufen a ~4,5%.
+     Er ist Traeger 2 der Richtung — "nach rechts wird es schwerer" — und
+     funktioniert in Graustufen und bei jeder Farbfehlsichtigkeit. */
+  --keil-1: #fbfaf7;
+  --keil-2: #f5f2ea;
+  --keil-3: #efebe1;
+  --keil-4: #e9e4d7;
+  --keil-5: #e3ddce;
+  --keil-6: #ddd6c5;
+
+  /* Primaeraktion ist Graphit-Tinte, NICHT DRK-Rot: 14,8:1. */
+  --knopf-grund: #24282c;
+  --knopf-schrift: #ffffff;
+
+  /* Ziffernfarbe im gewaehlten Chip (§3.4). */
+  --ziffer-gewaehlt: #ffffff;
+
+  --serif: var(--font-newsreader), var(--font-geist-sans), serif;
+}
+
+:root[data-theme="dark"] .seite,
+:root[data-theme="dark"] .form {
+  --papier: #101214;
+  --blatt: #1b1e22;
+  --tinte: #ece9e2;
+  --graphit: #c3c8cd;
+  --gedaempft: #9aa0a6;
+  --linie: #2c3035;
+  --linie-stark: #3a3f45;
+  --tint: #23272c;
+
+  /* Dunkel ist die Richtung des Keils umgekehrt: heller = schwerer. */
+  --keil-1: #1b1e22;
+  --keil-2: #202429;
+  --keil-3: #252a30;
+  --keil-4: #2a2f36;
+  --keil-5: #2f353c;
+  --keil-6: #343b43;
+
+  --knopf-grund: #ece9e2;
+  --knopf-schrift: #101214;
+  --ziffer-gewaehlt: #101214;
+}
+
+/* ---------- Huelle: Fahne, Blatt ---------- */
+
+.seite {
+  background: var(--papier);
+  color: var(--tinte);
+  min-height: 100%;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Traeger 1 von zwei fuer DRK-Rot: 3px, randlos, nie als Flaeche. */
+.fahne {
+  height: 3px;
+  background: #c8000f;
+}
+
+.blatt {
+  background: var(--blatt);
+  max-width: 40rem;
+  margin: 0 auto;
+  padding-inline: 20px;
+  padding-bottom: 32px;
+}
+
+@media (min-width: 600px) {
+  .blatt {
+    margin: 40px auto 64px;
+    padding-inline: 32px;
+    border: 1px solid var(--linie);
+    border-radius: 14px;
+    box-shadow:
+      0 1px 0 rgba(22, 24, 26, 0.04),
+      0 18px 40px -20px rgba(22, 24, 26, 0.18);
+  }
+}
+
+/* ---------- Kopf ---------- */
+
+.kopf {
+  padding-top: 28px;
+  padding-bottom: 20px;
+}
+
+.kicker {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gedaempft);
+}
+
+/* Traeger 2 von zwei fuer DRK-Rot: 13px Wortzeichen. */
+.wortzeichen {
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #c8000f;
+}
+
+.titel {
+  margin: 12px 0 0;
+  max-width: 34rem;
+  font-family: var(--serif);
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+  color: var(--tinte);
+}
+
+@media (min-width: 600px) {
+  .titel {
+    font-size: 32px;
+    line-height: 1.1;
+  }
+}
+
+.meta {
+  margin: 12px 0 0;
+  max-width: 34rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+.datum {
+  color: var(--tinte);
+  font-weight: 600;
+}
+
+.vertrag {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  max-width: 34rem;
+  border-top: 1px solid var(--linie);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+/* ---------- Legende: genau einmal, im Raster der Chips ---------- */
+
+.legende {
+  display: block;
+}
+
+/*
+ * DASSELBE RASTER WIE DIE CHIPS, `gap` eingeschlossen (§3.2 Punkt 3). Ohne den
+ * gleichen Abstand teilen sich sechs Segmente die volle Breite, waehrend sich
+ * sechs Chips darunter fuenf Luecken von 6px teilen: die Farbstopps liegen dann
+ * bis ~5px neben der Spalte, auf die sie zeigen. Der Streifen ist Traeger 1 der
+ * Richtungserkennung (§3.6) — er darf nicht daneben zeigen.
+ */
+.streifen {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  height: 10px;
+}
+
+.streifen[data-stufen="5"] {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+/*
+ * Harte Stopps, kein Gradient: die sechs Stufen sind diskret, kein Kontinuum.
+ * Der Radius sitzt am SEGMENT und nicht mehr am Streifen — mit `gap` klippt der
+ * Container die inneren Ecken nicht, vier eckige Kloetzchen zwischen zwei runden
+ * waeren die Folge. 3 ist der fuer den Streifen vorgesehene Radius (§3.5).
+ */
+.segment {
+  border-radius: 3px;
+  background: var(--note-hell);
+}
+
+:root[data-theme="dark"] .segment {
+  background: var(--note-dunkel);
+}
+
+.woerter {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--gedaempft);
+}
+
+.woerter[data-stufen="5"] {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.wort {
+  text-align: center;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* ---------- Matrix ---------- */
+
+.sektion {
+  margin-top: 32px;
+}
+
+/* 20px von der Legende zur ersten Zeile (§3.5). */
+.sektion:first-of-type {
+  margin-top: 20px;
+}
+
+.sektionKicker {
+  margin: 0 0 4px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gedaempft);
+}
+
+/*
+ * `fieldset` bleibt `display: block` — Grid auf einem `fieldset` mit `legend`
+ * ist browserseitig heikel (§3.6). Die Zeilengeometrie traegt deshalb `.reihe`
+ * eine Ebene tiefer; das ist der einzige Zusatz gegenueber der Markup-Vorlage
+ * und er ist genau die dort genannte Vorsichtsmassnahme.
+ */
+.zeile {
+  display: block;
+  margin: 0;
+  padding: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--linie);
+  min-inline-size: 0;
+  /* Bezugsrahmen fuer das Lesezeichen weiter unten — sonst haengt es am Blatt. */
+  position: relative;
+}
+
+.zeile:last-of-type {
+  border-bottom: 1px solid var(--linie);
+}
+
+/* Sprungziel: 96px Luft, damit die Zeile nicht unter dem Kopf klebt (§3.5). */
+.zeile {
+  scroll-margin-top: 96px;
+}
+
+/*
+ * LESEZEICHEN, keine Ruege (§3.6): 2px in Graphit NEBEN der linken Kante der
+ * Zeile, zu der gesprungen wurde. Kein Rot: hier hat niemand etwas falsch gemacht.
+ *
+ * Es war ein `inset`-Schatten IN der Zeile. Die Begruendung dafuer war richtig —
+ * ein `border-left` haette die Zeile um zwei Pixel verschoben, und der Sprung
+ * soll nichts verrutschen lassen —, nur hat `.zeile` kein linkes Padding
+ * (`padding: 14px 0`) und die Ordnungszahl beginnt bei x=0. Der Balken lag damit
+ * auf den ersten zwei Pixeln des Inhalts und schnitt die Ziffer an: „01" las sich
+ * als „b1". Ein absolut gesetztes Pseudoelement im Blattrand loest beides — kein
+ * Layoutsprung UND kein verdecktes Zeichen. Die 10px passen immer: `.blatt` hat
+ * `padding-inline: 20px` (mobil) bzw. 32px, der Balken bleibt also im Blatt.
+ */
+.zeile[data-lesezeichen]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -10px;
+  width: 2px;
+  background: var(--graphit);
+}
+
+/* Zweimal aufleuchten in `--tint` — der Blick findet die Zeile, ohne Warnfarbe. */
+.zeile[data-puls] {
+  animation: puls 420ms ease-out 2;
+}
+
+.reihe {
+  display: block;
+}
+
+.links {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.nr {
+  flex: none;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--gedaempft);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.frage {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 500;
+  color: var(--tinte);
+}
+
+.rechts {
+  margin-top: 10px;
+}
+
+.chips {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.chips[data-stufen="5"] {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+/*
+ * Der Chip: Ziffer sichtbar, Position fix, Wort im `aria-label`, Farbe erst bei
+ * Auswahl. 44px hoch — normales Touchmass, kein Kiosk-Klotz (bewusste
+ * Abweichung von TAP = 56, diese Ansicht ist nicht einsatzrelevant).
+ */
+.chip {
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border: 1px solid var(--rahmen, var(--linie));
+  border-radius: 8px;
+  background: var(--keil, var(--keil-1));
+  color: var(--gedaempft);
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  cursor: pointer;
+  user-select: none;
+  /* Umwahl asymmetrisch: der alte Chip entfaerbt in 100ms ... */
+  transition:
+    background-color 100ms ease-out,
+    border-color 100ms ease-out,
+    color 100ms ease-out;
+}
+
+.chip:nth-of-type(1) {
+  --keil: var(--keil-1);
+  --rahmen: var(--linie);
+}
+.chip:nth-of-type(2) {
+  --keil: var(--keil-2);
+  --rahmen: var(--linie);
+}
+.chip:nth-of-type(3) {
+  --keil: var(--keil-3);
+  --rahmen: var(--linie);
+}
+.chip:nth-of-type(4) {
+  --keil: var(--keil-4);
+  --rahmen: var(--linie-stark);
+}
+.chip:nth-of-type(5) {
+  --keil: var(--keil-5);
+  --rahmen: var(--linie-stark);
+}
+.chip:nth-of-type(6) {
+  --keil: var(--keil-6);
+  --rahmen: var(--linie-stark);
+}
+
+/* Fuenfstufige Alt-Skala: der Keil bleibt monoton bis zum rechten Rand, die
+   dunkelste Stufe sitzt weiter am Ende der Reihe. */
+.chips[data-stufen="5"] .chip:nth-of-type(4) {
+  --keil: var(--keil-5);
+  --rahmen: var(--linie-stark);
+}
+.chips[data-stufen="5"] .chip:nth-of-type(5) {
+  --keil: var(--keil-6);
+  --rahmen: var(--linie-stark);
+}
+
+/* Geschwister nach der Wahl: der Rahmen faellt auf `--linie`, die Fuellung
+   bleibt der Keil. NICHTS wird ausgegraut — nicht gewaehlte Ziffern sind
+   Bedienelemente, keine deaktivierten Reste. */
+.chips:has(input:checked) .chip {
+  --rahmen: var(--linie);
+}
+
+/* ... und der neue faerbt in 120ms. */
+.chips input:checked + .chip {
+  background: var(--note-hell);
+  color: var(--ziffer-gewaehlt);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+  transition-duration: 120ms;
+  animation: chipWahl 140ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+:root[data-theme="dark"] .chips input:checked + .chip {
+  background: var(--note-dunkel);
+}
+
+/*
+ * Hover ohne Farbvorschau: eine Vorschau in der Notenfarbe waere eine Bewertung,
+ * die niemand abgegeben hat.
+ *
+ * DIE ZWEITE ZEILE IST DER GRUND, WARUM DIESE REGEL ZWEI SELEKTOREN HAT: die
+ * Geschwister-Regel oben hat Spezifitaet (0,3,1) und ueberschrieb `.chip:hover`
+ * (0,2,0). In jeder SCHON BEANTWORTETEN Zeile gab es damit keine
+ * Hover-Rueckmeldung mehr — also genau dort, wo jemand eine Note aendern will.
+ * `.chips:has(input:checked) .chip:hover` liegt bei (0,4,1) und gewinnt.
+ */
+@media (hover: hover) {
+  .chip:hover,
+  .chips:has(input:checked) .chip:hover {
+    --rahmen: var(--linie-stark);
+  }
+}
+
+/*
+ * Der Fokusring sitzt am Label, nicht am versteckten Radio: ein `outline` auf
+ * einem 1px-Element ist unsichtbar. Ausschliesslich Tinte — ein roter Ring auf
+ * dem gruenen Chip der Note 1 waere Ampelverschmutzung.
+ */
+.chips input:focus-visible + .chip {
+  outline: 2px solid var(--tinte);
+  outline-offset: 2px;
+}
+
+/* Traeger 3 der Richtung: die Ankerwoerter, dauerhaft unter der ersten Zeile. */
+.anker {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+/*
+ * DIE FUSSNOTE BELEGT IHREN PLATZ VON ANFANG AN.
+ *
+ * Vorher erschien sie erst mit der Wahl und verlaengerte die Zeile um ~27px
+ * (18,85px Textzeile plus 8px Abstand) — waehrend der Finger schon zur naechsten
+ * Zeile wanderte. Acht Zeilen, achtmal ein Sprung unter dem Daumen. Deshalb:
+ * Hoehe vorhalten, nur die SICHTBARKEIT umschalten. `visibility: hidden` nimmt
+ * sie auch aus dem Barrierefreiheitsbaum, ein `aria-hidden` braucht es nicht.
+ *
+ * `min-height` in `em`, damit der Platz an der Typo haengt und nicht an einem
+ * Pixelwert, der beim naechsten Nachjustieren stehen bleibt: 1,45 ist genau die
+ * `line-height` dieser Zeile.
+ *
+ * Der Preis, benannt: am Desktop ist die Matrixzeile damit immer 91px hoch statt
+ * 64px im unberuehrten und 91px im beantworteten Zustand (§3.5 nennt 64px/512px
+ * fuer die LEERE Matrix). Der Endstand — acht gewaehlte Noten — ist unveraendert,
+ * und gleich hohe Zeilen lesen sich als Tabelle, gemischte nicht.
+ */
+.fussnote {
+  display: block;
+  visibility: hidden;
+  min-height: 1.45em;
+  margin-top: 8px;
+  text-align: right;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--graphit);
+}
+
+/*
+ * Die 160ms-Einblendung (§3.5) haengt am GESETZTEN Zustand, nicht am Platz: an
+ * `.fussnote` liefe sie beim Seitenaufbau achtmal ins Leere und bei der Wahl —
+ * dem einzigen Moment, in dem sie etwas zeigt — gar nicht mehr.
+ */
+.fussnote[data-fussnote] {
+  visibility: visible;
+  animation: fussnoteEin 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (min-width: 600px) {
+  /*
+   * Der Legendenstreifen muss SPALTENGLEICH ueber den Chips stehen (§3.2 Punkt
+   * 3) — sonst zeigt er auf nichts. Am Desktop rutscht die Chipreihe in eine
+   * 336px-Spalte rechts, also muss die Legende in dieselbe Spalte, nicht ueber
+   * die ganze Blattbreite.
+   */
+  .legende {
+    display: grid;
+    grid-template-columns: 1fr 336px;
+    column-gap: 24px;
+  }
+
+  .streifen,
+  .woerter {
+    grid-column: 2;
+  }
+
+  .zeile {
+    padding: 12px 0;
+  }
+
+  /* Am Desktop liest sich die Matrix als Tabelle: 6 x 51px + 5 x 6px = 336px. */
+  .reihe {
+    display: grid;
+    grid-template-columns: 1fr 336px;
+    column-gap: 24px;
+    align-items: center;
+  }
+
+  .rechts {
+    margin-top: 0;
+  }
+
+  .chip {
+    height: 40px;
+  }
+}
+
+/* ---------- Freitexte: linierte Zeilen, keine Kaesten (§3.7) ---------- */
+
+/*
+ * Sechs Kaesten mit Rahmen, Fuellung und Radius ergeben ~540px Flaeche und
+ * lesen sich als sechs Formularpflichten. Dieselben sechs Fragen als linierte
+ * Zeilen: ~300px. Der Unterschied ist ausschliesslich hier im CSS — kein
+ * Fragetext wird dafuer gekuerzt, versteckt oder umbenannt.
+ */
+
+/*
+ * Der Sektions-Kicker („04 IN EIGENEN WORTEN") und der Serif-Einleitungssatz
+ * („Alles hier ist freiwillig …") sind entfallen, mit ihnen die Regel
+ * `.einleitung`: die Freiwilligkeit steht am Fuss des Abschluss-Blocks, direkt
+ * ueber dieser Sektion. Was bleibt, ist der Satz, den nichts anderes sagt.
+ */
+.hinweis {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+.textzeilen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.textzeile {
+  display: block;
+}
+
+.textLabel {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--graphit);
+}
+
+/*
+ * Das Feld: kein Rahmen, keine Fuellung, kein Radius — nur eine Grundlinie.
+ * `border-radius: 0` ist die Zuruecknahme des Radius, den iOS Safari von sich
+ * aus setzt (ohne diese Zeile ist die "Zeile" dort doch ein Kasten).
+ * 18px, weil iOS unter 16px beim Fokus in das Feld zoomt.
+ * `field-sizing: content` laesst die Zeile OHNE JavaScript mitwachsen; wo es
+ * fehlt, traegt `rows=1` plus die `scrollHeight`-Messung in `Zettel.tsx`.
+ */
+.textfeld {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--linie);
+  border-radius: 0;
+  background: transparent;
+  color: var(--tinte);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 400;
+  min-height: 40px;
+  resize: none;
+  /*
+   * `auto`, NICHT `hidden`: mit JavaScript ist die Hoehe immer genau der Inhalt,
+   * ein Balken erscheint also nie. Ohne JavaScript UND ohne `field-sizing` waere
+   * `hidden` bei `rows=1` aber ein stiller Datenverlust — alles ab der zweiten
+   * Zeile unsichtbar und nicht erreichbar.
+   */
+  overflow: auto;
+  field-sizing: content;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/*
+ * Beantwortete Zeilen sind als kraeftigere Striche erkennbar — das ist der
+ * Ersatz fuer das verbotene Erledigt-Haekchen: es zeigt Inhalt, ohne die leeren
+ * Zeilen zu mahnen.
+ */
+.textfeld[data-gefuellt] {
+  border-bottom-width: 1.5px;
+  border-bottom-color: var(--graphit);
+}
+
+/*
+ * NACH der gefuellten Zeile notiert, damit der Fokus bei gleicher Spezifitaet
+ * gewinnt. Die 2px-Grundlinie IST der Fokuszeiger (§3.7) — ein Ring um ein
+ * rahmenloses Feld waere der Kasten, den diese Sektion gerade abgeschafft hat.
+ */
+.textfeld:focus {
+  outline: none;
+  border-bottom: 2px solid var(--graphit);
+  /* Die Zeile gewinnt 8px Innenhoehe (10 + 4 oben und unten). */
+  padding-block: 14px;
+}
+
+.textzeile:has(.textfeld:focus) .textLabel {
+  color: var(--tinte);
+}
+
+.zaehler {
+  display: block;
+  text-align: right;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+/*
+ * Der Abstand haengt an der SICHTBAREN Zahl, nicht am Element: der Zaehler steht
+ * auch leer im Baum (er ist das stabile Ziel von `aria-describedby`), und ein
+ * leerer Block mit 4px Aussenabstand machte aus den 16px zwischen zwei
+ * Freitextzeilen (§3.5) stillschweigend 20px.
+ */
+.zaehler[data-zaehler] {
+  margin-top: 4px;
+}
+
+/* ---------- Abschluss-Block: der Angelpunkt (§3.2 Punkt 5) ---------- */
+
+/*
+ * Er steht VOR den Freitexten, traegt aber keinen Knopf und keine Ueberschrift
+ * mehr: er ist die Nachschau auf die acht Noten, nicht das Ende des Bogens.
+ * Abgesendet wird genau einmal, am Fuss — ein Knopf mitten im Bogen sendet
+ * versehentlich ab, waehrend unten noch leere Zeilen stehen.
+ */
+.abschluss {
+  margin-top: 32px;
+}
+
+/* Notenuebersicht: 34x34-Kacheln, Radius 8, gap 8 (§3.5). */
+.uebersicht {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/*
+ * Beantwortet: die ZIFFER in der Notenfarbe auf 14% Toenung derselben Farbe
+ * (dunkel 22%). Die Kachel ist der einzige Ort mit Notenfarbe ausserhalb der
+ * Matrix — und sie traegt eine lesbare Ziffer. Eine 15px-Farbmarke waere reine
+ * Farbkodierung und damit der Verstoss, den §3.10 ausdruecklich vermeidet.
+ */
+.kachel {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--note-hell) 14%, transparent);
+  color: var(--note-hell);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  cursor: pointer;
+}
+
+:root[data-theme="dark"] .kachel {
+  background: color-mix(in srgb, var(--note-dunkel) 22%, transparent);
+  color: var(--note-dunkel);
+}
+
+/* Offen: gestrichelte Kontur plus Fragenummer — kein Rot, kein Ausrufezeichen. */
+.kachel[data-offen] {
+  border: 1px dashed var(--linie-stark);
+  background: transparent;
+  color: var(--gedaempft);
+}
+
+:root[data-theme="dark"] .kachel[data-offen] {
+  background: transparent;
+  color: var(--gedaempft);
+}
+
+.kachel:focus-visible {
+  outline: 2px solid var(--tinte);
+  outline-offset: 2px;
+}
+
+.uebersichtHinweis {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+/*
+ * DAS ANONYMITAETSSIEGEL STAND HIER — ein Block mit Graphit-Kante auf `--tint`,
+ * 15px/1,55. Es ist entfallen; die Zusage traegt jetzt allein die Kurzzusage
+ * ueber dem Absende-Knopf (13px, `--gedaempft`), weil sie dasselbe kuerzer sagt.
+ * Die Form lebt weiter in `.meldung` darunter — deren Kommentar nennt das Siegel
+ * als Vorbild.
+ */
+
+/*
+ * Die Meldung fuer eine unerwartete Ausnahme. Ein Block mit Graphit-Kante auf
+ * `--tint` (die Form des entfallenen Siegels) und bewusst KEINE Fehlerfarbe:
+ * `colorError` der Suite ist `#c8000f`, also
+ * identisch mit der Primaerfarbe — ein rotes Panel hier saehe aus wie die
+ * Hauptaktion und wuerde ausserdem die Notenskala verwaessern.
+ */
+.meldung {
+  margin: 24px 0 0;
+  padding: 12px 16px;
+  border-left: 2px solid var(--graphit);
+  border-radius: 0 8px 8px 0;
+  background: var(--tint);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--tinte);
+}
+
+/*
+ * KEIN `:focus-visible` hier, und kein `tabindex` am Element: die Meldung traegt
+ * `role="alert"` (§3.8 schreibt sie fuer das `closed`-Panel fest), und Rolle PLUS
+ * programmatischer Fokus kuendigen sie moeglicherweise ZWEIMAL an. Zum Blick der
+ * Sehenden kommt sie ueber `scrollIntoView` — das leistet die Rolle nicht.
+ */
+
+/*
+ * Der Freiwilligkeits-Hinweis am Fuss des Abschluss-Blocks. Er hiess einmal
+ * `.knopfHinweis` und stand 8px unter dem Knopf, der dort stand; jetzt folgt er
+ * dem Siegel mit dessen eigenem Abstand, also 24px.
+ */
+.freiwilligHinweis {
+  margin: 24px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+/* Kurzzusage ueber dem Absende-Knopf — danach nur 8px bis zum Knopf. */
+.kurzzusage {
+  margin: 32px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+.kurzzusage + .knopf {
+  margin-top: 8px;
+}
+
+/* ---------- Knopf ---------- */
+
+.knopf {
+  display: block;
+  width: 100%;
+  height: 48px;
+  margin-top: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--knopf-grund);
+  color: var(--knopf-schrift);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.knopf:focus-visible {
+  outline: 2px solid var(--tinte);
+  outline-offset: 2px;
+}
+
+/*
+ * Die 20-Sekunden-Sperre nach einem Ratelimit (Entwurf 3.8). Sie muss SICHTBAR
+ * sein, sonst ist der Knopf aus Sicht der Person kaputt: er sieht aus wie immer
+ * und tut nichts — und genau dann wird er mehrfach getippt, also das Verhalten,
+ * das das Ratelimit ausgeloest hat. Gedaempft, nicht gesperrt-rot: der Text im
+ * Panel darueber sagt, dass gleich wieder gesendet werden kann.
+ */
+.knopf:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/*
+ * Der unvollstaendige Zustand: UMRISS statt Fuellung, Schrift in Tinte. Er sieht
+ * nicht nach Verbot aus und nicht nach Warnung — er sieht nach "noch nicht
+ * fertig" aus, und der Text daneben sagt, was fehlt.
+ */
+.knopfUmriss {
+  border: 1px solid var(--graphit);
+  background: transparent;
+  color: var(--tinte);
+}
+
+@media (min-width: 600px) {
+  .knopf {
+    width: 260px;
+  }
+}
+
+/* ---------- Navigator (§3.2 Punkt 8) ---------- */
+
+/*
+ * FORTSCHRITT, keine Bewertung: die Striche kennen `--tinte` und
+ * `--linie-stark`, niemals eine Notenfarbe. Und kein Absende-Knopf — gesendet
+ * wird an den zwei Stellen im Textfluss, drei Knoepfe mit derselben Aufgabe
+ * waeren einer zu viel.
+ */
+.navigator {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: calc(56px + env(safe-area-inset-bottom));
+  padding: 0 20px env(safe-area-inset-bottom);
+  border-top: 1px solid var(--linie);
+  background: color-mix(in srgb, var(--blatt) 92%, transparent);
+  backdrop-filter: blur(10px);
+  animation: navigatorEin 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/*
+ * Solange die Leiste liegt, darf sie den ZWEITEN Absende-Knopf nicht verdecken —
+ * er steht am Fuss des Zettels, die Leiste ist 56px hoch, das Blatt hat nur 32px
+ * Bodenabstand. `:has` erledigt das ohne eine Zeile JavaScript und ohne einen
+ * zweiten Beobachter: kein Navigator im Formular, kein zusaetzlicher Abstand.
+ */
+.form:has([data-navigator]) {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom));
+}
+
+.striche {
+  display: flex;
+  gap: 4px;
+}
+
+.strich {
+  width: 2px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--linie-stark);
+  transition: background 180ms ease-out;
+}
+
+.strich[data-voll] {
+  background: var(--tinte);
+}
+
+.navLegende {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--gedaempft);
+}
+
+.navKnopf {
+  margin-left: auto;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: var(--tinte);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.navKnopf:focus-visible {
+  outline: 2px solid var(--tinte);
+  outline-offset: 2px;
+}
+
+/* ---------- Nur fuer Screenreader ---------- */
+
+/*
+ * `clip-path` haelt den Text im Barrierefreiheitsbaum. `display: none` oder
+ * `visibility: hidden` wuerden die Frage fuer Screenreader LOESCHEN — dann
+ * haette die Radiogruppe keinen Namen mehr. Genau darum prueft
+ * `Zettel.test.tsx` diese Regel im Quelltext.
+ */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Zustaende B–F (§3.2) ---------- */
+
+/*
+ * Die Zustaende teilen mit dem Formular Fahne, Kopf, Satzbreite und Typo-Skala;
+ * ihr Koerper ist nur ein Textblock und hoechstens ein Knopf. Der Abstand ist
+ * derselbe wie von der Legende zur ersten Notenzeile (§3.5): 24px.
+ */
+.zustand {
+  margin-top: 24px;
+}
+
+/* t2 (15px/1,55): der Fliesstext dieser Route. */
+.text {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--tinte);
+}
+
+/*
+ * "Danke." steht auf t6, auch mobil (§3.3): die Danke-Seite hat keine
+ * konkurrierende Zeile, dort darf die Ueberschrift den Schirm tragen. Die Regel
+ * steht NACH der 600px-Regel von `.titel` — sonst gewaenne die Media Query.
+ */
+.gross {
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+/*
+ * Ein `<a>` in Knopfgestalt (Zustand C, "Neu laden"): `.knopf` ist auf
+ * `<button>` gemuenzt, dort zentriert der Text sich selbst. Ein Link braucht die
+ * Zentrierung explizit — und keine Unterstreichung, sonst liest er sich als
+ * zweite Sorte Knopf.
+ */
+.knopfLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+/* Der entsaettigte Legendenstreifen des Zustands D. */
+.stummeLegende {
+  margin-top: 24px;
+}
+
+/*
+ * Hell UND dunkel ausdruecklich: die Dunkelregel fuer `.segment` haengt an
+ * `:root[data-theme="dark"]` und gewaenne sonst ueber die Spezifitaet — der
+ * Streifen bliebe im Dunkelmodus farbig, und die Farbe hat den Raum verlassen.
+ */
+.streifen[data-stumm] .segment,
+:root[data-theme="dark"] .streifen[data-stumm] .segment {
+  background: var(--linie-stark);
+}
+
+/* Weitergabe-Abschnitt der Danke-Seite: Haarlinie, dann 32px (§3.2 B). */
+.weitergabe {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px solid var(--linie);
+}
+
+/* ---------- Bewegung ---------- */
+
+/*
+ * Der Seitenaufbau ist einmal orchestriert: sieben Bloecke, 320ms, Verzug
+ * 0/60/120/180/240/300/360ms — nach 0,7s steht alles. Kein Scroll-Trigger, kein
+ * Nachladen: reine `animation-delay`-Choreografie auf schon vorhandenem HTML.
+ */
+.aufbau {
+  animation: aufbau 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes aufbau {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes chipWahl {
+  from {
+    transform: scale(0.96);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes fussnoteEin {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Der Puls der Sprungzeile: `--tint` und zurueck, zweimal. Keine Warnfarbe. */
+@keyframes puls {
+  from {
+    background: var(--tint);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@keyframes navigatorEin {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Alle Dauern 1ms, keine Transforms — nur der Farbwechsel bleibt. */
+@media (prefers-reduced-motion: reduce) {
+  .aufbau,
+  .chips input:checked + .chip,
+  .fussnote,
+  .navigator,
+  .zeile[data-puls] {
+    animation-duration: 1ms;
+  }
+
+  .strich {
+    transition-duration: 1ms;
+  }
+
+  /* Keine Pulse (§3.5) — die Zeile bleibt einfach ruhig. */
+  @keyframes puls {
+    from {
+      background: transparent;
+    }
+    to {
+      background: transparent;
+    }
+  }
+
+  @keyframes navigatorEin {
+    from {
+      transform: none;
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  .chip,
+  .chips input:checked + .chip {
+    transition-duration: 1ms;
+  }
+
+  @keyframes aufbau {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes chipWahl {
+    from {
+      transform: none;
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes fussnoteEin {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}

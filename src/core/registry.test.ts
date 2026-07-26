@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
-  getModule, moduleForHost, canAccess, visibleSwitcherModules, MODULES,
+  getModule, moduleForHost, canAccess, visibleSwitcherModules, MODULES, requiredGroupsFor,
 } from "@/core/registry";
 
 describe("registry", () => {
@@ -53,6 +53,44 @@ describe("registry", () => {
     expect(qr.adminGroups).toEqual(["drk-qr-admin"]);
     expect(moduleForHost("qr.localtest.me")?.key).toBe("qr");
   });
+  /*
+   * ZUGANGSGRUPPEN AUS DER ENV (`SUITE_ACCESS_GROUP_<KEY>`).
+   *
+   * Der Anlass: `requiredGroups` war der einzige Wert des Moduls ohne Env-Weg —
+   * `prodHosts` und `adminGroups` hatten beide einen. Eine Instanz, deren
+   * SSO-Gruppen anders heissen als die Vorgaben im Code, konnte den Modulzugang
+   * also nur per Commit umbiegen; die Gruppenleitung bekam bis dahin einen 404.
+   */
+  it("requiredGroupsFor: ohne Env gilt der Registry-Wert", () => {
+    expect(requiredGroupsFor(getModule("feedback"), {})).toEqual([
+      "da-feedback-gl",
+      "da-feedback-admin",
+    ]);
+  });
+  it("requiredGroupsFor: SUITE_ACCESS_GROUP_<KEY> ersetzt die Liste vollstaendig", () => {
+    // Nicht additiv, wie bei SUITE_HOST_<KEY>: nach dem Umhaengen darf die alte
+    // Gruppe nicht weiter Zugang geben.
+    const env = { SUITE_ACCESS_GROUP_FEEDBACK: "gruppenleiter,da_feedback_admin" };
+    expect(requiredGroupsFor(getModule("feedback"), env)).toEqual([
+      "gruppenleiter",
+      "da_feedback_admin",
+    ]);
+  });
+  it("canAccess liest die Env-Liste, nicht das Registry-Feld", () => {
+    const alpha = getModule("alpha");
+    const env = { SUITE_ACCESS_GROUP_ALPHA: "neue-gruppe" };
+    expect(canAccess(alpha, ["neue-gruppe"], env)).toBe(true);
+    // Und die Registry-Gruppe traegt nach dem Umhaengen nicht mehr.
+    expect(canAccess(alpha, ["alpha-users"], env)).toBe(false);
+  });
+  it("canAccess: leer gesetzte Env oeffnet das Modul NICHT", () => {
+    // Der gefaehrliche Fall: waere leer ein leeres Array, liesse `canAccess` jeden
+    // Eingeloggten herein (`length === 0 → true`). Stattdessen gilt die Registry.
+    const env = { SUITE_ACCESS_GROUP_ALPHA: "" };
+    expect(canAccess(getModule("alpha"), ["irgendwas"], env)).toBe(false);
+    expect(canAccess(getModule("alpha"), ["alpha-users"], env)).toBe(true);
+  });
+
   it("visibleSwitcherModules filters by access and showInSwitcher", () => {
     const anon = visibleSwitcherModules(null).map((m) => m.key);
     expect(anon).not.toContain("alpha");

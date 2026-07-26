@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import type { JWT } from "next-auth/jwt";
 import { parseGroups, parseDevGroups } from "@/core/auth/groups";
+import { parseFachgruppen } from "@/core/auth/fachgruppen";
 import { devLoginEnabled } from "@/core/auth/devLogin";
 import { pocketIdProvider } from "@/core/auth/pocketId";
 import { authCookies } from "@/core/auth/cookies";
@@ -112,6 +113,10 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       // Extract groups from the OIDC profile
       if (profile) {
         token.groups = parseGroups(profile as Record<string, unknown>);
+        // Fachgruppen-Attribut: derselbe Weg, dieselbe Vertrauensbasis wie
+        // `groups` (signiertes ID-Token). Es benennt die Fachgruppen-Slugs, für
+        // die die Person Gruppenleitung ist; aufgelöst wird es erst im Modul.
+        token.fachgruppen = parseFachgruppen(profile as Record<string, unknown>);
       }
       if (user?.groups) {
         token.groups = user.groups;
@@ -127,6 +132,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     session({ session, token }) {
       const groups = (token.groups as string[]) ?? [];
       session.user.groups = groups;
+      session.user.fachgruppen = (token.fachgruppen as string[]) ?? [];
       // Suite-weit, nicht modul-bezogen: "ist Betreiber". Für die Frage
       // "darf dieser Nutzer Modul X administrieren?" gibt es isModuleAdmin
       // aus core/groups — session.user.isAdmin beantwortet sie NICHT.

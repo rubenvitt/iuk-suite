@@ -1,5 +1,6 @@
 import { act, type ReactElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 
 /**
  * Mount-Hilfe fuer die Client-Komponenten des Moduls.
@@ -24,6 +25,46 @@ export async function mount(element: ReactElement): Promise<void> {
   root = created;
   await act(async () => {
     created.render(element);
+  });
+}
+
+/**
+ * Wie `mount`, nur ueber den ECHTEN Hydrationsweg: erst das serverseitige HTML,
+ * dann `hydrateRoot`. Damit — und nur damit — ist der Zustand pruefbar, in dem
+ * eine Person das Formular BEDIENT, BEVOR das JavaScript da ist: `vorbereiten`
+ * laeuft genau in diesem Fenster und darf am gelieferten HTML herumtippen.
+ *
+ * `renderToString` und nicht `renderToStaticMarkup`: letzteres liefert keine
+ * Hydrationsmarken, React erkennt eine Abweichung und rendert den Baum NEU —
+ * dabei geht jede Vorbereitung verloren, und der Test misst dann das Gegenteil
+ * von dem, was er behauptet (empirisch belegt: `checked` faellt von 8 auf 0).
+ */
+export async function hydrate(
+  element: ReactElement,
+  vorbereiten?: (host: HTMLElement) => void,
+): Promise<void> {
+  (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  const created = document.createElement("div");
+  created.innerHTML = renderToString(element);
+  document.body.appendChild(created);
+  host = created;
+  vorbereiten?.(created);
+  await act(async () => {
+    root = hydrateRoot(created, element);
+  });
+}
+
+/**
+ * Denselben Baum erneut rendern — fuer Zusagen, die erst an einem UEBERGANG
+ * sichtbar werden (z. B. „nach dem Serverergebnis steht das Feld wieder auf dem
+ * Stand des Servers"). Ein zweites `mount` waere ein frischer Baum und wuerde
+ * genau den Uebergang ueberspringen, um den es geht.
+ */
+export async function rerender(element: ReactElement): Promise<void> {
+  const current = root;
+  if (!current) throw new Error("Es ist nichts gemountet");
+  await act(async () => {
+    current.render(element);
   });
 }
 
@@ -63,11 +104,17 @@ export function exists(selector: string): boolean {
  * React haengt an den value-Setter der Eingabe einen eigenen Tracker. Eine
  * direkte Zuweisung liest der Tracker als "unveraendert", onChange bliebe aus
  * und das Feld waere im Test still leer. Deshalb ueber den Prototyp-Setter.
+ *
+ * Der Setter kommt aus dem Prototyp DES ELEMENTS, nicht fest aus
+ * `HTMLInputElement`: jsdom prueft in seinen Settern die Herkunft von `this`
+ * ("Illegal invocation"), der Input-Setter an einem `<textarea>` wuerde also
+ * werfen. Ein Test der Freitextzeilen scheiterte sonst mit einer Meldung, die
+ * nach Fehler im Harness und nicht nach Fehler im Feld aussieht.
  */
 export async function fill(selector: string, value: string): Promise<void> {
-  const input = query<HTMLInputElement>(selector);
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-  if (!setter) throw new Error("Kein value-Setter am HTMLInputElement-Prototyp");
+  const input = query<HTMLInputElement | HTMLTextAreaElement>(selector);
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value")?.set;
+  if (!setter) throw new Error(`Kein value-Setter am Prototyp von ${input.tagName}`);
   await act(async () => {
     setter.call(input, value);
     input.dispatchEvent(new Event("input", { bubbles: true }));

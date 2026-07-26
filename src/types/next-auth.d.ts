@@ -8,6 +8,9 @@ declare module "next-auth" {
       email?: string | null;
       image?: string | null;
       groups: string[];
+      // Slugs der Fachgruppen, für die die Person Gruppenleitung ist. Modul-
+      // spezifisch ausgewertet (feedback), aber wie `groups` aus dem ID-Token.
+      fachgruppen: string[];
       isAdmin: boolean;
     };
     error?: string;
@@ -21,6 +24,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     groups?: string[];
+    fachgruppen?: string[];
     accessToken?: string;
     idToken?: string;
     refreshToken?: string;

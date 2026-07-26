@@ -5,6 +5,8 @@ import {
   isModuleAdmin,
   validateGroupConfig,
   adminGroupEnvName,
+  accessGroupEnvName,
+  envAccessGroupsFor,
 } from "@/core/groups";
 import type { ModuleDef } from "@/core/registry";
 
@@ -42,6 +44,33 @@ describe("adminGroupsFor", () => {
   });
   it("Bindestrich im Key wird zu Unterstrich", () => {
     expect(adminGroupEnvName("uav-praxis")).toBe("SUITE_ADMIN_GROUP_UAV_PRAXIS");
+  });
+});
+
+describe("envAccessGroupsFor", () => {
+  it("ohne Env gesetzt: kein Override", () => {
+    expect(envAccessGroupsFor("qr", {})).toBeNull();
+  });
+  it("SUITE_ACCESS_GROUP_<KEY> trennt an Kommas und trimmt", () => {
+    expect(envAccessGroupsFor("feedback", { SUITE_ACCESS_GROUP_FEEDBACK: " gl , admin " })).toEqual([
+      "gl",
+      "admin",
+    ]);
+  });
+  /*
+   * DER UNTERSCHIED ZU `adminGroupsFor` UND `SUITE_HOST_<KEY>`, und der Grund, aus
+   * dem dieser Test existiert: dort ist eine leer gesetzte Variable eine gültige,
+   * restriktivere Aussage. Hier wäre sie je Modul das Gegenteil — bei
+   * `requiresAuth: true` liest `canAccess` aus der leeren Liste „jeder
+   * Eingeloggte darf". Eine beim Editieren leer gelassene Zeile darf kein Modul
+   * öffnen, also gilt der Registry-Wert weiter.
+   */
+  it("leer gesetzt ist KEIN leeres Array, sondern kein Override", () => {
+    expect(envAccessGroupsFor("feedback", { SUITE_ACCESS_GROUP_FEEDBACK: "" })).toBeNull();
+    expect(envAccessGroupsFor("feedback", { SUITE_ACCESS_GROUP_FEEDBACK: "  ,  " })).toBeNull();
+  });
+  it("Bindestrich im Key wird zu Unterstrich", () => {
+    expect(accessGroupEnvName("uav-praxis")).toBe("SUITE_ACCESS_GROUP_UAV_PRAXIS");
   });
 });
 
@@ -101,5 +130,30 @@ describe("validateGroupConfig", () => {
   });
   it("ADMIN_GROUP ohne Präfix ist keine Modul-Variable und wird ignoriert", () => {
     expect(validateGroupConfig(["portal"], { ADMIN_GROUP: "admin" })).toEqual([]);
+  });
+
+  it("kennt auch die Zugangs-Variable — bekannte gilt, Tippfehler nicht", () => {
+    expect(validateGroupConfig(["feedback"], { SUITE_ACCESS_GROUP_FEEDBACK: "gl" })).toEqual([]);
+    const errors = validateGroupConfig(["feedback"], { SUITE_ACCESS_GROUP_FEEDBCK: "gl" });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain("SUITE_ACCESS_GROUP_FEEDBCK");
+    // Die Fehlermeldung nennt die bekannten ZUGANGS-Variablen, nicht die Admin-Namen.
+    expect(errors[0]).toContain("SUITE_ACCESS_GROUP_FEEDBACK");
+  });
+
+  /*
+   * Die leer gesetzte Zugangs-Variable ist wirkungslos (siehe
+   * `envAccessGroupsFor`) — und „wirkungslos, ohne dass es jemand merkt" ist genau
+   * der Zustand, gegen den `validateGroupConfig` steht. `bootstrap.ts` bricht
+   * damit den Start ab, statt die Gruppenleitung nach dem Deploy in einen 404 zu
+   * schicken.
+   */
+  it("meldet die LEER gesetzte Zugangs-Variable als Fehler", () => {
+    const errors = validateGroupConfig(["feedback"], { SUITE_ACCESS_GROUP_FEEDBACK: "" });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain("wirkungslos");
+  });
+  it("die leer gesetzte ADMIN-Variable bleibt dagegen gültig", () => {
+    expect(validateGroupConfig(["feedback"], { SUITE_ADMIN_GROUP_FEEDBACK: "" })).toEqual([]);
   });
 });

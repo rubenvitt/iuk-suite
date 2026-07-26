@@ -2,6 +2,13 @@
  * Rohwerte des Suite-Designs — die einzige Datei mit Hex-Codes.
  * Übernommen aus dem `@theme`-Block der abgelösten `globals.css`, damit der
  * Farbeindruck der Suite über den Umbau hinweg derselbe bleibt.
+ *
+ * AUSNAHME, ausdrücklich statt stillschweigend: fachsemantische Paletten eines
+ * einzelnen Moduls (z. B. die Schulnoten-Ampel in
+ * `app/m/feedback/_lib/noten.ts`) liegen beim Modul, weil sie Bedeutung eines
+ * Fachbereichs tragen und nicht den Farbeindruck der Suite. Maßstab für einen
+ * Umzug hierher bleibt ein zweiter, heute belegbarer Nutznießer — ein zweites
+ * Modul, das deutsche Schulnoten anzeigt, existiert nicht.
  */
 export const DRK = {
   rot: "#c8000f",
