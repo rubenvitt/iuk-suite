@@ -11,7 +11,7 @@ import { devLogin } from "./fixtures";
  *    bedienbar. `page.tsx` ist Server Component, `Zettel.tsx` wird serverseitig
  *    mitgerendert, und nach der Hydration wird die Oberflaeche NICHT
  *    ausgetauscht — dieselbe Bestandsaufnahme (acht Notenzeilen, 48 Chips, sechs
- *    Freitextzeilen, zwei Absende-Knoepfe) rendert in beiden Kontexten, und in
+ *    Freitextzeilen, EIN Absende-Knopf) rendert in beiden Kontexten, und in
  *    beiden fuehrt Absenden zur Danke-Seite.
  *
  * 2. ADMIN (Entwurf 2.1/2.3, die Beanstandung des Auftraggebers): der
@@ -130,6 +130,29 @@ async function hydriert(page: Page): Promise<void> {
   await expect(page.locator("[data-absenden][data-offen]").first()).toHaveText(
     `Noch ${NOTENFRAGEN} Noten offen`,
   );
+}
+
+/**
+ * Warten, bis die AUFBAU-CHOREOGRAFIE durch ist — das Gegenstueck zu `hydriert()`
+ * fuer den Kontext OHNE JavaScript, in dem es kein Hydrations-Signal gibt.
+ *
+ * `zettel.module.css` faehrt sieben Bloecke mit `animation: aufbau 320ms` und
+ * gestaffeltem Verzug (0…360ms) ein; "nach 0,7s steht alles" sagt der Kommentar
+ * dort, gemessen sind es hier rund 800ms. Wird waehrenddessen geklickt, wartet
+ * Playwrights Aktionspruefung auf zwei gleiche Kaesten in Folge — und in einem
+ * Kontext OHNE JavaScript kommt sie aus dieser Warteschleife unter Last nicht
+ * wieder heraus: die Spur des Fehlschlags endet auf "element is not stable" und
+ * dann Stille bis zum Test-Timeout. Weil `notenSetzen` unmittelbar nach `goto`
+ * zuschlaegt, trifft es GENAU den Ohne-JavaScript-Test. Nachgestellt mit
+ * kuenstlicher CPU-Last: ohne dieses Warten drei von vier Laeufen haengend, mit
+ * ihm keiner. Mit JavaScript faellt es nicht auf — dort steht `hydriert()` davor
+ * und wartet ohnehin laenger als die Choreografie dauert.
+ *
+ * Der Abschluss-Block traegt den groessten Verzug (360ms) und ist damit der
+ * letzte, der bei `opacity: 1` ankommt; er deckt als Signal alle sieben Bloecke.
+ */
+async function aufgebaut(seite: Page): Promise<void> {
+  await expect(seite.locator("[data-abschluss]")).toHaveCSS("opacity", "1");
 }
 
 // ---------------------------------------------------------------------------
@@ -422,6 +445,9 @@ test("ohne JavaScript: dieselbe Oberfläche, Absenden funktioniert, `required` g
   try {
     const seite = await ohneJsKontext.newPage();
     await seite.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+    // Erst den Aufbau abwarten, dann anfassen — Begruendung an `aufgebaut()`.
+    // Ohne dieses Warten haengt der erste Chip-Klick unten bis zum Test-Timeout.
+    await aufgebaut(seite);
 
     // 1. Kein Austausch der Oberflaeche: identische Bestandsaufnahme.
     expect(await inventar(seite)).toEqual(mitJs);
