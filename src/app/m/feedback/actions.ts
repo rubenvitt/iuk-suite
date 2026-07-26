@@ -41,6 +41,16 @@ import {
 } from "./_lib/lifecycle";
 import { RateLimiter } from "./_lib/ratelimit";
 import { FEHLER_PARAMETER, JS_FELD } from "./_lib/absenden";
+import { getDirectory, type DirectoryResult } from "@/core/directory";
+import {
+  passtAufSuche,
+  vereinigePersonen,
+  FEHLER_EMAIL_UNBEKANNT,
+  FEHLER_EMAIL_UNBEKANNT_OHNE_VERZEICHNIS,
+  SUCHE_MAX_TREFFER,
+  SUCHE_MIN_ZEICHEN,
+  type PersonVorschlag,
+} from "./_lib/personen";
 
 /**
  * Ergebnis einer öffentlichen Abgabe (Entwurf 3.8). Die Action GIBT ZURÜCK statt
@@ -242,6 +252,63 @@ async function guardAdmin() {
 }
 
 /**
+ * DER ZWEITE GÜRTEL UM DAS VERZEICHNIS.
+ *
+ * `core/directory` wirft nie — es gibt jeden Ausfall als `status: "error"`
+ * zurück. Diese Klammer hält die Zusage trotzdem hier fest, weil sie an DIESER
+ * Stelle sicherheitsrelevant ist: eine Ausnahme aus der Zuordnungssuche nähme
+ * die Cockpit-Seite mit, und dann wären auch die BESTEHENDEN Zuordnungen
+ * unlesbar. Sie kostet drei Zeilen und überlebt einen späteren Austausch des
+ * Clients gegen einen, der doch wirft.
+ */
+async function ohneAusfall(
+  abruf: () => Promise<DirectoryResult>,
+): Promise<DirectoryResult> {
+  try {
+    return await abruf();
+  } catch {
+    return { status: "error", people: [] };
+  }
+}
+
+/**
+ * DIE PERSONENSUCHE HINTER DEM AUTOFILL.
+ *
+ * Sie beantwortet die Frage, an der das Modul bisher scheiterte: „wie ordne ich
+ * jemanden zu, der sich noch nie angemeldet hat?" Quelle ist das
+ * Personenverzeichnis aus Pocket ID (`core/directory`), ergänzt um `known_users`
+ * — Vereinigung, entdoppelt.
+ *
+ * DREI EIGENSCHAFTEN, DIE HIER UND NUR HIER DURCHGESETZT WERDEN:
+ *
+ * 1. ADMIN-SACHE. `guardAdmin()` steht in der ERSTEN Zeile, VOR jedem Netz- und
+ *    Datenbankzugriff. Eine Gruppenleitung darf die Personenliste nicht abrufen:
+ *    sie ist eine Mitgliederliste der Organisation, und sie ist zugleich der
+ *    Rohstoff, um sich selbst irgendwo zuzuordnen. Ein Guard NACH dem Abruf
+ *    wäre ein Datenabfluss mit anschließender Fehlermeldung.
+ * 2. DATENSPARSAMKEIT. Über die RSC-Grenze gehen höchstens `SUCHE_MAX_TREFFER`
+ *    Personen pro Anschlag — nie der Abzug. Gefiltert wird SERVERSEITIG, im
+ *    Prozess, auf dem gecachten Abzug: Pocket IDs eigener `search`-Parameter ist
+ *    ein `LIKE %t%`, dessen Groß-/Kleinschreibung vom Datenbank-Backend abhängt
+ *    (SQLite ASCII-insensitiv, Postgres nicht), man müsste also ohnehin in JS
+ *    nachvergleichen — und ein Abruf pro Anschlag wäre zusätzlich eine Last auf
+ *    dem Identitätsanbieter, den die ganze Suite zum Anmelden braucht.
+ * 3. AUSFALL BRICHT NICHTS. Fällt das Verzeichnis aus, bleibt die Suche über
+ *    `known_users` — genau der Zustand von vorher, nur ohne Ausnahme.
+ *
+ * Sie gibt keinen `FormState` zurück: sie ist kein Formular, sondern eine
+ * Abfrage. Fehlerfälle sind hier die leere Trefferliste.
+ */
+export async function suchePersonenAction(eingabe: string): Promise<PersonVorschlag[]> {
+  const { db } = await guardAdmin();
+  const q = String(eingabe ?? "").trim();
+  if (q.length < SUCHE_MIN_ZEICHEN) return [];
+  const ausVerzeichnis = await ohneAusfall(() => getDirectory().search(q, SUCHE_MAX_TREFFER));
+  const ausBekannten = listKnownUsers(db).filter((p) => passtAufSuche(p, q));
+  return vereinigePersonen(ausVerzeichnis.people, ausBekannten, SUCHE_MAX_TREFFER);
+}
+
+/**
  * Kennung ODER E-Mail (§2.6): getippt wird meist die Mailadresse, gespeichert
  * werden muss der `sub` aus Pocket ID — nur der steht später in `user_groups` und
  * im ID-Token. Eine E-Mail, die im Nutzerverzeichnis nicht auftaucht, wird
@@ -266,17 +333,33 @@ export async function addGroupLeaderAction(
   let userId = eingabe;
   if (eingabe.includes("@")) {
     const klein = eingabe.toLowerCase();
-    const treffer = listKnownUsers(db).find((u) => (u.email ?? "").toLowerCase() === klein);
-    if (!treffer) {
-      return {
-        ok: false,
-        fieldErrors: {
-          kennung: "Diese E-Mail ist unbekannt — die Person muss sich einmal angemeldet haben.",
-        },
-        values,
-      };
+    // LOKAL ZUERST, VERZEICHNIS DANACH. Zwei Gründe, beide tragend: der häufige
+    // Fall (die Person war schon da) kostet keinen Netzaufruf, und der Pfad kann
+    // nicht schlechter werden als vorher, wenn die API ausfällt.
+    const lokal = listKnownUsers(db).find((u) => (u.email ?? "").toLowerCase() === klein);
+    if (lokal) {
+      userId = lokal.userId;
+    } else {
+      const ausVerzeichnis = await ohneAusfall(() => getDirectory().findByEmail(klein));
+      const treffer = ausVerzeichnis.people[0];
+      if (!treffer) {
+        return {
+          ok: false,
+          fieldErrors: {
+            // Die Meldung hängt davon ab, OB das Verzeichnis geantwortet hat.
+            // „Muss sich einmal anmelden" ist bei laufendem Verzeichnis schlicht
+            // falsch — dann gibt es kein Konto mit dieser Adresse, und der Satz
+            // schickt den Admin auf eine Suche, die nie endet.
+            kennung:
+              ausVerzeichnis.status === "ok"
+                ? FEHLER_EMAIL_UNBEKANNT
+                : FEHLER_EMAIL_UNBEKANNT_OHNE_VERZEICHNIS,
+          },
+          values,
+        };
+      }
+      userId = treffer.userId;
     }
-    userId = treffer.userId;
   }
 
   // Ist-Stand SERVERSEITIG gelesen und ergänzt. Die gewünschte Liste vom Client

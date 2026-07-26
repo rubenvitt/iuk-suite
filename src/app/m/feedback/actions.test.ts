@@ -46,15 +46,25 @@ let currentIp = "203.0.113.7";
  * ein ANDERER Spion als der, den die Action aufgerufen hat — die Assertion liefe
  * gegen eine leere Aufrufliste.
  */
-const { redirectMock, cookieSetMock, cookieDeleteMock, revalidatePathMock, authMock } = vi.hoisted(
-  () => ({
-    redirectMock: vi.fn(),
-    cookieSetMock: vi.fn(),
-    cookieDeleteMock: vi.fn(),
-    revalidatePathMock: vi.fn(),
-    authMock: vi.fn(),
-  }),
-);
+const {
+  redirectMock,
+  cookieSetMock,
+  cookieDeleteMock,
+  revalidatePathMock,
+  authMock,
+  verzeichnisListMock,
+  verzeichnisSearchMock,
+  verzeichnisFindByEmailMock,
+} = vi.hoisted(() => ({
+  redirectMock: vi.fn(),
+  cookieSetMock: vi.fn(),
+  cookieDeleteMock: vi.fn(),
+  revalidatePathMock: vi.fn(),
+  authMock: vi.fn(),
+  verzeichnisListMock: vi.fn(),
+  verzeichnisSearchMock: vi.fn(),
+  verzeichnisFindByEmailMock: vi.fn(),
+}));
 
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
@@ -64,6 +74,23 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("@/core/auth", () => ({ auth: authMock }));
 vi.mock("./_db/client", () => ({ getDb: () => db }));
+/**
+ * Das Personenverzeichnis als Spion — kein Netz, und vor allem: BEOBACHTBAR.
+ * Der Negativtest „eine Gruppenleitung bekommt die Liste nicht" prüft nicht nur,
+ * DASS die Action wirft, sondern dass das Verzeichnis dabei GAR NICHT gefragt
+ * wurde. Eine Fassung, die erst abruft und dann wirft, wäre ein Datenabfluss mit
+ * anschließender Fehlermeldung und würde einen reinen `rejects.toThrow()`-Test
+ * bestehen.
+ */
+vi.mock("@/core/directory", () => ({
+  getDirectory: () => ({
+    list: verzeichnisListMock,
+    search: verzeichnisSearchMock,
+    findByEmail: verzeichnisFindByEmailMock,
+    invalidate: () => {},
+  }),
+  isDirectoryConfigured: () => true,
+}));
 
 type DB = ReturnType<typeof drizzle<typeof schema>>;
 let sqlite: Database.Database;
@@ -160,6 +187,15 @@ beforeEach(() => {
   revalidatePathMock.mockClear();
   authMock.mockReset();
   authMock.mockResolvedValue(null); // öffentliche Pfade: keine Sitzung
+  // Standardlage: das Verzeichnis läuft und kennt niemanden. Jeder Test, der
+  // etwas anderes braucht, sagt es selbst — so kann kein Test versehentlich vom
+  // Verzeichnis eines vorherigen leben.
+  verzeichnisListMock.mockReset();
+  verzeichnisSearchMock.mockReset();
+  verzeichnisFindByEmailMock.mockReset();
+  verzeichnisListMock.mockResolvedValue({ status: "ok", people: [] });
+  verzeichnisSearchMock.mockResolvedValue({ status: "ok", people: [] });
+  verzeichnisFindByEmailMock.mockResolvedValue({ status: "ok", people: [] });
 });
 afterEach(() => sqlite.close());
 
@@ -1337,5 +1373,282 @@ describe("Zuordnung der Leitung: Admin-Sache, Hinzufügen und Entfernen", () => 
     await expect(removeGroupLeaderAction(raus)).rejects.toThrow();
 
     expect(listGroupMembers(db, g.id)).toEqual(["leitung-1"]);
+  });
+});
+
+/**
+ * DAS PERSONENVERZEICHNIS HINTER DEM AUTOFILL.
+ *
+ * Der Befund, den dieses Feature behebt: `known_users` füllt sich erst, wenn
+ * jemand `/m/feedback` betreten hat (`upsertKnownUser` in
+ * `requireFeedbackAccess.ts`, hinter dem Auth-Riegel). Wer noch nie da war, war
+ * schlicht nicht zuordenbar — und genau das ist am Cutover-Tag der Normalfall.
+ *
+ * Vier Zusagen, jede davon still brechbar:
+ *
+ * 1. GESPEICHERT WIRD DER `sub`, nie Name oder E-Mail. Eine Zuordnung auf eine
+ *    Mailadresse steht in `user_groups`, sieht richtig aus und wirkt nie.
+ * 2. DIE LISTE IST ADMIN-SACHE. Eine Gruppenleitung bekommt sie NICHT — und das
+ *    Verzeichnis wird für sie auch nicht gefragt.
+ * 3. AUSFALL BRICHT NICHTS. Nicht konfiguriert, Fehler, Zeitüberschreitung: die
+ *    Suche fällt auf `known_users` zurück, ohne Ausnahme.
+ * 4. KEINE DUPLIKATE. Dieselbe Person aus beiden Quellen ist ein Eintrag.
+ */
+function seedGruppe(slug = "bereitschaft") {
+  return insertGroup(db, {
+    name: slug,
+    slug,
+    secret: "abc12",
+    closeAfterHours: null,
+    createdAt: new Date(),
+  });
+}
+
+describe("suchePersonenAction: Autofill aus dem Personenverzeichnis", () => {
+  const imVerzeichnis = (
+    ...people: Array<{ userId: string; name: string | null; email: string | null }>
+  ) => verzeichnisSearchMock.mockResolvedValue({ status: "ok", people });
+
+  it("liefert Personen aus dem Verzeichnis — mit dem sub als Schlüssel", async () => {
+    const { suchePersonenAction } = await loadActions();
+    alsAdmin();
+    imVerzeichnis({ userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" });
+
+    const treffer = await suchePersonenAction("anna");
+
+    expect(treffer).toEqual([
+      {
+        userId: "sub-anna",
+        name: "Anna Beispiel",
+        email: "anna@drk.example",
+        angemeldet: false,
+      },
+    ]);
+  });
+
+  it("kennzeichnet, wer sich noch nie angemeldet hat — und schließt ihn NICHT aus", async () => {
+    const { suchePersonenAction } = await loadActions();
+    alsAdmin();
+    upsertKnownUser(db, {
+      userId: "sub-da",
+      name: "War Schon Da",
+      email: "da@drk.example",
+      seenAt: new Date(),
+    });
+    imVerzeichnis(
+      { userId: "sub-da", name: "War Schon Da", email: "da@drk.example" },
+      { userId: "sub-nie", name: "Nie Da", email: "nie@drk.example" },
+    );
+
+    const treffer = await suchePersonenAction("da");
+
+    expect(treffer.map((p) => [p.userId, p.angemeldet])).toEqual([
+      ["sub-nie", false],
+      ["sub-da", true],
+    ]);
+  });
+
+  it("vereinigt Verzeichnis und known_users ohne Duplikate", async () => {
+    const { suchePersonenAction } = await loadActions();
+    alsAdmin();
+    upsertKnownUser(db, {
+      userId: "sub-anna",
+      name: "Anna B.",
+      email: "anna@drk.example",
+      seenAt: new Date(),
+    });
+    imVerzeichnis({ userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" });
+
+    const treffer = await suchePersonenAction("anna");
+
+    expect(treffer).toHaveLength(1);
+    // Das Verzeichnis ist die aktuelle Quelle, `known_users` der Stand der
+    // letzten Anmeldung.
+    expect(treffer[0].name).toBe("Anna Beispiel");
+  });
+
+  it("AUSFALL: Verzeichnis nicht erreichbar → Rückfall auf known_users, keine Ausnahme", async () => {
+    const { suchePersonenAction } = await loadActions();
+    alsAdmin();
+    upsertKnownUser(db, {
+      userId: "sub-lokal",
+      name: "Nur Lokal",
+      email: "lokal@drk.example",
+      seenAt: new Date(),
+    });
+    verzeichnisSearchMock.mockResolvedValue({ status: "error", people: [] });
+
+    await expect(suchePersonenAction("lokal")).resolves.toEqual([
+      { userId: "sub-lokal", name: "Nur Lokal", email: "lokal@drk.example", angemeldet: true },
+    ]);
+  });
+
+  it("AUSFALL: nicht konfiguriert → dasselbe, keine Ausnahme", async () => {
+    const { suchePersonenAction } = await loadActions();
+    alsAdmin();
+    upsertKnownUser(db, {
+      userId: "sub-lokal",
+      name: "Nur Lokal",
+      email: "lokal@drk.example",
+      seenAt: new Date(),
+    });
+    verzeichnisSearchMock.mockResolvedValue({ status: "unconfigured", people: [] });
+
+    await expect(suchePersonenAction("lokal")).resolves.toHaveLength(1);
+  });
+
+  it("AUSFALL: eine geworfene Ausnahme aus dem Verzeichnis darf die Seite nicht mitnehmen", async () => {
+    const { suchePersonenAction } = await loadActions();
+    alsAdmin();
+    // `core/directory` wirft nie — dieser Test hält die Zusage auch dann, wenn
+    // jemand den Client später gegen einen ersetzt, der es doch tut.
+    verzeichnisSearchMock.mockRejectedValue(new Error("Netz weg"));
+
+    await expect(suchePersonenAction("lokal")).resolves.toEqual([]);
+  });
+
+  it("unter zwei Zeichen wird gar nicht gesucht — die Antwort wäre eine halbe Mitgliederliste", async () => {
+    const { suchePersonenAction } = await loadActions();
+    alsAdmin();
+
+    expect(await suchePersonenAction("a")).toEqual([]);
+    expect(await suchePersonenAction("  ")).toEqual([]);
+    expect(verzeichnisSearchMock).not.toHaveBeenCalled();
+  });
+
+  it("begrenzt die Nutzlast — die Suche schickt keinen Verzeichnisabzug an den Browser", async () => {
+    const { suchePersonenAction } = await loadActions();
+    alsAdmin();
+    imVerzeichnis(
+      ...Array.from({ length: 60 }, (_, i) => ({
+        userId: `sub-${i}`,
+        name: `Person ${i}`,
+        email: null,
+      })),
+    );
+    for (let i = 0; i < 60; i += 1) {
+      upsertKnownUser(db, {
+        userId: `lokal-${i}`,
+        name: `Person lokal ${i}`,
+        email: null,
+        seenAt: new Date(),
+      });
+    }
+
+    const treffer = await suchePersonenAction("person");
+
+    expect(treffer.length).toBeLessThanOrEqual(20);
+    // Und die API wird ebenfalls begrenzt gefragt, nicht nur das Ergebnis gekürzt.
+    expect(verzeichnisSearchMock).toHaveBeenCalledWith("person", 20);
+  });
+
+  it("NEGATIVTEST: eine Gruppenleitung bekommt die Personenliste NICHT", async () => {
+    const { suchePersonenAction } = await loadActions();
+    seedGruppe("bereitschaft");
+    upsertKnownUser(db, {
+      userId: "sub-anna",
+      name: "Anna Beispiel",
+      email: "anna@drk.example",
+      seenAt: new Date(),
+    });
+    imVerzeichnis({ userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" });
+    alsGruppenleitung("bereitschaft");
+
+    await expect(suchePersonenAction("anna")).rejects.toThrow();
+
+    // Der eigentliche Beweis: das Verzeichnis wurde nicht einmal GEFRAGT. Eine
+    // Fassung, die erst abruft und dann wirft, bestünde den Wurf-Test und wäre
+    // trotzdem ein Datenabfluss (die Antwort steht im Serverprotokoll, in der
+    // Latenz und in jedem Zwischenspeicher auf dem Weg).
+    expect(verzeichnisSearchMock).not.toHaveBeenCalled();
+  });
+
+  it("NEGATIVTEST: ohne Sitzung ebenfalls kein Verzeichnis", async () => {
+    const { suchePersonenAction } = await loadActions();
+    authMock.mockResolvedValue(null);
+
+    await expect(suchePersonenAction("anna")).rejects.toThrow();
+    expect(verzeichnisSearchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
+  const form = (groupId: number, kennung: string): FormData => {
+    const f = new FormData();
+    f.set("groupId", String(groupId));
+    f.set("kennung", kennung);
+    return f;
+  };
+
+  it("ordnet eine Person zu, die sich NOCH NIE angemeldet hat — der Kern des Features", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGruppe();
+    alsAdmin();
+    verzeichnisFindByEmailMock.mockResolvedValue({
+      status: "ok",
+      people: [{ userId: "sub-nie", name: "Nie Da", email: "nie@drk.example" }],
+    });
+
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "Nie@DRK.example"));
+
+    expect(ergebnis.ok).toBe(true);
+    // GESPEICHERT WIRD DER `sub` — nicht die E-Mail, nicht der Name.
+    expect(listGroupMembers(db, g.id)).toEqual(["sub-nie"]);
+  });
+
+  it("fragt das Verzeichnis GAR NICHT, wenn known_users die E-Mail schon kennt", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGruppe();
+    upsertKnownUser(db, {
+      userId: "sub-lokal",
+      name: "Lokal",
+      email: "lokal@drk.example",
+      seenAt: new Date(),
+    });
+    alsAdmin();
+
+    await addGroupLeaderAction({ ok: true }, form(g.id, "lokal@drk.example"));
+
+    expect(listGroupMembers(db, g.id)).toEqual(["sub-lokal"]);
+    // Der häufige Fall kostet keinen Netzaufruf — und kann nicht dadurch
+    // schlechter werden, dass die API gerade weg ist.
+    expect(verzeichnisFindByEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("Verzeichnis erreichbar, E-Mail trotzdem unbekannt: Meldung schickt NICHT zum Anmelden", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGruppe();
+    alsAdmin();
+    verzeichnisFindByEmailMock.mockResolvedValue({ status: "ok", people: [] });
+
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@drk.example"));
+
+    if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
+    expect(ergebnis.fieldErrors.kennung).not.toContain("einmal angemeldet");
+    expect(listGroupMembers(db, g.id)).toEqual([]);
+  });
+
+  it("Verzeichnis ausgefallen: der alte Satz stimmt wieder, und nichts wird geschrieben", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGruppe();
+    alsAdmin();
+    verzeichnisFindByEmailMock.mockResolvedValue({ status: "error", people: [] });
+
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@drk.example"));
+
+    if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
+    expect(ergebnis.fieldErrors.kennung).toContain("einmal angemeldet");
+    expect(listGroupMembers(db, g.id)).toEqual([]);
+  });
+
+  it("eine rohe Kennung geht weiterhin direkt durch — ohne das Verzeichnis zu fragen", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGruppe();
+    alsAdmin();
+
+    await addGroupLeaderAction({ ok: true }, form(g.id, "sub-aus-der-liste"));
+
+    expect(listGroupMembers(db, g.id)).toEqual(["sub-aus-der-liste"]);
+    expect(verzeichnisFindByEmailMock).not.toHaveBeenCalled();
   });
 });
