@@ -20,6 +20,8 @@ import { Teilnahme, teilnahmeUrlAus } from "../../../_ui/Teilnahme";
 import { Verlauf, type VerlaufZeile } from "../../../_ui/Verlauf";
 import { EinstellungenPanel } from "../../../_ui/EinstellungenPanel";
 import type { ZuordnungPerson } from "../../../_ui/Zuordnung";
+import { getDirectory } from "@/core/directory";
+import { leitungAus } from "../../../_lib/personen";
 import { accessibleGroupFilter, isFeedbackAdmin } from "../../../_lib/access";
 import { einstiegZiel } from "../../../_lib/einstieg";
 
@@ -155,18 +157,21 @@ export default async function Cockpit({
    * DIE ZUGEORDNETE LEITUNG — NUR fuer Admins geladen (§2.6 Punkt 2). Ein
    * Nicht-Admin bekaeme die Kennungen fremder Personen sonst in seine
    * Client-Nutzlast serialisiert, auch wenn der Block ungerendert bliebe.
-   * `listKnownUsers` liefert die Namen; wer noch nie angemeldet war, steht mit
-   * seiner Kennung und ohne Namen in der Liste.
+   *
+   * ZWEI QUELLEN, in dieser Reihenfolge: das Personenverzeichnis des
+   * Identitaetsanbieters (`core/directory`, kennt JEDEN) und `known_users`
+   * (kennt nur, wer da war, dafuer auch bei ausgefallener API). `leitungAus`
+   * fuehrt sie zusammen — und fuehrt dabei die MITGLIEDSLISTE, nicht das
+   * Verzeichnis: eine bestehende Zuordnung bleibt lesbar, auch wenn beide
+   * Verzeichnisse die Person nicht kennen.
+   *
+   * `list()` ist gecacht und wirft nie; ein Ausfall kostet hier `status !== "ok"`
+   * und sonst nichts. Genau EIN Boolean geht daraufhin an den Client — nicht die
+   * Liste (§Datensparsamkeit, siehe `_lib/personen.ts`).
    */
+  const verzeichnis = istAdmin ? await getDirectory().list() : null;
   const leitung: ZuordnungPerson[] | undefined = istAdmin
-    ? (() => {
-        const verzeichnis = new Map(listKnownUsers(db).map((u) => [u.userId, u]));
-        return listGroupMembers(db, id).map((userId) => ({
-          userId,
-          name: verzeichnis.get(userId)?.name ?? null,
-          email: verzeichnis.get(userId)?.email ?? null,
-        }));
-      })()
+    ? leitungAus(listGroupMembers(db, id), verzeichnis?.people ?? [], listKnownUsers(db))
     : undefined;
 
   /**
@@ -282,6 +287,7 @@ export default async function Cockpit({
           closeAfterHours={group.closeAfterHours}
           istAdmin={istAdmin}
           leitung={leitung}
+          verzeichnisAktiv={verzeichnis?.status === "ok"}
           abende={abendZahl}
           rueckmeldungen={rueckmeldungenGesamt}
         />

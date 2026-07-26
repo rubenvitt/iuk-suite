@@ -43,6 +43,14 @@ export type EinstellungenPanelProps = {
    * bloss ungerendeter Block haette sie trotzdem ausgeliefert.
    */
   leitung?: ZuordnungPerson[];
+  /**
+   * Steht das Personenverzeichnis des Identitaetsanbieters zur Verfuegung?
+   * EIN BOOLEAN, KEINE LISTE: die Nutzerliste der Organisation gehoert nicht in
+   * die Client-Nutzlast jeder Cockpit-Seite. Gesucht wird pro Anschlag,
+   * serverseitig. `false` heisst „Rueckfall auf `known_users`" — die Oberflaeche
+   * zeigt dann wieder das schlichte Eingabefeld.
+   */
+  verzeichnisAktiv?: boolean;
   /** Zahlen fuer den Loeschdialog — aus der Seite gerechnet, nie behauptet (§4.6). */
   abende: number;
   rueckmeldungen: number;
@@ -78,6 +86,7 @@ export function EinstellungenPanel({
   closeAfterHours,
   istAdmin,
   leitung,
+  verzeichnisAktiv,
   abende,
   rueckmeldungen,
 }: EinstellungenPanelProps) {
@@ -106,7 +115,11 @@ export function EinstellungenPanel({
                 {istAdmin && (
                   <>
                     <hr style={HAARLINIE} />
-                    <Zuordnung groupId={groupId} personen={leitung ?? []} />
+                    <Zuordnung
+                      groupId={groupId}
+                      personen={leitung ?? []}
+                      verzeichnisAktiv={verzeichnisAktiv}
+                    />
                   </>
                 )}
                 <hr style={HAARLINIE} />

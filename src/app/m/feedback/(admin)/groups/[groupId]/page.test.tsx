@@ -37,7 +37,25 @@ import type { Question } from "../../../_lib/questions";
  * `computeDAStats` wirklich gehen — eine gemockte Aggregation würde genau den
  * Fehler durchlassen, um den es geht.
  */
-const { guardPageMock } = vi.hoisted(() => ({ guardPageMock: vi.fn() }));
+const { guardPageMock, verzeichnisListMock } = vi.hoisted(() => ({
+  guardPageMock: vi.fn(),
+  verzeichnisListMock: vi.fn(),
+}));
+
+/**
+ * Das Personenverzeichnis als Spion. Standardlage ist „nicht konfiguriert" — so
+ * beweisen die bestehenden Tests unverändert den RÜCKFALL auf `known_users`, und
+ * die neuen Tests schalten das Verzeichnis für sich selbst ein.
+ */
+vi.mock("@/core/directory", () => ({
+  getDirectory: () => ({
+    list: verzeichnisListMock,
+    search: vi.fn(),
+    findByEmail: vi.fn(),
+    invalidate: () => {},
+  }),
+  isDirectoryConfigured: () => false,
+}));
 
 vi.mock("../../../_lib/guardPage", () => ({ guardPage: guardPageMock }));
 vi.mock("../../../_db/client", () => ({ getDb: () => db }));
@@ -75,6 +93,7 @@ vi.mock("../../../actions", () => ({
   deleteGroupAction: vi.fn(),
   addGroupLeaderAction: vi.fn(),
   removeGroupLeaderAction: vi.fn(),
+  suchePersonenAction: vi.fn(),
 }));
 
 import Cockpit, { kontextzeile } from "./page";
@@ -144,6 +163,8 @@ beforeEach(() => {
     db,
     memberIds: [1],
   });
+  verzeichnisListMock.mockReset();
+  verzeichnisListMock.mockResolvedValue({ status: "unconfigured", people: [] });
 });
 afterEach(() => sqlite.close());
 
@@ -527,6 +548,65 @@ describe("Zone e — die Leitung ist Admin-Sache (§2.6)", () => {
 
     await unmount();
     document.body.replaceChildren();
+  });
+
+  /**
+   * DAS PERSONENVERZEICHNIS AN DER SEITE.
+   *
+   * Die eine Stelle, an der es eingehaengt ist. Zwei Zusagen:
+   *
+   * 1. NAMEN AUCH OHNE ANMELDUNG. Genau der Fall, der die alte Oberflaeche
+   *    scheitern liess — ohne diesen Test bliebe eine Zeile aus roher UUID gruen.
+   * 2. AUSFALL BRICHT NICHTS. Ohne Verzeichnis bleibt die Zuordnung vollstaendig
+   *    lesbar (der Test darueber beweist genau das, denn die Standardlage der
+   *    Datei ist „nicht konfiguriert").
+   */
+  it("Verzeichnis aktiv: die Zuordnung zeigt den Namen, obwohl niemand angemeldet war", async () => {
+    verzeichnisListMock.mockResolvedValue({
+      status: "ok",
+      people: [{ userId: "sub-nie-da", name: "Nie Da", email: "nie@drk.example" }],
+    });
+    setGroupMembers(db, 1, ["sub-nie-da"]);
+    alsAdmin();
+
+    const element = await Cockpit({ params: Promise.resolve({ groupId: "1" }) });
+    await mount(element);
+    await clickElement(query(".ant-collapse-header"));
+    const inhalt = query(".ant-collapse-body").textContent ?? "";
+
+    expect(inhalt).toContain("Nie Da");
+    expect(inhalt).toContain("nie@drk.example");
+    // Die Kennung bleibt sichtbar — sie ist der Wert, der wirklich gespeichert ist.
+    expect(inhalt).toContain("sub-nie-da");
+    // Und die Suche steht bereit, statt des schlichten Feldes.
+    expect(inhalt).toContain("Person hinzufügen");
+
+    await unmount();
+    document.body.replaceChildren();
+  });
+
+  it("Verzeichnis ausgefallen: kein Autofill versprochen, Zuordnung trotzdem lesbar", async () => {
+    verzeichnisListMock.mockResolvedValue({ status: "error", people: [] });
+    setGroupMembers(db, 1, ["sub-nie-da"]);
+    alsAdmin();
+
+    const element = await Cockpit({ params: Promise.resolve({ groupId: "1" }) });
+    await mount(element);
+    await clickElement(query(".ant-collapse-header"));
+    const inhalt = query(".ant-collapse-body").textContent ?? "";
+
+    expect(inhalt).toContain("sub-nie-da");
+    expect(inhalt).toContain("Kennung oder E-Mail hinzufügen");
+    expect(inhalt).not.toContain("Person hinzufügen");
+
+    await unmount();
+    document.body.replaceChildren();
+  });
+
+  it("Nicht-Admin: das Verzeichnis wird gar nicht erst geladen", async () => {
+    await zeichne();
+
+    expect(verzeichnisListMock).not.toHaveBeenCalled();
   });
 });
 
