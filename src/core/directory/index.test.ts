@@ -298,13 +298,15 @@ describe("Verzeichnis — Cache", () => {
     expect(transport.aufrufe).toHaveLength(2);
   });
 
-  it("CACHT KEINEN FEHLER: nach einem Ausfall wird sofort wieder abgefragt", async () => {
+  it("CACHT KEINEN FEHLER ueber die volle TTL: nach der kurzen Sperre wird wieder abgefragt", async () => {
     let kaputt = true;
     const aufrufe: string[] = [];
+    let jetzt = 1_000;
     const v = createDirectory({
       ...KONFIG,
-      ttlMs: 60_000,
-      now: () => 1_000,
+      ttlMs: 300_000,
+      fehlerSperreMs: 30_000,
+      now: () => jetzt,
       transport: async (url) => {
         aufrufe.push(url);
         if (kaputt) throw new Error("Netz weg");
@@ -318,11 +320,86 @@ describe("Verzeichnis — Cache", () => {
 
     expect((await v.list()).status).toBe("error");
     kaputt = false;
+    // Der Kern der Zusage: die Erholung haengt an der SPERRE (30 s), nicht an der
+    // TTL eines erfolgreichen Abzugs (5 min). Ein Ausfall vergiftet das
+    // Verzeichnis also nicht fuer die volle TTL.
+    jetzt += 30_001;
     const zweiter = await v.list();
 
     expect(zweiter.status).toBe("ok");
     expect(zweiter.people).toHaveLength(1);
     expect(aufrufe).toHaveLength(2);
+  });
+
+  /**
+   * DIE FEHLERSPERRE.
+   *
+   * Ein Fehler wird nicht als ERGEBNIS gecacht — `list()` liefert weiter
+   * `status: "error"`, nie eine veraltete Liste. Gesperrt wird der ABRUF, und
+   * zwar kurz.
+   *
+   * Ohne sie zahlt die Cockpit-Seite bei einem haengenden Identitaetsanbieter die
+   * volle Zeitgrenze BEI JEDEM AUFRUF — der Abzug wird ja nie gecacht, also wird
+   * er jedes Mal neu versucht. Das ist kein theoretischer Fall: genau dann, wenn
+   * die API weg ist, will ein Admin die Zuordnung nachsehen, und dann laedt jede
+   * Seite fuenf Sekunden lang, dauerhaft.
+   */
+  it("SPERRT den Abruf nach einem Ausfall kurz — nicht jede Seitenladung zahlt die Zeitgrenze", async () => {
+    const aufrufe: string[] = [];
+    let jetzt = 1_000;
+    const v = createDirectory({
+      ...KONFIG,
+      fehlerSperreMs: 30_000,
+      now: () => jetzt,
+      transport: async (url) => {
+        aufrufe.push(url);
+        throw new Error("Netz weg");
+      },
+    });
+
+    expect((await v.list()).status).toBe("error");
+    jetzt += 10_000;
+    // Das Ergebnis bleibt „error" — gesperrt ist der Abruf, nicht die Wahrheit.
+    expect((await v.list()).status).toBe("error");
+    expect((await v.list()).status).toBe("error");
+
+    expect(aufrufe).toHaveLength(1);
+  });
+
+  /**
+   * DAS GESAMTBUDGET.
+   *
+   * `maxPages` allein deckelt nur die ZAHL der Abrufe. 50 Seiten mal 5 Sekunden
+   * Zeitgrenze sind im schlechtesten Fall vier Minuten in EINEM Seitenaufbau —
+   * das ist keine langsame Seite mehr, das ist eine kaputte. Der Fall braucht
+   * keinen Ausfall, nur einen langsamen Anbieter und ein gewachsenes
+   * Verzeichnis.
+   */
+  it("bricht einen langsamen Abzug nach dem Gesamtbudget ab, statt maxPages mal Zeitgrenze zu warten", async () => {
+    const aufrufe: string[] = [];
+    let jetzt = 0;
+    const v = createDirectory({
+      ...KONFIG,
+      maxPages: 50,
+      gesamtBudgetMs: 3_000,
+      now: () => jetzt,
+      transport: async (url) => {
+        aufrufe.push(url);
+        jetzt += 1_000; // jede Seite kostet eine Sekunde
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [ANNA], pagination: { totalPages: 50 } }),
+        };
+      },
+    });
+
+    const r = await v.list();
+
+    expect(aufrufe.length).toBeLessThanOrEqual(4);
+    // Kein halbes Verzeichnis: ein abgebrochener Abzug ist ein Fehler, kein
+    // Teilergebnis, das vollstaendig aussieht.
+    expect(r).toEqual({ status: "error", people: [] });
   });
 
   it("buendelt gleichzeitige Abrufe zu einem einzigen Durchlauf", async () => {
@@ -442,5 +519,96 @@ describe("Verzeichnis — E-Mail exakt aufloesen", () => {
 
   it("unbekannte E-Mail: leere Liste, Status ok (das Verzeichnis lief)", async () => {
     expect(await v().findByEmail("niemand@drk.example")).toEqual({ status: "ok", people: [] });
+  });
+
+  /**
+   * DIE FRISCHEPROBE BEI EINEM FEHLTREFFER.
+   *
+   * `findByEmail` beantwortet eine Frage, auf die die Oberflaeche eine BEHAUPTUNG
+   * stuetzt: „Diese E-Mail ist unbekannt — bitte die Schreibweise pruefen."
+   * Steht dahinter ein bis zu fuenf Minuten alter Abzug, ist dieser Satz
+   * schlicht falsch — und zwar genau im vorgesehenen Ablauf des Runbooks: Konto
+   * in Pocket ID anlegen, danach zuordnen. Der Admin sucht dann einen Tippfehler,
+   * den es nicht gibt.
+   *
+   * Ein Fehltreffer ist selten (eine abgeschickte Eingabe, kein Tastendruck) —
+   * er darf einen zweiten Abruf kosten. Die Suche im Autofill macht das
+   * ABSICHTLICH nicht: dort waere jeder Anschlag ohne Treffer ein Abruf.
+   */
+  it("sieht bei einem Fehltreffer einmal frisch nach — ein neues Konto ist nicht bis zum TTL-Ende unbekannt", async () => {
+    let leute = [ANNA];
+    const aufrufe: string[] = [];
+    const verzeichnis = createDirectory({
+      ...KONFIG,
+      ttlMs: 300_000,
+      now: () => 1_000, // die TTL laeuft NICHT ab
+      transport: async (url) => {
+        aufrufe.push(url);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: leute, pagination: { totalPages: 1 } }),
+        };
+      },
+    });
+
+    await verzeichnis.list(); // Abzug gefuellt, BODO existiert noch nicht
+    leute = [ANNA, BODO]; // Konto wird jetzt in Pocket ID angelegt
+
+    const r = await verzeichnis.findByEmail("bodo@drk.example");
+
+    expect(r.people.map((p) => p.userId)).toEqual(["sub-bodo"]);
+    expect(aufrufe).toHaveLength(2);
+  });
+
+  it("ein Treffer aus dem Zwischenspeicher kostet KEINEN zweiten Abruf", async () => {
+    const transport = seitenTransport([[ANNA, BODO]]);
+    const verzeichnis = createDirectory({ ...KONFIG, transport, ttlMs: 300_000, now: () => 1_000 });
+
+    await verzeichnis.list();
+    await verzeichnis.findByEmail("anna@drk.example");
+
+    expect(transport.aufrufe).toHaveLength(1);
+  });
+
+  it("die Frischeprobe laeuft hoechstens EINMAL, nicht in einer Schleife", async () => {
+    const transport = seitenTransport([[ANNA]]);
+    const verzeichnis = createDirectory({ ...KONFIG, transport, ttlMs: 300_000, now: () => 1_000 });
+
+    await verzeichnis.list();
+    const r = await verzeichnis.findByEmail("gibtesnicht@drk.example");
+
+    expect(r).toEqual({ status: "ok", people: [] });
+    expect(transport.aufrufe).toHaveLength(2);
+  });
+
+  it("scheitert die Frischeprobe, bleibt es bei der Auskunft aus dem Abzug — kein Fehlerstatus", async () => {
+    let kaputt = false;
+    const verzeichnis = createDirectory({
+      ...KONFIG,
+      ttlMs: 300_000,
+      now: () => 1_000,
+      transport: async () => {
+        if (kaputt) throw new Error("Netz weg");
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [ANNA], pagination: { totalPages: 1 } }),
+        };
+      },
+    });
+
+    await verzeichnis.list();
+    kaputt = true;
+
+    // Der Abzug ist weiter gueltig und kennt die Adresse nicht. „error" waere hier
+    // die falsche Auskunft — sie schickt den Admin mit „muss sich einmal
+    // anmelden" auf die falsche Faehrte.
+    expect(await verzeichnis.findByEmail("gibtesnicht@drk.example")).toEqual({
+      status: "ok",
+      people: [],
+    });
+    // Und der gueltige Abzug ueberlebt die gescheiterte Probe.
+    expect((await verzeichnis.list()).people.map((p) => p.userId)).toEqual(["sub-anna"]);
   });
 });

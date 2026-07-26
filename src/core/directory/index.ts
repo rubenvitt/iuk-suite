@@ -52,8 +52,18 @@
  * unlesbar — die Oberflaeche wuerde also genau in dem Moment kaputtgehen, in dem
  * sie auf das lokale Verzeichnis (`known_users`) zurueckfallen soll.
  *
- * Ein FEHLER WIRD NIE GECACHT. Sonst vergiftet eine einzige Zeitueberschreitung
- * das Verzeichnis fuer die volle TTL.
+ * Ein FEHLER WIRD NIE ALS ERGEBNIS GECACHT: `list()` liefert danach weiter
+ * `status: "error"` und nie eine veraltete Liste. Gesperrt wird der ABRUF, und
+ * zwar KURZ (`fehlerSperreMs`, 30 s gegen 5 min TTL). Ohne diese Sperre zahlt die
+ * Cockpit-Seite bei einem haengenden Anbieter die volle Zeitgrenze BEI JEDEM
+ * Aufruf — der Abzug wird ja nie gecacht, also jedes Mal neu versucht. Genau
+ * dann, wenn die API weg ist, will ein Admin die Zuordnung nachsehen.
+ *
+ * Dazu ein GESAMTBUDGET ueber alle Seiten (`gesamtBudgetMs`, 15 s). `maxPages`
+ * deckelt nur die ZAHL der Abrufe: 50 Seiten mal 5 s Zeitgrenze waeren vier
+ * Minuten in einem einzigen Seitenaufbau — keine langsame Seite mehr, sondern
+ * eine kaputte, und dafuer braucht es keinen Ausfall, nur einen langsamen
+ * Anbieter und ein gewachsenes Verzeichnis.
  *
  * ── AUTHENTIFIZIERUNG ─────────────────────────────────────────────────────────
  *
@@ -105,6 +115,17 @@ export type DirectoryConfig = {
   ttlMs?: number;
   /** Zeitgrenze je HTTP-Abruf. Default 5 Sekunden. */
   timeoutMs?: number;
+  /**
+   * Zeitgrenze fuer den GANZEN Abzug ueber alle Seiten. Default 15 Sekunden.
+   * `maxPages * timeoutMs` waere sonst die echte Obergrenze eines Seitenaufbaus.
+   */
+  gesamtBudgetMs?: number;
+  /**
+   * Wie lange nach einem gescheiterten Abzug gar nicht erst wieder abgerufen
+   * wird. Default 30 Sekunden — kurz genug, dass sich das Verzeichnis von selbst
+   * erholt, lang genug, dass ein Ausfall nicht jede Seitenladung verzoegert.
+   */
+  fehlerSperreMs?: number;
   /** Harte Obergrenze der Seitenabrufe. Default 50 (= 5000 Personen). */
   maxPages?: number;
   now?: () => number;
@@ -128,6 +149,8 @@ export interface Directory {
 const SEITENGROESSE = 100;
 const TTL_MS = 5 * 60_000;
 const TIMEOUT_MS = 5_000;
+const GESAMT_BUDGET_MS = 15_000;
+const FEHLER_SPERRE_MS = 30_000;
 const MAX_SEITEN = 50;
 const TREFFER_STANDARD = 20;
 
@@ -210,15 +233,19 @@ export function createDirectory(config: DirectoryConfig = {}): Directory {
     config.transport ?? ((url, init) => fetch(url, init));
   const ttlMs = config.ttlMs ?? TTL_MS;
   const timeoutMs = config.timeoutMs ?? TIMEOUT_MS;
+  const gesamtBudgetMs = Math.max(1, config.gesamtBudgetMs ?? GESAMT_BUDGET_MS);
+  const fehlerSperreMs = Math.max(0, config.fehlerSperreMs ?? FEHLER_SPERRE_MS);
   const maxPages = Math.max(1, config.maxPages ?? MAX_SEITEN);
   const now = config.now ?? (() => Date.now());
   const konfiguriert = baseUrl !== "" && apiKey !== "";
 
   let cache: { people: DirectoryPerson[]; bis: number } | null = null;
+  /** Bis wann nach einem Ausfall gar nicht erst wieder abgerufen wird. */
+  let gesperrtBis = 0;
   /** Laeuft gerade ein Abzug, haengen sich weitere Aufrufer daran statt neu zu holen. */
   let laufend: Promise<DirectoryResult> | null = null;
 
-  async function holeSeite(page: number): Promise<Seite> {
+  async function holeSeite(page: number, budgetMs: number): Promise<Seite> {
     const params = new URLSearchParams({
       "pagination[page]": String(page),
       "pagination[limit]": String(SEITENGROESSE),
@@ -231,7 +258,11 @@ export function createDirectory(config: DirectoryConfig = {}): Directory {
       "sort[direction]": "asc",
     });
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    // Die kleinere der beiden Grenzen: die pro Abruf und der Rest des
+    // Gesamtbudgets. Sonst haengt die letzte erlaubte Seite noch die volle
+    // Zeitgrenze an ein Budget, das schon aufgebraucht ist.
+    const grenze = Math.max(1, Math.min(timeoutMs, budgetMs));
+    const timer = setTimeout(() => controller.abort(), grenze);
     try {
       const res = await transport(`${baseUrl}/api/users?${params}`, {
         headers: { "X-API-KEY": apiKey, Accept: "application/json" },
@@ -247,28 +278,34 @@ export function createDirectory(config: DirectoryConfig = {}): Directory {
   }
 
   async function abzug(): Promise<DirectoryResult> {
+    const ende = now() + gesamtBudgetMs;
     try {
       const alle: DirectoryPerson[] = [];
-      const erste = await holeSeite(1);
+      const erste = await holeSeite(1, ende - now());
       alle.push(...erste.people);
       const seiten = Math.min(erste.totalPages, maxPages);
       for (let p = 2; p <= seiten; p += 1) {
-        const weitere = await holeSeite(p);
-        alle.push(...weitere.people);
+        const rest = ende - now();
+        if (rest <= 0) throw new Error("Verzeichnis: Gesamtbudget erschoepft");
+        alle.push(...(await holeSeite(p, rest)).people);
       }
       cache = { people: alle, bis: now() + ttlMs };
+      gesperrtBis = 0;
       return { status: "ok", people: alle };
     } catch {
       // Kein Cache-Schreiben und kein Teilergebnis: ein halbes Verzeichnis sieht
       // vollstaendig aus und VERSCHWEIGT Personen — das ist schlimmer als ein
       // erkennbarer Ausfall mit lokalem Rueckfall.
+      //
+      // Ein bestehender, noch gueltiger Abzug bleibt dabei UNANGETASTET: ein
+      // gescheiterter Nachschlag darf eine funktionierende Anzeige nicht leeren.
+      gesperrtBis = now() + fehlerSperreMs;
       return { status: "error", people: LEER };
     }
   }
 
-  async function list(): Promise<DirectoryResult> {
-    if (!konfiguriert) return { status: "unconfigured", people: LEER };
-    if (cache && cache.bis > now()) return { status: "ok", people: cache.people };
+  /** Startet einen Abzug oder haengt sich an den laufenden. Umgeht Cache und Sperre. */
+  function neuLaden(): Promise<DirectoryResult> {
     if (laufend) return laufend;
     laufend = abzug().finally(() => {
       laufend = null;
@@ -276,10 +313,36 @@ export function createDirectory(config: DirectoryConfig = {}): Directory {
     return laufend;
   }
 
+  /**
+   * Wie `list`, aber sagt zusaetzlich, OB die Antwort aus dem Zwischenspeicher
+   * kam. Nur `findByEmail` braucht das: nur dort stuetzt die Oberflaeche auf
+   * einen Fehltreffer eine Behauptung („diese E-Mail gibt es nicht").
+   */
+  async function listIntern(): Promise<{ ergebnis: DirectoryResult; ausZwischenspeicher: boolean }> {
+    if (!konfiguriert) {
+      return { ergebnis: { status: "unconfigured", people: LEER }, ausZwischenspeicher: false };
+    }
+    // Reihenfolge: gueltiger Abzug SCHLAEGT die Sperre. Sonst wuerde eine
+    // gescheiterte Frischeprobe eine funktionierende Anzeige abschalten.
+    if (cache && cache.bis > now()) {
+      return { ergebnis: { status: "ok", people: cache.people }, ausZwischenspeicher: true };
+    }
+    if (gesperrtBis > now()) {
+      return { ergebnis: { status: "error", people: LEER }, ausZwischenspeicher: false };
+    }
+    return { ergebnis: await neuLaden(), ausZwischenspeicher: false };
+  }
+
+  async function list(): Promise<DirectoryResult> {
+    return (await listIntern()).ergebnis;
+  }
+
   return {
     list,
     invalidate() {
       cache = null;
+      // Wer von Hand neu laedt, will keinen Rest der Sperre abwarten.
+      gesperrtBis = 0;
     },
     async search(query, limit = TREFFER_STANDARD) {
       const q = query.trim().toLowerCase();
@@ -297,12 +360,37 @@ export function createDirectory(config: DirectoryConfig = {}): Directory {
     async findByEmail(email) {
       const gesucht = email.trim().toLowerCase();
       if (gesucht === "") return { status: "ok", people: LEER };
-      const alle = await list();
-      if (alle.status !== "ok") return alle;
       // EXAKT, nicht `includes`: `search` von Pocket ID ist ein LIKE %…%, und ein
       // Praefix-Treffer wuerde hier die falsche Person zuordnen.
-      const treffer = alle.people.filter((p) => (p.email ?? "").toLowerCase() === gesucht);
-      return { status: "ok", people: treffer.slice(0, 1) };
+      const treffer = (r: DirectoryResult) =>
+        r.people.filter((p) => (p.email ?? "").toLowerCase() === gesucht).slice(0, 1);
+
+      const erste = await listIntern();
+      if (erste.ergebnis.status !== "ok") return erste.ergebnis;
+      const gefunden = treffer(erste.ergebnis);
+      if (gefunden.length > 0 || !erste.ausZwischenspeicher || gesperrtBis > now()) {
+        return { status: "ok", people: gefunden };
+      }
+
+      /*
+       * DIE FRISCHEPROBE. Auf einen Fehltreffer stuetzt die Oberflaeche eine
+       * BEHAUPTUNG: „Diese E-Mail ist unbekannt — bitte die Schreibweise
+       * pruefen." Kaeme sie aus einem bis zu fuenf Minuten alten Abzug, waere
+       * der Satz falsch, und zwar genau im Ablauf des Runbooks: Konto in
+       * Pocket ID anlegen, danach zuordnen. Der Admin sucht dann einen
+       * Tippfehler, den es nicht gibt.
+       *
+       * Genau EIN zusaetzlicher Abruf, und nur hier: ein Fehltreffer ist eine
+       * abgeschickte Eingabe, kein Tastendruck. Die Suche im Autofill macht das
+       * bewusst NICHT — dort waere jeder Anschlag ohne Treffer ein Abruf.
+       *
+       * Scheitert die Probe, bleibt es bei der Auskunft aus dem gueltigen Abzug:
+       * „error" wuerde hier die falsche Meldung ausloesen („muss sich einmal
+       * anmelden"), obwohl das Verzeichnis eben noch geantwortet hat.
+       */
+      const zweite = await neuLaden();
+      if (zweite.status !== "ok") return { status: "ok", people: LEER };
+      return { status: "ok", people: treffer(zweite) };
     },
   };
 }

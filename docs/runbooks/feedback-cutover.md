@@ -79,6 +79,14 @@ können arbeiten. Drei Wege, alle zulässig, sie ergänzen sich (Vereinigungsmen
    **Bestehende Zuordnungen bleiben in jedem Fall lesbar und wirksam** — das Verzeichnis liefert nur
    Namen und Vorschläge, nie die Berechtigung.
 
+   *Zeitverhalten nach einer Störung:* Nach einem fehlgeschlagenen Abruf wird **30 Sekunden** lang
+   nicht erneut angefragt — sonst kostete jede Seitenladung die volle Zeitgrenze von 5 Sekunden.
+   Wer also gerade den Key korrigiert oder Pocket ID neu gestartet hat, wartet bis zu einer halben
+   Minute, bevor die Zuordnungsseite das Verzeichnis wieder benutzt. Ein Containerneustart der Suite
+   verkürzt das sofort. Ein **erfolgreicher** Abzug gilt 5 Minuten; ein in Pocket ID neu angelegtes
+   Konto ist trotzdem sofort per E-Mail zuordenbar (bei einem Fehltreffer wird einmal frisch
+   nachgesehen), erscheint in den Tipp-Vorschlägen aber erst nach Ablauf dieser 5 Minuten.
+
 **Prüfpunkt aus der Portierung — jetzt entscheiden:** In der Alt-Datenbank ist `user_groups.user_id`
 als `number | string` typisiert. Die Suite erwartet dort den **OIDC-`sub`**. Prüfen:
 ```
