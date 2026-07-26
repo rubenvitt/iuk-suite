@@ -15,9 +15,10 @@ enthält die Rangfolge, die Auflösung der Jury-Widersprüche und die umsetzungs
    dürfen wegen der Vergleichbarkeit nicht umgeschrieben werden — „Sie" in den Rahmentexten wäre ein
    Stilbruch mitten auf der Seite.
 
-**Anonymitäts-Wortlaut:** Es gilt **Fassung A** (mit „keine Uhrzeit" und „in zufälliger Reihenfolge").
-Die beiden dafür nötigen Code-Änderungen aus Abschnitt 3.9 sind eingeplant und verbindlich — die
-Zusage darf nicht ohne sie ausgeliefert werden.
+**Anonymitäts-Wortlaut (revidiert 26.07.2026):** Im Bogen steht **ein Satz** — „Anonym — kein Name,
+kein Gerät, keine Uhrzeit." Das dreisätzige Siegel (vormals Fassung A) ist entfallen, siehe §3.9. Die
+beiden Code-Änderungen aus Abschnitt 3.9 sind umgesetzt und bleiben **verbindlich**, auch für den Teil,
+den der kurze Satz nicht mehr behauptet.
 
 **Zielgruppe dieses Dokuments:** wer die Route `/f/**` baut oder ändert. Was daran modulübergreifend
 gilt, steht in `docs/design/README.md`.
@@ -72,7 +73,7 @@ Entwurf 1 tut es und sein Juror nennt das die wahrscheinlichste Ablehnung; Entwu
 
 **Übernahmen:**
 
-- **Aus Entwurf 1: die Reihenfolge „Pflicht vor Kür"** — weil alle drei Juroren von Entwurf 1 sie unabhängig als die eine übertragbare Idee benannt haben, die das Kernproblem des Ist-Zustands löst. Übersetzt auf eine Seite: nach der achten Note kommt der **Abschluss-Block** mit Anonymitätssiegel und dem Absenden-Knopf. Die sechs Freitextzeilen liegen sichtbar *darunter*, mit identisch beschriftetem zweiten Absenden-Knopf am Ende. Wer um 21:31 gehen will, ist nach acht Tipps fertig; wer schreiben will, scrollt weiter. Keine Umleitung, kein Zustand, in dem Pflichtdaten verloren gehen können — genau der Punkt, an dem Juror 2 den Stepper aufgeschnitten hat.
+- **Aus Entwurf 1: die Reihenfolge „Pflicht vor Kür"** — weil alle drei Juroren von Entwurf 1 sie unabhängig als die eine übertragbare Idee benannt haben, die das Kernproblem des Ist-Zustands löst. Übersetzt auf eine Seite: nach der achten Note kommt der **Abschluss-Block** mit der Notenübersicht, die sechs Freitextzeilen liegen sichtbar *darunter*. Keine Umleitung, kein Zustand, in dem Pflichtdaten verloren gehen können — genau der Punkt, an dem Juror 2 den Stepper aufgeschnitten hat. **Revidiert:** der Absenden-Knopf steht *nicht* mehr im Abschluss-Block, sondern genau einmal am Fuß des Bogens (Begründung bei §3.2 A) — die Gliederung „Pflicht vor Kür" bleibt, das Absenden ist nicht mehr Teil von ihr.
 - **Aus Entwurf 1: die Notenspur, aufgeteilt in zwei Bauteile** (siehe unten „Barrierefreiheit-Falle"). Fortschritt + Sprung zur Lücke als neutrale Leiste; die farbige Notenübersicht als Lückenspringer im Abschluss-Block.
 - **Aus Entwurf 3: der Legendenstreifen mit sechs harten Farbstopps** statt eines verschliffenen Verlaufs — von seinem Juror als „die eine kompositorische Idee" benannt, die den Flickenteppich ohne ein einziges farbiges Feld löst. Harte Stopps, weil der Streifen auf dieselben sechs Spalten zeigt wie die Chips darunter.
 - **Aus Entwurf 1: der Satz „Schreib im Freitext nichts, woran man dich erkennt."** — bei ~15 Personen, die über ihren eigenen Gruppenleiter urteilen, der einzige Vertrauensbeweis, der nicht behauptet, sondern zugibt.
@@ -86,7 +87,7 @@ Entwurf 1 tut es und sein Juror nennt das die wahrscheinlichste Ablehnung; Entwu
 | 3 | **No-JS-Fehleranzeige trägt nicht** (Juror 3: `aria-live` feuert nach POST nicht; Werte gehen verloren) | Der Fehlerfall entsteht ohne JS nicht mehr: alle sechs Radios jeder Frage tragen `required` → der Browser springt feldweise zur ersten Lücke, ohne Serverweg und ohne Datenverlust. Mit JS setzt die Komponente `noValidate` und der gestaltete Lückenspringer übernimmt. Die Server-Prüfung bleibt als letzte Linie, ist aber über beide realen Wege unerreichbar. |
 | 4 | **Typo-Skala ist keine Skala** (Juror 1: zehn Ad-hoc-Werte, 13,5px) | Sieben Stufen, Verhältnis ≈1,2, ganze Pixel, keine Ausnahme: **11 / 13 / 15 / 18 / 22 / 26 / 32**. Jede Rolle bekommt genau eine Stufe. |
 | 5 | **Editorial-Schablone** (alle drei Jurys, über alle Entwürfe hinweg) | Körnung, Vignette und der −4°-Stempel entfallen; die zweite Schrift entfällt (Geist Sans liegt schon global, es bleibt **eine** zusätzliche Serif für drei Rollen). Der Charakter kommt aus dem, was inhaltlich begründbar ist: Zeugnis-Rhythmus mit Haarlinienzeilen, laufenden Ordnungszahlen `01`–`08`, Tabellenziffern durchgehend, dem Legendenstreifen als einziger gesättigter Fläche beim ersten Blick — und dem vertikalen Auswahlprofil, das die acht Chips beim Scrollen bilden. Der warme Papierton bleibt, aber als Funktion: er hält die Ampel zur einzigen gesättigten Farbe der Seite. |
-| 6 | **Serif-Fragetext 17px/400 zu zart** (Juror 2) | Fragetext ist **Geist Sans 18px/500**. Die Serif trägt nur H1/Thema, „Danke." und den Einleitungssatz der Freitextsektion. |
+| 6 | **Serif-Fragetext 17px/400 zu zart** (Juror 2) | Fragetext ist **Geist Sans 18px/500**. Die Serif trägt nur H1/Thema und „Danke." (der Einleitungssatz der Freitextsektion ist entfallen). |
 | 7 | **Körnung über den Notenchips senkt den Kontrast** (Juror 3, `mix-blend-mode: multiply`) | Entfällt mit der Körnung. Die geprüften Kontrastwerte gelten damit unverändert. |
 | 8 | **„keine IP-Kennung" ist ein Versprechen, das der Code halten muss** (Juror 2+3) | Der Siegeltext ist an konkrete Backend-Änderungen gebunden (Zeitstempel, Leseordnung — siehe Spezifikation §9). Zwei zugelassene Wortlaute, je nachdem ob die Änderungen landen. Kein Satz ohne Deckung. |
 | 9 | **Stempel widerspricht der eigenen Strenge** (Juror 1) | Entfällt. Die Danke-Seite trägt nur Serif-„Danke.", eine Haarlinie und den Weitergabe-Block. |
@@ -129,16 +130,23 @@ Kein antd-Import auf dieser Route (auch nicht in der Client Component) — damit
    - `01 DER ABEND` → q1–q3 · `02 ABLAUF & VORBEREITUNG` → q4–q6 · `03 DU UND DER ABEND` → q7–q8
    - Zeile: Ordnungszahl `01`…`08` (`t0`, tabular), Fragetext (`t3`, Sans 500), Chipreihe. Unter der **ersten** Zeile dauerhaft die Ankerwörter: links „1 sehr gut", rechts „6 ungenügend". Nach der Wahl am rechten Zeilenende die Fußnote „3 · befriedigend" (`t1`).
    - Trenner: 1px Haarlinie, keine Karten.
-5. **Abschluss-Block** (der Angelpunkt, aus Entwurf 1 übernommen):
-   - Überschrift `t4` Serif: „Das war der Pflichtteil."
+5. **Abschluss-Block** (Nachschau auf die acht Noten; **revidiert**, siehe unten — kein Knopf, keine Überschrift):
    - **Notenübersicht als Lückenspringer**: 8 Kacheln 34×34px in Fragereihenfolge — beantwortet: Ziffer in der Notenfarbe auf 14% (hell) / 22% (dunkel) Tönung derselben Farbe; offen: gestrichelte Kontur + Fragennummer in `--gedaempft`. Tipp springt zur Frage. Darunter `t1`: „Tippe eine Zahl an, um sie zu ändern."
-   - **Anonymitätssiegel**: Block mit 2px linker Kante in `--graphit`, Grund `--tint`, Padding 16, Radius `0 8 8 0`, Text `t2`/1,55 (Wortlaut §9).
-   - **Absenden-Knopf 1** im Textfluss (nicht sticky), Label „Rückmeldung absenden", darunter `t1`: „Die sechs freien Zeilen darunter sind freiwillig — du kannst auch direkt absenden."
-6. **Freitextsektion**: Kicker `04 IN EIGENEN WORTEN`, Einleitungssatz `t4` Serif: „Alles hier ist freiwillig. Ein Halbsatz hilft uns mehr als ein voller Absatz." Darunter der Satz `t1`: „Schreib nichts, woran man dich erkennt." Dann sechs **linierte Zeilen** (§6). Reihenfolge: q9 zuerst (leichteste Frage), dann q10–q14 in Originalreihenfolge.
-7. **Absenden-Knopf 2**, identisches Label „Rückmeldung absenden", darüber die Kurzzusage `t1`: „Anonym — kein Name, kein Gerät, keine Uhrzeit."
+   - Am Fuß `t1`: „Die sechs freien Zeilen darunter sind freiwillig — du kannst sie leer lassen und unten absenden." **Der einzige Träger der Freiwilligkeit** (vorher der Einleitungssatz der Freitextsektion).
+   - Das **Anonymitätssiegel** stand hier (Block mit Graphit-Kante, `t2`/1,55, Wortlaut §3.9). Entfallen — siehe Revision unten.
+6. **Freitextsektion**: der Satz `t1` „Schreib nichts, woran man dich erkennt.", dann sechs **linierte Zeilen** (§6). Reihenfolge: q9 zuerst (leichteste Frage), dann q10–q14 in Originalreihenfolge. Kicker `04 IN EIGENEN WORTEN` und Serif-Einleitungssatz „Alles hier ist freiwillig. …" sind entfallen (Revision unten) — die Sektion trägt damit, anders als die drei Notensektionen, **keinen Kicker**.
+7. **Absenden-Knopf** (der einzige) im Textfluss, nicht sticky, Label „Rückmeldung absenden", darüber die Kurzzusage `t1`: „Anonym — kein Name, kein Gerät, keine Uhrzeit." — seit dem Entfall des Siegels **die einzige Anonymitätszusage des Bogens**, deshalb unbedingt gerendert (auch in einem Bogen ohne Freitextfragen). Eine Meldung nach abgewiesener Abgabe (§3.8) erscheint unmittelbar darüber, nicht im Abschluss-Block.
 8. **Navigator** (sticky unten, nur mit JS, erscheint nach der ersten Note, verschwindet sobald der Abschluss-Block im Viewport ist): links 8 Striche 2×14px (beantwortet `--tinte`, offen `--linie-stark`), Mitte `t0` „1 = sehr gut · 6 = ungenügend", rechts Textknopf „→ nächste offene". **Keine Ampelfarbe, kein Submit.**
 
-*Warum zwei Absenden-Knöpfe:* beide sind `type="submit"` desselben `<form>`, identisch beschriftet, damit nie unklar ist, welcher sendet. Der Preis ist benannt: es kann freiwilliger Text ungeschrieben bleiben, wenn jemand reflexartig oben absendet — es können **niemals Pflichtnoten verloren gehen**. Genau darum wird das Prinzip von Entwurf 1 übernommen, nicht sein Assistent.
+*Revision — von zwei Absenden-Knöpfen auf einen (Stand 26.07.2026, umgesetzt):* Der Entwurf hatte zwei identische `type="submit"`-Knöpfe desselben `<form>`, einen im Abschluss-Block und einen unter den Freitexten. Begründung damals: es können **niemals Pflichtnoten verloren gehen**, und der Preis (freiwilliger Text bleibt ungeschrieben, wenn jemand reflexartig oben absendet) sei der kleinere.
+
+Dieser Preis ist im Betrieb der größere. Ein Absenden-Knopf **mitten im Bogen** sendet versehentlich ab, während unten noch sechs leere Zeilen stehen — und die Abgabe ist endgültig, es gibt keine zweite. Deshalb steht der Knopf jetzt **genau einmal, ganz unten**, hinter allem, was er abschickt; die Überschrift „Das war der Pflichtteil." ist mit ihm verschwunden, weil sie den Bogen in zwei Teile teilte, von denen es nur noch einen gibt. Der Bogen ist **eine Seite**, kein Assistent: die Reihenfolge des Ausfüllens ist frei, und alles Geschriebene geht mit demselben Tipp weg wie die Noten. Der neue Preis ist benannt: wer nach der achten Note weggeht, ohne bis zum Knopf zu scrollen, hat nichts abgesendet. Die verworfene Alternative — Noten absenden, danach optionale Texte nachreichen — wäre der Assistent aus Entwurf 1 in zwei Schritten und bleibt abgelehnt.
+
+*Revision — drei Textflächen weniger (Stand 26.07.2026, umgesetzt):* Der Bogen sagte dasselbe mehrfach. Entfallen sind
+(a) das **Anonymitätssiegel** (§3.9, Fassung A, drei Sätze im Abschluss-Block) — die Kurzzusage über dem Knopf sagt es kürzer und verständlicher, und sie ist damit die einzige Zusage im Bogen, also **unbedingt** gerendert;
+(b) der **Kicker** `04 IN EIGENEN WORTEN`;
+(c) der **Serif-Einleitungssatz** „Alles hier ist freiwillig. Ein Halbsatz hilft uns mehr als ein voller Absatz." — die Freiwilligkeit steht schon am Fuß des Abschluss-Blocks, unmittelbar über denselben Zeilen, und zweimal gesagt wird sie nicht glaubhafter.
+Bewusst geblieben ist „Schreib nichts, woran man dich erkennt." — der Satz sagt etwas, das nichts anderes sagt. **Was die Kurzzusage nicht mehr trägt:** das Siegel nannte zwei Dinge, was gespeichert wird *und* was die Gruppenleitung zu sehen bekommt („Durchschnitte und die Texte in zufälliger Reihenfolge, nie eine Person"). Der kurze Satz deckt nur das Erste ab; `shuffleStable` mischt die Leseordnung weiterhin, der Bogen behauptet es nur nicht mehr. Mit dem Siegel ist auch `ZettelProps.siegel` entfallen — die Kopplung „dieser Text ist eine Zusage über Server-Verhalten" steht jetzt als Kommentar an `KURZZUSAGE` in `Zettel.tsx`.
 
 **B — DANKE** (`/f/{slugSecret}/thanks`): Serif „Danke." (`t6`), darunter `t2` „Deine Rückmeldung ist eingegangen — anonym." Keine Antworten mehr auf dem Schirm (das Handy wandert weiter). Haarlinie, 32px Abstand, dann: Kicker „HANDY WANDERT WEITER?", Satz „Deine Antwort ist gespeichert und lässt sich nicht mehr ändern. Für die nächste Person kannst du einen leeren Bogen öffnen.", Sekundärknopf (Umriss) **„Leeren Bogen öffnen"** → `releaseDeviceAction` (löscht Cookie + sessionStorage-Draft, leitet aufs Formular).
 
@@ -158,13 +166,13 @@ Alle Zustände teilen Fahne, Kopfrhythmus, Satzbreite und Typo-Skala.
 |---|---|---|---|
 | t0 | 11 | 1,2 | Kicker (600, `letter-spacing .12em`, uppercase), Sektions-Kicker, Ordnungszahl (500, tabular), Notenwörter der Legende, Navigator-Legende |
 | t1 | 13 | 1,45 | Metazeile, Vertragszeile, Zeilen-Fußnote „3 · befriedigend", Hinweise, Zeichenzähler, Wortzeichen (700) |
-| t2 | 15 | 1,55 | Fließtext, Anonymitätssiegel, Freitext-Label, Knopfschrift (600) |
+| t2 | 15 | 1,55 | Fließtext, Freitext-Label, Knopfschrift (600) |
 | t3 | 18 | 1,35 / 1,5 | **Fragetext** (Sans 500), Notenziffer im Chip (600, tabular), **Freitext-Eingabe** (400, 1,5) |
-| t4 | 22 | 1,3 | Serif: „Das war der Pflichtteil.", Einleitungssatz der Freitextsektion |
+| t4 | 22 | 1,3 | **derzeit ohne Nutzer** — die Stufe trug zwei Serifsätze, „Das war der Pflichtteil." (mit dem oberen Knopf entfallen) und den Einleitungssatz der Freitextsektion (entfallen). Sie bleibt als Sprosse der Skala dokumentiert; im CSS gibt es keine 22px-Regel mehr. |
 | t5 | 26 | 1,15 | H1 mobil (Serif 600, `-0.012em`, `text-wrap: balance`) |
 | t6 | 32 | 1,1 | H1 ab 600px, „Danke." (`-0.02em`) |
 
-Schriften: **Geist Sans** (global vorhanden, 0 zusätzliche Requests) für alles außer drei Rollen. **Newsreader** über `next/font/google`, `subsets: ["latin"]`, `weight: ["400","600"]`, `display: "swap"`, `preload: true`, `adjustFontFallback` aktiv (kein Layoutsprung) — nur für H1/Thema, „Danke.", `t4`-Serifsätze. Durchgehend `font-variant-numeric: tabular-nums lining-nums` auf Ziffern.
+Schriften: **Geist Sans** (global vorhanden, 0 zusätzliche Requests) für alles außer drei Rollen. **Newsreader** über `next/font/google`, `subsets: ["latin"]`, `weight: ["400","600"]`, `display: "swap"`, `preload: true`, `adjustFontFallback` aktiv (kein Layoutsprung) — nur noch für H1/Thema und „Danke."; die `t4`-Serifsätze sind entfallen, der Font-Load bleibt für die H1 nötig. Durchgehend `font-variant-numeric: tabular-nums lining-nums` auf Ziffern.
 **Regel:** kein `<input>`/`<textarea>` unter 16px — die Freitextfelder liegen auf `t3` (18px), sonst zoomt iOS beim Fokus.
 
 ### 3.4 Farbe
@@ -246,7 +254,7 @@ Abstände ausschließlich aus `SPACE` (4/8/12/16/24/32; 64 = 2×32) — dimensio
 ### 3.7 Freitexte
 
 - **Linierte Zeilen statt Kästen.** Label = die **vollständige Originalfrage** (`t2`, `--graphit`); darunter ein Feld ohne Rahmen, ohne Füllung, ohne Radius — nur 1px Grundlinie, 40px hoch (genau eine Zeile), das beim Tippen mitwächst (`scrollHeight`-Autoresize; ohne JS `rows=1` + `field-sizing: content`, wo unterstützt). Sechs Zeilen ergeben ~300px statt ~540px Kastenfläche. Keine erfundenen Kurzlabels — der Juror von Entwurf 3 hat zu Recht bemängelt, dass „Mehr davon" die Frage nicht ersetzt; und keine Frage liegt hinter einem Aufklapper.
-- **Optionalität einmal, prominent**: der Einleitungssatz der Sektion. Kein „(optional)"-Suffix an sechs Labels — sechsmal dasselbe Wort erzeugt genau den Druck, den es abbauen soll.
+- **Optionalität einmal, prominent**: der Satz am Fuß des Abschluss-Blocks, unmittelbar über diesen Zeilen („Die sechs freien Zeilen darunter sind freiwillig — du kannst sie leer lassen und unten absenden."). Vorher stand sie zusätzlich im Serif-Einleitungssatz der Sektion; der ist entfallen, weil zweimal gesagt nicht glaubhafter ist. Kein „(optional)"-Suffix an sechs Labels — sechsmal dasselbe Wort erzeugt genau den Druck, den es abbauen soll.
 - **Fokus:** Grundlinie 2px `--graphit`, Label auf `--tinte`, Zeile gewinnt 8px Innenhöhe. Nach dem Verlassen mit Inhalt bleibt die Grundlinie 1,5px `--graphit` — beantwortete Zeilen sind als kräftigere Striche erkennbar. **Kein Erledigt-Häkchen** (bei freiwilligen Feldern wäre es eine stille Beschämung der leeren).
 - **500 Zeichen:** `maxLength={500}` am Feld (physische Grenze, keine Fehlermeldung möglich) **und** serverseitig `slice(0, 500)` in `coerceAnswer`. Zähler unsichtbar bis 419 Zeichen; ab 420 rechts unter der Zeile „noch 80 Zeichen" (`t1`, `--gedaempft`), bei 0 „Zeile ist voll" — gleiche Farbe, kein Rot, kein Amber, kein Icon (Warnfarbe außerhalb der Skala ist verboten).
 - **Draft:** `sessionStorage` (nicht `localStorage`), Schlüssel = Hash des Tokens, Restore im `useEffect` (sonst Hydration-Mismatch), Verfall nach 30 Minuten, Löschung bei erfolgreichem Absenden **und** bei „Leeren Bogen öffnen".
@@ -291,13 +299,17 @@ Der Ist-Code speichert `submittedAt` sekundengenau (`queries.ts:159`) und liest 
 1. `insertResponse(db, survey.id, answers, eveningDateMidnightUtc)` — Zeitstempel auf den Abend gerundet. Geprüft: `submitted_at` wird außerhalb von Tests **nur** in `…/export.csv/route.ts:70` gelesen (eine Spalte, ISO-String); die Spalte zeigt dann für alle Zeilen das Abenddatum. Lifecycle/Aggregation nutzen die Spalte nicht.
 2. Stabile Durchmischung der Leseordnung in `aggregation.ts` (Sortierung nach FNV-1a-Hash des Antwort-JSON, deterministisch und testbar) — und die CSV-Route nutzt dieselbe Ordnung.
 
-**Wortlaut A (nur zulässig, wenn 1 und 2 umgesetzt sind):**
-> „Diese Rückmeldung ist anonym. Gespeichert werden nur deine Noten und deine Texte — kein Name, keine E-Mail, keine Geräte- oder IP-Kennung, keine Uhrzeit. Die Gruppenleitung sieht Durchschnitte und die Texte in zufälliger Reihenfolge, nie eine Person."
+**Beide Änderungen sind umgesetzt und bleiben verbindlich** — unabhängig davon, welcher Text im Bogen steht.
 
-**Wortlaut B (wenn 1 und 2 nicht kommen):** wie A, aber **ohne** „keine Uhrzeit" und ohne „in zufälliger Reihenfolge":
-> „… kein Name, keine E-Mail, keine Geräte- oder IP-Kennung. Die Gruppenleitung sieht Durchschnitte und die Texte ohne Namen, nie eine Person."
+**Der Wortlaut, revidiert (Stand 26.07.2026).** Der Entwurf sah für den Abschluss-Block ein dreisätziges Siegel vor:
 
-Beide Fassungen tragen den Satz aus Entwurf 1: **„Schreib nichts, woran man dich erkennt."** Die IP wird für das Ratelimit benutzt, landet aber nur in einer flüchtigen In-Memory-Map (`ratelimit.ts`) und nie an der Antwort — das ist mit „keine IP-Kennung" vereinbar und muss im Modul-README so dokumentiert stehen. **Wenn irgendwann ein persistenter Limiter mit IP-Spalte kommt, ändert sich der Siegeltext, nicht stillschweigend seine Bedeutung.** Diese Wahl ist technisch, nicht Geschmack — deshalb keine Auftraggeber-Entscheidung.
+> ~~„Diese Rückmeldung ist anonym. Gespeichert werden nur deine Noten und deine Texte — kein Name, keine E-Mail, keine Geräte- oder IP-Kennung, keine Uhrzeit. Die Gruppenleitung sieht Durchschnitte und die Texte in zufälliger Reihenfolge, nie eine Person."~~ (Fassung A, entfallen; die schwächere Fassung B für den Fall „1 und 2 kommen nicht" ist damit ebenfalls hinfällig.)
+
+Im Bogen steht stattdessen **genau ein Satz**, über dem Absende-Knopf: **„Anonym — kein Name, kein Gerät, keine Uhrzeit."** Kürzer und verständlicher — und weil es die einzige Zusage ist, wird sie unbedingt gerendert, auch in einem Bogen ohne Freitextfragen. Dazu weiterhin der Satz aus Entwurf 1: **„Schreib nichts, woran man dich erkennt."**
+
+Was der kurze Satz **nicht** mehr sagt: was die Gruppenleitung zu sehen bekommt („Durchschnitte und die Texte in zufälliger Reihenfolge, nie eine Person"). Die Zusage ist im Code weiter wahr — `shuffleStable` mischt, Aggregation und CSV-Export nutzen dieselbe Ordnung —, der Bogen behauptet sie nur nicht mehr. Falls die Leseordnung je zurück auf Eingangsreihenfolge fällt, wird damit kein Text zur Lüge; dass Punkt 2 trotzdem gilt, steht hier.
+
+Die IP wird für das Ratelimit benutzt, landet aber nur in einer flüchtigen In-Memory-Map (`ratelimit.ts`) und nie an der Antwort — das ist mit „kein Gerät" vereinbar und muss im Modul-README so dokumentiert stehen. **Wenn irgendwann ein persistenter Limiter mit IP-Spalte oder ein sekundengenauer Zeitstempel kommt, ändert sich DIESER Satz, nicht stillschweigend seine Bedeutung** — die Kopplung steht als Kommentar an `KURZZUSAGE` in `Zettel.tsx`, dort wo der Wortlaut jetzt liegt. Diese Wahl ist technisch, nicht Geschmack — deshalb keine Auftraggeber-Entscheidung.
 
 ### 3.10 Barrierefreiheit
 

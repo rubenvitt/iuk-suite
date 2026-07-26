@@ -45,8 +45,14 @@ const JUGEND_TOKEN = "jugend-jgnd1";
 const NOTENFRAGEN = 8;
 const STUFEN = 6;
 const FREITEXTE = 6;
-/** Zwei austauschbare Absende-Knoepfe (Abschluss-Block und unter den Freitexten). */
-const ABSENDEKNOEPFE = 2;
+/**
+ * GENAU EIN Absende-Knopf, am Fuss des Bogens. Vorher waren es zwei (einer im
+ * Abschluss-Block, einer unter den Freitexten); der obere hat versehentlich
+ * abgesendet, waehrend unten noch leere Zeilen standen — und es gibt keine zweite
+ * Abgabe. Die Zahl steht hier, weil `inventar()` sie in BEIDEN Kontexten
+ * vergleicht: mit und ohne JavaScript.
+ */
+const ABSENDEKNOEPFE = 1;
 
 const ABSENDEN = "Rückmeldung absenden";
 
@@ -114,11 +120,11 @@ const SOLL_INVENTAR = {
 };
 
 /**
- * Warten, bis die Client Component uebernommen hat: vor der Hydration tragen
- * beide Knoepfe das regulaere Absende-Label (der Weg ohne JavaScript), danach
- * den Lueckentext. Ohne dieses Warten wuerde ein Test, der "Rückmeldung
- * absenden" erwartet, auch dann gruen, wenn JavaScript gar nicht angekommen
- * ist — und der Unterschied zum Ohne-JavaScript-Test waere verloren.
+ * Warten, bis die Client Component uebernommen hat: vor der Hydration traegt der
+ * Knopf das regulaere Absende-Label (der Weg ohne JavaScript), danach den
+ * Lueckentext. Ohne dieses Warten wuerde ein Test, der "Rückmeldung absenden"
+ * erwartet, auch dann gruen, wenn JavaScript gar nicht angekommen ist — und der
+ * Unterschied zum Ohne-JavaScript-Test waere verloren.
  */
 async function hydriert(page: Page): Promise<void> {
   await expect(page.locator("[data-absenden][data-offen]").first()).toHaveText(

@@ -9,23 +9,23 @@ Eigene SQLite-Datenbank (`_db/`, Migrationen in `_db/migrations`). Skala ist die
 **Schulnote 1–6, invertiert** (1 = sehr gut). `stars` (1–5) existiert ausschließlich im **Lesepfad**
 importierter Alt-Umfragen; neue Umfragen erzeugen nur `schulnote` + `text`.
 
-## Was das Anonymitätssiegel zusagt — und wo der Code das hält
+## Was die Anonymitätszusage zusagt — und wo der Code das hält
 
-Der Siegeltext auf dem Bogen (`f/[slugSecret]/page.tsx`) lautet:
+Der Bogen (`f/[slugSecret]/Zettel.tsx`, Konstante `KURZZUSAGE`) sagt über dem Absende-Knopf:
 
-> „Diese Rückmeldung ist anonym. Gespeichert werden nur deine Noten und deine Texte — kein Name,
-> keine E-Mail, keine Geräte- oder IP-Kennung, keine Uhrzeit. Die Gruppenleitung sieht Durchschnitte
-> und die Texte in zufälliger Reihenfolge, nie eine Person."
+> „Anonym — kein Name, kein Gerät, keine Uhrzeit."
 
-Jeder Halbsatz hat eine Deckung im Code. **Wer eine dieser Stellen ändert, ändert eine Zusage an
-Teilnehmende und muss den Siegeltext mitändern — nicht stillschweigend seine Bedeutung.**
+Das ist seit dem 26.07.2026 die **einzige** Anonymitätszusage im Bogen. Vorher stand darüber hinaus
+ein dreisätziges Siegel im Abschluss-Block (`page.tsx`, Prop `siegel`); es sagte dasselbe länger und
+ist entfallen. Jeder Halbsatz hat eine Deckung im Code. **Wer eine dieser Stellen ändert, ändert eine
+Zusage an Teilnehmende und muss den Satz mitändern — nicht stillschweigend seine Bedeutung.**
 
 | Zusage | Deckung |
 |---|---|
-| kein Name, keine E-Mail | `responses` trägt nur `survey_id`, `answers`, `submitted_at` (`_db/schema.ts`). Der öffentliche Pfad hat keine Sitzung. |
-| **keine Geräte- oder IP-Kennung** | siehe unten. |
+| kein Name | `responses` trägt nur `survey_id`, `answers`, `submitted_at` (`_db/schema.ts`). Der öffentliche Pfad hat keine Sitzung — damit auch keine E-Mail. |
+| **kein Gerät** (Geräte- oder IP-Kennung) | siehe unten. |
 | keine Uhrzeit | `insertResponse` schreibt `evening.date` (Mitternacht UTC) als `submitted_at`, nicht `now` (`actions.ts`, `submitResponseAction`). Der CSV-Export gibt in der Spalte „Abendtag" (früher „Zeitstempel" — der Name versprach eine Genauigkeit, die die Ausgabe nicht mehr hat) den **Abendtag** aus — auch für importierte Antworten, deren Wert in der Datenbank aus Gründen der Import-Parität sekundengenau bleibt. |
-| in zufälliger Reihenfolge | `shuffleStable` (`_lib/aggregation.ts`) — deterministische Durchmischung nach FNV-1a-Hash der Antwort, entkoppelt von der Eingangsreihenfolge. Auswertung UND Export benutzen dieselbe Ordnung. |
+| *(nicht mehr im Bogen behauptet:)* Texte in zufälliger Reihenfolge | `shuffleStable` (`_lib/aggregation.ts`) — deterministische Durchmischung nach FNV-1a-Hash der Antwort, entkoppelt von der Eingangsreihenfolge. Auswertung UND Export benutzen dieselbe Ordnung. Das entfallene Siegel sagte es ausdrücklich zu; der kurze Satz tut es nicht. Die Durchmischung bleibt trotzdem **verbindlich**: bei ~15 Personen ist die Eingangsreihenfolge allein ein Deanonymisierungskanal, und der KI-Prompt der Auswertung bildet je Person einen Block mit allen Noten und Texten. Ein Test in `auswertung/page.test.tsx` nagelt das fest. |
 
 ## Die IP: nur Ratenbegrenzung, flüchtig, nie an der Antwort
 

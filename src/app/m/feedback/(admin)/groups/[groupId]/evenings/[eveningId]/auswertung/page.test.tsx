@@ -373,18 +373,21 @@ describe("Auswertung — der KI-Prompt ist ein Abschnitt DIESER Seite (§3.2 Pun
   });
 
   /**
-   * DAS ANONYMITAETSSIEGEL GILT AUCH IM PROMPT (§3.9 Wortlaut A).
+   * DIE DURCHMISCHUNG GILT AUCH IM PROMPT (§3.9 Punkt 2).
    *
-   * Der oeffentliche Zettel sagt der abgebenden Person wortwoertlich zu: „Die
-   * Gruppenleitung sieht Durchschnitte und die Texte in ZUFAELLIGER
-   * REIHENFOLGE." Der Abschnitt „Einzelne Rueckmeldungen (Rohdaten)" bricht das
-   * am direktesten von allen Ausgaben: er bildet je Person EINEN Block mit allen
-   * Noten UND allen Freitexten. Steht dieser Block in der Datenbankordnung, ist
-   * „Rueckmeldung 1" die Person, die als erste abgegeben hat — genau der
-   * Deanonymisierungskanal, den das Siegel bestreitet. `computeDAStats`
-   * durchmischt (deshalb ist der Sammel-Abschnitt in Ordnung), `listResponses`
-   * nicht: die Durchmischung ist laut eigener Zusage Sache des LESERS, und der
-   * CSV-Export haelt sie ein.
+   * Der Abschnitt „Einzelne Rueckmeldungen (Rohdaten)" ist von allen Ausgaben die
+   * gefaehrlichste: er bildet je Person EINEN Block mit allen Noten UND allen
+   * Freitexten. Steht dieser Block in der Datenbankordnung, ist „Rueckmeldung 1"
+   * die Person, die als erste abgegeben hat — bei ~15 Personen ein
+   * Deanonymisierungskanal. `computeDAStats` durchmischt (deshalb ist der
+   * Sammel-Abschnitt in Ordnung), `listResponses` nicht: die Durchmischung ist
+   * Sache des LESERS, und der CSV-Export haelt sie ein.
+   *
+   * Das lange Anonymitaetssiegel des Bogens sagte diese Ordnung ausdruecklich zu
+   * („die Texte in ZUFAELLIGER REIHENFOLGE"). Es ist entfallen — die kurze Zusage
+   * behauptet nur noch, was gespeichert wird. Die Zusicherung bleibt damit
+   * verbindlich, obwohl kein Text im Bogen mehr auf sie zeigt: §3.9 Punkt 2 gilt
+   * unabhaengig vom Wortlaut, und DIESER Test ist die Stelle, die es festhaelt.
    */
   it("mischt die Rohdaten-Bloecke — „Rueckmeldung 1“ ist nicht die erste Abgabe", async () => {
     const antworten = Array.from({ length: 6 }, (_, i) => ({

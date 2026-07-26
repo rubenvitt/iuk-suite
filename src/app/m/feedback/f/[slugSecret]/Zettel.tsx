@@ -47,11 +47,19 @@ import s from "./zettel.module.css";
  * `onSubmit` per `preventDefault` (siehe `absenden`), damit eine unerwartete
  * Ausnahme im Formular landet statt auf einer technischen Fehlerseite.
  *
- * DER AUFBAU (§3.2): Legende, acht Notenzeilen, ABSCHLUSS-BLOCK, Freitexte,
- * zweiter Absende-Knopf, Navigator. Der Abschluss steht VOR den Freitexten —
- * daran haengt die Zusage, dass Pflichtnoten niemals verloren gehen: wer nach
- * der achten Note weggeht, hat abgesendet, statt in einem Assistenten zu stehen,
- * dessen erste Seiten beim Schliessen des Tabs verfallen.
+ * DER AUFBAU (§3.2): Legende, acht Notenzeilen, Abschluss-Block (Notenuebersicht),
+ * Freitexte, Kurzzusage, Absende-Knopf, Navigator. Der Knopf steht GENAU EINMAL,
+ * und zwar ganz unten — hinter allem, was er abschickt.
+ *
+ * DAS IST DIE UMKEHR DES URSPRUENGLICHEN ENTWURFS. Der hatte einen zweiten,
+ * identischen Knopf schon im Abschluss-Block, damit die acht Pflichtnoten in
+ * Sicherheit sind, bevor die Freitexte kommen. Der Preis dafuer war ein
+ * Absende-Knopf MITTEN im Bogen: ein Tipp darauf, waehrend unten noch sechs
+ * leere Zeilen stehen, sendet versehentlich ab — und die Abgabe ist endgueltig,
+ * es gibt keine zweite. Der Bogen ist EINE Seite und kein Assistent; die
+ * Reihenfolge des Ausfuellens ist damit frei, und alles Geschriebene geht mit
+ * demselben Tipp weg wie die Noten. Der Preis ist benannt: wer nach der achten
+ * Note weggeht, ohne bis zum Knopf zu scrollen, hat nichts abgesendet.
  */
 export interface ZettelProps {
   questions: Question[];
@@ -60,14 +68,6 @@ export interface ZettelProps {
   action: (fd: FormData) => Promise<SubmitResult | void>;
   /** Schluessel des Entwurfsspeichers — siehe `entwurfSchluessel`. */
   tokenHash: string;
-  /**
-   * Der Wortlaut des Anonymitaetssiegels (§3.9). Er kommt aus `page.tsx` und
-   * nicht von hier: das Siegel ist eine Zusage ueber SERVER-Verhalten (der
-   * Zeitstempel wird auf den Abend gerundet, die Leseordnung ist gemischt) und
-   * gehoert damit neben den Code, der sie wahr macht. Wandert eine der beiden
-   * Zusagen, faellt der Text im selben Modul auf.
-   */
-  siegel: string;
 }
 
 /*
@@ -150,12 +150,36 @@ function wort(stufe: number): string {
 
 /* ---------- Abschluss-Block (§3.2 Punkt 5 und 7, §3.6) ---------- */
 
-/** Wortlaute des Abschlusses, wortgenau aus dem Entwurf. */
-const ABSCHLUSS_TITEL = "Das war der Pflichtteil.";
+/*
+ * Wortlaute des Abschlusses. Die Ueberschrift „Das war der Pflichtteil." stand
+ * hier einmal — sie gehoerte zu dem Absende-Knopf, der an dieser Stelle stand.
+ * Ohne ihn teilt sie den Bogen in zwei Teile, von denen es nur noch einen gibt.
+ */
 const UEBERSICHT_HINWEIS = "Tippe eine Zahl an, um sie zu ändern.";
 const ABSENDEN = "Rückmeldung absenden";
 /** Der Pending-Zustand aus 3.8: Label, `aria-busy`, `disabled` — kein Spinner. */
 const SENDET = "Wird gesendet…";
+/**
+ * DIE ANONYMITAETSZUSAGE DES BOGENS — und zwar die einzige, seit das lange
+ * Anonymitaetssiegel (§3.9, Fassung A) weg ist. Es sagte dasselbe in drei Saetzen
+ * und stand als Prop aus `page.tsx` im Abschluss-Block; dieser Satz ist kuerzer
+ * und verstaendlicher, also traegt er die Zusage allein.
+ *
+ * WAS DARAN HAENGT — das Siegel stand in der Server Component, weil sein Text
+ * eine Zusage ueber SERVER-Verhalten war. Diese Kopplung gilt weiter, nur an
+ * dieser Zeile:
+ *   1. "keine Uhrzeit" — `submitResponseAction` speichert `active.evening.date`
+ *      (Mitternacht UTC des Abends) als `submitted_at`, nicht `new Date()`. Bei
+ *      ~15 Abgaben waere die Sekunde allein ein Deanonymisierungskanal.
+ *   2. "kein Gerät" — die IP wird fuer das Ratelimit gebraucht, liegt aber nur in
+ *      einer fluechtigen In-Memory-Map (`_lib/ratelimit.ts`) und nie an der
+ *      Antwort. Kommt jemals ein persistenter Limiter mit IP-Spalte, aendert sich
+ *      DIESER TEXT — nicht stillschweigend seine Bedeutung.
+ * Die dritte Zusage des Siegels ("die Texte in zufaelliger Reihenfolge") steht
+ * nicht mehr im Bogen. `shuffleStable` (FNV-1a, `aggregation.ts`) mischt die
+ * Leseordnung weiterhin, und Aggregation UND CSV-Export benutzen sie — der Bogen
+ * behauptet es nur nicht mehr, statt es zu behaupten und irgendwann zu luegen.
+ */
 const KURZZUSAGE = "Anonym — kein Name, kein Gerät, keine Uhrzeit.";
 const NAVIGATOR_KNOPF = "→ nächste offene";
 
@@ -182,7 +206,7 @@ const MELDUNG_AUSNAHME =
  * sagt, und ein zweiter Tipp darauf.
  *
  * `closed` und `none` sind ENDSTAENDE: es gibt hier nichts mehr zu senden, also
- * verschwinden die Absende-Knoepfe (`endstand`). Beide Texte nennen zuerst den
+ * verschwindet der Absende-Knopf (`endstand`). Beide Texte nennen zuerst den
  * Zustand (die H1 aus 3.2 D bzw. C) und dann, was aus der Abgabe wurde — der
  * ehrliche Zusatz aus 3.8. `ratelimit` ist das Gegenteil: die Eingaben bleiben
  * stehen, der Knopf kommt nach 20 Sekunden wieder.
@@ -204,20 +228,27 @@ const ENDSTAND = ["closed", "none"];
 export const SPERRE_MS = 20_000;
 
 /**
- * Zahlwoerter fuer den Satz unter dem ersten Knopf. Der Entwurf schreibt "Die
- * sechs freien Zeilen …" — die Zahl kommt aber aus den TATSAECHLICHEN Fragen
- * (importierte Alt-Umfragen haben andere Zuschnitte), denn eine Zusage, die
- * nicht zum Bogen passt, ist schlimmer als keine. Dieselbe Abweichung wie bei
- * der Vertragszeile in `page.tsx`.
+ * Zahlwoerter fuer den Satz am Fuss des Abschluss-Blocks. Der Entwurf schreibt
+ * "Die sechs freien Zeilen …" — die Zahl kommt aber aus den TATSAECHLICHEN
+ * Fragen (importierte Alt-Umfragen haben andere Zuschnitte), denn eine Zusage,
+ * die nicht zum Bogen passt, ist schlimmer als keine. Dieselbe Abweichung wie
+ * bei der Vertragszeile in `page.tsx`.
  */
 const ZAHLWORT = ["null", "eine", "zwei", "drei", "vier", "fünf", "sechs"] as const;
 
+/**
+ * Der Satz endet auf "und unten absenden" und nicht mehr auf "du kannst auch
+ * direkt absenden": der Knopf, auf den das "direkt" zeigte, steht nicht mehr
+ * ueber diesem Satz, sondern unter den Freitexten. Der Halbsatz ist damit die
+ * Wegweisung zum einzigen Knopf — die Freiwilligkeit bleibt gesagt, aber niemand
+ * sucht das Absenden.
+ */
 function freiwilligSatz(zeilen: number): string {
   if (zeilen === 1) {
-    return "Die freie Zeile darunter ist freiwillig — du kannst auch direkt absenden.";
+    return "Die freie Zeile darunter ist freiwillig — du kannst sie leer lassen und unten absenden.";
   }
   const zahl = ZAHLWORT[zeilen] ?? String(zeilen);
-  return `Die ${zahl} freien Zeilen darunter sind freiwillig — du kannst auch direkt absenden.`;
+  return `Die ${zahl} freien Zeilen darunter sind freiwillig — du kannst sie leer lassen und unten absenden.`;
 }
 
 /** "Noch 3 Noten offen" — der Zustand als Text, nicht als Farbe (§3.6). */
@@ -276,10 +307,15 @@ function notenAusDom(form: HTMLFormElement | null): Record<string, number> | nul
 
 /* ---------- Freitexte (§3.2 Punkt 6, §3.7) ---------- */
 
-/** Wortlaute der Freitextsektion, wortgenau aus dem Entwurf. */
-const FREITEXT_KICKER = "04 IN EIGENEN WORTEN";
-const FREITEXT_EINLEITUNG =
-  "Alles hier ist freiwillig. Ein Halbsatz hilft uns mehr als ein voller Absatz.";
+/**
+ * Der Wortlaut der Freitextsektion — ein einziger Satz.
+ *
+ * Kicker („04 IN EIGENEN WORTEN") und Einleitungssatz („Alles hier ist
+ * freiwillig. Ein Halbsatz hilft uns mehr als ein voller Absatz.") sind weg: die
+ * Freiwilligkeit steht schon am Fuss des Abschluss-Blocks, unmittelbar ueber
+ * diesen Zeilen (`freiwilligSatz`), und zweimal gesagt wird sie nicht glaubhafter.
+ * Was bleibt, ist der Satz, den nichts anderes sagt.
+ */
 const FREITEXT_HINWEIS = "Schreib nichts, woran man dich erkennt.";
 
 /**
@@ -378,11 +414,11 @@ function hoeheAnpassen(el: HTMLTextAreaElement): void {
 }
 
 export function Zettel(props: ZettelProps) {
-  const { questions, scale, action, tokenHash, siegel } = props;
+  const { questions, scale, action, tokenHash } = props;
   const [noten, setNoten] = useState<Record<string, number>>({});
   /**
    * Erst nach der Hydration wahr. Solange sie falsch ist, sieht der Zettel genau
-   * so aus wie ausgeliefert: zwei `submit`-Knoepfe mit dem regulaeren Label und
+   * so aus wie ausgeliefert: ein `submit`-Knopf mit dem regulaeren Label und
    * ein Formular OHNE `noValidate` — das ist der Weg ohne JavaScript. Es gibt
    * KEINEN Austausch der Oberflaeche (§3.11), nur diese drei Attribute wechseln.
    */
@@ -409,7 +445,7 @@ export function Zettel(props: ZettelProps) {
   const [fehlversuche, setFehlversuche] = useState(0);
   /**
    * Endstand nach `closed`/`none`: das Formular bleibt stehen (die Eingaben sind
-   * nicht verloren, nur nicht mehr abgebbar), aber die Absende-Knoepfe gehen. Ein
+   * nicht verloren, nur nicht mehr abgebbar), aber der Absende-Knopf geht. Ein
    * Knopf, der nur noch dieselbe Abweisung holen kann, ist ein toter Knopf.
    */
   const [endstand, setEndstand] = useState(false);
@@ -476,11 +512,12 @@ export function Zettel(props: ZettelProps) {
   }, []);
 
   /*
-   * Die Meldung liegt im Abschluss-Block, also OBERHALB der Freitexte. Wer mit
-   * dem ZWEITEN Knopf absendet, steht 400-500px darunter: ohne diese Zeilen
-   * passiert nach dem Tippen sichtbar nichts, und ein Knopf, der nichts tut,
-   * wird noch einmal getippt. Beide Knoepfe sind absichtlich austauschbar — dann
-   * muss auch die Rueckmeldung von beiden aus ankommen.
+   * Die Meldung steht unmittelbar ueber dem Knopf, nach einem Tipp darauf ist
+   * sie also fast immer schon im Bild. Fast: abgeschickt wird auch mit der
+   * Enter-Taste aus einer Notenzeile weit oben, und beim ZWEITEN Fehlversuch ist
+   * der Text derselbe — ohne diese Zeilen aendert sich dann sichtbar NICHTS, und
+   * ein Knopf, der nichts tut, wird noch einmal getippt. Genau das war der
+   * Schaden, gegen den `fehlversuche` gezaehlt wird.
    */
   useEffect(() => {
     if (fehlversuche === 0) return;
@@ -674,7 +711,7 @@ export function Zettel(props: ZettelProps) {
    */
   function abweisungZeigen(code: string): void {
     // Die Seite bleibt stehen, also endet die Abgabe hier: bliebe `sendet` wahr,
-    // waeren beide Knoepfe dauerhaft mit "Wird gesendet…" gesperrt.
+    // waere der Knopf dauerhaft mit "Wird gesendet…" gesperrt.
     laeuft.current = false;
     setSendet(false);
     setMeldung(MELDUNG_ABWEISUNG[code] ?? MELDUNG_AUSNAHME);
@@ -714,10 +751,12 @@ export function Zettel(props: ZettelProps) {
         ),
       )}
       {/*
-        DER ANGELPUNKT: der Abschluss steht VOR den Freitexten. Wer nach der
-        achten Note gehen will, ist fertig; wer schreiben will, scrollt weiter.
-        Der Preis ist benannt (freiwilliger Text kann ungeschrieben bleiben), der
-        Gewinn ist die Zusage: Pflichtnoten koennen niemals verloren gehen.
+        DER ABSCHLUSS-BLOCK — Notenuebersicht, Siegel, und NICHTS zum Absenden.
+        Ein Absende-Knopf stand hier einmal, damit die acht Pflichtnoten in
+        Sicherheit sind, bevor die Freitexte kommen. Er ist gewandert: ein Knopf
+        MITTEN im Bogen sendet versehentlich ab, waehrend unten noch leere Zeilen
+        stehen — und es gibt keine zweite Abgabe. Der Block bleibt trotzdem, was
+        er war: die Stelle, an der die acht Noten als Ganzes nachpruefbar sind.
       */}
       <div
         ref={abschluss}
@@ -725,54 +764,52 @@ export function Zettel(props: ZettelProps) {
         style={verzug(360)}
         data-abschluss=""
       >
-        <h2 className={s.abschlussTitel}>{ABSCHLUSS_TITEL}</h2>
         <Uebersicht fragen={notenfragen} noten={noten} onSprung={springen} />
         <p className={s.uebersichtHinweis}>{UEBERSICHT_HINWEIS}</p>
-        <p className={s.siegel} data-siegel="">
-          {siegel}
-        </p>
-        {meldung === null ? null : (
-          /* `role="alert"` UND kein programmatischer Fokus: 3.8 schreibt die Rolle
-             fest, und beides zusammen kuendigen Screenreader moeglicherweise
-             zweimal an. Zum Blick der Sehenden kommt die Meldung ueber
-             `scrollIntoView` im Effekt oben — das leistet die Rolle nicht. */
-          <p ref={meldungsZeile} className={s.meldung} data-meldung="" role="alert">
-            {meldung}
-          </p>
-        )}
-        {endstand ? null : (
-          <Absendeknopf
-            bereit={bereit}
-            offen={offene.length}
-            gesperrt={gesperrt}
-            sendet={sendet}
-            onLuecke={zurLuecke}
-          />
-        )}
         {freitextfragen.length === 0 ? null : (
-          <p className={s.knopfHinweis}>{freiwilligSatz(freitextfragen.length)}</p>
+          <p className={s.freiwilligHinweis}>{freiwilligSatz(freitextfragen.length)}</p>
         )}
-        {/* GENAU EINE Meldezeile fuer beide Knoepfe — zwei Live-Bereiche
-            wuerden jede Ansage doppelt sprechen (§3.10). */}
-        <p className={s.srOnly} aria-live="polite" data-ansage="">
-          {ansageText(ansage)}
-        </p>
       </div>
       {freitextfragen.length === 0 ? null : (
-        <>
-          <Freitexte fragen={freitextfragen} tokenHash={tokenHash} />
-          <p className={s.kurzzusage}>{KURZZUSAGE}</p>
-          {endstand ? null : (
-            <Absendeknopf
-              bereit={bereit}
-              offen={offene.length}
-              gesperrt={gesperrt}
-              sendet={sendet}
-              onLuecke={zurLuecke}
-            />
-          )}
-        </>
+        <Freitexte fragen={freitextfragen} tokenHash={tokenHash} />
       )}
+      {meldung === null ? null : (
+        /* `role="alert"` UND kein programmatischer Fokus: 3.8 schreibt die Rolle
+           fest, und beides zusammen kuendigen Screenreader moeglicherweise
+           zweimal an. Zum Blick der Sehenden kommt die Meldung ueber
+           `scrollIntoView` im Effekt oben — das leistet die Rolle nicht.
+
+           Sie steht UEBER der Kurzzusage und damit unmittelbar ueber dem Knopf:
+           die Flaeche, die sagt, dass es nicht geklappt hat, gehoert neben den
+           Knopf, den ihr eigener Text zum Wiederholen nennt. */
+        <p ref={meldungsZeile} className={s.meldung} data-meldung="" role="alert">
+          {meldung}
+        </p>
+      )}
+      {/*
+        UNBEDINGT, nicht am Freitext-Zweig: seit das lange Siegel weg ist, ist
+        dieser Satz die EINZIGE Anonymitaetszusage im Bogen. Haenge er an
+        `freitextfragen.length > 0`, stuende ein importierter Bogen aus reinen
+        Notenfragen ganz ohne sie da — dieselbe Falle wie beim Knopf, eine Ebene
+        weiter. Er bleibt der direkte Vorgaenger des Knopfes (`.kurzzusage + .knopf`).
+      */}
+      <p className={s.kurzzusage}>{KURZZUSAGE}</p>
+      {/* DER EINZIGE Absende-Knopf — ganz unten, hinter allem, was er abschickt. */}
+      {endstand ? null : (
+        <Absendeknopf
+          bereit={bereit}
+          offen={offene.length}
+          gesperrt={gesperrt}
+          sendet={sendet}
+          onLuecke={zurLuecke}
+        />
+      )}
+      {/* GENAU EINE Meldezeile, direkt hinter dem Knopf, auf den sie sich
+          bezieht — zwei Live-Bereiche wuerden jede Ansage doppelt sprechen
+          (§3.10). */}
+      <p className={s.srOnly} aria-live="polite" data-ansage="">
+        {ansageText(ansage)}
+      </p>
       {gewaehlteAnzahl === 0 || abschlussSichtbar ? null : (
         <Navigator
           fragen={notenfragen}
@@ -787,8 +824,10 @@ export function Zettel(props: ZettelProps) {
 }
 
 /**
- * Beide Absende-Knoepfe sind derselbe Knopf, zweimal: identisch beschriftet,
- * `type="submit"` desselben Formulars — damit nie unklar ist, welcher sendet.
+ * Der Absende-Knopf — GENAU EINER, am Fuss des Bogens. Vorher stand derselbe
+ * Knopf zweimal (einmal im Abschluss-Block, einmal unter den Freitexten); der
+ * obere hat versehentlich abgesendet, waehrend unten noch leere Zeilen standen.
+ *
  * Fehlt eine Note, wird derselbe Knopf zum Navigations-Knopf (`type="button"`)
  * und traegt den Zustand als TEXT. Ein Umriss statt der Fuellung, kein Rot.
  */
@@ -801,22 +840,15 @@ function Absendeknopf({
 }: {
   bereit: boolean;
   offen: number;
-  /**
-   * Die 20-Sekunden-Sperre nach einem Ratelimit (3.8). Sie liegt auf BEIDEN
-   * Knoepfen — beide sind derselbe Knopf, zweimal; ein gesperrter oben und ein
-   * offener unten waere eine Einladung, es genau dort noch einmal zu versuchen.
-   */
+  /** Die 20-Sekunden-Sperre nach einem Ratelimit (3.8). */
   gesperrt: boolean;
-  /**
-   * Die Abgabe laeuft (3.8). Auch dieser Zustand liegt auf BEIDEN Knoepfen: der
-   * untere ist derselbe Knopf, und ein bedienbarer Zwilling waehrend der Abgabe
-   * schickt den Bogen ein zweites Mal.
-   */
+  /** Die Abgabe laeuft (3.8) — der Knopf ist nicht bedienbar, siehe unten. */
   sendet: boolean;
   onLuecke: () => void;
 }) {
   /*
    * PENDING (3.8): Label als Text, `aria-busy`, `disabled` — und KEIN Spinner.
+   * `disabled` ist hier auch der Riegel gegen die zweite Abgabe desselben Bogens.
    * Der Knopf hat feste Masse (100% bzw. 260px x 48px), das laengere Label
    * verschiebt also nichts. Er bleibt `type="submit"`: waere er ein `button`,
    * verlöre er waehrend der Abgabe seine Verbindung zum Formular.
@@ -896,8 +928,9 @@ function Uebersicht({
 /**
  * Der Navigator (§3.2 Punkt 8): Fortschritt, Ankersatz, Sprung zur naechsten
  * Luecke. KEINE Ampelfarbe (die Striche kennen nur Tinte und Linie) und KEIN
- * Absende-Knopf — gesendet wird an den zwei Stellen im Textfluss, sonst gaebe es
- * drei Knoepfe mit derselben Aufgabe.
+ * Absende-Knopf — gesendet wird an genau einer Stelle im Textfluss, am Fuss des
+ * Bogens. Ein Knopf in einer fest stehenden Leiste waere das Gegenteil davon:
+ * dauernd unter dem Daumen, waehrend der Bogen noch offen ist.
  */
 function Navigator({
   fragen,
@@ -945,9 +978,11 @@ function Navigator({
  * keine bekommt ein erfundenes Kurzlabel — ein Kurzlabel wie "Mehr davon"
  * ersetzt die Frage nicht, es streicht sie.
  *
- * Die Freiwilligkeit steht GENAU EINMAL, im Einleitungssatz. Sechs Mal
- * "(optional)" an sechs Labels erzeugt genau den Druck, den das Wort abbauen
- * soll.
+ * Die Freiwilligkeit steht GENAU EINMAL, und zwar am Fuss des Abschluss-Blocks
+ * direkt ueber dieser Sektion (`freiwilligSatz`) — nicht mehr zusaetzlich in einem
+ * eigenen Einleitungssatz. Sechs Mal "(optional)" an sechs Labels erzeugt genau
+ * den Druck, den das Wort abbauen soll; zweimal in zwei Saetzen ist derselbe
+ * Fehler, nur kleiner.
  */
 function Freitexte({ fragen, tokenHash }: { fragen: Question[]; tokenHash: string }) {
   const [texte, setTexte] = useState<Record<string, string>>({});
@@ -988,8 +1023,6 @@ function Freitexte({ fragen, tokenHash }: { fragen: Question[]; tokenHash: strin
       style={verzug(300)}
       data-freitexte=""
     >
-      <p className={s.sektionKicker}>{FREITEXT_KICKER}</p>
-      <p className={s.einleitung}>{FREITEXT_EINLEITUNG}</p>
       <p className={s.hinweis}>{FREITEXT_HINWEIS}</p>
       <div className={s.textzeilen}>
         {fragen.map((frage) => (
