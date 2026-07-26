@@ -27,8 +27,11 @@ services:
       - POCKET_ID_CLIENT_ID=${POCKET_ID_CLIENT_ID}
       - POCKET_ID_CLIENT_SECRET=${POCKET_ID_CLIENT_SECRET}
       - POCKET_ID_SCOPES=${POCKET_ID_SCOPES:-openid profile email groups}
-      # ADMIN_GROUP und SUITE_HOST_* kommen über env_file (siehe oben) — nicht
-      # hier eintragen. Beim Deploy vom 19.07.2026 stellte sich heraus, dass die
+      # ADMIN_GROUP, SUITE_HOST_* und POCKET_ID_API_KEY kommen über env_file
+      # (siehe oben) — nicht hier eintragen. Beim API-Key ist das mehr als
+      # Konvention: ein Geheimnis gehört nicht in eine versionierte Datei, und
+      # „nicht gesetzt" muss „nicht gesetzt" bleiben (das Personenverzeichnis
+      # schaltet sich dann ab, statt mit leerem Key 401 zu laufen). Beim Deploy vom 19.07.2026 stellte sich heraus, dass die
       # Server-Datei ein `ADMIN_GROUP` führte, das diese Repo-Vorlage nie hatte:
       # wer sie ungeprüft übernimmt, verliert das Admin-Gating. Deshalb gilt für
       # jede Übernahme der Vorlage: vorher gegen die Server-Datei diffen.

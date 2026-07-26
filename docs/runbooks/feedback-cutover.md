@@ -37,24 +37,47 @@ Modul-Datenbank.
   |---|---|---|
   | `SUITE_HOST_FEEDBACK` | der Host aus `DAF_BASE_URL` | Das Modul ist unter der Domain nicht erreichbar; gedruckte QR-Codes zeigen ins Leere. |
   | `POCKET_ID_FACHGRUPPEN_CLAIM` | Name des Attributs in Pocket ID, das die Fachgruppen-Slugs einer Person führt (Rückfall: `fachgruppen`) | Gruppenleiter sehen ihre Gruppe nur, wenn sie zusätzlich im Werkzeug zugeordnet sind. Kein Sicherheitsproblem, aber Handarbeit. |
+  | `POCKET_ID_API_KEY` | API-Key eines **Admin**-Kontos in Pocket ID (`https://id.iuk-ue.de/settings/admin/api-keys`) | Das Autofill der Zuordnung findet nur Personen, die sich schon einmal angemeldet haben — am Cutover-Tag also niemanden. Kein Fehler, nur Handarbeit (siehe unten, Weg 3). |
 
 ## Vor dem Wartungsfenster: die Zuordnung klären
 
 Ohne diesen Schritt sieht nach dem Cutover **kein Gruppenleiter** seine Gruppe — nur Suite-Admins
-können arbeiten. Zwei Wege, beide zulässig, sie ergänzen sich (Vereinigungsmenge):
+können arbeiten. Drei Wege, alle zulässig, sie ergänzen sich (Vereinigungsmenge):
 
-1. **Pocket ID:** Jeder Gruppenleitung das Fachgruppen-Attribut mit den **Slugs** ihrer Gruppen
-   zuweisen. Die Slugs stehen in der Alt-Datenbank:
+1. **Im Werkzeug, aus dem Personenverzeichnis — der Hauptweg.** In den Einstellungen der Gruppe
+   den Namen oder die E-Mail eintippen und aus der Vorschlagsliste wählen. Die Liste kommt aus der
+   Nutzerverwaltung von Pocket ID und enthält **auch Personen, die sich noch nie angemeldet haben** —
+   genau das macht diesen Weg am Cutover-Tag brauchbar. Gespeichert wird der OIDC-`sub` der
+   gewählten Person; die Zuordnung wirkt damit ab der ersten Anmeldung.
+
+   Voraussetzung ist **ein** Eintrag in der `.env`:
+   ```
+   POCKET_ID_API_KEY=<Key eines Admin-Kontos>
+   ```
+   Der Key wird unter `https://id.iuk-ue.de/settings/admin/api-keys` erzeugt und **nur einmal**
+   angezeigt. Er erbt die Rechte des Kontos, das ihn anlegt — feingranulare Scopes gibt es nicht —
+   und `GET /api/users` verlangt Admin-Rechte. Läuft die Verwaltungs-API unter einer anderen Adresse
+   als `POCKET_ID_ISSUER`, zusätzlich `POCKET_ID_API_URL` setzen.
+
+   **Probe, dass es wirklich läuft** (der Ausfall ist still — ein Key ohne Adminrechte sieht aus wie
+   „diese Person gibt es nicht"): in einer Gruppe nach jemandem suchen, der sich **noch nie**
+   angemeldet hat. Erscheint er in der Liste, mit dem Zusatz „noch nie angemeldet", stimmen Key und
+   Rechte. Erscheint niemand, prüfen: Key gültig? Konto Admin? Adresse erreichbar?
+2. **Pocket ID, über das Fachgruppen-Attribut:** Jeder Gruppenleitung das Fachgruppen-Attribut mit
+   den **Slugs** ihrer Gruppen zuweisen. Die Slugs stehen in der Alt-Datenbank:
    ```
    sqlite3 feedback.db "SELECT slug, name FROM groups ORDER BY name;"
    ```
    Der Vergleich ist **exakt und Groß-/Kleinschreibung beachtend**. Wichtig: Das Attribut darf in
    Pocket ID **nicht durch die Nutzer selbst editierbar** sein — sonst vergibt sich jeder seine
-   Gruppenleitung.
-2. **Im Werkzeug:** In den Einstellungen der Gruppe aus dem Nutzerverzeichnis auswählen. Das
-   Verzeichnis füllt sich, sobald jemand das Modul betritt — eine Person ist also erst zuordenbar,
-   **nachdem** sie sich einmal angemeldet und `/m/feedback` geöffnet hat. Für den Cutover-Tag heißt
-   das: entweder Weg 1 vorbereiten, oder die Gruppenleitungen bitten, sich einmal anzumelden.
+   Gruppenleitung. Dieser Weg skaliert besser, wenn eine Person mehrere Gruppen führt, und er kommt
+   ohne API-Key aus.
+3. **Rückfall ohne Personenverzeichnis:** Ist kein `POCKET_ID_API_KEY` hinterlegt oder ist Pocket ID
+   nicht erreichbar, zeigt die Zuordnung wieder das schlichte Feld „Kennung oder E-Mail". Es löst nur
+   auf, wer das Modul schon einmal betreten hat. Für den Cutover-Tag heißt das: entweder Weg 1
+   einrichten, oder Weg 2 vorbereiten, oder die Gruppenleitungen bitten, sich einmal anzumelden.
+   **Bestehende Zuordnungen bleiben in jedem Fall lesbar und wirksam** — das Verzeichnis liefert nur
+   Namen und Vorschläge, nie die Berechtigung.
 
 **Prüfpunkt aus der Portierung — jetzt entscheiden:** In der Alt-Datenbank ist `user_groups.user_id`
 als `number | string` typisiert. Die Suite erwartet dort den **OIDC-`sub`**. Prüfen:
