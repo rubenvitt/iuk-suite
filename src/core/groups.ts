@@ -9,11 +9,15 @@ import type { ModuleDef } from "@/core/registry";
  * geschrieben. Spätestens mit `qr` geht das nicht mehr auf: dessen Admins
  * sitzen in `drk-qr-admin`, nicht in der Portal-Gruppe.
  *
- * Zwei Ebenen:
+ * Drei Ebenen:
  * - **Suite-Admin** (`ADMIN_GROUP`, Default `dashboard-admins`) — der
  *   Betreiber. Ist überall Admin, damit ein Modul nicht aussperrbar ist.
  * - **Modul-Admin** (`ModuleDef.adminGroups`, überschreibbar per
  *   `SUITE_ADMIN_GROUP_<KEY>`) — administriert genau ein Modul.
+ * - **Modul-Zugang** (`ModuleDef.requiredGroups`, überschreibbar per
+ *   `SUITE_ACCESS_GROUP_<KEY>`) — darf das Modul überhaupt benutzen, ohne es zu
+ *   administrieren. Gelesen wird das Feld über `requiredGroupsFor()` in
+ *   `core/registry` — nie direkt, sonst greift die Env-Konfiguration nicht.
  *
  * Die Env-Überschreibung folgt demselben Muster wie `SUITE_HOST_<KEY>`: eine
  * Gruppe umzuhängen ist damit eine `.env`-Zeile, kein Rebuild.
@@ -21,10 +25,49 @@ import type { ModuleDef } from "@/core/registry";
 
 type EnvLike = Record<string, string | undefined>;
 
-const PREFIX = "SUITE_ADMIN_GROUP_";
+const ADMIN_PREFIX = "SUITE_ADMIN_GROUP_";
+const ACCESS_PREFIX = "SUITE_ACCESS_GROUP_";
+
+/** `feedback` → `FEEDBACK`, `my-mod` → `MY_MOD`. Beide Präfixe teilen sie. */
+function envSuffix(key: string): string {
+  return key.toUpperCase().replace(/-/g, "_");
+}
 
 export function adminGroupEnvName(key: string): string {
-  return PREFIX + key.toUpperCase().replace(/-/g, "_");
+  return ADMIN_PREFIX + envSuffix(key);
+}
+
+export function accessGroupEnvName(key: string): string {
+  return ACCESS_PREFIX + envSuffix(key);
+}
+
+/**
+ * Die Zugangsgruppen aus der Env — oder `null` für „nicht konfiguriert".
+ *
+ * WARUM HIER `null` UND NICHT DIE LEERE LISTE, anders als bei
+ * `SUITE_HOST_<KEY>` und `SUITE_ADMIN_GROUP_<KEY>`: dort ist eine leer gesetzte
+ * Variable eine sinnvolle Aussage und in beiden Fällen die RESTRIKTIVERE („keine
+ * Prod-Hosts", also Cutover zurücknehmen; „keine modul-eigenen Admins", also nur
+ * der Suite-Admin). Bei einer Zugangsliste ist es das Gegenteil, und zwar je
+ * Modul verschieden:
+ *   - `requiresAuth: true` (z. B. `alpha`): `canAccess` steigt bei einer leeren
+ *     Liste mit `true` aus — jeder Eingeloggte käme rein. Eine ÖFFNUNG.
+ *   - `requiresAuth: false` (z. B. `feedback`): `canAccess` liest das Feld nie,
+ *     durchgesetzt wird es im Verwaltungs-Layout — dort schließt eine leere Liste
+ *     alle außer den Admins aus.
+ * Eine Variable, die jemand beim Editieren der `.env` leer zurücklässt, darf kein
+ * Modul für alle öffnen. Deshalb: leer = kein Override, der Registry-Wert gilt
+ * weiter. Damit das nicht STILL passiert, meldet `validateGroupConfig` eine leer
+ * gesetzte Variable als Konfigurationsfehler.
+ */
+export function envAccessGroupsFor(key: string, env: EnvLike = process.env): string[] | null {
+  const raw = env[accessGroupEnvName(key)];
+  if (raw === undefined) return null;
+  const namen = raw
+    .split(",")
+    .map((g) => g.trim())
+    .filter(Boolean);
+  return namen.length === 0 ? null : namen;
 }
 
 /** Suite-weite Admin-Gruppe. `ADMIN_GROUP` ohne Präfix — der Name ist historisch
@@ -66,13 +109,35 @@ export function isModuleAdmin(
  * Prüft die Gruppen-Konfiguration gegen die bekannten Module — analog zu
  * `validateHostConfig`. Ein `SUITE_ADMIN_GROUP_QRR` wäre sonst wirkungslos und
  * niemand fiele es auf, bis jemand vergeblich versucht zu administrieren.
+ *
+ * Beide Präfixe laufen durch DIESE Funktion, damit `bootstrap.ts` eine einzige
+ * Aufrufstelle behält. Zusätzlich zum Tippfehler wird die LEER GESETZTE
+ * Zugangsvariable gemeldet: sie ist bewusst wirkungslos (siehe
+ * `envAccessGroupsFor`), und „wirkungslos ohne ein Wort" ist genau der Zustand,
+ * gegen den diese Prüfung steht. Bei den Admin-Gruppen ist leer dagegen eine
+ * gültige Aussage und wird nicht gemeldet.
  */
 export function validateGroupConfig(moduleKeys: string[], env: EnvLike = process.env): string[] {
-  const known = new Set(moduleKeys.map(adminGroupEnvName));
-  return Object.keys(env)
-    .filter((name) => name.startsWith(PREFIX) && !known.has(name))
-    .map(
-      (name) =>
-        `${name} passt zu keinem Modul. Bekannt: ${[...known].sort().join(", ")}`,
-    );
+  const adminNames = new Set(moduleKeys.map(adminGroupEnvName));
+  const accessNames = new Set(moduleKeys.map(accessGroupEnvName));
+  const fehler: string[] = [];
+
+  for (const name of Object.keys(env)) {
+    const istAdmin = name.startsWith(ADMIN_PREFIX);
+    const istAccess = name.startsWith(ACCESS_PREFIX);
+    if (!istAdmin && !istAccess) continue;
+
+    const bekannt = istAdmin ? adminNames : accessNames;
+    if (!bekannt.has(name)) {
+      fehler.push(`${name} passt zu keinem Modul. Bekannt: ${[...bekannt].sort().join(", ")}`);
+      continue;
+    }
+    if (istAccess && env[name]?.trim() === "") {
+      fehler.push(
+        `${name} ist leer gesetzt und damit wirkungslos — der Registry-Wert gilt weiter. ` +
+          `Entweder Gruppen eintragen (kommagetrennt) oder die Zeile entfernen.`,
+      );
+    }
+  }
+  return fehler;
 }

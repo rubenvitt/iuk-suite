@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/core/auth";
-import { getModule } from "@/core/registry";
+import { getModule, requiredGroupsFor } from "@/core/registry";
 import { getDb } from "../_db/client";
 import { upsertKnownUser } from "../_db/queries";
 import { viewerFromSession } from "./viewer";
@@ -34,8 +34,17 @@ export async function requireFeedbackAccess(): Promise<Viewer> {
   const viewer = viewerFromSession(session);
   if (!viewer) redirect(`/login?callbackUrl=${encodeURIComponent("/m/feedback")}`);
 
+  /*
+   * `requiredGroupsFor` statt `mod.requiredGroups`: DIESE Zeile ist der einzige
+   * Ort, an dem die Zugangsgruppen des Moduls durchgesetzt werden (die Middleware
+   * kann es nicht, siehe oben). Läse sie das Registry-Feld direkt, wäre
+   * `SUITE_ACCESS_GROUP_FEEDBACK` genau hier wirkungslos — und die Gruppenleitung
+   * einer Instanz, deren SSO-Gruppen anders heißen als die Vorgabewerte, bekäme
+   * einen 404 statt ihres Cockpits. Genau so entstand der Befund vor dem Cutover.
+   */
   const hasAccess =
-    isFeedbackAdmin(viewer) || viewer.groups.some((g) => mod.requiredGroups.includes(g));
+    isFeedbackAdmin(viewer) ||
+    viewer.groups.some((g) => requiredGroupsFor(mod).includes(g));
   if (!hasAccess) notFound();
 
   upsertKnownUser(getDb(), {

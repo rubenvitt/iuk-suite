@@ -1,4 +1,5 @@
 import { envHostsFor } from "@/core/hosts";
+import { envAccessGroupsFor } from "@/core/groups";
 
 /** Wie in `hosts.ts`: nur „String rein, String oder undefined raus" — bewusst nicht `NodeJS.ProcessEnv`. */
 type EnvLike = Record<string, string | undefined>;
@@ -11,7 +12,12 @@ export interface ModuleDef {
   icon: string; // @ant-design/icons Komponentenname
   shell: ShellVariant;
   requiresAuth: boolean;
-  /** Zugang zum Modul überhaupt. Leer = jeder Eingeloggte darf. */
+  /**
+   * Zugang zum Modul überhaupt. Leer = jeder Eingeloggte darf.
+   * Überschreibbar per `SUITE_ACCESS_GROUP_<KEY>`. Nicht direkt lesen, sondern
+   * über `requiredGroupsFor()` — sonst greift die Env-Konfiguration an dieser
+   * Stelle nicht (dieselbe Falle wie bei `prodHosts` unten).
+   */
   requiredGroups: string[];
   /**
    * Wer das Modul **administrieren** darf — zusätzlich zum Suite-Admin, der
@@ -47,10 +53,15 @@ export const MODULES: ModuleDef[] = [
   // requiresAuth:false. Dadurch prüft canAccess() unten requiredGroups HIER
   // NIE (früher Ausstieg bei !requiresAuth) — die generische Middleware-Gate
   // (core/routing.ts + proxy.ts) gated die Verwaltung also nicht. Durchgesetzt
-  // wird requiredGroups stattdessen direkt im Verwaltungs-Layout
-  // `(admin)/layout.tsx` (Backstop-Guard, liest dieses Feld selbst), zusammen
-  // mit der Ownership-Guard (assertGroupAccess) auf den einzelnen Seiten.
+  // wird requiredGroups stattdessen in `_lib/requireFeedbackAccess.ts`
+  // (Backstop-Guard, den beide Verwaltungs-Layouts rufen), zusammen mit der
+  // Ownership-Guard (assertGroupAccess) auf den einzelnen Seiten.
   // adminGroups bleibt der Voll-Admin (alle Gruppen, via isFeedbackAdmin).
+  //
+  // DIE BEIDEN WERTE HIER SIND VORGABEN, KEINE FESTSCHREIBUNG: eine Instanz mit
+  // anders benannten SSO-Gruppen setzt SUITE_ACCESS_GROUP_FEEDBACK (Zugang) und
+  // SUITE_ADMIN_GROUP_FEEDBACK (Voll-Admin) in der .env. Beide Wege lesen über
+  // requiredGroupsFor()/adminGroupsFor(), nicht diese Felder direkt.
   { key: "feedback", title: "Feedback", icon: "CommentOutlined", shell: "full",
     requiresAuth: false, requiredGroups: ["da-feedback-gl", "da-feedback-admin"],
     adminGroups: ["da-feedback-admin"], prodHosts: [], showInSwitcher: true },
@@ -91,6 +102,20 @@ export function prodHostsFor(mod: ModuleDef, env: EnvLike = process.env): string
   return envHostsFor(mod.key, env) ?? mod.prodHosts;
 }
 
+/**
+ * Die geltenden Zugangsgruppen eines Moduls: `SUITE_ACCESS_GROUP_<KEY>` gewinnt,
+ * sonst der Registry-Wert. Anders als bei `prodHostsFor` ist eine LEER gesetzte
+ * Variable KEINE Aussage, sondern wirkungslos — die Begründung steht an
+ * `envAccessGroupsFor` in `core/groups` (kurz: bei `requiresAuth: true` wäre die
+ * leere Liste eine stille Öffnung für alle Eingeloggten).
+ *
+ * Jeder Weg, der über den Modulzugang entscheidet, muss durch DIESE Funktion —
+ * `canAccess()` unten und die modul-eigenen Guards (`requireFeedbackAccess`).
+ */
+export function requiredGroupsFor(mod: ModuleDef, env: EnvLike = process.env): string[] {
+  return envAccessGroupsFor(mod.key, env) ?? mod.requiredGroups;
+}
+
 export function moduleForHost(host: string, env: EnvLike = process.env): ModuleDef | null {
   const h = host.split(":")[0].toLowerCase();
   for (const m of MODULES) {
@@ -100,13 +125,21 @@ export function moduleForHost(host: string, env: EnvLike = process.env): ModuleD
   return null;
 }
 
-export function canAccess(mod: ModuleDef, groups: string[] | null): boolean {
+export function canAccess(
+  mod: ModuleDef,
+  groups: string[] | null,
+  env: EnvLike = process.env,
+): boolean {
   if (!mod.requiresAuth) return true;
   if (groups === null) return false;
-  if (mod.requiredGroups.length === 0) return true;
-  return mod.requiredGroups.some((g) => groups.includes(g));
+  const erlaubt = requiredGroupsFor(mod, env);
+  if (erlaubt.length === 0) return true;
+  return erlaubt.some((g) => groups.includes(g));
 }
 
-export function visibleSwitcherModules(groups: string[] | null): ModuleDef[] {
-  return MODULES.filter((m) => m.showInSwitcher && canAccess(m, groups));
+export function visibleSwitcherModules(
+  groups: string[] | null,
+  env: EnvLike = process.env,
+): ModuleDef[] {
+  return MODULES.filter((m) => m.showInSwitcher && canAccess(m, groups, env));
 }
