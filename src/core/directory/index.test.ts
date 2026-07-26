@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import {
   createDirectory,
@@ -458,6 +460,21 @@ describe("Verzeichnis — Suche", () => {
     expect((await mitBeiden().search("   ")).people).toEqual([]);
   });
 
+  /**
+   * DERSELBE TRENNER WIE IM LOKALEN VERZEICHNIS.
+   *
+   * `_lib/personen.ts` baut sein Suchfeld aus denselben drei Feldern und sagt
+   * ausdruecklich zu: „damit ein Begriff nicht je nach Quelle anders trifft".
+   * Steht hier ein anderer Trenner, ist diese Zusage gebrochen — derselbe Begriff
+   * findet dann eine Person aus `known_users`, aber nicht dieselbe Person aus dem
+   * Verzeichnis.
+   */
+  it("sucht ueber Feldgrenzen hinweg wie das lokale Verzeichnis — derselbe Trenner", async () => {
+    expect((await mitBeiden().search("beispiel anna@")).people.map((p) => p.userId)).toEqual([
+      "sub-anna",
+    ]);
+  });
+
   it("faellt bei Ausfall auf die leere Trefferliste zurueck, ohne Wurf", async () => {
     const v = createDirectory({
       ...KONFIG,
@@ -465,6 +482,24 @@ describe("Verzeichnis — Suche", () => {
     });
 
     await expect(v.search("anna")).resolves.toEqual({ status: "error", people: [] });
+  });
+});
+
+/**
+ * QUELLTEXTHYGIENE — kein Selbstzweck.
+ *
+ * Diese Datei ist die einzige im Projekt, die den API-Key anfasst. Enthaelt sie
+ * ein NUL-Byte, gilt sie `ripgrep` (und damit `cona grep` und jedem Prueflauf,
+ * der ueber das Repo greppt) als BINAERDATEI und wird STILL UEBERSPRUNGEN. Eine
+ * projektweite Suche nach `console.log` oder nach dem Key meldet dann „sauber" —
+ * ausgerechnet fuer die Datei, die als einzige etwas zu verbergen haette. Genau
+ * das ist in der Pruefung dieses Zweiges passiert.
+ */
+describe("Verzeichnis — Quelltext", () => {
+  it("enthaelt keine unsichtbaren Steuerzeichen — sonst ueberspringt ripgrep die Datei still", () => {
+    const quelle = readFileSync(join(process.cwd(), "src/core/directory/index.ts"), "utf8");
+
+    expect(quelle.match(/[\u0000-\u0008\u000B-\u001F]/g)).toBeNull();
   });
 });
 

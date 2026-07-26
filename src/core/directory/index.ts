@@ -208,7 +208,7 @@ function seiteAus(roh: unknown): Seite {
 
 /** Alles, worauf gesucht werden darf — Name, E-Mail und die Kennung selbst. */
 function suchfeld(p: DirectoryPerson): string {
-  return `${p.name ?? ""} ${p.email ?? ""} ${p.userId}`.toLowerCase();
+  return `${p.name ?? ""} ${p.email ?? ""} ${p.userId}`.toLowerCase();
 }
 
 /**
@@ -304,7 +304,12 @@ export function createDirectory(config: DirectoryConfig = {}): Directory {
     }
   }
 
-  /** Startet einen Abzug oder haengt sich an den laufenden. Umgeht Cache und Sperre. */
+  /**
+   * Startet einen Abzug oder haengt sich an den laufenden. Umgeht Cache und
+   * Sperre — setzt also `konfiguriert` voraus. Beide Aufrufer halten das ein:
+   * `listIntern` prueft es selbst, und die Frischeprobe in `findByEmail` ist nur
+   * nach einem gueltigen Abzug erreichbar, den es unkonfiguriert nie gibt.
+   */
   function neuLaden(): Promise<DirectoryResult> {
     if (laufend) return laufend;
     laufend = abzug().finally(() => {
@@ -415,7 +420,7 @@ let singleton: { schluessel: string; directory: Directory } | null = null;
 export function getDirectory(env: Record<string, string | undefined> = process.env): Directory {
   const baseUrl = normalisiereBasis(env.POCKET_ID_API_URL ?? env.POCKET_ID_ISSUER);
   const apiKey = (env.POCKET_ID_API_KEY ?? "").trim();
-  const schluessel = `${baseUrl} ${apiKey}`;
+  const schluessel = JSON.stringify([baseUrl, apiKey]);
   if (!singleton || singleton.schluessel !== schluessel) {
     singleton = { schluessel, directory: createDirectory({ baseUrl, apiKey }) };
   }
