@@ -1,5 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { NextRequest } from "next/server";
+
+const { auffrischenMock } = vi.hoisted(() => ({ auffrischenMock: vi.fn() }));
+
+/**
+ * Die Erneuerung als Spion — und zwar BEOBACHTBAR, nicht nur stillgelegt. Der
+ * Test unten prueft nicht, DASS sie gerufen wird, sondern MIT WELCHEM
+ * Schreibrecht. Ohne den Mock ginge dieser Test ans echte Netz.
+ */
+vi.mock("@/core/auth/refresh", () => ({ tokenAuffrischen: auffrischenMock }));
+
 import { authConfig } from "@/core/auth/config";
 
 /**
@@ -9,6 +19,11 @@ import { authConfig } from "@/core/auth/config";
  * Auth.js-Aufbau erreichbar. Als Funktion ueber `request` ist sie ein Objekt,
  * das man anschauen und dessen Callbacks man direkt rufen kann.
  */
+
+beforeEach(() => {
+  auffrischenMock.mockReset();
+  auffrischenMock.mockImplementation(async (token: unknown) => token);
+});
 
 const jwtCallback = (request: NextRequest | undefined) => {
   const rueckruf = authConfig(request).callbacks?.jwt;
@@ -68,6 +83,37 @@ describe("authConfig — Gruppen einfrieren (Regression)", () => {
     } as never);
     expect(token?.groups).toEqual(["dev-gruppe"]);
   });
+
+  /**
+   * DIE VOLLE ZUSAGE, NICHT NUR DIE ENGERE AUS DEM ZWISCHENSTAND.
+   *
+   * Bis Task 2 galt nur: ohne `profile` bleiben VORHANDENE Gruppen stehen.
+   * Seit der Verdrahtung in Task 3 gilt mehr: bei einem ERFOLGREICHEN Refresh
+   * kommen die Gruppen aus dem NEUEN `id_token`, nicht aus dem alten Token.
+   * Das ist der Grund, warum die 30-Tage-Sitzung aus Task 4 vertretbar wird
+   * (siehe refresh.ts). Die Gruppen-Extraktion selbst deckt refresh.test.ts
+   * ab — hier zaehlt nur, dass `authConfig` das Ergebnis von `tokenAuffrischen`
+   * UNVERAENDERT durchreicht, statt die alten Gruppen nachtraeglich wieder
+   * ueber das frische Ergebnis zu legen.
+   */
+  it("uebernimmt bei einer erfolgreichen Erneuerung die frischen Gruppen aus refresh.ts", async () => {
+    auffrischenMock.mockResolvedValueOnce({
+      groups: ["neue-gruppe"],
+      fachgruppen: ["neue-fachgruppe"],
+      expiresAt: 4_000_000_000,
+      error: undefined,
+    });
+    const token = await jwtCallback(undefined)({
+      token: {
+        groups: ["alte-gruppe"],
+        fachgruppen: ["alte-fachgruppe"],
+        expiresAt: 1_000,
+        refreshToken: "rt",
+      },
+    } as never);
+    expect(token?.groups).toEqual(["neue-gruppe"]);
+    expect(token?.fachgruppen).toEqual(["neue-fachgruppe"]);
+  });
 });
 
 describe("authConfig — session-Callback", () => {
@@ -119,5 +165,47 @@ describe("authConfig — Querschnitt", () => {
     const basis = "https://iuk-ue.de";
     expect(rueckruf({ url: "/x", baseUrl: basis } as never)).toBe("https://iuk-ue.de/x");
     expect(rueckruf({ url: "https://boese.example/x", baseUrl: basis } as never)).toBe(basis);
+  });
+});
+
+describe("authConfig — Schreibrecht-Weiche", () => {
+  const abgelaufen = { expiresAt: 1_000, refreshToken: "rt", groups: ["a"] };
+
+  /**
+   * DER TEUERSTE DEFEKT DIESES TEILPROJEKTS, IN EINER ZUSICHERUNG.
+   *
+   * `auth()` in einer Server Component bekommt `config(undefined)`, und
+   * next-auth wirft dort das `Set-Cookie` weg (lib/index.js:91). Wuerde hier
+   * aufgefrischt, rotierte Pocket ID das Refresh-Token, das neue ginge
+   * verloren, und der naechste Versuch waere eine Wiederverwendung — die
+   * widerruft bei Pocket ID die GANZE Sitzung. Der Nutzer flöge dann jede
+   * Stunde raus, und es saehe aus wie ein Sitzungsproblem.
+   */
+  it("meldet dem RSC-Pfad KEIN Schreibrecht", async () => {
+    await jwtCallback(undefined)({ token: { ...abgelaufen } } as never);
+    expect(auffrischenMock).toHaveBeenCalledTimes(1);
+    expect(auffrischenMock.mock.calls[0][1]).toMatchObject({ darfSchreiben: false });
+  });
+
+  it("meldet dem /api/auth/*-Pfad Schreibrecht", async () => {
+    // `as unknown as` und nicht `as`: ein Objektliteral mit einem Feld ist
+    // strukturell zu weit von NextRequest entfernt, TypeScript lehnt den
+    // direkten Cast ab. Hier zaehlt nur, DASS etwas uebergeben wird.
+    const anfrage = { url: "https://iuk-ue.de/api/auth/session" } as unknown as NextRequest;
+    await jwtCallback(anfrage)({ token: { ...abgelaufen } } as never);
+    expect(auffrischenMock).toHaveBeenCalledTimes(1);
+    expect(auffrischenMock.mock.calls[0][1]).toMatchObject({ darfSchreiben: true });
+  });
+
+  /**
+   * Die Ablaufpruefung gehoert AUSSCHLIESSLICH nach refresh.ts. Bliebe sie
+   * zusaetzlich hier stehen, gaebe es zwei Wahrheiten ueber „ist abgelaufen"
+   * — und die eine wuerde eines Tages angepasst und die andere nicht.
+   */
+  it("uebergibt die Entscheidung ueber den Ablauf an refresh.ts", async () => {
+    await jwtCallback(undefined)({
+      token: { expiresAt: Math.floor(Date.now() / 1000) + 3600 },
+    } as never);
+    expect(auffrischenMock).toHaveBeenCalledTimes(1);
   });
 });

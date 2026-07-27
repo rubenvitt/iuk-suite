@@ -1,5 +1,4 @@
 import Credentials from "next-auth/providers/credentials";
-import type { JWT } from "next-auth/jwt";
 import type { NextAuthConfig } from "next-auth";
 import type { NextRequest } from "next/server";
 
@@ -10,49 +9,7 @@ import { pocketIdProvider } from "@/core/auth/pocketId";
 import { authCookies } from "@/core/auth/cookies";
 import { suiteRedirect } from "@/core/auth/redirect";
 import { suiteAdminGroup } from "@/core/groups";
-
-async function getOIDCConfig() {
-  const issuer = process.env.POCKET_ID_ISSUER!;
-  const res = await fetch(`${issuer}/.well-known/openid-configuration`);
-  return res.json() as Promise<{ token_endpoint: string; end_session_endpoint: string }>;
-}
-
-async function refreshAccessToken(token: JWT): Promise<JWT> {
-  if (!token.refreshToken) {
-    return { ...token, error: "RefreshTokenError" };
-  }
-
-  try {
-    const { token_endpoint } = await getOIDCConfig();
-
-    const res = await fetch(token_endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: token.refreshToken as string,
-        client_id: process.env.POCKET_ID_CLIENT_ID!,
-        client_secret: process.env.POCKET_ID_CLIENT_SECRET!,
-      }),
-    });
-
-    if (!res.ok) throw new Error("Token refresh failed");
-
-    const refreshed = await res.json();
-    return {
-      ...token,
-      accessToken: refreshed.access_token,
-      idToken: refreshed.id_token ?? token.idToken,
-      refreshToken: refreshed.refresh_token ?? token.refreshToken,
-      expiresAt:
-        refreshed.expires_at ??
-        Math.floor(Date.now() / 1000 + refreshed.expires_in),
-      error: undefined,
-    };
-  } catch {
-    return { ...token, error: "RefreshTokenError" };
-  }
-}
+import { tokenAuffrischen } from "@/core/auth/refresh";
 
 /**
  * Die NextAuth-Konfiguration — als FUNKTION ueber die Anfrage, nicht als Objekt.
@@ -72,11 +29,6 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
  * die ganze Sitzung widerruft. Siehe `refresh.ts`.
  */
 export function authConfig(request: NextRequest | undefined): NextAuthConfig {
-  // In diesem Zwischenstand noch ungenutzt: Task 3 haengt hier die Weiche
-  // `darfSchreiben: request !== undefined` fuer tokenAuffrischen() ein. Der
-  // Parameter bleibt bis dahin bewusst Teil der Signatur (siehe Doku oben).
-  void request;
-
   const providers = [
     ...(devLoginEnabled()
       ? [
@@ -146,12 +98,11 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
           token.groups = user.groups;
         }
 
-        // Refresh expired access token
-        if (token.expiresAt && Date.now() / 1000 > (token.expiresAt as number)) {
-          return refreshAccessToken(token);
-        }
-
-        return token;
+        // Ob ueberhaupt aufgefrischt werden muss — und ob es sich lohnt —
+        // entscheidet refresh.ts. `darfSchreiben` ist der Kern: nur wenn das
+        // Ergebnis dieses Aufrufs beim Browser ankommen kann, darf das
+        // Refresh-Token bei Pocket ID rotiert werden. Siehe Kopfkommentar.
+        return tokenAuffrischen(token, { darfSchreiben: request !== undefined });
       },
       session({ session, token }) {
         const groups = (token.groups as string[]) ?? [];
