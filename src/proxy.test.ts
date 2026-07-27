@@ -35,6 +35,26 @@ describe("src/proxy.ts — der Export, den Next.js beim Laden prueft", () => {
     expect(typeof handler).toBe("function");
   });
 
+  /*
+   * Der Test darueber kann seit der Reparatur nur noch rot werden, wenn jemand
+   * die Datei auf `export default auth(cb)` ZURUECKschreibt — `export async
+   * function proxy` macht `typeof === "function"` syntaktisch wahr. Er bewacht
+   * damit den Bruch von gestern.
+   *
+   * Der Bruch von heute sitzt eine Ebene tiefer: `proxy` ruft
+   * `(await weicheMitAuth)(…)`. Loest dieses Promise zu etwas nicht Aufrufbarem
+   * auf — weil next-auth seinen Wrapper-Zweig (`lib/index.js:60-70`) aendert —,
+   * ist das Ergebnis wieder HTTP 500 auf jeder Route, nur still bei jeder
+   * Anfrage statt laut beim Laden des Moduls. Das saehe sonst nur Playwright.
+   *
+   * Bewusst NICHT `proxy(req, event)` durchrufen: das zoege `getSession` →
+   * `Auth()` nach und machte den Test von `AUTH_SECRET` und einer echten
+   * Anfrage abhaengig. Geprueft wird die Naht, nicht der Durchlauf.
+   */
+  it("loest die next-auth-Anbindung zu einer aufrufbaren Weiche auf", async () => {
+    expect(typeof (await proxyModul.weicheMitAuth)).toBe("function");
+  });
+
   // Ehrlich gesagt: eine Festschreibung des Literals, mehr nicht. Sie haelt den
   // Ausschluss fest, damit ein Umbau der Anbindung ihn nicht nebenbei
   // mitnimmt — ob Next.js `config` neben einem BENANNTEN `proxy`-Export

@@ -55,8 +55,15 @@ const weiche: Weiche = (req) => {
  * `handleAuth` haengt die `Set-Cookie`-Header der Sitzungsantwort an unsere
  * Antwort an (`lib/index.js:166-170`). Ohne ihn kaeme ein rotiertes
  * Refresh-Token nie im Browser an.
+ *
+ * EXPORTIERT, damit `proxy.test.ts` genau diese Stelle prueft. Sie ist die neue
+ * Bruchstelle: dass `proxy` eine Funktion IST, macht die Dateiform allein schon
+ * wahr — dass dieses Promise zu etwas Aufrufbarem auffloest, nicht. Aendert
+ * next-auth den Wrapper-Zweig, waere das Symptom wieder 500 auf jeder Route,
+ * nur still bei jeder Anfrage statt laut beim Laden. Next.js liest den Export
+ * nicht; es kennt nur `proxy` und `config`.
  */
-const weicheMitAuth = Promise.resolve(auth(weiche));
+export const weicheMitAuth = Promise.resolve(auth(weiche));
 
 /**
  * WARUM HIER EIN `await` STEHT — und warum `export default auth(...)` nicht geht.

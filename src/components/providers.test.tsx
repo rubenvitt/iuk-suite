@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { StrictMode, useEffect, useState } from "react";
-import { mount, unmount } from "@/app/m/qr/_lib/test-dom";
+import { mount, unmount, exists } from "@/app/m/qr/_lib/test-dom";
 
 /**
  * DER SESSIONGUARD — die einzige Stelle, an der die Suite von sich aus
@@ -60,7 +60,11 @@ describe("SessionGuard — der Normalfall", () => {
         <p data-testid="inhalt">da</p>
       </Providers>,
     );
-    expect(document.querySelector('[data-testid="inhalt"]')).not.toBeNull();
+    // `exists()` aus dem Harness, nicht `document.querySelector`: gesucht wird im
+    // Mount-Wirt, nicht im ganzen Dokument. Sonst faende die Zusicherung auch
+    // einen Ueberrest aus einem vorherigen Test und waere gruen, obwohl
+    // `Providers` seine Kinder verschluckt haette.
+    expect(exists('[data-testid="inhalt"]')).toBe(true);
   });
 });
 
@@ -78,6 +82,11 @@ describe("SessionGuard — sanfte Re-Authentifizierung", () => {
   it("merkt sich den Versuch als Zeitstempel", async () => {
     sitzung("RefreshTokenError");
     await mount(<Providers reauthProvider="pocket-id">inhalt</Providers>);
+    // ZUERST auf „ueberhaupt geschrieben" pruefen. `getItem` liefert bei
+    // fehlendem Schluessel `null`, `Number(null)` ist `0` und `Number.isFinite(0)`
+    // ist `true` — die Zeile darunter allein liesse „gar nichts gespeichert"
+    // also durch.
+    expect(sessionStorage.getItem(REAUTH_MARKE)).not.toBeNull();
     const marke = Number(sessionStorage.getItem(REAUTH_MARKE));
     expect(Number.isFinite(marke)).toBe(true);
     expect(Math.abs(Date.now() - marke)).toBeLessThan(5_000);
