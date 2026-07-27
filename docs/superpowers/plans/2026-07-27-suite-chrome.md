@@ -244,7 +244,16 @@ describe("Feldschrift — 16px als Suite-Untergrenze", () => {
   it("hat in keiner CSS-Datei eine Eingabe-Regel unter 16px", () => {
     const verstoesse: string[] = [];
     for (const pfad of alleCss("src")) {
-      const css = readFileSync(pfad, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      const css = readFileSync(pfad, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        // At-Regel-Klammern aufloesen, SONST SIEHT DER SCAN NICHTS.
+        // Bei `@media (…) { .fb-form input { font-size: 14px } }` faengt der
+        // naive Klammer-Regex unten `@media (…)` als Selektor und schluckt die
+        // innere Regel in den Koerper — die Eingabe-Regel wird nie geprueft.
+        // Und in Media Queries steht genau das, worum es hier geht: kleine
+        // Schriftgroeszen fuer schmale Geraete. Waere derselbe Fehler wie ein
+        // jsdom-Test auf Media Queries: gruen, ohne zu messen.
+        .replace(/@[a-z-]+[^{;]*\{/gi, "");
       // Regelbloecke, deren Selektor ein Eingabefeld benennt.
       for (const treffer of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
         const selektor = treffer[1];
@@ -363,12 +372,14 @@ rtk git commit -m "feat(core): 16px-Untergrenze fuer Eingabefelder, suiteweit"
 
 ---
 
-### Task 3: Typen und Shell-CSS
+### Task 3: Typen, Shell-CSS, Portal-Abfragen im Test-Harness
 
 **Files:**
 - Create: `src/core/shell/types.ts`
 - Create: `src/core/shell/shell.module.css`
 - Test: `src/core/shell/shell-css.test.ts` (neu)
+- Modify: `src/app/m/qr/_lib/test-dom.tsx` (Portal-Abfragen)
+- Modify: `src/core/theme/ThemeToggle.tsx` (`testId`-Prop)
 
 **Interfaces:**
 - Produces:
@@ -559,6 +570,30 @@ export interface SuiteNavItem {
   padding-block: 8px;
 }
 
+/*
+ * Die Modulnavigation ist `next/link` und damit rohes Markup — antds
+ * Button-Aussehen faellt hier weg und muss gesetzt werden. Bewusst KEINE
+ * `--ant-*`-Variablen: die sieht eigenes Markup nicht (der Fehler waere still).
+ * `currentColor` erbt die Schriftfarbe der Kopfzeile und traegt damit hell wie
+ * dunkel, ohne eine zweite Farbquelle aufzumachen.
+ *
+ * `min-height: 56px` ist das Touch-Masz der Suite (`TAP` in core/theme/tokens).
+ */
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  padding-inline: 12px;
+  color: inherit;
+  text-decoration: none;
+  border-block-end: 2px solid transparent;
+}
+
+.navLink[aria-current="page"] {
+  border-block-end-color: currentColor;
+  font-weight: 600;
+}
+
 @media (min-width: 768px) {
   .nurMobil {
     display: none;
@@ -590,18 +625,92 @@ export type { AppSwitcherEntry } from "@/core/shell/types";
 
 und entferne das nun doppelte `interface AppSwitcherEntry` aus `AppSwitcher.tsx`.
 
-- [ ] **Step 6: Tests laufen lassen**
+- [ ] **Step 6: Portal-Abfragen ins Test-Harness**
 
-```bash
-rtk pnpm vitest run src/core/shell/ && rtk pnpm typecheck
+**Warum das hier gebraucht wird — sonst scheitert Task 4 stumm:** antds `Drawer` rendert seinen
+Inhalt durch ein **Portal nach `document.body`**. Das Harness `test-dom.tsx` löst jede Abfrage gegen
+den Mount-Wirt auf (`container()` gibt `host` zurück). Portal-Inhalt ist ein **Geschwister** von
+`host`, kein Nachfahre — `query('[data-testid="suite-drawer"]')` findet ihn also nie, und
+`forceRender` rettet das nicht (es setzt den Inhalt ins DOM, nur eben in den falschen Teilbaum).
+
+Die naheliegende Notlösung wäre, in Task 4 einfach gegen `document.body` zu prüfen. Das wäre ein Test,
+der das Harness des Projekts umgeht — und der nächste macht es wieder anders. Stattdessen bekommt das
+Harness das, was antd nun einmal tut: Drawer, Modal, Tooltip und Dropdown rendern alle in Portale.
+
+In `src/app/m/qr/_lib/test-dom.tsx` **ans Ende** anfügen:
+
+```tsx
+/**
+ * Abfragen fuer PORTAL-Inhalt.
+ *
+ * antd rendert `Drawer`, `Modal`, `Tooltip` und `Dropdown` durch ein Portal
+ * nach `document.body` — der Inhalt ist ein GESCHWISTER des Mount-Wirts, kein
+ * Nachfahre. `query()` oben sucht im Wirt und findet ihn deshalb nie. Das ist
+ * keine Eigenheit eines einzelnen Tests, sondern wie antd arbeitet.
+ *
+ * Bewusst eigene Funktionen statt `query()` aufzubohren: wer `queryPortal`
+ * schreibt, sagt damit "ich pruefe etwas, das ausserhalb meines Baums haengt".
+ * Ein `query()`, das erst im Wirt und dann im Dokument sucht, faende auch
+ * Ueberbleibsel eines vorherigen Tests, ohne dass es auffiele.
+ */
+export function queryPortal<T extends HTMLElement = HTMLElement>(selector: string): T {
+  const el = document.body.querySelector<T>(selector);
+  if (!el) throw new Error(`Element nicht im Dokument gefunden: ${selector}`);
+  return el;
+}
+
+export function existsPortal(selector: string): boolean {
+  return document.body.querySelector(selector) !== null;
+}
+
+export async function clickPortal(selector: string): Promise<void> {
+  await clickElement(queryPortal(selector));
+}
 ```
-Expected: PASS
 
-- [ ] **Step 7: Commit**
+**Achtung, Aufräumen:** `unmount()` entfernt nur den Wirt. Portal-Knoten von antd bleiben in
+`document.body` stehen und werden vom nächsten Test mitgefunden. Ergänze in `unmount()`, direkt vor
+`currentHost?.remove();`:
+
+```tsx
+  // antd haengt Portale (Drawer, Modal, Tooltip) direkt an document.body. Ohne
+  // dieses Aufraeumen sieht der naechste Test die Reste des vorherigen und
+  // `existsPortal` liefert falsche Treffer — ein Fehler, der als bestandener
+  // Test daherkommt.
+  for (const rest of Array.from(document.body.children)) {
+    if (rest !== currentHost) rest.remove();
+  }
+```
+
+- [ ] **Step 7: `ThemeToggle` ein `testId`-Prop geben**
+
+`SuiteNav` rendert den Umschalter zweimal (Kopfzeile und Drawer) — beide im DOM, per CSS wird einer
+ausgeblendet. `ThemeToggle` trägt heute fest `data-testid="theme-toggle"`; zweimal im DOM ist das für
+jeden künftigen Playwright-Zugriff eine Strict-Mode-Verletzung („resolved to 2 elements"). Heute prüft
+kein E2E darauf (`rtk grep -rn "theme-toggle" src e2e` liefert nur die Definition), aber die Falle
+gehört zugestellt, bevor jemand hineinläuft.
+
+In `src/core/theme/ThemeToggle.tsx` die Signatur ändern:
+
+```tsx
+export function ThemeToggle({ testId = "theme-toggle" }: { testId?: string } = {}) {
+```
+
+und in der Komponente `data-testid={testId}` statt des festen Werts. Alle bestehenden Aufrufer bleiben
+unverändert gültig.
+
+- [ ] **Step 8: Tests laufen lassen**
 
 ```bash
-rtk git add src/core/shell/types.ts src/core/shell/shell.module.css src/core/shell/shell-css.test.ts src/core/shell/switcherEntries.ts src/core/shell/AppSwitcher.tsx
-rtk git commit -m "feat(core/shell): Typen und Kopfzeilen-CSS fuer die globale Leiste"
+rtk pnpm vitest run src/core/shell/ src/app/m/qr/ src/core/theme/ && rtk pnpm typecheck
+```
+Expected: PASS. Die bestehenden `qr`-Tests belegen, dass die Harness-Änderung nichts kaputt macht.
+
+- [ ] **Step 9: Commit**
+
+```bash
+rtk git add src/core/shell/types.ts src/core/shell/shell.module.css src/core/shell/shell-css.test.ts src/core/shell/switcherEntries.ts src/core/shell/AppSwitcher.tsx src/app/m/qr/_lib/test-dom.tsx src/core/theme/ThemeToggle.tsx
+rtk git commit -m "feat(core/shell): Typen, Kopfzeilen-CSS, Portal-Abfragen im Test-Harness"
 ```
 
 ---
@@ -624,9 +733,10 @@ export function SuiteNav(props: {
 }): JSX.Element
 ```
 
-**Zwei Zusagen, die still brechen würden:**
+**Drei Zusagen, die still brechen würden:**
 1. `e2e/keystone.spec.ts:35` prüft `getByRole("link", { name: /Alpha/ })` **ohne vorheriges Öffnen**. Playwright läuft bei 1280×720, also greift `.nurDesktop` — die Modul-Knöpfe müssen dort echte `<a>` sein (antds `Button href=…` rendert eines). Kein `Menu`/`Dropdown` an dieser Stelle.
 2. Der Drawer-Inhalt muss **immer im DOM** stehen (antd `Drawer` mit `forceRender`), sonst findet ihn der jsdom-Test nicht, bevor er geöffnet wurde — und der Test prüfte dann nur, dass ein Knopf existiert.
+3. **Der Drawer rendert in ein Portal nach `document.body`, nicht in den Mount-Wirt.** Deshalb nutzen alle Drawer-Zusagen unten `queryPortal`/`existsPortal`/`clickPortal` aus Task 3, nicht `query`/`exists`/`click`. Wer sie verwechselt, bekommt „Element nicht gefunden" auf Inhalt, der sichtbar da ist — und die naheliegende Reaktion (Assertion umschreiben) umgeht das Harness des Projekts.
 
 - [ ] **Step 1: Test schreiben**
 
@@ -635,11 +745,28 @@ Neue Datei `src/core/shell/SuiteNav.test.tsx`:
 ```tsx
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { mount, unmount, query, queryAll, exists, click } from "@/app/m/qr/_lib/test-dom";
-import { SuiteNav } from "./SuiteNav";
+import {
+  mount,
+  unmount,
+  query,
+  queryAll,
+  exists,
+  queryPortal,
+  existsPortal,
+  clickPortal,
+} from "@/app/m/qr/_lib/test-dom";
+import { SuiteNav, aktiverSchluessel } from "./SuiteNav";
 import type { AppSwitcherEntry, SuiteNavItem } from "./types";
 
 /**
+ * DRAWER-INHALT WIRD MIT `…Portal`-ABFRAGEN GEPRUEFT, KOPFZEILEN-INHALT NICHT.
+ *
+ * antd rendert den `Drawer` durch ein Portal nach `document.body` — sein Inhalt
+ * ist ein GESCHWISTER des Mount-Wirts, kein Nachfahre. `query()` sucht im Wirt
+ * und faende ihn nie, auch mit `forceRender` nicht. Alles in der Kopfzeile
+ * (`modulzeile`, `modulnav`, `menue-knopf`) bleibt dagegen im Wirt und wird mit
+ * `query`/`exists` geprueft.
+ *
  * Zwei Dinge, die dieser Test NICHT kann und die anderswo geprueft werden:
  * - Was man auf 390px SIEHT: jsdom wertet Media Queries nicht aus. Das besitzt
  *   der Playwright-Lauf; die CSS-Regel besitzt `shell-css.test.ts`.
@@ -700,7 +827,7 @@ describe("SuiteNav — angemeldet", () => {
 
   it("zeigt dieselben Module im Drawer", async () => {
     await zeichne();
-    const drawer = query('[data-testid="suite-drawer"]');
+    const drawer = queryPortal('[data-testid="suite-drawer"]');
     const ziele = Array.from(drawer.querySelectorAll("a")).map((a) => a.getAttribute("href"));
     expect(ziele).toContain("https://iuk-ue.de");
     expect(ziele).toContain("https://qr.iuk-ue.de");
@@ -708,7 +835,7 @@ describe("SuiteNav — angemeldet", () => {
 
   it("hat einen Abmelden-Knopf, der ueber den OIDC-Signout geht", async () => {
     await zeichne();
-    await click('[data-testid="abmelden"]');
+    await clickPortal('[data-testid="abmelden"]');
     // Derselbe Weg, den SessionGuard bei RefreshTokenError automatisch geht —
     // ohne ihn endete der Logout auf einer 404 (siehe oidc-signout/route.ts).
     expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/api/auth/oidc-signout" });
@@ -716,8 +843,8 @@ describe("SuiteNav — angemeldet", () => {
 
   it("zeigt den Namen und keine Anmelde-Aufforderung", async () => {
     await zeichne();
-    expect(query('[data-testid="suite-drawer"]').textContent).toContain("Ruben Vitt");
-    expect(exists('[data-testid="anmelden"]')).toBe(false);
+    expect(queryPortal('[data-testid="suite-drawer"]').textContent).toContain("Ruben Vitt");
+    expect(existsPortal('[data-testid="anmelden"]')).toBe(false);
   });
 
   it("zeigt die Modulnavigation, wenn das Modul welche uebergibt", async () => {
@@ -736,6 +863,44 @@ describe("SuiteNav — angemeldet", () => {
     expect(aktiv).toHaveLength(1);
     expect(aktiv[0].getAttribute("href")).toBe("/vergleich");
   });
+});
+
+describe("aktiverSchluessel — welcher Eintrag ist dran", () => {
+  // Reine Berechnung, deshalb ohne DOM. Der DOM-Test oben mockt `usePathname`
+  // und kann daher NICHT beweisen, dass die Aufloesung unter dem Proxy-Rewrite
+  // stimmt — das gehoert dem E2E. Hier geht es um die Faelle, die der E2E
+  // nicht guenstig durchspielen kann.
+
+  it("nimmt den aeuszeren Pfad (ohne Rewrite)", () => {
+    expect(aktiverSchluessel("/vergleich", NAV)).toBe("vergleich");
+  });
+
+  it("nimmt den inneren Pfad (mit Rewrite) — welchen usePathname liefert, haengt an Next", () => {
+    expect(aktiverSchluessel("/m/feedback/vergleich", NAV)).toBe("vergleich");
+  });
+
+  it("markiert die Uebersicht auf der Modulwurzel, obwohl `/` Suffix von nichts ist", () => {
+    // "/m/feedback".endsWith("/") ist false — ein naiver Suffix-Test liesze die
+    // Uebersicht auf ihrer eigenen Seite unmarkiert.
+    expect(aktiverSchluessel("/m/feedback", NAV)).toBe("start");
+    expect(aktiverSchluessel("/", NAV)).toBe("start");
+  });
+
+  it("laeszt die Uebersicht auf einer Unterseite NICHT mitleuchten", () => {
+    expect(aktiverSchluessel("/m/feedback/vergleich", NAV)).not.toBe("start");
+  });
+
+  it("nimmt den spezifischsten Treffer, wenn zwei passen", () => {
+    const verschachtelt = [
+      { key: "gruppen", title: "Gruppen", href: "/groups" },
+      { key: "eine", title: "Eine Gruppe", href: "/groups/17" },
+    ];
+    expect(aktiverSchluessel("/m/feedback/groups/17", verschachtelt)).toBe("eine");
+  });
+
+  it("gibt null, wenn nichts passt und es keine Wurzel gibt", () => {
+    expect(aktiverSchluessel("/irgendwo", [{ key: "a", title: "A", href: "/anders" }])).toBeNull();
+  });
 
   it("laesst die Modulnavigation weg, wenn nichts uebergeben wird", async () => {
     await zeichne({ nav: [] });
@@ -751,10 +916,11 @@ describe("SuiteNav — anonym", () => {
     // ihn auf 404. Ein Wechselziel, das nicht funktioniert, gehoert nicht in
     // die Leiste.
     await zeichne({ angemeldet: false, userName: null });
-    expect(exists('[data-testid="anmelden"]')).toBe(true);
-    expect(exists('[data-testid="abmelden"]')).toBe(false);
+    expect(existsPortal('[data-testid="anmelden"]')).toBe(true);
+    expect(existsPortal('[data-testid="abmelden"]')).toBe(false);
+    // Die Knopfreihe liegt in der Kopfzeile, nicht im Portal — hier `exists`.
     expect(exists('[data-testid="modulzeile"]')).toBe(false);
-    expect(query('[data-testid="anmelden"]').getAttribute("href")).toBe("/login");
+    expect(queryPortal('[data-testid="anmelden"]').getAttribute("href")).toBe("/login");
   });
 });
 ```
@@ -785,6 +951,7 @@ import {
 } from "@ant-design/icons";
 import { Avatar, Button, Drawer } from "antd";
 import { signOut } from "next-auth/react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 
@@ -811,6 +978,35 @@ function initialen(name: string | null): string {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+}
+
+/**
+ * Welcher Navigationseintrag ist der aktive? Exportiert, weil das die einzige
+ * Stelle mit echter Logik in dieser Datei ist und sie sich ohne DOM pruefen
+ * laeszt.
+ *
+ * Zwei Faellen wird hier ausgewichen:
+ *
+ * 1. **Der Proxy schreibt um.** `/vergleich` wird zu `/m/feedback/vergleich`,
+ *    und was `usePathname()` unter einem Rewrite liefert — den aeuszeren oder
+ *    den inneren Pfad — haengt an der Next-Version. Ein Vergleich auf
+ *    Gleichheit waere still falsch: nichts wuerde je markiert, und der
+ *    Unit-Test faellt nicht darauf herein, weil er `usePathname` mockt. Deshalb
+ *    Suffix-Vergleich, und deshalb prueft der E2E in Task 8 `aria-current` am
+ *    laufenden Server.
+ *
+ * 2. **`/` ist Suffix von nichts.** `"/m/feedback".endsWith("/")` ist `false` —
+ *    die Uebersicht waere auf ihrer eigenen Seite nie markiert. Und ein
+ *    naiver Suffix-Test in die andere Richtung markierte sie auf JEDER
+ *    Unterseite mit. Deshalb: der spezifischste Nicht-Wurzel-Treffer gewinnt,
+ *    und nur wenn keiner passt, ist die Wurzel dran.
+ */
+export function aktiverSchluessel(pfad: string, nav: SuiteNavItem[]): string | null {
+  const treffer = nav
+    .filter((e) => e.href !== "/" && (pfad === e.href || pfad.endsWith(e.href)))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  if (treffer) return treffer.key;
+  return nav.find((e) => e.href === "/")?.key ?? null;
 }
 
 /**
@@ -847,15 +1043,24 @@ export function SuiteNav({
     );
   });
 
+  const aktiv = aktiverSchluessel(pfad, nav);
+
+  /*
+   * `next/link` und NICHT `Button href` wie bei den Modulen darueber. Der
+   * Unterschied ist fachlich: Module liegen auf FREMDEN Hosts, dorthin ist ein
+   * voller Seitenwechsel richtig. Die Modulnavigation bleibt im selben Modul —
+   * ein `<a>` warf dort die ganze Anwendung weg und lud sie neu. Der Modultitel
+   * in `SuiteHeader` nutzt aus demselben Grund `Link`.
+   */
   const navLinks = nav.map((eintrag) => (
-    <Button
+    <Link
       key={eintrag.key}
-      type="text"
       href={eintrag.href}
-      aria-current={pfad === eintrag.href ? "page" : undefined}
+      className={s.navLink}
+      aria-current={aktiv === eintrag.key ? "page" : undefined}
     >
       {eintrag.title}
-    </Button>
+    </Link>
   ));
 
   return (
@@ -883,6 +1088,10 @@ export function SuiteNav({
         <span className={s.nurDesktop}>
           <ThemeToggle />
         </span>
+        {/* Der zweite Umschalter steht im Drawer (unten) und traegt dort eine
+            eigene testId — zwei Knoten mit `data-testid="theme-toggle"` waeren
+            fuer jeden kuenftigen Playwright-Zugriff eine Strict-Mode-Verletzung
+            ("resolved to 2 elements"). */}
         {userName ? <Avatar size="small">{initialen(userName)}</Avatar> : null}
       </div>
 
@@ -921,7 +1130,7 @@ export function SuiteNav({
           ) : null}
 
           <div className={s.drawerGruppe}>
-            <ThemeToggle />
+            <ThemeToggle testId="theme-toggle-drawer" />
             {angemeldet ? (
               <>
                 {userName ? <div>{userName}</div> : null}
@@ -1518,6 +1727,48 @@ test("mobil: abmelden ist erreichbar", async ({ page }) => {
   await expect(page.getByTestId("abmelden")).toBeVisible();
 });
 ```
+
+**Zusätzlich, außerhalb des mobilen Blocks** — dieser Test ist der einzige, der die Aktivmarkierung
+wirklich beweist:
+
+```ts
+test.describe("Modulnavigation am laufenden Server", () => {
+  // Desktop-Viewport (Standard), weil `.modulnav` dort sichtbar ist.
+  test.use({ viewport: { width: 1280, height: 720 } });
+
+  test("markiert genau einen Eintrag als aktuelle Seite", async ({ page }) => {
+    // DER EINZIGE ORT, DER DAS BEWEISEN KANN. Der Unit-Test mockt
+    // `usePathname()`; was die Funktion unter dem Proxy-Rewrite (`/vergleich`
+    // -> `/m/feedback/vergleich`) tatsaechlich liefert, haengt an der
+    // Next-Version. Waere die Aufloesung falsch, wuerde schlicht nie etwas
+    // markiert — ein stiller Fehlschlag, den kein Unit-Test sieht.
+    await devLogin(page, {
+      host: "feedback.localtest.me",
+      groups: "da-feedback-admin",
+      callbackPath: "/vergleich",
+    });
+    const aktiv = page.locator('[data-testid="modulnav"] a[aria-current="page"]');
+    await expect(aktiv).toHaveCount(1);
+    await expect(aktiv).toHaveText("Vergleich");
+  });
+
+  test("markiert die Uebersicht auf der Modulwurzel", async ({ page }) => {
+    await devLogin(page, {
+      host: "feedback.localtest.me",
+      groups: "da-feedback-admin",
+      callbackPath: "/",
+    });
+    const aktiv = page.locator('[data-testid="modulnav"] a[aria-current="page"]');
+    await expect(aktiv).toHaveCount(1);
+    await expect(aktiv).toHaveText("Übersicht");
+  });
+});
+```
+
+**Falls `toHaveCount(1)` hier 0 ergibt:** dann liefert `usePathname()` etwas, das weder auf `/vergleich`
+endet noch gleich ist — die Ausgabe von `page.evaluate(() => location.pathname)` und ein
+`console.log` im Client zeigen, was. Die Auflösung in `aktiverSchluessel` ist dann anzupassen, **nicht**
+der Test aufzuweichen.
 
 - [ ] **Step 2: E2E laufen lassen**
 
