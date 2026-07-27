@@ -1,0 +1,126 @@
+/*
+ * Die Kopfzeile der Suite, mobil zuerst.
+ *
+ * Beide Ausprägungen (Menue-Knopf und Modulknopfreihe) werden IMMER gerendert;
+ * welche man sieht, entscheidet allein CSS. Der Grund steht in
+ * `shell-css.test.ts`: `Grid.useBreakpoint` ist in Server Components verboten,
+ * und ein JS-Breakpoint zeigt beim ersten Render die falsche Variante.
+ *
+ * 768px ist der EINZIGE Breakpoint der Suite (= antds `md`). Ein zweiter waere
+ * eine zweite Skala — siehe docs/design/README.md.
+ *
+ * Keine `--ant-*`-Variablen hier: antd deklariert sie auf seiner Scope-Klasse,
+ * nicht auf `:root`, und eigenes Markup sieht sie nicht. Der Fehler waere still.
+ */
+
+.kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-inline: 16px;
+}
+
+.titel {
+  color: inherit;
+  text-decoration: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rechts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* Mobil sichtbar, ab 768px weg. */
+.nurMobil {
+  display: flex;
+  align-items: center;
+}
+
+/* Umgekehrt: mobil weg, ab 768px sichtbar. Mobile-first — die Basis ist `none`,
+   damit auf schmalen Geraeten nichts aufblitzt, bevor CSS greift. */
+.nurDesktop {
+  display: none;
+}
+
+.modulzeile {
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+/* Die modul-interne Navigation als zweite Kopfzeile (nur Desktop, nur wenn das
+   Modul welche uebergibt). */
+.modulnav {
+  display: none;
+  gap: 4px;
+  padding-inline: 16px;
+  border-block-end: 1px solid;
+  border-color: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.drawerGruppe {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-block: 8px;
+}
+
+.drawerGruppe + .drawerGruppe {
+  border-block-start: 1px solid;
+  border-color: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.drawerTitel {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  padding-inline: 16px;
+  padding-block: 8px;
+}
+
+/*
+ * Die Modulnavigation ist `next/link` und damit rohes Markup — antds
+ * Button-Aussehen faellt hier weg und muss gesetzt werden. Bewusst KEINE
+ * `--ant-*`-Variablen: die sieht eigenes Markup nicht (der Fehler waere still).
+ * `currentColor` erbt die Schriftfarbe der Kopfzeile und traegt damit hell wie
+ * dunkel, ohne eine zweite Farbquelle aufzumachen.
+ *
+ * `min-height: 56px` ist das Touch-Masz der Suite (`TAP` in core/theme/tokens).
+ */
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  padding-inline: 12px;
+  color: inherit;
+  text-decoration: none;
+  border-block-end: 2px solid transparent;
+}
+
+.navLink[aria-current="page"] {
+  border-block-end-color: currentColor;
+  font-weight: 600;
+}
+
+@media (min-width: 768px) {
+  .nurMobil {
+    display: none;
+  }
+
+  .nurDesktop {
+    display: flex;
+  }
+
+  .modulnav {
+    display: flex;
+  }
+}

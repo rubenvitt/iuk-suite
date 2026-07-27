@@ -1,6 +1,6 @@
 import { visibleSwitcherModules } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
-import type { AppSwitcherEntry } from "@/core/shell/AppSwitcher";
+import type { AppSwitcherEntry } from "@/core/shell/types";
 
 /**
  * Switcher-Einträge für eine Session: nach Gruppen gefiltert (Registry) und um

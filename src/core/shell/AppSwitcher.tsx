@@ -12,6 +12,8 @@ import { Avatar, Button, Space } from "antd";
 import type { ComponentType } from "react";
 
 import { SPACE } from "@/core/theme/tokens";
+import type { AppSwitcherEntry } from "@/core/shell/types";
+export type { AppSwitcherEntry } from "@/core/shell/types";
 // Icon-Name (aus ModuleDef.icon, Registry) -> @ant-design/icons Komponente.
 // Deckt die aktuell in MODULES verwendeten Namen ab; unbekannte Namen fallen
 // auf AppstoreOutlined zurück statt den Render zu crashen.
@@ -23,13 +25,6 @@ const ICONS: Record<string, ComponentType> = {
   GlobalOutlined,
   DesktopOutlined,
 };
-
-export interface AppSwitcherEntry {
-  key: string;
-  title: string;
-  icon: string;
-  href: string;
-}
 
 // Always-visible Raster von Modul-Links (Waffel). Bewusst NICHT hinter einem
 // geschlossenen Dropdown/Popup versteckt: keystone.spec.ts prüft

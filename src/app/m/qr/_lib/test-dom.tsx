@@ -78,6 +78,13 @@ export async function unmount(): Promise<void> {
       current.unmount();
     });
   }
+  // antd haengt Portale (Drawer, Modal, Tooltip) direkt an document.body. Ohne
+  // dieses Aufraeumen sieht der naechste Test die Reste des vorherigen und
+  // `existsPortal` liefert falsche Treffer — ein Fehler, der als bestandener
+  // Test daherkommt.
+  for (const rest of Array.from(document.body.children)) {
+    if (rest !== currentHost) rest.remove();
+  }
   currentHost?.remove();
 }
 
@@ -144,4 +151,31 @@ export async function submitForm(selector = "form"): Promise<void> {
   await act(async () => {
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
+}
+
+/**
+ * Abfragen fuer PORTAL-Inhalt.
+ *
+ * antd rendert `Drawer`, `Modal`, `Tooltip` und `Dropdown` durch ein Portal
+ * nach `document.body` — der Inhalt ist ein GESCHWISTER des Mount-Wirts, kein
+ * Nachfahre. `query()` oben sucht im Wirt und findet ihn deshalb nie. Das ist
+ * keine Eigenheit eines einzelnen Tests, sondern wie antd arbeitet.
+ *
+ * Bewusst eigene Funktionen statt `query()` aufzubohren: wer `queryPortal`
+ * schreibt, sagt damit "ich pruefe etwas, das ausserhalb meines Baums haengt".
+ * Ein `query()`, das erst im Wirt und dann im Dokument sucht, faende auch
+ * Ueberbleibsel eines vorherigen Tests, ohne dass es auffiele.
+ */
+export function queryPortal<T extends HTMLElement = HTMLElement>(selector: string): T {
+  const el = document.body.querySelector<T>(selector);
+  if (!el) throw new Error(`Element nicht im Dokument gefunden: ${selector}`);
+  return el;
+}
+
+export function existsPortal(selector: string): boolean {
+  return document.body.querySelector(selector) !== null;
+}
+
+export async function clickPortal(selector: string): Promise<void> {
+  await clickElement(queryPortal(selector));
 }
