@@ -31,7 +31,20 @@ export default async function FeedbackAdminLayout({
   await requireFeedbackAccess();
 
   return (
-    <Shell variant={mod.shell} moduleKey={mod.key}>
+    <Shell
+      variant={mod.shell}
+      moduleKey={mod.key}
+      /*
+       * `vergleich` hatte bisher keinen festen Einstieg — die Seite existierte,
+       * war aber nur ueber eine geratene URL erreichbar. Genau die Prueffrage
+       * aus docs/design/README.md: "Hat jede Seite einen Weg in der
+       * Oberflaeche?"
+       */
+      nav={[
+        { key: "start", title: "Übersicht", href: "/" },
+        { key: "vergleich", title: "Vergleich", href: "/vergleich" },
+      ]}
+    >
       {children}
     </Shell>
   );
