@@ -39,7 +39,29 @@ const anfrage = { url: "https://iuk-ue.de/api/auth/session" } as unknown as Next
 
 describe("authConfig — Sitzung", () => {
   it("faehrt die JWT-Strategie", () => {
+    // Voraussetzung dafuer, dass eine Sitzung ueber mehrere Modul-Hosts ohne
+    // gemeinsame Datenbank traegt. Ein Wechsel auf "database" waere keine
+    // Feineinstellung, sondern ein anderer Betrieb.
     expect(authConfig(undefined).session?.strategy).toBe("jwt");
+  });
+
+  it("setzt 30 Tage explizit statt sie vom Default zu erben", () => {
+    // 30 Tage entsprechen dem heutigen Auth.js-Default (init.js:38). Sie hier
+    // hinzuschreiben aendert nichts — es schuetzt vor einem stillen
+    // Default-Wechsel bei einem Auth.js-Update.
+    expect(authConfig(undefined).session?.maxAge).toBe(2_592_000);
+  });
+
+  /**
+   * `updateAge` ist unter `strategy: "jwt"` WIRKUNGSLOS: gelesen wird es nur im
+   * Datenbank-Zweig (@auth/core/lib/actions/session.js:77-92). Rollierend ist
+   * die Sitzung trotzdem, aber ueber einen anderen Weg — der JWT-Zweig setzt
+   * `expires` bei JEDEM Aufruf neu (Z. 33, 45-51), und `SessionProvider` ruft
+   * `/api/auth/session` bei jedem Mount. Der Wert steht hier als Absicht und
+   * fuer den Fall, dass je auf Datenbank-Sessions umgestellt wird.
+   */
+  it("haelt updateAge fest, auch wenn es unter der JWT-Strategie nichts tut", () => {
+    expect(authConfig(undefined).session?.updateAge).toBe(86_400);
   });
 });
 

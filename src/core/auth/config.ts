@@ -28,6 +28,26 @@ import { tokenAuffrischen } from "@/core/auth/refresh";
  * ginge verloren, und der naechste Versuch waere eine Wiederverwendung, die
  * die ganze Sitzung widerruft. Siehe `refresh.ts`.
  */
+
+/**
+ * 30 Tage. Entspricht dem heutigen Auth.js-Default (init.js:38) und ist fuer
+ * ein internes Werkzeug mit SSO reichlich. Vertretbar ist die Laenge nur,
+ * WEIL die Gruppen im Token bei jedem erfolgreichen Refresh frisch aus dem
+ * `id_token` gezogen werden (`refresh.ts`) — sonst behielte jemand entzogene
+ * Rechte einen Monat lang.
+ */
+export const SITZUNGSDAUER_S = 30 * 24 * 60 * 60;
+
+/**
+ * Ebenfalls der Auth.js-Default. ACHTUNG: unter `strategy: "jwt"` liest Auth.js
+ * diesen Wert NICHT — er wird nur im Datenbank-Zweig ausgewertet
+ * (actions/session.js:77-92). Rollierend ist die Sitzung trotzdem, weil der
+ * JWT-Zweig `expires` bei jedem Aufruf neu setzt und `SessionProvider` bei
+ * jedem Mount `/api/auth/session` ruft. Der Wert steht als Absicht hier und
+ * traegt, falls je auf Datenbank-Sessions umgestellt wird.
+ */
+export const SITZUNGS_AUFFRISCHUNG_S = 24 * 60 * 60;
+
 export function authConfig(request: NextRequest | undefined): NextAuthConfig {
   const providers = [
     ...(devLoginEnabled()
@@ -67,6 +87,8 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
       (devLoginEnabled() ? "dev-only-insecure-secret-not-for-production" : undefined),
     session: {
       strategy: "jwt",
+      maxAge: SITZUNGSDAUER_S,
+      updateAge: SITZUNGS_AUFFRISCHUNG_S,
     },
     pages: {
       signIn: "/login",

@@ -79,4 +79,25 @@ describe("authCookies", () => {
   it("ueberschreibt keine Defaults ausser domain und secure", () => {
     expect(Object.keys(WITH.state?.options ?? {}).sort()).toEqual(["domain", "secure"]);
   });
+
+  /**
+   * DAS SESSION-COOKIE FOLGT DER SITZUNG — UND ZWAR NUR, WEIL HIER KEIN
+   * maxAge STEHT.
+   *
+   * Auth.js gibt dem Session-Cookie kein `maxAge`
+   * (`defaultCookies` in @auth/core/lib/utils/cookie.js:48-56 setzt nur
+   * httpOnly/sameSite/path/secure); die Ablaufzeit reist als `Expires`, pro
+   * Schreibvorgang aus `session.maxAge` berechnet (actions/session.js:33,45-51).
+   *
+   * Ein hier gesetztes `maxAge` ueberlebte den Merge in
+   * `SessionStore.chunk` (cookie.js:161 — `{...option.options, ...options}`,
+   * und pro Schreibvorgang kommt nur `expires` dazu) und wuerde laut
+   * RFC 6265 §4.1.2.2 gegen `Expires` GEWINNEN. Die Sitzung liefe dann nach
+   * einer festen Frist ab, egal was `session.maxAge` sagt — und niemand
+   * suchte den Grund in dieser Datei.
+   */
+  it("setzt auf dem Session-Cookie kein maxAge — sonst schluege es Auth.js' Expires", () => {
+    expect(WITH.sessionToken?.options).not.toHaveProperty("maxAge");
+    expect(WITHOUT.sessionToken?.options).not.toHaveProperty("maxAge");
+  });
 });
