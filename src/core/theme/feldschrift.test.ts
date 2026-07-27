@@ -77,6 +77,33 @@ describe("Feldschrift — 16px als Suite-Untergrenze", () => {
     }
   });
 
+  it("gibt AUCH `inputFontSizeLG` 16px — `size=\"large\"` faellt sonst durch beide Wege", () => {
+    /*
+     * DIE LUECKE, DIE NIEMAND SIEHT, WEIL SIE HEUTE ZUFAELLIG GESCHLOSSEN IST.
+     *
+     * antd leitet die grosze Variante NICHT aus `inputFontSize` ab:
+     * `antd/es/input/style/token.js:34` rechnet `inputFontSizeLG || fontSizeLG`
+     * — ohne eigenen Wert landet das Feld auf `fontSizeLG`, und das ist per
+     * Default 16. Der zweite Weg, die globale Regel `input { font-size: 16px }`
+     * aus `globals.css`, greift ebenfalls nicht: `.ant-input-lg` ist (0,1,0)
+     * und schlaegt sie (0,0,1).
+     *
+     * `size="large"` ist die haeufigste Eingabeform der Suite (preset-form 10x,
+     * UrlInput, wifi, tel, contact, login-form). Wer irgendwann `fontSizeLG`
+     * anfasst — ein voellig unverdaechtiger Aufraeumschritt — senkt sie alle
+     * still unter die Untergrenze. Diese Assertion ist die Bremse dafuer.
+     *
+     * Kein Gegenstueck fuer `inputFontSizeSM`: das erbt laut `token.js:33` von
+     * `inputFontSize`, dort ist keine Luecke.
+     */
+    for (const modus of ["light", "dark"] as const) {
+      const components = buildTheme(modus).components;
+      expect(components?.Input?.inputFontSizeLG).toBe(16);
+      expect(components?.InputNumber?.inputFontSizeLG).toBe(16);
+      expect(components?.DatePicker?.inputFontSizeLG).toBe(16);
+    }
+  });
+
   it("laesst die globale Schriftleiter unangetastet", () => {
     // Basis 16 verschoebe jede Ueberschrift und Tabellenzelle — verboten laut
     // docs/design/README.md:110 ("antds eigene Leiter, keine dritte Skala").

@@ -72,10 +72,23 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
        * Ueber Tokens statt ueber CSS-Spezifitaet, damit die Regel in
        * `globals.css` niedrig spezifisch bleiben kann und Modul-CSS sie
        * weiterhin nach oben ueberschreibt.
+       *
+       * `inputFontSizeLG` ZUSAETZLICH, weil `size="large"` sonst durch BEIDE
+       * Wege faellt: antd leitet die groesze Variante nicht aus `inputFontSize`
+       * ab (`antd/es/input/style/token.js:34` rechnet
+       * `inputFontSizeLG || fontSizeLG`), und `.ant-input-lg` (0,1,0) schlaegt
+       * die globale Regel `input { … }` (0,0,1) aus `globals.css`. Heute stehen
+       * diese Felder nur ZUFAELLIG auf 16px, weil antds `fontSizeLG` per
+       * Default 16 ist — ein Aufraeumen an den Tokens senkte sie still. Und
+       * betroffen ist die haeufigste Eingabeform der Suite (preset-form 10x,
+       * UrlInput, wifi, tel, contact, login-form).
+       *
+       * Kein `inputFontSizeSM`: das erbt laut `token.js:33` von
+       * `inputFontSize`, dort ist keine Luecke.
        */
-      Input: { inputFontSize: 16 },
-      InputNumber: { inputFontSize: 16 },
-      DatePicker: { inputFontSize: 16 },
+      Input: { inputFontSize: 16, inputFontSizeLG: 16 },
+      InputNumber: { inputFontSize: 16, inputFontSizeLG: 16 },
+      DatePicker: { inputFontSize: 16, inputFontSizeLG: 16 },
     },
   };
 }
