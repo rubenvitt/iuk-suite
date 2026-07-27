@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
@@ -20,6 +20,29 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "IuK-Suite",
   description: "Internes Service-Dashboard für I&K",
+};
+
+/**
+ * ZOOM GESPERRT, SUITEWEIT. Bewusste Betreiberentscheidung, keine
+ * Nachlaessigkeit — sie verletzt WCAG 1.4.4 und wird dadurch aufgefangen, dass
+ * Eingabefelder nirgends unter 16px fallen (`globals.css`, dort begruendet).
+ * Die beiden Regeln gehoeren zusammen: ohne Zoom kann niemand mehr heranholen,
+ * was zu klein ist.
+ *
+ * Hier und nur hier — das Root-Layout liegt ueber allem, also gilt die Sperre
+ * auch fuer den Kiosk und die login-freien Ansichten.
+ *
+ * KEIN `viewportFit: "cover"`. Das waere randlose Darstellung, eine andere
+ * Anforderung, und verpflichtete Kopfzeile, jedes Modul-Padding und die
+ * Kiosk-Shell auf `env(safe-area-inset-*)`. Wer sie will, hebt sie als eigene
+ * Entscheidung — und stellt dann `Layout.headerHeight` von fest 64 auf
+ * `min-height` um, sonst klemmt die Kopfzeile unter der Notch.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default async function RootLayout({
