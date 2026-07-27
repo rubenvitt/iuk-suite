@@ -43,4 +43,25 @@ describe("shell.module.css", () => {
   it("nutzt keine `--ant-*`-Variablen (die sieht eigenes Markup nicht)", () => {
     expect(OHNE_KOMMENTARE).not.toMatch(/var\(--ant-/);
   });
+
+  it("gibt dem Titel-Link die Schriftfarbe des Kopfes und keine Unterstreichung", () => {
+    // Uebernommen aus der geloeschten FullShell.test.tsx: dort waren es
+    // Inline-Styles, hier ist es CSS — die Zusage bleibt dieselbe. Ohne sie
+    // faellt der Titel auf die Browser-Linkfarbe zurueck, mitten in der
+    // Kopfzeile.
+    const regel = /\.titel\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .titel fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/color:\s*inherit/);
+    expect(regel![1]).toMatch(/text-decoration:\s*none/);
+  });
+
+  it("laesst die Modulknopfreihe nicht ueber den Titel brechen", () => {
+    // Ebenfalls aus FullShell.test.tsx. Der alte `overflow: hidden` kaschierte
+    // das Problem, indem er ueberzaehlige Module abschnitt; geblieben ist
+    // `flex-wrap: nowrap` — auf Desktop soll die Reihe einzeilig bleiben, und
+    // auf Mobil steht sie ohnehin nicht im Kopf.
+    const regel = /\.modulzeile\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .modulzeile fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/flex-wrap:\s*nowrap/);
+  });
 });

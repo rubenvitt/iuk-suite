@@ -99,7 +99,7 @@ test("anderer Host bleibt sauber: kein Manifest, kein SW, keine Registrierung", 
   // Auf Präsenz prüfen, nicht auf Sichtbarkeit: die Spike-DB startet leer, das
   // Kachel-Grid hat dann keine Höhe. Header + Grid belegen, dass hier die
   // eingeloggte Portal-Seite steht und nicht mehr das Login.
-  await expect(page.getByTestId("full-shell-header")).toBeVisible();
+  await expect(page.getByTestId("suite-header")).toBeVisible();
   await expect(page.getByTestId("portal-grid")).toHaveCount(1);
   await expect(page.locator('link[rel="manifest"]')).toHaveCount(0);
 
