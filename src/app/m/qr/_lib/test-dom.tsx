@@ -16,9 +16,14 @@ import { renderToString } from "react-dom/server";
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
+// Bestand von `document.body` unmittelbar VOR dem Anhaengen des Wirts. `unmount()`
+// raeumt nur, was seitdem dazukam (Portale) — nicht, was ein Test absichtlich
+// vorher dort abgelegt hat. Siehe Kommentar in `unmount()`.
+let vorbestand: Element[] = [];
 
 export async function mount(element: ReactElement): Promise<void> {
   (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  vorbestand = Array.from(document.body.children);
   host = document.createElement("div");
   document.body.appendChild(host);
   const created = createRoot(host);
@@ -44,6 +49,7 @@ export async function hydrate(
   vorbereiten?: (host: HTMLElement) => void,
 ): Promise<void> {
   (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  vorbestand = Array.from(document.body.children);
   const created = document.createElement("div");
   created.innerHTML = renderToString(element);
   document.body.appendChild(created);
@@ -78,13 +84,25 @@ export async function unmount(): Promise<void> {
       current.unmount();
     });
   }
-  // antd haengt Portale (Drawer, Modal, Tooltip) direkt an document.body. Ohne
-  // dieses Aufraeumen sieht der naechste Test die Reste des vorherigen und
-  // `existsPortal` liefert falsche Treffer — ein Fehler, der als bestandener
-  // Test daherkommt.
+  // antds STATISCHE APIs (Modal.confirm, message, notification) haengen einen
+  // eigenen React-Root direkt an document.body — unabhaengig vom hier gemounteten
+  // Baum. `current.unmount()` oben beruehrt diesen zweiten Root nie; ohne diese
+  // Schleife bleibt sein DOM-Knoten stehen, und `existsPortal` liefert im naechsten
+  // Test einen falschen Treffer.
+  //
+  // Drawer und Tooltip mit `open`-Prop gehoeren dagegen zum gemounteten Baum und
+  // werden bereits durch Reacts eigenes Portal-Teardown entfernt — fuer sie ist die
+  // Schleife defensiv, nicht tragend. (Nachgemessen: ein Wegwerf-Test mit Drawer
+  // und Tooltip war mit UND ohne die Schleife gruen; erst `Modal.confirm()` liesz
+  // einen Knoten zurueck.)
+  //
+  // Nur wegraeumen, was WAEHREND des Tests dazukam. Ein pauschales Leeren von
+  // document.body loeschte auch Fixtures, die ein Test absichtlich vorher
+  // abgelegt hat — ein Schaden, den niemand im Aufraeumcode suchen wuerde.
   for (const rest of Array.from(document.body.children)) {
-    if (rest !== currentHost) rest.remove();
+    if (rest !== currentHost && !vorbestand.includes(rest)) rest.remove();
   }
+  vorbestand = [];
   currentHost?.remove();
 }
 

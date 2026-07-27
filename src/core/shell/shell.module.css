@@ -50,6 +50,14 @@
   display: none;
 }
 
+/*
+ * KEIN `display` hier, und das ist Absicht: `.modulzeile` wird immer ZUSAMMEN
+ * mit `.nurDesktop` gesetzt, das den Wert beisteuert (`none`, ab 768px `flex`).
+ * Ein `display: flex` an dieser Stelle stuende NACH `.nurDesktop` bei gleicher
+ * Spezifitaet, gewaenne die Kaskade — und die Modulknopfreihe waere auf
+ * schmalen Geraeten sichtbar. Also genau der Defekt, gegen den diese Datei
+ * gebaut ist.
+ */
 .modulzeile {
   align-items: center;
   gap: 4px;
