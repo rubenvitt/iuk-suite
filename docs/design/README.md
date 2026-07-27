@@ -34,7 +34,7 @@ Modul in ein anderes importiert werden: Modul-Interna sind kein API.
 
 ## Fallen, die der Build nicht findet
 
-Diese vier kosten je einen halben Tag, wenn man sie nicht kennt. Keine davon fällt in `pnpm build` auf.
+Diese fünf kosten je einen halben Tag, wenn man sie nicht kennt. Keine davon fällt in `pnpm build` auf.
 
 **1. Compound-Zugriff auf antd in einer Server Component → HTTP 500.**
 Verboten in RSC: `Typography.*`, `Form.Item`, `Descriptions.Item`, `List.Item`, `Card.Meta`,
@@ -60,6 +60,20 @@ ungenügend"), darf Rot **niemals auf einer Datenfläche** erscheinen — kein r
 `controlHeight: TAP` (56) ist die Suite-Vorgabe und schon das richtige Touch-Maß;
 `controlHeightLG` ist 72. **`size` auf Bedienelementen also gar nicht setzen.** Ausnahme:
 `size="small"` innerhalb von Tabellenzeilen, weil eine 56px-Zeilenaktion die Zeile sprengt.
+
+**5. Eine eigene Klasse auf einer antd-Komponente verliert bei Gleichstand.**
+`.meineKlasse` ist Spezifität (0,1,0) — genau so viel wie `.ant-btn`, `.ant-input-lg`,
+`.ant-select-selector`. Bei Gleichstand entscheidet die Reihenfolge im Dokument, und **antds
+Stylesheet kommt später**. Die eigene Regel matcht also, greift aber nicht — und der Fehler ist
+still, weil im Quelltext alles richtig dasteht. Zweimal passiert: `.nurMobil { display: none }` in der
+768px-Media-Query verlor gegen `.ant-btn { display: inline-flex }`, der Menü-Knopf stand sichtbar auf
+dem Desktop; und `.ant-input-lg` schlug die globale `input { font-size: 16px }` (0,0,1).
+
+**Regel:** wo eigenes CSS auf einer antd-Komponente sitzt, eine Klasse mehr voranstellen
+(`.rechts .nurMobil` = (0,2,0)) — nie `!important`, und nie mehr als nötig. Wo antd einen **Token**
+anbietet, ist der Token der bessere Weg als jede Spezifität (`Input.inputFontSizeLG` statt CSS).
+**Und die Erhöhung kommentieren**, sonst entfernt sie die nächste Aufräumrunde als vermeintlichen
+Ballast. Prüfen kann das nur ein echter Browser: siehe „Tests für Responsives" unten.
 
 ## Hell- und Dunkelmodus
 
@@ -142,7 +156,16 @@ dafür im DOM sucht, geht **immer** durch — er misst nichts, und der grüne Ba
 Aufteilung, die trägt:
 
 - **Quelltext-Scan (Vitest)** besitzt die Regel: „die Klasse trägt die richtige Media Query".
-- **Playwright bei 390×844** besitzt das Ergebnis: „man sieht es nicht".
+- **Playwright bei 390×844** besitzt das Ergebnis: „man sieht es mobil".
+- **Playwright bei 1280×720** besitzt die andere Hälfte: „man sieht es auf dem Desktop **nicht**".
+
+**Der Desktop-Lauf ist keine Zugabe.** Ein Test, der nur bei 390px misst, kann eine
+`display:none`-Regel gar nicht widerlegen: dort sagen die richtige und die kaputte Fassung beide
+„sichtbar". Genau so ist Falle 5 durchgekommen — die Media-Query-Regel war da, der Quelltext-Scan war
+grün, und der Knopf stand trotzdem auf dem Desktop. **Ein Quelltext-Scan findet eine
+Kaskadenkollision strukturell nicht**, weil er Reihenfolge und Fremd-Stylesheets nicht kennt. Was er
+festhalten kann, ist die Gegenmaßnahme (der Selektor trägt den Präfix); ob sie wirkt, weiß nur der
+Browser. Jede `nurMobil`/`nurDesktop`-Zusage braucht deshalb **beide** Viewports.
 
 ## Was eine Oberfläche zeigen muss, damit sie benutzbar ist
 
