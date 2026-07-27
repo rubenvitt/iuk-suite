@@ -317,24 +317,13 @@
 }
 
 /*
- * MOBILE FELDSCHRIFT (§4.14, dort wortgenau vorgegeben). `token.fontSize` ist
- * 14 — unter 16px zoomt iOS beim Fokus in das Feld hinein, und danach steht die
- * halbe Karte ausserhalb des Bildschirms. Die Regel gilt nur fuer Formularfelder
- * des Moduls.
- *
- * `.ant-select-selector` gehoert dazu, obwohl das Modul heute kein `Select`
- * zeigt: antd baut die Auswahl aus einem `<div>` mit eigener Schriftgroesse, das
- * `input` darin ist unsichtbar und traegt sie nicht. Faellt die Zeile weg, zoomt
- * das erste `Select`, das jemand in ein Modulformular setzt — und niemand sucht
- * den Grund in dieser Datei.
+ * Die mobile Feldschrift stand frueher hier (`.fb-form input/textarea/
+ * .ant-select-selector` unter `max-width: 600px`). Sie ist nach
+ * `app/globals.css` gewandert und gilt jetzt suiteweit und ohne Breakpoint —
+ * der Maszstab aus docs/design/README.md ist ein zweiter, heute belegbarer
+ * Nutznieszer, und den gibt es seit portal-Admin und qr-Admin.
  */
 @media (max-width: 600px) {
-  .fb-form input,
-  .fb-form textarea,
-  .fb-form .ant-select-selector {
-    font-size: 16px;
-  }
-
   /*
    * Auf 390px ist jeder Handlungsknopf volle Breite und steht UNTER dem
    * naechsten — nie daneben (§2.3). Am Laptop bleibt er so breit wie seine

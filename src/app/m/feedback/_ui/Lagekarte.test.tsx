@@ -806,13 +806,20 @@ describe("Lagekarte — „QR-Code groß zeigen“ ist in jeder Belegung erreich
 });
 
 /**
- * MOBILE WERTE (§2.1 „Kartenstil (alle Zonen) … mobil `body.padding: 16`",
- * §4.14 „Mobile Feldschrift").
+ * MOBILE WERTE (§2.1 „Kartenstil (alle Zonen) … mobil `body.padding: 16`").
  *
- * Beide Zusagen brechen STILL: ein zu grosses Kartenpolster auf 390px fällt in
- * keinem Test auf, und ein 14px-Feld zoomt nur auf einem echten iPhone.
- * Deshalb werden hier der Wert IM MARKUP und die Regel IM STYLESHEET geprüft,
- * nicht das Ergebnis im Browser.
+ * Ein zu grosses Kartenpolster auf 390px fällt in keinem Test auf — deshalb
+ * werden hier der Wert IM MARKUP und die Regel IM STYLESHEET geprüft, nicht
+ * das Ergebnis im Browser.
+ *
+ * §4.14 „Mobile Feldschrift" stand frueher als eigener Test in diesem Block
+ * (`.fb-form input/textarea/.ant-select-selector` in `feedback.css`, nur unter
+ * 600px). Seit der Zoom suiteweit gesperrt ist (`app/layout.tsx`) gilt die
+ * 16px-Untergrenze fuer Eingabefelder in JEDEM Modul, nicht nur `feedback` —
+ * die Regel liegt jetzt ohne Breakpoint in `app/globals.css` und wird von
+ * `core/theme/feldschrift.test.ts` geprueft (dort auch der Test, dass keine
+ * CSS-Datei der Suite eine Eingabe-Regel unter 16px versteckt). Ein lokaler
+ * Test hier waere Doppelung ohne zusaetzliche Sicherheit.
  *
  * Warum eine CSS-Variable und keine Klasse: `styles.body` ist bei antd ein
  * INLINE-Style. Eine Klasse `.fb-karte-body { padding: 16px }` verliert gegen
@@ -820,7 +827,7 @@ describe("Lagekarte — „QR-Code groß zeigen“ ist in jeder Belegung erreich
  * `.fb-sticky` im Stylesheet dokumentieren. Die Karte reicht deshalb nur den
  * Variablennamen ein, und die Medienabfrage sitzt an der Variable.
  */
-describe("Mobile Werte — Kartenpolster und Feldschrift", () => {
+describe("Mobile Werte — Kartenpolster", () => {
   const kartenRumpf = (z: CockpitZustand): HTMLElement => {
     const rumpf = zeichne(karte(z)).querySelector<HTMLElement>(".ant-card-body");
     if (!rumpf) throw new Error("Kein Kartenrumpf gerendert");
@@ -851,20 +858,6 @@ describe("Mobile Werte — Kartenpolster und Feldschrift", () => {
     // Die 16 liegt IN einer Medienabfrage — sonst waere sie der neue Grundwert.
     const davor = css.slice(0, stelleMobil);
     expect(davor.lastIndexOf("@media (max-width: 600px)")).toBeGreaterThan(davor.lastIndexOf("}"));
-  });
-
-  it("hebt Formularfelder unter 600px auf 16px — auch das antd-Auswahlfeld (§4.14)", () => {
-    const css = quelle("feedback.css");
-    const ab = css.slice(css.indexOf(".fb-form input"));
-    const regel = ab.slice(0, ab.indexOf("}"));
-    for (const selektor of [
-      ".fb-form input",
-      ".fb-form textarea",
-      ".fb-form .ant-select-selector",
-    ]) {
-      expect(regel).toContain(selektor);
-    }
-    expect(regel).toContain("font-size: 16px");
   });
 });
 

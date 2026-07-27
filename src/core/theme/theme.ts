@@ -50,6 +50,20 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
       // gleichlautender Eintrag unter `Checkbox` wäre totes Gewicht, siehe der
       // Review vor Task 6.)
       Radio: { radioSize: 28, dotSize: 14 },
+      /*
+       * Die Optionen der offenen Auswahlliste sind Tap-Ziele, die gelesen
+       * werden muessen, bevor man sie trifft. Sie sind KEIN `input` — die
+       * 16px-Regel in `globals.css` erreicht sie nicht, deshalb hier.
+       *
+       * Das ist keine Doppelung: die CSS-Regel deckt das geschlossene Feld ab
+       * (ueber `.ant-select-selector`), dieser Token die offene Liste. Fuer den
+       * Selektor selbst bietet antd keinen Token an — sonst staende er hier
+       * statt in CSS.
+       *
+       * 16 ist ein Wert aus antds eigener Leiter (12/14/16/20/24/30), also
+       * keine dritte Skala im Sinne von docs/design/README.md:110.
+       */
+      Select: { optionFontSize: 16 },
     },
   };
 }

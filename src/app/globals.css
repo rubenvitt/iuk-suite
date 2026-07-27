@@ -32,6 +32,38 @@ body {
  * Druck: der QR-Code ist das Einzige, was aufs Papier gehört — Etiketten
  * werden aus dieser Ansicht gedruckt.
  */
+/*
+ * EINGABEFELDER NIE UNTER 16px — suiteweit, ohne Media Query.
+ *
+ * Frueher war das die Abwehr gegen iOS' Auto-Zoom beim Fokus. Seit der Zoom in
+ * `app/layout.tsx` gesperrt ist, zoomt iOS gar nicht mehr; die Regel bleibt aus
+ * dem UMGEKEHRTEN Grund: ohne Zoom kann niemand mehr heranholen, was zu klein
+ * ist. Die beiden Regeln gehoeren zusammen — wer eine anfasst, prueft die
+ * andere. `core/theme/feldschrift.test.ts` haelt beides fest.
+ *
+ * `:root` steht davor, NICHT aus Gewohnheit: eine nackte Regel `input {…}` hat
+ * Spezifitaet (0,0,1) und unterliegt antds `.ant-input` (0,1,0) — sie wirkt
+ * still nicht. Mit `:root` sind es (0,1,1) bzw. (0,2,0), und es braucht kein
+ * `!important`. Modul-eigenes CSS mit hoeherer Spezifitaet gewinnt weiterhin
+ * nach oben (der Abendzettel setzt `.textfeld` auf 18px).
+ *
+ * `.ant-select-selector` gehoert dazu, weil antd die geschlossene Auswahl aus
+ * einem `<div>` baut — das `input` darin ist unsichtbar und traegt die
+ * Schriftgroesse nicht. antd bietet dafuer KEINEN Token an (`Select` kennt nur
+ * `optionFontSize` fuer die offene Liste, siehe theme.ts). Dass hier ein
+ * antd-interner Klassenname steht, ist eine bewusst eingegangene Kopplung: ein
+ * antd-Major koennte ihn umbenennen, und der Bruch waere still.
+ *
+ * Keine Media Query: `controlHeight` ist 56, da ist reichlich Platz, und ein
+ * zweiter Breakpoint neben dem der Shell (768px) waere eine zweite Skala.
+ */
+:root input,
+:root textarea,
+:root select,
+:root .ant-select-selector {
+  font-size: 16px;
+}
+
 @media print {
   body {
     background: #ffffff;
