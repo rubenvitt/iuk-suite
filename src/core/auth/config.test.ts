@@ -31,6 +31,12 @@ const jwtCallback = (request: NextRequest | undefined) => {
   return rueckruf;
 };
 
+// Steht fuer den /api/auth/*-Pfad: der Weiche in `config.ts` genuegt jedes
+// Objekt, das kein `undefined` ist (`request !== undefined`). Ein
+// Objektliteral mit einem Feld ist strukturell zu weit von NextRequest
+// entfernt, TypeScript lehnt den direkten Cast ab — daher `as unknown as`.
+const anfrage = { url: "https://iuk-ue.de/api/auth/session" } as unknown as NextRequest;
+
 describe("authConfig — Sitzung", () => {
   it("faehrt die JWT-Strategie", () => {
     expect(authConfig(undefined).session?.strategy).toBe("jwt");
@@ -90,20 +96,35 @@ describe("authConfig — Gruppen einfrieren (Regression)", () => {
    * Bis Task 2 galt nur: ohne `profile` bleiben VORHANDENE Gruppen stehen.
    * Seit der Verdrahtung in Task 3 gilt mehr: bei einem ERFOLGREICHEN Refresh
    * kommen die Gruppen aus dem NEUEN `id_token`, nicht aus dem alten Token.
-   * Das ist der Grund, warum die 30-Tage-Sitzung aus Task 4 vertretbar wird
-   * (siehe refresh.ts). Die Gruppen-Extraktion selbst deckt refresh.test.ts
-   * ab — hier zaehlt nur, dass `authConfig` das Ergebnis von `tokenAuffrischen`
-   * UNVERAENDERT durchreicht, statt die alten Gruppen nachtraeglich wieder
-   * ueber das frische Ergebnis zu legen.
+   * Das ist der Grund, warum die 30-Tage-Sitzung aus Task 4 vertretbar wird.
+   * Die Extraktion selbst — echtes base64url-`id_token`, injizierter
+   * Transport — deckt `refresh.test.ts:306-358` ab. Hier zaehlt die NAHT:
+   * dass `authConfig` das Ergebnis von `tokenAuffrischen` UNVERAENDERT
+   * durchreicht, statt die alten Gruppen nachtraeglich wieder darueberzulegen.
+   *
+   * Die Attrappe wertet dafuer ihr `darfSchreiben`-Argument selbst aus,
+   * genau wie das echte `tokenAuffrischen` (refresh.ts:267) — sonst bliebe
+   * dieser Test gruen, selbst wenn `config.ts` die Weiche invertiert oder
+   * konstant verdrahtete. Und weil ein ERFOLGREICHER Refresh produktiv nur
+   * mit Schreibrecht vorkommen kann, laeuft der Test ueber `jwtCallback
+   * (anfrage)` — auf dem RSC-Pfad (`request === undefined`) gibt das echte
+   * `tokenAuffrischen` das Token immer unveraendert zurueck, eine
+   * „erfolgreiche Erneuerung" waere dort ein nicht erreichbarer Zustand.
    */
-  it("uebernimmt bei einer erfolgreichen Erneuerung die Gruppen aus dem neuen id_token", async () => {
-    auffrischenMock.mockResolvedValueOnce({
-      groups: ["neue-gruppe"],
-      fachgruppen: ["neue-fachgruppe"],
-      expiresAt: 4_000_000_000,
-      error: undefined,
-    });
-    const token = await jwtCallback(undefined)({
+  it("reicht das Ergebnis von tokenAuffrischen unveraendert durch, statt die alten Gruppen darueberzulegen", async () => {
+    auffrischenMock.mockImplementationOnce(
+      async (token: Record<string, unknown>, optionen: { darfSchreiben: boolean }) => {
+        if (!optionen.darfSchreiben) return token;
+        return {
+          ...token,
+          groups: ["neue-gruppe"],
+          fachgruppen: ["neue-fachgruppe"],
+          expiresAt: 4_000_000_000,
+          error: undefined,
+        };
+      },
+    );
+    const token = await jwtCallback(anfrage)({
       token: {
         groups: ["alte-gruppe"],
         fachgruppen: ["alte-fachgruppe"],
@@ -188,10 +209,6 @@ describe("authConfig — Schreibrecht-Weiche", () => {
   });
 
   it("meldet dem /api/auth/*-Pfad Schreibrecht", async () => {
-    // `as unknown as` und nicht `as`: ein Objektliteral mit einem Feld ist
-    // strukturell zu weit von NextRequest entfernt, TypeScript lehnt den
-    // direkten Cast ab. Hier zaehlt nur, DASS etwas uebergeben wird.
-    const anfrage = { url: "https://iuk-ue.de/api/auth/session" } as unknown as NextRequest;
     await jwtCallback(anfrage)({ token: { ...abgelaufen } } as never);
     expect(auffrischenMock).toHaveBeenCalledTimes(1);
     expect(auffrischenMock.mock.calls[0][1]).toMatchObject({ darfSchreiben: true });
