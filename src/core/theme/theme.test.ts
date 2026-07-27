@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { theme as antdTheme } from "antd";
 import { buildTheme, type ThemeMode } from "@/core/theme/theme";
-import { DRK, TAP, TAP_XL } from "@/core/theme/tokens";
+import { DRK, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
 
 const MODES: ThemeMode[] = ["light", "dark"];
 
@@ -37,6 +37,24 @@ describe("buildTheme", () => {
     const light = antdTheme.getDesignToken(buildTheme("light"));
     const dark = antdTheme.getDesignToken(buildTheme("dark"));
     expect(light.colorBgBase).not.toBe(dark.colorBgBase);
+  });
+
+  it.each(MODES)("hängt die Polsterung der Kopfzeile nicht am Tap-Ziel, Modus %s", (mode) => {
+    /*
+     * DAS TAP-ZIEL HAT DIE KOPFZEILE STILLSCHWEIGEND VERENGT.
+     *
+     * antd rechnet `headerPadding = 0 ${controlHeightLG * 1.25}px`
+     * (antd/es/layout/style/index.js:85 und 94). Mit antds Vorgabe 40 sind das
+     * 50px; mit `TAP_XL` = 72 werden daraus 90px JE SEITE. Auf einem
+     * 768px-Fenster blieben davon 588px Inhalt — zu wenig für Modultitel und
+     * Nutzerblock, der Titel fiel auf 0px und jede Seite scrollte seitwärts.
+     *
+     * Die zweite Zusicherung belegt, dass die Falle wirklich existiert: ohne
+     * sie wäre die erste bloß eine Abschrift des Codes und bliebe auch dann
+     * grün, wenn antd die Ableitung eines Tages fallen ließe.
+     */
+    expect(buildTheme(mode).components?.Layout?.headerPadding).toBe(`0 ${SPACE.lg}px`);
+    expect(TAP_XL * 1.25).toBeGreaterThan(SPACE.lg);
   });
 
   it.each(MODES)("hält die interaktive Größe der Radio-Marke im Modus %s", (mode) => {

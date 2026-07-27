@@ -13,7 +13,7 @@ import { auth } from "@/core/auth";
 import { getModule } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { switcherEntries } from "@/core/shell/switcherEntries";
-import { SuiteNav } from "@/core/shell/SuiteNav";
+import { Modulnav, SuiteNav } from "@/core/shell/SuiteNav";
 import type { SuiteNavItem } from "@/core/shell/types";
 import s from "./shell.module.css";
 
@@ -43,26 +43,46 @@ export async function SuiteHeader({
   const angemeldet = !!session?.user;
   const entries = switcherEntries(session?.user?.groups ?? null);
 
+  /*
+   * ZWEI GESCHWISTER, NICHT EIN VERSCHACHTELTER BLOCK — die Modulnavigation
+   * steht UNTER der Kopfzeile und nicht darin.
+   *
+   * Als drittes Flex-Kind von `.kopf` konkurrierte sie mit dem Titel um die
+   * Breite: zwischen 768px und 903px schrumpfte er auf 0px und die Seite
+   * scrollte seitwaerts (rechte Kante 904px, gemessen). Der Entwurf (§4,
+   * Tabelle) sah immer eine „zweite Zeile" vor, und `headerHeight` bleibt
+   * deshalb 64 — die Zeile kommt darunter hinzu, statt den Kopf zu dehnen.
+   * Die ausfuehrliche Begruendung steht an `Modulnav` in `SuiteNav.tsx`.
+   *
+   * `data-testid="suite-header"` bleibt am `<Header>` und umfasst die zweite
+   * Zeile damit NICHT mehr. Das ist gewollt: der 390px-Hoehentest misst genau
+   * diesen Knoten und soll weiter nur die Kopfzeile messen. Dass die zweite
+   * Zeile mobil unsichtbar bleibt, hat seitdem eine eigene Zusicherung in
+   * `e2e/shell-mobil.spec.ts`.
+   */
   return (
-    <Header data-testid="suite-header" className={s.kopf}>
-      {/*
-       * Der Modultitel fuehrt auf die Startseite SEINES Moduls (Entwurf
-       * feedback-admin §4.1). Ohne diesen Link ist jede Unterseite eine
-       * Sackgasse — der Defekt hing an der Shell und galt fuer jedes Modul.
-       *
-       * `data-testid` bleibt auf dem `<strong>` und wandert NICHT an den Link:
-       * der Keystone-E2E fragt es dort ab. `moduleUrl` kennt Dev- und
-       * Prod-Hosts; ohne Host bleibt "/" — nie ein toter Link.
-       */}
-      <Link href={moduleUrl(moduleKey) ?? "/"} className={s.titel}>
-        <strong data-testid="module-title">{mod.title}</strong>
-      </Link>
-      <SuiteNav
-        entries={entries}
-        nav={nav}
-        userName={session?.user?.name ?? null}
-        angemeldet={angemeldet}
-      />
-    </Header>
+    <>
+      <Header data-testid="suite-header" className={s.kopf}>
+        {/*
+         * Der Modultitel fuehrt auf die Startseite SEINES Moduls (Entwurf
+         * feedback-admin §4.1). Ohne diesen Link ist jede Unterseite eine
+         * Sackgasse — der Defekt hing an der Shell und galt fuer jedes Modul.
+         *
+         * `data-testid` bleibt auf dem `<strong>` und wandert NICHT an den
+         * Link: der Keystone-E2E fragt es dort ab. `moduleUrl` kennt Dev- und
+         * Prod-Hosts; ohne Host bleibt "/" — nie ein toter Link.
+         */}
+        <Link href={moduleUrl(moduleKey) ?? "/"} className={s.titel}>
+          <strong data-testid="module-title">{mod.title}</strong>
+        </Link>
+        <SuiteNav
+          entries={entries}
+          nav={nav}
+          userName={session?.user?.name ?? null}
+          angemeldet={angemeldet}
+        />
+      </Header>
+      <Modulnav nav={nav} />
+    </>
   );
 }

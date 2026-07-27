@@ -109,6 +109,39 @@ describe("shell.module.css", () => {
     expect(regel![1]).toMatch(/text-decoration:\s*none/);
   });
 
+  it("polstert die Kopfzeile NICHT hier, sondern ueber `Layout.headerPadding`", () => {
+    /*
+     * `.kopf { padding-inline: 16px }` stand einmal hier und galt nie: `.kopf`
+     * und antds `.ant-layout-header` sind beide (0,1,0), antds Stylesheet kommt
+     * spaeter. GEMESSEN wurden 90px je Seite — antd rechnet
+     * `controlHeightLG * 1.25` (antd/es/layout/style/index.js:85), und
+     * `controlHeightLG` ist in dieser Suite das Handschuh-Masz 72 statt antds
+     * 40. Auf 768px blieben 588px Inhalt: zu wenig fuer Titel UND `.rechts`,
+     * der Titel fiel auf 0px.
+     *
+     * Dieser Test faengt das Wiedereinsetzen einer Deklaration, die still nicht
+     * gilt. Er faengt NICHT, dass jemand den Token in `theme.ts` loescht — das
+     * tut `core/theme/theme.test.ts`.
+     */
+    const regel = /\.kopf\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .kopf fehlt").not.toBeNull();
+    expect(regel![1], "padding in .kopf verliert gegen .ant-layout-header").not.toMatch(/padding/);
+  });
+
+  it("haelt die Modulnavigation unterhalb von 768px aus dem Weg", () => {
+    /*
+     * Seit sie eine EIGENE ZEILE unter der Kopfzeile ist, deckt der
+     * 390px-Hoehentest sie nicht mehr ab — er misst `suite-header`, und die
+     * Zeile steht daneben. Zeigte sie sich mobil, kaeme sie zu den 64px hinzu.
+     * Das sichtbare Ergebnis besitzt `e2e/shell-mobil.spec.ts`, die Regel hier.
+     */
+    const basis = /\.modulnav\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(basis, "Klasse .modulnav fehlt").not.toBeNull();
+    expect(basis![1]).toMatch(/display:\s*none/);
+    const abBreakpoint = OHNE_KOMMENTARE.slice(OHNE_KOMMENTARE.indexOf("(min-width: 768px)"));
+    expect(/\.modulnav\s*\{([^}]*)\}/.exec(abBreakpoint)?.[1] ?? "").toMatch(/display:\s*flex/);
+  });
+
   it("laesst die Modulknopfreihe nicht ueber den Titel brechen", () => {
     // Ebenfalls aus FullShell.test.tsx. Der alte `overflow: hidden` kaschierte
     // das Problem, indem er ueberzaehlige Module abschnitt; geblieben ist

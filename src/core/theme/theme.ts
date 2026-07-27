@@ -1,5 +1,5 @@
 import { theme as antdTheme, type ThemeConfig } from "antd";
-import { DRK, TAP, TAP_XL } from "@/core/theme/tokens";
+import { DRK, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
 
 /** Die beiden Betriebsarten des Suite-Themes. Hier definiert, weil sie zum
  *  Theme gehören — `mode.ts` (Cookie-Transport) reicht den Typ nur weiter. */
@@ -41,6 +41,29 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
         headerColor: dark ? "#ffffff" : DRK.tinte,
         bodyBg: dark ? "#000000" : DRK.papier,
         headerHeight: 64,
+        /*
+         * DAS TAP-ZIEL HAT DIE KOPFZEILE STILLSCHWEIGEND UM 80px VERENGT.
+         *
+         * antd leitet die Polsterung der Kopfzeile aus `controlHeightLG` ab:
+         * `paddingInline = controlHeightLG * 1.25` (antd/es/layout/style/
+         * index.js:85, eingesetzt Zeile 94). Mit antds Vorgabe 40 sind das die
+         * bekannten 50px; mit `TAP_XL` = 72 — dem Handschuh-Masz der Suite —
+         * werden daraus 90px JE SEITE, also 180px. Auf einem 768px-Fenster
+         * blieben 588px Inhalt, und der Modultitel wurde auf 0px gedrueckt.
+         *
+         * `shell.module.css` hatte dagegen schon `padding-inline: 16px`
+         * deklariert — nur galt es nie: `.kopf` und `.ant-layout-header` sind
+         * beide (0,1,0), und antds Stylesheet kommt spaeter. Dieselbe Kollision
+         * wie bei `.nurMobil` gegen `.ant-btn`. GEMESSEN, nicht hergeleitet:
+         * `getComputedStyle(header).paddingLeft` war "90px".
+         *
+         * Der Weg ueber den Token statt ueber CSS-Spezifitaet ist derselbe wie
+         * bei `inputFontSize` unten — er nimmt den Streit heraus, statt ihn zu
+         * gewinnen. `SPACE.lg` deckt sich mit der Polsterung der Modulnavigation
+         * in `shell.module.css`, damit Titel und Navigationszeile denselben
+         * linken Rand haben.
+         */
+        headerPadding: `0 ${SPACE.lg}px`,
       },
       // antd leitet die Radio-Marke NICHT aus controlHeight ab, sondern aus
       // fontSizeLG (Default 16). Ohne dieses Override schrumpft die Marke der

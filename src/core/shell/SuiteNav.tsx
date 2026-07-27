@@ -125,6 +125,79 @@ export function aktiverEintrag(pfad: string, nav: SuiteNavItem[]): AktiverEintra
 }
 
 /**
+ * Die Links der Modulnavigation — geteilt zwischen der zweiten Zeile
+ * (`Modulnav`, unter der Kopfzeile) und dem Drawer (mobil). Eine Funktion statt
+ * zweier Abschriften, weil die Aktivmarkierung an beiden Stellen dieselbe
+ * Aussage treffen muss.
+ *
+ * `next/link` und NICHT `Button href` wie bei den Modulen: der Unterschied ist
+ * fachlich. Module liegen auf FREMDEN Hosts, dorthin ist ein voller
+ * Seitenwechsel richtig. Die Modulnavigation bleibt im selben Modul — ein `<a>`
+ * warf dort die ganze Anwendung weg und lud sie neu. Der Modultitel in
+ * `SuiteHeader` nutzt aus demselben Grund `Link`.
+ *
+ * `"page"` NUR beim echten Treffer, sonst `"true"`. Beides ist gueltiges ARIA,
+ * aber nur eines davon ist hier wahr: `"page"` heiszt „das ist die aufgerufene
+ * Seite", `"true"` heiszt „das ist der aktuelle Eintrag dieser Gruppe". Auf
+ * `/wifi` ist „Generator" das zweite und nicht das erste. Gegen die Alternative
+ * — `aria-current` ganz weglassen und nur eine CSS-Klasse setzen — sprach, dass
+ * sie die Orientierung ersatzlos streicht: wer nicht sieht, dass der Rahmen
+ * unter „Generator" steht, erfuehre dann gar nicht mehr, in welchem Abschnitt er
+ * sich befindet. `"true"` sagt weniger als `"page"`, aber es sagt etwas, und es
+ * stimmt.
+ *
+ * Die optische Hervorhebung haengt deshalb an `[aria-current]` ohne Wert
+ * (shell.module.css) und nicht an `[aria-current="page"]`.
+ */
+function navLinks(nav: SuiteNavItem[], pfad: string) {
+  const aktiv = aktiverEintrag(pfad, nav);
+  return nav.map((eintrag) => (
+    <Link
+      key={eintrag.key}
+      href={eintrag.href}
+      className={s.navLink}
+      aria-current={
+        aktiv?.schluessel === eintrag.key ? (aktiv.genau ? "page" : "true") : undefined
+      }
+    >
+      {eintrag.title}
+    </Link>
+  ));
+}
+
+/**
+ * DIE MODULNAVIGATION ALS EIGENE ZEILE UNTER DER KOPFZEILE — nicht als drittes
+ * Kind darin.
+ *
+ * Sie war ein Geschwister von `.rechts` und landete damit als dritte Spalte im
+ * Flex-Container `.kopf`. Nachgeben konnte dort nur der Titel (`.rechts` steht
+ * auf `flex: 0 0 auto`, die Navigation behielt ihre Inhaltsbreite): zwischen
+ * 768px und 903px schrumpfte er auf 0px und jede Seite scrollte seitwaerts
+ * (gemessen: rechte Kante 904px). Der Titel ist der Link zurueck auf die
+ * Modulstartseite — ohne ihn ist jede Unterseite eine Sackgasse.
+ *
+ * Der Entwurf sah das nie anders vor (`2026-07-27-suite-chrome-design.md` §4,
+ * Tabelle: „zweite Zeile — Modul-Navigation, wenn uebergeben"). Dass sie auch
+ * bei 1280px rechts neben dem Avatar stand, war derselbe Fehler, nur ohne
+ * sichtbare Folge.
+ *
+ * EIGENE KOMPONENTE, nicht Teil von `SuiteNav`: sie muss ein GESCHWISTER des
+ * `<Header>` sein, `SuiteNav` steht darin. Client-Komponente, weil die
+ * Aktivmarkierung `usePathname()` braucht. Sie traegt bewusst KEIN eigenes
+ * `<Layout.Header>` — `headerHeight` bleibt 64 (Entwurf §4), die zweite Zeile
+ * kommt darunter hinzu.
+ */
+export function Modulnav({ nav }: { nav: SuiteNavItem[] }) {
+  const pfad = usePathname();
+  if (nav.length === 0) return null;
+  return (
+    <nav aria-label="Modulnavigation" data-testid="modulnav" className={s.modulnav}>
+      {navLinks(nav, pfad)}
+    </nav>
+  );
+}
+
+/**
  * Die Navigation der Suite: mobil ein Drawer hinter dem Menue-Knopf, ab 768px
  * eine Knopfreihe in der Kopfzeile. BEIDES wird immer gerendert; welche man
  * sieht, entscheidet `shell.module.css`. Ein JS-Breakpoint zeigte beim ersten
@@ -193,40 +266,9 @@ export function SuiteNav({
     );
   });
 
-  const aktiv = aktiverEintrag(pfad, nav);
-
-  /*
-   * `next/link` und NICHT `Button href` wie bei den Modulen darueber. Der
-   * Unterschied ist fachlich: Module liegen auf FREMDEN Hosts, dorthin ist ein
-   * voller Seitenwechsel richtig. Die Modulnavigation bleibt im selben Modul —
-   * ein `<a>` warf dort die ganze Anwendung weg und lud sie neu. Der Modultitel
-   * in `SuiteHeader` nutzt aus demselben Grund `Link`.
-   *
-   * `"page"` NUR beim echten Treffer, sonst `"true"`. Beides ist gueltiges
-   * ARIA, aber nur eines davon ist hier wahr: `"page"` heiszt „das ist die
-   * aufgerufene Seite", `"true"` heiszt „das ist der aktuelle Eintrag dieser
-   * Gruppe". Auf `/wifi` ist „Generator" das zweite und nicht das erste. Gegen
-   * die Alternative — `aria-current` ganz weglassen und nur eine CSS-Klasse
-   * setzen — sprach, dass sie die Orientierung ersatzlos streicht: wer nicht
-   * sieht, dass der Rahmen unter „Generator" steht, erfuehre dann gar nicht
-   * mehr, in welchem Abschnitt er sich befindet. `"true"` sagt weniger als
-   * `"page"`, aber es sagt etwas, und es stimmt.
-   *
-   * Die optische Hervorhebung haengt deshalb an `[aria-current]` ohne Wert
-   * (shell.module.css) und nicht an `[aria-current="page"]`.
-   */
-  const navLinks = nav.map((eintrag) => (
-    <Link
-      key={eintrag.key}
-      href={eintrag.href}
-      className={s.navLink}
-      aria-current={
-        aktiv?.schluessel === eintrag.key ? (aktiv.genau ? "page" : "true") : undefined
-      }
-    >
-      {eintrag.title}
-    </Link>
-  ));
+  // Nur noch fuer den Drawer: die sichtbare zweite Zeile gehoert `Modulnav`,
+  // einem Geschwister des `<Header>` (siehe dort).
+  const drawerNavLinks = navLinks(nav, pfad);
 
   /*
    * Der Name steht als Gruppentitel im Menue — sichtbar, aber fuer einen
@@ -350,12 +392,6 @@ export function SuiteNav({
         )}
       </div>
 
-      {nav.length > 0 ? (
-        <nav aria-label="Modulnavigation" data-testid="modulnav" className={s.modulnav}>
-          {navLinks}
-        </nav>
-      ) : null}
-
       {/*
         Der Drawer wird ERST NACH DER HYDRATION gerendert, und das ist kein
         Feinschliff: `forceRender` laesst antd den Inhalt sofort bauen,
@@ -382,7 +418,7 @@ export function SuiteNav({
             {nav.length > 0 ? (
               <div className={s.drawerGruppe}>
                 <div className={s.drawerTitel}>In diesem Modul</div>
-                {navLinks}
+                {drawerNavLinks}
               </div>
             ) : null}
 

@@ -11,7 +11,7 @@ import {
   existsPortal,
   clickPortal,
 } from "@/app/m/qr/_lib/test-dom";
-import { SuiteNav, aktiverEintrag } from "./SuiteNav";
+import { Modulnav, SuiteNav, aktiverEintrag } from "./SuiteNav";
 import type { AppSwitcherEntry, SuiteNavItem } from "./types";
 
 /**
@@ -184,8 +184,39 @@ describe("SuiteNav — angemeldet", () => {
     expect(existsPortal('[data-testid="nutzername"]')).toBe(false);
   });
 
-  it("zeigt die Modulnavigation, wenn das Modul welche uebergibt", async () => {
+  it("zeigt die Modulnavigation im Drawer, wenn das Modul welche uebergibt", async () => {
+    // Mobil ist der Drawer der einzige Ort, an dem sie steht — die sichtbare
+    // zweite Zeile (`Modulnav`) ist dort ausgeblendet.
     await zeichne({ nav: NAV });
+    const drawer = queryPortal('[data-testid="suite-drawer"]');
+    const titel = Array.from(drawer.querySelectorAll("a")).map((a) => a.textContent);
+    expect(titel).toContain("Uebersicht");
+    expect(titel).toContain("Vergleich");
+  });
+
+  it("laesst die Modulnavigation NICHT mehr in der Kopfzeile stehen", async () => {
+    /*
+     * DIE ZUSAGE DIESES FIXES, in jsdom gemessen. `Modulnav` ist ein
+     * GESCHWISTER des `<Header>` (SuiteHeader.tsx) und darf hier nicht mehr
+     * auftauchen — als drittes Flex-Kind der Kopfzeile nahm sie dem Modultitel
+     * zwischen 768px und 903px die gesamte Breite (er mass 0px, die Seite
+     * scrollte seitwaerts).
+     *
+     * Ein Rueckbau nach `SuiteNav` waere ohne diese Zeile in jsdom lautlos: die
+     * Geometrie sieht erst Playwright (`e2e/shell-mobil.spec.ts`,
+     * Mittelbreiten), und die Aktivmarkierung bliebe an beiden Orten gruen.
+     */
+    await zeichne({ nav: NAV });
+    expect(exists('[data-testid="modulnav"]')).toBe(false);
+  });
+});
+
+describe("Modulnav — die zweite Zeile unter der Kopfzeile", () => {
+  // Uebernommen aus dem `SuiteNav`-Block, seit die Zeile eine eigene Komponente
+  // ist. Sie steht im Wirt (kein Portal), also `query`/`exists`.
+
+  it("zeigt die Modulnavigation, wenn das Modul welche uebergibt", async () => {
+    await mount(<Modulnav nav={NAV} />);
     const zeile = query('[data-testid="modulnav"]');
     expect(Array.from(zeile.querySelectorAll("a")).map((a) => a.textContent)).toEqual([
       "Uebersicht",
@@ -195,7 +226,7 @@ describe("SuiteNav — angemeldet", () => {
 
   it("markiert den aktiven Eintrag der Modulnavigation als aktuelle SEITE", async () => {
     pathnameMock.mockReturnValue("/vergleich");
-    await zeichne({ nav: NAV });
+    await mount(<Modulnav nav={NAV} />);
     const aktiv = queryAll('[data-testid="modulnav"] a[aria-current="page"]');
     expect(aktiv).toHaveLength(1);
     expect(aktiv[0].getAttribute("href")).toBe("/vergleich");
@@ -211,11 +242,18 @@ describe("SuiteNav — angemeldet", () => {
      * und wahre Aussage.
      */
     pathnameMock.mockReturnValue("/wifi");
-    await zeichne({ nav: NAV });
+    await mount(<Modulnav nav={NAV} />);
     expect(queryAll('[data-testid="modulnav"] a[aria-current="page"]')).toHaveLength(0);
     const abschnitt = queryAll('[data-testid="modulnav"] a[aria-current="true"]');
     expect(abschnitt).toHaveLength(1);
     expect(abschnitt[0].getAttribute("href")).toBe("/");
+  });
+
+  it("rendert gar nichts, wenn das Modul keine Navigation uebergibt", async () => {
+    // Fuenf von sieben Modulen uebergeben nichts — sie duerfen keine leere
+    // Zeile und keine Trennlinie unter der Kopfzeile bekommen.
+    await mount(<Modulnav nav={[]} />);
+    expect(exists('[data-testid="modulnav"]')).toBe(false);
   });
 });
 
@@ -278,11 +316,6 @@ describe("aktiverEintrag — welcher Eintrag ist dran, und ist er es wirklich", 
 
   it("gibt null, wenn nichts passt und es keine Wurzel gibt", () => {
     expect(aktiverEintrag("/irgendwo", [{ key: "a", title: "A", href: "/anders" }])).toBeNull();
-  });
-
-  it("laesst die Modulnavigation weg, wenn nichts uebergeben wird", async () => {
-    await zeichne({ nav: [] });
-    expect(exists('[data-testid="modulnav"]')).toBe(false);
   });
 });
 

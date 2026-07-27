@@ -23,13 +23,16 @@ import { renderToStaticMarkup } from "react-dom/server";
  * (`useThemeMode` wirft ausserhalb des Providers), und geprueft wird hier die
  * Kopfzeile, nicht ihr Inhalt.
  */
-const { authMock, suiteNavMock } = vi.hoisted(() => ({
+const { authMock, suiteNavMock, modulnavMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
   suiteNavMock: vi.fn(() => null),
+  // Ein sichtbarer Platzhalter statt `null`: nur so laesst sich pruefen, WO im
+  // Baum die zweite Zeile landet (siehe den Test dazu unten).
+  modulnavMock: vi.fn(() => <i data-testid="modulnav-platz" />),
 }));
 
 vi.mock("@/core/auth", () => ({ auth: authMock }));
-vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock }));
+vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock, Modulnav: modulnavMock }));
 
 import { SuiteHeader } from "./SuiteHeader";
 import { moduleUrl } from "./moduleUrl";
@@ -98,7 +101,31 @@ describe("SuiteHeader", () => {
       { key: "vergleich", title: "Vergleich", href: "/vergleich" },
     ];
     suiteNavMock.mockClear();
+    modulnavMock.mockClear();
     await zeichne("feedback", nav);
+    // An BEIDE: `SuiteNav` braucht sie fuer den Drawer (mobil), `Modulnav` fuer
+    // die sichtbare zweite Zeile (ab 768px).
     expect(suiteNavMock).toHaveBeenCalledWith(expect.objectContaining({ nav }), undefined);
+    expect(modulnavMock).toHaveBeenCalledWith(expect.objectContaining({ nav }), undefined);
+  });
+
+  it("haengt die Modulnavigation NEBEN die Kopfzeile, nicht hinein", async () => {
+    /*
+     * DIE STRUKTURZUSAGE DIESES FIXES.
+     *
+     * Solange die Modulnavigation im `<Header>` sasz, war sie dort das dritte
+     * Kind eines Flex-Containers und konkurrierte mit dem Modultitel um die
+     * Breite. Zwischen 768px und 903px gewann sie: der Titel mass 0px, die
+     * Seite scrollte seitwaerts (rechte Kante 904px). Der Titel ist der Link
+     * zurueck auf die Modulstartseite — ohne ihn ist jede Unterseite eine
+     * Sackgasse. Der Entwurf (§4, Tabelle) sah immer eine „zweite Zeile" vor.
+     *
+     * Hier und nicht nur im E2E, weil der E2E die Geometrie prueft und nicht
+     * den Baum: eine Fassung, die bei 1280px zufaellig passt, waere dort gruen.
+     */
+    const wirt = await zeichne("feedback", [{ key: "start", title: "Übersicht", href: "/" }]);
+    const kopf = wirt.querySelector('[data-testid="suite-header"]')!;
+    expect(wirt.querySelector('[data-testid="modulnav-platz"]')).not.toBeNull();
+    expect(kopf.querySelector('[data-testid="modulnav-platz"]')).toBeNull();
   });
 });

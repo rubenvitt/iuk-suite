@@ -13,12 +13,25 @@
  * nicht auf `:root`, und eigenes Markup sieht sie nicht. Der Fehler waere still.
  */
 
+/*
+ * KEIN `padding-inline` HIER — das ist kein Versehen, sondern der Fix.
+ *
+ * Diese Regel trug einmal `padding-inline: 16px`, und es galt nie: `.kopf` und
+ * antds `.ant-layout-header` sind beide (0,1,0), antds Stylesheet kommt spaeter.
+ * Gemessen wurden 90px je Seite — antd rechnet `controlHeightLG * 1.25`, und
+ * `controlHeightLG` ist in dieser Suite das Handschuh-Masz 72 statt antds 40.
+ * Auf 768px blieben davon 588px Inhalt, zu wenig fuer Titel UND `.rechts`.
+ *
+ * Statt die Spezifitaet zu erhoehen, setzt `core/theme/theme.ts` jetzt den
+ * Token `Layout.headerPadding` — derselbe Weg wie bei `inputFontSize`. Er nimmt
+ * den Streit heraus, statt ihn zu gewinnen, und die Zahl steht dort einmal.
+ * Eine Regel an dieser Stelle waere ab sofort tote Deklaration.
+ */
 .kopf {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-inline: 16px;
 }
 
 .titel {
@@ -89,10 +102,26 @@
   flex-wrap: nowrap;
 }
 
-/* Die modul-interne Navigation als zweite Kopfzeile (nur Desktop, nur wenn das
-   Modul welche uebergibt). */
+/*
+ * Die modul-interne Navigation als ZWEITE ZEILE UNTER der Kopfzeile — nur
+ * Desktop, nur wenn das Modul welche uebergibt.
+ *
+ * Der Knoten ist ein Geschwister des `<Header>` und kein Kind (SuiteHeader.tsx).
+ * Solange er im Kopf sasz, war er dort das dritte Flex-Kind und nahm dem Titel
+ * die Breite weg: zwischen 768px und 903px blieben von ihm 0px, und die Seite
+ * scrollte seitwaerts. Hier unten konkurriert nichts mehr.
+ *
+ * `align-items: center`, weil die Zeile ihre Hoehe jetzt selbst aus den Links
+ * bezieht (56px Tap-Masz) statt aus `headerHeight`.
+ *
+ * Bewusst OHNE eigene Flaechenfarbe: sie liegt damit auf `Layout.bodyBg` statt
+ * auf `headerBg` und setzt sich ueber die untere Linie vom Inhalt ab. Die
+ * Alternative brauchte entweder `--ant-*` (sieht eigenes Markup nicht, Falle 2)
+ * oder eine zweite Farbquelle neben `core/theme`.
+ */
 .modulnav {
   display: none;
+  align-items: center;
   gap: 4px;
   padding-inline: 16px;
   border-block-end: 1px solid;
