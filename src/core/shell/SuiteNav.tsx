@@ -5,6 +5,7 @@ import {
   AppstoreOutlined,
   BorderOutlined,
   CaretUpOutlined,
+  CommentOutlined,
   DesktopOutlined,
   GlobalOutlined,
   LoginOutlined,
@@ -32,6 +33,7 @@ const ICONS: Record<string, ComponentType> = {
   CaretUpOutlined,
   GlobalOutlined,
   DesktopOutlined,
+  CommentOutlined,
 };
 
 function initialen(name: string | null): string {
@@ -175,7 +177,6 @@ export function SuiteNav({
         placement="left"
         title="IuK-Suite"
         forceRender
-        rootClassName="suite-drawer-root"
       >
         <div data-testid="suite-drawer">
           {nav.length > 0 ? (
@@ -208,14 +209,20 @@ export function SuiteNav({
               </>
             ) : (
               /*
-               * Anonym gibt es KEINE Modulliste, sondern diesen Knopf. Grund:
-               * `canAccess()` steigt bei `requiresAuth: false` frueh mit true
-               * aus und wuerde `feedback` anbieten — dessen Modulwurzel liegt
-               * aber hinter `requireFeedbackAccess()` und wirft den Besucher
-               * auf 404. Ein Wechselziel, das nicht funktioniert, gehoert nicht
-               * in die Leiste. Die saubere Alternative waere ein Registry-Feld,
-               * das `qr` von `feedback` unterscheidet; das aendert aber
-               * `core/registry` und gehoert damit in ein eigenes Vorhaben.
+               * Anonym gibt es KEINE Modulliste, sondern diesen Knopf.
+               *
+               * Der Grund ist nicht, dass die anderen Module kaputt waeren —
+               * wer abgemeldet auf `feedback` klickt, landet auf `/login`
+               * (requireFeedbackAccess.ts:35), also genau dort, wohin dieser
+               * Knopf direkt fuehrt. Ein Modulwechsler, dessen Eintraege
+               * allesamt zum Login umleiten, verspricht "hier kannst du hin"
+               * und liefert "hier musst du dich erst anmelden". Der eine
+               * Knopf sagt dasselbe ehrlicher und in einem Schritt.
+               *
+               * Praktisch bleibt ohnehin fast nichts uebrig: anonym liefert
+               * `canAccess()` nur die Module mit `requiresAuth: false` —
+               * heute `qr` (auf dem man dann schon ist) und `feedback`
+               * (Login). Eine Liste mit einem Eintrag, der zum Login fuehrt.
                */
               <Button type="text" data-testid="anmelden" href="/login" icon={<LoginOutlined />}>
                 Anmelden

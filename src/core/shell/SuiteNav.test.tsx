@@ -146,11 +146,15 @@ describe("aktiverSchluessel — welcher Eintrag ist dran", () => {
   });
 
   it("nimmt den spezifischsten Treffer, wenn zwei passen", () => {
+    // ECHTE Kollision: der Pfad endet auf BEIDE hrefs. Eine frühere Fassung
+    // nahm `/groups` + `/groups/17` — dabei passt `/groups` gar nicht auf
+    // `…/groups/17`, es gab nie zwei Treffer, und der Test war auch ohne
+    // Sortierung gruen.
     const verschachtelt = [
-      { key: "gruppen", title: "Gruppen", href: "/groups" },
-      { key: "eine", title: "Eine Gruppe", href: "/groups/17" },
+      { key: "kurz", title: "Kurz", href: "/17" },
+      { key: "lang", title: "Lang", href: "/groups/17" },
     ];
-    expect(aktiverSchluessel("/m/feedback/groups/17", verschachtelt)).toBe("eine");
+    expect(aktiverSchluessel("/m/feedback/groups/17", verschachtelt)).toBe("lang");
   });
 
   it("gibt null, wenn nichts passt und es keine Wurzel gibt", () => {
@@ -165,11 +169,11 @@ describe("aktiverSchluessel — welcher Eintrag ist dran", () => {
 
 describe("SuiteNav — anonym", () => {
   it("bietet Anmelden statt Abmelden und KEINE Modulliste", async () => {
-    // Der anonyme Besucher auf `qr` bekaeme sonst `feedback` angeboten:
-    // canAccess() steigt bei requiresAuth:false frueh mit true aus, aber die
-    // Modulwurzel von feedback liegt hinter requireFeedbackAccess() und wirft
-    // ihn auf 404. Ein Wechselziel, das nicht funktioniert, gehoert nicht in
-    // die Leiste.
+    // Anonym gibt es KEINE Modulliste, sondern nur den Anmelden-Knopf (Grund
+    // siehe SuiteNav.tsx): wer abgemeldet auf `feedback` klickt, landet
+    // ohnehin auf `/login` (requireFeedbackAccess.ts:35) — genau dort, wohin
+    // dieser Knopf direkt fuehrt. Ein Modulwechsler, dessen Eintraege
+    // allesamt zum Login umleiten, ist keiner.
     await zeichne({ angemeldet: false, userName: null });
     expect(existsPortal('[data-testid="anmelden"]')).toBe(true);
     expect(existsPortal('[data-testid="abmelden"]')).toBe(false);
