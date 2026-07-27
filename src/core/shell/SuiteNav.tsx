@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   AppstoreOutlined,
   BorderOutlined,
@@ -35,6 +35,17 @@ const ICONS: Record<string, ComponentType> = {
   DesktopOutlined,
   CommentOutlined,
 };
+
+/*
+ * Die `subscribe`-Funktion MUSS stabil sein (ausserhalb der Komponente
+ * definiert): eine bei jedem Render neu erzeugte liesze React endlos
+ * ab- und wieder anmelden.
+ *
+ * Hier aendert sich ohnehin nie etwas — die Frage "bin ich auf dem Client?"
+ * wird genau einmal anders beantwortet, naemlich beim Uebergang vom Server-
+ * zum Client-Render. Deshalb eine leere Abmeldefunktion.
+ */
+const NIE_AENDERND = () => () => {};
 
 function initialen(name: string | null): string {
   return (name ?? "?")
@@ -97,8 +108,22 @@ export function SuiteNav({
   angemeldet: boolean;
 }) {
   const [offen, setOffen] = useState(false);
-  const [montiert, setMontiert] = useState(false);
-  useEffect(() => setMontiert(true), []);
+  /*
+   * `montiert` ist auf dem Server `false`, auf dem Client `true`. Damit
+   * entsteht der Drawer serverseitig gar nicht — siehe die ausfuehrliche
+   * Begruendung unten am Drawer selbst.
+   *
+   * `useSyncExternalStore` statt `useState` + `useEffect`: das Effekt-Muster
+   * ist dasselbe Ergebnis, verstoesst aber gegen `react-hooks/set-state-in-
+   * effect` (setState im Effektkoerper erzeugt einen zweiten Renderdurchlauf).
+   * Dieser Hook ist Reacts eigene Antwort auf die Frage "Server oder Client?"
+   * und braucht dafuer weder Effekt noch Zustand.
+   */
+  const montiert = useSyncExternalStore(
+    NIE_AENDERND,
+    () => true, // Client
+    () => false, // Server
+  );
   const pfad = usePathname();
 
   const modulLinks = entries.map((eintrag) => {
