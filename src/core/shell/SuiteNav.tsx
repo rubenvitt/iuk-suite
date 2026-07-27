@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AppstoreOutlined,
   BorderOutlined,
@@ -97,6 +97,8 @@ export function SuiteNav({
   angemeldet: boolean;
 }) {
   const [offen, setOffen] = useState(false);
+  const [montiert, setMontiert] = useState(false);
+  useEffect(() => setMontiert(true), []);
   const pfad = usePathname();
 
   const modulLinks = entries.map((eintrag) => {
@@ -167,70 +169,81 @@ export function SuiteNav({
       ) : null}
 
       {/*
-        `forceRender`: ohne das baut antd den Inhalt erst beim Oeffnen. Der
-        jsdom-Test faende dann nur den Knopf und pruefte nichts — und der
-        Fehler saehe aus wie ein gruener Test.
+        Der Drawer wird ERST NACH DER HYDRATION gerendert, und das ist kein
+        Feinschliff: `forceRender` laesst antd den Inhalt sofort bauen,
+        serverseitig gibt es aber kein `document` fuer das Portal ("Portal
+        only work in client side"). Der daraus folgende Hydration-Mismatch
+        liesz React den Teilbaum verwerfen — mitsamt dem Client-State, an dem
+        der Absende-Knopf der anonymen QR-Formulare haengt. Sie waren dadurch
+        UNBENUTZBAR (e2e/qr.spec.ts: 3 Tests im 90s-Timeout, isoliert bewiesen
+        ueber zwei Worktrees).
+
+        Verloren geht dabei nichts: ohne JavaScript laeszt sich der Drawer
+        ohnehin nicht oeffnen. `forceRender` bleibt fuer den Client noetig,
+        damit die jsdom-Tests den Inhalt vor dem Oeffnen finden.
       */}
-      <Drawer
-        open={offen}
-        onClose={() => setOffen(false)}
-        placement="left"
-        title="IuK-Suite"
-        forceRender
-      >
-        <div data-testid="suite-drawer">
-          {nav.length > 0 ? (
-            <div className={s.drawerGruppe}>
-              <div className={s.drawerTitel}>In diesem Modul</div>
-              {navLinks}
-            </div>
-          ) : null}
+      {montiert ? (
+        <Drawer
+          open={offen}
+          onClose={() => setOffen(false)}
+          placement="left"
+          title="IuK-Suite"
+          forceRender
+        >
+          <div data-testid="suite-drawer">
+            {nav.length > 0 ? (
+              <div className={s.drawerGruppe}>
+                <div className={s.drawerTitel}>In diesem Modul</div>
+                {navLinks}
+              </div>
+            ) : null}
 
-          {angemeldet ? (
-            <div className={s.drawerGruppe}>
-              <div className={s.drawerTitel}>Module</div>
-              {modulLinks}
-            </div>
-          ) : null}
-
-          <div className={s.drawerGruppe}>
-            <ThemeToggle testId="theme-toggle-drawer" />
             {angemeldet ? (
-              <>
-                {userName ? <div>{userName}</div> : null}
-                <Button
-                  type="text"
-                  data-testid="abmelden"
-                  icon={<LogoutOutlined />}
-                  onClick={() => signOut({ callbackUrl: "/api/auth/oidc-signout" })}
-                >
-                  Abmelden
+              <div className={s.drawerGruppe}>
+                <div className={s.drawerTitel}>Module</div>
+                {modulLinks}
+              </div>
+            ) : null}
+
+            <div className={s.drawerGruppe}>
+              <ThemeToggle testId="theme-toggle-drawer" />
+              {angemeldet ? (
+                <>
+                  {userName ? <div>{userName}</div> : null}
+                  <Button
+                    type="text"
+                    data-testid="abmelden"
+                    icon={<LogoutOutlined />}
+                    onClick={() => signOut({ callbackUrl: "/api/auth/oidc-signout" })}
+                  >
+                    Abmelden
+                  </Button>
+                </>
+              ) : (
+                /*
+                 * Anonym gibt es KEINE Modulliste, sondern diesen Knopf.
+                 *
+                 * Der Grund ist nicht, dass die anderen Module kaputt waeren —
+                 * wer abgemeldet auf `feedback` klickt, landet auf `/login`
+                 * (requireFeedbackAccess.ts:35), also genau dort, wohin dieser
+                 * Knopf direkt fuehrt. Ein Modulwechsler, dessen Eintraege
+                 * allesamt zum Login umleiten, verspricht "hier kannst du hin"
+                 * und liefert "hier musst du dich erst anmelden". Der eine
+                 * Knopf sagt dasselbe ehrlicher und in einem Schritt.
+                 *
+                 * Praktisch bleibt ohnehin fast nichts uebrig: anonym liefert
+                 * `canAccess()` nur die Module mit `requiresAuth: false` —
+                 * heute `qr` (auf dem man dann schon ist) und `feedback`
+                 * (Login). Eine Liste mit einem Eintrag, der zum Login fuehrt.
+                 */
+                <Button type="text" data-testid="anmelden" href="/login" icon={<LoginOutlined />}>
+                  Anmelden
                 </Button>
-              </>
-            ) : (
-              /*
-               * Anonym gibt es KEINE Modulliste, sondern diesen Knopf.
-               *
-               * Der Grund ist nicht, dass die anderen Module kaputt waeren —
-               * wer abgemeldet auf `feedback` klickt, landet auf `/login`
-               * (requireFeedbackAccess.ts:35), also genau dort, wohin dieser
-               * Knopf direkt fuehrt. Ein Modulwechsler, dessen Eintraege
-               * allesamt zum Login umleiten, verspricht "hier kannst du hin"
-               * und liefert "hier musst du dich erst anmelden". Der eine
-               * Knopf sagt dasselbe ehrlicher und in einem Schritt.
-               *
-               * Praktisch bleibt ohnehin fast nichts uebrig: anonym liefert
-               * `canAccess()` nur die Module mit `requiresAuth: false` —
-               * heute `qr` (auf dem man dann schon ist) und `feedback`
-               * (Login). Eine Liste mit einem Eintrag, der zum Login fuehrt.
-               */
-              <Button type="text" data-testid="anmelden" href="/login" icon={<LoginOutlined />}>
-                Anmelden
-              </Button>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      </Drawer>
+        </Drawer>
+      ) : null}
     </>
   );
 }
