@@ -23,10 +23,13 @@ import { renderToStaticMarkup } from "react-dom/server";
  * (`useThemeMode` wirft ausserhalb des Providers), und geprueft wird hier die
  * Kopfzeile, nicht ihr Inhalt.
  */
-const { authMock } = vi.hoisted(() => ({ authMock: vi.fn() }));
+const { authMock, suiteNavMock } = vi.hoisted(() => ({
+  authMock: vi.fn(),
+  suiteNavMock: vi.fn(() => null),
+}));
 
 vi.mock("@/core/auth", () => ({ auth: authMock }));
-vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: () => null }));
+vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock }));
 
 import { SuiteHeader } from "./SuiteHeader";
 import { moduleUrl } from "./moduleUrl";
@@ -77,10 +80,25 @@ describe("SuiteHeader", () => {
     expect(titel(await zeichne("gamma"))!.textContent).toBe("Gamma");
   });
 
-  it("reicht die Modulnavigation durch, ohne sie zu erfinden", async () => {
-    // Ohne `nav` bleibt es beim heutigen Bild — die Aenderung ist fuer Module,
-    // die nichts uebergeben, unsichtbar.
-    const ohne = await SuiteHeader({ moduleKey: "gamma" });
-    expect(ohne).toBeTruthy();
+  it("reicht eine leere Modulnavigation weiter, statt eine zu erfinden", async () => {
+    // `toBeTruthy()` auf dem Rueckgabewert waere hier wertlos gewesen: eine
+    // Komponente, die nicht wirft, liefert immer etwas Wahrheitswertiges. Die
+    // Zusage lautet aber "Module, die nichts uebergeben, bekommen genau das
+    // heutige Bild" — pruefbar allein daran, WOMIT SuiteNav gerufen wird.
+    suiteNavMock.mockClear();
+    await zeichne("gamma");
+    // Zweites Argument ist Reacts Komponentenparameter (hier `undefined`, nicht
+    // ein Ref-Objekt) — geprueft am tatsaechlichen Aufruf, nicht geraten.
+    expect(suiteNavMock).toHaveBeenCalledWith(expect.objectContaining({ nav: [] }), undefined);
+  });
+
+  it("reicht eine uebergebene Modulnavigation unveraendert durch", async () => {
+    const nav = [
+      { key: "start", title: "Übersicht", href: "/" },
+      { key: "vergleich", title: "Vergleich", href: "/vergleich" },
+    ];
+    suiteNavMock.mockClear();
+    await zeichne("feedback", nav);
+    expect(suiteNavMock).toHaveBeenCalledWith(expect.objectContaining({ nav }), undefined);
   });
 });
