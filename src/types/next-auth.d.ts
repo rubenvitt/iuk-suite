@@ -29,6 +29,14 @@ declare module "next-auth/jwt" {
     idToken?: string;
     refreshToken?: string;
     expiresAt?: number;
+    /**
+     * Zeitpunkt (ms) des letzten TRANSIENT gescheiterten Refresh-Versuchs.
+     * Traegt den Backoff aus `core/auth/refresh.ts`: solange weniger als
+     * BACKOFF_MS her, wird der Token-Endpoint gar nicht erst gerufen. Wird bei
+     * jedem Erfolg wieder geleert. Ein ENDGUELTIGER Fehlschlag setzt statt
+     * dessen `error` — die beiden Felder schliessen einander aus.
+     */
+    refreshFailedAt?: number;
     error?: string;
   }
 }
