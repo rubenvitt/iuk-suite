@@ -64,6 +64,18 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
        * keine dritte Skala im Sinne von docs/design/README.md:110.
        */
       Select: { optionFontSize: 16 },
+      /*
+       * `inputFontSize`, NICHT `fontSize` — antd nennt den Token an diesen drei
+       * Komponenten so. Der globale `fontSize` bliebe verboten, er verschoebe
+       * die ganze Leiter (docs/design/README.md:110).
+       *
+       * Ueber Tokens statt ueber CSS-Spezifitaet, damit die Regel in
+       * `globals.css` niedrig spezifisch bleiben kann und Modul-CSS sie
+       * weiterhin nach oben ueberschreibt.
+       */
+      Input: { inputFontSize: 16 },
+      InputNumber: { inputFontSize: 16 },
+      DatePicker: { inputFontSize: 16 },
     },
   };
 }

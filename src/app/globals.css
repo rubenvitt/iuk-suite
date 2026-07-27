@@ -33,7 +33,13 @@ body {
  * werden aus dieser Ansicht gedruckt.
  */
 /*
- * EINGABEFELDER NIE UNTER 16px — suiteweit, ohne Media Query.
+ * UNTERGRENZE, KEIN DIKTAT — deshalb bewusst NIEDRIGE Spezifitaet (0,0,1).
+ * Jede Modul-Klasse (0,1,0) schlaegt sie und darf nach OBEN abweichen: der
+ * Abendzettel setzt `.textfeld` auf 18px und muss das behalten duerfen. Nach
+ * UNTEN schuetzt `core/theme/feldschrift.test.ts`, nicht die Kaskade.
+ *
+ * Eine frühere Fassung stand auf `:root input` (0,1,1) und ueberstimmte damit
+ * genau die Modul-Regeln, die sie in Ruhe lassen sollte.
  *
  * Frueher war das die Abwehr gegen iOS' Auto-Zoom beim Fokus. Seit der Zoom in
  * `app/layout.tsx` gesperrt ist, zoomt iOS gar nicht mehr; die Regel bleibt aus
@@ -41,25 +47,26 @@ body {
  * ist. Die beiden Regeln gehoeren zusammen — wer eine anfasst, prueft die
  * andere. `core/theme/feldschrift.test.ts` haelt beides fest.
  *
- * `:root` steht davor, NICHT aus Gewohnheit: eine nackte Regel `input {…}` hat
- * Spezifitaet (0,0,1) und unterliegt antds `.ant-input` (0,1,0) — sie wirkt
- * still nicht. Mit `:root` sind es (0,1,1) bzw. (0,2,0), und es braucht kein
- * `!important`. Modul-eigenes CSS mit hoeherer Spezifitaet gewinnt weiterhin
- * nach oben (der Abendzettel setzt `.textfeld` auf 18px).
- *
- * `.ant-select-selector` gehoert dazu, weil antd die geschlossene Auswahl aus
- * einem `<div>` baut — das `input` darin ist unsichtbar und traegt die
- * Schriftgroesse nicht. antd bietet dafuer KEINEN Token an (`Select` kennt nur
- * `optionFontSize` fuer die offene Liste, siehe theme.ts). Dass hier ein
- * antd-interner Klassenname steht, ist eine bewusst eingegangene Kopplung: ein
- * antd-Major koennte ihn umbenennen, und der Bruch waere still.
- *
  * Keine Media Query: `controlHeight` ist 56, da ist reichlich Platz, und ein
  * zweiter Breakpoint neben dem der Shell (768px) waere eine zweite Skala.
  */
-:root input,
-:root textarea,
-:root select,
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+/*
+ * Die EINZIGE Stelle, die erhoehte Spezifitaet braucht: antd baut die
+ * geschlossene Auswahl aus einem `<div class="ant-select-selector">` (0,1,0) —
+ * das `input` darin ist unsichtbar und traegt die Schriftgroesse nicht. Einen
+ * Token bietet antd dafuer nicht an (`Select` kennt nur `optionFontSize` fuer
+ * die offene Liste, siehe theme.ts). Alles andere aus antd laeuft ueber
+ * `inputFontSize` in `theme.ts` und braucht hier nichts.
+ *
+ * Dass hier ein antd-interner Klassenname steht, ist eine bewusst eingegangene
+ * Kopplung: ein antd-Major koennte ihn umbenennen, und der Bruch waere still.
+ */
 :root .ant-select-selector {
   font-size: 16px;
 }
