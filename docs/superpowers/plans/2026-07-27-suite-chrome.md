@@ -277,6 +277,14 @@ Expected: FAIL — die Regel fehlt in `globals.css`, `optionFontSize` ist `undef
 
 - [ ] **Step 3: `globals.css` ergänzen**
 
+> **ÜBERHOLT durch Fix-Runde 1.** Die Regel unten steht auf `:root input, …` (Spezifität 0,1,1) und
+> überstimmt damit Modul-Klassen wie `.textfeld` (0,1,0) — sie hätte das 18px-Freitextfeld des
+> öffentlichen Abendzettels auf 16px heruntergezwungen. Umgesetzt ist stattdessen: `input, textarea,
+> select` **ohne** `:root` (0,0,1, von Modul-CSS überschreibbar), `:root .ant-select-selector` als
+> einzige Ausnahme, und `Input`/`InputNumber`/`DatePicker` je `inputFontSize: 16` in `theme.ts`.
+> Siehe den Korrekturkasten im Spec, §3. Der Text unten bleibt als Beleg dafür stehen, wie der
+> Fehler aussah.
+
 Am Ende von `src/app/globals.css`, **vor** dem `@media print`-Block, einfügen:
 
 ```css
@@ -1676,6 +1684,7 @@ rtk git commit -m "feat: Modulnavigation in feedback-Admin und qr"
 **Files:**
 - Create: `e2e/shell-mobil.spec.ts`
 - Modify: `docs/design/README.md`
+- Modify: `docs/design/feedback-admin.md:875` (§4.14 — beschreibt eine Regel, die es nicht mehr gibt)
 
 - [ ] **Step 1: E2E schreiben**
 
@@ -1814,12 +1823,42 @@ Aufteilung, die trägt:
 - **Playwright bei 390×844** besitzt das Ergebnis: „man sieht es nicht".
 ```
 
-- [ ] **Step 4: Volle Prüfung und Commit**
+- [ ] **Step 4: Den Referenzentwurf nachziehen**
+
+`docs/design/feedback-admin.md:875` (§4.14) beschreibt als geltende Regel:
+
+> Mobile Feldschrift: `@media (max-width: 600px) { .fb-form input, .fb-form textarea, .fb-form …`
+
+**Diese Regel gibt es nicht mehr** — Task 2 hat sie aus `feedback.css` entfernt, weil sie zur
+suiteweiten Regel in `globals.css` geworden ist. Ein Referenzentwurf, der eine gelöschte Regel als
+aktuell beschreibt, schickt den nächsten Leser in die falsche Datei.
+
+Ersetze den Satz an dieser Stelle durch:
+
+```markdown
+Mobile Feldschrift: gilt inzwischen **suiteweit** und ohne Breakpoint. Die modul-eigene Fassung unter
+`@media (max-width: 600px)` ist entfallen. An ihre Stelle treten zwei Wege für zwei Welten:
+`app/globals.css` hält mit `input, textarea, select` eine **Untergrenze** für eigenes Markup —
+bewusst niedrig spezifisch, damit Modul-CSS sie nach oben überschreiben darf (der Abendzettel setzt
+`.textfeld` auf 18px und behält das) — und `core/theme/theme.ts` gibt den antd-Feldern
+`inputFontSize: 16`. Nur `.ant-select-selector` braucht in CSS erhöhte Spezifität, weil antd dafür
+keinen Token anbietet.
+
+Die Begründung hat sich dabei umgedreht: früher war 16px die Abwehr gegen iOS' Auto-Zoom beim Fokus,
+seit der suiteweiten Zoom-Sperre (`app/layout.tsx`) ist es reine Lesbarkeit — ohne Zoom kann niemand
+mehr heranholen, was zu klein ist. Festgehalten in `core/theme/feldschrift.test.ts`.
+```
+
+Prüfe im selben Zug, ob der umgebende Absatz noch stimmt, und passe nur an, was durch die
+Verschiebung falsch geworden ist — der Entwurf ist ein historisches Dokument mit Begründungen, keine
+Referenzdokumentation, und wird nicht umgeschrieben.
+
+- [ ] **Step 5: Volle Prüfung und Commit**
 
 ```bash
 rtk pnpm typecheck && rtk pnpm lint && rtk pnpm vitest run && rtk pnpm build
 rtk pnpm exec playwright test
-rtk git add e2e/shell-mobil.spec.ts docs/design/README.md
+rtk git add e2e/shell-mobil.spec.ts docs/design/README.md docs/design/feedback-admin.md
 rtk git commit -m "test(shell): mobiler E2E-Lauf, Querschnittsregeln in docs/design"
 ```
 

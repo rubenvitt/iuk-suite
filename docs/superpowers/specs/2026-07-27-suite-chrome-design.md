@@ -96,27 +96,52 @@ nachgeschlagen (Stand antd 6):
 Ein Token-Ansatz hätte also für `Select` still nicht gegriffen. Das ist dieselbe Falle, vor der
 `feedback.css:325-329` bereits warnt, nur eine Ebene höher.
 
-### Was gemacht wird — eine CSS-Regel, ein Komponenten-Token
+### Was gemacht wird — zwei CSS-Regeln, vier Komponenten-Tokens
 
-**Die Eingabefelder** — eine Regel in `globals.css`, das erprobte Muster aus `feedback.css:331-336`,
-nur global statt auf `.fb-form` beschränkt:
+> **Korrektur nach der Umsetzung.** Die erste Fassung dieses Abschnitts schrieb *eine* Regel mit
+> `:root`-Präfix vor und behauptete, Modul-CSS überschreibe sie weiterhin nach oben. Das war falsch:
+> `:root textarea` ist (0,1,1), eine Modul-Klasse wie `.textfeld` nur (0,1,0) — die globale Regel
+> gewinnt und hätte das bewusst auf **18px** gestaltete Freitextfeld des öffentlichen Abendzettels
+> auf 16px heruntergezwungen. Der CSS-Scan-Test fängt das nicht: er prüft auf Werte *unter* 16px,
+> und 18→16 ist keiner. Aufgefallen ist es erst im Review, an einem `⚠️ Cannot verify from diff`.
+> Die korrigierte Fassung steht unten; sie ist umgesetzt und durch einen Regressionstest gesichert.
+
+**Die Regel soll eine Untergrenze sein, kein Diktat.** Daran hängt die ganze Aufteilung:
 
 ```css
-:root input,
-:root textarea,
-:root select,
+/* Untergrenze fuer natives Markup — bewusst NIEDRIGE Spezifitaet (0,0,1),
+   damit jede Modul-Klasse (0,1,0) sie schlaegt und nach OBEN abweichen darf.
+   Nach unten schuetzt der Test, nicht die Kaskade. */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+/* Die einzige Stelle mit erhoehter Spezifitaet. */
 :root .ant-select-selector {
   font-size: 16px;
 }
 ```
 
-Das `:root`-Präfix hebt die Spezifität auf (0,1,1) bzw. (0,2,0) und schlägt damit antds Klassenregeln,
-ohne `!important`. Die Regel erfasst alles in einem Zug: natives Markup der öffentlichen Ansichten,
-`Input`/`Input.TextArea`/`InputNumber`/`AutoComplete`/`DatePicker` (die rendern intern ein `<input>`)
-und über den Selektor-Container auch die geschlossene `Select`-Anzeige, die selbst ein `<div>` ist.
+```ts
+components: {
+  Input:       { inputFontSize: 16 },
+  InputNumber: { inputFontSize: 16 },
+  DatePicker:  { inputFontSize: 16 },
+  Select:      { optionFontSize: 16 },
+}
+```
 
-Modul-eigene Regeln mit höherer Spezifität überschreiben weiterhin nach oben — der Zettel setzt
-`.textfeld { font-size: 18px }` und bleibt unberührt.
+Der Zusammenhang, der beim ersten Entwurf fehlte: **weil die antd-Felder über Tokens laufen, darf die
+CSS-Regel niedrig spezifisch bleiben.** Ohne die Tokens bräuchte sie `:root`, um `.ant-input` (0,1,0)
+zu schlagen — und genau dieses `:root` überstimmte dann den Abendzettel. Ein Token und eine CSS-Regel
+für dieselbe Sache wären eine Doppelung; hier sind es zwei Wege für zwei verschiedene Welten, und der
+eine erlaubt dem anderen, schwach zu bleiben.
+
+`Select` bleibt bei CSS, weil antd für den geschlossenen Selektor keinen Token anbietet — die
+geschlossene Auswahl ist ein `<div>`, das `input` darin ist unsichtbar und trägt die Schriftgröße
+nicht.
 
 **Bekannte Kopplung:** `.ant-select-selector` ist ein antd-interner Klassenname. Ein antd-Major könnte
 ihn umbenennen, und der Bruch wäre still. Das Projekt geht diese Kopplung heute schon in `feedback.css`
