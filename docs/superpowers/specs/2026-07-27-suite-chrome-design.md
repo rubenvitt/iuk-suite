@@ -296,18 +296,30 @@ heute automatisch geht. Die Route existiert und behandelt den Pocket-ID-`end_ses
 `qr` ist `requiresAuth: false`, `MinimalShell` bekommt die Leiste neu — ein anonymer Besucher sieht sie
 also. Naiv würde er einen „Abmelden"-Knopf für eine Sitzung bekommen, die es nie gab. Zudem liefert
 `switcherEntries(null)` ihm `qr` **und** `feedback`, weil `canAccess` bei `requiresAuth: false` früh
-mit `true` aussteigt (so dokumentiert in `registry.ts:52-58`). Die Modulwurzel von `feedback` ist aber
-`(admin)/page.tsx` hinter `requireFeedbackAccess()` — ein toter Link, der den Besucher auf 404 wirft.
+mit `true` aussteigt (so dokumentiert in `registry.ts:52-58`).
 
 **Entscheidung:** Ist niemand angemeldet, zeigt der Drawer **keine Modulliste**, sondern einen
 **Anmelden**-Knopf (auf `/login`) plus den Theme-Umschalter. Kein Nutzerblock, kein Abmelden.
 
-Begründung: Der Zustand „anonym auf einem Modul, das anonym funktioniert" ist heute nur `qr` — von dort
-zu einem anderen Modul zu wechseln setzt ohnehin eine Anmeldung voraus. Die Alternative wäre ein neues
-Registry-Feld (etwa `anonymousEntry`), das `qr` von `feedback` unterscheidet. Das wäre der ehrlichere
-Datenmodell-Fix, aber er ändert `core/registry` — und das ist laut §1 nicht Teil von A. Wenn ein
-zweites anonym nutzbares Modul dazukommt, ist das der Moment für das Feld; bis dahin ist der
-Anmelden-Knopf die kleinere und ebenso korrekte Antwort.
+> **Korrigierte Begründung.** Die erste Fassung schrieb, der `feedback`-Eintrag sei ein toter Link, der
+> den Besucher „auf 404 wirft". Das stimmt nicht — nachgeprüft in
+> `app/m/feedback/_lib/requireFeedbackAccess.ts:35`: ohne Session gibt es einen `redirect` auf
+> `/login`. Das `notFound()` eine Zeile später greift erst bei vorhandener Sitzung **ohne** die nötige
+> Gruppe. Aufgefallen im Review von Task 4.
+
+Der tragfähige Grund ist ein anderer und ein besserer: Wer abgemeldet auf `feedback` klickt, landet auf
+`/login` — also genau dort, wohin der Anmelden-Knopf direkt führt. Ein Modulwechsler, dessen Einträge
+allesamt zum Login umleiten, verspricht „hier kannst du hin" und liefert „hier musst du dich erst
+anmelden". Der eine Knopf sagt dasselbe ehrlicher und in einem Schritt.
+
+Praktisch bleibt ohnehin fast nichts übrig: anonym liefert `canAccess()` nur die Module mit
+`requiresAuth: false` — heute `qr` (auf dem man dann schon ist) und `feedback` (Login). Eine Liste mit
+einem Eintrag, der zum Login führt.
+
+Die Alternative wäre ein neues Registry-Feld (etwa `anonymousEntry`), das `qr` von `feedback`
+unterscheidet. Das wäre der ehrlichere Datenmodell-Fix, aber er ändert `core/registry` — und das ist
+laut §1 nicht Teil von A. Wenn ein zweites anonym nutzbares Modul dazukommt, ist das der Moment für das
+Feld; bis dahin ist der Anmelden-Knopf die kleinere und ebenso korrekte Antwort.
 
 ---
 

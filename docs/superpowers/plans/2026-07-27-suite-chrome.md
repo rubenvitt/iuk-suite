@@ -899,11 +899,16 @@ describe("aktiverSchluessel — welcher Eintrag ist dran", () => {
   });
 
   it("nimmt den spezifischsten Treffer, wenn zwei passen", () => {
+    // ECHTE Kollision: der Pfad endet auf BEIDE hrefs. Eine fruehere Fassung
+    // nahm `/groups` + `/groups/17` — dabei passt `/groups` gar nicht auf
+    // `…/groups/17` (endsWith!), es gab nie zwei Treffer, und der Test war auch
+    // ohne jede Sortierung gruen. Ein Test, der seine eigene Behauptung nicht
+    // prueft.
     const verschachtelt = [
-      { key: "gruppen", title: "Gruppen", href: "/groups" },
-      { key: "eine", title: "Eine Gruppe", href: "/groups/17" },
+      { key: "kurz", title: "Kurz", href: "/17" },
+      { key: "lang", title: "Lang", href: "/groups/17" },
     ];
-    expect(aktiverSchluessel("/m/feedback/groups/17", verschachtelt)).toBe("eine");
+    expect(aktiverSchluessel("/m/feedback/groups/17", verschachtelt)).toBe("lang");
   });
 
   it("gibt null, wenn nichts passt und es keine Wurzel gibt", () => {
@@ -918,11 +923,11 @@ describe("aktiverSchluessel — welcher Eintrag ist dran", () => {
 
 describe("SuiteNav — anonym", () => {
   it("bietet Anmelden statt Abmelden und KEINE Modulliste", async () => {
-    // Der anonyme Besucher auf `qr` bekaeme sonst `feedback` angeboten:
-    // canAccess() steigt bei requiresAuth:false frueh mit true aus, aber die
-    // Modulwurzel von feedback liegt hinter requireFeedbackAccess() und wirft
-    // ihn auf 404. Ein Wechselziel, das nicht funktioniert, gehoert nicht in
-    // die Leiste.
+    // Anonym fuehrt jeder Moduleintrag ohnehin zum Login (feedback:
+    // requireFeedbackAccess.ts:35 redirected dorthin). Ein Wechsler, dessen
+    // Eintraege alle zum Login umleiten, verspricht "hier kannst du hin" und
+    // liefert "hier musst du dich erst anmelden" — der eine Knopf sagt dasselbe
+    // in einem Schritt.
     await zeichne({ angemeldet: false, userName: null });
     expect(existsPortal('[data-testid="anmelden"]')).toBe(true);
     expect(existsPortal('[data-testid="abmelden"]')).toBe(false);
@@ -1153,14 +1158,22 @@ export function SuiteNav({
               </>
             ) : (
               /*
-               * Anonym gibt es KEINE Modulliste, sondern diesen Knopf. Grund:
-               * `canAccess()` steigt bei `requiresAuth: false` frueh mit true
-               * aus und wuerde `feedback` anbieten — dessen Modulwurzel liegt
-               * aber hinter `requireFeedbackAccess()` und wirft den Besucher
-               * auf 404. Ein Wechselziel, das nicht funktioniert, gehoert nicht
-               * in die Leiste. Die saubere Alternative waere ein Registry-Feld,
-               * das `qr` von `feedback` unterscheidet; das aendert aber
-               * `core/registry` und gehoert damit in ein eigenes Vorhaben.
+               * Anonym gibt es KEINE Modulliste, sondern diesen Knopf.
+               *
+               * Der Grund ist nicht, dass die anderen Module kaputt waeren: wer
+               * abgemeldet auf `feedback` klickt, landet auf `/login`
+               * (requireFeedbackAccess.ts:35), also genau dort, wohin dieser
+               * Knopf direkt fuehrt. Ein Modulwechsler, dessen Eintraege
+               * allesamt zum Login umleiten, verspricht "hier kannst du hin"
+               * und liefert "hier musst du dich erst anmelden".
+               *
+               * Praktisch bleibt ohnehin fast nichts uebrig: anonym liefert
+               * `canAccess()` nur die Module mit `requiresAuth: false` — heute
+               * `qr` (auf dem man dann schon ist) und `feedback` (Login).
+               *
+               * Die saubere Alternative waere ein Registry-Feld, das `qr` von
+               * `feedback` unterscheidet; das aendert aber `core/registry` und
+               * gehoert damit in ein eigenes Vorhaben.
                */
               <Button type="text" data-testid="anmelden" href="/login" icon={<LoginOutlined />}>
                 Anmelden
@@ -1445,14 +1458,25 @@ rtk git commit -m "feat(core/shell): SuiteHeader als eine Kopfzeile, AppSwitcher
 
 - [ ] **Step 1: `MinimalShell.tsx` umbauen**
 
+> **KORREKTUR — `const { Content } = Layout;` ist NICHT sicher.** Die erste Fassung dieses Plans
+> behauptete, Destrukturierung auf Modulebene umgehe die RSC-Compound-Falle. **Falsch, empirisch
+> widerlegt** beim Bau von `SuiteHeader` (Task 5): per curl gegen `next dev` geprüft, HTTP 500 mit
+> „Element type is invalid" — genau die Falle, und wie sie `pnpm build` nicht sieht.
+> `docs/design/feedback-admin.md:832` schreibt es unabhängig vor: *„`Layout.Header`/`Content` nur als
+> Named-Import aus `antd/es/layout/layout`"*, und der Bestandscode macht es längst so.
+> `Layout` selbst darf weiter aus `"antd"` kommen — nur die Unterkomponenten nicht.
+
 ```tsx
 import { Layout } from "antd";
+// Deep-Import, KEIN `Layout.Content` und keine Destrukturierung: antd haengt die
+// Unterkomponenten per Property-Zuweisung an (`antd/es/layout/index.js`), und in
+// einer Server Component ist der Zugriff darauf `undefined` -> HTTP 500. Der
+// Build sieht das nicht.
+import { Content } from "antd/es/layout/layout";
 
 import { SuiteHeader } from "@/core/shell/SuiteHeader";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { SPACE } from "@/core/theme/tokens";
-
-const { Content } = Layout;
 
 /**
  * Wie `FullShell`, nur mit begrenzter Inhaltsbreite. Die Kopfzeile ist seit
@@ -1561,21 +1585,57 @@ Den Kommentarblock über `<HistoryOwner />` ersetzen:
           HistoryOwner.tsx fuer den tatsaechlichen Grund. */}
 ```
 
-- [ ] **Step 5: Tests laufen lassen**
+- [ ] **Step 5: Zwei Zusagen einsammeln, die beim Löschen von `FullShell.test.tsx` verloren gingen**
+
+Task 5 hat die alte Testdatei gelöscht und ihre Zusagen nach `SuiteHeader.test.tsx` überführt — **zwei
+davon nicht**, weil sie inzwischen CSS statt Inline-Styles sind:
+
+1. Der Titel-Link trägt die Schriftfarbe des Headers und keine Unterstreichung (früher `color:inherit`
+   + `text-decoration:none` als Inline-Style, heute `.titel` in `shell.module.css`).
+2. Die Modulknopfreihe bricht nicht über den Titel (früher `flex-wrap:nowrap` + `overflow:hidden` als
+   Inline-Style, heute `.modulzeile`).
+
+Die Werte stehen im CSS, aber **nichts prüft sie mehr**. Ergänze in
+`src/core/shell/shell-css.test.ts`:
+
+```ts
+  it("gibt dem Titel-Link die Schriftfarbe des Kopfes und keine Unterstreichung", () => {
+    // Uebernommen aus der geloeschten FullShell.test.tsx: dort waren es
+    // Inline-Styles, hier ist es CSS — die Zusage bleibt dieselbe. Ohne sie
+    // faellt der Titel auf die Browser-Linkfarbe zurueck, mitten in der
+    // Kopfzeile.
+    const regel = /\.titel\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .titel fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/color:\s*inherit/);
+    expect(regel![1]).toMatch(/text-decoration:\s*none/);
+  });
+
+  it("laesst die Modulknopfreihe nicht ueber den Titel brechen", () => {
+    // Ebenfalls aus FullShell.test.tsx. Der alte `overflow: hidden` kaschierte
+    // das Problem, indem er ueberzaehlige Module abschnitt; geblieben ist
+    // `flex-wrap: nowrap` — auf Desktop soll die Reihe einzeilig bleiben, und
+    // auf Mobil steht sie ohnehin nicht im Kopf.
+    const regel = /\.modulzeile\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .modulzeile fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/flex-wrap:\s*nowrap/);
+  });
+```
+
+- [ ] **Step 6: Tests laufen lassen**
 
 ```bash
 rtk pnpm typecheck && rtk pnpm vitest run && rtk pnpm build
 ```
 Expected: PASS
 
-- [ ] **Step 6: E2E laufen lassen**
+- [ ] **Step 7: E2E laufen lassen**
 
 ```bash
 rtk pnpm exec playwright test e2e/keystone.spec.ts
 ```
 Expected: PASS. Wenn `getByRole("link", {name: /Alpha/})` fehlschlägt, prüfen ob `.nurDesktop` bei 1280×720 greift — das ist die wahrscheinlichste Ursache.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 rtk git add -A src/core/shell/ e2e/ src/app/m/qr/layout.tsx
