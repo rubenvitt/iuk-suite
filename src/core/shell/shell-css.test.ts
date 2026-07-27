@@ -8,8 +8,18 @@ import { readFileSync } from "node:fs";
  * nicht aus.** Ein Test, der "auf 390px steht kein Modulknopf im Kopf"
  * behauptet und dafuer in jsdom nach Knoepfen sucht, geht IMMER durch — er
  * misst nichts. Diese Datei besitzt die Regel (die Klasse traegt die richtige
- * Media Query), das sichtbare Ergebnis besitzt der Playwright-Lauf bei
- * 390x844.
+ * Media Query), das sichtbare ERGEBNIS besitzt der Playwright-Lauf
+ * (`e2e/shell-mobil.spec.ts`, 390x844 und 1280x720).
+ *
+ * DIESE TRENNUNG HAT EINE HARTE GRENZE, und sie ist auf diesem Zweig teuer
+ * bezahlt worden: **Regeltext-Pruefung kann eine Kaskadenkollision strukturell
+ * nicht finden.** Die Regel `.nurMobil { display: none }` in der Media Query
+ * war vorhanden, sie matchte auch — und verlor trotzdem gegen antds
+ * `.ant-btn { display: inline-flex }`, weil beide Selektoren die Spezifitaet
+ * (0,1,0) haben und antds Stylesheet spaeter kommt. Jeder Test hier war gruen,
+ * der Knopf stand bei 1280px sichtbar im Kopf. Was diese Datei leisten kann,
+ * ist die GEGENMASZNAHME festzuhalten (der Selektor traegt `.rechts` voran, ist
+ * damit (0,2,0)); ob sie wirkt, weisz nur ein echter Browser.
  *
  * Warum ueberhaupt CSS und nicht `Grid.useBreakpoint`: das ist in Server
  * Components verboten (docs/design/README.md, Falle 1), und ein JS-Breakpoint
@@ -38,6 +48,46 @@ describe("shell.module.css", () => {
     const regel = /\.nurMobil\s*\{([^}]*)\}/.exec(abBreakpoint);
     expect(regel, ".nurMobil wird ab 768px nicht ausgeblendet").not.toBeNull();
     expect(regel![1]).toMatch(/display:\s*none/);
+  });
+
+  it("haelt `.nurMobil` an BEIDEN Stellen ueber `.ant-btn` — Basis und Media Query", () => {
+    /*
+     * Der einzige Test hier, der nicht bloss eine Deklaration nachliest,
+     * sondern den SELEKTOR prueft — weil genau dort der Defekt sasz.
+     *
+     * `.nurMobil` allein ist (0,1,0), gleichauf mit antds
+     * `.ant-btn { display: inline-flex }`; bei Gleichstand gewinnt, was spaeter
+     * im Dokument steht, und das ist antd. `.rechts .nurMobil` ist (0,2,0) und
+     * gewinnt unabhaengig von der Reihenfolge — ohne `!important`.
+     *
+     * BEIDE Vorkommen, nicht nur das in der Media Query: ein Paar, dessen eine
+     * Haelfte gilt und dessen andere still ueberstimmt wird, ist genau der
+     * Zustand, aus dem der Fehler kam.
+     *
+     * Dieser Test faengt das Entfernen des Praefix. Er faengt NICHT, dass antd
+     * morgen eine spezifischere Regel mitbringt — das kann nur der Browser.
+     */
+    const vorkommen = [...OHNE_KOMMENTARE.matchAll(/([^{}]*)\.nurMobil\s*\{/g)];
+    expect(vorkommen.length, "Klasse .nurMobil fehlt").toBe(2);
+    for (const treffer of vorkommen) {
+      expect(treffer[1], `Selektor ohne .rechts-Praefix: "${treffer[0]}"`).toMatch(
+        /\.rechts\s+$/,
+      );
+    }
+  });
+
+  it("haengt die Hervorhebung an `[aria-current]` ohne Wert", () => {
+    /*
+     * Der Wert ist `"page"` auf der aufgerufenen Seite und `"true"` auf einer
+     * Seite, die nur zum Abschnitt gehoert (SuiteNav.tsx, `aktiverEintrag`).
+     * Wer den Selektor auf `="page"` zurueckengt, laesst die
+     * Abschnitts-Markierung still verschwinden: der Link ist dann markiert und
+     * sieht unmarkiert aus.
+     */
+    const regel = /\.navLink\[aria-current\]\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Regel `.navLink[aria-current]` fehlt (auf `=page` verengt?)").not.toBeNull();
+    expect(regel![1]).toMatch(/border-block-end-color:\s*currentColor/);
+    expect(OHNE_KOMMENTARE).not.toMatch(/\.navLink\[aria-current=/);
   });
 
   it("nutzt keine `--ant-*`-Variablen (die sieht eigenes Markup nicht)", () => {

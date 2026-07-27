@@ -13,7 +13,8 @@ import {
   MenuOutlined,
   QrcodeOutlined,
 } from "@ant-design/icons";
-import { Avatar, Button, Drawer } from "antd";
+import { Avatar, Button, Drawer, Dropdown } from "antd";
+import type { MenuProps } from "antd";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -57,32 +58,70 @@ function initialen(name: string | null): string {
 }
 
 /**
+ * Der hervorgehobene Navigationseintrag — und, davon getrennt, ob er die
+ * aufgerufene Seite WIRKLICH ist.
+ *
+ * `genau` ist keine Feinheit, sondern der Unterschied zwischen einer wahren und
+ * einer falschen Aussage gegenueber einem Screenreader. Der Wurzel-Fallback
+ * unten greift auf JEDER Seite, auf die kein Eintrag passt (`/wifi`, `/tel`,
+ * `/contact`, `/groups/17`, `/trend`, `/auswertung` — gemessen sechs Routen).
+ * Truege der Wurzel-Eintrag dort `aria-current="page"`, behauptete er „das hier
+ * ist die aktuelle Seite" ueber eine Seite, die es nicht ist. Deshalb liefert
+ * diese Funktion beides, und der Aufrufer waehlt daraus `"page"` (genau) oder
+ * `"true"` (Abschnitt).
+ */
+export interface AktiverEintrag {
+  /** Schluessel des Eintrags, der optisch hervorgehoben wird. */
+  schluessel: string;
+  /**
+   * `true` — dieser Eintrag IST die aufgerufene Seite (`aria-current="page"`).
+   * `false` — nur der Abschnitt stimmt (Wurzel-Fallback, `aria-current="true"`).
+   */
+  genau: boolean;
+}
+
+/**
  * Welcher Navigationseintrag ist der aktive? Exportiert, weil das die einzige
  * Stelle mit echter Logik in dieser Datei ist und sie sich ohne DOM pruefen
  * laeszt.
  *
- * Zwei Faellen wird hier ausgewichen:
+ * Drei Faellen wird hier ausgewichen:
  *
  * 1. **Der Proxy schreibt um.** `/vergleich` wird zu `/m/feedback/vergleich`,
  *    und was `usePathname()` unter einem Rewrite liefert — den aeuszeren oder
  *    den inneren Pfad — haengt an der Next-Version. Ein Vergleich auf
  *    Gleichheit waere still falsch: nichts wuerde je markiert, und der
  *    Unit-Test faellt nicht darauf herein, weil er `usePathname` mockt. Deshalb
- *    Suffix-Vergleich, und deshalb prueft der E2E in Task 8 `aria-current` am
- *    laufenden Server.
+ *    Suffix-Vergleich, und deshalb prueft der E2E `aria-current` am laufenden
+ *    Server.
  *
  * 2. **`/` ist Suffix von nichts.** `"/m/feedback".endsWith("/")` ist `false` —
  *    die Uebersicht waere auf ihrer eigenen Seite nie markiert. Und ein
  *    naiver Suffix-Test in die andere Richtung markierte sie auf JEDER
  *    Unterseite mit. Deshalb: der spezifischste Nicht-Wurzel-Treffer gewinnt,
  *    und nur wenn keiner passt, ist die Wurzel dran.
+ *
+ * 3. **Der Fallback ist kein Treffer.** Genau deshalb `genau: pfad === "/"` und
+ *    nicht `genau: true` fuer die Wurzel. Dass die Modulwurzel unter dem
+ *    Rewrite tatsaechlich als `"/"` ankommt (und nicht als `/m/qr`), ist
+ *    NACHGEMESSEN und nicht angenommen: ein `data-pfad`-Attribut am
+ *    `modulnav`, `curl` gegen `qr.localtest.me` unter Next 16.2.6 — `/` -> `/`,
+ *    `/wifi` -> `/wifi`. `usePathname()` liefert den AEUSZEREN Pfad. Sollte
+ *    eine kuenftige Next-Version den inneren liefern, faellt die Wurzel von
+ *    `"page"` auf `"true"` zurueck — eine schwaechere, aber immer noch wahre
+ *    Aussage, und der E2E „markiert die Uebersicht auf der Modulwurzel" zeigt
+ *    es sofort an. Ein Praefix-Abschneiden von `/m/<key>` waere die Alternative
+ *    gewesen und ist bewusst NICHT gewaehlt: diese Funktion soll die
+ *    Rewrite-Konvention gerade nicht kennen.
  */
-export function aktiverSchluessel(pfad: string, nav: SuiteNavItem[]): string | null {
+export function aktiverEintrag(pfad: string, nav: SuiteNavItem[]): AktiverEintrag | null {
   const treffer = nav
     .filter((e) => e.href !== "/" && (pfad === e.href || pfad.endsWith(e.href)))
     .sort((a, b) => b.href.length - a.href.length)[0];
-  if (treffer) return treffer.key;
-  return nav.find((e) => e.href === "/")?.key ?? null;
+  if (treffer) return { schluessel: treffer.key, genau: true };
+  const wurzel = nav.find((e) => e.href === "/");
+  if (!wurzel) return null;
+  return { schluessel: wurzel.key, genau: pfad === wurzel.href };
 }
 
 /**
@@ -95,6 +134,18 @@ export function aktiverSchluessel(pfad: string, nav: SuiteNavItem[]): string | n
  * bewusst NICHT in einem Dropdown: `keystone.spec.ts:35` prueft
  * `getByRole("link", {name: /Alpha/})` OHNE vorheriges Oeffnen. Playwright
  * laeuft ohne Viewport-Angabe, also auf 1280x720 — dort greift `.nurDesktop`.
+ *
+ * DER NUTZERBLOCK HAENGT AM AVATAR, AUF BEIDEN GROESZEN, UND NICHT MEHR IM
+ * DRAWER. Der Drawer ist nur mobil erreichbar (`.nurMobil` am Oeffner); solange
+ * Abmelden dort lag, gab es ab 768px gar keinen Weg hinaus — und die Suite
+ * hatte diesen Weg vorher schon nicht. Ihn NEBEN dem Drawer-Eintrag anzulegen
+ * waere die naheliegende Variante gewesen und ist bewusst verworfen: zwei
+ * Knoten mit `data-testid="abmelden"` sind fuer Playwright eine
+ * Strict-Mode-Verletzung („resolved to 2 elements"), unabhaengig davon, dass
+ * einer per CSS unsichtbar ist. Genau dieselbe Ueberlegung steht schon beim
+ * Theme-Umschalter, der deshalb im Drawer eine eigene testId traegt. Der Drawer
+ * behaelt damit Modulnavigation, Module und Theme; Name und Abmelden gehoeren
+ * dem Avatar-Menue.
  */
 export function SuiteNav({
   entries,
@@ -108,6 +159,13 @@ export function SuiteNav({
   angemeldet: boolean;
 }) {
   const [offen, setOffen] = useState(false);
+  /*
+   * Der Zustand des Avatar-Menues wird SELBST gehalten, obwohl `Dropdown` das
+   * auch allein koennte: nur so laeszt sich `aria-expanded` am Ausloeser
+   * setzen. Ein Knopf, der ein Menue oeffnet, ohne das anzusagen, ist fuer
+   * Tastatur- und Screenreader-Bedienung stumm.
+   */
+  const [nutzerMenueOffen, setNutzerMenueOffen] = useState(false);
   /*
    * `montiert` ist auf dem Server `false`, auf dem Client `true`. Damit
    * entsteht der Drawer serverseitig gar nicht — siehe die ausfuehrliche
@@ -135,7 +193,7 @@ export function SuiteNav({
     );
   });
 
-  const aktiv = aktiverSchluessel(pfad, nav);
+  const aktiv = aktiverEintrag(pfad, nav);
 
   /*
    * `next/link` und NICHT `Button href` wie bei den Modulen darueber. Der
@@ -143,17 +201,58 @@ export function SuiteNav({
    * voller Seitenwechsel richtig. Die Modulnavigation bleibt im selben Modul —
    * ein `<a>` warf dort die ganze Anwendung weg und lud sie neu. Der Modultitel
    * in `SuiteHeader` nutzt aus demselben Grund `Link`.
+   *
+   * `"page"` NUR beim echten Treffer, sonst `"true"`. Beides ist gueltiges
+   * ARIA, aber nur eines davon ist hier wahr: `"page"` heiszt „das ist die
+   * aufgerufene Seite", `"true"` heiszt „das ist der aktuelle Eintrag dieser
+   * Gruppe". Auf `/wifi` ist „Generator" das zweite und nicht das erste. Gegen
+   * die Alternative — `aria-current` ganz weglassen und nur eine CSS-Klasse
+   * setzen — sprach, dass sie die Orientierung ersatzlos streicht: wer nicht
+   * sieht, dass der Rahmen unter „Generator" steht, erfuehre dann gar nicht
+   * mehr, in welchem Abschnitt er sich befindet. `"true"` sagt weniger als
+   * `"page"`, aber es sagt etwas, und es stimmt.
+   *
+   * Die optische Hervorhebung haengt deshalb an `[aria-current]` ohne Wert
+   * (shell.module.css) und nicht an `[aria-current="page"]`.
    */
   const navLinks = nav.map((eintrag) => (
     <Link
       key={eintrag.key}
       href={eintrag.href}
       className={s.navLink}
-      aria-current={aktiv === eintrag.key ? "page" : undefined}
+      aria-current={
+        aktiv?.schluessel === eintrag.key ? (aktiv.genau ? "page" : "true") : undefined
+      }
     >
       {eintrag.title}
     </Link>
   ));
+
+  /*
+   * Der Name steht als Gruppentitel im Menue — sichtbar, aber fuer einen
+   * Screenreader nicht: rc-menu gibt dem Titel `role="presentation"`. Deshalb
+   * traegt der Ausloeser den Namen zusaetzlich in seinem `aria-label`. Die
+   * Initialen im Avatar sind fuer sich genommen bedeutungslos.
+   */
+  const abmeldenEintrag = {
+    key: "abmelden",
+    icon: <LogoutOutlined />,
+    label: "Abmelden",
+    "data-testid": "abmelden",
+    // Derselbe Weg, den SessionGuard bei RefreshTokenError automatisch geht —
+    // ohne ihn endet der Logout auf einer 404 (siehe oidc-signout/route.ts).
+    onClick: () => signOut({ callbackUrl: "/api/auth/oidc-signout" }),
+  };
+  const nutzerEintraege: MenuProps["items"] = userName
+    ? [
+        {
+          key: "nutzer",
+          type: "group",
+          label: <span data-testid="nutzername">{userName}</span>,
+          children: [abmeldenEintrag],
+        },
+      ]
+    : [abmeldenEintrag];
 
   return (
     <>
@@ -177,14 +276,78 @@ export function SuiteNav({
             {modulLinks}
           </nav>
         ) : null}
-        <span className={s.nurDesktop}>
-          <ThemeToggle />
-        </span>
         {/* Der zweite Umschalter steht im Drawer (unten) und traegt dort eine
             eigene testId — zwei Knoten mit `data-testid="theme-toggle"` waeren
             fuer jeden kuenftigen Playwright-Zugriff eine Strict-Mode-Verletzung
-            ("resolved to 2 elements"). */}
-        {userName ? <Avatar size="small">{initialen(userName)}</Avatar> : null}
+            ("resolved to 2 elements"). Genau deshalb liegt der Nutzerblock
+            NICHT doppelt: fuer ihn gaebe es keine zweite testId, die noch
+            ehrlich waere. */}
+        <span className={s.nurDesktop}>
+          <ThemeToggle />
+        </span>
+        {angemeldet ? (
+          /*
+           * KEIN `forceRender` an diesem Dropdown, und das ist die eine Zeile,
+           * die hier wirklich zaehlt. antd rendert das Menue wie den Drawer
+           * durch ein Portal nach `document.body`; ein erzwungener Aufbau haette
+           * serverseitig kein `document` ("Portal only work in client side"),
+           * und der folgende Hydration-Mismatch hat auf diesem Zweig schon
+           * einmal die anonymen QR-Formulare unbenutzbar gemacht. Geschlossen
+           * legt `@rc-component/portal` gar nichts an — nachgeprueft mit `curl`
+           * gegen `next dev`, siehe Bericht. Deshalb braucht dieses Menue AUCH
+           * kein `montiert`-Gatter wie der Drawer weiter unten: es ist
+           * serverseitig ohnehin nur der Knopf.
+           */
+          <Dropdown
+            menu={{ items: nutzerEintraege }}
+            // `click`, nicht antds Vorgabe `hover`: auf einem Touchgeraet gibt
+            // es kein Hover, und dieses Menue traegt den einzigen Abmeldeweg.
+            trigger={["click"]}
+            placement="bottomRight"
+            open={nutzerMenueOffen}
+            onOpenChange={setNutzerMenueOffen}
+          >
+            <Button
+              type="text"
+              shape="circle"
+              data-testid="nutzermenue"
+              aria-label={userName ? `Nutzermenü — ${userName}` : "Nutzermenü"}
+              aria-haspopup="menu"
+              aria-expanded={nutzerMenueOffen}
+              /*
+               * Der Avatar sitzt IM Knopf, statt selbst der Ausloeser zu sein:
+               * `Avatar` ist ein `<span>` ohne Rolle und ohne Tastaturfokus.
+               * Der Knopf bringt beides mit und ist mit `controlHeight: 56`
+               * zugleich das Tap-Masz der Suite.
+               */
+              icon={<Avatar size="small">{initialen(userName)}</Avatar>}
+            />
+          </Dropdown>
+        ) : (
+          /*
+           * Anonym steht hier ein Anmelden-Knopf — auf BEIDEN Groeszen, wie das
+           * Avatar-Menue. Vorher lag er allein im Drawer und war ab 768px
+           * unerreichbar, weil dessen Oeffner dort verschwindet.
+           *
+           * Und anonym gibt es KEINE Modulliste, sondern nur diesen Knopf.
+           *
+           * Der Grund ist nicht, dass die anderen Module kaputt waeren — wer
+           * abgemeldet auf `feedback` klickt, landet auf `/login`
+           * (requireFeedbackAccess.ts:35), also genau dort, wohin dieser Knopf
+           * direkt fuehrt. Ein Modulwechsler, dessen Eintraege allesamt zum
+           * Login umleiten, verspricht "hier kannst du hin" und liefert "hier
+           * musst du dich erst anmelden". Der eine Knopf sagt dasselbe
+           * ehrlicher und in einem Schritt.
+           *
+           * Praktisch bleibt ohnehin fast nichts uebrig: anonym liefert
+           * `canAccess()` nur die Module mit `requiresAuth: false` — heute `qr`
+           * (auf dem man dann schon ist) und `feedback` (Login). Eine Liste mit
+           * einem Eintrag, der zum Login fuehrt.
+           */
+          <Button type="text" data-testid="anmelden" href="/login" icon={<LoginOutlined />}>
+            Anmelden
+          </Button>
+        )}
       </div>
 
       {nav.length > 0 ? (
@@ -230,41 +393,14 @@ export function SuiteNav({
               </div>
             ) : null}
 
+            {/* Kein Nutzerblock mehr: Name und Abmelden haengen am Avatar-Menue
+                der Kopfzeile, Anmelden an dessen anonymem Gegenstueck. Beide
+                sind auf JEDER Groesze erreichbar, der Drawer nur unterhalb von
+                768px — und ein zweiter `data-testid="abmelden"` waere fuer
+                Playwright eine Strict-Mode-Verletzung. Der Drawer traegt damit
+                Modulnavigation, Module und Theme. */}
             <div className={s.drawerGruppe}>
               <ThemeToggle testId="theme-toggle-drawer" />
-              {angemeldet ? (
-                <>
-                  {userName ? <div>{userName}</div> : null}
-                  <Button
-                    type="text"
-                    data-testid="abmelden"
-                    icon={<LogoutOutlined />}
-                    onClick={() => signOut({ callbackUrl: "/api/auth/oidc-signout" })}
-                  >
-                    Abmelden
-                  </Button>
-                </>
-              ) : (
-                /*
-                 * Anonym gibt es KEINE Modulliste, sondern diesen Knopf.
-                 *
-                 * Der Grund ist nicht, dass die anderen Module kaputt waeren —
-                 * wer abgemeldet auf `feedback` klickt, landet auf `/login`
-                 * (requireFeedbackAccess.ts:35), also genau dort, wohin dieser
-                 * Knopf direkt fuehrt. Ein Modulwechsler, dessen Eintraege
-                 * allesamt zum Login umleiten, verspricht "hier kannst du hin"
-                 * und liefert "hier musst du dich erst anmelden". Der eine
-                 * Knopf sagt dasselbe ehrlicher und in einem Schritt.
-                 *
-                 * Praktisch bleibt ohnehin fast nichts uebrig: anonym liefert
-                 * `canAccess()` nur die Module mit `requiresAuth: false` —
-                 * heute `qr` (auf dem man dann schon ist) und `feedback`
-                 * (Login). Eine Liste mit einem Eintrag, der zum Login fuehrt.
-                 */
-                <Button type="text" data-testid="anmelden" href="/login" icon={<LoginOutlined />}>
-                  Anmelden
-                </Button>
-              )}
             </div>
           </div>
         </Drawer>

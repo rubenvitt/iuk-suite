@@ -38,8 +38,33 @@
   flex: 0 0 auto;
 }
 
-/* Mobil sichtbar, ab 768px weg. */
-.nurMobil {
+/*
+ * Mobil sichtbar, ab 768px weg.
+ *
+ * DER VORANGESTELLTE `.rechts` IST NICHT UEBERFLUESSIG — er ist der ganze Punkt
+ * dieser Regel, und wer ihn als Ballast entfernt, baut den Fehler wieder ein:
+ *
+ * `.nurMobil` allein hat Spezifitaet (0,1,0) — genau so viel wie antds
+ * `.ant-btn { display: inline-flex }`. Bei Gleichstand entscheidet die
+ * Reihenfolge im Dokument, und antds Stylesheet kommt spaeter. Die Regel unten
+ * in der Media Query MATCHTE also, verlor aber trotzdem: der Menue-Knopf stand
+ * bei 1280px sichtbar in der Kopfzeile (gemessen, `display: inline-flex`).
+ * `.rechts .nurMobil` ist (0,2,0) und schlaegt `.ant-btn` unabhaengig von der
+ * Reihenfolge. Kein `!important`, weil eine Klasse mehr reicht.
+ *
+ * Warum `.nurDesktop` und `.modulnav` das NICHT brauchen: die sitzen auf
+ * `<nav>` und `<span>`, wo antd gar nicht mitbietet. Genau diese Asymmetrie
+ * hat den Fehler durchgelassen.
+ *
+ * Basis UND Media Query tragen den Praefix. Nur die Media Query zu erhoehen
+ * liesze die Basis weiter gegen `.ant-btn` verlieren — mobil ist das heute
+ * folgenlos (`flex` und `inline-flex` sind fuer ein Flex-Kind dasselbe), aber
+ * es waere ein Paar, dessen eine Haelfte still nicht gilt.
+ *
+ * Die Wirkung besitzt der Playwright-Lauf (`e2e/shell-mobil.spec.ts`, 1280x720)
+ * — nur ein echter Browser wertet Media Query UND Kaskade aus.
+ */
+.rechts .nurMobil {
   display: flex;
   align-items: center;
 }
@@ -114,13 +139,22 @@
   border-block-end: 2px solid transparent;
 }
 
-.navLink[aria-current="page"] {
+/*
+ * `[aria-current]` OHNE Wert, und das ist Absicht: der Wert ist `"page"` auf der
+ * aufgerufenen Seite und `"true"` auf einer Seite, die nur zum Abschnitt gehoert
+ * (SuiteNav.tsx, `aktiverEintrag`). Optisch ist beides dieselbe Hervorhebung;
+ * ein Selektor auf `="page"` liesze die Abschnitts-Markierung still verschwinden
+ * — der Link waere dann markiert, saehe aber unmarkiert aus.
+ */
+.navLink[aria-current] {
   border-block-end-color: currentColor;
   font-weight: 600;
 }
 
 @media (min-width: 768px) {
-  .nurMobil {
+  /* `.rechts` erneut voran — Begruendung oben an der Basis-Regel. Ohne ihn
+     verliert diese Regel gegen antds `.ant-btn` bei gleicher Spezifitaet. */
+  .rechts .nurMobil {
     display: none;
   }
 

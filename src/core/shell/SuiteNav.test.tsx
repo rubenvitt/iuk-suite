@@ -5,28 +5,36 @@ import {
   unmount,
   query,
   queryAll,
+  click,
   exists,
   queryPortal,
   existsPortal,
   clickPortal,
 } from "@/app/m/qr/_lib/test-dom";
-import { SuiteNav, aktiverSchluessel } from "./SuiteNav";
+import { SuiteNav, aktiverEintrag } from "./SuiteNav";
 import type { AppSwitcherEntry, SuiteNavItem } from "./types";
 
 /**
- * DRAWER-INHALT WIRD MIT `…Portal`-ABFRAGEN GEPRUEFT, KOPFZEILEN-INHALT NICHT.
+ * DRAWER- UND MENUE-INHALT WERDEN MIT `…Portal`-ABFRAGEN GEPRUEFT,
+ * KOPFZEILEN-INHALT NICHT.
  *
- * antd rendert den `Drawer` durch ein Portal nach `document.body` — sein Inhalt
- * ist ein GESCHWISTER des Mount-Wirts, kein Nachfahre. `query()` sucht im Wirt
- * und faende ihn nie, auch mit `forceRender` nicht. Alles in der Kopfzeile
- * (`modulzeile`, `modulnav`, `menue-knopf`) bleibt dagegen im Wirt und wird mit
- * `query`/`exists` geprueft.
+ * antd rendert `Drawer` UND `Dropdown` durch ein Portal nach `document.body` —
+ * ihr Inhalt ist ein GESCHWISTER des Mount-Wirts, kein Nachfahre. `query()`
+ * sucht im Wirt und faende ihn nie. Alles in der Kopfzeile (`modulzeile`,
+ * `modulnav`, `menue-knopf`, `nutzermenue`, `anmelden`) bleibt dagegen im Wirt
+ * und wird mit `query`/`exists` geprueft.
+ *
+ * Weil BEIDE Portale an `document.body` haengen, ist `existsPortal` allein
+ * mehrdeutig, sobald dieselbe testId in beiden vorkommen koennte. Wo es darauf
+ * ankommt (Abmelden), wird deshalb INNERHALB von `suite-drawer` gesucht.
  *
  * Zwei Dinge, die dieser Test NICHT kann und die anderswo geprueft werden:
- * - Was man auf 390px SIEHT: jsdom wertet Media Queries nicht aus. Das besitzt
- *   der Playwright-Lauf; die CSS-Regel besitzt `shell-css.test.ts`.
- * - Ob antds Drawer korrekt animiert. Hier zaehlt nur, dass die Eintraege im
- *   DOM stehen und die richtigen Ziele tragen.
+ * - Was man auf 390px bzw. 1280px SIEHT: jsdom wertet Media Queries nicht aus,
+ *   und eine Kaskadenkollision (`.nurMobil` gegen `.ant-btn`) sieht es erst
+ *   recht nicht. Das besitzt der Playwright-Lauf; die CSS-Regel besitzt
+ *   `shell-css.test.ts`.
+ * - Ob antds Drawer/Dropdown korrekt animieren. Hier zaehlt nur, dass die
+ *   Eintraege im DOM stehen und die richtigen Ziele tragen.
  */
 
 const { signOutMock, pathnameMock } = vi.hoisted(() => ({
@@ -60,6 +68,11 @@ async function zeichne(props: Partial<Parameters<typeof SuiteNav>[0]> = {}) {
   );
 }
 
+/** Das Avatar-Menue oeffnen. Es ist bewusst NICHT vorgerendert (siehe Test unten). */
+async function oeffneNutzermenue() {
+  await click('[data-testid="nutzermenue"]');
+}
+
 afterEach(async () => {
   await unmount();
   signOutMock.mockClear();
@@ -88,18 +101,87 @@ describe("SuiteNav — angemeldet", () => {
     expect(ziele).toContain("https://qr.iuk-ue.de");
   });
 
-  it("hat einen Abmelden-Knopf, der ueber den OIDC-Signout geht", async () => {
+  it("haengt Abmelden ans Avatar-Menue und geht ueber den OIDC-Signout", async () => {
     await zeichne();
+    await oeffneNutzermenue();
     await clickPortal('[data-testid="abmelden"]');
     // Derselbe Weg, den SessionGuard bei RefreshTokenError automatisch geht —
     // ohne ihn endete der Logout auf einer 404 (siehe oidc-signout/route.ts).
     expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/api/auth/oidc-signout" });
   });
 
-  it("zeigt den Namen und keine Anmelde-Aufforderung", async () => {
+  it("laesst Abmelden NICHT zusaetzlich im Drawer stehen", async () => {
+    /*
+     * Die Zusage ist nicht kosmetisch. Der Drawer ist nur unterhalb von 768px
+     * erreichbar; laege Abmelden dort, gaebe es auf dem Desktop keinen Weg
+     * hinaus. Und laege es an BEIDEN Stellen, waere `getByTestId("abmelden")`
+     * fuer Playwright eine Strict-Mode-Verletzung — auch dann, wenn eine der
+     * beiden per CSS unsichtbar ist.
+     */
     await zeichne();
-    expect(queryPortal('[data-testid="suite-drawer"]').textContent).toContain("Ruben Vitt");
+    await oeffneNutzermenue();
+    const drawer = queryPortal('[data-testid="suite-drawer"]');
+    expect(drawer.querySelector('[data-testid="abmelden"]')).toBeNull();
+    // Und im Dokument insgesamt genau einer.
+    expect(document.body.querySelectorAll('[data-testid="abmelden"]')).toHaveLength(1);
+  });
+
+  it("baut das Nutzermenue erst beim Oeffnen — kein Portal auf Vorrat", async () => {
+    /*
+     * DAS IST DIE SSR-ZUSAGE, in jsdom gemessen. `forceRender` (oder ein
+     * anfaengliches `open`) liesze antd das Portal sofort anlegen; auf dem
+     * Server gibt es dafuer kein `document` ("Portal only work in client
+     * side"), und der folgende Hydration-Mismatch hat auf diesem Zweig schon
+     * einmal die anonymen QR-Formulare unbenutzbar gemacht (drei E2E-Timeouts).
+     * Ein Test, der nur nach dem Oeffnen prueft, saehe den Rueckfall nicht.
+     */
+    await zeichne();
+    expect(existsPortal('[data-testid="abmelden"]')).toBe(false);
+    await oeffneNutzermenue();
+    expect(existsPortal('[data-testid="abmelden"]')).toBe(true);
+  });
+
+  it("sagt am Ausloeser an, dass er ein Menue oeffnet — und ob es offen ist", async () => {
+    await zeichne();
+    const ausloeser = query('[data-testid="nutzermenue"]');
+    expect(ausloeser.getAttribute("aria-haspopup")).toBe("menu");
+    expect(ausloeser.getAttribute("aria-expanded")).toBe("false");
+    await oeffneNutzermenue();
+    expect(query('[data-testid="nutzermenue"]').getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("nennt den Namen im Menue UND im aria-label des Ausloesers", async () => {
+    /*
+     * Zweimal, weil einmal nicht reicht: der Gruppentitel im Menue traegt bei
+     * rc-menu `role="presentation"` und wird von Screenreadern uebersprungen
+     * (nachgemessen am gerenderten Markup). Sichtbar ist er trotzdem — deshalb
+     * beides.
+     */
+    await zeichne();
+    expect(query('[data-testid="nutzermenue"]').getAttribute("aria-label")).toBe(
+      "Nutzermenü — Ruben Vitt",
+    );
+    await oeffneNutzermenue();
+    expect(queryPortal('[data-testid="nutzername"]').textContent).toBe("Ruben Vitt");
     expect(existsPortal('[data-testid="anmelden"]')).toBe(false);
+    expect(exists('[data-testid="anmelden"]')).toBe(false);
+  });
+
+  it("laesst auch eine Sitzung ohne Namen abmelden", async () => {
+    /*
+     * `session.user.name` kann leer sein. Vorher rettete der Drawer diesen Fall
+     * (der Abmelden-Knopf haing an `angemeldet`, der Avatar an `userName`);
+     * haenge man das Menue nun an `userName`, verloere so eine Sitzung JEDEN
+     * Abmeldeweg. Deshalb gatet der Avatar auf `angemeldet`, und `initialen()`
+     * liefert fuer `null` ein "?".
+     */
+    await zeichne({ userName: null });
+    const ausloeser = query('[data-testid="nutzermenue"]');
+    expect(ausloeser.getAttribute("aria-label")).toBe("Nutzermenü");
+    expect(ausloeser.textContent).toContain("?");
+    await oeffneNutzermenue();
+    expect(existsPortal('[data-testid="abmelden"]')).toBe(true);
+    expect(existsPortal('[data-testid="nutzername"]')).toBe(false);
   });
 
   it("zeigt die Modulnavigation, wenn das Modul welche uebergibt", async () => {
@@ -111,38 +193,75 @@ describe("SuiteNav — angemeldet", () => {
     ]);
   });
 
-  it("markiert den aktiven Eintrag der Modulnavigation", async () => {
+  it("markiert den aktiven Eintrag der Modulnavigation als aktuelle SEITE", async () => {
     pathnameMock.mockReturnValue("/vergleich");
     await zeichne({ nav: NAV });
     const aktiv = queryAll('[data-testid="modulnav"] a[aria-current="page"]');
     expect(aktiv).toHaveLength(1);
     expect(aktiv[0].getAttribute("href")).toBe("/vergleich");
   });
+
+  it("markiert auf einer Seite ohne eigenen Eintrag nur den ABSCHNITT, nicht die Seite", async () => {
+    /*
+     * DER FUND AUS DEM ABSCHLUSSREVIEW. Auf `/wifi`, `/tel`, `/contact`,
+     * `/groups/17`, `/trend`, `/auswertung` passt kein Eintrag; der
+     * Wurzel-Fallback markierte dort trotzdem „Uebersicht" mit
+     * `aria-current="page"` — eine Falschaussage gegenueber einem Screenreader
+     * auf sechs Routen. Jetzt `"true"`: derselbe Rahmen, aber die schwaechere
+     * und wahre Aussage.
+     */
+    pathnameMock.mockReturnValue("/wifi");
+    await zeichne({ nav: NAV });
+    expect(queryAll('[data-testid="modulnav"] a[aria-current="page"]')).toHaveLength(0);
+    const abschnitt = queryAll('[data-testid="modulnav"] a[aria-current="true"]');
+    expect(abschnitt).toHaveLength(1);
+    expect(abschnitt[0].getAttribute("href")).toBe("/");
+  });
 });
 
-describe("aktiverSchluessel — welcher Eintrag ist dran", () => {
+describe("aktiverEintrag — welcher Eintrag ist dran, und ist er es wirklich", () => {
   // Reine Berechnung, deshalb ohne DOM. Der DOM-Test oben mockt `usePathname`
   // und kann daher NICHT beweisen, dass die Aufloesung unter dem Proxy-Rewrite
   // stimmt — das gehoert dem E2E. Hier geht es um die Faelle, die der E2E
   // nicht guenstig durchspielen kann.
 
   it("nimmt den aeuszeren Pfad (ohne Rewrite)", () => {
-    expect(aktiverSchluessel("/vergleich", NAV)).toBe("vergleich");
+    expect(aktiverEintrag("/vergleich", NAV)).toEqual({ schluessel: "vergleich", genau: true });
   });
 
   it("nimmt den inneren Pfad (mit Rewrite) — welchen usePathname liefert, haengt an Next", () => {
-    expect(aktiverSchluessel("/m/feedback/vergleich", NAV)).toBe("vergleich");
+    expect(aktiverEintrag("/m/feedback/vergleich", NAV)).toEqual({
+      schluessel: "vergleich",
+      genau: true,
+    });
   });
 
   it("markiert die Uebersicht auf der Modulwurzel, obwohl `/` Suffix von nichts ist", () => {
     // "/m/feedback".endsWith("/") ist false — ein naiver Suffix-Test liesze die
     // Uebersicht auf ihrer eigenen Seite unmarkiert.
-    expect(aktiverSchluessel("/m/feedback", NAV)).toBe("start");
-    expect(aktiverSchluessel("/", NAV)).toBe("start");
+    expect(aktiverEintrag("/", NAV)).toEqual({ schluessel: "start", genau: true });
+    expect(aktiverEintrag("/m/feedback", NAV)?.schluessel).toBe("start");
+  });
+
+  it("nennt den Wurzel-Fallback beim Namen: markiert, aber NICHT die aufgerufene Seite", () => {
+    /*
+     * `/wifi` gehoert zum Modul, ist aber kein Eintrag. Frueher gab es hier
+     * keinen Unterschied zum echten Treffer — genau das war der Defekt.
+     *
+     * Dass `/m/qr` (innerer Pfad) hier `genau: false` ergibt und `/` nicht, ist
+     * bewusst in Kauf genommen: `usePathname()` liefert unter Next 16.2.6 den
+     * AEUSZEREN Pfad (nachgemessen, siehe SuiteNav.tsx). Kaeme es je anders,
+     * faellt die Wurzel von "page" auf "true" — schwaecher, aber nie falsch.
+     */
+    expect(aktiverEintrag("/wifi", NAV)).toEqual({ schluessel: "start", genau: false });
+    expect(aktiverEintrag("/m/feedback/groups/17", NAV)).toEqual({
+      schluessel: "start",
+      genau: false,
+    });
   });
 
   it("laeszt die Uebersicht auf einer Unterseite NICHT mitleuchten", () => {
-    expect(aktiverSchluessel("/m/feedback/vergleich", NAV)).not.toBe("start");
+    expect(aktiverEintrag("/m/feedback/vergleich", NAV)?.schluessel).not.toBe("start");
   });
 
   it("nimmt den spezifischsten Treffer, wenn zwei passen", () => {
@@ -154,11 +273,11 @@ describe("aktiverSchluessel — welcher Eintrag ist dran", () => {
       { key: "kurz", title: "Kurz", href: "/17" },
       { key: "lang", title: "Lang", href: "/groups/17" },
     ];
-    expect(aktiverSchluessel("/m/feedback/groups/17", verschachtelt)).toBe("lang");
+    expect(aktiverEintrag("/m/feedback/groups/17", verschachtelt)?.schluessel).toBe("lang");
   });
 
   it("gibt null, wenn nichts passt und es keine Wurzel gibt", () => {
-    expect(aktiverSchluessel("/irgendwo", [{ key: "a", title: "A", href: "/anders" }])).toBeNull();
+    expect(aktiverEintrag("/irgendwo", [{ key: "a", title: "A", href: "/anders" }])).toBeNull();
   });
 
   it("laesst die Modulnavigation weg, wenn nichts uebergeben wird", async () => {
@@ -168,17 +287,26 @@ describe("aktiverSchluessel — welcher Eintrag ist dran", () => {
 });
 
 describe("SuiteNav — anonym", () => {
-  it("bietet Anmelden statt Abmelden und KEINE Modulliste", async () => {
-    // Anonym gibt es KEINE Modulliste, sondern nur den Anmelden-Knopf (Grund
-    // siehe SuiteNav.tsx): wer abgemeldet auf `feedback` klickt, landet
-    // ohnehin auf `/login` (requireFeedbackAccess.ts:35) — genau dort, wohin
-    // dieser Knopf direkt fuehrt. Ein Modulwechsler, dessen Eintraege
-    // allesamt zum Login umleiten, ist keiner.
+  it("bietet Anmelden in der Kopfzeile statt Abmelden und KEINE Modulliste", async () => {
+    /*
+     * Der Anmelden-Knopf steht an der Avatar-Position und damit auf BEIDEN
+     * Groeszen — nicht mehr im Drawer, dessen Oeffner ab 768px verschwindet.
+     * Deshalb `exists` (Kopfzeile) und nicht `existsPortal`.
+     *
+     * Anonym gibt es weiterhin KEINE Modulliste (Grund siehe SuiteNav.tsx): wer
+     * abgemeldet auf `feedback` klickt, landet ohnehin auf `/login`
+     * (requireFeedbackAccess.ts:35) — genau dort, wohin dieser Knopf direkt
+     * fuehrt. Ein Modulwechsler, dessen Eintraege allesamt zum Login umleiten,
+     * ist keiner.
+     */
     await zeichne({ angemeldet: false, userName: null });
-    expect(existsPortal('[data-testid="anmelden"]')).toBe(true);
+    expect(exists('[data-testid="anmelden"]')).toBe(true);
+    expect(query('[data-testid="anmelden"]').getAttribute("href")).toBe("/login");
+    expect(exists('[data-testid="nutzermenue"]')).toBe(false);
     expect(existsPortal('[data-testid="abmelden"]')).toBe(false);
     // Die Knopfreihe liegt in der Kopfzeile, nicht im Portal — hier `exists`.
     expect(exists('[data-testid="modulzeile"]')).toBe(false);
-    expect(queryPortal('[data-testid="anmelden"]').getAttribute("href")).toBe("/login");
+    // Und der Anmelden-Weg steht genau einmal da, nicht zusaetzlich im Drawer.
+    expect(document.body.querySelectorAll('[data-testid="anmelden"]')).toHaveLength(1);
   });
 });
