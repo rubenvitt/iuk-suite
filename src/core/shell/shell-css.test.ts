@@ -68,7 +68,11 @@ describe("shell.module.css", () => {
      * morgen eine spezifischere Regel mitbringt — das kann nur der Browser.
      */
     const vorkommen = [...OHNE_KOMMENTARE.matchAll(/([^{}]*)\.nurMobil\s*\{/g)];
-    expect(vorkommen.length, "Klasse .nurMobil fehlt").toBe(2);
+    // Untergrenze statt fester Zahl: geprueft wird, DASS jedes Vorkommen den
+    // Praefix traegt (Schleife unten) — nicht, wie viele es gibt. Eine dritte,
+    // legitime Regel waere sonst mit der Meldung "Klasse .nurMobil fehlt"
+    // fehlgeschlagen, und die schickt den Suchenden in die falsche Richtung.
+    expect(vorkommen.length, "Klasse .nurMobil fehlt in shell.module.css").toBeGreaterThanOrEqual(2);
     for (const treffer of vorkommen) {
       expect(treffer[1], `Selektor ohne .rechts-Praefix: "${treffer[0]}"`).toMatch(
         /\.rechts\s+$/,

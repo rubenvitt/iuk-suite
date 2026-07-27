@@ -61,13 +61,22 @@ ungenügend"), darf Rot **niemals auf einer Datenfläche** erscheinen — kein r
 `controlHeightLG` ist 72. **`size` auf Bedienelementen also gar nicht setzen.** Ausnahme:
 `size="small"` innerhalb von Tabellenzeilen, weil eine 56px-Zeilenaktion die Zeile sprengt.
 
-**5. Eine eigene Klasse auf einer antd-Komponente verliert bei Gleichstand.**
-`.meineKlasse` ist Spezifität (0,1,0) — genau so viel wie `.ant-btn`, `.ant-input-lg`,
-`.ant-select-selector`. Bei Gleichstand entscheidet die Reihenfolge im Dokument, und **antds
-Stylesheet kommt später**. Die eigene Regel matcht also, greift aber nicht — und der Fehler ist
-still, weil im Quelltext alles richtig dasteht. Zweimal passiert: `.nurMobil { display: none }` in der
-768px-Media-Query verlor gegen `.ant-btn { display: inline-flex }`, der Menü-Knopf stand sichtbar auf
-dem Desktop; und `.ant-input-lg` schlug die globale `input { font-size: 16px }` (0,0,1).
+**5. Eigenes CSS und antd-CSS treffen sich, und die Spezifität entscheidet — meist gegen dich.**
+Der Fehler ist immer still: im Quelltext steht alles richtig, die Regel matcht, sie greift nur nicht.
+Dreimal passiert, in drei verschiedenen Ausprägungen:
+
+- **Gleichstand, antd gewinnt durch Reihenfolge.** `.nurMobil` ist (0,1,0) — genau so viel wie
+  `.ant-btn`. Bei Gleichstand entscheidet die Dokumentreihenfolge, und **antds Stylesheet kommt
+  später**: `.nurMobil { display: none }` in der 768px-Media-Query verlor gegen
+  `.ant-btn { display: inline-flex }`, der Menü-Knopf stand sichtbar auf dem Desktop.
+- **Kein Gleichstand, eigene Regel schlicht zu schwach.** `.ant-input-lg` (0,1,0) schlägt eine globale
+  `input { font-size: 16px }` (0,0,1) regulär. Kein Reihenfolgeproblem — sie war nie im Rennen.
+- **Eigene Regel zu stark, und trifft die falschen.** `:root textarea` (0,1,1) überstimmte
+  `.textfeld` (0,1,0) im öffentlichen Abendzettel und hätte dessen bewusste 18px auf 16px
+  heruntergezwungen. Wer gegen antd aufrüstet, überfährt dabei leicht das eigene Modul-CSS.
+
+Merksatz: **so spezifisch wie nötig, nicht wie möglich** — und in welche Richtung „nötig" zeigt,
+hängt davon ab, wer der Gegenspieler ist.
 
 **Regel:** wo eigenes CSS auf einer antd-Komponente sitzt, eine Klasse mehr voranstellen
 (`.rechts .nurMobil` = (0,2,0)) — nie `!important`, und nie mehr als nötig. Wo antd einen **Token**
