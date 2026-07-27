@@ -142,11 +142,19 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
         }
         return session;
       },
-      // Laeuft heute NIE: `authorized` ruft next-auth nur im Middleware-/
-      // Route-Wrapper-Zweig (lib/index.js:133), und `src/middleware.ts` gibt es
-      // in diesem Projekt nicht. Bleibt als Vorgabe fuer den Tag stehen, an dem
-      // eine Middleware dazukommt — die muesste dann einen `matcher` tragen,
-      // sonst sperrt sie die login-freien Ansichten von `feedback` aus.
+      // ACHTUNG, DAS LAEUFT: next-auth ruft `authorized` im Wrapper-Zweig
+      // (lib/index.js:133) — und den nutzt `src/proxy.ts` bei JEDER Anfrage.
+      // (Next.js 16 hat `middleware.ts` in `proxy.ts` umbenannt; wer nach
+      // `src/middleware.ts` sucht, findet nichts und schliesst falsch, es gebe
+      // keine Middleware. Genau daran ist schon einmal die ganze Anwendung
+      // gescheitert.)
+      //
+      // Der Rueckgabewert wird hier trotzdem verworfen: sobald eine eigene
+      // Weiche uebergeben ist, gewinnt deren Antwort (lib/index.js:148), und
+      // der `!authorized`-Zweig (:156) kommt nie dran. Wer das aendern will,
+      // muss wissen: dieser Callback kennt den `matcher` nicht und wuerde die
+      // login-freien Ansichten von `feedback` aussperren. Die Zugangsfrage
+      // beantwortet `decideRoute`, nicht diese Zeile.
       authorized({ auth: session }) {
         return !!session?.user;
       },
