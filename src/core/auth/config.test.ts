@@ -96,7 +96,7 @@ describe("authConfig — Gruppen einfrieren (Regression)", () => {
    * UNVERAENDERT durchreicht, statt die alten Gruppen nachtraeglich wieder
    * ueber das frische Ergebnis zu legen.
    */
-  it("uebernimmt bei einer erfolgreichen Erneuerung die frischen Gruppen aus refresh.ts", async () => {
+  it("uebernimmt bei einer erfolgreichen Erneuerung die Gruppen aus dem neuen id_token", async () => {
     auffrischenMock.mockResolvedValueOnce({
       groups: ["neue-gruppe"],
       fachgruppen: ["neue-fachgruppe"],
