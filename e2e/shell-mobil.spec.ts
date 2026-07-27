@@ -57,7 +57,23 @@ test("mobil: abmelden haengt am Nutzermenue, nicht mehr im Drawer", async ({ pag
   await expect(page.getByTestId("suite-drawer")).toBeVisible();
   await expect(page.getByTestId("suite-drawer").getByTestId("abmelden")).toHaveCount(0);
 
+  /*
+   * Erst schlieszen, DANN das Nutzermenue. Und zwar mit einer Zusicherung
+   * dazwischen, nicht bloss mit einem `press`: der Drawer hat eine Maske, und
+   * eine noch ausblendende Maske faengt Klicks weiterhin ab. Ohne das Warten
+   * haengt der Test daran, dass die Animation schneller fertig ist als der
+   * naechste Klick — gruen auf dem Entwicklerrechner, rot auf einem kalten
+   * CI-Runner.
+   *
+   * Nebenbei die Zusage, dass `aria-expanded` am Oeffner nach dem Schlieszen
+   * wieder stimmt: `setOffen(false)` haengt an `Drawer.onClose`, und Escape
+   * laeuft ueber genau diesen Weg. Faende es nicht statt, meldete der Knopf
+   * dauerhaft "offen".
+   */
   await page.keyboard.press("Escape");
+  await expect(page.getByTestId("suite-drawer")).toBeHidden();
+  await expect(page.getByTestId("menue-knopf")).toHaveAttribute("aria-expanded", "false");
+
   await page.getByTestId("nutzermenue").click();
   await expect(page.getByTestId("abmelden")).toBeVisible();
 });
