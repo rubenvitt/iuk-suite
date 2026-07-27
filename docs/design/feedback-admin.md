@@ -872,9 +872,17 @@ Tastatur: ein Tabstop pro Bedienelement, `Dropdown` und `Popconfirm` bringen ant
 eigene interaktive Flächen (Gruppenkarte, Verlaufszeile) sind `<a>`, nicht `div` mit `onClick`.
 `aria-live="polite"` genau einmal: an der Fußzeile „Stand: 21:47" der laufenden Karte. Der
 Zwischenstand plappert nicht bei jeder Antwort.
-Mobile Feldschrift: `@media (max-width: 600px) { .fb-form input, .fb-form textarea, .fb-form
-.ant-select-selector { font-size: 16px } }` — `token.fontSize` ist 14, und unter 16px zoomt iOS beim
-Fokus.
+Mobile Feldschrift: gilt inzwischen **suiteweit** und ohne Breakpoint. Die modul-eigene Fassung unter
+`@media (max-width: 600px)` ist entfallen. An ihre Stelle treten zwei Wege für zwei Welten:
+`app/globals.css` hält mit `input, textarea, select` eine **Untergrenze** für eigenes Markup —
+bewusst niedrig spezifisch, damit Modul-CSS sie nach oben überschreiben darf (der Abendzettel setzt
+`.textfeld` auf 18px und behält das) — und `core/theme/theme.ts` gibt den antd-Feldern
+`inputFontSize: 16`. Nur `.ant-select-selector` braucht in CSS erhöhte Spezifität, weil antd dafür
+keinen Token anbietet.
+
+Die Begründung hat sich dabei umgedreht: früher war 16px die Abwehr gegen iOS' Auto-Zoom beim Fokus,
+seit der suiteweiten Zoom-Sperre (`app/layout.tsx`) ist es reine Lesbarkeit — ohne Zoom kann niemand
+mehr heranholen, was zu klein ist. Festgehalten in `core/theme/feldschrift.test.ts`.
 
 ### 4.15 Änderungen an Actions und Queries (vollständig)
 

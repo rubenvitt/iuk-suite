@@ -111,7 +111,38 @@ statt Schriftgrößen im Markup zu verstreuen. In Admin-Ansichten sind die Werte
 Ansichten dürfen eine eigene Skala haben, weil sie eine eigene Anmutung tragen.
 
 Ziffern, die verglichen werden, brauchen `font-variant-numeric: tabular-nums`. Eingabefelder nie unter
-16px — darunter zoomt iOS beim Fokus.
+16px (Begründung: Abschnitt „Mobil" unten).
+
+## Mobil — ein Breakpoint, vier Regeln
+
+**768px ist der einzige Breakpoint der Suite** (= antds `md`, festgehalten in
+`core/shell/shell-css.test.ts`). Kein Modul erfindet einen zweiten; `Row`/`Col` bekommen `xs`/`md`,
+keine festen Breiten.
+
+**Die Umschaltung ist CSS, nie JavaScript.** `Grid.useBreakpoint` ist in Server Components ohnehin
+verboten (Falle 1), und ein JS-Breakpoint zeigt beim ersten Render die falsche Variante. Beide
+Ausprägungen rendern, CSS blendet eine aus.
+
+**Zoom ist suiteweit gesperrt, und deshalb fallen Eingabefelder nirgends unter 16px.** Die beiden
+Regeln sind eine Einheit: ohne Zoom kann niemand mehr heranholen, was zu klein ist. Die Begründung hat
+sich damit umgedreht — früher war 16px die Abwehr gegen iOS' Auto-Zoom, heute ist es reine
+Lesbarkeit. Wer eine der beiden anfasst, prüft die andere (`app/layout.tsx`, `app/globals.css`,
+`core/theme/feldschrift.test.ts`).
+
+**antd-`Table` scrollt auf schmalen Geräten (`scroll={{ x: … }}`), sie bricht nicht um.** Eine
+umgebrochene Tabellenzeile ist unlesbarer als eine gescrollte.
+
+**Handlungsknöpfe unter 768px sind volle Breite und stehen untereinander, nie nebeneinander.** Ein
+630px breiter Knopf liest sich als Fläche, nicht als Ziel.
+
+### Tests für Responsives — wer welche Aussage besitzt
+
+**jsdom wertet Media Queries nicht aus.** Ein Vitest, der „auf 390px ist X unsichtbar" behauptet und
+dafür im DOM sucht, geht **immer** durch — er misst nichts, und der grüne Balken ist eine Lüge. Die
+Aufteilung, die trägt:
+
+- **Quelltext-Scan (Vitest)** besitzt die Regel: „die Klasse trägt die richtige Media Query".
+- **Playwright bei 390×844** besitzt das Ergebnis: „man sieht es nicht".
 
 ## Was eine Oberfläche zeigen muss, damit sie benutzbar ist
 
