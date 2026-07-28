@@ -283,7 +283,11 @@ export function SuiteNav({
     "data-testid": "abmelden",
     // Derselbe Weg, den SessionGuard bei RefreshTokenError automatisch geht —
     // ohne ihn endet der Logout auf einer 404 (siehe oidc-signout/route.ts).
-    onClick: () => signOut({ callbackUrl: "/api/auth/oidc-signout" }),
+    // `void`, nicht das Promise schweben lassen: scheitert `signOut` (Netz weg,
+    // Endpunkt tot), ist die Ablehnung sonst unbehandelt und landet je nach
+    // Laufzeit als `unhandledrejection` in der Konsole — an einer Stelle, an
+    // der niemand nach einem Abmeldefehler sucht.
+    onClick: () => void signOut({ callbackUrl: "/api/auth/oidc-signout" }),
   };
   const nutzerEintraege: MenuProps["items"] = userName
     ? [

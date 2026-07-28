@@ -88,8 +88,20 @@ test("nach dem Logout sieht die naechste Person den Verlauf nicht mehr", async (
   // Angemeldeten noch sichtbar sein, wenn der Test prüft, ob er weg ist.
   // Das Hook spiegelt denselben Wert, den HistoryOwner in den Store schreibt —
   // der Test wartet also genau auf den Zustand, den die Komponente auch sieht.
+  // `?? null` stand hier einmal und machte den Test wertlos: fehlt das Hook
+  // ganz — weil es umbenannt wurde, nie lief oder das Skript gar nicht
+  // ankam —, ist `window.__historyOwner` `undefined`, `?? null` macht daraus
+  // `null`, und `toBeNull()` besteht sofort. Der Test haette dann bewiesen,
+  // dass er nichts misst. Der Sentinel unterscheidet "auf null gesetzt" von
+  // "war nie da".
   await expect
-    .poll(() => page.evaluate(() => window.__historyOwner ?? null), { timeout: 10_000 })
+    .poll(
+      () =>
+        page.evaluate(() =>
+          "__historyOwner" in window ? (window.__historyOwner ?? null) : "hook-fehlt",
+        ),
+      { timeout: 10_000 },
+    )
     .toBeNull();
 
   await expect(page.getByTestId("qr-history")).toHaveCount(0);
