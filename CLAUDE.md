@@ -50,21 +50,21 @@ Stunde, Fosite-Default), nicht die Sitzungsdauer (30 Tage). Zwei Folgen für jed
 Gruppenentzug wirkt mit bis zu einer Stunde Verzug, und wo das zu lang ist, muss die Berechtigung
 serverseitig aus der Datenbank aufgelöst werden statt aus `session.user.groups`.
 
-Aufgefrischt wird auf dem Proxy-/Middleware-Pfad (`src/proxy.ts`) und auf `/api/auth/*` — dort kommt
-das `Set-Cookie` beim Client an —, **nicht** bei `auth()` aus einer Server Component: next-auth wirft
-es dort weg, und `core/auth/config.ts` sperrt den Refresh auf diesem Pfad zusätzlich selbst
-(`darfSchreiben: request !== undefined`). Grund ist Pocket IDs Rotation ohne Gnadenfrist: ein
-verlorenes neues Refresh-Token macht den nächsten Versuch zur Wiederverwendung und kostet die ganze
-Sitzung, nicht nur den Refresh.
+Aufgefrischt wird auf dem Proxy-/Middleware-Pfad (`src/proxy.ts`, dessen `matcher` praktisch jede
+Anfrage umfasst) und auf `/api/auth/*` — dort kommt das `Set-Cookie` beim Client an —, **nicht** bei
+`auth()` aus einer Server Component: next-auth wirft es dort weg, und `core/auth/config.ts` sperrt
+den Refresh auf diesem Pfad zusätzlich selbst (`darfSchreiben: request !== undefined`). Grund ist
+Pocket IDs Rotation ohne Gnadenfrist: ein verlorenes neues Refresh-Token macht den nächsten Versuch
+zur Wiederverwendung und kostet die ganze Sitzung, nicht nur den Refresh.
 
 `src/proxy.ts` **ist** in Next.js 16 die Middleware (Umbenennung von `middleware.ts`) — wer die Datei
 unter dem alten Namen sucht und nichts findet, schließt sonst fälschlich, es gäbe keine. Wer die
 Auth-Konfiguration zwischen Objekt- und Funktionsform umstellt, muss `proxy.ts` mit anpassen: bei
 Funktions-Config liefert `auth(callback)` ein Promise statt einer Funktion, Next verlangt aber eine
 aufrufbare Funktion aus `proxy`/`default`. Das Symptom ist HTTP 500 auf jeder Route; `pnpm build`
-sieht es nicht. `src/proxy.test.ts` bewacht die Naht inzwischen (`pnpm vitest run` schlägt dann
-fehl) — aber nur, weil sie nach genau diesem Ausfall extra dafür geschrieben wurde; davor sah es nur
-`pnpm exec playwright test`.
+sieht es nicht. `src/proxy.test.ts` bewacht die heutige Naht (`pnpm vitest run` schlägt dann fehl) —
+das gilt nur für ihre heutige Form; ein Umbau von `proxy.ts` schuldet weiterhin einen Lauf von
+`pnpm exec playwright test`, das den Ausfall als einziges immer end-to-end sieht.
 
 ## Cutover einer Alt-Anwendung
 
