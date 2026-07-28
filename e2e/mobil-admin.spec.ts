@@ -334,6 +334,32 @@ test.describe("390x844 — das Telefon", () => {
     expect(zuKlein.map((z) => z.replace(/ \d+x\d+$/, "")), `gemessen: ${zuKlein.join(" | ")}`).toEqual([
       "Aktualisieren",
     ]);
+
+    /*
+     * DIE ZWEI ANDEREN VON AUFGABE 5 BEHOBENEN FLAECHEN, und sie kosten nichts:
+     * beide Seiten brauchen keinen hergestellten Zustand.
+     *
+     * `/groups/1/trend` traegt die acht Fragen-Schalter aus `TrendDiagramm.tsx`
+     * (gemessen VOR Aufgabe 5: acht Knoepfe mit `h:42`, von 207 bis 279px breit),
+     * `portal/admin` die „Löschen"-Knoepfe aus `service-table.tsx` (gemessen
+     * VORHER: zweimal 70x42, aus dem Seed zwei Dienste). Hier ist `[]` die
+     * richtige Erwartung — auf beiden Seiten laeuft keine Umfrage, die
+     * Aktualisierer-Ausnahme kommt also gar nicht ins Spiel.
+     */
+    for (const ziel of [
+      "http://feedback.localtest.me:3100/groups/1/trend",
+      "http://portal.localtest.me:3100/admin",
+    ]) {
+      await page.goto(ziel);
+      await page.waitForLoadState("networkidle");
+      // ERST ZAEHLEN, DANN MESSEN: `zuKleineKnoepfe` liefert auch auf einer
+      // leeren oder gescheiterten Seite `[]` — ohne diese Zeile waere `toEqual([])`
+      // gruen, ohne je einen Knopf gesehen zu haben.
+      const alle = await page.locator(".ant-btn").count();
+      expect(alle, `${ziel}: gar keine Bedienelemente gefunden`).toBeGreaterThan(0);
+      const rest = await zuKleineKnoepfe(page);
+      expect(rest, ziel).toEqual([]);
+    }
   });
 
   test("die „Entfernen“-Flaeche der Zuordnung ist mindestens 44px", async ({ page }) => {
