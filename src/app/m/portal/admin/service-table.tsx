@@ -27,6 +27,21 @@ export function ServiceTable({
       dataSource={services}
       pagination={false}
       size="small"
+      /*
+       * SCROLLEN STATT DIE SEITE MITNEHMEN (docs/design/README.md, „Mobil").
+       * Ohne diese Prop setzt rc-table keinen Overflow-Container; die Tabelle
+       * lief bei 390px mit 483px Breite in einem 358px-Kasten ueber und das
+       * ganze Dokument scrollte seitwaerts (gemessen: scrollWidth 499). Beide
+       * „Loeschen"-Knoepfe standen auszerhalb des Sichtfelds, und wegen der
+       * suiteweiten Zoom-Sperre konnte man sie auch nicht heranholen.
+       *
+       * `max-content` und keine Zahl, weil KEINE Spalte ein `width` traegt.
+       * Auf dem Desktop aendert sich dadurch nichts: rc-table bleibt auf
+       * `table-layout: auto` (keine Spalte mit `fixed`, kein `scroll.y`, kein
+       * `ellipsis`), und `min-width: 100%` haelt die Tabelle so breit wie ihren
+       * Container. Belegt in `e2e/mobil-admin.spec.ts` bei 1280x800.
+       */
+      scroll={{ x: "max-content" }}
       onRow={() => ({ "data-testid": "service-row" }) as React.HTMLAttributes<HTMLElement>}
       columns={[
         { title: "Name", dataIndex: "name" },
