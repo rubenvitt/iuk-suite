@@ -110,6 +110,40 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
 
         // Extract groups from the OIDC profile
         if (profile) {
+          /*
+           * DER SCHLUESSEL DER SUITE — die Zeile, ohne die keine Zuordnung hält.
+           *
+           * Auth.js setzt `user.id` NICHT aus dem Profil, sondern auf eine
+           * Zufalls-UUID (@auth/core 0.41.0,
+           * `lib/actions/callback/oauth/callback.js:219-226`, ausdrücklich:
+           * „the user should remain independent of the provider"), und baut
+           * daraus `token.sub` (`callback/index.js:76`). Was `pocketId.ts` in
+           * `profile()` als `id` zurückgibt, ist zu diesem Zeitpunkt längst
+           * überschrieben.
+           *
+           * Damit war der `sub` PRO ANMELDUNG EIN ANDERER. Gemessen am
+           * 2026-07-28 in der Produktion: 13 Zeilen in `known_users` für EINE
+           * Person, in drei Tagen entstanden, teils Sekunden auseinander. Die
+           * Zuordnung einer Gruppenleitung über `user_groups` konnte deshalb
+           * prinzipiell nie greifen — die Kennung der nächsten Sitzung passte
+           * nicht mehr, egal welchen Eintrag ein Admin auswählte. Sichtbar war
+           * das als „Dir ist noch keine Gruppe zugeordnet" trotz gesetzter
+           * Zuordnung, und als dieselbe Person mehrfach in der Auswahlliste.
+           *
+           * `profile` liegt NUR bei der Anmeldung an. Der `sub` wird also genau
+           * einmal gesetzt und von jedem späteren Aufruf unverändert
+           * weitergetragen — `tokenAuffrischen` fasst ihn nicht an. Der
+           * Dev-Login (Credentials) hat gar kein `profile`; dort bleibt
+           * `token.sub` bei `dev:<email>`, wie gehabt.
+           *
+           * WAS DIESE ZEILE NICHT HEILT: laufende Sitzungen tragen ihre alte
+           * UUID bis zum nächsten Login weiter (30 Tage Sitzungsdauer). Wer die
+           * Wirkung sofort will, erzwingt eine Neuanmeldung.
+           */
+          const sub = (profile as Record<string, unknown>).sub;
+          if (typeof sub === "string" && sub !== "") {
+            token.sub = sub;
+          }
           token.groups = parseGroups(profile as Record<string, unknown>);
           // Fachgruppen-Attribut: derselbe Weg, dieselbe Vertrauensbasis wie
           // `groups` (signiertes ID-Token). Es benennt die Fachgruppen-Slugs, für

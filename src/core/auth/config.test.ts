@@ -115,6 +115,63 @@ describe("authConfig — Gruppen einfrieren (Regression)", () => {
   });
 
   /**
+   * DER SCHLUESSEL DER SUITE — und die Zusage, an der jede Zuordnung haengt.
+   *
+   * Auth.js setzt `user.id` NICHT aus dem Profil, sondern auf eine Zufalls-UUID
+   * (@auth/core 0.41.0, `lib/actions/callback/oauth/callback.js:219-226`) und
+   * baut daraus `token.sub` (`callback/index.js:76`). Ohne die Ruecknahme im
+   * jwt-Callback war der `sub` PRO ANMELDUNG EIN ANDERER: gemessen am
+   * 2026-07-28 in der Produktion 13 `known_users`-Zeilen fuer eine Person in
+   * drei Tagen, und eine Zuordnung in `user_groups` konnte prinzipiell nie
+   * greifen.
+   *
+   * DIESE DREI FAELLE ZUSAMMEN, KEINER ERSETZT DEN ANDEREN. Der erste zeigt,
+   * dass die echte Kennung gewinnt; der zweite, dass sie das ueber jeden
+   * spaeteren Aufruf hinweg behaelt (dort gibt es kein `profile`, und ein
+   * Zurueckfallen waere ein Wechsel der Identitaet mitten in der Sitzung); der
+   * dritte, dass der Dev-Login unberuehrt bleibt — er hat gar kein `profile`,
+   * und ein `dev:<email>` ist dort die richtige, stabile Kennung.
+   *
+   * DIE E2E-SUITE KANN DAS NICHT SEHEN: `devLogin` faehrt ueber Credentials,
+   * wo `profile` nie gesetzt ist. Genau deshalb blieb sie 63/63 gruen, waehrend
+   * jede echte Pocket-ID-Anmeldung eine neue UUID praegte.
+   */
+  it("holt den echten OIDC-sub aus dem profile zurueck — gegen die Zufalls-UUID von Auth.js", async () => {
+    const token = await jwtCallback(undefined)({
+      token: { sub: "3f7a1c9e-0000-4000-8000-zufall" },
+      profile: { sub: "da53e72e-d91b-415d-98e5-4fb5db963d29", groups: [] },
+      account: { access_token: "at", id_token: "it", refresh_token: "rt", expires_at: 4_000_000_000 },
+    } as never);
+    expect(token?.sub).toBe("da53e72e-d91b-415d-98e5-4fb5db963d29");
+  });
+
+  it("laesst den sub stehen, wenn kein profile mitkommt", async () => {
+    const token = await jwtCallback(undefined)({
+      token: { sub: "da53e72e-d91b-415d-98e5-4fb5db963d29" },
+    } as never);
+    expect(token?.sub).toBe("da53e72e-d91b-415d-98e5-4fb5db963d29");
+  });
+
+  it("fasst den sub des Dev-Logins nicht an", async () => {
+    const token = await jwtCallback(undefined)({
+      token: { sub: "dev:dev@localtest.me" },
+      user: { groups: ["dev-gruppe"] },
+    } as never);
+    expect(token?.sub).toBe("dev:dev@localtest.me");
+  });
+
+  // Ein leerer oder fehlender `sub` im Profil ist kein Grund, die vorhandene
+  // Kennung wegzuwerfen — das waere aus einem unvollstaendigen Profil eine
+  // identitaetslose Sitzung gemacht.
+  it("verwirft die vorhandene Kennung nicht fuer einen leeren sub", async () => {
+    const token = await jwtCallback(undefined)({
+      token: { sub: "vorhanden" },
+      profile: { sub: "", groups: [] },
+    } as never);
+    expect(token?.sub).toBe("vorhanden");
+  });
+
+  /**
    * DIE VOLLE ZUSAGE, NICHT NUR DIE ENGERE AUS DEM ZWISCHENSTAND.
    *
    * Bis Task 2 galt nur: ohne `profile` bleiben VORHANDENE Gruppen stehen.

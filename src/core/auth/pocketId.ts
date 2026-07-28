@@ -61,6 +61,28 @@ export function pocketIdProvider() {
     },
     profile(profile: Record<string, unknown>) {
       return {
+        /*
+         * DIESES `id` KOMMT NICHT AN — es sieht nur so aus.
+         *
+         * Auth.js verwirft es unmittelbar nach diesem Aufruf und setzt eine
+         * ZUFALLS-UUID an seine Stelle (@auth/core 0.41.0,
+         * `lib/actions/callback/oauth/callback.js:219-226`, mit dem Kommentar
+         * „the user should remain independent of the provider"). Aus dieser
+         * `user.id` baut Auth.js dann `token.sub`
+         * (`lib/actions/callback/index.js:76`).
+         *
+         * Die Folge war real und teuer: JEDE Anmeldung ergab einen anderen
+         * `sub`, `known_users` sammelte pro Login eine neue Zeile (gemessen 13
+         * Zeilen in drei Tagen fuer eine Person), und eine Zuordnung in
+         * `user_groups` konnte prinzipiell nie greifen, weil die Kennung der
+         * naechsten Sitzung nicht mehr passte. Zurueckgeholt wird der echte
+         * `sub` deshalb im jwt-Callback (`config.ts`) — DORT steht die
+         * tragende Zeile, nicht hier.
+         *
+         * Stehen bleibt das Feld trotzdem: Auth.js verlangt ein `id` von
+         * `profile()`, und der Wert landet als `providerAccountId` im
+         * Account-Objekt (`callback.js:233`).
+         */
         id: profile.sub as string,
         name: (profile.name ?? profile.preferred_username) as string | undefined,
         email: profile.email as string | undefined,

@@ -32,15 +32,35 @@
  * `docs/superpowers/specs/2026-07-18-portal-productionize-design.md:16`
  * vorgesehen sind und dieselbe Zuordnungsfrage stellen.
  *
- * ── DIE TRAGENDE ANNAHME, DIE DIE DOKU NICHT BESTAETIGT ───────────────────────
+ * ── DIE TRAGENDE ANNAHME — UND DIE HAELFTE, DIE NICHT STIMMTE ─────────────────
  *
  * `UserDto.id` IST der OIDC-`sub`. Weder `swagger.yaml` noch `docs/api.md` sagen
  * das; der Beleg steht im Quellcode von Pocket ID:
  * `backend/internal/oidc/claims_service.go:147` → `claims["sub"] = user.ID`.
- * Darauf ruht der ganze Zweck: `user_groups.user_id` und `known_users.user_id`
- * speichern den `sub`, und ein Eingabefeld koennte ihn nie liefern.
- * Gegenprobe im Betrieb (30 Sekunden): eine bestehende `known_users.user_id`
- * nehmen und pruefen, dass `GET /api/users/<id>` genau diese Person liefert.
+ * Diese Haelfte hat gehalten.
+ *
+ * DIE ANDERE HAELFTE WAR FALSCH, und sie stand hier als Selbstverstaendlichkeit:
+ * dass `user_groups.user_id` und `known_users.user_id` den `sub` speichern. Bis
+ * 2026-07-28 taten sie das NICHT. Auth.js verwirft die Kennung aus `profile()`
+ * und setzt eine Zufalls-UUID (`@auth/core`
+ * `lib/actions/callback/oauth/callback.js:219-226`), aus der `token.sub` und
+ * damit `session.user.id` wird — pro Anmeldung eine andere. In der Produktion
+ * standen dadurch 13 Zeilen in `known_users` fuer eine Person, und keine
+ * Zuordnung in `user_groups` konnte je greifen. Behoben im jwt-Callback
+ * (`core/auth/config.ts`), der den echten `sub` aus dem Profil zurueckholt.
+ *
+ * Die frueher hier empfohlene Gegenprobe („eine bestehende `known_users.user_id`
+ * nehmen und pruefen, dass `GET /api/users/<id>` genau diese Person liefert")
+ * haette den Fehler gefunden — sie WAERE fehlgeschlagen. Sie steht deshalb
+ * weiter, jetzt aber als Pruefung mit einem bekannten Ausgang: nach einer
+ * Neuanmeldung MUSS sie treffen. Trifft sie nicht, ist die Ruecknahme des `sub`
+ * wieder weg.
+ *
+ * ALTBESTAND: Zeilen, die vor dem 2026-07-28 geschrieben wurden, tragen die
+ * Zufalls-UUID — nicht nur in `feedback`, sondern auch in
+ * `app/m/qr/_db/schema.ts:23-24` (`created_by`/`updated_by`). Sie zeigen dort
+ * keinen Namen an und richten keinen Schaden an; wer sie auflaufen laesst, hat
+ * bloss Kennungen, die das Verzeichnis nicht kennt.
  *
  * ── AUSFALLSICHERHEIT IST DIE ERSTE EIGENSCHAFT, NICHT DIE LETZTE ─────────────
  *
