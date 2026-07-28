@@ -1426,7 +1426,7 @@ describe("suchePersonenAction: Autofill aus dem Personenverzeichnis", () => {
     ]);
   });
 
-  it("kennzeichnet, wer sich noch nie angemeldet hat — und schließt ihn NICHT aus", async () => {
+  it("kennzeichnet, wer noch nie in der Verwaltung war — und schließt ihn NICHT aus", async () => {
     const { suchePersonenAction } = await loadActions();
     alsAdmin();
     upsertKnownUser(db, {
@@ -1629,7 +1629,7 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
     const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@drk.example"));
 
     if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
-    expect(ergebnis.fieldErrors.kennung).not.toContain("einmal angemeldet");
+    expect(ergebnis.fieldErrors.kennung).not.toContain("einmal geöffnet");
     expect(listGroupMembers(db, g.id)).toEqual([]);
   });
 
@@ -1642,7 +1642,7 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
     const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@drk.example"));
 
     if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
-    expect(ergebnis.fieldErrors.kennung).toContain("einmal angemeldet");
+    expect(ergebnis.fieldErrors.kennung).toContain("einmal geöffnet");
     expect(listGroupMembers(db, g.id)).toEqual([]);
   });
 

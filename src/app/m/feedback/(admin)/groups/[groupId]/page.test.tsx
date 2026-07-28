@@ -542,9 +542,9 @@ describe("Zone e — die Leitung ist Admin-Sache (§2.6)", () => {
     expect(inhalt).toContain("LEITUNG");
     expect(inhalt).toContain("Anna Beispiel");
     expect(inhalt).toContain("sub-anna");
-    // Wer noch nie angemeldet war, steht mit Kennung und ohne Namen da (§2.6).
+    // Wer noch nie in der Verwaltung war, steht mit Kennung und ohne Namen da (§2.6).
     expect(inhalt).toContain("sub-nie-da");
-    expect(inhalt).toContain("hat sich noch nicht angemeldet");
+    expect(inhalt).toContain("Name unbekannt");
 
     await unmount();
     document.body.replaceChildren();

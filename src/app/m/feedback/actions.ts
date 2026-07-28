@@ -275,7 +275,7 @@ async function ohneAusfall(
  * DIE PERSONENSUCHE HINTER DEM AUTOFILL.
  *
  * Sie beantwortet die Frage, an der das Modul bisher scheiterte: „wie ordne ich
- * jemanden zu, der sich noch nie angemeldet hat?" Quelle ist das
+ * jemanden zu, der noch nie hier war?" Quelle ist das
  * Personenverzeichnis aus Pocket ID (`core/directory`), ergänzt um `known_users`
  * — Vereinigung, entdoppelt.
  *

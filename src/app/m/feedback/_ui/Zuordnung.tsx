@@ -29,10 +29,16 @@ import { T } from "./typo";
  * fragt jetzt das Personenverzeichnis des Identitaetsanbieters
  * (`core/directory`), ergaenzt um `known_users`.
  *
- * „NOCH NIE ANGEMELDET" IST KEIN FEHLER, sondern der Normalfall, den dieses
- * Feature erst moeglich macht. Der Hinweis steht in `T.meta`, ohne Farbe, ohne
- * Warnzeichen — Rot ist hier ohnehin verboten (§4.9: `colorError ===
- * colorPrimary === #c8000f`).
+ * „NOCH NIE IN DER VERWALTUNG" IST KEIN FEHLER, sondern der Normalfall, den
+ * dieses Feature erst moeglich macht. Der Hinweis steht in `T.meta`, ohne Farbe,
+ * ohne Warnzeichen — Rot ist hier ohnehin verboten (§4.9: `colorError ===
+ * colorPrimary === #c8000f`). Bis 2026-07-28 hiess er „noch nie angemeldet";
+ * das war unwahr, siehe den Kommentar an `ZuordnungPerson.angemeldet`.
+ *
+ * DIE E-MAIL IST KEIN MERKMAL, AN DEM SICH JEMAND ERKENNEN LAESST. Sie ist im
+ * Verzeichnis optional und muss nicht eindeutig sein — gemessen am 2026-07-28
+ * dreimal dieselbe Adresse fuer drei verschiedene `sub`s. Unterschieden wird
+ * deshalb an der Kennung, und die steht unter JEDEM Vorschlag.
  *
  * GESPEICHERT WIRD IMMER DER `sub`. Im Eingabefeld steht ein lesbarer Wert; die
  * Zuordnung Wert → `sub` haelt diese Komponente in einer Map und schickt den
@@ -62,12 +68,28 @@ export type ZuordnungPerson = {
   name: string | null;
   email: string | null;
   /**
-   * Hat die Person das Modul schon einmal betreten? `undefined` heisst „nicht
-   * ermittelt" (kein Verzeichnis geladen) und wird nicht angezeigt — eine
-   * behauptete Aussage waere hier schlechter als keine.
+   * Steht die Person in `known_users`? `undefined` heisst „nicht ermittelt"
+   * (kein Verzeichnis geladen) und wird nicht angezeigt — eine behauptete
+   * Aussage waere hier schlechter als keine.
+   *
+   * DER NAME IST ENGER ALS DIE FRAGE, DIE ER ZU BEANTWORTEN SCHEINT.
+   * `known_users` fuellt `requireFeedbackAccess`, und zwar NACH `notFound()`:
+   * eingetragen wird nur, wer die Verwaltung dieses Moduls mit ZUGANG geoeffnet
+   * hat. Wer sich taeglich an der Suite anmeldet, aber in keiner
+   * Feedback-Gruppe steht, ist hier `false` — seit dem Entzug der
+   * Suite-Admin-Abkuerzung (`_lib/access.ts`) auch der Betreiber. Deshalb sagt
+   * die Oberflaeche „noch nie in der Verwaltung" und nicht „noch nie
+   * angemeldet": das Zweite waere schlicht unwahr.
    */
   angemeldet?: boolean;
 };
+
+/**
+ * Die eine Formulierung fuer diesen Zustand — in der Trefferliste und in der
+ * Leitungstabelle dieselbe. Zwei Texte fuer denselben Sachverhalt lesen sich wie
+ * zwei verschiedene Sachverhalte.
+ */
+const NIE_IN_DER_VERWALTUNG = "noch nie in der Verwaltung";
 
 export type ZuordnungProps = {
   groupId: number;
@@ -253,8 +275,8 @@ export function Zuordnung({
         ) : (
           <p style={{ ...T.meta, margin: 0 }}>
             {verzeichnisAktiv
-              ? "Name oder E-Mail eintippen und aus der Liste wählen — auch Personen, die sich noch nie angemeldet haben."
-              : "Die Person muss sich einmal angemeldet haben, damit ihre E-Mail bekannt ist."}
+              ? "Name oder E-Mail eintippen und aus der Liste wählen — auch Personen, die hier noch nie waren. Die Kennung unter jedem Vorschlag ist das, was gespeichert wird."
+              : "Die Person muss die Verwaltung einmal geöffnet haben, damit ihre E-Mail bekannt ist."}
           </p>
         )}
       </form>
@@ -273,13 +295,17 @@ function PersonZelle({ person }: { person: ZuordnungPerson }) {
   // NUR anzeigen, wenn ein Name da ist: ohne Namen sagt die Zeile darueber schon
   // dasselbe, und zweimal derselbe Hinweis liest sich wie ein Fehler.
   const nieDa = person.angemeldet === false && person.name !== null;
-  const zusatz = [person.email, nieDa ? "noch nie angemeldet" : null].filter(Boolean).join(" · ");
+  const zusatz = [person.email, nieDa ? NIE_IN_DER_VERWALTUNG : null].filter(Boolean).join(" · ");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
       {person.name ? (
         <span style={T.body}>{person.name}</span>
       ) : (
-        <span style={T.meta}>hat sich noch nicht angemeldet</span>
+        // Kein Name heisst: KEINE der beiden Quellen kennt einen. Woran das
+        // liegt, weiss diese Zeile nicht — hier stand einmal „hat sich noch
+        // nicht angemeldet", und das war eine Vermutung, die auch dann behauptet
+        // wurde, wenn die Person laengst da war und nur das Verzeichnis schweigt.
+        <span style={T.meta}>Name unbekannt</span>
       )}
       {zusatz !== "" && <span style={T.meta}>{zusatz}</span>}
       <span style={{ ...KENNUNG, color: "var(--fb-muted)" }}>{person.userId}</span>
@@ -403,19 +429,40 @@ function Verzeichnisfeld({
 }
 
 /**
- * Ein Vorschlag: Name oben, darunter das, was ihn unterscheidbar macht. „noch nie
- * angemeldet" steht neutral daneben — es ist der Grund, warum diese Person
- * ueberhaupt in der Liste auftauchen kann, nicht ein Mangel an ihr.
+ * Ein Vorschlag: Name oben, darunter die E-Mail, darunter die KENNUNG.
+ *
+ * DIE KENNUNG STEHT IMMER — und das ist eine Korrektur, keine Verzierung. Hier
+ * stand `p.email ?? p.userId`, die Adresse VERDRAENGTE also die Kennung. Zwei
+ * Fehler in einer Zeile:
+ *
+ * 1. Die E-Mail ist im Verzeichnis ein OPTIONALES Feld (`DirectoryPerson.email`
+ *    ist `string | null`). Woran eine Zeile sich unterscheiden laesst, hing
+ *    damit davon ab, ob das Feld gepflegt ist.
+ * 2. Sie ist auch dort, wo sie steht, nicht eindeutig. Gemessen am 2026-07-28:
+ *    dreimal derselbe Name mit derselben Adresse, drei verschiedene `sub`s — und
+ *    fuer den Admin drei identische Zeilen. Wer davon die falsche waehlt,
+ *    schreibt eine `user_groups`-Zeile, die nie jemand einloest: die Person
+ *    meldet sich mit einem anderen `sub` an und sieht „Dir ist noch keine Gruppe
+ *    zugeordnet".
+ *
+ * Die Kennung ist das einzige Merkmal, das weder optional noch mehrdeutig ist —
+ * sie IST der gespeicherte Wert. `PersonZelle` unten macht es seit jeher so
+ * („das Einzige, womit sich ein Verdacht aufloesen laesst"); diese Zeile wich
+ * davon ab, ausgerechnet an der Stelle, an der die Wahl getroffen wird.
+ *
+ * Dass drei `sub`s zu einer Person gehoeren, ist damit NICHT behoben — es wird
+ * nur sichtbar statt unsichtbar. Der Befund ist gemeldet.
  */
 function Vorschlagszeile({ option }: { option: VorschlagOption }) {
   const p = option.person;
-  const zusatz = [p.email ?? p.userId, p.angemeldet ? null : "noch nie angemeldet"]
+  const zusatz = [p.email, p.angemeldet ? null : NIE_IN_DER_VERWALTUNG]
     .filter(Boolean)
     .join(" · ");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 0" }}>
       <span style={T.body}>{p.name ?? "Ohne Namen"}</span>
-      <span style={T.meta}>{zusatz}</span>
+      {zusatz !== "" && <span style={T.meta}>{zusatz}</span>}
+      <span style={{ ...KENNUNG, color: "var(--fb-muted)" }}>{p.userId}</span>
     </div>
   );
 }

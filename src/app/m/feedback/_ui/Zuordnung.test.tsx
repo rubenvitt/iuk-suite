@@ -93,8 +93,11 @@ describe("Zuordnung — die Liste", () => {
     expect(t).toContain("sub-anna");
   });
 
-  it("ohne Anzeigenamen steht: hat sich noch nicht angemeldet", () => {
-    expect(markup()).toContain("hat sich noch nicht angemeldet");
+  it("ohne Anzeigenamen steht: Name unbekannt", () => {
+    // Hier stand einmal „hat sich noch nicht angemeldet" — eine Vermutung ueber
+    // die Ursache. Kein Name heisst nur: keine der beiden Quellen kennt einen.
+    expect(markup()).toContain("Name unbekannt");
+    expect(markup()).not.toContain("hat sich noch nicht angemeldet");
   });
 
   it("leer ist ein Zustand, keine leere Tabelle (§4.3)", () => {
@@ -258,7 +261,7 @@ describe("Zuordnung — Autofill", () => {
       <Zuordnung groupId={7} personen={PERSONEN} verzeichnisAktiv />,
     );
 
-    expect(t).toContain("auch Personen, die sich noch nie angemeldet haben");
+    expect(t).toContain("auch Personen, die hier noch nie waren");
     // Der alte Notbehelf-Satz waere jetzt eine Falschaussage.
     expect(t).not.toContain("damit ihre E-Mail bekannt ist");
   });
@@ -266,7 +269,7 @@ describe("Zuordnung — Autofill", () => {
   it("OHNE Verzeichnis bleibt alles beim Alten — keine Combobox, alter Hinweis", () => {
     const t = renderToStaticMarkup(<Zuordnung groupId={7} personen={PERSONEN} />);
 
-    expect(t).toContain("Die Person muss sich einmal angemeldet haben");
+    expect(t).toContain("Die Person muss die Verwaltung einmal geöffnet haben");
     expect(t).toContain("Kennung oder E-Mail hinzufügen");
     expect(t).not.toContain("role=\"combobox\"");
   });
@@ -287,7 +290,7 @@ describe("Zuordnung — Autofill", () => {
     expect(suchePersonenActionMock).not.toHaveBeenCalled();
   });
 
-  it("zeigt Treffer mit Namen — und nennt fehlende Anmeldung neutral daneben", async () => {
+  it("zeigt Treffer mit Namen — und nennt den fehlenden Verwaltungsbesuch neutral daneben", async () => {
     await mitVerzeichnis();
 
     await tippe("an");
@@ -297,7 +300,39 @@ describe("Zuordnung — Autofill", () => {
       .join(" | ");
     expect(text).toContain("Nie Da");
     expect(text).toContain("Anna Beispiel");
-    expect(text).toContain("noch nie angemeldet");
+    expect(text).toContain("noch nie in der Verwaltung");
+    // „angemeldet" waere die falsche Auskunft: `known_users` fuellt sich erst
+    // beim Betreten der Verwaltung, nicht beim Anmelden an der Suite.
+    expect(text).not.toContain("noch nie angemeldet");
+  });
+
+  /**
+   * DIE KENNUNG UNTER JEDEM VORSCHLAG — die Zusage, an der die Zuordnung haengt.
+   *
+   * Hier stand `p.email ?? p.userId`: die Adresse verdraengte die Kennung. Weil
+   * die E-Mail im Verzeichnis ein OPTIONALES Feld ist und ausserdem nicht
+   * eindeutig sein muss, waren mehrere Konten derselben Person fuer den Admin
+   * drei identische Zeilen — und die falsche Wahl schreibt eine
+   * `user_groups`-Zeile, die niemand einloest.
+   *
+   * Der Test nimmt deshalb bewusst zwei Personen mit DERSELBEN E-Mail und
+   * demselben Namen. Genau der Fall aus dem Betrieb, und ohne die Kennung
+   * waeren beide Zeilen zeichengleich.
+   */
+  it("jeder Vorschlag traegt seine Kennung — auch wenn E-Mail und Name gleich sind", async () => {
+    suchePersonenActionMock.mockResolvedValue([
+      { userId: "sub-eins", name: "Ruben Vitt", email: "rv@drk.example", angemeldet: false },
+      { userId: "sub-zwei", name: "Ruben Vitt", email: "rv@drk.example", angemeldet: true },
+    ]);
+    await mitVerzeichnis();
+    await tippe("ru");
+
+    const zeilen = vorschlagsknoten().map((k) => k.textContent ?? "");
+    expect(zeilen.some((z) => z.includes("sub-eins"))).toBe(true);
+    expect(zeilen.some((z) => z.includes("sub-zwei"))).toBe(true);
+    // Und die zwei Zeilen sind wirklich verschieden — sonst haette der Test oben
+    // auch bestanden, wenn beide Kennungen in EINER Zeile staenden.
+    expect(new Set(zeilen).size).toBe(zeilen.length);
   });
 
   it("DIE AUSWAHL SCHREIBT DEN sub, nicht Name oder E-Mail", async () => {
@@ -350,13 +385,16 @@ describe("Zuordnung — Autofill", () => {
     );
 
     expect(t).toContain("Nie Da");
-    // Zweimal: einmal in der Zeile, einmal im Hinweis unter dem Formular.
-    expect(t.match(/noch nie angemeldet/g) ?? []).toHaveLength(2);
+    // GENAU EINMAL, naemlich in der Zeile. Bis 2026-07-28 stand die Formulierung
+    // ein zweites Mal im Hinweis unter dem Formular („auch Personen, die sich
+    // noch nie angemeldet haben"), und der Test zaehlte auf 2. Der Hinweis sagt
+    // jetzt „die hier noch nie waren" — dieselbe Aussage, ohne das falsche Wort.
+    expect(t.match(/noch nie in der Verwaltung/g) ?? []).toHaveLength(1);
     // Die Kennung bleibt sichtbar: sie ist der Wert, der wirklich gespeichert ist.
     expect(t).toContain("sub-nie");
   });
 
-  it("ohne Angabe zur Anmeldung wird nichts behauptet", () => {
+  it("ohne Angabe zum Verwaltungsbesuch wird nichts behauptet", () => {
     const t = renderToStaticMarkup(
       <Zuordnung
         groupId={7}
@@ -365,8 +403,9 @@ describe("Zuordnung — Autofill", () => {
       />,
     );
 
-    // Nur der Hinweis unter dem Formular — die Zeile behauptet nichts.
-    expect(t.match(/noch nie angemeldet/g) ?? []).toHaveLength(1);
+    // Die Zeile behauptet nichts — und der Hinweis unter dem Formular sagt es
+    // seit 2026-07-28 auch nicht mehr mit diesen Worten.
+    expect(t.match(/noch nie in der Verwaltung/g) ?? []).toHaveLength(0);
   });
 });
 

@@ -63,7 +63,7 @@ describe("vereinigePersonen", () => {
     expect(r[0]).toMatchObject({ name: "Anna Beispiel", email: "anna@drk.example" });
   });
 
-  it("kennzeichnet, wer sich noch nie angemeldet hat — als Zustand, nicht als Fehler", () => {
+  it("kennzeichnet, wer noch nie in der Verwaltung war — als Zustand, nicht als Fehler", () => {
     const r = vereinigePersonen(
       [anna, neu],
       [{ userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" }],

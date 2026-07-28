@@ -31,8 +31,14 @@ export type PersonVorschlag = {
   name: string | null;
   email: string | null;
   /**
-   * Hat die Person das Modul schon einmal betreten? `false` ist KEIN Fehler,
-   * sondern der Normalfall, den das Verzeichnis erst zuordenbar macht.
+   * Steht die Person in `known_users`? `false` ist KEIN Fehler, sondern der
+   * Normalfall, den das Verzeichnis erst zuordenbar macht.
+   *
+   * ENGER ALS DER NAME VERSPRICHT: `known_users` fuellt `requireFeedbackAccess`
+   * NACH seinem `notFound()`. Eingetragen ist also, wer die Verwaltung DIESES
+   * Moduls mit Zugang geoeffnet hat — nicht, wer sich an der Suite angemeldet
+   * hat. Wer taeglich eingeloggt ist, aber in keiner Feedback-Gruppe steht, ist
+   * hier `false`. Die Oberflaeche sagt deshalb „noch nie in der Verwaltung".
    */
   angemeldet: boolean;
 };
@@ -68,7 +74,7 @@ export const FEHLER_EMAIL_UNBEKANNT =
  * Quelle und die fuellt sich nur durch Anmelden.
  */
 export const FEHLER_EMAIL_UNBEKANNT_OHNE_VERZEICHNIS =
-  "Diese E-Mail ist unbekannt — die Person muss sich einmal angemeldet haben.";
+  "Diese E-Mail ist unbekannt — die Person muss die Verwaltung einmal geöffnet haben.";
 
 function suchfeld(p: { userId: string; name: string | null; email: string | null }): string {
   return `${p.name ?? ""} ${p.email ?? ""} ${p.userId}`.toLowerCase();
