@@ -11,7 +11,7 @@ import {
 } from "@/app/m/qr/_lib/history";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 
-import { SPACE } from "@/core/theme/tokens";
+import { SPACE, TAP_XL } from "@/core/theme/tokens";
 export function HistoryList() {
   // Der Verlauf liegt im localStorage, den es auf dem Server nicht gibt.
   // useSyncExternalStore rendert deshalb serverseitig die leere Liste und
@@ -64,15 +64,24 @@ export function HistoryList() {
                * Dokument scrollte auf 574px.
                *
                * `height: "auto"` muss mit: `size="large"` setzt eine feste
-               * Hoehe, in die zwei oder drei Zeilen nicht passen.
+               * Hoehe, in die zwei oder drei Zeilen nicht passen. Der Nachbar
+               * `PresetGrid.tsx:41` teilt zwar `whiteSpace: "normal"`, pinnt
+               * dort aber bewusst `height: 128` (feste Hoehe) — fuer `height`
+               * ist er also gerade KEIN Vorbild, nur fuer `whiteSpace`.
                *
-               * Der Nachbar `PresetGrid.tsx:41` macht dasselbe an derselben
-               * Konstruktion — hier fehlte es schlicht.
+               * Ungemessen war `height: "auto"` allein zu wenig: einzeilig
+               * (390x844, Playwright, Beschriftung "kurz") lieferte
+               * `getBoundingClientRect()` 39px — unter der 44px-Schwelle dieses
+               * Branches und weit unter den 72px, die `size="large"` vorher
+               * ausschliesslich stellte. `minHeight: TAP_XL` stellt den Boden
+               * wieder her, ohne den mehrzeiligen Wuchs zu kappen: derselbe Lauf
+               * lieferte fuer die lange Wiki-URL 81px, danach unveraendert.
                */
               style={{
                 textAlign: "left",
                 whiteSpace: "normal",
                 height: "auto",
+                minHeight: TAP_XL,
                 overflowWrap: "anywhere",
                 paddingBlock: SPACE.sm,
               }}
