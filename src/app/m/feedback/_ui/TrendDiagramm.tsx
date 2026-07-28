@@ -85,7 +85,6 @@ export function TrendDiagramm({ punkte, fragen }: TrendDiagrammProps) {
             return (
               <Button
                 key={f.id}
-                size="small"
                 type={an ? "default" : "text"}
                 aria-pressed={an}
                 disabled={!an && voll}

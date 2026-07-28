@@ -65,7 +65,7 @@ export function ServiceTable({
           render: (_, row) => (
             <form action={deleteAction}>
               <input type="hidden" name="id" value={row.id} />
-              <Button htmlType="submit" danger size="small">
+              <Button htmlType="submit" danger>
                 Löschen
               </Button>
             </form>

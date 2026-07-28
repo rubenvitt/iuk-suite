@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Button, Dropdown, Input, Modal, Popconfirm, Table, Tag } from "antd";
-import { SPACE } from "@/core/theme/tokens";
+import { SPACE, TAP } from "@/core/theme/tokens";
 import { activateSurveyAction, createEveningAction, deleteEveningAction } from "../actions";
 import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../_lib/noten";
 import { Altbestandsfussnote, Notenfunke, Notenpille } from "./Noten";
@@ -580,7 +580,7 @@ function StartenKnopf({ surveyId }: { surveyId: number }) {
       okButtonProps={{ loading: laeuft }}
       onConfirm={starten}
     >
-      <Button type="text" size="small" loading={laeuft}>
+      <Button type="text" loading={laeuft}>
         Jetzt starten
       </Button>
     </Popconfirm>
@@ -628,7 +628,19 @@ function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
           ],
         }}
       >
-        <Button type="text" size="small" aria-label={`Aktionen für den ${formatDatumLang(zeile.datum)}`}>
+        <Button
+          type="text"
+          /*
+           * `minWidth: TAP` ist der Punkt dieser Zeile, nicht das entfernte
+           * `size`. Gemessen bei 390px: 24px breit, 42px hoch — und das ist das
+           * EINZIGE Bedienelement der Verlaufszeile („Bearbeiten", „Loeschen").
+           * Ein Auslassungszeichen ist schmal; die Trefferflaeche darf es nicht
+           * sein. Der umgebende Container in Zeile 488 ist bereits 44px breit —
+           * der Knopf darin fuellte ihn nur nicht aus.
+           */
+          style={{ minWidth: TAP }}
+          aria-label={`Aktionen für den ${formatDatumLang(zeile.datum)}`}
+        >
           …
         </Button>
       </Dropdown>
