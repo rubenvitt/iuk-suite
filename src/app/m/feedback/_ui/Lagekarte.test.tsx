@@ -849,7 +849,7 @@ describe("Mobile Werte — Kartenpolster", () => {
     expect(stil).toContain("var(--fb-tint)");
   });
 
-  it("setzt die Variable auf 20 und unter 600px auf 16", () => {
+  it("setzt die Variable auf 20 und unter 767.98px auf 16", () => {
     const css = quelle("feedback.css");
     expect(css).toMatch(/:root\s*\{[^}]*--fb-kartenpolster:\s*20px/);
 
@@ -857,7 +857,9 @@ describe("Mobile Werte — Kartenpolster", () => {
     expect(stelleMobil).toBeGreaterThan(-1);
     // Die 16 liegt IN einer Medienabfrage — sonst waere sie der neue Grundwert.
     const davor = css.slice(0, stelleMobil);
-    expect(davor.lastIndexOf("@media (max-width: 600px)")).toBeGreaterThan(davor.lastIndexOf("}"));
+    expect(davor.lastIndexOf("@media (max-width: 767.98px)")).toBeGreaterThan(
+      davor.lastIndexOf("}"),
+    );
   });
 });
 

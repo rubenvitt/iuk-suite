@@ -1,0 +1,35 @@
+/*
+ * Die eine Medienabfrage des Moduls `portal`.
+ *
+ * Warum HIER und nicht in `core`: der Maszstab aus docs/design/README.md ist
+ * ein zweiter, heute belegbarer Nutznieszer. Den gibt es fuer diese Regel nicht
+ * — `feedback` hat seine eigene Fassung (`.fb-block-mobil`), und die beiden
+ * gleichzeitig nach `core` zu heben hiesze, ein Framework fuer zwei Anwender zu
+ * bauen, von denen der eine seine Fassung schon hat. Wenn ein drittes Modul
+ * dieselbe Regel braucht, ist DAS der Moment fuer den Umzug.
+ *
+ * 767.98px ist der Suite-Breakpoint von unten. Nicht 768, sonst gaelten bei
+ * exakt 768px beide Seiten und die Reihenfolge im Stylesheet entschiede.
+ */
+@media (max-width: 767.98px) {
+  /*
+   * KEINE erhoehte Spezifitaet, und das ist geprueft, nicht geraten.
+   *
+   * Falle 5 (docs/design/README.md) trifft zu, wenn antd fuer DIESELBE
+   * Eigenschaft eine eigene Regel mitbringt: `.nurMobil { display: none }`
+   * verlor gegen `.ant-btn { display: inline-flex }`, weil beide (0,1,0) sind
+   * und antds Stylesheet spaeter kommt. Fuer `width` gibt es diese Regel nicht
+   * — antds `.ant-btn` deklariert keine Breite. Der Beleg steht im
+   * Nachbarmodul: `feedback.css:339` ist ein blankes
+   * `.fb-block-mobil { width: 100% }` ohne Praefix, und es wirkt (gemessen:
+   * 324px breite Knoepfe bei 390px).
+   *
+   * Ein `:root`-Praefix ohne Kollision waere schlimmer als keiner: der naechste
+   * Leser sucht die Kollision, findet keine, haelt den Praefix fuer Ballast und
+   * entfernt ihn — genau die Bewegung, vor der Falle 5 warnt, nur umgekehrt.
+   * Wer hier spaeter doch eine Erhoehung braucht, schreibt DANN dazu, wogegen.
+   */
+  .portal-block-mobil {
+    width: 100%;
+  }
+}

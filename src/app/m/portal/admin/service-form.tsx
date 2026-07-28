@@ -32,7 +32,18 @@ export function ServiceForm() {
       <Checkbox name="isPublic" defaultChecked>
         Öffentlich sichtbar
       </Checkbox>
-      <Button htmlType="submit" type="primary" style={{ alignSelf: "flex-start" }}>
+      {/*
+       * `alignSelf: "flex-start"` haelt den Knopf am Laptop so breit wie seine
+       * Beschriftung — ein 480px breiter Absendeknopf laese sich als Flaeche,
+       * nicht als Ziel. Unterhalb von 768px gilt die Suite-Regel „volle Breite,
+       * untereinander"; gemessen bei 390px war er 84px breit.
+       */}
+      <Button
+        htmlType="submit"
+        type="primary"
+        style={{ alignSelf: "flex-start" }}
+        className="portal-block-mobil"
+      >
         Anlegen
       </Button>
     </form>

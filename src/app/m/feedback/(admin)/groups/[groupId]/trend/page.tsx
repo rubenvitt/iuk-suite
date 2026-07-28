@@ -97,9 +97,13 @@ export default async function TrendPage({
           }}
         >
           <h1 style={{ ...T.h1, margin: 0, textWrap: "balance" }}>Trend — {group.name}</h1>
-          <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className="fb-knopfzeile">
             <MonatsSegment monate={monate} />
-            <Button type="text" href={`/m/feedback/groups/${group.id}/export.csv`}>
+            <Button
+              type="text"
+              href={`/m/feedback/groups/${group.id}/export.csv`}
+              className="fb-block-mobil"
+            >
               CSV
             </Button>
           </span>

@@ -121,23 +121,23 @@
  * Variable. Nebenwirkung, die wir wollen: EIN Wert fuer alle Zonen statt einer
  * Zahl pro Karte.
  *
- * 600px statt 390px: alle uebrigen mobilen Regeln dieser Datei schalten dort
- * (Legende, Knopfzeile, Feldschrift). Ein zweiter Umbruch bei 390 liesse
- * 391–600px mit Polster 20 stehen, obwohl die Knopfzeile dort schon gestapelt
- * ist — zwei Umbrueche, die niemand zusammenhaelt.
+ * 767.98px statt 390px: alle uebrigen mobilen Regeln dieser Datei schalten
+ * dort (Legende, Knopfzeile). Ein zweiter Umbruch bei 390 liesse
+ * 391–767.98px mit Polster 20 stehen, obwohl die Knopfzeile dort schon
+ * gestapelt ist — zwei Umbrueche, die niemand zusammenhaelt.
  */
 :root {
   --fb-kartenpolster: 20px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 767.98px) {
   :root {
     --fb-kartenpolster: 16px;
   }
 }
 
 /*
- * NOTENLEGENDE (§4.11, Bauteil 3). Das Umschalten unter 600px liegt HIER und
+ * NOTENLEGENDE (§4.11, Bauteil 3). Das Umschalten unter 767.98px liegt HIER und
  * nicht in einem Inline-Style: eine Klasse mit `display: none` kann ein inline
  * gesetztes `display: grid` nicht schlagen. Deshalb definiert die Klasse das
  * Raster, und die Komponente reicht nur den Spaltenabstand ein — der muss zum
@@ -152,7 +152,7 @@
   display: none;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 767.98px) {
   /* Sechs Woerter à 12px passen nicht in 335px — es bleiben die zwei Anker. */
   .fb-legende-woerter {
     display: none;
@@ -180,9 +180,16 @@
  * dokumentiert. Deshalb setzt `Verlauf.tsx` an diesen vier Klassen KEIN
  * `display`.
  *
- * 768px ist der Umbruch des Entwurfs (§2.5) und bewusst NICHT die 600px der
- * uebrigen Regeln dieser Datei: die sechsspaltige Tabelle braucht mehr Breite
- * als eine Knopfzeile oder eine Legende.
+ * 768px ist der Umbruch des Entwurfs (§2.5) UND der Breakpoint der ganzen
+ * Suite. Bis 2026-07-27 schalteten die uebrigen Regeln dieser Datei bei 600px,
+ * mit der Begruendung, die sechsspaltige Tabelle brauche mehr Breite als eine
+ * Knopfzeile. Das erklaerte, warum die TABELLE spaeter umschaltet — es
+ * erklaerte nicht, warum die Knopfzeile frueher umschalten muesste. Gemessen
+ * bei 700x900: Menue-Knopf sichtbar, Schmalliste sichtbar, Knoepfe trotzdem
+ * nebeneinander und inhaltsbreit. Seither steht ueberall 767.98/768.
+ *
+ * 767.98 und nicht 768 in den `max-width`-Abfragen: bei exakt 768px gaelten
+ * sonst beide Seiten gleichzeitig, und die Reihenfolge im Stylesheet entschiede.
  */
 .fb-verlauf-breit,
 .fb-nur-breit {
@@ -297,7 +304,7 @@
   gap: 12px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 767.98px) {
   .fb-knopfzeile {
     flex-direction: column;
     align-items: stretch;
@@ -323,7 +330,7 @@
  * der Maszstab aus docs/design/README.md ist ein zweiter, heute belegbarer
  * Nutznieszer, und den gibt es seit portal-Admin und qr-Admin.
  */
-@media (max-width: 600px) {
+@media (max-width: 767.98px) {
   /*
    * Auf 390px ist jeder Handlungsknopf volle Breite und steht UNTER dem
    * naechsten — nie daneben (§2.3). Am Laptop bleibt er so breit wie seine
@@ -367,7 +374,7 @@
   gap: 12px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 767.98px) {
   .fb-spurzeile {
     /* Ordnungszahl + Fragetext oben, „n=" daneben, die Spur darunter. */
     grid-template-columns: 28px 1fr 56px;

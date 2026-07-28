@@ -145,12 +145,25 @@ export function Verlauf({ groupId, zeilen, heute }: VerlaufProps) {
          * Zustandsaktion der Lagekarte, hier gibt es keinen zweiten. „Trend" und
          * „CSV" sind echte `href` — ein Tabstop, ein Fokusring, und beide
          * funktionieren ohne JavaScript.
+         *
+         * `fb-knopfzeile` ergaenzt 2026-07-27: unterhalb von 768px stehen sie
+         * gestapelt und in voller Breite. Gemessen vorher bei 390px: 68 / 146 /
+         * 251px nebeneinander, alle ohne Rahmen — die Trefferflaechen waren
+         * weder erkennbar noch gleich breit.
          */}
-        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: SPACE.xs }}>
-          <Button type="text" href={`/m/feedback/groups/${groupId}/trend`}>
+        <div className="fb-knopfzeile">
+          <Button
+            type="text"
+            href={`/m/feedback/groups/${groupId}/trend`}
+            className="fb-block-mobil"
+          >
             Trend
           </Button>
-          <Button type="text" href={`/m/feedback/groups/${groupId}/export.csv`}>
+          <Button
+            type="text"
+            href={`/m/feedback/groups/${groupId}/export.csv`}
+            className="fb-block-mobil"
+          >
             CSV (alle Abende)
           </Button>
           {/*
@@ -159,7 +172,7 @@ export function Verlauf({ groupId, zeilen, heute }: VerlaufProps) {
            * Textknopf und kein zweites Formular auf der Seite — die Felder
            * erscheinen erst auf Verlangen.
            */}
-          <Button type="text" onClick={() => setNachtragen(true)}>
+          <Button type="text" onClick={() => setNachtragen(true)} className="fb-block-mobil">
             Abend ohne Feedback nachtragen
           </Button>
         </div>

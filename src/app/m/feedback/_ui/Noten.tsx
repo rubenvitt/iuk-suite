@@ -348,7 +348,7 @@ export function Notenlegende({ groesse = "kompakt" }: NotenlegendeProps = {}) {
         ))}
       </div>
       {/* Das Raster dieser Zeile steht in `feedback.css`, NICHT hier: unter
-          600px schaltet eine Klasse auf die zwei Ankerwoerter um, und ein
+          767.98px schaltet eine Klasse auf die zwei Ankerwoerter um, und ein
           inline gesetztes `display: grid` koennte sie nicht schlagen. */}
       <div
         className="fb-legende-woerter"

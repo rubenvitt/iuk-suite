@@ -1,3 +1,4 @@
+import "./portal.css";
 import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";
 
