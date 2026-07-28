@@ -100,18 +100,48 @@ function isValidEntry(e: unknown): e is HistoryEntry {
  * `credentials: "omit"` bereits schuetzt; ueber den localStorage stand die
  * Hintertuer offen.
  *
- * Der Vorgabewert `null` ist dabei die eigentliche Absicherung: er gilt schon
- * beim allerersten Rendern, bevor irgendein Effekt gelaufen ist. Eintraege mit
- * User-ID fallen fuer einen anonymen Betrachter dadurch von vornherein durch den
- * Filter und blitzen nicht kurz auf.
+ * DREI ZUSTAENDE, NICHT ZWEI. `null` allein hiesse einmal „aufgeloest: anonym"
+ * und einmal „noch nicht aufgeloest" — und genau diese Doppeldeutigkeit war ein
+ * Fehler: die Sitzung wird clientseitig geholt, `addEntry` stempelte in der
+ * Zwischenzeit `owner: null`, und der Eintrag eines Angemeldeten gehoerte damit
+ * dauerhaft „anonym". Die naechste Person auf dem geteilten Tablet sah ihn —
+ * die Luecke, die dieser Abschnitt schliessen soll, nur ueber den Schreibpfad
+ * statt ueber den Lesepfad. In der CI (langsamer Runner, kalter Dev-Server) fiel
+ * `qr.spec.ts` „nach dem Logout … den Verlauf nicht mehr" daran um; lokal war
+ * `/api/auth/session` schneller als der Klick und es blieb gruen.
+ *
+ * `ownerKnown` trennt die beiden Bedeutungen. Solange er `false` ist, gilt fuer
+ * BEIDE Richtungen Zurueckhaltung: gelesen wird nichts (kein Aufblitzen fremder
+ * Eintraege) und geschrieben wird nicht in den Speicher, sondern in `pending`.
+ * Der Puffer wird beim Aufloesen mit dem richtigen Eigentuemer nachgezogen —
+ * Verwerfen waere die Alternative gewesen und haette den zuerst getippten
+ * Schnellzugriff still verschluckt.
  * ------------------------------------------------------------------------ */
 
 let currentOwner: string | null = null;
+let ownerKnown = false;
+let pending: HistoryEntry[] = [];
 
-/** Wird aus dem Modul-Layout mit der laufenden Sitzung gesetzt (`HistoryOwner`). */
+/**
+ * Wird aus dem Modul-Layout mit der laufenden Sitzung gesetzt (`HistoryOwner`),
+ * und zwar erst, wenn sie feststeht — nicht waehrend `status === "loading"`.
+ *
+ * Der Kurzschluss fragt `ownerKnown` mit ab: der Uebergang „unbekannt" → `null`
+ * ist ein echter Wechsel, obwohl beide Seiten `null` sind. Ohne die Abfrage
+ * bliebe er unbemerkt, der Puffer ungeschrieben und der Verlauf eines anonymen
+ * Betrachters fuer immer leer.
+ */
 export function setHistoryOwner(id: string | null): void {
-  if (id === currentOwner) return;
+  if (ownerKnown && id === currentOwner) return;
   currentOwner = id;
+  ownerKnown = true;
+  if (pending.length > 0) {
+    const gepuffert = pending;
+    pending = [];
+    // Aeltester zuerst durch denselben Schreibpfad: `writeEntry` setzt vorne an,
+    // die Reihenfolge „neueste zuerst" bleibt damit erhalten.
+    for (const e of gepuffert) writeEntry(e);
+  }
   invalidate();
 }
 
@@ -143,10 +173,23 @@ function readEntries(): HistoryEntry[] {
  * die Luecke fuer genau die alten WLAN-Eintraege wieder auf, um die es geht.
  */
 export function loadHistory(): HistoryEntry[] {
+  // Steht der Eigentuemer noch nicht fest, gehoert der Verlauf niemandem, den
+  // wir kennen — dann lieber gar nichts zeigen als kurz das Falsche.
+  if (!ownerKnown) return [];
   return readEntries().filter((e) => e.owner === currentOwner);
 }
 
 export function addEntry(entry: HistoryEntry): void {
+  // Vor der aufgeloesten Sitzung wird nicht gestempelt, sondern gepuffert:
+  // `owner: null` hiesse hier „anonym" und waere fuer einen Angemeldeten falsch.
+  if (!ownerKnown) {
+    pending = [...pending, entry].slice(-HISTORY_LIMIT);
+    return;
+  }
+  writeEntry(entry);
+}
+
+function writeEntry(entry: HistoryEntry): void {
   // Der Eigentuemer wird hier gestempelt und nicht in `recordEntry`: `addEntry`
   // ist der einzige Schreibpfad, damit kann ihn kein Erzeuger vergessen.
   const list = readEntries();
@@ -236,6 +279,9 @@ export function recordEntry(label: string, payload: QrPayload): void {
 
 export function clearHistory(): void {
   memoryFallback = [];
+  // Auch das noch nicht Geschriebene: sonst tauchte ein gepufferter Eintrag
+  // nach dem Aufloesen der Sitzung in einem gerade geleerten Verlauf auf.
+  pending = [];
   try {
     localStorage.removeItem(HISTORY_KEY);
   } catch {

@@ -30,21 +30,29 @@ declare global {
  * benachrichtigt die Abonnenten des Verlauf-Stores, und das waehrend des Renderns
  * einer anderen Komponente zu tun, ist genau der Fall, den React verbietet.
  *
- * Dass die Sitzung erst nach dem Hydrieren feststeht, ist unkritisch: der
- * Vorgabewert in `history.ts` ist `null`. Ein anonymer Betrachter sieht fremde
+ * Dass die Sitzung erst nach dem Hydrieren feststeht, ist unkritisch: bis dahin
+ * meldet dieser Effekt GAR NICHTS, und `history.ts` haelt den Verlauf verborgen
+ * und jeden neuen Eintrag zurueck. Ein anonymer Betrachter sieht fremde
  * Eintraege deshalb zu keinem Zeitpunkt, auch nicht kurz aufblitzend. Umgekehrt
  * erscheint der eigene Verlauf eines Angemeldeten einen Wimpernschlag spaeter.
+ *
+ * `status` ist dabei die eigentliche Aussage, nicht `session?.user?.id ?? null`:
+ * das `?? null` machte aus „weiss ich noch nicht" ein „anonym" und stempelte
+ * damit den Eintrag, den jemand vor dem ersten Sitzungs-Abruf antippt, als
+ * herrenlos — sichtbar fuer die naechste Person am selben Tablet.
  */
 export function HistoryOwner() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const userId = session?.user?.id ?? null;
 
   useEffect(() => {
+    if (status === "loading") return;
     setHistoryOwner(userId);
     // Test-Hook: der E2E pollt diesen Wert, um zu warten, bis der Client die
-    // Sitzung aufgelöst hat. Er spiegelt denselben Zustand, den der Store hat.
+    // Sitzung aufgelöst hat. Er spiegelt denselben Zustand, den der Store hat —
+    // und ist, solange die Sitzung laedt, bewusst noch gar nicht gesetzt.
     window.__historyOwner = userId;
-  }, [userId]);
+  }, [status, userId]);
 
   return null;
 }

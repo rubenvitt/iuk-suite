@@ -206,6 +206,88 @@ describe("Verlauf ist an die Sitzung gebunden", () => {
     expect(loadHistory()).toEqual([]);
   });
 
+  /**
+   * DER SCHREIBPFAD, nicht der Lesepfad — hier fiel die Zusage bisher um.
+   *
+   * Die Sitzung wird clientseitig geholt; zwischen dem ersten Rendern und ihrer
+   * Antwort kann jemand schon einen Schnellzugriff antippen. Stempelte
+   * `addEntry` in dieser Luecke `owner: null`, gehoerte der Eintrag eines
+   * Angemeldeten dauerhaft „anonym" — und die naechste Person am geteilten
+   * Tablet sah ihn nach dem Logout weiter. Genau dieser Ablauf, nicht sein
+   * Timing: `vi.resetModules()` liefert den Zustand „Eigentuemer noch
+   * unbekannt", ohne dass der Test eine Wartezeit nachstellen muesste.
+   */
+  describe("solange die Sitzung noch nicht aufgeloest ist", () => {
+    beforeEach(() => {
+      vi.resetModules();
+      localStorage.clear();
+    });
+
+    async function frischesModul() {
+      return import("@/app/m/qr/_lib/history");
+    }
+
+    it("bleibt ein vorher getippter Eintrag fuer den anonymen Betrachter verborgen", async () => {
+      const h = await frischesModul();
+      h.recordEntry("WLAN Wache 3", {
+        kind: "wifi",
+        value: { ssid: "Wache-3", password: "geheim", encryption: "WPA" },
+      });
+
+      // Die Sitzung loest auf: der Tipp kam von u1, nicht von niemandem.
+      h.setHistoryOwner("u1");
+      expect(h.loadHistory().map((e) => e.label)).toEqual(["WLAN Wache 3"]);
+
+      // Logout auf dem geteilten Tablet.
+      h.setHistoryOwner(null);
+      expect(h.loadHistory()).toEqual([]);
+    });
+
+    it("zeigt gar nichts an, bevor der Eigentuemer feststeht", async () => {
+      const h = await frischesModul();
+      localStorage.setItem(
+        h.HISTORY_KEY,
+        JSON.stringify([{ ...entry("1"), label: "Von irgendwem", owner: null }]),
+      );
+
+      // Auch der anonyme Bestand bleibt weg — sonst blitzte er auf und
+      // verschwaende wieder, sobald sich eine Sitzung meldet.
+      expect(h.loadHistory()).toEqual([]);
+      expect(h.getHistorySnapshot()).toEqual([]);
+
+      h.setHistoryOwner(null);
+      expect(h.loadHistory().map((e) => e.label)).toEqual(["Von irgendwem"]);
+    });
+
+    it("der Uebergang „unbekannt“ → anonym schreibt den Puffer trotzdem", async () => {
+      // Beide Seiten sind `null`; ein Kurzschluss auf Wertgleichheit allein
+      // haette den Wechsel verschluckt und den Eintrag nie geschrieben.
+      const h = await frischesModul();
+      h.recordEntry("Anonym getippt", { kind: "url", value: "https://a" });
+
+      h.setHistoryOwner(null);
+      expect(h.loadHistory().map((e) => e.label)).toEqual(["Anonym getippt"]);
+    });
+
+    it("behaelt die Reihenfolge des Puffers — neueste zuerst", async () => {
+      const h = await frischesModul();
+      h.recordEntry("Zuerst", { kind: "url", value: "https://a" });
+      h.recordEntry("Danach", { kind: "url", value: "https://b" });
+
+      h.setHistoryOwner("u1");
+      expect(h.loadHistory().map((e) => e.label)).toEqual(["Danach", "Zuerst"]);
+    });
+
+    it("clearHistory raeumt auch den Puffer weg", async () => {
+      const h = await frischesModul();
+      h.recordEntry("Verworfen", { kind: "url", value: "https://a" });
+      h.clearHistory();
+
+      h.setHistoryOwner("u1");
+      expect(h.loadHistory()).toEqual([]);
+    });
+  });
+
   it("meldet den Wechsel an die Abonnenten", () => {
     let calls = 0;
     const unsubscribe = subscribeHistory(() => {
@@ -302,7 +384,14 @@ describe("gesperrter localStorage", () => {
         throw new Error("Speicher gesperrt");
       });
     }
-    return import("@/app/m/qr/_lib/history");
+    const h = await import("@/app/m/qr/_lib/history");
+    // Frisches Modul heisst frischer Eigentuemer-Zustand: „noch nicht
+    // aufgeloest". Das `setHistoryOwner(null)` aus dem aeusseren `beforeEach`
+    // traf den ALTEN Import und zaehlt hier nicht. Ohne diese Zeile puefferte
+    // `recordEntry` nur, und die Faelle unten pruefen den Speicher-Fallback
+    // gegen einen Verlauf, der noch gar nicht geschrieben wurde.
+    h.setHistoryOwner(null);
+    return h;
   }
 
   it("haelt Eintraege im Speicher, wenn das Schreiben wirft", async () => {

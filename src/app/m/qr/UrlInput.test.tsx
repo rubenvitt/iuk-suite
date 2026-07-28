@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({ useRouter: vi.fn() }));
 
 import { useRouter } from "next/navigation";
 import { UrlInput } from "@/app/m/qr/UrlInput";
-import { clearHistory, loadHistory } from "@/app/m/qr/_lib/history";
+import { clearHistory, loadHistory, setHistoryOwner } from "@/app/m/qr/_lib/history";
 import { exists, fill, mount, query, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 
 const push = vi.fn();
@@ -21,6 +21,11 @@ beforeEach(async () => {
   push.mockClear();
   localStorage.clear();
   clearHistory();
+  // „Sitzung aufgeloest, niemand angemeldet". In der App macht das
+  // `HistoryOwner` aus dem Modul-Layout, das hier nicht mitgerendert wird —
+  // ohne die Zeile bliebe der Eigentuemer unbekannt, und `history.ts` haelt
+  // dann bewusst alles zurueck (Lesen wie Schreiben).
+  setHistoryOwner(null);
   vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<typeof useRouter>);
   await mount(<UrlInput />);
 });
