@@ -84,6 +84,24 @@ anbietet, ist der Token der bessere Weg als jede Spezifität (`Input.inputFontSi
 **Und die Erhöhung kommentieren**, sonst entfernt sie die nächste Aufräumrunde als vermeintlichen
 Ballast. Prüfen kann das nur ein echter Browser: siehe „Tests für Responsives" unten.
 
+**6. Ein WERT aus einem `"use client"`-Modul kommt in einer Server Component nicht an.**
+Falle 1 verbietet den Compound-Zugriff. Das hier ist ihre Schwester und sieht harmloser aus: eine
+Server Component importiert aus einem Client-Modul keine Komponente, sondern eine **Konstante** —
+und bekommt eine Client-Referenz statt des Wertes. `MONATS_FENSTER.includes is not a function`,
+HTTP 500 für die ganze Seite. **TypeScript ist zufrieden** (es sieht `readonly [6, 12, 24]`),
+`pnpm build` findet nichts, und ein Vitest kann es strukturell nicht finden: unter Vitest sind beide
+Module normale ES-Module, `"use client"` ist dort ein wirkungsloser String.
+
+**Regel:** Werte, die eine Server Component liest, liegen in einem Modul ohne `"use client"` —
+im Modul `feedback` heißt das `_lib/`. Die Komponente importiert von dort, nicht umgekehrt.
+
+**So sucht man danach:** alle Module mit `"use client"` auflisten, darin die Exporte suchen, die
+keine Komponente sind (`export const GROSSBUCHSTABEN`, `export function kleinbuchstabe`), und für
+jeden prüfen, ob ihn eine Datei ohne `"use client"` importiert. Am 2026-07-27 ergab das vier
+Kandidaten und genau einen Treffer (`MONATS_FENSTER`, behoben). Die drei anderen —
+`MAX_SERIEN`, `AKTUALISIERUNGS_TAKT_MS`, `SPERRE_MS` — haben keinen Importeur jenseits ihrer eigenen
+Client-Insel.
+
 ## Hell- und Dunkelmodus
 
 Die Suite hat einen **Umschalter** (Cookie `iuk-theme`, serverseitig gelesen) — auf

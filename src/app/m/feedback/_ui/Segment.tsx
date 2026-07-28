@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Segmented } from "antd";
+import { MONATS_FENSTER } from "@/app/m/feedback/_lib/trendfenster";
 
 /**
  * DAS ZEITFENSTER DES TRENDS (Entwurf §3.3, Client-Insel laut §4.13).
@@ -22,9 +23,6 @@ export type MonatsSegmentProps = {
   /** Das aktive Fenster in Monaten — vom Server bereits auf 6/12/24 geklemmt. */
   monate: number;
 };
-
-/** Die drei Fenster aus §3.3. Mehr Auswahl wäre eine Entscheidung ohne Anlass. */
-export const MONATS_FENSTER = [6, 12, 24] as const;
 
 export function MonatsSegment({ monate }: MonatsSegmentProps) {
   const router = useRouter();
