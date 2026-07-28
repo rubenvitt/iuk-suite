@@ -43,6 +43,29 @@ nie aus einem URL-Parameter (sonst IDOR). Vorbild: `assertGroupAccess` im Modul 
 Module-Admin ist **nicht** `session.user.isAdmin` — das ist suiteweit („ist Betreiber"). Die Frage
 „darf diese Person Modul X verwalten?" beantwortet `isModuleAdmin` aus `core/groups`.
 
+**Gruppen im JWT sind nur so frisch wie der letzte erfolgreiche Token-Refresh.** Sie werden beim
+Login gesetzt und bei jedem erfolgreichen Refresh aus dem neuen `id_token` nachgezogen
+(`core/auth/refresh.ts`) — der Takt ist damit die Access-Token-Lebensdauer von Pocket ID (heute eine
+Stunde, Fosite-Default), nicht die Sitzungsdauer (30 Tage). Zwei Folgen für jedes Modul: ein
+Gruppenentzug wirkt mit bis zu einer Stunde Verzug, und wo das zu lang ist, muss die Berechtigung
+serverseitig aus der Datenbank aufgelöst werden statt aus `session.user.groups`.
+
+Aufgefrischt wird auf dem Proxy-/Middleware-Pfad (`src/proxy.ts`, dessen `matcher` praktisch jede
+Anfrage umfasst) und auf `/api/auth/*` — dort kommt das `Set-Cookie` beim Client an —, **nicht** bei
+`auth()` aus einer Server Component: next-auth wirft es dort weg, und `core/auth/config.ts` sperrt
+den Refresh auf diesem Pfad zusätzlich selbst (`darfSchreiben: request !== undefined`). Grund ist
+Pocket IDs Rotation ohne Gnadenfrist: ein verlorenes neues Refresh-Token macht den nächsten Versuch
+zur Wiederverwendung und kostet die ganze Sitzung, nicht nur den Refresh.
+
+`src/proxy.ts` **ist** in Next.js 16 die Middleware (Umbenennung von `middleware.ts`) — wer die Datei
+unter dem alten Namen sucht und nichts findet, schließt sonst fälschlich, es gäbe keine. Wer die
+Auth-Konfiguration zwischen Objekt- und Funktionsform umstellt, muss `proxy.ts` mit anpassen: bei
+Funktions-Config liefert `auth(callback)` ein Promise statt einer Funktion, Next verlangt aber eine
+aufrufbare Funktion aus `proxy`/`default`. Das Symptom ist HTTP 500 auf jeder Route; `pnpm build`
+sieht es nicht. `src/proxy.test.ts` bewacht die heutige Naht (`pnpm vitest run` schlägt dann fehl) —
+das gilt nur für ihre heutige Form; ein Umbau von `proxy.ts` schuldet weiterhin einen Lauf von
+`pnpm exec playwright test`, das den Ausfall als einziges immer end-to-end sieht.
+
 ## Cutover einer Alt-Anwendung
 
 Runbooks liegen in `docs/runbooks/`. Muster: Generalprobe mit Snapshot-Kopie → Freeze → echter Snapshot
