@@ -632,11 +632,23 @@ function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
           type="text"
           /*
            * `minWidth: TAP` ist der Punkt dieser Zeile, nicht das entfernte
-           * `size`. Gemessen bei 390px: 24px breit, 42px hoch — und das ist das
-           * EINZIGE Bedienelement der Verlaufszeile („Bearbeiten", „Loeschen").
-           * Ein Auslassungszeichen ist schmal; die Trefferflaeche darf es nicht
-           * sein. Der umgebende Container in Zeile 488 ist bereits 44px breit —
-           * der Knopf darin fuellte ihn nur nicht aus.
+           * `size`. Gemessen bei 390px VOR dieser Aenderung: 24px breit, 42px
+           * hoch — und das ist das EINZIGE Bedienelement der Verlaufszeile
+           * („Bearbeiten", „Loeschen"). Ein Auslassungszeichen ist schmal; die
+           * Trefferflaeche darf es nicht sein.
+           *
+           * NACHHER PASST DER KNOPF NICHT IN SEINEN CONTAINER, ER RAGT HERAUS —
+           * und das ist gemessen, kein Uebersehen: ohne `size` faellt der Knopf
+           * auf antds `controlHeight` (56) zurueck, `minWidth: TAP` erzwingt
+           * dieselben 56px in der Breite. Der umgebende Container in Zeile 488
+           * bleibt bei 44px (eigene `getBoundingClientRect`-Messung), der Knopf
+           * also 56×56 in einem 44px-Rahmen — 6px Ueberstand je Seite. Das
+           * bleibt folgenlos, weil die Zeile ein Flex-Container mit
+           * `gap: SPACE.sm` (8px) zwischen den Geschwistern ist: 8px ≥ 6px
+           * Ueberstand, der Zwischenraum nimmt ihn vollstaendig auf. Gemessen
+           * bei 390px ohne diesen Ueberstand als Regression: kein seitliches
+           * Scrollen (`document.documentElement.scrollWidth` blieb 390) und
+           * unveraenderte Zeilenhoehe ([69, 68] vor wie nach dieser Aenderung).
            */
           style={{ minWidth: TAP }}
           aria-label={`Aktionen für den ${formatDatumLang(zeile.datum)}`}

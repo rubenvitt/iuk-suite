@@ -20,6 +20,13 @@ import { join } from "node:path";
  *
  * `size` am `<Table>` selbst ist KEIN Bedienelement, sondern Zellpolster — der
  * Scan sucht deshalb nach `size=` an `<Button`, nicht an jeder Komponente.
+ * ACHTUNG: das heisst nicht, dass `elementVor` das Tag als `"Table"` erkennt.
+ * `<Table<VerlaufZeile>>` und aehnliche generische Aufrufe lassen den
+ * TypeScript-Typparameter wie ein zweites geoeffnetes Tag aussehen, und
+ * `elementVor` ordnet `size=` dann diesem Parameter zu (z. B. `"VerlaufZeile"`,
+ * `"ServiceRow"`) — nie `"Table"`. Der Ausschluss funktioniert trotzdem, weil
+ * der Filter unten strikt auf `=== "Button"` prueft und ein Typparameter das
+ * nie ist; es ist nur nicht dieselbe Zusicherung, die der erste Satz nahelegt.
  */
 const AUSNAHMEN = new Set(["Aktualisierer.tsx"]);
 
@@ -45,6 +52,15 @@ function tsxDateien(verzeichnis: string): string[] {
  * zugeordnet — das ist gewollt. Ein `size` in einem Kommentar zwischen zwei
  * Tags wuerde falsch zugeordnet; deshalb prueft der Scan die kommentarfreie
  * Quelle.
+ *
+ * Eine zweite Grenze, die dasselbe Kommentar-Entfernen mitbringt: `\/\/[^\n]*`
+ * kennt keine Zeichenketten und behandelt ein `//` INNERHALB eines Strings
+ * (z. B. in einer URL wie `"https://…"`) genauso wie einen Zeilenkommentar —
+ * alles danach bis zum Zeilenende faellt weg. Ein `size=` an einem `<Button`
+ * hinter so einem `//` in derselben Zeile wuerde der Scan still nicht sehen.
+ * Heute gibt es keinen solchen Fall im Pruefbereich (das einzige `https://`
+ * steht in einem Blockkommentar, der vorher schon entfernt wird), aber die
+ * Grenze existiert unabhaengig davon.
  */
 function elementVor(quelle: string, index: number): string {
   const treffer = [...quelle.slice(0, index).matchAll(/<([A-Z][A-Za-z]*)/g)];
