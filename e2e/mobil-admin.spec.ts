@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { devLogin } from "./fixtures";
+import { TAP_XL } from "@/core/theme/tokens";
 
 /**
  * DER MOBILE DURCHGANG DURCH DIE ADMIN-ARBEITSSEITEN (Teilprojekt C).
@@ -486,7 +487,9 @@ test.describe("390x844 — das Telefon", () => {
     ).toBeLessThanOrEqual(naechster!.clientW);
   });
 
-  test("eine lange Adresse spannt weder Verlauf noch QR-Ansicht auf", async ({ page }) => {
+  test("eine lange Adresse spannt weder Verlauf noch QR-Ansicht auf, und jeder Verlaufseintrag bleibt mindestens TAP_XL hoch", async ({
+    page,
+  }) => {
     const lang =
       "https://wiki.iuk-ue.de/books/einsatzhandbuch/chapter/funk-und-fernmeldedienst/page/kanaltrennung";
     // Das qr-Modul ist oeffentlich (`requiresAuth: false`) — kein `devLogin`.
@@ -503,6 +506,40 @@ test.describe("390x844 — das Telefon", () => {
     await expect(page.getByTestId("history-entry").first()).toBeVisible();
     mass = await ueberlauf(page);
     expect(mass.doc, `Verlauf: ${mass.schuldige.join(" | ")}`).toBe(mass.vw);
+
+    /*
+     * TAP_XL-BODEN (Schlussreview-Nachzug zu Befund 1, `HistoryList.tsx`).
+     * `height: "auto"` allein liess einen EINZEILIGEN Verlaufseintrag auf
+     * 39px schrumpfen — gemessen mit Playwright bei 390x844, Beschriftung
+     * "kurz" —, weit unter der 44px-Schwelle dieses Branches. Ursache:
+     * antds `.ant-btn-lg` setzt `padding-block: 0`, mit `height: "auto"`
+     * trug seither nur noch der Zeilenkasten die Hoehe. `minHeight: TAP_XL`
+     * in `HistoryList.tsx` haelt seither 72px; der MEHRZEILIGE Eintrag oben
+     * blieb dabei unveraendert bei 81px (vorher wie nachher).
+     *
+     * Der lange Eintrag allein pruefte diese Zusage nicht scharf: er liegt
+     * mit 81px ohnehin ueber TAP_XL, auch OHNE die Mindesthoehe. Erst ein
+     * zusaetzlicher, einzeiliger Eintrag macht sie aussagekraeftig — deshalb
+     * hier ein zweiter, kurzer Eintrag vor der Messung.
+     */
+    await page.getByLabel("Link oder Text").fill("kurz");
+    await page.getByRole("button", { name: "QR-Code erzeugen" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("kurz");
+    await page.goto("http://qr.localtest.me:3100/");
+
+    const eintraege = page.getByTestId("history-entry");
+    await expect(eintraege).toHaveCount(2);
+    const hoehen = await eintraege.evaluateAll((els) =>
+      els.map((el) => ({
+        text: el.textContent,
+        hoehe: Math.round(el.getBoundingClientRect().height),
+      })),
+    );
+    for (const { text, hoehe } of hoehen) {
+      expect(hoehe, `Verlaufseintrag "${text}": ${hoehe}px, erwartet mindestens TAP_XL`).toBeGreaterThanOrEqual(
+        TAP_XL,
+      );
+    }
   });
 });
 
