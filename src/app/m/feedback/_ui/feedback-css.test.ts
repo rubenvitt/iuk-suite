@@ -59,12 +59,34 @@ const findeRegel = (selektor: RegExp): RegExpExecArray | null => {
 };
 
 describe("feedback.css — Breakpoints", () => {
-  it("kennt genau die begruendete Menge {767.98, 768, 992}", () => {
-    const werte = [...OHNE_KOMMENTARE.matchAll(/\((?:min|max)-width:\s*([\d.]+)px\)/g)].map(
-      (m) => m[1],
-    );
+  /**
+   * Nur `@media`, seit die Notenlegende an ihrem CONTAINER schaltet: eine
+   * Containerabfrage ist kein Breakpoint der Suite, sie misst eine Spalte. Sie
+   * mit in diese Menge zu zaehlen hiesse, ein Bauteil, das sich richtigerweise
+   * NICHT am Fenster ausrichtet, gegen die Fenster-Breakpoints zu pruefen. Die
+   * Container-Schwelle hat ihren eigenen Fall darunter.
+   */
+  it("kennt genau die begruendete Menge {767.98, 768, 992} an Medienabfragen", () => {
+    const werte = [
+      ...OHNE_KOMMENTARE.matchAll(/@media\s*\((?:min|max)-width:\s*([\d.]+)px\)/g),
+    ].map((m) => m[1]);
     expect(werte.length).toBeGreaterThan(0);
     expect(new Set(werte)).toEqual(new Set(["767.98", "768", "992"]));
+  });
+
+  /**
+   * Die eine Containerabfrage der Datei. 560px ist die gemessene Wortbreite der
+   * Legende (466px zuzueglich Abstaende) plus Reserve fuer breitere
+   * Schriftmetriken — auf einem Linux-Runner war „ungenügend" breit genug, um
+   * genau diesen Unterschied auszumachen. Waechst die Menge, gehoert der neue
+   * Wert begruendet; wandert die Zahl, muss der Kommentar in `feedback.css`
+   * mitwandern.
+   */
+  it("kennt genau eine Containerabfrage, und zwar bei 560px", () => {
+    const werte = [
+      ...OHNE_KOMMENTARE.matchAll(/@container\s*\((?:min|max)-width:\s*([\d.]+)px\)/g),
+    ].map((m) => m[1]);
+    expect(werte).toEqual(["560"]);
   });
 
   it("hat keine 600px-Medienabfrage mehr", () => {

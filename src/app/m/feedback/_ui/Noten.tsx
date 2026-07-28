@@ -332,7 +332,13 @@ export type NotenlegendeProps = {
 export function Notenlegende({ groesse = "kompakt" }: NotenlegendeProps = {}) {
   const { abstand } = SPUR_MASSE[groesse];
   return (
-    <div>
+    // `fb-legende-wirt` traegt `container-type: inline-size`: die Wortzeile
+    // schaltet nach der Breite DIESER Spalte um, nicht nach der des Fensters —
+    // die Legendenspalte der Auswertung ist 336px breit, ganz gleich wie breit
+    // der Schirm ist. Das `container-type` gehoert deshalb wie das Umschalten
+    // selbst in `feedback.css` und nicht hierher: inline gesetzt waere es
+    // dieselbe Falle im neuen Gewand.
+    <div className="fb-legende-wirt">
       <div
         style={{
           display: "grid",

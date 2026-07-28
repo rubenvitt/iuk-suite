@@ -137,30 +137,58 @@
 }
 
 /*
- * NOTENLEGENDE (§4.11, Bauteil 3). Das Umschalten unter 767.98px liegt HIER und
- * nicht in einem Inline-Style: eine Klasse mit `display: none` kann ein inline
- * gesetztes `display: grid` nicht schlagen. Deshalb definiert die Klasse das
- * Raster, und die Komponente reicht nur den Spaltenabstand ein — der muss zum
- * Abstand der Spur darunter passen (kompakt 2, gross 4).
+ * NOTENLEGENDE (§4.11, Bauteil 3). Das Umschalten liegt HIER und nicht in einem
+ * Inline-Style: eine Klasse mit `display: none` kann ein inline gesetztes
+ * `display: grid` nicht schlagen. Deshalb definiert die Klasse das Raster, und
+ * die Komponente reicht nur den Spaltenabstand ein — der muss zum Abstand der
+ * Spur darunter passen (kompakt 2, gross 4).
+ *
+ * GESCHALTET WIRD AM CONTAINER, NICHT AM VIEWPORT — und das ist eine Korrektur,
+ * keine Geschmacksfrage. Bis 2026-07-28 stand hier `@media (max-width:
+ * 767.98px)`, mit der Begruendung, sechs Woerter à 12px passten nicht in 335px.
+ * Die Zahl stimmte, die Achse nicht: gemessen auf
+ * /groups/1/evenings/1/auswertung ist die Legendenspalte bei JEDER
+ * Viewportbreite 336px breit —
+ *
+ *   @768 / @900 / @1100 / @1280: Container 336, Woerter 466 + 5 Abstaende
+ *
+ * — die Wortzeile passte dort also NIE, auch nicht auf dem breitesten
+ * Schirm. Ueber 767.98px lief sie einfach heraus: `1fr` ist `minmax(auto, 1fr)`,
+ * die auto-Untergrenzen der sechs Spalten sind zusammen breiter als der
+ * Container, und die Spuren fallen dann auf ihre je eigene Mindestbreite zurueck
+ * (gemessen 38/28/104/101/96/99 statt sechsmal gleich). Das Dokument scrollte
+ * seitwaerts: @768 auf 834px, @1280 auf 1282px. In der CI mit ihren breiteren
+ * Schriftmetriken wurden aus den 2px bei 1280 ganze 20 — dort fiel
+ * `mobil-admin.spec.ts` darueber, lokal blieb es unter der Schranke.
+ *
+ * 560px statt der gemessenen 486: die Vorschubbreite von „ungenügend" haengt am
+ * Schriftschnitt des Systems, und genau diese Differenz hat den Ausfall
+ * verursacht. `minmax(0, 1fr)` steht zusaetzlich im Container-Zweig — es nimmt
+ * den Spuren die auto-Untergrenze und macht damit einen Ueberlauf strukturell
+ * unmoeglich, egal welche Schrift der Rechner stellt.
  */
-.fb-legende-woerter {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
+.fb-legende-wirt {
+  container-type: inline-size;
 }
 
-.fb-legende-anker {
+/* Vorgabe ist die Schmalvariante: zwei Anker passen immer. */
+.fb-legende-woerter {
   display: none;
 }
 
-@media (max-width: 767.98px) {
-  /* Sechs Woerter à 12px passen nicht in 335px — es bleiben die zwei Anker. */
+.fb-legende-anker {
+  display: flex;
+  justify-content: space-between;
+}
+
+@container (min-width: 560px) {
   .fb-legende-woerter {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .fb-legende-anker {
-    display: flex;
-    justify-content: space-between;
+    display: none;
   }
 }
 

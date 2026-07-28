@@ -288,14 +288,28 @@ describe("Notenlegende", () => {
     expect(woerter.map((el) => el.textContent)).toEqual([...NOTEN_WORT]);
   });
 
-  it("haelt fuer unter 767.98px die zwei Ankerwoerter bereit", () => {
+  /**
+   * Geschaltet wird an der Breite der eigenen Spalte, nicht an der des Fensters:
+   * die Legendenspalte der Auswertung misst 336px, gleich wie breit der Schirm
+   * ist — die sechs Woerter (466px) passten dort auch bei 1280 nicht und liefen
+   * seitlich heraus. Deshalb `@container` statt `@media`, und deshalb ist die
+   * Schmalvariante die Vorgabe statt der Sonderfall.
+   */
+  it("haelt die zwei Ankerwoerter bereit und schaltet am Container um", () => {
     const wirt = zeichne(<Notenlegende />);
     expect(wirt.textContent).toContain("1 sehr gut");
     expect(wirt.textContent).toContain("6 ungenügend");
     // Umgeschaltet wird in CSS — inline `display` wuerde die Klasse schlagen.
     expect(wirt.innerHTML).toContain("fb-legende-woerter");
     expect(wirt.innerHTML).toContain("fb-legende-anker");
-    expect(CSS_CODE).toMatch(/@media\s*\(max-width:\s*767\.98px\)/);
+    expect(wirt.innerHTML).toContain("fb-legende-wirt");
+    expect(CSS_CODE).toMatch(/@container\s*\(min-width:\s*560px\)/);
+    // Ohne `container-type` am Wirt greift die Abfrage nie — die Regel stuende
+    // da und die Wortzeile bliebe fuer immer verborgen.
+    expect(CSS_CODE).toMatch(/\.fb-legende-wirt\s*\{[^}]*container-type:\s*inline-size/);
+    // `minmax(0, 1fr)`, nicht `1fr`: die auto-Untergrenze der Spalten ist der
+    // Grund, aus dem die Zeile ueberhaupt herauslaufen konnte.
+    expect(CSS_CODE).toMatch(/grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
     expect(stil(wirt.querySelector(".fb-legende-woerter")!)).not.toContain("display");
   });
 
