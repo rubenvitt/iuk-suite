@@ -471,7 +471,7 @@ describe("Zone e — Einstellungen haengt an der Seite (§2.6)", () => {
     // haengt an `guardAdmin`. Fuer eine Gruppenleitung ist der Knopf nicht da —
     // das prueft `EinstellungenPanel.test.tsx`, hier geht es um die Zahlen.
     guardPageMock.mockResolvedValue({
-      viewer: { sub: "admin-1", groups: ["dashboard-admins"], fachgruppen: [] },
+      viewer: { sub: "admin-1", groups: ["da-feedback-admin"], fachgruppen: [] },
       db,
       memberIds: [1],
     });
@@ -508,7 +508,7 @@ describe("Zone e — Einstellungen haengt an der Seite (§2.6)", () => {
 describe("Zone e — die Leitung ist Admin-Sache (§2.6)", () => {
   function alsAdmin(): void {
     guardPageMock.mockResolvedValue({
-      viewer: { sub: "admin-1", groups: ["dashboard-admins"], fachgruppen: [] },
+      viewer: { sub: "admin-1", groups: ["da-feedback-admin"], fachgruppen: [] },
       db,
       memberIds: [],
     });
@@ -664,7 +664,7 @@ describe("Kopfzone — Breadcrumb nur, wenn der Einstieg nicht zurueckleitet (§
 
   it("zeigt sie einem Voll-Admin AUCH bei genau einer Gruppe", async () => {
     guardPageMock.mockResolvedValue({
-      viewer: { sub: "admin-1", groups: ["dashboard-admins"], fachgruppen: [] },
+      viewer: { sub: "admin-1", groups: ["da-feedback-admin"], fachgruppen: [] },
       db,
       memberIds: [1],
     });

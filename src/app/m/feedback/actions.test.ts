@@ -901,7 +901,7 @@ describe("beendeFeedbackAction: der geplante Schluss-Schritt", () => {
 /** Suite-Admin: `groups` trägt die Suite-Admin-Gruppe, `fachgruppen` ist leer. */
 function alsAdmin(): void {
   authMock.mockResolvedValue({
-    user: { id: "admin-1", groups: ["dashboard-admins"], fachgruppen: [] },
+    user: { id: "admin-1", groups: ["da-feedback-admin"], fachgruppen: [] },
   });
 }
 

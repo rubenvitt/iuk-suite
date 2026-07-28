@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { getModule, requiredGroupsFor } from "@/core/registry";
+import { isModuleAdmin, suiteAdminGroup } from "@/core/groups";
 import { isFeedbackAdmin, assertGroupAccess, accessibleGroupFilter } from "./access";
 
 const admin = { sub: "a", groups: ["da-feedback-admin"], fachgruppen: [] };
@@ -10,6 +11,31 @@ describe("isFeedbackAdmin", () => {
     expect(isFeedbackAdmin(admin)).toBe(true);
     expect(isFeedbackAdmin(gl)).toBe(false);
     expect(isFeedbackAdmin(null)).toBe(false);
+  });
+
+  /**
+   * DER UNTERSCHIED ZU JEDEM ANDEREN MODUL, und deshalb steht er als eigener
+   * Fall da: `isModuleAdmin` (core/groups) lässt den Suite-Admin durch, dieses
+   * Modul nicht. Admin heißt hier Einblick in die Rückmeldungen ALLER Gruppen;
+   * den Server zu betreiben ist kein Anlass dafür.
+   *
+   * Die Gegenprobe gehört dazu: `isModuleAdmin` MUSS für denselben Viewer weiter
+   * `true` sagen. Sonst wäre der Test auch dann grün, wenn jemand die
+   * Abkürzung suiteweit entfernt — und die Entscheidung galt nur für feedback.
+   */
+  it("der Suite-Admin allein ist hier KEIN Admin — anders als in den übrigen Modulen", () => {
+    const betreiber = { sub: "b", groups: [suiteAdminGroup()], fachgruppen: [] };
+    expect(isFeedbackAdmin(betreiber)).toBe(false);
+    expect(isModuleAdmin(getModule("qr"), betreiber.groups)).toBe(true);
+  });
+
+  it("der Suite-Admin MIT Feedback-Admin-Gruppe ist Admin — der Weg steht offen", () => {
+    const beides = {
+      sub: "b2",
+      groups: [suiteAdminGroup(), "da-feedback-admin"],
+      fachgruppen: [],
+    };
+    expect(isFeedbackAdmin(beides)).toBe(true);
   });
 });
 
