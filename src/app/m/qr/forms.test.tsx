@@ -21,7 +21,7 @@ import { useRouter } from "next/navigation";
 import WifiPage from "@/app/m/qr/wifi/page";
 import TelPage from "@/app/m/qr/tel/page";
 import ContactPage from "@/app/m/qr/contact/page";
-import { clearHistory, loadHistory } from "@/app/m/qr/_lib/history";
+import { clearHistory, loadHistory, setHistoryOwner } from "@/app/m/qr/_lib/history";
 import { click, fill, mount, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 
 const push = vi.fn();
@@ -30,6 +30,11 @@ beforeEach(() => {
   push.mockClear();
   localStorage.clear();
   clearHistory();
+  // „Sitzung aufgeloest, niemand angemeldet". In der App macht das
+  // `HistoryOwner` aus dem Modul-Layout, das hier nicht mitgerendert wird —
+  // ohne die Zeile bliebe der Eigentuemer unbekannt, und `history.ts` haelt
+  // dann bewusst alles zurueck (Lesen wie Schreiben).
+  setHistoryOwner(null);
   vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<typeof useRouter>);
 });
 

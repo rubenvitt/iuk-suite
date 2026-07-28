@@ -701,62 +701,30 @@ test.describe("1280x800 — man sieht es auf dem Desktop NICHT", () => {
       await page.waitForLoadState("networkidle");
       const mass = await ueberlauf(page);
 
-      if (seite.pfad.endsWith("/auswertung")) {
-        /*
-         * EIN NEUER BEFUND, den dieser Plan nicht kannte — nicht weggelassen,
-         * sondern beim Namen genannt.
-         *
-         * Die Notenlegende (`.fb-legende-woerter`, sechs Woerter in
-         * `repeat(6, 1fr)`) laeszt ihr letztes Wort „ungenügend" aus seiner
-         * Rasterzelle nach rechts herausstehen. Gemessen am 2026-07-28 auf
-         * /groups/1/evenings/1/auswertung:
-         *
-         *   @390  doc 390  von 390   (Schmalvariante: `.fb-legende-anker`)
-         *   @700  doc 700  von 700   (dito)
-         *   @768  doc 834  von 768   (+66 — die erste Breite, ab der es greift)
-         *   @900  doc 966  von 900   (+66)
-         *   @1100 doc 1166 von 1100  (+66)
-         *   @1280 doc 1282 von 1280  (+2)
-         *   @1440 doc 1440 von 1440  (Seite mittig, der Ueberstand hat Platz)
-         *
-         * VORBESTEHEND, keine Regression aus den Aufgaben 1–6: die Woerter
-         * standen vor Aufgabe 4 schon ab 600px statt ab 768px, das betroffene
-         * Band war also breiter, nicht schmaler. Der Befund gehoert nicht in
-         * Teilprojekt C (er trifft den Laptop, nicht das Telefon) und ist
-         * gemeldet.
-         *
-         * ZWEI ZUSAGEN, UND KEINE ERSETZT DIE ANDERE.
-         *
-         * (a) EINE SCHRANKE. Eine Quarantaene ohne Obergrenze nimmt der Seite
-         *     jede Zusage: `ueberlauf()` sammelt nur Elemente, deren EIGENES
-         *     `right` ueber den Viewport ragt, und die Vorfahren des Spans sind
-         *     rastergebunden — sie tauchen nie auf. Wuechse das Wort oder
-         *     schruempfte die Rasterzelle, liefe die Seite um 300px ueber, die
-         *     Liste bliebe genau dieser eine Eintrag, und der Test bliebe
-         *     gruen. 5px = gemessene 2 plus 3 Reserve.
-         *
-         * (b) DER VERURSACHER IST ENTHALTEN, nicht: die Liste ist gleich.
-         *     Bewusst nicht `toEqual([...])`. `ueberlauf()` filtert auf
-         *     `right > innerWidth + 1`, und @1280 sind es genau 2px — EIN Pixel
-         *     Luft. Faellt die Vorschubbreite von „ungenügend" auf einem
-         *     anderen Rechner minimal kleiner aus, ist die Liste leer und der
-         *     Test wuerde rot, WEIL DER FEHLER KLEINER GEWORDEN IST. Die
-         *     tragfaehige Form ist deshalb: was auch immer ueberlaeuft, es darf
-         *     nur dieser bekannte Span sein — leer ist erlaubt (dann ist der
-         *     Befund behoben oder unterschreitet die Schwelle), ein zweiter
-         *     Verursacher nicht.
-         */
-        expect(
-          mass.doc - mass.vw,
-          `${seite.name}: laeuft weiter als der bekannte Befund — ${mass.schuldige.join(" | ")}`,
-        ).toBeLessThanOrEqual(5);
-        expect(
-          mass.schuldige.filter((s) => !s.includes("ungenügend")),
-          `${seite.name}: neuer Verursacher neben dem bekannten (doc=${mass.doc} vw=${mass.vw})`,
-        ).toEqual([]);
-        continue;
-      }
-
+      /*
+       * /auswertung STAND HIER EINMAL UNTER QUARANTAENE — sie steht es nicht
+       * mehr, und der Weg dahin gehoert festgehalten.
+       *
+       * Die Notenlegende (`.fb-legende-woerter`, sechs Woerter) liess ihr
+       * letztes Wort „ungenügend" nach rechts aus der Karte stehen: @768 lief
+       * das Dokument auf 834px, @1280 auf 1282px. Die Quarantaene liess das mit
+       * einer 5px-Schranke durchgehen — auf dem CI-Runner mit seinen breiteren
+       * Schriftmetriken wurden aus den 2px bei 1280 dann 20, und der Test fiel.
+       *
+       * Der Befund war nicht „ein Wort ist zu breit", sondern eine Regel an der
+       * falschen Achse: die Legendenspalte ist bei JEDER Viewportbreite 336px
+       * breit, die Wortzeile braucht 466px — sie passte dort nie, auch bei 1440
+       * nicht (der alte Messwert „Seite mittig, der Ueberstand hat Platz" hat
+       * bloss ausserhalb des Fensters gemessen). Das Umschalten hing aber an
+       * `@media (max-width: 767.98px)`, also am Fenster. Seit 2026-07-28
+       * schaltet `feedback.css` per `@container (min-width: 560px)` am Container
+       * und mit `minmax(0, 1fr)` gegen die auto-Untergrenze der Spalten;
+       * gemessen ueber 390/768/900/1100/1280/1440 ist `doc === vw`.
+       *
+       * Deshalb steht hier keine Sonderbehandlung mehr, sondern dieselbe Zeile
+       * wie fuer jede andere Seite. Faellt sie, ist es ein Rueckschritt und kein
+       * bekannter Befund.
+       */
       expect(mass.doc, `${seite.name}: ${mass.schuldige.join(" | ")}`).toBe(mass.vw);
     }
   });

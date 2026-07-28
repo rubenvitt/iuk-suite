@@ -6,7 +6,7 @@ vi.mock("next/navigation", () => ({ useRouter: vi.fn() }));
 import { useRouter } from "next/navigation";
 import { HistoryList } from "@/app/m/qr/HistoryList";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
-import { clearHistory, recordEntry } from "@/app/m/qr/_lib/history";
+import { clearHistory, recordEntry, setHistoryOwner } from "@/app/m/qr/_lib/history";
 import { click, clickElement, exists, mount, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { QrPayload } from "@/app/m/qr/_lib/types";
 
@@ -21,6 +21,11 @@ beforeEach(() => {
   push.mockClear();
   localStorage.clear();
   clearHistory();
+  // „Sitzung aufgeloest, niemand angemeldet". In der App macht das
+  // `HistoryOwner` aus dem Modul-Layout, das hier nicht mitgerendert wird —
+  // ohne die Zeile bliebe der Eigentuemer unbekannt, und `history.ts` haelt
+  // dann bewusst alles zurueck (Lesen wie Schreiben).
+  setHistoryOwner(null);
   vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<typeof useRouter>);
 });
 
