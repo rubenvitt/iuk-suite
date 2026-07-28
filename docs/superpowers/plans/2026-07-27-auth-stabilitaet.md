@@ -40,6 +40,33 @@ Nur `r.json()` wird gelesen; `r.headers.getSetCookie()` nicht. Zum Vergleich der
 `src/middleware.ts` gibt es in diesem Projekt **nicht** (geprüft), also bleibt für RSC nur der erste
 Zweig.
 
+> **Korrektur (nach der Umsetzung):** Diese Ableitung war falsch. Next.js 16 hat `middleware.ts` in
+> `proxy.ts` umbenannt — `src/proxy.ts` existiert seit dem 25. Juli, umschließt `auth((req) => …)`
+> und trägt den Matcher `["/((?!_next/static|_next/image|favicon.ico).*)"]`, also praktisch jede
+> Anfrage. Der RSC-Befund oben bleibt richtig (Z. 91 im Objekt-Config-Zweig von `initAuth`; nach der
+> Umstellung auf Funktions-Config die entsprechende Stelle bei Z. 46) — er ist nur nicht der einzige
+> Zweig, der zählt. `proxy.ts` übergibt eine Funktion an `auth()` und landet im
+> `isReqWrapper`-Zweig (`node_modules/next-auth/lib/index.js:60-70`): dort ist `request`
+> **definiert**, und `handleAuth` hängt `sessionResponse.headers.getSetCookie()` an die Antwort
+> (Z. 166-170) — das Cookie geht nicht verloren. `set-cookie` steht zudem nicht in
+> `ipcForbiddenHeaders` (`next/dist/server/lib/server-ipc/utils.js:31-41`), sondern nur in
+> `actionsForbiddenHeaders`; der Rewrite-Zweig aus `decideRoute` verliert es also ebenfalls nicht.
+>
+> Weil der Plan diesen Zweig aus der Betrachtung getilgt hatte, blieb unbemerkt, dass `initAuth`
+> seine beiden Config-Formen asymmetrisch behandelt: die Funktions-Config (`lib/index.js:42`)
+> liefert `return async (...args) => …`, die Objekt-Config (`lib/index.js:88`) dagegen eine
+> synchrone Funktion. Nach der von Task 1 verlangten Umstellung auf Funktions-Config gab
+> `auth(callback)` in `proxy.ts` deshalb ein **Promise** zurück statt einer Funktion — und
+> `proxy.ts` muss eine Funktion exportieren. Ergebnis: **HTTP 500 auf jeder Route**, von Commit
+> `3309881` bis `43b6612`, über vier Aufgaben hinweg, bei grünem `pnpm build` und grünen
+> Unit-Tests. Aufgefallen ist es erst, weil ein Implementierer Playwright lokal nicht starten
+> konnte und bisektiert hat.
+>
+> In der Sache steht die Zusage dadurch **besser**, nicht schlechter da: aufgefrischt wird faktisch
+> bei fast jeder Anfrage, nicht nur auf `/api/auth/*`, und `proxy.ts` speist die frisch
+> nachgezogenen Gruppen über `req.auth?.user?.groups` in derselben Anfrage in `decideRoute` ein.
+> Falsch war nur die Ableitung, nicht das Ziel.
+
 Der `jwt`-Callback läuft trotzdem — bei **jedem** `auth()`:
 
 ```js
@@ -995,6 +1022,9 @@ export async function tokenAuffrischen(token: JWT, optionen: AuffrischOptionen):
 Datei. Die Datei läuft ausschließlich im Node-Runtime (kein `middleware.ts` im Projekt, also keine
 Edge-Umgebung); wer je Middleware ergänzt, muss diese Zeile prüfen.
 
+*(Korrektur: Diese Middleware gibt es seit Next.js 16 unter dem Namen `src/proxy.ts` — siehe die
+Korrektur im Abschnitt „Der Befund, der alles trägt".)*
+
 - [ ] **Step 5: Test laufen lassen**
 
 ```bash
@@ -1319,6 +1349,9 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
   };
 }
 ```
+
+*(Korrektur zum Codekommentar oben bei `authorized`: `src/middleware.ts` gibt es inzwischen doch —
+unter dem Next.js-16-Namen `proxy.ts`. Details im Abschnitt „Der Befund, der alles trägt".)*
 
 **Achtung:** `refreshAccessToken` steht in diesem Zwischenstand noch nicht zur Verfügung — die
 Funktion zieht in Schritt 4 mit um und wird in Task 3 durch `tokenAuffrischen` ersetzt. Kopiere sie
@@ -2223,6 +2256,10 @@ Cookie an) und muss einen `matcher` setzen, sonst sperrt der `authorized`-Callba
 Ansichten von `feedback` aus.
 ```
 
+*(Korrektur zum obigen CLAUDE.md-Text: die Prämisse „nur auf `/api/auth/*`" gilt nicht mehr —
+`src/proxy.ts` [Next.js 16, vormals `middleware.ts`] frischt bei praktisch jeder Anfrage auf, siehe
+Abschnitt „Der Befund, der alles trägt".)*
+
 - [ ] **Step 4: Volle Prüfkette**
 
 ```bash
@@ -2297,7 +2334,9 @@ zurück: Pocket ID rotiert Refresh-Tokens ohne Gnadenfrist, und `auth()` in RSC 
    Test sagt es laut, falls nicht — Schritt 8 nennt den Ausweichweg.
 5. **`Buffer` in `refresh.ts`.** Läuft heute nur im Node-Runtime. Käme je eine `middleware.ts` dazu
    (Edge), müsste der Dekoder auf eine polsterungsfeste `atob`-Variante umgestellt werden. Der Test
-   mit dem echten Segment würde das sofort zeigen.
+   mit dem echten Segment würde das sofort zeigen. *(Korrektur: `src/proxy.ts` — der Next.js-16-Name
+   für Middleware — gibt es bereits; die Edge-Sorge entfällt aber ohnehin, weil Proxy-Dateien laut
+   Next.js 16 immer im Node.js-Runtime laufen. Details im Abschnitt „Der Befund, der alles trägt".)*
 6. **Das prozesslokale Gedächtnis wirkt nur in einem Prozess.** Die Suite läuft als ein Container
    (`output: "standalone"`). Eine zweite Replik machte den Schutz still wirkungslos — dann bräuchte
    es einen gemeinsamen Speicher, und das wäre eine eigene Änderung.
