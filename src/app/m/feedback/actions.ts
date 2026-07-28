@@ -45,6 +45,7 @@ import { getDirectory, type DirectoryResult } from "@/core/directory";
 import {
   passtAufSuche,
   vereinigePersonen,
+  FEHLER_EMAIL_MEHRDEUTIG,
   FEHLER_EMAIL_UNBEKANNT,
   FEHLER_EMAIL_UNBEKANNT_OHNE_VERZEICHNIS,
   SUCHE_MAX_TREFFER,
@@ -339,11 +340,22 @@ export async function addGroupLeaderAction(
     // LOKAL ZUERST, VERZEICHNIS DANACH. Zwei Gründe, beide tragend: der häufige
     // Fall (die Person war schon da) kostet keinen Netzaufruf, und der Pfad kann
     // nicht schlechter werden als vorher, wenn die API ausfällt.
-    const lokal = listKnownUsers(db).find((u) => (u.email ?? "").toLowerCase() === klein);
-    if (lokal) {
-      userId = lokal.userId;
+    //
+    // `filter` und nicht `find`: eine Adresse kann zu mehreren Konten gehören
+    // (sie ist im Verzeichnis weder Pflichtfeld noch eindeutig). `find` nahm das
+    // erste — eine stille Wahl zwischen Konten, von denen nur eines das richtige
+    // ist. Siehe FEHLER_EMAIL_MEHRDEUTIG.
+    const lokal = listKnownUsers(db).filter((u) => (u.email ?? "").toLowerCase() === klein);
+    if (lokal.length > 1) {
+      return { ok: false, fieldErrors: { kennung: FEHLER_EMAIL_MEHRDEUTIG }, values };
+    }
+    if (lokal.length === 1) {
+      userId = lokal[0].userId;
     } else {
       const ausVerzeichnis = await ohneAusfall(() => getDirectory().findByEmail(klein));
+      if (ausVerzeichnis.people.length > 1) {
+        return { ok: false, fieldErrors: { kennung: FEHLER_EMAIL_MEHRDEUTIG }, values };
+      }
       const treffer = ausVerzeichnis.people[0];
       if (!treffer) {
         return {

@@ -136,7 +136,17 @@ export interface Directory {
   list(): Promise<DirectoryResult>;
   /** Treffer zu einem Suchbegriff, begrenzt. Leerer Begriff → leere Liste. */
   search(query: string, limit?: number): Promise<DirectoryResult>;
-  /** Exakter E-Mail-Vergleich (case-insensitiv) → hoechstens eine Person. */
+  /**
+   * Exakter E-Mail-Vergleich (case-insensitiv) → ALLE Konten mit dieser Adresse.
+   *
+   * Bewusst nicht „hoechstens eine": die E-Mail ist im Anbieter weder Pflichtfeld
+   * noch eindeutig. Bis 2026-07-28 schnitt diese Funktion auf den ersten Treffer
+   * (`.slice(0, 1)`) und traf damit STILL eine Auswahl zwischen Konten, die der
+   * Aufrufer nie zu Gesicht bekam — im Betrieb gemessen: drei `sub`s auf einer
+   * Adresse. Wer daraus eine Zuordnung baut, schreibt sie mit 2/3
+   * Wahrscheinlichkeit auf ein Konto, mit dem sich niemand anmeldet. Die Wahl
+   * gehoert dorthin, wo sie jemandem auffaellt.
+   */
   findByEmail(email: string): Promise<DirectoryResult>;
   invalidate(): void;
 }
@@ -367,8 +377,13 @@ export function createDirectory(config: DirectoryConfig = {}): Directory {
       if (gesucht === "") return { status: "ok", people: LEER };
       // EXAKT, nicht `includes`: `search` von Pocket ID ist ein LIKE %…%, und ein
       // Praefix-Treffer wuerde hier die falsche Person zuordnen.
+      //
+      // OHNE `.slice(0, 1)`, und das ist der Punkt: mehrere Konten auf einer
+      // Adresse sind moeglich, und welches davon gemeint ist, kann diese Funktion
+      // nicht wissen. Sie liefert alle und ueberlaesst die Entscheidung dem
+      // Aufrufer — der sie sichtbar treffen muss oder gar nicht.
       const treffer = (r: DirectoryResult) =>
-        r.people.filter((p) => (p.email ?? "").toLowerCase() === gesucht).slice(0, 1);
+        r.people.filter((p) => (p.email ?? "").toLowerCase() === gesucht);
 
       const erste = await listIntern();
       if (erste.ergebnis.status !== "ok") return erste.ergebnis;

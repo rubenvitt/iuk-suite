@@ -335,6 +335,37 @@ describe("Zuordnung — Autofill", () => {
     expect(new Set(zeilen).size).toBe(zeilen.length);
   });
 
+  /**
+   * SICHTBAR VERSCHIEDEN GENUEGT NICHT — es muss auch der richtige `sub`
+   * ABGESCHICKT werden.
+   *
+   * `Verzeichnisfeld` haelt die Zuordnung Anzeigewert → `sub` in einer Map, und
+   * der Anzeigewert kommt aus `vorschlagOptionen`. Waeren zwei Vorschlaege dort
+   * wertgleich, kollabierte die Map — und zwar auf den ZULETZT eingetragenen.
+   * Die Auswahl des ERSTEN schickte dann den `sub` des zweiten, unsichtbar, weil
+   * die ZEILEN ja verschieden aussehen. `vorschlagOptionen` haengt bei
+   * Gleichstand die Kennung an BEIDE Werte an; dieser Test ist die Gegenprobe
+   * dazu, an der Naht, die es betrifft.
+   *
+   * Bewusst der ERSTE Treffer: den zweiten liefert eine kollabierte Map zufaellig
+   * richtig, er wuerde den Fehler also gerade nicht zeigen. Nachgemessen mit
+   * ausgebauter Kollisionsbehandlung — nur dieser Fall wird rot.
+   */
+  it("die Auswahl des ersten Doppelgaengers schickt dessen sub, nicht den des zweiten", async () => {
+    suchePersonenActionMock.mockResolvedValue([
+      { userId: "sub-eins", name: "Ruben Vitt", email: "rv@drk.example", angemeldet: false },
+      { userId: "sub-zwei", name: "Ruben Vitt", email: "rv@drk.example", angemeldet: true },
+    ]);
+    await mitVerzeichnis();
+    await tippe("ru");
+
+    const erster = vorschlagsknoten().find((k) => (k.textContent ?? "").includes("sub-eins"));
+    if (!erster) throw new Error("Vorschlag 'sub-eins' nicht gefunden");
+    await clickElement(erster);
+
+    expect(query<HTMLInputElement>('input[name="kennung"]').value).toBe("sub-eins");
+  });
+
   it("DIE AUSWAHL SCHREIBT DEN sub, nicht Name oder E-Mail", async () => {
     await mitVerzeichnis();
     await tippe("an");
@@ -406,6 +437,12 @@ describe("Zuordnung — Autofill", () => {
     // Die Zeile behauptet nichts — und der Hinweis unter dem Formular sagt es
     // seit 2026-07-28 auch nicht mehr mit diesen Worten.
     expect(t.match(/noch nie in der Verwaltung/g) ?? []).toHaveLength(0);
+    // Der Lebenszeichen-Anker. Ohne ihn bestuende dieser Test auch dann, wenn
+    // die Komponente GAR NICHTS rendert — eine reine Abwesenheitszusage beweist
+    // sonst nur, dass sie nichts misst. Nebenbei die Zusage „Kennung immer
+    // sichtbar" fuer die Leitungstabelle.
+    expect(t).toContain("sub-x");
+    expect(t).toContain("Wer Auch Immer");
   });
 });
 

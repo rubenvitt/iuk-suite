@@ -76,6 +76,21 @@ export const FEHLER_EMAIL_UNBEKANNT =
 export const FEHLER_EMAIL_UNBEKANNT_OHNE_VERZEICHNIS =
   "Diese E-Mail ist unbekannt — die Person muss die Verwaltung einmal geöffnet haben.";
 
+/**
+ * Mehrere Konten auf einer Adresse. Die E-Mail ist im Verzeichnis weder
+ * Pflichtfeld noch eindeutig — im Betrieb gemessen am 2026-07-28: drei `sub`s
+ * auf einer Adresse.
+ *
+ * ABBRECHEN STATT WAEHLEN, und das ist die ganze Entscheidung: griffe hier der
+ * erste Treffer, entstuende eine `user_groups`-Zeile auf einem Konto, mit dem
+ * sich womoeglich niemand anmeldet — die Person saehe „Dir ist noch keine Gruppe
+ * zugeordnet", der Admin eine erfolgreiche Zuordnung, und beide haetten recht.
+ * Ein Fehler, der auf die Auswahlliste verweist, kostet einen Klick; eine stille
+ * Fehlzuordnung kostet eine Fehlersuche.
+ */
+export const FEHLER_EMAIL_MEHRDEUTIG =
+  "Diese E-Mail gehört zu mehreren Konten — bitte die Person aus der Liste wählen.";
+
 function suchfeld(p: { userId: string; name: string | null; email: string | null }): string {
   return `${p.name ?? ""} ${p.email ?? ""} ${p.userId}`.toLowerCase();
 }

@@ -27,6 +27,7 @@ import {
 } from "./_lib/lifecycle";
 import { STANDARD_QUESTIONS } from "./_lib/questions";
 import { FEHLER_PARAMETER, JS_FELD } from "./_lib/absenden";
+import { FEHLER_EMAIL_MEHRDEUTIG } from "./_lib/personen";
 
 // Der Prüfstand: echte In-Memory-DB (der Limiter-Beweis darf nicht an gemockten
 // Schreibern hängen — 15 Abgaben müssen als 15 ZEILEN nachweisbar sein), aber
@@ -1618,6 +1619,61 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
     // Der häufige Fall kostet keinen Netzaufruf — und kann nicht dadurch
     // schlechter werden, dass die API gerade weg ist.
     expect(verzeichnisFindByEmailMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * MEHRERE KONTEN AUF EINER ADRESSE — abbrechen statt raten.
+   *
+   * Die E-Mail ist im Verzeichnis weder Pflichtfeld noch eindeutig; im Betrieb
+   * gemessen am 2026-07-28 drei `sub`s auf einer Adresse. Bis dahin nahm der
+   * Pfad den ERSTEN Treffer (`find` lokal, `.slice(0, 1)` im Verzeichnis) und
+   * traf die Wahl damit still. Das Ergebnis wäre eine `user_groups`-Zeile auf
+   * einem Konto, mit dem sich womöglich niemand anmeldet: der Admin sieht eine
+   * erfolgreiche Zuordnung, die Person sieht „Dir ist noch keine Gruppe
+   * zugeordnet", und beide haben recht.
+   *
+   * Beide Quellen bekommen ihren eigenen Fall — sie liegen im Code
+   * hintereinander, und der lokale Zweig würde den Verzeichniszweig gar nicht
+   * erst erreichen.
+   */
+  it("zwei lokale Konten auf einer E-Mail: Feldfehler, keine Zuordnung, kein Netzaufruf", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGruppe();
+    for (const sub of ["sub-eins", "sub-zwei"]) {
+      upsertKnownUser(db, {
+        userId: sub,
+        name: "Doppelt Da",
+        email: "doppelt@drk.example",
+        seenAt: new Date(),
+      });
+    }
+    alsAdmin();
+
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "doppelt@drk.example"));
+
+    if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
+    expect(ergebnis.fieldErrors.kennung).toBe(FEHLER_EMAIL_MEHRDEUTIG);
+    expect(listGroupMembers(db, g.id)).toEqual([]);
+    expect(verzeichnisFindByEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("zwei Verzeichnis-Konten auf einer E-Mail: derselbe Feldfehler, keine Zuordnung", async () => {
+    const { addGroupLeaderAction } = await loadActions();
+    const g = seedGruppe();
+    alsAdmin();
+    verzeichnisFindByEmailMock.mockResolvedValue({
+      status: "ok",
+      people: [
+        { userId: "dir-eins", name: "Doppelt Da", email: "doppelt@drk.example" },
+        { userId: "dir-zwei", name: "Doppelt Da", email: "doppelt@drk.example" },
+      ],
+    });
+
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "doppelt@drk.example"));
+
+    if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
+    expect(ergebnis.fieldErrors.kennung).toBe(FEHLER_EMAIL_MEHRDEUTIG);
+    expect(listGroupMembers(db, g.id)).toEqual([]);
   });
 
   it("Verzeichnis erreichbar, E-Mail trotzdem unbekannt: Meldung schickt NICHT zum Anmelden", async () => {
