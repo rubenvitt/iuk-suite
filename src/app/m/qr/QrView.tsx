@@ -86,7 +86,24 @@ export function QrViewContent({
           durchsucht den UNGERENDERTEN Elementbaum nach `el.type === "h1"`. Ein
           Komponententyp trüge dort den Titel-Text nicht mehr, und die Zusage
           „das Label steht als Überschrift über dem Code" fiele still weg. */}
-      {label ? <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{label}</h1> : null}
+      {/*
+       * `overflowWrap: "anywhere"` und `minWidth: 0`: das Label ist bei
+       * `kind=url` die volle Nutzereingabe. Gemessen mit einer 95 Zeichen langen
+       * Wiki-URL bei 390px: die Ueberschrift war 449px breit, das Dokument
+       * scrollte auf 420px, und weil die Ueberschrift mittig sitzt, fehlte
+       * links UND rechts etwas — sichtbar war „ps://wiki.iuk-".
+       *
+       * `anywhere` und nicht `break-word`: beide brechen ein zu langes Wort,
+       * aber nur `anywhere` senkt auch die min-content-Breite, und genau die
+       * spannte hier den Flex-Container auf. Zehn Zeilen tiefer traegt derselbe
+       * Text als `qr-raw` bereits `wordBreak: "break-all"` (Zeile 106) — dass
+       * die Ueberschrift es nicht tat, war die Asymmetrie, nicht die Absicht.
+       */}
+      {label ? (
+        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, minWidth: 0, overflowWrap: "anywhere" }}>
+          {label}
+        </h1>
+      ) : null}
       <QrDisplay text={data} label={label ?? "qr"} />
       <Typography.Text type="secondary" style={{ display: "block", textAlign: "center" }}>
         <strong>Helligkeit auf Maximum.</strong> Doppeltippen für Vollbild, lang drücken zum

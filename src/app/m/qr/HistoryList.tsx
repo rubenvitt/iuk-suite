@@ -55,7 +55,27 @@ export function HistoryList() {
               // ersten Erzeugen und kann gar nicht davon abweichen.
               onClick={() => router.push(buildQrUrl(e.label, e.payload))}
               data-testid="history-entry"
-              style={{ textAlign: "left" }}
+              /*
+               * `whiteSpace: "normal"` schlaegt antds Button-Basisstil, der
+               * `nowrap` setzt — OHNE `overflow: hidden` dazu. Bei `kind=url`
+               * ist das Label die volle Nutzereingabe; gemessen nach dem
+               * Erzeugen eines Codes mit einer 95 Zeichen langen URL: der Knopf
+               * 358px breit, sein Inhalt 557px, das innere <span> 757px, das
+               * Dokument scrollte auf 574px.
+               *
+               * `height: "auto"` muss mit: `size="large"` setzt eine feste
+               * Hoehe, in die zwei oder drei Zeilen nicht passen.
+               *
+               * Der Nachbar `PresetGrid.tsx:41` macht dasselbe an derselben
+               * Konstruktion — hier fehlte es schlicht.
+               */
+              style={{
+                textAlign: "left",
+                whiteSpace: "normal",
+                height: "auto",
+                overflowWrap: "anywhere",
+                paddingBlock: SPACE.sm,
+              }}
             >
               {e.label}
             </Button>

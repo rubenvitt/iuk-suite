@@ -50,11 +50,35 @@ export default async function QrAdminPage({
                 border: RAHMEN,
                 borderRadius: 8,
                 padding: SPACE.sm,
+                /*
+                 * `flexWrap` ist der eigentliche Fix. Die Zeile hat rechts einen
+                 * festen Block („Bearbeiten" 96px + „Loeschen" 86px = 182px);
+                 * links steht Label plus Slug, und ein Flex-Kind hat per Vorgabe
+                 * `min-width: auto` — es kann also weder schrumpfen noch
+                 * umbrechen. Mit dem kurzen Seed-Preset faellt das nicht auf
+                 * (356px Inhalt in 356px Kasten); mit einem realistischen Namen
+                 * plus Slug sprang die Zeile auf 427px und das Dokument auf
+                 * 444px, der „Loeschen"-Knopf stand auszerhalb.
+                 */
+                flexWrap: "wrap",
               }}
             >
-              <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: SPACE.sm,
+                  /* Ohne `minWidth: 0` schrumpft der Block nicht unter seine
+                     Inhaltsbreite — `flexWrap` allein reichte dann nicht. */
+                  minWidth: 0,
+                  flexWrap: "wrap",
+                }}
+              >
                 <span aria-hidden="true">{p.icon}</span>
-                {p.label} <code style={{ opacity: 0.65 }}>{p.id}</code>
+                {p.label}{" "}
+                {/* Der Slug ist eine Nutzereingabe ohne Leerzeichen; ohne
+                    `anywhere` ist er ein einziges, unteilbares Wort. */}
+                <code style={{ opacity: 0.65, overflowWrap: "anywhere", minWidth: 0 }}>{p.id}</code>
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
                 {/* Ein Link, kein Formular: das Bearbeiten aendert nichts, es
