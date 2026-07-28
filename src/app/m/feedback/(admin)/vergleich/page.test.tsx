@@ -174,9 +174,13 @@ describe("Vergleich — Tabelle, Ordnung, Spalten", () => {
     gruppeMitAbend("Ohne", "ohne", NUR_STERNE, [{ s1: 5 }]);
     gruppeMitAbend("Schlecht", "schlecht", NUR_SCHULNOTE, [{ q1: 5 }]);
 
-    const namen = [...(await zeichne()).querySelectorAll<HTMLElement>("tbody tr")].map((tr) =>
-      (tr.querySelector("a")?.textContent ?? "").trim(),
-    );
+    // Nicht "tbody tr": seit dem `scroll`-Prop (Task 2, mobiler Durchgang)
+    // rendert rc-table zusaetzlich eine `aria-hidden`-Messzeile in tbody
+    // (@rc-component/table, Body/MeasureRow.js) — sie traegt kein
+    // data-testid und darf hier nicht mitgezaehlt werden.
+    const namen = [
+      ...(await zeichne()).querySelectorAll<HTMLElement>('tbody tr[data-testid="vergleich-row"]'),
+    ].map((tr) => (tr.querySelector("a")?.textContent ?? "").trim());
     expect(namen).toEqual(["Beste", "Mittel", "Schlecht", "Ohne"]);
   });
 

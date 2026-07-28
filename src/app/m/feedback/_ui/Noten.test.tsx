@@ -288,14 +288,14 @@ describe("Notenlegende", () => {
     expect(woerter.map((el) => el.textContent)).toEqual([...NOTEN_WORT]);
   });
 
-  it("haelt fuer unter 600px die zwei Ankerwoerter bereit", () => {
+  it("haelt fuer unter 767.98px die zwei Ankerwoerter bereit", () => {
     const wirt = zeichne(<Notenlegende />);
     expect(wirt.textContent).toContain("1 sehr gut");
     expect(wirt.textContent).toContain("6 ungenügend");
     // Umgeschaltet wird in CSS — inline `display` wuerde die Klasse schlagen.
     expect(wirt.innerHTML).toContain("fb-legende-woerter");
     expect(wirt.innerHTML).toContain("fb-legende-anker");
-    expect(CSS_CODE).toMatch(/@media\s*\(max-width:\s*600px\)/);
+    expect(CSS_CODE).toMatch(/@media\s*\(max-width:\s*767\.98px\)/);
     expect(stil(wirt.querySelector(".fb-legende-woerter")!)).not.toContain("display");
   });
 

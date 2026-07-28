@@ -162,7 +162,16 @@ export function Teilnahme({ url, token, groupId, erststart }: TeilnahmeProps) {
          * Neuer Tab, weil das Cockpit die Arbeitsseite bleibt: der Aushang wird
          * gedruckt und weggelegt, nicht navigiert.
          */}
-        <Button type="text" href={`/m/feedback/aushang/${groupId}`} target="_blank" rel="noreferrer">
+        <Button
+          type="text"
+          href={`/m/feedback/aushang/${groupId}`}
+          target="_blank"
+          rel="noreferrer"
+          /* Die beiden Geschwister oben tragen `fb-block-mobil`, dieser eine
+             nicht — gemessen 144px neben zweimal 324px. Kein Entwurf, ein
+             vergessenes Attribut. */
+          className="fb-block-mobil"
+        >
           Aushang drucken
         </Button>
       </Space>

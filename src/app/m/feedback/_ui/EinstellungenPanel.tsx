@@ -289,7 +289,7 @@ function Folgenschwer({
           okButtonProps={{ danger: true, loading: secretLaeuft }}
           onConfirm={neuesSecret}
         >
-          <Button danger loading={secretLaeuft}>
+          <Button danger loading={secretLaeuft} className="fb-block-mobil">
             Neues Secret erzeugen
           </Button>
         </Popconfirm>
@@ -300,7 +300,7 @@ function Folgenschwer({
           titel="Gruppe löschen"
           erklaerung="Die Gruppe, ihre Dienstabende und alle Rückmeldungen verschwinden."
         >
-          <Button danger onClick={() => setOffen(true)}>
+          <Button danger onClick={() => setOffen(true)} className="fb-block-mobil">
             Gruppe löschen
           </Button>
         </Zeile>

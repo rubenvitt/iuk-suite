@@ -50,6 +50,20 @@ export function VergleichTabelle({ zeilen }: { zeilen: VergleichZeile[] }) {
       dataSource={zeilen}
       pagination={false}
       size="small"
+      /*
+       * SCROLLEN STATT DIE SEITE MITNEHMEN (docs/design/README.md, „Mobil").
+       * Gemessen bei 390px: die Tabelle war 545px breit in einem 358px-Kasten,
+       * das Dokument scrollte auf 561px, und die Spalte VERLAUF war vollstaendig
+       * unerreichbar. Sie ist die einzige Tabelle des Moduls ohne
+       * Schmalvariante — `Verlauf.tsx` hat eine (§2.5 des Entwurfs), der
+       * Gruppenvergleich hat dafuer keine Vorgabe, und eine zu erfinden waere
+       * eine Entwurfsentscheidung, kein mobiler Durchgang.
+       *
+       * `max-content` und keine Zahl, weil KEINE Spalte ein `width` traegt.
+       * Die Spalte VERLAUF hat mit `Notenfunke` einen harten Boden von 132px
+       * (Noten.tsx:412) — genau der Fall, fuer den `max-content` gebaut ist.
+       */
+      scroll={{ x: "max-content" }}
       locale={{ emptyText: "Keine Gruppen" }}
       onRow={() => ({ "data-testid": "vergleich-row" }) as React.HTMLAttributes<HTMLElement>}
       columns={[

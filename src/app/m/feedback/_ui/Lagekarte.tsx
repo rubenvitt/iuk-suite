@@ -204,7 +204,20 @@ function StartKarte({
   return (
     <Card
       variant="outlined"
-      styles={KARTE}
+      /*
+       * DER TITEL DARF NICHT GEKUERZT WERDEN. Gemessen bei 390px: antds
+       * `.ant-card-head-title` traegt `white-space: nowrap; text-overflow:
+       * ellipsis`, brauchte 140px und bekam 94 — aus „NÄCHSTER SCHRITT" wurde
+       * „NÄCHSTER …". Der Kartenkopf legt `title` und `extra` in EINE Zeile,
+       * und das `extra` nahm den Rest.
+       *
+       * `whiteSpace: "normal"` ueber `styles.title` statt ueber eine eigene
+       * Klasse: antds `.ant-card-head-title` ist (0,1,0), eine eigene Klasse
+       * waere es auch, und antds Stylesheet kommt spaeter (Falle 5). Ein
+       * `styles`-Eintrag landet als Inline-Stil am selben Knoten und gewinnt
+       * ohne Spezifitaets-Wettlauf.
+       */
+      styles={{ ...KARTE, title: { whiteSpace: "normal" } }}
       title={erststart ? "ERSTER SCHRITT" : "NÄCHSTER SCHRITT"}
       extra={<span style={T.meta}>Gerade läuft kein Feedback.</span>}
     >

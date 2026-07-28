@@ -84,6 +84,24 @@ anbietet, ist der Token der bessere Weg als jede Spezifität (`Input.inputFontSi
 **Und die Erhöhung kommentieren**, sonst entfernt sie die nächste Aufräumrunde als vermeintlichen
 Ballast. Prüfen kann das nur ein echter Browser: siehe „Tests für Responsives" unten.
 
+**6. Ein WERT aus einem `"use client"`-Modul kommt in einer Server Component nicht an.**
+Falle 1 verbietet den Compound-Zugriff. Das hier ist ihre Schwester und sieht harmloser aus: eine
+Server Component importiert aus einem Client-Modul keine Komponente, sondern eine **Konstante** —
+und bekommt eine Client-Referenz statt des Wertes. `MONATS_FENSTER.includes is not a function`,
+HTTP 500 für die ganze Seite. **TypeScript ist zufrieden** (es sieht `readonly [6, 12, 24]`),
+`pnpm build` findet nichts, und ein Vitest kann es strukturell nicht finden: unter Vitest sind beide
+Module normale ES-Module, `"use client"` ist dort ein wirkungsloser String.
+
+**Regel:** Werte, die eine Server Component liest, liegen in einem Modul ohne `"use client"` —
+im Modul `feedback` heißt das `_lib/`. Die Komponente importiert von dort, nicht umgekehrt.
+
+**So sucht man danach:** alle Module mit `"use client"` auflisten, darin die Exporte suchen, die
+keine Komponente sind (`export const GROSSBUCHSTABEN`, `export function kleinbuchstabe`), und für
+jeden prüfen, ob ihn eine Datei ohne `"use client"` importiert. Am 2026-07-27 ergab das vier
+Kandidaten und genau einen Treffer (`MONATS_FENSTER`, behoben). Die drei anderen —
+`MAX_SERIEN`, `AKTUALISIERUNGS_TAKT_MS`, `SPERRE_MS` — haben keinen Importeur jenseits ihrer eigenen
+Client-Insel.
+
 ## Hell- und Dunkelmodus
 
 Die Suite hat einen **Umschalter** (Cookie `iuk-theme`, serverseitig gelesen) — auf
@@ -155,8 +173,28 @@ Lesbarkeit. Wer eine der beiden anfasst, prüft die andere (`app/layout.tsx`, `a
 **antd-`Table` scrollt auf schmalen Geräten (`scroll={{ x: … }}`), sie bricht nicht um.** Eine
 umgebrochene Tabellenzeile ist unlesbarer als eine gescrollte.
 
+**`scroll={{ x: … }}` braucht den richtigen Wert, und der hängt an den Spaltenbreiten.** Tragen die
+Spalten `width`, ist die Summe die Zahl. Tragen sie keine, ist `"max-content"` die einzige ehrliche
+Angabe — jede Pixelzahl wäre erfunden. **Eine Bedingung dazu:** rc-table schaltet auf
+`table-layout: fixed`, sobald eine Spalte `fixed` oder `ellipsis` trägt oder `scroll.y` gesetzt ist
+(`lib/Table.js:426-442`); dann verteilt es die Spalten gleichmäßig und **das Desktop-Bild ändert sich**,
+ohne dass irgendwo etwas überläuft. Wer `scroll` ergänzt, misst die Spaltenbreiten bei 1280px vorher
+und nachher — `documentElement.scrollWidth` allein würde den Unterschied nicht sehen.
+
+**Eine Tabelle, die auf schmalen Geräten gar nicht sichtbar ist, braucht kein `scroll`.**
+`feedback/_ui/Verlauf.tsx` rendert beide Darstellungen ins HTML und blendet per CSS eine aus; die
+breite Tabelle steht unter 768px auf `display: none`. Sie ist das Vorbild, nicht der Mangel — und der
+Grund, warum „keine `scroll`-Prop" allein noch kein Befund ist.
+
 **Handlungsknöpfe unter 768px sind volle Breite und stehen untereinander, nie nebeneinander.** Ein
 630px breiter Knopf liest sich als Fläche, nicht als Ziel.
+
+**Ein Modul, das seine Knopfregel bei einer anderen Breite schaltet als die Suite, ist bei 390px nicht
+zu unterscheiden — und dazwischen kaputt.** `feedback.css` schaltete bis 2026-07-27 bei 600px. Bei
+700px war der Menü-Knopf der Shell sichtbar und der Verlauf zeigte die Schmalliste (beides „mobil"),
+während „Kopieren" 88px und „PNG" 61px breit nebeneinander standen. In `max-width`-Abfragen heißt der
+Suite-Breakpoint **767.98px**, nicht 768 — sonst gelten bei exakt 768px beide Seiten und die
+Reihenfolge im Stylesheet entscheidet.
 
 ### Tests für Responsives — wer welche Aussage besitzt
 
@@ -167,6 +205,19 @@ Aufteilung, die trägt:
 - **Quelltext-Scan (Vitest)** besitzt die Regel: „die Klasse trägt die richtige Media Query".
 - **Playwright bei 390×844** besitzt das Ergebnis: „man sieht es mobil".
 - **Playwright bei 1280×720** besitzt die andere Hälfte: „man sieht es auf dem Desktop **nicht**".
+- **Playwright dazwischen** besitzt, was an keinem der beiden Enden sichtbar ist. Zwei Defekte auf
+  Teilprojekt C waren von dieser Art: die Knopfregel bei 600 statt 768 (unsichtbar bei 390 **und** bei
+  1280) und die Kopfzeile, die zwischen 768 und 903px eine Mindestbreite von 904px hatte (unsichtbar
+  bei 390, weil die Modulnavigation dort ausgeblendet ist, und bei 1280, weil dort Platz ist). **Wer
+  nur die Enden misst, prüft die Mitte nicht** — und die Mitte ist jedes Tablet im Hochformat.
+
+**Ein e2e-Test darf seinen Zustand nicht vom Seed erben.** Die Playwright-Datenbank wird einmal je
+Lauf gelöscht (`rm -rf ./.data/e2e`), aber alle Dateien teilen sie sich, `workers: 1`, in
+Pfadreihenfolge. `e2e/feedback.spec.ts` beendet die Umfrage der Gruppe 2 — jede später laufende Datei
+sieht dieselbe Seite in einer **anderen** Belegung als beim Einzelaufruf. Ein Test, der „hier läuft
+eine Umfrage" voraussetzt, ist deshalb entweder allein grün oder in der Suite grün, nie beides. Die
+Regel: **den benötigten Zustand im Test selbst herstellen** (idempotent, oder über eine eigens
+angelegte Gruppe) — ein Kommentar „läuft an Position 3" ist eine Zeitbombe, keine Lösung.
 
 **Der Desktop-Lauf ist keine Zugabe.** Ein Test, der nur bei 390px misst, kann eine
 `display:none`-Regel gar nicht widerlegen: dort sagen die richtige und die kaputte Fassung beide

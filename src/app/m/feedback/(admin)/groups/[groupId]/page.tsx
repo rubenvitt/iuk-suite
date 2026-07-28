@@ -434,7 +434,14 @@ function LetzterAbend({
          * also verschachtelt Interaktives, und `fb-fokus` würde einen zweiten
          * Ring über antds eigenen legen.
          */}
-        <Button href={`/m/feedback/groups/${groupId}/evenings/${lage.evening.id}/auswertung`}>
+        <Button
+          href={`/m/feedback/groups/${groupId}/evenings/${lage.evening.id}/auswertung`}
+          /* `fb-block-mobil` setzt `width: 100%`; in einer `flexWrap`-Reihe ist
+             das zugleich die Flex-Basis, der Knopf bricht also unterhalb von
+             768px in eine eigene Zeile und fuellt sie. Zahl und Notenpille
+             bleiben darueber nebeneinander — sie sind Anzeige, kein Ziel. */
+          className="fb-block-mobil"
+        >
           Auswertung ansehen
         </Button>
       </div>

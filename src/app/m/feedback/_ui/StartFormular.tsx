@@ -100,7 +100,14 @@ export function StartFormular({
             placeholder="z. B. Erste Hilfe Auffrischung"
           />
         </Col>
-        <Col xs={12} sm={6}>
+        {/*
+         * `xs={24}` statt `xs={12}`: alle Nachbarn in dieser Row sind `xs={24}`
+         * (Datum Zeile 71, Thema Zeile 92). Ein halbes Zahlenfeld allein unter
+         * zwei vollbreiten Feldern liest sich abgeschnitten, nicht bewusst
+         * schmal. Ab `sm` bleibt es bei einem Sechstel — dort steht es neben
+         * seinen Nachbarn und die Breite ist eine Aussage ueber den Inhalt.
+         */}
+        <Col xs={24} sm={6}>
           <label htmlFor={`fb-anzahl-${variante}`} style={{ ...T.kicker, display: "block" }}>
             Teilnehmer
           </label>

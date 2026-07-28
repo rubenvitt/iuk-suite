@@ -8,7 +8,8 @@ import type { Question } from "@/app/m/feedback/_lib/questions";
 import { T } from "@/app/m/feedback/_ui/typo";
 import { Altbestandsfussnote, Notenpille } from "@/app/m/feedback/_ui/Noten";
 import { TrendDiagramm, type TrendFrage } from "@/app/m/feedback/_ui/TrendDiagramm";
-import { MONATS_FENSTER, MonatsSegment } from "@/app/m/feedback/_ui/Segment";
+import { MonatsSegment } from "@/app/m/feedback/_ui/Segment";
+import { fensterAus } from "@/app/m/feedback/_lib/trendfenster";
 
 /**
  * DER TREND EINER GRUPPE (Entwurf §3.3, Kopfzone §4.2, Breadcrumb §4.1).
@@ -96,9 +97,13 @@ export default async function TrendPage({
           }}
         >
           <h1 style={{ ...T.h1, margin: 0, textWrap: "balance" }}>Trend — {group.name}</h1>
-          <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className="fb-knopfzeile">
             <MonatsSegment monate={monate} />
-            <Button type="text" href={`/m/feedback/groups/${group.id}/export.csv`}>
+            <Button
+              type="text"
+              href={`/m/feedback/groups/${group.id}/export.csv`}
+              className="fb-block-mobil"
+            >
               CSV
             </Button>
           </span>
@@ -161,10 +166,4 @@ function fragenAus(trend: ReturnType<typeof computeGroupTrend>): TrendFrage[] {
     text: q.text,
     werte: trend.map((t) => t.perQuestion[i]?.avg ?? null),
   }));
-}
-
-/** Nur 6, 12 oder 24 (§3.3) — alles andere ist 12, ohne Fehlermeldung. */
-function fensterAus(roh: string | undefined): number {
-  const n = Number(roh);
-  return (MONATS_FENSTER as readonly number[]).includes(n) ? n : 12;
 }

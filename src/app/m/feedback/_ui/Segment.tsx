@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Segmented } from "antd";
+import { MONATS_FENSTER } from "@/app/m/feedback/_lib/trendfenster";
 
 /**
  * DAS ZEITFENSTER DES TRENDS (Entwurf §3.3, Client-Insel laut §4.13).
@@ -23,9 +24,6 @@ export type MonatsSegmentProps = {
   monate: number;
 };
 
-/** Die drei Fenster aus §3.3. Mehr Auswahl wäre eine Entscheidung ohne Anlass. */
-export const MONATS_FENSTER = [6, 12, 24] as const;
-
 export function MonatsSegment({ monate }: MonatsSegmentProps) {
   const router = useRouter();
   const pfad = usePathname();
@@ -35,6 +33,19 @@ export function MonatsSegment({ monate }: MonatsSegmentProps) {
       value={monate}
       onChange={(wert) => router.replace(`${pfad}?monate=${wert}`)}
       options={MONATS_FENSTER.map((m) => ({ value: m, label: `${m} Monate` }))}
+      /*
+       * `.fb-knopfzeile` setzt unterhalb von 767.98px `align-items: stretch`
+       * auf dem UMSCHLIESSENDEN `<span>` (feedback.css:307-315) — das gilt fuer
+       * ALLE Kinder ohne eigenes Quermass, nicht nur fuer solche mit
+       * `fb-block-mobil`. Ohne `alignSelf` wurde dieser Schalter also mit
+       * gestreckt (gemessen: 668px, exakt Zeilen- und Knopfbreite). Inline statt
+       * Klasse: eine Klasse muesste gegen `.ant-segmented` bestehen (Falle 5,
+       * docs/design/README.md), ein Inline-Style schlaegt jede Klasse ohnehin —
+       * hier ohne Kollisionsrisiko. Nach der Aenderung gemessen: 264px bei
+       * 700px (seine Inhaltsbreite), waehrend der CSV-Knopf ueber
+       * `fb-block-mobil` weiter volle Breite behaelt.
+       */
+      style={{ alignSelf: "flex-start" }}
     />
   );
 }

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Button, Dropdown, Input, Modal, Popconfirm, Table, Tag } from "antd";
-import { SPACE } from "@/core/theme/tokens";
+import { SPACE, TAP } from "@/core/theme/tokens";
 import { activateSurveyAction, createEveningAction, deleteEveningAction } from "../actions";
 import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../_lib/noten";
 import { Altbestandsfussnote, Notenfunke, Notenpille } from "./Noten";
@@ -145,12 +145,25 @@ export function Verlauf({ groupId, zeilen, heute }: VerlaufProps) {
          * Zustandsaktion der Lagekarte, hier gibt es keinen zweiten. „Trend" und
          * „CSV" sind echte `href` — ein Tabstop, ein Fokusring, und beide
          * funktionieren ohne JavaScript.
+         *
+         * `fb-knopfzeile` ergaenzt 2026-07-27: unterhalb von 768px stehen sie
+         * gestapelt und in voller Breite. Gemessen vorher bei 390px: 68 / 146 /
+         * 251px nebeneinander, alle ohne Rahmen — die Trefferflaechen waren
+         * weder erkennbar noch gleich breit.
          */}
-        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: SPACE.xs }}>
-          <Button type="text" href={`/m/feedback/groups/${groupId}/trend`}>
+        <div className="fb-knopfzeile">
+          <Button
+            type="text"
+            href={`/m/feedback/groups/${groupId}/trend`}
+            className="fb-block-mobil"
+          >
             Trend
           </Button>
-          <Button type="text" href={`/m/feedback/groups/${groupId}/export.csv`}>
+          <Button
+            type="text"
+            href={`/m/feedback/groups/${groupId}/export.csv`}
+            className="fb-block-mobil"
+          >
             CSV (alle Abende)
           </Button>
           {/*
@@ -159,7 +172,7 @@ export function Verlauf({ groupId, zeilen, heute }: VerlaufProps) {
            * Textknopf und kein zweites Formular auf der Seite — die Felder
            * erscheinen erst auf Verlangen.
            */}
-          <Button type="text" onClick={() => setNachtragen(true)}>
+          <Button type="text" onClick={() => setNachtragen(true)} className="fb-block-mobil">
             Abend ohne Feedback nachtragen
           </Button>
         </div>
@@ -567,7 +580,7 @@ function StartenKnopf({ surveyId }: { surveyId: number }) {
       okButtonProps={{ loading: laeuft }}
       onConfirm={starten}
     >
-      <Button type="text" size="small" loading={laeuft}>
+      <Button type="text" loading={laeuft}>
         Jetzt starten
       </Button>
     </Popconfirm>
@@ -615,7 +628,31 @@ function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
           ],
         }}
       >
-        <Button type="text" size="small" aria-label={`Aktionen für den ${formatDatumLang(zeile.datum)}`}>
+        <Button
+          type="text"
+          /*
+           * `minWidth: TAP` ist der Punkt dieser Zeile, nicht das entfernte
+           * `size`. Gemessen bei 390px VOR dieser Aenderung: 24px breit, 42px
+           * hoch — und das ist das EINZIGE Bedienelement der Verlaufszeile
+           * („Bearbeiten", „Loeschen"). Ein Auslassungszeichen ist schmal; die
+           * Trefferflaeche darf es nicht sein.
+           *
+           * NACHHER PASST DER KNOPF NICHT IN SEINEN CONTAINER, ER RAGT HERAUS —
+           * und das ist gemessen, kein Uebersehen: ohne `size` faellt der Knopf
+           * auf antds `controlHeight` (56) zurueck, `minWidth: TAP` erzwingt
+           * dieselben 56px in der Breite. Der umgebende Container in Zeile 488
+           * bleibt bei 44px (eigene `getBoundingClientRect`-Messung), der Knopf
+           * also 56×56 in einem 44px-Rahmen — 6px Ueberstand je Seite. Das
+           * bleibt folgenlos, weil die Zeile ein Flex-Container mit
+           * `gap: SPACE.sm` (8px) zwischen den Geschwistern ist: 8px ≥ 6px
+           * Ueberstand, der Zwischenraum nimmt ihn vollstaendig auf. Gemessen
+           * bei 390px ohne diesen Ueberstand als Regression: kein seitliches
+           * Scrollen (`document.documentElement.scrollWidth` blieb 390) und
+           * unveraenderte Zeilenhoehe ([69, 68] vor wie nach dieser Aenderung).
+           */
+          style={{ minWidth: TAP }}
+          aria-label={`Aktionen für den ${formatDatumLang(zeile.datum)}`}
+        >
           …
         </Button>
       </Dropdown>

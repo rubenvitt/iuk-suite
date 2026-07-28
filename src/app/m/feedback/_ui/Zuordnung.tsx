@@ -198,7 +198,6 @@ export function Zuordnung({
                */
               <Button
                 type="text"
-                size="small"
                 data-testid={`entfernen-${p.userId}`}
                 loading={laeuft}
                 onClick={() => entfernen(p.userId)}
