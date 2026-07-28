@@ -77,7 +77,10 @@ function SessionGuard({
       // dieser Schreibweise. Sie zu vereinheitlichen ist ein eigener Umbau,
       // kein Nebeneffekt dieser Aenderung — wer es hier still angleicht,
       // bricht `SuiteNav.test.tsx`.
-      signOut({ callbackUrl: "/api/auth/oidc-signout" });
+      // `.catch`: ein Fehlschlag darf keine unbehandelte Ablehnung in der
+      // Konsole hinterlassen. Die Sitzung heilt beim naechsten Laden ueber den
+      // Zeitstempel-Riegel selbst; hier ist nichts weiter zu tun.
+      signOut({ callbackUrl: "/api/auth/oidc-signout" }).catch(() => {});
       return;
     }
 
@@ -85,7 +88,10 @@ function SessionGuard({
     // Absolut, damit der Nutzer auf DER Modul-Domain landet, von der er kam —
     // Auth.js loeste ein relatives Ziel gegen AUTH_URL auf, also aufs Portal
     // (siehe core/auth/callbackUrl.ts).
-    signIn(reauthProvider, { redirectTo: window.location.href });
+    // `.catch`: siehe Begruendung bei `signOut` oben. Scheitert `signIn`, bleibt
+    // die Sitzung tot, bis der Nutzer navigiert — der Riegel oben verhindert
+    // aber ohnehin einen zweiten Versuch vor der naechsten Navigation.
+    signIn(reauthProvider, { redirectTo: window.location.href }).catch(() => {});
   }, [session?.error, reauthProvider]);
 
   return children;

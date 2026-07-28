@@ -171,11 +171,14 @@ describe("tokenAuffrischen — was tatsaechlich angefragt wird", () => {
 });
 
 describe("tokenAuffrischen — Fehler unterscheiden", () => {
-  it("invalid_grant mit 400 beendet die Sitzung", async () => {
+  it("invalid_grant mit 400 beendet die Sitzung und loescht einen vorherigen Fehlschlag-Stempel", async () => {
     const t = transportBauen({
       token: { ok: false, status: 400, koerper: { error: "invalid_grant" } },
     });
-    const ergebnis = await tokenAuffrischen(abgelaufenerToken(), optionen(t));
+    const ergebnis = await tokenAuffrischen(
+      abgelaufenerToken({ refreshFailedAt: JETZT - 90_000 }),
+      optionen(t),
+    );
     expect(ergebnis.error).toBe("RefreshTokenError");
     expect(ergebnis.refreshFailedAt).toBeUndefined();
   });

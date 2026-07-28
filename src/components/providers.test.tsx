@@ -13,8 +13,12 @@ import { mount, unmount, exists } from "@/app/m/qr/_lib/test-dom";
  */
 const { useSessionMock, signInMock, signOutMock } = vi.hoisted(() => ({
   useSessionMock: vi.fn(),
-  signInMock: vi.fn(),
-  signOutMock: vi.fn(),
+  // `mockResolvedValue`, nicht ein blosses `vi.fn()`: die echten Funktionen aus
+  // `next-auth/react` liefern immer ein Promise, und `SessionGuard` haengt seit
+  // dieser Aenderung ein `.catch` daran. Ein Mock, der `undefined` liefert,
+  // liesse jeden Testlauf an `undefined.catch` scheitern.
+  signInMock: vi.fn().mockResolvedValue(undefined),
+  signOutMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("next-auth/react", () => ({

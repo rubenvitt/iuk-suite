@@ -142,10 +142,10 @@ async function austauschen(alterToken: string, umfeld: Umfeld): Promise<Ergebnis
   const issuer = env.POCKET_ID_ISSUER;
   if (!issuer) return { art: "transient" };
 
-  // EIN Signal fuer beide Anfragen: das Budget gilt fuer den ganzen Vorgang.
-  const signal = AbortSignal.timeout(zeitgrenzeMs);
-
   try {
+    // EIN Signal fuer beide Anfragen: das Budget gilt fuer den ganzen Vorgang.
+    const signal = AbortSignal.timeout(zeitgrenzeMs);
+
     const entdeckung = await transport(`${issuer}/.well-known/openid-configuration`, { signal });
     if (!entdeckung.ok) return { art: "transient" };
     const konfig = (await entdeckung.json()) as { token_endpoint?: unknown };
@@ -235,8 +235,9 @@ function geteilterAustausch(
  * Drei Ausgaenge statt zwei:
  *   Erfolg          -> neue Token, `error` und `refreshFailedAt` geloescht,
  *                      Gruppen aus dem neuen `id_token`
- *   Endgueltig tot  -> `error: "RefreshTokenError"` (nur bei 400/401 +
- *                      `invalid_grant`) -> der SessionGuard uebernimmt
+ *   Endgueltig tot  -> `error: "RefreshTokenError"`, `refreshFailedAt`
+ *                      geloescht (nur bei 400/401 + `invalid_grant`) -> der
+ *                      SessionGuard uebernimmt
  *   Transient       -> Token UNVERAENDERT zurueck, nur `refreshFailedAt`
  *                      gesetzt. Die Suite nutzt den Access-Token nirgends fuer
  *                      Ressourcenzugriffe (Autorisierung laeuft ueber
@@ -281,7 +282,8 @@ export async function tokenAuffrischen(token: JWT, optionen: AuffrischOptionen):
     gedaechtnis,
   );
 
-  if (ergebnis.art === "endgueltig") return { ...token, error: "RefreshTokenError" };
+  if (ergebnis.art === "endgueltig")
+    return { ...token, error: "RefreshTokenError", refreshFailedAt: undefined };
   if (ergebnis.art === "transient") return { ...token, refreshFailedAt: jetztMs };
   return { ...token, ...ergebnis.felder, error: undefined, refreshFailedAt: undefined };
 }
