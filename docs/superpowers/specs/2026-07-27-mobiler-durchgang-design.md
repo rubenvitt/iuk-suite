@@ -377,6 +377,15 @@ fasst `src/core/shell` nicht an. Die Playwright-Läufe aus §8 messen deshalb be
 **Die Folge, offen benannt:** nach C bleibt das Band 768–903px auf feedback-Admin und qr defekt. Es ist
 gemessen, dokumentiert und benannt — es ist nicht behoben.
 
+**Nachtrag (Schlussreview des Branches, nach Commit `d980631`):** Der Befund ist inzwischen behoben —
+`d980631` ("Modulnavigation in die zweite Zeile, Titel zurueck in den Kopf") setzt genau die hier
+durchgespielte zweite Zeile um. `e2e/shell-mobil.spec.ts:142-195` haelt 768/820/900 grün, einschließlich
+der Struktur-Zusage, dass `.modulnav` unter der Kopfzeile sitzt und nicht ihr drittes Flex-Kind ist. Die
+Messwerte oben bleiben unverändert stehen — sie sind das Protokoll des Zustands vom 2026-07-27, nicht
+des heutigen. Dass **C** in diesem Band trotzdem nicht misst, ist damit keine Frage eines von Anfang an
+roten Tests mehr, sondern reine Zuständigkeitsteilung: das Band gehört der Shell (`src/core/shell`), die
+C nicht anfasst — nicht den Modulseiten, die C behandelt.
+
 ---
 
 ## 6. Was bewusst nicht gemacht wird
@@ -425,6 +434,12 @@ richtige verlangt einen Umbau der Kopfzeilenhöhe für die ganze Suite. **Benann
 mit allen Messwerten in §5.4. C fasst `src/core/shell` nicht an und schreibt dafür auch keinen Test,
 der von Anfang an rot wäre.
 
+**Nachtrag (Schlussreview des Branches):** die Nacharbeit für A ist inzwischen erledigt — Commit
+`d980631` behebt den Befund, `e2e/shell-mobil.spec.ts:142-195` hält 768/820/900 grün. C schreibt in
+diesem Band trotzdem keinen eigenen Test, aber aus einem anderen Grund als hier ursprünglich notiert:
+nicht weil er von Anfang an rot wäre, sondern weil das Band der Shell gehört (§5.4-Nachtrag) und nicht
+den Modulseiten, die C behandelt.
+
 **Ein zweiter Breakpoint, gleich welcher.** §5.2 entfernt einen, statt einen hinzuzufügen; die 992 aus
 `.fb-sticky` sind ein Rasterwert und kein Umschaltpunkt (§5.2, letzter Absatz).
 
@@ -469,10 +484,10 @@ grün und trotzdem falsch.
 | Die Trendseite antwortet mit 200 | Playwright | Der einzige Ort mit einer echten RSC-Grenze. Weder Build noch Typecheck noch jsdom sehen sie. |
 | Beide Tabellen tragen `scroll` mit `x` | Vitest, Quelltext-Scan über die beiden `.tsx` | Die Regel ist eine Prop, also wird die Prop geprüft |
 | Bei 390px scrollt keine der Seiten seitwärts | Playwright 390×844, `documentElement.scrollWidth === innerWidth` | Der einzige Ort, der Layout wirklich rechnet |
-| Bei 1280×800 sind die Spaltenbreiten beider Tabellen **unverändert** | Playwright 1280×800, die `<th>`-Breiten gegen die vor der Änderung gemessenen Werte | **Keine Zugabe — und `scrollWidth === innerWidth` wäre hier die falsche Behauptung.** `scroll.x` schaltet in rc-table auf einen eigenen Scroll-Container und kann damit die Spaltenberechnung ändern; das Dokument liefe deswegen nicht über, die Tabelle sähe nur anders aus. Was „man sieht es auf dem Desktop nicht" hier tatsächlich heißt, sind die Spaltenbreiten. Die Vorher-Werte stehen im Plan. |
+| Bei 1280×800 bleiben beide Tabellen auf `table-layout: auto` und verteilen ungleichmäßig | Playwright 1280×800, `getComputedStyle(...).tableLayout` gegen `"auto"`, plus die Spreizung zwischen breitester und schmalster `<th>`-Breite > 50px | **Keine Zugabe — und `scrollWidth === innerWidth` wäre hier die falsche Behauptung.** `scroll.x` schaltet in rc-table auf einen eigenen Scroll-Container und kann damit die Spaltenberechnung ändern; das Dokument liefe deswegen nicht über, die Tabelle sähe nur anders aus. Was „man sieht es auf dem Desktop nicht" hier tatsächlich heißt, sind die Spaltenbreiten. **Nachtrag (Schlussreview):** ausgeliefert ist ein Mechanismus-Test statt eines Vergleichs gegen die absoluten Vorher-Werte aus diesem Plan — begründet, aber hier nicht vorweggenommen: die absoluten Breiten hängen am Seed (`feedback.spec.ts` legt vor diesem Lauf Gruppen an, die Vergleichstabelle ist danach eine andere), und Aufgabe 2 hat gemessen, dass `scroll.x` über eine unsichtbare `MeasureRow` die Spalten zusätzlich um 1–4px verschiebt. Beides macht einen Vergleich gegen fixe Vorher-Zahlen brüchig, ohne dass er mehr beweist als der Mechanismus. |
 | `feedback.css` kennt genau die begründete Breakpoint-Menge `{767.98, 768, 992}` | Vitest, Quelltext-Scan mit `new Set` | Genau der Test, den `shell-css.test.ts:32-36` für die Shell schon führt. Jeder der drei Werte bekommt seinen Grund in den Testkommentar (§5.2), sonst liest sich „ein Breakpoint" neben drei Zahlen wie ein Widerspruch. |
 | Bei 700×900 stehen die Handlungsknöpfe untereinander und volle Breite | Playwright 700×900 | Der Bereich, in dem der Riss aus §5.2 sitzt. Bei 390px sind Vorher und Nachher identisch — dieser Lauf ist der einzige, der die Änderung überhaupt beweisen kann. |
-| **Kein Test bei 768 oder 900** | — | §5.4: der Kopfzeilendefekt in diesem Band wird von C gemeldet, nicht behoben. Ein Test dort wäre von Anfang an rot. Er gehört in die A-Nacharbeit, zusammen mit der Behebung. |
+| **Kein eigener C-Test bei 768 oder 900** | — | §5.4: der Kopfzeilendefekt in diesem Band war zum Zeitpunkt dieses Plans von C gemeldet, nicht behoben, und ein Test dort wäre von Anfang an rot gewesen. **Nachtrag (Schlussreview):** die A-Nacharbeit ist inzwischen erledigt (`d980631`, grün gehalten von `e2e/shell-mobil.spec.ts:142-195` bei 768/820/900). Dass C dort weiterhin keinen eigenen Test führt, ist seither eine Frage der Zuständigkeit — das Band gehört der Shell, nicht den Modulseiten —, nicht mehr die eines von Anfang an roten Tests. |
 | Kein Bedienelement außerhalb einer Tabellenzeile trägt `size` | Vitest, Quelltext-Scan über `_ui/**` und `portal/admin/**` | Statisch prüfbar, und der Scan nennt die Ausnahme (`Aktualisierer.tsx`) beim Namen statt sie zu übersehen |
 | „Aushang drucken", „Trend", „CSV", „Abend nachtragen" sind bei 390px so breit wie ihr Container | Playwright 390×844, `getBoundingClientRect().width` gegen die Elternbreite | Eine Klasse im DOM zu finden beweist nicht, dass sie wirkt (Falle 5) |
 | Der Kartentitel „NÄCHSTER SCHRITT" ist bei 390px vollständig lesbar | Playwright 390×844, `scrollWidth <= clientWidth` | Kürzung entsteht aus Layout, nicht aus Markup |
