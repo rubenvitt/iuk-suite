@@ -94,15 +94,61 @@ test("nach dem Logout sieht die naechste Person den Verlauf nicht mehr", async (
   // `null`, und `toBeNull()` besteht sofort. Der Test haette dann bewiesen,
   // dass er nichts misst. Der Sentinel unterscheidet "auf null gesetzt" von
   // "war nie da".
-  await expect
-    .poll(
-      () =>
-        page.evaluate(() =>
-          "__historyOwner" in window ? (window.__historyOwner ?? null) : "hook-fehlt",
-        ),
-      { timeout: 10_000 },
-    )
-    .toBeNull();
+  //
+  // DER POLL IST SPORADISCH ROT, UND ER TRAEGT SEINE EIGENE DIAGNOSE.
+  //
+  // Am 2026-07-28 fiel er in der CI (Lauf 30370333041) mit
+  // `Received: "dev:dev@localtest.me"` — der Client meldete also die ALTE
+  // Sitzung, obwohl der Server drei Zeilen weiter oben `qr-login-hint` und
+  // damit „anonym" gerendert hatte. Der Rerun auf demselben Commit lief gruen
+  // durch, lokal besteht der Fall auch bei fuenf Wiederholungen. Die Ursache ist
+  // damit NICHT bekannt, und zwei Dinge sind bewusst NICHT passiert:
+  //
+  //  - Die Frist wurde nicht heraufgesetzt. Eine laengere Wartezeit hilft gegen
+  //    Langsamkeit; hier stand aber ein falscher WERT da, kein fehlender. Wer
+  //    das Budget verbreitert, verschiebt nur die Grenze und nennt es behoben.
+  //  - Der Poll wurde nicht entfernt. Seit `history.ts` bei unbekanntem
+  //    Eigentuemer gar nichts liest, ist ein leerer Verlauf ZWEIDEUTIG
+  //    („aufgeloest: anonym" oder „noch nicht aufgeloest"), und nur dieser Poll
+  //    trennt die beiden. Ohne ihn waere die Zeile darunter wieder eine Zusage,
+  //    die sich selbst besteht.
+  //
+  // Stattdessen sammelt der Fehlerfall, was die naechste Untersuchung braucht:
+  // die Cookies (auch die HttpOnly — `document.cookie` zeigt das Sitzungs-Token
+  // NICHT, deshalb zusaetzlich ueber den Browser-Kontext), die Antwort des
+  // Sitzungs-Endpunkts und das, was die Seite gerade zeigt. Im gruenen Lauf
+  // kostet das nichts.
+  //
+  // NB: `expect.poll` meldet den ZULETZT gemessenen Wert, nicht einen ueber die
+  // ganze Frist gehaltenen. Aus der Meldung von damals folgt also gerade NICHT,
+  // dass der Zustand stabil war — ein spaet oder verdreht eintreffendes Ergebnis
+  // passt genauso.
+  try {
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() =>
+            "__historyOwner" in window ? (window.__historyOwner ?? null) : "hook-fehlt",
+          ),
+        { timeout: 10_000 },
+      )
+      .toBeNull();
+  } catch (fehler) {
+    const imBrowser = await page.evaluate(async () => {
+      const antwort = await fetch("/api/auth/session");
+      return {
+        owner: "__historyOwner" in window ? (window.__historyOwner ?? null) : "hook-fehlt",
+        sichtbaresCookie: document.cookie,
+        sitzung: (await antwort.text()).slice(0, 300),
+        loginHint: document.querySelector('[data-testid="qr-login-hint"]') !== null,
+        presetGrid: document.querySelector('[data-testid="preset-grid"]') !== null,
+      };
+    });
+    const cookies = (await page.context().cookies()).map((c) => `${c.name}@${c.domain}`);
+    throw new Error(
+      `${(fehler as Error).message}\n\nDiagnose: ${JSON.stringify({ ...imBrowser, cookies })}`,
+    );
+  }
 
   await expect(page.getByTestId("qr-history")).toHaveCount(0);
 });
