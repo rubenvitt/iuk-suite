@@ -32,16 +32,21 @@ import { devLogin } from "./fixtures";
  *
  * Der Grund, der bleibt, ist ein anderer und gehoert zur Aufteilung: das Band
  * 768–903 ist eine Zusage der SHELL, und die besitzt `shell-mobil.spec.ts`.
- * Fuer die SEITEN dieser Datei liegt 768px oberhalb des einzigen Breakpoints
- * (767.98) — sie verhalten sich dort wie bei 1280. Nachgemessen und nicht
- * geschlossen: bei 768x900 sind die Knopfbreiten auf /groups/1 zeichengleich
- * mit den 1280er-Werten (170/187 · 88/61/144 · 68/146/251), und alle sieben
- * Seiten stehen auf `doc == vw`. Ein vierter Viewport hier wiederholte also
- * den 1280er-Lauf. Die interessante Seite des Umbruchs ist die untere, und die
- * hat 700x900.
+ * Fuer die Zusagen, die DIESE Datei traegt, deckt 1280 das Band mit ab —
+ * nachgemessen bei 768x900 und nicht geschlossen: die Knopfbreiten auf
+ * /groups/1 sind zeichengleich mit den 1280er-Werten (170/187 · 88/61/144 ·
+ * 68/146/251), und alle sieben Seiten stehen auf `doc == vw` (bis auf die
+ * Auswertung, siehe den benannten Befund weiter unten).
  *
- * JEDER TEST STELLT SEINEN ZUSTAND SELBST HER — er verlaesst sich weder auf den
- * frischen Seed noch auf eine Position in der Suite. Das ist gemessen und nicht
+ * WAS DIESE DATEI DAMIT NICHT SIEHT, und das ist eine bekannte Luecke, keine
+ * Zusage: `feedback.css` hat neben `max-width: 767.98px` auch
+ * `min-width: 768px` (Zeile 204) UND `min-width: 992px` (Zeile 284,
+ * `.fb-sticky`). Zwischen 768 und 991 faehrt die rechte Spalte NICHT mit, bei
+ * 1280 schon — ein Defekt an `.fb-sticky` in diesem Band waere fuer jeden
+ * Viewport dieser Datei unsichtbar. Er gehoert zu §2.1/§2.4 und nicht zum
+ * mobilen Durchgang; hier steht er, damit ihn niemand fuer geprueft haelt.
+ *
+ * KEIN TEST HAENGT AN SEINER POSITION IN DER SUITE. Das ist gemessen und nicht
  * vorsichtshalber: `e2e/feedback.spec.ts:336` BEENDET die Umfrage der Gruppe 2
  * („Demo Jugend") und traegt ihr einen Abend nach, und die Dateien laufen
  * alphabetisch — `feedback` vor `keystone` vor `mobil-admin`. Dieselbe Seite
@@ -60,6 +65,14 @@ import { devLogin } from "./fixtures";
  *     den Kartentitel), LEGT SICH EINE EIGENE GRUPPE AN und faehrt sie dorthin.
  *   - Wer einen Verlaufseintrag braucht, traegt ihn nach — idempotent, also
  *     auch dann richtig, wenn ein vorheriger Test ihn schon angelegt hat.
+ *
+ * DAS HEISZT NICHT „haengt an gar nichts". Drei Zusagen lesen Tatsachen aus dem
+ * Seed: `SEITEN` verdrahtet `/groups/1/evenings/1/auswertung` (Abend 1 gehoert
+ * Gruppe 1), der Entfernen-Test braucht die `insertUserGroup`-Zuordnung auf
+ * Gruppe 2, und `toBe(5)` ist der Spaltensatz beider Tabellen. Diese drei sind
+ * ueber den ganzen Lauf stabil — kein Test der Suite legt sie um. Die
+ * Eigenschaft, die hier zugesagt wird, ist Reihenfolge-Unabhaengigkeit, nicht
+ * Seed-Unabhaengigkeit.
  *
  * ANMELDUNG JE TEST, nicht je Block: Playwright gibt jedem Test einen eigenen
  * Browser-Kontext, eine Anmeldung im `describe` traegt also nur ueber eine von
@@ -91,7 +104,17 @@ async function ueberlauf(page: Page) {
         const b = el.getBoundingClientRect();
         return b.right > window.innerWidth + 1 && b.width > 1 && b.height > 1;
       })
-      .map((el) => `${el.tagName} „${(el.textContent ?? "").trim().slice(0, 20)}"`)
+      .map((el) => {
+        const b = el.getBoundingClientRect();
+        const klasse = typeof el.className === "string" ? el.className : "";
+        // Klasse UND `rechts=` gehoeren dazu: ohne sie sagt ein Fehlschlag zwar,
+        // WAS ueberlaeuft, aber nicht, um wie viel und in welchem Baustein —
+        // genau die zwei Angaben, die den Befund auf der Auswertungsseite
+        // ueberhaupt erst einordbar gemacht haben.
+        return `${el.tagName}.${klasse.slice(0, 40)} „${(el.textContent ?? "")
+          .trim()
+          .slice(0, 20)}" rechts=${Math.round(b.right)}`;
+      })
       .slice(0, 5),
   }));
 }
@@ -292,6 +315,21 @@ test.describe("390x844 — das Telefon", () => {
      * leeres Array und ist gruen, ohne den Knopf je gesehen zu haben.
      */
     await verlaufseintragSichern(page);
+    /*
+     * ERST AUF DIE ZEILE WARTEN, DANN MESSEN. `verlaufseintragSichern` kehrt
+     * zurueck, sobald der Dialog aus dem DOM ist — die Verlaufszeile erscheint
+     * aber erst mit dem RSC-Refresh danach. Ein `page.evaluate` wiederholt
+     * NICHT: ein langsamer Refresh gaebe `[]` und machte die tragendste Zusage
+     * dieser Datei grundlos rot. `toBeVisible` wiederholt bis zum Zeitlimit.
+     *
+     * `:visible` ist noetig und nicht Zierde: der Verlauf liegt zweimal im HTML,
+     * und die BREITE Tabelle steht im DOM VOR der schmalen Liste. Ein blankes
+     * `.first()` traefe bei 390px den per CSS ausgeblendeten Knopf, und
+     * `toBeVisible()` liefe in sein Zeitlimit.
+     */
+    await expect(
+      page.locator('.ant-btn[aria-label^="Aktionen für den"]:visible').first(),
+    ).toBeVisible();
     const menues = await page.evaluate(() =>
       [...document.querySelectorAll('.ant-btn[aria-label^="Aktionen für den"]')]
         .map((el) => {
@@ -311,6 +349,15 @@ test.describe("390x844 — das Telefon", () => {
     // Der Einstellungen-Block ist eingeklappt; Speichern, „Neues Secret
     // erzeugen" und „Gruppe löschen" werden erst dadurch sichtbar.
     await page.getByText("Einstellungen", { exact: false }).first().click();
+    /*
+     * UND DER BELEG, DASS ER WIRKLICH OFFEN IST. `getByText` ohne `exact` loest
+     * auf den innersten passenden Knoten auf; wandert der Text in den Kopf des
+     * Ausklappers oder wird der umgebaut, klickt `.first()` auf etwas
+     * Unbedienbares, Playwright meldet Erfolg — und die Zusage unten ginge
+     * durch, ohne „Speichern", „Neues Secret erzeugen" oder „Gruppe löschen"
+     * je gesehen zu haben.
+     */
+    await expect(page.getByRole("button", { name: "Gruppe löschen" })).toBeVisible();
 
     /*
      * NICHT `toEqual([])`, UND DAS IST DER PUNKT DIESES TESTS.
@@ -532,13 +579,18 @@ test.describe("1280x800 — man sieht es auf dem Desktop NICHT", () => {
      * falsche Behauptung: eine veraenderte Spaltenverteilung laesst nichts
      * ueberlaufen.
      *
-     * WARUM NICHT DIE ABSOLUTEN PIXELWERTE: sie haengen an der
-     * Scrollbalkenbreite (macOS: Overlay, 0px; Linux-CI: ~15px) UND am Seed —
+     * WARUM NICHT DIE ABSOLUTEN PIXELWERTE: sie haengen am Seed —
      * `feedback.spec.ts` legt vor diesem Lauf mehrere Gruppen an, die
-     * Vergleichstabelle ist danach eine andere. Aufgabe 2 hat zusaetzlich
-     * gemessen, dass `scroll.x` eine unsichtbare Messzeile (`MeasureRow`)
-     * erzeugt, die die Spalten um 1–4px verschiebt. Hier steht deshalb der
-     * MECHANISMUS, und der ist breitenunabhaengig.
+     * Vergleichstabelle ist danach eine andere. Und Aufgabe 2 hat gemessen,
+     * dass `scroll.x` eine unsichtbare Messzeile (`MeasureRow`) erzeugt, die
+     * die Spalten um 1–4px verschiebt. Hier steht deshalb der MECHANISMUS, und
+     * der ist breitenunabhaengig.
+     *
+     * (Die Scrollbalkenbreite stand hier einmal als dritter Grund und ist
+     * gestrichen: Playwright startet headless mit `--hide-scrollbars`, die
+     * Balken sind auch auf einem Linux-Runner 0px breit. Ein Kommentar, der
+     * seiner eigenen Messung widerspricht, ist auf diesem Projekt schon zweimal
+     * zum Blocker geworden.)
      */
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
 
@@ -636,14 +688,35 @@ test.describe("1280x800 — man sieht es auf dem Desktop NICHT", () => {
          * Teilprojekt C (er trifft den Laptop, nicht das Telefon) und ist
          * gemeldet.
          *
-         * Erwartet wird deshalb GENAU dieser eine Verursacher statt eines
-         * leeren Feldes: kommt ein zweiter dazu, wird der Test rot und nennt
-         * ihn. Wird der Befund behoben, wird er ebenfalls rot — dann gehoert
-         * hier `[]` hin und dieser Block weg.
+         * ZWEI ZUSAGEN, UND KEINE ERSETZT DIE ANDERE.
+         *
+         * (a) EINE SCHRANKE. Eine Quarantaene ohne Obergrenze nimmt der Seite
+         *     jede Zusage: `ueberlauf()` sammelt nur Elemente, deren EIGENES
+         *     `right` ueber den Viewport ragt, und die Vorfahren des Spans sind
+         *     rastergebunden — sie tauchen nie auf. Wuechse das Wort oder
+         *     schruempfte die Rasterzelle, liefe die Seite um 300px ueber, die
+         *     Liste bliebe genau dieser eine Eintrag, und der Test bliebe
+         *     gruen. 5px = gemessene 2 plus 3 Reserve.
+         *
+         * (b) DER VERURSACHER IST ENTHALTEN, nicht: die Liste ist gleich.
+         *     Bewusst nicht `toEqual([...])`. `ueberlauf()` filtert auf
+         *     `right > innerWidth + 1`, und @1280 sind es genau 2px — EIN Pixel
+         *     Luft. Faellt die Vorschubbreite von „ungenügend" auf einem
+         *     anderen Rechner minimal kleiner aus, ist die Liste leer und der
+         *     Test wuerde rot, WEIL DER FEHLER KLEINER GEWORDEN IST. Die
+         *     tragfaehige Form ist deshalb: was auch immer ueberlaeuft, es darf
+         *     nur dieser bekannte Span sein — leer ist erlaubt (dann ist der
+         *     Befund behoben oder unterschreitet die Schwelle), ein zweiter
+         *     Verursacher nicht.
          */
-        expect(mass.schuldige, `${seite.name}: doc=${mass.doc} vw=${mass.vw}`).toEqual([
-          'SPAN „ungenügend"',
-        ]);
+        expect(
+          mass.doc - mass.vw,
+          `${seite.name}: laeuft weiter als der bekannte Befund — ${mass.schuldige.join(" | ")}`,
+        ).toBeLessThanOrEqual(5);
+        expect(
+          mass.schuldige.filter((s) => !s.includes("ungenügend")),
+          `${seite.name}: neuer Verursacher neben dem bekannten (doc=${mass.doc} vw=${mass.vw})`,
+        ).toEqual([]);
         continue;
       }
 
