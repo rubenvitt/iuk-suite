@@ -88,9 +88,11 @@ describe("authConfig — Gruppen einfrieren (Regression)", () => {
     const token = await jwtCallback(undefined)({
       token: {},
       profile: { groups: ["fg-kueche"], fachgruppen: ["kueche"] },
-      // `expires_at` bewusst WEIT in der Zukunft: mit einem abgelaufenen Wert
-      // liefe dieser Test in den Erneuerungspfad und damit ans echte Netz.
-      // Kein Test in diesem Projekt fasst das Netz an.
+      // `expires_at` weit in der Zukunft ist rein illustrativ, nicht schuetzend:
+      // `jwt()` ruft `tokenAuffrischen` bei JEDEM Aufruf, unabhaengig vom Ablauf
+      // (siehe „uebergibt die Entscheidung ueber den Ablauf an refresh.ts" unten)
+      // — und die Funktion ist hier vollstaendig gemockt (Zeile 11). Ans echte
+      // Netz kommt dieser Test unter keinem Wert von `expires_at`.
       account: {
         access_token: "at",
         id_token: "it",
