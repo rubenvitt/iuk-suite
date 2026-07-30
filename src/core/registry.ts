@@ -76,15 +76,14 @@ export const MODULES: ModuleDef[] = [
   // prodHosts: [] — vor dem Cutover hat das Modul keine Prod-Domain, dieselbe
   // Lage wie bei qr und feedback. In Dev/E2E kommen die Hosts aus SUITE_HOST_FILES.
   // icon: NICHT „irgendein existierender @ant-design/icons-Name" — wirksam ist
-  // allein die lokale Map ICONS in SuiteNav.tsx:30-38, und die trägt heute nur
-  // sieben Namen (alle sieben von den Modulen oben/unten belegt). Ein Name, der
-  // dort FEHLT, fällt STILL auf AppstoreOutlined zurück (SuiteNav.tsx:261, der
-  // einzige Konsument) — „Dateien" wäre dann vom „Portal" nicht zu
-  // unterscheiden, in Kopfzeile UND Drawer jeder Suite-Seite.
-  // FolderOutlined FEHLT in ICONS noch: SuiteNav.tsx liegt außerhalb dieses
-  // Tasks, die Ergänzung ist als fremde_datei_noetig gemeldet. Der Name bleibt
-  // hier trotzdem stehen — er ist die richtige Absicht, und kein freier
-  // Ersatzname wäre semantisch näher als der stille Rückfall.
+  // allein die Map ICONS in `core/shell/icons.ts`. Ein Name, der dort FEHLT,
+  // fällt STILL auf AppstoreOutlined zurück (einziger Konsument: SuiteNav) —
+  // „Dateien" wäre dann vom „Portal" nicht zu unterscheiden, in Kopfzeile UND
+  // Drawer jeder Suite-Seite.
+  // FolderOutlined steht in ICONS, und die Map ist exportiert, damit
+  // `SuiteNav.test.tsx` sie gegen die echte MODULES-Liste hier prüft: ein
+  // Modul-Icon ohne Eintrag ist ab jetzt ein roter Test statt eines stillen
+  // Duplikats.
   { key: "files", title: "Dateien", icon: "FolderOutlined", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["drk-files-admin"],
     prodHosts: [], showInSwitcher: true },

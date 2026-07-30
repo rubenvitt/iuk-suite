@@ -3,51 +3,23 @@
 import { useState, useSyncExternalStore } from "react";
 import {
   AppstoreOutlined,
-  BorderOutlined,
-  CaretUpOutlined,
-  CommentOutlined,
-  DesktopOutlined,
-  FolderOutlined,
-  GlobalOutlined,
   LoginOutlined,
   LogoutOutlined,
   MenuOutlined,
-  QrcodeOutlined,
 } from "@ant-design/icons";
 import { Avatar, Button, Drawer, Dropdown } from "antd";
 import type { MenuProps } from "antd";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ComponentType } from "react";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
+// Die Icon-Map liegt bewusst in einem Modul OHNE `"use client"` (Begruendung
+// dort): ein WERT-Export von hier waere in einer Server Component eine
+// Client-Referenz statt des Objekts — HTTP 500, das kein Gate sieht.
+import { ICONS } from "@/core/shell/icons";
 import type { AppSwitcherEntry, SuiteNavItem } from "@/core/shell/types";
 import s from "./shell.module.css";
-
-/*
- * Icon-Name (aus ModuleDef.icon, Registry) -> @ant-design/icons Komponente.
- * Unbekannte Namen fallen auf AppstoreOutlined zurueck, statt den Render zu
- * crashen — eine neue Registry-Zeile soll die Kopfzeile nicht zerlegen.
- *
- * DER RUECKFALL IST DIE FALLE, NICHT DIE RETTUNG: `icon` muss ein Schluessel
- * DIESER Map sein, nicht bloss ein existierender @ant-design/icons-Name. Beim
- * Registry-Eintrag von `files` (2026-07-30) stand hier `FolderOutlined` nicht
- * drin — der Eintrag trug daraufhin still das Portal-Icon. Kein Fehler, kein
- * Log, nur ein falsches Bild in jeder Kopfzeile. Deshalb ist die Map exportiert
- * und `SuiteNav.test.tsx` prueft sie GEGEN DIE REGISTRY: jedes Modul-Icon muss
- * hier stehen. Wer ein Modul ergaenzt, wird vom Test daran erinnert.
- */
-export const ICONS: Record<string, ComponentType> = {
-  AppstoreOutlined,
-  QrcodeOutlined,
-  BorderOutlined,
-  CaretUpOutlined,
-  GlobalOutlined,
-  DesktopOutlined,
-  CommentOutlined,
-  FolderOutlined,
-};
 
 /*
  * Die `subscribe`-Funktion MUSS stabil sein (ausserhalb der Komponente

@@ -7,10 +7,12 @@
  * §5.4 (ENOSPC/EACCES) sind eigene Fehlertypen — ohne sie trägt die Abbildung
  * auf 507/500 in T27/T31/T49 keine Mutation.
  *
- * `node:fs/promises` wird gemockt, aber nur an VIER Stellen: `open().write` (um
+ * `node:fs/promises` wird gemockt, aber nur an FÜNF Stellen: `open().write` (um
  * ENOSPC/EACCES/EPERM/EROFS überhaupt herstellen zu können), `open().sync` (um
  * `fsync` zu bezeugen), `open().close` (um die FD-Aufräumzusage aus §5.3 zu
- * bezeugen) und `readFile` (um die Rückleseprobe aus §5.6 zu verfälschen).
+ * bezeugen), `readFile` (um die Rückleseprobe aus §5.6 zu verfälschen) und
+ * `unlink` (um ein scheiterndes Aufräumen herzustellen — nur so ist prüfbar,
+ * dass der Aufräumzweig den Fehler, den er bewahren soll, nicht ersetzt).
  * Alles andere ist echt. Der Grund gegen den naheliegenden Weg
  * „Elternverzeichnis auf 0o500 chmod'en": als root — CI, Container — ignoriert
  * der Kernel die Modusbits und der Schreibvorgang gelingt; die Zusage hier ist
@@ -38,6 +40,9 @@ const fsSteuerung = vi.hoisted(() => ({
   schliessAufrufe: 0,
   /** Gesetzt: `readFile` liefert das statt der Bytes auf der Platte (§5.6). */
   falscherLeseInhalt: undefined as string | undefined,
+  /** Gesetzt: jedes `unlink` scheitert mit diesem errno — der Betriebsfall „nur lesbar
+   * eingehängte Ablage", in dem ein Aufräumversuch selbst wirft. */
+  unlinkFehlerCode: undefined as string | undefined,
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {
@@ -51,8 +56,21 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     EROFS: -30,
     EIO: -5,
   };
+  const simuliert = (code: string): NodeJS.ErrnoException => {
+    const fehler = new Error(`simuliert: ${code}`) as NodeJS.ErrnoException;
+    fehler.code = code;
+    // `errno` gehört dazu, damit die Zusicherung „kein Rohfehler wird durchgereicht"
+    // unten überhaupt etwas zu greifen hat: ohne sie wäre sie auch für den unverändert
+    // weitergegebenen Fehler grün.
+    fehler.errno = errnoNummern[code] ?? -1;
+    return fehler;
+  };
   return {
     ...echt,
+    unlink: async (...args: Parameters<typeof echt.unlink>) => {
+      if (fsSteuerung.unlinkFehlerCode) throw simuliert(fsSteuerung.unlinkFehlerCode);
+      return echt.unlink(...args);
+    },
     readFile: async (...args: Parameters<typeof echt.readFile>) => {
       if (fsSteuerung.falscherLeseInhalt !== undefined) return fsSteuerung.falscherLeseInhalt;
       return echt.readFile(...args);
@@ -67,15 +85,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
           if (eigenschaft === "write") {
             return async (...w: unknown[]) => {
               if (fsSteuerung.fehlerCode) {
-                const fehler = new Error(
-                  `simuliert: ${fsSteuerung.fehlerCode}`,
-                ) as NodeJS.ErrnoException;
-                fehler.code = fsSteuerung.fehlerCode;
-                // `errno` gehört dazu, damit die Zusicherung „kein Rohfehler wird
-                // durchgereicht" unten überhaupt etwas zu greifen hat: ohne sie wäre
-                // sie auch für den unverändert weitergegebenen Fehler grün.
-                fehler.errno = errnoNummern[fsSteuerung.fehlerCode] ?? -1;
-                throw fehler;
+                throw simuliert(fsSteuerung.fehlerCode);
               }
               return (ziel.write as unknown as (...a: unknown[]) => unknown)(...w);
             };
@@ -153,6 +163,7 @@ beforeEach(() => {
   fsSteuerung.syncAufrufe = 0;
   fsSteuerung.schliessAufrufe = 0;
   fsSteuerung.falscherLeseInhalt = undefined;
+  fsSteuerung.unlinkFehlerCode = undefined;
 });
 
 afterEach(() => {
@@ -319,6 +330,11 @@ describe("lieseStrom und groesse — Fehlendes ist BlobFehlt, nicht ENOENT", () 
   it("sieht die Zwischendatei NICHT als Blob an", async () => {
     await schreibeStrom(shareZiel, quelle("halb"), { maxBytes: 1024 });
     await expect(groesse(shareZiel)).rejects.toBeInstanceOf(BlobFehlt);
+    // Beide Wege, nicht nur `groesse` (Testpunkt 4 nennt beide): „halber Upload liegt,
+    // Ziel fehlt" IST der Regelzustand des chunked Wegs, und `lieseStrom` liest sein
+    // `bytes` aus einem eigenen `stat`. Ein Rückfall auf die `.part` lieferte einen
+    // Download halber Bytes mit 200.
+    await expect(lieseStrom(shareZiel)).rejects.toBeInstanceOf(BlobFehlt);
   });
 });
 
@@ -334,6 +350,20 @@ describe("loesche — still, idempotent, und die Zwischendatei mit", () => {
 
     await loesche(shareZiel);
     expect(existsSync(teilPfad)).toBe(false);
+  });
+
+  // Still ist `loesche` nur bei ENOENT. Ein EACCES/EROFS ist ein Konfigurationsfehler und
+  // muss den Aufrufer erreichen (§5.4 → 500, laut) — sonst quittiert das Abbrechen in T31
+  // einen Erfolg, während der Blob liegen bleibt. Seit `schreibeStrom` seinen Aufräumzweig
+  // mit `unlink().catch()` schreibt, ist dies die EINZIGE Stelle, die den nicht-stillen
+  // Zweig von `entferneStill` noch bewacht: ohne sie bliebe ein „schluck einfach alles"
+  // unbemerkt.
+  it("ist NICHT still, wenn das Löschen an den Rechten scheitert", async () => {
+    const laut = vi.spyOn(console, "error").mockImplementation(() => {});
+    fsSteuerung.unlinkFehlerCode = "EACCES";
+
+    await expect(loesche(shareZiel)).rejects.toBeInstanceOf(AblageNichtSchreibbar);
+    expect(laut).toHaveBeenCalled();
   });
 
   it("löscht das Ziel und ist beim zweiten Aufruf weiter still", async () => {
@@ -461,6 +491,51 @@ describe("die zwei Fehlerklassen aus §5.4 sind eigene Typen", () => {
 
     expect(fehler).not.toBeInstanceOf(KeinPlatz);
     expect(fehler).not.toBeInstanceOf(AblageNichtSchreibbar);
+  });
+});
+
+describe("aufgeräumt wird NUR bei den zwei benannten Fällen (§5.3/§5.4)", () => {
+  // Die Gegenrichtung der ENOSPC-Zusage, und sie trägt mehr als eine Symmetrie: beim
+  // chunked Weg IST die Zwischendatei der Fortschritt (§5.3), und ein Verbindungsabbruch
+  // oder ein EIO mitten in Chunk 7 darf ihn nicht kosten — sonst beginnt die Wiederaufnahme
+  // in T27 bei 0 statt bei `ab`. Ohne diese Zusicherung bliebe ein Aufräumen auf JEDEM
+  // Fehlerweg unbemerkt: die EIO-Tests darüber prüfen nur Fehlertyp und `close`.
+  it("lässt die Zwischendatei bei einem NICHT benannten Fehler stehen", async () => {
+    await schreibeStrom(shareZiel, quelle("AAAA"), { maxBytes: 1024, anhaengen: true });
+
+    fsSteuerung.fehlerCode = "EIO";
+    await expect(
+      schreibeStrom(shareZiel, quelle("BBB"), { maxBytes: 1024, anhaengen: true }),
+    ).rejects.toThrow();
+
+    // Ungemockt gelesen, damit der Test nicht durch seinen eigenen Mock prüft.
+    expect(existsSync(teilPfad)).toBe(true);
+    expect(readFileSync(teilPfad, "utf8")).toBe("AAAA");
+    // Und der Fortschritt, den T27 als `ab` zurückmeldet, ist unverändert.
+    expect(await fortschritt(shareZiel)).toBe(4);
+  });
+
+  // Der Aufräumzweig darf den Fehler, den er bewahren soll, nicht ERSETZEN. `unlink`
+  // scheitert auf einer nur lesbar eingehängten Ablage mit EACCES/EROFS — genau der
+  // Betriebsfall, den §5.6 als Zweck von `pruefeAblage` nennt —, und ein Wurf aus dem
+  // Aufräumen machte aus 413 (Nutzerfehler) still 500 samt lauter Logzeile. Ohne diese
+  // Zusicherung fällt Testpunkt 9 auf genau dem Weg, für den er gebaut ist: T27 Punkt 4
+  // (413 mit Grenze) und Punkt 10 (507) bekämen `AblageNichtSchreibbar`.
+  // Dieselbe Naht ist im `finally` von `pruefeAblage` bereits benannt; dies ist die zweite Stelle.
+  it("behält 413, wenn schon das Aufräumen scheitert — und schweigt dabei", async () => {
+    const laut = vi.spyOn(console, "error").mockImplementation(() => {});
+    fsSteuerung.unlinkFehlerCode = "EACCES";
+
+    await expect(
+      schreibeStrom(shareZiel, quelle("12345", "67890"), { maxBytes: 8 }),
+    ).rejects.toBeInstanceOf(GroesseUeberschritten);
+
+    // Kein Wort im Log: ein misslungenes Aufräumen ist Sache des Aufräum-Laufs (§7.6),
+    // und eine überschrittene Grenze ist keine Betreibersache.
+    expect(laut).not.toHaveBeenCalled();
+    // Die Zwischendatei bleibt liegen — die ehrliche Folge des scheiternden `unlink`,
+    // kein zweiter Aufräumweg.
+    expect(existsSync(teilPfad)).toBe(true);
   });
 });
 

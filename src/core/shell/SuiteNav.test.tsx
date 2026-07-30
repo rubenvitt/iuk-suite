@@ -11,7 +11,8 @@ import {
   existsPortal,
   clickPortal,
 } from "@/app/m/qr/_lib/test-dom";
-import { ICONS, Modulnav, SuiteNav, aktiverEintrag } from "./SuiteNav";
+import { Modulnav, SuiteNav, aktiverEintrag } from "./SuiteNav";
+import { ICONS } from "./icons";
 import { MODULES } from "@/core/registry";
 import type { AppSwitcherEntry, SuiteNavItem } from "./types";
 
@@ -347,8 +348,9 @@ describe("SuiteNav — anonym", () => {
 
 /*
  * Diese Kopplung fehlte bis 2026-07-30 und hat sofort zugeschlagen: der
- * Registry-Eintrag von `files` trug `icon: "FolderOutlined"`, die ICONS-Map in
- * SuiteNav.tsx kannte den Namen nicht, und der Rueckfall auf AppstoreOutlined
+ * Registry-Eintrag von `files` trug `icon: "FolderOutlined"`, die ICONS-Map
+ * (damals in SuiteNav.tsx, heute `icons.ts`) kannte den Namen nicht, und der
+ * Rueckfall auf AppstoreOutlined
  * gab dem Modul STILL das Portal-Icon. Kein Fehler, kein Log, kein rotes Gate —
  * nur ein falsches Bild in jeder Kopfzeile.
  *

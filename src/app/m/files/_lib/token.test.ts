@@ -1,5 +1,22 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { erzeugeToken, normalisiereToken, tokenHash, zeichenAusByte } from "./token";
+
+/**
+ * `node:crypto` wird als Modul ersetzt, damit `randomBytes` beobachtbar ist —
+ * die echte Implementierung bleibt dabei eingesetzt (`...echt` plus
+ * `mockImplementation`): der Spion beobachtet, er ersetzt nicht.
+ *
+ * `vi.spyOn(crypto, "randomBytes")` greift hier NICHT, und beide Gründe wären
+ * einzeln schon tödlich: der ESM-Namespace eines Builtins ist gefroren, und
+ * `token.ts` destrukturiert `randomBytes` beim Modulladen — ein spät gesetztes
+ * Patch sieht es also nie. Ein solcher Spion bliebe stumm und der Test grün.
+ */
+const randomBytesSpion = vi.hoisted(() => vi.fn());
+vi.mock("node:crypto", async (importOriginal) => {
+  const echt = await importOriginal<typeof import("node:crypto")>();
+  randomBytesSpion.mockImplementation(echt.randomBytes);
+  return { ...echt, randomBytes: randomBytesSpion };
+});
 
 /**
  * Das Alphabet steht hier als LITERAL, nicht als Import aus dem Prüfling: sonst
@@ -45,6 +62,35 @@ describe("erzeugeToken", () => {
     for (let i = 0; i < 1000; i++) {
       expect(erzeugeToken()).not.toMatch(/[01lo]/);
     }
+  });
+
+  it("liefert 1.000 paarweise verschiedene Token", () => {
+    // Ohne diese Zusicherung ist die Zufallsquelle des Standardpfades von KEINEM
+    // Test besessen: eine konstante Quelle (`new Uint8Array(anzahl).fill(7)`)
+    // erfüllt Grammatik, Länge und „nie 0/1/l/o" vollständig und gibt bei jedem
+    // Aufruf denselben Token zurück — jeder Abgabelink derselbe, anonymer
+    // Schreibzugang auf jeden Posteingang.
+    // Nicht flaky: 60 Bit Entropie, Kollisionswahrscheinlichkeit bei 1.000
+    // Ziehungen ≈ 1000²/(2·2^60) ≈ 4·10⁻¹³.
+    const tokens = new Set<string>();
+    for (let i = 0; i < 1000; i++) tokens.add(erzeugeToken());
+    expect(tokens.size).toBe(1000);
+  });
+
+  it("zieht die Bytes im Standardpfad aus node:crypto.randomBytes", () => {
+    // Die Eindeutigkeit oben schließt die konstante Quelle, aber NICHT den
+    // Verlust des CSPRNG: 1.000 Ziehungen aus `Math.random()` sind ebenfalls
+    // alle verschieden und damit von ihr nicht zu unterscheiden. Genau darauf
+    // baut die Spec ihre Kryptoentscheidung („60 Bit Entropie … SHA-256 ist hier
+    // richtig, bcrypt wäre Rechenlast ohne Sicherheitsgewinn", §4.7) — mit
+    // vorhersagbarer Quelle ist der Token ratbar und die Begründung hinfällig.
+    randomBytesSpion.mockClear();
+    const token = erzeugeToken();
+    // Genau EIN Zug je Token, und der über alle 12 Bytes auf einmal.
+    expect(randomBytesSpion).toHaveBeenCalledTimes(1);
+    expect(randomBytesSpion).toHaveBeenCalledWith(12);
+    // Und der Spion reicht durch: die echte Grammatik kommt trotzdem heraus.
+    expect(token).toMatch(GRAMMATIK);
   });
 
   it("fordert genau 12 Zufallsbytes an — ein Byte je Geheimzeichen", () => {
@@ -130,6 +176,13 @@ describe("normalisiereToken — Annahme", () => {
     expect(normalisiereToken("dz23456789abcd")).toBe("dz-2345-6789-abcd");
     expect(normalisiereToken("dz-234-56789-abcd")).toBe("dz-2345-6789-abcd");
     expect(normalisiereToken("DZ 2345 6789 ABCD")).toBe("dz-2345-6789-abcd");
+    // Das im Plan namentlich genannte Annahme-Beispiel, wörtlich: die
+    // Weißraumgruppen liegen hier 2-4-4-2 und nicht auf den Vierergrenzen. Der
+    // Fall steht zusätzlich zu den obigen da, weil der Plan ihn benennt und ein
+    // späterer Leser ihn sonst im Test sucht (Korrektur vom 30.07. zur
+    // widersprüchlichen Erstfassung `DZ23 4567 89AB`, die als zu kurz abgelehnt
+    // wird — siehe „lehnt falsche Längen ab").
+    expect(normalisiereToken("DZ23 4567 89AB CD")).toBe("dz-2345-6789-abcd");
   });
 
   it("ergibt zusammen mit tokenHash denselben Hash wie die kanonische Form", () => {

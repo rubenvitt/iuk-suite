@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { getTableColumns, getTableName, is } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { SQLiteTable } from "drizzle-orm/sqlite-core";
 import Database from "better-sqlite3";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -352,14 +354,54 @@ describe("files-Migration: Zeitstempel sind Unix-SEKUNDEN (Faktor-1000-Wächter)
    * timestamp_ms, ein Copy-Paste von dort ist der wahrscheinlichste Weg
    * hinein). Symptom in Produktion: nie läuft ein Share ab, oder alles ist
    * sofort abgelaufen.
+   *
+   * UND ER MUSS JEDE SPALTE EINZELN TREFFEN. Eine frühere Fassung prüfte sechs
+   * der vierzehn Zeitstempelspalten; die acht übrigen ließen sich einzeln auf
+   * `timestamp_ms` kippen, ohne dass ein Test fiel (nachgemessen). Der reale
+   * Fehler ist aber genau die EINZELNE verwechselte Spalte — ein Copy-Paste
+   * einer Zeile, nicht des ganzen Schemas. Zwei der Löcher tragen Prädikate:
+   * `share_files.created_at` ist die Bedingung, an der unvollständige Uploads
+   * samt `.part`-Datei aufgeräumt werden (§4.4 — in Millisekunden nie wahr,
+   * also nie aufgeräumt), `download_logs.downloaded_at` trägt
+   * FILES_LOG_AUFBEWAHRUNG_TAGE (§4.5) und die Sortierung des Audit-Logs (§7.8).
    */
   const datum = new Date("2026-07-30T12:00:00.000Z");
   const sekunden = Math.floor(datum.getTime() / 1000);
 
-  it("ein über Drizzle geschriebenes Datum steht zehnstellig in der Spalte", () => {
+  // Alle Zeitstempelspalten in SQL-Schreibweise — auch die nullable, denn ein
+  // Verwechsler dort ist genauso still.
+  const ZEIT_SPALTEN: Record<string, string[]> = {
+    shares: ["expires_at", "created_at"],
+    share_files: ["created_at", "bytes_vollstaendig_at", "av_geprueft_at"],
+    download_logs: ["downloaded_at"],
+    inbox_files: ["empfangen_at", "bytes_vollstaendig_at", "av_geprueft_at"],
+    zugangslinks: ["created_at", "expires_at", "revoked_at"],
+    aufraeum_laeufe: ["gestartet_at", "beendet_at"],
+  };
+
+  // Die WHERE-Bedingung, die die eine Probezeile je Tabelle roh wiederfindet.
+  // Auch die autoincrement-IDs sind festgenagelt: mit `LIMIT 1` hinge das
+  // Ergebnis daran, welcher andere Test vorher in dieselbe Tabelle geschrieben hat.
+  const WO: Record<string, string> = {
+    shares: "id = 'sh-zeit'",
+    share_files: "id = 'sf-zeit'",
+    download_logs: "id = 9001",
+    inbox_files: "id = 'if-zeit'",
+    zugangslinks: "id = 'zl-zeit'",
+    aufraeum_laeufe: "id = 9001",
+  };
+
+  const PAARE = Object.entries(ZEIT_SPALTEN).flatMap(([tabelle, spalten]) =>
+    spalten.map((spalte) => [tabelle, spalte] as const),
+  );
+
+  // Je Tabelle EIN Insert über Drizzle, das JEDE Zeitstempelspalte mit demselben
+  // `datum` belegt. Nur so trägt jede Spalte einen Wert, der gegen `sekunden`
+  // prüfbar ist; eine vergessene nullable Spalte fällt als `null !== sekunden` auf.
+  beforeAll(() => {
     db.insert(schema.shares)
       .values({
-        id: "sh-sekunden",
+        id: "sh-zeit",
         title: "Zeitprobe",
         type: "file",
         expiresAt: datum,
@@ -367,57 +409,86 @@ describe("files-Migration: Zeitstempel sind Unix-SEKUNDEN (Faktor-1000-Wächter)
         createdBy: "u",
       })
       .run();
-
-    const roh = sqlite
-      .prepare("SELECT expires_at AS e, created_at AS c FROM shares WHERE id = 'sh-sekunden'")
-      .get() as { e: number; c: number };
-
-    expect(roh.e).toBe(sekunden);
-    expect(roh.c).toBe(sekunden);
-    // Die lesbare Hälfte derselben Aussage: zehnstellig, nicht dreizehnstellig.
-    expect(String(roh.e).length).toBe(10);
-    expect(roh.e).toBeLessThan(1e11);
-  });
-
-  it("dieselbe Einheit in zugangslinks, inbox_files und aufraeum_laeufe", () => {
+    db.insert(schema.shareFiles)
+      .values({
+        id: "sf-zeit",
+        shareId: "sh-zeit",
+        filename: "a.txt",
+        mimeType: "text/plain",
+        size: 1,
+        createdAt: datum,
+        bytesVollstaendigAt: datum,
+        avStatus: "clean",
+        avGeprueftAt: datum,
+      })
+      .run();
+    db.insert(schema.downloadLogs)
+      .values({ id: 9001, shareId: "sh-zeit", fileId: "sf-zeit", downloadedAt: datum })
+      .run();
+    db.insert(schema.inboxFiles)
+      .values({
+        id: "if-zeit",
+        dateiname: "a.txt",
+        size: 1,
+        empfangenAt: datum,
+        bytesVollstaendigAt: datum,
+        avStatus: "clean",
+        avGeprueftAt: datum,
+      })
+      .run();
     db.insert(schema.zugangslinks)
       .values({
-        id: "zl-sekunden",
+        id: "zl-zeit",
         name: "Übung Nord",
         tokenStart: "dz-2345",
-        tokenHash: "HASH-SEK",
+        tokenHash: "HASH-ZEIT",
         createdAt: datum,
         createdBy: "u",
         expiresAt: datum,
+        revokedAt: datum,
         budgetDateien: 10,
         budgetBytes: 100,
       })
       .run();
-    db.insert(schema.inboxFiles)
-      .values({
-        id: "if-sekunden",
-        dateiname: "a.txt",
-        size: 1,
-        empfangenAt: datum,
-        avStatus: "clean",
-      })
-      .run();
     db.insert(schema.aufraeumLaeufe)
-      .values({ gestartetAt: datum, trockenlauf: true })
+      .values({ id: 9001, gestartetAt: datum, beendetAt: datum, trockenlauf: true })
       .run();
+  });
 
-    const z = sqlite
-      .prepare("SELECT created_at AS a, expires_at AS b FROM zugangslinks WHERE id='zl-sekunden'")
-      .get() as { a: number; b: number };
-    const i = sqlite
-      .prepare("SELECT empfangen_at AS a FROM inbox_files WHERE id='if-sekunden'")
-      .get() as { a: number };
+  it("der Wächter kennt JEDE Zeitstempelspalte des Schemas", () => {
+    // Entdeckt wird über `columnType`, nicht über `mode`: "SQLiteTimestamp" ist
+    // für `timestamp` UND `timestamp_ms` derselbe Wert (nachgemessen). Die
+    // Entdeckung ist damit blind gegen genau den Fehler, den sie einsammeln
+    // soll — eine gekippte Spalte kann sich nicht aus der Liste herausmogeln.
+    // Und eine NEUE Zeitstempelspalte ohne Eintrag in ZEIT_SPALTEN lässt
+    // diesen Test fallen, statt still unbewacht zu bleiben.
+    const gefunden: string[] = [];
+    for (const wert of Object.values(schema)) {
+      if (!is(wert, SQLiteTable)) continue;
+      for (const spalte of Object.values(getTableColumns(wert))) {
+        if (spalte.columnType === "SQLiteTimestamp") {
+          gefunden.push(`${getTableName(wert)}.${spalte.name}`);
+        }
+      }
+    }
+    const bewacht = PAARE.map(([tabelle, spalte]) => `${tabelle}.${spalte}`);
+    expect(gefunden.sort()).toEqual([...bewacht].sort());
+  });
+
+  it.each(PAARE)("%s.%s steht zehnstellig in Sekunden in der Spalte", (tabelle, spalte) => {
+    const roh = sqlite
+      .prepare(`SELECT ${spalte} AS v FROM ${tabelle} WHERE ${WO[tabelle]}`)
+      .get() as { v: number | null };
+    expect(roh.v, `${tabelle}.${spalte}`).toBe(sekunden);
+    // Die lesbare Hälfte derselben Aussage: zehnstellig, nicht dreizehnstellig.
+    expect(String(roh.v).length, `${tabelle}.${spalte}: zehnstellig`).toBe(10);
+    expect(roh.v, `${tabelle}.${spalte}`).toBeLessThan(1e11);
+  });
+
+  it("aufraeum_laeufe.trockenlauf ist ein 0/1-Integer, kein Text", () => {
     const l = sqlite
-      .prepare("SELECT gestartet_at AS a, trockenlauf AS t FROM aufraeum_laeufe LIMIT 1")
-      .get() as { a: number; t: number };
-
-    for (const wert of [z.a, z.b, i.a, l.a]) expect(wert).toBe(sekunden);
-    // `trockenlauf` ist ein 0/1-Integer (Drizzle mode "boolean"), kein Text.
+      .prepare("SELECT trockenlauf AS t FROM aufraeum_laeufe WHERE id = 9001")
+      .get() as { t: number };
     expect(l.t).toBe(1);
   });
 

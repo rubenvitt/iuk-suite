@@ -48,7 +48,12 @@ export function zeichenAusByte(byte: number): string {
  * bleiben; produktiv kommen die Bytes aus `crypto.randomBytes`.
  *
  * Der Rohtoken wird NIE gespeichert (§4.7) — gespeichert werden `tokenHash` und
- * die ersten acht Zeichen im Klartext.
+ * `token_start`: die ersten SIEBEN Zeichen im Klartext, also `dz-` plus vier
+ * Geheimzeichen (so benennt §4.7 die Form selbst). Nicht acht, obwohl die
+ * Spec-Tabelle „8" schreibt: `"dz-2345-6789-abcd".slice(0, 8)` ergibt
+ * `"dz-2345-"` mit hängendem Bindestrich, und der bereits geprüfte DB-Test setzt
+ * `tokenStart: "dz-2345"` (`_db/migrations.test.ts`). Die Spalte zu füllen ist
+ * Sache von T30, nicht dieses Moduls — hier steht nur, was dort hingehört.
  */
 export function erzeugeToken(
   zufallsBytes: (anzahl: number) => Uint8Array = standardBytes,

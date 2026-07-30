@@ -192,6 +192,14 @@ async function laengeOderNull(pfad: string): Promise<number | null> {
  * und beim Anhaengen zaehlen die bereits liegenden Bytes mit, sonst unterlaufen viele
  * kleine Chunks die Grenze.
  *
+ * **Fuer den Aufrufer verbindlich (§5.3):** der ERSTE Chunk eines Uploads ruft
+ * `anhaengen: false` und bekommt damit `wx` — nur so sieht ein zweiter Starter auf dasselbe
+ * Ziel `EEXIST` statt verschraenkter Bytes (der Gegenfall ist in `drop` gemessen: vier
+ * gleichzeitige Uploads gleichen Namens → vier 200, ZWEI Dateien). `anhaengen: true` ist
+ * ausschliesslich der FOLGEchunk; es oeffnet mit `a` und legte eine fehlende Zwischendatei
+ * auch neu an, kann die Exklusivitaet also nicht tragen. Die Wache dagegen liegt beim
+ * Aufrufer: `ab` gegen die aktuelle Laenge (`fortschritt`) pruefen und sonst 409 (§7.1).
+ *
  * Liefert die **gemessene** Gesamtzahl der Bytes in der Zwischendatei; sie ist die Quelle
  * fuer `size`.
  */
@@ -240,7 +248,13 @@ export async function schreibeStrom(
     // kosten; ein wirklich verwaister Rest ist Sache des Aufraeum-Laufs (§7.6).
     if (fehler instanceof GroesseUeberschritten || fehler instanceof KeinPlatz) {
       await griff.close().catch(() => {});
-      await entferneStill(teil);
+      // Bewusst `unlink` und NICHT `entferneStill` — dieselbe Linie wie im `finally` von
+      // `pruefeAblage`: dessen `uebersetze` wuerfe auf einer nur lesbar eingehaengten Ablage
+      // ein zweites Mal und ERSETZTE damit den Fehler, den dieser Zweig bewahren soll. Aus
+      // 413 bzw. 507 wuerde still 500 samt lauter Logzeile fuer einen reinen Nutzerfehler.
+      // Der fliegende Fehler hat Vorrang; ein misslungenes Aufraeumen ist Sache des
+      // Aufraeum-Laufs (§7.6).
+      await unlink(teil).catch(() => {});
       throw fehler;
     }
     throw fehler;
