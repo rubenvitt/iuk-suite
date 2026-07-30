@@ -65,6 +65,29 @@ export const MODULES: ModuleDef[] = [
   { key: "feedback", title: "Feedback", icon: "CommentOutlined", shell: "full",
     requiresAuth: false, requiredGroups: ["da-feedback-gl", "da-feedback-admin"],
     adminGroups: ["da-feedback-admin"], prodHosts: [], showInSwitcher: true },
+  // files: zwei Prod-Hosts in EINER Variable, die Reihenfolge trägt die Rolle
+  // (Index 0 = Verwaltung/Shares, Index 1 = Inbox) — siehe _lib/hostRolle.ts.
+  // requiresAuth MUSS false bleiben: sonst schickt die Middleware jeden anonymen
+  // /s/<id>- und /u/<token>-Aufruf in den Login (routing.ts:71-73), und zwar
+  // sofort beim Cutover. Dadurch liest canAccess() requiredGroups hier NIE
+  // (früher Ausstieg bei !requiresAuth, registry.ts:133) — durchgesetzt wird der
+  // Zugang modul-intern in _lib/access.ts.
+  //
+  // prodHosts: [] — vor dem Cutover hat das Modul keine Prod-Domain, dieselbe
+  // Lage wie bei qr und feedback. In Dev/E2E kommen die Hosts aus SUITE_HOST_FILES.
+  // icon: NICHT „irgendein existierender @ant-design/icons-Name" — wirksam ist
+  // allein die lokale Map ICONS in SuiteNav.tsx:30-38, und die trägt heute nur
+  // sieben Namen (alle sieben von den Modulen oben/unten belegt). Ein Name, der
+  // dort FEHLT, fällt STILL auf AppstoreOutlined zurück (SuiteNav.tsx:261, der
+  // einzige Konsument) — „Dateien" wäre dann vom „Portal" nicht zu
+  // unterscheiden, in Kopfzeile UND Drawer jeder Suite-Seite.
+  // FolderOutlined FEHLT in ICONS noch: SuiteNav.tsx liegt außerhalb dieses
+  // Tasks, die Ergänzung ist als fremde_datei_noetig gemeldet. Der Name bleibt
+  // hier trotzdem stehen — er ist die richtige Absicht, und kein freier
+  // Ersatzname wäre semantisch näher als der stille Rückfall.
+  { key: "files", title: "Dateien", icon: "FolderOutlined", shell: "full",
+    requiresAuth: false, requiredGroups: [], adminGroups: ["drk-files-admin"],
+    prodHosts: [], showInSwitcher: true },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true },

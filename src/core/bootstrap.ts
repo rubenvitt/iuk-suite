@@ -18,6 +18,11 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   { key: "portal", migrationsFolder: "src/app/m/portal/_db/migrations" },
   { key: "qr", migrationsFolder: "src/app/m/qr/_db/migrations" },
   { key: "feedback", migrationsFolder: "src/app/m/feedback/_db/migrations" },
+  // files: bewusst OHNE Schema-Import und OHNE Seed unten. Der Schema-Import
+  // wäre toter Code — `migrateAllModules()` migriert schema-frei, einziger
+  // Konsument der Importe ist `seedAllModules()`. Und ein Seed-Abgabelink wäre
+  // in einer Generalprobe ein gültiger anonymer Schreibzugang.
+  { key: "files", migrationsFolder: "src/app/m/files/_db/migrations" },
 ];
 
 /**

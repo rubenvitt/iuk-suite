@@ -39,7 +39,7 @@ import {
   DEFAULT_CLOSE_AFTER_HOURS,
   type SurveyStatus,
 } from "./_lib/lifecycle";
-import { RateLimiter } from "./_lib/ratelimit";
+import { RateLimiter, clientIpAus } from "@/core/ratelimit";
 import { FEHLER_PARAMETER, JS_FELD } from "./_lib/absenden";
 import { getDirectory, type DirectoryResult } from "@/core/directory";
 import {
@@ -102,6 +102,16 @@ function abweisen(
  * 21:30 aus EINEM Vereins-WLAN, teilen also eine NAT-IP — ab der 11. Abgabe
  * kam „Zu viele Anfragen". Deshalb zählt der IP-Zähler jetzt nur noch
  * Fehlversuche, und echte Abgaben laufen über einen eigenen, weiten Zähler.
+ *
+ * WARUM DIE IP UND NICHT SLUG ODER TOKEN: Keyen auf den Token würde jeden
+ * Secret-Guess in einen frischen Bucket legen (kein Brute-Force-Schutz), Keyen
+ * auf den Slug würde alle Teilnehmer eines Dienstabends — die denselben QR-Link
+ * scannen — gemeinsam limitieren. Die IP bremst einen Brute-Forcer (eine IP),
+ * ohne echte Teilnehmer mit verschiedenen Mobilfunk-IPs zu behindern. Sie ist
+ * deshalb nur noch der Schlüssel des `tokenGuard`; echte Abgaben zählt
+ * `submitLimiter` unter `${ip}|${surveyId}`. Aufgelöst wird sie von
+ * `clientIpAus` (`core/ratelimit`) — vor der Suite stehen Cloudflare und
+ * Traefik, deshalb `cf-connecting-ip` vor `x-forwarded-for`.
  */
 // Brute-Force-Schutz UNVERÄNDERT: zählt nur ungültige Token/Secrets, Schlüssel = IP.
 const tokenGuard = new RateLimiter({ windowMs: 60_000, max: 10 });
@@ -525,25 +535,6 @@ export async function closeSurveyAction(formData: FormData) {
  */
 
 /**
- * Client-IP aus den Request-Headern (hinter Cloudflare zuverlässig via
- * cf-connecting-ip, sonst x-forwarded-for). Für Rate-Limiting statt Slug
- * oder Token: Keyen auf den Token würde jeden Secret-Guess in einen frischen
- * Bucket legen (kein Brute-Force-Schutz), Keyen auf den Slug würde alle
- * Teilnehmer eines Dienstabends — die denselben QR-Link scannen — gemeinsam
- * limitieren. Die IP bremst einen Brute-Forcer (eine IP), ohne echte
- * Teilnehmer mit verschiedenen Mobilfunk-IPs zu behindern.
- * Sie ist deshalb nur noch der Schlüssel des `tokenGuard`; echte Abgaben
- * zählt `submitLimiter` unter `${ip}|${surveyId}`.
- */
-async function clientIp(): Promise<string> {
-  const h = await headers();
-  const cfIp = h.get("cf-connecting-ip");
-  if (cfIp) return cfIp;
-  const forwardedFor = h.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwardedFor || "unknown";
-}
-
-/**
  * Ungültiges Token oder falsches Secret: erst das Fehlversuch-Budget der IP
  * belasten, dann ablehnen. Wer Secrets rät, wird nach 10 Versuchen pro Minute
  * gebremst — eine legitime Abgabe berührt diesen Zähler nie.
@@ -565,7 +556,7 @@ export async function submitResponseAction(
   const db = getDb();
   const { parseToken } = await import("./_lib/token");
   const { getGroupBySlug } = await import("./_db/queries");
-  const ip = await clientIp();
+  const ip = clientIpAus(await headers());
   const parsed = parseToken(slugSecret);
   if (!parsed) return rejectInvalidToken(ip);
   const group = getGroupBySlug(db, parsed.slug);

@@ -172,7 +172,7 @@ const SENDET = "Wird gesendet…";
  *      (Mitternacht UTC des Abends) als `submitted_at`, nicht `new Date()`. Bei
  *      ~15 Abgaben waere die Sekunde allein ein Deanonymisierungskanal.
  *   2. "kein Gerät" — die IP wird fuer das Ratelimit gebraucht, liegt aber nur in
- *      einer fluechtigen In-Memory-Map (`_lib/ratelimit.ts`) und nie an der
+ *      einer fluechtigen In-Memory-Map (`core/ratelimit.ts`) und nie an der
  *      Antwort. Kommt jemals ein persistenter Limiter mit IP-Spalte, aendert sich
  *      DIESER TEXT — nicht stillschweigend seine Bedeutung.
  * Die dritte Zusage des Siegels ("die Texte in zufaelliger Reihenfolge") steht
