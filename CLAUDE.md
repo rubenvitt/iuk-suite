@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **vier Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **sechs Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -17,6 +17,14 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
    Primäraktion. In Modulen, wo Rot fachliche Bedeutung trägt, gehört Rot nie auf eine Datenfläche.
 4. **`size="large"` ist 72px** — `controlHeight: 56` ist die Vorgabe und schon das richtige Maß, also
    `size` gar nicht setzen.
+5. **Eigenes CSS gegen antd-CSS entscheidet die Spezifität, meist gegen dich** — und immer still: die
+   Regel steht richtig da und greift nur nicht. Drei Ausprägungen (Gleichstand → antd gewinnt durch
+   Reihenfolge · eigene Regel zu schwach · eigene Regel zu stark und trifft das eigene Modul). Wo antd
+   einen **Token** anbietet, ist der Token besser als jede Spezifität.
+6. **Ein `WERT` aus einem `"use client"`-Modul kommt in einer Server Component nicht an** — sie bekommt
+   eine Client-Referenz statt des Wertes, HTTP 500 für die ganze Seite. TypeScript ist zufrieden, `build`
+   findet nichts, und **Vitest kann es strukturell nicht finden** (dort ist `"use client"` ein
+   wirkungsloser String). Werte für Server Components gehören in ein Modul ohne `"use client"` (`_lib/`).
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`), und die Regel für `src/core` lautet: nur was ein **zweites, heute belegbares**

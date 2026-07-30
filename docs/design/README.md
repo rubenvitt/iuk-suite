@@ -34,7 +34,7 @@ Modul in ein anderes importiert werden: Modul-Interna sind kein API.
 
 ## Fallen, die der Build nicht findet
 
-Diese fünf kosten je einen halben Tag, wenn man sie nicht kennt. Keine davon fällt in `pnpm build` auf.
+Diese sechs kosten je einen halben Tag, wenn man sie nicht kennt. Keine davon fällt in `pnpm build` auf.
 
 **1. Compound-Zugriff auf antd in einer Server Component → HTTP 500.**
 Verboten in RSC: `Typography.*`, `Form.Item`, `Descriptions.Item`, `List.Item`, `Card.Meta`,
@@ -234,9 +234,16 @@ Modul war nicht schlecht gestaltet, es war **unfertig** — sechs von acht Serve
 hatten keinen Einstiegspunkt. Daraus die Prüffragen für jede neue Ansicht:
 
 - Hat **jede** Action einen Weg in der Oberfläche? Eine Action ohne Aufrufer ist kein Feature.
+- Und die Gegenprobe: führt **kein** Weg dorthin, wo die aufrufende Person nicht hindarf? Mehrere
+  Riegel der Suite werfen absichtlich `notFound()` statt eines 403, damit die Existenz einer Seite
+  nicht verraten wird — ein Navigationseintrag oder Knopf davor hebt genau das wieder auf und ist für
+  alle anderen eine Sackgasse. Oberfläche und Riegel müssen **dasselbe Prädikat auf denselben Viewer**
+  anwenden (Vorbild: `isFeedbackAdmin` in `(admin)/layout.tsx` und `(admin)/vergleich/page.tsx`); zwei
+  verschiedene Quellen laufen spätestens im Verzugsfenster veralteter JWT-Gruppen auseinander.
 - Ist der **Zustand** ablesbar, ohne zu klicken? Und der nächste Schritt benannt?
 - Führt jede Seite **zurück** (Breadcrumb, klickbarer Modultitel) — oder ist sie eine Sackgasse?
 - Kommen Fehler aus Server-Actions **am Feld** an (`useActionState`), oder auf einer technischen
-  Fehlerseite mit Datenverlust?
+  Fehlerseite mit Datenverlust? (Die 404-Seite der Suite ist `src/app/not-found.tsx` — eine für alle
+  Module, ohne Shell, weil die Not-Found-Grenze an der Wurzel liegt und alle Modul-Layouts ersetzt.)
 - Gibt es **Leerzustände** — auch für Diagramme (ein leeres Achsenkreuz sieht kaputt aus)?
 - Zeigt die Liste, was sie zeigen soll (Status, Menge, Datum) — oder nur einen Link?
