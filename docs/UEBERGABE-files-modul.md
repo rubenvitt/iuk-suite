@@ -1,10 +1,10 @@
-# Übergabe — Modul `files` (Phase 4), Stand 2026-08-01 (nach Welle 5)
+# Übergabe — Modul `files` (Phase 4), Stand 2026-08-01 (nach Welle 6a)
 
-Du übernimmst den Bau des Moduls `files` in der iuk-suite. **36 von 51 Tasks sind fertig und
-committet, 15 stehen aus.** Dieses Dokument sagt dir, was du zuerst liest, was schon entschieden ist,
+Du übernimmst den Bau des Moduls `files` in der iuk-suite. **41 von 51 Tasks sind fertig und
+committet, 10 stehen aus.** Dieses Dokument sagt dir, was du zuerst liest, was schon entschieden ist,
 wie hier gearbeitet wird, und welche Fallen die bisherigen Wellen Zeit gekostet haben.
 
-Branch: **`feat/files-modul`** (sechs Commits, alle Gates grün).
+Branch: **`feat/files-modul`** (acht Commits, alle Gates grün).
 
 ---
 
@@ -106,7 +106,7 @@ add` im selben Arbeitsbaum kollidiert).
 | Welle | Tasks | Inhalt | Playwright |
 |---|---|---|---|
 | ~~5~~ | ~~T26–T34, T51, T49 (11)~~ | **fertig, committet** (`54b52ec`) — Byte-Wege und Actions | — |
-| **6a** | T35, T37, T38, T39, T50 (5) | Oberflächen I: `/shares/neu`, Shares-Actions, `/u/<token>`, `/zugangslinks`, Budget/Wettlauf | ja |
+| ~~6a~~ | ~~T35, T37, T38, T39, T50 (5)~~ | **fertig, committet** (`ca4b847`) — Oberflächen I, samt zwei Nahtschlüssen | — |
 | **6b** | T36 (1) | Freigaben-Übersicht (hängt an T37) | ja |
 | **7** | T40, T41, T42, T43 (4) | Oberflächen II: `/s/<id>` mit Passwort-Gate, Detailseite, Bearbeiten, `/posteingang` | ja |
 | **8a** | T44, T45, T46, T48 (4) | Host-Abnahme, AV-Wiederholung, Aufräum-Timer, Mobil-Abnahme | ja |
@@ -120,7 +120,12 @@ eigener Zyklus und **nicht** dein Auftrag.
 Diese Punkte sind **keine** Befunde, sondern Nähte: Welle 5 hat sie bewusst nicht geschlossen, weil
 sie fremde Dateien betreffen. Wer den genannten Task baut, schließt sie mit.
 
-**An T35 (`/shares/neu`, `UploadInsel`) — der teuerste der fünf:**
+> **Stand nach 6a:** die vier T35-Punkte sind eingelöst (die Insel schickt `datei.type` am
+> `?ende=1`-Chunk, `UploadInsel.tsx:242-256`), T50 ist gebaut, und die beiden zuvor offenen
+> Nahtschlüsse (PNG-Download, leeres Share-Verzeichnis) sind in `ca4b847` mit drin. **Offen bleiben
+> die Punkte an T39/T40/T21/T15/T44** — sie stehen unten unverändert.
+
+**An T35 (`/shares/neu`, `UploadInsel`) — ERLEDIGT in 6a, hier als Beleg:**
 
 - **Der `?ende=1`-Chunk MUSS `datei.type` als `Content-Type` mitschicken.** T27 nimmt die
   Client-Deklaration von dort entgegen; die Spec benennt keinen Träger, T27 hat den idiomatischen
@@ -133,10 +138,11 @@ sie fremde Dateien betreffen. Wer den genannten Task baut, schließt sie mit.
   Byte-Offset, **413** AV-Grenze, **507** kein Platz (Inbox-Weg, Zeile bleibt zur Wiederaufnahme).
 - `anlegenAction` ruft `revalidatePath("/m/files")` **mitten im Ablauf**, vor dem Byte-Upload. Das
   steht in keiner Zusage und kein Test besitzt es (`next/cache` ist gemockt).
-- `PASSWORT_MIN_ZEICHEN` (heute 8) liegt modulprivat in `(verwaltung)/actions.ts`. Eine
-  `"use server"`-Datei darf **nur** asynchrone Funktionen exportieren — das Formular kann die Zahl
-  nicht lesen und müsste sie abschreiben. Sie gehört nach `_lib/grenzen.ts` (führt bereits
-  `FILES_CHUNK_BYTES`, `FILES_HINWEIS_MAX_ZEICHEN`, `FILES_FEHLVERSUCHE_PRO_MIN`).
+- `PASSWORT_MIN_ZEICHEN` (heute 8) liegt **weiterhin** modulprivat in `(verwaltung)/actions.ts`.
+  T35 hat die Doppelung vermieden, indem das Formular die Zahl gar nicht anzeigt — die Meldung kommt
+  vom Server. Wer sie **vorab** anzeigen will (naheliegend an T42, `/shares/[id]/bearbeiten`), muss
+  sie zuerst nach `_lib/grenzen.ts` heben: eine `"use server"`-Datei darf nur asynchrone Funktionen
+  exportieren, eine abgeschriebene 8 driftet.
 - T35 schließt außerdem die **zwei Riegel aus §7** mit.
 
 **An T39 (`/zugangslinks`):** die Spec widerspricht sich **innerhalb derselben Tabellenzelle**
@@ -174,6 +180,28 @@ die `core`-Regel „zweiter, heute belegbarer Nutznießer" für einen gemeinsame
 **An T50:** der `POST`-Altweg auf `/api/u/<token>/upload` antwortet heute **405**. Das ist richtig —
 er gehört T50, nicht T31.
 
+### Und was Welle 6a schuldet
+
+**An T46 (Aufräum-Timer) — derselbe Defekt auf dem ZWEITEN Löschweg:** `shareLoeschenAction` entfernt
+seit 6a das leere Share-Verzeichnis mit (`loescheShareVerzeichnis` in `_lib/storage.ts`). Der
+Aufräumlauf tut das **nicht**: `planeAufraeumen` liefert `loeschen.shareIds` für abgelaufene
+Freigaben, deren Blobs stehen **nicht** in `loeschen.parts` (das entsteht nur aus `einzelneDateien`;
+die Dateien sterbender Shares zählen bloß als `mitgerissene`). Wer diese Liste ausführt, muss je
+Eintrag `loescheShareVerzeichnis(shareId)` rufen — sonst wächst die gemeldete Waisenzahl über den
+Ablaufweg genauso weiter wie vorher über den Löschweg.
+
+**An T40/T41 (Welle 7):** `/shares/neu` verlinkt nach dem Upload bewusst nur auf `/`, weil
+`/s/<id>` (T40) und `/shares/<id>` (T41) noch nicht existieren; ein Quelltext-Scan in
+`UploadInsel.test.tsx` hält das fest, damit der Link später **bewusst** ergänzt wird. Ebenso trägt
+`_ui/SharesUebersicht.tsx` noch den Kommentar, `/shares/neu` führe in ein `notFound()` — seit T35
+falsch.
+
+**Ein Werkzeugbefund für jede weitere Welle:** Next 16 lässt pro Verzeichnis nur **einen**
+`next dev` zu. Solange ein Agent einen hält, kann `playwright.config.ts` seinen `next dev -p 3100`
+nicht starten (`Another next dev server is already running`) — **die e2e-Tore mehrerer Wellen können
+nicht parallel laufen.** Und `pkill -f fake-clamd` trifft auch den Fake-Scanner fremder Läufe: das
+sieht dort wie ein unerklärlicher fail-closed-Lauf aus. Nur per PID beenden.
+
 ---
 
 ## 5. Fallen, die schon Zeit gekostet haben
@@ -208,6 +236,10 @@ er gehört T50, nicht T31.
   Routenverzeichnisse. Ein `grep -n "^export async function"` über alle neuen Routen kostet zehn
   Sekunden und findet den **ganzen** Tausch (falsche Handler unter dem Pfad), aber eben nur den; eine
   teilweise überschriebene Datei sieht nur der Testlauf.
+- **`git checkout -- <datei>` nimmt eine Mutationsprobe NICHT zurück** — es stellt HEAD her und
+  löscht damit die eigene, noch uncommittete Arbeit. In Welle 6a hat sich ein Agent so seine fertige
+  Implementierung gelöscht; bei einer **neuen** Datei hätte der Befehl gar nichts wiederhergestellt.
+  Vor der ersten Mutation einmal ins Scratchpad sichern, von dort zurückspielen, mit `diff` belegen.
 - **Playwright nicht laufen lassen, während du Dateien editierst.** HMR zieht die Änderung mitten in
   den Lauf und erzeugt Fehlschläge, die nicht reproduzierbar sind (einmal passiert, eine Stunde
   Sucherei).

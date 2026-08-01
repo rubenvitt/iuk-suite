@@ -104,9 +104,13 @@ ARBEITSREGELN — sie gelten ohne Ausnahme:
   Agenten unabhängig \`/tmp/route.orig.ts\` benutzt — bei zehn gleichzeitigen Agenten ist der Name
   besetzt, und zweimal landete danach der Inhalt einer FREMDEN Datei in der eigenen. Das ist
   typecheck- und lint-grün, solange beide Dateien für sich übersetzen; gemerkt haben es beide nur an
-  reihenweise fallenden Tests. Besser noch: für eine Mutationsprobe brauchst du gar keine Kopie —
-  \`git diff\` und \`git checkout --\` kennen den Ausgangszustand deiner Datei (bei NEUEN Dateien
-  hilft das nicht, dort nimm das Scratchpad mit einem Namen, der deinen Task trägt).
+  reihenweise fallenden Tests. Nimm das **Session-Scratchpad** mit einem Namen, der DEINEN Task
+  trägt.
+- **\`git checkout -- <datei>\` ist als Rücknahme einer Mutation FALSCH.** Es stellt den Stand von
+  HEAD her — und der kennt deine eigene, noch uncommittete Arbeit nicht. Ein Agent hat sich damit in
+  Welle 6a seine fertige Implementierung gelöscht und neu schreiben müssen; bei einer NEUEN Datei
+  hätte es gar nichts wiederhergestellt. Sichere vor der ersten Mutation einmal ins Scratchpad und
+  spiele von dort zurück, mit \`diff\` als Beleg, dass die Datei unversehrt ist.
 - **Keine Installationen** (\`pnpm add\`, \`npm i\`): fehlt eine Abhängigkeit, melde sie.
 - Deutsch für Kommentare, Testnamen und Meldungen; Bezeichner im Original. Kommentare erklären das
   WARUM (was der Code nicht selbst sagt), nicht das WAS.
