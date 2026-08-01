@@ -1,0 +1,152 @@
+/*
+ * KOMPONENTENLOKALES CSS DES POSTEINGANGS (Plan T43, Spec §8.6).
+ *
+ * WAS HIER LIEGT UND WAS NICHT: `_ui/files.css` traegt die modulweiten
+ * `--fi-*`-Variablen und die EINE Umschaltung Tabelle/Kartenliste
+ * (`.fi-liste .nurDesktop` / `.nurMobil`), die sich zwei Ansichten teilen —
+ * diese Datei benutzt sie und erklaert sie NICHT ein zweites Mal. Ein
+ * `.module.css` haette dafuer ohnehin gehashte Namen und traefe die Klassen aus
+ * dem globalen Stylesheet gar nicht (Plan §1, Festlegung C).
+ *
+ * `--ant-*` waere hier still wirkungslos: antd deklariert seine Variablen auf
+ * der Scope-Klasse an den Wurzelelementen SEINER Komponenten, nicht auf
+ * `:root`. Eigenes Markup sieht sie nie, und `var(--ant-color-border-secondary)`
+ * loest ins Leere auf — die Linie verschwindet einfach.
+ *
+ * ROT KOMMT HIER NICHT VOR: `colorError === colorPrimary === #c8000f`, eine
+ * rote Flaeche auf einer Datenflaeche saehe aus wie eine Primaeraktion. Der
+ * Warnton ist `--fi-warn`, und nur als TEXT.
+ *
+ * 767.98px und nicht 768px: bei exakt 768px gaelten sonst beide Seiten und die
+ * Reihenfolge im Stylesheet entschiede. 768px ist der EINZIGE Breakpoint der
+ * Suite. Was ein Scan ueber diese Datei besitzt, ist „die Regel traegt die
+ * richtige Medienabfrage" — ob sie WIRKT, weiss nur ein Browser (T48 bei
+ * 390/834/1280).
+ */
+
+.seite {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/*
+ * DIE FILTERLEISTE. Vier Gruppen nebeneinander, solange Platz ist; darunter
+ * untereinander. Sie steht UEBER der Tabelle, weil der Zustand, nach dem
+ * gefiltert wird, sonst erst nach dem Scrollen sichtbar waere.
+ */
+.filterleiste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  padding: 16px;
+  background: var(--fi-tint);
+  border: 1px solid var(--fi-line);
+  border-radius: 8px;
+}
+
+.filtergruppe {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* `fieldset` bringt eigenen Rand und eigene Innenabstaende mit. */
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.legende {
+  color: var(--fi-muted);
+  font-size: 14px;
+  padding: 0;
+}
+
+/*
+ * Die Reihe der HANDLUNGSKNOEPFE. Unter 768px stehen sie untereinander und in
+ * voller Breite (Regel unten): ein 630px breiter Knopf liest sich als Flaeche,
+ * nicht als Ziel.
+ */
+.knopfzeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.hinweis {
+  color: var(--fi-muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Zahlen, die verglichen werden, brauchen Ziffern gleicher Breite. */
+.zahlen {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Der freie Hinweistext der abgebenden Person. Er ist Fremdeingabe und kann
+ * beliebig lang sein — ohne Umbruch sprengte ein Wort ohne Leerzeichen die
+ * Spalte, und die Tabelle scrollte ins Nichts.
+ */
+.hinweistext {
+  max-width: 32ch;
+  overflow-wrap: anywhere;
+}
+
+.feldFehler {
+  /* Warnton als TEXT, nie als Flaeche — siehe Kopfkommentar. */
+  color: var(--fi-warn);
+  font-size: 14px;
+}
+
+/* Die Karte einer Abgabe unter 768px: eine Zeile je Angabe, mit Beschriftung. */
+.karte {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.karte p {
+  margin: 0;
+}
+
+@media (max-width: 767.98px) {
+  .knopfzeile {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .knopfzeile > * {
+    width: 100%;
+  }
+
+  /*
+   * DER KINDSELEKTOR OBEN REICHT FUER EINEN KNOPF NICHT: „Ausgewählte löschen"
+   * steht in einem `<form>` (Popconfirm bestaetigt, `requestSubmit` schickt ab),
+   * und `.knopfzeile > *` traefe damit das FORMULAR — voll breit waere die
+   * unsichtbare Huelle, der Knopf darin bliebe auto-breit und stuende halb so
+   * breit neben seinem Nachbarn.
+   *
+   * ZWEI KLASSEN, nicht eine: `.knopf` allein waere (0,1,0) und im Gleichstand
+   * mit `.ant-btn` — bei Gleichstand entscheidet die Dokumentreihenfolge, und
+   * antds Stylesheet kommt SPAETER (`docs/design/README.md:64-79`). (0,2,0)
+   * schlaegt antd unabhaengig davon; `!important` waere zu viel. Dieselbe Form
+   * wie `.aktionen .knopf` in `uploadInsel.module.css`.
+   */
+  .knopfzeile .knopf {
+    width: 100%;
+  }
+
+  /* Untereinander statt nebeneinander: vier Gruppen nebeneinander waeren auf
+     390px vier Spalten zu je 90px. */
+  .filterleiste {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .hinweistext {
+    max-width: none;
+  }
+}

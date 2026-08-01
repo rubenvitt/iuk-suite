@@ -1,5 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
+// Umbenannt beim Import, damit an der Aufrufstelle steht, WOZU sie da ist: ein
+// LESER auf die E2E-Datenbank, kein zweiter Schreibweg neben dem Server.
+import DatenbankLeser from "better-sqlite3";
 
 import { devLogin } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
@@ -79,16 +82,72 @@ async function legeFreigabeAn(
   page: Page,
   datei: { name: string; buffer: Buffer },
   titel: string,
+  zusatz: { passwort?: string; beschreibung?: string } = {},
 ): Promise<void> {
   await page.goto(`${V}/shares/neu`);
   await expect(page.getByTestId("files-neue-freigabe")).toBeVisible();
 
   await page.locator('input[name="title"]').fill(titel);
   await page.locator('input[name="expiryDays"]').fill("1");
+  if (zusatz.beschreibung !== undefined) {
+    await page.locator('textarea[name="description"]').fill(zusatz.beschreibung);
+  }
+  if (zusatz.passwort !== undefined) {
+    await page.locator('input[name="password"]').fill(zusatz.passwort);
+  }
   await page
     .locator('input[type="file"]')
     .setInputFiles({ name: datei.name, mimeType: "image/png", buffer: datei.buffer });
   await page.getByRole("button", { name: /Freigabe anlegen/ }).click();
+}
+
+/**
+ * Kennungen und Wartepunkt der Insel — dieselben Griffe wie in Test 1, hier
+ * einmal statt viermal.
+ *
+ * `data-zustand="fertig"` heisst „die BYTES liegen", nicht „die Datei ist
+ * freigegeben": der AV-Lauf beginnt erst danach. Wer das verwechselt, misst den
+ * Wartezustand nie.
+ */
+async function ladeHochUndWarteAufBytes(
+  page: Page,
+  datei: { name: string; buffer: Buffer },
+  titel: string,
+  zusatz: { passwort?: string; beschreibung?: string } = {},
+): Promise<{ shareId: string; fileId: string }> {
+  await legeFreigabeAn(page, datei, titel, zusatz);
+
+  const eintrag = page.locator("[data-file-id]");
+  await expect(eintrag).toBeVisible({ timeout: 60_000 });
+  const fileId = await eintrag.getAttribute("data-file-id");
+  const shareId = await page.getByTestId("files-upload-liste").getAttribute("data-share-id");
+  expect(fileId, "die Insel muss die Datei-Kennung ausweisen").toBeTruthy();
+  expect(shareId, "die Insel muss die Freigabe-Kennung ausweisen").toBeTruthy();
+
+  await expect(eintrag).toHaveAttribute("data-zustand", "fertig", { timeout: 120_000 });
+  return { shareId: shareId!, fileId: fileId! };
+}
+
+/**
+ * `download_count` DIREKT AUS DER E2E-DATENBANK.
+ *
+ * Warum nicht ueber die Oberflaeche: die Freigaben-Uebersicht zeigt den Zaehler
+ * zwar („n / ∞"), aber nur ANGEMELDET — und Test 5 unten loescht am Ende die
+ * Cookies des Kontexts, um den Zustand „ohne Entsperrung" herzustellen. Eine
+ * Messung, die selbst eine Anmeldung braucht, koennte den Zustand danach nicht
+ * mehr messen. Die Datenbank ist hier die kuerzere und die ehrlichere Auskunft.
+ *
+ * `readonly`, und der Pfad ist `DATA_DIR` aus `playwright.config.ts`. Eine
+ * eigene Verbindung neben der des Servers ist unter WAL unproblematisch.
+ */
+function downloadZaehler(shareId: string): number {
+  const sqlite = new DatenbankLeser("./.data/e2e/files.db", { readonly: true });
+  const zeile = sqlite.prepare("SELECT download_count AS n FROM shares WHERE id = ?").get(shareId) as
+    | { n: number }
+    | undefined;
+  sqlite.close();
+  if (zeile === undefined) throw new Error(`Kein Share ${shareId} in der E2E-Datenbank`);
+  return zeile.n;
 }
 
 test("1 — eine Datei ueber 10 MiB kommt chunkweise vollstaendig an und ist byteweise identisch zurueckzulesen", async ({
@@ -252,4 +311,313 @@ test("3 — `/shares/neu` angemeldet OHNE die Modulgruppe: 404, nicht 403", asyn
   const antwort = await page.goto(`${V}/shares/neu`);
   expect(antwort?.status()).toBe(404);
   await expect(page.getByTestId("files-neue-freigabe")).toHaveCount(0);
+});
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * `/s/<id>` — DIE OEFFENTLICHE ANSICHT UND IHR SERVERSEITIGES PASSWORT-GATE
+ * (Spec §7.4, §11.2, §11.5; Plan T40)
+ *
+ * WARUM DIESE VIER PUNKTE HIER STEHEN UND NICHT IN EINEM VITEST — jeder von
+ * ihnen ist von einer Testebene tiefer STRUKTURELL nicht zu sehen:
+ *
+ * - Punkt 4 misst den ROHEN HTTP-Body. Unter Vitest ist `"use client"` ein
+ *   wirkungsloser String; es entsteht kein RSC-Payload, und ein Baum, den die
+ *   echte Antwort als Client-Referenz uebertruege, rendert dort einfach mit.
+ *   Genau daran liegt der Alt-Defekt (Analyse Falle 12): die Alt-Seite laedt die
+ *   Dateien VOR der Passwortpruefung und uebergibt die fertigen Ansichten als
+ *   `children` an eine Client-Komponente.
+ * - Punkt 5 braucht ein echtes `Set-Cookie` samt Browser-Jar ueber ZWEI
+ *   Anfragen hinweg.
+ * - Punkt 6 vergleicht drei echte HTTP-Antworten byteweise; ein Handler-Test
+ *   (T28) sieht nur seine eigene Rueckgabe.
+ * - Punkt 7 misst eine Datenbankspalte VOR und NACH einem abgewiesenen Request.
+ *   §11.2 weist dieser Zeile ausdruecklich „Handler-Test + E2E" zu.
+ * - Punkt 8 beobachtet den Uebergang `scanning → clean` in einer laufenden
+ *   Anwendung; §11.5 weist ihn E2E zu, und T47 laeuft in `error`, erreicht
+ *   `clean` also nie.
+ *
+ * JEDE FREIGABE HIER ENTSTEHT IM TEST — nichts wird von einer anderen Datei
+ * geerbt (`docs/design/README.md:214-220`).
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Klein — nur Punkt 1 und 2 oben brauchen 12 MiB; fuenf weitere Tests in dieser
+ * Groesse sprengten den Lauf.
+ *
+ * UND EINE KRUMME ZAHL, nicht 4096: sie taucht als „4711" und als „4,6 KiB"
+ * genau einmal im Universum dieser Antwort auf. Eine Zweierpotenz stuende auch
+ * in Bundle-Namen und Chunk-Groessen und machte die Suche unten unbrauchbar —
+ * entweder falsch rot oder (schlimmer) nie rot, weil man sie deshalb weglaesst.
+ */
+const KLEIN = 4711;
+const KLEIN_TEXT = "4,6 KiB";
+
+const PASSWORT = "geheimes-passwort";
+
+test("4 — vor dem Entsperren steht im ROHEN Body kein Dateiname, keine Beschreibung und kein Hash", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  setzeAvModus("ok");
+
+  await devLogin(page, { host: VERWALTUNG, groups: GRUPPE });
+  const { shareId, fileId } = await ladeHochUndWarteAufBytes(
+    page,
+    { name: "geheimakte-t40-payload.png", buffer: pngInhalt(KLEIN) },
+    "Vertrauliche Uebergabe T40",
+    { passwort: PASSWORT, beschreibung: "GEHEIMEBESCHREIBUNGT40" },
+  );
+
+  /*
+   * `page.request.get` und danach `.text()`: der ganze ausgelieferte Text, also
+   * DOM UND RSC-Payload (`self.__next_f.push(...)`) in einer Zeichenkette. Eine
+   * Suche im sichtbaren DOM haette den Payload nicht gesehen — und genau dort
+   * steckte der Alt-Defekt.
+   */
+  const gesperrt = await page.request.get(`${V}/s/${shareId}`);
+  expect(gesperrt.status()).toBe(200);
+  const roh = await gesperrt.text();
+
+  for (const geheim of [
+    "geheimakte-t40-payload.png",
+    "GEHEIMEBESCHREIBUNGT40",
+    // Die Datei-KENNUNG nackt, ohne Adresse drumherum: ein Leck, das rohe
+    // `ShareDatei`-Objekte in den Payload spuelte, truege sie genau so — und
+    // rutschte an einer Liste vorbei, die nur nach `/api/download/` sucht.
+    fileId,
+    // Die GROESSE, in beiden Schreibweisen: als Zahl aus der Spalte und als
+    // Text, wie die Zeile ihn zeigte.
+    String(KLEIN),
+    KLEIN_TEXT,
+    "$2b$",
+    "/api/download/",
+    "/api/preview/",
+  ]) {
+    expect(roh, `„${geheim}" darf vor dem Entsperren im Body nicht vorkommen`).not.toContain(
+      geheim,
+    );
+  }
+  // Die Gegenprobe zur Gegenprobe: die Maske ist ueberhaupt da. Ohne sie
+  // bestuende die Zusage oben auch fuer eine leere Seite.
+  expect(roh).toContain('type="password"');
+
+  /*
+   * UND DIE ANDERE RICHTUNG — UEBER DIE MASKE, NICHT UEBER `page.request`.
+   *
+   * Zwei Dinge auf einmal, und das zweite kann NUR ein echter Browser: dass die
+   * Client-Insel HYDRIERT. Ein API-Aufruf auf `/verify` liefe auch dann durch,
+   * wenn `PasswortMaske` serverseitig zwar rendert, im Browser aber nie zum
+   * Leben kaeme — der Knopf waere dann ein nacktes `submit`, der Browser
+   * schickte ein GET auf dieselbe Adresse, und die Maske erschiene wieder. Von
+   * „Passwort falsch" ist das nicht zu unterscheiden, und alle Zusagen dieser
+   * Datei blieben gruen. Also: tippen, klicken, und danach muss die Datei
+   * DASTEHEN.
+   *
+   * Zugleich der Beleg, dass der Erfolgsweg (`location.reload()`) auf der
+   * entsperrten Seite landet und nicht irgendwo.
+   */
+  await page.goto(`${V}/s/${shareId}`);
+  await expect(page.getByTestId("files-freigabe-passwort")).toBeVisible();
+  await page.locator('input[type="password"]').fill(PASSWORT);
+  await page.getByRole("button", { name: /Freigabe öffnen/ }).click();
+
+  await expect(page.getByText("geheimakte-t40-payload.png")).toBeVisible({ timeout: 30_000 });
+
+  const offen = await (await page.request.get(`${V}/s/${shareId}`)).text();
+  expect(offen).toContain("geheimakte-t40-payload.png");
+  expect(offen).toContain("GEHEIMEBESCHREIBUNGT40");
+  expect(offen).toContain(KLEIN_TEXT);
+  expect(offen).not.toContain("$2b$");
+});
+
+test("5 — entsperrt laedt der Download, ohne Cookie 401 — und ein 401 zaehlt nicht mit", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  setzeAvModus("ok");
+
+  await devLogin(page, { host: VERWALTUNG, groups: GRUPPE });
+  const { shareId, fileId } = await ladeHochUndWarteAufBytes(
+    page,
+    { name: "protokoll.png", buffer: pngInhalt(KLEIN) },
+    "Cookie-Weg T40",
+    { passwort: PASSWORT },
+  );
+  const adresse = `${V}/api/download/${shareId}?file=${fileId}`;
+
+  // OHNE Cookie: 401 — und der Zaehler bleibt stehen (§7.4, letzte zwei
+  // Zusagen). Die Alt-App las `password_hash` auf keinem der drei byteliefernden
+  // Wege.
+  const vorher = downloadZaehler(shareId);
+  expect((await page.request.get(adresse)).status()).toBe(401);
+  expect(downloadZaehler(shareId), "ein 401 darf `download_count` nicht erhoehen").toBe(vorher);
+
+  expect(
+    (await page.request.post(`${V}/api/s/${shareId}/verify`, { data: { password: PASSWORT } }))
+      .status(),
+  ).toBe(200);
+
+  /*
+   * GEPOLLT WIRD DER ZUSTAND, NIE EINE WARTEZEIT. Vor `clean` antwortet der
+   * Download 403 — ohne dieses Warten waere die Cookie-Zusage rennabhaengig
+   * gruen (oder rot, je nachdem, wer schneller ist).
+   */
+  const statusfolge: number[] = [];
+  for (let versuch = 0; versuch < 60; versuch += 1) {
+    const antwort = await page.request.get(adresse);
+    statusfolge.push(antwort.status());
+    if (antwort.status() === 200) break;
+    expect(antwort.status(), `unerwartet auf dem Downloadweg: ${statusfolge.join(", ")}`).toBe(403);
+    await page.waitForTimeout(500);
+  }
+  expect(statusfolge.at(-1), `Statusfolge: ${statusfolge.join(", ")}`).toBe(200);
+
+  // Der positive Gegenbeweis zu den beiden „bleibt stehen"-Zusagen: der Zaehler
+  // BEWEGT sich, wenn der Download durchgeht. Ohne ihn waere „unveraendert"
+  // auch dann gruen, wenn nie irgendetwas zaehlte.
+  expect(downloadZaehler(shareId)).toBe(vorher + 1);
+
+  // Cookie weg = Entsperrung weg. Als LETZTES, weil es auch die Anmeldung
+  // mitloescht — auf einem oeffentlichen Weg ist das ohne Folgen.
+  await page.context().clearCookies();
+  expect((await page.request.get(adresse)).status()).toBe(401);
+  expect(downloadZaehler(shareId), "der zweite 401 zaehlt ebenso wenig").toBe(vorher + 1);
+});
+
+test("6 — das Orakel ist geschlossen: unbekannt, passwortfrei und falsch antworten IDENTISCH", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  setzeAvModus("ok");
+
+  await devLogin(page, { host: VERWALTUNG, groups: GRUPPE });
+  const ohnePasswort = await ladeHochUndWarteAufBytes(
+    page,
+    { name: "offen.png", buffer: pngInhalt(KLEIN) },
+    "Ohne Passwort T40",
+  );
+  const mitPasswort = await ladeHochUndWarteAufBytes(
+    page,
+    { name: "zu.png", buffer: pngInhalt(KLEIN) },
+    "Mit Passwort T40",
+    { passwort: PASSWORT },
+  );
+
+  const faelle: [string, string][] = [
+    // Eine ID in gueltiger Form, die es nicht gibt — sonst schiede sie schon an
+    // der Grammatik aus und der Fall waere ein anderer.
+    ["unbekannte ID", "zzzzzzzzzz"],
+    ["passwortfreier Share", ohnePasswort.shareId],
+    ["falsches Passwort", mitPasswort.shareId],
+  ];
+
+  const antworten: { name: string; status: number; koerper: string }[] = [];
+  for (const [name, id] of faelle) {
+    const a = await page.request.post(`${V}/api/s/${id}/verify`, {
+      data: { password: "definitiv-falsch" },
+    });
+    antworten.push({ name, status: a.status(), koerper: await a.text() });
+  }
+
+  for (const a of antworten) {
+    expect(a.status, `${a.name} muss 401 antworten, nicht 404`).toBe(401);
+  }
+  // UND der Rumpf: ein eigener Text je Fall waere dasselbe Orakel in Prosa.
+  expect(
+    new Set(antworten.map((a) => a.koerper)).size,
+    `drei verschiedene Ruempfe: ${antworten.map((a) => `${a.name}=${a.koerper}`).join(" | ")}`,
+  ).toBe(1);
+});
+
+test("7 — ein 403 (AV nicht `clean`) zaehlt `download_count` nicht hoch", async ({ page }) => {
+  test.setTimeout(180_000);
+  /*
+   * `error` UND NICHT `haengt`: `error` ist ein ENDZUSTAND. Der Zaehler laesst
+   * sich damit ohne Zeitfenster messen — mit `haengt` haette der Test drei
+   * Anfragen in die zwei Sekunden des ersten AV-Versuchs pressen muessen, und
+   * ein verpasstes Fenster waere rennabhaengig ROT.
+   */
+  setzeAvModus("error");
+
+  await devLogin(page, { host: VERWALTUNG, groups: GRUPPE });
+  const { shareId, fileId } = await ladeHochUndWarteAufBytes(
+    page,
+    { name: "gesperrt.png", buffer: pngInhalt(KLEIN) },
+    "AV-Sperre T40",
+  );
+  const adresse = `${V}/api/download/${shareId}?file=${fileId}`;
+
+  const vorher = downloadZaehler(shareId);
+  const antwort = await page.request.get(adresse);
+  expect(antwort.status(), "ohne `clean` liefert der Download keine Bytes").toBe(403);
+  expect(downloadZaehler(shareId), "ein 403 darf `download_count` nicht erhoehen").toBe(vorher);
+
+  // Zweimal, damit „unveraendert" nicht an einem einzelnen Aufruf haengt.
+  expect((await page.request.get(adresse)).status()).toBe(403);
+  expect(downloadZaehler(shareId)).toBe(vorher);
+});
+
+test("8 — der beobachtete Uebergang `scanning → clean`: `<meta refresh>` verschwindet, der Download oeffnet", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  /*
+   * `haengt` VOR dem Upload — dieselbe Bauform wie in Test 1 und aus demselben
+   * Grund: nur so ist „vor `clean` gesperrt" DETERMINISTISCH zu messen. Auf den
+   * natuerlichen Ablauf zu setzen hiesse, eine Sub-Sekunden-Wette abzuschliessen.
+   *
+   * ABWEICHUNG VOM PLANTEXT, DER HIER `setzeAvModus("ok")` NENNT: mit `ok` kann
+   * der Scan fertig sein, BEVOR die erste Seitenanfrage rausgeht — der
+   * Wartezustand waere dann nie da und der Test rennabhaengig rot. Der Rest des
+   * Punktes bleibt woertlich: Wartezustand mit `<meta refresh>` und 403, danach
+   * kein Refresh mehr und 200.
+   *
+   * Der erste AV-Versuch laeuft `FILES_AV_TIMEOUT_MS` (2 000 ms), Versuch 2
+   * beginnt eine Sekunde spaeter und liest den Modus NEU. Zwischen „Bytes
+   * fertig" und dem Umschalten unten liegen deshalb genau zwei Anfragen und
+   * sonst nichts. Wird zu spaet umgeschaltet, sind beide Versuche verbraucht,
+   * die Zeile faellt auf `error` — und der Test wird LAUT rot statt still gruen.
+   */
+  setzeAvModus("haengt");
+
+  await devLogin(page, { host: VERWALTUNG, groups: GRUPPE });
+  const { shareId, fileId } = await ladeHochUndWarteAufBytes(
+    page,
+    { name: "unterwegs.png", buffer: pngInhalt(KLEIN) },
+    "Uebergang T40",
+  );
+  const adresse = `${V}/api/download/${shareId}?file=${fileId}`;
+
+  const gesperrt = await page.request.get(adresse);
+  const wartend = await (await page.request.get(`${V}/s/${shareId}`)).text();
+  setzeAvModus("ok");
+
+  expect(gesperrt.status(), "vor `clean` muss der Download gesperrt sein").toBe(403);
+  expect(
+    wartend,
+    "im Wartezustand traegt die Seite die JS-freie Selbstaktualisierung",
+  ).toContain('http-equiv="refresh"');
+
+  const statusfolge: number[] = [gesperrt.status()];
+  for (let versuch = 0; versuch < 60; versuch += 1) {
+    const antwort = await page.request.get(adresse);
+    statusfolge.push(antwort.status());
+    if (antwort.status() === 200) break;
+    expect(antwort.status(), `unerwartet auf dem Downloadweg: ${statusfolge.join(", ")}`).toBe(403);
+    await page.waitForTimeout(500);
+  }
+  expect(statusfolge.at(-1), `Statusfolge: ${statusfolge.join(", ")}`).toBe(200);
+
+  /*
+   * UND JETZT DIE ANDERE HAELFTE DER ZUSAGE. Der Vitest belegt nur die
+   * ANWESENHEIT des Tags; dass er nach dem Statuswechsel WEG ist, entscheidet
+   * sich an echten Daten — und ohne diese Zeile laedt eine fertige Seite auf
+   * einem fremden Handy weiter alle 5 Sekunden nach.
+   */
+  const fertig = await (await page.request.get(`${V}/s/${shareId}`)).text();
+  expect(fertig).not.toContain('http-equiv="refresh"');
+  expect(fertig).toContain("unterwegs.png");
+  expect(fertig).toContain(`/api/download/${shareId}?file=${fileId}`);
 });

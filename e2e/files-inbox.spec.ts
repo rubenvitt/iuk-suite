@@ -6,6 +6,8 @@ import { nanoid } from "nanoid";
 
 import { zugangslinks } from "@/app/m/files/_db/schema";
 import { erzeugeToken, tokenHash } from "@/app/m/files/_lib/token";
+import { devLogin } from "./fixtures";
+import { setzeAvModus } from "./helpers/avModus";
 
 /**
  * DIE ANONYME ABGABE ÜBER DEN INBOX-HOST — `/u/<token>` (Spec §8.1–§8.3, Plan T38).
@@ -50,6 +52,17 @@ const INBOX = "drop.localtest.me";
 const I = `http://${INBOX}:3100`;
 
 /**
+ * DER ANDERE HOST. Der Posteingang liegt in der Route-Group `(verwaltung)` und
+ * ist unter `drop.…` ein 404 — dass die Abgabe von DORT hier ankommt, ist die
+ * eigentliche Aussage des vierten Tests (Analyse-Falle 17).
+ */
+const VERWALTUNG = "files.localtest.me";
+const V = `http://${VERWALTUNG}:3100`;
+
+/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["drk-files-admin"]`). */
+const GRUPPE = "drk-files-admin";
+
+/**
  * Legt einen Abgabelink an und gibt den Rohtoken zurück.
  *
  * ÜBER DRIZZLE UND NICHT ÜBER EIN HANDGESCHRIEBENES `INSERT`: `expires_at` ist
@@ -64,7 +77,11 @@ const I = `http://${INBOX}:3100`;
  * Seite aus DERSELBEN Wellenstufe, und damit genau die Abhängigkeitskante, die
  * der Plan (§2439) ausschließt.
  */
-function legeAbgabelinkAn(name: string, laufzeitStunden = 24): string {
+function legeAbgabelinkAn(
+  name: string,
+  laufzeitStunden = 24,
+  opts: { widerrufen?: boolean } = {},
+): string {
   expect(
     existsSync(DB_PFAD),
     `${DB_PFAD} fehlt — läuft der e2e-Server mit DATA_DIR=./.data/e2e?`,
@@ -88,6 +105,14 @@ function legeAbgabelinkAn(name: string, laufzeitStunden = 24): string {
         createdAt: jetzt,
         createdBy: "e2e",
         expiresAt: new Date(jetzt.getTime() + laufzeitStunden * 60 * 60 * 1000),
+        /*
+         * WIDERRUF IST KEIN ZEILENLÖSCHEN (§8.6): `revoked_at` bleibt stehen,
+         * damit die `token_id`-Bezüge der schon empfangenen Uploads erhalten
+         * bleiben. Der Link ist danach GÜLTIG SYNTAKTISCH und trotzdem
+         * abgelehnt — genau der Fall, den Test 5 von „unbekanntes Token"
+         * unterscheidet.
+         */
+        revokedAt: opts.widerrufen ? jetzt : null,
         // Großzügig: T50 erzwingt das Mengenbudget in derselben Stufe, und ein
         // knappes Budget ließe die zweite Datei mit 429 auflaufen — ein
         // Fehlschlag, der nach einem Defekt des Formulars aussähe.
@@ -197,4 +222,104 @@ test("3 — ein grammatikalisch unmögliches Token endet auf derselben Seite, oh
    * nachgemessen: sie fiel an genau dieser Stelle.
    */
   expect(await page.locator("body").innerText()).not.toContain(unsinn);
+});
+
+/**
+ * DER POSTEINGANG AUF DEM ANDEREN HOST (Spec §8.6, Plan T43).
+ *
+ * WAS NUR HIER MESSBAR IST: die Kette von der anonymen Abgabe auf `drop.…` bis
+ * zur Zeile auf `files.…` — echter Host-Rewrite in beide Richtungen, echter
+ * Chunk-PUT, echte AV-Kette (Fake-Scanner T14, Warteschlange T17, Startpunkt in
+ * `_lib/boot.ts` T22), echter Download über `/api/inbox/<id>`. Kein Vitest kann
+ * das halten: die eine Hälfte liegt in einem Route Handler ohne Layout, die
+ * andere hinter zwei verschiedenen `Host`-Kopfzeilen.
+ *
+ * GEWARTET WIRD AUF DEN ZUSTAND, NIE AUF EINE ZEITSPANNE. „Ab `clean`
+ * herunterladbar" setzt den abgeschlossenen Scan voraus; vor `clean` antwortet
+ * `/api/inbox/<id>` mit 403 (T32 Punkt 2). Ein Test, der sofort lädt, ist
+ * rennabhängig grün — und ein `waitForTimeout` wäre dieselbe Wette mit mehr
+ * Zeilen. Die Seite frischt sich nicht selbst auf, deshalb steht das `reload()`
+ * IM Wiederholungsblock.
+ */
+test("4 — die anonyme Abgabe erscheint im Posteingang des anderen Hosts und ist ab `clean` herunterladbar", async ({
+  page,
+}) => {
+  // In JEDEM Test, nicht einmal oben: der Fake liest die Modusdatei bei jeder
+  // Verbindung, und T47 setzt im selben Lauf `error` (`workers: 1`).
+  setzeAvModus("ok");
+
+  const token = legeAbgabelinkAn("E2E Posteingang");
+  // EINDEUTIG je Lauf: alle Dateien teilen sich eine Datenbank, und ein fester
+  // Name träfe im zweiten Lauf auf die Zeile des ersten.
+  const dateiname = `posteingang-${Date.now()}.txt`;
+  const inhalt = "Meldung aus dem Posteingang-Test.\n";
+  const hinweis = "Lage Süd, Übergabe 06:15";
+
+  await page.goto(`${I}/u/${token}`);
+  await expect(page.getByTestId("files-abgabe")).toBeVisible();
+  await page.locator("#abgabe-hinweis").fill(hinweis);
+  await page.locator('input[type="radio"][value="dokumente"]').check();
+  await page.locator("#abgabe-dateien").setInputFiles([
+    { name: dateiname, mimeType: "text/plain", buffer: Buffer.from(inhalt, "utf8") },
+  ]);
+  await page.getByTestId("abgabe-absenden").click();
+  await expect(page.getByTestId("eintrag-quittung")).toHaveCount(1, { timeout: 30_000 });
+
+  /*
+   * HOSTWECHSEL. `/posteingang` liegt in der Route-Group `(verwaltung)`, deren
+   * Layout `requireRolle("verwaltung")` UND `requireFilesAccess()` trägt — ohne
+   * Anmeldung in der Modulgruppe gäbe es hier keine Seite, sondern einen Login.
+   */
+  await devLogin(page, { host: VERWALTUNG, groups: GRUPPE, callbackPath: "/posteingang" });
+  await page.goto(`${V}/posteingang`);
+
+  const zeile = () =>
+    page.locator("tbody.ant-table-tbody tr.ant-table-row").filter({ hasText: dateiname });
+
+  await expect(zeile()).toHaveCount(1);
+  // HINWEIS UND KATEGORIE stehen in der Zeile — beide sind Angaben, die die
+  // abgebende Person gemacht hat, und ohne sie wäre die Ansicht eine
+  // Dateiliste statt eines Postfachs.
+  await expect(zeile()).toContainText(hinweis);
+  await expect(zeile()).toContainText("dokumente");
+  // Und der Abgabelink, an dem sie hängt: `token_start` im Klartext.
+  await expect(zeile()).toContainText(token.slice(0, 7));
+
+  await expect(async () => {
+    await page.reload();
+    await expect(zeile()).toContainText("freigegeben");
+  }).toPass({ timeout: 60_000 });
+
+  const adresse = await zeile()
+    .locator("[data-testid^='files-inbox-download-tabelle-']")
+    .getAttribute("href");
+  expect(adresse, "der Download-Knopf trägt keine Adresse").not.toBeNull();
+
+  const antwort = await page.request.get(`${V}${adresse}`);
+  expect(antwort.status()).toBe(200);
+  // `attachment`, nicht `inline`: der Posteingang liefert aus, er zeigt nicht an.
+  expect(antwort.headers()["content-disposition"]).toContain("attachment");
+  expect(await antwort.text()).toBe(inhalt);
+});
+
+/**
+ * EIN WIDERRUFENER LINK LEHNT AB — MIT HTTP 200, NICHT MIT 404.
+ *
+ * Der Unterschied ist die ganze Aussage: ein 404 sähe für den Melder aus wie
+ * ein Tippfehler in der Adresse, und er tippte den gedruckten Code noch einmal.
+ * Die Seite sagt stattdessen, dass DIESER Link nicht mehr gilt (§8.1) — und sie
+ * sagt es mit demselben Satz wie bei einem unbekannten und einem abgelaufenen
+ * Token, damit von außen nicht unterscheidbar ist, welcher der drei Fälle
+ * vorliegt.
+ */
+test("5 — ein widerrufener Abgabelink lehnt ab, ohne 404", async ({ page }) => {
+  const token = legeAbgabelinkAn("E2E widerrufen", 24, { widerrufen: true });
+
+  const res = await page.goto(`${I}/u/${token}`);
+
+  expect(res?.status()).toBe(200);
+  await expect(page.getByTestId("files-abgabe-ungueltig")).toBeVisible();
+  await expect(page.getByText("Dieser Abgabelink ist nicht (mehr) gültig")).toBeVisible();
+  // KEIN Formular: eine Abgabe liefe sonst erst beim ersten Chunk in ein 401.
+  await expect(page.getByTestId("abgabe-formular")).toHaveCount(0);
 });
