@@ -50,7 +50,7 @@ DU BAUST AM MODUL \`files\` (Phase 4 der Konsolidierung: ersetzt \`${W}/easy-fil
 \`${W}/drop\`).
 
 PFLICHTLEKTÜRE, IN DIESER REIHENFOLGE:
-1. \`${SUITE}/CLAUDE.md\` — die SECHS Fallen, die \`pnpm build\` NICHT findet. Sie kosten je einen
+1. \`${SUITE}/CLAUDE.md\` — die SIEBEN Fallen, die \`pnpm build\` NICHT findet. Sie kosten je einen
    halben Tag. Besonders: antd-Compound-Zugriff in Server Components → HTTP 500; ein WERT-Import aus
    einem \`"use client"\`-Modul in eine Server Component → HTTP 500, den kein Gate sieht;
    \`size="large"\` ist 72px (nicht setzen); Spezifität gegen antd-CSS.
@@ -281,7 +281,7 @@ const ergebnisse = await pipeline(
           `2. **Besitzen die Tests ihre Aussagen?** Führe die Mutationsprobe SELBST aus: kippe eine ` +
           `   Konstante oder entferne einen Guard im neuen Code und lasse die Tests laufen. Bleiben ` +
           `   sie grün, ist der Test wertlos — DAS ist ein Blocker. Stelle die Mutation danach zurück.\n` +
-          `3. **Sind die sechs Fallen aus CLAUDE.md vermieden?** Insbesondere: greift eine Server ` +
+          `3. **Sind die sieben Fallen aus CLAUDE.md vermieden?** Insbesondere: greift eine Server ` +
           `   Component auf \`X.Y\` eines antd-Imports zu? Importiert eine Server Component einen ` +
           `   WERT aus einem \`"use client"\`-Modul?\n` +
           `4. **Silent failures:** wird irgendwo ein Fehler geschluckt, ein Fallback still genommen, ` +

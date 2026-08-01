@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **sechs Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **sieben Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -25,6 +25,20 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
    eine Client-Referenz statt des Wertes, HTTP 500 für die ganze Seite. TypeScript ist zufrieden, `build`
    findet nichts, und **Vitest kann es strukturell nicht finden** (dort ist `"use client"` ein
    wirkungsloser String). Werte für Server Components gehören in ein Modul ohne `"use client"` (`_lib/`).
+7. **`@ant-design/icons` in einer Server Component ergibt HTTP 500 — und `"use client"` behebt das
+   nicht, es macht es still.** Der nackte Spezifizierer löst über `exports["."].node.import` auf CJS
+   auf, das `createContext` auf **Modulebene** ruft; in der RSC-Ebene gibt es das nicht →
+   `TypeError: (0, _react.createContext) is not a function`, **schon beim Import, nicht beim Rendern**.
+   `typecheck` und `build` bleiben grün, und **Vitest kann es strukturell nicht sehen** (dort lädt
+   `react` über die `default`-Bedingung, die Icons rendern klaglos) — nur ein echter Abruf zeigt den
+   500. Abhilfe: Client-Insel oder eigenes Inline-SVG. Ein Tiefen-Import (`@ant-design/icons/es`) geht
+   gemessen durch, ist aber kein Vertrag, auf den man bauen sollte. `src/core/shell/icons.test.ts`
+   riegelt das repo-weit ab — geht der Test rot, liegt die Ursache fast nie in `core/shell`, sondern
+   in der Datei, die die Fehlermeldung nennt.
+   **Nicht mit Falle 6 zusammenlegen, die Ursachen sind gegenläufig:** dort kommt ein Wert aus einem
+   als Client markierten Modul nicht an, hier wertet RSC ein Modul aus, das Client sein müsste. Setzt
+   man `"use client"` auf `icons.ts`, verwandelt sich 7 in 6 — HTTP 200 mit **leerer** Map, und der
+   Rückfall trägt still das falsche Icon. Laut ist besser als still.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`), und die Regel für `src/core` lautet: nur was ein **zweites, heute belegbares**

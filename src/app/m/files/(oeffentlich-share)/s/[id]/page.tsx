@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ladeShare, type ShareDatei, type ShareInhalt, type ShareKopf } from "../../../_db/queries";
 import { grenzen } from "../../../_lib/grenzen";
+import { langerZeitpunktBerlin } from "../../../_lib/zeit";
 import { PasswortMaske } from "../../../_ui/PasswortMaske";
 import { vorschauZustand } from "../../../api/preview/[id]/route";
 import s from "./share.module.css";
@@ -87,21 +88,19 @@ function byteText(bytes: number): string {
   return `${zahl} ${BYTE_EINHEITEN_BINAER[stufe]}`;
 }
 
-/**
- * MIT FESTER ZEITZONE. Ohne `timeZone` formatiert `Intl` in der Zone des
- * SERVERPROZESSES — im Container ist das UTC, und der Empfaenger auf einem
- * fremden Handy laese die Ablaufstunde um eine (im Sommer zwei) daneben. Genau
- * das ist die einzige Zahl auf dieser Seite, nach der er sich richtet.
- * `Europe/Berlin` ist dieselbe Festlegung wie `TIME_ZONE` im Modul `feedback`.
+/*
+ * MIT FESTER ZEITZONE — diese Seite hatte sie als EINZIGE im Modul von Anfang
+ * an. Ohne `timeZone` formatiert `Intl` in der Zone des SERVERPROZESSES; im
+ * Container ist das UTC, und der Empfaenger auf einem fremden Handy laese die
+ * Ablaufstunde um eine (im Sommer zwei) daneben. Genau das ist die einzige
+ * Zahl auf dieser Seite, nach der er sich richtet.
+ *
+ * Der Formatierer stand bis 2026-08-01 hier und ist nach `_lib/zeit.ts`
+ * gezogen — nicht weil er falsch war, sondern damit es EINE Stelle gibt: die
+ * fuenf anderen Ansichten des Moduls hatten die Zone NICHT gesetzt, und eine
+ * Zusage, die an einer von sechs Stellen richtig steht, ist keine. Der
+ * angezeigte Text dieser Seite aendert sich dadurch nicht.
  */
-const DATUM = new Intl.DateTimeFormat("de-DE", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "Europe/Berlin",
-});
 
 /**
  * Der Zustand EINER Zeile — Text plus Symbol, nie Farbe allein
@@ -274,7 +273,7 @@ function Inhalt({
         <p className={`fp-text ${s.beschreibung}`}>{share.beschreibung}</p>
       )}
       <p className={`fp-meta ${s.randdaten}`}>
-        Verfügbar bis {DATUM.format(share.ablaufAt)}
+        Verfügbar bis {langerZeitpunktBerlin(share.ablaufAt)}
         {share.maxDownloads !== null &&
           ` · noch ${Math.max(0, share.maxDownloads - share.downloadCount)} von ${share.maxDownloads} Downloads`}
       </p>

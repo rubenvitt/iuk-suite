@@ -3,6 +3,7 @@ import { Alert, Button, Card } from "antd";
 import { notFound } from "next/navigation";
 import { ladeUebersicht, type UebersichtZeile } from "../_db/queries";
 import { entschaerfeTitel } from "../_lib/zip";
+import { zeitpunktBerlin } from "../_lib/zeit";
 import type { Rolle } from "../_lib/hostRolle";
 import { SharesTabelle, SharesTabelleSkelett, type ShareZeile } from "./SharesTabelle";
 
@@ -66,7 +67,10 @@ function byteTextBinaer(bytes: number): string {
   return `${zahl} ${BYTE_EINHEITEN_BINAER[stufe]}`;
 }
 
-const ZEITPUNKT = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" });
+/* Die Zeitzone steht im NAMEN der Funktion, nicht in einem Kommentar (§9.1) —
+   und sie steht nur EINMAL, in `_lib/zeit.ts`. Ein Formatierer ohne `timeZone`
+   uebernaehme die Zone des Serverprozesses; im Container ist das UTC, und die
+   Ablaufstunde stuende im Sommer zwei Stunden zu frueh. */
 
 /**
  * DIE PROJEKTION AN DER RSC-GRENZE — und der Grund, warum sie einen Namen hat.
@@ -101,7 +105,7 @@ export function zuZeile(roh: UebersichtZeile, jetzt: Date): ShareZeile {
     anzahlDateien: roh.anzahlDateien,
     anzahlUnvollstaendig: roh.anzahlUnvollstaendig,
     groesseText: byteTextBinaer(roh.gesamtGroesse),
-    ablaufText: ZEITPUNKT.format(roh.ablaufAt),
+    ablaufText: zeitpunktBerlin(roh.ablaufAt),
     abgelaufen: roh.ablaufAt.getTime() <= jetzt.getTime(),
     /* `null` = UNBEGRENZT, nicht 0 und nicht −1 (§4.2) — deshalb `??` und
        niemals `||`: die Alt-Zeile `maxDownloads || null` machte aus „0

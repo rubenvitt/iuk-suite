@@ -235,6 +235,36 @@ describe("Zustandsmatrix §10.1 — die Wege, die kein Inhalt sind", () => {
     expect(html).not.toContain("geheim-limit.pdf");
   });
 
+  /**
+   * „VERFÜGBAR BIS" IST DIE EINZIGE ZAHL, NACH DER SICH DER EMPFAENGER RICHTET —
+   * und sie war bis 2026-08-01 unbewacht.
+   *
+   * Diese Seite war die einzige im Modul, die `timeZone` von Anfang an setzte;
+   * die Zusage stand aber nur im Kommentar, kein Test besass sie. Ein Umbau,
+   * der den Formatierer anfasst (wie der Umzug nach `_lib/zeit.ts`), waere
+   * ohne diese Zeilen gruen durchgegangen — auf einem Entwicklungsrechner, der
+   * ohnehin auf `Europe/Berlin` steht, ist „ohne Zone" von „Berlin" nicht zu
+   * unterscheiden. Im Container (UTC) ist es der Unterschied zwischen 14:00 und
+   * 12:00.
+   *
+   * SOMMER UND WINTER, und das ist keine Gruendlichkeit: mit nur einem
+   * Sommerzeitpunkt waeren `Europe/Berlin` und ein fest verdrahtetes `+02:00`
+   * nicht zu unterscheiden. Beide Zeitpunkte sind absolut (`…Z`) und liegen
+   * nach der festen Uhr `JETZT`, damit die Freigabe gueltig ist.
+   */
+  it("nennt „Verfügbar bis“ in Berliner Wanduhrzeit — sommers wie winters", async () => {
+    await legeShare({ id: "shZeitWin1", ablaufAt: new Date("2027-01-22T12:00:00Z") });
+    await legeDatei({ id: "fi0000000W", shareId: "shZeitWin1", dateiname: "lage-winter.pdf" });
+    // 12:00 UTC im Januar sind 13:00 Berliner Wanduhr (CET, UTC+1).
+    expect(await markup("shZeitWin1")).toContain("Verfügbar bis 22. Januar 2027 um 13:00");
+
+    await legeShare({ id: "shZeitSom1", ablaufAt: new Date("2027-07-15T12:00:00Z") });
+    await legeDatei({ id: "fi0000000S", shareId: "shZeitSom1", dateiname: "lage-sommer.pdf" });
+    // Dieselbe UTC-Stunde im Juli sind 14:00 (CEST, UTC+2) — der Beleg, dass
+    // hier eine ZONE wirkt und kein fester Versatz.
+    expect(await markup("shZeitSom1")).toContain("Verfügbar bis 15. Juli 2027 um 14:00");
+  });
+
   it("`max_downloads = 0` ist erschöpft, nicht unbegrenzt", async () => {
     await legeShare({ id: "shNull0001", maxDownloads: 0, downloadCount: 0 });
     await legeDatei({ id: "fi00000003", shareId: "shNull0001", dateiname: "geheim-null.pdf" });

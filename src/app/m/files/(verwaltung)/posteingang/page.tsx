@@ -3,6 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../_db/client";
 import { inboxFiles, zugangslinks } from "../../_db/schema";
 import { AV_STATUS, istFreigegeben, type AvStatus } from "../../_lib/av";
+import { zeitpunktBerlin } from "../../_lib/zeit";
 import { PosteingangTabelle, type PosteingangZeile } from "../../_ui/PosteingangTabelle";
 
 /**
@@ -32,8 +33,6 @@ import { PosteingangTabelle, type PosteingangZeile } from "../../_ui/Posteingang
  * deshalb gar nicht erst — sie steht in keiner Spalte aus §8.6, und eine
  * unbestaetigte IP eines anonymen Melders gehoert in kein Markup.
  */
-
-const ZEITPUNKT = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" });
 
 /** `Date.getTime()` liefert MILLISEKUNDEN — die Insel rechnet in SEKUNDEN. */
 const MILLISEKUNDEN_PRO_SEKUNDE = 1000;
@@ -90,7 +89,12 @@ export default async function FilesPosteingangSeite() {
     return {
       id: roh.id,
       empfangenSekunden: Math.floor(roh.empfangenAt.getTime() / MILLISEKUNDEN_PRO_SEKUNDE),
-      empfangenText: ZEITPUNKT.format(roh.empfangenAt),
+      /* Die Zeitzone steht im NAMEN und nur EINMAL, in `_lib/zeit.ts`: ohne
+         feste Zone formatierte `Intl` in der Zone des Serverprozesses — im
+         Container UTC, also zwei Stunden vor der Berliner Wanduhr. Der
+         Empfangszeitpunkt ist genau die Zahl, nach der jemand die Meldung
+         einordnet. */
+      empfangenText: zeitpunktBerlin(roh.empfangenAt),
       dateiname: roh.dateiname,
       groesseBytes: roh.size,
       // ROH weitergereicht: die Anzeige toleriert unbekannte Werte, das

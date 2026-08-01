@@ -73,7 +73,13 @@ const DIR = "./.data/files-bearbeiten-test";
  * waere dann mal gruen und mal rot, ohne dass sich Kode aendert. Echte Timer
  * bleiben stehen, weil `renderToReadableStream` sie braucht.
  */
-const JETZT = new Date(2026, 6, 25, 12, 0, 0);
+/*
+ * ABSOLUTER ZEITPUNKT (`…Z`), NICHT `new Date(2026, 6, 25, 12, 0, 0)`: der
+ * lokale Konstruktor liest die Zone des PROZESSES, `ablaufText` formatiert seit
+ * `_lib/zeit.ts` fest auf `Europe/Berlin`. 10:00 UTC sind im Juli 12:00
+ * Berliner Wanduhr — und das gilt auch im Container, der auf UTC laeuft.
+ */
+const JETZT = new Date("2026-07-25T10:00:00Z"); // 12:00 Berliner Wanduhr
 
 /**
  * `mode: "timestamp"` fuehrt SEKUNDEN (`_db/schema.ts`) — geschrieben wird
@@ -210,7 +216,10 @@ const STANDARD: BearbeitenFormularProps = {
   maxDownloadsText: "",
   hatPasswort: false,
   restTage: 6,
-  ablaufText: "31. Juli 2026, 12:00",
+  /* Die Form, die `page.tsx` tatsaechlich uebergibt (`zeitpunktBerlin` aus
+     `_lib/zeit.ts`) — eine erfundene Schreibweise im Pruefstand liesse eine
+     Formatumstellung hier unbemerkt durchgehen. */
+  ablaufText: "31.07.2026, 12:00",
   abgelaufen: false,
   maxAblaufTage: 30,
 };
@@ -262,6 +271,16 @@ describe("die Seite laedt die Zeile", () => {
     // korrigierte, verkuerzte den Share auf 24 Stunden (§7.3, Punkt 1).
     expect(html).toMatch(/data-testid="files-bearbeiten-ablauf"[^>]*value="6"/);
     expect(html).not.toMatch(/data-testid="files-bearbeiten-ablauf"[^>]*value="1"/);
+
+    /*
+     * UND DER ABLAUF ALS TEXT, in Berliner Wanduhrzeit. Die Restlaufzeit oben
+     * ist eine DIFFERENZ und damit zonenfrei — sie kann den Defekt dieser Naht
+     * strukturell nicht sehen. Der Text kann es: bis 2026-08-01 stand hier ein
+     * Formatierer ohne `timeZone`, der die Zone des Prozesses las (im Container
+     * UTC). `IN_SECHS_TAGEN` ist 2026-07-31T10:00:00Z, also 12:00 Berliner
+     * Wanduhr — ohne feste Zone stuende dort im Container „10:00".
+     */
+    expect(html).toContain("31.07.2026, 12:00");
   });
 
   it("RUNDET eine angebrochene Restlaufzeit AUF — Abrunden verkuerzte die Freigabe", async () => {

@@ -102,8 +102,15 @@ const DATEI_E = "fi-aaaaaa5";
  * geschrieben wird deshalb ueber Drizzle mit `Date`-Objekten, damit nirgends ein
  * Faktor 1000 von Hand entsteht.
  */
-const JETZT = new Date(2026, 6, 25, 12, 0, 0);
-const IN_SECHS_TAGEN = new Date(2026, 6, 31, 14, 0, 0);
+/*
+ * ABSOLUTE ZEITPUNKTE (`…Z`), NICHT `new Date(2026, 6, 25, 12, 0, 0)`: der
+ * lokale Konstruktor liest die Zone des PROZESSES, die Anzeige formatiert seit
+ * `_lib/zeit.ts` fest auf `Europe/Berlin`. Mit dem lokalen Konstruktor stuende
+ * die erwartete Uhrzeit unter `TZ=UTC` zwei Stunden daneben — und der Container
+ * laeuft auf UTC.
+ */
+const JETZT = new Date("2026-07-25T10:00:00Z"); // 12:00 Berliner Wanduhr
+const IN_SECHS_TAGEN = new Date("2026-07-31T12:00:00Z"); // 14:00 Berliner Wanduhr
 
 /**
  * `shares.total_size` steht bewusst auf einer Zahl, die mit KEINER Zeilensumme
@@ -488,6 +495,59 @@ describe("die Metadaten tragen Zustand, Menge und Datum", () => {
     expect(query2(await dom(), "[data-testid='files-detail-metadaten']")).not.toContain(
       "abgelaufen",
     );
+  });
+
+  /**
+   * DIE UHRZEIT IST DIE BERLINER WANDUHRZEIT, NICHT DIE DES SERVERPROZESSES.
+   *
+   * Diese Seite trug bis 2026-08-01 ZWEI Formatierer ohne `timeZone`; beide
+   * lasen damit die Zone des Prozesses. Im Container ist das UTC (weder
+   * `compose.yaml` noch das `Dockerfile` setzen `TZ`), und Ablauf, Erstellung
+   * und jede Protokollzeile standen im Sommer zwei Stunden zu frueh. Lokal fiel
+   * das nicht auf, weil die Entwicklungsmaschine auf `Europe/Berlin` steht:
+   * **die Anzeige war lokal richtig und in Produktion falsch.**
+   *
+   * Die Zeitpunkte sind deshalb absolut (`…Z`) und die Erwartung ist die
+   * Berliner Wanduhrzeit — 12:00 UTC sind im Juli 14:00. Der Test ist damit
+   * unter JEDER Prozess-Zeitzone dieselbe Aussage; `_lib/zeit.test.ts` faehrt
+   * die Gegenprobe unter vier davon.
+   *
+   * BEIDE FORMEN, denn es sind zwei verschiedene Zusagen: die Metadaten ohne
+   * SEKUNDE, das Protokoll MIT — zwei Downloads derselben Minute waeren sonst
+   * nicht auseinanderzuhalten.
+   *
+   * DREI AUFRUFSTELLEN, DREI ZUSICHERUNGEN — und die dritte fehlte hier bis zur
+   * Nachbesserung: die Karte traegt NEBEN dem Ablauf auch den
+   * ERSTELLUNGSZEITPUNKT, und der war unbewacht. Belegt: `zeitpunktBerlin` an
+   * dieser Stelle durch das Literal „01.01.2000, 00:00" ersetzt liesz alle 36
+   * Tests dieser Datei gruen (und, vom Reviewer gemessen, alle 1463 des Moduls).
+   * Eine Zusage auf `ZEITZONE_ANZEIGE` kann das strukturell nicht auffangen: sie
+   * faerbt jede Stelle zugleich und belegt damit nur den Baustein.
+   *
+   * DIE ZUSICHERUNG IST AUF DIE KARTE EINGEGRENZT, nicht auf das ganze Markup:
+   * die Protokollzeile darunter lautet „25.07.2026, 12:00:03" und ENTHAELT die
+   * gesuchte Zeichenfolge — ein `toContain` ueber das Markup waere gruen, ohne
+   * die Karte je gelesen zu haben.
+   *
+   * WAS DIESE ZEILEN NICHT BEWEISEN: nicht die Zone selbst. Ein handgeschriebener
+   * `Intl`-Formatierer OHNE `timeZone` ergaebe auf der Berliner
+   * Entwicklungsmaschine dieselbe Zeichenfolge. Diese Datei besitzt „die Stelle
+   * zeigt den Berliner Wert des richtigen Feldes"; dass der Baustein unter JEDER
+   * Prozesszone Berlin formatiert, besitzt `_lib/zeit.test.ts`. Erst zusammen
+   * tragen sie den Satz.
+   */
+  it("zeigt Ablauf, Erstellung und Protokollzeit in Berliner Wanduhrzeit", async () => {
+    await legeShare({ ablaufAt: IN_SECHS_TAGEN });
+    await legeDatei({ id: DATEI_A });
+    // 2026-07-25T10:00:00Z + 3 s — die Sekunde macht die genaue Form sichtbar.
+    await legeLog({ zeit: new Date(JETZT.getTime() + 3000) });
+
+    const kopf = query2(await dom(), "[data-testid='files-detail-metadaten']");
+    expect(kopf).toContain("31.07.2026, 14:00");
+    // `legeShare` schreibt `createdAt: JETZT` fest — 10:00 UTC sind im Juli
+    // 12:00 Berliner Wanduhr, der Wert ist also zonenunabhaengig bestimmt.
+    expect(kopf).toContain("25.07.2026, 12:00");
+    expect(await markup()).toContain("25.07.2026, 12:00:03");
   });
 
   it("nennt Passwortschutz mit Ja/Nein statt mit einem Symbol allein", async () => {

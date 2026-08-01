@@ -7,6 +7,7 @@ import { ladeAuditLog, ladeShareDetail, type ShareDatei } from "../../../_db/que
 import type { AvStatus } from "../../../_lib/av";
 import { oeffentlicheUrl } from "../../../_lib/hostRolle";
 import { entschaerfeTitel } from "../../../_lib/zip";
+import { zeitpunktBerlin, zeitpunktGenauBerlin } from "../../../_lib/zeit";
 import { AuditLog, type AuditLogZeile } from "../../../_ui/AuditLog";
 import { ShareDetailAktionen } from "../../../_ui/ShareDetailAktionen";
 
@@ -82,15 +83,16 @@ function byteTextBinaer(bytes: number): string {
   return `${zahl} ${BYTE_EINHEITEN_BINAER[stufe]}`;
 }
 
-const ZEITPUNKT = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" });
-
-/** Das Protokoll führt SEKUNDEN mit: zwei Downloads derselben Minute wären sonst
- *  nicht auseinanderzuhalten, und genau die Reihenfolge ist die Frage, die man
- *  an ein Zugriffsprotokoll stellt. */
-const ZEITPUNKT_GENAU = new Intl.DateTimeFormat("de-DE", {
-  dateStyle: "medium",
-  timeStyle: "medium",
-});
+/*
+ * BEIDE ZEITFORMEN KOMMEN AUS `_lib/zeit.ts` — die Zeitzone steht dort im NAMEN
+ * und nur an dieser einen Stelle (§9.1). Ohne feste Zone formatierte `Intl` in
+ * der Zone des Serverprozesses; im Container ist das UTC, und Ablauf,
+ * Erstellung und jede Protokollzeile stuenden im Sommer zwei Stunden zu frueh.
+ *
+ * `zeitpunktGenauBerlin` traegt die SEKUNDE, `zeitpunktBerlin` nicht: zwei
+ * Downloads derselben Minute waeren sonst nicht auseinanderzuhalten, und genau
+ * die Reihenfolge ist die Frage, die man an ein Zugriffsprotokoll stellt.
+ */
 
 /**
  * DER NACHLADEWEG DES PROTOKOLLS, und er ist festgelegt: **ein Suchparameter
@@ -310,7 +312,7 @@ export default async function ShareDetailSeite({
   const nameJeDatei = new Map(detail.dateien.map((datei) => [datei.id, datei.dateiname]));
   const protokoll: AuditLogZeile[] = logZeilen.map((zeile) => ({
     id: zeile.id,
-    zeitText: ZEITPUNKT_GENAU.format(zeile.zeit),
+    zeitText: zeitpunktGenauBerlin(zeile.zeit),
     dateiId: zeile.dateiId,
     dateiname: zeile.dateiId === null ? null : (nameJeDatei.get(zeile.dateiId) ?? null),
     ipText: zeile.clientIpUnbestaetigt ?? "—",
@@ -354,7 +356,7 @@ export default async function ShareDetailSeite({
             Größe aus ZWEI Quellen und können verschiedene Zahlen zeigen. */}
         <p>Größe: {groesseText}</p>
         <p>
-          Ablauf: {ZEITPUNKT.format(detail.ablaufAt)}
+          Ablauf: {zeitpunktBerlin(detail.ablaufAt)}
           {abgelaufen && <> — abgelaufen</>}
         </p>
         {/* `null` = UNBEGRENZT, nicht 0 und nicht −1 (§4.2) — deshalb `??` und
@@ -366,7 +368,7 @@ export default async function ShareDetailSeite({
           {detail.erstelltVon === ALTBESTAND
             ? "Altbestand — nicht zuordenbar"
             : detail.erstelltVon}{" "}
-          am {ZEITPUNKT.format(detail.erstelltAt)}
+          am {zeitpunktBerlin(detail.erstelltAt)}
         </p>
       </Card>
 

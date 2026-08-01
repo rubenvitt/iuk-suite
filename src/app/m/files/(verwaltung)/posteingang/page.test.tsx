@@ -204,8 +204,23 @@ describe("Posteingang-Seite — die Einheit der Zeit", () => {
     // UND DIE GROESZENORDNUNG, als zweite, unabhaengige Aussage: eine
     // Millisekundenzahl laege drei Groeszenordnungen darueber.
     expect(zeilen[0].empfangenSekunden).toBeLessThan(OBERGRENZE_SEKUNDEN);
-    // Der formatierte Text kommt aus DERSELBEN Quelle und ist nicht leer.
-    expect(zeilen[0].empfangenText).not.toBe("");
+    /*
+     * DER FORMATIERTE TEXT, EXAKT — und nicht mehr bloss „nicht leer".
+     *
+     * 1.784.980.800 ist der 25.07.2026, 12:00 Uhr UTC; die Berliner Wanduhr
+     * zeigt dann 14:00 (Sommerzeit, UTC+2). Bis 2026-08-01 stand hier ein
+     * Formatierer OHNE `timeZone`, der die Zone des PROZESSES las — im
+     * Container UTC, und die Spalte zeigte „12:00". Lokal fiel das nicht auf,
+     * weil die Entwicklungsmaschine auf `Europe/Berlin` steht: **die Anzeige
+     * war lokal richtig und in Produktion falsch.**
+     *
+     * `not.toBe("")` konnte das nicht sehen — ein `toISOString()`, eine
+     * vertauschte Spalte und die falsche Stunde waren dort alle drei gruen.
+     * Die Zusage gilt jetzt unter jeder Prozess-Zeitzone, weil die Quelle eine
+     * absolute Unix-Sekunde ist und `_lib/zeit.ts` fest nach `Europe/Berlin`
+     * formatiert.
+     */
+    expect(zeilen[0].empfangenText).toBe("25.07.2026, 14:00");
   });
 
   it("reicht `jetztSekunden` als Unix-SEKUNDE weiter — dieselbe Einheit wie die Zeilen", async () => {

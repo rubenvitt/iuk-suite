@@ -9,6 +9,7 @@ import {
   type ShareFormZustand,
 } from "../(verwaltung)/actions";
 import { QrDialog } from "./QrDialog";
+import styles from "./shareDetailAktionen.module.css";
 
 /**
  * DIE HANDLUNGEN DER SHARE-DETAILSEITE (Spec §7.3, §7.5, §7.9, §10.2; Plan T41
@@ -29,6 +30,23 @@ import { QrDialog } from "./QrDialog";
  * „Bearbeiten" ist dagegen nur ein Link und könnte auch in der Seite stehen — er
  * steht hier, damit die vier Handlungen EINE Knopfzeile bilden statt zweier
  * Reihen, die zufällig nebeneinander landen.
+ *
+ * DIE KNOPFZEILE HAT EINE REGEL, UND SIE IST VERBINDLICH: „Handlungsknöpfe unter
+ * 768px sind volle Breite und stehen untereinander, nie nebeneinander"
+ * (`docs/design/README.md:189-190`). Sie steht in
+ * `shareDetailAktionen.module.css`; hier bleibt nur, was das Markup dazu
+ * beitragen muss — und das ist mehr als eine Klasse am Container:
+ *  - Die Umschaltung ist CSS, nie JavaScript. Kein `Grid.useBreakpoint`, kein
+ *    `matchMedia`: ein JS-Breakpoint zeigt beim ersten Render die falsche
+ *    Variante (`docs/design/README.md:163-165`).
+ *  - JEDER Knopf trägt zusätzlich `styles.knopf`, auch der im Löschformular.
+ *    Ein Kindselektor auf der Zeile träfe dort nur das `<form>`; der Knopf darin
+ *    bliebe auto-breit und stünde halb so breit neben seinen Nachbarn. Die
+ *    Begründung der Spezifität steht in der CSS-Datei, wo die Regel steht.
+ *  - `size` wird an keinem Knopf gesetzt. `controlHeight` ist 56 und schon das
+ *    richtige Touch-Maß; `size="large"` wären 72px, `size="small"`
+ *    unterschritte die 44px-Trefferfläche (Ausnahme wäre nur eine Tabellenzeile,
+ *    und eine solche gibt es hier nicht).
  *
  * DIE WERTE KOMMEN FERTIG HEREIN — Text, keine `Date`-Objekte, keine
  * Drizzle-Zeilen. Dieselben drei Gründe wie bei `SharesTabelle`: `password_hash`
@@ -114,32 +132,44 @@ export function ShareDetailAktionen({
   const aufstockFehler = fehlerText(aufstockZustand);
 
   return (
-    <div data-testid="files-detail-aktionen">
+    <div className={styles.aktionen} data-testid="files-detail-aktionen">
       {/*
        * DIE ADRESSE STEHT ALS TEXT DA, nicht nur im Kopierknopf: ohne
        * `navigator.clipboard` (unsicherer Kontext, verweigerte Berechtigung)
-       * bliebe sie sonst unerreichbar. `userSelect: all` macht einen Klick zur
-       * vollständigen Auswahl.
+       * bliebe sie sonst unerreichbar. `user-select: all` macht einen Klick zur
+       * vollständigen Auswahl — es steht mit dem Umbruch zusammen in der
+       * CSS-Datei, weil eine Adresse ohne Leerzeichen auf 390px keine
+       * Umbruchstelle hat und die Seite sonst nach rechts schöbe.
        */}
-      <p data-testid="files-detail-adresse" style={{ userSelect: "all" }}>
+      <p className={styles.adresse} data-testid="files-detail-adresse">
         {oeffentlicheAdresse}
       </p>
 
-      <div>
-        {/* Kein `size`: `controlHeight` ist 56 und schon das richtige
-            Touch-Maß; `size="large"` wären 72px. */}
-        <Button onClick={kopieren} data-testid="files-detail-kopieren">
+      {/* Der Griff für T48: Klassennamen eines CSS-Moduls sind gehasht und in
+          Playwright nicht adressierbar — ohne diese `data-testid` hätte die
+          Mobil-Abnahme nichts zu messen. */}
+      <div className={styles.knopfzeile} data-testid="files-detail-knopfzeile">
+        <Button
+          className={styles.knopf}
+          onClick={kopieren}
+          data-testid="files-detail-kopieren"
+        >
           {kopiert ? "Kopiert ✓" : "Link kopieren"}
         </Button>
 
         <Button
+          className={styles.knopf}
           href={`/shares/${shareId}/bearbeiten`}
           data-testid="files-detail-bearbeiten"
         >
           Bearbeiten
         </Button>
 
-        <Button onClick={() => setQrOffen(true)} data-testid="files-detail-qr">
+        <Button
+          className={styles.knopf}
+          onClick={() => setQrOffen(true)}
+          data-testid="files-detail-qr"
+        >
           QR
         </Button>
 
@@ -166,7 +196,7 @@ export function ShareDetailAktionen({
             {/* `danger` OHNE `type="primary"`: `colorError === colorPrimary ===
                 #c8000f`, ein roter Vollknopf wäre pixelgleich mit einer
                 Primäraktion. Rot bleibt am Rand. */}
-            <Button danger data-testid="files-detail-loeschen">
+            <Button className={styles.knopf} danger data-testid="files-detail-loeschen">
               Löschen
             </Button>
           </Popconfirm>
@@ -196,21 +226,39 @@ export function ShareDetailAktionen({
        * Download überschreiben (§7.5).
        */}
       {hatDownloadLimit && (
-        <form action={aufstocken} data-testid="files-detail-aufstocken">
+        <form
+          className={styles.aktionen}
+          action={aufstocken}
+          data-testid="files-detail-aufstocken"
+        >
           <input type="hidden" name="id" value={shareId} />
           <label htmlFor="zusatzDownloads">Downloads aufstocken um</label>
-          <Input
-            id="zusatzDownloads"
-            name="zusatzDownloads"
-            type="number"
-            min={1}
-            step={1}
-            defaultValue={10}
-            status={aufstockFehler === null ? undefined : "warning"}
-          />
-          <Button htmlType="submit" data-testid="files-detail-aufstocken-absenden">
-            Aufstocken
-          </Button>
+          {/*
+           * EINE ZWEITE `knopfzeile`, und das ist kein Zierrat: „Aufstocken" ist
+           * ein Handlungsknopf wie die vier oben, und die 768px-Regel sagt
+           * nicht „nur die oberste Reihe". Stünde er außerhalb, hätte dieselbe
+           * Ansicht zwei verschiedene Antworten auf dieselbe Regel — und die
+           * zweite fiele niemandem auf, weil sie nur unter 768px sichtbar wird.
+           */}
+          <div className={styles.knopfzeile} data-testid="files-detail-aufstocken-zeile">
+            <Input
+              className={styles.zahlfeld}
+              id="zusatzDownloads"
+              name="zusatzDownloads"
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={10}
+              status={aufstockFehler === null ? undefined : "warning"}
+            />
+            <Button
+              className={styles.knopf}
+              htmlType="submit"
+              data-testid="files-detail-aufstocken-absenden"
+            >
+              Aufstocken
+            </Button>
+          </div>
           {aufstockFehler !== null && (
             <Alert
               type="warning"

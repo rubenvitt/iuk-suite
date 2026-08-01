@@ -5,6 +5,7 @@ import { getDb } from "../../_db/client";
 import { zugangslinks } from "../../_db/schema";
 import { hostFuerRolle, oeffentlicheUrl } from "../../_lib/hostRolle";
 import { entschaerfeTitel } from "../../_lib/zip";
+import { zeitpunktBerlin } from "../../_lib/zeit";
 import { ZugangslinksListe, type ZugangslinkZeile } from "../../_ui/ZugangslinksListe";
 
 /**
@@ -59,8 +60,6 @@ function byteText(bytes: number): string {
   return `${zahl} ${BYTE_EINHEITEN[stufe]}`;
 }
 
-const ZEITPUNKT = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" });
-
 export default async function FilesZugangslinksSeite() {
   const kopfzeilen = await headers();
 
@@ -101,7 +100,12 @@ export default async function FilesZugangslinksSeite() {
     laufzeitText: `${Math.round(
       (roh.expiresAt.getTime() - roh.createdAt.getTime()) / MILLISEKUNDEN_PRO_STUNDE,
     )} h`,
-    ablaufText: ZEITPUNKT.format(roh.expiresAt),
+    /* Die Zeitzone steht im NAMEN und nur EINMAL, in `_lib/zeit.ts`. Ohne feste
+       Zone formatierte `Intl` in der Zone des Serverprozesses — im Container
+       UTC, also zwei Stunden vor der Berliner Wanduhr. Die Laufzeit darueber
+       ist davon unberuehrt: sie ist eine DIFFERENZ zweier Zeitpunkte und
+       zonenfrei. */
+    ablaufText: zeitpunktBerlin(roh.expiresAt),
     /*
      * DER WIDERRUF GEWINNT ueber den Ablauf. Beides kann zugleich zutreffen, und
      * „widerrufen" ist die Aussage ueber eine ENTSCHEIDUNG; „abgelaufen" ist nur

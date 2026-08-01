@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ladeShareDetail } from "../../../../_db/queries";
 import { grenzen } from "../../../../_lib/grenzen";
+import { zeitpunktBerlin } from "../../../../_lib/zeit";
 import { BearbeitenFormular } from "./BearbeitenFormular";
 
 /**
@@ -45,8 +46,6 @@ import { BearbeitenFormular } from "./BearbeitenFormular";
  * einer plausiblen Zahl aus.
  */
 const MILLISEKUNDEN_PRO_TAG = 24 * 60 * 60 * 1000;
-
-const ZEITPUNKT = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" });
 
 /**
  * DIE RESTLAUFZEIT IN GANZEN TAGEN — die einzige Zahl, die man wieder abschicken
@@ -116,7 +115,11 @@ export default async function ShareBearbeitenSeite({
         maxDownloadsText={share.maxDownloads === null ? "" : String(share.maxDownloads)}
         hatPasswort={share.hatPasswort}
         restTage={restTage(share.ablaufAt, jetzt)}
-        ablaufText={ZEITPUNKT.format(share.ablaufAt)}
+        /* Die Zeitzone steht im NAMEN und nur EINMAL, in `_lib/zeit.ts`. Ohne
+           feste Zone formatierte `Intl` in der Zone des Serverprozesses — im
+           Container UTC. Die Restlaufzeit oben ist davon unberuehrt: sie ist
+           eine DIFFERENZ zweier Zeitpunkte und damit zonenfrei. */
+        ablaufText={zeitpunktBerlin(share.ablaufAt)}
         // Serverseitig entschieden: rechnete es der Browser, entschieden Server
         // und Client an der Ablaufsekunde verschieden.
         abgelaufen={share.ablaufAt.getTime() <= jetzt.getTime()}

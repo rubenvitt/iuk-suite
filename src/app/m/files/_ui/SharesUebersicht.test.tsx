@@ -72,9 +72,23 @@ const DIR = "./.data/files-uebersicht-test";
  * Faktor 1000 von Hand entsteht. Ein solcher Fehler waere still: 24 Stunden
  * saehen als 24 Sekunden immer noch nach einer plausiblen Zahl aus.
  */
-const JETZT = new Date(2026, 6, 25, 12, 0, 0);
-const IN_SECHS_TAGEN = new Date(2026, 6, 31, 14, 0, 0);
-const VOR_EINEM_TAG = new Date(2026, 6, 24, 12, 0, 0);
+/*
+ * ABSOLUTE ZEITPUNKTE (`…Z`), NICHT `new Date(2026, 6, 31, 14, 0, 0)`.
+ *
+ * Der lokale Konstruktor liest die Zone des PROZESSES. Solange auch der
+ * Formatierer sie las, hoben sich beide auf und die Zusage darunter war
+ * zufaellig zonenunabhaengig — sie mass nur nichts. Seit `ablaufText` ueber
+ * `_lib/zeit.ts` fest auf `Europe/Berlin` formatiert, ist die Symmetrie weg:
+ * unter `TZ=UTC` ergaebe der lokale Konstruktor 14:00 UTC und die Anzeige
+ * „16:00" (gemessen).
+ *
+ * Die Erwartungen unten bleiben deshalb WORTGLEICH, und der Zeitpunkt wandert:
+ * 12:00 UTC sind im Juli 14:00 Berliner Wanduhr. Damit gilt die Zusage unter
+ * JEDER Prozess-Zeitzone — auch der des Containers.
+ */
+const JETZT = new Date("2026-07-25T10:00:00Z"); // 12:00 Berliner Wanduhr
+const IN_SECHS_TAGEN = new Date("2026-07-31T12:00:00Z"); // 14:00 Berliner Wanduhr
+const VOR_EINEM_TAG = new Date("2026-07-24T10:00:00Z"); // 12:00 Berliner Wanduhr
 
 /** Ein echter bcrypt-Hash in Form und Laenge — der Wert, der die RSC-Grenze
  *  NICHT ueberqueren darf (§7.3, Analyse Falle 11). */

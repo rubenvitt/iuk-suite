@@ -1,10 +1,10 @@
-# Übergabe — Modul `files` (Phase 4), Stand 2026-08-01 (nach Welle 6a)
+# Übergabe — Modul `files` (Phase 4), Stand 2026-08-01 (nach Welle 7)
 
-Du übernimmst den Bau des Moduls `files` in der iuk-suite. **41 von 51 Tasks sind fertig und
-committet, 10 stehen aus.** Dieses Dokument sagt dir, was du zuerst liest, was schon entschieden ist,
+Du übernimmst den Bau des Moduls `files` in der iuk-suite. **46 von 51 Tasks sind fertig und
+committet, 5 stehen aus** — nur noch Welle 8. Dieses Dokument sagt dir, was du zuerst liest, was schon entschieden ist,
 wie hier gearbeitet wird, und welche Fallen die bisherigen Wellen Zeit gekostet haben.
 
-Branch: **`feat/files-modul`** (acht Commits, alle Gates grün).
+Branch: **`feat/files-modul`** (elf Commits, alle Gates grün).
 
 ---
 
@@ -14,7 +14,7 @@ In dieser Reihenfolge — jedes Dokument setzt das vorige voraus:
 
 | Datei | Warum |
 |---|---|
-| `CLAUDE.md` (Repo-Wurzel) | Die **sechs Fallen, die `pnpm build` nicht findet**. Jede kostet einen halben Tag. |
+| `CLAUDE.md` (Repo-Wurzel) | Die **sieben Fallen, die `pnpm build` nicht findet**. Jede kostet einen halben Tag. Nr. 7 (`@ant-design/icons` in einer Server Component) ist am 01.08. dazugekommen und hat T41 einen halben Tag gekostet. |
 | `docs/design/README.md` | Verbindliche Querschnittsregeln: 768px als einziger Breakpoint, 44px-Trefferflächen, die Prüffragen für jede Ansicht, die `core`-Regel. |
 | `docs/superpowers/specs/2026-07-30-files-modul-design.md` | **Die Spec.** Verbindlich. 13 Abschnitte. |
 | `docs/superpowers/plans/2026-07-30-files-modul.md` | **Der Task-Plan.** Dein Arbeitsauftrag steht dort, Task für Task, mit Dateilisten und Abnahmekriterien. |
@@ -107,8 +107,8 @@ add` im selben Arbeitsbaum kollidiert).
 |---|---|---|---|
 | ~~5~~ | ~~T26–T34, T51, T49 (11)~~ | **fertig, committet** (`54b52ec`) — Byte-Wege und Actions | — |
 | ~~6a~~ | ~~T35, T37, T38, T39, T50 (5)~~ | **fertig, committet** (`ca4b847`) — Oberflächen I, samt zwei Nahtschlüssen | — |
-| **6b** | T36 (1) | Freigaben-Übersicht (hängt an T37) | ja |
-| **7** | T40, T41, T42, T43 (4) | Oberflächen II: `/s/<id>` mit Passwort-Gate, Detailseite, Bearbeiten, `/posteingang` | ja |
+| ~~6b~~ | ~~T36 (1)~~ | **fertig, committet** (`ad20148`) — Freigaben-Übersicht | — |
+| ~~7~~ | ~~T40, T41, T42, T43 (4)~~ | **fertig, committet** (`e6af0f1`) — Oberflächen II, samt drei Nahtschlüssen | — |
 | **8a** | T44, T45, T46, T48 (4) | Host-Abnahme, AV-Wiederholung, Aufräum-Timer, Mobil-Abnahme | ja |
 | **8b** | T47 (1) | fail-closed-Abnahme über alle fünf Lesewege (hängt an T45) | ja |
 
@@ -196,6 +196,40 @@ Ablaufweg genauso weiter wie vorher über den Löschweg.
 `_ui/SharesUebersicht.tsx` noch den Kommentar, `/shares/neu` führe in ein `notFound()` — seit T35
 falsch.
 
+### Und was Welle 7 schuldet
+
+**An T45 (AV-Wiederholung) — zwei Nähte, beide benannt:**
+
+- Die Dateiliste auf `/shares/<id>` ist RSC mit `dataIndex`-only-Spalten. **Vorberechnete
+  React-Elemente überqueren die RSC-Grenze problemlos** (am echten Abruf belegt), ein Knopf, der eine
+  Server Action auslöst, aber **nicht** — der braucht eine Client-Insel.
+- Der Fehler-`Alert` im Posteingang trägt bereits einen `files-inbox-wiederholen-…`-Knopf **für den
+  Formularfehler**. Der Name kollidiert mit dem, den T45 je `error`-Zeile braucht. `ZeilenAktionen`
+  in `_ui/PosteingangTabelle.tsx` ist so gebaut, dass ein dritter Knopf ohne Umbau hineinpasst.
+
+**An T48 (Mobil-Abnahme) — Griffe und eine Korrektur:** Naht C hat die Knopfzeile der Detailseite auf
+volle Breite gestellt (`max-width: 767.98px`), konnte aber nur 500px und 1280px messen. Die Griffe
+sind `files-detail-knopfzeile` mit `files-detail-kopieren`/`-bearbeiten`/`-qr`/`-loeschen` sowie
+`files-detail-aufstocken-zeile`. **Achtung, eine naheliegende Erwartung ist falsch:** bei **834px**
+sind die Knöpfe *nicht* voll breit — 834 > 768, der Zweig greift dort nicht und darf es nicht, sonst
+wäre 768px nicht mehr der einzige Breakpoint der Suite. Ebenfalls nur im Browser messbar:
+`.adresse` hat neu `overflow-wrap: anywhere`, und 390px ist die Breite, bei der eine URL ohne
+Umbruchstelle die Seite sonst nach rechts schöbe.
+
+**Eine modulweite Entscheidung, die niemand einseitig treffen sollte:** die Knöpfe im
+antd-`Popconfirm` sind **42px** hoch und unterschreiten die 44px-Trefferfläche. Das ist antds
+Vorgabe und trifft alle vier Aufrufstellen (`ShareDetailAktionen`, `SharesTabelle`,
+`PosteingangTabelle`, `ZugangslinksListe`). Entweder `okButtonProps`/`cancelButtonProps` überall oder
+ein Theme-Token — nur an einer Stelle gesetzt, wäre dieser eine Dialog anders als die anderen vier.
+
+**An T39, nachgereicht:** `(verwaltung)/zugangslinks/page.tsx` hat **kein `page.test.tsx`** — im
+ganzen Verzeichnis liegt nur `actions.test.ts`. Sein `ablaufText` ist heute ausschließlich durch
+einen HTTP-Abruf gedeckt, von keinem Vitest.
+
+**Neu seit Welle 7: `_lib/zeit.ts` ist die EINE Stelle, an der das Modul einen Zeitpunkt in Text
+verwandelt.** Wer eine neue Zeitanzeige baut, nimmt sie — ein eigener `Intl.DateTimeFormat` ohne
+`timeZone` ist lokal richtig und in Produktion falsch (siehe unten).
+
 **Ein Werkzeugbefund für jede weitere Welle:** Next 16 lässt pro Verzeichnis nur **einen**
 `next dev` zu. Solange ein Agent einen hält, kann `playwright.config.ts` seinen `next dev -p 3100`
 nicht starten (`Another next dev server is already running`) — **die e2e-Tore mehrerer Wellen können
@@ -236,6 +270,14 @@ sieht dort wie ein unerklärlicher fail-closed-Lauf aus. Nur per PID beenden.
   Routenverzeichnisse. Ein `grep -n "^export async function"` über alle neuen Routen kostet zehn
   Sekunden und findet den **ganzen** Tausch (falsche Handler unter dem Pfad), aber eben nur den; eine
   teilweise überschriebene Datei sieht nur der Testlauf.
+- **Eine Zeitanzeige ohne `timeZone` ist lokal richtig und in Produktion falsch.** Weder
+  `compose.yaml` noch das `Dockerfile` setzen `TZ` — der Container läuft auf UTC, die
+  Entwicklungsmaschine auf Europe/Berlin. Sechs Formatierer des Moduls hatten das (behoben in Welle
+  7, `_lib/zeit.ts`). Der Punkt, der über das Modul hinausgeht: **ein Test unter derselben Zeitzone
+  wie der Fehler kann ihn strukturell nicht sehen.** Der tragende Test setzt `process.env.TZ` **vor**
+  dem Import und `vi.resetModules()` — ein `Intl.DateTimeFormat`, der beim Import entsteht, hat die
+  Zone sonst schon eingebacken, und ein späteres Drehen erreicht ihn nicht mehr. Genau daran ist die
+  erste Fassung dieses Tests grün geblieben.
 - **`git checkout -- <datei>` nimmt eine Mutationsprobe NICHT zurück** — es stellt HEAD her und
   löscht damit die eigene, noch uncommittete Arbeit. In Welle 6a hat sich ein Agent so seine fertige
   Implementierung gelöscht; bei einer **neuen** Datei hätte der Befehl gar nichts wiederhergestellt.
