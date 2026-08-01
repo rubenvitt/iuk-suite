@@ -61,6 +61,27 @@ PFLICHTLEKTÜRE, IN DIESER REIHENFOLGE:
 3. \`${SPEC}\` — die Spec. Sie ist verbindlich.
 4. \`${PLAN}\` — der Task-Plan. DEIN TASK STEHT DORT.
 5. Bei Fragen zum Altverhalten: \`${ANALYSE}\` (2383 Zeilen, geprüfte Faktenbasis mit Belegen).
+6. \`${SUITE}/docs/UEBERGABE-files-modul.md\` — die Fallen, die die Wellen 1–4 Zeit gekostet haben.
+   Sie stehen NICHT in CLAUDE.md, und die Byte-Wege dieser Welle treffen sie der Reihe nach:
+   - **Zeitstempel sind Unix-SEKUNDEN** (\`mode: "timestamp"\`), nicht Millisekunden wie im Modul
+     \`qr\`. Ein Faktor-1000-Fehler wäre paritätsgrün und fällt in keinem Test auf, der nur sich
+     selbst liest.
+   - **Die Einheit gehört in den NAMEN**, nicht in einen Kommentar: es gibt vier Größenlimits an vier
+     Orten in drei Einheiten, mit zwei trügerischen Paaren — beide „500" unterscheiden sich um den
+     Faktor 1,048576 (MiB gegen MB), beide „100" um 4.857.600 Byte (clamd 100 MiB gegen
+     Cloudflare 100 MB).
+   - **Drei Kappungsebenen für Uploads**, jede mit anderem Symptom: Server Actions 1 MB (HTTP 413),
+     Next-Proxy 10 MiB (**still, kein Fehler**), Cloudflare Free 100 MB (Fehler vom Edge, **kein
+     Container-Log**). Der Chunk-Weg umgeht alle drei — wer ihn umgeht, misst die stille Ebene nie.
+   - \`_lib/av.ts\` importiert \`node:net\`. Ein \`"use client"\`-Import von dort zöge \`node:net\`
+     ins Client-Bundle.
+   - Ein **Icon-Name muss Schlüssel der \`ICONS\`-Map** aus \`core/shell/icons.ts\` sein, nicht bloß
+     ein existierender \`@ant-design/icons\`-Name — sonst fällt der Eintrag **still** auf
+     \`AppstoreOutlined\` zurück.
+   - **Playwright nicht laufen lassen, während du Dateien editierst**: HMR zieht die Änderung mitten
+     in den Lauf und erzeugt Fehlschläge, die niemand reproduzieren kann.
+   - \`rtk pnpm …\` kann an einem corepack-Deps-Check scheitern, obwohl das Kommando in Ordnung ist —
+     dann direkt \`pnpm …\`.
 
 TESTHARNESS: Für DOM-Verhalten gibt es \`${SUITE}/src/app/m/qr/_lib/test-dom.tsx\`
 (\`mount\`/\`fill\`/\`click\`/\`query\`/\`submitForm\`) — KEIN zweites erfinden.
@@ -80,6 +101,13 @@ ARBEITSREGELN — sie gelten ohne Ausnahme:
   WARUM (was der Code nicht selbst sagt), nicht das WAS.
 - Wo dein Task eine Route berührt: sie muss tatsächlich ABGERUFEN worden sein (\`pnpm dev\` + curl
   oder ein e2e), nicht nur gebaut. Die antd-RSC-Falle liefert HTTP 500, das \`pnpm build\` nicht sieht.
+- **Zum Abruf gehört \`pnpm dev:av\`** (Fake-Scanner auf 127.0.0.1:3310, worauf \`.env.local\` zeigt).
+  Ohne antwortenden Scanner greift fail-closed (§6.3): jeder Upload bleibt auf „wird geprüft", jeder
+  Download antwortet 403 — RICHTIGES Verhalten, das wie ein kaputtes Modul aussieht. Wer das für
+  einen Fehler hält, repariert eine Zusage weg.
+- **Port 3000 gehört dir nicht allein**: zehn andere Agenten arbeiten gleichzeitig. Läuft dort schon
+  ein Server, benutze ihn oder nimm einen freien Port (\`next dev -p <frei>\`) — und fahre ihn danach
+  wieder herunter.
 `
 
 const UMSETZUNG_SCHEMA = {
@@ -302,6 +330,13 @@ const gates = await mitWiederholung(() =>
       `  1. \`pnpm typecheck\`\n  2. \`pnpm lint\`  (Fehler blockieren, Warnungen nicht)\n` +
       `  3. \`pnpm vitest run\`\n  4. \`pnpm build\`\n` +
       (MIT_PLAYWRIGHT ? `  5. \`pnpm exec playwright test\`\n` : '') +
+      `\nDANACH — und das sieht KEIN Gate oben: starte \`pnpm dev:av\` und \`next dev\` auf einem ` +
+      `freien Port und RUFE JEDE in dieser Welle neu entstandene Route TATSÄCHLICH AB (curl, mit ` +
+      `\`-i\`, gegen den Host, dessen Rolle sie trägt). Erwartet ist ein FACHLICHER Status ` +
+      `(401/403/404/405/400 sind gültige Antworten für einen unangemeldeten oder unvollständigen ` +
+      `Aufruf) — **HTTP 500 ist der Befund**, den kein \`pnpm build\` und kein Vitest findet. Trage ` +
+      `Route und Status in \`routen_abgerufen\` ein, eine Zeile je Route. Fahre die Server danach ` +
+      `wieder herunter.\n` +
       `\nWICHTIG: Wenn etwas rot ist, REPARIERE ES, sofern die Ursache in dieser Welle liegt — und ` +
       `berichte, was es war. Liegt die Ursache außerhalb (bestehender Fehler, andere Welle), ` +
       `reparierst du NICHT, sondern meldest es mit Beleg.\n\n` +
@@ -321,6 +356,11 @@ const gates = await mitWiederholung(() =>
           vitest: { type: 'string' },
           build: { type: 'string' },
           playwright: { type: 'string' },
+          routen_abgerufen: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'je Zeile: Methode, Pfad, Host, tatsaechlicher HTTP-Status',
+          },
           alles_gruen: { type: 'boolean' },
           reparaturen: { type: 'array', items: { type: 'string' } },
           fremde_fehler: { type: 'array', items: { type: 'string' } },
