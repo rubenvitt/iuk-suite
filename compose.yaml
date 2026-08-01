@@ -39,8 +39,37 @@ services:
       # der Traefik-Regel unten — sonst erreicht die Domain den Container nie.
     volumes:
       - suite_data:/data
-    networks:
-      - proxy
+      # Eigener Mount für die Blobs des Moduls `files`. Er leistet zwei Dinge:
+      # clamd sieht die Modul-Datenbanken NICHT (portal.db, qr.db, feedback.db
+      # und files.db liegen in `suite_data`), und `scripts/backup.sh` hat einen
+      # benannten Anker.
+      #
+      # WAS ER NICHT LEISTET, und das gehört hierher: zwei benannte Volumes ohne
+      # `driver_opts` liegen auf DEMSELBEN Host-Dateisystem. Ein volllaufendes
+      # `files_data` erzeugt ENOSPC genau dort, wo auch die vier Modul-DBs
+      # liegen. Getragen wird der Restplatz von der Ablage-Kachel (freier Platz
+      # per statfs), der ENOSPC-Behandlung (507 plus gelöschte Zwischendatei)
+      # und einer Quota am Blob-Ort — Letztere ist eine Betreibervorgabe, keine
+      # Codeentscheidung.
+      - files_data:/data/files
+    # `av` MUSS hier stehen: ohne dieses Netz erreicht die Suite clamd nicht,
+    # jeder Scan läuft in ECONNREFUSED und nach FILES_AV_VERSUCHE in
+    # `av_status = 'error'`. Das ist fail-closed und richtig, sieht aber wie ein
+    # kaputtes Modul aus — und kein Gate außer `files/_lib/compose.test.ts`
+    # berührt diese Zeile, weil E2E kein Compose benutzt.
+    networks: [proxy, av]
+    # Betreiberentscheidung MIT Kehrseite, und die gehört benannt: wird clamav
+    # nicht healthy (fehlgeschlagener freshclam-Erststart, zu knappe
+    # `start_period`, RAM-Mangel), startet die Suite GAR NICHT — mit allen vier
+    # Modulen. Runbook-Zeile dazu: kommt die Suite nach `up -d` nicht hoch, ist
+    # `docker compose ps clamav` der erste Blick, nicht das Suite-Log.
+    #
+    # Was die Kopplung kauft, ist nicht „keine Ablehnungen" (Uploads würden auch
+    # ohne clamd angenommen und blieben auf `scanning`), sondern „kein
+    # Wartezustand direkt nach dem Start".
+    depends_on:
+      clamav:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health/portal"]
       interval: 30s
@@ -58,10 +87,86 @@ services:
       - traefik.http.routers.iuk-suite.entrypoints=web
       - traefik.http.services.iuk-suite.loadbalancer.server.port=3000
 
+  # Virenscanner des Moduls `files`. Gescannt wird per `zSCAN` mit einem PFAD,
+  # nicht per INSTREAM — deshalb braucht clamd die Blobs als Mount und nicht nur
+  # einen Socket.
+  clamav:
+    # ALS VARIABLE MIT VORBELEGUNG, und der Doppelpunkt in `:-` ist tragend:
+    # ohne ihn setzt Compose eine nicht gesetzte Variable auf den LEEREN String,
+    # und ein leerer `image:`-Wert lässt `docker compose config` scheitern.
+    #
+    # Warum sie überhaupt eine Variable ist: der Tag `clamav/clamav:1.4` hat nur
+    # ein `linux/amd64`-Manifest. Auf arm64 bricht `docker compose up` mit „no
+    # matching manifest" ab — am Zielhost, nicht in der CI. Dort gehört eine
+    # `-debian`-Variante in die `.env`.
+    image: ${SUITE_CLAMAV_IMAGE:-clamav/clamav:1.4}
+    restart: unless-stopped
+    # NUR das interne Netz, und `internal: true` ist der Kern der Abschottung:
+    # clamd ist UNAUTHENTIFIZIERT und lauscht im Container auf 0.0.0.0:3310. Am
+    # externen `proxy`-Netz spräche jeder fremde Container dort ohne Zugangsdaten
+    # `zPING`, `zINSTREAM` und `zSCAN` — und `zSCAN` nimmt einen Pfad IM
+    # clamav-Container. Dass `drop`s `dropnet` ohne `internal: true` auskommt,
+    # ist nicht übertragbar: dort trägt allein das fehlende `ports:`, weil das
+    # Netz nicht von außen bestückt wird.
+    networks: [av]
+    volumes:
+      # Die nachgeladenen Signaturen überleben ein `up -d --force-recreate`.
+      # Ohne dieses Volume ist die Arbeit des Erststarts jedes Mal weg und der
+      # Start hängt an einer Netzverbindung.
+      - clamav_db:/var/lib/clamav
+      # DASSELBE benannte Volume wie unter `suite`, nur lesend. Ein anderer Name
+      # hier zeigte clamd ein LEERES Verzeichnis, und er antwortete auf jeden
+      # `zSCAN` mit „Can't access file ERROR" — für jede Datei.
+      #
+      # `suite_data` ist bewusst NICHT gemountet: die vier Modul-Datenbanken
+      # gehen den Scanner nichts an.
+      - files_data:/data/files:ro
+      # Ohne diesen Mount ist `clamd.files.conf` ein Repo-Schmuckstück und eine
+      # Übergröße bleibt ein stilles `OK` (siehe Kopf der Datei).
+      #
+      # ⚠️ DEPLOY: `clamd.files.conf` ist damit die ZWEITE Datei, die neben dieser
+      # `compose.yaml` auf dem Server liegen muss — bisher war es genau eine. Das
+      # bestehende Runbook (`docs/runbooks/suite-update-webfinger.md`) beschreibt
+      # nur den Umgang mit `compose.yaml` und weiß nichts von ihr. Fehlt sie, ist
+      # das KEIN Konfigurationsfehler mit klarer Meldung: Docker legt an dieser
+      # Stelle ein leeres VERZEICHNIS an, clamd startet ohne seine Konfiguration,
+      # der Healthcheck schlägt fehl — und weil `suite` per `service_healthy` auf
+      # ihn wartet, startet die ganze Suite nicht. Das Cutover-Runbook von Spec 2
+      # muss sie ausdrücklich mitkopieren.
+      - ./clamd.files.conf:/etc/clamav/clamd.conf:ro
+    healthcheck:
+      # `clamdcheck.sh` liegt im Image und spricht den `LocalSocket` aus
+      # `clamd.files.conf` an — wer dort die Zeile entfernt, nimmt hier den
+      # Healthcheck mit und damit den Start der ganzen Suite.
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 60s
+      # Am ZIELHOST zu messen, nicht zu übernehmen: die 17 s der Analyse-Messung
+      # und die 120 s aus `drop` sind beides keine Ladezeit dieses Hosts (die
+      # 120 s waren dort ein gesetzter Puffer). Wegen `depends_on` begrenzt genau
+      # dieser Wert, wie lange die Suite auf clamav wartet.
+      start_period: ${SUITE_CLAMAV_START_PERIOD:-120s}
+
 volumes:
   suite_data:
     name: suite_data
+  files_data:
+    name: files_data
+  clamav_db:
+    name: clamav_db
 
 networks:
   proxy:
     external: true
+  # `internal: true` (Spec-Vorgabe) heißt in Docker BEIDE Richtungen: kein
+  # Zugang von außen — das ist der Zweck, clamd ist unauthentifiziert — und
+  # keine Route NACH außen.
+  #
+  # DIE KEHRSEITE, ausdrücklich benannt statt verschwiegen: `freshclam` erreicht
+  # damit keinen Spiegel. clamd startet trotzdem, weil die Signaturen im Image
+  # liegen (~110 MiB), aber sie ALTERN — sie sind so frisch wie das Image. Der
+  # Sidecar ist also nur so gut wie der Takt, in dem `SUITE_CLAMAV_IMAGE`
+  # gezogen wird. Wer das ändern will, braucht ein zweites Netz am
+  # clamav-Service (nicht `proxy`, sondern ein eigenes ohne `internal`) — das ist
+  # eine Betreiberentscheidung mit Abwägung, kein Nachtrag hier.
+  av:
+    internal: true

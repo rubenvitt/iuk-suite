@@ -5,6 +5,7 @@
   "packageManager": "pnpm@11.0.9",
   "scripts": {
     "dev": "next dev",
+    "dev:av": "node scripts/fake-clamd.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

@@ -17,8 +17,22 @@ export default defineConfig({
      * lokale, nicht eingecheckte Datei, die Vitest nichts sagt. Wer den
      * Zusammenhang nicht kennt, jagt fremde Fehlschlaege oder haelt ein rotes
      * Tor fuer das Ergebnis der eigenen Arbeit.
+     *
+     * `**​/.next/**` ist derselbe Fehler in gefaehrlicherer Form: `output:
+     * "standalone"` (next.config.ts) legt unter `.next/standalone/src/` eine
+     * VOLLSTAENDIGE Kopie des Quellbaums ab — Testdateien inbegriffen. Die
+     * Kopien tragen dieselben relativen Vorrichtungspfade wie die Originale
+     * (z.B. `./.data/files-queries-test`), laufen aber als eigene Dateien
+     * PARALLEL: beide `rmSync`en und migrieren dieselbe SQLite-Datei, und das
+     * Ergebnis sind `SQLITE_READONLY_DBMOVED` und `UNIQUE constraint failed`
+     * an Stellen, die nichts falsch machen (gemessen: 52 Fehlschlaege bei 0
+     * echten Defekten). Toedlich daran ist die Reihenfolge der Tore: `pnpm
+     * vitest run` ist beim ERSTEN Lauf gruen und wird erst durch das darauf
+     * folgende `pnpm build` vergiftet. Das Muster ist bewusst genestet, weil
+     * ein `.next/` auch in einem Worktree unter `.claude/worktrees/` liegen
+     * kann.
      */
-    exclude: [...configDefaults.exclude, "e2e/**", ".claude/**"],
+    exclude: [...configDefaults.exclude, "e2e/**", ".claude/**", "**/.next/**"],
     // Läuft auch für die node-Umgebung; der Guard in der Datei greift dort.
     setupFiles: ["./vitest.setup.ts"],
     /*
