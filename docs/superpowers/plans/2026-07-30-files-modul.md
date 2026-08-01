@@ -2136,6 +2136,20 @@ Verschwinden allein; Wiederholen setzt **nur** die fehlgeschlagene Datei fort.
 Inhalt in **einem** PUT wird still gekappt. Genau diese Differenz ist die Zusage.
 Rot, weil Seite und Insel nicht existieren.
 
+**Der `?ende=1`-Chunk MUSS `datei.type` als `Content-Type` mitschicken** (nachgetragen nach Welle 5).
+T27 nimmt die Client-Deklaration des MIME-Typs von dort entgegen — die Spec benennt keinen Träger,
+T27 hat den idiomatischen gewählt (`api/upload/[fileId]/route.ts`, `DEKLARATION_KOPF`). Fehlt der
+Kopf, werden **`.txt` und die drei Office-Formate abgelehnt**: für `text/plain` gibt es keine
+Signatur, die Deklaration ist dort das einzige Positivsignal (§8.5 verlangt beide), und für
+ZIP-Container ist sie die Verfeinerung. **Alle Signaturformate (PNG/JPEG/PDF) gehen auch ohne durch**
+— die Lücke fällt also genau bei den vier Typen auf, die niemand zuerst probiert. Ein Test der Insel
+muss den gesetzten Kopf des letzten Chunks zusichern, nicht nur den Upload-Erfolg.
+
+**Die Statuscodes, auf die die Insel antworten muss** (von T27/T31 gewählt, vom Plan nicht
+festgelegt): **415** MIME-Prüfung gescheitert · **409** Zeile bereits vollständig, mit
+`erwartetesOffsetBytes` als Wiederaufsetzpunkt · **400** `ab` ist kein Byte-Offset · **413**
+AV-Grenze · **507** kein Platz (Inbox-Weg; die Zeile bleibt zur Wiederaufnahme stehen).
+
 **Der E2E-Teil wartet auf `clean`, und zwar auf den Zustand, nicht auf eine Zeitspanne.**
 `/api/download` antwortet vor `clean` **403** (T33 Punkt 1), das Zurücklesen ist also ohne laufende
 AV-Kette unerreichbar: nötig sind der Fake-Scanner (T14), die Warteschlange (T17) und ihr Startpunkt in

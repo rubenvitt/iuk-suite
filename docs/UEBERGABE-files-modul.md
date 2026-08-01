@@ -203,9 +203,11 @@ er gehört T50, nicht T31.
   Agenten unabhängig `/tmp/route.orig.ts` benutzt — bei elf gleichzeitigen Agenten ist der Name
   besetzt. Zweimal landete danach der Inhalt einer **fremden** Route in der eigenen Datei, und beide
   Male ist das **typecheck- und lint-grün**, solange beide Dateien für sich übersetzen. Aufgefallen
-  ist es nur, weil die Tests der eigenen Route reihenweise fielen. **Der Koordinator prüft vor dem
-  Wellen-Commit, dass jede `route.ts` die Handler exportiert, die zu ihrem Pfad gehören** — ein
-  `grep -n "^export async function" ` über alle neuen Routen kostet zehn Sekunden.
+  ist es nur, weil die Tests der eigenen Route **reihenweise** fielen — und genau das ist auch die
+  Prüfung, die der Koordinator vor dem Wellen-Commit schuldet: `pnpm vitest run` über die betroffenen
+  Routenverzeichnisse. Ein `grep -n "^export async function"` über alle neuen Routen kostet zehn
+  Sekunden und findet den **ganzen** Tausch (falsche Handler unter dem Pfad), aber eben nur den; eine
+  teilweise überschriebene Datei sieht nur der Testlauf.
 - **Playwright nicht laufen lassen, während du Dateien editierst.** HMR zieht die Änderung mitten in
   den Lauf und erzeugt Fehlschläge, die nicht reproduzierbar sind (einmal passiert, eine Stunde
   Sucherei).
