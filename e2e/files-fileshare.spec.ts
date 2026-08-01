@@ -1,5 +1,6 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type APIResponse } from "@playwright/test";
 import { createHash } from "node:crypto";
+import { inflateRawSync } from "node:zlib";
 // Umbenannt beim Import, damit an der Aufrufstelle steht, WOZU sie da ist: ein
 // LESER auf die E2E-Datenbank, kein zweiter Schreibweg neben dem Server.
 import DatenbankLeser from "better-sqlite3";
@@ -620,4 +621,567 @@ test("8 — der beobachtete Uebergang `scanning → clean`: `<meta refresh>` ver
   expect(fertig).not.toContain('http-equiv="refresh"');
   expect(fertig).toContain("unterwegs.png");
   expect(fertig).toContain(`/api/download/${shareId}?file=${fileId}`);
+});
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * FAIL-CLOSED UEBER ALLE FUENF LESEWEGE (Spec §6.3, §7.7, §8.6; Plan T47)
+ *
+ * DIE ZUSAGE: mit einem Scanner, der Fehler meldet, ist KEIN Byte erreichbar —
+ * auf `/api/download`, `/api/download/<id>/zip`, `/api/preview`,
+ * `/api/inbox/<id>` und `/api/inbox/zip` —, und die Verwaltung sagt, was los
+ * ist.
+ *
+ * ABNAHME-TEST, KEIN TDD-TEST (Kopfregel des Plans). In Stufe 8b existiert
+ * alles, was hier geprueft wird; diese beiden Tests sind von Anfang an gruen,
+ * und das ist richtig. Die MUTATION, an der sie zu messen sind: `istFreigegeben`
+ * (`_lib/av.ts`) so aendern, dass es auch bei `error` oder `scanning` freigibt —
+ * danach muessen mindestens vier der fuenf Lesewege rot werden. Fuer die
+ * Oberflaechen-Haelfte (Punkt 6 und 8) faengt eine zweite Mutation: das
+ * `avStatus === "error"`-Praedikat am Wiederholen-Knopf bzw.
+ * `mindestensEineWirdGeprueft` am `<meta refresh>`.
+ *
+ * WARUM DER ALT-BEFUND DAS NOETIG MACHT: in `drop` werden der `catch`-Block und
+ * damit der KOMPLETTE `AV_FAIL_OPEN`-Schalter fuer Protokollfehler nie erreicht
+ * — end-to-end in beiden Schalterstellungen identisch gemessen. „fail-closed"
+ * ist deshalb nur eine Zusage, wenn `error` ERREICHBAR und der Weg dorthin
+ * AUSFUEHRBAR ist. Genau das leistet der Fake-Modus (T14): der Zustand wird
+ * SCHRITT FUER SCHRITT umgeschaltet (Plan-Festlegung H), nicht einmal oben
+ * vorbelegt — derselbe Lauf braucht vorher `clean`, und Punkt 8 braucht `clean`
+ * UND `scanning` in EINEM Share.
+ *
+ * WAS 403 NICHT UNTERSCHEIDET — und warum unten die Datenbank mitliest:
+ * `scanning` und `error` antworten auf allen Byte-Wegen DASSELBE (403). Ein Test,
+ * der nur Statuscodes zusicherte, waere auch dann gruen, wenn die Zeile beim
+ * Messen laengst von `scanning` nach `error` gekippt ist — die Haelfte
+ * „geprueft wird je EINER Zeile in `scanning`" haette dann niemand. Deshalb wird
+ * `av_status` VOR und NACH jedem Messblock aus der E2E-Datenbank gelesen
+ * (`imScanningFenster`), und die einzige Stelle, an der die beiden Zustaende von
+ * auszen ueberhaupt unterscheidbar sind — der GRUND in der `_HINWEIS.txt` —
+ * wird woertlich zugesichert.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+/** Der Inbox-Host. Die Abgabe liegt dort, der Posteingang auf `files.…` (§3.4). */
+const INBOX = "drop.localtest.me";
+
+type AvTabelle = "share_files" | "inbox_files";
+
+/**
+ * `av_status` DIREKT AUS DER E2E-DATENBANK — die Begruendung steht im
+ * Abschnittskopf: 403 unterscheidet `scanning` und `error` nicht.
+ *
+ * Dieselbe Bauform wie `downloadZaehler` oben: `readonly`, Pfad aus `DATA_DIR`
+ * (`playwright.config.ts`), eine eigene Verbindung neben der des Servers ist
+ * unter WAL unproblematisch. Die Spaltennamen sind die der Migration
+ * (`share_files.av_status`, `inbox_files.av_status`) und nicht die
+ * Drizzle-Bezeichner — gelesen wird, was der Route Handler auch sieht.
+ */
+function avStatusVon(tabelle: AvTabelle, id: string): string {
+  const sqlite = new DatenbankLeser("./.data/e2e/files.db", { readonly: true });
+  // `tabelle` ist eine Union aus zwei Literalen, kein Fremdtext.
+  const zeile = sqlite.prepare(`SELECT av_status AS s FROM ${tabelle} WHERE id = ?`).get(id) as
+    | { s: string }
+    | undefined;
+  sqlite.close();
+  if (zeile === undefined) throw new Error(`Keine Zeile ${tabelle}/${id} in der E2E-Datenbank`);
+  return zeile.s;
+}
+
+/** Name → Kennung fuer alle Dateien einer Freigabe, in EINER Abfrage. */
+function shareDateiIds(shareId: string): Map<string, string> {
+  const sqlite = new DatenbankLeser("./.data/e2e/files.db", { readonly: true });
+  const zeilen = sqlite
+    .prepare("SELECT id, filename FROM share_files WHERE share_id = ?")
+    .all(shareId) as { id: string; filename: string }[];
+  sqlite.close();
+  return new Map(zeilen.map((z) => [z.filename, z.id]));
+}
+
+/** Die Kennung einer Abgabe ueber ihren Anzeigenamen — der ist je Lauf eindeutig. */
+function inboxDateiId(dateiname: string): string {
+  const sqlite = new DatenbankLeser("./.data/e2e/files.db", { readonly: true });
+  const zeile = sqlite.prepare("SELECT id FROM inbox_files WHERE dateiname = ?").get(dateiname) as
+    | { id: string }
+    | undefined;
+  sqlite.close();
+  if (zeile === undefined) throw new Error(`Keine Abgabe „${dateiname}" in der E2E-Datenbank`);
+  return zeile.id;
+}
+
+/**
+ * GEWARTET WIRD AUF DEN ZUSTAND, NIE AUF EINE ZEITSPANNE. Mit
+ * `FILES_AV_TIMEOUT_MS=2000`, `FILES_AV_VERSUCHE=2` und
+ * `FILES_AV_WIEDERHOLUNG_SEKUNDEN=1` (§9.3) ist jeder Uebergang in ≈ 5 s
+ * durchlaufen; die Frist ist trotzdem grosszuegig, weil ein kalter `next dev`
+ * die erste Uebersetzung dazwischenschiebt.
+ */
+async function warteAufAvStatus(
+  tabelle: AvTabelle,
+  id: string,
+  erwartet: string,
+  fristMs = 90_000,
+): Promise<void> {
+  await expect
+    .poll(() => avStatusVon(tabelle, id), { timeout: fristMs, intervals: [100, 200, 250] })
+    .toBe(erwartet);
+}
+
+/**
+ * Die Eintraege eines ZIP aus dem ZENTRALVERZEICHNIS, samt Inhalt.
+ *
+ * DOPPELT ZU `api/inbox/zip/route.test.ts` UND ABSICHTLICH: dort ist die
+ * Funktion eine lokale Testhilfe ohne Export, und ein `e2e/helpers/zip.ts` waere
+ * eine Datei ausserhalb der Liste dieses Tasks. Gelesen wird das
+ * Zentralverzeichnis und nicht die lokalen Koepfe: mit `archiver` steht die
+ * Groesse dort im Data-Descriptor HINTER den Daten, im Zentralverzeichnis
+ * dagegen richtig — und nur von dort ist der Inhalt sicher zu schneiden.
+ */
+function zipEintraege(daten: Buffer): { name: string; inhalt: string }[] {
+  let eocd = -1;
+  for (let i = daten.length - 22; i >= 0; i--) {
+    if (daten.readUInt32LE(i) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  expect(eocd, "kein End-of-Central-Directory — das ist kein ZIP").toBeGreaterThanOrEqual(0);
+
+  const anzahl = daten.readUInt16LE(eocd + 10);
+  let p = daten.readUInt32LE(eocd + 16);
+  const aus: { name: string; inhalt: string }[] = [];
+  for (let n = 0; n < anzahl; n++) {
+    const methode = daten.readUInt16LE(p + 10);
+    const komprimiert = daten.readUInt32LE(p + 20);
+    const namensLaenge = daten.readUInt16LE(p + 28);
+    const extraLaenge = daten.readUInt16LE(p + 30);
+    const kommentarLaenge = daten.readUInt16LE(p + 32);
+    const versatz = daten.readUInt32LE(p + 42);
+    const name = daten.subarray(p + 46, p + 46 + namensLaenge).toString("utf8");
+    // Das lokale `extra` ist NICHT dasselbe wie das zentrale.
+    const start = versatz + 30 + daten.readUInt16LE(versatz + 26) + daten.readUInt16LE(versatz + 28);
+    const roh = daten.subarray(start, start + komprimiert);
+    aus.push({
+      name,
+      inhalt: (methode === 8 ? inflateRawSync(roh) : Buffer.from(roh)).toString("utf8"),
+    });
+    p += 46 + namensLaenge + extraLaenge + kommentarLaenge;
+  }
+  return aus;
+}
+
+async function archivVon(antwort: APIResponse): Promise<{ name: string; inhalt: string }[]> {
+  expect(antwort.status(), await antwort.text().catch(() => "")).toBe(200);
+  expect(antwort.headers()["content-type"]).toContain("application/zip");
+  return zipEintraege(Buffer.from(await antwort.body()));
+}
+
+/** Der Text der Fehlliste — sie MUSS da sein, wo etwas ausgeschlossen wurde. */
+function hinweisAus(eintraege: { name: string; inhalt: string }[]): string {
+  const treffer = eintraege.find((e) => e.name === "_HINWEIS.txt");
+  expect(
+    treffer,
+    `keine _HINWEIS.txt im Archiv — enthalten: ${eintraege.map((e) => e.name).join(", ")}`,
+  ).toBeDefined();
+  return treffer!.inhalt;
+}
+
+/**
+ * DIE DREI AUSSCHLUSSGRUENDE WOERTLICH (`_lib/zip.ts`,
+ * `ZIP_AUSSCHLUSS_MELDUNGEN`). Sie sind die EINZIGE Stelle, an der `scanning`
+ * und `error` von auszen unterscheidbar sind — „einer der beiden AV-Gruende"
+ * waere genau die Zusicherung, die das wieder aufgibt.
+ */
+const GRUND_SCANNING = "Die Virenprüfung läuft noch";
+const GRUND_ERROR = "Die Virenprüfung war nicht möglich";
+const GRUND_UNVOLLSTAENDIG = "Die Übertragung wurde nicht abgeschlossen";
+
+const fehlzeile = (name: string, grund: string): string => `- ${name} — ${grund}`;
+
+/**
+ * EIN MESSBLOCK, DER NACHWEISLICH IN `scanning` LIEF.
+ *
+ * Warum das ein Helfer ist und keine Handvoll Zeilen: mit `haengt` steht eine
+ * Zeile nur ≈ 5 s auf `scanning` (`FILES_AV_VERSUCHE` × `FILES_AV_TIMEOUT_MS`
+ * plus ein Abstand), danach ist sie `error`. Das Fenster reicht fuer die paar
+ * Anfragen dreifach — aber „reicht" ist keine Zusage, und eine verpasste
+ * Messung waere hier nicht rot, sondern STILL FALSCH: 403 antwortet auch
+ * `error`.
+ *
+ * Also wird das Fenster BEZEUGT (`av_status` vor und nach dem Block) und im
+ * Zweifel NEU HERGESTELLT — ueber genau den Knopf, den Punkt 6 ohnehin verlangt
+ * (`avWiederholenAction`, T45: `error → scanning` plus Einreihen). Das ist kein
+ * Umweg um die Uhr, sondern der dokumentierte Zustandsuebergang aus §6.2.
+ *
+ * Ein Fehlschlag WAEHREND die Zeile noch `scanning` ist, wird sofort
+ * durchgereicht — das ist ein Befund und kein Fensterproblem.
+ */
+async function imScanningFenster(
+  zeile: { tabelle: AvTabelle; id: string },
+  wiederherstellen: () => Promise<void>,
+  messung: () => Promise<void>,
+): Promise<void> {
+  let letzterFehler: unknown = null;
+  for (let versuch = 1; versuch <= 3; versuch += 1) {
+    if (avStatusVon(zeile.tabelle, zeile.id) !== "scanning") await wiederherstellen();
+    await warteAufAvStatus(zeile.tabelle, zeile.id, "scanning", 30_000);
+
+    try {
+      await messung();
+    } catch (fehler) {
+      if (avStatusVon(zeile.tabelle, zeile.id) === "scanning") throw fehler;
+      letzterFehler = fehler;
+      continue;
+    }
+
+    const nachher = avStatusVon(zeile.tabelle, zeile.id);
+    if (nachher === "scanning") return;
+    letzterFehler = new Error(
+      `Das Fenster war zu Ende, bevor der Messblock fertig war: ${zeile.tabelle}/${zeile.id} ` +
+        `steht auf „${nachher}". Versuch ${versuch} von 3.`,
+    );
+  }
+  throw letzterFehler;
+}
+
+/**
+ * Eine Freigabe mit MEHREREN Dateien und ZUNAECHST OHNE BYTES.
+ *
+ * WARUM DIE BYTES DER INSEL ABGEFANGEN WERDEN — und das ist die tragende
+ * Entscheidung dieses Tests: `anlegenAction` legt je Absendung eine NEUE
+ * Freigabe an (`nanoid(10)`), es gibt keinen Weg, einer bestehenden Freigabe
+ * spaeter eine Datei hinzuzufuegen. Ein Share mit `clean` UND `error` UND
+ * `scanning` (Punkt 8) entsteht deshalb nur, wenn alle Zeilen in EINER Absendung
+ * entstehen und danach EINZELN vollstaendig werden — der AV-Modus wird zwischen
+ * den Dateien umgeschaltet. Ueber die Insel waere die Reihenfolge eine
+ * Sub-Sekunden-Wette; hier ist sie bestimmt.
+ *
+ * Dieselbe Bauform wie Test 2 oben, samt `unroute` vor den eigenen `PUT`s.
+ * Der Preis ist, dass die Insel drei Eintraege auf „fehler" zeigt — deshalb
+ * misst Punkt 7 („der Melder sah keinen technischen Fehler") in Test 10 am
+ * UNANGETASTETEN Abgabeweg.
+ */
+async function legeFreigabeOhneBytesAn(
+  page: Page,
+  namen: readonly string[],
+  titel: string,
+): Promise<string> {
+  await page.route("**/api/upload/**", (route) => route.abort());
+  await page.goto(`${V}/shares/neu`);
+  await expect(page.getByTestId("files-neue-freigabe")).toBeVisible();
+
+  await page.locator('input[name="title"]').fill(titel);
+  await page.locator('input[name="expiryDays"]').fill("1");
+  await page.locator('input[type="file"]').setInputFiles(
+    namen.map((name) => ({ name, mimeType: "image/png", buffer: pngInhalt(KLEIN) })),
+  );
+  await page.getByRole("button", { name: /Freigabe anlegen/ }).click();
+
+  const liste = page.getByTestId("files-upload-liste");
+  await expect(liste).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('[data-file-id][data-zustand="fehler"]')).toHaveCount(namen.length, {
+    timeout: 60_000,
+  });
+  const shareId = await liste.getAttribute("data-share-id");
+  expect(shareId, "die Insel muss die Freigabe-Kennung ausweisen").toBeTruthy();
+
+  await page.unroute("**/api/upload/**");
+  return shareId!;
+}
+
+/** Alle Bytes EINER Zeile in einem `PUT` — der Inhalt ist mit 4711 Byte weit
+ *  unter der stillen 10-MiB-Kappe des Next-Proxys (Test 2). */
+async function sendeAlleBytes(page: Page, fileId: string): Promise<void> {
+  const antwort = await page.request.put(`${V}/api/upload/${fileId}?ab=0&ende=1`, {
+    data: pngInhalt(KLEIN),
+    headers: { "content-type": "image/png" },
+  });
+  expect(antwort.status(), await antwort.text()).toBe(200);
+}
+
+test("9 — fail-closed auf den drei Freigabe-Lesewegen: `error` UND `scanning` liefern kein Byte", async ({
+  page,
+}) => {
+  // Kalter `next dev`: `/api/download/<id>/zip`, `/api/preview` und
+  // `/shares/<id>` werden in DIESEM Test zum ersten Mal uebersetzt.
+  test.setTimeout(300_000);
+
+  const NAME_A = "t47-freigegeben.png";
+  const NAME_B = "t47-pruefung-fehlgeschlagen.png";
+  const NAME_C = "t47-pruefung-laeuft.png";
+
+  setzeAvModus("ok");
+  await devLogin(page, { host: VERWALTUNG, groups: GRUPPE });
+
+  const shareId = await legeFreigabeOhneBytesAn(page, [NAME_A, NAME_B, NAME_C], "fail-closed T47");
+  const ids = shareDateiIds(shareId);
+  const idA = ids.get(NAME_A)!;
+  const idB = ids.get(NAME_B)!;
+  const idC = ids.get(NAME_C)!;
+  expect([idA, idB, idC].every(Boolean), "drei Zeilen in der Freigabe").toBe(true);
+
+  // --- Stufe 1: `ok` → Datei A wird freigegeben --------------------------
+  await sendeAlleBytes(page, idA);
+  await warteAufAvStatus("share_files", idA, "clean");
+
+  // --- Stufe 2: `error` → Datei B ist ein ENDZUSTAND ---------------------
+  setzeAvModus("error");
+  await sendeAlleBytes(page, idB);
+  await warteAufAvStatus("share_files", idB, "error");
+
+  /*
+   * WARMLAUF, KEIN TOTER CODE: die beiden Verwaltungsseiten werden hier zum
+   * ersten Mal uebersetzt (kalter `next dev`, und `files-fileshare.spec.ts`
+   * laeuft als erste files-Datei). Ohne diesen Aufruf faellt die Uebersetzung
+   * spaeter in das ≈ 5 s kurze `scanning`-Fenster bzw. in den
+   * Wiederherstellungsweg von `imScanningFenster`.
+   */
+  await page.goto(`${V}/shares/${shareId}`);
+  await expect(page.getByTestId("files-share-detail")).toBeVisible({ timeout: 120_000 });
+
+  // Punkt 1 und 3 in `error`.
+  expect(
+    (await page.request.get(`${V}/api/download/${shareId}?file=${idB}`)).status(),
+    "eine Zeile in `error` liefert keine Bytes",
+  ).toBe(403);
+  expect(
+    (await page.request.get(`${V}/api/preview/${shareId}?file=${idB}`)).status(),
+    "auch die Vorschau ist ein Byte-Weg",
+  ).toBe(403);
+
+  // Punkt 2 in `error` — und zugleich der Warmlauf der ZIP-Route.
+  const archivFehler = await archivVon(await page.request.get(`${V}/api/download/${shareId}/zip`));
+  expect(archivFehler.map((e) => e.name).sort()).toEqual(["_HINWEIS.txt", NAME_A]);
+  expect(hinweisAus(archivFehler)).toContain(fehlzeile(NAME_B, GRUND_ERROR));
+  // C hat noch keine Bytes — der Grund ist ein ANDERER, und dass er
+  // unterschieden wird, ist der Beleg, dass die Fehlliste nicht pauschal ist.
+  expect(hinweisAus(archivFehler)).toContain(fehlzeile(NAME_C, GRUND_UNVOLLSTAENDIG));
+
+  /*
+   * DIE GEGENPROBE, und ohne sie waere dieser Test auch dann gruen, wenn das
+   * Modul GAR NICHTS mehr ausliefert: die freigegebene Datei kommt durch.
+   */
+  const offen = await page.request.get(`${V}/api/download/${shareId}?file=${idA}`);
+  expect(offen.status(), "die `clean`-Zeile MUSS ausgeliefert werden").toBe(200);
+  expect((await offen.body()).length).toBe(KLEIN);
+
+  // --- Stufe 3: `haengt` → Datei C steht auf `scanning` ------------------
+  setzeAvModus("haengt");
+  await sendeAlleBytes(page, idC);
+
+  await imScanningFenster(
+    { tabelle: "share_files", id: idC },
+    async () => {
+      // Der Wiederholen-Knopf aus T45 stellt `scanning` wieder her — derselbe
+      // Uebergang, den Punkt 6 unten als Oberflaeche zusichert.
+      await page.goto(`${V}/shares/${shareId}`);
+      await page.getByTestId(`files-detail-av-wiederholen-${idC}`).click();
+    },
+    async () => {
+      // Punkt 1 und 3 in `scanning`.
+      expect((await page.request.get(`${V}/api/download/${shareId}?file=${idC}`)).status()).toBe(
+        403,
+      );
+      expect((await page.request.get(`${V}/api/preview/${shareId}?file=${idC}`)).status()).toBe(403);
+
+      // Punkt 2 in `scanning` — und der Grund unterscheidet sich woertlich von
+      // dem der `error`-Zeile daneben. Beide stehen in DERSELBEN Fehlliste.
+      const archiv = await archivVon(await page.request.get(`${V}/api/download/${shareId}/zip`));
+      expect(archiv.map((e) => e.name).sort()).toEqual(["_HINWEIS.txt", NAME_A]);
+      expect(hinweisAus(archiv)).toContain(fehlzeile(NAME_C, GRUND_SCANNING));
+      expect(hinweisAus(archiv)).toContain(fehlzeile(NAME_B, GRUND_ERROR));
+
+      /*
+       * PUNKT 8, ERSTE HAELFTE: `clean` UND `scanning` in EINEM Share. Die
+       * freigegebene Datei wird ausgeliefert (ihr Downloadlink steht da), die
+       * andere erscheint als ZEILENZUSTAND — und ausdruecklich NICHT als
+       * ganzseitiger Wartezustand, der die Freigabe verdeckte.
+       */
+      const seite = await (await page.request.get(`${V}/s/${shareId}`)).text();
+      expect(seite).toContain(`/api/download/${shareId}?file=${idA}`);
+      expect(seite).toContain("wird geprüft");
+      expect(seite).toContain("Prüfung nicht möglich");
+      expect(
+        seite,
+        "der ganzseitige Wartezustand gilt nur, wenn NICHTS freigegeben ist",
+      ).not.toContain('data-testid="files-freigabe-warten"');
+      expect(seite, "solange eine Zeile geprueft wird, laedt die Seite nach").toContain(
+        'http-equiv="refresh"',
+      );
+    },
+  );
+
+  // --- Stufe 4: C faellt auf `error` — kein Dauerversuch ------------------
+  await warteAufAvStatus("share_files", idC, "error");
+
+  /*
+   * PUNKT 8, ZWEITE HAELFTE: jetzt ist keine Zeile mehr `scanning`, und die
+   * Seite laedt NICHT mehr nach. Ohne diese Zusicherung frischte eine Freigabe
+   * mit dauerhaft fehlgeschlagener Pruefung auf einem fremden Handy fuer immer
+   * alle 5 Sekunden nach. Die freigegebene Datei steht weiterhin bereit.
+   */
+  const ruhend = await (await page.request.get(`${V}/s/${shareId}`)).text();
+  expect(ruhend).not.toContain('http-equiv="refresh"');
+  expect(ruhend).toContain(`/api/download/${shareId}?file=${idA}`);
+  expect(ruhend).toContain("Prüfung nicht möglich");
+
+  /*
+   * PUNKT 6, ERSTE STELLE: die Verwaltung sagt, was los ist — und bietet den
+   * einzigen Weg zurueck an. An `clean` steht KEIN Knopf: `avWiederholenAction`
+   * kennt nur `error → scanning`, und ein Knopf an einer Zeile, an der die
+   * Action nichts tut, waere eine Sackgasse.
+   */
+  await page.goto(`${V}/shares/${shareId}`);
+  await expect(page.getByTestId("files-share-detail")).toBeVisible();
+  await expect(page.getByText("Prüfung nicht möglich").first()).toBeVisible();
+  await expect(page.getByTestId(`files-detail-av-wiederholen-${idB}`)).toBeVisible();
+  await expect(page.getByTestId(`files-detail-av-wiederholen-${idC}`)).toBeVisible();
+  await expect(page.getByTestId(`files-detail-av-wiederholen-${idA}`)).toHaveCount(0);
+});
+
+/**
+ * Legt einen Abgabelink UEBER DIE OBERFLAECHE an und gibt seine volle Adresse
+ * zurueck.
+ *
+ * NICHT ueber ein `INSERT` wie in `files-inbox.spec.ts`: dort war `/zugangslinks`
+ * eine Seite derselben Wellenstufe und damit ausgeschlossen — hier ist sie da,
+ * und der Weg ueber die Oberflaeche spart einen zweiten Schreibweg in dieselbe
+ * Datenbank. Der Rohtoken wird genau EINMAL ausgegeben (§8.4); die Adresse steht
+ * am Link der Ausgabe und traegt den INBOX-Host samt Port.
+ */
+async function legeAbgabelinkAn(page: Page, name: string): Promise<string> {
+  await page.goto(`${V}/zugangslinks`);
+  await expect(page.getByTestId("files-zugangslinks")).toBeVisible({ timeout: 120_000 });
+  // Das Formular haengt an einem Umschalter — es steht nicht dauerhaft offen.
+  await page.getByTestId("files-zugangslink-anlegen").click();
+  await page.locator('input[name="name"]').fill(name);
+  await page.getByTestId("files-zugangslink-absenden").click();
+
+  const link = page.getByTestId("files-zugangslink-link");
+  await expect(link).toBeVisible({ timeout: 60_000 });
+  const adresse = await link.getAttribute("href");
+  expect(adresse, "die einmalige Ausgabe muss die Adresse tragen").toBeTruthy();
+  // Der Erzeugungshost ist `files.…`, die Nutzlast muss `drop.…` tragen
+  // (Analyse-Falle 17) — sonst laeuft die Abgabe unten in eine 404.
+  expect(adresse!).toContain(`${INBOX}:3100/u/`);
+  return adresse!;
+}
+
+/**
+ * EINE Abgabe auf einem fremden Handy — und der Beleg fuer Punkt 7 bei JEDER
+ * Abgabe, auch der in `error` und `haengt`: die Quittung steht da, und der
+ * Melder sieht KEINEN technischen Fehler. Die Virenpruefung ist asynchron; sie
+ * darf die Abgabe nicht scheitern lassen, sondern nur die spaetere Ausgabe.
+ */
+async function gibAb(page: Page, adresse: string, dateiname: string): Promise<void> {
+  await page.goto(adresse);
+  await expect(page.getByTestId("files-abgabe")).toBeVisible({ timeout: 120_000 });
+  await page.locator('input[type="radio"][value="dokumente"]').check();
+  await page.locator("#abgabe-dateien").setInputFiles([
+    {
+      name: dateiname,
+      mimeType: "text/plain",
+      buffer: Buffer.from(`Abgabe ${dateiname}\n`, "utf8"),
+    },
+  ]);
+  await page.getByTestId("abgabe-absenden").click();
+  await expect(page.getByTestId("eintrag-quittung")).toHaveCount(1, { timeout: 60_000 });
+  await expect(
+    page.getByTestId("eintrag-fehler"),
+    "der Melder darf von der Virenpruefung nichts merken",
+  ).toHaveCount(0);
+  await expect(
+    page.locator(`[data-testid="abgabe-eintrag"][data-datei="${dateiname}"]`),
+  ).toHaveAttribute("data-zustand", "fertig");
+}
+
+test("10 — fail-closed auf den beiden Posteingang-Lesewegen, und die Abgabe bleibt quittiert", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+
+  // Je Lauf eindeutig: alle Testdateien teilen sich eine Datenbank, und ein
+  // fester Name traefe im zweiten Lauf auf die Zeile des ersten.
+  const stempel = Date.now();
+  const NAME_D = `t47-inbox-freigegeben-${stempel}.txt`;
+  const NAME_E = `t47-inbox-fehlgeschlagen-${stempel}.txt`;
+  const NAME_F = `t47-inbox-laeuft-${stempel}.txt`;
+
+  setzeAvModus("ok");
+  await devLogin(page, { host: VERWALTUNG, groups: GRUPPE });
+  const abgabe = await legeAbgabelinkAn(page, `T47 fail-closed ${stempel}`);
+
+  // --- Stufe 1: `ok` → Abgabe D wird freigegeben -------------------------
+  await gibAb(page, abgabe, NAME_D);
+  const idD = inboxDateiId(NAME_D);
+  await warteAufAvStatus("inbox_files", idD, "clean");
+
+  // --- Stufe 2: `error` → Abgabe E ist ein ENDZUSTAND --------------------
+  setzeAvModus("error");
+  await gibAb(page, abgabe, NAME_E);
+  const idE = inboxDateiId(NAME_E);
+  await warteAufAvStatus("inbox_files", idE, "error");
+
+  // Warmlauf, kein toter Code — Begruendung wie in Test 9.
+  await page.goto(`${V}/posteingang`);
+  await expect(page.getByTestId("files-posteingang")).toBeVisible({ timeout: 120_000 });
+
+  // Punkt 4 in `error`.
+  expect(
+    (await page.request.get(`${V}/api/inbox/${idE}`)).status(),
+    "eine Abgabe in `error` liefert keine Bytes",
+  ).toBe(403);
+
+  // Punkt 5 in `error` — dieselbe Ausschlussregel wie beim Freigabe-ZIP.
+  const postFehler = await archivVon(
+    await page.request.get(`${V}/api/inbox/zip?ids=${idD},${idE}`),
+  );
+  expect(postFehler.map((e) => e.name).sort()).toEqual(["_HINWEIS.txt", NAME_D]);
+  expect(hinweisAus(postFehler)).toContain(fehlzeile(NAME_E, GRUND_ERROR));
+
+  // Die Gegenprobe: die freigegebene Abgabe kommt durch.
+  const offen = await page.request.get(`${V}/api/inbox/${idD}`);
+  expect(offen.status(), "die `clean`-Abgabe MUSS ausgeliefert werden").toBe(200);
+  expect(await offen.text()).toBe(`Abgabe ${NAME_D}\n`);
+
+  // --- Stufe 3: `haengt` → Abgabe F steht auf `scanning` -----------------
+  setzeAvModus("haengt");
+  await gibAb(page, abgabe, NAME_F);
+  const idF = inboxDateiId(NAME_F);
+
+  await imScanningFenster(
+    { tabelle: "inbox_files", id: idF },
+    async () => {
+      await page.goto(`${V}/posteingang`);
+      await page.getByTestId(`files-inbox-av-wiederholen-tabelle-${idF}`).click();
+    },
+    async () => {
+      // Punkt 4 in `scanning`.
+      expect((await page.request.get(`${V}/api/inbox/${idF}`)).status()).toBe(403);
+
+      // Punkt 5 in `scanning` — mit dem Grund, der `scanning` von `error`
+      // unterscheidet.
+      const archiv = await archivVon(
+        await page.request.get(`${V}/api/inbox/zip?ids=${idD},${idE},${idF}`),
+      );
+      expect(archiv.map((e) => e.name).sort()).toEqual(["_HINWEIS.txt", NAME_D]);
+      expect(hinweisAus(archiv)).toContain(fehlzeile(NAME_F, GRUND_SCANNING));
+      expect(hinweisAus(archiv)).toContain(fehlzeile(NAME_E, GRUND_ERROR));
+    },
+  );
+
+  // --- Stufe 4: F faellt auf `error`, und die Verwaltung sagt es ---------
+  await warteAufAvStatus("inbox_files", idF, "error");
+
+  /*
+   * PUNKT 6, ZWEITE STELLE: „Prüfung nicht möglich" MIT Wiederholen-Knopf, an
+   * jeder `error`-Zeile und an keiner anderen. Die Kartenliste steht im selben
+   * Markup (`nurMobil`), deshalb traegt jeder Griff die Darstellung im Namen.
+   */
+  await page.goto(`${V}/posteingang`);
+  await expect(page.getByTestId("files-posteingang-tabelle")).toBeVisible();
+  await expect(page.getByText("Prüfung nicht möglich").first()).toBeVisible();
+  await expect(page.getByTestId(`files-inbox-av-wiederholen-tabelle-${idE}`)).toBeVisible();
+  await expect(page.getByTestId(`files-inbox-av-wiederholen-tabelle-${idF}`)).toBeVisible();
+  await expect(page.getByTestId(`files-inbox-av-wiederholen-tabelle-${idD}`)).toHaveCount(0);
 });

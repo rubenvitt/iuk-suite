@@ -15,6 +15,17 @@ import {
   type PosteingangFormZustand,
 } from "../(verwaltung)/posteingang/actions";
 /*
+ * DIE ZWEITE ACTION DIESER INSEL, und sie kommt aus der Fileshare-Verwaltung:
+ * `avWiederholenAction` bedient BEIDE Tabellen mit AV-Zustand (§4.6, §10.2).
+ * Eine eigene Fassung in `posteingang/actions.ts` waere ein zweites
+ * Statusmodell — genau der belegte Preis von E18.
+ *
+ * Ein Import aus einem `"use server"`-Modul in eine Client-Insel reicht KEINEN
+ * Wert herein, sondern eine Aktionsreferenz; `_lib/av.ts` mit seinem
+ * `node:net` kommt darueber nicht ins Client-Bundle.
+ */
+import { avWiederholenAction } from "../(verwaltung)/actions";
+/*
  * WERT-IMPORTE AUS EINEM MODUL OHNE `"use client"` — und die Richtung ist die
  * ganze Zusage: `_lib/kategorien.ts` traegt kein `"use client"`, deshalb liest
  * das Abgabeformular (Client) und der Posteingang (Server wie Client) DIESELBE
@@ -799,6 +810,41 @@ function ZeilenAktionen({
           </Button>
         </Popconfirm>
       </form>
+
+      {/*
+       * DIE PRUEFUNG WIEDERHOLEN — nur an einer Zeile in `error` (§6.2, §10.2).
+       *
+       * Das Praedikat ist der STATUS und nicht `!herunterladbar`: Letzteres ist
+       * fuer `scanning`, `infected` und `unscanned` ebenso wahr, und aus diesen
+       * dreien fuehrt kein Weg hierher — `clean` und `infected` sind
+       * Endzustaende, `scanning` laeuft schon, und `unscanned → scanning`
+       * gehoert ausschliesslich dem Nachscan-Lauf aus Spec 2. Dieselbe
+       * Bedingung steht als `WHERE av_status = 'error'` in der Action:
+       * Oberflaeche und Riegel wenden dasselbe Praedikat an.
+       *
+       * EIN NATIVES `<form>` MIT DER SERVER ACTION, kein `useActionState`: die
+       * Action gibt nichts zurueck, was hier anzuzeigen waere. Die Rueckmeldung
+       * ist die Auffrischung — die Zeile geht auf „wird geprüft", und der Knopf
+       * verschwindet mit ihr.
+       *
+       * `htmlType="submit"` ausgeschrieben: antds Vorgabe ist `"button"`, und
+       * ohne die Angabe schickte der Knopf still nichts ab.
+       */}
+      {zeile.avStatus === "error" && (
+        <form action={avWiederholenAction}>
+          {/* `inbox`, nicht `inbox_files`: die Action spricht die Sprache von
+              `BlobZiel` (`_lib/storage.ts`), damit niemand unterwegs uebersetzt. */}
+          <input type="hidden" name="art" value="inbox" />
+          <input type="hidden" name="id" value={zeile.id} />
+          <Button
+            {...masz}
+            htmlType="submit"
+            data-testid={`files-inbox-av-wiederholen-${kennung}-${zeile.id}`}
+          >
+            Prüfung wiederholen
+          </Button>
+        </form>
+      )}
 
       {fehler !== null && (
         <Alert

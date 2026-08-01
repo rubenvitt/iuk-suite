@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Button, Card, Table } from "antd";
 
+import { avWiederholenAction } from "../../actions";
 import { ladeAuditLog, ladeShareDetail, type ShareDatei } from "../../../_db/queries";
 import type { AvStatus } from "../../../_lib/av";
 import { oeffentlicheUrl } from "../../../_lib/hostRolle";
@@ -230,6 +231,48 @@ function zustand(datei: ShareDatei): { text: string; symbol: SymbolName } {
   return { text: AV_TEXT.clean, symbol: AV_SYMBOL.clean };
 }
 
+/**
+ * DIE WIEDERHOLUNG DER AV-PRÜFUNG (§6.2, §10.2; Plan T45) — ein natives
+ * `<form>` mit der Server Action, kein `onClick`.
+ *
+ * DAS IST DER GRUND, WARUM DIESE SEITE EINE SERVER COMPONENT BLEIBEN KANN. Ein
+ * Handler bräuchte eine Client-Insel; `<form action={…}>` reicht die
+ * Aktionsreferenz und funktioniert zusätzlich **ohne JavaScript**. Dieselbe
+ * Bauform wie `portal/admin/service-table.tsx:66` und `qr/admin/page.tsx:100`.
+ * Ein React-Element ist über die RSC-Grenze serialisierbar — eine
+ * `render`-Funktion in `columns` wäre es nicht (Kopfkommentar, Punkt 2), also
+ * entsteht auch dieser Knopf **vorher** in `zuAnzeige()`.
+ *
+ * ER STEHT AN JEDER ZEILE MIT `av_status = 'error'` UND AN KEINER ANDEREN, und
+ * das Prädikat ist wörtlich das `WHERE` der Action: aus `clean` und `infected`
+ * führt kein Weg heraus, `scanning` läuft schon, und `unscanned → scanning`
+ * gehört ausschließlich dem Nachscan-Lauf aus Spec 2. Gelesen wird der STATUS,
+ * nicht der Anzeigetext: eine Zeile ohne vollständige Bytes zeigt „nicht
+ * vollständig übertragen", trägt den AV-Zustand aber weiterhin.
+ *
+ * `size="small"`, weil er in einer Tabellenzeile sitzt — die ausdrückliche
+ * Ausnahme von „`size` gar nicht setzen" (`docs/design/README.md:59-62`).
+ */
+function AvWiederholen({ fileId }: { fileId: string }) {
+  return (
+    <form action={avWiederholenAction}>
+      {/* `share`, nicht `share_files`: die Action spricht die Sprache von
+          `BlobZiel` (`_lib/storage.ts`), damit niemand unterwegs übersetzt. */}
+      <input type="hidden" name="art" value="share" />
+      <input type="hidden" name="id" value={fileId} />
+      {/* `htmlType="submit"` ausgeschrieben: antds Vorgabe ist `"button"`, und
+          ohne die Angabe schickte der Knopf still nichts ab. */}
+      <Button
+        size="small"
+        htmlType="submit"
+        data-testid={`files-detail-av-wiederholen-${fileId}`}
+      >
+        Prüfung wiederholen
+      </Button>
+    </form>
+  );
+}
+
 type DateiZeile = {
   id: string;
   dateiname: string;
@@ -237,6 +280,8 @@ type DateiZeile = {
    *  eine Behauptung über Bytes, die niemand ausliefern kann. */
   groesseText: string;
   zustandInhalt: React.ReactNode;
+  /** `null` an jeder Zeile, die nicht in `error` steht — siehe `AvWiederholen`. */
+  aktionInhalt: React.ReactNode;
 };
 
 /**
@@ -247,7 +292,9 @@ type DateiZeile = {
 const SPALTE_NAME_PX = 340;
 const SPALTE_GROESSE_PX = 160;
 const SPALTE_ZUSTAND_PX = 280;
-const DATEI_TABELLE_BREITE_PX = SPALTE_NAME_PX + SPALTE_GROESSE_PX + SPALTE_ZUSTAND_PX;
+const SPALTE_AKTION_PX = 200;
+const DATEI_TABELLE_BREITE_PX =
+  SPALTE_NAME_PX + SPALTE_GROESSE_PX + SPALTE_ZUSTAND_PX + SPALTE_AKTION_PX;
 
 /** Nur `dataIndex`, keine `render`-Funktion — Begründung im Kopfkommentar. Und
  *  keine Spalte trägt `fixed` oder `ellipsis`, `scroll.y` bleibt ungesetzt:
@@ -256,6 +303,11 @@ const DATEI_SPALTEN = [
   { key: "name", title: "Datei", dataIndex: "dateiname", width: SPALTE_NAME_PX },
   { key: "groesse", title: "Größe", dataIndex: "groesseText", width: SPALTE_GROESSE_PX },
   { key: "zustand", title: "Zustand", dataIndex: "zustandInhalt", width: SPALTE_ZUSTAND_PX },
+  /* Die Aktion steht in einer EIGENEN Spalte, nicht in der Zustandszelle: der
+     Zustand ist ein Wert, der Knopf eine Handlung — dieselbe Trennung wie in
+     `_ui/PosteingangTabelle.tsx`. Die Zelle bleibt leer, wo es nichts zu tun
+     gibt; ein „—" behauptete einen Wert, den es hier nicht gibt. */
+  { key: "aktion", title: "Aktion", dataIndex: "aktionInhalt", width: SPALTE_AKTION_PX },
 ];
 
 function zuAnzeige(datei: ShareDatei): DateiZeile {
@@ -263,6 +315,7 @@ function zuAnzeige(datei: ShareDatei): DateiZeile {
   return {
     id: datei.id,
     dateiname: datei.dateiname,
+    aktionInhalt: datei.avStatus === "error" ? <AvWiederholen fileId={datei.id} /> : null,
     // Die Bytezahl AUS DER ZEILE, nie die gemessene Länge: dieselbe Spalte, aus
     // der auch die Summe entsteht. Zwei Quellen ergäben zwei Zahlen (§7.3).
     groesseText: datei.vollstaendig && !datei.blobFehlt ? byteTextBinaer(datei.groesse) : "—",

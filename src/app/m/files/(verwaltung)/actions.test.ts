@@ -52,6 +52,26 @@ vi.mock("next/navigation", () => ({
  */
 const storageSteuerung = vi.hoisted(() => ({ verzeichnisFehler: undefined as unknown }));
 
+/*
+ * `reiheAvEin` ist der EINZIGE Teil von T45, den die Datenbank nicht bezeugen
+ * kann. Die echte Funktion steigt bei stehendem Arbeiter sofort wieder aus
+ * (`_lib/av.ts`: `if (!arbeiterLaeuft) return`), und in diesem Lauf steht er —
+ * ein ersatzloses Streichen des Aufrufs bliebe damit gruen. Der Rest von
+ * `_lib/av.ts` bleibt ECHT (`importOriginal`), weil `AV_STATUS` und
+ * `istFreigegeben` an anderer Stelle mitlaufen.
+ */
+const avSteuerung = vi.hoisted(() => ({ eingereiht: [] as unknown[] }));
+
+vi.mock("@/app/m/files/_lib/av", async (importOriginal) => {
+  const echt = await importOriginal<typeof import("@/app/m/files/_lib/av")>();
+  return {
+    ...echt,
+    reiheAvEin: (ziel: unknown) => {
+      avSteuerung.eingereiht.push(ziel);
+    },
+  };
+});
+
 vi.mock("@/app/m/files/_lib/storage", async (importOriginal) => {
   const echt = await importOriginal<typeof import("@/app/m/files/_lib/storage")>();
   return {
@@ -69,13 +89,15 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/core/auth";
 import {
   anlegenAction,
+  avWiederholenAction,
   bearbeitenAction,
   downloadsAufstockenAction,
   shareLoeschenAction,
   type ShareFormZustand,
 } from "@/app/m/files/(verwaltung)/actions";
 import { getDb } from "@/app/m/files/_db/client";
-import { downloadLogs } from "@/app/m/files/_db/schema";
+import { downloadLogs, inboxFiles } from "@/app/m/files/_db/schema";
+import type { AvStatus } from "@/app/m/files/_lib/av";
 import { BlobFehlt, abschliesse, fortschritt, groesse, schreibeStrom } from "@/app/m/files/_lib/storage";
 
 const authMock = vi.mocked(auth);
@@ -100,6 +122,7 @@ beforeEach(() => {
   delete process.env.FILES_MAX_DATEIEN_PRO_SHARE;
 
   storageSteuerung.verzeichnisFehler = undefined;
+  avSteuerung.eingereiht.length = 0;
 
   const sqlite = new Database(`${DIR}/files.db`);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
@@ -1013,6 +1036,213 @@ describe("die drei T37-Actions — der Zugriffsriegel", () => {
   }
 });
 
+// ===========================================================================
+// T45 — avWiederholenAction: `error → scanning`, und sonst nichts
+// ===========================================================================
+
+/**
+ * DER WERTEBEREICH DER UEBERGAENGE (§6.2) IST HIER DIE GANZE ZUSAGE.
+ *
+ * `error → scanning` ist der EINZIGE Uebergang dieses Knopfes. `clean` und
+ * `infected` sind Endzustaende — kein Weg fuehrt aus ihnen heraus —, `scanning`
+ * laeuft schon, und `unscanned → scanning` gehoert AUSSCHLIESSLICH dem
+ * Nachscan-Lauf aus Spec 2. Die vier stehen deshalb NAMENTLICH in einer
+ * Schleife und nicht als „irgendein anderer Wert": eine Aufzaehlung sagt, WELCHE
+ * Faelle geprueft sind, und `Record<AvStatus, …>` bzw. dieser Typ fallen im
+ * typecheck auf, sobald ein sechster Status entsteht.
+ */
+const AV_UNBERUEHRT: AvStatus[] = ["clean", "infected", "unscanned", "scanning"];
+
+/** Die Zeit, die vor der Wiederholung in `av_geprueft_at` steht. */
+const GEPRUEFT_AM = new Date("2026-07-30T08:00:00Z");
+
+const INBOX_ID = "ib-aaaaaa1";
+
+function setzeAvStatus(tabelle: "share_files" | "inbox_files", id: string, status: AvStatus): void {
+  // Ueber DIESELBE Verbindung, die die Action benutzt — eine zweite waere ein
+  // zweiter Schreiber auf derselben Datei.
+  getDb().run(
+    sql`UPDATE ${sql.raw(tabelle)} SET av_status = ${status},
+        av_geprueft_at = ${Math.floor(GEPRUEFT_AM.getTime() / 1000)} WHERE id = ${id}`,
+  );
+}
+
+/**
+ * Eine Abgabe im Posteingang. `bytes_vollstaendig_at` ist gesetzt: eine Zeile
+ * ohne Bytes erreicht `error` gar nicht erst (`_lib/av.ts:auftraege` nimmt nur
+ * vollstaendige Zeilen).
+ */
+function legeInbox(status: AvStatus, id = INBOX_ID): string {
+  getDb()
+    .insert(inboxFiles)
+    .values({
+      id,
+      tokenId: null,
+      dateiname: "abgabe.pdf",
+      kategorie: "dokumente",
+      hinweis: null,
+      mimeType: "application/pdf",
+      size: 12,
+      clientIpUnbestaetigt: null,
+      empfangenAt: GEPRUEFT_AM,
+      bytesVollstaendigAt: GEPRUEFT_AM,
+      avStatus: status,
+      avGeprueftAt: GEPRUEFT_AM,
+    })
+    .run();
+  return id;
+}
+
+/** Eine Freigabe mit genau einer Dateizeile im gewuenschten AV-Zustand. */
+async function legeShareDatei(status: AvStatus) {
+  const { shareId, dateien } = await legeAn();
+  setzeAvStatus("share_files", dateien[0].fileId, status);
+  return { shareId, fileId: dateien[0].fileId };
+}
+
+function avZeile(tabelle: "share_files" | "inbox_files", id: string): Record<string, unknown> {
+  const zeile = rohZeilen(tabelle).find((z) => z.id === id);
+  if (zeile === undefined) throw new Error(`${tabelle}/${id} nicht in der Datenbank`);
+  return zeile;
+}
+
+describe("avWiederholenAction — der Uebergang error → scanning", () => {
+  it("setzt eine share_files-Zeile auf scanning und reiht sie mit ihrem Blob-Ziel ein", async () => {
+    const { shareId, fileId } = await legeShareDatei("error");
+
+    await avWiederholenAction(fd({ art: "share", id: fileId }));
+
+    expect(avZeile("share_files", fileId).av_status).toBe("scanning");
+    /*
+     * DAS BLOB-ZIEL TRAEGT BEIDE IDs. Ein `{art:"share", fileId}` ohne
+     * `shareId` waere kein gueltiges `BlobZiel` — `_lib/storage.ts` baut den
+     * Pfad aus beiden, und die Wiederholung fuende die Bytes nie.
+     */
+    expect(avSteuerung.eingereiht).toEqual([{ art: "share", shareId, fileId }]);
+  });
+
+  it("setzt eine inbox_files-Zeile auf scanning und reiht sie ein — DIESELBE Action", async () => {
+    // Zwei Tabellen, ein Knopf (§4.6: beide fuehren denselben Zustand). Eine
+    // zweite Action waere ein zweites Statusmodell.
+    legeInbox("error");
+
+    await avWiederholenAction(fd({ art: "inbox", id: INBOX_ID }));
+
+    expect(avZeile("inbox_files", INBOX_ID).av_status).toBe("scanning");
+    expect(avSteuerung.eingereiht).toEqual([{ art: "inbox", inboxFileId: INBOX_ID }]);
+  });
+
+  it("loescht av_geprueft_at — sonst uebergeht die Boot-Wiederaufnahme die Zeile", async () => {
+    /*
+     * §6.4 beschreibt die Wiederaufnahme als `scanning` UND
+     * `av_geprueft_at IS NULL`. Heute waehlt `_lib/av.ts:auftraege` breiter
+     * (nur `scanning` plus vollstaendige Bytes), ein stehengebliebener
+     * Zeitstempel waere also HEUTE folgenlos — und genau deshalb steht diese
+     * Zusicherung hier: zoege jemand die Auswahl auf den Wortlaut der Spec
+     * zusammen, bliebe jede wiederholte Zeile fuer immer auf „wird geprueft".
+     */
+    const { fileId } = await legeShareDatei("error");
+    expect(avZeile("share_files", fileId).av_geprueft_at).not.toBeNull();
+
+    await avWiederholenAction(fd({ art: "share", id: fileId }));
+
+    expect(avZeile("share_files", fileId).av_geprueft_at).toBeNull();
+  });
+
+  for (const status of AV_UNBERUEHRT) {
+    it(`share_files in '${status}' bleibt unveraendert und wird NICHT eingereiht`, async () => {
+      const { fileId } = await legeShareDatei(status);
+      const vorher = avZeile("share_files", fileId);
+
+      await avWiederholenAction(fd({ art: "share", id: fileId }));
+
+      expect(avZeile("share_files", fileId)).toEqual(vorher);
+      expect(avSteuerung.eingereiht).toEqual([]);
+    });
+
+    it(`inbox_files in '${status}' bleibt unveraendert und wird NICHT eingereiht`, async () => {
+      legeInbox(status);
+      const vorher = avZeile("inbox_files", INBOX_ID);
+
+      await avWiederholenAction(fd({ art: "inbox", id: INBOX_ID }));
+
+      expect(avZeile("inbox_files", INBOX_ID)).toEqual(vorher);
+      expect(avSteuerung.eingereiht).toEqual([]);
+    });
+  }
+
+  it("eine unbekannte `art` aendert in KEINER der beiden Tabellen etwas", async () => {
+    // Ohne die Pruefung waere ein Default-Zweig noetig, und der entschiede
+    // stillschweigend fuer eine der beiden Tabellen.
+    const { fileId } = await legeShareDatei("error");
+    legeInbox("error");
+
+    await avWiederholenAction(fd({ art: "share_files", id: fileId }));
+    await avWiederholenAction(fd({ art: "", id: INBOX_ID }));
+
+    expect(avZeile("share_files", fileId).av_status).toBe("error");
+    expect(avZeile("inbox_files", INBOX_ID).av_status).toBe("error");
+    expect(avSteuerung.eingereiht).toEqual([]);
+  });
+
+  it("eine unbekannte ID aendert nichts — auch nicht in der anderen Tabelle", async () => {
+    const { fileId } = await legeShareDatei("error");
+    legeInbox("error");
+
+    await avWiederholenAction(fd({ art: "share", id: "Abcdefghij" }));
+    // Die ID der ANDEREN Tabelle darf nicht wirken: `art` entscheidet, nie ein
+    // Rateweg ueber beide Tabellen.
+    await avWiederholenAction(fd({ art: "share", id: INBOX_ID }));
+    await avWiederholenAction(fd({ art: "inbox", id: fileId }));
+
+    expect(avZeile("share_files", fileId).av_status).toBe("error");
+    expect(avZeile("inbox_files", INBOX_ID).av_status).toBe("error");
+    expect(avSteuerung.eingereiht).toEqual([]);
+  });
+
+  it("frischt das Segment MIT Unterrouten auf — Detailseite UND Posteingang", async () => {
+    /*
+     * `next/cache` ist gemockt, die Wahl faellt also in keinem anderen Lauf auf.
+     * Der Knopf steht an ZWEI Orten (`/shares/<id>` und `/posteingang`), und
+     * beide liegen unter demselben internen Segment — ohne `"layout"` bliebe
+     * einer von beiden auf dem alten Stand stehen.
+     */
+    const { fileId } = await legeShareDatei("error");
+    const auffrischer = vi.mocked(revalidatePath);
+    auffrischer.mockClear();
+
+    await avWiederholenAction(fd({ art: "share", id: fileId }));
+
+    expect(auffrischer).toHaveBeenCalledWith("/m/files", "layout");
+  });
+});
+
+describe("avWiederholenAction — der Zugriffsriegel", () => {
+  it("ohne Sitzung fuehrt sie in die Anmeldung und aendert nichts", async () => {
+    const { fileId } = await legeShareDatei("error");
+    authMock.mockResolvedValue(null as unknown as Awaited<ReturnType<typeof auth>>);
+
+    await expect(avWiederholenAction(fd({ art: "share", id: fileId }))).rejects.toThrow(
+      /NEXT_REDIRECT/,
+    );
+    expect(avZeile("share_files", fileId).av_status).toBe("error");
+    expect(avSteuerung.eingereiht).toEqual([]);
+  });
+
+  it("mit Sitzung ohne Gruppe antwortet sie wie eine unbekannte Route", async () => {
+    const { fileId } = await legeShareDatei("error");
+    authMock.mockResolvedValue({
+      user: { id: SUB, groups: ["irgendeine-andere-gruppe"] },
+    } as unknown as Awaited<ReturnType<typeof auth>>);
+
+    await expect(avWiederholenAction(fd({ art: "share", id: fileId }))).rejects.toThrow(
+      "NEXT_NOT_FOUND",
+    );
+    expect(avZeile("share_files", fileId).av_status).toBe("error");
+    expect(avSteuerung.eingereiht).toEqual([]);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Punkt 7 — die Quelltext-Zusicherung ueber ALLE Server Actions des Moduls
 // ---------------------------------------------------------------------------
@@ -1094,6 +1324,7 @@ describe("Quelltext-Zusicherung: jede Server Action des Moduls ruft requireFiles
       "bearbeitenAction",
       "downloadsAufstockenAction",
       "shareLoeschenAction",
+      "avWiederholenAction",
     ]) {
       expect(gezaehlt).toContain(name);
     }

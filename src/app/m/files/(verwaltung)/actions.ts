@@ -3,9 +3,11 @@
 /**
  * DIE SERVER ACTIONS DER FILESHARE-VERWALTUNG (Spec §7.1).
  *
- * Hier stehen `anlegenAction`, `bearbeitenAction`, `downloadsAufstockenAction`
- * und `shareLoeschenAction` — mehr Schreibwege hat die Fileshare-Verwaltung
- * nicht.
+ * Hier stehen `anlegenAction`, `bearbeitenAction`, `downloadsAufstockenAction`,
+ * `shareLoeschenAction` und `avWiederholenAction` — mehr Schreibwege hat die
+ * Fileshare-Verwaltung nicht. Die letzte bedient zusaetzlich den Posteingang:
+ * beide Tabellen fuehren denselben AV-Zustand (§4.6), und zwei Actions darueber
+ * waeren zwei Statusmodelle.
  *
  * DREI FESTLEGUNGEN, DIE DIESE DATEI TRAEGT:
  *
@@ -36,8 +38,9 @@ import { eq, isNotNull, and, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb } from "../_db/client";
-import { shareFiles, shares } from "../_db/schema";
+import { inboxFiles, shareFiles, shares } from "../_db/schema";
 import { requireFilesAccess } from "../_lib/access";
+import { reiheAvEin } from "../_lib/av";
 import { grenzen } from "../_lib/grenzen";
 import { bcryptHash } from "../_lib/passwort";
 import { loesche, loescheShareVerzeichnis } from "../_lib/storage";
@@ -652,4 +655,109 @@ export async function shareLoeschenAction(
 
   auffrischenMitUnterrouten();
   return { ok: true };
+}
+
+// ===========================================================================
+// T45 — die Virenpruefung einer Zeile wiederholen
+// ===========================================================================
+
+/**
+ * Die beiden Tabellen mit AV-Zustand (§4.6) als FORMULARWERT. Ihre Namen sind
+ * die des `BlobZiel`-Diskriminators aus `_lib/storage.ts` (`"share"` /
+ * `"inbox"`) und NICHT die Tabellennamen: die Kette Formular → Action →
+ * `reiheAvEin` traegt damit EIN Vokabular, und es gibt keine Stelle, an der
+ * jemand `"share_files"` in `"share"` uebersetzt und sich dabei vertut.
+ */
+const AV_ARTEN = ["share", "inbox"] as const;
+type AvArt = (typeof AV_ARTEN)[number];
+
+/** `null` fuer alles, was nicht genau einer der beiden Werte ist. */
+function avArt(formData: FormData): AvArt | null {
+  const roh = feld(formData, "art").trim();
+  return (AV_ARTEN as readonly string[]).includes(roh) ? (roh as AvArt) : null;
+}
+
+/**
+ * DIE WIEDERHOLUNG DER AV-PRUEFUNG — der einzige Weg von `error` nach
+ * `scanning` (§6.2), und der Knopf steht an jeder solchen Zeile auf der
+ * Share-Detailseite UND im Posteingang (§10.2).
+ *
+ * SIE IST DIE ANTWORT AUF EINEN ERSCHOEPFTEN ZUSTAND, nicht auf einen Fehler:
+ * `FILES_AV_VERSUCHE × FILES_AV_WIEDERHOLUNG_SEKUNDEN` (5 × 60 s) ueberspannen
+ * das Startfenster von clamd; was danach kommt, ist ein BENANNTER Zustand mit
+ * einem Knopf und ausdruecklich **kein** automatischer Dauerversuch (§6.4).
+ *
+ * `WHERE av_status = 'error'` IST DIE ZUSAGE, NICHT EIN `if` DAVOR. Der
+ * Wertebereich der Uebergaenge steht in §6.2: aus `clean` und `infected` fuehrt
+ * KEIN Weg heraus, `scanning` laeuft schon, und `unscanned → scanning` gehoert
+ * ausschliesslich dem Nachscan-Lauf aus Spec 2. Als Bedingung des `UPDATE` ist
+ * das eine Eigenschaft des SQL und kein Zweig, den eine spaetere Aufraeumrunde
+ * fuer ueberfluessig halten kann — und es gibt kein Fenster zwischen Lesen und
+ * Schreiben, in dem der AV-Arbeiter dieselbe Zeile anders entscheidet.
+ *
+ * `av_geprueft_at` WIRD MITGELOESCHT. Heute waehlt `_lib/av.ts:auftraege`
+ * breiter (`scanning` plus vollstaendige Bytes), der Wert waere also folgenlos;
+ * §6.4 beschreibt die Boot-Wiederaufnahme aber als `scanning` UND
+ * `av_geprueft_at IS NULL`. Zoege jemand die Auswahl auf diesen Wortlaut
+ * zusammen, bliebe jede wiederholte Zeile mit altem Zeitstempel fuer immer auf
+ * „wird geprueft" — ein stiller Ausfall, den kein Test von heute sieht.
+ *
+ * SIE GIBT NICHTS ZURUECK, anders als die drei Actions darueber. Die tragen
+ * getippte Felder, die eine Ablehnung ueberleben muessen; hier gibt es nur eine
+ * verborgene ID und keine Eingabe, die verloren gehen koennte. Die Rueckmeldung
+ * ist die Auffrischung: die Zeile verlaesst `error`, und der Knopf verschwindet
+ * mit ihr. Und weil `Promise<void>` genau die Form ist, die React fuer
+ * `<form action={…}>` verlangt, laeuft der Knopf ohne JavaScript und ohne
+ * Typumdeutung — auf einer Seite, die eine Server Component bleibt.
+ */
+export async function avWiederholenAction(formData: FormData): Promise<void> {
+  await requireFilesAccess();
+
+  const art = avArt(formData);
+  const id = feld(formData, "id").trim();
+  if (art === null || id === "") return;
+
+  const db = getDb();
+  const treffer =
+    art === "share"
+      ? db
+          .update(shareFiles)
+          .set({ avStatus: "scanning", avGeprueftAt: null })
+          .where(and(eq(shareFiles.id, id), eq(shareFiles.avStatus, "error")))
+          .run()
+      : db
+          .update(inboxFiles)
+          .set({ avStatus: "scanning", avGeprueftAt: null })
+          .where(and(eq(inboxFiles.id, id), eq(inboxFiles.avStatus, "error")))
+          .run();
+
+  // Die Entscheidung ist die Zahl betroffener Zeilen, nie ein vorher gelesener
+  // Wert — dieselbe Linie wie in `downloadsAufstockenAction` und `_db/zaehler.ts`.
+  if (treffer.changes !== 1) return;
+
+  if (art === "share") {
+    /*
+     * ERST NACH dem `UPDATE` gelesen, und nur fuer das Blob-Ziel: `_lib/storage.ts`
+     * baut den Pfad einer Freigabedatei aus BEIDEN IDs, `fileId` allein ist kein
+     * gueltiges Ziel. Ein `SELECT` VOR dem `UPDATE` waere dagegen der zweite
+     * Schritt, den der Vorbehalt oben gerade vermeidet.
+     */
+    const zeile = db
+      .select({ shareId: shareFiles.shareId })
+      .from(shareFiles)
+      .where(eq(shareFiles.id, id))
+      .get();
+    if (zeile !== undefined) {
+      reiheAvEin({ art: "share", shareId: zeile.shareId, fileId: id });
+    }
+  } else {
+    reiheAvEin({ art: "inbox", inboxFileId: id });
+  }
+
+  /*
+   * `"layout"`, weil der Knopf an ZWEI Orten steht: `/shares/<id>` und
+   * `/posteingang`. Ohne die Unterrouten bliebe der jeweils andere auf dem alten
+   * Stand — dieselbe Begruendung wie bei den drei T37-Actions.
+   */
+  auffrischenMitUnterrouten();
 }

@@ -32,9 +32,10 @@ import { act } from "react";
 // Mocks — vor jedem Import des Codes unter Test
 // ---------------------------------------------------------------------------
 
-const { useActionStateMock, loeschenMock } = vi.hoisted(() => ({
+const { useActionStateMock, loeschenMock, wiederholenMock } = vi.hoisted(() => ({
   useActionStateMock: vi.fn(),
   loeschenMock: vi.fn(),
+  wiederholenMock: vi.fn(),
 }));
 
 vi.mock("react", async (echt) => {
@@ -44,6 +45,15 @@ vi.mock("react", async (echt) => {
 
 vi.mock("../(verwaltung)/posteingang/actions", () => ({
   inboxLoeschenAction: loeschenMock,
+}));
+
+/*
+ * OHNE DIESEN MOCK ZOEGE DER JSDOM-LAUF DIE ECHTE ACTION-DATEI HEREIN — und mit
+ * ihr `better-sqlite3`, `next/cache`, `bcryptjs` und ueber `_lib/av` auch
+ * `node:net`. Dieselbe Vorsichtsmassnahme wie in `shares/[id]/page.test.tsx`.
+ */
+vi.mock("../(verwaltung)/actions", () => ({
+  avWiederholenAction: wiederholenMock,
 }));
 
 import { PosteingangTabelle, type PosteingangZeile } from "./PosteingangTabelle";
@@ -76,6 +86,7 @@ let abschicken = vi.fn();
 beforeEach(() => {
   useActionStateMock.mockReset();
   loeschenMock.mockReset();
+  wiederholenMock.mockReset();
   abschicken = vi.fn();
   useActionStateMock.mockImplementation(() => [{ ok: false, feldFehler: {} }, abschicken, false]);
 });
@@ -675,5 +686,74 @@ describe("Punkt 7 — beide Darstellungen, Scroll und Knopfgroeszen", () => {
       query("[data-testid='files-inbox-loeschen-auswahl']").classList.contains(styles.knopf),
       "der Loeschknopf traegt die Klasse der Mobilregel nicht",
     ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T45 — der Wiederholen-Knopf fuer die AV-Pruefung
+// ---------------------------------------------------------------------------
+
+/**
+ * ZWEI KNOEPFE HEISSEN „WIEDERHOLEN" UND MEINEN VERSCHIEDENES.
+ *
+ * Der aeltere sitzt in der Alert-Aktion und schickt das LOESCHEN noch einmal ab
+ * (`files-inbox-wiederholen-…`, oben geprueft). Der hier wiederholt die
+ * VIRENPRUEFUNG und traegt deshalb `av` im Namen. Zwei Testids fuer zwei
+ * Vorgaenge: mit einer einzigen wuesste kein Test, welchen der beiden er
+ * gerade bedient — und die Faelle oben rufen ihn auf einer `clean`-Zeile auf,
+ * an der es diesen hier gar nicht geben darf.
+ */
+const AV_KNOPF = (kennung: "tabelle" | "karte", id: string) =>
+  `[data-testid='files-inbox-av-wiederholen-${kennung}-${id}']`;
+
+/** Dieselbe Abgabe, nur in einem anderen Pruefzustand. */
+function mitAvStatus(status: (typeof AV_STATUS)[number], id: string): PosteingangZeile {
+  return { ...ALT, id, avStatus: status, herunterladbar: status === "clean" };
+}
+
+describe("T45 — Wiederholen der Virenpruefung", () => {
+  it("steht an der `error`-Zeile — in der Tabelle UND in der Karte", async () => {
+    await zeige([ALT]);
+    expect(exists(AV_KNOPF("tabelle", ALT.id))).toBe(true);
+    // Die Kartenliste steht IMMER im Markup (die Umschaltung ist CSS): ohne
+    // den Knopf dort haette die Zeile unter 768px keinen Einstiegspunkt.
+    expect(exists(AV_KNOPF("karte", ALT.id))).toBe(true);
+  });
+
+  /*
+   * DIE GEGENPROBE IST DIE HAELFTE DER ZUSAGE. Ohne sie bliebe eine Bedingung
+   * `avStatus !== "clean"` gruen — und der Knopf stuende an jeder Zeile, die
+   * gerade laeuft (`scanning`) oder einen Fund traegt (`infected`), also an
+   * genau den beiden Zustaenden, aus denen §6.2 KEINEN Weg zurueck kennt.
+   */
+  for (const status of ["clean", "scanning", "infected", "unscanned"] as const) {
+    it(`fehlt an einer Zeile in '${status}'`, async () => {
+      const zeile = mitAvStatus(status, "dddddddddd");
+      await zeige([zeile]);
+      expect(exists(AV_KNOPF("tabelle", zeile.id))).toBe(false);
+      expect(exists(AV_KNOPF("karte", zeile.id))).toBe(false);
+    });
+  }
+
+  it("nennt Tabelle und ID der Zeile — `art=inbox` und die eigene ID", async () => {
+    await zeige([ALT]);
+    const formular = query(AV_KNOPF("tabelle", ALT.id)).closest("form");
+    expect(formular, "der Knopf steht in keinem Formular").not.toBeNull();
+    const daten = new FormData(formular!);
+    // `art` entscheidet die Tabelle; ein Rateweg ueber beide Tabellen waere
+    // eine zweite Wahrheit darueber, welche Zeile gemeint ist.
+    expect(daten.get("art")).toBe("inbox");
+    expect(daten.get("id")).toBe(ALT.id);
+  });
+
+  it("ruft beim Absenden die Server Action, nicht das Loeschen", async () => {
+    await zeige([ALT]);
+    const formular = query(AV_KNOPF("tabelle", ALT.id)).closest("form")!;
+    await act(async () => {
+      formular.requestSubmit();
+    });
+    expect(wiederholenMock).toHaveBeenCalledTimes(1);
+    expect((wiederholenMock.mock.calls[0][0] as FormData).get("id")).toBe(ALT.id);
+    expect(loeschenMock).not.toHaveBeenCalled();
   });
 });

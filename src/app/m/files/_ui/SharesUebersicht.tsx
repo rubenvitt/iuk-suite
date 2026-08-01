@@ -5,6 +5,7 @@ import { ladeUebersicht, type UebersichtZeile } from "../_db/queries";
 import { entschaerfeTitel } from "../_lib/zip";
 import { zeitpunktBerlin } from "../_lib/zeit";
 import type { Rolle } from "../_lib/hostRolle";
+import { AblageKachel } from "./AblageKachel";
 import { SharesTabelle, SharesTabelleSkelett, type ShareZeile } from "./SharesTabelle";
 
 /**
@@ -161,6 +162,24 @@ export async function SharesUebersicht({ rolle }: { rolle: Rolle }) {
 
       <Suspense fallback={<SharesTabelleSkelett />}>
         <Zeilen />
+      </Suspense>
+
+      {/*
+       * DIE ABLAGE-KACHEL STEHT HIER, weil hier der Mensch steht, der handeln
+       * kann (T46, §7.6): Restplatz, Zeilen ohne Bytes, `scanning`/`error` und
+       * `.part`-Reste stehen sonst nirgends, und der manuelle Auslöser des
+       * Aufräumlaufs braucht einen Einstiegspunkt in der Oberfläche.
+       *
+       * EIGENE `Suspense`-GRENZE, nicht die der Zeilen: die Kachel liest neben
+       * der Datenbank auch das Dateisystem (`statfs`, zwei `readdir`-Ebenen).
+       * Läge sie in derselben Grenze, verzögerte die langsamere der beiden
+       * Quellen die Freigabenliste — und die ist der Zweck der Seite.
+       *
+       * `Card loading` als Ersatz: `Skeleton.Button` wäre ein Compound-Zugriff
+       * und in einer Server Component `undefined` (HTTP 500).
+       */}
+      <Suspense fallback={<Card title="Ablage" loading />}>
+        <AblageKachel />
       </Suspense>
     </div>
   );

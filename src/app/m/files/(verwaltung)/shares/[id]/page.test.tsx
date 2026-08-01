@@ -35,12 +35,14 @@ import type { ReactElement } from "react";
 // Mocks — vor jedem Import des Codes unter Test
 // ---------------------------------------------------------------------------
 
-const { useActionStateMock, loeschenMock, aufstockenMock, bearbeitenMock } = vi.hoisted(() => ({
-  useActionStateMock: vi.fn(),
-  loeschenMock: vi.fn(),
-  aufstockenMock: vi.fn(),
-  bearbeitenMock: vi.fn(),
-}));
+const { useActionStateMock, loeschenMock, aufstockenMock, bearbeitenMock, wiederholenMock } =
+  vi.hoisted(() => ({
+    useActionStateMock: vi.fn(),
+    loeschenMock: vi.fn(),
+    aufstockenMock: vi.fn(),
+    bearbeitenMock: vi.fn(),
+    wiederholenMock: vi.fn(),
+  }));
 
 /* Wie in `SharesTabelle.test.tsx`: der Zustand je ACTION, nicht je
    Aufrufreihenfolge — die Seite ruft `useActionState` mehrfach. */
@@ -55,6 +57,9 @@ vi.mock("../../../(verwaltung)/actions", () => ({
   shareLoeschenAction: loeschenMock,
   downloadsAufstockenAction: aufstockenMock,
   bearbeitenAction: bearbeitenMock,
+  // Fehlte dieser Eintrag, bekaeme die Seite `undefined` als Formular-Action —
+  // und jede Zusicherung darauf waere gruen, ohne etwas zu pruefen.
+  avWiederholenAction: wiederholenMock,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -833,5 +838,83 @@ describe("Punkt 8 — keine Datei vollständig übertragen", () => {
     await legeShare();
     await legeDatei({ id: DATEI_A });
     expect((await dom()).querySelector("[data-testid='files-detail-leer']")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T45 — der Wiederholen-Knopf an jeder Zeile in `error`
+// ---------------------------------------------------------------------------
+
+/**
+ * DER KNOPF IST DIE ANTWORT AUF EINEN ERSCHOEPFTEN ZUSTAND (§6.4, §10.1):
+ * `FILES_AV_VERSUCHE × FILES_AV_WIEDERHOLUNG_SEKUNDEN` sind vorbei, die Datei
+ * steht auf „Prüfung nicht möglich" und ist fail-closed nicht herunterladbar.
+ * Was danach kommt, ist ein BENANNTER Zustand mit einem Knopf — kein
+ * automatischer Dauerversuch.
+ *
+ * ER STEHT IN EINEM NATIVEN `<form>` MIT DER SERVER ACTION und nicht in einer
+ * Client-Insel: diese Seite ist und bleibt eine Server Component (siehe den
+ * Quelltext-Riegel oben), und ein `onClick` brauchte eine. Dieselbe Bauform wie
+ * `portal/admin/service-table.tsx:66` und `qr/admin/page.tsx:100`.
+ */
+const AV_KNOPF = (id: string) => `[data-testid="files-detail-av-wiederholen-${id}"]`;
+
+describe("T45 — Wiederholen der Virenpruefung", () => {
+  it("steht an der `error`-Zeile und an keiner anderen", async () => {
+    await legeShare();
+    await legeDatei({ id: DATEI_A, avStatus: "error", dateiname: "kaputt.pdf" });
+    await legeDatei({ id: DATEI_B, avStatus: "clean", dateiname: "gut.pdf" });
+    await legeDatei({ id: DATEI_C, avStatus: "scanning", dateiname: "laeuft.pdf" });
+    await legeDatei({ id: DATEI_D, avStatus: "infected", dateiname: "fund.pdf" });
+    await legeDatei({ id: DATEI_E, avStatus: "unscanned", dateiname: "altbestand.pdf" });
+
+    const wirt = await dom();
+
+    expect(wirt.querySelector(AV_KNOPF(DATEI_A)), "kein Knopf an der error-Zeile").not.toBeNull();
+    /*
+     * DIE GEGENPROBE TRAEGT DIE HALBE ZUSAGE. Ohne sie bliebe eine Bedingung
+     * `avStatus !== "clean"` gruen — und der Knopf stuende an `scanning` (laeuft
+     * gerade), an `infected` (Endzustand, §6.2 kennt keinen Weg heraus) und an
+     * `unscanned` (gehoert dem Nachscan-Lauf aus Spec 2).
+     */
+    for (const id of [DATEI_B, DATEI_C, DATEI_D, DATEI_E]) {
+      expect(wirt.querySelector(AV_KNOPF(id)), `Knopf an der falschen Zeile ${id}`).toBeNull();
+    }
+  });
+
+  it("schickt `art=share` und die Datei-ID in einem nativen Formular mit", async () => {
+    await legeShare();
+    await legeDatei({ id: DATEI_A, avStatus: "error" });
+
+    const wirt = await dom();
+    const formular = wirt.querySelector(AV_KNOPF(DATEI_A))!.closest("form");
+    expect(formular, "der Knopf steht in keinem Formular").not.toBeNull();
+
+    const felder = new Map(
+      Array.from(formular!.querySelectorAll<HTMLInputElement>("input[type='hidden']")).map(
+        (feld) => [feld.getAttribute("name"), feld.getAttribute("value")],
+      ),
+    );
+    // `art` entscheidet die Tabelle: dieselbe Action bedient `share_files` und
+    // `inbox_files`, und ein Rateweg ueber beide waere eine zweite Wahrheit.
+    expect(felder.get("art")).toBe("share");
+    expect(felder.get("id")).toBe(DATEI_A);
+  });
+
+  it("haengt am STATUS der Zeile, nicht an ihrem Anzeigetext", async () => {
+    /*
+     * Eine Zeile ohne vollstaendige Bytes zeigt „nicht vollständig übertragen"
+     * — der AV-Zustand steht dann gar nicht in der Zelle. Das Praedikat des
+     * Knopfes muss trotzdem DASSELBE sein wie das `WHERE av_status = 'error'`
+     * der Action: Oberflaeche und Riegel wenden dasselbe Praedikat an
+     * (`docs/design/README.md:236-249`). Zoege der Knopf seinen Zustand aus dem
+     * Text, gaebe es Zeilen, die die Action annimmt und die Seite nicht anbietet.
+     */
+    await legeShare();
+    await legeDatei({ id: DATEI_A, avStatus: "error", vollstaendig: false });
+
+    const wirt = await dom();
+    expect(zeilentext(wirt, DATEI_A)).toContain("nicht vollständig übertragen");
+    expect(wirt.querySelector(AV_KNOPF(DATEI_A))).not.toBeNull();
   });
 });
