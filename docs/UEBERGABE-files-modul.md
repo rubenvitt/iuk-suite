@@ -1,10 +1,10 @@
-# Übergabe — Modul `files` (Phase 4), Stand 2026-08-01
+# Übergabe — Modul `files` (Phase 4), Stand 2026-08-01 (nach Welle 5)
 
-Du übernimmst den Bau des Moduls `files` in der iuk-suite. **25 von 51 Tasks sind fertig und
-committet, 26 stehen aus.** Dieses Dokument sagt dir, was du zuerst liest, was schon entschieden ist,
+Du übernimmst den Bau des Moduls `files` in der iuk-suite. **36 von 51 Tasks sind fertig und
+committet, 15 stehen aus.** Dieses Dokument sagt dir, was du zuerst liest, was schon entschieden ist,
 wie hier gearbeitet wird, und welche Fallen die bisherigen Wellen Zeit gekostet haben.
 
-Branch: **`feat/files-modul`** (fünf Commits, alle Gates grün).
+Branch: **`feat/files-modul`** (sechs Commits, alle Gates grün).
 
 ---
 
@@ -105,7 +105,7 @@ add` im selben Arbeitsbaum kollidiert).
 
 | Welle | Tasks | Inhalt | Playwright |
 |---|---|---|---|
-| **5** | T26, T27, T28, T29, T30, T31, T32, T33, T51, T34, T49 (11) | Byte-Wege und Actions: Chunk-Upload, Verify, QR-Routen, Zugangslinks, Download, Vorschau, ZIP | ja |
+| ~~5~~ | ~~T26–T34, T51, T49 (11)~~ | **fertig, committet** (`54b52ec`) — Byte-Wege und Actions | — |
 | **6a** | T35, T37, T38, T39, T50 (5) | Oberflächen I: `/shares/neu`, Shares-Actions, `/u/<token>`, `/zugangslinks`, Budget/Wettlauf | ja |
 | **6b** | T36 (1) | Freigaben-Übersicht (hängt an T37) | ja |
 | **7** | T40, T41, T42, T43 (4) | Oberflächen II: `/s/<id>` mit Passwort-Gate, Detailseite, Bearbeiten, `/posteingang` | ja |
@@ -114,6 +114,65 @@ add` im selben Arbeitsbaum kollidiert).
 
 Danach ist **Spec 1 fertig**. Spec 2 (Import beider Quellen, Generalprobe, zwei Cutover) ist ein
 eigener Zyklus und **nicht** dein Auftrag.
+
+### Was Welle 5 den folgenden Wellen schuldet
+
+Diese Punkte sind **keine** Befunde, sondern Nähte: Welle 5 hat sie bewusst nicht geschlossen, weil
+sie fremde Dateien betreffen. Wer den genannten Task baut, schließt sie mit.
+
+**An T35 (`/shares/neu`, `UploadInsel`) — der teuerste der fünf:**
+
+- **Der `?ende=1`-Chunk MUSS `datei.type` als `Content-Type` mitschicken.** T27 nimmt die
+  Client-Deklaration von dort entgegen; die Spec benennt keinen Träger, T27 hat den idiomatischen
+  gewählt. Fehlt der Kopf, werden **`.txt` und die drei Office-Formate abgelehnt** — für `text/plain`
+  gibt es keine Signatur, die Deklaration ist dort das einzige Positivsignal, für ZIP-Container ist
+  sie die Verfeinerung. Signaturformate (PNG/JPEG/PDF) gehen auch ohne durch: **die Lücke fällt genau
+  bei den vier Typen auf, die niemand zuerst testet.**
+- Statuscodes, die T27 gewählt hat und auf die die Insel antworten muss: **415** MIME-Prüfung
+  gescheitert, **409** Zeile bereits vollständig (samt `erwartetesOffsetBytes`), **400** `ab` ist kein
+  Byte-Offset, **413** AV-Grenze, **507** kein Platz (Inbox-Weg, Zeile bleibt zur Wiederaufnahme).
+- `anlegenAction` ruft `revalidatePath("/m/files")` **mitten im Ablauf**, vor dem Byte-Upload. Das
+  steht in keiner Zusage und kein Test besitzt es (`next/cache` ist gemockt).
+- `PASSWORT_MIN_ZEICHEN` (heute 8) liegt modulprivat in `(verwaltung)/actions.ts`. Eine
+  `"use server"`-Datei darf **nur** asynchrone Funktionen exportieren — das Formular kann die Zahl
+  nicht lesen und müsste sie abschreiben. Sie gehört nach `_lib/grenzen.ts` (führt bereits
+  `FILES_CHUNK_BYTES`, `FILES_HINWEIS_MAX_ZEICHEN`, `FILES_FEHLVERSUCHE_PRO_MIN`).
+- T35 schließt außerdem die **zwei Riegel aus §7** mit.
+
+**An T39 (`/zugangslinks`):** die Spec widerspricht sich **innerhalb derselben Tabellenzelle**
+(`…-design.md:925`): „die ersten 8 Zeichen im Klartext, für die Liste (`dz-` plus vier
+Geheimzeichen)" — `dz-` plus vier sind **sieben**. T30 hat gebaut, was der Code verlangt; wer die
+Liste baut, entscheidet die Zahl und korrigiert die Spec-Zeile mit.
+
+**An T40 (`/s/<id>`), VOR dem Bau:** `api/preview/[id]/route.ts` exportiert heute `VORSCHAU_TYPEN`,
+`TEXT_TYPEN` und `vorschauZustand` — Nicht-Handler-Exporte in einer `route.ts`. Sie gehören nach
+`_lib/vorschau.ts`, bevor T40 sie liest.
+
+**An T21 (`_lib/zip.ts`), zwei Schnitte:**
+
+- `dispositionKopfzeile(name, ascii)` verdrahtet `attachment` fest, obwohl ihr eigener Kommentar T51
+  als Aufrufer nennt. Für den Vorschau-Weg ist `attachment` das Gegenteil der Absicht. Nötig ist ein
+  dritter Parameter `art: "attachment" | "inline"` mit Vorbelegung `attachment` (T33/T34 bleiben
+  unberührt). Solange antwortet `/api/preview/<id>` mit nacktem `Content-Disposition: inline` **ohne
+  `filename`**.
+- `planeArchiv(kandidaten, nichtGefundeneIds)` trägt bei den beiden Aufrufern **zwei Bedeutungen**:
+  T49 übergibt echte IDs, T34 übergibt **Dateinamen**. `ZipAusschluss.id` hält bei T34 also einen
+  Namen. Heute liest niemand `.id` — der nächste Verbraucher bekäme beide Bedeutungen still
+  vermischt.
+
+**An T15 (`_db/queries.ts`):** alle `share_files`-Zeilen einer Freigabe entstehen in einem Aufruf und
+tragen denselben `createdAt`. `ladeInhalt` sortiert `asc(createdAt), asc(id)` — bei Gleichstand
+entscheidet die nanoid, und die Reihenfolge auf `/s/<id>`, der Detailseite und im ZIP ist **zufällig
+statt die vom Nutzer gewählte**. Behebbar über eine Ordnungsspalte oder eine andere Sortierung.
+
+**An T44 (Host-Abnahme):** der Docblock von `api/inbox/[id]/route.ts:26-30` behauptet,
+`requireFilesAccess()` werfe und Next übersetze das in eine 404. Für den **eingeloggten** ohne Zugang
+stimmt das; der **anonyme** wird in den Login umgeleitet (gemessen: 307). Fünf Handler bauen
+außerdem dieselbe Rollensperr-404 nach (`rolleOderNull(req.headers) !== "verwaltung"`) — ab jetzt ist
+die `core`-Regel „zweiter, heute belegbarer Nutznießer" für einen gemeinsamen Helfer erfüllt.
+
+**An T50:** der `POST`-Altweg auf `/api/u/<token>/upload` antwortet heute **405**. Das ist richtig —
+er gehört T50, nicht T31.
 
 ---
 
@@ -140,6 +199,13 @@ eigener Zyklus und **nicht** dein Auftrag.
 
 **Aus dem Werkzeug:**
 
+- **Sicherungskopien gehören ins Session-Scratchpad, NIEMALS nach `/tmp`.** In Welle 5 haben zwei
+  Agenten unabhängig `/tmp/route.orig.ts` benutzt — bei elf gleichzeitigen Agenten ist der Name
+  besetzt. Zweimal landete danach der Inhalt einer **fremden** Route in der eigenen Datei, und beide
+  Male ist das **typecheck- und lint-grün**, solange beide Dateien für sich übersetzen. Aufgefallen
+  ist es nur, weil die Tests der eigenen Route reihenweise fielen. **Der Koordinator prüft vor dem
+  Wellen-Commit, dass jede `route.ts` die Handler exportiert, die zu ihrem Pfad gehören** — ein
+  `grep -n "^export async function" ` über alle neuen Routen kostet zehn Sekunden.
 - **Playwright nicht laufen lassen, während du Dateien editierst.** HMR zieht die Änderung mitten in
   den Lauf und erzeugt Fehlschläge, die nicht reproduzierbar sind (einmal passiert, eine Stunde
   Sucherei).
@@ -218,11 +284,27 @@ Welle 6.
 ```
 typecheck  0 Fehler
 lint       0 Fehler, 2 Warnungen (beide vorbestehend und fremd)
-vitest     135 Dateien, 2223 Tests, alle grün
-build      grün, /m/files und /m/files/u in der Routentabelle
+vitest     147 Dateien, 2581 Tests, alle grün
+build      grün, alle zehn neuen Routen in der Routentabelle
+playwright 69 passed
 ```
 
-Fünf Commits auf `feat/files-modul`, nichts gepusht. Der letzte Lauf endete am **Spend-Limit der
-Organisation** — 15 von 50 Agenten starben daran, die betroffenen Nachbesserungen habe ich von Hand
-erledigt und per Mutation belegt. Wenn dir dasselbe passiert: die Review-Befunde stehen im Ergebnis
-jedes Wellenlaufs unter `review_befunde`, du kannst sie ohne Agenten abarbeiten.
+**Vom Koordinator selbst gemessen, nicht aus der Selbstauskunft der Agenten übernommen.** Dazu: alle
+zehn Routen auf beiden Hosts abgerufen (`pnpm dev:av` + `next dev`), jede zusätzlich mit einer nicht
+exportierten Methode gesondet — 405 beweist, dass das Modul aufgelöst und der Host-Rewrite gefeuert
+hat, wo ein blankes 404 mehrdeutig wäre. **Kein einziges HTTP 500.**
+
+Sechs Commits auf `feat/files-modul`, nichts gepusht.
+
+Welle 5 lief mit 30 Agenten ohne Ausfall durch (der vorige Lauf hatte 15 von 50 am **Spend-Limit der
+Organisation** verloren). Sieben der elf Tasks brauchten eine Nachbesserung, und **jeder einzelne
+schwere Befund kam wieder aus einer Mutationsprobe, nicht aus einem roten Gate** — unter anderem war
+die Client-Deklaration des MIME-Typs in keinem Test tragend, und `archiver` trägt Fehler eines
+angehängten Quellstroms strukturell **nicht** nach `archiv.on("error")` weiter
+(`archiver-utils@5.0.2/index.js:86` hängt jeden Strom über `pipe()` an). Beide ZIP-Wege horchen
+deshalb jetzt am Quellstrom selbst.
+
+Wenn dir das Spend-Limit trifft: die Review-Befunde stehen im Ergebnis jedes Wellenlaufs unter
+`review_befunde`, du kannst sie ohne Agenten abarbeiten. Und **prüfe nach jedem Lauf
+`umgesetzt.length` gegen die Task-Liste** — das Script filtert tote Agenten still weg, und ein nie
+gebauter Task färbt kein Gate rot.
