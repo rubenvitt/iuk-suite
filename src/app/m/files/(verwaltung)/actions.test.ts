@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mkdirSync, rmSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
@@ -41,8 +42,41 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+/*
+ * Die Ablage bleibt ECHT — `blob()` legt hier wirkliche Bytes ab, und die
+ * Verzeichnis-Zusicherungen lesen die Platte. Gesteuert wird ausschliesslich
+ * EIN Fall, den es auf einem gesunden Dateisystem nicht gibt: ein `rmdir`, das
+ * mit einem Betriebsfehler scheitert (nur lesbar eingehaengte Ablage, EACCES).
+ * Nur so ist pruefbar, dass die Action ihn AUSHAELT und trotzdem MELDET —
+ * ENOTEMPTY wirft nicht und kann diese Zusage deshalb nicht tragen.
+ */
+const storageSteuerung = vi.hoisted(() => ({ verzeichnisFehler: undefined as unknown }));
+
+vi.mock("@/app/m/files/_lib/storage", async (importOriginal) => {
+  const echt = await importOriginal<typeof import("@/app/m/files/_lib/storage")>();
+  return {
+    ...echt,
+    loescheShareVerzeichnis: async (shareId: string) => {
+      if (storageSteuerung.verzeichnisFehler !== undefined) {
+        throw storageSteuerung.verzeichnisFehler;
+      }
+      return echt.loescheShareVerzeichnis(shareId);
+    },
+  };
+});
+
+import { revalidatePath } from "next/cache";
 import { auth } from "@/core/auth";
-import { anlegenAction } from "@/app/m/files/(verwaltung)/actions";
+import {
+  anlegenAction,
+  bearbeitenAction,
+  downloadsAufstockenAction,
+  shareLoeschenAction,
+  type ShareFormZustand,
+} from "@/app/m/files/(verwaltung)/actions";
+import { getDb } from "@/app/m/files/_db/client";
+import { downloadLogs } from "@/app/m/files/_db/schema";
+import { BlobFehlt, abschliesse, fortschritt, groesse, schreibeStrom } from "@/app/m/files/_lib/storage";
 
 const authMock = vi.mocked(auth);
 
@@ -64,6 +98,8 @@ beforeEach(() => {
   process.env.FILES_AV_MAX_BYTES = String(100 * 1024 * 1024);
   process.env.FILES_MAX_ABLAUF_TAGE = String(MAX_TAGE);
   delete process.env.FILES_MAX_DATEIEN_PRO_SHARE;
+
+  storageSteuerung.verzeichnisFehler = undefined;
 
   const sqlite = new Database(`${DIR}/files.db`);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
@@ -149,6 +185,10 @@ describe("anlegenAction — Titel", () => {
     );
     expect(ergebnis.werte.title).toBe(" ");
     expect(JSON.stringify(ergebnis.werte)).not.toContain("geheim-genug-1");
+    // Auch der SCHLUESSEL nicht: ein `werte.password = ""` truege zwar keinen
+    // Klartext, setzte aber `defaultValue=""` auf das Passwortfeld und
+    // ueberschriebe damit still, was der Browser dort schon eingesetzt hat.
+    expect(Object.keys(ergebnis.werte)).not.toContain("password");
   });
 });
 
@@ -396,6 +436,583 @@ describe("anlegenAction — der Zugriffsriegel", () => {
   });
 });
 
+// ===========================================================================
+// T37 — bearbeiten, Downloads aufstocken, loeschen
+// ===========================================================================
+
+/**
+ * Der Startwert, den `useActionState` in `_vorher` reicht. Die drei Actions
+ * lesen ihn nicht; er steht hier, damit der Aufruf im Test dieselbe Form hat
+ * wie in der Oberflaeche.
+ */
+const LEER: ShareFormZustand = { ok: false, feldFehler: {}, werte: {} };
+
+/** Eine FormData aus reinen Textfeldern — die Nutzlast der drei Actions. */
+function fd(werte: Record<string, string>): FormData {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(werte)) f.set(k, v);
+  return f;
+}
+
+async function legeAn(felder: Felder = GUELTIG, dateien: string[] = ["bericht.pdf"]) {
+  return angenommen(await anlegenAction(formular(felder, dateien)));
+}
+
+function shareZeile(id: string): Record<string, unknown> {
+  const zeile = rohZeilen("shares").find((z) => z.id === id);
+  if (zeile === undefined) throw new Error(`Share ${id} nicht in der Datenbank`);
+  return zeile;
+}
+
+/**
+ * Eine Zeile ohne die genannten Spalten.
+ *
+ * WARUM DER VERGLEICH SO LAEUFT und nicht als Reihe von Einzelzusicherungen:
+ * die Zusage lautet „NUR das Genannte hat sich geaendert". Eine Liste gepruefter
+ * Spalten waere fuer jede Spalte gruen, an die beim Schreiben des Tests niemand
+ * gedacht hat — und genau so entstand der Alt-Defekt (`updateShare` schrieb
+ * `expires_at` bedingungslos mit).
+ */
+function ohne(zeile: Record<string, unknown>, ...spalten: string[]): Record<string, unknown> {
+  const kopie = { ...zeile };
+  for (const spalte of spalten) delete kopie[spalte];
+  return kopie;
+}
+
+function abgewiesen(zustand: ShareFormZustand) {
+  if (zustand.ok) throw new Error("erwartet: Ablehnung, war: angenommen");
+  return zustand;
+}
+
+function bestaetigt(zustand: ShareFormZustand): void {
+  if (!zustand.ok) {
+    throw new Error(`erwartet: Annahme, war: ${JSON.stringify(zustand.feldFehler)}`);
+  }
+}
+
+async function* stueckweise(inhalt: string): AsyncGenerator<Uint8Array> {
+  yield new TextEncoder().encode(inhalt);
+}
+
+/**
+ * Legt echte Bytes ueber `_lib/storage.ts` ab — NICHT ueber einen im Test
+ * zusammengebauten Pfad. Sonst schriebe der Test das Ablageschema fest, von dem
+ * er unabhaengig sein soll (`_lib/storage.ts` ist die einzige Stelle, an der im
+ * Modul ein Pfad entsteht).
+ *
+ * `abschliessen: false` laesst es bei der Zwischendatei `.part` — der Zustand
+ * eines abgebrochenen Uploads, den das Loeschen mitnehmen muss.
+ */
+async function blob(
+  shareId: string,
+  fileId: string,
+  inhalt: string,
+  abschliessen: boolean,
+): Promise<{ art: "share"; shareId: string; fileId: string }> {
+  const ziel = { art: "share", shareId, fileId } as const;
+  await schreibeStrom(ziel, stueckweise(inhalt), { maxBytes: 4096 });
+  if (abschliessen) await abschliesse(ziel);
+  return ziel;
+}
+
+/**
+ * Die direkten Kinder der Ablagewurzel — genau die Ebene, aus der
+ * `_lib/aufraeumen.ts:planeAufraeumen` seine `blobVerzeichnisse` bildet und
+ * daraus die „verwaisten Blobs" ableitet.
+ *
+ * Der Test baut damit keinen Pfad zu einem BLOB (das bliebe `_lib/storage.ts`
+ * vorbehalten, siehe `blob` darueber) — er liest dieselbe Ebene wie der
+ * Aufraeum-Bericht, und dass deren Eintragsnamen die Share-IDs sind, ist eine
+ * Annahme, die das Modul dort ohnehin schon traegt.
+ */
+function ablageWurzelEintraege(): string[] {
+  return readdirSync(join(DIR, "files"));
+}
+
+// ---------------------------------------------------------------------------
+// Punkt 1 — bearbeiten aendert NUR, was mitgeschickt wurde
+// ---------------------------------------------------------------------------
+
+describe("bearbeitenAction — nur das Mitgeschickte aendert sich", () => {
+  it("nur der Titel geaendert → JEDE andere Spalte steht unveraendert", async () => {
+    // Der Alt-Defekt: `useState(1)` im Formular plus bedingungsloses Senden in
+    // `updateShare` verkuerzte den Share auf 24 h, sobald jemand den Titel
+    // korrigierte (§7.3, Punkt 1).
+    const { shareId } = await legeAn({
+      ...GUELTIG,
+      expiryDays: "5",
+      maxDownloads: "3",
+      password: "richtig-langes-Wort",
+      description: "Lagebericht",
+    });
+    const vorher = shareZeile(shareId);
+
+    bestaetigt(await bearbeitenAction(LEER, fd({ id: shareId, title: "  Übung Süd  " })));
+
+    const nachher = shareZeile(shareId);
+    expect(nachher.title).toBe("Übung Süd");
+    expect(ohne(nachher, "title")).toEqual(ohne(vorher, "title"));
+  });
+
+  it("ein leerer Titel ist ein Feldfehler, und die Zeile bleibt unangetastet", async () => {
+    const { shareId } = await legeAn();
+    const vorher = shareZeile(shareId);
+    const ergebnis = abgewiesen(await bearbeitenAction(LEER, fd({ id: shareId, title: "   " })));
+    expect(ergebnis.feldFehler.title).toBeTruthy();
+    expect(shareZeile(shareId)).toEqual(vorher);
+  });
+
+  it("eine unbekannte ID wird BENANNT abgelehnt, nicht still angenommen", async () => {
+    const ergebnis = abgewiesen(
+      await bearbeitenAction(LEER, fd({ id: "Abcdefghij", title: "Neu" })),
+    );
+    expect(ergebnis.feldFehler.id).toBeTruthy();
+  });
+
+  it("die Beschreibung wird nur geaendert, wenn das Feld mitkommt — leer heisst NULL", async () => {
+    const { shareId } = await legeAn({ ...GUELTIG, description: "Lagebericht" });
+    bestaetigt(await bearbeitenAction(LEER, fd({ id: shareId, title: "T" })));
+    expect(shareZeile(shareId).description).toBe("Lagebericht");
+
+    bestaetigt(await bearbeitenAction(LEER, fd({ id: shareId, title: "T", description: "  " })));
+    expect(shareZeile(shareId).description).toBeNull();
+  });
+
+  it("das Download-Limit wird nur geaendert, wenn das Feld mitkommt", async () => {
+    const { shareId } = await legeAn({ ...GUELTIG, maxDownloads: "3" });
+    bestaetigt(await bearbeitenAction(LEER, fd({ id: shareId, title: "T" })));
+    expect(shareZeile(shareId).max_downloads).toBe(3);
+
+    bestaetigt(await bearbeitenAction(LEER, fd({ id: shareId, title: "T", maxDownloads: "9" })));
+    expect(shareZeile(shareId).max_downloads).toBe(9);
+
+    // Leer heisst unbegrenzt — dieselbe Lesart wie beim Anlegen, und `"0"` ist
+    // auch hier eine Ablehnung und nie „unbegrenzt".
+    bestaetigt(await bearbeitenAction(LEER, fd({ id: shareId, title: "T", maxDownloads: "" })));
+    expect(shareZeile(shareId).max_downloads).toBeNull();
+  });
+
+  it('maxDownloads="0" wird abgelehnt, das bestehende Limit bleibt stehen', async () => {
+    const { shareId } = await legeAn({ ...GUELTIG, maxDownloads: "3" });
+    const ergebnis = abgewiesen(
+      await bearbeitenAction(LEER, fd({ id: shareId, title: "T", maxDownloads: "0" })),
+    );
+    expect(ergebnis.feldFehler.maxDownloads).toBeTruthy();
+    expect(shareZeile(shareId).max_downloads).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Punkt 2 — der Ablauf ist IN DER ACTION gedeckelt
+// ---------------------------------------------------------------------------
+
+describe("bearbeitenAction — der Ablauf", () => {
+  for (const wert of ["0", "-1", "99999", "1.5", "sieben", "1e1", "0x2"]) {
+    it(`ein direkter Aufruf mit expiryDays=${JSON.stringify(wert)} wird abgelehnt, expires_at bleibt`, async () => {
+      // In der Alt-App stand die Deckelung NUR als HTML-Attribut; ueber einen
+      // direkten Action-Aufruf waren 0, negative und beliebig grosse Werte
+      // moeglich (§7.3, Punkt 2).
+      const { shareId } = await legeAn({ ...GUELTIG, expiryDays: "5" });
+      const vorher = shareZeile(shareId);
+      const ergebnis = abgewiesen(
+        await bearbeitenAction(LEER, fd({ id: shareId, title: "T", expiryDays: wert })),
+      );
+      expect(ergebnis.feldFehler.expiryDays).toBeTruthy();
+      expect(shareZeile(shareId)).toEqual(vorher);
+    });
+  }
+
+  it(`genau FILES_MAX_ABLAUF_TAGE (${MAX_TAGE}) wird angenommen — die Grenze ist einschliesslich`, async () => {
+    // Die Gegenprobe zu 99999: ohne sie waere ein `>=` statt `>` gruen.
+    const { shareId } = await legeAn({ ...GUELTIG, expiryDays: "1" });
+    const vorher = Math.floor(Date.now() / 1000);
+    bestaetigt(
+      await bearbeitenAction(LEER, fd({ id: shareId, title: "T", expiryDays: String(MAX_TAGE) })),
+    );
+    const nachher = Math.floor(Date.now() / 1000);
+
+    // Und in SEKUNDEN, nicht in Millisekunden (`schema.ts:4-13`): der
+    // Faktor-1000-Fehler ist gegen die eigene Leseseite paritaetsgruen.
+    const roh = shareZeile(shareId).expires_at as number;
+    expect(roh).toBeGreaterThanOrEqual(vorher + MAX_TAGE * 86400);
+    expect(roh).toBeLessThanOrEqual(nachher + MAX_TAGE * 86400);
+  });
+
+  it("ein leeres Ablauffeld laesst expires_at unveraendert — es ist kein „auf 0 Tage setzen“", async () => {
+    const { shareId } = await legeAn({ ...GUELTIG, expiryDays: "5" });
+    const vorher = shareZeile(shareId);
+    bestaetigt(await bearbeitenAction(LEER, fd({ id: shareId, title: "T", expiryDays: "" })));
+    // Der Titel darf sich aendern — er wurde ja mitgeschickt; alles andere nicht.
+    expect(ohne(shareZeile(shareId), "title")).toEqual(ohne(vorher, "title"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Punkt 5 — Passwort setzen und entfernen
+// ---------------------------------------------------------------------------
+
+describe("bearbeitenAction — Passwort", () => {
+  it("ein neu gesetztes Passwort liegt als $2b$12$ in der Zeile, nie im Klartext", async () => {
+    const { shareId } = await legeAn();
+    bestaetigt(
+      await bearbeitenAction(LEER, fd({ id: shareId, title: "T", password: "richtig-langes-Wort" })),
+    );
+    const hash = shareZeile(shareId).password_hash as string;
+    expect(hash.startsWith("$2b$12$")).toBe(true);
+    expect(hash).not.toContain("richtig-langes-Wort");
+  });
+
+  it("passwortEntfernen=1 setzt password_hash auf NULL", async () => {
+    const { shareId } = await legeAn({ ...GUELTIG, password: "richtig-langes-Wort" });
+    bestaetigt(
+      await bearbeitenAction(LEER, fd({ id: shareId, title: "T", passwortEntfernen: "1" })),
+    );
+    expect(shareZeile(shareId).password_hash).toBeNull();
+  });
+
+  it("ein LEERES Passwortfeld laesst den Hash stehen — sonst entzieht jede Titelkorrektur den Schutz", async () => {
+    // Dieselbe Fehlerklasse wie der Ablauf-Defekt, nur teurer: der Empfaenger
+    // haelt einen Link fuer geschuetzt, der es nicht mehr ist. Das Entfernen
+    // braucht deshalb ein EIGENES Signal.
+    const { shareId } = await legeAn({ ...GUELTIG, password: "richtig-langes-Wort" });
+    const vorher = shareZeile(shareId).password_hash;
+    bestaetigt(await bearbeitenAction(LEER, fd({ id: shareId, title: "T", password: "" })));
+    expect(shareZeile(shareId).password_hash).toBe(vorher);
+  });
+
+  it("ein zu kurzes Passwort wird abgelehnt, der bestehende Hash bleibt", async () => {
+    const { shareId } = await legeAn({ ...GUELTIG, password: "richtig-langes-Wort" });
+    const vorher = shareZeile(shareId).password_hash;
+    const ergebnis = abgewiesen(
+      await bearbeitenAction(LEER, fd({ id: shareId, title: "T", password: "kurz" })),
+    );
+    expect(ergebnis.feldFehler.password).toBeTruthy();
+    expect(shareZeile(shareId).password_hash).toBe(vorher);
+  });
+
+  it("eine Ablehnung schickt das Passwort NICHT zurueck — weder als Wert noch als Schluessel", async () => {
+    // `werte` wird per `defaultValue` wieder ins Formular gesetzt (T35/T42).
+    // Stuende `password` in der Namensliste von `mitgeschickt`, kaeme der
+    // Klartext im RSC-Payload DERSELBEN Antwort an den Browser zurueck und
+    // stuende als Attribut im Markup. Bis hierher haengt diese Zusage allein an
+    // der Namensliste — dieser Fall ist es, der sie besitzt.
+    const { shareId } = await legeAn();
+    const ergebnis = abgewiesen(
+      await bearbeitenAction(
+        LEER,
+        // Der Titel loest die Ablehnung aus; das Passwort ist lang genug und
+        // damit fuer sich genommen fehlerfrei — geprueft wird das Echo, nicht
+        // die Passwortpruefung.
+        fd({ id: shareId, title: "   ", password: "richtig-langes-Wort" }),
+      ),
+    );
+    expect(ergebnis.feldFehler.title).toBeTruthy();
+    expect(Object.keys(ergebnis.werte)).not.toContain("password");
+    // Ueber das GANZE Ergebnis, nicht nur ueber `werte`: eine Fehlermeldung, die
+    // die Eingabe zitierte, waere derselbe Weg an denselben Browser.
+    expect(JSON.stringify(ergebnis)).not.toContain("richtig-langes-Wort");
+  });
+
+  it("Setzen UND Entfernen zugleich ist ein Feldfehler, kein stiller Vorrang", async () => {
+    const { shareId } = await legeAn({ ...GUELTIG, password: "richtig-langes-Wort" });
+    const vorher = shareZeile(shareId).password_hash;
+    const ergebnis = abgewiesen(
+      await bearbeitenAction(
+        LEER,
+        fd({ id: shareId, title: "T", password: "ein-anderes-Wort", passwortEntfernen: "1" }),
+      ),
+    );
+    expect(ergebnis.feldFehler.password).toBeTruthy();
+    expect(shareZeile(shareId).password_hash).toBe(vorher);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Punkt 3 — Downloads aufstocken
+// ---------------------------------------------------------------------------
+
+describe("downloadsAufstockenAction", () => {
+  it("stockt um den ZUWACHS auf: 3 + 5 ergibt 8, nicht 5", async () => {
+    // Der Zuwachs statt der neuen Summe — dieselbe Begruendung wie bei
+    // `kontingentAufstockenAction`: `max_downloads + ?` kann keinen gerade
+    // laufenden Download ueberschreiben, und eine absolute Zahl liesse sich
+    // versehentlich NACH UNTEN setzen.
+    const { shareId } = await legeAn({ ...GUELTIG, maxDownloads: "3" });
+    bestaetigt(await downloadsAufstockenAction(LEER, fd({ id: shareId, zusatzDownloads: "5" })));
+    expect(shareZeile(shareId).max_downloads).toBe(8);
+  });
+
+  it("aendert KEINE andere Spalte — insbesondere setzt sie keinen Zeitstempel zurueck", async () => {
+    // Punkt 3 ist der Grund, warum `limit_reached_at` gestrichen wurde: das
+    // ANHEBEN eines Limits hinterliess dort einen gesetzten Wert, 24 h spaeter
+    // antworteten drei Auslieferungsrouten 410, und der Aufraeumjob loeschte den
+    // Share. Der Spaltenvergleich haelt das fuer JEDE Spalte fest, auch fuer
+    // eine, die es heute noch nicht gibt.
+    const { shareId } = await legeAn({ ...GUELTIG, maxDownloads: "3" });
+    const vorher = shareZeile(shareId);
+    bestaetigt(await downloadsAufstockenAction(LEER, fd({ id: shareId, zusatzDownloads: "5" })));
+    expect(ohne(shareZeile(shareId), "max_downloads")).toEqual(ohne(vorher, "max_downloads"));
+  });
+
+  it("ein UNBEGRENZTER Share wird benannt abgelehnt — NULL + n waere NULL und still", async () => {
+    // Ohne diesen Riegel meldete die Action Erfolg, waehrend `max_downloads`
+    // NULL bliebe (dieselbe Falle wie `budget + 0` bei den Abgabelinks).
+    const { shareId } = await legeAn(GUELTIG);
+    const ergebnis = abgewiesen(
+      await downloadsAufstockenAction(LEER, fd({ id: shareId, zusatzDownloads: "5" })),
+    );
+    expect(ergebnis.feldFehler.id).toBeTruthy();
+    expect(shareZeile(shareId).max_downloads).toBeNull();
+  });
+
+  for (const wert of ["0", "-1", "", "2.5", "drei"]) {
+    it(`zusatzDownloads=${JSON.stringify(wert)} wird abgelehnt, das Limit bleibt`, async () => {
+      const { shareId } = await legeAn({ ...GUELTIG, maxDownloads: "3" });
+      const ergebnis = abgewiesen(
+        await downloadsAufstockenAction(LEER, fd({ id: shareId, zusatzDownloads: wert })),
+      );
+      expect(ergebnis.feldFehler.zusatzDownloads).toBeTruthy();
+      expect(shareZeile(shareId).max_downloads).toBe(3);
+    });
+  }
+
+  it("eine unbekannte ID wird benannt abgelehnt", async () => {
+    const ergebnis = abgewiesen(
+      await downloadsAufstockenAction(LEER, fd({ id: "Abcdefghij", zusatzDownloads: "5" })),
+    );
+    expect(ergebnis.feldFehler.id).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Punkt 4 — loeschen: Zeilen, Blobs, Zwischendateien — das Audit-Log BLEIBT
+// ---------------------------------------------------------------------------
+
+describe("shareLoeschenAction", () => {
+  it("entfernt Zeilen, Blobs und Zwischendateien und laesst das Audit-Log stehen", async () => {
+    const opfer = await legeAn(GUELTIG, ["bericht.pdf", "abbruch.pdf"]);
+    const fremd = await legeAn(GUELTIG, ["fremd.pdf"]);
+
+    const fertig = await blob(opfer.shareId, opfer.dateien[0].fileId, "Inhalt", true);
+    // Die zweite Datei blieb im Upload stecken: nur die Zwischendatei liegt da.
+    const halb = await blob(opfer.shareId, opfer.dateien[1].fileId, "halb", false);
+    const fremderBlob = await blob(fremd.shareId, fremd.dateien[0].fileId, "bleibt", true);
+
+    // Ohne diese Zeile waere „das Audit-Log bleibt erhalten" gegen eine LEERE
+    // Tabelle gruen und beliese nichts.
+    getDb()
+      .insert(downloadLogs)
+      .values({
+        shareId: opfer.shareId,
+        fileId: null,
+        clientIpUnbestaetigt: "203.0.113.0",
+        userAgent: "Test",
+        downloadedAt: new Date(),
+      })
+      .run();
+
+    bestaetigt(await shareLoeschenAction(LEER, fd({ id: opfer.shareId })));
+
+    expect(rohZeilen("shares").map((z) => z.id)).toEqual([fremd.shareId]);
+    expect(rohZeilen("share_files").map((z) => z.share_id)).toEqual([fremd.shareId]);
+
+    await expect(groesse(fertig)).rejects.toBeInstanceOf(BlobFehlt);
+    expect(await fortschritt(halb)).toBe(0);
+
+    // Der fremde Share ist unberuehrt — Bytes und Zeile.
+    expect(await groesse(fremderBlob)).toBe(6);
+
+    const log = rohZeilen("download_logs");
+    expect(log).toHaveLength(1);
+    expect(log[0].share_id).toBe(opfer.shareId);
+  });
+
+  it("loescht die share_files-Zeilen auch bei ABGESCHALTETEM Fremdschluessel-Cascade", async () => {
+    // Ohne diesen Fall erledigt `PRAGMA foreign_keys = ON` (`core/db/index.ts`)
+    // das Loeschen der Dateizeilen still mit: der ausdrueckliche `DELETE` im
+    // Rumpf laesst sich ersatzlos streichen, und kein Lauf wird rot. Genau das
+    // ist aber die Zusage — sie soll nicht an einer Einstellung AUSSERHALB des
+    // Moduls haengen. Hier steht sie mit ausgeschalteter Einstellung.
+    const opfer = await legeAn(GUELTIG, ["bericht.pdf", "lage.png"]);
+    const fremd = await legeAn(GUELTIG, ["fremd.pdf"]);
+
+    // Auf DERSELBEN Verbindung, die die Action benutzt: `getModuleDb` haelt sie
+    // je Modulschluessel global fest, und `beforeEach` verwirft sie wieder —
+    // die Abschaltung leckt also nicht in den naechsten Fall.
+    getDb().run(sql`PRAGMA foreign_keys = OFF`);
+    // Die Gegenprobe zur Vorrichtung selbst: griffe das PRAGMA nicht, liefe der
+    // Fall gegen ein eingeschaltetes Cascade und bewiese das Gegenteil.
+    expect(getDb().get<{ foreign_keys: number }>(sql`PRAGMA foreign_keys`)).toEqual({
+      foreign_keys: 0,
+    });
+
+    bestaetigt(await shareLoeschenAction(LEER, fd({ id: opfer.shareId })));
+
+    expect(rohZeilen("share_files").map((z) => z.share_id)).toEqual([fremd.shareId]);
+    expect(rohZeilen("shares").map((z) => z.id)).toEqual([fremd.shareId]);
+  });
+
+  it("das Verzeichnis des FREMDEN Shares bleibt stehen", async () => {
+    // Die Kontrollgruppe zum Fall darunter: was hier stehen bleiben MUSS, darf
+    // eine kuenftige Verzeichnis-Entfernung nicht mitnehmen.
+    const opfer = await legeAn(GUELTIG, ["bericht.pdf"]);
+    const fremd = await legeAn(GUELTIG, ["fremd.pdf"]);
+    await blob(opfer.shareId, opfer.dateien[0].fileId, "Inhalt", true);
+    await blob(fremd.shareId, fremd.dateien[0].fileId, "bleibt", true);
+
+    // Die Vorrichtung selbst, VOR dem Loeschen: ohne diese Zeile bewiese der
+    // Fall nicht, dass ueberhaupt zwei Verzeichnisse entstanden sind.
+    expect(ablageWurzelEintraege()).toContain(opfer.shareId);
+
+    bestaetigt(await shareLoeschenAction(LEER, fd({ id: opfer.shareId })));
+    expect(ablageWurzelEintraege()).toContain(fremd.shareId);
+  });
+
+  /*
+   * Die Zusage aus Spec §7.3 lautet „alle Blobs (`loesche` je Datei, DANACH das
+   * Verzeichnis)", und sie ist nicht kosmetisch:
+   * `_lib/aufraeumen.ts:planeAufraeumen` bildet `verwaisteBlobs` aus den
+   * direkten Kindern der Ablagewurzel, gefiltert gegen die vorhandenen
+   * `shares`-Zeilen. Bliebe das leere Verzeichnis stehen, meldete JEDER
+   * Aufraeumlauf ab dann JEDE planmaessige Loeschung als „verwaisten Blob", mit
+   * monoton steigender Zahl. Der Bericht ist laut §7.6 bewusst nur meldend und
+   * nicht loeschend; Falschmeldungen nehmen ihm genau diese Aussage.
+   */
+  it("das leere Verzeichnis des geloeschten Shares verschwindet mit", async () => {
+    const opfer = await legeAn(GUELTIG, ["bericht.pdf"]);
+    await blob(opfer.shareId, opfer.dateien[0].fileId, "Inhalt", true);
+
+    // VOR dem Loeschen, sonst waere die Zusicherung darunter auch dann gruen,
+    // wenn `legeAn`/`blob` aus einem ganz anderen Grund nichts angelegt haetten.
+    expect(ablageWurzelEintraege()).toContain(opfer.shareId);
+
+    bestaetigt(await shareLoeschenAction(LEER, fd({ id: opfer.shareId })));
+    expect(ablageWurzelEintraege()).not.toContain(opfer.shareId);
+  });
+
+  it("ein fremder Rest haelt das Verzeichnis — und das Loeschen gelingt trotzdem", async () => {
+    const opfer = await legeAn(GUELTIG, ["bericht.pdf"]);
+    await blob(opfer.shareId, opfer.dateien[0].fileId, "Inhalt", true);
+
+    /*
+     * Eine Zwischendatei OHNE `share_files`-Zeile: der noch nicht
+     * abgeschlossene Upload eines anderen Vorgangs. Die Schleife oben kennt ihn
+     * nicht, also raeumt sie ihn nicht weg — und ein `rm -r` auf das
+     * Verzeichnis risse ihn mit. Deshalb ist ENOTEMPTY hier kein Fehler,
+     * sondern der erwartete Zustand: das Verzeichnis bleibt, die Action gelingt.
+     */
+    const fremderTeil = await blob(opfer.shareId, "Zz9_x-1Qw2", "halb", false);
+
+    bestaetigt(await shareLoeschenAction(LEER, fd({ id: opfer.shareId })));
+
+    expect(ablageWurzelEintraege()).toContain(opfer.shareId);
+    expect(await fortschritt(fremderTeil)).toBe(4);
+  });
+
+  it("ein gescheitertes rmdir laesst das Loeschen gelingen, aber nicht STILL", async () => {
+    /*
+     * Der Betriebsfall: die Ablage ist nur lesbar eingehaengt. Das Loeschen darf
+     * daran nicht scheitern — die Zeilen sind der teurere Zustand, und der
+     * Vorgang liesse sich sonst nicht abschliessen. Es darf aber auch nicht
+     * still bleiben, sonst sucht der Betreiber die Ursache der steigenden
+     * „verwaisten Blobs" im Bericht und findet sie nie.
+     */
+    const laut = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const opfer = await legeAn(GUELTIG, ["bericht.pdf"]);
+      await blob(opfer.shareId, opfer.dateien[0].fileId, "Inhalt", true);
+      storageSteuerung.verzeichnisFehler = new Error("simuliert: EACCES");
+
+      bestaetigt(await shareLoeschenAction(LEER, fd({ id: opfer.shareId })));
+
+      expect(rohZeilen("shares")).toHaveLength(0);
+      expect(laut).toHaveBeenCalled();
+    } finally {
+      laut.mockRestore();
+    }
+  });
+
+  it("eine unbekannte ID wird benannt abgelehnt, und nichts verschwindet", async () => {
+    const { shareId } = await legeAn();
+    const ergebnis = abgewiesen(await shareLoeschenAction(LEER, fd({ id: "Abcdefghij" })));
+    expect(ergebnis.feldFehler.id).toBeTruthy();
+    expect(rohZeilen("shares").map((z) => z.id)).toEqual([shareId]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Punkt 4 (Fortsetzung) — die Auffrischung erreicht auch die Unterrouten
+// ---------------------------------------------------------------------------
+
+describe("die drei T37-Actions frischen das Segment MIT Unterrouten auf", () => {
+  /*
+   * `next/cache` ist gemockt (oben), die Wahl `"layout"` faellt also in keinem
+   * anderen Lauf auf: streicht man den Aufruf ersatzlos, bleibt die uebrige
+   * Suite gruen. Ohne ihn zeigten Uebersicht UND Detailseite nach jeder
+   * Bearbeitung, jedem Aufstocken und jedem Loeschen weiter den alten Stand —
+   * und beim Loeschen bekaeme `/shares/<id>` ihren `notFound()`-Zweig nie.
+   *
+   * Geprueft wird das PAAR aus Pfad und Reichweite: `"/m/files"` ist der
+   * INTERNE Pfad (nicht die per Host geroutete Wurzel `/`), `"layout"` die
+   * Reichweite ueber alle Unterrouten.
+   */
+  const auffrischer = vi.mocked(revalidatePath);
+
+  const rufe: Record<string, (id: string) => Promise<ShareFormZustand>> = {
+    bearbeitenAction: (id) => bearbeitenAction(LEER, fd({ id, title: "Neu" })),
+    downloadsAufstockenAction: (id) =>
+      downloadsAufstockenAction(LEER, fd({ id, zusatzDownloads: "5" })),
+    shareLoeschenAction: (id) => shareLoeschenAction(LEER, fd({ id })),
+  };
+
+  for (const [name, rufe1] of Object.entries(rufe)) {
+    it(`${name}: revalidatePath("/m/files", "layout")`, async () => {
+      const { shareId } = await legeAn({ ...GUELTIG, maxDownloads: "3" });
+      // Erst NACH dem Anlegen: `anlegenAction` frischt selbst auf (ohne
+      // `"layout"`), und ohne das Leeren zaehlte ein spaeterer Fall fremde
+      // Aufrufe mit.
+      auffrischer.mockClear();
+
+      bestaetigt(await rufe1(shareId));
+
+      expect(auffrischer).toHaveBeenCalledWith("/m/files", "layout");
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Punkt 6 — ohne Zugang sind alle DREI abweisend
+// ---------------------------------------------------------------------------
+
+describe("die drei T37-Actions — der Zugriffsriegel", () => {
+  const rufe: Record<string, (id: string) => Promise<ShareFormZustand>> = {
+    bearbeitenAction: (id) => bearbeitenAction(LEER, fd({ id, title: "Neu" })),
+    downloadsAufstockenAction: (id) =>
+      downloadsAufstockenAction(LEER, fd({ id, zusatzDownloads: "5" })),
+    shareLoeschenAction: (id) => shareLoeschenAction(LEER, fd({ id })),
+  };
+
+  for (const [name, rufe1] of Object.entries(rufe)) {
+    it(`${name}: ohne Sitzung fuehrt sie in die Anmeldung und aendert nichts`, async () => {
+      const { shareId } = await legeAn({ ...GUELTIG, maxDownloads: "3" });
+      const vorher = shareZeile(shareId);
+      authMock.mockResolvedValue(null as unknown as Awaited<ReturnType<typeof auth>>);
+      await expect(rufe1(shareId)).rejects.toThrow(/NEXT_REDIRECT/);
+      expect(shareZeile(shareId)).toEqual(vorher);
+    });
+
+    it(`${name}: mit Sitzung ohne Gruppe antwortet sie wie eine unbekannte Route`, async () => {
+      const { shareId } = await legeAn({ ...GUELTIG, maxDownloads: "3" });
+      const vorher = shareZeile(shareId);
+      authMock.mockResolvedValue({
+        user: { id: SUB, groups: ["irgendeine-andere-gruppe"] },
+      } as unknown as Awaited<ReturnType<typeof auth>>);
+      await expect(rufe1(shareId)).rejects.toThrow("NEXT_NOT_FOUND");
+      expect(shareZeile(shareId)).toEqual(vorher);
+    });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Punkt 7 — die Quelltext-Zusicherung ueber ALLE Server Actions des Moduls
 // ---------------------------------------------------------------------------
@@ -469,7 +1086,17 @@ describe("Quelltext-Zusicherung: jede Server Action des Moduls ruft requireFiles
 
   it("der Scan sieht ueberhaupt Funktionen — sonst waere die Zeile darueber leer und gruen", () => {
     const gezaehlt = useServerDateien().flatMap((d) => aktionen(d.inhalt).map((f) => f.name));
-    expect(gezaehlt).toContain("anlegenAction");
+    // NAMENTLICH und nicht als blosse Zahl: eine Zahl liesse offen, ob der Scan
+    // blind ist oder eine Action umbenannt wurde. Die drei aus T37 stehen mit
+    // dabei — sonst waere die Riegel-Zusicherung darueber fuer sie leer.
+    for (const name of [
+      "anlegenAction",
+      "bearbeitenAction",
+      "downloadsAufstockenAction",
+      "shareLoeschenAction",
+    ]) {
+      expect(gezaehlt).toContain(name);
+    }
   });
 
   it("der Scan erkennt eine funktionslokale Direktive, nicht nur die Modulzeile", () => {

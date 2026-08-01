@@ -7,12 +7,14 @@
  * §5.4 (ENOSPC/EACCES) sind eigene Fehlertypen — ohne sie trägt die Abbildung
  * auf 507/500 in T27/T31/T49 keine Mutation.
  *
- * `node:fs/promises` wird gemockt, aber nur an FÜNF Stellen: `open().write` (um
+ * `node:fs/promises` wird gemockt, aber nur an SECHS Stellen: `open().write` (um
  * ENOSPC/EACCES/EPERM/EROFS überhaupt herstellen zu können), `open().sync` (um
  * `fsync` zu bezeugen), `open().close` (um die FD-Aufräumzusage aus §5.3 zu
- * bezeugen), `readFile` (um die Rückleseprobe aus §5.6 zu verfälschen) und
+ * bezeugen), `readFile` (um die Rückleseprobe aus §5.6 zu verfälschen),
  * `unlink` (um ein scheiterndes Aufräumen herzustellen — nur so ist prüfbar,
- * dass der Aufräumzweig den Fehler, den er bewahren soll, nicht ersetzt).
+ * dass der Aufräumzweig den Fehler, den er bewahren soll, nicht ersetzt) und
+ * `rmdir` (aus demselben Grund; ENOENT und ENOTEMPTY sind dagegen mit echten
+ * Verzeichnissen herstellbar und werden auch so geprüft).
  * Alles andere ist echt. Der Grund gegen den naheliegenden Weg
  * „Elternverzeichnis auf 0o500 chmod'en": als root — CI, Container — ignoriert
  * der Kernel die Modusbits und der Schreibvorgang gelingt; die Zusage hier ist
@@ -43,6 +45,9 @@ const fsSteuerung = vi.hoisted(() => ({
   /** Gesetzt: jedes `unlink` scheitert mit diesem errno — der Betriebsfall „nur lesbar
    * eingehängte Ablage", in dem ein Aufräumversuch selbst wirft. */
   unlinkFehlerCode: undefined as string | undefined,
+  /** Gesetzt: jedes `rmdir` scheitert mit diesem errno. Nur für die Betriebsfehler
+   * nötig — ENOENT und ENOTEMPTY sind mit echten Verzeichnissen herstellbar. */
+  rmdirFehlerCode: undefined as string | undefined,
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {
@@ -70,6 +75,10 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     unlink: async (...args: Parameters<typeof echt.unlink>) => {
       if (fsSteuerung.unlinkFehlerCode) throw simuliert(fsSteuerung.unlinkFehlerCode);
       return echt.unlink(...args);
+    },
+    rmdir: async (...args: Parameters<typeof echt.rmdir>) => {
+      if (fsSteuerung.rmdirFehlerCode) throw simuliert(fsSteuerung.rmdirFehlerCode);
+      return echt.rmdir(...args);
     },
     readFile: async (...args: Parameters<typeof echt.readFile>) => {
       if (fsSteuerung.falscherLeseInhalt !== undefined) return fsSteuerung.falscherLeseInhalt;
@@ -121,6 +130,7 @@ import {
   kopfBytes,
   lieseStrom,
   loesche,
+  loescheShareVerzeichnis,
   pruefeAblage,
   scanPfad,
   schreibeStrom,
@@ -164,6 +174,7 @@ beforeEach(() => {
   fsSteuerung.schliessAufrufe = 0;
   fsSteuerung.falscherLeseInhalt = undefined;
   fsSteuerung.unlinkFehlerCode = undefined;
+  fsSteuerung.rmdirFehlerCode = undefined;
 });
 
 afterEach(() => {
@@ -198,6 +209,14 @@ describe("Pfadschema — ein Pfad entsteht nur aus DB-IDs", () => {
 
     it(`wirft für eine inboxFileId (${name})`, () => {
       expect(() => scanPfad({ art: "inbox", inboxFileId: id })).toThrow();
+    });
+
+    // Die entscheidende Zeile dieser Schleife: `loescheShareVerzeichnis` ist die einzige
+    // Operation des Moduls, die ein VERZEICHNIS entfernt. Ohne `pruefeId` machte eine
+    // durch einen Import verdorbene Zeile mit `shareId = ".."` daraus ein `rmdir` auf
+    // `<DATA_DIR>`.
+    it(`wirft für loescheShareVerzeichnis (${name})`, async () => {
+      await expect(loescheShareVerzeichnis(id)).rejects.toThrow();
     });
   }
 
@@ -235,6 +254,13 @@ describe("Pfadschema — ein Pfad entsteht nur aus DB-IDs", () => {
     expect("inbox".length).toBe(5);
     expect(SHARE.length).toBe(10);
     expect(() => scanPfad({ art: "share", shareId: "inbox", fileId: DATEI })).toThrow();
+  });
+
+  it("kann den Inbox-Baum nicht entfernen", async () => {
+    // Dieselbe Prüfung wie oben, aber am gefährlichsten Namen: `inbox` ist das EINE
+    // Kind der Ablagewurzel, das keine Freigabe ist. Ginge es durch, nähme ein
+    // Löschvorgang den halben Namensraum des Moduls mit.
+    await expect(loescheShareVerzeichnis("inbox")).rejects.toThrow();
   });
 });
 
@@ -373,6 +399,64 @@ describe("loesche — still, idempotent, und die Zwischendatei mit", () => {
     await loesche(shareZiel);
     expect(existsSync(zielPfad)).toBe(false);
     await expect(loesche(shareZiel)).resolves.toBeUndefined();
+  });
+});
+
+describe("loescheShareVerzeichnis — rmdir, und nur wenn leer", () => {
+  /** Der Pfad, den `schreibeStrom` für `shareZiel` anlegt — hier nur zum Nachsehen. */
+  const shareVerzeichnis = () => pfad(SHARE);
+
+  it("entfernt das leere Verzeichnis einer Freigabe", async () => {
+    await schreibeStrom(shareZiel, quelle("Inhalt"), { maxBytes: 1024 });
+    await abschliesse(shareZiel);
+    await loesche(shareZiel);
+    expect(existsSync(shareVerzeichnis())).toBe(true);
+
+    await loescheShareVerzeichnis(SHARE);
+    expect(existsSync(shareVerzeichnis())).toBe(false);
+  });
+
+  it("ist auf ein fehlendes Verzeichnis still und beim zweiten Aufruf weiter still", async () => {
+    // ENOENT ist der SOLLZUSTAND, nicht ein Fehler: eine Freigabe, durch die nie ein
+    // Byte floss, hat gar kein Verzeichnis — und der Aufrufer soll dafür nicht erst
+    // nachsehen müssen (das wäre ein zweiter Zustand, der auseinanderlaufen kann).
+    await expect(loescheShareVerzeichnis(SHARE)).resolves.toBeUndefined();
+
+    await schreibeStrom(shareZiel, quelle("x"), { maxBytes: 1024 });
+    await loesche(shareZiel);
+    await loescheShareVerzeichnis(SHARE);
+    await expect(loescheShareVerzeichnis(SHARE)).resolves.toBeUndefined();
+  });
+
+  it("lässt ein NICHT leeres Verzeichnis stehen, ohne zu werfen", async () => {
+    // Der Betriebsfall: die Zwischendatei eines anderen, noch laufenden Vorgangs liegt
+    // darin. Ein `rm -r` risse sie mit — deshalb `rmdir`, und deshalb ist ENOTEMPTY
+    // hier ein erwarteter Zustand. Ein wirklich verwaister Rest ist Sache des
+    // Aufräum-Laufs (§7.6), der meldet und nicht löscht.
+    await schreibeStrom(shareZiel, quelle("halb"), { maxBytes: 1024 });
+
+    await expect(loescheShareVerzeichnis(SHARE)).resolves.toBeUndefined();
+    expect(existsSync(shareVerzeichnis())).toBe(true);
+    expect(existsSync(teilPfad)).toBe(true);
+  });
+
+  it("ist NICHT still, wenn das Entfernen an den Rechten scheitert", async () => {
+    // Wie bei `loesche`: EACCES/EROFS ist ein Konfigurationsfehler und muss den
+    // Aufrufer als eigener Typ erreichen (§5.4 → 500, laut). Ohne diesen Fall wäre ein
+    // „schluck einfach alles" in der Fehlerbehandlung nicht zu sehen.
+    const laut = vi.spyOn(console, "error").mockImplementation(() => {});
+    fsSteuerung.rmdirFehlerCode = "EACCES";
+
+    await expect(loescheShareVerzeichnis(SHARE)).rejects.toBeInstanceOf(AblageNichtSchreibbar);
+    expect(laut).toHaveBeenCalled();
+  });
+
+  it("bildet ENOSPC auch hier auf KeinPlatz ab", async () => {
+    // Nicht bloß Symmetrie: ohne diese Zeile bliebe `uebersetze` durch einen
+    // `code === "EACCES"`-Vergleich ersetzbar, und jeder andere errno käme roh beim
+    // Aufrufer an — der ihn dann nicht auf 507 abbilden kann.
+    fsSteuerung.rmdirFehlerCode = "ENOSPC";
+    await expect(loescheShareVerzeichnis(SHARE)).rejects.toBeInstanceOf(KeinPlatz);
   });
 });
 

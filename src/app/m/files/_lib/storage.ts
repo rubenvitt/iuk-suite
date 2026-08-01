@@ -13,7 +13,7 @@
  * existiert im Ziel nicht mehr — der Paritaets-Schluessel ist deshalb der Inhalts-Hash,
  * nicht `relPath`.
  */
-import { mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rmdir, stat, unlink } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Readable } from "node:stream";
@@ -313,6 +313,41 @@ export async function loesche(ziel: BlobZiel): Promise<void> {
   const pfad = pfadFuer(ziel);
   await entferneStill(pfad);
   await entferneStill(`${pfad}${TEIL_SUFFIX}`);
+}
+
+/**
+ * Entfernt das Verzeichnis EINER Freigabe — `rmdir`, also **nur wenn es leer ist**.
+ *
+ * Sie steht hier und nicht beim Aufrufer, weil `storage.ts` die einzige Stelle im Modul
+ * ist, an der ein Ablagepfad entsteht; ein `rmdir` in `(verwaltung)/actions.ts` waere
+ * eine zweite Pfadquelle und hoebe die Traversal-Zusage des ganzen Moduls auf. Der Name
+ * durchlaeuft deshalb dieselbe `pruefeId` wie jeder Blobpfad — ohne sie machte eine
+ * durch einen Import verdorbene Zeile mit `shareId = ".."` daraus ein `rmdir` auf
+ * `<DATA_DIR>`, und `"inbox"` naehme den zweiten Namensraum des Moduls mit.
+ *
+ * **Zwei errno sind erwartete Zustaende und kein Fehler:**
+ * - `ENOENT` — durch die Freigabe floss nie ein Byte, es gibt gar kein Verzeichnis. Der
+ *   Aufrufer soll dafuer nicht erst nachsehen muessen; ein `stat` davor waere ein
+ *   zweiter Zustand mit einem Fenster dazwischen.
+ * - `ENOTEMPTY` — es liegt noch etwas darin, typischerweise die `.part` eines anderen,
+ *   noch nicht abgeschlossenen Vorgangs. Genau die duerfte ein rekursives Loeschen
+ *   mitreissen, deshalb `rmdir` und nicht `rm -r`. Ein wirklich verwaister Rest ist
+ *   Sache des Aufraeum-Laufs (§7.6), der meldet und nicht loescht.
+ *   (POSIX laesst fuer diesen Fall auch `EEXIST` zu; Linux und macOS liefern
+ *   ENOTEMPTY, ein zweiter Zweig waere hier unerreichbarer Code.)
+ *
+ * Jeder andere Grund fliegt uebersetzt weiter — ein EACCES/EROFS ist ein
+ * Konfigurationsfehler und gehoert nicht verschluckt (§5.4).
+ */
+export async function loescheShareVerzeichnis(shareId: string): Promise<void> {
+  const verzeichnis = join(ablageWurzel(), pruefeId(shareId, "shareId"));
+  try {
+    await rmdir(verzeichnis);
+  } catch (fehler) {
+    const code = errnoCode(fehler);
+    if (code === "ENOENT" || code === "ENOTEMPTY") return;
+    throw uebersetze(fehler, verzeichnis);
+  }
 }
 
 /**

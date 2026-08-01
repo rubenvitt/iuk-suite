@@ -58,6 +58,10 @@ PFLICHTLEKTÜRE, IN DIESER REIHENFOLGE:
    Query, nie \`Grid.useBreakpoint\`), 44px-Trefferflächen, 16px-Untergrenze für Eingaben, die
    Prüffragen für jede Ansicht (jede Action braucht einen Einstiegspunkt — und kein Einstiegspunkt
    darf in ein \`notFound()\` führen), core-Regel "ein zweiter, heute belegbarer Nutznießer".
+   BAUST DU OBERFLÄCHE, kommen die beiden Referenzentwürfe dazu — sie zeigen die Regeln angewandt,
+   und Abweichen von ihnen ist begründungspflichtig: \`docs/design/feedback-oeffentliche-ansicht.md\`
+   für login-freie Ansichten (\`/s/<id>\`, \`/u/<token>\`), \`docs/design/feedback-admin.md\` für
+   Arbeitsseiten hinter der Anmeldung (alles unter \`(verwaltung)\`).
 3. \`${SPEC}\` — die Spec. Sie ist verbindlich.
 4. \`${PLAN}\` — der Task-Plan. DEIN TASK STEHT DORT.
 5. Bei Fragen zum Altverhalten: \`${ANALYSE}\` (2383 Zeilen, geprüfte Faktenbasis mit Belegen).
@@ -96,6 +100,13 @@ ARBEITSREGELN — sie gelten ohne Ausnahme:
   Dateien desselben Arbeitsbaums. Brauchst du eine Änderung außerhalb deiner Liste, BAUE SIE NICHT —
   melde sie als \`fremde_datei_noetig\`.
 - **Kein \`git commit\`, kein \`git add\`, kein Branch-Wechsel.** Das macht der Koordinator nach der Welle.
+- **Sicherungskopien NIEMALS nach \`/tmp\`, sondern ins Session-Scratchpad.** In Welle 5 haben zwei
+  Agenten unabhängig \`/tmp/route.orig.ts\` benutzt — bei zehn gleichzeitigen Agenten ist der Name
+  besetzt, und zweimal landete danach der Inhalt einer FREMDEN Datei in der eigenen. Das ist
+  typecheck- und lint-grün, solange beide Dateien für sich übersetzen; gemerkt haben es beide nur an
+  reihenweise fallenden Tests. Besser noch: für eine Mutationsprobe brauchst du gar keine Kopie —
+  \`git diff\` und \`git checkout --\` kennen den Ausgangszustand deiner Datei (bei NEUEN Dateien
+  hilft das nicht, dort nimm das Scratchpad mit einem Namen, der deinen Task trägt).
 - **Keine Installationen** (\`pnpm add\`, \`npm i\`): fehlt eine Abhängigkeit, melde sie.
 - Deutsch für Kommentare, Testnamen und Meldungen; Bezeichner im Original. Kommentare erklären das
   WARUM (was der Code nicht selbst sagt), nicht das WAS.

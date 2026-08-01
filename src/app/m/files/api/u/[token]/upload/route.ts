@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import { RateLimiter, clientIpAus } from "@/core/ratelimit";
 import { getDb } from "../../../../_db/client";
 import { inboxFiles, zugangslinks } from "../../../../_db/schema";
+import { verbucheAbgabe } from "../../../../_db/zaehler";
 import { reiheAvEin } from "../../../../_lib/av";
 import {
   FILES_FEHLVERSUCHE_PRO_MIN,
@@ -28,7 +29,8 @@ import {
 import { normalisiereToken, tokenHash } from "../../../../_lib/token";
 
 /**
- * DIE ANONYME ABGABE — `PUT /api/u/<token>/upload` (Spec §8.2–§8.5, Task 31).
+ * DIE ANONYME ABGABE — `PUT /api/u/<token>/upload` (Spec §8.2–§8.5, Task 31)
+ * samt Budget, Notbremse und dem `POST`-Altweg des Cutover-Fensters (Task 50).
  *
  * ═══ DAS DRAHTFORMAT, vollstaendig ═══════════════════════════════════════════
  *
@@ -47,7 +49,8 @@ import { normalisiereToken, tokenHash } from "../../../../_lib/token";
  *   Fehler: { code, fehler, … } mit
  *     code ∈ "token" · "zu-viele-fehlversuche" · "unbekannt" · "offset" · "name"
  *           · "kategorie" · "hinweis" · "zu-gross" · "typ-nicht-erlaubt"
- *           · "kein-platz" · "ablage"   (T50 ergaenzt "kontingent", §8.4)
+ *           · "kein-platz" · "ablage" · "kontingent" · "zu-viele-anfragen"
+ *           · "veraltet" (nur der POST-Altweg)
  *
  * WARUM `name` VORNE UND `typ` HINTEN STEHT — die Asymmetrie ist keine
  * Nachlaessigkeit: `inbox_files.dateiname` ist `NOT NULL`, der Name muss also
@@ -78,17 +81,20 @@ import { normalisiereToken, tokenHash } from "../../../../_lib/token";
  *   Datei, die es noch nicht gibt, und die Zeile stuende nach
  *   `FILES_AV_VERSUCHE` dauerhaft auf `error` — fail-closed.
  *
- * ═══ WAS DIESE DATEI (NOCH) NICHT TUT ════════════════════════════════════════
+ * ═══ DIE DREI STUFEN AUS §8.4, in dieser Reihenfolge (Task 50) ═══════════════
  *
- * Mengenbudget je Token, die Rueckabwicklung des benannten Wettlaufs, die
- * IP-Notbremse `FILES_IP_ANFRAGEN_PRO_10MIN` und der `POST`-Altweg des
- * Cutover-Fensters gehoeren T50 (Welle 6a) und werden HIER ergaenzt (Plan §2
- * fuehrt die Datei mit beiden Tasks). Die Reihenfolge der Stufen aus §8.4 ist
- * unten deshalb als Kette einzelner, benannter Schritte gebaut: Budget kommt
- * zwischen Zugangs-Guard und Chunk-Weg, die Notbremse dahinter.
+ *   1. Zugangs-Guard        Token aufloesen; Fehlversuchszaehler je ADRESSE.
+ *   2. Mengenbudget         je TOKEN, in der Datenbank, atomar (`_db/zaehler.ts`).
+ *   3. IP-Notbremse         `FILES_IP_ANFRAGEN_PRO_10MIN`, im Prozessspeicher.
  *
- * Der `POST`-Zweig bekommt seine EIGENE Rollensperre als erste Anweisung — die
- * Pruefung hier deckt nur `PUT` (Plan §1, „dreizehn Rollensperren").
+ * Die Reihenfolge ist die Zusage, nicht nur die Summe der drei Stufen. Laege die
+ * Notbremse vorn, verbrauchte jede vom Guard oder vom Budget abgewiesene Anfrage
+ * einen ihrer Plaetze — und ein Fremder ohne jede Zugangsdaten schloesse das
+ * Postfach fuer die ganze NAT-Adresse. Der Schluessel des echten Vorgangs ist
+ * deshalb das TOKEN, die Adresse ist ausschliesslich Notbremse (§8.4).
+ *
+ * Der `POST`-Zweig traegt seine EIGENE Rollensperre als erste Anweisung — die
+ * Pruefung im `PUT` deckt nur `PUT` (Plan §1, „dreizehn Rollensperren").
  *
  * KEIN 207 MULTI-STATUS: eine Datei = eine Anfrage = ein Ergebnis, und der letzte
  * Chunk antwortet erst, wenn die Zeile steht. Heute kann in `drop` ein Upload
@@ -112,7 +118,23 @@ type Fehlercode =
   | "zu-gross"
   | "typ-nicht-erlaubt"
   | "kein-platz"
-  | "ablage";
+  | "ablage"
+  | "kontingent"
+  | "zu-viele-anfragen"
+  | "veraltet";
+
+/**
+ * EIN Text fuer beide Wege ins erschoepfte Kontingent — die Vorpruefung und die
+ * Rueckabwicklung des Wettlaufs. Fuer den Melder ist es derselbe Zustand, und
+ * zwei Formulierungen dafuer waeren zwei Fehlerbilder fuer eine Sache.
+ *
+ * Der naechste Schritt steht im Text, weil ihn nur der Betreiber gehen kann: das
+ * Budget ist nachtraeglich erhoehbar (`kontingentAufstockenAction`, §8.4), und
+ * der GEDRUCKTE Code bleibt dabei gueltig. Ohne diesen Satz waere die Grenze fuer
+ * den Melder eine Sackgasse.
+ */
+const KONTINGENT_ERSCHOEPFT =
+  "Das Kontingent dieses Abgabelinks ist erschöpft. Bitte bei der Leitstelle melden.";
 
 /**
  * Der Fehlversuchszaehler des Zugangs-Guards (§8.4 Stufe 1). Schluessel ist die
@@ -126,6 +148,31 @@ type Fehlercode =
  * angefasst, wenn kein gueltiges Token vorlag.
  */
 const fehlversuche = new RateLimiter({ windowMs: 60_000, max: FILES_FEHLVERSUCHE_PRO_MIN });
+
+/**
+ * Stufe 3 aus §8.4: die IP-Notbremse. Sie liegt bei 600 Anfragen je 10 Minuten —
+ * bei 4-MiB-Chunks rund 2,3 GiB ueber EINE Adresse. **Wer den Wert senkt,
+ * reproduziert den `feedback`-Ausfall** (15 Ehrenamtliche hinter einer NAT-IP, ab
+ * der 11. Abgabe „Zu viele Anfragen"). Genau deshalb ist die Zahl eine
+ * Env-Variable und keine Konstante: die Groessenordnung eines realen Einsatzes
+ * kennt nur der Betreiber (§13.2, Frage 15).
+ *
+ * WARUM DER ZAEHLER NICHT AUF MODULEBENE STEHT wie `fehlversuche` daneben: seine
+ * Grenze kommt aus `grenzen()`, und ein Aufruf beim Import laege VOR jeder
+ * Boot-Pruefung — eine §9.4-widrige Konfiguration wuerfe dann schon beim Laden
+ * des Moduls, also als Ausfall der ganzen Route statt als benannter
+ * Startabbruch. Neu gebaut wird der Zaehler nur, wenn sich die Grenze aendert;
+ * im Betrieb passiert das NIE (die Umgebung steht ab dem Start fest), sodass er
+ * dort ueber die ganze Laufzeit derselbe bleibt.
+ */
+let notbremseStand: { max: number; limiter: RateLimiter } | null = null;
+
+function notbremse(max: number): RateLimiter {
+  if (notbremseStand === null || notbremseStand.max !== max) {
+    notbremseStand = { max, limiter: new RateLimiter({ windowMs: 600_000, max }) };
+  }
+  return notbremseStand.limiter;
+}
 
 /** Steuerzeichen, `/` und `\` — mehr wird aus einem Anzeigenamen NICHT entfernt (§4.6, §12). */
 const NAMENS_UNRAT = /[\x00-\x1F\x7F/\\]/g;
@@ -203,13 +250,28 @@ async function* koerperStrom(anfrage: Request): AsyncGenerator<Uint8Array> {
   }
 }
 
+/** Was die Stufen 2 und 3 vom aufgeloesten Abgabelink brauchen. */
+type Link = {
+  id: string;
+  restDateien: number;
+  restBytes: number;
+};
+
 /**
  * Stufe 1 aus §8.4: Token aufloesen, `revoked_at IS NULL`, `expires_at > now`.
  * Ein einziger Rueckgabewert `null` fuer alle drei Ablehnungen — der Melder
  * erfaehrt nicht, ob sein Code falsch, widerrufen oder abgelaufen ist, und die
  * Oberflaeche sagt in allen drei Faellen dasselbe (§10.1).
+ *
+ * DIE BUDGETSPALTEN KOMMEN AUS DIESER ABFRAGE MIT, und das ist der Grund, warum
+ * die Vorpruefung der Stufe 2 kein zweites Statement kostet. „Ein einzelnes
+ * SQL-Statement pro Vorgang" (§8.4, `_db/zaehler.ts`) meint die BUCHUNG: sie ist
+ * das `UPDATE` mit Bedingung, und ihre Entscheidung ist die Zahl betroffener
+ * Zeilen. Die Werte hier sind eine Vorschau, nie die Entscheidung — zwischen
+ * dieser Zeile und der Buchung darf sich das Restbudget aendern, und genau dafuer
+ * gibt es die Rueckabwicklung in `schliesseAb`.
  */
-function loeseTokenAuf(roh: string, jetzt: Date): { id: string } | null {
+function loeseTokenAuf(roh: string, jetzt: Date): Link | null {
   const kanonisch = normalisiereToken(roh);
   if (kanonisch === null) return null;
 
@@ -218,6 +280,10 @@ function loeseTokenAuf(roh: string, jetzt: Date): { id: string } | null {
       id: zugangslinks.id,
       expiresAt: zugangslinks.expiresAt,
       revokedAt: zugangslinks.revokedAt,
+      budgetDateien: zugangslinks.budgetDateien,
+      budgetBytes: zugangslinks.budgetBytes,
+      verbrauchtDateien: zugangslinks.verbrauchtDateien,
+      verbrauchtBytes: zugangslinks.verbrauchtBytes,
     })
     .from(zugangslinks)
     .where(eq(zugangslinks.tokenHash, tokenHash(kanonisch)))
@@ -229,7 +295,11 @@ function loeseTokenAuf(roh: string, jetzt: Date): { id: string } | null {
   // (`_db/queries.ts`): `expires_at` bezeichnet das Ende der Laufzeit.
   if (zeile.expiresAt.getTime() <= jetzt.getTime()) return null;
 
-  return { id: zeile.id };
+  return {
+    id: zeile.id,
+    restDateien: zeile.budgetDateien - zeile.verbrauchtDateien,
+    restBytes: zeile.budgetBytes - zeile.verbrauchtBytes,
+  };
 }
 
 /** Blob, Zwischendatei UND Zeile weg — der Weg jeder ENDGUELTIGEN Ablehnung. */
@@ -281,10 +351,66 @@ export async function PUT(
         );
   }
 
-  // --- Stufe 2 (T50): Mengenbudget je Token --------------------------------
-  // --- Stufe 3 (T50): IP-Notbremse -----------------------------------------
+  // --- Stufe 2: Mengenbudget je Token, Vorpruefung -------------------------
+  // Ist ueberhaupt nichts mehr frei, endet die Anfrage HIER — vor dem Chunk-Weg
+  // und damit ohne Zeile, die danach jemand wegraeumen muesste. Die feinere
+  // Grenze („dieser Chunk sprengt den Rest") sitzt weiter unten am Schreibstrom,
+  // die verbindliche Entscheidung erst in `schliesseAb`.
+  //
+  // ASYMMETRIE, benannt statt uebersehen: die beiden Kontingent-Ausgaenge INNEN
+  // (`aufSchreibfehler`, `schliesseAb`) raeumen Blob UND Zeile weg, dieser hier
+  // kann das nicht — er kennt die Zeile nicht, weil er vor ihrer Aufloesung
+  // liegt. Trifft er einen SPAETEREN Chunk, bleiben Zeile und `.part` einer
+  // halben Abgabe stehen; das ist dieselbe Form, die der 507-Weg absichtlich
+  // hinterlaesst, und Sache des Aufraeum-Laufs (§7.6). Die Pruefung nach hinten
+  // zu verschieben, waere der teurere Tausch: dann liefe jede Anfrage eines
+  // erschoepften Links erst durch die Notbremse.
+  if (link.restDateien <= 0 || link.restBytes <= 0) {
+    return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);
+  }
 
-  return chunkWeg(anfrage, link.id, jetzt);
+  // --- Stufe 3: IP-Notbremse, ZULETZT --------------------------------------
+  // Erst hier zaehlt eine Anfrage als Vorgang. Alles davor Abgewiesene bleibt
+  // ungezaehlt — sonst sperrte ein Fremder ohne Zugangsdaten die ganze Adresse.
+  if (!notbremse(grenzen().ipAnfragenPro10Min).check(clientIpAus(anfrage.headers))) {
+    return fehler(
+      429,
+      "zu-viele-anfragen",
+      "Zu viele Anfragen von dieser Verbindung. Bitte in einigen Minuten erneut versuchen.",
+    );
+  }
+
+  return chunkWeg(anfrage, link, jetzt);
+}
+
+/**
+ * DER ALTWEG DES CUTOVER-FENSTERS (§8.2) — die einzige Zeile im Modul mit einem
+ * Ablaufdatum: nach dem Standby-Ende darf dieser Export entfallen.
+ *
+ * Sein einziger Aufrufer ist drops React-SPA in einem Tab, der beim Umschwenken
+ * schon offen war (`drop/src/app.js:711`); jede neue Navigation laedt die
+ * Suite-Ansicht. Fuer diesen Tab ist ein stummes 405 die schlechteste aller
+ * Antworten: der Alt-Client wertet nur `uploaded.length > 0` aus und zeigt
+ * „Upload abgelehnt", ohne zu sagen, was zu tun ist. Deshalb 409 MIT Text.
+ *
+ * Die FormData-Felder `hint`/`category`/`files` werden NICHT gelesen — mit dem
+ * Chunk-Format entfallen sie, und ein 409 braucht keinen Rumpf. Die Datei ist
+ * damit nicht gespeichert, es entsteht also auch keine Dublette.
+ *
+ * EINEN EINSTIEGSPUNKT IN DER OBERFLAECHE HAT DIESER ZWEIG NICHT, und das ist
+ * Absicht (§10.2): er bedient ausschliesslich Alt-Clients.
+ */
+export async function POST(anfrage: Request): Promise<Response> {
+  // Die EIGENE erste Anweisung. Dass `PUT` daneben dieselbe Pruefung traegt,
+  // hilft hier nichts — es ist ein eigener Export mit eigenem Code, und ohne
+  // diese Zeile antwortete der Altweg auch auf dem Verwaltungs-Host.
+  if (rolleOderNull(anfrage.headers) !== "inbox") return nichtGefunden();
+
+  return fehler(
+    409,
+    "veraltet",
+    "Diese Seite ist veraltet — bitte neu laden und die Abgabe wiederholen.",
+  );
 }
 
 /**
@@ -294,7 +420,8 @@ export async function PUT(
  * ausser dem letzten exakt `FILES_CHUNK_BYTES` gross ist — eine unausgesprochene
  * Invariante, die der erste abweichende Client still bricht.
  */
-async function chunkWeg(anfrage: Request, tokenId: string, jetzt: Date): Promise<Response> {
+async function chunkWeg(anfrage: Request, link: Link, jetzt: Date): Promise<Response> {
+  const tokenId = link.id;
   const suche = new URL(anfrage.url).searchParams;
   const ab = ganzzahlOderNull(suche.get("ab"));
   if (ab === null) {
@@ -313,6 +440,21 @@ async function chunkWeg(anfrage: Request, tokenId: string, jetzt: Date): Promise
   // unerreichbar, weil Pruefung 2/3 schon den Start abbricht, aber es soll
   // dastehen und nicht als Zufall der Zeilenreihenfolge gelesen werden.
   const g = grenzen();
+
+  // DIE ENGERE DER BEIDEN GRENZEN begrenzt den Schreibstrom — und welche das ist,
+  // entscheidet auch den Namen der Ablehnung. `schreibeStrom` zaehlt beim
+  // Anhaengen die schon liegenden Bytes mit, die Schranke gilt also fuer die
+  // GANZE Datei und nicht je Chunk.
+  //
+  // Warum ueberhaupt hier und nicht erst bei der Buchung: sonst schriebe ein
+  // Handyvideo erst seine vollen 200 MiB, bevor jemand feststellt, dass es in ein
+  // Restbudget von 10 MiB nie passt (§8.4: „bricht frueh ab, statt Bytes zu
+  // schreiben, die nicht passen"). Der Abbruch faellt in `aufSchreibfehler` und
+  // wird dort ueber `budgetIstEnger` als 429 statt als 413 benannt: „zu gross"
+  // waere fuer ein erschoepftes Kontingent die falsche Auskunft, weil dieselbe
+  // Datei nach dem Aufstocken durchgeht.
+  const budgetIstEnger = link.restBytes < g.maxDateiBytes;
+  const schreibGrenze = budgetIstEnger ? link.restBytes : g.maxDateiBytes;
 
   // EIN Riegel um den GANZEN Byte-Weg, nicht nur um das Schreiben. Vier Aufrufe
   // in `_lib/storage.ts` koennen dieselben Fehlerklassen aus §5.4 werfen:
@@ -340,7 +482,7 @@ async function chunkWeg(anfrage: Request, tokenId: string, jetzt: Date): Promise
     }
 
     const { bytes } = await schreibeStrom(ziel, koerperStrom(anfrage), {
-      maxBytes: g.maxDateiBytes,
+      maxBytes: schreibGrenze,
       // `anhaengen: false` oeffnet mit `wx` — nur so sieht ein zweiter Starter
       // auf dasselbe Ziel EEXIST statt verschraenkter Bytes (§5.3).
       anhaengen: ab > 0,
@@ -367,9 +509,9 @@ async function chunkWeg(anfrage: Request, tokenId: string, jetzt: Date): Promise
     // das `try` VOR seiner Ablehnung — der `catch` saehe die Fehler des letzten
     // Chunks nie, und genau die (rename auf vollem Volume) sind der Grund fuer
     // diesen Riegel.
-    return await schliesseAb(ziel, zeile, suche.get("typ"), bytes, jetzt);
+    return await schliesseAb(ziel, zeile, tokenId, suche.get("typ"), bytes, jetzt);
   } catch (grund) {
-    return await aufSchreibfehler(grund, ziel, zeile.id, g.maxDateiBytes);
+    return await aufSchreibfehler(grund, ziel, zeile.id, g.maxDateiBytes, budgetIstEnger);
   }
 }
 
@@ -485,6 +627,7 @@ function hole(id: string, tokenId: string): Zeile | Response {
 async function schliesseAb(
   ziel: BlobZiel,
   zeile: Zeile,
+  tokenId: string,
   deklariert: string | null,
   bytes: number,
   jetzt: Date,
@@ -504,6 +647,23 @@ async function schliesseAb(
   // Die GEMESSENE Bytezahl, nicht die des Schreibvorgangs: `abschliesse` liest
   // die Laenge der Zwischendatei unmittelbar vor dem `rename`.
   const { bytes: endgueltig } = await abschliesse(ziel);
+
+  // DIE BUCHUNG — und ERST hier faellt die Entscheidung ueber das Budget. Sie ist
+  // ein einzelnes `UPDATE` mit Bedingung, und was sie entscheidet, ist die Zahl
+  // betroffener Zeilen (§8.4, `_db/zaehler.ts`).
+  //
+  // NULL Zeilen heisst: zwischen der Vorpruefung in `PUT` und dieser Zeile hat
+  // eine ANDERE Abgabe desselben Tokens das Restbudget aufgebraucht. Die Bytes
+  // liegen dann schon — der benannte Wettlauf. Also gehen Blob UND Zeile weg;
+  // ohne diesen Zweig bliebe ein stiller Waise liegen, den nur der Bericht ueber
+  // verwaiste Blobs (§7.6) je gefunden haette.
+  //
+  // Gebucht wird NACH der Typpruefung: eine abgelehnte Datei darf kein Kontingent
+  // kosten.
+  if (!verbucheAbgabe(getDb(), tokenId, endgueltig)) {
+    await verwirf(ziel, zeile.id);
+    return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);
+  }
 
   getDb()
     .update(inboxFiles)
@@ -541,16 +701,24 @@ async function aufSchreibfehler(
   ziel: BlobZiel,
   inboxFileId: string,
   maxDateiBytes: number,
+  budgetIstEnger: boolean,
 ): Promise<Response> {
   if (grund instanceof GroesseUeberschritten) {
-    // ENDGUELTIG: diese Datei passt nie. Blob UND Zeile gehen, sonst bleibt
-    // unter der Standardkonfiguration eine Waise ohne Frist zurueck.
+    // ENDGUELTIG: diese Datei passt nie — weder in die Dateigrenze noch in das,
+    // was vom Kontingent uebrig ist. Blob UND Zeile gehen, sonst bleibt unter der
+    // Standardkonfiguration eine Waise ohne Frist zurueck.
     await verwirf(ziel, inboxFileId);
-    return fehler(
-      413,
-      "zu-gross",
-      `Die Datei ist größer als erlaubt (Grenze: ${maxDateiBytes} Bytes).`,
-    );
+    // WELCHE der beiden Grenzen gerissen wurde, weiss nur der Aufrufer: geworfen
+    // wird immer dieselbe Klasse, und `schreibGrenze` war das Minimum aus beiden.
+    // Ein 413 „zu gross" bei erschoepftem Kontingent waere die falsche Auskunft —
+    // dieselbe Datei geht nach dem Aufstocken durch.
+    return budgetIstEnger
+      ? fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT)
+      : fehler(
+          413,
+          "zu-gross",
+          `Die Datei ist größer als erlaubt (Grenze: ${maxDateiBytes} Bytes).`,
+        );
   }
 
   if (grund instanceof KeinPlatz) {

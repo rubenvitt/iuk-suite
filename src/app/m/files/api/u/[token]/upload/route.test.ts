@@ -13,7 +13,9 @@ import { erzeugeToken, tokenHash } from "../../../../_lib/token";
 import type { Grenzen } from "../../../../_lib/grenzen";
 
 /**
- * `PUT /api/u/<token>/upload` — TEIL 1 (Task 31): Guard, Chunk-Weg, MIME, Zeile.
+ * `PUT`/`POST /api/u/<token>/upload` — TEIL 1 (Task 31): Guard, Chunk-Weg, MIME,
+ * Zeile. TEIL 2 (Task 50, unten): Mengenbudget, Wettlauf-Rueckabwicklung,
+ * IP-Notbremse, `POST`-Altweg. Diese Datei gehoert beiden Tasks (Plan §2).
  *
  * DIE ZUSAGE, die dieser Test besitzt: eine anonyme Abgabe ist **sofort**
  * quittiert; der Zugangs-Guard steht **vor** allem anderen; und ein Fremder ohne
@@ -26,10 +28,6 @@ import type { Grenzen } from "../../../../_lib/grenzen";
  * `FILES_FEHLVERSUCHE_PRO_MIN` = 10 und waeren auch bei falsch verdrahtetem
  * Zaehler gruen), sondern **erschoepft den Zaehler sichtbar** (429) und laesst
  * DANACH eine gueltige Abgabe von DERSELBEN Adresse durch.
- *
- * WAS T50 SPAETER ERGAENZT und hier deshalb bewusst FEHLT: Mengenbudget je Token,
- * die Wettlauf-Rueckabwicklung, die IP-Notbremse (`FILES_IP_ANFRAGEN_PRO_10MIN`)
- * und der `POST`-Altweg. Diese Datei gehoert beiden Tasks (Plan §2).
  */
 
 // --- Vorrichtung ------------------------------------------------------------
@@ -230,6 +228,37 @@ async function put(opts: {
   return PUT(anfrage, { params: Promise.resolve({ token: opts.token }) });
 }
 
+/**
+ * Der ALTWEG des Cutover-Fensters: ein `POST` mit genau dem FormData, das drops
+ * React-SPA schickt (`hint`, `category`, `files`). Die Anfrage wird MIT Rumpf
+ * gebaut, damit „die Felder werden nicht gelesen" ueber `bodyUsed` pruefbar ist —
+ * eine Anfrage ohne Rumpf koennte diese Aussage gar nicht tragen.
+ */
+async function post(opts: { token: string; host?: string }): Promise<{
+  antwort: Response;
+  anfrage: Request;
+}> {
+  const { POST } = await import("./route");
+  const daten = new FormData();
+  daten.set("hint", "Zwei Fahrzeuge, Halle 3");
+  daten.set("category", "bilder");
+  // Kopie in einen eigenen ArrayBuffer, wie bei `put`: `BlobPart` verlangt
+  // `Uint8Array<ArrayBuffer>`.
+  daten.set("files", new Blob([new Uint8Array(PNG())]), "foto.png");
+  const anfrage = new Request(
+    `http://${opts.host ?? INBOX_HOST}/m/files/api/u/${encodeURIComponent(opts.token)}/upload`,
+    {
+      method: "POST",
+      headers: {
+        "x-forwarded-host": opts.host ?? INBOX_HOST,
+        "x-forwarded-for": neueIp(),
+      },
+      body: daten,
+    },
+  );
+  return { antwort: await POST(anfrage), anfrage };
+}
+
 type Antwortkoerper = {
   id?: string;
   empfangen?: number;
@@ -271,6 +300,14 @@ const UNBEKANNT = Uint8Array.from([0x00, 0xff, 0x13, 0x37, 0x00, 0x99, 0xab, 0xc
 
 function inboxZeilen(): Record<string, unknown>[] {
   return sqlite.prepare("SELECT * FROM inbox_files").all() as Record<string, unknown>[];
+}
+
+/** Die ROHEN Budgetspalten des Abgabelinks — die Buchung ist eine DB-Aussage. */
+function linkZeile(id: string): { verbraucht_dateien: number; verbraucht_bytes: number } {
+  return sqlite.prepare("SELECT * FROM zugangslinks WHERE id = ?").get(id) as {
+    verbraucht_dateien: number;
+    verbraucht_bytes: number;
+  };
 }
 
 function blobPfad(id: string): string {
@@ -761,5 +798,317 @@ describe("PUT /api/u/[token]/upload — Punkt 5: §5.4", () => {
     expect(laut).toHaveBeenCalled();
     expect(laut.mock.calls.flat().join(" ")).toContain("[files]");
     laut.mockRestore();
+  });
+});
+
+// ═══ TEIL 2 — Task 50 ═══════════════════════════════════════════════════════
+//
+// Budget, Wettlauf, Notbremse, Altweg. Was diese vier von Teil 1 trennt: sie
+// haengen am ATOMAREN Budget (`_db/zaehler.ts`) und an der Reihenfolge der drei
+// Stufen aus §8.4, nicht am Zugangs-Guard.
+
+// --- T50 Punkt 1: das Mengenbudget je Token ---------------------------------
+
+describe("PUT /api/u/[token]/upload — T50 Punkt 1: Mengenbudget", () => {
+  it("weist eine Abgabe bei erschoepftem DATEI-Budget mit 429 ab — ohne Zeile, ohne Bytes", async () => {
+    const { token } = neuerLink({ budgetDateien: 3, verbrauchtDateien: 3 });
+
+    const antwort = await abgabe(token, PNG());
+
+    expect(antwort.status).toBe(429);
+    const koerper = await koerperVon(antwort);
+    expect(koerper.code).toBe("kontingent");
+    expect(koerper.fehler).toContain("Kontingent");
+    // Die Vorpruefung liegt VOR dem Chunk-Weg: es entsteht nicht einmal eine
+    // Zeile, die danach wieder weggeraeumt werden muesste.
+    expect(inboxZeilen()).toHaveLength(0);
+    expect(inboxDateien()).toEqual([]);
+  });
+
+  it("weist eine Abgabe bei erschoepftem BYTE-Budget mit 429 ab", async () => {
+    const { token } = neuerLink({ budgetBytes: 4096, verbrauchtBytes: 4096 });
+
+    const antwort = await abgabe(token, PNG());
+
+    expect(antwort.status).toBe(429);
+    expect((await koerperVon(antwort)).code).toBe("kontingent");
+    expect(inboxZeilen()).toHaveLength(0);
+  });
+
+  /**
+   * Der Rand, an dem `<=` und `<` auseinanderlaufen: eine Abgabe, die das
+   * Restbudget GENAU ausfuellt, ist erlaubt (§8.4, `_db/zaehler.ts`). Und
+   * gebucht wird die GEMESSENE Bytezahl — hier gelesen aus der Spalte, nicht aus
+   * der Antwort.
+   */
+  it("nimmt eine Abgabe an, die das Byte-Budget GENAU ausfuellt, und bucht sie", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetBytes: 20 });
+    const inhalt = PNG(12);
+    expect(inhalt.byteLength).toBe(20);
+
+    const antwort = await abgabe(token, inhalt);
+
+    expect(antwort.status).toBe(200);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 20 });
+  });
+
+  it("weist eine Abgabe ab, die das Byte-Budget um EIN Byte ueberschreitet", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetBytes: 19 });
+
+    const antwort = await abgabe(token, PNG(12));
+
+    expect(antwort.status).toBe(429);
+    expect((await koerperVon(antwort)).code).toBe("kontingent");
+    expect(inboxZeilen()).toHaveLength(0);
+    expect(inboxDateien()).toEqual([]);
+    // NICHTS gebucht: eine abgelehnte Abgabe darf das Budget nicht anfassen.
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 0, verbraucht_bytes: 0 });
+  });
+
+  /**
+   * „Der laufende Chunk-Upload prueft VORAB gegen das Restbudget und bricht frueh
+   * ab, statt Bytes zu schreiben, die nicht passen" (§8.4 Stufe 2).
+   *
+   * DIESER TEST IST DER DISKRIMINATOR: ein Chunk OHNE `ende=1` beruehrt die
+   * Buchung nie. Eine Fassung, die das Budget ausschliesslich beim Abschluss
+   * prueft, antwortet hier 200 `fertig:false` — und schreibt Bytes, die nie
+   * passen koennen.
+   *
+   * MUTATION: `Math.min(maxDateiBytes, restBytes)` → `maxDateiBytes` beim
+   * Schreibstrom — dieser Test muss rot werden.
+   */
+  it("bricht einen NICHT-letzten Chunk frueh ab, sobald er das Restbudget sprengt", async () => {
+    const { token } = neuerLink({ budgetBytes: 16 });
+
+    const antwort = await put({
+      token,
+      koerper: PNG(12),
+      frage: { ab: 0, name: "bild.png" },
+    });
+
+    expect(antwort.status).toBe(429);
+    expect((await koerperVon(antwort)).code).toBe("kontingent");
+    // Weder Zwischendatei noch Zeile: die Ablehnung ist ENDGUELTIG (diese Datei
+    // passt in dieses Budget nie), also derselbe Weg wie beim 413.
+    expect(inboxDateien()).toEqual([]);
+    expect(inboxZeilen()).toHaveLength(0);
+  });
+
+  /**
+   * Die Gegenprobe zur Grenzenverwechslung: liegt `FILES_MAX_DATEI_BYTES`
+   * UNTERHALB des Restbudgets, ist die Ablehnung 413 „zu-gross" und nicht 429
+   * „kontingent". Ohne diesen Test koennte die engere der beiden Grenzen still
+   * unter dem falschen Namen antworten — der Melder erfuehre „zu gross", wo das
+   * Kontingent alle ist, oder umgekehrt.
+   */
+  it("meldet die DATEI-Grenze weiterhin als 413, wenn sie enger ist als das Restbudget", async () => {
+    grenzenUeberschreibung.wert = { maxDateiBytes: 32 };
+    const { token } = neuerLink({ budgetBytes: 100 * 1024 * 1024 });
+
+    const antwort = await abgabe(token, PNG(64));
+
+    expect(antwort.status).toBe(413);
+    expect((await koerperVon(antwort)).code).toBe("zu-gross");
+  });
+});
+
+// --- T50 Punkt 2: der benannte Wettlauf -------------------------------------
+
+describe("PUT /api/u/[token]/upload — T50 Punkt 2: Wettlauf", () => {
+  /**
+   * DER WETTLAUF AUS §8.4, ohne Mock nachgestellt. Er ist nur erreichbar, wenn
+   * das Restbudget ZWISCHEN Vorpruefung und Buchung schrumpft — genau das tut
+   * hier die dazwischen liegende zweite Abgabe:
+   *
+   *   Datei A, Chunk 1 (20 Bytes, ohne `ende`)  → Vorpruefung sieht 100 Bytes frei
+   *   Datei B, eine Anfrage (90 Bytes)          → gebucht, es bleiben 10 Bytes
+   *   Datei A, letzter Chunk (LEERER Rumpf)     → Vorpruefung sieht 10 Bytes frei
+   *                                               und der Schreibstrom prueft
+   *                                               nichts, weil kein Byte kommt;
+   *                                               erst die Buchung ueber die
+   *                                               GEMESSENEN 20 Bytes scheitert.
+   *
+   * Der leere letzte Chunk ist tragend: mit auch nur einem Byte griffe die
+   * Vorpruefung, und der Test liefe in den Zweig von Punkt 1 statt in diesen.
+   *
+   * MUTATION: den Rueckabwicklungszweig entfernen (Rueckgabewert von
+   * `verbucheAbgabe` ignorieren) — dann steht Datei A als geprueft-und-scannend
+   * in der Liste, obwohl sie nie ins Budget passte.
+   */
+  it("raeumt Blob UND Zeile weg, wenn die Buchung null Zeilen trifft — kein stiller Waise", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 100, budgetBytes: 100 });
+
+    const ersterChunk = await put({ token, koerper: PNG(12), frage: { ab: 0, name: "a.png" } });
+    expect(ersterChunk.status).toBe(200);
+    const { id: idA } = await koerperVon(ersterChunk);
+
+    const dazwischen = await abgabe(token, PNG(82), { name: "b.png" });
+    expect(dazwischen.status).toBe(200);
+    const { id: idB } = await koerperVon(dazwischen);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 90 });
+
+    const letzterChunk = await put({
+      token,
+      koerper: new Uint8Array(),
+      frage: { id: idA, ab: 20, ende: 1, typ: "image/png" },
+    });
+
+    expect(letzterChunk.status).toBe(429);
+    expect((await koerperVon(letzterChunk)).code).toBe("kontingent");
+    // Von Datei A ist NICHTS mehr da — weder Blob noch Zwischendatei noch Zeile.
+    expect(inboxDateien()).toEqual([idB]);
+    expect(inboxZeilen().map((z) => z.id)).toEqual([idB]);
+    // Und das Budget steht unveraendert auf dem Stand von Datei B: das `UPDATE`
+    // hat wirklich nicht gegriffen, statt zu greifen und zurueckgedreht zu werden.
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 90 });
+    // Kein Scan fuer eine Datei, die es nicht mehr gibt (der eine Aufruf gehoert B).
+    expect(reiheAvEinMock).toHaveBeenCalledTimes(1);
+    expect(reiheAvEinMock).not.toHaveBeenCalledWith({ art: "inbox", inboxFileId: idA });
+  });
+});
+
+// --- T50 Punkte 3 und 5: die IP-Notbremse und die Reihenfolge ---------------
+
+describe("PUT /api/u/[token]/upload — T50 Punkte 3+5: Notbremse zuletzt", () => {
+  /**
+   * DIE REIHENFOLGE ALS GANZES (§8.4): Guard → Budget → Notbremse. Geprueft wird
+   * sie als Reihenfolge, nicht je Stufe — und der Hebel dafuer ist eine Notbremse
+   * mit genau EINEM Platz: wer sie vorzieht, verbraucht ihn an einer Anfrage, die
+   * schon vorher abgewiesen gehoert.
+   *
+   * MUTATION: die Notbremse VOR die Budgetpruefung ziehen — dann frisst Schritt 2
+   * den einzigen Platz und Schritt 3 antwortet 429 statt 200.
+   */
+  it("laesst eine gueltige Abgabe durch, nachdem Guard und Budget abgewiesen haben", async () => {
+    grenzenUeberschreibung.wert = { ipAnfragenPro10Min: 1 };
+    const ip = neueIp();
+    const erschoepft = neuerLink({ budgetDateien: 1, verbrauchtDateien: 1 });
+    const gesund = neuerLink();
+
+    // 1. Der Guard weist ab — die Notbremse darf das nicht mitzaehlen.
+    const ungueltig = await abgabe("dz-2345-6789-abcd", PNG(), {}, { ip });
+    expect(ungueltig.status).toBe(401);
+
+    // 2. Das Budget weist ab — auch das ist kein Vorgang fuer die Notbremse.
+    const ohneKontingent = await abgabe(erschoepft.token, PNG(), {}, { ip });
+    expect(ohneKontingent.status).toBe(429);
+    expect((await koerperVon(ohneKontingent)).code).toBe("kontingent");
+
+    // 3. Der ERSTE echte Vorgang derselben Adresse geht durch.
+    const gueltig = await abgabe(gesund.token, PNG(), {}, { ip });
+    expect(gueltig.status).toBe(200);
+
+    // 4. Und erst der zweite trifft die Notbremse — mit EIGENEM Grund.
+    const zuViel = await abgabe(gesund.token, PNG(), {}, { ip });
+    expect(zuViel.status).toBe(429);
+    expect((await koerperVon(zuViel)).code).toBe("zu-viele-anfragen");
+  });
+
+  /**
+   * Punkt 3, die zweite Haelfte: die Notbremse zaehlt die FEHLVERSUCHE nicht mit.
+   * Sie liegen in Teil 1 unter `FILES_FEHLVERSUCHE_PRO_MIN` und haben dort einen
+   * eigenen Zaehler — laegen sie zusaetzlich auf der Notbremse, koennte ein
+   * Fremder ohne jede Zugangsdaten das Postfach fuer die ganze NAT-Adresse
+   * schliessen, und zwar fuer zehn Minuten statt fuer eine.
+   */
+  it("zaehlt Fehlversuche NICHT auf die Notbremse", async () => {
+    grenzenUeberschreibung.wert = { ipAnfragenPro10Min: 1 };
+    const ip = neueIp();
+    const { token } = neuerLink();
+
+    for (let n = 0; n < 3; n += 1) {
+      expect((await abgabe("dz-2345-6789-abcd", PNG(), {}, { ip })).status).toBe(401);
+    }
+
+    expect((await abgabe(token, PNG(), {}, { ip })).status).toBe(200);
+  });
+
+  /**
+   * Die Notbremse schluesselt auf die ADRESSE, nicht auf den Pfad — `drop`s
+   * Limit war ueber einen angehaengten Query-Parameter umgehbar (gemessen: acht
+   * `…?x=n` → acht 200). Hier ist der Guard im Handler, es gibt keinen Pfad, auf
+   * den er schluesseln koennte.
+   */
+  it("sperrt dieselbe Adresse auch bei wechselnden Query-Parametern", async () => {
+    grenzenUeberschreibung.wert = { ipAnfragenPro10Min: 1 };
+    const ip = neueIp();
+    const { token } = neuerLink();
+
+    expect((await abgabe(token, PNG(), { name: "a.png" }, { ip })).status).toBe(200);
+    const zweiter = await abgabe(token, PNG(), { name: "b.png", x: 7 }, { ip });
+
+    expect(zweiter.status).toBe(429);
+    expect((await koerperVon(zweiter)).code).toBe("zu-viele-anfragen");
+  });
+
+  it("laesst eine ANDERE Adresse trotz erschoepfter Notbremse durch", async () => {
+    grenzenUeberschreibung.wert = { ipAnfragenPro10Min: 1 };
+    const { token } = neuerLink();
+    const ip = neueIp();
+
+    await abgabe(token, PNG(), {}, { ip });
+    expect((await abgabe(token, PNG(), {}, { ip })).status).toBe(429);
+
+    expect((await abgabe(token, PNG(), {}, { ip: neueIp() })).status).toBe(200);
+  });
+});
+
+// --- T50 Punkte 4 und 6: der POST-Altweg des Cutover-Fensters ---------------
+
+describe("POST /api/u/[token]/upload — T50 Punkte 4+6: der Altweg", () => {
+  /**
+   * §8.2: derselbe Pfad nimmt zusaetzlich `POST` an — nicht 405 und nicht 404
+   * ohne Text. Der Alt-Client von `drop` wertet nur `uploaded.length > 0` aus und
+   * zeigt sonst „Upload abgelehnt"; ein 409 MIT Text ist die einzige Antwort, aus
+   * der der Melder den naechsten Schritt ableiten kann.
+   */
+  it("antwortet 409 mit dem Hinweis „bitte neu laden“", async () => {
+    const { token } = neuerLink();
+
+    const { antwort } = await post({ token });
+
+    expect(antwort.status).toBe(409);
+    expect((await koerperVon(antwort)).fehler).toBe(
+      "Diese Seite ist veraltet — bitte neu laden und die Abgabe wiederholen.",
+    );
+  });
+
+  it("speichert nichts und liest `hint`/`category`/`files` nicht", async () => {
+    const { token } = neuerLink();
+
+    const { anfrage } = await post({ token });
+
+    // Der Rumpf ist UNANGETASTET — mit dem Chunk-Format entfallen die drei
+    // Feldnamen, und ein 409 braucht keinen Body.
+    expect(anfrage.bodyUsed).toBe(false);
+    expect(inboxZeilen()).toHaveLength(0);
+    expect(inboxDateien()).toEqual([]);
+  });
+
+  /**
+   * PUNKT 6: der `POST`-Zweig ist ein EIGENER Export mit eigenem Code — die
+   * Rollensperre aus Teil 1 deckt nur `PUT`. Ohne eine eigene erste Anweisung
+   * hier pruefte T44 (dreizehn Rollensperren) eine Zusage, die kein Task gegeben
+   * hat, und ausgerechnet an dem Zweig, der im Cutover-Fenster noch Alt-Clients
+   * bedient.
+   *
+   * MUTATION: die Rollensperre aus `POST` entfernen — dieser Test muss rot werden
+   * (er bekaeme dann 409 statt 404).
+   */
+  it("antwortet auf dem VERWALTUNGS-Host mit 404, nicht mit 409", async () => {
+    const { token } = neuerLink();
+
+    const { antwort } = await post({ token, host: VERWALTUNGS_HOST });
+
+    expect(antwort.status).toBe(404);
+    expect(await antwort.text()).toBe("");
+  });
+
+  it("antwortet auf einem unbekannten Host mit 404", async () => {
+    const { token } = neuerLink();
+
+    const { antwort } = await post({ token, host: "fremd.example" });
+
+    expect(antwort.status).toBe(404);
   });
 });

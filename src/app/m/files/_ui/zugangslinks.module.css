@@ -1,0 +1,178 @@
+/*
+ * KOMPONENTENLOKALES CSS DER ABGABELINK-LISTE (Plan T39, Spec §8.6).
+ *
+ * WAS HIER LIEGT UND WAS NICHT: `_ui/files.css` traegt die modulweiten
+ * `--fi-*`-Variablen und die EINE Umschaltung, die sich zwei Ansichten teilen.
+ * Alles, was nur diese Ansicht braucht, gehoert hierher (Plan §1, Festlegung C;
+ * Praezedenzfall `feedback/f/[slugSecret]/zettel.module.css`). Die Variablen
+ * kommen von dort und werden hier nur benutzt — `--ant-*` waere still wirkungslos,
+ * weil antd sie auf seiner Scope-Klasse deklariert, nicht auf `:root`.
+ *
+ * DIE DRUCKANSICHT IST EIN `@media print`-BLOCK UND KEINE EIGENE ROUTE. Der
+ * Praezedenzfall `feedback` hat sie als eigene Route mit eigenem Layout — und
+ * genau dort fiel sie aus dem Zugriffsriegel heraus, weil der Riegel im anderen
+ * Layout hing. Hier traegt der TOKEN die Vertraulichkeit: eine zweite Route
+ * waere eine zweite Stelle, an der er ausgegeben wird, mit eigenem Layout und
+ * eigener Riegelfrage.
+ *
+ * 767.98px und nicht 768px: bei exakt 768px gaelten sonst beide Seiten und die
+ * Reihenfolge im Stylesheet entschiede. 768px ist der EINZIGE Breakpoint der
+ * Suite. Was dieser Datei-Scan besitzt, ist „die Regel traegt die richtige
+ * Medienabfrage" — ob sie WIRKT, weiss nur ein Browser (T48 bei 390/834/1280).
+ */
+
+.seite {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/*
+ * Die Reihe der HANDLUNGSKNOEPFE. Unter 768px stehen sie untereinander und in
+ * voller Breite (Regel unten): ein 630px breiter Knopf liest sich als Flaeche,
+ * nicht als Ziel.
+ */
+.knopfzeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.ausgabe {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/*
+ * Der Rohtoken wird ABGESCHRIEBEN und VORGELESEN — er ist genau dafuer gebaut
+ * (`dz-` plus 3x4 Zeichen aus einem Alphabet ohne 0/1/l/o). Deshalb Festbreite,
+ * grosse Schrift und Sperrung; `user-select: all` macht aus dem Abtippen ein
+ * Markieren.
+ */
+.token {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  word-break: break-all;
+  user-select: all;
+  color: var(--fi-ink);
+  margin: 0;
+}
+
+.link {
+  word-break: break-all;
+  font-variant-numeric: tabular-nums;
+}
+
+.qr {
+  display: block;
+  width: 220px;
+  height: 220px;
+  /* Der QR steht auf Weiss, auch im Dunkelmodus — schwarz auf dunkelgrau ist
+     fuer keinen Leser ein Code. */
+  background: #ffffff;
+  border: 1px solid var(--fi-line);
+}
+
+.hinweis {
+  color: var(--fi-muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Zahlen, die verglichen werden, brauchen Ziffern gleicher Breite. */
+.zahlen {
+  font-variant-numeric: tabular-nums;
+}
+
+.budgetZelle {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.aufstockenFormular {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.feldFehler {
+  /* Warnton als TEXT, nie als Flaeche: `colorError === colorPrimary === #c8000f`,
+     eine rote Flaeche saehe aus wie eine Primaeraktion. */
+  color: var(--fi-warn);
+  font-size: 14px;
+}
+
+@media (max-width: 767.98px) {
+  .knopfzeile {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .knopfzeile > * {
+    width: 100%;
+  }
+
+  .qr {
+    width: 100%;
+    height: auto;
+    max-width: 260px;
+  }
+}
+
+/*
+ * DRUCK. Die Ausgabe deckt die Seite ab, der Rest der Ansicht verschwindet.
+ *
+ * WARUM EINE ABDECKUNG UND KEINE REGEL AUF DIE SHELL: `.module.css` laeuft in
+ * Next unter `mode: 'pure'` — jeder Selektor braucht eine LOKALE Klasse, ein
+ * `:global(body)` waere kein gueltiger Selektor. Die Shell ist ausserdem ein
+ * VORFAHR dieses Markups, und CSS kann nach oben nicht selektieren. Eine globale
+ * Regel gehoerte in `_ui/files.css` — die Datei eines anderen Tasks. Die
+ * deckende, seitenfuellende Flaeche loest dasselbe innerhalb dieser Datei.
+ *
+ * `.nichtDrucken` haengt die Komponente NUR an, solange die Ausgabe offen ist:
+ * sonst waere ein Ausdruck der reinen Liste ein leeres Blatt.
+ */
+@media print {
+  .nichtDrucken {
+    display: none;
+  }
+
+  .druckbereich {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    overflow: hidden;
+    margin: 0;
+    padding: 16mm;
+    background: #ffffff;
+    color: #000000;
+  }
+
+  /* Knoepfe drucken nicht mit — auf Papier ist „Schliessen" sinnlos. */
+  .druckAus {
+    display: none;
+  }
+
+  .token {
+    color: #000000;
+    font-size: 32px;
+  }
+
+  .hinweis {
+    color: #000000;
+  }
+
+  .qr {
+    width: 60mm;
+    height: 60mm;
+    border: 0;
+  }
+}

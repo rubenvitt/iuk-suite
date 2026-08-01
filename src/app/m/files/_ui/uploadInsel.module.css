@@ -1,0 +1,154 @@
+/*
+ * DIE KOMPONENTENLOKALEN REGELN DER UPLOAD-INSEL (Plan §1 Festlegung C:
+ * Komponenten-CSS liegt in einem `*.module.css` NEBEN seiner Komponente, nicht
+ * in `_ui/files.css` — dort stehen ausschliesslich die Modulvariablen und die
+ * eine Umschaltung, die sich zwei Ansichten teilen).
+ *
+ * DIESE DATEI WIRD VON `files-public-css.test.ts` MITGESCANNT (Glob
+ * `**\/*.module.css`). Was dort gilt und hier eingehalten ist: kein
+ * `!important`, kein `prefers-color-scheme`, in `max-width` ausschliesslich
+ * 767.98px, jede `outline` mit `outline-offset`.
+ *
+ * WENIG EIGENES MARKUP, UND ZWAR ABSICHTLICH: das hier ist eine
+ * ADMIN-Arbeitsseite, sie gehoert sichtbar zur Suite. Fortschritt, Knoepfe und
+ * Felder sind antd; eigenes Markup steht nur dort, wo antd nichts anbietet
+ * (Beschriftung, Fehlerkante, Dateiwahl) — und dann ueber `--fi-*`.
+ *
+ * NUR `--fi-*`-VARIABLEN, NIE `--ant-*`: antd deklariert seine Variablen auf
+ * der Scope-Klasse an den Wurzelelementen SEINER EIGENEN Komponenten, nicht auf
+ * `:root`. Eigenes Markup sieht sie nie, und der Fehler ist still — die
+ * Haarlinie verschwindet einfach. Die `--fi-*` erklaert `_ui/files.css`, das
+ * `VerwaltungsRahmen` fuer jede Verwaltungsseite laedt.
+ *
+ * KEINE FARBE TRAEGT HIER EINE AUSSAGE. Der Zustand einer Datei steht als TEXT
+ * im Eintrag („wird übertragen", „vollständig übertragen", „fehlgeschlagen") —
+ * `colorError === colorPrimary === #c8000f`, ein roter Eintrag saehe aus wie
+ * eine Primaeraktion (`docs/design/README.md:53-57`).
+ */
+
+.insel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.feld {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.beschriftung {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--fi-muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hinweis {
+  margin: 4px 0 0;
+  color: var(--fi-muted);
+  font-size: 12px;
+}
+
+/*
+ * Der Feldfehler traegt eine 3px-Kante links und KEINE Flaeche: Rot auf einer
+ * Datenflaeche ist im Modul verboten, weil es optisch eine Primaeraktion ist
+ * (`docs/design/README.md:53-57`, §10.1).
+ */
+.fehlermeldung {
+  margin: 4px 0 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--fi-warn);
+  color: var(--fi-warn);
+  font-size: 14px;
+}
+
+/*
+ * Die Dateiwahl ist ein NATIVES `<input type="file">`: es oeffnet am Handy die
+ * Systemauswahl samt Kamera, und antds `Upload` uebernaehme zugleich den
+ * Byte-Weg, den dieses Modul selbst fuehrt (chunked, §7.1). 44px
+ * Trefferflaeche, 16px Schrift — Zoom ist suiteweit gesperrt.
+ */
+.dateiwahl {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid var(--fi-line);
+  border-radius: 8px;
+  background: var(--fi-card);
+  color: var(--fi-ink);
+  font-size: 16px;
+}
+
+.dateiwahl:focus-visible {
+  outline: 2px solid var(--fi-ink);
+  outline-offset: 2px;
+}
+
+.liste {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eintrag {
+  padding: 12px 0;
+  border-top: 1px solid var(--fi-line);
+}
+
+.kopfzeile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.name {
+  overflow-wrap: anywhere;
+  color: var(--fi-ink);
+  font-weight: 600;
+}
+
+/* Ziffern, die verglichen werden, stehen untereinander gleich breit. */
+.meta {
+  color: var(--fi-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.aktionen {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/*
+ * UNTER DEM SUITE-BREAKPOINT STEHEN HANDLUNGSKNOEPFE UNTEREINANDER UND VOLL
+ * BREIT — ein 630px breiter Knopf liest sich als Flaeche, nicht als Ziel
+ * (`docs/design/README.md:189-197`).
+ *
+ * `.aktionen .knopf` und nicht `.knopf` allein: die Regel sitzt auf antds
+ * `.ant-btn` (0,1,0). Ein einzelner Klassenselektor waere im GLEICHSTAND, und
+ * bei Gleichstand entscheidet die Dokumentreihenfolge — antds Stylesheet kommt
+ * SPAETER, die Regel matchte und verloere still (`docs/design/README.md:64-79`,
+ * dort dreimal passiert). Zwei Klassen sind (0,2,0) und schlagen antd
+ * unabhaengig von der Reihenfolge; `!important` waere zu viel und ueberfuehre
+ * spaeter das eigene Modul-CSS. Ob die Regel WIRKT, weiss nur ein Browser —
+ * das besitzt `e2e/files-mobil.spec.ts` (T48) bei 390, 834 und 1280.
+ *
+ * 767.98px und nicht 768px: bei exakt 768px gaelten sonst beide Seiten und die
+ * Reihenfolge im Stylesheet entschiede.
+ */
+@media (max-width: 767.98px) {
+  .aktionen {
+    flex-direction: column;
+  }
+
+  .aktionen .knopf {
+    width: 100%;
+  }
+}
