@@ -1,0 +1,238 @@
+/*
+ * DIE ABGABE AUF EINEM FREMDEN HANDY — `/u/<token>` (Spec §8.1, Plan T38).
+ *
+ * Gestaltungsklasse „oeffentlich" (`docs/design/README.md:15-21`): eigenes CSS,
+ * KEIN antd, mobile-first. Diese Datei ergaenzt `_ui/files-public.css` und
+ * ersetzt es nicht — Huelle, Knopf, Feld, Fehlerkante, Fokusring und die
+ * `--fp-*`-Farben stehen dort, hier steht nur, was die Abgabe zusaetzlich
+ * braucht: Radiogruppe, Dateiliste, Fortschritt, Quittung.
+ *
+ * WARUM DIE `--fp-*`-VARIABLEN UND KEINE EIGENEN: sie sind in `files-public.css`
+ * auf `:root` erklaert (hell UND `[data-theme="dark"]`) und dort auf AA
+ * gerechnet. Ein zweiter Satz Farben hier waere eine zweite Wahrheit, die beim
+ * naechsten Farbtausch stehen bleibt. KEIN `--ant-*` (Falle 2): antd erklaert
+ * seine Variablen auf der Scope-Klasse SEINER Komponenten, in eigenem Markup
+ * loesen sie ins Leere auf, und der Fehler ist still.
+ *
+ * DIESE DATEI FAELLT UNTER DEN SCAN `_ui/files-public-css.test.ts` (Glob
+ * `**​/*.module.css`): kein `!important`, kein `prefers-color-scheme`, jede
+ * `max-width`-Abfrage genau `767.98px`, `outline` nie ohne `outline-offset`.
+ * Bewusst ohne Bewegung: es gibt hier nichts zu animieren, was ein Melder auf
+ * einer schlechten Mobilverbindung gewinnen wuerde — und damit auch keine
+ * Ruecknahme, die spaeter jemand vergisst.
+ *
+ * TREFFERFLAECHEN 44px, nicht `TAP` = 56: dieselbe begruendete Abweichung wie in
+ * `files-public.css` — die Seite wird auf einem fremden Handy in der Hand
+ * benutzt, und 56px-Kloetze in einer Dateiliste erzeugen Scrollstrecke ohne
+ * Nutzen. Die Schriftgroesse der Eingaben liegt dagegen fest bei 16px
+ * (`.fp-feld`): Zoom ist suiteweit gesperrt.
+ */
+
+.formular {
+  margin-top: 24px;
+}
+
+/* ---------- Kategorie: echte Radiogruppe ---------- */
+
+/*
+ * `fieldset` und `legend` sind hier kein Zierrat: aus ihnen leitet der Browser
+ * die Gruppenbeschriftung fuer Screenreader ab, und aus dem gemeinsamen `name`
+ * den EINEN Tabstop samt Pfeiltastenauswahl. Eine Knopfreihe muesste beides
+ * nachbauen (`docs/design/README.md:144`).
+ *
+ * Der UA-Rahmen faellt weg, weil er in dieser Anmutung wie ein zweites Blatt
+ * wirkt; die Gruppe steht stattdessen frei.
+ */
+.gruppe {
+  margin: 0 0 24px;
+  padding: 0;
+  border: 0;
+}
+
+.legende {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+/*
+ * Das ganze Label ist das Ziel, nicht nur der 22px-Knopf — deshalb liegt die
+ * 44px-Mindesthoehe hier und nicht am Bedienelement.
+ */
+.wahl {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+/*
+ * Die UA-Darstellung des Auswahlknopfes bleibt: sie ist auf jedem Geraet
+ * vertraut, traegt den Fokusring des Systems und kostet kein eigenes Markup.
+ * Nur die Groesse waechst — der Vorgabewert ist auf einem Handy zu klein, um
+ * ihn neben dem Text noch sicher zu treffen.
+ */
+.wahl input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex: none;
+}
+
+/* ---------- Felder ---------- */
+
+.feldblock {
+  margin-bottom: 24px;
+}
+
+/* Ein Zaehler, der MITZAEHLT statt abzuschneiden — die Grenze wird gemeldet. */
+.zaehler {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fp-gedaempft);
+}
+
+/* ---------- Dateiliste: eine Datei, ein Zustand ---------- */
+
+.liste {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  border-top: 1px solid var(--fp-linie);
+}
+
+/*
+ * Spaltenrichtung statt der Zeile aus `.fp-zeile`: ein Eintrag traegt Name,
+ * Fortschritt, Quittung ODER Fehlertext und ggf. einen Knopf. Nebeneinander
+ * waere das auf 390px eine Kachel aus vier Spalten.
+ */
+.eintrag {
+  padding-block: 12px;
+  border-bottom: 1px solid var(--fp-linie);
+}
+
+.dateiname {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  /* Ein langer Handy-Dateiname braeche sonst aus dem Blatt heraus. */
+  overflow-wrap: anywhere;
+}
+
+.groesse {
+  flex: none;
+  font-size: 13px;
+  color: var(--fp-gedaempft);
+}
+
+/*
+ * Der Balken ist die verzichtbare Schicht: darunter steht der Stand IN ZAHLEN
+ * (`.stand`) oder die Quittung. Bedeutung nie allein ueber Farbe oder Flaeche
+ * (`docs/design/README.md:133-137`).
+ *
+ * `appearance: none` samt der beiden Pseudoelemente, weil die UA-Darstellung
+ * von `progress` zwischen den Browsern zu weit auseinanderliegt, um sie in
+ * dieser Anmutung zu belassen.
+ */
+.balken {
+  display: block;
+  width: 100%;
+  height: 6px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 3px;
+  appearance: none;
+  background: var(--fp-tint);
+  color: var(--fp-gedaempft);
+}
+
+.balken::-webkit-progress-bar {
+  border-radius: 3px;
+  background: var(--fp-tint);
+}
+
+.balken::-webkit-progress-value {
+  border-radius: 3px;
+  background: var(--fp-gedaempft);
+}
+
+.balken::-moz-progress-bar {
+  border-radius: 3px;
+  background: var(--fp-gedaempft);
+}
+
+.stand {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fp-gedaempft);
+}
+
+/*
+ * Die Quittung traegt Haken UND Text; `--fp-ok` ist die letzte Schicht. Kein
+ * Gruen als Flaeche — auf einer Datenflaeche waere jede Farbe eine Aussage.
+ */
+.quittung {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--fp-ok);
+}
+
+/*
+ * Der Servertext neben der eigenen Meldung — er traegt die konkrete Zahl
+ * (etwa die Groessengrenze), aber nicht die Handlungsanweisung. Deshalb leiser.
+ */
+.zusatz {
+  color: var(--fp-gedaempft);
+}
+
+/*
+ * Volle Breite und eigene Zeile, weil dieser Knopf INNERHALB eines Eintrags
+ * steht: neben dem Fehlertext waere er auf 390px ein 90px-Rest.
+ */
+.wiederholen {
+  display: flex;
+  width: 100%;
+  margin-top: 12px;
+}
+
+/* ---------- Der ungueltige Abgabelink ---------- */
+
+/*
+ * Die Korrekturaufforderung, KEINE Fehlerseite: `/u/<token>` antwortet auch bei
+ * ungueltigem Token mit HTTP 200 (§8.1). Text plus 3px linke Kante statt einer
+ * roten Flaeche — `colorError` ist in dieser Suite dasselbe Rot wie
+ * `colorPrimary` (Falle 3), eine rote Flaeche liest sich als Primaeraktion.
+ */
+.ungueltig {
+  margin-top: 16px;
+  padding-left: 12px;
+  border-left: 3px solid var(--fp-linie-stark);
+}
+
+/* ---------- Mobil: der einzige Breakpoint der Suite ---------- */
+
+/*
+ * 767.98px und nicht 768: bei exakt 768px gelten sonst beide Seiten und die
+ * Reihenfolge im Stylesheet entscheidet (`docs/design/README.md:193-197`).
+ */
+@media (max-width: 767.98px) {
+  /* Name und Groesse untereinander — nebeneinander bleibt fuer den Namen auf
+     einem 390px-Geraet kaum Platz, und er ist die Hauptinformation. */
+  .dateiname {
+    flex-direction: column;
+    gap: 2px;
+  }
+}

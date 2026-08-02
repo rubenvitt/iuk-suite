@@ -3,39 +3,23 @@
 import { useState, useSyncExternalStore } from "react";
 import {
   AppstoreOutlined,
-  BorderOutlined,
-  CaretUpOutlined,
-  CommentOutlined,
-  DesktopOutlined,
-  GlobalOutlined,
   LoginOutlined,
   LogoutOutlined,
   MenuOutlined,
-  QrcodeOutlined,
 } from "@ant-design/icons";
 import { Avatar, Button, Drawer, Dropdown } from "antd";
 import type { MenuProps } from "antd";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ComponentType } from "react";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
+// Die Icon-Map liegt bewusst in einem Modul OHNE `"use client"` (Begruendung
+// dort): ein WERT-Export von hier waere in einer Server Component eine
+// Client-Referenz statt des Objekts — HTTP 500, das kein Gate sieht.
+import { ICONS } from "@/core/shell/icons";
 import type { AppSwitcherEntry, SuiteNavItem } from "@/core/shell/types";
 import s from "./shell.module.css";
-
-// Icon-Name (aus ModuleDef.icon, Registry) -> @ant-design/icons Komponente.
-// Unbekannte Namen fallen auf AppstoreOutlined zurueck, statt den Render zu
-// crashen — eine neue Registry-Zeile soll die Kopfzeile nicht zerlegen.
-const ICONS: Record<string, ComponentType> = {
-  AppstoreOutlined,
-  QrcodeOutlined,
-  BorderOutlined,
-  CaretUpOutlined,
-  GlobalOutlined,
-  DesktopOutlined,
-  CommentOutlined,
-};
 
 /*
  * Die `subscribe`-Funktion MUSS stabil sein (ausserhalb der Komponente

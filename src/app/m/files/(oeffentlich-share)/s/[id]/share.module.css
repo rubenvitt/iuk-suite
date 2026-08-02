@@ -1,0 +1,163 @@
+/*
+ * DIE OEFFENTLICHE FREIGABE — `/s/<id>` (Spec §7.4, §7.7; Plan T40).
+ *
+ * Gestaltungsklasse „oeffentlich" (`docs/design/README.md:15-21`): eigenes CSS,
+ * KEIN antd, mobile-first. Diese Datei ERGAENZT `_ui/files-public.css` und
+ * ersetzt es nicht — Huelle, Titel, Liste, Zustandsfarben, Knopf, Feld,
+ * Fehlerkante und Fokusring stehen dort. Hier steht nur, was die Freigabe
+ * zusaetzlich braucht: der gestapelte Dateieintrag, der Hinweisblock, der
+ * ganzseitige Wartezustand und die Passwortmaske.
+ *
+ * WARUM DIE `--fp-*`-VARIABLEN UND KEINE EIGENEN: sie sind in
+ * `files-public.css` auf `:root` erklaert (hell UND `[data-theme="dark"]`) und
+ * dort auf AA gerechnet. Ein zweiter Satz Farben hier waere eine zweite
+ * Wahrheit, die beim naechsten Farbtausch stehen bleibt. KEIN `--ant-*`
+ * (Falle 2): antd erklaert seine Variablen auf der Scope-Klasse SEINER
+ * Komponenten; in eigenem Markup loesen sie ins Leere auf, und der Fehler ist
+ * still.
+ *
+ * DIESE DATEI FAELLT UNTER DEN SCAN `_ui/files-public-css.test.ts` (Glob
+ * `**​/*.module.css`): kein `!important`, kein `prefers-color-scheme`, jede
+ * `max-width`-Abfrage genau `767.98px`, `outline` nie ohne `outline-offset`,
+ * Eingaben nie unter 16px.
+ *
+ * KEINE BEWEGUNG. Die Seite laedt sich im Wartezustand alle 5 Sekunden selbst
+ * neu (`<meta http-equiv="refresh">`); eine Animation begaenne bei jedem
+ * Neuladen von vorn und liefe nie zu Ende. Damit gibt es auch keine
+ * `prefers-reduced-motion`-Ruecknahme, die spaeter jemand vergisst.
+ */
+
+/* ---------- Kopf: Beschreibung und Randdaten ---------- */
+
+.beschreibung {
+  margin-top: 12px;
+}
+
+.randdaten {
+  margin-top: 8px;
+}
+
+/* ---------- Dateiliste: ein Eintrag, ein Zustand, ein Weg ---------- */
+
+/*
+ * Spaltenrichtung statt der Zeile aus `.fp-zeile`: ein Eintrag traegt Name,
+ * Groesse, Zustand und bis zu zwei Knoepfe. Nebeneinander waere das auf 390px
+ * eine Kachel aus vier Spalten.
+ */
+.eintrag {
+  padding-block: 16px;
+  border-bottom: 1px solid var(--fp-linie);
+}
+
+.kopfzeile {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  /* Ein langer Handy-Dateiname braeche sonst aus dem Blatt heraus. */
+  overflow-wrap: anywhere;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.groesse {
+  flex: none;
+  font-size: 13px;
+  color: var(--fp-gedaempft);
+  /* Zahlen, die untereinander verglichen werden. */
+  font-variant-numeric: tabular-nums;
+}
+
+.zeilenzustand {
+  margin: 6px 0 0;
+}
+
+/*
+ * Der Verweis auf die Person, die den Link gegeben hat — er steht bei den
+ * Zeilen, die nicht mehr weitergehen (gesperrt, Pruefung fehlgeschlagen, Blob
+ * fehlt). Text plus 3px linke Kante statt einer roten Flaeche: `colorError` ist
+ * in dieser Suite dasselbe Rot wie `colorPrimary` (Falle 3).
+ */
+.zeilenhinweis {
+  margin: 6px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--fp-linie-stark);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fp-gedaempft);
+}
+
+/*
+ * ABSICHTLICH KEINE EIGENE KLASSE FUER DIE KNOEPFE EINES EINTRAGS. Sie tragen
+ * `.fp-knopfzeile` aus `files-public.css` — samt deren Stapelung unter 768px.
+ * Eine eigene Klasse daneben haette nur den Abstand aendern koennen, waere
+ * dabei mit (0,1,0) gegen (0,1,0) angetreten, und wer dann gewinnt, entscheidet
+ * die Reihenfolge der Stylesheets (Falle 5, und sie ist still).
+ */
+
+/*
+ * „Zu groß für die Vorschau" steht AN DER STELLE des Vorschau-Knopfes, in
+ * derselben Zeile wie „Herunterladen" — deshalb mittig zur Knopfhoehe statt an
+ * der Grundlinie. Kein Knopfaussehen: es ist eine Auskunft, kein Ziel.
+ */
+.zuGross {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* ---------- Der ganzseitige Wartezustand ---------- */
+
+/*
+ * Genau ein Fall (§7.4): keine Datei freigegeben und mindestens eine `scanning`.
+ * Kein Spinner — die Seite laedt sich selbst neu, ein sich drehendes Rad waere
+ * eine Bewegung ohne Aussage.
+ */
+.warten {
+  margin-top: 24px;
+  padding-left: 12px;
+  border-left: 3px solid var(--fp-hinweis);
+}
+
+/* ---------- Die Passwortmaske ---------- */
+
+.maske {
+  margin-top: 24px;
+}
+
+.maskenfeld {
+  margin-bottom: 16px;
+}
+
+/*
+ * Volle Breite auch auf dem Desktop: die Maske hat genau EINE Handlung, und ein
+ * halbbreiter Knopf unter einem vollbreiten Feld sieht wie ein Nebenweg aus.
+ *
+ * Unter 768px setzt `.fp-knopf` dasselbe `width: 100%` — Gleichstand (0,1,0)
+ * mit GLEICHEM Wert. Das ist der harmlose Fall von Falle 5: wer auch immer
+ * gewinnt, das Ergebnis ist dasselbe. Ein abweichender Wert hier waere es
+ * nicht.
+ */
+.maskenknopf {
+  width: 100%;
+}
+
+/* ---------- Mobil: der einzige Breakpoint der Suite ---------- */
+
+/*
+ * 767.98px und nicht 768: bei exakt 768px gelten sonst beide Seiten und die
+ * Reihenfolge im Stylesheet entscheidet (`docs/design/README.md:193-197`).
+ */
+@media (max-width: 767.98px) {
+  /* Name und Groesse untereinander — nebeneinander bleibt fuer den Namen auf
+     einem 390px-Geraet kaum Platz, und er ist die Hauptinformation. */
+  .kopfzeile {
+    flex-direction: column;
+    gap: 2px;
+  }
+}

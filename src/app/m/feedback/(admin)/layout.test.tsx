@@ -54,6 +54,17 @@ async function renderLayout() {
   return FeedbackAdminLayout({ children: null }) as unknown as Promise<unknown>;
 }
 
+/**
+ * Das Layout gibt das `Shell`-Element zurueck, ohne es zu rendern — die
+ * Navigation steht also direkt in den Props. Kein DOM-Harness noetig.
+ */
+async function navSchluessel(): Promise<string[]> {
+  const element = (await renderLayout()) as {
+    props: { nav?: { key: string; href: string }[] };
+  };
+  return (element.props.nav ?? []).map((e) => e.key);
+}
+
 describe("Feedback-Verwaltung: Layout traegt ins Nutzerverzeichnis ein", () => {
   beforeEach(() => {
     authMock.mockReset();
@@ -118,5 +129,54 @@ describe("Feedback-Verwaltung: Layout traegt ins Nutzerverzeichnis ein", () => {
 
     expect(notFound).toHaveBeenCalledTimes(1);
     expect(upsertKnownUserMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * DIE NAVIGATION DARF NICHTS ANBIETEN, WAS DIE SEITE VERWEIGERT.
+ *
+ * `vergleich/page.tsx` wirft fuer alle ausser Voll-Admins `notFound()` — 404
+ * statt 403, damit die Existenz der Seite nicht verraten wird. Der Eintrag in
+ * der Kopfzeile stand trotzdem fuer jeden da: die Gruppenleitung sah ihn, klickte
+ * und landete im 404. Das verraet die Seite doch und ist obendrein eine
+ * Sackgasse.
+ *
+ * Gepruefte Zusage ist deshalb nicht "der Eintrag ist weg", sondern "Navigation
+ * und Riegel entscheiden nach demselben Praedikat" — darum stehen hier genau die
+ * beiden Faelle, die auseinanderlaufen koennten.
+ */
+describe("Feedback-Verwaltung: der Vergleich steht nur da, wo er auch begehbar ist", () => {
+  beforeEach(() => {
+    authMock.mockReset();
+    getDbMock.mockReset();
+    upsertKnownUserMock.mockReset();
+    vi.mocked(redirect).mockClear();
+    vi.mocked(notFound).mockClear();
+    getDbMock.mockReturnValue(FAKE_DB);
+  });
+
+  it("Voll-Admin sieht den Eintrag", async () => {
+    authMock.mockResolvedValue(sessionFor({ id: "admin-1", groups: ["da-feedback-admin"] }));
+
+    expect(await navSchluessel()).toEqual(["start", "vergleich"]);
+  });
+
+  it("Gruppenleitung sieht nur die Uebersicht — kein Weg in den 404", async () => {
+    authMock.mockResolvedValue(sessionFor({ id: "gl-1", groups: ["da-feedback-gl"] }));
+
+    expect(await navSchluessel()).toEqual(["start"]);
+  });
+
+  it("Suite-Admin ohne Feedback-Gruppe kommt gar nicht erst so weit (isFeedbackAdmin != isModuleAdmin)", async () => {
+    authMock.mockResolvedValue(sessionFor({ id: "betreiber", groups: ["dashboard-admins"] }));
+
+    await expect(renderLayout()).rejects.toThrow();
+
+    // Auf `notFound` festgenagelt und nicht nur auf "wirft": `redirect` wirft
+    // ebenfalls. Ohne diese Zeile wuerde der Test auch dann gruen bleiben, wenn
+    // aus dem 404 eine Weiterleitung zur Anmeldung wird — und die verraet einem
+    // Betreiber ohne Feedback-Gruppe, dass es hier etwas zu sehen gibt.
+    expect(notFound).toHaveBeenCalledTimes(1);
+    expect(redirect).not.toHaveBeenCalled();
   });
 });

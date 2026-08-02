@@ -29,11 +29,11 @@ Zusage an Teilnehmende und muss den Satz mitändern — nicht stillschweigend se
 
 ## Die IP: nur Ratenbegrenzung, flüchtig, nie an der Antwort
 
-Der anonyme Abgabepfad liest die Client-IP (`clientIp()` in `actions.ts`: `cf-connecting-ip`, sonst
-der erste Wert aus `x-forwarded-for`). Sie wird **ausschließlich** als Schlüssel der Ratenbegrenzung
-verwendet:
+Der anonyme Abgabepfad liest die Client-IP (`clientIpAus()` aus `@/core/ratelimit`: `cf-connecting-ip`,
+sonst der erste Wert aus `x-forwarded-for`). Sie wird **ausschließlich** als Schlüssel der
+Ratenbegrenzung verwendet:
 
-- `RateLimiter` (`_lib/ratelimit.ts`) hält die Treffer in einer **`Map` im Prozessspeicher** —
+- `RateLimiter` (`@/core/ratelimit`) hält die Treffer in einer **`Map` im Prozessspeicher** —
   flüchtig, pro Prozess, kein Datenbankschreibvorgang, keine Datei, kein Log.
 - Zwei getrennte Zähler: `tokenGuard` (Schlüssel = IP) zählt nur **Fehlversuche** mit ungültigem
   Token/Secret; `submitLimiter` (Schlüssel = `${ip}|${surveyId}`) begrenzt echte Abgaben weit genug,

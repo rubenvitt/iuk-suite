@@ -1,0 +1,353 @@
+/*
+ * DIE OPTIK DER OEFFENTLICHEN ANSICHTEN DES MODULS `files` — `/s/<id>`
+ * (Dateifreigabe) und `/u/<token>` (Abgabe). Gestaltungsklasse „oeffentlich"
+ * nach `docs/design/README.md:15-21`: eigenes CSS, KEIN antd, mobile-first.
+ * Vorbild fuer Anmutung und Farbwerte: `docs/design/feedback-oeffentliche-ansicht.md`
+ * (§3.4/§3.5) — die NEUTRALEN Werte sind dort auf AA belegt und werden hier
+ * uebernommen, nicht neu erfunden. Die NOTENAMPEL von dort bleibt drueben: sie
+ * traegt die Bedeutung eines fremden Fachbereichs.
+ *
+ * ZWEI WERTE SIND ABLEITUNGEN UND KEINE UEBERNAHMEN, damit es niemand fuer
+ * einen Tippfehler haelt und „zurueckbessert": `--fp-hinweis` ist gegenueber
+ * `DRK.gelb` abgedunkelt und `--fp-wortzeichen` traegt im Dunkelmodus ein
+ * aufgehelltes Rot. Beide Male ist der Anlass Kontrast auf PAPIER, den der
+ * Token nicht mitbringt; die Rechnung steht an der Deklaration. Gesichert ist
+ * das nicht durch diese Kommentare, sondern durch die Kontrastregel in
+ * `files-public-css.test.ts` — sie rechnet jede Textfarbe gegen jede Flaeche in
+ * beiden Modi und faengt den naechsten „schoeneren" Farbtausch.
+ *
+ * WARUM `--fp-*` UND NICHT `--fi-*` (die Variablen der Verwaltung in
+ * `_ui/files.css`): beide Dateien sind GLOBALE Stylesheets, und es gibt eine
+ * Seite, die BEIDE laedt. Der Rollen-Verteiler `page.tsx` (§3.5) entscheidet je
+ * Host, ob er die Verwaltung oder den oeffentlichen Inbox-Start rendert —
+ * importiert dafuer aber beide Bausteine, also liefert Next beide Stylesheets an
+ * `/` aus. Zwei `:root`-Bloecke mit denselben Namen ueberschreiben sich dann
+ * gegenseitig, und wer gewinnt, haengt an der Reihenfolge der Chunks. Getrennte
+ * Praefixe machen die Frage gegenstandslos.
+ *
+ * KEIN `--ant-*` (Falle 2): antd erklaert seine Variablen auf der Scope-Klasse
+ * an den Wurzeln SEINER Komponenten, nicht auf `:root`. In eigenem Markup loesen
+ * sie ins Leere auf — und der Fehler ist still, die Haarlinie verschwindet
+ * einfach.
+ *
+ * DUNKELMODUS ueber `:root[data-theme="dark"]` (gesetzt in `app/layout.tsx:71`),
+ * bewusst NICHT ueber `prefers-color-scheme`: die Suite hat einen
+ * Cookie-Umschalter, sonst bricht der Fall „System dunkel, Umschalter hell".
+ * Die Hellwerte liegen zusaetzlich auf dem nackten `:root`, damit ein Kontext
+ * ohne Attribut nicht ohne Farben dasteht.
+ *
+ * KEIN ZUSAETZLICHER WEBFONT. Der Abendzettel holt eine Serif fuer seinen
+ * editorialen Ton; hier gibt es nichts zu erzaehlen — es geht um Dateien, oft
+ * ueber eine schlechte Mobilverbindung, und Geist Sans liegt global schon da.
+ *
+ * TREFFERFLAECHEN 44px UND NICHT `TAP` = 56: dieselbe begruendete Abweichung wie
+ * im Abendzettel (§3.5). Diese Seiten werden auf einem FREMDEN Handy in der Hand
+ * benutzt, nicht an einem Kiosk mit Handschuhen; 56px-Kloetze in einer
+ * Dateiliste erzeugen Scrollstrecke ohne Nutzen. Die 16px-Untergrenze der
+ * Eingabefelder ist dagegen KEINE Wahl: Zoom ist suiteweit gesperrt
+ * (`app/layout.tsx`, `core/theme/feldschrift.test.ts`), also kann niemand
+ * heranholen, was zu klein ist.
+ */
+
+:root,
+:root[data-theme="light"] {
+  --fp-grund: #f4f1ea;
+  --fp-blatt: #fbfaf7;
+  --fp-tinte: #16181a;
+  --fp-gedaempft: #5e625f;
+  --fp-linie: #ddd8ce;
+  --fp-linie-stark: #c9c3b7;
+  --fp-tint: #ede9df;
+
+  /* Primaeraktion ist Graphit-Tinte, NICHT DRK-Rot (14,8:1). Ein roter Knopf
+     waere hier die groesste Flaeche der Seite in der Farbe, die die Suite
+     gleichzeitig als Fehlerfarbe fuehrt (Falle 3). */
+  --fp-knopf-grund: #24282c;
+  --fp-knopf-schrift: #ffffff;
+
+  /* Zwei Zustandsfarben, beide nur als 3px-Kante oder Symbolfarbe neben TEXT —
+     nie als Flaeche. „gesperrt" traegt bewusst KEIN Rot: Rot ist in dieser Suite
+     Marke und Primaeraktion, und auf einer Datenflaeche wird daraus eine
+     Aussage, die niemand gemeint hat.
+
+     `--fp-ok` ist `DRK.ok` unveraendert (5,15:1 auf Blatt, 4,77:1 auf Grund).
+     `--fp-hinweis` NICHT: `DRK.gelb` (#b26a00) traegt hier 4,06:1 auf Blatt und
+     3,76:1 auf Grund und ist damit kein AA-Text (`.fp-zustand-wartet` erbt 13px
+     in normalem Gewicht). Im Token ist die Farbe mit `gelbBg: #fbf1dc` gepaart,
+     als Textfarbe auf Papier war sie nie AA-faehig — auf reinem Weiss nur
+     4,24:1. Deshalb abgedunkelt: #9a5c00 ergibt 5,15:1 / 4,77:1. Der Token ist
+     hier Ausgangspunkt, nicht uebernommener Wert. */
+  --fp-ok: #1e7a3c;
+  --fp-hinweis: #9a5c00;
+
+  /* Das Wortzeichen „DRK" ist TEXT, nicht Flaeche — deshalb eine eigene
+     Variable statt des Literals: hell bleibt es DRK-Rot (5,81:1 auf Blatt),
+     dunkel braucht es eine aufgehellte Ableitung. #c8000f erreicht auf dunklem
+     Blatt (#1b1e22) nur 2,76:1, und 13px in Gewicht 700 ist nach WCAG 1.4.3
+     KEIN grosser Text (dafuer waeren 18,66px fett noetig). Die 3px-Fahne bleibt
+     dagegen am Literal: sie ist `aria-hidden`, traegt keine Information, und
+     eine aufgehellte Markenlinie waere eine Farbaussage ohne Anlass. */
+  --fp-wortzeichen: #c8000f;
+}
+
+:root[data-theme="dark"] {
+  --fp-grund: #101214;
+  --fp-blatt: #1b1e22;
+  --fp-tinte: #ece9e2;
+  --fp-gedaempft: #9aa0a6;
+  --fp-linie: #2c3035;
+  --fp-linie-stark: #3a3f45;
+  --fp-tint: #23272c;
+
+  --fp-knopf-grund: #ece9e2;
+  --fp-knopf-schrift: #101214;
+
+  --fp-ok: #7cc79a;
+  --fp-hinweis: #e0a94a;
+
+  /* Aufgehelltes DRK-Rot, 5,46:1 auf Blatt und 6,13:1 auf Grund. Kein Token —
+     `core/theme/tokens.ts` fuehrt keine helle Rotvariante; ein Umzug dorthin
+     braucht nach der core-Regel einen zweiten, heute belegbaren Nutzniesser. */
+  --fp-wortzeichen: #f4655a;
+}
+
+/* ---------- Huelle: Fahne, Blatt, Kopf ---------- */
+
+.fp-seite {
+  background: var(--fp-grund);
+  color: var(--fp-tinte);
+  /* `100dvh` und NICHT `100%`: der Rahmen sitzt unter antds `<App>`, und das
+     rendert ein `<div class="ant-app">` ohne Hoehenangabe
+     (`core/theme/AntdProvider.tsx:62`). Die Elternhoehe ist damit unbestimmt und
+     ein Prozentwert faellt darauf zurueck, gar nichts zu tun — `html, body {
+     height: 100% }` aus `globals.css` reicht nur bis zu diesem Wrapper. Die
+     Papierfarbe endete sonst auf einer kurzen Seite an der Inhaltsunterkante,
+     still wie Falle 5. `dvh` statt `svh`/`lvh`: `svh` laesst eine Luecke, sobald
+     die Browserleiste einfaehrt, `lvh` erzwingt beim Laden einen Scrollbalken. */
+  min-height: 100dvh;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  /* Groessen und Zeiten werden verglichen (Dateigroesse, Restlaufzeit) —
+     Proportionalziffern lassen die Spalte tanzen. */
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/*
+ * Traeger 1 von genau ZWEI Stellen mit DRK-Rot: 3px, randlos am Oberrand. Nie
+ * als Flaeche, nie als Knopffuellung, nie als Fehlerfarbe.
+ */
+.fp-fahne {
+  height: 3px;
+  background: #c8000f;
+}
+
+.fp-blatt {
+  background: var(--fp-blatt);
+  max-width: 40rem;
+  margin: 0 auto;
+  padding-inline: 20px;
+  padding-bottom: 32px;
+}
+
+.fp-kopf {
+  padding-top: 28px;
+  padding-bottom: 20px;
+}
+
+.fp-kicker {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fp-gedaempft);
+}
+
+/* Traeger 2 von zwei: das Wortzeichen. 13px Text, keine Flaeche — und weil es
+   Text ist, laeuft die Farbe ueber die Variable (siehe `--fp-wortzeichen`). */
+.fp-wortzeichen {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fp-wortzeichen);
+}
+
+.fp-titel {
+  margin: 12px 0 0;
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+}
+
+.fp-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.fp-meta {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fp-gedaempft);
+}
+
+/* ---------- Liste: eine Datei je Zeile, Zustand als Text ---------- */
+
+.fp-liste {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--fp-linie);
+}
+
+.fp-zeile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--fp-linie);
+}
+
+/*
+ * Zustaende tragen Text plus Symbol; die Farbe ist die verzichtbare letzte
+ * Schicht (`docs/design/README.md:133-141`).
+ */
+.fp-zustand {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fp-gedaempft);
+}
+
+.fp-zustand-frei {
+  color: var(--fp-ok);
+}
+
+.fp-zustand-wartet {
+  color: var(--fp-hinweis);
+}
+
+/* ---------- Bedienelemente ---------- */
+
+.fp-knopfzeile {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.fp-knopf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding-inline: 20px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--fp-knopf-grund);
+  color: var(--fp-knopf-schrift);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+
+.fp-knopf-leise {
+  background: transparent;
+  border-color: var(--fp-linie-stark);
+  color: var(--fp-tinte);
+}
+
+.fp-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.fp-feld {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--fp-linie-stark);
+  border-radius: 8px;
+  background: var(--fp-blatt);
+  color: var(--fp-tinte);
+  /* Untergrenze, keine Wahl — siehe Kopf dieser Datei. */
+  font-size: 16px;
+  line-height: 1.5;
+  transition: border-color 120ms ease-out;
+}
+
+/*
+ * Warnung als Text plus 3px linke Kante, nicht als rote Flaeche: `colorError`
+ * ist in dieser Suite dasselbe Rot wie `colorPrimary` (Falle 3), eine rote
+ * Flaeche liest sich also als Primaeraktion.
+ */
+.fp-fehler {
+  margin: 8px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--fp-hinweis);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/*
+ * FOKUS. Die Erhoehung auf (0,2,0) ist bewusst und gehoert kommentiert, sonst
+ * entfernt sie die naechste Aufraeumrunde: der Ring muss AUCH auf Elementen
+ * sitzen, die eine spaetere `*.module.css` mit ihrer eigenen Klasse (0,1,0)
+ * gestaltet — er soll dabei nicht wegfallen. Weiter als bis zum Nachbarselektor
+ * geht die Erhoehung nicht: `!important` waere die Tuer, durch die niemand mehr
+ * zurueckkann.
+ */
+.fp-seite :focus-visible {
+  outline: 2px solid var(--fp-tinte);
+  outline-offset: 2px;
+}
+
+/* ---------- Mobil: der einzige Breakpoint der Suite ---------- */
+
+/*
+ * 767.98px und nicht 768: bei exakt 768px gelten sonst beide Seiten und die
+ * Reihenfolge im Stylesheet entscheidet (`docs/design/README.md:193-197`).
+ */
+@media (max-width: 767.98px) {
+  /* Ein 630px breiter Knopf liest sich als Flaeche, nicht als Ziel — deshalb
+     untereinander und volle Breite (`docs/design/README.md:189-190`). */
+  .fp-knopfzeile {
+    flex-direction: column;
+  }
+
+  .fp-knopf {
+    width: 100%;
+  }
+}
+
+@media (min-width: 768px) {
+  .fp-blatt {
+    margin: 40px auto 64px;
+    padding-inline: 32px;
+    border: 1px solid var(--fp-linie);
+    border-radius: 14px;
+  }
+}
+
+/*
+ * Bewegung zuruecknehmen: nur die Dauern fallen, der Farbwechsel bleibt — ohne
+ * ihn waere der Zustandswechsel gar nicht mehr wahrnehmbar.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .fp-knopf,
+  .fp-feld {
+    transition-duration: 1ms;
+  }
+}

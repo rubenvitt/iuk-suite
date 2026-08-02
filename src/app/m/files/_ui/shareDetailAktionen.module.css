@@ -1,0 +1,178 @@
+/*
+ * KOMPONENTENLOKALES CSS DER HANDLUNGSZEILE AUF `/shares/[id]` (Naht C).
+ *
+ * WARUM EINE EIGENE DATEI UND NICHT `_ui/files.css`: der Kopfkommentar von
+ * `files.css` legt die Aufteilung selbst fest — dort liegen die modulweiten
+ * `--fi-*`-Variablen und die EINE Umschaltung, die sich zwei Ansichten teilen,
+ * komponentenlokale Regeln liegen in einem CSS-Modul NEBEN ihrer Komponente
+ * (Plan §1, Festlegung C). Diese Regeln haben genau einen Anwender, also
+ * gehoeren sie hierher — dieselbe Form wie `posteingang.module.css`,
+ * `zugangslinks.module.css` und `uploadInsel.module.css`. Zwei Nebenwirkungen,
+ * die die Wahl bestaetigen: der Glob ueber alle CSS-Module des Moduls in
+ * `files-public-css.test.ts` erfasst diese Datei ohne Zutun (767.98px, kein
+ * `!important`, kein `prefers-color-scheme`, Fokus mit `outline-offset`), und
+ * ein CSS-Modul kann keine fremde Ansicht treffen, weil seine Klassennamen
+ * gehasht sind. Eine Regel in `files.css` waere dagegen global und truege den
+ * Namen `.knopfzeile` fuer das ganze Modul.
+ *
+ * `--ant-*` KOMMT HIER NICHT VOR: antd deklariert seine Variablen auf der
+ * Scope-Klasse an den Wurzelelementen SEINER EIGENEN Komponenten, nicht auf
+ * `:root`. Eigenes Markup sieht sie nie, und der Fehler ist still.
+ *
+ * WAS EIN SCAN UEBER DIESE DATEI BESITZT: „die Regel traegt die richtige
+ * Medienabfrage und den Praefix". Ob sie WIRKT, weiss nur ein Browser — das
+ * besitzt `e2e/files-mobil.spec.ts` (T48) bei 390, 834 und 1280.
+ */
+
+/*
+ * Der senkrechte Stapel. BEWUSST an zwei Stellen benutzt — am Wurzelelement der
+ * Insel UND am Aufstocken-Formular: beide sind dasselbe, naemlich eine Folge von
+ * Bloecken mit gleichem Abstand. Wer hier spaeter Polsterung, Rahmen oder
+ * Hintergrund ergaenzt, trifft damit AUCH das Formular; dann gehoert die
+ * Wiederverwendung aufgeloest statt die Regel erweitert.
+ */
+.aktionen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/*
+ * Die oeffentliche Adresse steht als TEXT da, nicht nur im Kopierknopf.
+ * `overflow-wrap: anywhere` ist auf 390px keine Kosmetik: eine Adresse ohne
+ * Leerzeichen hat keine Umbruchstelle und schoebe sonst die ganze Seite nach
+ * rechts. `user-select: all` macht einen Klick zur vollstaendigen Auswahl — der
+ * Rueckfallweg, wenn `navigator.clipboard` fehlt oder verweigert wird.
+ */
+.adresse {
+  user-select: all;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+/*
+ * DIE REIHE DER HANDLUNGSKNOEPFE. Auf dem Desktop nebeneinander, unter 768px
+ * untereinander und in voller Breite (Medienabfrage unten): ein 630px breiter
+ * Knopf liest sich als Flaeche, nicht als Ziel
+ * (`docs/design/README.md:189-190`).
+ *
+ * `gap: 12px` und keine engere Zahl: zwischen zwei 56px-Zielen ist der Abstand
+ * der einzige Schutz gegen den Fehlgriff.
+ */
+.knopfzeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/*
+ * Das Zahlenfeld des Aufstockens bleibt schmal, sonst nimmt antds eigene
+ * Breitenvorgabe auf `.ant-input` die ganze Zeile und der Knopf daneben bricht
+ * um.
+ *
+ * `max-width` und NICHT `width`: eine eigene `width`-Regel waere (0,1,0) gegen
+ * die (0,1,0) von `.ant-input` und damit im Gleichstand — und bei Gleichstand
+ * gewinnt antd, weil sein Stylesheet SPAETER kommt (nachgemessen, siehe
+ * Knopfregel unten). Auf `.ant-input` deklariert antd dagegen KEIN `max-width`;
+ * der Deckel hat also keinen Gegenspieler und greift, ohne dass die
+ * Spezifitaet erhoeht werden muesste. Am laufenden Server nachgemessen: bei
+ * 1280px steht das Feld auf 148,5px und sein `max-width` auf demselben Wert —
+ * der Deckel ist die bindende Vorgabe, nicht antds Breite.
+ *
+ * Der Deckel gilt in BEIDEN Breiten, und das ist Absicht: eine dreistellige
+ * Zahl braucht auch auf 390px keine volle Zeile — ein Handlungsknopf schon.
+ * Deshalb bleibt das Feld schmal, waehrend der Knopf darunter aufmacht.
+ */
+.zahlfeld {
+  max-width: 14ch;
+}
+
+@media (max-width: 767.98px) {
+  /*
+   * 767.98px und nicht 768px: bei exakt 768px gaelten sonst BEIDE Seiten und die
+   * Reihenfolge im Stylesheet entschiede, welche gewinnt. 768px ist der EINZIGE
+   * Breakpoint der Suite (`core/shell/shell-css.test.ts`); ein Modul, das bei
+   * einer anderen Breite schaltet, ist bei 390px nicht zu unterscheiden und
+   * DAZWISCHEN kaputt — genau so stand in `feedback.css` bis zum 27.07. eine
+   * 600px-Grenze, und bei 700px lagen zwei schmale Knoepfe nebeneinander,
+   * waehrend der Rest der Seite schon mobil war.
+   */
+  .knopfzeile {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /*
+   * Die direkten Kinder — hier das Loeschformular und das Zahlenfeld. Der
+   * Kindselektor allein REICHT NICHT (Regel darunter), aber er wird gebraucht:
+   * ohne ihn bliebe die Formularhuelle auto-breit, und ein vollbreiter Knopf
+   * darin haette nichts, worin er voll breit sein koennte.
+   */
+  .knopfzeile > * {
+    width: 100%;
+  }
+
+  /*
+   * DIE REGEL, DIE GEGEN ANTD ANTRITT — und warum sie gewinnt.
+   *
+   * Der Kindselektor oben trifft den LOESCHKNOPF NICHT: er steht in einem
+   * `<form>` (Popconfirm bestaetigt, `requestSubmit` schickt ab), und
+   * `.knopfzeile > *` traefe damit das FORMULAR. Voll breit waere die
+   * unsichtbare Huelle, der Knopf darin bliebe auto-breit und stuende halb so
+   * breit neben seinen Nachbarn.
+   *
+   * ZWEI KLASSEN UND NICHT EINE, und der Grund ist am laufenden Server
+   * nachgemessen statt geschaetzt (2026-08-01, `/shares/<id>` im Browser,
+   * `document.styleSheets` und `getBoundingClientRect` ausgelesen):
+   *
+   *  - DIE REIHENFOLGE STEHT GEGEN UNS. Das CSS-Modul haengt als `<link>` an
+   *    Position 3 im `<head>`, antds `<style id="antd-cssinjs">` an Position 4 —
+   *    antd kommt also SPAETER, und bei Gleichstand gewinnt es. Das ist genau
+   *    die Lage aus `docs/design/README.md:67-71`, wo `.nurMobil` (0,1,0) gegen
+   *    `.ant-btn` (0,1,0) verlor und der Menue-Knopf sichtbar auf dem Desktop
+   *    stand.
+   *  - HEUTE GAEBE ES DEN GLEICHSTAND NICHT: antd deklariert `width` nirgends
+   *    auf einem nackten `.ant-btn`, sondern nur auf zusammengesetzten
+   *    Selektoren (`.ant-btn.ant-btn-icon-only`, `.ant-btn.ant-btn-block`,
+   *    `.ant-btn.ant-btn-circle.ant-btn` — alle (0,2,0) oder hoeher, und keiner
+   *    davon trifft diese vier Knoepfe). `.knopf` allein WUERDE also
+   *    funktionieren — aus Versehen. Der Praefix macht die Regel unabhaengig
+   *    davon, dass antd das so laesst: eine kuenftige `.ant-btn`-Breitenregel
+   *    kippte sie sonst still, und „still" heisst hier, dass der Knopf einfach
+   *    halb so breit dasteht und kein Gate rot wird.
+   *  - `.knopfzeile .knopf` ist (0,2,0) und schlaegt damit jede
+   *    EINKLASSIGE `.ant-btn`-Regel unabhaengig von der Reihenfolge. Mehr waere
+   *    zu viel: wer gegen antd weiter aufruestet, ueberfaehrt spaeter das eigene
+   *    Modul-CSS (`docs/design/README.md:74-79`). Kein `!important`.
+   *
+   * GEMESSENES ERGEBNIS — und zwar an BEIDEN ZWEIGEN der Abfrage, weil eine
+   * Messung nur unterhalb des Breakpoints die Aussage gar nicht widerlegen
+   * koennte (dort sagen die richtige und die kaputte Fassung beide „breit"):
+   *  - 1280px: die Zeile steht auf `row`, alle vier Knoepfe auf derselben Hoehe
+   *    und in ihrer natuerlichen Breite (118/102/52/86px). Die Regel LECKT NICHT
+   *    auf den Desktop.
+   *  - 500px: die Zeile steht auf `column`, jeder Knopf fuellt sie (468px von
+   *    468px), die vier Oberkanten sind verschieden.
+   * Hoehe durchgehend 56px — `size` ist an keinem Knopf gesetzt.
+   *
+   * 500px UND NICHT 390px, und das ist eine Einschraenkung, keine Nebensache:
+   * Chrome laesst ein Fenster nicht schmaler als 500px werden. Was hier belegt
+   * ist, ist „der Medienzweig greift und der Desktopzweig nicht" — NICHT, dass
+   * die Grenze bei 767.98px liegt. Bei 500px saehe ein falscher 600px-Breakpoint
+   * genauso aus. Die Grenze selbst besitzt der Quelltext-Scan in
+   * `ShareDetailAktionen.test.tsx` (die Mutation 767.98 -> 768 faerbt ihn rot),
+   * das Bild bei 390 und 834px besitzt `e2e/files-mobil.spec.ts` (T48).
+   *
+   * Der Bestaetigungsdialog des Popconfirm haengt in einem PORTAL an
+   * `document.body` und liegt damit ausserhalb von `.knopfzeile`; seine beiden
+   * Knoepfe bleiben von dieser Regel unberuehrt (85px/70px, nachgemessen).
+   *
+   * Dieselbe Form wie `.knopfzeile .knopf` in `posteingang.module.css` und
+   * `.aktionen .knopf` in `uploadInsel.module.css`. WER DEN PRAEFIX ALS BALLAST
+   * ENTFERNT, BAUT DEN FEHLER WIEDER EIN.
+   */
+  .knopfzeile .knopf {
+    width: 100%;
+  }
+}

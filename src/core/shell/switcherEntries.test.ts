@@ -9,7 +9,15 @@ describe("switcherEntries", () => {
   it("verlinkt in Dev alle sichtbaren Module über *.localtest.me", () => {
     vi.stubEnv("PORT", "3000");
     const keys = switcherEntries([]).map((e) => e.key);
-    expect(keys).toEqual(["portal", "qr", "feedback", "gamma"]);
+    // `files` steht hier, obwohl es prodHosts: [] hat — der Widerspruch zur
+    // Spec-Begründung „Der App-Switcher zeigt es dann nicht" ist keiner: die
+    // gilt NUR für Prod. Außerhalb von NODE_ENV=production liefert moduleUrl
+    // die Dev-URL http://files.localtest.me:<port> UNABHÄNGIG von prodHosts
+    // (moduleUrl.ts:19-26), und canAccess steigt bei requiresAuth: false sofort
+    // mit true aus (registry.ts:133), also filtern die Gruppen nicht. In Prod
+    // ohne SUITE_HOST_FILES ist prodHostsFor() leer, moduleUrl liefert null und
+    // switcherEntries verwirft den Eintrag — siehe der Prod-Fall unten.
+    expect(keys).toEqual(["portal", "qr", "feedback", "files", "gamma"]);
     // Nicht über den Index greifen: die Registry-Reihenfolge verschiebt sich mit
     // jedem neuen Modul, das Verhalten dahinter aber nicht.
     const gamma = switcherEntries([]).find((e) => e.key === "gamma");
@@ -28,8 +36,10 @@ describe("switcherEntries", () => {
   it("filtert weiterhin auf die Gruppen der Session", () => {
     expect(switcherEntries(["alpha-users"]).map((e) => e.key)).toContain("alpha");
     // Anonym bleiben genau die Module übrig, die keinen Login verlangen — seit
-    // qr und feedback ist das nicht mehr die leere Liste, aber weiterhin nichts
-    // Geschütztes.
-    expect(switcherEntries(null).map((e) => e.key)).toEqual(["qr", "feedback"]);
+    // qr, feedback und files ist das nicht mehr die leere Liste, aber weiterhin
+    // nichts Geschütztes: alle drei stehen auf requiresAuth: false, weil sie
+    // anonyme Ansichten tragen (/s/<id>, /u/<token>, /f/<slug>). Der Zugang zur
+    // Verwaltung wird modul-intern gegated, nicht hier.
+    expect(switcherEntries(null).map((e) => e.key)).toEqual(["qr", "feedback", "files"]);
   });
 });

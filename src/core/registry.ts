@@ -65,6 +65,28 @@ export const MODULES: ModuleDef[] = [
   { key: "feedback", title: "Feedback", icon: "CommentOutlined", shell: "full",
     requiresAuth: false, requiredGroups: ["da-feedback-gl", "da-feedback-admin"],
     adminGroups: ["da-feedback-admin"], prodHosts: [], showInSwitcher: true },
+  // files: zwei Prod-Hosts in EINER Variable, die Reihenfolge trägt die Rolle
+  // (Index 0 = Verwaltung/Shares, Index 1 = Inbox) — siehe _lib/hostRolle.ts.
+  // requiresAuth MUSS false bleiben: sonst schickt die Middleware jeden anonymen
+  // /s/<id>- und /u/<token>-Aufruf in den Login (routing.ts:71-73), und zwar
+  // sofort beim Cutover. Dadurch liest canAccess() requiredGroups hier NIE
+  // (früher Ausstieg bei !requiresAuth, registry.ts:133) — durchgesetzt wird der
+  // Zugang modul-intern in _lib/access.ts.
+  //
+  // prodHosts: [] — vor dem Cutover hat das Modul keine Prod-Domain, dieselbe
+  // Lage wie bei qr und feedback. In Dev/E2E kommen die Hosts aus SUITE_HOST_FILES.
+  // icon: NICHT „irgendein existierender @ant-design/icons-Name" — wirksam ist
+  // allein die Map ICONS in `core/shell/icons.ts`. Ein Name, der dort FEHLT,
+  // fällt STILL auf AppstoreOutlined zurück (einziger Konsument: SuiteNav) —
+  // „Dateien" wäre dann vom „Portal" nicht zu unterscheiden, in Kopfzeile UND
+  // Drawer jeder Suite-Seite.
+  // FolderOutlined steht in ICONS, und die Map ist exportiert, damit
+  // `SuiteNav.test.tsx` sie gegen die echte MODULES-Liste hier prüft: ein
+  // Modul-Icon ohne Eintrag ist ab jetzt ein roter Test statt eines stillen
+  // Duplikats.
+  { key: "files", title: "Dateien", icon: "FolderOutlined", shell: "full",
+    requiresAuth: false, requiredGroups: [], adminGroups: ["drk-files-admin"],
+    prodHosts: [], showInSwitcher: true },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true },

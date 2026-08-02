@@ -12,6 +12,8 @@ import {
   clickPortal,
 } from "@/app/m/qr/_lib/test-dom";
 import { Modulnav, SuiteNav, aktiverEintrag } from "./SuiteNav";
+import { ICONS } from "./icons";
+import { MODULES } from "@/core/registry";
 import type { AppSwitcherEntry, SuiteNavItem } from "./types";
 
 /**
@@ -341,5 +343,40 @@ describe("SuiteNav — anonym", () => {
     expect(exists('[data-testid="modulzeile"]')).toBe(false);
     // Und der Anmelden-Weg steht genau einmal da, nicht zusaetzlich im Drawer.
     expect(document.body.querySelectorAll('[data-testid="anmelden"]')).toHaveLength(1);
+  });
+});
+
+/*
+ * Diese Kopplung fehlte bis 2026-07-30 und hat sofort zugeschlagen: der
+ * Registry-Eintrag von `files` trug `icon: "FolderOutlined"`, die ICONS-Map
+ * (damals in SuiteNav.tsx, heute `icons.ts`) kannte den Namen nicht, und der
+ * Rueckfall auf AppstoreOutlined
+ * gab dem Modul STILL das Portal-Icon. Kein Fehler, kein Log, kein rotes Gate —
+ * nur ein falsches Bild in jeder Kopfzeile.
+ *
+ * Der Rueckfall bleibt (eine neue Registry-Zeile soll die Kopfzeile nicht
+ * zerlegen), aber er ist ab jetzt kein Versteck mehr: wer ein Modul ergaenzt und
+ * das Icon nicht eintraegt, bekommt hier einen roten Test statt eines stillen
+ * Duplikats. Die Pruefung laeuft ueber die ECHTE Registry, nicht ueber eine
+ * Liste im Test — eine Liste waere die naechste Stelle, die vergessen wird.
+ */
+describe("Icon-Namen der Registry", () => {
+  it("jedes Modul-Icon ist ein Schluessel der ICONS-Map", () => {
+    const fehlend = MODULES.filter((m) => !(m.icon in ICONS)).map(
+      (m) => `${m.key} verlangt ${m.icon}`,
+    );
+    expect(fehlend).toEqual([]);
+  });
+
+  it("die Map traegt keine Namen, die kein Modul verlangt", () => {
+    // Kein Selbstzweck: eine verwaiste Zeile hier ist der Hinweis darauf, dass
+    // ein Modul umbenannt oder entfernt wurde, ohne die Kopfzeile nachzuziehen.
+    // AppstoreOutlined ist ausgenommen — es ist der Rueckfall und muss stehen,
+    // auch wenn `portal` es einmal nicht mehr verlangen sollte.
+    const verlangt = new Set(MODULES.map((m) => m.icon));
+    const verwaist = Object.keys(ICONS).filter(
+      (name) => name !== "AppstoreOutlined" && !verlangt.has(name),
+    );
+    expect(verwaist).toEqual([]);
   });
 });

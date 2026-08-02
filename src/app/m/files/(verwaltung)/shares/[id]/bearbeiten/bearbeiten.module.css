@@ -1,0 +1,91 @@
+/*
+ * DIE KOMPONENTENLOKALEN REGELN DES BEARBEITEN-FORMULARS (Plan §1 Festlegung C:
+ * Komponenten-CSS liegt in einem `*.module.css` NEBEN seiner Komponente, nicht
+ * in `_ui/files.css` — dort stehen ausschliesslich die Modulvariablen und die
+ * eine Umschaltung, die sich zwei Ansichten teilen).
+ *
+ * DIE DOPPELUNG MIT `_ui/uploadInsel.module.css` IST BEWUSST UND BENANNT. Die
+ * beiden Formulare sehen gleich aus und tragen dieselben vier Rollen
+ * (Beschriftung, Hinweis, Feldfehler, Aktionsleiste). Eine gemeinsame Stelle
+ * laege in `_ui/` — einem Verzeichnis, in dem in dieser Welle zwei andere Tasks
+ * schreiben. Sie zusammenzulegen ist eine eigene, kleine Aenderung mit zwei
+ * Bearbeitern, kein Nebenprodukt dieser hier. Dieselbe Begruendung wie bei
+ * `BYTE_EINHEITEN_BINAER` in `_ui/SharesUebersicht.tsx`.
+ *
+ * DIESE DATEI WIRD VON `_ui/files-public-css.test.ts` MITGESCANNT (Glob
+ * `**\/*.module.css`). Was dort gilt und hier eingehalten ist: kein
+ * `!important`, kein `prefers-color-scheme`, in `max-width` ausschliesslich
+ * 767.98px, jede `outline` mit `outline-offset`.
+ *
+ * NUR `--fi-*`-VARIABLEN, NIE `--ant-*`: antd deklariert seine Variablen auf der
+ * Scope-Klasse an den Wurzelelementen SEINER EIGENEN Komponenten, nicht auf
+ * `:root`. Eigenes Markup sieht sie nie, und der Fehler ist still — die
+ * Haarlinie verschwindet einfach. Die `--fi-*` erklaert `_ui/files.css`, das
+ * `VerwaltungsRahmen` fuer jede Verwaltungsseite laedt.
+ */
+
+.feld {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.beschriftung {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--fi-muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hinweis {
+  margin: 4px 0 0;
+  color: var(--fi-muted);
+  font-size: 12px;
+}
+
+/*
+ * Der Feldfehler traegt eine 3px-Kante links und KEINE Flaeche: Rot auf einer
+ * Datenflaeche ist im Modul verboten, weil `colorError === colorPrimary ===
+ * #c8000f` — ein roter Kasten saehe aus wie eine Primaeraktion
+ * (`docs/design/README.md:53-57`).
+ */
+.fehlermeldung {
+  margin: 4px 0 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--fi-warn);
+  color: var(--fi-warn);
+  font-size: 14px;
+}
+
+.aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+/*
+ * Unter 768px stehen Handlungsknoepfe untereinander und in voller Breite: ein
+ * 630px breiter Knopf liest sich als Flaeche, nicht als Ziel
+ * (`docs/design/README.md:189-190`). 767.98px und nicht 768px — bei exakt 768px
+ * gaelten sonst beide Seiten und die Reihenfolge im Stylesheet entschiede.
+ */
+@media (max-width: 767.98px) {
+  .aktionen {
+    flex-direction: column;
+  }
+
+  /*
+   * `.aktionen` VORANGESTELLT, und das ist kein Ballast: `.knopf` allein waere
+   * (0,1,0) — genau so viel wie antds `.ant-btn`, auf dem diese Regel sitzt. Bei
+   * Gleichstand entscheidet die Dokumentreihenfolge, und antds Stylesheet kommt
+   * SPAETER: die Regel matcht und verliert trotzdem, still
+   * (`docs/design/README.md`, Falle 5). `.aktionen .knopf` ist (0,2,0) und
+   * schlaegt antd unabhaengig von der Reihenfolge. Kein `!important` — eine
+   * Klasse mehr reicht.
+   */
+  .aktionen .knopf {
+    width: 100%;
+  }
+}

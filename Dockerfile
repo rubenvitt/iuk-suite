@@ -35,13 +35,20 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/portal/_db/migrations ./src/app/m/portal/_db/migrations
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/qr/_db/migrations ./src/app/m/qr/_db/migrations
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/feedback/_db/migrations ./src/app/m/feedback/_db/migrations
+COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/files/_db/migrations ./src/app/m/files/_db/migrations
 
 # (better-sqlite3 inkl. nativem Binding steckt bereits im standalone-Output —
 #  in dieser Umgebung verifiziert, siehe „Pre-flight". KEIN separater COPY: der
 #  pnpm-Symlink → .pnpm würde beim bare copy brechen.)
 
-# Datenvolume
-RUN mkdir -p /data && chown nextjs:nodejs /data
+# Datenvolume. `/data/files` MUSS hier mit angelegt und übereignet werden — kein
+# Test erzwingt diese Zeile: ein LEERES benanntes Volume übernimmt Eigentümer und
+# Modus des Mountpunkts aus dem Image, aber nur wenn der Pfad dort existiert.
+# Fehlt er, ist der Mountpunkt `0 0`, und JEDER Blob-Schreibvorgang von `files`
+# scheitert, sobald `files_data:/data/files` als eigener Mount dazukommt. Weil
+# `/data` selbst weiter beschreibbar bleibt, sähe das nach einem Rechte-Rätsel
+# aus statt nach einer fehlenden Zeile (gemessen 30.07.2026, Docker 29.4.0).
+RUN mkdir -p /data/files && chown nextjs:nodejs /data /data/files
 VOLUME /data
 
 USER nextjs
