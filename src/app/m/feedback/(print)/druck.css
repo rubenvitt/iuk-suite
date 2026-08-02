@@ -11,8 +11,8 @@
  * Scope-Klasse SEINER Komponenten, und dieses Blatt besteht fast vollstaendig
  * aus eigenem Markup. Ein `--ant-*` hier waere still leer.
  *
- * DRK-Rot `#c8000f` kommt in dieser Datei GENAU ZWEIMAL vor: 3px-Fahne am
- * Oberrand und Wortzeichen "DRK" in der Fusszeile — beide sind Marke, keine
+ * Suite-Rot `#c8000f` kommt in dieser Datei GENAU ZWEIMAL vor: 3px-Fahne am
+ * Oberrand und Wortzeichen "I&K" in der Fusszeile — beide sind Marke, keine
  * Datenflaeche (§4.9, dieselbe Zweiteilung wie in `zettel.module.css`). Der
  * Aushang zeigt ueberhaupt keine Daten, also auch keine Notenfarben.
  */
@@ -71,7 +71,7 @@
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Traeger 1 von zwei fuer DRK-Rot: 3px, randlos, nie als Flaeche. */
+/* Traeger 1 von zwei fuer Suite-Rot: 3px, randlos, nie als Flaeche. */
 .fb-aushang-fahne {
   align-self: stretch;
   height: 3px;
@@ -133,7 +133,7 @@
   color: var(--fb-muted);
 }
 
-/* Traeger 2 von zwei fuer DRK-Rot: das Wortzeichen. */
+/* Traeger 2 von zwei fuer Suite-Rot: das Wortzeichen. */
 .fb-aushang-wortzeichen {
   font-weight: 700;
   letter-spacing: 0.04em;

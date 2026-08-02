@@ -32,17 +32,17 @@
 
 :root,
 :root[data-theme="light"] {
-  /* Fliesztext in eigenem Markup (Suite-Token DRK.tinte). */
+  /* Fliesztext in eigenem Markup (Suite-Token FARBEN.tinte). */
   --fi-ink: #1a1d20;
   /* Nebenangaben: Datum, Groesze, „von" — nie der einzige Traeger einer Aussage. */
   --fi-muted: #5b6570;
-  /* Haarlinie zwischen Zeilen und um Karten (DRK.linie). */
+  /* Haarlinie zwischen Zeilen und um Karten (FARBEN.linie). */
   --fi-line: #d9dde1;
   /* Kartenflaeche, damit eigene Karten neben antd-Karten nicht abfallen. */
   --fi-card: #ffffff;
-  /* Ruhige Fuellung fuer Zusammenfassungen und Leerzustaende (DRK.papier). */
+  /* Ruhige Fuellung fuer Zusammenfassungen und Leerzustaende (FARBEN.papier). */
   --fi-tint: #eef0f1;
-  /* Warnton (DRK.gelb) — NUR Text oder 3px-Kante, siehe Kopfkommentar. */
+  /* Warnton (FARBEN.gelb) — NUR Text oder 3px-Kante, siehe Kopfkommentar. */
   --fi-warn: #b26a00;
 }
 

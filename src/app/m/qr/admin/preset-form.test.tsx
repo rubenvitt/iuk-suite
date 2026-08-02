@@ -57,10 +57,10 @@ describe("PresetForm: Formular-Vertrag", () => {
     expect(valueFields()).toHaveLength(1);
 
     // Erstes Feld im fieldset ist die SSID.
-    await fill("fieldset input", "DRK Einsatz");
+    await fill("fieldset input", "IuK Einsatz");
 
     expect(JSON.parse(valueFields()[0].value)).toEqual({
-      ssid: "DRK Einsatz",
+      ssid: "IuK Einsatz",
       password: "",
       encryption: "WPA",
       hidden: false,
@@ -81,7 +81,7 @@ describe("PresetForm: Formular-Vertrag", () => {
 describe("PresetForm: QR-Kapazitaet", () => {
   it("warnt nicht bei normaler Eingabe", async () => {
     await mount(<PresetForm />);
-    await fill('input[name="value"]', "https://drk.de");
+    await fill('input[name="value"]', "https://example.org");
     expect(exists('[data-testid="preset-too-long"]')).toBe(false);
     expect(query<HTMLButtonElement>('button[type="submit"]').disabled).toBe(false);
   });
@@ -133,27 +133,27 @@ describe("PresetForm: Bearbeiten", () => {
     label: "WLAN Einsatzstelle",
     icon: "📶",
     kind: "wifi",
-    value: { ssid: "DRK-Einsatz", password: "altes-geheim", encryption: "WEP", hidden: true },
+    value: { ssid: "IuK-Einsatz", password: "altes-geheim", encryption: "WEP", hidden: true },
   };
   const link: Preset = {
-    id: "drk",
-    label: "DRK",
+    id: "iuk",
+    label: "IuK",
     kind: "url",
-    value: "https://drk.de",
+    value: "https://example.org",
   };
 
   it("belegt die Felder eines bestehenden Presets vor", async () => {
     await mount(<PresetForm preset={link} />);
 
-    expect(query<HTMLInputElement>('input[name="label"]').value).toBe("DRK");
-    expect(query<HTMLInputElement>('input[name="value"]').value).toBe("https://drk.de");
+    expect(query<HTMLInputElement>('input[name="label"]').value).toBe("IuK");
+    expect(query<HTMLInputElement>('input[name="value"]').value).toBe("https://example.org");
   });
 
   it("belegt auch die Unterfelder eines wifi-Presets vor", async () => {
     await mount(<PresetForm preset={wlan} />);
 
     expect(JSON.parse(valueFields()[0].value)).toEqual({
-      ssid: "DRK-Einsatz",
+      ssid: "IuK-Einsatz",
       password: "altes-geheim",
       encryption: "WEP",
       hidden: true,

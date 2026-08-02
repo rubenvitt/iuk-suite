@@ -62,7 +62,7 @@ const KONFIG = { baseUrl: "https://id.example.test", apiKey: "geheim" };
 const ANNA: RohNutzer = {
   id: "sub-anna",
   username: "anna",
-  email: "Anna@drk.example",
+  email: "Anna@iuk.example",
   firstName: "Anna",
   lastName: "Beispiel",
   displayName: "Anna Beispiel",
@@ -70,7 +70,7 @@ const ANNA: RohNutzer = {
 const BODO: RohNutzer = {
   id: "sub-bodo",
   username: "bodo",
-  email: "bodo@drk.example",
+  email: "bodo@iuk.example",
   firstName: "Bodo",
   lastName: "Zweitmann",
   displayName: "Bodo Zweitmann",
@@ -84,7 +84,7 @@ describe("Verzeichnis — Abruf und Abbildung", () => {
 
     expect(r.status).toBe("ok");
     expect(r.people).toEqual([
-      { userId: "sub-anna", name: "Anna Beispiel", email: "Anna@drk.example" },
+      { userId: "sub-anna", name: "Anna Beispiel", email: "Anna@iuk.example" },
     ]);
   });
 
@@ -434,7 +434,7 @@ describe("Verzeichnis — Suche", () => {
   });
 
   it("findet ueber die E-Mail", async () => {
-    expect((await mitBeiden().search("bodo@drk")).people.map((p) => p.userId)).toEqual([
+    expect((await mitBeiden().search("bodo@iuk")).people.map((p) => p.userId)).toEqual([
       "sub-bodo",
     ]);
   });
@@ -542,18 +542,18 @@ describe("Verzeichnis — E-Mail exakt aufloesen", () => {
   const v = () => createDirectory({ ...KONFIG, transport: seitenTransport([[ANNA, BODO]]) });
 
   it("loest eine E-Mail auf den sub auf, Gross-/Kleinschreibung egal", async () => {
-    const r = await v().findByEmail("ANNA@DRK.EXAMPLE");
+    const r = await v().findByEmail("ANNA@IUK.EXAMPLE");
 
     expect(r.status).toBe("ok");
     expect(r.people.map((p) => p.userId)).toEqual(["sub-anna"]);
   });
 
   it("EXAKT, nicht enthalten: ein Praefix trifft nicht", async () => {
-    expect((await v().findByEmail("anna@drk")).people).toEqual([]);
+    expect((await v().findByEmail("anna@iuk")).people).toEqual([]);
   });
 
   it("unbekannte E-Mail: leere Liste, Status ok (das Verzeichnis lief)", async () => {
-    expect(await v().findByEmail("niemand@drk.example")).toEqual({ status: "ok", people: [] });
+    expect(await v().findByEmail("niemand@iuk.example")).toEqual({ status: "ok", people: [] });
   });
 
   /**
@@ -590,7 +590,7 @@ describe("Verzeichnis — E-Mail exakt aufloesen", () => {
     await verzeichnis.list(); // Abzug gefuellt, BODO existiert noch nicht
     leute = [ANNA, BODO]; // Konto wird jetzt in Pocket ID angelegt
 
-    const r = await verzeichnis.findByEmail("bodo@drk.example");
+    const r = await verzeichnis.findByEmail("bodo@iuk.example");
 
     expect(r.people.map((p) => p.userId)).toEqual(["sub-bodo"]);
     expect(aufrufe).toHaveLength(2);
@@ -601,7 +601,7 @@ describe("Verzeichnis — E-Mail exakt aufloesen", () => {
     const verzeichnis = createDirectory({ ...KONFIG, transport, ttlMs: 300_000, now: () => 1_000 });
 
     await verzeichnis.list();
-    await verzeichnis.findByEmail("anna@drk.example");
+    await verzeichnis.findByEmail("anna@iuk.example");
 
     expect(transport.aufrufe).toHaveLength(1);
   });
@@ -611,7 +611,7 @@ describe("Verzeichnis — E-Mail exakt aufloesen", () => {
     const verzeichnis = createDirectory({ ...KONFIG, transport, ttlMs: 300_000, now: () => 1_000 });
 
     await verzeichnis.list();
-    const r = await verzeichnis.findByEmail("gibtesnicht@drk.example");
+    const r = await verzeichnis.findByEmail("gibtesnicht@iuk.example");
 
     expect(r).toEqual({ status: "ok", people: [] });
     expect(transport.aufrufe).toHaveLength(2);
@@ -639,7 +639,7 @@ describe("Verzeichnis — E-Mail exakt aufloesen", () => {
     // Der Abzug ist weiter gueltig und kennt die Adresse nicht. „error" waere hier
     // die falsche Auskunft — sie schickt den Admin mit „muss sich einmal
     // anmelden" auf die falsche Faehrte.
-    expect(await verzeichnis.findByEmail("gibtesnicht@drk.example")).toEqual({
+    expect(await verzeichnis.findByEmail("gibtesnicht@iuk.example")).toEqual({
       status: "ok",
       people: [],
     });

@@ -17,7 +17,7 @@ const mod = (over: Partial<ModuleDef> = {}): ModuleDef => ({
   shell: "minimal",
   requiresAuth: false,
   requiredGroups: [],
-  adminGroups: ["drk-qr-admin"],
+  adminGroups: ["iuk-qr-admin"],
   prodHosts: [],
   showInSwitcher: true,
   ...over,
@@ -34,7 +34,7 @@ describe("suiteAdminGroup", () => {
 
 describe("adminGroupsFor", () => {
   it("nimmt den Registry-Wert, wenn keine Env gesetzt ist", () => {
-    expect(adminGroupsFor(mod(), {})).toEqual(["drk-qr-admin"]);
+    expect(adminGroupsFor(mod(), {})).toEqual(["iuk-qr-admin"]);
   });
   it("SUITE_ADMIN_GROUP_<KEY> überschreibt und trennt an Kommas", () => {
     expect(adminGroupsFor(mod(), { SUITE_ADMIN_GROUP_QR: " a , b " })).toEqual(["a", "b"]);
@@ -76,13 +76,13 @@ describe("envAccessGroupsFor", () => {
 
 describe("isModuleAdmin", () => {
   it("Modul-Admin-Gruppe genügt", () => {
-    expect(isModuleAdmin(mod(), ["drk-qr-admin"], {})).toBe(true);
+    expect(isModuleAdmin(mod(), ["iuk-qr-admin"], {})).toBe(true);
   });
   it("Suite-Admin darf überall — auch ohne Modul-Gruppe", () => {
     expect(isModuleAdmin(mod(), ["dashboard-admins"], {})).toBe(true);
   });
   it("fremde Gruppe genügt nicht", () => {
-    expect(isModuleAdmin(mod(), ["drk-qr-user"], {})).toBe(false);
+    expect(isModuleAdmin(mod(), ["iuk-qr-user"], {})).toBe(false);
   });
   it("eingeloggt ohne Gruppen ist kein Admin", () => {
     expect(isModuleAdmin(mod(), [], {})).toBe(false);
@@ -105,7 +105,7 @@ describe("isModuleAdmin", () => {
     expect(isModuleAdmin(mod(), ["neue-gruppe"], { SUITE_ADMIN_GROUP_QR: "neue-gruppe" })).toBe(
       true,
     );
-    expect(isModuleAdmin(mod(), ["drk-qr-admin"], { SUITE_ADMIN_GROUP_QR: "neue-gruppe" })).toBe(
+    expect(isModuleAdmin(mod(), ["iuk-qr-admin"], { SUITE_ADMIN_GROUP_QR: "neue-gruppe" })).toBe(
       false,
     );
   });

@@ -477,12 +477,12 @@ describe("`files-public.css` — die Zusagen der oeffentlichen Gestaltungsklasse
   });
 
   /**
-   * DRK-Rot ist Marke, nie Statusfarbe und nie Datenflaeche
+   * Suite-Rot ist Marke, nie Statusfarbe und nie Datenflaeche
    * (`docs/design/README.md:126-131`). In der oeffentlichen Ansicht traegt es
    * genau die 3px-Fahne und das Wortzeichen — mehr waere eine Flaeche, die mit
    * einer Warnung verwechselt wird.
    */
-  it("benutzt DRK-Rot nur an der Fahne und — ueber eine Variable — am Wortzeichen", () => {
+  it("benutzt Suite-Rot nur an der Fahne und — ueber eine Variable — am Wortzeichen", () => {
     const traeger = regeln(css())
       .filter((r) => /#c8000f/i.test(r.body))
       .map((r) => r.selektor);
@@ -495,7 +495,7 @@ describe("`files-public.css` — die Zusagen der oeffentlichen Gestaltungsklasse
     /*
      * Sonst darf #c8000f nur in einem `:root`-Block stehen (als Hellwert von
      * `--fp-wortzeichen`), an keiner Klasse. Das Wortzeichen laeuft ueber eine
-     * Variable, weil „DRK" TEXT ist: 13px in Gewicht 700 ist nach 1.4.3 KEIN
+     * Variable, weil „I&K" TEXT ist: 13px in Gewicht 700 ist nach 1.4.3 KEIN
      * grosser Text (dafuer waeren 18,66px fett noetig), und #c8000f erreicht auf
      * dunklem `--fp-blatt` (#1b1e22) nur 2,76:1. Der Dunkelwert ist deshalb eine
      * aufgehellte Ableitung — siehe die Kontrastregel oben, die sie mitrechnet.
@@ -513,7 +513,7 @@ describe("`files-public.css` — die Zusagen der oeffentlichen Gestaltungsklasse
      * DER UMWEG UEBER EINE ZWEITE VARIABLE, sonst waere die Regel schwaecher als
      * die Fassung, die sie ersetzt hat: `--fp-akzent: #c8000f` im `:root` plus
      * `.fp-badge { background: var(--fp-akzent) }` erfuellt beide Zusagen oben
-     * und setzt DRK-Rot doch als Flaeche. `feedback-oeffentliche-ansicht.md:189`
+     * und setzt Suite-Rot doch als Flaeche. `feedback-oeffentliche-ansicht.md:189`
      * verlangt die Regel mechanisch („als Review-Checkliste oder Stylelint-Regel
      * festhalten"), also traegt #c8000f genau EINEN Variablennamen.
      */

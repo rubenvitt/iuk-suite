@@ -12,7 +12,7 @@ import type { QrPayload } from "@/app/m/qr/_lib/types";
 
 const wifi: QrPayload = {
   kind: "wifi",
-  value: { ssid: "DRK Einsatz", password: "geheim123", encryption: "WPA", hidden: false },
+  value: { ssid: "IuK Einsatz", password: "geheim123", encryption: "WPA", hidden: false },
 };
 
 const push = vi.fn();

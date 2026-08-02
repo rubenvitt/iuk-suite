@@ -173,7 +173,7 @@ describe("Teilnahme — Zone a (§2.4)", () => {
     expect(stil).not.toMatch(/padding:\s*20px/);
   });
 
-  it("trägt kein DRK-Rot und keinen zweiten Primärknopf (Farb-Klausel §4.9, §2.6)", () => {
+  it("trägt kein Suite-Rot und keinen zweiten Primärknopf (Farb-Klausel §4.9, §2.6)", () => {
     const markup = renderToStaticMarkup(zone());
     expect(markup.toLowerCase()).not.toContain("#c8000f");
     expect(markup).not.toContain("ant-btn-primary");

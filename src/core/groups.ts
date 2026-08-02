@@ -7,7 +7,7 @@ import type { ModuleDef } from "@/core/registry";
  * (`core/auth/index.ts` für `session.user.isAdmin`, `portal/_lib/rbac.ts` für
  * das Portal-Gating), und jedes weitere Modul hätte sie ein drittes Mal
  * geschrieben. Spätestens mit `qr` geht das nicht mehr auf: dessen Admins
- * sitzen in `drk-qr-admin`, nicht in der Portal-Gruppe.
+ * sitzen in `iuk-qr-admin`, nicht in der Portal-Gruppe.
  *
  * Drei Ebenen:
  * - **Suite-Admin** (`ADMIN_GROUP`, Default `dashboard-admins`) — der

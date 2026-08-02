@@ -62,7 +62,7 @@ function erlaubteGruppen(): string[] {
  * BEWUSST NICHT `isModuleAdmin` — dieselbe Entscheidung wie in `feedback`
  * (`_lib/access.ts:9-30`, seit 2026-07-28): der Suite-Admin (`ADMIN_GROUP`) ist
  * hier NICHT automatisch berechtigt. Wer `files` verwalten soll, gehoert in
- * `drk-files-admin` bzw. in das, was `SUITE_ADMIN_GROUP_FILES` benennt — auch
+ * `iuk-files-admin` bzw. in das, was `SUITE_ADMIN_GROUP_FILES` benennt — auch
  * der Betreiber selbst. Der Grund ist fachlich: Zugang zu `files` heisst
  * Einblick in fremde Freigaben UND in ein Postfach mit Uploads Dritter. Betrieb
  * und Einsicht sind zwei Rollen. Das ist eine Aussage ueber DIESES Modul; `qr`

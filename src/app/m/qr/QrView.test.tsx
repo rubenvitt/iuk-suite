@@ -103,8 +103,8 @@ describe("QR-Ansicht: URL-Vertrag", () => {
   });
 
   it("reicht eine URL durch und zeigt das Label als Ueberschrift", () => {
-    const node = render(q({ data: "https://drk.de", label: "Test", kind: "url" }));
-    expect(qrText(node)).toBe("https://drk.de");
+    const node = render(q({ data: "https://example.org", label: "Test", kind: "url" }));
+    expect(qrText(node)).toBe("https://example.org");
     expect(headingText(node)).toBe("Test");
   });
 
@@ -112,11 +112,11 @@ describe("QR-Ansicht: URL-Vertrag", () => {
     // Landet als `<label>.png` und als Titel im Teilen-Dialog. Faellt das auf
     // "qr" zurueck, heissen alle Downloads eines Einsatzes qr.png, qr (1).png —
     // der Code stimmt, die Zuordnung ist weg.
-    expect(qrLabel(render(q({ data: "https://drk.de", label: "Test", kind: "url" })))).toBe("Test");
+    expect(qrLabel(render(q({ data: "https://example.org", label: "Test", kind: "url" })))).toBe("Test");
   });
 
   it("kommt ohne kind aus", () => {
-    expect(qrText(render(q({ data: "https://drk.de" })))).toBe("https://drk.de");
+    expect(qrText(render(q({ data: "https://example.org" })))).toBe("https://example.org");
   });
 
   it("meldet fehlenden Inhalt, statt einen leeren Code zu erzeugen", () => {
@@ -124,7 +124,7 @@ describe("QR-Ansicht: URL-Vertrag", () => {
   });
 
   it("faellt beim Dateinamen auf 'qr' zurueck, wenn kein Label mitkommt", () => {
-    expect(qrLabel(render(q({ data: "https://drk.de", kind: "url" })))).toBe("qr");
+    expect(qrLabel(render(q({ data: "https://example.org", kind: "url" })))).toBe("qr");
   });
 
   it("bietet einen Weg zurueck zum Generator", () => {
@@ -135,7 +135,7 @@ describe("QR-Ansicht: URL-Vertrag", () => {
     // dass der Klick tatsaechlich zu "/" navigiert, nicht nur, dass irgendwo
     // ein href="/" im Baum steht.
     const push = vi.fn();
-    const back = tree(render(q({ data: "https://drk.de", kind: "url" }), push)).find(
+    const back = tree(render(q({ data: "https://example.org", kind: "url" }), push)).find(
       (el) => el.type === Button && (el.props as { children?: unknown }).children === "← Zurück",
     );
     if (!back) throw new Error("Zurueck-Button nicht gerendert");
@@ -151,7 +151,7 @@ describe("QR-Ansicht: Rohtext unter dem Code", () => {
     // irgendein Text — ein falscher fuehrt ins Leere, waehrend der Code daneben
     // richtig ist, und der Widerspruch faellt erst beim Anruf auf.
     for (const kind of ["url", "tel", "text"]) {
-      const data = `https://drk.de/${kind}`;
+      const data = `https://example.org/${kind}`;
       const node = render(q({ data, kind }));
       expect(testIds(node), kind).toContain("qr-raw");
       expect(rawText(node), kind).toBe(data);
@@ -174,7 +174,7 @@ describe("QR-Ansicht: doppelt gesetzte Query-Parameter", () => {
     // waere `kind !== "wifi"` wahr und das Klartext-Passwort stuende wieder
     // gross unter dem Code.
     const node = render(
-      "data=WIFI%3AT%3AWPA%3BS%3ADRK-Fuehrung%3BP%3Ageheim%3BH%3Afalse%3B%3B&kind=wifi&kind=x",
+      "data=WIFI%3AT%3AWPA%3BS%3AIuK-Fuehrung%3BP%3Ageheim%3BH%3Afalse%3B%3B&kind=wifi&kind=x",
     );
     expect(testIds(node)).not.toContain("qr-raw");
   });
@@ -186,7 +186,7 @@ describe("QR-Ansicht: doppelt gesetzte Query-Parameter", () => {
   });
 
   it("nimmt bei doppeltem label den ersten Wert", () => {
-    const node = render("data=https%3A%2F%2Fdrk.de&label=Test&label=x&kind=url");
+    const node = render("data=https%3A%2F%2Fexample.org&label=Test&label=x&kind=url");
     expect(headingText(node)).toBe("Test");
     expect(qrLabel(node)).toBe("Test");
   });

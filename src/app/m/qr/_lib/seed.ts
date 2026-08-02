@@ -11,7 +11,7 @@ export async function seedQr(db: BetterSQLite3Database<typeof schema>): Promise<
       icon: "🔗",
       kind: "url",
       // JSON-kodiert wie jeder value, auch bei kind='url'.
-      value: JSON.stringify("https://www.drk.de"),
+      value: JSON.stringify("https://www.example.org"),
       sortOrder: 0,
       createdAt: now,
       updatedAt: now,

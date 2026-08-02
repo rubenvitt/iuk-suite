@@ -2,26 +2,26 @@ import { describe, it, expect } from "vitest";
 import { payloadToSvg, exceedsQrCapacity, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
 
 // Golden Output: exakt das SVG, das qrcode 1.5.4 mit den fest verdrahteten
-// Parametern für "https://drk.de" erzeugt. Es nagelt gleichzeitig fest, was
+// Parametern für "https://example.org" erzeugt. Es nagelt gleichzeitig fest, was
 // keine der übrigen Assertions sieht: das Fehlerkorrektur-Level H (M oder L
 // ergäben eine andere Symbolgröße), die Quiet Zone von 4 Modulen (viewBox ist
-// um 8 größer als das 25er-Symbol) und den tatsächlich kodierten Inhalt. Die
+// um 8 größer als das 29er-Symbol) und den tatsächlich kodierten Inhalt. Die
 // Version ist exakt gepinnt, damit die heute im Umlauf befindlichen Codes
 // unverändert bleiben — genau deshalb ist der Vergleich hier stabil und nicht
 // brüchig. Wenn er rot wird, hat sich ein QR-Parameter geändert; das ist eine
 // bewusste Entscheidung und der Wert ist dann neu zu erzeugen.
-const GOLDEN_DRK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 33 33" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h33v33H0z"/><path stroke="#000000" d="M4 4.5h7m1 0h3m2 0h2m3 0h7M4 5.5h1m5 0h1m1 0h2m1 0h3m2 0h1m1 0h1m5 0h1M4 6.5h1m1 0h3m1 0h1m2 0h1m1 0h2m2 0h1m2 0h1m1 0h3m1 0h1M4 7.5h1m1 0h3m1 0h1m1 0h1m2 0h1m3 0h1m2 0h1m1 0h3m1 0h1M4 8.5h1m1 0h3m1 0h1m1 0h2m1 0h1m1 0h1m2 0h1m1 0h1m1 0h3m1 0h1M4 9.5h1m5 0h1m1 0h4m1 0h3m2 0h1m5 0h1M4 10.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M15 11.5h2m1 0h3M7 12.5h1m2 0h1m2 0h2m2 0h1m1 0h1m3 0h3m1 0h2M4 13.5h5m4 0h1m3 0h1m1 0h2m1 0h1m5 0h1M6 14.5h3m1 0h1m1 0h2m1 0h6m1 0h3m2 0h2M6 15.5h2m3 0h5m2 0h3m1 0h1m1 0h1M4 16.5h1m3 0h1m1 0h3m2 0h1m1 0h2m1 0h3m2 0h1m1 0h2M5 17.5h3m1 0h1m2 0h1m2 0h1m2 0h6m1 0h2m1 0h1M4 18.5h1m1 0h1m1 0h5m1 0h2m1 0h1m3 0h1m1 0h2m1 0h1m1 0h1M5 19.5h1m1 0h1m4 0h1m1 0h1m4 0h2m1 0h1m1 0h1m2 0h1M4 20.5h3m1 0h3m1 0h2m1 0h2m3 0h7M12 21.5h1m1 0h1m1 0h2m1 0h2m3 0h2m2 0h1M4 22.5h7m2 0h1m2 0h2m1 0h2m1 0h1m1 0h2m1 0h2M4 23.5h1m5 0h1m6 0h2m1 0h1m3 0h5M4 24.5h1m1 0h3m1 0h1m2 0h2m1 0h1m3 0h6M4 25.5h1m1 0h3m1 0h1m1 0h2m1 0h5m1 0h1m1 0h5M4 26.5h1m1 0h3m1 0h1m2 0h4m2 0h1m3 0h2m1 0h1m1 0h1M4 27.5h1m5 0h1m2 0h1m2 0h1m2 0h4m2 0h1M4 28.5h7m2 0h1m1 0h1m1 0h4m2 0h1m3 0h2"/></svg>
+const GOLDEN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 37 37" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h37v37H0z"/><path stroke="#000000" d="M4 4.5h7m3 0h1m1 0h1m1 0h2m1 0h1m1 0h2m1 0h7M4 5.5h1m5 0h1m2 0h3m3 0h2m1 0h2m2 0h1m5 0h1M4 6.5h1m1 0h3m1 0h1m1 0h1m4 0h1m5 0h1m2 0h1m1 0h3m1 0h1M4 7.5h1m1 0h3m1 0h1m1 0h2m1 0h1m1 0h1m1 0h1m1 0h1m2 0h1m1 0h1m1 0h3m1 0h1M4 8.5h1m1 0h3m1 0h1m3 0h1m3 0h1m1 0h1m1 0h2m2 0h1m1 0h3m1 0h1M4 9.5h1m5 0h1m2 0h2m3 0h1m1 0h1m5 0h1m5 0h1M4 10.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M14 11.5h1m4 0h6M7 12.5h2m1 0h2m2 0h5m1 0h1m8 0h2M5 13.5h3m7 0h2m3 0h3m4 0h3m1 0h1M4 14.5h3m2 0h2m2 0h1m2 0h2m2 0h1m2 0h5m2 0h1M4 15.5h1m1 0h4m4 0h2m1 0h4m2 0h2m2 0h3m2 0h1M6 16.5h1m1 0h1m1 0h1m2 0h2m4 0h2m1 0h1m2 0h2m2 0h1m1 0h1M4 17.5h1m1 0h1m2 0h1m1 0h1m1 0h3m4 0h2m4 0h1m1 0h1m1 0h1m1 0h1M7 18.5h1m1 0h2m1 0h2m1 0h1m1 0h2m4 0h2m1 0h2m1 0h1m2 0h1M4 19.5h1m1 0h1m7 0h1m5 0h1m1 0h1m2 0h1m2 0h3m1 0h1M5 20.5h2m2 0h2m3 0h4m2 0h1m4 0h1m3 0h1m1 0h1M4 21.5h2m3 0h1m1 0h3m1 0h2m2 0h1m2 0h1m3 0h1m1 0h2M4 22.5h3m1 0h1m1 0h1m5 0h5m1 0h2m6 0h1m1 0h1M4 23.5h3m1 0h1m3 0h4m4 0h1m1 0h6m1 0h4M4 24.5h4m2 0h1m2 0h4m2 0h2m2 0h10M12 25.5h1m1 0h1m3 0h1m2 0h2m1 0h1m3 0h4M4 26.5h7m1 0h2m1 0h1m3 0h2m2 0h2m1 0h1m1 0h1m1 0h1M4 27.5h1m5 0h1m3 0h3m4 0h1m1 0h2m3 0h2m1 0h2M4 28.5h1m1 0h3m1 0h1m1 0h3m2 0h1m1 0h3m1 0h6M4 29.5h1m1 0h3m1 0h1m1 0h1m9 0h1m4 0h1m3 0h1M4 30.5h1m1 0h3m1 0h1m3 0h1m1 0h3m2 0h1m2 0h2m1 0h6M4 31.5h1m5 0h1m4 0h2m1 0h2m2 0h1m1 0h2m2 0h3m1 0h1M4 32.5h7m2 0h2m3 0h4m1 0h1m1 0h4"/></svg>
 `;
 
 describe("payloadToSvg", () => {
   it("liefert ein SVG", async () => {
-    const svg = await payloadToSvg("https://drk.de");
+    const svg = await payloadToSvg("https://example.org");
     expect(svg).toContain("<svg");
     expect(svg).toContain("</svg>");
   });
 
   it("erzeugt byteweise denselben Code wie bisher — Level H, Quiet Zone, Inhalt", async () => {
-    expect(await payloadToSvg("https://drk.de")).toBe(GOLDEN_DRK_SVG);
+    expect(await payloadToSvg("https://example.org")).toBe(GOLDEN_SVG);
   });
 
   it("nutzt reines Schwarz auf Weiß — Scan-Sicherheit im Einsatz", async () => {

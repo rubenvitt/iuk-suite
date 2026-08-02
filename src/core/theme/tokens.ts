@@ -10,7 +10,7 @@
  * Umzug hierher bleibt ein zweiter, heute belegbarer Nutznießer — ein zweites
  * Modul, das deutsche Schulnoten anzeigt, existiert nicht.
  */
-export const DRK = {
+export const FARBEN = {
   rot: "#c8000f",
   rotDunkel: "#a2000c",
   rotBg: "#fbe9eb",

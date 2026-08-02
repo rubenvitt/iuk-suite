@@ -19,23 +19,23 @@ const fails = (input: unknown, part: string) => {
 
 describe("validatePresetInput", () => {
   it("akzeptiert ein minimales url-Preset", () => {
-    expect(ok({ label: "Test", kind: "url", value: "https://drk.de" })).toEqual({
+    expect(ok({ label: "Test", kind: "url", value: "https://example.org" })).toEqual({
       id: undefined,
       label: "Test",
       icon: undefined,
       kind: "url",
-      value: "https://drk.de",
+      value: "https://example.org",
     });
   });
   it("reicht id, label, icon, kind und value unveraendert durch", () => {
     expect(
-      ok({ label: "Test", kind: "url", value: "https://drk.de", id: "x1", icon: "link" }),
+      ok({ label: "Test", kind: "url", value: "https://example.org", id: "x1", icon: "link" }),
     ).toEqual({
       id: "x1",
       label: "Test",
       icon: "link",
       kind: "url",
-      value: "https://drk.de",
+      value: "https://example.org",
     });
   });
   it("lehnt Nicht-Objekte ab", () => {

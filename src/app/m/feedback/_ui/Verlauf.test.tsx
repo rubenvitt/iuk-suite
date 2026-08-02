@@ -202,7 +202,7 @@ describe("Verlauf — jede Zeile beantwortet „was war da“ (§2.5, §4.11)", 
     expect(wirt.querySelectorAll("[data-testid='verlauf-balken']")).toHaveLength(0);
   });
 
-  it("zeichnet den Ruecklaufbalken in `--fb-ink` — nie in DRK-Rot", () => {
+  it("zeichnet den Ruecklaufbalken in `--fb-ink` — nie in Suite-Rot", () => {
     const wirt = zeichne([zeile({ rueckmeldungen: 9, teilnehmer: 18 })]);
     const balken = wirt.querySelector<HTMLElement>("[data-testid='verlauf-balken'] > *");
 

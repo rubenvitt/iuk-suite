@@ -64,7 +64,7 @@ describe("Notenpalette: wortgenau der geprueften Vorlage", () => {
     ]);
   });
 
-  it("kein Wert ist das DRK-Rot #c8000f — Rot ist Marke, nicht Note 6", () => {
+  it("kein Wert ist das Suite-Rot #c8000f — Rot ist Marke, nicht Note 6", () => {
     for (const wert of [...NOTEN_HELL, ...NOTEN_DUNKEL]) {
       expect(wert.toLowerCase()).not.toBe("#c8000f");
     }

@@ -120,8 +120,8 @@ const V = `http://${VERWALTUNG}:3100`;
 const INBOX = "drop.localtest.me";
 const I = `http://${INBOX}:3100`;
 
-/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["drk-files-admin"]`). */
-const GRUPPE = "drk-files-admin";
+/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["iuk-files-admin"]`). */
+const GRUPPE = "iuk-files-admin";
 
 /**
  * DER PFAD STEHT AUSGESCHRIEBEN UND KOMMT NICHT AUS `moduleDbPath()`.

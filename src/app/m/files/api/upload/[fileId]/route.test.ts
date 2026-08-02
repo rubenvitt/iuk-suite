@@ -156,7 +156,7 @@ beforeEach(() => {
 
   authMock.mockReset();
   authMock.mockResolvedValue({
-    user: { id: "sub-1", groups: ["drk-files-admin"] },
+    user: { id: "sub-1", groups: ["iuk-files-admin"] },
   } as never);
 });
 

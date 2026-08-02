@@ -9,7 +9,7 @@
  *
  * ZWEI WERTE SIND ABLEITUNGEN UND KEINE UEBERNAHMEN, damit es niemand fuer
  * einen Tippfehler haelt und „zurueckbessert": `--fp-hinweis` ist gegenueber
- * `DRK.gelb` abgedunkelt und `--fp-wortzeichen` traegt im Dunkelmodus ein
+ * `FARBEN.gelb` abgedunkelt und `--fp-wortzeichen` traegt im Dunkelmodus ein
  * aufgehelltes Rot. Beide Male ist der Anlass Kontrast auf PAPIER, den der
  * Token nicht mitbringt; die Rechnung steht an der Deklaration. Gesichert ist
  * das nicht durch diese Kommentare, sondern durch die Kontrastregel in
@@ -59,7 +59,7 @@
   --fp-linie-stark: #c9c3b7;
   --fp-tint: #ede9df;
 
-  /* Primaeraktion ist Graphit-Tinte, NICHT DRK-Rot (14,8:1). Ein roter Knopf
+  /* Primaeraktion ist Graphit-Tinte, NICHT Suite-Rot (14,8:1). Ein roter Knopf
      waere hier die groesste Flaeche der Seite in der Farbe, die die Suite
      gleichzeitig als Fehlerfarbe fuehrt (Falle 3). */
   --fp-knopf-grund: #24282c;
@@ -70,8 +70,8 @@
      Marke und Primaeraktion, und auf einer Datenflaeche wird daraus eine
      Aussage, die niemand gemeint hat.
 
-     `--fp-ok` ist `DRK.ok` unveraendert (5,15:1 auf Blatt, 4,77:1 auf Grund).
-     `--fp-hinweis` NICHT: `DRK.gelb` (#b26a00) traegt hier 4,06:1 auf Blatt und
+     `--fp-ok` ist `FARBEN.ok` unveraendert (5,15:1 auf Blatt, 4,77:1 auf Grund).
+     `--fp-hinweis` NICHT: `FARBEN.gelb` (#b26a00) traegt hier 4,06:1 auf Blatt und
      3,76:1 auf Grund und ist damit kein AA-Text (`.fp-zustand-wartet` erbt 13px
      in normalem Gewicht). Im Token ist die Farbe mit `gelbBg: #fbf1dc` gepaart,
      als Textfarbe auf Papier war sie nie AA-faehig — auf reinem Weiss nur
@@ -80,8 +80,8 @@
   --fp-ok: #1e7a3c;
   --fp-hinweis: #9a5c00;
 
-  /* Das Wortzeichen „DRK" ist TEXT, nicht Flaeche — deshalb eine eigene
-     Variable statt des Literals: hell bleibt es DRK-Rot (5,81:1 auf Blatt),
+  /* Das Wortzeichen „I&K" ist TEXT, nicht Flaeche — deshalb eine eigene
+     Variable statt des Literals: hell bleibt es Suite-Rot (5,81:1 auf Blatt),
      dunkel braucht es eine aufgehellte Ableitung. #c8000f erreicht auf dunklem
      Blatt (#1b1e22) nur 2,76:1, und 13px in Gewicht 700 ist nach WCAG 1.4.3
      KEIN grosser Text (dafuer waeren 18,66px fett noetig). Die 3px-Fahne bleibt
@@ -105,7 +105,7 @@
   --fp-ok: #7cc79a;
   --fp-hinweis: #e0a94a;
 
-  /* Aufgehelltes DRK-Rot, 5,46:1 auf Blatt und 6,13:1 auf Grund. Kein Token —
+  /* Aufgehelltes Suite-Rot, 5,46:1 auf Blatt und 6,13:1 auf Grund. Kein Token —
      `core/theme/tokens.ts` fuehrt keine helle Rotvariante; ein Umzug dorthin
      braucht nach der core-Regel einen zweiten, heute belegbaren Nutzniesser. */
   --fp-wortzeichen: #f4655a;
@@ -132,7 +132,7 @@
 }
 
 /*
- * Traeger 1 von genau ZWEI Stellen mit DRK-Rot: 3px, randlos am Oberrand. Nie
+ * Traeger 1 von genau ZWEI Stellen mit Suite-Rot: 3px, randlos am Oberrand. Nie
  * als Flaeche, nie als Knopffuellung, nie als Fehlerfarbe.
  */
 .fp-fahne {

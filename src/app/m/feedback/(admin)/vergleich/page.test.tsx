@@ -162,7 +162,7 @@ describe("Vergleich — je Gruppe der Schulnoten-Ø, nicht der Mischwert", () =>
  * DIE FORM DES VERGLEICHS (§3.4).
  *
  * Das Balkendiagramm ist weg, und zwar aus einem Sachgrund: `core/charts` faerbt
- * mit `token.colorPrimary` (DRK-Rot, §4.9), und ein Balken „laenger = schlechter"
+ * mit `token.colorPrimary` (Suite-Rot, §4.9), und ein Balken „laenger = schlechter"
  * auf einer invertierten Skala behauptet das Gegenteil der Daten. Die
  * Pillenspalte ist vertikal gelesen selbst der Vergleich — vorausgesetzt, die
  * ORDNUNG traegt: bester zuerst.

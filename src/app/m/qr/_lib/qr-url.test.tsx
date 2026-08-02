@@ -56,19 +56,19 @@ function testIdsFor(href: string): string[] {
 
 const wifi: QrPayload = {
   kind: "wifi",
-  value: { ssid: "DRK Einsatz", password: "geheim;1", encryption: "WPA", hidden: false },
+  value: { ssid: "IuK Einsatz", password: "geheim;1", encryption: "WPA", hidden: false },
 };
 const vcard: QrPayload = {
   kind: "vcard",
-  value: { name: "Max Mustermann", tel: "+4930123", org: "DRK" },
+  value: { name: "Max Mustermann", tel: "+4930123", org: "IuK" },
 };
 
 describe("buildQrUrl", () => {
   it("uebergibt label und kind unveraendert", () => {
-    const p = params(buildQrUrl("Mein Link", { kind: "url", value: "https://drk.de" }));
+    const p = params(buildQrUrl("Mein Link", { kind: "url", value: "https://example.org" }));
     expect(p.get("label")).toBe("Mein Link");
     expect(p.get("kind")).toBe("url");
-    expect(p.get("data")).toBe("https://drk.de");
+    expect(p.get("data")).toBe("https://example.org");
   });
 
   it("setzt bei tel das tel:-Praefix — der Leser ergaenzt es nicht", () => {
@@ -96,7 +96,7 @@ describe("buildQrUrl", () => {
   });
 
   it.each([
-    ["url", { kind: "url", value: "https://drk.de/a?b=1" }] as const,
+    ["url", { kind: "url", value: "https://example.org/a?b=1" }] as const,
     ["text", { kind: "text", value: "Freitext mit Umlaut: Grösse" }] as const,
     ["tel", { kind: "tel", value: "+49 151 12345678" }] as const,
     ["wifi", wifi] as const,
@@ -122,7 +122,7 @@ describe("buildQrUrl", () => {
   });
 
   it.each([
-    ["url", { kind: "url", value: "https://drk.de" }] as const,
+    ["url", { kind: "url", value: "https://example.org" }] as const,
     ["text", { kind: "text", value: "Freitext" }] as const,
     ["tel", { kind: "tel", value: "+49301234567" }] as const,
   ])("ein %s-Link zeigt den Rohtext weiterhin an", (_name, payload) => {

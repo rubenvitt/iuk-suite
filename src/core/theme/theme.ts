@@ -1,5 +1,5 @@
 import { theme as antdTheme, type ThemeConfig } from "antd";
-import { DRK, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
+import { FARBEN, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
 
 /** Die beiden Betriebsarten des Suite-Themes. Hier definiert, weil sie zum
  *  Theme gehören — `mode.ts` (Cookie-Transport) reicht den Typ nur weiter. */
@@ -19,11 +19,11 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
     cssVar: { key: "iuk" },
     hashed: false,
     token: {
-      colorPrimary: DRK.rot,
-      colorError: DRK.rot,
-      colorWarning: DRK.gelb,
-      colorSuccess: DRK.ok,
-      colorLink: DRK.rot,
+      colorPrimary: FARBEN.rot,
+      colorError: FARBEN.rot,
+      colorWarning: FARBEN.gelb,
+      colorSuccess: FARBEN.ok,
+      colorLink: FARBEN.rot,
       borderRadius: 8,
       fontFamily: "var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif",
       fontFamilyCode: "var(--font-geist-mono), ui-monospace, monospace",
@@ -35,11 +35,11 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
     },
     components: {
       // Layout-Flächen explizit, weil antds Vorgabe für Layout.Header ein
-      // dunkles Blau ist, das mit DRK-Rot streitet.
+      // dunkles Blau ist, das mit Suite-Rot streitet.
       Layout: {
-        headerBg: dark ? "#141414" : DRK.karte,
-        headerColor: dark ? "#ffffff" : DRK.tinte,
-        bodyBg: dark ? "#000000" : DRK.papier,
+        headerBg: dark ? "#141414" : FARBEN.karte,
+        headerColor: dark ? "#ffffff" : FARBEN.tinte,
+        bodyBg: dark ? "#000000" : FARBEN.papier,
         headerHeight: 64,
         /*
          * DAS TAP-ZIEL HAT DIE KOPFZEILE STILLSCHWEIGEND UM 80px VERENGT.

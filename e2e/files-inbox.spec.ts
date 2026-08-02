@@ -59,8 +59,8 @@ const I = `http://${INBOX}:3100`;
 const VERWALTUNG = "files.localtest.me";
 const V = `http://${VERWALTUNG}:3100`;
 
-/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["drk-files-admin"]`). */
-const GRUPPE = "drk-files-admin";
+/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["iuk-files-admin"]`). */
+const GRUPPE = "iuk-files-admin";
 
 /**
  * Legt einen Abgabelink an und gibt den Rohtoken zurück.
@@ -213,7 +213,7 @@ test("3 — ein grammatikalisch unmögliches Token endet auf derselben Seite, oh
    * Der eingegebene Text wird NICHT in den sichtbaren Seitentext gespiegelt.
    * Für einen Tippfehler wäre das harmlos; dieselbe Seite nimmt aber auch einen
    * fast richtigen — also fast gültigen — Token entgegen, und der stünde dann in
-   * jedem Bildschirmfoto, das jemand an die Leitstelle schickt.
+   * jedem Bildschirmfoto, das jemand an den I&K schickt.
    *
    * GEMESSEN WIRD DER SICHTBARE TEXT, nicht `page.content()`. Der Pfad steht
    * zwangsläufig im Markup: Next legt den Routenbaum als Flight-Daten in ein

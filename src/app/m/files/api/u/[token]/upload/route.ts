@@ -134,7 +134,7 @@ type Fehlercode =
  * den Melder eine Sackgasse.
  */
 const KONTINGENT_ERSCHOEPFT =
-  "Das Kontingent dieses Abgabelinks ist erschöpft. Bitte bei der Leitstelle melden.";
+  "Das Kontingent dieses Abgabelinks ist erschöpft. Bitte beim I&K melden.";
 
 /**
  * Der Fehlversuchszaehler des Zugangs-Guards (§8.4 Stufe 1). Schluessel ist die
@@ -730,7 +730,7 @@ async function aufSchreibfehler(
     return fehler(
       507,
       "kein-platz",
-      "Auf dem Server ist kein Platz mehr. Bitte melden Sie sich bei der Leitstelle.",
+      "Auf dem Server ist kein Platz mehr. Bitte melden Sie sich beim I&K.",
     );
   }
 

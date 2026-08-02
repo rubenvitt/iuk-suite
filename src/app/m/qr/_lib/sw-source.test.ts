@@ -498,7 +498,7 @@ describe("Service Worker: was im Cache landen darf", () => {
     await online.drain(online.dispatch("install", navigation("/")));
 
     const offline = boot(createNetwork({ offline: true }), storage);
-    const event = offline.dispatch("fetch", navigation("/qr?data=https%3A%2F%2Fdrk.de&kind=url"));
+    const event = offline.dispatch("fetch", navigation("/qr?data=https%3A%2F%2Fexample.org&kind=url"));
     const res = await event.response;
     await offline.drain(event);
 

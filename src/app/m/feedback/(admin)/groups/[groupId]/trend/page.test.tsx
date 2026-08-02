@@ -174,7 +174,7 @@ describe("Trend — Monatszeilen tragen die Schulnote, nicht den Mischwert", () 
  * DAS DIAGRAMM IST MODUL-LOKAL (§3.3, §5.3).
  *
  * Bis hierher zeichnete die Seite Noten mit `core/charts/LineChart` — also in
- * `token.colorPrimary` (DRK-Rot, Farb-Klausel §4.9) und auf einer NICHT
+ * `token.colorPrimary` (Suite-Rot, Farb-Klausel §4.9) und auf einer NICHT
  * umgekehrten Achse. Eine 6 stand damit hoeher als eine 1: ein Sachfehler, kein
  * Geschmacksfehler. Diese Zusage haengt an zwei Belegen — der Beschriftung im
  * Bild und dem fehlenden Import.

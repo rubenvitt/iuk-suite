@@ -61,13 +61,13 @@ export function OeffentlicherRahmen({
   return (
     <div className="fp-seite">
       {/* Die 3px-Fahne ist reine Marke, kein Inhalt — eine der genau ZWEI
-          Stellen mit DRK-Rot, und deshalb `aria-hidden`. */}
+          Stellen mit Suite-Rot, und deshalb `aria-hidden`. */}
       <div className="fp-fahne" aria-hidden="true" />
       <div className="fp-blatt">
         <header className="fp-kopf">
           <p className="fp-kicker">
             {kicker}
-            <span className="fp-wortzeichen">DRK</span>
+            <span className="fp-wortzeichen">I&amp;K</span>
           </p>
         </header>
         {children}

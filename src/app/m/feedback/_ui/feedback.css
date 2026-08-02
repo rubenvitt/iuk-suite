@@ -31,7 +31,7 @@
 
 :root,
 :root[data-theme="light"] {
-  /* Die Hellwerte sind die Suite-Tokens (DRK.tinte / stahl / linie). */
+  /* Die Hellwerte sind die Suite-Tokens (FARBEN.tinte / stahl / linie). */
   --fb-ink: #1a1d20;
   --fb-muted: #5b6570;
   --fb-line: #d9dde1;

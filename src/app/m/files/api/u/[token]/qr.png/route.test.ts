@@ -77,7 +77,7 @@ const notFoundMock = vi.mocked(notFound);
 const VERWALTUNG = "files.localtest.me";
 const INBOX = "drop.localtest.me";
 /** Die Vorgabegruppe aus `core/registry.ts` fuer das Modul `files`. */
-const FILES_ADMIN = "drk-files-admin";
+const FILES_ADMIN = "iuk-files-admin";
 const TOKEN = "dz-2345-6789-abcd";
 /** Ein Token derselben Grammatik, zu dem es KEINE Zeile gibt. */
 const TOKEN_OHNE_ZEILE = "dz-9876-5432-zyxw";

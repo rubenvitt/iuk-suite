@@ -59,14 +59,14 @@ export function Huelle({
 }) {
   return (
     <div className={`${s.seite} ${newsreader.variable}`}>
-      {/* Fahne: 3px DRK-Rot, randlos am Oberrand. Reine Marke, kein Inhalt —
+      {/* Fahne: 3px Suite-Rot, randlos am Oberrand. Reine Marke, kein Inhalt —
           deshalb `aria-hidden`. Eine der genau ZWEI Stellen mit #c8000f. */}
       <div className={s.fahne} aria-hidden="true" />
       <div className={s.blatt}>
         <header className={`${s.kopf} ${s.aufbau}`}>
           <p className={s.kicker}>
             {KICKER}
-            <span className={s.wortzeichen}>DRK</span>
+            <span className={s.wortzeichen}>I&amp;K</span>
           </p>
           <h1 className={gross ? `${s.titel} ${s.gross}` : s.titel}>{titel}</h1>
           {kopf}

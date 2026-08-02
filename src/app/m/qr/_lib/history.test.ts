@@ -138,10 +138,10 @@ describe("history", () => {
   });
 
   it("recordEntry legt einen vollstaendigen, gueltigen Eintrag an", () => {
-    recordEntry("Mein Link", { kind: "url", value: "https://drk.de" });
+    recordEntry("Mein Link", { kind: "url", value: "https://example.org" });
     const [e] = loadHistory();
     expect(e.label).toBe("Mein Link");
-    expect(e.payload).toEqual({ kind: "url", value: "https://drk.de" });
+    expect(e.payload).toEqual({ kind: "url", value: "https://example.org" });
     expect(typeof e.id).toBe("string");
     expect(e.id.length).toBeGreaterThan(0);
     expect(e.createdAt).toBeGreaterThan(0);
@@ -396,19 +396,19 @@ describe("gesperrter localStorage", () => {
 
   it("haelt Eintraege im Speicher, wenn das Schreiben wirft", async () => {
     const h = await historyWithLock(["setItem"]);
-    expect(() => h.recordEntry("A", { kind: "url", value: "https://drk.de" })).not.toThrow();
+    expect(() => h.recordEntry("A", { kind: "url", value: "https://example.org" })).not.toThrow();
     expect(h.loadHistory().map((e) => e.label)).toEqual(["A"]);
   });
 
   it("haelt Eintraege im Speicher, wenn das Lesen wirft", async () => {
     const h = await historyWithLock(["getItem"]);
-    expect(() => h.recordEntry("A", { kind: "url", value: "https://drk.de" })).not.toThrow();
+    expect(() => h.recordEntry("A", { kind: "url", value: "https://example.org" })).not.toThrow();
     expect(h.loadHistory().map((e) => e.label)).toEqual(["A"]);
   });
 
   it("clearHistory leert auch den Speicher-Fallback", async () => {
     const h = await historyWithLock(["setItem"]);
-    h.recordEntry("A", { kind: "url", value: "https://drk.de" });
+    h.recordEntry("A", { kind: "url", value: "https://example.org" });
     h.clearHistory();
     expect(h.loadHistory()).toEqual([]);
   });

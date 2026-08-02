@@ -40,15 +40,15 @@ function submitButton(): HTMLButtonElement {
 
 describe("UrlInput", () => {
   it("navigiert mit dem kodierten Inhalt und schreibt den Verlaufseintrag", async () => {
-    await fill("#qr-url", "https://drk.de/a?b=1");
+    await fill("#qr-url", "https://example.org/a?b=1");
     await submitForm();
 
     expect(push).toHaveBeenCalledTimes(1);
     const url = new URL(push.mock.calls[0][0] as string, "http://qr.localtest.me");
     expect(url.pathname).toBe("/qr");
-    expect(url.searchParams.get("data")).toBe("https://drk.de/a?b=1");
+    expect(url.searchParams.get("data")).toBe("https://example.org/a?b=1");
     expect(url.searchParams.get("kind")).toBe("url");
-    expect(loadHistory()[0].label).toBe("https://drk.de/a?b=1");
+    expect(loadHistory()[0].label).toBe("https://example.org/a?b=1");
   });
 
   // 700 Umlaute sind nach Zeichen laengst erlaubt (700 < 1273), nach Bytes aber

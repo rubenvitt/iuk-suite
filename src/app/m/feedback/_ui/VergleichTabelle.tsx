@@ -9,7 +9,7 @@ import { T } from "./typo";
  * DER GRUPPENVERGLEICH ALS TABELLE (Entwurf §3.4).
  *
  * DAS BALKENDIAGRAMM ENTFÄLLT, und das ist keine Geschmacksfrage: `core/charts`
- * färbt mit `token.colorPrimary` — in diesem Projekt DRK-Rot (§4.9) — und ein
+ * färbt mit `token.colorPrimary` — in diesem Projekt Suite-Rot (§4.9) — und ein
  * Balken „länger = schlechter" auf einer invertierten Skala ist genau der
  * Sachfehler, den diese Spec verbietet. Die Pillenspalte ist vertikal gelesen
  * selbst der Vergleich.

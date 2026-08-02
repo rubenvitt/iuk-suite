@@ -17,7 +17,7 @@ import { fensterAus } from "@/app/m/feedback/_lib/trendfenster";
  * DREI ENTSCHEIDUNGEN:
  *
  * 1. DAS DIAGRAMM IST MODUL-LOKAL (`_ui/NotenVerlauf.tsx`, §5.3) und NICHT
- *    `core/charts/LineChart`: der färbt mit `token.colorPrimary` (DRK-Rot) und
+ *    `core/charts/LineChart`: der färbt mit `token.colorPrimary` (Suite-Rot) und
  *    kennt keine umgekehrte Achse. Eine 6 höher als eine 1 ist ein SACHFEHLER,
  *    kein Geschmacksfehler.
  * 2. DAS ZEITFENSTER STEHT IN DER URL (`?monate=`, §3.3). Es entscheidet, welche

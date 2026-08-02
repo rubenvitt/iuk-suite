@@ -18,7 +18,7 @@ import { renderToStaticMarkup } from "react-dom/server";
  *    Schluss-Schritt. `danger` faerbt in diesem Projekt mit `colorError ===
  *    colorPrimary === #c8000f` — Rot auf einer Datenflaeche (Farb-Klausel §4.9).
  * 3. Der Ruecklaufbalken ist NIE rot: antds Vorgabe ist `colorPrimary`, also
- *    DRK-Rot, und ein roter Balken liest sich als Alarm.
+ *    Suite-Rot, und ein roter Balken liest sich als Alarm.
  * 4. Es wird nie ein Nenner erfunden: ohne `participantCount` gibt es „12
  *    Rueckmeldungen", keinen Prozentwert und keinen Balken.
  * 5. Ein Altbestands-Entwurf kapert die Karte nicht (Belegung E).
@@ -323,7 +323,7 @@ describe("Lagekarte — Belegung D (laeuft, Antworten da)", () => {
     const balken = wirt.querySelector(".ant-progress");
     expect(balken).not.toBeNull();
     expect(balken!.getAttribute("aria-valuenow")).toBe("60");
-    // Der Balken traegt die eigene Tinte, NICHT antds colorPrimary (= DRK-Rot).
+    // Der Balken traegt die eigene Tinte, NICHT antds colorPrimary (= Suite-Rot).
     expect(balken!.innerHTML).toContain("var(--fb-ink)");
     expect(balken!.innerHTML).toContain("var(--fb-fill)");
   });

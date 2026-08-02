@@ -8,7 +8,7 @@ enthält die Rangfolge, die Auflösung der Jury-Widersprüche und die umsetzungs
 
 **Die beiden in Abschnitt 4 offen gestellten Fragen sind entschieden — jeweils Option A:**
 
-1. **DRK-Rot:** nur 3px-Fahne am Oberrand plus Wortzeichen „DRK". Kein roter Absenden-Knopf, kein
+1. **Suite-Rot:** nur 3px-Fahne am Oberrand plus Wortzeichen „I&K". Kein roter Absenden-Knopf, kein
    roter Fokusring. Begründung: auf dieser Seite bedeutet Rot „Note 6 – ungenügend"; Marke am Rand und
    Bedeutung in der Mitte dürfen nie in vergleichbarer Fläche nebeneinander stehen.
 2. **Anrede:** durchgehend „Du". Die acht Bewertungsfragen sind im Altbestand im Du formuliert und
@@ -62,7 +62,7 @@ Juror 3 von Entwurf 3 sagt ja. **Ich überstimme ihn:** die native Prüfung ist 
 **(6) „`prefers-color-scheme` allein ist ehrlich und ausreichend."**
 Juror 3 von Entwurf 2 schreibt das; er hat unrecht, und das ist am Code belegbar. `src/core/theme/mode.ts` hält den Modus im Cookie `iuk-theme` auf `.iuk-ue.de`, `src/app/layout.tsx` liest ihn serverseitig — der Theme-Umschalter der Suite gilt also auch ohne Login. Wer auf `prefers-color-scheme` selektiert, baut den Fall „System dunkel, Umschalter hell" als Fehler ein. **Entscheidung: Entwurf 1 hat hier recht**, `<html>` bekommt zusätzlich `data-theme={mode}` (heute steht dort nur `style={{ colorScheme: mode }}`, darauf kann CSS nicht selektieren).
 
-**(7) Entfernt man DRK-Rot ganz?**
+**(7) Entfernt man Suite-Rot ganz?**
 Entwurf 1 tut es und sein Juror nennt das die wahrscheinlichste Ablehnung; Entwurf 2 lässt drei Rot-Verwendungen, Entwurf 3 zwei. **Entscheidung: zwei — 3px-Fahne oben und Wortzeichen.** Der rote Innenring im Fokus (Entwurf 2) fällt weg: ein roter Ring auf dem grünen Feld der Note 1 ist genau die Ampelverschmutzung, die der Entwurf sonst verbietet.
 
 ---
@@ -119,9 +119,9 @@ Kein antd-Import auf dieser Route (auch nicht in der Client Component) — damit
 
 **A — FORMULAR** (mobil ca. 1,6 Bildschirmhöhen, in dieser Reihenfolge):
 
-1. **Fahne**: 3px DRK-Rot `#c8000f`, full bleed am Viewport-Oberrand.
+1. **Fahne**: 3px Suite-Rot `#c8000f`, full bleed am Viewport-Oberrand.
 2. **Kopf** (linksbündig):
-   - Kicker `t0`: „RÜCKMELDUNG ZUM DIENSTABEND", rechts das Wortzeichen „DRK" (`t1`/700, Rot).
+   - Kicker `t0`: „RÜCKMELDUNG ZUM DIENSTABEND", rechts das Wortzeichen „I&K" (`t1`/700, Rot).
    - H1 `t5`/`t6` Serif: das Thema („Funk-Übung: Sprechgruppen"). Ohne Thema: „Dienstabend am 22. Juli".
    - Metazeile `t1`: „Bereitschaft Musterstadt · Mittwoch, 22. Juli 2026 · 19:30". Datum in `--tinte`/600, Rest `--gedaempft`.
    - Vertragszeile `t1` mit Haarlinie darüber: „Anonym · 8 Noten, 6 freie Zeilen · etwa 2 Minuten".
@@ -180,7 +180,7 @@ Schriften: **Geist Sans** (global vorhanden, 0 zusätzliche Requests) für alles
 **Hell:** `--papier #F4F1EA` · `--blatt #FBFAF7` · `--tinte #16181A` (15,8:1) · `--graphit #3A3F44` · `--gedaempft #5E625F` (5,5:1) · `--linie #DDD8CE` · `--linie-stark #C9C3B7` · `--tint #EDE9DF`
 **Dunkel:** `--papier #101214` · `--blatt #1B1E22` · `--tinte #ECE9E2` (14,5:1) · `--graphit #C3C8CD` · `--gedaempft #9AA0A6` (6,6:1) · `--linie #2C3035` · `--linie-stark #3A3F45` · `--tint #23272C`
 
-**DRK-Rot `#c8000f`** (echter Token aus `core/theme/tokens.ts`) an genau **zwei** Stellen, nie als Fläche >100px², nie als Knopffüllung, nie als Fehlerfarbe: die 3px-Fahne und das Wortzeichen „DRK" im Kopf. Primäraktion ist `--graphit`-Tinte: hell `#24282C` auf `#FFFFFF` (14,8:1), dunkel `#ECE9E2` auf `#101214`. Fokusring ausschließlich Tinte.
+**Suite-Rot `#c8000f`** (echter Token aus `core/theme/tokens.ts`) an genau **zwei** Stellen, nie als Fläche >100px², nie als Knopffüllung, nie als Fehlerfarbe: die 3px-Fahne und das Wortzeichen „I&K" im Kopf. Primäraktion ist `--graphit`-Tinte: hell `#24282C` auf `#FFFFFF` (14,8:1), dunkel `#ECE9E2` auf `#101214`. Fokusring ausschließlich Tinte.
 
 **Notenfarben hell** (Chipfüllung, Ziffer `#FFFFFF`), Luminanz monoton fallend:
 `1 #2F7F59` (4,88:1 · L .165) · `2 #54782A` (5,13 · .155) · `3 #7E6103` (5,84 · .130) · `4 #904708` (6,79 · .105) · `5 #912E10` (8,07 · .080) · `6 #811221` (10,28 · .052)
@@ -333,14 +333,14 @@ Die IP wird für das Ratelimit benutzt, landet aber nur in einer flüchtigen In-
 
 ## 4. ZWEI ENTSCHEIDUNGEN FÜR DEN AUFTRAGGEBER
 
-### Entscheidung 1: Wie viel DRK-Rot darf auf dieser Seite sein?
+### Entscheidung 1: Wie viel Suite-Rot darf auf dieser Seite sein?
 
-Auf dieser Seite bedeutet Rot „Note 6 – ungenügend". Das ist ausgerechnet unsere Hausfarbe.
+Auf dieser Seite bedeutet Rot „Note 6 – ungenügend". Das ist ausgerechnet die Primärfarbe der Suite.
 
 | Option | Konsequenz in einem Satz |
 |---|---|
-| **A — Rot nur als dünner Streifen oben plus „DRK"-Schriftzug** (Empfehlung) | Man erkennt die Seite sofort als DRK, und trotzdem ist keine Fläche rot, mit der die schlechteste Note verwechselt werden könnte. |
-| B — gar kein Rot | Am klarsten für die Noten, aber die Seite sieht nicht mehr nach DRK aus und die Öffentlichkeitsarbeit wird das als Verstoß gegen das Corporate Design lesen. |
+| **A — Rot nur als dünner Streifen oben plus „I&K"-Schriftzug** (Empfehlung) | Man erkennt die Seite sofort als Suite-Seite, und trotzdem ist keine Fläche rot, mit der die schlechteste Note verwechselt werden könnte. |
+| B — gar kein Rot | Am klarsten für die Noten, aber die Seite verliert jeden Wiedererkennungswert gegenüber der übrigen Suite. |
 | C — roter Absenden-Knopf wie in der übrigen Suite | Der auffälligste Knopf der Seite trägt dann dieselbe Farbe wie die schlechteste Note — die Ampel wird zur Dekoration, und der ganze Entwurf bricht an der Wurzel. |
 
 **Empfehlung: A.** Rot bleibt Marke am Rand, Rot bleibt Bedeutung in der Mitte — und beide stehen nie in vergleichbarer Größe nebeneinander.

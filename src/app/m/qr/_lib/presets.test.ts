@@ -41,7 +41,7 @@ describe("presets", () => {
   // INSERT faellt daran nicht auf.
   it("legt ein Preset an und vergibt einen Slug aus dem Label", async () => {
     const { createPreset, listPresets } = await import("@/app/m/qr/_lib/presets");
-    await createPreset({ label: "Übung Größe", kind: "url", value: "https://drk.de" }, "user-1");
+    await createPreset({ label: "Übung Größe", kind: "url", value: "https://example.org" }, "user-1");
     const rows = await listPresets();
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe("uebung-groesse");

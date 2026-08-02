@@ -27,15 +27,15 @@ import type { DirectoryPerson } from "@/core/directory";
 const anna: DirectoryPerson = {
   userId: "sub-anna",
   name: "Anna Beispiel",
-  email: "anna@drk.example",
+  email: "anna@iuk.example",
 };
-const neu: DirectoryPerson = { userId: "sub-neu", name: "Nie Da", email: "nie@drk.example" };
+const neu: DirectoryPerson = { userId: "sub-neu", name: "Nie Da", email: "nie@iuk.example" };
 
 describe("vereinigePersonen", () => {
   it("fuehrt dieselbe Person aus beiden Quellen zu EINEM Eintrag zusammen", () => {
     const r = vereinigePersonen(
       [anna],
-      [{ userId: "sub-anna", name: "Anna B.", email: "alt@drk.example" }],
+      [{ userId: "sub-anna", name: "Anna B.", email: "alt@iuk.example" }],
       10,
     );
 
@@ -46,27 +46,27 @@ describe("vereinigePersonen", () => {
   it("das Verzeichnis gewinnt bei Name und E-Mail — es ist die aktuelle Quelle", () => {
     const r = vereinigePersonen(
       [anna],
-      [{ userId: "sub-anna", name: "Anna B. (alt)", email: "alt@drk.example" }],
+      [{ userId: "sub-anna", name: "Anna B. (alt)", email: "alt@iuk.example" }],
       10,
     );
 
-    expect(r[0]).toMatchObject({ name: "Anna Beispiel", email: "anna@drk.example" });
+    expect(r[0]).toMatchObject({ name: "Anna Beispiel", email: "anna@iuk.example" });
   });
 
   it("`known_users` fuellt Luecken, die das Verzeichnis laesst", () => {
     const r = vereinigePersonen(
       [{ userId: "sub-anna", name: null, email: null }],
-      [{ userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" }],
+      [{ userId: "sub-anna", name: "Anna Beispiel", email: "anna@iuk.example" }],
       10,
     );
 
-    expect(r[0]).toMatchObject({ name: "Anna Beispiel", email: "anna@drk.example" });
+    expect(r[0]).toMatchObject({ name: "Anna Beispiel", email: "anna@iuk.example" });
   });
 
   it("kennzeichnet, wer noch nie in der Verwaltung war — als Zustand, nicht als Fehler", () => {
     const r = vereinigePersonen(
       [anna, neu],
-      [{ userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" }],
+      [{ userId: "sub-anna", name: "Anna Beispiel", email: "anna@iuk.example" }],
       10,
     );
 
@@ -111,7 +111,7 @@ describe("leitungAus", () => {
     const r = leitungAus(["sub-neu"], [neu], []);
 
     expect(r).toEqual([
-      { userId: "sub-neu", name: "Nie Da", email: "nie@drk.example", angemeldet: false },
+      { userId: "sub-neu", name: "Nie Da", email: "nie@iuk.example", angemeldet: false },
     ]);
   });
 
@@ -119,7 +119,7 @@ describe("leitungAus", () => {
     const r = leitungAus(
       ["sub-anna", "sub-neu"],
       [],
-      [{ userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" }],
+      [{ userId: "sub-anna", name: "Anna Beispiel", email: "anna@iuk.example" }],
     );
 
     expect(r.map((p) => p.userId)).toEqual(["sub-anna", "sub-neu"]);
@@ -140,14 +140,14 @@ describe("leitungAus", () => {
 });
 
 describe("passtAufSuche", () => {
-  const p = { userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" };
+  const p = { userId: "sub-anna", name: "Anna Beispiel", email: "anna@iuk.example" };
 
   it("trifft ueber den Namen, ohne Ruecksicht auf Gross-/Kleinschreibung", () => {
     expect(passtAufSuche(p, "BEIS")).toBe(true);
   });
 
   it("trifft ueber die E-Mail", () => {
-    expect(passtAufSuche(p, "anna@drk")).toBe(true);
+    expect(passtAufSuche(p, "anna@iuk")).toBe(true);
   });
 
   it("trifft ueber die eingefuegte Kennung", () => {
@@ -166,10 +166,10 @@ describe("passtAufSuche", () => {
 describe("vorschlagOptionen", () => {
   it("der Wert ist lesbar, nicht die rohe Kennung", () => {
     const [o] = vorschlagOptionen([
-      { userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example", angemeldet: true },
+      { userId: "sub-anna", name: "Anna Beispiel", email: "anna@iuk.example", angemeldet: true },
     ]);
 
-    expect(o.wert).toBe("Anna Beispiel · anna@drk.example");
+    expect(o.wert).toBe("Anna Beispiel · anna@iuk.example");
     expect(o.userId).toBe("sub-anna");
   });
 

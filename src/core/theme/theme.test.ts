@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { theme as antdTheme } from "antd";
 import { buildTheme, type ThemeMode } from "@/core/theme/theme";
-import { DRK, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
+import { FARBEN, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
 
 const MODES: ThemeMode[] = ["light", "dark"];
 
@@ -16,21 +16,21 @@ describe("buildTheme", () => {
     expect(token.controlHeightLG).toBeGreaterThanOrEqual(TAP_XL);
   });
 
-  it.each(MODES)("setzt DRK-Rot als Seed im Modus %s", (mode) => {
+  it.each(MODES)("setzt Suite-Rot als Seed im Modus %s", (mode) => {
     // Geprüft wird der SEED, nicht der abgeleitete Token: antds darkAlgorithm
     // rechnet colorPrimary für den Kontrast auf dunklem Grund bewusst um
     // (#c8000f -> #ad0310, via generate(seed, {theme:'dark'})[5]). Diese
     // Verschiebung ist gewollt — sie zurückzudrehen hieße, dem Design-System
     // seine Lesbarkeitsregel zu nehmen. Unsere Zusage ist "die Suite ist auf
-    // DRK-Rot eingestellt", nicht "jeder Modus zeigt denselben Hexwert".
-    expect(buildTheme(mode).token?.colorPrimary).toBe(DRK.rot);
+    // Suite-Rot eingestellt", nicht "jeder Modus zeigt denselben Hexwert".
+    expect(buildTheme(mode).token?.colorPrimary).toBe(FARBEN.rot);
   });
 
-  it("gibt DRK-Rot im hellen Modus unverändert durch", () => {
+  it("gibt Suite-Rot im hellen Modus unverändert durch", () => {
     // Im hellen Modus rechnet der defaultAlgorithm den Seed nicht um — hier
-    // muss der abgeleitete Token also wirklich exakt die DRK-Farbe sein.
+    // muss der abgeleitete Token also wirklich exakt die Suite-Farbe sein.
     const token = antdTheme.getDesignToken(buildTheme("light"));
-    expect(token.colorPrimary.toLowerCase()).toBe(DRK.rot);
+    expect(token.colorPrimary.toLowerCase()).toBe(FARBEN.rot);
   });
 
   it("unterscheidet hellen und dunklen Grundton", () => {

@@ -3,7 +3,7 @@ import { payloadToQrString } from "@/app/m/qr/_lib/payload";
 
 describe("payloadToQrString", () => {
   it("url und text werden wörtlich übernommen", () => {
-    expect(payloadToQrString({ kind: "url", value: "https://drk.de" })).toBe("https://drk.de");
+    expect(payloadToQrString({ kind: "url", value: "https://example.org" })).toBe("https://example.org");
     expect(payloadToQrString({ kind: "text", value: "Hallo" })).toBe("Hallo");
   });
 
@@ -15,9 +15,9 @@ describe("payloadToQrString", () => {
     expect(
       payloadToQrString({
         kind: "wifi",
-        value: { ssid: "DRK-Test", password: "geheim", encryption: "WPA" },
+        value: { ssid: "IuK-Test", password: "geheim", encryption: "WPA" },
       }),
-    ).toBe("WIFI:T:WPA;S:DRK-Test;P:geheim;H:false;;");
+    ).toBe("WIFI:T:WPA;S:IuK-Test;P:geheim;H:false;;");
   });
 
   it("wifi: hidden-Flag", () => {
@@ -66,9 +66,9 @@ describe("payloadToQrString", () => {
     expect(
       payloadToQrString({
         kind: "vcard",
-        value: { name: "N", tel: "+49", email: "a@b.de", org: "DRK" },
+        value: { name: "N", tel: "+49", email: "a@b.de", org: "IuK" },
       }),
-    ).toBe("BEGIN:VCARD\nVERSION:3.0\nFN:N\nTEL:+49\nEMAIL:a@b.de\nORG:DRK\nEND:VCARD");
+    ).toBe("BEGIN:VCARD\nVERSION:3.0\nFN:N\nTEL:+49\nEMAIL:a@b.de\nORG:IuK\nEND:VCARD");
   });
 
   it("vcard: nur teilweise befüllt — fehlende Optionalfelder entfallen", () => {
@@ -95,15 +95,15 @@ describe("payloadToQrString", () => {
 
   // Escaping muss auf jedem Feld einzeln festgenagelt sein, sonst bleibt sein Wegfall
   // auf TEL/EMAIL/ORG unentdeckt: Komma und Semikolon sind in vCard 3.0 Feldtrenner,
-  // ein Scanner würde "DRK; Kreisverband XY" sonst in mehrere Komponenten zerlegen.
+  // ein Scanner würde "IuK; Kreisverband XY" sonst in mehrere Komponenten zerlegen.
   it("vcard: Semikolon und Komma werden in TEL und ORG escaped", () => {
     expect(
       payloadToQrString({
         kind: "vcard",
-        value: { name: "Mustermann, Max", tel: "+4930123456;ext=7", org: "DRK; Kreisverband XY" },
+        value: { name: "Mustermann, Max", tel: "+4930123456;ext=7", org: "IuK; Kreisverband XY" },
       }),
     ).toBe(
-      "BEGIN:VCARD\nVERSION:3.0\nFN:Mustermann\\, Max\nTEL:+4930123456\\;ext=7\nORG:DRK\\; Kreisverband XY\nEND:VCARD",
+      "BEGIN:VCARD\nVERSION:3.0\nFN:Mustermann\\, Max\nTEL:+4930123456\\;ext=7\nORG:IuK\\; Kreisverband XY\nEND:VCARD",
     );
   });
 
