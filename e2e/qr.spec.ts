@@ -77,6 +77,43 @@ test("nach dem Logout sieht die naechste Person den Verlauf nicht mehr", async (
 
   // Abmelden heisst hier: die Sitzungs-Cookies weg. Der localStorage bleibt
   // unangetastet — genau das ist der Fall, um den es geht.
+  //
+  // DAS `networkidle` DAVOR IST DIE EIGENTLICHE ABMELDUNG, keine Wartezeit auf
+  // einen langsamen Wert. `handleAuth` haengt die `Set-Cookie` der
+  // Sitzungsantwort an JEDE Antwort der Middleware
+  // (`next-auth/lib/index.js:166-170`, und der `matcher` in `proxy.ts` umfasst
+  // praktisch jede Anfrage). Jede Antwort aus der angemeldeten Phase traegt
+  // `authjs.session-token` also erneut — trifft eine davon erst NACH dem
+  // Wischen ein, ist die Person wieder angemeldet, ohne dass jemand sich
+  // angemeldet haette. `clearCookies` ist damit nur dann ein Abmelden, wenn in
+  // diesem Moment nichts mehr offen ist; Playwright sagt das nicht zu, also
+  // muss der Test es herstellen.
+  //
+  // Gemessen: lokal steht beim Wischen NICHTS offen (Instrumentierung ueber
+  // `page.on("request"/"requestfinished")`, null offene Anfragen) — deshalb
+  // faellt der Fall hier nie und ist auch bei Wiederholungen nicht zu sehen.
+  // In der CI uebersetzt `next dev` kalt (frischer Checkout, kleiner Runner,
+  // siehe die Zahlen in `fixtures.ts`), und genau dann haengt eine Antwort noch
+  // in der Leitung. Das Zeitbudget des Polls unten bleibt deshalb bei 10 s:
+  // gegen einen falschen WERT hilft kein groesseres Budget.
+  await page.waitForLoadState("networkidle");
+
+  // Was danach noch eine Sitzung setzt, gehoert in die Diagnose: bleibt der
+  // Poll unten trotz `networkidle` rot, benennt diese Liste die Anfrage, statt
+  // die naechste Untersuchung wieder auf Vermutungen zu stellen.
+  const wiederbelebt: string[] = [];
+  page.on("response", async (antwort) => {
+    try {
+      const setztSitzung = (await antwort.headersArray()).some(
+        (h) => h.name.toLowerCase() === "set-cookie" && h.value.includes("authjs.session-token"),
+      );
+      if (setztSitzung) wiederbelebt.push(`${antwort.status()} ${antwort.url()}`);
+    } catch {
+      // Die Seite ist weg, bevor die Kopfzeilen da waren — dann gibt es auch
+      // nichts zu melden.
+    }
+  });
+
   await page.context().clearCookies();
   await page.goto(`${QR}/`);
   await expect(page.getByTestId("qr-login-hint")).toBeVisible();
@@ -95,14 +132,20 @@ test("nach dem Logout sieht die naechste Person den Verlauf nicht mehr", async (
   // dass er nichts misst. Der Sentinel unterscheidet "auf null gesetzt" von
   // "war nie da".
   //
-  // DER POLL IST SPORADISCH ROT, UND ER TRAEGT SEINE EIGENE DIAGNOSE.
+  // DER POLL WAR SPORADISCH ROT, UND ER TRAEGT SEINE EIGENE DIAGNOSE.
   //
   // Am 2026-07-28 fiel er in der CI (Lauf 30370333041) mit
-  // `Received: "dev:dev@localtest.me"` — der Client meldete also die ALTE
-  // Sitzung, obwohl der Server drei Zeilen weiter oben `qr-login-hint` und
-  // damit „anonym" gerendert hatte. Der Rerun auf demselben Commit lief gruen
-  // durch, lokal besteht der Fall auch bei fuenf Wiederholungen. Die Ursache ist
-  // damit NICHT bekannt, und zwei Dinge sind bewusst NICHT passiert:
+  // `Received: "dev:dev@localtest.me"`, am 2026-08-02 erneut: der Client meldete
+  // die ALTE Sitzung, obwohl der Server ein paar Zeilen weiter oben
+  // `qr-login-hint` und damit „anonym" gerendert hatte. Die Diagnose des zweiten
+  // Falls hat die Ursache benannt — sie stand in `cookies`: nach dem Wischen war
+  // `authjs.session-token` WIEDER DA, und `/api/auth/session` lieferte die volle
+  // Sitzung. Das Wischen selbst hatte gegriffen (sonst haette der Server nicht
+  // anonym gerendert); das Cookie kam danach zurueck, aus einer Antwort der
+  // angemeldeten Phase. Warum jede solche Antwort das kann, steht oben beim
+  // `networkidle`.
+  //
+  // Zwei Dinge sind dabei bewusst NICHT passiert:
   //
   //  - Die Frist wurde nicht heraufgesetzt. Eine laengere Wartezeit hilft gegen
   //    Langsamkeit; hier stand aber ein falscher WERT da, kein fehlender. Wer
@@ -113,11 +156,13 @@ test("nach dem Logout sieht die naechste Person den Verlauf nicht mehr", async (
   //    trennt die beiden. Ohne ihn waere die Zeile darunter wieder eine Zusage,
   //    die sich selbst besteht.
   //
-  // Stattdessen sammelt der Fehlerfall, was die naechste Untersuchung braucht:
-  // die Cookies (auch die HttpOnly — `document.cookie` zeigt das Sitzungs-Token
-  // NICHT, deshalb zusaetzlich ueber den Browser-Kontext), die Antwort des
-  // Sitzungs-Endpunkts und das, was die Seite gerade zeigt. Im gruenen Lauf
-  // kostet das nichts.
+  // Die Diagnose bleibt ebenfalls stehen, denn dass NICHTS mehr nach dem
+  // `networkidle` losfaehrt, ist nicht zugesichert. Sie sammelt, was die
+  // naechste Untersuchung braucht: die Cookies (auch die HttpOnly —
+  // `document.cookie` zeigt das Sitzungs-Token NICHT, deshalb zusaetzlich ueber
+  // den Browser-Kontext), die Antwort des Sitzungs-Endpunkts, das, was die Seite
+  // gerade zeigt, und die Liste der Antworten, die seit dem Wischen eine Sitzung
+  // gesetzt haben. Im gruenen Lauf kostet das nichts.
   //
   // NB: `expect.poll` meldet den ZULETZT gemessenen Wert, nicht einen ueber die
   // ganze Frist gehaltenen. Aus der Meldung von damals folgt also gerade NICHT,
@@ -146,7 +191,7 @@ test("nach dem Logout sieht die naechste Person den Verlauf nicht mehr", async (
     });
     const cookies = (await page.context().cookies()).map((c) => `${c.name}@${c.domain}`);
     throw new Error(
-      `${(fehler as Error).message}\n\nDiagnose: ${JSON.stringify({ ...imBrowser, cookies })}`,
+      `${(fehler as Error).message}\n\nDiagnose: ${JSON.stringify({ ...imBrowser, cookies, wiederbelebt })}`,
     );
   }
 
