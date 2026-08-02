@@ -7,5 +7,14 @@ playwright-report
 *.tsbuildinfo
 docs
 e2e
+.claude
+# Die Playwright-Konfigurationen gehoeren nicht ins Image — und sie DUERFEN hier
+# nicht fehlen: `tsconfig.json` zieht mit `**/*.ts` jede Datei im Kontext in den
+# Typecheck von `next build`, und `playwright.config.ts` importiert aus dem hier
+# ausgeschlossenen `e2e/`. Ohne diese Zeile bricht der Docker-Build mit
+# „Cannot find module ./e2e/helpers/avModus" — waehrend `pnpm typecheck`,
+# `pnpm build` und Vitest lokal alle gruen bleiben, weil `e2e/` dort existiert.
+playwright*.config.ts
 **/*.test.ts
+**/*.test.tsx
 .env*
