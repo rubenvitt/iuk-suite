@@ -6,7 +6,9 @@
 import "../_ui/feedback.css";
 import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";
+import type { SuiteNavItem } from "@/core/shell/types";
 import { requireFeedbackAccess } from "../_lib/requireFeedbackAccess";
+import { isFeedbackAdmin } from "../_lib/access";
 
 // full-Shell NUR für die Verwaltung: diese Route-Group liegt eine Ebene über
 // `f/` (Task 11), das sein eigenes, chrome-loses Layout hat. Next.js-Layouts
@@ -28,22 +30,38 @@ export default async function FeedbackAdminLayout({
   children: React.ReactNode;
 }) {
   const mod = getModule("feedback");
-  await requireFeedbackAccess();
+  // Der Rueckgabewert, nicht ein zweites `auth()`: die Navigation muss aus
+  // DERSELBEN Quelle entscheiden wie der Riegel, sonst laufen sie auseinander.
+  const viewer = await requireFeedbackAccess();
+
+  /*
+   * `vergleich` hatte bisher keinen festen Einstieg — die Seite existierte,
+   * war aber nur ueber eine geratene URL erreichbar. Genau die Prueffrage aus
+   * docs/design/README.md: "Hat jede Seite einen Weg in der Oberflaeche?"
+   *
+   * NUR FUER VOLL-ADMINS, und zwar mit demselben Praedikat wie die Seite
+   * selbst (`isFeedbackAdmin` ueber denselben Viewer). Die Gruppenleitung sah
+   * den Eintrag vorher auch — und lief mit einem Klick in den 404, den
+   * `vergleich/page.tsx` bewusst statt eines 403 wirft, damit die Existenz der
+   * Seite nicht verraten wird. Ein Eintrag, der genau dorthin fuehrt, verraet
+   * sie trotzdem und ist obendrein eine Sackgasse.
+   *
+   * Dass beide dasselbe Praedikat auf denselben Viewer anwenden, ist der Punkt:
+   * auch im Verzugsfenster veralteter JWT-Gruppen (CLAUDE.md, bis zu eine
+   * Stunde) koennen Navigation und Riegel nicht verschiedener Meinung sein.
+   */
+  const nav: SuiteNavItem[] = [
+    { key: "start", title: "Übersicht", href: "/" },
+    ...(isFeedbackAdmin(viewer)
+      ? [{ key: "vergleich", title: "Vergleich", href: "/vergleich" }]
+      : []),
+  ];
 
   return (
     <Shell
       variant={mod.shell}
       moduleKey={mod.key}
-      /*
-       * `vergleich` hatte bisher keinen festen Einstieg — die Seite existierte,
-       * war aber nur ueber eine geratene URL erreichbar. Genau die Prueffrage
-       * aus docs/design/README.md: "Hat jede Seite einen Weg in der
-       * Oberflaeche?"
-       */
-      nav={[
-        { key: "start", title: "Übersicht", href: "/" },
-        { key: "vergleich", title: "Vergleich", href: "/vergleich" },
-      ]}
+      nav={nav}
     >
       {children}
     </Shell>

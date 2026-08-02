@@ -1,0 +1,153 @@
+/*
+ * DIE 404-SEITE DER SUITE — suiteweit, eine Datei.
+ *
+ * Sie ist die einzige Seite, die OHNE Shell erscheint und trotzdem in jedem
+ * Modul auftauchen kann: die Not-Found-Grenze liegt an der Wurzel, also ersetzt
+ * sie alle darunterliegenden Layouts. Es gibt hier folglich keine Kopfzeile,
+ * keinen Modulhintergrund und keine `Layout`-Flaeche von antd — der
+ * Seitengrund muss selbst gesetzt werden, sonst steht dunkler Text im
+ * Dunkelmodus auf dem weissen Vorgabe-`body`.
+ *
+ * WARUM EIGENE VARIABLEN (`--nf-*`) UND KEINE `--ant-*`: antd deklariert seine
+ * Variablen auf der Scope-Klasse `css-var-iuk` an den Wurzeln SEINER eigenen
+ * Komponenten, nicht auf `:root`. Eigenes Markup sieht sie nie, und der Fehler
+ * ist still — dieselbe Falle wie in `_ui/feedback.css`. Der Knopf ist antd und
+ * versorgt sich selbst; alles andere hier ist handgeschrieben und faerbt sich
+ * aus dieser Datei.
+ *
+ * Die Variablen haengen an `.seite` statt an `:root`: ein CSS-Modul kann
+ * `:root` nicht scopen, und Namen wie `--tinte` global in die Suite zu haengen
+ * waere eine Kollision, die erst in einem fremden Modul auffiele (dieselbe
+ * Ueberlegung wie in `f/[slugSecret]/zettel.module.css`).
+ *
+ * Der Dunkelmodus haengt an `:root[data-theme="dark"]`, bewusst NICHT an
+ * `prefers-color-scheme`: die Suite hat einen Umschalter (Cookie `iuk-theme`),
+ * sonst bricht der Fall "System dunkel, Umschalter hell".
+ */
+
+.seite {
+  /* Hellwerte = die Suite-Tokens aus `core/theme/tokens.ts`. */
+  --nf-grund: #eef0f1; /* DRK.papier — derselbe Grund wie `Layout.bodyBg` hell */
+  --nf-karte: #ffffff; /* DRK.karte */
+  --nf-tinte: #1a1d20; /* DRK.tinte, 16,1:1 auf der Karte */
+  --nf-gedaempft: #5b6570; /* DRK.stahl, 5,9:1 auf der Karte */
+  --nf-linie: #d9dde1; /* DRK.linie */
+
+  /*
+   * Die Ziffer ist Zierrat, nicht Information (`aria-hidden`) — sie darf und
+   * soll unter der Textschwelle bleiben, damit die Ueberschrift die staerkste
+   * Stimme im Bild behaelt.
+   */
+  --nf-ziffer: #c3cad0;
+
+  /*
+   * DRK-Rot kommt auf dieser Seite genau EINMAL als eigene Flaeche vor: die
+   * 3px-Fahne. Nicht als Fehlerfarbe und nicht flaechig — `colorError` und
+   * `colorPrimary` sind in dieser Suite derselbe Ton, eine rote Flaeche liest
+   * sich deshalb als Handlungsaufforderung und nicht als Stoerung. Die zweite
+   * rote Stelle ist der antd-Knopf, und der ist genau das: die Handlung.
+   */
+  --nf-akzent: #c8000f; /* DRK.rot */
+
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--nf-grund);
+  color: var(--nf-tinte);
+}
+
+/*
+ * `#c8000f` traegt auf Schwarz nur 3,5:1 und wirkt stumpf; der Dunkelmodus
+ * hebt den Ton an, statt ihn zu uebernehmen — genauso, wie antds Dunkel-
+ * Algorithmus es mit `colorPrimary` fuer den Knopf daneben tut. Grund und Karte
+ * spiegeln `Layout.bodyBg`/`headerBg` aus `core/theme/theme.ts`, damit die
+ * Seite denselben Untergrund hat wie der Rest der Suite.
+ */
+:root[data-theme="dark"] .seite {
+  --nf-grund: #000000;
+  --nf-karte: #141414;
+  --nf-tinte: #f0f2f3;
+  --nf-gedaempft: #9aa2aa; /* 7,4:1 auf der Karte */
+  --nf-linie: #2a2f34;
+  --nf-ziffer: #333b42;
+  --nf-akzent: #ef404c;
+}
+
+.karte {
+  width: 100%;
+  max-width: 560px;
+  padding: 40px 32px;
+  background: var(--nf-karte);
+  border: 1px solid var(--nf-linie);
+  /* 8 wie `borderRadius` in `core/theme/theme.ts` — keine zweite Radiusskala. */
+  border-radius: 8px;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 6%),
+    0 8px 24px rgb(0 0 0 / 6%);
+}
+
+@media (min-width: 480px) {
+  .karte {
+    padding: 48px 40px;
+  }
+}
+
+/*
+ * Kein Schatten auf Schwarz: er hebt dort nichts ab, sondern verschmiert nur
+ * die Kante. Dunkel traegt die Karte ihre Trennung ueber die hellere Flaeche.
+ */
+:root[data-theme="dark"] .karte {
+  box-shadow: none;
+}
+
+.ziffer {
+  margin: 0;
+  /* Eine Zahl, kein Text: `clamp` statt Breakpoint, damit sie auf 320px nicht
+     umbricht und auf dem Desktop nicht verloren wirkt. */
+  font-size: clamp(64px, 17vw, 128px);
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  color: var(--nf-ziffer);
+  /* Ziffern gleicher Breite: sonst sitzt die 4-0-4 sichtbar schief. */
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Die Fahne — dasselbe Zeichen wie auf dem Abendzettel: 3px Rot, kurz,
+ * senkrecht zur Leserichtung. Sie traegt die Herkunft der Seite, ohne ein Logo
+ * zu brauchen.
+ */
+.flagge {
+  display: block;
+  width: 48px;
+  height: 3px;
+  margin: 24px 0;
+  background: var(--nf-akzent);
+}
+
+.titel {
+  margin: 0;
+  /* 24/30 sind Sprossen von antds eigener Leiter (12/14/16/20/24/30) — keine
+     dritte Skala im Sinne von docs/design/README.md. */
+  font-size: clamp(24px, 5vw, 30px);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--nf-tinte);
+  /* Balance-Umbruch, wo der Browser ihn kann; sonst schadet er nicht. */
+  text-wrap: balance;
+}
+
+.text {
+  margin: 16px 0 0;
+  max-width: 46ch;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--nf-gedaempft);
+}
+
+.aktion {
+  margin-top: 32px;
+}
