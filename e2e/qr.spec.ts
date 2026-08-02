@@ -89,25 +89,40 @@ test("nach dem Logout sieht die naechste Person den Verlauf nicht mehr", async (
   // diesem Moment nichts mehr offen ist; Playwright sagt das nicht zu, also
   // muss der Test es herstellen.
   //
-  // Gemessen: lokal steht beim Wischen NICHTS offen (Instrumentierung ueber
-  // `page.on("request"/"requestfinished")`, null offene Anfragen) — deshalb
-  // faellt der Fall hier nie und ist auch bei Wiederholungen nicht zu sehen.
-  // In der CI uebersetzt `next dev` kalt (frischer Checkout, kleiner Runner,
-  // siehe die Zahlen in `fixtures.ts`), und genau dann haengt eine Antwort noch
-  // in der Leitung. Das Zeitbudget des Polls unten bleibt deshalb bei 10 s:
-  // gegen einen falschen WERT hilft kein groesseres Budget.
+  // Gemessen (Instrumentierung ueber `page.on("request"/"requestfinished")`):
+  // lokal steht beim Wischen NICHTS offen — deshalb faellt der Fall hier nie
+  // und ist auch bei Wiederholungen nicht zu sehen. In der CI uebersetzt
+  // `next dev` kalt (frischer Checkout, kleiner Runner, siehe die Zahlen in
+  // `fixtures.ts`), und genau dann haengt eine Antwort noch in der Leitung.
+  //
+  // Ebenfalls gemessen, weil es die Frage entscheidet, ob `networkidle` reicht:
+  // nach dem Eintreten der Ruhe faehrt NICHTS mehr los (1,5 s stillgehalten,
+  // null neue Anfragen). Die zwei `/api/auth/session`-Abrufe pro Seitenaufbau
+  // sind beide der doppelt ausgefuehrte Mount-Effekt der Entwicklungsfassung,
+  // kein spaeterer Fokus-Refetch des `SessionProvider` — sonst laege er hinter
+  // der Ruhe und diese Zeile brächte nichts.
+  //
+  // Das Zeitbudget des Polls unten bleibt bei 10 s: gegen einen falschen WERT
+  // hilft kein groesseres Budget.
   await page.waitForLoadState("networkidle");
 
   // Was danach noch eine Sitzung setzt, gehoert in die Diagnose: bleibt der
   // Poll unten trotz `networkidle` rot, benennt diese Liste die Anfrage, statt
-  // die naechste Untersuchung wieder auf Vermutungen zu stellen.
+  // die naechste Untersuchung wieder auf Vermutungen zu stellen. Der Abstand
+  // zum Wischen ist dabei die eigentliche Aussage und deshalb mitprotokolliert:
+  // wenige Millisekunden heissen „hing schon in der Leitung" (dann hat
+  // `networkidle` nicht getragen), viele heissen „ist danach erst losgefahren"
+  // (dann ist es eine andere Ursache als die hier behobene).
+  const wischZeit = Date.now();
   const wiederbelebt: string[] = [];
   page.on("response", async (antwort) => {
     try {
       const setztSitzung = (await antwort.headersArray()).some(
         (h) => h.name.toLowerCase() === "set-cookie" && h.value.includes("authjs.session-token"),
       );
-      if (setztSitzung) wiederbelebt.push(`${antwort.status()} ${antwort.url()}`);
+      if (setztSitzung) {
+        wiederbelebt.push(`${antwort.status()} ${antwort.url()} (+${Date.now() - wischZeit}ms)`);
+      }
     } catch {
       // Die Seite ist weg, bevor die Kopfzeilen da waren — dann gibt es auch
       // nichts zu melden.
