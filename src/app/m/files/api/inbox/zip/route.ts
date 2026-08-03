@@ -1,5 +1,8 @@
 import { PassThrough, Readable } from "node:stream";
-import archiver from "archiver";
+// archiver 8 ist reines ESM ohne Default-Export: die Fabrik `archiver("zip", …)`
+// gibt es nicht mehr, an ihre Stelle tritt die Klasse `ZipArchive` (index.js
+// exportiert nur noch `Archiver`, `ZipArchive`, `TarArchive`, `JsonArchive`).
+import { ZipArchive, type Archiver } from "archiver";
 import { asc, inArray } from "drizzle-orm";
 
 import { getDb } from "@/app/m/files/_db/client";
@@ -122,7 +125,7 @@ function ausgewaehlteIds(url: URL): string[] {
  * an einer fremden Datei. Der Koordinator kann sie spaeter zusammenlegen.
  */
 function fuegeEin(
-  archiv: archiver.Archiver,
+  archiv: Archiver,
   quelle: Readable | string,
   name: string,
   signal: AbortSignal,
@@ -287,7 +290,7 @@ export async function GET(req: Request): Promise<Response> {
    * sein eigenes Zeitlimit.
    */
   const rumpf = new PassThrough();
-  const archiv = archiver("zip", { zlib: { level: 1 } });
+  const archiv = new ZipArchive({ zlib: { level: 1 } });
   archiv.on("error", (fehler) => {
     console.error("[files] Posteingang-Archiv: Fehler im Archivierer", fehler);
     rumpf.destroy(fehler);
