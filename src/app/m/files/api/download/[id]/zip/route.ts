@@ -1,4 +1,7 @@
-import archiver from "archiver";
+// archiver 8 ist reines ESM ohne Default-Export: die Fabrik `archiver("zip", …)`
+// gibt es nicht mehr, an ihre Stelle tritt die Klasse `ZipArchive` (index.js
+// exportiert nur noch `Archiver`, `ZipArchive`, `TarArchive`, `JsonArchive`).
+import { ZipArchive, type Archiver } from "archiver";
 import { PassThrough, Readable } from "node:stream";
 
 import { getDb } from "@/app/m/files/_db/client";
@@ -128,7 +131,7 @@ function meldung(status: number, text: string): Response {
  * Fehlermodus, gegen den die mitgewanderte Abbruchbehandlung angetreten ist.
  */
 function fuegeEin(
-  archiv: archiver.Archiver,
+  archiv: Archiver,
   quelle: Readable | string,
   name: string,
   signal: AbortSignal,
@@ -256,7 +259,7 @@ export async function GET(
   protokolliereDownload(db, { shareId: share.id, fileId: null, headers: req.headers });
 
   const durchgang = new PassThrough();
-  const archiv = archiver("zip", { zlib: { level: 1 } });
+  const archiv = new ZipArchive({ zlib: { level: 1 } });
   archiv.on("error", (fehler: Error) => {
     // Laut: ab hier ist die Antwort schon unterwegs, der Abrufer sieht nur ein
     // abgeschnittenes Archiv, und ohne diese Zeile gäbe es keine Spur davon.

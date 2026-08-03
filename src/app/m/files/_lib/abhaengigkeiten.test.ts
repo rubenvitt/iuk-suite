@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import bcrypt from "bcryptjs";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 
 /**
  * Der kleinste Test des Moduls und der einzige, der eine 1:1-Pflicht schuetzt,
@@ -59,7 +59,7 @@ describe("bcryptjs — die 1:1-Pflicht der Passwort-Hashes", () => {
 
 describe("archiver — streamt ein ZIP", () => {
   it("liefert einen Stream mit `error`-Haken", () => {
-    const archiv = archiver("zip", { zlib: { level: 1 } });
+    const archiv = new ZipArchive({ zlib: { level: 1 } });
     // Der Haken ist Pflicht, nicht Kosmetik: ein `error` auf einem
     // Archiv-Stream ohne Listener beendet in Node den Prozess.
     expect(typeof archiv.on).toBe("function");
@@ -68,7 +68,7 @@ describe("archiver — streamt ein ZIP", () => {
   });
 
   it("schreibt aus angehaengten Bytes ein lesbares ZIP", async () => {
-    const archiv = archiver("zip", { zlib: { level: 1 } });
+    const archiv = new ZipArchive({ zlib: { level: 1 } });
     const teile: Buffer[] = [];
     const fertig = new Promise<void>((loesen, ablehnen) => {
       archiv.on("data", (stueck: Buffer) => teile.push(stueck));
