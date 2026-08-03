@@ -5,6 +5,17 @@ FROM node:26-alpine AS deps
 # beim Dependabot-Sprung 22 → 26 die deps-Stage, also den ersten Befehl des Builds.
 # Die Version hier und `packageManager` in package.json sind zwei Wahrheiten — wer
 # eine anhebt, hebt die andere mit an.
+#
+# Die Bau-Werkzeuge sind seit better-sqlite3 13.0.0 PFLICHT, nicht Vorsorge: bis
+# 12.11.1 lautete das install-Skript `prebuild-install || node-gyp rebuild` und zog
+# ein fertiges Binding; 13.0.2 hat weder das Skript noch die Abhängigkeit, also
+# baut pnpm über die `binding.gyp` implizit aus den Quellen — und node-gyp bricht
+# ohne Python mit „Could not find any Python installation to use". Das trifft JEDE
+# Node-Version gleich (26, 24 und 22 gemessen), der Node-Sprung 22 → 26 daneben ist
+# unschuldig. Alpine bringt keine dieser drei Pakete mit.
+# Sie bleiben in dieser Stage: das kompilierte Binding wandert mit `node_modules`
+# weiter, das Laufzeit-Image erbt den Werkzeugkasten nicht.
+RUN apk add --no-cache python3 make g++
 RUN npm i -g pnpm@11.0.9
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
