@@ -107,6 +107,26 @@ Die neue `compose.yaml` reicht die `.env` per `env_file` durch und nimmt die
 Traefik-Regel aus einer Variablen. **Beides muss auf dem Server nachgezogen werden** —
 `compose.yaml` liegt dort, nicht im Image.
 
+> ⚠️ **Ab dem Modul `files` sind es ZWEI Dateien neben der `.env`, nicht eine.**
+> `compose.yaml` mountet zusätzlich `./clamd.files.conf` nach `/etc/clamav/clamd.conf`
+> im clamav-Sidecar. Wer `compose.yaml` aktualisiert und diese Datei vergisst, bekommt
+> **keinen** Konfigurationsfehler mit klarer Meldung: Docker legt an der Stelle des
+> Mounts ein leeres **Verzeichnis** an, clamd startet ohne seine Konfiguration, der
+> Healthcheck schlägt fehl — und weil `suite` per `depends_on: service_healthy` auf ihn
+> wartet, **startet die gesamte Suite nicht**, mit allen vier Modulen.
+>
+> Erster Blick bei einem hängenden `up -d` ist deshalb `docker compose ps clamav`, nicht
+> das Suite-Log:
+>
+> ```bash
+> ls -l clamd.files.conf                  # muss eine DATEI sein, kein Verzeichnis
+> docker compose ps clamav                # muss "healthy" werden
+> docker compose logs clamav | tail -20   # clamd schreibt auf die Konsole (kein LogFile)
+> ```
+>
+> Gilt erst, sobald die `compose.yaml` mit dem clamav-Service auf dem Server liegt.
+> Der vollständige Ablauf steht in `files-cutover.md`.
+
 ```bash
 cd <Verzeichnis mit compose.yaml der Suite>
 cp compose.yaml compose.yaml.bak-$(date +%F)      # Rückweg sichern
@@ -283,6 +303,11 @@ Volumes existieren, ist der Alt-Stack in Sekunden zurück.
 
 Nicht jetzt auszuführen — die Vorlage für QR, Feedback, Files, Lagerbuch und Funk.
 Seit dem Update braucht keiner dieser Schritte einen Commit oder CI-Lauf.
+
+> **`files` folgt dieser Vorlage NICHT vollständig** — dort kommen ein zweiter Host in
+> derselben Zeile, drei Zahlen als Startbedingung der ganzen Suite, eine Modulgruppe und
+> ein clamav-Sidecar dazu, und der Alt-Stack wird abgebaut statt in Standby gestellt.
+> Eigenes Runbook: `files-cutover.md`.
 
 1. **DNS + TLS** für die neue Domain auf den Server zeigen lassen.
 2. **`.env` ergänzen** — beide Zeilen, sonst greift die Umstellung nur halb:
