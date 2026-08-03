@@ -1,13 +1,18 @@
 # Stage 1: Dependencies
 FROM node:26-alpine AS deps
-RUN corepack enable && corepack prepare pnpm@11.0.9 --activate
+# pnpm über npm, NICHT über corepack: die Node-Images bündeln corepack seit Node 25
+# nicht mehr, `corepack enable` scheitert dort mit exit 127 („not found"). Das traf
+# beim Dependabot-Sprung 22 → 26 die deps-Stage, also den ersten Befehl des Builds.
+# Die Version hier und `packageManager` in package.json sind zwei Wahrheiten — wer
+# eine anhebt, hebt die andere mit an.
+RUN npm i -g pnpm@11.0.9
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # Stage 2: Build
 FROM node:26-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@11.0.9 --activate
+RUN npm i -g pnpm@11.0.9
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
