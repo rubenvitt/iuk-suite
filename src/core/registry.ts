@@ -47,7 +47,7 @@ export const MODULES: ModuleDef[] = [
   // Einsatz). Der Admin-Bereich schützt sich selbst über core/auth/guards —
   // requiresAuth: true wäre hier falsch und würde den anonymen Zugang nehmen.
   { key: "qr", title: "QR-Codes", icon: "QrcodeOutlined", shell: "minimal",
-    requiresAuth: false, requiredGroups: [], adminGroups: ["drk-qr-admin"],
+    requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-qr-admin"],
     prodHosts: [], showInSwitcher: true },
   // feedback: gemischt wie qr — anonyme Teilnahme (/f/...) braucht keinen Login,
   // requiresAuth:false. Dadurch prüft canAccess() unten requiredGroups HIER
@@ -85,7 +85,7 @@ export const MODULES: ModuleDef[] = [
   // Modul-Icon ohne Eintrag ist ab jetzt ein roter Test statt eines stillen
   // Duplikats.
   { key: "files", title: "Dateien", icon: "FolderOutlined", shell: "full",
-    requiresAuth: false, requiredGroups: [], adminGroups: ["drk-files-admin"],
+    requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-files-admin"],
     prodHosts: [], showInSwitcher: true },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],

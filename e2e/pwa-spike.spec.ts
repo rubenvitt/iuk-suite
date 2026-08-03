@@ -171,14 +171,14 @@ test("WLAN-Formular ist offline erreichbar und erzeugt den korrekten Code", asyn
   // nichtssagenden Locator-Timeout fehl.
   await expect(page.getByLabel("SSID")).toBeVisible();
 
-  await page.getByLabel("SSID").fill("DRK-Einsatz");
+  await page.getByLabel("SSID").fill("IuK-Einsatz");
   await page.getByLabel("Passwort").fill("offline-geheim");
   await page.getByRole("button", { name: /erzeugen/i }).click();
 
   const box = page.getByTestId("qr-display");
   await expect(box.locator("svg")).toBeVisible();
   expect(await decodeQr(await box.innerHTML())).toBe(
-    "WIFI:T:WPA;S:DRK-Einsatz;P:offline-geheim;H:false;;",
+    "WIFI:T:WPA;S:IuK-Einsatz;P:offline-geheim;H:false;;",
   );
 
   await context.setOffline(false);
@@ -198,7 +198,7 @@ test("Admin-Seite landet nicht im SW-Cache", async ({ page }) => {
   await devLogin(page, {
     host: "qr.localtest.me",
     port: 3101,
-    groups: "drk-qr-admin",
+    groups: "iuk-qr-admin",
     callbackPath: "/admin",
   });
   await expect(page.getByTestId("qr-admin")).toBeVisible();

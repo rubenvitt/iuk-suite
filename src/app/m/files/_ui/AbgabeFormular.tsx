@@ -169,7 +169,7 @@ function meldungZu(status: number, code: string | null): Meldung {
       return { text: "Zu viele Anfragen. Bitte kurz warten und erneut versuchen.", wiederholbar: true };
     case 507:
       return {
-        text: "Auf dem Server ist gerade kein Platz. Bitte melden Sie sich bei der Leitstelle.",
+        text: "Auf dem Server ist gerade kein Platz. Bitte melden Sie sich beim I&K.",
         wiederholbar: true,
       };
     default:
@@ -421,7 +421,7 @@ export function AbgabeFormular({ token }: { token: string }) {
 
       <div className={s.feldblock}>
         <label className="fp-label" htmlFor="abgabe-hinweis">
-          Hinweis für die Leitstelle (freiwillig)
+          Hinweis für den I&K (freiwillig)
         </label>
         {/* KEIN `maxlength`. Es schnitte still ab — und zwar in
             UTF-16-Einheiten, also bei Emoji mitten in einem Zeichen. Die Grenze

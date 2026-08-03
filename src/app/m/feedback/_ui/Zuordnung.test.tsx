@@ -66,7 +66,7 @@ const quelle = () =>
   readFileSync(join(process.cwd(), "src/app/m/feedback/_ui/Zuordnung.tsx"), "utf8");
 
 const PERSONEN: ZuordnungPerson[] = [
-  { userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" },
+  { userId: "sub-anna", name: "Anna Beispiel", email: "anna@iuk.example" },
   { userId: "sub-neu", name: null, email: null },
 ];
 
@@ -161,7 +161,7 @@ describe("Zuordnung — Hinzufuegen", () => {
       {
         ok: false,
         fieldErrors: { kennung: "Diese E-Mail ist unbekannt." },
-        values: { kennung: "wer@drk.example" },
+        values: { kennung: "wer@iuk.example" },
       } satisfies FormState,
       () => {},
       false,
@@ -171,7 +171,7 @@ describe("Zuordnung — Hinzufuegen", () => {
     expect(t).toContain("Diese E-Mail ist unbekannt.");
     expect(t).toContain('aria-invalid="true"');
     // Die Eingabe geht nicht verloren (§4.4).
-    expect(t).toContain("wer@drk.example");
+    expect(t).toContain("wer@iuk.example");
   });
 });
 
@@ -207,13 +207,13 @@ const VORSCHLAEGE = [
   {
     userId: "sub-nie",
     name: "Nie Da",
-    email: "nie@drk.example",
+    email: "nie@iuk.example",
     angemeldet: false,
   },
   {
     userId: "sub-anna",
     name: "Anna Beispiel",
-    email: "anna@drk.example",
+    email: "anna@iuk.example",
     angemeldet: true,
   },
 ];
@@ -321,8 +321,8 @@ describe("Zuordnung — Autofill", () => {
    */
   it("jeder Vorschlag traegt seine Kennung — auch wenn E-Mail und Name gleich sind", async () => {
     suchePersonenActionMock.mockResolvedValue([
-      { userId: "sub-eins", name: "Ruben Vitt", email: "rv@drk.example", angemeldet: false },
-      { userId: "sub-zwei", name: "Ruben Vitt", email: "rv@drk.example", angemeldet: true },
+      { userId: "sub-eins", name: "Ruben Vitt", email: "rv@iuk.example", angemeldet: false },
+      { userId: "sub-zwei", name: "Ruben Vitt", email: "rv@iuk.example", angemeldet: true },
     ]);
     await mitVerzeichnis();
     await tippe("ru");
@@ -353,8 +353,8 @@ describe("Zuordnung — Autofill", () => {
    */
   it("die Auswahl des ersten Doppelgaengers schickt dessen sub, nicht den des zweiten", async () => {
     suchePersonenActionMock.mockResolvedValue([
-      { userId: "sub-eins", name: "Ruben Vitt", email: "rv@drk.example", angemeldet: false },
-      { userId: "sub-zwei", name: "Ruben Vitt", email: "rv@drk.example", angemeldet: true },
+      { userId: "sub-eins", name: "Ruben Vitt", email: "rv@iuk.example", angemeldet: false },
+      { userId: "sub-zwei", name: "Ruben Vitt", email: "rv@iuk.example", angemeldet: true },
     ]);
     await mitVerzeichnis();
     await tippe("ru");
@@ -398,10 +398,10 @@ describe("Zuordnung — Autofill", () => {
     suchePersonenActionMock.mockRejectedValue(new Error("Forbidden"));
     await mitVerzeichnis();
 
-    await tippe("anna@drk.example");
+    await tippe("anna@iuk.example");
 
     expect(vorschlagsknoten()).toHaveLength(0);
-    expect(query<HTMLInputElement>('input[name="kennung"]').value).toBe("anna@drk.example");
+    expect(query<HTMLInputElement>('input[name="kennung"]').value).toBe("anna@iuk.example");
   });
 
   it("die Tabelle nennt fehlende Anmeldung auch bei bekanntem Namen", () => {
@@ -409,7 +409,7 @@ describe("Zuordnung — Autofill", () => {
       <Zuordnung
         groupId={7}
         personen={[
-          { userId: "sub-nie", name: "Nie Da", email: "nie@drk.example", angemeldet: false },
+          { userId: "sub-nie", name: "Nie Da", email: "nie@iuk.example", angemeldet: false },
         ]}
         verzeichnisAktiv
       />,
@@ -494,18 +494,18 @@ describe("Zuordnung — Suchfeld nach dem Serverergebnis", () => {
     let aktuell: FormState = { ok: true };
     useActionStateMock.mockImplementation(() => [aktuell, () => {}, false]);
     await mount(feld());
-    await tippe("wer@drk.example");
+    await tippe("wer@iuk.example");
 
     await submitForm();
     aktuell = {
       ok: false,
       fieldErrors: { kennung: "Diese E-Mail ist unbekannt." },
-      values: { kennung: "wer@drk.example" },
+      values: { kennung: "wer@iuk.example" },
     };
     await rerender(feld());
 
-    expect(query<HTMLInputElement>(SUCHFELD).value).toBe("wer@drk.example");
-    expect(query<HTMLInputElement>('input[name="kennung"]').value).toBe("wer@drk.example");
+    expect(query<HTMLInputElement>(SUCHFELD).value).toBe("wer@iuk.example");
+    expect(query<HTMLInputElement>('input[name="kennung"]').value).toBe("wer@iuk.example");
   });
 
   it("der Feldfehler haengt am Eingabeelement mit role=combobox, nicht am Rahmen", () => {
@@ -513,7 +513,7 @@ describe("Zuordnung — Suchfeld nach dem Serverergebnis", () => {
       {
         ok: false,
         fieldErrors: { kennung: "Diese E-Mail ist unbekannt." },
-        values: { kennung: "wer@drk.example" },
+        values: { kennung: "wer@iuk.example" },
       } satisfies FormState,
       () => {},
       false,

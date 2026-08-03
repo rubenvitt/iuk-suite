@@ -68,7 +68,7 @@ describe("KopierZeile", () => {
     expect(query("button").textContent).not.toContain("Kopiert");
   });
 
-  it("ist eine Client-Insel und trägt kein DRK-Rot (kein zweiter Primärknopf, §2.6/§4.9)", async () => {
+  it("ist eine Client-Insel und trägt kein Suite-Rot (kein zweiter Primärknopf, §2.6/§4.9)", async () => {
     const quelle = readFileSync(
       join(process.cwd(), "src/app/m/feedback/_ui/KopierZeile.tsx"),
       "utf8",

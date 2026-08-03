@@ -89,11 +89,11 @@ import { TAP_XL } from "@/core/theme/tokens";
 /*
  * KOMMAGETRENNT, NICHT MIT LEERZEICHEN. `parseDevGroups` (core/auth) trennt an
  * Kommas; mit Leerzeichen entsteht EINE Gruppe namens
- * „da-feedback-admin dashboard-admins drk-qr-admin", `isAdmin` bleibt false,
+ * „da-feedback-admin dashboard-admins iuk-qr-admin", `isAdmin` bleibt false,
  * und `moduleAdminPageOrNotFound("portal")` antwortet mit 404 — die
  * portal- und qr-Verwaltungsseiten faenden sich dann nicht.
  */
-const GRUPPEN = "da-feedback-admin,dashboard-admins,drk-qr-admin";
+const GRUPPEN = "da-feedback-admin,dashboard-admins,iuk-qr-admin";
 
 /** Alles, was rechts aus dem Sichtfeld ragt — mit Namen, damit ein Fehlschlag den Verursacher nennt. */
 async function ueberlauf(page: Page) {

@@ -21,7 +21,7 @@ import { MAX_SERIEN } from "./NotenVerlauf";
  *    Schalter `disabled` — ein Klick, der nichts tut, lehrt „die Anwendung ist
  *    kaputt".
  * 2. KEIN `type="primary"`. `colorError === colorPrimary === #c8000f`: ein
- *    gefuellter Primaerknopf je zugeschalteter Frage waere DRK-Rot auf einer
+ *    gefuellter Primaerknopf je zugeschalteter Frage waere Suite-Rot auf einer
  *    Datenflaeche (§4.9).
  * 3. DER ZUSTAND IST AM KNOPF ABLESBAR, nicht nur an der Farbe: `aria-pressed`.
  *

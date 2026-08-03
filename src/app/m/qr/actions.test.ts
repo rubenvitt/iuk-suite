@@ -38,14 +38,14 @@ function fd(entries: Record<string, string>): FormData {
 }
 
 function asAdmin(): void {
-  authMock.mockResolvedValue({ user: { groups: ["drk-qr-admin"], id: "u1" } } as never);
+  authMock.mockResolvedValue({ user: { groups: ["iuk-qr-admin"], id: "u1" } } as never);
 }
 
 /** Die vier Rollen, aus denen heraus keine Mutation durchgehen darf. */
 const denied: [string, unknown][] = [
   ["anonym", null],
   ["eingeloggt ohne Gruppe", { user: { groups: [] } }],
-  ["nur drk-qr-user", { user: { groups: ["drk-qr-user"] } }],
+  ["nur iuk-qr-user", { user: { groups: ["iuk-qr-user"] } }],
 ];
 
 beforeEach(() => {
@@ -72,8 +72,8 @@ describe("qr admin actions: Autorisierungsgrenze", () => {
     expect(deletePreset).not.toHaveBeenCalled();
   });
 
-  it("drk-qr-user allein genügt nicht", async () => {
-    authMock.mockResolvedValue({ user: { groups: ["drk-qr-user"] } } as never);
+  it("iuk-qr-user allein genügt nicht", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["iuk-qr-user"] } } as never);
     await expect(deletePresetAction(fd({ id: "p1" }))).rejects.toThrow("Forbidden");
     expect(deletePreset).not.toHaveBeenCalled();
   });
@@ -98,7 +98,7 @@ describe("qr admin actions: Autorisierungsgrenze", () => {
     expect(reorderPresets).not.toHaveBeenCalled();
   });
 
-  it("drk-qr-admin darf anlegen", async () => {
+  it("iuk-qr-admin darf anlegen", async () => {
     asAdmin();
     await createPresetAction(fd({ label: "L", kind: "url", value: "https://x" }));
     // Nicht nur DASS geschrieben wurde, sondern WAS: ein falsch verdrahteter
@@ -121,7 +121,7 @@ describe("qr admin actions: Autorisierungsgrenze", () => {
   // Eine Session ohne user.id darf nicht am Schreiber scheitern; der Fallback
   // haelt die Spalte createdBy gefuellt.
   it("trägt 'unbekannt' ein, wenn die Session keine user.id hat", async () => {
-    authMock.mockResolvedValue({ user: { groups: ["drk-qr-admin"] } } as never);
+    authMock.mockResolvedValue({ user: { groups: ["iuk-qr-admin"] } } as never);
     await createPresetAction(fd({ label: "L", kind: "url", value: "https://x" }));
     expect(createPreset).toHaveBeenCalledWith(expect.anything(), "unbekannt");
   });
@@ -188,7 +188,7 @@ describe("qr admin actions: JSON-Nutzlast aus dem Formular", () => {
         label: "WLAN",
         kind: "wifi",
         value: JSON.stringify({
-          ssid: "DRK Einsatz",
+          ssid: "IuK Einsatz",
           password: "geheim",
           encryption: "WPA",
           hidden: false,
@@ -198,7 +198,7 @@ describe("qr admin actions: JSON-Nutzlast aus dem Formular", () => {
     expect(createPreset).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "wifi",
-        value: { ssid: "DRK Einsatz", password: "geheim", encryption: "WPA", hidden: false },
+        value: { ssid: "IuK Einsatz", password: "geheim", encryption: "WPA", hidden: false },
       }),
       "u1",
     );

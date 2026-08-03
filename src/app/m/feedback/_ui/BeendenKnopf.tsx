@@ -14,7 +14,7 @@ import { beendeFeedbackAction } from "../actions";
  *    der Notausgang. Ein roter Knopf lehrt „hier passiert etwas Schlimmes" und
  *    genau das hält Ehrenamtliche davon ab, den Abend abzuschließen.
  * 2. `theme.ts` setzt `colorError === colorPrimary === #c8000f`. `danger` wäre
- *    also DRK-Rot auf einer Datenfläche — die Farb-Klausel (§4.9) verbietet das
+ *    also Suite-Rot auf einer Datenfläche — die Farb-Klausel (§4.9) verbietet das
  *    im ganzen Modul, weil Rot hier für „Note 6" reserviert ist.
  *
  * Die Bestätigung liegt im `Popconfirm` und nennt die Folge wörtlich, statt zu

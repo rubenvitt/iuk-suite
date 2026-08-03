@@ -88,7 +88,7 @@ describe("Aushang — Inhalt (§3.5)", () => {
     expect(t).toContain(URL_VOLL);
     expect(t).toContain("Anonym · 8 Noten, 6 freie Zeilen · etwa 2 Minuten");
     expect(t).toContain("Der Code gilt für alle Dienstabende.");
-    expect(t).toContain("DRK");
+    expect(t).toContain("I&K");
   });
 
   it("zeigt den QR in Druckauflösung (`?w=1024`), nicht die 512px der Vorschau", async () => {
@@ -188,7 +188,7 @@ describe("Aushang — Druck-CSS (§3.5)", () => {
       .map((deklaration) => deklaration[1].trim());
     expect(farben.length).toBeGreaterThan(0);
     for (const wert of farben) {
-      // DIE EINE ERLAUBTE LITERALFARBE ist das DRK-Rot des Wortzeichens (Marke,
+      // DIE EINE ERLAUBTE LITERALFARBE ist das Suite-Rot des Wortzeichens (Marke,
       // nicht Datenflaeche) — der Test darunter deckelt es auf genau zwei
       // Vorkommen in der Datei.
       if (wert.toLowerCase() === "#c8000f") continue;
@@ -203,7 +203,7 @@ describe("Aushang — Druck-CSS (§3.5)", () => {
     }
   });
 
-  it("trägt DRK-Rot GENAU ZWEIMAL: 3px-Fahne und Wortzeichen (§4.9)", () => {
+  it("trägt Suite-Rot GENAU ZWEIMAL: 3px-Fahne und Wortzeichen (§4.9)", () => {
     // Ohne Kommentare: der Dateikopf NENNT die Regel, die hier geprüft wird.
     const regeln = css.replace(/\/\*[\s\S]*?\*\//g, "").toLowerCase();
     expect(regeln.match(/#c8000f/g)?.length).toBe(2);

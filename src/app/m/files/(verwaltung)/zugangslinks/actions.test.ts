@@ -77,7 +77,7 @@ const tokenHashMock = vi.mocked(tokenHash);
 const revalidatePathMock = vi.mocked(revalidatePath);
 
 /** Die Gruppe aus `core/registry.ts:88` — die einzige Stufe des Moduls (§2.4). */
-const GRUPPE = "drk-files-admin";
+const GRUPPE = "iuk-files-admin";
 
 const STUNDE_SEKUNDEN = 3600;
 
@@ -629,7 +629,7 @@ describe("ohne Zugang weisen alle drei Actions ab (§2.4)", () => {
     ["eingeloggt ohne Gruppe", { user: { id: "sub-9", groups: [] } }, "NEXT_NOT_FOUND"],
     [
       "eingeloggt mit fremder Gruppe",
-      { user: { id: "sub-9", groups: ["drk-qr-admin"] } },
+      { user: { id: "sub-9", groups: ["iuk-qr-admin"] } },
       "NEXT_NOT_FOUND",
     ],
   ];

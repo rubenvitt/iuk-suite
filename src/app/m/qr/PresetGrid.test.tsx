@@ -15,9 +15,9 @@ const wlan: Preset = {
   label: "WLAN Einsatz",
   icon: "📶",
   kind: "wifi",
-  value: { ssid: "DRK Einsatz", password: "geheim123", encryption: "WPA" },
+  value: { ssid: "IuK Einsatz", password: "geheim123", encryption: "WPA" },
 };
-const link: Preset = { id: "drk", label: "DRK", kind: "url", value: "https://drk.de" };
+const link: Preset = { id: "iuk", label: "IuK", kind: "url", value: "https://example.org" };
 
 const push = vi.fn();
 

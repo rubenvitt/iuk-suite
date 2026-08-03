@@ -52,12 +52,12 @@ function pushedParam(name: string): string {
 describe("WLAN-Formular", () => {
   it("setzt Netzwerkname und Passwort an die richtige Stelle der WIFI-Zeile", async () => {
     await mount(<WifiPage />);
-    await fill("#wifi-ssid", "DRK Einsatz");
+    await fill("#wifi-ssid", "IuK Einsatz");
     await fill("#wifi-pass", "geheim123");
     await submitForm();
 
-    expect(pushedParam("data")).toBe("WIFI:T:WPA;S:DRK Einsatz;P:geheim123;H:false;;");
-    expect(pushedParam("label")).toBe("WLAN: DRK Einsatz");
+    expect(pushedParam("data")).toBe("WIFI:T:WPA;S:IuK Einsatz;P:geheim123;H:false;;");
+    expect(pushedParam("label")).toBe("WLAN: IuK Einsatz");
     expect(pushedParam("kind")).toBe("wifi");
   });
 
@@ -81,13 +81,13 @@ describe("WLAN-Formular", () => {
 
   it("schreibt den Verlaufseintrag mit demselben Payload", async () => {
     await mount(<WifiPage />);
-    await fill("#wifi-ssid", "DRK Einsatz");
+    await fill("#wifi-ssid", "IuK Einsatz");
     await fill("#wifi-pass", "geheim123");
     await submitForm();
 
     expect(loadHistory()[0].payload).toEqual({
       kind: "wifi",
-      value: { ssid: "DRK Einsatz", password: "geheim123", encryption: "WPA", hidden: false },
+      value: { ssid: "IuK Einsatz", password: "geheim123", encryption: "WPA", hidden: false },
     });
   });
 });
@@ -108,8 +108,8 @@ describe("Kontakt-Formular", () => {
     await mount(<ContactPage />);
     await fill("#c-name", "Max Mustermann");
     await fill("#c-tel", "+4930123");
-    await fill("#c-email", "max@drk.de");
-    await fill("#c-org", "DRK");
+    await fill("#c-email", "max@example.org");
+    await fill("#c-org", "IuK");
     await submitForm();
 
     expect(pushedParam("data")).toBe(
@@ -118,8 +118,8 @@ describe("Kontakt-Formular", () => {
         "VERSION:3.0",
         "FN:Max Mustermann",
         "TEL:+4930123",
-        "EMAIL:max@drk.de",
-        "ORG:DRK",
+        "EMAIL:max@example.org",
+        "ORG:IuK",
         "END:VCARD",
       ].join("\n"),
     );

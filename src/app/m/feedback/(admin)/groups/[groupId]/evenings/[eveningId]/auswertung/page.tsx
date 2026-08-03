@@ -29,7 +29,7 @@ import { PromptBlock } from "@/app/m/feedback/_ui/PromptBlock";
  *    Frage die Gruppe gespalten hat. Ein Balken mit dem Mittelwert 3,0 aus 6×1 und
  *    6×5 zeigt „befriedigend" — die einzige Note, die niemand gegeben hat. Das
  *    Diagramm aus `core/charts` fehlt hier nicht aus Bequemlichkeit: es färbt mit
- *    `colorPrimary` (DRK-Rot, Farb-Klausel §4.9) und kennt keine invertierte
+ *    `colorPrimary` (Suite-Rot, Farb-Klausel §4.9) und kennt keine invertierte
  *    Skala.
  * 2. DIE AMPEL LIEST `avgSchulnote`, NIE `overallAvg` (§4.12) — der gemischte Wert
  *    schiebt Alt-Sterne (1–5) auf die Schulnotenrampe (1–6). `overallAvg` bleibt

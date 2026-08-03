@@ -51,7 +51,7 @@ Haarlinie verschwindet einfach. **Regel:** `--ant-*` nur in Props von antd-Kompo
 nutzt modul-eigene Variablen (`--fb-*` im Modul `feedback`).
 
 **3. `colorError === colorPrimary === #c8000f`.**
-`core/theme/theme.ts` setzt die Fehlerfarbe auf DRK-Rot. Ein `Alert type="error"` ist damit optisch
+`core/theme/theme.ts` setzt die Fehlerfarbe auf Suite-Rot. Ein `Alert type="error"` ist damit optisch
 eine Primäraktion. Wo Rot zusätzlich eine **fachliche** Bedeutung trägt (im Modul `feedback`: „Note 6 —
 ungenügend"), darf Rot **niemals auf einer Datenfläche** erscheinen — kein rotes `Tag`, kein roter
 `Progress`, kein roter Balken. Warnungen sind `type="warning"` oder Text plus 3px linke Kante.
@@ -125,7 +125,7 @@ den Farbeindruck der Suite. Beispiel: die Schulnoten-Ampel in `app/m/feedback/_l
 
 Drei Farbrollen, sauber getrennt:
 
-1. **DRK-Rot** = Marke und Primäraktion. Nie Statusfarbe, nie Datenfarbe.
+1. **Suite-Rot** = Marke und Primäraktion. Nie Statusfarbe, nie Datenfarbe.
 2. **Fachsemantische Palette** = ausschließlich Werte ihrer Skala. Nie für Serien, Kategorien,
    Fortschritt oder Zustand.
 3. **Neutral/Graphit** = alles andere, insbesondere Fortschritt und Mengen.

@@ -50,8 +50,8 @@ import { setzeAvModus } from "./helpers/avModus";
 const VERWALTUNG = "files.localtest.me";
 const V = `http://${VERWALTUNG}:3100`;
 
-/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["drk-files-admin"]`). */
-const GRUPPE = "drk-files-admin";
+/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["iuk-files-admin"]`). */
+const GRUPPE = "iuk-files-admin";
 
 /**
  * 12 MiB — und die Zahl ist von zwei Seiten festgelegt, nicht gewaehlt:

@@ -235,7 +235,7 @@ wissen, *wo* der Zustand steht, sondern nur lesen, *was* dort steht.
 
 **Bausteine.** `Card` (Server) · `Statistic` mit `valueStyle` (Server, ohne `formatter`) ·
 `Progress` ohne `format`, zwingend `strokeColor="var(--fb-ink)" trailColor="var(--fb-fill)"`
-(antds Vorgabe ist `colorPrimary` = DRK-Rot; ein roter Rücklaufbalken liest sich als Alarm) ·
+(antds Vorgabe ist `colorPrimary` = Suite-Rot; ein roter Rücklaufbalken liest sich als Alarm) ·
 Notenspur (eigenes Server-Markup) · **Client:** `StartFormular` (`useActionState`, `Input`,
 `Input type="date"`, `Button`, `Popconfirm`), `QrGross` (Modal), `BeendenKnopf` (Popconfirm),
 `Aktualisierer` (rendert nichts).
@@ -514,9 +514,9 @@ wird nach `_lib/requireFeedbackAccess.ts` ausgelagert und von **beiden** Layouts
 `guardPage(groupId)` in der Seite selbst; sonst verliert die Druckansicht die zweite
 Verteidigungslinie.
 
-**Aufbau (A4 Hochformat):** 3px DRK-Rot-Fahne am Oberrand · „Wie war der Dienstabend?" 40pt ·
+**Aufbau (A4 Hochformat):** 3px Suite-Rot-Fahne am Oberrand · „Wie war der Dienstabend?" 40pt ·
 Gruppenname 16pt gedämpft · QR **90mm** zentriert · URL 12pt mono · eine Zeile „Anonym · 8 Noten,
-6 freie Zeilen · etwa 2 Minuten" · Fußzeile „Der Code gilt für alle Dienstabende." + Wortzeichen DRK.
+6 freie Zeilen · etwa 2 Minuten" · Fußzeile „Der Code gilt für alle Dienstabende." + Wortzeichen I&K.
 
 ```css
 @page { size: A4; margin: 18mm }
@@ -683,7 +683,7 @@ Kopierzeile) `:focus-visible { outline: 2px solid var(--fb-ink); outline-offset:
 
 ### 4.9 Farb-Governance — die drei Rollen und die Review-Klausel
 
-1. **DRK-Rot `#c8000f`** = Marke und Primäraktion. Nur: Füllung des **einen** Primärknopfs pro Seite,
+1. **Suite-Rot `#c8000f`** = Marke und Primäraktion. Nur: Füllung des **einen** Primärknopfs pro Seite,
    `colorLink` (Suite-Vorgabe), Suite-Chrome (FullShell-Header, AppSwitcher), Rand/okButton der
    Gefahrendialoge, 3px-Fahne im Aushang. Nie Statusfarbe, nie Datenfarbe, nie Fläche größer als ein
    Knopf.
@@ -694,10 +694,10 @@ Kopierzeile) `:focus-visible { outline: 2px solid var(--fb-ink); outline-offset:
 **Review-Klausel (verbindlich, gilt für jeden künftigen Patch im Modul):** Im Modul `feedback`
 erscheint `#c8000f` (bzw. `colorPrimary`/`colorError`) **niemals auf einer Datenfläche** — kein rotes
 `Tag`, kein roter `Progress`, kein roter Balken, kein `Alert type="error"`, kein
-`type="primary" danger`. Grund und Beleg: `theme.ts:22-23` setzt `colorError: DRK.rot`, also
+`type="primary" danger`. Grund und Beleg: `theme.ts:22-23` setzt `colorError: FARBEN.rot`, also
 `colorError === colorPrimary === #c8000f`; gleichzeitig bedeutet `#811221` in derselben Anwendung
 „Note 6 — ungenügend". Der erste `Alert type="error"` in der Nähe einer Notenpille holt die
-Verwechslung zurück. Warnungen sind `type="warning"` (`colorWarning: DRK.gelb`) oder — auf
+Verwechslung zurück. Warnungen sind `type="warning"` (`colorWarning: FARBEN.gelb`) oder — auf
 Datenflächen — Text plus 3px linke Kante in `var(--fb-line)`.
 `Progress` **muss** `strokeColor="var(--fb-ink)"` und `trailColor="var(--fb-fill)"` setzen; antds
 Vorgabe ist `colorPrimary`.
@@ -722,7 +722,7 @@ Umgeschaltet über `:root[data-theme="light"|"dark"]` (Suite-Änderung, 5.1):
 | `--fb-tint` | `#f2f4f5` | `#1e1e1e` |
 | `--fb-fill` | `#e6e9eb` | `#2a2a2a` |
 
-Die Hellwerte sind die Suite-Tokens (`DRK.tinte/stahl/linie`), die Dunkelwerte antds Vorgaben — kein
+Die Hellwerte sind die Suite-Tokens (`FARBEN.tinte/stahl/linie`), die Dunkelwerte antds Vorgaben — kein
 zweiter Farbeindruck, nur ein zweiter Zugriffsweg.
 
 ### 4.11 Ampel-Definition: exakte Farbwerte, Schwellen, Bauteile
@@ -957,7 +957,7 @@ Framework für einen Nutzer.
 
 ### 5.3 `core/charts` bleibt unangetastet — bewusst gegen den naheliegenden Griff
 
-`LineChart`/`BarChart` (je 55 Zeilen) färben mit `token.colorPrimary` (= DRK-Rot) und kennen keine
+`LineChart`/`BarChart` (je 55 Zeilen) färben mit `token.colorPrimary` (= Suite-Rot) und kennen keine
 umgekehrte Achse; die heutige Auswertung zeichnet Noten deshalb in Markenrot mit „länger =
 schlechter". Für die Notendarstellung bräuchte man dort vier Änderungen: `reversed`, `stroke`,
 `ReferenceArea`-Kinder und farbige Punkte je Wert. **Alle vier Aufrufer wären in diesem Modul.**

@@ -64,11 +64,11 @@ function moduleSource(relativeFile: string): string {
 }
 
 describe("core/charts", () => {
-  it("kodiert die DRK-Rot-Farbe in BarChart nicht als Literal", () => {
+  it("kodiert die Suite-Rot-Farbe in BarChart nicht als Literal", () => {
     expect(moduleSource("./BarChart.tsx")).not.toContain("#c8000f");
   });
 
-  it("kodiert die DRK-Rot-Farbe in LineChart nicht als Literal", () => {
+  it("kodiert die Suite-Rot-Farbe in LineChart nicht als Literal", () => {
     expect(moduleSource("./LineChart.tsx")).not.toContain("#c8000f");
   });
 

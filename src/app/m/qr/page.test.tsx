@@ -24,7 +24,7 @@ const preset: Preset = {
   id: "wlan-einsatz",
   label: "WLAN Einsatz",
   kind: "wifi",
-  value: { ssid: "DRK", password: "geheim123", encryption: "WPA" },
+  value: { ssid: "IuK", password: "geheim123", encryption: "WPA" },
 };
 
 function flatten(node: unknown, out: ReactElement[] = []): ReactElement[] {

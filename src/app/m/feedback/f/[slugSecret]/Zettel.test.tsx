@@ -1689,7 +1689,7 @@ describe("Politur der oeffentlichen Ansicht", () => {
 
 describe("Rot-Budget der Route", () => {
   it("nennt `#c8000f` GENAU zweimal — Fahne und Wortzeichen", () => {
-    // Nach OBEN begrenzt war die Zusage halb: verschwindet das DRK-Rot ganz,
+    // Nach OBEN begrenzt war die Zusage halb: verschwindet das Suite-Rot ganz,
     // druckt die Route ohne Marke, und kein Test meldete etwas. Der Entwurf legt
     // zwei Stellen fest, nicht „bis zu zwei".
     const treffer = cssOhneKommentare.match(/#c8000f/gi) ?? [];

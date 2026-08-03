@@ -33,7 +33,7 @@ import Database from "better-sqlite3";
 const DIR = "./.data/files-inboxzip-test";
 const VERWALTUNG = "files.localtest.me";
 const INBOX = "drop.localtest.me";
-const GRUPPE = "drk-files-admin";
+const GRUPPE = "iuk-files-admin";
 
 /** Feste Uhr: der Archivname traegt das Datum, und eine laufende Uhr flackerte. */
 const JETZT = new Date("2026-08-01T10:00:00Z");

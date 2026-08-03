@@ -47,7 +47,7 @@ export default async function Aushang({
 
   return (
     <main className="fb-aushang">
-      {/* Träger 1 von zwei für DRK-Rot: 3px-Fahne, randlos, nie als Fläche (§4.9). */}
+      {/* Träger 1 von zwei für Suite-Rot: 3px-Fahne, randlos, nie als Fläche (§4.9). */}
       <div className="fb-aushang-fahne" aria-hidden="true" />
       <h1 className="fb-aushang-frage">Wie war der Dienstabend?</h1>
       <p className="fb-aushang-gruppe">{group.name}</p>
@@ -69,8 +69,8 @@ export default async function Aushang({
       <p className="fb-aushang-zeile">Anonym · 8 Noten, 6 freie Zeilen · etwa 2 Minuten</p>
       <footer className="fb-aushang-fuss">
         <span>Der Code gilt für alle Dienstabende.</span>
-        {/* Träger 2 von zwei für DRK-Rot: das Wortzeichen. */}
-        <span className="fb-aushang-wortzeichen">DRK</span>
+        {/* Träger 2 von zwei für Suite-Rot: das Wortzeichen. */}
+        <span className="fb-aushang-wortzeichen">I&amp;K</span>
       </footer>
       <Drucken />
     </main>

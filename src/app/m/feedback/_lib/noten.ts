@@ -21,8 +21,8 @@
  * Kanal, der Rot-Gruen-Blindheit und Graustufen uebersteht. Eigene Werte
  * brechen beide Zusicherungen — `noten.test.ts` rechnet sie nach.
  *
- * KEIN `#c8000f`: DRK-Rot ist auf diesen Routen Marke (3px-Fahne, Wortzeichen
- * "DRK"), niemals Note 6. Note 6 `#811221` ist deutlich dunkler und kuehler.
+ * KEIN `#c8000f`: Suite-Rot ist auf diesen Routen Marke (3px-Fahne, Wortzeichen
+ * "I&K"), niemals Note 6. Note 6 `#811221` ist deutlich dunkler und kuehler.
  *
  * BENENNUNG: die deutschen Namen hier sind die verbindliche Schnittstelle
  * (Plan Task 10). Der TS-Ausschnitt in `feedback-admin.md` §4.11 zeigt

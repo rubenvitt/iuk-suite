@@ -524,7 +524,7 @@ describe("Zone e — die Leitung ist Admin-Sache (§2.6)", () => {
     upsertKnownUser(db, {
       userId: "sub-anna",
       name: "Anna Beispiel",
-      email: "anna@drk.example",
+      email: "anna@iuk.example",
       seenAt: new Date(0),
     });
     setGroupMembers(db, 1, ["sub-anna", "sub-nie-da"]);
@@ -564,7 +564,7 @@ describe("Zone e — die Leitung ist Admin-Sache (§2.6)", () => {
   it("Verzeichnis aktiv: die Zuordnung zeigt den Namen, obwohl niemand angemeldet war", async () => {
     verzeichnisListMock.mockResolvedValue({
       status: "ok",
-      people: [{ userId: "sub-nie-da", name: "Nie Da", email: "nie@drk.example" }],
+      people: [{ userId: "sub-nie-da", name: "Nie Da", email: "nie@iuk.example" }],
     });
     setGroupMembers(db, 1, ["sub-nie-da"]);
     alsAdmin();
@@ -575,7 +575,7 @@ describe("Zone e — die Leitung ist Admin-Sache (§2.6)", () => {
     const inhalt = query(".ant-collapse-body").textContent ?? "";
 
     expect(inhalt).toContain("Nie Da");
-    expect(inhalt).toContain("nie@drk.example");
+    expect(inhalt).toContain("nie@iuk.example");
     // Die Kennung bleibt sichtbar — sie ist der Wert, der wirklich gespeichert ist.
     expect(inhalt).toContain("sub-nie-da");
     // Und die Suche steht bereit, statt des schlichten Feldes.

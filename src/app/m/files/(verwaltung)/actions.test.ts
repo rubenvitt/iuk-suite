@@ -103,7 +103,7 @@ import { BlobFehlt, abschliesse, fortschritt, groesse, schreibeStrom } from "@/a
 const authMock = vi.mocked(auth);
 
 /** Die Gruppe aus `registry.ts:88` — `adminGroupsFor` liest sie. */
-const GRUPPE = "drk-files-admin";
+const GRUPPE = "iuk-files-admin";
 const SUB = "sub-4711";
 
 /** `FILES_MAX_ABLAUF_TAGE` im Test — klein, damit die Obergrenze pruefbar ist. */

@@ -56,8 +56,8 @@ const INBOX = "drop.localtest.me";
 const V = `http://${VERWALTUNG}:3100`;
 const I = `http://${INBOX}:3100`;
 
-/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["drk-files-admin"]`). */
-const GRUPPE = "drk-files-admin";
+/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["iuk-files-admin"]`). */
+const GRUPPE = "iuk-files-admin";
 
 test("1 — Verwaltungs-Host: `/` zeigt die Freigaben-Uebersicht und die dreigliedrige Modulnavigation", async ({
   page,

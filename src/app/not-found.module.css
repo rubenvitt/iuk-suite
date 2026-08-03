@@ -27,11 +27,11 @@
 
 .seite {
   /* Hellwerte = die Suite-Tokens aus `core/theme/tokens.ts`. */
-  --nf-grund: #eef0f1; /* DRK.papier — derselbe Grund wie `Layout.bodyBg` hell */
-  --nf-karte: #ffffff; /* DRK.karte */
-  --nf-tinte: #1a1d20; /* DRK.tinte, 16,1:1 auf der Karte */
-  --nf-gedaempft: #5b6570; /* DRK.stahl, 5,9:1 auf der Karte */
-  --nf-linie: #d9dde1; /* DRK.linie */
+  --nf-grund: #eef0f1; /* FARBEN.papier — derselbe Grund wie `Layout.bodyBg` hell */
+  --nf-karte: #ffffff; /* FARBEN.karte */
+  --nf-tinte: #1a1d20; /* FARBEN.tinte, 16,1:1 auf der Karte */
+  --nf-gedaempft: #5b6570; /* FARBEN.stahl, 5,9:1 auf der Karte */
+  --nf-linie: #d9dde1; /* FARBEN.linie */
 
   /*
    * Die Ziffer ist Zierrat, nicht Information (`aria-hidden`) — sie darf und
@@ -41,13 +41,13 @@
   --nf-ziffer: #c3cad0;
 
   /*
-   * DRK-Rot kommt auf dieser Seite genau EINMAL als eigene Flaeche vor: die
+   * Suite-Rot kommt auf dieser Seite genau EINMAL als eigene Flaeche vor: die
    * 3px-Fahne. Nicht als Fehlerfarbe und nicht flaechig — `colorError` und
    * `colorPrimary` sind in dieser Suite derselbe Ton, eine rote Flaeche liest
    * sich deshalb als Handlungsaufforderung und nicht als Stoerung. Die zweite
    * rote Stelle ist der antd-Knopf, und der ist genau das: die Handlung.
    */
-  --nf-akzent: #c8000f; /* DRK.rot */
+  --nf-akzent: #c8000f; /* FARBEN.rot */
 
   min-height: 100dvh;
   display: grid;

@@ -19,7 +19,7 @@ import { T } from "./typo";
  * DER NOTENVERLAUF (Entwurf §3.3, §5.3) — recharts DIREKT, modul-lokal.
  *
  * WARUM NICHT `core/charts/LineChart` (§5.3, wortgenau): der dort faerbt mit
- * `token.colorPrimary` (= DRK-Rot, und Rot gehoert im Modul `feedback` allein
+ * `token.colorPrimary` (= Suite-Rot, und Rot gehoert im Modul `feedback` allein
  * der Note 6 bzw. der Marke — Farb-Klausel §4.9) und kennt weder eine
  * umgekehrte Achse noch `ReferenceArea`-Kinder noch farbige Punkte je Wert. Vier
  * fehlende Faehigkeiten, deren Aufrufer ALLE in diesem Modul liegen. Also bleibt

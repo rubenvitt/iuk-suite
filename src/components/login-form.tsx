@@ -4,9 +4,9 @@ import { useSearchParams } from "next/navigation";
 import { absoluteCallbackUrl } from "@/core/auth/callbackUrl";
 import { useState } from "react";
 import { Button, Input } from "antd";
-import { DRK, SPACE } from "@/core/theme/tokens";
+import { FARBEN, SPACE } from "@/core/theme/tokens";
 
-// Kleiner, lokaler Helfer: übersetzt einen DRK-Hex-Wert mit Deckkraft in eine
+// Kleiner, lokaler Helfer: übersetzt einen Suite-Hex-Wert mit Deckkraft in eine
 // CSS-Farbe — Ersatz für Tailwinds Opacity-Modifier (`bg-[..]/NN`), den es
 // für `style`-Objekte nicht gibt.
 function rgba(hex: string, alpha: number): string {
@@ -60,7 +60,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
         style={{
           position: "absolute",
           inset: 0,
-          background: `linear-gradient(to bottom right, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.55), ${rgba(DRK.rotBg, 0.6)})`,
+          background: `linear-gradient(to bottom right, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.55), ${rgba(FARBEN.rotBg, 0.6)})`,
           backdropFilter: "blur(2px)",
         }}
       />
@@ -74,7 +74,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
           height: 384,
           width: 384,
           borderRadius: 9999,
-          backgroundColor: rgba(DRK.rot, 0.1),
+          backgroundColor: rgba(FARBEN.rot, 0.1),
           filter: "blur(64px)",
         }}
       />
@@ -87,7 +87,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
           height: 448,
           width: 448,
           borderRadius: 9999,
-          backgroundColor: rgba(DRK.tinte, 0.05),
+          backgroundColor: rgba(FARBEN.tinte, 0.05),
           filter: "blur(64px)",
         }}
       />
@@ -122,8 +122,8 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
                 alignItems: "center",
                 justifyContent: "center",
                 borderRadius: 16,
-                backgroundColor: DRK.rot,
-                boxShadow: `0 10px 15px -3px ${rgba(DRK.rot, 0.3)}, 0 4px 6px -4px ${rgba(DRK.rot, 0.3)}`,
+                backgroundColor: FARBEN.rot,
+                boxShadow: `0 10px 15px -3px ${rgba(FARBEN.rot, 0.3)}, 0 4px 6px -4px ${rgba(FARBEN.rot, 0.3)}`,
               }}
             >
               <span
@@ -142,12 +142,12 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
                 fontSize: 24,
                 fontWeight: 700,
                 letterSpacing: "-0.025em",
-                color: DRK.tinte,
+                color: FARBEN.tinte,
               }}
             >
               IuK-Suite
             </h1>
-            <p style={{ marginTop: SPACE.sm, fontSize: 14, color: DRK.stahl }}>
+            <p style={{ marginTop: SPACE.sm, fontSize: 14, color: FARBEN.stahl }}>
               Internes Service-Dashboard für Information &amp; Kommunikation
             </p>
           </div>
@@ -170,7 +170,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
             Mit Pocket ID anmelden
           </Button>
 
-          <p style={{ marginTop: SPACE.lg, textAlign: "center", fontSize: 12, color: DRK.stahl }}>
+          <p style={{ marginTop: SPACE.lg, textAlign: "center", fontSize: 12, color: FARBEN.stahl }}>
             Du wirst zu Pocket ID weitergeleitet und nach der Anmeldung
             zurückgebracht.
           </p>
@@ -182,7 +182,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
                 display: "flex",
                 flexDirection: "column",
                 gap: SPACE.md,
-                borderTop: `1px solid ${DRK.linie}`,
+                borderTop: `1px solid ${FARBEN.linie}`,
                 paddingTop: SPACE.xl,
               }}
               onSubmit={async (e) => {
@@ -205,7 +205,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
                   fontSize: 12,
                   fontWeight: 500,
                   letterSpacing: "0.025em",
-                  color: DRK.stahl,
+                  color: FARBEN.stahl,
                   textTransform: "uppercase",
                 }}
               >
@@ -230,7 +230,7 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
             marginTop: SPACE.xl,
             textAlign: "center",
             fontSize: 12,
-            color: rgba(DRK.stahl, 0.8),
+            color: rgba(FARBEN.stahl, 0.8),
           }}
         >
           IuK-Suite · Interner Bereich · Zugriff nur für Berechtigte

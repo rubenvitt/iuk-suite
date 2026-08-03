@@ -536,7 +536,7 @@ function Ruecklauf({ zeile, ohneBalken = false }: { zeile: VerlaufZeile; ohneBal
           }}
         >
           {/* Eigenes Markup in `--fb-ink`, nicht `Progress`: dessen Vorgabe ist
-              `colorPrimary` — also DRK-Rot auf einer Datenflaeche (§4.9). */}
+              `colorPrimary` — also Suite-Rot auf einer Datenflaeche (§4.9). */}
           <span
             style={{
               display: "block",

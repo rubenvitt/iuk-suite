@@ -37,7 +37,7 @@ import { TeilnehmerzahlNachtragen } from "./AbendBearbeiten";
  *
  * FARBE: die getönte Fläche in C/D ist `--fb-tint`, der Rücklaufbalken trägt
  * `--fb-ink` auf `--fb-fill`. antds Vorgabe für `Progress` wäre `colorPrimary`,
- * und das ist in diesem Projekt DRK-Rot — ein roter Rücklaufbalken liest sich als
+ * und das ist in diesem Projekt Suite-Rot — ein roter Rücklaufbalken liest sich als
  * Alarm, und Rot gehört im Modul `feedback` nie auf eine Datenfläche (§4.9).
  */
 

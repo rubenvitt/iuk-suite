@@ -26,7 +26,7 @@ import {
  * dauerhaft im Plot.
  *
  * WARUM MODUL-LOKAL UND NICHT `core/charts` (§5.3): `core/charts/LineChart`
- * faerbt mit `token.colorPrimary` (= DRK-Rot, Farb-Klausel) und kennt weder
+ * faerbt mit `token.colorPrimary` (= Suite-Rot, Farb-Klausel) und kennt weder
  * `reversed` noch `ReferenceArea`-Kinder noch farbige Punkte je Wert. Alle vier
  * fehlenden Faehigkeiten haetten ausschliesslich Aufrufer in diesem Modul.
  *

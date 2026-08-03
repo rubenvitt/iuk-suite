@@ -43,14 +43,14 @@ describe("registry", () => {
     expect(canAccess(getModule("portal"), [])).toBe(true);
     expect(canAccess(getModule("portal"), null)).toBe(false);
   });
-  it("qr ist anonym erreichbar und hat drk-qr-admin als Modul-Admin", () => {
+  it("qr ist anonym erreichbar und hat iuk-qr-admin als Modul-Admin", () => {
     const qr = getModule("qr");
     expect(qr.requiresAuth).toBe(false);
     // Minimal-Shell ist Teil des anonymen Zugangs: die Full-Shell würde für
     // jeden Besucher auth() aufrufen und den App-Switcher-Header rendern.
     expect(qr.shell).toBe("minimal");
     expect(canAccess(qr, null)).toBe(true);
-    expect(qr.adminGroups).toEqual(["drk-qr-admin"]);
+    expect(qr.adminGroups).toEqual(["iuk-qr-admin"]);
     expect(moduleForHost("qr.localtest.me")?.key).toBe("qr");
   });
   /*

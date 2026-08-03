@@ -1,4 +1,4 @@
-import { DRK } from "@/core/theme/tokens";
+import { FARBEN } from "@/core/theme/tokens";
 
 /**
  * Geteilte Inline-Style-Bausteine fuer Stellen, die ausserhalb von antds
@@ -18,8 +18,8 @@ import { DRK } from "@/core/theme/tokens";
  * Literal-Fallback dahinter still eingreift — deshalb hier an genau einer
  * Stelle, statt das Risiko dreimal einzugehen.
  *
- * Der Fallback selbst ist `DRK.linie`, nicht antds Grau (`#d9d9d9`): greift
+ * Der Fallback selbst ist `FARBEN.linie`, nicht antds Grau (`#d9d9d9`): greift
  * die CSS-Variable einmal nicht (z. B. ausserhalb des Theme-Providers), soll
  * die Linie auf die Suite-Farbe zurueckfallen, nicht still auf antds eigene.
  */
-export const RAHMEN = `1px solid var(--ant-color-border, ${DRK.linie})`;
+export const RAHMEN = `1px solid var(--ant-color-border, ${FARBEN.linie})`;

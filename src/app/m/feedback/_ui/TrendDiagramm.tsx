@@ -30,7 +30,7 @@ import { T } from "./typo";
  *    Sichtlinien ist eine Ansichtsfrage, und §3.3 verlangt sie nicht teilbar. In
  *    der URL käme das Klemmen unbekannter ids und einer vierten Frage dazu.
  * 3. KEIN `type="primary"`. `colorError === colorPrimary === #c8000f`: ein
- *    gefüllter Primärknopf pro zugeschalteter Frage wäre DRK-Rot auf einer
+ *    gefüllter Primärknopf pro zugeschalteter Frage wäre Suite-Rot auf einer
  *    Datenfläche (Farb-Klausel §4.9). Der Unterschied zwischen an und aus liegt
  *    an `default` gegen `text` plus `aria-pressed`.
  * 4. DIE REIHE STEHT ÜBER DEM DIAGRAMM. Sie erklärt, was man gleich sieht;

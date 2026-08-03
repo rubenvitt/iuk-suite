@@ -183,9 +183,27 @@ function enthaelt(node: ReactNode, typ: unknown): boolean {
   return enthaelt((node.props as { children?: ReactNode }).children, typ);
 }
 
-/** Sichtbarer Text ohne Markup — fuer Wortlaut-Zusicherungen. */
+/**
+ * Sichtbarer Text ohne Markup — fuer Wortlaut-Zusicherungen.
+ *
+ * Entitaeten werden aufgeloest, weil hier auf String-Markup gemessen wird und
+ * nicht auf einem DOM-Knoten: das Wortzeichen „I&K" steht im Markup als
+ * `I&amp;K`, im Browser aber als `I&K`. Ohne die Aufloesung pruefte die
+ * Zusicherung die Serialisierung statt des Wortlauts.
+ */
 function text(markup: string): string {
-  return markup.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return (
+    markup
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&#x27;|&apos;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      // `&amp;` zuletzt, sonst wuerde aus `&amp;lt;` faelschlich `<`.
+      .replace(/&amp;/g, "&")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 beforeEach(() => {
@@ -663,7 +681,7 @@ describe("Gemeinsame Huelle aller Zustaende", () => {
       expect(markup.match(new RegExp(`class="[^"]*${s.fahne}[^"]*"`, "g"))?.length).toBe(1);
       expect(markup.match(new RegExp(s.wortzeichen, "g"))?.length).toBe(1);
       expect(text(markup)).toContain("Rückmeldung zum Dienstabend");
-      expect(text(markup)).toContain("DRK");
+      expect(text(markup)).toContain("I&K");
     }
   });
 
@@ -683,7 +701,7 @@ describe("Gemeinsame Huelle aller Zustaende", () => {
     }
   });
 
-  it("nennt in keiner der Zustandsdateien DRK-Rot", async () => {
+  it("nennt in keiner der Zustandsdateien Suite-Rot", async () => {
     for (const datei of ["./page.tsx", "./thanks/page.tsx", "./Zustaende.tsx"]) {
       expect(quelle(datei).replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/#c8000f/i);
     }

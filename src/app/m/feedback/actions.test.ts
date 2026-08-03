@@ -1309,12 +1309,12 @@ describe("Zuordnung der Leitung: Admin-Sache, Hinzufügen und Entfernen", () => 
     upsertKnownUser(db, {
       userId: "sub-abc",
       name: "Anna Beispiel",
-      email: "anna@drk.example",
+      email: "anna@iuk.example",
       seenAt: new Date(),
     });
     alsAdmin();
 
-    await addGroupLeaderAction({ ok: true }, form(g.id, "Anna@DRK.example"));
+    await addGroupLeaderAction({ ok: true }, form(g.id, "Anna@iuk.example"));
 
     expect(listGroupMembers(db, g.id)).toEqual(["sub-abc"]);
   });
@@ -1324,7 +1324,7 @@ describe("Zuordnung der Leitung: Admin-Sache, Hinzufügen und Entfernen", () => 
     const g = seedGroup();
     alsAdmin();
 
-    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@drk.example"));
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@iuk.example"));
 
     if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
     expect(ergebnis.fieldErrors.kennung).toBeTruthy();
@@ -1413,7 +1413,7 @@ describe("suchePersonenAction: Autofill aus dem Personenverzeichnis", () => {
   it("liefert Personen aus dem Verzeichnis — mit dem sub als Schlüssel", async () => {
     const { suchePersonenAction } = await loadActions();
     alsAdmin();
-    imVerzeichnis({ userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" });
+    imVerzeichnis({ userId: "sub-anna", name: "Anna Beispiel", email: "anna@iuk.example" });
 
     const treffer = await suchePersonenAction("anna");
 
@@ -1421,7 +1421,7 @@ describe("suchePersonenAction: Autofill aus dem Personenverzeichnis", () => {
       {
         userId: "sub-anna",
         name: "Anna Beispiel",
-        email: "anna@drk.example",
+        email: "anna@iuk.example",
         angemeldet: false,
       },
     ]);
@@ -1433,18 +1433,18 @@ describe("suchePersonenAction: Autofill aus dem Personenverzeichnis", () => {
     upsertKnownUser(db, {
       userId: "sub-da",
       name: "War Schon Da",
-      email: "da@drk.example",
+      email: "da@iuk.example",
       seenAt: new Date(),
     });
     imVerzeichnis(
-      { userId: "sub-da", name: "War Schon Da", email: "da@drk.example" },
-      { userId: "sub-nie", name: "Nie Da", email: "nie@drk.example" },
+      { userId: "sub-da", name: "War Schon Da", email: "da@iuk.example" },
+      { userId: "sub-nie", name: "Nie Da", email: "nie@iuk.example" },
     );
 
     const treffer = await suchePersonenAction("da");
 
     // Reihenfolgeunabhängig: geprüft wird die KENNZEICHNUNG, nicht die Sortierung
-    // (die prüft `personen.test.ts`, und `da@drk.example` gewinnt dort zu Recht,
+    // (die prüft `personen.test.ts`, und `da@iuk.example` gewinnt dort zu Recht,
     // weil die E-Mail mit dem Suchbegriff beginnt).
     expect(new Map(treffer.map((p) => [p.userId, p.angemeldet]))).toEqual(
       new Map([
@@ -1460,10 +1460,10 @@ describe("suchePersonenAction: Autofill aus dem Personenverzeichnis", () => {
     upsertKnownUser(db, {
       userId: "sub-anna",
       name: "Anna B.",
-      email: "anna@drk.example",
+      email: "anna@iuk.example",
       seenAt: new Date(),
     });
-    imVerzeichnis({ userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" });
+    imVerzeichnis({ userId: "sub-anna", name: "Anna Beispiel", email: "anna@iuk.example" });
 
     const treffer = await suchePersonenAction("anna");
 
@@ -1479,13 +1479,13 @@ describe("suchePersonenAction: Autofill aus dem Personenverzeichnis", () => {
     upsertKnownUser(db, {
       userId: "sub-lokal",
       name: "Nur Lokal",
-      email: "lokal@drk.example",
+      email: "lokal@iuk.example",
       seenAt: new Date(),
     });
     verzeichnisSearchMock.mockResolvedValue({ status: "error", people: [] });
 
     await expect(suchePersonenAction("lokal")).resolves.toEqual([
-      { userId: "sub-lokal", name: "Nur Lokal", email: "lokal@drk.example", angemeldet: true },
+      { userId: "sub-lokal", name: "Nur Lokal", email: "lokal@iuk.example", angemeldet: true },
     ]);
   });
 
@@ -1495,7 +1495,7 @@ describe("suchePersonenAction: Autofill aus dem Personenverzeichnis", () => {
     upsertKnownUser(db, {
       userId: "sub-lokal",
       name: "Nur Lokal",
-      email: "lokal@drk.example",
+      email: "lokal@iuk.example",
       seenAt: new Date(),
     });
     verzeichnisSearchMock.mockResolvedValue({ status: "unconfigured", people: [] });
@@ -1554,10 +1554,10 @@ describe("suchePersonenAction: Autofill aus dem Personenverzeichnis", () => {
     upsertKnownUser(db, {
       userId: "sub-anna",
       name: "Anna Beispiel",
-      email: "anna@drk.example",
+      email: "anna@iuk.example",
       seenAt: new Date(),
     });
-    imVerzeichnis({ userId: "sub-anna", name: "Anna Beispiel", email: "anna@drk.example" });
+    imVerzeichnis({ userId: "sub-anna", name: "Anna Beispiel", email: "anna@iuk.example" });
     alsGruppenleitung("bereitschaft");
 
     await expect(suchePersonenAction("anna")).rejects.toThrow();
@@ -1592,10 +1592,10 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
     alsAdmin();
     verzeichnisFindByEmailMock.mockResolvedValue({
       status: "ok",
-      people: [{ userId: "sub-nie", name: "Nie Da", email: "nie@drk.example" }],
+      people: [{ userId: "sub-nie", name: "Nie Da", email: "nie@iuk.example" }],
     });
 
-    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "Nie@DRK.example"));
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "Nie@iuk.example"));
 
     expect(ergebnis.ok).toBe(true);
     // GESPEICHERT WIRD DER `sub` — nicht die E-Mail, nicht der Name.
@@ -1608,12 +1608,12 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
     upsertKnownUser(db, {
       userId: "sub-lokal",
       name: "Lokal",
-      email: "lokal@drk.example",
+      email: "lokal@iuk.example",
       seenAt: new Date(),
     });
     alsAdmin();
 
-    await addGroupLeaderAction({ ok: true }, form(g.id, "lokal@drk.example"));
+    await addGroupLeaderAction({ ok: true }, form(g.id, "lokal@iuk.example"));
 
     expect(listGroupMembers(db, g.id)).toEqual(["sub-lokal"]);
     // Der häufige Fall kostet keinen Netzaufruf — und kann nicht dadurch
@@ -1643,13 +1643,13 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
       upsertKnownUser(db, {
         userId: sub,
         name: "Doppelt Da",
-        email: "doppelt@drk.example",
+        email: "doppelt@iuk.example",
         seenAt: new Date(),
       });
     }
     alsAdmin();
 
-    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "doppelt@drk.example"));
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "doppelt@iuk.example"));
 
     if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
     expect(ergebnis.fieldErrors.kennung).toBe(FEHLER_EMAIL_MEHRDEUTIG);
@@ -1664,12 +1664,12 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
     verzeichnisFindByEmailMock.mockResolvedValue({
       status: "ok",
       people: [
-        { userId: "dir-eins", name: "Doppelt Da", email: "doppelt@drk.example" },
-        { userId: "dir-zwei", name: "Doppelt Da", email: "doppelt@drk.example" },
+        { userId: "dir-eins", name: "Doppelt Da", email: "doppelt@iuk.example" },
+        { userId: "dir-zwei", name: "Doppelt Da", email: "doppelt@iuk.example" },
       ],
     });
 
-    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "doppelt@drk.example"));
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "doppelt@iuk.example"));
 
     if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
     expect(ergebnis.fieldErrors.kennung).toBe(FEHLER_EMAIL_MEHRDEUTIG);
@@ -1682,7 +1682,7 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
     alsAdmin();
     verzeichnisFindByEmailMock.mockResolvedValue({ status: "ok", people: [] });
 
-    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@drk.example"));
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@iuk.example"));
 
     if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
     expect(ergebnis.fieldErrors.kennung).not.toContain("einmal geöffnet");
@@ -1695,7 +1695,7 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
     alsAdmin();
     verzeichnisFindByEmailMock.mockResolvedValue({ status: "error", people: [] });
 
-    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@drk.example"));
+    const ergebnis = await addGroupLeaderAction({ ok: true }, form(g.id, "wer@iuk.example"));
 
     if (ergebnis.ok) throw new Error("erwartet: Feldfehler");
     expect(ergebnis.fieldErrors.kennung).toContain("einmal geöffnet");

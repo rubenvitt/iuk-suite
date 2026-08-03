@@ -4,7 +4,7 @@ import { parseFachgruppen } from "@/core/auth/fachgruppen";
 describe("parseFachgruppen", () => {
   it("liest den konfigurierten Claim als string[]", () => {
     expect(parseFachgruppen({ fachgruppen: ["sanitaet", "iuk"] })).toEqual(["sanitaet", "iuk"]);
-    expect(parseFachgruppen({ drk_fachgruppen: ["iuk"] }, "drk_fachgruppen")).toEqual(["iuk"]);
+    expect(parseFachgruppen({ iuk_fachgruppen: ["iuk"] }, "iuk_fachgruppen")).toEqual(["iuk"]);
   });
 
   // Sicherheitsgrenze: fehlender Claim ergibt die LEERE Menge, nie "alle".
