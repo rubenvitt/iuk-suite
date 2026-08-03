@@ -22,7 +22,7 @@
     "antd": "^6.5.1",
     "archiver": "^7.0.1",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.11.1",
+    "better-sqlite3": "^13.0.2",
     "drizzle-orm": "^0.45.2",
     "nanoid": "^5.1.16",
     "next": "16.2.11",
