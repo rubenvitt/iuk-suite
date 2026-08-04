@@ -123,16 +123,36 @@ export function gateGesperrt(absender: string): number | null {
  * produktiv eingetreten (feedback, 15 Ehrenamtliche aus einem Vereins-WLAN;
  * `m/files/api/u/[token]/upload/route.ts:140-149` schreibt den Vorfall aus).
  *
- * DIE KETTE IST KURZSCHLIESSEND (`&&`-Semantik ueber frueh zurueckkehrende
- * Zweige): ein bereits gesperrter Absender verbraucht das modulweite Budget
- * nicht mit, sonst legte ein einzelner Klopfer die Ausgabe fuer alle lahm.
+ * DIE KETTE IST KURZSCHLIESSEND — und zwar an JEDER Stufe (Absender, Minute,
+ * Stunde) gegen dieselbe FESTE Deadline, die auch `gateGesperrt` liest
+ * (`restMs`/`gesperrtBis`), NIE gegen den Rueckgabewert von
+ * `RateLimiter.check()` allein. Der Unterschied ist keine Kosmetik:
+ * `check()` ist ein GLEITENDES Fenster. Liegt der AELTESTE der Treffer, die
+ * zu einer Sperre fuehrten, VOR dem Treffer, der sie AUSGELOEST hat (das ist
+ * der Normalfall bei mehr als einem Treffer), oeffnet das gleitende Fenster
+ * FRUEHER als die feste Deadline ablaeuft. Fragte der Kurzschluss in dieser
+ * Luecke erneut nur `check()`, bekaeme er "erlaubt" zurueck — waehrend
+ * `gateGesperrt` fuer denselben Schluessel weiterhin "gesperrt" meldet — und
+ * liesse den Fehlversuch bis zur naechsten Stufe durchfallen. Genau dort
+ * wuerde ein laengst gesperrter Absender (oder eine laengst gesperrte
+ * Minutenbremse) das naechste Budget mitverbrauchen: ein einzelner, bereits
+ * gesperrter Klopfer legte die Ausgabe fuer alle lahm (bei der Minutenbremse
+ * sogar fuer eine ganze STUNDE, nicht nur eine Minute). Deshalb fragt jede
+ * Stufe ZUERST ihre eigene feste Deadline; nur wenn die frei ist, befragt sie
+ * ihren `RateLimiter`.
  *
  * Jedes `false` schreibt die FENSTERLAENGE als Sperrzeit fort — bewusst
  * konservativ: es laeuft dann die Sperre ab, nicht der gleitende Eimer.
  */
 export function gateFehlversuchBuchen(absender: string): void {
   const jetzt = Date.now();
-  if (!proAbsender.check(absender))     { gesperrtBis.set(absender,      jetzt +    60_000); return; }
-  if (!gateMinute.check(MODULWEIT_MIN)) { gesperrtBis.set(MODULWEIT_MIN, jetzt +    60_000); return; }
+
+  if (restMs(absender, jetzt) > 0) return;
+  if (!proAbsender.check(absender)) { gesperrtBis.set(absender, jetzt + 60_000); return; }
+
+  if (restMs(MODULWEIT_MIN, jetzt) > 0) return;
+  if (!gateMinute.check(MODULWEIT_MIN)) { gesperrtBis.set(MODULWEIT_MIN, jetzt + 60_000); return; }
+
+  if (restMs(MODULWEIT_STD, jetzt) > 0) return;
   if (!gateStunde.check(MODULWEIT_STD)) { gesperrtBis.set(MODULWEIT_STD, jetzt + 3_600_000); }
 }

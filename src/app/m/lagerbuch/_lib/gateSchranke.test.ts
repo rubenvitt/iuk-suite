@@ -217,6 +217,82 @@ describe("gateGesperrt LIEST NUR", () => {
   });
 });
 
+describe("die feste Sperre gilt VOR dem gleitenden Fenster", () => {
+  it("ein Absender mit noch laufender fester Sperre bucht nicht im modulweiten Minutenzaehler, auch wenn sein gleitendes Fenster schon wieder Platz haette", async () => {
+    /**
+     * proAbsender.check() ist ein GLEITENDES Fenster; gesperrtBis (und damit
+     * gateGesperrt) ist eine FESTE Deadline ab dem Sperr-Ausloeser. Weil der
+     * AELTESTE der beiden Treffer, die zur Sperre fuehren, VOR dem Ausloeser
+     * liegt, oeffnet das gleitende Fenster FRUEHER als die feste Deadline
+     * ablaeuft. Fragt der Kurzschluss in dieser Luecke erneut nur
+     * `proAbsender.check()`, bekommt er "erlaubt" zurueck — waehrend
+     * `gateGesperrt` fuer denselben Absender weiterhin "gesperrt" meldet — und
+     * der Fehlversuch faellt bis zum modulweiten Minutenzaehler durch. Ein
+     * Absender, den `gateGesperrt` als gesperrt ausweist, darf das modulweite
+     * Budget NICHT mitverbrauchen.
+     *
+     * Aufbau: proAbsender-Fenster 2, gestreut ueber t=0 und t=2000, sodass der
+     * Sperr-Ausloeser bei t=2000 eine feste Deadline bei t=62000 setzt, das
+     * gleitende Fenster aber schon bei t=60001 wieder Platz hat (der Treffer
+     * von t=0 ist dann aus dem 60s-Fenster geglitten).
+     */
+    const s = await frisch({
+      LAGERBUCH_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "2",
+      LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "3",
+    });
+
+    s.gateFehlversuchBuchen("cf:A");                  // t=0: 1. Fehlversuch (legitim)
+    vi.advanceTimersByTime(1000);
+    s.gateFehlversuchBuchen("cf:A");                  // t=1000: 2. Fehlversuch (legitim)
+    vi.advanceTimersByTime(1000);
+    s.gateFehlversuchBuchen("cf:A");                  // t=2000: 3. Fehlversuch -> Absender-Eimer voll, feste Deadline=62000
+    expect(s.gateGesperrt("cf:A")).not.toBeNull();
+
+    vi.advanceTimersByTime(58001);                     // t=60001: gleitendes Fenster von A hat wieder Platz
+    expect(s.gateGesperrt("cf:A"), "die feste Sperre laeuft noch 1999ms").not.toBeNull();
+
+    s.gateFehlversuchBuchen("cf:A");                   // der Leck-Kandidat: MUSS ohne Wirkung bleiben
+    s.gateFehlversuchBuchen("cf:C");                   // legitimer Fehlversuch, 2. von 3 modulweiten Slots
+    s.gateFehlversuchBuchen("cf:D");                   // legitimer Fehlversuch, 3. von 3 modulweiten Slots
+
+    // Ohne das Leck sind erst 3 modulweite Slots durch A (2. Versuch), C und D
+    // rechtmaessig belegt — ein voellig unbeteiligter vierter Absender muss
+    // noch offen sein.
+    expect(s.gateGesperrt("cf:E")).toBeNull();
+  });
+
+  it("waehrend die Minutenbremse noch (fest) gesperrt ist, bucht ein Fehlversuch nicht in der Stundenbremse", async () => {
+    /**
+     * Dieselbe Divergenz wie oben, jetzt zwischen den beiden modulweiten
+     * Zaehlern: gateMinute.check() ist ein gleitendes Fenster,
+     * gesperrtBis(MODULWEIT_MIN) eine feste Deadline. Faellt ein Fehlversuch in
+     * dieser Luecke bis zur Stundenbremse durch, kostet ein einzelner, bereits
+     * gesperrter Klopfer eine ganze STUNDE Ausgabesperre fuer alle — statt der
+     * vorgesehenen Minute.
+     */
+    const s = await frisch({
+      LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "2",
+      LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "2",
+    });
+
+    s.gateFehlversuchBuchen("cf:P");                  // t=0: 1. Fehlversuch (legitim)
+    vi.advanceTimersByTime(2000);
+    s.gateFehlversuchBuchen("cf:Q");                  // t=2000: 2. Fehlversuch (legitim)
+    s.gateFehlversuchBuchen("cf:R");                  // t=2000: 3. Fehlversuch -> Minutenbremse voll, feste Deadline=62000
+    expect(s.gateGesperrt("cf:egal")).not.toBeNull();
+
+    vi.advanceTimersByTime(58001);                     // t=60001: gleitendes Minutenfenster hat wieder Platz
+    expect(s.gateGesperrt("cf:egal"), "die feste Minutensperre laeuft noch 1999ms").not.toBeNull();
+
+    s.gateFehlversuchBuchen("cf:S");                   // der Leck-Kandidat: darf NICHT in die Stundenbremse durchfallen
+
+    vi.advanceTimersByTime(2000);                       // t=62001: die Minutensperre ist jetzt regulaer abgelaufen
+    // Isoliert die Stundenbremse (2/2 durch P und Q rechtmaessig belegt, aber
+    // NICHT ausgeloest): ein voellig unbeteiligter Absender muss offen sein.
+    expect(s.gateGesperrt("cf:V")).toBeNull();
+  });
+});
+
 describe("die Env-Zahlen wirken", () => {
   it("liest die drei Grenzen aus der Umgebung, nicht aus dem Code", async () => {
     const s = await frisch({ LAGERBUCH_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "1" });
