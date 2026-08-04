@@ -188,7 +188,12 @@ function ohneKommentareUndEinfacheStrings(quelle: string): string {
   while (i < quelle.length) {
     const c = quelle[i];
     if (c === "/" && quelle[i + 1] === "/") {
-      while (i < quelle.length && quelle[i] !== "\n") i++;
+      // LAENGENTREU blanken, nicht verwerfen: `findeZonenVerstoesse` schneidet
+      // das zitierte Codestueck mit `bereinigt`-Indizes aus dem ROHEN Text
+      // (Zeile 259: `quelltext.slice(m.index, i)`). Ein Zeichen weniger hier
+      // verschiebt jede spaetere Position um genau das — die Meldung zitiert
+      // dann falschen Text, nicht den Verstoss.
+      while (i < quelle.length && quelle[i] !== "\n") { out += " "; i++; }
       continue;
     }
     if (c === "/" && quelle[i + 1] === "*") {
@@ -298,6 +303,26 @@ describe("findeZonenVerstoesse — die Mechanik des Scans, isoliert getestet", (
     expect(findeZonenVerstoesse(
       "const s = `Nutzer's Wert`;\nconst x = new Date(2026, 5, 1);",
     )).toHaveLength(1);
+  });
+
+  it("zitiert den RICHTIGEN Codeausschnitt, auch nach einem vorangehenden Zeilenkommentar", () => {
+    /**
+     * `findeZonenVerstoesse` schneidet den zitierten Text mit Indizes aus dem
+     * BEREINIGTEN String aus dem ROHEN `quelltext` (Zeile 257). Wird ein
+     * `//`-Kommentar beim Bereinigen ERSATZLOS verworfen statt laengentreu
+     * geblankt, verschiebt sich jede Position danach um genau die verworfene
+     * Laenge — die Meldung zitiert dann ein falsches Codestueck, nicht den
+     * Verstoss. Zwei Kommentarzeilen VOR dem Verstoss machen den Fehler
+     * unuebersehbar (Review-Fix, Fix-Runde 1).
+     */
+    const quelle = [
+      "// erste Kommentarzeile, wird beim Bereinigen entfernt",
+      "// zweite Kommentarzeile, ebenfalls",
+      "export const x = new Date(2026, 7, 4);",
+    ].join("\n");
+    const treffer = findeZonenVerstoesse(quelle);
+    expect(treffer).toHaveLength(1);
+    expect(treffer[0]).toBe("Zeile 3: new Date(2026, 7, 4)");
   });
 });
 
