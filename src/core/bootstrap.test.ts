@@ -165,6 +165,11 @@ describe("assertHostConfig — die sechs Boot-Prüfungen von `files` (§9.4)", (
     // gesetzt" muss aber wörtlich gelten, sonst prüft Punkt 1 etwas anderes.
     for (const name of ZAHL_NAMEN) vi.stubEnv(name, undefined);
     vi.stubEnv("SUITE_HOST_FILES", undefined);
+    // Seit T38 ruft `assertHostConfig()` auch `lagerbuchBootFehler()` mit —
+    // eine gesetzte `SUITE_HOST_LAGERBUCH` in einer Entwickler-Shell schaltete
+    // sonst dessen Pruefungen 5/6 scharf und liesse Assertions dieses Blocks an
+    // einer Variable scheitern, die er gar nicht prueft.
+    vi.stubEnv("SUITE_HOST_LAGERBUCH", undefined);
     spione.hostPruefung = 0;
     spione.avArbeiter = 0;
   });
@@ -367,19 +372,39 @@ describe("die Reihenfolge im Boot (src/instrumentation.ts)", () => {
 describe("Boot-Haken der Module sind verdrahtet", () => {
   const QUELLE = readFileSync("src/core/bootstrap.ts", "utf8");
 
+  /**
+   * Nur der `errors`-Array-Block, und darin nur die WIRKSAMEN (nicht
+   * auskommentierten) Zeilen. Ein Ganzdatei-Scan liesse ein
+   * `// ...(await lagerbuchBootFehler()),` — mitten im Debuggen
+   * auskommentiert und vergessen — als bestanden durch: die Zeichenkette
+   * steht ja noch im Quelltext, nur nicht mehr wirksam. Genau diese Mutation
+   * ist die wahrscheinlichere als das entfernte `await` aus der Gegenprobe.
+   */
+  const errorsBlock = (() => {
+    const von = QUELLE.indexOf("const errors = [");
+    const bis = QUELLE.indexOf("];", von);
+    if (von === -1 || bis === -1) throw new Error("const errors = [ ... ]; nicht gefunden");
+    return QUELLE.slice(von, bis)
+      .split("\n")
+      .filter((zeile) => !zeile.trim().startsWith("//"))
+      .join("\n");
+  })();
+
   it("assertHostConfig ruft jeden Modul-Boot-Haken", () => {
     for (const haken of ["filesBootFehler", "lagerbuchBootFehler"]) {
       expect(QUELLE, `${haken} fehlt in bootstrap.ts`).toContain(haken);
     }
   });
 
-  it("jeder Haken steht AWAITET im errors-Array, nicht irgendwo", () => {
+  it("jeder Haken steht WIRKSAM AWAITET im errors-Array, nicht irgendwo", () => {
     // Ein `lagerbuchBootFehler();` ohne `await` und ohne Spread waere
     // typkorrekt, lint-sauber und wirkungslos — die Promise liefe ins Leere und
     // die Fehlerliste bliebe leer. Genau dieselbe Klasse, die der Kopfkommentar
-    // von assertHostConfig fuer `files` ausschreibt.
+    // von assertHostConfig fuer `files` ausschreibt. Geprueft wird gegen
+    // `errorsBlock`, nicht gegen `QUELLE`: ein auskommentierter Aufruf ist im
+    // Quelltext lesbar, aber wirkungslos, und darf hier nicht bestehen.
     for (const haken of ["filesBootFehler", "lagerbuchBootFehler"]) {
-      expect(QUELLE, `${haken}: kein "...(await ${haken}())"`)
+      expect(errorsBlock, `${haken}: kein wirksames "...(await ${haken}())" im errors-Array`)
         .toContain(`...(await ${haken}())`);
     }
   });
