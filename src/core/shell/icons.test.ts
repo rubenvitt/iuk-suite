@@ -189,4 +189,8 @@ describe("ICONS ist client-only — der Quelltext-Riegel", () => {
     // finden, und genau deshalb ist der Scan oben der einzige Riegel.
     expect(Object.keys(ICONS).length).toBeGreaterThan(0);
   });
+
+  it("kennt ContainerOutlined fuer lagerbuch", () => {
+    expect(Object.keys(ICONS)).toContain("ContainerOutlined");
+  });
 });

@@ -3,6 +3,7 @@ import {
   BorderOutlined,
   CaretUpOutlined,
   CommentOutlined,
+  ContainerOutlined,
   DesktopOutlined,
   FolderOutlined,
   GlobalOutlined,
@@ -137,4 +138,5 @@ export const ICONS: Record<string, ComponentType> = {
   DesktopOutlined,
   CommentOutlined,
   FolderOutlined,
+  ContainerOutlined,
 };
