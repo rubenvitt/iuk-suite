@@ -104,10 +104,24 @@ export type CheckErgebnis = CheckErgebnisV1 | CheckErgebnisV2;
  * frische Kopie. Sonst teilten sich zwei Aufrufer dieselben Arrays, und ein
  * `.sort()` im Leser (T49 sortiert alle vier Detaillisten) veraenderte die Ausgabe
  * des anderen. Uebersicht und Detail rufen denselben Parser.
+ *
+ * ⚠️ Review-Fix T37: EINGEFROREN — nicht nur die Konstante selbst, auch jede der
+ * fuenf Listen darin. Ein `Object.freeze` allein auf dem Objekt liesse `push` auf
+ * `.positionen` weiterhin zu; erst das Einfrieren der Arrays verhindert, dass ein
+ * kuenftiger Aufrufer (T40, T49) versehentlich DIREKT auf dieser Konstante statt
+ * auf dem Rueckgabewert von `parseCheckErgebnis` mutiert und sie damit fuer den
+ * Rest der Prozesslaufzeit verfaelscht — der Typ bleibt dabei unveraendert
+ * (mutierbare Arrays), nur der Laufzeitwert ist geschuetzt.
  */
 export const LEERES_ERGEBNIS: CheckErgebnisV2 = {
   version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [],
 };
+Object.freeze(LEERES_ERGEBNIS.positionen);
+Object.freeze(LEERES_ERGEBNIS.artikel);
+Object.freeze(LEERES_ERGEBNIS.geraete);
+Object.freeze(LEERES_ERGEBNIS.flaschen);
+Object.freeze(LEERES_ERGEBNIS.verfall);
+Object.freeze(LEERES_ERGEBNIS);
 
 /** Frische, leere V2-Struktur — nie die geteilte Konstante. */
 function leer(): CheckErgebnisV2 {

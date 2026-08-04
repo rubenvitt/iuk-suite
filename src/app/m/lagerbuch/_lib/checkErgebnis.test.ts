@@ -119,6 +119,54 @@ describe("parseCheckErgebnis — jeder Lesefehler wird ein LEERES V2", () => {
     });
   });
 
+  it("ist eingefroren — ein Mutationsversuch veraendert den Wert nicht", () => {
+    /**
+     * Review-Fix T37: `LEERES_ERGEBNIS` wird von keinem Rueckgabeweg des
+     * Parsers geleakt (siehe voriger Test) — aber ein kuenftiger Aufrufer
+     * (T40, T49) koennte versehentlich DIREKT auf der Konstante mutieren
+     * statt auf dem Rueckgabewert, und das verfaelschte sie fuer den Rest
+     * der Prozesslaufzeit. `Object.freeze` haertet das ab.
+     *
+     * `Object.freeze` wirkt je nach Modus verschieden: im strict mode (ESM,
+     * hier der Fall) wirft eine Zuweisung auf ein eingefrorenes Objekt oder
+     * Array; im nicht-strict Modus schluckt sie leise. Der Test prueft
+     * deshalb den WERT danach, nicht nur einen Wurf.
+     */
+    try {
+      (LEERES_ERGEBNIS as unknown as { version: number }).version = 1;
+    } catch {
+      // erwartet im strict mode
+    }
+    try {
+      LEERES_ERGEBNIS.positionen.push({ artikelId: "x" });
+    } catch {
+      // erwartet im strict mode
+    }
+    try {
+      LEERES_ERGEBNIS.artikel.push({ artikelId: "x" });
+    } catch {
+      // erwartet im strict mode
+    }
+    try {
+      LEERES_ERGEBNIS.geraete.push({ geraetId: "x" });
+    } catch {
+      // erwartet im strict mode
+    }
+    try {
+      LEERES_ERGEBNIS.flaschen.push({ flascheId: "x" });
+    } catch {
+      // erwartet im strict mode
+    }
+    try {
+      LEERES_ERGEBNIS.verfall.push({ artikelId: "x", verfall: "2026-09" });
+    } catch {
+      // erwartet im strict mode
+    }
+    expect(LEERES_ERGEBNIS).toEqual({
+      version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [],
+    });
+  });
+
   it("liefert bei jedem Aufruf eine EIGENE Instanz der Listen", () => {
     /**
      * Sonst teilten sich zwei Aufrufer dieselben Arrays, und ein `.sort()` im
