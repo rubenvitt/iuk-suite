@@ -133,6 +133,23 @@ Keine Entscheidungen mehr — Handgriffe. Sie gehören ins Cutover-Runbook.
 - [ ] Cutover-Anschreiben: Codes nur noch sperrbar (D11) · Lesezeichen-Symbol wird das der Suite
       (D12) · ggf. „Kärtchen neu scannen" (D4)
 - [ ] Restlücke aus D6 in die Cutover-Übergabe schreiben, nicht in eine Fußnote
+- [ ] Import in `tokens`: Spalten immer namentlich nennen, nie `SELECT *` — Alt-Schema und
+      regeneriertes Schema tragen ab Position 4 eine andere Spaltenreihenfolge (B1, b6b5a96); die
+      still gefährlichste Variante ist ohnehin keine `SELECT *`, sondern eine von Hand geschriebene,
+      aber falsch sortierte Spaltenliste
+
+⚠️ **Bauauflage an Teil 2, kein Cutover-Handgriff — `tokens.aktiv` bleibt Drizzle-Lesung.** Die
+Entwarnung zu B1 (verwürfelte `SELECT *`-Spalten reaktivieren keine gesperrten Codes) gilt **nur**,
+solange `tokens.aktiv` über Drizzle gelesen wird (`eq(tokens.aktiv, true)`, das intern
+`Number(value) === 1` mappt). Baut `_lib/zugang.ts` (Teil 2, §3) den Test stattdessen als rohes
+`WHERE aktiv` statt `eq(aktiv, true)` bzw. `= 1`, kippt die Prüfung auf die SQL-Ebene, und bestimmte
+`sub`-Werte reaktivieren dann gesperrte Zugangs-Codes. Ein Quelltext-Scan sieht das nicht, weil beide
+Formen gültiges Drizzle sind. Gemessen, nicht vermutet: `"1"`, `"1.0"`, `" 1 "`, `"1e0"`, `"+1"` werden
+als INTEGER 1 gespeichert und reaktivieren; UUID, `"42"`, `"007"`, `"0"`, `"true"` bleiben gesperrt.
+Die Prüffrage für den Betreiber ist deshalb NICHT „sind meine subs numerisch?" (`"42"` und `"007"`
+bleiben gesperrt), sondern wörtlich aus der Messung: „gibt es einen sub, dessen SQLite-INTEGER-
+Konversion exakt 1 ergibt?" — und die Entwarnung selbst ist an Drizzles `mapFromDriverValue`
+(`Number(value) === 1`) geliehen, nicht an einer allgemeinen Eigenschaft von SQLite.
 
 ---
 
