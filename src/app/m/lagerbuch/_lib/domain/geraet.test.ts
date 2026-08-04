@@ -82,6 +82,33 @@ describe("datumFaelligkeit — die Tage zaehlen gegen den TAGESANFANG", () => {
   });
 });
 
+describe("datumFaelligkeit — zonentreue am Tagesrand (UTC-Kalendertag != Berliner Kalendertag)", () => {
+  it("bleibt zonentreu kurz nach Mitternacht Ortszeit (Sommerzeit, +02:00)", () => {
+    /**
+     * 01:00 Sommerzeit am 15.06. ist 2026-06-14T23:00Z — der UTC-Kalendertag
+     * liegt einen Tag VOR dem Berliner Kalendertag. Ein Regress auf lokale
+     * now-Komponenten (`new Date(now.getFullYear(), now.getMonth(), now.getDate())`,
+     * der von `_lib/zeit.ts#startDesTages` ausdruecklich ausgeschlossene Alt-Pfad,
+     * `geraet.ts:37` der Alt-Anwendung) griffe unter TZ=UTC den 14. statt den 15.
+     * und ergaebe DETERMINISTISCH 1 statt 0 — kein Vorzeichen-Zufall wie bei einem
+     * Aufruf genau um Mitternacht, wo `Math.round` ein `-0`/`+0` liefern kann, das
+     * `toBe` (Object.is) je nach Prozess-Zone unterschiedlich bewertet.
+     */
+    const frueh = ausZivilzeit(2026, 6, 15, 1, 0, 0, 0);
+    expect(datumFaelligkeit("2026-06-15", frueh, 30).tageBisFaellig).toBe(0);
+  });
+
+  it("bleibt zonentreu kurz nach Mitternacht Ortszeit (Winterzeit, +01:00)", () => {
+    // Derselbe Fall mit dem kleineren Offset: 00:30 Ortszeit am 15.01. ist
+    // 2026-01-14T23:30Z, ebenfalls ein Tag VOR dem Berliner Kalendertag. Der
+    // kleinere Offset (+1h statt +2h) zeigt, dass der Fix nicht am Betrag der
+    // Verschiebung haengt, sondern daran, auf welcher Seite der UTC-Mitternacht
+    // der Zeitpunkt liegt.
+    const frueh = ausZivilzeit(2026, 1, 15, 0, 30, 0, 0);
+    expect(datumFaelligkeit("2026-01-15", frueh, 30).tageBisFaellig).toBe(0);
+  });
+});
+
 describe("datumFaelligkeit — die Ampelkanten", () => {
   it("genau warnTage entfernt ist GELB (inklusive)", () => {
     expect(datumFaelligkeit("2026-07-15", NOW, 30).ampel).toBe("gelb");  // 30 Tage
