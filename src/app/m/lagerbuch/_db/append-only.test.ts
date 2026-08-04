@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "./testdb";
-import { artikel, chargen, lagerorte, buchungen, bzGeraete, bzKontrollen,
+import { artikel, chargen, buchungen, bzGeraete, bzKontrollen,
          o2Flaschen, o2Messungen, newId } from "./schema";
 
 /**
