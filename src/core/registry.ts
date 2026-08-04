@@ -87,6 +87,22 @@ export const MODULES: ModuleDef[] = [
   { key: "files", title: "Dateien", icon: "FolderOutlined", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-files-admin"],
     prodHosts: [], showInSwitcher: true },
+  // lagerbuch: EIN Host (lagerbuch.iuk-ue.de), aber die Domain steht ausschliesslich
+  // in SUITE_HOST_LAGERBUCH — Betreiberauflage vom 03.08.2026 („zu 100 % konfigurierbar").
+  // prodHosts bleibt deshalb leer, wie bei qr, feedback und files.
+  //
+  // requiresAuth MUSS false bleiben: /t/<code> ist der einzige Weg in die
+  // Helfer-Sitzung und wird OHNE jede Sitzung aufgerufen, /g/<code> entscheidet
+  // seine Rolle selbst, und das Gate auf / ist der Einstieg beider. Mit
+  // requiresAuth: true schickt decideRoute (routing.ts:71-73) jeden anonymen
+  // Aufruf in den Login — und zwar sofort beim Cutover, fuer jedes gedruckte
+  // Etikett gleichzeitig.
+  // Dadurch liest canAccess() requiredGroups hier NIE (frueher Ausstieg bei
+  // !requiresAuth, registry.ts:155). Durchgesetzt wird der Verwaltungszugang
+  // modul-intern in _lib/zugang.ts, der Host in _lib/host.ts.
+  { key: "lagerbuch", title: "Lagerbuch", icon: "ContainerOutlined", shell: "full",
+    requiresAuth: false, requiredGroups: [], adminGroups: ["lagerbuch_nutzer"],
+    prodHosts: [], showInSwitcher: true },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true },
