@@ -223,35 +223,73 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
     expect([...AUSNAHMEN].sort()).toEqual(["beenden", "einloesenAmGate", "erneuereSitzung"]);
   });
 
-  it("kennt keine Action in Pfeilform oder typisierter Const-Form — sonst haette der Scan eine BLINDE STELLE", () => {
+  it("kennt an einem Zeilenanfang mit `export` NUR die eine Action-Bauform und Typ-Exporte", () => {
     /**
-     * `export const foo = async () => {}` traegt der Scan nicht. Statt die Luecke
-     * offenzulassen, wird sie hier ROT: Actions werden in diesem Modul als
-     * `export async function` geschrieben, wie im gesamten Bestand
-     * (`lagerbuch/src/actions/*`).
+     * DIE PRUEFUNG IST INVERTIERT, UND DAS IST DER GANZE PUNKT.
      *
-     * Ohne diese Zeile koennte eine ungeschuetzte Action in Pfeilform landen und
-     * der Scan bliebe gruen — der teuerste Zustand, den ein Scan haben kann.
+     * Bis hierher erkannte diese Datei Actions ueber MUSTER („sieht das nach
+     * einer Pfeilfunktion aus?"). Gegen sechs Bauformen gemessen war sie bei
+     * VIEREN blind — und zwar STILL:
      *
-     * Das Muster erlaubt eine OPTIONALE Typannotation zwischen Name und `=`
-     * (`export const foo: ActionFn = ...`) und eine optionale `function`-
-     * Funktionsausdruck-Form nach `async` (`export const foo: ActionFn = async
-     * function (...) {...}`) — beides Bauformen, die sonst weder von dieser
-     * Zusicherung noch von der Deklarationserkennung oben (die literal
-     * `function` verlangt) gesehen wuerden und lautlos durchrutschten.
+     *   export async function a(…)                GESEHEN
+     *   export const b = async (…) => {…}          GESEHEN
+     *   export const c = async function innen(…)   *** BLIND ***
+     *   async function d(…) {} ; export { d }      *** BLIND ***
+     *   export default async function e(…)         *** BLIND ***
+     *   export const f = async fd => {…}           *** BLIND ***
+     *
+     * In einem "use server"-Modul wird JEDER Export zu einer Server Action mit
+     * global aufrufbarer ID — auch `export { d }` und `export default`. `d` ist
+     * die realistischste der vier: sie entsteht beilaeufig, wenn jemand eine
+     * Sammel-Exportzeile ans Dateiende setzt.
+     *
+     * Vier weitere Erkennungs-Regexe waeren Whack-a-Mole; die fuenfte Bauform
+     * rutschte genauso durch. Deshalb steht hier eine ALLOWLIST: gemeldet wird
+     * jede Zeile, die mit `export` beginnt und KEINER anerkannten Form
+     * entspricht. Neue Bauformen sind damit laut statt still — dieselbe Regel,
+     * die `_lib/bauform.test.ts:66-78` fuer sich selbst formuliert („Ein Scan
+     * darf falsch-positiv sein und laut, nie falsch-negativ und still").
+     *
+     * ⚠️ EIN `export const FOO = 5` WIRD MITGEMELDET, UND DAS IST RICHTIG. Ein
+     * "use server"-Modul darf ausschliesslich async-Funktionen exportieren; ein
+     * Wert-Export dort ist selbst der Fehler. Konstanten gehoeren nach `_lib/`.
+     *
+     * ⚠️ DIESE DATEI IST BIS TEIL 6 EINGEFROREN (siehe Kopf, `:25`). Die
+     * Fehlermeldung unten ist damit der EINZIGE Kanal zu Teil 4 und Teil 5 — sie
+     * nennt deshalb die REGEL, nicht nur den Verstoss.
+     *
+     * Gescannt wird die ROHE Zeile: eine Zeile, die in einem Blockkommentar bei
+     * Spalte 0 mit `export` beginnt, meldet der Scan mit. Falsch-positiv, laute
+     * Richtung, hinnehmbar — Kommentare in diesem Modul sind eingerueckt.
      */
-    const pfeilform: string[] = [];
+    const ERLAUBT = [
+      /^export\s+(?:async\s+)?function\s+[A-Za-z0-9_$]+\s*[(<]/, // die eine Action-Bauform
+      /^export\s+(?:type|interface)\s/, // `_actions/detail.ts` exportiert drei Typen (§2.1 a)
+    ];
+    const fremdformen: string[] = [];
     for (const datei of actionDateien()) {
-      const quelle = readFileSync(join(ORDNER, datei), "utf8");
-      for (const m of quelle.matchAll(
-        /^export\s+(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*(?::\s*[^=\n]+)?=\s*(?:async\s+)?(?:function\b\s*\*?\s*)?[(<]/gm,
-      )) {
-        pfeilform.push(`${datei}: ${m[1]}`);
-      }
+      readFileSync(join(ORDNER, datei), "utf8")
+        .split("\n")
+        .forEach((zeile, i) => {
+          if (!/^export\b/.test(zeile)) return;
+          if (ERLAUBT.some((muster) => muster.test(zeile))) return;
+          fremdformen.push(`${datei}:${i + 1}: ${zeile.trim()}`);
+        });
     }
     expect(
-      pfeilform,
-      "Actions bitte als `export async function` schreiben — der Guard-Scan sieht weder Pfeilfunktionen noch Const-Funktionsausdruecke, auch nicht mit Typannotation",
+      fremdformen,
+      [
+        "In _actions/ ist an einem Zeilenanfang mit `export` nur zweierlei erlaubt:",
+        "  export [async] function name(…)   — die Action-Bauform, die der Guard-Scan lesen kann",
+        "  export type / export interface    — Typen",
+        "ALLES ANDERE wird gemeldet, auch wenn es harmlos aussieht:",
+        "  `export { … }` und `export default` erzeugen in einem \"use server\"-Modul",
+        "  ebenfalls eine Action mit GLOBAL aufrufbarer ID — nur sieht der Riegel-Test",
+        "  oben sie nicht, und dann ist eine ungeschuetzte Action gruen.",
+        "  `export const FOO = 5` ist in einem \"use server\"-Modul selbst ein Fehler:",
+        "  ein Action-Modul exportiert ausschliesslich async-Funktionen. Konstanten",
+        "  gehoeren nach _lib/.",
+      ].join("\n"),
     ).toEqual([]);
   });
 
