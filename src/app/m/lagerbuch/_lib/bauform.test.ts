@@ -52,8 +52,12 @@ function quellDateien(wurzel: string = MODUL): string[] {
      * Der Verlust ist klein und benannt: eine Verletzung, die AUSSCHLIESSLICH in
      * einer Testdatei steht, bleibt unentdeckt. Testdateien werden nicht
      * ausgeliefert; die Bauform-Aussage gilt dem Produktionsbaum.
+     *
+     * `*.spec.ts(x)` zaehlt mit: heute traegt keine Datei im Modul diese Endung,
+     * aber die `e2e/`-Konvention der Suite kennt sie, und ein Scan, der sie
+     * uebersieht, macht genau die Datei rot, die eine Zusicherung TRAEGT.
      */
-    if (/\.test\.tsx?$/.test(eintrag)) continue;
+    if (/\.(?:test|spec)\.tsx?$/.test(eintrag)) continue;
     treffer.push(pfad);
   }
   return treffer;
@@ -245,6 +249,44 @@ describe("die drei Weichen-Dateien tragen ein PRAEDIKAT, keinen Riegel", () => {
              `${relative(process.cwd(), p)} ohne Host-Riegel`)
         .toMatch(/requireLagerbuchHost\s*\(/);
     }
+  });
+});
+
+describe("die Rueckkante konto.ts → zugang.ts traegt AUSSCHLIESSLICH Typen", () => {
+  it("findet in konto.ts keinen WERT-Import aus zugang.ts", () => {
+    /**
+     * DIE INVARIANTE LAUTET GENAU EINEN SATZ: `konto.ts` importiert aus
+     * `zugang.ts` ausschliesslich Typen (`import type { Viewer }`, Festlegung
+     * G4). Mehr ist nicht einzuhalten, und weniger genuegt nicht.
+     *
+     * WAS EIN VERSTOSS KOSTET. `zugang.ts` importiert `merkeNutzer` als WERT von
+     * `konto.ts`. Kaeme aus der Gegenrichtung ein Wert-Import hinzu, entstuende
+     * ein echter Modulzyklus: TypeScript erlaubt ihn, ESM loest ihn zur Laufzeit
+     * mit `undefined` auf, und der Fehler ist ein `merkeNutzer is not a
+     * function` auf GENAU EINEM Codepfad — dem ersten Verwaltungsaufruf. Kein
+     * Typcheck, kein Lint und kein `pnpm build` sieht das.
+     *
+     * ⚠️ NICHT DIE BEGRUENDUNG ABSCHREIBEN, DIE BISHER IM UMLAUF WAR. Es hiess,
+     * die Zyklus-Immunitaet haenge daran, dass `merkeNutzer` und
+     * `istLagerbuchAdmin` `function`-DEKLARATIONEN bleiben. Das stimmt nicht:
+     * `konto.ts:1-3` hat heute KEINEN einzigen Laufzeit-Import aus `zugang.ts`
+     * (`DB` und `Viewer` sind beide `import type`), es gibt also GAR KEINEN
+     * Zyklus; `konto.ts` ist vollstaendig ausgewertet, bevor `zugang.ts` je
+     * `merkeNutzer` ruft, und ob das Symbol eine Deklaration oder ein `const`
+     * ist, ist belanglos. Die Hoisting-Frage wuerde erst relevant, WENN die
+     * Rueckkante ein Wert-Import waere — also genau in dem Zustand, den dieser
+     * Scan verhindert. Wer die falsche Begruendung erbt und sie widerlegt,
+     * entfernt danach den Scan.
+     *
+     * ⚠️ FALSCH-POSITIV auf die legitime Inline-Form
+     * `import { type Viewer } from "./zugang"`: das Muster sieht nur, dass nach
+     * `import` eine geschweifte Klammer kommt. Das ist die LAUTE Richtung und
+     * damit hinnehmbar — wer darueber stolpert, schreibt `import type { … }`.
+     */
+    expect(
+      trefferAuf(/^import\s+\{[^}]*\bViewer\b/, [join(MODUL, "_lib/konto.ts")].filter((p) => existsSync(p))),
+      "konto.ts importiert aus zugang.ts ausschliesslich Typen (Festlegung G4) — sonst ein echter Modulzyklus",
+    ).toEqual([]);
   });
 });
 

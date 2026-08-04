@@ -147,6 +147,30 @@ describe("verifyHelferSitzung — RUECKWAERTSKOMPATIBEL, und das ist der Punkt",
       ".";
     expect(await verifyHelferSitzung(unsigniert)).toBeNull();
   });
+
+  it("weist ein Cookie mit KORREKTEM Geheimnis, aber falschem Algorithmus (HS512) ab", async () => {
+    /**
+     * DIE SCHAERFERE GEGENPROBE zum Fall darueber. `alg: none` scheitert schon
+     * daran, dass ueberhaupt keine Signatur anliegt — der Fall belegt also
+     * weniger, als er verspricht. HIER stimmt das Geheimnis, die Signatur ist
+     * echt und pruefbar; allein der Algorithmus steht nicht in
+     * `algorithms: ["HS256"]`.
+     *
+     * OHNE DIESEN FALL FIELE EINE ERWEITERUNG DER LISTE DURCH KEINEN TESTLAUF
+     * AUF: `algorithms` ist eine Signaturzusage, und wer sie aufmacht, laesst
+     * Tokens gelten, die diese Anwendung nie ausgestellt hat.
+     */
+    const hs512 = await new SignJWT({ tokenId: "tk1" })
+      .setProtectedHeader({ alg: "HS512" })
+      .setIssuedAt()
+      .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+      .sign(new TextEncoder().encode(GEHEIM));
+    expect(await verifyHelferSitzung(hs512)).toBeNull();
+
+    // Die Gegenrichtung, damit der Fall nicht aus einem ANDEREN Grund gruen ist:
+    // dieselbe Nutzlast, dasselbe Geheimnis, nur HS256 — und sie verifiziert.
+    expect(await verifyHelferSitzung(await altCookie({ tokenId: "tk1" }))).not.toBeNull();
+  });
 });
 
 describe("createHelferSitzung", () => {
