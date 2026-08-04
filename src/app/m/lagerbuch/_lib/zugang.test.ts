@@ -230,28 +230,80 @@ describe("istLagerbuchAdmin — KEINE Suite-Admin-Abkuerzung", () => {
   });
 });
 
-describe("verwaltungsZiel — absolut, sobald ein Prod-Host bekannt ist", () => {
-  it("liefert VOR dem Cutover den relativen INNEREN Pfad", () => {
-    // Ein geratener absoluter Host waere still fatal: `suiteRedirect` erlaubt ein
-    // absolutes Ziel nur, wenn `moduleForHost` den Host kennt — ein unbekannter
-    // landet STUMM auf dem Portal. Ein relativer Pfad geht unveraendert durch
-    // (`core/auth/redirect.ts:41`).
-    expect(verwaltungsZiel()).toBe("/m/lagerbuch/verwaltung");
-  });
-
+describe("verwaltungsZiel — absolut, mit Protokoll und Port AUS DEM REQUEST", () => {
   it("liefert NACH dem Cutover das absolute AEUSSERE Ziel", () => {
     // Ein relatives Ziel setzte die verwaltende Person auf dem PORTAL-Host ab,
     // weil AUTH_URL suiteweit derselbe Wert ist (`core/auth/redirect.ts:8-18`) —
     // und entwertete den ganzen returnTo-Apparat.
     process.env.SUITE_HOST_LAGERBUCH = "lagerbuch.iuk-ue.de";
-    expect(verwaltungsZiel()).toBe("https://lagerbuch.iuk-ue.de/verwaltung");
+    const kopf = new Headers({ host: "lagerbuch.iuk-ue.de", "x-forwarded-proto": "https" });
+    expect(verwaltungsZiel(kopf)).toBe("https://lagerbuch.iuk-ue.de/verwaltung");
   });
 
   it("nimmt den ERSTEN Host, wenn mehrere gesetzt sind", () => {
     // §2.6 erlaubt >= 2 Hosts (etwa eine abgeloeste Domain, die mitlaeuft). Der
-    // Rueckweg des Logins gehoert auf den kanonischen, also den ersten.
+    // Rueckweg des Logins gehoert auf den kanonischen, also den ersten — auch
+    // wenn die Anfrage ueber den zweiten hereinkam.
     process.env.SUITE_HOST_LAGERBUCH = "lagerbuch.iuk-ue.de,alt.iuk-ue.de";
-    expect(verwaltungsZiel()).toBe("https://lagerbuch.iuk-ue.de/verwaltung");
+    const kopf = new Headers({ host: "alt.iuk-ue.de", "x-forwarded-proto": "https" });
+    expect(verwaltungsZiel(kopf)).toBe("https://lagerbuch.iuk-ue.de/verwaltung");
+  });
+
+  it("uebernimmt Protokoll UND Port aus dem Request — der Dev-Fall", () => {
+    /**
+     * DER FALL, DER DEN BEFUND TRAEGT. Ein verdrahtetes `https://${host}` ergibt
+     * hier `https://lagerbuch.localtest.me`, waehrend `core/shell/moduleUrl.ts`
+     * fuer dasselbe Modul `http://lagerbuch.localtest.me:3000` sagt — zwei
+     * Wahrheiten ueber dieselbe Frage. Der Ausfall ist STILL: `suiteRedirect`
+     * verlangt `target.protocol === base.protocol` (`redirect.ts:52`), und die
+     * baseUrl kommt ohne gesetztes AUTH_URL aus dem Request. Bei
+     * Protokollbruch liefert `suiteRedirect` die baseUrl — die Landung ist das
+     * PORTAL, ohne Fehlermeldung.
+     */
+    process.env.SUITE_HOST_LAGERBUCH = "lagerbuch.localtest.me";
+    const kopf = new Headers({ host: "lagerbuch.localtest.me:3000" });
+    expect(verwaltungsZiel(kopf)).toBe("http://lagerbuch.localtest.me:3000/verwaltung");
+  });
+
+  it("faellt OHNE Prod-Host auf den ANGEFRAGTEN Host zurueck, nicht auf den inneren Pfad", () => {
+    /**
+     * VOR DEM CUTOVER (und in jeder Dev-Umgebung ohne SUITE_HOST_LAGERBUCH).
+     * Der relative Pfad taugte hier NICHT: `suiteRedirect` macht daraus den
+     * INNEREN Pfad auf dem PORTAL-Host (`redirect.ts:41`), und dort antwortet
+     * `requireLagerbuchHost` mit 404 — `host.ts:37-40` hat bewusst keinen
+     * „kein Prod-Host → durchlassen"-Zweig.
+     *
+     * Der angefragte Host ist nicht geraten: `istLagerbuchHost` belegt ihn ueber
+     * `moduleForHost` — dieselbe Quelle, gegen die `suiteRedirect` das Ziel
+     * prueft. Was hier herauskommt, ist damit genau das, was dort durchgeht.
+     */
+    const kopf = new Headers({ host: "lagerbuch.localtest.me:3000" });
+    expect(verwaltungsZiel(kopf)).toBe("http://lagerbuch.localtest.me:3000/verwaltung");
+  });
+
+  it("liest x-forwarded-host vor host — dieselbe Vorrangregel wie der Host-Riegel", () => {
+    // `resolveHost` wird WIEDERVERWENDET, nicht nachgebaut: eine zweite
+    // Aufloesung waere der Ort, an dem Riegel und Rueckweg auseinanderlaufen.
+    const kopf = new Headers({
+      host: "interner-container:3000",
+      "x-forwarded-host": "lagerbuch.localtest.me",
+      "x-forwarded-proto": "https",
+    });
+    expect(verwaltungsZiel(kopf)).toBe("https://lagerbuch.localtest.me/verwaltung");
+  });
+
+  it("gibt den inneren Pfad NUR, wenn weder Prod-Host noch Lagerbuch-Host da sind", () => {
+    /**
+     * Hinter `requireLagerbuchHost` ist dieser Zustand unerreichbar — die
+     * Funktion ist aber exportiert (G5) und darf ihre Zusage nicht aus dem
+     * Aufrufer beziehen. Ohne die `istLagerbuchHost`-Pruefung waere ein
+     * gefaelschter `x-forwarded-host` in einem kuenftigen zweiten Aufrufer ein
+     * offener Redirector; der innere Pfad ist hier der DEFINIERTE Wert, kein
+     * funktionierender Rueckweg.
+     */
+    expect(verwaltungsZiel(new Headers({ host: "feedback.localtest.me" }))).toBe(
+      "/m/lagerbuch/verwaltung",
+    );
   });
 });
 
@@ -304,15 +356,21 @@ describe("requireLagerbuchAdmin — der Backstop", () => {
     expect(v.groups).toEqual(["lagerbuch_nutzer"]);
   });
 
-  it("leitet OHNE Sitzung auf /login — mit callbackUrl", async () => {
+  it("leitet OHNE Sitzung auf /login — mit callbackUrl auf den ANGEFRAGTEN Host", async () => {
+    // Ohne SUITE_HOST_LAGERBUCH (der Dev- und Vor-Cutover-Zustand) traegt der
+    // Rueckweg den Host, ueber den die Anfrage kam — samt Port und Protokoll.
+    // Ein relatives Ziel landete auf dem PORTAL und dort im 404.
     sitzung = null;
-    await expect(requireLagerbuchAdmin()).rejects
-      .toThrow(`NEXT_REDIRECT:/login?callbackUrl=${encodeURIComponent("/m/lagerbuch/verwaltung")}`);
+    hostKopf = new Headers({ host: "lagerbuch.localtest.me:3000" });
+    await expect(requireLagerbuchAdmin()).rejects.toThrow(
+      `NEXT_REDIRECT:/login?callbackUrl=${encodeURIComponent("http://lagerbuch.localtest.me:3000/verwaltung")}`,
+    );
   });
 
   it("leitet OHNE Sitzung mit gesetztem Prod-Host auf das ABSOLUTE Ziel", async () => {
     process.env.SUITE_HOST_LAGERBUCH = "lagerbuch.iuk-ue.de";
     sitzung = null;
+    hostKopf = new Headers({ host: "lagerbuch.iuk-ue.de", "x-forwarded-proto": "https" });
     await expect(requireLagerbuchAdmin()).rejects.toThrow(
       `NEXT_REDIRECT:/login?callbackUrl=${encodeURIComponent("https://lagerbuch.iuk-ue.de/verwaltung")}`,
     );

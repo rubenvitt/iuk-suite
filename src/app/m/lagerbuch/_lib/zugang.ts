@@ -3,8 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/core/auth";
 import { adminGroupsFor } from "@/core/groups";
 import { getModule, prodHostsFor } from "@/core/registry";
+import { resolveHost } from "@/core/routing";
 import { getDb } from "../_db/client";
-import { requireLagerbuchHost } from "./host";
+import { istLagerbuchHost, requireLagerbuchHost } from "./host";
 import { merkeNutzer } from "./konto";
 import { sanitizeReturnTo } from "./returnTo";
 
@@ -160,20 +161,56 @@ export function _resetGemeldeteGruppen(): void {
  * returnTo-Apparat. `suiteRedirect` prueft das Ziel gegen die Allowlist aus
  * `moduleForHost` (`redirect.ts:52-54`), ein fremder Host landet also nicht.
  *
- * VOR DEM CUTOVER ist der relative Pfad der einzige sichere Wert: ohne
- * SUITE_HOST_LAGERBUCH gibt es keinen absoluten Host, und ein erratener waere
- * schlimmer als keiner — `m/files/_lib/access.ts:115-138` geht denselben Weg und
- * begruendet ihn: ein unbekannter oder protokollfremder Host landet bei
- * `suiteRedirect` STUMM auf dem Portal, ein relativer Pfad geht unveraendert
- * durch (`core/auth/redirect.ts:41`).
+ * ⚠️ PROTOKOLL UND PORT KOMMEN AUS DEM REQUEST, NICHT AUS EINEM LITERAL. Ein
+ * verdrahtetes `https://${host}/verwaltung` ergibt in Dev/E2E
+ * `https://lagerbuch.localtest.me` — waehrend `core/shell/moduleUrl.ts:19-26`
+ * fuer dasselbe Modul `http://lagerbuch.localtest.me:3000` sagt. Zwei Wahrheiten
+ * ueber dieselbe Frage, und die falsche faellt STILL aus: `suiteRedirect`
+ * verlangt `target.protocol === base.protocol` (`redirect.ts:52`), die baseUrl
+ * kommt ohne gesetztes `AUTH_URL` aus dem Request und ist dort `http://…:3000` —
+ * Protokollbruch, und die anmeldende Person landet auf dem PORTAL. Die Bauform
+ * unten ist deshalb 1:1 die von `m/files/_lib/hostRolle.ts:162-164`
+ * (`oeffentlicheUrl`) — derselben Datei, an der sich diese hier ohnehin
+ * orientiert.
+ *
+ * ⚠️ KEIN RELATIVER RUECKFALL MEHR — er trug nicht. `suiteRedirect` macht aus
+ * `/m/lagerbuch/verwaltung` den INNEREN Pfad auf dem PORTAL-Host
+ * (`redirect.ts:41`), und dort antwortet `requireLagerbuchHost` mit 404, weil
+ * `host.ts:37-40` bewusst KEINEN „kein Prod-Host → durchlassen"-Zweig hat.
+ * `m/files` kann sich seinen relativen Rueckfall leisten, weil sein Host-Riegel
+ * vor dem Cutover nicht greift; dieses Modul hat den Zweig gestrichen. An seine
+ * Stelle tritt der ANGEFRAGTE Host: er ist nicht geraten, sondern durch
+ * `istLagerbuchHost` belegt — genau die Bedingung, unter der `suiteRedirect`
+ * ihn durchlaesst (`moduleForHost` ist dieselbe Quelle). Damit ist der Rueckweg
+ * VOR dem Cutover und in Dev/E2E ueberhaupt erst gangbar.
+ *
+ * Der Prod-Host behaelt den Vorrang: bei >= 2 Hosts (abgeloeste Domain laeuft
+ * mit, §2.6) gehoert der Rueckweg auf den KANONISCHEN, also den ersten.
+ *
+ * ⚠️ `istLagerbuchHost` steht hier ABSICHTLICH, obwohl `requireLagerbuchAdmin`
+ * den Host eine Zeile vorher schon geprueft hat: eine exportierte Funktion darf
+ * ihre Zusage nicht aus dem Aufrufer beziehen. Ohne die Pruefung waere ein
+ * gefaelschter `x-forwarded-host` in einem kuenftigen zweiten Aufrufer ein
+ * offener Redirector.
+ *
+ * Bleibt beides ohne Ergebnis (kein Prod-Host UND kein Lagerbuch-Host im
+ * Request), gibt es keinen richtigen Wert: hinter `requireLagerbuchHost` ist der
+ * Zustand unerreichbar. Der innere Pfad ist dort der DEFINIERTE, kein
+ * funktionierender Rueckweg — siehe den Absatz darueber.
  *
  * EXPORTIERT (Festlegung G5), obwohl ausser dem Test niemand sie ruft: nur so
- * ist der Zweig „absolut vs. relativ" pruefbar, ohne einen `redirect()`-Wurf zu
- * zerlegen — und §3.8.1 verlangt genau diese Aussage.
+ * ist der Zweig „Prod-Host vs. angefragter Host" pruefbar, ohne einen
+ * `redirect()`-Wurf zu zerlegen — und §3.8.1 verlangt genau diese Aussage.
  */
-export function verwaltungsZiel(): string {
-  const host = prodHostsFor(getModule("lagerbuch"))[0];
-  return host ? `https://${host}/verwaltung` : "/m/lagerbuch/verwaltung";
+export function verwaltungsZiel(headers: Headers): string {
+  const angefragt = resolveHost(headers);
+  const host =
+    prodHostsFor(getModule("lagerbuch"))[0] ??
+    (istLagerbuchHost(headers) ? angefragt.split(":")[0] : undefined);
+  if (!host) return "/m/lagerbuch/verwaltung";
+  const proto = headers.get("x-forwarded-proto")?.split(",")[0].trim() || "http";
+  const port = angefragt.split(":")[1];
+  return `${proto}://${host}${port ? `:${port}` : ""}/verwaltung`;
 }
 
 /**
@@ -211,9 +248,10 @@ export function verwaltungsZiel(): string {
  * laminierten, verlierbaren Kaertchen.
  */
 export async function requireLagerbuchAdmin(): Promise<Viewer> {
-  requireLagerbuchHost(await headers());          // §2.6 — erst der Host, dann die Person
+  const kopf = await headers();
+  requireLagerbuchHost(kopf);                     // §2.6 — erst der Host, dann die Person
   const viewer = viewerAusSession(await auth());
-  if (!viewer) redirect(`/login?callbackUrl=${encodeURIComponent(verwaltungsZiel())}`);
+  if (!viewer) redirect(`/login?callbackUrl=${encodeURIComponent(verwaltungsZiel(kopf))}`);
   if (!istLagerbuchAdmin(viewer)) {
     meldeFehlendeGruppe(viewer.sub, viewer.groups);
     notFound();
