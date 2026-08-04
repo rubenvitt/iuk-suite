@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { grenzen, ZAHL_NAMEN, GrenzenUngueltig, helferSitzungGeheimnis } from "./grenzen";
+import {
+  grenzen, ZAHL_NAMEN, GrenzenUngueltig, helferSitzungGeheimnis,
+  grenzenFehler, JOURNAL_GRENZE, CHECK_GRENZE, BZ_LOGBUCH_GRENZE,
+} from "./grenzen";
 
 /**
  * DIE UNABHAENGIGE ERWARTUNGSTABELLE (§10.8, Eigenschaft 2).
@@ -230,5 +233,225 @@ describe("helferSitzungGeheimnis — Pflicht, aber NICHT in ZAHLEN", () => {
      */
     expect(() => helferSitzungGeheimnis({ LAGERBUCH_HELFER_SITZUNG_SECRET: "kurz" }))
       .not.toThrow();
+  });
+});
+
+/**
+ * DIE UNABHAENGIGE TABELLE DER DREI REINEN DECKEL (§10.8, Eigenschaft 2).
+ *
+ * Auch hier gilt: die Werte stehen ausgeschrieben und werden NICHT aus dem Modul
+ * abgeleitet. Ein Test wie `expect(JOURNAL_GRENZE).toBe(JOURNAL_GRENZE)` waere
+ * kein Test; ein Test, der die Zahl aus einer exportierten Tabelle zieht, ist
+ * derselbe Fehler eine Ebene tiefer.
+ */
+const DECKEL = [
+  { name: "JOURNAL_GRENZE", wert: JOURNAL_GRENZE, erwartet: 100 },
+  { name: "CHECK_GRENZE", wert: CHECK_GRENZE, erwartet: 50 },
+  { name: "BZ_LOGBUCH_GRENZE", wert: BZ_LOGBUCH_GRENZE, erwartet: 100 },
+] as const;
+
+/** Eine Umgebung, unter der das Modul ERREICHBAR ist — sonst ist die Fehlerliste
+ *  konstruktionsgemaess leer (§10.5, die Bedingtheit). */
+const ERREICHBAR: Record<string, string | undefined> = {
+  SUITE_HOST_LAGERBUCH: "lagerbuch.example.test",
+  LAGERBUCH_HELFER_SITZUNG_SECRET: "ein-hinreichend-langes-geheimnis-32z",
+  AUTH_SECRET: "ein-anderes-suite-geheimnis",
+};
+
+describe("die drei reinen Deckel (§5.14.3, §10.3)", () => {
+  it("tragen genau die Werte aus der Spec", () => {
+    for (const d of DECKEL) expect(d.wert).toBe(d.erwartet);
+  });
+
+  it("stehen NICHT in ZAHL_NAMEN — sie sind Konstanten, keine Env-Variablen", () => {
+    /**
+     * §10.3: sie zur Env-Variablen zu machen hiesse, einen Regler anzubieten, der
+     * bei 5000 die Journalseite bei realer Datenmenge stehen laesst — und
+     * `better-sqlite3` ist SYNCHRON, die Seite blockierte dabei die GANZE Suite
+     * (Falle 10).
+     */
+    for (const d of DECKEL) expect(ZAHL_NAMEN).not.toContain(d.name);
+  });
+
+  it("werden von keiner Umgebungsvariable beeinflusst", () => {
+    // Der Fall, den jemand aus gutem Willen baut: „ich mache es doch nur
+    // ueberschreibbar". Diese Zeile ist die Zusage dagegen.
+    expect(grenzen({ JOURNAL_GRENZE: "5000" })).toBeTruthy();
+    expect(JOURNAL_GRENZE).toBe(100);
+  });
+});
+
+describe("grenzenFehler — die Bedingtheit ist eine Notwendigkeit", () => {
+  it("liefert OHNE Prod-Host eine LEERE Liste, auch wenn ALLES fehlt", () => {
+    /**
+     * §10.5: `assertHostConfig()` laeuft fuer die GANZE Suite. Eine unbedingte
+     * Pflicht hiesse: sobald ein Image mit lagerbuch auf dem Server landet,
+     * startet die Suite nicht mehr — portal, qr, feedback und files inklusive —,
+     * bis der Betreiber die .env ergaenzt hat. Damit blockierte dieses Modul jeden
+     * unbeteiligten Deploy im Fenster zwischen Merge und Cutover.
+     */
+    expect(grenzenFehler({})).toEqual([]);
+    expect(grenzenFehler({ LAGERBUCH_VERFALL_ROT_TAGE: "9999999" })).toEqual([]);
+  });
+
+  it("liefert MIT Prod-Host und vollstaendiger Umgebung eine leere Liste", () => {
+    expect(grenzenFehler(ERREICHBAR)).toEqual([]);
+  });
+
+  it("liest den Host ueber prodHostsFor, nicht ueber mod.prodHosts", () => {
+    // Der Registry-Eintrag traegt prodHosts: []. Waere die Bedingung ein
+    // Feldzugriff, waere SUITE_HOST_LAGERBUCH an dieser Stelle WIRKUNGSLOS und
+    // alle vier Pruefungen liefen nie — zeichengleich die Falle, die Teil 2 fuer
+    // adminGroupsFor(mod) gegen mod.adminGroups benannt hat.
+    expect(grenzenFehler({ ...ERREICHBAR, LAGERBUCH_HELFER_SITZUNG_SECRET: "" }).length)
+      .toBeGreaterThan(0);
+  });
+});
+
+describe("grenzenFehler — Pruefung 1: ganzzahlig und im Bereich", () => {
+  it("SAMMELT alle Fehler, statt beim ersten zu werfen", () => {
+    /**
+     * ⚠️ DIE STELLE, AN DER EIN NAIVER PORT FALSCH WIRD. `grenzen()` WIRFT bei
+     * einem kaputten Wert (GrenzenUngueltig). `grenzenFehler` muss den Wurf
+     * ABFANGEN und in eine Zeichenkette verwandeln — sonst meldet der Boot den
+     * ERSTEN Fehler statt aller, und der Betreiber faehrt drei Deploys fuer drei
+     * Tippfehler.
+     */
+    const fehler = grenzenFehler({
+      ...ERREICHBAR,
+      LAGERBUCH_VERFALL_ROT_TAGE: "fuenf",
+      LAGERBUCH_HELFER_SITZUNG_SECRET: "kurz",
+    });
+    expect(fehler.length).toBeGreaterThanOrEqual(2);
+    expect(fehler.join("\n")).toContain("LAGERBUCH_VERFALL_ROT_TAGE");
+    expect(fehler.join("\n")).toContain("LAGERBUCH_HELFER_SITZUNG_SECRET");
+  });
+
+  it("weist 0x10 und 1e7 ab, statt sie als 16 bzw. 10000000 zu lesen", () => {
+    for (const roh of ["0x10", "1e7", "31.5", " "]) {
+      const f = grenzenFehler({ ...ERREICHBAR, LAGERBUCH_VERFALL_ROT_TAGE: roh });
+      if (roh === " ") {
+        // LEER GESETZT GILT WIE NICHT GESETZT — das ist kein Fehler.
+        expect(f).toEqual([]);
+      } else {
+        expect(f.join("\n")).toContain("LAGERBUCH_VERFALL_ROT_TAGE");
+      }
+    }
+  });
+});
+
+describe("grenzenFehler — Pruefung 2: ROT <= GELB", () => {
+  it("lehnt ROT > GELB ab und NENNT die Folge", () => {
+    // §10.5, Pruefung 2: die Meldung nennt beide Namen, beide Werte und die Folge.
+    // „Wert ungueltig" ohne Namen ist eine Meldung, die eine Suche ausloest statt
+    // sie zu beenden.
+    const f = grenzenFehler({
+      ...ERREICHBAR, LAGERBUCH_VERFALL_ROT_TAGE: "90", LAGERBUCH_VERFALL_GELB_TAGE: "56",
+    });
+    const text = f.join("\n");
+    expect(text).toContain("LAGERBUCH_VERFALL_ROT_TAGE");
+    expect(text).toContain("LAGERBUCH_VERFALL_GELB_TAGE");
+    expect(text).toContain("90");
+    expect(text).toContain("56");
+    expect(text).toContain("Gelb-Zweig");
+  });
+
+  it("ERLAUBT ROT === GELB", () => {
+    // Die Kopplung ist `<=`, nicht `<`. Bei Gleichstand hat die Ampel zwei
+    // Zustaende, aber der Betreiber hat das dann GEWOLLT — es ist kein Tippfehler
+    // in der Rangfolge.
+    expect(grenzenFehler({
+      ...ERREICHBAR, LAGERBUCH_VERFALL_ROT_TAGE: "40", LAGERBUCH_VERFALL_GELB_TAGE: "40",
+    })).toEqual([]);
+  });
+});
+
+describe("grenzenFehler — Pruefung 3: die Gate-Kette, in BEIDE Richtungen", () => {
+  it("lehnt ABSENDER > GESAMT_PRO_MIN ab", () => {
+    // Bricht die erste Ungleichung, fuellt ein einzelner Absender die
+    // Gesamtbremse, bevor sein eigener Eimer leer ist — die Reihenfolge der
+    // Bremsen waere umgekehrt zur Absicht.
+    const f = grenzenFehler({
+      ...ERREICHBAR,
+      LAGERBUCH_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "40",
+      LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "30",
+    });
+    expect(f.join("\n")).toContain("LAGERBUCH_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN");
+  });
+
+  it("lehnt GESAMT_PRO_MIN > GESAMT_PRO_STUNDE ab", () => {
+    // Bricht die zweite, ist der Stundendeckel wirkungslos.
+    const f = grenzenFehler({
+      ...ERREICHBAR,
+      LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "600",
+      LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "300",
+    });
+    expect(f.join("\n")).toContain("LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE");
+  });
+
+  it("erlaubt Gleichstand an BEIDEN Gliedern der Kette", () => {
+    expect(grenzenFehler({
+      ...ERREICHBAR,
+      LAGERBUCH_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "30",
+      LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "30",
+      LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "30",
+    })).toEqual([]);
+  });
+});
+
+describe("grenzenFehler — Pruefung 4: das Sitzungsgeheimnis, fuenf Bedingungen", () => {
+  it("meldet ein FEHLENDES Geheimnis", () => {
+    const { LAGERBUCH_HELFER_SITZUNG_SECRET: _weg, ...ohne } = ERREICHBAR;
+    expect(grenzenFehler(ohne).join("\n")).toContain("LAGERBUCH_HELFER_SITZUNG_SECRET");
+  });
+
+  it("meldet ein LEER GESETZTES Geheimnis", () => {
+    // `${LAGERBUCH_HELFER_SITZUNG_SECRET}` ohne `:?` setzt in Compose den LEEREN
+    // String, und leer greift keinen Default. Ohne diese Zeile bootet der
+    // Container gruen und faellt erst beim ersten /t/<code>-Scan mit 500 um — das
+    // Scheitern waere von der Startzeit in die Nutzungszeit gewandert (Falle 23).
+    for (const wert of ["", "   "]) {
+      expect(grenzenFehler({ ...ERREICHBAR, LAGERBUCH_HELFER_SITZUNG_SECRET: wert }).join("\n"))
+        .toContain("LAGERBUCH_HELFER_SITZUNG_SECRET");
+    }
+  });
+
+  it("meldet ein ZU KURZES Geheimnis und nennt die Mindestlaenge", () => {
+    const f = grenzenFehler({ ...ERREICHBAR, LAGERBUCH_HELFER_SITZUNG_SECRET: "x".repeat(31) });
+    expect(f.join("\n")).toContain("32");
+    expect(grenzenFehler({ ...ERREICHBAR, LAGERBUCH_HELFER_SITZUNG_SECRET: "x".repeat(32) }))
+      .toEqual([]);
+  });
+
+  it("meldet den DEV-VORGABEWERT", () => {
+    expect(grenzenFehler({
+      ...ERREICHBAR, LAGERBUCH_HELFER_SITZUNG_SECRET: "dev-insecure-secret-change-me",
+    }).join("\n")).toContain("dev-insecure-secret-change-me");
+  });
+
+  it("meldet GLEICHHEIT mit AUTH_SECRET", () => {
+    /**
+     * Die fuenfte Bedingung ist NEU gegenueber `assertProductionSecrets`
+     * (`config.ts:104-113`) und kostet eine Zeile: dieselbe Signatur fuer
+     * Suite-Sitzung und Helfer-Sitzung hebt die Domaenentrennung auf, die das
+     * eigene Geheimnis ueberhaupt erst begruendet (§3.4.1).
+     */
+    const gleich = "dasselbe-geheimnis-fuer-beide-32-zeichen";
+    const f = grenzenFehler({
+      SUITE_HOST_LAGERBUCH: "lagerbuch.example.test",
+      LAGERBUCH_HELFER_SITZUNG_SECRET: gleich,
+      AUTH_SECRET: gleich,
+    });
+    expect(f.join("\n")).toContain("AUTH_SECRET");
+  });
+
+  it("meldet KEINE Gleichheit, wenn AUTH_SECRET gar nicht gesetzt ist", () => {
+    // Sonst waere „beide fehlen" ein Gleichheitsfehler — eine Meldung, die in die
+    // falsche Richtung zeigt. `AUTH_SECRET` ist Sache der Suite
+    // (`compose.yaml:23` mit `${AUTH_SECRET:?…}`), nicht dieses Moduls.
+    expect(grenzenFehler({
+      SUITE_HOST_LAGERBUCH: "lagerbuch.example.test",
+      LAGERBUCH_HELFER_SITZUNG_SECRET: "ein-hinreichend-langes-geheimnis-32z",
+    })).toEqual([]);
   });
 });

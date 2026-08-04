@@ -21,6 +21,8 @@
  * das, was zur Laufzeit gilt.
  */
 
+import { getModule, prodHostsFor } from "@/core/registry";
+
 /** Wie in `core/hosts.ts`: nur „String rein, String oder undefined raus". */
 type EnvLike = Record<string, string | undefined>;
 
@@ -198,4 +200,159 @@ export function helferSitzungGeheimnis(env: EnvLike = process.env): string {
     );
   }
   return wert;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * DIE DREI REINEN DECKEL (§5.14.3, §10.3) — Konstanten, keine Env-Variablen.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Sie stehen HIER und nicht neben ihrer Abfrage, weil ZWEI Leser denselben Wert
+ * brauchen: die Abfrage (`limit(GRENZE + 1)`) und der Beschreibungstext („Neueste
+ * 100 von mehr Treffern"). Heute stehen die 100 an zwei Stellen
+ * (`queries.ts:87`, `journal/page.tsx:32`) und koennen auseinanderlaufen — und
+ * der Text ist UNBEDINGT: er behauptet die 100 auch dann, wenn drei Zeilen
+ * zurueckkommen.
+ *
+ * SIE WERDEN NICHT KONFIGURIERBAR (§10.3). Es sind heute Vorgabewerte, die KEIN
+ * Aufrufer je ueberschreibt. Ein Regler daran bei 5000 liesse die Journalseite bei
+ * realer Datenmenge stehen — und `better-sqlite3` ist SYNCHRON, die Seite
+ * blockierte dabei die GANZE Suite: portal, qr, feedback und files antworten in
+ * dieser Zeit nicht (Falle 10, §5.2.3).
+ *
+ * Gelesen wird `GRENZE + 1`, angezeigt `GRENZE`, und der Hinweis erscheint NUR,
+ * wenn die Grenze tatsaechlich griff.
+ */
+export const JOURNAL_GRENZE = 100;
+/** Dieselbe Regel — und der strengere Fall: die Checks-Seite nennt ihre 50 heute
+ *  an KEINER Stelle (§5.14.3). */
+export const CHECK_GRENZE = 50;
+/** dito (`lagerbuch/src/db/bz.ts:124`). */
+export const BZ_LOGBUCH_GRENZE = 100;
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * DIE BOOT-LISTE (§10.5, Pruefungen 1 bis 4).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/** Der Wert, den die Alt-Anwendung als Entwicklungs-Vorbelegung fuehrte
+ *  (`lagerbuch/src/lib/config.ts:104-113`). Er darf produktiv nie stehen. */
+const DEV_GEHEIMNIS = "dev-insecure-secret-change-me";
+
+/** §10.3: „≥ 32 Zeichen". Die Zahl steht hier EINMAL und in der Meldung. */
+const GEHEIMNIS_MINDESTLAENGE = 32;
+
+/**
+ * Die Konfigurationsfehler dieses Moduls, als Liste statt als Wurf.
+ *
+ * ⚠️ SIE SAMMELT, SIE WIRFT NICHT. `grenzen()` WIRFT bei einem kaputten Wert; hier
+ * wird der Wurf ABGEFANGEN und in eine Zeichenkette verwandelt. Sonst meldete der
+ * Boot den ERSTEN Fehler statt aller, und der Betreiber faehrt drei Deploys fuer
+ * drei Tippfehler. Der Aufrufer (`_lib/boot.ts` → `assertHostConfig`) entscheidet,
+ * ob aus der Liste ein Abbruch wird.
+ *
+ * ⚠️ SIE GREIFT NUR, WENN DAS MODUL ERREICHBAR IST, und das ist keine Milderung,
+ * sondern eine Notwendigkeit (§10.5): `assertHostConfig()` laeuft fuer die GANZE
+ * Suite. Eine unbedingte Pflicht hiesse — sobald ein Image mit lagerbuch auf dem
+ * Server landet, startet die Suite nicht mehr, portal, qr, feedback und files
+ * inklusive. Der Schalter ist DIESELBE Variable, die das Modul einschaltet
+ * (`SUITE_HOST_LAGERBUCH` ueber `prodHostsFor`); es gibt keinen zweiten, den
+ * jemand vergessen kann.
+ *
+ * ⚠️ GELESEN WIRD UEBER `prodHostsFor(...)`, NIE UEBER `mod.prodHosts`. Der
+ * Registry-Eintrag traegt `prodHosts: []`; der Feldzugriff machte
+ * `SUITE_HOST_LAGERBUCH` an genau dieser Stelle wirkungslos, und alle vier
+ * Pruefungen liefen nie. Dieselbe Falle wie `adminGroupsFor(mod)` gegen
+ * `mod.adminGroups` (Teil 2, §2).
+ *
+ * ⚠️ DIESE DATEI HAELT DIE PRUEFUNGEN 5 UND 6 NICHT. `SUITE_ADMIN_GROUP_LAGERBUCH`
+ * ist gesetzt (5) und `SUITE_ACCESS_GROUP_LAGERBUCH` ist NICHT gesetzt (6) sind
+ * GRUPPEN-Fragen, keine Zahlen-Fragen; sie liegen in `_lib/boot.ts`, das diese
+ * Liste einsammelt.
+ */
+export function grenzenFehler(env: EnvLike = process.env): string[] {
+  if (prodHostsFor(getModule("lagerbuch"), env).length === 0) return [];
+  const fehler: string[] = [];
+
+  // Pruefung 1 — ganzzahlig und im Bereich. Jede Zahl EINZELN auswerten, damit
+  // ein kaputter Wert die uebrigen nicht verdeckt.
+  const werte: Partial<Record<ZahlName, number>> = {};
+  for (const name of ZAHL_NAMEN) {
+    try {
+      werte[name] = zahl(name, env);
+    } catch (e) {
+      fehler.push(e instanceof GrenzenUngueltig ? e.message : String(e));
+    }
+  }
+
+  // Pruefung 2 — ROT <= GELB. Nur, wenn BEIDE Werte gelesen werden konnten;
+  // sonst waere die Meldung eine Folge des schon gemeldeten Fehlers.
+  const rot = werte.LAGERBUCH_VERFALL_ROT_TAGE;
+  const gelb = werte.LAGERBUCH_VERFALL_GELB_TAGE;
+  if (rot !== undefined && gelb !== undefined && rot > gelb) {
+    fehler.push(
+      `LAGERBUCH_VERFALL_ROT_TAGE=${rot} ist groesser als LAGERBUCH_VERFALL_GELB_TAGE=${gelb}. ` +
+        `Erlaubt ist ROT <= GELB — sonst ist der Gelb-Zweig unerreichbar und die Ampel hat ` +
+        `zwei Zustaende statt drei ("kritisch" ist das KLEINERE Fenster, §10.1).`,
+    );
+  }
+
+  // Pruefung 3 — die Gate-Kette. Bricht das erste Glied, fuellt ein einzelner
+  // Absender die Gesamtbremse, bevor sein eigener Eimer leer ist; bricht das
+  // zweite, ist der Stundendeckel wirkungslos.
+  const absender = werte.LAGERBUCH_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN;
+  const proMin = werte.LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN;
+  const proStunde = werte.LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE;
+  if (absender !== undefined && proMin !== undefined && absender > proMin) {
+    fehler.push(
+      `LAGERBUCH_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN=${absender} ist groesser als ` +
+        `LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN=${proMin}. Dann fuellt ein einzelner ` +
+        `Absender die modulweite Bremse, bevor sein eigener Eimer leer ist — die Reihenfolge ` +
+        `der Bremsen waere umgekehrt zur Absicht (§3.5.3).`,
+    );
+  }
+  if (proMin !== undefined && proStunde !== undefined && proMin > proStunde) {
+    fehler.push(
+      `LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN=${proMin} ist groesser als ` +
+        `LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE=${proStunde}. Dann ist der ` +
+        `Stundendeckel wirkungslos — und er ist der tragende Zaehler (§3.5.3).`,
+    );
+  }
+
+  // Pruefung 4 — das Sitzungsgeheimnis, fuenf Bedingungen. Die ersten vier sind
+  // `assertProductionSecrets` (`config.ts:104-113`) an seinem neuen Ort; die
+  // fuenfte ist neu und kostet eine Zeile.
+  const geheim = env.LAGERBUCH_HELFER_SITZUNG_SECRET?.trim() ?? "";
+  const authSecret = env.AUTH_SECRET?.trim() ?? "";
+  if (geheim === "") {
+    fehler.push(
+      `LAGERBUCH_HELFER_SITZUNG_SECRET ist nicht gesetzt oder leer. jose verweigert einen ` +
+        `Nullschluessel ("Zero-length key is not supported"); ohne diesen Riegel bootet der ` +
+        `Container gruen und faellt erst beim ersten /t/<code>-Scan mit 500 um — das Scheitern ` +
+        `waere von der Startzeit in die Nutzungszeit gewandert. Der Wert kommt beim Cutover ` +
+        `1:1 aus der alten stack.env (HELFER_SESSION_SECRET), ueber env_file gesetzt.`,
+    );
+  } else {
+    if (geheim.length < GEHEIMNIS_MINDESTLAENGE) {
+      fehler.push(
+        `LAGERBUCH_HELFER_SITZUNG_SECRET ist ${geheim.length} Zeichen lang, mindestens ` +
+          `${GEHEIMNIS_MINDESTLAENGE} sind gefordert.`,
+      );
+    }
+    if (geheim === DEV_GEHEIMNIS) {
+      fehler.push(
+        `LAGERBUCH_HELFER_SITZUNG_SECRET traegt den Entwicklungs-Vorgabewert ` +
+          `"${DEV_GEHEIMNIS}". Er ist im Repo nachlesbar und damit kein Geheimnis.`,
+      );
+    }
+    if (authSecret !== "" && geheim === authSecret) {
+      fehler.push(
+        `LAGERBUCH_HELFER_SITZUNG_SECRET ist identisch mit AUTH_SECRET. Damit gaebe es keine ` +
+          `Domaenentrennung mehr zwischen Suite-Sitzung und Helfer-Sitzung — dieselbe Signatur ` +
+          `truege zwei Bedeutungen (§3.4.1). AUTH_SECRET gehoert der Suite und bleibt ` +
+          `unveraendert (§10.6, Abweichung 1).`,
+      );
+    }
+  }
+
+  return fehler;
 }
