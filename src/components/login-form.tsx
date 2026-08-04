@@ -2,8 +2,9 @@
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { absoluteCallbackUrl } from "@/core/auth/callbackUrl";
+import { vereinigeGruppen } from "@/core/auth/devGroups";
 import { useState } from "react";
-import { Button, Input } from "antd";
+import { Button, Checkbox, Input } from "antd";
 import { FARBEN, SPACE } from "@/core/theme/tokens";
 
 // Kleiner, lokaler Helfer: übersetzt einen Suite-Hex-Wert mit Deckkraft in eine
@@ -28,10 +29,25 @@ function PocketIdLogo() {
   );
 }
 
-export function LoginForm({ devLogin }: { devLogin: boolean }) {
+export function LoginForm({
+  devLogin,
+  gruppenAuswahl = [],
+}: {
+  devLogin: boolean;
+  /**
+   * Die anhakbaren Gruppen — berechnet in `login/page.tsx` über
+   * `devGroupChoices()`. NICHT hier deklarieren: diese Datei trägt
+   * `"use client"`, ein Wert von hier käme in der Server Component als
+   * Client-Referenz an (Falle 6, HTTP 500 für die Anmeldeseite).
+   */
+  gruppenAuswahl?: string[];
+}) {
   const callbackUrl = useSearchParams().get("callbackUrl") ?? "/";
   const [email, setEmail] = useState("dev@localtest.me");
   const [groups, setGroups] = useState("");
+  const [angehakt, setAngehakt] = useState<string[]>([]);
+  const alleAn = gruppenAuswahl.length > 0 && angehakt.length === gruppenAuswahl.length;
+  const teilweise = angehakt.length > 0 && !alleAn;
   return (
     <main
       style={{
@@ -196,7 +212,11 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
                 // the host that initiated the login. Production-safe (this branch renders only when
                 // dev-login is enabled — dev mode or explicit AUTH_DEV_LOGIN=true, never in production
                 // builds; see core/auth/devLogin.ts) and it leaves the real Pocket-ID button intact.
-                await signIn("dev-login", { email, groups, redirect: false });
+                await signIn("dev-login", {
+                  email,
+                  groups: vereinigeGruppen(angehakt, groups),
+                  redirect: false,
+                });
                 window.location.assign(callbackUrl.startsWith("/") ? callbackUrl : "/");
               }}
             >
@@ -212,9 +232,70 @@ export function LoginForm({ devLogin }: { devLogin: boolean }) {
                 Entwicklungs-Login
               </p>
               <Input aria-label="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+
+              {gruppenAuswahl.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: SPACE.md,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 500, color: FARBEN.tinte }}>
+                      Gruppen
+                    </span>
+                    {/*
+                      „Alle auswählen“ ist bewusst KEIN dritter Zustand zum
+                      Anklicken: `indeterminate` zeigt nur an, dass eine Teilmenge
+                      steht — ein Klick setzt immer alle oder keine.
+                    */}
+                    <Checkbox
+                      indeterminate={teilweise}
+                      checked={alleAn}
+                      onChange={(e) => setAngehakt(e.target.checked ? [...gruppenAuswahl] : [])}
+                    >
+                      {/*
+                        Farbe gesetzt, nicht geerbt: die Karte ist in BEIDEN
+                        Themes hell (`rgba(255,255,255,0.75)` weiter oben, fest),
+                        antds `colorText` wird unter `data-theme="dark"` aber
+                        nahezu weiß — die Beschriftung verschwände dann auf dem
+                        hellen Grund. Gemessen im Dunkelmodus, nicht vermutet.
+                        Kein `ConfigProvider` und kein CSS dagegen: das wäre
+                        Falle 5 und träfe die ganze Suite statt dieser Karte.
+                      */}
+                      <span style={{ color: FARBEN.tinte }}>Alle auswählen</span>
+                    </Checkbox>
+                  </div>
+                  {/*
+                    Ohne `aria-label`: `e2e/fixtures.ts` greift das Freitextfeld
+                    über `getByLabel("groups")`, und Playwrights `getByLabel`
+                    matcht Teilzeichenketten unter Strict Mode. Ein zweites
+                    Element, dessen Name „groups“ enthält, ließe jeden
+                    anmeldenden E2E-Test an dieser Stelle sterben. Die sichtbare
+                    Überschrift darüber trägt die Beschriftung.
+                  */}
+                  <Checkbox.Group
+                    value={angehakt}
+                    onChange={(werte) => setAngehakt(werte as string[])}
+                    // Farbe wie beim Schalter darüber gesetzt statt geerbt —
+                    // sonst stehen im Dunkelmodus sieben nahezu weiße Namen auf
+                    // der fest hellen Karte. `value` bleibt der nackte Name:
+                    // er geht so an `parseDevGroups`, und `getByLabel` findet
+                    // ihn im E2E über den Text.
+                    options={gruppenAuswahl.map((g) => ({
+                      label: <span style={{ color: FARBEN.tinte }}>{g}</span>,
+                      value: g,
+                    }))}
+                    style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}
+                  />
+                </div>
+              )}
+
               <Input
                 aria-label="groups"
-                placeholder="comma,separated,groups"
+                placeholder="weitere Gruppen, kommagetrennt"
                 value={groups}
                 onChange={(e) => setGroups(e.target.value)}
               />
