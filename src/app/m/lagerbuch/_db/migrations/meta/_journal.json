@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1785832220142,
+      "tag": "0000_dear_magneto",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785832221142,
+      "tag": "0001_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785832222142,
+      "tag": "0002_bz_kontrollen_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785832223142,
+      "tag": "0003_handlager",
+      "breakpoints": true
+    }
+  ]
+}

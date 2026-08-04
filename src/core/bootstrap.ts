@@ -24,6 +24,14 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   // Konsument der Importe ist `seedAllModules()`. Und ein Seed-Abgabelink wäre
   // in einer Generalprobe ein gültiger anonymer Schreibzugang.
   { key: "files", migrationsFolder: "src/app/m/files/_db/migrations" },
+  // lagerbuch: bewusst OHNE Schema-Import und OHNE Seed unten — dieselbe Begründung
+  // wie bei `files` (der Schema-Import wäre toter Code), plus ein zweiter, härterer
+  // Grund: `seedAllModules()` ist die einzige core-Stelle, die
+  // `getModuleDb(<key>, schema)` ruft, und eine solche Verbindung kennte die
+  // registrierte SQLite-Funktion `lb_falte` NICHT (Modul-Spec §5.13.2). Die
+  // Handlager-Zeile gehört ohnehin nicht hierher: sie ist eine Migrationszeile
+  // (0003_handlager.sql), keine Testdatenzeile.
+  { key: "lagerbuch", migrationsFolder: "src/app/m/lagerbuch/_db/migrations" },
 ];
 
 /**
