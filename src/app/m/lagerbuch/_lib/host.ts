@@ -69,17 +69,27 @@ export function lagerbuchHostOderNull(headers: Headers): "lagerbuch" | null {
  *   manifest + vier Icon-Handler        lagerbuchHostOderNull     Teil 4
  *   einloesenAmGate, erneuereSitzung    requireLagerbuchHost      Teil 4  ← die WERFENDE Form
  *   requireHelferSitzung/-Schreibend    rufen requireLagerbuchHost INTERN, erste Anweisung
+ *   JEDE Verwaltungs-Action             requireLagerbuchAdmin ruft requireLagerbuchHost INTERN,
+ *                                       erste Anweisung (zugang.ts:252)      Teil 4/5
  *
- * DIE LETZTE ZEILE IST KEINE BEQUEMLICHKEIT. `requireHelfer` prueft heute
+ * DIE ZEILE ZU requireHelferSitzung/-Schreibend IST KEINE BEQUEMLICHKEIT. `requireHelfer` prueft heute
  * Cookie-Signatur und tokens.aktiv und gibt {tokenId, code} zurueck — KEINEN Host.
  * Ein helfer_session-Cookie, das ueber einen fremden Suite-Host entstanden ist, waere
  * dort ein VOLLGUELTIGER Ausweis fuer bucheEntnahmeHelfer und checkAbschluss. Weil der
  * Host-Riegel INNEN sitzt, ist die Zusage „jede Helfer-Action ist host-gebunden" durch
  * KONSTRUKTION wahr — nicht durch eine Liste, die die naechste Action vergisst.
  *
- * FUER DIE VERWALTUNGS-ACTIONS GILT: kein Host-Riegel, nur der Zugriffsriegel. Der ist
- * host-blind und vollstaendig — eine Admin-Action auf fremdem Host verlangt dieselbe
- * Gruppe wie auf der eigenen Domain und ist damit kein Autorisierungsproblem.
+ * FUER DIE VERWALTUNGS-ACTIONS GILT DASSELBE, UND ZWAR SEIT T23 (frueher stand hier das
+ * Gegenteil): sie erben den Host-Riegel ueber `requireLagerbuchAdmin`, das
+ * `requireLagerbuchHost` als ERSTE Anweisung ruft (`zugang.ts:252`). ⚠️ Die Zeile dort ist
+ * KEINE Redundanz zu den Layouts — eine Server Action hat kein Layout ueber sich; wer sie
+ * fuer doppelt haelt und entfernt, oeffnet genau die Luecke, die der Absatz darueber fuer
+ * die Helfer-Actions beschreibt.
+ * Der Zugriffsriegel allein wuerde die Verwaltung tragen (er ist host-blind und
+ * vollstaendig: eine Admin-Action auf fremdem Host verlangt dieselbe Gruppe wie auf der
+ * eigenen Domain, ist also kein Autorisierungsproblem). Die Host-Zeile steht ZUSAETZLICH,
+ * und das ist die STRENGERE Richtung: sie verhindert eine zweite funktionierende Herkunft
+ * des Moduls, nicht einen Rechtefehler (`zugang.ts:220-226` begruendet es ausfuehrlich).
  *
  * ⚠️ Die Zahl der Hosts in SUITE_HOST_LAGERBUCH ist NICHT begrenzt: 0 (vor dem
  * Cutover), 1 (Normalfall) und ≥ 2 (abgeloeste Domain laeuft mit) sind alle erlaubt.
