@@ -271,6 +271,30 @@ describe("requireLagerbuchAdmin — der Backstop", () => {
     hostKopf = new Headers({ host: "feedback.localtest.me" });
     sitzung = ADMIN;
     await expect(requireLagerbuchAdmin()).rejects.toThrow("NEXT_NOT_FOUND");
+
+    /**
+     * ⚠️ DIE MELDUNG ALLEIN BELEGT DIE REIHENFOLGE NICHT. Mit `sitzung = ADMIN`
+     * endet der Aufruf in BEIDEN Reihenfolgen mit NEXT_NOT_FOUND — der Fall
+     * zeigte dann nur die ANWESENHEIT der Host-Zeile, nicht ihre Stelle. Wer sie
+     * ans Ende der Funktion verschiebt, bliebe gruen und schriebe dabei eine
+     * users-Zeile fuer eine Anfrage vom FREMDEN Host.
+     *
+     * Die naechste Zeile pinnt Host VOR Upsert.
+     */
+    expect(t.db.select().from(users).all()).toHaveLength(0);
+  });
+
+  it("prueft den HOST vor der SITZUNG — fremder Host wirft, statt nach /login zu leiten", async () => {
+    /**
+     * Der zweite Teil derselben Zusicherung. OHNE Sitzung unterscheiden sich die
+     * beiden Reihenfolgen sichtbar: steht der Host-Riegel zuerst, ist die Antwort
+     * NEXT_NOT_FOUND; stuende die Sitzungspruefung davor, waere es ein
+     * NEXT_REDIRECT nach /login — und damit verriete ein fremder Host die
+     * EXISTENZ des Verwaltungszweigs, genau das, was §3.3 ausschliesst.
+     */
+    hostKopf = new Headers({ host: "feedback.localtest.me" });
+    sitzung = null;
+    await expect(requireLagerbuchAdmin()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("laesst ein Mitglied der Admin-Gruppe durch und liefert den Viewer", async () => {
