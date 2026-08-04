@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { getTableColumns } from "drizzle-orm";
 import {
   HANDLAGER_ID, PSEUDO_VERFALL, istOhneVerfall,
   CHARGE_KORREKTUR, CHARGE_INVENTUR, CHARGE_OHNE_VERFALL,
@@ -8,6 +9,7 @@ import {
   MONAT_REGEX, TAG_REGEX, istEchterKalendertag,
   BUCHUNGSTYPEN, QUELLE_TYPEN, LAGERORT_TYPEN, GERAETE_TYPEN, TOKEN_ZIEL_TYPEN,
 } from "./konstanten";
+import { buchungen, checks, lagerorte, geraete, tokens } from "../_db/schema";
 
 describe("feste Werte, die auf Papier bzw. in Produktionsdaten stehen", () => {
   it("HANDLAGER_ID ist woertlich 'handlager'", () => {
@@ -112,6 +114,32 @@ describe("_lib und _db tragen weder 'use client' noch einen Icon-Import", () => 
   });
 });
 
-// TODO(T7): Mengengleichheit BUCHUNGSTYPEN/QUELLE_TYPEN/… gegen die Drizzle-Enums
-// aus ../_db/schema.ts. Der Block gehoert hierher, nicht in schema.test.ts —
-// Eigentuemer der Aussage ist die Zod-Seite (Festlegung F6).
+/**
+ * §4.15 fuehrt die Enum-Listen bewusst an ZWEI Orten: Drizzle-Enum in _db/schema.ts
+ * (1:1-Port des Bestands) und Zod-Liste hier (Eingangsvalidator). Dieser Block haelt
+ * sie zusammen. Die REIHENFOLGE darf abweichen — SQLite-`text({enum})` erzeugt keinen
+ * CHECK, sie ist im erzeugten SQL unsichtbar (nachpruefbar an
+ * lagerbuch/drizzle/0000_brief_zodiak.sql:20, wo buchungen.quelle_typ MIT Enum als
+ * nacktes `text NOT NULL` steht).
+ */
+const enumWerte = (spalte: unknown): string[] =>
+  [...((spalte as { enumValues?: string[] }).enumValues ?? [])].sort();
+
+describe("Enum-Listen: Zod-Seite und Drizzle-Seite sind mengengleich", () => {
+  it("BUCHUNGSTYPEN", () => {
+    expect(enumWerte(getTableColumns(buchungen).typ)).toEqual([...BUCHUNGSTYPEN].sort());
+  });
+  it("QUELLE_TYPEN — buchungen und checks (checks ist die Abweichung S1)", () => {
+    expect(enumWerte(getTableColumns(buchungen).quelleTyp)).toEqual([...QUELLE_TYPEN].sort());
+    expect(enumWerte(getTableColumns(checks).quelleTyp)).toEqual([...QUELLE_TYPEN].sort());
+  });
+  it("LAGERORT_TYPEN", () => {
+    expect(enumWerte(getTableColumns(lagerorte).typ)).toEqual([...LAGERORT_TYPEN].sort());
+  });
+  it("GERAETE_TYPEN", () => {
+    expect(enumWerte(getTableColumns(geraete).typ)).toEqual([...GERAETE_TYPEN].sort());
+  });
+  it("TOKEN_ZIEL_TYPEN", () => {
+    expect(enumWerte(getTableColumns(tokens).zielTyp)).toEqual([...TOKEN_ZIEL_TYPEN].sort());
+  });
+});
