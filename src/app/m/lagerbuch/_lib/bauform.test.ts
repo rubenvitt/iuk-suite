@@ -99,6 +99,42 @@ function ohneKommentare(quelle: string): string {
     .join("\n");
 }
 
+/**
+ * Wie `ohneKommentare`, zusaetzlich werden Zeichenkettenliterale (Inhalt UND
+ * Anfuehrungszeichen) geleert. Zeilenumbrueche innerhalb eines Template-Literals
+ * bleiben erhalten, damit die Zeilenzahl stabil bleibt.
+ *
+ * Nur fuer den POSITIVEN Host-Riegel-Nachweis noetig: `toMatch` behauptet, dass
+ * ein Muster VORKOMMT, und ein String wie `"requireLagerbuchHost("` als reiner
+ * Text erfuellte diese Behauptung sonst, OHNE dass der Riegel je liefe — das
+ * waere ein Scan, der still nichts faengt, die gefaehrliche Richtung. Die
+ * uebrigen Scans hier sind alle NEGATIV (`toEqual([])`); dort macht ein Treffer
+ * in einem Zeichenkettenliteral den Test hoechstens fälschlich ROT, nie still
+ * gruen, und bleibt deshalb bewusst ungefiltert (siehe `trefferAuf`).
+ */
+function ohneKommentareUndZeichenketten(quelle: string): string {
+  const bereinigt = ohneKommentare(quelle);
+  let ergebnis = "";
+  let i = 0;
+  while (i < bereinigt.length) {
+    const z = bereinigt[i]!;
+    if (z === '"' || z === "'" || z === "`") {
+      ergebnis += " ";
+      i++;
+      while (i < bereinigt.length && bereinigt[i] !== z) {
+        if (bereinigt[i] === "\\") i++;
+        else if (bereinigt[i] === "\n") ergebnis += "\n";
+        i++;
+      }
+      if (i < bereinigt.length) { ergebnis += " "; i++; }
+      continue;
+    }
+    ergebnis += z;
+    i++;
+  }
+  return ergebnis;
+}
+
 function trefferAuf(muster: RegExp, dateien = quellDateien()): string[] {
   const funde: string[] = [];
   for (const pfad of dateien) {
@@ -200,9 +236,12 @@ describe("die drei Weichen-Dateien tragen ein PRAEDIKAT, keinen Riegel", () => {
     // als ERSTE Anweisung (§2.6). Er hat nichts mit der Rollenfrage zu tun — er
     // verhindert eine zweite funktionierende Herkunft des Moduls.
     for (const p of WEICHEN.map((x) => join(MODUL, x)).filter((x) => existsSync(x))) {
-      // Auch hier ohne Kommentare: ein `// hier stand mal requireLagerbuchHost`
-      // erfuellte die Zusage sonst, ohne dass der Riegel liefe.
-      expect(ohneKommentare(readFileSync(p, "utf8")),
+      // Ohne Kommentare UND ohne Zeichenketten: ein `// hier stand mal
+      // requireLagerbuchHost` oder ein Text-Literal `"requireLagerbuchHost("`
+      // erfuellte die Zusage sonst, ohne dass der Riegel je liefe — das ist der
+      // POSITIVE Nachweis, den ein blosser Kommentar-Stripper still bestehen
+      // liesse.
+      expect(ohneKommentareUndZeichenketten(readFileSync(p, "utf8")),
              `${relative(process.cwd(), p)} ohne Host-Riegel`)
         .toMatch(/requireLagerbuchHost\s*\(/);
     }
