@@ -11,22 +11,46 @@ import { grenzen, ZAHL_NAMEN, GrenzenUngueltig, helferSitzungGeheimnis } from ".
  * passiert — dort stand „Anzahl" im Code, wo die Spec „Anzahl/10 min" verlangt,
  * und nur die unabhaengige Tabelle hat es gefunden.
  *
+ * Deshalb traegt jede Zeile hier auch ihr eigenes `einheit`-Wort (analog zum
+ * Vorbild `files/_lib/grenzen.test.ts`, `TABELLE` + `it.each`): der Namens-
+ * Suffix-Test weiter unten prueft nur, dass der VARIABLENNAME eine Einheit
+ * traegt (§10.1) — er kann nicht sehen, ob `ZAHLEN[name].einheit` in
+ * `grenzen.ts` das RICHTIGE Wort traegt. Ohne eine eigene, unabhaengig
+ * ausgeschriebene `einheit`-Spalte bliebe eine vertauschte Einheit (z. B.
+ * "Anzahl/min" statt "Anzahl/h" bei `..._PRO_STUNDE`) unbemerkt gruen.
+ *
  * Die Werte stammen Zeile fuer Zeile aus Spec §10.3.
  *
  * ⚠️ `LAGERBUCH_BACKUP_AUFBEWAHRUNG_TAGE` FEHLT hier mit Absicht (Annahme
  * A-T2-2, §0): Entscheidung 22 ist offen, und der Rueckfall A31 der Spec ist
  * „Variante (a), kein Hintergrund-Eintrag, Variable entfaellt". Faellt die
  * Betreiberantwort anders aus, ergaenzt TEIL 3 genau eine Zeile hier UND eine in
- * `ZAHLEN` — nicht eine von beiden.
+ * `ZAHLEN` — nicht eine von beiden, UND die neue Zeile hier braucht auch ihre
+ * `einheit`.
  */
 const ERWARTET = [
-  { name: "LAGERBUCH_VERFALL_ROT_TAGE",                    vorgabe: 31,  min: 1, max: 3650 },
-  { name: "LAGERBUCH_VERFALL_GELB_TAGE",                   vorgabe: 56,  min: 1, max: 3650 },
-  { name: "LAGERBUCH_HELFER_SITZUNG_STUNDEN",              vorgabe: 12,  min: 1, max: 24 },
-  { name: "LAGERBUCH_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN",  vorgabe: 5,   min: 1, max: 60 },
-  { name: "LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN",    vorgabe: 30,  min: 1, max: 600 },
-  { name: "LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE", vorgabe: 300, min: 1, max: 3600 },
+  { name: "LAGERBUCH_VERFALL_ROT_TAGE",                    einheit: "Tage",        vorgabe: 31,  min: 1, max: 3650 },
+  { name: "LAGERBUCH_VERFALL_GELB_TAGE",                   einheit: "Tage",        vorgabe: 56,  min: 1, max: 3650 },
+  { name: "LAGERBUCH_HELFER_SITZUNG_STUNDEN",              einheit: "Stunden",     vorgabe: 12,  min: 1, max: 24 },
+  { name: "LAGERBUCH_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN",  einheit: "Anzahl/min",  vorgabe: 5,   min: 1, max: 60 },
+  { name: "LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN",    einheit: "Anzahl/min",  vorgabe: 30,  min: 1, max: 600 },
+  { name: "LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE", einheit: "Anzahl/h",    vorgabe: 300, min: 1, max: 3600 },
 ] as const;
+
+/**
+ * Wirft `grenzen(env)` und liefert die Fehlermeldung zurueck — oder wirft den
+ * Testfehlschlag selbst, wenn `grenzen` ausnahmsweise NICHT wirft. Eigener
+ * Helfer statt `expect(...).toThrow()`, weil die folgenden Tests den TEXT der
+ * Meldung untersuchen, nicht nur, DASS geworfen wurde.
+ */
+function meldung(env: Record<string, string | undefined>): string {
+  try {
+    grenzen(env);
+  } catch (e) {
+    return (e as Error).message;
+  }
+  throw new Error("grenzen() haette werfen muessen");
+}
 
 /** Eine leere Umgebung — NICHT `process.env`. Der Test darf nicht davon abhaengen,
  *  was in der Entwicklerumgebung zufaellig gesetzt ist. */
@@ -47,6 +71,28 @@ describe("ZAHL_NAMEN — die Namensliste gegen die unabhaengige Tabelle", () => 
       expect(name).toMatch(/_(TAGE|STUNDEN|MIN|STUNDE|SEKUNDEN|BYTES)$/);
     }
   });
+});
+
+describe("ERWARTET Zeile fuer Zeile — das Einheitenwort in der Meldung, nicht nur im Namen", () => {
+  // Anders als der Namens-Suffix-Test oben: der pruefte nur, dass der NAME eine
+  // Einheit traegt. Hier geht es um `ZAHLEN[name].einheit` selbst — vertauschte
+  // Einheitswoerter sind typkorrekt (`Einheit` ist eine Union aus vier
+  // Woertern, jedes passt an jede Zeile) und faellt sonst durch KEIN Werkzeug
+  // auf (Vorbild `files/_lib/grenzen.test.ts`, §9.3-Zeile-fuer-Zeile-Test).
+  it.each(ERWARTET)(
+    "$name — Meldungen nennen die Einheit „$einheit\"",
+    ({ name, einheit, min, max }) => {
+      const nichtGanzzahl = meldung({ [name]: "abc" });
+      expect(nichtGanzzahl).toContain(name);
+      expect(nichtGanzzahl).toContain(`(${einheit})`);
+
+      const zuKlein = meldung({ [name]: String(min - 1) });
+      expect(zuKlein).toContain(`(${einheit})`);
+
+      const zuGross = meldung({ [name]: String(max + 1) });
+      expect(zuGross).toContain(`(${einheit})`);
+    },
+  );
 });
 
 describe("grenzen() — Vorbelegungen", () => {
