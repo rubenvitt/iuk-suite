@@ -38,4 +38,22 @@ describe("sanitizeReturnTo — Open-Redirect-Schutz, 1:1 aus dem Bestand", () =>
     // `searchParams` liefert bei einem doppelt gesetzten Parameter ein Array.
     expect(sanitizeReturnTo(["/a", "/b"] as unknown as string)).toBeNull();
   });
+
+  it("weist Tab, Zeilenvorschub und Wagenruecklauf ab — Haertung gegen WHATWG-Normalisierung", () => {
+    // Die WHATWG-URL-Norm entfernt beim Parsen eines Location-Werts ALLE
+    // ASCII-Tab-/Newline-Zeichen aus dem String, nicht nur am Rand:
+    // new URL("/\t/boese.example", "https://lagerbuch.iuk-ue.de").href
+    //   → "https://boese.example/"
+    // Ohne diese Pruefung bestehen alle fuenf Bestandsablehnungen: kein
+    // fehlender Slash, kein "//"-Praefix (das zweite Zeichen ist das
+    // Steuerzeichen), kein "/\", kein Doppelpunkt — und das Ziel wird
+    // trotzdem cross-origin.
+    expect(sanitizeReturnTo("/\t/boese.example")).toBeNull();
+    expect(sanitizeReturnTo("/\n/boese.example")).toBeNull();
+    expect(sanitizeReturnTo("/\r/boese.example")).toBeNull();
+  });
+
+  it("laesst einen gueltigen Pfad unveraendert durch — die Haertung bricht keinen legitimen Ruecksprung", () => {
+    expect(sanitizeReturnTo("/verwaltung/artikel?q=binde")).toBe("/verwaltung/artikel?q=binde");
+  });
 });
