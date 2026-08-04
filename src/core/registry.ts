@@ -98,7 +98,7 @@ export const MODULES: ModuleDef[] = [
   // Aufruf in den Login — und zwar sofort beim Cutover, fuer jedes gedruckte
   // Etikett gleichzeitig.
   // Dadurch liest canAccess() requiredGroups hier NIE (frueher Ausstieg bei
-  // !requiresAuth, registry.ts:155). Durchgesetzt wird der Verwaltungszugang
+  // !requiresAuth). Durchgesetzt wird der Verwaltungszugang
   // modul-intern in _lib/zugang.ts, der Host in _lib/host.ts.
   { key: "lagerbuch", title: "Lagerbuch", icon: "ContainerOutlined", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["lagerbuch_nutzer"],

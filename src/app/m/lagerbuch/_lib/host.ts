@@ -26,7 +26,7 @@ import { resolveHost } from "@/core/routing";
  * Ist das der Lagerbuch-Host? `moduleForHost(resolveHost(headers))?.key` und
  * NICHT ein direkter Vergleich gegen prodHostsFor:
  *
- * - `moduleForHost` (registry.ts:141-148) trifft `lagerbuch.localtest.me` VOR und
+ * - `moduleForHost` (registry.ts) trifft `lagerbuch.localtest.me` VOR und
  *   UNABHAENGIG von prodHostsFor. Damit laeuft derselbe Code-Pfad in Dev, E2E und
  *   Produktion, OHNE dass SUITE_HOST_LAGERBUCH lokal gesetzt sein muss.
  * - `resolveHost` (routing.ts:36-41) wird WIEDERVERWENDET, nicht nachgebaut: seine
@@ -84,5 +84,12 @@ export function lagerbuchHostOderNull(headers: Headers): "lagerbuch" | null {
  * ⚠️ Die Zahl der Hosts in SUITE_HOST_LAGERBUCH ist NICHT begrenzt: 0 (vor dem
  * Cutover), 1 (Normalfall) und ≥ 2 (abgeloeste Domain laeuft mit) sind alle erlaubt.
  * Es gibt deshalb KEIN validateLagerbuchHosts — Tippfehler, Protokoll/Port im Wert und
- * doppelt vergebene Hosts faengt bereits validateHostConfig (core/hosts.ts:65-100).
+ * doppelt vergebene ENV-Hosts faengt bereits validateHostConfig (core/hosts.ts:65-100).
+ * WAS DORT NICHT AUFFAELLT: ein Host, den ein ANDERES Modul ueber `prodHosts` in der
+ * Registry fuehrt (z. B. `portal`s "iuk-ue.de"). validateHostConfig fuellt seine
+ * Kollisions-Map ausschliesslich aus `envHostsFor` (core/hosts.ts) — ein
+ * Registry-`prodHosts`-Eintrag erreicht sie nie. Steht SUITE_HOST_LAGERBUCH zufaellig
+ * auf einer Domain, die ein VOR lagerbuch gelistetes Modul per prodHosts fuehrt, besteht
+ * die Boot-Pruefung fehlerfrei, und `moduleForHost` liefert dennoch das fremde Modul —
+ * dort entscheidet die Registry-Reihenfolge, nicht die Env.
  */
