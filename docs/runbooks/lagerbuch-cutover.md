@@ -168,6 +168,30 @@ Domain nach dem Setzen der Variablen fängt es**, und nur er.
 
 ---
 
+## 8. Der Rückweg nach der Anmeldung — eine Prüfung, die nur der Betrieb beantworten kann
+
+`verwaltungsZiel()` in `src/app/m/lagerbuch/_lib/zugang.ts` leitet das Protokoll aus
+`x-forwarded-proto` ab. Das ist das im Repo erprobte Muster — `files` und `qr` bauen ihre
+öffentlichen Adressen produktiv damit —, **aber aus dem Repository ist nicht beweisbar, dass der
+Proxy den Header setzt.**
+
+**Nach dem Umschwenken des Routers einmal ausführen:**
+
+```bash
+curl -sI https://lagerbuch.iuk-ue.de/verwaltung
+```
+
+Im `Location` muss `…callbackUrl=https%3A%2F%2Flagerbuch.iuk-ue.de%2Fverwaltung` stehen.
+
+⚠️ Steht dort `http%3A%2F%2F`, terminiert der Proxy **ohne** `X-Forwarded-Proto`. Dann bricht
+`core/auth/redirect.ts:52` an der Protokollgleichheit ab, und **der Rückweg nach der Anmeldung
+landet still auf dem Portal** statt auf der Lagerbuch-Verwaltung. Kein Fehler, keine Meldung — die
+verwaltende Person sieht einfach die falsche Seite und hält es für einen Bedienfehler.
+
+Gehört zusammen mit §7 abgearbeitet: dieselbe Domain, derselbe Handgriff, zwei Abrufe.
+
+---
+
 ## Offene Posten auf dem Board
 
 | Posten | Inhalt |

@@ -71,6 +71,20 @@ gehört damit in `e2e/lagerbuch-helfer.spec.ts`, das **Teil 6** anlegt (dort J2,
 
 ## 0. Vorbedingungen
 
+⚠️ **Zuerst lesen: `docs/superpowers/plans/UEBERGABE-lagerbuch-teil2.md`.** Beim Bau von Teil 2 sind
+Befunde aufgelaufen, die in **keinem** der sechs Plandokumente stehen und Teil 4 unmittelbar binden:
+
+- **Punkt 1 — ein Satz in diesem Brief ist falsch.** Die Behauptung, ein Test brauche die
+  Reset-Haken der Dedup-Speicher nicht, weil „je Fall ein anderer `sub`" benutzt werde, stimmt
+  nicht. Beide Speicher sind **modulweit und prozess-lokal**; beide Resets gehören in **jedes**
+  `beforeEach`, das den Riegel oder `merkeNutzer` mehrfach ruft. Der Fehlschlag sieht sonst nach
+  einem Fehler im Riegel aus, nicht nach einem im Harness.
+- **Punkt 2 — vor dem Bau des Gate-Wegs zu entscheiden.** Die Reihenfolgezusage der Gate-Schranke
+  („Sperrprüfung vor dem Datenbankzugriff", „Budgetverbrauch hinter der Codeprüfung") ist eine
+  Eigenschaft **des Aufrufers**, den erst dieser Teil baut, und hat nirgends ein mechanisches Netz.
+- **Punkt 7** — was aus Teil 2 als Invariante bindet, insbesondere `_lib/actionTypen.ts` und dass
+  `_lib/bauform.test.ts` **erweitert** und nicht ersetzt wird.
+
 Von den neun offenen Fragen aus §15.1 berühren **drei** dieses Kapitel, und **keine** blockiert den
 Baubeginn: die Spec entscheidet in allen drei Fällen einen Weg, der gegen beide Antworten robust
 ist. Die Tabelle steht trotzdem vollständig hier, weil ein Umsetzer sonst beim ersten Widerspruch

@@ -61,6 +61,12 @@ Plan trägt **T153 bis T176**.
 
 ## 2. Vorbedingungen
 
+⚠️ **Zuerst lesen: `docs/superpowers/plans/UEBERGABE-lagerbuch-teil2.md`.** Für Teil 6 binden
+**Punkt 1** (der falsche Satz zu den Reset-Haken der Dedup-Speicher, den auch dieser Plan zitiert)
+und **Punkt 5** (`_actions/guards.test.ts:57` hat dieselbe `.spec.ts`-Lücke, die in
+`_lib/bauform.test.ts:56` bereits geschlossen ist — diese Datei fasst Teil 6 für die Guard-Zählung
+ohnehin an).
+
 ### 2.1 Teil 4 ist vollständig
 
 ⚠️ **Hier stand bis zum 04.08.2026 das Gegenteil**, und zwar als nachgemessene Tatsache: Teil 4 war

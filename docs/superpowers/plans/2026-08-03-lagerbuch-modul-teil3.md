@@ -66,6 +66,14 @@ Teil 2 gefallen bzw. fallen hier, und wer sie nicht liest, legt Dateien doppelt 
 
 ## 0. Vorbedingungen
 
+⚠️ **Zuerst lesen: `docs/superpowers/plans/UEBERGABE-lagerbuch-teil2.md`.** Beim Bau von Teil 2 sind
+Befunde aufgelaufen, die in **keinem** der sechs Plandokumente stehen und Teil 3 unmittelbar binden —
+insbesondere **Punkt 3**: `playwright.config.ts` setzt heute **keine** `LAGERBUCH_*`-Variable, ohne
+die der Zwei-Host-E2E aus §12.2 nicht darstellbar ist; und der E2E „Admin landet nach dem Login auf
+`/verwaltung`" schlägt fehl, solange `src/components/login-form.tsx:220` absolute `callbackUrl`-Werte
+verwirft — **die Ursache liegt nicht in `_lib/zugang.ts`.** Dazu Punkt 7: was `_lib/grenzen.ts`
+erbt, und dass **keine zweite Zahlentabelle** entsteht.
+
 **Die vollständige Tabelle aller neun offenen Fragen aus §15.1 steht in Teil 1, §0.** Sie wird hier
 nicht kopiert. Hier stehen **nur** die Einträge, die in **diesem** Teil fällig sind — mit dem
 Zustand, in dem dieser Plan sie vorfindet, und mit dem **Rückfall**, der den Bau nicht blockiert.
