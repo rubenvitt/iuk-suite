@@ -30,9 +30,15 @@
  * Per-Absender-Zaehler ist damit eine Bequemlichkeitsgrenze gegen Tippfehler und
  * ungezieltes Klopfen — NICHT die Brute-Force-Abwehr. Die Abwehr sind die beiden
  * modulweiten Zaehler in `gateSchranke.ts`, weil ihr Schluessel der einzige ist,
- * den niemand rotieren kann. Die Restluecke schliesst eine NETZENTSCHEIDUNG, kein
- * Code: kein Host-Port-Mapping am Suite-Dienst, Traefik-Entrypoint nur aus den
- * Cloudflare-Bereichen erreichbar (Runbook-Schritt mit Gegenprobe, §3.5.2).
+ * den niemand rotieren kann.
+ *
+ * DIE RESTLUECKE BLEIBT OFFEN — Betreiberentscheidung D6 (04.08.2026): „An der
+ * Infra aendere ich nichts, das Deployment liegt auf dem Server." Der
+ * Suite-Container bleibt also direkt erreichbar, und jeder Absenderschluessel
+ * bleibt fuer diesen Weg faelschbar; das ist der IST-Zustand, kein
+ * hypothetischer Zweig. Sie gehoert in die Cutover-Uebergabe, nicht in einen
+ * Code-Fix hier — kein Test kann sie sehen, weil kein Test die Netztopologie
+ * kennt.
  *
  * `Headers` genuegt als Parametertyp, obwohl `await headers()` Nexts
  * `ReadonlyHeaders` liefert: das ist zuweisbar. Die Signatur NIMMT die Header,
