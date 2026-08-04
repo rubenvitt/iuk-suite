@@ -61,14 +61,16 @@ function actionDateien(): string[] {
 /**
  * Der Rumpf einer Deklaration, beginnend NACH der Signaturzeile.
  *
- * Die Datei setzt FORMATIERTEN Quelltext voraus — biome laeuft in der CI, und
- * formatierter Code beendet die Signatur mit `{` am Zeilenende. Das ist die
- * einzige Annahme dieses Scans, und sie ist billiger als ein TypeScript-Parser
- * im Test: der muesste `tsc` mitziehen und liefe bei jedem Vitest-Lauf.
+ * Die Datei setzt FORMATIERTEN Quelltext voraus — kein Auto-Formatierer
+ * erzwingt das in diesem Repo (kein `biome.json`, keine Prettier-Konfiguration;
+ * `package.json` kennt nur `"lint": "eslint"`), die Erkennung ruht also auf den
+ * Konventionen des Bestands: formatierter Code beendet die Signatur mit `{` am
+ * Zeilenende. Das ist billiger als ein TypeScript-Parser im Test: der muesste
+ * `tsc` mitziehen und liefe bei jedem Vitest-Lauf.
  *
  * ⚠️ DIE KLAMMERTIEFE WIRD MITGEZAEHLT, und ohne sie waere dieser Scan auf
- * KORREKTEM Code rot. Eine Action mit destrukturiertem erstem Parameter
- * formatiert biome so:
+ * KORREKTEM Code rot. Eine Action mit destrukturiertem erstem Parameter steht
+ * im Bestand so formatiert:
  *
  *     export async function artikelSpeichern({
  *       id,
@@ -127,6 +129,50 @@ function ersteAnweisung(rumpf: string): string {
   return "";
 }
 
+/**
+ * Entfernt aus einer einzelnen Zeile alles, was der Riegel-Nachweis NICHT
+ * ausloesen darf: Zeichenkettenliterale (Inhalt UND Anfuehrungszeichen) und
+ * einen nachgestellten `//`- oder `/* ... *\/`-Kommentar.
+ *
+ * `ersteAnweisung` erkennt nur Zeilen, die VOLLSTAENDIG ein Kommentar sind —
+ * ein nachgestellter Kommentar auf der ersten Anweisung selbst (`return x; //
+ * TODO requireLagerbuchAdmin(`) oder ein Zeichenkettenliteral, das den
+ * Riegelnamen als Text enthaelt (`console.log("requireLagerbuchAdmin( ...")`),
+ * ueberlebt sonst unveraendert bis zum RIEGEL-Test — und weil RIEGEL
+ * unverankert ist, matcht er dort genauso wie bei einem echten Aufruf. Diese
+ * Funktion laeuft NUR vor dem RIEGEL-Test; die Fehlermeldung zeigt weiterhin
+ * die rohe Zeile, damit ein genau solcher Kommentar sichtbar bleibt.
+ *
+ * Bewusst NICHT verankert am Zeilenanfang: `const viewer = await
+ * requireLagerbuchAdmin();` ist die legitime erste Anweisung, der Riegel darf
+ * also irgendwo in der bereinigten Zeile stehen.
+ */
+function ohneKommentareUndZeichenketten(zeile: string): string {
+  let ergebnis = "";
+  let i = 0;
+  while (i < zeile.length) {
+    const z = zeile[i]!;
+    if (z === '"' || z === "'" || z === "`") {
+      i++;
+      while (i < zeile.length && zeile[i] !== z) {
+        if (zeile[i] === "\\") i++;
+        i++;
+      }
+      i++; // schliessendes Anfuehrungszeichen ueberspringen
+      continue;
+    }
+    if (z === "/" && zeile[i + 1] === "/") break; // Rest der Zeile ist Kommentar
+    if (z === "/" && zeile[i + 1] === "*") {
+      const ende = zeile.indexOf("*/", i + 2);
+      i = ende === -1 ? zeile.length : ende + 2;
+      continue;
+    }
+    ergebnis += z;
+    i++;
+  }
+  return ergebnis.trim();
+}
+
 type Fund = { datei: string; name: string; erste: string };
 
 function exportierteActions(): Fund[] {
@@ -153,15 +199,21 @@ function exportierteActions(): Fund[] {
 
 describe("_actions/ — jede exportierte Action ist bewacht", () => {
   it("beginnt mit requireLagerbuchAdmin oder requireHelferSchreibend — oder steht auf der Liste", () => {
+    // Der RIEGEL-Test laeuft gegen die BEREINIGTE Zeile (ohne nachgestellten
+    // Kommentar, ohne Zeichenkettenliterale) — sonst zaehlt ein Kommentar oder
+    // ein String mit dem Riegelnamen als Beleg, obwohl kein Riegel aufgerufen
+    // wird. Die Fehlermeldung zeigt trotzdem die ROHE Zeile, damit genau so
+    // ein Kommentar sichtbar bleibt statt verschluckt zu werden.
     const ungeschuetzt = exportierteActions()
       .filter((f) => !AUSNAHMEN.has(f.name))
-      .filter((f) => !RIEGEL.test(f.erste))
+      .filter((f) => !RIEGEL.test(ohneKommentareUndZeichenketten(f.erste)))
       .map((f) => `${f.datei}: ${f.name}() beginnt mit "${f.erste || "<leerer Rumpf>"}"`);
 
     expect(ungeschuetzt, [
       "Diese Actions tragen keinen Riegel als ERSTE Anweisung.",
       "Verwaltung → requireLagerbuchAdmin(); schreibender Helfer-Weg → requireHelferSchreibend(db).",
       "Eine Action hat KEINE Weiche — sie hat einen Aufrufer, der schon entschieden hat (§3.2.1).",
+      "Ein Kommentar oder ein Zeichenkettenliteral mit dem Riegelnamen zaehlt NICHT als Beleg.",
     ].join("\n")).toEqual([]);
   });
 
@@ -171,7 +223,7 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
     expect([...AUSNAHMEN].sort()).toEqual(["beenden", "einloesenAmGate", "erneuereSitzung"]);
   });
 
-  it("kennt keine Action in Pfeilform — sonst haette der Scan eine BLINDE STELLE", () => {
+  it("kennt keine Action in Pfeilform oder typisierter Const-Form — sonst haette der Scan eine BLINDE STELLE", () => {
     /**
      * `export const foo = async () => {}` traegt der Scan nicht. Statt die Luecke
      * offenzulassen, wird sie hier ROT: Actions werden in diesem Modul als
@@ -180,16 +232,27 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
      *
      * Ohne diese Zeile koennte eine ungeschuetzte Action in Pfeilform landen und
      * der Scan bliebe gruen — der teuerste Zustand, den ein Scan haben kann.
+     *
+     * Das Muster erlaubt eine OPTIONALE Typannotation zwischen Name und `=`
+     * (`export const foo: ActionFn = ...`) und eine optionale `function`-
+     * Funktionsausdruck-Form nach `async` (`export const foo: ActionFn = async
+     * function (...) {...}`) — beides Bauformen, die sonst weder von dieser
+     * Zusicherung noch von der Deklarationserkennung oben (die literal
+     * `function` verlangt) gesehen wuerden und lautlos durchrutschten.
      */
     const pfeilform: string[] = [];
     for (const datei of actionDateien()) {
       const quelle = readFileSync(join(ORDNER, datei), "utf8");
-      for (const m of quelle.matchAll(/^export\s+(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?[(<]/gm)) {
+      for (const m of quelle.matchAll(
+        /^export\s+(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*(?::\s*[^=\n]+)?=\s*(?:async\s+)?(?:function\b\s*\*?\s*)?[(<]/gm,
+      )) {
         pfeilform.push(`${datei}: ${m[1]}`);
       }
     }
-    expect(pfeilform, "Actions bitte als `export async function` schreiben — der Guard-Scan sieht Pfeilfunktionen nicht")
-      .toEqual([]);
+    expect(
+      pfeilform,
+      "Actions bitte als `export async function` schreiben — der Guard-Scan sieht weder Pfeilfunktionen noch Const-Funktionsausdruecke, auch nicht mit Typannotation",
+    ).toEqual([]);
   });
 
   it("ist am ersten Tag gruen, auch ohne _actions/ — und sagt, wer ihn verschaerft", () => {
