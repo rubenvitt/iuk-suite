@@ -1,0 +1,1525 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "2fab40a0-ce02-4190-839b-f06e20b71202",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "artikel": {
+      "name": "artikel",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "einheit": {
+          "name": "einheit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fach": {
+          "name": "fach",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mindestbestand": {
+          "name": "mindestbestand",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "bestellt_at": {
+          "name": "bestellt_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "buchungen": {
+      "name": "buchungen",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ts": {
+          "name": "ts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "typ": {
+          "name": "typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "artikel_id": {
+          "name": "artikel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "charge_id": {
+          "name": "charge_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lagerort_id": {
+          "name": "lagerort_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "menge": {
+          "name": "menge",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quelle_typ": {
+          "name": "quelle_typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quelle_id": {
+          "name": "quelle_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "referenz": {
+          "name": "referenz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "kommentar": {
+          "name": "kommentar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_buchungen_artikel": {
+          "name": "idx_buchungen_artikel",
+          "columns": [
+            "artikel_id"
+          ],
+          "isUnique": false
+        },
+        "idx_buchungen_charge": {
+          "name": "idx_buchungen_charge",
+          "columns": [
+            "charge_id"
+          ],
+          "isUnique": false
+        },
+        "idx_buchungen_ts": {
+          "name": "idx_buchungen_ts",
+          "columns": [
+            "ts"
+          ],
+          "isUnique": false
+        },
+        "idx_buchungen_ts_id": {
+          "name": "idx_buchungen_ts_id",
+          "columns": [
+            "ts",
+            "id"
+          ],
+          "isUnique": false
+        },
+        "idx_buchungen_lagerort_artikel": {
+          "name": "idx_buchungen_lagerort_artikel",
+          "columns": [
+            "lagerort_id",
+            "artikel_id"
+          ],
+          "isUnique": false
+        },
+        "idx_buchungen_artikel_lagerort_charge": {
+          "name": "idx_buchungen_artikel_lagerort_charge",
+          "columns": [
+            "artikel_id",
+            "lagerort_id",
+            "charge_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "buchungen_artikel_id_artikel_id_fk": {
+          "name": "buchungen_artikel_id_artikel_id_fk",
+          "tableFrom": "buchungen",
+          "tableTo": "artikel",
+          "columnsFrom": [
+            "artikel_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "buchungen_charge_id_chargen_id_fk": {
+          "name": "buchungen_charge_id_chargen_id_fk",
+          "tableFrom": "buchungen",
+          "tableTo": "chargen",
+          "columnsFrom": [
+            "charge_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "buchungen_lagerort_id_lagerorte_id_fk": {
+          "name": "buchungen_lagerort_id_lagerorte_id_fk",
+          "tableFrom": "buchungen",
+          "tableTo": "lagerorte",
+          "columnsFrom": [
+            "lagerort_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "bz_geraete": {
+      "name": "bz_geraete",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "barcode": {
+          "name": "barcode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lagerort_id": {
+          "name": "lagerort_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "streifen_lot": {
+          "name": "streifen_lot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "level1_label": {
+          "name": "level1_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "level1_min": {
+          "name": "level1_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "level1_max": {
+          "name": "level1_max",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "level2_label": {
+          "name": "level2_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "level2_min": {
+          "name": "level2_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "level2_max": {
+          "name": "level2_max",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "bz_geraete_barcode_unique": {
+          "name": "bz_geraete_barcode_unique",
+          "columns": [
+            "barcode"
+          ],
+          "isUnique": true
+        },
+        "idx_bz_geraete_lagerort": {
+          "name": "idx_bz_geraete_lagerort",
+          "columns": [
+            "lagerort_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "bz_geraete_lagerort_id_lagerorte_id_fk": {
+          "name": "bz_geraete_lagerort_id_lagerorte_id_fk",
+          "tableFrom": "bz_geraete",
+          "tableTo": "lagerorte",
+          "columnsFrom": [
+            "lagerort_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "bz_kontrollen": {
+      "name": "bz_kontrollen",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "geraet_id": {
+          "name": "geraet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ts": {
+          "name": "ts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quelle_typ": {
+          "name": "quelle_typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quelle_id": {
+          "name": "quelle_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "level1_wert": {
+          "name": "level1_wert",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "level1_im_bereich": {
+          "name": "level1_im_bereich",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "level2_wert": {
+          "name": "level2_wert",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "level2_im_bereich": {
+          "name": "level2_im_bereich",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "kompresse_verfall": {
+          "name": "kompresse_verfall",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sticks": {
+          "name": "sticks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "lanzetten": {
+          "name": "lanzetten",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "batterie_gewechselt": {
+          "name": "batterie_gewechselt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "kommentar": {
+          "name": "kommentar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bestanden": {
+          "name": "bestanden",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ref_snapshot": {
+          "name": "ref_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_bz_kontrollen_geraet_ts": {
+          "name": "idx_bz_kontrollen_geraet_ts",
+          "columns": [
+            "geraet_id",
+            "ts"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "bz_kontrollen_geraet_id_bz_geraete_id_fk": {
+          "name": "bz_kontrollen_geraet_id_bz_geraete_id_fk",
+          "tableFrom": "bz_kontrollen",
+          "tableTo": "bz_geraete",
+          "columnsFrom": [
+            "geraet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "chargen": {
+      "name": "chargen",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "artikel_id": {
+          "name": "artikel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "chargen_nr": {
+          "name": "chargen_nr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "verfall": {
+          "name": "verfall",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_chargen_artikel_verfall": {
+          "name": "idx_chargen_artikel_verfall",
+          "columns": [
+            "artikel_id",
+            "verfall"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "chargen_artikel_id_artikel_id_fk": {
+          "name": "chargen_artikel_id_artikel_id_fk",
+          "tableFrom": "chargen",
+          "tableTo": "artikel",
+          "columnsFrom": [
+            "artikel_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "checks": {
+      "name": "checks",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fahrzeug_id": {
+          "name": "fahrzeug_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quelle_typ": {
+          "name": "quelle_typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quelle_id": {
+          "name": "quelle_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ergebnis": {
+          "name": "ergebnis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_checks_fahrzeug_completed": {
+          "name": "idx_checks_fahrzeug_completed",
+          "columns": [
+            "fahrzeug_id",
+            "completed_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "checks_fahrzeug_id_lagerorte_id_fk": {
+          "name": "checks_fahrzeug_id_lagerorte_id_fk",
+          "tableFrom": "checks",
+          "tableTo": "lagerorte",
+          "columnsFrom": [
+            "fahrzeug_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "fahrzeug_templates": {
+      "name": "fahrzeug_templates",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "geraete": {
+      "name": "geraete",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "typ": {
+          "name": "typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "barcode": {
+          "name": "barcode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lagerort_id": {
+          "name": "lagerort_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "anmerkung": {
+          "name": "anmerkung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mtk_faellig": {
+          "name": "mtk_faellig",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "beschreibung": {
+          "name": "beschreibung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ablaufdatum": {
+          "name": "ablaufdatum",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "geraete_barcode_unique": {
+          "name": "geraete_barcode_unique",
+          "columns": [
+            "barcode"
+          ],
+          "isUnique": true
+        },
+        "idx_geraete_lagerort": {
+          "name": "idx_geraete_lagerort",
+          "columns": [
+            "lagerort_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "geraete_lagerort_id_lagerorte_id_fk": {
+          "name": "geraete_lagerort_id_lagerorte_id_fk",
+          "tableFrom": "geraete",
+          "tableTo": "lagerorte",
+          "columnsFrom": [
+            "lagerort_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "lagerort_verfall": {
+      "name": "lagerort_verfall",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lagerort_id": {
+          "name": "lagerort_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "artikel_id": {
+          "name": "artikel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "verfall": {
+          "name": "verfall",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "erfasst_at": {
+          "name": "erfasst_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quelle_typ": {
+          "name": "quelle_typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quelle_id": {
+          "name": "quelle_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_lagerort_verfall_ort_artikel": {
+          "name": "idx_lagerort_verfall_ort_artikel",
+          "columns": [
+            "lagerort_id",
+            "artikel_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "lagerort_verfall_lagerort_id_lagerorte_id_fk": {
+          "name": "lagerort_verfall_lagerort_id_lagerorte_id_fk",
+          "tableFrom": "lagerort_verfall",
+          "tableTo": "lagerorte",
+          "columnsFrom": [
+            "lagerort_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "lagerort_verfall_artikel_id_artikel_id_fk": {
+          "name": "lagerort_verfall_artikel_id_artikel_id_fk",
+          "tableFrom": "lagerort_verfall",
+          "tableTo": "artikel",
+          "columnsFrom": [
+            "artikel_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "lagerorte": {
+      "name": "lagerorte",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "typ": {
+          "name": "typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kennung": {
+          "name": "kennung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "template_id": {
+          "name": "template_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "lagerorte_template_id_fahrzeug_templates_id_fk": {
+          "name": "lagerorte_template_id_fahrzeug_templates_id_fk",
+          "tableFrom": "lagerorte",
+          "tableTo": "fahrzeug_templates",
+          "columnsFrom": [
+            "template_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "o2_flaschen": {
+      "name": "o2_flaschen",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lagerort_id": {
+          "name": "lagerort_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "groesse_liter": {
+          "name": "groesse_liter",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "nennfuelldruck_bar": {
+          "name": "nennfuelldruck_bar",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 200
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_o2_flaschen_lagerort": {
+          "name": "idx_o2_flaschen_lagerort",
+          "columns": [
+            "lagerort_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "o2_flaschen_lagerort_id_lagerorte_id_fk": {
+          "name": "o2_flaschen_lagerort_id_lagerorte_id_fk",
+          "tableFrom": "o2_flaschen",
+          "tableTo": "lagerorte",
+          "columnsFrom": [
+            "lagerort_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "o2_messungen": {
+      "name": "o2_messungen",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "flasche_id": {
+          "name": "flasche_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ts": {
+          "name": "ts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "druck_bar": {
+          "name": "druck_bar",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quelle_typ": {
+          "name": "quelle_typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quelle_id": {
+          "name": "quelle_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kommentar": {
+          "name": "kommentar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_o2_messungen_flasche_ts": {
+          "name": "idx_o2_messungen_flasche_ts",
+          "columns": [
+            "flasche_id",
+            "ts"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "o2_messungen_flasche_id_o2_flaschen_id_fk": {
+          "name": "o2_messungen_flasche_id_o2_flaschen_id_fk",
+          "tableFrom": "o2_messungen",
+          "tableTo": "o2_flaschen",
+          "columnsFrom": [
+            "flasche_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "soll_positionen": {
+      "name": "soll_positionen",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fahrzeug_id": {
+          "name": "fahrzeug_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fach_label": {
+          "name": "fach_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sort": {
+          "name": "sort",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "artikel_id": {
+          "name": "artikel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "soll": {
+          "name": "soll",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "template_position_id": {
+          "name": "template_position_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ueberschrieben": {
+          "name": "ueberschrieben",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "entfernt": {
+          "name": "entfernt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "idx_soll_fahrzeug": {
+          "name": "idx_soll_fahrzeug",
+          "columns": [
+            "fahrzeug_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "soll_positionen_fahrzeug_id_lagerorte_id_fk": {
+          "name": "soll_positionen_fahrzeug_id_lagerorte_id_fk",
+          "tableFrom": "soll_positionen",
+          "tableTo": "lagerorte",
+          "columnsFrom": [
+            "fahrzeug_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "soll_positionen_artikel_id_artikel_id_fk": {
+          "name": "soll_positionen_artikel_id_artikel_id_fk",
+          "tableFrom": "soll_positionen",
+          "tableTo": "artikel",
+          "columnsFrom": [
+            "artikel_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "soll_positionen_template_position_id_template_positionen_id_fk": {
+          "name": "soll_positionen_template_position_id_template_positionen_id_fk",
+          "tableFrom": "soll_positionen",
+          "tableTo": "template_positionen",
+          "columnsFrom": [
+            "template_position_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "template_positionen": {
+      "name": "template_positionen",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "template_id": {
+          "name": "template_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fach_label": {
+          "name": "fach_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sort": {
+          "name": "sort",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "artikel_id": {
+          "name": "artikel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "soll": {
+          "name": "soll",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_template_pos_template": {
+          "name": "idx_template_pos_template",
+          "columns": [
+            "template_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "template_positionen_template_id_fahrzeug_templates_id_fk": {
+          "name": "template_positionen_template_id_fahrzeug_templates_id_fk",
+          "tableFrom": "template_positionen",
+          "tableTo": "fahrzeug_templates",
+          "columnsFrom": [
+            "template_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "template_positionen_artikel_id_artikel_id_fk": {
+          "name": "template_positionen_artikel_id_artikel_id_fk",
+          "tableFrom": "template_positionen",
+          "tableTo": "artikel",
+          "columnsFrom": [
+            "artikel_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "tokens": {
+      "name": "tokens",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "scope_lagerort_id": {
+          "name": "scope_lagerort_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ziel_typ": {
+          "name": "ziel_typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ziel_id": {
+          "name": "ziel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "tokens_code_unique": {
+          "name": "tokens_code_unique",
+          "columns": [
+            "code"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "tokens_scope_lagerort_id_lagerorte_id_fk": {
+          "name": "tokens_scope_lagerort_id_lagerorte_id_fk",
+          "tableFrom": "tokens",
+          "tableTo": "lagerorte",
+          "columnsFrom": [
+            "scope_lagerort_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_login_at": {
+          "name": "last_login_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}
