@@ -182,6 +182,75 @@ describe("merkeNutzer — die Gegenprobe zum Defektzustand (§4.13 i)", () => {
     }
   });
 
+  it("EIN NAME AUS LEERRAUM IST KEIN NAME — er meldet und ueberschreibt nicht", () => {
+    /**
+     * DIE AUFLOESUNG EINER PLAN-UNEINHEITLICHKEIT, nicht eine Abweichung vom Plan.
+     *
+     * `_db/quelle.ts:38` trimmt (`u.name?.trim() || u.email?.trim() || u.id`) und
+     * haelt damit fest: ein Name aus Leerzeichen IST KEIN NAME. Der Plan schreibt
+     * `merkeNutzer` an derselben Sache mit einer Falsy-Pruefung vor und kommt zum
+     * gegenteiligen Ergebnis. Beide Formen stehen woertlich im Plan; sie koennen
+     * nicht beide gelten. §4.13 (i) sagt „ueberschreibe keinen bekannten Namen mit
+     * NICHTS" — und `"   "` IST nichts, das sagt `quelle.ts` selbst.
+     *
+     * Ohne die Aufloesung ist `"   "` TRUTHY, und dann besiegt genau die Eingabe,
+     * gegen die die Regel geschrieben wurde, die Regel — und zwar STILL: das
+     * UPDATE ueberschreibt den bekannten Klarnamen, und `meldeNamenlos` schweigt
+     * dabei, obwohl es der einzige Weg zur betroffenen Zeile waere.
+     */
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      _resetNamenlosGemeldet();
+      merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: "Anna Beispiel",
+                          email: "anna@example.org" });
+      merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: "   ", email: "  " });
+
+      const z = t.db.select().from(users).all();
+      expect(z).toHaveLength(1);
+      expect(z[0]?.name).toBe("Anna Beispiel");        // NICHT ueberschrieben
+      expect(z[0]?.email).toBe("anna@example.org");
+      expect(quelleAufloeser(t.db)("oidc", NEU_SUB)).toBe("Anna Beispiel");
+
+      expect(warn).toHaveBeenCalledTimes(1);           // und die Meldung kam
+      expect(String(warn.mock.calls[0]?.[0])).toContain(NEU_SUB);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("die GEGENRICHTUNG: ein echter Name meldet nicht und ueberschreibt sehr wohl", () => {
+    // Die Aufloesung darf den Normalfall nicht mitnehmen. Ohne diesen Fall bliebe
+    // ein zu scharfes Praedikat (etwa `=== null`) unbemerkt.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      _resetNamenlosGemeldet();
+      merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: "Anna Beispiel",
+                          email: "anna@example.org" });
+      merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: "Anna Muster",
+                          email: "neu@example.org" });
+      const z = t.db.select().from(users).all();
+      expect(z[0]).toMatchObject({ name: "Anna Muster", email: "neu@example.org" });
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("NUR die Leerheitsentscheidung trimmt — gespeichert wird der Wert wie geliefert", () => {
+    /**
+     * Die Abweichung bleibt so klein wie moeglich: `?.trim()` entscheidet, OB der
+     * Wert etwas aussagt; geschrieben wird weiter `viewer.name`. `quelleAufloeser`
+     * trimmt beim Lesen ohnehin, ein zweites Trimmen beim Schreiben waere eine
+     * stille Datenaenderung ohne Nutzen.
+     *
+     * Dieser Fall haelt die Entscheidung fest, damit niemand sie spaeter „zu Ende
+     * fuehrt" und den gespeicherten Wert mit beschneidet.
+     */
+    merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: " Anna Beispiel ", email: null });
+    const z = t.db.select().from(users).all();
+    expect(z[0]?.name).toBe(" Anna Beispiel ");
+  });
+
   it("schreibt lastLoginAt in SEKUNDEN, nicht in Millisekunden", () => {
     // Die 1000er-Falle. `mode: "timestamp"` rechnet in beide Richtungen dieselbe
     // Umrechnung — nur ein Blick auf den ROHEN Spaltenwert sieht den Unterschied
