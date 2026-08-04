@@ -347,3 +347,40 @@ describe("die Reihenfolge im Boot (src/instrumentation.ts)", () => {
     }
   });
 });
+
+/**
+ * DIE NAHT OHNE NETZ (§10.5, Plan Teil 3 / T38).
+ *
+ * `bootstrap.test.ts` koppelt bisher NUR das Migrations-Dreieck. Die Boot-Haken
+ * koppelt es nicht — und ohne diesen Block koennte `lagerbuchBootFehler()`
+ * existieren, gruen getestet sein und NIE GERUFEN WERDEN: alle sechs Pruefungen
+ * liefen nicht, und weder typecheck noch lint noch build noch Vitest noch
+ * Playwright wuerde rot.
+ *
+ * Warum ein QUELLTEXT-Scan und kein Verhaltenstest: `assertHostConfig()` ohne
+ * Prod-Host liefert bei JEDER Verdrahtung eine leere Fehlerliste (die
+ * Bedingtheit ist Absicht), und MIT Prod-Host braeuchte der Test eine
+ * vollstaendige, gueltige Umgebung fuer ALLE Module — dann prueft er das
+ * Zusammenspiel und nicht mehr die Naht. Der Scan haelt genau die eine Aussage
+ * fest, um die es geht: DER AUFRUF STEHT DA, UND ER STEHT IM errors-ARRAY.
+ */
+describe("Boot-Haken der Module sind verdrahtet", () => {
+  const QUELLE = readFileSync("src/core/bootstrap.ts", "utf8");
+
+  it("assertHostConfig ruft jeden Modul-Boot-Haken", () => {
+    for (const haken of ["filesBootFehler", "lagerbuchBootFehler"]) {
+      expect(QUELLE, `${haken} fehlt in bootstrap.ts`).toContain(haken);
+    }
+  });
+
+  it("jeder Haken steht AWAITET im errors-Array, nicht irgendwo", () => {
+    // Ein `lagerbuchBootFehler();` ohne `await` und ohne Spread waere
+    // typkorrekt, lint-sauber und wirkungslos — die Promise liefe ins Leere und
+    // die Fehlerliste bliebe leer. Genau dieselbe Klasse, die der Kopfkommentar
+    // von assertHostConfig fuer `files` ausschreibt.
+    for (const haken of ["filesBootFehler", "lagerbuchBootFehler"]) {
+      expect(QUELLE, `${haken}: kein "...(await ${haken}())"`)
+        .toContain(`...(await ${haken}())`);
+    }
+  });
+});
