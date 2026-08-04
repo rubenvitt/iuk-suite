@@ -4990,6 +4990,12 @@ können deshalb gleichzeitig laufen; die Verbindung prüft T27, Schritt 3.
 DB-Recheck. Das ist genau der Fall, der eintritt, wenn ein laminiertes Etikett aus einem Fahrzeug
 verschwindet.
 
+⚠️ **Bauauflage: `tokens.aktiv` bleibt eine Drizzle-Lesung.** Der Recheck in `befund()` darf `aktiv`
+ausschließlich über die vom Schema gemappte Spalte prüfen (wie unten via `zeile.aktiv` bzw.
+`eq(tokens.aktiv, true)`) — **nie** über ein rohes `WHERE aktiv` oder `WHERE aktiv != 0`. Ein
+Quelltext-Scan sieht den Unterschied nicht, weil beide Formen gültiges Drizzle sind; Begründung und
+gemessene Werte stehen in `ENTSCHEIDUNGEN-lagerbuch.md`, Abschnitt „Was vor dem Cutover…".
+
 **Entschieden: Entscheidung 13, Option (b) — der Recheck wandert auf JEDEN Lesepfad.** Das folgt dem
 Hinweis der Analyse selbst („Der Port macht (b) billiger als heute"): die Helfer-Prüfung wandert
 ohnehin aus der **Edge** in den **Node-Kontext**, wo der DB-Recheck ohne Zusatzaufwand möglich ist.
