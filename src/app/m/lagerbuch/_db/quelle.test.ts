@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "./testdb";
 import { quelleAufloeser } from "./quelle";
 import { tokens, users } from "./schema";
+import { merkeNutzer, _resetNamenlosGemeldet } from "../_lib/konto";
 
 let t: TestDb;
 beforeEach(() => { t = migrierteTestDb("lagerbuch-quelle-"); });
@@ -83,5 +84,125 @@ describe("quelleAufloeser", () => {
     t.db.insert(users).values({ id: "spaeter", name: "Zu spaet" }).run();
     expect(q("oidc", NEU_SUB)).toBe("Anna Beispiel");
     expect(q("oidc", "spaeter")).toBe("spaeter");
+  });
+});
+
+describe("merkeNutzer — die Gegenprobe zum Defektzustand (§4.13 i)", () => {
+  it("schreibt beim INSERT die mitgelieferten Werte", () => {
+    merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: "Anna Beispiel",
+                        email: "anna@example.org" });
+    const z = t.db.select().from(users).all();
+    expect(z).toHaveLength(1);
+    expect(z[0]).toMatchObject({ id: NEU_SUB, name: "Anna Beispiel",
+                                 email: "anna@example.org" });
+    expect(quelleAufloeser(t.db)("oidc", NEU_SUB)).toBe("Anna Beispiel");
+  });
+
+  it("ueberschreibt beim UPDATE einen bekannten Namen NICHT mit null", () => {
+    /**
+     * DIE REGEL GILT NUR FUER DAS UPDATE (§4.13 i). Ein spaeterer Login ohne
+     * Klarnamen darf einen bereits bekannten Namen nicht ueberschreiben — die
+     * Bedingung steht heute schon so da (`lagerbuch/src/auth.ts:22-27`).
+     *
+     * Die Mutation, die ohne diesen Fall gruen bliebe: `set: { name, email, ... }`
+     * unbedingt. Sie sieht sauberer aus und macht aus jedem Aufruf ohne
+     * name/email-Claims einen NAMENSVERLUST — und zwar fuer jemanden, der vorher
+     * einen Namen hatte. Im Journal steht danach die rohe Kennung.
+     */
+    merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: "Anna Beispiel",
+                        email: "anna@example.org" });
+    merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: null, email: null });
+    const z = t.db.select().from(users).all();
+    expect(z).toHaveLength(1);                       // KEIN zweiter Satz
+    expect(z[0]?.name).toBe("Anna Beispiel");
+    expect(z[0]?.email).toBe("anna@example.org");
+    expect(quelleAufloeser(t.db)("oidc", NEU_SUB)).toBe("Anna Beispiel");
+  });
+
+  it("aktualisiert einen NEUEN Namen sehr wohl", () => {
+    // Die Regel heisst „nicht mit null ueberschreiben", nicht „nie aendern".
+    // Eine Heirat, eine korrigierte Schreibweise: der neue Wert gewinnt.
+    merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: "Anna Beispiel", email: null });
+    merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: "Anna Muster", email: "a@example.org" });
+    const z = t.db.select().from(users).all();
+    expect(z[0]).toMatchObject({ name: "Anna Muster", email: "a@example.org" });
+  });
+
+  it("BEIM INSERT gilt die Regel NICHT — und das ist der Defektzustand mit Ansage", () => {
+    /**
+     * Wer die Nicht-Ueberschreiben-Bedingung auf BEIDES zieht, erzeugt den
+     * Defektzustand aus §4.13 (i): die frisch angelegte Zeile bliebe leer und
+     * loeste sofort auf die ROHE Kennung auf.
+     *
+     * Dieser Fall behauptet den Ist-Zustand, nicht den Wunsch: eine Sitzung ohne
+     * name/email schreibt eine Zeile mit null/null. Der Test verhindert das
+     * nicht — er macht es BENANNT und auffindbar, statt es als „unerklaerliche
+     * UUID im Journal" wiederzuentdecken.
+     */
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      _resetNamenlosGemeldet();
+      merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: null, email: null });
+      const z = t.db.select().from(users).all();
+      expect(z).toHaveLength(1);
+      expect(z[0]?.name).toBeNull();
+      expect(z[0]?.email).toBeNull();
+      expect(quelleAufloeser(t.db)("oidc", NEU_SUB)).toBe(NEU_SUB);   // die ROHE Kennung
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("MELDET den Defektzustand sichtbar — mit der Kennung, und nur einmal je Person", () => {
+    /**
+     * „Sichtbar loggen statt still schlucken" (`lagerbuch/src/auth.ts:29-33`).
+     * Zwei moegliche Ursachen, beide sofort zu melden: die Suite-Sitzung fuehrt
+     * keine name/email-Claims, oder merkeNutzer laeuft an einer Stelle, an der
+     * die Claims noch nicht vorliegen.
+     *
+     * ⚠️ ANDERS ALS BEI meldeFehlendeGruppe STEHT DIE KENNUNG IN DER ZEILE: dort
+     * ist der sub nur Dedup-Schluessel, hier ist er der einzige Weg zur
+     * betroffenen Zeile.
+     *
+     * Dedupliziert, weil merkeNutzer bei JEDER Verwaltungsanfrage laeuft — ohne
+     * das schriebe eine einzige betroffene Person bei jedem Seitenwechsel eine
+     * Zeile.
+     */
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      _resetNamenlosGemeldet();
+      for (let i = 0; i < 4; i++) {
+        merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: null, email: null });
+      }
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0])).toContain(NEU_SUB);
+      expect(String(warn.mock.calls[0]?.[0])).toContain("[lagerbuch]");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("schreibt lastLoginAt in SEKUNDEN, nicht in Millisekunden", () => {
+    // Die 1000er-Falle. `mode: "timestamp"` rechnet in beide Richtungen dieselbe
+    // Umrechnung — nur ein Blick auf den ROHEN Spaltenwert sieht den Unterschied
+    // (§4.16, Punkt 1). Zehnstellig, nicht dreizehnstellig.
+    merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: "A", email: null });
+    const roh = t.sqlite.prepare("select last_login_at from users where id = ?")
+      .get(NEU_SUB) as { last_login_at: number };
+    expect(String(roh.last_login_at)).toHaveLength(10);
+  });
+
+  it("wirft NICHT, wenn der Upsert scheitert — der Zugang funktioniert auch ohne Satz", () => {
+    // `lagerbuch/src/auth.ts:29-33` begruendet das bereits so. Ein Wurf hier
+    // machte aus einem Datenbankproblem einen Ausfall der ganzen Verwaltung.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      t.sqlite.exec("drop table users");
+      expect(() => merkeNutzer(t.db, { sub: NEU_SUB, groups: [], name: "A", email: null }))
+        .not.toThrow();
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
