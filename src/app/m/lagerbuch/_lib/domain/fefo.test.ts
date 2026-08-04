@@ -16,6 +16,24 @@ describe("fefoVerteilung — aufsteigender Verfall", () => {
     ]);
   });
 
+  it("sortiert nach verfall, AUCH WENN die chargeId alphabetisch das Gegenteil nahelegt", () => {
+    /**
+     * ISOLIERT DIE ERSTSTUFE. Im Test oben ist "frueh" < "spaet" auch alphabetisch
+     * — eine Implementierung, die verfall komplett ignoriert und nur nach
+     * chargeId sortiert, bestuende ihn trotzdem. Hier liegt die alphabetisch
+     * FRUEHERE chargeId ("aaa") auf dem SPAETEREN Verfall, und umgekehrt: nur
+     * eine echte verfall-Sortierung besteht diesen Test.
+     */
+    const chargen: ChargeRest[] = [
+      { chargeId: "zzz", verfall: "2026-03", rest: 4, createdAt: T0 },
+      { chargeId: "aaa", verfall: "2027-06", rest: 10, createdAt: T0 },
+    ];
+    expect(fefoVerteilung(chargen, 6)).toEqual([
+      { chargeId: "zzz", menge: 4 },
+      { chargeId: "aaa", menge: 2 },
+    ]);
+  });
+
   it("ueberspringt Chargen mit rest <= 0", () => {
     const chargen: ChargeRest[] = [
       { chargeId: "leer", verfall: "2026-01", rest: 0, createdAt: T0 },
@@ -57,6 +75,25 @@ describe("fefoVerteilung — DETERMINISMUS (§5.3.1, die neue Zusage)", () => {
     expect(fefoVerteilung(chargen, 7)).toEqual([
       { chargeId: "alt", menge: 5 },
       { chargeId: "neu", menge: 2 },
+    ]);
+  });
+
+  it("gleicher Verfall -> AELTERE createdAt zuerst, AUCH WENN die chargeId alphabetisch das Gegenteil nahelegt", () => {
+    /**
+     * ISOLIERT DIE ZWEITSTUFE. Im Test oben ist "alt" < "neu" auch alphabetisch
+     * — eine Implementierung, die createdAt komplett ignoriert und bei
+     * gleichem Verfall direkt auf chargeId zurueckfaellt, bestuende ihn
+     * trotzdem (Review-Befund T30). Hier traegt die AELTERE Charge die
+     * alphabetisch SPAETERE chargeId ("zzz") und umgekehrt: nur eine echte
+     * createdAt-Sortierung besteht diesen Test.
+     */
+    const chargen: ChargeRest[] = [
+      { chargeId: "zzz", verfall: "2026-03", rest: 5, createdAt: tage(1) },
+      { chargeId: "aaa", verfall: "2026-03", rest: 5, createdAt: tage(10) },
+    ];
+    expect(fefoVerteilung(chargen, 7)).toEqual([
+      { chargeId: "zzz", menge: 5 },
+      { chargeId: "aaa", menge: 2 },
     ]);
   });
 
