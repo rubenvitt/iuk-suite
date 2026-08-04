@@ -76,7 +76,29 @@ function meldeNamenlos(sub: string): void {
  * wiederkehrender Datenbankfehler soll jedes Mal sichtbar sein.
  */
 export function merkeNutzer(db: DB, viewer: Viewer): void {
-  if (!viewer.name && !viewer.email) meldeNamenlos(viewer.sub);
+  /**
+   * ⚠️ `?.trim()` UND NICHT DIE BLOSSE FALSY-PRUEFUNG — hier wurde eine
+   * UNEINHEITLICHKEIT DES PLANS aufgeloest, keine Planvorgabe uebergangen. Wer das
+   * `?.trim()` als ueberfluessig wegraeumt, weil im Plan `viewer.name` steht,
+   * stellt den Fehler wieder her.
+   *
+   * `_db/quelle.ts:38` liest mit `u.name?.trim() || u.email?.trim() || u.id` und
+   * haelt damit fest: EIN NAME AUS LEERZEICHEN IST KEIN NAME. Der Plan schreibt
+   * an derselben Sache hier eine Falsy-Pruefung vor und kommt zum gegenteiligen
+   * Ergebnis; beide Formen stehen woertlich da und koennen nicht beide gelten.
+   * §4.13 (i) sagt „ueberschreibe keinen bekannten Namen mit NICHTS" — und
+   * `"   "` IST nichts, das sagt `quelle.ts` selbst. Die Fassung, die die Regel
+   * einloest, gewinnt.
+   *
+   * Ohne das ist `"   "` TRUTHY: das UPDATE ueberschreibt dann den bekannten
+   * Klarnamen, und `meldeNamenlos` schweigt dabei — genau die Eingabe, gegen die
+   * die Regel geschrieben wurde, besiegt sie, und zwar still.
+   *
+   * NUR DIE LEERHEITSENTSCHEIDUNG TRIMMT, der gespeicherte Wert bleibt wie
+   * geliefert (`viewer.name`, nicht `viewer.name.trim()`): die Abweichung bleibt
+   * so klein wie moeglich, und `quelleAufloeser` trimmt beim Lesen ohnehin.
+   */
+  if (!viewer.name?.trim() && !viewer.email?.trim()) meldeNamenlos(viewer.sub);
   const jetzt = new Date();
   try {
     db.insert(users)
@@ -87,8 +109,10 @@ export function merkeNutzer(db: DB, viewer: Viewer): void {
         // Drizzle „Spalte nicht anfassen"; ein `null` hier machte aus jedem
         // Login ohne Claims einen Namensverlust.
         set: {
-          ...(viewer.name ? { name: viewer.name } : {}),
-          ...(viewer.email ? { email: viewer.email } : {}),
+          // `?.trim()` aus demselben Grund wie oben — beide Stellen, sonst wandert
+          // der Fall in eine Ecke, in der ihn niemand mehr sucht.
+          ...(viewer.name?.trim() ? { name: viewer.name } : {}),
+          ...(viewer.email?.trim() ? { email: viewer.email } : {}),
           lastLoginAt: jetzt,
         },
       })
