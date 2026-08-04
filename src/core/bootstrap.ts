@@ -11,6 +11,7 @@ import { seedQr } from "@/app/m/qr/_lib/seed";
 import * as feedbackSchema from "@/app/m/feedback/_db/schema";
 import { seedFeedback } from "@/app/m/feedback/_lib/seed";
 import { filesBootFehler, starteFilesHintergrund } from "@/app/m/files/_lib/boot";
+import { lagerbuchBootFehler } from "@/app/m/lagerbuch/_lib/boot";
 
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
 // Migrations-Pfad ist cwd-relativ: Dev = Repo-Root, Prod = /app (Dockerfile
@@ -51,6 +52,9 @@ export async function assertHostConfig(): Promise<void> {
     ...validateHostConfig(keys),
     ...validateGroupConfig(keys),
     ...(await filesBootFehler()),
+    // lagerbuch: greift nur bei gesetztem SUITE_HOST_LAGERBUCH und WIRFT NIE
+    // (Spec §10.5). Ein Wurf von dort naehme portal, qr, feedback und files mit.
+    ...(await lagerbuchBootFehler()),
   ];
   if (errors.length > 0) {
     throw new Error(`Ungültige Host-Konfiguration:\n  - ${errors.join("\n  - ")}`);
