@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
-import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as schema from "./schema";
@@ -43,7 +43,13 @@ afterAll(() => {
   rmSync(tmp, { recursive: true, force: true });
 });
 
-type SpalteInfo = { name: string; type: string; notnull: number; dflt_value: string | null };
+/** `pk` steht in derselben PRAGMA-Zeile und wird MITGEPRUEFT: es ist die einzige
+ *  Spalte hier, die den PRIMARY KEY sichtbar macht. `notnull: 1` kommt aus dem
+ *  separaten `NOT NULL` und bliebe stehen, verloere die Tabelle ihren Schluessel —
+ *  ohne `pk` waere ein weggefallener PRIMARY KEY auf 15 von 16 Tabellen gruen. */
+type SpalteInfo = {
+  name: string; type: string; notnull: number; dflt_value: string | null; pk: number;
+};
 type IndexInfo = { name: string; unique: number; origin: string };
 
 const spalten = (tabelle: string) =>
@@ -59,169 +65,172 @@ const indizes = (tabelle: string) =>
     .map((i) => i.name)
     .sort();
 
-const TABELLEN: Record<string, { name: string; typ: string; notnull: 0 | 1; dflt: string | null }[]> = {
+const TABELLEN: Record<
+  string,
+  { name: string; typ: string; notnull: 0 | 1; dflt: string | null; pk: 0 | 1 }[]
+> = {
   lagerorte: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "name", typ: "text", notnull: 1, dflt: null },
-    { name: "typ", typ: "text", notnull: 1, dflt: null },
-    { name: "kennung", typ: "text", notnull: 0, dflt: null },
-    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true" },
-    { name: "template_id", typ: "text", notnull: 0, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "name", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "typ", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "kennung", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
+    { name: "template_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
   ],
   fahrzeug_templates: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "name", typ: "text", notnull: 1, dflt: null },
-    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true" },
-    { name: "created_at", typ: "integer", notnull: 1, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "name", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
+    { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
   ],
   template_positionen: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "template_id", typ: "text", notnull: 1, dflt: null },
-    { name: "fach_label", typ: "text", notnull: 1, dflt: null },
-    { name: "sort", typ: "integer", notnull: 1, dflt: "0" },
-    { name: "artikel_id", typ: "text", notnull: 1, dflt: null },
-    { name: "soll", typ: "integer", notnull: 1, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "template_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "fach_label", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "sort", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
+    { name: "artikel_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "soll", typ: "integer", notnull: 1, dflt: null, pk: 0 },
   ],
   artikel: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "name", typ: "text", notnull: 1, dflt: null },
-    { name: "einheit", typ: "text", notnull: 1, dflt: null },
-    { name: "fach", typ: "text", notnull: 1, dflt: null },
-    { name: "mindestbestand", typ: "integer", notnull: 1, dflt: "0" },
-    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true" },
-    { name: "bestellt_at", typ: "integer", notnull: 0, dflt: null },
-    { name: "created_at", typ: "integer", notnull: 1, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "name", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "einheit", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "fach", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "mindestbestand", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
+    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
+    { name: "bestellt_at", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
   ],
   chargen: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "artikel_id", typ: "text", notnull: 1, dflt: null },
-    { name: "chargen_nr", typ: "text", notnull: 1, dflt: null },
-    { name: "verfall", typ: "text", notnull: 1, dflt: null },
-    { name: "created_at", typ: "integer", notnull: 1, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "artikel_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "chargen_nr", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "verfall", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
   ],
   soll_positionen: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "fahrzeug_id", typ: "text", notnull: 1, dflt: null },
-    { name: "fach_label", typ: "text", notnull: 1, dflt: null },
-    { name: "sort", typ: "integer", notnull: 1, dflt: "0" },
-    { name: "artikel_id", typ: "text", notnull: 1, dflt: null },
-    { name: "soll", typ: "integer", notnull: 1, dflt: null },
-    { name: "template_position_id", typ: "text", notnull: 0, dflt: null },
-    { name: "ueberschrieben", typ: "integer", notnull: 1, dflt: "false" },
-    { name: "entfernt", typ: "integer", notnull: 1, dflt: "false" },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "fahrzeug_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "fach_label", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "sort", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
+    { name: "artikel_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "soll", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "template_position_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "ueberschrieben", typ: "integer", notnull: 1, dflt: "false", pk: 0 },
+    { name: "entfernt", typ: "integer", notnull: 1, dflt: "false", pk: 0 },
   ],
   buchungen: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "ts", typ: "integer", notnull: 1, dflt: null },
-    { name: "typ", typ: "text", notnull: 1, dflt: null },
-    { name: "artikel_id", typ: "text", notnull: 1, dflt: null },
-    { name: "charge_id", typ: "text", notnull: 1, dflt: null },
-    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null },
-    { name: "menge", typ: "integer", notnull: 1, dflt: null },
-    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null },
-    { name: "quelle_id", typ: "text", notnull: 1, dflt: null },
-    { name: "referenz", typ: "text", notnull: 0, dflt: null },
-    { name: "kommentar", typ: "text", notnull: 0, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "ts", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "typ", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "artikel_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "charge_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "menge", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "referenz", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "kommentar", typ: "text", notnull: 0, dflt: null, pk: 0 },
   ],
   checks: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "fahrzeug_id", typ: "text", notnull: 1, dflt: null },
-    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null },
-    { name: "quelle_id", typ: "text", notnull: 1, dflt: null },
-    { name: "started_at", typ: "integer", notnull: 1, dflt: null },
-    { name: "completed_at", typ: "integer", notnull: 0, dflt: null },
-    { name: "ergebnis", typ: "text", notnull: 0, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "fahrzeug_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "started_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "completed_at", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "ergebnis", typ: "text", notnull: 0, dflt: null, pk: 0 },
   ],
   lagerort_verfall: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null },
-    { name: "artikel_id", typ: "text", notnull: 1, dflt: null },
-    { name: "verfall", typ: "text", notnull: 1, dflt: null },
-    { name: "erfasst_at", typ: "integer", notnull: 1, dflt: null },
-    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null },
-    { name: "quelle_id", typ: "text", notnull: 1, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "artikel_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "verfall", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "erfasst_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
   ],
   bz_geraete: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "barcode", typ: "text", notnull: 0, dflt: null },
-    { name: "name", typ: "text", notnull: 1, dflt: null },
-    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null },
-    { name: "streifen_lot", typ: "text", notnull: 0, dflt: null },
-    { name: "level1_label", typ: "text", notnull: 0, dflt: null },
-    { name: "level1_min", typ: "integer", notnull: 0, dflt: null },
-    { name: "level1_max", typ: "integer", notnull: 0, dflt: null },
-    { name: "level2_label", typ: "text", notnull: 0, dflt: null },
-    { name: "level2_min", typ: "integer", notnull: 0, dflt: null },
-    { name: "level2_max", typ: "integer", notnull: 0, dflt: null },
-    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true" },
-    { name: "created_at", typ: "integer", notnull: 1, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "barcode", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "name", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "streifen_lot", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "level1_label", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "level1_min", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "level1_max", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "level2_label", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "level2_min", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "level2_max", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
+    { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
   ],
   bz_kontrollen: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "geraet_id", typ: "text", notnull: 1, dflt: null },
-    { name: "ts", typ: "integer", notnull: 1, dflt: null },
-    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null },
-    { name: "quelle_id", typ: "text", notnull: 1, dflt: null },
-    { name: "level1_wert", typ: "integer", notnull: 0, dflt: null },
-    { name: "level1_im_bereich", typ: "integer", notnull: 0, dflt: null },
-    { name: "level2_wert", typ: "integer", notnull: 0, dflt: null },
-    { name: "level2_im_bereich", typ: "integer", notnull: 0, dflt: null },
-    { name: "kompresse_verfall", typ: "text", notnull: 0, dflt: null },
-    { name: "sticks", typ: "integer", notnull: 1, dflt: "0" },
-    { name: "lanzetten", typ: "integer", notnull: 1, dflt: "0" },
-    { name: "batterie_gewechselt", typ: "integer", notnull: 1, dflt: "false" },
-    { name: "kommentar", typ: "text", notnull: 0, dflt: null },
-    { name: "bestanden", typ: "integer", notnull: 1, dflt: null },
-    { name: "ref_snapshot", typ: "text", notnull: 0, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "geraet_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "ts", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "level1_wert", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "level1_im_bereich", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "level2_wert", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "level2_im_bereich", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "kompresse_verfall", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "sticks", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
+    { name: "lanzetten", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
+    { name: "batterie_gewechselt", typ: "integer", notnull: 1, dflt: "false", pk: 0 },
+    { name: "kommentar", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "bestanden", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "ref_snapshot", typ: "text", notnull: 0, dflt: null, pk: 0 },
   ],
   o2_flaschen: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "name", typ: "text", notnull: 1, dflt: null },
-    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null },
-    { name: "groesse_liter", typ: "integer", notnull: 0, dflt: null },
-    { name: "nennfuelldruck_bar", typ: "integer", notnull: 1, dflt: "200" },
-    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true" },
-    { name: "created_at", typ: "integer", notnull: 1, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "name", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "groesse_liter", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "nennfuelldruck_bar", typ: "integer", notnull: 1, dflt: "200", pk: 0 },
+    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
+    { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
   ],
   o2_messungen: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "flasche_id", typ: "text", notnull: 1, dflt: null },
-    { name: "ts", typ: "integer", notnull: 1, dflt: null },
-    { name: "druck_bar", typ: "integer", notnull: 1, dflt: null },
-    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null },
-    { name: "quelle_id", typ: "text", notnull: 1, dflt: null },
-    { name: "kommentar", typ: "text", notnull: 0, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "flasche_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "ts", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "druck_bar", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "kommentar", typ: "text", notnull: 0, dflt: null, pk: 0 },
   ],
   geraete: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "typ", typ: "text", notnull: 1, dflt: null },
-    { name: "barcode", typ: "text", notnull: 0, dflt: null },
-    { name: "name", typ: "text", notnull: 1, dflt: null },
-    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null },
-    { name: "anmerkung", typ: "text", notnull: 0, dflt: null },
-    { name: "mtk_faellig", typ: "text", notnull: 0, dflt: null },
-    { name: "beschreibung", typ: "text", notnull: 0, dflt: null },
-    { name: "ablaufdatum", typ: "text", notnull: 0, dflt: null },
-    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true" },
-    { name: "created_at", typ: "integer", notnull: 1, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "typ", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "barcode", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "name", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "anmerkung", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "mtk_faellig", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "beschreibung", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "ablaufdatum", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
+    { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
   ],
   tokens: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "code", typ: "text", notnull: 1, dflt: null },
-    { name: "label", typ: "text", notnull: 1, dflt: null },
-    { name: "scope_lagerort_id", typ: "text", notnull: 0, dflt: null },
-    { name: "ziel_typ", typ: "text", notnull: 0, dflt: null },
-    { name: "ziel_id", typ: "text", notnull: 0, dflt: null },
-    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true" },
-    { name: "created_at", typ: "integer", notnull: 1, dflt: null },
-    { name: "created_by", typ: "text", notnull: 1, dflt: null },
-    { name: "last_used_at", typ: "integer", notnull: 0, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "code", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "label", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "scope_lagerort_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "ziel_typ", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "ziel_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
+    { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "created_by", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "last_used_at", typ: "integer", notnull: 0, dflt: null, pk: 0 },
   ],
   users: [
-    { name: "id", typ: "text", notnull: 1, dflt: null },
-    { name: "name", typ: "text", notnull: 0, dflt: null },
-    { name: "email", typ: "text", notnull: 0, dflt: null },
-    { name: "last_login_at", typ: "integer", notnull: 0, dflt: null },
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "name", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "email", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "last_login_at", typ: "integer", notnull: 0, dflt: null, pk: 0 },
   ],
 };
 
@@ -237,6 +246,7 @@ describe("16 Tabellen, Spalte fuer Spalte", () => {
   it.each(Object.entries(TABELLEN))("%s", (tabelle, erwartet) => {
     const ist = spalten(tabelle).map((s) => ({
       name: s.name, typ: s.type.toLowerCase(), notnull: s.notnull as 0 | 1, dflt: s.dflt_value,
+      pk: s.pk as 0 | 1,
     }));
     expect(ist).toEqual(erwartet);
   });
@@ -319,10 +329,15 @@ describe("die Handlager-Zeile ist eine MIGRATIONSZEILE (S4)", () => {
   });
 
   it("0003 ist idempotent — ein zweiter Lauf legt keine zweite Zeile an", () => {
-    sqlite.prepare(
-      `INSERT OR IGNORE INTO lagerorte (id, name, typ, kennung, aktiv, template_id)
-       VALUES ('handlager', 'Handlager', 'lager', NULL, 1, NULL)`,
-    ).run();
+    // ABGESPIELT, NICHT ABGETIPPT: ein hier hingeschriebenes `INSERT OR IGNORE`
+    // wuerde SQLite-Semantik und die Eindeutigkeit von lagerorte.id messen, aber
+    // NICHT die Eigenschaft der Migration — ersetzte jemand in 0003 das
+    // `INSERT OR IGNORE` durch ein nacktes `INSERT`, bliebe die Zusicherung gruen.
+    // Genau das ist der Cutover-Fall: 0003 laeuft dort gegen eine BEREITS
+    // VORHANDENE handlager-Zeile, ein nacktes INSERT braeche mit `UNIQUE
+    // constraint failed`, und `migrateAllModules()` risse die ganze Suite mit.
+    // `exec` vertraegt die `--`-Kommentarzeilen; ein Statement-Splitter entfaellt.
+    sqlite.exec(readFileSync(join(ORDNER, "0003_handlager.sql"), "utf8"));
     const n = sqlite.prepare("select count(*) c from lagerorte where id = 'handlager'")
       .get() as { c: number };
     expect(n.c).toBe(1);
@@ -363,6 +378,16 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     }
     expect(journal.entries.map((e) => e.tag).slice(1))
       .toEqual(["0001_append_only", "0002_bz_kontrollen_append_only", "0003_handlager"]);
+  });
+
+  it("und die GEGENRICHTUNG: keine .sql ohne Journaleintrag", () => {
+    // Die Zusicherung darueber prueft nur Journal → Datei. Eine verwaiste
+    // `0004_*.sql`, die im Journal FEHLT, wird vom Migrator stillschweigend
+    // ignoriert — sie sieht eingecheckt aus und laeuft nie. Gezaehlt wird gegen
+    // die Zahl der Journaleintraege, nicht gegen eine feste 4: dann traegt die
+    // Zusicherung auch noch, wenn ein spaeterer Teil eine fuenfte Migration bringt.
+    const dateien = readdirSync(ORDNER).filter((f) => f.endsWith(".sql"));
+    expect(dateien).toHaveLength(journal.entries.length);
   });
 
   // ZWEI ZUSICHERUNGEN STATT EINER, weil die eine Kette zwei Glieder hat und nur das
