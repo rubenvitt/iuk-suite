@@ -8,3 +8,6 @@ node_modules
 
 # Vorher-Screenshots fuer UX-Redesign (lokal)
 .ux-vorher/
+
+# Betriebsnotizen, lokal (Gruppenlisten, abgelesene Serverwerte) — nie committen
+.betrieb-lokal/
