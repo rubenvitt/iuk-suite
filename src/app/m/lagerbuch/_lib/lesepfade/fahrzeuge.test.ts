@@ -13,14 +13,24 @@ let t: TestDb;
 beforeEach(() => {
   t = migrierteTestDb("lagerbuch-lp-fahrzeuge-");
   // Einfuegereihenfolge bewusst GEGEN die erwartete Sortierreihenfolge (aktiv
-  // zuerst) — sonst faellt eine fehlende Sortierung nicht auf (T30/T46/T47-Muster:
-  // Einfuegereihenfolge faellt zufaellig mit der Sollreihenfolge zusammen).
+  // zuerst, dann alphabetisch) — sonst faellt eine fehlende Sortierung nicht auf
+  // (T30/T44/T46/T47-Muster: Einfuegereihenfolge faellt zufaellig mit der
+  // Sollreihenfolge zusammen). ZWEI aktive Templates ("Basis-Vorlage" vor
+  // "RTW-Vorlage" alphabetisch, aber NACH ihr eingefuegt) machen den
+  // Alphabet-Tiebreaker unter den Aktiven erst load-bearing — mit nur einem
+  // aktiven Template waere `templateListeAktiv`s "alphabetisch" unbeweisbar.
   t.db.insert(fahrzeugTemplates).values([
-    { id: "tpl-alt", name: "Alte Vorlage", aktiv: false, createdAt: NOW },
     { id: "tpl-rtw", name: "RTW-Vorlage", aktiv: true, createdAt: NOW },
+    { id: "tpl-alt", name: "Alte Vorlage", aktiv: false, createdAt: NOW },
+    { id: "tpl-basis", name: "Basis-Vorlage", aktiv: true, createdAt: NOW },
   ]).run();
+  // ZWEITES Fahrzeug an "tpl-rtw", INAKTIV, VOR "rtw-1" eingefuegt — sonst
+  // waere `templateDetail("tpl-rtw").fahrzeuge` (nur `rtw-1`) nie mehr als ein
+  // Element gross, und dessen aktiv/alphabetisch-Sortierung waere unbeweisbar.
   t.db.insert(lagerorte).values([
     { id: "rtw-2", name: "ELW", typ: "fahrzeug", kennung: "MS-2", aktiv: false },
+    { id: "rtw-3", name: "ZZZ Ersatzwagen", typ: "fahrzeug", kennung: "MS-3",
+      aktiv: false, templateId: "tpl-rtw" },
     { id: "rtw-1", name: "RTW 1", typ: "fahrzeug", kennung: "MS-1",
       aktiv: true, templateId: "tpl-rtw" },
   ]).run();
@@ -119,9 +129,12 @@ describe("fahrzeugUebersicht — Soll je ARTIKEL summiert, dann verglichen", () 
 
   it("nennt den Vorlagennamen und sortiert aktive nach vorn", () => {
     const l = fahrzeugUebersicht(t.db, NOW);
-    expect(l.map((z) => z.id)).toEqual(["rtw-1", "rtw-2"]);
+    // rtw-1 (aktiv) zuerst, dann rtw-2/rtw-3 (beide inaktiv) alphabetisch:
+    // "ELW" < "ZZZ Ersatzwagen".
+    expect(l.map((z) => z.id)).toEqual(["rtw-1", "rtw-2", "rtw-3"]);
     expect(l[0].templateName).toBe("RTW-Vorlage");
     expect(l[1].templateName).toBeNull();
+    expect(l[2].templateName).toBe("RTW-Vorlage");
   });
 });
 
@@ -181,8 +194,11 @@ describe("sollFuerFahrzeug — Grabsteine bleiben DRIN", () => {
 describe("die drei Vorlagen-Lesepfade (Festlegung H4)", () => {
   it("templateUebersicht zaehlt Positionen, Faecher und verknuepfte Fahrzeuge", () => {
     const l = templateUebersicht(t.db);
-    expect(l.map((x) => x.id)).toEqual(["tpl-rtw", "tpl-alt"]);   // aktive nach vorn
-    expect(l[0]).toMatchObject({ positionen: 1, faecher: 1, fahrzeuge: 1 });
+    // Aktive zuerst, ALPHABETISCH unter sich ("Basis-Vorlage" vor
+    // "RTW-Vorlage"), dann die inaktiven.
+    expect(l.map((x) => x.id)).toEqual(["tpl-basis", "tpl-rtw", "tpl-alt"]);
+    expect(l.find((x) => x.id === "tpl-rtw"))
+      .toMatchObject({ positionen: 1, faecher: 1, fahrzeuge: 2 });   // rtw-1 UND rtw-3
   });
 
   it("templateDetail nennt Positionen und verknuepfte Fahrzeuge", () => {
@@ -190,7 +206,8 @@ describe("die drei Vorlagen-Lesepfade (Festlegung H4)", () => {
     expect(d.positionen.map((p) => p.id)).toEqual(["tp1"]);
     expect(d.positionen[0].artikelName).toBe("Verband");
     expect(d.positionen[0].handlagerFach).toBe("A1");
-    expect(d.fahrzeuge.map((f) => f.id)).toEqual(["rtw-1"]);
+    // rtw-1 (aktiv) vor rtw-3 (inaktiv) — trotz umgekehrter Einfuegereihenfolge.
+    expect(d.fahrzeuge.map((f) => f.id)).toEqual(["rtw-1", "rtw-3"]);
   });
 
   it("templateDetail liefert null fuer eine unbekannte ID", () => {
@@ -198,12 +215,15 @@ describe("die drei Vorlagen-Lesepfade (Festlegung H4)", () => {
   });
 
   it("templateListeAktiv liefert nur aktive, alphabetisch", () => {
-    expect(templateListeAktiv(t.db)).toEqual([{ id: "tpl-rtw", name: "RTW-Vorlage" }]);
+    expect(templateListeAktiv(t.db)).toEqual([
+      { id: "tpl-basis", name: "Basis-Vorlage" },
+      { id: "tpl-rtw", name: "RTW-Vorlage" },
+    ]);
   });
 });
 
 describe("fahrzeugListe", () => {
   it("liefert alle Lagerorte vom Typ fahrzeug, inklusive inaktiver", () => {
-    expect(fahrzeugListe(t.db).map((f) => f.id).sort()).toEqual(["rtw-1", "rtw-2"]);
+    expect(fahrzeugListe(t.db).map((f) => f.id).sort()).toEqual(["rtw-1", "rtw-2", "rtw-3"]);
   });
 });
