@@ -124,6 +124,18 @@ describe("OeffentlicherRahmen", () => {
     );
     expect(exists("nav")).toBe(false);
     expect(exists("header")).toBe(false);
+    // ⚠️ DIE ZWEI ELEMENTNAMEN OBEN SICHERN FUER SICH GENOMMEN NICHTS ZU. Kopf
+    // und Tab-Leiste sind im Haus KLASSENbasiert definiert
+    // (`helfer.module.css:117` `.kopf`, `:134` `.tableiste`); keine der beiden
+    // Regeln legt eine Elementform fest, und es existiert kein Konsument, der
+    // eine festlegte. Die Regel in ihrer naheliegendsten Form zu verletzen —
+    // ein `<div className={s.kopf} />` bzw. `<div className={s.tableiste} />`
+    // hier im Traeger — liesse `exists("nav")`/`exists("header")` gruen.
+    // Gemessen: beide Mutationen gegen die Fassung ohne die zwei Zeilen unten
+    // liefen 11/11 GRUEN. Der Substring-Selektor greift, weil ein CSS-Modul
+    // unter Vitest zu `_kopf_<hash>` aufloest.
+    expect(exists("[class*='kopf']")).toBe(false);
+    expect(exists("[class*='tableiste']")).toBe(false);
   });
 
   it("ist eine Server Component", () => {
