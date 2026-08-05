@@ -22,9 +22,20 @@ describe("fehlmengen", () => {
 
 describe("summiereCheckErgebnis — das ALTE Format", () => {
   it("zaehlt Positionen, Nachgefuelltes und Offenes; alles Uebrige ist 0", () => {
-    const roh = JSON.stringify([{ fehlt: 3, gebucht: 1 }, { fehlt: 2, gebucht: 2 }]);
+    /**
+     * ⚠️ DER DRITTE EINTRAG IST DIE KLEMMUNG. Mit `{fehlt:3,gebucht:1}` und
+     * `{fehlt:2,gebucht:2}` allein war `Math.max(0, fehlt − gebucht)` VAKUUM:
+     * 2 + 0 = 2, mit oder ohne Klemmung. V1 ist das ALTFORMAT — also exakt die
+     * Daten, die beim Cutover hereinkommen; ein Eintrag mit `gebucht > fehlt`
+     * zoege `offen` nach unten und meldete zu wenig Fehlmenge.
+     * `{fehlt:1,gebucht:5}` liefert geklemmt 0, ungeklemmt −4.
+     */
+    const roh = JSON.stringify([
+      { fehlt: 3, gebucht: 1 }, { fehlt: 2, gebucht: 2 }, { fehlt: 1, gebucht: 5 },
+    ]);
     expect(summiereCheckErgebnis(roh)).toEqual({
-      positionen: 2, nachgefuellt: 3, korrigiert: 0, offen: 2,
+      positionen: 3, nachgefuellt: 8, korrigiert: 0,
+      offen: 2,   // 2 + 0 + 0 — NICHT −2
       geraeteAuffaellig: 0, flaschenAuffaellig: 0, nichtBewertbar: 0, altFormat: true,
     });
   });

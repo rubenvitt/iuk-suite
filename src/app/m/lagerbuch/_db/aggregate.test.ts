@@ -70,12 +70,30 @@ beforeEach(() => {
       mindestbestand: 5, aktiv: true, createdAt: jetzt, bestelltAt: jetzt },
     { id: "a3", name: "Ohne Buchung", einheit: "Stk.", fach: "C3",
       mindestbestand: 0, aktiv: true, createdAt: jetzt },
+    /**
+     * ⚠️ DER ARTIKEL, DER DIE HANDLAGER-BINDUNG DER KPI TRAGEND MACHT.
+     *
+     * a1 und a2 liegen in JEDER Bezugsgroesse unter Mindestbestand — mit ihnen
+     * allein blieben `unterMindest` und `nichtBestellt` auch dann gruen, wenn
+     * `kennzahlen` statt `HANDLAGER_ID` das Fahrzeug oder die lagerort-
+     * uebergreifende Summe rechnete. Genau die Zeile, von der §5.2.1 sagt, sie
+     * „scheitert STILL", war damit unbewacht.
+     *
+     * a5 unterscheidet: Handlager 2 (< 5, zaehlt), RTW1 6 (>= 5, zaehlt nicht),
+     * gesamt 8 (>= 5, zaehlt nicht). Handlager liefert 3, jede andere
+     * Bezugsgroesse 2. `bestelltAt` bleibt ungesetzt, damit `nichtBestellt`
+     * dieselbe Unterscheidung traegt (Handlager 2, sonst 1).
+     */
+    { id: "a5", name: "Nur im Handlager knapp", einheit: "Stk.", fach: "E5",
+      mindestbestand: 5, aktiv: true, createdAt: jetzt },
   ]).run();
 
   t.db.insert(chargen).values([
     { id: "c1", artikelId: "a1", chargenNr: "CH-1", verfall: "2026-07", createdAt: jetzt },
     { id: "c2", artikelId: "a1", chargenNr: "CH-2", verfall: "2028-01", createdAt: jetzt },
     { id: "c3", artikelId: "a2", chargenNr: "CH-3", verfall: "2020-01", createdAt: jetzt },
+    // gruen (2028-01) — a5 soll die Chargen-Zaehler NICHT veraendern.
+    { id: "c5", artikelId: "a5", chargenNr: "CH-5", verfall: "2028-01", createdAt: jetzt },
   ]).run();
 
   const b = (artikelId: string, chargeId: string, lagerortId: string, menge: number) => ({
@@ -93,6 +111,9 @@ beforeEach(() => {
     b("a1", "c2", HANDLAGER_ID, 5),
     // a2 / c3 nur im Fahrzeug — der Handlager-Bestand ist 0 UND es fehlt die Zeile
     b("a2", "c3", RTW1, 2),
+    // a5: im Handlager UNTER, ueber alle Lagerorte UEBER dem Mindestbestand (5).
+    b("a5", "c5", HANDLAGER_ID, 2),
+    b("a5", "c5", RTW1, 6),
   ]).run();
 });
 
@@ -112,7 +133,7 @@ describe("bestandJeArtikel — dieselbe Zahl wie bestandProLagerort", () => {
   it("Handlager: 12 fuer a1, 0 fuer a2", () => {
     const m = bestandJeArtikel(t.db, HANDLAGER_ID);
     const roh = alleZeilen();
-    for (const id of ["a1", "a2", "a3"]) {
+    for (const id of ["a1", "a2", "a3", "a5"]) {
       expect(m.get(id) ?? 0, `Artikel ${id}`)
         .toBe(bestandProLagerort(roh.filter((r) => r.artikelId === id), HANDLAGER_ID));
     }
@@ -173,7 +194,7 @@ describe("bestandJeArtikelUndLagerort — EINE Abfrage fuer die Fahrzeugliste", 
     const m = bestandJeArtikelUndLagerort(t.db);
     const roh = alleZeilen();
     for (const ort of [HANDLAGER_ID, RTW1, RTW2]) {
-      for (const id of ["a1", "a2", "a3"]) {
+      for (const id of ["a1", "a2", "a3", "a5"]) {
         expect(m.get(ort)?.get(id) ?? 0, `${ort}/${id}`)
           .toBe(bestandProLagerort(roh.filter((r) => r.artikelId === id), ort));
       }
@@ -213,10 +234,17 @@ describe("kennzahlen", () => {
   const NOW = new Date("2026-06-15T10:00:00Z");
 
   it("zaehlt unter Mindestbestand gegen den HANDLAGER-Bestand", () => {
-    // a1: 12 < 20  → unter Mindestbestand
-    // a2:  0 <  5  → unter Mindestbestand (die 2 liegen im RTW und zaehlen NICHT)
-    // a3:  0 <  0  → nein (strikt kleiner)
-    expect(kennzahlen(t.db, NOW).unterMindest).toBe(2);
+    /**
+     * ⚠️ a5 IST DIE ZEILE, DIE DIE BEZUGSGROESSE UNTERSCHEIDET. a1 und a2 liegen
+     * in jeder Bezugsgroesse unter Mindestbestand; mit ihnen allein bliebe
+     * dieser Fall gruen, auch wenn `kennzahlen` RTW1 oder die lagerort-
+     * uebergreifende Summe rechnete (§5.2.1, „scheitert STILL").
+     */
+    // a1: Handlager 12 < 20  → zaehlt  (RTW1 4, gesamt 17 — auch unter Mindest)
+    // a2: Handlager  0 <  5  → zaehlt  (die 2 liegen im RTW)
+    // a3: Handlager  0 <  0  → nein (strikt kleiner)
+    // a5: Handlager  2 <  5  → zaehlt — ABER RTW1 6 und gesamt 8 liegen DARUEBER
+    expect(kennzahlen(t.db, NOW).unterMindest).toBe(3);
   });
 
   it("`nichtBestellt` zaehlt die NOCH NICHT bestellten, und heisst deshalb so", () => {
@@ -228,8 +256,10 @@ describe("kennzahlen", () => {
      * bleibt dieselbe — nur der Name wird wahr.
      */
     // a1 ist unter Mindestbestand und NICHT bestellt; a2 ist unter Mindestbestand
-    // UND bestellt (bestelltAt gesetzt).
-    expect(kennzahlen(t.db, NOW).nichtBestellt).toBe(1);
+    // UND bestellt (bestelltAt gesetzt); a5 ist im HANDLAGER unter Mindestbestand
+    // und nicht bestellt — ueber RTW1 oder gesamt gerechnet waere es 1 statt 2,
+    // die Bezugsgroesse traegt also auch hier.
+    expect(kennzahlen(t.db, NOW).nichtBestellt).toBe(2);
   });
 
   it("zaehlt Chargen mit HANDLAGER-Rest > 0, getrennt nach kritisch und abgelaufen", () => {
@@ -253,7 +283,7 @@ describe("kennzahlen", () => {
   });
 
   it("zaehlt ALLE Buchungszeilen, lagerort-uebergreifend", () => {
-    expect(kennzahlen(t.db, NOW).buchungenGesamt).toBe(6);
+    expect(kennzahlen(t.db, NOW).buchungenGesamt).toBe(8);
   });
 
   it("zaehlt einen DEAKTIVIERTEN Artikel nicht mit", () => {
@@ -268,8 +298,8 @@ describe("kennzahlen", () => {
       mindestbestand: 99, aktiv: false, createdAt: NOW,
     }).run();
     const k = kennzahlen(t.db, NOW);
-    expect(k.unterMindest).toBe(2);    // ohne den aktiv-Filter waeren es 3
-    expect(k.nichtBestellt).toBe(1);   // ohne ihn 2
+    expect(k.unterMindest).toBe(3);    // ohne den aktiv-Filter waeren es 4
+    expect(k.nichtBestellt).toBe(2);   // ohne ihn 3
   });
 
   it("eine ROTE, noch nicht abgelaufene Charge zaehlt ebenfalls in chargenKritisch", () => {

@@ -33,6 +33,36 @@ function chargeMitBestand(id: string, verfall: string, createdAt: Date, menge: n
       referenz: null, kommentar: null }).run();
 }
 
+describe("verschiedener Verfall — die frueher ablaufende Charge zuerst", () => {
+  it("entscheidet ZUERST ueber den Verfall, gegen createdAt UND chargeId", () => {
+    /**
+     * ⚠️ DIE STUFE, DIE IN DIESER DATEI FEHLTE (I-11). Der Dateikopf sagt, nur
+     * hier lasse sich belegen, dass die Ordnung auch gilt, wenn die Zeilen aus
+     * der Datenbank kommen — `verfall` variierte aber in KEINEM der drei Faelle
+     * (ueberall "2026-07"). Der einzige DB-Kandidat fuer Stufe 1 war
+     * `abbuchung.test.ts:41`, und dort liegen beide Chargen auf derselben
+     * `createdAt` bei "c-frueh" < "c-spaet": die Sollreihenfolge kaeme dort auch
+     * nach Streichen des `verfall`-Terms heraus. Fuer Stufe 1 war die
+     * DB-Abdeckung damit eine echte Teilmenge der Unit-Abdeckung — genau das,
+     * was die Abnahmezeile („Unit-Test und DB-Test fangen VERSCHIEDENE Faelle")
+     * ausschliessen soll.
+     *
+     * DIE GEWINNERIN VERLIERT IN BEIDEN NACHRANGIGEN SCHLUESSELN:
+     *   "aaa"  verfall 2026-09 · createdAt 2026-01-01 (AELTER)  · id kleiner
+     *   "zzz"  verfall 2026-07 · createdAt 2026-03-01 (juenger) · id groesser
+     * `createdAt` ↑ waehlte "aaa", `chargeId` ↑ waehlte "aaa" — nur der
+     * frueheste Verfall waehlt "zzz". "aaa" wird zudem ZUERST eingefuegt, die
+     * naive DB-Rueckgabereihenfolge liefert sie also ebenfalls vorn.
+     */
+    chargeMitBestand("aaa", "2026-09", new Date("2026-01-01T00:00:00Z"), 5);
+    chargeMitBestand("zzz", "2026-07", new Date("2026-03-01T00:00:00Z"), 5);
+    const r = t.db.transaction((tx) => fefoAbbuchung(tx, {
+      artikelId: "a1", menge: 7, quelle: { quelleTyp: "system", quelleId: "t" },
+      kommentar: null, referenz: null }));
+    expect(r.teile).toEqual([{ chargeId: "zzz", menge: 5 }, { chargeId: "aaa", menge: 2 }]);
+  });
+});
+
 describe("gleicher Verfall — die AELTERE Charge wird zuerst verbraucht", () => {
   it("entscheidet ueber createdAt, nicht ueber die DB-Reihenfolge", () => {
     /**
