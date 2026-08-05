@@ -169,3 +169,29 @@ describe("lagerorteFuerFlaschen", () => {
     ]);
   });
 });
+
+describe("Leser — die drei quelleAufloeser-freien Leser laufen INNERHALB einer Transaktion (H11)", () => {
+  it("liest korrekt, waehrend die Transaktion noch offen ist", () => {
+    /**
+     * ⚠️ H11 GILT AUF FUNKTIONS-, NICHT AUF DATEIEBENE. `DB` nimmt hier nur
+     * `o2FlascheDetail`, weil NUR sie `quelleAufloeser(db: DB)` ruft; die
+     * uebrigen drei nehmen `Leser`. Das ist keine Kosmetik: `o2FlaschenFuerLagerort`
+     * beliefert zusammen mit `geraeteFuerLagerort(db: Leser)` DIESELBE
+     * Fahrzeug-Check-Maske, und §5.6.3 zeigt, dass die Maske innerhalb der
+     * Check-Transaktion gelesen wird (Teil 4). Ein `DB` allein durch
+     * Dateizugehoerigkeit blockierte dort und liefe auf den Cast hinaus, den H11
+     * verbietet.
+     *
+     * Der Typecheck belegt nur, dass eine Transaktion als Parameter ANGENOMMEN
+     * wird — nicht, dass `.all()`/`.get()` darin zur Laufzeit funktionieren.
+     * Vorbild: `_db/aggregate.test.ts` und `verfall.test.ts`.
+     */
+    t.db.transaction((tx) => {
+      expect(o2FlaschenUebersicht(tx).find((x) => x.id === "f-200")!.letzterDruck).toBe(180);
+      // alphabetisch nach NAME: „O2 gross" < „O2 klein" < „O2 ohne Messung".
+      expect(o2FlaschenFuerLagerort(tx, "rtw-1").map((f) => f.id))
+        .toEqual(["f-300", "f-200", "f-ohne"]);
+      expect(lagerorteFuerFlaschen(tx).map((l) => l.id)).toContain("rtw-1");
+    });
+  });
+});

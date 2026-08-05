@@ -14,10 +14,17 @@
  * als `JSON.stringify` ueber sieben Schluessel in DIESER Reihenfolge; ein Import,
  * der ihn parst und neu serialisiert, VERAENDERT EINEN NACHWEIS (Teil 1, T7).
  *
- * ⚠️ NIMMT `DB`, NICHT `Leser` (Festlegung H11): dieser Pfad ruft
- * `quelleAufloeser(db: DB)` und laeuft nie in einer Transaktion. Wer ihn dorthin
- * ziehen will, muss `quelleAufloeser` in Teil 1 anfassen — das ist eine
- * Entscheidung, kein Cast.
+ * ⚠️ `DB` NIMMT NUR, WER `quelleAufloeser` RUFT (Festlegung H11) — hier sind das
+ * GENAU ZWEI Funktionen: `bzGeraetDetail` und `bzLogbuchGesamt`. Wer sie in eine
+ * Transaktion ziehen will, muss `quelleAufloeser` in Teil 1 anfassen; das ist
+ * eine Entscheidung, kein Cast.
+ *
+ * ⚠️ DIE UEBRIGEN VIER NEHMEN `Leser`, und das ist keine Kosmetik. `DB` allein
+ * durch DATEIZUGEHOERIGKEIT waere eine Enge ohne Grund — und sie blockierte
+ * Teil 4: `geraeteFuerLagerort(db: Leser)` und die Geraeteliste hier beliefern
+ * DIESELBE Fahrzeug-Check-Maske, und §5.6.3 zeigt, dass die Maske innerhalb der
+ * Check-Transaktion gelesen wird. Die naheliegende Abhilfe waere dann der Cast,
+ * den H11 gerade verbietet.
  */
 import { desc, eq } from "drizzle-orm";
 import { bzGeraete, bzKontrollen, lagerorte } from "../../_db/schema";
@@ -26,6 +33,7 @@ import { akkuLebensdauer, bzFaelligkeit,
          type BzAkkuKennzahl, type BzFaelligkeit } from "../domain/bz";
 import { BZ_LOGBUCH_GRENZE } from "../grenzen";
 import type { DB } from "../../_db/client";
+import type { Leser } from "./bestand";
 
 /** Die sieben Schluessel aus `refSnapshot`, alle optional — ein Altsnapshot kann
  *  weniger tragen, und ein fehlender Schluessel ist kein Fehler. */
@@ -75,7 +83,7 @@ function toZeile(
 export type LagerortOption = { id: string; name: string; typ: "lager" | "fahrzeug" };
 
 /** Aktive Lagerorte als Auswahl fuer Geraete-Formulare. */
-export function lagerortOptionen(db: DB): LagerortOption[] {
+export function lagerortOptionen(db: Leser): LagerortOption[] {
   return db.select().from(lagerorte).where(eq(lagerorte.aktiv, true)).all()
     .map((l) => ({ id: l.id, name: l.name, typ: l.typ }))
     .sort((a, b) => a.typ.localeCompare(b.typ) || a.name.localeCompare(b.name));
@@ -86,7 +94,7 @@ export type BzGeraetZeile = {
   letzteKontrolle: Date | null; letztesBestanden: boolean | null; faelligkeit: BzFaelligkeit;
 };
 
-export function bzGeraeteUebersicht(db: DB, now: Date = new Date()): BzGeraetZeile[] {
+export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraetZeile[] {
   const geraete = db.select().from(bzGeraete).all();
   const namen = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l.name]));
   const kontrollen = db.select().from(bzKontrollen).all();
@@ -153,7 +161,7 @@ export function bzGeraetDetail(
 
 /** BYTE-EXAKTE Suche — Barcodes werden nicht normalisiert, nicht getrimmt, nicht
  *  grossgeschrieben (Teil 1, T7). */
-export function bzGeraetByBarcode(db: DB, barcode: string): { id: string } | null {
+export function bzGeraetByBarcode(db: Leser, barcode: string): { id: string } | null {
   const g = db.select().from(bzGeraete).where(eq(bzGeraete.barcode, barcode)).get();
   return g ? { id: g.id } : null;
 }
@@ -195,7 +203,7 @@ export function bzLogbuchGesamt(db: DB, grenze: number = BZ_LOGBUCH_GRENZE) {
  * schwer wie eines mit zwanzig; `summe` wird deshalb aus
  * `tageDurchschnitt · anzahlIntervalle` zurueckgewonnen.
  */
-export function bzAkkuKennzahlGesamt(db: DB): BzAkkuKennzahl {
+export function bzAkkuKennzahlGesamt(db: Leser): BzAkkuKennzahl {
   const ks = db.select().from(bzKontrollen)
     .where(eq(bzKontrollen.batterieGewechselt, true)).all();
   const proGeraet = new Map<string, Date[]>();
