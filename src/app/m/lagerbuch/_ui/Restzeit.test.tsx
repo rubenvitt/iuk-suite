@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { act } from "react";
 import { readFileSync } from "node:fs";
 import { mount, unmount, query, exists } from "@/app/m/qr/_lib/test-dom";
 import { Restzeit } from "./Restzeit";
@@ -102,6 +103,68 @@ describe("Restzeit — die eigentliche Zusage aus §3.4.3 Punkt 1", () => {
 
     // Sechs Minuten weiter: Restlaufzeit 29 Minuten, Schwelle unterschritten.
     await vi.advanceTimersByTimeAsync(6 * 60_000);
+    expect(exists("[data-rolle='restzeit-warnung']")).toBe(true);
+  });
+
+  /**
+   * DIE BEIDEN FOLGENDEN TESTS NAGELN DIE SCHWELLE SELBST FEST — der Test darueber
+   * tut das NICHT. Er sagt nur: bei 35 min nicht, bei 29 min doch. Daraus folgt
+   * zwingend, dass JEDER Schwellenwert im Intervall [29 min, 35 min) gruen bliebe
+   * (34 Minuten genauso wie 30) und dass `<=` → `<` ebenfalls gruen bliebe, weil
+   * 29 min echt kleiner als 30 min ist. Der Wert „30 Minuten" und die INKLUSIVE
+   * Semantik von „ab 30 Minuten" (§3.4.3 Punkt 1) waeren damit nirgends zugesichert
+   * — ausgerechnet die eine Regel, derentwegen diese Insel ueberhaupt existiert.
+   *
+   * Die beiden Tests sind KEINE Kopien voneinander (Regel 4); jeder haelt einen
+   * anderen Fall allein:
+   *   - auf der Schwelle (30:00) haelt allein `<=` und jedes T < 30 min,
+   *     ausserdem allein die SOFORTIGE erste `pruefen()`-Pruefung vor dem Intervall;
+   *   - knapp darueber (30:01) haelt allein jedes T > 30 min — z. B. 34 Minuten —
+   *     und danach, nach einem Takt, wieder die Nachrechnung im Minutentakt.
+   * Per Mutation belegt (Bericht, Fix-Runde 1, Mutationen H, I, J).
+   *
+   * Kollidiert nicht mit K-3: dort isoliert `warntInitial={true}` UEBER der Schwelle
+   * das Server-Prop, hier isoliert `warntInitial={false}` AUF der Schwelle die
+   * eigene Rechnung des Clients.
+   */
+  it("warnt bei EXAKT 30 Minuten Restlaufzeit — „ab 30 Minuten“ ist inklusiv", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-04T18:25:00.000Z"));
+    await mount(
+      <Restzeit
+        uhrzeit="19:00"
+        laeuftAb={new Date(Date.now() + 30 * 60_000)}
+        warntInitial={false}
+      />,
+    );
+    // Direkt nach dem Mount, ohne einen einzigen Takt: das kann nur die sofortige
+    // erste Pruefung sein — und nur mit `<=` und einer Schwelle von 30 Minuten.
+    expect(exists("[data-rolle='restzeit-warnung']")).toBe(true);
+  });
+
+  it("warnt bei 30 Minuten + 1 Sekunde noch NICHT — eine Minute spaeter schon", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-04T18:25:00.000Z"));
+    await mount(
+      <Restzeit
+        uhrzeit="19:00"
+        laeuftAb={new Date(Date.now() + 30 * 60_000 + 1000)}
+        warntInitial={false}
+      />,
+    );
+    // Eine Sekunde ueber der Schwelle: noch nicht. Eine zu grosse Schwelle (34 min)
+    // wuerde hier schon warnen.
+    expect(exists("[data-rolle='restzeit-warnung']")).toBe(false);
+
+    // Ein Takt weiter: Restlaufzeit 29:01, Schwelle unterschritten.
+    // In `act(...)` wie in `_ui/KopierZeile.test.tsx` (Feedback-Modul): bei einem
+    // EINZIGEN Taktschlag liegt der von React eingeplante Renderdurchlauf sonst
+    // hinter einem MessageChannel, den die Fake-Timer nicht bewegen — die
+    // Zusicherung waere dann rot, obwohl die Komponente richtig rechnet
+    // (empirisch eingetreten, siehe Bericht Fix-Runde 1).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
     expect(exists("[data-rolle='restzeit-warnung']")).toBe(true);
   });
 
