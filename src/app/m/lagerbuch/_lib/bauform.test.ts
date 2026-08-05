@@ -633,24 +633,42 @@ describe("§7.7.2 — die Luecke in `core/theme/feldschrift.test.ts`, modul-loka
 });
 
 describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
-  it("keine Datei unter `_ui/` importiert `antd` oder `@ant-design/icons`, ausser den Verwaltungsbausteinen", () => {
+  it("keine Datei auf `_ui/`, `helfer/`, `a/`, `t/` oder `page.tsx` importiert `antd` oder `@ant-design/icons`, ausser den Verwaltungsbausteinen", () => {
     // `core/shell/icons.test.ts:147-171` faengt repo-weit NUR die Icons. Ein
     // `import { Card } from "antd"` in `_ui/Entnahme.tsx` waere typkorrekt,
     // lint-sauber, gebaut — und heraus kaeme eine Verwaltungsanmutung auf einem
     // Telefon, plus 96px Ueberlauf gegen 100dvh (Falle 41).
     //
+    // ⚠️ DER SCAN LAEUFT UEBER DEN GANZEN OEFFENTLICHEN AST, nicht nur `_ui/`.
+    // Der Global Constraint sagt woertlich „in KEINER Datei dieses Plans, auch
+    // nicht in einer Client-Insel". An der Ordnergrenze `_ui/` zu enden hiesse:
+    // ein `import { Card } from "antd"` in `helfer/entnahme/page.tsx`,
+    // `a/[artikelId]/page.tsx`, `t/[code]/route.ts` oder `page.tsx` liefe durch
+    // — `core/shell/icons.test.ts` faengt repo-weit nur die ICONS, nicht `antd`
+    // selbst, und `typecheck`, `lint` und `build` sehen nichts. Dieselbe
+    // Ast-Liste benutzt der `useSearchParams`-Scan unten.
+    //
+    // `verwaltung/` bleibt bewusst aussen vor: DAS ist der antd-Zweig.
+    //
     // AUSNAHMELISTE: die Verwaltungsbausteine aus Teil 5 leben im selben Ordner
     // und DUERFEN antd. Die Liste ist namentlich, nicht gemustert — ein
     // Praefix-Muster liesse die naechste Datei durch, die zufaellig so heisst.
     //
-    // ⚠️ EIGENSCHAFTSFORM: `_ui/` traegt heute keine `.tsx`. Zaehne ab Welle 3.
+    // ⚠️ EIGENSCHAFTSFORM: die Menge ist heute 0 Dateien — `_ui/` traegt nur das
+    // Stylesheet, und `helfer/`, `a/`, `t/` und `page.tsx` entstehen erst ab
+    // Welle 3. Zaehne ab dann.
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Brotkrume.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
     ]);
+    const WURZEL = join(MODUL, "page.tsx");
+    const dateien = [
+      ...["_ui", "helfer", "a", "t"].flatMap((d) => quellDateien(join(MODUL, d))),
+      ...(existsSync(WURZEL) ? [WURZEL] : []),
+    ];
     const verstoesse: string[] = [];
-    for (const pfad of quellDateien(join(MODUL, "_ui"))) {
+    for (const pfad of dateien) {
       if (VERWALTUNG.has(pfad.split("/").pop()!)) continue;
       const q = ohneKommentare(readFileSync(pfad, "utf8"));
       if (/from\s+"antd(\/|")|from\s+"@ant-design\/icons/.test(q)) {
@@ -770,6 +788,22 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
    * ⚠️ GELESEN WIRD `ohneKommentareUndZeichenketten`: Test 1 ist ein POSITIVER
    * Nachweis, und ein Textliteral `"redeemToken("` erfuellte ihn sonst, ohne
    * dass der Riegel je liefe — ein Scan, der still nichts faengt.
+   *
+   * ⚠️ WAS DIESES NETZ NICHT DECKT — und woran es stattdessen haengt.
+   * Ein Quelltext-Scan sieht POSITION, nicht BEDINGTHEIT. Zwei der sechs
+   * Glieder der Zusage oben liegen deshalb ausserhalb dessen, was hier
+   * behauptet werden kann:
+   *   - „KEIN Budgetverbrauch im Erfolgsfall": ein UNBEDINGTES
+   *     `gateFehlversuchBuchen()` NACH `redeemToken()` — also eines, das auch
+   *     bei Erfolg bucht — ist hier gruen. Test 3 unten sichert genau eine
+   *     Aussage zu, und nur sie: es wird nicht VOR der Einloesung gebucht.
+   *   - „Erfolg: Cookie": dass im Erfolgsfall eine Sitzung gesetzt wird, prueft
+   *     hier kein `it()`.
+   * AUFLAGE: beides gehoert in die mock-basierten Unit-Tests der Flaechen —
+   * T73 (`_actions/gate.ts`), T74 (`_actions/sitzung.ts`) und T82
+   * (`t/[code]/route.ts`), dazu T81 (`page.tsx`, das Gate selbst). Wer dort
+   * einen dieser beiden Faelle nicht abdeckt, hat ihn NIRGENDS abgedeckt — die
+   * Existenz dieses Blocks ersetzt ihn nicht.
    */
   const GATE_FLAECHEN = ["_actions/gate.ts", "_actions/sitzung.ts", "t/[code]/route.ts"];
   const RIEGEL: { name: string; muster: RegExp }[] = [
@@ -778,25 +812,63 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
     { name: "normalisieren", muster: /\bnormalisiereCode\s*\(/ },
     { name: "Einloesung",    muster: /\bredeemToken\s*\(/ },
   ];
-  /** Die vorhandenen Gate-Flaechen, jede schon ohne Kommentare und Literale. */
-  const flaechen = (): { pfad: string; q: string }[] =>
+
+  /**
+   * Der Ausschnitt EINER Flaeche, der die einloesende Funktion traegt — vom
+   * letzten `export` VOR dem `redeemToken(`-Treffer bis zum naechsten `export`
+   * danach. `null`, wenn die Datei gar nicht einloest.
+   *
+   * ⚠️ WARUM NICHT DER GANZE DATEITEXT: `muster.exec(q)` liefert das ERSTE
+   * Vorkommen in der ganzen Datei. Traegt eine Flaeche mehr als eine
+   * exportierte Funktion — fuer `_actions/gate.ts` und `_actions/sitzung.ts`
+   * der Normalfall —, koennen die vier Erst-Vorkommen aus VERSCHIEDENEN
+   * Funktionen stammen. Die Reihenfolgeaussage waere dann bedeutungslos, ohne
+   * rot zu werden: eine zweite Action, die `requireLagerbuchHost()` frueh im
+   * Text ruft, „erfuellte" den Host-Riegel fuer die Einloese-Action mit.
+   *
+   * ⚠️ DAS `/g` STEHT HIER DRIN UND NICHT AN EINEM MODULEBENEN-`const`: ein
+   * gehisstes `/g`-Muster traegt `lastIndex` zwischen den Flaechen weiter. An
+   * `RIEGEL` oben haengt aus demselben Grund korrekt KEIN `g`.
+   *
+   * ⚠️ DER SCHNITT IST EINE OBERGRENZE, keine exakte Funktionsgrenze: liegt die
+   * einloesende Funktion als LOKALE Funktion hinter einem exportierten Wrapper,
+   * beginnt der Ausschnitt beim Wrapper und ist damit eine Obermenge. Das ist
+   * schwaecher als eine echte Funktionsgrenze, aber nie schwaecher als der
+   * ganze Dateitext von vorher.
+   */
+  const einloeseAbschnitt = (q: string): string | null => {
+    const einloesung = /\bredeemToken\s*\(/.exec(q);
+    if (!einloesung) return null;
+    const exporte = [...q.matchAll(/\bexport\b/g)].map((m) => m.index);
+    const start = exporte.filter((i) => i <= einloesung.index).pop() ?? 0;
+    const ende = exporte.find((i) => i > einloesung.index) ?? q.length;
+    return q.slice(start, ende);
+  };
+
+  /**
+   * Die vorhandenen Gate-Flaechen, jede schon ohne Kommentare und Literale und
+   * auf ihren Einloese-Abschnitt verengt.
+   *
+   * Ausloeser ist die EINLOESUNG: eine Datei ohne `redeemToken(` ist keine
+   * Gate-Flaeche, und KEINER der drei Tests behauptet ueber sie etwas — so, wie
+   * der Kopf dieses Blocks es festlegt.
+   */
+  const flaechen = (): { pfad: string; abschnitt: string }[] =>
     GATE_FLAECHEN.map((p) => join(MODUL, p))
       .filter((p) => existsSync(p))
       .map((p) => ({
         pfad: relative(process.cwd(), p),
-        q: ohneKommentareUndZeichenketten(readFileSync(p, "utf8")),
-      }));
+        abschnitt: einloeseAbschnitt(ohneKommentareUndZeichenketten(readFileSync(p, "utf8"))),
+      }))
+      .filter((f): f is { pfad: string; abschnitt: string } => f.abschnitt !== null);
 
   it("jede Flaeche, die einloest, traegt alle vier Riegel — in dieser Reihenfolge", () => {
     const verstoesse: string[] = [];
-    for (const { pfad, q } of flaechen()) {
-      // Ausloeser ist die EINLOESUNG: eine Datei ohne `redeemToken(` ist keine
-      // Gate-Flaeche, und der Scan behauptet ueber sie nichts.
-      if (!/\bredeemToken\s*\(/.test(q)) continue;
+    for (const { pfad, abschnitt } of flaechen()) {
       let vorher = -1;
-      let vorherName = "(Dateianfang)";
+      let vorherName = "(Abschnittsanfang)";
       for (const { name, muster } of RIEGEL) {
-        const t = muster.exec(q);
+        const t = muster.exec(abschnitt);
         if (!t) { verstoesse.push(`${pfad}: Riegel „${name}" fehlt ganz`); break; }
         if (t.index < vorher) { verstoesse.push(`${pfad}: „${name}" steht VOR „${vorherName}"`); break; }
         vorher = t.index;
@@ -810,11 +882,14 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
     // Die Sperre ist genau deshalb ohne Datenbankzugriff gebaut
     // (`gateSchranke.ts:83-104`, „LIEST NUR"): sie SCHUETZT den Zugriff. Faellt
     // ein `getDb()` davor, ist der Deckel wirkungslos — und still.
+    //
+    // Fehlt `gateGesperrt(` im Abschnitt ganz, meldet das Test 1 als „Riegel
+    // fehlt ganz" — hier still weiterzugehen laesst also nichts durch.
     const verstoesse: string[] = [];
-    for (const { pfad, q } of flaechen()) {
-      const sperre = /\bgateGesperrt\s*\(/.exec(q);
+    for (const { pfad, abschnitt } of flaechen()) {
+      const sperre = /\bgateGesperrt\s*\(/.exec(abschnitt);
       if (!sperre) continue;
-      const db = /\bgetDb\s*\(/.exec(q);
+      const db = /\bgetDb\s*\(/.exec(abschnitt);
       if (db && db.index < sperre.index) {
         verstoesse.push(`${pfad}: getDb() steht vor gateGesperrt()`);
       }
@@ -822,16 +897,23 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
     expect(verstoesse).toEqual([]);
   });
 
-  it("der Budgetverbrauch liegt HINTER der Codepruefung — ein Erfolg zahlt nichts", () => {
+  it("kein Buchen VOR der Einloesung — die Bedingtheit haelt dieses Netz NICHT", () => {
     // §3.9 / `gateSchranke.ts:113-126`: gebucht wird ein FEHLVERSUCH, nie ein
     // Erfolg. Liegt `gateFehlversuchBuchen()` vor `redeemToken()`, verbraucht
     // eine Bereitschaft hinter einem gemeinsamen Uplink ihre fuenf Versuche mit
     // ERFOLGREICHEN Scans — der Fehler, den der Alt-Bestand heute hat
     // (`lagerbuch/src/app/(gate)/actions.ts:19`, `t/[code]/route.ts:25`).
+    //
+    // ⚠️ DER NAME SAGT GENAU DAS, WAS DER RUMPF HAELT, und nicht mehr: geprueft
+    // wird POSITION. Ein UNBEDINGTES `gateFehlversuchBuchen()` NACH
+    // `redeemToken()` — eines, das auch im Erfolgsfall bucht — bleibt hier
+    // gruen. Diesen Fall halten die Unit-Tests von T73/T74/T82; siehe die
+    // Auflage im Kopf dieses Blocks. Eine schaerfere Regex waere hier keine
+    // Behebung, sondern eine Verdeckung.
     const verstoesse: string[] = [];
-    for (const { pfad, q } of flaechen()) {
-      const einloesung = /\bredeemToken\s*\(/.exec(q);
-      const buchung = /\bgateFehlversuchBuchen\s*\(/.exec(q);
+    for (const { pfad, abschnitt } of flaechen()) {
+      const einloesung = /\bredeemToken\s*\(/.exec(abschnitt);
+      const buchung = /\bgateFehlversuchBuchen\s*\(/.exec(abschnitt);
       if (einloesung && buchung && buchung.index < einloesung.index) {
         verstoesse.push(`${pfad}: gateFehlversuchBuchen() steht vor redeemToken()`);
       }
