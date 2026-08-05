@@ -46,6 +46,20 @@ import {
 
 const JETZT = new Date();
 
+/**
+ * Der Verfall der Chargen, die NICHT in der Verfallsliste auftauchen sollen.
+ *
+ * ⚠️ „2030-01" WAR EINE ZEITBOMBE: ab Dezember 2029 faellt die Charge ins gelbe
+ * Fenster (56 Tage), ab Februar 2030 ist sie abgelaufen — dann stuenden die
+ * Helfer- und Check-Artikel mit in der Verfallsliste, die `verfallFixtures` als
+ * Ein-Zeilen-Liste anlegt, und eine als „enthaelt" geschriebene Zusicherung
+ * bliebe dabei gruen, waehrend die Liste sich still verdoppelt.
+ *
+ * ⚠️ NICHT `PSEUDO_VERFALL` ("2099-12") — das ist der Sentinel der geratenen
+ * Charge (§5.3.2) und naehme einen anderen Zweig.
+ */
+const E2E_VERFALL_FERN = "2090-01";
+
 /** Schema-frei migrieren — dieselbe Form wie `migrateAllModules()`
  *  (`core/bootstrap.ts:54-59`): eigene Verbindung, migrieren, schliessen. */
 function migriere(): void {
@@ -54,32 +68,21 @@ function migriere(): void {
   sqlite.close();
 }
 
-/** Aktiver Token + Artikel mit Bestand > 0 fuer `e2e/lagerbuch-helfer.spec.ts`. */
+/**
+ * Aktiver Token + Artikel mit Bestand > 0 fuer `e2e/lagerbuch-helfer.spec.ts`.
+ *
+ * ⚠️ `e2e-artikel` GEHOERT AUSSCHLIESSLICH DIESEM FLOW. Keine Soll-Position
+ * eines Fahrzeugs darf darauf zeigen — siehe `artikelMitBestand` (I-14).
+ */
 function helferFixtures(): void {
-  const db = getDb();
-  db.insert(tokens).values({
+  getDb().insert(tokens).values({
     id: "e2e-token", code: E2E_TOKEN_HELFER, label: "E2E Helfer", aktiv: true,
     createdAt: JETZT, createdBy: "e2e", scopeLagerortId: null, zielTyp: null,
     zielId: null, lastUsedAt: null,
   }).onConflictDoNothing().run();
 
-  db.insert(artikel).values({
-    id: "e2e-artikel", name: "E2E Verbandpäckchen", einheit: "Stk.", fach: "A1",
-    mindestbestand: 0, aktiv: true, createdAt: JETZT,
-  }).onConflictDoNothing().run();
-
-  db.insert(chargen).values({
-    id: "e2e-charge", artikelId: "e2e-artikel", chargenNr: "E2E-001",
-    verfall: "2030-01", createdAt: JETZT,
-  }).onConflictDoNothing().run();
-
-  if (!db.select().from(buchungen).where(eq(buchungen.chargeId, "e2e-charge")).get()) {
-    db.insert(buchungen).values({
-      id: newId(), ts: JETZT, typ: "zugang", artikelId: "e2e-artikel",
-      chargeId: "e2e-charge", lagerortId: HANDLAGER_ID, menge: 10,
-      quelleTyp: "system", quelleId: "e2e", referenz: null, kommentar: null,
-    }).run();
-  }
+  artikelMitBestand(
+    "e2e-artikel", "E2E Verbandpäckchen", "A1", "e2e-charge", "E2E-001", 10);
 }
 
 /** Artikel mit ABGELAUFENER Charge (Rest > 0) fuer die Verfallsliste + Aussondern. */
@@ -105,10 +108,54 @@ function verfallFixtures(): void {
 }
 
 /**
- * EIGENER Token + Fahrzeug fuer den Check-Spec.
+ * Ein Artikel MIT Charge und Handlager-Zugang, idempotent — das Muster, das
+ * `helferFixtures` schon fuehrt, als Helfer fuer die uebrigen Flows.
+ *
+ * ⚠️ JEDER FLOW BRAUCHT SEINEN EIGENEN (I-14). Die drei Token trennen sauber das
+ * JOURNAL (ueber `quelleId`, H10.3) — die Soll-Positionen beider Fahrzeuge
+ * zeigten aber auf DENSELBEN `e2e-artikel`, dessen einziger Bestand im
+ * HANDLAGER liegt, genau dem Bestand, den der Helfer-Flow liest. Der Nachfuellweg
+ * eines Checks ist `umlagerung(von: HANDLAGER, …)`
+ * (`schreibpfade/umlagerung.ts:38-41`, Quelle per Vorgabe `HANDLAGER_ID`); ein
+ * abgeschlossener Check senkt also den Handlager-Bestand des Helfer-Flows.
+ * Playwright faehrt alle Specs mit `workers: 1` gegen EINE SQLite-Datei — die
+ * Helfer-Zusage „Bestand 10" waere damit DATEIREIHENFOLGE-ABHAENGIG.
+ *
+ * Der Fehler tritt heute nicht auf, weil es noch keinen Spec gibt, der einen
+ * Check abschliesst. Er tritt bei der ERSTEN Check-Spec auf, und er aeussert
+ * sich als rennabhaengige Roete, deren Ursache niemand im Seed sucht —
+ * `lagerbuch/e2e/migrate-db.ts:84-88` schreibt genau diese Lehre aus.
+ */
+function artikelMitBestand(
+  artikelId: string, name: string, fach: string,
+  chargeId: string, chargenNr: string, menge: number,
+): void {
+  const db = getDb();
+  db.insert(artikel).values({
+    id: artikelId, name, einheit: "Stk.", fach,
+    mindestbestand: 0, aktiv: true, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+
+  db.insert(chargen).values({
+    id: chargeId, artikelId, chargenNr, verfall: E2E_VERFALL_FERN, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+
+  if (!db.select().from(buchungen).where(eq(buchungen.chargeId, chargeId)).get()) {
+    db.insert(buchungen).values({
+      id: newId(), ts: JETZT, typ: "zugang", artikelId, chargeId,
+      lagerortId: HANDLAGER_ID, menge,
+      quelleTyp: "system", quelleId: "e2e", referenz: null, kommentar: null,
+    }).run();
+  }
+}
+
+/**
+ * EIGENER Token + Fahrzeug + ARTIKEL fuer den Check-Spec.
  * ⚠️ Ohne den zweiten Code buchte der Check zusaetzlich mit `quelleId=111-111` in
  * das Journal des Helfer-Flows hinein — Playwright faehrt alle Specs in EINEM
- * Worker gegen EINE Datei (`lagerbuch/e2e/migrate-db.ts:84-88`).
+ * Worker gegen EINE Datei (`lagerbuch/e2e/migrate-db.ts:84-88`). Und ohne den
+ * eigenen Artikel senkte sein Nachfuellweg den Handlager-Bestand, den der
+ * Helfer-Flow zusichert (I-14, siehe `artikelMitBestand`).
  */
 function checkFixtures(): void {
   const db = getDb();
@@ -123,9 +170,13 @@ function checkFixtures(): void {
     aktiv: true, templateId: null,
   }).onConflictDoNothing().run();
 
+  artikelMitBestand(
+    "e2e-check-artikel", "E2E Check Kompressen", "A2",
+    "e2e-check-charge", "E2E-CHK", 20);
+
   db.insert(sollPositionen).values({
     id: "e2e-soll", fahrzeugId: "e2e-fahrzeug", fachLabel: "E2E Fach", sort: 0,
-    artikelId: "e2e-artikel", soll: 3, templatePositionId: null,
+    artikelId: "e2e-check-artikel", soll: 3, templatePositionId: null,
     ueberschrieben: false, entfernt: false,
   }).onConflictDoNothing().run();
 
@@ -152,9 +203,13 @@ function geraeteFixtures(): void {
     kennung: "MS-E2E-2", aktiv: true, templateId: null,
   }).onConflictDoNothing().run();
 
+  artikelMitBestand(
+    "e2e-geraete-artikel", "E2E Geräte Pflaster", "A3",
+    "e2e-geraete-charge", "E2E-GER", 20);
+
   db.insert(sollPositionen).values({
     id: "e2e-geraete-soll", fahrzeugId: "e2e-geraete-fahrzeug", fachLabel: "E2E Fach",
-    sort: 0, artikelId: "e2e-artikel", soll: 2, templatePositionId: null,
+    sort: 0, artikelId: "e2e-geraete-artikel", soll: 2, templatePositionId: null,
     ueberschrieben: false, entfernt: false,
   }).onConflictDoNothing().run();
 

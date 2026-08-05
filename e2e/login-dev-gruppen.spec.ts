@@ -73,12 +73,24 @@ test("„Alle auswählen“ hakt jede angebotene Gruppe an", async ({ page }) =>
   // nicht jedes Mal nachgezogen werden müssen. Dass die Liste VOLLSTÄNDIG ist,
   // prüft `src/core/auth/devGroups.test.ts` gegen MODULES.
   //
-  // BEIDE Namen stehen fest in der Registry. `dashboard-admins` wäre hier der
+  // `alpha-users` steht fest in der Registry, und das ist der REGISTRY-Beleg:
+  // `alpha` bekommt keine Env-Zeile in `playwright.config.ts`, `devGroupChoices`
+  // kann den Namen also nur aus dem Code haben. `dashboard-admins` wäre hier der
   // falsche Beleg: das ist nur die VORBELEGUNG von `ADMIN_GROUP`
   // (`core/groups.ts`), und der Test hinge damit an der Env der Maschine statt
   // am Code — grün hier, rot auf einem Server mit anders benannter
   // Betreibergruppe.
   expect(gruppen).toContain("alpha-users");
+  // ⚠️ `lagerbuch_nutzer` ist KEIN Registry-Beleg mehr. `devGroupChoices` liest
+  // über `adminGroupsFor(mod, env)` (`core/auth/devGroups.ts:42`), also
+  // ENV-FIRST — und seit dem lagerbuch-Branch setzt `LAGERBUCH_ENV`
+  // (`e2e/helpers/lagerbuch.ts`) die Zeile `SUITE_ADMIN_GROUP_LAGERBUCH`. Der
+  // Wert kommt hier also aus `playwright.config.ts`; grün bleibt er nur, weil
+  // `LAGERBUCH_ADMIN_GRUPPE` gleich dem Registry-Vorgabewert ist. Die Zeile
+  // bleibt trotzdem wertvoll — sie belegt die Kette Häkchen → Token für einen
+  // env-gesetzten Modulnamen —, sie belegt nur nicht mehr das, was der Absatz
+  // darüber behauptet. (Die Kopplung Env ↔ Registry-Wert bewacht seit I-16
+  // `src/app/m/lagerbuch/_lib/e2eEnv.test.ts`.)
   expect(gruppen).toContain("lagerbuch_nutzer");
 });
 
