@@ -44,12 +44,19 @@ beforeEach(() => {
     // nur der Handlager-Anteil (3) gezaehlt wurde oder beide zusammen (7).
     { id: "a-gemischt", name: "Gemischt", einheit: "Stk.", fach: "A6",
       mindestbestand: 10, aktiv: true, createdAt: NOW },
+    // GRENZFALL: Bestand EXAKT gleich Mindestbestand. `braucht` ist STRIKT
+    // kleiner (T31) — bei Gleichstand ist der Artikel NICHT in der Liste. Ohne
+    // diese Zeile befaehrt kein Test die Kante zwischen "<" und "<="; eine
+    // versehentliche Umstellung auf "<=" in vorschlag.ts bliebe hier unsichtbar.
+    { id: "a-grenze", name: "Grenze", einheit: "Stk.", fach: "A7",
+      mindestbestand: 6, aktiv: true, createdAt: NOW },
   ]).run();
 
   t.db.insert(chargen).values([
     { id: "c-voll", artikelId: "a-voll", chargenNr: "CH", verfall: "2030-01", createdAt: NOW },
     { id: "c-fzg", artikelId: "a-nur-fzg", chargenNr: "CH2", verfall: "2030-01", createdAt: NOW },
     { id: "c-gemischt", artikelId: "a-gemischt", chargenNr: "CH3", verfall: "2030-01", createdAt: NOW },
+    { id: "c-grenze", artikelId: "a-grenze", chargenNr: "CH4", verfall: "2030-01", createdAt: NOW },
   ]).run();
 
   t.db.insert(buchungen).values([
@@ -64,6 +71,9 @@ beforeEach(() => {
       referenz: null, kommentar: null },
     { id: newId(), ts: NOW, typ: "zugang", artikelId: "a-gemischt", chargeId: "c-gemischt",
       lagerortId: "rtw-1", menge: 4, quelleTyp: "system", quelleId: "t",
+      referenz: null, kommentar: null },
+    { id: newId(), ts: NOW, typ: "zugang", artikelId: "a-grenze", chargeId: "c-grenze",
+      lagerortId: HANDLAGER_ID, menge: 6, quelleTyp: "system", quelleId: "t",
       referenz: null, kommentar: null },
   ]).run();
 });
@@ -107,11 +117,29 @@ describe("bestellvorschlag", () => {
     expect(bestellvorschlag(t.db).some((z) => z.id === "a-inaktiv")).toBe(false);
   });
 
+  it("laesst einen Artikel GENAU AUF Mindestbestand weg — `braucht` ist STRIKT kleiner (T31)", () => {
+    // a-grenze: bestand 6 === mindestbestand 6. Bei Gleichstand ist der Artikel
+    // NICHT in der Liste (T31, `braucht`). Kippte die Grenze versehentlich auf
+    // "<=", erschiene a-grenze hier — und `vorschlagsmenge` liefe (per
+    // `Math.max(0, mindestbestand - bestand)`) trotzdem korrekt 0, wodurch der
+    // naechste Test ("Vorschlag >= 1 fuer jede Zeile") den Fehler ebenfalls faengt.
+    expect(bestellvorschlag(t.db).some((z) => z.id === "a-grenze")).toBe(false);
+  });
+
   it("rechnet die Vorschlagsmenge exakt als mindestbestand - bestand (KEIN Faktor)", () => {
     const z = bestellvorschlag(t.db);
     expect(z.find((x) => x.id === "a-leer")!.vorschlag).toBe(10);
     expect(z.find((x) => x.id === "a-bestellt")!.vorschlag).toBe(10);
     expect(z.find((x) => x.id === "a-nur-fzg")!.vorschlag).toBe(5);
+  });
+
+  it("liefert fuer JEDE Zeile einen Vorschlag >= 1 (Brief, Schritt 1)", () => {
+    // Universelle Zusicherung ueber ALLE zurueckgegebenen Zeilen — nicht nur die
+    // Fixture-Artikel, die der Punkt-Check oben einzeln benennt. Faengt z. B.
+    // eine versehentliche Aufweichung von `braucht` auf "<=" (dann liefert
+    // `vorschlagsmenge` fuer den Grenzfall `bestand === mindestbestand` exakt 0,
+    // und diese Zeile verletzt die Untergrenze).
+    for (const z of bestellvorschlag(t.db)) expect(z.vorschlag).toBeGreaterThanOrEqual(1);
   });
 
   it("liefert `bestelltSeit` — die einzige wahre Aussage der Spalte (§5.5)", () => {
