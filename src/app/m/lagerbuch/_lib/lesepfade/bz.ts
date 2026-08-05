@@ -180,6 +180,20 @@ export function bzLogbuchGesamt(db: DB, grenze: number = BZ_LOGBUCH_GRENZE) {
  * `akkuLebensdauer(alleTs)` ueber alle Geraete auf einmal waere die naheliegende
  * Vereinfachung und FALSCH: es entstuende ein Intervall zwischen dem letzten
  * Wechsel des einen und dem ersten des anderen Geraets.
+ *
+ * ⚠️ DIE RECHNUNG SELBST STEHT NICHT HIER. Sortieren, Differenzen bilden und
+ * durch 86_400_000 teilen ist Zeile fuer Zeile `domain/bz.ts#akkuLebensdauer` —
+ * ein zweiter Rechenweg fuer dieselbe Zahl. Genau diese Regel stellt
+ * `lesepfade/bestand.ts:30-31` fuer die Aggregate auf („die reinen Funktionen
+ * bleiben die Spezifikation, jedes Aggregat schuldet einen Differenztest gegen
+ * sie"); sie gilt hier genauso. Diese Funktion ruft die Domaenenfunktion JE
+ * GERAET und poolt nur noch — aendert sich die Domaenenregel, wandert die
+ * Gesamt-KPI mit, statt still auseinanderzulaufen.
+ *
+ * ⚠️ GEPOOLT WIRD UEBER DIE INTERVALLE, NICHT UEBER DIE GERAETE-MITTEL. Ein
+ * Mittel der Geraete-Mittel gewichtete ein Geraet mit einem Intervall genauso
+ * schwer wie eines mit zwanzig; `summe` wird deshalb aus
+ * `tageDurchschnitt · anzahlIntervalle` zurueckgewonnen.
  */
 export function bzAkkuKennzahlGesamt(db: DB): BzAkkuKennzahl {
   const ks = db.select().from(bzKontrollen)
@@ -194,12 +208,10 @@ export function bzAkkuKennzahlGesamt(db: DB): BzAkkuKennzahl {
   let anzahlIntervalle = 0;
   let anzahlWechsel = 0;
   for (const ts of proGeraet.values()) {
-    const sorted = ts.slice().sort((a, b) => a.getTime() - b.getTime());
-    anzahlWechsel += sorted.length;
-    for (let i = 1; i < sorted.length; i++) {
-      summe += (sorted[i].getTime() - sorted[i - 1].getTime()) / 86_400_000;
-      anzahlIntervalle += 1;
-    }
+    const je = akkuLebensdauer(ts);
+    anzahlWechsel += je.anzahlWechsel;
+    anzahlIntervalle += je.anzahlIntervalle;
+    if (je.tageDurchschnitt !== null) summe += je.tageDurchschnitt * je.anzahlIntervalle;
   }
   return {
     tageDurchschnitt: anzahlIntervalle < 1 ? null : summe / anzahlIntervalle,

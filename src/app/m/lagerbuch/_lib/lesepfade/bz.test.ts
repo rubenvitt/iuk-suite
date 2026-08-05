@@ -4,6 +4,7 @@ import { bzGeraete, bzKontrollen, lagerorte, users } from "../../_db/schema";
 import { lagerortOptionen, bzGeraeteUebersicht, bzGeraetDetail, bzGeraetByBarcode,
          bzLogbuchGesamt, bzAkkuKennzahlGesamt } from "./bz";
 import { BZ_LOGBUCH_GRENZE } from "../grenzen";
+import { akkuLebensdauer } from "../domain/bz";
 
 const NOW = new Date("2026-06-15T10:00:00Z");
 const vorTagen = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
@@ -200,6 +201,29 @@ describe("bzLogbuchGesamt — der Deckel wird beobachtbar", () => {
     expect(l.zeilen[0].geraetName).toBe("Accu-Chek A");
   });
 
+  it("meldet bei EXAKT BZ_LOGBUCH_GRENZE Zeilen mehrVorhanden FALSE", () => {
+    /**
+     * ⚠️ DER GEGENFALL, ohne den die Mutation `rows.length > grenze` →
+     * `>= grenze` ueberlebt: es gab bisher keinen Fall mit EXAKT `GRENZE`
+     * Zeilen. Ihre Folge ist die Fehlaussage, gegen die §5.14.3 gebaut wurde —
+     * „Neueste 100 von mehr Treffern", obwohl die Grenze nicht griff.
+     * `journal.test.ts:37` fuehrt denselben Gegenfall.
+     *
+     * k1 und k2 stehen schon in der Fixture, also werden `GRENZE − 2` ergaenzt.
+     */
+    for (let i = 0; i < BZ_LOGBUCH_GRENZE - 2; i++) {
+      t.db.insert(bzKontrollen).values({
+        id: `g${i}`, geraetId: "bz-1", ts: vorTagen(1), quelleTyp: "system", quelleId: "s",
+        level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
+        kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: false,
+        kommentar: null, bestanden: false, refSnapshot: null,
+      }).run();
+    }
+    const l = bzLogbuchGesamt(t.db);
+    expect(l.zeilen).toHaveLength(BZ_LOGBUCH_GRENZE);
+    expect(l.mehrVorhanden).toBe(false);
+  });
+
   it("sortiert GERAETEUEBERGREIFEND absteigend nach ts", () => {
     // k1/k2 gehoeren beide zu bz-1 — eine Zeile eines ANDEREN Geraets mit dem
     // juengsten Zeitstempel ist der einzige Beleg dafuer, dass sortiert (statt
@@ -241,5 +265,70 @@ describe("bzAkkuKennzahlGesamt — nur GERAETEINTERNE Intervalle", () => {
     expect(bzAkkuKennzahlGesamt(t.db)).toEqual({
       tageDurchschnitt: 65, anzahlWechsel: 4, anzahlIntervalle: 2,
     });
+  });
+
+  it("stimmt mit der DOMAENENFUNKTION ueberein — Differenztest, keine zweite Rechnung", () => {
+    /**
+     * ⚠️ DER DIFFERENZTEST AUS `lesepfade/bestand.ts:30-31`, hier angewandt:
+     * „die reinen Funktionen bleiben die Spezifikation, jedes Aggregat schuldet
+     * einen Differenztest gegen sie". Vorher rechnete `bzAkkuKennzahlGesamt`
+     * `akkuLebensdauer` Zeile fuer Zeile ein ZWEITES Mal nach, und der Test
+     * pinnte nur harte Zahlen — mit dieser Fixture lieferten beide Wege
+     * ZUFAELLIG dasselbe. Aenderte sich die Domaenenregel, liefe die Gesamt-KPI
+     * still auseinander.
+     *
+     * Die Fixture ist bewusst UNGLEICH BESETZT (3 Wechsel gegen 2), damit das
+     * Pooling ueber INTERVALLE von einem Mittel der Geraete-Mittel unterscheidbar
+     * ist: ueber Intervalle (20+30+100)/3 = 50 — ueber Geraete-Mittel
+     * (25+100)/2 = 62,5.
+     */
+    t.db.insert(bzKontrollen).values([
+      { id: "d1", geraetId: "bz-nie", ts: vorTagen(130), quelleTyp: "system", quelleId: "s",
+        level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
+        kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: true,
+        kommentar: null, bestanden: true, refSnapshot: null },
+      { id: "d2", geraetId: "bz-nie", ts: vorTagen(30), quelleTyp: "system", quelleId: "s",
+        level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
+        kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: true,
+        kommentar: null, bestanden: true, refSnapshot: null },
+    ]).run();
+    // bz-1 traegt aus der Fixture k1 (vor 40 Tagen) und k2 (vor 10 Tagen), also
+    // EIN Intervall von 30 Tagen. Ein dritter Wechsel macht die Gewichtung
+    // sichtbar — und er wird NICHT in chronologischer Reihenfolge eingefuegt,
+    // damit ein Rechenweg ohne eigene Sortierung auffiele.
+    t.db.insert(bzKontrollen).values({
+      id: "d3", geraetId: "bz-1", ts: vorTagen(60), quelleTyp: "system", quelleId: "s",
+      level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
+      kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: true,
+      kommentar: null, bestanden: true, refSnapshot: null,
+    }).run();
+
+    // DIE UNABHAENGIGE VERGLEICHSRECHNUNG: je Geraet die DOMAENENFUNKTION, dann
+    // ueber die Intervalle poolen. Sie liest die Zeitstempel selbst aus der DB.
+    const alle = t.db.select().from(bzKontrollen).all().filter((k) => k.batterieGewechselt);
+    const proGeraet = new Map<string, Date[]>();
+    for (const k of alle) proGeraet.set(k.geraetId, [...(proGeraet.get(k.geraetId) ?? []), k.ts]);
+    let summe = 0, intervalle = 0, wechsel = 0;
+    for (const ts of proGeraet.values()) {
+      const je = akkuLebensdauer(ts);
+      wechsel += je.anzahlWechsel;
+      intervalle += je.anzahlIntervalle;
+      summe += (je.tageDurchschnitt ?? 0) * je.anzahlIntervalle;
+    }
+
+    const g = bzAkkuKennzahlGesamt(t.db);
+    expect(g).toEqual({
+      tageDurchschnitt: intervalle < 1 ? null : summe / intervalle,
+      anzahlWechsel: wechsel, anzahlIntervalle: intervalle,
+    });
+    // Und die von Hand gerechneten Zahlen, damit die Vergleichsrechnung nicht
+    // ihrerseits eine Kopie derselben Regel sein kann:
+    //   bz-1:   60 → 40 → 10 Tage vor NOW ⇒ Intervalle 20 und 30
+    //   bz-nie: 130 → 30 Tage vor NOW     ⇒ Intervall 100
+    // Summe 150 ueber 3 Intervalle = 50 (NICHT 62,5 — das waere das Mittel der
+    // Geraete-Mittel).
+    expect(g.anzahlWechsel).toBe(5);
+    expect(g.anzahlIntervalle).toBe(3);
+    expect(g.tageDurchschnitt).toBe(50);
   });
 });
