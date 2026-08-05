@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
   ICON_192_BASE64, ICON_512_BASE64, ICON_MASKABLE_512_BASE64, PWA_ICON_SVG, pngAntwort,
 } from "./pwaIcons";
@@ -142,6 +142,16 @@ describe("Bauform", () => {
   });
 
   it("liegt unter `_lib/` und nicht unter `_ui/` — sie ist keine Komponente", () => {
-    expect(QUELLE).toMatch(/\/_lib\//);
+    // Review-Befund (Task 65, Important): `expect(QUELLE).toMatch(/\/_lib\//)`
+    // prueft ein Literal gegen sich selbst (QUELLE ist Zeile 8 dieser Datei) —
+    // das kann konstruktiv nie fehlschlagen. Stattdessen wird der TATSAECHLICHE
+    // Ort auf der Festplatte geprueft: die Datei muss GENAU dort existieren, wo
+    // QUELLE sie verortet, und darf NICHT zusaetzlich unter dem gleichnamigen
+    // `_ui/`-Verzeichnis liegen (Falle 6: eine Wertedatei dort waere gefaehrlich
+    // nah an einer Komponente, wo "use client" ueblich ist).
+    expect(existsSync(QUELLE)).toBe(true);
+    const ZIEL_UI = QUELLE.replace("/_lib/", "/_ui/");
+    expect(ZIEL_UI).not.toBe(QUELLE);
+    expect(existsSync(ZIEL_UI)).toBe(false);
   });
 });
