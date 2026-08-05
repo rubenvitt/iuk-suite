@@ -78,7 +78,7 @@ export function BarcodeScanner({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
-  /** 1:1: verhindert parallele Lookups — zxing feuert denselben Code viele Male pro Sekunde. */
+  /** 1:1 (`:24`): verhindert parallele Lookups — zxing feuert denselben Code viele Male pro Sekunde. */
   const busyRef = useRef(false);
   const [kameraFehler, setKameraFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
@@ -101,9 +101,10 @@ export function BarcodeScanner({
           controlsRef.current?.stop();
           // Volle Navigation statt router.push: Soft-Navigation direkt nach
           // einer Server Action wird (vor allem im Dev-Modus) gern abgebrochen,
-          // und nach einem Scan ist ein frischer Seitenaufbau ohnehin gewollt.
+          // und nach einem Scan ist ein frischer Seitenaufbau ohnehin gewollt
+          // (1:1, `:42-44`).
           window.location.assign(zielPfad(treffer.id));
-          return;   // busy bleibt gesetzt, sonst navigiert ein Folge-Scan doppelt
+          return;   // busy bleibt gesetzt, sonst navigiert ein Folge-Scan doppelt (`:46`)
         }
         setMeldung(nichtGefunden(code));
       } catch {
@@ -111,7 +112,7 @@ export function BarcodeScanner({
       } finally {
         setSucht(false);
       }
-      // Kurze Sperre, damit derselbe (unbekannte) Code nicht im Dauerfeuer nervt.
+      // Kurze Sperre, damit derselbe (unbekannte) Code nicht im Dauerfeuer nervt (`:55-57`).
       setTimeout(() => { busyRef.current = false; }, 2000);
     },
     [zuBarcode, zielPfad, nichtGefunden],
@@ -141,8 +142,8 @@ export function BarcodeScanner({
       }
       try {
         // Dynamischer Doppelimport: die zxing-Buendel laden erst beim Betreten
-        // der Seite. Ein statischer WERT-Import zoege sie in jedes Bundle, das
-        // diese Datei erwaehnt.
+        // der Seite (1:1, `:66-69`). Ein statischer WERT-Import zoege sie in
+        // jedes Bundle, das diese Datei erwaehnt.
         const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
           import("@zxing/browser"),
           import("@zxing/library"),
@@ -183,8 +184,9 @@ export function BarcodeScanner({
 
   function torchToggle() {
     const c = controlsRef.current;
-    // Optional geprueft (1:1): nicht jedes Geraet und nicht jeder Browser kann
-    // es, und ein Wurf beim Antippen waere ein Absturz mitten im Scannen.
+    // Optional geprueft (1:1, `:101-102`): nicht jedes Geraet und nicht jeder
+    // Browser kann es, und ein Wurf beim Antippen waere ein Absturz mitten im
+    // Scannen.
     if (!c?.switchTorch) return;
     const an = !torch;
     void c.switchTorch(an);
@@ -222,9 +224,9 @@ export function BarcodeScanner({
 
       {/*
         1:1-PFLICHT: DAS MANUELLE FELD STEHT IMMER (§7.6.3), unabhaengig vom
-        Kamerazustand — heute unbedingt gerendert, nur der Videobereich wird
-        durch die Fehlerkarte ersetzt. Ein manuelles Feld, das sich hinter einem
-        Kamerafehler versteckt, ist kein Rueckfall.
+        Kamerazustand — heute unbedingt gerendert (`:141-163`), nur der
+        Videobereich wird durch die Fehlerkarte ersetzt. Ein manuelles Feld, das
+        sich hinter einem Kamerafehler versteckt, ist kein Rueckfall.
       */}
       <div className={`${s.karte} ${s.kartePad}`}>
         <form
@@ -233,7 +235,7 @@ export function BarcodeScanner({
           onSubmit={(e) => {
             e.preventDefault();
             // Der Mensch am Feld ist nicht das Dauerfeuer, gegen das die Sperre
-            // gebaut ist (1:1).
+            // gebaut ist (1:1, `:148`).
             busyRef.current = false;
             void pruefeCode(manuell);
           }}
