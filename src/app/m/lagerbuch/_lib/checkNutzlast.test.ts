@@ -60,6 +60,34 @@ describe("checkNutzlast — die vier Vorbelegungen (§5.8.1)", () => {
   });
 });
 
+describe("checkNutzlast — der Geraete-Override-Pfad (Review-Fix T43)", () => {
+  /**
+   * `z.geraete[g.id] ?? GERAET_VORBELEGUNG`: bislang befuhr KEIN Test den
+   * Override-Zweig selbst — jeder Fall liess `z.geraete` leer. Eine Mutation, die
+   * die Vorbelegung erzwingt und `z.geraete` gar nicht mehr liest, blieb dadurch
+   * unentdeckt gruen. `toEqual` statt `toMatchObject`, weil bei einer Nutzlast das
+   * UEBERZAEHLIGE Feld die gefaehrlichere Richtung ist: was mitgeschickt wird,
+   * landet in `checks.ergebnis` und damit in Produktionsdaten (T37).
+   */
+  it("ein gemeldeter Wert MIT bemerkung schlaegt die Vorbelegung und traegt sie mit", () => {
+    const n = checkNutzlast({
+      ...BASIS,
+      z: { ...LEER, geraete: { g1: { vorhanden: false, zustand: "Defekt", bemerkung: "Kabel gerissen" } } },
+    });
+    expect(n.geraete[0]).toEqual({
+      geraetId: "g1", vorhanden: false, zustand: "Defekt", bemerkung: "Kabel gerissen",
+    });
+  });
+
+  it("ein gemeldeter Wert OHNE bemerkung traegt KEIN bemerkung-Feld", () => {
+    const n = checkNutzlast({
+      ...BASIS,
+      z: { ...LEER, geraete: { g1: { vorhanden: true, zustand: "Gebrauchsspuren" } } },
+    });
+    expect(n.geraete[0]).toEqual({ geraetId: "g1", vorhanden: true, zustand: "Gebrauchsspuren" });
+  });
+});
+
 describe("checkNutzlast — die Verfaelle sind die EINE Ausnahme", () => {
   it("sendet NUR die geaenderten", () => {
     /**
