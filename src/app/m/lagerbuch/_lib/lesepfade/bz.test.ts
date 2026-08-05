@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
-import { bzGeraete, bzKontrollen, lagerorte, users, newId } from "../../_db/schema";
+import { bzGeraete, bzKontrollen, lagerorte, users } from "../../_db/schema";
 import { lagerortOptionen, bzGeraeteUebersicht, bzGeraetDetail, bzGeraetByBarcode,
          bzLogbuchGesamt, bzAkkuKennzahlGesamt } from "./bz";
 import { BZ_LOGBUCH_GRENZE } from "../grenzen";
@@ -58,6 +58,34 @@ describe("bzGeraeteUebersicht", () => {
     expect(z.letztesBestanden).toBe(true);
     expect(z.faelligkeit.nieGeprueft).toBe(false);
     expect(z.lagerortName).toBe("RTW 1");
+  });
+
+  it("waehlt bei GLEICHEM ts dieselbe Kontrolle wie bzGeraetDetail (id-Tiebreaker, §5.14.4)", () => {
+    // `ts` ist SEKUNDEN-genau — zwei Kontrollen in derselben Sekunde sind bei
+    // einer Sammel-Pruefsitzung kein exotischer Fall. Ohne denselben
+    // id-Tiebreaker koennte diese Uebersicht (letztesBestanden) eine ANDERE
+    // Kontrolle als „die letzte" behandeln als `bzGeraetDetail.logbuch[0]`
+    // (`orderBy(desc(ts), desc(id))`) — auf einem Medizinprodukte-Nachweis.
+    // "tie-b" > "tie-a" lexikographisch: bei GLEICHEM ts muss die hoehere id
+    // gewinnen, in BEIDEN Funktionen.
+    const ts = vorTagen(1);
+    t.db.insert(bzKontrollen).values([
+      { id: "tie-a", geraetId: "bz-1", ts, quelleTyp: "system", quelleId: "s",
+        level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
+        kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: false,
+        kommentar: null, bestanden: true, refSnapshot: null },
+      { id: "tie-b", geraetId: "bz-1", ts, quelleTyp: "system", quelleId: "s",
+        level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
+        kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: false,
+        kommentar: null, bestanden: false, refSnapshot: null },
+    ]).run();
+    const detail = bzGeraetDetail(t.db, "bz-1", NOW)!;
+    expect(detail.logbuch[0].id).toBe("tie-b");
+    const uebersicht = bzGeraeteUebersicht(t.db, NOW).find((x) => x.id === "bz-1")!;
+    expect(uebersicht.letzteKontrolle?.getTime()).toBe(ts.getTime());
+    // Die Uebersicht muss DIESELBE Kontrolle als massgeblich behandeln wie
+    // das Logbuch — nicht nur irgendeine mit passendem `ts`.
+    expect(uebersicht.letztesBestanden).toBe(false);
   });
 
   it("ein nie geprueftes Geraet ist ROT mit ueberfaellig FALSE", () => {

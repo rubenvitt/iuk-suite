@@ -93,7 +93,16 @@ export function bzGeraeteUebersicht(db: DB, now: Date = new Date()): BzGeraetZei
   const letzteProGeraet = new Map<string, (typeof kontrollen)[number]>();
   for (const k of kontrollen) {
     const prev = letzteProGeraet.get(k.geraetId);
-    if (!prev || k.ts > prev.ts) letzteProGeraet.set(k.geraetId, k);
+    // id-Tiebreaker bei GLEICHEM `ts` (§5.14.4) — MUSS mit der Sortierung in
+    // `bzGeraetDetail`/`bzLogbuchGesamt` (`orderBy(desc(ts), desc(id))`)
+    // uebereinstimmen: sonst kann diese Uebersicht eine ANDERE Kontrolle als
+    // „die letzte" behandeln als das Logbuch — bei zwei Kontrollen in
+    // derselben Sekunde (ts ist Sekunden-genau) eine reale Divergenz auf
+    // einem Medizinprodukte-Nachweis, nicht nur ein theoretischer Fall.
+    const istSpaeter = !prev
+      || k.ts.getTime() > prev.ts.getTime()
+      || (k.ts.getTime() === prev.ts.getTime() && k.id > prev.id);
+    if (istSpaeter) letzteProGeraet.set(k.geraetId, k);
   }
   return geraete
     .map((g) => {
