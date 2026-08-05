@@ -45,6 +45,11 @@ describe("checkNutzlast — die vier Vorbelegungen (§5.8.1)", () => {
       { geraetId: "g1", vorhanden: true, zustand: "In Ordnung" },
       { geraetId: "g2", vorhanden: true, zustand: "In Ordnung" },
     ]);
+    // Dieselbe Schwaeche wie beim Override-Pfad (Review-Fix T43, Runde 2):
+    // `toEqual` normalisiert `bemerkung: undefined` als gleichwertig zu einem
+    // fehlenden Schluessel — ein unbedingtes `bemerkung: a.bemerkung` bliebe
+    // hier sonst unentdeckt, auch fuer den Vorbelegungspfad (keine Bemerkung).
+    expect(n.geraete.every((g) => !("bemerkung" in g))).toBe(true);
   });
 
   it("Druck ist auf den NENNFUELLDRUCK vorbelegt — je Flasche verschieden", () => {
@@ -85,6 +90,11 @@ describe("checkNutzlast — der Geraete-Override-Pfad (Review-Fix T43)", () => {
       z: { ...LEER, geraete: { g1: { vorhanden: true, zustand: "Gebrauchsspuren" } } },
     });
     expect(n.geraete[0]).toEqual({ geraetId: "g1", vorhanden: true, zustand: "Gebrauchsspuren" });
+    // `toEqual` normalisiert einen Wert `undefined` als gleichwertig zu einem
+    // fehlenden Schluessel (Review-Fix T43, Runde 2) — ein UNBEDINGTES
+    // `bemerkung: a.bemerkung` bliebe damit unentdeckt. Die Zusage betrifft den
+    // Schluessel selbst, deshalb hier ausdruecklich geprueft.
+    expect("bemerkung" in n.geraete[0]).toBe(false);
   });
 });
 
