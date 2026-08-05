@@ -2,6 +2,7 @@
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { absoluteCallbackUrl } from "@/core/auth/callbackUrl";
+import { suiteRedirect } from "@/core/auth/redirect";
 import { vereinigeGruppen } from "@/core/auth/devGroups";
 import { useState } from "react";
 import { Button, Checkbox, Input } from "antd";
@@ -217,7 +218,36 @@ export function LoginForm({
                   groups: vereinigeGruppen(angehakt, groups),
                   redirect: false,
                 });
-                window.location.assign(callbackUrl.startsWith("/") ? callbackUrl : "/");
+                // DIE WEICHE: geprueft gegen die Suite-Allowlist, nicht gegen
+                // `startsWith("/")`. Zwei Gruende, beide vorher still:
+                //  - ein ABSOLUTES Ziel auf einem Suite-Host wurde verworfen und
+                //    landete auf der Wurzel. Der Verwaltungsknopf des
+                //    Lagerbuch-Gates traegt genau so einen Wert (Host-Wechsel),
+                //    und der Weg dorthin war in jeder Dev- und E2E-Umgebung tot.
+                //  - `"//boese.example/".startsWith("/")` ist `true`: ein
+                //    protokoll-relativer Wert kam durch, den der Browser als
+                //    FREMDE Origin liest — eine offene Weiterleitung.
+                //
+                // WARUM HIER PRUEFEN, wo `core/auth/callbackUrl.ts` das fuer den
+                // Pocket-ID-Knopf oben ausdruecklich ABLEHNT ("taeuschte einen
+                // Schutz vor, den eine Client-Komponente nicht leisten kann"):
+                // dort geht der Wert an Auth.js, das `suiteRedirect`
+                // SERVERSEITIG faehrt — eine Client-Pruefung waere Theater. Hier
+                // steht `redirect: false`, Auth.js sieht das Ziel nie, und der
+                // Browser navigiert selbst. Es gibt also keine nachgelagerte
+                // Pruefung; diese ist nicht die zweite, sondern die einzige.
+                //
+                // `env: {}` bewusst: im Browser-Bundle gibt es `SUITE_HOST_*`
+                // nicht (nur `NEXT_PUBLIC_*` wird eingesetzt). Der Default
+                // `process.env` saehe unter Vitest die echte Node-Umgebung und
+                // damit ANDERE Hosts als der Browser — der gruene Lauf beschriebe
+                // dann nicht das Verhalten im Browser. Erlaubt bleibt so: die
+                // eigene Origin, `<key>.localtest.me` und die literalen
+                // `prodHosts` der Registry. Das faellt zu, nicht auf — und der
+                // Dev-Login laeuft ohnehin nur in Dev/E2E.
+                window.location.assign(
+                  suiteRedirect({ url: callbackUrl, baseUrl: window.location.origin, env: {} }),
+                );
               }}
             >
               <p
