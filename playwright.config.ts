@@ -4,6 +4,7 @@ import { defineConfig } from "@playwright/test";
 // nur den Serverprozess. Zwei Literale liefen auseinander, ohne dass ein Lauf
 // rot wuerde — er waere rennabhaengig gruen (Spec §6.8, Plan-Festlegung H).
 import { AV_MODUS_DATEI } from "./e2e/helpers/avModus";
+import { LAGERBUCH_ENV } from "./e2e/helpers/lagerbuch";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -78,7 +79,8 @@ export default defineConfig({
       },
     },
     {
-      command: "rm -rf ./.data/e2e && next dev -p 3100",
+      command:
+        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && next dev -p 3100",
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht
@@ -152,6 +154,22 @@ export default defineConfig({
         // Auch hier, nicht nur beim Fake: der Serverprozess muss dieselbe Datei
         // meinen wie Fake und Testhelfer.
         FAKE_CLAMD_MODUS_DATEI: AV_MODUS_DATEI,
+        /*
+         * Die neun Lagerbuch-Zeilen kommen aus EINER Quelle (Festlegung H9,
+         * Spec §12.6 Punkt 2): `devLogin(…, { groups })` in jedem
+         * Verwaltungs-Spec liest DIESELBE Konstante wie
+         * SUITE_ADMIN_GROUP_LAGERBUCH hier. Zwei Literale liefen auseinander,
+         * ohne dass ein Lauf rot wuerde — er waere GEGENTEILIG gruen: ohne
+         * passende Gruppe bezeugt der Spec den 404 aus §11.5, Zustand 19.
+         *
+         * ⚠️ SUITE_ACCESS_GROUP_LAGERBUCH steht bewusst NICHT darunter — ein
+         * gesetzter Wert bricht den Boot ab (Spec §2.5, §10.5 Pruefung 6), und
+         * zwar fuer die GANZE Suite.
+         *
+         * ⚠️ „Klein" ist bei den Zahlen kein zulaessiger Eintrag: die
+         * Kopplungspruefungen aus §10.5 greifen sonst, bevor ein Test laeuft.
+         */
+        ...LAGERBUCH_ENV,
       },
     },
   ],
