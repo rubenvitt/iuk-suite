@@ -110,6 +110,7 @@ describe("artikelListe", () => {
     expect(z.bestand).toBe(0);
     expect(z.naechsteCharge).toBeNull();
     expect(z.unterMindest).toBe(false);     // 0 < 0 ist falsch (strikt)
+    expect(z.chargeKritisch).toBe(false);   // keine Charge → keine Ampel
   });
 });
 
