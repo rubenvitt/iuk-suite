@@ -65,14 +65,21 @@ describe("artikelTrifft — die drei Chips", () => {
 /**
  * ⚠️ Reine ASCII-Begriffe ("verband", "pflaster") beweisen nichts ueber die
  * Faltung — sie verhalten sich unter jeder Kleinschreibung identisch. Diese
- * Faelle nageln fest, dass `artikelTrifft` ueber `falte()` aus `_lib/suche.ts`
- * faltet (Teil 3, wörtlich: "wird nicht nachgebaut und nicht durch
- * `toLowerCase()` ersetzt") — ein eigens gebautes `toLowerCase()` HIER traefe
- * bei diesen konkreten Zeichen zwar zufaellig dieselbe Entscheidung (JS faltet
- * Ä/ä korrekt), aber die Bauform waere die falsche und liefe der SQL-Haelfte
- * (`lb_falte`, T46) auseinander, sobald `falte()` sich je aendert.
+ * Faelle nageln das FALTUNGS-VERHALTEN fest, das `falte()` heute hat: Umlaute
+ * korrekt klein/gross, ß/ss NICHT vereinheitlicht (§5.20).
+ *
+ * ⚠️ WAS DIESE TESTS NICHT BEWEISEN: dass `artikelTrifft` tatsaechlich
+ * `falte()` RUFT statt eine eigene, aequivalente Kleinschreibung zu bauen.
+ * `falte(s) === s.toLowerCase()` gilt heute buchstaeblich (`suche.ts`), also
+ * waere ein direkter `.toLowerCase()`-Aufruf an dieser Stelle fuer BEIDE
+ * Faelle unten ebenfalls gruen. Dass die Implementierung `falte()` importiert
+ * statt `.toLowerCase()` zu rufen, ist eine BAUFORM-Zusicherung (Teil 3,
+ * scharf gebunden: "wird nicht nachgebaut und nicht durch `toLowerCase()`
+ * ersetzt") — kein Verhaltenstest kann sie heute tragen, weil kein
+ * beobachtbarer Unterschied existiert. Die Absicherung dieser Bauform gehoert
+ * strukturell zu `_lib/bauform.test.ts` (fremde Datei, siehe Bericht).
  */
-describe("artikelTrifft — Faltung ueber Umlaute und die ss/ß-Luecke (wie `falte()`)", () => {
+describe("artikelTrifft — Faltungsverhalten wie `falte()`: Umlaute und die ss/ß-Luecke", () => {
   it("findet Umlaute unabhaengig von Gross-/Kleinschreibung UND Diakritika in derselben Zusicherung", () => {
     const zeile = z({ name: "Verbandpäckchen" });
     expect(artikelTrifft(zeile, { ...LEERER_FILTER, suche: "PÄCKCHEN" })).toBe(true);
