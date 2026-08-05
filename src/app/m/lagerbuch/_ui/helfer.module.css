@@ -1,0 +1,367 @@
+/*
+ * DAS STYLESHEET DES HELFER-WEGS — §7.7, oeffentliche Ansichtsklasse
+ * (Entscheidung 28 d). Kein antd, keine Suite-Shell, eigene Anmutung.
+ *
+ * NULL MEDIA QUERIES fuer die Breite (§7.7.1). Eine Ansicht, die es nur in
+ * EINER Fassung gibt, kann keinen zweiten Breakpoint einfuehren. Der Rahmen ist
+ * fluid mit einer OBERGRENZE; auf 1280px steht er mittig und traegt die
+ * Tab-Leiste weiterhin unten. Waere hier je eine noetig, hiesse sie
+ * `max-width: 767.98px` — nicht 768, sonst gelten bei exakt 768px beide Seiten
+ * und die Reihenfolge im Stylesheet entscheidet. lagerbuch schaltet heute bei
+ * 760px (globals.css:250); derselbe Fall, an beiden Enden unsichtbar.
+ *
+ * ⚠️ DIE EINE AUSNAHME, ausdruecklich statt stillschweigend: ganz unten steht
+ * ein `@media (prefers-reduced-motion: reduce)`. Global Constraint 16 sagt
+ * woertlich „enthaelt NULL Media Queries" — gemeint sind BREITEN-Abfragen, und
+ * `prefers-reduced-motion` ist keine. Wer den Constraint woertlich nimmt und
+ * die Zeile streicht, verliert einen Zweig, den der Alt-Bestand heute schon hat
+ * (globals.css:158-160). `_lib/bauform.test.ts` VERLANGT ihn deshalb.
+ *
+ * `.rahmen` IST DER TRAEGER ALLER VARIABLEN. `_ui/verwaltung.module.css`
+ * (Teil 5, T100) traegt unter `.modul` DENSELBEN Satz, weil
+ * `_ui/BarcodeScanner.tsx` auf BEIDEN Aesten rendert (§3.3, §7.13.3, und
+ * Teil 5 T138 rendert ihn auf `/verwaltung/geraete/scan`). Eine Regel dieser
+ * Datei greift deshalb NIE auf einen Wert zu, den nur einer der beiden Traeger
+ * kennt — und NIE auf `--ant-*`: antd deklariert seine Variablen auf SEINER
+ * Scope-Klasse, eigenes Markup sieht sie nicht, und eine nicht aufloesbare
+ * Variable ist gueltiges CSS und faellt still auf `transparent` zurueck
+ * (Falle 2). Einzige zugelassene Fremdvariablen sind `--font-display`,
+ * `--font-body` und `--font-mono`: die liegen auf `:root` (Wurzel-Layout) und
+ * damit unter beiden Traegern.
+ */
+
+.rahmen {
+  /* Die zwoelf Neutralen — zeichengleich mit lagerbuch/src/app/globals.css:4-15
+     und mit core/theme/tokens.ts:14-25. */
+  --lb-rot: #c8000f;
+  --lb-rot-dk: #a2000c;
+  --lb-rot-bg: #fbe9eb;
+  --lb-tinte: #1a1d20;
+  --lb-stahl: #5b6570;
+  --lb-linie: #d9dde1;
+  --lb-papier: #eef0f1;
+  --lb-karte: #ffffff;
+  --lb-gelb: #b26a00;
+  --lb-gelb-bg: #fbf1dc;
+  --lb-ok: #1e7a3c;
+  --lb-ok-bg: #e4f2e9;
+
+  /* Die acht Ampelwerte aus §6.6.2 — die fachsemantische Palette, luminanz-
+     monoton ueber ok -> gelb -> rot. `grau` steht AUSSERHALB der Rangfolge und
+     traegt „kein Datum gepflegt" / „keine Messung"; er darf NIE als gruen
+     dargestellt werden. `_lib/ampel.test.ts` (Teil 5, T100) scannt genau diese
+     Zeilen — ein Scan ueber nur `verwaltung.module.css` liesze die Haelfte
+     driften (§6.6.2, Punkt 4). */
+  --lb-ampel-ok-text: #1e7a3c;
+  --lb-ampel-ok-flaeche: #e4f2e9;
+  --lb-ampel-gelb-text: #8a5200;
+  --lb-ampel-gelb-flaeche: #fbf1dc;
+  --lb-ampel-rot-text: #8c0d16;
+  --lb-ampel-rot-flaeche: #f6e3e0;
+  --lb-ampel-grau-text: #5b6570;
+  --lb-ampel-grau-flaeche: #e7eaec;
+
+  --lb-display: var(--font-display), "Arial Narrow", sans-serif;
+  --lb-body: var(--font-body), system-ui, sans-serif;
+  --lb-mono: var(--font-mono), ui-monospace, monospace;
+
+  width: 100%;
+  max-width: 560px;            /* kein Breakpoint — eine Obergrenze */
+  margin-inline: auto;
+  height: 100dvh;              /* NICHT 100vh: sonst verschwindet die Tab-Leiste
+                                  unter einer eingeblendeten Adressleiste */
+  display: flex;
+  flex-direction: column;
+  background: var(--lb-papier);
+  color: var(--lb-tinte);
+  font-family: var(--lb-body);
+  overflow: hidden;
+}
+
+/*
+ * Der Moduswechsel laeuft ueber `<html data-theme>` (Cookie `iuk-theme`,
+ * serverseitig gelesen, src/app/layout.tsx) — NICHT ueber die
+ * Systemabfrage. Die braeche den Fall „System dunkel, Umschalter hell", und
+ * der Umschalter ist die Zusage der Suite, nicht das System.
+ *
+ * Hier stehen DIESELBEN zwanzig Farbnamen wie oben. Eine, die fehlte, bliebe
+ * auf ihrem Hellwert stehen — still, und nur auf dunklen Geraeten sichtbar.
+ * Die drei Schriftstapel gehoeren nicht dazu: sie sind moduskonstant.
+ */
+:root[data-theme="dark"] .rahmen {
+  --lb-rot: #ff5a5f;
+  --lb-rot-dk: #d13b40;
+  --lb-rot-bg: #2a1113;
+  --lb-tinte: #e8eaec;
+  --lb-stahl: #9aa4ad;
+  --lb-linie: #2c3238;
+  --lb-papier: #14181b;
+  --lb-karte: #1c2126;
+  --lb-gelb: #d9a032;
+  --lb-gelb-bg: #2a1e05;
+  --lb-ok: #7ee0a0;
+  --lb-ok-bg: #10261a;
+
+  --lb-ampel-ok-text: #7ee0a0;
+  --lb-ampel-ok-flaeche: #10261a;
+  --lb-ampel-gelb-text: #d9a032;
+  --lb-ampel-gelb-flaeche: #2a1e05;
+  --lb-ampel-rot-text: #e8837c;
+  --lb-ampel-rot-flaeche: #2a1113;
+  --lb-ampel-grau-text: #9aa4ad;
+  --lb-ampel-grau-flaeche: #1c2024;
+}
+
+/* ——— Rahmen, Kopf, Tab-Leiste ——— */
+.streifen { height: 5px; background: var(--lb-rot); flex: none }
+.kopf {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 11px 14px 9px;
+  background: var(--lb-karte); border-bottom: 1px solid var(--lb-linie);
+}
+.marke { font-family: var(--lb-display); font-weight: 700; font-size: 20px; letter-spacing: .07em }
+.markeAkzent { color: var(--lb-rot) }
+.etikett { font-size: 12px; color: var(--lb-stahl); margin-top: 1px }
+.restzeit { font-size: 12px; color: var(--lb-stahl) }
+.restzeitWarnt { color: var(--lb-ampel-gelb-text); font-weight: 600 }
+.beenden {
+  font-size: 13px; font-weight: 600; border: 1.5px solid var(--lb-linie);
+  background: var(--lb-karte); border-radius: 99px; padding: 8px 14px;
+  color: var(--lb-stahl); display: inline-flex; align-items: center; gap: 5px;
+  min-height: 44px;
+}
+.inhalt { flex: 1; overflow-y: auto; padding: 14px 14px 18px; -webkit-overflow-scrolling: touch }
+.tableiste { flex: none; display: flex; background: var(--lb-karte); border-top: 1px solid var(--lb-linie) }
+.tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 9px 2px 8px; color: var(--lb-stahl); border-top: 2.5px solid transparent;
+  text-decoration: none; font-family: var(--lb-display); font-weight: 600;
+  font-size: 11px; letter-spacing: .09em; text-transform: uppercase; min-height: 56px;
+}
+/* Die KLASSE folgt aus `aria-current`, nicht umgekehrt (§7.8.2 Punkt 4).
+   Damit prueft der E2E dieselbe Sache, die die Bildschirmleserin hoert. */
+.tab[aria-current="page"] { color: var(--lb-rot); border-top-color: var(--lb-rot) }
+
+/* ——— Öffentlicher Rahmen: Träger OHNE Kopf und OHNE Tab-Leiste ———
+   Er steht unter derselben `.rahmen`-Klasse und erbt damit denselben
+   Variablensatz. Ein zweiter Träger mit eigener Variablenliste wäre der Ort,
+   an dem Gate und Helfer-Zweig farblich auseinanderlaufen. */
+.oeffentlichInhalt { flex: 1; overflow-y: auto; display: flex; flex-direction: column }
+
+/* ——— Gate (Modulwurzel) ———
+   KEIN eigenes `min-height`/`background`: es liegt in `.oeffentlichInhalt`
+   innerhalb von `.rahmen`, und `.rahmen` hat `overflow: hidden` — ein
+   `min-height: 100dvh` würde dort auf schmalen Geräten abgeschnitten statt zu
+   scrollen. */
+.gate {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 26px 18px;
+}
+.gateBalken { width: 52px; height: 5px; background: var(--lb-rot); border-radius: 3px; margin-bottom: 12px }
+.gateMarke { font-family: var(--lb-display); font-weight: 700; font-size: 36px; letter-spacing: .07em }
+.gateUnter { color: var(--lb-stahl); font-size: 14px; margin-top: 3px }
+.gateKarten {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(272px, 1fr));
+  gap: 14px; width: 100%; max-width: 680px; margin-top: 26px;
+}
+.gateKarte {
+  background: var(--lb-karte); border: 1px solid var(--lb-linie); border-radius: 16px;
+  padding: 18px 16px; display: flex; flex-direction: column; gap: 12px;
+}
+/*
+ * Das Zahlenfeld. 24px statt der heutigen 21 (§7.7.2 Punkt 1) — deutlich ueber
+ * der 16px-Untergrenze, weil sechs Ziffern auf einem Handy in einer
+ * Fahrzeughalle abgelesen und getippt werden.
+ */
+.codefeld {
+  width: 100%; border: 1.5px solid var(--lb-linie); border-radius: 10px; padding: 12px;
+  font: 700 24px/1 var(--lb-mono); letter-spacing: .16em; text-align: center;
+  text-transform: uppercase; background: var(--lb-karte); color: var(--lb-tinte);
+  min-height: 56px; font-variant-numeric: tabular-nums;
+}
+.gateFehler { color: var(--lb-ampel-rot-text); font-size: 13px; font-weight: 600 }
+.gateHinweis { color: var(--lb-stahl); font-size: 13px }
+
+/* ——— Bausteine ——— */
+.karte { background: var(--lb-karte); border: 1px solid var(--lb-linie); border-radius: 14px; overflow: hidden }
+.karte + .karte { margin-top: 10px }
+.kartePad { padding: 13px 14px }
+.karteTitel {
+  font-family: var(--lb-display); font-weight: 600; font-size: 14px; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--lb-stahl); padding: 11px 14px 0;
+}
+.zeile {
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  padding: 12px 14px; border-top: 1px solid var(--lb-linie); color: inherit; text-decoration: none;
+}
+.zeile:first-child { border-top: none }
+.zeileHaupt { flex: 1; min-width: 0 }
+.zeileName { font-weight: 600; font-size: 15px; line-height: 1.25 }
+.zeileMeta { display: flex; align-items: center; gap: 7px; margin-top: 5px; flex-wrap: wrap; font-size: 13px; color: var(--lb-stahl) }
+.fach {
+  font-family: var(--lb-mono); font-size: 12px; font-weight: 600;
+  border: 1.5px solid var(--lb-tinte); border-radius: 5px; padding: 1px 6px;
+  background: var(--lb-karte); white-space: nowrap;
+}
+.fussnote { font-size: 13px; color: var(--lb-stahl); line-height: 1.5 }
+.schirmKopf {
+  font-family: var(--lb-display); font-weight: 700; font-size: 17px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--lb-stahl); margin: 2px 2px 10px;
+}
+.rueckweg {
+  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 12px;
+  font-size: 14px; font-weight: 600; border: 1.5px solid var(--lb-linie);
+  background: var(--lb-karte); border-radius: 99px; padding: 10px 14px;
+  color: var(--lb-stahl); text-decoration: none; min-height: 44px;
+}
+.bestandsZahl {
+  font-family: var(--lb-display); font-weight: 700; font-size: 36px; line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.mengenChip {
+  font-family: var(--lb-display); font-weight: 700; font-size: 20px; line-height: 1;
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+
+/* ——— Chip (§5.17: EINE Abbildung AmpelTon -> Klasse, keine Interpolation) ——— */
+.chip {
+  display: inline-flex; align-items: center; gap: 4px; border-radius: 99px;
+  padding: 2.5px 9px; font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.ok { color: var(--lb-ampel-ok-text); background: var(--lb-ampel-ok-flaeche) }
+.gelb { color: var(--lb-ampel-gelb-text); background: var(--lb-ampel-gelb-flaeche) }
+.rot { color: var(--lb-ampel-rot-text); background: var(--lb-ampel-rot-flaeche) }
+.grau { color: var(--lb-ampel-grau-text); background: var(--lb-ampel-grau-flaeche) }
+
+/* ——— Stepper (§7.7.3, Entscheidung 33 d) — EINE Groesse, 56px ——— */
+.stepper {
+  display: flex; align-items: center; border: 1.5px solid var(--lb-linie);
+  border-radius: 12px; background: var(--lb-karte); flex: none;
+}
+.stepTaste { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; color: var(--lb-tinte) }
+.stepWert {
+  min-width: 56px; height: 56px; text-align: center; background: transparent; border: 0;
+  font: 700 20px/1 var(--lb-display); font-variant-numeric: tabular-nums; padding: 0;
+  color: var(--lb-tinte);
+}
+.stepAnzeige {
+  min-width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;
+  font: 700 20px/1 var(--lb-display); font-variant-numeric: tabular-nums; color: var(--lb-tinte);
+}
+
+/* ——— Fahrzeug-Check ——— */
+.schritte { display: flex; gap: 8px; margin: 0 2px 14px }
+.schritt {
+  flex: 1; display: flex; align-items: center; gap: 8px; padding: 9px 11px;
+  border: 1.5px solid var(--lb-linie); border-radius: 11px; background: var(--lb-karte);
+  font-weight: 600; font-size: 13px; color: var(--lb-stahl);
+}
+.schrittNr {
+  width: 22px; height: 22px; border-radius: 99px; background: var(--lb-linie);
+  color: var(--lb-stahl); display: flex; align-items: center; justify-content: center;
+  font-family: var(--lb-display); font-size: 13px; flex: none;
+}
+.schrittAktiv { border-color: var(--lb-tinte); color: var(--lb-tinte) }
+.schrittAktiv .schrittNr { background: var(--lb-tinte); color: var(--lb-karte) }
+.schrittFertig .schrittNr { background: var(--lb-ampel-ok-text); color: var(--lb-karte) }
+.fachKopf {
+  font-family: var(--lb-display); font-weight: 600; font-size: 13px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--lb-stahl); margin: 15px 2px 7px;
+}
+.pruefKreis {
+  width: 30px; height: 30px; border-radius: 99px; border: 2px solid var(--lb-linie);
+  flex: none; display: flex; align-items: center; justify-content: center; background: var(--lb-karte);
+}
+.pruefKreisOk { background: var(--lb-ampel-ok-text); border-color: var(--lb-ampel-ok-text); color: var(--lb-karte) }
+.pruefKreisFehl { background: var(--lb-ampel-rot-flaeche); border-color: var(--lb-ampel-rot-text); color: var(--lb-ampel-rot-text) }
+
+/*
+ * §7.7.2 Punkt 2: Das Verfallsfeld VERLAESST die Zaehlzeile und bekommt eine
+ * eigene, volle Zeile. Die Einzeiligkeit wird aufgegeben, nicht die
+ * Schriftgroesze — eine 16px-Untergrenze, die man umgeht, waere keine.
+ *
+ * Erhoeht die Suite-Untergrenze von 16 auf 18, senkt sie NIE. Wer hier eine
+ * kleinere Zahl eintraegt, hebelt `core/theme/feldschrift.test.ts` NICHT aus —
+ * der Scan liest den Selektortext und die Zahl, `.verfallZeile input` matcht,
+ * und der Test wird rot. Das ist Absicht.
+ */
+.verfallZeile { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--lb-stahl) }
+.verfallZeile input {
+  flex: 1; border: 1.5px solid var(--lb-linie); border-radius: 10px; padding: 10px 12px;
+  font-size: 18px; min-height: 56px; background: var(--lb-karte); color: var(--lb-tinte);
+}
+.nfZeile { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border-top: 1px solid var(--lb-linie) }
+.nfZeile:first-child { border-top: none }
+.nfGeholt { text-align: center; flex: none }
+.nfGeholt small { display: block; font-size: 12px; color: var(--lb-stahl); font-weight: 600; margin-top: 3px }
+.abschluss {
+  position: sticky; bottom: 6px; margin-top: 14px; background: var(--lb-tinte); color: var(--lb-papier);
+  border-radius: 14px; padding: 12px 13px; display: flex; align-items: center; gap: 11px;
+  box-shadow: 0 10px 26px rgba(12, 18, 24, .32);
+}
+.abschlussInfo { flex: 1; min-width: 0 }
+.abschlussInfo b { font-family: var(--lb-display); font-size: 16px; letter-spacing: .03em }
+.abschlussGo {
+  background: var(--lb-rot); color: #fff; border-radius: 9px; padding: 14px 16px;
+  font-weight: 700; font-size: 14px; white-space: nowrap; display: flex; gap: 6px;
+  align-items: center; min-height: 56px;
+}
+.warnkasten { display: inline-flex; align-items: center; gap: 5px }
+
+/* ——— Scanner (§7.6). Diese Regeln greifen NUR auf --lb-* zu: die Komponente
+       rendert auch unter `.modul` aus verwaltung.module.css (Teil 5, T138). ——— */
+.scanKarte { position: relative; overflow: hidden; background: #000; border-radius: 14px }
+.scanVideo { display: block; width: 100%; max-height: 58vh; object-fit: cover }
+.scanStrich {
+  position: absolute; left: 8%; right: 8%; height: 2px; background: var(--lb-rot);
+  box-shadow: 0 0 14px 2px rgba(200, 0, 15, .75); top: 16%; animation: scan 2.6s ease-in-out infinite;
+}
+@keyframes scan { 0% { top: 16% } 50% { top: 82% } 100% { top: 16% } }
+/* Die EINZIGE Animation des Wegs — und sie hat den Zweig heute schon
+   (globals.css:158-160). Ihn beim Portieren zu verlieren ist eine
+   Verschlechterung, die niemand meldet. Zugleich die EINE Media Query dieser
+   Datei; die Begruendung steht im Kopfkommentar. */
+@media (prefers-reduced-motion: reduce) { .scanStrich { animation: none; top: 49% } }
+.lampe {
+  position: absolute; right: 10px; bottom: 10px; width: 56px; height: 56px;
+  border-radius: 99px; border: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .9); color: var(--lb-tinte);
+}
+.lampeAn { background: var(--lb-rot); color: #fff }
+.feldZeile { display: flex; gap: 8px; align-items: stretch }
+.feld {
+  width: 100%; border: 1.5px solid var(--lb-linie); border-radius: 10px; padding: 12px;
+  font-size: 16px; background: var(--lb-karte); color: var(--lb-tinte); min-height: 56px;
+}
+.suchfeld {
+  width: 100%; border: 1.5px solid var(--lb-linie); border-radius: 10px; padding: 12px;
+  font-size: 16px; background: var(--lb-karte); color: var(--lb-tinte);
+  min-height: 56px; margin-bottom: 10px;
+}
+
+/* ——— Knoepfe ——— */
+.knopf {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border-radius: 11px; padding: 14px 16px; font-weight: 700; font-size: 15px;
+  min-height: 56px; border: 1.5px solid transparent;
+}
+.knopf[disabled] { opacity: .45; cursor: default }
+/* Der Primaerknopf bleibt ROT, weil er die HANDLUNG ist. Statusfarben kommen
+   aus --lb-ampel-* — Rot steht nie auf einer Datenflaeche (Falle 3). */
+.knopfRot { background: var(--lb-rot); color: #fff }
+.knopfTinte { background: var(--lb-tinte); color: var(--lb-papier) }
+.knopfGeist { background: var(--lb-karte); color: var(--lb-tinte); border-color: var(--lb-linie) }
+
+/* ——— Leerzustand: der Rueckweg ist PFLICHT (§11.7, E5) ——— */
+.leer { padding: 22px 16px; text-align: center; color: var(--lb-stahl); font-size: 15px; line-height: 1.5 }
+.leerWeg { margin-top: 14px; display: inline-flex }
+
+/* Fokus: `outline` mit `outline-offset`, nie ein ersatzloses Abschalten. Die
+   Suite-Regel erreicht nur antd-Komponenten; diese Zeile wandert zeichengleich
+   aus lagerbuch/src/app/globals.css:40 mit. */
+.rahmen button:focus-visible,
+.rahmen input:focus-visible,
+.rahmen a:focus-visible,
+.rahmen select:focus-visible {
+  outline: 2px solid var(--lb-tinte); outline-offset: 2px; border-radius: 6px;
+}

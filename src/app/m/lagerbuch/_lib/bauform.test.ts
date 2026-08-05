@@ -308,3 +308,534 @@ describe('kein "use client" unter _lib/ und _db/', () => {
       .toEqual([]);
   });
 });
+
+// ————————————————————————————————————————————————————————————————————————
+// TEIL 4, T64 — das Stylesheet des Helfer-Wegs und seine Riegel.
+//
+// ⚠️ ZWEI KLASSEN VON ZUSICHERUNGEN LIEGEN HIER UNTEREINANDER, und sie sind
+// bewusst NICHT gleich gebaut:
+//
+//   1. Der Block „T64 — das Stylesheet …" steht NICHT in Eigenschaftsform.
+//      `_ui/helfer.module.css` entsteht in DIESEM Task; er ist der Rotlauf von
+//      T64 selbst.
+//   2. Alles darunter steht in EIGENSCHAFTSFORM („falls die Datei existiert").
+//      Ihre Subjekte entstehen erst in den Wellen 3 bis 7. Ein Scan, der am
+//      ersten Tag rot ist, wird abgeschaltet statt repariert — genau der
+//      Fehler, gegen den Teil 2 diese Datei ueberhaupt so gebaut hat.
+//
+// ⚠️ JEDER Quelltext-Scan hier liest `ohneKommentare(...)`, nie den Rohtext —
+// auch die CSS-Scans, denn `ohneKommentare` leert `/* … */` genauso. Ohne das
+// traefe der `outline: none`-Scan die Zeile, die ihn BEGRUENDET, und die
+// naheliegende „Reparatur" waere das Loeschen genau dieser Begruendung.
+// ————————————————————————————————————————————————————————————————————————
+
+const HELFER_CSS = join(MODUL, "_ui/helfer.module.css");
+
+/**
+ * Jede `.css` unter dem Modulbaum, rekursiv.
+ *
+ * ⚠️ EIN EIGENER SAMMLER, und das ist kein Versehen: `quellDateien()` liefert
+ * ausschliesslich `.ts`/`.tsx` und gaebe hier IMMER `[]` zurueck — ein
+ * leer-gruener Scan, der aussieht, als pruefte er etwas. Er laeuft ueber ALLE
+ * `.css` unter `m/lagerbuch/**`, nicht nur `_ui/*.module.css`, sonst fiele
+ * `(druck)/druck.css` (§6.10.2) heraus.
+ */
+function cssDateien(wurzel: string = MODUL): string[] {
+  if (!existsSync(wurzel)) return [];
+  const treffer: string[] = [];
+  for (const eintrag of readdirSync(wurzel)) {
+    const pfad = join(wurzel, eintrag);
+    if (statSync(pfad).isDirectory()) {
+      if (eintrag === "migrations") continue;
+      treffer.push(...cssDateien(pfad));
+      continue;
+    }
+    if (eintrag.endsWith(".css")) treffer.push(pfad);
+  }
+  return treffer;
+}
+
+/** Der Koerper der ERSTEN Regel, deren Selektor `muster` trifft — `{` bis `}`. */
+function regelKoerper(css: string, muster: RegExp): string {
+  const t = muster.exec(css);
+  if (!t) return "";
+  const auf = css.indexOf("{", t.index);
+  const zu = css.indexOf("}", auf);
+  return auf === -1 || zu === -1 ? "" : css.slice(auf + 1, zu);
+}
+
+/** Kommentare weg, At-Regel-Klammern aufloesen — dann Selektor/Koerper je Regel. */
+function cssRegeln(quelle: string): { selektor: string; koerper: string }[] {
+  const css = ohneKommentare(quelle).replace(/@[a-z-]+[^{;]*\{/gi, "");
+  return [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map((t) => ({
+    selektor: t[1]!.trim(),
+    koerper: t[2]!,
+  }));
+}
+
+describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt seinen Variablensatz", () => {
+  /**
+   * DIESE Zusicherungen sind NICHT in Eigenschaftsform: sie sind der Rotlauf
+   * von T64 selbst. `helfer.module.css` entsteht in DIESEM Task, nicht spaeter.
+   *
+   * Die fuenfzehn Neutralen stehen hier und nicht nur die acht Ampelwerte (E8),
+   * weil `_ui/BarcodeScanner.tsx` AUCH unter `.modul` rendert (Teil 5, T138):
+   * beide Traeger muessen denselben Satz fuehren, sonst ist der Scanner auf
+   * einem der beiden Aeste still ungestylt — eine nicht aufloesbare
+   * CSS-Variable ist gueltiges CSS und faellt auf `transparent` zurueck.
+   */
+  const NEUTRALE = [
+    "--lb-rot", "--lb-rot-dk", "--lb-rot-bg", "--lb-tinte", "--lb-stahl", "--lb-linie",
+    "--lb-papier", "--lb-karte", "--lb-gelb", "--lb-gelb-bg", "--lb-ok", "--lb-ok-bg",
+    "--lb-display", "--lb-body", "--lb-mono",
+  ];
+  /** §6.6.2 — die fachsemantische Palette. `grau` steht AUSSERHALB der Rangfolge. */
+  const AMPEL = [
+    "--lb-ampel-ok-text", "--lb-ampel-ok-flaeche",
+    "--lb-ampel-gelb-text", "--lb-ampel-gelb-flaeche",
+    "--lb-ampel-rot-text", "--lb-ampel-rot-flaeche",
+    "--lb-ampel-grau-text", "--lb-ampel-grau-flaeche",
+  ];
+  /** Die Fassung ohne Kommentare — sonst sind mehrere dieser Scans auf ihrer
+   *  eigenen Begruendung rot (siehe Kopf dieses Abschnitts). */
+  const lies = () => ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+
+  it("die Datei existiert", () => {
+    expect(existsSync(HELFER_CSS)).toBe(true);
+  });
+
+  it("`.rahmen` traegt alle fuenfzehn Neutralen UND die acht Ampelwerte", () => {
+    // Nicht „irgendwo in der Hell-Haelfte", sondern IM KOERPER von `.rahmen`:
+    // eine Variable, die nach `:root` wandert, waere sonst gruen — und genau
+    // dann faende `_ui/BarcodeScanner.tsx` sie unter `.modul` nicht.
+    const koerper = regelKoerper(lies(), /(?:^|\})\s*\.rahmen\s*\{/m);
+    expect(koerper, "`.rahmen`-Regel fehlt").not.toBe("");
+    for (const name of [...NEUTRALE, ...AMPEL]) {
+      expect(koerper, `${name} fehlt unter .rahmen`).toMatch(new RegExp(`${name}\\s*:`));
+    }
+  });
+
+  it("der Dunkelzweig setzt DIESELBEN zwanzig Farbnamen neu", () => {
+    // Eine Farbe, die im Dunkelzweig fehlt, bleibt auf ihrem Hellwert stehen —
+    // still, und nur auf dunklen Geraeten sichtbar. Die drei Schriftstapel
+    // gehoeren NICHT dazu: sie sind moduskonstant.
+    const koerper = regelKoerper(lies(), /:root\[data-theme="dark"\]\s+\.rahmen\s*\{/);
+    expect(koerper, "Dunkelzweig fehlt").not.toBe("");
+    for (const name of [...NEUTRALE.filter((n) => !/display|body|mono/.test(n)), ...AMPEL]) {
+      expect(koerper, `${name} fehlt im Dunkelzweig`).toMatch(new RegExp(`${name}\\s*:`));
+    }
+  });
+
+  it("schaltet ueber `data-theme`, nicht ueber `prefers-color-scheme`", () => {
+    // `prefers-color-scheme` braeche den Fall „System dunkel, Umschalter hell"
+    // — die Suite fuehrt den Modus im Cookie `iuk-theme` und stempelt ihn
+    // serverseitig auf <html data-theme> (src/app/layout.tsx).
+    const css = lies();
+    expect(css).toMatch(/:root\[data-theme="dark"\]\s+\.rahmen/);
+    expect(css).not.toMatch(/prefers-color-scheme/);
+  });
+
+  it("greift ausschliesslich auf `--lb-*` zurueck (und auf die drei `--font-*`)", () => {
+    // Der Traeger-Vertrag in seiner scharfen Form: `_ui/BarcodeScanner.tsx`
+    // rendert AUCH unter `.modul` aus `verwaltung.module.css`. Jede Variable,
+    // die nur EINER der beiden Traeger kennt, ist auf dem anderen Ast still
+    // `transparent`. `--font-display|body|mono` sind die Ausnahme — sie kommen
+    // vom Wurzel-Layout und liegen auf `:root`, also unter beiden Traegern.
+    const fremde = [...lies().matchAll(/var\(\s*(--[\w-]+)/g)]
+      .map((t) => t[1]!)
+      .filter((n) => !n.startsWith("--lb-") && !/^--font-(display|body|mono)$/.test(n));
+    expect([...new Set(fremde)], "nur --lb-* und die drei --font-* sind erlaubt").toEqual([]);
+  });
+
+  it("setzt `100dvh` und `max-width: 560px` — kein Breakpoint, eine Obergrenze", () => {
+    const css = lies();
+    expect(css).toMatch(/height:\s*100dvh/);
+    expect(css).toMatch(/max-width:\s*560px/);
+  });
+
+  it("erhoeht die Suite-Untergrenze im Verfallsfeld auf 18px und senkt sie NIE", () => {
+    // §7.7.2 Punkt 2: die Einzeiligkeit wird aufgegeben, nicht die
+    // Schriftgroesze. `.verfallZeile input` (0,1,1) ueberstimmt
+    // `input {font-size:16px}` (0,0,1) regulaer — nach OBEN.
+    const css = lies();
+    expect(css).toMatch(/\.verfallZeile\s+input\s*\{[^}]*font-size:\s*18px/);
+    expect(css).toMatch(/\.verfallZeile\s+input\s*\{[^}]*min-height:\s*56px/);
+  });
+
+  it("gibt jeder Stepper-Flaeche 56px — das Suite-Tap-Mass", () => {
+    // core/theme/tokens.ts:33 setzt TAP = 56 mit der Begruendung „Bedienung mit
+    // Handschuhen … eine Einsatzanforderung, keine Stilfrage". lagerbuch liegt
+    // heute bei 42x42 (globals.css:73) bzw. 30x30 in der sm-Variante (:75).
+    const css = lies();
+    expect(css).toMatch(/\.stepTaste\s*\{[^}]*width:\s*56px/);
+    expect(css).toMatch(/\.stepTaste\s*\{[^}]*height:\s*56px/);
+    expect(css).not.toMatch(/\.stepper\.sm|\.stepperSm/);
+  });
+
+  it("setzt `tabular-nums` an den drei Ziffernstellen", () => {
+    // Im ganzen lagerbuch-Repo kommt die Eigenschaft NULL Mal vor; die
+    // Ausrichtung haengt heute allein an IBM Plex Mono. Auf dem Helfer-Weg
+    // werden Ziffern VERGLICHEN — Soll gegen Ist, Bestand, Druck in bar.
+    const css = lies();
+    for (const klasse of ["stepWert", "bestandsZahl", "mengenChip"]) {
+      expect(css, `${klasse} ohne tabular-nums`).toMatch(
+        new RegExp(`\\.${klasse}\\s*\\{[^}]*font-variant-numeric:\\s*tabular-nums`),
+      );
+    }
+  });
+
+  it("behaelt den `prefers-reduced-motion`-Zweig des Scanstrichs", () => {
+    // Die einzige Animation des Wegs, und sie hat den Zweig heute schon
+    // (globals.css:158-160). Ihn beim Portieren zu verlieren ist eine
+    // Verschlechterung, die niemand meldet.
+    //
+    // ⚠️ Das ist die EINE Media Query dieser Datei und die ausdrueckliche
+    // Ausnahme zu „NULL Media Queries" (§2 Punkt 16): der Constraint zielt auf
+    // BREITEN-Abfragen, und `prefers-reduced-motion` ist keine. Wer §2
+    // woertlich nimmt und die Zeile streicht, verliert einen Zweig, den der
+    // Alt-Bestand heute schon hat.
+    expect(lies()).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+  });
+
+  it("setzt Fokus mit `outline-offset` und nirgends `outline: none` ohne Ersatz", () => {
+    const css = lies();
+    expect(css).toMatch(/:focus-visible[^{]*\{[^}]*outline-offset/);
+    expect(css).not.toMatch(/outline:\s*none/);
+  });
+});
+
+// ————————————————————————————————————————————————————————————————————————
+// TEIL 4 (§7.12.2, §7.8.2) — SIEBEN Scans, alle in EIGENSCHAFTSFORM.
+//
+// Eigenschaftsform heisst: eine fehlende Datei ist KEIN Fehlschlag. Ein Scan,
+// der am ersten Tag rot ist, wird abgeschaltet statt repariert. Die
+// VERSCHAERFUNG auf „diese Dateien existieren" ist namentlich T87 (Abnahme) —
+// dasselbe Muster, das der Weichen-Block weiter oben schon benutzt.
+//
+// Fuenf davon stehen im Plan (§7.12.2, §7.8.2). ZWEI sind Betreiberentscheidung
+// vom 05.08.2026 und stehen dort NICHT:
+//   B1 — der `falte()`-Scan auf `_lib/artikelFilter.ts` (Uebergabe Teil 3,
+//        Punkt 9): kein Netz sichert die Bindung, ein Rueckfall auf
+//        `.toLowerCase()` bliebe empirisch belegt gruen.
+//   B2 — der Reihenfolge-Scan der drei Gate-Flaechen (Befund 15): die Zusage
+//        steht in Teil 4 DREIMAL woertlich in drei Dateien und hatte kein
+//        mechanisches Netz.
+// ————————————————————————————————————————————————————————————————————————
+
+describe("§7.7.1 — der eine Breakpoint, und dieses Modul erfindet keinen zweiten", () => {
+  it("`_ui/helfer.module.css` enthaelt KEINE `@media (max-width`", () => {
+    // jsdom wertet Media Queries nicht aus; nur ein Quelltext-Scan besitzt die
+    // Aussage. Eine Ansicht, die es nur in EINER Fassung gibt, kann keinen
+    // zweiten Breakpoint einfuehren.
+    if (!existsSync(HELFER_CSS)) return;
+    expect(ohneKommentare(readFileSync(HELFER_CSS, "utf8"))).not.toMatch(/@media[^{]*max-width/i);
+  });
+
+  it("jede `max-width`-Abfrage im ganzen Modulbaum schreibt 767.98", () => {
+    // 767.98 und nicht 768: bei exakt 768px gelten sonst BEIDE Seiten, und die
+    // Reihenfolge im Stylesheet entscheidet. Der Scan laeuft ueber ALLE .css
+    // unter m/lagerbuch/** — nicht nur `_ui/*.module.css`, sonst fiele
+    // `(druck)/druck.css` heraus (§6.10.2). lagerbuch schaltet heute bei 760px
+    // (globals.css:250); derselbe Fall, an beiden Enden unsichtbar.
+    //
+    // GELESEN WIRD NUR DIE PRAELUDE einer `@media`-Regel: `max-width` als
+    // LAYOUT-Eigenschaft (`.rahmen{max-width:560px}`) ist kein Breakpoint.
+    const dateien = cssDateien();
+    expect(dateien.length, "kein einziges Stylesheet im Modul — der Scan waere leer-gruen")
+      .toBeGreaterThanOrEqual(1);
+    const verstoesse: string[] = [];
+    for (const pfad of dateien) {
+      const css = ohneKommentare(readFileSync(pfad, "utf8"));
+      for (const regel of css.matchAll(/@media([^{]*)\{/g)) {
+        for (const t of regel[1]!.matchAll(/max-width:\s*([\d.]+)px/gi)) {
+          if (t[1] !== "767.98") {
+            verstoesse.push(`${relative(process.cwd(), pfad)}: max-width: ${t[1]}px`);
+          }
+        }
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
+});
+
+describe("§7.7.4 / Falle 2 — kein `--ant-` ausserhalb eines antd-Baums", () => {
+  it("keine `_ui/*.css` nennt `--ant-`", () => {
+    // antd deklariert seine Variablen auf SEINER Scope-Klasse, nicht auf :root.
+    // Eigenes Markup sieht sie nie — und eine nicht aufloesbare CSS-Variable ist
+    // GUELTIGES CSS und faellt still auf `transparent` zurueck.
+    const dateien = cssDateien(join(MODUL, "_ui"));
+    expect(dateien.length, "kein Stylesheet unter _ui/ — der Scan waere leer-gruen")
+      .toBeGreaterThanOrEqual(1);
+    const verstoesse = dateien
+      .filter((p) => ohneKommentare(readFileSync(p, "utf8")).includes("--ant-"))
+      .map((p) => relative(process.cwd(), p));
+    expect(verstoesse).toEqual([]);
+  });
+
+  it("keine `_ui/*.tsx` nennt `--ant-` in einem Inline-Style", () => {
+    // Der Taschenlampenschalter faerbt sich per Inline-Style (§7.6.4). Wer beim
+    // Portieren `var(--rot)` reflexartig durch `var(--ant-color-primary)`
+    // ersetzt, bekommt einen Knopf OHNE Hintergrundfarbe — still.
+    //
+    // ⚠️ EIGENSCHAFTSFORM: `_ui/` traegt heute nur das Stylesheet, die Menge ist
+    // also LEER und der Scan behauptet nichts. Zaehne bekommt er ab Welle 3.
+    const verstoesse = quellDateien(join(MODUL, "_ui"))
+      .filter((p) => p.endsWith(".tsx"))
+      .filter((p) => ohneKommentare(readFileSync(p, "utf8")).includes("--ant-"))
+      .map((p) => relative(process.cwd(), p));
+    expect(verstoesse).toEqual([]);
+  });
+});
+
+describe("§7.7.2 — die Luecke in `core/theme/feldschrift.test.ts`, modul-lokal geschlossen", () => {
+  /**
+   * Das Suite-Gate liest NUR die Langform `font-size:` und filtert auf
+   * Selektoren, die `input|textarea|select` nennen. Drei zu kleine Felder des
+   * Bestands kommen dadurch DURCH: `.input` mit `font:500 14px …`
+   * (globals.css:80), `.combo-input` (:83) und `.stepper.sm .stepval` mit 15px
+   * (:76) — obwohl `.stepval` (Stepper.tsx:52) ein echtes `<input>` IST.
+   *
+   * Wer den gruenen Suite-Test als bestandene Pruefung liest, portiert drei zu
+   * kleine Felder in eine Anwendung OHNE Zoom (`maximumScale: 1`,
+   * `userScalable: false`). Die 16px-Untergrenze und der gesperrte Zoom sind
+   * ausdruecklich EINE Regel.
+   *
+   * Deshalb zwei Erweiterungen gegenueber dem Suite-Gate:
+   *   1. auch die `font:`-KURZSCHREIBWEISE wird gelesen;
+   *   2. die FELDKLASSEN dieses Moduls zaehlen als Feld, obwohl ihr Selektor
+   *      das Wort „input" nicht enthaelt.
+   */
+  const FELDKLASSEN = /\b(input|textarea|select)\b|\.(codefeld|stepWert|suchfeld|feld|verfallZeile)\b/;
+
+  it("keine Feldregel unter 16px — Langform UND Kurzschreibweise", () => {
+    const verstoesse: string[] = [];
+    let geprueft = 0;
+    for (const pfad of cssDateien(join(MODUL, "_ui"))) {
+      for (const { selektor, koerper } of cssRegeln(readFileSync(pfad, "utf8"))) {
+        if (!FELDKLASSEN.test(selektor)) continue;
+        geprueft++;
+        const lang = /font-size:\s*([\d.]+)px/.exec(koerper);
+        // Kurzschreibweise: `font: 700 20px/1 var(--lb-display)` — die Groesse
+        // ist der erste px-Wert nach optionalen Stil-/Gewichtsangaben.
+        const kurz = /font:\s*[^;]*?([\d.]+)px/.exec(koerper);
+        for (const treffer of [lang, kurz]) {
+          if (treffer && Number(treffer[1]) < 16) {
+            verstoesse.push(`${relative(process.cwd(), pfad)}: ${selektor} -> ${treffer[1]}px`);
+          }
+        }
+      }
+    }
+    // Ohne diese Zeile waere der Scan bei leerer Regelmenge vakuum-gruen und
+    // saehe wie eine bestandene Pruefung aus.
+    expect(geprueft, "keine einzige Feldregel geprueft").toBeGreaterThanOrEqual(5);
+    expect(verstoesse).toEqual([]);
+  });
+});
+
+describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
+  it("keine Datei unter `_ui/` importiert `antd` oder `@ant-design/icons`, ausser den Verwaltungsbausteinen", () => {
+    // `core/shell/icons.test.ts:147-171` faengt repo-weit NUR die Icons. Ein
+    // `import { Card } from "antd"` in `_ui/Entnahme.tsx` waere typkorrekt,
+    // lint-sauber, gebaut — und heraus kaeme eine Verwaltungsanmutung auf einem
+    // Telefon, plus 96px Ueberlauf gegen 100dvh (Falle 41).
+    //
+    // AUSNAHMELISTE: die Verwaltungsbausteine aus Teil 5 leben im selben Ordner
+    // und DUERFEN antd. Die Liste ist namentlich, nicht gemustert — ein
+    // Praefix-Muster liesse die naechste Datei durch, die zufaellig so heisst.
+    //
+    // ⚠️ EIGENSCHAFTSFORM: `_ui/` traegt heute keine `.tsx`. Zaehne ab Welle 3.
+    const VERWALTUNG = new Set([
+      "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Brotkrume.tsx", "Kachel.tsx",
+      "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
+      "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
+    ]);
+    const verstoesse: string[] = [];
+    for (const pfad of quellDateien(join(MODUL, "_ui"))) {
+      if (VERWALTUNG.has(pfad.split("/").pop()!)) continue;
+      const q = ohneKommentare(readFileSync(pfad, "utf8"));
+      if (/from\s+"antd(\/|")|from\s+"@ant-design\/icons/.test(q)) {
+        verstoesse.push(relative(process.cwd(), pfad));
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
+
+  it("KEINE Datei im Modul importiert `lucide-react`", () => {
+    // Der Alt-Bestand importiert es in JEDER Datei dieses Zweigs; die Suite hat
+    // es gar nicht im Baum. Ein Import scheiterte an der Aufloesung — aber erst
+    // im Build, nicht im Review, und die naheliegende „Reparatur" ist dann,
+    // lucide zu INSTALLIEREN statt die Zeile zu streichen.
+    //
+    // ⚠️ `quellDateien()` und NICHT ein eigener Sammler ohne Testdatei-Filter:
+    // die Testdateien der Wellen 3 bis 7 tragen `lucide-react` in ihrem EIGENEN
+    // Verbots-Regex. Ein Scan, der sie mitliest, macht genau die Tests rot, die
+    // die Zusicherung tragen (siehe die Begruendung an `quellDateien`).
+    const dateien = quellDateien();
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(50);
+    expect(trefferAuf(/lucide-react/, dateien), "lucide-react ist in dieser Suite nicht installiert")
+      .toEqual([]);
+  });
+});
+
+describe("§7.8.2 / Falle 63 — `usePathname` kommt im Modul GAR NICHT vor", () => {
+  it("kein `usePathname` unter `src/app/m/lagerbuch/`", () => {
+    // `core/routing.ts:54-67` behandelt bereits praefixierte Pfade eigens und
+    // schliesst `/m/*` bewusst NICHT aus dem Matcher aus. Auf diesem zweiten Weg
+    // beginnt `/m/lagerbuch/helfer/check` nicht mit `/helfer/check`, und die
+    // Tab-Leiste markierte dauerhaft „Entnahme" — auch im Fahrzeug-Check.
+    //
+    // Der Server kennt das Segment ohnehin. `HelferRahmen` bekommt es als Prop.
+    // Dieser Scan ist der einzige, der das VOR dem E2E sieht.
+    const dateien = quellDateien();
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(50);
+    expect(trefferAuf(/\busePathname\b/, dateien),
+      "das aktive Segment kommt als Prop vom Server, nicht aus usePathname (Falle 63)")
+      .toEqual([]);
+  });
+
+  it("kein `useSearchParams`, kein `router.push`/`router.replace` auf dem Helfer-Ast", () => {
+    // §7.8.2 Punkt 6: `useSearchParams` hat in lagerbuch NULL Konsumenten; der
+    // Filterzustand wird serverseitig als `searchParams`-Prop gelesen. Die
+    // Fahrzeugwahl wird ein <Link> (§7.9.1), kein Client-Schreiber. Damit
+    // entsteht die Suspense-Falle rund um `useSearchParams` auf diesem Ast gar
+    // nicht — solange es so bleibt.
+    //
+    // ⚠️ EIGENSCHAFTSFORM: von den vier Aesten existiert heute nur `_ui/`, und
+    // dort liegt keine `.tsx`. Zaehne ab Welle 3.
+    const AST = ["_ui", "helfer", "a", "t"].map((d) => join(MODUL, d));
+    const verstoesse: string[] = [];
+    for (const wurzel of AST) {
+      for (const pfad of quellDateien(wurzel)) {
+        // Die Verwaltungsbausteine im selben `_ui/`-Ordner duerfen beides.
+        if (/\/(Suchfeld|Trefferanzeige|useUrlFilter|LoeschDialog|ArtikelDrawer)\./.test(pfad)) continue;
+        if (/useSearchParams|router\.(push|replace)/.test(ohneKommentare(readFileSync(pfad, "utf8")))) {
+          verstoesse.push(relative(process.cwd(), pfad));
+        }
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
+});
+
+describe("B1 / §5.13.2 — `_lib/artikelFilter.ts` faltet ueber `falte()`, nicht selbst", () => {
+  /**
+   * BETREIBERENTSCHEIDUNG vom 05.08.2026 (Uebergabe Teil 3, Punkt 9). Der Plan
+   * kennt diesen Scan nicht; sein einziger `falte`-Scan (T71) liest
+   * `_ui/ArtikelSuche.tsx` und beruehrt `artikelFilter.ts` nirgends.
+   *
+   * WARUM ES EIN NETZ BRAUCHT: die Datei faltet an ZWEI Stellen. Ein Rueckfall
+   * auf `.toLowerCase()` traefe bei den heutigen Zeichen zufaellig dieselbe
+   * Entscheidung und bliebe damit gruen — empirisch belegt. Er liefe aber der
+   * SQL-Haelfte (`lb_falte`, registriert in `_db/client.ts`) auseinander,
+   * sobald sich die Faltung je aendert. Die Praemisse von §5.13.2 heisst „EINE
+   * Faltung, EIN Ort"; sie ist genau dann eingehalten, wenn hier kein zweiter
+   * Ort entsteht.
+   */
+  const FILTER = join(MODUL, "_lib/artikelFilter.ts");
+
+  it("importiert `falte` aus `./suche`, ruft es zweimal und faltet nirgends selbst", () => {
+    if (!existsSync(FILTER)) return;
+    const q = ohneKommentare(readFileSync(FILTER, "utf8"));
+    expect(q, "die eine Faltung des Moduls kommt aus _lib/suche.ts (§5.13.2)")
+      .toMatch(/import\s*\{[^}]*\bfalte\b[^}]*\}\s*from\s*["']\.\/suche["']/);
+    expect([...q.matchAll(/\bfalte\s*\(/g)].length, "beide Faltstellen laufen ueber falte()")
+      .toBeGreaterThanOrEqual(2);
+    expect(q, "ein eigenes toLowerCase() waere der zweite Ort — genau der, den §5.13.2 ausschliesst")
+      .not.toMatch(/\.toLoc(?:ale)?LowerCase\s*\(|\.toLowerCase\s*\(/);
+  });
+});
+
+describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () => {
+  /**
+   * BETREIBERENTSCHEIDUNG vom 05.08.2026 (Befund 15, die von §0 verlangte
+   * Entscheidung). Die Zusage
+   *
+   *   Host → Sperre (OHNE Datenbankzugriff) → normalisieren → `redeemToken`
+   *        → Erfolg: Cookie, KEIN Budgetverbrauch
+   *
+   * steht in Teil 4 DREIMAL woertlich in drei verschiedenen Dateien und hatte
+   * bis hierher kein mechanisches Netz — nur drei voneinander unabhaengige,
+   * mock-basierte Unit-Testsaetze. Genau die Konstellation, in der die dritte
+   * Kopie die Reihenfolge verliert und kein Gate es sieht.
+   * `_lib/gateSchranke.ts:119-124` benennt diesen Fehler als in DIESER Suite
+   * bereits produktiv eingetreten (feedback, 15 Ehrenamtliche aus einem
+   * Vereins-WLAN).
+   *
+   * ⚠️ EIGENSCHAFTSFORM, wie jeder Scan dieser Datei: die drei Dateien
+   * entstehen erst in Welle 4 (`_actions/*`) und Welle 7 (`t/[code]/route.ts`).
+   * AUFLAGE AN T87 (Abnahme): dort wird die `existsSync`-Bedingung durch eine
+   * EXISTENZPFLICHT ersetzt — dasselbe Muster, das der Weichen-Block oben
+   * bereits vorschreibt. Bis dahin behauptet dieser Block nichts.
+   *
+   * ⚠️ GELESEN WIRD `ohneKommentareUndZeichenketten`: Test 1 ist ein POSITIVER
+   * Nachweis, und ein Textliteral `"redeemToken("` erfuellte ihn sonst, ohne
+   * dass der Riegel je liefe — ein Scan, der still nichts faengt.
+   */
+  const GATE_FLAECHEN = ["_actions/gate.ts", "_actions/sitzung.ts", "t/[code]/route.ts"];
+  const RIEGEL: { name: string; muster: RegExp }[] = [
+    { name: "Host",          muster: /\brequireLagerbuchHost\s*\(/ },
+    { name: "Sperre",        muster: /\bgateGesperrt\s*\(/ },
+    { name: "normalisieren", muster: /\bnormalisiereCode\s*\(/ },
+    { name: "Einloesung",    muster: /\bredeemToken\s*\(/ },
+  ];
+  /** Die vorhandenen Gate-Flaechen, jede schon ohne Kommentare und Literale. */
+  const flaechen = (): { pfad: string; q: string }[] =>
+    GATE_FLAECHEN.map((p) => join(MODUL, p))
+      .filter((p) => existsSync(p))
+      .map((p) => ({
+        pfad: relative(process.cwd(), p),
+        q: ohneKommentareUndZeichenketten(readFileSync(p, "utf8")),
+      }));
+
+  it("jede Flaeche, die einloest, traegt alle vier Riegel — in dieser Reihenfolge", () => {
+    const verstoesse: string[] = [];
+    for (const { pfad, q } of flaechen()) {
+      // Ausloeser ist die EINLOESUNG: eine Datei ohne `redeemToken(` ist keine
+      // Gate-Flaeche, und der Scan behauptet ueber sie nichts.
+      if (!/\bredeemToken\s*\(/.test(q)) continue;
+      let vorher = -1;
+      let vorherName = "(Dateianfang)";
+      for (const { name, muster } of RIEGEL) {
+        const t = muster.exec(q);
+        if (!t) { verstoesse.push(`${pfad}: Riegel „${name}" fehlt ganz`); break; }
+        if (t.index < vorher) { verstoesse.push(`${pfad}: „${name}" steht VOR „${vorherName}"`); break; }
+        vorher = t.index;
+        vorherName = name;
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
+
+  it("kein Datenbankzugriff VOR der Sperre", () => {
+    // Die Sperre ist genau deshalb ohne Datenbankzugriff gebaut
+    // (`gateSchranke.ts:83-104`, „LIEST NUR"): sie SCHUETZT den Zugriff. Faellt
+    // ein `getDb()` davor, ist der Deckel wirkungslos — und still.
+    const verstoesse: string[] = [];
+    for (const { pfad, q } of flaechen()) {
+      const sperre = /\bgateGesperrt\s*\(/.exec(q);
+      if (!sperre) continue;
+      const db = /\bgetDb\s*\(/.exec(q);
+      if (db && db.index < sperre.index) {
+        verstoesse.push(`${pfad}: getDb() steht vor gateGesperrt()`);
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
+
+  it("der Budgetverbrauch liegt HINTER der Codepruefung — ein Erfolg zahlt nichts", () => {
+    // §3.9 / `gateSchranke.ts:113-126`: gebucht wird ein FEHLVERSUCH, nie ein
+    // Erfolg. Liegt `gateFehlversuchBuchen()` vor `redeemToken()`, verbraucht
+    // eine Bereitschaft hinter einem gemeinsamen Uplink ihre fuenf Versuche mit
+    // ERFOLGREICHEN Scans — der Fehler, den der Alt-Bestand heute hat
+    // (`lagerbuch/src/app/(gate)/actions.ts:19`, `t/[code]/route.ts:25`).
+    const verstoesse: string[] = [];
+    for (const { pfad, q } of flaechen()) {
+      const einloesung = /\bredeemToken\s*\(/.exec(q);
+      const buchung = /\bgateFehlversuchBuchen\s*\(/.exec(q);
+      if (einloesung && buchung && buchung.index < einloesung.index) {
+        verstoesse.push(`${pfad}: gateFehlversuchBuchen() steht vor redeemToken()`);
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
+});
