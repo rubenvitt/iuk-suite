@@ -229,6 +229,16 @@ export const JOURNAL_GRENZE = 100;
 export const CHECK_GRENZE = 50;
 /** dito (`lagerbuch/src/db/bz.ts:124`). */
 export const BZ_LOGBUCH_GRENZE = 100;
+/**
+ * Der VIERTE Deckel — der Buchungsverlauf im Artikel-Detail.
+ *
+ * ⚠️ Er stand bis zuletzt als nackte `8` in `lesepfade/artikel.ts`, und die
+ * Abfrage holte ALLE Buchungen des Artikels und schnitt erst in JS ab. Genau die
+ * teure Klasse, gegen die dieses Kapitel geschrieben ist: `better-sqlite3` ist
+ * SYNCHRON, ein Vollladen blockiert die GANZE Suite, nicht nur dieses Modul —
+ * und ein Artikel mit langer Historie faehrt das bei jedem Seitenaufruf.
+ */
+export const ARTIKEL_VERLAUF_GRENZE = 8;
 
 /* ──────────────────────────────────────────────────────────────────────────
  * DIE BOOT-LISTE (§10.5, Pruefungen 1 bis 4).

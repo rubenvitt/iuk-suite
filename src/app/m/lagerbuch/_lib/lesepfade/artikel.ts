@@ -17,6 +17,7 @@ import { HANDLAGER_ID } from "../konstanten";
 import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
 import { chargeText } from "../format";
+import { ARTIKEL_VERLAUF_GRENZE } from "../grenzen";
 import { bestandJeArtikel, restJeCharge, type Leser } from "./bestand";
 
 export type ChargeZeile = { id: string; chargenNr: string; verfall: string; rest: number };
@@ -90,15 +91,26 @@ export function artikelDetail(db: Leser, id: string, _now: Date = new Date()) {
     // Zweitsortierung nach `id`: `ts` sind UNIX-SEKUNDEN, und ein Check-Abschluss
     // schreibt mehrere Zeilen in DERSELBEN Sekunde (§5.14.4).
     .orderBy(desc(buchungen.ts), desc(buchungen.id))
+    // ⚠️ DER DECKEL GEHOERT IN DIE ABFRAGE, nicht in ein `slice` danach. Vorher
+    // holte diese Zeile ALLE Buchungen des Artikels in den Prozess und schnitt
+    // erst in JS auf acht — `better-sqlite3` ist SYNCHRON, ein Artikel mit langer
+    // Historie blockierte damit die GANZE Suite (§5.2.3, Falle 10).
+    // `GRENZE + 1` gelesen, `GRENZE` gezeigt: nur so ist `mehrVorhanden`
+    // beobachtbar, ohne eine zweite Abfrage (dieselbe Form wie Journal, Checks
+    // und BZ-Logbuch).
+    .limit(ARTIKEL_VERLAUF_GRENZE + 1)
     .all();
   return {
     artikel: a,
     bestand: bestandJeArtikel(db, HANDLAGER_ID).get(id) ?? 0,
     chargen: chargenMitRest(db, id),
     // LAGERORT-UEBERGREIFEND — siehe Kopfkommentar.
-    buchungen: bu.slice(0, 8).map((b) => ({
+    buchungen: bu.slice(0, ARTIKEL_VERLAUF_GRENZE).map((b) => ({
       ts: b.ts, typ: b.typ, menge: b.menge, kommentar: b.kommentar, quelleId: b.quelleId,
     })),
+    /** ⚠️ UNBEDINGTE Texte („die neuesten 8") sind die Fehlaussage, gegen die
+     *  §5.14.3 gebaut ist: der Hinweis erscheint NUR, wenn die Grenze griff. */
+    mehrVorhanden: bu.length > ARTIKEL_VERLAUF_GRENZE,
   };
 }
 
