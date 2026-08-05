@@ -34,6 +34,11 @@ beforeEach(() => {
   t.db.insert(lagerorte).values([
     { id: "rtw-1", name: "RTW 1", typ: "fahrzeug", kennung: "MS-1", aktiv: true },
     { id: "rtw-2", name: "ELW", typ: "fahrzeug", kennung: "MS-2", aktiv: true },
+    // ⚠️ NAME BEWUSST AM ENDE DES ALPHABETS. Er traegt die FRUEHESTEN Verfaelle;
+    // damit gewinnt er ueber das ZWEITkriterium (`verfall`) und verliert ueber
+    // das dritte (`lagerortName`) — nur so ist das zweite Kriterium ueberhaupt
+    // beobachtbar (I-9).
+    { id: "rtw-3", name: "ZZZ Reserve", typ: "fahrzeug", kennung: "MS-3", aktiv: true },
   ]).run();
   t.db.insert(artikel).values([
     { id: "a1", name: "Verband", einheit: "Stk.", fach: "A1",
@@ -72,13 +77,38 @@ beforeEach(() => {
     b("a2", "c-nurfzg", "rtw-1", 4),          // NUR im Fahrzeug
     b("a2", "c-pseudo", HANDLAGER_ID, 7),
   ]).run();
+  /**
+   * DIE VIER RAENGE VON `lagerortVerfallListe` — je Rang mindestens einer, und
+   * die Einfuegereihenfolge steht GEGEN die Sollreihenfolge (T30/T46-Lehre).
+   *
+   * Vorher kannte die Fixture nur Rang 1 (zweimal rot, beide "2026-06") und
+   * Rang 3 (gruen); getragen wurde ausschliesslich das DRITTE Kriterium
+   * (`lagerortName`).
+   *
+   *   rtw-3/a2 "2020-01" → abgelaufen, Rang 0, Name „ZZZ Reserve"
+   *   rtw-2/a2 "2021-05" → abgelaufen, Rang 0, Name „ELW"
+   *   rtw-1/a1 "2026-06" → rot,        Rang 1, Name „RTW 1"
+   *   rtw-2/a1 "2026-06" → rot,        Rang 1, Name „ELW"
+   *   rtw-3/a1 "2026-07" → gelb,       Rang 2
+   *   rtw-1/a2 "2029-01" → gruen,      Rang 3
+   *
+   * Die beiden Rang-0-Zeilen sind der Fall, der das ZWEITE Kriterium isoliert:
+   * „ZZZ Reserve" gewinnt nur ueber den frueheren Verfall und verliert ueber den
+   * Namen.
+   */
   t.db.insert(lagerortVerfall).values([
+    { id: newId(), lagerortId: "rtw-1", artikelId: "a2", verfall: "2029-01",
+      erfasstAt: NOW, quelleTyp: "oidc", quelleId: "sub-1" },
     { id: newId(), lagerortId: "rtw-1", artikelId: "a1", verfall: "2026-06",
+      erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
+    { id: newId(), lagerortId: "rtw-3", artikelId: "a1", verfall: "2026-07",
       erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
     { id: newId(), lagerortId: "rtw-2", artikelId: "a1", verfall: "2026-06",
       erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
-    { id: newId(), lagerortId: "rtw-1", artikelId: "a2", verfall: "2029-01",
-      erfasstAt: NOW, quelleTyp: "oidc", quelleId: "sub-1" },
+    { id: newId(), lagerortId: "rtw-2", artikelId: "a2", verfall: "2021-05",
+      erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
+    { id: newId(), lagerortId: "rtw-3", artikelId: "a2", verfall: "2020-01",
+      erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
   ]).run();
 });
 afterEach(() => {
@@ -126,20 +156,51 @@ describe("verfallListe — Handlager-Rest, gruen ausgeblendet", () => {
 
 describe("lagerortVerfallListe — vier Raenge, drittes Kriterium Lagerortname", () => {
   it("zeigt per Vorgabe ALLE Meldungen, auch gruene", () => {
-    expect(lagerortVerfallListe(t.db, {}, NOW)).toHaveLength(3);
+    expect(lagerortVerfallListe(t.db, {}, NOW)).toHaveLength(6);
   });
 
   it("nurWarnend blendet gruen aus", () => {
-    expect(lagerortVerfallListe(t.db, { nurWarnend: true }, NOW)).toHaveLength(2);
+    expect(lagerortVerfallListe(t.db, { nurWarnend: true }, NOW)).toHaveLength(5);
   });
 
   it("filtert auf einen Lagerort", () => {
-    expect(lagerortVerfallListe(t.db, { lagerortId: "rtw-2" }, NOW)).toHaveLength(1);
+    expect(lagerortVerfallListe(t.db, { lagerortId: "rtw-2" }, NOW)).toHaveLength(2);
+  });
+
+  it("sortiert die VOLLE Liste ueber alle vier Raenge — ohne nurWarnend", () => {
+    /**
+     * Die einzige Reihenfolgezusicherung lief bisher ueber `nurWarnend`, wo beide
+     * verbliebenen Zeilen gleichen Rang UND gleichen Verfall trugen — Rang 0 und
+     * Rang 2 wurden nie befahren, das Zweitkriterium `verfall` nie erreicht.
+     *
+     * ⚠️ EHRLICHE GRENZE DIESES FALLES: der `rang`-Term ist gegen die
+     * `verfall`-Zweitsortierung STRUKTURELL redundant und mit KEINER Fixture
+     * einzeln beobachtbar. `rang` ist eine monoton nicht-fallende Funktion von
+     * `verfall` (abgelaufen < rot < gelb < gruen sind aufsteigende
+     * Verfallsfenster gegen dasselbe `now`), also liefert
+     * `rang || verfall || name` fuer JEDE Eingabe dieselbe Ordnung wie
+     * `verfall || name`. Der Term steht als Absicht und traegt, sobald die
+     * Ampelzuordnung nicht mehr monoton ist; ein Test kann ihn nicht bewachen.
+     * Was dieser Fall bewacht: dass alle vier Raenge in der richtigen Ordnung
+     * herauskommen UND dass das zweite Kriterium wirklich greift.
+     */
+    const l = lagerortVerfallListe(t.db, {}, NOW);
+    expect(l.map((z) => `${z.lagerortName}/${z.verfall}`)).toEqual([
+      "ZZZ Reserve/2020-01",   // Rang 0, frueherer Verfall — gewinnt ueber `verfall`
+      "ELW/2021-05",           // Rang 0, spaeterer Verfall — obwohl der Name vorn steht
+      "ELW/2026-06",           // Rang 1, Namens-Tiebreaker
+      "RTW 1/2026-06",         // Rang 1
+      "ZZZ Reserve/2026-07",   // Rang 2 (gelb)
+      "RTW 1/2029-01",         // Rang 3 (gruen)
+    ]);
+    expect(l.map((z) => z.ampel)).toEqual(["rot", "rot", "rot", "rot", "gelb", "gruen"]);
+    expect(l.map((z) => z.abgelaufen)).toEqual([true, true, false, false, false, false]);
   });
 
   it("sortiert bei gleichem Rang und gleichem Verfall nach LAGERORTNAME", () => {
     // rtw-1 heisst „RTW 1", rtw-2 heisst „ELW" — alphabetisch steht ELW vorn.
-    const l = lagerortVerfallListe(t.db, { nurWarnend: true }, NOW);
+    const l = lagerortVerfallListe(t.db, { nurWarnend: true }, NOW)
+      .filter((z) => z.verfall === "2026-06");
     expect(l.map((z) => z.lagerortName)).toEqual(["ELW", "RTW 1"]);
   });
 

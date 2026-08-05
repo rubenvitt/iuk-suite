@@ -22,11 +22,26 @@ beforeEach(() => {
     { id: "a-tie", name: "Gleichstand", einheit: "Stk.", fach: "A3",
       mindestbestand: 0, aktiv: true, createdAt: NOW },
   ]).run();
+  /**
+   * ⚠️ DIE DREI SORTIERSCHLUESSEL STEHEN GEGENEINANDER (T30/T46/T54-Lehre, I-10).
+   *
+   * Vorher waren `verfall`, `createdAt` und `id` bei c-alt/c-neu GLEICHLAEUFIG:
+   * die dritte Stufe (`id` ↓) allein reproduzierte die Sollreihenfolge, und die
+   * beiden fachlich tragenden Stufen waren VAKUUM — man konnte sie ersatzlos
+   * streichen, ohne dass ein Test rot wurde.
+   *
+   * Jetzt muss die GEWINNENDE Charge in den NACHRANGIGEN Schluesseln VERLIEREN:
+   *   c-neu   verfall 2028-01 (spaetester) · createdAt 2025-01-01 (AELTESTE)
+   *   c-alt   verfall 2026-07             · createdAt 2026-01-01 (juenger)
+   * `verfall` ↓ waehlt c-neu, `createdAt` ↓ waehlte c-alt — Stufe 1 traegt also
+   * allein. (`id` ↓ waehlt „c-neu" > „c-alt", das bleibt gleichlaeufig; die
+   * Isolation von Stufe 2 leistet der Fall mit `c-a-jung` weiter unten.)
+   */
   t.db.insert(chargen).values([
     { id: "c-alt", artikelId: "a1", chargenNr: "ALT", verfall: "2026-07",
       createdAt: new Date("2026-01-01T00:00:00Z") },
     { id: "c-neu", artikelId: "a1", chargenNr: "NEU", verfall: "2028-01",
-      createdAt: new Date("2026-02-01T00:00:00Z") },
+      createdAt: new Date("2025-01-01T00:00:00Z") },
   ]).run();
   const b = (chargeId: string, lagerortId: string, menge: number) => ({
     id: newId(), ts: NOW, typ: "zugang" as const, artikelId: "a1", chargeId, lagerortId, menge,
@@ -117,13 +132,20 @@ describe("korrekturAufLagerort — diff > 0: DIE CHARGE WIRD GERATEN (§5.3.3)",
   });
 
   it("entscheidet bei gleichem Verfall ueber die JUENGERE createdAt", () => {
+    /**
+     * ⚠️ DIE ID DER GEWINNERIN IST BEWUSST DIE KLEINSTE. Mit einem Namen wie
+     * „c-neuer" liefe die dritte Stufe (`id` ↓) gleichlaeufig mit, und Stufe 2
+     * waere nicht isoliert: die Sollreihenfolge kaeme auch ohne sie heraus.
+     * `c-a-jung` verliert gegen „c-alt" UND „c-neu" auf der id-Stufe und gewinnt
+     * nur ueber die juengere `createdAt`.
+     */
     t.db.insert(chargen).values(
-      { id: "c-neuer", artikelId: "a1", chargenNr: "NEUER", verfall: "2028-01",
-        createdAt: new Date("2026-03-01T00:00:00Z") }).run();
+      { id: "c-a-jung", artikelId: "a1", chargenNr: "JUNG", verfall: "2028-01",
+        createdAt: new Date("2025-06-01T00:00:00Z") }).run();
     const r = inTx((tx) => korrekturAufLagerort(tx, {
       artikelId: "a1", lagerortId: "rtw-1", istMenge: 5,
       quelle: QUELLE, kommentar: null, referenz: "check:xyz" }));
-    expect(r.chargeId).toBe("c-neuer");
+    expect(r.chargeId).toBe("c-a-jung");
   });
 
   it("legt eine PSEUDO-CHARGE an, wenn der Artikel gar keine hat", () => {
