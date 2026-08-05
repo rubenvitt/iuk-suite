@@ -83,11 +83,50 @@ describe("journalEintraege — die Sortierung ist TOTAL (§5.14.4)", () => {
       .toEqual(["id-ccc", "id-bbb", "id-aaa"]);
   });
 
-  it("liefert bei zwei identischen Anfragen DIESELBE Reihenfolge", () => {
+  it("liefert dieselbe Reihenfolge unabhaengig von der Einfuegereihenfolge", () => {
+    /**
+     * Der urspruengliche Vergleich zweier IDENTISCHER Anfragen gegen DIESELBE
+     * Datenbank hat kein unabhaengiges Soll: SQLite liefert dieselbe Abfrage
+     * gegen unveraenderte Daten deterministisch auch OHNE Tiebreaker — der
+     * Test kann unter keiner Mutation rot werden (Review-Fund Runde 1).
+     *
+     * Die echte Zusage ist staerker: die AUSLESEreihenfolge haengt nur an den
+     * WERTEN (ts, id), nicht an der physischen EINFUEGEreihenfolge. Zwei
+     * getrennte Datenbanken mit denselben fuenf Zeilen in ENTGEGENGESETZTER
+     * Einfuegereihenfolge muessen dieselbe Reihenfolge liefern. Ohne
+     * `id`-Tiebreaker faellt die Ausgabe auf die interne ROWID zurueck (=
+     * Einfuegereihenfolge, siehe Test oben) — dann liefern die zwei
+     * Datenbanken hier GENAU ENTGEGENGESETZTE Reihenfolgen, und der Vergleich
+     * schlaegt fehl.
+     */
     const gleich = T("2026-06-01T10:00:00Z");
-    for (const id of ["a", "b", "c", "d", "e"]) buche({ ts: gleich, id: `id-${id}` });
-    expect(journalEintraege(t.db).zeilen.map((z) => z.id))
-      .toEqual(journalEintraege(t.db).zeilen.map((z) => z.id));
+    const ids = ["a", "b", "c", "d", "e"];
+
+    for (const id of ids) buche({ ts: gleich, id: `id-${id}` });
+    const ersteReihenfolge = journalEintraege(t.db).zeilen.map((z) => z.id);
+
+    const t2 = migrierteTestDb("lagerbuch-lp-journal-2-");
+    try {
+      t2.db.insert(artikel).values({
+        id: "a1", name: "Verbandpäckchen", einheit: "Stk.", fach: "A1",
+        mindestbestand: 0, aktiv: true, createdAt: T("2026-01-01T00:00:00Z"),
+      }).run();
+      t2.db.insert(chargen).values({
+        id: "c1", artikelId: "a1", chargenNr: "CH", verfall: "2030-01",
+        createdAt: T("2026-01-01T00:00:00Z"),
+      }).run();
+      for (const id of [...ids].reverse()) {
+        t2.db.insert(buchungen).values({
+          id: `id-${id}`, ts: gleich, typ: "zugang", artikelId: "a1", chargeId: "c1",
+          lagerortId: HANDLAGER_ID, menge: 1, quelleTyp: "system", quelleId: "system",
+          referenz: null, kommentar: null,
+        }).run();
+      }
+      const zweiteReihenfolge = journalEintraege(t2.db).zeilen.map((z) => z.id);
+      expect(zweiteReihenfolge).toEqual(ersteReihenfolge);
+    } finally {
+      t2.schliessen();
+    }
   });
 
   it("reicht `referenz` durch — sie ist die EINZIGE kausale Klammer", () => {
@@ -106,14 +145,21 @@ describe("journalEintraege — die Filter greifen VOR dem Limit", () => {
     expect(journalEintraege(t.db, { typ: "entnahme" }).zeilen).toHaveLength(1);
   });
 
-  it("filtert INKLUSIV nach von/bis", () => {
-    buche({ ts: T("2026-06-01T00:00:00Z") });
-    buche({ ts: T("2026-06-15T12:00:00Z") });
-    buche({ ts: T("2026-06-30T23:59:59Z") });
+  it("filtert INKLUSIV nach von/bis und liefert die NEUESTEN zuerst", () => {
+    // Einfuegereihenfolge ist AUFSTEIGEND nach ts (frueh -> spaet) — die Soll-
+    // Reihenfolge der Ausgabe ist ABSTEIGEND. Beides faellt damit NICHT zufaellig
+    // zusammen: ein `asc(buchungen.ts)` statt `desc(buchungen.ts)` liefert
+    // weiterhin alle drei Zeilen (die Zeitspanne bleibt gleich), aber in der
+    // FALSCHEN Reihenfolge — genau die Klasse, die eine reine `toHaveLength`-
+    // Zusicherung nicht faengt (§5.14.3: „die NEUESTEN Treffer").
+    buche({ ts: T("2026-06-01T00:00:00Z"), id: "id-frueh" });
+    buche({ ts: T("2026-06-15T12:00:00Z"), id: "id-mitte" });
+    buche({ ts: T("2026-06-30T23:59:59Z"), id: "id-spaet" });
     const e = journalEintraege(t.db, {
       von: T("2026-06-01T00:00:00Z"), bis: T("2026-06-30T23:59:59Z"),
     });
     expect(e.zeilen).toHaveLength(3);
+    expect(e.zeilen.map((z) => z.id)).toEqual(["id-spaet", "id-mitte", "id-frueh"]);
   });
 
   it("sucht ueber die GANZE Historie, nicht nur im Limit-Fenster", () => {
