@@ -49,7 +49,9 @@ export type JournalFilter = {
   /** inklusive obere Zeitgrenze (der Aufrufer setzt das Tagesende, §5.14.2) */
   bis?: Date;
   /** Vorgabe `JOURNAL_GRENZE`. Kein Produktionsaufrufer setzt sie; sie existiert
-   *  fuer die Artikel-Detail-Historie und fuer Tests. */
+   *  allein fuer Tests. ⚠️ NICHT fuer die Artikel-Detail-Historie: die faehrt
+   *  ihre eigene Abfrage in `lesepfade/artikel.ts` mit
+   *  `ARTIKEL_VERLAUF_GRENZE` und ruft `journalEintraege` gar nicht. */
   grenze?: number;
 };
 

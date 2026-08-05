@@ -1,8 +1,17 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   grenzen, ZAHL_NAMEN, GrenzenUngueltig, helferSitzungGeheimnis,
   grenzenFehler, JOURNAL_GRENZE, CHECK_GRENZE, BZ_LOGBUCH_GRENZE,
+  ARTIKEL_VERLAUF_GRENZE,
 } from "./grenzen";
+
+/** Der Quelltext von `grenzen.ts` — die Ebene, auf der die
+ *  „nicht konfigurierbar"-Zusage der reinen Deckel ueberhaupt lebt (I-6). */
+const GRENZEN_QUELLE = readFileSync(
+  join(process.cwd(), "src/app/m/lagerbuch/_lib/grenzen.ts"), "utf8",
+);
 
 /**
  * DIE UNABHAENGIGE ERWARTUNGSTABELLE (§10.8, Eigenschaft 2).
@@ -248,6 +257,7 @@ const DECKEL = [
   { name: "JOURNAL_GRENZE", wert: JOURNAL_GRENZE, erwartet: 100 },
   { name: "CHECK_GRENZE", wert: CHECK_GRENZE, erwartet: 50 },
   { name: "BZ_LOGBUCH_GRENZE", wert: BZ_LOGBUCH_GRENZE, erwartet: 100 },
+  { name: "ARTIKEL_VERLAUF_GRENZE", wert: ARTIKEL_VERLAUF_GRENZE, erwartet: 8 },
 ] as const;
 
 /** Eine Umgebung, unter der das Modul ERREICHBAR ist — sonst ist die Fehlerliste
@@ -258,7 +268,22 @@ const ERREICHBAR: Record<string, string | undefined> = {
   AUTH_SECRET: "ein-anderes-suite-geheimnis",
 };
 
-describe("die drei reinen Deckel (§5.14.3, §10.3)", () => {
+/**
+ * JEDE `export const …_GRENZE`-Zeile aus `grenzen.ts`, roh zerlegt in Namen und
+ * rechte Seite.
+ *
+ * ⚠️ DER QUELLTEXT-SCAN IST DIE EBENE, AUF DER DIE ZUSAGE LEBT — analog zu
+ * `marke.test.ts`. Ein WERT-Test sieht den Rueckfall nicht: schriebe jemand
+ * `export const JOURNAL_GRENZE = Number(process.env.LAGERBUCH_JOURNAL_GRENZE ?? 100)`,
+ * bliebe `JOURNAL_GRENZE === 100` in der Testumgebung wahr, weil die Variable
+ * dort schlicht nicht gesetzt ist. Der Regler waere da, und kein Lauf wuerde rot.
+ */
+function deckelZeilen(): { name: string; rechteSeite: string }[] {
+  return [...GRENZEN_QUELLE.matchAll(/^export const (\w*GRENZE) = (.+);$/gm)]
+    .map((m) => ({ name: m[1], rechteSeite: m[2] }));
+}
+
+describe("die reinen Deckel (§5.14.3, §10.3)", () => {
   it("tragen genau die Werte aus der Spec", () => {
     for (const d of DECKEL) expect(d.wert).toBe(d.erwartet);
   });
@@ -269,14 +294,54 @@ describe("die drei reinen Deckel (§5.14.3, §10.3)", () => {
      * bei 5000 die Journalseite bei realer Datenmenge stehen laesst — und
      * `better-sqlite3` ist SYNCHRON, die Seite blockierte dabei die GANZE Suite
      * (Falle 10).
+     *
+     * ⚠️ BEIDE SCHREIBWEISEN. Eine echte Regression hiesse nicht `JOURNAL_GRENZE`,
+     * sondern `LAGERBUCH_JOURNAL_GRENZE` — jede andere Env-Variable dieses Moduls
+     * traegt das Praefix. Ohne die zweite Zeile prueft dieser Fall den
+     * unwahrscheinlicheren der beiden Namen.
      */
-    for (const d of DECKEL) expect(ZAHL_NAMEN).not.toContain(d.name);
+    for (const d of DECKEL) {
+      expect(ZAHL_NAMEN).not.toContain(d.name);
+      expect(ZAHL_NAMEN as readonly string[]).not.toContain(`LAGERBUCH_${d.name}`);
+    }
   });
 
-  it("werden von keiner Umgebungsvariable beeinflusst", () => {
-    // Der Fall, den jemand aus gutem Willen baut: „ich mache es doch nur
-    // ueberschreibbar". Diese Zeile ist die Zusage dagegen.
-    expect(grenzen({ JOURNAL_GRENZE: "5000" })).toBeTruthy();
+  it("die Quelle kennt GENAU die Deckel dieser Tabelle — in beide Richtungen", () => {
+    // Ein hier ergaenzter Deckel ohne Zeile in DECKEL faellt auf (und umgekehrt),
+    // ohne dass die Tabelle ihre Werte aus dem Modul zieht.
+    expect(deckelZeilen().map((z) => z.name).sort())
+      .toEqual(DECKEL.map((d) => d.name).slice().sort());
+  });
+
+  it("werden von keiner Umgebungsvariable beeinflusst — die rechte Seite ist eine ZAHL", () => {
+    /**
+     * Der Fall, den jemand aus gutem Willen baut: „ich mache es doch nur
+     * ueberschreibbar". Frueher stand hier
+     * `expect(grenzen({ JOURNAL_GRENZE: "5000" })).toBeTruthy()` — das liefert
+     * IMMER ein Objekt — und `expect(JOURNAL_GRENZE).toBe(100)`, eine
+     * Wiederholung der Wertetabelle. Beides konnte unter der Mutation, gegen die
+     * es argumentiert, nicht rot werden.
+     *
+     * Diese Zeile kann es: die rechte Seite jeder Deckel-Zuweisung muss eine
+     * nackte ganze Zahl sein. `Number(process.env…)`, `env[…]`, `?? 100` —
+     * jede Form des Reglers faellt durch.
+     */
+    for (const z of deckelZeilen()) {
+      expect(z.rechteSeite, `${z.name} rechte Seite`).toMatch(/^\d+$/);
+    }
+    // Und die Zahl im Quelltext ist dieselbe wie die exportierte — der Deckel
+    // wird also nicht nachtraeglich woanders ueberschrieben.
+    for (const d of DECKEL) {
+      const z = deckelZeilen().find((x) => x.name === d.name)!;
+      expect(Number(z.rechteSeite), d.name).toBe(d.erwartet);
+    }
+  });
+
+  it("`grenzen()` kennt die Deckel gar nicht", () => {
+    // Gegenprobe zum Scan: kein Feld von `Grenzen` traegt einen Deckelwert, und
+    // eine gleichnamige Env-Variable aendert daran nichts.
+    const g = grenzen({ JOURNAL_GRENZE: "5000", LAGERBUCH_JOURNAL_GRENZE: "5000" });
+    expect(Object.values(g)).not.toContain(5000);
     expect(JOURNAL_GRENZE).toBe(100);
   });
 });

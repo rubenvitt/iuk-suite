@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "../../_db/schema";
 import { artikelListe, artikelDetail, artikelDetailHelfer, chargenMitRest } from "./artikel";
+import { ARTIKEL_VERLAUF_GRENZE } from "../grenzen";
 import { HANDLAGER_ID } from "../konstanten";
 
 
@@ -125,7 +126,7 @@ describe("artikelDetail", () => {
   it("liefert null fuer eine unbekannte ID", () => {
     expect(artikelDetail(t.db, "gibtsnicht", NOW)).toBeNull();
   });
-  it("deckelt den Verlauf auf acht Zeilen", () => {
+  it("deckelt den Verlauf auf ARTIKEL_VERLAUF_GRENZE Zeilen und meldet mehrVorhanden", () => {
     for (let i = 0; i < 10; i++) {
       t.db.insert(buchungen).values({
         id: newId(), ts: NOW, typ: "zugang", artikelId: "a1", chargeId: "c-spaet",
@@ -133,7 +134,62 @@ describe("artikelDetail", () => {
         referenz: null, kommentar: null,
       }).run();
     }
-    expect(artikelDetail(t.db, "a1", NOW)!.buchungen).toHaveLength(8);
+    const d = artikelDetail(t.db, "a1", NOW)!;
+    expect(d.buchungen).toHaveLength(ARTIKEL_VERLAUF_GRENZE);
+    expect(d.mehrVorhanden).toBe(true);
+  });
+
+  it("meldet bei EXAKT ARTIKEL_VERLAUF_GRENZE Zeilen mehrVorhanden FALSE", () => {
+    /**
+     * ⚠️ DER GEGENFALL. Ohne ihn ueberlebt die Mutation
+     * `bu.length > GRENZE` → `>= GRENZE`, und die Seite behauptete „die neuesten
+     * 8 von mehr", obwohl die Grenze nicht griff — genau die unbedingte
+     * Fehlaussage, gegen die §5.14.3 gebaut ist.
+     *
+     * Die Fixture traegt bereits 5 Buchungen, also werden 3 ergaenzt.
+     */
+    for (let i = 0; i < ARTIKEL_VERLAUF_GRENZE - 5; i++) {
+      t.db.insert(buchungen).values({
+        id: newId(), ts: NOW, typ: "zugang", artikelId: "a1", chargeId: "c-spaet",
+        lagerortId: HANDLAGER_ID, menge: 1, quelleTyp: "system", quelleId: "t",
+        referenz: null, kommentar: null,
+      }).run();
+    }
+    const d = artikelDetail(t.db, "a1", NOW)!;
+    expect(d.buchungen).toHaveLength(ARTIKEL_VERLAUF_GRENZE);
+    expect(d.mehrVorhanden).toBe(false);
+  });
+
+  it("zeigt die NEUESTEN Buchungen zuerst — ts absteigend, id-Tiebreaker absteigend", () => {
+    /**
+     * ⚠️ DIE SORTIERRICHTUNG WAR UNGETESTET. Beide Faelle prueften nur
+     * `toHaveLength`; ein invertiertes oder geloeschtes `orderBy` blieb gruen —
+     * die Seite zeigte dann die AELTESTEN acht unter der Ueberschrift „die
+     * neuesten".
+     *
+     * Drei verschiedene `ts` UND ein `ts`-Gleichstand: die beiden Zeilen mit
+     * demselben Zeitstempel („glA"/„glB") sind LOSER-FIRST eingefuegt, also
+     * entscheidet nur der id-Tiebreaker. Alle vier liegen NACH den fuenf
+     * Fixture-Buchungen (die auf NOW stehen), damit sie oben stehen muessen.
+     */
+    const spaeter = (min: number) => new Date(NOW.getTime() + min * 60_000);
+    const z = (id: string, ts: Date) => ({
+      id, ts, typ: "zugang" as const, artikelId: "a1", chargeId: "c-spaet",
+      lagerortId: HANDLAGER_ID, menge: 1, quelleTyp: "system" as const, quelleId: "t",
+      referenz: null, kommentar: id,
+    });
+    t.db.insert(buchungen).values([
+      z("mitte", spaeter(20)),
+      z("gl-a", spaeter(30)),       // Gleichstand, KLEINERE id — zuerst eingefuegt
+      z("gl-b", spaeter(30)),       // Gleichstand, GROESSERE id — muss gewinnen
+      z("aelteste", spaeter(10)),
+    ]).run();
+    const d = artikelDetail(t.db, "a1", NOW)!;
+    // `artikelDetail` gibt die `id` nicht zurueck — der Kommentar traegt sie,
+    // damit der Tiebreaker ueberhaupt beobachtbar ist.
+    expect(d.buchungen.slice(0, 4).map((b) => b.kommentar))
+      .toEqual(["gl-b", "gl-a", "mitte", "aelteste"]);
+    expect(d.mehrVorhanden).toBe(true);
   });
 });
 
