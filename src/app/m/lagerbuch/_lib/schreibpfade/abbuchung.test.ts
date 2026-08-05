@@ -49,15 +49,17 @@ describe("fefoAbbuchung — FEFO und die Lagerort-Bindung", () => {
     /**
      * ⚠️ DIE ZEILE, UM DIE ES GEHT. `abbuchung.ts:38` laedt heute alle Buchungen
      * des Artikels OHNE Lagerort-Praedikat. Ohne das Scoping saehe die Abbuchung
-     * fuer `c-frueh` einen Rest von 8 (3 + 5) statt 3 — sie buchte 5 statt 3 ab
-     * und drueckte den Handlager-Bestand ins Negative (I2 gebrochen).
+     * fuer `c-frueh` einen Rest von 8 (3 Handlager + 5 Fahrzeug) statt 3 — bei
+     * einer angeforderten Menge von 4 naehme sie ALLE 4 aus `c-frueh`, statt nach
+     * 3 auf `c-spaet` ueberzulaufen. Der Handlager-Bestand von `c-frueh` (real 3)
+     * wuerde dabei auf -1 gedrueckt (I2 gebrochen).
      */
     const r = inTx((tx) => fefoAbbuchung(tx, {
-      artikelId: "a1", menge: 3, quelle: QUELLE, kommentar: null, referenz: null }));
-    expect(r.teile).toEqual([{ chargeId: "c-frueh", menge: 3 }]);
+      artikelId: "a1", menge: 4, quelle: QUELLE, kommentar: null, referenz: null }));
+    expect(r.teile).toEqual([{ chargeId: "c-frueh", menge: 3 }, { chargeId: "c-spaet", menge: 1 }]);
     const roh = t.db.select().from(buchungen).all()
       .map((x) => ({ lagerortId: x.lagerortId, menge: x.menge }));
-    expect(bestandProLagerort(roh, HANDLAGER_ID)).toBe(10);
+    expect(bestandProLagerort(roh, HANDLAGER_ID)).toBe(9);
     expect(bestandProLagerort(roh, "rtw-1")).toBe(5);
   });
 

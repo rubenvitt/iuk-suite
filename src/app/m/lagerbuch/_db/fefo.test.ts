@@ -41,15 +41,22 @@ describe("gleicher Verfall — die AELTERE Charge wird zuerst verbraucht", () =>
      * der Datenbank, und die ist kein Vertrag: sie kann sich mit einem Index, mit
      * einer SQLite-Fassung oder mit dem naechsten VACUUM aendern.
      *
-     * Die JUENGERE Charge wird ZUERST eingefuegt, damit eine naive
-     * Einfuegereihenfolge das falsche Ergebnis liefern WUERDE.
+     * ⚠️ DIE IDs SIND ABSICHTLICH GEGENLAEUFIG ZUR CHARGENID-ORDNUNG GEWAEHLT:
+     * "aaa" ist die JUENGERE Charge und wird ZUERST eingefuegt, "zzz" ist die
+     * AELTERE. Sowohl die Einfuegereihenfolge (und damit die naive
+     * DB-Rueckgabereihenfolge) als auch die dritte Sortierstufe (`chargeId`,
+     * "aaa" < "zzz") wuerden "aaa" zuerst liefern — nur die zweite Stufe
+     * (`createdAt`) liefert die fachlich korrekte Reihenfolge "zzz" zuerst.
+     * Mit den vorigen IDs ("c-neu"/"c-alt") haette schon die `chargeId`-Stufe
+     * allein dasselbe Ergebnis erzeugt ("c-alt" < "c-neu") — der Test haette die
+     * zweite Stufe gar nicht isoliert geprueft.
      */
-    chargeMitBestand("c-neu", "2026-07", new Date("2026-02-01T00:00:00Z"), 5);
-    chargeMitBestand("c-alt", "2026-07", new Date("2026-01-01T00:00:00Z"), 5);
+    chargeMitBestand("aaa", "2026-07", new Date("2026-02-01T00:00:00Z"), 5);
+    chargeMitBestand("zzz", "2026-07", new Date("2026-01-01T00:00:00Z"), 5);
     const r = t.db.transaction((tx) => fefoAbbuchung(tx, {
       artikelId: "a1", menge: 7, quelle: { quelleTyp: "system", quelleId: "t" },
       kommentar: null, referenz: null }));
-    expect(r.teile).toEqual([{ chargeId: "c-alt", menge: 5 }, { chargeId: "c-neu", menge: 2 }]);
+    expect(r.teile).toEqual([{ chargeId: "zzz", menge: 5 }, { chargeId: "aaa", menge: 2 }]);
   });
 
   it("entscheidet bei gleicher createdAt ueber die chargeId", () => {
