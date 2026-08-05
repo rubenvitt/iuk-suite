@@ -105,6 +105,29 @@ describe("checkHistorie", () => {
     expect(h.mehrVorhanden).toBe(true);
   });
 
+  it("meldet bei EXAKT CHECK_GRENZE Zeilen mehrVorhanden FALSE", () => {
+    /**
+     * ⚠️ DER GEGENFALL ZUM DECKEL-TEST DARUEBER, und er ist der eigentlich
+     * scharfe: ohne ihn ueberlebt die Mutation `rows.length > grenze` →
+     * `>= grenze`, weil kein Fall mit EXAKT `GRENZE` Zeilen existiert. Ihre Folge
+     * ist genau die Fehlaussage, gegen die §5.14.3 gebaut wurde — „Neueste 50 von
+     * mehr Treffern", obwohl die Grenze gar nicht griff. `journal.test.ts:37`
+     * fuehrt denselben Gegenfall.
+     *
+     * `chk-1` steht schon in der Fixture, also werden `CHECK_GRENZE − 1`
+     * ergaenzt.
+     */
+    for (let i = 0; i < CHECK_GRENZE - 1; i++) {
+      t.db.insert(checks).values({
+        id: `g${i}`, fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+        startedAt: NOW, completedAt: NOW, ergebnis: "[]",
+      }).run();
+    }
+    const h = checkHistorie(t.db);
+    expect(h.zeilen).toHaveLength(CHECK_GRENZE);
+    expect(h.mehrVorhanden).toBe(false);
+  });
+
   it("sortiert completedAt DESC mit id-Tiebreaker", () => {
     // Dieselbe Sekundengranularitaet wie im Journal (§5.14.4).
     t.db.insert(checks).values({
@@ -178,6 +201,73 @@ describe("checkDetail — der Nennfuelldruck wird NICHT geraten (§5.12)", () =>
     const d = checkDetail(t.db, "chk-druck-niedrig", NOW)!;
     expect(d.summe.flaschenAuffaellig).toBe(1);
     expect(d.summe.nichtBewertbar).toBe(0);
+  });
+});
+
+describe("checkDetail — eine Flasche OHNE gemessenen Druck (§5.12)", () => {
+  it("liefert druckBar null statt 0 und zaehlt sie in nichtBewertbar", () => {
+    /**
+     * ⚠️ DIE MUTATION, DIE DAS FAENGT: `x.druckBar ?? 0` statt der Null-Pruefung.
+     * Aus der FEHLENDEN Messung entstuende „0 bar / 300 bar = 0 % → rot →
+     * niedrig" — die Zeile behauptete auf einem Fahrzeug-Check-Nachweis eine
+     * LEERE Flasche, die niemand gemessen hat, und `flaschenAuffaellig` stiege.
+     * Der Nenndruck ist hier BEKANNT (300 aus dem Stamm); unbewertbar ist die
+     * Zeile allein wegen der fehlenden Messung.
+     */
+    t.db.insert(checks).values({
+      id: "chk-ohne-druck", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: NOW, completedAt: NOW,
+      ergebnis: JSON.stringify({ ...V2, flaschen: [{ flascheId: "f-300" }] }),
+    }).run();
+    const d = checkDetail(t.db, "chk-ohne-druck", NOW)!;
+    expect(d.flaschen[0].druckBar).toBeNull();
+    expect(d.flaschen[0].nennfuelldruckBar).toBe(300);
+    expect(d.flaschen[0].prozent).toBeNull();
+    expect(d.flaschen[0].ampel).toBeNull();
+    expect(d.flaschen[0].niedrig).toBe(false);
+    expect(d.summe.nichtBewertbar).toBe(1);
+    expect(d.summe.flaschenAuffaellig).toBe(0);
+  });
+});
+
+describe("checkDetail — die `offen`-Zeilen addieren sich zur ausgewiesenen Summe (§5.8.3)", () => {
+  it("haelt beide Aufrufstellen von `offenJeArtikel` gegeneinander", () => {
+    /**
+     * ⚠️ DIE ZUSICHERUNG, DIE DEN ZWEITEN RECHENWEG VERHINDERT. Bis zu diesem Fix
+     * stand `max(0, soll − ist − nachgefuellt)` ZWEIMAL woertlich da: einmal je
+     * Detailzeile (`checks.ts`) und einmal in der Summe (`domain/check.ts`).
+     * Genau so lief die Alt-Anwendung beim Nennfuelldruck auseinander. Laeuft
+     * eine der beiden Stellen weg, zeigt die Detailseite Zeilen, deren `offen`
+     * sich nicht zur Summe addiert — auf einem Fahrzeug-Check-Nachweis.
+     *
+     * Die Fixture ist bewusst NICHT trivial: drei Artikel, einer davon
+     * UEBERFUELLT (b), sodass eine erst in der Summe geklemmte Rechnung 8 statt
+     * 12 lieferte, und einer mit Nachfuellung (c).
+     */
+    t.db.insert(artikel).values([
+      { id: "a-b", name: "Ueberfuellt", einheit: "Stk.", fach: "B1",
+        mindestbestand: 0, aktiv: true, createdAt: NOW },
+      { id: "a-c", name: "Nachgefuellt", einheit: "Stk.", fach: "C1",
+        mindestbestand: 0, aktiv: true, createdAt: NOW },
+    ]).run();
+    t.db.insert(checks).values({
+      id: "chk-offen", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: NOW, completedAt: NOW,
+      ergebnis: JSON.stringify({
+        positionen: [], geraete: [], flaschen: [], verfall: [],
+        artikel: [
+          { artikelId: "a1", sollSumme: 10, istSumme: 2, nachfuellGebucht: 0 },  // 8
+          { artikelId: "a-b", sollSumme: 1, istSumme: 9, nachfuellGebucht: 0 },  // 0, nicht −8
+          { artikelId: "a-c", sollSumme: 7, istSumme: 1, nachfuellGebucht: 2 },  // 4
+        ],
+      }),
+    }).run();
+    const d = checkDetail(t.db, "chk-offen", NOW)!;
+    // VON HAND gerechnet, nicht aus der Implementierung abgeleitet.
+    expect(d.artikel.map((a) => a.offen)).toEqual([8, 0, 4]);
+    expect(d.summe.offen).toBe(12);
+    // DIE BINDUNG: die Zeilen addieren sich zur Summe.
+    expect(d.artikel.reduce((s, a) => s + a.offen, 0)).toBe(d.summe.offen);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fehlmengen, summiereCheckErgebnis } from "./check";
+import { fehlmengen, offenJeArtikel, summiereCheckErgebnis } from "./check";
 
 describe("fehlmengen", () => {
   it("liefert nur Eintraege mit fehlt > 0", () => {
@@ -120,6 +120,31 @@ describe("summiereCheckErgebnis — der Nennfuelldruck wird NICHT geraten (§5.1
     expect(summiereCheckErgebnis(roh).nichtBewertbar).toBe(1);
   });
 
+  it("eine Flasche OHNE gemessenen Druck zaehlt in nichtBewertbar, NICHT als auffaellig", () => {
+    /**
+     * ⚠️ DIE MUTATION, DIE DAS FAENGT: `f.druckBar ?? 0` statt der Null-Pruefung.
+     * Aus einer FEHLENDEN Messung entstuende dann still „0 bar → 0 % → rot →
+     * niedrig": die Zeile behauptete auf einem Nachweis eine LEERE Flasche, die
+     * niemand gemessen hat, und `flaschenAuffaellig` stiege. Historisches JSON
+     * ist beim Cutover der erklaerte Regelfall — die Altdaten kommen mit.
+     */
+    const roh = JSON.stringify({ flaschen: [{ flascheId: "f1", nennfuelldruckBar: 200 }] });
+    const s = summiereCheckErgebnis(roh);
+    expect(s.nichtBewertbar).toBe(1);
+    expect(s.flaschenAuffaellig).toBe(0);
+  });
+
+  it("druckBar: 0 ist BEWERTBAR — eine wirklich leere Flasche zaehlt", () => {
+    // Der Gegenfall zur Zeile darueber: `0` ist eine MESSUNG, `undefined` ist
+    // keine. Ein `?? 0` machte beide ununterscheidbar.
+    const roh = JSON.stringify({
+      flaschen: [{ flascheId: "f1", druckBar: 0, nennfuelldruckBar: 200 }],
+    });
+    const s = summiereCheckErgebnis(roh);
+    expect(s.nichtBewertbar).toBe(0);
+    expect(s.flaschenAuffaellig).toBe(1);
+  });
+
   it("nennfuelldruckBar: 0 ist BEWERTBAR und zaehlt als auffaellig", () => {
     // Eine Flasche mit Nennfuelldruck 0 im Stamm ist FEHLKONFIGURIERT, nicht
     // unbekannt — sie gehoert angesehen, nicht ausgeblendet. `o2Status` liefert
@@ -133,23 +158,40 @@ describe("summiereCheckErgebnis — der Nennfuelldruck wird NICHT geraten (§5.1
   });
 });
 
-describe("summiereCheckErgebnis — dieselbe Eingabe, dieselbe Ausgabe (§5.8.3)", () => {
-  it("ist rein: zwei Aufrufe liefern zeichengleich dasselbe", () => {
-    /**
-     * DAS IST DIE ZUSAGE, WEGEN DER ES DIE FUNKTION GIBT. Die Alt-Anwendung
-     * rechnet dieselben Summen an ZWEI Stellen getrennt (`queries.ts:374-380`
-     * gegen `:496-501`) — Uebersicht und Detail koennen fuer DASSELBE JSON
-     * verschiedene Zahlen zeigen, und beim Nennfuelldruck TUN sie es bereits.
-     * Ab jetzt rufen beide Leser DIESE Funktion.
-     */
-    const roh = JSON.stringify({
-      artikel: [{ artikelId: "a", sollSumme: 5, istSumme: 2, korrektur: -1, nachfuellGebucht: 2 }],
-      geraete: [{ geraetId: "g", vorhanden: false }],
-      flaschen: [{ flascheId: "f", druckBar: 10, nennfuelldruckBar: 200 }],
-    });
-    expect(summiereCheckErgebnis(roh)).toEqual(summiereCheckErgebnis(roh));
+describe("offenJeArtikel — DIE EINE `offen`-Formel (§5.8.3)", () => {
+  /**
+   * ⚠️ HIER STAND EIN `expect(f(roh)).toEqual(f(roh))`. Fuer eine deterministische
+   * reine Funktion ist das eine TAUTOLOGIE: der Fall konnte unter keiner Mutation
+   * rot werden. Die Zusage „Uebersicht und Detail rechnen dieselbe Summe" lebt
+   * nicht in der Reinheit dieser Funktion, sondern darin, dass BEIDE
+   * Aufrufstellen dieselbe Formel benutzen. Sie wird an zwei Orten gehalten:
+   *   - hier: die Formel selbst, gegen von Hand gerechnete Zahlen;
+   *   - `_lib/lesepfade/checks.test.ts`: `sum(detailzeilen.offen) === summe.offen`,
+   *     die einzige Zusicherung, die die zweite Aufrufstelle wirklich bindet.
+   */
+  it("klemmt bei 0, zieht das Nachgefuellte ab und behandelt fehlende Felder als 0", () => {
+    expect(offenJeArtikel({ sollSumme: 10, istSumme: 2, nachfuellGebucht: 3 })).toBe(5);
+    // NICHT −8: erst klemmen, dann summieren.
+    expect(offenJeArtikel({ sollSumme: 1, istSumme: 9, nachfuellGebucht: 0 })).toBe(0);
+    expect(offenJeArtikel({ sollSumme: 4 })).toBe(4);
+    expect(offenJeArtikel({})).toBe(0);
   });
 
+  it("ist die Formel, aus der `summiereCheckErgebnis` seine Summe bildet", () => {
+    // Die 12 ist VON HAND gerechnet (8 + 0 + 4) und nicht aus der Implementierung
+    // abgeleitet — eine geaenderte Klemmung oder ein vergessener
+    // `nachfuellGebucht`-Abzug wird hier rot.
+    const artikelZeilen = [
+      { artikelId: "a", sollSumme: 10, istSumme: 2, nachfuellGebucht: 0 },  // 8
+      { artikelId: "b", sollSumme: 1, istSumme: 9, nachfuellGebucht: 0 },   // 0, nicht −8
+      { artikelId: "c", sollSumme: 7, istSumme: 1, nachfuellGebucht: 2 },   // 4
+    ];
+    expect(summiereCheckErgebnis(JSON.stringify({ artikel: artikelZeilen })).offen).toBe(12);
+    expect(artikelZeilen.reduce((s, a) => s + offenJeArtikel(a), 0)).toBe(12);
+  });
+});
+
+describe("summiereCheckErgebnis — kaputte Eingaben", () => {
   it("liefert bei kaputtem JSON Nullen statt eines Wurfs", () => {
     expect(summiereCheckErgebnis("{kaputt")).toEqual({
       positionen: 0, nachgefuellt: 0, korrigiert: 0, offen: 0,

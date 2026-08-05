@@ -22,6 +22,26 @@ export function fehlmengen<T extends { soll: number; ist: number }>(
     .filter((p) => p.fehlt > 0);
 }
 
+/**
+ * DIE EINE `offen`-Formel: `max(0, soll − ist − nachgefuellt)`, JE ARTIKEL geklemmt.
+ *
+ * ⚠️ SIE STEHT HIER UND NUR HIER. Vorher rechnete sie zweimal woertlich — einmal
+ * je Detailzeile (`_lib/lesepfade/checks.ts`) und einmal in der Summe (unten).
+ * Genau diese Verdopplung ist der Bruch, gegen den §5.8.3 ueberhaupt existiert:
+ * die Alt-Anwendung rechnete dieselbe Zahl an zwei Stellen UND lief beim
+ * Nennfuelldruck bereits auseinander. Laeuft eine der Stellen weg, zeigt die
+ * Detailseite Zeilen, deren `offen` sich nicht zur ausgewiesenen Summe addiert —
+ * auf einem Fahrzeug-Check-Nachweis.
+ *
+ * `checks.test.ts` haelt beide Aufrufstellen mit
+ * `sum(zeilen.offen) === summe.offen` gegeneinander.
+ */
+export function offenJeArtikel(a: {
+  sollSumme?: number | null; istSumme?: number | null; nachfuellGebucht?: number | null;
+}): number {
+  return Math.max(0, (a.sollSumme ?? 0) - (a.istSumme ?? 0) - (a.nachfuellGebucht ?? 0));
+}
+
 export type CheckSummen = {
   positionen: number;
   nachgefuellt: number;
@@ -31,8 +51,9 @@ export type CheckSummen = {
   offen: number;
   geraeteAuffaellig: number;
   flaschenAuffaellig: number;
-  /** NEU (§5.12): Flaschen ohne bekannten Nennfuelldruck. Sie zaehlen NICHT als
-   *  auffaellig — ein unbekannter Bezugswert erzeugt keine Zahl. */
+  /** NEU (§5.12): Flaschen ohne bekannten Nennfuelldruck ODER ohne gemessenen
+   *  Druck. Sie zaehlen NICHT als auffaellig — eine unbekannte Groesse auf einer
+   *  der beiden Seiten erzeugt keine Zahl. */
   nichtBewertbar: number;
   /** Altformat (V1) ohne Positionsdetails. Die Detailseite SAGT es (§11.5, 26). */
   altFormat: boolean;
@@ -85,7 +106,18 @@ export function summiereCheckErgebnis(roh: string | null): CheckSummen {
       nichtBewertbar += 1;
       continue;
     }
-    if (o2Status(f.druckBar ?? 0, nenn).niedrig) flaschenAuffaellig += 1;
+    // ⚠️ EIN FEHLENDER DRUCK IST GENAUSO „NICHT BEWERTBAR" WIE EIN FEHLENDER
+    // NENNDRUCK. Ein `?? 0` machte daraus still „0 bar → 0 % → rot → niedrig":
+    // die Zeile behauptete auf einem Nachweis eine LEERE Flasche, die niemand
+    // gemessen hat, und `flaschenAuffaellig` stiege. Historisches JSON ist beim
+    // Cutover der Regelfall, nicht die Ausnahme — der Fall kommt mit den
+    // Altdaten herein.
+    const druck = f.druckBar ?? null;
+    if (druck === null) {
+      nichtBewertbar += 1;
+      continue;
+    }
+    if (o2Status(druck, nenn).niedrig) flaschenAuffaellig += 1;
   }
 
   return {
@@ -93,11 +125,9 @@ export function summiereCheckErgebnis(roh: string | null): CheckSummen {
     nachgefuellt: e.artikel.reduce((s, a) => s + (a.nachfuellGebucht ?? 0), 0),
     korrigiert: e.artikel.reduce((s, a) => s + Math.abs(a.korrektur ?? 0), 0),
     // JE ARTIKEL geklemmt, nicht erst in der Summe — sonst fraesse ein
-    // ueberfuellter Artikel die Fehlmenge eines anderen auf.
-    offen: e.artikel.reduce(
-      (s, a) => s + Math.max(0, (a.sollSumme ?? 0) - (a.istSumme ?? 0) - (a.nachfuellGebucht ?? 0)),
-      0,
-    ),
+    // ueberfuellter Artikel die Fehlmenge eines anderen auf. Die Formel steht in
+    // `offenJeArtikel` und NUR dort; die Detailzeilen rufen dieselbe Funktion.
+    offen: e.artikel.reduce((s, a) => s + offenJeArtikel(a), 0),
     geraeteAuffaellig: e.geraete.filter((g) => !g.vorhanden || g.zustand === ZUSTAND_DEFEKT).length,
     flaschenAuffaellig,
     nichtBewertbar,

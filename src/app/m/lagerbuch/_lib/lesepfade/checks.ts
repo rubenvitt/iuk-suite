@@ -22,7 +22,7 @@
 import { and, desc, eq, gte, lte, type SQL } from "drizzle-orm";
 import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from "../../_db/schema";
 import { parseCheckErgebnis } from "../checkErgebnis";
-import { summiereCheckErgebnis, type CheckSummen } from "../domain/check";
+import { offenJeArtikel, summiereCheckErgebnis, type CheckSummen } from "../domain/check";
 import { o2Status } from "../domain/o2";
 import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import { chargeText } from "../format";
@@ -79,7 +79,10 @@ export type CheckGeraetDetail = {
   vorhanden: boolean; zustand: string | null; bemerkung: string | null;
 };
 export type CheckFlascheDetail = {
-  flascheId: string; name: string; druckBar: number;
+  flascheId: string; name: string;
+  /** ⚠️ `null` = NICHT GEMESSEN. KEIN `?? 0` — das behauptete eine leere Flasche,
+   *  die niemand gemessen hat (§5.12, dieselbe Regel wie beim Nenndruck). */
+  druckBar: number | null;
   /** ⚠️ `null` = unbekannt. KEIN `?? 200` (§5.12). */
   nennfuelldruckBar: number | null;
   prozent: number | null;
@@ -140,7 +143,10 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
       artikelId: g.artikelId, artikelName: a?.name ?? "(gelöschter Artikel)",
       einheit: a?.einheit ?? "", sollSumme, istSumme,
       recordedVorher: g.recordedVorher ?? 0, korrektur: g.korrektur ?? 0, nachfuellGebucht,
-      offen: Math.max(0, sollSumme - istSumme - nachfuellGebucht),
+      // ⚠️ KEINE ZWEITE FORMEL. `offenJeArtikel` ist dieselbe Funktion, aus der
+      // `summiereCheckErgebnis` die Summe bildet (§5.8.3) — sonst stuenden hier
+      // Zeilen, deren `offen` sich nicht zur ausgewiesenen Summe addiert.
+      offen: offenJeArtikel(g),
     };
   });
 
@@ -158,13 +164,18 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
   let nichtBewertbar = 0;
   const flaschenD: CheckFlascheDetail[] = leer ? [] : e.flaschen.map((x) => {
     const f = flStamm.get(x.flascheId);
-    const druckBar = x.druckBar ?? 0;
+    const druckBar = x.druckBar ?? null;
     const nenn = x.nennfuelldruckBar ?? f?.nennfuelldruckBar ?? null;
-    if (nenn === null) {
+    // ⚠️ BEIDE Seiten muessen bekannt sein. Ein fehlender DRUCK ist genauso
+    // unbewertbar wie ein fehlender NENNdruck — `?? 0` machte daraus still
+    // „0 bar → 0 % → rot → niedrig" und behauptete auf einem Nachweis eine leere
+    // Flasche, die niemand gemessen hat. Die Behandlung ist damit symmetrisch zu
+    // den vier Zeilen darueber, statt asymmetrisch in derselben Schleife.
+    if (nenn === null || druckBar === null) {
       nichtBewertbar += 1;
       return {
         flascheId: x.flascheId, name: f?.name ?? "(gelöschte Flasche)", druckBar,
-        nennfuelldruckBar: null, prozent: null, ampel: null, niedrig: false,
+        nennfuelldruckBar: nenn, prozent: null, ampel: null, niedrig: false,
       };
     }
     const s = o2Status(druckBar, nenn);
