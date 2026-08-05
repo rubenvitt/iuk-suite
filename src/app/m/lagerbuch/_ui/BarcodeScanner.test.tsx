@@ -118,11 +118,20 @@ vi.mock("@zxing/library", () => {
  * Vorgabezustand ist damit „kein sicherer Kontext" — und genau dieser Zustand
  * ist der, den §7.6.3 als ersten fordert. Fuer die uebrigen Zusagen wird er
  * gezielt gesetzt.
+ *
+ * ⚠️ ZWEI SCHALTER, NICHT EINER. Der Riegel im Quelltext ist ein ODER
+ * (`!window.isSecureContext || !navigator.mediaDevices`), so wie §7.6.3 ihn
+ * vorschreibt. Setzte dieser Helfer beide Eigenschaften aus EINEM Boolean,
+ * liefen die beiden Arme nie auseinander: die Mutation `||` → `&&` bliebe in
+ * jeder gefahrenen Konfiguration gruen, weil `sichererKontext(false)` beide
+ * Arme wahr und `sichererKontext(true)` beide falsch macht. `medien` faellt
+ * deshalb per Vorgabe auf `sicher` zurueck — die uebrigen Aufrufstellen
+ * bleiben unveraendert —, und zwei Tests fahren die Arme einzeln.
  */
-function sichererKontext(an: boolean) {
-  Object.defineProperty(window, "isSecureContext", { value: an, configurable: true });
+function sichererKontext(sicher: boolean, medien: boolean = sicher) {
+  Object.defineProperty(window, "isSecureContext", { value: sicher, configurable: true });
   Object.defineProperty(navigator, "mediaDevices", {
-    value: an ? { getUserMedia: vi.fn() } : undefined,
+    value: medien ? { getUserMedia: vi.fn() } : undefined,
     configurable: true,
   });
 }
@@ -272,6 +281,52 @@ describe("BarcodeScanner — vier Kamerazustaende statt einem (§7.6.3)", () => 
       "Die Kamera braucht eine verschlüsselte Verbindung. " +
       "Bitte die Seite über die normale Adresse aufrufen, nicht über die IP.",
     );
+  });
+
+  /**
+   * ⚠️ DIE BEIDEN ARME DES ODER, EINZELN GEFAHREN. §7.6.3 schreibt
+   * `!window.isSecureContext` ODER `!navigator.mediaDevices` vor. Solange
+   * beide Eigenschaften nur gemeinsam gesetzt werden, traegt kein Test das
+   * Oder: die Mutation `||` → `&&` bleibt gruen, weil beide Arme immer
+   * dasselbe sagen. Diese zwei Tests fahren sie auseinander — und jeder haelt
+   * genau einen Arm ALLEIN (Regel 4): faellt `!window.isSecureContext` aus
+   * dem Riegel, wird nur der zweite rot; faellt `!navigator.mediaDevices`
+   * aus, nur der erste.
+   *
+   * ⚠️ Sie pruefen ausdruecklich NICHT auf `ladungen` — die Mock-Fabriken
+   * laufen einmal pro Testdatei, das Feld ist hier dauerhaft gefuellt. Die
+   * beobachtbare Wirkung ist stattdessen: der erste Zustandstext steht da,
+   * und es gibt KEIN `<video>` (der Riegel greift also vor dem Import).
+   */
+  it("HTTPS ohne `navigator.mediaDevices` ist auch kein sicherer Kontext", async () => {
+    // Der reale Fall: eine eingebettete Webview oder ein aelterer Safari-Stand
+    // auf HTTPS, der `navigator.mediaDevices` nicht freigibt. Unter einem `&&`
+    // fiele das Geraet durch den Riegel, luede beide zxing-Buendel und bekaeme
+    // am Ende den generischen Satz „Die Kamera ist nicht verfuegbar" — die
+    // falsche Auskunft in der Fahrzeughalle.
+    sichererKontext(true, false);
+    await mount(<BarcodeScanner {...props} />);
+    await ruhe();
+    expect(exists("[data-rolle='scan-fehler']"), "der Riegel hat nicht gegriffen").toBe(true);
+    expect(query("[data-rolle='scan-fehler']").textContent).toBe(
+      "Die Kamera braucht eine verschlüsselte Verbindung. " +
+      "Bitte die Seite über die normale Adresse aufrufen, nicht über die IP.",
+    );
+    expect(exists("video"), "der Videobereich steht trotz gegriffenem Riegel").toBe(false);
+  });
+
+  it("unverschluesselt MIT `navigator.mediaDevices` ist ebenfalls kein sicherer Kontext", async () => {
+    // Die Umkehrung: `http://<ip>:<port>` in einem Browser, der das Objekt
+    // trotzdem fuehrt. `getUserMedia` ist dort nicht benutzbar (§3.5.2).
+    sichererKontext(false, true);
+    await mount(<BarcodeScanner {...props} />);
+    await ruhe();
+    expect(exists("[data-rolle='scan-fehler']"), "der Riegel hat nicht gegriffen").toBe(true);
+    expect(query("[data-rolle='scan-fehler']").textContent).toBe(
+      "Die Kamera braucht eine verschlüsselte Verbindung. " +
+      "Bitte die Seite über die normale Adresse aufrufen, nicht über die IP.",
+    );
+    expect(exists("video"), "der Videobereich steht trotz gegriffenem Riegel").toBe(false);
   });
 
   it("NotAllowedError nennt die Browser-Einstellungen", async () => {
