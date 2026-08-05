@@ -36,11 +36,20 @@ beforeEach(() => {
     // Handlager-Rest mit, und dieser Artikel verschwaende zu Unrecht aus der Liste.
     { id: "a-nur-fzg", name: "Nur Fahrzeug", einheit: "Stk.", fach: "A5",
       mindestbestand: 5, aktiv: true, createdAt: NOW },
+    // Bestand an BEIDEN Lagerorten, mit UNTERSCHIEDLICHEN Zahlen — die schaerfere
+    // Form der Auflage "deine Testdaten muessen sich an den Lagerorten
+    // tatsaechlich unterscheiden": dieser Artikel bleibt in der Liste, ob das
+    // `lagerort_id`-Praedikat greift oder nicht (3 < 10 und 7 < 10 sind beide
+    // wahr) — nur die exakten `bestand`/`vorschlag`-Werte verraten, ob wirklich
+    // nur der Handlager-Anteil (3) gezaehlt wurde oder beide zusammen (7).
+    { id: "a-gemischt", name: "Gemischt", einheit: "Stk.", fach: "A6",
+      mindestbestand: 10, aktiv: true, createdAt: NOW },
   ]).run();
 
   t.db.insert(chargen).values([
     { id: "c-voll", artikelId: "a-voll", chargenNr: "CH", verfall: "2030-01", createdAt: NOW },
     { id: "c-fzg", artikelId: "a-nur-fzg", chargenNr: "CH2", verfall: "2030-01", createdAt: NOW },
+    { id: "c-gemischt", artikelId: "a-gemischt", chargenNr: "CH3", verfall: "2030-01", createdAt: NOW },
   ]).run();
 
   t.db.insert(buchungen).values([
@@ -50,6 +59,12 @@ beforeEach(() => {
     { id: newId(), ts: NOW, typ: "zugang", artikelId: "a-nur-fzg", chargeId: "c-fzg",
       lagerortId: "rtw-1", menge: 20, quelleTyp: "system", quelleId: "t",
       referenz: null, kommentar: null },
+    { id: newId(), ts: NOW, typ: "zugang", artikelId: "a-gemischt", chargeId: "c-gemischt",
+      lagerortId: HANDLAGER_ID, menge: 3, quelleTyp: "system", quelleId: "t",
+      referenz: null, kommentar: null },
+    { id: newId(), ts: NOW, typ: "zugang", artikelId: "a-gemischt", chargeId: "c-gemischt",
+      lagerortId: "rtw-1", menge: 4, quelleTyp: "system", quelleId: "t",
+      referenz: null, kommentar: null },
   ]).run();
 });
 afterEach(() => t.schliessen());
@@ -57,7 +72,7 @@ afterEach(() => t.schliessen());
 describe("bestellvorschlag", () => {
   it("enthaelt genau die AKTIVEN Artikel unter Mindestbestand (Handlager)", () => {
     expect(bestellvorschlag(t.db).map((z) => z.id).sort()).toEqual(
-      ["a-bestellt", "a-leer", "a-nur-fzg"],
+      ["a-bestellt", "a-gemischt", "a-leer", "a-nur-fzg"],
     );
   });
 
@@ -73,6 +88,15 @@ describe("bestellvorschlag", () => {
     // Artikel verschwaende ganz aus der Liste — der Test oben faengt DAS bereits;
     // hier wird zusaetzlich die Handlager-Zahl selbst behauptet.
     expect(bestellvorschlag(t.db).find((z) => z.id === "a-nur-fzg")!.bestand).toBe(0);
+  });
+
+  it("summiert NICHT ueber Lagerorte hinweg, wenn der Artikel an BEIDEN Bestand hat", () => {
+    // a-gemischt bleibt in der Liste, egal ob das lagerort_id-Praedikat greift
+    // (3 < 10 UND 3+4=7 < 10 sind beide wahr) — nur die exakte Zahl verraet den
+    // Unterschied: 3 (nur Handlager, richtig) vs. 7 (Handlager + Fahrzeug, Bug).
+    const z = bestellvorschlag(t.db).find((x) => x.id === "a-gemischt")!;
+    expect(z.bestand).toBe(3);
+    expect(z.vorschlag).toBe(7);
   });
 
   it("laesst Artikel mit ausreichendem Handlager-Bestand weg (a-voll)", () => {
@@ -121,5 +145,19 @@ describe("bestellvorschlag", () => {
     // SEITE beide Mengen zeigt (Auflage an Teil 5) — siehe Kopfkommentar von
     // bestellung.ts fuer die Einschraenkung, was dieser Test NICHT beweisen kann.
     for (const z of bestellvorschlag(t.db)) expect(z.wareOffenbarDa).toBe(false);
+  });
+
+  /**
+   * H11: `bestellvorschlag` nimmt `Leser`, nicht `DB`, weil sie ausschliesslich
+   * `select()` braucht und deshalb auch INNERHALB einer Transaktion laufen
+   * koennen muss. Ohne diesen Test prueft nur der Typparameter das — kein
+   * Testlauf. Ein `db: DB` in der Signatur liesse alle anderen Tests hier gruen,
+   * weil sie ausnahmslos mit `t.db` (der offenen Verbindung) aufrufen; erst der
+   * Aufruf `t.db.transaction((tx) => bestellvorschlag(tx))` zwingt den
+   * Compiler, die `Leser`-Vertraeglichkeit tatsaechlich zu pruefen.
+   */
+  it("laeuft INNERHALB einer Transaktion (H11)", () => {
+    const z = t.db.transaction((tx) => bestellvorschlag(tx));
+    expect(z.map((x) => x.id).sort()).toEqual(["a-bestellt", "a-gemischt", "a-leer", "a-nur-fzg"]);
   });
 });

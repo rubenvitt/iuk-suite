@@ -42,9 +42,11 @@ export type BestellZeile = {
    * `false`: die Funktion gibt nur Artikel unter Mindestbestand zurueck, und
    * „unter Mindestbestand" schliesst „offenbar wieder da" per Definition aus.
    * Das Feld gehoert trotzdem zur Zeile und nicht in die Komponente, weil die
-   * SEITE (Teil 5) beide Mengen zeigt: den Vorschlag UND die bereits bestellten
-   * Artikel, die wieder gedeckt sind — letztere liest ein anderer Aufruf, der
-   * dieselbe Zeilenform, aber ein anderes Filterkriterium braucht.
+   * Auflage an Teil 5 (Brief, Befund 3) vorsieht, dass DIE SEITE beide Mengen
+   * zeigt — den Vorschlag UND die bereits bestellten Artikel, die wieder
+   * gedeckt sind. Wie Teil 5 an die zweite Menge kommt, entscheidet Teil 5;
+   * dieser Lesepfad legt nur die Berechnung in die Zeile statt in eine
+   * Komponente.
    */
   wareOffenbarDa: boolean;
 };
