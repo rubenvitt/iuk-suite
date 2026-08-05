@@ -67,6 +67,32 @@ describe("bzGeraeteUebersicht", () => {
     expect(z.letzteKontrolle).toBeNull();
     expect(z.faelligkeit).toMatchObject({ ampel: "rot", ueberfaellig: false, nieGeprueft: true });
   });
+
+  it("sortiert AKTIV vor inaktiv, dann nach Name", () => {
+    // Reine Einfuegereihenfolge (rowid) waere hier KEIN Beleg: bz-1/bz-nie
+    // stehen schon in Namensreihenfolge in der DB, ein neu angehaengtes
+    // "AAA Ausgemustert" bliebe wegen der Einfuegereihenfolge ohnehin am Ende
+    // — ein ersatzlos entferntes `.sort(...)` waere dabei UNBEMERKT gruen
+    // geblieben (nachgeprueft). Deshalb zwei zusaetzliche Geraete, die die
+    // Einfuegereihenfolge GEGEN die Sollreihenfolge stellen:
+    //  - "0 Allererstes" (AKTIV) muesste alphabetisch VOR bz-1 stehen, wird
+    //    aber NACH bz-1/bz-nie eingefuegt — nur die Sortierung bringt es nach
+    //    vorn (schlaegt sowohl "keine Sortierung" als auch "nur nach aktiv,
+    //    kein Namens-Tiebreaker" fehl).
+    //  - "1 Fast Erstes" (INAKTIV) muesste alphabetisch weit vorn stehen,
+    //    gehoert aber wegen `aktiv: false` ans Ende — schlaegt "nur nach Name,
+    //    ohne aktiv-Vorrang" fehl.
+    t.db.insert(bzGeraete).values([
+      { id: "bz-frueh", name: "0 Allererstes", barcode: null, lagerortId: "rtw-1",
+        streifenLot: null, level1Label: null, level1Min: null, level1Max: null,
+        level2Label: null, level2Min: null, level2Max: null, aktiv: true, createdAt: NOW },
+      { id: "bz-alt", name: "1 Fast Erstes", barcode: null, lagerortId: "alt",
+        streifenLot: null, level1Label: null, level1Min: null, level1Max: null,
+        level2Label: null, level2Min: null, level2Max: null, aktiv: false, createdAt: NOW },
+    ]).run();
+    expect(bzGeraeteUebersicht(t.db, NOW).map((z) => z.id))
+      .toEqual(["bz-frueh", "bz-1", "bz-nie", "bz-alt"]);
+  });
 });
 
 describe("bzGeraetDetail — refSnapshot wird SICHTBAR (§5.11)", () => {
@@ -144,6 +170,23 @@ describe("bzLogbuchGesamt — der Deckel wird beobachtbar", () => {
     expect(l.zeilen).toHaveLength(BZ_LOGBUCH_GRENZE);
     expect(l.mehrVorhanden).toBe(true);
     expect(l.zeilen[0].geraetName).toBe("Accu-Chek A");
+  });
+
+  it("sortiert GERAETEUEBERGREIFEND absteigend nach ts", () => {
+    // k1/k2 gehoeren beide zu bz-1 — eine Zeile eines ANDEREN Geraets mit dem
+    // juengsten Zeitstempel ist der einzige Beleg dafuer, dass sortiert (statt
+    // zufaellig durch Einfuegereihenfolge getroffen) UND korrekt der `geraetId`
+    // zugeordnet wird. Ohne diesen Fall waere `zeilen[0].geraetName` immer
+    // "Accu-Chek A", ganz gleich ob absteigend oder aufsteigend sortiert wird.
+    t.db.insert(bzKontrollen).values({
+      id: "k-neu", geraetId: "bz-nie", ts: NOW, quelleTyp: "system", quelleId: "s",
+      level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
+      kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: false,
+      kommentar: null, bestanden: false, refSnapshot: null,
+    }).run();
+    const l = bzLogbuchGesamt(t.db);
+    expect(l.zeilen[0].geraetName).toBe("Nie geprüft");
+    expect(l.zeilen[0].id).toBe("k-neu");
   });
 });
 
