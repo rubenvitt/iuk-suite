@@ -38,6 +38,9 @@ describe("geraeteUebersicht — der Chip kommt SERVERSEITIG mit", () => {
   it("medizin OHNE Datum: GRAUER Chip, nicht rot und nicht gruen", () => {
     const z = geraeteUebersicht(t.db, NOW).find((x) => x.id === "g-med-ohne")!;
     expect(z.faelligkeit.keinDatum).toBe(true);
+    // §5.18: "kein Datum" ist ein eigener Zustand, kein Fehlschlag — nicht als
+    // "abgelaufen" dargestellt.
+    expect(z.faelligkeit.ueberfaellig).toBe(false);
     expect(z.chip).toEqual({ ton: "grau", text: "kein MTK-Datum" });
   });
 
@@ -64,12 +67,36 @@ describe("geraeteUebersicht — der Chip kommt SERVERSEITIG mit", () => {
     expect(z.mtkFaellig).toBeNull();
     expect(z.beschreibung).toBe("orange");
   });
+
+  it("Typ schlaegt Name: ein objekt mit alphabetisch fuehrendem Namen bleibt HINTER jedem medizin", () => {
+    // Die Namen der Fixtur (Absaugpumpe, Defibrillator, Spineboard) sortieren
+    // alphabetisch zufaellig GENAUSO wie ihre Typgruppen — ein Test ohne diese
+    // Zeile bliebe gruen, auch wenn `a.typ.localeCompare(b.typ)` entfernt wuerde.
+    // "AAA-Trage" (objekt) sortiert alphabetisch vor beiden medizin-Namen und
+    // deckt damit die Typ-Ebene tatsaechlich ab.
+    t.db.insert(geraete).values({
+      id: "g-obj-aaa", typ: "objekt", name: "AAA-Trage", barcode: null,
+      lagerortId: "rtw-1", anmerkung: null, mtkFaellig: null,
+      beschreibung: null, ablaufdatum: null, aktiv: true, createdAt: NOW,
+    }).run();
+    expect(geraeteUebersicht(t.db, NOW).map((z) => z.id))
+      .toEqual(["g-med-ohne", "g-med", "g-obj-aaa", "g-obj-ohne", "g-aus"]);
+  });
 });
 
 describe("geraeteFuerLagerort", () => {
   it("liefert nur AKTIVE Geraete dieses Standorts", () => {
     expect(geraeteFuerLagerort(t.db, "rtw-1", NOW).map((z) => z.id))
       .toEqual(["g-med-ohne", "g-med", "g-obj-ohne"]);
+  });
+  it("Typ schlaegt Name auch hier: objekt mit fuehrendem Namen bleibt HINTER jedem medizin", () => {
+    t.db.insert(geraete).values({
+      id: "g-obj-aaa", typ: "objekt", name: "AAA-Trage", barcode: null,
+      lagerortId: "rtw-1", anmerkung: null, mtkFaellig: null,
+      beschreibung: null, ablaufdatum: null, aktiv: true, createdAt: NOW,
+    }).run();
+    expect(geraeteFuerLagerort(t.db, "rtw-1", NOW).map((z) => z.id))
+      .toEqual(["g-med-ohne", "g-med", "g-obj-aaa", "g-obj-ohne"]);
   });
   it("liefert fuer einen unbekannten Standort eine leere Liste", () => {
     expect(geraeteFuerLagerort(t.db, "x", NOW)).toEqual([]);
