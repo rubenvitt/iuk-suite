@@ -20,10 +20,17 @@
  * ⚠️ `ausCheck` haengt am `quelleTyp`, NICHT am Kommentartext: ein
  * `startsWith("Fahrzeug-Check")` braeche, sobald jemand die Meldung umformuliert.
  *
- * ⚠️ NIMMT `DB`, NICHT `Leser` (Festlegung H11): dieser Pfad ruft
- * `quelleAufloeser(db: DB)` und laeuft nie in einer Transaktion. Wer ihn dorthin
- * ziehen will, muss `quelleAufloeser` in Teil 1 anfassen — das ist eine
- * Entscheidung, kein Cast.
+ * ⚠️ `DB` NIMMT NUR, WER `quelleAufloeser` RUFT (Festlegung H11) — hier ist das
+ * GENAU EINE Funktion: `o2FlascheDetail`. Wer sie in eine Transaktion ziehen
+ * will, muss `quelleAufloeser` in Teil 1 anfassen; das ist eine Entscheidung,
+ * kein Cast.
+ *
+ * ⚠️ DIE UEBRIGEN DREI NEHMEN `Leser`. `o2FlaschenFuerLagerort` ist der Grund:
+ * sie beliefert zusammen mit `geraeteFuerLagerort(db: Leser)` DIESELBE
+ * Fahrzeug-Check-Maske, und §5.6.3 zeigt, dass diese Maske innerhalb der
+ * Check-Transaktion gelesen wird (Teil 4). Ein `DB` allein durch
+ * Dateizugehoerigkeit blockierte dort und liefe auf den Cast hinaus, den H11
+ * verbietet.
  *
  * ⚠️ id-TIEBREAKER (§5.14.4): `ts` sind UNIX-Sekunden, und mehrere Messungen
  * einer Sammel-Pruefsitzung fallen realistisch in dieselbe Sekunde. Sowohl die
@@ -38,6 +45,7 @@ import { lagerorte, o2Flaschen, o2Messungen } from "../../_db/schema";
 import { quelleAufloeser } from "../../_db/quelle";
 import { o2Status, type O2Status } from "../domain/o2";
 import type { DB } from "../../_db/client";
+import type { Leser } from "./bestand";
 
 export type O2FlascheZeile = {
   id: string; name: string; lagerortName: string; aktiv: boolean;
@@ -50,7 +58,7 @@ export type O2FlascheZeile = {
 /** Juengste Messung je Flasche — EINE Abfrage, dann in JS verdichtet.
  *  id-Tiebreaker bei GLEICHEM `ts` (§5.14.4), dieselbe Richtung wie die
  *  SQL-Sortierung in `o2FlascheDetail` (`orderBy(desc(ts), desc(id))`). */
-function letzteJeFlasche(db: DB): Map<string, { ts: Date; druckBar: number; id: string }> {
+function letzteJeFlasche(db: Leser): Map<string, { ts: Date; druckBar: number; id: string }> {
   const m = new Map<string, { ts: Date; druckBar: number; id: string }>();
   for (const x of db.select().from(o2Messungen).all()) {
     const prev = m.get(x.flascheId);
@@ -62,7 +70,7 @@ function letzteJeFlasche(db: DB): Map<string, { ts: Date; druckBar: number; id: 
   return m;
 }
 
-export function o2FlaschenUebersicht(db: DB): O2FlascheZeile[] {
+export function o2FlaschenUebersicht(db: Leser): O2FlascheZeile[] {
   const namen = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l.name]));
   const letzte = letzteJeFlasche(db);
   return db.select().from(o2Flaschen).all()
@@ -126,7 +134,7 @@ export type O2FlascheCheckZeile = {
 /** Aktive Flaschen an einem Standort — fuer den Fahrzeug-Check und die
  *  Fahrzeug-Detailseite. `letzterDruck` ist der Vorschlagswert; die VORBELEGUNG
  *  im Zaehlschritt ist dagegen der NENNFUELLDRUCK (§5.15, Punkt 6). */
-export function o2FlaschenFuerLagerort(db: DB, lagerortId: string): O2FlascheCheckZeile[] {
+export function o2FlaschenFuerLagerort(db: Leser, lagerortId: string): O2FlascheCheckZeile[] {
   const letzte = letzteJeFlasche(db);
   return db.select().from(o2Flaschen)
     .where(eq(o2Flaschen.lagerortId, lagerortId)).all()
@@ -138,7 +146,7 @@ export function o2FlaschenFuerLagerort(db: DB, lagerortId: string): O2FlascheChe
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function lagerorteFuerFlaschen(db: DB): { id: string; name: string }[] {
+export function lagerorteFuerFlaschen(db: Leser): { id: string; name: string }[] {
   return db.select().from(lagerorte).where(eq(lagerorte.aktiv, true)).all()
     .map((l) => ({ id: l.id, name: l.name }))
     .sort((a, b) => a.name.localeCompare(b.name));

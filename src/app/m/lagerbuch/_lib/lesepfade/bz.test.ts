@@ -332,3 +332,27 @@ describe("bzAkkuKennzahlGesamt — nur GERAETEINTERNE Intervalle", () => {
     expect(g.tageDurchschnitt).toBe(50);
   });
 });
+
+describe("Leser — die vier quelleAufloeser-freien Leser laufen INNERHALB einer Transaktion (H11)", () => {
+  it("liest korrekt, waehrend die Transaktion noch offen ist", () => {
+    /**
+     * ⚠️ H11 GILT AUF FUNKTIONS-, NICHT AUF DATEIEBENE. `DB` nimmt hier nur, wer
+     * `quelleAufloeser(db: DB)` ruft — das sind `bzGeraetDetail` und
+     * `bzLogbuchGesamt`. Die uebrigen vier trugen `DB` allein durch
+     * Dateizugehoerigkeit; das ist eine Enge ohne Grund und blockierte Teil 4,
+     * wo die Fahrzeug-Check-Maske innerhalb der Check-Transaktion gelesen wird
+     * (§5.6.3). Die naheliegende Abhilfe waere dann der Cast, den H11 verbietet.
+     *
+     * Der Typecheck belegt nur, dass eine Transaktion als Parameter ANGENOMMEN
+     * wird — nicht, dass `.all()`/`.get()` darin zur Laufzeit funktionieren.
+     */
+    t.db.transaction((tx) => {
+      expect(lagerortOptionen(tx).map((o) => o.id)).toEqual(["rtw-1", "handlager"]);
+      expect(bzGeraeteUebersicht(tx, NOW).find((x) => x.id === "bz-1")!.letztesBestanden)
+        .toBe(true);
+      expect(bzGeraetByBarcode(tx, "1234567890128")).toEqual({ id: "bz-1" });
+      expect(bzAkkuKennzahlGesamt(tx))
+        .toEqual({ tageDurchschnitt: 30, anzahlWechsel: 2, anzahlIntervalle: 1 });
+    });
+  });
+});
