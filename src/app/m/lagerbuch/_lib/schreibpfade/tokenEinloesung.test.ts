@@ -151,6 +151,43 @@ describe("redeemToken — Treffer", () => {
     expect(zeile("tk-aktiv")?.lastUsedAt).toBeInstanceOf(Date);
   });
 
+  it("BLEIBT NACH DER EINLOESUNG EINLOESBAR — dasselbe Kaertchen, zweite Schicht", async () => {
+    /*
+     * ⚠️ DIE ZENTRALE VERFUEGBARKEITSZUSAGE DIESES SCHREIBWEGS, und bis hierher
+     * trug sie keine einzige Zusicherung. `_db/schema.ts:412` legt sie als
+     * ENTSCHEIDUNG fest: `lastUsedAt` ist „reines Anzeigefeld, OHNE Einfluss auf
+     * Gueltigkeit und (nach Entscheidung 8-F) auch ohne Einfluss auf
+     * Loeschbarkeit". Ein laminiertes Kaertchen am Regal wird JEDE SCHICHT
+     * gescannt — ein Code, der nach dem ersten Scan tot waere, ist ein Ausfall am
+     * Regal, kein Testdetail.
+     *
+     * WARUM ES DIESEN TEST BRAUCHT: der Funktionsname `redeemToken` liest sich
+     * wie „einloesen = verbrauchen", und genau diese Drift baut ein spaeterer
+     * Leser ein. Gefahren: `if (t.lastUsedAt) return { ok: false };` nach dem
+     * Riegel — OHNE diesen Testkoerper laeuft die Datei damit 11/11 GRUEN, weil
+     * jede Fixture-Zeile `lastUsedAt: null` traegt und kein anderer Test zweimal
+     * einloest. Die Drift fiele erst im Betrieb auf.
+     *
+     * Die MITTLERE Zusicherung ist nicht schmueckend: ohne sie truege der Test
+     * nur „zwei Aufrufe gehen", nicht „bleibt einloesbar, NACHDEM es benutzt
+     * wurde" — die Spur muss zwischen den beiden Aufrufen nachweislich liegen.
+     * Ein Vergleich der beiden Zeitstempel steht bewusst NICHT hier: `mode:
+     * "timestamp"` schneidet auf ganze Sekunden ab, beide Aufrufe fallen in
+     * dieselbe, und die Probe waere ein Wackeltest.
+     */
+    const erst = await redeemToken("482-137", t.db);
+    expect(erst.ok).toBe(true);
+
+    expect(zeile("tk-aktiv")?.lastUsedAt).not.toBeNull();
+
+    const zweit = await redeemToken("482-137", t.db);
+    expect(zweit.ok).toBe(true);
+    if (!zweit.ok) return;
+    expect(zweit.tokenId).toBe("tk-aktiv");
+    expect(zweit.zielTyp).toBe("fahrzeug");
+    expect(zweit.zielId).toBe("fz-1");
+  });
+
   it("gibt bei zielTyp=artikel Zeile UND Ziel des GETROFFENEN Tokens durch", async () => {
     // Traegt die Zusage, dass Ziel und Id aus der GEFUNDENEN Zeile stammen und
     // nicht aus einer festen: `tk-aktiv` steht als erste Zeile in der Fixture und
@@ -195,20 +232,34 @@ describe("redeemToken — Nicht-Treffer, und was er NICHT verraet", () => {
     expect(zeile("tk-gesperrt")?.lastUsedAt).toBeNull();
   });
 
-  it("NORMALISIERT NICHT — ` 482-137 ` mit Rand findet hier absichtlich nichts", async () => {
+  it("NORMALISIERT NICHT — weder ` 482-137 ` mit Rand noch `482137` ohne Bindestrich findet hier etwas", async () => {
     /*
      * Die Normalisierung steht in `_lib/code.ts#normalisiereCode` (Teil 2, T17)
      * und wird vom AUFRUFER angewandt (§7.5.2, Schritt 3). Zwei Normalisierungen
      * an zwei Orten sind der Ort, an dem sie auseinanderlaufen.
      *
-     * ⚠️ VON DEN BEIDEN ZUSICHERUNGEN TRAEGT NUR DIE ERSTE. Mit
-     * wiedereingesetztem `code.trim().toUpperCase()` (`token-redeem.ts:13`)
-     * bliebe `"482137"` weiterhin ein Nicht-Treffer — der Bindestrich ist Teil
-     * des gespeicherten Werts (`_db/schema.ts:379-383`) und wird von keiner der
-     * beiden Formen ergaenzt. Die Randleerzeichen sind die einzige Fassung, die
-     * die Regel wirklich schneidet; die zweite steht als Fallbeschreibung dabei.
-     * `.toUpperCase()` ist auf einer reinen Ziffernfolge ueberhaupt nicht
-     * falsifizierbar — genau das ist Falle 24s eigener Punkt.
+     * ⚠️ BEIDE ZUSICHERUNGEN TRAGEN, UND ZWAR VERSCHIEDENE FAELLE — keine der
+     * beiden ist die Kopie der anderen (Regel 4). Gefahren, nicht behauptet:
+     *
+     *  - `" 482-137 "` (Rand) haelt ALLEIN die BESTANDSFORM
+     *    `code.trim().toUpperCase()` (`token-redeem.ts:13`). Unter ihr ist
+     *    `"482137"` weiterhin ein Nicht-Treffer, denn sie ergaenzt den
+     *    Bindestrich nicht — der ist Teil des gespeicherten Werts
+     *    (`_db/schema.ts:379-383`). `.toUpperCase()` ist auf einer reinen
+     *    Ziffernfolge ueberhaupt nicht falsifizierbar; das ist Falle 24s Punkt.
+     *
+     *  - `"482137"` haelt ALLEIN jede Normalisierung, die den BINDESTRICH
+     *    EINSETZT. Das ist der Fall, den Nachtrag N-2 benennt: ruft jemand die
+     *    modul-eigene `normalisiereCode` INNERHALB von `redeemToken`, dann
+     *    liefert sie fuer `"482137"` den Wert `"482-137"` (`_lib/code.ts:27-28`)
+     *    — der Aufruf gelaenge. `" 482-137 "` sieht diesen Fall zwar MIT, weil
+     *    `normalisiereCode` zusaetzlich trimmt; eine Bindestrich-Einsetzung ohne
+     *    trim (etwa eine aufgeteilte Fassung) faellt aber NUR hier auf.
+     *
+     * ⚠️ WER EINE DER BEIDEN ZEILEN ALS REDUNDANT STREICHT, verliert genau einen
+     * der beiden Faelle. Die zweite ist nicht die schwaechere: sie haelt den
+     * REALISTISCHEREN Regelbruch (N-2), und der scheitert STILL — auf dem
+     * Haupt-Erfolgspfad, mit „Code unbekannt" am Gate.
      */
     expect(await redeemToken(" 482-137 ", t.db)).toStrictEqual({ ok: false });
     expect(await redeemToken("482137", t.db)).toStrictEqual({ ok: false });
