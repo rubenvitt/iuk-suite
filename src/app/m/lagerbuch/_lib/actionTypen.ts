@@ -13,6 +13,18 @@ import type { SperrGrund } from "./helferZugang";
  * braeuchte dort eine Ausnahme — und eine Ausnahme in einem Scan, dessen ganze
  * Zusage die VOLLSTAENDIGKEIT ist, ist die teuerste Zeile, die man ihm geben
  * kann.
+ *
+ * DAS GRUNDMUSTER (Falle 66): jede ERWARTBARE Fehlerlage ist ein
+ * Rueckgabewert, kein Wurf. Der Produktions-Deserialisierer hat fuer eine
+ * Fehlerzeile genau einen Zweig (`resolveErrorProd`) und baut einen festen
+ * ENGLISCHEN Satz mit `digest`; `e.message` erreicht in Produktion niemanden.
+ * Die 22 deutschen Texte in `lagerbuch/src/actions/*` sind fachlich richtig und
+ * betrieblich wirkungslos.
+ *
+ * DER WURF BLEIBT DEM RIEGELFALL VORBEHALTEN — dort, wo die Lage nicht
+ * „erwartbar", sondern „manipuliert" heisst: die vier
+ * Zugehoerigkeitspruefungen in `checkAbschluss` (§7.3) und
+ * `requireLagerbuchHost`.
  */
 
 /**
