@@ -85,10 +85,10 @@ export async function checkAbschluss(
   // einzige Netz dagegen ist der E2E „gesperrter Token wird an der Buchung
   // abgewiesen" (§3.8.3, §7.12.4) — und der liegt in Teil 6, T171.
   //
-  // ⚠️ Der Host-Riegel wird hier NICHT gerufen: `requireHelferSchreibend` ruft
-  // ihn INTERN als erste Anweisung (Teil 1, T10). Genau deshalb ist die Zusage
-  // „jede Helfer-Action ist host-gebunden" durch KONSTRUKTION wahr und nicht
-  // durch eine Liste, die die naechste Action vergisst.
+  // ⚠️ `requireLagerbuchHost` wird hier NICHT gerufen: `requireHelferSchreibend`
+  // ruft ihn INTERN als erste Anweisung (Teil 1, T10). Genau deshalb ist die
+  // Zusage „jede Helfer-Action ist host-gebunden" durch KONSTRUKTION wahr und
+  // nicht durch eine Liste, die die naechste Action vergisst.
   const riegel = await requireHelferSchreibend(db);
   if (!riegel.ok) return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
 

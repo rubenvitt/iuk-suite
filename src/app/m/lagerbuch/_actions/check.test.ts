@@ -18,8 +18,18 @@ import { RIEGEL_TEXTE, darfErneuern } from "../_lib/actionTypen";
  *     Nutzlast, die das Schema NICHT besteht: liefe der Parse zuerst, kaeme
  *     `grund: "eingabe"` statt der Sitzungsauskunft.
  *   - Der Rueckgabewert des Riegels wird AUSGEWERTET. Der Traeger ist der
- *     `gesperrt`-Fall mit einer schreibenden Nutzlast; die zwei Quelltext-Scans
- *     weiter unten sind Redundanz, nicht der Traeger.
+ *     `gesperrt`-Fall mit einer schreibenden Nutzlast („antwortet bei gesperrtem
+ *     Token mit `gesperrt` und schreibt NICHTS"), belegt durch Mutation (b):
+ *     faellt `if (!riegel.ok) return`, laeuft der Code in `riegel.zugang.code`
+ *     und DREI Verhaltenstests werden rot (gemessen, Fix-Runde 1: der
+ *     `sitzung`-Fall, der `gesperrt`-Fall und „revalidiert NICHT nach einem
+ *     Riegel-Nein").
+ *     ⚠️ Die Schreibweise dazu lautet heute `const riegel = await
+ *     requireHelferSchreibend(db);` gefolgt von `if (!riegel.ok) return …`. Sie
+ *     steht HIER im Kopf und NICHT in einem `it()`: ein Quelltext-Scan darauf
+ *     fixierte nur den lokalen Namen `riegel` — ein Umbenennen braeche ihn ohne
+ *     jede semantische Aenderung —, fuegte null Abdeckung hinzu und zaehlte als
+ *     Testkoerper mit (Regel 2, Fix-Runde 1, Befund 2).
  *   - Die vier Zugehoerigkeitspruefungen bleiben WUERFE (§7.3, Riegelfall) und
  *     die Transaktion laeuft dabei VOLLSTAENDIG zurueck.
  *   - `revalidatePath` bekommt die INNEREN Pfade (§7.9.5, Falle 49).
@@ -673,16 +683,6 @@ describe("Bauform", () => {
     expect(q).toMatch(/^"use server";/m);
     expect([...q.matchAll(/^export async function (\w+)/gm)].map((m) => m[1]))
       .toEqual(["checkAbschluss"]);
-  });
-
-  it("wertet den Riegel-Rueckgabewert AUS", () => {
-    // ⚠️ REDUNDANZ, NICHT TRAEGER. Der Traeger ist der Verhaltenstest
-    // „antwortet bei gesperrtem Token … und schreibt NICHTS": faellt
-    // `if (!riegel.ok) return`, laeuft der Code in `riegel.zugang.code` und der
-    // Test wird rot. Dieser Scan haelt nur die Schreibweise fest.
-    const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
-    expect(q).toMatch(/const riegel = await requireHelferSchreibend\(db\);/);
-    expect(q).toMatch(/if \(!riegel\.ok\)\s*return/);
   });
 
   it("ruft `requireLagerbuchHost` NICHT — der Riegel ruft ihn intern", () => {
