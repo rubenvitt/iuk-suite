@@ -806,8 +806,34 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
    * Existenz dieses Blocks ersetzt ihn nicht.
    */
   const GATE_FLAECHEN = ["_actions/gate.ts", "_actions/sitzung.ts", "t/[code]/route.ts"];
+  /**
+   * ⚠️ DER HOST-RIEGEL HAT ZWEI FORMEN, und beide zaehlen hier. `_lib/host.ts`
+   * fuehrt eine WERFENDE (`requireLagerbuchHost`, fuer Layouts, Seiten und
+   * Server Actions) und eine NICHT-werfende (`lagerbuchHostOderNull`, fuer
+   * Route Handler) — und `_lib/host.ts:52-67` schreibt beide Zuordnungen
+   * verbindlich fest: `t/[code]/route.ts` steht dort ausdruecklich in der
+   * zweiten Spalte, weil ein `notFound()` keine brauchbare Antwort auf einen
+   * GESCANNTEN QR-Code ist.
+   *
+   * Ein Muster auf nur die werfende Form meldete deshalb ab T82 „Riegel „Host"
+   * fehlt ganz" fuer eine Datei, die den Riegel korrekt und als ERSTE Anweisung
+   * traegt — gemessen, nicht vermutet. Dieser Block behauptet REIHENFOLGE, nicht
+   * FORM.
+   *
+   * ⚠️ WER DIE FORM HAELT, DATEI FUER DATEI — ausgeschrieben, weil eine
+   * Halbwahrheit hier teurer waere als die Luecke:
+   *   - `t/[code]/route.ts`      T87 (Quelltext-Scan: traegt `lagerbuchHostOderNull`
+   *                              und NICHT die werfende Form)
+   *   - `_actions/gate.ts`       `_actions/gate.test.ts:134-153` — der Verhaltenstest
+   *                              „auf fremdem Host: notFound(), und NICHTS davor ist
+   *                              gelaufen" (`rejects.toThrow("NEXT_NOT_FOUND")`)
+   *   - `_actions/sitzung.ts`    `_actions/sitzung.test.ts` — derselbe Test, gleiche Form
+   * T87 sagt ueber die beiden Action-Dateien NICHTS. Nach dieser Weitung haelt sie
+   * allein ihr eigener Verhaltenstest; wer den entfernt, macht die werfende Form
+   * dort unbewacht.
+   */
   const RIEGEL: { name: string; muster: RegExp }[] = [
-    { name: "Host",          muster: /\brequireLagerbuchHost\s*\(/ },
+    { name: "Host",          muster: /\b(?:requireLagerbuchHost|lagerbuchHostOderNull)\s*\(/ },
     { name: "Sperre",        muster: /\bgateGesperrt\s*\(/ },
     { name: "normalisieren", muster: /\bnormalisiereCode\s*\(/ },
     { name: "Einloesung",    muster: /\bredeemToken\s*\(/ },
