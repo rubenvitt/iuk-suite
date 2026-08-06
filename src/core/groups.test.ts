@@ -7,6 +7,7 @@ import {
   adminGroupEnvName,
   accessGroupEnvName,
   envAccessGroupsFor,
+  hasAnyGroup,
 } from "@/core/groups";
 import type { ModuleDef } from "@/core/registry";
 
@@ -20,7 +21,21 @@ const mod = (over: Partial<ModuleDef> = {}): ModuleDef => ({
   adminGroups: ["iuk-qr-admin"],
   prodHosts: [],
   showInSwitcher: true,
+  switcherGroupSources: [],
   ...over,
+});
+
+describe("hasAnyGroup", () => {
+  it("verlangt mindestens einen exakten Pocket-ID-Gruppentreffer", () => {
+    expect(hasAnyGroup(["funk", "lager"], ["lager", "admin"])).toBe(true);
+    expect(hasAnyGroup(["Lager"], ["lager"])).toBe(false);
+  });
+
+  it("gewaehrt anonym und bei leerer Anforderung nichts", () => {
+    expect(hasAnyGroup(null, ["lager"])).toBe(false);
+    expect(hasAnyGroup(undefined, ["lager"])).toBe(false);
+    expect(hasAnyGroup(["lager"], [])).toBe(false);
+  });
 });
 
 describe("suiteAdminGroup", () => {

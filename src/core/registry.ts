@@ -1,10 +1,11 @@
 import { envHostsFor } from "@/core/hosts";
-import { envAccessGroupsFor } from "@/core/groups";
+import { adminGroupsFor, envAccessGroupsFor, hasAnyGroup } from "@/core/groups";
 
 /** Wie in `hosts.ts`: nur „String rein, String oder undefined raus" — bewusst nicht `NodeJS.ProcessEnv`. */
 type EnvLike = Record<string, string | undefined>;
 
 export type ShellVariant = "full" | "minimal" | "kiosk";
+export type SwitcherGroupSource = "access" | "admin";
 
 export interface ModuleDef {
   key: string;
@@ -33,6 +34,19 @@ export interface ModuleDef {
    */
   prodHosts: string[];
   showInSwitcher: boolean;
+  /**
+   * Welche Pocket-ID-Gruppen den Einstieg im App-Switcher sichtbar machen.
+   *
+   * Das ist absichtlich getrennt von `requiresAuth`: Module wie feedback,
+   * files und lagerbuch haben anonyme Teilpfade und muessen fuer das Routing
+   * `requiresAuth: false` behalten. Der Link im Switcher zeigt aber jeweils
+   * auf ihren gruppengeschuetzten Einstieg. Die Quellen verweisen auf die
+   * env-faehigen Access-/Admin-Listen statt Gruppennamen zu duplizieren.
+   * `admin` meint dabei bewusst nur `adminGroupsFor`, nicht automatisch den
+   * Suite-Admin: feedback, files und lagerbuch trennen Betrieb und Einsicht.
+   * Leer bedeutet: kein Gruppenzwang fuer diesen App-Einstieg.
+   */
+  switcherGroupSources: SwitcherGroupSource[];
 }
 
 // Wegwerf-Module (alpha/beta/kioskdemo) beweisen den Keystone; portal ist das erste echte Modul.
@@ -42,13 +56,13 @@ export const MODULES: ModuleDef[] = [
   // Modul dupliziert.
   { key: "portal", title: "Portal", icon: "AppstoreOutlined", shell: "full",
     requiresAuth: true, requiredGroups: [], adminGroups: [],
-    prodHosts: ["iuk-ue.de"], showInSwitcher: true },
+    prodHosts: ["iuk-ue.de"], showInSwitcher: true, switcherGroupSources: [] },
   // Anonym, weil der Generator ohne Login funktionieren muss (Offline-PWA im
   // Einsatz). Der Admin-Bereich schützt sich selbst über core/auth/guards —
   // requiresAuth: true wäre hier falsch und würde den anonymen Zugang nehmen.
   { key: "qr", title: "QR-Codes", icon: "QrcodeOutlined", shell: "minimal",
     requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-qr-admin"],
-    prodHosts: [], showInSwitcher: true },
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
   // feedback: gemischt wie qr — anonyme Teilnahme (/f/...) braucht keinen Login,
   // requiresAuth:false. Dadurch prüft canAccess() unten requiredGroups HIER
   // NIE (früher Ausstieg bei !requiresAuth) — die generische Middleware-Gate
@@ -64,7 +78,8 @@ export const MODULES: ModuleDef[] = [
   // requiredGroupsFor()/adminGroupsFor(), nicht diese Felder direkt.
   { key: "feedback", title: "Feedback", icon: "CommentOutlined", shell: "full",
     requiresAuth: false, requiredGroups: ["da-feedback-gl", "da-feedback-admin"],
-    adminGroups: ["da-feedback-admin"], prodHosts: [], showInSwitcher: true },
+    adminGroups: ["da-feedback-admin"], prodHosts: [], showInSwitcher: true,
+    switcherGroupSources: ["access", "admin"] },
   // files: zwei Prod-Hosts in EINER Variable, die Reihenfolge trägt die Rolle
   // (Index 0 = Verwaltung/Shares, Index 1 = Inbox) — siehe _lib/hostRolle.ts.
   // requiresAuth MUSS false bleiben: sonst schickt die Middleware jeden anonymen
@@ -86,7 +101,7 @@ export const MODULES: ModuleDef[] = [
   // Duplikats.
   { key: "files", title: "Dateien", icon: "FolderOutlined", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-files-admin"],
-    prodHosts: [], showInSwitcher: true },
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access", "admin"] },
   // lagerbuch: EIN Host (lagerbuch.iuk-ue.de), aber die Domain steht ausschliesslich
   // in SUITE_HOST_LAGERBUCH — Betreiberauflage vom 03.08.2026 („zu 100 % konfigurierbar").
   // prodHosts bleibt deshalb leer, wie bei qr, feedback und files.
@@ -102,20 +117,20 @@ export const MODULES: ModuleDef[] = [
   // modul-intern in _lib/zugang.ts, der Host in _lib/host.ts.
   { key: "lagerbuch", title: "Lagerbuch", icon: "ContainerOutlined", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["lagerbuch_nutzer"],
-    prodHosts: [], showInSwitcher: true },
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
-    prodHosts: [], showInSwitcher: true },
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   // gamma: authentifiziertes Voll-Shell-Modul ohne Gruppenzwang — SSO-Cross-Ziel im Keystone-E2E.
   { key: "gamma", title: "Gamma", icon: "CaretUpOutlined", shell: "full",
     requiresAuth: true, requiredGroups: [], adminGroups: [],
-    prodHosts: [], showInSwitcher: true },
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
   { key: "beta", title: "Beta", icon: "GlobalOutlined", shell: "minimal",
     requiresAuth: false, requiredGroups: [], adminGroups: [],
-    prodHosts: [], showInSwitcher: false },
+    prodHosts: [], showInSwitcher: false, switcherGroupSources: [] },
   { key: "kioskdemo", title: "Kiosk Demo", icon: "DesktopOutlined", shell: "kiosk",
     requiresAuth: false, requiredGroups: [], adminGroups: [],
-    prodHosts: [], showInSwitcher: false },
+    prodHosts: [], showInSwitcher: false, switcherGroupSources: [] },
 ];
 
 const BY_KEY = new Map(MODULES.map((m) => [m.key, m]));
@@ -179,5 +194,13 @@ export function visibleSwitcherModules(
   groups: string[] | null,
   env: EnvLike = process.env,
 ): ModuleDef[] {
-  return MODULES.filter((m) => m.showInSwitcher && canAccess(m, groups, env));
+  return MODULES.filter((mod) => {
+    if (!mod.showInSwitcher || !canAccess(mod, groups, env)) return false;
+    if (mod.switcherGroupSources.length === 0) return true;
+
+    const required = mod.switcherGroupSources.flatMap((source) =>
+      source === "access" ? requiredGroupsFor(mod, env) : adminGroupsFor(mod, env),
+    );
+    return hasAnyGroup(groups, required);
+  });
 }

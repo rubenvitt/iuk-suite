@@ -13,6 +13,10 @@ describe("portal rbac", () => {
     expect(canViewService(["x"], base)).toBe(false);
     expect(canViewService(["g"], base)).toBe(true);
   });
+  it("matches Pocket-ID group keys exactly", () => {
+    expect(canViewService(["G"], base)).toBe(false);
+    expect(canViewService([" g "], base)).toBe(false);
+  });
   it("filterVisibleServices keeps only viewable", () => {
     const list = [{ ...base, id: 1 }, { ...base, id: 2, isPublic: true }];
     expect(filterVisibleServices([], list).map((s) => s.id)).toEqual([2]);

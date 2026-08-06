@@ -3,6 +3,8 @@
 // weiteren Modul erneut vervielfacht. Hier bleibt nur, was fachlich zum
 // Portal gehört: welche Kachel wem sichtbar ist.
 
+import { hasAnyGroup } from "@/core/groups";
+
 interface ServiceLike {
   isPublic: boolean;
   isActive: boolean;
@@ -15,7 +17,7 @@ export function canViewService(
 ): boolean {
   if (!service.isActive) return false;
   if (service.isPublic) return true;
-  return service.requiredGroups.some((g) => userGroups.includes(g));
+  return hasAnyGroup(userGroups, service.requiredGroups);
 }
 
 export function filterVisibleServices<T extends ServiceLike>(
