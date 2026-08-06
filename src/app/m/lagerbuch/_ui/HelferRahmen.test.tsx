@@ -86,6 +86,11 @@ function serverBaum(html: string): HTMLElement {
 afterEach(async () => {
   await unmount();
   beendenMock.mockClear();
+  // Dieselbe Reihenfolge wie `_ui/Restzeit.test.tsx:44-47` (erst abraeumen, dann
+  // die Uhr zurueckgeben): die beiden Grenztests der Schwelle frieren die Zeit
+  // ein, und ohne diese Zeile liefe jeder FOLGENDE Test der Datei auf einer
+  // stehengebliebenen Uhr weiter.
+  vi.useRealTimers();
 });
 
 describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () => {
@@ -267,6 +272,81 @@ describe("HelferRahmen — die Warnschwelle rechnet der SERVER (§3.4.3 Punkt 1)
       (wirt) => { html = wirt.innerHTML; },
     );
     expect(serverBaum(html).querySelector("[data-rolle='restzeit-warnung']")).not.toBeNull();
+  });
+
+  /**
+   * ⚠️ DIE ZWEI FOLGENDEN TESTS NAGELN DIE SCHWELLE SELBST FEST — die beiden
+   * darueber tun das NICHT. Sie sagen nur: bei 6 h nicht, bei 10 min doch, und
+   * halten damit allein das VORZEICHEN der Rechnung. Daraus folgt zwingend, dass
+   * JEDER Schwellenwert im Intervall (11 min, 6 h) gruen bliebe — `60 * 60_000`
+   * genauso wie `15 * 60_000` — und dass `<=` → `<` ebenfalls gruen bliebe.
+   * Der Wert „30 Minuten" und die INKLUSIVE Semantik von „ab 30 Minuten"
+   * (§3.4.3 Punkt 1) waeren damit fuer die SERVER-Kopie nirgends zugesichert.
+   *
+   * ⚠️ UND DAS WIEGT HIER SCHWERER ALS „Abdeckung koennte breiter sein": die
+   * Zahl steht ABSICHTLICH zweimal da — der Import von `WARNSCHWELLE_MS` aus
+   * `Restzeit.tsx` waere Falle 6 (siehe den Kommentar an `HelferRahmen.tsx:86-91`).
+   * Die Client-Kopie ist in `_ui/Restzeit.test.tsx:130-143` exakt festgenagelt
+   * (30:00 warnt, 30:01 noch nicht); fuer die Server-Kopie fehlte genau diese
+   * Pruefung. Driftete eine der beiden auseinander, waere der Ausfall STILL UND
+   * EINSEITIG: stuende der Server auf 60 min und der Client auf 30, rendert der
+   * Server bei 45 min Restlaufzeit die Warnung, `useState(warntInitial)` startet
+   * auf `true`, und `Restzeit.tsx:49` (`if (warnt) return`) verhindert jede
+   * Nachkorrektur — die Warnung stuende dann ab 45 Minuten dauerhaft, in jeder
+   * Sitzung. Diese zwei Tests sind das einzige, was darueber wacht.
+   *
+   * `vi.useFakeTimers()` + `vi.setSystemTime(…)`, weil die Schwelle auf die
+   * SEKUNDE gepruepft wird: ohne eingefrorene Uhr laegen zwischen der Rechnung
+   * des Tests und dem `new Date()` der Komponente (`HelferRahmen.tsx:68`) ein
+   * paar Millisekunden, und der 30:00-Fall kippte zufaellig auf 29:59,999.
+   * (Nachgemessen, dass Vitest 4 mit `vi.setSystemTime` auch `new Date()` faelscht
+   * und nicht nur `Date.now()` — die Komponente ruft `new Date()`.)
+   *
+   * Die beiden sind KEINE Kopien voneinander (Regel 4); jeder haelt einen
+   * anderen Fall allein:
+   *   - auf der Schwelle (30:00) haelt allein `<=` und jeden Wert UNTER 30 min;
+   *   - eine Sekunde darueber (30:01) haelt allein jeden Wert UEBER 30 min.
+   * Per Mutation belegt (Bericht, Fix-Runde 1, Mutationen P1 und P2).
+   */
+  it("auf der Schwelle (genau 30:00) traegt das Server-HTML die Warnung — „ab 30 Minuten“ ist inklusiv", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-04T18:25:00.000Z"));
+    let html = "";
+    await hydrate(
+      <HelferRahmen
+        aktiv="entnahme"
+        sitzungsetikett="X"
+        laeuftAb={new Date(Date.now() + 30 * 60_000)}
+      >
+        <p />
+      </HelferRahmen>,
+      (wirt) => { html = wirt.innerHTML; },
+    );
+    // Ueber `hydrate` und NICHT ueber `mount` — aus demselben Grund wie bei den
+    // beiden Tests darueber: der Effekt der Insel rechnet sofort nach und ergaebe
+    // im gemounteten Baum dieselbe Anzeige, ganz gleich was der Server entschied.
+    expect(serverBaum(html).querySelector("[data-rolle='restzeit-warnung']")).not.toBeNull();
+  });
+
+  it("eine Sekunde darueber (30:01) traegt das Server-HTML sie noch NICHT", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-04T18:25:00.000Z"));
+    let html = "";
+    await hydrate(
+      <HelferRahmen
+        aktiv="entnahme"
+        sitzungsetikett="X"
+        laeuftAb={new Date(Date.now() + 30 * 60_000 + 1_000)}
+      >
+        <p />
+      </HelferRahmen>,
+      (wirt) => { html = wirt.innerHTML; },
+    );
+    // Die Insel ist da — sonst waere die Zeile darunter auch an einem gar nicht
+    // gerenderten Rahmen gruen.
+    expect(serverBaum(html).querySelector("[data-rolle='restzeit']")).not.toBeNull();
+    // Eine zu grosse Schwelle (60 min, 34 min …) wuerde hier schon warnen.
+    expect(serverBaum(html).querySelector("[data-rolle='restzeit-warnung']")).toBeNull();
   });
 });
 
