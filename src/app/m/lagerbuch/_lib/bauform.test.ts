@@ -807,33 +807,41 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
    */
   const GATE_FLAECHEN = ["_actions/gate.ts", "_actions/sitzung.ts", "t/[code]/route.ts"];
   /**
-   * ⚠️ DER HOST-RIEGEL HAT ZWEI FORMEN, und beide zaehlen hier. `_lib/host.ts`
-   * fuehrt eine WERFENDE (`requireLagerbuchHost`, fuer Layouts, Seiten und
-   * Server Actions) und eine NICHT-werfende (`lagerbuchHostOderNull`, fuer
-   * Route Handler) — und `_lib/host.ts:52-67` schreibt beide Zuordnungen
-   * verbindlich fest: `t/[code]/route.ts` steht dort ausdruecklich in der
-   * zweiten Spalte, weil ein `notFound()` keine brauchbare Antwort auf einen
-   * GESCANNTEN QR-Code ist.
+   * ⚠️ DER HOST-RIEGEL HAT ZWEI FORMEN — und welche gilt, entscheidet die
+   * DATEI, nicht dieser Block. `_lib/host.ts` fuehrt eine WERFENDE
+   * (`requireLagerbuchHost`, fuer Layouts, Seiten und Server Actions) und eine
+   * NICHT-werfende (`lagerbuchHostOderNull`, fuer Route Handler), und
+   * `_lib/host.ts:52-67` schreibt die Zuordnung je Datei VERBINDLICH fest:
+   * `t/[code]/route.ts` steht dort ausdruecklich in der zweiten Spalte, weil ein
+   * `notFound()` keine brauchbare Antwort auf einen GESCANNTEN QR-Code ist.
    *
-   * Ein Muster auf nur die werfende Form meldete deshalb ab T82 „Riegel „Host"
-   * fehlt ganz" fuer eine Datei, die den Riegel korrekt und als ERSTE Anweisung
-   * traegt — gemessen, nicht vermutet. Dieser Block behauptet REIHENFOLGE, nicht
-   * FORM.
+   * ⚠️ DESHALB WIRD DAS MUSTER JE FLAECHE GEFUEHRT UND NICHT AUF BEIDE FORMEN
+   * GEWEITET. Ein Muster, das beide Formen nimmt, macht diesen Block fuer
+   * `_actions/gate.ts` und `_actions/sitzung.ts` blind: die beiden koennten
+   * still auf die NICHT-werfende Form umschwenken — eine Server Action, die auf
+   * fremdem Host `null` bekommt und WEITERLAEUFT statt zu werfen —, ohne dass
+   * hier etwas rot wuerde. Gemessen: mit dem geweiteten Muster blieb genau diese
+   * Mutation in `_actions/gate.ts` 31/31 gruen, mit dem Muster je Flaeche ist
+   * sie rot („Riegel „Host" fehlt ganz").
    *
-   * ⚠️ WER DIE FORM HAELT, DATEI FUER DATEI — ausgeschrieben, weil eine
-   * Halbwahrheit hier teurer waere als die Luecke:
-   *   - `t/[code]/route.ts`      T87 (Quelltext-Scan: traegt `lagerbuchHostOderNull`
-   *                              und NICHT die werfende Form)
-   *   - `_actions/gate.ts`       `_actions/gate.test.ts:134-153` — der Verhaltenstest
-   *                              „auf fremdem Host: notFound(), und NICHTS davor ist
-   *                              gelaufen" (`rejects.toThrow("NEXT_NOT_FOUND")`)
-   *   - `_actions/sitzung.ts`    `_actions/sitzung.test.ts` — derselbe Test, gleiche Form
-   * T87 sagt ueber die beiden Action-Dateien NICHTS. Nach dieser Weitung haelt sie
-   * allein ihr eigener Verhaltenstest; wer den entfernt, macht die werfende Form
-   * dort unbewacht.
+   * Der Riegel-Durchlauf unten nimmt `HOST_FORM[schluessel] ?? HOST_VORGABE`.
+   * Wer eine vierte Gate-Flaeche eintraegt (N-3), bekommt damit die WERFENDE
+   * Form als Vorgabe — und muss sie hier ausdruecklich ausnehmen, wenn sie ein
+   * Route Handler ist.
    */
-  const RIEGEL: { name: string; muster: RegExp }[] = [
-    { name: "Host",          muster: /\b(?:requireLagerbuchHost|lagerbuchHostOderNull)\s*\(/ },
+  const HOST_VORGABE = /\brequireLagerbuchHost\s*\(/;
+  const HOST_FORM: Record<string, RegExp> = {
+    "t/[code]/route.ts": /\blagerbuchHostOderNull\s*\(/, // Route Handler, `_lib/host.ts:58-67`
+  };
+
+  /**
+   * Die vier Riegel EINER Flaeche, in der zugesicherten Reihenfolge. Als
+   * Funktion und nicht als Modulebenen-`const`, weil der Host-Riegel je Flaeche
+   * verschieden ist (siehe oben). An keinem der Muster haengt ein `g` — ein
+   * gehisstes `/g`-Muster truege `lastIndex` zwischen den Flaechen weiter.
+   */
+  const riegelFuer = (schluessel: string): { name: string; muster: RegExp }[] => [
+    { name: "Host",          muster: HOST_FORM[schluessel] ?? HOST_VORGABE },
     { name: "Sperre",        muster: /\bgateGesperrt\s*\(/ },
     { name: "normalisieren", muster: /\bnormalisiereCode\s*\(/ },
     { name: "Einloesung",    muster: /\bredeemToken\s*\(/ },
@@ -854,7 +862,8 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
    *
    * ⚠️ DAS `/g` STEHT HIER DRIN UND NICHT AN EINEM MODULEBENEN-`const`: ein
    * gehisstes `/g`-Muster traegt `lastIndex` zwischen den Flaechen weiter. An
-   * `RIEGEL` oben haengt aus demselben Grund korrekt KEIN `g`.
+   * den Mustern aus `riegelFuer()` oben haengt aus demselben Grund korrekt
+   * KEIN `g`.
    *
    * ⚠️ DER SCHNITT IST EINE OBERGRENZE, keine exakte Funktionsgrenze: liegt die
    * einloesende Funktion als LOKALE Funktion hinter einem exportierten Wrapper,
@@ -878,22 +887,30 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
    * Ausloeser ist die EINLOESUNG: eine Datei ohne `redeemToken(` ist keine
    * Gate-Flaeche, und KEINER der drei Tests behauptet ueber sie etwas — so, wie
    * der Kopf dieses Blocks es festlegt.
+   *
+   * ⚠️ `schluessel` IST DER EINTRAG AUS `GATE_FLAECHEN`, nicht `pfad`: `pfad`
+   * ist auf `process.cwd()` bezogen und traegt das Modulpraefix. `HOST_FORM`
+   * wird ueber `schluessel` geschlagen; wer hier `pfad` nimmt, faellt still auf
+   * `HOST_VORGABE` zurueck.
    */
-  const flaechen = (): { pfad: string; abschnitt: string }[] =>
-    GATE_FLAECHEN.map((p) => join(MODUL, p))
-      .filter((p) => existsSync(p))
-      .map((p) => ({
-        pfad: relative(process.cwd(), p),
-        abschnitt: einloeseAbschnitt(ohneKommentareUndZeichenketten(readFileSync(p, "utf8"))),
+  const flaechen = (): { schluessel: string; pfad: string; abschnitt: string }[] =>
+    GATE_FLAECHEN.map((schluessel) => ({ schluessel, datei: join(MODUL, schluessel) }))
+      .filter(({ datei }) => existsSync(datei))
+      .map(({ schluessel, datei }) => ({
+        schluessel,
+        pfad: relative(process.cwd(), datei),
+        abschnitt: einloeseAbschnitt(ohneKommentareUndZeichenketten(readFileSync(datei, "utf8"))),
       }))
-      .filter((f): f is { pfad: string; abschnitt: string } => f.abschnitt !== null);
+      .filter(
+        (f): f is { schluessel: string; pfad: string; abschnitt: string } => f.abschnitt !== null,
+      );
 
   it("jede Flaeche, die einloest, traegt alle vier Riegel — in dieser Reihenfolge", () => {
     const verstoesse: string[] = [];
-    for (const { pfad, abschnitt } of flaechen()) {
+    for (const { schluessel, pfad, abschnitt } of flaechen()) {
       let vorher = -1;
       let vorherName = "(Abschnittsanfang)";
-      for (const { name, muster } of RIEGEL) {
+      for (const { name, muster } of riegelFuer(schluessel)) {
         const t = muster.exec(abschnitt);
         if (!t) { verstoesse.push(`${pfad}: Riegel „${name}" fehlt ganz`); break; }
         if (t.index < vorher) { verstoesse.push(`${pfad}: „${name}" steht VOR „${vorherName}"`); break; }
