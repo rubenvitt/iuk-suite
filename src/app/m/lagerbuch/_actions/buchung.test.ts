@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte } from "../_db/schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
@@ -197,10 +197,19 @@ describe("bucheZugang", () => {
   });
 
   it("setzt bestelltAt zurueck — Grundlage von „Ware offenbar eingetroffen“", async () => {
-    t.db.update(artikel).set({ bestelltAt: JETZT }).where(eq(artikel.id, "art-1")).run();
+    // ⚠️ BEIDE Artikel werden markiert, nicht nur der gebuchte. Sonst traegt
+    // die Zusicherung am Ende nichts: `art-2` waere ohne diese Zeile vor UND
+    // nach dem Aufruf `null` (die Spalte ist nullable ohne Default,
+    // `_db/schema.ts:78`), und ein `toBeNull()` darauf koennte konstruktiv nie
+    // fehlschlagen.
+    t.db.update(artikel).set({ bestelltAt: JETZT })
+      .where(inArray(artikel.id, ["art-1", "art-2"])).run();
     // Ohne diese Vorbedingung waere `toBeNull()` unten auch dann gruen, wenn
-    // nie eine Bestellmarkierung dagewesen waere.
+    // nie eine Bestellmarkierung dagewesen waere — je Artikel eine, sonst
+    // verschoebe ein fehlgeschlagenes Update auf `art-2` die Luecke nur.
     expect(t.db.select().from(artikel).where(eq(artikel.id, "art-1")).get()?.bestelltAt)
+      .not.toBeNull();
+    expect(t.db.select().from(artikel).where(eq(artikel.id, "art-2")).get()?.bestelltAt)
       .not.toBeNull();
 
     await bucheZugang(
@@ -210,9 +219,19 @@ describe("bucheZugang", () => {
 
     expect(t.db.select().from(artikel).where(eq(artikel.id, "art-1")).get()?.bestelltAt)
       .toBeNull();
-    // Und NUR bei diesem Artikel.
-    expect(t.db.select().from(artikel).where(eq(artikel.id, "art-2")).get()?.bestelltAt)
-      .toBeNull();
+    /*
+     * Und NUR bei diesem Artikel — DIE Zeile mit der Schadenswirkung.
+     * Traeger ist das `.where(eq(artikel.id, v.artikelId))` in `buchung.ts`.
+     * Ohne die Eingrenzung verloere JEDER Artikel des Bestands seine
+     * Bestellmarkierung, sobald IRGENDWO ein Zugang gebucht wird: stiller
+     * Datenverlust ueber die ganze Tabelle, der vorherige Wert ist NICHT
+     * rekonstruierbar (`_db/schema.ts:76-77`), und die „Ware offenbar
+     * eingetroffen"-Anzeige (§5.5) verloere fuer ALLE Positionen ihre
+     * Grundlage. Der unveraenderte Zeitwert, nicht nur „irgendetwas nicht
+     * Null": die Markierung soll UEBERLEBEN, nicht ersetzt werden.
+     */
+    expect(t.db.select().from(artikel).where(eq(artikel.id, "art-2")).get()?.bestelltAt?.getTime())
+      .toBe(JETZT.getTime());
   });
 
   it("verlangt GENAU eine Chargenangabe — mit dem Grund am Feld", async () => {
