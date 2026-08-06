@@ -10,16 +10,29 @@ import { join, relative } from "node:path";
  * Fehler, der typkorrekt, lint-sauber und fuer `pnpm build` unsichtbar waere.
  * Vorbild: `src/core/shell/icons.test.ts` riegelt Falle 7 repo-weit ab.
  *
- * ALLE SCANS SIND IN DER EIGENSCHAFTSFORM (Festlegung G3): sie tolerieren
- * Dateien, die es noch nicht gibt. Das ist noetig, weil `_ui/`, `_actions/` und
- * die drei Weichen-Dateien erst ab Teil 4 entstehen — und ein Scan, der die
- * EXISTENZ behauptet, waere am ersten Tag rot und wuerde abgeschaltet statt
- * repariert.
+ * DIE SCANS WAREN BIS TEIL 4 DURCHWEG IN DER EIGENSCHAFTSFORM (Festlegung G3):
+ * sie tolerieren Dateien, die es noch nicht gibt. Das war noetig, weil `_ui/`,
+ * `_actions/` und die drei Weichen-Dateien erst ab Teil 4 entstehen — und ein
+ * Scan, der die EXISTENZ behauptet, waere am ersten Tag rot und wuerde
+ * abgeschaltet statt repariert.
  *
  * WER SIE VERSCHAERFT:
  *   Teil 4 ergaenzt HIER den `usePathname`-Scan (§7.8.2) und macht aus der
  *   Weichen-Zusicherung eine mit Existenzpflicht. Es entsteht KEINE zweite
  *   Scan-Datei.
+ *
+ * ⚠️ STAND NACH TEIL 4, T87 (der Abnahme). Der Satz „ALLE Scans stehen in der
+ * Eigenschaftsform" ist seither FALSCH, und wer ihn weiter liest, haelt zwei
+ * Bloecke fuer harmloser, als sie sind. Existenzpflicht tragen jetzt:
+ *
+ *   - der Weichen-Block (E9): ZWEI der drei Dateien — `page.tsx` (T81) und
+ *     `a/[artikelId]/page.tsx` (T83). `g/[code]/page.tsx` entsteht erst in
+ *     TEIL 6 (E1, dort J3/T164) und bleibt bis dahin bedingt.
+ *   - der Gate-Flaechen-Block (B2, ganz unten): ALLE DREI Dateien; sie
+ *     existieren seit Welle 4 (`_actions/*`) und Welle 7 (`t/[code]/route.ts`).
+ *
+ * Alles Uebrige steht weiter in der Eigenschaftsform — insbesondere die
+ * CSS-Scans unter `§7.7.x` und der `artikelFilter.ts`-Scan (B1).
  */
 
 const MODUL = join(process.cwd(), "src/app/m/lagerbuch");
@@ -204,7 +217,7 @@ describe("kein x-forwarded-for im Modul", () => {
   });
 });
 
-describe("die drei Weichen-Dateien tragen ein PRAEDIKAT, keinen Riegel", () => {
+describe("Teil 4, T87 — die Weichen-Dateien existieren UND tragen ein PRAEDIKAT, keinen Riegel", () => {
   /**
    * §3.2.1, Regel „Riegel in Layouts und Actions, Praedikat in Weichen".
    *
@@ -217,39 +230,112 @@ describe("die drei Weichen-Dateien tragen ein PRAEDIKAT, keinen Riegel", () => {
    * Der Fehler ist typkorrekt, lint-sauber und fuer `pnpm build` unsichtbar; ein
    * E2E faende ihn nur mit einem Abruf OHNE Cookie, und genau der fehlt heute.
    *
-   * ⚠️ EIGENSCHAFTSFORM: die drei Dateien entstehen erst in TEIL 4. Bis dahin ist
-   * dieser Block gruen, ohne etwas zu behaupten. TEIL 4 ERSETZT die
-   * `existsSync`-Bedingung durch eine Existenzpflicht — dann behauptet der Scan
-   * zusaetzlich, dass es die drei Dateien ueberhaupt gibt.
+   * ⚠️ DIE VERSCHAERFUNG (E9), eingeloest von T87. Bis hierher galt „falls die
+   * Datei existiert" — ein Scan mit Existenzpflicht in Welle 1 waere am ersten
+   * Tag rot gewesen und abgeschaltet statt repariert worden. Jetzt — und ERST
+   * jetzt — existieren zwei der drei Dateien. Was die Eigenschaftsform nicht
+   * halten konnte: eine Weiche, die ihren Host-Riegel verliert, NACHDEM der
+   * Scan zuletzt bewusst gefahren wurde, war in ihr nicht von einer noch nicht
+   * gebauten Datei zu unterscheiden.
+   *
+   * ⚠️ SIE NENNT NUR ZWEI DER DREI DATEIEN. `g/[code]/page.tsx` entsteht erst in
+   * TEIL 6 (E1, dort J3/T164) und bleibt bis dahin in der Eigenschaftsform. Wer
+   * sie hier schon hart verlangt, macht diesen Plan von einem spaeteren
+   * abhaengig.
    */
-  const WEICHEN = [
-    "page.tsx",                  // das Gate (§7.2.4)
-    "a/[artikelId]/page.tsx",    // Regaletikett-Weiche (§7.4.3)
-    "g/[code]/page.tsx",         // Barcode-Weiche (§7.4.3)
+  const PFLICHT = [
+    "page.tsx",                  // das Gate (§7.2.4, T81)
+    "a/[artikelId]/page.tsx",    // Regaletikett-Weiche (§7.4.3, T83)
   ];
+  /**
+   * ⚠️ WER DIESE ZEILE EINLOEST: TEIL 6, T164 (dort J3) — die Aufgabe, die
+   * `g/[code]/page.tsx` anlegt, ueberfuehrt sie in `PFLICHT`.
+   *
+   * Das steht hier und nicht nur im Plan, weil E9 die Weiterfuehrung an „§6"
+   * verweist und §6.3 sie unter seinen vier namentlich zugewiesenen Auflagen
+   * NICHT fuehrt (Befund 47 des Preflight-Scans). Ohne einen benannten
+   * Zustaendigen ist die Schleife unten ein Dauer-No-op: sie bleibt gruen,
+   * solange die Datei fehlt, und niemand merkt, dass niemand sie schaerft.
+   */
+  const NOCH_NICHT = ["g/[code]/page.tsx"];   // Teil 6, T164
 
-  it("enthaelt weder requireLagerbuchAdmin noch requireHelferSitzung", () => {
-    const vorhanden = WEICHEN.map((p) => join(MODUL, p)).filter((p) => existsSync(p));
-    expect(trefferAuf(/\b(?:requireLagerbuchAdmin|requireHelferSitzung)\b/, vorhanden),
-      "Weichen tragen viewerOderNull + istLagerbuchAdmin bzw. helferZugangOderNull (§3.2.1)")
-      .toEqual([]);
-  });
+  for (const rel of PFLICHT) {
+    const pfad = join(MODUL, rel);
 
-  it("traegt in jeder vorhandenen Weiche requireLagerbuchHost", () => {
-    // Der Host-Riegel ist die EINE Ausnahme: er steht in allen dreien, und zwar
-    // als ERSTE Anweisung (§2.6). Er hat nichts mit der Rollenfrage zu tun — er
-    // verhindert eine zweite funktionierende Herkunft des Moduls.
-    for (const p of WEICHEN.map((x) => join(MODUL, x)).filter((x) => existsSync(x))) {
+    it(`${rel} existiert`, () => {
+      expect(existsSync(pfad), `${rel} fehlt — Teil 4 schuldet sie (§7.2.4, §7.4.3)`).toBe(true);
+    });
+
+    it(`${rel} ruft requireLagerbuchHost`, () => {
+      // Der Host-Riegel ist die EINE Ausnahme von „kein Riegel in einer Weiche":
+      // er steht in beiden, und zwar als ERSTE Anweisung (§2.6). Er hat nichts
+      // mit der Rollenfrage zu tun — er verhindert eine zweite funktionierende
+      // Herkunft des Moduls.
+      //
       // Ohne Kommentare UND ohne Zeichenketten: ein `// hier stand mal
       // requireLagerbuchHost` oder ein Text-Literal `"requireLagerbuchHost("`
       // erfuellte die Zusage sonst, ohne dass der Riegel je liefe — das ist der
       // POSITIVE Nachweis, den ein blosser Kommentar-Stripper still bestehen
       // liesse.
-      expect(ohneKommentareUndZeichenketten(readFileSync(p, "utf8")),
-             `${relative(process.cwd(), p)} ohne Host-Riegel`)
-        .toMatch(/requireLagerbuchHost\s*\(/);
-    }
-  });
+      expect(ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8")), `${rel} ohne Host-Riegel`)
+        .toMatch(/\brequireLagerbuchHost\s*\(/);
+    });
+
+    it(`${rel} benutzt das PRAEDIKAT, nicht den Riegel`, () => {
+      /**
+       * `requireLagerbuchAdmin()` wuerfe jede Person OHNE Sitzung nach /login —
+       * also genau die Helferin, fuer die beide Seiten gebaut sind (§3.2.1).
+       *
+       * ⚠️ DER POSITIVE HALB HAENGT AM `(`, NICHT AM NAMEN. Beide Dateien
+       * IMPORTIEREN `istLagerbuchAdmin` namentlich; ein Muster ohne Klammer
+       * waere schon von der Importzeile erfuellt, und die Mutation „Aufruf
+       * entfernen, Import stehen lassen" bliebe gruen. Gemessen: mit
+       * `/istLagerbuchAdmin/` gruen, mit `/istLagerbuchAdmin\s*\(/` rot.
+       *
+       * ⚠️ GELESEN WIRD OHNE KOMMENTARE (Befund 45): beide Dateien tragen
+       * `requireLagerbuchAdmin()` woertlich in ihrem Begruendungskommentar, weil
+       * §3.2.1 genau das konserviert haben will. Ueber den Rohtext waere dieser
+       * Test deterministisch ROT, und die naheliegende „Reparatur" waere das
+       * Loeschen genau dieser Begruendung.
+       *
+       * ⚠️ `isModuleAdmin` UND `moduleAdminPageOrNotFound` STEHEN HIER BEWUSST
+       * NICHT (Regel 4, Abweichung vom abgedruckten Testkoerper): der Block
+       * „keine Suite-Admin-Abkuerzung im Modul" weiter oben haelt beide bereits
+       * MODULWEIT und damit strikt staerker — eine Kopie hier koennte nie
+       * ausloesen, ohne dass dort schon rot waere, und laese sich trotzdem als
+       * eigene Absicherung. `requireHelferSitzung` steht dagegen zu Recht in der
+       * Liste: es ist im Modul erlaubt (`helfer/layout.tsx`) und nur in einer
+       * WEICHE falsch.
+       */
+      expect(ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8")),
+             `${rel} fragt das Praedikat nicht — ein blosser Import genuegt nicht`)
+        .toMatch(/\bistLagerbuchAdmin\s*\(/);
+      expect(trefferAuf(/\b(?:requireLagerbuchAdmin|requireHelferSitzung)\b/, [pfad]),
+        "Weichen tragen viewerOderNull + istLagerbuchAdmin bzw. helferZugangOderNull (§3.2.1)")
+        .toEqual([]);
+    });
+  }
+
+  for (const rel of NOCH_NICHT) {
+    const pfad = join(MODUL, rel);
+    /**
+     * ⚠️ `it.runIf` UND NICHT EIN `if (!existsSync) return;` IM RUMPF. Beide
+     * Formen laufen heute nicht, aber sie MELDEN Verschiedenes: der fruehe
+     * Ausstieg meldet BESTANDEN, `runIf` meldet UEBERSPRUNGEN. „Bestanden" ist
+     * hier die falsche Auskunft — es ist genau das Signal, das eine
+     * Bestandsaufnahme in die Irre fuehrt, und ein `expect(existsSync(p))
+     * .toBe(false)` davorzuschreiben machte es nicht besser: eine Zusicherung,
+     * die konstruktiv nie fehlschlagen kann, ist selbst eine der drei
+     * verbotenen Formen. Sobald TEIL 6, T164 die Datei anlegt, laeuft dieser
+     * Test von selbst an — und die Zeile wandert dann nach `PFLICHT`.
+     */
+    it.runIf(existsSync(pfad))(`${rel}: falls vorhanden, traegt sie die Regel (Teil 6, T164 verschaerft)`, () => {
+      const q = ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8"));
+      expect(q, `${rel} ohne Host-Riegel`).toMatch(/\brequireLagerbuchHost\s*\(/);
+      expect(q, `${rel} fragt das Praedikat nicht`).toMatch(/\bistLagerbuchAdmin\s*\(/);
+      expect(trefferAuf(/\b(?:requireLagerbuchAdmin|requireHelferSitzung)\b/, [pfad])).toEqual([]);
+    });
+  }
 });
 
 describe("die Rueckkante konto.ts → zugang.ts traegt AUSSCHLIESSLICH Typen", () => {
@@ -779,11 +865,20 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
    * bereits produktiv eingetreten (feedback, 15 Ehrenamtliche aus einem
    * Vereins-WLAN).
    *
-   * ⚠️ EIGENSCHAFTSFORM, wie jeder Scan dieser Datei: die drei Dateien
-   * entstehen erst in Welle 4 (`_actions/*`) und Welle 7 (`t/[code]/route.ts`).
-   * AUFLAGE AN T87 (Abnahme): dort wird die `existsSync`-Bedingung durch eine
-   * EXISTENZPFLICHT ersetzt — dasselbe Muster, das der Weichen-Block oben
-   * bereits vorschreibt. Bis dahin behauptet dieser Block nichts.
+   * ⚠️ DIE EIGENSCHAFTSFORM IST VON T87 (Abnahme) EINGELOEST — die Auflage
+   * lautete: „dort wird die `existsSync`-Bedingung durch eine EXISTENZPFLICHT
+   * ersetzt, dasselbe Muster, das der Weichen-Block oben bereits vorschreibt."
+   * Die drei Dateien entstanden in Welle 4 (`_actions/*`) und Welle 7
+   * (`t/[code]/route.ts`); seit Welle 8 existieren alle drei, und der erste
+   * Test unten verlangt das jetzt. Bis dahin behauptete dieser Block nichts —
+   * ein Scan, der am ersten Tag rot ist, wird abgeschaltet statt repariert.
+   *
+   * ⚠️ DIE EXISTENZPFLICHT SITZT AUF `flaechen()`, NICHT AUF `existsSync`
+   * ALLEIN, und das ist der Punkt: `flaechen()` filtert ZWEIMAL — einmal auf
+   * die Existenz und einmal auf `einloeseAbschnitt() !== null`. Eine Flaeche,
+   * die ihr `redeemToken(` verliert, faellt still aus ALLEN DREI Tests heraus,
+   * ohne dass einer rot wird. Ein Scan auf `existsSync` allein liesse genau
+   * diesen zweiten Ausgang offen.
    *
    * ⚠️ GELESEN WIRD `ohneKommentareUndZeichenketten`: Test 1 ist ein POSITIVER
    * Nachweis, und ein Textliteral `"redeemToken("` erfuellte ihn sonst, ohne
@@ -905,6 +1000,17 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
         (f): f is { schluessel: string; pfad: string; abschnitt: string } => f.abschnitt !== null,
       );
 
+  it("Teil 4, T87 — alle drei Gate-Flaechen existieren UND loesen ein", () => {
+    // DIE VERSCHAERFUNG (B2, Auflage aus T64). Ohne sie sind die drei Tests
+    // darunter „vacuously true", sobald eine Datei fehlt oder aufhoert
+    // einzuloesen — und beides sieht in der Ausgabe wie ein bestandener Lauf
+    // aus. Verglichen wird eine aus der PLATTE gelesene Liste gegen die
+    // Sollliste, in derselben Reihenfolge.
+    expect(flaechen().map((f) => f.schluessel),
+      "jede der drei Gate-Flaechen existiert und traegt redeemToken( (§3.9, B2)")
+      .toEqual(GATE_FLAECHEN);
+  });
+
   it("jede Flaeche, die einloest, traegt alle vier Riegel — in dieser Reihenfolge", () => {
     const verstoesse: string[] = [];
     for (const { schluessel, pfad, abschnitt } of flaechen()) {
@@ -962,5 +1068,116 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
       }
     }
     expect(verstoesse).toEqual([]);
+  });
+});
+
+describe("Teil 4, T87 — die Riegelform je Flaechenart, ueber den Baum statt ueber eine Liste", () => {
+  /**
+   * ABNAHME, kein zweiter Unit-Test. Was hier steht, faengt eine Mutation, die
+   * ZWISCHEN den Dateien liegt: eine Datei, die NACH dem letzten Task-Test
+   * entsteht. Ein Scan ueber eine feste Namensliste sieht sie nie — deshalb
+   * laeuft der erste Test ueber den BAUM (`quellDateien()`), nicht ueber eine
+   * Aufzaehlung.
+   *
+   * ⚠️ ABWEICHUNG VOM ABGEDRUCKTEN TESTKOERPER, und sie ist der Grund, warum es
+   * diesen Block ueberhaupt gibt (Regel 4). Der Plan druckt eine feste
+   * Dreierliste (`t/[code]/route.ts`, `manifest.webmanifest/route.ts`,
+   * `icon-192.png/route.ts`) mit `toMatch(/lagerbuchHostOderNull/)`. Diese Form
+   * traegt zweimal nicht:
+   *
+   *   1. SIE IST ROT. `manifest.webmanifest/route.ts` und `icon-192.png/route.ts`
+   *      nennen `lagerbuchHostOderNull` gar nicht — sie rufen `hostAbweisung`
+   *      aus `_lib/hostRiegel.ts` (Befund 43 hat den Riegel dorthin gezogen,
+   *      weil fuenf Kopien einer geteilten Zusage fuenf Orte fuer dieselbe
+   *      Aenderung sind). Der Scan traefe im Rohtext die Zeile, in der die
+   *      beiden die NICHT-werfende Form BEGRUENDEN, und sonst nichts.
+   *   2. SIE WAERE EINE REINE KOPIE. `pwa.route.test.ts` haelt fuer alle fuenf
+   *      PWA-Handler „keine nennt die werfende Form" UND die `??`-Erstanweisung;
+   *      `t/[code]/route.test.ts` haelt dieselbe Aussage fuer den Token-Handler.
+   *      Beide zusammen decken die abgedruckte Dreierliste vollstaendig ab.
+   *
+   * WAS DIESER TEST ALLEIN HAELT, und keiner der beiden Nachbarn: den ACHTEN
+   * Route Handler — den, den es heute noch nicht gibt. `abmelden/route.ts`
+   * (Teil 2, T26) steht in keiner der beiden Listen und ist heute nur deshalb
+   * richtig gebaut, weil sein Autor es wusste.
+   */
+  const ROUTE_HANDLER = () => quellDateien().filter((p) => /\/route\.ts$/.test(p));
+
+  it("JEDER Route Handler des Moduls nimmt die NICHT-werfende Form", () => {
+    /**
+     * §2.6 und `_lib/host.ts:52-67`: Route Handler bekommen
+     * `lagerbuchHostOderNull` (direkt oder ueber `hostAbweisung`), Layouts,
+     * Seiten und Server Actions die werfende Form. Ein `notFound()` ist keine
+     * brauchbare Antwort auf einen GESCANNTEN QR-Code und auch keine auf eine
+     * Manifest-Anfrage: es waere eine HTML-Fehlerseite mit
+     * `Content-Type: text/html`, und der Browser meldete „manifest fetch
+     * failed" statt eines sauberen 404 (Falle 55, Falle 56).
+     */
+    const handler = ROUTE_HANDLER();
+    // Ohne diese Zeile pruefte eine leere Liste null Zusicherungen und waere
+    // gruen — heute sind es sieben (t, abmelden, manifest, vier Symbole).
+    expect(handler.length, "leere Handlerliste — der Scan waere leer-gruen").toBeGreaterThanOrEqual(7);
+
+    const verstoesse: string[] = [];
+    for (const pfad of handler) {
+      const q = ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8"));
+      const kurz = relative(process.cwd(), pfad);
+      // POSITIV, deshalb ohne Zeichenketten: ein Textliteral
+      // `"lagerbuchHostOderNull("` erfuellte die Zusage sonst, ohne dass der
+      // Riegel je liefe.
+      if (!/\blagerbuchHostOderNull\s*\(|\bhostAbweisung\s*\(/.test(q)) {
+        verstoesse.push(`${kurz}: weder lagerbuchHostOderNull( noch hostAbweisung(`);
+      }
+      if (/\brequireLagerbuchHost\b/.test(q)) {
+        verstoesse.push(`${kurz}: nennt die werfende Form (§2.6, Falle 55)`);
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
+
+  it("`hostAbweisung` selbst loest auf die nicht-werfende Form auf", () => {
+    // DIE KETTE SCHLIESSEN. Seit der Riegel geteilt ist, ist DIES die eine
+    // Datei, in der die Form fuer fuenf Handler auf einmal umkippen koennte —
+    // und der Test darueber liesse `hostAbweisung(` weiter durchgehen, ohne
+    // etwas zu merken.
+    const riegel = ohneKommentareUndZeichenketten(
+      readFileSync(join(MODUL, "_lib/hostRiegel.ts"), "utf8"),
+    );
+    expect(riegel, "hostAbweisung ruft die nicht-werfende Form").toMatch(/\blagerbuchHostOderNull\s*\(/);
+    expect(riegel, "hostAbweisung wuerfe sonst fuer fuenf Handler auf einmal")
+      .not.toMatch(/\brequireLagerbuchHost\b|\bnotFound\b/);
+  });
+
+  it("`helfer/layout.tsx` traegt den Sitzungsriegel, NICHT den Host-Riegel und KEINEN Rahmen", () => {
+    /**
+     * ⚠️ HIER STEHT `not.toMatch(/requireLagerbuchHost/)`, WO DER PLAN
+     * `toMatch` DRUCKT — und das ist keine Lockerung, sondern die Zusage aus
+     * Global Constraint 24 im Wortlaut: „`requireHelferSitzung` und
+     * `requireHelferSchreibend` rufen `requireLagerbuchHost` INTERN, als erste
+     * Anweisung. Wer sie benutzt, ruft den Host-Riegel NICHT noch einmal."
+     *
+     * T75 erzwingt genau das fuer `_actions/sitzung.ts` mit einem eigenen
+     * `not.toMatch`. Der abgedruckte Testkoerper haette dieselbe Regel fuer zwei
+     * Aufrufer desselben Riegels in zwei entgegengesetzte Dauerzusagen zerlegt
+     * (Befund 46), und die Zusage „host-gebunden durch KONSTRUKTION" traegt
+     * dann nicht mehr: ein zweiter Aufruf hier ist die Behauptung, der Riegel
+     * sei host-blind. T84 hat den doppelten Aufruf entfernt; dieser Test sichert
+     * den heutigen Zustand zu, nicht den alten.
+     *
+     * ⚠️ DIESE DATEI HAT KEINEN EIGENEN TESTKOERPER. Was hier nicht steht, steht
+     * nirgends.
+     *
+     * ⚠️ KEIN RAHMEN: `HelferRahmen` braucht `sitzungsetikett` und `laeuftAb`
+     * als Pflicht-Props, und ein Layout kann einer Seite keine Props reichen
+     * (§7.8.2, N-11). Stuende er hier, truege jede Seite ihn zweimal.
+     */
+    const pfad = join(MODUL, "helfer/layout.tsx");
+    expect(existsSync(pfad), "helfer/layout.tsx fehlt — sie traegt den Sitzungsriegel").toBe(true);
+    const q = ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8"));
+    expect(q, "ohne sie waere der ganze /helfer-Ast ungeriegelt").toMatch(/\brequireHelferSitzung\s*\(/);
+    expect(q, "Global Constraint 24 — der Riegel ruft den Host-Riegel intern")
+      .not.toMatch(/\brequireLagerbuchHost\b/);
+    expect(q, "der Rahmen gehoert in die Seiten, die seine Pflicht-Props kennen")
+      .not.toMatch(/\bHelferRahmen\b/);
   });
 });
