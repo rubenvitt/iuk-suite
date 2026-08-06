@@ -781,9 +781,10 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // ⚠️ STAND NACH T87 (06.08.2026) — der Absatz „EIGENSCHAFTSFORM: die Menge
     // ist heute 0 Dateien … Zaehne ab Welle 3" ist ueberholt und war deshalb
     // gefaehrlich: er las sich wie eine Erlaubnis, den Scan leer laufen zu
-    // lassen. Gemessen sind es **18** Dateien (zwoelf `_ui/*.tsx`, vier unter
-    // `helfer/`, `a/[artikelId]/page.tsx`, `t/[code]/route.ts` — plus
-    // `page.tsx`). Die Untergrenze unten haelt das fest.
+    // lassen. Gemessen sind es **18** Dateien: zwoelf `_ui/*.tsx` + drei unter
+    // `helfer/` (`page.tsx`, `layout.tsx`, `check/page.tsx`) +
+    // `a/[artikelId]/page.tsx` + `t/[code]/route.ts` + `page.tsx` = 18.
+    // Die Untergrenze unten haelt das fest.
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Brotkrume.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
