@@ -8,10 +8,22 @@ import {
 const QUELLE = "src/app/m/lagerbuch/_lib/actionTypen.ts";
 
 describe("HelferGrund — der geschlossene Satz aus §7.3", () => {
-  it("hat genau vier Werte, und die Typzusicherung haelt sie fest", () => {
+  it("hat genau fuenf Werte, und die Typzusicherung haelt sie fest", () => {
     // Ein `satisfies` statt `as`: `as` schwiege, wenn ein Wert wegfiele.
-    const alle = ["sitzung", "gesperrt", "leer", "netz"] satisfies HelferGrund[];
-    expect(new Set(alle).size).toBe(4);
+    // ⚠️ `satisfies` allein FAENGE EINEN FEHLENDEN WERT NICHT — eine Teilmenge
+    // erfuellt `HelferGrund[]` genauso. Der Traeger ist die
+    // Exhaustiveness-Zusicherung darunter: fiele einer der fuenf Werte weg oder
+    // kaeme ein sechster hinzu, ist `zuOrdnung` nicht mehr vollstaendig und
+    // `pnpm typecheck` bricht.
+    const alle = ["sitzung", "gesperrt", "leer", "netz", "eingabe"] satisfies HelferGrund[];
+    expect(new Set(alle).size).toBe(5);
+
+    const zuOrdnung: Record<HelferGrund, true> = {
+      sitzung: true, gesperrt: true, leer: true, netz: true, eingabe: true,
+    };
+    expect(Object.keys(zuOrdnung).sort()).toEqual(
+      ["eingabe", "gesperrt", "leer", "netz", "sitzung"],
+    );
   });
 
   it("leitet die geteilte Haelfte aus SperrGrund ab statt sie abzuschreiben (G7)", () => {
@@ -20,8 +32,18 @@ describe("HelferGrund — der geschlossene Satz aus §7.3", () => {
     // faende es erst beim dritten Sperrgrund.
     const q = readFileSync(QUELLE, "utf8");
     expect(q).toMatch(/import type \{ SperrGrund \} from "\.\/helferZugang";/);
-    expect(q).toMatch(/export type HelferGrund = SperrGrund \| "leer" \| "netz";/);
+    expect(q).toMatch(
+      /export type HelferGrund = SperrGrund \| "leer" \| "netz" \| "eingabe";/,
+    );
     expect(q).not.toMatch(/HelferGrund =\s*"sitzung"/);
+  });
+
+  it("`eingabe` traegt seine Begruendung an der Definition (B4)", () => {
+    // Der naechste Leser sucht sonst die Erzeugerstelle und findet nur einen
+    // fuenften Wert ohne Anlass — und der naheliegende „Aufraeumschritt" waere,
+    // ihn auf `netz` zurueckzufuehren, also genau den Verstoss.
+    const q = readFileSync(QUELLE, "utf8");
+    expect(q).toMatch(/["`]eingabe["`][\s\S]{0,400}safeParse/);
   });
 });
 
@@ -94,6 +116,10 @@ describe("darfErneuern — §7.4.4, und warum `gesperrt` KEIN Feld bekommt", () 
   it("`leer` und `netz` duerfen nicht — beide haben nichts mit der Sitzung zu tun", () => {
     expect(darfErneuern("leer")).toBe(false);
     expect(darfErneuern("netz")).toBe(false);
+  });
+
+  it("`eingabe` darf NICHT — eine unvollstaendige Nutzlast wird durch Erneuern nicht vollstaendig (B4)", () => {
+    expect(darfErneuern("eingabe")).toBe(false);
   });
 });
 
