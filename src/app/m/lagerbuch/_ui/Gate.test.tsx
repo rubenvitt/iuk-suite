@@ -35,7 +35,18 @@ const LOGIN = "/login?callbackUrl=http%3A%2F%2Flagerbuch.localtest.me%3A3100%2Fv
  */
 const LOGIN_INNEN = "/login?callbackUrl=%2Fm%2Flagerbuch%2Fverwaltung";
 
-const NETZ_SATZ = "Keine Verbindung. Der Code wurde nicht geprüft — bitte erneut auf Weiter tippen.";
+/*
+ * ⚠️ URSACHENNEUTRAL, und das ist die Zusage (Review-Befund 1, Fix-Runde 1). Das
+ * `catch` der Insel faengt DREI Lagen — Verbindungsabbruch, Host-Wurf und jede
+ * echte Serverausnahme (fehlendes `LAGERBUCH_HELFER_SITZUNG_SECRET`,
+ * `SQLITE_READONLY`). Eine Netzdiagnose waere fuer zwei davon die falsche
+ * Auskunft. Der Satz steht hier AUSGESCHRIEBEN und wird NICHT aus der Insel
+ * importiert: sonst waere die Zusicherung gegen ein selbstgebautes Literal
+ * gerichtet und koennte konstruktiv nie fehlschlagen.
+ */
+const AUSNAHME_SATZ =
+  "Der Code konnte nicht geprüft werden. Bitte noch einmal auf Weiter tippen — " +
+  "bleibt es dabei, wende dich an die Leitung.";
 const URL_SATZ = "Dieser Code ist unbekannt oder wurde gesperrt. Wende dich an die Leitung.";
 
 /**
@@ -124,8 +135,8 @@ describe("Gate — die FERTIGE Meldung", () => {
   });
 });
 
-describe("Gate — der Netzfall (Global Constraint 11, Befund 19)", () => {
-  it("faengt den Abbruch ab und zeigt den Netz-Satz am EINEN Fehlerort", async () => {
+describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)", () => {
+  it("faengt den VERBINDUNGSABBRUCH ab und zeigt den Ausnahme-Satz am EINEN Fehlerort", async () => {
     /*
      * Ohne das `try/catch` in der Insel lehnt der Aufruf ab, React verwirft in
      * die naechste Error Boundary — genau der Zustand, den Falle 66 verbietet.
@@ -137,17 +148,42 @@ describe("Gate — der Netzfall (Global Constraint 11, Befund 19)", () => {
     await submitForm();
     const orte = queryAll("[data-rolle='gate-fehler']");
     expect(orte.length).toBe(1);
-    expect(orte[0].textContent).toBe(NETZ_SATZ);
+    expect(orte[0].textContent).toBe(AUSNAHME_SATZ);
     /*
-     * §2.12: `"netz"` ENTSTEHT NIE SERVERSEITIG. Der Beleg steht in derselben
+     * §2.12: der Satz ENTSTEHT NIE SERVERSEITIG. Der Beleg steht in derselben
      * Messung: der einzige Ausgang der Action war eine ABLEHNUNG — der Satz
      * oben kann also nur aus der Insel stammen.
      */
     expect(aktion.mock.settledResults.map((r) => r.type)).toEqual(["rejected"]);
   });
 
+  it("beantwortet auch eine ECHTE SERVERAUSNAHME nicht mit einer Netzdiagnose", async () => {
+    /*
+     * ⚠️ DER FALL, DEN DIE ALTE FASSUNG FALSCH BEANTWORTETE (Review-Befund 1).
+     * Ein serverseitig geworfener Fehler erreicht den Client als `Error` MIT
+     * `digest` — nicht als abgerissene Verbindung. N-1 der Regeldatei nennt den
+     * Ausloeser woertlich: fehlt `LAGERBUCH_HELFER_SITZUNG_SECRET`, wirft
+     * `createHelferSitzung` in JEDEM Trefferpfad, den der Gate-Weg ueber
+     * `redeemToken` erreicht; `getDb()`/`SQLITE_READONLY` genauso. Dann
+     * beantwortete das Gate JEDE KORREKTE Code-Eingabe mit „Keine Verbindung",
+     * und die Person suchte den Fehler bei ihrem Empfang.
+     *
+     * ⚠️ KEINE KOPIE des Tests darueber (Regel 4): der haelt den Abbruch, dieser
+     * die zweite Ursache. Belegt durch die Mutation MF2 des Fix-Berichts — ein
+     * `catch`, das auf `digest` verzweigt, laesst den Abbruch-Test GRUEN und
+     * diesen hier ROT.
+     */
+    aktion.mockRejectedValue(Object.assign(new Error("boom"), { digest: "3141592653" }));
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
+    await submitForm();
+    const orte = queryAll("[data-rolle='gate-fehler']");
+    expect(orte.length).toBe(1);
+    expect(orte[0].textContent).toBe(AUSNAHME_SATZ);
+    expect(orte[0].textContent).not.toMatch(/Verbindung/);
+  });
+
   it("verschluckt KEINE echte Antwort der Action", async () => {
-    // Ein `catch`, das jeden Ausgang auf „Keine Verbindung" zoege, waere die
+    // Ein `catch`, das jeden Ausgang auf den Ausnahme-Satz zoege, waere die
     // teuerste Reparatur: die Abweisung („Code unbekannt") verschwaende hinter
     // einer falschen Diagnose.
     aktion.mockResolvedValue({ fehler: URL_SATZ });
@@ -161,7 +197,8 @@ describe("Gate — der Netzfall (Global Constraint 11, Befund 19)", () => {
      * ⚠️ DER PFAD, DER IN PRODUKTION ZAEHLT. `einloesenAmGate` endet im Erfolg
      * mit `redirect()` (`_actions/gate.ts:99`). Der Client-Aufruf lehnt dafuer
      * NICHT ab — Next transportiert den Redirect in der Antwort
-     * (`f/[slugSecret]/Zettel.tsx:647-650`) —, er loest mit `undefined` auf.
+     * (`src/app/m/feedback/f/[slugSecret]/Zettel.tsx:647-650`) —, er loest mit
+     * `undefined` auf.
      * Gemessen unter react-dom 19.2: React rendert danach noch einmal, und ein
      * ungeschuetztes `zustand.fehler` wirft dabei
      * „Cannot read properties of undefined" und reisst den Baum ab.
