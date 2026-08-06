@@ -64,6 +64,31 @@ function ohneKommentare(quelle: string): string {
 const CSS = readFileSync(STYLESHEET, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const DEKLARIERT = new Set((CSS.match(/\.[A-Za-z_][\w-]*/g) ?? []).map((t) => t.slice(1)));
 
+/**
+ * Die Deklarationen EINES Selektors aus `helfer.module.css`, als Map.
+ *
+ * Gelesen statt behauptet: der Riegel unten prueft, dass jede Eigenschaft, mit
+ * der `.chip` einen ganzen Satz unlesbar macht, am Rueckmeldungselement
+ * ueberschrieben ist — und zwar mit einem ANDEREN Wert als dem im Stylesheet.
+ * Aendert T64 `.chip`, aendert sich die Vergleichsgrundlage mit.
+ */
+function regeln(selektor: string): Map<string, string> {
+  const treffer = [...CSS.matchAll(new RegExp(`^\\${selektor}\\s*\\{([^}]*)\\}`, "gm"))];
+  if (treffer.length !== 1) {
+    throw new Error(`${selektor} steht ${treffer.length}× in ${STYLESHEET} — erwartet: genau 1×`);
+  }
+  return new Map(
+    treffer[0][1]
+      .split(";")
+      .map((d) => d.trim())
+      .filter(Boolean)
+      .map((d) => {
+        const i = d.indexOf(":");
+        return [d.slice(0, i).trim(), d.slice(i + 1).trim()] as [string, string];
+      }),
+  );
+}
+
 /** `_ok_ef45c4` -> `ok`. Wirft, wenn die Vitest-Namensform sich aendert. */
 function schluessel(el: HTMLElement): string[] {
   return el.className
@@ -307,6 +332,70 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
     expect(query<HTMLButtonElement>(BUCHEN).disabled).toBe(false);
     // `"netz"` ist ein CLIENT-Grund: er fuehrt zu keinem Gate-Weg.
     expect(exists("[data-rolle='entnahme-zum-gate']")).toBe(false);
+  });
+});
+
+describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () => {
+  /**
+   * ⚠️ WARUM ES DIESEN TEST GIBT. `.chip` ist ein KURZstatus:
+   * `white-space: nowrap`, `border-radius: 99px`, `padding: 2.5px 9px`,
+   * `font-size: 12px` (`helfer.module.css:227-230`), und die umgebende `.karte`
+   * traegt `overflow: hidden` (`:186`). In diesen Chip laufen hier die
+   * vollstaendigen §7.3-Saetze: bei 390px Geraetebreite bleiben 334px
+   * Karteninnenraum (390 − 2×14 `.inhalt` − 2×14 `.kartePad`), der
+   * `sitzung`-Satz braucht bei 12px/600 rund 540px. Ohne Umbruchmoeglichkeit
+   * schneidet `overflow: hidden` den Ueberhang OHNE Ellipse ab — genau der
+   * Handlungssatz faellt weg, um dessentwillen der ganze Task existiert.
+   *
+   * ⚠️ WARUM ER DEN STIL LIEST UND NICHT DAS AUSSEHEN. jsdom wendet KEIN CSS an
+   * (gemessen und festgehalten in `HelferChip.tsx:22-28`), und der CSS-Scan in
+   * `_lib/bauform.test.ts` sucht ausschliesslich nach `--ant-`. Ein INLINE-Stil
+   * steht dagegen im DOM und ist damit das Einzige, was ein Tor dieses Projekts
+   * von dieser Regel ueberhaupt sehen kann.
+   *
+   * ⚠️ WARUM NUR DER FEHLERFALL GEPRUEFT WIRD. Der Stil haengt nicht an `art` —
+   * es ist EIN Element ohne Verzweigung. Ein zweiter Test auf dem Erfolgsfall
+   * waere eine Kopie, keine zweite Zusage (Regel 4). Geprueft wird der
+   * `leer`-Satz, weil er der laengste und der Gegenstand des Befunds ist.
+   */
+  it("ueberschreibt JEDE Pilleneigenschaft von `.chip` — sonst schneidet `overflow: hidden` ab", async () => {
+    const chip = regeln(".chip");
+    // Die Voraussetzung des Befunds, aus dem Stylesheet GELESEN statt behauptet:
+    // faellt `nowrap` in T64 je weg, geht diese Zeile rot und der naechste Leser
+    // weiss, dass die Ueberschreibung neu zu bewerten ist.
+    expect(chip.get("white-space")).toBe("nowrap");
+
+    await mount(
+      <Entnahme
+        detail={DETAIL}
+        buchen={async () => ({
+          ok: false,
+          grund: "leer",
+          text: "Im Handlager liegt nichts mehr von Kompresse 10×10. Bitte der Verwaltung melden.",
+        })}
+      />,
+    );
+    await click(BUCHEN);
+    const r = query(ERGEBNIS);
+
+    // Der Umbruch selbst — ohne ihn hilft keine Geometrie.
+    expect(r.style.whiteSpace).toBe("normal");
+    // `inline-flex` mit Umbruch bliebe schrumpfbreit und liefe wieder ueber.
+    expect(r.style.display).toBe("block");
+
+    // Und die Geometrie MUSS mit: `border-radius: 99px` mit `padding: 2.5px 9px`
+    // ueber drei Zeilen ist ein zerlaufendes Oval — man tauschte Abschneiden
+    // gegen Unlesbarkeit. Die Liste ist genau die Schnittmenge aus „steht in
+    // `.chip`" und „macht einen SATZ unlesbar".
+    for (const eig of ["display", "white-space", "border-radius", "padding", "font-size"]) {
+      expect(chip.has(eig)).toBe(true);
+      expect(r.style.getPropertyValue(eig)).not.toBe("");
+      expect(r.style.getPropertyValue(eig)).not.toBe(chip.get(eig));
+    }
+
+    // Der Ton bleibt, wo er war: die Ueberschreibung tauscht die Form, nicht die
+    // Farbe — `ton()` verlangt weiterhin `chip` plus genau einen Tonschluessel.
+    expect(ton(r)).toBe("rot");
   });
 });
 
