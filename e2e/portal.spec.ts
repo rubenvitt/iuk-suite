@@ -1,12 +1,23 @@
 import { test, expect } from "@playwright/test";
 import { devLogin } from "./fixtures";
 
-test("portal shows seeded public tiles to any logged-in user", async ({ page }) => {
+test("portal und Kopfmenue blenden Apps ohne passende Pocket-ID-Gruppe aus", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "" });
   await expect(page.getByTestId("portal-grid")).toBeVisible();
   await expect(page.getByText("BookStack")).toBeVisible();
   // group-gated service hidden without admin group
   await expect(page.getByText("Vaultwarden")).toHaveCount(0);
+
+  const menu = page.getByTestId("modulzeile");
+  await expect(menu.getByRole("link", { name: "QR-Codes" })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Feedback" })).toHaveCount(0);
+  await expect(menu.getByRole("link", { name: "Dateien" })).toHaveCount(0);
+  await expect(menu.getByRole("link", { name: "Lagerbuch" })).toHaveCount(0);
+});
+
+test("portal zeigt eine geschuetzte App bei passender Pocket-ID-Gruppe", async ({ page }) => {
+  await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins" });
+  await expect(page.getByText("Vaultwarden")).toBeVisible();
 });
 
 test("admin can create a service", async ({ page }) => {

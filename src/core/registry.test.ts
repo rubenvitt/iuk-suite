@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
-  getModule, moduleForHost, canAccess, visibleSwitcherModules, MODULES, requiredGroupsFor,
+  getModule, moduleForHost, canAccess, visibleSwitcherModules, requiredGroupsFor,
 } from "@/core/registry";
 
 describe("registry", () => {
@@ -94,11 +94,40 @@ describe("registry", () => {
   it("visibleSwitcherModules filters by access and showInSwitcher", () => {
     const anon = visibleSwitcherModules(null).map((m) => m.key);
     expect(anon).not.toContain("alpha");
+    expect(anon).toEqual(["qr"]);
     const withAlpha = visibleSwitcherModules(["alpha-users"]).map((m) => m.key);
     expect(withAlpha).toContain("alpha");
     expect(withAlpha).toContain("portal");
     // kioskdemo is never in the switcher
     expect(withAlpha).not.toContain("kioskdemo");
+  });
+
+  it("blendet gemischt oeffentliche Module ohne Gruppe aus dem Switcher aus", () => {
+    const ohneGruppen = visibleSwitcherModules([]).map((m) => m.key);
+    expect(ohneGruppen).not.toContain("feedback");
+    expect(ohneGruppen).not.toContain("files");
+    expect(ohneGruppen).not.toContain("lagerbuch");
+
+    expect(visibleSwitcherModules(["da-feedback-gl"]).map((m) => m.key)).toContain("feedback");
+    expect(visibleSwitcherModules(["iuk-files-admin"]).map((m) => m.key)).toContain("files");
+    expect(visibleSwitcherModules(["lagerbuch_nutzer"]).map((m) => m.key)).toContain("lagerbuch");
+  });
+
+  it("liest fuer den Switcher die env-konfigurierten Access- und Admin-Gruppen", () => {
+    const env = {
+      SUITE_ACCESS_GROUP_FEEDBACK: "feedback-neu",
+      SUITE_ACCESS_GROUP_FILES: "dateien-zugriff",
+      SUITE_ADMIN_GROUP_FILES: "dateien-neu",
+      SUITE_ADMIN_GROUP_LAGERBUCH: "lager-neu",
+    };
+
+    expect(visibleSwitcherModules(["feedback-neu"], env).map((m) => m.key)).toContain("feedback");
+    expect(visibleSwitcherModules(["da-feedback-gl"], env).map((m) => m.key)).not.toContain(
+      "feedback",
+    );
+    expect(visibleSwitcherModules(["dateien-neu"], env).map((m) => m.key)).toContain("files");
+    expect(visibleSwitcherModules(["dateien-zugriff"], env).map((m) => m.key)).toContain("files");
+    expect(visibleSwitcherModules(["lager-neu"], env).map((m) => m.key)).toContain("lagerbuch");
   });
 });
 

@@ -42,6 +42,27 @@ export function accessGroupEnvName(key: string): string {
 }
 
 /**
+ * Exakter Gruppenabgleich fuer jede sichtbare App-Verknuepfung.
+ *
+ * Pocket ID liefert die Gruppenschluessel als Teil der Sitzung. Ein Modul im
+ * App-Switcher und eine Kachel im Portal duerfen daraus keine unterschiedlichen
+ * Regeln ableiten: mindestens eine konfigurierte Gruppe muss woertlich im
+ * Claim vorkommen. `null`/`undefined` bezeichnet eine anonyme Sitzung und
+ * gewaehrt ebenso wenig wie eine leere Gruppenliste.
+ *
+ * Die Sonderfaelle „ohne Gruppenzwang" bzw. „oeffentlich" entscheiden die
+ * Aufrufer. Dadurch kann diese Funktion eine leere Anforderung nicht
+ * versehentlich als Freigabe interpretieren.
+ */
+export function hasAnyGroup(
+  userGroups: readonly string[] | null | undefined,
+  requiredGroups: readonly string[],
+): boolean {
+  if (!userGroups) return false;
+  return requiredGroups.some((group) => userGroups.includes(group));
+}
+
+/**
  * Die Zugangsgruppen aus der Env — oder `null` für „nicht konfiguriert".
  *
  * WARUM HIER `null` UND NICHT DIE LEERE LISTE, anders als bei
