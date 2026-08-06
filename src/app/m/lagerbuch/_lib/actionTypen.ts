@@ -34,7 +34,26 @@ import type { SperrGrund } from "./helferZugang";
  * Woerter waeren genau die Typinkonsistenz, gegen die die Produces-Bloecke
  * geschrieben sind — und der Bruch waere still.
  */
-export type HelferGrund = SperrGrund | "leer" | "netz";
+/**
+ * ⚠️ `"eingabe"` — der fuenfte Wert, Betreiberentscheidung B4 (06.08.2026).
+ *
+ * WARUM ES IHN GIBT. Der `safeParse`-Zweig von `checkAbschluss` (§7.4.3) ist
+ * eine ERWARTBARE Fehlerlage — altes Fenster, halb geladene Seite — und damit
+ * nach Falle 66 ein RUECKGABEWERT, kein Wurf. Aber er ist keiner der vier
+ * vorhandenen Faelle: er ist kein Netzereignis (die Verbindung STEHT), kein
+ * Riegelfall (Sitzung und Kaertchen sind in Ordnung) und nicht „nichts
+ * gebucht" (`leer` heisst `gebucht === 0`).
+ *
+ * Der Plan schrieb dafuer `grund: "netz"` vor. Das verletzt Global Constraint
+ * 12 — `"netz"` ENTSTEHT NIE SERVERSEITIG (siehe den Absatz unter
+ * `HelferErgebnis`) —, und der Bruch waere STILL und typkorrekt: die Anzeige
+ * sagte „Keine Verbindung", wo die Verbindung steht und die Eingabe
+ * unvollstaendig ist.
+ *
+ * `darfErneuern("eingabe")` ist FALSE: eine unvollstaendige Nutzlast wird nicht
+ * dadurch vollstaendig, dass jemand die Sitzung erneuert.
+ */
+export type HelferGrund = SperrGrund | "leer" | "netz" | "eingabe";
 
 export type HelferErgebnis<T> =
   | { ok: true; wert: T }
