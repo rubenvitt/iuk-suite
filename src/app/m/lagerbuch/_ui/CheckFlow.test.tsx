@@ -57,6 +57,37 @@ function ohneKommentare(quelle: string): string {
     .join("\n");
 }
 
+const STYLESHEET = "src/app/m/lagerbuch/_ui/helfer.module.css";
+const CSS = readFileSync(STYLESHEET, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+
+/**
+ * Die Deklarationen EINES Selektors aus `helfer.module.css`, als Map.
+ *
+ * Zeichengleiche Kopie aus `_ui/Entnahme.test.tsx:70-88` (T78, Review-Befund 1)
+ * — dieselbe Lage, dieselbe Begruendung: gelesen statt behauptet, damit der
+ * Riegel unten pruefen kann, dass jede Eigenschaft, mit der `.chip` einen ganzen
+ * SATZ unlesbar macht, am Warnhinweis ueberschrieben ist, und zwar mit einem
+ * ANDEREN Wert als dem im Stylesheet. Aendert T64 `.chip`, aendert sich die
+ * Vergleichsgrundlage mit. Die Funktion wird dort nicht exportiert (N-5), also
+ * eine lokale Kopie statt eines Re-Exports.
+ */
+function regeln(selektor: string): Map<string, string> {
+  const treffer = [...CSS.matchAll(new RegExp(`^\\${selektor}\\s*\\{([^}]*)\\}`, "gm"))];
+  if (treffer.length !== 1) {
+    throw new Error(`${selektor} steht ${treffer.length}× in ${STYLESHEET} — erwartet: genau 1×`);
+  }
+  return new Map(
+    treffer[0][1]
+      .split(";")
+      .map((d) => d.trim())
+      .filter(Boolean)
+      .map((d) => {
+        const i = d.indexOf(":");
+        return [d.slice(0, i).trim(), d.slice(i + 1).trim()] as [string, string];
+      }),
+  );
+}
+
 const FZ = { id: "fz-1", name: "RTW 1", kennung: "HH-DR 1234" };
 const WARN = { rotTage: 31, gelbTage: 56 };
 
@@ -394,6 +425,78 @@ describe("CheckFlow — Nachfuellen", () => {
     expect(anzeigen()).toEqual(["2", "3"]);
     expect(exists("[data-rolle='nf-knappheit']")).toBe(true);
   });
+
+  /**
+   * ⚠️ WARUM ES DIESEN TEST GIBT (Review-Befund 1). `.chip` ist ein KURZstatus:
+   * `white-space: nowrap`, `border-radius: 99px`, `padding: 2.5px 9px`,
+   * `font-size: 12px` (`helfer.module.css:227-230`), und die umgebende `.karte`
+   * traegt `overflow: hidden` (`:186`). In diesen Chip laeuft hier ein Satz von
+   * 83 Zeichen: bei 390px Geraetebreite bleiben 334px Karteninnenraum, der Satz
+   * braucht bei 12px/600 rund 500px. Ohne Umbruchmoeglichkeit schneidet
+   * `overflow: hidden` den Ueberhang OHNE Ellipse ab — die Helferin liest
+   * „Handlager reicht nicht fuer alle Positio…" und bekommt die eigentliche
+   * Ansage („es wird nur gebucht, was verfuegbar ist") nie zu sehen. Es ist der
+   * EINZIGE Hinweis VOR dem Abschluss, dass die Buchung serverseitig gekappt
+   * wird.
+   *
+   * ⚠️ WARUM ER DEN STIL LIEST UND NICHT DAS AUSSEHEN. jsdom wendet KEIN CSS an
+   * (gemessen und festgehalten in `HelferChip.tsx:22-28`), und der CSS-Scan in
+   * `_lib/bauform.test.ts` sucht ausschliesslich nach `--ant-`. `exists()` misst
+   * nicht, ob Text SICHTBAR ist. Ein INLINE-Stil steht dagegen im DOM und ist
+   * damit das Einzige, was ein Tor dieses Projekts von dieser Regel ueberhaupt
+   * sehen kann.
+   */
+  it("der Knappheitssatz umbricht — sonst schneidet `overflow: hidden` ihn ab", async () => {
+    const chip = regeln(".chip");
+    // Die Voraussetzung des Befunds, aus dem Stylesheet GELESEN statt behauptet:
+    // faellt `nowrap` in T64 je weg, geht diese Zeile rot und der naechste Leser
+    // weiss, dass die Ueberschreibung neu zu bewerten ist.
+    expect(chip.get("white-space")).toBe("nowrap");
+
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={[
+          POS({ id: "sp-1", soll: 5, handlagerBestand: 2 }),
+          POS({ id: "sp-2", fachLabel: "Fach 2", soll: 5, handlagerBestand: 2 }),
+        ]}
+      />,
+    );
+    for (const el of queryAll("button[aria-label$='verringern']")) {
+      for (let i = 0; i < 5; i++) await clickElement(el);
+    }
+    await click(WEITER);
+    const plus = queryAll("[data-rolle='nf-liste'] button[aria-label$='erhöhen']")[1];
+    for (let i = 0; i < 3; i++) await clickElement(plus);
+
+    const w = query("[data-rolle='nf-knappheit'] [data-rolle='helfer-chip']");
+    expect(w.textContent).toContain("es wird nur gebucht, was verfügbar ist");
+
+    // Der Umbruch selbst — ohne ihn hilft keine Geometrie.
+    expect(w.style.whiteSpace).toBe("normal");
+    // `inline-flex` mit Umbruch bliebe schrumpfbreit und liefe wieder ueber.
+    expect(w.style.display).toBe("block");
+
+    // Und die Geometrie MUSS mit: `border-radius: 99px` mit `padding: 2.5px 9px`
+    // ueber zwei Zeilen ist ein zerlaufendes Oval — man tauschte Abschneiden
+    // gegen Unlesbarkeit. Die Liste ist genau die Schnittmenge aus „steht in
+    // `.chip`" und „macht einen SATZ unlesbar".
+    for (const eig of ["display", "white-space", "border-radius", "padding", "font-size"]) {
+      expect(chip.has(eig)).toBe(true);
+      expect(w.style.getPropertyValue(eig)).not.toBe("");
+      expect(w.style.getPropertyValue(eig)).not.toBe(chip.get(eig));
+    }
+
+    // Der Ton bleibt, wo er war: die Ueberschreibung tauscht die FORM, nicht die
+    // Farbe. `gelb` ist die Warnstufe (§6.6.2) — ohne die Klassen waere es ein
+    // Absatz ohne Ampelwert.
+    expect(w.className).toMatch(/chip/);
+    expect(w.className).toMatch(/gelb/);
+  });
 });
 
 describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
@@ -485,7 +588,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
 });
 
 describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
-  it("die Auswahl steht NICHT allein auf der Farbe — `aria-pressed` traegt sie", async () => {
+  it("die Auswahl steht NICHT allein auf der Farbe — Haken UND `aria-pressed` tragen sie", async () => {
     // §2 Punkt 21 und T70: „Bedeutung nie allein ueber Farbe", „jeder Status
     // traegt zusaetzlich Text". Der Chiptext ist im gewaehlten wie im
     // ungewaehlten Fall derselbe; ohne `aria-pressed` waere die Auswahl fuer
@@ -505,21 +608,85 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
     expect(gedrueckt("geraet-vorhanden")).toBe("true");
     expect(gedrueckt("geraet-fehlt")).toBe("false");
 
+    // ⚠️ DIE SEHENDE HAELFTE der Befund-35-Reparatur (Review-Befund 4). Ohne
+    // den Haken unterscheidet sich der gewaehlte Chip vom ungewaehlten NUR
+    // durch die Farbe — der Chiptext ist in beiden Faellen derselbe, und ein
+    // `<svg>` traegt keinen Text, faellt also durch jede `textContent`-Zusicherung
+    // hindurch. `aria-pressed` allein deckt nur die Bildschirmleserin ab.
+    const haken = (rolle: string) => queryAll(`[data-rolle='${rolle}'] svg`).length;
+    expect(haken("geraet-vorhanden")).toBe(1);
+    expect(haken("geraet-fehlt")).toBe(0);
+
     // Vorbelegung „vorhanden · In Ordnung" (:325, :132).
     const zustaende = queryAll("[data-rolle='geraet-zustand']");
     expect(zustaende.length).toBe(3);
     expect(zustaende.map((e) => e.getAttribute("aria-pressed"))).toEqual(["true", "false", "false"]);
+    // Genau EINER der drei traegt den Haken — der gewaehlte.
+    expect(haken("geraet-zustand")).toBe(1);
 
     await click("[data-rolle='geraet-fehlt']");
     expect(gedrueckt("geraet-vorhanden")).toBe("false");
     expect(gedrueckt("geraet-fehlt")).toBe("true");
+    // Der Haken wandert mit dem Zustand mit — sonst zeigte er dauerhaft auf
+    // „vorhanden" und waere schlimmer als keiner.
+    expect(haken("geraet-vorhanden")).toBe(0);
+    expect(haken("geraet-fehlt")).toBe(1);
     // Ein fehlendes Geraet hat keinen Zustand.
     expect(queryAll("[data-rolle='geraet-zustand']").length).toBe(0);
+  });
+
+  /**
+   * ⚠️ WARUM ES DIESEN TEST GIBT (Review-Befund 2). Die fuenf Auswahlknoepfe
+   * tragen keine `className`, und weder `helfer.module.css` noch
+   * `src/app/globals.css` enthaelt einen `button`-Reset — sie rendern also mit
+   * UA-Vorgabe um eine `.chip`-Pille von rund 21px Hoehe; das Tippziel liegt bei
+   * ~25px. „Tap-Mass 56px" ist eine Querschnittsregel dieses Plans, und
+   * `core/theme/tokens.ts:33` begruendet sie woertlich („Bedienung mit
+   * Handschuhen … eine Einsatzanforderung, keine Stilfrage", zitiert in
+   * `_ui/Stepper.tsx:10-11`). Diese fuenf Knoepfe SIND der Geraeteschritt, und
+   * ein Fehlgriff schreibt „fehlt" oder „Defekt" ins Journal.
+   *
+   * ⚠️ GEPRUEFT WIRD `>= 44`, NICHT `=== "44px"`: die Regel ist das Tippmass,
+   * nicht der Literalwert. Eine spaetere Anhebung auf 56 laesst den Test gruen,
+   * ein Wegfall macht ihn rot.
+   *
+   * ⚠️ jsdom wendet kein CSS an (`HelferChip.tsx:22-28`); der Inline-Stil im DOM
+   * ist das Einzige, was ein Tor dieses Projekts hiervon sehen kann.
+   */
+  it("die fuenf Auswahlknoepfe sind mit Handschuhen treffbar (Tippmass)", async () => {
+    await mount(
+      <CheckFlow fahrzeug={FZ} soll={[]} geraete={[GERAET]} flaschen={[]} verfall={{}} warn={WARN} />,
+    );
+    const knoepfe = queryAll(
+      "[data-rolle='geraet-vorhanden'], [data-rolle='geraet-fehlt'], [data-rolle='geraet-zustand']",
+    );
+    // Ohne diese Zahl liefe die Schleife bei leerem Trefferarray durch, ohne
+    // eine einzige Zusicherung auszufuehren (Regel 2).
+    expect(knoepfe.length).toBe(5);
+    for (const k of knoepfe) {
+      expect(Number.parseInt(k.style.minHeight, 10)).toBeGreaterThanOrEqual(44);
+      // Das UA-Chrome um jede Pille muss mit weg, sonst sitzt der vergroesserte
+      // Knopf als grauer Kasten um den Chip.
+      expect(k.style.border).toBe("0px");
+      expect(k.style.background).toBe("none");
+      // `inline-flex` + `center`: die Hoehe entsteht sonst nur unter dem Chip
+      // statt um ihn herum, und das Tippziel liegt neben dem, was man sieht.
+      expect(k.style.display).toBe("inline-flex");
+      expect(k.style.alignItems).toBe("center");
+    }
   });
 });
 
 describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)", () => {
   const O2 = (over: Partial<CheckFlasche>): CheckFlasche => ({ ...FLASCHE, ...over });
+  /**
+   * Der Ampelkreis der ersten Flaschenzeile. Er traegt keine `data-rolle` — der
+   * Klassen-Teilstring ist der stabile Zugriff, weil ein CSS-Modul unter Vitest
+   * ein Proxy ist, der `_pruefKreis_ef45c4`-artige Namen liefert
+   * (`HelferChip.tsx:22-28`). `pruefKreisOk` ist KEIN Teilstring von
+   * `pruefKreis` oder `pruefKreisFehl`, die Abgleiche unten sind also trennscharf.
+   */
+  const kreis = () => queryAll("[data-rolle='o2-liste'] [class*='pruefKreis']")[0]!;
 
   it("OHNE Nennfuelldruck ist der Fuellstand NICHT BEWERTBAR, nicht „niedrig\"", async () => {
     // ⚠️ Befund 30: ohne diesen Test bliebe ein nacktes `o2Status(...)` gruen —
@@ -540,6 +707,21 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
     expect(t).toContain("nicht bewertbar");
     expect(t).not.toContain("niedrig");
     expect(t).not.toContain("%");
+
+    // ⚠️ UND DER PRUEFKREIS DARF DABEI NICHT GRUEN SEIN (Review-Befund 3).
+    // `.pruefKreisOk` ist eine GEFUELLTE GRUENE Flaeche
+    // (`helfer.module.css:275`, `background: var(--lb-ampel-ok-text)`). Ein
+    // zweiwertiges `st?.niedrig ? Fehl : Ok` faellt im Null-Fall darauf zurueck,
+    // und die Zeile saegte gleichzeitig „geprueft und in Ordnung" (Farbe) und
+    // „nicht bewertbar" (Text). `HelferChip.tsx:29-31`: „⚠️ `grau` IST KEIN
+    // AMPELWERT … und darf NIE als gruen dargestellt werden." Der Kreis ist der
+    // einzige Marker, der beim Scrollen OHNE Lesen wirkt — die Zusicherungen
+    // oben pruefen nur `textContent` und sehen die Klasse nicht.
+    expect(kreis().className).not.toMatch(/pruefKreisOk/);
+    expect(kreis().className).not.toMatch(/pruefKreisFehl/);
+    // Der nackte `.pruefKreis` bleibt — er ist die neutrale dritte Stufe
+    // (`background: var(--lb-karte)`, grauer Rand), nicht das Weglassen.
+    expect(kreis().className).toMatch(/pruefKreis/);
   });
 
   it("MIT Nennfuelldruck steht der Prozentwert da", async () => {
@@ -556,6 +738,12 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
     const t = query("[data-rolle='o2-liste']").textContent ?? "";
     expect(t).toContain("100%");
     expect(t).not.toContain("nicht bewertbar");
+
+    // Die GEGENSEITE zu Befund 3, und ohne sie traegt der Fix nicht: ein
+    // ersatzlos gestrichenes `s.pruefKreisOk` liesse die Nicht-bewertbar-Zusage
+    // oben gruen. Erst beide Seiten nageln die Dreiwertigkeit fest — eine
+    // beurteilte, volle Flasche IST gruen.
+    expect(kreis().className).toMatch(/pruefKreisOk/);
   });
 
   it("`letzterDruck` wird angezeigt — und der Null-Fall als „noch nicht gemessen\"", async () => {
