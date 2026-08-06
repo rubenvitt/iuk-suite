@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb, type DB } from "../_db/client";
 import {
-  checks, sollPositionen, geraete, o2Flaschen, o2Messungen, newId,
+  checks, sollPositionen, geraete, o2Flaschen, o2Messungen, lagerorte, newId,
 } from "../_db/schema";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { HANDLAGER_ID, MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT } from "../_lib/konstanten";
@@ -99,6 +99,11 @@ export async function checkAbschluss(
   // Heute ist die Spalte Dekoration; ein Fahrzeug-Code kann jedes Fahrzeug
   // checken (Falle 14). Ansatzpunkt 1 ist die `gewaehlt`-Zeile in
   // `helfer/check/page.tsx`. MEHR BRAUCHT ES DANN NICHT.
+  //
+  // ⚠️ NUR FUER DEN SCOPE. Die abgedruckte Zeile prueft weder `typ` noch
+  // `aktiv`; Art- und Aktiv-Pruefung des Fahrzeugs gehoeren ZUSAETZLICH dazu
+  // und stehen seit dem Abschluss-Fix von Teil 4 unten als Riegel 5, direkt
+  // hinter `const v = geparst.data`.
 
   const geparst = CheckSchema.safeParse(eingabe);
   if (!geparst.success) {
@@ -116,6 +121,44 @@ export async function checkAbschluss(
     };
   }
   const v = geparst.data;
+
+  // WURF-FREIER RIEGEL 5 — die WURZEL-ID gegen die Datenbank, wie die vier
+  // Kind-IDs unten (:153, :198, :212, :255 im Vorzustand).
+  //
+  // WARUM ES IHN BRAUCHT: `CheckSchema` verlangt fuer `fahrzeugId` nur
+  // `z.string().min(1)`; der Wert ist danach Filter der Soll-Positionen,
+  // `lagerortId` der Bestandskorrektur, `nachLagerortId` einer echten
+  // Umlagerung aus dem Handlager, `lagerortId` der Verfallsschreibung UND
+  // `fahrzeugId` der geschriebenen `checks`-Zeile. Weder
+  // `_lib/schreibpfade/umlagerung.ts` noch `_lib/schreibpfade/korrektur.ts`
+  // pruefen `typ` oder `aktiv` nach — richtig so, sie erwarten einen
+  // validierten Aufrufer. Der Fremdschluessel auf `lagerorte.id`
+  // (`_db/schema.ts:217`) faengt allein den frei erfundenen String ab, NICHT
+  // die falsche Art (ein `typ: "lager"`-Eintrag existiert bereits) und NICHT
+  // den stillgelegten Eintrag.
+  //
+  // Die Schwester-Action macht dieselbe Pruefung mit derselben Begruendung
+  // (`_actions/buchung.ts:181-185`), und `helfer/check/page.tsx:75-77` filtert
+  // aus demselben Grund auf `aktiv` — „sonst laedt eine geratene ID die Daten
+  // eines stillgelegten Fahrzeugs".
+  //
+  // ⚠️ RUECKGABEWERT UND KEIN WURF: eine Stilllegung WAEHREND des Checks ist
+  // eine erwartbare Lage im Sinn von Falle 66 — ein Check dauert zehn bis
+  // zwanzig Minuten (`_lib/helferSitzung.ts`, §2.9), und `sollPositionen`
+  // ueberleben eine Stilllegung (`lagerorte.aktiv` ist ein reines Flag,
+  // `_db/schema.ts:37`), die Nutzlast liefe also durch alle vier bestehenden
+  // Wuerfe hindurch. `grund: "eingabe"` ist der Wert aus Betreiberentscheidung
+  // B4, und `darfErneuern("eingabe") === false` ist hier auch fachlich richtig:
+  // ein stillgelegtes Fahrzeug wird nicht dadurch aktiv, dass jemand die
+  // Sitzung erneuert.
+  const fz = db.select().from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get();
+  if (!fz || fz.typ !== "fahrzeug" || !fz.aktiv) {
+    return {
+      ok: false,
+      grund: "eingabe",
+      text: "Dieses Fahrzeug ist nicht mehr aktiv. Bitte die Seite neu laden.",
+    };
+  }
 
   const code = riegel.zugang.code;   // der CODE, nicht die Token-Kennung: das
                                      // Journal zeigt ihn als Klarnamen (_db/quelle.ts)

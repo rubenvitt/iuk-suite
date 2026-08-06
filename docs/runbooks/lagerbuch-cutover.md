@@ -155,7 +155,31 @@ tun ist". Die zwei mit Ausfallwirkung:
 
 ---
 
-## 7. Was beim Setzen von `SUITE_HOST_LAGERBUCH` schiefgehen kann
+## 7. ⚠️ `APP_BASE_URL` und `SUITE_HOST_LAGERBUCH` müssen ZEICHENGLEICH derselbe Host sein
+
+**Vor dem Umschwenken des Routers abzulesen und zu bestätigen** — das ist der teuerste Einzelposten
+aus dem Bau von Teil 4 (dort R1, gemessen in der Abrufprobe von T87).
+
+`helferCookieOptionen()` (`src/app/m/lagerbuch/_lib/helferSitzung.ts`) setzt das Sitzungscookie mit
+`path: "/"` und **ohne** `domain`. Damit ist es an **genau die Origin** gebunden, auf der es gesetzt
+wurde. Weicht der Host beim Umschwenken auch nur in der Schreibweise ab (`www.`, ein anderer
+Subdomain-Stand, ein anderes Protokoll), dann:
+
+- **endet JEDE laufende Feld-Sitzung** — schlagartig, für alle Helferinnen und Helfer gleichzeitig;
+- **kein Test sieht das.** Vitest kennt nur einen Host, Playwright kennt nur `lagerbuch.localtest.me`,
+  und `pnpm build` prüft keine Env-Werte gegeneinander.
+
+**Handgriff:** `APP_BASE_URL` und `SUITE_HOST_LAGERBUCH` nebeneinanderlegen und zeichenweise
+vergleichen, bevor der Router umschwenkt.
+
+**Wenn sie abweichen (müssen)**, gehört in die Cutover-Kommunikation der Satz:
+„**Alle Helfer müssen ihr Kärtchen einmal neu scannen.**" — Kein Datenverlust, aber jede laufende
+Sitzung ist weg, und eine Helferin mitten im Fahrzeug-Check verliert ihren im Client gehaltenen
+Zwischenstand (ein Check dauert zehn bis zwanzig Minuten).
+
+---
+
+## 8. Was beim Setzen von `SUITE_HOST_LAGERBUCH` schiefgehen kann
 
 `validateHostConfig` prüft **nur Env-Hosts gegeneinander**. Ein Host, den ein anderes Modul über
 `prodHosts` in der Registry führt, fällt **nicht** auf — dort gewinnt die Registry-Reihenfolge.
@@ -168,7 +192,7 @@ Domain nach dem Setzen der Variablen fängt es**, und nur er.
 
 ---
 
-## 8. Der Rückweg nach der Anmeldung — eine Prüfung, die nur der Betrieb beantworten kann
+## 9. Der Rückweg nach der Anmeldung — eine Prüfung, die nur der Betrieb beantworten kann
 
 `verwaltungsZiel()` in `src/app/m/lagerbuch/_lib/zugang.ts` leitet das Protokoll aus
 `x-forwarded-proto` ab. Das ist das im Repo erprobte Muster — `files` und `qr` bauen ihre
@@ -188,7 +212,45 @@ Im `Location` muss `…callbackUrl=https%3A%2F%2Flagerbuch.iuk-ue.de%2Fverwaltun
 landet still auf dem Portal** statt auf der Lagerbuch-Verwaltung. Kein Fehler, keine Meldung — die
 verwaltende Person sieht einfach die falsche Seite und hält es für einen Bedienfehler.
 
-Gehört zusammen mit §7 abgearbeitet: dieselbe Domain, derselbe Handgriff, zwei Abrufe.
+Gehört zusammen mit §8 abgearbeitet: dieselbe Domain, derselbe Handgriff, zwei Abrufe.
+
+---
+
+## 10. Nachkontrolle nach dem Umschwenken: Manifest, Icons, Negativprobe (R2)
+
+Aus Teil 4, T87 — die lokalen Werte sind **gemessen** (Abrufprobe gegen einen echten Server auf
+Port 3200), die Prod-Abrufe stehen aus.
+
+```bash
+curl -si https://lagerbuch.iuk-ue.de/manifest.webmanifest   # erwartet: 200 application/manifest+json
+curl -si https://lagerbuch.iuk-ue.de/icon-192.png           # erwartet: 200, Content-Length 1558
+```
+
+Beides gegen §7.10.2 der Spec halten. **Dazu die Negativprobe** — der Portal-Host darf das
+Lagerbuch-Manifest **nicht** liefern:
+
+```bash
+curl -si https://<portal-host>/manifest.webmanifest
+```
+
+Lokal war das ein 307 in den Login, ohne jede Lagerbuch-Marke. Ein 200 mit Lagerbuch-Inhalt hieße,
+dass der Host-Riegel der fünf PWA-Route-Handler nicht greift.
+
+---
+
+## 11. Generalprobe auf EINEM Gerät (R3)
+
+Aus Teil 4, T87. **Keine Code-Antwort** — die drei Schritte sind aus dem Repository heraus
+strukturell nicht beweisbar:
+
+1. PWA vom Lagerbuch-Host aus installieren (Startbildschirm).
+2. Im **Browser** ein Kärtchen einlösen.
+3. Ein Regaletikett mit der **Systemkamera** scannen.
+
+⚠️ Auf iOS führt das Startbildschirm-Fenster eine **eigene Speicherpartition**: eine im Browser
+eingelöste Sitzung ist in der installierten PWA nicht da, und umgekehrt. Das ist kein Defekt, aber
+es muss vor dem Cutover einmal gesehen worden sein — sonst wird es am ersten Einsatztag als
+Ausfall gemeldet.
 
 ---
 

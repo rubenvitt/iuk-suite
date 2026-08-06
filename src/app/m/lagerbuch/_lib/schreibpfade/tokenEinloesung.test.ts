@@ -139,9 +139,15 @@ describe("redeemToken — Treffer", () => {
   });
 
   it("SCHREIBT `lastUsedAt` — und genau das macht Falle 16 teuer", async () => {
-    // Ein einmal eingeloester Code ist nicht mehr LOESCHBAR, sondern nur noch
-    // sperrbar (loeschen.ts:89-99). Ein cross-origin-Redirect verbrennt also
-    // einen laminierten Gegenstand, OHNE dass jemand eine Sitzung bekaeme.
+    // ⚠️ KOSTENAUSSAGE AUF DEM STAND VON 8-F (korrigiert im Abschluss von
+    // Teil 4). Ein cross-origin-Redirect verbrennt KEIN Kaertchen — `lastUsedAt`
+    // beeinflusst weder Gueltigkeit noch Loeschbarkeit (`_db/schema.ts:412-413`,
+    // und der Nachbartest unten belegt es am Verhalten). Der Schaden ist eine
+    // EINLOESUNG OHNE SITZUNG: der Code laeuft auf dem fremden Host durch, das
+    // Cookie landet auf einer Origin, auf der es niemand benutzen kann, und die
+    // Helferin steht am Regal und hat nichts. Der Satz „nicht mehr loeschbar,
+    // nur noch sperrbar" stammt aus der ALT-Anwendung (loeschen.ts:89-99, eine
+    // Herkunftsmarke — die Datei existiert im neuen Modul nicht).
     //
     // Der Vorher-Wert steht ausdruecklich mit drin: ohne ihn behauptete der
     // Nachher-Wert nichts ueber DIESEN Aufruf — die Fixture koennte den Wert

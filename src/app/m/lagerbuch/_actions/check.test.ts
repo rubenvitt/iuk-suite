@@ -252,6 +252,62 @@ describe("checkAbschluss — `eingabe` statt `netz` (Betreiberentscheidung B4)",
   });
 });
 
+describe("checkAbschluss — die WURZEL-ID wird aufgeloest, nicht geglaubt (Riegel 5)", () => {
+  /*
+   * DIE ASYMMETRIE, DIE ES HIER GAB: alle VIER Kind-IDs (Soll-Position, Geraet,
+   * Flasche, Verfall-Artikel) wurden mit einem Wurf gegen die DB geprueft, die
+   * WURZEL-ID `fahrzeugId` als einzige gar nicht — `CheckSchema` verlangt nur
+   * `z.string().min(1)`. Der Fremdschluessel auf `lagerorte.id`
+   * (`_db/schema.ts:217`) faengt allein den frei erfundenen String ab.
+   *
+   * BEIDE HAELFTEN SIND EIGENE FAELLE, und keiner subsumiert den anderen
+   * (Regel 4): `typ` ist HEUTE ausloesbar (ein `typ: "lager"`-Eintrag existiert
+   * seit Migration 0003), `aktiv` ist vorprogrammiert — `sollPositionen`
+   * ueberleben eine Stilllegung, und ein Check dauert zehn bis zwanzig Minuten,
+   * waehrend der ganze Zustand im Client liegt.
+   *
+   * DIE ZWEITE ZUSICHERUNG JE FALL („schreibt NICHTS") ist nicht schmueckend:
+   * ohne sie bliebe eine Fassung gruen, die den Riegel HINTER die Transaktion
+   * schoebe — und genau das ist der Schaden, nicht der Rueckgabewert.
+   */
+  const AUF_HANDLAGER = { fahrzeugId: HANDLAGER_ID, ...leer };
+
+  it("weist ein Lager (typ !== \"fahrzeug\") ab und schreibt NICHTS", async () => {
+    const r = await checkAbschluss(AUF_HANDLAGER, t.db);
+    expect(!r.ok && r.grund).toBe("eingabe");
+    expect(!r.ok && r.text).toBe("Dieses Fahrzeug ist nicht mehr aktiv. Bitte die Seite neu laden.");
+    expect(t.db.select().from(checks).all().length).toBe(0);
+    expect(t.db.select().from(buchungen).all().length).toBe(1);   // nur die Seed-Zeile
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("weist ein STILLGELEGTES Fahrzeug ab und schreibt NICHTS — auf einer SCHREIBENDEN Nutzlast", async () => {
+    // Die Stilllegung passiert WAEHREND des Checks: die Nutzlast ist dieselbe,
+    // die im Riegel-Block oben nachweislich schriebe. `sollPositionen` und
+    // Handlagerbestand bleiben unangetastet, die Nutzlast liefe also durch alle
+    // vier bestehenden Wuerfe hindurch.
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    const r = await checkAbschluss(SCHREIBENDE_NUTZLAST, t.db);
+    expect(!r.ok && r.grund).toBe("eingabe");
+    expect(t.db.select().from(checks).all().length).toBe(0);
+    expect(t.db.select().from(buchungen).all().length).toBe(1);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("der Grund oeffnet KEIN Erneuerungsfeld — ein stillgelegtes Fahrzeug wird davon nicht aktiv", async () => {
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    const r = await checkAbschluss({ fahrzeugId: "fz-1", ...leer }, t.db);
+    expect(r.ok).toBe(false);
+    expect(!r.ok && darfErneuern(r.grund)).toBe(false);
+  });
+
+  it("das AKTIVE Fahrzeug laeuft weiterhin durch — der Riegel diskriminiert (Regel 4)", async () => {
+    const r = await checkAbschluss(SCHREIBENDE_NUTZLAST, t.db);
+    expect(r.ok).toBe(true);
+    expect(t.db.select().from(checks).all().length).toBe(1);
+  });
+});
+
 describe("checkAbschluss — die vier Wuerfe bleiben Wuerfe (§7.3, Riegelfall)", () => {
   it("fremde Soll-Position", async () => {
     await expect(checkAbschluss({

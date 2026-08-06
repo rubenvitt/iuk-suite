@@ -141,8 +141,14 @@ describe("einloesenAmGate — Schritt 1: der Host-Riegel WIRFT, und er steht gan
     // geworfen wird, sagt nur, DASS ein Riegel existiert — nicht, dass er VOR
     // allem anderen steht. Ein Riegel, der erst hinter `redeemToken` griffe,
     // wuerfe genauso, haette aber `tokens.lastUsedAt` auf dem fremden Host schon
-    // geschrieben (`tokenEinloesung.ts:14-19`: ein einmal eingeloester Code ist
-    // nicht mehr loeschbar, nur noch sperrbar).
+    // geschrieben — und damit den Code EINGELOEST, OHNE dass jemand eine
+    // Sitzung bekommt (`tokenEinloesung.ts`, Kopfkommentar).
+    //
+    // ⚠️ NICHT „das Kaertchen ist verbrannt": `lastUsedAt` beeinflusst weder
+    // Gueltigkeit noch Loeschbarkeit (`_db/schema.ts:412-413`, Entscheidung
+    // 8-F). Die alte, aus der Alt-Anwendung uebernommene Formulierung stand hier
+    // bis zum Abschluss von Teil 4 und ist korrigiert; die Zusage dieses Tests
+    // ist davon unberuehrt.
     stand.kopf = new Headers({ host: "feedback.localtest.me" });
 
     await expect(einloesenAmGate({}, form({ code: "482-137" }))).rejects.toThrow("NEXT_NOT_FOUND");

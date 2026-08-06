@@ -495,11 +495,23 @@ bleibt schmal, §6.3.3), `core/theme/*` (die Ampel ist eine **modul**-eigene Pal
 wird namentlich einer Seite und einem Bedienelement zugeordnet, und die Liste wird abgehakt, nicht
 behauptet." Die Spec liefert die Tabelle nicht — **hier ist sie.** T151 hakt sie ab.
 
-**Die Zählung dieses Plans:** **15 Action-Dateien** mit **43 Deklarationen**, **alle bewacht**, **null
-Ausnahmen**. Davon beginnen **42** mit `await requireLagerbuchAdmin()`; die dreiundvierzigste ist
-`bucheEntnahmeHelfer` in `_actions/buchung.ts` und beginnt mit `await requireHelferSchreibend(db)`
-(Festlegung **H7** — Teil 5 baut die ganze Datei, Teil 4 ruft sie nur). Dazu **drei exportierte
+**Die Zählung dieses Plans:** **14 Action-Dateien** mit **40 Deklarationen**, **alle bewacht**, **null
+Ausnahmen** — und **alle 40** beginnen mit `await requireLagerbuchAdmin()`. Dazu **drei exportierte
 Typen** in `_actions/detail.ts`, die **keine** Actions sind.
+
+> ⚠️ **Korrigiert im Abschluss von Teil 4 (06.08.2026).** Vorher stand hier „15 Action-Dateien mit
+> 43 Deklarationen … davon 42 mit `requireLagerbuchAdmin()`; die dreiundvierzigste ist
+> `bucheEntnahmeHelfer`". `_actions/buchung.ts` mit ihren **drei** Deklarationen (`bucheZugang`,
+> `bucheEntnahme`, `bucheEntnahmeHelfer`) ist in Teil 4 **vorgezogen und eingecheckt** (T114,
+> `d5b1cf1`), zählt also nicht mehr zu diesem Plan: 15−1 = **14**, 43−3 = **40**. Damit entfällt
+> auch die Ausnahme — `bucheEntnahmeHelfer` war die einzige Deklaration mit
+> `await requireHelferSchreibend(db)`. **Festlegung H7 bleibt unverändert gültig:** die Datei gehört
+> vollständig Teil 5, Teil 4 hat sie nur vorgezogen; es gibt genau eine `_actions/buchung.ts`.
+>
+> **Folgeposten (in dieser Fix-Welle bewusst NICHT mitgezogen):** die Kommentare bei `:4842`,
+> `:5045` und `:5183` schreiben die alte Zahl fort („42 der 43 Deklarationen"). Sie sind
+> Begründungstexte an Testkörpern; wer sie anfasst, ändert Plan-vorgeschriebene Kommentare außerhalb
+> des Befundumfangs. **Wer T151 baut, zählt neu** — Teil 6 tut das ohnehin (`teil6.md:6612-6617`).
 ⚠️ **Drei Namensdubletten innerhalb dieses Plans:** `geraetSpeichern`, `setGeraetAktiv` und
 `geraetZuBarcode` stehen in `_actions/bz.ts` **und** `_actions/geraete.ts`. Ein Scan, der die
 Exportnamen in ein `Set` legt, zählt **40** statt 43 — gezählt wird **je Datei je Deklaration**
@@ -5213,8 +5225,19 @@ export function zodFehler(e: unknown): FeldFehler | null;
 
 ### Task 113: `_actions/artikel.ts` und `_lib/actionErgebnis.ts`
 
+> ⚠️ **`_lib/actionErgebnis.ts` IST BEREITS GEBAUT UND EINGECHECKT** (Teil 4, Commit `6b48c8e`,
+> zusammen mit `_actions/buchung.ts` aus T114). Dieser Task hat sein Bündel damit **aufgetrennt**:
+> die Typdatei ist vorgezogen, `_actions/artikel.ts` und `artikel.test.ts` sind es **nicht**.
+> **Lege `_lib/actionErgebnis.ts` NICHT noch einmal an** — lies sie, prüfe sie gegen die
+> „Produces"-Signatur unten, und wenn sie passt, überspringe Schritt 3 und nimm sie nicht in den
+> `git add`-Block von Schritt 6 auf. Es gibt genau **eine** `_lib/actionErgebnis.ts`.
+>
+> Warum der Vermerk hier steht: T114 trägt ihn seit jeher (unten, „Reihenfolge"), T113 trug ihn
+> nicht — und auf diesem Weg lief in Teil 4 bereits **T83 BLOCKED**, weil eine vorgezogene Datei
+> fehlte, von der der Plan nichts sagte. Die Asymmetrie ist der Defekt, nicht das Vorziehen.
+
 **Files:**
-- Create: `src/app/m/lagerbuch/_lib/actionErgebnis.ts`
+- ~~Create: `src/app/m/lagerbuch/_lib/actionErgebnis.ts`~~ — **erledigt in Teil 4** (`6b48c8e`)
 - Create: `src/app/m/lagerbuch/_actions/artikel.ts`
 - Test: `src/app/m/lagerbuch/_actions/artikel.test.ts`
 
@@ -5381,7 +5404,9 @@ pnpm vitest run src/app/m/lagerbuch/_actions/artikel.test.ts
 
 Erwartet: FAIL mit `Failed to resolve import "./artikel"`.
 
-- [ ] **Schritt 3: `_lib/actionErgebnis.ts` schreiben**
+- [ ] **Schritt 3: `_lib/actionErgebnis.ts` schreiben** — ⚠️ **ENTFÄLLT, die Datei steht seit Teil 4
+  (`6b48c8e`).** Nur gegen den Abdruck unten lesen, nicht überschreiben (siehe Vermerk am Kopf des
+  Tasks).
 
 ```ts
 import { ZodError } from "zod";
@@ -5573,7 +5598,8 @@ Erwartet: grün — **drei** bewachte Actions mehr, keine ungeschützte. ⚠️ 
 - [ ] **Schritt 6: Commit**
 
 ```bash
-rtk git add src/app/m/lagerbuch/_lib/actionErgebnis.ts src/app/m/lagerbuch/_actions/artikel.ts \
+# ⚠️ `_lib/actionErgebnis.ts` steht seit Teil 4 (6b48c8e) und gehoert NICHT in diesen add-Block.
+rtk git add src/app/m/lagerbuch/_actions/artikel.ts \
             src/app/m/lagerbuch/_actions/artikel.test.ts
 rtk git commit -m "feat(lagerbuch): _actions/artikel.ts und der gemeinsame Rueckgabetyp
 

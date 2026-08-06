@@ -11,12 +11,27 @@ import { createHelferSitzung, type HelferPayload } from "../helferSitzung";
  * (token-redeem.ts:16). §2.1 h ist kategorisch — „jeder Schreibweg unter
  * `_lib/schreibpfade/`".
  *
- * ⚠️ DIESER EINE SCHREIBVORGANG IST DER GRUND, WARUM FALLE 16 TEUER IST. Ein
- * Code, der einmal eingeloest wurde, ist NICHT MEHR LOESCHBAR, sondern nur noch
- * sperrbar (loeschen.ts:89-99). Ein cross-origin-Redirect verbrennt damit einen
- * laminierten Gegenstand, ohne dass jemand eine Sitzung bekommen haette —
- * deshalb antwortet `t/[code]/route.ts` mit RELATIVEM Location (§7.2.3), und
- * deshalb steht der Host-Riegel VOR dieser Funktion, nicht dahinter.
+ * ⚠️ WARUM FALLE 16 TEUER IST — DIE KOSTENAUSSAGE AUF DEM STAND VON 8-F.
+ * Der Schaden eines cross-origin-Redirects ist eine EINLOESUNG OHNE SITZUNG:
+ * `redeemToken` laeuft auf dem fremden Host durch, schreibt `lastUsedAt`, und
+ * das Cookie landet auf einer Origin, auf der es niemand benutzen kann. Die
+ * Helferin steht am Regal und hat nichts. DESHALB antwortet `t/[code]/route.ts`
+ * mit RELATIVEM Location (§7.2.3), und DESHALB steht der Host-Riegel VOR dieser
+ * Funktion, nicht dahinter — beide Konstruktionsentscheidungen bleiben
+ * unveraendert richtig.
+ *
+ * ⚠️ NICHT MEHR GUELTIG (korrigiert im Abschluss von Teil 4): die aus der
+ * Alt-Anwendung uebernommene Begruendung, ein einmal eingeloester Code sei
+ * „nicht mehr loeschbar, sondern nur noch sperrbar". Das Schema dieses Moduls
+ * entscheidet das GEGENTEILIG — `_db/schema.ts:412-413`: `lastUsedAt` ist
+ * „reines Anzeigefeld, OHNE Einfluss auf Gueltigkeit und (nach Entscheidung
+ * 8-F) auch ohne Einfluss auf Loeschbarkeit". Ein Kaertchen wird JEDE SCHICHT
+ * gescannt und bleibt nach der Einloesung einloesbar
+ * (`tokenEinloesung.test.ts`, „BLEIBT NACH DER EINLOESUNG EINLOESBAR").
+ * `loeschen.ts:89-99` ist eine HERKUNFTSMARKE in die ALT-Anwendung
+ * (`lagerbuch/src/actions/loeschen.ts`); im neuen Modul gibt es die Datei
+ * nicht. Wer die Marke fuer geltendes Recht haelt, haelt die Auflagen oben fuer
+ * entbehrlich — und holt Falle 16 zurueck.
  *
  * KEIN "use client": drei Aufrufer, alle serverseitig.
  */
