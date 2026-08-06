@@ -202,8 +202,17 @@ Vier Stellen, alle klein, alle mit gefahrener Mutation belegt:
    nur das Präfix statt der Deklariertheit. Untergrenzen: antd-Scan ≥ **18** Dateien,
    `useSearchParams`-Scan ≥ **17** (dieselbe Menge ohne `page.tsx`), Träger-Vertrag ≥ **10**
    benutzte Variablen plus Teilmengenprüfung gegen die tatsächlich deklarierten Namen.
-   ⚠️ Die Untergrenzen sind **bewusst unter dem Ist-Stand** — `helfer.module.css` gehört T64 und darf
-   wachsen und schrumpfen; eine Grenze auf dem Ist-Stand wäre eine Stolperdrahtleine.
+   ⚠️ **Nur der Träger-Vertrag steht bewusst unter dem Ist-Stand** — `≥ 10` bei gemessenen **20**
+   benutzten Variablen. `helfer.module.css` gehört T64 und darf wachsen **und schrumpfen**; dort wäre
+   eine Grenze auf dem Ist-Stand eine Stolperdrahtleine.
+   ⚠️ **Die beiden Dateizahl-Grenzen sitzen dagegen EXAKT auf dem Ist-Stand** — gemessen **18** bzw.
+   **17** Dateien, kein Spielraum. Das ist hier vertretbar, aber nur aus einem Grund: die Menge unter
+   `_ui/`, `helfer/`, `a/` und `t/` **wächst** in Teil 5 und 6 und schrumpft nicht. Und die Zahl ist
+   **kein Zähler, sondern ein Vakuum-Riegel**: sie fängt allein den Fall, dass die Astliste von der
+   Platte abreißt und der Scan leer-grün über **null** Dateien meldet. **Wer eine Datei aus einem der
+   vier Äste entfernt oder verschiebt** — oder einen Ausschluss in `quellDateien()` ergänzt —, **zieht
+   die Zahl bewusst nach**; der rote Test ist dann die richtige Meldung und kein Fehlalarm. Wer sie
+   ohne diesen Anlass absenkt, nimmt dem Scan seinen Riegel.
 
 ---
 

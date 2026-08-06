@@ -508,34 +508,49 @@ Typen** in `_actions/detail.ts`, die **keine** Actions sind.
 > `await requireHelferSchreibend(db)`. **Festlegung H7 bleibt unverändert gültig:** die Datei gehört
 > vollständig Teil 5, Teil 4 hat sie nur vorgezogen; es gibt genau eine `_actions/buchung.ts`.
 >
-> **Folgeposten (in dieser Fix-Welle bewusst NICHT mitgezogen):** die Kommentare bei `:4842`,
-> `:5045` und `:5183` schreiben die alte Zahl fort („42 der 43 Deklarationen"). Sie sind
-> Begründungstexte an Testkörpern; wer sie anfasst, ändert Plan-vorgeschriebene Kommentare außerhalb
-> des Befundumfangs. **Wer T151 baut, zählt neu** — Teil 6 tut das ohnehin (`teil6.md:6612-6617`).
+> **Folgeposten (in dieser Fix-Welle bewusst NICHT mitgezogen):** drei Begründungstexte **außerhalb
+> dieses Abschnitts** schreiben die alte Zahl fort — zweimal „Jede der **43** Deklarationen dieses
+> Plans trägt ihren Riegel selbst" (T112, einmal als Fließtext und einmal als Kommentar im Testkörper)
+> und einmal „**42 der 43** Deklarationen mit `await requireLagerbuchAdmin();`" (Vorspann von
+> Welle 4). Wer sie anfasst, ändert Plan-vorgeschriebene Kommentare außerhalb des Befundumfangs.
+> **Wer T151 baut, zählt neu** — Teil 6 tut das ohnehin (`teil6.md:6612-6617`).
+> ⚠️ Sie sind hier **über ihren Wortlaut und nicht über eine Zeilennummer** benannt: jede Bearbeitung
+> dieses Abschnitts verschiebt die Zeilen darunter, und ein Zeilenzeiger wäre schon beim nächsten
+> Lesen falsch. Suchen statt zählen.
+
 ⚠️ **Drei Namensdubletten innerhalb dieses Plans:** `geraetSpeichern`, `setGeraetAktiv` und
 `geraetZuBarcode` stehen in `_actions/bz.ts` **und** `_actions/geraete.ts`. Ein Scan, der die
-Exportnamen in ein `Set` legt, zählt **40** statt 43 — gezählt wird **je Datei je Deklaration**
-(Teil 2, T20, Auflage 2). Teil 6s Abnahme „47 = 44 + 3" bekommt von diesem Plan die Zahl **43**;
-Teil 4 steuert die restlichen **4 Deklarationen** bei (1 bewachte, 3 Ausnahmen) — die verbindliche
-Herleitung steht in **Teil 6 §4.1/§4.2** (47 gesamt / 44 bewacht / 3 Ausnahmen / 18 Dateien /
-19 Verzeichniseinträge).
+Exportnamen in ein `Set` legt, zählt **37** statt 40 — gezählt wird **je Datei je Deklaration**
+(Teil 2, T20, Auflage 2). Teil 6s Abnahme „47 = 44 + 3" bekommt von diesem Plan die Zahl **40**;
+Teil 4 steuert die restlichen **7 Deklarationen** bei (**4 bewachte** — `checkAbschluss` plus die
+drei aus `buchung.ts`; ⚠️ „bewacht" heißt hier wie in **Teil 6 §4.1** *irgendein* Riegel als erste
+Anweisung, bei `checkAbschluss` und `bucheEntnahmeHelfer` also `requireHelferSchreibend` — nicht zu
+verwechseln mit der „Ausnahme" im Blockzitat oben, die den Sonderfall **gegenüber
+`requireLagerbuchAdmin`** meint —, **3 Ausnahmen** im Sinn von §4.1: `einloesenAmGate`,
+`erneuereSitzung`, `beenden`, die **gar keinen** Riegel tragen) — die verbindliche Herleitung steht in
+**Teil 6 §4.1/§4.2** (47 gesamt / 44 bewacht / 3 Ausnahmen / 18 Dateien / 19 Verzeichniseinträge).
+⚠️ Die Aufteilungstabelle in **Teil 6 §4.2** nennt in ihren beiden Zuliefererzeilen (Teil 5 / Teil 4)
+weiterhin **43 / 4** und ist **nicht** nachgezogen — sie liegt außerhalb dieses Plans. Die **Summen**
+47 / 44 / 3 / 18 / 19 aus §4.1 sind davon unberührt und bleiben verbindlich.
 
-**Die Tabelle deckt die 43 Deklarationen DIESES Plans ab, nicht das ganze Modul.** Vollständig wird
-die Auflage aus §6.12, Frage 1 („jede Server Action des Moduls wird namentlich einer Seite und einem
-Bedienelement zugeordnet") erst über beide Pläne zusammen:
-**43 hier + 4 in Teil 4 (`einloesenAmGate` aus `_actions/gate.ts`, `erneuereSitzung` und `beenden`
-aus `_actions/sitzung.ts`, `checkAbschluss` aus `_actions/check.ts`) = 47.** Teil 6s Abnahme hakt die
-Auflage erst ab, wenn beide Teiltabellen vorliegen; sie hier stillschweigend als vollständig zu
-lesen wäre der Fehler, gegen den dieser Satz steht.
+**Die Tabelle hat 43 Zeilen und deckt damit die 40 Deklarationen DIESES Plans ab — plus die drei
+vorgezogenen aus `buchung.ts`, die als solche gekennzeichnet sind —, nicht das ganze Modul.**
+Vollständig wird die Auflage aus §6.12, Frage 1 („jede Server Action des Moduls wird namentlich einer
+Seite und einem Bedienelement zugeordnet") erst über beide Pläne zusammen:
+**40 hier + 7 in Teil 4 (`einloesenAmGate` aus `_actions/gate.ts`, `erneuereSitzung` und `beenden`
+aus `_actions/sitzung.ts`, `checkAbschluss` aus `_actions/check.ts`, dazu `bucheZugang`,
+`bucheEntnahme` und `bucheEntnahmeHelfer` aus dem vorgezogenen `_actions/buchung.ts`) = 47.**
+Teil 6s Abnahme hakt die Auflage erst ab, wenn beide Teiltabellen vorliegen; sie hier
+stillschweigend als vollständig zu lesen wäre der Fehler, gegen den dieser Satz steht.
 
 | # | Action | Datei | Seite | Bedienelement | ☐ |
 |---|---|---|---|---|---|
 | 1 | `createArtikel` | `artikel.ts` | `/verwaltung/artikel` | `NeuArtikel` — `Modal` „Neuer Artikel", Absendeknopf | ☐ |
 | 2 | `updateArtikel` | `artikel.ts` | `/verwaltung/artikel` | `ArtikelDrawer` — Mindestbestand (`InputNumber`, 400 ms), Fach (`onBlur`), Einheit (`onBlur`) | ☐ |
 | 3 | `setArtikelAktiv` | `artikel.ts` | `/verwaltung/artikel` | `ArtikelDrawer` — `Switch` „aktiv" | ☐ |
-| 4 | `bucheZugang` | `buchung.ts` | `/verwaltung/artikel` | `ArtikelDrawer`, Abschnitt „Zugang buchen" — Knopf „Zugang buchen" | ☐ |
-| 5 | `bucheEntnahme` | `buchung.ts` | `/verwaltung/artikel` | `ArtikelDrawer`, Abschnitt „Entnahme / Umlagerung" — Knopf „Buchen" | ☐ |
-| 6 | `bucheEntnahmeHelfer` | `buchung.ts` | **`/a/[artikelId]` (Teil 4)** | `Entnahme` (`_ui/Entnahme.tsx`) — Knopf „Entnahme buchen". ⚠️ **Der einzige Aufrufer liegt außerhalb dieses Plans**; die Action steht trotzdem hier, weil die Datei hier gebaut wird (H7) | ☐ |
+| 4 | `bucheZugang` | `buchung.ts` ⬆️ | `/verwaltung/artikel` | `ArtikelDrawer`, Abschnitt „Zugang buchen" — Knopf „Zugang buchen". ⚠️ **Vorgezogen nach Teil 4 (T114, `d5b1cf1`)** — die Deklaration steht schon im Baum und zählt NICHT zu den 40 dieses Plans | ☐ |
+| 5 | `bucheEntnahme` | `buchung.ts` ⬆️ | `/verwaltung/artikel` | `ArtikelDrawer`, Abschnitt „Entnahme / Umlagerung" — Knopf „Buchen". ⚠️ **Vorgezogen nach Teil 4 (T114, `d5b1cf1`)** — zählt NICHT zu den 40 dieses Plans | ☐ |
+| 6 | `bucheEntnahmeHelfer` | `buchung.ts` ⬆️ | **`/a/[artikelId]` (Teil 4)** | `Entnahme` (`_ui/Entnahme.tsx`) — Knopf „Entnahme buchen". ⚠️ **Vorgezogen nach Teil 4 (T114, `d5b1cf1`)** — zählt NICHT zu den 40 dieses Plans; **der einzige Aufrufer liegt ebenfalls in Teil 4**. Die Zeile bleibt hier stehen, weil die Datei fachlich vollständig Teil 5 gehört (H7) | ☐ |
 | 7 | `aussondern` | `aussondern.ts` | `/verwaltung/verfall` | `AussondernRow` — `Popconfirm` „× aussondern" je Zeile | ☐ |
 | 8 | `inventurKorrektur` | `inventur.ts` | `/verwaltung/inventur` | `InventurForm` — Knopf „Inventur abschließen (N Abweichungen)" | ☐ |
 | 9 | `markiereBestellt` | `bestellung.ts` | `/verwaltung/bestellung` | `BestellListe` — Kreis-Knopf je Zeile (`aria-label` „Als bestellt markieren" / „Bestellung zurücknehmen") | ☐ |
@@ -574,13 +589,16 @@ lesen wäre der Fehler, gegen den dieser Satz steht.
 | 42 | `createToken` | `tokens.ts` | `/verwaltung/tokens` | `NeuToken` — `Modal` „Neuer Zugangs-Code", Absendeknopf | ☐ |
 | 43 | `setTokenAktiv` | `tokens.ts` | `/verwaltung/tokens` | `TokenTable` — Knopf „Sperren" / „Reaktivieren" je Zeile | ☐ |
 
-⚠️ **43 Zeilen, 43 Deklarationen — eine Zeile je Deklaration, ohne Differenz.** `templates.ts` trägt
+⚠️ **43 Zeilen, davon 3 vorgezogen → 40 Deklarationen dieses Plans in 14 Dateien.** Eine Zeile je
+Deklaration, ohne Differenz — die Zeilen **4–6** (`buchung.ts`, ⬆️) stehen seit T114 im Baum und
+gehören zu Teil 4; **43 − 3 = 40**, **15 − 1 = 14**. `templates.ts` trägt
 **elf** Deklarationen und bekommt **elf** Zeilen (15–25); die drei Namensdubletten stehen je Datei
 **einmal** und bekommen deshalb je **zwei** Zeilen (`geraetSpeichern` 27 und 30, `setGeraetAktiv` 28
 und 31, `geraetZuBarcode` 29 und 32). Die drei `loeschen.ts`-Actions (37–39) bedienen je fünf Seiten
 in **einem** Dialog und bekommen trotzdem je genau eine Zeile — die Seitenspalte sagt „fünf Seiten",
-sie vervielfacht die Zeile nicht. Die Zählung **„43 Deklarationen in 15 Dateien"** ist damit an der
-Tabelle nachzählbar und nicht bloß behauptet.
+sie vervielfacht die Zeile nicht. Die Zählung **„40 Deklarationen in 14 Dateien"** ist damit an der
+Tabelle nachzählbar (43 Zeilen minus die drei mit ⬆️) und nicht bloß behauptet. ⚠️ **Die Zeilennummern
+1–43 bleiben unverändert** — sie sind Anker für T151 und für Teil 6, keine laufende Zählung der 40.
 
 **Die fünf Seiten mit `LoeschDialog`:** `/verwaltung/artikel` (im Drawer, `art="artikel"`),
 `/verwaltung/fahrzeuge/[id]` (`art="fahrzeug"`), `/verwaltung/bz/[id]` (`art="bzGeraet"`),
