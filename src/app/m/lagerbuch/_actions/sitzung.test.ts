@@ -97,6 +97,13 @@ const { gateGesperrt, gateFehlversuchBuchen, redeemToken, getDb } = vi.hoisted((
  * Attribut weg, an dem die Wirksamkeit des Loeschens haengt (`path`), und die
  * Zusicherung „loescht das Cookie" waere gegen die einzige Regression, die hier
  * real droht, blind.
+ *
+ * ⚠️ ABER: DIESER MOCK IST GROSSZUEGIGER ALS NEXT. Er reicht die Optionen eines
+ * `delete(name, opt)` durch; Next verwirft sie an dieser Stelle
+ * (`index.js:303`). Was eine `delete`-Fassung rot macht, ist deshalb NICHT das
+ * Mitschreiben der Optionen, sondern die Zusicherung `art === "set"` im Test
+ * „entfernt das Cookie mit DENSELBEN Attributen …" —
+ * wer sie streicht, oeffnet das Loch wieder.
  */
 vi.mock("next/headers", () => ({
   headers: async () => stand.kopf,
@@ -371,7 +378,14 @@ describe("beenden — der Knopf", () => {
     await expect(beenden()).rejects.toThrow("NEXT_REDIRECT");
 
     expect(stand.cookieOps).toHaveLength(1);
+    // ⚠️ DIESE ZEILE IST DER RIEGEL, NICHT SCHMUCK. Ohne sie bliebe
+    // `delete(HELFER_COOKIE, helferCookieOptionen(0))` gruen — der Mock reicht
+    // die Optionen brav durch, Next VERWIRFT sie (`index.js:303`, Next 16.2.11:
+    // `typeof args[0] === "string" ? [args[0]] : …` laesst `options` undefined).
+    // Der Erfolgstest der Nachbaraktion prueft `art` bereits genauso.
+    expect(stand.cookieOps[0]?.art).toBe("set");
     expect(stand.cookieOps[0]?.name).toBe("helfer_session");
+    expect(stand.cookieOps[0]?.wert).toBe("");
     expect(stand.cookieOps[0]?.opt?.path).toBe("/");
     expect(stand.cookieOps[0]?.opt?.maxAge).toBe(0);
     expect(stand.cookieOps[0]?.opt).toEqual(helferCookieOptionen(0));
