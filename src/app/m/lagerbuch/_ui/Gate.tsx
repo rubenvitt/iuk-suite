@@ -50,9 +50,9 @@ import s from "./helfer.module.css";
  */
 
 /**
- * ⚠️ DER NETZFALL — Global Constraint 11, und er fehlte im Plan (Befund 19 des
- * Preflight-Scans). „Jeder Action-Aufruf im Client steht in `try/catch` mit
- * `grund: netz`" nimmt das Gate an keiner Stelle aus: bricht die Verbindung
+ * ⚠️ DER AUSNAHMEWEG — Global Constraint 11, und er fehlte im Plan (Befund 19
+ * des Preflight-Scans). „Jeder Action-Aufruf im Client steht in `try/catch`"
+ * nimmt das Gate an keiner Stelle aus: bricht die Verbindung
  * beim Absenden, lehnt der Aufruf ab, und `useActionState` verwirft in die
  * naechste Error Boundary — genau der Zustand, den Falle 66 verbietet. Gemessen
  * unter react-dom 19.2 und jsdom 26: ohne dieses `catch` steigt der Wurf bis in
@@ -66,39 +66,58 @@ import s from "./helfer.module.css";
  * `_actions/gate.ts` kann er nicht liegen: eine Datei mit `"use server"` darf
  * ausschliesslich asynchrone Funktionen exportieren.
  *
- * ⚠️ DAS `catch` FAENGT AUCH DEN HOST-WURF von `requireLagerbuchHost`
- * (`_actions/gate.ts:49`) ab und zeigt dafuer „Keine Verbindung". Das ist
- * GEWOLLT: ein Action-POST auf dem falschen Host ist kein Betriebsfall, sondern
- * ein manipulierter, und er darf nicht unterscheidbar antworten
- * (docs/design/README.md:237-242). Wer hier nach Fehlerart differenziert, baut
- * genau die Auskunft ein, die der Wurf vermeiden soll.
+ * ⚠️ DER SATZ NENNT KEINE URSACHE — UND ZWAR ABSICHTLICH, WEIL DAS `catch` DREI
+ * GANZ VERSCHIEDENE LAGEN FAENGT (Review-Befund 1 zu T77, Fix-Runde 1):
+ *   * den Verbindungsabbruch beim Absenden;
+ *   * den Host-Wurf von `requireLagerbuchHost` (`_actions/gate.ts:49`);
+ *   * JEDE ECHTE SERVERAUSNAHME — und die ist NICHT theoretisch: fehlt
+ *     `LAGERBUCH_HELFER_SITZUNG_SECRET`, wirft `createHelferSitzung` in JEDEM
+ *     Trefferpfad, den der Gate-Weg ueber `redeemToken` erreicht; dasselbe gilt
+ *     fuer `getDb()`/`SQLITE_READONLY`.
+ * Eine Netzdiagnose waere dann auf dem EINZIGEN oeffentlichen Einstieg fuer
+ * Helfer:innen ohne Konto die FALSCHE Auskunft: die Person tippt nach, sucht den
+ * Fehler bei ihrem Empfang, und der Betrieb sucht ein Netzproblem, das es nicht
+ * gibt. Der Satz benennt deshalb nur, WAS NICHT GESCHAH („der Code konnte nicht
+ * geprueft werden"), die eine Handlung, die in allen drei Lagen dieselbe ist
+ * (noch einmal auf Weiter tippen), UND den Weg zur Leitung, wenn es dabei
+ * bleibt. Genauso haelt es der Praezedenzfall im Repo:
+ * `src/app/m/feedback/f/[slugSecret]/Zettel.tsx:194`
+ * (`MELDUNG_AUSNAHME`) faengt Netz UND
+ * Serverausnahme mit EINEM ursachenneutralen Satz; unterschieden werden dort
+ * nicht die Ausnahmen, sondern Ausnahme gegen ABWEISUNG — und diese Trennung
+ * haelt hier der Rueckgabeweg (`ergebnis.fehler`) schon selbst.
  *
- * ⚠️ UND ES FAENGT JEDE ECHTE SERVERAUSNAHME (`SQLITE_READONLY` und
- * Verwandtes). `f/[slugSecret]/Zettel.tsx:691` waehlt fuer denselben Fall einen
- * EIGENEN Text — hier bewusst nicht, aus zwei Gruenden: Global Constraint 11
- * legt `netz` als DEN Grund des Client-`catch` fest, und `GateZustand` (T73)
- * hat genau ein Feld `fehler`. Eine Unterscheidung waere eine Aenderung an einer
- * fremden, abgenommenen Datei — und am Gate ist die Handlungsanweisung ohnehin
- * dieselbe: noch einmal auf Weiter tippen. Der Unterschied traegt hier keine
- * Entscheidung, anders als am Bogen, wo Eingaben verloren gehen koennen.
+ * ⚠️ NICHT NACH FEHLERART DIFFERENZIEREN. Ein zweiter Satz waere hier nicht nur
+ * unnoetig, sondern schaedlich: der Host-Wurf ist kein Betriebsfall, sondern ein
+ * manipulierter Aufruf, und er darf nicht unterscheidbar antworten. Ein Satz fuer
+ * alle drei Lagen verraet darueber nichts.
+ *
+ * Was Global Constraint 11 verlangt, ist ERFUELLT und war nie mehr als das:
+ * „jeder Action-Aufruf im Client steht in `try/catch`" — das `catch` steht. Der
+ * Constraint pinnt den GRUND `"netz"` im Feld `grund` von `HelferErgebnis`;
+ * `GateZustand` (T73) hat gar kein Feld `grund`, sondern nur `fehler?: string`.
+ * WELCHER Satz in diesem Feld steht, entscheidet der Constraint nicht — und eine
+ * andere Zeichenkette im selben Feld aendert keine fremde Datei.
  *
  * ⚠️ `?? {}` IST NICHT DEFENSIV, SONDERN DER ERFOLGSPFAD. `einloesenAmGate`
  * endet im Erfolg mit `redirect()` (`_actions/gate.ts:99`). Der Client-Aufruf
  * lehnt dafuer NICHT ab — Next transportiert den Redirect in der Antwort
- * (`f/[slugSecret]/Zettel.tsx:647-650`) —, er loest mit `undefined` auf. React
+ * (`src/app/m/feedback/f/[slugSecret]/Zettel.tsx:647-650`) —, er loest mit
+ * `undefined` auf. React
  * rendert danach noch einmal, und ein `zustand.fehler` auf `undefined` wirft
  * dabei „Cannot read properties of undefined" und reisst den Baum ab. Gemessen
  * am 06.08.2026 unter react-dom 19.2.
  */
-const NETZ_TEXT_GATE =
-  "Keine Verbindung. Der Code wurde nicht geprüft — bitte erneut auf Weiter tippen.";
+const MELDUNG_AUSNAHME_GATE =
+  "Der Code konnte nicht geprüft werden. Bitte noch einmal auf Weiter tippen — " +
+  "bleibt es dabei, wende dich an die Leitung.";
 
 async function amGate(vorher: GateZustand, formData: FormData): Promise<GateZustand> {
   try {
     const ergebnis: GateZustand | undefined = await einloesenAmGate(vorher, formData);
     return ergebnis ?? {};
   } catch {
-    return { fehler: NETZ_TEXT_GATE };
+    return { fehler: MELDUNG_AUSNAHME_GATE };
   }
 }
 
