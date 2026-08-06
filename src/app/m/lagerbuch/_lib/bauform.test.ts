@@ -527,10 +527,48 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     // die nur EINER der beiden Traeger kennt, ist auf dem anderen Ast still
     // `transparent`. `--font-display|body|mono` sind die Ausnahme — sie kommen
     // vom Wurzel-Layout und liegen auf `:root`, also unter beiden Traegern.
-    const fremde = [...lies().matchAll(/var\(\s*(--[\w-]+)/g)]
-      .map((t) => t[1]!)
-      .filter((n) => !n.startsWith("--lb-") && !/^--font-(display|body|mono)$/.test(n));
+    //
+    // ⚠️ DAS PRAEFIX ALLEIN TRUEG NICHT. `color: var(--lb-tinte2)` faengt mit
+    // `--lb-` an und ist trotzdem NIRGENDS deklariert — genau der Ausfall, den
+    // der Absatz darueber beschreibt („faellt auf `transparent` zurueck").
+    // Deshalb zusaetzlich die MENGENPRUEFUNG gegen die tatsaechlich
+    // deklarierten Namen aus beiden Traeger-Koerpern.
+    const css = lies();
+    const hell = regelKoerper(css, /(?:^|\})\s*\.rahmen\s*\{/m);
+    const dunkel = regelKoerper(css, /:root\[data-theme="dark"\]\s+\.rahmen\s*\{/);
+    expect(hell, "`.rahmen`-Regel fehlt").not.toBe("");
+    expect(dunkel, "Dunkelzweig fehlt").not.toBe("");
+    const deklariert = new Set(
+      [...`${hell}\n${dunkel}`.matchAll(/(--[\w-]+)\s*:/g)].map((t) => t[1]!),
+    );
+    // Die drei Schriftstapel kommen vom Wurzel-Layout und liegen auf `:root` —
+    // sie stehen in KEINEM der beiden Koerper und sind trotzdem aufloesbar.
+    const VOM_LAYOUT = /^--font-(display|body|mono)$/;
+
+    const genutzt = new Set(
+      [...css.matchAll(/var\(\s*(--[\w-]+)/g)].map((t) => t[1]!),
+    );
+    // Der Vakuum-Riegel, den dieser Scan als einziger mengenbasierter Scan der
+    // Datei nicht hatte: `toEqual([])` ist auf der LEEREN Menge gruen. Wer beim
+    // „Aufraeumen" alle `var(--lb-…)` durch Literalfarben ersetzt, bekaeme eine
+    // bestandene Pruefung gemeldet — und der Zweck des Blocks (derselbe Satz
+    // unter `.rahmen` UND unter `.modul`, Teil 5 T138) waere still weg.
+    //
+    // ⚠️ BEWUSST 10 UND NICHT DER IST-STAND 20: `helfer.module.css` gehoert T64
+    // und darf wachsen und schrumpfen. Eine Untergrenze auf dem Ist-Stand waere
+    // eine Stolperdrahtleine fuer den naechsten Umsetzer, kein Riegel.
+    expect(genutzt.size, "keine einzige `var(--…)`-Nutzung — der Scan waere leer-gruen")
+      .toBeGreaterThanOrEqual(10);
+
+    const fremde = [...genutzt]
+      .filter((n) => !n.startsWith("--lb-") && !VOM_LAYOUT.test(n));
     expect([...new Set(fremde)], "nur --lb-* und die drei --font-* sind erlaubt").toEqual([]);
+
+    const unaufloesbar = [...genutzt]
+      .filter((n) => !deklariert.has(n) && !VOM_LAYOUT.test(n));
+    expect(unaufloesbar,
+      "benutzt, aber weder unter `.rahmen`/Dunkelzweig deklariert noch eine `--font-*` vom Layout")
+      .toEqual([]);
   });
 
   it("setzt `100dvh` und `max-width: 560px` — kein Breakpoint, eine Obergrenze", () => {
@@ -740,9 +778,12 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // und DUERFEN antd. Die Liste ist namentlich, nicht gemustert — ein
     // Praefix-Muster liesse die naechste Datei durch, die zufaellig so heisst.
     //
-    // ⚠️ EIGENSCHAFTSFORM: die Menge ist heute 0 Dateien — `_ui/` traegt nur das
-    // Stylesheet, und `helfer/`, `a/`, `t/` und `page.tsx` entstehen erst ab
-    // Welle 3. Zaehne ab dann.
+    // ⚠️ STAND NACH T87 (06.08.2026) — der Absatz „EIGENSCHAFTSFORM: die Menge
+    // ist heute 0 Dateien … Zaehne ab Welle 3" ist ueberholt und war deshalb
+    // gefaehrlich: er las sich wie eine Erlaubnis, den Scan leer laufen zu
+    // lassen. Gemessen sind es **18** Dateien (zwoelf `_ui/*.tsx`, vier unter
+    // `helfer/`, `a/[artikelId]/page.tsx`, `t/[code]/route.ts` — plus
+    // `page.tsx`). Die Untergrenze unten haelt das fest.
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Brotkrume.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
@@ -753,6 +794,16 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
       ...["_ui", "helfer", "a", "t"].flatMap((d) => quellDateien(join(MODUL, d))),
       ...(existsSync(WURZEL) ? [WURZEL] : []),
     ];
+    // Ohne diese Zeile meldet der Scan „bestanden" ueber NULL Dateien — und
+    // genau das passiert bei jeder Aenderung, die die Astliste von der Platte
+    // entkoppelt (Umbenennung von `_ui/` oder `helfer/`, ein zusaetzlicher
+    // Ausschluss in `quellDateien()`, eine Verschiebung von `a/[artikelId]`).
+    // Elf der zwoelf `_ui/*.tsx` tragen einen EIGENEN antd-Scan; SIEBEN der
+    // achtzehn Dateien haben keinen (`_ui/Restzeit.tsx`, `page.tsx`,
+    // `helfer/page.tsx`, `helfer/layout.tsx` — gar keine eigene Testdatei —,
+    // `helfer/check/page.tsx`, `a/[artikelId]/page.tsx`, `t/[code]/route.ts`).
+    // Fuer die faellt ein leerer Modulscan nicht auf.
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(18);
     const verstoesse: string[] = [];
     for (const pfad of dateien) {
       if (VERWALTUNG.has(pfad.split("/").pop()!)) continue;
@@ -804,17 +855,25 @@ describe("§7.8.2 / Falle 63 — `usePathname` kommt im Modul GAR NICHT vor", ()
     // entsteht die Suspense-Falle rund um `useSearchParams` auf diesem Ast gar
     // nicht — solange es so bleibt.
     //
-    // ⚠️ EIGENSCHAFTSFORM: von den vier Aesten existiert heute nur `_ui/`, und
-    // dort liegt keine `.tsx`. Zaehne ab Welle 3.
+    // ⚠️ STAND NACH T87 (06.08.2026) — der Absatz „EIGENSCHAFTSFORM: von den
+    // vier Aesten existiert heute nur `_ui/` … Zaehne ab Welle 3" ist ueberholt.
+    // Gemessen sind es **17** Dateien: dieselbe Menge wie beim antd-Scan oben,
+    // aber OHNE `page.tsx` — dieser Block sammelt nur ueber die vier Aeste, die
+    // Modulwurzel gehoert nicht dazu. Deshalb 17 und nicht 18.
+    //
+    // Eigene `useSearchParams`/`router.push`-Scans haben nur `ArtikelSuche`,
+    // `CheckFlow`, `Entnahme`, `FahrzeugWahl` und `a/[artikelId]/page.test.tsx`
+    // — ohne die Untergrenze meldete dieser Block „bestanden" ueber null
+    // Dateien, sobald die Astliste von der Platte abreisst.
     const AST = ["_ui", "helfer", "a", "t"].map((d) => join(MODUL, d));
+    const dateien = AST.flatMap((wurzel) => quellDateien(wurzel));
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(17);
     const verstoesse: string[] = [];
-    for (const wurzel of AST) {
-      for (const pfad of quellDateien(wurzel)) {
-        // Die Verwaltungsbausteine im selben `_ui/`-Ordner duerfen beides.
-        if (/\/(Suchfeld|Trefferanzeige|useUrlFilter|LoeschDialog|ArtikelDrawer)\./.test(pfad)) continue;
-        if (/useSearchParams|router\.(push|replace)/.test(ohneKommentare(readFileSync(pfad, "utf8")))) {
-          verstoesse.push(relative(process.cwd(), pfad));
-        }
+    for (const pfad of dateien) {
+      // Die Verwaltungsbausteine im selben `_ui/`-Ordner duerfen beides.
+      if (/\/(Suchfeld|Trefferanzeige|useUrlFilter|LoeschDialog|ArtikelDrawer)\./.test(pfad)) continue;
+      if (/useSearchParams|router\.(push|replace)/.test(ohneKommentare(readFileSync(pfad, "utf8")))) {
+        verstoesse.push(relative(process.cwd(), pfad));
       }
     }
     expect(verstoesse).toEqual([]);

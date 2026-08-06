@@ -70,6 +70,12 @@ export default async function CheckSeite({
   // Etiketten passen, und die ist unbeantwortet. Ansatzpunkt 2 ist die erste
   // Zeile von `checkAbschluss` (_actions/check.ts). MEHR BRAUCHT ES DANN NICHT.
   //
+  // ⚠️ NUR FUER DEN SCOPE. Die abgedruckte Zeile prueft weder `typ` noch
+  // `aktiv`; beides gehoert ZUSAETZLICH dazu. Auf dieser Seite haelt es der
+  // `.filter((f) => f.aktiv)` oben zusammen mit `fahrzeugListe`, serverseitig
+  // in der Action seit dem Abschluss-Fix von Teil 4 der Riegel 5 in
+  // `_actions/check.ts` (Art und Aktiv gegen `lagerorte`).
+  //
   // Genau EIN aktives Fahrzeug → keine Wahl anbieten. KEIN `redirect()`: das
   // spart eine Anfrage und schreibt keinen Pfad, den jemand aeusser/innen
   // verwechseln koennte (§2.1 g, §7.11). Ein `?fz=` auf eine unbekannte oder

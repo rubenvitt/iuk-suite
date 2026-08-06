@@ -193,7 +193,15 @@ describe("HelferChip — Bauform", () => {
     // die beiden Negativ-Scans falsch rot.
     const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
     expect(q).toMatch(/Record<AmpelTon, string>/);
-    expect(q).not.toMatch(/s\[`/); // kein s[`chip-${…}`]
+    // ⚠️ `\bs\[` und NICHT `s\[`` — die Backtick-Form fing NUR `s[`chip-${…}`]`.
+    // Gemessen: `${s.chip} ${KLASSE[ton] ?? s[ton]}` lief unter der alten
+    // Fassung 12/12 gruen. Unter Vitest ist das CSS-Modul ein Proxy, `s["rot"]`
+    // liefert `_rot_…`, und alle Verhaltenstests dieser Datei blieben gruen —
+    // waehrend ein fuenfter `AmpelTon` in Produktion `class="undefined"`
+    // renderte (Padding und Radius stehen, die Farbe fehlt). `*.module.css` ist
+    // in Next als `{ readonly [key: string]: string }` deklariert, `s[ton]`
+    // typecheckt also fuer JEDEN Wert — `typecheck` faengt es nicht.
+    expect(q).not.toMatch(/\bs\[/); // kein s[`chip-${…}`] und kein s[ton]
     expect(q).not.toMatch(/\$\{ton\}/); // keine Interpolation eines Klassennamens
   });
 
