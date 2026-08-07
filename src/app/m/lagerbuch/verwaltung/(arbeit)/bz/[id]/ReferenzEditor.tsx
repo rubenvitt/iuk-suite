@@ -75,7 +75,14 @@ function payload(w: BzEditorWerte) {
   };
 }
 
-export function ReferenzEditor({
+export function ReferenzEditor(props: {
+  geraet: BzEditorWerte;
+  lagerorte: LagerortOption[];
+}) {
+  return <ReferenzEditorInhalt key={JSON.stringify(props.geraet)} {...props} />;
+}
+
+function ReferenzEditorInhalt({
   geraet,
   lagerorte,
 }: {
@@ -86,6 +93,7 @@ export function ReferenzEditor({
   const [fehler, setFehler] = useState<string | null>(null);
   const aktuell = useRef(geraet);
   const zahlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speicherGeneration = useRef(0);
 
   useEffect(() => () => {
     if (zahlTimer.current) clearTimeout(zahlTimer.current);
@@ -99,12 +107,14 @@ export function ReferenzEditor({
   }
 
   async function speichern(snapshot: BzEditorWerte): Promise<void> {
+    const generation = ++speicherGeneration.current;
     setFehler(null);
     try {
       const ergebnis = await geraetSpeichern(payload(snapshot));
-      if (!ergebnis.ok) setFehler(SPEICHER_FEHLER);
+      if (generation !== speicherGeneration.current) return;
+      setFehler(ergebnis.ok ? null : SPEICHER_FEHLER);
     } catch {
-      setFehler(SPEICHER_FEHLER);
+      if (generation === speicherGeneration.current) setFehler(SPEICHER_FEHLER);
     }
   }
 
@@ -132,6 +142,13 @@ export function ReferenzEditor({
       zahlTimer.current = null;
       void speichern(aktuell.current);
     }, ZAHL_DEBOUNCE_MS);
+  }
+
+  function zahlSpeichern(): void {
+    if (!zahlTimer.current) return;
+    clearTimeout(zahlTimer.current);
+    zahlTimer.current = null;
+    void speichern(aktuell.current);
   }
 
   const standortOptionen: LagerortSelectOption[] = lagerorte.map((lagerort) => ({
@@ -199,6 +216,7 @@ export function ReferenzEditor({
             value={werte.level1Min}
             precision={0}
             onChange={(wert) => zahlAendern("level1Min", wert)}
+            onBlur={zahlSpeichern}
             style={{ width: "100%" }}
           />
         </Feld>
@@ -208,6 +226,7 @@ export function ReferenzEditor({
             value={werte.level1Max}
             precision={0}
             onChange={(wert) => zahlAendern("level1Max", wert)}
+            onBlur={zahlSpeichern}
             style={{ width: "100%" }}
           />
         </Feld>
@@ -225,6 +244,7 @@ export function ReferenzEditor({
             value={werte.level2Min}
             precision={0}
             onChange={(wert) => zahlAendern("level2Min", wert)}
+            onBlur={zahlSpeichern}
             style={{ width: "100%" }}
           />
         </Feld>
@@ -234,6 +254,7 @@ export function ReferenzEditor({
             value={werte.level2Max}
             precision={0}
             onChange={(wert) => zahlAendern("level2Max", wert)}
+            onBlur={zahlSpeichern}
             style={{ width: "100%" }}
           />
         </Feld>

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clickElement,
   mount,
+  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import { bzGeraete, bzKontrollen, lagerorte } from "../../../../_db/schema";
@@ -16,6 +17,7 @@ import { migrierteTestDb, type TestDb } from "../../../../_db/testdb";
 import { BZ_LOGBUCH_GRENZE } from "../../../../_lib/grenzen";
 import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
+import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { BzAktivToggle } from "./BzAktivToggle";
 import {
   lagerortFilter,
@@ -154,16 +156,25 @@ function analysiereRscTable(quelle: string) {
     true,
     ts.ScriptKind.TSX,
   );
-  let renderEigenschaften = 0;
+  let funktionaleSpaltenEigenschaften = 0;
   let funktionaleRowKeys = 0;
 
   function besuche(node: ts.Node) {
-    if (
-      ts.isPropertyAssignment(node)
-      && ((ts.isIdentifier(node.name) && node.name.text === "render")
-        || (ts.isStringLiteral(node.name) && node.name.text === "render"))
-    ) {
-      renderEigenschaften += 1;
+    if (ts.isVariableDeclaration(node)
+      && ts.isIdentifier(node.name)
+      && node.name.text === "LOGBUCH_SPALTEN"
+      && node.initializer) {
+      function zaehleFunktionswerte(spaltenNode: ts.Node): void {
+        if (ts.isMethodDeclaration(spaltenNode)) {
+          funktionaleSpaltenEigenschaften += 1;
+        } else if (ts.isPropertyAssignment(spaltenNode)
+          && (ts.isArrowFunction(spaltenNode.initializer)
+            || ts.isFunctionExpression(spaltenNode.initializer))) {
+          funktionaleSpaltenEigenschaften += 1;
+        }
+        ts.forEachChild(spaltenNode, zaehleFunktionswerte);
+      }
+      zaehleFunktionswerte(node.initializer);
     }
     if (ts.isJsxAttribute(node) && node.name.getText(source) === "rowKey") {
       const initializer = node.initializer;
@@ -178,7 +189,7 @@ function analysiereRscTable(quelle: string) {
   }
 
   besuche(source);
-  return { renderEigenschaften, funktionaleRowKeys };
+  return { funktionaleSpaltenEigenschaften, funktionaleRowKeys };
 }
 
 async function warte(): Promise<void> {
@@ -289,7 +300,16 @@ describe("BZ-Geräteblatt als Server Component", () => {
     expect(kacheln).toHaveLength(4);
     expect(kacheln.map((element) => (element.props as { beschriftung: ReactNode }).beschriftung))
       .toEqual(["Nächste Kontrolle", "Letzte Kontrolle", "Ø Akkulaufzeit", "Status / Standort"]);
-    expect((kacheln[0].props as { ton: string }).ton).toBe("ok");
+    expect(kacheln.map((element) => textVon(
+      (element.props as { zahl: ReactNode }).zahl,
+    ))).toEqual([
+      "06.09. 14:00",
+      "06.08. 14:00",
+      "30 Tage",
+      "AktivRTW 1",
+    ]);
+    expect(kacheln.map((element) => (element.props as { ton?: string }).ton))
+      .toEqual(["ok", "ok", undefined, "ok"]);
 
     const brotkrume = elementeVomTyp(seite, Brotkrume)[0];
     expect((brotkrume.props as { href: string }).href).toBe("/verwaltung/bz");
@@ -309,6 +329,13 @@ describe("BZ-Geräteblatt als Server Component", () => {
     };
     expect(editorProps.geraet).toEqual(EDITOR_WERTE);
     expect(enthaeltDate(editorProps)).toBe(false);
+
+    const kopf = elementeVomTyp(seite, SeitenKopf)[0];
+    const status = elementeVomTyp(
+      (kopf.props as { aktionen: ReactNode }).aktionen,
+      BzAktivToggle,
+    )[0];
+    expect(status.props).toEqual({ id: "bz-1", name: "Accu-Chek A", aktiv: true });
   });
 
   it("bereitet acht Logbuchzellen aus refDamals vor und zeigt Kommentare", () => {
@@ -341,10 +368,22 @@ describe("BZ-Geräteblatt als Server Component", () => {
       "aria-label": "Logbuch der Kontrollen",
       locale: { emptyText: "Für dieses Gerät wurde noch keine Kontrolle erfasst." },
     });
+    expect(props.dataSource.map((zeile) => zeile.id)).toEqual([
+      "k-neu",
+      "k-alt",
+      "k-kaputt",
+    ]);
+    expect(props.dataSource.every((zeile) => (
+      Object.keys(zeile).sort().join(",")
+      === "akku,ergebnis,id,kommentar,level1,level2,verbrauch,wer,zeitpunkt"
+    ))).toBe(true);
+    expect(enthaeltDate(props.dataSource)).toBe(false);
 
     const alt = props.dataSource.find((zeile) => zeile.id === "k-alt")!;
     expect(textVon(alt.level1)).toContain("damals 30–70");
     expect(textVon(alt.level1)).not.toContain("40–60");
+    expect(textVon(alt.level2)).toContain("damals 200–400");
+    expect(textVon(alt.level2)).not.toContain("250–350");
     const ohneSnapshot = props.dataSource.find((zeile) => zeile.id === "k-neu")!;
     const kaputt = props.dataSource.find((zeile) => zeile.id === "k-kaputt")!;
     expect(textVon(ohneSnapshot.level1)).toContain("damals ?–?");
@@ -368,6 +407,12 @@ describe("BZ-Geräteblatt als Server Component", () => {
     expect(textVon(seite)).toContain(`Neueste ${BZ_LOGBUCH_GRENZE} von mehr Einträgen`);
   });
 
+  it("nennt ohne Deckel exakt die sichtbare Eintragszahl", () => {
+    const seite = bzGeraetInhalt(t.db, "bz-1", NOW);
+    expect(textVon(seite)).toContain("3 Einträge");
+    expect(textVon(seite)).not.toContain(`Neueste ${BZ_LOGBUCH_GRENZE}`);
+  });
+
   it("liefert für eine unbekannte ID notFound", () => {
     expect(() => bzGeraetInhalt(t.db, "fehlt", NOW)).toThrow("NEXT_NOT_FOUND");
   });
@@ -379,8 +424,18 @@ describe("BZ-Geräteblatt als Server Component", () => {
       "utf8",
     );
     expect(analysiereRscTable(quelle)).toEqual({
-      renderEigenschaften: 0,
+      funktionaleSpaltenEigenschaften: 0,
       funktionaleRowKeys: 0,
+    });
+    expect(analysiereRscTable(`
+      const LOGBUCH_SPALTEN = [
+        { render: () => null },
+        { render() { return null; } },
+      ];
+      const t = <Table rowKey={(zeile) => zeile.id} columns={LOGBUCH_SPALTEN} />;
+    `)).toEqual({
+      funktionaleSpaltenEigenschaften: 2,
+      funktionaleRowKeys: 1,
     });
   });
 });
@@ -418,6 +473,39 @@ describe("ReferenzEditor", () => {
       ...EDITOR_WERTE,
       name: "Accu-Chek Neu",
     });
+  });
+
+  it.each([
+    ["Barcode", "barcode", "9999999999999"],
+    ["Streifen-Lot", "streifenLot", "LOT-ANDERS"],
+    ["Level-1-Bezeichnung", "level1Label", "Kontrolle niedrig"],
+    ["Level-2-Bezeichnung", "level2Label", "Kontrolle hoch"],
+  ] as const)("bindet das Textfeld %s an %s", async (label, feld, wert) => {
+    await editorMounten();
+    const input = await feldSetzen(`[aria-label='${label}']`, wert);
+    await feldVerlassen(input);
+
+    expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
+    expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
+      ...EDITOR_WERTE,
+      [feld]: wert,
+    });
+  });
+
+  it("committet eine ausstehende Zahl beim Blur sofort und nicht später doppelt", async () => {
+    await editorMounten();
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+    const input = await feldSetzen("[aria-label='Level-2-Untergrenze']", "260");
+    await feldVerlassen(input);
+
+    expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
+    expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
+      ...EDITOR_WERTE,
+      level2Min: 260,
+    });
+
+    await act(async () => { vi.advanceTimersByTime(400); });
+    expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
   });
 
   it("normalisiert leere optionale Felder im vollständigen Payload zu undefined", async () => {
@@ -462,16 +550,17 @@ describe("ReferenzEditor", () => {
     });
   });
 
-  it("fasst Zahländerungen nach echten 400 ms zusammen und nutzt die neuesten Werte", async () => {
+  it("startet den echten 400-ms-Debounce nach jeder Zahländerung neu", async () => {
     await editorMounten();
     vi.useFakeTimers({ shouldAdvanceTime: false });
     await feldSetzen("[aria-label='Level-1-Untergrenze']", "31");
+    await act(async () => { vi.advanceTimersByTime(250); });
     await feldSetzen("[aria-label='Level-1-Obergrenze']", "71");
 
-    await act(async () => { vi.advanceTimersByTime(399); });
+    await act(async () => { vi.advanceTimersByTime(149); });
     expect(mocks.geraetSpeichern).not.toHaveBeenCalled();
     await act(async () => {
-      vi.advanceTimersByTime(1);
+      vi.advanceTimersByTime(251);
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -482,6 +571,46 @@ describe("ReferenzEditor", () => {
       level1Min: 31,
       level1Max: 71,
     });
+  });
+
+  it.each([
+    ["Level-1-Untergrenze", "level1Min", "41", 41],
+    ["Level-1-Obergrenze", "level1Max", "61", 61],
+    ["Level-2-Untergrenze", "level2Min", "251", 251],
+    ["Level-2-Obergrenze", "level2Max", "351", 351],
+  ] as const)("bindet das Zahlenfeld %s an %s", async (label, feld, eingabe, wert) => {
+    await editorMounten();
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+    await feldSetzen(`[aria-label='${label}']`, eingabe);
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
+    expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
+      ...EDITOR_WERTE,
+      [feld]: wert,
+    });
+  });
+
+  it("setzt beim Wechsel des Geräte-Datensatzes alle lokalen Felder zurück", async () => {
+    await editorMounten();
+    await feldSetzen("[aria-label='Name']", "lokal geändert");
+    const anderes = {
+      ...EDITOR_WERTE,
+      id: "bz-2",
+      name: "Contour Next",
+      barcode: "9876543210987",
+      lagerortId: "handlager",
+    };
+    await rerender(<ReferenzEditor geraet={anderes} lagerorte={LAGERORT_OPTIONEN} />);
+
+    expect(document.querySelector<HTMLInputElement>("[aria-label='Name']")?.value)
+      .toBe("Contour Next");
+    expect(document.querySelector<HTMLInputElement>("[aria-label='Barcode']")?.value)
+      .toBe("9876543210987");
   });
 
   it("räumt einen offenen Zahlen-Timer beim Unmount auf", async () => {
@@ -502,6 +631,29 @@ describe("ReferenzEditor", () => {
     expect(document.body.textContent).toContain("BZ-Gerät konnte nicht gespeichert werden.");
     expect(document.body.textContent).not.toContain("interne Einzelheit");
   });
+
+  it("lässt eine ältere verspätete Antwort nicht den neueren Erfolg überschreiben", async () => {
+    let ersteAntwort!: (wert: { ok: false; fehler: string }) => void;
+    mocks.geraetSpeichern
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        ersteAntwort = resolve;
+      }))
+      .mockResolvedValueOnce({ ok: true, wert: { id: "bz-1" } });
+    await editorMounten();
+    const name = await feldSetzen("[aria-label='Name']", "Erste Änderung");
+    await feldVerlassen(name);
+    const lot = await feldSetzen("[aria-label='Streifen-Lot']", "LOT-ZWEI");
+    await feldVerlassen(lot);
+    expect(document.body.textContent).not.toContain("BZ-Gerät konnte nicht gespeichert werden.");
+
+    await act(async () => {
+      ersteAntwort({ ok: false, fehler: "verspätet" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).not.toContain("BZ-Gerät konnte nicht gespeichert werden.");
+  });
 });
 
 describe("BzAktivToggle", () => {
@@ -512,8 +664,21 @@ describe("BzAktivToggle", () => {
     await clickElement(schalter);
     await warte();
 
+    expect(mocks.setGeraetAktiv).toHaveBeenCalledWith({ id: "bz-1", aktiv: false });
     expect(schalter.getAttribute("aria-checked")).toBe("false");
     expect(document.body.textContent).toContain("Inaktiv");
+  });
+
+  it("schaltet ein inaktives Gerät in der Gegenrichtung aktiv", async () => {
+    await mount(<BzAktivToggle id="bz-1" name="Accu-Chek A" aktiv={false} />);
+    const schalter = document.querySelector<HTMLElement>("[role='switch']");
+    if (!schalter) throw new Error("Aktiv-Schalter fehlt");
+    await clickElement(schalter);
+    await warte();
+
+    expect(mocks.setGeraetAktiv).toHaveBeenCalledWith({ id: "bz-1", aktiv: true });
+    expect(schalter.getAttribute("aria-checked")).toBe("true");
+    expect(document.body.textContent).toContain("Aktiv");
   });
 
   it("behält bei fehlgeschlagener Statusänderung den Zustand und zeigt einen festen Fehler", async () => {
@@ -537,6 +702,15 @@ describe("BzAktivToggle", () => {
     expect(props.name).toBe("Accu-Chek A");
     expect(props.typLabel).toBe("BZ-Gerät");
 
+    const pruefung = {
+      loeschbar: false,
+      grund: "Kontrollen vorhanden",
+      kannDeaktivieren: true,
+    };
+    mocks.pruefeLoeschbar.mockResolvedValueOnce({ ok: true, wert: pruefung });
+    await expect(props.pruefen()).resolves.toEqual(pruefung);
+    expect(mocks.pruefeLoeschbar).toHaveBeenCalledWith("bzGeraet", "bz-1");
+
     mocks.pruefeLoeschbar.mockResolvedValueOnce({ ok: false, fehler: "intern" });
     await expect(props.pruefen()).resolves.toEqual({
       loeschbar: false,
@@ -559,5 +733,11 @@ describe("BzAktivToggle", () => {
       "BZ-Gerät konnte nicht deaktiviert werden.",
     );
     expect(mocks.push).toHaveBeenCalledTimes(1);
+
+    mocks.deaktiviereElement.mockResolvedValueOnce({ ok: true });
+    await props.onDeaktivieren?.();
+    expect(mocks.deaktiviereElement).toHaveBeenLastCalledWith("bzGeraet", "bz-1");
+    expect(mocks.push).toHaveBeenLastCalledWith("/verwaltung/bz");
+    expect(mocks.push).toHaveBeenCalledTimes(2);
   });
 });
