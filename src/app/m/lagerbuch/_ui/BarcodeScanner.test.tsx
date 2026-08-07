@@ -592,6 +592,15 @@ describe("BarcodeScanner — die sieben Formate und der Taschenlampenschalter", 
     expect(query(schalter).getAttribute("aria-pressed")).toBe("false");
   });
 
+  it("der benannte Taschenlampenschalter behaelt ein stummes Zeichen", async () => {
+    sichererKontext(true);
+    await mount(<BarcodeScanner {...props} />);
+    await ruhe();
+    const svg = query("button[aria-label='Taschenlampe'] svg");
+    expect(svg.getAttribute("aria-hidden")).toBe("true");
+    expect(svg.getAttribute("focusable")).toBe("false");
+  });
+
   it("ein Geraet ohne `switchTorch` stuerzt beim Antippen NICHT ab", async () => {
     // 1:1 (§7.6): nicht jedes Geraet und nicht jeder Browser kann es, und ein
     // Wurf beim Antippen waere ein Absturz mitten im Scannen.

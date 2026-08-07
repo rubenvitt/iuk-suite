@@ -266,6 +266,17 @@ describe("ArtikelSuche — Bauform", () => {
     expect(feld.getAttribute("type")).toBe("search");
   });
 
+  it("jede Artikelzeile behaelt ein stummes Zeichen neben sichtbarem Text", async () => {
+    await mount(<ArtikelSuche artikel={LISTE} />);
+    const zeichen = queryAll("[data-rolle='artikel-zeile'] svg");
+    expect(zeichen.length).toBe(LISTE.length);
+    for (const svg of zeichen) {
+      expect(svg.getAttribute("aria-hidden")).toBe("true");
+      expect(svg.getAttribute("focusable")).toBe("false");
+      expect(svg.closest("a")?.textContent?.trim().length).toBeGreaterThan(0);
+    }
+  });
+
   it("benutzt `falte` aus `_lib/suche.ts` und baut keine zweite Faltung", () => {
     // ⚠️ UEBER `ohneKommentare` (Befund 1): der Kopfkommentar der geprueften
     // Datei nennt `a.name.toLowerCase().includes(…)` als das, was der Bestand
