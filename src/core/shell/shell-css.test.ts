@@ -34,10 +34,11 @@ type CssRegel = {
 };
 
 function cssRegeln(css: string): CssRegel[] {
-  // Das schlieszende `}` ist nur der Anker, nicht Teil des Treffers. Wuerde
-  // es verbraucht, begänne die globale Suche erst HINTER ihm und ueberspränge
-  // die unmittelbar folgende Regel.
-  return [...css.matchAll(/(?:(?<=})|^)\s*([^{}]+?)\s*\{([^{}]*)\}/g)].map((treffer) => ({
+  // Die Klammern sind nur Anker, nie Teil des Treffers. Nach `}` beginnt die
+  // naechste Geschwisterregel; nach `{` beginnt das erste Kind einer At-Rule.
+  // Beide muessen ohne Zeichenverbrauch pruefbar sein, sonst ueberspringt der
+  // globale Scanner genau diese Regeln.
+  return [...css.matchAll(/(?:(?<=})|(?<=\{)|^)\s*([^{}]+?)\s*\{([^{}]*)\}/g)].map((treffer) => ({
     selektor: treffer[1].trim(),
     deklarationen: treffer[2],
   }));
@@ -217,6 +218,22 @@ describe("shell.module.css", () => {
 
     // Die robuste Zusage sieht ALLE Regeln und lehnt sowohl die spaetere
     // `hidden`-Ueberschreibung als auch deren `scroll-behavior` ab.
+    expect(() => erwartetRobusteModulnavUeberlaufbehandlung(mutation)).toThrow();
+  });
+
+  it("verwirft `.modulnav` als erstes Kind einer spaeteren Media Query", () => {
+    const mutation = `${OHNE_KOMMENTARE}
+      @media (min-width: 1000px) {
+        .modulnav {
+          overflow-x: hidden;
+          scroll-behavior: smooth;
+        }
+      }
+    `;
+
+    // Die Media-Regel ist nach der bestehenden 768px-Regel spaeter und kann
+    // sie im Browser ueberstimmen. Auch als ERSTES Kind muss sie der Scanner
+    // finden; vor dem Fix ueberspringt er genau diese Position.
     expect(() => erwartetRobusteModulnavUeberlaufbehandlung(mutation)).toThrow();
   });
 
