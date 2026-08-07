@@ -31,24 +31,36 @@ function hatUseClientDirektive(source: ts.SourceFile): boolean {
   return false;
 }
 
-function importiertAntdTable(source: ts.SourceFile): boolean {
+type AntdModulArt = "root" | "table";
+
+function antdModulArt(modul: string): AntdModulArt | null {
+  if (modul === "antd" || /^antd\/(?:es|lib)(?:\/index(?:\.js)?)?$/.test(modul)) {
+    return "root";
+  }
+  if (/^antd\/(?:es|lib)\/table(?:\/|$)/.test(modul)) return "table";
+  return null;
+}
+
+function wertBindungen(clause: ts.ImportClause): boolean {
+  if (clause.name) return true;
+  const bindungen = clause.namedBindings;
+  if (bindungen && ts.isNamespaceImport(bindungen)) return true;
+  return Boolean(bindungen && ts.isNamedImports(bindungen)
+    && bindungen.elements.some((element) => !element.isTypeOnly));
+}
+
+function statischerTableImport(source: ts.SourceFile): boolean {
   return source.statements.some((statement) => {
     if (!ts.isImportDeclaration(statement)
       || !ts.isStringLiteral(statement.moduleSpecifier)) return false;
-    const modul = statement.moduleSpecifier.text;
+    const art = antdModulArt(statement.moduleSpecifier.text);
     const clause = statement.importClause;
-    if (!clause || clause.isTypeOnly) return false;
+    if (!art || !clause || clause.isTypeOnly) return false;
 
-    if (/^antd\/(?:es|lib)\/table(?:\/|$)/.test(modul)) {
-      if (clause.name) return true;
-      const bindungen = clause.namedBindings;
-      if (bindungen && ts.isNamespaceImport(bindungen)) return true;
-      return Boolean(bindungen && ts.isNamedImports(bindungen)
-        && bindungen.elements.some((element) => !element.isTypeOnly));
-    }
-    if (modul !== "antd") return false;
+    if (art === "table") return wertBindungen(clause);
 
     const bindungen = clause.namedBindings;
+    if (clause.name) return true;
     if (bindungen && ts.isNamespaceImport(bindungen)) return true;
     if (!bindungen || !ts.isNamedImports(bindungen)) return false;
     return bindungen.elements.some((element) => (
@@ -56,6 +68,130 @@ function importiertAntdTable(source: ts.SourceFile): boolean {
       && (element.propertyName ?? element.name).text === "Table"
     ));
   });
+}
+
+function entpackeAusdruck(node: ts.Node | undefined): ts.Node | undefined {
+  let aktuell = node;
+  while (aktuell) {
+    if (ts.isAwaitExpression(aktuell)
+      || ts.isParenthesizedExpression(aktuell)
+      || ts.isAsExpression(aktuell)
+      || ts.isTypeAssertionExpression(aktuell)
+      || ts.isNonNullExpression(aktuell)
+      || ts.isSatisfiesExpression(aktuell)) {
+      aktuell = aktuell.expression;
+      continue;
+    }
+    return aktuell;
+  }
+  return aktuell;
+}
+
+function ladeAufrufArt(node: ts.Node | undefined): AntdModulArt | null {
+  const aktuell = entpackeAusdruck(node);
+  if (!aktuell || !ts.isCallExpression(aktuell) || aktuell.arguments.length !== 1) return null;
+  const istImport = aktuell.expression.kind === ts.SyntaxKind.ImportKeyword;
+  const istRequire = ts.isIdentifier(aktuell.expression) && aktuell.expression.text === "require";
+  if (!istImport && !istRequire) return null;
+  const modul = aktuell.arguments[0];
+  return ts.isStringLiteralLike(modul) ? antdModulArt(modul.text) : null;
+}
+
+function eigenschaftsName(
+  node: ts.PropertyAccessExpression | ts.ElementAccessExpression,
+): string | null {
+  if (ts.isPropertyAccessExpression(node)) return node.name.text;
+  const argument = node.argumentExpression;
+  return argument && ts.isStringLiteralLike(argument) ? argument.text : null;
+}
+
+function bindungHatTable(name: ts.BindingName): boolean {
+  return ts.isObjectBindingPattern(name) && name.elements.some((element) => {
+    const schluessel = element.propertyName ?? element.name;
+    if (ts.isIdentifier(schluessel) || ts.isStringLiteralLike(schluessel)) {
+      return schluessel.text === "Table";
+    }
+    if (ts.isComputedPropertyName(schluessel)) {
+      const ausdruck = entpackeAusdruck(schluessel.expression);
+      return Boolean(ausdruck && ts.isStringLiteralLike(ausdruck) && ausdruck.text === "Table");
+    }
+    return false;
+  });
+}
+
+function namespaceNutztTable(knoten: ts.Node, namespace: string): boolean {
+  let gefunden = false;
+  function besuche(node: ts.Node): void {
+    if (gefunden) return;
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const basis = entpackeAusdruck(node.expression);
+      if (basis && ts.isIdentifier(basis)
+        && basis.text === namespace
+        && eigenschaftsName(node) === "Table") {
+        gefunden = true;
+        return;
+      }
+    }
+    if (ts.isVariableDeclaration(node)) {
+      const initialisierung = entpackeAusdruck(node.initializer);
+      if (initialisierung && ts.isIdentifier(initialisierung)
+        && initialisierung.text === namespace
+        && bindungHatTable(node.name)) {
+        gefunden = true;
+        return;
+      }
+    }
+    ts.forEachChild(node, besuche);
+  }
+  besuche(knoten);
+  return gefunden;
+}
+
+function thenNutztTable(aufruf: ts.CallExpression): boolean {
+  if (!ts.isPropertyAccessExpression(aufruf.expression)
+    || aufruf.expression.name.text !== "then"
+    || ladeAufrufArt(aufruf.expression.expression) !== "root") return false;
+  const callback = aufruf.arguments[0];
+  if (!callback || (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback))) {
+    return false;
+  }
+  const parameter = callback.parameters[0]?.name;
+  if (!parameter) return false;
+  if (bindungHatTable(parameter)) return true;
+  return ts.isIdentifier(parameter) && namespaceNutztTable(callback.body, parameter.text);
+}
+
+function dynamischerTableZugriff(source: ts.SourceFile): boolean {
+  let gefunden = false;
+  function besuche(node: ts.Node): void {
+    if (gefunden) return;
+
+    if (ts.isCallExpression(node)) {
+      if (ladeAufrufArt(node) === "table" || thenNutztTable(node)) {
+        gefunden = true;
+        return;
+      }
+    }
+
+    if (ts.isVariableDeclaration(node) && node.initializer) {
+      const art = ladeAufrufArt(node.initializer);
+      if (art === "root" && (ts.isIdentifier(node.name) || bindungHatTable(node.name))) {
+        gefunden = true;
+        return;
+      }
+    }
+
+    if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))
+      && ladeAufrufArt(node.expression) === "root"
+      && eigenschaftsName(node) === "Table") {
+      gefunden = true;
+      return;
+    }
+
+    ts.forEachChild(node, besuche);
+  }
+  besuche(source);
+  return gefunden;
 }
 
 function verstoesseIn(quelle: string, dateiname = "probe.tsx"): string[] {
@@ -66,21 +202,88 @@ function verstoesseIn(quelle: string, dateiname = "probe.tsx"): string[] {
     true,
     ts.ScriptKind.TSX,
   );
-  if (hatUseClientDirektive(source) || !importiertAntdTable(source)) return [];
+  if (hatUseClientDirektive(source)
+    || (!statischerTableImport(source) && !dynamischerTableZugriff(source))) return [];
   return [dateiname];
 }
 
 describe("RSC-/antd-Tabellengrenze", () => {
-  it("erkennt Alias-, Namespace- und Subpfadimporte strukturell", () => {
-    expect(verstoesseIn('import { Table as DatenTabelle } from "antd";'))
-      .toEqual(["probe.tsx"]);
-    expect(verstoesseIn('import * as Antd from "antd";'))
-      .toEqual(["probe.tsx"]);
-    expect(verstoesseIn('import Tabelle from "antd/es/table";'))
-      .toEqual(["probe.tsx"]);
+  it.each([
+    ["Alias aus dem Paket-Root", 'import { Table as DatenTabelle } from "antd";'],
+    ["Namespace aus dem Paket-Root", 'import * as Antd from "antd";'],
+    ["Named Export aus dem ES-Root", 'import { Table } from "antd/es";'],
+    ["Alias aus dem CommonJS-Root", 'import { Table as DatenTabelle } from "antd/lib";'],
+    ["Namespace aus dem ES-Root", 'import * as Antd from "antd/es";'],
+    ["Named Export aus der ES-Rootdatei", 'import { Table } from "antd/es/index.js";'],
+    ["Default aus dem ES-Table-Subpfad", 'import Tabelle from "antd/es/table";'],
+    ["Default aus dem CommonJS-Table-Subpfad", 'import Tabelle from "antd/lib/table";'],
+    ["dynamisch destrukturiert", 'const { Table } = await import("antd");'],
+    [
+      "dynamisch destrukturiert und aliasiert",
+      'const { Table: DatenTabelle } = await import("antd/es");',
+    ],
+    [
+      "dynamischer Namespace",
+      'const Antd = await import("antd/lib");\nconst t = <Antd.Table />;',
+    ],
+    [
+      "dynamischer Property-Zugriff",
+      'const Tabelle = (await import("antd")).Table;',
+    ],
+    [
+      "dynamischer Element-Zugriff",
+      'const Tabelle = (await import("antd/lib"))["Table"];',
+    ],
+    [
+      "dynamisches then mit Alias-Destrukturierung",
+      'const Tabelle = import("antd").then(({ Table: DatenTabelle }) => DatenTabelle);',
+    ],
+    [
+      "dynamisches then mit Namespace",
+      'const Tabelle = import("antd/es").then((Antd) => Antd.Table);',
+    ],
+    [
+      "dynamischer Table-Subpfad",
+      'const Tabelle = (await import("antd/es/table")).default;',
+    ],
+    ["require destrukturiert", 'const { Table } = require("antd");'],
+    [
+      "require destrukturiert und aliasiert",
+      'const { Table: DatenTabelle } = require("antd/lib");',
+    ],
+    [
+      "require aus der CommonJS-Rootdatei",
+      'const { Table: DatenTabelle } = require("antd/lib/index.js");',
+    ],
+    [
+      "require mit berechnetem Alias-Schlüssel",
+      'const { ["Table"]: DatenTabelle } = require("antd");',
+    ],
+    [
+      "require Namespace",
+      'const Antd = require("antd/es");\nconst t = <Antd.Table />;',
+    ],
+    ["require Property-Zugriff", 'const Tabelle = require("antd").Table;'],
+    ["require Element-Zugriff", 'const Tabelle = require("antd/lib")["Table"];'],
+    ["require Table-Subpfad", 'const Tabelle = require("antd/lib/table");'],
+  ] as const)("erkennt die RED-Mutationsprobe %s", (_name, quelle) => {
+    expect(verstoesseIn(quelle)).toEqual(["probe.tsx"]);
+  });
+
+  it("lässt Typimporte, andere Komponenten und echte Client-Dateien in Ruhe", () => {
     expect(verstoesseIn('import { type TableProps } from "antd";'))
       .toEqual([]);
     expect(verstoesseIn('import { type TableProps } from "antd/es/table";'))
+      .toEqual([]);
+    expect(verstoesseIn('import { type TableProps } from "antd/es";'))
+      .toEqual([]);
+    expect(verstoesseIn('const { Card } = await import("antd");'))
+      .toEqual([]);
+    expect(verstoesseIn('const { Card } = require("antd/lib");'))
+      .toEqual([]);
+    expect(verstoesseIn('const Karte = import("antd").then(({ Card }) => Card);'))
+      .toEqual([]);
+    expect(verstoesseIn('const Karte = import("antd/es").then((Antd) => Antd.Card);'))
       .toEqual([]);
     expect(verstoesseIn('"use client";\nimport { Table } from "antd";'))
       .toEqual([]);
