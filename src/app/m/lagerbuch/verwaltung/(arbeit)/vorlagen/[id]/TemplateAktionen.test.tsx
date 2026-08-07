@@ -161,7 +161,11 @@ describe("TemplateAktionen", () => {
 
     expect(existsPortal(".ant-modal")).toBe(true);
     expect(queryPortal<HTMLInputElement>(".ant-modal input").value).toBe("Neuer Name");
-    expect(document.body.textContent).toContain("Vorlage konnte nicht umbenannt werden.");
+    expect(queryPortal(".ant-modal .ant-alert-warning").textContent).toContain(
+      "Vorlage konnte nicht umbenannt werden.",
+    );
+    expect(queryAll(".ant-alert-warning")).toHaveLength(0);
+    expect(document.body.querySelectorAll(".ant-alert-warning")).toHaveLength(1);
     expect(document.body.textContent).not.toContain(INTERN);
   });
 
@@ -180,6 +184,20 @@ describe("TemplateAktionen", () => {
     );
     expect(queryPortal(".ant-form-item-explain-error").textContent).toBe(
       "Name darf nicht leer sein",
+    );
+  });
+
+  it("verwirft einen Umbenennungsfehler beim Abbrechen statt ihn außerhalb zu zeigen", async () => {
+    actions.renameTemplate.mockRejectedValueOnce(new Error(INTERN));
+    await rendern();
+    await umbenennen("Neuer Name");
+    await clickElement(await portalButtonMitText("Abbrechen"));
+    await warte();
+
+    expect(existsPortal(".ant-modal")).toBe(false);
+    expect(queryAll(".ant-alert-warning")).toHaveLength(0);
+    expect(document.body.textContent).not.toContain(
+      "Vorlage konnte nicht umbenannt werden.",
     );
   });
 
@@ -203,7 +221,9 @@ describe("TemplateAktionen", () => {
     await warte();
 
     expect(query("button[role='switch']").getAttribute("aria-checked")).toBe("true");
-    expect(document.body.textContent).toContain("Vorlagenstatus konnte nicht geändert werden.");
+    expect(query(".ant-alert-warning").textContent).toContain(
+      "Vorlagenstatus konnte nicht geändert werden.",
+    );
     expect(document.body.textContent).not.toContain(INTERN);
   });
 
@@ -230,7 +250,9 @@ describe("TemplateAktionen", () => {
     await clickElement(await buttonMitText("Auf alle Fahrzeuge übertragen"));
     await warte();
 
-    expect(document.body.textContent).toContain("Vorlage konnte nicht synchronisiert werden.");
+    expect(query(".ant-alert-warning").textContent).toContain(
+      "Vorlage konnte nicht synchronisiert werden.",
+    );
     expect(document.body.textContent).not.toContain("Fahrzeug(e):");
     expect(document.body.textContent).not.toContain(INTERN);
   });
