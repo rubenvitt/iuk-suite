@@ -39,14 +39,17 @@ function literalWert(node: ts.Node | undefined): string | undefined {
 
 function istVerboteneQuelle(modul: string): boolean {
   const paket = (name: string) => modul === name || modul.startsWith(`${name}/`);
+  const relativerCodePfad = modul.startsWith(".")
+    ? modul.replace(/\.(?:jsx?|tsx?)$/, "")
+    : modul;
   return (
     paket("antd") ||
     paket("@ant-design/icons") ||
     paket("lucide-react") ||
     modul === "@/core/shell" ||
     modul.startsWith("@/core/shell/") ||
-    /(^|\/)core\/shell\/(Shell|icons)(\/|$)/.test(modul) ||
-    /(^|\/)_ui\/ikonen(\/|$)/.test(modul)
+    /(^|\/)core\/shell\/(Shell|icons)(\/|$)/.test(relativerCodePfad) ||
+    /(^|\/)_ui\/ikonen(\/|$)/.test(relativerCodePfad)
   );
 }
 
@@ -183,8 +186,22 @@ const VERBOTENE_MODULE = [
   "lucide-react",
   "lucide-react/icons/log-out",
   "@/core/shell/Shell",
-  "../../../../../../core/shell/icons",
+  "../../../../../core/shell/icons",
   "../../_ui/ikonen",
+  ...[".js", ".jsx", ".ts", ".tsx"].flatMap((endung) => [
+    `../../_ui/ikonen${endung}`,
+    `../../../../../core/shell/Shell${endung}`,
+    `../../../../../core/shell/icons${endung}`,
+  ]),
+] as const;
+
+const ERLAUBTE_AEHNLICHE_MODULE = [
+  "../../_ui/ikonen.json",
+  "../../_ui/ikonen.css",
+  "../../_ui/ikonen.js/loader",
+  "../../../../../core/shell/Shell.json",
+  "../../../../../core/shell/icons.css",
+  "../../../../../core/shell/icons.ts/adapter",
 ] as const;
 
 const LADEFORMEN = [
@@ -200,10 +217,21 @@ const LADE_MUTATIONEN = VERBOTENE_MODULE.flatMap((modul) =>
   LADEFORMEN.map(([form, quelle]) => ({ form, modul, quelle: quelle(modul) })),
 );
 
+const ERLAUBTE_LADE_MUTATIONEN = ERLAUBTE_AEHNLICHE_MODULE.flatMap((modul) =>
+  LADEFORMEN.map(([form, quelle]) => ({ form, modul, quelle: quelle(modul) })),
+);
+
 describe("Layout-Quellriegel: Mutationsfixtures", () => {
   it.each(LADE_MUTATIONEN)("findet $form aus $modul", ({ modul, quelle }) => {
     expect(analysiereLayout(quelle).verboteneQuellen).toEqual([modul]);
   });
+
+  it.each(ERLAUBTE_LADE_MUTATIONEN)(
+    "erlaubt $form aus dem aehnlichen Pfad $modul",
+    ({ quelle }) => {
+      expect(analysiereLayout(quelle).verboteneQuellen).toEqual([]);
+    },
+  );
 
   it("findet direkte und aliasierte Auth-Quellen sowie eigene Viewer-Aufrufe", () => {
     const analyse = analysiereLayout(`
@@ -230,6 +258,7 @@ describe("Layout-Quellriegel: Mutationsfixtures", () => {
   ] as const)("ignoriert alle verbotenen Woerter im %s", (_name, art) => {
     const woerter =
       'import Shell from "@/core/shell/Shell"; import("antd"); require("lucide-react"); ' +
+      'import("../../_ui/ikonen.js"); require("../../../../../core/shell/icons.ts"); ' +
       '"use client"; auth(); viewerOderNull(); <Shell />;';
     const quelle =
       art === "/*"
