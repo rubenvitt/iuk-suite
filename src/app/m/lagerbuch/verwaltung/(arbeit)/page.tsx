@@ -1,6 +1,5 @@
-import { Card, Col, Empty, Row, Table, type TableProps } from "antd";
+import { Card, Col, Empty, Row } from "antd";
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { getDb, type DB } from "../../_db/client";
 import { verfallSchwellen, verfallStatus } from "../../_lib/domain/verfall";
 import { ampelTon, chargeText, type AmpelTon } from "../../_lib/format";
@@ -17,6 +16,10 @@ import { Chip } from "../../_ui/Chip";
 import { Kachel } from "../../_ui/Kachel";
 import { SeitenKopf } from "../../_ui/SeitenKopf";
 import s from "../../_ui/verwaltung.module.css";
+import {
+  LetzteBuchungenTable,
+  type UebersichtJournalZeile,
+} from "./LetzteBuchungenTable";
 
 export const dynamic = "force-dynamic";
 
@@ -30,21 +33,6 @@ export type KritischeZeile = {
   chargeText: string | null;
   chargeTon: AmpelTon | null;
 };
-
-type JournalAnzeigeZeile = {
-  id: string;
-  zeit: ReactNode;
-  artikel: string;
-  vorgang: string;
-  menge: ReactNode;
-};
-
-const JOURNAL_SPALTEN = [
-  { title: "Zeit", dataIndex: "zeit", key: "zeit" },
-  { title: "Artikel", dataIndex: "artikel", key: "artikel" },
-  { title: "Vorgang", dataIndex: "vorgang", key: "vorgang" },
-  { title: "Δ", dataIndex: "menge", key: "menge", align: "right" as const },
-] satisfies TableProps<JournalAnzeigeZeile>["columns"];
 
 export function kritischeArtikel(db: DB, jetzt: Date): KritischeZeile[] {
   const schwellen = verfallSchwellen();
@@ -69,24 +57,19 @@ export function kritischeArtikel(db: DB, jetzt: Date): KritischeZeile[] {
     });
 }
 
-function journalAnzeigeZeilen(zeilen: JournalZeileRoh[]): JournalAnzeigeZeile[] {
+function journalAnzeigeZeilen(
+  zeilen: JournalZeileRoh[],
+): UebersichtJournalZeile[] {
   return zeilen.map((zeile) => {
     const darstellung = journalZeile(zeile);
-    const zustandKlasse = darstellung.zustand === "negativ"
-      ? s.jminus
-      : darstellung.zustand === "positiv"
-        ? s.jplus
-        : undefined;
     return {
       id: zeile.id,
-      zeit: <span className={s.jts}>{fmtTs(zeile.ts)}</span>,
-      artikel: zeile.artikelName,
-      vorgang: darstellung.typText + (zeile.kommentar ? ` · ${zeile.kommentar}` : ""),
-      menge: (
-        <span className={[s.jdelta, zustandKlasse].filter(Boolean).join(" ")}>
-          {darstellung.mengeText}
-        </span>
-      ),
+      zeitText: fmtTs(zeile.ts),
+      artikelName: zeile.artikelName,
+      vorgangText: darstellung.typText
+        + (zeile.kommentar ? ` · ${zeile.kommentar}` : ""),
+      deltaText: darstellung.mengeText,
+      deltaTon: darstellung.zustand,
     };
   });
 }
@@ -192,18 +175,7 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
       </Card>
 
       <Card title="Letzte Buchungen">
-        {journalZeilen.length === 0 ? (
-          <Empty description="Noch keine Buchungen." />
-        ) : (
-          <Table<JournalAnzeigeZeile>
-            rowKey="id"
-            pagination={false}
-            scroll={{ x: "max-content" }}
-            aria-label="Letzte Buchungen"
-            dataSource={journalZeilen}
-            columns={JOURNAL_SPALTEN}
-          />
-        )}
+        <LetzteBuchungenTable zeilen={journalZeilen} />
       </Card>
     </>
   );

@@ -1,4 +1,3 @@
-import { Table } from "antd";
 import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import ts from "typescript";
@@ -7,10 +6,12 @@ import { artikel, buchungen, chargen } from "../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../_db/testdb";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import { JOURNAL_GRENZE } from "../../../_lib/grenzen";
-import { Chip } from "../../../_ui/Chip";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
-import s from "../../../_ui/verwaltung.module.css";
 import { JournalFilter } from "./JournalFilter";
+import {
+  JournalTable,
+  type JournalAnzeigeZeile,
+} from "./JournalTable";
 import JournalSeite, {
   dynamic,
   journalDaten,
@@ -84,27 +85,17 @@ function elementeVomTyp(
   return [...treffer, ...elementeVomTyp(kinder, typ)];
 }
 
-function textVon(wert: ReactNode): string {
-  if (typeof wert === "string" || typeof wert === "number") return String(wert);
-  if (Array.isArray(wert)) return wert.map(textVon).join("");
-  if (!isValidElement(wert)) return "";
-  return textVon((wert.props as { children?: ReactNode }).children);
+function istJsonSicher(wert: unknown): boolean {
+  if (wert === null) return true;
+  if (["string", "number", "boolean"].includes(typeof wert)) return true;
+  if (Array.isArray(wert)) return wert.every(istJsonSicher);
+  if (typeof wert !== "object" || Object.getPrototypeOf(wert) !== Object.prototype) {
+    return false;
+  }
+  return Object.values(wert).every(istJsonSicher);
 }
 
-function enthaeltDate(wert: unknown): boolean {
-  if (wert instanceof Date) return true;
-  if (Array.isArray(wert)) return wert.some(enthaeltDate);
-  if (isValidElement(wert)) return enthaeltDate(wert.props);
-  if (wert && typeof wert === "object") return Object.values(wert).some(enthaeltDate);
-  return false;
-}
-
-function istRenderName(name: ts.PropertyName): boolean {
-  return (ts.isIdentifier(name) || ts.isStringLiteral(name))
-    && name.text === "render";
-}
-
-function analysiereRscTable(quelle: string) {
+function antdImportNamen(quelle: string): string[] {
   const source = ts.createSourceFile(
     "page.tsx",
     quelle,
@@ -112,31 +103,17 @@ function analysiereRscTable(quelle: string) {
     true,
     ts.ScriptKind.TSX,
   );
-  let renderEigenschaften = 0;
-  let funktionaleRowKeys = 0;
-
-  function besuche(node: ts.Node) {
+  return source.statements.flatMap((statement) => {
     if (
-      (ts.isPropertyAssignment(node) || ts.isMethodDeclaration(node))
-      && istRenderName(node.name)
-    ) {
-      renderEigenschaften += 1;
-    }
-    if (ts.isJsxAttribute(node) && node.name.getText(source) === "rowKey") {
-      const initializer = node.initializer;
-      const statischerString = initializer !== undefined && (
-        ts.isStringLiteral(initializer)
-        || (ts.isJsxExpression(initializer)
-          && initializer.expression !== undefined
-          && ts.isStringLiteral(initializer.expression))
-      );
-      if (!statischerString) funktionaleRowKeys += 1;
-    }
-    ts.forEachChild(node, besuche);
-  }
-
-  besuche(source);
-  return { renderEigenschaften, funktionaleRowKeys };
+      !ts.isImportDeclaration(statement)
+      || !ts.isStringLiteral(statement.moduleSpecifier)
+      || statement.moduleSpecifier.text !== "antd"
+    ) return [];
+    const bindungen = statement.importClause?.namedBindings;
+    return bindungen && ts.isNamedImports(bindungen)
+      ? bindungen.elements.map((element) => element.propertyName?.text ?? element.name.text)
+      : [];
+  });
 }
 
 describe("Journalseite — Regime B und Deckel", () => {
@@ -210,7 +187,7 @@ describe("Journalseite — Regime B und Deckel", () => {
       bis: "",
       hinweise: ungueltig.hinweise,
     });
-    expect(enthaeltDate(insel.props)).toBe(false);
+    expect(istJsonSicher(insel.props)).toBe(true);
 
     const gefiltert = journalDaten(t.db, {
       q: "  päckchen ",
@@ -248,8 +225,8 @@ describe("Journalseite — Regime B und Deckel", () => {
   });
 });
 
-describe("Journalseite — serverseitig vorbereitete Tabelle", () => {
-  it("traegt exakt die fuenf Spalten und fertige Anzeigezellen ohne Date", () => {
+describe("Journalseite — JSON-sichere Client-Grenze", () => {
+  it("formatiert alle Anzeigeinformationen als rekursiv primitive DTOs", () => {
     buche({
       id: "id-negativ",
       typ: "entnahme",
@@ -259,79 +236,55 @@ describe("Journalseite — serverseitig vorbereitete Tabelle", () => {
     buche({ id: "id-positiv", typ: "zugang", menge: 2 });
 
     const seite = journalInhalt(journalDaten(t.db, {}));
-    const [tabelle] = elementeVomTyp(seite, Table);
+    const [tabelle] = elementeVomTyp(seite, JournalTable);
     const props = tabelle.props as {
-      rowKey: string;
-      pagination: boolean;
-      scroll: { x: string };
-      "aria-label": string;
-      locale: { emptyText: ReactNode };
-      columns: Array<{ title: ReactNode }>;
-      dataSource: Array<Record<string, ReactNode>>;
+      zeilen: JournalAnzeigeZeile[];
+      leertext: string;
     };
 
-    expect(props.rowKey).toBe("id");
-    expect(props.pagination).toBe(false);
-    expect(props.scroll).toEqual({ x: "max-content" });
-    expect(props["aria-label"]).toBe("Buchungsjournal");
-    expect(props.columns.map((spalte) => spalte.title)).toEqual([
-      "Zeit",
-      "Artikel",
-      "Vorgang",
-      "Δ",
-      "Quelle",
+    expect(props.zeilen).toEqual([
+      {
+        id: "id-positiv",
+        zeitText: "07.08. 14:00",
+        artikelName: "Verbandpäckchen",
+        vorgangText: "Wareneingang",
+        deltaText: "+2",
+        deltaTon: "positiv",
+        quelleName: "System",
+      },
+      {
+        id: "id-negativ",
+        zeitText: "07.08. 14:00",
+        artikelName: "Verbandpäckchen",
+        vorgangText: "Entnahme · Verbraucht",
+        deltaText: "-1",
+        deltaTon: "negativ",
+        quelleName: "System",
+      },
     ]);
-    expect(enthaeltDate(props.dataSource)).toBe(false);
-
-    const negativ = props.dataSource.find((zeile) => zeile.id === "id-negativ");
-    const positiv = props.dataSource.find((zeile) => zeile.id === "id-positiv");
-    expect(negativ).toBeDefined();
-    expect(positiv).toBeDefined();
-    expect(textVon(negativ?.zeit)).toBe("07.08. 14:00");
-    expect(textVon(negativ?.artikel)).toBe("Verbandpäckchen");
-    expect((negativ?.artikel as ReactElement<{ style: { fontWeight: number } }>).props.style)
-      .toEqual({ fontWeight: 600 });
-    expect(negativ?.vorgang).toBe("Entnahme · Verbraucht");
-    expect(textVon(negativ?.delta)).toBe("-1");
-    expect((negativ?.delta as ReactElement<{ className: string }>).props.className)
-      .toBe(`${s.jdelta} ${s.jminus}`);
-    expect(textVon(positiv?.delta)).toBe("+2");
-    expect((positiv?.delta as ReactElement<{ className: string }>).props.className)
-      .toBe(`${s.jdelta} ${s.jplus}`);
-
-    const [quelle] = elementeVomTyp(negativ?.quelle, Chip);
-    expect({ ton: quelle.props.ton, text: textVon(quelle) })
-      .toEqual({ ton: "grau", text: "System" });
+    expect(istJsonSicher(props)).toBe(true);
   });
 
   it("unterscheidet den Leertext mit Filter und nennt ohne Deckel die echte Zahl", () => {
     const ohneFilter = journalDaten(t.db, {});
-    const [leereTabelle] = elementeVomTyp(journalInhalt(ohneFilter), Table);
-    expect((leereTabelle.props as { locale: { emptyText: string } }).locale.emptyText)
+    const [leereTabelle] = elementeVomTyp(journalInhalt(ohneFilter), JournalTable);
+    expect((leereTabelle.props as { leertext: string }).leertext)
       .toBe("Noch keine Buchung.");
     const [leererKopf] = elementeVomTyp(journalInhalt(ohneFilter), SeitenKopf);
     expect(leererKopf.props.beschreibung).toContain("0 Treffer.");
 
     const mitFilter = journalDaten(t.db, { q: "ohne-treffer" });
-    const [gefilterteTabelle] = elementeVomTyp(journalInhalt(mitFilter), Table);
-    expect((gefilterteTabelle.props as { locale: { emptyText: string } }).locale.emptyText)
+    const [gefilterteTabelle] = elementeVomTyp(journalInhalt(mitFilter), JournalTable);
+    expect((gefilterteTabelle.props as { leertext: string }).leertext)
       .toBe("Keine Buchung passt zu Suche, Vorgang und Zeitraum.");
   });
 
-  it("haelt die RSC-Table frei von render-Methoden und funktionalem rowKey", () => {
-    expect(analysiereRscTable(
-      "<Table rowKey={(zeile) => zeile.id} "
-      + "columns={[{ render: () => null }, { render() { return null; } }]} />",
-    )).toEqual({ renderEigenschaften: 2, funktionaleRowKeys: 1 });
-
+  it("importiert in der directive-freien RSC-Seite keine antd-Table", () => {
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/journal/page.tsx",
       "utf8",
     );
-    expect(analysiereRscTable(quelle)).toEqual({
-      renderEigenschaften: 0,
-      funktionaleRowKeys: 0,
-    });
+    expect(antdImportNamen(quelle)).not.toContain("Table");
     expect(quelle).not.toMatch(/["']use client["']/);
     expect(quelle).not.toContain(String.fromCodePoint(0x2212));
     expect(quelle).not.toContain("Trefferanzeige");
@@ -343,19 +296,12 @@ describe("Journalseite — serverseitig vorbereitete Tabelle", () => {
       true,
       ts.ScriptKind.TSX,
     );
-    const clientImport = source.statements.find((statement) => (
+    const clientImporte = source.statements.filter((statement) => (
       ts.isImportDeclaration(statement)
       && ts.isStringLiteral(statement.moduleSpecifier)
-      && statement.moduleSpecifier.text === "./JournalFilter"
+      && ["./JournalFilter", "./JournalTable"].includes(statement.moduleSpecifier.text)
     ));
-    expect(clientImport && ts.isImportDeclaration(clientImport)).toBe(true);
-    if (!clientImport || !ts.isImportDeclaration(clientImport)) {
-      throw new Error("JournalFilter-Import fehlt");
-    }
-    const bindungen = clientImport.importClause?.namedBindings;
-    expect(bindungen && ts.isNamedImports(bindungen)
-      ? bindungen.elements.map((element) => element.name.text)
-      : []).toEqual(["JournalFilter"]);
+    expect(clientImporte).toHaveLength(2);
     expect(quelle).toContain('from "./journalFilterLogik"');
   });
 });
