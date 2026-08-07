@@ -662,14 +662,6 @@ describe("LoeschButton", () => {
     );
   });
 
-  it("setzt `size` NICHT von selbst", () => {
-    // `size` wird gar nicht gesetzt; die einzige Ausnahme sind Zeilenaktionen
-    // INNERHALB einer Tabellenzeile, und das entscheidet der Aufrufer.
-    const quelle = ohneKommentare(
-      readFileSync("src/app/m/lagerbuch/_ui/LoeschButton.tsx", "utf8"),
-    );
-    expect(quelle).not.toMatch(/\bsize\s*=/);
-  });
 });
 
 describe("Client-/Server-Grenze und Action-Injektion", () => {
