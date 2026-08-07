@@ -20,7 +20,9 @@ jobs:
           version: 11.0.9
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Dieselbe Major-Version wie Build- und Laufzeit-Image: Abweichungen
+          # hier verdecken sonst Engine- oder Runtime-Probleme bis zum Imagebau.
+          node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
