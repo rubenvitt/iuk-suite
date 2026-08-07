@@ -157,6 +157,20 @@ test("1 — eine Datei ueber 10 MiB kommt chunkweise vollstaendig an und ist byt
   // Kalter `next dev`, 12 MiB ueber CDP, drei `PUT`s und ein Scan derselben
   // Groesse passen nicht in die 90 s der Konfiguration.
   test.setTimeout(240_000);
+
+  /*
+   * DIE DOWNLOAD-ROUTE VOR DEM AV-FENSTER UEBERSETZEN. Beim ersten Aufruf
+   * kompiliert `next dev` `/api/download/[id]`; unter Last kann allein das
+   * laenger dauern als Versuch 1 (2 s) plus Wiederholungsabstand (1 s). Dann
+   * startet auch Versuch 2 noch unter `haengt`, bevor der Test auf `ok`
+   * umschalten kann, und die Zeile endet dauerhaft in `error`. Der beantwortete
+   * 404 ist die Barriere: kein Schlaf, keine Produktdaten und noch kein Scan.
+   */
+  const warmlauf = await page.request.get(
+    `${V}/api/download/warmup0000?file=warmup0001`,
+  );
+  expect(warmlauf.status(), await warmlauf.text()).toBe(404);
+
   /*
    * `haengt` VOR dem Upload, und das ist keine Schikane, sondern der einzige
    * Weg, „vor `clean` gesperrt" DETERMINISTISCH zu messen. Der erste Versuch
