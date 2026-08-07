@@ -1,13 +1,106 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
+import ts from "typescript";
 import { mount, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 import { SeitenKopf } from "./SeitenKopf";
 import { Brotkrume } from "./Brotkrume";
 import { Kachel } from "./Kachel";
 import s from "./verwaltung.module.css";
 
+function parseQuelle(quelle: string): ts.SourceFile {
+  return ts.createSourceFile(
+    "Komponente.tsx",
+    quelle,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+}
+
+function hatUseClientDirektive(quelle: string): boolean {
+  // Kommentare sind AST-Trivia und erscheinen nicht in `statements`. Dadurch
+  // beginnt die Pruefung am echten Direktiven-Prolog, unabhaengig von Laenge
+  // und Form fuehrender Kommentare.
+  for (const statement of parseQuelle(quelle).statements) {
+    if (!ts.isExpressionStatement(statement) || !ts.isStringLiteral(statement.expression)) {
+      return false;
+    }
+    if (statement.expression.text === "use client") return true;
+  }
+  return false;
+}
+
+function importDeklarationen(quelle: string): ts.ImportDeclaration[] {
+  return parseQuelle(quelle).statements.filter(ts.isImportDeclaration);
+}
+
+function modulSpezifizierer(deklaration: ts.ImportDeclaration): string | null {
+  return ts.isStringLiteral(deklaration.moduleSpecifier)
+    ? deklaration.moduleSpecifier.text
+    : null;
+}
+
+function importiertAntdBreadcrumb(quelle: string): boolean {
+  return importDeklarationen(quelle).some((deklaration) => {
+    const modul = modulSpezifizierer(deklaration);
+    if (modul !== "antd" && !modul?.startsWith("antd/")) return false;
+
+    if (modul.toLowerCase().split("/").includes("breadcrumb")) return true;
+
+    const bindungen = deklaration.importClause?.namedBindings;
+    return Boolean(
+      bindungen &&
+      ts.isNamedImports(bindungen) &&
+      bindungen.elements.some(
+        (element) => (element.propertyName ?? element.name).text === "Breadcrumb",
+      ),
+    );
+  });
+}
+
+function importiertAntdIcons(quelle: string): boolean {
+  return importDeklarationen(quelle).some((deklaration) => {
+    const modul = modulSpezifizierer(deklaration);
+    return modul === "@ant-design/icons" || Boolean(modul?.startsWith("@ant-design/icons/"));
+  });
+}
+
 afterEach(async () => { await unmount(); });
+
+describe("Quelltext-Riegel", () => {
+  it("erkennt eine wirksame use-client-Direktive nach mehr als 200 Byte Kommentar", () => {
+    const quelle = `/* ${"Nur ein fuehrender Kommentar ohne semantische Wirkung. ".repeat(8)} */
+"use client";
+export function Beispiel() { return null; }
+`;
+    expect(quelle.indexOf('"use client"')).toBeGreaterThan(200);
+    expect(hatUseClientDirektive(quelle)).toBe(true);
+  });
+
+  it("akzeptiert die Worte use client in einem Kommentar", () => {
+    const quelle = `/* Warum diese Server-Komponente kein "use client" traegt. */
+export function Beispiel() { return null; }
+`;
+    expect(hatUseClientDirektive(quelle)).toBe(false);
+  });
+
+  it.each([
+    ["benannten Root-Import", 'import { Breadcrumb } from "antd";'],
+    ["aliasierten Root-Import", 'import { Breadcrumb as Pfad } from "antd";'],
+    ["aliasierten ES-Unterpfadimport", 'import { default as Pfad } from "antd/es/breadcrumb";'],
+    ["LIB-Unterpfadimport", 'import Pfad from "antd/lib/breadcrumb/index.js";'],
+  ])("erkennt einen %s", (_fall, quelle) => {
+    expect(importiertAntdBreadcrumb(quelle)).toBe(true);
+  });
+
+  it("akzeptiert das Wort Breadcrumb in einem Kommentar", () => {
+    const quelle = `/* Breadcrumb bleibt hier absichtlich eine begruendende Vokabel. */
+export function Beispiel() { return null; }
+`;
+    expect(importiertAntdBreadcrumb(quelle)).toBe(false);
+  });
+});
 
 describe("SeitenKopf", () => {
   it("rendert ein nacktes <h1>, kein Typography.Title", async () => {
@@ -63,8 +156,7 @@ describe("Brotkrume", () => {
     // in der RSC-Ebene laedt, ist NICHT gemessen. Eine ungemessene Annahme
     // kostet hier HTTP 500 auf neun Seiten.
     const quelle = readFileSync("src/app/m/lagerbuch/_ui/Brotkrume.tsx", "utf8");
-    expect(quelle).not.toMatch(/Breadcrumb/);
-    expect(quelle).not.toMatch(/from ["']antd["']/);
+    expect(importiertAntdBreadcrumb(quelle)).toBe(false);
   });
 
   it("traegt die aeuszere Pfadform", async () => {
@@ -134,11 +226,11 @@ describe("Kachel", () => {
 describe("Alle drei sind RSC-tauglich", () => {
   it.each(["SeitenKopf", "Brotkrume", "Kachel"])("%s.tsx traegt kein \"use client\"", (name) => {
     const quelle = readFileSync(`src/app/m/lagerbuch/_ui/${name}.tsx`, "utf8");
-    expect(quelle.slice(0, 200)).not.toMatch(/["']use client["']/);
+    expect(hatUseClientDirektive(quelle)).toBe(false);
   });
 
   it.each(["SeitenKopf", "Brotkrume", "Kachel"])("%s.tsx importiert keine Icons aus antd", (name) => {
     const quelle = readFileSync(`src/app/m/lagerbuch/_ui/${name}.tsx`, "utf8");
-    expect(quelle).not.toMatch(/@ant-design\/icons/);
+    expect(importiertAntdIcons(quelle)).toBe(false);
   });
 });
