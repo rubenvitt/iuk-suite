@@ -34,7 +34,8 @@ function hatUseClientDirektive(source: ts.SourceFile): boolean {
 type AntdModulArt = "root" | "table";
 
 function antdModulArt(modul: string): AntdModulArt | null {
-  if (modul === "antd" || /^antd\/(?:es|lib)(?:\/index(?:\.js)?)?$/.test(modul)) {
+  const root = modul.endsWith("/") ? modul.slice(0, -1) : modul;
+  if (root === "antd" || /^antd\/(?:es|lib)(?:\/index(?:\.js)?)?$/.test(root)) {
     return "root";
   }
   if (/^antd\/(?:es|lib)\/table(?:\/|$)/.test(modul)) return "table";
@@ -61,7 +62,9 @@ function statischerTableImport(source: ts.SourceFile): boolean {
 
     const bindungen = clause.namedBindings;
     if (clause.name) return true;
-    if (bindungen && ts.isNamespaceImport(bindungen)) return true;
+    if (bindungen && ts.isNamespaceImport(bindungen)) {
+      return namespaceNutztTable(source, bindungen.name.text);
+    }
     if (!bindungen || !ts.isNamedImports(bindungen)) return false;
     return bindungen.elements.some((element) => (
       !element.isTypeOnly
@@ -175,7 +178,8 @@ function dynamischerTableZugriff(source: ts.SourceFile): boolean {
 
     if (ts.isVariableDeclaration(node) && node.initializer) {
       const art = ladeAufrufArt(node.initializer);
-      if (art === "root" && (ts.isIdentifier(node.name) || bindungHatTable(node.name))) {
+      if (art === "root" && (bindungHatTable(node.name)
+        || (ts.isIdentifier(node.name) && namespaceNutztTable(source, node.name.text)))) {
         gefunden = true;
         return;
       }
@@ -210,10 +214,21 @@ function verstoesseIn(quelle: string, dateiname = "probe.tsx"): string[] {
 describe("RSC-/antd-Tabellengrenze", () => {
   it.each([
     ["Alias aus dem Paket-Root", 'import { Table as DatenTabelle } from "antd";'],
-    ["Namespace aus dem Paket-Root", 'import * as Antd from "antd";'],
+    [
+      "Namespace aus dem Paket-Root",
+      'import * as Antd from "antd";\nconst t = <Antd.Table />;',
+    ],
     ["Named Export aus dem ES-Root", 'import { Table } from "antd/es";'],
     ["Alias aus dem CommonJS-Root", 'import { Table as DatenTabelle } from "antd/lib";'],
-    ["Namespace aus dem ES-Root", 'import * as Antd from "antd/es";'],
+    ["Named Export aus dem ES-Slash-Root", 'import { Table } from "antd/es/";'],
+    [
+      "Alias aus dem CommonJS-Slash-Root",
+      'import { Table as DatenTabelle } from "antd/lib/";',
+    ],
+    [
+      "Namespace aus dem ES-Root",
+      'import * as Antd from "antd/es";\nconst t = Antd["Table"];',
+    ],
     ["Named Export aus der ES-Rootdatei", 'import { Table } from "antd/es/index.js";'],
     ["Default aus dem ES-Table-Subpfad", 'import Tabelle from "antd/es/table";'],
     ["Default aus dem CommonJS-Table-Subpfad", 'import Tabelle from "antd/lib/table";'],
@@ -223,8 +238,16 @@ describe("RSC-/antd-Tabellengrenze", () => {
       'const { Table: DatenTabelle } = await import("antd/es");',
     ],
     [
+      "dynamisch aus dem ES-Slash-Root",
+      'const { Table: DatenTabelle } = await import("antd/es/");',
+    ],
+    [
       "dynamischer Namespace",
       'const Antd = await import("antd/lib");\nconst t = <Antd.Table />;',
+    ],
+    [
+      "dynamischer Namespace mit Element-Zugriff",
+      'const Antd = await import("antd/es/");\nconst t = Antd["Table"];',
     ],
     [
       "dynamischer Property-Zugriff",
@@ -252,6 +275,10 @@ describe("RSC-/antd-Tabellengrenze", () => {
       'const { Table: DatenTabelle } = require("antd/lib");',
     ],
     [
+      "require aus dem CommonJS-Slash-Root",
+      'const { Table: DatenTabelle } = require("antd/lib/");',
+    ],
+    [
       "require aus der CommonJS-Rootdatei",
       'const { Table: DatenTabelle } = require("antd/lib/index.js");',
     ],
@@ -262,6 +289,10 @@ describe("RSC-/antd-Tabellengrenze", () => {
     [
       "require Namespace",
       'const Antd = require("antd/es");\nconst t = <Antd.Table />;',
+    ],
+    [
+      "require Namespace mit Element-Zugriff",
+      'const Antd = require("antd/lib/");\nconst t = Antd["Table"];',
     ],
     ["require Property-Zugriff", 'const Tabelle = require("antd").Table;'],
     ["require Element-Zugriff", 'const Tabelle = require("antd/lib")["Table"];'],
@@ -277,10 +308,28 @@ describe("RSC-/antd-Tabellengrenze", () => {
       .toEqual([]);
     expect(verstoesseIn('import { type TableProps } from "antd/es";'))
       .toEqual([]);
+    expect(verstoesseIn('import { type TableProps } from "antd/es/";'))
+      .toEqual([]);
+    expect(verstoesseIn(
+      'import * as Antd from "antd";\nconst warnung = <Antd.Alert />;',
+    )).toEqual([]);
+    expect(verstoesseIn(
+      'import type * as AntdTypen from "antd";\ntype Warnung = typeof AntdTypen.Alert;',
+    )).toEqual([]);
     expect(verstoesseIn('const { Card } = await import("antd");'))
       .toEqual([]);
+    expect(verstoesseIn('const { Card } = await import("antd/es/");'))
+      .toEqual([]);
+    expect(verstoesseIn(
+      'const Antd = await import("antd/es/");\nconst Karte = Antd.Card;',
+    )).toEqual([]);
     expect(verstoesseIn('const { Card } = require("antd/lib");'))
       .toEqual([]);
+    expect(verstoesseIn('const { Card } = require("antd/lib/");'))
+      .toEqual([]);
+    expect(verstoesseIn(
+      'const Antd = require("antd/lib/");\nconst Karte = Antd.Card;',
+    )).toEqual([]);
     expect(verstoesseIn('const Karte = import("antd").then(({ Card }) => Card);'))
       .toEqual([]);
     expect(verstoesseIn('const Karte = import("antd/es").then((Antd) => Antd.Card);'))
