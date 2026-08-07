@@ -28,6 +28,71 @@ import { readFileSync } from "node:fs";
 const CSS = readFileSync("src/core/shell/shell.module.css", "utf8");
 const OHNE_KOMMENTARE = CSS.replace(/\/\*[\s\S]*?\*\//g, "");
 
+type CssRegel = {
+  selektor: string;
+  deklarationen: string;
+};
+
+function cssRegeln(css: string): CssRegel[] {
+  // Das schlieszende `}` ist nur der Anker, nicht Teil des Treffers. Wuerde
+  // es verbraucht, begänne die globale Suche erst HINTER ihm und ueberspränge
+  // die unmittelbar folgende Regel.
+  return [...css.matchAll(/(?:(?<=})|^)\s*([^{}]+?)\s*\{([^{}]*)\}/g)].map((treffer) => ({
+    selektor: treffer[1].trim(),
+    deklarationen: treffer[2],
+  }));
+}
+
+function zieltAufKlasse(selektor: string, klasse: string): boolean {
+  // Die Wortgrenzen allein reichen nicht: in `.nicht-modulnav` waere das
+  // Bindestrich-Zeichen eine Wortgrenze. Der Selektor muss die Klasse selbst
+  // tragen, nicht bloss einen Namensvetter.
+  return new RegExp(`(^|[^A-Za-z0-9_-])\\.${klasse}(?![A-Za-z0-9_-])`).test(selektor);
+}
+
+function modulnavRegeln(css: string): CssRegel[] {
+  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  return cssRegeln(ohneKommentare).filter((regel) => zieltAufKlasse(regel.selektor, "modulnav"));
+}
+
+function deklarationsWerte(regeln: CssRegel[], eigenschaft: string): string[] {
+  const muster = new RegExp(`(?:^|;)\\s*${eigenschaft}\\s*:\\s*([^;}]+)`, "g");
+  return regeln.flatMap((regel) =>
+    [...regel.deklarationen.matchAll(muster)].map((deklaration) => deklaration[1].trim()),
+  );
+}
+
+function modulnavStruktur(css: string) {
+  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const mediaStart = ohneKommentare.indexOf("@media (min-width: 768px)");
+  expect(mediaStart, "einziger Desktop-Breakpoint fehlt").toBeGreaterThanOrEqual(0);
+
+  const basisRegeln = modulnavRegeln(ohneKommentare.slice(0, mediaStart));
+  expect(basisRegeln, "vor der Media Query muss genau eine Basisregel .modulnav stehen").toHaveLength(1);
+
+  return {
+    basis: basisRegeln[0],
+    alle: modulnavRegeln(ohneKommentare),
+    abBreakpoint: ohneKommentare.slice(mediaStart),
+  };
+}
+
+function erwartetRobusteModulnavUeberlaufbehandlung(css: string) {
+  const struktur = modulnavStruktur(css);
+
+  // Genau eine Quelle je Eigenschaft: eine zweite Regel mit demselben Wert ist
+  // ebenso ein Kaskadenrisiko wie eine mit `hidden` oder `initial`.
+  expect(deklarationsWerte(struktur.alle, "overflow-x")).toEqual(["auto"]);
+  expect(deklarationsWerte(struktur.alle, "scrollbar-width")).toEqual(["thin"]);
+  for (const regel of struktur.alle) {
+    expect(regel.deklarationen, `scroll-behavior in "${regel.selektor}"`).not.toMatch(
+      /(?:^|;)\s*scroll-behavior\s*:/,
+    );
+  }
+
+  return struktur;
+}
+
 describe("shell.module.css", () => {
   it("kennt genau einen Breakpoint, und der ist 768px", () => {
     const breakpoints = [...OHNE_KOMMENTARE.matchAll(/\(min-width:\s*(\d+)px\)/g)].map((m) => m[1]);
@@ -117,18 +182,52 @@ describe("shell.module.css", () => {
      * 390px sind die richtige und die kaputte Fassung nicht zu unterscheiden,
      * weil `.modulnav` dort auf `display: none` steht.
      */
-    const basis = /\.modulnav\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
-    expect(basis, "Klasse .modulnav fehlt").not.toBeNull();
-    expect(basis![1]).toMatch(/overflow-x:\s*auto/);
-    expect(basis![1]).toMatch(/scrollbar-width:\s*thin/);
+    const { basis } = erwartetRobusteModulnavUeberlaufbehandlung(OHNE_KOMMENTARE);
+    expect(basis.deklarationen).toMatch(/overflow-x:\s*auto/);
+    expect(basis.deklarationen).toMatch(/scrollbar-width:\s*thin/);
   });
 
   it("animiert das Scrollen der Modulnavigation nicht", () => {
     // `prefers-reduced-motion` bleibt unberuehrt: es wird nichts animiert und
     // `scroll-behavior` bleibt ungesetzt. Ein `scroll-behavior: smooth` hier
     // waere eine Animation ohne Gegenstueck im reduced-motion-Zweig.
-    const basis = /\.modulnav\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
-    expect(basis![1]).not.toMatch(/scroll-behavior/);
+    const { alle } = modulnavStruktur(OHNE_KOMMENTARE);
+    for (const regel of alle) {
+      expect(regel.deklarationen, `scroll-behavior in "${regel.selektor}"`).not.toMatch(
+        /(?:^|;)\s*scroll-behavior\s*:/,
+      );
+    }
+  });
+
+  it("verwirft eine spaetere `.modulnav`-Ueberschreibung trotz gruenem Ersttreffer", () => {
+    const mutation = `${OHNE_KOMMENTARE}
+      .modulnav {
+        overflow-x: hidden;
+        scroll-behavior: smooth;
+      }
+    `;
+
+    // Genau der bisherige Ersttreffer: er bleibt gruen und sieht die spaetere
+    // Kaskaden-Ueberschreibung nicht.
+    const ersterTreffer = /\.modulnav\s*\{([^}]*)\}/.exec(mutation);
+    expect(ersterTreffer, "Basisregel .modulnav fehlt").not.toBeNull();
+    expect(ersterTreffer![1]).toMatch(/overflow-x:\s*auto/);
+    expect(ersterTreffer![1]).toMatch(/scrollbar-width:\s*thin/);
+    expect(ersterTreffer![1]).not.toMatch(/scroll-behavior/);
+
+    // Die robuste Zusage sieht ALLE Regeln und lehnt sowohl die spaetere
+    // `hidden`-Ueberschreibung als auch deren `scroll-behavior` ab.
+    expect(() => erwartetRobusteModulnavUeberlaufbehandlung(mutation)).toThrow();
+  });
+
+  it("ignoriert Kommentare und aehnlich benannte Klassen bei .modulnav", () => {
+    const nurNamen = `${CSS}
+      /* .modulnav { overflow-x: hidden; scroll-behavior: smooth; } */
+      .modulnavigation { overflow-x: hidden; scroll-behavior: smooth; }
+      .nicht-modulnav { scrollbar-width: none; }
+    `;
+
+    expect(() => erwartetRobusteModulnavUeberlaufbehandlung(nurNamen)).not.toThrow();
   });
 
   it("nutzt keine `--ant-*`-Variablen (die sieht eigenes Markup nicht)", () => {
@@ -172,11 +271,11 @@ describe("shell.module.css", () => {
      * Zeile steht daneben. Zeigte sie sich mobil, kaeme sie zu den 64px hinzu.
      * Das sichtbare Ergebnis besitzt `e2e/shell-mobil.spec.ts`, die Regel hier.
      */
-    const basis = /\.modulnav\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
-    expect(basis, "Klasse .modulnav fehlt").not.toBeNull();
-    expect(basis![1]).toMatch(/display:\s*none/);
-    const abBreakpoint = OHNE_KOMMENTARE.slice(OHNE_KOMMENTARE.indexOf("(min-width: 768px)"));
-    expect(/\.modulnav\s*\{([^}]*)\}/.exec(abBreakpoint)?.[1] ?? "").toMatch(/display:\s*flex/);
+    const { basis, abBreakpoint } = modulnavStruktur(OHNE_KOMMENTARE);
+    expect(basis.deklarationen).toMatch(/display:\s*none/);
+    const desktopRegeln = modulnavRegeln(abBreakpoint);
+    expect(desktopRegeln, "Desktopregel .modulnav fehlt").toHaveLength(1);
+    expect(desktopRegeln[0].deklarationen).toMatch(/display:\s*flex/);
   });
 
   it("laesst die Modulknopfreihe nicht ueber den Titel brechen", () => {
