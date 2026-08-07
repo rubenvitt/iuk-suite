@@ -6,6 +6,7 @@ import { PFADE, type IkonName } from "./ikonen";
 
 const WURZEL = "src/app/m/lagerbuch";
 const IKON_NAMEN = new Set(Object.keys(PFADE));
+const ROHE_SVG_QUELLEN = new Set(["_ui/ikonen.tsx", "_ui/Plakette.tsx"]);
 
 function alleDateien(verzeichnis: string, endungen: string[]): string[] {
   const treffer: string[] = [];
@@ -313,19 +314,22 @@ function analysiereQuelle(
 }
 
 function modulBefunde(): Befund[] {
-  return alleDateien(WURZEL, [".ts", ".tsx"]).flatMap((datei) =>
-    analysiereQuelle(relative(WURZEL, datei), readFileSync(datei, "utf8"), {
-      erlaubtRohesSvg: datei.endsWith("/_ui/ikonen.tsx"),
-    }),
-  );
+  return alleDateien(WURZEL, [".ts", ".tsx"]).flatMap((datei) => {
+    const modulpfad = relative(WURZEL, datei);
+    return analysiereQuelle(modulpfad, readFileSync(datei, "utf8"), {
+      erlaubtRohesSvg: ROHE_SVG_QUELLEN.has(modulpfad),
+    });
+  });
 }
 
 /**
  * DER MODUL-EIGENE RIEGEL — UND WARUM DER VORHANDENE NICHT REICHT.
  *
  * `core/shell/icons.test.ts` erlaubt antd-Icons in einer Client-Insel. Die
- * Lagerbuch-Regel geht weiter: kein fremdes Zeichenpaket im ganzen Modul, keine
- * zweite lokale SVG-Quelle und kein Laufzeitname ausserhalb von PFADE.
+ * Lagerbuch-Regel geht weiter: kein fremdes Zeichenpaket im ganzen Modul und
+ * kein Laufzeitname ausserhalb von PFADE. Genau zwei native SVG-Quellen sind
+ * fachlich vorgesehen: das zentrale Zeichenvokabular und das Zifferblatt der
+ * Plakette. Jede weitere Quelle bleibt gesperrt.
  */
 describe("Ikonen-Riegel: AST statt Textregex", () => {
   const dateien = alleDateien(WURZEL, [".ts", ".tsx"]);
@@ -339,8 +343,21 @@ describe("Ikonen-Riegel: AST statt Textregex", () => {
     expect(befunde.filter((b) => b.art === "verbotener-import").map((b) => b.detail)).toEqual([]);
   });
 
-  it("nur ikonen.tsx erzeugt ein natives SVG", () => {
+  it("nur ikonen.tsx und Plakette.tsx erzeugen native SVGs", () => {
     expect(befunde.filter((b) => b.art === "rohes-svg").map((b) => b.detail)).toEqual([]);
+  });
+
+  it("haelt die beiden SVG-Ausnahmen namentlich und vollstaendig fest", () => {
+    expect([...ROHE_SVG_QUELLEN].sort()).toEqual(["_ui/Plakette.tsx", "_ui/ikonen.tsx"]);
+    for (const datei of ROHE_SVG_QUELLEN) {
+      const quelle = readFileSync(join(WURZEL, datei), "utf8");
+      expect(
+        analysiereQuelle(datei, quelle)
+          .filter((b) => b.art === "rohes-svg")
+          .map((b) => b.detail),
+        `${datei} braucht keine SVG-Ausnahme mehr`,
+      ).not.toEqual([]);
+    }
   });
 
   it("jeder literal benutzte IkonName existiert und keine unsichere Assertion umgeht die Union", () => {
