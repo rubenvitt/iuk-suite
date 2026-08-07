@@ -114,23 +114,22 @@ export function NeuToken({
       <Modal
         open={offen}
         title="Neuen Zugangs-Code anlegen"
-        okText="Code anlegen"
-        cancelText="Schließen"
+        okText={code ? "Schließen" : "Code anlegen"}
+        cancelText="Abbrechen"
         confirmLoading={laeuft}
         onCancel={schliessen}
-        onOk={() => form.submit()}
+        onOk={code ? schliessen : () => form.submit()}
         destroyOnHidden
       >
         <Form<Werte>
           form={form}
           layout="vertical"
-          disabled={laeuft}
+          disabled={laeuft || code !== null}
           initialValues={{ zielArt: "liste" }}
           onValuesChange={(geaendert) => {
             if (!("zielArt" in geaendert)) return;
             form.setFieldValue("zielId", undefined);
             form.setFields([{ name: "zielId", errors: [] }]);
-            setCode(null);
           }}
           onFinish={speichern}
           data-rolle="neu-token-form"
