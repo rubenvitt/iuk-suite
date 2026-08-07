@@ -12,7 +12,6 @@ import { headers } from "next/headers";
 import { LAGERBUCH_NAV } from "../../_lib/nav";
 import { requireLagerbuchHost } from "../../_lib/host";
 import { requireLagerbuchAdmin, type Viewer } from "../../_lib/zugang";
-import { SeitenKopf } from "../../_ui/SeitenKopf";
 import { VerwaltungsRahmen } from "../../_ui/VerwaltungsRahmen";
 
 const VERWALTUNG = "src/app/m/lagerbuch/verwaltung";
@@ -423,23 +422,18 @@ function allePfade(root: string): string[] {
 }
 
 describe("verwaltung/: Verzeichnisvertrag", () => {
-  it("enthaelt die bis T128 befristete Uebersichtsseite mit ihrem exakten Platzhalter", async () => {
+  it("enthaelt dauerhaft die dynamische Uebersichtsseite", async () => {
     const vorhanden = existsSync(SEITE);
     expect(vorhanden).toBe(true);
     if (!vorhanden) return;
 
     const modul = await vi.importActual<{
       dynamic: string;
-      default: () => ReactElement<{ titel?: string; beschreibung?: string }>;
+      default: unknown;
     }>("./page");
-    const element = modul.default();
 
     expect(modul.dynamic).toBe("force-dynamic");
-    expect(element.type).toBe(SeitenKopf);
-    expect(element.props).toEqual({
-      titel: "Übersicht",
-      beschreibung: "Kennzahlen folgen in T128.",
-    });
+    expect(typeof modul.default).toBe("function");
   });
 
   it("hat weder loses Layout/Seite noch eine zweite Etiketten-Route", () => {
