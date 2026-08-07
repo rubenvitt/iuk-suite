@@ -45,6 +45,19 @@ const CSV_MIT_FEHLER = [
   "Kaputt;Stk",
 ].join("\n");
 
+type Aufloesbar<T> = {
+  promise: Promise<T>;
+  aufloesen: (wert: T) => void;
+};
+
+function aufloesbar<T>(): Aufloesbar<T> {
+  let aufloesen!: (wert: T) => void;
+  const promise = new Promise<T>((fertig) => {
+    aufloesen = fertig;
+  });
+  return { promise, aufloesen };
+}
+
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
 beforeAll(() => {
@@ -76,6 +89,18 @@ async function dateiWaehlen(text: string): Promise<void> {
   await act(async () => {
     feld.dispatchEvent(new Event("change", { bubbles: true }));
     await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+async function dateilesungStarten(text: Promise<string>, name: string): Promise<void> {
+  const feld = query<HTMLInputElement>("input[type='file']");
+  Object.defineProperty(feld, "files", {
+    configurable: true,
+    value: [{ name, text: () => text }],
+  });
+  await act(async () => {
+    feld.dispatchEvent(new Event("change", { bubbles: true }));
     await Promise.resolve();
   });
 }
@@ -225,11 +250,14 @@ describe("ImportForm", () => {
   });
 
   it("sendet den unveraenderten Text und behaelt Vorschau plus Diagnostik bei Teilerfolg", async () => {
+    const parserFehler = vorschauAus(CSV_MIT_FEHLER).fehler[0]!;
     importArtikelCsvMock.mockResolvedValueOnce({
       ok: true,
       wert: {
         angelegt: 1,
-        fehler: ["Zeile 4: „Mullbinde“ konnte nicht angelegt werden."],
+        // Die echte Action übernimmt Parserfehler in dasselbe Ergebnis und
+        // ergänzt erst danach transaktionale Zeilenfehler.
+        fehler: [parserFehler, "Zeile 4: „Mullbinde“ konnte nicht angelegt werden."],
       },
     });
     await mount(<ImportForm />);
@@ -241,10 +269,92 @@ describe("ImportForm", () => {
     expect(document.body.textContent).toContain("1 Artikel angelegt.");
     expect(document.body.textContent).toContain("Zeile 4: „Mullbinde“ konnte nicht angelegt werden.");
     expect(document.body.textContent).toContain("Zeile 5: erwartet 5 Spalten");
+    expect((document.body.textContent?.match(/Zeile 5: erwartet 5 Spalten/g) ?? []))
+      .toHaveLength(1);
     expect(vorschauZeilen().map((zeile) => zeile.dataset.rowKey)).toEqual(["3", "4"]);
     expect(query<HTMLButtonElement>("button[data-rolle='import']").disabled).toBe(true);
     await submitForm();
     expect(importArtikelCsvMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("serialisiert zwei Submits, solange die erste Action noch aussteht", async () => {
+    const antwort = aufloesbar<{
+      ok: true;
+      wert: { angelegt: number; fehler: string[] };
+    }>();
+    importArtikelCsvMock.mockReturnValueOnce(antwort.promise);
+    await mount(<ImportForm />);
+    await dateiWaehlen(
+      "Name;Einheit;Fach;Mindestbestand;Startbestand\nMullbinde;Stk;A1;20;5",
+    );
+
+    await submitForm();
+    await submitForm();
+    expect(importArtikelCsvMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      antwort.aufloesen({ ok: true, wert: { angelegt: 1, fehler: [] } });
+      await antwort.promise;
+    });
+    expect(document.body.textContent).toContain("1 Artikel angelegt.");
+  });
+
+  it("ignoriert eine spaet aufgeloeste alte Dateilesung", async () => {
+    const alt = aufloesbar<string>();
+    const neu = aufloesbar<string>();
+    await mount(<ImportForm />);
+
+    await dateilesungStarten(alt.promise, "alt.csv");
+    await dateilesungStarten(neu.promise, "neu.csv");
+    await act(async () => {
+      neu.aufloesen(
+        "Name;Einheit;Fach;Mindestbestand;Startbestand\nNeu;Stk;N1;2;1",
+      );
+      await neu.promise;
+    });
+    expect(vorschauZeilen().map((zeile) => zeile.textContent)).toEqual(["NeuN1Stk21"]);
+
+    await act(async () => {
+      alt.aufloesen(
+        "Name;Einheit;Fach;Mindestbestand;Startbestand\nAlt;Pkg;A9;9;8",
+      );
+      await alt.promise;
+    });
+    expect(vorschauZeilen().map((zeile) => zeile.textContent)).toEqual(["NeuN1Stk21"]);
+  });
+
+  it("leert nach einem Lesefehler das native Feld fuer die erneute gleiche Auswahl", async () => {
+    await mount(<ImportForm />);
+    const feld = query<HTMLInputElement>("input[type='file']");
+    let dateiwert = "C:\\fakepath\\artikel.csv";
+    Object.defineProperty(feld, "value", {
+      configurable: true,
+      get: () => dateiwert,
+      set: (wert: string) => {
+        dateiwert = wert;
+      },
+    });
+    Object.defineProperty(feld, "files", {
+      configurable: true,
+      value: [{
+        name: "artikel.csv",
+        text: async () => {
+          throw new Error("lokales Lesedetail");
+        },
+      }],
+    });
+
+    await act(async () => {
+      feld.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain(
+      "Die CSV-Datei konnte nicht gelesen werden. Bitte erneut versuchen.",
+    );
+    expect(document.body.textContent).not.toContain("lokales Lesedetail");
+    expect(dateiwert).toBe("");
   });
 
   it("behaelt den Arbeitsstand bei einem fachlichen Action-Fehler", async () => {

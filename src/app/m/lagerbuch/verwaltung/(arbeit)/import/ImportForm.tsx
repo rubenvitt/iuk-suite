@@ -127,9 +127,16 @@ export function ImportForm() {
       const inhalt = await datei.text();
       if (leseGeneration.current === generation) setText(inhalt);
     } catch {
-      if (leseGeneration.current === generation) setWarnung(DATEI_LESEFEHLER);
+      if (leseGeneration.current === generation) {
+        if (dateifeld.current) dateifeld.current.value = "";
+        setWarnung(DATEI_LESEFEHLER);
+      }
     }
   };
+
+  const actionFehler = ergebnis?.fehler.filter(
+    (eintrag) => !vorschau.fehler.includes(eintrag),
+  ) ?? [];
 
   const importieren = async () => {
     if (importLaeuft.current || ergebnis !== null || vorschau.rows.length === 0) return;
@@ -194,7 +201,7 @@ export function ImportForm() {
             title={`${ergebnis.angelegt} Artikel angelegt.`}
           />
         ) : null}
-        {ergebnis ? <Fehlerbericht fehler={ergebnis.fehler} /> : null}
+        {ergebnis ? <Fehlerbericht fehler={actionFehler} /> : null}
         {warnung ? <Alert type="warning" showIcon={false} title={warnung} /> : null}
       </Flex>
     </Form>
