@@ -242,6 +242,9 @@ describe("ImportForm", () => {
     expect(document.body.textContent).toContain("Zeile 4: „Mullbinde“ konnte nicht angelegt werden.");
     expect(document.body.textContent).toContain("Zeile 5: erwartet 5 Spalten");
     expect(vorschauZeilen().map((zeile) => zeile.dataset.rowKey)).toEqual(["3", "4"]);
+    expect(query<HTMLButtonElement>("button[data-rolle='import']").disabled).toBe(true);
+    await submitForm();
+    expect(importArtikelCsvMock).toHaveBeenCalledTimes(1);
   });
 
   it("behaelt den Arbeitsstand bei einem fachlichen Action-Fehler", async () => {
