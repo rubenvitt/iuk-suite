@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   afterAll,
   afterEach,
@@ -22,6 +24,8 @@ import {
   statusChip,
   type BestellAnzeigeZeile,
 } from "./BestellListe";
+import type { BestellZeile } from "../../../_lib/lesepfade/bestellung";
+import { bestellAnzeigeZeile, dynamic } from "./page";
 
 const mocks = vi.hoisted(() => ({
   markiereBestellt: vi.fn(),
@@ -67,6 +71,10 @@ const DA = {
 } satisfies BestellAnzeigeZeile;
 
 const ZEILEN = [OFFEN, BESTELLT, DA];
+const QUELLE = readFileSync(join(
+  process.cwd(),
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/bestellung/BestellListe.tsx",
+), "utf8");
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
@@ -109,6 +117,45 @@ describe("statusChip — Auflage 17", () => {
   });
 });
 
+describe("RSC-/Client-Grenze", () => {
+  it("formatiert Europe/Berlin und reicht kein Date in die Client-Insel weiter", () => {
+    const roh: BestellZeile = {
+      id: "a4",
+      name: "Pflaster",
+      einheit: "Pkg",
+      fach: "B2",
+      bestand: 0,
+      mindestbestand: 5,
+      vorschlag: 5,
+      bestellt: true,
+      // In UTC noch am Vortag, in Berlin bereits am Folgetag.
+      bestelltSeit: new Date("2026-08-01T23:30:00Z"),
+      wareOffenbarDa: false,
+    };
+    const anzeige = bestellAnzeigeZeile(roh);
+    expect(anzeige.bestelltSeitText).toBe("02.08.2026");
+    expect("bestelltSeit" in anzeige).toBe(false);
+    expect((Object.values(anzeige) as unknown[]).some((wert) => wert instanceof Date)).toBe(false);
+  });
+
+  it("erfindet ohne Markierung kein Datum und haelt die Route dynamisch", () => {
+    const roh: BestellZeile = {
+      id: "a5",
+      name: "Mullbinde",
+      einheit: "Stk",
+      fach: "A1",
+      bestand: 2,
+      mindestbestand: 10,
+      vorschlag: 8,
+      bestellt: false,
+      bestelltSeit: null,
+      wareOffenbarDa: false,
+    };
+    expect(bestellAnzeigeZeile(roh).bestelltSeitText).toBeNull();
+    expect(dynamic).toBe("force-dynamic");
+  });
+});
+
 describe("BestellListe", () => {
   it("traegt die sechs verbindlichen Spalten und stabile Tabellenattribute", async () => {
     await mount(<BestellListe zeilen={ZEILEN} />);
@@ -148,6 +195,17 @@ describe("BestellListe", () => {
     expect(knopf.getAttribute("aria-label")).toBe("Als bestellt markieren");
   });
 
+  it("nimmt eine Bestellung mit `bestellt: false` zurueck, ebenfalls ohne Optimismus", async () => {
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    const knopf = queryAll<HTMLButtonElement>("tbody button[aria-label]")[1];
+    await clickElement(knopf);
+    expect(mocks.markiereBestellt).toHaveBeenCalledWith({
+      artikelId: "a2",
+      bestellt: false,
+    });
+    expect(knopf.getAttribute("aria-label")).toBe("Bestellung zurücknehmen");
+  });
+
   it("beobachtet fachliche Actionfehler als Warnung und laesst die Serverzeile stehen", async () => {
     mocks.markiereBestellt.mockResolvedValueOnce({
       ok: false,
@@ -184,5 +242,18 @@ describe("BestellListe", () => {
     await mount(<BestellListe zeilen={ZEILEN} />);
     expect(exists("a[download]")).toBe(false);
     expect(exists("[data-clipboard-text]")).toBe(false);
+  });
+
+  it("verriegelt pagination, horizontalen Scrollvertrag und beide echten Tooltip-Huellen", async () => {
+    const elf = Array.from({ length: 11 }, (_, index) => ({
+      ...OFFEN,
+      id: `viele-${index}`,
+      name: `Artikel ${index}`,
+    }));
+    await mount(<BestellListe zeilen={elf} />);
+    expect(exists(".ant-pagination")).toBe(false);
+    expect(QUELLE).toContain("pagination={false}");
+    expect(QUELLE).toContain('scroll={{ x: "max-content" }}');
+    expect(QUELLE.match(/<Tooltip title=\{SPERRGRUND\}>/g)).toHaveLength(2);
   });
 });
