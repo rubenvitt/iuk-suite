@@ -122,6 +122,9 @@ function analysiereQuelle(
           reactNamensraeume.add(bindungen.name.text);
         }
       }
+      if (spezifizierer === "react" && node.importClause?.name) {
+        reactNamensraeume.add(node.importClause.name.text);
+      }
     }
 
     if (
@@ -444,6 +447,11 @@ describe("AST-Riegel — dieselbe Analyse fuer reale Dateien und Negativ-Fixture
     {
       name: "React-Namespace-Alias",
       quelle: 'import * as R from "react"; R.createElement("svg", {});',
+      erwartet: "rohes-svg",
+    },
+    {
+      name: "React-Defaultimport-Alias",
+      quelle: 'import R from "react"; R.createElement("svg", {});',
       erwartet: "rohes-svg",
     },
     {
