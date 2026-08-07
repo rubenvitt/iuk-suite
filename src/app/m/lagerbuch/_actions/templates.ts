@@ -12,11 +12,15 @@ import {
   templatePositionen,
 } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
+import { findeFahrzeug } from "../_lib/schreibpfade/fahrzeug";
 import {
   syncFahrzeugTemplate,
   type SyncErgebnis,
 } from "../_lib/schreibpfade/templateSync";
+import { bereinigeVerfallOhneAktivesSoll } from "../_lib/schreibpfade/lagerortVerfall";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
+
+const VERFALL_PFAD = "/m/lagerbuch/verwaltung/verfall";
 
 /** Eine geordnete Pfadliste fuer alle elf Actions. */
 function revalidate(fahrzeugId?: string) {
@@ -166,7 +170,10 @@ export async function deleteTemplate(
   try {
     db.transaction((tx) => {
       const fahrzeuge = tx.select().from(lagerorte)
-        .where(eq(lagerorte.templateId, geparst.data.id)).all();
+        .where(and(
+          eq(lagerorte.templateId, geparst.data.id),
+          eq(lagerorte.typ, "fahrzeug"),
+        )).all();
       for (const fahrzeug of fahrzeuge) {
         loeseFahrzeugVonTemplate(tx, fahrzeug.id);
       }
@@ -251,6 +258,7 @@ export async function templatePositionEntfernen(
         } else {
           tx.delete(sollPositionen).where(eq(sollPositionen.id, row.id)).run();
         }
+        bereinigeVerfallOhneAktivesSoll(tx, row.fahrzeugId, row.artikelId);
       }
       tx.delete(templatePositionen)
         .where(eq(templatePositionen.id, geparst.data.id)).run();
@@ -260,6 +268,7 @@ export async function templatePositionEntfernen(
   }
 
   revalidate();
+  revalidatePath(VERFALL_PFAD);
   return { ok: true };
 }
 
@@ -276,13 +285,19 @@ export async function fahrzeugTemplateZuweisen(
 
   const geparst = ZuweisenSchema.safeParse(eingabe);
   if (!geparst.success) return validierungsFehler(geparst.error);
+  if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
+    return festerFehler("Fahrzeug nicht gefunden.");
+  }
 
   let ergebnis: SyncErgebnis;
   try {
     ergebnis = db.transaction((tx) => {
       tx.update(lagerorte)
         .set({ templateId: geparst.data.templateId })
-        .where(eq(lagerorte.id, geparst.data.fahrzeugId))
+        .where(and(
+          eq(lagerorte.id, geparst.data.fahrzeugId),
+          eq(lagerorte.typ, "fahrzeug"),
+        ))
         .run();
       return syncFahrzeugTemplate(tx, geparst.data.fahrzeugId);
     });
@@ -291,6 +306,7 @@ export async function fahrzeugTemplateZuweisen(
   }
 
   revalidate(geparst.data.fahrzeugId);
+  revalidatePath(VERFALL_PFAD);
   return { ok: true, wert: ergebnis };
 }
 
@@ -304,6 +320,9 @@ export async function fahrzeugTemplateSync(
 
   const geparst = SyncSchema.safeParse(eingabe);
   if (!geparst.success) return validierungsFehler(geparst.error);
+  if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
+    return festerFehler("Fahrzeug nicht gefunden.");
+  }
 
   let ergebnis: SyncErgebnis;
   try {
@@ -314,6 +333,7 @@ export async function fahrzeugTemplateSync(
   }
 
   revalidate(geparst.data.fahrzeugId);
+  revalidatePath(VERFALL_PFAD);
   return { ok: true, wert: ergebnis };
 }
 
@@ -332,7 +352,10 @@ export async function templateAufFahrzeugeSyncen(
   try {
     ergebnis = db.transaction((tx) => {
       const fahrzeuge = tx.select().from(lagerorte)
-        .where(eq(lagerorte.templateId, geparst.data.templateId)).all();
+        .where(and(
+          eq(lagerorte.templateId, geparst.data.templateId),
+          eq(lagerorte.typ, "fahrzeug"),
+        )).all();
       const summe: SyncErgebnis = {
         hinzugefuegt: 0,
         aktualisiert: 0,
@@ -355,6 +378,7 @@ export async function templateAufFahrzeugeSyncen(
   }
 
   revalidate();
+  revalidatePath(VERFALL_PFAD);
   return { ok: true, wert: ergebnis };
 }
 
@@ -368,6 +392,9 @@ export async function fahrzeugTemplateLoesen(
 
   const geparst = LoesenSchema.safeParse(eingabe);
   if (!geparst.success) return validierungsFehler(geparst.error);
+  if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
+    return festerFehler("Fahrzeug nicht gefunden.");
+  }
 
   try {
     db.transaction((tx) =>
@@ -395,6 +422,9 @@ export async function templateAusFahrzeug(
   const geparst = AusFahrzeugSchema.safeParse(eingabe);
   if (!geparst.success) return validierungsFehler(geparst.error);
   const v = geparst.data;
+  if (!findeFahrzeug(db, v.fahrzeugId)) {
+    return festerFehler("Fahrzeug nicht gefunden.");
+  }
   const templateId = newId();
 
   try {

@@ -25,9 +25,9 @@ const VerfallSchema = z.object({
 /**
  * Pflegt den im Fahrzeug abgelesenen Verfall eines Sollartikels.
  *
- * Ein Grabstein (`entfernt: true`) bleibt eine Sollzugehörigkeit: Er bedeutet
- * „gerade nicht bestückt", nicht „gehört nicht zu diesem Fahrzeug". Deshalb
- * filtert die Zugehörigkeitsprüfung bewusst nicht nach `entfernt`.
+ * Nur eine aktive Sollposition begründet die Zugehörigkeit. Grabsteine bleiben
+ * für den Vorlagen-Sync erhalten, sind im Fahrzeug-Verfall-Editor aber bewusst
+ * unsichtbar; sie dürfen daher keine nicht mehr pflegbare Meldung erzeugen.
  */
 export async function verfallSetzen(
   eingabe: unknown,
@@ -59,6 +59,7 @@ export async function verfallSetzen(
     .where(and(
       eq(sollPositionen.fahrzeugId, v.lagerortId),
       eq(sollPositionen.artikelId, v.artikelId),
+      eq(sollPositionen.entfernt, false),
     ))
     .get();
   if (!imSoll) {

@@ -175,7 +175,7 @@ describe("verfallSetzen", () => {
     expect(revalidiert).toEqual([]);
   });
 
-  it("zählt eine entfernte Sollposition weiterhin als Sollzugehörigkeit", async () => {
+  it("weist einen Grabstein als nicht mehr aktive Sollzugehörigkeit zurück", async () => {
     aufbauen({ entfernt: true });
 
     const erg = await verfallSetzen({
@@ -184,9 +184,12 @@ describe("verfallSetzen", () => {
       verfall: VERFALL,
     }, t.db);
 
-    expect(erg).toEqual({ ok: true, wert: { gesetzt: true } });
-    expect(eintrag()?.verfall).toBe(VERFALL);
-    expect(revalidiert).toEqual(PFADE);
+    expect(erg).toEqual({
+      ok: false,
+      fehler: "Artikel steht an diesem Lagerort nicht im Soll.",
+    });
+    expect(eintrag()).toBeUndefined();
+    expect(revalidiert).toEqual([]);
   });
 
   it("meldet einen unbekannten Lagerort fest und schreibt oder revalidiert nichts", async () => {

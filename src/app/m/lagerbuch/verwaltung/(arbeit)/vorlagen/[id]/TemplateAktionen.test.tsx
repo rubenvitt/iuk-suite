@@ -20,8 +20,12 @@ const actions = vi.hoisted(() => ({
   setTemplateAktiv: vi.fn(),
   templateAufFahrzeugeSyncen: vi.fn(),
 }));
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
 
 vi.mock("../../../../_actions/templates", () => actions);
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: navigation.push }),
+}));
 
 const INTERN = "An error occurred in the Server Components render";
 const echtesGetComputedStyle = globalThis.getComputedStyle;
@@ -279,14 +283,17 @@ describe("TemplateAktionen", () => {
     expect(existsPortal(".ant-modal")).toBe(true);
     expect(document.body.textContent).toContain("Vorlage konnte nicht gelöscht werden.");
     expect(document.body.textContent).not.toContain(INTERN);
+    expect(navigation.push).not.toHaveBeenCalled();
   });
 
-  it("schließt den Löschdialog ausschließlich nach Erfolg", async () => {
+  it("schließt nach Erfolg und navigiert von der gelöschten Detailseite zur Liste", async () => {
     await rendern();
     await loeschen();
 
     expect(actions.deleteTemplate).toHaveBeenCalledWith({ id: "t1" });
     expect(existsPortal(".ant-modal")).toBe(false);
+    expect(navigation.push).toHaveBeenCalledTimes(1);
+    expect(navigation.push).toHaveBeenCalledWith("/verwaltung/vorlagen");
   });
 
   it("importiert exakt die vier Actions, keinen generischen Löschpfad und nutzt Alert.title", () => {

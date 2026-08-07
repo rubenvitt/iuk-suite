@@ -24,6 +24,7 @@ import { eq } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { lagerorte, sollPositionen, templatePositionen, newId } from "../../_db/schema";
 import type { Tx } from "./abbuchung";
+import { bereinigeVerfallOhneAktivesSoll } from "./lagerortVerfall";
 
 /** Die Rueckmeldung an die Oberflaeche — fuenf Zaehler, ueber alle Fahrzeuge
  *  summierbar, wenn eine GANZE Vorlage synchronisiert wird
@@ -62,7 +63,7 @@ export function syncFahrzeugTemplate(db: DB | Tx, fahrzeugId: string): SyncErgeb
     hinzugefuegt: 0, aktualisiert: 0, uebersprungen: 0, entfernt: 0, losgeloest: 0,
   };
   const fahrzeug = db.select().from(lagerorte).where(eq(lagerorte.id, fahrzeugId)).get();
-  if (!fahrzeug?.templateId) return erg;
+  if (!fahrzeug || fahrzeug.typ !== "fahrzeug" || !fahrzeug.templateId) return erg;
 
   const tpRows = db.select().from(templatePositionen)
     .where(eq(templatePositionen.templateId, fahrzeug.templateId)).all();
@@ -71,6 +72,7 @@ export function syncFahrzeugTemplate(db: DB | Tx, fahrzeugId: string): SyncErgeb
   const existing = db.select().from(sollPositionen)
     .where(eq(sollPositionen.fahrzeugId, fahrzeugId)).all();
   const linkedByTp = new Map<string, (typeof existing)[number]>();
+  const zuBereinigendeArtikelIds = new Set<string>();
   for (const row of existing) if (row.templatePositionId) linkedByTp.set(row.templatePositionId, row);
 
   // REGEL 1, 2 und 3 — je Vorlagen-Position.
@@ -98,11 +100,15 @@ export function syncFahrzeugTemplate(db: DB | Tx, fahrzeugId: string): SyncErgeb
     // machte den `aktualisiert`-Zaehler wertlos, und der IST die Rueckmeldung.
     if (row.fachLabel !== tp.fachLabel || row.sort !== tp.sort ||
         row.artikelId !== tp.artikelId || row.soll !== tp.soll) {
+      const bisherigerArtikelId = row.artikelId;
       db.update(sollPositionen)
         .set({ fachLabel: tp.fachLabel, sort: tp.sort,
                artikelId: tp.artikelId, soll: tp.soll })
         .where(eq(sollPositionen.id, row.id))
         .run();
+      if (bisherigerArtikelId !== tp.artikelId) {
+        zuBereinigendeArtikelIds.add(bisherigerArtikelId);
+      }
       erg.aktualisiert += 1;
     }
   }
@@ -122,6 +128,14 @@ export function syncFahrzeugTemplate(db: DB | Tx, fahrzeugId: string): SyncErgeb
       db.delete(sollPositionen).where(eq(sollPositionen.id, row.id)).run();
       erg.entfernt += 1;
     }
+    zuBereinigendeArtikelIds.add(row.artikelId);
+  }
+
+  // Erst nach ALLEN Mutationen bereinigen: Zwei Positionen koennen ihre Artikel
+  // in einem Lauf tauschen. Eine Bereinigung zwischen den beiden UPDATEs saehe
+  // dann kurzzeitig keinen aktiven Soll-Eintrag und loeschte gueltigen Verfall.
+  for (const artikelId of zuBereinigendeArtikelIds) {
+    bereinigeVerfallOhneAktivesSoll(db, fahrzeugId, artikelId);
   }
 
   return erg;
