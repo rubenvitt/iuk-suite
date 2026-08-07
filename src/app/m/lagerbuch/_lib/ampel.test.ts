@@ -99,10 +99,16 @@ describe("ampelVar", () => {
 
 const CSS_DATEIEN = [
   { pfad: "src/app/m/lagerbuch/_ui/verwaltung.module.css", traeger: "modul", pflicht: true },
-  { pfad: "src/app/m/lagerbuch/_ui/helfer.module.css", traeger: "rahmen", pflicht: false },
+  { pfad: "src/app/m/lagerbuch/_ui/helfer.module.css", traeger: "rahmen", pflicht: true },
 ] as const;
 
 describe("Ampelpalette: TS und CSS tragen dieselben Werte", () => {
+  it("beide Modul-CSS-Dateien existieren — die Toleranz ist aufgehoben", () => {
+    for (const datei of CSS_DATEIEN) {
+      expect(existsSync(datei.pfad), `${datei.pfad} fehlt`).toBe(true);
+    }
+  });
+
   it("verwaltung.module.css existiert — sie ist Pflicht", () => {
     expect(existsSync(CSS_DATEIEN[0].pfad)).toBe(true);
   });
@@ -130,7 +136,6 @@ describe("Ampelpalette: TS und CSS tragen dieselben Werte", () => {
       for (const [ton, paar] of Object.entries(AMPEL_HELL)) {
         for (const rolle of ["text", "flaeche"] as const) {
           it(`hell: --lb-ampel-${ton}-${rolle} traegt ${paar[rolle]}`, () => {
-            if (!datei.pflicht && !existsSync(datei.pfad)) return;
             const css = readFileSync(datei.pfad, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
             const hell = css.slice(0, css.indexOf('[data-theme="dark"]'));
             expect(hell, `Traeger .${datei.traeger} fehlt`).toMatch(new RegExp(`\\.${datei.traeger}\\s*\\{`));
@@ -144,7 +149,6 @@ describe("Ampelpalette: TS und CSS tragen dieselben Werte", () => {
       for (const [ton, paar] of Object.entries(AMPEL_DUNKEL)) {
         for (const rolle of ["text", "flaeche"] as const) {
           it(`dunkel: --lb-ampel-${ton}-${rolle} traegt ${paar[rolle]}`, () => {
-            if (!datei.pflicht && !existsSync(datei.pfad)) return;
             const css = readFileSync(datei.pfad, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
             const i = css.indexOf('[data-theme="dark"]');
             expect(i, "kein :root[data-theme=\"dark\"]-Block").toBeGreaterThan(-1);
@@ -156,19 +160,16 @@ describe("Ampelpalette: TS und CSS tragen dieselben Werte", () => {
       }
 
       it("schaltet ueber `data-theme`, nicht ueber `prefers-color-scheme`", () => {
-        if (!datei.pflicht && !existsSync(datei.pfad)) return;
         const css = readFileSync(datei.pfad, "utf8");
         expect(css).not.toMatch(/prefers-color-scheme/);
         expect(css).toMatch(/:root\[data-theme="dark"\]/);
       });
 
       it("benutzt keine `--ant-*`-Variablen (die sieht eigenes Markup nicht)", () => {
-        if (!datei.pflicht && !existsSync(datei.pfad)) return;
         expect(readFileSync(datei.pfad, "utf8")).not.toMatch(/var\(--ant-/);
       });
 
       it("enthaelt keine Medienabfrage; jede vorhandene max-width schreibt 767.98", () => {
-        if (!datei.pflicht && !existsSync(datei.pfad)) return;
         const css = readFileSync(datei.pfad, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
         for (const treffer of css.matchAll(/\(max-width:\s*([\d.]+)px\)/g)) {
           expect(treffer[1]).toBe("767.98");
