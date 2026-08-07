@@ -7,6 +7,7 @@ import {
   clickElement,
   mount,
   query,
+  queryAll,
   queryPortal,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
@@ -157,17 +158,14 @@ describe("TemplateVerknuepfung — vier Actions und fuenf Bedienelemente", () =>
   it("rendert Select plus genau vier fachliche Action-Ausgaenge", async () => {
     await mounten();
     expect(query("[aria-label='Vorlage']")).toBeTruthy();
-    expect([
+    const erwarteteAusgaenge = [
       "Verknüpfen",
       "Erneut übertragen",
       "Verknüpfung lösen",
       "Vorlage aus diesem Fahrzeug erstellen",
-    ].map((text) => knopf(text).textContent?.includes(text))).toEqual([
-      true,
-      true,
-      true,
-      true,
-    ]);
+    ];
+    expect(queryAll<HTMLButtonElement>("button").map((button) => button.textContent?.trim()))
+      .toEqual(erwarteteAusgaenge);
 
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/fahrzeuge/[id]/TemplateVerknuepfung.tsx",
@@ -229,19 +227,44 @@ describe("TemplateVerknuepfung — Zuweisen, Sync und Loesen", () => {
   });
 
   it.each([
-    ["sync", "Vorlage konnte nicht erneut übertragen werden."],
-    ["loesen", "Vorlagenverknüpfung konnte nicht gelöst werden."],
-  ] as const)("zeigt beim fehlgeschlagenen %s den festen Warning-Text", async (
+    [
+      "sync",
+      "ok:false",
+      async () => ({ ok: false as const, fehler: "interner Text" }),
+      "Vorlage konnte nicht erneut übertragen werden.",
+    ],
+    [
+      "sync",
+      "Reject",
+      async () => { throw new Error("Framework-Text"); },
+      "Vorlage konnte nicht erneut übertragen werden.",
+    ],
+    [
+      "loesen",
+      "ok:false",
+      async () => ({ ok: false as const, fehler: "interner Text" }),
+      "Vorlagenverknüpfung konnte nicht gelöst werden.",
+    ],
+    [
+      "loesen",
+      "Reject",
+      async () => { throw new Error("Framework-Text"); },
+      "Vorlagenverknüpfung konnte nicht gelöst werden.",
+    ],
+  ] as const)("zeigt beim fehlgeschlagenen %s (%s) den festen Warning-Text", async (
     aktion,
+    _fall,
+    antwort,
     text,
   ) => {
-    mocks[aktion].mockResolvedValueOnce({ ok: false, fehler: "interner Text" });
+    mocks[aktion].mockImplementationOnce(antwort);
     await mounten();
     if (aktion === "sync") {
       await clickElement(knopf("Erneut übertragen"));
       await warte();
     } else await loesenBestaetigen();
     expect(query(".ant-alert-warning").textContent).toContain(text);
+    expect(document.body.textContent).not.toContain("Framework-Text");
   });
 
   it("blockiert einen zweiten Actionstart waehrend der erste noch laeuft", async () => {

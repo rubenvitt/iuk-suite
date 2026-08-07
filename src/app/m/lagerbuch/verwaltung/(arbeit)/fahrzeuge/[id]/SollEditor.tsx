@@ -141,6 +141,13 @@ export function SollEditor({
     }, SOLL_DEBOUNCE_MS);
   }
 
+  function ausstehendenSollCommitVerwerfen(positionId: string): void {
+    const ausstehend = timer.current[positionId];
+    if (ausstehend === undefined) return;
+    clearTimeout(ausstehend);
+    delete timer.current[positionId];
+  }
+
   const spalten: TableProps<SollAnzeigeZeile>["columns"] = [
     {
       title: "Fach",
@@ -221,15 +228,21 @@ export function SollEditor({
           title="Position entfernen?"
           okText="Entfernen"
           cancelText="Abbrechen"
-          onConfirm={() => new Promise<void>((fertig) => {
-            startTransition(async () => {
-              await sicherAusfuehren(
-                () => sollPositionEntfernen({ id: position.id }),
-                ENTFERNEN_FEHLER,
-              );
-              fertig();
+          onConfirm={() => {
+            // Ein spaeter Soll-Commit wuerde eine template-abgeleitete Zeile
+            // mit `entfernt:false` wiederbeleben. Entfernen gewinnt deshalb
+            // synchron gegen den noch nicht gestarteten Debounce.
+            ausstehendenSollCommitVerwerfen(position.id);
+            return new Promise<void>((fertig) => {
+              startTransition(async () => {
+                await sicherAusfuehren(
+                  () => sollPositionEntfernen({ id: position.id }),
+                  ENTFERNEN_FEHLER,
+                );
+                fertig();
+              });
             });
-          })}
+          }}
         >
           <Button
             size="small"

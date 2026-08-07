@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getDb, type DB } from "../../../../_db/client";
 import { lagerorte } from "../../../../_db/schema";
+import { ampelTon } from "../../../../_lib/format";
 import { artikelListe } from "../../../../_lib/lesepfade/artikel";
 import {
   sollFuerFahrzeug,
@@ -55,7 +56,7 @@ function verfallZeilen(
       artikelName: artikel.artikelName,
       fachText: artikel.faecher.join(" · "),
       verfall: eintrag?.verfall ?? null,
-      ampel: eintrag?.ampel ?? null,
+      statusTon: eintrag ? ampelTon(eintrag.ampel) : null,
       statusText: eintrag?.text ?? null,
     };
   });
@@ -87,7 +88,7 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
     .filter((vorlage) => vorlage.id !== aktuelleVorlage?.id);
   const faecher = new Set(aktivePositionen.map((position) => position.fachLabel)).size;
   const verfallAuffaellig = verfall.filter(
-    (eintrag) => eintrag.ampel !== null && eintrag.ampel !== "gruen",
+    (eintrag) => eintrag.statusTon !== null && eintrag.statusTon !== "ok",
   );
 
   return (
@@ -118,7 +119,7 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
           <Kachel
             zahl={verfallAuffaellig.length}
             beschriftung="auffällige Verfallsmeldungen"
-            ton={verfallAuffaellig.some((eintrag) => eintrag.ampel === "rot") ? "rot" : "ok"}
+            ton={verfallAuffaellig.some((eintrag) => eintrag.statusTon === "rot") ? "rot" : "ok"}
           />
         </Col>
       </Row>

@@ -124,9 +124,11 @@ function knopf(text: string): HTMLButtonElement {
   return treffer;
 }
 
-async function entfernenBestaetigen(): Promise<void> {
+async function entfernenBestaetigen(
+  ariaLabel = "Beatmungsbeutel aus Fach Fach B entfernen",
+): Promise<void> {
   await clickElement(query<HTMLButtonElement>(
-    "button[aria-label='Beatmungsbeutel aus Fach Fach B entfernen']",
+    `button[aria-label='${ariaLabel}']`,
   ));
   await warte();
   const bestaetigen = Array.from(document.body.querySelectorAll<HTMLButtonElement>(
@@ -251,6 +253,19 @@ describe("SollEditor — auto-committende Sollmenge", () => {
     await fill("input[aria-label='Soll für Mullbinde']", "9");
     await unmount();
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(mocks.setzen).not.toHaveBeenCalled();
+  });
+
+  it("cancelt ein ausstehendes Soll-Edit, bevor dieselbe Vorlagenposition entfernt wird", async () => {
+    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await fill("input[aria-label='Soll für Mullbinde']", "9");
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+
+    await entfernenBestaetigen("Mullbinde aus Fach Fach A entfernen");
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    await warte();
+
+    expect(mocks.entfernen).toHaveBeenCalledWith({ id: "p-a1" });
     expect(mocks.setzen).not.toHaveBeenCalled();
   });
 
