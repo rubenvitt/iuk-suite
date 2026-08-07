@@ -3,6 +3,16 @@ import { ampelTon, fmtVerfall } from "../_lib/format";
 import { ampelVar } from "../_lib/ampel";
 
 /**
+ * SVG-Attribute muessen auf Server und Client bytegleich serialisieren.
+ * Trigonometrische Funktionen duerfen zwischen JavaScript-Laufzeiten in den
+ * letzten Bits abweichen; drei Nachkommastellen sind fuer 40 CSS-Pixel weit
+ * unterhalb der sichtbaren Aufloesung und entfernen diese Hydrationsfalle.
+ */
+function svgKoordinate(wert: number): number {
+  return Number(wert.toFixed(3));
+}
+
+/**
  * DIE VERFALLS-PLAKETTE — ein 40x40-Zifferblatt mit zwoelf Monatsstrichen, bei
  * dem der Verfallsmonat als laengerer, dickerer Strich hervortritt. Ein
  * antd-Gegenstueck gibt es nicht.
@@ -67,10 +77,10 @@ export function Plakette({
     striche.push(
       <line
         key={i}
-        x1={20 + r1 * Math.cos(winkel)}
-        y1={20 + r1 * Math.sin(winkel)}
-        x2={20 + r2 * Math.cos(winkel)}
-        y2={20 + r2 * Math.sin(winkel)}
+        x1={svgKoordinate(20 + r1 * Math.cos(winkel))}
+        y1={svgKoordinate(20 + r1 * Math.sin(winkel))}
+        x2={svgKoordinate(20 + r2 * Math.cos(winkel))}
+        y2={svgKoordinate(20 + r2 * Math.sin(winkel))}
         stroke={aktiv ? farbe : "var(--lb-linie)"}
         strokeWidth={aktiv ? 3.4 : 1.7}
         strokeLinecap="round"
