@@ -99,7 +99,7 @@ export function LoeschDialog({
       onCancel={modalSchliessen}
       keyboard={!laeuft}
       closable={!laeuft}
-      maskClosable={!laeuft}
+      mask={{ closable: !laeuft }}
       footer={null}
       destroyOnHidden
     >
