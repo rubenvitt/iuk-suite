@@ -14,6 +14,7 @@ import {
   VerfallEditor,
   type VerfallAnzeigeZeile,
 } from "./VerfallEditor";
+import s from "../../../../_ui/verwaltung.module.css";
 
 const mocks = vi.hoisted(() => ({ setzen: vi.fn() }));
 
@@ -27,7 +28,7 @@ const ZEILEN: VerfallAnzeigeZeile[] = [
     artikelName: "Mullbinde",
     fachText: "Fach A · Fach C",
     verfall: "2027-03",
-    ampel: "gelb",
+    statusTon: "gelb",
     statusText: "läuft bald ab",
   },
   {
@@ -35,8 +36,16 @@ const ZEILEN: VerfallAnzeigeZeile[] = [
     artikelName: "Kompressen",
     fachText: "Fach B",
     verfall: null,
-    ampel: null,
+    statusTon: null,
     statusText: null,
+  },
+  {
+    artikelId: "a3",
+    artikelName: "Dreiecktuch",
+    fachText: "Fach D",
+    verfall: "2029-08",
+    statusTon: "ok",
+    statusText: "bis 08/29",
   },
 ];
 
@@ -87,19 +96,20 @@ describe("VerfallEditor — serverfertige Zeilen und Monatsfelder", () => {
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
       .toEqual(["Artikel", "Fach", "Verfall", "Status"]);
     expect(query("table").getAttribute("aria-label")).toBe("Verfall im Fahrzeug");
-    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
+    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(3);
     const mull = query("tr[data-row-key='a1']");
     expect(mull.textContent).toContain("Mullbinde");
     expect(mull.textContent).toContain("Fach A · Fach C");
     expect(mull.textContent).toContain("läuft bald ab");
     expect(query("tr[data-row-key='a2']").textContent).toContain("nicht erfasst");
+    expect(query(`tr[data-row-key='a3'] .${s.ok}`).textContent).toBe("bis 08/29");
   });
 
   it("rendert pro Zeile einen kleinen MonthPicker ohne Form", async () => {
     await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
 
-    expect(queryAll(".ant-picker")).toHaveLength(2);
-    expect(queryAll(".ant-picker-small")).toHaveLength(2);
+    expect(queryAll(".ant-picker")).toHaveLength(3);
+    expect(queryAll(".ant-picker-small")).toHaveLength(3);
     expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)
       .toBe("2027-03");
     expect(query<HTMLInputElement>("[aria-label='Verfall Kompressen']").value)
@@ -111,6 +121,7 @@ describe("VerfallEditor — serverfertige Zeilen und Monatsfelder", () => {
       "utf8",
     );
     expect(quelle).toContain('from "../../../../_ui/monat"');
+    expect(quelle).not.toContain("AMPEL_TON");
     expect(quelle).not.toContain("ArtikelDrawer");
     expect(quelle).not.toMatch(/\bForm(?:\.Item)?\b/);
   });

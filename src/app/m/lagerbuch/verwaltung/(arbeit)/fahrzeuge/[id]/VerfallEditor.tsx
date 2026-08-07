@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Alert, DatePicker, Table, type TableProps } from "antd";
 import dayjs from "dayjs";
 import { verfallSetzen } from "../../../../_actions/lagerortVerfall";
-import type { Ampel } from "../../../../_lib/domain/verfall";
+import type { AmpelTon } from "../../../../_lib/format";
 import { Chip } from "../../../../_ui/Chip";
 import { monatAusPicker } from "../../../../_ui/monat";
 
@@ -15,15 +15,9 @@ export type VerfallAnzeigeZeile = {
   artikelName: string;
   fachText: string;
   verfall: string | null;
-  ampel: Ampel | null;
+  statusTon: AmpelTon | null;
   statusText: string | null;
 };
-
-const AMPEL_TON = {
-  gruen: "ok",
-  gelb: "gelb",
-  rot: "rot",
-} as const;
 
 export function VerfallEditor({
   lagerortId,
@@ -95,8 +89,8 @@ export function VerfallEditor({
       title: "Status",
       dataIndex: "statusText",
       key: "status",
-      render: (statusText: string | null, eintrag) => statusText && eintrag.ampel ? (
-        <Chip ton={AMPEL_TON[eintrag.ampel]}>{statusText}</Chip>
+      render: (statusText: string | null, eintrag) => statusText && eintrag.statusTon ? (
+        <Chip ton={eintrag.statusTon}>{statusText}</Chip>
       ) : (
         <Chip ton="grau">nicht erfasst</Chip>
       ),

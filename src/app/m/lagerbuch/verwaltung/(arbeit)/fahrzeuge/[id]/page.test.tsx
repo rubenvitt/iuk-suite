@@ -150,6 +150,8 @@ function artikelAnlegen(
 }
 
 beforeEach(() => {
+  vi.stubEnv("LAGERBUCH_VERFALL_ROT_TAGE", "31");
+  vi.stubEnv("LAGERBUCH_VERFALL_GELB_TAGE", "56");
   vi.clearAllMocks();
   vi.spyOn(window, "getComputedStyle")
     .mockImplementation((element) => getComputedStyleOhnePseudo(element));
@@ -270,12 +272,22 @@ beforeEach(() => {
       quelleTyp: "system",
       quelleId: "test",
     },
+    {
+      id: "verfall-a3",
+      lagerortId: "fz-1",
+      artikelId: "a3",
+      verfall: "2028-12",
+      erfasstAt: new Date("2026-08-01T00:00:00Z"),
+      quelleTyp: "system",
+      quelleId: "test",
+    },
   ]).run();
 });
 
 afterEach(async () => {
   await unmount();
   t.schliessen();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -343,16 +355,16 @@ describe("Fahrzeugblatt als Server Component", () => {
         artikelName: "Mullbinde",
         fachText: "Fach A · Fach B",
         verfall: "2025-01",
-        ampel: "rot",
+        statusTon: "rot",
         statusText: expect.any(String),
       },
       {
         artikelId: "a3",
         artikelName: "Dreiecktuch",
         fachText: "Fach C",
-        verfall: null,
-        ampel: null,
-        statusText: null,
+        verfall: "2028-12",
+        statusTon: "ok",
+        statusText: expect.any(String),
       },
     ]);
     expect(props.eintraege.some((eintrag) => eintrag.artikelId === "a2")).toBe(false);
@@ -421,8 +433,14 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
     expect(document.body.textContent).toContain("Inaktiv");
   });
 
-  it("loescht result-aware, laesst den Dialog bei Fehler offen und navigiert erst bei Erfolg", async () => {
-    mocks.loeschen.mockResolvedValueOnce({ ok: false, fehler: "interner Text" });
+  it.each([
+    ["ok:false", async () => ({ ok: false as const, fehler: "interner Text" })],
+    ["Reject", async () => { throw new Error("Framework-Text"); }],
+  ])("loescht result-aware, haelt bei %s offen und navigiert erst bei Erfolg", async (
+    _fall,
+    antwort,
+  ) => {
+    mocks.loeschen.mockImplementationOnce(antwort);
     await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv />);
     await clickElement(hostKnopf("Fahrzeug löschen"));
     await warteAuf(
@@ -440,6 +458,7 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
     expect(mocks.loeschen).toHaveBeenCalledWith("fahrzeug", "fz-1");
     expect(queryPortal(".ant-modal")).toBeTruthy();
     expect(mocks.push).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain("Framework-Text");
 
     mocks.loeschen.mockResolvedValueOnce({ ok: true });
     await clickElement(queryPortal("button[data-rolle='loeschen']"));
@@ -447,12 +466,18 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
     expect(mocks.push).toHaveBeenCalledWith("/verwaltung/fahrzeuge");
   });
 
-  it("laesst auch den Deaktivieren-Dialog bei ok:false offen", async () => {
+  it.each([
+    ["ok:false", async () => ({ ok: false as const, fehler: "interner Text" })],
+    ["Reject", async () => { throw new Error("Framework-Text"); }],
+  ])("laesst auch den Deaktivieren-Dialog bei %s offen", async (
+    _fall,
+    antwort,
+  ) => {
     mocks.pruefen.mockResolvedValueOnce({
       ok: true,
       wert: { loeschbar: false, grund: "Noch verknüpft", kannDeaktivieren: true },
     });
-    mocks.deaktivieren.mockResolvedValueOnce({ ok: false, fehler: "interner Text" });
+    mocks.deaktivieren.mockImplementationOnce(antwort);
     await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv />);
     await clickElement(hostKnopf("Fahrzeug löschen"));
     await warteAuf(
@@ -468,6 +493,7 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
     expect(mocks.deaktivieren).toHaveBeenCalledWith("fahrzeug", "fz-1");
     expect(queryPortal(".ant-modal")).toBeTruthy();
     expect(mocks.push).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain("Framework-Text");
 
     mocks.deaktivieren.mockResolvedValueOnce({ ok: true });
     await clickElement(queryPortal("button[data-rolle='deaktivieren']"));
