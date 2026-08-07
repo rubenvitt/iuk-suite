@@ -492,16 +492,26 @@ describe("ReferenzEditor", () => {
     });
   });
 
-  it("committet eine ausstehende Zahl beim Blur sofort und nicht später doppelt", async () => {
+  it.each([
+    ["Level-1-Untergrenze", "level1Min", "41", 41],
+    ["Level-1-Obergrenze", "level1Max", "61", 61],
+    ["Level-2-Untergrenze", "level2Min", "251", 251],
+    ["Level-2-Obergrenze", "level2Max", "351", 351],
+  ] as const)("flusht %s beim Blur sofort und nicht später doppelt", async (
+    label,
+    feld,
+    eingabe,
+    wert,
+  ) => {
     await editorMounten();
     vi.useFakeTimers({ shouldAdvanceTime: false });
-    const input = await feldSetzen("[aria-label='Level-2-Untergrenze']", "260");
+    const input = await feldSetzen(`[aria-label='${label}']`, eingabe);
     await feldVerlassen(input);
 
     expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
     expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
       ...EDITOR_WERTE,
-      level2Min: 260,
+      [feld]: wert,
     });
 
     await act(async () => { vi.advanceTimersByTime(400); });
@@ -559,8 +569,10 @@ describe("ReferenzEditor", () => {
 
     await act(async () => { vi.advanceTimersByTime(149); });
     expect(mocks.geraetSpeichern).not.toHaveBeenCalled();
+    await act(async () => { vi.advanceTimersByTime(250); });
+    expect(mocks.geraetSpeichern).not.toHaveBeenCalled();
     await act(async () => {
-      vi.advanceTimersByTime(251);
+      vi.advanceTimersByTime(1);
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -595,12 +607,11 @@ describe("ReferenzEditor", () => {
     });
   });
 
-  it("setzt beim Wechsel des Geräte-Datensatzes alle lokalen Felder zurück", async () => {
+  it("setzt bei neuen Serverwerten derselben Geräte-ID alle lokalen Felder zurück", async () => {
     await editorMounten();
     await feldSetzen("[aria-label='Name']", "lokal geändert");
     const anderes = {
       ...EDITOR_WERTE,
-      id: "bz-2",
       name: "Contour Next",
       barcode: "9876543210987",
       lagerortId: "handlager",
@@ -648,6 +659,51 @@ describe("ReferenzEditor", () => {
 
     await act(async () => {
       ersteAntwort({ ok: false, fehler: "verspätet" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).not.toContain("BZ-Gerät konnte nicht gespeichert werden.");
+  });
+
+  it("lässt einen älteren Erfolg nicht den Fehler eines neueren Saves löschen", async () => {
+    let ersteAntwort!: (wert: { ok: true; wert: { id: string } }) => void;
+    mocks.geraetSpeichern
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        ersteAntwort = resolve;
+      }))
+      .mockResolvedValueOnce({ ok: false, fehler: "neuer Fehler" });
+    await editorMounten();
+    const name = await feldSetzen("[aria-label='Name']", "Erste Änderung");
+    await feldVerlassen(name);
+    const lot = await feldSetzen("[aria-label='Streifen-Lot']", "LOT-ZWEI");
+    await feldVerlassen(lot);
+    expect(document.body.textContent).toContain("BZ-Gerät konnte nicht gespeichert werden.");
+
+    await act(async () => {
+      ersteAntwort({ ok: true, wert: { id: "bz-1" } });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("BZ-Gerät konnte nicht gespeichert werden.");
+  });
+
+  it("lässt eine ältere verspätete Ablehnung nicht den neueren Erfolg überschreiben", async () => {
+    let ersteAblehnung!: (grund: unknown) => void;
+    mocks.geraetSpeichern
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => {
+        ersteAblehnung = reject;
+      }))
+      .mockResolvedValueOnce({ ok: true, wert: { id: "bz-1" } });
+    await editorMounten();
+    const name = await feldSetzen("[aria-label='Name']", "Erste Änderung");
+    await feldVerlassen(name);
+    const lot = await feldSetzen("[aria-label='Streifen-Lot']", "LOT-ZWEI");
+    await feldVerlassen(lot);
+
+    await act(async () => {
+      ersteAblehnung(new Error("verspätet"));
       await Promise.resolve();
       await Promise.resolve();
     });
