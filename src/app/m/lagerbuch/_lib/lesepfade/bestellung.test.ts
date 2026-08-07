@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "../../_db/schema";
 import { bestellvorschlag } from "./bestellung";
@@ -29,6 +30,11 @@ beforeEach(() => {
       mindestbestand: 10, aktiv: true, createdAt: NOW, bestelltAt: BESTELLT_AM },
     { id: "a-voll", name: "Voll", einheit: "Stk.", fach: "A3",
       mindestbestand: 1, aktiv: true, createdAt: NOW },
+    // Als bestellt markiert und inzwischen wieder gedeckt. Diese Zeile muss
+    // weiterhin sichtbar sein, damit die veraltete Markierung zurueckgenommen
+    // werden kann; sie ist aber KEIN neuer Bestellvorschlag mehr.
+    { id: "a-da", name: "A Ware da", einheit: "Stk.", fach: "A3b",
+      mindestbestand: 2, aktiv: true, createdAt: NOW, bestelltAt: BESTELLT_AM },
     { id: "a-inaktiv", name: "Inaktiv", einheit: "Stk.", fach: "A4",
       mindestbestand: 99, aktiv: false, createdAt: NOW },
     // Bestand NUR im Fahrzeug, NICHTS im Handlager (§5.2.1: der Vorschlag rechnet
@@ -54,6 +60,7 @@ beforeEach(() => {
 
   t.db.insert(chargen).values([
     { id: "c-voll", artikelId: "a-voll", chargenNr: "CH", verfall: "2030-01", createdAt: NOW },
+    { id: "c-da", artikelId: "a-da", chargenNr: "CH-DA", verfall: "2030-01", createdAt: NOW },
     { id: "c-fzg", artikelId: "a-nur-fzg", chargenNr: "CH2", verfall: "2030-01", createdAt: NOW },
     { id: "c-gemischt", artikelId: "a-gemischt", chargenNr: "CH3", verfall: "2030-01", createdAt: NOW },
     { id: "c-grenze", artikelId: "a-grenze", chargenNr: "CH4", verfall: "2030-01", createdAt: NOW },
@@ -63,6 +70,9 @@ beforeEach(() => {
     { id: newId(), ts: NOW, typ: "zugang", artikelId: "a-voll", chargeId: "c-voll",
       lagerortId: HANDLAGER_ID, menge: 5, quelleTyp: "system", quelleId: "t",
       referenz: null, kommentar: null },
+    { id: newId(), ts: NOW, typ: "korrektur", artikelId: "a-da", chargeId: "c-da",
+      lagerortId: HANDLAGER_ID, menge: 2, quelleTyp: "system", quelleId: "t",
+      referenz: null, kommentar: "Inventur" },
     { id: newId(), ts: NOW, typ: "zugang", artikelId: "a-nur-fzg", chargeId: "c-fzg",
       lagerortId: "rtw-1", menge: 20, quelleTyp: "system", quelleId: "t",
       referenz: null, kommentar: null },
@@ -80,10 +90,31 @@ beforeEach(() => {
 afterEach(() => t.schliessen());
 
 describe("bestellvorschlag", () => {
-  it("enthaelt genau die AKTIVEN Artikel unter Mindestbestand (Handlager)", () => {
+  it("zeigt eine markierte, wieder gedeckte Position mit Vorschlag 0 zur Ruecknahme weiter an", () => {
+    const z = bestellvorschlag(t.db).find((x) => x.id === "a-da");
+    expect(z).toMatchObject({
+      bestellt: true,
+      bestand: 2,
+      mindestbestand: 2,
+      vorschlag: 0,
+      wareOffenbarDa: true,
+    });
+  });
+
+  it("enthaelt genau aktive Unterbestaende plus markierte, wieder gedeckte Positionen", () => {
     expect(bestellvorschlag(t.db).map((z) => z.id).sort()).toEqual(
-      ["a-bestellt", "a-gemischt", "a-leer", "a-nur-fzg"],
+      ["a-bestellt", "a-da", "a-gemischt", "a-leer", "a-nur-fzg"],
     );
+  });
+
+  it("ordnet Unterbestaende vor gedeckten Markierungen, darin deutsch nach Name und dann ID", () => {
+    // "A Ware da" wuerde bei einer rein alphabetischen Gesamtsortierung ganz
+    // vorne stehen. Die fachliche Dringlichkeit muss staerker sein als der Name.
+    t.db.update(artikel).set({ name: "Gleich" }).where(eq(artikel.id, "a-bestellt")).run();
+    t.db.update(artikel).set({ name: "Gleich" }).where(eq(artikel.id, "a-gemischt")).run();
+    expect(bestellvorschlag(t.db).map((z) => z.id)).toEqual([
+      "a-bestellt", "a-gemischt", "a-leer", "a-nur-fzg", "a-da",
+    ]);
   });
 
   it("laesst einen Artikel ohne jede Buchung nicht an `?? 0` scheitern", () => {
@@ -133,13 +164,14 @@ describe("bestellvorschlag", () => {
     expect(z.find((x) => x.id === "a-nur-fzg")!.vorschlag).toBe(5);
   });
 
-  it("liefert fuer JEDE Zeile einen Vorschlag >= 1 (Brief, Schritt 1)", () => {
-    // Universelle Zusicherung ueber ALLE zurueckgegebenen Zeilen — nicht nur die
-    // Fixture-Artikel, die der Punkt-Check oben einzeln benennt. Faengt z. B.
-    // eine versehentliche Aufweichung von `braucht` auf "<=" (dann liefert
-    // `vorschlagsmenge` fuer den Grenzfall `bestand === mindestbestand` exakt 0,
-    // und diese Zeile verletzt die Untergrenze).
-    for (const z of bestellvorschlag(t.db)) expect(z.vorschlag).toBeGreaterThanOrEqual(1);
+  it("liefert fuer jeden Unterbestand mindestens 1, fuer gedeckte Markierungen genau 0", () => {
+    // Universelle Zusicherung ueber beide fachlichen Mengen: gedeckte
+    // Markierungen bleiben nur zum Zuruecknehmen sichtbar und duerfen keinen
+    // neuen Bestellbedarf vortaeuschen.
+    for (const z of bestellvorschlag(t.db)) {
+      if (z.wareOffenbarDa) expect(z.vorschlag).toBe(0);
+      else expect(z.vorschlag).toBeGreaterThanOrEqual(1);
+    }
   });
 
   it("liefert `bestelltSeit` — die einzige wahre Aussage der Spalte (§5.5)", () => {
@@ -166,13 +198,10 @@ describe("bestellvorschlag", () => {
     });
   });
 
-  it("`wareOffenbarDa` ist in DIESER Liste nie wahr", () => {
-    // Sie enthaelt nur Artikel unter Mindestbestand (braucht() === true); wer
-    // "bestellt" ist UND wieder unter Mindestbestand liegt, kann per Definition
-    // NICHT "offenbar da" sein. Das Feld ist trotzdem in der Zeile, weil die
-    // SEITE beide Mengen zeigt (Auflage an Teil 5) — siehe Kopfkommentar von
-    // bestellung.ts fuer die Einschraenkung, was dieser Test NICHT beweisen kann.
-    for (const z of bestellvorschlag(t.db)) expect(z.wareOffenbarDa).toBe(false);
+  it("setzt `wareOffenbarDa` nur fuer markierte Positionen ohne Unterbestand", () => {
+    const z = bestellvorschlag(t.db);
+    expect(z.filter((x) => x.wareOffenbarDa).map((x) => x.id)).toEqual(["a-da"]);
+    expect(z.find((x) => x.id === "a-bestellt")?.wareOffenbarDa).toBe(false);
   });
 
   /**
@@ -186,6 +215,8 @@ describe("bestellvorschlag", () => {
    */
   it("laeuft INNERHALB einer Transaktion (H11)", () => {
     const z = t.db.transaction((tx) => bestellvorschlag(tx));
-    expect(z.map((x) => x.id).sort()).toEqual(["a-bestellt", "a-gemischt", "a-leer", "a-nur-fzg"]);
+    expect(z.map((x) => x.id).sort()).toEqual([
+      "a-bestellt", "a-da", "a-gemischt", "a-leer", "a-nur-fzg",
+    ]);
   });
 });
