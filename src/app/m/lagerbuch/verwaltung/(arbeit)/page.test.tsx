@@ -1,4 +1,4 @@
-import { Empty, Table } from "antd";
+import { Empty } from "antd";
 import Link from "next/link";
 import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
@@ -8,7 +8,10 @@ import { artikel, buchungen, chargen } from "../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { HANDLAGER_ID } from "../../_lib/konstanten";
 import { Kachel } from "../../_ui/Kachel";
-import s from "../../_ui/verwaltung.module.css";
+import {
+  LetzteBuchungenTable,
+  type UebersichtJournalZeile,
+} from "./LetzteBuchungenTable";
 import { kritischeArtikel, verwaltungInhalt } from "./page";
 
 let t: TestDb;
@@ -98,13 +101,14 @@ function journalBuchung({
   }).run();
 }
 
-function enthaeltDate(wert: unknown): boolean {
-  if (wert instanceof Date) return true;
-  if (Array.isArray(wert)) return wert.some(enthaeltDate);
-  if (wert && typeof wert === "object") {
-    return Object.values(wert).some(enthaeltDate);
+function istJsonSicher(wert: unknown): boolean {
+  if (wert === null) return true;
+  if (["string", "number", "boolean"].includes(typeof wert)) return true;
+  if (Array.isArray(wert)) return wert.every(istJsonSicher);
+  if (typeof wert !== "object" || Object.getPrototypeOf(wert) !== Object.prototype) {
+    return false;
   }
-  return false;
+  return Object.values(wert).every(istJsonSicher);
 }
 
 function elementeVomTyp(wert: ReactNode, typ: unknown): ReactElement[] {
@@ -115,7 +119,7 @@ function elementeVomTyp(wert: ReactNode, typ: unknown): ReactElement[] {
   return [...treffer, ...elementeVomTyp(kinder, typ)];
 }
 
-function analysiereRscTable(quelle: string) {
+function antdImportNamen(quelle: string): string[] {
   const source = ts.createSourceFile(
     "page.tsx",
     quelle,
@@ -123,31 +127,17 @@ function analysiereRscTable(quelle: string) {
     true,
     ts.ScriptKind.TSX,
   );
-  let renderEigenschaften = 0;
-  let funktionaleRowKeys = 0;
-
-  function besuche(node: ts.Node) {
+  return source.statements.flatMap((statement) => {
     if (
-      ts.isPropertyAssignment(node)
-      && ((ts.isIdentifier(node.name) && node.name.text === "render")
-        || (ts.isStringLiteral(node.name) && node.name.text === "render"))
-    ) {
-      renderEigenschaften += 1;
-    }
-    if (ts.isJsxAttribute(node) && node.name.getText(source) === "rowKey") {
-      const initializer = node.initializer;
-      const istStatischerString = initializer !== undefined && (
-        ts.isStringLiteral(initializer)
-        || (ts.isJsxExpression(initializer) && initializer.expression !== undefined
-          && ts.isStringLiteral(initializer.expression))
-      );
-      if (!istStatischerString) funktionaleRowKeys += 1;
-    }
-    ts.forEachChild(node, besuche);
-  }
-
-  besuche(source);
-  return { renderEigenschaften, funktionaleRowKeys };
+      !ts.isImportDeclaration(statement)
+      || !ts.isStringLiteral(statement.moduleSpecifier)
+      || statement.moduleSpecifier.text !== "antd"
+    ) return [];
+    const bindungen = statement.importClause?.namedBindings;
+    return bindungen && ts.isNamedImports(bindungen)
+      ? bindungen.elements.map((element) => element.propertyName?.text ?? element.name.text)
+      : [];
+  });
 }
 
 describe("kritischeArtikel", () => {
@@ -201,7 +191,7 @@ describe("kritischeArtikel", () => {
         chargeTon: "rot",
       },
     ]);
-    expect(enthaeltDate(zeilen)).toBe(false);
+    expect(istJsonSicher(zeilen)).toBe(true);
   });
 
   it("lässt einen Artikel mit ausreichendem Bestand und unauffälliger Charge weg", () => {
@@ -218,7 +208,7 @@ describe("kritischeArtikel", () => {
 });
 
 describe("Verwaltungsübersicht", () => {
-  it("zeigt im leeren Zustand fünf Kacheln, zwei Chargenlinks und beide Leertexte", () => {
+  it("zeigt im leeren Zustand fünf Kacheln, zwei Chargenlinks und eine leere Journalinsel", () => {
     const seite = verwaltungInhalt(t.db, new Date("2026-08-07T12:00:00Z"));
     const kacheln = elementeVomTyp(seite, Kachel);
 
@@ -234,8 +224,9 @@ describe("Verwaltungsübersicht", () => {
     expect(elementeVomTyp(seite, Empty).map((element) =>
       (element.props as { description?: ReactNode }).description)).toEqual([
       "Alles im grünen Bereich.",
-      "Noch keine Buchungen.",
     ]);
+    const [journal] = elementeVomTyp(seite, LetzteBuchungenTable);
+    expect(journal.props).toEqual({ zeilen: [] });
   });
 
   it("ordnet alle fünf Kennzahlen korrekt zu und zeigt die kritischen Artikel als Links", () => {
@@ -311,7 +302,7 @@ describe("Verwaltungsübersicht", () => {
     ]);
   });
 
-  it("zeigt die neuesten fünf Buchungen in totaler Ordnung als Date-freie Tabellenzeilen", () => {
+  it("zeigt die neuesten fünf Buchungen in totaler Ordnung als primitive Client-DTOs", () => {
     artikelMit({
       id: "artikel-journal",
       name: "Verbandpäckchen",
@@ -352,55 +343,37 @@ describe("Verwaltungsübersicht", () => {
     });
 
     const seite = verwaltungInhalt(t.db, new Date("2026-08-07T16:00:00Z"));
-    const [tabelle] = elementeVomTyp(seite, Table);
+    const [tabelle] = elementeVomTyp(seite, LetzteBuchungenTable);
     expect(tabelle).toBeDefined();
-    const props = tabelle.props as {
-      rowKey: string;
-      pagination: boolean;
-      scroll: { x: string };
-      "aria-label": string;
-      dataSource: Array<{
-        id: string;
-        zeit: ReactElement<{ children: ReactNode }>;
-        artikel: string;
-        vorgang: string;
-        menge: ReactElement<{ className: string; children: ReactNode }>;
-      }>;
-    };
+    const props = tabelle.props as { zeilen: UebersichtJournalZeile[] };
 
-    expect(props.rowKey).toBe("id");
-    expect(props.pagination).toBe(false);
-    expect(props.scroll).toEqual({ x: "max-content" });
-    expect(props["aria-label"]).toBe("Letzte Buchungen");
-    expect(props.dataSource.map((zeile) => zeile.id)).toEqual([
+    expect(props.zeilen.map((zeile) => zeile.id)).toEqual([
       "journal-neu",
       "journal-gleich-b",
       "journal-gleich-a",
       "journal-mittel",
       "journal-alt",
     ]);
-    expect(enthaeltDate(props.dataSource)).toBe(false);
-    expect(props.dataSource[0].zeit.props.children).toBe("07.08. 17:00");
-    expect(props.dataSource[0].vorgang).toBe("Korrektur · Nachgezählt");
-    expect(props.dataSource[0].menge.props.children).toBe("+3");
-    expect(props.dataSource[2].menge.props.className).toBe(s.jdelta);
-    expect(props.dataSource[2].menge.props.children).toBe("0");
+    expect(props.zeilen[0]).toEqual({
+      id: "journal-neu",
+      zeitText: "07.08. 17:00",
+      artikelName: "Verbandpäckchen",
+      vorgangText: "Korrektur · Nachgezählt",
+      deltaText: "+3",
+      deltaTon: "positiv",
+    });
+    expect(props.zeilen[2].deltaText).toBe("0");
+    expect(props.zeilen[2].deltaTon).toBe("neutral");
+    expect(istJsonSicher(props)).toBe(true);
   });
 
-  it("hält die RSC-Table frei von render-Funktionen und funktionalem rowKey", () => {
-    expect(
-      analysiereRscTable(
-        '<Table rowKey={(zeile) => zeile.id} columns={[{ render: () => null }]} />',
-      ),
-    ).toEqual({ renderEigenschaften: 1, funktionaleRowKeys: 1 });
-
+  it("importiert in der directive-freien RSC-Seite keine antd-Table", () => {
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/page.tsx",
       "utf8",
     );
-    expect(analysiereRscTable(quelle)).toEqual({
-      renderEigenschaften: 0,
-      funktionaleRowKeys: 0,
-    });
+    expect(antdImportNamen(quelle)).not.toContain("Table");
+    expect(quelle).not.toMatch(/["']use client["']/);
+    expect(quelle).toContain('from "./LetzteBuchungenTable"');
   });
 });
