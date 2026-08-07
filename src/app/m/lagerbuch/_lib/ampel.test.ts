@@ -106,6 +106,13 @@ describe("Ampelpalette: TS und CSS tragen dieselben Werte", () => {
     expect(existsSync(CSS_DATEIEN[0].pfad)).toBe(true);
   });
 
+  it("laesst den KPI-Raster bei Row und Col; .kpis bleibt ein reiner Modulmarker", () => {
+    const css = readFileSync(CSS_DATEIEN[0].pfad, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const treffer = /^\.kpis\s*\{([^}]*)\}/m.exec(css);
+    expect(treffer, ".kpis muss als CSS-Modul-Export bestehen").not.toBeNull();
+    expect(treffer?.[1] ?? "").not.toMatch(/\b(?:display|grid(?:-[\w-]+)?|columns)\s*:/);
+  });
+
   for (const datei of CSS_DATEIEN) {
     describe(datei.pfad, () => {
       for (const [ton, paar] of Object.entries(AMPEL_HELL)) {

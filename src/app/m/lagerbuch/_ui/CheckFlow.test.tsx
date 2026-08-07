@@ -72,7 +72,8 @@ const CSS = readFileSync(STYLESHEET, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
  * eine lokale Kopie statt eines Re-Exports.
  */
 function regeln(selektor: string): Map<string, string> {
-  const treffer = [...CSS.matchAll(new RegExp(`^\\${selektor}\\s*\\{([^}]*)\\}`, "gm"))];
+  const escaped = selektor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const treffer = [...CSS.matchAll(new RegExp(`^${escaped}\\s*\\{([^}]*)\\}`, "gm"))];
   if (treffer.length !== 1) {
     throw new Error(`${selektor} steht ${treffer.length}× in ${STYLESHEET} — erwartet: genau 1×`);
   }
@@ -439,16 +440,14 @@ describe("CheckFlow — Nachfuellen", () => {
    * EINZIGE Hinweis VOR dem Abschluss, dass die Buchung serverseitig gekappt
    * wird.
    *
-   * ⚠️ WARUM ER DEN STIL LIEST UND NICHT DAS AUSSEHEN. jsdom wendet KEIN CSS an
-   * (gemessen und festgehalten in `HelferChip.tsx:22-28`), und der CSS-Scan in
-   * `_lib/bauform.test.ts` sucht ausschliesslich nach `--ant-`. `exists()` misst
-   * nicht, ob Text SICHTBAR ist. Ein INLINE-Stil steht dagegen im DOM und ist
-   * damit das Einzige, was ein Tor dieses Projekts von dieser Regel ueberhaupt
-   * sehen kann.
+   * ⚠️ WARUM ER DIE REGEL LIEST UND NICHT DAS AUSSEHEN. jsdom berechnet kein
+   * CSS. Der Test belegt deshalb das gerenderte Klassenpaar UND liest
+   * `.chip.warnhinweis`: zwei Klassen sind spezifischer als `.chip` und lassen
+   * die Umbruchregeln nicht von der Stylesheet-Reihenfolge abhängen.
    */
   it("der Knappheitssatz nutzt die umbruchfaehige Warnhinweis-Klasse", async () => {
     const chip = regeln(".chip");
-    const hinweis = regeln(".warnhinweis");
+    const hinweis = regeln(".chip.warnhinweis");
     // Die Voraussetzung des Befunds, aus dem Stylesheet GELESEN statt behauptet:
     // faellt `nowrap` in T64 je weg, geht diese Zeile rot und der naechste Leser
     // weiss, dass die Ueberschreibung neu zu bewerten ist.
@@ -635,10 +634,10 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
 
   /**
    * ⚠️ WARUM ES DIESEN TEST GIBT (Review-Befund 2). Die fuenf Auswahlknoepfe
-   * tragen keine `className`, und weder `helfer.module.css` noch
-   * `src/app/globals.css` enthaelt einen `button`-Reset — sie rendern also mit
-   * UA-Vorgabe um eine `.chip`-Pille von rund 21px Hoehe; das Tippziel liegt bei
-   * ~25px. „Tap-Mass 56px" ist eine Querschnittsregel dieses Plans, und
+   * tragen die CSS-Modulklasse `.chipKnopf`, welche das UA-Chrome entfernt und
+   * das entschiedene 44px-Tippziel setzt. Ohne diese Klasse bliebe um die
+   * rund 21px hohe Chip-Pille das Browser-Chrome stehen. „Tap-Mass 56px" ist
+   * eine Querschnittsregel dieses Plans, und
    * `core/theme/tokens.ts:33` begruendet sie woertlich („Bedienung mit
    * Handschuhen … eine Einsatzanforderung, keine Stilfrage", zitiert in
    * `_ui/Stepper.tsx:10-11`). Diese fuenf Knoepfe SIND der Geraeteschritt, und
@@ -648,8 +647,8 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
    * nicht der Literalwert. Eine spaetere Anhebung auf 56 laesst den Test gruen,
    * ein Wegfall macht ihn rot.
    *
-   * ⚠️ jsdom wendet kein CSS an (`HelferChip.tsx:22-28`); deshalb liest der
-   * Test die deklarierte Klasse aus dem Stylesheet.
+   * ⚠️ jsdom berechnet kein CSS (`HelferChip.tsx:22-28`); deshalb prüft der
+   * Test die gerenderte Klasse und ihre deklarierte Regel gemeinsam.
    */
   it("die fuenf Auswahlknoepfe sind mit Handschuhen treffbar (Tippmass)", async () => {
     await mount(

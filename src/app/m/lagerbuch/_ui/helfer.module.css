@@ -232,11 +232,11 @@
   background: none; border: 0; padding: 6px 0; min-height: 44px;
   display: inline-flex; align-items: center;
 }
-.warnhinweis {
+.chip.warnhinweis {
   white-space: normal; display: block; border-radius: 10px; padding: 8px 10px;
   font-size: 13px;
 }
-.rueckmeldung {
+.chip.rueckmeldung {
   white-space: normal; display: block; border-radius: 10px; padding: 8px 10px;
   font-size: 13px; margin-top: 10px;
 }

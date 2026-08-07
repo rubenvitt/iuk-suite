@@ -73,7 +73,8 @@ const DEKLARIERT = new Set((CSS.match(/\.[A-Za-z_][\w-]*/g) ?? []).map((t) => t.
  * Aendert T64 `.chip`, aendert sich die Vergleichsgrundlage mit.
  */
 function regeln(selektor: string): Map<string, string> {
-  const treffer = [...CSS.matchAll(new RegExp(`^\\${selektor}\\s*\\{([^}]*)\\}`, "gm"))];
+  const escaped = selektor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const treffer = [...CSS.matchAll(new RegExp(`^${escaped}\\s*\\{([^}]*)\\}`, "gm"))];
   if (treffer.length !== 1) {
     throw new Error(`${selektor} steht ${treffer.length}× in ${STYLESHEET} — erwartet: genau 1×`);
   }
@@ -347,11 +348,10 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
    * schneidet `overflow: hidden` den Ueberhang OHNE Ellipse ab — genau der
    * Handlungssatz faellt weg, um dessentwillen der ganze Task existiert.
    *
-   * ⚠️ WARUM ER DEN STIL LIEST UND NICHT DAS AUSSEHEN. jsdom wendet KEIN CSS an
-   * (gemessen und festgehalten in `HelferChip.tsx:22-28`), und der CSS-Scan in
-   * `_lib/bauform.test.ts` sucht ausschliesslich nach `--ant-`. Ein INLINE-Stil
-   * steht dagegen im DOM und ist damit das Einzige, was ein Tor dieses Projekts
-   * von dieser Regel ueberhaupt sehen kann.
+   * ⚠️ WARUM ER DIE REGEL LIEST UND NICHT DAS AUSSEHEN. jsdom berechnet kein
+   * CSS. Der Test belegt deshalb das gerenderte Klassenpaar UND liest
+   * `.chip.rueckmeldung`: zwei Klassen sind spezifischer als `.chip` und lassen
+   * die Umbruchregeln nicht von der Stylesheet-Reihenfolge abhängen.
    *
    * ⚠️ WARUM NUR DER FEHLERFALL GEPRUEFT WIRD. Der Stil haengt nicht an `art` —
    * es ist EIN Element ohne Verzweigung. Ein zweiter Test auf dem Erfolgsfall
@@ -360,7 +360,7 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
    */
   it("nutzt die umbruchfaehige Rueckmeldung-Klasse statt Inline-Stile", async () => {
     const chip = regeln(".chip");
-    const rueckmeldung = regeln(".rueckmeldung");
+    const rueckmeldung = regeln(".chip.rueckmeldung");
     // Die Voraussetzung des Befunds, aus dem Stylesheet GELESEN statt behauptet:
     // faellt `nowrap` in T64 je weg, geht diese Zeile rot und der naechste Leser
     // weiss, dass die Ueberschreibung neu zu bewerten ist.
