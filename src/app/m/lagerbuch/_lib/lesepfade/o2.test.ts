@@ -30,7 +30,7 @@ beforeEach(() => {
     { id: "m-alt", flascheId: "f-200", ts: frueher, druckBar: 30,
       quelleTyp: "oidc", quelleId: "sub-1", kommentar: null },
     { id: "m-neu", flascheId: "f-200", ts: NOW, druckBar: 180,
-      quelleTyp: "oidc", quelleId: "sub-1", kommentar: "nachgefüllt" },
+      quelleTyp: "oidc", quelleId: "sub-1", kommentar: "Fahrzeug-Check nur als Freitext" },
     { id: "m-check", flascheId: "f-300", ts: NOW, druckBar: 150,
       quelleTyp: "token", quelleId: "111-111", kommentar: "Fahrzeug-Check check:abc" },
   ]).run();
@@ -44,13 +44,15 @@ describe("o2FlaschenUebersicht", () => {
     const z = o2FlaschenUebersicht(t.db).find((x) => x.id === "f-200")!;
     expect(z.letzterDruck).toBe(180);
     expect(z.letzteMessung?.getTime()).toBe(NOW.getTime());
+    expect(z.herkunft).toBe("manuell");
     expect(z.status).toMatchObject({ prozent: 90, ampel: "gruen", niedrig: false });
   });
 
   it("rechnet gegen den EIGENEN Nennfuelldruck der Flasche", () => {
     // 150 von 300 = 50 % → gruen. Mit einem ?? 200 waeren es 75 %.
-    expect(o2FlaschenUebersicht(t.db).find((x) => x.id === "f-300")!.status)
-      .toMatchObject({ prozent: 50, ampel: "gruen" });
+    const z = o2FlaschenUebersicht(t.db).find((x) => x.id === "f-300")!;
+    expect(z.status).toMatchObject({ prozent: 50, ampel: "gruen" });
+    expect(z.herkunft).toBe("check");
   });
 
   it("liefert bei KEINER Messung status null, nicht 0 %", () => {
@@ -62,6 +64,7 @@ describe("o2FlaschenUebersicht", () => {
     const z = o2FlaschenUebersicht(t.db).find((x) => x.id === "f-ohne")!;
     expect(z.letzterDruck).toBeNull();
     expect(z.letzteMessung).toBeNull();
+    expect(z.herkunft).toBeNull();
     expect(z.status).toBeNull();
   });
 
@@ -79,12 +82,14 @@ describe("o2FlaschenUebersicht", () => {
     // eingefuegte Zeile (Einfuegereihenfolge), und der Test faellt durch.
     t.db.insert(o2Messungen).values([
       { id: "m-tb-a", flascheId: "f-ohne", ts: NOW, druckBar: 50,
-        quelleTyp: "oidc", quelleId: "sub-1", kommentar: null },
+        quelleTyp: "token", quelleId: "tie-check", kommentar: null },
       { id: "m-tb-b", flascheId: "f-ohne", ts: NOW, druckBar: 190,
         quelleTyp: "oidc", quelleId: "sub-1", kommentar: null },
     ]).run();
     const z = o2FlaschenUebersicht(t.db).find((x) => x.id === "f-ohne")!;
     expect(z.letzterDruck).toBe(190);
+    expect(z.letzteMessung?.getTime()).toBe(NOW.getTime());
+    expect(z.herkunft).toBe("manuell");
   });
 });
 
