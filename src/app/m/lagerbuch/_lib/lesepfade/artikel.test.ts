@@ -66,6 +66,29 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+function chargeMitRest(
+  id: string,
+  chargenNr: string,
+  verfall: string,
+  createdAt: Date,
+  menge = 1,
+): void {
+  t.db.insert(chargen).values({ id, artikelId: "a1", chargenNr, verfall, createdAt }).run();
+  t.db.insert(buchungen).values({
+    id: `b-${id}`,
+    ts: createdAt,
+    typ: "zugang",
+    artikelId: "a1",
+    chargeId: id,
+    lagerortId: HANDLAGER_ID,
+    menge,
+    quelleTyp: "system",
+    quelleId: "test",
+    referenz: null,
+    kommentar: null,
+  }).run();
+}
+
 describe("chargenMitRest — Handlager als Vorgabe", () => {
   it("rechnet den Rest je Charge NUR im Handlager", () => {
     const cs = chargenMitRest(t.db, "a1");
@@ -112,6 +135,25 @@ describe("artikelListe", () => {
     expect(z.naechsteCharge).toBeNull();
     expect(z.unterMindest).toBe(false);     // 0 < 0 ist falsch (strikt)
     expect(z.chargeKritisch).toBe(false);   // keine Charge → keine Ampel
+  });
+
+  it("waehlt bei gleichem Verfall die aeltere createdAt-Charge gegen die ID-Reihenfolge", () => {
+    // Neuere Charge zuerst: ohne createdAt-Stufe bliebe sie durch stabile Sortierung vorn.
+    chargeMitRest("aaa-neu", "NEU", "2026-01", new Date("2026-01-02T00:00:00Z"));
+    chargeMitRest("zzz-alt", "ALT", "2026-01", new Date("2026-01-01T00:00:00Z"));
+
+    expect(artikelListe(t.db, {}, NOW)[0]?.naechsteCharge)
+      .toEqual({ chargenNr: "ALT", verfall: "2026-01" });
+  });
+
+  it("waehlt bei gleichem Verfall und createdAt die kleinere Charge-ID", () => {
+    const gleich = new Date("2026-01-01T00:00:00Z");
+    // Verlierer zuerst: ohne ID-Tiebreaker bliebe `zzz` durch stabile Sortierung vorn.
+    chargeMitRest("zzz", "ID-Z", "2026-01", gleich);
+    chargeMitRest("aaa", "ID-A", "2026-01", gleich);
+
+    expect(artikelListe(t.db, {}, NOW)[0]?.naechsteCharge)
+      .toEqual({ chargenNr: "ID-A", verfall: "2026-01" });
   });
 });
 
@@ -185,10 +227,13 @@ describe("artikelDetail", () => {
       z("aelteste", spaeter(10)),
     ]).run();
     const d = artikelDetail(t.db, "a1", NOW)!;
-    // `artikelDetail` gibt die `id` nicht zurueck — der Kommentar traegt sie,
-    // damit der Tiebreaker ueberhaupt beobachtbar ist.
-    expect(d.buchungen.slice(0, 4).map((b) => b.kommentar))
+    expect(d.buchungen.slice(0, 4).map((b) => b.id))
       .toEqual(["gl-b", "gl-a", "mitte", "aelteste"]);
+    expect(d.buchungen[0]).toMatchObject({
+      id: "gl-b",
+      quelleTyp: "system",
+      quelleId: "t",
+    });
     expect(d.mehrVorhanden).toBe(true);
   });
 });
@@ -210,5 +255,26 @@ describe("artikelDetailHelfer", () => {
   });
   it("liefert null fuer eine unbekannte ID", () => {
     expect(artikelDetailHelfer(t.db, "x", NOW)).toBeNull();
+  });
+
+  it("ordnet Detail und Helfer dreistufig wie FEFO, ohne createdAt offenzulegen", () => {
+    const alt = new Date("2026-01-01T00:00:00Z");
+    const neu = new Date("2026-01-02T00:00:00Z");
+    const gleich = new Date("2026-01-03T00:00:00Z");
+    // Beide Verlierer zuerst, damit weder stabile Eingabereihenfolge noch ID
+    // die createdAt- und ID-Stufen vortaeuschen.
+    chargeMitRest("aaa-neu", "NEU", "2026-01", neu);
+    chargeMitRest("zzz-alt", "ALT", "2026-01", alt);
+    chargeMitRest("bbb-gleich", "ID-B", "2026-01", gleich);
+    chargeMitRest("aaa-gleich", "ID-A", "2026-01", gleich);
+
+    const erwartet = ["zzz-alt", "aaa-neu", "aaa-gleich", "bbb-gleich"];
+    const detail = artikelDetail(t.db, "a1", NOW)!;
+    const helfer = artikelDetailHelfer(t.db, "a1", NOW)!;
+
+    expect(detail.chargen.slice(0, 4).map((charge) => charge.id)).toEqual(erwartet);
+    expect(helfer.chargen.slice(0, 4).map((charge) => charge.id)).toEqual(erwartet);
+    expect(detail.chargen[0]).not.toHaveProperty("createdAt");
+    expect(helfer.chargen[0]).not.toHaveProperty("createdAt");
   });
 });
