@@ -1,19 +1,13 @@
-import { Table } from "antd";
-import Link from "next/link";
 import { readFileSync } from "node:fs";
-import {
-  isValidElement,
-  type ReactElement,
-  type ReactNode,
-} from "react";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { checks, lagerorte } from "../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../_db/testdb";
-import { Chip } from "../../../_ui/Chip";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import { ChecksFilter } from "./ChecksFilter";
+import { ChecksTabelle, type ChecksTabelleProps } from "./ChecksTabelle";
 import ChecksSeite, { checksInhalt, dynamic } from "./page";
 
 const ZEIT = new Date("2026-08-07T10:00:00Z");
@@ -73,42 +67,23 @@ function elementeVomTyp(
   return [...treffer, ...elementeVomTyp(kinder, typ)];
 }
 
-function textVon(wert: ReactNode): string {
-  if (typeof wert === "string" || typeof wert === "number") return String(wert);
-  if (Array.isArray(wert)) return wert.map(textVon).join("");
-  if (!isValidElement(wert)) return "";
-  return textVon((wert.props as { children?: ReactNode }).children);
-}
-
-function enthaeltDate(wert: unknown, gesehen = new WeakSet<object>()): boolean {
-  if (wert instanceof Date) return true;
-  if (Array.isArray(wert)) return wert.some((eintrag) => enthaeltDate(eintrag, gesehen));
-  if (wert === null || typeof wert !== "object") return false;
-  if (gesehen.has(wert)) return false;
-  gesehen.add(wert);
-  if (isValidElement(wert)) {
-    return enthaeltDate((wert as ReactElement<Record<string, unknown>>).props, gesehen);
+function istRekursivJsonSicher(wert: unknown): boolean {
+  if (
+    wert === null
+    || typeof wert === "string"
+    || typeof wert === "boolean"
+  ) return true;
+  if (typeof wert === "number") return Number.isFinite(wert);
+  if (Array.isArray(wert)) return wert.every(istRekursivJsonSicher);
+  if (typeof wert !== "object" || Object.getPrototypeOf(wert) !== Object.prototype) {
+    return false;
   }
-  return Object.values(wert).some((eintrag) => enthaeltDate(eintrag, gesehen));
+  return Reflect.ownKeys(wert).every((schluessel) =>
+    typeof schluessel === "string"
+    && istRekursivJsonSicher((wert as Record<string, unknown>)[schluessel]));
 }
 
-type TabellenProps = {
-  rowKey: string;
-  pagination: boolean;
-  scroll: { x: string };
-  "aria-label": string;
-  locale: { emptyText: ReactNode };
-  columns: Array<{ title: ReactNode; dataIndex: string; align?: string }>;
-  dataSource: Array<Record<string, ReactNode>>;
-};
-
-function tabelleAus(seite: ReactNode): TabellenProps {
-  const [tabelle] = elementeVomTyp(seite, Table);
-  if (!tabelle) throw new Error("Check-Tabelle fehlt");
-  return tabelle.props as TabellenProps;
-}
-
-function analysiereRscGrenze(quelle: string) {
+function importiertAntdTableDirekt(quelle: string): boolean {
   const source = ts.createSourceFile(
     "page.tsx",
     quelle,
@@ -116,51 +91,17 @@ function analysiereRscGrenze(quelle: string) {
     true,
     ts.ScriptKind.TSX,
   );
-  let renderEigenschaften = 0;
-  let nichtStatischeRowKeys = 0;
-
-  function heisstRender(name: ts.PropertyName): boolean {
-    if ((ts.isIdentifier(name) || ts.isStringLiteral(name)) && name.text === "render") {
-      return true;
-    }
-    return ts.isComputedPropertyName(name)
-      && ts.isStringLiteral(name.expression)
-      && name.expression.text === "render";
-  }
-
-  function besuche(node: ts.Node) {
+  return source.statements.some((anweisung) => {
     if (
-      (
-        ts.isPropertyAssignment(node)
-        || ts.isMethodDeclaration(node)
-        || ts.isShorthandPropertyAssignment(node)
-        || ts.isGetAccessorDeclaration(node)
-        || ts.isSetAccessorDeclaration(node)
-      )
-      && heisstRender(node.name)
-    ) {
-      renderEigenschaften += 1;
-    }
-    if (ts.isJsxAttribute(node) && node.name.getText(source) === "rowKey") {
-      const initializer = node.initializer;
-      const statischerString = initializer !== undefined && (
-        ts.isStringLiteral(initializer)
-        || (
-          ts.isJsxExpression(initializer)
-          && initializer.expression !== undefined
-          && (
-            ts.isStringLiteral(initializer.expression)
-            || ts.isNoSubstitutionTemplateLiteral(initializer.expression)
-          )
-        )
-      );
-      if (!statischerString) nichtStatischeRowKeys += 1;
-    }
-    ts.forEachChild(node, besuche);
-  }
-
-  besuche(source);
-  return { renderEigenschaften, nichtStatischeRowKeys };
+      !ts.isImportDeclaration(anweisung)
+      || !ts.isStringLiteral(anweisung.moduleSpecifier)
+      || anweisung.moduleSpecifier.text !== "antd"
+    ) return false;
+    const bindungen = anweisung.importClause?.namedBindings;
+    return Boolean(bindungen && ts.isNamedImports(bindungen)
+      && bindungen.elements.some((element) =>
+        (element.propertyName?.text ?? element.name.text) === "Table"));
+  });
 }
 
 function runtimeImporteAusChecksFilter(quelle: string): string[] {
@@ -190,10 +131,42 @@ function runtimeImporteAusChecksFilter(quelle: string): string[] {
   return namen;
 }
 
+function tabelleAus(seite: ReactNode): ChecksTabelleProps {
+  const [tabelle] = elementeVomTyp(seite, ChecksTabelle);
+  if (!tabelle) throw new Error("Client-Tabelle der Checks fehlt");
+  return tabelle.props as ChecksTabelleProps;
+}
+
 describe("Checks-Seite", () => {
   it("ist eine dynamische App-Router-Seite", () => {
     expect(dynamic).toBe("force-dynamic");
     expect(ChecksSeite).toBeTypeOf("function");
+  });
+
+  it("schickt nur rekursiv JSON-sichere DTOs an die route-lokale Client-Tabelle", () => {
+    checkEintragen({ id: "check-hydration" });
+
+    const props = tabelleAus(checksInhalt(t.db, {}));
+    const quelle = readFileSync(
+      "src/app/m/lagerbuch/verwaltung/(arbeit)/checks/page.tsx",
+      "utf8",
+    );
+
+    expect(importiertAntdTableDirekt(quelle)).toBe(false);
+    expect(istRekursivJsonSicher(props)).toBe(true);
+    expect(props.zeilen[0]).toEqual({
+      id: "check-hydration",
+      detailHref: "/verwaltung/checks/check-hydration",
+      fahrzeugName: "RTW 1",
+      abgeschlossenText: "7.8.2026, 12:00:00",
+      ergebnisChips: [{
+        schluessel: "vollstaendig",
+        text: "vollständig",
+        ton: "ok",
+        zeichen: null,
+      }],
+      positionenText: "0",
+    });
   });
 
   it("koppelt 51 Checks an exakt die neuesten 50 IDs in der Totalordnung", () => {
@@ -206,14 +179,14 @@ describe("Checks-Seite", () => {
       (_, index) => `check-${String(50 - index).padStart(3, "0")}`,
     );
 
-    expect(tabelle.dataSource.map((zeile) => zeile.id)).toEqual(erwarteteIds);
-    expect(tabelle.dataSource).toHaveLength(50);
-    expect(tabelle.dataSource.some((zeile) => zeile.id === "check-000")).toBe(false);
+    expect(tabelle.zeilen.map((zeile) => zeile.id)).toEqual(erwarteteIds);
+    expect(tabelle.zeilen).toHaveLength(50);
+    expect(tabelle.zeilen.some((zeile) => zeile.id === "check-000")).toBe(false);
     const [kopf] = elementeVomTyp(seite, SeitenKopf);
     expect(kopf.props.beschreibung)
       .toBe("Neueste 50 von mehr Treffern — Zeitraum eingrenzen");
     expect(elementeVomTyp(seite, Trefferanzeige)).toHaveLength(0);
-    expect(enthaeltDate(tabelle.dataSource)).toBe(false);
+    expect(istRekursivJsonSicher(tabelle)).toBe(true);
   });
 
   it("behauptet bei exakt 50 Checks nicht, dass weitere Treffer vorhanden sind", () => {
@@ -222,7 +195,7 @@ describe("Checks-Seite", () => {
     const seite = checksInhalt(t.db, {});
     const tabelle = tabelleAus(seite);
 
-    expect(tabelle.dataSource.map((zeile) => zeile.id)).toEqual(Array.from(
+    expect(tabelle.zeilen.map((zeile) => zeile.id)).toEqual(Array.from(
       { length: 50 },
       (_, index) => `check-${String(49 - index).padStart(3, "0")}`,
     ));
@@ -230,7 +203,7 @@ describe("Checks-Seite", () => {
     expect(kopf.props.beschreibung).toBe("50 Treffer");
   });
 
-  it("bereitet Links, Abschlusszeit, Ergebnis-Chips und Positionszahl serverseitig vor", () => {
+  it("bereitet Link, Abschlusszeit, Ergebnis-Chips und Positionszahl serverseitig vor", () => {
     checkEintragen({
       id: "check-aussage",
       ergebnis: JSON.stringify({
@@ -259,46 +232,56 @@ describe("Checks-Seite", () => {
       }),
     });
 
-    const zeile = tabelleAus(checksInhalt(t.db, {})).dataSource[0];
-    const [link] = elementeVomTyp(zeile.fahrzeug, Link);
-    expect(link.props.href).toBe("/verwaltung/checks/check-aussage");
-    expect(textVon(zeile.fahrzeug)).toBe("RTW 1");
-    expect(textVon(zeile.abgeschlossen)).toBe("7.8.2026, 12:00:00");
-    expect(textVon(zeile.positionen)).toBe("1");
-
-    expect(elementeVomTyp(zeile.ergebnis, Chip).map((chip) => ({
-      ton: chip.props.ton,
-      zeichen: chip.props.zeichen,
-      text: textVon(chip),
-    }))).toEqual([
-      { ton: "rot", zeichen: undefined, text: "1 aus Handlager nachgefüllt" },
-      { ton: "gelb", zeichen: undefined, text: "2 korrigiert" },
-      { ton: "rot", zeichen: "warnung", text: "1 fehlt weiterhin" },
-      { ton: "rot", zeichen: undefined, text: "1 Gerät(e) auffällig" },
-      { ton: "rot", zeichen: "sauerstoff", text: "1 Flasche(n) niedrig" },
+    const zeile = tabelleAus(checksInhalt(t.db, {})).zeilen[0];
+    expect(zeile.detailHref).toBe("/verwaltung/checks/check-aussage");
+    expect(zeile.fahrzeugName).toBe("RTW 1");
+    expect(zeile.abgeschlossenText).toBe("7.8.2026, 12:00:00");
+    expect(zeile.positionenText).toBe("1");
+    expect(zeile.ergebnisChips).toEqual([
+      {
+        schluessel: "nachgefuellt", ton: "rot", zeichen: null,
+        text: "1 aus Handlager nachgefüllt",
+      },
+      {
+        schluessel: "korrigiert", ton: "gelb", zeichen: null,
+        text: "2 korrigiert",
+      },
+      {
+        schluessel: "offen", ton: "rot", zeichen: "warnung",
+        text: "1 fehlt weiterhin",
+      },
+      {
+        schluessel: "geraete", ton: "rot", zeichen: null,
+        text: "1 Gerät(e) auffällig",
+      },
+      {
+        schluessel: "flaschen", ton: "rot", zeichen: "sauerstoff",
+        text: "1 Flasche(n) niedrig",
+      },
     ]);
-    expect(textVon(zeile.ergebnis)).not.toContain("vollständig");
-    expect(enthaeltDate(zeile)).toBe(false);
+    expect(zeile.ergebnisChips.map((eintrag) => eintrag.text))
+      .not.toContain("vollständig");
+    expect(istRekursivJsonSicher(zeile)).toBe(true);
   });
 
   it("zeigt ohne Auffälligkeit ausschließlich den vollständigen Status", () => {
     checkEintragen({ id: "check-vollstaendig" });
 
-    const zeile = tabelleAus(checksInhalt(t.db, {})).dataSource[0];
-    const chips = elementeVomTyp(zeile.ergebnis, Chip);
-
-    expect(chips).toHaveLength(1);
-    expect(chips[0].props.ton).toBe("ok");
-    expect(textVon(chips[0])).toBe("vollständig");
+    expect(tabelleAus(checksInhalt(t.db, {})).zeilen[0].ergebnisChips).toEqual([{
+      schluessel: "vollstaendig",
+      text: "vollständig",
+      ton: "ok",
+      zeichen: null,
+    }]);
   });
 
   it("zeigt einen Check ohne Abschlusszeit als Gedankenstrich statt als Datum", () => {
     checkEintragen({ id: "check-offen", completedAt: null });
 
-    const zeile = tabelleAus(checksInhalt(t.db, {})).dataSource[0];
+    const zeile = tabelleAus(checksInhalt(t.db, {})).zeilen[0];
 
-    expect(textVon(zeile.abgeschlossen)).toBe("—");
-    expect(enthaeltDate(zeile.abgeschlossen)).toBe(false);
+    expect(zeile.abgeschlossenText).toBe("—");
+    expect(istRekursivJsonSicher(zeile)).toBe(true);
   });
 
   it("normalisiert ungültige Grenzen vor der Client-Insel und ignoriert sie beim Lesen", () => {
@@ -320,8 +303,8 @@ describe("Checks-Seite", () => {
         "Das Datum in der Adresse ist ungültig und wurde ignoriert.",
       ],
     });
-    expect(tabelle.dataSource.map((zeile) => zeile.id)).toEqual(["check-trotz-ungueltig"]);
-    expect(tabelle.locale.emptyText).toBe("Noch kein abgeschlossener Fahrzeug-Check.");
+    expect(tabelle.zeilen.map((zeile) => zeile.id)).toEqual(["check-trotz-ungueltig"]);
+    expect(tabelle.leertext).toBe("Noch kein abgeschlossener Fahrzeug-Check.");
   });
 
   it("behält gültige umgekehrte Grenzen sichtbar und zeigt den gefilterten Leertext", () => {
@@ -339,8 +322,8 @@ describe("Checks-Seite", () => {
       bis: "2026-08-01",
       hinweise: ["Der Zeitraum ist leer: „von“ liegt nach „bis“."],
     });
-    expect(tabelle.dataSource).toEqual([]);
-    expect(tabelle.locale.emptyText).toBe("Kein Check passt zu Fahrzeug und Zeitraum.");
+    expect(tabelle.zeilen).toEqual([]);
+    expect(tabelle.leertext).toBe("Kein Check passt zu Fahrzeug und Zeitraum.");
   });
 
   it("ignoriert unbekannte Fahrzeug-IDs und sortiert die Auswahl deutsch nach Namen", () => {
@@ -357,43 +340,16 @@ describe("Checks-Seite", () => {
       .toEqual(["fz-a", "rtw-1", "fz-z"]);
   });
 
-  it("setzt die vollständigen statischen Tabellenverträge", () => {
-    const tabelle = tabelleAus(checksInhalt(t.db, {}));
+  it("verriegelt die directive-freie RSC-Seite gegen direkte antd-Table-Importe", () => {
+    const quelle = readFileSync(
+      "src/app/m/lagerbuch/verwaltung/(arbeit)/checks/page.tsx",
+      "utf8",
+    );
 
-    expect(tabelle.rowKey).toBe("id");
-    expect(tabelle.pagination).toBe(false);
-    expect(tabelle.scroll).toEqual({ x: "max-content" });
-    expect(tabelle["aria-label"]).toBe("Fahrzeug-Checks");
-    expect(tabelle.columns.map((spalte) => spalte.title))
-      .toEqual(["Fahrzeug", "Abgeschlossen", "Ergebnis", "Positionen"]);
-    expect(tabelle.columns.map((spalte) => spalte.dataIndex))
-      .toEqual(["fahrzeug", "abgeschlossen", "ergebnis", "positionen"]);
-    expect(tabelle.columns[3].align).toBe("right");
-  });
-
-  it("verriegelt die RSC-Grenze gegen Render-Methoden und nicht statische rowKeys", () => {
-    const pfad = "src/app/m/lagerbuch/verwaltung/(arbeit)/checks/page.tsx";
-    const quelle = readFileSync(pfad, "utf8");
-
-    expect(analysiereRscGrenze(quelle)).toEqual({
-      renderEigenschaften: 0,
-      nichtStatischeRowKeys: 0,
-    });
+    expect(importiertAntdTableDirekt(quelle)).toBe(false);
+    expect(importiertAntdTableDirekt('import { Table as Tabelle } from "antd";'))
+      .toBe(true);
+    expect(quelle).not.toMatch(/["']use client["']/);
     expect(runtimeImporteAusChecksFilter(quelle)).toEqual(["ChecksFilter"]);
-
-    const mutation = `
-      const render = () => null;
-      const spalten = [
-        { render() { return null; } },
-        { "render": () => null },
-        { ["render"]: () => null },
-        { render },
-      ];
-      const tabelle = <Table rowKey={(zeile) => zeile.id} columns={spalten} />;
-    `;
-    expect(analysiereRscGrenze(mutation)).toEqual({
-      renderEigenschaften: 4,
-      nichtStatischeRowKeys: 1,
-    });
   });
 });
