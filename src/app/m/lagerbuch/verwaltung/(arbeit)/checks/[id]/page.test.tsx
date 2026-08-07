@@ -84,24 +84,65 @@ function importiertAntdTableDirekt(quelle: string): boolean {
     true,
     ts.ScriptKind.TSX,
   );
-  return source.statements.some((anweisung) => {
+  const objektImporte = new Set<string>();
+  for (const anweisung of source.statements) {
     if (
       !ts.isImportDeclaration(anweisung)
       || !ts.isStringLiteral(anweisung.moduleSpecifier)
-    ) return false;
+    ) continue;
+    const klausel = anweisung.importClause;
+    if (!klausel || klausel.isTypeOnly) continue;
+    const bindungen = klausel.namedBindings;
     if (/^antd\/(?:es|lib)\/table(?:\/|$)/i.test(anweisung.moduleSpecifier.text)) {
+      if (
+        klausel.name
+        || (bindungen && ts.isNamespaceImport(bindungen))
+        || (bindungen && ts.isNamedImports(bindungen)
+          && bindungen.elements.some((element) => !element.isTypeOnly))
+      ) return true;
+      continue;
+    }
+    if (anweisung.moduleSpecifier.text !== "antd") continue;
+    if (klausel.name) objektImporte.add(klausel.name.text);
+    if (bindungen && ts.isNamespaceImport(bindungen)) {
+      objektImporte.add(bindungen.name.text);
+    }
+    if (bindungen && ts.isNamedImports(bindungen) && bindungen.elements.some((element) =>
+      !element.isTypeOnly
+      && (element.propertyName?.text ?? element.name.text) === "Table")) {
       return true;
     }
-    if (anweisung.moduleSpecifier.text !== "antd") return false;
-    const klausel = anweisung.importClause;
-    if (!klausel) return false;
-    if (klausel.name) return true;
-    const bindungen = anweisung.importClause?.namedBindings;
-    if (bindungen && ts.isNamespaceImport(bindungen)) return true;
-    return Boolean(bindungen && ts.isNamedImports(bindungen)
-      && bindungen.elements.some((element) =>
-        (element.propertyName?.text ?? element.name.text) === "Table"));
-  });
+  }
+
+  let tableZugriff = false;
+  function besuche(node: ts.Node): void {
+    if (
+      ts.isPropertyAccessExpression(node)
+      && ts.isIdentifier(node.expression)
+      && objektImporte.has(node.expression.text)
+      && node.name.text === "Table"
+    ) {
+      tableZugriff = true;
+      return;
+    }
+    if (
+      ts.isElementAccessExpression(node)
+      && ts.isIdentifier(node.expression)
+      && objektImporte.has(node.expression.text)
+      && node.argumentExpression !== undefined
+      && (
+        ts.isStringLiteral(node.argumentExpression)
+        || ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)
+      )
+      && node.argumentExpression.text === "Table"
+    ) {
+      tableZugriff = true;
+      return;
+    }
+    ts.forEachChild(node, besuche);
+  }
+  ts.forEachChild(source, besuche);
+  return tableZugriff;
 }
 
 function tabellenAus(seite: ReactNode): CheckDetailTabellenProps {
@@ -390,6 +431,21 @@ describe("Check-Detailseite", () => {
     )).toBe(true);
     expect(importiertAntdTableDirekt(
       'import Antd from "antd"; const tabelle = <Antd.Table />;',
+    )).toBe(true);
+    expect(importiertAntdTableDirekt(
+      'import * as Antd from "antd"; const alert = <Antd.Alert />;',
+    )).toBe(false);
+    expect(importiertAntdTableDirekt(
+      'import Antd from "antd"; const alert = <Antd.Alert />;',
+    )).toBe(false);
+    expect(importiertAntdTableDirekt(
+      'import type * as Antd from "antd"; type Props = Antd.TableProps;',
+    )).toBe(false);
+    expect(importiertAntdTableDirekt(
+      'import type Antd from "antd"; type Props = Antd.TableProps;',
+    )).toBe(false);
+    expect(importiertAntdTableDirekt(
+      'import * as Antd from "antd"; const Tabelle = Antd["Table"];',
     )).toBe(true);
     expect(quelle).not.toMatch(/["']use client["']/);
     expect(quelle).not.toMatch(/@ant-design\/icons|Table\.Column|Card\.Meta/);
