@@ -17,9 +17,10 @@ import { join, relative } from "node:path";
  * abgeschaltet statt repariert.
  *
  * WER SIE VERSCHAERFT:
- *   Teil 4 ergaenzt HIER den `usePathname`-Scan (§7.8.2) und macht aus der
- *   Weichen-Zusicherung eine mit Existenzpflicht. Es entsteht KEINE zweite
- *   Scan-Datei.
+ *   Teil 4 ergaenzt HIER den `usePathname`-Scan (§7.8.2), Teil 5 / T109
+ *   reconciliert ihn mit der einen namentlichen Ausnahme `_ui/useUrlFilter.ts`.
+ *   Die Weichen-Zusicherung traegt seit Teil 4 eine Existenzpflicht. Es entsteht
+ *   KEINE zweite Scan-Datei.
  *
  * ⚠️ STAND NACH TEIL 4, T87 (der Abnahme). Der Satz „ALLE Scans stehen in der
  * Eigenschaftsform" ist seither FALSCH, und wer ihn weiter liest, haelt zwei
@@ -833,20 +834,25 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
   });
 });
 
-describe("§7.8.2 / Falle 63 — `usePathname` kommt im Modul GAR NICHT vor", () => {
-  it("kein `usePathname` unter `src/app/m/lagerbuch/`", () => {
+describe("§7.8.2 / Falle 63 — genau eine `usePathname`-Datei im Modul", () => {
+  it("findet ausschliesslich `_ui/useUrlFilter.ts`", () => {
     // `core/routing.ts:54-67` behandelt bereits praefixierte Pfade eigens und
     // schliesst `/m/*` bewusst NICHT aus dem Matcher aus. Auf diesem zweiten Weg
     // beginnt `/m/lagerbuch/helfer/check` nicht mit `/helfer/check`, und die
     // Tab-Leiste markierte dauerhaft „Entnahme" — auch im Fahrzeug-Check.
     //
-    // Der Server kennt das Segment ohnehin. `HelferRahmen` bekommt es als Prop.
-    // Dieser Scan ist der einzige, der das VOR dem E2E sieht.
+    // Der Server kennt das aktive Navigationssegment ohnehin. `HelferRahmen`
+    // bekommt es als Prop. Ausschliesslich der URL-Filter braucht den relativen
+    // Pfad als Schreibziel; jede zweite Datei waere ein Rueckfall in Falle 63.
+    // Dieser vollstaendige Modulscan ist der einzige, der das VOR dem E2E sieht.
     const dateien = quellDateien();
     expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(50);
-    expect(trefferAuf(/\busePathname\b/, dateien),
-      "das aktive Segment kommt als Prop vom Server, nicht aus usePathname (Falle 63)")
-      .toEqual([]);
+    const fundstellen = dateien
+      .filter((pfad) => /\busePathname\b/.test(ohneKommentare(readFileSync(pfad, "utf8"))))
+      .map((pfad) => relative(MODUL, pfad));
+    expect(fundstellen,
+      "nur useUrlFilter darf den Pfad fuer ein relatives router.replace lesen (Falle 63)")
+      .toEqual(["_ui/useUrlFilter.ts"]);
   });
 
   it("kein `useSearchParams`, kein `router.push`/`router.replace` auf dem Helfer-Ast", () => {
