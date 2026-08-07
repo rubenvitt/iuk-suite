@@ -535,6 +535,32 @@ describe("NeuToken", () => {
     expect(document.body.textContent).not.toContain("999-999");
     expect(queryPortal<HTMLInputElement>("[aria-label='Bezeichnung']").value).toBe("");
   });
+
+  it("friert nach Erfolg das Formular ein und behält den Code bis zum bewussten Schließen", async () => {
+    await mount(<NeuToken ziele={ZIELE} />);
+    await oeffneNeuToken();
+    await portalFeldSetzen("Bezeichnung", "Nicht verlieren");
+    await tokenFormAbsenden();
+
+    expect(document.body.textContent).toContain("999-999");
+    const fahrzeug = Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-radio-wrapper"),
+    ).find((element) => (element.textContent ?? "").includes("Fahrzeug"));
+    const radio = fahrzeug?.querySelector<HTMLInputElement>("input[type='radio']");
+    if (!fahrzeug || !radio) throw new Error("Fahrzeug-Zielart fehlt");
+    expect(radio.disabled).toBe(true);
+
+    await clickElement(fahrzeug);
+    await warte();
+    expect(document.body.textContent).toContain("999-999");
+    expect(mocks.createToken).toHaveBeenCalledOnce();
+
+    const fertig = queryPortal<HTMLElement>(".ant-modal-footer .ant-btn-primary");
+    expect(fertig.textContent).toContain("Schließen");
+    await clickElement(fertig);
+    await warte();
+    expect(document.body.querySelector("[role='dialog']")).toBeNull();
+  });
 });
 
 describe("TokensSeite", () => {
