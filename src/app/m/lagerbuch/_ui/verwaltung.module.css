@@ -44,7 +44,7 @@
 .rot { color: var(--lb-ampel-rot-text); background: var(--lb-ampel-rot-flaeche); }
 .grau { color: var(--lb-ampel-grau-text); background: var(--lb-ampel-grau-flaeche); }
 
-.kpis {}
+.kpis { min-width: 0; }
 .kpi { border-inline-start: 4px solid transparent; padding-inline-start: 12px; height: 100%; }
 .kpiRot { border-inline-start-color: var(--lb-ampel-rot-text); }
 .kpiGelb { border-inline-start-color: var(--lb-ampel-gelb-text); }

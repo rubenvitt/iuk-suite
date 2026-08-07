@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+import { loadBindings } from "next/dist/build/swc";
 import { AMPEL_HELL, AMPEL_DUNKEL, AMPEL_RANG, ampelVar } from "./ampel";
 import { FARBEN } from "@/core/theme/tokens";
 
@@ -106,11 +107,22 @@ describe("Ampelpalette: TS und CSS tragen dieselben Werte", () => {
     expect(existsSync(CSS_DATEIEN[0].pfad)).toBe(true);
   });
 
-  it("laesst den KPI-Raster bei Row und Col; .kpis bleibt ein reiner Modulmarker", () => {
+  it("laesst den KPI-Raster bei Row und Col und exportiert den neutralen .kpis-Marker", async () => {
     const css = readFileSync(CSS_DATEIEN[0].pfad, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const treffer = /^\.kpis\s*\{([^}]*)\}/m.exec(css);
-    expect(treffer, ".kpis muss als CSS-Modul-Export bestehen").not.toBeNull();
+    expect(treffer, ".kpis muss als CSS-Regel bestehen").not.toBeNull();
     expect(treffer?.[1] ?? "").not.toMatch(/\b(?:display|grid(?:-[\w-]+)?|columns)\s*:/);
+
+    const bindings = await loadBindings();
+    for (const minify of [false, true]) {
+      const transformed = await bindings.css.lightning.transform({
+        filename: CSS_DATEIEN[0].pfad,
+        code: Buffer.from(css),
+        cssModules: { pattern: "[name]__[local]" },
+        minify,
+      }) as { exports?: Record<string, unknown> };
+      expect(transformed.exports, `minify=${minify}`).toHaveProperty("kpis");
+    }
   });
 
   for (const datei of CSS_DATEIEN) {
