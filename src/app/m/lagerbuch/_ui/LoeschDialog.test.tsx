@@ -9,6 +9,7 @@ import {
   existsPortal,
   mount,
   queryPortal,
+  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import { LoeschDialog } from "./LoeschDialog";
@@ -43,6 +44,20 @@ async function warte(): Promise<void> {
   await act(async () => {
     await new Promise((fertig) => setTimeout(fertig, 0));
   });
+}
+
+function deferred(): {
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (grund?: unknown) => void;
+} {
+  let resolve!: () => void;
+  let reject!: (grund?: unknown) => void;
+  const promise = new Promise<void>((erfolg, fehler) => {
+    resolve = erfolg;
+    reject = fehler;
+  });
+  return { promise, resolve, reject };
 }
 
 async function fillPortal(selector: string, wert: string): Promise<void> {
@@ -416,6 +431,185 @@ describe("LoeschDialog: Actions", () => {
     });
 
     expect(loeschen).toHaveBeenCalledTimes(1);
+  });
+
+  it("behaelt Guard und Oeffnungsgrenze ueber Close/Reopen bis zum spaeten Resolve", async () => {
+    const tor = deferred();
+    const pruefen = vi.fn(async () => LOESCHBAR);
+    const loeschen = vi.fn(() => tor.promise);
+    const fertig = vi.fn();
+    const schliessen = vi.fn();
+    const ansicht = (offen: boolean, name: string, hinweis: string) => (
+      <LoeschDialog
+        offen={offen}
+        name={name}
+        typLabel="Artikel"
+        hinweis={hinweis}
+        pruefen={pruefen}
+        onLoeschen={loeschen}
+        onFertig={fertig}
+        onSchliessen={schliessen}
+      />
+    );
+
+    await mount(ansicht(true, "Alt", "Alte Öffnung"));
+    await warte();
+    await fillPortal(".ant-modal input", "Alt");
+    await clickPortal("[data-rolle='loeschen']");
+    expect(loeschen).toHaveBeenCalledTimes(1);
+
+    // Kontrollierte Eltern-Prop: selbst wenn ein Elternteil den Dialog trotz
+    // laufender Action aus- und wieder einhaengt, darf die neue Oeffnung den
+    // alten In-flight-Guard nicht verlieren.
+    await rerender(ansicht(false, "Alt", "Alte Öffnung"));
+    expect(existsPortal(".ant-modal input")).toBe(false);
+    await rerender(ansicht(true, "Neu", "Neue Öffnung bleibt sichtbar"));
+    await warte();
+    expect(pruefen).toHaveBeenCalledTimes(2);
+    await fillPortal(".ant-modal input", "Neu");
+    await clickPortal("[data-rolle='loeschen']");
+
+    await act(async () => {
+      tor.resolve();
+      await tor.promise;
+    });
+    await warte();
+
+    expect({
+      actionAufrufe: loeschen.mock.calls.length,
+      fertigAufrufe: fertig.mock.calls.length,
+      schliessenAufrufe: schliessen.mock.calls.length,
+      neueOeffnungSichtbar: queryPortal(".ant-modal").textContent?.includes(
+        "Neue Öffnung bleibt sichtbar",
+      ),
+    }).toEqual({
+      actionAufrufe: 1,
+      fertigAufrufe: 0,
+      schliessenAufrufe: 0,
+      neueOeffnungSichtbar: true,
+    });
+
+    // Nach dem Ende der ALTEN Action faellt der Guard. Erst jetzt darf die
+    // neue Oeffnung ihre eigene Action starten und normal fertig werden.
+    await clickPortal("[data-rolle='loeschen']");
+    await warte();
+    expect(loeschen).toHaveBeenCalledTimes(2);
+    expect(fertig).toHaveBeenCalledTimes(1);
+    expect(schliessen).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignoriert ein spaetes Reject der alten Oeffnung und zeigt nur den aktuellen Fehler", async () => {
+    const tor = deferred();
+    const pruefen = vi.fn(async () => LOESCHBAR);
+    const loeschen = vi.fn(() => tor.promise);
+    const fertig = vi.fn();
+    const schliessen = vi.fn();
+    const ansicht = (offen: boolean, name: string, hinweis: string) => (
+      <LoeschDialog
+        offen={offen}
+        name={name}
+        typLabel="Artikel"
+        hinweis={hinweis}
+        pruefen={pruefen}
+        onLoeschen={loeschen}
+        onFertig={fertig}
+        onSchliessen={schliessen}
+      />
+    );
+
+    await mount(ansicht(true, "Alt", "Alte Öffnung"));
+    await warte();
+    await fillPortal(".ant-modal input", "Alt");
+    await clickPortal("[data-rolle='loeschen']");
+
+    await rerender(ansicht(false, "Alt", "Alte Öffnung"));
+    await rerender(ansicht(true, "Neu", "Neue Öffnung ohne alten Action-Fehler"));
+    await warte();
+    expect(pruefen).toHaveBeenCalledTimes(2);
+    await fillPortal(".ant-modal input", "Neu");
+    await clickPortal("[data-rolle='loeschen']");
+
+    await act(async () => {
+      tor.reject(new Error("Alter Fehler"));
+      try {
+        await tor.promise;
+      } catch {
+        // Die Produktkomponente faengt die Action-Ablehnung; der Test wartet
+        // nur kontrolliert auf dasselbe Tor.
+      }
+    });
+    await warte();
+
+    const textNachAltemReject = queryPortal(".ant-modal").textContent ?? "";
+    expect({
+      actionAufrufe: loeschen.mock.calls.length,
+      fertigAufrufe: fertig.mock.calls.length,
+      schliessenAufrufe: schliessen.mock.calls.length,
+      neueMeldungSichtbar: textNachAltemReject.includes(
+        "Neue Öffnung ohne alten Action-Fehler",
+      ),
+      alterFehlerSichtbar: textNachAltemReject.includes("konnte nicht gelöscht werden"),
+    }).toEqual({
+      actionAufrufe: 1,
+      fertigAufrufe: 0,
+      schliessenAufrufe: 0,
+      neueMeldungSichtbar: true,
+      alterFehlerSichtbar: false,
+    });
+
+    // Dieselbe Ablehnung gehoert bei einem JETZT gestarteten Aufruf zur
+    // sichtbaren Oeffnung und muss dort weiterhin verstaendlich erscheinen.
+    await clickPortal("[data-rolle='loeschen']");
+    await warte();
+    expect(loeschen).toHaveBeenCalledTimes(2);
+    expect(queryPortal(".ant-modal").textContent).toContain(
+      "Artikel konnte nicht gelöscht werden.",
+    );
+  });
+
+  it("sperrt X, Escape und Maskenklick waehrend einer laufenden Action", async () => {
+    const tor = deferred();
+    const schliessen = vi.fn();
+    await mount(
+      <LoeschDialog
+        offen
+        name="X"
+        typLabel="Artikel"
+        pruefen={async () => LOESCHBAR}
+        onLoeschen={() => tor.promise}
+        onSchliessen={schliessen}
+      />,
+    );
+    await warte();
+    await fillPortal(".ant-modal input", "X");
+    await clickPortal("[data-rolle='loeschen']");
+
+    const hatSchliessenKnopf = existsPortal(".ant-modal-close");
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }),
+      );
+      const maske = queryPortal(".ant-modal-wrap");
+      maske.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      maske.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const schliessenVorResolve = schliessen.mock.calls.length;
+
+    await act(async () => {
+      tor.resolve();
+      await tor.promise;
+    });
+    await warte();
+
+    expect({
+      hatSchliessenKnopf,
+      schliessenVorResolve,
+      schliessenNachResolve: schliessen.mock.calls.length,
+    }).toEqual({
+      hatSchliessenKnopf: false,
+      schliessenVorResolve: 0,
+      schliessenNachResolve: 1,
+    });
   });
 });
 
