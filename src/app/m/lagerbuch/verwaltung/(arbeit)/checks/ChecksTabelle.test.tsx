@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { readFileSync } from "node:fs";
+import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   exists,
@@ -10,6 +11,7 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import s from "../../../_ui/verwaltung.module.css";
+import { PFADE } from "../../../_ui/ikonen";
 import { ChecksTabelle, type CheckAnzeigeZeile } from "./ChecksTabelle";
 
 const ZEILE: CheckAnzeigeZeile = {
@@ -36,11 +38,34 @@ const ZEILE: CheckAnzeigeZeile = {
       ton: "rot",
       zeichen: "warnung",
     },
+    {
+      schluessel: "flaschen",
+      text: "1 Flasche niedrig",
+      ton: "rot",
+      zeichen: "sauerstoff",
+    },
   ],
   positionenText: "9",
 };
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
+
+function hatUseClientAlsErsteDirektive(quelle: string): boolean {
+  const source = ts.createSourceFile(
+    "client.tsx",
+    quelle,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const [ersteAnweisung] = source.statements;
+  return Boolean(
+    ersteAnweisung
+    && ts.isExpressionStatement(ersteAnweisung)
+    && ts.isStringLiteral(ersteAnweisung.expression)
+    && ersteAnweisung.expression.text === "use client",
+  );
+}
 
 beforeEach(() => {
   vi.spyOn(window, "getComputedStyle")
@@ -60,16 +85,21 @@ describe("ChecksTabelle", () => {
       .toEqual(["Fahrzeug", "Abgeschlossen", "Ergebnis", "Positionen"]);
     const tabelle = query("table");
     expect(tabelle.getAttribute("aria-label")).toBe("Fahrzeug-Checks");
-    expect(query("tr[data-row-key='check-42']").textContent).toContain("RTW 1");
+    const zeile = query("tr[data-row-key='check-42']");
+    expect(zeile.textContent).toContain("RTW 1");
     expect(query<HTMLAnchorElement>("a[href='/verwaltung/checks/check-42']").textContent)
       .toBe("RTW 1");
     expect(query(`.${s.jts}`).textContent).toBe("7.8.2026, 12:00:00");
-    expect(query("tr[data-row-key='check-42']").textContent)
-      .toContain("1 aus Handlager nachgefüllt");
-    expect(query("tr[data-row-key='check-42']").textContent).toContain("2 korrigiert");
-    expect(query("tr[data-row-key='check-42']").textContent).toContain("1 fehlt weiterhin");
-    expect(query("tr[data-row-key='check-42']").textContent).toContain("9");
-    expect(queryAll(`.${s.rot}`)).toHaveLength(2);
+    expect(zeile.textContent).toContain("1 aus Handlager nachgefüllt");
+    expect(zeile.textContent).toContain("2 korrigiert");
+    expect(zeile.textContent).toContain("1 fehlt weiterhin");
+    expect(zeile.textContent).toContain("1 Flasche niedrig");
+    expect(zeile.textContent).toContain("9");
+    expect(Array.from(
+      zeile.querySelectorAll("svg path"),
+      (pfad) => pfad.getAttribute("d"),
+    )).toEqual([PFADE.warnung, PFADE.sauerstoff]);
+    expect(queryAll(`.${s.rot}`)).toHaveLength(3);
     expect(queryAll(`.${s.gelb}`)).toHaveLength(1);
     expect(exists(".ant-pagination")).toBe(false);
 
@@ -77,7 +107,9 @@ describe("ChecksTabelle", () => {
       "src/app/m/lagerbuch/verwaltung/(arbeit)/checks/ChecksTabelle.tsx",
       "utf8",
     );
-    expect(quelle.split(/\r?\n/, 1)[0]).toBe('"use client";');
+    expect(hatUseClientAlsErsteDirektive(quelle)).toBe(true);
+    expect(hatUseClientAlsErsteDirektive('"use strict";\n"use client";'))
+      .toBe(false);
     expect(quelle).toMatch(/rowKey=["']id["']/);
     expect(quelle).toMatch(/pagination=\{false\}/);
     expect(quelle).toMatch(/scroll=\{\{\s*x:\s*["']max-content["']\s*\}\}/);
