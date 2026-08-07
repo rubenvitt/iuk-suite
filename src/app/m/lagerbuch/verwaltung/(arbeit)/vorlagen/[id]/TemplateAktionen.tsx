@@ -160,7 +160,9 @@ export function TemplateAktionen({
       </Flex>
 
       {syncText ? <span>{syncText}</span> : null}
-      {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
+      {fehler && !umbenennenOffen
+        ? <Alert type="warning" showIcon={false} title={fehler} />
+        : null}
 
       <LoeschButton
         name={aktuellerName}
@@ -183,11 +185,17 @@ export function TemplateAktionen({
         keyboard={!laeuft}
         mask={{ closable: !laeuft }}
         onCancel={() => {
-          if (!laufendRef.current) setUmbenennenOffen(false);
+          if (!laufendRef.current) {
+            setFehler(null);
+            setUmbenennenOffen(false);
+          }
         }}
         onOk={() => form.submit()}
         destroyOnHidden
       >
+        {fehler
+          ? <Alert type="warning" showIcon={false} title={fehler} />
+          : null}
         <Form<UmbenennenWerte>
           form={form}
           layout="vertical"
