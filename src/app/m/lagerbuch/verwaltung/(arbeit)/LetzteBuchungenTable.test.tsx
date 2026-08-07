@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import ts from "typescript";
 import {
   exists,
   mount,
@@ -31,9 +33,33 @@ const ZEILEN = [
     deltaText: "0",
     deltaTon: "neutral",
   },
+  {
+    id: "journal-negativ",
+    zeitText: "07.08. 15:00",
+    artikelName: "Infusionsbesteck",
+    vorgangText: "Entnahme",
+    deltaText: "-2",
+    deltaTon: "negativ",
+  },
 ] satisfies UebersichtJournalZeile[];
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
+
+function ersteDirektive(quelle: string): string | null {
+  const source = ts.createSourceFile(
+    "LetzteBuchungenTable.tsx",
+    quelle,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const [ersteAnweisung] = source.statements;
+  return ersteAnweisung
+    && ts.isExpressionStatement(ersteAnweisung)
+    && ts.isStringLiteral(ersteAnweisung.expression)
+    ? ersteAnweisung.expression.text
+    : null;
+}
 
 beforeAll(() => {
   vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
@@ -48,6 +74,18 @@ afterEach(async () => {
 afterAll(() => vi.restoreAllMocks());
 
 describe("LetzteBuchungenTable", () => {
+  it("traegt use client kommentarrobust als echte erste Direktive", () => {
+    expect(ersteDirektive('// Hinweis\n"use client";\nconst wert = 1;'))
+      .toBe("use client");
+    expect(ersteDirektive('const wert = 1;\n"use client";')).toBeNull();
+
+    const quelle = readFileSync(
+      "src/app/m/lagerbuch/verwaltung/(arbeit)/LetzteBuchungenTable.tsx",
+      "utf8",
+    );
+    expect(ersteDirektive(quelle)).toBe("use client");
+  });
+
   it("rendert gefuellte primitive DTOs mit stabilen Tabellenattributen", async () => {
     await mount(<LetzteBuchungenTable zeilen={ZEILEN} />);
 
@@ -62,6 +100,7 @@ describe("LetzteBuchungenTable", () => {
       zeile.getAttribute("data-row-key"))).toEqual([
       "journal-positiv",
       "journal-neutral",
+      "journal-negativ",
     ]);
 
     const positiv = query("tr[data-row-key='journal-positiv']");
@@ -77,6 +116,10 @@ describe("LetzteBuchungenTable", () => {
     expect(neutralDelta).not.toBeNull();
     expect(neutralDelta?.classList.contains(s.jplus)).toBe(false);
     expect(neutralDelta?.classList.contains(s.jminus)).toBe(false);
+
+    const negativ = query("tr[data-row-key='journal-negativ']");
+    expect(negativ.textContent).toContain("-2");
+    expect(negativ.querySelector(`.${s.jdelta}.${s.jminus}`)).not.toBeNull();
     expect(exists(".ant-pagination")).toBe(false);
     expect(query(".ant-table-content").getAttribute("style")).toContain("overflow-x: auto");
   });

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import ts from "typescript";
 import {
   exists,
   mount,
@@ -37,6 +39,22 @@ const ZEILEN = [
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
+function ersteDirektive(quelle: string): string | null {
+  const source = ts.createSourceFile(
+    "JournalTable.tsx",
+    quelle,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const [ersteAnweisung] = source.statements;
+  return ersteAnweisung
+    && ts.isExpressionStatement(ersteAnweisung)
+    && ts.isStringLiteral(ersteAnweisung.expression)
+    ? ersteAnweisung.expression.text
+    : null;
+}
+
 beforeAll(() => {
   vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
     getComputedStyleOhnePseudo(element),
@@ -50,6 +68,18 @@ afterEach(async () => {
 afterAll(() => vi.restoreAllMocks());
 
 describe("JournalTable", () => {
+  it("traegt use client kommentarrobust als echte erste Direktive", () => {
+    expect(ersteDirektive('/* Lizenz */\n"use client";\nconst wert = 1;'))
+      .toBe("use client");
+    expect(ersteDirektive('const wert = 1;\n"use client";')).toBeNull();
+
+    const quelle = readFileSync(
+      "src/app/m/lagerbuch/verwaltung/(arbeit)/journal/JournalTable.tsx",
+      "utf8",
+    );
+    expect(ersteDirektive(quelle)).toBe("use client");
+  });
+
   it("rendert eine gefuellte DTO-Zeile erst innerhalb der Client-Insel", async () => {
     await mount(<JournalTable zeilen={ZEILEN} leertext="Noch keine Buchung." />);
 

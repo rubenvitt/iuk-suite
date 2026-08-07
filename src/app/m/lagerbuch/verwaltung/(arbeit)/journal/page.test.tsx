@@ -95,7 +95,7 @@ function istJsonSicher(wert: unknown): boolean {
   return Object.values(wert).every(istJsonSicher);
 }
 
-function antdImportNamen(quelle: string): string[] {
+function importiertUnsichereAntdTableForm(quelle: string): boolean {
   const source = ts.createSourceFile(
     "page.tsx",
     quelle,
@@ -103,16 +103,24 @@ function antdImportNamen(quelle: string): string[] {
     true,
     ts.ScriptKind.TSX,
   );
-  return source.statements.flatMap((statement) => {
+  return source.statements.some((statement) => {
     if (
       !ts.isImportDeclaration(statement)
       || !ts.isStringLiteral(statement.moduleSpecifier)
       || statement.moduleSpecifier.text !== "antd"
-    ) return [];
-    const bindungen = statement.importClause?.namedBindings;
+    ) return false;
+    const importClause = statement.importClause;
+    if (!importClause) return false;
+    if (importClause.name) return true;
+    if (importClause.namedBindings && ts.isNamespaceImport(importClause.namedBindings)) {
+      return true;
+    }
+    const bindungen = importClause.namedBindings;
     return bindungen && ts.isNamedImports(bindungen)
-      ? bindungen.elements.map((element) => element.propertyName?.text ?? element.name.text)
-      : [];
+      ? bindungen.elements.some(
+        (element) => (element.propertyName?.text ?? element.name.text) === "Table",
+      )
+      : false;
   });
 }
 
@@ -279,12 +287,24 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
       .toBe("Keine Buchung passt zu Suche, Vorgang und Zeitraum.");
   });
 
+  it("erkennt benannte, Alias-, Namespace- und Default-Importe als Negativproben", () => {
+    expect(importiertUnsichereAntdTableForm('import { Table } from "antd";')).toBe(true);
+    expect(importiertUnsichereAntdTableForm(
+      'import { Table as JournalTabelle } from "antd";',
+    )).toBe(true);
+    expect(importiertUnsichereAntdTableForm('import * as antd from "antd";')).toBe(true);
+    expect(importiertUnsichereAntdTableForm('import antd from "antd";')).toBe(true);
+    expect(importiertUnsichereAntdTableForm(
+      'import { Card as Karte, Empty } from "antd";',
+    )).toBe(false);
+  });
+
   it("importiert in der directive-freien RSC-Seite keine antd-Table", () => {
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/journal/page.tsx",
       "utf8",
     );
-    expect(antdImportNamen(quelle)).not.toContain("Table");
+    expect(importiertUnsichereAntdTableForm(quelle)).toBe(false);
     expect(quelle).not.toMatch(/["']use client["']/);
     expect(quelle).not.toContain(String.fromCodePoint(0x2212));
     expect(quelle).not.toContain("Trefferanzeige");
