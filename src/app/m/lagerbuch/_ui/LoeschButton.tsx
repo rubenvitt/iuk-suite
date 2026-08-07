@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Button } from "antd";
+import { Button, type ButtonProps } from "antd";
 import type { Loeschbarkeit } from "../_lib/loeschen";
 import { Ikone } from "./ikonen";
 import { LoeschDialog } from "./LoeschDialog";
@@ -13,6 +13,7 @@ export function LoeschButton({
   label,
   deaktivierenLabel,
   nurZeichen = false,
+  size,
   hinweis,
   pruefen,
   onLoeschen,
@@ -24,6 +25,7 @@ export function LoeschButton({
   label?: string;
   deaktivierenLabel?: string;
   nurZeichen?: boolean;
+  size?: ButtonProps["size"];
   hinweis?: ReactNode;
   pruefen: () => Promise<Loeschbarkeit>;
   onLoeschen: () => Promise<void>;
@@ -37,6 +39,7 @@ export function LoeschButton({
     <>
       <Button
         danger
+        size={size}
         icon={<Ikone name="papierkorb" groesse={16} />}
         aria-label={nurZeichen ? `${typLabel} ${name} löschen` : undefined}
         onClick={() => setOffen(true)}
