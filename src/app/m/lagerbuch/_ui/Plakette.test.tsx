@@ -30,6 +30,25 @@ describe("Plakette", () => {
     expect(striche.indexOf(dick[0])).toBe(2);
   });
 
+  it("begrenzt jede Koordinate auf drei Nachkommastellen fuer stabiles Hydrieren", async () => {
+    // Node und Chromium duerfen die trigonometrischen Zwischenwerte in den
+    // letzten Bits verschieden runden. Ungerundete SVG-Attribute erzeugten
+    // deshalb im echten Browser `6.836413862476535` auf dem Server, aber
+    // `6.836413862476537` im Client und damit eine Hydration-Abweichung.
+    await mount(<Plakette verfall="2027-03" ampel="gruen" statusText="bis 03/27" />);
+    const koordinaten = queryAll("svg line").flatMap((strich) => [
+      strich.getAttribute("x1"),
+      strich.getAttribute("y1"),
+      strich.getAttribute("x2"),
+      strich.getAttribute("y2"),
+    ]);
+
+    expect(koordinaten).toHaveLength(48);
+    for (const wert of koordinaten) {
+      expect(wert).toMatch(/^-?\d+(?:\.\d{1,3})?$/);
+    }
+  });
+
   it("setzt KEINEN festen Farbwert — alle Farben kommen aus --lb-*", async () => {
     await mount(<Plakette verfall="2027-03" ampel="rot" statusText="abgelaufen" />);
     const svg = query("svg").outerHTML;
