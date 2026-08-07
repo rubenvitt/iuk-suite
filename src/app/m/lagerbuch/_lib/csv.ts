@@ -13,10 +13,22 @@ export type CsvZeile = {
   startbestand: number;
 };
 
+type ParseErgebnis<T> = { rows: T[]; errors: string[] };
+type InterneParseOptionen = { mitMetadaten: true };
+type CsvZeileMitMetadaten = { row: CsvZeile; zeile: number };
+
 const KOPFWORTE = ["name", "einheit", "fach", "mindestbestand", "startbestand"];
 
-export function parseArtikelCsv(text: string): { rows: CsvZeile[]; errors: string[] } {
-  const rows: CsvZeile[] = [];
+export function parseArtikelCsv(text: string): ParseErgebnis<CsvZeile>;
+export function parseArtikelCsv(
+  text: string,
+  optionen: InterneParseOptionen,
+): ParseErgebnis<CsvZeileMitMetadaten>;
+export function parseArtikelCsv(
+  text: string,
+  optionen?: InterneParseOptionen,
+): ParseErgebnis<CsvZeile> | ParseErgebnis<CsvZeileMitMetadaten> {
+  const rowsMitMetadaten: CsvZeileMitMetadaten[] = [];
   const errors: string[] = [];
   const zeilen = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").split("\n");
   const ersteNichtleere = zeilen.find((zeile) => zeile.trim() !== "") ?? "";
@@ -66,8 +78,12 @@ export function parseArtikelCsv(text: string): { rows: CsvZeile[]; errors: strin
       continue;
     }
 
-    rows.push({ name, einheit, fach, mindestbestand, startbestand });
+    rowsMitMetadaten.push({
+      row: { name, einheit, fach, mindestbestand, startbestand },
+      zeile: i + 1,
+    });
   }
 
-  return { rows, errors };
+  if (optionen?.mitMetadaten) return { rows: rowsMitMetadaten, errors };
+  return { rows: rowsMitMetadaten.map(({ row }) => row), errors };
 }
