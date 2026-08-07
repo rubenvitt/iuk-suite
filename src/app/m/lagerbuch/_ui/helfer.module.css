@@ -228,6 +228,18 @@
   display: inline-flex; align-items: center; gap: 4px; border-radius: 99px;
   padding: 2.5px 9px; font-size: 12px; font-weight: 600; white-space: nowrap;
 }
+.chipKnopf {
+  background: none; border: 0; padding: 6px 0; min-height: 44px;
+  display: inline-flex; align-items: center;
+}
+.warnhinweis {
+  white-space: normal; display: block; border-radius: 10px; padding: 8px 10px;
+  font-size: 13px;
+}
+.rueckmeldung {
+  white-space: normal; display: block; border-radius: 10px; padding: 8px 10px;
+  font-size: 13px; margin-top: 10px;
+}
 .ok { color: var(--lb-ampel-ok-text); background: var(--lb-ampel-ok-flaeche) }
 .gelb { color: var(--lb-ampel-gelb-text); background: var(--lb-ampel-gelb-flaeche) }
 .rot { color: var(--lb-ampel-rot-text); background: var(--lb-ampel-rot-flaeche) }
