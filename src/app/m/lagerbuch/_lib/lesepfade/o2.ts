@@ -51,6 +51,8 @@ export type O2FlascheZeile = {
   id: string; name: string; lagerortName: string; aktiv: boolean;
   groesseLiter: number | null; nennfuelldruckBar: number;
   letzterDruck: number | null; letzteMessung: Date | null;
+  /** Herkunft DERSELBEN juengsten Messung wie Druck und Zeitpunkt. */
+  herkunft: "check" | "manuell" | null;
   /** ⚠️ `null` = KEINE Messung. Nicht 0 %. */
   status: O2Status | null;
 };
@@ -58,14 +60,22 @@ export type O2FlascheZeile = {
 /** Juengste Messung je Flasche — EINE Abfrage, dann in JS verdichtet.
  *  id-Tiebreaker bei GLEICHEM `ts` (§5.14.4), dieselbe Richtung wie die
  *  SQL-Sortierung in `o2FlascheDetail` (`orderBy(desc(ts), desc(id))`). */
-function letzteJeFlasche(db: Leser): Map<string, { ts: Date; druckBar: number; id: string }> {
-  const m = new Map<string, { ts: Date; druckBar: number; id: string }>();
+function letzteJeFlasche(db: Leser): Map<string, {
+  ts: Date; druckBar: number; id: string; quelleTyp: string;
+}> {
+  const m = new Map<string, {
+    ts: Date; druckBar: number; id: string; quelleTyp: string;
+  }>();
   for (const x of db.select().from(o2Messungen).all()) {
     const prev = m.get(x.flascheId);
     const istSpaeter = !prev
       || x.ts.getTime() > prev.ts.getTime()
       || (x.ts.getTime() === prev.ts.getTime() && x.id > prev.id);
-    if (istSpaeter) m.set(x.flascheId, { ts: x.ts, druckBar: x.druckBar, id: x.id });
+    if (istSpaeter) {
+      m.set(x.flascheId, {
+        ts: x.ts, druckBar: x.druckBar, id: x.id, quelleTyp: x.quelleTyp,
+      });
+    }
   }
   return m;
 }
@@ -77,11 +87,17 @@ export function o2FlaschenUebersicht(db: Leser): O2FlascheZeile[] {
     .map((f) => {
       const l = letzte.get(f.id) ?? null;
       const letzterDruck = l ? l.druckBar : null;
+      const herkunft: O2FlascheZeile["herkunft"] = l === null
+        ? null
+        : l.quelleTyp === "token" ? "check" : "manuell";
       return {
         id: f.id, name: f.name, lagerortName: namen.get(f.lagerortId) ?? "–",
         aktiv: f.aktiv, groesseLiter: f.groesseLiter,
         nennfuelldruckBar: f.nennfuelldruckBar,
         letzterDruck, letzteMessung: l ? l.ts : null,
+        // Token = Fahrzeug-Check; jeder andere vorhandene Quelltyp ist manuell.
+        // Ohne Messung gibt es keine Herkunft, die geraten werden duerfte.
+        herkunft,
         // GUARD: ohne Messung KEIN o2Status-Aufruf (§5.12, Eigenschaft 4).
         status: letzterDruck !== null ? o2Status(letzterDruck, f.nennfuelldruckBar) : null,
       };
