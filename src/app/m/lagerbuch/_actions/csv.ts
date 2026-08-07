@@ -21,11 +21,11 @@ export async function importArtikelCsv(
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ angelegt: number; fehler: string[] }>> {
   const viewer = await requireLagerbuchAdmin();
-  const { rows, errors } = parseArtikelCsv(text);
+  const { rows, errors } = parseArtikelCsv(text, { mitMetadaten: true });
   const fehler = [...errors];
   let angelegt = 0;
 
-  for (const row of rows) {
+  for (const { row, zeile } of rows) {
     try {
       db.transaction((tx) => {
         const artikelId = newId();
@@ -64,7 +64,7 @@ export async function importArtikelCsv(
       });
       angelegt += 1;
     } catch {
-      fehler.push(`„${row.name}“ konnte nicht angelegt werden.`);
+      fehler.push(`Zeile ${zeile}: „${row.name}“ konnte nicht angelegt werden.`);
     }
   }
 

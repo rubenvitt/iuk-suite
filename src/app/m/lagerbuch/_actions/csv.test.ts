@@ -115,24 +115,27 @@ describe("importArtikelCsv", () => {
     t.sqlite.exec(`
       CREATE TRIGGER csv_buchung_fehler
       BEFORE INSERT ON buchungen
-      WHEN (SELECT name FROM artikel WHERE id = NEW.artikel_id) = 'Defekt'
+      WHEN (SELECT fach FROM artikel WHERE id = NEW.artikel_id) = 'FEHLER'
       BEGIN
         SELECT RAISE(ABORT, 'db-intern: geheimer CSV-Fehler');
       END;
     `);
 
     const ergebnis = await importArtikelCsv(
-      `${KOPF}\nErste;Stk;A1;1;2\nDefekt;Stk;A2;1;3\nDritte;Stk;A3;1;4`,
+      `${KOPF}\n\nMull;Stk;A1;1;2\nMull;Pkg;FEHLER;1;3\nMull;Box;A3;1;4`,
       t.db,
     );
 
     expect(ergebnis).toEqual({
       ok: true,
-      wert: { angelegt: 2, fehler: ["„Defekt“ konnte nicht angelegt werden."] },
+      wert: { angelegt: 2, fehler: ["Zeile 4: „Mull“ konnte nicht angelegt werden."] },
     });
     expect(wert<{ fehler: string[] }>(ergebnis).fehler.join(" ")).not.toContain("db-intern");
-    expect(t.db.select().from(artikel).all().map((a) => a.name).sort())
-      .toEqual(["Dritte", "Erste"]);
+    expect(t.db.select().from(artikel).all().map(({ name, einheit, fach }) => ({ name, einheit, fach })))
+      .toEqual([
+        { name: "Mull", einheit: "Stk", fach: "A1" },
+        { name: "Mull", einheit: "Box", fach: "A3" },
+      ]);
     expect(t.db.select().from(chargen).all()).toHaveLength(2);
     expect(t.db.select().from(buchungen).all()).toHaveLength(2);
     expect(revalidiert).toEqual([LISTENPFAD]);

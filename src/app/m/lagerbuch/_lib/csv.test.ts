@@ -88,6 +88,23 @@ describe("parseArtikelCsv", () => {
     });
   });
 
+  it("liefert physische Zeilennummern nur ueber den expliziten Metadatenpfad", () => {
+    const text = "Name;Einheit;Fach;Mindestbestand;Startbestand\n\nMull;Stk;A1;20;5";
+    const row = {
+      name: "Mull",
+      einheit: "Stk",
+      fach: "A1",
+      mindestbestand: 20,
+      startbestand: 5,
+    };
+
+    expect(parseArtikelCsv(text)).toEqual({ rows: [row], errors: [] });
+    expect(parseArtikelCsv(text, { mitMetadaten: true })).toEqual({
+      rows: [{ row, zeile: 3 }],
+      errors: [],
+    });
+  });
+
   it("meldet zu wenige Spalten an der physischen Zeilennummer und liest spaetere Zeilen", () => {
     const ergebnis = parseArtikelCsv(
       "Name;Einheit;Fach;Mindestbestand;Startbestand\n\nMull;Stk\nA;B;C;1;0",
