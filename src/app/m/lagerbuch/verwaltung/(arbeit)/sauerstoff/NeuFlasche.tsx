@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Form, Input, InputNumber, Modal, Select } from "antd";
 import { flascheSpeichern } from "../../../_actions/sauerstoff";
@@ -22,8 +22,8 @@ function istFormFeld(name: string): name is keyof Werte {
 }
 
 type LagerortOption = {
-  label?: ReactNode;
-  value?: string | number | null;
+  label: string;
+  value: string;
 };
 
 /** Das Select filtert sichtbar nach seiner Beschriftung, nicht nach der ID. */
@@ -116,7 +116,7 @@ export function NeuFlasche({
             label="Standort"
             rules={[{ required: true, message: "Standort wählen" }]}
           >
-            <Select
+            <Select<string, LagerortOption>
               aria-label="Standort"
               showSearch
               filterOption={lagerortFilter}
@@ -151,7 +151,7 @@ export function NeuFlasche({
             />
           </Form.Item>
         </Form>
-        {fehler ? <Alert type="warning" showIcon={false} message={fehler} /> : null}
+        {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
       </Modal>
     </>
   );

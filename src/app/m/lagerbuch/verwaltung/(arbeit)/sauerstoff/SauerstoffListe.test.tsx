@@ -298,8 +298,18 @@ describe("NeuFlasche", () => {
     besuche(source);
     expect(felder).toEqual(["name", "lagerortId", "groesseLiter", "nennfuelldruckBar"]);
     expect(quelle).toMatch(/<Select[\s\S]*?filterOption=\{lagerortFilter\}/);
+    expect(quelle).toMatch(/<Select<string,\s*LagerortOption>/);
     expect(lagerortFilter("rtw", { label: "RTW 1", value: "rtw-1" })).toBe(true);
     expect(lagerortFilter("lager", { label: "RTW 1", value: "rtw-1" })).toBe(false);
+  });
+
+  it("verwendet fuer allgemeine Fehler die antd-v6-Prop title statt message", () => {
+    const quelle = readFileSync(
+      "src/app/m/lagerbuch/verwaltung/(arbeit)/sauerstoff/NeuFlasche.tsx",
+      "utf8",
+    );
+    expect(quelle).toMatch(/<Alert[\s\S]*?title=\{fehler\}/);
+    expect(quelle).not.toMatch(/<Alert[\s\S]*?message=\{fehler\}/);
   });
 
   it("sendet nur explizit eingegebene Werte, schliesst, leert und aktualisiert", async () => {
