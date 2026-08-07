@@ -21,6 +21,7 @@ import { requireLagerbuchAdmin } from "../_lib/zugang";
 const LISTENPFAD = "/m/lagerbuch/verwaltung/bz";
 const LAGERORT_FEHLER = "Lagerort nicht gefunden oder inaktiv.";
 const BARCODE_FEHLER = "Barcode bereits vergeben.";
+const BZ_GERAET_FEHLER = "BZ-Gerät nicht gefunden.";
 
 const GeraetSchema = z.object({
   id: z.string().min(1).optional(),
@@ -86,6 +87,12 @@ function revalidate(id: string) {
   revalidatePath(`${LISTENPFAD}/${id}`);
 }
 
+function bzGeraetExistiert(db: DB, id: string): boolean {
+  return Boolean(db.select({ id: bzGeraete.id }).from(bzGeraete)
+    .where(eq(bzGeraete.id, id))
+    .get());
+}
+
 /**
  * Die drei Geraete-Actions tragen absichtlich dieselben Namen wie die
  * generischen Geraete-Actions: gleicher Vorgang, eigener Fachbereich.
@@ -103,6 +110,10 @@ export async function geraetSpeichern(
   const barcode = orNull(v.barcode);
 
   try {
+    if (v.id && !bzGeraetExistiert(db, v.id)) {
+      return festerFehler(BZ_GERAET_FEHLER);
+    }
+
     const lagerort = db.select({ id: lagerorte.id }).from(lagerorte)
       .where(and(
         eq(lagerorte.id, v.lagerortId),
@@ -166,6 +177,10 @@ export async function setGeraetAktiv(
   if (!geparst.success) return festerFehler("Ungültige Eingabe.");
 
   try {
+    if (!bzGeraetExistiert(db, geparst.data.id)) {
+      return festerFehler(BZ_GERAET_FEHLER);
+    }
+
     db.update(bzGeraete)
       .set({ aktiv: geparst.data.aktiv })
       .where(eq(bzGeraete.id, geparst.data.id))

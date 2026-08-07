@@ -248,6 +248,37 @@ describe("geraetSpeichern", () => {
     },
   );
 
+  it("lehnt eine unbekannte Bearbeitungs-ID vor Lagerort- und Barcode-Pruefung ab", async () => {
+    t.db.insert(geraete).values({
+      id: "generic-1",
+      typ: "objekt",
+      name: "Generisch",
+      barcode: "DOPPELT",
+      lagerortId: "ort-aktiv",
+      aktiv: true,
+      createdAt: JETZT,
+    }).run();
+
+    const ohneLagerort = await geraetSpeichern({
+      id: "bz-fehlt",
+      name: "Unbekannt",
+      lagerortId: "ort-fehlt",
+      barcode: "frei",
+    }, t.db);
+    const mitKollision = await geraetSpeichern({
+      id: "bz-fehlt",
+      name: "Unbekannt",
+      lagerortId: "ort-aktiv",
+      barcode: "DOPPELT",
+    }, t.db);
+
+    expect(ohneLagerort).toEqual({ ok: false, fehler: "BZ-Gerät nicht gefunden." });
+    expect(mitKollision).toEqual({ ok: false, fehler: "BZ-Gerät nicht gefunden." });
+    expect(bzZeilen()).toEqual([]);
+    expect(t.db.select().from(geraete).all()).toHaveLength(1);
+    expect(revalidiert).toEqual([]);
+  });
+
   it("blockiert einen Barcode aus der generischen Geraetetabelle mit festem Feldfehler", async () => {
     t.db.insert(geraete).values({
       id: "generic-1",
@@ -337,6 +368,18 @@ describe("setGeraetAktiv", () => {
     expect(t.db.select().from(bzGeraete).where(eq(bzGeraete.id, id)).get())
       .toEqual({ ...vorher, aktiv: false });
     expect(revalidiert).toEqual(erwartetePfade(id));
+  });
+
+  it("lehnt eine unbekannte ID mit festem Fehler ohne Aenderung oder Revalidierung ab", async () => {
+    await geraetOhneBereiche();
+    revalidiert.length = 0;
+    const vorher = bzZeilen();
+
+    const erg = await setGeraetAktiv({ id: "bz-fehlt", aktiv: false }, t.db);
+
+    expect(erg).toEqual({ ok: false, fehler: "BZ-Gerät nicht gefunden." });
+    expect(bzZeilen()).toEqual(vorher);
+    expect(revalidiert).toEqual([]);
   });
 
   it("gibt bei einem Infrastrukturfehler nur den festen Statusfehler zurueck", async () => {
