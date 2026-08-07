@@ -138,6 +138,42 @@ describe("checkHistorie", () => {
   });
 });
 
+describe("checkDetail — stabile Positions-IDs", () => {
+  it("übernimmt für neue V2-Einträge die sollPositionId unverändert", () => {
+    const position = checkDetail(t.db, "chk-1", NOW)!.positionen[0];
+
+    expect(position.id).toBe("sp1");
+  });
+
+  it("vergibt Legacy-V2-Einträgen stabile IDs je Vorkommen desselben Fingerprints", () => {
+    t.db.insert(checks).values({
+      id: "chk-legacy", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: NOW, completedAt: NOW,
+      ergebnis: JSON.stringify({
+        positionen: [
+          { artikelId: "a1", soll: 9, ist: 9 },
+          { artikelId: "a1", soll: 4, ist: 3 },
+          { artikelId: "a1", soll: 2, ist: 1 },
+          { artikelId: "a1", soll: 4, ist: 3 },
+        ],
+        artikel: [], geraete: [], flaschen: [], verfall: [],
+      }),
+    }).run();
+
+    const beimErstenLesen = checkDetail(t.db, "chk-legacy", NOW)!.positionen.map((p) => p.id);
+    const beimZweitenLesen = checkDetail(t.db, "chk-legacy", NOW)!.positionen.map((p) => p.id);
+
+    expect(beimErstenLesen).toEqual([
+      "legacy:chk-legacy:a1:9:9:0",
+      "legacy:chk-legacy:a1:4:3:0",
+      "legacy:chk-legacy:a1:2:1:0",
+      "legacy:chk-legacy:a1:4:3:1",
+    ]);
+    expect(beimZweitenLesen).toEqual(beimErstenLesen);
+    expect(new Set(beimErstenLesen).size).toBe(beimErstenLesen.length);
+  });
+});
+
 describe("checkDetail — der Nennfuelldruck wird NICHT geraten (§5.12)", () => {
   it("greift auf den FLASCHENSTAMM zurueck, wenn der Snapshot fehlt", () => {
     // Die Kette `e.nennfuelldruckBar ?? f?.nennfuelldruckBar ?? null`. Die
