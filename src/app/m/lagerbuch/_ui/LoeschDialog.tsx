@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Alert, Button, Input, Modal } from "antd";
 import type { Loeschbarkeit } from "../_lib/loeschen";
 import { SCHRIFT } from "../_lib/schrift";
@@ -26,11 +26,80 @@ export function LoeschDialog({
   onSchliessen,
   onFertig,
 }: LoeschDialogProps) {
+  // Guard und Loading gehoeren zum dauerhaften Dialog-Owner, nicht zum
+  // bedingt gemounteten Inhalt: eine kontrollierte Close/Reopen-Folge darf
+  // eine noch laufende Action nicht vergessen.
+  const [laeuft, setLaeuft] = useState(false);
+  const laufendRef = useRef(false);
+  const oeffnungsGenerationRef = useRef(0);
+  const montiertRef = useRef(true);
+
+  // Cleanup UND Setup invalidieren die vorige Oeffnung synchron im Commit.
+  // Damit kann eine Promise-Mikrotask zwischen Close und passivem Effect keine
+  // veralteten Callbacks mehr in eine spaetere Oeffnung tragen.
+  useLayoutEffect(() => {
+    oeffnungsGenerationRef.current += 1;
+    return () => {
+      oeffnungsGenerationRef.current += 1;
+    };
+  }, [offen]);
+
+  useLayoutEffect(() => {
+    montiertRef.current = true;
+    return () => {
+      montiertRef.current = false;
+    };
+  }, []);
+
+  async function actionAusfuehren(
+    aktion: () => Promise<void>,
+  ): Promise<AktionsErgebnis> {
+    if (laufendRef.current) return "laeuft";
+
+    const generation = oeffnungsGenerationRef.current;
+    laufendRef.current = true;
+    setLaeuft(true);
+
+    let fehlgeschlagen = false;
+    try {
+      await aktion();
+    } catch {
+      fehlgeschlagen = true;
+    }
+
+    laufendRef.current = false;
+    if (montiertRef.current) setLaeuft(false);
+
+    if (
+      !montiertRef.current ||
+      generation !== oeffnungsGenerationRef.current
+    ) {
+      return "veraltet";
+    }
+    if (fehlgeschlagen) return "fehlgeschlagen";
+
+    try {
+      onFertig?.();
+      onSchliessen();
+      return "erfolg";
+    } catch {
+      return "fehlgeschlagen";
+    }
+  }
+
+  function modalSchliessen(): void {
+    if (laufendRef.current) return;
+    onSchliessen();
+  }
+
   return (
     <Modal
       open={offen}
       title={`${typLabel} löschen`}
-      onCancel={onSchliessen}
+      onCancel={modalSchliessen}
+      keyboard={!laeuft}
+      closable={!laeuft}
+      maskClosable={!laeuft}
       footer={null}
       destroyOnHidden
     >
@@ -43,8 +112,8 @@ export function LoeschDialog({
           pruefen={pruefen}
           onLoeschen={onLoeschen}
           onDeaktivieren={onDeaktivieren}
-          onSchliessen={onSchliessen}
-          onFertig={onFertig}
+          laeuft={laeuft}
+          actionAusfuehren={actionAusfuehren}
         />
       ) : null}
     </Modal>
@@ -64,6 +133,16 @@ type LoeschDialogProps = {
   onFertig?: () => void;
 };
 
+type AktionsErgebnis = "erfolg" | "fehlgeschlagen" | "veraltet" | "laeuft";
+
+type LoeschInhaltProps = Omit<
+  LoeschDialogProps,
+  "offen" | "onSchliessen" | "onFertig"
+> & {
+  laeuft: boolean;
+  actionAusfuehren: (aktion: () => Promise<void>) => Promise<AktionsErgebnis>;
+};
+
 function LoeschInhalt({
   name,
   typLabel,
@@ -72,14 +151,13 @@ function LoeschInhalt({
   pruefen,
   onLoeschen,
   onDeaktivieren,
-  onSchliessen,
-  onFertig,
-}: Omit<LoeschDialogProps, "offen">) {
+  laeuft,
+  actionAusfuehren,
+}: LoeschInhaltProps) {
   const [status, setStatus] = useState<Loeschbarkeit | null>(null);
   const [eingabe, setEingabe] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
-  const [laeuft, setLaeuft] = useState(false);
-  const laufendRef = useRef(false);
+  const sichtbarRef = useRef(true);
   const pruefenBeimOeffnen = useRef(pruefen);
 
   useEffect(() => {
@@ -98,24 +176,15 @@ function LoeschInhalt({
 
     return () => {
       verworfen = true;
+      sichtbarRef.current = false;
     };
   }, []);
 
   async function ausfuehren(aktion: () => Promise<void>, misslungen: string): Promise<void> {
-    if (laufendRef.current) return;
-
-    laufendRef.current = true;
-    setLaeuft(true);
     setFehler(null);
-    try {
-      await aktion();
-      onFertig?.();
-      onSchliessen();
-    } catch {
+    const ergebnis = await actionAusfuehren(aktion);
+    if (sichtbarRef.current && ergebnis === "fehlgeschlagen") {
       setFehler(misslungen);
-    } finally {
-      laufendRef.current = false;
-      setLaeuft(false);
     }
   }
 
@@ -132,7 +201,7 @@ function LoeschInhalt({
             className={styles.warnbox}
             type="warning"
             showIcon={false}
-            message={status.grund}
+            title={status.grund}
           />
           {status.kannDeaktivieren && onDeaktivieren ? (
             <Button
@@ -179,7 +248,7 @@ function LoeschInhalt({
         </>
       ) : null}
 
-      {fehler ? <Alert type="warning" showIcon={false} message={fehler} /> : null}
+      {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
     </div>
   );
 }
