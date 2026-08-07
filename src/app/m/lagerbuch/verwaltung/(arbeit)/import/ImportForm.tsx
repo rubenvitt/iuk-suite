@@ -132,7 +132,7 @@ export function ImportForm() {
   };
 
   const importieren = async () => {
-    if (importLaeuft.current || vorschau.rows.length === 0) return;
+    if (importLaeuft.current || ergebnis !== null || vorschau.rows.length === 0) return;
     importLaeuft.current = true;
     setLaeuft(true);
     setErgebnis(null);
@@ -182,7 +182,7 @@ export function ImportForm() {
           htmlType="submit"
           data-rolle="import"
           loading={laeuft}
-          disabled={laeuft || vorschau.rows.length === 0}
+          disabled={laeuft || ergebnis !== null || vorschau.rows.length === 0}
         >
           Importieren
         </Button>
