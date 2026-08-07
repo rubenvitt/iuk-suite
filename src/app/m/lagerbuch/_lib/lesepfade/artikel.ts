@@ -22,6 +22,19 @@ import { bestandJeArtikel, restJeCharge, type Leser } from "./bestand";
 
 export type ChargeZeile = { id: string; chargenNr: string; verfall: string; rest: number };
 
+type FefoSortierbareCharge = {
+  id: string;
+  verfall: string;
+  createdAt: Date;
+};
+
+/** Dieselbe totale Ordnung wie `_lib/domain/fefo.ts`: Verfall, Alter, ID. */
+function vergleicheFefoCharge(a: FefoSortierbareCharge, b: FefoSortierbareCharge): number {
+  return a.verfall.localeCompare(b.verfall)
+    || a.createdAt.getTime() - b.createdAt.getTime()
+    || a.id.localeCompare(b.id);
+}
+
 export type ArtikelZeile = {
   id: string; name: string; einheit: string; fach: string; mindestbestand: number;
   bestand: number; aktiv: boolean;
@@ -44,9 +57,12 @@ export function chargenMitRest(
 ): ChargeZeile[] {
   const chs = db.select().from(chargen).where(eq(chargen.artikelId, artikelId)).all();
   const rest = restJeCharge(db, lagerortId);
-  return chs.map((c) => ({
-    id: c.id, chargenNr: c.chargenNr, verfall: c.verfall, rest: rest.get(c.id) ?? 0,
-  }));
+  // Vor der Projektion sortieren: `createdAt` entscheidet, bleibt aber intern.
+  return chs
+    .sort(vergleicheFefoCharge)
+    .map((c) => ({
+      id: c.id, chargenNr: c.chargenNr, verfall: c.verfall, rest: rest.get(c.id) ?? 0,
+    }));
 }
 
 export function artikelListe(
@@ -65,7 +81,7 @@ export function artikelListe(
     const b = bestand.get(a.id) ?? 0;
     const naechste = alleChargen
       .filter((c) => c.artikelId === a.id && (rest.get(c.id) ?? 0) > 0)
-      .sort((x, y) => x.verfall.localeCompare(y.verfall))[0] ?? null;
+      .sort(vergleicheFefoCharge)[0] ?? null;
     const s = naechste ? verfallStatus(naechste.verfall, schwellen, now) : null;
     return {
       id: a.id, name: a.name, einheit: a.einheit, fach: a.fach,
@@ -106,7 +122,8 @@ export function artikelDetail(db: Leser, id: string, _now: Date = new Date()) {
     chargen: chargenMitRest(db, id),
     // LAGERORT-UEBERGREIFEND — siehe Kopfkommentar.
     buchungen: bu.slice(0, ARTIKEL_VERLAUF_GRENZE).map((b) => ({
-      ts: b.ts, typ: b.typ, menge: b.menge, kommentar: b.kommentar, quelleId: b.quelleId,
+      id: b.id, ts: b.ts, typ: b.typ, menge: b.menge, kommentar: b.kommentar,
+      quelleTyp: b.quelleTyp, quelleId: b.quelleId,
     })),
     /** ⚠️ UNBEDINGTE Texte („die neuesten 8") sind die Fehlaussage, gegen die
      *  §5.14.3 gebaut ist: der Hinweis erscheint NUR, wenn die Grenze griff. */
@@ -125,8 +142,7 @@ export function artikelDetailHelfer(db: Leser, id: string, now: Date = new Date(
     .map((c) => {
       const s = verfallStatus(c.verfall, schwellen, now);
       return { ...c, ampel: s.ampel as Ampel, text: chargeText(s, c.verfall) };
-    })
-    .sort((x, y) => x.verfall.localeCompare(y.verfall));
+    });
   return {
     id: d.artikel.id, name: d.artikel.name, einheit: d.artikel.einheit,
     fach: d.artikel.fach, bestand: d.bestand, chargen: cs,
