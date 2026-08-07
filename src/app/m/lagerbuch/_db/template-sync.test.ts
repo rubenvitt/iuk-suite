@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "./testdb";
-import { artikel, fahrzeugTemplates, lagerorte, sollPositionen,
+import { artikel, fahrzeugTemplates, lagerorte, lagerortVerfall, sollPositionen,
          templatePositionen } from "./schema";
 import { syncFahrzeugTemplate } from "../_lib/schreibpfade/templateSync";
 
@@ -28,6 +28,18 @@ beforeEach(() => {
 afterEach(() => t.schliessen());
 
 const soll = () => t.db.select().from(sollPositionen).all();
+
+function verfallAnlegen(id: string, artikelId = "a1") {
+  t.db.insert(lagerortVerfall).values({
+    id,
+    lagerortId: "rtw-1",
+    artikelId,
+    verfall: "2026-09",
+    erfasstAt: NOW,
+    quelleTyp: "oidc",
+    quelleId: "u-admin",
+  }).run();
+}
 
 describe("Regel 1 — anlegen", () => {
   it("materialisiert jede Vorlagen-Position ohne verknuepfte Zeile", () => {
@@ -120,6 +132,7 @@ describe("Regel 3 — angleichen, aber nur bei echtem Unterschied", () => {
     t.db.insert(sollPositionen).values(
       { id: "sp1", fahrzeugId: "rtw-1", fachLabel: "Alt", sort: 0, artikelId: "a1", soll: 4,
         templatePositionId: "tp1", ueberschrieben: false, entfernt: false }).run();
+    verfallAnlegen("verfall-alter-artikel");
     expect(syncFahrzeugTemplate(t.db, "rtw-1").aktualisiert).toBe(1);
     // Identitaet, nicht nur Werte: das muss ein UPDATE der bestehenden Zeile
     // sein, kein DELETE+INSERT — sonst waere `checks.ergebnis`, das
@@ -127,6 +140,7 @@ describe("Regel 3 — angleichen, aber nur bei echtem Unterschied", () => {
     expect(soll()).toHaveLength(1);
     expect(soll()[0]).toMatchObject(
       { id: "sp1", fachLabel: "Neu", sort: 5, artikelId: "a2", soll: 7 });
+    expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
   });
 
   it("schreibt NICHT, wenn alles gleich ist", () => {
@@ -136,6 +150,27 @@ describe("Regel 3 — angleichen, aber nur bei echtem Unterschied", () => {
       { id: "sp1", fahrzeugId: "rtw-1", fachLabel: "F", sort: 0, artikelId: "a1", soll: 4,
         templatePositionId: "tp1", ueberschrieben: false, entfernt: false }).run();
     expect(syncFahrzeugTemplate(t.db, "rtw-1").aktualisiert).toBe(0);
+  });
+
+  it("behaelt beide Verfaelle, wenn zwei Positionen ihre Artikel tauschen", () => {
+    t.db.insert(templatePositionen).values([
+      { id: "tp1", templateId: "tpl", fachLabel: "F1", sort: 0, artikelId: "a2", soll: 4 },
+      { id: "tp2", templateId: "tpl", fachLabel: "F2", sort: 1, artikelId: "a1", soll: 2 },
+    ]).run();
+    t.db.insert(sollPositionen).values([
+      { id: "sp1", fahrzeugId: "rtw-1", fachLabel: "F1", sort: 0, artikelId: "a1", soll: 4,
+        templatePositionId: "tp1", ueberschrieben: false, entfernt: false },
+      { id: "sp2", fahrzeugId: "rtw-1", fachLabel: "F2", sort: 1, artikelId: "a2", soll: 2,
+        templatePositionId: "tp2", ueberschrieben: false, entfernt: false },
+    ]).run();
+    verfallAnlegen("verfall-a1", "a1");
+    verfallAnlegen("verfall-a2", "a2");
+
+    expect(syncFahrzeugTemplate(t.db, "rtw-1").aktualisiert).toBe(2);
+
+    expect(soll().map((row) => row.artikelId).sort()).toEqual(["a1", "a2"]);
+    expect(t.db.select().from(lagerortVerfall).all().map((row) => row.artikelId).sort())
+      .toEqual(["a1", "a2"]);
   });
 });
 
@@ -187,6 +222,7 @@ describe("Regel 4 — Waisen", () => {
     t.db.insert(sollPositionen).values(
       { id: "sp1", fahrzeugId: "rtw-1", fachLabel: "F", sort: 0, artikelId: "a1", soll: 4,
         templatePositionId: "tp-weg", ueberschrieben: false, entfernt: false }).run();
+    verfallAnlegen("verfall-waise");
 
     t.sqlite.pragma("defer_foreign_keys = ON");
     const ergebnis = t.db.transaction((tx) => {
@@ -196,6 +232,29 @@ describe("Regel 4 — Waisen", () => {
 
     expect(ergebnis.entfernt).toBe(1);
     expect(soll()).toHaveLength(0);
+    expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
+  });
+
+  it("behaelt den Verfall einer Waise bei einer zweiten aktiven Sollposition", () => {
+    t.db.insert(templatePositionen).values(
+      { id: "tp-weg", templateId: "tpl", fachLabel: "X", sort: 0,
+        artikelId: "a1", soll: 1 }).run();
+    t.db.insert(sollPositionen).values([
+      { id: "sp1", fahrzeugId: "rtw-1", fachLabel: "F", sort: 0, artikelId: "a1", soll: 4,
+        templatePositionId: "tp-weg", ueberschrieben: false, entfernt: false },
+      { id: "sp2", fahrzeugId: "rtw-1", fachLabel: "G", sort: 1, artikelId: "a1", soll: 2,
+        templatePositionId: null, ueberschrieben: false, entfernt: false },
+    ]).run();
+    verfallAnlegen("verfall-bleibt");
+
+    t.sqlite.pragma("defer_foreign_keys = ON");
+    t.db.transaction((tx) => {
+      tx.delete(templatePositionen).where(eq(templatePositionen.id, "tp-weg")).run();
+      syncFahrzeugTemplate(tx, "rtw-1");
+    });
+
+    expect(soll()).toHaveLength(1);
+    expect(t.db.select().from(lagerortVerfall).all()).toHaveLength(1);
   });
 
   it("laesst MANUELLE Zeilen (templatePositionId null) unberuehrt", () => {

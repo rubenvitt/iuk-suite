@@ -257,6 +257,15 @@ describe("setFahrzeugAktiv", () => {
     expect(revalidiert).toEqual([]);
   });
 
+  it("kann das feste Handlager nicht als Fahrzeug deaktivieren", async () => {
+    const ergebnis = await setFahrzeugAktiv({ id: HANDLAGER_ID, aktiv: false }, t.db);
+
+    expect(ergebnis).toEqual({ ok: false, fehler: "Fahrzeug nicht gefunden." });
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, HANDLAGER_ID)).get())
+      .toMatchObject({ typ: "lager", aktiv: true });
+    expect(revalidiert).toEqual([]);
+  });
+
   it("verbirgt einen Datenbankfehler hinter einem festen Fachtext", async () => {
     t.sqlite.exec(`
       CREATE TRIGGER fahrzeug_aktiv_fehler
@@ -394,6 +403,37 @@ describe("sollPositionSetzen", () => {
       feldFehler: { soll: "Soll muss größer als 0 sein" },
     });
     expect(t.db.select().from(sollPositionen).all()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("legt keine Sollposition am Handlager an", async () => {
+    const ergebnis = await sollPositionSetzen({
+      fahrzeugId: HANDLAGER_ID,
+      fachLabel: "Kein Fahrzeugfach",
+      artikelId: "art-1",
+      soll: 2,
+    }, t.db);
+
+    expect(ergebnis).toEqual({ ok: false, fehler: "Fahrzeug nicht gefunden." });
+    expect(t.db.select().from(sollPositionen).all()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("verschiebt eine bestehende Position nicht per fremder fahrzeugId", async () => {
+    positionAnlegen("sp-fz-1");
+
+    const ergebnis = await sollPositionSetzen({
+      id: "sp-fz-1",
+      fahrzeugId: "fz-2",
+      fachLabel: "Fremdes Fach",
+      artikelId: "art-1",
+      soll: 9,
+    }, t.db);
+
+    expect(ergebnis).toEqual({ ok: false, fehler: "Soll-Position nicht gefunden." });
+    expect(t.db.select().from(sollPositionen).all()).toEqual([
+      expect.objectContaining({ id: "sp-fz-1", fahrzeugId: "fz-1", soll: 2 }),
+    ]);
     expect(revalidiert).toEqual([]);
   });
 

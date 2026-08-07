@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Alert, Button, Flex, Form, Input, Modal, Space, Switch } from "antd";
+import { useRouter } from "next/navigation";
 import {
   deleteTemplate,
   renameTemplate,
@@ -29,6 +30,7 @@ export function TemplateAktionen({
   aktiv: boolean;
   fahrzeuge: number;
 }) {
+  const router = useRouter();
   const [aktuellerName, setAktuellerName] = useState(name);
   const [istAktiv, setIstAktiv] = useState(aktiv);
   const [umbenennenOffen, setUmbenennenOffen] = useState(false);
@@ -127,6 +129,7 @@ export function TemplateAktionen({
     } catch {
       throw new Error(LOESCH_FEHLER);
     }
+    router.push("/verwaltung/vorlagen");
   }
 
   return (

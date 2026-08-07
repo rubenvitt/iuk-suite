@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { lagerorte, newId, sollPositionen } from "../_db/schema";
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
+import { findeFahrzeug } from "../_lib/schreibpfade/fahrzeug";
 import { loescheVerfallEintrag } from "../_lib/schreibpfade/lagerortVerfall";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -77,9 +78,12 @@ export async function setFahrzeugAktiv(
   }
 
   try {
+    if (!findeFahrzeug(db, v.id)) {
+      return { ok: false, fehler: "Fahrzeug nicht gefunden." };
+    }
     db.update(lagerorte)
       .set({ aktiv: v.aktiv })
-      .where(eq(lagerorte.id, v.id))
+      .where(and(eq(lagerorte.id, v.id), eq(lagerorte.typ, "fahrzeug")))
       .run();
   } catch {
     return { ok: false, fehler: "Fahrzeugstatus konnte nicht geändert werden." };
@@ -118,9 +122,15 @@ export async function sollPositionSetzen(
 
   const id = v.id ?? newId();
   try {
+    if (!findeFahrzeug(db, v.fahrzeugId)) {
+      return { ok: false, fehler: "Fahrzeug nicht gefunden." };
+    }
     if (v.id) {
       const row = db.select().from(sollPositionen)
         .where(eq(sollPositionen.id, v.id)).get();
+      if (!row || row.fahrzeugId !== v.fahrzeugId) {
+        return { ok: false, fehler: "Soll-Position nicht gefunden." };
+      }
       const ueberschrieben = row?.templatePositionId
         ? true
         : (row?.ueberschrieben ?? false);

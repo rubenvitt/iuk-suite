@@ -16,7 +16,7 @@
  */
 import { and, eq } from "drizzle-orm";
 import type { DB } from "../../_db/client";
-import { lagerortVerfall, newId } from "../../_db/schema";
+import { lagerortVerfall, newId, sollPositionen } from "../../_db/schema";
 import { MONAT_REGEX } from "../konstanten";
 import type { Quelle, Tx } from "./abbuchung";
 
@@ -81,6 +81,30 @@ export function loescheVerfallEintrag(
       eq(lagerortVerfall.artikelId, artikelId),
     ))
     .run();
+}
+
+/**
+ * Hält die Querschnittsinvariante zwischen Soll-Bestückung und Fahrzeug-Verfall:
+ * ohne mindestens eine aktive Sollposition gibt es keinen pflegbaren Verfall.
+ *
+ * Der Helfer läuft absichtlich nach einer Soll-Mutation und nimmt `DB | Tx`,
+ * damit Vorlagen-Sync und Actions dieselbe atomare Prüfung verwenden. Eine
+ * weitere aktive Position desselben Artikels erhält die Angabe.
+ */
+export function bereinigeVerfallOhneAktivesSoll(
+  db: DB | Tx,
+  lagerortId: string,
+  artikelId: string,
+): void {
+  const aktivePosition = db.select({ id: sollPositionen.id })
+    .from(sollPositionen)
+    .where(and(
+      eq(sollPositionen.fahrzeugId, lagerortId),
+      eq(sollPositionen.artikelId, artikelId),
+      eq(sollPositionen.entfernt, false),
+    ))
+    .get();
+  if (!aktivePosition) loescheVerfallEintrag(db, lagerortId, artikelId);
 }
 
 /** Raeumt alle Meldungen eines Lagerorts bzw. Artikels ab — vor einem

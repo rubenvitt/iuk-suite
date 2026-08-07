@@ -5,9 +5,11 @@ import {
   artikel,
   fahrzeugTemplates,
   lagerorte,
+  lagerortVerfall,
   sollPositionen,
   templatePositionen,
 } from "../_db/schema";
+import { HANDLAGER_ID } from "../_lib/konstanten";
 
 const { adminRiegel, revalidiert } = vi.hoisted(() => ({
   adminRiegel: vi.fn<() => Promise<unknown>>(),
@@ -105,6 +107,7 @@ function fehlerVon(erg: { ok: boolean }) {
 async function mitPfaden<T extends { ok: boolean }>(
   aufruf: () => Promise<T>,
   fahrzeugId?: string,
+  mitVerfall = false,
 ): Promise<T> {
   revalidiert.length = 0;
   const erg = await aufruf();
@@ -113,6 +116,7 @@ async function mitPfaden<T extends { ok: boolean }>(
     "/m/lagerbuch/verwaltung/vorlagen",
     "/m/lagerbuch/verwaltung/fahrzeuge",
     ...(fahrzeugId ? [`/m/lagerbuch/verwaltung/fahrzeuge/${fahrzeugId}`] : []),
+    ...(mitVerfall ? ["/m/lagerbuch/verwaltung/verfall"] : []),
   ]);
   return erg;
 }
@@ -180,6 +184,34 @@ describe("Validierung und feste Fehler", () => {
     expect(t.db.select().from(templatePositionen).all()).toEqual([]);
     expect(revalidiert).toEqual([]);
   });
+
+  it("weist das Handlager in allen Fahrzeug-Template-Actions zurück", async () => {
+    const templateId = wertVon<{ id: string }>(
+      await createTemplate({ name: "Standard" }, t.db),
+    ).id;
+    revalidiert.length = 0;
+
+    const zuweisen = await fahrzeugTemplateZuweisen({
+      fahrzeugId: HANDLAGER_ID,
+      templateId,
+    }, t.db);
+    const syncen = await fahrzeugTemplateSync({ fahrzeugId: HANDLAGER_ID }, t.db);
+    const loesen = await fahrzeugTemplateLoesen({ fahrzeugId: HANDLAGER_ID }, t.db);
+    const kopieren = await templateAusFahrzeug({
+      fahrzeugId: HANDLAGER_ID,
+      name: "Unzulässige Lager-Vorlage",
+      verknuepfen: true,
+    }, t.db);
+
+    for (const ergebnis of [zuweisen, syncen, loesen, kopieren]) {
+      expect(ergebnis).toEqual({ ok: false, fehler: "Fahrzeug nicht gefunden." });
+    }
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, HANDLAGER_ID)).get())
+      .toMatchObject({ typ: "lager", templateId: null });
+    expect(t.db.select().from(fahrzeugTemplates).all()).toHaveLength(1);
+    expect(t.db.select().from(sollPositionen).all()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
 });
 
 describe("Der eine Revalidierungs-Helfer", () => {
@@ -202,15 +234,20 @@ describe("Der eine Revalidierungs-Helfer", () => {
     await mitPfaden(
       () => fahrzeugTemplateZuweisen({ fahrzeugId, templateId }, t.db),
       fahrzeugId,
+      true,
     );
-    await mitPfaden(() => fahrzeugTemplateSync({ fahrzeugId }, t.db), fahrzeugId);
-    await mitPfaden(() => templateAufFahrzeugeSyncen({ templateId }, t.db));
+    await mitPfaden(() => fahrzeugTemplateSync({ fahrzeugId }, t.db), fahrzeugId, true);
+    await mitPfaden(() => templateAufFahrzeugeSyncen({ templateId }, t.db), undefined, true);
     await mitPfaden(() => fahrzeugTemplateLoesen({ fahrzeugId }, t.db), fahrzeugId);
     await mitPfaden(
       () => templateAusFahrzeug({ fahrzeugId, name: "Aus Fahrzeug", verknuepfen: true }, t.db),
       fahrzeugId,
     );
-    await mitPfaden(() => templatePositionEntfernen({ id: templatePositionId }, t.db));
+    await mitPfaden(
+      () => templatePositionEntfernen({ id: templatePositionId }, t.db),
+      undefined,
+      true,
+    );
     await mitPfaden(() => deleteTemplate({ id: templateId }, t.db));
   });
 });
@@ -334,8 +371,8 @@ describe("Vorlagen-Positionen", () => {
     t.db.update(sollPositionen).set({ soll: 9, ueberschrieben: true })
       .where(eq(sollPositionen.id, fahrzeugB.id)).run();
 
-    await mitPfaden(() => templatePositionEntfernen({ id: posA }, t.db));
-    await mitPfaden(() => templatePositionEntfernen({ id: posB }, t.db));
+    await mitPfaden(() => templatePositionEntfernen({ id: posA }, t.db), undefined, true);
+    await mitPfaden(() => templatePositionEntfernen({ id: posB }, t.db), undefined, true);
 
     expect(t.db.select().from(templatePositionen).all()).toEqual([]);
     expect(positionenFuer(fahrzeugId)).toEqual([
@@ -346,6 +383,55 @@ describe("Vorlagen-Positionen", () => {
         ueberschrieben: false,
       }),
     ]);
+  });
+
+  it("entfernt mit der letzten aktiven Sollposition auch deren Fahrzeug-Verfall", async () => {
+    const templateId = wertVon<{ id: string }>(
+      await createTemplate({ name: "Standard" }, t.db),
+    ).id;
+    const artikelId = artikelAnlegen("NaCl");
+    const positionId = wertVon<{ id: string }>(await templatePositionSetzen({
+      templateId, fachLabel: "Fach A", artikelId, soll: 2,
+    }, t.db)).id;
+    const fahrzeugId = fahrzeugAnlegen();
+    await fahrzeugTemplateZuweisen({ fahrzeugId, templateId }, t.db);
+    t.db.insert(lagerortVerfall).values({
+      id: "verfall-letzte-position", lagerortId: fahrzeugId, artikelId,
+      verfall: "2026-09", erfasstAt: JETZT, quelleTyp: "oidc", quelleId: "u-admin",
+    }).run();
+
+    revalidiert.length = 0;
+    const erg = await templatePositionEntfernen({ id: positionId }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect(positionenFuer(fahrzeugId)).toEqual([]);
+    expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/verfall");
+  });
+
+  it("behaelt den Fahrzeug-Verfall bei einer zweiten aktiven Sollposition desselben Artikels", async () => {
+    const templateId = wertVon<{ id: string }>(
+      await createTemplate({ name: "Standard" }, t.db),
+    ).id;
+    const artikelId = artikelAnlegen("NaCl");
+    const positionId = wertVon<{ id: string }>(await templatePositionSetzen({
+      templateId, fachLabel: "Fach A", artikelId, soll: 2,
+    }, t.db)).id;
+    const fahrzeugId = fahrzeugAnlegen();
+    await fahrzeugTemplateZuweisen({ fahrzeugId, templateId }, t.db);
+    t.db.insert(sollPositionen).values({
+      id: "zweite-aktive-position", fahrzeugId, fachLabel: "Fach B", artikelId, soll: 1,
+    }).run();
+    t.db.insert(lagerortVerfall).values({
+      id: "verfall-zweite-position", lagerortId: fahrzeugId, artikelId,
+      verfall: "2026-09", erfasstAt: JETZT, quelleTyp: "oidc", quelleId: "u-admin",
+    }).run();
+
+    const erg = await templatePositionEntfernen({ id: positionId }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect(positionenFuer(fahrzeugId)).toHaveLength(1);
+    expect(t.db.select().from(lagerortVerfall).all()).toHaveLength(1);
   });
 });
 
@@ -420,6 +506,8 @@ describe("Fahrzeug und Vorlage", () => {
 
     const alle = await mitPfaden(
       () => templateAufFahrzeugeSyncen({ templateId }, t.db),
+      undefined,
+      true,
     );
     expect(wertVon<{
       fahrzeuge: number;
@@ -439,6 +527,7 @@ describe("Fahrzeug und Vorlage", () => {
     const einzeln = await mitPfaden(
       () => fahrzeugTemplateSync({ fahrzeugId: fahrzeugA }, t.db),
       fahrzeugA,
+      true,
     );
     expect(wertVon<{
       hinzugefuegt: number;
@@ -531,6 +620,7 @@ describe("Fahrzeug und Vorlage", () => {
     const wiederZuweisen = await mitPfaden(
       () => fahrzeugTemplateZuweisen({ fahrzeugId, templateId }, t.db),
       fahrzeugId,
+      true,
     );
     expect(wertVon<{ hinzugefuegt: number }>(wiederZuweisen).hinzugefuegt).toBe(0);
     expect(positionenFuer(fahrzeugId).map((row) => row.id).sort())
@@ -539,6 +629,7 @@ describe("Fahrzeug und Vorlage", () => {
     const wiederSyncen = await mitPfaden(
       () => fahrzeugTemplateSync({ fahrzeugId }, t.db),
       fahrzeugId,
+      true,
     );
     expect(wertVon<{ hinzugefuegt: number }>(wiederSyncen).hinzugefuegt).toBe(0);
     expect(positionenFuer(fahrzeugId).map((row) => row.id).sort())
