@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { bzGeraete, bzKontrollen, lagerorte, users } from "../../_db/schema";
 import { lagerortOptionen, bzGeraeteUebersicht, bzGeraetDetail, bzGeraetByBarcode,
@@ -169,7 +170,109 @@ describe("bzGeraetDetail — refSnapshot wird SICHTBAR (§5.11)", () => {
   it("sortiert das Logbuch absteigend und rechnet den Akku", () => {
     const d = bzGeraetDetail(t.db, "bz-1", NOW)!;
     expect(d.logbuch.map((z) => z.id)).toEqual(["k2", "k1"]);
+    expect(d.logbuchMehrVorhanden).toBe(false);
     expect(d.akku).toEqual({ tageDurchschnitt: 30, anzahlWechsel: 2, anzahlIntervalle: 1 });
+  });
+
+  it("liest exakt 101 Zeilen, liefert 100 nach ts/id und rechnet den Akku aus der Vollhistorie", () => {
+    /**
+     * k1 ist der aelteste der 101 Datensaetze und faellt aus dem sichtbaren
+     * Logbuch. Als Batteriewechsel muss er trotzdem in die KPI eingehen. Die
+     * 99 neuen Zeilen teilen sich absichtlich denselben Zeitstempel, damit der
+     * zweite Sortierschluessel `id DESC` beobachtbar wird.
+     */
+    for (let i = 0; i < BZ_LOGBUCH_GRENZE - 1; i++) {
+      t.db.insert(bzKontrollen).values({
+        id: `detail-${String(i).padStart(3, "0")}`,
+        geraetId: "bz-1",
+        ts: vorTagen(1),
+        quelleTyp: "system",
+        quelleId: "s",
+        level1Wert: null,
+        level1ImBereich: null,
+        level2Wert: null,
+        level2ImBereich: null,
+        kompresseVerfall: null,
+        sticks: 0,
+        lanzetten: 0,
+        batterieGewechselt: false,
+        kommentar: null,
+        bestanden: true,
+        refSnapshot: null,
+      }).run();
+    }
+
+    const d = bzGeraetDetail(t.db, "bz-1", NOW)!;
+    expect(d.logbuch).toHaveLength(BZ_LOGBUCH_GRENZE);
+    expect(d.logbuchMehrVorhanden).toBe(true);
+    expect(d.logbuch.slice(0, 3).map((z) => z.id)).toEqual([
+      "detail-098",
+      "detail-097",
+      "detail-096",
+    ]);
+    expect(d.logbuch.at(-1)?.id).toBe("k2");
+    expect(d.logbuch.some((z) => z.id === "k1")).toBe(false);
+    expect(d.akku).toEqual({ tageDurchschnitt: 30, anzahlWechsel: 2, anzahlIntervalle: 1 });
+  });
+
+  it("meldet bei exakt 100 Detailzeilen keinen abgeschnittenen Rest", () => {
+    for (let i = 0; i < BZ_LOGBUCH_GRENZE - 2; i++) {
+      t.db.insert(bzKontrollen).values({
+        id: `exakt-${String(i).padStart(3, "0")}`,
+        geraetId: "bz-1",
+        ts: vorTagen(1),
+        quelleTyp: "system",
+        quelleId: "s",
+        level1Wert: null,
+        level1ImBereich: null,
+        level2Wert: null,
+        level2ImBereich: null,
+        kompresseVerfall: null,
+        sticks: 0,
+        lanzetten: 0,
+        batterieGewechselt: false,
+        kommentar: null,
+        bestanden: true,
+        refSnapshot: null,
+      }).run();
+    }
+
+    const d = bzGeraetDetail(t.db, "bz-1", NOW)!;
+    expect(d.logbuch).toHaveLength(BZ_LOGBUCH_GRENZE);
+    expect(d.logbuchMehrVorhanden).toBe(false);
+  });
+
+  it("beschraenkt die Akku-Vollhistorie auf das angefragte Geraet", () => {
+    t.db.insert(bzKontrollen).values([
+      { id: "fremd-alt", geraetId: "bz-nie", ts: vorTagen(300), quelleTyp: "system",
+        quelleId: "s", level1Wert: null, level1ImBereich: null, level2Wert: null,
+        level2ImBereich: null, kompresseVerfall: null, sticks: 0, lanzetten: 0,
+        batterieGewechselt: true, kommentar: null, bestanden: true, refSnapshot: null },
+      { id: "fremd-neu", geraetId: "bz-nie", ts: vorTagen(100), quelleTyp: "system",
+        quelleId: "s", level1Wert: null, level1ImBereich: null, level2Wert: null,
+        level2ImBereich: null, kompresseVerfall: null, sticks: 0, lanzetten: 0,
+        batterieGewechselt: true, kommentar: null, bestanden: true, refSnapshot: null },
+    ]).run();
+
+    expect(bzGeraetDetail(t.db, "bz-1", NOW)!.akku).toEqual({
+      tageDurchschnitt: 30,
+      anzahlWechsel: 2,
+      anzahlIntervalle: 1,
+    });
+  });
+
+  it("begrenzt die Sichtabfrage selbst auf exakt Grenze plus eins", () => {
+    // Die Verhaltenstests oben schlagen sowohl eine fehlende Slice- als auch
+    // eine falsche Flag-Logik. Dieser Zusatzriegel belegt den nicht von der
+    // Rueckgabe beobachtbaren Teil des Vertrags: die DB liest nicht erst die
+    // gesamte Historie, bevor JavaScript auf 100 kuerzt.
+    const quelle = readFileSync("src/app/m/lagerbuch/_lib/lesepfade/bz.ts", "utf8");
+    const detail = quelle.slice(
+      quelle.indexOf("export function bzGeraetDetail"),
+      quelle.indexOf("export function bzGeraetByBarcode"),
+    );
+    expect(detail).toMatch(/\.orderBy\(desc\(bzKontrollen\.ts\), desc\(bzKontrollen\.id\)\)[\s\S]*?\.limit\(BZ_LOGBUCH_GRENZE \+ 1\)/);
+    expect(detail).toMatch(/eq\(bzKontrollen\.geraetId, id\)[\s\S]*?eq\(bzKontrollen\.batterieGewechselt, true\)/);
   });
 
   it("liefert null fuer eine unbekannte ID", () => {
