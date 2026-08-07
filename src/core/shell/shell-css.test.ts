@@ -94,6 +94,43 @@ describe("shell.module.css", () => {
     expect(OHNE_KOMMENTARE).not.toMatch(/\.navLink\[aria-current=/);
   });
 
+  it("laeszt `.modulnav` waagerecht scrollen statt `documentElement`", () => {
+    /*
+     * DIE UEBERLAUFBEHANDLUNG (Spec 6.3.2 des lagerbuch-Entwurfs,
+     * Entscheidung 31).
+     *
+     * `.modulnav` ist ein Flex-Container mit `nowrap` ab 768px; `.navLink`
+     * traegt `min-height: 56px` und `padding-inline: 12px`. Ein Modul mit
+     * VIELEN Abschnitten sprengt die Zeile: lagerbuch hat 15 Eintraege mit
+     * zusammen 127 Zeichen, ueberschlaegig 1.300-1.400px. Bei 1280px kann kein
+     * Link unter seine `min-content`-Breite schrumpfen — also lief die Zeile
+     * ueber, und `documentElement` scrollte waagerecht. Das ist nicht „die
+     * Leiste sieht eng aus", das ist die ganze Seite, die seitwaerts wandert.
+     *
+     * `scrollbar-width: thin` haelt die Leiste bei ihrer Hoehe. Der
+     * Unterstrich der Aktivmarkierung (`.navLink[aria-current]`, 2px) darf
+     * nicht unter einer Scrollleiste verschwinden — deshalb scrollt der
+     * CONTAINER und nicht `documentElement`.
+     *
+     * DIESE DATEI BESITZT „die Regel steht da". Ob sie WIRKT, besitzt der
+     * Playwright-Lauf bei 1280x720 (`e2e/lagerbuch-verwaltung.spec.ts`) — bei
+     * 390px sind die richtige und die kaputte Fassung nicht zu unterscheiden,
+     * weil `.modulnav` dort auf `display: none` steht.
+     */
+    const basis = /\.modulnav\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(basis, "Klasse .modulnav fehlt").not.toBeNull();
+    expect(basis![1]).toMatch(/overflow-x:\s*auto/);
+    expect(basis![1]).toMatch(/scrollbar-width:\s*thin/);
+  });
+
+  it("animiert das Scrollen der Modulnavigation nicht", () => {
+    // `prefers-reduced-motion` bleibt unberuehrt: es wird nichts animiert und
+    // `scroll-behavior` bleibt ungesetzt. Ein `scroll-behavior: smooth` hier
+    // waere eine Animation ohne Gegenstueck im reduced-motion-Zweig.
+    const basis = /\.modulnav\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(basis![1]).not.toMatch(/scroll-behavior/);
+  });
+
   it("nutzt keine `--ant-*`-Variablen (die sieht eigenes Markup nicht)", () => {
     expect(OHNE_KOMMENTARE).not.toMatch(/var\(--ant-/);
   });
