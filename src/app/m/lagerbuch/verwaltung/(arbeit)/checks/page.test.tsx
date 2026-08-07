@@ -95,9 +95,16 @@ function importiertAntdTableDirekt(quelle: string): boolean {
     if (
       !ts.isImportDeclaration(anweisung)
       || !ts.isStringLiteral(anweisung.moduleSpecifier)
-      || anweisung.moduleSpecifier.text !== "antd"
     ) return false;
+    if (/^antd\/(?:es|lib)\/table(?:\/|$)/i.test(anweisung.moduleSpecifier.text)) {
+      return true;
+    }
+    if (anweisung.moduleSpecifier.text !== "antd") return false;
+    const klausel = anweisung.importClause;
+    if (!klausel) return false;
+    if (klausel.name) return true;
     const bindungen = anweisung.importClause?.namedBindings;
+    if (bindungen && ts.isNamespaceImport(bindungen)) return true;
     return Boolean(bindungen && ts.isNamedImports(bindungen)
       && bindungen.elements.some((element) =>
         (element.propertyName?.text ?? element.name.text) === "Table"));
@@ -349,6 +356,12 @@ describe("Checks-Seite", () => {
     expect(importiertAntdTableDirekt(quelle)).toBe(false);
     expect(importiertAntdTableDirekt('import { Table as Tabelle } from "antd";'))
       .toBe(true);
+    expect(importiertAntdTableDirekt(
+      'import * as Antd from "antd"; const tabelle = <Antd.Table />;',
+    )).toBe(true);
+    expect(importiertAntdTableDirekt(
+      'import Antd from "antd"; const tabelle = <Antd.Table />;',
+    )).toBe(true);
     expect(quelle).not.toMatch(/["']use client["']/);
     expect(runtimeImporteAusChecksFilter(quelle)).toEqual(["ChecksFilter"]);
   });
