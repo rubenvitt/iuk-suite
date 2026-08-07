@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
+import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { SCHRIFT } from "./schrift";
 
@@ -7,10 +8,40 @@ import { SCHRIFT } from "./schrift";
 const LEITER = [12, 14, 16, 20, 24, 30];
 
 describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {
-  it("fuehrt genau die sieben benannten Rollen", () => {
-    expect(Object.keys(SCHRIFT).sort()).toEqual(
-      ["abschnitt", "feldname", "mono", "neben", "text", "titel", "zahl"],
-    );
+  it("entspricht dem vollstaendigen Rollenvertrag — keine vertauschten oder zusaetzlichen Felder", () => {
+    expect(SCHRIFT).toEqual({
+      titel: {
+        fontSize: 24,
+        fontWeight: 600,
+        letterSpacing: "0.02em",
+        lineHeight: 1.2,
+      },
+      abschnitt: {
+        fontSize: 12,
+        fontWeight: 600,
+        letterSpacing: "0.09em",
+        textTransform: "uppercase",
+      },
+      feldname: {
+        fontSize: 12,
+        fontWeight: 600,
+        letterSpacing: "0.09em",
+        textTransform: "uppercase",
+      },
+      text: { fontSize: 14 },
+      neben: { fontSize: 12 },
+      zahl: {
+        fontSize: 24,
+        fontWeight: 700,
+        fontVariantNumeric: "tabular-nums",
+        lineHeight: 1,
+      },
+      mono: {
+        fontFamily: "var(--font-geist-mono)",
+        fontSize: 12,
+        fontVariantNumeric: "tabular-nums",
+      },
+    });
   });
 
   it("jede fontSize liegt auf der Leiter — keine Halbpixelwerte", () => {
@@ -32,64 +63,52 @@ describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {
     }
   });
 
-  it("nur die Mono-Rolle nennt eine Schriftfamilie, und es ist die der Suite", () => {
-    for (const [rolle, stil] of Object.entries(SCHRIFT)) {
-      if (rolle === "mono") expect(stil.fontFamily).toBe("var(--font-geist-mono)");
-      else expect(stil.fontFamily, rolle).toBeUndefined();
-    }
-  });
-
-  it("keine Rolle setzt eine Farbe", () => {
-    for (const [rolle, stil] of Object.entries(SCHRIFT)) {
-      expect(stil.color, rolle).toBeUndefined();
-      expect(stil.background, rolle).toBeUndefined();
-    }
-  });
 });
 
-/** Kommentare und unvollstaendige Bloecke duerfen den Guard nicht leer-gruen machen. */
-function cssRegeln(quelle: string): { regeln: { selektor: string; koerper: string }[]; fehler?: string } {
-  let css = "";
-  for (let i = 0; i < quelle.length; i += 1) {
-    if (quelle.startsWith("/*", i)) {
-      const ende = quelle.indexOf("*/", i + 2);
-      if (ende === -1) return { regeln: [], fehler: "nicht geschlossener CSS-Kommentar" };
-      i = ende + 1;
-    } else {
-      css += quelle[i];
-    }
-  }
+type CssParent = { type: string; selector?: string };
+type CssDeclaration = { parent?: CssParent; prop: string; value: string };
+type CssRoot = { walkDecls(callback: (deklaration: CssDeclaration) => void): void };
+type PostCss = { parse(quelle: string, optionen: { from: string }): CssRoot };
+type ValueNode = { type: string; value: string };
+type ValueParser = (wert: string) => { nodes: ValueNode[] };
 
-  const regeln: { selektor: string; koerper: string }[] = [];
-  function liesBloecke(inhalt: string): string | undefined {
-    let position = 0;
-    while (position < inhalt.length) {
-      while (/\s/.test(inhalt[position] ?? "")) position += 1;
-      if (position === inhalt.length) break;
-      const auf = inhalt.indexOf("{", position);
-      if (auf === -1) return "CSS-Regel ohne oeffnende Klammer";
-      const kopf = inhalt.slice(position, auf).trim();
-      let tiefe = 1;
-      let zu = auf + 1;
-      while (zu < inhalt.length && tiefe > 0) {
-        if (inhalt[zu] === "{") tiefe += 1;
-        if (inhalt[zu] === "}") tiefe -= 1;
-        zu += 1;
-      }
-      if (tiefe !== 0) return `nicht geschlossener CSS-Block bei ${kopf}`;
-      const koerper = inhalt.slice(auf + 1, zu - 1);
-      if (kopf.startsWith("@")) {
-        const fehler = liesBloecke(koerper);
-        if (fehler) return fehler;
-      } else if (kopf) {
-        regeln.push({ selektor: kopf, koerper });
-      }
-      position = zu;
-    }
-    return undefined;
-  }
+/*
+ * Next 16 fuehrt PostCSS als direkte Abhaengigkeit. Der Projekt-Resolver sieht
+ * die transitive pnpm-Abhaengigkeit absichtlich nicht; deshalb wird er am
+ * REALEN Installationsort von `next/package.json` verankert. Im Quelltext
+ * steht dadurch kein versionierter `.pnpm`-Pfad. Verwendet werden nur die
+ * oeffentlichen PostCSS-APIs `parse()` und `Root#walkDecls()`; fuer die
+ * Kurzschrift zerlegt Nexts gebuendelter `postcss-value-parser` den Wert in
+ * echte Tokens, sodass eine Familienzeichenkette nicht als Groesze gilt.
+ */
+const projektRequire = createRequire(join(process.cwd(), "package.json"));
+const nextRequire = createRequire(realpathSync(projektRequire.resolve("next/package.json")));
+const postcss = nextRequire("postcss") as PostCss;
+const parseValue = projektRequire("next/dist/compiled/postcss-value-parser") as ValueParser;
 
-  return { regeln, fehler: liesBloecke(css) };
+const REM_IN_PX = 16;
+
+function groeszeInPx(wert: string): number | undefined {
+  const treffer = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))(px|rem)$/i.exec(wert.trim());
+  if (!treffer) return undefined;
+  const zahl = Number(treffer[1]);
+  if (!Number.isFinite(zahl)) return undefined;
+  return treffer[2]!.toLowerCase() === "rem" ? zahl * REM_IN_PX : zahl;
+}
+
+function schriftgroesze(deklaration: CssDeclaration): string | undefined {
+  if (deklaration.prop.toLowerCase() === "font-size") return deklaration.value.trim();
+  if (deklaration.prop.toLowerCase() !== "font") return undefined;
+
+  // In der Kurzschrift steht die Groesze vor dem optionalen `/line-height`.
+  // Nur einfache px/rem sind hier beweisbar. calc(), var(), em, Prozent und
+  // Schluesselwoerter werden unten ausdruecklich als unaufloesbar gemeldet.
+  const knoten = parseValue(deklaration.value).nodes;
+  const trennstrich = knoten.findIndex((knoten) => knoten.type === "div" && knoten.value === "/");
+  const vorZeilenhoehe = trennstrich === -1 ? knoten : knoten.slice(0, trennstrich);
+  return vorZeilenhoehe.find((knoten) =>
+    knoten.type === "word" && /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))(px|rem)$/i.test(knoten.value),
+  )?.value;
 }
 
 function alleCss(verzeichnis: string): string[] {
@@ -102,26 +121,86 @@ function alleCss(verzeichnis: string): string[] {
   return treffer;
 }
 
+function pruefeCss(quelle: string, datei = "fixture.css"): string[] {
+  const verstoesze: string[] = [];
+  let wurzel: CssRoot;
+  try {
+    wurzel = postcss.parse(quelle, { from: datei });
+  } catch (error) {
+    const meldung = error instanceof Error ? error.message : String(error);
+    return [`${datei}: ungueltiges CSS: ${meldung}`];
+  }
+
+  wurzel.walkDecls((deklaration) => {
+    const selektor = deklaration.parent?.type === "rule" ? deklaration.parent.selector : undefined;
+    if (!selektor || !/\b(input|textarea|select)\b|\.ant-select-selector/.test(selektor)) return;
+    if (!/^(font-size|font)$/i.test(deklaration.prop)) return;
+
+    const wert = schriftgroesze(deklaration);
+    const px = wert === undefined ? undefined : groeszeInPx(wert);
+    if (px === undefined) {
+      verstoesze.push(
+        `${datei}: ${selektor} → Groesze nicht sicher aufloesbar: ${deklaration.value}`,
+      );
+    } else if (px < 16) {
+      verstoesze.push(`${datei}: ${selektor} → ${px}px`);
+    }
+  });
+  return verstoesze;
+}
+
+describe("CSS-AST-Fixtures fuer den 16px-Guard", () => {
+  it.each([
+    ["font-size in px", "input { font-size: 14px; }"],
+    ["font-size in rem", "input { font-size: .875rem; }"],
+    ["font-Kurzform in px", "input { font: 500 14px/1 sans-serif; }"],
+    ["font-Kurzform in rem", "input { font: 500 .875rem/1 sans-serif; }"],
+  ])("meldet 14px aus %s", (_name, css) => {
+    expect(pruefeCss(css)).toEqual(["fixture.css: input → 14px"]);
+  });
+
+  it.each([
+    ["blockloses @layer", "@layer lagerbuch;"],
+    ["@font-face", '@font-face { font-family: Lagerbuch; src: url("lager{buch}.woff2"); }'],
+    ["@property", '@property --abstand { syntax: "<length>"; inherits: false; initial-value: 1rem; }'],
+    ["Klammer und Escape im String", String.raw`.hinweis::before { content: "geschweift \}"; }`],
+  ])("akzeptiert gueltiges CSS: %s", (_name, css) => {
+    expect(pruefeCss(css)).toEqual([]);
+  });
+
+  it.each([
+    ["font-size", "input { font-size: var(--feldschrift); }", "var(--feldschrift)"],
+    ["font", "input { font: 500 calc(1rem - 1px)/1 sans-serif; }", "500 calc(1rem - 1px)/1 sans-serif"],
+  ])("meldet unaufloesbares %s, statt es still passieren zu lassen", (_name, css, wert) => {
+    expect(pruefeCss(css)).toEqual([
+      `fixture.css: input → Groesze nicht sicher aufloesbar: ${wert}`,
+    ]);
+  });
+
+  it("akzeptiert die Untergrenze in beiden Einheiten und Schreibweisen", () => {
+    expect(pruefeCss(`
+      input { font-size: 16px; }
+      textarea { font-size: 1rem; }
+      select { font: 500 16px/1 sans-serif; }
+      .ant-select-selector { font: 500 1rem/1 sans-serif; }
+    `)).toEqual([]);
+  });
+
+  it("meldet ungueltiges CSS weiterhin ausdruecklich", () => {
+    expect(pruefeCss("input { font-size: 16px;")).toEqual([
+      expect.stringContaining("fixture.css: ungueltiges CSS:"),
+    ]);
+  });
+});
+
 describe("Kein Eingabefeld unter 16px im ganzen Modul", () => {
   it("kein Selektor unter m/lagerbuch setzt <16px auf ein Eingabeelement", () => {
     const verstoesze: string[] = [];
     for (const datei of alleCss("src/app/m/lagerbuch")) {
-      const { regeln, fehler } = cssRegeln(readFileSync(datei, "utf8"));
-      if (fehler) {
-        verstoesze.push(`${relative("src/app/m/lagerbuch", datei)}: ${fehler}`);
-        continue;
-      }
-      for (const { selektor, koerper } of regeln) {
-        if (!/\b(input|textarea|select)\b|\.ant-select-selector/.test(selektor)) continue;
-        for (const treffer of [
-          ...koerper.matchAll(/(?:^|;)\s*font-size\s*:\s*([\d.]+)px\b/gi),
-          ...koerper.matchAll(/(?:^|;)\s*font\s*:\s*[^;{}]*?\b([\d.]+)px\b/gi),
-        ]) {
-          if (Number(treffer[1]) < 16) {
-            verstoesze.push(`${relative("src/app/m/lagerbuch", datei)}: ${selektor} → ${treffer[1]}px`);
-          }
-        }
-      }
+      verstoesze.push(...pruefeCss(
+        readFileSync(datei, "utf8"),
+        relative("src/app/m/lagerbuch", datei),
+      ));
     }
     expect(verstoesze).toEqual([]);
   });
