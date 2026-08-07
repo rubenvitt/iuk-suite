@@ -691,6 +691,14 @@ describe("Client-/Server-Grenze und Action-Injektion", () => {
       expect(quelle).not.toMatch(/from\s+["'][^"']*_actions\//);
     }
   });
+
+  it("nutzt die antd-v6-Masken-API ohne `maskClosable`-Deprecation", () => {
+    const quelle = ohneKommentare(
+      readFileSync("src/app/m/lagerbuch/_ui/LoeschDialog.tsx", "utf8"),
+    );
+    expect(quelle).not.toMatch(/\bmaskClosable\s*=/);
+    expect(quelle).toMatch(/mask=\{\{\s*closable:\s*!laeuft\s*\}\}/);
+  });
 });
 
 describe("Kein Popconfirm fuer Stammdatensaetze", () => {
