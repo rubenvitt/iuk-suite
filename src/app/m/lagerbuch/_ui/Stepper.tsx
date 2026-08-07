@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
 /**
@@ -95,11 +96,7 @@ export function Stepper({
           setWert(klemmen(wert - 1));
         }}
       >
-        {/* Lokales Inline-SVG (E3). `aria-hidden`, weil die Taste selbst benannt
-            ist; Teil 5, T101 hebt es nach `_ui/ikonen.tsx`. */}
-        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-        </svg>
+        <Ikone name="minus" groesse={20} />
       </button>
 
       {noText ? (
@@ -129,9 +126,7 @@ export function Stepper({
           setWert(klemmen(wert + 1));
         }}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-        </svg>
+        <Ikone name="plus" groesse={20} />
       </button>
     </div>
   );

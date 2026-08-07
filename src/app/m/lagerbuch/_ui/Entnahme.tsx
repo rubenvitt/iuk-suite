@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
+import { Ikone } from "./ikonen";
 import { NETZ_TEXT_BUCHUNG, type HelferErgebnis, type HelferGrund } from "../_lib/actionTypen";
 import { fmtVerfall, ampelTon } from "../_lib/format";
 import type { Ampel } from "../_lib/domain/verfall";
@@ -94,16 +95,7 @@ export function Entnahme({ detail, buchen }: { detail: EntnahmeDetail; buchen: B
   return (
     <>
       <Link className={s.rueckweg} href="/helfer">
-        <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path
-            d="M15 6l-6 6 6 6"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <Ikone name="chevron-links" groesse={15} />
         Zurück
       </Link>
 

@@ -178,6 +178,15 @@ describe("Stepper — Benennung und Mass", () => {
     expect(exists("button[aria-label='Kompresse 10×10 erhöhen']")).toBe(true);
   });
 
+  it("beide benannten Tasten behalten ein stummes Zeichen", async () => {
+    await mount(<Stepper wert={1} setWert={() => {}} />);
+    for (const selektor of [MINUS, PLUS]) {
+      const svg = query(`${selektor} svg`);
+      expect(svg.getAttribute("aria-hidden")).toBe("true");
+      expect(svg.getAttribute("focusable")).toBe("false");
+    }
+  });
+
   it("hat KEINE `sm`-Variante mehr", () => {
     // §7.7.3: es gibt genau eine Groesse. Eine zweite waere die Ruecknahme des
     // Tap-Masses durch die Hintertuer. Das Tap-Mass selbst (56px an beiden

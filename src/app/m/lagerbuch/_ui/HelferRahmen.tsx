@@ -2,6 +2,7 @@ import Link from "next/link";
 import { uhrzeit } from "../_lib/zeit";
 import { beenden } from "../_actions/sitzung";
 import { Restzeit } from "./Restzeit";
+import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
 /**
@@ -106,10 +107,7 @@ export function HelferRahmen({
         */}
         <form action={beenden}>
           <button className={s.beenden} type="submit">
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.5"
-                    strokeLinecap="round" />
-            </svg>
+            <Ikone name="kreuz" groesse={14} />
             Beenden
           </button>
         </form>
@@ -133,10 +131,7 @@ export function HelferRahmen({
           className={s.tab}
           aria-current={aktiv === "entnahme" ? "page" : undefined}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"
-                  fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-          </svg>
+          <Ikone name="tabelle" groesse={20} />
           <span>Entnahme</span>
         </Link>
         <Link
@@ -144,10 +139,7 @@ export function HelferRahmen({
           className={s.tab}
           aria-current={aktiv === "check" ? "page" : undefined}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M9 5h6M5 8h14v12H5zM9 13l2 2 4-4" fill="none" stroke="currentColor"
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <Ikone name="haken" groesse={20} />
           <span>Fahrzeug-Check</span>
         </Link>
       </nav>

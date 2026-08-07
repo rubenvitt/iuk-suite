@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { LeerZustand } from "./LeerZustand";
+import { Ikone } from "./ikonen";
 import { checkAbschluss, type CheckAbschlussWert } from "../_actions/check";
 import { erneuereSitzung } from "../_actions/sitzung";
 import {
@@ -98,32 +99,6 @@ function Schritte({ folge, aktiv }: { folge: Phase[]; aktiv: Phase }) {
         </div>
       ))}
     </div>
-  );
-}
-
-/**
- * Lokales Inline-Zeichen (E3), `aria-hidden` und `focusable="false"`, und es
- * steht IMMER neben Text.
- *
- * ⚠️ ES IST KEINE DEKORATION. Ohne den Haken unterscheidet sich der gewaehlte
- * Chip vom ungewaehlten NUR durch die Farbe — der Text ist in beiden Faellen
- * derselbe. „Bedeutung nie allein ueber Farbe" (`docs/design/README.md`, §2
- * Punkt 21) ist genau dieser Fall. Die zweite Haelfte der Reparatur ist
- * `aria-pressed` am Knopf: fuer eine Bildschirmleserin gibt es weder Farbe noch
- * Haken.
- */
-function Haken() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M5 13l4 4 10-10"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
 
@@ -630,7 +605,7 @@ export function CheckFlow({
                       onClick={() => setGeraet(g.id, { vorhanden: true })}
                     >
                       <HelferChip ton={e.vorhanden ? "ok" : "grau"}>
-                        {e.vorhanden && <Haken />}vorhanden
+                        {e.vorhanden && <Ikone name="haken" groesse={13} />}vorhanden
                       </HelferChip>
                     </button>
                     <button
@@ -641,7 +616,7 @@ export function CheckFlow({
                       onClick={() => setGeraet(g.id, { vorhanden: false })}
                     >
                       <HelferChip ton={!e.vorhanden ? "rot" : "grau"}>
-                        {!e.vorhanden && <Haken />}fehlt
+                        {!e.vorhanden && <Ikone name="haken" groesse={13} />}fehlt
                       </HelferChip>
                     </button>
                     {e.vorhanden &&
@@ -655,7 +630,7 @@ export function CheckFlow({
                           onClick={() => setGeraet(g.id, { zustand: z })}
                         >
                           <HelferChip ton={e.zustand === z ? zustandTon(z) : "grau"}>
-                            {e.zustand === z && <Haken />}
+                            {e.zustand === z && <Ikone name="haken" groesse={13} />}
                             {z}
                           </HelferChip>
                         </button>

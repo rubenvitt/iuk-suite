@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { einloesenAmGate, type GateZustand } from "../_actions/gate";
 import { LAGERBUCH_MARKE, LAGERBUCH_ORGANISATION, LAGERBUCH_ZEILE } from "../_lib/marke";
+import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
 /**
@@ -217,15 +218,7 @@ export function Gate({
             href={verwaltungsLink}
             data-rolle="gate-verwaltung"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path
-                d="M14 7a4 4 0 100 8 4 4 0 000-8zm-2.5 4H3v2h3v2h2v-2h3.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
+            <Ikone name="schluessel" groesse={16} />
             Mit Pocket ID anmelden
           </a>
         </div>

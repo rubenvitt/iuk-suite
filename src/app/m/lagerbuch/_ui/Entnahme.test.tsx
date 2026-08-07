@@ -151,6 +151,15 @@ describe("Entnahme — die Anzeige", () => {
     expect(query("[data-rolle='bestand']").textContent).toContain("Stk");
   });
 
+  it("der Rueckweg behaelt sein stummes Zeichen neben sichtbarem Text", async () => {
+    await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    const link = query<HTMLAnchorElement>("a[href='/helfer']");
+    const svg = query("a[href='/helfer'] svg");
+    expect(svg.getAttribute("aria-hidden")).toBe("true");
+    expect(svg.getAttribute("focusable")).toBe("false");
+    expect(link.textContent?.trim()).toBe("Zurück");
+  });
+
   it("listet die Chargen mit Chip und Monatsangabe (FEFO)", async () => {
     await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
     const zeilen = queryAll("[data-rolle='charge-zeile']");
