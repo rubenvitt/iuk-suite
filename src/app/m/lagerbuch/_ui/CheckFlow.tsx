@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type CSSProperties } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
@@ -130,50 +130,7 @@ function Haken() {
 const zustandTon = (z: Zustand) =>
   z === "In Ordnung" ? "ok" : z === "Gebrauchsspuren" ? "gelb" : "rot";
 
-/**
- * DAS TIPPZIEL DER FUENF AUSWAHLKNOEPFE IM GERAETESCHRITT (Review-Befund 2).
- *
- * ⚠️ WARUM ES DEN STIL BRAUCHT. Die fuenf Knoepfe tragen sonst KEINE
- * `className`, und weder `helfer.module.css` noch `src/app/globals.css` enthaelt
- * einen `button`-Reset — sie rendern also mit UA-Vorgabe (Rahmen, grauer Grund,
- * eigene Polsterung) um eine `.chip`-Pille von rund 21px Hoehe; das Tippziel
- * liegt bei ~25px. „Tap-Mass 56px" ist eine Querschnittsregel dieses Plans, und
- * `core/theme/tokens.ts:33` begruendet sie woertlich: „Bedienung mit Handschuhen
- * … eine Einsatzanforderung, keine Stilfrage" (zitiert in `_ui/Stepper.tsx:10-11`).
- * Diese fuenf Knoepfe SIND der Geraeteschritt, und ein Fehlgriff schreibt
- * „fehlt" oder „Defekt" ins Journal.
- *
- * ⚠️ 44 UND NICHT 56, und das ist nicht meine Entscheidung: der Review schreibt
- * `minHeight: 44` woertlich vor. Hausminimum fuer sekundaere Bedienelemente ist
- * `.rueckweg` mit `min-height: 44px` (`helfer.module.css`). Die Spannung
- * zwischen der Begruendung des Reviews („nicht sekundaer") und dem
- * vorgeschriebenen Wert ist als Bedenken gemeldet, nicht hier stillschweigend
- * aufgeloest.
- *
- * ⚠️ WARUM NICHT ALS KLASSE: die saubere Fassung ist eine eigene `.chipKnopf` in
- * `helfer.module.css`. Die Datei gehoert T64; das ist ein Koordinationsposten,
- * kein Nebenbei-Edit aus einem Fix-Task heraus. Dasselbe Vorgehen wie in
- * `_ui/Entnahme.tsx:150-189` (T78, abgenommen).
- *
- * ⚠️ jsdom wendet KEIN CSS an (`HelferChip.tsx:22-28`), und der CSS-Scan in
- * `_lib/bauform.test.ts` sucht ausschliesslich nach antd-Variablen. Ein
- * INLINE-Stil steht im DOM und ist damit das Einzige, was ein Tor dieses
- * Projekts von dieser Regel ueberhaupt sehen kann — das TATSAECHLICHE Aussehen
- * einer 44px-Reihe umbrechender Chips deckt kein Tor ab.
- *
- * (Die antd-Variablen-Zeichenfolge steht hier bewusst NICHT ausgeschrieben: der
- * Scan in `CheckFlow.test.tsx` liest den ROHtext inklusive Kommentaren und waere
- * sonst auf seiner eigenen Begruendung rot — Regel 1, Auspraegung 1.)
- */
-const TIPPZIEL: CSSProperties = {
-  background: "none",
-  border: 0,
-  padding: "6px 0",
-  minHeight: 44,
-  display: "inline-flex",
-  alignItems: "center",
-};
-
+/** Die fünf Geräteknöpfe teilen das entschiedene 44px-Tippziel aus `.chipKnopf`. */
 export function CheckFlow({
   fahrzeug,
   soll,
@@ -669,7 +626,7 @@ export function CheckFlow({
                       type="button"
                       aria-pressed={e.vorhanden}
                       data-rolle="geraet-vorhanden"
-                      style={TIPPZIEL}
+                      className={s.chipKnopf}
                       onClick={() => setGeraet(g.id, { vorhanden: true })}
                     >
                       <HelferChip ton={e.vorhanden ? "ok" : "grau"}>
@@ -680,7 +637,7 @@ export function CheckFlow({
                       type="button"
                       aria-pressed={!e.vorhanden}
                       data-rolle="geraet-fehlt"
-                      style={TIPPZIEL}
+                      className={s.chipKnopf}
                       onClick={() => setGeraet(g.id, { vorhanden: false })}
                     >
                       <HelferChip ton={!e.vorhanden ? "rot" : "grau"}>
@@ -694,7 +651,7 @@ export function CheckFlow({
                           type="button"
                           aria-pressed={e.zustand === z}
                           data-rolle="geraet-zustand"
-                          style={TIPPZIEL}
+                          className={s.chipKnopf}
                           onClick={() => setGeraet(g.id, { zustand: z })}
                         >
                           <HelferChip ton={e.zustand === z ? zustandTon(z) : "grau"}>
@@ -952,49 +909,9 @@ export function CheckFlow({
       */}
       {[...knappheit.values()].some((e) => e.gewuenscht > e.verfuegbar) && (
         <div className={`${s.karte} ${s.kartePad}`} data-rolle="nf-knappheit">
-          {/*
-            ⚠️ WARUM HIER EIN INLINE-STIL AUF `.chip` LIEGT (Review-Befund 1).
-            `.chip` ist als KURZstatus ausgelegt: `white-space: nowrap`,
-            `border-radius: 99px`, `padding: 2.5px 9px`, `font-size: 12px`
-            (`helfer.module.css:227-230`) — und die umgebende `.karte` traegt
-            `overflow: hidden` (`:186`). Hier laeuft aber ein ganzer Satz von 83
-            Zeichen hinein: bei 390px Geraetebreite bleiben 334px
-            Karteninnenraum, der Satz braucht bei 12px/600 rund 500px. Ohne
-            Umbruchmoeglichkeit schneidet `overflow: hidden` den Ueberhang OHNE
-            Ellipse ab — die Helferin liest „Handlager reicht nicht fuer alle
-            Positio…" und bekommt die eigentliche Ansage nie zu sehen. Es ist
-            der EINZIGE Hinweis VOR dem Abschluss, dass die Buchung serverseitig
-            gekappt wird.
-
-            Die PILLENGEOMETRIE muss mitwandern, nicht nur der Umbruch:
-            `border-radius: 99px` mit `padding: 2.5px 9px` ueber zwei Zeilen
-            ergaebe ein zerlaufendes Oval — man tauschte Abschneiden gegen
-            Unlesbarkeit. Zeichengleich mit `_ui/Entnahme.tsx:150-189` (T78,
-            Review-Befund 1, abgenommen).
-
-            ⚠️ WARUM HIER `s.chip` STATT `<HelferChip>` STEHT: `HelferChip` nimmt
-            nur `{ton, children}`, ein Inline-Stil ist nicht durchreichbar, und
-            `HelferChip.tsx` gehoert T70. Es geht dabei KEIN Riegel verloren: die
-            Namensfalle, gegen die es `HelferChip` gibt (ein interpoliertes
-            `s[...]` ergibt `class="undefined"`, `HelferChip.tsx:12-20`), kann
-            hier konstruktiv nicht eintreten — der Ton ist fest „gelb", also ein
-            direkter Feldzugriff `s.gelb`. Dasselbe Vorgehen wie in
-            `Entnahme.tsx`.
-
-            ⚠️ WARUM NICHT ALS KLASSE: die saubere Fassung ist eine eigene
-            `.warnhinweis` in `helfer.module.css`. Die Datei gehoert T64; das ist
-            ein Koordinationsposten, kein Nebenbei-Edit aus einem Fix-Task
-            heraus.
-          */}
+          {/* Der mehrzeilige Hinweis braucht die von `.chip` abweichende Form aus `.warnhinweis`. */}
           <span
-            className={`${s.chip} ${s.gelb}`}
-            style={{
-              whiteSpace: "normal",
-              display: "block",
-              borderRadius: 10,
-              padding: "8px 10px",
-              fontSize: 13,
-            }}
+            className={`${s.chip} ${s.gelb} ${s.warnhinweis}`}
             data-rolle="helfer-chip"
           >
             Handlager reicht nicht für alle Positionen – es wird nur gebucht, was verfügbar ist.

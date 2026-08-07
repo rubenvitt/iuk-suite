@@ -101,11 +101,11 @@ function schluessel(el: HTMLElement): string[] {
     });
 }
 
-/** Der Tonschluessel eines Chips — alles ausser `chip`, und es muss genau einer sein. */
+/** Der Tonschluessel eines Chips — Formklassen zählen nicht als Ton. */
 function ton(el: HTMLElement): string {
   const keys = schluessel(el);
   expect(keys).toContain("chip");
-  const rest = keys.filter((k) => k !== "chip");
+  const rest = keys.filter((k) => k !== "chip" && k !== "rueckmeldung");
   expect(rest.length).toBe(1);
   // DIE tragende Zeile: ein Klassenname, den das Stylesheet nicht kennt, ist
   // gueltiges Markup und still farblos.
@@ -358,8 +358,9 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
    * waere eine Kopie, keine zweite Zusage (Regel 4). Geprueft wird der
    * `leer`-Satz, weil er der laengste und der Gegenstand des Befunds ist.
    */
-  it("ueberschreibt JEDE Pilleneigenschaft von `.chip` — sonst schneidet `overflow: hidden` ab", async () => {
+  it("nutzt die umbruchfaehige Rueckmeldung-Klasse statt Inline-Stile", async () => {
     const chip = regeln(".chip");
+    const rueckmeldung = regeln(".rueckmeldung");
     // Die Voraussetzung des Befunds, aus dem Stylesheet GELESEN statt behauptet:
     // faellt `nowrap` in T64 je weg, geht diese Zeile rot und der naechste Leser
     // weiss, dass die Ueberschreibung neu zu bewerten ist.
@@ -378,10 +379,7 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
     await click(BUCHEN);
     const r = query(ERGEBNIS);
 
-    // Der Umbruch selbst — ohne ihn hilft keine Geometrie.
-    expect(r.style.whiteSpace).toBe("normal");
-    // `inline-flex` mit Umbruch bliebe schrumpfbreit und liefe wieder ueber.
-    expect(r.style.display).toBe("block");
+    expect(r.className).toMatch(/rueckmeldung/);
 
     // Und die Geometrie MUSS mit: `border-radius: 99px` mit `padding: 2.5px 9px`
     // ueber drei Zeilen ist ein zerlaufendes Oval — man tauschte Abschneiden
@@ -389,9 +387,10 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
     // `.chip`" und „macht einen SATZ unlesbar".
     for (const eig of ["display", "white-space", "border-radius", "padding", "font-size"]) {
       expect(chip.has(eig)).toBe(true);
-      expect(r.style.getPropertyValue(eig)).not.toBe("");
-      expect(r.style.getPropertyValue(eig)).not.toBe(chip.get(eig));
+      expect(rueckmeldung.get(eig)).toBeTruthy();
+      expect(rueckmeldung.get(eig)).not.toBe(chip.get(eig));
     }
+    expect(rueckmeldung.get("margin-top")).toBe("10px");
 
     // Der Ton bleibt, wo er war: die Ueberschreibung tauscht die Form, nicht die
     // Farbe — `ton()` verlangt weiterhin `chip` plus genau einen Tonschluessel.

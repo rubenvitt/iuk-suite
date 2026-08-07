@@ -446,8 +446,9 @@ describe("CheckFlow — Nachfuellen", () => {
    * damit das Einzige, was ein Tor dieses Projekts von dieser Regel ueberhaupt
    * sehen kann.
    */
-  it("der Knappheitssatz umbricht — sonst schneidet `overflow: hidden` ihn ab", async () => {
+  it("der Knappheitssatz nutzt die umbruchfaehige Warnhinweis-Klasse", async () => {
     const chip = regeln(".chip");
+    const hinweis = regeln(".warnhinweis");
     // Die Voraussetzung des Befunds, aus dem Stylesheet GELESEN statt behauptet:
     // faellt `nowrap` in T64 je weg, geht diese Zeile rot und der naechste Leser
     // weiss, dass die Ueberschreibung neu zu bewerten ist.
@@ -476,10 +477,7 @@ describe("CheckFlow — Nachfuellen", () => {
     const w = query("[data-rolle='nf-knappheit'] [data-rolle='helfer-chip']");
     expect(w.textContent).toContain("es wird nur gebucht, was verfügbar ist");
 
-    // Der Umbruch selbst — ohne ihn hilft keine Geometrie.
-    expect(w.style.whiteSpace).toBe("normal");
-    // `inline-flex` mit Umbruch bliebe schrumpfbreit und liefe wieder ueber.
-    expect(w.style.display).toBe("block");
+    expect(w.className).toMatch(/warnhinweis/);
 
     // Und die Geometrie MUSS mit: `border-radius: 99px` mit `padding: 2.5px 9px`
     // ueber zwei Zeilen ist ein zerlaufendes Oval — man tauschte Abschneiden
@@ -487,8 +485,8 @@ describe("CheckFlow — Nachfuellen", () => {
     // `.chip`" und „macht einen SATZ unlesbar".
     for (const eig of ["display", "white-space", "border-radius", "padding", "font-size"]) {
       expect(chip.has(eig)).toBe(true);
-      expect(w.style.getPropertyValue(eig)).not.toBe("");
-      expect(w.style.getPropertyValue(eig)).not.toBe(chip.get(eig));
+      expect(hinweis.get(eig)).toBeTruthy();
+      expect(hinweis.get(eig)).not.toBe(chip.get(eig));
     }
 
     // Der Ton bleibt, wo er war: die Ueberschreibung tauscht die FORM, nicht die
@@ -650,8 +648,8 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
    * nicht der Literalwert. Eine spaetere Anhebung auf 56 laesst den Test gruen,
    * ein Wegfall macht ihn rot.
    *
-   * ⚠️ jsdom wendet kein CSS an (`HelferChip.tsx:22-28`); der Inline-Stil im DOM
-   * ist das Einzige, was ein Tor dieses Projekts hiervon sehen kann.
+   * ⚠️ jsdom wendet kein CSS an (`HelferChip.tsx:22-28`); deshalb liest der
+   * Test die deklarierte Klasse aus dem Stylesheet.
    */
   it("die fuenf Auswahlknoepfe sind mit Handschuhen treffbar (Tippmass)", async () => {
     await mount(
@@ -663,16 +661,18 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
     // Ohne diese Zahl liefe die Schleife bei leerem Trefferarray durch, ohne
     // eine einzige Zusicherung auszufuehren (Regel 2).
     expect(knoepfe.length).toBe(5);
+    const chipKnopf = regeln(".chipKnopf");
     for (const k of knoepfe) {
-      expect(Number.parseInt(k.style.minHeight, 10)).toBeGreaterThanOrEqual(44);
+      expect(k.className).toMatch(/chipKnopf/);
+      expect(Number.parseInt(chipKnopf.get("min-height") ?? "", 10)).toBeGreaterThanOrEqual(44);
       // Das UA-Chrome um jede Pille muss mit weg, sonst sitzt der vergroesserte
       // Knopf als grauer Kasten um den Chip.
-      expect(k.style.border).toBe("0px");
-      expect(k.style.background).toBe("none");
+      expect(chipKnopf.get("border")).toBe("0");
+      expect(chipKnopf.get("background")).toBe("none");
       // `inline-flex` + `center`: die Hoehe entsteht sonst nur unter dem Chip
       // statt um ihn herum, und das Tippziel liegt neben dem, was man sieht.
-      expect(k.style.display).toBe("inline-flex");
-      expect(k.style.alignItems).toBe("center");
+      expect(chipKnopf.get("display")).toBe("inline-flex");
+      expect(chipKnopf.get("align-items")).toBe("center");
     }
   });
 });
