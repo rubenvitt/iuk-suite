@@ -65,7 +65,7 @@ describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {
 
 });
 
-type CssParent = { type: string; selector?: string };
+type CssParent = { parent?: CssParent; type: string; selector?: string };
 type CssDeclaration = { parent?: CssParent; prop: string; value: string };
 type CssRoot = { walkDecls(callback: (deklaration: CssDeclaration) => void): void };
 type PostCss = { parse(quelle: string, optionen: { from: string }): CssRoot };
@@ -111,6 +111,27 @@ function schriftgroesze(deklaration: CssDeclaration): string | undefined {
   )?.value;
 }
 
+/*
+ * Nur echte Element-Tokens und antds exakte Selektorklasse. Die Begrenzungen
+ * lassen `input[type]`, `form > input:hover` und `:is(input)` zu, aber weder
+ * `.input-hinweis` noch `.ant-select-selector-extra`.
+ */
+const FELD_SELEKTOR =
+  /(^|[\s>+~,(])(?:input|textarea|select)(?=$|[\s>+~.#:[\]),])|\.ant-select-selector(?=$|[\s>+~.#:[\]),])/;
+
+function feldSelektorKette(deklaration: CssDeclaration): string | undefined {
+  const selektoren: string[] = [];
+  let vorfahr = deklaration.parent;
+  while (vorfahr) {
+    if (vorfahr.type === "rule" && vorfahr.selector) {
+      selektoren.unshift(vorfahr.selector);
+      if (FELD_SELEKTOR.test(vorfahr.selector)) return selektoren.join(" ");
+    }
+    vorfahr = vorfahr.parent;
+  }
+  return undefined;
+}
+
 function alleCss(verzeichnis: string): string[] {
   const treffer: string[] = [];
   for (const eintrag of readdirSync(verzeichnis)) {
@@ -132,9 +153,9 @@ function pruefeCss(quelle: string, datei = "fixture.css"): string[] {
   }
 
   wurzel.walkDecls((deklaration) => {
-    const selektor = deklaration.parent?.type === "rule" ? deklaration.parent.selector : undefined;
-    if (!selektor || !/\b(input|textarea|select)\b|\.ant-select-selector/.test(selektor)) return;
     if (!/^(font-size|font)$/i.test(deklaration.prop)) return;
+    const selektor = feldSelektorKette(deklaration);
+    if (!selektor) return;
 
     const wert = schriftgroesze(deklaration);
     const px = wert === undefined ? undefined : groeszeInPx(wert);
@@ -157,6 +178,30 @@ describe("CSS-AST-Fixtures fuer den 16px-Guard", () => {
     ["font-Kurzform in rem", "input { font: 500 .875rem/1 sans-serif; }"],
   ])("meldet 14px aus %s", (_name, css) => {
     expect(pruefeCss(css)).toEqual(["fixture.css: input → 14px"]);
+  });
+
+  it.each([
+    [
+      "At-Regel im Feldselektor",
+      "input { @media (max-width: 600px) { font-size: .875rem; } }",
+      "fixture.css: input → 14px",
+    ],
+    [
+      "relativer Selektor im Feldselektor",
+      "input { &.kompakt { font: 500 14px/1 sans-serif; } }",
+      "fixture.css: input &.kompakt → 14px",
+    ],
+  ])("meldet 14px aus verschachteltem %s", (_name, css, meldung) => {
+    expect(pruefeCss(css)).toEqual([meldung]);
+  });
+
+  it("verwechselt verwandte Klassennamen nicht mit Eingabefeldern", () => {
+    expect(pruefeCss(`
+      .input-hinweis { font-size: 14px; }
+      .select-kompakt { font: 500 14px/1 sans-serif; }
+      .textarea-info { font-size: .875rem; }
+      .ant-select-selector-extra { font-size: 14px; }
+    `)).toEqual([]);
   });
 
   it.each([
