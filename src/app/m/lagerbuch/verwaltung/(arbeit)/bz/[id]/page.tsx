@@ -1,4 +1,4 @@
-import { Card, Col, Row, Table, type TableProps } from "antd";
+import { Card, Col, Row } from "antd";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
@@ -14,103 +14,61 @@ import {
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { fmtTs } from "../../../../_lib/zeit";
 import { Brotkrume } from "../../../../_ui/Brotkrume";
-import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
-import s from "../../../../_ui/verwaltung.module.css";
 import { BzAktivToggle } from "./BzAktivToggle";
+import {
+  BzLogbuchTabelle,
+  type BzLogbuchAnzeigeZeile,
+} from "./BzLogbuchTabelle";
 import { ReferenzEditor, type BzEditorWerte } from "./ReferenzEditor";
 
 export const dynamic = "force-dynamic";
-
-type LogbuchAnzeigeZeile = {
-  id: string;
-  zeitpunkt: ReactNode;
-  ergebnis: ReactNode;
-  level1: ReactNode;
-  level2: ReactNode;
-  verbrauch: ReactNode;
-  akku: ReactNode;
-  wer: ReactNode;
-  kommentar: ReactNode;
-};
-
-const LOGBUCH_SPALTEN = [
-  { title: "Zeitpunkt", dataIndex: "zeitpunkt", key: "zeitpunkt" },
-  { title: "Ergebnis", dataIndex: "ergebnis", key: "ergebnis" },
-  { title: "Level 1", dataIndex: "level1", key: "level1" },
-  { title: "Level 2", dataIndex: "level2", key: "level2" },
-  { title: "Verbrauch", dataIndex: "verbrauch", key: "verbrauch" },
-  { title: "Akku", dataIndex: "akku", key: "akku" },
-  { title: "Wer", dataIndex: "wer", key: "wer" },
-  { title: "Kommentar", dataIndex: "kommentar", key: "kommentar" },
-] satisfies TableProps<LogbuchAnzeigeZeile>["columns"];
 
 function snapshotZahl(wert: unknown): number | "?" {
   return typeof wert === "number" && Number.isFinite(wert) ? wert : "?";
 }
 
-function levelZelle({
-  bezeichnung,
+function levelTon({
   wert,
   imBereich,
-  min,
-  max,
 }: {
-  bezeichnung: "L1" | "L2";
   wert: number | null;
   imBereich: boolean | null;
-  min: unknown;
-  max: unknown;
-}): ReactNode {
-  if (wert === null) return <span style={SCHRIFT.neben}>—</span>;
-  const ton = imBereich === true ? "ok" : imBereich === false ? "rot" : "gelb";
-  return (
-    <span style={{ whiteSpace: "nowrap" }}>
-      <Chip ton={ton}>{bezeichnung} {wert}</Chip>
-      <span style={{ ...SCHRIFT.neben, marginInlineStart: 6 }}>
-        (damals {snapshotZahl(min)}–{snapshotZahl(max)})
-      </span>
-    </span>
-  );
+}): "ok" | "rot" | "gelb" | null {
+  if (wert === null) return null;
+  return imBereich === true ? "ok" : imBereich === false ? "rot" : "gelb";
 }
 
-function logbuchAnzeigeZeilen(logbuch: BzKontrolleZeile[]): LogbuchAnzeigeZeile[] {
+export function bzLogbuchAnzeigeZeilen(
+  logbuch: BzKontrolleZeile[],
+): BzLogbuchAnzeigeZeile[] {
   return logbuch.map((kontrolle) => ({
     id: kontrolle.id,
-    zeitpunkt: <span className={s.jts}>{fmtTs(kontrolle.ts)}</span>,
-    ergebnis: (
-      <Chip ton={kontrolle.bestanden ? "ok" : "rot"}>
-        {kontrolle.bestanden ? "bestanden" : "nicht bestanden"}
-      </Chip>
-    ),
-    level1: levelZelle({
-      bezeichnung: "L1",
+    zeitpunktText: fmtTs(kontrolle.ts),
+    ergebnisText: kontrolle.bestanden ? "bestanden" : "nicht bestanden",
+    ergebnisTon: kontrolle.bestanden ? "ok" : "rot",
+    level1Wert: kontrolle.level1Wert,
+    level1Ton: levelTon({
       wert: kontrolle.level1Wert,
       imBereich: kontrolle.level1ImBereich,
-      min: kontrolle.refDamals?.level1Min,
-      max: kontrolle.refDamals?.level1Max,
     }),
-    level2: levelZelle({
-      bezeichnung: "L2",
+    level1MinDamals: snapshotZahl(kontrolle.refDamals?.level1Min),
+    level1MaxDamals: snapshotZahl(kontrolle.refDamals?.level1Max),
+    level2Wert: kontrolle.level2Wert,
+    level2Ton: levelTon({
       wert: kontrolle.level2Wert,
       imBereich: kontrolle.level2ImBereich,
-      min: kontrolle.refDamals?.level2Min,
-      max: kontrolle.refDamals?.level2Max,
     }),
-    verbrauch: (
-      <span style={SCHRIFT.neben}>
-        {kontrolle.sticks} Sticks / {kontrolle.lanzetten} Lanzetten
-        {kontrolle.kompresseVerfall
-          ? ` · Kompresse ${kontrolle.kompresseVerfall}`
-          : ""}
-      </span>
-    ),
-    akku: kontrolle.batterieGewechselt ? (
-      <Chip ton="gelb" zeichen="akku">gewechselt</Chip>
-    ) : <span style={SCHRIFT.neben}>—</span>,
-    wer: <Chip ton="grau">{kontrolle.wer}</Chip>,
-    kommentar: kontrolle.kommentar ?? <span style={SCHRIFT.neben}>—</span>,
+    level2MinDamals: snapshotZahl(kontrolle.refDamals?.level2Min),
+    level2MaxDamals: snapshotZahl(kontrolle.refDamals?.level2Max),
+    verbrauchText: `${kontrolle.sticks} Sticks / ${kontrolle.lanzetten} Lanzetten${
+      kontrolle.kompresseVerfall ? ` · Kompresse ${kontrolle.kompresseVerfall}` : ""
+    }`,
+    akkuText: kontrolle.batterieGewechselt ? "gewechselt" : "—",
+    akkuTon: kontrolle.batterieGewechselt ? "gelb" : null,
+    werText: kontrolle.wer,
+    kommentarText: kontrolle.kommentar,
   }));
 }
 
@@ -138,7 +96,7 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
 
   const { geraet, faelligkeit, akku, logbuch } = detail;
   const letzte = logbuch[0] ?? null;
-  const logbuchZeilen = logbuchAnzeigeZeilen(logbuch);
+  const logbuchZeilen = bzLogbuchAnzeigeZeilen(logbuch);
   const faelligText = faelligkeit.nieGeprueft
     ? "nie geprüft"
     : faelligkeit.faelligAm
@@ -226,15 +184,7 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
             ? `Neueste ${BZ_LOGBUCH_GRENZE} von mehr Einträgen`
             : `${logbuch.length} Einträge`}
         </p>
-        <Table<LogbuchAnzeigeZeile>
-          rowKey="id"
-          pagination={false}
-          scroll={{ x: "max-content" }}
-          aria-label="Logbuch der Kontrollen"
-          locale={{ emptyText: "Für dieses Gerät wurde noch keine Kontrolle erfasst." }}
-          dataSource={logbuchZeilen}
-          columns={LOGBUCH_SPALTEN}
-        />
+        <BzLogbuchTabelle zeilen={logbuchZeilen} />
       </Card>
     </>
   );

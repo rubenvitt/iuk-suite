@@ -1,10 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, isValidElement, type ReactElement, type ReactNode } from "react";
-import { readFileSync } from "node:fs";
-import { Table } from "antd";
 import Link from "next/link";
-import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clickElement,
@@ -19,6 +16,10 @@ import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { BzAktivToggle } from "./BzAktivToggle";
+import {
+  BzLogbuchTabelle,
+  type BzLogbuchAnzeigeZeile,
+} from "./BzLogbuchTabelle";
 import {
   lagerortFilter,
   ReferenzEditor,
@@ -148,48 +149,13 @@ function enthaeltDate(wert: unknown): boolean {
   return false;
 }
 
-function analysiereRscTable(quelle: string) {
-  const source = ts.createSourceFile(
-    "page.tsx",
-    quelle,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TSX,
-  );
-  let funktionaleSpaltenEigenschaften = 0;
-  let funktionaleRowKeys = 0;
-
-  function besuche(node: ts.Node) {
-    if (ts.isVariableDeclaration(node)
-      && ts.isIdentifier(node.name)
-      && node.name.text === "LOGBUCH_SPALTEN"
-      && node.initializer) {
-      function zaehleFunktionswerte(spaltenNode: ts.Node): void {
-        if (ts.isMethodDeclaration(spaltenNode)) {
-          funktionaleSpaltenEigenschaften += 1;
-        } else if (ts.isPropertyAssignment(spaltenNode)
-          && (ts.isArrowFunction(spaltenNode.initializer)
-            || ts.isFunctionExpression(spaltenNode.initializer))) {
-          funktionaleSpaltenEigenschaften += 1;
-        }
-        ts.forEachChild(spaltenNode, zaehleFunktionswerte);
-      }
-      zaehleFunktionswerte(node.initializer);
-    }
-    if (ts.isJsxAttribute(node) && node.name.getText(source) === "rowKey") {
-      const initializer = node.initializer;
-      const statisch = initializer !== undefined && (
-        ts.isStringLiteral(initializer)
-        || (ts.isJsxExpression(initializer) && initializer.expression !== undefined
-          && ts.isStringLiteral(initializer.expression))
-      );
-      if (!statisch) funktionaleRowKeys += 1;
-    }
-    ts.forEachChild(node, besuche);
-  }
-
-  besuche(source);
-  return { funktionaleSpaltenEigenschaften, funktionaleRowKeys };
+function istRekursivJsonSicher(wert: unknown): boolean {
+  if (wert === null || typeof wert === "string" || typeof wert === "boolean") return true;
+  if (typeof wert === "number") return Number.isFinite(wert);
+  if (Array.isArray(wert)) return wert.every(istRekursivJsonSicher);
+  if (typeof wert !== "object" || isValidElement(wert) || wert instanceof Date) return false;
+  if (Object.getPrototypeOf(wert) !== Object.prototype) return false;
+  return Object.values(wert).every(istRekursivJsonSicher);
 }
 
 async function warte(): Promise<void> {
@@ -338,57 +304,56 @@ describe("BZ-Geräteblatt als Server Component", () => {
     expect(status.props).toEqual({ id: "bz-1", name: "Accu-Chek A", aktiv: true });
   });
 
-  it("bereitet acht Logbuchzellen aus refDamals vor und zeigt Kommentare", () => {
+  it("bereitet ein rekursiv JSON-sicheres Logbuch-DTO aus refDamals vor", () => {
     const seite = bzGeraetInhalt(t.db, "bz-1", NOW);
-    const table = elementeVomTyp(seite, Table)[0];
-    const props = table.props as {
-      rowKey: string;
-      pagination: boolean;
-      scroll: { x: string };
-      "aria-label": string;
-      locale: { emptyText: string };
-      columns: Array<{ title: string }>;
-      dataSource: Array<Record<string, ReactNode>>;
-    };
+    const tabelle = elementeVomTyp(seite, BzLogbuchTabelle)[0];
+    const props = tabelle.props as { zeilen: BzLogbuchAnzeigeZeile[] };
 
-    expect(props.columns.map((spalte) => spalte.title)).toEqual([
-      "Zeitpunkt",
-      "Ergebnis",
-      "Level 1",
-      "Level 2",
-      "Verbrauch",
-      "Akku",
-      "Wer",
-      "Kommentar",
-    ]);
-    expect(props).toMatchObject({
-      rowKey: "id",
-      pagination: false,
-      scroll: { x: "max-content" },
-      "aria-label": "Logbuch der Kontrollen",
-      locale: { emptyText: "Für dieses Gerät wurde noch keine Kontrolle erfasst." },
-    });
-    expect(props.dataSource.map((zeile) => zeile.id)).toEqual([
+    expect(props.zeilen.map((zeile) => zeile.id)).toEqual([
       "k-neu",
       "k-alt",
       "k-kaputt",
     ]);
-    expect(props.dataSource.every((zeile) => (
+    expect(props.zeilen.every((zeile) => (
       Object.keys(zeile).sort().join(",")
-      === "akku,ergebnis,id,kommentar,level1,level2,verbrauch,wer,zeitpunkt"
+      === "akkuText,akkuTon,ergebnisText,ergebnisTon,id,kommentarText,"
+      + "level1MaxDamals,level1MinDamals,level1Ton,level1Wert,"
+      + "level2MaxDamals,level2MinDamals,level2Ton,level2Wert,"
+      + "verbrauchText,werText,zeitpunktText"
     ))).toBe(true);
-    expect(enthaeltDate(props.dataSource)).toBe(false);
+    expect(istRekursivJsonSicher(props.zeilen)).toBe(true);
+    expect(enthaeltDate(props.zeilen)).toBe(false);
 
-    const alt = props.dataSource.find((zeile) => zeile.id === "k-alt")!;
-    expect(textVon(alt.level1)).toContain("damals 30–70");
-    expect(textVon(alt.level1)).not.toContain("40–60");
-    expect(textVon(alt.level2)).toContain("damals 200–400");
-    expect(textVon(alt.level2)).not.toContain("250–350");
-    const ohneSnapshot = props.dataSource.find((zeile) => zeile.id === "k-neu")!;
-    const kaputt = props.dataSource.find((zeile) => zeile.id === "k-kaputt")!;
-    expect(textVon(ohneSnapshot.level1)).toContain("damals ?–?");
-    expect(textVon(kaputt.level2)).toContain("damals ?–?");
-    expect(textVon(ohneSnapshot.kommentar)).toBe("Kommentar sichtbar");
+    const alt = props.zeilen.find((zeile) => zeile.id === "k-alt")!;
+    expect(alt).toMatchObject({
+      zeitpunktText: "07.07. 14:00",
+      ergebnisText: "bestanden",
+      ergebnisTon: "ok",
+      level1Wert: 50,
+      level1Ton: "ok",
+      level1MinDamals: 30,
+      level1MaxDamals: 70,
+      level2Wert: 300,
+      level2Ton: "ok",
+      level2MinDamals: 200,
+      level2MaxDamals: 400,
+      verbrauchText: "12 Sticks / 8 Lanzetten · Kompresse 2027-01",
+      akkuText: "gewechselt",
+      akkuTon: "gelb",
+      werText: "System",
+      kommentarText: null,
+    });
+    const ohneSnapshot = props.zeilen.find((zeile) => zeile.id === "k-neu")!;
+    const kaputt = props.zeilen.find((zeile) => zeile.id === "k-kaputt")!;
+    expect(ohneSnapshot).toMatchObject({
+      level1MinDamals: "?",
+      level1MaxDamals: "?",
+      kommentarText: "Kommentar sichtbar",
+    });
+    expect(kaputt).toMatchObject({
+      level2MinDamals: "?",
+      level2MaxDamals: "?",
+    });
   });
 
   it("macht den 100er-Deckel bedingt sichtbar", () => {
@@ -417,26 +382,8 @@ describe("BZ-Geräteblatt als Server Component", () => {
     expect(() => bzGeraetInhalt(t.db, "fehlt", NOW)).toThrow("NEXT_NOT_FOUND");
   });
 
-  it("exportiert force-dynamic und hält die RSC-Table funktionsfrei", () => {
+  it("exportiert force-dynamic", () => {
     expect(dynamic).toBe("force-dynamic");
-    const quelle = readFileSync(
-      "src/app/m/lagerbuch/verwaltung/(arbeit)/bz/[id]/page.tsx",
-      "utf8",
-    );
-    expect(analysiereRscTable(quelle)).toEqual({
-      funktionaleSpaltenEigenschaften: 0,
-      funktionaleRowKeys: 0,
-    });
-    expect(analysiereRscTable(`
-      const LOGBUCH_SPALTEN = [
-        { render: () => null },
-        { render() { return null; } },
-      ];
-      const t = <Table rowKey={(zeile) => zeile.id} columns={LOGBUCH_SPALTEN} />;
-    `)).toEqual({
-      funktionaleSpaltenEigenschaften: 2,
-      funktionaleRowKeys: 1,
-    });
   });
 });
 
