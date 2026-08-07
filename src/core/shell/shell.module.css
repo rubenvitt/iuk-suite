@@ -213,6 +213,28 @@
   padding-inline: 16px;
   border-block-end: 1px solid;
   border-color: color-mix(in srgb, currentColor 12%, transparent);
+
+  /*
+   * UEBERLAUFBEHANDLUNG — ein Modul mit vielen Abschnitten sprengt die Zeile.
+   * `lagerbuch` faehrt sie als erstes ueber die Belastungsgrenze: 15 Eintraege
+   * mit zusammen 127 Zeichen liegen ueberschlaegig bei 1.300-1.400px, und bei
+   * 1280px kann kein Link unter seine `min-content`-Breite schrumpfen. Ohne
+   * diese zwei Zeilen scrollt `documentElement` waagerecht — nicht die Leiste,
+   * die ganze Seite.
+   *
+   * Der Unterstrich der Aktivmarkierung (`.navLink[aria-current]`, 2px) darf
+   * nicht unter einer Scrollleiste verschwinden — deshalb scrollt der
+   * CONTAINER, und die Links behalten ihre volle Hoehe.
+   *
+   * `scroll-behavior` bleibt ungesetzt: es wird nichts animiert, und
+   * `prefers-reduced-motion` ist damit unberuehrt.
+   *
+   * Ein `overflow-x`-Container mit fokussierbaren Kindern scrollt beim Tabben
+   * VON SELBST zum fokussierten Link — die Zusicherung dazu ist ein
+   * Playwright-Schritt, kein Quelltext-Scan.
+   */
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .drawerGruppe {
