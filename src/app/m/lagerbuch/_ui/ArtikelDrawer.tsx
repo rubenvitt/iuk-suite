@@ -427,6 +427,7 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
             <Form<ZugangWerte>
               form={zugangForm}
               layout="vertical"
+              disabled={busy}
               initialValues={{ menge: 1, chargeId: NEUE_CHARGE }}
               onFinish={(werte) => { void zugangBuchen(werte); }}
               data-rolle="zugang-form"
@@ -489,6 +490,7 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
             <Form<EntnahmeWerte>
               form={entnahmeForm}
               layout="vertical"
+              disabled={busy}
               initialValues={{ menge: 1 }}
               onFinish={(werte) => { void entnahmeBuchen(werte); }}
               data-rolle="entnahme-form"

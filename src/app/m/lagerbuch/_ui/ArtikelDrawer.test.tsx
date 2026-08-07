@@ -365,6 +365,37 @@ describe("ArtikelDrawer: zwei suchbare Auswahlfelder", () => {
 });
 
 describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
+  it("deaktiviert die Zugangsform waehrend einer laufenden Buchung und gibt sie danach wieder frei", async () => {
+    let zugangBeenden!: (ergebnis: { ok: true }) => void;
+    const laufenderZugang = new Promise<{ ok: true }>((fertig) => {
+      zugangBeenden = fertig;
+    });
+    mocks.bucheZugang.mockReturnValueOnce(laufenderZugang);
+
+    await drawerMounten();
+    await selectOption("Charge", "ZZZ-ALT");
+    await fillPortal("[aria-label='Zugangsmenge']", "5");
+    await submitPortalForm("[data-rolle='zugang-form']");
+    await warteAuf(() => mocks.bucheZugang.mock.calls.length === 1, "laufender Zugang");
+
+    expect(queryPortal<HTMLInputElement>("[aria-label='Zugangsmenge']").disabled)
+      .toBe(true);
+    expect(queryPortal<HTMLInputElement>("[aria-label='Charge']").disabled)
+      .toBe(true);
+
+    await act(async () => {
+      zugangBeenden({ ok: true });
+      await laufenderZugang;
+    });
+    await warteAuf(
+      () => !queryPortal<HTMLInputElement>("[aria-label='Zugangsmenge']").disabled,
+      "wieder freigegebene Zugangsform",
+    );
+
+    expect(queryPortal<HTMLInputElement>("[aria-label='Zugangsmenge']").value)
+      .toBe("1");
+  });
+
   it("sendet bei einer Bestandscharge nur chargeId und laedt den sichtbaren Bestand neu", async () => {
     mocks.getDetail
       .mockResolvedValueOnce({ ok: true, wert: DETAIL })
@@ -423,6 +454,37 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
 });
 
 describe("ArtikelDrawer: Entnahme und Fahrzeugziel", () => {
+  it("deaktiviert die Entnahmeform waehrend einer laufenden Buchung und gibt sie danach wieder frei", async () => {
+    let entnahmeBeenden!: (ergebnis: { ok: true; wert: { gebucht: number } }) => void;
+    const laufendeEntnahme = new Promise<{ ok: true; wert: { gebucht: number } }>((fertig) => {
+      entnahmeBeenden = fertig;
+    });
+    mocks.bucheEntnahme.mockReturnValueOnce(laufendeEntnahme);
+
+    await drawerMounten();
+    await submitPortalForm("[data-rolle='entnahme-form']");
+    await warteAuf(() => mocks.bucheEntnahme.mock.calls.length === 1, "laufende Entnahme");
+
+    expect(queryPortal<HTMLInputElement>("[aria-label='Entnahmemenge']").disabled)
+      .toBe(true);
+    expect(queryPortal<HTMLInputElement>("[aria-label='Ziel-Fahrzeug']").disabled)
+      .toBe(true);
+    expect(queryPortal<HTMLTextAreaElement>("[aria-label='Entnahmekommentar']").disabled)
+      .toBe(true);
+
+    await act(async () => {
+      entnahmeBeenden({ ok: true, wert: { gebucht: 1 } });
+      await laufendeEntnahme;
+    });
+    await warteAuf(
+      () => !queryPortal<HTMLInputElement>("[aria-label='Entnahmemenge']").disabled,
+      "wieder freigegebene Entnahmeform",
+    );
+
+    expect(queryPortal<HTMLInputElement>("[aria-label='Entnahmemenge']").value)
+      .toBe("1");
+  });
+
   it("sendet das ausgewaehlte Fahrzeug mit Menge und Kommentar", async () => {
     await drawerMounten();
     await selectOption("Ziel-Fahrzeug", "RTW 1");
