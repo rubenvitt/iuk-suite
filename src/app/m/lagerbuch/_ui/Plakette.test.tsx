@@ -80,6 +80,6 @@ describe("Plakette: Ampel -> Variablenname", () => {
     // `--lb-ampel-gruen-text` — nicht deklariert, faellt auf `transparent`
     // zurueck und ist gueltiges CSS. Der Ring verschwaende einfach.
     await mount(<Plakette verfall="2027-03" ampel={ampel} statusText="x" />);
-    expect(query("svg").outerHTML).toMatch(new RegExp(variable.replace(/-/g, "\\-")));
+    expect(query("svg").outerHTML).toContain(variable);
   });
 });
