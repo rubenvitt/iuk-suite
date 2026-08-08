@@ -66,7 +66,7 @@ export function checkHistorie(db: Leser, f: CheckFilter = {}): CheckHistorie {
 }
 
 export type CheckPositionDetail = {
-  fachLabel: string; artikelId: string; artikelName: string; einheit: string;
+  id: string; fachLabel: string; artikelId: string; artikelName: string; einheit: string;
   soll: number; ist: number;
 };
 export type CheckArtikelDetail = {
@@ -124,13 +124,20 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
 
   // Alle Detaillisten sind TOLERANT gegen geloeschte Bezugsobjekte: `ergebnis`
   // ist freies JSON OHNE Fremdschluessel (§4.10, 1:1-Pflicht 3).
+  const legacyVorkommen = new Map<string, number>();
   const positionen: CheckPositionDetail[] = leer ? [] : e.positionen.map((p) => {
     const a = arts.get(p.artikelId);
     const s = p.sollPositionId ? sollRows.get(p.sollPositionId) : undefined;
+    const soll = p.soll ?? 0;
+    const ist = p.ist ?? 0;
+    const fingerprint = `${p.artikelId}:${soll}:${ist}`;
+    const vorkommen = legacyVorkommen.get(fingerprint) ?? 0;
+    if (!p.sollPositionId) legacyVorkommen.set(fingerprint, vorkommen + 1);
     return {
+      id: p.sollPositionId ?? `legacy:${c.id}:${fingerprint}:${vorkommen}`,
       fachLabel: s?.fachLabel ?? "–", artikelId: p.artikelId,
       artikelName: a?.name ?? "(gelöschter Artikel)", einheit: a?.einheit ?? "",
-      soll: p.soll ?? 0, ist: p.ist ?? 0,
+      soll, ist,
     };
   });
 

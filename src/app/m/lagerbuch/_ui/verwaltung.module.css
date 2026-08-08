@@ -1,0 +1,70 @@
+/* Modul-CSS der Verwaltung. `.modul` ist der Traeger aller Lagerbuch-Tokens. */
+.modul {
+  --lb-tinte: #1a1d20;
+  --lb-stahl: #5b6570;
+  --lb-linie: #d9dde1;
+  --lb-papier: #eef0f1;
+  --lb-karte: #ffffff;
+  --lb-rot: #c8000f;
+  --lb-ampel-ok-text: #1e7a3c;
+  --lb-ampel-ok-flaeche: #e4f2e9;
+  --lb-ampel-gelb-text: #8a5200;
+  --lb-ampel-gelb-flaeche: #fbf1dc;
+  --lb-ampel-rot-text: #8c0d16;
+  --lb-ampel-rot-flaeche: #f6e3e0;
+  --lb-ampel-grau-text: #5b6570;
+  --lb-ampel-grau-flaeche: #e7eaec;
+}
+
+:root[data-theme="dark"] .modul {
+  --lb-tinte: #ece9e2;
+  --lb-stahl: #9aa4ad;
+  --lb-linie: #2a2f34;
+  --lb-papier: #0f1113;
+  --lb-karte: #16191c;
+  --lb-rot: #e04452;
+  --lb-ampel-ok-text: #7ee0a0;
+  --lb-ampel-ok-flaeche: #10261a;
+  --lb-ampel-gelb-text: #d9a032;
+  --lb-ampel-gelb-flaeche: #2a1e05;
+  --lb-ampel-rot-text: #e8837c;
+  --lb-ampel-rot-flaeche: #2a1113;
+  --lb-ampel-grau-text: #9aa4ad;
+  --lb-ampel-grau-flaeche: #1c2024;
+}
+
+.modul a:focus-visible,
+.modul button:focus-visible,
+.modul input:focus-visible,
+.modul select:focus-visible { outline: 2px solid var(--lb-rot); outline-offset: 2px; }
+
+.chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 2.5px 9px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ok { color: var(--lb-ampel-ok-text); background: var(--lb-ampel-ok-flaeche); }
+.gelb { color: var(--lb-ampel-gelb-text); background: var(--lb-ampel-gelb-flaeche); }
+.rot { color: var(--lb-ampel-rot-text); background: var(--lb-ampel-rot-flaeche); }
+.grau { color: var(--lb-ampel-grau-text); background: var(--lb-ampel-grau-flaeche); }
+
+.kpis { min-width: 0; }
+.kpi { border-inline-start: 4px solid transparent; padding-inline-start: 12px; height: 100%; }
+.kpiRot { border-inline-start-color: var(--lb-ampel-rot-text); }
+.kpiGelb { border-inline-start-color: var(--lb-ampel-gelb-text); }
+.kpiOk { border-inline-start-color: var(--lb-ampel-ok-text); }
+.kpiLink { display: block; color: inherit; text-decoration: none; }
+.kpiLink:hover { background: var(--lb-papier); }
+
+.backlink { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--lb-stahl); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-decoration: none; text-transform: uppercase; }
+.backlink:hover { color: var(--lb-tinte); }
+.fach { border: 1px solid var(--lb-linie); border-radius: 4px; padding: 1px 6px; color: var(--lb-stahl); font-family: var(--font-geist-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.filtertreffer { color: var(--lb-stahl); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.footnote { color: var(--lb-stahl); font-family: var(--font-geist-mono); font-size: 12px; }
+
+.journalZeile { display: flex; align-items: center; gap: 10px; }
+.jts { color: var(--lb-stahl); font-family: var(--font-geist-mono); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jdelta { font-family: var(--font-geist-mono); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jminus { color: var(--lb-ampel-rot-text); }
+.jplus { color: var(--lb-ampel-ok-text); }
+
+.warnbox { border-inline-start: 3px solid var(--lb-ampel-rot-text); border-radius: 4px; padding: 10px 12px; color: var(--lb-ampel-rot-text); background: var(--lb-ampel-rot-flaeche); font-size: 14px; }
+.infobox { border-inline-start: 3px solid var(--lb-ampel-gelb-text); border-radius: 4px; padding: 10px 12px; color: var(--lb-ampel-gelb-text); background: var(--lb-ampel-gelb-flaeche); font-size: 14px; }
+.gefahr { border: 1px solid var(--lb-rot); border-radius: 6px; margin-block-start: 24px; padding: 16px; }
+.gtitle { color: var(--lb-rot); margin-block-end: 8px; font-size: 12px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }

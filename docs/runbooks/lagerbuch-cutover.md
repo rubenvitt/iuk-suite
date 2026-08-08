@@ -254,6 +254,29 @@ Ausfall gemeldet.
 
 ---
 
+## 12. Verwaltungsoberfläche: sichtbare Änderungen und Modus-Abnahme
+
+**Gemessen bei der Teil-5-Abnahme (T151).** Die Verwaltungsseiten `/verwaltung/artikel`,
+`/verwaltung/verfall` und `/verwaltung` wurden mit dem echten Umschalter jeweils im hellen und im
+dunklen Modus gerendert. Neben den berechneten Farben und Rahmen wurden sechs Screenshots visuell
+geprüft: Tabellen, Ampelringe, Status-Chips, Verfallskarten und KPI-Kanten blieben lesbar; im
+Dunkelmodus erschien keine weiße Fremdfläche und es war kein Inhalt offensichtlich abgeschnitten.
+
+Zwei sichtbare Änderungen gehören **vor** dem Umschwenken in die Ankündigung:
+
+- **Die Ampelfarben ändern sich.** Gelb wird dunkler (`#b26a00` → `#8a5200`), Rot bekommt einen
+  eigenen Ton (`#c8000f` → `#8c0d16`). Das stellt Luminanz-Monotonie her und beseitigt den
+  gemessenen AA-Verstoß des bisherigen gelben Chips.
+- **Die eigenständige Wortmarke „LAGERBUCH“ verschwindet aus der Verwaltung.** Dort steht künftig
+  der reguläre Modultitel `Lagerbuch` in der Suite-Kopfzeile. Auf dem Gate und im Helfer-Rahmen
+  bleibt die Wortmarke als Wiedererkennungsmerkmal erhalten.
+
+**Cutover-Kontrolle:** Die drei genannten Verwaltungsseiten auf der Zielinstallation noch einmal in
+beiden Modi durchsehen. Der Vergleich eines Etikettenbogens auf echtem Papier mit einem alten
+Ausdruck bleibt ausdrücklich Teil 6 (§8.4 R30); die lokale Teil-5-Abnahme ersetzt ihn nicht.
+
+---
+
 ## Offene Posten auf dem Board
 
 | Posten | Inhalt |

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { IScannerControls } from "@zxing/browser";
 import { normalisiereBarcode } from "../_lib/barcode";
+import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
 /**
@@ -208,10 +209,7 @@ export function BarcodeScanner({
             aria-pressed={torch}
             onClick={torchToggle}
           >
-            {/* Lokales Inline-SVG (E3); Teil 5, T101 hebt es. */}
-            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M7 2h10l-1 6H8L7 2zm1 8h8v4l-3 8h-2l-3-8v-4z" fill="currentColor" />
-            </svg>
+            <Ikone name="taschenlampe" groesse={20} />
           </button>
         </div>
       )}
