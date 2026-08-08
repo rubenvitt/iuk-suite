@@ -16,6 +16,7 @@ import {
   templatePositionEntfernen,
   templatePositionSetzen,
 } from "../../../../_actions/templates";
+import type { ActionAusgang } from "../../../../_lib/actionErgebnis";
 import type { TemplatePositionZeile } from "../../../../_lib/lesepfade/fahrzeuge";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Ikone } from "../../../../_ui/ikonen";
@@ -53,7 +54,13 @@ export function TemplatePosEditor({
   const [spiegel, setSpiegel] = useState<Record<string, number>>({});
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
-  const timer = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Zum Timer gehoert sein Rumpf: nur so kann `onBlur` den ausstehenden
+  // Schreibvorgang VORZIEHEN, statt ihn nur abzuraeumen. Ohne das verliert das
+  // Verlassen der Seite innerhalb der Entprellzeit die Eingabe stillschweigend.
+  const timer = useRef<Record<string, {
+    id: ReturnType<typeof setTimeout>;
+    sofort: () => void;
+  }>>({});
 
   const optionen = useMemo<ArtikelOption[]>(() => artikel.map((eintrag) => ({
     value: eintrag.id,
@@ -62,23 +69,45 @@ export function TemplatePosEditor({
   })), [artikel]);
 
   function timerLoeschen(id: string): void {
-    clearTimeout(timer.current[id]);
+    clearTimeout(timer.current[id]?.id);
     delete timer.current[id];
   }
 
+  /**
+   * Zieht einen entprellten Schreibvorgang beim Verlassen des Feldes vor.
+   *
+   * Ohne das ist jede Aenderung verloren, die innerhalb der Entprellzeit von
+   * einem Klick auf die Brotkrume oder einem Seitenwechsel gefolgt wird — der
+   * Aufraeumer in `useEffect` loescht den Timer, ohne ihn auszufuehren, und es
+   * gibt keinen Hinweis darauf. Form aus `bz/[id]/ReferenzEditor.tsx`.
+   */
+  function timerVorziehen(id: string): void {
+    const ausstehend = timer.current[id];
+    if (ausstehend === undefined) return;
+    clearTimeout(ausstehend.id);
+    ausstehend.sofort();
+  }
+
   useEffect(() => () => {
-    for (const ausstehend of Object.values(timer.current)) clearTimeout(ausstehend);
+    for (const ausstehend of Object.values(timer.current)) clearTimeout(ausstehend.id);
     timer.current = {};
   }, []);
 
+  /**
+   * `ActionAusgang` statt `{ ok: boolean }`: die Actions
+   * unterscheiden ihre Fehlgruende, und nur der Satz aus der Action sagt der
+   * Person, ob neu laden, erneut versuchen oder etwas anderes eintragen hilft.
+   * Der Konstantentext bleibt Rueckfall fuer den Wurf — dort ist `e.message`
+   * in Produktion Framework-Englisch (siehe `_lib/actionErgebnis`).
+   */
   async function sicherAusfuehren(
-    aktion: () => Promise<{ ok: boolean }>,
+    aktion: () => Promise<ActionAusgang>,
     fehlerText: string,
   ): Promise<boolean> {
     try {
       const ergebnis = await aktion();
       if (!ergebnis.ok) {
-        setFehler(fehlerText);
+        setFehler(ergebnis.fehler);
         return false;
       }
       setFehler(null);
@@ -101,13 +130,17 @@ export function TemplatePosEditor({
       soll: wert,
       sort: position.sort,
     };
-    timer.current[position.id] = setTimeout(() => {
+    const sofort = () => {
       delete timer.current[position.id];
       void sicherAusfuehren(
         () => templatePositionSetzen(payload),
         SPEICHER_FEHLER,
       );
-    }, SOLL_DEBOUNCE_MS);
+    };
+    timer.current[position.id] = {
+      id: setTimeout(sofort, SOLL_DEBOUNCE_MS),
+      sofort,
+    };
   }
 
   const spalten: TableProps<TemplatePositionZeile>["columns"] = [
@@ -143,6 +176,7 @@ export function TemplatePosEditor({
           precision={0}
           value={spiegel[position.id] ?? wert}
           onChange={(neu) => sollGeaendert(position, neu)}
+          onBlur={() => timerVorziehen(position.id)}
           aria-label={`Soll für ${position.artikelName}`}
         />
       ),

@@ -16,8 +16,23 @@ type ReferenzWerte = {
   nennfuelldruckBar: number;
 };
 
+/**
+ * Der Schluessel haengt an der IDENTITAET, nicht an den WERTEN.
+ *
+ * `key={JSON.stringify(props)}` sah nach demselben Zweck aus, tat aber etwas
+ * anderes: jedes `onBlur` speichert, `revalidatePath` rendert die Seite neu,
+ * die neuen Props ergeben einen neuen Schluessel — und der unmountet den
+ * Teilbaum mitten im Tippen. Der Fokus faellt auf `body`, die Zeichen, die
+ * inzwischen ins Nachbarfeld gingen, landen nirgends, und es gibt keine
+ * Meldung; die Person haelt das Feld fuer kaputt.
+ *
+ * Mit der `id` bleibt der Remount da, wo er gebraucht wird — beim Wechsel auf
+ * eine ANDERE Flasche, wo React die Komponente sonst samt fremdem Zustand
+ * wiederverwendet. Waehrend derselben Flasche ist der lokale Zustand die
+ * Wahrheit: nur diese Insel schreibt sie.
+ */
 export function ReferenzFelder(props: ReferenzWerte) {
-  return <ReferenzFelderInhalt key={JSON.stringify(props)} start={props} />;
+  return <ReferenzFelderInhalt key={props.id} start={props} />;
 }
 
 function ReferenzFelderInhalt({ start }: { start: ReferenzWerte }) {
@@ -26,6 +41,20 @@ function ReferenzFelderInhalt({ start }: { start: ReferenzWerte }) {
   const aktuell = useRef(start);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speicherGeneration = useRef(0);
+  const wurzel = useRef<HTMLDivElement>(null);
+
+  /**
+   * Neue Serverwerte fuer DIESELBE Flasche ziehen die Felder nach — aber nur,
+   * wenn niemand gerade in diesen Feldern steht. Siehe den Kommentar am
+   * Schluessel oben: der wertabhaengige `key` hat nicht abgeglichen, sondern
+   * unmountet, und dabei den Fokus mitgenommen.
+   */
+  useEffect(() => {
+    const fokus = document.activeElement;
+    if (fokus && wurzel.current?.contains(fokus)) return;
+    aktuell.current = start;
+    setWerte(start);
+  }, [start]);
 
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
@@ -50,7 +79,10 @@ function ReferenzFelderInhalt({ start }: { start: ReferenzWerte }) {
         nennfuelldruckBar: snapshot.nennfuelldruckBar,
       });
       if (generation === speicherGeneration.current) {
-        setFehler(ergebnis.ok ? null : SPEICHER_FEHLER);
+        // Der Satz aus der Action, nicht die Modulkonstante: nur er
+        // unterscheidet „Lagerort nicht gefunden." von einem Schreibfehler
+        // und sagt der Person, ob neu laden oder erneut versuchen hilft.
+        setFehler(ergebnis.ok ? null : ergebnis.fehler);
       }
     } catch {
       if (generation === speicherGeneration.current) setFehler(SPEICHER_FEHLER);
@@ -93,6 +125,7 @@ function ReferenzFelderInhalt({ start }: { start: ReferenzWerte }) {
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div
+        ref={wurzel}
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",

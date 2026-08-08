@@ -398,19 +398,41 @@ describe("ReferenzFelder", () => {
     expect(mocks.speichern).not.toHaveBeenCalled();
   });
 
-  it.each([
-    [{ ok: false as const, fehler: "interne Einzelheit" }, "interne Einzelheit"],
-    [new Error("Pfad geheim"), "Pfad geheim"],
-  ])("zeigt einen festen Fehler und hält Actiondetails geheim", async (antwort, geheimnis) => {
-    if (antwort instanceof Error) mocks.speichern.mockRejectedValueOnce(antwort);
-    else mocks.speichern.mockResolvedValueOnce(antwort);
+  /**
+   * ZWEI VERSCHIEDENE KANAELE, absichtlich unterschiedlich behandelt:
+   *
+   * Bei `ok:false` steht der Satz AUS DER ACTION da. Er ist keine „interne
+   * Einzelheit", sondern der fachliche Grund („Lagerort nicht gefunden."), und
+   * `_lib/actionErgebnis` beschreibt genau ihn als den Zweck des
+   * Rueckgabewertes. Nur er sagt der Person, ob neu laden oder etwas anderes
+   * eintragen hilft.
+   *
+   * Beim WURF bleibt die Modulkonstante, und der Grund darf nicht
+   * durchscheinen: `e.message` ist in Produktion nicht der deutsche Satz,
+   * sondern Framework-Englisch, und der Pfad im Stack geht niemanden an.
+   */
+  it("zeigt bei ok:false den Satz der Action", async () => {
+    mocks.speichern.mockResolvedValueOnce({
+      ok: false as const,
+      fehler: "Lagerort nicht gefunden.",
+    });
+    await mounten();
+    await fill("input[aria-label='Name']", "O2 Reserve");
+    await blur("input[aria-label='Name']");
+
+    expect(query(".ant-alert-warning").textContent)
+      .toContain("Lagerort nicht gefunden.");
+  });
+
+  it("zeigt beim Wurf einen festen Fehler und haelt den Grund geheim", async () => {
+    mocks.speichern.mockRejectedValueOnce(new Error("Pfad geheim"));
     await mounten();
     await fill("input[aria-label='Name']", "O2 Reserve");
     await blur("input[aria-label='Name']");
 
     expect(query(".ant-alert-warning").textContent)
       .toContain("Sauerstoffflasche konnte nicht gespeichert werden.");
-    expect(document.body.textContent).not.toContain(geheimnis);
+    expect(document.body.textContent).not.toContain("Pfad geheim");
   });
 });
 

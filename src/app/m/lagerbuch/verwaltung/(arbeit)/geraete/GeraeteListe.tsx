@@ -121,6 +121,12 @@ export function GeraeteListe({
           </Button>
         ) : null}
         <Trefferanzeige gezeigt={gefiltert.length} gesamt={zeilen.length} />
+        <Button
+          href="/verwaltung/geraete/scan"
+          icon={<Ikone name="scannen" groesse={16} />}
+        >
+          Scannen
+        </Button>
         <NeuGeraet lagerorte={lagerorte} />
       </Flex>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Alert, Button, Flex, Form, Input, Modal, Space, Switch } from "antd";
+import { Alert, Button, Flex, Form, Input, Modal, Popconfirm, Space, Switch } from "antd";
 import { useRouter } from "next/navigation";
 import {
   deleteTemplate,
@@ -152,14 +152,32 @@ export function TemplateAktionen({
           />
           <span>{istAktiv ? "aktiv" : "inaktiv"}</span>
         </Space>
-        <Button
-          icon={<Ikone name="erneut" groesse={16} />}
-          loading={laeuft}
-          disabled={laeuft}
-          onClick={synchronisieren}
+        {/*
+          Die folgenreichste Aktion der Seite: sie schreibt ueber alle
+          verknuepften Fahrzeuge und loescht dabei verwaiste Soll-Zeilen
+          (`_lib/schreibpfade/templateSync.ts`, Regel 4) — deren IDs stehen in
+          historischen `checks.ergebnis`-JSONs. Die Zahl der betroffenen
+          Fahrzeuge liegt als Prop bereits vor, sie gehoert VOR den Klick.
+        */}
+        <Popconfirm
+          title="Auf alle Fahrzeuge übertragen?"
+          description={
+            `Überschreibt die Soll-Bestückung von ${fahrzeuge} verknüpften Fahrzeug(en). ` +
+            "Positionen, die nicht mehr in der Vorlage stehen, werden dort entfernt."
+          }
+          okText="Übertragen"
+          cancelText="Abbrechen"
+          okButtonProps={{ loading: laeuft }}
+          onConfirm={synchronisieren}
         >
-          Auf alle Fahrzeuge übertragen
-        </Button>
+          <Button
+            icon={<Ikone name="erneut" groesse={16} />}
+            loading={laeuft}
+            disabled={laeuft}
+          >
+            Auf alle Fahrzeuge übertragen
+          </Button>
+        </Popconfirm>
       </Flex>
 
       {syncText ? <span>{syncText}</span> : null}

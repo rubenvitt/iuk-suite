@@ -115,14 +115,29 @@ describe("BzScanner", () => {
     expect(mocks.bzZuBarcode).toHaveBeenCalledWith("  BZ-ROH  ");
   });
 
-  it.each([
-    ["ok mit wert null", { ok: true as const, wert: null }],
-    ["Actionfehler", { ok: false as const, fehler: "BZ-Suche fehlgeschlagen" }],
-  ])("bildet %s auf null ab", async (_fall, actionErgebnis) => {
-    mocks.bzZuBarcode.mockResolvedValueOnce(actionErgebnis);
+  it("bildet ok mit wert null auf null ab", async () => {
+    mocks.bzZuBarcode.mockResolvedValueOnce({ ok: true as const, wert: null });
     await mount(<BzScanner />);
 
     await expect(scannerProps().zuBarcode("BZ-LEER")).resolves.toBeNull();
+  });
+
+  /**
+   * `null` heiszt im Scanner „Code ist unbekannt" und wird der Person auch so
+   * gemeldet. Ein gescheiterter LESEVORGANG ist etwas anderes und muss in den
+   * catch-Zweig von `BarcodeScanner` laufen („Suche fehlgeschlagen – bitte
+   * erneut versuchen."). Sonst steht am Regal die sachlich falsche Auskunft,
+   * das Geraet sei nicht erfasst.
+   */
+  it("wirft bei einem Actionfehler, statt Unbekanntheit zu behaupten", async () => {
+    mocks.bzZuBarcode.mockResolvedValueOnce({
+      ok: false as const,
+      fehler: "BZ-Suche fehlgeschlagen",
+    });
+    await mount(<BzScanner />);
+
+    await expect(scannerProps().zuBarcode("BZ-LEER"))
+      .rejects.toThrow("BZ-Suche fehlgeschlagen");
   });
 });
 

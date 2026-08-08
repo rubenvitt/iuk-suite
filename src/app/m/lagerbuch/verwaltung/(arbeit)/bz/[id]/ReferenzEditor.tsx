@@ -75,11 +75,26 @@ function payload(w: BzEditorWerte) {
   };
 }
 
+/**
+ * Der Schluessel haengt an der IDENTITAET, nicht an den WERTEN.
+ *
+ * `key={JSON.stringify(props.geraet)}` sah nach demselben Zweck aus, tat aber
+ * etwas anderes: jedes `onBlur` speichert, `revalidatePath` rendert die Seite
+ * neu, die neuen Werte ergeben einen neuen Schluessel — und der unmountet den
+ * Teilbaum mitten im Tippen. Der Fokus faellt auf `body`, die Zeichen, die
+ * inzwischen ins Nachbarfeld gingen, landen nirgends, und es gibt keine
+ * Meldung; die Person haelt das Feld fuer kaputt.
+ *
+ * Mit der `id` bleibt der Remount da, wo er gebraucht wird — beim Wechsel auf
+ * ein ANDERES Geraet, wo React die Komponente sonst samt fremdem Zustand
+ * wiederverwendet. Waehrend desselben Geraets ist der lokale Zustand die
+ * Wahrheit: nur diese Insel schreibt ihn.
+ */
 export function ReferenzEditor(props: {
   geraet: BzEditorWerte;
   lagerorte: LagerortOption[];
 }) {
-  return <ReferenzEditorInhalt key={JSON.stringify(props.geraet)} {...props} />;
+  return <ReferenzEditorInhalt key={props.geraet.id} {...props} />;
 }
 
 function ReferenzEditorInhalt({
@@ -94,6 +109,25 @@ function ReferenzEditorInhalt({
   const aktuell = useRef(geraet);
   const zahlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speicherGeneration = useRef(0);
+  const wurzel = useRef<HTMLDivElement>(null);
+
+  /**
+   * Neue Serverwerte fuer DASSELBE Geraet ziehen die Felder nach — aber nur,
+   * wenn niemand gerade in diesem Editor steht.
+   *
+   * Den Abgleich hat frueher ein wertabhaengiger `key` erledigt. Der hat aber
+   * nicht abgeglichen, sondern UNMOUNTET: nach jedem `onBlur`-Speichern riss er
+   * den Fokus aus dem Feld, in das die Person inzwischen weitergetippt hatte,
+   * und verschluckte die Zeichen. Der Abgleich per Effekt haelt die Zusage aus
+   * `page.test.tsx` („setzt bei neuen Serverwerten derselben Geraete-ID alle
+   * lokalen Felder zurueck") und laesst die Eingabe in Ruhe.
+   */
+  useEffect(() => {
+    const fokus = document.activeElement;
+    if (fokus && wurzel.current?.contains(fokus)) return;
+    aktuell.current = geraet;
+    setWerte(geraet);
+  }, [geraet]);
 
   useEffect(() => () => {
     if (zahlTimer.current) clearTimeout(zahlTimer.current);
@@ -112,7 +146,11 @@ function ReferenzEditorInhalt({
     try {
       const ergebnis = await geraetSpeichern(payload(snapshot));
       if (generation !== speicherGeneration.current) return;
-      setFehler(ergebnis.ok ? null : SPEICHER_FEHLER);
+      // Der Satz aus der Action, nicht die Modulkonstante. `payload()` schickt
+      // bei JEDEM Blur alle zehn Felder — eine einmalige Barcode-Kollision
+      // laesst danach jedes Speichern scheitern, und ohne den echten Grund
+      // steht die Person vor einem Editor, der nichts mehr annimmt.
+      setFehler(ergebnis.ok ? null : ergebnis.fehler);
     } catch {
       if (generation === speicherGeneration.current) setFehler(SPEICHER_FEHLER);
     }
@@ -160,6 +198,7 @@ function ReferenzEditorInhalt({
   return (
     <Card title="Referenz & Streifen-Lot" style={{ marginBlockEnd: 24 }}>
       <div
+        ref={wurzel}
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
