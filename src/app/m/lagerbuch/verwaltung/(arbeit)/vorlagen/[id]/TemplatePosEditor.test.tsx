@@ -223,12 +223,24 @@ describe("TemplatePosEditor — 400-ms-Auto-Commit", () => {
     expect(mocks.setzen).not.toHaveBeenCalled();
   });
 
+  // Bei `ok:false` der Satz aus der Action — nur er unterscheidet die
+  // Fehlgruende. Im Wurf die Modulkonstante: `e.message` ist in Produktion
+  // Framework-Englisch (siehe `_lib/actionErgebnis`).
   it.each([
-    ["ok:false", async () => ({ ok: false as const, fehler: "interner Text" })],
-    ["Reject", async () => { throw new Error("Framework-Text"); }],
-  ])("behält bei Edit-%s den lokalen Wert und zeigt einen festen Fehler", async (
+    [
+      "ok:false",
+      async () => ({ ok: false as const, fehler: "Vorlagenposition nicht gefunden." }),
+      "Vorlagenposition nicht gefunden.",
+    ],
+    [
+      "Reject",
+      async () => { throw new Error("Framework-Text"); },
+      "Vorlagenposition konnte nicht gespeichert werden.",
+    ],
+  ] as const)("behält bei Edit-%s den lokalen Wert und zeigt den passenden Fehler", async (
     _fall,
     antwort,
+    text,
   ) => {
     mocks.setzen.mockImplementationOnce(antwort);
     await editorMounten();
@@ -238,8 +250,7 @@ describe("TemplatePosEditor — 400-ms-Auto-Commit", () => {
 
     expect(query<HTMLInputElement>("input[aria-label='Soll für Mullbinde']").value)
       .toBe("8");
-    expect(query(".ant-alert-warning").textContent)
-      .toContain("Vorlagenposition konnte nicht gespeichert werden.");
+    expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(document.body.textContent).not.toContain("Framework-Text");
   });
 });
@@ -265,12 +276,24 @@ describe("TemplatePosEditor — Hinzufügen und Entfernen", () => {
     expect(query(".ant-select").textContent).not.toContain("Pflaster");
   });
 
+  // Bei `ok:false` der Satz aus der Action — nur er unterscheidet die
+  // Fehlgruende. Im Wurf die Modulkonstante: `e.message` ist in Produktion
+  // Framework-Englisch (siehe `_lib/actionErgebnis`).
   it.each([
-    ["ok:false", async () => ({ ok: false as const, fehler: "interner Text" })],
-    ["Reject", async () => { throw new Error("Framework-Text"); }],
-  ])("behält bei Add-%s alle Eingaben und zeigt einen festen Fehler", async (
+    [
+      "ok:false",
+      async () => ({ ok: false as const, fehler: "Vorlage nicht gefunden." }),
+      "Vorlage nicht gefunden.",
+    ],
+    [
+      "Reject",
+      async () => { throw new Error("Framework-Text"); },
+      "Vorlagenposition konnte nicht gespeichert werden.",
+    ],
+  ] as const)("behält bei Add-%s alle Eingaben und zeigt den passenden Fehler", async (
     _fall,
     antwort,
+    text,
   ) => {
     mocks.setzen.mockImplementationOnce(antwort);
     await editorMounten();
@@ -283,8 +306,7 @@ describe("TemplatePosEditor — Hinzufügen und Entfernen", () => {
     expect(query<HTMLInputElement>("input[aria-label='Fach']").value).toBe("Fach X");
     expect(query<HTMLInputElement>("input[aria-label='Soll']").value).toBe("6");
     expect(query(".ant-select").textContent).toContain("Pflaster");
-    expect(query(".ant-alert-warning").textContent)
-      .toContain("Vorlagenposition konnte nicht gespeichert werden.");
+    expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(document.body.textContent).not.toContain("Framework-Text");
   });
 
@@ -294,20 +316,31 @@ describe("TemplatePosEditor — Hinzufügen und Entfernen", () => {
     expect(mocks.entfernen).toHaveBeenCalledWith({ id: "pos-a" });
   });
 
+  // Bei `ok:false` der Satz aus der Action — nur er unterscheidet die
+  // Fehlgruende. Im Wurf die Modulkonstante: `e.message` ist in Produktion
+  // Framework-Englisch (siehe `_lib/actionErgebnis`).
   it.each([
-    ["ok:false", async () => ({ ok: false as const, fehler: "interner Text" })],
-    ["Reject", async () => { throw new Error("Framework-Text"); }],
-  ])("hält die Tabelle bei Remove-%s und zeigt einen festen Fehler", async (
+    [
+      "ok:false",
+      async () => ({ ok: false as const, fehler: "Vorlagenposition nicht gefunden." }),
+      "Vorlagenposition nicht gefunden.",
+    ],
+    [
+      "Reject",
+      async () => { throw new Error("Framework-Text"); },
+      "Vorlagenposition konnte nicht entfernt werden.",
+    ],
+  ] as const)("hält die Tabelle bei Remove-%s und zeigt den passenden Fehler", async (
     _fall,
     antwort,
+    text,
   ) => {
     mocks.entfernen.mockImplementationOnce(antwort);
     await editorMounten();
     await entfernenBestaetigen();
 
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
-    expect(query(".ant-alert-warning").textContent)
-      .toContain("Vorlagenposition konnte nicht entfernt werden.");
+    expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(document.body.textContent).not.toContain("Framework-Text");
   });
 });

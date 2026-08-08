@@ -103,6 +103,12 @@ export function NeuBzGeraet({ lagerorte }: { lagerorte: Lagerort[] }) {
         okText="Anlegen"
         cancelText="Abbrechen"
         confirmLoading={laeuft}
+        // Waehrend des Speicherns kein Weg nach draussen: sonst laeuft ein
+        // spaeterer `setFehler` gegen einen geschlossenen Dialog, und `oeffnen()`
+        // raeumt die Meldung beim naechsten Versuch weg (Modulform aus NeuFahrzeug).
+        closable={!laeuft}
+        keyboard={!laeuft}
+        mask={{ closable: !laeuft }}
         onCancel={schliessen}
         onOk={() => form.submit()}
         destroyOnHidden

@@ -71,6 +71,23 @@ async function portalFuellen(selector: string, wert: string): Promise<void> {
   });
 }
 
+/**
+ * „Auf alle Fahrzeuge uebertragen" ist die folgenreichste Aktion der Seite: sie
+ * schreibt ueber alle verknuepften Fahrzeuge und loescht dabei verwaiste
+ * Soll-Zeilen. Sie haengt deshalb hinter einem `Popconfirm`, der die Zahl der
+ * betroffenen Fahrzeuge VOR dem Klick nennt.
+ */
+async function syncBestaetigen(): Promise<void> {
+  await clickElement(await buttonMitText("Auf alle Fahrzeuge übertragen"));
+  await warte();
+  const bestaetigen = Array.from(
+    document.body.querySelectorAll<HTMLButtonElement>(".ant-popover button"),
+  ).find((element) => element.textContent?.includes("Übertragen"));
+  if (!bestaetigen) throw new Error("Popconfirm-Knopf „Übertragen\" nicht gefunden");
+  await clickElement(bestaetigen);
+  await warte();
+}
+
 async function rendern(): Promise<void> {
   await mount(
     <TemplateAktionen id="t1" name="RTW Nord" aktiv fahrzeuge={3} />,
@@ -233,8 +250,7 @@ describe("TemplateAktionen", () => {
 
   it("zeigt alle sechs Synchronisationszähler", async () => {
     await rendern();
-    await clickElement(await buttonMitText("Auf alle Fahrzeuge übertragen"));
-    await warte();
+    await syncBestaetigen();
 
     expect(actions.templateAufFahrzeugeSyncen).toHaveBeenCalledWith({ templateId: "t1" });
     expect(document.body.textContent).toContain(
@@ -251,8 +267,7 @@ describe("TemplateAktionen", () => {
   ])("zeigt bei Sync-%s nur den festen Fehler und keine alte Zusammenfassung", async (_fall, vorbereiten) => {
     vorbereiten();
     await rendern();
-    await clickElement(await buttonMitText("Auf alle Fahrzeuge übertragen"));
-    await warte();
+    await syncBestaetigen();
 
     expect(query(".ant-alert-warning").textContent).toContain(
       "Vorlage konnte nicht synchronisiert werden.",

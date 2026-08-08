@@ -580,14 +580,23 @@ describe("ReferenzEditor", () => {
     expect(mocks.geraetSpeichern).not.toHaveBeenCalled();
   });
 
-  it("zeigt einen festen Actionfehler statt einen fehlgeschlagenen Commit zu verschweigen", async () => {
-    mocks.geraetSpeichern.mockResolvedValueOnce({ ok: false, fehler: "interne Einzelheit" });
+  /**
+   * Der Satz AUS DER ACTION, nicht die Modulkonstante. `payload()` schickt bei
+   * jedem Blur alle zehn Felder — eine einmalige Barcode-Kollision laesst
+   * danach JEDES Speichern scheitern, und ohne den echten Grund steht die
+   * Person vor einem Editor, der nichts mehr annimmt. Der Wurf-Zweig behaelt
+   * die Konstante (siehe den Test weiter unten).
+   */
+  it("zeigt bei ok:false den Satz der Action statt den Commit zu verschweigen", async () => {
+    mocks.geraetSpeichern.mockResolvedValueOnce({
+      ok: false,
+      fehler: "Barcode ist bereits vergeben.",
+    });
     await editorMounten();
     const barcode = await feldSetzen("[aria-label='Barcode']", "9999999999999");
     await feldVerlassen(barcode);
 
-    expect(document.body.textContent).toContain("BZ-Gerät konnte nicht gespeichert werden.");
-    expect(document.body.textContent).not.toContain("interne Einzelheit");
+    expect(document.body.textContent).toContain("Barcode ist bereits vergeben.");
   });
 
   it("lässt eine ältere verspätete Antwort nicht den neueren Erfolg überschreiben", async () => {
@@ -625,7 +634,7 @@ describe("ReferenzEditor", () => {
     await feldVerlassen(name);
     const lot = await feldSetzen("[aria-label='Streifen-Lot']", "LOT-ZWEI");
     await feldVerlassen(lot);
-    expect(document.body.textContent).toContain("BZ-Gerät konnte nicht gespeichert werden.");
+    expect(document.body.textContent).toContain("neuer Fehler");
 
     await act(async () => {
       ersteAntwort({ ok: true, wert: { id: "bz-1" } });
@@ -633,7 +642,7 @@ describe("ReferenzEditor", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("BZ-Gerät konnte nicht gespeichert werden.");
+    expect(document.body.textContent).toContain("neuer Fehler");
   });
 
   it("lässt eine ältere verspätete Ablehnung nicht den neueren Erfolg überschreiben", async () => {

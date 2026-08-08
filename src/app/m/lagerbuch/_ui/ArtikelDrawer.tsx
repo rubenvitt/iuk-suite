@@ -93,7 +93,26 @@ type ArtikelPatch = Partial<{
 
 export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProps) {
   const [detail, setDetail] = useState<ArtikelDetailResult>();
-  const [fehler, setFehler] = useState<string | null>(null);
+  /**
+   * Die Meldung traegt ihre HERKUNFT, weil der Drawer lang ist.
+   *
+   * Ein Fehler aus „Entnahme buchen" stand bisher als einziger Kanal ganz oben
+   * im Drawer — rund 700px ueber dem Knopf, hinter Kopf, Stammdaten und dem
+   * ganzen Abschnitt „Zugang buchen", und es wird nicht dorthin gescrollt. Auf
+   * einem schmalen Geraet sieht es aus, als reagiere der Knopf nicht, und der
+   * Vorgang wird wiederholt. Formularfehler gehoeren deshalb an ihr Formular;
+   * alles Uebrige (Laden, Stammdaten, Loeschen) bleibt oben.
+   */
+  const [meldung, setMeldung] = useState<
+    { text: string; quelle: "allgemein" | "zugang" | "entnahme" } | null
+  >(null);
+  function setFehler(
+    text: string | null,
+    quelle: "allgemein" | "zugang" | "entnahme" = "allgemein",
+  ): void {
+    setMeldung(text === null ? null : { text, quelle });
+  }
+
   const [busy, setBusy] = useState(false);
   const [mindestbestand, setMindestbestand] = useState<number | null>(null);
   const [fach, setFach] = useState("");
@@ -214,6 +233,15 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
     }, MINDEST_DEBOUNCE_MS);
   }
 
+  /** Zieht einen ausstehenden Mindestbestand-Commit vor (siehe `onBlur`). */
+  function mindestbestandSpeichern(): void {
+    if (!mindestTimer.current) return;
+    clearTimeout(mindestTimer.current);
+    mindestTimer.current = null;
+    if (mindestbestand === null) return;
+    void artikelFeldSpeichern({ mindestbestand });
+  }
+
   function fachSpeichern(): void {
     const wert = fach.trim();
     if (wert && wert !== detail?.artikel.fach) {
@@ -258,7 +286,7 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
     if (werte.chargeId === NEUE_CHARGE) {
       const verfall = monatAusPicker(werte.verfall);
       if (!verfall) {
-        setFehler("Bitte einen Verfallsmonat auswählen.");
+        setFehler("Bitte einen Verfallsmonat auswählen.", "zugang");
         return;
       }
       eingabe = {
@@ -282,13 +310,13 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
       try {
         const ergebnis = await bucheZugang(eingabe);
         if (!ergebnis.ok) {
-          setFehler(ergebnis.fehler);
+          setFehler(ergebnis.fehler, "zugang");
           return;
         }
         await laden();
         zugangForm.resetFields();
       } catch {
-        setFehler("Zugang konnte nicht gebucht werden.");
+        setFehler("Zugang konnte nicht gebucht werden.", "zugang");
       }
     });
   }
@@ -309,13 +337,13 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
       try {
         const ergebnis = await bucheEntnahme(eingabe);
         if (!ergebnis.ok) {
-          setFehler(ergebnis.fehler);
+          setFehler(ergebnis.fehler, "entnahme");
           return;
         }
         await laden();
         entnahmeForm.resetFields();
       } catch {
-        setFehler("Entnahme konnte nicht gebucht werden.");
+        setFehler("Entnahme konnte nicht gebucht werden.", "entnahme");
       }
     });
   }
@@ -346,11 +374,11 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
       rootClassName={styles.modul}
       destroyOnHidden
     >
-      {fehler ? (
+      {meldung?.quelle === "allgemein" ? (
         <Alert
           type="warning"
           showIcon={false}
-          title={fehler}
+          title={meldung.text}
           style={{ marginBlockEnd: 16 }}
         />
       ) : null}
@@ -388,6 +416,12 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
                     precision={0}
                     value={mindestbestand}
                     onChange={mindestbestandAendern}
+                    // Zieht den entprellten Schreibvorgang beim Verlassen des
+                    // Feldes vor. Ohne das verliert ein Schliessen des Drawers
+                    // innerhalb der Entprellzeit die Aenderung stillschweigend
+                    // — der Aufraeumer loescht den Timer, ohne ihn
+                    // auszufuehren. `fach` und `einheit` daneben tun es schon.
+                    onBlur={mindestbestandSpeichern}
                     aria-label="Mindestbestand"
                     style={{ width: "100%" }}
                   />
@@ -480,6 +514,14 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
                   </Form.Item>
                 </>
               ) : null}
+              {meldung?.quelle === "zugang" ? (
+                <Alert
+                  type="warning"
+                  showIcon={false}
+                  title={meldung.text}
+                  style={{ marginBlockEnd: 12 }}
+                />
+              ) : null}
               <Button type="primary" htmlType="submit" loading={busy}>
                 Zugang buchen
               </Button>
@@ -524,6 +566,14 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
                   autoSize={{ minRows: 2, maxRows: 4 }}
                 />
               </Form.Item>
+              {meldung?.quelle === "entnahme" ? (
+                <Alert
+                  type="warning"
+                  showIcon={false}
+                  title={meldung.text}
+                  style={{ marginBlockEnd: 12 }}
+                />
+              ) : null}
               <Button
                 type="primary"
                 htmlType="submit"

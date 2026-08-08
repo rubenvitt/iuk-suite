@@ -44,13 +44,22 @@ export function VerfallEditor({
       [eintrag.artikelId]: monat || null,
     }));
     startTransition(async () => {
+      // DER GEWAEHLTE MONAT BLEIBT AUCH IM FEHLERFALL STEHEN — absichtlich, und
+      // `VerfallEditor.test.tsx` haelt es fest. Die Eingabe einer Person zu
+      // verwerfen, weil das Speichern scheiterte, ist schlimmer als die
+      // Statusspalte, die bis zum naechsten Laden den alten Stand nennt. Den
+      // Widerspruch aufloest der Fehlersatz, nicht das Zuruecksetzen.
       try {
         const ergebnis = await verfallSetzen({
           lagerortId,
           artikelId: eintrag.artikelId,
           verfall: monat,
         });
-        setFehler(ergebnis.ok ? null : VERFALL_FEHLER);
+        // Der Satz aus der Action statt der Modulkonstante: nur er
+        // unterscheidet „Artikel steht an diesem Lagerort nicht im Soll." von
+        // einem Schreibfehler. Im `catch` bleibt die Konstante — dort ist
+        // `e.message` in Produktion Framework-Englisch.
+        setFehler(ergebnis.ok ? null : ergebnis.fehler);
       } catch {
         setFehler(VERFALL_FEHLER);
       }

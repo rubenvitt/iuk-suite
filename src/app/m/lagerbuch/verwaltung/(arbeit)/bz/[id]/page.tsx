@@ -151,11 +151,12 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         </Col>
       </Row>
 
-      <ReferenzEditor
-        key={JSON.stringify(editor)}
-        geraet={editor}
-        lagerorte={lagerortOptionen(db)}
-      />
+      {/*
+        KEIN wertabhaengiger `key` hier: `ReferenzEditor` setzt seinen
+        Schluessel selbst aus der Geraete-`id`. Ein zweiter Remount-Ausloeser
+        auf dieser Ebene haette denselben Fokusverlust wieder eingebaut.
+      */}
+      <ReferenzEditor geraet={editor} lagerorte={lagerortOptionen(db)} />
 
       <div style={{ marginBlockEnd: 16 }}>
         <Link

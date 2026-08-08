@@ -155,14 +155,36 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
     expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value).toBe("");
   });
 
-  it.each([
-    ["ok:false", async () => ({ ok: false as const, fehler: "interner Text" })],
-    ["Reject", async () => { throw new Error("Framework-Text"); }],
-  ])("behaelt bei %s den neuen Monat und zeigt einen festen Warning-Text", async (
-    _fall,
-    antwort,
-  ) => {
-    mocks.setzen.mockImplementationOnce(antwort);
+  /**
+   * ZWEI GETRENNTE ZUSAGEN, die beide an dieser Stelle haengen:
+   *
+   * 1. Der gewaehlte Monat BLEIBT stehen. Die Eingabe einer Person zu
+   *    verwerfen, weil das Speichern scheiterte, ist schlimmer als eine
+   *    Statusspalte, die bis zum naechsten Laden den alten Stand nennt.
+   * 2. Bei `ok:false` steht der Satz AUS DER ACTION da, nicht die
+   *    Modulkonstante — nur er unterscheidet „Artikel steht an diesem Lagerort
+   *    nicht im Soll." von einem Schreibfehler und sagt der Person, was hilft.
+   *    Im Wurf bleibt die Konstante: dort ist `e.message` in Produktion
+   *    Framework-Englisch (siehe `_lib/actionErgebnis`).
+   */
+  it("behaelt bei ok:false den neuen Monat und zeigt den Satz der Action", async () => {
+    mocks.setzen.mockImplementationOnce(async () => ({
+      ok: false as const,
+      fehler: "Artikel steht an diesem Lagerort nicht im Soll.",
+    }));
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await monatWaehlen("Verfall Mullbinde", "2027-06");
+
+    expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)
+      .toBe("2027-06");
+    expect(query(".ant-alert-warning").textContent)
+      .toContain("Artikel steht an diesem Lagerort nicht im Soll.");
+  });
+
+  it("behaelt bei Reject den neuen Monat und zeigt einen festen Warning-Text", async () => {
+    mocks.setzen.mockImplementationOnce(async () => {
+      throw new Error("Framework-Text");
+    });
     await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
     await monatWaehlen("Verfall Mullbinde", "2027-06");
 

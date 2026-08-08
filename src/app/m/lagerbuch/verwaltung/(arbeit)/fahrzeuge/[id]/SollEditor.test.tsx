@@ -269,12 +269,30 @@ describe("SollEditor — auto-committende Sollmenge", () => {
     expect(mocks.setzen).not.toHaveBeenCalled();
   });
 
+  /**
+   * ZWEI GETRENNTE ZUSAGEN: der lokale Wert bleibt in BEIDEN Faellen stehen,
+   * der TEXT unterscheidet sich. Bei `ok:false` steht der Satz aus der Action
+   * da — `sollPositionSetzen` unterscheidet „Fahrzeug nicht gefunden." von
+   * „Soll-Position nicht gefunden." von einem Schreibfehler, und nur dieser
+   * Satz sagt der Person, ob neu laden oder etwas anderes eintragen hilft. Im
+   * Wurf bleibt die Modulkonstante: dort ist `e.message` in Produktion
+   * Framework-Englisch (siehe `_lib/actionErgebnis`).
+   */
   it.each([
-    ["ok:false", async () => ({ ok: false as const, fehler: "interner Text" })],
-    ["Reject", async () => { throw new Error("Framework-Text"); }],
-  ])("behaelt bei Edit-%s den lokalen Wert und zeigt eine Warning", async (
+    [
+      "ok:false",
+      async () => ({ ok: false as const, fehler: "Soll-Position nicht gefunden." }),
+      "Soll-Position nicht gefunden.",
+    ],
+    [
+      "Reject",
+      async () => { throw new Error("Framework-Text"); },
+      "Soll-Position konnte nicht gespeichert werden.",
+    ],
+  ] as const)("behaelt bei Edit-%s den lokalen Wert und zeigt eine Warning", async (
     _fall,
     antwort,
+    text,
   ) => {
     mocks.setzen.mockImplementationOnce(antwort);
     await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
@@ -283,8 +301,8 @@ describe("SollEditor — auto-committende Sollmenge", () => {
     await warte();
 
     expect(query<HTMLInputElement>("input[aria-label='Soll für Mullbinde']").value).toBe("8");
-    expect(query(".ant-alert-warning").textContent)
-      .toContain("Soll-Position konnte nicht gespeichert werden.");
+    expect(query(".ant-alert-warning").textContent).toContain(text);
+    expect(document.body.textContent).not.toContain("Framework-Text");
   });
 });
 
@@ -309,9 +327,21 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
   });
 
   it.each([
-    ["ok:false", async () => ({ ok: false as const, fehler: "interner Text" })],
-    ["Reject", async () => { throw new Error("Framework-Text"); }],
-  ])("behaelt Add-Felder bei %s und zeigt den festen Fehler", async (_fall, antwort) => {
+    [
+      "ok:false",
+      async () => ({ ok: false as const, fehler: "Fahrzeug nicht gefunden." }),
+      "Fahrzeug nicht gefunden.",
+    ],
+    [
+      "Reject",
+      async () => { throw new Error("Framework-Text"); },
+      "Soll-Position konnte nicht gespeichert werden.",
+    ],
+  ] as const)("behaelt Add-Felder bei %s und zeigt den Fehler", async (
+    _fall,
+    antwort,
+    text,
+  ) => {
     mocks.setzen.mockImplementationOnce(antwort);
     await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
     await fill("input[aria-label='Fach']", "Fach X");
@@ -323,8 +353,8 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
     expect(query<HTMLInputElement>("input[aria-label='Fach']").value).toBe("Fach X");
     expect(query<HTMLInputElement>("input[aria-label='Soll']").value).toBe("6");
     expect(query(".ant-select").textContent).toContain("Pflaster");
-    expect(query(".ant-alert-warning").textContent)
-      .toContain("Soll-Position konnte nicht gespeichert werden.");
+    expect(query(".ant-alert-warning").textContent).toContain(text);
+    expect(document.body.textContent).not.toContain("Framework-Text");
   });
 
   it("wertet Entfernen und Wiederherstellen mit ihren echten IDs aus", async () => {
@@ -342,8 +372,8 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
       "Entfernen",
       "entfernen",
       "ok:false",
-      async () => ({ ok: false as const, fehler: "interner Text" }),
-      "Soll-Position konnte nicht entfernt werden.",
+      async () => ({ ok: false as const, fehler: "Soll-Position nicht gefunden." }),
+      "Soll-Position nicht gefunden.",
     ],
     [
       "Entfernen",
@@ -356,8 +386,8 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
       "Wiederherstellen",
       "wiederherstellen",
       "ok:false",
-      async () => ({ ok: false as const, fehler: "interner Text" }),
-      "Soll-Position konnte nicht wiederhergestellt werden.",
+      async () => ({ ok: false as const, fehler: "Soll-Position nicht gefunden." }),
+      "Soll-Position nicht gefunden.",
     ],
     [
       "Wiederherstellen",
@@ -366,7 +396,8 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
       async () => { throw new Error("Framework-Text"); },
       "Soll-Position konnte nicht wiederhergestellt werden.",
     ],
-  ] as const)("zeigt bei fehlgeschlagenem %s (%s) einen festen Warning-Text", async (
+    // Bei `ok:false` der Satz aus der Action, im Wurf die Modulkonstante.
+  ] as const)("zeigt bei fehlgeschlagenem %s (%s) den passenden Warning-Text", async (
     _name,
     aktion,
     _fall,

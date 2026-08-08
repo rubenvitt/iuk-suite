@@ -27,6 +27,20 @@ export type ActionErgebnis<T = undefined> =
   | { ok: false; fehler: string; feldFehler?: FeldFehler };
 
 /**
+ * Der gemeinsame Nenner fuer Aufrufstellen, die eine Action nur ausfuehren und
+ * ihren Fehlersatz anzeigen, den Nutzwert aber nicht brauchen.
+ *
+ * Warum nicht `ActionErgebnis<unknown>`: dessen Erfolgszweig verlangt ein
+ * `wert`-Feld, wertlose Actions passen also nicht hinein. Und warum nicht
+ * `{ ok: boolean }`: daraus laesst sich `fehler` nicht lesen, und genau das
+ * hat in mehreren Hilfsfunktionen dazu gefuehrt, dass der Satz aus der Action
+ * verworfen und durch eine Modulkonstante ersetzt wurde.
+ */
+export type ActionAusgang =
+  | { ok: true }
+  | { ok: false; fehler: string; feldFehler?: FeldFehler };
+
+/**
  * Uebersetzt einen `ZodError` in eine Feldkarte, damit die Insel den Text am
  * FELD anzeigen kann statt in einem Kasten daneben. Der erste Fehler je Feld
  * gewinnt: zwei Meldungen an einem Eingabefeld sind eine mehr, als jemand

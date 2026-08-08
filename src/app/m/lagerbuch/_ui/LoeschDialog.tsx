@@ -96,6 +96,12 @@ export function LoeschDialog({
     <Modal
       open={offen}
       title={`${typLabel} löschen`}
+      // antd portiert das Modal nach `document.body`. `.modul` ist der einzige
+      // Traeger der `--lb-*`-Variablen (VerwaltungsRahmen) — ohne diese Zeile
+      // sieht der Inhalt sie nicht, und der Ausfall ist still: eine Kante aus
+      // `border-inline-start: 3px solid var(--lb-…)` verschwindet einfach
+      // (Falle 2). Der ArtikelDrawer macht es aus demselben Grund.
+      rootClassName={styles.modul}
       onCancel={modalSchliessen}
       keyboard={!laeuft}
       closable={!laeuft}
@@ -196,13 +202,20 @@ function LoeschInhalt({
 
       {status && !status.loeschbar ? (
         <>
-          <Alert
+          {/*
+            Eigenes Markup statt antd-`Alert`: `.ant-alert.ant-alert-warning`
+            ist (0,2,0) und schlaegt die einklassige `.warnbox` bei Rahmen,
+            Polsterung und Rundung — still, die Regel steht richtig da und
+            greift nur nicht (Falle 5). `sauerstoff/[id]/page.tsx` traegt
+            `warnbox` aus demselben Grund auf einem `div`.
+          */}
+          <div
             data-rolle="fachwarnung"
             className={styles.warnbox}
-            type="warning"
-            showIcon={false}
-            title={status.grund}
-          />
+            style={SCHRIFT.text}
+          >
+            {status.grund}
+          </div>
           {status.kannDeaktivieren && onDeaktivieren ? (
             <Button
               data-rolle="deaktivieren"
@@ -233,10 +246,15 @@ function LoeschInhalt({
             aria-label="Namen zur Bestätigung eingeben"
             autoComplete="off"
           />
+          {/*
+            KEIN `type="primary"`: `colorPrimary === colorError === #c8000f`
+            (core/theme), ein roter Vollflaechen-Knopf ist damit pixelgleich mit
+            „Anlegen" (Falle 3). Die vier anderen danger-Knoepfe des Moduls sind
+            Umrisse — das ist die Hausform fuer die zerstoerende Aktion.
+          */}
           <Button
             data-rolle="loeschen"
             danger
-            type="primary"
             disabled={eingabe !== name || laeuft}
             loading={laeuft}
             onClick={() => {
