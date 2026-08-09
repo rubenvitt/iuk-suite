@@ -95,6 +95,24 @@ describe("JournalFilter", () => {
   });
 
   it("debounced 300 ms ab der letzten Eingabe und ist kein Throttle", async () => {
+    /**
+     * DIE UHR DARF HIER NICHT NEBENHER LAUFEN.
+     *
+     * Dieser Test prueft eine Grenze auf die Millisekunde: nach 299 ms darf
+     * nichts geschrieben sein, eine Millisekunde spaeter genau einmal. Das
+     * `beforeEach` dieser Datei stellt `shouldAdvanceTime: true` ein, damit die
+     * antd-Interaktionen der uebrigen Tests durchlaufen — dabei schreitet die
+     * Fake-Uhr ZUSAETZLICH in Echtzeit voran. In der vollen Suite, wo mehrere
+     * Worker um die CPU konkurrieren, reicht die reine Ausfuehrungszeit der
+     * Schritte aus, um die 300 ms vorzeitig zu erreichen: `replace` feuert
+     * schon bei der 199er-Zusicherung, und der Test faellt scheinbar grundlos.
+     * Isoliert laesst er sich nicht nachstellen — genau das macht ihn teuer.
+     *
+     * Hier zaehlt deshalb ausschliesslich die vorgeschobene Zeit. Dieselbe
+     * Form steht in `bz/[id]/page.test.tsx`, `sauerstoff/[id]/page.test.tsx`
+     * und `_ui/ArtikelDrawer.test.tsx`.
+     */
+    vi.useFakeTimers({ shouldAdvanceTime: false });
     await mount(<JournalFilter q="" typ="" von="" bis="" hinweise={[]} />);
 
     await fill("input[type='search']", "mu");
