@@ -68,22 +68,36 @@ test.describe("Excel-Export des Bestands", () => {
    * Artikel "Mullbinde" — der Zustand wird hier aus dem tatsaechlichen Seed
    * hergestellt, nicht aus der Alt-Spec kopiert (Global Constraint: keine
    * geborgte Vorbedingung).
+   *
+   * ⚠️ Review-Fix: `expect.poll(rowCount).toBeLessThan(vorher)` allein besteht
+   * AUCH im trefferlosen Fall (Testfall 3) — sinkende Zeilenzahl unterscheidet
+   * nicht "weniger" von "keine". Die tragende Zusicherung ist deshalb die
+   * exakte Exportmenge ueber `data-export-zeilen` (ArtikelTable.tsx:249,
+   * `gefiltert.map((z) => z.id).join(",")`), nicht die Zeilenzahl.
    */
   test("exportiert nach einer Suche weniger Zeilen", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
 
     const vorher = await page.getByRole("row").count();
+    expect(vorher, "der Seed muss mehrere Artikel liefern").toBeGreaterThan(2);
     await page.getByRole("searchbox").fill("Pflaster");
     await expect.poll(() => page.getByRole("row").count()).toBeLessThan(vorher);
 
+    const knopf = page.getByRole("button", { name: /Excel-Liste/ });
+    // Die tragende Zusicherung: "Pflaster" trifft ueber Name/Fach/Chargennummer
+    // GENAU den einen Artikel "E2E Geraete Pflaster" (e2e-geraete-artikel) —
+    // nicht bloss irgendeine kleinere Menge.
+    await expect(knopf).toHaveAttribute("data-export-zeilen", "e2e-geraete-artikel");
+
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("button", { name: /Excel-Liste/ }).click(),
+      knopf.click(),
     ]);
     expect(download.suggestedFilename()).toMatch(/^bestand-\d{4}-\d{2}-\d{2}\.xlsx$/);
-    // Die ZEILENZAHL in der Datei zu pruefen hiesse, hier eine xlsx zu parsen
+    // Die ZEILENZAHL IN DER DATEI zu pruefen hiesse, hier eine xlsx zu parsen
     // — das besitzt `_lib/bestandExport.test.ts`. Hier zaehlt: der Knopf
-    // bleibt nach dem Filtern bedienbar und liefert.
+    // bleibt nach dem Filtern bedienbar, exportiert die exakt richtige Menge
+    // (oben) und liefert tatsaechlich einen Download.
   });
 
   /**
@@ -102,8 +116,15 @@ test.describe("Excel-Export des Bestands", () => {
    * Artikel, `zeilen.length === 0`) unit-getestet. Diese E2E-Spec prueft
    * stattdessen den fuer den Browser einzig beobachtbaren Fall: eine
    * TREFFERleere Suche, bei der der Knopf laut Code bewusst aktiv bleibt.
+   *
+   * ⚠️ Review-Fix: der Testname behauptete "liefert nur die Kopfzeile", ohne
+   * das je zu pruefen — `_lib/bestandExport.test.ts` hat KEINEN Fall mit
+   * leerer Eingabe (nur ein bis drei Zeilen), der Fundort-Verweis ging also
+   * ins Leere. Behoben durch dieselbe `data-export-zeilen`-Zusicherung wie im
+   * vorigen Testfall: eine trefferlose Suche exportiert eine LEERE Menge,
+   * nicht irgendeine kleinere. Das IST jetzt die Kopfzeilen-Aussage.
    */
-  test("bleibt bei einem Suchtreffer von null bedienbar und liefert nur die Kopfzeile", async ({ page }) => {
+  test("bleibt bei einem Suchtreffer von null bedienbar und exportiert eine leere Menge", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
 
     await page.getByRole("searchbox").fill("gibtesnicht-zzz");
@@ -111,6 +132,7 @@ test.describe("Excel-Export des Bestands", () => {
 
     const knopf = page.getByRole("button", { name: /Excel-Liste/ });
     await expect(knopf).toBeEnabled();
+    await expect(knopf).toHaveAttribute("data-export-zeilen", "");
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),
