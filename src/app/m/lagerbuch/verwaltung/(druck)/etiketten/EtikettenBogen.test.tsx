@@ -233,6 +233,32 @@ describe("EtikettenBogen", () => {
     expect(seite).not.toContain("lucide-react");
   });
 
+  /**
+   * REVIEW-NACHTRAG (Befund „Punkt 3", 10.08.2026): der leere Zustand
+   * bekommt einen benannten Weg zurueck (Betreiberentscheidung, `page.tsx`).
+   * `page.tsx` hat keinen Verhaltenstest (async Server Component, mit dem
+   * etablierten `test-dom`-Harness nicht mountbar) — der Nachweis ist deshalb
+   * ein Quelltext-Scan, wie oben bei den Icon-/antd-Faellen.
+   *
+   * ⚠️ DIE FALLE, IN DIE EIN NAIVER SCAN HIER LIEFE: `page.tsx:53` traegt
+   * DENSELBEN Link (`href="/verwaltung"`) bereits im `EtikettenBasisFehlt`-
+   * Zweig — ein blosser `expect(seite).toContain('href="/verwaltung"')`
+   * waere VAKUUM-GRUEN, weil dieser zweite Zweig ihn schon lange traegt (seit
+   * `3776ac6`) und der Scan gar nicht sehen wuerde, ob der NEUE Link im
+   * LEER-Zweig fehlt. Deshalb wird die Bedingung UND der Link GEMEINSAM
+   * gepinnt: das Regex fasst den Codeblock zwischen der Leer-Bedingung
+   * (`daten.artikel.length === 0 && daten.tokens.length === 0 && (`) und der
+   * schliessenden `)}` und prueft NUR innerhalb dieses Blocks.
+   */
+  it("zeigt im leeren Zustand einen Weg zurueck", () => {
+    const seite = ohneKommentare(readFileSync(join(__dirname, "page.tsx"), "utf8"));
+    const block =
+      /daten\.artikel\.length === 0 && daten\.tokens\.length === 0 && \(([\s\S]*?)\)\}/.exec(seite);
+    expect(block, "kein Leer-Zweig mit der erwarteten Bedingung gefunden").not.toBeNull();
+    expect(block![1]).toContain('href="/verwaltung"');
+    expect(block![1]).toContain("lb-nichtDrucken");
+  });
+
   /** Falle 6: die Millimeter stehen NICHT in der Insel. */
   it("haelt keine Millimeterwerte in der Insel", () => {
     const quelle = readFileSync(join(__dirname, "EtikettenBogen.tsx"), "utf8");
