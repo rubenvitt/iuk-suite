@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReactNode } from "react";
 import { mount, unmount, query } from "@/app/m/qr/_lib/test-dom";
+import { LAGERBUCH_NAV } from "@/app/m/lagerbuch/_lib/nav";
 
 const redirect = vi.hoisted(() => vi.fn((p: string) => { throw new Error(`REDIRECT:${p}`); }));
 const notFound = vi.hoisted(() => vi.fn(() => { throw new Error("NOTFOUND"); }));
@@ -16,12 +17,19 @@ vi.mock("next/navigation", () => ({ redirect, notFound }));
  * async Client Component"), das ist eine RSC-Faehigkeit, keine Client-Faehigkeit.
  * Ersetzt wie in den uebrigen Consumes desselben Tests per `vi.mock` — Vorbild
  * `helfer/page.test.tsx:150-155` (`HelferRahmen`-Mock mit Marker-Div).
- * Der Quelltext-Scan unten prueft `nav={LAGERBUCH_NAV}` ohnehin statisch.
+ *
+ * Review-Nachtrag (Befund 2): der Mock verwarf `nav` bisher ungelesen, damit
+ * war die einzige Absicherung fuer `nav={LAGERBUCH_NAV}` im ganzen Repo ein
+ * roher Quelltext-Scan (bauform.test.ts deckt `g/` nicht ab). Der Mock
+ * schreibt das empfangene `nav` jetzt mit — Vorbild fuer den Sammel-Ansatz:
+ * `gesuchtMit` weiter unten bei den Lesepfad-Mocks (Befund 1).
  */
+const rahmenAufrufe = vi.hoisted(() => ({ nav: [] as unknown[] }));
 vi.mock("@/app/m/lagerbuch/_ui/VerwaltungsRahmen", () => ({
-  VerwaltungsRahmen: (p: { children: ReactNode }) => (
-    <div data-rolle="verwaltungsrahmen">{p.children}</div>
-  ),
+  VerwaltungsRahmen: (p: { nav: unknown; children: ReactNode }) => {
+    rahmenAufrufe.nav.push(p.nav);
+    return <div data-rolle="verwaltungsrahmen">{p.children}</div>;
+  },
 }));
 
 const viewer = vi.hoisted(() => ({ wert: null as { sub: string; groups: string[] } | null }));
@@ -36,11 +44,27 @@ vi.mock("@/app/m/lagerbuch/_lib/helferZugang", () => ({
 
 const treffer = vi.hoisted(() => ({ geraet: null as { id: string } | null,
                                     bz: null as { id: string } | null }));
+/**
+ * Review-Nachtrag (Befund 1): die Mocks ignorierten bisher ihr Argument — der
+ * A13.3-Quelltext-Scan beweist nur die TEXTORDNUNG von
+ * `normalisiereBarcode(` vor `geraetByBarcode(`/`bzGeraetByBarcode(`, nicht
+ * dass der NORMALISIERTE Wert tatsaechlich uebergeben wird. Diese Mutation
+ * blieb bisher unsichtbar: `geraetByBarcode(db, code)` statt
+ * `geraetByBarcode(db, gesucht)`. `gesuchtMit` sammelt jetzt den tatsaechlich
+ * uebergebenen Barcode je Lesepfad.
+ */
+const gesuchtMit = vi.hoisted(() => ({ geraet: [] as string[], bz: [] as string[] }));
 vi.mock("@/app/m/lagerbuch/_lib/lesepfade/geraete", () => ({
-  geraetByBarcode: () => treffer.geraet,
+  geraetByBarcode: (_db: unknown, barcode: string) => {
+    gesuchtMit.geraet.push(barcode);
+    return treffer.geraet;
+  },
 }));
 vi.mock("@/app/m/lagerbuch/_lib/lesepfade/bz", () => ({
-  bzGeraetByBarcode: () => treffer.bz,
+  bzGeraetByBarcode: (_db: unknown, barcode: string) => {
+    gesuchtMit.bz.push(barcode);
+    return treffer.bz;
+  },
 }));
 vi.mock("@/app/m/lagerbuch/_db/client", () => ({ getDb: () => ({}) }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
@@ -53,6 +77,8 @@ const params = (code: string) => Promise.resolve({ code });
 beforeEach(() => {
   viewer.wert = null; helfer.wert = null;
   treffer.geraet = null; treffer.bz = null;
+  gesuchtMit.geraet = []; gesuchtMit.bz = [];
+  rahmenAufrufe.nav = [];
   redirect.mockClear(); notFound.mockClear();
 });
 afterEach(() => unmount());
@@ -167,6 +193,35 @@ describe("g/[code] — der eine gerenderte Zustand (§11.3, 8-C2)", () => {
     expect(bereinigt.search(/\bgeraetByBarcode\s*\(/)).toBeGreaterThan(i);
     expect(bereinigt.search(/\bbzGeraetByBarcode\s*\(/)).toBeGreaterThan(i);
   });
+
+  /**
+   * REVIEW-NACHTRAG, BEFUND 1: der Quelltext-Scan oben beweist nur die
+   * TEXTORDNUNG, nicht den tatsaechlich uebergebenen WERT. Diese Mutation blieb
+   * bisher gruen: `geraetByBarcode(db, code)` statt `geraetByBarcode(db,
+   * gesucht)` — Falle 29 waere damit wieder offen, unsichtbar fuer den
+   * Quelltext-Scan. Ein Code MIT Leerzeichen zeigt den Unterschied: nur der
+   * NORMALISIERTE Wert (getrimmt) darf bei beiden Lesepfaden ankommen. Beide
+   * Pfade werden erreicht, weil `treffer.geraet`/`treffer.bz` im `beforeEach`
+   * auf `null` stehen (Miss → faellt bis zum gestalteten Zustand durch).
+   */
+  it("sucht in BEIDEN Lesepfaden mit dem NORMALISIERTEN Wert, nicht dem rohen", async () => {
+    await mount(await GeraetDeepLink({ params: params(" 4012345678901 ") }));
+    expect(gesuchtMit.geraet).toEqual(["4012345678901"]);
+    expect(gesuchtMit.bz).toEqual(["4012345678901"]);
+  });
+
+  /**
+   * REVIEW-NACHTRAG, BEFUND 2 (Laufzeit-Haelfte): der Rahmen-Mock verwarf `nav`
+   * bisher ungelesen — vertragsseitig fing der Quelltext-Scan es ab, aber
+   * `bauform.test.ts` deckt `g/` nicht ab, der Quelltext-Scan war also die
+   * EINZIGE Absicherung im ganzen Repo. Diese Zusicherung prueft zusaetzlich
+   * gegen den echten Import: dieselbe Referenz, alle 15 Eintraege.
+   */
+  it("reicht LAGERBUCH_NAV unveraendert an den Rahmen weiter", async () => {
+    await mount(await GeraetDeepLink({ params: params("4012345678901") }));
+    expect(rahmenAufrufe.nav.at(-1)).toBe(LAGERBUCH_NAV);
+    expect(LAGERBUCH_NAV).toHaveLength(15);
+  });
 });
 
 /**
@@ -244,8 +299,15 @@ describe("g/[code] — Bauform (§3.8.2, §11.6)", () => {
    * `bauform.test.ts` nicht an (Ruling A8: die Datei gehoert T173).
    */
 
+  /**
+   * REVIEW-NACHTRAG, MINOR 1: schnitt bisher auf dem Rohtext — ein Kommentar
+   * ODER ein Zeichenkettenliteral mit dem Aufruftext haette den Nachweis
+   * ebenso erfuellt, ohne dass `requireLagerbuchHost` je liefe. Jetzt ueber
+   * `ohneKommentareUndZeichenketten` geschnitten (positive Zusicherung, A13).
+   */
   it("ruft requireLagerbuchHost als erste Anweisung", () => {
-    const rumpf = quelle.slice(quelle.indexOf("export default"));
+    const bereinigt = ohneKommentareUndZeichenketten(quelle);
+    const rumpf = bereinigt.slice(bereinigt.indexOf("export default"));
     const erste = rumpf.split("\n").find((z) => /\w/.test(z) && !z.includes("export default"));
     expect(erste).toContain("requireLagerbuchHost");
   });
@@ -298,9 +360,18 @@ describe("g/[code] — Bauform (§3.8.2, §11.6)", () => {
    *
    * ⚠️ Teil 5s Abschlusstabelle sagt „ohne nav"; sie irrt. Aufgeloest in
    * Plan-Teil 6, T164.
+   *
+   * REVIEW-NACHTRAG, BEFUND 2 (Quelltext-Haelfte) + MINOR 2: dieser Scan ist
+   * der EINZIGE Ort im ganzen Repo, der `nav` fuer diese Datei sichert —
+   * `bauform.test.ts` deckt `g/` nicht ab. Jetzt ueber
+   * `ohneKommentareUndZeichenketten` gelesen (positive Zusicherung, A13) statt
+   * roh: ein geloeschtes `nav` mit verbliebenem Erklaerkommentar ginge sonst
+   * gruen durch. Die vorherige `toContain("VerwaltungsRahmen")`-Zeile entfaellt
+   * — sie ist von der Importzeile trivial erfuellt und traegt nichts bei, was
+   * nicht schon die Laufzeit-Zusicherung "reicht LAGERBUCH_NAV unveraendert an
+   * den Rahmen weiter" (oben) abdeckt.
    */
   it("mountet den VerwaltungsRahmen MIT der vollstaendigen Navigation", () => {
-    expect(quelle).toContain("VerwaltungsRahmen");
-    expect(quelle).toContain("nav={LAGERBUCH_NAV}");
+    expect(ohneKommentareUndZeichenketten(quelle)).toContain("nav={LAGERBUCH_NAV}");
   });
 });

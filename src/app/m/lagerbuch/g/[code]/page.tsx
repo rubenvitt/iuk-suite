@@ -9,6 +9,7 @@ import { geraetByBarcode } from "@/app/m/lagerbuch/_lib/lesepfade/geraete";
 import { bzGeraetByBarcode } from "@/app/m/lagerbuch/_lib/lesepfade/bz";
 import { getDb } from "@/app/m/lagerbuch/_db/client";
 import { VerwaltungsRahmen } from "@/app/m/lagerbuch/_ui/VerwaltungsRahmen";
+import { SeitenKopf } from "@/app/m/lagerbuch/_ui/SeitenKopf";
 import { LAGERBUCH_NAV } from "@/app/m/lagerbuch/_lib/nav";
 import {
   BARCODE_TITEL, BARCODE_TEXT, BARCODE_NOCHMAL, BARCODE_LISTE,
@@ -89,8 +90,11 @@ export default async function GeraetDeepLink({ params }: Props) {
    */
   return (
     <VerwaltungsRahmen nav={LAGERBUCH_NAV}>
-      <h1>{BARCODE_TITEL}</h1>
-      <p>{BARCODE_TEXT}</p>
+      {/* Review-Nachtrag T164: nacktes <h1>/<p> ersetzt durch den etablierten
+         Seitenkopf — jede andere Verwaltungsseite unter demselben Rahmen setzt
+         ihre Ueberschrift so (_ui/SeitenKopf.tsx), sonst faellt die Typografie
+         auf Default zurueck und weicht sichtbar von zwanzig anderen Seiten ab. */}
+      <SeitenKopf titel={BARCODE_TITEL} beschreibung={BARCODE_TEXT} />
       <p>
         Gescannt:{" "}
         <code data-testid="lb-barcode-code">{code}</code>
