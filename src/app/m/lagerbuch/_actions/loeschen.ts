@@ -25,6 +25,7 @@ import { parseCheckErgebnis } from "../_lib/checkErgebnis";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { ELEMENT_ARTEN, type ElementArt, type Loeschbarkeit } from "../_lib/loeschen";
 import { loescheVerfallFuer } from "../_lib/schreibpfade/lagerortVerfall";
+import { TOKEN_LOESCHGRUND } from "../_lib/tokenForm";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 const ArtSchema = z.enum(ELEMENT_ARTEN);
@@ -123,24 +124,34 @@ function pruefeFahrzeug(db: Leser, id: string): Loeschbarkeit {
   };
 }
 
-function pruefeToken(db: Leser, id: string): Loeschbarkeit {
-  const zeile = db.select({ code: tokens.code })
-    .from(tokens)
-    .where(eq(tokens.id, id))
-    .get();
-  if (!zeile) return { loeschbar: true };
-
-  const buch = anzahl(db, buchungen, and(
-    eq(buchungen.quelleTyp, "token"),
-    eq(buchungen.quelleId, zeile.code),
-  )!);
-  if (buch === 0) return { loeschbar: true };
-  return {
-    loeschbar: false,
-    grund: verknuepftGrund([plural(buch, "Buchung", "Buchungen")]),
-    kannDeaktivieren: true,
-  };
-}
+/**
+ * ENTSCHEIDUNG 8-F (§8.3): der Code-Namensraum wird gegen Wiederverwendung
+ * gesperrt. Ein Zugangs-Code kann nur noch gesperrt werden; sein Code bleibt
+ * fuer immer belegt.
+ *
+ * WAS AN DIE STELLE VON `pruefeToken` TRITT: eine Konstante. Die BEDINGTE
+ * Pruefung („loeschbar, solange keine Buchung mit `quelleTyp="token"` auf den
+ * `code` zeigt") entfaellt ersatzlos — mit ihr faellt der einzige Weg, auf dem
+ * ein Code wieder frei werden konnte: nie eingeloest ⇒ keine Buchung ⇒
+ * loeschbar ⇒ ein spaeter ausgestelltes Kaertchen erbt den Code, und weil
+ * `tokens.code` zugleich der Anzeigeschluessel im Journal ist (1:1-Pflicht 6),
+ * erschienen historische Zeilen danach unter dem NEUEN Label.
+ *
+ * `last_used_at` ist danach KEIN Loeschbarkeitsschalter mehr, sondern nur noch
+ * die Auskunft „nie benutzt" auf der Code-Tabelle. Beim Import wandert es
+ * weiterhin vollstaendig mit (§4.12, 1:1-Pflicht 5).
+ *
+ * OHNE DATENBANKZUGRIFF: die Ablehnung haengt an keiner Zeile und an keinem
+ * Zaehler mehr. Es gibt keinen Zustand, in dem sie ausbleibt.
+ *
+ * ⚠️ 8-F ist eine Ausnahme fuer TOKENS, keine neue Regel fuer das Modul: der
+ * Hard-Delete der uebrigen fuenf Objektarten bleibt (§5.21).
+ */
+const TOKEN_UNLOESCHBAR: Loeschbarkeit = {
+  loeschbar: false,
+  grund: TOKEN_LOESCHGRUND,
+  kannDeaktivieren: true,
+};
 
 function pruefeBzGeraet(db: Leser, id: string): Loeschbarkeit {
   const kontrollen = anzahl(db, bzKontrollen, eq(bzKontrollen.geraetId, id));
@@ -184,7 +195,7 @@ function pruefe(db: Leser, art: ElementArt, id: string): Loeschbarkeit {
   switch (art) {
     case "artikel": return pruefeArtikel(db, id);
     case "fahrzeug": return pruefeFahrzeug(db, id);
-    case "token": return pruefeToken(db, id);
+    case "token": return TOKEN_UNLOESCHBAR;
     case "bzGeraet": return pruefeBzGeraet(db, id);
     case "o2Flasche": return pruefeO2Flasche(db, id);
     case "geraet": return pruefeGeraet(db, id);
@@ -243,9 +254,13 @@ export async function loescheElement(
             eq(lagerorte.typ, "fahrzeug"),
           )!).run();
           break;
-        case "token":
-          tx.delete(tokens).where(eq(tokens.id, i)).run();
-          break;
+        // 8-F: `token` erreicht diesen switch nie — `pruefe()` steigt zwei
+        // Zeilen weiter oben mit `loeschbar: false` aus. Der Zweig fehlt
+        // deshalb ABSICHTLICH; ein wiederhergestelltes `case "token"` waere die
+        // Ruecknahme von 8-F. TypeScript verlangt hier keine Vollstaendigkeit
+        // (der Block laeuft danach in `return aktuell;`), und ein `default`
+        // mit `throw` waere schaedlich: das umgebende `catch` verschluckte ihn
+        // und machte aus der benannten Ablehnung den festen Sammelfehler.
         case "bzGeraet":
           tx.delete(bzGeraete).where(eq(bzGeraete.id, i)).run();
           break;

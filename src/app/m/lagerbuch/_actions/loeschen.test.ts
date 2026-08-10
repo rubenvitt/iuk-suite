@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
+import { readFileSync } from "node:fs";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import {
   artikel,
@@ -21,6 +22,7 @@ import {
 } from "../_db/schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { ELEMENT_ARTEN, type ElementArt, type Loeschbarkeit } from "../_lib/loeschen";
+import { TOKEN_LOESCHGRUND } from "../_lib/tokenForm";
 
 const { revalidiert, adminRiegel } = vi.hoisted(() => ({
   revalidiert: [] as string[],
@@ -47,6 +49,7 @@ const {
   deaktiviereElement,
 } = loeschActions;
 
+const QUELLE = "src/app/m/lagerbuch/_actions/loeschen.ts";
 const JETZT = new Date("2026-06-15T10:00:00Z");
 const VIEWER = {
   sub: "u-admin",
@@ -470,7 +473,22 @@ describe("pruefeLoeschbar — Fahrzeug", () => {
 });
 
 describe("pruefeLoeschbar — Historien der uebrigen Arten", () => {
-  it("blockiert einen benutzten Zugangs-Code anhand seiner Token-Buchungen", async () => {
+  /**
+   * ⚠️ BIS T160 stand hier „blockiert einen benutzten Zugangs-Code anhand
+   * seiner Token-Buchungen" mit der Erwartung „1 Buchung". Das Praedikat war:
+   * loeschbar, solange NULL Buchungen mit `quelleTyp="token"` auf den `code`
+   * zeigen (`pruefeToken`, bis T160 in `loeschen.ts:126-143`).
+   *
+   * ENTSCHEIDUNG 8-F hat genau dieses Praedikat abgeschafft, weil es der
+   * einzige Weg war, auf dem ein Code wieder frei werden konnte: nie eingeloest
+   * ⇒ keine Buchung ⇒ loeschbar ⇒ Code frei ⇒ ein spaeter ausgestelltes
+   * Kaertchen erbt ihn, und historische Journalzeilen erscheinen unter dem
+   * NEUEN Label (`tokens.code` ist zugleich der Anzeigeschluessel, 1:1-Pflicht 6).
+   *
+   * Die Buchungshistorie bleibt der GRUND, aber sie ist nicht mehr die
+   * BEDINGUNG — die Ablehnung ist jetzt unbedingt.
+   */
+  it("blockiert einen Zugangs-Code unabhaengig von seinen Buchungen", async () => {
     const tokenId = tokenAnlegen({ code: "333-333" });
     buchungAnlegen({
       artikelId: artikelAnlegen(),
@@ -478,7 +496,7 @@ describe("pruefeLoeschbar — Historien der uebrigen Arten", () => {
       quelleId: "333-333",
     });
 
-    erwarteBlockiert(await pruefeLoeschbar("token", tokenId, t.db), "1 Buchung");
+    erwarteBlockiert(await pruefeLoeschbar("token", tokenId, t.db), "sperren");
   });
 
   it("blockiert ein BZ-Geraet mit Kontrolle", async () => {
@@ -547,8 +565,22 @@ const REVALIDIERUNG: { art: ElementArt; pfade: string[] }[] = [
   { art: "geraet", pfade: ["/m/lagerbuch/verwaltung/geraete"] },
 ];
 
-describe("loescheElement — sechs Arten und eine Revalidierungstabelle", () => {
-  it.each(REVALIDIERUNG)("loescht $art hart und revalidiert exakt dessen Pfade", async ({ art, pfade }) => {
+/**
+ * ENTSCHEIDUNG 8-F: `token` faellt aus der HART-Tabelle heraus — und nur dort.
+ * `deaktiviereElement` behaelt alle sechs Arten (der Sperrweg ist der Ausgang,
+ * den 8-F stehen laesst), deshalb wird die Tabelle gefiltert statt gespalten:
+ * eine zweite Abschrift der fuenf Pfadlisten ginge beim naechsten Pfadwechsel
+ * still auseinander.
+ */
+const HART_LOESCHBAR = REVALIDIERUNG.filter(({ art }) => art !== "token");
+
+describe("loescheElement — fuenf hart loeschbare Arten und eine Revalidierungstabelle", () => {
+  it("laesst genau eine der sechs Arten aus dem Hard-Delete heraus", () => {
+    expect(HART_LOESCHBAR).toHaveLength(5);
+    expect(HART_LOESCHBAR.map(({ art }) => art)).not.toContain("token");
+  });
+
+  it.each(HART_LOESCHBAR)("loescht $art hart und revalidiert exakt dessen Pfade", async ({ art, pfade }) => {
     const id = elementAnlegen(art);
 
     expect(await loescheElement(art, id, t.db)).toEqual({ ok: true });
@@ -689,6 +721,11 @@ describe("Fehlpfade revalidieren nie", () => {
       },
     },
     {
+      // Seit 8-F traegt dieser Fall die Buchung nur noch als Kulisse: die
+      // Ablehnung stuende auch ohne sie. Der Fall bleibt, weil er die
+      // Kombination „Blocker vorhanden + kein Schreiben + keine Revalidierung"
+      // in derselben Form wie die beiden anderen Arten bezeugt; die eigentliche
+      // Aussage zu 8-F steht weiter unten in ihrem eigenen Block.
       name: "Token-Historie",
       art: "token" as const,
       anlegen: () => {
@@ -707,6 +744,112 @@ describe("Fehlpfade revalidieren nie", () => {
     expect((await loescheElement(art, id, t.db)).ok).toBe(false);
     expect(elementVorhanden(art, id)).toBe(true);
     expect(revalidiert).toEqual([]);
+  });
+});
+
+/**
+ * ENTSCHEIDUNG 8-F (§8.3) — DER HARD-DELETE VON TOKENS FAELLT.
+ *
+ * Der Befund: bis T160 war ein Zugangs-Code loeschbar, solange NULL Buchungen
+ * mit `quelleTyp="token"` auf seinen `code` zeigten. Zusammen mit einer
+ * Kollisionspruefung gegen die VORHANDENEN Zeilen konnte ein gedrucktes, nie
+ * eingeloestes Kaertchen seinen Code an ein spaeter ausgestelltes verlieren —
+ * und weil `tokens.code` zugleich der Anzeigeschluessel im Journal ist
+ * (1:1-Pflicht 6), erschienen historische Zeilen danach unter dem NEUEN Label.
+ *
+ * 8-F ist eine Ausnahme fuer TOKENS, keine neue Regel: der Hard-Delete der
+ * uebrigen fuenf Objektarten bleibt (§5.21), und `last_used_at` wandert beim
+ * Import weiterhin vollstaendig mit (§4.12, 1:1-Pflicht 5). Es ist danach kein
+ * Loeschbarkeitsschalter mehr, sondern nur noch ein Anzeigewert.
+ */
+describe("8-F: Zugangs-Codes werden gesperrt, nicht geloescht", () => {
+  it("verweigert das Loeschen auch bei nie benutztem Code", async () => {
+    const id = tokenAnlegen({ code: "555-555" });
+
+    const status = wert<Loeschbarkeit>(await pruefeLoeschbar("token", id, t.db));
+
+    expect(status).toMatchObject({ loeschbar: false, kannDeaktivieren: true });
+    if (!status.loeschbar) expect(status.grund).toBe(TOKEN_LOESCHGRUND);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("verweigert es auch bei bereits benutztem Code", async () => {
+    const id = tokenAnlegen({ code: "556-556", lastUsedAt: JETZT });
+
+    erwarteBlockiert(await pruefeLoeschbar("token", id, t.db), "sperren");
+  });
+
+  /**
+   * §11.7: Der Dialog zeigt `grund` woertlich an. Ein Grund ohne benannte
+   * Alternative liesse die Person vor einer Sackgasse stehen. Der Text selbst
+   * wird in `_lib/tokenForm.test.ts` geprueft; hier zaehlt, dass die Action
+   * genau ihn liefert und keinen zweiten, danebenlaufenden Satz.
+   */
+  it("nennt das Sperren als Weg — im Text, nicht nur als Schalter", () => {
+    expect(TOKEN_LOESCHGRUND).toContain("sperren");
+  });
+
+  /**
+   * DIE ZEILE, DIE DEN NAMENSRAUM SCHUETZT: `loescheElement` darf die Zeile
+   * unter KEINEN Umstaenden entfernen — auch nicht, wenn jemand spaeter
+   * `pruefe()` „grosszuegiger" macht.
+   *
+   * ⚠️ `loescheElement` WIRFT NIE. Sie faengt alles und liefert
+   * `{ ok: false, fehler }` zurueck; ein `rejects.toThrow()` waere hier
+   * falsch-gruen aus dem falschen Grund. Der Global Constraint lautet: Fehler
+   * kommen als Rueckgabewert an, nie ueber `e.message` — in Produktion ist
+   * `e.message` der englische Satz ueber eine „server-side exception".
+   */
+  it("entfernt die Zeile auch dann nicht, wenn loescheElement direkt gerufen wird", async () => {
+    const id = tokenAnlegen({ code: "557-557" });
+
+    const ergebnis = await loescheElement("token", id, t.db);
+
+    expect(ergebnis.ok).toBe(false);
+    expect(fehlerVon(ergebnis).fehler).toBe(TOKEN_LOESCHGRUND);
+    expect(fehlerVon(ergebnis).fehler, "der Weg muss im Fehlertext stehen")
+      .toContain("sperren");
+    expect(t.db.select().from(tokens).where(eq(tokens.id, id)).get()).toBeDefined();
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * Der Zweig fehlt nicht nur zur Laufzeit, sondern im Quelltext. Ein
+   * wiederhergestelltes `case "token"` in `loescheElement` waere die Ruecknahme
+   * von 8-F, und `pruefe()` ist die einzige Schranke davor.
+   */
+  it("traegt in loeschen.ts keine Zeile mehr, die eine Token-Zeile entfernt", () => {
+    const quelle = readFileSync(QUELLE, "utf8");
+
+    expect(quelle, "8-F: keine Loeschzeile auf der Token-Tabelle")
+      .not.toContain("delete(tokens)");
+    expect(quelle, "der Sperrweg bleibt")
+      .toContain("update(tokens)");
+  });
+
+  /** Der zweite Ausgang bleibt und wirkt: `aktiv = false`. */
+  it("sperrt ueber deaktiviereElement", async () => {
+    const id = tokenAnlegen({ code: "558-558" });
+
+    expect(await deaktiviereElement("token", id, t.db)).toEqual({ ok: true });
+    expect(t.db.select().from(tokens).where(eq(tokens.id, id)).get()?.aktiv)
+      .toBe(false);
+    expect(revalidiert).toEqual(["/m/lagerbuch/verwaltung/tokens"]);
+  });
+
+  /**
+   * §5.21: 8-F ist eine Ausnahme fuer Tokens. Die Gegenrichtung wird
+   * mitgeprueft, damit niemand die Regel verallgemeinert.
+   */
+  it("laesst den Hard-Delete der uebrigen Arten unberuehrt", async () => {
+    const id = artikelAnlegen("art-frisch");
+
+    expect(await pruefeLoeschbar("artikel", id, t.db)).toEqual({
+      ok: true,
+      wert: { loeschbar: true },
+    });
+    expect(await loescheElement("artikel", id, t.db)).toEqual({ ok: true });
+    expect(t.db.select().from(artikel).where(eq(artikel.id, id)).get()).toBeUndefined();
   });
 });
 

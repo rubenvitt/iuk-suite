@@ -7,6 +7,11 @@ import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { artikel, lagerorte, newId, tokens } from "../_db/schema";
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
+import {
+  TOKEN_ALPHABET,
+  TOKEN_ZIEHUNGEN,
+  TOKEN_ZIFFERN,
+} from "../_lib/tokenForm";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 const LISTENPFAD = "/m/lagerbuch/verwaltung/tokens";
@@ -18,17 +23,28 @@ const FAHRZEUG_FEHLER = "Fahrzeug nicht gefunden oder inaktiv.";
 const ARTIKEL_FEHLER = "Artikel nicht gefunden oder inaktiv.";
 
 /**
- * T160 erweitert diese Datei spaeter um benannte Konstanten und entfernt den
- * Token-Hard-Delete an anderer Stelle. In T126 bleiben alle Werte intern: Eine
- * `"use server"`-Datei exportiert ausschliesslich Actions.
+ * §8.3 — DER TOKEN-VERTRAG. Alphabet, Laenge und Ziehungszahl stehen seit T160
+ * benannt in `_lib/tokenForm.ts` und werden hier nur noch BENUTZT. Sie stehen
+ * nicht in dieser Datei, weil eine `"use server"`-Datei ausschliesslich Actions
+ * exportiert (T126 hat das so uebergeben, `_actions/guards.test.ts:265-267`
+ * meldet jede andere Form).
  *
  * Der Bindestrich ist Teil des gespeicherten Werts. `normalisiereCode` fuegt
  * ihn beim Einloesen derselben sechs Ziffern wieder ein.
  */
-const sechsZiffern = customAlphabet("0123456789", 6);
+const sechsZiffern = customAlphabet(TOKEN_ALPHABET, TOKEN_ZIFFERN);
 
+/**
+ * ENTSCHEIDUNG 8-F: Die Kollisionspruefung laeuft gegen ALLE vorhandenen
+ * Zeilen, ohne `aktiv`-Bedingung — und das war schon immer so. Loechrig war sie
+ * nur, weil Zeilen per Hard-Delete verschwinden konnten. Mit dem Wegfall des
+ * Token-Hard-Deletes (`_actions/loeschen.ts`) schliesst sich die Luecke OHNE
+ * eine Zeile hier: kein neuer Wurf, keine geaenderte Signatur, derselbe
+ * Nullpfad. Eine `verbrauchte_codes`-Tabelle (Option b der Analyse) waere
+ * teurer ohne Zusatznutzen.
+ */
 function erzeugeFreienCode(db: DB): string | null {
-  for (let versuch = 0; versuch < 20; versuch++) {
+  for (let versuch = 0; versuch < TOKEN_ZIEHUNGEN; versuch++) {
     const ziffern = sechsZiffern();
     const code = `${ziffern.slice(0, 3)}-${ziffern.slice(3)}`;
     const belegt = db.select({ id: tokens.id })
