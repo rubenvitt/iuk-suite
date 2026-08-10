@@ -254,13 +254,15 @@ export async function loescheElement(
             eq(lagerorte.typ, "fahrzeug"),
           )!).run();
           break;
-        // 8-F: `token` erreicht diesen switch nie — `pruefe()` steigt zwei
-        // Zeilen weiter oben mit `loeschbar: false` aus. Der Zweig fehlt
-        // deshalb ABSICHTLICH; ein wiederhergestelltes `case "token"` waere die
-        // Ruecknahme von 8-F. TypeScript verlangt hier keine Vollstaendigkeit
-        // (der Block laeuft danach in `return aktuell;`), und ein `default`
-        // mit `throw` waere schaedlich: das umgebende `catch` verschluckte ihn
-        // und machte aus der benannten Ablehnung den festen Sammelfehler.
+        // ——— HIER STAND `case "token"`, UND HIER FEHLT ER ABSICHTLICH ———
+        // 8-F: `token` erreicht diesen switch nie — `pruefe()` steigt weiter
+        // oben mit `loeschbar: false` aus. Ein wiederhergestelltes
+        // `case "token"` waere die Ruecknahme von 8-F. TypeScript verlangt hier
+        // keine Vollstaendigkeit (der Block laeuft danach in `return aktuell;`),
+        // und ein `default` mit `throw` waere schaedlich: das umgebende `catch`
+        // verschluckte ihn und machte aus der benannten Ablehnung den festen
+        // Sammelfehler. Der folgende Zweig gehoert NICHT zu diesem Absatz.
+
         case "bzGeraet":
           tx.delete(bzGeraete).where(eq(bzGeraete.id, i)).run();
           break;
