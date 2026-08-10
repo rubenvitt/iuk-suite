@@ -122,8 +122,26 @@
 }
 
 @media print {
+  /* RULING A14 (entscheidungen.md, 10.08.2026) — `!important` ist hier PFLICHT,
+   * nicht Kosmetik.
+   *
+   * FUND IN T167 (`e2e/lagerbuch-etiketten.spec.ts`, echter Abruf mit
+   * `page.emulateMedia({ media: "print" })`): die Bedienleiste in
+   * `EtikettenBogen.tsx:80` traegt `style={{ display: "flex", … }}` auf
+   * DEMSELBEN Element wie `lb-nichtDrucken`. Ein Inline-Style hat hoehere
+   * Praezedenz als JEDE Selektorregel dieses externen Stylesheets, unabhaengig
+   * vom Medienkontext — ohne `!important` haette diese Regel den Inline-Style
+   * NIE erreicht, und „Alle"/„Keine"/„Drucken (n)" waeren mit auf das
+   * Etikettenmaterial gedruckt worden. Kein Test und kein `pnpm build` haette
+   * das vor dem Drucker gezeigt.
+   *
+   * Der Inline-Style in EtikettenBogen.tsx BLEIBT: er ist Bildschirm-Layout
+   * und ab hier harmlos. Diese Regel hat genau eine Aufgabe und keinen
+   * Gegenspieler, den sie ungewollt ueberstimmen koennte — deshalb ist ein
+   * Druck-Stylesheet der kanonische, legitime Ort fuer `!important`.
+   */
   .lb-nichtDrucken {
-    display: none;
+    display: none !important;
   }
 
   body {

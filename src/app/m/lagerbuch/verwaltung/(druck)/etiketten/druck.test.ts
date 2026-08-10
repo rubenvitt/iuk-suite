@@ -114,10 +114,21 @@ describe("druck.css — die Regel steht da (§8.5, §6.10.2)", () => {
     expect(ohneKommentare(css())).toMatch(/@media\s+print\s*\{/);
   });
 
-  it("versteckt .lb-nichtDrucken im Druck", () => {
+  /**
+   * RULING A14 (entscheidungen.md, 10.08.2026), Fund aus T167: `!important` ist
+   * hier PFLICHT, nicht optional. `EtikettenBogen.tsx:80` traegt ein Inline-
+   * `style={{ display: "flex", … }}` auf demselben Element wie
+   * `lb-nichtDrucken` — ein Inline-Style hat hoehere Praezedenz als JEDE
+   * Selektorregel dieses externen Stylesheets, unabhaengig vom Medienkontext.
+   * Ohne `!important` erreicht diese Regel den Inline-Style nie, und die
+   * Bedienleiste ("Alle"/"Keine"/"Drucken (n)") wuerde mitgedruckt — genau die
+   * Wirkung, die nur ein echter Abruf mit `emulateMedia({media:"print"})`
+   * zeigt (T167), nie ein Quelltext-Scan und nie `pnpm build`.
+   */
+  it("versteckt .lb-nichtDrucken im Druck — mit !important gegen Inline-Styles", () => {
     const block = /@media\s+print\s*\{([\s\S]*)\n\}/.exec(ohneKommentare(css()));
     expect(block, "kein @media print-Block").not.toBeNull();
-    expect(block![1]).toMatch(/\.lb-nichtDrucken\s*\{[^}]*display:\s*none/);
+    expect(block![1]).toMatch(/\.lb-nichtDrucken\s*\{[^}]*display:\s*none\s*!important/);
   });
 
   /**
