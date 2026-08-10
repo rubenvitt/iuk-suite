@@ -33,8 +33,8 @@ import { DruckRahmen } from "../../_ui/DruckRahmen";
  * (src/app/m/files/_ui/zugangslinks.module.css:11-16). feedback hat es repariert
  * (m/feedback/(print)/layout.tsx); lagerbuch uebernimmt genau dieses Muster.
  *
- * NIE der Suite-Admin-Status und NIE eine zweite Modul-Admin-Pruefung: der
- * Suite-Admin bekommt keine Lagerbuch-Rechte (Betreiber-Entscheidung 3, §3.6.1).
+ * NIE `session.user.isAdmin`, nie `isModuleAdmin`: der Suite-Admin bekommt keine
+ * Lagerbuch-Rechte (Betreiber-Entscheidung 3, §3.6.1).
  *
  * Die EINZIGE Zusicherung, die diese Kopplung prueft, ist ein ABRUF:
  * /verwaltung/etiketten ohne Lagerbuch-Gruppe muss dieselbe Antwort geben wie

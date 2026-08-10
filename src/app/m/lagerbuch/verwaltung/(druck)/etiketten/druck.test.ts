@@ -33,6 +33,24 @@ import {
  *      `not.toMatch(/@media/)`-Scan haette dem widersprochen — zwei Tests desselben Repos,
  *      die sich gegenseitig rot faerben. Die korrekte enge Fassung (nur `@media (max-width`
  *      ist verboten) existiert bereits: `_lib/bauform.test.ts:651-656`.
+ *
+ * VIERTER FUND, IM REVIEW (Koordinator, 10.08.2026, nach dem ersten Commit dieser Datei):
+ * das Negativpaar `not.toContain("isModuleAdmin")` / `not.toContain("user.isAdmin")` im
+ * Riegel-Block unten war ein STRIKT SCHWAECHERES DUPLIKAT von `_lib/bauform.test.ts:181`
+ * (kein `isAdmin`) und `:201-203` (keiner der vier Suite-Admin-Riegel, darunter
+ * `isModuleAdmin`) — beide halten die Aussage MODULWEIT und ueber `ohneKommentare(...)`,
+ * decken also auch diese Datei ab. Eine Kopie hier koennte nie ausloesen, ohne dass dort
+ * schon rot waere (Praezedenzfall fuer das Streichen einer solchen Kopie: T87,
+ * `bauform.test.ts:304-308`, „Regel 4, Abweichung vom abgedruckten Testkoerper"). Entfaellt
+ * hier ERSATZLOS. Fundort: `_lib/bauform.test.ts:181, :201-203`.
+ *
+ * Derselbe Review-Durchgang deckte auf, dass der POSITIVE Teil desselben Blocks blind war:
+ * `toContain("requireLagerbuchAdmin")` erfuellt schon ein blosser Import ODER ein
+ * Kommentar, der den Namen woertlich nennt (`(arbeit)/layout.tsx:12` tut genau das) — die
+ * Mutation „Aufruf entfernen, Import/Kommentar stehen lassen" bliebe unbemerkt. Repariert
+ * nach demselben Muster wie `_lib/bauform.test.ts:281,311` („gemessen: mit
+ * `/istLagerbuchAdmin/` gruen, mit `/istLagerbuchAdmin\s*\(/` rot"): `ohneKommentare(...)`
+ * UND ein Muster mit `(` am Ende. Siehe die Gegenprobe-Ergaenzung in `task-161-report.md`.
  */
 
 const MODUL = join(__dirname, "..", "..", "..");          // src/app/m/lagerbuch
@@ -316,13 +334,26 @@ describe("Beide Group-Layouts rufen BEIDE Riegel (F3, §6.1.3)", () => {
    * Zeile verschwindet: jemand raeumt „doppelten" Code auf.
    */
   it.each(["(arbeit)", "(druck)"])("%s/layout.tsx riegelt Host UND Gruppe", (gruppe) => {
-    const quelle = readFileSync(
-      join(MODUL, "verwaltung", gruppe, "layout.tsx"), "utf8",
+    /**
+     * ⚠️ DER POSITIVE NACHWEIS HAENGT AM `(`, NICHT AM NAMEN — sonst genuegt
+     * schon ein Import oder ein Kommentar, der den Namen woertlich nennt.
+     * `(arbeit)/layout.tsx:12` tut genau das: der Begruendungskommentar dort
+     * schreibt „requireLagerbuchAdmin" woertlich aus. Ein Muster ohne `(`
+     * bliebe deshalb selbst dann gruen, wenn Aufruf UND Import verschwaenden —
+     * der Zweig, der die Kopplung zwischen den beiden Layouts bewachen soll,
+     * waere vollstaendig blind. Gelesen wird zusaetzlich ueber
+     * `ohneKommentare(...)`, sonst haelt der Kommentar allein den Match am
+     * Leben. Beide Haelften sind Pflicht (Praezedenzfall gemessen in
+     * `_lib/bauform.test.ts:281,311`).
+     *
+     * Das Negativpaar gegen `isModuleAdmin`/`user.isAdmin` ENTFAELLT hier
+     * ersatzlos — siehe Kopfkommentar dieser Datei, Fundort
+     * `_lib/bauform.test.ts:181, :201-203`.
+     */
+    const quelle = ohneKommentare(
+      readFileSync(join(MODUL, "verwaltung", gruppe, "layout.tsx"), "utf8"),
     );
-    expect(quelle).toContain("requireLagerbuchHost");
-    expect(quelle).toContain("requireLagerbuchAdmin");
-    // NIE der Suite-Admin, nie ein zweites Praedikat (§3.6.1).
-    expect(quelle).not.toContain("isModuleAdmin");
-    expect(quelle).not.toContain("user.isAdmin");
+    expect(quelle).toMatch(/\brequireLagerbuchHost\s*\(/);
+    expect(quelle).toMatch(/\bawait\s+requireLagerbuchAdmin\s*\(/);
   });
 });
