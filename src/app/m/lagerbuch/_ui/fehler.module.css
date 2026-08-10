@@ -1,0 +1,97 @@
+/*
+ * DIE MODUL-FEHLERGRENZE (§11.2). Eigenes Markup, eigene Variablen — dasselbe
+ * Muster wie src/app/not-found.module.css mit seinen --nf-*.
+ *
+ * WARUM KEINE --ant-*: antd deklariert seine Variablen auf der Scope-Klasse
+ * SEINER Komponenten (Falle 2). Diese Flaeche besteht vollstaendig aus eigenem
+ * Markup — ein --ant-* waere hier still leer, und die Farbe verschwaende
+ * einfach.
+ *
+ * WARUM KEINE --lb-*: die liegen auf `.modul` aus verwaltung.module.css, und
+ * dieser Traeger existiert im Helfer-Zweig nicht. Die Fehlergrenze faengt BEIDE
+ * Aeste; sie darf an keinem von beiden haengen.
+ *
+ * Hell/Dunkel laeuft ueber <html data-theme>, NICHT ueber prefers-color-scheme
+ * (§6.6.6, CLAUDE.md).
+ */
+
+.seite {
+  --lbf-flaeche: #ffffff;
+  --lbf-schrift: #1a1d20;
+  --lbf-gedaempft: #5b6570;
+  --lbf-linie: #dfe3e8;
+
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  color: var(--lbf-schrift);
+}
+
+:root[data-theme="dark"] .seite {
+  --lbf-flaeche: #16191c;
+  --lbf-schrift: #eceff1;
+  --lbf-gedaempft: #9aa4ae;
+  --lbf-linie: #2c3236;
+}
+
+/*
+ * 3px linke Kante statt einer roten Flaeche: Rot traegt in diesem Modul
+ * fachliche Bedeutung (Verfall-Ampel, Geraetefaelligkeit), und
+ * colorError === colorPrimary === #c8000f. Ein Alert type="error" saehe aus wie
+ * eine Primaeraktion und konkurrierte mit der Ampel um dieselbe Farbe (§11.6).
+ *
+ * ALS `border-left` AUF `.karte`, NICHT ALS EIGENES `<span>`: eine Kante mit
+ * `height: 100%` in einem Elternelement ohne definierte Hoehe (das war die
+ * urspruengliche Form) waere 100% von `auto` — also 0px, und die Linie
+ * verschwaende STILL, genau die Falle, vor der `not-found.module.css` warnt.
+ * `border-left` traegt die Hoehe der Karte immer mit, ohne Flexbox-Umweg.
+ */
+.karte {
+  max-width: 34rem;
+  width: 100%;
+  background: var(--lbf-flaeche);
+  border: 1px solid var(--lbf-linie);
+  border-left: 3px solid #c8000f;
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.titel {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.text {
+  color: var(--lbf-gedaempft);
+  margin: 0 0 16px;
+}
+
+.aktionen {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* 16px ist die Untergrenze fuer alles Bedienbare (§6.7.3, §7.7.2) — und 44px
+ * Hoehe die Tapflaeche. Der Helfer-Ast erreicht diese Grenze ebenfalls. */
+.knopf {
+  font: inherit;
+  font-size: 16px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 6px;
+  border: 1px solid var(--lbf-linie);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.zurueck {
+  font-size: 16px;
+  color: var(--lbf-gedaempft);
+}
