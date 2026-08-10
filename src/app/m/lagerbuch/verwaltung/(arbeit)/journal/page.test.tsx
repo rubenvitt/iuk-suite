@@ -259,6 +259,7 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
         deltaText: "+2",
         deltaTon: "positiv",
         quelleName: "System",
+        quelleId: "system",
       },
       {
         id: "id-negativ",
@@ -268,6 +269,7 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
         deltaText: "-1",
         deltaTon: "negativ",
         quelleName: "System",
+        quelleId: "system",
       },
     ]);
     expect(istJsonSicher(props)).toBe(true);

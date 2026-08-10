@@ -12,6 +12,10 @@ export type JournalAnzeigeZeile = {
   deltaText: string;
   deltaTon: "negativ" | "positiv";
   quelleName: string;
+  /** Der rohe Code/die rohe Kennung, NUR fuer den `title` des Chips (Ruling
+   *  A15) — die Alt-Anwendung fuehrte das als `title={j.quelleId}`
+   *  (`lagerbuch/src/app/verwaltung/(admin)/journal/page.tsx:62`). */
+  quelleId: string;
 };
 
 const SPALTEN: TableProps<JournalAnzeigeZeile>["columns"] = [
@@ -49,7 +53,11 @@ const SPALTEN: TableProps<JournalAnzeigeZeile>["columns"] = [
     title: "Quelle",
     dataIndex: "quelleName",
     key: "quelle",
-    render: (quelleName: string) => <Chip ton="grau">{quelleName}</Chip>,
+    render: (quelleName: string, zeile) => (
+      <Chip ton="grau" title={zeile.quelleId}>
+        {quelleName}
+      </Chip>
+    ),
   },
 ];
 
