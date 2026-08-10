@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:av": "node scripts/fake-clamd.mjs",
+    "seed:lokal": "tsx scripts/seed-lokal.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
