@@ -17,6 +17,7 @@ import s from "../../../_ui/verwaltung.module.css";
 import { artikel, buchungen, chargen, lagerorte } from "../../../_db/schema";
 import { migrierteTestDb } from "../../../_db/testdb";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
+import { EXCEL_FEHLERTEXT } from "../../../_lib/bestandExportSpalten";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { ArtikelTable } from "./ArtikelTable";
 
@@ -268,13 +269,18 @@ describe("ArtikelTable: Struktur und Bedienanker", () => {
       .toBe("B2");
   });
 
-  it("hält den Teil-6-Export gesperrt und erklärt den Vorgriff", async () => {
+  /**
+   * Teil 6 (T165) loest den Vorgriff aus Teil 5 (T129) ein: der Knopf traegt
+   * seither weder `disabled` noch den erklaerenden Tooltip. Die Zusicherungen
+   * dazu stehen im Block "Excel-Export (§9.4)" weiter unten.
+   */
+  it("zeigt den Excel-Knopf mit erklaerendem Titel statt Sperre", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
     const exportKnopf = query<HTMLButtonElement>("button[data-export-zeilen]");
-    expect(exportKnopf.disabled).toBe(true);
+    expect(exportKnopf.disabled).toBe(false);
     expect(exportKnopf.textContent).toBe("Excel-Liste");
-    expect(exportKnopf.closest("[title]")?.getAttribute("title") ?? document.body.textContent)
-      .toContain("kommt mit den Ausgabeformaten");
+    expect(exportKnopf.getAttribute("title"))
+      .toBe("Erzeugt eine Excel-Datei (.xlsx) mit der aktuell angezeigten Liste");
   });
 
   it("beginnt jede neue Client-Komponente mit der echten use-client-Direktive", () => {
@@ -580,5 +586,111 @@ describe("Artikelseite als Server Component", () => {
     expect(quelle).toMatch(/chargeText\s*\(/);
     expect(quelle).not.toMatch(/from\s+["']antd["']/);
     expect(quelle).not.toContain("@ant-design/icons");
+  });
+});
+
+/**
+ * §9.4, Entscheidungen 9-E und 9-H. Teil 5 (T129) hat den Knopf mit `disabled`
+ * und erklaerendem Tooltip angelegt; dieser Block loest den Vorgriff ein.
+ *
+ * Anker `data-testid="lb-excel"` wurde beim Anbinden neu gesetzt — der Brief
+ * (Vorab-Scan) haelt fest, dass es ihn vorher nicht gab: der Knopf war nur ueber
+ * den Text „Excel-Liste" erreichbar. `data-export-zeilen` bleibt daneben
+ * bestehen, weil die Sortierungstests weiter oben ihn lesen.
+ */
+describe("Excel-Export (§9.4)", () => {
+  it("ist nicht mehr abgestellt", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    const knopf = query("[data-testid='lb-excel']");
+    expect(knopf.hasAttribute("disabled")).toBe(false);
+  });
+
+  /** Bei leerer Liste bleibt er abgestellt — es gibt nichts zu exportieren. */
+  it("bleibt bei leerer Liste abgestellt", async () => {
+    await mount(<ArtikelTable zeilen={[]} fahrzeuge={FAHRZEUGE} />);
+    expect(query("[data-testid='lb-excel']").hasAttribute("disabled")).toBe(true);
+  });
+
+  /**
+   * DIE BIBLIOTHEK WIRD BEIM KLICK NACHGELADEN (9-E). Der Test mockt den
+   * dynamischen Import — ein echter Lauf braeuchte einen Browser, und die
+   * Aussage „es kommt wirklich eine .xlsx an" gehoert deshalb in den E2E (T168).
+   * Hier zaehlt: wird die Bibliothek mit den RICHTIGEN Argumenten gerufen.
+   *
+   * `vi.resetModules()` vor jedem `vi.doMock` dieses Blocks: ohne den Reset
+   * haelt Vitest den dynamischen Import aus einem frueheren Fall im
+   * Modul-Cache fest, und der neue Mock griffe nie (Muster aus
+   * `qr/HistoryOwner.test.tsx:19-23`).
+   */
+  it("uebergibt Blattname, fixierte Kopfzeile und den datierten Dateinamen", async () => {
+    vi.resetModules();
+    const toFile = vi.fn().mockResolvedValue(undefined);
+    const schreiben = vi.fn().mockReturnValue({ toFile });
+    vi.doMock("write-excel-file/browser", () => ({ default: schreiben }));
+
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await clickElement(query("[data-testid='lb-excel']"));
+    await warteAuf(() => toFile.mock.calls.length === 1, "toFile-Aufruf");
+
+    const [zeilen, optionen] = schreiben.mock.calls[0];
+    expect(zeilen).toHaveLength(ZEILEN.length);
+    expect(optionen.sheet).toBe("Bestand Handlager");
+    expect(optionen.stickyRowsCount).toBe(1);
+    expect(optionen.columns).toHaveLength(9);
+    expect(optionen.columns[0].header).toMatchObject({ value: "Artikel", fontWeight: "bold" });
+    // `bestandExportDateiname(expect.any(Date))` liesse sich nicht direkt
+    // aufrufen (kein echtes Date-Objekt) — die Form allein zeigt, dass der
+    // Aufruf ueber `bestandExportDateiname(new Date())` gelaufen ist; die
+    // Werte-Fixierung fuer LOKALE Zeit steckt bereits in `bestandExport.test.ts`.
+    expect(toFile).toHaveBeenCalledWith(
+      expect.stringMatching(/^bestand-\d{4}-\d{2}-\d{2}\.xlsx$/),
+    );
+  });
+
+  /**
+   * §12.1, PUNKT 2 — DIE KOPPLUNG AN DER OBERFLAECHE. Die reine Fassung steht in
+   * _lib/bestandExport.test.ts (T156); hier wird geprueft, dass die INSEL
+   * dieselbe abgeleitete Liste durchreicht, die auch in dataSource geht. Wandert
+   * das Filtern in antds Table-eigenen Zustand, exportiert der Knopf still
+   * wieder alles (§6.15, Auflage 9).
+   */
+  it("exportiert nur die gefilterten Zeilen", async () => {
+    vi.resetModules();
+    const toFile = vi.fn().mockResolvedValue(undefined);
+    const schreiben = vi.fn().mockReturnValue({ toFile });
+    vi.doMock("write-excel-file/browser", () => ({ default: schreiben }));
+
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await fill("input[type='search']", "alpha");
+    await clickElement(query("[data-testid='lb-excel']"));
+    await warteAuf(() => toFile.mock.calls.length === 1, "toFile-Aufruf");
+
+    expect(schreiben.mock.calls[0][0]).toHaveLength(1);
+  });
+
+  /**
+   * §11.2 (d): der Fehler kommt als RUECKGABEWERT an die Stelle, nie ueber
+   * e.message — der waere in Produktion der englische Satz (Falle 66).
+   */
+  it("zeigt bei einem Fehler den deutschen Satz mit Halbgeviertstrich", async () => {
+    vi.resetModules();
+    vi.doMock("write-excel-file/browser", () => { throw new Error("boom"); });
+
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await clickElement(query("[data-testid='lb-excel']"));
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes(EXCEL_FEHLERTEXT),
+      "deutscher Fehlertext",
+    );
+    expect(document.body.textContent).not.toContain("boom");
+  });
+
+  /** 1:1 aus ArtikelTable.tsx — die Beschriftung wechselt waehrend des Laufs. */
+  it("wechselt die Beschriftung auf Erzeuge…", async () => {
+    // useTransition-Zustand; die Zusage ist die Beschriftung, nicht das Timing.
+    expect(readFileSync(
+      `src/app/m/lagerbuch/verwaltung/(arbeit)/artikel/ArtikelTable.tsx`,
+      "utf8",
+    )).toContain("Erzeuge…");
   });
 });

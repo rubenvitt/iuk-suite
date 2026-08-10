@@ -1,13 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Button, Checkbox, Flex, Select, Table, Tooltip } from "antd";
+import { useMemo, useState, useTransition } from "react";
+import { Button, Checkbox, Flex, Select, Table } from "antd";
 import {
   artikelFiltern,
   LEERER_FILTER,
   type ArtikelFilterZeile,
   type ArtikelFilterZustand,
 } from "../../../_lib/artikelFilter";
+import {
+  bestandExportZeilen, bestandExportDateiname, type BestandExportZeile,
+} from "../../../_lib/bestandExport";
+import {
+  EXCEL_SPALTEN, EXCEL_BLATTNAME, EXCEL_FEHLERTEXT,
+} from "../../../_lib/bestandExportSpalten";
 import type { Ampel } from "../../../_lib/domain/verfall";
 import { ampelTon } from "../../../_lib/format";
 import { SCHRIFT } from "../../../_lib/schrift";
@@ -103,6 +109,8 @@ export function ArtikelTable({
   const [filter, setFilter] = useState<ArtikelFilterZustand>(LEERER_FILTER);
   const [sortierung, setSortierung] = useState<ArtikelSortierung>("name-asc");
   const [offenerArtikel, setOffenerArtikel] = useState<string | null>(null);
+  const [exportLaeuft, startExport] = useTransition();
+  const [exportFehler, setExportFehler] = useState<string | null>(null);
 
   // Genau diese eine abgeleitete Liste ist Tabellenquelle und Übergabepunkt
   // für den in Teil 6 freigeschalteten Export.
@@ -110,6 +118,55 @@ export function ArtikelTable({
     () => artikelSortieren(artikelFiltern(zeilen, filter), sortierung),
     [zeilen, filter, sortierung],
   );
+
+  /**
+   * EXCEL-LISTE DES BESTANDS (Spec §9.4, Entscheidung 9-E).
+   *
+   * Exportiert GENAU das, was gerade in der Tabelle steht — `gefiltert`, also
+   * dieselbe abgeleitete Liste, die auch in `dataSource` geht. Das ist keine
+   * Bequemlichkeit: der Knopftitel sagt es zu, und sobald die Liste serverseitig
+   * paginiert wird, aenderte sich STILL, was „Excel-Liste" bedeutet — aus
+   * „alles, was ich gerade sehe" wuerde „die erste Seite" (9-H). Pagination der
+   * Artikeltabelle ist damit eine Aenderung an einem Ausgabeformat, kein
+   * Oberflaechendetail.
+   *
+   * Die Bibliothek wird ERST BEIM KLICK nachgeladen, damit sie nicht im
+   * Seiten-Bundle landet. Ein rein serverseitiger Export waere ein anderes
+   * Produkt: er koennte den Dateinamen aus Serverzeit bilden und kennte den
+   * Filterzustand nicht.
+   *
+   * DER DATEINAME ENTSTEHT AUS BROWSERZEIT (`new Date()`), also aus der Zone des
+   * Arbeitsplatzes. Das ist heutiges Verhalten und bleibt es; die TZ-Frage
+   * beruehrt dieses Format nicht (§9.4).
+   */
+  const exportieren = () => {
+    setExportFehler(null);
+    startExport(async () => {
+      try {
+        const { default: writeXlsxFile } = await import("write-excel-file/browser");
+        const zeilenExport = bestandExportZeilen(gefiltert);
+        await writeXlsxFile(zeilenExport, {
+          columns: EXCEL_SPALTEN.map((sp) => ({
+            header: { value: sp.header, fontWeight: "bold" as const },
+            width: sp.width,
+            // Zahlen bleiben Zahlen, alles andere ist ausdruecklich Text — die
+            // Bibliothek legt es dann als Textzelle an, nie als Formel (9-G).
+            cell: (z: BestandExportZeile) =>
+              sp.zahl
+                ? { value: Number(sp.wert(z)), type: Number }
+                : { value: String(sp.wert(z)), type: String },
+          })),
+          sheet: EXCEL_BLATTNAME,
+          stickyRowsCount: 1,
+        }).toFile(bestandExportDateiname(new Date()));
+      } catch {
+        // Der deutsche Satz als ZUSTAND, nie `e.message`: der waere in
+        // Produktion der englische Satz ueber eine „server-side exception"
+        // (Falle 66, §11.2 d).
+        setExportFehler(EXCEL_FEHLERTEXT);
+      }
+    });
+  };
 
   const hatFilter = filter.suche.trim() !== ""
     || filter.nurUnterMindest
@@ -175,19 +232,21 @@ export function ArtikelTable({
           </Button>
         ) : null}
         <Trefferanzeige gezeigt={gefiltert.length} gesamt={zeilen.length} />
-        <Tooltip title="Excel-Liste — kommt mit den Ausgabeformaten (Teil 6, §9.4)">
-          <span title="Excel-Liste — kommt mit den Ausgabeformaten (Teil 6, §9.4)">
-            <Button
-              icon={<Ikone name="tabelle" groesse={16} />}
-              disabled
-              data-export-zeilen={gefiltert.map((zeile) => zeile.id).join(",")}
-            >
-              Excel-Liste
-            </Button>
-          </span>
-        </Tooltip>
+        <Button
+          data-testid="lb-excel"
+          icon={<Ikone name="tabelle" groesse={16} />}
+          disabled={exportLaeuft || zeilen.length === 0}
+          onClick={exportieren}
+          title="Erzeugt eine Excel-Datei (.xlsx) mit der aktuell angezeigten Liste"
+          data-export-zeilen={gefiltert.map((zeile) => zeile.id).join(",")}
+        >
+          {exportLaeuft ? "Erzeuge…" : "Excel-Liste"}
+        </Button>
         <NeuArtikel />
       </Flex>
+      {exportFehler ? (
+        <div style={{ ...SCHRIFT.neben, marginBlockEnd: 12 }}>{exportFehler}</div>
+      ) : null}
 
       <Table<ArtikelAnzeigeZeile>
         rowKey="id"
