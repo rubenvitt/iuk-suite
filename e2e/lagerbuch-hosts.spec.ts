@@ -110,22 +110,49 @@ test.describe("Host-Riegel", () => {
   // DIE ZAHL IST DIE ZUSAGE, nicht die Anwesenheit der Schleife: eine
   // gestrichene Zeile schrumpfte den Lauf sonst STILL, und „vierzehn von
   // fuenfzehn gesperrt" saehe in der Ausgabe genauso gruen aus wie fuenfzehn.
+  // ⚠️ Deckt NICHT jeden Tippfehler in einem Pfad — die Laenge haelt bei einer
+  // GEAENDERTEN Zeile. Ein grosser Teil davon ist ueber die Eigen-Host-Haelfte
+  // der Schleife unten trotzdem abgesichert: ein verschriebener, nicht
+  // existierender Pfad waere dort ebenfalls 404 und liesse GENAU DIESEN
+  // Eintrag fehlschlagen.
   test("traegt alle fuenfzehn Einstiege", () => {
     expect(EINSTIEGE).toHaveLength(15);
   });
 
+  /*
+   * STATUS, UMWEG UND EIGEN-HOST-NICHT-404 IN DERSELBEN SCHLEIFE, JE EINTRAG —
+   * genau wie im Vorbild `e2e/files-hosts.spec.ts:413/423/437`. Eine fruehere
+   * Fassung hatte die Eigen-Host-Gegenprobe in einem separaten Test mit nur
+   * drei von fuenfzehn Vertretern; fuer die uebrigen zwoelf (u. a.
+   * `/helfer/check`, `/a/[id]`, `/g/[code]`, `/abmelden`, die vier
+   * Icon-Handler) fehlte damit der Nachweis, dass die Route auf dem EIGENEN
+   * Host ueberhaupt lebt — die Umweg-Pruefung allein unterscheidet „404 weil
+   * der Riegel griff" nicht von „404 weil an der Adresse gar nichts liegt".
+   * (Review-Befund 1.)
+   *
+   * `page.request`, NICHT `page.goto`, fuer BEIDE Seiten: `page.request` traegt
+   * denselben Cookie-Kontext wie `page`, liefert den Statuscode direkt und
+   * loest — anders als eine echte Navigation — bei einem nicht-HTML
+   * `Content-Type` (z. B. `application/manifest+json`,
+   * `manifest.webmanifest/route.ts:83-85`) kein `net::ERR_ABORTED` aus. Damit
+   * braucht `/manifest.webmanifest` keine Sonderbehandlung mehr — derselbe
+   * Codepfad gilt fuer alle fuenfzehn Eintraege.
+   */
   for (const pfad of EINSTIEGE) {
-    test(`${pfad} antwortet auf einem fremden Suite-Host mit 404`, async ({ page }) => {
+    test(`${pfad} antwortet auf einem fremden Suite-Host mit 404 — und auf dem eigenen nicht`, async ({
+      page,
+    }) => {
       // Angemeldet MIT Lagerbuch-Gruppe: sonst waere der 404 der GRUPPENRIEGEL
       // und nicht der HOSTRIEGEL, und der Test bewiese das Falsche (§11.5
       // Zustand 19 saehe hier identisch aus). AUTH_COOKIE_DOMAIN=".localtest.me"
       // traegt die Sitzung von LAGERBUCH_HOST auf FREMDER_HOST mit.
       await devLogin(page, { host: LAGERBUCH_HOST, groups: LAGERBUCH_ADMIN_GRUPPE });
-      const antwort = await page.goto(fremdUrl(pfad));
-      expect(antwort!.status(), `${pfad} auf ${FREMDER_HOST}`).toBe(404);
+
+      const fremd = await page.request.get(fremdUrl(pfad));
+      expect(fremd.status(), `${pfad} auf ${FREMDER_HOST}`).toBe(404);
       /*
        * KEIN UMWEG. `/abmelden` antwortet auch OHNE Host-Riegel mit einem
-       * relativen 303 nach "/" — und `page.goto` folgt dem, landet auf
+       * relativen 303 nach "/" — und eine folgende Anfrage landet auf
        * FREMDER_HOSTs eigener Wurzel und trifft dort ZUFAELLIG ebenfalls einen
        * 404. Ohne diese Zeile bewiese der Test dann etwas anderes als den
        * Host-Riegel: gemessen bei einer probehalber deaktivierten
@@ -134,39 +161,22 @@ test.describe("Host-Riegel", () => {
        * Der Abgleich der finalen URL schliesst das aus: die Antwort ohne Riegel
        * ist entweder ein direkter 200/303-Erfolg (falsche URL) oder ein 404 auf
        * einer ANDEREN Adresse — nie derselbe Pfad mit derselben Wirkung wie der
-       * echte Host-404.
+       * echte Host-404. Ein relativer Redirect kann konstruktiv nicht auf
+       * denselben Pfad zurueckfallen, den er verlassen hat.
        */
-      expect(new URL(antwort!.url()).pathname, `${pfad}: Umweg statt 404`).toBe(pfad);
+      expect(new URL(fremd.url()).pathname, `${pfad}: Umweg statt 404`).toBe(pfad);
+
+      /*
+       * DIE GEGENRICHTUNG, JETZT PRO EINTRAG. Ohne sie bewiese der Fall oben
+       * nur, dass IRGENDETWAS 404 gibt — ein falsch geschriebener Pfad, eine
+       * umbenannte Route, ein Modul, das gar nicht aufgeloest wird. Erst „auf
+       * dem EIGENEN Host ist es KEIN 404" macht aus dem 404 eine Aussage ueber
+       * den HOST statt ueber die Existenz der Route.
+       */
+      const eigen = await page.request.get(lagerbuchUrl(pfad));
+      expect(eigen.status(), `${pfad} auf ${LAGERBUCH_HOST}`).not.toBe(404);
     });
   }
-
-  /**
-   * DIE GEGENRICHTUNG. Ohne sie bewiese die Schleife oben nur, dass IRGENDETWAS
-   * 404 gibt — ein falsch geschriebener Pfad, eine umbenannte Route, ein Modul,
-   * das gar nicht aufgeloest wird. Erst „auf dem EIGENEN Host ist es KEIN 404"
-   * macht aus dem 404 eine Aussage ueber den HOST. Je ein Vertreter aus
-   * `(arbeit)`, `(druck)` und den PWA-Handlern.
-   */
-  test("dieselben Pfade antworten auf dem EIGENEN Host nicht mit 404", async ({ page }) => {
-    await devLogin(page, { host: LAGERBUCH_HOST, groups: LAGERBUCH_ADMIN_GRUPPE });
-    for (const pfad of ["/verwaltung/artikel", "/verwaltung/etiketten"]) {
-      const antwort = await page.goto(lagerbuchUrl(pfad));
-      expect(antwort!.status(), `${pfad} auf ${LAGERBUCH_HOST}`).not.toBe(404);
-    }
-
-    /*
-     * `/manifest.webmanifest` NICHT ueber `page.goto`: sein `Content-Type:
-     * application/manifest+json` (`manifest.webmanifest/route.ts:83-85`) laesst
-     * Chromium bei einer echten Navigation in den Download-Pfad fallen
-     * (`net::ERR_ABORTED`) statt eine lesbare Antwort zu liefern — auf dem
-     * FREMDEN Host oben ist das unkritisch, weil der Host-Riegel dort VOR jedem
-     * Inhalt greift und immer Klartext "Not found" liefert. `page.request`
-     * traegt denselben Cookie-Kontext wie `page` und liefert den Statuscode
-     * direkt, ohne eine Navigation auszuloesen.
-     */
-    const manifestAntwort = await page.request.get(lagerbuchUrl("/manifest.webmanifest"));
-    expect(manifestAntwort.status(), `/manifest.webmanifest auf ${LAGERBUCH_HOST}`).not.toBe(404);
-  });
 
   /**
    * DIE ZEILE, DIE FALLE 61 BEZAHLT: nach dem Versuch von einem fremden Host ist
@@ -191,13 +201,24 @@ test.describe("Host-Riegel", () => {
    * der Einloesung einloesbar. Ein kuenftiger Test, der `last_used_at IS NULL`
    * als eigene Vorbedingung braucht, darf `E2E_TOKEN_GERAETE` dafuer trotzdem
    * nicht mehr verwenden — das steht im Abgaberbericht (T169) vermerkt.
+   *
+   * DIE ZUSICHERUNGEN SIND DIFFERENZIELL, NICHT ABSOLUT (Review-Befund 2): der
+   * Test vergleicht `last_used_at` VOR und NACH gegen SEINEN EIGENEN
+   * Ausgangswert `vorFremd.last_used_at` — nicht gegen `NULL`. Ein Vergleich
+   * gegen `NULL` haengt am SEED-Zustand statt am Test selbst: „in welchem
+   * falschen Zustand waere das auch gruen?" — wenn der Code schon vorher
+   * eingeloest war (etwa aus einem frueheren Lauf derselben Datei ohne
+   * Reseed, oder unter `--repeat-each`/`retries`). `redeemToken` schreibt bei
+   * JEDEM Erfolg einen NEUEN `new Date()`-Wert (`tokenEinloesung.ts:70`), auch
+   * wenn `last_used_at` schon gesetzt war — die Differenz bleibt damit auch
+   * bei wiederholten Laeufen ein gueltiger Diskriminator, und der Test
+   * uebersteht einen Wiederholungslauf.
    */
   test("verbraucht einen Code vom fremden Host aus nicht — bleibt auf dem eigenen einloesbar", async ({
     page,
   }) => {
     const vorFremd = tokenZeile(E2E_TOKEN_GERAETE);
     expect(vorFremd.aktiv, "der Seed-Code muss aktiv sein").toBe(1);
-    expect(vorFremd.last_used_at, "der Seed-Code darf noch nicht benutzt sein").toBeNull();
 
     await devLogin(page, { host: LAGERBUCH_HOST, groups: LAGERBUCH_ADMIN_GRUPPE });
 
@@ -205,7 +226,9 @@ test.describe("Host-Riegel", () => {
     expect(fremdAntwort!.status(), `/t/${E2E_TOKEN_GERAETE} auf ${FREMDER_HOST}`).toBe(404);
 
     const nachFremd = tokenZeile(E2E_TOKEN_GERAETE);
-    expect(nachFremd.last_used_at, "der Riegel muss VOR jeder Wirkung greifen").toBeNull();
+    expect(nachFremd.last_used_at, "der Riegel muss VOR jeder Wirkung greifen").toBe(
+      vorFremd.last_used_at,
+    );
 
     /*
      * DIE STAERKERE HAELFTE, und ohne sie waere der 404 oben aus dem FALSCHEN
@@ -221,7 +244,9 @@ test.describe("Host-Riegel", () => {
     expect(eigenAntwort!.status(), `/t/${E2E_TOKEN_GERAETE} auf ${LAGERBUCH_HOST}`).not.toBe(404);
 
     const nachEigen = tokenZeile(E2E_TOKEN_GERAETE);
-    expect(nachEigen.last_used_at, "auf dem EIGENEN Host wird eingeloest").not.toBeNull();
+    expect(nachEigen.last_used_at, "auf dem EIGENEN Host wird eingeloest").not.toBe(
+      vorFremd.last_used_at,
+    );
   });
 
   /**
