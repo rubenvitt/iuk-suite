@@ -16,15 +16,25 @@ import { join } from "node:path";
  * und sieht wie ein Erfolg aus, und es gibt keinen Test, der eine Action ohne
  * Sitzung aufruft.
  *
- * ⚠️ EIGENSCHAFT, NICHT ZAEHLUNG. Diese Datei toleriert ein fehlendes oder leeres
- * `_actions/` und ist damit am ersten Tag gruen. Ein Scan, der `toHaveLength(44)`
- * von Anfang an behauptet, waere am ersten Tag rot und wuerde abgeschaltet statt
- * repariert.
+ * ⚠️ ERST DIE EIGENSCHAFT, DANN DIE ZAEHLUNG. Der erste describe-Block toleriert
+ * ein fehlendes oder leeres `_actions/` und war damit am ersten Tag gruen. Ein
+ * Scan, der `toHaveLength(44)` von Anfang an behauptet, waere am ersten Tag rot
+ * gewesen und abgeschaltet statt repariert worden.
  *
- *   Teil 2 (hier): die Eigenschaft.
+ *   Teil 2: die Eigenschaft — describe „_actions/ — jede exportierte Action ist
+ *           bewacht". Sie prueft jede Datei, DIE DA IST.
  *   Teil 4 und Teil 5: fuellen den Ordner und fassen DIESE DATEI NICHT AN.
- *   Teil 6: ergaenzt die ZAEHLUNG — 47 Actions = 44 bewachte + 3 Ausnahmen,
- *           18 Action-Dateien, 19 Verzeichniseintraege (guards.test.ts selbst).
+ *   Teil 6 (T172): die ZAEHLUNG — describe „Zaehlung (§2.1 a)" am Dateiende.
+ *           47 Deklarationen = 44 bewachte + 3 Ausnahmen, in 18 Action-Dateien.
+ *           AB HIER IST EIN LEERES `_actions/` ROT, und das ist der Zweck: eine
+ *           Action, die es gar nicht erst in den Ordner geschafft hat, ist fuer
+ *           die Eigenschaft unsichtbar. Erst die Zahl macht das Fehlen sichtbar.
+ *
+ * ⚠️ „19" IST NICHT DIE VERZEICHNISLAENGE (Ruling A7). `readdirSync(ORDNER)`
+ * liefert heute 37 Eintraege (18 Action-Dateien + 19 Testdateien) und nie 19.
+ * Gemeint ist „18 Action-Dateien PLUS `guards.test.ts`" — genau so ist die
+ * Zusicherung unten formuliert. Eine Bindung an die Zahl der TESTdateien waere
+ * bei jeder neu angelegten Testdatei rot und ist ausdruecklich nicht gewollt.
  */
 
 const ORDNER = join(process.cwd(), "src/app/m/lagerbuch/_actions");
@@ -51,10 +61,19 @@ const AUSNAHMEN = new Set(["einloesenAmGate", "erneuereSitzung", "beenden"]);
 /** Diese Datei ueberspringt sich selbst — sonst zaehlte sie sich mit. */
 const SELBST = "guards.test.ts";
 
+/**
+ * ⚠️ `*.spec.ts(x)` WIRD MITGEFILTERT (Ruling A11, Betreiberentscheidung).
+ * Bis T172 stand hier `!n.endsWith(".test.ts")` — eine `foo.spec.ts` unter
+ * `_actions/` waere damit als ACTION-MODUL durchgelaufen und der Guard-Scan
+ * haette ihre Testhilfen als ungeschuetzte Actions gemeldet. Heute traegt keine
+ * Datei im Modul diese Endung, aber die `e2e/`-Konvention der Suite kennt sie.
+ * Dieselbe Fassung steht in `_lib/bauform.test.ts:74` und ist dort einzeln
+ * begruendet.
+ */
 function actionDateien(): string[] {
   if (!existsSync(ORDNER)) return [];
   return readdirSync(ORDNER)
-    .filter((n) => n.endsWith(".ts") && n !== SELBST && !n.endsWith(".test.ts"))
+    .filter((n) => n.endsWith(".ts") && n !== SELBST && !/\.(?:test|spec)\.tsx?$/.test(n))
     .sort();
 }
 
@@ -293,10 +312,224 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
     ).toEqual([]);
   });
 
-  it("ist am ersten Tag gruen, auch ohne _actions/ — und sagt, wer ihn verschaerft", () => {
-    // Teil 4 und Teil 5 fuellen den Ordner; TEIL 6 ergaenzt die Zaehlung
-    // (47 = 44 + 3, 18 Dateien, 19 Verzeichniseintraege). Diese Zusicherung ist
-    // die Begruendung dafuer, dass hier NOCH keine Zahl steht.
+  it("kommt selbst ohne _actions/ aus — die Zahlen stehen im describe „Zaehlung“", () => {
+    // ⚠️ DIESE ZUSICHERUNG IST EINGELOEST, NICHT UEBERHOLT. Bis T172 stand hier
+    // die Begruendung, warum in DIESEM Block noch keine Zahl steht; T172 hat die
+    // Zahlen ergaenzt — aber am Dateiende, in einem EIGENEN describe, und nicht
+    // hier hinein. Der Grund ueberlebt die Einloesung: dieser Block darf keine
+    // Zahl tragen, sonst faellt bei einer fehlenden Datei die EIGENSCHAFT mit
+    // aus, und man sieht in der Ausgabe nicht mehr, ob die vorhandenen Actions
+    // ihren Riegel tragen. Getrennte Bloecke, getrennte Befunde.
     expect(Array.isArray(actionDateien())).toBe(true);
+  });
+});
+
+/**
+ * DIE ZAEHLUNG (Teil 1, F4; Spec §2.1 a, §3.8.2) — ergaenzt von Teil 6, T172.
+ *
+ * WAS DIE EIGENSCHAFT OBEN NICHT SIEHT: eine Action, die es gar nicht erst in
+ * den Ordner geschafft hat. Sie prueft jede Datei, DIE DA IST. Erst die Zahl
+ * macht das Fehlen sichtbar — und eine ZUSAETZLICHE Ausnahme ebenso: „waechst
+ * die Liste, ist das ein roter Test und keine Zeile im Diff" (§3.8.2).
+ *
+ * DIE ZAHLEN SIND HERGELEITET, NICHT UEBERNOMMEN. Sollliste ist die Abbildung
+ * Alt→Neu aus Spec §2.1 a — 16 Alt-Dateien mit 44 Deklarationen, dazu `gate.ts`
+ * und `sitzung.ts` mit den drei Ausnahmen:
+ *
+ *   artikel 3 · aussondern 1 · bestellung 1 · buchung 3 · bz 4 · check 1 ·
+ *   csv 1 · detail 1 · fahrzeuge 5 · geraete 3 · inventur 1 ·
+ *   lagerortVerfall 1 · loeschen 3 · sauerstoff 3 · templates 11 · tokens 2
+ *   = 44
+ *   + gate 1 + sitzung 2 = 47,  davon 44 bewacht + 3 Ausnahmen
+ *   44 bewacht = 42 requireLagerbuchAdmin + 2 requireHelferSchreibend
+ *   18 Action-Dateien, dazu diese Testdatei als 19.
+ *
+ * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
+ * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
+ * ruht, waere rot, ohne dass man wuesste, welcher Plan zu wenig geliefert hat.
+ * Aufgeloest in Plan-Teil 6, §4.2.
+ *
+ * ⚠️ ES GIBT HIER KEINEN TESTFALL „verwirft exportierte Konstanten" (Ruling A1,
+ * Betreiberentscheidung). Der Brief sah ihn vor, weil T160 vier Konstanten aus
+ * `"use server"`-Dateien exportieren sollte; sie liegen stattdessen in
+ * `_lib/tokenForm.ts`. Unter `_actions/` gibt es keine exportierte Konstante —
+ * der Testfall haette kein Subjekt. Verboten bleibt es trotzdem: der
+ * Allowlist-Scan oben („kennt an einem Zeilenanfang mit `export` NUR die eine
+ * Action-Bauform und Typ-Exporte") meldet jedes `export const FOO = 5`.
+ *
+ * ⚠️ ES GIBT KEINEN ZWEITEN PARSER. Alles unten liest `exportierteActions()`
+ * aus dem Block oben — dieselbe Erkennung, dieselbe Klammertiefe, derselbe
+ * Kommentar-/Zeichenketten-Stripper. Der Brief nannte `ACTIONS`,
+ * `actionsIn(datei)` und `rumpfVon(quelle, name)` als Helfer „aus Teil 2, T20";
+ * keiner der drei existiert (Ruling B10). Vorhanden sind `ORDNER`,
+ * `actionDateien()`, `exportierteActions()`, `rumpfNach(quelle, abIndex)` und
+ * `ersteAnweisung()` — und `rumpfNach` sucht nach POSITION, nicht nach Namen.
+ */
+describe("Zaehlung (§2.1 a)", () => {
+  /**
+   * Die Sollliste, Datei fuer Datei. Sie steht HIER und nicht im Modul — sonst
+   * prueft der Test den Code gegen sich selbst und bliebe auch bei einer
+   * fehlenden Datei gruen.
+   *
+   * ⚠️ Die Summen unten (47, 44, 3, 42, 2) stehen ABSICHTLICH als Literale da
+   * und werden NICHT aus dieser Tabelle gerechnet. Zwei unabhaengige Anker:
+   * SOLL bindet je Datei, die Literale binden die Summe. Ein
+   * `Object.values(SOLL).reduce(...)` waere immer gruen.
+   */
+  const SOLL: Record<string, number> = {
+    "artikel.ts": 3,
+    "aussondern.ts": 1,
+    "bestellung.ts": 1,
+    "buchung.ts": 3,
+    "bz.ts": 4,
+    "check.ts": 1,
+    "csv.ts": 1,
+    "detail.ts": 1,
+    "fahrzeuge.ts": 5,
+    "gate.ts": 1,
+    "geraete.ts": 3,
+    "inventur.ts": 1,
+    "lagerortVerfall.ts": 1,
+    "loeschen.ts": 3,
+    "sauerstoff.ts": 3,
+    "sitzung.ts": 2,
+    "templates.ts": 11,
+    "tokens.ts": 2,
+  };
+
+  /** Die Deklarationen EINER Datei — aus dem einen Scan, in Fundreihenfolge. */
+  function actionsIn(funde: Fund[], datei: string): string[] {
+    return funde.filter((f) => f.datei === datei).map((f) => f.name);
+  }
+
+  const ADMIN = /requireLagerbuchAdmin\s*\(/;
+  const HELFER = /requireHelferSchreibend\s*\(/;
+
+  it("hat 18 Action-Dateien; `guards.test.ts` ist die 19. Datei des Ordners", () => {
+    // ⚠️ NICHT `readdirSync(ORDNER).toHaveLength(19)` (Ruling A7): der Ordner
+    // hat 37 Eintraege. Gezaehlt werden die ACTION-Dateien; `guards.test.ts`
+    // wird separat nachgewiesen, weil `actionDateien()` sie ausfiltert.
+    const dateien = actionDateien();
+    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 18 Dateien.").toHaveLength(18);
+    expect(dateien, "18 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
+    expect(existsSync(join(ORDNER, SELBST)), `${SELBST} ist die 19.`).toBe(true);
+  });
+
+  it("hat je Datei genau so viele Deklarationen wie die Sollliste sagt", () => {
+    const funde = exportierteActions();
+    for (const [datei, n] of Object.entries(SOLL)) {
+      expect(actionsIn(funde, datei), datei).toHaveLength(n);
+    }
+  });
+
+  /**
+   * GEZAEHLT WIRD JE DATEI JE DEKLARATION, NIE UEBER EIN SET DER NAMEN.
+   * `geraetSpeichern`, `setGeraetAktiv` und `geraetZuBarcode` stehen in `bz.ts`
+   * UND in `geraete.ts` — gleicher Name, verschiedene Tabellen (`bz_geraete`
+   * gegen `geraete`), verschiedene Felder. Ein Set ergaebe 41 statt 44. Die
+   * beiden Dateien werden NICHT zusammengelegt.
+   *
+   * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
+   * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
+   */
+  it("zaehlt 47 Deklarationen, obwohl es nur 44 verschiedene Namen gibt", () => {
+    const namen = exportierteActions().map((f) => f.name);
+    expect(namen, "47 Deklarationen").toHaveLength(47);
+    expect(new Set(namen).size, "44 verschiedene Namen").toBe(44);
+
+    const doppelt = [...new Set(namen)]
+      .filter((n) => namen.filter((x) => x === n).length > 1)
+      .sort();
+    expect(doppelt, "GENAU DIESE DREI stehen doppelt — in bz.ts und in geraete.ts.").toEqual([
+      "geraetSpeichern",
+      "geraetZuBarcode",
+      "setGeraetAktiv",
+    ]);
+  });
+
+  it("bewacht 44 und listet genau 3 Ausnahmen", () => {
+    const funde = exportierteActions();
+    const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
+    // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
+    // Eintraege" oben: dort wird die KONSTANTE geprueft, hier, wie viele der
+    // 47 GEFUNDENEN Deklarationen auf ihr stehen. Ein vierter Eintrag mit dem
+    // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
+    // den es nicht gibt, nur den oberen.
+    expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
+    expect(funde.length - ausnahmen.length, "44 bewacht").toBe(44);
+  });
+
+  it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
+    // SOLL bindet nur die ANZAHL je Datei. Erst hier haengt der Name an der
+    // Datei: eine Ausnahme, die nach `artikel.ts` wandert, faellt sonst nicht auf.
+    const funde = exportierteActions();
+    expect(actionsIn(funde, "gate.ts")).toEqual(["einloesenAmGate"]);
+    expect(actionsIn(funde, "sitzung.ts").sort()).toEqual(["beenden", "erneuereSitzung"]);
+  });
+
+  /**
+   * `export type` IST KEINE ACTION. `detail.ts` exportiert neben `getDetail`
+   * DREI Typen (ArtikelDetailCharge, ArtikelDetailBuchung, ArtikelDetailResult).
+   * Wer sie mitzaehlt, liest drei ungeschuetzte Actions, die keine sind — und
+   * „repariert" dann drei Typdeklarationen mit einem Riegel.
+   *
+   * Die Regex liest `type` UND `interface` und ankert wie `ERLAUBT` am
+   * Zeilenanfang: eine der drei nach `interface` umzuschreiben ist dort erlaubt
+   * und darf hier nicht rot werden.
+   *
+   * ⚠️ Fundort ohne Zeilennummer, mit Absicht: `ERLAUBT` steht im describe
+   * „_actions/ — jede exportierte Action ist bewacht", Zusicherung „kennt an
+   * einem Zeilenanfang mit `export` NUR die eine Action-Bauform und
+   * Typ-Exporte". Eine Zeilennummer veraltet beim naechsten Einschub darueber.
+   */
+  it("verwirft `export type` und `export interface`", () => {
+    const quelle = readFileSync(join(ORDNER, "detail.ts"), "utf8");
+    expect(quelle.match(/^export\s+(?:type|interface)\s+\w+/gm) ?? []).toHaveLength(3);
+    expect(actionsIn(exportierteActions(), "detail.ts")).toEqual(["getDetail"]);
+  });
+
+  /**
+   * DREI DER 44 LESEN NUR UND BLEIBEN TROTZDEM ACTIONS: `getDetail`,
+   * `pruefeLoeschbar` und `geraetZuBarcode` (ZWEIMAL, je Datei). Sie stehen hier
+   * und nicht unter `_lib/lesepfade/`, weil ihr einziger Aufrufer jeweils eine
+   * Client-Insel ist (§2.1 a, Punkt 4). Sie zaehlen mit und tragen einen Riegel.
+   */
+  it("zaehlt die vier nur lesenden Deklarationen mit", () => {
+    const funde = exportierteActions();
+    for (const [datei, name] of [
+      ["detail.ts", "getDetail"],
+      ["loeschen.ts", "pruefeLoeschbar"],
+      ["geraete.ts", "geraetZuBarcode"],
+      ["bz.ts", "geraetZuBarcode"],
+    ] as const) {
+      expect(actionsIn(funde, datei), `${datei}#${name}`).toContain(name);
+    }
+  });
+
+  /**
+   * 42 tragen `requireLagerbuchAdmin`, 2 `requireHelferSchreibend`.
+   *
+   * Geprueft wird die ERSTE ANWEISUNG (`Fund.erste`), nicht der ganze Rumpf: der
+   * Brief wollte `rumpfVon(quelle, name).includes(...)`, aber `rumpfVon` gibt es
+   * nicht (Ruling B10) — und die erste Anweisung ist ohnehin die staerkere
+   * Fassung, weil genau sie der Eigenschafts-Block oben bindet. Ein
+   * `requireHelferSchreibend` IRGENDWO im Rumpf waere keine Wache.
+   *
+   * Durch `ohneKommentareUndZeichenketten`, sonst zaehlt ein Kommentar oder ein
+   * Zeichenkettenliteral mit dem Riegelnamen als Beleg (Stripper-Regel, positive
+   * Zusicherung).
+   */
+  it("verteilt die 44 Riegel auf 42 requireLagerbuchAdmin und 2 requireHelferSchreibend", () => {
+    const bewacht = exportierteActions().filter((f) => !AUSNAHMEN.has(f.name));
+    const bereinigt = (f: Fund) => ohneKommentareUndZeichenketten(f.erste);
+
+    const helfer = bewacht.filter((f) => HELFER.test(bereinigt(f)));
+    const admin = bewacht.filter((f) => ADMIN.test(bereinigt(f)));
+
+    expect(helfer.map((f) => `${f.datei}#${f.name}`).sort(), "der schreibende Helfer-Weg").toEqual([
+      "buchung.ts#bucheEntnahmeHelfer",
+      "check.ts#checkAbschluss",
+    ]);
+    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(42);
   });
 });
