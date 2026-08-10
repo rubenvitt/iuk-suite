@@ -26,7 +26,7 @@
  * Check-Transaktion gelesen wird. Die naheliegende Abhilfe waere dann der Cast,
  * den H11 gerade verbietet.
  */
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { bzGeraete, bzKontrollen, lagerorte } from "../../_db/schema";
 import { quelleAufloeser } from "../../_db/quelle";
 import { akkuLebensdauer, bzFaelligkeit,
@@ -135,6 +135,8 @@ export type BzGeraetDetail = {
   akku: BzAkkuKennzahl;
   /** chronologisch ABSTEIGEND */
   logbuch: BzKontrolleZeile[];
+  /** Mehr als die sichtbaren 100 Kontrollen sind vorhanden. */
+  logbuchMehrVorhanden: boolean;
 };
 
 export function bzGeraetDetail(
@@ -144,18 +146,28 @@ export function bzGeraetDetail(
   if (!g) return null;
   const lagerortName =
     db.select().from(lagerorte).where(eq(lagerorte.id, g.lagerortId)).get()?.name ?? "–";
-  const ks = db.select().from(bzKontrollen)
+  const sichtbareRows = db.select().from(bzKontrollen)
     .where(eq(bzKontrollen.geraetId, id))
     // id-Tiebreaker: `ts` sind UNIX-Sekunden (§5.14.4).
     .orderBy(desc(bzKontrollen.ts), desc(bzKontrollen.id))
+    .limit(BZ_LOGBUCH_GRENZE + 1)
     .all();
-  const letzte = ks[0] ?? null;
+  const letzte = sichtbareRows[0] ?? null;
+  // Die Tabellenbegrenzung darf die medizinische Kennzahl nicht veraendern:
+  // fuer den Akku wird die geraetegebundene Vollhistorie getrennt gelesen.
+  const batterieWechsel = db.select({ ts: bzKontrollen.ts }).from(bzKontrollen)
+    .where(and(
+      eq(bzKontrollen.geraetId, id),
+      eq(bzKontrollen.batterieGewechselt, true),
+    ))
+    .all();
   const wer = quelleAufloeser(db);
   return {
     geraet: g, lagerortName,
     faelligkeit: bzFaelligkeit(letzte ? letzte.ts : null, now),
-    akku: akkuLebensdauer(ks.filter((k) => k.batterieGewechselt).map((k) => k.ts)),
-    logbuch: ks.map((k) => toZeile(k, wer)),
+    akku: akkuLebensdauer(batterieWechsel.map((k) => k.ts)),
+    logbuch: sichtbareRows.slice(0, BZ_LOGBUCH_GRENZE).map((k) => toZeile(k, wer)),
+    logbuchMehrVorhanden: sichtbareRows.length > BZ_LOGBUCH_GRENZE,
   };
 }
 

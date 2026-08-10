@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
+import { Ikone } from "./ikonen";
 import { NETZ_TEXT_BUCHUNG, type HelferErgebnis, type HelferGrund } from "../_lib/actionTypen";
 import { fmtVerfall, ampelTon } from "../_lib/format";
 import type { Ampel } from "../_lib/domain/verfall";
@@ -94,16 +95,7 @@ export function Entnahme({ detail, buchen }: { detail: EntnahmeDetail; buchen: B
   return (
     <>
       <Link className={s.rueckweg} href="/helfer">
-        <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path
-            d="M15 6l-6 6 6 6"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <Ikone name="chevron-links" groesse={15} />
         Zurück
       </Link>
 
@@ -149,39 +141,9 @@ export function Entnahme({ detail, buchen }: { detail: EntnahmeDetail; buchen: B
 
           {rueck && (
             <>
-              {/*
-                ⚠️ WARUM HIER EIN INLINE-STIL AUF `.chip` LIEGT (Review-Befund 1).
-                `.chip` ist als KURZstatus ausgelegt: `white-space: nowrap`,
-                `border-radius: 99px`, `padding: 2.5px 9px`, `font-size: 12px`
-                (`helfer.module.css:227-230`) — und die umgebende `.karte` traegt
-                `overflow: hidden` (`:186`). Hier laufen aber die vollstaendigen
-                §7.3-Saetze hinein: bei 390px Geraetebreite bleiben 334px
-                Karteninnenraum, der `sitzung`-Satz braucht rund 540px. Ohne
-                Umbruchmoeglichkeit schneidet `overflow: hidden` den Ueberhang
-                OHNE Ellipse ab — beim `leer`-Text faellt der Handlungssatz
-                „Bitte der Verwaltung melden." weg, beim `sitzung`-Text die
-                Zusage „deine Eingaben bleiben stehen".
-
-                Die PILLENGEOMETRIE muss mitwandern, nicht nur der Umbruch:
-                `border-radius: 99px` mit `padding: 2.5px 9px` ueber drei Zeilen
-                ergaebe ein zerlaufendes Oval — man tauschte Abschneiden gegen
-                Unlesbarkeit.
-
-                ⚠️ WARUM NICHT ALS KLASSE: die saubere Fassung ist eine eigene
-                `.rueckmeldung` in `helfer.module.css`. Die Datei gehoert T64;
-                das ist ein Koordinationsposten, kein Nebenbei-Edit aus einem
-                Fix-Task heraus.
-              */}
+              {/* Der mehrzeilige Ergebnissatz braucht die von `.chip` abweichende Form aus `.rueckmeldung`. */}
               <span
-                className={`${s.chip} ${rueck.art === "ok" ? s.ok : s.rot}`}
-                style={{
-                  whiteSpace: "normal",
-                  display: "block",
-                  borderRadius: 10,
-                  padding: "8px 10px",
-                  fontSize: 13,
-                  marginTop: 10,
-                }}
+                className={`${s.chip} ${rueck.art === "ok" ? s.ok : s.rot} ${s.rueckmeldung}`}
                 data-rolle="entnahme-ergebnis"
                 role="status"
               >

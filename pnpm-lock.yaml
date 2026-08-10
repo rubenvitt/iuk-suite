@@ -35,6 +35,9 @@ importers:
       better-sqlite3:
         specifier: ^13.0.2
         version: 13.0.2
+      dayjs:
+        specifier: ^1.11.21
+        version: 1.11.21
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@13.0.2)

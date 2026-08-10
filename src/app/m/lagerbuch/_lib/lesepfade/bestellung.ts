@@ -37,16 +37,9 @@ export type BestellZeile = {
   /**
    * NEU: als bestellt markiert, aber NICHT mehr unter Mindestbestand → „Ware
    * offenbar eingetroffen — Markierung zuruecksetzen?".
-   *
-   * ⚠️ In der Liste, die `bestellvorschlag` liefert, ist dieses Feld IMMER
-   * `false`: die Funktion gibt nur Artikel unter Mindestbestand zurueck, und
-   * „unter Mindestbestand" schliesst „offenbar wieder da" per Definition aus.
-   * Das Feld gehoert trotzdem zur Zeile und nicht in die Komponente, weil die
-   * Auflage an Teil 5 (Brief, Befund 3) vorsieht, dass DIE SEITE beide Mengen
-   * zeigt — den Vorschlag UND die bereits bestellten Artikel, die wieder
-   * gedeckt sind. Wie Teil 5 an die zweite Menge kommt, entscheidet Teil 5;
-   * dieser Lesepfad legt nur die Berechnung in die Zeile statt in eine
-   * Komponente.
+   * Das bedeutet bewusst NICHT, dass ein bestimmter Zugang nachweisbar waere:
+   * auch eine Korrektur kann den Bestand gedeckt haben. Wahr ist nur, dass die
+   * Markierung noch steht, obwohl kein Unterbestand mehr besteht.
    */
   wareOffenbarDa: boolean;
 };
@@ -70,5 +63,14 @@ export function bestellvorschlag(db: Leser): BestellZeile[] {
         wareOffenbarDa: Boolean(a.bestelltAt) && !unterMindest,
       };
     })
-    .filter((z) => braucht(z.bestand, z.mindestbestand));
+    .filter((z) => braucht(z.bestand, z.mindestbestand) || z.wareOffenbarDa)
+    .sort((a, b) => {
+      // Echte Unterbestaende bleiben der dringende Block. Bereits wieder
+      // gedeckte Markierungen folgen gesammelt, damit ein alphabetisch frueher
+      // Name keine Ruecknahme vor einen offenen Bestellbedarf schiebt.
+      const nachrang = Number(a.wareOffenbarDa) - Number(b.wareOffenbarDa);
+      if (nachrang !== 0) return nachrang;
+      const nachName = a.name.localeCompare(b.name, "de");
+      return nachName || a.id.localeCompare(b.id);
+    });
 }

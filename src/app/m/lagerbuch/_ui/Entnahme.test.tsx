@@ -73,7 +73,8 @@ const DEKLARIERT = new Set((CSS.match(/\.[A-Za-z_][\w-]*/g) ?? []).map((t) => t.
  * Aendert T64 `.chip`, aendert sich die Vergleichsgrundlage mit.
  */
 function regeln(selektor: string): Map<string, string> {
-  const treffer = [...CSS.matchAll(new RegExp(`^\\${selektor}\\s*\\{([^}]*)\\}`, "gm"))];
+  const escaped = selektor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const treffer = [...CSS.matchAll(new RegExp(`^${escaped}\\s*\\{([^}]*)\\}`, "gm"))];
   if (treffer.length !== 1) {
     throw new Error(`${selektor} steht ${treffer.length}× in ${STYLESHEET} — erwartet: genau 1×`);
   }
@@ -101,11 +102,11 @@ function schluessel(el: HTMLElement): string[] {
     });
 }
 
-/** Der Tonschluessel eines Chips — alles ausser `chip`, und es muss genau einer sein. */
+/** Der Tonschluessel eines Chips — Formklassen zählen nicht als Ton. */
 function ton(el: HTMLElement): string {
   const keys = schluessel(el);
   expect(keys).toContain("chip");
-  const rest = keys.filter((k) => k !== "chip");
+  const rest = keys.filter((k) => k !== "chip" && k !== "rueckmeldung");
   expect(rest.length).toBe(1);
   // DIE tragende Zeile: ein Klassenname, den das Stylesheet nicht kennt, ist
   // gueltiges Markup und still farblos.
@@ -148,6 +149,15 @@ describe("Entnahme — die Anzeige", () => {
     expect(query("[data-rolle='fach']").textContent).toBe("A-01");
     expect(query("[data-rolle='bestand']").textContent).toContain("42");
     expect(query("[data-rolle='bestand']").textContent).toContain("Stk");
+  });
+
+  it("der Rueckweg behaelt sein stummes Zeichen neben sichtbarem Text", async () => {
+    await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    const link = query<HTMLAnchorElement>("a[href='/helfer']");
+    const svg = query("a[href='/helfer'] svg");
+    expect(svg.getAttribute("aria-hidden")).toBe("true");
+    expect(svg.getAttribute("focusable")).toBe("false");
+    expect(link.textContent?.trim()).toBe("Zurück");
   });
 
   it("listet die Chargen mit Chip und Monatsangabe (FEFO)", async () => {
@@ -347,19 +357,19 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
    * schneidet `overflow: hidden` den Ueberhang OHNE Ellipse ab — genau der
    * Handlungssatz faellt weg, um dessentwillen der ganze Task existiert.
    *
-   * ⚠️ WARUM ER DEN STIL LIEST UND NICHT DAS AUSSEHEN. jsdom wendet KEIN CSS an
-   * (gemessen und festgehalten in `HelferChip.tsx:22-28`), und der CSS-Scan in
-   * `_lib/bauform.test.ts` sucht ausschliesslich nach `--ant-`. Ein INLINE-Stil
-   * steht dagegen im DOM und ist damit das Einzige, was ein Tor dieses Projekts
-   * von dieser Regel ueberhaupt sehen kann.
+   * ⚠️ WARUM ER DIE REGEL LIEST UND NICHT DAS AUSSEHEN. jsdom berechnet kein
+   * CSS. Der Test belegt deshalb das gerenderte Klassenpaar UND liest
+   * `.chip.rueckmeldung`: zwei Klassen sind spezifischer als `.chip` und lassen
+   * die Umbruchregeln nicht von der Stylesheet-Reihenfolge abhängen.
    *
    * ⚠️ WARUM NUR DER FEHLERFALL GEPRUEFT WIRD. Der Stil haengt nicht an `art` —
    * es ist EIN Element ohne Verzweigung. Ein zweiter Test auf dem Erfolgsfall
    * waere eine Kopie, keine zweite Zusage (Regel 4). Geprueft wird der
    * `leer`-Satz, weil er der laengste und der Gegenstand des Befunds ist.
    */
-  it("ueberschreibt JEDE Pilleneigenschaft von `.chip` — sonst schneidet `overflow: hidden` ab", async () => {
+  it("nutzt die umbruchfaehige Rueckmeldung-Klasse statt Inline-Stile", async () => {
     const chip = regeln(".chip");
+    const rueckmeldung = regeln(".chip.rueckmeldung");
     // Die Voraussetzung des Befunds, aus dem Stylesheet GELESEN statt behauptet:
     // faellt `nowrap` in T64 je weg, geht diese Zeile rot und der naechste Leser
     // weiss, dass die Ueberschreibung neu zu bewerten ist.
@@ -378,10 +388,7 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
     await click(BUCHEN);
     const r = query(ERGEBNIS);
 
-    // Der Umbruch selbst — ohne ihn hilft keine Geometrie.
-    expect(r.style.whiteSpace).toBe("normal");
-    // `inline-flex` mit Umbruch bliebe schrumpfbreit und liefe wieder ueber.
-    expect(r.style.display).toBe("block");
+    expect(r.className).toMatch(/rueckmeldung/);
 
     // Und die Geometrie MUSS mit: `border-radius: 99px` mit `padding: 2.5px 9px`
     // ueber drei Zeilen ist ein zerlaufendes Oval — man tauschte Abschneiden
@@ -389,9 +396,10 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
     // `.chip`" und „macht einen SATZ unlesbar".
     for (const eig of ["display", "white-space", "border-radius", "padding", "font-size"]) {
       expect(chip.has(eig)).toBe(true);
-      expect(r.style.getPropertyValue(eig)).not.toBe("");
-      expect(r.style.getPropertyValue(eig)).not.toBe(chip.get(eig));
+      expect(rueckmeldung.get(eig)).toBeTruthy();
+      expect(rueckmeldung.get(eig)).not.toBe(chip.get(eig));
     }
+    expect(rueckmeldung.get("margin-top")).toBe("10px");
 
     // Der Ton bleibt, wo er war: die Ueberschreibung tauscht die Form, nicht die
     // Farbe — `ton()` verlangt weiterhin `chip` plus genau einen Tonschluessel.
