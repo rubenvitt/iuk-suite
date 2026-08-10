@@ -52,6 +52,37 @@ describe("etikettMasse", () => {
    */
   it("traegt kein use client", () => {
     const quelle = readFileSync(join(__dirname, "etikettMasse.ts"), "utf8");
-    expect(quelle).not.toMatch(/["']use client["']/);
+    expect(ohneKommentare(quelle)).not.toMatch(/["']use client["']/);
   });
 });
+
+/**
+ * Kopie von `ohneKommentare()` aus `_lib/bauform.test.ts` (K-4, Regel 1 der
+ * Regeldatei fuer Teil 4). Der Scan oben liest sonst den Rohtext INKLUSIVE
+ * Kommentaren, und `etikettMasse.ts` traegt den Satz „KEIN \"use client\""
+ * woertlich in seinem eigenen Kopfkommentar — der Scan waere auf seiner
+ * eigenen Begruendung rot. `bauform.test.ts` exportiert die Funktion nicht,
+ * und diese Datei ist ein anderer Testkoerper, deshalb die lokale Kopie statt
+ * eines Re-Exports.
+ */
+function ohneKommentare(quelle: string): string {
+  let imBlock = false;
+  return quelle
+    .split("\n")
+    .map((zeile) => {
+      if (imBlock) {
+        const zu = zeile.indexOf("*/");
+        if (zu === -1) return "";
+        imBlock = false;
+        return " ".repeat(zu + 2) + zeile.slice(zu + 2);
+      }
+      const auf = zeile.indexOf("/*");
+      if (auf !== -1 && !zeile.slice(0, auf).includes("*/")) {
+        const zu = zeile.indexOf("*/", auf + 2);
+        if (zu === -1) { imBlock = true; return zeile.slice(0, auf); }
+        return zeile.slice(0, auf) + " ".repeat(zu + 2 - auf) + zeile.slice(zu + 2);
+      }
+      return zeile.trimStart().startsWith("//") ? "" : zeile;
+    })
+    .join("\n");
+}

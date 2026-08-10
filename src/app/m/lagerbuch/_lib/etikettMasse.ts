@@ -1,7 +1,7 @@
 /**
  * DIE GEOMETRIE DES ETIKETTENBOGENS — 1:1-Pflicht 22 (Spec §8.4).
  *
- * KEIN `use client`. Diese Werte liest die Client-Insel EtikettenBogen.tsx UND
+ * KEIN "use client". Diese Werte liest die Client-Insel EtikettenBogen.tsx UND
  * der serverseitige Quelltext-Scan druck.test.ts. Ein Wert aus einem als Client
  * markierten Modul kommt in einer Server Component nicht als Wert an, sondern
  * als Client-Referenz — HTTP 500 fuer die ganze Seite, waehrend `typecheck` und
