@@ -19,20 +19,27 @@ import { EtikettenBogen } from "./EtikettenBogen";
  * (`layout.tsx:8`, „KEINE Shell").
  *
  * Anders als A5/A12 gibt es hier KEINE bereits vorhandene engere Fassung, an
- * die sich der Fall ersatzlos abgeben liesse — `lucide-react` ist in dieser
- * Suite gar keine Abhaengigkeit, und die beiden Modul-/Repo-weiten Sperren
- * pruefen etwas anderes als diese Datei (nur Importe, kein Textvergleich mit
- * Prosa):
- *   - `src/core/shell/icons.test.ts` — der repo-weite Riegel gegen
- *     `@ant-design/icons` (Falle 7), scannt ueber `importSpezifizierer()`
- *     tatsaechliche Import-/require-Formen, kommentarbereinigt, nie rohen Text.
- *   - `_lib/bauform.test.ts:820-834` — der modulweite Riegel gegen
- *     `lucide-react`, scannt ueber `trefferAuf()` (intern `ohneKommentare`).
+ * die sich der Fall ersatzlos abgeben liesse:
+ *   - `src/core/shell/icons.test.ts` prueft NICHT „kein Import von
+ *     `@ant-design/icons`" allgemein, sondern nur „jeder Importeur OHNE `use
+ *     client` faellt auf" (`if (traegtClientDirektive(quelle)) continue;`).
+ *     `EtikettenBogen.tsx` traegt `"use client"` in Zeile 1 — ein Icon-Import
+ *     DORT liesse diesen Scan GRUEN durchlaufen. Er deckt diese Insel also
+ *     NICHT ab.
+ *   - `_lib/bauform.test.ts:761` schliesst `verwaltung/` ausdruecklich aus
+ *     ("`verwaltung/` bleibt bewusst aussen vor: DAS ist der antd-Zweig") und
+ *     deckt damit auch das antd-Verbot in DIESER `page.tsx` nicht.
+ *   - Einzig `_lib/bauform.test.ts:820-834` (der modulweite `lucide-react`-
+ *     Riegel ueber `trefferAuf()`/intern `ohneKommentare`) deckt beide Dateien
+ *     tatsaechlich ab — `lucide-react` selbst ist in dieser Suite ohnehin
+ *     keine Abhaengigkeit.
  *
- * Der richtige Hebel ist deshalb NICHT das Loeschen dieser beiden Faelle,
- * sondern derselbe wie bei A4: der Scan liest ueber `ohneKommentare(...)`
- * (byte-identische Kopie aus `_lib/bauform.test.ts:98-118` /
- * `(druck)/etiketten/druck.test.ts:78-98`), NICHT ueber den Rohtext. Der
+ * DAMIT SIND DIE BEIDEN FAELLE UNTEN — anders als bei A5/A12 — NICHT verzichtbar:
+ * fuer (a) keinen Icon-Import in dieser Insel und (b) kein antd in dieser
+ * `page.tsx` sind sie HEUTE DER EINZIGE RIEGEL IM REPO. Der richtige Hebel ist
+ * deshalb NICHT das Loeschen, sondern derselbe wie bei A4: der Scan liest ueber
+ * `ohneKommentare(...)` (byte-identische Kopie aus `_lib/bauform.test.ts:98-118`
+ * / `(druck)/etiketten/druck.test.ts:78-98`), NICHT ueber den Rohtext. Der
  * Begruendungskommentar in `EtikettenBogen.tsx`/`page.tsx` wird NICHT
  * umformuliert, um den Test gruen zu machen (A4-Prinzip).
  */
@@ -92,6 +99,18 @@ describe("EtikettenBogen", () => {
     expect(queryAll(".lb-etikett")).toHaveLength(3);
     // Kein <img> mehr — der alte Anker ist tot und soll es bleiben.
     expect(exists(".lb-etikett img")).toBe(false);
+    /**
+     * DIE QR↔DATENSATZ-BINDUNG, NICHT NUR DIE KNOTENZAHL (Review-Befund 1,
+     * 10.08.2026). Ohne diese Zeile bliebe ein Fehlgriff wie
+     * `etikett(k, ARTIKEL[0].qr, …)` fuer ALLE DREI Kacheln unbemerkt gruen —
+     * die Knotenzahl stimmt, aber alle drei Etiketten zeigten auf dasselbe
+     * Ziel. Auf Papier ist genau das der teure Fall. Ueber das `d`-Attribut
+     * des `<path>`, NICHT ueber `innerHTML`: jsdom re-serialisiert
+     * `<path .../>` zu `<path ...></path>` und ein Textvergleich daran
+     * schiede falsch-rot.
+     */
+    expect(queryAll(".lb-etikettQr svg path").map((p) => p.getAttribute("d")))
+      .toEqual(["M0 0h1v1H0z", "M1 1h1v1H1z", "M2 2h1v1H2z"]);
   });
 
   it("setzt das SVG unveraendert ein", async () => {

@@ -72,6 +72,26 @@ export default async function EtikettenSeite() {
         Alle QR-Codes zeigen auf {daten.basis}
       </p>
       <EtikettenBogen artikel={daten.artikel} tokens={daten.tokens} />
+      {/*
+        BETREIBERENTSCHEIDUNG, 10.08.2026 (Review-Nachtrag zu T162): der
+        Global Constraint „Jeder gestaltete Zustand traegt einen benannten Weg
+        zurueck" gewinnt gegen §8.4s „Was NICHT geaendert wird" — die Alt-
+        Anwendung zeigte den leeren Bestand in einer Seite MIT Navigation,
+        `DruckRahmen` hat konstruktionsbedingt KEINE. Ohne diesen Link waere
+        der leere Bogen eine Sackgasse; das ist keine Abweichung von der
+        1:1-Pflicht, sondern deren Folge.
+
+        Die Bedingung dupliziert EtikettenBogens eigene `keys.length === 0`
+        (dort Wortlaut-1:1-Pflicht, nicht anzufassen) bewusst hier: `page.tsx`
+        haelt dieselben Daten (`daten.artikel`, `daten.tokens`) bereits vor,
+        und der Link steht damit als ECHTES DOM-Geschwister direkt NACH dem
+        `<p>`, das <EtikettenBogen> im leeren Fall rendert.
+      */}
+      {daten.artikel.length === 0 && daten.tokens.length === 0 && (
+        <p className="lb-nichtDrucken">
+          <a href="/verwaltung">Zurück zur Übersicht</a>
+        </p>
+      )}
     </>
   );
 }
