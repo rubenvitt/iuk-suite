@@ -7,27 +7,6 @@ import {
 } from "./bestandExport";
 import { artikelFiltern, LEERER_FILTER } from "./artikelFilter";
 
-/**
- * Baut ein Datum aus LOKALEN Feldern, OHNE `new Date(` mit mehr als einem
- * Argument. Die Quelltext-Zusicherung `_lib/format.test.ts:330` (§5.16,
- * Global Constraint dieses Plans, Eigentum eines fremden Tasks) verbietet das
- * repoweit ausser in `_lib/zeit.ts`. `bestandExportDateiname` braucht aber
- * genau lokale Feldwerte (`now.getFullYear()` usw.), und `setFullYear`/
- * `setHours` auf einem bestehenden Date-Objekt liefern dieselben lokalen
- * Feldwerte wie der mehrargumentige Konstruktor, ohne dass der Scan anschlaegt
- * — er sucht woertlich nach `new Date(`, nicht nach `.setFullYear(`. Auch
- * `_lib/zeit.ts` selbst vermeidet den mehrargumentigen Konstruktor durchgehend
- * (`Date.UTC` oder Ein-Argument-Formen).
- */
-function lokalesDatum(
-  jahr: number, monatIndex: number, tag: number, stunde = 0, minute = 0,
-): Date {
-  const d = new Date(0);
-  d.setFullYear(jahr, monatIndex, tag);
-  d.setHours(stunde, minute, 0, 0);
-  return d;
-}
-
 function eingabe(p: Partial<BestandExportEingabe> = {}): BestandExportEingabe {
   return {
     name: "Mullbinde 8cm", fach: "A2", bestand: 12, einheit: "Stk.",
@@ -87,11 +66,15 @@ describe("bestandExportZeilen", () => {
 describe("bestandExportDateiname", () => {
   /** ../lagerbuch/src/lib/bestand-export.test.ts:44 prueft genau diesen String. */
   it("liefert bestand-YYYY-MM-DD.xlsx aus LOKALER Zeit", () => {
-    expect(bestandExportDateiname(lokalesDatum(2026, 6, 5, 13, 37))).toBe("bestand-2026-07-05.xlsx");
+    // EIN Argument, offset-los: nach ECMAScript LOKAL geparst, keine Zonenrechnung
+    // wie bei `new Date(jahr, monat, tag, ...)`. KEIN "Z" — das waere UTC, hier
+    // ist lokal gemeint (anders als die rund zwei Dutzend `new Date("...Z")` in
+    // `_actions/*.test.ts`, die dort UTC-Zeitpunkte meinen).
+    expect(bestandExportDateiname(new Date("2026-07-05T13:37"))).toBe("bestand-2026-07-05.xlsx");
   });
 
   it("fuellt Monat und Tag auf zwei Stellen", () => {
-    expect(bestandExportDateiname(lokalesDatum(2026, 0, 9))).toBe("bestand-2026-01-09.xlsx");
+    expect(bestandExportDateiname(new Date("2026-01-09T00:00"))).toBe("bestand-2026-01-09.xlsx");
   });
 
   /**
@@ -100,7 +83,7 @@ describe("bestandExportDateiname", () => {
    * einzige, die den Wert festnagelt.
    */
   it("passt zur Regex, die der E2E prueft", () => {
-    expect(bestandExportDateiname(lokalesDatum(2026, 6, 5)))
+    expect(bestandExportDateiname(new Date("2026-07-05T00:00")))
       .toMatch(/^bestand-\d{4}-\d{2}-\d{2}\.xlsx$/);
   });
 });
