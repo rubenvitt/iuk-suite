@@ -54,18 +54,31 @@ const BREITEN = [
  * (Artikel), die Kachelreihe der Uebersicht und der Etikettenbogen mit seinem
  * festen Millimeterraster. Je Seite ein eigener, echter Anker — antds interne
  * Klassen sind kein Ersatz dafuer (Global Constraints).
+ *
+ * ⚠️ REVIEW-FIX (Befund 1, 11.08.2026): `suite-header` sitzt auf SHELL-Ebene
+ * und existiert auf JEDER Arbeitsseite des Moduls — er unterscheidet nicht
+ * zwischen `/verwaltung/artikel` und `/verwaltung`. Ein stiller Redirect
+ * (Route-Kollaps auf `/verwaltung`) bestand die alte Fassung dieses Tests
+ * unbemerkt: HTTP 200, `suite-header` da, Dashboard laeuft nicht ueber — genau
+ * der Fehlerzustand, den der Anker ausschliessen soll (Falle 3: „in welchem
+ * falschen Zustand waere die Zusicherung auch gruen?"). Jetzt seitenspezifisch:
+ * `lb-excel` (nur auf der Artikeltabelle, `ArtikelTable.tsx:235`) und ein
+ * Textanker fuer `/verwaltung` (dort existiert kein Testid — keins in einer
+ * Produktionsdatei ergaenzt, das waere ausserhalb des Testumfangs).
  */
 const SEITEN: { pfad: string; anker: (page: Page) => Promise<void> }[] = [
   {
     pfad: "/verwaltung/artikel",
     anker: async (page) => {
-      await expect(page.getByTestId("suite-header")).toHaveCount(1);
+      await expect(page.getByTestId("lb-excel")).toBeVisible();
     },
   },
   {
     pfad: "/verwaltung",
     anker: async (page) => {
-      await expect(page.getByTestId("suite-header")).toHaveCount(1);
+      // Kein Testid auf dieser Seite (page.tsx:127) — Textanker statt neuem
+      // data-testid in Produktionscode.
+      await expect(page.getByText("Kritische Artikel", { exact: true })).toBeVisible();
     },
   },
   {
@@ -185,17 +198,22 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
    * GEMESSEN auf `/verwaltung/artikel` (Sortierungs-Select,
    * `ArtikelTable.tsx:215-225`): das Feld traegt
    * `<input class="ant-select-input" role="combobox" readonly value="">`,
-   * `getComputedStyle(...).fontSize` 14px. `e.closest(".ant-select-selector")`
-   * ist NULL — es liegt ausserhalb der bestehenden Ausnahme-Regel. Ein Tap auf
-   * die Auswahl fokussiert dieses Feld tatsaechlich
-   * (`document.activeElement` danach: `INPUT.ant-select-input`), aber `value`
-   * bleibt IMMER `""` — es zeigt nie sichtbaren Text.
+   * `getComputedStyle(...).fontSize` 14px. Ein Tap auf die Auswahl fokussiert
+   * dieses Feld tatsaechlich (`document.activeElement` danach:
+   * `INPUT.ant-select-input`), aber `value` bleibt IMMER `""` — es zeigt nie
+   * sichtbaren Text.
    *
-   * `globals.css:59-69` beantwortet genau das bereits: „antd baut die
-   * geschlossene Auswahl aus einem `<div class="ant-select-selector">` — das
-   * `input` darin ist unsichtbar und traegt die Schriftgroesse nicht." Die
-   * bestehende `:root .ant-select-selector`-Ausnahme zielt bewusst auf den
-   * SICHTBAREN Container, nicht auf dieses interne, textlose Proxy-Feld.
+   * ⚠️ REVIEW-FIX (Befund 3, 11.08.2026): der urspruengliche Kommentar zitierte
+   * `globals.css:59-69` (die Ausnahme fuer `.ant-select-selector`) als
+   * Erklaerung. Diese Klasse wird von antd 6.5.3 / `@rc-component/select@1.8.2`
+   * gar nicht mehr gerendert — die Regel bewacht seit dem antd-Upgrade nichts
+   * mehr (eigener ClickUp-Fund, s. u.). Die tatsaechliche Quelle der 14px ist
+   * `antd/es/select/style/select-input.js:206-225`:
+   * `[${componentCls}-input]: { ...fontSize: 'inherit'... }` — das Feld erbt
+   * die Schriftgroesse von seinem antd-Vorfahren, der sie auf `token.fontSize`
+   * (= 14) setzt. Kein `.ant-select-selector` im Spiel, und ein
+   * `div`/`span`-Container laege ohnehin nie in der Menge `input, textarea,
+   * select`, die dieser Test misst.
    *
    * NICHT BEHOBEN in diesem Task: eine Aenderung an `globals.css` wirkte
    * suiteweit (portal, qr, feedback, files) — eine stille Suite-Entscheidung
@@ -205,14 +223,20 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
    *
    * DER AUSSCHLUSS BLEIBT ENG: nur die Klasse `ant-select-input`, nicht „alle
    * antd-Inputs" — sonst deckte dieser Test die 16px-Zusage fuer die Felder
-   * nicht mehr ab, fuer die sie gilt (z. B. das Sortierungs-Select traegt
-   * seinen SICHTBAREN Text ueber `.ant-select-selector`, weiterhin gemessen).
+   * nicht mehr ab, fuer die sie gilt. `Suchfeld` (`_ui/Suchfeld.tsx`, ein
+   * echtes antd `Input type="search"` mit sichtbarem Text) bleibt Teil der
+   * gemessenen Menge — genau dieser Fall belegt unten, dass die Kandidatenzahl
+   * nicht nur aus dem ausgeschlossenen Select-Proxy besteht.
    */
   test("kein Eingabefeld unter 16px", async ({ page }) => {
     await devLogin(page, { host: LAGERBUCH_HOST, groups: LAGERBUCH_ADMIN_GRUPPE });
 
     const antwort = await page.goto(lagerbuchUrl("/verwaltung/artikel"));
     expect(antwort?.status(), "/verwaltung/artikel: HTTP").toBe(200);
+    // Seitenspezifisches Merkmal (Review-Fix Befund 2): Status 200 + „hat
+    // Eingabefelder" gilt auch auf der Login-Seite und praktisch jeder
+    // Suite-Seite. `lb-excel` existiert nur auf der Artikeltabelle.
+    await expect(page.getByTestId("lb-excel")).toBeVisible();
     await page.waitForLoadState("networkidle");
 
     // ERST NACHWEISEN, DASS ES ETWAS ZU MESSEN GIBT — sonst erfuellt eine
@@ -257,17 +281,24 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
    * gerendert, z. B. eine geschlossene Modal-Aktion) als Datenfilter
    * ausgeschlossen — dieselbe Bauform wie `zuKleineZiele` in
    * `e2e/files-mobil.spec.ts:377-401`. Die Kandidatenzahl wird VORHER separat
-   * ueber die Rollen-Locator-API bestaetigt, damit eine leere Fundmenge nicht
-   * unbemerkt als „bestanden" durchgeht.
+   * bestaetigt, damit eine leere Fundmenge nicht unbemerkt als „bestanden"
+   * durchgeht — ueber denselben `button`-Elementselektor wie die Messung
+   * selbst (Review-Fix Minor: `getByRole("button")` und
+   * `querySelectorAll("button")` sind keine deckungsgleichen Mengen, `a
+   * role="button"` zaehlte sonst mit, ohne je gemessen zu werden).
    */
   test("jede Zeilenaktion ist mindestens 44px hoch", async ({ page }) => {
     await devLogin(page, { host: LAGERBUCH_HOST, groups: LAGERBUCH_ADMIN_GRUPPE });
 
     const antwort = await page.goto(lagerbuchUrl("/verwaltung/bestellung"));
     expect(antwort?.status(), "/verwaltung/bestellung: HTTP").toBe(200);
+    // Seitenspezifisches Merkmal (Review-Fix Befund 2): Status 200 + „hat
+    // Knoepfe" gilt auf praktisch jeder Suite-Seite. `lb-kopieren` existiert
+    // nur auf der Bestellliste (`BestellListe.tsx:213`).
+    await expect(page.getByTestId("lb-kopieren")).toBeVisible();
     await page.waitForLoadState("networkidle");
 
-    const knoepfe = page.getByRole("button");
+    const knoepfe = page.locator("button");
     const n = await knoepfe.count();
     expect(n, "die Seite muss Bedienelemente tragen, sonst misst der Test nichts").toBeGreaterThan(
       0,
