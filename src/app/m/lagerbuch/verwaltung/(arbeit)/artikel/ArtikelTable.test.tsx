@@ -597,8 +597,18 @@ describe("Artikelseite als Server Component", () => {
  * (Vorab-Scan) haelt fest, dass es ihn vorher nicht gab: der Knopf war nur ueber
  * den Text „Excel-Liste" erreichbar. `data-export-zeilen` bleibt daneben
  * bestehen, weil die Sortierungstests weiter oben ihn lesen.
+ *
+ * `afterEach` hebt jede `vi.doMock("write-excel-file/browser", …)` dieses
+ * Blocks wieder auf: ohne das erbt ein spaeter angehaengter Fall den
+ * WERFENDEN Mock aus dem Fehlertest, ohne selbst je `vi.doMock` gerufen zu
+ * haben (Review-Befund, Minor 2).
  */
 describe("Excel-Export (§9.4)", () => {
+  afterEach(() => {
+    vi.doUnmock("write-excel-file/browser");
+    vi.resetModules();
+  });
+
   it("ist nicht mehr abgestellt", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
     const knopf = query("[data-testid='lb-excel']");
@@ -685,12 +695,35 @@ describe("Excel-Export (§9.4)", () => {
     expect(document.body.textContent).not.toContain("boom");
   });
 
-  /** 1:1 aus ArtikelTable.tsx — die Beschriftung wechselt waehrend des Laufs. */
-  it("wechselt die Beschriftung auf Erzeuge…", async () => {
-    // useTransition-Zustand; die Zusage ist die Beschriftung, nicht das Timing.
-    expect(readFileSync(
-      `src/app/m/lagerbuch/verwaltung/(arbeit)/artikel/ArtikelTable.tsx`,
-      "utf8",
-    )).toContain("Erzeuge…");
+  /**
+   * REVIEW-BEFUND 1: ein Quelltext-Scan auf "Erzeuge…" bliebe gruen, wenn der
+   * Ternaer zu `{false ? "Erzeuge…" : "Excel-Liste"}` verkaeme oder der String
+   * nur noch in einem Kommentar stuende — die Stripper-Regel (A13) rettet das
+   * hier NICHT, weil das Ziel selbst ein Stringliteral ist. Deshalb haengt
+   * dieser Test `toFile` an ein manuell aufloesbares Promise: solange es
+   * offen ist, MUSS der Knopf "Erzeuge…" zeigen und gesperrt sein; danach
+   * faellt beides zurueck. Das ist eine Verhaltenszusage, keine Textbehauptung.
+   */
+  it("sperrt den Knopf und zeigt Erzeuge…, bis die Datei fertig ist — dann faellt beides zurueck", async () => {
+    vi.resetModules();
+    let dateiFertig: (() => void) | undefined;
+    const toFile = vi.fn(() => new Promise<void>((resolve) => { dateiFertig = resolve; }));
+    const schreiben = vi.fn().mockReturnValue({ toFile });
+    vi.doMock("write-excel-file/browser", () => ({ default: schreiben }));
+
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await clickElement(query("[data-testid='lb-excel']"));
+    await warteAuf(() => toFile.mock.calls.length === 1, "toFile wurde aufgerufen");
+
+    const knopf = () => query<HTMLButtonElement>("[data-testid='lb-excel']");
+    expect(knopf().textContent).toBe("Erzeuge…");
+    expect(knopf().hasAttribute("disabled")).toBe(true);
+
+    await act(async () => {
+      dateiFertig?.();
+      await Promise.resolve();
+    });
+    await warteAuf(() => knopf().textContent === "Excel-Liste", "zurueckgefallene Beschriftung");
+    expect(knopf().hasAttribute("disabled")).toBe(false);
   });
 });

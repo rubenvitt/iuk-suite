@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Button, Checkbox, Flex, Select, Table } from "antd";
+import { Alert, Button, Checkbox, Flex, Select, Table } from "antd";
 import {
   artikelFiltern,
   LEERER_FILTER,
@@ -235,6 +235,14 @@ export function ArtikelTable({
         <Button
           data-testid="lb-excel"
           icon={<Ikone name="tabelle" groesse={16} />}
+          // ABSICHTLICH `zeilen.length`, NICHT `gefiltert.length` (Brief-Prosa
+          // §9.4 Schritt 4: "rows.length === 0" — die Vollmenge dieses Moduls
+          // heisst `zeilen`). Ein Suchfilter ohne Treffer deaktiviert den Knopf
+          // also NICHT: der Klick erzeugt dann eine Datei mit nur der
+          // Kopfzeile, was zum Titel "mit der aktuell angezeigten Liste" passt
+          // — die Liste ist eben leer, und genau das wird exportiert. Erst
+          // wenn im MODUL ueberhaupt kein Artikel existiert, gibt es nichts,
+          // was ein Export je zeigen koennte.
           disabled={exportLaeuft || zeilen.length === 0}
           onClick={exportieren}
           title="Erzeugt eine Excel-Datei (.xlsx) mit der aktuell angezeigten Liste"
@@ -245,7 +253,16 @@ export function ArtikelTable({
         <NeuArtikel />
       </Flex>
       {exportFehler ? (
-        <div style={{ ...SCHRIFT.neben, marginBlockEnd: 12 }}>{exportFehler}</div>
+        // Gleiches Muster wie NeuArtikel.tsx:134 und die vier Stellen in
+        // ArtikelDrawer.tsx — kein Fließtext in Nebentext-Groesze fuer einen
+        // Fehler, und `type="warning"` statt `type="error"`: Rot ist in diesem
+        // Modul fachlich belegt (CLAUDE.md, Falle 3).
+        <Alert
+          type="warning"
+          showIcon={false}
+          title={exportFehler}
+          style={{ marginBlockEnd: 12 }}
+        />
       ) : null}
 
       <Table<ArtikelAnzeigeZeile>
