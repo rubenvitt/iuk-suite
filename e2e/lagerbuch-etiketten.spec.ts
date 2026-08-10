@@ -47,7 +47,12 @@ test.describe("Etikettenbogen", () => {
    */
   test("schreibt den verwendeten Host ueber den Bogen", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/etiketten"));
-    await expect(page.getByTestId("lb-basis")).toContainText("Alle QR-Codes zeigen auf http");
+    // Der volle Host, nicht nur das Praefix "http": ein "Alle QR-Codes zeigen
+    // auf http" bestuende auch bei einem FALSCHEN Host (genau der Fehlerzustand
+    // aus §8.1, 8-B, fuer den dieser Test existiert).
+    await expect(page.getByTestId("lb-basis")).toContainText(
+      `Alle QR-Codes zeigen auf http://${LAGERBUCH_HOST}`,
+    );
   });
 
   test("waehlt zu Beginn alles aus und schaltet ueber Keine ab", async ({ page }) => {
@@ -67,6 +72,12 @@ test.describe("Etikettenbogen", () => {
   test("blendet im Druck Kaestchen, abgewaehlte Kachel und Suite-Kopfzeile aus", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/etiketten"));
 
+    // Eigene Vorbedingung, nicht von Test 3 geborgt (verbotene
+    // Reihenfolgekopplung): der Kaestchen-Nachweis unten braucht eine ZWEITE,
+    // weiterhin GEWAEHLTE Kachel neben der abgewaehlten.
+    const n = await page.locator(".lb-etikett").count();
+    expect(n, "der Druck-Test braucht mindestens zwei Kacheln").toBeGreaterThan(1);
+
     // Genau eine Kachel abwaehlen — der Zustand wird im Test hergestellt.
     const ersteWahl = page.locator(".lb-etikettWahl").nth(0);
     await ersteWahl.uncheck();
@@ -76,7 +87,14 @@ test.describe("Etikettenbogen", () => {
     await page.emulateMedia({ media: "print" });
 
     await expect(abgewaehlt).toBeHidden(); // display:none, nicht opacity
-    await expect(page.locator(".lb-etikettWahl").nth(0)).toBeHidden();
+    /**
+     * ⚠️ NICHT nth(0) hier: dessen Label traegt bereits lb-etikettAbgewaehlt
+     * (display:none seit der Zeile oben), also waere JEDES Kind darunter durch
+     * den versteckten VORFAHREN hidden — auch wenn lb-nichtDrucken vom Input
+     * selbst verschwaende. Der Nachweis braucht ein Kaestchen auf einer
+     * weiterhin SICHTBAREN Kachel, sonst ist er maskiert und ein No-op.
+     */
+    await expect(page.locator(".lb-etikettWahl").nth(1)).toBeHidden();
     await expect(page.getByTestId("lb-drucken")).toBeHidden();
     await expect(page.getByTestId("suite-header")).toHaveCount(0);
 
