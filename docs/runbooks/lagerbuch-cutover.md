@@ -289,8 +289,8 @@ Ausdruck bleibt ausdrücklich Teil 6 (§8.4 R30); die lokale Teil-5-Abnahme erse
 
 ## 13. ⚠️ Die Generalprobe MUSS über HTTPS laufen — sonst sind die Kamerawege ungeprüft
 
-**Gemessen bei der Abnahme (T175).** Handgriff: **die Generalprobe über einen echten
-HTTPS-Namen fahren, nie über eine IP und nie über `http://`.**
+**Handgriff: die Generalprobe über einen echten HTTPS-Namen fahren, nie über eine IP und nie über
+`http://`.** Gemessen bei der Abnahme (T175).
 
 Ohne sicheren Kontext gibt es kein `getUserMedia`. `/verwaltung/geraete/scan` und
 `/verwaltung/bz/scan` zeigen über `http://` **ausschließlich** den Zustand
@@ -311,7 +311,7 @@ Gehört mit §11 zusammen abgearbeitet: dieselbe Generalprobe, ein Vorbehalt an 
 
 ## 14. Checks aus dem Import: „Ergebnis unlesbar" ist gebaut, „offener Check" nicht
 
-**Handgriff nach dem Import, vor der Freigabe — EINE Abfrage entscheidet:**
+**Handgriff nach dem Import, vor der Freigabe — EINE Abfrage entscheidet:** ⚠️ Dieselbe Abfrage gehört **zusätzlich vor** den Import gegen die **Alt**-Datenbank, damit es zwei vergleichbare Zahlen gibt — §17.3.
 
 ```sql
 select count(*) from checks where ergebnis is null;
@@ -337,8 +337,16 @@ angesehen, bevor sie freigegeben wird.
 geschrieben-aber-leer), zeigt auf der Detailseite die Meldung „**Ergebnis unlesbar**" und in der
 Positionen-Spalte der Übersicht das Wort `unlesbar` — **statt einer ruhigen `0`**. Nachgebaut am
 11.08.2026 (§11.5, Zustand 27); vorher log dort eine `0`, die wie ein leerer Check aussah. **Diese
-Zeilen fängt die Abfrage oben nicht** — sie tragen einen Wert — und sie brauchen es auch nicht: sie
-sagen es auf der Oberfläche selbst.
+Zeilen fängt die Abfrage oben nicht** — sie tragen einen Wert.
+
+⚠️ **Sie sagen es aber nur zur Hälfte selbst.** Auf der **Detailseite** stimmt der Satz: dort steht
+die Meldung „Ergebnis unlesbar". Auf der **Übersicht** trägt dieselbe Zeile das Wort `unlesbar` in
+der Positionen-Spalte **und daneben einen grünen Chip „vollständig"** in der Ergebnis-Spalte — weil
+bei zerstörtem `ergebnis` alle Zähler `0` sind und deshalb kein einziger Chip gesetzt wird, worauf
+`checks/page.tsx` den Vollständig-Chip nachschiebt. **Wer beim Cutover eine Importmenge sichtet,
+liest die grüne Spalte zuerst.** Der Widerspruch ist **vorbestehend** und wird hier bewusst nicht
+im Vorbeigehen geändert: Chip und offener Check gehören zusammen geplant — das ist
+[DRK-196](https://app.clickup.com/t/86cb403fu), derselbe Posten wie unten.
 
 ⚠️ **Was NICHT gebaut ist:** ein Check mit `ergebnis IS NULL` erscheint weiterhin als Check mit
 „**0 Positionen**". Bewusst so entschieden — `ergebnis IS NULL` als „unlesbar" zu lesen hätte
@@ -359,7 +367,7 @@ Zeile steht in §16.2** — dort und nur dort, damit es eine Fassung gibt und ni
 
 | # | Wann | Handgriff |
 |---|---|---|
-| **R30** | ⚠️ **VOR dem Cutover**, mit Vorlauf für Nachbestellung | **Probebogen drucken** — echter Drucker, echtes gekauftes Etikettenmaterial, mit **zwei** Telefonen aus 15 cm gescannt, je fünf Etiketten aus der **ersten und der letzten** Zeile. **Keine Zeile, die man nachholt:** ein falsch bedruckter Bogen kostet gekauftes Material und einen Gang durch alle Fahrzeuge. Benannter Rückfall bei Fehlschlag steht in §16.2 |
+| **R30** | ⚠️ **VOR dem FREEZE**, mit Vorlauf für Nachbestellung — nicht erst vor dem Cutover | **Probebogen drucken** — echter Drucker, echtes gekauftes Etikettenmaterial, mit **zwei** Telefonen aus 15 cm gescannt, je fünf Etiketten aus der **ersten und der letzten** Zeile. **Keine Zeile, die man nachholt:** ein falsch bedruckter Bogen kostet gekauftes Material und einen Gang durch alle Fahrzeuge. **Wird er vor den Freeze gezogen, ist er gar kein Cutover-Schritt mehr** — und die Entscheidung über die zwei Stellräder fällt ohne Zeitdruck. Der vollständige Rückfall samt gemessener Modulgrößen steht in §16.2. ⚠️ **Wie groß der Bogen überhaupt wird, misst §17.1** — bei vierstelliger Artikelzahl ist der Probebogen ohnehin nur ein Ausschnitt |
 | **R31** | Direkt **nach** dem ersten Etikettendruck | **Reihenfolge in `SUITE_HOST_LAGERBUCH` einfrieren.** Ab hier keine Umsortierung mehr — sie ändert **still** jeden ab dann gedruckten Bogen |
 | **R32** | In die Cutover-Kommunikation | **Ansagen: die Menge der physisch hängenden Etiketten ist echt größer als die der nachdruckbaren.** Ein deaktivierter Artikel bleibt bebuchbar, ist aber nie wieder nachdruckbar. Die Differenz ist im Repo **nicht abzählbar** |
 | **R33** | In die Ankündigung, **vor** dem Umschwenken | **Ankündigen: zwei Knopfbeschriftungen auf `/verwaltung/bestellung` ändern sich** — `Liste kopieren` → `Liste kopieren (nur offene)`, `CSV` → `CSV (alle Zeilen)` |
@@ -415,7 +423,7 @@ bewussten Abweichungen. Der Tabelleninhalt ist zeichengleich.*
 
 | # | Übergabe | Warum sie nicht warten kann |
 |---|---|---|
-| **R30** | **Probebogen** auf dem tatsächlich benutzten Drucker, auf das tatsächlich gekaufte Etikettenmaterial, mit **zwei** Telefonen aus 15 cm gescannt — je fünf Etiketten aus der **ersten und der letzten** Zeile (8-I) | Kein Test kann das: `build` und Vitest sehen `@media print` gar nicht, Playwright rendert für den Bildschirm. Ein fehlerhafter Bogen kostet gekauftes Material und einen Gang durch alle Fahrzeuge. **Benannter Rückfall bei Fehlschlag:** optionaler `margin`-Parameter an `core/qr#qrSvg`, vom Etikettenbogen auf `1` gesetzt, an der Aufrufstelle mit dem Messergebnis begründet. **Level H bleibt in beiden Fällen** |
+| **R30** | **Probebogen** auf dem tatsächlich benutzten Drucker, auf das tatsächlich gekaufte Etikettenmaterial, mit **zwei** Telefonen aus 15 cm gescannt — je fünf Etiketten aus der **ersten und der letzten** Zeile (8-I) | Kein Test kann das: `build` und Vitest sehen `@media print` gar nicht, Playwright rendert für den Bildschirm. Ein fehlerhafter Bogen kostet gekauftes Material und einen Gang durch alle Fahrzeuge. ⚠️ **Die gedruckte QR-Modulgröße ist beim Port um 29 % gesunken, ohne dass es jemand entschieden hat.** Die Alt-Anwendung erzeugte mit Level **M, margin 1**, der Port nimmt die Suite-Konfiguration **H, margin 4** — bei zeichengleich 20 × 20 mm Fläche (1:1-Pflicht 22). Gemessen: Artikel-URL 0,571 → **0,408 mm** je Modul (−29 %), Token-URL 0,645 → **0,444 mm** (−31 %). **Benannter Rückfall bei Fehlschlag — ZWEI Stellräder, in dieser Reihenfolge:** **(1) `margin`** am `core/qr#qrSvg`-Aufruf des Etikettenbogens, `4 → 2 → 1`, an der Aufrufstelle mit dem Messergebnis begründet. **(2) Nur falls (1) nicht reicht: die Fehlerkorrekturstufe für DIESEN EINEN Erzeugungsweg, `H → Q → M`** — Preis ausgeschrieben: weniger Toleranz gegen Verschmutzung auf einem Etikett, das im Fahrzeug klebt. ⚠️ **Stellrad (1) allein holt den Altwert nicht ein:** `margin 4 → 1` bei Level H ergibt 41 + 2 = 43 Module → **0,465 mm**, immer noch unter den 0,571 mm der Alt-Anwendung. Wer nur am Rand dreht und wieder scheitert, hat sonst keinen zweiten benannten Knopf und improvisiert unter Zeitdruck. Damit ist A-J2s „Level H bleibt in beiden Fällen“ gemessen überholt — H bleibt die Vorgabe und der Regelfall, ist aber nicht mehr das letzte Wort |
 | **R31** | **Die Reihenfolge in `SUITE_HOST_LAGERBUCH` wird nach dem ersten Etikettendruck eingefroren** (8-B) | `moduleUrl` nimmt `prodHostsFor(mod)[0]`. Eine Umsortierung ändert **still** jeden ab dann gedruckten Bogen, während die alten Etiketten weiter auf den früheren ersten Eintrag zeigen. ⚠️ Fällt Betreiberfrage 9 auf „alte Domain mitlaufen lassen", **muss `lagerbuch.iuk-ue.de` Index 0 bleiben** |
 | **R32** | **Die Menge der physisch hängenden Etiketten ist echt größer als die der nachdruckbaren** (Falle 26) | `etikettenDaten` filtert hart auf `aktiv = true`; ein deaktivierter Artikel bleibt unter `/a/<id>` **bebuchbar**, ist aber nie wieder nachdruckbar. **Die Differenz ist im Repo nicht abzählbar.** Wer nach dem Cutover nachdrucken will und den Artikel nicht findet, sucht sonst einen Fehler, wo eine Entscheidung ist |
 | **R33** | **Ankündigung: die beiden Knopfbeschriftungen auf `/verwaltung/bestellung` ändern sich** — `Liste kopieren` → `Liste kopieren (nur offene)`, `CSV` → `CSV (alle Zeilen)` (9-A) | Die beiden Wege liefern **verschieden viele Zeilen**, und heute verrät das nichts. Der Umfang bleibt; die Beschriftung wird ehrlich |
@@ -438,6 +446,108 @@ längst gefallen; die Hebung berührt über dreißig Importzeilen in drei fremde
 repo-weite Umbenennung **mitten in einer Cutover-Vorbereitung**. Sie gehört als eigener, benannter
 Suite-Posten protokolliert — **nicht** still über eine Modul-Spec eingeführt, und ebenso wenig still
 weiter übergangen.
+
+---
+
+## 17. ⚠️ Drei Abfragen gegen die **Alt**-Datenbank, **bevor** importiert wird
+
+Alle drei beantworten eine Frage, die der Paritätscheck strukturell **nicht** stellt: er beweist den
+Datenbank-**Rundlauf**, nicht die **Feldzuordnung** — ein konsistenter Zuordnungsfehler ist
+paritätsgrün. Drei `SELECT`s, drei Protokollzeilen. Spaltennamen sind an der eingefrorenen
+Alt-Anwendung (`ca04eb1`, `src/db/schema.ts`) nachgelesen, nicht geraten.
+
+### 17.1 Wie viele aktive Artikel und Codes bringt der Import mit? (Abschlussreview Teil 6, I1)
+
+**Handgriff — zuerst, weil diese eine Zahl entscheidet, ob der Rest überhaupt Arbeit ist:**
+
+```sql
+select count(*) from artikel where aktiv = 1;
+select count(*) from tokens  where aktiv = 1;
+```
+
+**Warum.** `/verwaltung/etiketten` hat **keine Obergrenze**: `_db/etiketten.ts` liest **alle** aktiven
+Artikel und **alle** aktiven Codes, erzeugt für jeden einen QR und rendert alle auf **eine** Seite.
+Die Seite ist `force-dynamic`, es gibt also **keinen Cache davor** — jeder Aufruf macht die Arbeit
+vollständig neu, und `qrSvg` ist CPU-gebunden in **einem** `Promise.all`. Dazu ein Verdoppler auf der
+Antwortgröße: `EtikettenBogen` trägt `"use client"` und bekommt die fertigen SVG-Zeichenketten als
+Props — sie stehen damit **zweimal** in derselben Antwort, im gerenderten HTML **und** im
+RSC-Flight-Payload.
+
+**Gemessen** (`qrcode` aus diesem Repo, Level H, margin 4, URL 51 Zeichen): **2.901 Byte je SVG**.
+
+| aktive Artikel + Codes | HTML | + Flight | Summe **je Aufruf** |
+|---|---|---|---|
+| 100 | 0,3 MB | 0,3 MB | **0,6 MB** |
+| 300 | 0,8 MB | 0,8 MB | **1,7 MB** |
+| 800 | 2,2 MB | 2,2 MB | **4,4 MB** |
+| 2000 | 5,5 MB | 5,5 MB | **11,1 MB** |
+
+**Erst messen, dann entscheiden.** Die Unbegrenztheit ist 1:1 aus dem Bestand geerbt
+(`lagerbuch/src/db/etiketten.ts:16-25`, ebenfalls ohne `LIMIT`) und damit **kein Regressionsfehler**.
+Neu ist zweierlei, und beides zeigt genau jetzt: der Bogen läuft im **geteilten** Suite-Container, ein
+CPU-Spike trifft `portal`, `files`, `feedback` und `qr` mit — und die Artikelzahl **nach** dem Import
+ist heute unbekannt, die Demodaten sagen darüber nichts. Bricht die Seite erst nach dem Import,
+bricht sie am schlechtesten Tag.
+
+- **Dreistellig:** es genügt, die Client-Grenze zu entdoppeln (siehe unten).
+- ⚠️ **Vierstellig:** dann gehört eine **Seitenteilung** in die Übergabe an Spec 2 — kein Bogen trägt
+  mehr „alle aktiven Artikel". Das ist eine **Fachentscheidung**, keine Optimierung, und der
+  Probebogen aus R30 ist dann ohnehin nur ein Ausschnitt.
+
+**Zwei Wege gegen die Verdopplung, beide geprüft und beide noch zu verifizieren, nicht zu glauben:**
+(1) **Auswahl rein über CSS** — das Markup ist bereits `<label>` mit verschachteltem
+`<input type="checkbox">`, also genau die Form, die `label:has(input:not(:checked))` bedient; als
+Insel bliebe nur der Zähler „Drucken (n)", und der braucht kein SVG. Zu prüfen ist, ob die
+Geometriezusagen aus Plan §9 zeichengleich bleiben — der `druck.test.ts`-Scan hängt an
+`.lb-etikettAbgewaehlt`, das dann anders entstünde. (2) **QR über eine Route**
+(`<img src="/…/qr/<id>.svg">`) — jedes SVG erscheint dann **null**mal inline; der Preis sind N
+Anfragen und ein neuer, riegelpflichtiger Route Handler.
+
+⚠️ **Der naheliegende Griff ist ausdrücklich ein Irrweg:** die Kacheln serverseitig rendern und als
+`children` in die Insel reichen behebt die Doppelung **nicht**. Server-gerenderte Kinder, die in eine
+Client-Komponente hineingereicht werden, landen als Element-Beschreibungen im Flight-Payload,
+`dangerouslySetInnerHTML`-Prop inbegriffen. Die Kopie entsteht durch das **Überqueren der Grenze**,
+nicht durch die Form der Prop — sie fällt nur, wenn das SVG die Client-Grenze **gar nicht** überquert.
+
+### 17.2 Trägt das Journal Zeilen unter einem Code, der ihnen nie gehörte? (Abschlussreview Teil 6, M13)
+
+**Handgriff:**
+
+```sql
+select distinct quelle_id from buchungen where quelle_typ = 'token';
+-- gegen:
+select code from tokens;
+```
+
+**Bleibt kein Rest, ist die Sache erledigt.** Bleibt einer, zeigt das Journal nach dem Import Zeilen
+unter einem Label, das nie zu ihnen gehörte.
+
+**Warum die Abfrage trotzdem nötig ist, obwohl der Alt-Code sie überflüssig macht.** Die Begründung
+für Entscheidung **8-F** (ein Code kann nur noch gesperrt, nie gelöscht werden — Zeile **R34**) steht
+in `_lib/tokenForm.ts` und nennt dort die **schwächere** Hälfte: ein gelöschter und neu vergebener
+Code lasse historische Journalzeilen unter dem **neuen** Label erscheinen. An der eingefrorenen
+Alt-Anwendung nachgelesen konnte das **per Konstruktion nicht passieren** — `pruefeToken`
+(`lagerbuch/src/actions/loeschen.ts`) ließ den Hard-Delete **nur** zu, solange `lastUsedAt` NULL war,
+und `lastUsedAt` wird bei der **Einlösung** gesetzt; eine Buchung mit `quelleTyp: "token"` setzt eine
+eingelöste Sitzung voraus. **8-F ist trotzdem richtig**, und der tragende Grund steht eine Zeile
+darüber: das **gedruckte, nie eingelöste Kärtchen**, das seinen Code an ein später ausgestelltes
+Token verliert — ein physisches Artefakt in einem Fahrzeug.
+
+⚠️ **Die Argumentation ruht auf einem Riegel des Alt-Codes und deckt keine von Hand oder per SQL
+bearbeitete Datenbank.** Genau dafür ist die Abfrage da. ⚠️ **Und seit Ruling A15 macht das
+`title`-Attribut im Journal solche Zeilen sichtbar, statt sie zu verbergen** — für
+`quelleTyp === "token"` **ist** `quelleId` der Code im Klartext.
+
+### 17.3 Wie viele offene Checks bringt der Import mit? (DRK-196, hochgestuft)
+
+**Handgriff:** die Abfrage aus **§14** (`select count(*) from checks where ergebnis is null;`) **schon
+vor dem Import** gegen die Alt-Datenbank fahren und die Zahl **nach** dem Import gegenprüfen.
+
+**Warum das keine Board-Sache ist, sondern eine Importprüfung.** Ein offener Check erscheint als Check
+mit „**0 Positionen**" — das Modul erzeugt solche Zeilen im Normalbetrieb nur vorübergehend, **der
+Datenimport kann sie in Mengen und Formen mitbringen, die das Modul nie erzeugt**. Zwei Zahlen, die
+zusammenpassen müssen: was vorher da war, muss nachher da sein — und nichts sonst. Weicht die Zahl
+ab, ist das ein **Zuordnungs**befund, und genau die sieht der Paritätscheck nicht.
 
 ---
 
