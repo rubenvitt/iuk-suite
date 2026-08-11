@@ -91,3 +91,25 @@ test.describe("lagerbuch — Modulnavigation", () => {
     ).toBeVisible();
   });
 });
+
+/**
+ * NACHFOLGER von `lagerbuch/e2e/suche-filter.spec.ts:20-33` (§12.1 Punkt 3).
+ * jsdom kann diese Zusicherung strukturell nicht halten: `JournalFilter.test.tsx`
+ * (Teil 5, T147) mockt `next/navigation` und prueft nur den Aufruf von
+ * `router.replace` — dass der ECHTE Browser die Adresszeile danach tatsaechlich
+ * traegt, beweist ausschliesslich ein Playwright-Lauf (§12.5-Tabelle: „Die
+ * literale URL-Zusicherung `?q=Verband` bleibt — sie ist der einzige Beleg fuer
+ * den URL-Vertrag"). T174-Befund: dieser Nachfolger fehlte bislang komplett.
+ */
+test.describe("lagerbuch — Journalsuche schreibt die literale URL (§12.1 Punkt 3)", () => {
+  test("Debounce schreibt den Suchbegriff als ?q=… in die Adresse", async ({ page }) => {
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung/journal",
+    });
+    await page.getByRole("searchbox", { name: "Suche" }).fill("Verband");
+    // Debounced (300ms, JournalFilter.tsx:44-52) → die URL bekommt den q-Parameter.
+    await expect(page).toHaveURL(/[?&]q=Verband/);
+  });
+});
