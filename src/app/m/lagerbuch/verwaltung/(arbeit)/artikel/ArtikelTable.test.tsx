@@ -149,6 +149,36 @@ async function warteAuf(pruefen: () => boolean, beschreibung: string): Promise<v
   throw new Error(`Nicht rechtzeitig sichtbar: ${beschreibung}`);
 }
 
+/**
+ * Ein Versprechen, das sich genau dann aufloest, wenn `melden()` das erste Mal
+ * laeuft — fuer Spione, deren Aufruf selbst der fruehestmoegliche Meldepunkt
+ * ist.
+ *
+ * Fuer den Excel-Export (unten) ist das kein Stil, sondern eine Reparatur: der
+ * `toFile`-Aufruf haengt hinter `await import("write-excel-file/browser")`
+ * (ArtikelTable.tsx), einem ECHTEN dynamischen Import, den `vi.resetModules()`
+ * am Blockanfang jedes Mal neu aufloesen laesst. `warteAuf` pollt dafuer mit
+ * einem FESTEN Budget von 30 Versuchen zu je einem `setTimeout(0)`-Tick — unter
+ * CPU-Last (voller Lauf: 337 Dateien im Thread-Pool) kann die Modulaufloesung
+ * laenger dauern als 30 Ticks, und der Test reisst mit "Nicht rechtzeitig
+ * sichtbar: toFile-Aufruf", obwohl der Code korrekt ist (beobachtet: zwei
+ * flackernde Gate-Laeufe in dieser Sitzung, siehe fix-welle-report.md). Ein
+ * groesseres Budget verschoebe nur die Grenze. Stattdessen wartet dieser Test
+ * auf das Versprechen, das der Spion selbst liefert — nicht auf 30 Ticks,
+ * sondern auf Vitests Test-Timeout (Default 5000 ms, ~1000x mehr Kopfraum als
+ * die alten 30 Ticks). Bleibt `toFile` aus (z. B. weil ein Mock nicht griff),
+ * wird aus der praezisen Meldung "Nicht rechtzeitig sichtbar: toFile-Aufruf"
+ * ein generischer 5s-Timeout — ein akzeptabler Tausch fuer den Wegfall des
+ * Flackerns, aber kein "wartet fuer immer".
+ */
+function meldendesVersprechen(): { versprechen: Promise<void>; melden: () => void } {
+  let melden!: () => void;
+  const versprechen = new Promise<void>((resolve) => {
+    melden = resolve;
+  });
+  return { versprechen, melden };
+}
+
 function zeilenIds(): Array<string | null> {
   return queryAll("tbody tr[data-row-key]")
     .map((zeile) => zeile.getAttribute("data-row-key"));
@@ -634,13 +664,19 @@ describe("Excel-Export (§9.4)", () => {
    */
   it("uebergibt Blattname, fixierte Kopfzeile und den datierten Dateinamen", async () => {
     vi.resetModules();
-    const toFile = vi.fn().mockResolvedValue(undefined);
+    const { versprechen: toFileAufgerufen, melden: toFileMelden } = meldendesVersprechen();
+    const toFile = vi.fn(() => {
+      toFileMelden();
+      return Promise.resolve();
+    });
     const schreiben = vi.fn().mockReturnValue({ toFile });
     vi.doMock("write-excel-file/browser", () => ({ default: schreiben }));
 
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
     await clickElement(query("[data-testid='lb-excel']"));
-    await warteAuf(() => toFile.mock.calls.length === 1, "toFile-Aufruf");
+    await act(async () => {
+      await toFileAufgerufen;
+    });
 
     const [zeilen, optionen] = schreiben.mock.calls[0];
     expect(zeilen).toHaveLength(ZEILEN.length);
@@ -666,14 +702,20 @@ describe("Excel-Export (§9.4)", () => {
    */
   it("exportiert nur die gefilterten Zeilen", async () => {
     vi.resetModules();
-    const toFile = vi.fn().mockResolvedValue(undefined);
+    const { versprechen: toFileAufgerufen, melden: toFileMelden } = meldendesVersprechen();
+    const toFile = vi.fn(() => {
+      toFileMelden();
+      return Promise.resolve();
+    });
     const schreiben = vi.fn().mockReturnValue({ toFile });
     vi.doMock("write-excel-file/browser", () => ({ default: schreiben }));
 
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
     await fill("input[type='search']", "alpha");
     await clickElement(query("[data-testid='lb-excel']"));
-    await warteAuf(() => toFile.mock.calls.length === 1, "toFile-Aufruf");
+    await act(async () => {
+      await toFileAufgerufen;
+    });
 
     expect(schreiben.mock.calls[0][0]).toHaveLength(1);
   });
@@ -706,14 +748,20 @@ describe("Excel-Export (§9.4)", () => {
    */
   it("sperrt den Knopf und zeigt Erzeuge…, bis die Datei fertig ist — dann faellt beides zurueck", async () => {
     vi.resetModules();
+    const { versprechen: toFileAufgerufen, melden: toFileMelden } = meldendesVersprechen();
     let dateiFertig: (() => void) | undefined;
-    const toFile = vi.fn(() => new Promise<void>((resolve) => { dateiFertig = resolve; }));
+    const toFile = vi.fn(() => {
+      toFileMelden();
+      return new Promise<void>((resolve) => { dateiFertig = resolve; });
+    });
     const schreiben = vi.fn().mockReturnValue({ toFile });
     vi.doMock("write-excel-file/browser", () => ({ default: schreiben }));
 
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
     await clickElement(query("[data-testid='lb-excel']"));
-    await warteAuf(() => toFile.mock.calls.length === 1, "toFile wurde aufgerufen");
+    await act(async () => {
+      await toFileAufgerufen;
+    });
 
     const knopf = () => query<HTMLButtonElement>("[data-testid='lb-excel']");
     expect(knopf().textContent).toBe("Erzeuge…");
