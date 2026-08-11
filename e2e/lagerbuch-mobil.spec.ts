@@ -276,18 +276,34 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
    * `lagerbuch-helfer.spec.ts`, deshalb steht sie hier nicht ein zweites Mal.
    *
    * KEIN defensiver Uebersprung (Global Constraints): statt unsichtbare
-   * Knoepfe per `if (!isVisible()) continue` zu ignorieren, werden alle
-   * Knopf-Kaesten in EINEM `page.evaluate` gemessen und Nulldimensionen (nicht
+   * Bedienelemente per `if (!isVisible()) continue` zu ignorieren, werden alle
+   * Kaesten in EINEM `page.evaluate` gemessen und Nulldimensionen (nicht
    * gerendert, z. B. eine geschlossene Modal-Aktion) als Datenfilter
    * ausgeschlossen — dieselbe Bauform wie `zuKleineZiele` in
-   * `e2e/files-mobil.spec.ts:377-401`. Die Kandidatenzahl wird VORHER separat
+   * `e2e/files-mobil.spec.ts`. Die Kandidatenzahl wird VORHER separat
    * bestaetigt, damit eine leere Fundmenge nicht unbemerkt als „bestanden"
-   * durchgeht — ueber denselben `button`-Elementselektor wie die Messung
-   * selbst (Review-Fix Minor: `getByRole("button")` und
-   * `querySelectorAll("button")` sind keine deckungsgleichen Mengen, `a
-   * role="button"` zaehlte sonst mit, ohne je gemessen zu werden).
+   * durchgeht — ueber DENSELBEN Elementselektor wie die Messung selbst
+   * (Review-Fix Minor: `getByRole("button")` und `querySelectorAll("button")`
+   * sind keine deckungsgleichen Mengen, `a role="button"` zaehlte sonst mit,
+   * ohne je gemessen zu werden).
+   *
+   * ⚠️ DIE MESSUNG WAR ENGER ALS DIE ZUSAGE, DIE SIE TRAGEN SOLL. Sie las nur
+   * `button` und nur die HOEHE; das im Docstring genannte Vorbild liest
+   * `a[href], button, input, textarea, select` und BEIDE Kanten. Durch fielen
+   * damit (a) jeder Knopf, der 44 px hoch, aber schmaler ist — also genau die
+   * Icon-only-Zeilenaktion, fuer die §7.7.2 existiert (`BestellListe.tsx`
+   * rendert eine als `<Button shape="circle">`) — und (b) jede `<a>`-Aktion und
+   * jeder Modulnav-Link, die auf `/verwaltung/bestellung` mitrendern. §7.7.2
+   * spricht vom Tapmass, also von der FLAECHE. Die Luecke war still: sie sah aus
+   * wie Deckung.
+   *
+   * ⚠️ Der Radio-/Checkbox-Sonderfall des Vorbilds wird MITUEBERNOMMEN, nicht
+   * weggelassen: dort wird bewusst das umschliessende `<label>` gemessen und
+   * nicht der 22px-UA-Knopf („das ganze Label ist das Ziel"). Wer stur den
+   * `<input>` misst, meldet Fehlschlaege, die keine sind, und repariert am Ende
+   * eine richtige Entscheidung weg.
    */
-  test("jede Zeilenaktion ist mindestens 44px hoch", async ({ page }) => {
+  test("jede Zeilenaktion ist mindestens 44 x 44 px", async ({ page }) => {
     await devLogin(page, { host: LAGERBUCH_HOST, groups: LAGERBUCH_ADMIN_GRUPPE });
 
     const antwort = await page.goto(lagerbuchUrl("/verwaltung/bestellung"));
@@ -298,28 +314,41 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
     await expect(page.getByTestId("lb-kopieren")).toBeVisible();
     await page.waitForLoadState("networkidle");
 
-    const knoepfe = page.locator("button");
-    const n = await knoepfe.count();
+    // ⚠️ Vorbedingung und Messung lesen DIESELBE Menge — sonst bestaetigt die
+    // Vorbedingung Kandidaten, die nie gemessen werden (und umgekehrt).
+    const ZIELE = "a[href], button, input, textarea, select";
+    const kandidaten = page.locator(ZIELE);
+    const n = await kandidaten.count();
     expect(n, "die Seite muss Bedienelemente tragen, sonst misst der Test nichts").toBeGreaterThan(
       0,
     );
 
-    const zuKlein = await page.evaluate(() =>
-      [...document.querySelectorAll("button")]
+    const zuKlein = await page.evaluate((ziele) =>
+      [...document.querySelectorAll(ziele)]
         .map((el) => {
-          const box = el.getBoundingClientRect();
-          const text = (el.getAttribute("aria-label") || el.textContent || el.tagName)
+          // Bei Radio/Checkbox ist das umschliessende `<label>` das Tapziel,
+          // nicht der 22px-UA-Knopf — 1:1 aus `files-mobil.spec.ts`.
+          const typ = el.getAttribute("type");
+          const ziel = typ === "radio" || typ === "checkbox" ? (el.closest("label") ?? el) : el;
+          const box = ziel.getBoundingClientRect();
+          const text = (
+            el.getAttribute("aria-label") ||
+            el.textContent ||
+            ziel.textContent ||
+            el.id ||
+            el.tagName
+          )
             .trim()
             .slice(0, 30);
           return { text, w: Math.round(box.width), h: Math.round(box.height) };
         })
         // Nulldimensionen sind nicht gerendert (display:none, geschlossenes
         // Modal) — ein „0x0"-Befund waere ein Phantom, kein echter Fund.
-        .filter((z) => z.w > 0 && z.h > 0)
-        .filter((z) => z.h < 44)
+        .filter((z) => (z.w > 0 || z.h > 0) && (z.w < 44 || z.h < 44))
         .map((z) => `${z.text} ${z.w}x${z.h}`),
+      ZIELE,
     );
-    expect(zuKlein, "Knoepfe unter 44px Hoehe").toEqual([]);
+    expect(zuKlein, "Bedienelemente unter 44 x 44 px").toEqual([]);
   });
 });
 
