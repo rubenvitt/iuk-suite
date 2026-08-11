@@ -113,3 +113,59 @@ test.describe("lagerbuch — Journalsuche schreibt die literale URL (§12.1 Punk
     await expect(page).toHaveURL(/[?&]q=Verband/);
   });
 });
+
+/**
+ * §11.5 Zustand 27, ECHT gerendert (T176a1).
+ *
+ * ⚠️ WARUM DAS HIER STEHEN MUSS UND NICHT IN VITEST GENUEGT. Die Check-
+ * Detailseite ist eine **Server Component ohne Insel**. `pnpm build`,
+ * `typecheck` und Vitest sehen genau die Fehler dort strukturell NICHT, die die
+ * Seite umbringen: ein Compound-Zugriff auf antd oder ein Import aus dem
+ * antd-Icon-Paket ergibt HTTP 500, und zwar schon beim Import, nicht beim
+ * Rendern. Ein gruener Vitest-Lauf ueber `checkDetailInhalt()` beweist die
+ * Auswahl des Zustands, nicht die Auslieferung der Seite.
+ *
+ * ⚠️ BEIDE Faelle stehen hier mit Absicht: der lesbare Check ist die Gegenprobe.
+ * Ohne ihn belegte der Lauf nur „irgendetwas warnt", nicht „es warnt GENAU
+ * dann". Ein Check mit 0 Positionen darf keine Warnung bekommen — das ist die
+ * Unterscheidung, an der der ganze Zustand haengt.
+ *
+ * Die Datensaetze kommen aus `seed-lagerbuch.ts` (`checkFixtures`).
+ */
+test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.5, 27)", () => {
+  test.beforeEach(async ({ page }) => {
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+  });
+
+  test("ein unlesbares ergebnis wird benannt — als Warnung, nie als Fehler", async ({ page }) => {
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks/e2e-check-unlesbar"));
+
+    // Erst der Status: ein 500 aus einer RSC-Falle wuerde sonst als „Text nicht
+    // gefunden" durchgehen und wie ein Textfehler aussehen.
+    expect(antwort?.status(), "die Seite muss ausliefern, nicht in eine RSC-Falle laufen").toBe(200);
+    await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
+
+    const meldung = page.locator(".ant-alert").filter({ hasText: "Ergebnis unlesbar" });
+    await expect(meldung).toHaveCount(1);
+    // ⚠️ `colorError === colorPrimary === #c8000f` (§6.6.5): ein roter Alert saehe
+    // aus wie eine Primaeraktion. Die Klasse ist der einzige Beleg, der die
+    // GERENDERTE Fassung prueft und nicht das Prop.
+    await expect(meldung).toHaveClass(/ant-alert-warning/);
+    await expect(meldung).not.toHaveClass(/ant-alert-error/);
+  });
+
+  test("ein lesbarer Check mit 0 Positionen bekommt KEINE solche Warnung", async ({ page }) => {
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks/e2e-check-lesbar"));
+
+    expect(antwort?.status()).toBe(200);
+    await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
+    // Die Seite ist da (der Abgleich des geseedeten Artikels steht drin) …
+    await expect(page.getByText("E2E Check Kompressen steril 10x10cm").first()).toBeVisible();
+    // … und sagt nichts von unlesbar.
+    await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
+  });
+});

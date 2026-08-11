@@ -37,7 +37,8 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { openModuleDatabase, moduleDbPath } from "@/core/db";
 import { getDb } from "@/app/m/lagerbuch/_db/client";
 import {
-  artikel, buchungen, chargen, geraete, lagerorte, o2Flaschen, sollPositionen, tokens, newId,
+  artikel, buchungen, chargen, checks, geraete, lagerorte, o2Flaschen, sollPositionen, tokens,
+  newId,
 } from "@/app/m/lagerbuch/_db/schema";
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 import {
@@ -190,6 +191,51 @@ function checkFixtures(): void {
   db.insert(o2Flaschen).values({
     id: "e2e-o2", name: "E2E O2 300", lagerortId: "e2e-fahrzeug", groesseLiter: 10,
     nennfuelldruckBar: 300, aktiv: true, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+
+  /**
+   * ZWEI abgeschlossene Checks fuer `/verwaltung/checks/[id]` — der einzige Weg,
+   * §11.5 Zustand 27 ECHT zu rendern (T176a1).
+   *
+   * ⚠️ WARUM SIE UEBERHAUPT HIER STEHEN. Die Detailseite ist eine Server
+   * Component OHNE Insel, und dieses Repo schreibt aus, dass `build`,
+   * `typecheck` und Vitest ihre schlimmsten Fehler dort strukturell NICHT sehen
+   * (Compound-Zugriff auf antd, Icon-Import — HTTP 500 erst im echten Render).
+   * Ohne eine Check-Zeile im Seed gab es die Route in der E2E-Suite nicht.
+   *
+   * ⚠️ SIE HAENGEN BEWUSST AM VORHANDENEN `e2e-fahrzeug`, nicht an einem neuen.
+   * Ein zusaetzliches Fahrzeug taucht in der Flottenliste und im Helfer-Waehler
+   * auf und veraendert damit fremde Zusicherungen; eine Check-Zeile tut das
+   * nicht — keine Spec liest die Check-Historie.
+   *
+   * ⚠️ `completedAt` LIEGT IN DER VERGANGENHEIT. `lagerbuch-helfer.spec.ts:396`
+   * liest den JUENGSTEN Check des Fahrzeugs vor und nach seinem Durchlauf und
+   * verlangt eine NEUE Zeile; ein Seed-Check mit heutigem Zeitstempel koennte
+   * dort je nach Sekunde gewinnen (`order by completed_at desc, id desc`).
+   */
+  const VOR_ZWEI_STUNDEN = new Date(JETZT.getTime() - 2 * 3_600_000);
+  const VOR_DREI_STUNDEN = new Date(JETZT.getTime() - 3 * 3_600_000);
+
+  db.insert(checks).values({
+    id: "e2e-check-lesbar", fahrzeugId: "e2e-fahrzeug", quelleTyp: "token",
+    quelleId: E2E_TOKEN_CHECK, startedAt: VOR_DREI_STUNDEN, completedAt: VOR_DREI_STUNDEN,
+    ergebnis: JSON.stringify({
+      version: 2,
+      positionen: [{ sollPositionId: "e2e-soll", artikelId: "e2e-check-artikel", soll: 3, ist: 3 }],
+      artikel: [{
+        artikelId: "e2e-check-artikel", positionen: 1, sollSumme: 3, istSumme: 3,
+        recordedVorher: 3, korrektur: 0, nachfuellGewuenscht: 0, nachfuellGebucht: 0,
+      }],
+      geraete: [], flaschen: [], verfall: [],
+    }),
+  }).onConflictDoNothing().run();
+
+  // Der Zustand selbst: KEIN JSON. Genau das, was `parseCheckErgebnis` mit
+  // `unlesbar: true` beantwortet — und was vorher als „0 Positionen" durchging.
+  db.insert(checks).values({
+    id: "e2e-check-unlesbar", fahrzeugId: "e2e-fahrzeug", quelleTyp: "token",
+    quelleId: E2E_TOKEN_CHECK, startedAt: VOR_ZWEI_STUNDEN, completedAt: VOR_ZWEI_STUNDEN,
+    ergebnis: "{das ist kein json",
   }).onConflictDoNothing().run();
 }
 
