@@ -83,8 +83,10 @@ describe("tokenForm — §8.3, der Token-Vertrag", () => {
    * noch "use server".
    *
    * — "use server" ist verboten, weil ein `"use server"`-Modul ausschliesslich
-   *   async-Funktionen exportieren darf; `_actions/guards.test.ts:265-267`
-   *   meldet jedes `export const` dort als Fremdform, und das ist richtig.
+   *   async-Funktionen exportieren darf; der Bauform-Scan in
+   *   `_actions/guards.test.ts` („kennt an einem Zeilenanfang mit `export` NUR
+   *   die eine Action-Bauform und Typ-Exporte") meldet jedes `export const`
+   *   dort als Fremdform, und das ist richtig.
    * — "use client" ist verboten, weil `_actions/tokens.ts` und
    *   `_actions/loeschen.ts` diese Werte SERVERSEITIG lesen. Aus einem
    *   Client-Modul kaeme dort eine Client-Referenz statt des Wertes an —
