@@ -528,8 +528,32 @@ eine Abnahme über sechs Teile keine Zeile stillschweigend fremdem Protokoll üb
 prüft das Protokoll und trägt die fehlenden Zeilen selbst nach.**
 
 **Server:** `SUITE_HOST_LAGERBUCH=lagerbuch.localtest.me pnpm dev`, abgerufen als
-`http://lagerbuch.localtest.me:3000<pfad>`. **Der Modul-Host ist Pflicht** — auf `localhost` greift
-`requireLagerbuchHost` und jede Zeile antwortete 404 (Falle 61 von der richtigen Seite).
+`http://lagerbuch.localtest.me:3000<pfad>`. **Der Modul-Host ist Pflicht** — auf `localhost` ist keine
+einzige Zeile dieser Liste erreichbar (Falle 61 von der richtigen Seite).
+
+⚠️ **Korrektur aus T175 (gemessen, 2026-08-11):** hier stand „auf `localhost` greift
+`requireLagerbuchHost` und jede Zeile antwortete 404". Der **Effekt** stimmt, die **Ursache** nicht,
+und die Verwechslung ist folgenreich. Gemessen antwortet `localhost:3000` mit **307 → `/login`**, auch
+mit gültigem Sitzungscookie: `moduleForHost("localhost")` findet kein Modul und fällt auf `portal`
+zurück, dessen `requiresAuth`-Weiche in `decideRoute` **vor** jeder Modulseite greift — und
+`AUTH_COOKIE_DOMAIN=.localtest.me` schickt das Cookie ohnehin nicht an `localhost`.
+`requireLagerbuchHost` wird auf diesem Weg **nie erreicht**. Wer die Prüfung so wiederholt, glaubt den
+Host-Riegel getestet zu haben und hat portals Auth getestet.
+
+**Der Riegel allein wird dort belegt, wo nichts anderes davorsteht** — ein **innerer** Pfad auf einem
+fremden Suite-Host: `decideRoute` nimmt für `/m/lagerbuch/…` den Internal-Zweig, `lagerbuch` trägt
+`requiresAuth: false`, `canAccess` steigt sofort mit `true` aus, und die Anfrage landet ungefiltert auf
+`requireLagerbuchHost`. In T175 gemessen, gleiche Sitzung, gleicher Pfad, nur der `Host` unterscheidet:
+
+| Host | `/m/lagerbuch/verwaltung/artikel` | `/m/lagerbuch/verwaltung/etiketten` | `/m/lagerbuch/manifest.webmanifest` |
+|---|---|---|---|
+| `files.localtest.me` | **404** | **404** | **404** |
+| `portal.localtest.me` | **404** | **404** | **404** |
+| `lagerbuch.localtest.me` | 200 | 200 | 200 |
+
+Dauerhaft gehalten wird dieselbe Aussage von `e2e/lagerbuch-hosts.spec.ts` („Host-Riegel"): fünfzehn
+Einstiege, je **404 auf `feedback.localtest.me`** und **nicht-404 auf dem eigenen Host**, angemeldet
+**mit** Lagerbuch-Gruppe, damit der 404 nicht der Gruppenriegel ist.
 
 ### 7.1 Die 29 `page.tsx`
 
@@ -539,8 +563,8 @@ prüft das Protokoll und trägt die fehlenden Zeilen selbst nach.**
 | ☐ | `/helfer` | 200 | Tab-Leiste, `aria-current="page"` auf „Entnahme" | **Teil 4** ⚠️ |
 | ☐ | `/helfer/check` | 200 | Fahrzeugwahl oder Leerzustand mit Rückweg | **Teil 4** ⚠️ |
 | ☐ | `/a/<bekannt>` | 200 | Artikelname + Entnahmeknopf | **Teil 4** ⚠️ |
-| ☐ | `/a/<unbekannt>` | **200**, nicht 303 | „Dieses Etikett gehört zu keinem Artikel mehr." (8-C) | **Teil 4** ⚠️ |
-| ☐ | `/g/<bekannt>` | 303 → `/verwaltung/geraete/<id>` bzw. `/verwaltung/bz/<id>` | `Location`-Kopf, **relativ** | **T175** |
+| ☐ | `/a/<unbekannt>` | **200**, nicht 303 | „Dieses Etikett kennt kein Artikel" + „Der Artikel wurde gelöscht oder das Etikett stammt aus einer anderen Anwendung. Bitte der Verwaltung melden." (8-C) ⚠️ Wortlaut aus T175 nachgezogen — hier stand „Dieses Etikett gehört zu keinem Artikel mehr."; die Substanz (200 statt 303, benannter Text) war nie strittig | **Teil 4** ⚠️ |
+| ☐ | `/g/<bekannt>` | **307** → `/verwaltung/geraete/<id>` bzw. `/verwaltung/bz/<id>` | `Location`-Kopf, **relativ** ⚠️ Erwartung aus T175 nachgezogen — hier stand 303; `redirect()` in einer Server Component liefert unter Next 16 einen **307**, gemessen an `/g/4012345678901` → `/verwaltung/geraete/ger-defi-rtw1` und `/g/4015630000018` → `/verwaltung/bz/bz-rtw1`. Für einen GET verhalten sich beide gleich; das tragende Merkmal ist und bleibt die **relative** `Location` | **T175** |
 | ☐ | `/g/<unbekannt>` | **200**, nicht 404 | „Kein Gerät zu diesem Barcode" + der **gescannte Code im Klartext** + Shell + Modulnavigation | **T175** |
 | ☐ | `/verwaltung` | 200 | KPI-Kacheln mit farbiger linker Kante | Teil 5, T151/2 |
 | ☐ | `/verwaltung/artikel` | 200 | `Table` + Excel-Knopf **ohne** `disabled` | **T175** (ERGÄNZT durch T165) |
@@ -557,10 +581,10 @@ prüft das Protokoll und trägt die fehlenden Zeilen selbst nach.**
 | ☐ | `/verwaltung/vorlagen/<id>` | 200 | Brotkrume + Gefahrenzone | Teil 5, T151/2 |
 | ☐ | `/verwaltung/geraete` | 200 | Fälligkeits-Chips mit Text | Teil 5, T151/2 |
 | ☐ | `/verwaltung/geraete/<id>` | 200 | Brotkrume | Teil 5, T151/2 |
-| ☐ | `/verwaltung/geraete/scan` | 200 | Kamera-Insel, vier unterscheidbare Zustände | Teil 5, T151/2 |
+| ☐ | `/verwaltung/geraete/scan` | 200 | Kamera-Insel, vier unterscheidbare Zustände ⚠️ Zusatz aus T175: das sind **Client**-Zustände — `kameraText()` (`_ui/BarcodeScanner.tsx`) verzweigt über `DOMException.name` aus `getUserMedia`. Über `http://` ist `window.isSecureContext` **falsch**, die Insel steigt **vor** dem zxing-Import aus, und ein blosser Abruf zeigt immer nur den **fünften** Zustand (`KEIN_SICHERER_KONTEXT`). Wer die vier sehen will, muss `isSecureContext` und `navigator.mediaDevices` im Browser präparieren — in T175 so gemessen | Teil 5, T151/2 |
 | ☐ | `/verwaltung/bz` | 200 | Fälligkeit „noch nie geprüft" als eigener Text | Teil 5, T151/2 |
 | ☐ | `/verwaltung/bz/<id>` | 200 | Logbuch mit `ref_snapshot`-Grenzen | Teil 5, T151/2 |
-| ☐ | `/verwaltung/bz/<id>/kontrolle` | 200 | `DatePicker picker="month"` mit Label „Verfallsmonat" | Teil 5, T151/2 |
+| ☐ | `/verwaltung/bz/<id>/kontrolle` | 200 | `DatePicker picker="month"` mit Label **„Kompressen-Verfall"** (gerendert `picker-month`) ⚠️ Wortlaut aus T175 nachgezogen — hier stand „Verfallsmonat"; die Implementierung (`KontrolleForm.tsx:127-134`) hat den Titel nie so getragen | Teil 5, T151/2 |
 | ☐ | `/verwaltung/bz/scan` | 200 | Kamera-Insel | Teil 5, T151/2 |
 | ☐ | `/verwaltung/sauerstoff` | 200 | „keine Messung", **nie** „0 %" | Teil 5, T151/2 |
 | ☐ | `/verwaltung/sauerstoff/<id>` | 200 | Brotkrume + Messverlauf | Teil 5, T151/2 |
