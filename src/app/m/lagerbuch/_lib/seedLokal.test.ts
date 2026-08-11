@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import {
-  artikel, chargen, checks, geraete, lagerorte, lagerortVerfall,
+  artikel, bzGeraete, chargen, checks, geraete, lagerorte, lagerortVerfall,
   o2Flaschen, sollPositionen, tokens,
 } from "../_db/schema";
 import { seedLokalLagerbuch } from "./seedLokal";
@@ -299,6 +299,39 @@ describe("seedLokalLagerbuch", () => {
     expect(text).toContain("http://lagerbuch.localtest.me:3000/verwaltung");
     expect(text).toContain("http://lagerbuch.localtest.me:3000/t/100-100");
     expect(text).not.toContain("/m/lagerbuch/");
+  });
+
+  /**
+   * FUND AUS T175 (Abruf-Abnahme, §12.4). Das Protokoll trug bis dahin den Satz
+   * „Es gibt heute keine Route /g/<code>" — richtig, solange Teil 4 galt, und
+   * seit T164 FALSCH: `g/[code]/page.tsx` existiert, wurde abgerufen (307 mit
+   * relativem `Location` bei Treffer, 200 mit dem Klartext-Code bei
+   * Nichttreffer) und ist der Weg, den ein gescanntes Geraete-Typenschild geht.
+   *
+   * Ein Protokollsatz, der die Existenz einer Route BESTREITET, ist schlimmer
+   * als ein fehlender: wer lokal prueft, laesst die Route dann aus. Kein Gate
+   * sah ihn — es ist Fliesstext in einem Array.
+   *
+   * DIE ZUSICHERUNG IST AN DIE SEED-DATEN GEBUNDEN, nicht an den Wortlaut: der
+   * genannte Barcode muss zu einem geseedeten Geraet gehoeren. Ein umformulierter
+   * Hinweis bleibt gruen, ein Barcode ohne Geraet nicht.
+   */
+  it("nennt die /g/<barcode>-Adressen und bestreitet die Route NICHT mehr", async () => {
+    const protokoll = await seedLokalLagerbuch(t.db);
+    const text = protokoll.join("\n");
+
+    expect(text).not.toContain("keine Route /g/");
+
+    const genannt = [...text.matchAll(/\/g\/(\d+)/g)].map((m) => m[1]);
+    expect(genannt.length, "das Protokoll nennt keine /g/<barcode>-Adresse").toBeGreaterThan(0);
+
+    const bekannt = new Set([
+      ...t.db.select().from(geraete).all().map((g) => g.barcode),
+      ...t.db.select().from(bzGeraete).all().map((g) => g.barcode),
+    ]);
+    for (const b of genannt) {
+      expect(bekannt.has(b), `Barcode ${b} steht im Protokoll, aber an keinem Geraet`).toBe(true);
+    }
   });
 
   it("ist idempotent — der zweite Lauf aendert KEINE Tabelle", async () => {
