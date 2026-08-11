@@ -88,6 +88,22 @@ sieht es nicht. `src/proxy.test.ts` bewacht die heutige Naht (`pnpm vitest run` 
 das gilt nur für ihre heutige Form; ein Umbau von `proxy.ts` schuldet weiterhin einen Lauf von
 `pnpm exec playwright test`, das den Ausfall als einziges immer end-to-end sieht.
 
+## Lokale Demodaten
+
+`pnpm seed:lokal [modul …]` füllt alle fünf datenbankgestützten Module (`scripts/seed-lokal.ts`, je
+ein `_lib/seedLokal.ts` pro Modul). Idempotent und rein additiv; das Protokoll nennt die erzeugten
+Links, Codes und Passwörter.
+
+**Bewusst nicht am Boot-Pfad**, und der Grund ist keine Stilfrage: `shouldSeed()` ist
+`SUITE_SEED === "1" || NODE_ENV === "development"`, und `SUITE_SEED=1` ist der **Generalproben**-
+Schalter. Der Boot-Seed ist also nicht lokal-only — genau darauf beruhen die zwei ausgeschriebenen
+Ausschlüsse in `core/bootstrap.ts` (ein geseedeter files-Abgabelink wäre in einer Generalprobe ein
+gültiger anonymer **Schreib**zugang; lagerbuch bekäme über `getModuleDb()` eine Verbindung ohne
+`lb_falte`). `scripts/seed-lokal.test.ts` hält beides fest: jedes Modul aus `MODULE_MIGRATIONS`
+braucht einen Seed, und ein Quelltext-Scan verbietet die Namen `seedLokal`/`seed-lokal` in
+`bootstrap.ts` und `instrumentation.ts` — er fängt die naheliegende Verdrahtung, nicht jede
+denkbare (ein umbenanntes Re-Export käme durch).
+
 ## Cutover einer Alt-Anwendung
 
 Runbooks liegen in `docs/runbooks/`. Muster: Generalprobe mit Snapshot-Kopie → Freeze → echter Snapshot
