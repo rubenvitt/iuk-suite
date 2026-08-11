@@ -115,7 +115,7 @@ blockiert den Baubeginn**; zwei blockieren den **Cutover**.
 
 | # | Frage | Antwortet | Blockiert | Rückfall, mit dem dieser Plan baut |
 |---|---|---|---|---|
-| 7 | ~~In welchem Programm wird `bestellvorschlag.csv` geöffnet?~~ | ✅ **entschieden (D8, 04.08.2026): Tabellenkalkulation** | — | **A-J1 ist zur FESTLEGUNG hochgestuft.** Entscheidung 9-C wird umgesetzt: `csvTextZelle` neutralisiert `=`/`+`/`-`/`@` **nur** auf den drei Textspalten. ⚠️ **Der Betreiber will darüber hinaus Excel als Standard für alle Reports, auch über Module hinweg.** Das ist eine **suiteweite Formatentscheidung** und wird hier ausdrücklich **nicht** nebenbei vollzogen — siehe §2.3 |
+| 7 | ~~In welchem Programm wird `bestellvorschlag.csv` geöffnet?~~ | ✅ **entschieden (D8, 04.08.2026): Tabellenkalkulation** | — | **A-J1 ist zur FESTLEGUNG hochgestuft.** Entscheidung 9-C wird umgesetzt: `csvTextZelle` neutralisiert `=`/`+`/`-`/`@` **nur** auf den drei Textspalten. ⚠️ **Der Betreiber will darüber hinaus Excel als Standard für alle Reports, auch über Module hinweg.** Das ist eine **suiteweite Formatentscheidung** und wird hier ausdrücklich **nicht** nebenbei vollzogen — siehe §2.2 |
 | — | **Der Probebogen aus 8-I** — welcher Drucker, welches gekaufte Etikettenmaterial? | Betreiber | **den Cutover**, nicht den Bau | **A-J2:** `core/qr` wird unverändert benutzt (Level H, `margin: 4`). Scheitert die Abnahme, ist der benannte Rückfall ein optionaler `margin`-Parameter an `qrSvg`, vom Etikettenbogen auf `1` gesetzt und an der Aufrufstelle mit dem Messergebnis begründet. **Level H bleibt in beiden Fällen.** T176, Schritt 8 führt die Runbook-Zeile |
 | — | **Darf die Reihenfolge in `SUITE_HOST_LAGERBUCH` nach dem ersten Etikettendruck eingefroren werden?** (§8.1, 8-B) | Betreiber | nichts im Bau | **A-J3:** ja. `moduleUrl` nimmt `prodHostsFor(mod)[0]`; eine Umsortierung ändert **still** jeden ab dann gedruckten Bogen. T162 druckt den verwendeten Host als Text über den Bogen, damit die Person vor dem Drucken sieht, was sie druckt; T176 führt die Runbook-Auflage |
 | 9 | Soll eine abgelöste Domain dauerhaft als zweiter Host mitlaufen? (E16 b) | Betreiber | nichts | §2.6 erlaubt ≥ 2 Hosts. ⚠️ Fällt die Antwort „ja", **muss `lagerbuch.iuk-ue.de` Index 0 bleiben** — sonst drucken ab dem nächsten Bogen alle QR auf die Altdomain |
@@ -478,7 +478,17 @@ Pfade ohne Präfix liegen unter `src/app/m/lagerbuch/`.
 | `e2e/lagerbuch-helfer.spec.ts` | T171 | neu (J2) |
 | `_actions/guards.test.ts` | T172 | **ERGÄNZT** (Teil 2, T20) |
 | `_lib/bauform.test.ts` | T173 | **ERGÄNZT** (Teil 2, T21) |
+| `_lib/tokenForm.ts`, `_lib/tokenForm.test.ts` | T160 | neu — **Ruling A1**: `export const` in einer `"use server"`-Datei ist verboten (Next-Regel, `_actions/guards.test.ts` meldet es als Fremdform). Die vier Token-Konstanten ziehen deshalb nach `_lib/`; `_actions/tokens.ts` und `_actions/loeschen.ts` importieren sie |
+| `_ui/Chip.tsx` | T171 | **ERGÄNZT** (Teil 5, T106) — **Ruling A15**: optionale `title`-Prop. Additiv, 58 Aufrufstellen unverändert, genau **eine** übergibt `title` |
+| `verwaltung/(arbeit)/journal/**` (`JournalTable.tsx`, `JournalTable.test.tsx`, `page.tsx`, `page.test.tsx`) | T171 | **ERGÄNZT** (Teil 5, T147) — **Ruling A15**: `quelleId` wird durchgereicht und steht als `title` am Chip. ⚠️ **Hier steht seit A15 ein NEUES DOM-Attribut** — die Alt-Anwendung trug `title={j.quelleId}` (1:1-Pflicht), der Port hatte es verloren. Für `quelleTyp === "token"` **ist** `quelleId` der Zugangs-Code im Klartext |
+| `e2e/seed-lagerbuch.ts` | T170 | **ERGÄNZT** (Teil 3, T60) — **Ruling A10**: der längste Seed-Artikelname (20 Zeichen) reichte für T170s 28-Zeichen-Messung nicht; er wird **dort** auf 35 verlängert statt die Grenze im Test abzusenken |
 | — (nur Ausführung und Protokoll) | T174, T175, T176 | — |
+
+⚠️ **Die letzten fünf Zeilen sind aus den Rulings nachgetragen (Abschlussreview Teil 6, I5), nicht
+beim Planschreiben entstanden.** A1 und A10 schreiben ihre §5-Zeile ausdrücklich vor — sie kam
+trotzdem nie an, und §5 nannte sich zwischenzeitlich „mechanisch prüfbar", während fünf geänderte
+Dateien nicht darin standen. Die Ruling-Texte selbst liegen im **gitignorierten** Ledger; deshalb
+steht der tragende Grund hier ausgeschrieben statt nur als Kürzel. Spec 2 erbt diese Tabelle.
 
 **Keine `core`-Datei wird in diesem Plan angefasst.** Die drei `core`-Berührungen des Vorhabens sind
 abgeschlossen: `core/shell/icons.ts` (Teil 1, T2), `core/bootstrap.ts` (Teil 1 T8 + Teil 2) und
@@ -563,6 +573,14 @@ Einstiege, je **404 auf `feedback.localtest.me`** und **nicht-404 auf dem eigene
 **mit** Lagerbuch-Gruppe, damit der 404 nicht der Gruppenriegel ist.
 
 ### 7.1 Die 29 `page.tsx`
+
+⚠️ **„Verifiziert in: Teil 5, T151/2" ist eine dünnere Belegkette, als die Spalte nahelegt.** T175 hat
+nachgeschlagen: hinter dieser Angabe steht **kein Zeilenprotokoll**, der Commit von T151/2 sagt nur
+aggregiert „23 Verwaltungsrouten liefern 200". Welche Zeile mit welchem unterscheidenden Merkmal
+abgehakt wurde, ist dort nicht festgehalten. **T175 hat die Zeilen deshalb selbst gefahren** —
+wo „T175" in der Spalte steht, liegt eine eigene Messung vor. Die Lehre gilt sinngemäß für jede
+„Verifiziert in Teil N"-Spalte dieses Vorhabens: sie belegt, dass jemand **eine** Abnahme gefahren
+hat, nicht, dass **diese Zeile** dabei einzeln gesehen wurde.
 
 | ☐ | Pfad | Erwartet | Unterscheidendes Merkmal | Verifiziert in |
 |---|---|---|---|---|
