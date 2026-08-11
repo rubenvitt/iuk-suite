@@ -161,8 +161,9 @@ async function warteAuf(pruefen: () => boolean, beschreibung: string): Promise<v
  * einem FESTEN Budget von 30 Versuchen zu je einem `setTimeout(0)`-Tick — unter
  * CPU-Last (voller Lauf: 337 Dateien im Thread-Pool) kann die Modulaufloesung
  * laenger dauern als 30 Ticks, und der Test reisst mit "Nicht rechtzeitig
- * sichtbar: toFile-Aufruf", obwohl der Code korrekt ist (beobachtet: zwei
- * flackernde Gate-Laeufe in dieser Sitzung, siehe fix-welle-report.md). Ein
+ * sichtbar: toFile-Aufruf", obwohl der Code korrekt ist (gemessen: zwei
+ * Fehlschlaege mit exakt dieser Meldung, an :643 und :676, in einem vollen
+ * `vitest run` dieser Sitzung — 337 Dateien, sonst 336 gruen). Ein
  * groesseres Budget verschoebe nur die Grenze. Stattdessen wartet dieser Test
  * auf das Versprechen, das der Spion selbst liefert — nicht auf 30 Ticks,
  * sondern auf Vitests Test-Timeout (Default 5000 ms, ~1000x mehr Kopfraum als
