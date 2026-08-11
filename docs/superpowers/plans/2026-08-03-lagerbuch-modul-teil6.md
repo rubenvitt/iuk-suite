@@ -7540,8 +7540,8 @@ sind ins Cutover-Runbook uebernommen."
 
 **Der Entwurf ist Vorlage, nicht Vorschrift.** Die tatsächlich committete Fassung nennt zusätzlich
 die **eigenen** Gate-Zahlen des Abnahmelaufs (nicht die von T176-A) und das, was die Abnahme
-**gefunden** hat, statt nur was sie bestätigt hat. Wortlaut und Begründung jeder Abweichung:
-`.superpowers/sdd/2026-08-03-lagerbuch-modul-teil6/task-176b-report.md`.
+**gefunden** hat, statt nur was sie bestätigt hat. Wortlaut: Commit `133e6ba`. Drei seiner Aussagen
+wurden danach richtiggestellt, mit Begründung je Aussage: Nachtrag `487a6e5`.
 
 ---
 
