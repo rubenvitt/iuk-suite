@@ -22,13 +22,13 @@ import { join, relative } from "node:path";
  *   Die Weichen-Zusicherung traegt seit Teil 4 eine Existenzpflicht. Es entsteht
  *   KEINE zweite Scan-Datei.
  *
- * ⚠️ STAND NACH TEIL 4, T87 (der Abnahme). Der Satz „ALLE Scans stehen in der
+ * ⚠️ STAND NACH TEIL 6, T173 (der Abnahme). Der Satz „ALLE Scans stehen in der
  * Eigenschaftsform" ist seither FALSCH, und wer ihn weiter liest, haelt zwei
  * Bloecke fuer harmloser, als sie sind. Existenzpflicht tragen jetzt:
  *
- *   - der Weichen-Block (E9): ZWEI der drei Dateien — `page.tsx` (T81) und
- *     `a/[artikelId]/page.tsx` (T83). `g/[code]/page.tsx` entsteht erst in
- *     TEIL 6 (E1, dort J3/T164) und bleibt bis dahin bedingt.
+ *   - der Weichen-Block (E9, eingeloest von T173): ALLE DREI Dateien —
+ *     `page.tsx` (T81), `a/[artikelId]/page.tsx` (T83) und `g/[code]/page.tsx`
+ *     (T164, Teil 6) — bis T173 bedingt in `NOCH_NICHT`.
  *   - der Gate-Flaechen-Block (B2, ganz unten): ALLE DREI Dateien; sie
  *     existieren seit Welle 4 (`_actions/*`) und Welle 7 (`t/[code]/route.ts`).
  *
@@ -231,40 +231,33 @@ describe("Teil 4, T87 — die Weichen-Dateien existieren UND tragen ein PRAEDIKA
    * Der Fehler ist typkorrekt, lint-sauber und fuer `pnpm build` unsichtbar; ein
    * E2E faende ihn nur mit einem Abruf OHNE Cookie, und genau der fehlt heute.
    *
-   * ⚠️ DIE VERSCHAERFUNG (E9), eingeloest von T87. Bis hierher galt „falls die
-   * Datei existiert" — ein Scan mit Existenzpflicht in Welle 1 waere am ersten
-   * Tag rot gewesen und abgeschaltet statt repariert worden. Jetzt — und ERST
-   * jetzt — existieren zwei der drei Dateien. Was die Eigenschaftsform nicht
-   * halten konnte: eine Weiche, die ihren Host-Riegel verliert, NACHDEM der
-   * Scan zuletzt bewusst gefahren wurde, war in ihr nicht von einer noch nicht
-   * gebauten Datei zu unterscheiden.
+   * ⚠️ DIE VERSCHAERFUNG (E9), eingeloest von T87 (zwei der drei Dateien) und
+   * seit T173 (Teil 6, Ruling A8) VOLLSTAENDIG: alle drei Dateien sind Pflicht.
+   * Bis hierher galt „falls die Datei existiert" — ein Scan mit Existenzpflicht
+   * in Welle 1 waere am ersten Tag rot gewesen und abgeschaltet statt repariert
+   * worden. Was die Eigenschaftsform nicht halten konnte: eine Weiche, die
+   * ihren Host-Riegel verliert, NACHDEM der Scan zuletzt bewusst gefahren
+   * wurde, war in ihr nicht von einer noch nicht gebauten Datei zu
+   * unterscheiden — verschwindet eine der drei Dateien, bleibt die
+   * Eigenschaftsform gruen. Genau das ist der Zustand, in dem `/a/<id>` oder
+   * `/g/<code>` ploetzlich ueber einen anderen Weg beantwortet wird.
    *
-   * ⚠️ SIE NENNT NUR ZWEI DER DREI DATEIEN. `g/[code]/page.tsx` entsteht erst in
-   * TEIL 6 (E1, dort J3/T164) und bleibt bis dahin in der Eigenschaftsform. Wer
-   * sie hier schon hart verlangt, macht diesen Plan von einem spaeteren
-   * abhaengig.
+   * ⚠️ EINGELOEST: `g/[code]/page.tsx` (Barcode-Deep-Link, Teil 6/T164) stand
+   * bis T173 bedingt in `NOCH_NICHT` und lief nur ueber ein
+   * `it.runIf(existsSync(...))` — sie war GRUEN, solange die Datei fehlte. Ab
+   * T173 ist sie PFLICHT, ohne `runIf`, wie die anderen beiden.
    */
   const PFLICHT = [
     "page.tsx",                  // das Gate (§7.2.4, T81)
     "a/[artikelId]/page.tsx",    // Regaletikett-Weiche (§7.4.3, T83)
+    "g/[code]/page.tsx",         // Barcode-Deep-Link (§8.1, T164; Pflicht seit T173)
   ];
-  /**
-   * ⚠️ WER DIESE ZEILE EINLOEST: TEIL 6, T164 (dort J3) — die Aufgabe, die
-   * `g/[code]/page.tsx` anlegt, ueberfuehrt sie in `PFLICHT`.
-   *
-   * Das steht hier und nicht nur im Plan, weil E9 die Weiterfuehrung an „§6"
-   * verweist und §6.3 sie unter seinen vier namentlich zugewiesenen Auflagen
-   * NICHT fuehrt (Befund 47 des Preflight-Scans). Ohne einen benannten
-   * Zustaendigen ist die Schleife unten ein Dauer-No-op: sie bleibt gruen,
-   * solange die Datei fehlt, und niemand merkt, dass niemand sie schaerft.
-   */
-  const NOCH_NICHT = ["g/[code]/page.tsx"];   // Teil 6, T164
 
   for (const rel of PFLICHT) {
     const pfad = join(MODUL, rel);
 
     it(`${rel} existiert`, () => {
-      expect(existsSync(pfad), `${rel} fehlt — Teil 4 schuldet sie (§7.2.4, §7.4.3)`).toBe(true);
+      expect(existsSync(pfad), `${rel} fehlt (§7.2.4, §7.4.3, §8.1 — Teil 4/Teil 6)`).toBe(true);
     });
 
     it(`${rel} ruft requireLagerbuchHost`, () => {
@@ -314,27 +307,6 @@ describe("Teil 4, T87 — die Weichen-Dateien existieren UND tragen ein PRAEDIKA
       expect(trefferAuf(/\b(?:requireLagerbuchAdmin|requireHelferSitzung)\b/, [pfad]),
         "Weichen tragen viewerOderNull + istLagerbuchAdmin bzw. helferZugangOderNull (§3.2.1)")
         .toEqual([]);
-    });
-  }
-
-  for (const rel of NOCH_NICHT) {
-    const pfad = join(MODUL, rel);
-    /**
-     * ⚠️ `it.runIf` UND NICHT EIN `if (!existsSync) return;` IM RUMPF. Beide
-     * Formen laufen heute nicht, aber sie MELDEN Verschiedenes: der fruehe
-     * Ausstieg meldet BESTANDEN, `runIf` meldet UEBERSPRUNGEN. „Bestanden" ist
-     * hier die falsche Auskunft — es ist genau das Signal, das eine
-     * Bestandsaufnahme in die Irre fuehrt, und ein `expect(existsSync(p))
-     * .toBe(false)` davorzuschreiben machte es nicht besser: eine Zusicherung,
-     * die konstruktiv nie fehlschlagen kann, ist selbst eine der drei
-     * verbotenen Formen. Sobald TEIL 6, T164 die Datei anlegt, laeuft dieser
-     * Test von selbst an — und die Zeile wandert dann nach `PFLICHT`.
-     */
-    it.runIf(existsSync(pfad))(`${rel}: falls vorhanden, traegt sie die Regel (Teil 6, T164 verschaerft)`, () => {
-      const q = ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8"));
-      expect(q, `${rel} ohne Host-Riegel`).toMatch(/\brequireLagerbuchHost\s*\(/);
-      expect(q, `${rel} fragt das Praedikat nicht`).toMatch(/\bistLagerbuchAdmin\s*\(/);
-      expect(trefferAuf(/\b(?:requireLagerbuchAdmin|requireHelferSitzung)\b/, [pfad])).toEqual([]);
     });
   }
 });

@@ -1,8 +1,14 @@
 import { eq } from "drizzle-orm";
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, lagerorte, tokens } from "../_db/schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
+import {
+  TOKEN_ALPHABET,
+  TOKEN_ZIEHUNGEN,
+  TOKEN_ZIFFERN,
+} from "../_lib/tokenForm";
 
 const {
   adminRiegel,
@@ -46,6 +52,7 @@ const { createToken, setTokenAktiv } = tokenActions;
 const { tokenListe, tokenZiele } = tokenLesepfade;
 
 const LISTENPFAD = "/m/lagerbuch/verwaltung/tokens";
+const QUELLE = "src/app/m/lagerbuch/_actions/tokens.ts";
 const JETZT = new Date("2026-08-07T10:00:00Z");
 const VIEWER = {
   sub: "u-admin",
@@ -467,6 +474,103 @@ describe("tokenListe", () => {
       },
     ]);
     expect(revalidiert).toEqual([]);
+  });
+});
+
+/**
+ * §8.3 — DER TOKEN-VERTRAG, 1:1-Pflicht (T160).
+ *
+ * Die drei Zahlen selbst stehen in `_lib/tokenForm.ts` und werden dort geprueft
+ * (A1: eine `"use server"`-Datei exportiert ausschliesslich Actions). Hier steht
+ * die andere Haelfte: dass DIESE Datei sie auch BENUTZT statt sie ein zweites
+ * Mal abzuschreiben. Ein Test gegen ein Literal im Funktionsrumpf koennte nur
+ * pruefen, dass das Literal dasteht — nicht, dass es wirkt.
+ */
+describe("Token-Codeform (§8.3)", () => {
+  it("konfiguriert den Generator aus den Konstanten, nicht aus Literalen", () => {
+    const quelle = readFileSync(QUELLE, "utf8");
+
+    expect(quelle).toContain('from "../_lib/tokenForm"');
+    expect(quelle).toMatch(/customAlphabet\(\s*TOKEN_ALPHABET\s*,\s*TOKEN_ZIFFERN\s*\)/);
+    expect(quelle, "das Alphabet steht nur noch in _lib/tokenForm.ts")
+      .not.toMatch(/customAlphabet\(\s*["']/);
+    // Der Laufzeitwert kommt beim selben Aufruf an — siehe
+    // „konfiguriert den internen Generator fuer sechs Dezimalziffern" oben.
+    expect(generatorKonfiguration).toContainEqual({
+      alphabet: TOKEN_ALPHABET,
+      laenge: TOKEN_ZIFFERN,
+    });
+  });
+
+  it("zieht hoechstens TOKEN_ZIEHUNGEN mal", async () => {
+    tokenDirekt({ id: "belegt", code: "111-111" });
+    ziffernGenerator.mockReturnValue("111111");
+
+    expect((await createToken({ label: "Ohne freien Code" }, t.db)).ok).toBe(false);
+    expect(ziffernGenerator).toHaveBeenCalledTimes(TOKEN_ZIEHUNGEN);
+    expect(readFileSync(QUELLE, "utf8"))
+      .toMatch(/versuch\s*<\s*TOKEN_ZIEHUNGEN/);
+  });
+
+  /**
+   * DER BINDESTRICH IST TEIL DES GESPEICHERTEN WERTES (Spalte `tokens.code`,
+   * UNIQUE). Er steht zwischen Position 3 und 4. Die Normalisierung der EINGABE
+   * (`_lib/code.ts`, Teil 2) bringt `123456` auf diese Form — sie kann damit nur
+   * Treffer HINZUFUEGEN, nie einen bestehenden verlieren (8-E).
+   */
+  it("speichert den Code in der Form NNN-NNN", async () => {
+    const { code } = wertVon<{ id: string; code: string }>(
+      await createToken({ label: "RTW 1" }, t.db),
+    );
+
+    expect(code).toMatch(/^\d{3}-\d{3}$/);
+    expect(
+      t.db.select().from(tokens).where(eq(tokens.code, code)).get(),
+      "der Bindestrich muss in der Spalte stehen",
+    ).toBeDefined();
+  });
+
+  /**
+   * ES GIBT KEINEN ABLAUF — kein `expiresAt`, kein `validUntil`
+   * (`_db/schema.ts:376-410`). Widerruf laeuft ausschliesslich ueber `aktiv`.
+   * Mehrfachgebrauch ist ausdruecklich beabsichtigt: die Codes sind physisch
+   * laminiert.
+   */
+  it("legt kein Ablaufdatum an", async () => {
+    const { id } = wertVon<{ id: string; code: string }>(
+      await createToken({ label: "RTW 1" }, t.db),
+    );
+    const zeile = t.db.select().from(tokens).where(eq(tokens.id, id)).get()!;
+
+    expect(Object.keys(zeile)).not.toContain("expiresAt");
+    expect(Object.keys(zeile)).not.toContain("validUntil");
+    expect(zeile.lastUsedAt).toBeNull();
+  });
+
+  /**
+   * ENTSCHEIDUNG 8-F: Die Kollisionspruefung laeuft gegen ALLE vorhandenen
+   * Zeilen — nicht nur gegen die aktiven. Ein gesperrter Code bleibt belegt.
+   *
+   * 999.999 von 1.000.000 Codes zu belegen waere unpraktikabel; stattdessen
+   * wird die Aussage direkt geprueft: der gesperrte Code steht in der Tabelle,
+   * und die Abfrage im Generator fragt die Tabelle OHNE aktiv-Bedingung.
+   * `erzeugeFreienCode` selbst bleibt dabei unveraendert — der Namensraum wird
+   * nicht hier dichtgemacht, sondern in `_actions/loeschen.ts`, indem die Zeile
+   * nicht mehr verschwinden kann.
+   */
+  it("vergibt einen gesperrten Code nicht neu", async () => {
+    const { id, code } = wertVon<{ id: string; code: string }>(
+      await createToken({ label: "wird gesperrt" }, t.db),
+    );
+    expect(await setTokenAktiv({ id, aktiv: false }, t.db)).toEqual({ ok: true });
+    expect(t.db.select().from(tokens).where(eq(tokens.code, code)).get()?.aktiv)
+      .toBe(false);
+
+    const block = /function erzeugeFreienCode[\s\S]*?\n}/
+      .exec(readFileSync(QUELLE, "utf8"))![0];
+    expect(block).toContain("tokens.code");
+    expect(block, "Kollisionspruefung darf nicht auf aktiv filtern")
+      .not.toContain("tokens.aktiv");
   });
 });
 

@@ -3,24 +3,15 @@
 import { useMemo, useState, useTransition } from "react";
 import { Alert, Button, Checkbox, Flex, Table } from "antd";
 import { setTokenAktiv } from "../../../_actions/tokens";
-import {
-  deaktiviereElement,
-  loescheElement,
-  pruefeLoeschbar,
-} from "../../../_actions/loeschen";
 import { falte } from "../../../_lib/suche";
 import { toggleInSet } from "../../../_lib/mengen";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
-import { LoeschButton } from "../../../_ui/LoeschButton";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 
 const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
-const PRUEF_FEHLER = "Löschbarkeit konnte nicht geprüft werden.";
-const LOESCH_FEHLER = "Zugangs-Code konnte nicht gelöscht werden.";
-const SPERR_FEHLER = "Zugangs-Code konnte nicht gesperrt werden.";
 
 export type ZielFilter = "fahrzeug" | "artikel" | "liste";
 
@@ -45,24 +36,23 @@ export function sucheTrifft(z: TokenAnzeigeZeile, begriff: string): boolean {
   return !nadel || falte(`${z.code} ${z.label} ${z.zielName ?? ""}`).includes(nadel);
 }
 
-async function loeschen(id: string): Promise<void> {
-  try {
-    const ergebnis = await loescheElement("token", id);
-    if (!ergebnis.ok) throw new Error(LOESCH_FEHLER);
-  } catch {
-    throw new Error(LOESCH_FEHLER);
-  }
-}
-
-async function sperren(id: string): Promise<void> {
-  try {
-    const ergebnis = await deaktiviereElement("token", id);
-    if (!ergebnis.ok) throw new Error(SPERR_FEHLER);
-  } catch {
-    throw new Error(SPERR_FEHLER);
-  }
-}
-
+/**
+ * ENTSCHEIDUNG 8-F (§8.3): Der Namensraum der Zugangs-Codes ist gesperrt — ein
+ * Code kann nur noch gesperrt, nie mehr gelöscht werden. Hier stand bis T160
+ * ein `LoeschButton art="token"` samt Adaptern auf `pruefeLoeschbar`,
+ * `loescheElement` und `deaktiviereElement`. Der AUFRUF ist entfallen; übrig
+ * bleibt der Knopf „Sperren" / „Reaktivieren" auf `setTokenAktiv`.
+ *
+ * ⚠️ NICHT der Dialog: `_ui/LoeschDialog.tsx` und `_ui/LoeschButton.tsx`
+ * bleiben unangetastet und tragen weiterhin Artikel, Fahrzeuge, BZ-Geräte,
+ * O₂-Flaschen, Geräte und Vorlagen.
+ *
+ * ⚠️ Ankündigungspflicht (Runbook R34): Wer heute einen versehentlich
+ * angelegten Code löscht, findet den Knopf nicht mehr. `pruefeLoeschbar`
+ * lehnt serverseitig weiterhin benannt ab und nennt das Sperren als Weg
+ * (`_lib/tokenForm.ts`, `TOKEN_LOESCHGRUND`) — diese Seite fragt nur nicht
+ * mehr danach.
+ */
 export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
   const [suche, setSuche] = useState("");
   const [nurGesperrt, setNurGesperrt] = useState(false);
@@ -200,28 +190,6 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
                 >
                   {zeile.aktiv ? "Sperren" : "Reaktivieren"}
                 </Button>
-                <LoeschButton
-                  size="small"
-                  nurZeichen
-                  name={zeile.code}
-                  typLabel="Zugangs-Code"
-                  deaktivierenLabel="Sperren"
-                  pruefen={async () => {
-                    try {
-                      const ergebnis = await pruefeLoeschbar("token", zeile.id);
-                      if (ergebnis.ok) return ergebnis.wert;
-                    } catch {
-                      // Fester, nicht löschbarer Zustand folgt.
-                    }
-                    return {
-                      loeschbar: false,
-                      grund: PRUEF_FEHLER,
-                      kannDeaktivieren: true,
-                    };
-                  }}
-                  onLoeschen={() => loeschen(zeile.id)}
-                  onDeaktivieren={() => sperren(zeile.id)}
-                />
               </Flex>
             ),
           },

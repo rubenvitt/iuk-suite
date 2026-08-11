@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { act } from "react";
 import {
   afterAll,
   afterEach,
@@ -17,6 +18,7 @@ import {
   mount,
   query,
   queryAll,
+  queryPortal,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import {
@@ -26,6 +28,8 @@ import {
 } from "./BestellListe";
 import type { BestellZeile } from "../../../_lib/lesepfade/bestellung";
 import { bestellAnzeigeZeile, dynamic } from "./page";
+import { baueBestellCsv, BESTELL_CSV_DATEINAME } from "@/app/m/lagerbuch/_lib/csvBestellung";
+import { bestellListeText } from "@/app/m/lagerbuch/_lib/bestellText";
 
 const mocks = vi.hoisted(() => ({
   markiereBestellt: vi.fn(),
@@ -96,6 +100,28 @@ afterEach(async () => {
 });
 
 afterAll(() => vi.restoreAllMocks());
+
+/**
+ * `kopieren()` ist NICHT durch `useTransition` gefuehrt (anders als
+ * `markierungAendern`) — sie haengt `.then()`/`.catch()` an ein rohes Promise.
+ * Ein `await clickElement(...)` flusht deshalb nicht garantiert bis zur
+ * Zustandsaenderung; dass es empirisch klappt, waere ein Zufall der
+ * Microtask-Reihenfolge, kein Vertrag (Lehre aus T165s Befund 1). Deshalb
+ * hier dasselbe Poll-Idiom wie `ArtikelTable.test.tsx:138-149`.
+ */
+async function warte(): Promise<void> {
+  await act(async () => {
+    await new Promise((fertig) => setTimeout(fertig, 0));
+  });
+}
+
+async function warteAuf(pruefen: () => boolean, beschreibung: string): Promise<void> {
+  for (let versuch = 0; versuch < 30; versuch++) {
+    if (pruefen()) return;
+    await warte();
+  }
+  throw new Error(`Nicht rechtzeitig sichtbar: ${beschreibung}`);
+}
 
 describe("statusChip — Auflage 17", () => {
   it("nennt das Datum statt eines blossen Hakens", () => {
@@ -230,21 +256,7 @@ describe("BestellListe", () => {
     expect(text).not.toContain("SQLITE intern und geheim");
   });
 
-  it("CSV und Zwischenablage sind gesperrt und nennen am Tooltip-Traeger den Grund", async () => {
-    await mount(<BestellListe zeilen={ZEILEN} />);
-    expect(query("[data-rolle='csv'] button").hasAttribute("disabled")).toBe(true);
-    expect(query("[data-rolle='clipboard'] button").hasAttribute("disabled")).toBe(true);
-    expect(query("[data-rolle='csv']").getAttribute("title")).toContain("Teil 6");
-    expect(query("[data-rolle='clipboard']").getAttribute("title")).toContain("Teil 6");
-  });
-
-  it("enthaelt vor Teil 6 keinen versteckten Download- oder Zwischenablageweg", async () => {
-    await mount(<BestellListe zeilen={ZEILEN} />);
-    expect(exists("a[download]")).toBe(false);
-    expect(exists("[data-clipboard-text]")).toBe(false);
-  });
-
-  it("verriegelt pagination, horizontalen Scrollvertrag und beide echten Tooltip-Huellen", async () => {
+  it("verriegelt pagination und den horizontalen Scrollvertrag", async () => {
     const elf = Array.from({ length: 11 }, (_, index) => ({
       ...OFFEN,
       id: `viele-${index}`,
@@ -254,6 +266,160 @@ describe("BestellListe", () => {
     expect(exists(".ant-pagination")).toBe(false);
     expect(QUELLE).toContain("pagination={false}");
     expect(QUELLE).toContain('scroll={{ x: "max-content" }}');
-    expect(QUELLE.match(/<Tooltip title=\{SPERRGRUND\}>/g)).toHaveLength(2);
+  });
+});
+
+/**
+ * ENTSCHEIDUNG 9-A / 9-D (Task 166). Teil 5 (T145) legte beide Knoepfe mit
+ * `disabled` an; hier faellt es. Die beiden Wege liefern absichtlich
+ * VERSCHIEDEN VIELE ZEILEN — CSV alle, Zwischenablage nur die offenen —,
+ * und das wird an den Beschriftungen sichtbar statt still vereinheitlicht.
+ */
+describe("Ausgabewege der Bestellliste (§9.1–§9.3)", () => {
+  it("stellt beide Knoepfe frei", async () => {
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    expect(query("[data-testid='lb-kopieren']").hasAttribute("disabled")).toBe(false);
+    expect(query("[data-testid='lb-csv']").hasAttribute("disabled")).toBe(false);
+  });
+
+  /**
+   * ENTSCHEIDUNG 9-A: die beiden Wege liefern verschieden viele Zeilen, und das
+   * bleibt so. Geaendert werden nur die Beschriftungen — heute verraten sie
+   * nichts, und eine stille Vereinheitlichung waere eine Fachentscheidung im
+   * Gewand einer Aufraeumarbeit.
+   *
+   * `textContent` NICHT per `toBe`: der Knopf traegt ein `<Ikone>` vor dem
+   * Text, `textContent` sammelt also mehr ein als nur die Beschriftung.
+   */
+  it("beschriftet den Zeilenumfang", async () => {
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    expect(query("[data-testid='lb-kopieren']").textContent).toContain("Liste kopieren (nur offene)");
+    expect(query("[data-testid='lb-csv']").textContent).toContain("CSV (alle Zeilen)");
+  });
+
+  it("baut die CSV aus allen Zeilen und benennt sie konstant", async () => {
+    const blobs: string[] = [];
+    vi.stubGlobal("Blob", class {
+      constructor(teile: string[]) { blobs.push(teile.join("")); }
+    });
+    const erzeugt = vi.fn().mockReturnValue("blob:x");
+    const frei = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL: erzeugt, revokeObjectURL: frei });
+    // Ersetzt den echten Klick: jsdom kann `blob:x` nicht navigieren
+    // ("Not implemented: navigation") und ist ohnehin nicht der Pruefgegenstand
+    // — der Vertrag ist der `download`-Dateiname am Anker, byte-genau die
+    // Konstante aus `_lib/csvBestellung.ts`, nicht ein Datum.
+    let heruntergeladenAls: string | null = null;
+    const klick = vi.spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        heruntergeladenAls = this.download;
+      });
+
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    await clickElement(query("[data-testid='lb-csv']"));
+
+    expect(blobs[0]).toBe(baueBestellCsv(ZEILEN.map((z) => ({
+      name: z.name, bestand: z.bestand, mindestbestand: z.mindestbestand,
+      vorschlag: z.vorschlag, einheit: z.einheit, bestellt: z.bestellt,
+    }))));
+    // Literalwerte gegen den Zeilenumfang: die CSV nimmt AUCH die bereits
+    // bestellten Zeilen (BESTELLT, DA) mit — Kopfzeile + 3 Zeilen, alle drei
+    // Namen vertreten. Ein Vergleich nur gegen `baueBestellCsv(ZEILEN...)`
+    // (oben) waere zirkulaer, wenn dieselbe fehlerhafte Filterung an beiden
+    // Stellen einträte.
+    expect(blobs[0].split("\n")).toHaveLength(4);
+    expect(blobs[0]).toContain("Mullbinde");
+    expect(blobs[0]).toContain("Pflaster");
+    expect(blobs[0]).toContain("Kompresse");
+    expect(heruntergeladenAls).toBe(BESTELL_CSV_DATEINAME);
+    // Die Objekt-URL wird wieder freigegeben — sonst haelt jeder Download den
+    // Blob bis zum Seitenwechsel im Speicher.
+    expect(frei).toHaveBeenCalledWith("blob:x");
+    klick.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  /**
+   * ENTSCHEIDUNG 9-A: der Gegentest zu oben. `bestellListeText(ZEILEN)` filtert
+   * SELBST auf `!bestellt` — ein Vergleich nur dagegen waere zirkulaer, gruen
+   * auch dann, wenn die Komponente versehentlich ALLE Zeilen uebergaebe. Der
+   * Literalwert "8 × Mullbinde" pinnt den Unterschied: von den drei Zeilen ist
+   * OFFEN (Vorschlag 8) die einzige mit `bestellt: false`.
+   */
+  it("kopiert nur die offenen Zeilen", async () => {
+    const schreiben = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText: schreiben } });
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    await clickElement(query("[data-testid='lb-kopieren']"));
+    expect(schreiben).toHaveBeenCalledWith("8 × Mullbinde");
+    expect(schreiben).toHaveBeenCalledWith(bestellListeText(ZEILEN));
+    vi.unstubAllGlobals();
+  });
+
+  /**
+   * 1:1 aus BestellListe.tsx — beide Meldungen bleiben wortgleich.
+   *
+   * `kopieren()` haengt an KEIN `useTransition` (anders als
+   * `markierungAendern`) — ein manuell aufloesbares Promise plus `warteAuf`
+   * beweist den Uebergang echt, statt sich auf die Microtask-Reihenfolge
+   * innerhalb von `clickElement`s `act()` zu verlassen (Lehre aus T165s
+   * Befund 1: ein Quelltext-Scan oder ein zufaellig gruener Timing-Zufall
+   * ist keine Verhaltenszusicherung).
+   */
+  it("meldet den Erfolg wortgleich, nach Abschluss des Schreibvorgangs", async () => {
+    let geschrieben: (() => void) | undefined;
+    const schreiben = vi.fn(() => new Promise<void>((resolve) => { geschrieben = resolve; }));
+    vi.stubGlobal("navigator", { clipboard: { writeText: schreiben } });
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    await clickElement(query("[data-testid='lb-kopieren']"));
+    expect(document.body.textContent).not.toContain("Bestellliste kopiert");
+    await act(async () => { geschrieben?.(); });
+    await warteAuf(
+      () => document.body.textContent?.includes("Bestellliste kopiert") === true,
+      "Erfolgsmeldung nach aufgeloestem writeText",
+    );
+    vi.unstubAllGlobals();
+  });
+
+  /**
+   * ENTSCHEIDUNG 9-D — DER RUECKFALLWEG. `navigator.clipboard` verlangt einen
+   * secure context; unter `lagerbuch.localtest.me` gibt es den nicht, weil
+   * Browser die HOSTZEICHENKETTE bewerten (localhost, *.localhost, 127.0.0.1)
+   * und nicht die aufgeloeste Adresse. Ohne diese Pruefung meldet die Oberflaeche
+   * „Kopieren fehlgeschlagen" — das liest sich wie ein Fehler des Moduls und ist
+   * eine Eigenschaft der Umgebung.
+   */
+  it("zeigt ohne secure context den Text zum Markieren statt einer Fehlermeldung", async () => {
+    vi.stubGlobal("navigator", {});   // kein clipboard
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    await clickElement(query("[data-testid='lb-kopieren']"));
+    expect(document.body.textContent).not.toContain("Kopieren fehlgeschlagen");
+    expect(document.body.textContent).toContain(
+      "Diese Umgebung erlaubt keinen Zugriff auf die Zwischenablage. Text markieren und kopieren.",
+    );
+    // DER VERTRAG IST DER TEXTINHALT, NICHT DER TRANSPORTWEG: zeichengleich
+    // derselbe String wie im Erfolgsfall.
+    expect(queryPortal<HTMLTextAreaElement>("textarea").value).toBe(bestellListeText(ZEILEN));
+    vi.unstubAllGlobals();
+  });
+
+  /**
+   * Der echte Fehlerfall bleibt und behaelt seinen Wortlaut. Manuell
+   * ablehnbares Promise aus demselben Grund wie beim Erfolgsfall oben: der
+   * `.catch()`-Zweig haengt nicht an einem `useTransition`.
+   */
+  it("meldet einen echten Fehlschlag wortgleich", async () => {
+    let ablehnen: ((grund: Error) => void) | undefined;
+    const schreiben = vi.fn(() => new Promise<void>((_resolve, reject) => { ablehnen = reject; }));
+    vi.stubGlobal("navigator", { clipboard: { writeText: schreiben } });
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    await clickElement(query("[data-testid='lb-kopieren']"));
+    await act(async () => { ablehnen?.(new Error("nope")); });
+    await warteAuf(
+      () => document.body.textContent?.includes("Kopieren fehlgeschlagen") === true,
+      "Fehlermeldung nach abgelehntem writeText",
+    );
+    expect(document.body.textContent).not.toContain("nope");
+    vi.unstubAllGlobals();
   });
 });

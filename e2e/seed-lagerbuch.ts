@@ -170,8 +170,13 @@ function checkFixtures(): void {
     aktiv: true, templateId: null,
   }).onConflictDoNothing().run();
 
+  // Der Name ist bewusst > 28 Zeichen (Ruling A10, Plan T170): der Etikettenbogen-
+  // Test misst daran, dass ein langer Artikelname den QR nicht unter 20mm
+  // draengt (§8.4, 8-I Punkt 2). Ohne diese Verlaengerung ist die Zusicherung
+  // ein No-op — der laengste Seed-Name hatte nur 20 Zeichen. Rein kosmetisch
+  // (steril/Groesse angehaengt), keine Bedeutung fuer den Check-Flow selbst.
   artikelMitBestand(
-    "e2e-check-artikel", "E2E Check Kompressen", "A2",
+    "e2e-check-artikel", "E2E Check Kompressen steril 10x10cm", "A2",
     "e2e-check-charge", "E2E-CHK", 20);
 
   db.insert(sollPositionen).values({

@@ -1,0 +1,171 @@
+/* DAS DRUCKSTYLESHEET DES ETIKETTENBOGENS (Spec §8.4, §6.10.2).
+ *
+ * ALLE KLASSEN TRAGEN DAS PRAEFIX `lb-`: druck.css ist ein GEWOEHNLICHES
+ * Stylesheet, kein CSS-Modul — die Namen sind global. `feedback` praefixt aus
+ * demselben Grund (`.fb-aushang-*`); dass `files` mit `.nichtDrucken` durchkommt,
+ * liegt allein daran, dass dort die Klassennamen gehasht werden.
+ *
+ * WAS HIER AUSDRUECKLICH NICHT STEHT: `body * { visibility: hidden }`
+ * (globals.css:277). CSS Modules schreiben ausschliesslich KLASSENselektoren um
+ * — `body *` bliebe global und leerte JEDE andere Druckseite der Suite
+ * (feedback-Aushang, files-Zugangslinks; Falle 43). Die Sichtbarkeitsumkehr wird
+ * ersatzlos durch die eigene Route-Gruppe ersetzt: ohne Shell gibt es nichts
+ * auszublenden. Damit entfaellt auch der zweite Teil des Problems —
+ * `Layout{minHeight:100vh}` (FullShell.tsx:19) bliebe unter `visibility:hidden`
+ * im Fluss und erzeugte leere Folgeseiten hinter dem Bogen.
+ *
+ * UND NICHT DAS files-MUSTER: `.druckbereich{position:fixed;inset:0;
+ * overflow:hidden}` funktioniert dort, weil EINE Karte gedruckt wird. Der
+ * Etikettenbogen ist N Etiketten ohne Obergrenze; bei @page{margin:8mm} passen
+ * rund 40 auf ein A4-Blatt. Mehrseitigkeit ist der REGELFALL, und
+ * position:fixed mit overflow:hidden schneidet alles ab Seite zwei ab — still,
+ * auf gekauftem Material.
+ *
+ * DAS DRUCK-CSS GREIFT NIE AUF `input` UND NIE AUF `.ant-*`. Eine Regel gegen
+ * einen antd-internen Klassennamen waere eine Kopplung, die ein antd-Major still
+ * bricht; die Suite geht sie an genau EINER Stelle bewusst ein
+ * (globals.css `:root .ant-select-selector`, „der Bruch waere still").
+ *
+ * Die Millimeter sind 1:1-Pflicht 22 und stehen zugleich in
+ * _lib/etikettMasse.ts; etiketten/druck.test.ts haelt beide aneinander.
+ */
+
+@page {
+  margin: 8mm;                            /* globals.css:276 */
+}
+
+.lb-etikettbogen {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 48.5mm);   /* :265 */
+  gap: 2mm;                                           /* :265, Bildschirm */
+  /* EIN BLATT PAPIER HAT KEINEN DUNKELMODUS. Die Werte sind LITERALE, kein
+   * `--ant-*`: antd deklariert seine Variablen auf der Scope-Klasse SEINER
+   * Komponenten (Falle 2), auf eigenem Markup waeren sie still leer. Genau
+   * deshalb kann der Dunkelmodus-Schutz hier kein Token sein. */
+  background: #ffffff;
+  color: #000000;
+}
+
+.lb-etikett {
+  width: 48.5mm;                          /* :266 */
+  height: 25.4mm;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 2.5mm;
+  padding: 2mm;
+  border: 1px dashed #c9ced4;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;                        /* die Kachel ist als Ganzes klickbar */
+  background: #ffffff;
+  color: #000000;
+}
+
+.lb-etikettAbgewaehlt {
+  opacity: 0.35;                          /* :267 — blass, aber sichtbar */
+}
+
+/* DAS `qrcode`-SVG BRINGT NUR EINE viewBox MIT, KEINE BREITE/HOEHE (8-I).
+ * globals.css:25-28 faengt das heute nur fuer [data-testid="qr-display"] ab.
+ * Ohne diese Regel faellt der Code auf die Ersatzgroesse des Browsers zurueck
+ * und wird winzig — OHNE dass ein Test anschlaegt.
+ *
+ * ⚠️ `flex: none` SITZT AUF DEM UMSCHLAG, NICHT AUF DEM SVG. Flexbox wirkt auf
+ * die FLEX-ITEMS, und das ist hier `.lb-etikettQr` — im Bestand war es das
+ * <img> selbst (globals.css:268: `.etikett img{...flex:none}`), deshalb sass es
+ * dort richtig. Steht es am SVG, kann der Umschlag weiter schrumpfen: ein langer
+ * Artikelname draengt den QR unter 20mm. */
+.lb-etikettQr {
+  flex: none;
+}
+
+.lb-etikettQr > svg {
+  display: block;
+  width: 20mm;                            /* :268 */
+  height: 20mm;
+}
+
+.lb-etikettText {
+  min-width: 0;
+}
+
+/* 1:1-Pflicht 22: 11px bzw. 9px. Das ist KEIN Verstoss gegen die 16px-Regel —
+ * die gilt fuer EINGABEelemente (§6.7.3), und das hier sind Textknoten auf einem
+ * 25,4 mm hohen Klebeetikett.
+ *
+ * ⚠️ `display: block` IST PFLICHT UND KEINE KOSMETIK. `.lb-etikett` ist ein
+ * Flex-Container, `.lb-etikettText` damit ein Flex-ITEM — aber selbst ein
+ * gewoehnlicher Block. Seine beiden Kinder blieben ohne diese Zeile INLINE, und
+ * das kostet zwei Dinge auf einem 48,5 x 25,4 mm grossen Etikett: Titel und
+ * Unterzeile stuenden NEBENEINANDER statt untereinander, und
+ * `text-overflow: ellipsis` waere WIRKUNGSLOS — die Eigenschaft greift bei
+ * nicht ersetzten Inline-Elementen nicht. */
+.lb-etikettTitel {
+  display: block;
+  font: 700 11px var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-etikettSub {
+  display: block;
+  font: 600 9px var(--font-geist-mono), ui-monospace, monospace;
+  color: #444c55;
+}
+
+.lb-etikettWahl {
+  margin: 0;
+  flex: none;
+}
+
+@media print {
+  /* RULING A14 (entscheidungen.md, 10.08.2026) — `!important` ist hier PFLICHT,
+   * nicht Kosmetik.
+   *
+   * FUND IN T167 (`e2e/lagerbuch-etiketten.spec.ts`, echter Abruf mit
+   * `page.emulateMedia({ media: "print" })`): die Bedienleiste in
+   * `EtikettenBogen.tsx:80` traegt `style={{ display: "flex", … }}` auf
+   * DEMSELBEN Element wie `lb-nichtDrucken`. Ein Inline-Style hat hoehere
+   * Praezedenz als JEDE Selektorregel dieses externen Stylesheets, unabhaengig
+   * vom Medienkontext — ohne `!important` haette diese Regel den Inline-Style
+   * NIE erreicht, und „Alle"/„Keine"/„Drucken (n)" waeren mit auf das
+   * Etikettenmaterial gedruckt worden. Kein Test und kein `pnpm build` haette
+   * das vor dem Drucker gezeigt.
+   *
+   * Der Inline-Style in EtikettenBogen.tsx BLEIBT: er ist Bildschirm-Layout
+   * und ab hier harmlos. Diese Regel hat genau eine Aufgabe und keinen
+   * Gegenspieler, den sie ungewollt ueberstimmen koennte — deshalb ist ein
+   * Druck-Stylesheet der kanonische, legitime Ort fuer `!important`.
+   */
+  .lb-nichtDrucken {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    /* PFLICHT: ohne sie schluckt der Browser Flaechen — beim Sparen von Farbe
+     * faengt er genau bei grossen und bei kleinen an, und der QR waere ein
+     * grauer Kasten. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .lb-etikettbogen {
+    gap: 0;                               /* :279 — Bildschirm 2mm, Papier 0 */
+  }
+
+  .lb-etikett {
+    border: none;
+    border-radius: 0;
+    opacity: 1;
+  }
+
+  /* `display:none`, NICHT `opacity:0` (:281): opacity liesse den Platz stehen
+   * und verschoebe jede folgende Kachel um eine Position. */
+  .lb-etikettAbgewaehlt {
+    display: none;
+  }
+}

@@ -56,6 +56,9 @@ function journalAnzeigeZeilen(
       deltaText: darstellung.mengeText,
       deltaTon: darstellung.zustand === "negativ" ? "negativ" : "positiv",
       quelleName: zeile.quelleName,
+      // Roher Code/rohe Kennung NUR fuer den `title` des Chips (Ruling A15,
+      // 1:1 aus der Alt-Anwendung).
+      quelleId: zeile.quelleId,
     };
   });
 }

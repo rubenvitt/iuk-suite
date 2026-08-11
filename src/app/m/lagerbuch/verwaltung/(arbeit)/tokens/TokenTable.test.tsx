@@ -6,7 +6,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
   afterAll,
   afterEach,
@@ -37,28 +37,16 @@ import { NeuToken, zielFilter } from "./NeuToken";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import TokensSeite, { dynamic, tokenAnzeigeZeilen } from "./page";
 
-type LoeschProbeProps = {
-  name: string;
-  typLabel: string;
-  deaktivierenLabel?: string;
-  nurZeichen?: boolean;
-  size?: string;
-  pruefen: () => Promise<{
-    loeschbar: boolean;
-    grund?: string;
-    kannDeaktivieren?: boolean;
-  }>;
-  onLoeschen: () => Promise<void>;
-  onDeaktivieren?: () => Promise<void>;
-};
-
+/**
+ * ⚠️ ENTSCHEIDUNG 8-F (T160): Hier standen bis T160 eine `LoeschProbeProps`,
+ * ein Mock fuer `_ui/LoeschButton` und drei Mocks fuer `_actions/loeschen`.
+ * Sie sind mit dem `LoeschButton`-AUFRUF entfallen — diese Seite kennt keinen
+ * Loeschweg mehr. `_ui/LoeschDialog.tsx` und `_ui/LoeschButton.tsx` selbst
+ * bleiben unangetastet; fuenf andere Verwaltungsseiten benutzen sie weiter.
+ */
 const mocks = vi.hoisted(() => ({
   setTokenAktiv: vi.fn(),
   createToken: vi.fn(),
-  pruefeLoeschbar: vi.fn(),
-  loescheElement: vi.fn(),
-  deaktiviereElement: vi.fn(),
-  loeschProps: new Map<string, LoeschProbeProps>(),
   refresh: vi.fn(),
   getDb: vi.fn(),
   tokenListe: vi.fn(),
@@ -83,18 +71,36 @@ vi.mock("../../../_lib/lesepfade/tokens", () => ({
   tokenZiele: (...args: unknown[]) => mocks.tokenZiele(...args),
 }));
 
-vi.mock("../../../_actions/loeschen", () => ({
-  pruefeLoeschbar: (...args: unknown[]) => mocks.pruefeLoeschbar(...args),
-  loescheElement: (...args: unknown[]) => mocks.loescheElement(...args),
-  deaktiviereElement: (...args: unknown[]) => mocks.deaktiviereElement(...args),
-}));
-
-vi.mock("../../../_ui/LoeschButton", () => ({
-  LoeschButton: (props: LoeschProbeProps) => {
-    mocks.loeschProps.set(props.name, props);
-    return <button data-loesch-code={props.name}>Löschen {props.name}</button>;
-  },
-}));
+/**
+ * Kopie von `ohneKommentare()` aus `_lib/bauform.test.ts` (K-4), Vorbild
+ * `_lib/pwaIcons.test.ts:19-39`. Der 8-F-Scan weiter unten waere sonst rot an
+ * seiner eigenen Begruendung: `TokenTable.tsx` erklaert im Kopfkommentar der
+ * Komponente woertlich, dass der `LoeschButton`-Aufruf samt `pruefeLoeschbar`
+ * und `loescheElement` entfallen ist — und genau diese Woerter sucht der Scan.
+ * Der Kommentar wird NICHT umformuliert, um einen Test gruen zu machen.
+ * `bauform.test.ts` exportiert die Funktion nicht, deshalb die lokale Kopie.
+ */
+function ohneKommentare(quelle: string): string {
+  let imBlock = false;
+  return quelle
+    .split("\n")
+    .map((zeile) => {
+      if (imBlock) {
+        const zu = zeile.indexOf("*/");
+        if (zu === -1) return "";
+        imBlock = false;
+        return " ".repeat(zu + 2) + zeile.slice(zu + 2);
+      }
+      const auf = zeile.indexOf("/*");
+      if (auf !== -1 && !zeile.slice(0, auf).includes("*/")) {
+        const zu = zeile.indexOf("*/", auf + 2);
+        if (zu === -1) { imBlock = true; return zeile.slice(0, auf); }
+        return zeile.slice(0, auf) + " ".repeat(zu + 2 - auf) + zeile.slice(zu + 2);
+      }
+      return zeile.trimStart().startsWith("//") ? "" : zeile;
+    })
+    .join("\n");
+}
 
 const FAHRZEUG = {
   id: "t1",
@@ -150,12 +156,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.loeschProps.clear();
   mocks.setTokenAktiv.mockResolvedValue({ ok: true });
   mocks.createToken.mockResolvedValue({ ok: true, wert: { id: "neu", code: "999-999" } });
-  mocks.pruefeLoeschbar.mockResolvedValue({ ok: true, wert: { loeschbar: true } });
-  mocks.loescheElement.mockResolvedValue({ ok: true });
-  mocks.deaktiviereElement.mockResolvedValue({ ok: true });
   mocks.getDb.mockReturnValue({ kennung: "token-test-db" });
   mocks.tokenListe.mockReturnValue([]);
   mocks.tokenZiele.mockReturnValue(ZIELE);
@@ -338,7 +340,7 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
   });
 });
 
-describe("TokenTable — Actions und Löschadapter", () => {
+describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
   it("beobachtet beide Statusrichtungen ohne optimistischen Zustand", async () => {
     await mount(<TokenTable zeilen={ZEILEN} />);
     const sperren = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
@@ -381,45 +383,52 @@ describe("TokenTable — Actions und Löschadapter", () => {
     expect(sperren.textContent).toBe("Sperren");
   });
 
-  it("übergibt kleine Löschtrigger und robuste echte Actionadapter", async () => {
+  /**
+   * ENTSCHEIDUNG 8-F (§8.3): Der Namensraum der Zugangs-Codes ist gesperrt —
+   * ein Code kann nur noch gesperrt, nie mehr gelöscht werden. Auf dieser Seite
+   * entfällt damit der `LoeschButton`-AUFRUF, und die Zeile behält genau eine
+   * Aktion.
+   *
+   * ⚠️ NICHT der Dialog. `_ui/LoeschDialog.tsx` und `_ui/LoeschButton.tsx`
+   * gehören Teil 5 und bleiben unangetastet: Artikel, Fahrzeuge, BZ-Geräte,
+   * O₂-Flaschen, Geräte und Vorlagen benutzen sie weiter. Wer sie beim
+   * Aufräumen mitnimmt, reißt fünf andere Seiten ein.
+   *
+   * ⚠️ ANKÜNDIGUNGSPFLICHT (Runbook R34): Verwaltende, die heute einen
+   * versehentlich angelegten Code löschen, finden den Knopf nicht mehr. Der
+   * Weg heißt jetzt „Sperren", und `pruefeLoeschbar("token", …)` erklärt das
+   * serverseitig weiterhin in Worten (`_lib/tokenForm.ts`, TOKEN_LOESCHGRUND).
+   */
+  it("bietet je Zeile genau eine Aktion an — Sperren, keinen Löschweg", async () => {
     await mount(<TokenTable zeilen={ZEILEN} />);
-    const props = mocks.loeschProps.get("111-111");
-    if (!props) throw new Error("LoeschButton-Props fehlen");
-    expect(props).toMatchObject({
-      name: "111-111",
-      typLabel: "Zugangs-Code",
-      deaktivierenLabel: "Sperren",
-      nurZeichen: true,
-      size: "small",
-    });
 
-    const erlaubt = { loeschbar: false, grund: "Historie", kannDeaktivieren: true };
-    mocks.pruefeLoeschbar.mockResolvedValueOnce({ ok: true, wert: erlaubt });
-    await expect(props.pruefen()).resolves.toEqual(erlaubt);
-    expect(mocks.pruefeLoeschbar).toHaveBeenLastCalledWith("token", "t1");
+    expect(
+      Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
+        .map((knopf) => knopf.textContent),
+    ).toEqual(["Sperren"]);
+    expect(
+      Array.from(query("tr[data-row-key='t2']").querySelectorAll("button"))
+        .map((knopf) => knopf.textContent),
+    ).toEqual(["Reaktivieren"]);
+    expect(document.body.textContent).not.toContain("Löschen");
+  });
 
-    mocks.pruefeLoeschbar.mockResolvedValueOnce({ ok: false, fehler: "intern" });
-    await expect(props.pruefen()).resolves.toEqual({
-      loeschbar: false,
-      grund: "Löschbarkeit konnte nicht geprüft werden.",
-      kannDeaktivieren: true,
-    });
+  it("kennt in der Quelle weder den Löschknopf noch die generische Löschaction", () => {
+    // K-4: über ohneKommentare(), nicht über den Rohtext — der Kopfkommentar
+    // der Komponente nennt alle drei gesuchten Namen in seiner Begründung.
+    const quelle = ohneKommentare(readFileSync(
+      "src/app/m/lagerbuch/verwaltung/(arbeit)/tokens/TokenTable.tsx",
+      "utf8",
+    ));
 
-    mocks.loescheElement.mockResolvedValueOnce({ ok: false, fehler: "intern" });
-    await expect(props.onLoeschen()).rejects.toThrow(
-      "Zugangs-Code konnte nicht gelöscht werden.",
-    );
-    mocks.loescheElement.mockResolvedValueOnce({ ok: true });
-    await expect(props.onLoeschen()).resolves.toBeUndefined();
-    expect(mocks.loescheElement).toHaveBeenLastCalledWith("token", "t1");
+    expect(quelle, "8-F: der LoeschButton-Aufruf entfällt").not.toContain("LoeschButton");
+    expect(quelle).not.toContain("loescheElement");
+    expect(quelle).not.toContain("pruefeLoeschbar");
+    expect(quelle, "gesperrt wird über setTokenAktiv").toContain("setTokenAktiv");
 
-    mocks.deaktiviereElement.mockRejectedValueOnce(new Error("intern"));
-    await expect(props.onDeaktivieren?.()).rejects.toThrow(
-      "Zugangs-Code konnte nicht gesperrt werden.",
-    );
-    mocks.deaktiviereElement.mockResolvedValueOnce({ ok: true });
-    await expect(props.onDeaktivieren?.()).resolves.toBeUndefined();
-    expect(mocks.deaktiviereElement).toHaveBeenLastCalledWith("token", "t1");
+    // Der Dialog bleibt: er gehört Teil 5 und trägt die übrigen Seiten.
+    expect(existsSync("src/app/m/lagerbuch/_ui/LoeschDialog.tsx")).toBe(true);
+    expect(existsSync("src/app/m/lagerbuch/_ui/LoeschButton.tsx")).toBe(true);
   });
 });
 

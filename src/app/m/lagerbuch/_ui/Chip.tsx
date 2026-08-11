@@ -42,14 +42,25 @@ import s from "./verwaltung.module.css";
 export function Chip({
   ton,
   zeichen,
+  title,
   children,
 }: {
   ton: AmpelTon;
   zeichen?: IkonName;
+  /**
+   * OPTIONAL, additiv (Ruling A15) — bestehende Aufrufstellen bleiben
+   * unveraendert, die Darstellung ohne `title` aendert sich nicht. Nachgezogen
+   * aus der eingefrorenen Alt-Anwendung (`lagerbuch/src/app/verwaltung/(admin)/journal/page.tsx:62`):
+   * dort trug der Quelle-Chip `title={j.quelleId}` — Label als Text, roher
+   * Code im Tooltip. `_db/quelle.ts:9-11` haelt fest, dass die rohe Kennung in
+   * der Datenbank nachweisfest bleibt; `title` ist die einzige Stelle in der
+   * Oberflaeche, an der sie wieder sichtbar wird.
+   */
+  title?: string;
   children: ReactNode;
 }) {
   return (
-    <span className={`${s.chip} ${s[ton]}`}>
+    <span className={`${s.chip} ${s[ton]}`} title={title}>
       {zeichen ? <Ikone name={zeichen} groesse={12} /> : null}
       {children}
     </span>

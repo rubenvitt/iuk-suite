@@ -3,8 +3,16 @@ import type { DB } from "../../_db/client";
 import { artikel, lagerorte, tokens } from "../../_db/schema";
 
 /**
- * Der Lesepfad entsteht in T126, wird aber in Teil 6 / T160 erweitert. Es
- * entsteht dort keine zweite Token-Datei.
+ * Der Lesepfad entsteht in T126. T126 hat hier eine Erweiterung durch T160
+ * angekuendigt; T160 hat die Datei geprueft und BEWUSST nicht geaendert:
+ *
+ * Die drei Zusicherungen aus §8.3 (Alphabet, Laenge, Kollision gegen ALLE
+ * Zeilen) haengen samt und sonders am Schreibpfad `_actions/tokens.ts`. Die
+ * einzige §8.3-nahe Eigenschaft DIESER Datei — `tokenListe` liest ohne
+ * `aktiv`-Bedingung, ein gesperrter Code bleibt also sichtbar und belegt — ist
+ * unten bereits gebaut und in `_actions/tokens.test.ts` geprueft („listet auch
+ * inaktive Tokens …"). Entscheidung 8-F verschaerft das nicht, sie stuetzt sich
+ * darauf. Eine Aenderung haette hier nichts zu tun gehabt.
  *
  * Zielnamen werden serverseitig aufgeloest. Auch gesperrte Tokens und spaeter
  * deaktivierte Ziele bleiben in der Liste lesbar; nur die Auswahllisten fuer
