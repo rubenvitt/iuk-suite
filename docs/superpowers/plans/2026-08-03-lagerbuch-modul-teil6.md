@@ -7336,7 +7336,7 @@ nachzubauen.
 |---|---|---|---|
 | **1–5** Gate: Code nicht erkannt · Budget erschöpft · modulweite Bremse · `/t/<code>` ungültig · `/t/<code>` gültig | Modul | **Teil 4** (§7.2), Texte aus `_lib/gateTexte.ts` (Teil 2) | ☐ |
 | **6–10** Sitzung abgelaufen · Code gesperrt · **Entnahme gebucht: 0** · teilweise gebucht · Netz weg | Modul | **Teil 4** (§7.3, §7.4.4). ⚠️ Zustand 8 ist heute ein **grüner Chip mit Häkchen** — „ein 200, das lügt, ist der teuerste Zustand dieser Tabelle" | ☐ |
-| **11** Die 22 deutschen Meldungstexte als **Rückgabewert** | Modul | **Teil 5** (T113–T126) und **Teil 4** (`check.ts`) | ☐ |
+| **11** Die deutschen Meldungstexte als **Rückgabewert** | Modul | **Teil 5** (T113–T126) und **Teil 4** (`check.ts`) | ☐ |
 | **12** Fahrzeug-Check: fremdes Objekt in der Nutzlast | **Modul-Grenze** | **Teil 4** (Wurf) → fällt an **`error.tsx` (T163)** | ☐ |
 | **13–14** Löschen abgelehnt (Historie) · Löschen scheitert am Fremdschlüssel | Modul | **Teil 5** (T110, T124) | ☐ |
 | **15** `/g/<code>`: Barcode unbekannt | Modul | **T164** (dieser Plan) | ☐ |
@@ -7355,6 +7355,19 @@ nachzubauen.
 | **38** Etikettenbogen ohne konfigurierte Domain | Modul | **T159 + T162** (dieser Plan) | ☐ |
 | **39** Zwischenablage ohne secure context | Modul | **T166** (dieser Plan) | ☐ |
 | **40** Auflöser findet die Kennung nicht | Modul | **Teil 1** (`_db/quelle.ts`) — der benannte Defektzustand aus §4.13 (i), protokolliert | ☐ |
+
+⚠️ **Zeile 11 trug bis zum 11.08.2026 die Zahl „22" — sie war eine Alt-App-Zahl** und ist deshalb
+gestrichen, nicht ersetzt. **Gemessen im Modul (11.08.2026): 35 literale `fehler: "`-Stellen in 14
+Produktiv-Action-Dateien** (`src/app/m/lagerbuch/_actions/*.ts` **ohne** `*.test.ts`; mit Testdateien
+zählt derselbe Ausdruck 89 in 25 Dateien — wer nachmisst, muss den Ausschluss mitzählen). Die „22"
+stammt aus der Alt-Anwendung: die zwei Kommentare, die sie heute noch nennen
+(`_lib/actionTypen.ts:21`, `error.test.tsx:48`), schreiben den Bezug ausdrücklich hin
+(`lagerbuch/src/actions/*`). ⚠️ **Die Zahl steht hier ohne Gate, und das ist Absicht:** die Spec
+verlangt die Texte „**als Rückgabewert**", und genau diese **Form** ist gegatet
+(`_lib/actionErgebnis.ts`, Test „verlangt im Fehlerzweig einen `fehler`-Text",
+`actionErgebnis.test.ts:162`). Eine Zusicherung, die die **Anzahl** festnagelt, deckelt keine
+Invariante, wird von jeder neuen Action rot und ist genau die von Ruling A7 verbotene Art —
+**hier also kein `toHaveLength`.**
 
 ⚠️ **Zwei Zeilen dieser Tabelle prüfen sich gegenseitig.** Zustand 16 (Suite-404 für
 Verwaltungs-Detailseiten) und Zustand 15/17 (gestaltete Zustände für `/g` und `/a`) sind **dieselbe
@@ -7440,6 +7453,14 @@ R30 (Probebogen), R31 (Reihenfolge einfrieren), R32 (nachdruckbare ≠ hängende
 ⚠️ **R30 ist keine Zeile, die man nachholt:** ein falsch bedruckter Bogen kostet gekauftes Material
 und einen Gang durch alle Fahrzeuge.
 
+⚠️ **Korrektur bei der Ausführung (T176-B, 11.08.2026): es sind sieben Zeilen, nicht vier.** §10.2
+führt zusätzlich **R34** (Token nur noch sperrbar — Ankündigungspflicht), **R35** (`APP_BASE_URL`
+ersatzlos streichen) und **R36** (Manifest-Gegentest auf dem Portal-Host). Übernommen wurde die
+Fassung aus **§10.2**, nicht die aus §2.3: §2.3 trägt eine ältere, kürzere Fassung — ihrem R30 fehlt
+der `margin`-Rückfall samt „Level H bleibt", ihrem R31 der Vorbehalt zu Betreiberfrage 9. Zielstelle:
+`docs/runbooks/lagerbuch-cutover.md` §16.2 (Wortlaut) und §15 (dieselben sieben als Handgriffe in
+der Reihenfolge des Ablaufs).
+
 - [ ] **Schritt 6: Die Übergabetabelle an Spec 2 schreiben**
 
 Der vollständige Inhalt steht in §10 dieses Plans („Übergabe an Spec 2"). Er wird als **eigener
@@ -7469,12 +7490,21 @@ Die drei Kopplungen ueber Plangrenzen hinweg, jede einzeln belegt:
   Verschiebungen protokolliert.
 
 Die 13 Alt-Specs sind abgewickelt (§12.5): eine uebernommen, elf umgeschrieben,
-eine geteilt. Vier Runbook-Zeilen (R30-R33) und die Uebergabetabelle an Spec 2
-sind ins Cutover-Runbook uebernommen.
-
-⚠️ Offen, solange Teil 4 keine Tasks traegt: der ganze Helfer-Weg. Siehe
-Plan-Teil 6, §2.1."
+eine geteilt. Sieben Runbook-Zeilen (R30-R36) und die Uebergabetabelle an Spec 2
+sind ins Cutover-Runbook uebernommen."
 ```
+
+⚠️ **Zwei Korrekturen an diesem Entwurf, bei der Ausführung vorgenommen (T176-B, 11.08.2026):**
+
+1. Die Schlusszeile „**⚠️ Offen, solange Teil 4 keine Tasks traegt: der ganze Helfer-Weg. Siehe
+   Plan-Teil 6, §2.1.**" ist **gestrichen**. Teil 4 ist gebaut und als **PR #29** gemergt; bliebe
+   die Zeile stehen, behauptete ausgerechnet der Abnahme-Commit eine Lücke, die es nicht gibt.
+2. „Vier Runbook-Zeilen (R30-R33)" → **sieben (R30-R36)**, siehe Schritt 5.
+
+**Der Entwurf ist Vorlage, nicht Vorschrift.** Die tatsächlich committete Fassung nennt zusätzlich
+die **eigenen** Gate-Zahlen des Abnahmelaufs (nicht die von T176-A) und das, was die Abnahme
+**gefunden** hat, statt nur was sie bestätigt hat. Wortlaut und Begründung jeder Abweichung:
+`.superpowers/sdd/2026-08-03-lagerbuch-modul-teil6/task-176b-report.md`.
 
 ---
 
