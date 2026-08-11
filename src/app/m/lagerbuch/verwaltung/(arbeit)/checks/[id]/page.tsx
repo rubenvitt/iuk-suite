@@ -126,6 +126,34 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         />
       ) : null}
 
+      {/**
+        * §11.5, Zustand 27. OHNE diese Meldung zeigt die Seite fuer ein
+        * zerstoertes `ergebnis` „0 Positionen" — sie sieht dann aus wie ein
+        * Check, bei dem nichts zu tun war. Ein 200, das luegt, ist auf einem
+        * Fahrzeug-Check-Nachweis der teuerste Zustand: gesucht wird danach ein
+        * Datenfehler, wo ein Anzeigezustand fehlt.
+        *
+        * ⚠️ `type="warning"`, NIE `type="error"` (§6.6.5): `colorError` ist
+        * `colorPrimary` ist `#c8000f` — ein roter Alert saehe aus wie eine
+        * Primaeraktion, und Rot traegt in diesem Modul fachliche Bedeutung.
+        *
+        * ⚠️ KEIN Icon. Die Seite ist eine Server Component ohne Insel; das
+        * antd-Icon-Paket ergibt hier HTTP 500, und zwar SCHON BEIM IMPORT —
+        * `typecheck`, `build` und Vitest sehen das strukturell nicht. Braucht
+        * die Meldung je ein Zeichen, kommt es aus `_ui/ikonen.tsx`. Bis dahin
+        * `showIcon={false}` wie beim Nachbarn darueber. (Der Riegel weiter
+        * unten in `page.test.tsx` scannt DIESE Datei im Quelltext — auch ein
+        * Kommentar darf den Paketnamen nicht nennen.)
+        */}
+      {check.unlesbar ? (
+        <Alert
+          type="warning"
+          showIcon={false}
+          style={{ marginBlockEnd: 16 }}
+          title="Ergebnis unlesbar: Dieser Check trägt ein beschädigtes Ergebnis. Die Listen und Summen unten sind deshalb leer — das heißt nicht, dass nichts zu tun war."
+        />
+      ) : null}
+
       <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
         <Col xs={24} md={6}>
           <Kachel
@@ -162,9 +190,14 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         geraeteZeilen={geraeteZeilen}
         flaschenZeilen={flaschenZeilen}
         verfallZeilen={verfallZeilen}
-        nachfuellLeertext={check.altFormat
-          ? "Dieser Check stammt aus dem alten Format — Einzelpositionen sind darin nicht enthalten."
-          : "Keine Einzelposition erfasst."}
+        // Der Leertext gehoert zur Meldung oben: „Keine Einzelposition erfasst."
+        // ist eine Tatsachenbehauptung, und bei unlesbarem `ergebnis` hat sie
+        // niemand geprueft. Dasselbe Paar, das `altFormat` schon hat.
+        nachfuellLeertext={check.unlesbar
+          ? "Das Ergebnis dieses Checks ist nicht lesbar — ob Einzelpositionen erfasst wurden, lässt sich nicht sagen."
+          : check.altFormat
+            ? "Dieser Check stammt aus dem alten Format — Einzelpositionen sind darin nicht enthalten."
+            : "Keine Einzelposition erfasst."}
       />
     </>
   );

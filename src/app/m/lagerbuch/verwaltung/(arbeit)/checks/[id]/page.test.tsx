@@ -401,6 +401,56 @@ describe("Check-Detailseite", () => {
       .toBe("Dieser Check stammt aus dem alten Format — Einzelpositionen sind darin nicht enthalten.");
   });
 
+  it("kennzeichnet ein unlesbares Ergebnis, statt 0 Positionen zu behaupten", () => {
+    /**
+     * §11.5, Zustand 27. Ohne diese Meldung sieht ein Check mit zerstoertem
+     * `ergebnis` aus wie einer, bei dem nichts zu tun war — die teuerste Sorte
+     * 200. Nach dem Cutover sucht jemand einen Datenfehler, wo ein
+     * Anzeigezustand fehlt.
+     */
+    const seite = checkDetailInhalt({ ...BASIS, unlesbar: true });
+
+    const alerts = elementeVomTyp(seite, Alert);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].props).toMatchObject({ type: "warning", showIcon: false });
+    // ⚠️ NIE `type="error"`: `colorError === colorPrimary === #c8000f`, ein roter
+    // Alert saehe hier aus wie eine Primaeraktion (§6.6.5).
+    expect(alerts[0].props.type).not.toBe("error");
+    expect(String(alerts[0].props.title)).toMatch(/^Ergebnis unlesbar/);
+
+    // Und die Tabelle darunter darf der Meldung nicht widersprechen: „Keine
+    // Einzelposition erfasst." ist eine Tatsachenbehauptung, die hier niemand
+    // pruefen konnte. Dasselbe Paar aus Meldung und Leertext, das `altFormat`
+    // schon hat.
+    expect(tabellenAus(seite).nachfuellLeertext).toMatch(/nicht lesbar/i);
+  });
+
+  it("meldet NICHTS fuer einen lesbaren Check mit 0 Positionen", () => {
+    // Die Abgrenzung, an der die ganze Aenderung haengt: ein Check, der wirklich
+    // nichts zu melden hatte, ist ein gueltiger Zustand und bekommt KEINE
+    // Warnung. `BASIS` ist genau das — leere Listen, `unlesbar: false`.
+    expect(elementeVomTyp(checkDetailInhalt(BASIS), Alert)).toHaveLength(0);
+  });
+
+  it("haelt Altformat und unlesbar auseinander — je eine Meldung, nie beide", () => {
+    // Zwei Ursachen, zwei Texte. Sie schliessen einander aus (V1 kann nicht
+    // unlesbar sein), und keiner der beiden erklaert den anderen: „alt" heisst
+    // lesbar-aber-knapp, „unlesbar" heisst kaputt.
+    const altText = String(
+      elementeVomTyp(
+        checkDetailInhalt({ ...BASIS, altFormat: true, summe: { ...BASIS.summe, altFormat: true } }),
+        Alert,
+      )[0].props.title,
+    );
+    const unlesbarText = String(
+      elementeVomTyp(checkDetailInhalt({ ...BASIS, unlesbar: true }), Alert)[0].props.title,
+    );
+
+    expect(altText).not.toBe(unlesbarText);
+    expect(altText).not.toMatch(/unlesbar/i);
+    expect(unlesbarText).not.toMatch(/alten Format/i);
+  });
+
   it("bereitet die gegen heute bewerteten Verfallszeilen serverseitig vor", () => {
     const check: CheckDetail = {
       ...BASIS,
