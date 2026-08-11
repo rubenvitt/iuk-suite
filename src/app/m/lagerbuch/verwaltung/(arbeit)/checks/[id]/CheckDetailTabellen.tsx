@@ -65,6 +65,17 @@ export type CheckDetailTabellenProps = {
   flaschenZeilen: FlascheAnzeigeZeile[];
   verfallZeilen: VerfallAnzeigeZeile[];
   nachfuellLeertext: string;
+  /**
+   * §11.5 Zustand 27: ist das `ergebnis` unlesbar, ersetzt dieser EINE Satz die
+   * Leertexte ALLER fuenf Tabellen — auch `nachfuellLeertext`.
+   *
+   * ⚠️ WARUM EIN PROP UND NICHT FUENF. Es ist EINE Ursache. Jeder Vorgabetext
+   * unten BEHAUPTET etwas („Keine Geraete in diesem Check."); bei zerstoertem
+   * Ergebnis hat das niemand geprueft, und die Tabellen widersprechen sonst der
+   * Warnung ueber ihnen. Fuenf getrennte Props laden dazu ein, den Satz spaeter
+   * an vier Stellen zu pflegen und an einer zu vergessen.
+   */
+  unlesbarLeertext?: string | null;
 };
 
 function AnzeigeChip({ chip }: { chip: DetailChipAnzeige }) {
@@ -219,7 +230,10 @@ export function CheckDetailTabellen({
   flaschenZeilen,
   verfallZeilen,
   nachfuellLeertext,
+  unlesbarLeertext,
 }: CheckDetailTabellenProps) {
+  // Ein unlesbares Ergebnis schlaegt JEDEN Vorgabetext — siehe `unlesbarLeertext`.
+  const leertext = (vorgabe: string) => unlesbarLeertext ?? vorgabe;
   return (
     <>
       <Card title="Abgleich" style={{ marginBlockEnd: 16 }}>
@@ -228,7 +242,7 @@ export function CheckDetailTabellen({
           pagination={false}
           scroll={{ x: "max-content" }}
           aria-label="Abgleich"
-          locale={{ emptyText: "Keine Positionen erfasst." }}
+          locale={{ emptyText: leertext("Keine Positionen erfasst.") }}
           dataSource={abgleichZeilen}
           columns={ABGLEICH_SPALTEN}
         />
@@ -239,7 +253,7 @@ export function CheckDetailTabellen({
           pagination={false}
           scroll={{ x: "max-content" }}
           aria-label="Nachfüllung je Fach"
-          locale={{ emptyText: nachfuellLeertext }}
+          locale={{ emptyText: leertext(nachfuellLeertext) }}
           dataSource={nachfuellZeilen}
           columns={NACHFUELL_SPALTEN}
         />
@@ -250,7 +264,7 @@ export function CheckDetailTabellen({
           pagination={false}
           scroll={{ x: "max-content" }}
           aria-label="Geräte im Check"
-          locale={{ emptyText: "Keine Geräte in diesem Check." }}
+          locale={{ emptyText: leertext("Keine Geräte in diesem Check.") }}
           dataSource={geraeteZeilen}
           columns={GERAETE_SPALTEN}
         />
@@ -261,7 +275,7 @@ export function CheckDetailTabellen({
           pagination={false}
           scroll={{ x: "max-content" }}
           aria-label="Sauerstoff im Check"
-          locale={{ emptyText: "Keine Flaschen in diesem Check." }}
+          locale={{ emptyText: leertext("Keine Flaschen in diesem Check.") }}
           dataSource={flaschenZeilen}
           columns={FLASCHEN_SPALTEN}
         />
@@ -272,7 +286,7 @@ export function CheckDetailTabellen({
           pagination={false}
           scroll={{ x: "max-content" }}
           aria-label="Verfallsmeldungen des Checks"
-          locale={{ emptyText: "Keine Verfallsangabe in diesem Check." }}
+          locale={{ emptyText: leertext("Keine Verfallsangabe in diesem Check.") }}
           dataSource={verfallZeilen}
           columns={VERFALL_SPALTEN}
         />

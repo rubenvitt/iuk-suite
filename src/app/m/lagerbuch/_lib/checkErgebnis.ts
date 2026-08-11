@@ -191,7 +191,13 @@ function liste<T>(wert: unknown): T[] {
 export function parseCheckErgebnis(roh: string | null): CheckErgebnis {
   // `null` = noch kein Ergebnis geschrieben (offener Check, §4.4) → LESBAR leer.
   // `""` = ein geschriebener Wert, der nichts traegt → unlesbar. Siehe `unlesbar()`.
-  if (roh === null) return leer();
+  //
+  // ⚠️ `undefined` GEHOERT AUSDRUECKLICH DAZU, obwohl die Signatur es heute
+  // ausschliesst. Vor T176a1 fing `if (!roh)` es mit ab; liesse man es hier
+  // durch, landete es in `JSON.parse(undefined)` → `catch` → „unlesbar", und
+  // eine kuenftige Signaturerweiterung produzierte still eine Warnung fuer einen
+  // Datensatz, an dem nichts kaputt ist.
+  if (roh === null || roh === undefined) return leer();
   if (roh === "") return unlesbar();
   let daten: unknown;
   try {

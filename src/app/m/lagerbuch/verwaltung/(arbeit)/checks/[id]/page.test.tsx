@@ -37,6 +37,7 @@ const BASIS: CheckDetail = {
     flaschenAuffaellig: 0,
     nichtBewertbar: 0,
     altFormat: false,
+    unlesbar: false,
     verfallAuffaellig: 0,
   },
 };
@@ -418,11 +419,35 @@ describe("Check-Detailseite", () => {
     expect(alerts[0].props.type).not.toBe("error");
     expect(String(alerts[0].props.title)).toMatch(/^Ergebnis unlesbar/);
 
-    // Und die Tabelle darunter darf der Meldung nicht widersprechen: „Keine
-    // Einzelposition erfasst." ist eine Tatsachenbehauptung, die hier niemand
-    // pruefen konnte. Dasselbe Paar aus Meldung und Leertext, das `altFormat`
-    // schon hat.
-    expect(tabellenAus(seite).nachfuellLeertext).toMatch(/nicht lesbar/i);
+    // Und KEINE der fuenf Tabellen darunter darf der Meldung widersprechen:
+    // „Keine Geraete in diesem Check." ist eine Tatsachenbehauptung, die hier
+    // niemand pruefen konnte — genauso wenig wie „Keine Einzelposition
+    // erfasst.". EIN Text fuer alle fuenf, weil es EINE Ursache ist.
+    expect(tabellenAus(seite).unlesbarLeertext).toMatch(/nicht lesbar/i);
+  });
+
+  it("nimmt bei unlesbarem Ergebnis ALLEN fuenf Tabellen die Tatsachenbehauptung", () => {
+    /**
+     * Review-Fund (Minor 3): angepasst war zunaechst nur der Nachfuell-Leertext.
+     * Danebenstanden weiter „Keine Positionen erfasst.", „Keine Geraete in
+     * diesem Check.", „Keine Flaschen in diesem Check." und „Keine
+     * Verfallsangabe in diesem Check." — vier Saetze, die etwas behaupten, was
+     * bei zerstoertem `ergebnis` niemand geprueft hat. Die Begruendung, die
+     * `nachfuellLeertext` geaendert hat, gilt fuer sie wortgleich.
+     */
+    const unlesbar = tabellenAus(checkDetailInhalt({ ...BASIS, unlesbar: true }));
+    expect(unlesbar.unlesbarLeertext).toBeTruthy();
+
+    // Die Gegenprobe: ein lesbarer Check bekommt KEINE Ueberschreibung, seine
+    // Tabellen sagen weiter „Keine Geraete in diesem Check." — was dort ja auch
+    // stimmt.
+    expect(tabellenAus(checkDetailInhalt(BASIS)).unlesbarLeertext).toBeFalsy();
+    // Und das Altformat behaelt seinen eigenen, anderen Nachfuell-Text.
+    const alt = tabellenAus(checkDetailInhalt({
+      ...BASIS, altFormat: true, summe: { ...BASIS.summe, altFormat: true },
+    }));
+    expect(alt.unlesbarLeertext).toBeFalsy();
+    expect(alt.nachfuellLeertext).toMatch(/alten Format/);
   });
 
   it("meldet NICHTS fuer einen lesbaren Check mit 0 Positionen", () => {

@@ -185,11 +185,12 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
       </Row>
 
       {/**
-        * ⚠️ Der Leertext gehoert zur Meldung oben. „Keine Einzelposition
-        * erfasst." ist eine Tatsachenbehauptung, und bei unlesbarem `ergebnis`
-        * hat sie niemand geprueft — sonst widerspricht die Tabelle der Warnung
-        * ueber ihr. Dasselbe Paar aus Meldung und Leertext, das `altFormat`
-        * schon hat.
+        * ⚠️ Die Leertexte gehoeren zur Meldung oben. Jeder von ihnen BEHAUPTET
+        * etwas („Keine Geraete in diesem Check."), und bei unlesbarem `ergebnis`
+        * hat das niemand geprueft — sonst widersprechen die Tabellen der Warnung
+        * ueber ihnen. EIN Satz fuer alle fuenf, weil es EINE Ursache ist.
+        * `altFormat` behaelt daneben seinen eigenen, anderen Nachfuell-Text: das
+        * Altformat ist LESBAR, es traegt nur keine Positionsdetails.
         */}
       <CheckDetailTabellen
         abgleichZeilen={abgleichZeilen}
@@ -197,11 +198,12 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         geraeteZeilen={geraeteZeilen}
         flaschenZeilen={flaschenZeilen}
         verfallZeilen={verfallZeilen}
-        nachfuellLeertext={check.unlesbar
-          ? "Das Ergebnis dieses Checks ist nicht lesbar — ob Einzelpositionen erfasst wurden, lässt sich nicht sagen."
-          : check.altFormat
-            ? "Dieser Check stammt aus dem alten Format — Einzelpositionen sind darin nicht enthalten."
-            : "Keine Einzelposition erfasst."}
+        nachfuellLeertext={check.altFormat
+          ? "Dieser Check stammt aus dem alten Format — Einzelpositionen sind darin nicht enthalten."
+          : "Keine Einzelposition erfasst."}
+        unlesbarLeertext={check.unlesbar
+          ? "Das Ergebnis dieses Checks ist nicht lesbar — was erfasst wurde, lässt sich nicht sagen."
+          : null}
       />
     </>
   );

@@ -230,6 +230,24 @@ function checkFixtures(): void {
     }),
   }).onConflictDoNothing().run();
 
+  /**
+   * Der GEGENFALL, auf den es ankommt: ein gueltiges, aber LEERES V2-Ergebnis —
+   * ein Check, der wirklich nichts zu melden hatte.
+   *
+   * ⚠️ Ohne diese Zeile war die E2E-Gegenprobe „gefuellt und lesbar" und damit
+   * nicht die Unterscheidung, um die es geht (Review-Fund Minor 1). „Leer" und
+   * „kaputt" sehen in der Datenbank fast gleich aus; nur hier zeigt sich, dass
+   * die Seite sie trotzdem verschieden anzeigt.
+   */
+  const VOR_VIER_STUNDEN = new Date(JETZT.getTime() - 4 * 3_600_000);
+  db.insert(checks).values({
+    id: "e2e-check-leer", fahrzeugId: "e2e-fahrzeug", quelleTyp: "token",
+    quelleId: E2E_TOKEN_CHECK, startedAt: VOR_VIER_STUNDEN, completedAt: VOR_VIER_STUNDEN,
+    ergebnis: JSON.stringify({
+      version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [],
+    }),
+  }).onConflictDoNothing().run();
+
   // Der Zustand selbst: KEIN JSON. Genau das, was `parseCheckErgebnis` mit
   // `unlesbar: true` beantwortet — und was vorher als „0 Positionen" durchging.
   db.insert(checks).values({

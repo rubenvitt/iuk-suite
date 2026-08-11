@@ -237,10 +237,11 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
     quelleId: c.quelleId, startedAt: c.startedAt, completedAt: c.completedAt,
     positionen, artikel: artikelD, geraete: geraeteD, flaschen: flaschenD, verfall: verfallD,
     altFormat: summe.altFormat,
-    // Direkt aus dem geparsten Wert, nicht aus der Summe: `summiereCheckErgebnis`
-    // zaehlt nur und kennt den Grund nicht. V1 kann nie unlesbar sein — ein
-    // Array IST lesbar, es traegt nur weniger.
-    unlesbar: e.version === 2 && e.unlesbar === true,
+    // Aus DERSELBEN Quelle wie `altFormat` daneben. Seit die Uebersicht den
+    // Grund ebenfalls anzeigt, traegt ihn `CheckSummen`; eine zweite Herleitung
+    // hier waere eine zweite Wahrheit ueber dasselbe JSON — genau der Bruch, den
+    // §5.8.3 fuer die Summen beschreibt.
+    unlesbar: summe.unlesbar,
     summe: {
       ...summe,
       // Die beiden Flaschenzaehler UEBERSCHREIBEN die Summe: das Detail hat den

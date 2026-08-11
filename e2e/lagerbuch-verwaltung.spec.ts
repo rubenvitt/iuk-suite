@@ -158,7 +158,23 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
     await expect(meldung).not.toHaveClass(/ant-alert-error/);
   });
 
-  test("ein lesbarer Check mit 0 Positionen bekommt KEINE solche Warnung", async ({ page }) => {
+  test("ein legitim LEERER Check bekommt KEINE solche Warnung", async ({ page }) => {
+    /**
+     * ⚠️ DIE HAELFTE, DIE ZAEHLT. `e2e-check-leer` trägt ein gültiges, aber
+     * leeres V2-Ergebnis — der Check hatte wirklich 0 Positionen. Genau dieser
+     * Fall war vorher von „kaputt" nicht unterscheidbar; eine Warnung hier wäre
+     * schlimmer als gar keine, weil sie dann auf jedem leeren Check stünde.
+     */
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks/e2e-check-leer"));
+
+    expect(antwort?.status()).toBe(200);
+    await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
+    await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
+    // Die leeren Tabellen sagen weiter, was sie sagen dürfen — hier stimmt es ja.
+    await expect(page.getByText("Keine Geräte in diesem Check.")).toBeVisible();
+  });
+
+  test("ein gefüllter lesbarer Check bekommt KEINE solche Warnung", async ({ page }) => {
     const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks/e2e-check-lesbar"));
 
     expect(antwort?.status()).toBe(200);
@@ -167,5 +183,22 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
     await expect(page.getByText("E2E Check Kompressen steril 10x10cm").first()).toBeVisible();
     // … und sagt nichts von unlesbar.
     await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
+  });
+
+  test("die Übersicht kennzeichnet die Zeile, statt eine ruhige 0 zu zeigen", async ({ page }) => {
+    // §11.5:10332 spricht von der ZEILE. `/verwaltung/checks` ist die Fläche, auf
+    // der jemand nach Auffälligkeiten sucht — dort ist die 0 das Irreführende.
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks"));
+
+    expect(antwort?.status()).toBe(200);
+    await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
+
+    // GENAU EINE Zeile trägt das Wort — der kaputte Datensatz. Die Zahl ist
+    // bewusst nicht an die Gesamtzahl der Zeilen gekoppelt: läuft der
+    // Helfer-Spec vorher, steht hier eine weitere (gültige) Check-Zeile.
+    await expect(page.getByRole("row").filter({ hasText: "unlesbar" })).toHaveCount(1);
+    // Die Gegenprobe auf derselben Fläche: lesbare Zeilen sind da und tragen es
+    // NICHT — sonst wäre „genau eine" auch bei einer leeren Tabelle erfüllbar.
+    await expect(page.getByRole("row").filter({ hasText: "vollständig" }).first()).toBeVisible();
   });
 });

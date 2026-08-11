@@ -87,7 +87,22 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
       timeZone: "Europe/Berlin",
     }) ?? "—",
     ergebnisChips: ergebnisChips(zeile),
-    positionenText: String(zeile.positionen),
+    /**
+     * §11.5:10332 wörtlich: „die **Zeile** wird als ‚Ergebnis unlesbar'
+     * gekennzeichnet statt als ‚0 Positionen'". Für einen zerstörten Datensatz
+     * ist die Zahl selbst das Irreführende — sie sieht aus wie ein Check, bei
+     * dem nichts zu tun war, und die Übersicht ist die Fläche, auf der jemand
+     * nach Auffälligkeiten sucht.
+     *
+     * ⚠️ SCHLICHTER TEXT, kein Chip, kein Rot, kein Symbol: `colorError` ist
+     * `colorPrimary` (§6.6.5), und Rot gehört in diesem Modul nie auf eine
+     * Datenfläche. Die Warnung mit Begründung steht auf der Detailseite.
+     *
+     * ⚠️ Die Entscheidung fällt HIER, serverseitig. Über die RSC-Naht geht nur
+     * der fertige Text — `CheckAnzeigeZeile` bekommt kein `unlesbar`-Flag, die
+     * DTO-Zusicherung der Seite bleibt damit unverändert.
+     */
+    positionenText: zeile.unlesbar ? "unlesbar" : String(zeile.positionen),
   };
 }
 

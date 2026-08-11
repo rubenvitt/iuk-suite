@@ -191,4 +191,34 @@ describe("CheckDetailTabellen", () => {
     expect(document.body.textContent).toContain("Keine Flaschen in diesem Check.");
     expect(document.body.textContent).toContain("Keine Verfallsangabe in diesem Check.");
   });
+
+  it("ersetzt bei unlesbarem Ergebnis ALLE fünf Leertexte durch denselben Satz", async () => {
+    /**
+     * §11.5 Zustand 27, Review-Fund Minor 3. Jeder der fünf Vorgabetexte
+     * BEHAUPTET etwas („Keine Geräte in diesem Check.") — bei zerstörtem
+     * `ergebnis` hat das niemand geprüft, und die Tabellen widersprächen sonst
+     * der Warnung über ihnen. EIN Text für alle fünf, weil es EINE Ursache ist;
+     * `nachfuellLeertext` wird dabei mit überschrieben, sonst stünde
+     * ausgerechnet dort noch die Behauptung.
+     */
+    const SATZ = "Das Ergebnis dieses Checks ist nicht lesbar.";
+    await mount(
+      <CheckDetailTabellen
+        abgleichZeilen={[]}
+        nachfuellZeilen={[]}
+        geraeteZeilen={[]}
+        flaschenZeilen={[]}
+        verfallZeilen={[]}
+        nachfuellLeertext="Keine Einzelposition erfasst."
+        unlesbarLeertext={SATZ}
+      />,
+    );
+
+    expect(document.body.textContent?.match(new RegExp(SATZ, "g"))).toHaveLength(5);
+    expect(document.body.textContent).not.toContain("Keine Positionen erfasst.");
+    expect(document.body.textContent).not.toContain("Keine Einzelposition erfasst.");
+    expect(document.body.textContent).not.toContain("Keine Geräte in diesem Check.");
+    expect(document.body.textContent).not.toContain("Keine Flaschen in diesem Check.");
+    expect(document.body.textContent).not.toContain("Keine Verfallsangabe in diesem Check.");
+  });
 });

@@ -263,6 +263,22 @@ describe("parseCheckErgebnis — unlesbar ist von legitim leer unterscheidbar (�
     if (e.version === 2) expect(e.unlesbar).toBeFalsy();
   });
 
+  it("`undefined` verhaelt sich wie `null`, nicht wie kaputtes JSON", () => {
+    /**
+     * ⚠️ HEUTE UNERREICHBAR — und genau deshalb hier. Die Signatur ist
+     * `string | null`, es gibt keinen lebenden Pfad. Vor T176a1 fing `if (!roh)`
+     * `undefined` mit ab; die praezisere `roh === null`-Pruefung liesse es
+     * weiterlaufen in `JSON.parse(undefined)` → `catch` → **unlesbar**. Eine
+     * kuenftige Signaturerweiterung (ein optionales Feld, ein `?.`-Zugriff)
+     * produzierte damit still „Ergebnis unlesbar" fuer einen Datensatz, an dem
+     * nichts kaputt ist. Der Cast steht bewusst da: er bewacht die Erweiterung,
+     * er ist kein toter Code.
+     */
+    const e = parseCheckErgebnis(undefined as unknown as string | null);
+    expect(e.version).toBe(2);
+    if (e.version === 2) expect(e.unlesbar).toBeFalsy();
+  });
+
   it("V1 bleibt V1 — `altFormat` ist eine ANDERE Ursache und wird nicht eingemeindet", () => {
     // Das Altformat hat sein eigenes Signal (§11.5, 26). Zustand 27 fasst es
     // NICHT mit ein, auch wenn beide im selben `Alert` genannt sind.
