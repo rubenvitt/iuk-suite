@@ -27,6 +27,7 @@ const BASIS: CheckDetail = {
   flaschen: [],
   verfall: [],
   altFormat: false,
+  unlesbar: false,
   summe: {
     positionen: 0,
     nachgefuellt: 0,

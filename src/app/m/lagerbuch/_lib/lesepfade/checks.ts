@@ -102,6 +102,18 @@ export type CheckDetail = {
    *  Zustand 26) — alles andere ist eine leere Tabelle, die wie ein Fehler
    *  aussieht. */
   altFormat: boolean;
+  /**
+   * ⚠️ §11.5, Zustand 27, und NICHT dasselbe wie `altFormat`: der Rohwert war
+   * nicht lesbar, die leeren Listen unten sind also kein Befund, sondern ein
+   * Ausfall. Ohne dieses Feld zeigt die Seite fuer einen zerstoerten Datensatz
+   * „0 Positionen" — der Zustand, den §11.5 ausdruecklich ausschliesst, weil ein
+   * 200, das luegt, hier am teuersten ist: es sieht aus wie ein Check, bei dem
+   * nichts zu tun war.
+   *
+   * Ein OFFENER Check (`ergebnis IS NULL`, §4.4) ist NICHT unlesbar — er hat
+   * noch keins. Die Abgrenzung sitzt im Parser (`checkErgebnis.ts`).
+   */
+  unlesbar: boolean;
   summe: CheckSummen & { verfallAuffaellig: number };
 };
 
@@ -225,6 +237,10 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
     quelleId: c.quelleId, startedAt: c.startedAt, completedAt: c.completedAt,
     positionen, artikel: artikelD, geraete: geraeteD, flaschen: flaschenD, verfall: verfallD,
     altFormat: summe.altFormat,
+    // Direkt aus dem geparsten Wert, nicht aus der Summe: `summiereCheckErgebnis`
+    // zaehlt nur und kennt den Grund nicht. V1 kann nie unlesbar sein — ein
+    // Array IST lesbar, es traegt nur weniger.
+    unlesbar: e.version === 2 && e.unlesbar === true,
     summe: {
       ...summe,
       // Die beiden Flaschenzaehler UEBERSCHREIBEN die Summe: das Detail hat den
