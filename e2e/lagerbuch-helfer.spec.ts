@@ -191,7 +191,15 @@ test.describe("Falle 16 — /t/<code> setzt das Cookie auf DEMSELBEN Host", () =
     // RELATIV: der Browser loest es gegen den Host auf, den er tatsaechlich
     // aufgerufen hat. `new URL(ziel, req.url)` waere falsch — req.url traegt
     // nach dem Rewrite die INTERNE Adresse.
-    expect(location).toMatch(/^\//);
+    //
+    // ⚠️ GENAU EIN SCHRAEGSTRICH, deshalb `(?!\/)`. Ein blosses `/^\//` liesse
+    // ein PROTOKOLL-RELATIVES `//fremder-host/pfad` durch — das ist keine
+    // relative Adresse, sondern eine offene Weiterleitung, und die Zeile
+    // darunter faengt es NICHT: `//fremder-host` beginnt nicht mit `http`.
+    // Heute nicht erreichbar; die Zusicherung ist genau der Waechter, der das
+    // BLEIBEN lassen soll. Dieselbe Form wie `_lib/returnTo.ts` sie prueft
+    // („weist alles ab, was nicht mit genau EINEM Schraegstrich beginnt").
+    expect(location).toMatch(/^\/(?!\/)/);
     expect(location).not.toMatch(/^https?:/);
 
     const setCookie = antwort

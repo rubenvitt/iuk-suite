@@ -469,22 +469,26 @@ describe("Zaehlung (§2.1 a)", () => {
 
   /**
    * `export type` IST KEINE ACTION. `detail.ts` exportiert neben `getDetail`
-   * DREI Typen (ArtikelDetailCharge, ArtikelDetailBuchung, ArtikelDetailResult).
-   * Wer sie mitzaehlt, liest drei ungeschuetzte Actions, die keine sind — und
-   * „repariert" dann drei Typdeklarationen mit einem Riegel.
+   * auch Typen (heute ArtikelDetailCharge, ArtikelDetailBuchung,
+   * ArtikelDetailResult). Wer sie mitzaehlt, liest ungeschuetzte Actions, die
+   * keine sind — und „repariert" dann Typdeklarationen mit einem Riegel.
    *
-   * Die Regex liest `type` UND `interface` und ankert wie `ERLAUBT` am
-   * Zeilenanfang: eine der drei nach `interface` umzuschreiben ist dort erlaubt
-   * und darf hier nicht rot werden.
+   * Die Regex in `ERLAUBT` liest `type` UND `interface` und ankert am
+   * Zeilenanfang: eine der Deklarationen nach `interface` umzuschreiben ist dort
+   * erlaubt und darf hier nicht rot werden.
    *
-   * ⚠️ Fundort ohne Zeilennummer, mit Absicht: `ERLAUBT` steht im describe
-   * „_actions/ — jede exportierte Action ist bewacht", Zusicherung „kennt an
-   * einem Zeilenanfang mit `export` NUR die eine Action-Bauform und
-   * Typ-Exporte". Eine Zeilennummer veraltet beim naechsten Einschub darueber.
+   * ⚠️ DIE ANZAHL DER TYP-EXPORTE IST HIER BEWUSST NICHT MEHR FESTGENAGELT
+   * (Ruling A7, Abschlussreview-Fund T172 d). Ein `toHaveLength(3)` auf
+   * `detail.ts` faerbte rot, sobald jemand einen legitimen VIERTEN Typ ergaenzt
+   * — eine Zahl ohne Invariante dahinter. Die 3 deckelte nichts: sie war kein
+   * Grenzwert, sondern eine Abschrift des heutigen Zustands. Die tragende
+   * Haelfte steht unten und ist DIFFERENZIELL: was auch immer `detail.ts` an
+   * Typen exportiert, als ACTION darf dort genau `getDetail` herauskommen.
+   *
+   * ⚠️ NICHT ZU VERWECHSELN mit „bewacht 44 und listet genau 3 Ausnahmen": dort
+   * deckelt die 3 die echte Invariante 47 = 44 + 3 und bleibt.
    */
   it("verwirft `export type` und `export interface`", () => {
-    const quelle = readFileSync(join(ORDNER, "detail.ts"), "utf8");
-    expect(quelle.match(/^export\s+(?:type|interface)\s+\w+/gm) ?? []).toHaveLength(3);
     expect(actionsIn(exportierteActions(), "detail.ts")).toEqual(["getDetail"]);
   });
 

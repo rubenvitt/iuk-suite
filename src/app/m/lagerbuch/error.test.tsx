@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { mount, unmount, query, exists, clickElement } from "@/app/m/qr/_lib/test-dom";
 import Fehlergrenze from "./error";
@@ -125,5 +125,28 @@ describe("error.tsx — die Modul-Fehlergrenze (§11.2, §12.2)", () => {
     expect(eintraege).not.toContain("not-found.tsx");
     expect(eintraege).not.toContain("loading.tsx");
     expect(eintraege).not.toContain("global-error.tsx");
+
+    /*
+     * ⚠️ DIE VORGABE LAUTET „keine `loading.tsx`, IN KEINER ROUTE" — der Scan
+     * oben liest genau EIN Verzeichnis und deckte damit einen Bruchteil seiner
+     * eigenen Aussage. Ein Riegel, der Deckung vortaeuscht, ist schlechter als
+     * keiner. Deshalb zusaetzlich rekursiv ueber den ganzen Modulbaum, nach dem
+     * fertigen Muster von `verwaltung/(druck)/etiketten/druck.test.ts#alleCss`.
+     *
+     * NUR `loading.tsx` wird rekursiv gesucht: `not-found.tsx` und
+     * `global-error.tsx` sind von Entscheidung 36 (b) her WURZEL-Fragen — eine
+     * `not-found.tsx` in einem Unterverzeichnis waere eine andere Entscheidung
+     * und ist hier nicht verboten. Rekursiv zu verbieten, was die Entscheidung
+     * nicht sagt, waere die entgegengesetzte Falschaussage.
+     */
+    const gefunden: string[] = [];
+    (function suche(dir: string): void {
+      for (const eintrag of readdirSync(dir)) {
+        const pfad = join(dir, eintrag);
+        if (statSync(pfad).isDirectory()) suche(pfad);
+        else if (eintrag === "loading.tsx") gefunden.push(pfad);
+      }
+    })(__dirname);
+    expect(gefunden, "loading.tsx irgendwo unter m/lagerbuch/").toEqual([]);
   });
 });
