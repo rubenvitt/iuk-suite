@@ -93,12 +93,38 @@ export type CheckErgebnisV2 = {
   geraete: CheckGeraetRoh[];
   flaschen: CheckFlascheRoh[];
   verfall: CheckVerfallRoh[];
+  /**
+   * §11.5, Zustand 27: der Rohwert war NICHT lesbar — kein JSON, oder JSON in
+   * einer Form, die kein Ergebnis sein kann. Die Listen sind dann leer, aber
+   * NICHT WEIL nichts zu melden war.
+   *
+   * ⚠️ ADDITIV UND OPTIONAL, und das ist keine Bequemlichkeit: `undefined` ist
+   * der Vorgabewert „lesbar". Jede bestehende Aufrufstelle und jede bestehende
+   * Zusicherung ueber ein gutes Ergebnis bleibt damit woertlich gueltig — nur
+   * die drei Fehlerwege tragen das Feld ueberhaupt.
+   *
+   * ⚠️ NUR `true`, nie `false`. Ein geschriebenes `unlesbar: false` staende in
+   * jedem guten Ergebnis und machte aus dem Ausnahmefall ein Regelfeld; die
+   * Leser fragen `=== true` bzw. truthy.
+   *
+   * ⚠️ NICHT DASSELBE WIE `altFormat` (§11.5, Zustand 26). Das Altformat ist
+   * LESBAR, es traegt nur keine Positionsdetails — es bleibt V1 und behaelt sein
+   * eigenes Signal. Werden beide zusammengelegt, verliert der Leser genau die
+   * Unterscheidung „alt" gegen „kaputt", die ueber Datenrettung entscheidet.
+   */
+  unlesbar?: true;
 };
 
 export type CheckErgebnis = CheckErgebnisV1 | CheckErgebnisV2;
 
 /**
- * Der Wert, in den JEDER Lesefehler ueberfuehrt wird.
+ * Der LEERE, aber gueltige V2-Wert: ein Check, der wirklich nichts zu melden
+ * hatte.
+ *
+ * ⚠️ Seit T176a1 ist er NICHT MEHR der Wert jedes Lesefehlers. Ein Leseabbruch
+ * traegt zusaetzlich `unlesbar: true` (§11.5, Zustand 27) — ohne diesen
+ * Unterschied ist „0 Positionen" von „Ergebnis kaputt" nicht trennbar, und die
+ * Detailseite zeigt fuer einen zerstoerten Datensatz eine ruhige Null.
  *
  * ⚠️ Er wird NIE direkt zurueckgegeben — `parseCheckErgebnis` baut jedes Mal eine
  * frische Kopie. Sonst teilten sich zwei Aufrufer dieselben Arrays, und ein
@@ -128,6 +154,23 @@ function leer(): CheckErgebnisV2 {
   return { version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [] };
 }
 
+/**
+ * Dieselbe leere Struktur, aber mit dem Grund dabei: hier ist nichts drin, WEIL
+ * der Rohwert nicht lesbar war (§11.5, Zustand 27).
+ *
+ * ⚠️ `if (!roh)` GEHOERT NICHT HIERHER, obwohl es der dritte `leer()`-Weg ist.
+ * `checks.ergebnis` ist nullable (`schema.ts:232`), und ein OFFENER Check hat
+ * planmaessig keins: `seedLokal.ts:523-526` legt genau diese Bauform an
+ * (`completedAt: null, ergebnis: null`), das Schema sieht sie ausdruecklich vor
+ * (`completed_at IS NULL`, §4.4). „Noch nicht geschrieben" ist kein Lesefehler —
+ * wer es dazuzaehlt, meldet „Ergebnis unlesbar" fuer einen Check, an dem
+ * niemand fertig war. Ein LEERER STRING dagegen ist ein geschriebener Wert, der
+ * nichts traegt, und zaehlt mit.
+ */
+function unlesbar(): CheckErgebnisV2 {
+  return { ...leer(), unlesbar: true };
+}
+
 /** Nimmt eine Liste nur an, wenn sie wirklich ein Array ist. */
 function liste<T>(wert: unknown): T[] {
   return Array.isArray(wert) ? (wert as T[]) : [];
@@ -146,19 +189,22 @@ function liste<T>(wert: unknown): T[] {
  * V2-Zweig, waere `altFormat` fuer einen Altcheck ohne Eintraege falsch.
  */
 export function parseCheckErgebnis(roh: string | null): CheckErgebnis {
-  if (!roh) return leer();
+  // `null` = noch kein Ergebnis geschrieben (offener Check, §4.4) → LESBAR leer.
+  // `""` = ein geschriebener Wert, der nichts traegt → unlesbar. Siehe `unlesbar()`.
+  if (roh === null) return leer();
+  if (roh === "") return unlesbar();
   let daten: unknown;
   try {
     daten = JSON.parse(roh);
   } catch {
-    return leer();
+    return unlesbar();
   }
   if (Array.isArray(daten)) {
     return { version: 1, eintraege: daten as CheckErgebnisV1["eintraege"] };
   }
   // `typeof null === "object"` — deshalb die Null-Pruefung. Ein Skalar
   // (`5`, `"text"`, `true`) parst erfolgreich und ist trotzdem kein Ergebnis.
-  if (daten === null || typeof daten !== "object") return leer();
+  if (daten === null || typeof daten !== "object") return unlesbar();
   const o = daten as Record<string, unknown>;
   return {
     version: 2,

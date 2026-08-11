@@ -92,24 +92,32 @@ describe("parseCheckErgebnis — das HEUTIGE Format (V2)", () => {
   });
 });
 
-describe("parseCheckErgebnis — jeder Lesefehler wird ein LEERES V2", () => {
+describe("parseCheckErgebnis — jeder Lesefehler wird ein LEERES V2, benannt als unlesbar", () => {
+  // T176a1: die Struktur bleibt die leere V2-Struktur (das haelt jeden Leser am
+  // Leben, der einfach ueber die fuenf Listen geht) — sie traegt seitdem
+  // zusaetzlich den GRUND (§11.5, Zustand 27). Ohne ihn ist „kaputt" von
+  // „0 Positionen" nicht unterscheidbar.
+  const UNLESBAR = { ...LEERES_ERGEBNIS, unlesbar: true };
+
   it("kaputtes JSON", () => {
-    expect(parseCheckErgebnis("{nicht json")).toEqual(LEERES_ERGEBNIS);
+    expect(parseCheckErgebnis("{nicht json")).toEqual(UNLESBAR);
   });
 
-  it("null", () => {
+  it("null — noch kein Ergebnis geschrieben, und deshalb OHNE Grundangabe", () => {
+    // Der offene Check (`seedLokal.ts:523-526`, §4.4). Er bleibt woertlich das,
+    // was er vorher war: ein leeres, LESBARES V2.
     expect(parseCheckErgebnis(null)).toEqual(LEERES_ERGEBNIS);
   });
 
   it("leerer String", () => {
-    expect(parseCheckErgebnis("")).toEqual(LEERES_ERGEBNIS);
+    expect(parseCheckErgebnis("")).toEqual(UNLESBAR);
   });
 
   it("ein Skalar statt Objekt oder Array", () => {
     // `JSON.parse("5")` ist 5, `JSON.parse("null")` ist null — beides parst
     // erfolgreich und ist trotzdem kein Ergebnis.
     for (const roh of ["5", '"text"', "true", "null"]) {
-      expect(parseCheckErgebnis(roh)).toEqual(LEERES_ERGEBNIS);
+      expect(parseCheckErgebnis(roh)).toEqual(UNLESBAR);
     }
   });
 
@@ -179,6 +187,89 @@ describe("parseCheckErgebnis — jeder Lesefehler wird ein LEERES V2", () => {
     if (a.version === 2 && b.version === 2) {
       expect(a.positionen).not.toBe(b.positionen);
       expect(a.positionen).not.toBe(LEERES_ERGEBNIS.positionen);
+    }
+  });
+});
+
+/**
+ * §11.5, Zustand 27: „`checks.ergebnis` unlesbar" — die Zeile wird als
+ * „Ergebnis unlesbar" gekennzeichnet STATT als „0 Positionen".
+ *
+ * ⚠️ DER KERN IST DIE ABGRENZUNG, nicht die Erkennung. Ein Leseabbruch und ein
+ * legitim leeres V2-Ergebnis (der Check hatte wirklich nichts zu melden) sahen
+ * bis hierher IDENTISCH aus — beide `leer()`. Wer den Unterschied verwischt,
+ * warnt kuenftig bei JEDEM leeren Check, und das ist der teurere Fehler: eine
+ * Warnung, die immer steht, wird nicht mehr gelesen.
+ */
+describe("parseCheckErgebnis — unlesbar ist von legitim leer unterscheidbar (§11.5, 27)", () => {
+  it("kaputtes JSON ist unlesbar", () => {
+    const e = parseCheckErgebnis("{nicht json");
+    expect(e.version).toBe(2);
+    if (e.version === 2) expect(e.unlesbar).toBe(true);
+  });
+
+  it("ein leerer String ist unlesbar — ein geschriebener Wert, der nichts traegt", () => {
+    const e = parseCheckErgebnis("");
+    if (e.version === 2) expect(e.unlesbar).toBe(true);
+  });
+
+  it("ein Skalar statt Objekt oder Array ist unlesbar — JSON in falscher Form", () => {
+    for (const roh of ["5", '"text"', "true", "null"]) {
+      const e = parseCheckErgebnis(roh);
+      if (e.version === 2) expect(e.unlesbar).toBe(true);
+    }
+  });
+
+  it("ein legitim LEERES V2-Ergebnis ist NICHT unlesbar", () => {
+    // Der Check lief durch und hatte 0 Positionen. Das ist ein gueltiger
+    // Zustand und bekommt KEINE Warnung — hier scheitert jede Umsetzung, die
+    // „leer" mit „kaputt" gleichsetzt.
+    const e = parseCheckErgebnis(JSON.stringify({
+      version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [],
+    }));
+    expect(e.version).toBe(2);
+    if (e.version === 2) expect(e.unlesbar).toBeFalsy();
+  });
+
+  it("ein gefuelltes V2-Ergebnis ist NICHT unlesbar", () => {
+    const e = parseCheckErgebnis(JSON.stringify({
+      positionen: [{ artikelId: "a1", soll: 2, ist: 2 }],
+    }));
+    if (e.version === 2) expect(e.unlesbar).toBeFalsy();
+  });
+
+  it("ein Objekt mit Muell in den Listen ist NICHT unlesbar — die Form stimmt", () => {
+    // `liste()` faengt das tolerant ab (bestehendes Verhalten, T37). Ein Objekt
+    // IST ein Ergebnis; nur die einzelnen Listen sind unbrauchbar. Daraus eine
+    // zweite Warnklasse zu machen, verlangt §11.5 nicht.
+    const e = parseCheckErgebnis(JSON.stringify({ geraete: "kaputt", artikel: 42 }));
+    if (e.version === 2) expect(e.unlesbar).toBeFalsy();
+  });
+
+  it("`null` ist NICHT unlesbar — ein offener Check hat noch kein Ergebnis", () => {
+    /**
+     * ⚠️ ABWEICHUNG VOM WORTLAUT DER AUFGABE, mit Grund. `if (!roh)` ist die
+     * dritte `leer()`-Stelle, aber sie bedeutet nicht „kaputt", sondern „noch
+     * nichts geschrieben": `checks.ergebnis` ist nullable (`schema.ts:232`) und
+     * `seedLokal.ts:523-526` legt genau so einen OFFENEN Check an
+     * (`completedAt: null, ergebnis: null`) — das Schema sieht die Bauform
+     * ausdruecklich vor (`completed_at IS NULL`, §4.4). Wuerde `null` als
+     * unlesbar gelten, meldete die Detailseite „Ergebnis unlesbar" fuer einen
+     * Check, an dem schlicht noch niemand fertig war: eine zweite Luege statt
+     * keiner.
+     */
+    const e = parseCheckErgebnis(null);
+    expect(e.version).toBe(2);
+    if (e.version === 2) expect(e.unlesbar).toBeFalsy();
+  });
+
+  it("V1 bleibt V1 — `altFormat` ist eine ANDERE Ursache und wird nicht eingemeindet", () => {
+    // Das Altformat hat sein eigenes Signal (§11.5, 26). Zustand 27 fasst es
+    // NICHT mit ein, auch wenn beide im selben `Alert` genannt sind.
+    for (const roh of ["[]", JSON.stringify([{ fehlt: 3, gebucht: 1 }])]) {
+      const e = parseCheckErgebnis(roh);
+      expect(e.version).toBe(1);
+      expect(e).not.toHaveProperty("unlesbar");
     }
   });
 });
