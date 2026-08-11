@@ -266,14 +266,14 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
      * rutschte genauso durch. Deshalb steht hier eine ALLOWLIST: gemeldet wird
      * jede Zeile, die mit `export` beginnt und KEINER anerkannten Form
      * entspricht. Neue Bauformen sind damit laut statt still — dieselbe Regel,
-     * die `_lib/bauform.test.ts:66-78` fuer sich selbst formuliert („Ein Scan
-     * darf falsch-positiv sein und laut, nie falsch-negativ und still").
+     * die `_lib/bauform.test.ts` fuer `ohneKommentare` selbst formuliert („Ein
+     * Scan darf falsch-positiv sein und laut, nie falsch-negativ und still").
      *
      * ⚠️ EIN `export const FOO = 5` WIRD MITGEMELDET, UND DAS IST RICHTIG. Ein
      * "use server"-Modul darf ausschliesslich async-Funktionen exportieren; ein
      * Wert-Export dort ist selbst der Fehler. Konstanten gehoeren nach `_lib/`.
      *
-     * ⚠️ DIESE DATEI IST BIS TEIL 6 EINGEFROREN (siehe Kopf, `:25`). Die
+     * ⚠️ DIESE DATEI IST BIS TEIL 6 EINGEFROREN (siehe Kopfkommentar). Die
      * Fehlermeldung unten ist damit der EINZIGE Kanal zu Teil 4 und Teil 5 — sie
      * nennt deshalb die REGEL, nicht nur den Verstoss.
      *
@@ -405,14 +405,14 @@ describe("Zaehlung (§2.1 a)", () => {
   const ADMIN = /requireLagerbuchAdmin\s*\(/;
   const HELFER = /requireHelferSchreibend\s*\(/;
 
-  it("hat 18 Action-Dateien; `guards.test.ts` ist die 19. Datei des Ordners", () => {
+  it("hat 18 Action-Dateien plus `guards.test.ts`", () => {
     // ⚠️ NICHT `readdirSync(ORDNER).toHaveLength(19)` (Ruling A7): der Ordner
     // hat 37 Eintraege. Gezaehlt werden die ACTION-Dateien; `guards.test.ts`
     // wird separat nachgewiesen, weil `actionDateien()` sie ausfiltert.
     const dateien = actionDateien();
     expect(Object.keys(SOLL), "Die Sollliste selbst nennt 18 Dateien.").toHaveLength(18);
     expect(dateien, "18 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
-    expect(existsSync(join(ORDNER, SELBST)), `${SELBST} ist die 19.`).toBe(true);
+    expect(existsSync(join(ORDNER, SELBST)), `${SELBST} liegt daneben.`).toBe(true);
   });
 
   it("hat je Datei genau so viele Deklarationen wie die Sollliste sagt", () => {
