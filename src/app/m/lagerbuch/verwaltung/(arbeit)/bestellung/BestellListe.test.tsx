@@ -30,6 +30,7 @@ import type { BestellZeile } from "../../../_lib/lesepfade/bestellung";
 import { bestellAnzeigeZeile, dynamic } from "./page";
 import { baueBestellCsv, BESTELL_CSV_DATEINAME } from "@/app/m/lagerbuch/_lib/csvBestellung";
 import { bestellListeText } from "@/app/m/lagerbuch/_lib/bestellText";
+import s from "../../../_ui/verwaltung.module.css";
 
 const mocks = vi.hoisted(() => ({
   markiereBestellt: vi.fn(),
@@ -72,6 +73,17 @@ const DA = {
   bestand: 5,
   vorschlag: 0,
   wareOffenbarDa: true,
+} satisfies BestellAnzeigeZeile;
+
+/**
+ * Der Rueckfall-Zweig OHNE Datum (`BestellListe.tsx:42`, `bestelltSeitText:
+ * null`) — bislang von keinem Test (weder Funktion noch DOM) erreicht.
+ */
+const BESTELLT_OHNE_DATUM = {
+  ...BESTELLT,
+  id: "a4",
+  name: "Kanuele",
+  bestelltSeitText: null,
 } satisfies BestellAnzeigeZeile;
 
 const ZEILEN = [OFFEN, BESTELLT, DA];
@@ -140,6 +152,37 @@ describe("statusChip — Auflage 17", () => {
 
   it("nennt eine noch nicht markierte Position offen", () => {
     expect(statusChip(OFFEN)).toEqual({ ton: "rot", text: "offen" });
+  });
+
+  /**
+   * Der Rueckfall-Zweig OHNE Datum (`BestellListe.tsx:42`) — bislang
+   * ungetestet. T174-Befund: §12.1 Punkt 5 verlangt einen Nachfolger, der den
+   * Chip-Zustand `bestellt` textlich unterscheidbar haelt; ohne diesen Fall
+   * gibt es im Bestand keine Zeile, deren Text ueberhaupt bloss "bestellt"
+   * lautet.
+   */
+  it("faellt ohne Datum auf den blossen Text zurueck", () => {
+    expect(statusChip(BESTELLT_OHNE_DATUM)).toEqual({ ton: "ok", text: "bestellt" });
+  });
+});
+
+/**
+ * NACHFOLGER von `lagerbuch/e2e/inventur.spec.ts:29` (§12.1 Punkt 5): dort
+ * trennte `getByText("bestellt", { exact: true })` den Zeilen-Chip von einer
+ * Fussnote "Bestellt …". Die neue Oberflaeche hat keine Fussnote mehr — der
+ * Wortlaut wanderte in den Chip-Text selbst ("bestellt seit <Datum>", §5.5).
+ * Die verbliebene Kollisionsgefahr ist eine ANDERE: `bestellt` ist als
+ * Teilstring in `bestellt seit …` enthalten. Diese Zeile prueft, dass eine
+ * exakte Textsuche nach "bestellt" NUR den datumslosen Chip trifft, nicht den
+ * datierten — die Zusicherung wandert mit dem Text, nicht gegen ihn (T174,
+ * Verschiebung 5 aus §8 des Plans).
+ */
+describe("statusChip-Text im DOM — exakte Trennung ohne Teilstring-Kollision", () => {
+  it("'bestellt' (exact) trifft nur den datumslosen Chip, nie 'bestellt seit …'", async () => {
+    await mount(<BestellListe zeilen={[BESTELLT_OHNE_DATUM, BESTELLT]} />);
+    const chipTexte = queryAll(`.${s.chip}`).map((el) => el.textContent);
+    expect(chipTexte.filter((text) => text === "bestellt")).toHaveLength(1);
+    expect(chipTexte.filter((text) => text === "bestellt seit 01.08.2026")).toHaveLength(1);
   });
 });
 
