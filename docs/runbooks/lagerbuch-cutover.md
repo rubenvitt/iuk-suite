@@ -259,6 +259,9 @@ eingelöste Sitzung ist in der installierten PWA nicht da, und umgekehrt. Das is
 es muss vor dem Cutover einmal gesehen worden sein — sonst wird es am ersten Einsatztag als
 Ausfall gemeldet.
 
+Gehört mit §13 zusammen abgearbeitet: Schritt 3 (Systemkamera-Scan) setzt einen sicheren Kontext
+voraus — über eine IP oder `http://` zeigt der Scan nur `KEIN_SICHERER_KONTEXT`, siehe §13.
+
 ---
 
 ## 12. Verwaltungsoberfläche: sichtbare Änderungen und Modus-Abnahme
@@ -368,13 +371,24 @@ Zeile steht in §16.2** — dort und nur dort, damit es eine Fassung gibt und ni
 
 ## 16. Übergabe an Spec 2 — Datenumzug, Generalprobe, Cutover
 
+⚠️ **Diese Sektion muss vollständig und wörtlich in das echte Cutover-Runbook übernommen werden —
+nicht zusammenfassen, nicht nur verlinken.** Dieses Dokument ist der Vorlauf, **nicht** das
+Cutover-Runbook (siehe Kopf dieser Datei): §16 ist darin die einzige Sektion mit
+**Übernahmepflicht** — keine gemessene Einzeltatsache aus dem Bau wie §1–§15, sondern die
+verbindliche Übergabeliste an Spec 2. Wer sie beim Schreiben des echten Runbooks (nach dem Muster
+von `files-cutover.md`) als „eine von vielen Fundstellen" behandelt statt als Pflichtquelle,
+verliert die Übergabe an Spec 2.
+
 **Diese Liste ist verbindlich. Wo Spec 2 davon abweicht, ist es ein Fehler in Spec 2, nicht hier**
-(§1.4). Sie steht hier vollständig und nicht als Verweis: das Cutover-Runbook wird unter Zeitdruck
-gelesen, und ein Verweis in eine 845-KB-Spec ist unter Zeitdruck kein Verweis.
+(§1.4). Sie steht hier vollständig und nicht als Verweis: das **künftige** Cutover-Runbook (nicht
+dieses Vorlauf-Dokument) wird unter Zeitdruck gelesen, und ein Verweis in eine 845-KB-Spec ist unter
+Zeitdruck kein Verweis.
 
 *Wörtlich übernommen aus `docs/superpowers/plans/2026-08-03-lagerbuch-modul-teil6.md`, §10
-(Schritte 5 und 6 von T176). Nur die Abschnittsnummern sind an dieses Dokument angepasst: §10.1 →
-§16.1, §10.2 → §16.2, §10.3 → §16.3. Der Tabelleninhalt ist zeichengleich.*
+(Schritte 5 und 6 von T176). Die Abschnittsnummern sind an dieses Dokument angepasst (§10.1 →
+§16.1, §10.2 → §16.2, §10.3 → §16.3), und der Satz zum Zeitdruck nennt hier ausdrücklich das
+**künftige** Runbook, weil dieses Dokument noch der Vorlauf ist — das sind die einzigen zwei
+bewussten Abweichungen. Der Tabelleninhalt ist zeichengleich.*
 
 ### 16.1 Was Spec 2 aus Spec 1 erbt
 

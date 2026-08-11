@@ -133,6 +133,13 @@ Wert nennt, ist er in der Spec belegt oder als Annahme `A-J<n>` markiert.
 | R32 | **Die Menge der physisch hängenden Etiketten ist echt größer als die Menge der druckbaren** (§8.4, Falle 26): `etikettenDaten` filtert hart auf `aktiv = true`, ein deaktivierter Artikel bleibt unter `/a/<id>` bebuchbar, ist aber nie wieder nachdruckbar. Die Differenz ist im Repo nicht abzählbar | Wer nach dem Cutover ein Etikett nachdrucken will und den Artikel nicht findet, sucht sonst einen Fehler, wo eine Entscheidung ist |
 | R33 | **Ankündigung: die beiden Knopfbeschriftungen auf `/verwaltung/bestellung` ändern sich** — `Liste kopieren` → `Liste kopieren (nur offene)`, `CSV` → `CSV (alle Zeilen)` (§9.1, 9-A) | Die beiden Wege liefern **verschieden viele Zeilen**, und heute verrät das nichts. Die Vereinheitlichung wäre eine Fachentscheidung im Gewand einer Aufräumarbeit — deshalb bleibt der Umfang und die Beschriftung wird ehrlich |
 
+⚠️ **Ältere, kürzere Fassung — nicht die maßgebliche.** §10.2 führt inzwischen **sieben** Zeilen
+(R30–R36) in der reicheren Fassung: ihr R30 trägt zusätzlich den benannten Rückfall (`margin`-
+Parameter an `core/qr#qrSvg`, „Level H bleibt in beiden Fällen"), ihr R31 den Vorbehalt zu
+Betreiberfrage 9 („muss `lagerbuch.iuk-ue.de` Index 0 bleiben"). **Maßgeblich ist §10.2** — ins
+Cutover-Runbook übernommen als §16.2. Diese Tabelle bleibt unverändert stehen (historischer
+Abschnitt aus der ersten Fassung dieses Plans); ihre eigenen R30–R33 nicht als Quelle verwenden.
+
 ---
 
 ## 3. Festlegungen dieses Plans, die die Spec offen lässt
@@ -7336,7 +7343,7 @@ nachzubauen.
 |---|---|---|---|
 | **1–5** Gate: Code nicht erkannt · Budget erschöpft · modulweite Bremse · `/t/<code>` ungültig · `/t/<code>` gültig | Modul | **Teil 4** (§7.2), Texte aus `_lib/gateTexte.ts` (Teil 2) | ☐ |
 | **6–10** Sitzung abgelaufen · Code gesperrt · **Entnahme gebucht: 0** · teilweise gebucht · Netz weg | Modul | **Teil 4** (§7.3, §7.4.4). ⚠️ Zustand 8 ist heute ein **grüner Chip mit Häkchen** — „ein 200, das lügt, ist der teuerste Zustand dieser Tabelle" | ☐ |
-| **11** Die deutschen Meldungstexte als **Rückgabewert** | Modul | **Teil 5** (T113–T126) und **Teil 4** (`check.ts`) | ☐ |
+| **11** Die deutschen Meldungstexte als **Rückgabewert** — gemessen: **35** Stellen in **14** Action-Dateien (gegatet ist die Form, nicht die Anzahl; ⚠️ Begründung unten) | Modul | **Teil 5** (T113–T126) und **Teil 4** (`check.ts`) | ☐ |
 | **12** Fahrzeug-Check: fremdes Objekt in der Nutzlast | **Modul-Grenze** | **Teil 4** (Wurf) → fällt an **`error.tsx` (T163)** | ☐ |
 | **13–14** Löschen abgelehnt (Historie) · Löschen scheitert am Fremdschlüssel | Modul | **Teil 5** (T110, T124) | ☐ |
 | **15** `/g/<code>`: Barcode unbekannt | Modul | **T164** (dieser Plan) | ☐ |
@@ -7356,8 +7363,8 @@ nachzubauen.
 | **39** Zwischenablage ohne secure context | Modul | **T166** (dieser Plan) | ☐ |
 | **40** Auflöser findet die Kennung nicht | Modul | **Teil 1** (`_db/quelle.ts`) — der benannte Defektzustand aus §4.13 (i), protokolliert | ☐ |
 
-⚠️ **Zeile 11 trug bis zum 11.08.2026 die Zahl „22" — sie war eine Alt-App-Zahl** und ist deshalb
-gestrichen, nicht ersetzt. **Gemessen im Modul (11.08.2026): 35 literale `fehler: "`-Stellen in 14
+⚠️ **Zeile 11 trug bis zum 11.08.2026 die Zahl „22" — sie war eine Alt-App-Zahl** und ist durch die
+gemessene Zahl ersetzt. **Gemessen im Modul (11.08.2026): 35 literale `fehler: "`-Stellen in 14
 Produktiv-Action-Dateien** (`src/app/m/lagerbuch/_actions/*.ts` **ohne** `*.test.ts`; mit Testdateien
 zählt derselbe Ausdruck 89 in 25 Dateien — wer nachmisst, muss den Ausschluss mitzählen). Die „22"
 stammt aus der Alt-Anwendung: die zwei Kommentare, die sie heute noch nennen
@@ -7449,14 +7456,14 @@ verliert die Helferin ihre Auskunft, in der anderen verrät die Suite die Existe
 - [ ] **Schritt 5: Die Runbook-Zeilen dieses Plans übergeben**
 
 R30 (Probebogen), R31 (Reihenfolge einfrieren), R32 (nachdruckbare ≠ hängende Etiketten) und R33
-(geänderte Knopfbeschriftungen) aus §2.3 werden **wörtlich** in das Cutover-Runbook übernommen.
+(geänderte Knopfbeschriftungen) aus §2.4 werden **wörtlich** in das Cutover-Runbook übernommen.
 ⚠️ **R30 ist keine Zeile, die man nachholt:** ein falsch bedruckter Bogen kostet gekauftes Material
 und einen Gang durch alle Fahrzeuge.
 
 ⚠️ **Korrektur bei der Ausführung (T176-B, 11.08.2026): es sind sieben Zeilen, nicht vier.** §10.2
 führt zusätzlich **R34** (Token nur noch sperrbar — Ankündigungspflicht), **R35** (`APP_BASE_URL`
 ersatzlos streichen) und **R36** (Manifest-Gegentest auf dem Portal-Host). Übernommen wurde die
-Fassung aus **§10.2**, nicht die aus §2.3: §2.3 trägt eine ältere, kürzere Fassung — ihrem R30 fehlt
+Fassung aus **§10.2**, nicht die aus §2.4: §2.4 trägt eine ältere, kürzere Fassung — ihrem R30 fehlt
 der `margin`-Rückfall samt „Level H bleibt", ihrem R31 der Vorbehalt zu Betreiberfrage 9. Zielstelle:
 `docs/runbooks/lagerbuch-cutover.md` §16.2 (Wortlaut) und §15 (dieselben sieben als Handgriffe in
 der Reihenfolge des Ablaufs).
