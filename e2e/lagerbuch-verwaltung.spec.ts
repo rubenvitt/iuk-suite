@@ -197,8 +197,33 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
     // bewusst nicht an die Gesamtzahl der Zeilen gekoppelt: läuft der
     // Helfer-Spec vorher, steht hier eine weitere (gültige) Check-Zeile.
     await expect(page.getByRole("row").filter({ hasText: "unlesbar" })).toHaveCount(1);
-    // Die Gegenprobe auf derselben Fläche: lesbare Zeilen sind da und tragen es
-    // NICHT — sonst wäre „genau eine" auch bei einer leeren Tabelle erfüllbar.
-    await expect(page.getByRole("row").filter({ hasText: "vollständig" }).first()).toBeVisible();
+
+    /*
+     * DIE GEGENPROBE AUF DERSELBEN FLÄCHE — an einer BENANNTEN lesbaren Zeile,
+     * nicht am Wort „vollständig".
+     *
+     * ⚠️ Warum nicht „vollständig": die KAPUTTE Zeile trägt es mit. Bei
+     * zerstörtem `ergebnis` sind alle Zähler 0, `ergebnisChips` pusht deshalb
+     * keinen einzigen Chip und schiebt am Ende den Vollständig-Chip nach
+     * (`checks/page.tsx`). Dieselbe Zeile sagt also „unlesbar" in der
+     * Positionen-Spalte und grün „vollständig" in der Ergebnis-Spalte. Die
+     * frühere Fassung wäre damit auch dann grün gewesen, wenn
+     * `e2e-check-unlesbar` die EINZIGE Zeile der Tabelle wäre — genau das, was
+     * ihr eigener Kommentar ausschließen wollte. Sie war vakuös.
+     *
+     * Der Link trägt `detailHref = /verwaltung/checks/<id>` und ist damit der
+     * einzige Anker, der eine BESTIMMTE Zeile trifft: der Fahrzeugname taugt
+     * nicht (alle drei Seed-Checks hängen an `e2e-fahrzeug`), die Zeitspalte
+     * ebenso wenig.
+     *
+     * ⚠️ Der grüne Chip auf der kaputten Zeile ist ein VORBESTEHENDER Befund und
+     * wird hier bewusst nicht mitrepariert — Chip und offener Check gehören
+     * zusammen geplant (DRK-196, Runbook §14).
+     */
+    const lesbar = page
+      .getByRole("row")
+      .filter({ has: page.locator('a[href$="/verwaltung/checks/e2e-check-lesbar"]') });
+    await expect(lesbar).toHaveCount(1);
+    await expect(lesbar).not.toContainText("unlesbar");
   });
 });

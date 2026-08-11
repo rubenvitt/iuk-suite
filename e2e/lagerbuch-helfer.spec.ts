@@ -36,6 +36,18 @@ import {
  * eigene Zusicherung durch die eigene Vorbedingung („zu viele Fehlversuche")
  * zu ersetzen.
  *
+ * ⚠️ WAS DIESE DATEI AN DATEN HINTERLAESST — vollstaendig, weil ein Worker und
+ * eine SQLite-Datei jede Spec danach erben:
+ *   - `checks`: eine neue Zeile je Lauf des Abschluss-Tests (unten deklariert).
+ *   - `tokens.last_used_at`: bei jeder Einloesung neu gesetzt; deshalb pruefen
+ *     `lagerbuch-hosts.spec.ts` und diese Datei DIFFERENZIELL statt gegen NULL.
+ *   - `lagerort_verfall`: eine Zeile je gemeldetem Verfall, per
+ *     `onConflictDoUpdate`, OHNE Historie und OHNE Ruecknahme — der Seed fasst
+ *     diese Tabelle nicht an. ⚠️ Der geschriebene Monat MUSS deshalb ausserhalb
+ *     der Warnschwelle liegen (`2090-09`), sonst taucht der Artikel in
+ *     `/verwaltung/verfall` auf und faerbt eine fremde Spec rot. Begruendung
+ *     ausgeschrieben an der Fuellstelle.
+ *
  * ⚠️ JEDER TEST STELLT SEINEN ZUSTAND SELBST HER (§12.3): `beforeEach`
  * reaktiviert den Code VOR jedem Test, nicht nur ein `afterEach` danach — sonst
  * vererbt ein fehlgeschlagener Sperr-Test seinen Zustand an den naechsten
@@ -408,9 +420,34 @@ test.describe("§12.1 Punkt 1 — der gemeldete Verfall ueberlebt bis in die Dat
     await page.getByRole("link", { name: /^E2E RTW/ }).click();
     await page.waitForURL(/\/helfer\/check\?fz=/);
 
-    await page
-      .getByLabel(/^Verfall E2E Check Kompressen/)
-      .fill("2026-09");
+    /*
+     * ⚠️ EIN FERNER MONAT, UND ZWAR MIT ABSICHT — nicht der naechstbeste.
+     *
+     * Dieses `fill` ist ein SCHREIBVORGANG in eine Tabelle, die der Seed gar
+     * nicht anfasst: `_actions/check.ts` reicht den Wert an `setzeVerfall`
+     * weiter, und `_lib/schreibpfade/lagerortVerfall.ts` schreibt ihn per
+     * `onConflictDoUpdate` nach `lagerort_verfall` — OHNE Historie und OHNE
+     * Ruecknahme. Playwright faehrt EINEN Worker gegen EINE SQLite-Datei; was
+     * hier landet, bleibt fuer jede nachfolgende Spec liegen.
+     *
+     * Der frueher benutzte Wert `2026-09` lag innerhalb der Warnschwelle
+     * (`LAGERBUCH_VERFALL_GELB_TAGE = 56`) und machte die Zeile in
+     * `/verwaltung/verfall` WARNEND. Genau dagegen fuehrt
+     * `e2e/seed-lagerbuch.ts` sein `E2E_VERFALL_FERN = "2090-01"` ein („dann
+     * stuenden die Helfer- und Check-Artikel mit in der Verfallsliste … und eine
+     * als ‚enthaelt' geschriebene Zusicherung bliebe dabei gruen, waehrend die
+     * Liste sich still verdoppelt"). Dieser Test fuehrte den Zustand von der
+     * anderen Seite wieder ein — heute latent, weil keine Spec
+     * `/verwaltung/verfall` liest, und rot fuer die erste, die es tut, mit
+     * Ursache in einer ANDEREN Datei.
+     *
+     * `2090-09` ist fern genug, um nie zu warnen, und VERSCHIEDEN von
+     * `E2E_VERFALL_FERN` — der Wert muss sich vom Ausgangszustand unterscheiden,
+     * sonst filtert `checkAbschluss` ihn als ungeaendert weg (siehe oben).
+     * Die Zusicherung unten prueft den GESCHRIEBENEN WERT, nicht die
+     * Warnwirkung.
+     */
+    await page.getByLabel(/^Verfall E2E Check Kompressen/).fill("2090-09");
     await page.getByRole("button", { name: "Weiter" }).click(); // Zaehlen → Nachfuellen
     await page.getByRole("button", { name: "Weiter" }).click(); // Nachfuellen → Sauerstoff
     await page.getByRole("button", { name: "Abschließen" }).click();
@@ -420,6 +457,6 @@ test.describe("§12.1 Punkt 1 — der gemeldete Verfall ueberlebt bis in die Dat
     const nachher = letzterCheck("e2e-fahrzeug");
     expect(nachher, "der Abschluss muss eine Check-Zeile schreiben").toBeTruthy();
     expect(nachher!.id, "es muss eine NEUE Zeile sein, nicht die alte").not.toBe(vorher?.id);
-    expect(nachher!.ergebnis).toContain("2026-09");
+    expect(nachher!.ergebnis, "der gemeldete Verfall muss im Ergebnis stehen").toContain("2090-09");
   });
 });
