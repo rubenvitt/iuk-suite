@@ -93,7 +93,7 @@ export function DiensteRaster({
       />
 
       {abschnitte.length === 0 ? (
-        <Empty data-testid="portal-ohne-treffer" description={`Nichts gefunden für „${suche}".`} />
+        <Empty data-testid="portal-ohne-treffer" description={`Nichts gefunden für „${suche}“.`} />
       ) : (
         abschnitte.map(([titel, liste]) => (
           <section key={titel}>
