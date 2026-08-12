@@ -19,15 +19,23 @@ import { devLogin } from "./fixtures";
  */
 test.use({ viewport: { width: 390, height: 844 } });
 
-test("mobil: Modulknoepfe stehen nicht im Kopf, das Menue oeffnet sie", async ({ page }) => {
+test("mobil: der App-Wechsel hängt am Umschalter der Kopfzeile, nicht am Menü", async ({
+  page,
+}) => {
+  /*
+   * Die alte Modulknopfreihe (`modulzeile`) ist ersatzlos entfallen, und mit
+   * ihr auch die Modulliste im Drawer — der App-Wechsel hängt seit dem
+   * Navigations-Umbau am Umschalter der Kopfzeile, UND ZWAR AUF JEDER GRÖSSE
+   * (SuiteHeader.tsx, `AppUmschalter` trägt kein `.nurDesktop`/`.nurMobil`).
+   * Anders als der Menü-Knopf (`.nurMobil`, mobil-only) ist der Umschalter
+   * hier also direkt erreichbar, ohne den Drawer erst zu öffnen.
+   */
   await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
   await expect(page.getByTestId("suite-header")).toBeVisible();
-  // Die Knopfreihe ist im DOM, aber per CSS ausgeblendet — genau das ist der
-  // Unterschied, den jsdom nicht sehen kann.
-  await expect(page.getByTestId("modulzeile")).toBeHidden();
-
-  await page.getByTestId("menue-knopf").click();
-  await expect(page.getByTestId("suite-drawer").getByRole("link", { name: /Alpha/ })).toBeVisible();
+  await page.getByTestId("app-umschalter").click();
+  await expect(
+    page.getByTestId("app-panel").getByRole("link", { name: /Alpha/ }),
+  ).toBeVisible();
 });
 
 test("mobil: die Kopfzeile bleibt einzeilig", async ({ page }) => {
@@ -57,13 +65,6 @@ test("mobil: die Modulnavigation steht nicht als zweite Zeile im Weg", async ({ 
   );
   console.log(`Unterkante der Kopfzeile mit Modulnav-Slot bei 390x844: ${gesamt}px`);
   expect(gesamt).toBeLessThanOrEqual(72);
-});
-
-test("mobil: der Drawer fuehrt in ein anderes Modul", async ({ page }) => {
-  await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
-  await page.getByTestId("menue-knopf").click();
-  await page.getByTestId("suite-drawer").getByRole("link", { name: /Alpha/ }).click();
-  await expect(page.getByTestId("alpha-content")).toBeVisible();
 });
 
 test("mobil: abmelden haengt am Nutzermenue, nicht mehr im Drawer", async ({ page }) => {

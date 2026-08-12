@@ -1,10 +1,10 @@
 /*
  * Die Kopfzeile der Suite, mobil zuerst.
  *
- * Beide Ausprägungen (Menue-Knopf und Modulknopfreihe) werden IMMER gerendert;
- * welche man sieht, entscheidet allein CSS. Der Grund steht in
- * `shell-css.test.ts`: `Grid.useBreakpoint` ist in Server Components verboten,
- * und ein JS-Breakpoint zeigt beim ersten Render die falsche Variante.
+ * Beide Ausprägungen (Menü-Knopf und Desktop-Inhalte wie der Theme-Umschalter)
+ * werden IMMER gerendert; welche man sieht, entscheidet allein CSS. Der Grund
+ * steht in `shell-css.test.ts`: `Grid.useBreakpoint` ist in Server Components
+ * verboten, und ein JS-Breakpoint zeigt beim ersten Render die falsche Variante.
  *
  * 768px ist der EINZIGE Breakpoint der Suite (= antds `md`). Ein zweiter waere
  * eine zweite Skala — siehe docs/design/README.md.
@@ -66,39 +66,28 @@
 }
 
 /*
- * `flex: 0 1 auto` — die mittlere 1 ist die Reparatur, und sie ist neu.
+ * `flex: 0 1 auto` UND `min-width: 0` — die Reparatur eines echten Überlaufs,
+ * heute nur noch als Absicherung stehend.
  *
- * Hier stand `0 0 auto`: `.rechts` gab nicht nach, nachgeben konnte allein der
- * Titel. GEMESSEN bei 768px Viewport (fuenf Module): `.rechts` trug 806px
- * Inhalt, der Titel stand auf 0px, `documentElement.scrollWidth` auf 838. Der
- * Mangel ist AELTER als das fuenfte Modul — die Kopfzeile trug vier und
- * skalierte nicht darueber hinaus; `lagerbuch` hat ihn nur ausgeloest.
+ * Hier stand einmal `0 0 auto`: `.rechts` gab nicht nach, nachgeben konnte
+ * allein der Titel. GEMESSEN bei 768px Viewport (fünf Module, DAMALS noch als
+ * Knopfreihe `.modulzeile` in `.rechts`): `.rechts` trug 806px Inhalt, der
+ * Titel stand auf 0px, `documentElement.scrollWidth` auf 838.
  *
- * KEIN zweiter Breakpoint dafuer (das verbietet der Kopf dieser Datei) und kein
- * Modul, das aus dem Umschalter faellt: `.rechts` darf schrumpfen, und die
- * Modulknopfreihe scrollt in sich (siehe `.modulzeile`).
+ * `.modulzeile`, die diese 806px damals füllte, GIBT ES NICHT MEHR — die Apps
+ * hängen seit dem Navigations-Umbau am Umschalter der Kopfzeile (`.umschalter`,
+ * Geschwister von `.rechts` in `.kopf`), nicht mehr an einer Knopfreihe
+ * innerhalb von `.rechts`. `.rechts` trägt seitdem nur noch den mobilen
+ * Menü-Knopf, den Theme-Umschalter und den Avatar-/Anmelden-Knopf — weit unter
+ * der Breite, die damals überlief. Beide Deklarationen bleiben trotzdem
+ * stehen: sie schaden nicht, und ein künftiger dritter Inhalt in `.rechts`
+ * fände die Absicherung schon vor.
  *
- * `min-width: 0` GEHOERT DAZU UND IST NICHT REDUNDANT — der naheliegende
- * Trugschluss war, dass `.modulzeile` als Scrollcontainer schon 0 beisteuert.
- * Das tut sie, aber nur fuer ihr EIGENES automatisches Minimum als Flex-Kind
- * von `.rechts`. Die min-content-Breite von `.rechts`, aus der wiederum SEIN
- * automatisches Minimum faellt, addiert die Beitraege ihrer Kinder ungerechnet:
- * GEMESSEN 678 (Reihe) + 8 + 56 (Umschalter) + 8 + 56 (Avatar) = 806 — also
- * exakt die Breite, die nicht passte. Mit `flex: 0 1 auto` ALLEIN blieb der
- * Ueberlauf deshalb unveraendert bei 838px; erst beide Deklarationen zusammen
- * wirken.
- *
- * Was `min-width: 0` im Gegenzug erlaubt: `.rechts` darf theoretisch unter die
- * Summe seiner nicht schrumpfenden Kinder (128px) fallen, dann staenden
- * Umschalter und Avatar sichtbar ueber der rechten Kante. Erreichbar ist das
- * nicht: geschrumpft wird proportional zur Basisbreite, `.rechts` behaelt
- * `806 * verfuegbar/gesamt`, und dafuer muesste der Modultitel ueber 4000px
- * Textbreite haben. Die Titel kommen aus `core/registry.ts` und sind Woerter.
- *
- * Dass der Titel lesbar bleibt, faellt aus derselben Rechnung und braucht keine
- * eigene Zahl: er behaelt `Basis * verfuegbar/gesamt` und wird nie 0. Ein
- * `min-width` am Titel waere eine zweite Skala und ist deshalb bewusst NICHT
- * gesetzt. `e2e/shell-mobil.spec.ts` misst genau diese Breite mit.
+ * Dass der Titel (heute: `.umschalter`, der ihn ersetzt) lesbar bleibt, hängt
+ * an genau dieser Nachbarschaft — er behält seinen Anteil an der verfügbaren
+ * Breite und wird nie 0. Ein `min-width` am Titel wäre eine zweite Skala und
+ * ist deshalb bewusst NICHT gesetzt. `e2e/shell-mobil.spec.ts` misst genau
+ * diese Breite mit.
  */
 .rechts {
   display: flex;
@@ -142,71 +131,6 @@
 /* Umgekehrt: mobil weg, ab 768px sichtbar. Mobile-first — die Basis ist `none`,
    damit auf schmalen Geraeten nichts aufblitzt, bevor CSS greift. */
 .nurDesktop {
-  display: none;
-}
-
-/*
- * KEIN `display` hier, und das ist Absicht: `.modulzeile` wird immer ZUSAMMEN
- * mit `.nurDesktop` gesetzt, das den Wert beisteuert (`none`, ab 768px `flex`).
- * Ein `display: flex` an dieser Stelle stuende NACH `.nurDesktop` bei gleicher
- * Spezifitaet, gewaenne die Kaskade — und die Modulknopfreihe waere auf
- * schmalen Geraeten sichtbar. Also genau der Defekt, gegen den diese Datei
- * gebaut ist.
- */
-.modulzeile {
-  align-items: center;
-  gap: 4px;
-  flex-wrap: nowrap;
-
-  /*
-   * Passt die Reihe nicht mehr neben Titel, Umschalter und Avatar, scrollt sie
-   * IN SICH, statt die Kopfzeile aufzuweiten. `flex-wrap: nowrap` bleibt genau
-   * deshalb stehen: umbrechen wuerde die Kopfzeile hoeher machen.
-   *
-   * Das ist NICHT der alte `overflow: hidden`, den `shell-css.test.ts`
-   * beschreibt — der schnitt ueberzaehlige Module ab; `auto` laesst sie
-   * erreichbar. Und es ist die Haelfte, die dem `min-width: 0` von `.rechts`
-   * erst seine Richtung gibt: ein Scrollcontainer hat als Flex-Kind das
-   * automatische Minimum 0, INNERHALB von `.rechts` gibt also die Reihe nach,
-   * waehrend Umschalter und Avatar ihren Boden behalten. Ohne `overflow-x`
-   * traefe das Schrumpfen sie mit.
-   *
-   * `overflow-x: auto` macht `overflow-y` rechnerisch ebenfalls `auto`; das ist
-   * folgenlos, weil die 56px-Reihe in die 64px hohe Kopfzeile passt.
-   */
-  overflow-x: auto;
-
-  /*
-   * Der Balken wird ausgeblendet, und zwar bewusst: auf Systemen mit
-   * klassischen (nicht ueberlagernden) Scrollbalken ist er ~15px hoch, die
-   * Kopfzeile ist 64px hoch bei 56px Inhalt — er passt schlicht nicht hinein
-   * und wuerde die Reihe stauchen oder den Kopf aufweiten.
-   *
-   * Erreichbarkeit kostet das nichts, wo sie zaehlt: Tastatur scrollt den
-   * fokussierten Link beim Tabben selbst in den Blick, Touch wischt ohnehin.
-   * Bezahlt wird mit der sichtbaren Anzeige fuer die Maus in einem schmalen
-   * Breitenband (768px bis ~840px) — dort bleibt Shift+Rad. Das ist der
-   * bewusst genommene Preis; die Alternative waere ein Balken quer durch die
-   * Kopfzeile auf jedem Linux-/Windows-Geraet.
-   */
-  scrollbar-width: none;
-
-  /*
-   * 3px Luft, damit der Fokusrahmen eines Modulknopfes nicht am Rand des
-   * Scrollcontainers abgeschnitten wird — `overflow` ungleich `visible` klippt
-   * auch, wenn gar nichts ueberlaeuft, also auch auf 1280px. Die Reihe waechst
-   * damit auf 62px und bleibt unter den 64px der Kopfzeile; weil `.rechts` sie
-   * mit `align-items: center` zentriert, verschiebt die Polsterung optisch
-   * nichts. (Die Unterstreichung des aktiven Eintrags ist hier NICHT betroffen:
-   * `.navLink[aria-current]` traegt sie, und `.navLink` steckt in `.modulnav`
-   * und im Drawer — `.modulzeile` fuellen antd-Buttons.)
-   */
-  padding-block: 3px;
-}
-
-/* Das WebKit-Pendant zu `scrollbar-width: none` — Begruendung eine Regel
-   hoeher. Beide noetig: Chromium kennt heute beides, Safari nur dieses. */
-.modulzeile::-webkit-scrollbar {
   display: none;
 }
 

@@ -12,9 +12,7 @@ import {
   clickPortal,
 } from "@/app/m/qr/_lib/test-dom";
 import { Modulnav, SuiteNav, aktiverEintrag } from "./SuiteNav";
-import { ICONS } from "./icons";
-import { MODULES } from "@/core/registry";
-import type { LauncherEintrag, SuiteNavItem } from "./types";
+import type { SuiteNavItem } from "./types";
 
 /**
  * DRAWER- UND MENUE-INHALT WERDEN MIT `…Portal`-ABFRAGEN GEPRUEFT,
@@ -22,9 +20,9 @@ import type { LauncherEintrag, SuiteNavItem } from "./types";
  *
  * antd rendert `Drawer` UND `Dropdown` durch ein Portal nach `document.body` —
  * ihr Inhalt ist ein GESCHWISTER des Mount-Wirts, kein Nachfahre. `query()`
- * sucht im Wirt und faende ihn nie. Alles in der Kopfzeile (`modulzeile`,
- * `modulnav`, `menue-knopf`, `nutzermenue`, `anmelden`) bleibt dagegen im Wirt
- * und wird mit `query`/`exists` geprueft.
+ * sucht im Wirt und fände ihn nie. Alles in der Kopfzeile (`modulnav`,
+ * `menue-knopf`, `nutzermenue`, `anmelden`) bleibt dagegen im Wirt und wird
+ * mit `query`/`exists` geprüft.
  *
  * Weil BEIDE Portale an `document.body` haengen, ist `existsPortal` allein
  * mehrdeutig, sobald dieselbe testId in beiden vorkommen koennte. Wo es darauf
@@ -48,40 +46,13 @@ vi.mock("next-auth/react", () => ({ signOut: signOutMock }));
 vi.mock("next/navigation", () => ({ usePathname: pathnameMock }));
 vi.mock("@/core/theme/ThemeToggle", () => ({ ThemeToggle: () => null }));
 
-const MODULE: LauncherEintrag[] = [
-  {
-    key: "portal",
-    title: "Portal",
-    icon: "AppstoreOutlined",
-    href: "https://iuk-ue.de",
-    abschnitt: "Apps",
-    extern: false,
-  },
-  {
-    key: "qr",
-    title: "QR-Codes",
-    icon: "QrcodeOutlined",
-    href: "https://qr.iuk-ue.de",
-    abschnitt: "Apps",
-    extern: false,
-  },
-];
-
 const NAV: SuiteNavItem[] = [
   { key: "start", title: "Uebersicht", href: "/" },
   { key: "vergleich", title: "Vergleich", href: "/vergleich" },
 ];
 
 async function zeichne(props: Partial<Parameters<typeof SuiteNav>[0]> = {}) {
-  await mount(
-    <SuiteNav
-      entries={MODULE}
-      nav={[]}
-      userName="Ruben Vitt"
-      angemeldet
-      {...props}
-    />,
-  );
+  await mount(<SuiteNav nav={[]} userName="Ruben Vitt" angemeldet {...props} />);
 }
 
 /** Das Avatar-Menue oeffnen. Es ist bewusst NICHT vorgerendert (siehe Test unten). */
@@ -96,25 +67,21 @@ afterEach(async () => {
 });
 
 describe("SuiteNav — angemeldet", () => {
-  it("rendert jedes Modul als echten Link, ohne dass etwas geoeffnet werden muss", async () => {
-    await zeichne();
-    // keystone.spec.ts:35 prueft `getByRole("link", {name: /Alpha/})` ohne
-    // Oeffnen. Waere das ein Menu/Dropdown, faende Playwright nichts.
-    const desktop = query('[data-testid="modulzeile"]');
-    const links = Array.from(desktop.querySelectorAll("a"));
-    expect(links.map((a) => a.getAttribute("href"))).toEqual([
-      "https://iuk-ue.de",
-      "https://qr.iuk-ue.de",
-    ]);
-    expect(links.map((a) => a.textContent)).toEqual(["Portal", "QR-Codes"]);
-  });
-
-  it("zeigt dieselben Module im Drawer", async () => {
+  it("zeigt keine Modul-Links mehr — der App-Wechsel hängt am Umschalter der Kopfzeile", async () => {
+    /*
+     * Der Navigations-Umbau nimmt SuiteNav die Modulliste komplett weg: weder
+     * eine sichtbare Knopfreihe (`modulzeile`, entfallen) noch ein Vorrat im
+     * Drawer.
+     *
+     * `queryPortal` für den Drawer und DANN `querySelectorAll` DARIN, nicht
+     * `queryAll('[data-testid="suite-drawer"] …')`: der Drawer hängt per
+     * Portal an `document.body`, ein Geschwister des Mount-Wirts. `queryAll`
+     * sucht im Wirt (siehe Dateikopf) und fände `suite-drawer` dort nie —
+     * die Zusicherung wäre immer wahr, auch mit App-Einträgen im Drawer.
+     */
     await zeichne();
     const drawer = queryPortal('[data-testid="suite-drawer"]');
-    const ziele = Array.from(drawer.querySelectorAll("a")).map((a) => a.getAttribute("href"));
-    expect(ziele).toContain("https://iuk-ue.de");
-    expect(ziele).toContain("https://qr.iuk-ue.de");
+    expect(drawer.querySelectorAll('[data-testid="app-eintrag"]').length).toBe(0);
   });
 
   it("haengt Abmelden ans Avatar-Menue und geht ueber den OIDC-Signout", async () => {
@@ -353,44 +320,7 @@ describe("SuiteNav — anonym", () => {
     expect(query('[data-testid="anmelden"]').getAttribute("href")).toBe("/login");
     expect(exists('[data-testid="nutzermenue"]')).toBe(false);
     expect(existsPortal('[data-testid="abmelden"]')).toBe(false);
-    // Die Knopfreihe liegt in der Kopfzeile, nicht im Portal — hier `exists`.
-    expect(exists('[data-testid="modulzeile"]')).toBe(false);
     // Und der Anmelden-Weg steht genau einmal da, nicht zusaetzlich im Drawer.
     expect(document.body.querySelectorAll('[data-testid="anmelden"]')).toHaveLength(1);
-  });
-});
-
-/*
- * Diese Kopplung fehlte bis 2026-07-30 und hat sofort zugeschlagen: der
- * Registry-Eintrag von `files` trug `icon: "FolderOutlined"`, die ICONS-Map
- * (damals in SuiteNav.tsx, heute `icons.ts`) kannte den Namen nicht, und der
- * Rueckfall auf AppstoreOutlined
- * gab dem Modul STILL das Portal-Icon. Kein Fehler, kein Log, kein rotes Gate —
- * nur ein falsches Bild in jeder Kopfzeile.
- *
- * Der Rueckfall bleibt (eine neue Registry-Zeile soll die Kopfzeile nicht
- * zerlegen), aber er ist ab jetzt kein Versteck mehr: wer ein Modul ergaenzt und
- * das Icon nicht eintraegt, bekommt hier einen roten Test statt eines stillen
- * Duplikats. Die Pruefung laeuft ueber die ECHTE Registry, nicht ueber eine
- * Liste im Test — eine Liste waere die naechste Stelle, die vergessen wird.
- */
-describe("Icon-Namen der Registry", () => {
-  it("jedes Modul-Icon ist ein Schluessel der ICONS-Map", () => {
-    const fehlend = MODULES.filter((m) => !(m.icon in ICONS)).map(
-      (m) => `${m.key} verlangt ${m.icon}`,
-    );
-    expect(fehlend).toEqual([]);
-  });
-
-  it("die Map traegt keine Namen, die kein Modul verlangt", () => {
-    // Kein Selbstzweck: eine verwaiste Zeile hier ist der Hinweis darauf, dass
-    // ein Modul umbenannt oder entfernt wurde, ohne die Kopfzeile nachzuziehen.
-    // AppstoreOutlined ist ausgenommen — es ist der Rueckfall und muss stehen,
-    // auch wenn `portal` es einmal nicht mehr verlangen sollte.
-    const verlangt = new Set(MODULES.map((m) => m.icon));
-    const verwaist = Object.keys(ICONS).filter(
-      (name) => name !== "AppstoreOutlined" && !verlangt.has(name),
-    );
-    expect(verwaist).toEqual([]);
   });
 });

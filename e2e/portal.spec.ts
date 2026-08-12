@@ -1,18 +1,24 @@
 import { test, expect } from "@playwright/test";
 import { devLogin } from "./fixtures";
 
-test("portal und Kopfmenue blenden Apps ohne passende Pocket-ID-Gruppe aus", async ({ page }) => {
+test("portal und Kopfumschalter blenden Apps ohne passende Pocket-ID-Gruppe aus", async ({
+  page,
+}) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "" });
   await expect(page.getByTestId("portal-grid")).toBeVisible();
   await expect(page.getByText("BookStack")).toBeVisible();
   // group-gated service hidden without admin group
   await expect(page.getByText("Vaultwarden")).toHaveCount(0);
 
-  const menu = page.getByTestId("modulzeile");
-  await expect(menu.getByRole("link", { name: "QR-Codes" })).toBeVisible();
-  await expect(menu.getByRole("link", { name: "Feedback" })).toHaveCount(0);
-  await expect(menu.getByRole("link", { name: "Dateien" })).toHaveCount(0);
-  await expect(menu.getByRole("link", { name: "Lagerbuch" })).toHaveCount(0);
+  // Die alte Modulknopfreihe (`modulzeile`) ist entfallen — der Modul-Wechsel
+  // hängt jetzt am Umschalter der Kopfzeile, erst öffnen, dann prüfen
+  // (dieselbe Vertragsänderung wie in `keystone.spec.ts`).
+  await page.getByTestId("app-umschalter").click();
+  const panel = page.getByTestId("app-panel");
+  await expect(panel.getByRole("link", { name: "QR-Codes" })).toBeVisible();
+  await expect(panel.getByRole("link", { name: "Feedback" })).toHaveCount(0);
+  await expect(panel.getByRole("link", { name: "Dateien" })).toHaveCount(0);
+  await expect(panel.getByRole("link", { name: "Lagerbuch" })).toHaveCount(0);
 });
 
 test("portal zeigt eine geschuetzte App bei passender Pocket-ID-Gruppe", async ({ page }) => {

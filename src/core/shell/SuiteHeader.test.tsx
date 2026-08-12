@@ -3,25 +3,35 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 /**
- * DER MODULTITEL IM KOPF IST EIN LINK (Entwurf feedback-admin §4.1, §5.1).
+ * DER MODULTITEL IM KOPF IST DER APP-UMSCHALTER — ANGEMELDET. ANONYM BLEIBT ER
+ * EIN LINK (Entwurf feedback-admin §4.1, §5.1; Suite-Chrome §6).
  *
  * Uebernommen aus der abgeloesten `FullShell.test.tsx`: wer sich in einem Modul
- * verlaufen hatte, kam ohne diesen Link nur ueber die Zurueck-Taste zurueck.
- * Der Defekt hing an der Shell, nicht am Modul — deshalb pruefen diese Tests
- * ALLE Module mit Chrome, nicht nur das, das den Anlass gab.
+ * verlaufen hatte, kam ohne einen Weg zurück nur über die Zurück-Taste
+ * zurück. Der Defekt hing an der Shell, nicht am Modul — deshalb prüfen diese
+ * Tests ALLE Module mit Chrome, nicht nur das, das den Anlass gab.
  *
- * Zwei Zusagen, die still brechen wuerden:
- * 1. `data-testid="module-title"` bleibt auf dem `<strong>`, INNERHALB des
- *    Links. Der Keystone-E2E fragt es dort ab; waere es an den Link gewandert,
- *    faende der Test weiterhin den richtigen Text und niemandem fiele auf, dass
- *    die Zusage verschoben wurde.
+ * Drei Zusagen, die still brechen würden:
+ * 1. `data-testid="module-title"` steht in GENAU EINEM Zweig — angemeldet auf
+ *    dem `<strong>` im Auslöser von `AppUmschalter`, anonym auf dem `<strong>`
+ *    im `Link`. Nie in beiden: der Keystone-E2E fragt es ab, und zwei Treffer
+ *    wären für Playwright eine Strict-Mode-Verletzung.
  * 2. Die Kopfzeile traegt `data-testid="suite-header"` — der alte Name
  *    `full-shell-header` ist bewusst weg, weil die Kopfzeile jetzt auch in
  *    `minimal` steht. Die E2E-Dateien sind mit umgeschrieben.
+ * 3. `launcherEintraege` (die Portal-Datenbank) wird NUR angemeldet gerufen.
+ *    `MinimalShell` nutzt dieselbe Kopfzeile wie `FullShell` — sonst öffnete
+ *    jeder anonyme Aufruf von `qr` und `beta` die Portal-Datenbank für eine
+ *    Liste, die anonym gar nicht erscheint (der Umschalter existiert anonym
+ *    nicht).
  *
- * `SuiteNav` ist ersetzt: es ist eine Client-Komponente mit antd-Kontext
+ * `SuiteNav` ist gemockt: es ist eine Client-Komponente mit antd-Kontext
  * (`useThemeMode` wirft ausserhalb des Providers), und geprueft wird hier die
- * Kopfzeile, nicht ihr Inhalt.
+ * Kopfzeile, nicht ihr Inhalt. `AppUmschalter` ist NICHT gemockt — es braucht
+ * keinen antd-Kontext (reines HTML plus `@ant-design/icons`) und sein
+ * geschlossener Zustand (Auslöser + `module-title`) lässt sich ohne
+ * Interaktion in `renderToStaticMarkup` beobachten. Ein Mock prüfte hier nur
+ * gegen sich selbst.
  */
 const { authMock, suiteNavMock, modulnavMock, launcherEintraegeMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
@@ -29,25 +39,15 @@ const { authMock, suiteNavMock, modulnavMock, launcherEintraegeMock } = vi.hoist
   // Ein sichtbarer Platzhalter statt `null`: nur so laesst sich pruefen, WO im
   // Baum die zweite Zeile landet (siehe den Test dazu unten).
   modulnavMock: vi.fn(() => <i data-testid="modulnav-platz" />),
-  // `SuiteHeader` ruft in dieser Aufgabe nur `modulEintraege` (synchron, ohne
-  // DB). `launcherEintraege` bleibt trotzdem gemockt und adressierbar — der
-  // Test unten prüft gerade, DASS er NICHT aufgerufen wird (siehe dort).
   launcherEintraegeMock: vi.fn(async () => []),
 }));
 
 vi.mock("@/core/auth", () => ({ auth: authMock }));
 vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock, Modulnav: modulnavMock }));
-// Nur `launcherEintraege` wird gemockt (Spion für den Test unten) —
-// `modulEintraege` bleibt die echte Implementierung: sie ist synchron, liest
-// nur Registry + `moduleUrl()` und ist damit ohne Portal-Datenbank aufrufbar.
-vi.mock("@/core/shell/launcherEintraege", async (importActual) => {
-  const echt = await importActual<typeof import("./launcherEintraege")>();
-  return { ...echt, launcherEintraege: launcherEintraegeMock };
-});
+vi.mock("@/core/shell/launcherEintraege", () => ({ launcherEintraege: launcherEintraegeMock }));
 
 import { SuiteHeader } from "./SuiteHeader";
 import { moduleUrl } from "./moduleUrl";
-import { modulEintraege } from "./launcherEintraege";
 import { MODULES } from "@/core/registry";
 import type { SuiteNavItem } from "./types";
 
@@ -56,8 +56,12 @@ const MIT_CHROME = MODULES.filter((m) => m.shell === "full" || m.shell === "mini
   (m) => m.key,
 );
 
-async function zeichne(moduleKey: string, nav?: SuiteNavItem[]): Promise<HTMLElement> {
-  authMock.mockResolvedValue({ user: { name: "Test", groups: [] } });
+async function zeichne(
+  moduleKey: string,
+  nav?: SuiteNavItem[],
+  angemeldet = true,
+): Promise<HTMLElement> {
+  authMock.mockResolvedValue(angemeldet ? { user: { name: "Test", groups: [] } } : null);
   const element = await SuiteHeader({ moduleKey, nav });
   const wirt = document.createElement("div");
   wirt.innerHTML = renderToStaticMarkup(element);
@@ -75,14 +79,41 @@ describe("SuiteHeader", () => {
     expect(MIT_CHROME).toContain("qr");
   });
 
-  it.each(MIT_CHROME)("wickelt den Titel von `%s` in einen Link auf moduleUrl", async (key) => {
-    const wirt = await zeichne(key);
+  it.each(MIT_CHROME)("wickelt den Titel von `%s` anonym in einen Link auf moduleUrl", async (key) => {
+    const wirt = await zeichne(key, undefined, false);
     const strong = titel(wirt);
     expect(strong).not.toBeNull();
     expect(strong!.tagName).toBe("STRONG");
     const link = strong!.closest("a");
     expect(link).not.toBeNull();
     expect(link!.getAttribute("href")).toBe(moduleUrl(key) ?? "/");
+  });
+
+  it.each(MIT_CHROME)(
+    "zeigt den Titel von `%s` angemeldet im App-Umschalter, nicht im Link",
+    async (key) => {
+      const wirt = await zeichne(key, undefined, true);
+      const strong = titel(wirt);
+      expect(strong).not.toBeNull();
+      expect(strong!.closest("a")).toBeNull();
+      const ausloeser = wirt.querySelector('[data-testid="app-umschalter"]');
+      expect(ausloeser).not.toBeNull();
+      expect(ausloeser!.contains(strong)).toBe(true);
+      // Geschlossen im Ausgangszustand — der Keystone-E2E öffnet erst explizit.
+      expect(ausloeser!.getAttribute("aria-expanded")).toBe("false");
+    },
+  );
+
+  it("trägt data-testid=module-title in GENAU EINEM Zweig — nie in beiden", async () => {
+    // Zwei Treffer wären für Playwright eine Strict-Mode-Verletzung
+    // (`getByTestId` findet dann zwei Knoten statt einem).
+    const angemeldetWirt = await zeichne("feedback", undefined, true);
+    expect(angemeldetWirt.querySelectorAll('[data-testid="module-title"]')).toHaveLength(1);
+    expect(angemeldetWirt.querySelector('[data-testid="app-umschalter"]')).not.toBeNull();
+
+    const anonymWirt = await zeichne("feedback", undefined, false);
+    expect(anonymWirt.querySelectorAll('[data-testid="module-title"]')).toHaveLength(1);
+    expect(anonymWirt.querySelector('[data-testid="app-umschalter"]')).toBeNull();
   });
 
   it("traegt data-testid=suite-header", async () => {
@@ -141,42 +172,29 @@ describe("SuiteHeader", () => {
     expect(kopf.querySelector('[data-testid="modulnav-platz"]')).toBeNull();
   });
 
-  it("ruft launcherEintraege in dieser Aufgabe nie auf — weder angemeldet noch abgemeldet", async () => {
+  it("ruft launcherEintraege NUR angemeldet — anonym bleibt die Portal-Datenbank ungelesen", async () => {
     /*
-     * `SuiteNav` bekommt hier bewusst nur `modulEintraege`, nicht die
-     * gemischte Liste: die Modulzeile zeigt in dieser Aufgabe noch dieselbe
-     * `<nav aria-label="Module">`, in der ein Dienst als „Modul" ausgezeichnet
-     * wäre — falsch für einen Screenreader — und `extern` (neuer Tab) nirgends
-     * gelesen würde. Der Merge (`launcherEintraege`) zieht hier erst in
-     * Task 4 ein, wo der App-Umschalter ihn tatsächlich konsumiert.
+     * DIESE ZUSICHERUNG WIRD MIT DIESEM UMBAU WIEDER SCHARF. `launcherEintraege`
+     * erreicht über `dienstEintraege` die Portal-Datenbank; anders als das
+     * frühere `modulEintraege` (synchron, ohne DB) ist ein anonymer Aufruf
+     * hier also nicht mehr kostenlos.
      *
-     * Weil `modulEintraege` synchron ist und keine Datenbank berührt, ist die
-     * frühere Zusicherung „anonym keine Portal-DB" hier bereits durch die
-     * Bauform erfüllt und für sich genommen keine Aussage mehr wert. Was
-     * bleibt zu prüfen: `launcherEintraege` (der DB-Pfad) wird WEDER
-     * angemeldet NOCH abgemeldet gerufen, und `SuiteNav` bekommt abgemeldet
-     * `entries: []`, angemeldet genau `modulEintraege(...)`. Die Zusicherung
-     * „anonym keine DB" wird erst wieder scharf, wenn Task 4
-     * `launcherEintraege` an dieser Stelle einzieht.
+     * `MinimalShell` nutzt DIESELBE Kopfzeile wie `FullShell`
+     * (`SuiteHeader.tsx`) — sonst öffnete jeder anonyme Aufruf von `qr` und
+     * `beta` die Portal-Datenbank für eine Liste, die anonym gar nicht
+     * erscheint: der Umschalter existiert anonym nicht (siehe JSX-Kommentar in
+     * `SuiteHeader.tsx`), nur der Link auf `moduleUrl`.
      */
     launcherEintraegeMock.mockClear();
-    suiteNavMock.mockClear();
 
     authMock.mockResolvedValue(null);
     renderToStaticMarkup(await SuiteHeader({ moduleKey: "qr" }));
-    expect(suiteNavMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ entries: [], angemeldet: false }),
-      undefined,
-    );
+    expect(launcherEintraegeMock).not.toHaveBeenCalled();
 
     const groups = ["alpha-users"];
     authMock.mockResolvedValue({ user: { name: "Test", groups } });
     renderToStaticMarkup(await SuiteHeader({ moduleKey: "qr" }));
-    expect(suiteNavMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ entries: modulEintraege(groups), angemeldet: true }),
-      undefined,
-    );
-
-    expect(launcherEintraegeMock).not.toHaveBeenCalled();
+    expect(launcherEintraegeMock).toHaveBeenCalledTimes(1);
+    expect(launcherEintraegeMock).toHaveBeenCalledWith(groups);
   });
 });

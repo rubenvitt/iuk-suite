@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { AppstoreOutlined, DownOutlined, LinkOutlined, SearchOutlined } from "@ant-design/icons";
 
 import { ICONS } from "@/core/shell/icons";
+import { SCHRIFT } from "@/core/theme/schrift";
 import type { LauncherEintrag } from "@/core/shell/types";
 import s from "./shell.module.css";
 
@@ -102,7 +103,18 @@ export function AppUmschalter({
         aria-expanded={offen}
         onClick={() => setOffen((v) => !v)}
       >
-        <strong data-testid="module-title">{modulTitel}</strong>
+        {/* Dieselbe Typo-Rolle wie der anonyme Titel-Link in `SuiteHeader` —
+            sonst sähe der Modulname angemeldet anders aus als abgemeldet, und
+            das wäre weder gewollt noch erklärbar. `SCHRIFT` liegt in einem
+            Modul ohne `"use client"`; einen Wert von dort in eine Client-Insel
+            zu ziehen ist die unproblematische Richtung — verboten ist die
+            umgekehrte (Falle 6). */}
+        <strong
+          data-testid="module-title"
+          style={{ ...SCHRIFT.unterTitel, letterSpacing: "0.07em" }}
+        >
+          {modulTitel}
+        </strong>
         <DownOutlined className={s.umschalterPfeil} aria-hidden="true" />
       </button>
 

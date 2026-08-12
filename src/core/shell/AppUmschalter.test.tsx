@@ -2,6 +2,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { mount, unmount, query, queryAll, exists, fill, click } from "@/app/m/qr/_lib/test-dom";
 import { AppUmschalter } from "@/core/shell/AppUmschalter";
+import { ICONS } from "@/core/shell/icons";
+import { MODULES } from "@/core/registry";
 import type { LauncherEintrag } from "@/core/shell/types";
 
 const EINTRAEGE: LauncherEintrag[] = [
@@ -112,5 +114,44 @@ describe("AppUmschalter", () => {
     for (const eintrag of queryAll('[data-testid="app-eintrag"]')) {
       expect(eintrag.getAttribute("role")).toBeNull();
     }
+  });
+});
+
+/*
+ * Diese Kopplung fehlte bis 2026-07-30 und hat sofort zugeschlagen: der
+ * Registry-Eintrag von `files` trug `icon: "FolderOutlined"`, die ICONS-Map
+ * (damals in SuiteNav.tsx, heute `icons.ts`) kannte den Namen nicht, und der
+ * Rückfall auf AppstoreOutlined
+ * gab dem Modul STILL das Portal-Icon. Kein Fehler, kein Log, kein rotes Gate —
+ * nur ein falsches Bild in jeder Kopfzeile.
+ *
+ * Der Rückfall bleibt (eine neue Registry-Zeile soll die Kopfzeile nicht
+ * zerlegen), aber er ist ab jetzt kein Versteck mehr: wer ein Modul ergänzt und
+ * das Icon nicht einträgt, bekommt hier einen roten Test statt eines stillen
+ * Duplikats. Die Prüfung läuft über die ECHTE Registry, nicht über eine
+ * Liste im Test — eine Liste wäre die nächste Stelle, die vergessen wird.
+ *
+ * OHNE RENDERING, mit Absicht: sie prüft die Map gegen die Registry, nicht das
+ * DOM. Die Zusicherung gehörte früher zu `SuiteNav.test.tsx` — seit dem
+ * Navigations-Umbau löst ausschließlich `AppUmschalter` Icon-Namen auf, also
+ * zieht die Zusicherung mit.
+ */
+describe("Modul-Icons", () => {
+  it("jedes Modul der Registry hat einen Eintrag in ICONS", () => {
+    for (const mod of MODULES) {
+      expect(Object.keys(ICONS), `Modul ${mod.key}`).toContain(mod.icon);
+    }
+  });
+
+  it("die Map trägt keine Namen, die kein Modul verlangt", () => {
+    // Kein Selbstzweck: eine verwaiste Zeile hier ist der Hinweis darauf, dass
+    // ein Modul umbenannt oder entfernt wurde, ohne die Kopfzeile nachzuziehen.
+    // AppstoreOutlined ist ausgenommen — es ist der Rückfall und muss stehen,
+    // auch wenn `portal` es einmal nicht mehr verlangen sollte.
+    const verlangt = new Set(MODULES.map((m) => m.icon));
+    const verwaist = Object.keys(ICONS).filter(
+      (name) => name !== "AppstoreOutlined" && !verlangt.has(name),
+    );
+    expect(verwaist).toEqual([]);
   });
 });

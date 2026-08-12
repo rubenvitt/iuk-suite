@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import {
-  AppstoreOutlined,
-  LoginOutlined,
-  LogoutOutlined,
-  MenuOutlined,
-} from "@ant-design/icons";
+import { LoginOutlined, LogoutOutlined, MenuOutlined } from "@ant-design/icons";
 import { Avatar, Button, Drawer, Dropdown } from "antd";
 import type { MenuProps } from "antd";
 import { signOut } from "next-auth/react";
@@ -14,12 +9,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
-// Die Icon-Map liegt bewusst in einem Modul OHNE `"use client"` (Begruendung
-// dort): ein WERT-Export von hier waere in einer Server Component eine
-// Client-Referenz statt des Objekts — HTTP 500, das kein Gate sieht.
-import { ICONS } from "@/core/shell/icons";
+// `NavIkone` bleibt: die Modulnavigation traegt seit dem Phosphor-Umbau je
+// Eintrag ein Zeichen. Die ICONS-Map dagegen faellt hier weg — sie bediente die
+// Modulknopfreihe, und die gibt es nicht mehr; aufgeloest wird sie jetzt
+// ausschliesslich im `AppUmschalter`.
 import { NavIkone } from "@/core/shell/navIkonen";
-import type { LauncherEintrag, SuiteNavItem } from "@/core/shell/types";
+import type { SuiteNavItem } from "@/core/shell/types";
 import s from "./shell.module.css";
 
 /*
@@ -185,14 +180,15 @@ export function Modulnav({ nav }: { nav: SuiteNavItem[] }) {
 
 /**
  * Die Navigation der Suite: mobil ein Drawer hinter dem Menue-Knopf, ab 768px
- * eine Knopfreihe in der Kopfzeile. BEIDES wird immer gerendert; welche man
- * sieht, entscheidet `shell.module.css`. Ein JS-Breakpoint zeigte beim ersten
- * Render die falsche Variante, und `Grid.useBreakpoint` ist ohnehin verboten.
+ * bleibt der Menü-Knopf weg und der Theme-Umschalter steht direkt im Kopf.
+ * BEIDE Ausprägungen werden immer gerendert; welche man sieht, entscheidet
+ * `shell.module.css`. Ein JS-Breakpoint zeigte beim ersten Render die falsche
+ * Variante, und `Grid.useBreakpoint` ist ohnehin verboten.
  *
- * Die Modul-Knoepfe sind `Button href=…` (rendert ein `<a>`, Rolle "link") und
- * bewusst NICHT in einem Dropdown: `keystone.spec.ts:35` prueft
- * `getByRole("link", {name: /Alpha/})` OHNE vorheriges Oeffnen. Playwright
- * laeuft ohne Viewport-Angabe, also auf 1280x720 — dort greift `.nurDesktop`.
+ * DER APP-WECHSEL HÄNGT NICHT MEHR HIER — er ist an den Modultitel gewandert
+ * (`AppUmschalter`, Auslöser in `SuiteHeader`). Diese Komponente kennt keine
+ * Module mehr, nur noch die modul-interne Navigation (Drawer), den
+ * Menü-Knopf, den Theme-Umschalter und das Avatar-/Anmelden-Menü.
  *
  * DER NUTZERBLOCK HAENGT AM AVATAR, AUF BEIDEN GROESZEN, UND NICHT MEHR IM
  * DRAWER. Der Drawer ist nur mobil erreichbar (`.nurMobil` am Oeffner); solange
@@ -203,16 +199,14 @@ export function Modulnav({ nav }: { nav: SuiteNavItem[] }) {
  * Strict-Mode-Verletzung („resolved to 2 elements"), unabhaengig davon, dass
  * einer per CSS unsichtbar ist. Genau dieselbe Ueberlegung steht schon beim
  * Theme-Umschalter, der deshalb im Drawer eine eigene testId traegt. Der Drawer
- * behaelt damit Modulnavigation, Module und Theme; Name und Abmelden gehoeren
- * dem Avatar-Menue.
+ * behält damit Modulnavigation und Theme; Name und Abmelden gehören dem
+ * Avatar-Menü.
  */
 export function SuiteNav({
-  entries,
   nav,
   userName,
   angemeldet,
 }: {
-  entries: LauncherEintrag[];
   nav: SuiteNavItem[];
   userName: string | null;
   angemeldet: boolean;
@@ -242,18 +236,6 @@ export function SuiteNav({
     () => false, // Server
   );
   const pfad = usePathname();
-
-  const modulLinks = entries.map((eintrag) => {
-    // `icon` ist in `LauncherEintrag` optional (nur Dienste tragen `iconUrl`
-    // statt dessen) — die Modulknopfreihe zeigt hier weiterhin nur Module, die
-    // `icon` immer setzen, aber der Typ verlangt den Rückfall.
-    const Icon = ICONS[eintrag.icon ?? ""] ?? AppstoreOutlined;
-    return (
-      <Button key={eintrag.key} type="text" href={eintrag.href} icon={<Icon />}>
-        {eintrag.title}
-      </Button>
-    );
-  });
 
   // Nur noch fuer den Drawer: die sichtbare zweite Zeile gehoert `Modulnav`,
   // einem Geschwister des `<Header>` (siehe dort).
@@ -302,15 +284,6 @@ export function SuiteNav({
           icon={<MenuOutlined />}
           onClick={() => setOffen(true)}
         />
-        {angemeldet ? (
-          <nav
-            aria-label="Module"
-            data-testid="modulzeile"
-            className={`${s.nurDesktop} ${s.modulzeile}`}
-          >
-            {modulLinks}
-          </nav>
-        ) : null}
         {/* Der zweite Umschalter steht im Drawer (unten) und traegt dort eine
             eigene testId — zwei Knoten mit `data-testid="theme-toggle"` waeren
             fuer jeden kuenftigen Playwright-Zugriff eine Strict-Mode-Verletzung
@@ -415,19 +388,17 @@ export function SuiteNav({
               </div>
             ) : null}
 
-            {angemeldet ? (
-              <div className={s.drawerGruppe}>
-                <div className={s.drawerTitel}>Module</div>
-                {modulLinks}
-              </div>
-            ) : null}
+            {/* Kein Modul-Abschnitt mehr: die Apps hängen am Umschalter der
+                Kopfzeile, auf JEDER Größe. Der Drawer trägt damit genau
+                eine Sache — die Modulnavigation — und der Umschalter genau
+                eine andere.
 
-            {/* Kein Nutzerblock mehr: Name und Abmelden haengen am Avatar-Menue
+                Kein Nutzerblock mehr: Name und Abmelden hängen am Avatar-Menü
                 der Kopfzeile, Anmelden an dessen anonymem Gegenstueck. Beide
                 sind auf JEDER Groesze erreichbar, der Drawer nur unterhalb von
                 768px — und ein zweiter `data-testid="abmelden"` waere fuer
                 Playwright eine Strict-Mode-Verletzung. Der Drawer traegt damit
-                Modulnavigation, Module und Theme. */}
+                genau Modulnavigation und Theme. */}
             <div className={s.drawerGruppe}>
               <ThemeToggle testId="theme-toggle-drawer" />
             </div>

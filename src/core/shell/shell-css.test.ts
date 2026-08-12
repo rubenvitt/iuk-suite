@@ -294,14 +294,49 @@ describe("shell.module.css", () => {
     expect(desktopRegeln[0].deklarationen).toMatch(/display:\s*flex/);
   });
 
-  it("laesst die Modulknopfreihe nicht ueber den Titel brechen", () => {
-    // Ebenfalls aus FullShell.test.tsx. Der alte `overflow: hidden` kaschierte
-    // das Problem, indem er ueberzaehlige Module abschnitt; geblieben ist
-    // `flex-wrap: nowrap` — auf Desktop soll die Reihe einzeilig bleiben, und
-    // auf Mobil steht sie ohnehin nicht im Kopf.
-    const regel = /\.modulzeile\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
-    expect(regel, "Klasse .modulzeile fehlt").not.toBeNull();
-    expect(regel![1]).toMatch(/flex-wrap:\s*nowrap/);
+  it("kennt die Klasse .modulzeile nicht mehr", () => {
+    // Die Modulknopfreihe ist mit dem Navigations-Umbau ersatzlos entfallen —
+    // die Apps hängen jetzt am Umschalter der Kopfzeile. Ein Wiederauftauchen
+    // der Klasse wäre ein Rückbau, den kein anderer Test hier fängt.
+    expect(OHNE_KOMMENTARE).not.toMatch(/\.modulzeile\b/);
+  });
+
+  it("spannt das Umschalter-Panel mobil über die volle Breite", () => {
+    /*
+     * Mobil eine vollbreite Fläche unter der Kopfzeile (`AppUmschalter.tsx`).
+     * `inset-inline: 0` VOR jeder Media Query, nicht erst darin — sonst wäre
+     * die Basis-Regel ein Popover ohne feste Breite, irgendwo zwischen den
+     * Rändern.
+     *
+     * ZWEI `@media (min-width: 768px)`-BLÖCKE IN DIESER DATEI, nicht einer:
+     * der erste trägt `.nurMobil`/`.nurDesktop`/`.modulnav`, der zweite (ganz
+     * am Dateiende) `.umschalterPanel`. Ein Split am ERSTEN Vorkommen von
+     * `@media (min-width: 768px)` (wie bei `.modulnav` oben) schnitte die
+     * Basisregel von `.umschalterPanel` fälschlich ab, weil sie zwischen
+     * beiden Blöcken steht. Deshalb hier: alle Vorkommen der Klasse in
+     * Dokumentreihenfolge, das ERSTE ist die Basisregel.
+     */
+    const vorkommen = [...OHNE_KOMMENTARE.matchAll(/\.umschalterPanel\s*\{([^}]*)\}/g)];
+    expect(vorkommen.length, "Klasse .umschalterPanel fehlt").toBeGreaterThanOrEqual(2);
+    expect(vorkommen[0][1]).toMatch(/inset-inline:\s*0\s*(?:;|$)/);
+  });
+
+  it("macht aus dem Umschalter-Panel ab 768px ein schmales Popover", () => {
+    // Ab 768px keine vollbreite Fläche mehr, sondern ein Popover fester
+    // Breite unter dem Auslöser — sonst zöge das Panel bei 1280px quer durch
+    // die ganze Kopfzeile. Das ZWEITE Vorkommen (Begründung im Test oben).
+    const vorkommen = [...OHNE_KOMMENTARE.matchAll(/\.umschalterPanel\s*\{([^}]*)\}/g)];
+    expect(vorkommen.length, "Klasse .umschalterPanel fehlt").toBeGreaterThanOrEqual(2);
+    expect(vorkommen[1][1]).toMatch(/inline-size:\s*\d+px/);
+  });
+
+  it("hebt den aktiven App-Eintrag im Umschalter-Panel hervor", () => {
+    // Eigene Klasse statt `.navLink[aria-current]` (Begründung in
+    // AppUmschalter.tsx): die Unterstreichung von `.navLink[aria-current]`
+    // gehört der Modulnavigation, nicht dem Umschalter.
+    const regel = /\.appEintrag\[aria-current\]\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Regel `.appEintrag[aria-current]` fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/font-weight:\s*600/);
   });
 });
 
