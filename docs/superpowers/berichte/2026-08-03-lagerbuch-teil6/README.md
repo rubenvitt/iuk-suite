@@ -14,6 +14,14 @@ dieses Arbeitsverzeichnis gelöscht; ohne dieses Archiv wären die Belege damit 
 und mehrere Commits (u. a. der 40-Fundorte-Commit `b2a7db4`) sich inhaltlich auf sie stützen. Das
 Muster folgt `docs/superpowers/berichte/2026-08-03-lagerbuch-teil4/`, dem Archiv von Teil 4.
 
+**Zwei verschiedene Fragen, zwei verschiedene Orte.** Der Plan (§9) weist seine Abweichungsbegründung
+inzwischen über die Commits `133e6ba` und `487a6e5` nach — das beantwortet „was wurde wörtlich
+gesagt und wann richtiggestellt", stabil, weil Commits sich nicht verschieben oder umbenennen
+lassen. Dieses Archiv beantwortet die andere Frage — „warum, mit welcher Prüfung, mit welchem
+Ergebnis" — und trägt dafür die **Herleitungen**: die beiden Abschlussreviews, den Ledger, die
+Entscheidungen. Wer nur den Wortlaut braucht, findet ihn im Plan; wer die Prüfung dahinter braucht,
+hier.
+
 ## Die zwei Funde, die vor den Cutover gehören
 
 `final-review-teil6.md` triagiert alle aufgeschobenen Funde und stuft zwei davon ausdrücklich vor
