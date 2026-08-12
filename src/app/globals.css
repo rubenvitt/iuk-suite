@@ -10,6 +10,31 @@
   box-sizing: border-box;
 }
 
+/*
+ * DIE DREI SCHRIFT-ROLLEN DER SUITE — Rollennamen, keine Schriftnamen.
+ *
+ * DAS HIER WAR EIN TOTER VERTRAG. `app/m/lagerbuch/_ui/helfer.module.css:64-66`
+ * loeste `--lb-display|body|mono` gegen genau diese drei Namen auf, und der
+ * Kommentar daneben behauptete, sie laegen auf `:root`. Sie lagen dort nicht —
+ * das Wurzel-Layout registrierte nur Geist. Der Helfer-Weg rendete in
+ * "Arial Narrow" / system-ui / ui-monospace, still, ueber Monate.
+ *
+ * WARUM ROLLENNAMEN UND NICHT `--font-geist-sans` DIREKT: der Bestand benutzt
+ * diese drei Namen bereits, und sie bezeichnen eine ROLLE (Display, Fliesztext,
+ * Daten), nicht eine Schrift. Ein spaeterer Schriftwechsel ist damit eine Zeile
+ * hier statt einer Suche ueber alle Module.
+ *
+ * `core/theme/schriftstapel.test.ts` haelt beide Haelften fest: dass diese
+ * Deklarationen stehen UND dass `layout.tsx` die Familie registriert, aus der
+ * `--font-display` seinen Wert zieht. Ohne die zweite Haelfte waere derselbe
+ * stille Ausfall eine Ebene tiefer wieder moeglich.
+ */
+:root {
+  --font-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
+  --font-body: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
 html,
 body {
   height: 100%;

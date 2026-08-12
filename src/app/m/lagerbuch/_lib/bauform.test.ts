@@ -39,6 +39,26 @@ import { join, relative } from "node:path";
 const MODUL = join(process.cwd(), "src/app/m/lagerbuch");
 const SELBST = join(MODUL, "_lib/bauform.test.ts");
 
+/**
+ * DIE VARIABLEN, DIE VOM WURZEL-LAYOUT KOMMEN — HERGELEITET, NICHT BEHAUPTET.
+ *
+ * Hier stand `VOM_LAYOUT = /^--font-(display|body|mono)$/`, ein fest
+ * verdrahtetes Muster mit der Begruendung, diese drei laegen auf `:root`. Das
+ * war eine BEHAUPTUNG, und sie war falsch: das Layout registrierte nur Geist,
+ * die drei Namen standen nirgends, und `helfer.module.css` rendete im Fallback
+ * "Arial Narrow" — still, ueber Monate. Der Riegel war die Augenbinde.
+ *
+ * Der Mangel war nicht die Ausnahme, sondern dass niemand sie nachprueft. Die
+ * Menge hier wird deshalb AUS `globals.css` GELESEN. Wer die Deklaration dort
+ * entfernt, schrumpft diese Menge — und dieser Test wird rot, statt weiter zu
+ * schweigen.
+ */
+const GLOBALS = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "");
+const VOM_LAYOUT = new Set(
+  [...GLOBALS.matchAll(/(--font-[\w-]+)\s*:/g)].map((t) => t[1]!),
+);
+
 /** Jede .ts/.tsx-Datei unter dem Modulbaum, rekursiv — diese Datei ausgenommen. */
 function quellDateien(wurzel: string = MODUL): string[] {
   if (!existsSync(wurzel)) return [];
@@ -498,8 +518,31 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     // Der Traeger-Vertrag in seiner scharfen Form: `_ui/BarcodeScanner.tsx`
     // rendert AUCH unter `.modul` aus `verwaltung.module.css`. Jede Variable,
     // die nur EINER der beiden Traeger kennt, ist auf dem anderen Ast still
-    // `transparent`. `--font-display|body|mono` sind die Ausnahme — sie kommen
-    // vom Wurzel-Layout und liegen auf `:root`, also unter beiden Traegern.
+    // `transparent`.
+    //
+    // ⚠️ HIER STAND EINE AUSNAHMELISTE, UND SIE WAR DIE AUGENBINDE.
+    //
+    // `VOM_LAYOUT = /^--font-(display|body|mono)$/` nahm genau die drei Namen
+    // aus BEIDEN Pruefungen heraus, mit der Begruendung, sie kaemen vom
+    // Wurzel-Layout. Das stimmte nicht: das Layout registrierte nur Geist, die
+    // drei Namen waren NIRGENDS deklariert, und der Helfer-Weg rendete im
+    // Fallback "Arial Narrow". Der Test war an dieser Stelle nicht der Riegel,
+    // sondern der Grund, warum es niemand sah.
+    //
+    // Die Ausnahme BLEIBT — `deklariert` unten wird ausschliesslich aus den
+    // `.rahmen`/Dunkelzweig-Koerpern DIESER Datei gebaut und kann eine
+    // `--font-*`-Deklaration aus `app/globals.css` strukturell nie enthalten,
+    // ganz gleich, ob sie dort korrekt steht oder nicht. Ersatzlos streichen
+    // ist deshalb unerfuellbar. Der Mangel war nicht die Ausnahme, sondern
+    // dass sie eine BEHAUPTUNG war, die niemand nachpruefte
+    // (`/^--font-(display|body|mono)$/`, fest verdrahtet, glaubt sich selbst).
+    // Seit 2026-08-12 wird `VOM_LAYOUT` stattdessen AUS `app/globals.css`
+    // GELESEN (oben bei den Modulkonstanten) — sie weiss es, statt es zu
+    // behaupten. Wer die Deklaration dort entfernt, schrumpft die Menge, und
+    // dieser Test wird rot statt weiter zu schweigen
+    // (`core/theme/schriftstapel.test.ts` haelt die Gegenseite fest: dass
+    // `layout.tsx` die Familie liefert, aus der `--font-display` seinen Wert
+    // zieht).
     //
     // ⚠️ DAS PRAEFIX ALLEIN TRUEG NICHT. `color: var(--lb-tinte2)` faengt mit
     // `--lb-` an und ist trotzdem NIRGENDS deklariert — genau der Ausfall, den
@@ -514,9 +557,14 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     const deklariert = new Set(
       [...`${hell}\n${dunkel}`.matchAll(/(--[\w-]+)\s*:/g)].map((t) => t[1]!),
     );
-    // Die drei Schriftstapel kommen vom Wurzel-Layout und liegen auf `:root` —
-    // sie stehen in KEINEM der beiden Koerper und sind trotzdem aufloesbar.
-    const VOM_LAYOUT = /^--font-(display|body|mono)$/;
+
+    // Vakuum-Riegel fuer die hergeleitete Ausnahmemenge: eine LEERE
+    // `VOM_LAYOUT` waere die stille ersatzlose Streichung durch die Hintertuer
+    // — der Test liefe dann zwar ins Leere statt falsch gruen zu sein, aber
+    // die Ursache bliebe unklar. Drei ist die heutige Anzahl der
+    // `--font-*`-Deklarationen in `app/globals.css`.
+    expect(VOM_LAYOUT.size, "keine --font-*-Deklaration in globals.css gefunden — der Scan liefe ins Leere")
+      .toBeGreaterThanOrEqual(3);
 
     const genutzt = new Set(
       [...css.matchAll(/var\(\s*(--[\w-]+)/g)].map((t) => t[1]!),
@@ -534,13 +582,14 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
       .toBeGreaterThanOrEqual(10);
 
     const fremde = [...genutzt]
-      .filter((n) => !n.startsWith("--lb-") && !VOM_LAYOUT.test(n));
-    expect([...new Set(fremde)], "nur --lb-* und die drei --font-* sind erlaubt").toEqual([]);
+      .filter((n) => !n.startsWith("--lb-") && !VOM_LAYOUT.has(n));
+    expect([...new Set(fremde)], "nur --lb-* und die --font-* aus globals.css sind erlaubt")
+      .toEqual([]);
 
     const unaufloesbar = [...genutzt]
-      .filter((n) => !deklariert.has(n) && !VOM_LAYOUT.test(n));
+      .filter((n) => !deklariert.has(n) && !VOM_LAYOUT.has(n));
     expect(unaufloesbar,
-      "benutzt, aber weder unter `.rahmen`/Dunkelzweig deklariert noch eine `--font-*` vom Layout")
+      "benutzt, aber weder unter `.rahmen`/Dunkelzweig deklariert noch eine `--font-*` aus globals.css")
       .toEqual([]);
   });
 

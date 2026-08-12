@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("next/font/google", () => ({
   Geist: () => ({ variable: "--font-geist-sans" }),
   Geist_Mono: () => ({ variable: "--font-geist-mono" }),
+  Barlow_Condensed: () => ({ variable: "--font-barlow-condensed" }),
 }));
 
 vi.mock("next/headers", () => ({

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Barlow_Condensed } from "next/font/google";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { Providers } from "@/components/providers";
 import { reauthProviderId } from "@/core/auth/pocketId";
@@ -16,6 +16,26 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+/*
+ * DIE DISPLAY-FAMILIE DER SUITE — und die EINZIGE zusaetzliche.
+ *
+ * Sie traegt Marke, Kicker, Ueberschriften und grosze Zahlen; Fliesztext und
+ * Formulare bleiben Geist. Das Trio des alten Lagerbuchs (Barlow / Barlow
+ * Condensed / IBM Plex Mono) zu uebernehmen haette Geist abgeloest und damit
+ * das Bild JEDER Flaeche der Suite geaendert — auch der Module, die niemand
+ * angefasst haben wollte.
+ *
+ * NUR 600 UND 700: die Rollenleiter (`core/theme/schrift.ts`) fragt keine
+ * anderen Schnitte an. Jedes weitere Gewicht waere ein Ladevorgang ohne
+ * Anwender.
+ */
+const barlowCondensed = Barlow_Condensed({
+  variable: "--font-barlow-condensed",
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -60,7 +80,7 @@ export default async function RootLayout({
   return (
     <html
       lang="de"
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${barlowCondensed.variable}`}
       // BEIDES, nicht das eine statt des anderen: `colorScheme` zieht
       // Scrollbalken und native Bedienelemente mit, aber CSS kann darauf nicht
       // selektieren. `data-theme` ist der verbindliche Selektor fuer eigene
