@@ -475,9 +475,9 @@
  *
  * ⚠️ DIESER BLOCK STEHT AM DATEIENDE, und das ist tragend, keine Ordnung:
  * `.tab[aria-current="page"]` unten hat DIESELBE Spezifitaet wie seine
- * Basisregel weiter oben in dieser Datei. Bei Gleichstand entscheidet
- * die Reihenfolge (Falle 5) — vorne
- * einsortiert bliebe die rote Linie still oben statt unten.
+ * Basisregel weiter oben in dieser Datei. Bei Gleichstand entscheidet die
+ * Reihenfolge (Falle 5) — vorne einsortiert bliebe die rote Linie still
+ * oben statt unten.
  * ———————————————————————————————————————————————————————————————————————— */
 @media (min-width: 768px) {
   /*
@@ -608,9 +608,9 @@
 
   /*
    * Das Kamerabild bekommt eine Obergrenze in px. Das `max-height: 58vh`
-   * der Basisregel `.scanVideo`
-   * sind auf 1440x900 rund 522px Video — auf einem Monitor nimmt das die ganze
-   * Ansicht ein, ohne dass der Code besser lesbar wuerde.
+   * der Basisregel `.scanVideo` ist auf 1440x900 rund 522px Video — auf
+   * einem Monitor nimmt das die ganze Ansicht ein, ohne dass der Code
+   * besser lesbar wuerde.
    */
   .scanVideo { max-height: min(58vh, 420px); }
 
