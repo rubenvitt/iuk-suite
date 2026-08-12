@@ -172,8 +172,18 @@ gemessen nach Task 3 dieses Plans, vor der zweiten Fassung.
 
 **Was von §7.7.1 bleibt:** genau **ein** Zweig, **kein** `max-width` darin,
 und die bestehende 767.98px-Regel unberührt. Die Öffnung ist eng: sie trägt
-zwei Raster (`.fachraster`, `.karteRaster`) und die Reiterleiste
-(`order: -1`), keine zweite Media Query und keinen neuen Breakpoint-Wert.
+zwei Raster (`.fachraster`, `.karteRaster`) und das Nach-obenwandern der
+Reiterleiste (`order: 1` auf `.inhalt`), keine zweite Media Query und keinen
+neuen Breakpoint-Wert.
+
+⚠️ **Nicht `order: -1` auf `.tableiste`** — das war die erste Fassung (Task 2)
+und wurde in Fix-Runde 1 verworfen: `order: -1` setzt die Leiste vor ALLE
+Geschwister, also auch vor `.streifen`, und das rote Markenband landet dann
+zwischen Navigation und Kopf statt als Abschlusskante darunter. `order: 1`
+auf `.inhalt` schiebt stattdessen nur den Inhalt ans Ende; die drei übrigen
+Kinder behalten ihre DOM-Reihenfolge. `bauform.test.ts` verbietet heute jedes
+`order` auf `.tableiste` — wer hier zur ersten Fassung zurückbaut, läuft in
+diesen Test.
 
 **Geändert:** Task 1–5 des Plans (die zweite Fassung ab 768px: Arbeitsfläche
 1200px, Reiterleiste oben, mehrspaltige Zähl- und Artikelliste, 720px-Lesebahn
