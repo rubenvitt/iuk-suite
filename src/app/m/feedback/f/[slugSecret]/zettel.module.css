@@ -58,7 +58,22 @@
   /* Ziffernfarbe im gewaehlten Chip (§3.4). */
   --ziffer-gewaehlt: #ffffff;
 
-  --serif: var(--font-newsreader), var(--font-geist-sans), serif;
+  /* DER MITTLERE RUECKFALL IST EINE ROLLE, KEIN SCHRIFTNAME. Hier stand
+     `var(--font-geist-sans)`; damit waere ein Wechsel der Suite-Fliesztextschrift
+     an DIESER Stelle stehengeblieben — die Ausnahme, die den Satz „ein Wechsel
+     ist eine Zeile in `globals.css`" (docs/design/README.md) unwahr macht.
+     `--font-body` ist derselbe Wert und wandert mit.
+     Das abschlieszende `serif` bleibt, obwohl es heute unerreichbar ist:
+     `--font-body` loest auf `var(--font-geist-sans), ui-sans-serif, system-ui,
+     sans-serif` auf, und `ui-sans-serif` ist keine Webschrift — sie greift
+     immer. Faellt also sowohl Newsreader als auch Geist aus, steht hier
+     kuenftig `ui-sans-serif` statt wie bisher `serif`; hinter `ui-sans-serif`
+     kommt nichts mehr zum Zug. `serif` bleibt trotzdem stehen, als Rueckfall
+     fuer den Fall, dass `--font-body` einmal OHNE eigene Gattung neu definiert
+     wird. Eine Gattung am Ende einer `font-family`-Liste kostet nichts und ist
+     die billigere Haelfte gegenueber einem stillen Rueckfall auf die
+     Browservorgabe. */
+  --serif: var(--font-newsreader), var(--font-body), serif;
 }
 
 :root[data-theme="dark"] .seite,

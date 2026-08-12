@@ -204,6 +204,16 @@ Es sind **Rollennamen, keine Schriftnamen** — ein Wechsel ist eine Zeile in `g
 Modul-CSS zieht daraus seine eigenen Variablen (`--lb-display` im Lagerbuch); TypeScript-Rollen
 stehen in `core/theme/schrift.ts`, die beiden Module sind Adapter darüber.
 
+**Damit dieser Satz stimmt, darf kein Konsument eine Familie direkt nennen** — und genau das war er
+bis zum 2026-08-12 nicht: er galt nur für `--font-display`. `--font-body` hatte einen einzigen
+Konsumenten, während `core/theme/theme.ts` antd — und damit den Fließtext der ganzen Suite —
+`var(--font-geist-sans)` direkt gab; `--font-mono` hatte zwei, elf weitere Stellen schrieben die
+Familie aus. Der Ausfall wäre in `lagerbuch` messbar gewesen: ein Tausch von `--font-mono` hätte
+**zwei Monoschriften im selben Modul** ergeben, weil `SCHRIFT.mono` mitgewandert wäre und
+`.fach`/`.footnote`/`.jts`/`.jdelta` nicht. Seither steht `--font-geist-*` nur noch in der
+`next/font`-Registrierung (`app/layout.tsx`), in deren Test-Mocks und in der Auflösung in
+`globals.css`. Wer eine neue Schriftstelle anlegt, nimmt die Rolle.
+
 **Das war einmal ein toter Vertrag**, und das ist die Warnung, die bleibt: `helfer.module.css`
 benutzte diese drei Namen, das Wurzel-Layout registrierte sie nicht, und der Helfer-Weg rendete
 über Monate im Fallback „Arial Narrow". Ein Test nahm die drei Namen per Whitelist von seiner

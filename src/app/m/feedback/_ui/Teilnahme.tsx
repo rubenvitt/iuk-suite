@@ -142,7 +142,7 @@ export function Teilnahme({ url, token, groupId, erststart }: TeilnahmeProps) {
           background: "var(--fb-tint)",
           padding: "8px 12px",
           borderRadius: 6,
-          fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+          fontFamily: "var(--font-mono)",
           fontSize: 13,
           wordBreak: "break-all",
           userSelect: "all",

@@ -92,7 +92,7 @@ export function QrGross({ url, gruppenname, darstellung }: QrGrossProps) {
         <p
           style={{
             ...T.body,
-            fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+            fontFamily: "var(--font-mono)",
             wordBreak: "break-all",
             userSelect: "all",
             margin: "12px 0 0",

@@ -103,7 +103,7 @@
  * nicht ersetzten Inline-Elementen nicht. */
 .lb-etikettTitel {
   display: block;
-  font: 700 11px var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font: 700 11px var(--font-body);
   line-height: 1.05;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -112,7 +112,7 @@
 
 .lb-etikettSub {
   display: block;
-  font: 600 9px var(--font-geist-mono), ui-monospace, monospace;
+  font: 600 9px var(--font-mono);
   color: #444c55;
 }
 

@@ -24,6 +24,19 @@
  * Daten), nicht eine Schrift. Ein spaeterer Schriftwechsel ist damit eine Zeile
  * hier statt einer Suche ueber alle Module.
  *
+ * ⚠️ DIESER SATZ WAR ZUNAECHST NUR FUER `--font-display` WAHR — nachgezogen am
+ * 2026-08-12. `--font-body` hatte EINEN Konsumenten (`helfer.module.css`), und
+ * der Fliesztext der ganzen Suite lief daran vorbei: `core/theme/theme.ts` gab
+ * antd `var(--font-geist-sans)` direkt. `--font-mono` hatte zwei, elf weitere
+ * Stellen schrieben `var(--font-geist-mono)`. Der Ausfall waere derselbe stille
+ * gewesen wie oben, nur andersherum: nicht Fallback statt Schrift, sondern ZWEI
+ * Schriften nebeneinander (in `lagerbuch` messbar — `SCHRIFT.mono` waere
+ * gewandert, `.fach`/`.footnote`/`.jts`/`.jdelta` nicht). Seither nennt kein
+ * Konsument mehr eine Familie direkt; `--font-geist-*` steht nur noch in der
+ * `next/font`-Registrierung (`app/layout.tsx`), in ihren Test-Mocks und in der
+ * Aufloesung drei Zeilen tiefer. Wer eine neue Schriftstelle anlegt, nimmt die
+ * Rolle — sonst faellt der Satz oben wieder auseinander.
+ *
  * `core/theme/schriftstapel.test.ts` haelt beide Haelften fest: dass diese
  * Deklarationen stehen UND dass `layout.tsx` die Familie registriert, aus der
  * `--font-display` seinen Wert zieht. Ohne die zweite Haelfte waere derselbe

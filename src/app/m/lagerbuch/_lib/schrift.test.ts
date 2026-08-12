@@ -58,7 +58,9 @@ describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {
         lineHeight: 1,
       },
       mono: {
-        // Mono-Indirektion: --font-geist-mono -> --font-mono.
+        // Mono-Indirektion: die Rolle statt der Familie. Vor dem Adapter stand
+        // hier `--font-geist-mono`; seit 2026-08-12 ist die Familie ueberall in
+        // der Suite hinter `--font-mono` verlegt, nicht nur an dieser Stelle.
         fontFamily: "var(--font-mono)",
         fontSize: 12,
         // neu, aber wirkungslos, s. `text`.
@@ -91,6 +93,14 @@ describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {
   it("bezieht die Mono-Rolle ueber die Suite-Rolle, nicht ueber Geist direkt", () => {
     // `--font-mono` statt `--font-geist-mono`: ein Schriftwechsel ist damit eine
     // Zeile in `globals.css` statt einer Suche ueber alle Module.
+    //
+    // ⚠️ DIESER SATZ WAR EINE HALBE WAHRHEIT, BIS 2026-08-12 NACHGEZOGEN WURDE.
+    // Er galt fuer DIESE Zeile und nicht fuer das Modul: `.fach`, `.footnote`,
+    // `.jts` und `.jdelta` in `_ui/verwaltung.module.css` schrieben weiter
+    // `var(--font-geist-mono)` direkt. Ein Tausch von `--font-mono` haette
+    // innerhalb des Lagerbuchs ZWEI Monoschriften ergeben — die Rolle waere
+    // gewandert, die vier Klassen nicht. Die Konsumenten sind seither
+    // umgehaengt; wer eine neue Mono-Stelle anlegt, nimmt die Rolle.
     expect(SCHRIFT.mono.fontFamily).toBe("var(--font-mono)");
   });
 
