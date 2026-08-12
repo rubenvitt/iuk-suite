@@ -96,6 +96,23 @@ Reiterleiste kippt exakt bei der `min-width: 768px`-Schwelle aus
 Betreiberentscheidung 14 (s. u.) von unten nach oben, bei 375px unverändert
 unten. Kein Überlauf in irgendeiner Zelle, in keinem Modus.
 
+⚠️ **Worauf die Spalte „Abweichung ggü. Stand vor Task 1 bei 375px" beruht:**
+Das Wegwerf-Playwright-Skript oben lief ausschließlich gegen den Endzustand
+nach Task 6 — es gibt keinen automatisierten Vorher-Nachher-Bildvergleich.
+„keine" stützt sich stattdessen auf Konstruktionsnachweis, nicht auf eine
+Messung an zwei Zeitpunkten: §7.7.1 lässt außerhalb des neuen
+`min-width: 768px`-Zweigs keine breitenabhängige Regel zu (von
+`bauform.test.ts` gehalten), plus die empirischen Einzelnachweise aus dem
+Umsetzungsverlauf — die Kappungs-Sichtprüfungen bei 650px in Task 1 und
+Task 2 (Kappung bleibt unverändert bei 560px, kein Rückfall des
+561–767px-Fehlers) und der empirische Grid-gegen-Block-Vergleich bei 375px
+aus Task 3 (Minor B: Abstände zwischen dem alten Block-Layout und dem neuen
+Grid identisch). Diese Nachweise stehen im Ledger
+`.superpowers/sdd/2026-08-12-lagerbuch-helfer-desktop/progress.md`; die
+Aussage selbst wird dadurch nicht schwächer, nur die Zertifizierung
+ehrlicher — sie beruht auf Konstruktion plus Stichprobe, nicht auf einem
+Bildvergleich.
+
 **Ergänzend zur `/`-Zeile (Gate-Kartenlayout, gehört zu Abnahmesatz 2):** bei
 375px liegen die beiden `.gateKarte`-Boxen (Zugangscode, Verwaltung)
 untereinander, ab 768px, 1024px und 1440px nebeneinander — in beiden Modi
