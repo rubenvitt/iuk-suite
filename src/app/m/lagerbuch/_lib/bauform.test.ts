@@ -729,16 +729,23 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     );
   });
 
-  it("`.abschluss` (Sticky-Abschlussleiste) bekommt im Desktop-Zweig dieselbe 720px-Kappung wie `.lesebahn`", () => {
-    // Nachbesserung 12.08.2026: ungekappt zog die Leiste auf die volle
-    // 1200px-Bahn — 1084px Textspalte bei rund 200px tatsaechlichem Text,
-    // der Knopf an den rechten Rand gedrueckt, dazwischen 900px Leere.
-    // Dieselbe 720px-Grenze wie `.lesebahn`, aus demselben Grund.
+  it("`.abschluss` (Sticky-Abschlussleiste) zentriert im Desktop-Zweig ihren Inhalt statt sich zu kappen", () => {
+    // Nachbesserung 12.08.2026, zweite Runde: eine 720px-Kappung (erster
+    // Versuch, wie bei `.lesebahn`) wurde probiert und wieder verworfen — sie
+    // traf keine Spaltenkante des `.fachraster`-Rasters darueber und stand als
+    // schwebender Kasten im Raum. Die Leiste bleibt deshalb VOLLBREIT
+    // (buendig zum Raster), und stattdessen wird ihr INHALT zentriert:
+    // `justify-content: center` auf der Leiste, `.abschlussInfo` OHNE
+    // `flex: 1`, sonst zoege der Text die Gruppe wieder auseinander.
     const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
     const zweig = css.slice(css.search(/@media[^{]*min-width/));
-    expect(zweig, "`.abschluss` kappt im Desktop-Zweig nicht").toMatch(
-      /\.abschluss\s*\{[^}]*max-width:\s*720px/,
+    expect(zweig, "`.abschluss` zentriert ihren Inhalt im Desktop-Zweig nicht").toMatch(
+      /\.abschluss\s*\{[^}]*justify-content:\s*center/,
     );
+    expect(
+      zweig,
+      "`.abschlussInfo` gibt ihr `flex: 1` im Desktop-Zweig nicht ab — der Text zoege die Gruppe wieder auseinander",
+    ).toMatch(/\.abschlussInfo\s*\{[^}]*flex:\s*initial/);
   });
 });
 

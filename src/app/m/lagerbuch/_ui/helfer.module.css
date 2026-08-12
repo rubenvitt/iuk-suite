@@ -632,32 +632,45 @@
   .leer { max-width: 720px }
 
   /*
-   * NACHBESSERUNG (12.08.2026, Befund am gerenderten Bild): `.abschluss` ist
-   * dieselbe Sorte Flaeche wie `.lesebahn` und `.leer` — eine Werkzeugleiste
-   * mit wenig Inhalt (eine Zeile Zahl, eine Zeile Text, ein Knopf), keine
-   * Liste. Ungekappt zog sie auf die volle 1200px-Bahn: 1084px Textspalte bei
-   * rund 200px tatsaechlichem Text, der Knopf an den rechten Rand gedrueckt,
-   * dazwischen 900px Leere. Dieselbe 720px-Grenze, aus demselben Grund wie
-   * oben — und ohne eigenes `margin-inline: auto` bliebe die Kappung wirkungslos
-   * und der Balken schoebe sich an den linken Rand statt zu zentrieren.
+   * NACHBESSERUNG (12.08.2026, zweite Runde — Betreiberentscheidung nach
+   * Sichtpruefung des ersten Fixes). `.abschluss` ist KEINE Detailansicht wie
+   * `.lesebahn`/`.leer` — sie ist die Abschlusskante EINES Rasters
+   * (`.fachraster`/`.karteRaster`), das selbst die volle 1200px-Bahn nutzt.
    *
-   * `.abschlussInfo` BEHAELT sein `flex: 1` aus der Basisregel — das wurde am
-   * gerenderten Bild geprueft, nicht angenommen: bei 720px Bahnbreite fuellt
-   * der Text den Platz bis zum Knopf, der rechts an der Bahnkante klebt, genau
-   * wie es unterhalb von 768px (dort bei 560px, noch schmaler) schon immer
-   * aussah — dort hat sich niemand beschwert. Ohne `flex: 1` bliebe der Text
-   * auf seiner Inhaltsbreite stehen und der Knopf direkt daneben, aber RECHTS
-   * von beiden bliebe bei kurzen Texten (z. B. „Alles auf Soll") ein Streifen
-   * leerer Balkenflaeche — dieselbe Bauform des Befunds, nur kleiner. Das
-   * Umgekehrte, `flex: 1` NUR im Desktop-Zweig anzuschalten, waere die
-   * schlechtere Wahl: die Basisregel gilt schon lange und unter 768px darf
-   * sich kein Pixel aendern.
+   * ⚠️ ERSTER VERSUCH VERWORFEN: eine 720px-Kappung mit `margin-inline: auto`
+   * (wie bei `.lesebahn`) behob den gestreckten Balken, erzeugte aber einen
+   * NEUEN Fehler — gemessen am gerenderten Bild: der zentrierte 720px-Kasten
+   * lag bahnmittig, traf aber KEINE Spaltenkante des `.fachraster`-Rasters
+   * darueber (`auto-fit`, `minmax(360px, 1fr)`, keine feste Spaltenzahl). Aus
+   * einem gestreckten Balken wurde ein schwebender Kasten — weder bahn- noch
+   * spaltenbuendig. Wer diese Kappung erneut vorschlaegt: sie wurde probiert
+   * und daran gescheitert, nicht uebersehen.
    *
-   * `position: sticky` und `margin-inline: auto` stehen sich nicht im Weg:
-   * Sticky verschiebt nur die BLOCKACHSE (hier `bottom`), sobald der
-   * Scrollcontainer (`.inhalt`, `overflow-y: auto`) den Schwellwert erreicht —
-   * die Zentrierung in der INLINE-ACHSE ist normaler Fluss und wird VOR dem
-   * Einrasten berechnet, bleibt beim Scrollen also stehen und springt nicht.
+   * DIE EIGENTLICHE URSACHE WAR NIE DIE BREITE DER LEISTE, SONDERN DASS IHR
+   * INHALT AUSEINANDERGEZOGEN WIRD. Die Leiste bleibt deshalb VOLLBREIT — das
+   * ist ihre Abschlusskante zum Raster, buendig zu `.fachraster` und
+   * `.karteRaster`, die dieselbe `.inhalt`-Polsterung erben — und nur ihr
+   * INHALT wird zentriert: `justify-content: center` auf der Leiste, dazu
+   * `.abschlussInfo` OHNE `flex: 1` im Desktop-Zweig, sonst zoege der Text
+   * die Gruppe wieder auseinander. Ergebnis: `[Text][Abstand][Knopf]` als
+   * kompakte Einheit in der Mitte des vollbreiten Balkens, statt zwei Blaecke
+   * an gegenueberliegenden Kanten.
+   *
+   * Geprueft gegen alle vier realen Textfaelle aus `CheckFlow.tsx` (kurz:
+   * „Alles auf Soll"/„Nichts nachzufuellen" — lang: „1 unter Soll"/„1 laufen
+   * ab · Weiter zur Nachfuellung aus dem Handlager" — und die Faelle aus
+   * Geraete-, Flaschen- und Nachfuell-Schritt bis zu „Bestaetigen bucht
+   * Handlager → <Fahrzeugname>"): in jedem Fall bleibt die Gruppe kompakt und
+   * mittig, kein Auseinanderfallen, kein Leerstreifen — anders als bei
+   * `flex: 1` mit Linksbuendigkeit, wo kurze Texte einen Streifen rechts vom
+   * Knopf freiliessen.
+   *
+   * `position: sticky` steht dem nicht im Weg: es verschiebt nur die
+   * BLOCKACHSE (`bottom`), sobald der Scrollcontainer (`.inhalt`,
+   * `overflow-y: auto`) den Schwellwert erreicht. `justify-content` wirkt in
+   * der INLINE-ACHSE der Flex-Zeile und wird beim Einrasten nicht neu
+   * berechnet — kein Sprung beim Scrollen.
    */
-  .abschluss { max-width: 720px; margin-inline: auto; }
+  .abschluss { justify-content: center; }
+  .abschlussInfo { flex: initial; }
 }
