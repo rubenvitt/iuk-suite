@@ -580,6 +580,12 @@
   /* Die rechte Spalte trennt sich senkrecht von der linken. */
   .karteRaster .zeile:nth-child(2n) { border-inline-start: 1px solid var(--lb-linie) }
 
+  /* Der Leer- und der Kein-Treffer-Hinweis sind KEINE `.zeile`, sondern ein
+     einzelnes `.kartePad`. Ohne diese Zeile sitzt der Text in der linken
+     Spalte und bricht auf halber Breite um, waehrend rechts Platz frei
+     bleibt — gemessen: 599px Text in einem 1200px-Raster. */
+  .karteRaster .kartePad { grid-column: 1 / -1 }
+
   /*
    * Das Kamerabild bekommt eine Obergrenze in px. Das `max-height: 58vh`
    * der Basisregel `.scanVideo`

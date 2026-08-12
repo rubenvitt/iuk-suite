@@ -677,12 +677,22 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
      * `rahmen.test.tsx:60-68` als nicht deklariert), der Media-Block traegt nur
      * die feste Spaltenzahl und die Trenner. Geprueft werden deshalb beide
      * Haelften getrennt.
+     *
+     * ⚠️ FIX-RUNDE 1: die zentrale Invariante fehlte. Ohne eine Zusicherung auf
+     * `grid-template-columns: 1fr 1fr` im Media-Zweig blieben alle Assertions
+     * gruen, auch wenn genau diese eine Zeile fehlt — die Liste faellt dann
+     * still auf eine Spalte zurueck, waehrend `nth-child(2n)` weiter jede
+     * gerade Zeile mit einer sinnlosen `border-inline-start` versieht. Die
+     * Gegenprobe (Zeile entfernt, Testlauf) bestaetigt das.
      */
     const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
     const auf = css.search(/@media[^{]*min-width/);
     const zweig = css.slice(auf);
     expect(css.slice(0, auf), "kein Grid auf `.karteRaster` in der Basis").toMatch(
       /\.karteRaster\s*\{[^}]*display:\s*grid/,
+    );
+    expect(zweig, "der Desktop-Zweig setzt keine zwei Spalten").toMatch(
+      /\.karteRaster\s*\{[^}]*grid-template-columns:\s*1fr\s+1fr/,
     );
     expect(zweig, "die erste Reihe wird nicht von der Trennlinie ausgenommen").toMatch(
       /\.karteRaster\s+\.zeile:nth-child\(-n\s*\+\s*2\)/,
