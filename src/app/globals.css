@@ -60,6 +60,23 @@
  * `--iuk-marke` ist im Dunkeln NICHT `#c8000f`: auf nahezu Schwarz reicht der
  * Kontrast fuer 14px-Text nicht. antds Dunkel-Algorithmus rechnet sich seine
  * eigene Primaerfarbe aus; eigenes Markup muss das selbst tun.
+ *
+ * `--iuk-marke` WEICHT IM DUNKELN ABSICHTLICH VON `--lb-rot` AB
+ * (`verwaltung.module.css:25`, dort `#e04452`) — und zwar wegen zweier
+ * verschiedener AA-Schwellen. `--lb-rot` traegt dort Konturen und
+ * Fokusringe; fuer Bedienelemente verlangt WCAG nur 3:1, und `#e04452`
+ * besteht das klar. `--iuk-marke` traegt in Task 8 dagegen 14px-TEXT (den
+ * aktiven Navigationseintrag), und Text verlangt 4.5:1. Nachgerechnet
+ * (WCAG-Kontrastformel, sRGB-linearisiert) gegen die beiden dunklen
+ * Flaechen, auf denen der Text tatsaechlich sitzt:
+ *   #e04452 gegen #141414 (Layout.headerBg dunkel): 4.49:1 — knapp DARUNTER
+ *   #e04452 gegen #16191c (Kartenflaeche dunkel):    4.30:1 — DARUNTER
+ * Deshalb ein eigener, hellerer Wert mit Luft ueber der Schwelle (gleicher
+ * Farbton, ca. 355°, nur angehoben):
+ *   #e45a66 gegen #141414: 5.22:1
+ *   #e45a66 gegen #16191c: 5.00:1
+ * Wer `--iuk-marke` und `--lb-rot` spaeter zusammenzieht, muss diese Zahl
+ * kennen, sonst faellt der Text wieder unter die Schwelle.
  */
 :root {
   --iuk-marke: #c8000f;
@@ -68,7 +85,7 @@
 }
 
 :root[data-theme="dark"] {
-  --iuk-marke: #e04452;
+  --iuk-marke: #e45a66;
   --iuk-gedaempft: #9aa4ad;
   --iuk-linie: #2a2f34;
 }
