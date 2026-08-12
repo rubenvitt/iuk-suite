@@ -90,10 +90,46 @@ describe("themeInitScript", () => {
     expect(themeInitScript()).not.toContain("return");
   });
 
-  it("raeumt den Altschluessel ab", () => {
+  // `toContain(LEGACY_THEME_COOKIE)` allein sichert nichts zu: LEGACY_THEME_COOKIE
+  // ist "iuk-theme", und das steckt als Teilstring schon in "iuk-theme-system" —
+  // die Zusicherung bliebe gruen, auch wenn die Loeschung ganz entfiele. Geprueft
+  // wird deshalb auf den tatsaechlich ausgelieferten Loeschbefehl
+  // ("iuk-theme=;...Max-Age=0..."), nicht auf den nackten Namen — und auf BEIDE
+  // Loeschzeilen (mit und ohne Domain), damit ein Wegfall einer der beiden
+  // auffaellt (Befund 6: ohne konfigurierte Domain sind sie byteidentisch, mit
+  // Domain unterscheiden sie sich).
+  it("raeumt den Altschluessel ab: beide Loeschzeilen, mit und ohne Domain", () => {
+    const geloescht = `${LEGACY_THEME_COOKIE}=;Path=/;Max-Age=0;SameSite=Lax`;
+
+    const ohneDomain = themeInitScript();
+    // Ohne Domain sind beide Zeilen byteidentisch — die Form muss trotzdem
+    // ZWEIMAL vorkommen, sonst ist eine der beiden Loeschzeilen verschwunden.
+    expect(ohneDomain.split(geloescht).length - 1).toBe(2);
+
+    const mitDomain = themeInitScript(".iuk-ue.de");
+    // Mit Domain sind es zwei VERSCHIEDENE Formen: eine mit `;Domain=...`
+    // (trifft ein mit Domain gesetztes Cookie), eine ohne (trifft ein je Host
+    // ohne Domain gesetztes Cookie).
+    expect(mitDomain).toContain(`${geloescht};Domain=.iuk-ue.de'`);
+    expect(mitDomain).toContain(`${geloescht}'`);
+  });
+
+  // Der Cookie-Vertrag (Pfad, Lebensdauer, SameSite) fuer das SYSTEM-Cookie ist
+  // separat vom Vertrag der "Cookie-Bauer" oben zu pruefen: `cookieString()` und
+  // dieses Script bauen ihn an zwei Stellen auf. Wer im Script `Max-Age`
+  // versehentlich fallen laesst, macht aus dem Auto-Modus ein Sitzungs-Cookie —
+  // funktioniert, solange der Browser offen ist, faellt nach jedem Neustart auf
+  // hell zurueck, bis die Hydration nachzieht. Kein anderes Tor sieht das.
+  //
+  // `ONE_YEAR` ist modulprivat und bleibt es (Befund 2): der Test rechnet die
+  // Formel selbst nach, statt eine sonst ungebrauchte Konstante nur fuers
+  // Testen zu exportieren.
+  it("schreibt das System-Cookie mit vollem Vertrag: Pfad, Lebensdauer, SameSite", () => {
+    const einJahrInSekunden = 60 * 60 * 24 * 365;
     const s = themeInitScript();
-    expect(s).toContain(LEGACY_THEME_COOKIE);
-    expect(s).toContain("Max-Age=0");
+    expect(s).toContain(`Max-Age=${einJahrInSekunden}`);
+    expect(s).toContain("Path=/");
+    expect(s).toContain("SameSite=Lax");
   });
 
   it("nimmt die Domain auf", () => {

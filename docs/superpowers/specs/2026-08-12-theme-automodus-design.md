@@ -160,6 +160,14 @@ Beim **allerersten** Besuch einer Person mit dunklem OS rendert der Server hell,
 und der Client korrigiert einen Render später. Ab dem zweiten Seitenaufruf ist
 es richtig.
 
+Das ist eine Deployment-Erwartung, keine Randnotiz: der Namenswechsel des
+Cookies (`iuk-theme` → `iuk-theme-pref`/`iuk-theme-system`) macht den
+"allerersten" Besuch zum Besuch **jeder Bestandsnutzerin und jedes
+Bestandsnutzers** nach dem Deployment. Der System-Schlüssel fehlt dann
+allen, der Server liefert hell, und wer ein dunkles OS eingestellt hat, sieht
+genau einmal pro Browser hell aufblitzen — danach steht das Cookie und es
+bleibt richtig.
+
 Das ist exakt der Vertrag, den `mode.ts:26-34` heute schon ausschreibt. Der
 naheliegende Fix — `data-theme` direkt aus dem Inline-Script stempeln —
 entkoppelt antds per React-State gewählten Algorithmus von den CSS-Variablen und

@@ -60,8 +60,21 @@ export function resolveThemeMode(pref: ThemePreference, system: ThemeMode): Them
   return pref === "auto" ? system : pref;
 }
 
+/**
+ * Der gemeinsame Cookie-Vertrag — Pfad, Lebensdauer, SameSite —, den sowohl
+ * `cookieString()` (fuer die beiden Setter-Funktionen unten) als auch
+ * `themeInitScript()` erzeugen. EINE Quelle, zwei Formatierungen: `cookieString`
+ * fuegt mit `"; "` zusammen (lesbarer Header-Wert), das Inline-Script mit
+ * blossem `";"` (kuerzerer erzeugter JS-Text). Vorher standen beide Formen als
+ * getrennte String-Literale da — wer im Script `Max-Age` faellen liess, machte
+ * daraus ein Sitzungs-Cookie, und kein Test haette es gemerkt. Jetzt kann ein
+ * fallengelassener Eintrag nicht mehr lokal im Script passieren, ohne auch die
+ * Cookie-Bauer-Tests mitzureissen.
+ */
+const COOKIE_SUFFIX_PARTS: readonly string[] = ["Path=/", `Max-Age=${ONE_YEAR}`, "SameSite=Lax"];
+
 function cookieString(name: string, wert: string, domain?: string): string {
-  const parts = [`${name}=${wert}`, "Path=/", `Max-Age=${ONE_YEAR}`, "SameSite=Lax"];
+  const parts = [`${name}=${wert}`, ...COOKIE_SUFFIX_PARTS];
   if (domain) parts.push(`Domain=${domain}`);
   return parts.join("; ");
 }
@@ -98,7 +111,9 @@ export function themeSystemCookieString(mode: ThemeMode, domain?: string): strin
  */
 export function themeInitScript(domain?: string): string {
   const domainPart = domain ? `;Domain=${domain}` : "";
-  const optionen = `;Path=/;Max-Age=${ONE_YEAR};SameSite=Lax${domainPart}`;
+  // Dieselbe Quelle wie `cookieString()` oben, nur mit `";"` statt `"; "`
+  // zusammengefuegt — kuerzerer erzeugter JS-Text, gleicher Vertrag.
+  const optionen = `;${COOKIE_SUFFIX_PARTS.join(";")}${domainPart}`;
   return (
     `(function(){try{` +
     `var m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';` +
@@ -107,8 +122,12 @@ export function themeInitScript(domain?: string): string {
     // `document.cookie` gar nicht erst an.
     `if(c.indexOf('${THEME_SYSTEM_COOKIE}='+m)===-1){` +
     `document.cookie='${THEME_SYSTEM_COOKIE}='+m+'${optionen}';}` +
-    // Der Altschluessel. Zweimal, weil Loeschen Domain und Pfad treffen muss
-    // und beide Formen im Umlauf sind (mit AUTH_COOKIE_DOMAIN und ohne).
+    // Der Altschluessel, zwei Loeschzeilen: eine mit der aktuell konfigurierten
+    // Domain, eine ohne. Nur bei GESETZTER Domain unterscheiden sie sich
+    // tatsaechlich — das Cookie kann je nach Modul mit oder ohne Domain gesetzt
+    // worden sein, und nur die passende Form loescht es. Ohne konfigurierte
+    // Domain sind beide Zeilen byteidentisch; das ist harmlose Redundanz, kein
+    // Fehler.
     `if(c.indexOf('${LEGACY_THEME_COOKIE}=')>-1){` +
     `document.cookie='${LEGACY_THEME_COOKIE}=;Path=/;Max-Age=0;SameSite=Lax${domainPart}';` +
     `document.cookie='${LEGACY_THEME_COOKIE}=;Path=/;Max-Age=0;SameSite=Lax';}` +

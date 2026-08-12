@@ -118,7 +118,8 @@
   color: var(--fp-tinte);
   /* `100dvh` und NICHT `100%`: der Rahmen sitzt unter antds `<App>`, und das
      rendert ein `<div class="ant-app">` ohne Hoehenangabe
-     (`core/theme/AntdProvider.tsx:62`). Die Elternhoehe ist damit unbestimmt und
+     (`core/theme/AntdProvider.tsx`, die `<App>`-Huelle — keine Zeilennummer
+     hier, die ist schon einmal weggewandert). Die Elternhoehe ist damit unbestimmt und
      ein Prozentwert faellt darauf zurueck, gar nichts zu tun — `html, body {
      height: 100% }` aus `globals.css` reicht nur bis zu diesem Wrapper. Die
      Papierfarbe endete sonst auf einer kurzen Seite an der Inhaltsunterkante,

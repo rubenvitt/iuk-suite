@@ -413,7 +413,8 @@ describe("`files-public.css` — die Zusagen der oeffentlichen Gestaltungsklasse
   /**
    * `min-height: 100%` waere hier wirkungslos — und still, wie Falle 5: die
    * Regel steht richtig da und greift nur nicht. Der Rahmen sitzt unter antds
-   * `<App>` (`core/theme/AntdProvider.tsx:62`), und das rendert ein
+   * `<App>` (`core/theme/AntdProvider.tsx`, die `<App>`-Huelle — keine
+   * Zeilennummer hier, die ist schon einmal weggewandert), und das rendert ein
    * `<div class="ant-app">` (`antd/es/app/App.js`: `component = 'div'`) ohne
    * jede Hoehenangabe. Die Elternhoehe ist damit unbestimmt, und ein
    * Prozentwert faellt darauf zurueck, gar nichts zu tun; `html, body { height:

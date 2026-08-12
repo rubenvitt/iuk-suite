@@ -82,3 +82,33 @@ test("erster Besuch: der Client legt den Systemwert ab, der zweite Aufruf traegt
     await kontext.close();
   }
 });
+
+/**
+ * Die Migration: der Altschluessel `iuk-theme` wird nicht mehr gelesen, und
+ * nur das Inline-Script raeumt ihn ab (weder Server noch `AntdProvider` tun
+ * das). Vitest prueft nur den ERZEUGTEN Skripttext von `themeInitScript()` —
+ * ob ein echter Browser ihn vor dem ersten Paint auch tatsaechlich ausfuehrt
+ * und `document.cookie` danach wirklich veraendert ist, sieht nur dieser
+ * Test. Waere das Script schadhaft und schriebe die Loeschung nicht, wuerde
+ * das hier trotzdem beobachtbar bleiben — anders als ein Test, der wie die
+ * beiden oben auch den `matchMedia`-Effekt in `AntdProvider` schreiben liesse
+ * (der schreibt nur das System-Cookie nach, nie den Altschluessel, aber ein
+ * zu grobmaschiger Test koennte das verdecken).
+ */
+test("Migration: der Altschluessel iuk-theme wird beim ersten Laden abgeraeumt", async ({
+  browser,
+}) => {
+  const kontext = await browser.newContext();
+  try {
+    // Genau der Zustand jeder Bestandsnutzerin/jedes Bestandsnutzers vor dem
+    // Umstieg: der alte, kombinierte Cookie steht, die neuen beiden nicht.
+    await kontext.addCookies([{ name: "iuk-theme", value: "dark", url: PORTAL }]);
+    const seite = await kontext.newPage();
+    await seite.goto(`${PORTAL}/login`);
+
+    const kekse = await kontext.cookies();
+    expect(kekse.find((k) => k.name === "iuk-theme")).toBeUndefined();
+  } finally {
+    await kontext.close();
+  }
+});
