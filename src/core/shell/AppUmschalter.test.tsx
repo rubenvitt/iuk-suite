@@ -24,7 +24,7 @@ describe("AppUmschalter", () => {
     const knopf = query('[data-testid="app-umschalter"]');
     expect(knopf.textContent).toContain("Lagerbuch");
     expect(knopf.getAttribute("aria-expanded")).toBe("false");
-    expect(knopf.getAttribute("aria-haspopup")).toBe("menu");
+    expect(knopf.getAttribute("aria-haspopup")).toBe("true");
     expect(exists('[data-testid="app-panel"]')).toBe(false);
   });
 
@@ -100,5 +100,17 @@ describe("AppUmschalter", () => {
     knopf.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await new Promise((r) => setTimeout(r, 0));
     expect(exists('[data-testid="app-panel"]')).toBe(false);
+  });
+
+  it("kündigt sich als aufklappbare Gruppe an, nicht als Menü", async () => {
+    await mount(umschalter());
+    expect(query('[data-testid="app-umschalter"]').getAttribute("aria-haspopup")).toBe("true");
+    await click('[data-testid="app-umschalter"]');
+    // Ein Menü im ARIA-Sinn verträgt kein Textfeld: Screenreader schalten dort aus
+    // dem Lesemodus in eine Menüsteuerung, in der Tippen Befehle auslöst.
+    expect(query('[data-testid="app-panel"]').getAttribute("role")).toBeNull();
+    for (const eintrag of queryAll('[data-testid="app-eintrag"]')) {
+      expect(eintrag.getAttribute("role")).toBeNull();
+    }
   });
 });

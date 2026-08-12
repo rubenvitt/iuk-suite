@@ -32,6 +32,18 @@ import s from "./shell.module.css";
  * ist wahr, aber `.navLink[aria-current]` trägt die Unterstreichung der
  * Navigation, und ein Playwright-Locator auf `[aria-current]` fände sonst zwei
  * Knoten (Strict-Mode-Verletzung, dieselbe Falle wie bei theme-toggle).
+ *
+ * BEWUSST OHNE MENÜROLLEN (`role="menu"` / `role="menuitem"`). Das Panel trägt
+ * ein Suchfeld, und ein Textfeld ist im ARIA-Menümodell gar nicht vorgesehen:
+ * Screenreader schalten bei `role="menu"` aus dem gewohnten Lesemodus in eine
+ * Menüsteuerung, in der Tippen Befehle auslöst statt Text einzugeben — dazu
+ * verlangt die Rolle ein Tastaturmodell (Pfeiltasten zwischen Einträgen,
+ * Home/End, Typeahead, `tabindex="-1"` an den Einträgen), das hier nicht
+ * nachgebaut wird. Eine deklarierte Rolle ohne das passende Tastaturmodell ist
+ * irreführender als gar keine Rolle. Stattdessen ist das Panel eine schlichte
+ * aufklappbare Gruppe aus Suchfeld und Links: `<a href>` bringt die Rolle
+ * „link“ von selbst mit, `aria-haspopup="true"` sagt nur „hier klappt etwas
+ * auf“ an, und die Bedienung trägt die normale Tab-Reihenfolge.
  */
 export function AppUmschalter({
   modulTitel,
@@ -86,7 +98,7 @@ export function AppUmschalter({
         type="button"
         data-testid="app-umschalter"
         className={s.umschalterAusloeser}
-        aria-haspopup="menu"
+        aria-haspopup="true"
         aria-expanded={offen}
         onClick={() => setOffen((v) => !v)}
       >
@@ -100,7 +112,7 @@ export function AppUmschalter({
               der Weg für die Tastatur `Escape` ist — ein fokussierbarer
               Knoten hier wäre eine Station ohne Bedeutung. */}
           <div className={s.umschalterFang} aria-hidden="true" onClick={schliessen} />
-          <div data-testid="app-panel" className={s.umschalterPanel} role="menu">
+          <div data-testid="app-panel" className={s.umschalterPanel}>
             <label className={s.umschalterSuchfeld}>
               <SearchOutlined aria-hidden="true" />
               <input
@@ -133,7 +145,6 @@ export function AppUmschalter({
                           data-testid="app-eintrag"
                           className={s.appEintrag}
                           href={e.href}
-                          role="menuitem"
                           target={e.extern ? "_blank" : undefined}
                           rel={e.extern ? "noopener noreferrer" : undefined}
                           aria-current={e.key === modulKey ? "true" : undefined}
