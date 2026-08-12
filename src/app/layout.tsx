@@ -19,8 +19,9 @@ const geistMono = Geist_Mono({
 });
 
 /*
- * DIE DREI SCHRIFTEN DES LAGERBUCH. Sie standen in `_ui/helfer.module.css:64-66`
- * schon immer als `var(--font-display|body|mono)` — nur geladen hat sie niemand:
+ * DIE DREI SCHRIFTEN DES LAGERBUCH. `--lb-display`, `--lb-body` und `--lb-mono`
+ * in `_ui/helfer.module.css` standen schon immer als `var(--font-display|body|mono)`
+ * — nur geladen hat sie niemand:
  * bei der Portierung aus der Alt-Anwendung sind die drei next/font-Aufrufe nicht
  * mitgekommen. Gemessen am 12.08.2026 rendert der ganze Helfer-Zweig deshalb in
  * Geist, und `font: 700 24px var(--lb-display)` faellt VOLLSTAENDIG aus (Falle 2).
