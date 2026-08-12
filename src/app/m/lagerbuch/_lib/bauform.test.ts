@@ -487,7 +487,7 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
 
   it("schaltet ueber `data-theme`, nicht ueber `prefers-color-scheme`", () => {
     // `prefers-color-scheme` braeche den Fall „System dunkel, Umschalter hell"
-    // — die Suite fuehrt den Modus im Cookie `iuk-theme` und stempelt ihn
+    // — die Suite fuehrt den Modus im Cookie `iuk-theme-pref` und stempelt ihn
     // serverseitig auf <html data-theme> (src/app/layout.tsx).
     const css = lies();
     expect(css).toMatch(/:root\[data-theme="dark"\]\s+\.rahmen/);

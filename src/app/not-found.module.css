@@ -21,7 +21,7 @@
  * Ueberlegung wie in `f/[slugSecret]/zettel.module.css`).
  *
  * Der Dunkelmodus haengt an `:root[data-theme="dark"]`, bewusst NICHT an
- * `prefers-color-scheme`: die Suite hat einen Umschalter (Cookie `iuk-theme`),
+ * `prefers-color-scheme`: die Suite hat einen Umschalter (Cookie `iuk-theme-pref`),
  * sonst bricht der Fall "System dunkel, Umschalter hell".
  */
 
