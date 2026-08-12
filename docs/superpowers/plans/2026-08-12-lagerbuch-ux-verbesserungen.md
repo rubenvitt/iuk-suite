@@ -50,9 +50,9 @@ function elementeVomTyp(wert: ReactNode, typ: unknown): ReactElement[] {
 | Datei | Verantwortung | Task |
 |---|---|---|
 | `package.json` | `react-icons` als Abhängigkeit | 1 |
-| `src/app/m/lagerbuch/_ui/ikonenRiegel.test.ts` | **Neu** — Import-Riegel, ersetzt `ikonen.test.ts` | 1, 2 |
-| `src/app/m/lagerbuch/_ui/ikonen.tsx`, `ikonen.test.ts` | **Entfallen** | 2 |
-| 32 Dateien mit `<Ikone>` | Migration auf `Pi*` | 2 |
+| `src/app/m/lagerbuch/_ui/ikonen.tsx` | Union bleibt, Auflösung wechselt auf Phosphor; `PFADE` entfällt, `data-zeichen` kommt dazu | 2 |
+| `src/app/m/lagerbuch/_ui/ikonen.test.ts` | AST-Riegel bleibt; vier Zusicherungen angepasst | 2 |
+| 3 Testdateien mit `PFADE` | Anker wechselt von `d`-Attribut auf `data-zeichen` | 2 |
 | `src/core/shell/types.ts` | `SuiteNavItem.ikon` (String-Union) | 3 |
 | `src/core/shell/navIkonen.tsx` | **Neu** — Schlüssel→Komponente, Client | 3 |
 | `src/core/shell/SuiteNav.tsx` | Auflösung des Schlüssels | 3 |
@@ -69,23 +69,22 @@ function elementeVomTyp(wert: ReactNode, typ: unknown): ReactElement[] {
 
 ## Task 1: react-icons aufnehmen und den RSC-Beweis führen
 
-Diese Task installiert das Paket, **beweist am laufenden Server**, dass es in der RSC-Ebene trägt, und dreht den Import-Riegel des Moduls um. Sie ändert noch keine einzige Verwendungsstelle.
+Diese Task installiert das Paket und **beweist am laufenden Server**, dass es in der RSC-Ebene trägt. Sie ändert noch keine einzige Verwendungsstelle. Der Beweis muss vor Task 2 stehen, weil `_ui/ikonen.tsx` **kein** `"use client"` trägt und von Server Components gelesen wird — dort landet `react-icons/pi` also direkt in der RSC-Ebene.
 
 **Files:**
-- Modify: `package.json` (Abhängigkeit)
-- Create: `src/app/m/lagerbuch/_ui/ikonenRiegel.test.ts`
-- Create (temporär, am Ende gelöscht): `src/app/m/lagerbuch/_ui/rscProbe/page.tsx`
+- Modify: `package.json`, `pnpm-lock.yaml`
+- Create (temporär, in Step 6 gelöscht): `src/app/m/lagerbuch/rscProbe/page.tsx`
 
 **Interfaces:**
 - Consumes: nichts
-- Produces: `react-icons/pi` als erlaubter Spezifizierer im Modul; `ikonenRiegel.test.ts` als der Test, den die Tasks 2 und 3 grün halten müssen.
+- Produces: `react-icons` 5.7.0 als Abhängigkeit; der gemessene Beleg, auf den Task 2 baut
 
-- [ ] **Step 1: Abhängigkeiten installieren**
+- [ ] **Step 1: Abhängigkeiten prüfen**
 
-Der Worktree ist frisch und hat noch keine `node_modules`.
+`pnpm install` ist im Worktree bereits gelaufen. Vergewissere dich:
 
 ```bash
-cd ~/dev/personal/drk/iuk-suite-lagerbuch-ux && pnpm install
+test -d node_modules/next && echo "ok" || pnpm install
 ```
 
 - [ ] **Step 2: Baseline messen und festhalten**
@@ -96,7 +95,7 @@ Vor jeder Änderung. Die Ausgabe wird in Task 9 gegengelesen.
 pnpm build 2>&1 | tee /tmp/lagerbuch-build-vorher.txt | tail -40
 ```
 
-Notiere die Route-Größe von `/m/lagerbuch/verwaltung` und `/m/lagerbuch/verwaltung/bz` in der Commit-Message von Step 10.
+Notiere die Route-Größen für `/m/lagerbuch/verwaltung` und `/m/lagerbuch/verwaltung/bz` in der Commit-Message von Step 8.
 
 - [ ] **Step 3: react-icons installieren**
 
@@ -104,15 +103,15 @@ Notiere die Route-Größe von `/m/lagerbuch/verwaltung` und `/m/lagerbuch/verwal
 pnpm add react-icons@5.7.0
 ```
 
-Version wird gepinnt, weil der RSC-Beweis in Step 5 genau für diese Fassung gilt.
+Die Version wird gepinnt, weil der RSC-Beweis in Step 5 genau für diese Fassung gilt.
 
 - [ ] **Step 4: Temporäre RSC-Probe anlegen**
 
-Eine Server Component **ohne** `"use client"`, die aus `react-icons/pi` importiert. Das ist der einzige Aufbau, der Falle 7 sichtbar macht.
+Eine Server Component **ohne** `"use client"`, die aus `react-icons/pi` importiert. Das ist der einzige Aufbau, der Falle 7 sichtbar macht — und er bildet genau die Lage von `_ui/ikonen.tsx` nach Task 2 ab.
 
 ```tsx
-// src/app/m/lagerbuch/_ui/rscProbe/page.tsx
-// TEMPORÄR — wird in Step 6 wieder gelöscht. Belegt, dass react-icons/pi in
+// src/app/m/lagerbuch/rscProbe/page.tsx
+// TEMPORÄR — wird in Step 6 wieder geloescht. Belegt, dass react-icons/pi in
 // der RSC-Ebene traegt: kein "use client", Import auf Modulebene.
 import { PiSquaresFour } from "react-icons/pi";
 
@@ -131,180 +130,62 @@ export default function RscProbe() {
 - [ ] **Step 5: Die Probe abrufen — das ist der Beweis**
 
 ```bash
-pnpm dev &
-sleep 12
-curl -s -o /tmp/probe.html -w "HTTP %{http_code}\n" http://lagerbuch.localtest.me:3000/m/lagerbuch/_ui/rscProbe
+pnpm dev > /tmp/lagerbuch-dev.log 2>&1 &
+sleep 15
+curl -s -o /tmp/probe.html -w "HTTP %{http_code}\n" http://lagerbuch.localtest.me:3000/rscProbe
 grep -c "<svg" /tmp/probe.html
 ```
 
 Erwartet: `HTTP 200` und mindestens ein `<svg`.
 
-Bei `HTTP 500`: **nicht weitermachen und nicht `"use client"` daraufsetzen** — das verwandelt Falle 7 in Falle 6 (HTTP 200 mit still falschem Bild). Stattdessen die Antwort lesen (`grep -i "createContext" /tmp/probe.html`) und in der Sitzung melden; dann trägt die Entscheidung E1 der Spec nicht und der Plan muss neu aufgesetzt werden.
+Der Hostname stammt aus `allowedDevOrigins` in `next.config.ts`. Antwortet der Abruf mit 404, prüfe mit `grep -n "rscProbe" /tmp/lagerbuch-dev.log`, ob die Route kompiliert wurde, und ob das Host-Routing die Modulwurzel anders auflöst (`src/app/m/lagerbuch/_lib/host.ts`).
 
-Falls der Modulpfad nicht auflöst (das `_ui`-Verzeichnis ist keine Route), lege die Probe stattdessen unter `src/app/m/lagerbuch/rscProbe/page.tsx` an und rufe `http://lagerbuch.localtest.me:3000/rscProbe` ab. Der Hostname stammt aus `allowedDevOrigins` in `next.config.ts`.
+**Bei `HTTP 500` gilt STOP.** Nicht `"use client"` daraufsetzen — das verwandelt Falle 7 in Falle 6 (HTTP 200 mit still leerer Map und falschem Bild). Stattdessen:
+
+```bash
+grep -i "createContext\|is not a function" /tmp/probe.html /tmp/lagerbuch-dev.log | head
+```
+
+und mit dem Befund als BLOCKED melden. Dann trägt Betreiberentscheidung E1 nicht und der Plan muss neu aufgesetzt werden.
 
 - [ ] **Step 6: Probe wieder entfernen**
 
 ```bash
-rm -rf src/app/m/lagerbuch/_ui/rscProbe src/app/m/lagerbuch/rscProbe
+rm -rf src/app/m/lagerbuch/rscProbe
 ```
 
 Das Ergebnis des Abrufs ist der bleibende Wert, nicht die Datei.
 
-- [ ] **Step 7: Den neuen Import-Riegel schreiben**
-
-`ikonen.test.ts` prüft heute zweierlei: verbotene Importe **und** den Inhalt von `ikonen.tsx` (36 Namen, Pfadform). Der zweite Teil entfällt mit der Datei; der erste bleibt und wird umgedreht.
-
-Lies zuerst `src/app/m/lagerbuch/_ui/ikonen.test.ts` vollständig — der neue Riegel übernimmt daraus `importSpezifizierer` und die Dateisammlung wortgleich, weil beide bereits gegen Umgehungen gehärtet sind (dynamischer Import, `require`, Re-Export, indirekte Stringvariable).
-
-```ts
-// src/app/m/lagerbuch/_ui/ikonenRiegel.test.ts
-/*
- * DER IMPORT-RIEGEL DES MODULS — Nachfolger von ikonen.test.ts.
- *
- * Das Modul hatte bis 2026-08-12 eine eigene Inline-SVG-Zeichenquelle und
- * verbot JEDES fremde Paket. Betreiberentscheidung E1 kehrt das um:
- * `react-icons/pi` ist ab jetzt die EINE erlaubte Quelle. Die Begruendung —
- * und der gemessene Beleg, dass Falle 7 auf react-icons nicht zutrifft —
- * steht in docs/superpowers/specs/2026-08-12-lagerbuch-ux-verbesserungen-design.md.
- *
- * WARUM DER RIEGEL BLEIBT, obwohl das Verbot faellt: `@ant-design/icons` ist
- * weiterhin toedlich (Falle 7, HTTP 500 schon beim Import, waehrend typecheck,
- * build UND Vitest gruen bleiben), und eine zweite Zeichenquelle neben
- * Phosphor waere ein sichtbarer Stilbruch. Faellt der Riegel ersatzlos, ist
- * die Regel nur noch eine Behauptung im Kommentar.
- *
- * ⚠️ DIESER TEST KANN FALLE 7 NICHT SEHEN. Er liest QUELLTEXT. In Vitest laedt
- * `react` ueber die `default`-Bedingung, Icons rendern dort klaglos. Der
- * Beleg fuer die RSC-Tauglichkeit ist ein echter Abruf (Task 1 Step 5,
- * Task 9).
- */
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-
-const WURZEL = "src/app/m/lagerbuch";
-
-/** Die EINE erlaubte Zeichenquelle des Moduls. */
-const ERLAUBT = "react-icons/pi";
-
-/**
- * Verbotene Quellen. `react-icons` OHNE Set-Suffix steht mit drauf: der
- * Wurzelimport zieht alle Sets und umgeht die Set-Wahl.
- */
-function istVerboteneQuelle(spezifizierer: string): boolean {
-  if (spezifizierer === ERLAUBT) return false;
-  return (
-    spezifizierer === "@ant-design/icons" ||
-    spezifizierer.startsWith("@ant-design/icons/") ||
-    spezifizierer === "lucide-react" ||
-    spezifizierer.startsWith("lucide-react/") ||
-    spezifizierer === "@/core/shell/icons" ||
-    /(?:^|\/)core\/shell\/icons(?:$|\/)/.test(spezifizierer) ||
-    spezifizierer === "react-icons" ||
-    (spezifizierer.startsWith("react-icons/") && spezifizierer !== ERLAUBT)
-  );
-}
-
-/**
- * `\b` vor jedem Schluesselwort ist Absicht: ohne es faengt `reimport("x")`
- * mit. Uebernommen aus ikonen.test.ts.
- */
-function importSpezifizierer(quelle: string): string[] {
-  const muster = /(?:\bfrom|\bimport|\brequire)\s*\(?\s*["']([^"']+)["']/g;
-  const treffer: string[] = [];
-  for (const m of quelle.matchAll(muster)) treffer.push(m[1]!);
-  return treffer;
-}
-
-function quelldateien(verzeichnis: string): string[] {
-  const gefunden: string[] = [];
-  for (const eintrag of readdirSync(verzeichnis)) {
-    const pfad = join(verzeichnis, eintrag);
-    if (statSync(pfad).isDirectory()) {
-      gefunden.push(...quelldateien(pfad));
-    } else if (/\.tsx?$/.test(eintrag) && !/\.test\.tsx?$/.test(eintrag)) {
-      gefunden.push(pfad);
-    }
-  }
-  return gefunden;
-}
-
-describe("Zeichenquelle des Lagerbuch-Moduls", () => {
-  const dateien = quelldateien(WURZEL);
-
-  it("findet ueberhaupt Quelldateien", () => {
-    expect(dateien.length).toBeGreaterThan(10);
-  });
-
-  it("importiert keine verbotene Zeichenquelle", () => {
-    const befunde = dateien.flatMap((datei) =>
-      importSpezifizierer(readFileSync(datei, "utf8"))
-        .filter(istVerboteneQuelle)
-        .map((s) => `${datei} importiert ${JSON.stringify(s)}`),
-    );
-    expect(befunde).toEqual([]);
-  });
-
-  it("kennt die alte modul-eigene Zeichenquelle nicht mehr", () => {
-    const befunde = dateien.flatMap((datei) =>
-      importSpezifizierer(readFileSync(datei, "utf8"))
-        .filter((s) => /(?:^|\/)_ui\/ikonen$/.test(s) || s === "./ikonen")
-        .map((s) => `${datei} importiert ${JSON.stringify(s)}`),
-    );
-    expect(befunde).toEqual([]);
-  });
-
-  it.each([
-    { name: "Wurzelimport", quelle: 'import { PiX } from "react-icons";' },
-    { name: "fremdes Set", quelle: 'import { FaX } from "react-icons/fa";' },
-    { name: "antd-Icons", quelle: 'import "@ant-design/icons";' },
-    { name: "lucide", quelle: 'void import("lucide-react");' },
-    { name: "core-Icons", quelle: 'require("@/core/shell/icons");' },
-  ])("erkennt $name als verboten", ({ quelle }) => {
-    expect(importSpezifizierer(quelle).some(istVerboteneQuelle)).toBe(true);
-  });
-
-  it("laesst react-icons/pi durch", () => {
-    const quelle = 'import { PiPlus } from "react-icons/pi";';
-    expect(importSpezifizierer(quelle).some(istVerboteneQuelle)).toBe(false);
-  });
-});
-```
-
-- [ ] **Step 8: Test laufen lassen — er muss JETZT FEHLSCHLAGEN**
+- [ ] **Step 7: Kette prüfen**
 
 ```bash
-pnpm vitest run src/app/m/lagerbuch/_ui/ikonenRiegel.test.ts
+pnpm typecheck && pnpm lint && pnpm vitest run
 ```
 
-Erwartet: rot. Der Test „kennt die alte modul-eigene Zeichenquelle nicht mehr" findet 32 Dateien, die `./ikonen` bzw. `_ui/ikonen` importieren — das ist genau die Arbeit von Task 2. Der Test ist damit die Fortschrittsanzeige der Migration.
+Erwartet: alles grün. Diese Task ändert nur `package.json` — schlägt hier etwas fehl, liegt es nicht an ihr.
 
-Die übrigen Fälle müssen bereits grün sein. Sind sie es nicht, importiert eine Datei schon heute eine verbotene Quelle — das melden, nicht wegkonfigurieren.
-
-- [ ] **Step 9: `ikonen.test.ts` noch NICHT löschen**
-
-Sie bleibt bis Task 2 grün und schützt `ikonen.tsx`, solange die 52 Stellen es noch nutzen. Zwei Riegel nebeneinander sind hier für die Dauer einer Task richtig.
-
-- [ ] **Step 10: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add package.json pnpm-lock.yaml src/app/m/lagerbuch/_ui/ikonenRiegel.test.ts
+git add package.json pnpm-lock.yaml
 git commit -m "$(cat <<'EOF'
-feat(lagerbuch): react-icons aufnehmen und den Import-Riegel umdrehen
+build(lagerbuch): react-icons 5.7.0 aufnehmen
 
-Betreiberentscheidung E1: react-icons/pi (Phosphor) wird die eine
-Zeichenquelle des Moduls; das bisherige Verbot jedes fremden Pakets faellt.
+Betreiberentscheidung E1: react-icons/pi (Phosphor) wird die Zeichenquelle des
+Moduls; das bisherige Verbot jedes fremden Pakets faellt.
 
 Der RSC-Beweis ist gefuehrt, nicht angenommen: eine Server Component ohne
 "use client", die aus react-icons/pi importiert, antwortet mit HTTP 200 und
-liefert das SVG aus. Falle 7 trifft das Paket nicht -- seine exports-Map hat
-keine node-Bedingung, iconContext guardet createContext, und IconBase faellt
-ohne Context auf DefaultContext zurueck.
+liefert das SVG aus. Das ist genau die Lage, in die _ui/ikonen.tsx in Task 2
+kommt -- die Datei traegt kein "use client" und wird von Server Components
+gelesen.
 
-ikonenRiegel.test.ts ist absichtlich noch rot: er zaehlt die 32 Dateien, die
-noch die alte Quelle importieren, und ist damit die Fortschrittsanzeige der
-Migration in Task 2. ikonen.test.ts bleibt solange daneben bestehen.
+Falle 7 trifft das Paket nicht: seine exports-Map hat keine node-Bedingung,
+iconContext guardet createContext, und IconBase faellt ohne Context auf
+DefaultContext zurueck.
+
+Kein optimizePackageImports-Eintrag: Next 16.3.0 fuehrt react-icons/pi bereits
+in seiner eingebauten Liste (server/config.js:1194).
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
@@ -313,151 +194,337 @@ EOF
 
 ---
 
-## Task 2: Die 52 Verwendungsstellen migrieren
+## Task 2: `ikonen.tsx` auf Phosphor umstellen
+
+**Die Form dieser Task hat sich gegenüber dem ersten Entwurf geändert** (Betreiberentscheidung vom 12.08.2026, nach dem Vorab-Scan). Ursprünglich sollte `_ui/ikonen.tsx` ersatzlos entfallen und alle 52 Stellen direkt aus `react-icons/pi` importieren. Das geht nicht:
+
+`IkonName` ist **kein reiner UI-Typ**. Er steht als Datenfeld in serialisierbaren Anzeigezeilen, die von Server Components in Client-Inseln wandern — `CheckErgebnisChip.zeichen: IkonName | null` (`checks/ChecksTabelle.tsx:12`), ebenso `checks/[id]/CheckDetailTabellen.tsx:12`. Eine Komponentenreferenz an dieser Stelle wäre Falle 6.
+
+Die **String-Union bleibt deshalb**; nur ihre Auflösung wechselt. `ikonen.tsx` hört auf, SVG-Pfade zu malen, und wird zur Zuordnungsdatei Name → Phosphor-Komponente. Die 52 `<Ikone name="…">`-Aufrufe bleiben **unverändert** — der Diff ist dadurch klein und auf wenige Dateien beschränkt.
 
 **Files:**
-- Delete: `src/app/m/lagerbuch/_ui/ikonen.tsx`, `src/app/m/lagerbuch/_ui/ikonen.test.ts`
-- Modify: 32 Dateien (Liste unten)
+- Modify: `src/app/m/lagerbuch/_ui/ikonen.tsx` (Kern der Task)
+- Modify: `src/app/m/lagerbuch/_ui/ikonen.test.ts` (vier Zusicherungen)
+- Modify: `src/app/m/lagerbuch/verwaltung/(arbeit)/geraete/GeraeteListe.test.tsx:25,230,231`
+- Modify: `src/app/m/lagerbuch/verwaltung/(arbeit)/checks/ChecksTabelle.test.tsx:14,101`
+- Modify: `src/app/m/lagerbuch/verwaltung/(arbeit)/checks/[id]/CheckDetailTabellen.test.tsx:14,156`
+- **Unverändert:** die 31 Dateien mit `<Ikone>`-JSX, `Chip.tsx`, `ChecksTabelle.tsx`, `CheckDetailTabellen.tsx`
 
 **Interfaces:**
-- Consumes: `react-icons/pi` (Task 1), `ikonenRiegel.test.ts` als Gate
-- Produces: keine `<Ikone>`-Aufrufe mehr im Modul; alle Zeichen kommen als `Pi*`-Komponenten
+- Consumes: `react-icons/pi` (Task 1, mit RSC-Beleg)
+- Produces: `Ikone({ name, groesse })` unverändert in der Signatur, aber Phosphor rendernd; jedes gerenderte Zeichen trägt `data-zeichen={name}`; `IkonName` unverändert als 36er-Union; `PFADE` **entfällt**
 
-### Die Zuordnung
+- [ ] **Step 1: Die Zuordnung schreiben**
 
-Vollständig; alle Namen sind gegen `react-icons@5.7.0/pi/index.d.ts` geprüft.
-
-| `IkonName` | Phosphor | `IkonName` | Phosphor |
-|---|---|---|---|
-| `pfeil-links` | `PiArrowLeft` | `info` | `PiInfo` |
-| `pfeil-rechts` | `PiArrowRight` | `erneut` | `PiArrowsClockwise` |
-| `chevron-rechts` | `PiCaretRight` | `zuruecksetzen` | `PiArrowCounterClockwise` |
-| `chevron-links` | `PiCaretLeft` | `verketten` | `PiLink` |
-| `plus` | `PiPlus` | `entketten` | `PiLinkBreak` |
-| `minus` | `PiMinus` | `tabelle` | `PiTable` |
-| `kreuz` | `PiX` | `liste` | `PiList` |
-| `haken` | `PiCheck` | `scannen` | `PiBarcode` |
-| `stift` | `PiPencilSimple` | `qr` | `PiQrCode` |
-| `papierkorb` | `PiTrash` | `schluessel` | `PiKey` |
-| `archiv` | `PiArchive` | `taschenlampe` | `PiFlashlight` |
-| `kopieren` | `PiCopy` | `auf-ab` | `PiCaretUpDown` |
-| `herunterladen` | `PiDownloadSimple` | `warnung` | `PiWarning` |
-| `hochladen` | `PiUploadSimple` | `medizin` | `PiHeartbeat` |
-| `drucken` | `PiPrinter` | `objekt` | `PiPackage` |
-| `lupe` | `PiMagnifyingGlass` | `sauerstoff` | `PiWind` |
-| | | `akku` | `PiBatteryCharging` |
-| | | `verfall` | `PiCalendarX` |
-| | | `handlager-griff` | `PiHandGrabbing` |
-| | | `fahrzeug` | `PiTruck` |
-
-### Die Umschreibregel
+Alle 50 Namen sind gegen `react-icons@5.7.0/pi/index.d.ts` geprüft und existieren.
 
 ```tsx
-// vorher
-<Ikone name="chevron-rechts" />
-<Ikone name="warnung" groesse={11} />
+/*
+ * DIE EINE ZEICHENQUELLE DES MODULS — die Union ist die Autoritaet, die
+ * Aufloesung liegt bei Phosphor (react-icons/pi).
+ *
+ * Bis 2026-08-12 malte diese Datei 36 SVG-Pfade selbst, weil das Modul KEIN
+ * fremdes Zeichenpaket haben durfte (Falle 7: @ant-design/icons ergibt in
+ * einer Server Component HTTP 500 schon beim Import). Betreiberentscheidung
+ * E1 kehrt das um; der Beleg, dass react-icons davon nicht betroffen ist,
+ * steht in der Spec und wurde in Task 1 an einem echten Abruf gemessen.
+ *
+ * WAS SICH NICHT AENDERT UND SICH NICHT AENDERN DARF:
+ *
+ *  * KEIN "use client". Diese Datei exportiert den TYP `IkonName`, und der
+ *    steht als DATENFELD in serialisierbaren Anzeigezeilen
+ *    (`CheckErgebnisChip.zeichen`, `checks/ChecksTabelle.tsx:12`), die von
+ *    Server Components gelesen werden. Wer hier "use client" ergaenzt, macht
+ *    aus Falle 7 die Falle 6: HTTP 200 mit leerer Map und still falschem
+ *    Bild. Genau das ist `core/shell/icons.ts` bis 2026-08-01 passiert.
+ *  * DIE UNION BLEIBT DIE AUTORITAET. `ikonen.test.ts` prueft jeden literal
+ *    benutzten Namen gegen sie. Wer ein Zeichen ergaenzt, ergaenzt HIER.
+ *
+ * WAS NEU IST: `data-zeichen`. Das Attribut traegt den Namen ins DOM, damit
+ * Tests „an dieser Stelle steht das Warnzeichen" pruefen koennen, ohne an
+ * SVG-Pfaddaten zu kleben. Die alten Tests verglichen `PFADE.warnung` gegen
+ * ein `d`-Attribut; Phosphor-Zeichen bestehen aus mehreren Pfaden, und ein
+ * Paket-Update aenderte die Zusicherung still.
+ *
+ * WER MEHR ZEICHEN BRAUCHT, ALS DIE UNION FUEHRT, importiert direkt aus
+ * `react-icons/pi`. Die Union ist nur dort Pflicht, wo ein Name ueber eine
+ * Komponentengrenze wandert.
+ */
+import type { IconType } from "react-icons/lib";
+import {
+  PiArchive, PiArrowCounterClockwise, PiArrowLeft, PiArrowRight,
+  PiArrowsClockwise, PiBarcode, PiBatteryCharging, PiCalendarX,
+  PiCaretLeft, PiCaretRight, PiCaretUpDown, PiCheck, PiCopy,
+  PiDownloadSimple, PiFlashlight, PiHandGrabbing, PiHeartbeat, PiInfo,
+  PiKey, PiLink, PiLinkBreak, PiList, PiMagnifyingGlass, PiMinus,
+  PiPackage, PiPencilSimple, PiPlus, PiPrinter, PiQrCode, PiTable,
+  PiTrash, PiTruck, PiUploadSimple, PiWarning, PiWind, PiX,
+} from "react-icons/pi";
 
-// nachher
-<PiCaretRight size={18} aria-hidden focusable="false" />
-<PiWarning size={11} aria-hidden focusable="false" />
+/** 28 reine UI-Zeichen und 8 Fachzeichen. Reihenfolge wie Spec 6.5.2. */
+export type IkonName =
+  // ── 28 reine UI-Zeichen ──────────────────────────────────────────────────
+  | "pfeil-links" | "pfeil-rechts" | "chevron-rechts" | "chevron-links"
+  | "plus" | "minus" | "kreuz" | "haken" | "stift" | "papierkorb" | "archiv"
+  | "kopieren" | "herunterladen" | "hochladen" | "drucken" | "lupe" | "info"
+  | "erneut" | "zuruecksetzen" | "verketten" | "entketten" | "tabelle" | "liste"
+  | "scannen" | "qr" | "schluessel" | "taschenlampe" | "auf-ab"
+  // ── 8 Fachzeichen (Spec 6.5.4) ───────────────────────────────────────────
+  | "warnung" | "medizin" | "objekt" | "sauerstoff" | "akku" | "verfall"
+  | "handlager-griff" | "fahrzeug";
+
+/** Ein Phosphor-Zeichen je Name. Loest `PFADE` ab. */
+export const ZEICHEN: Record<IkonName, IconType> = {
+  // ── UI ───────────────────────────────────────────────────────────────────
+  "pfeil-links": PiArrowLeft,
+  "pfeil-rechts": PiArrowRight,
+  "chevron-rechts": PiCaretRight,
+  "chevron-links": PiCaretLeft,
+  plus: PiPlus,
+  minus: PiMinus,
+  kreuz: PiX,
+  haken: PiCheck,
+  stift: PiPencilSimple,
+  papierkorb: PiTrash,
+  archiv: PiArchive,
+  kopieren: PiCopy,
+  herunterladen: PiDownloadSimple,
+  hochladen: PiUploadSimple,
+  drucken: PiPrinter,
+  lupe: PiMagnifyingGlass,
+  info: PiInfo,
+  erneut: PiArrowsClockwise,
+  zuruecksetzen: PiArrowCounterClockwise,
+  verketten: PiLink,
+  entketten: PiLinkBreak,
+  tabelle: PiTable,
+  liste: PiList,
+  scannen: PiBarcode,
+  qr: PiQrCode,
+  schluessel: PiKey,
+  taschenlampe: PiFlashlight,
+  "auf-ab": PiCaretUpDown,
+  // ── Fachzeichen (Spec 6.5.4) ─────────────────────────────────────────────
+  warnung: PiWarning,
+  medizin: PiHeartbeat,
+  objekt: PiPackage,
+  sauerstoff: PiWind,
+  akku: PiBatteryCharging,
+  verfall: PiCalendarX,
+  "handlager-griff": PiHandGrabbing,
+  fahrzeug: PiTruck,
+};
+
+/**
+ * Alle Zeichen sind dekorativ. Ein Zeichen ohne sichtbaren Nachbartext wird
+ * am Bedienelement benannt; der Scanner-Taschenlampenschalter traegt dort
+ * zusaetzlich `aria-pressed`.
+ *
+ * `aria-hidden`, `focusable` und `flex:none` stehen HIER und nicht an den 52
+ * Aufrufstellen: react-icons setzt keines davon von selbst, und eine Regel,
+ * die an 52 Stellen wiederholt werden muss, wird an der 53. vergessen.
+ */
+export function Ikone({
+  name,
+  groesse = 18,
+}: {
+  name: IkonName;
+  groesse?: number;
+}) {
+  const Zeichen = ZEICHEN[name];
+  return (
+    <Zeichen
+      size={groesse}
+      aria-hidden
+      focusable="false"
+      data-zeichen={name}
+      style={{ flex: "none" }}
+    />
+  );
+}
 ```
 
-Drei Punkte, die dabei **nicht** verloren gehen dürfen:
+**`PFADE` wird ersatzlos entfernt.** Drei Testdateien importieren es noch — sie werden in Step 3 umgestellt.
 
-1. **`groesse` → `size`.** react-icons rendert ohne Angabe `1em`. Die alte Vorgabe war `18`; wo `groesse` nicht gesetzt war, wird `size={18}` **explizit** geschrieben.
-2. **`aria-hidden` und `focusable="false"` mitschreiben.** `ikonen.tsx` setzte beide fest, react-icons tut das nicht. Alle Zeichen im Modul sind dekorativ; der Name sitzt am Bedienelement. Ohne `aria-hidden` sagt ein Screenreader ein leeres Grafikelement an.
-3. **`style={{ flex: "none" }}` prüfen.** `ikonen.tsx` setzte es fest. Wo ein Zeichen in einem Flex-Container neben Text steht (Chips, Knöpfe, Kacheln), muss es mitwandern, sonst schrumpft das Zeichen bei knappem Platz. Im Zweifel mitschreiben — es ist harmlos.
+- [ ] **Step 2: `ikonen.test.ts` anpassen — vier Zusicherungen, jede mit eigener Begründung**
 
-### Betroffene Dateien
+Der AST-Riegel dieser Datei bleibt **vollständig erhalten**. Er ist stärker als ein Regex-Scan (er löst lokale `const`-Aliase lexikalisch auf) und prüft weiterhin genau das Richtige. Vier Stellen brechen durch die Umstellung:
 
-`_ui/`: `BarcodeScanner.tsx`, `HelferRahmen.tsx`, `Gate.tsx`, `Suchfeld.tsx`, `LoeschButton.tsx`, `Brotkrume.tsx`, `CheckFlow.tsx`, `Chip.tsx`, `ArtikelSuche.tsx`, `Entnahme.tsx`, `Kachel.tsx`, `FahrzeugWahl.tsx`, `Stepper.tsx`
+**(a) `:346` „nur ikonen.tsx und Plakette.tsx erzeugen native SVGs" und `:350` „haelt die beiden SVG-Ausnahmen namentlich fest".** `ikonen.tsx` erzeugt kein rohes `<svg>` mehr — Phosphor tut das. Der Test bei `:350` prüft ausdrücklich, dass **jede** Ausnahme noch gebraucht wird (`${datei} braucht keine SVG-Ausnahme mehr`) und wird deshalb rot. `ROHE_SVG_QUELLEN` schrumpft auf `["_ui/Plakette.tsx"]`; die Zusicherung bei `:351` wird entsprechend `.toEqual(["_ui/Plakette.tsx"])`.
 
-`verwaltung/(arbeit)/`: `sauerstoff/NeuFlasche.tsx`, `verfall/AussondernRow.tsx`, `geraete/GeraeteListe.tsx`, `geraete/NeuGeraet.tsx`, `artikel/ArtikelTable.tsx`, `artikel/NeuArtikel.tsx`, `fahrzeuge/NeuFahrzeug.tsx`, `fahrzeuge/FahrzeugeListe.tsx`, `fahrzeuge/[id]/TemplateVerknuepfung.tsx`, `fahrzeuge/[id]/SollEditor.tsx`, `bz/NeuBzGeraet.tsx`, `bz/BzListe.tsx`, `vorlagen/NeuTemplate.tsx`, `vorlagen/[id]/TemplateAktionen.tsx`, `vorlagen/[id]/TemplatePosEditor.tsx`, `tokens/NeuToken.tsx`, `tokens/TokenTable.tsx`, `bestellung/BestellListe.tsx`
+**(b) `:371` „ikonen.tsx traegt weder Import noch use-client-Direktive".** Die Datei trägt jetzt **zwei** Importe (`react-icons/lib` als Typ, `react-icons/pi` als Werte). Die Zusicherung wird umgestellt — und zwar so, dass sie schärfer prüft statt nur nachzugeben:
 
-- [ ] **Step 1: Die vollständige Liste erzeugen**
-
-Nicht aus diesem Plan abtippen — der Stand im Code ist die Wahrheit.
-
-```bash
-grep -rn "<Ikone\|from \"./ikonen\"\|_ui/ikonen" src/app/m/lagerbuch --include="*.tsx" --include="*.ts" | grep -v "/ikonen.t"
+```ts
+  it("ikonen.tsx importiert ausschliesslich react-icons und traegt kein use-client", () => {
+    const quelle = readFileSync(join(WURZEL, "_ui/ikonen.tsx"), "utf8");
+    const source = ts.createSourceFile(
+      "ikonen.tsx", quelle, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX,
+    );
+    const spezifizierer = source.statements
+      .filter(ts.isImportDeclaration)
+      .map((s) => (ts.isStringLiteral(s.moduleSpecifier) ? s.moduleSpecifier.text : ""));
+    // Genau die zwei erlaubten Quellen, nichts sonst — kein antd, kein CSS-Modul,
+    // nichts aus dem Modul selbst (das machte die Datei zyklisch importierbar).
+    expect([...spezifizierer].sort()).toEqual(["react-icons/lib", "react-icons/pi"]);
+    expect(source.statements.filter(ts.isImportEqualsDeclaration).length).toBe(0);
+    /*
+     * DAS "use client"-VERBOT BLEIBT UNVERAENDERT und ist die wichtigste Zeile
+     * dieses Tests: die Datei exportiert `IkonName`, und der Typ steht als
+     * Datenfeld in Anzeigezeilen, die Server Components lesen. Eine Direktive
+     * hier macht aus Falle 7 die Falle 6 — HTTP 200 mit still falschem Bild.
+     */
+    expect(
+      source.statements.some(
+        (s) => ts.isExpressionStatement(s) && ts.isStringLiteral(s.expression)
+          && s.expression.text === "use client",
+      ),
+    ).toBe(false);
+  });
 ```
 
-- [ ] **Step 2: `Chip.tsx` zuerst migrieren**
+**(c) Der Block „Ikonen: die Union ist die Autoritaet" (`:389-419`).** Er prüft heute `PFADE`. Die Namensprüfungen wandern auf `ZEICHEN` und bleiben wertvoll; die Pfadprüfungen entfallen mit den Pfaden.
 
-`Chip` nimmt einen Zeichennamen als **Prop** (`zeichen`) und wird von Server Components aufgerufen (z. B. `geraete/[id]/page.tsx:36`). Es ist damit die einzige Stelle, an der ein Zeichenname über eine Komponentengrenze wandert — und die einzige, an der Falle 6 lauern kann.
+```ts
+describe("Ikonen: die Union ist die Autoritaet", () => {
+  it("fuehrt genau 36 Namen", () => {
+    expect(Object.keys(ZEICHEN)).toHaveLength(36);
+  });
 
-Lies `src/app/m/lagerbuch/_ui/Chip.tsx` und prüfe, ob es `"use client"` trägt.
+  it("fuehrt die acht Fachzeichen namentlich", () => {
+    const fach: IkonName[] = [
+      "warnung", "medizin", "objekt", "sauerstoff",
+      "akku", "verfall", "handlager-griff", "fahrzeug",
+    ];
+    for (const name of fach) expect(ZEICHEN[name], name).toBeTruthy();
+  });
 
-**Die Prop bleibt eine String-Union, keine Komponente.** Die Auflösung Schlüssel→Komponente findet **innerhalb** von `Chip` statt. Gäbe `geraete/[id]/page.tsx` eine Komponentenreferenz weiter, wäre das Falle 6: HTTP 500 für die ganze Seite, für `build` und Vitest unsichtbar.
+  it("bildet jeden Namen auf eine Komponente ab", () => {
+    for (const [name, Zeichen] of Object.entries(ZEICHEN)) {
+      expect(typeof Zeichen, name).toBe("function");
+    }
+  });
 
-- [ ] **Step 3: Test von Chip laufen lassen**
-
-```bash
-pnpm vitest run src/app/m/lagerbuch/_ui/Chip.test.tsx
+  /*
+   * Loest die alte Pruefung „kein Pfad ist doppelt vergeben" ab. Sie hatte
+   * einen Zweck, der bleibt: zwei Namen auf DASSELBE Zeichen abzubilden ist
+   * fast immer ein Copy-Paste-Fehler in der Tabelle, und im Bild sind die
+   * beiden Stellen danach nicht mehr unterscheidbar.
+   */
+  it("kein Zeichen ist doppelt vergeben", () => {
+    const werte = Object.values(ZEICHEN);
+    expect(new Set(werte).size).toBe(werte.length);
+  });
+});
 ```
 
-Erwartet: grün. Der Test prüft vermutlich SVG-Attribute (`width`, `height`, `aria-hidden`) — Phosphor liefert andere `d`-Pfade, also müssen Zusicherungen auf konkrete Pfade angepasst werden. Zusicherungen auf `aria-hidden`, `width` und `height` müssen **ohne Änderung** grün bleiben; tun sie es nicht, fehlt eine der drei Regeln oben.
+Der Import am Kopf der Datei wechselt von `PFADE` auf `ZEICHEN`.
 
-- [ ] **Step 4: Die übrigen 31 Dateien migrieren**
+**(d) `istVerboteneQuelle` ergänzen.** Der Riegel kennt heute `@ant-design/icons`, `lucide-react` und `core/shell/icons`. `react-icons/pi` ist die neue erlaubte Quelle; die **falschen** Formen müssen dazu:
 
-Datei für Datei. Nach jeder dritten Datei:
-
-```bash
-pnpm typecheck
+```ts
+  // Die EINE erlaubte Zeichenquelle des Moduls.
+  const ERLAUBTE_ZEICHENQUELLE = "react-icons/pi";
 ```
 
-- [ ] **Step 5: Die alte Quelle löschen**
+und in `istVerboteneQuelle` ergänzt:
 
-```bash
-git rm src/app/m/lagerbuch/_ui/ikonen.tsx src/app/m/lagerbuch/_ui/ikonen.test.ts
+```ts
+      // Der Wurzelimport zieht ALLE Sets (9.072 Zeichen) und umgeht die
+      // Set-Wahl; ein fremdes Set waere ein zweiter Zeichenstil im Modul.
+      spezifizierer === "react-icons" ||
+      (spezifizierer.startsWith("react-icons/")
+        && spezifizierer !== ERLAUBTE_ZEICHENQUELLE
+        && spezifizierer !== "react-icons/lib") ||
 ```
 
-- [ ] **Step 6: Der Riegel muss jetzt grün sein**
+`react-icons/lib` bleibt erlaubt — von dort kommt der Typ `IconType`, kein Zeichen.
 
-```bash
-pnpm vitest run src/app/m/lagerbuch/_ui/ikonenRiegel.test.ts
+Ergänze in der Fixture-Tabelle am Ende der Datei (`:422+`) je einen Negativfall für `"react-icons"` (Wurzel) und `"react-icons/fa"` (fremdes Set) sowie einen Positivfall für `"react-icons/pi"`, im Format der dort vorhandenen Fälle.
+
+- [ ] **Step 3: Die drei `PFADE`-Tests auf `data-zeichen` umstellen**
+
+Sie sichern zu, dass an einer bestimmten Stelle ein bestimmtes Zeichen steht. Diese Aussage bleibt — nur ihr Anker wechselt von Pfaddaten auf den Namen.
+
+`geraete/GeraeteListe.test.tsx:25,230,231`:
+
+```tsx
+// Import PFADE entfaellt ersatzlos.
+
+// vorher:
+//   expect(query("tr[data-row-key='med-faellig'] path").getAttribute("d")).toBe(PFADE.medizin);
+// nachher:
+expect(query("tr[data-row-key='med-faellig'] [data-zeichen]")
+  .getAttribute("data-zeichen")).toBe("medizin");
+expect(query("tr[data-row-key='obj-faellig'] [data-zeichen]")
+  .getAttribute("data-zeichen")).toBe("objekt");
 ```
 
-Erwartet: grün — insbesondere „kennt die alte modul-eigene Zeichenquelle nicht mehr". Bleibt er rot, ist eine Datei übersehen; die Fehlermeldung nennt sie.
+`checks/ChecksTabelle.test.tsx:14,101` und `checks/[id]/CheckDetailTabellen.test.tsx:14,156` sammeln je eine **Liste**. Lies die Umgebung der Zeile und stelle die Sammlung entsprechend um — aus `…map(el => el.getAttribute("d"))` gegen `[PFADE.warnung, PFADE.sauerstoff]` wird `…map(el => el.getAttribute("data-zeichen"))` gegen `["warnung", "sauerstoff"]`.
 
-- [ ] **Step 7: Volle Testkette**
+**Der Selektor muss mitwandern.** Die alten Tests selektierten `path`; `data-zeichen` sitzt auf dem `<svg>`, nicht auf dem `<path>`. Wo der bestehende Selektor `path` nennt, wird er zu `[data-zeichen]`.
+
+- [ ] **Step 4: Volle Kette**
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm vitest run
 ```
 
-Erwartet: grün. Testdateien, die auf `d`-Attribute der alten Pfade zusichern (z. B. `BzLogbuchTabelle.test.tsx:131`), schlagen fehl und werden auf die Phosphor-Pfade angepasst — **die Zusicherung wird nicht gelöscht**, sondern auf den neuen Wert gezogen. Sie hält fest, dass an dieser Stelle ein *bestimmtes* Zeichen steht.
-
-- [ ] **Step 8: Sichtprüfung im Browser**
+Erwartet: grün. Bleibt ein Test rot, der `d`-Attribute vergleicht, ist eine `PFADE`-Nutzung übersehen:
 
 ```bash
-pnpm dev &
-sleep 12
-curl -s -o /dev/null -w "verwaltung HTTP %{http_code}\n" http://lagerbuch.localtest.me:3000/verwaltung
+grep -rn "PFADE" src/app/m/lagerbuch --include="*.ts" --include="*.tsx" | grep -v "_actions/\|_lib/"
 ```
 
-Erwartet: `HTTP 200`. Das ist der erste echte RSC-Abruf mit migrierten Zeichen.
+- [ ] **Step 5: Der echte Abruf**
 
-- [ ] **Step 9: Commit**
+Der entscheidende Schritt: `ikonen.tsx` liegt jetzt mit `react-icons/pi` in der RSC-Ebene. Vitest kann das strukturell nicht prüfen.
+
+```bash
+pnpm dev > /tmp/lagerbuch-dev.log 2>&1 &
+sleep 15
+for pfad in /verwaltung /verwaltung/artikel /verwaltung/checks /verwaltung/geraete; do
+  curl -s -o /tmp/seite.html -w "$pfad HTTP %{http_code}  " "http://lagerbuch.localtest.me:3000$pfad"
+  grep -c "data-zeichen" /tmp/seite.html
+done
+```
+
+Erwartet: überall `HTTP 200` und `data-zeichen` im Markup. Die vier Pfade sind bewusst gewählt: `/verwaltung/checks` rendert `ChecksTabelle` mit dem `zeichen`-Datenfeld — genau die Grenze, an der Falle 6 zuschlüge.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add -A
 git commit -m "$(cat <<'EOF'
-feat(lagerbuch): Zeichen auf react-icons/pi migrieren
+feat(lagerbuch): Zeichen kommen aus react-icons/pi statt aus eigenen Pfaden
 
-Alle 52 Verwendungsstellen in 32 Dateien; _ui/ikonen.tsx und ikonen.test.ts
-entfallen. Betreiberentscheidung E2: Vollmigration statt Koexistenz -- die
-alten Pfade waren lucide-Strichzeichnungen, Phosphor rendert gefuellt, und
-beides nebeneinander waere ein sichtbarer Stilbruch.
+_ui/ikonen.tsx malt keine SVG-Pfade mehr, sondern ordnet jedem Namen ein
+Phosphor-Zeichen zu. Die 52 <Ikone name="...">-Aufrufe bleiben unveraendert.
 
-Drei Eigenschaften, die ikonen.tsx fest setzte, wandern jetzt an jede
-Aufrufstelle mit, weil react-icons sie nicht von selbst setzt: size (sonst
-1em statt 18), aria-hidden/focusable (alle Zeichen sind dekorativ, der Name
-sitzt am Bedienelement) und flex:none neben Text.
+DIE UNION BLEIBT, und das ist keine Bequemlichkeit: `IkonName` steht als
+DATENFELD in serialisierbaren Anzeigezeilen (CheckErgebnisChip.zeichen,
+checks/ChecksTabelle.tsx:12), die Server Components an Client-Inseln reichen.
+Eine Komponentenreferenz an dieser Stelle waere Falle 6. Der urspruengliche
+Plan wollte die Datei ersatzlos loeschen; der Vorab-Scan hat den Konflikt vor
+dem ersten Commit gefunden.
 
-Chip.tsx behaelt seine String-Union-Prop: der Zeichenname wandert dort ueber
-eine Komponentengrenze aus Server Components heraus, eine Komponentenreferenz
-waere Falle 6.
+Ebenfalls hier statt an 52 Aufrufstellen: size, aria-hidden, focusable und
+flex:none. react-icons setzt keines davon von selbst, und eine Regel, die an
+52 Stellen wiederholt werden muss, wird an der 53. vergessen.
+
+Neu ist `data-zeichen`. Drei Tests verglichen bisher `PFADE.warnung` gegen ein
+d-Attribut; Phosphor-Zeichen bestehen aus mehreren Pfaden, und ein
+Paket-Update haette die Zusicherung still gebrochen. Der Name im DOM haelt
+dieselbe Aussage, ohne an Pfaddaten zu kleben.
+
+Der AST-Riegel in ikonen.test.ts bleibt vollstaendig -- er ist staerker als
+ein Regex-Scan und prueft weiter jeden literal benutzten Namen gegen die
+Union. Vier Zusicherungen wurden angepasst, keine geloescht: die SVG-Ausnahme
+fuer ikonen.tsx entfaellt (Phosphor rendert jetzt), der Import-Test prueft
+statt "keine Importe" jetzt "genau react-icons/lib und react-icons/pi", die
+PFADE-Pruefungen wandern auf ZEICHEN, und der Wurzelimport von react-icons
+sowie fremde Sets sind neu verboten.
+
+Das "use client"-Verbot fuer ikonen.tsx bleibt unangetastet.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
@@ -471,7 +538,7 @@ EOF
 **Files:**
 - Modify: `src/core/shell/types.ts:22-26`
 - Create: `src/core/shell/navIkonen.tsx`
-- Modify: `src/core/shell/SuiteNav.tsx:136-150`, `:240-250`
+- Modify: `src/core/shell/SuiteNav.tsx:136-150` (nur `navLinks` — **nicht** der App-Switcher bei `:244`)
 - Modify: `src/app/m/lagerbuch/_lib/nav.ts`
 - Create: `src/core/shell/navIkonen.test.tsx`
 
@@ -644,7 +711,11 @@ Der bestehende Kopfkommentar der Datei bleibt unverändert stehen — er erklär
 
 - [ ] **Step 6: `SuiteNav.tsx` rendert das Zeichen**
 
-Lies `src/core/shell/SuiteNav.tsx` um die Zeilen 136-150 und 240-250. Es gibt **zwei** Stellen, an denen ein Eintrag gerendert wird (`navLinks` für die breite Ansicht, `Modulnav`/Drawer für schmal). Beide bekommen `<NavIkone name={eintrag.ikon} />` **vor** `{eintrag.title}`.
+Es gibt **genau eine** Stelle, an der `SuiteNavItem`-Einträge gerendert werden: die Funktion `navLinks(nav, pfad)` in `src/core/shell/SuiteNav.tsx:136-150`. Beide Ansichten rufen sie auf — `Modulnav` direkt (`:179`) und der Drawer über `drawerNavLinks = navLinks(nav, pfad)` (`:255`). **Ein Edit in `navLinks` genügt für beide.**
+
+`<NavIkone name={eintrag.ikon} />` kommt dort **vor** `{eintrag.title}` (`:147`).
+
+⚠️ **Nicht bei Zeile ~244 ansetzen.** Dort steht `modulLinks` — der **App-Switcher**. Seine `eintrag`-Variable ist vom Typ `AppSwitcherEntry` (`types.ts:8-13`) und hat ein Feld `icon: string`, das über `core/shell/icons.ts` gegen `@ant-design/icons` auflöst. Das ist ein anderes Konzept: der Switcher zeigt **Module**, nicht die modulinterne Navigation. Ein `eintrag.ikon` dort ist ein Typfehler, und selbst mit Cast wäre es fachlich falsch.
 
 Der Link braucht dafür eine Flex-Ausrichtung mit `gap: 8`, falls er sie nicht schon hat. Vorhandene Klassennamen dabei nicht ersetzen — ergänzen.
 
@@ -981,10 +1052,12 @@ bleibt, und die Kachel bekommt die Anzahl in die Beschriftung:
 wird zu:
 
 ```tsx
-      .toEqual(["Nächste Kontrolle", "Letzte Kontrolle", "Ø Akku (2 Wechsel)", "Status / Standort"]);
+      .toEqual(["Nächste Kontrolle", "Letzte Kontrolle", "Ø Akku (3 Wechsel)", "Status / Standort"]);
 ```
 
-Die Zahl `2` muss zu den Testdaten dieser Datei passen — lies `bz/[id]/page.test.tsx:230-260` und setze die tatsächliche Anzahl der Kontrollen mit `batterieGewechselt: true` ein. Rate sie nicht; ein falscher Wert macht den Test rot und du weißt nach dem Lauf, welcher richtig ist.
+**`3` ist nachgeschlagen, nicht geraten:** das `beforeEach` der Datei (`:229-253`) legt drei Kontrollen an (`k-neu`, `k-alt`, `k-kaputt`), alle über den Helfer `kontrolle()` (`:98-127`), der `batterieGewechselt: true` fest voreinstellt und in keinem der drei Aufrufe überschrieben wird. `anzahlWechsel` ist `sorted.length` (`domain/bz.ts:130`), also 3.
+
+Prüfe den Wert am Code, bevor du ihn einträgst — ändert eine frühere Task die Testdaten, wandert die Zahl mit.
 
 - [ ] **Step 7: Tests und Abruf**
 
@@ -1524,19 +1597,22 @@ EOF
 
 An `InventurForm.test.tsx` anhängen. Die Datei bringt Harness und Testdaten schon mit (`ZEILEN` mit `a1`/Bestand 12 und `a2`/Bestand 4).
 
+⚠️ **`click()` nimmt einen Selektor-String, kein Element** (`test-dom.tsx:149`: `click(selector: string)`). Für eine bereits aufgelöste Elementreferenz gibt es `clickElement(el: HTMLElement)` (`:156`). Im ganzen Modul wird durchgängig die String-Form benutzt; die Tests unten halten sich daran und legen die Selektoren als Konstanten ab.
+
 ```tsx
+const PLUS = '[aria-label="Ist-Bestand Mullbinde erhöhen"]';
+const MINUS = '[aria-label="Ist-Bestand Mullbinde verringern"]';
+
 describe("±-Knöpfe", () => {
   it("erhöht und verringert den Ist-Wert über wertSetzen", async () => {
     await mount(<InventurForm zeilen={ZEILEN} />);
-    const plus = query('[aria-label="Ist-Bestand Mullbinde erhöhen"]');
-    const minus = query('[aria-label="Ist-Bestand Mullbinde verringern"]');
     const feld = query<HTMLInputElement>('[aria-label="Ist-Bestand Mullbinde"]');
 
     expect(feld.value).toBe("12");
-    await click(plus);
+    await click(PLUS);
     expect(feld.value).toBe("13");
-    await click(minus);
-    await click(minus);
+    await click(MINUS);
+    await click(MINUS);
     expect(feld.value).toBe("11");
   });
 
@@ -1550,10 +1626,10 @@ describe("±-Knöpfe", () => {
   it("lässt eine berührte Zeile eingereicht, auch wenn + und − sich aufheben", async () => {
     mocks.inventurKorrektur.mockResolvedValue({ ok: true, wert: { korrigiert: 0 } });
     await mount(<InventurForm zeilen={ZEILEN} />);
-    await click(query('[aria-label="Ist-Bestand Mullbinde erhöhen"]'));
-    await click(query('[aria-label="Ist-Bestand Mullbinde verringern"]'));
-    await fill(query('[aria-label="Kommentar"]'), "Quartalsinventur");
-    await click(query('[data-rolle="abschluss"]'));
+    await click(PLUS);
+    await click(MINUS);
+    await fill('[aria-label="Kommentar"]', "Quartalsinventur");
+    await click('[data-rolle="abschluss"]');
 
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Quartalsinventur",
@@ -1563,18 +1639,16 @@ describe("±-Knöpfe", () => {
 
   it("zählt eine aufgehobene Änderung nicht als Abweichung", async () => {
     await mount(<InventurForm zeilen={ZEILEN} />);
-    await click(query('[aria-label="Ist-Bestand Mullbinde erhöhen"]'));
-    await click(query('[aria-label="Ist-Bestand Mullbinde verringern"]'));
+    await click(PLUS);
+    await click(MINUS);
     expect(query('[data-rolle="abschluss"]').textContent)
       .toContain("0 Abweichungen");
   });
 
   it("sperrt − bei 0 und + bei 9999", async () => {
     await mount(<InventurForm zeilen={[{ ...ZEILEN[0]!, bestand: 0 }]} />);
-    expect(query('[aria-label="Ist-Bestand Mullbinde verringern"]')
-      .hasAttribute("disabled")).toBe(true);
-    expect(query('[aria-label="Ist-Bestand Mullbinde erhöhen"]')
-      .hasAttribute("disabled")).toBe(false);
+    expect(query(MINUS).hasAttribute("disabled")).toBe(true);
+    expect(query(PLUS).hasAttribute("disabled")).toBe(false);
   });
 });
 ```
@@ -1964,8 +2038,15 @@ test("Inventur: ± verändert den Wert und bucht die Zeile", async ({ page }) =>
 test("Navigation trägt Zeichen und die Seite antwortet", async ({ page }) => {
   const antwort = await page.goto("/verwaltung");
   expect(antwort?.status()).toBe(200);
-  // 15 Nav-Eintraege, jeder mit einem Zeichen.
-  await expect(page.locator("nav svg")).toHaveCount(15, { timeout: 10_000 });
+  /*
+   * ⚠️ NICHT `page.locator("nav svg")`. Die Seite hat ZWEI nav-Landmarken:
+   * die Modulnavigation (SuiteNav.tsx:178) und den App-Switcher
+   * (`aria-label="Module"`, :300-308), dessen Buttons je ein eigenes svg aus
+   * @ant-design/icons tragen. Ein ungefilterter Selektor zaehlt beide und
+   * ergibt 15 + Anzahl sichtbarer Module.
+   */
+  await expect(page.getByTestId("modulnav").locator("svg"))
+    .toHaveCount(15, { timeout: 10_000 });
 });
 
 test("BZ-Übersicht zeigt vier Kennzahlen", async ({ page }) => {
@@ -1975,7 +2056,7 @@ test("BZ-Übersicht zeigt vier Kennzahlen", async ({ page }) => {
 });
 ```
 
-Lies zuerst eine bestehende Datei in `e2e/` — Basis-URL, Anmeldung und Host-Auflösung sind dort schon gelöst und werden übernommen, nicht neu erfunden. Der Nav-Selektor (`nav svg`) muss an die tatsächliche Struktur von `SuiteNav` angepasst werden; nimm ihn aus dem gerenderten HTML von Task 3 Step 7.
+Lies zuerst eine bestehende Datei in `e2e/` — Basis-URL, Anmeldung und Host-Auflösung sind dort schon gelöst und werden übernommen, nicht neu erfunden.
 
 - [ ] **Step 4: Playwright laufen lassen**
 
