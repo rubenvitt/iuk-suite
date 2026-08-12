@@ -31,6 +31,23 @@ import { SCHRIFT, ZIFFERN as ZIFFERN_SUITE } from "@/core/theme/schrift";
  * traegt 0.09em (aus dem alten Lagerbuch), dieses Modul .12em. Beide sind
  * entschieden, keine ist Drift.
  *
+ * ZWEI FORMEN UNTEN, UND DAS IST EINE REGEL, KEIN ZUFALL. Wo die Suite-Rolle
+ * nur traegt, was hier ohnehin gilt, wird sie GESPREADET und hoechstens EINE
+ * abweichende Eigenschaft danach ueberschrieben (`kicker` mit `.12em`;
+ * `meta`, `body` unveraendert). Das ist der Normalfall — und der ganze Zweck
+ * der gemeinsamen Leiter: geteilt wird, was geteilt ist. Wuerden Groesze und
+ * Gewicht hier wieder als Literale ausgeschrieben, waere diese Datei keine
+ * Anpassung mehr, sondern eine Kopie, und `core/theme/schrift.ts` haette
+ * seinen zweiten, heute belegbaren Nutznieszer verloren. Wo die Suite-Rolle
+ * dagegen etwas MITBRINGT, das §4.7 fuer dieses Modul ausdruecklich nicht
+ * will, geht das Spreaden-und-Ueberschreiben nicht — aus einem Spread laesst
+ * sich nichts wieder herausnehmen. `h1`, `h2` und `zahl` picken deshalb
+ * gezielt nur die `fontFamily` und schreiben den Rest selbst aus: betroffen
+ * sind `letterSpacing` (h1, h2) und `lineHeight` (h1, zahl) — §4.7 nennt fuer
+ * diese Rollen keine, und diese Datei hielt schon vor dem Adapter ausdruecklich
+ * fest, dass das Absicht ist (kein Wert, den ein spaeterer Leser fuer geprueft
+ * haelt).
+ *
  * WAS HIER BLEIBT UND NICHT NACH `core` DARF: `lead` (16/600). Die Rolle hat in
  * `lagerbuch` kein Gegenstueck; eine Rolle mit einem Anwender ist eine
  * Konvention, keine Komponente — dieselbe Regel, die den Umzug rechtfertigt.
