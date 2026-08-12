@@ -33,6 +33,14 @@ const geistMono = Geist_Mono({
  *
  * Die GEWICHTE sind aus `lagerbuch/src/app/layout.tsx` uebernommen und keine freie
  * Wahl: ein fehlendes Gewicht laesst der Browser still synthetisch fett rendern.
+ *
+ * ⚠️ AUSNAHME: `IBM_Plex_Mono` traegt zusaetzlich `"700"`, das die Alt-Anwendung
+ * NICHT lud (dort `font: 600 21px var(--mono)` fuer `.tokeninput`). Der Port
+ * setzt `.codefeld` bewusst auf `font: 700 24px/1 var(--lb-mono)` — eine
+ * Erhoehung ueber die Alt-Anwendung hinaus, weil das Feld den sechsstelligen
+ * Zugangscode traegt, der in einer Fahrzeughalle abgelesen und getippt wird.
+ * Ohne das Gewicht in dieser Liste faellt genau dieselbe Falle wie oben: der
+ * Browser rendert 700 still synthetisch fett statt mit dem echten Schnitt.
  */
 const barlow = Barlow({
   subsets: ["latin"],
@@ -48,7 +56,7 @@ const barlowCondensed = Barlow_Condensed({
 });
 const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-mono",
   display: "swap",
 });
