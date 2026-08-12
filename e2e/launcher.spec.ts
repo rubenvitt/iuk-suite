@@ -68,7 +68,9 @@ test("mobil öffnen Titel und Menü-Knopf zwei verschiedene Dinge", async ({ pag
  * des Wertes, den er anzeigt. Diese Abgrenzung ist Absicht, kein fehlender
  * Test — bitte nicht nachrüsten.
  */
-test("was die Verwaltung als Ansprechpartner pflegt, steht im leeren Portal", async ({ page }) => {
+test("was die Verwaltung als Ansprechpartner pflegt, uebersteht den Rundlauf ueber die Datenbank", async ({
+  page,
+}) => {
   await devLogin(page, {
     host: "portal.localtest.me",
     groups: "dashboard-admins",

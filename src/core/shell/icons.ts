@@ -22,8 +22,8 @@ import type { ComponentType } from "react";
  * Registry-Eintrag von `files` (2026-07-30) stand hier `FolderOutlined` nicht
  * drin — der Eintrag trug daraufhin still das Portal-Icon. Kein Fehler, kein
  * Log, nur ein falsches Bild in jeder Kopfzeile. Deshalb ist die Map exportiert
- * und `SuiteNav.test.tsx` prueft sie GEGEN DIE REGISTRY: jedes Modul-Icon muss
- * hier stehen. Wer ein Modul ergaenzt, wird vom Test daran erinnert.
+ * und `AppUmschalter.test.tsx` prueft sie GEGEN DIE REGISTRY: jedes Modul-Icon
+ * muss hier stehen. Wer ein Modul ergaenzt, wird vom Test daran erinnert.
  *
  * DIESE MAP IST CLIENT-ONLY. EINE SERVER COMPONENT DARF SIE NICHT IMPORTIEREN.
  *
@@ -123,8 +123,11 @@ import type { ComponentType } from "react";
  * UND WOZU DANN NOCH DIE EIGENE DATEI? Der Grund, aus dem die Map am 2026-07-30
  * aus `SuiteNav.tsx` hierher gezogen wurde („damit eine Server Component sie
  * lesen kann"), ist nach der Messung hinfaellig — keine kann. Was die Trennung
- * heute traegt: `SuiteNav.test.tsx` bekommt die Map ohne die Client-Maschinerie
- * der Navigation daneben, und die Datei ist der eine Ort, an dem die
+ * heute traegt: seit dem Navigations-Umbau loesen ZWEI Client-Komponenten
+ * Icon-Namen auf (`AppUmschalter.tsx:141` fuer das Panel, `DiensteRaster.tsx:105`
+ * fuer das Portal-Raster) — beide lesen dieselbe Map, statt sie zu duplizieren.
+ * `AppUmschalter.test.tsx` bekommt die Map ohne die Client-Maschinerie eines
+ * der beiden Konsumenten daneben, und die Datei ist der eine Ort, an dem die
  * Client-Only-Zusage steht und geprueft wird. Sie ist also KEIN Baustein fuer
  * Server-Code — wer sie dafuer heben will, braucht eine Map aus NAMEN statt aus
  * Komponenten, und das ist ein eigener Entwurf, kein Verschieben.

@@ -125,11 +125,20 @@ describe("launcherEintraege — Fehlergrenze zum Portal", () => {
  * Der Scan fängt die naheliegende Verdrahtung, nicht jede denkbare: ein
  * umbenanntes Re-Export käme durch. Dieselbe eingestandene Grenze wie beim
  * Seed-Scan in `scripts/seed-lokal.test.ts` — und besser als nichts.
+ *
+ * `readdirSync` läuft mit `{ recursive: true }`: eine Datei unter einem
+ * künftigen `src/core/shell/<unterverzeichnis>/` bliebe dem Scanner sonst
+ * unsichtbar — derselbe blinde Fleck wie beim umbenannten Re-Export, nur ohne
+ * dass die Klausel oben ihn nannte. Die zurückgegebenen Pfade sind relativ zu
+ * `verzeichnis` (z. B. `unterverzeichnis/datei.tsx`), `join` darunter bleibt
+ * deshalb unverändert korrekt.
  */
 describe("Grenze zwischen core/shell und dem Modul portal", () => {
   it("importiert aus dem Portal ausschließlich _lib/launcher", () => {
     const verzeichnis = "src/core/shell";
-    const dateien = readdirSync(verzeichnis).filter((d) => /\.tsx?$/.test(d));
+    const dateien = readdirSync(verzeichnis, { recursive: true, encoding: "utf8" }).filter((d) =>
+      /\.tsx?$/.test(d),
+    );
     expect(dateien.length).toBeGreaterThan(0);
 
     for (const datei of dateien) {

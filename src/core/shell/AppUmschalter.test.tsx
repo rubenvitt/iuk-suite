@@ -192,8 +192,12 @@ describe("AppUmschalter", () => {
  *
  * OHNE RENDERING, mit Absicht: sie prüft die Map gegen die Registry, nicht das
  * DOM. Die Zusicherung gehörte früher zu `SuiteNav.test.tsx` — seit dem
- * Navigations-Umbau löst ausschließlich `AppUmschalter` Icon-Namen auf, also
- * zieht die Zusicherung mit.
+ * Navigations-Umbau lösen ZWEI Client-Komponenten Icon-Namen auf, `AppUmschalter`
+ * hier UND `DiensteRaster.tsx:105` im Portal-Raster, beide gegen dieselbe Map.
+ * Die Zusicherung liegt trotzdem hier und nicht ein zweites Mal in
+ * `DiensteRaster.test.tsx`: sie prüft `ICONS` gegen `MODULES`, unabhängig davon,
+ * wer die Map später nachschlägt — ein zweiter, identischer Test daneben wäre
+ * derselbe Beweis noch einmal.
  */
 describe("Modul-Icons", () => {
   it("jedes Modul der Registry hat einen Eintrag in ICONS", () => {

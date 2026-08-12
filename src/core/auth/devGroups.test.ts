@@ -8,7 +8,7 @@ import { suiteAdminGroup } from "@/core/groups";
  * eigener Gruppe taucht im Dev-Login als Häkchen auf, ohne dass jemand daran
  * denken muss. Fällt die Liste auseinander, ist der Fehler still — man hakt an,
  * was da ist, und die fehlende Gruppe merkt man erst am 404 des Riegels.
- * Dasselbe Muster wie `SuiteNav.test.tsx` ↔ `ICONS`.
+ * Dasselbe Muster wie `AppUmschalter.test.tsx` ↔ `ICONS`.
  */
 /**
  * `{}` statt `process.env`: der Test soll die Registry prüfen, nicht die

@@ -167,12 +167,24 @@ for (const breite of [768, 820, 900]) {
       await expect(titel).toBeVisible();
       const sichtbar = await titel.evaluate((el) => {
         /*
-         * NICHT die Breite des `<strong>` selbst — das waere eine Messung, die
-         * den Defekt nicht sieht. `.titel` (der Link darum) traegt
-         * `overflow: hidden`; bei 768px mass der `<strong>` unveraendert 68px,
-         * waehrend der Link 0px breit war. `toBeVisible()` allein war deshalb
-         * auch VOR dem Fix gruen. Gemessen wird der KLIPPENDE Kasten, denn nur
-         * der sagt, wie viel vom Titel jemand sieht.
+         * NICHT zwingend die Breite des `<strong>` selbst — das waere eine
+         * Messung, die den Defekt nicht sieht, WENN das Element, das klippt,
+         * ein anderes ist. Ursprünglich (anonym, `.titel`-Link um den Titel)
+         * traf genau das zu: `.titel` trug `overflow: hidden`, bei 768px mass
+         * der `<strong>` unveraendert 68px, waehrend der Link 0px breit war —
+         * `toBeVisible()` allein war deshalb auch VOR dem Fix gruen.
+         *
+         * SEIT DEM APP-UMSCHALTER IST DER TITEL ANGEMELDET KEIN `<a>` MEHR,
+         * SONDERN EIN `<strong>` IN EINEM `<button>` (`AppUmschalter.tsx`).
+         * `el.closest("a")` findet dort nichts, `link` bleibt `null`, und der
+         * Fallback `?? el` misst den `<strong>` direkt — das ist jetzt richtig
+         * so: `.umschalterAusloeser strong` (`shell.module.css`) traegt seit
+         * dem Umbau selbst `overflow: hidden; text-overflow: ellipsis`, ist
+         * also SELBST der klippende Kasten, nicht mehr sein Elternknoten. Die
+         * Zusicherung haelt aus einem anderen Grund als hier urspruenglich
+         * gemessen: `.closest("a")` bleibt fuer den ANONYMEN Zweig noetig
+         * (`SuiteHeader.tsx` rendert dort weiterhin `<Link className={s.titel}>`),
+         * greift dort aber nicht, wenn die Person angemeldet ist.
          */
         const link = el.closest("a");
         return Math.round((link ?? el).getBoundingClientRect().width);
@@ -268,6 +280,11 @@ test.describe("Modulnavigation am laufenden Server", () => {
       innerWidth: window.innerWidth,
     }));
     expect(quer.scrollWidth).toBeLessThanOrEqual(quer.innerWidth);
+    // `closest("a")` findet hier nichts mehr (angemeldeter Titel = `<strong>`
+    // in einem `<button>`, nicht in einem `<a>`) — der Fallback `?? el` misst
+    // dann den `<strong>` selbst, und der klippt seit dem App-Umschalter
+    // wieder korrekt ueber `.umschalterAusloeser strong`. Ausfuehrliche
+    // Begruendung am ersten Vorkommen dieser Messung oben in dieser Datei.
     const sichtbar = await page
       .getByTestId("module-title")
       .evaluate((el) => Math.round((el.closest("a") ?? el).getBoundingClientRect().width));
