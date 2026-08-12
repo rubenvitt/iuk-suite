@@ -153,6 +153,46 @@ Konversion exakt 1 ergibt?" — und die Entwarnung selbst ist an Drizzles `mapFr
 
 ---
 
+## Nachtrag — D14 (12.08.2026)
+
+Der vierzehnte Punkt, nachgetragen aus dem Plan
+`docs/superpowers/plans/2026-08-12-lagerbuch-helfer-desktop.md` — nach den
+dreizehn vom 04.08.2026, aber zu demselben Protokoll gehörig, weil er
+dieselbe Fragestellung (Breakpoints im Modul) fortschreibt.
+
+### D14 — Eine Öffnung für §7.7.1, genau eine
+
+**Entschieden: §7.7.1 („NULL Media Queries für die Breite") wird für genau
+eine `min-width: 768px`-Abfrage aufgehoben.**
+
+⚠️ **Der Befund hinter der Entscheidung:** der Helfer-Weg wird nicht nur auf
+Telefonen benutzt. Auf einem Monitor stand er als 560px-Säule mit rund **62 %
+ungenutzter Fläche** und **drei** sichtbaren Positionen in der Zählliste —
+gemessen nach Task 3 dieses Plans, vor der zweiten Fassung.
+
+**Was von §7.7.1 bleibt:** genau **ein** Zweig, **kein** `max-width` darin,
+und die bestehende 767.98px-Regel unberührt. Die Öffnung ist eng: sie trägt
+zwei Raster (`.fachraster`, `.karteRaster`) und das Nach-obenwandern der
+Reiterleiste (`order: 1` auf `.inhalt`), keine zweite Media Query und keinen
+neuen Breakpoint-Wert.
+
+⚠️ **Nicht `order: -1` auf `.tableiste`** — das war die erste Fassung (Task 2)
+und wurde in Fix-Runde 1 verworfen: `order: -1` setzt die Leiste vor ALLE
+Geschwister, also auch vor `.streifen`, und das rote Markenband landet dann
+zwischen Navigation und Kopf statt als Abschlusskante darunter. `order: 1`
+auf `.inhalt` schiebt stattdessen nur den Inhalt ans Ende; die drei übrigen
+Kinder behalten ihre DOM-Reihenfolge. `bauform.test.ts` verbietet heute jedes
+`order` auf `.tableiste` — wer hier zur ersten Fassung zurückbaut, läuft in
+diesen Test.
+
+**Geändert:** Task 1–5 des Plans (die zweite Fassung ab 768px: Arbeitsfläche
+1200px, Reiterleiste oben, mehrspaltige Zähl- und Artikelliste, 720px-Lesebahn
+für Detailansichten). Task 7 trägt die Abnahme dazu —
+`docs/abnahme/2026-08-12-helfer-desktop.md` — und die neue E2E-Abdeckung des
+Helfer-Zweigs in `e2e/lagerbuch-mobil.spec.ts`.
+
+---
+
 ## Anhang — vier Befunde ohne Entscheidungsbedarf
 
 Sie stehen in den Plänen und brauchen von dir nichts.

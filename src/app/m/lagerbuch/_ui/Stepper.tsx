@@ -96,7 +96,7 @@ export function Stepper({
           setWert(klemmen(wert - 1));
         }}
       >
-        <Ikone name="minus" groesse={20} />
+        <Ikone name="minus" groesse={20} staerke={2.5} />
       </button>
 
       {noText ? (
@@ -126,7 +126,7 @@ export function Stepper({
           setWert(klemmen(wert + 1));
         }}
       >
-        <Ikone name="plus" groesse={20} />
+        <Ikone name="plus" groesse={20} staerke={2.5} />
       </button>
     </div>
   );

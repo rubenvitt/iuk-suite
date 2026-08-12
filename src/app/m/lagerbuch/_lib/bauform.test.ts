@@ -499,7 +499,10 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     // rendert AUCH unter `.modul` aus `verwaltung.module.css`. Jede Variable,
     // die nur EINER der beiden Traeger kennt, ist auf dem anderen Ast still
     // `transparent`. `--font-display|body|mono` sind die Ausnahme — sie kommen
-    // vom Wurzel-Layout und liegen auf `:root`, also unter beiden Traegern.
+    // vom Wurzel-Layout und liegen auf `:root`, also unter beiden Traegern —
+    // SEIT DEM 12.08.2026 (Task 6). Vorher kamen sie von NIRGENDS: die drei
+    // next/font-Aufrufe fehlten seit der Portierung, siehe den Scan
+    // "die drei Schriftstapel kommen wirklich vom Wurzel-Layout" unten.
     //
     // ⚠️ DAS PRAEFIX ALLEIN TRUEG NICHT. `color: var(--lb-tinte2)` faengt mit
     // `--lb-` an und ist trotzdem NIRGENDS deklariert — genau der Ausfall, den
@@ -544,10 +547,34 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
       .toEqual([]);
   });
 
-  it("setzt `100dvh` und `max-width: 560px` — kein Breakpoint, eine Obergrenze", () => {
-    const css = lies();
-    expect(css).toMatch(/height:\s*100dvh/);
-    expect(css).toMatch(/max-width:\s*560px/);
+  it("`.rahmen` kappt weiter auf 560px, aber ueber `--lb-bahn` statt ueber eine Zahl", () => {
+    /**
+     * ⚠️ DIESER TEST HAT SEINE AUSSAGE GESCHAERFT (12.08.2026,
+     * Betreiberentscheidung 14). Vorher: `expect(css).toMatch(/max-width:\s*560px/)`
+     * gegen den ROHTEXT der Datei. Diese Form war schon dann gruen, wenn die
+     * Zeichenfolge IRGENDWO stand, egal an welchem Selektor — sie haette eine
+     * Verschiebung der Kappung an einen anderen Traeger nicht bemerkt. Ein Test,
+     * der nach einem Umbau gruen bleibt und dabei etwas anderes bezeugt als sein
+     * Name sagt, ist schlimmer als keiner.
+     *
+     * ⚠️ UND `.rahmen` BEHAELT SEINE KAPPUNG — das ist die Korrektur nach dem
+     * ersten Review. Der erste Entwurf machte `.rahmen` sofort vollbreit und
+     * kappte stattdessen die drei Baender per `padding-inline`, ohne Media
+     * Query. Dieser Ausdruck ist BREITENSTETIG: sein Umschlagpunkt liegt bei
+     * `--lb-bahn`, also bei 560px, nicht bei 768px. Zwischen 561 und 767px lief
+     * der Kartenhintergrund dadurch randlos statt auf 560px, und die
+     * Inhaltsbreite sprang von 532 auf 560px — ein klarer Verstoss gegen „unter
+     * 768px aendert sich kein Pixel". Aufgehoben wird die Kappung jetzt
+     * ausschliesslich im Desktop-Zweig (Task 2).
+     */
+    const koerper = regelKoerper(lies(), /(?:^|\})\s*\.rahmen\s*\{/m);
+    expect(koerper, "`.rahmen`-Regel fehlt").not.toBe("");
+    expect(koerper, "die App-Huelle bleibt: innerer Scrollbereich statt Dokumentfluss")
+      .toMatch(/height:\s*100dvh/);
+    expect(koerper, "`--lb-bahn` ist die EINE Quelle der Bahnbreite")
+      .toMatch(/--lb-bahn:\s*560px/);
+    expect(koerper, "die Kappung leitet sich ab, statt die Zahl zu wiederholen")
+      .toMatch(/max-width:\s*var\(--lb-bahn\)/);
   });
 
   it("erhoeht die Suite-Untergrenze im Verfallsfeld auf 18px und senkt sie NIE", () => {
@@ -599,6 +626,158 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     expect(css).toMatch(/:focus-visible[^{]*\{[^}]*outline-offset/);
     expect(css).not.toMatch(/outline:\s*none/);
   });
+
+  it("traegt den Button-Reset aus der Alt-Anwendung, gescopet auf :where(.rahmen)", () => {
+    /**
+     * Nachbesserung 12.08.2026: `<button>` hatte im Helfer-Zweig keinen Reset —
+     * ein Stueck Alt-Bestand (lagerbuch/src/app/globals.css:39), das beim
+     * Portieren verlorenging. `.stepTaste` trug dadurch den UA-Default des
+     * Browsers: grauer Hintergrund, ein 2px `outset`-Rahmen.
+     *
+     * ⚠️ `:where(.rahmen)`, NICHT `.rahmen`: der nackte Klassen-Selektor
+     * `.rahmen button` haette Spezifitaet (0,1,1) — eine Klasse plus ein
+     * Elementselektor — und schluege damit `.beenden`/`.knopfRot`/
+     * `.knopfTinte`/`.knopfGeist`/`.abschlussGo` (alle 0,1,0), unabhaengig von
+     * ihrer Position im Stylesheet: der rote Primaerknopf waere transparent
+     * geworden. `:where(.rahmen)` nimmt der Klasse ihren Spezifitaetsbeitrag,
+     * uebrig bleibt nur `button` (0,0,1) — jede Button-Klasse gewinnt damit
+     * wie zuvor. Mutationsprobe: `:where(.rahmen)` durch `.rahmen` ersetzt,
+     * dieser Test bleibt gruen (er prueft nur, DASS der Reset da ist, nicht
+     * WELCHE Spezifitaet er hat) — deshalb die explizite `:where(`-Zusicherung
+     * unten, die genau diese Mutation faengt.
+     */
+    const css = lies();
+    expect(css, "Selektor muss :where(.rahmen) button lauten, nicht .rahmen button")
+      .toMatch(/:where\(\.rahmen\)\s+button\s*\{/);
+    const koerper = regelKoerper(css, /:where\(\.rahmen\)\s+button\s*\{/);
+    expect(koerper, "Button-Reset-Regel fehlt").not.toBe("");
+    expect(koerper).toMatch(/font:\s*inherit/);
+    expect(koerper).toMatch(/cursor:\s*pointer/);
+    expect(koerper).toMatch(/background:\s*none/);
+    expect(koerper).toMatch(/border:\s*none/);
+    expect(koerper).toMatch(/color:\s*inherit/);
+  });
+
+  it("die Zaehlliste ist im Desktop-Zweig ein Raster", () => {
+    // Der teuerste Bildschirm des Zweigs: bei 1440px waren drei Positionen
+    // gleichzeitig lesbar, die Sticky-Leiste verdeckte eine vierte. Der Wert
+    // des ganzen Umbaus haengt an dieser einen Regel.
+    //
+    // ⚠️ ABWEICHUNG VOM BRIEFTEXT: dort lief die Zusicherung ausschliesslich
+    // gegen den Media-Block-Ausschnitt und war damit unerfuellbar —
+    // `display: grid` gehoert per Vorgabe in die BASIS (sonst gilt die Klasse
+    // dem Scan `rahmen.test.tsx:60-68` als nicht deklariert), der Media-Block
+    // traegt NUR die Spaltenzahl. Geprueft werden deshalb beide Haelften.
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const auf = css.search(/@media[^{]*min-width/);
+    expect(auf, "kein min-width-Zweig gefunden").toBeGreaterThan(-1);
+    expect(css.slice(0, auf), "`.fachraster` ist in der Basis kein Grid").toMatch(
+      /\.fachraster\s*\{[^}]*display:\s*grid/,
+    );
+    expect(css.slice(auf), "der Desktop-Zweig setzt die Spaltenzahl nicht").toMatch(
+      /\.fachraster\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit/,
+    );
+    /**
+     * ⚠️ NACHTRAG AUS DEM REVIEW VON TASK 3: `align-items: start` und
+     * `gap: 0 18px` standen in der Basisregel, aber ungeschuetzt. Genau diese
+     * zwei Eigenschaften sind es, an denen die Zaehlliste optisch kaputtgeht,
+     * wenn sie jemand entfernt — ohne `align-items: start` zieht Grid jede
+     * Fachkarte auf die Hoehe der hoechsten in derselben Rasterzeile
+     * (`align-items` in der `.fachraster`-Basisregel), und eine fehlende
+     * `gap` liesse die Spalten aneinanderkleben.
+     */
+    expect(css.slice(0, auf), "`.fachraster` ohne `align-items: start`").toMatch(
+      /\.fachraster\s*\{[^}]*align-items:\s*start/,
+    );
+    expect(css.slice(0, auf), "`.fachraster` ohne `gap: 0 18px`").toMatch(
+      /\.fachraster\s*\{[^}]*gap:\s*0\s+18px/,
+    );
+  });
+
+  it("das Listenraster repariert seine Trenner — sonst franst die obere Reihe aus", () => {
+    /**
+     * ⚠️ DAS IST DER EIGENTLICHE INHALT DIESES TASKS, nicht das Grid.
+     * Die Basisregel `.zeile:first-child { border-top: none }` ist im Grid EINMAL wahr,
+     * nicht je Spalte: die rechte Zelle der obersten Reihe traegt dann eine
+     * Linie, die linke nicht. Der Fehler ist rein optisch, faellt in keinem
+     * Test auf und sieht nach Schlamperei aus, nicht nach einem Bug.
+     *
+     * `:nth-child(-n + 2)` nimmt beide Zellen der ersten Reihe aus,
+     * `:nth-child(2n)` gibt jeder rechten Zelle ihre senkrechte Kante.
+     *
+     * ⚠️ ABWEICHUNG VOM BRIEFTEXT: dort lief auch die `display: grid`-Zusicherung
+     * gegen den Media-Block-Ausschnitt und war damit unerfuellbar — dieselbe
+     * Korrektur wie beim `.fachraster`-Test oben: `display: grid` gehoert per
+     * Vorgabe in die BASIS (sonst gilt die Klasse dem Scan
+     * `rahmen.test.tsx:60-68` als nicht deklariert), der Media-Block traegt nur
+     * die feste Spaltenzahl und die Trenner. Geprueft werden deshalb beide
+     * Haelften getrennt.
+     *
+     * ⚠️ FIX-RUNDE 1: die zentrale Invariante fehlte. Ohne eine Zusicherung auf
+     * `grid-template-columns: 1fr 1fr` im Media-Zweig blieben alle Assertions
+     * gruen, auch wenn genau diese eine Zeile fehlt — die Liste faellt dann
+     * still auf eine Spalte zurueck, waehrend `nth-child(2n)` weiter jede
+     * gerade Zeile mit einer sinnlosen `border-inline-start` versieht. Die
+     * Gegenprobe (Zeile entfernt, Testlauf) bestaetigt das.
+     */
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const auf = css.search(/@media[^{]*min-width/);
+    const zweig = css.slice(auf);
+    expect(css.slice(0, auf), "kein Grid auf `.karteRaster` in der Basis").toMatch(
+      /\.karteRaster\s*\{[^}]*display:\s*grid/,
+    );
+    expect(zweig, "der Desktop-Zweig setzt keine zwei Spalten").toMatch(
+      /\.karteRaster\s*\{[^}]*grid-template-columns:\s*1fr\s+1fr/,
+    );
+    expect(zweig, "die erste Reihe wird nicht von der Trennlinie ausgenommen").toMatch(
+      /\.karteRaster\s+\.zeile:nth-child\(-n\s*\+\s*2\)/,
+    );
+    expect(zweig, "die rechte Spalte bekommt keine senkrechte Kante").toMatch(
+      /\.karteRaster\s+\.zeile:nth-child\(2n\)/,
+    );
+  });
+
+  it("Detailansichten bekommen eine Lesebahn, nicht die volle Bahn", () => {
+    // 1200px sind fuer eine Liste richtig und fuer eine Detailseite falsch: ein
+    // 24px-Titel ueber 1200px hat 90 % Weissraum neben sich. `.lesebahn` ist
+    // die schmalere Bahn fuer Ansichten mit wenig, aber wichtigem Inhalt.
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const zweig = css.slice(css.search(/@media[^{]*min-width/));
+    expect(zweig, "`.lesebahn` kappt im Desktop-Zweig nicht").toMatch(
+      /\.lesebahn\s*\{[^}]*max-width:\s*720px/,
+    );
+  });
+
+  it("`.leer` (LeerZustand) bekommt im Desktop-Zweig dieselbe 720px-Kappung wie `.lesebahn`", () => {
+    // Der Leerzustand ist die noch kargere Detailansicht: ein Titel, ein
+    // Absatz, ein Rueckweg-Link — weniger Inhalt als die Entnahme, die als
+    // Begruendung fuer `.lesebahn` diente. Ohne eigene Kappung spannt sich
+    // `.leer` weiter ueber die volle 1200px-Bahn.
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const zweig = css.slice(css.search(/@media[^{]*min-width/));
+    expect(zweig, "`.leer` kappt im Desktop-Zweig nicht").toMatch(
+      /\.leer\s*\{[^}]*max-width:\s*720px/,
+    );
+  });
+
+  it("`.abschluss` (Sticky-Abschlussleiste) zentriert im Desktop-Zweig ihren Inhalt statt sich zu kappen", () => {
+    // Nachbesserung 12.08.2026, zweite Runde: eine 720px-Kappung (erster
+    // Versuch, wie bei `.lesebahn`) wurde probiert und wieder verworfen — sie
+    // traf keine Spaltenkante des `.fachraster`-Rasters darueber und stand als
+    // schwebender Kasten im Raum. Die Leiste bleibt deshalb VOLLBREIT
+    // (buendig zum Raster), und stattdessen wird ihr INHALT zentriert:
+    // `justify-content: center` auf der Leiste, `.abschlussInfo` OHNE
+    // `flex: 1`, sonst zoege der Text die Gruppe wieder auseinander.
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const zweig = css.slice(css.search(/@media[^{]*min-width/));
+    expect(zweig, "`.abschluss` zentriert ihren Inhalt im Desktop-Zweig nicht").toMatch(
+      /\.abschluss\s*\{[^}]*justify-content:\s*center/,
+    );
+    expect(
+      zweig,
+      "`.abschlussInfo` gibt ihr `flex: 1` im Desktop-Zweig nicht ab — der Text zoege die Gruppe wieder auseinander",
+    ).toMatch(/\.abschlussInfo\s*\{[^}]*flex:\s*initial/);
+  });
 });
 
 // ————————————————————————————————————————————————————————————————————————
@@ -626,6 +805,71 @@ describe("§7.7.1 — der eine Breakpoint, und dieses Modul erfindet keinen zwei
     // zweiten Breakpoint einfuehren.
     if (!existsSync(HELFER_CSS)) return;
     expect(ohneKommentare(readFileSync(HELFER_CSS, "utf8"))).not.toMatch(/@media[^{]*max-width/i);
+  });
+
+  it("hat GENAU EINEN min-width-Zweig, und der nennt kein max-width", () => {
+    /**
+     * Betreiberentscheidung 14 (12.08.2026) hebt „NULL Media Queries fuer die
+     * Breite" auf — fuer GENAU EINE Abfrage, nicht fuer beliebig viele. Der
+     * urspruengliche Grund von §7.7.1 traegt weiter: zwei Breakpoints heissen
+     * drei Fassungen, und die dritte prueft niemand.
+     *
+     * ⚠️ UND SIE DARF KEIN `max-width` ENTHALTEN. Eine kombinierte Abfrage wie
+     * `(min-width: 768px) and (max-width: 1200px)` loest den 767.98-Scan
+     * darunter aus — und zwar zu Recht: bei exakt 1200px gaelten sonst beide
+     * Seiten, und die Reihenfolge im Stylesheet entschiede.
+     */
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const zweige = [...css.matchAll(/@media([^{]*min-width[^{]*)\{/g)];
+    expect(zweige.length, "genau ein min-width-Zweig").toBe(1);
+    expect(zweige[0]![1], "der Zweig schaltet bei 768px").toMatch(/min-width:\s*768px/);
+    expect(zweige[0]![1], "kein max-width im selben Zweig").not.toMatch(/max-width/);
+  });
+
+  it("der Desktop-Zweig setzt die Bahn um und dreht die Reiterleiste nach oben", () => {
+    // Die zwei Zusagen, die den Zweig ueberhaupt rechtfertigen. Ohne sie waere
+    // er eine leere Abfrage, die den Test darueber bestehen laesst.
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const auf = css.search(/@media[^{]*min-width/);
+    expect(auf, "kein min-width-Zweig gefunden").toBeGreaterThan(-1);
+    const zweig = css.slice(auf);
+    expect(zweig, "die Bahn weitet nicht auf").toMatch(/--lb-bahn:\s*1200px/);
+    expect(zweig, "`.rahmen` gibt seine Kappung nicht ab").toMatch(
+      /\.rahmen\s*\{[^}]*max-width:\s*none/,
+    );
+    // ⚠️ GEPRUEFT WIRD `.inhalt`, NICHT `.tableiste`. Ein `order: -1` auf der
+    // Leiste schoebe sie auch vor den roten Streifen — gemessen, und es sieht
+    // aus wie eine Trennlinie mitten im Kopf. Der Schub geht auf den Inhalt.
+    expect(zweig, "die Reiterleiste wandert nicht nach oben").toMatch(
+      /\.inhalt\s*\{[^}]*order:\s*1/,
+    );
+    expect(zweig, "`order: -1` auf der Leiste schiebt sie vor den Streifen")
+      .not.toMatch(/\.tableiste\s*\{[^}]*order:/);
+  });
+
+  it("die Kappung der drei Baender steht NUR im Desktop-Zweig", () => {
+    /**
+     * ⚠️ DIE ZUSICHERUNG, DIE AUS DEM ERSTEN REVIEW ENTSTANDEN IST. Der erste
+     * Entwurf setzte dieses `padding-inline` in die BASISREGELN der drei
+     * Klassen, ohne Media Query. Der Ausdruck ist breitenstetig und schlug
+     * damit schon ab 561px zu, nicht erst ab 768 — der Kartenhintergrund lief
+     * randlos, die Inhaltsbreite sprang um 28px. „Unter 768px aendert sich kein
+     * Pixel" war damit verletzt, ohne dass ein Test es gesehen haette.
+     *
+     * Der Scan prueft BEIDE Richtungen: im Zweig muss es stehen, davor nicht.
+     * Nur die zweite Haelfte faengt den Rueckfall.
+     */
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const auf = css.search(/@media[^{]*min-width/);
+    expect(auf, "kein min-width-Zweig gefunden").toBeGreaterThan(-1);
+    const davor = css.slice(0, auf);
+    const zweig = css.slice(auf);
+
+    expect(zweig, "die Baender kappen im Desktop-Zweig nicht ueber --lb-bahn").toMatch(
+      /padding-inline:\s*max\([^;]*--lb-bahn/,
+    );
+    expect(davor, "eine Kappung VOR dem Breakpoint schlaegt schon ab 561px zu")
+      .not.toMatch(/padding-inline:\s*max\(/);
   });
 
   it("jede `max-width`-Abfrage im ganzen Modulbaum schreibt 767.98", () => {
@@ -1217,5 +1461,50 @@ describe("Teil 4, T87 — die Riegelform je Flaechenart, ueber den Baum statt ue
       .not.toMatch(/\brequireLagerbuchHost\b/);
     expect(q, "der Rahmen gehoert in die Seiten, die seine Pflicht-Props kennen")
       .not.toMatch(/\bHelferRahmen\b/);
+  });
+});
+
+describe("die drei Schriftstapel kommen wirklich vom Wurzel-Layout", () => {
+  it("`src/app/layout.tsx` stellt --font-body, --font-display und --font-mono bereit", () => {
+    /**
+     * ⚠️ DIESER SCAN SCHLIESST EINE LUECKE, DIE ZWEI KOMMENTARE ALS GESCHLOSSEN
+     * BESCHRIEBEN HABEN. `helfer.module.css:32` und der `VOM_LAYOUT`-Kommentar
+     * weiter oben behaupten beide, die drei Namen kaemen „vom Wurzel-Layout und
+     * liegen auf :root". Gemessen am 12.08.2026: sie kamen von NIRGENDS. Die
+     * Original-App laedt sie ueber next/font; bei der Portierung sind sie nicht
+     * mitgekommen.
+     *
+     * WAS DAS KOSTET, und es ist mehr als eine falsche Schriftart: `--lb-display`
+     * ist dann ein ungueltiger Wert, und eine `font:`-KURZSCHREIBWEISE, die ihn
+     * benutzt, faellt VOLLSTAENDIG aus — samt Groesse und Gewicht. Der
+     * Artikeltitel in `Entnahme.tsx` rendert dadurch 14px/400 statt 24px/700.
+     * Falle 2: gueltiges CSS, stiller Ausfall.
+     *
+     * `VOM_LAYOUT` (oben) nimmt genau diese drei Namen von der
+     * `unaufloesbar`-Mengenpruefung aus. Diese Ausnahme ist nur zulaessig,
+     * solange dieser Scan sie deckt.
+     */
+    const layout = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8");
+    const quelle = ohneKommentare(layout);
+    // Nicht nur, DASS der Name irgendwo im Quelltext steht, sondern zu WELCHEM
+    // next/font/google-Aufruf die Zeile gehoert: ein Scan auf blosse
+    // Anwesenheit bliebe gruen, wenn jemand die `variable:`-Werte von Barlow
+    // und Barlow_Condensed vertauscht — gueltiges CSS, stiller Bruch (Falle 2).
+    // Jede Familie wird deshalb an IHREN eigenen Aufruf gebunden.
+    const bindungen: Array<[string, string]> = [
+      ["Barlow", "--font-body"],
+      ["Barlow_Condensed", "--font-display"],
+      ["IBM_Plex_Mono", "--font-mono"],
+    ];
+    for (const [familie, name] of bindungen) {
+      const aufruf = quelle.match(new RegExp(`\\b${familie}\\s*\\(\\s*\\{([^}]*)\\}\\s*\\)`));
+      expect(aufruf, `${familie}(...) wird im Wurzel-Layout nicht aufgerufen`).not.toBeNull();
+      expect(aufruf![1], `${familie}(...) setzt nicht variable: "${name}" — Familie und Variable sind entkoppelt`)
+        .toMatch(new RegExp(`variable:\\s*["'\`]${name}["'\`]`));
+    }
+    // Die Deklaration allein genuegt nicht: ohne die `className` am <html> ist
+    // die Variable nirgends im Dokument sichtbar.
+    expect(quelle, "die Schrift-Variablen haengen nicht am <html>-Element")
+      .toMatch(/<html[^>]*className=/);
   });
 });

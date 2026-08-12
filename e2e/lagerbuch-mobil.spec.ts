@@ -1,6 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
 import { devLogin } from "./fixtures";
-import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
+import {
+  E2E_TOKEN_HELFER,
+  LAGERBUCH_ADMIN_GRUPPE,
+  LAGERBUCH_HOST,
+  lagerbuchUrl,
+} from "./helpers/lagerbuch";
 
 /**
  * DREI BREITEN, NICHT ZWEI (Spec §12.2, docs/design/README.md:199-212).
@@ -425,5 +430,107 @@ test.describe("Der lange Artikelname bei 390px", () => {
     expect(subBox!.y, "Unterzeile steht unter dem Titel").toBeGreaterThanOrEqual(
       titelBox!.y + titelBox!.height - 1,
     );
+  });
+});
+
+/**
+ * DER HELFER-ZWEIG BEI DREI BREITEN (12.08.2026, Betreiberentscheidung 14).
+ *
+ * ⚠️ WARUM ER BISHER FEHLTE UND WARUM DAS JETZT NICHT MEHR TRAGBAR IST: der
+ * Ueberlauftest oben deckt drei VERWALTUNGSseiten ab. Solange der Helfer-Weg
+ * auf 560px gekappt war, konnte er konstruktionsbedingt nicht ueberlaufen —
+ * die Luecke war ungefaehrlich. Mit der zweiten Fassung ab 768px ist sie es
+ * nicht mehr: `.fachraster` und `.karteRaster` erzeugen echte Rasterbreiten.
+ *
+ * KEIN devLogin. Der Helfer-Zweig kennt keine Anmeldung, sondern eine
+ * Token-Sitzung: `/t/<code>` loest den Code ein und setzt das Sitzungscookie.
+ * Ein `devLogin` hier fuehrte auf die Verwaltung und bezeugte die falsche
+ * Seite — derselbe Fehlerzustand, gegen den Ruling A9 die Anker oben verlangt.
+ *
+ * ⚠️ ABWEICHUNG VON DER PLANVORLAGE (Task 7): der Brief-Entwurf zitierte Token
+ * `100-100` und Fahrzeug `fz-rtw-1` aus `_lib/seedLokal.ts` — das ist der
+ * LOKALE Dev-Seed (`pnpm seed:lokal`), nicht die Daten, die
+ * `e2e/seed-lagerbuch.ts` fuer den Playwright-`webServer` anlegt. Dort heisst
+ * der Helfer-Code `E2E_TOKEN_HELFER` ("111-111", `e2e/helpers/lagerbuch.ts`)
+ * und das einzige Check-Fahrzeug `e2e-fahrzeug` ("E2E RTW",
+ * `e2e/seed-lagerbuch.ts:170`) — 1:1 aus dem bestehenden
+ * `lagerbuch-helfer.spec.ts:418-420`. Mit den Brief-Literalen liefe dieser
+ * Block gegen einen 404/leeren Zugang, nicht gegen den Helfer-Zweig.
+ */
+test.describe("Der Helfer-Zweig laeuft bei keiner Breite ueber", () => {
+  const HELFER_SEITEN: { pfad: string; anker: (page: Page) => Promise<void> }[] = [
+    {
+      pfad: "/helfer",
+      anker: async (page) => {
+        await expect(page.getByTestId("lb-tableiste")).toBeVisible();
+        await expect(page.getByText("Artikel wählen", { exact: true })).toBeVisible();
+      },
+    },
+    {
+      pfad: "/helfer/check?fz=e2e-fahrzeug",
+      anker: async (page) => {
+        await expect(page.getByTestId("lb-tableiste")).toBeVisible();
+        // Der Zaehlbildschirm, nicht die Fahrzeugwahl — nur er traegt das Raster.
+        await expect(page.locator("[data-rolle='zaehlliste']")).toBeVisible();
+      },
+    },
+  ];
+
+  for (const b of BREITEN) {
+    test.describe(`${b.name} (${b.width}x${b.height})`, () => {
+      test.use({ viewport: { width: b.width, height: b.height } });
+
+      for (const seite of HELFER_SEITEN) {
+        test(`${seite.pfad} laeuft nicht ueber`, async ({ page }) => {
+          // E2E_TOKEN_HELFER = "111-111" (`e2e/helpers/lagerbuch.ts`), die
+          // EINE Quelle fuer die Token-Codes in dieser Suite (Ruling A9).
+          const einloesen = await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
+          expect(einloesen?.status(), `/t/${E2E_TOKEN_HELFER}: HTTP`).toBe(200);
+
+          const antwort = await page.goto(lagerbuchUrl(seite.pfad));
+          expect(antwort?.status(), `${seite.pfad}: HTTP`).toBe(200);
+          await seite.anker(page);
+          await page.waitForLoadState("networkidle");
+
+          const mass = await ueberlauf(page);
+          expect(
+            mass.doc,
+            `${seite.pfad} bei ${b.width}px: ${mass.schuldige.join(" | ")}`,
+          ).toBeLessThanOrEqual(mass.vw);
+        });
+      }
+    });
+  }
+
+  /**
+   * DIE REITERLEISTE WECHSELT DIE SEITE — die eine Zusage, die ein
+   * Quelltext-Scan nicht besitzen kann. `bauform.test.ts` sieht `order: -1`
+   * als Deklaration; ob die Leiste dadurch tatsaechlich ueber dem Inhalt
+   * landet, sieht nur ein Browser (Falle 5: die Regel steht richtig da und
+   * greift nur nicht).
+   */
+  test("Reiterleiste steht bei 390px unten und bei 1280px oben", async ({ page }) => {
+    const kante = async () => {
+      const leiste = await page.getByTestId("lb-tableiste").boundingBox();
+      const inhalt = await page.locator("main").boundingBox();
+      expect(leiste, "Reiterleiste hat keinen Kasten").not.toBeNull();
+      expect(inhalt, "Inhaltsbereich hat keinen Kasten").not.toBeNull();
+      return { leiste: leiste!, inhalt: inhalt! };
+    };
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
+    await page.goto(lagerbuchUrl("/helfer"));
+    await expect(page.getByTestId("lb-tableiste")).toBeVisible();
+    const schmal = await kante();
+    expect(schmal.leiste.y, "bei 390px gehoert die Leiste unter den Inhalt")
+      .toBeGreaterThan(schmal.inhalt.y);
+
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.reload();
+    await expect(page.getByTestId("lb-tableiste")).toBeVisible();
+    const breit = await kante();
+    expect(breit.leiste.y, "bei 1280px gehoert die Leiste ueber den Inhalt")
+      .toBeLessThan(breit.inhalt.y);
   });
 });
