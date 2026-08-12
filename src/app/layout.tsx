@@ -5,7 +5,7 @@ import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { Providers } from "@/components/providers";
 import { reauthProviderId } from "@/core/auth/pocketId";
 import { AntdProvider } from "@/core/theme/AntdProvider";
-import { THEME_COOKIE, parseThemeMode, themeInitScript } from "@/core/theme/mode";
+import { LEGACY_THEME_COOKIE, parseThemeMode, themeInitScript } from "@/core/theme/mode";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -54,7 +54,10 @@ export default async function RootLayout({
   // Serverseitig gelesen, damit der ERSTE Render schon den richtigen
   // Algorithmus trägt: kein Hydration-Mismatch, kein FOUC. Kostet nichts —
   // alle Routen sind durch Proxy-Rewrite und auth() ohnehin dynamisch.
-  const mode = parseThemeMode((await cookies()).get(THEME_COOKIE)?.value);
+  //
+  // UEBERGANG: liest noch den Altschluessel — Task 3 stellt das auf die
+  // getrennten Cookies (Praeferenz + Systemwert) um.
+  const mode = parseThemeMode((await cookies()).get(LEGACY_THEME_COOKIE)?.value);
   const cookieDomain = process.env.AUTH_COOKIE_DOMAIN || undefined;
 
   return (

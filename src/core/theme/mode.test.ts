@@ -6,7 +6,7 @@ import {
   themePreferenceCookieString,
   themeSystemCookieString,
   themeInitScript,
-  THEME_COOKIE,
+  LEGACY_THEME_COOKIE,
   THEME_PREF_COOKIE,
   THEME_SYSTEM_COOKIE,
 } from "@/core/theme/mode";
@@ -73,9 +73,27 @@ describe("die beiden Cookie-Bauer", () => {
 });
 
 describe("themeInitScript", () => {
-  it("prüft auf ein vorhandenes Cookie, bevor es schreibt", () => {
-    expect(themeInitScript()).toContain(THEME_COOKIE);
-    expect(themeInitScript()).toContain("prefers-color-scheme");
+  it("schreibt den Systemwert und nicht die Praeferenz", () => {
+    const s = themeInitScript();
+    expect(s).toContain("prefers-color-scheme");
+    expect(s).toContain(THEME_SYSTEM_COOKIE);
+    expect(s).not.toContain(THEME_PREF_COOKIE);
+  });
+
+  // Der Early-Return des Vorgaengers liess das Script genau einmal pro Browser
+  // laufen. Mit Auto waere das ein Fehler: ein spaeterer OS-Wechsel kaeme nie
+  // an, und Auto hoerte still auf zu funktionieren. Der Vergleich vor dem
+  // Schreiben ist der Ersatz — er verhindert nur unnoetige Schreibvorgaenge,
+  // nicht das Fortschreiben eines GEAENDERTEN Wertes. Das neue Script hat
+  // deshalb ueberhaupt kein `return` mehr.
+  it("Regression: kehrt NICHT frueh zurueck, wenn schon ein Cookie steht", () => {
+    expect(themeInitScript()).not.toContain("return");
+  });
+
+  it("raeumt den Altschluessel ab", () => {
+    const s = themeInitScript();
+    expect(s).toContain(LEGACY_THEME_COOKIE);
+    expect(s).toContain("Max-Age=0");
   });
 
   it("nimmt die Domain auf", () => {

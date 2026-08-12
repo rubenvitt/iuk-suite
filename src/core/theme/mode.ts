@@ -30,9 +30,6 @@ export const THEME_SYSTEM_COOKIE = "iuk-theme-system";
  */
 export const LEGACY_THEME_COOKIE = "iuk-theme";
 
-/** @deprecated Übergang — fällt in Task 2 weg. */
-export const THEME_COOKIE = LEGACY_THEME_COOKIE;
-
 const ONE_YEAR = 60 * 60 * 24 * 365;
 
 /**
@@ -91,18 +88,40 @@ export function themeCookieString(mode: ThemeMode, domain?: string): string {
  * Läuft als Inline-Script im `<head>`.
  *
  * Es verhindert KEIN Flackern — das tut das serverseitig gelesene Cookie.
- * Seine einzige Aufgabe ist, beim allerersten Besuch die OS-Präferenz ins
- * Cookie zu schreiben, damit sie ab dem nächsten Seitenaufruf greift. Wer das
- * hier anfasst, soll nicht die next-themes-Denkweise ("Blocking-Script gegen
- * FOUC") hineinlesen: die trägt in dieser Architektur nicht.
+ * Seine Aufgabe ist, den Betriebssystem-Wert ins Cookie zu schreiben, damit
+ * der NÄCHSTE Seitenaufruf serverseitig richtig auflöst. Wer das hier anfasst,
+ * soll nicht die next-themes-Denkweise ("Blocking-Script gegen FOUC")
+ * hineinlesen: die trägt in dieser Architektur nicht.
+ *
+ * ES STEMPELT BEWUSST KEIN `data-theme`. Das wäre der naheliegende Fix für das
+ * Aufblitzen beim allerersten Besuch und ist schlimmer als das Problem: antd
+ * wählt seinen Algorithmus aus React-State, den dieses Script nicht erreicht.
+ * Das Attribut zeigte dann dunkel, während antd hell rendert — ein DAUERHAFT
+ * inkonsistenter Zustand statt eines einmaligen Aufblitzens.
+ *
+ * Es ist NICHT durch den `matchMedia`-Effekt in `AntdProvider` ersetzbar,
+ * obwohl beide dasselbe Cookie schreiben: dieses Script läuft vor dem ersten
+ * Paint und unabhängig von der Hydration, der Effekt erst danach. Wer die
+ * Seite verlässt, bevor React übernimmt, hätte sonst beim nächsten Besuch
+ * wieder keinen Systemwert. Der Effekt kann dafür, was dieses Script nicht
+ * kann: auf einen Wechsel WÄHREND der Sitzung reagieren.
  */
 export function themeInitScript(domain?: string): string {
   const domainPart = domain ? `;Domain=${domain}` : "";
+  const optionen = `;Path=/;Max-Age=${ONE_YEAR};SameSite=Lax${domainPart}`;
   return (
     `(function(){try{` +
-    `if(document.cookie.indexOf('${THEME_COOKIE}=')>-1)return;` +
     `var m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';` +
-    `document.cookie='${THEME_COOKIE}='+m+';Path=/;Max-Age=${ONE_YEAR};SameSite=Lax${domainPart}';` +
+    `var c=document.cookie;` +
+    // Vergleichen, dann schreiben: der unveraenderte Normalfall fasst
+    // `document.cookie` gar nicht erst an.
+    `if(c.indexOf('${THEME_SYSTEM_COOKIE}='+m)===-1){` +
+    `document.cookie='${THEME_SYSTEM_COOKIE}='+m+'${optionen}';}` +
+    // Der Altschluessel. Zweimal, weil Loeschen Domain und Pfad treffen muss
+    // und beide Formen im Umlauf sind (mit AUTH_COOKIE_DOMAIN und ohne).
+    `if(c.indexOf('${LEGACY_THEME_COOKIE}=')>-1){` +
+    `document.cookie='${LEGACY_THEME_COOKIE}=;Path=/;Max-Age=0;SameSite=Lax${domainPart}';` +
+    `document.cookie='${LEGACY_THEME_COOKIE}=;Path=/;Max-Age=0;SameSite=Lax';}` +
     `}catch(e){}})()`
   );
 }
