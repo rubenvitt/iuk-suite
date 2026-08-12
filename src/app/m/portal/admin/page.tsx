@@ -1,14 +1,17 @@
 import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { getAllServices } from "@/app/m/portal/_lib/services";
-import { deleteServiceAction } from "@/app/m/portal/actions";
+import { leseAnsprechpartner } from "@/app/m/portal/_lib/einstellungen";
+import { deleteServiceAction, setzeAnsprechpartnerAction } from "@/app/m/portal/actions";
 import { ServiceForm } from "@/app/m/portal/admin/service-form";
 import { ServiceTable } from "@/app/m/portal/admin/service-table";
+import { AnsprechpartnerForm } from "@/app/m/portal/admin/ansprechpartner-form";
 
 import { SPACE } from "@/core/theme/tokens";
 export default async function PortalAdminPage() {
   await moduleAdminPageOrNotFound("portal");
 
   const services = await getAllServices();
+  const ansprechpartner = await leseAnsprechpartner();
 
   // Überschriften als schlichtes HTML statt `Typography.Title`: diese Datei ist
   // eine Server-Komponente, und Property-Zugriffe auf antd-Compounds ergeben
@@ -26,6 +29,17 @@ export default async function PortalAdminPage() {
           Neuen Dienst anlegen
         </h2>
         <ServiceForm />
+      </section>
+
+      <section>
+        <h2 style={{ fontSize: 20, fontWeight: 600, marginBlock: "0 16px" }}>
+          Ansprechpartner für Zugänge
+        </h2>
+        <p style={{ marginBlock: "0 12px", opacity: 0.75 }}>
+          Steht im Portal, wenn jemand für nichts freigeschaltet ist. Bleibt das Feld leer,
+          erscheint dort nur die Erklärung ohne Kontaktweg.
+        </p>
+        <AnsprechpartnerForm wert={ansprechpartner} action={setzeAnsprechpartnerAction} />
       </section>
     </div>
   );
