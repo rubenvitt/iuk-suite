@@ -93,13 +93,23 @@ export const PFADE: Record<IkonName, string> = {
  * Alle Zeichen sind dekorativ. Ein Zeichen ohne sichtbaren Nachbartext wird
  * am Bedienelement benannt; der Scanner-Taschenlampenschalter traegt dort
  * zusaetzlich `aria-pressed`.
+ *
+ * `staerke` ist die einzige Ausnahme von „ein Aussehen fuer alle 36 Zeichen":
+ * der Helfer-Stepper (`Stepper.tsx`) zeichnet `minus`/`plus` bewusst
+ * kraeftiger als der Default — nach dem Button-Reset (`helfer.module.css`)
+ * traegt die 56px-Taste keinen Rahmen und keinen Hintergrund mehr, und die
+ * Strichstaerke des Zeichens selbst entscheidet dann mit, wie deutlich sie in
+ * der Flaeche steht. Ungenutzt bleibt sie beim Default `2`, zeichengleich mit
+ * dem bisherigen Verhalten.
  */
 export function Ikone({
   name,
   groesse = 18,
+  staerke = 2,
 }: {
   name: IkonName;
   groesse?: number;
+  staerke?: number;
 }) {
   return (
     <svg
@@ -108,7 +118,7 @@ export function Ikone({
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={2}
+      strokeWidth={staerke}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
