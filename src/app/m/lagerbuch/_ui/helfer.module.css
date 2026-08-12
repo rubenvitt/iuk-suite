@@ -26,8 +26,16 @@
  * Scope-Klasse, eigenes Markup sieht sie nicht, und eine nicht aufloesbare
  * Variable ist gueltiges CSS und faellt still auf `transparent` zurueck
  * (Falle 2). Einzige zugelassene Fremdvariablen sind `--font-display`,
- * `--font-body` und `--font-mono`: die liegen auf `:root` (Wurzel-Layout) und
- * damit unter beiden Traegern.
+ * `--font-body` und `--font-mono`: die liegen auf `:root` und werden von
+ * `app/globals.css` deklariert.
+ *
+ * ⚠️ DAS WAR BIS 2026-08-12 EINE BEHAUPTUNG UND KEINE TATSACHE. Das
+ * Wurzel-Layout registrierte nur Geist; die drei Namen standen nirgends, und
+ * diese Datei rendete im Fallback ("Arial Narrow" / system-ui). Wer die
+ * Deklaration in `globals.css` entfernt, stellt genau diesen Zustand wieder
+ * her — still, ohne roten Test aus dieser Datei. Der Riegel dafuer sitzt in
+ * `core/theme/schriftstapel.test.ts`, die Wirkung belegt
+ * `e2e/lagerbuch-helfer.spec.ts`.
  */
 
 .rahmen {
