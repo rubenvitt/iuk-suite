@@ -13,12 +13,13 @@
  * lagerbuch schaltet heute bei 760px (globals.css:250); derselbe Fall, an
  * beiden Enden unsichtbar.
  *
- * ⚠️ DIE EINE AUSNAHME, ausdruecklich statt stillschweigend: ganz unten steht
- * ein `@media (prefers-reduced-motion: reduce)`. Global Constraint 16 sagt
- * woertlich „enthaelt NULL Media Queries" — gemeint sind BREITEN-Abfragen, und
- * `prefers-reduced-motion` ist keine. Wer den Constraint woertlich nimmt und
- * die Zeile streicht, verliert einen Zweig, den der Alt-Bestand heute schon hat
- * (globals.css:158-160). `_lib/bauform.test.ts` VERLANGT ihn deshalb.
+ * ⚠️ DIE EINE AUSNAHME, ausdruecklich statt stillschweigend: weiter unten in
+ * dieser Datei steht ein `@media (prefers-reduced-motion: reduce)`. Global
+ * Constraint 16 sagt woertlich „enthaelt NULL Media Queries" — gemeint sind
+ * BREITEN-Abfragen, und `prefers-reduced-motion` ist keine. Wer den Constraint
+ * woertlich nimmt und die Zeile streicht, verliert einen Zweig, den der
+ * Alt-Bestand heute schon hat (globals.css:158-160). `_lib/bauform.test.ts`
+ * VERLANGT ihn deshalb.
  *
  * `.rahmen` IST DER TRAEGER ALLER VARIABLEN. `_ui/verwaltung.module.css`
  * (Teil 5, T100) traegt unter `.modul` DENSELBEN Satz, weil
@@ -427,7 +428,8 @@
  *
  * ⚠️ DIESER BLOCK STEHT AM DATEIENDE, und das ist tragend, keine Ordnung:
  * `.tab[aria-current="page"]` unten hat DIESELBE Spezifitaet wie die Basisregel
- * (:143). Bei Gleichstand entscheidet die Reihenfolge (Falle 5) — vorne
+ * der Basisregel weiter oben in dieser Datei. Bei Gleichstand entscheidet
+ * die Reihenfolge (Falle 5) — vorne
  * einsortiert bliebe die rote Linie still oben statt unten.
  * ———————————————————————————————————————————————————————————————————————— */
 @media (min-width: 768px) {
@@ -471,8 +473,21 @@
    * rendern und je eine Fassung ausblenden — braeche `data-testid="lb-tableiste"`
    * auf zwei Treffer und damit E11/T171. Ein Knoten, eine `aria-current`-Marke.
    */
+  /*
+   * ⚠️ DER SCHUB GEHT AUF `.inhalt`, NICHT AUF `.tableiste` — und das ist eine
+   * Korrektur aus der Sichtpruefung, kein Stilgeschmack. `order: -1` auf der
+   * Leiste setzt sie vor ALLE Geschwister, also auch vor `.streifen`: das rote
+   * Markenband landet dann ZWISCHEN Navigation und Kopf und liest sich als
+   * Trennlinie statt als Abschlusskante. Gemessen bei 768px und 1440px.
+   *
+   * `order: 1` auf dem Inhalt schiebt nur ihn ans Ende. Alle drei uebrigen
+   * behalten ihre Voreinstellung 0 und damit ihre DOM-Reihenfolge —
+   * Streifen, Kopf, Reiter. Eine Regel statt drei, und keine Zahl, die beim
+   * naechsten hinzugefuegten Kind nachgezogen werden muss.
+   */
+  .inhalt { order: 1 }
+
   .tableiste {
-    order: -1;
     border-top: none;
     border-bottom: 1px solid var(--lb-linie);
   }
@@ -496,7 +511,8 @@
   }
 
   /* Die Marke wandert von oben nach unten — beide Kanten explizit, sonst bleibt
-     die Basisregel (:143) mit ihrer roten Oberkante stehen. */
+     die Basisregel von `.tab[aria-current="page"]` weiter oben mit ihrer
+     roten Oberkante stehen. */
   .tab[aria-current="page"] {
     border-top-color: transparent;
     border-bottom-color: var(--lb-rot);
@@ -506,7 +522,8 @@
   .inhalt { padding-block: 20px 26px; }
 
   /*
-   * Das Kamerabild bekommt eine Obergrenze in px. `max-height: 58vh` (:326)
+   * Das Kamerabild bekommt eine Obergrenze in px. Das `max-height: 58vh`
+   * der Basisregel `.scanVideo`
    * sind auf 1440x900 rund 522px Video — auf einem Monitor nimmt das die ganze
    * Ansicht ein, ohne dass der Code besser lesbar wuerde.
    */

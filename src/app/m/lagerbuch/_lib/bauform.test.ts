@@ -682,9 +682,14 @@ describe("§7.7.1 — der eine Breakpoint, und dieses Modul erfindet keinen zwei
     expect(zweig, "`.rahmen` gibt seine Kappung nicht ab").toMatch(
       /\.rahmen\s*\{[^}]*max-width:\s*none/,
     );
+    // ⚠️ GEPRUEFT WIRD `.inhalt`, NICHT `.tableiste`. Ein `order: -1` auf der
+    // Leiste schoebe sie auch vor den roten Streifen — gemessen, und es sieht
+    // aus wie eine Trennlinie mitten im Kopf. Der Schub geht auf den Inhalt.
     expect(zweig, "die Reiterleiste wandert nicht nach oben").toMatch(
-      /\.tableiste\s*\{[^}]*order:\s*-1/,
+      /\.inhalt\s*\{[^}]*order:\s*1/,
     );
+    expect(zweig, "`order: -1` auf der Leiste schiebt sie vor den Streifen")
+      .not.toMatch(/\.tableiste\s*\{[^}]*order:/);
   });
 
   it("die Kappung der drei Baender steht NUR im Desktop-Zweig", () => {
