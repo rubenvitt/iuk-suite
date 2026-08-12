@@ -359,6 +359,36 @@
  * Das Panel steht `position: absolute` in einem `relative` Elternknoten und
  * NICHT in einem Portal: es soll serverseitig gar nicht erst entstehen.
  */
+
+/*
+ * Eigene Variablen statt `--ant-*`: antd deklariert seine auf SEINER
+ * Scope-Klasse, und dieses Panel ist eigenes Markup außerhalb jedes
+ * antd-Komponentenbaums — es sähe sie nicht, und der Fehler wäre still
+ * (`docs/design/README.md`, Falle 2).
+ *
+ * Umschaltung über `:root[data-theme]`, nie über `prefers-color-scheme`: die
+ * Suite hat einen Cookie-Umschalter, sonst bricht der Fall „System dunkel,
+ * Umschalter hell". Dieselbe Bauform wie `feedback.css`.
+ *
+ * Die Hellwerte liegen zusätzlich auf dem nackten `:root`, damit ein Kontext
+ * ohne Attribut (Druck, isolierte Vorschau) nicht ohne Farben dasteht.
+ * Hellwerte = Suite-Tokens (`core/theme/tokens.ts`, `FARBEN.karte` /
+ * `FARBEN.linie`), Dunkelwerte = antds Vorgaben — kein zweiter Farbeindruck
+ * neben dem Rest der Suite.
+ */
+:root,
+:root[data-theme="light"] {
+  --suite-flaeche: #ffffff;
+  --suite-linie: #d9dde1;
+  --suite-hover: rgb(0 0 0 / 0.06);
+}
+
+:root[data-theme="dark"] {
+  --suite-flaeche: #141414;
+  --suite-linie: #303030;
+  --suite-hover: rgb(255 255 255 / 0.1);
+}
+
 .umschalter {
   position: relative;
   display: flex;
@@ -418,8 +448,8 @@
   overflow-y: auto;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid rgb(0 0 0 / 0.12);
-  background: var(--suite-flaeche, #fff);
+  border: 1px solid var(--suite-linie);
+  background: var(--suite-flaeche);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
 }
 
@@ -429,7 +459,7 @@
   gap: 8px;
   padding: 8px 10px;
   margin-block-end: 12px;
-  border: 1px solid rgb(0 0 0 / 0.12);
+  border: 1px solid var(--suite-linie);
   border-radius: 8px;
 }
 
@@ -473,11 +503,11 @@
 }
 
 .appEintrag:hover {
-  background: rgb(0 0 0 / 0.06);
+  background: var(--suite-hover);
 }
 
 .appEintrag[aria-current] {
-  background: rgb(0 0 0 / 0.06);
+  background: var(--suite-hover);
   font-weight: 600;
 }
 
