@@ -60,7 +60,7 @@
   - `resolveThemeMode(pref: ThemePreference, system: ThemeMode): ThemeMode`
   - `themePreferenceCookieString(pref: ThemePreference, domain?: string): string`
   - `themeSystemCookieString(mode: ThemeMode, domain?: string): string`
-  - **entfällt:** `themeCookieString(mode, domain)` — die einzige Aufruferin ist `AntdProvider` (Task 3)
+  - `themeCookieString(mode, domain)` **bleibt als Übergangsexport** (`@deprecated`, schreibt weiter den Altschlüssel): die einzige Aufruferin ist `AntdProvider`, und die wird erst in Task 3 umgestellt. Beides fällt dort gemeinsam weg, damit der Baum nach jedem Commit übersetzt.
 
 > **Warum `parseThemeMode` bleibt, wie es ist:** seine Semantik („`dark` heißt dunkel, alles andere hell") passt exakt auf das neue System-Cookie. Es umzubenennen wäre Bewegung ohne Gewinn, und seine bestehenden Tests bleiben damit gültig. Neu ist nur, dass ein **unlesbarer Präferenz-Wert** `auto` ergibt, nicht `light` — das prüft `parseThemePreference`.
 
@@ -247,6 +247,16 @@ export function themePreferenceCookieString(pref: ThemePreference, domain?: stri
 export function themeSystemCookieString(mode: ThemeMode, domain?: string): string {
   return cookieString(THEME_SYSTEM_COOKIE, mode, domain);
 }
+
+/**
+ * @deprecated Übergang. Schreibt noch den Altschlüssel und hat genau eine
+ * Aufruferin: `AntdProvider`, das erst in Task 3 auf die getrennten Cookies
+ * umgestellt wird. Fällt mit dieser Umstellung weg — beides zusammen, damit
+ * der Baum nach jedem Commit übersetzt.
+ */
+export function themeCookieString(mode: ThemeMode, domain?: string): string {
+  return cookieString(LEGACY_THEME_COOKIE, mode, domain);
+}
 ```
 
 > Das Init-Script darunter referenziert noch `THEME_COOKIE`. Damit die Datei in diesem Zwischenschritt übersetzt, direkt unter `LEGACY_THEME_COOKIE` vorübergehend ergänzen:
@@ -255,6 +265,8 @@ export function themeSystemCookieString(mode: ThemeMode, domain?: string): strin
 > /** @deprecated Übergang — fällt in Task 2 weg. */
 > export const THEME_COOKIE = LEGACY_THEME_COOKIE;
 > ```
+>
+> **Kein Test auf `themeCookieString`.** Es ist Gerüst mit Verfallsdatum; der Compiler ist sein Wächter. Der bisherige `describe("themeCookieString", …)`-Block fällt wie oben beschrieben weg.
 
 - [ ] **Step 5: Tests laufen lassen**
 
@@ -636,6 +648,8 @@ rtk pnpm vitest run src/core/theme/AntdProvider.test.tsx
 Erwartung: FAIL — `preference` ist `undefined`, `setPreference is not a function`.
 
 - [ ] **Step 3: `AntdProvider.tsx` neu schreiben**
+
+> Mit dieser Datei fällt die letzte Aufruferin von `themeCookieString` weg. **Die Funktion `themeCookieString` deshalb im selben Schritt aus `src/core/theme/mode.ts` löschen** — sie war Übergangsgerüst genau bis hierher (die Konstante `THEME_COOKIE` ist schon in Task 2 gefallen). `rtk pnpm typecheck` in Step 8 ist der Nachweis, dass niemand sonst daran hing.
 
 ```tsx
 "use client";

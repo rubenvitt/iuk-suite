@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { parseThemeMode, themeCookieString, themeInitScript, THEME_COOKIE } from "@/core/theme/mode";
+import {
+  parseThemeMode,
+  parseThemePreference,
+  resolveThemeMode,
+  themePreferenceCookieString,
+  themeSystemCookieString,
+  themeInitScript,
+  THEME_COOKIE,
+  THEME_PREF_COOKIE,
+  THEME_SYSTEM_COOKIE,
+} from "@/core/theme/mode";
 
 describe("parseThemeMode", () => {
   it("liest 'dark' als dark", () => {
@@ -13,19 +23,52 @@ describe("parseThemeMode", () => {
   });
 });
 
-describe("themeCookieString", () => {
-  it("setzt Pfad, Lebensdauer und SameSite", () => {
-    const s = themeCookieString("dark");
-    expect(s).toContain(`${THEME_COOKIE}=dark`);
-    expect(s).toContain("Path=/");
-    expect(s).toContain("SameSite=Lax");
-    expect(s).not.toContain("Domain=");
+describe("parseThemePreference", () => {
+  it.each(["light", "dark"] as const)("liest '%s' als ausdrueckliche Wahl", (raw) => {
+    expect(parseThemePreference(raw)).toBe(raw);
   });
 
-  // Der Grund für die ganze Cookie-Konstruktion: die Einstellung muss über
+  // Die Vorgabe der Suite. Ein fehlendes Cookie ist der Normalfall (der
+  // Schluessel ist neu), ein kaputter Wert darf keinen vierten Zustand
+  // erzeugen — beide landen auf 'auto'.
+  it.each([undefined, null, "", "auto", "system", "kaputt"])("liest %s als auto", (raw) => {
+    expect(parseThemePreference(raw)).toBe("auto");
+  });
+});
+
+describe("resolveThemeMode", () => {
+  it("auto folgt dem System", () => {
+    expect(resolveThemeMode("auto", "dark")).toBe("dark");
+    expect(resolveThemeMode("auto", "light")).toBe("light");
+  });
+
+  // Der Fall, fuer den die ganze Cookie-Konstruktion existiert: 'System
+  // dunkel, Umschalter hell' darf nicht brechen.
+  it("eine ausdrueckliche Wahl schlaegt das System", () => {
+    expect(resolveThemeMode("light", "dark")).toBe("light");
+    expect(resolveThemeMode("dark", "light")).toBe("dark");
+  });
+});
+
+describe("die beiden Cookie-Bauer", () => {
+  it("setzen Pfad, Lebensdauer und SameSite", () => {
+    for (const s of [themePreferenceCookieString("auto"), themeSystemCookieString("dark")]) {
+      expect(s).toContain("Path=/");
+      expect(s).toContain("SameSite=Lax");
+      expect(s).not.toContain("Domain=");
+    }
+  });
+
+  it("schreiben unter getrennten Schluesseln", () => {
+    expect(themePreferenceCookieString("auto")).toContain(`${THEME_PREF_COOKIE}=auto`);
+    expect(themeSystemCookieString("dark")).toContain(`${THEME_SYSTEM_COOKIE}=dark`);
+  });
+
+  // Der Grund fuer die ganze Cookie-Konstruktion: die Einstellung muss ueber
   // alle Modul-Domains hinweg gelten (qr.iuk-ue.de <-> iuk-ue.de).
-  it("trägt die Domain, wenn eine gesetzt ist", () => {
-    expect(themeCookieString("light", ".iuk-ue.de")).toContain("Domain=.iuk-ue.de");
+  it("tragen die Domain, wenn eine gesetzt ist", () => {
+    expect(themePreferenceCookieString("light", ".iuk-ue.de")).toContain("Domain=.iuk-ue.de");
+    expect(themeSystemCookieString("light", ".iuk-ue.de")).toContain("Domain=.iuk-ue.de");
   });
 });
 
