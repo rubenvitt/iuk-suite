@@ -288,29 +288,71 @@ pnpm vitest run src/core/theme/schriftstapel.test.ts src/app/layout.test.tsx src
 
 Erwartet: **PASS**, alle drei Dateien.
 
-- [ ] **Step 7: Die Augenbinde in `bauform.test.ts` abnehmen**
+- [ ] **Step 7: Die Augenbinde in `bauform.test.ts` durch eine hergeleitete Ausnahme ersetzen**
 
-In `src/app/m/lagerbuch/_lib/bauform.test.ts` die Konstante `VOM_LAYOUT` (Zeile 519) **löschen** und
-beide Filter, die sie benutzen, entschärfen:
+> **⚠️ KORRIGIERT WÄHREND DER UMSETZUNG (2026-08-12).** Hier stand, `VOM_LAYOUT` sei **ersatzlos** zu
+> löschen. Das ist unerfüllbar, und der Implementer hat es zu Recht als Blocker gemeldet: `deklariert`
+> wird ausschließlich aus den `.rahmen`-Körpern **dieser Datei** gebaut, `genutzt` scannt die ganze
+> Datei einschließlich der rechten Seite von `--lb-display: var(--font-display), …`. Eine Variable aus
+> `globals.css` kann strukturell nie in `deklariert` landen und beginnt nie mit `--lb-`. Beide Filter
+> schlügen an, für immer.
+>
+> **Der Mangel war nie die Ausnahme, sondern dass sie eine Behauptung war, die niemand nachprüfte.**
+> Ein fest verdrahtetes `/^--font-(display|body|mono)$/` sagt „die kommen vom Layout" und glaubt sich
+> selbst. Eine aus `globals.css` gelesene Menge sagt dasselbe und **weiß** es — und wird rot, wenn
+> jemand die Deklaration dort entfernt.
+
+In `src/app/m/lagerbuch/_lib/bauform.test.ts` die Konstante `VOM_LAYOUT` (Zeile 519) durch eine
+abgeleitete Menge bei den anderen Modulkonstanten ersetzen:
 
 ```ts
-    const fremde = [...genutzt].filter((n) => !n.startsWith("--lb-"));
-    expect([...new Set(fremde)], "nur --lb-* sind erlaubt").toEqual([]);
+/**
+ * DIE VARIABLEN, DIE VOM WURZEL-LAYOUT KOMMEN — HERGELEITET, NICHT BEHAUPTET.
+ *
+ * Hier stand `VOM_LAYOUT = /^--font-(display|body|mono)$/`, ein fest
+ * verdrahtetes Muster mit der Begruendung, diese drei laegen auf `:root`. Das
+ * war eine BEHAUPTUNG, und sie war falsch: das Layout registrierte nur Geist,
+ * die drei Namen standen nirgends, und `helfer.module.css` rendete im Fallback
+ * "Arial Narrow" — still, ueber Monate. Der Riegel war die Augenbinde.
+ *
+ * Der Mangel war nicht die Ausnahme, sondern dass niemand sie nachprueft. Die
+ * Menge hier wird deshalb AUS `globals.css` GELESEN. Wer die Deklaration dort
+ * entfernt, schrumpft diese Menge — und dieser Test wird rot, statt weiter zu
+ * schweigen.
+ */
+const GLOBALS = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "");
+const VOM_LAYOUT = new Set(
+  [...GLOBALS.matchAll(/(--font-[\w-]+)\s*:/g)].map((t) => t[1]!),
+);
 ```
 
+Beide Filter benutzen die Menge statt des Musters:
+
 ```ts
-    const unaufloesbar = [...genutzt].filter((n) => !deklariert.has(n));
-    expect(unaufloesbar, "benutzt, aber unter `.rahmen`/Dunkelzweig nicht deklariert")
+    const fremde = [...genutzt]
+      .filter((n) => !n.startsWith("--lb-") && !VOM_LAYOUT.has(n));
+    expect([...new Set(fremde)], "nur --lb-* und die --font-* aus globals.css sind erlaubt")
+      .toEqual([]);
+
+    const unaufloesbar = [...genutzt]
+      .filter((n) => !deklariert.has(n) && !VOM_LAYOUT.has(n));
+    expect(unaufloesbar,
+      "benutzt, aber weder unter `.rahmen`/Dunkelzweig deklariert noch eine `--font-*` aus globals.css")
       .toEqual([]);
 ```
 
-Achtung: `--lb-display|body|mono` **sind** unter `.rahmen` deklariert (Zeile 64-66), fallen also
-unter beide neuen Filter sauber durch. Was sie *benutzen* — `--font-display` und Geschwister — steht
-jetzt in `globals.css` und geht den Test nichts mehr an, weil der Filter auf die **benutzten** Namen
-in `helfer.module.css` schaut und dort nur `--lb-*` vorkommen … **prüfe das**: falls
-`helfer.module.css` `var(--font-…)` direkt außerhalb der `.rahmen`-Deklaration benutzt, schlägt
-`fremde` an. Dann ist die richtige Antwort nicht, die Whitelist wiederzubeleben, sondern die
-Deklaration in `.rahmen` zu zentralisieren.
+**Der Vakuum-Riegel gehört dazu.** Eine leere `VOM_LAYOUT` wäre still die ersatzlose Streichung:
+
+```ts
+expect(VOM_LAYOUT.size, "keine --font-*-Deklaration in globals.css gefunden — der Scan liefe ins Leere")
+  .toBeGreaterThanOrEqual(3);
+```
+
+Den irreführenden Kommentar direkt darüber (Zeile 498-506, „`--font-display|body|mono` sind die
+Ausnahme — sie kommen vom Wurzel-Layout und liegen auf `:root`") auf den tatsächlichen Stand
+umschreiben: die Ausnahme besteht fort, sie ist nur nicht länger blind. Der Satz über den
+Ursprungsfehler bleibt — er ist die Warnung, die trägt.
 
 Den irreführenden Kommentar direkt darüber (Zeile 498-506, „`--font-display|body|mono` sind die
 Ausnahme — sie kommen vom Wurzel-Layout und liegen auf `:root`") ersetzen durch:
