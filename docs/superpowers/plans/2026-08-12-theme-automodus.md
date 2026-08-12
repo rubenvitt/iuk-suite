@@ -751,7 +751,13 @@ export function AntdProvider({
    *
    * Das Cookie wird IMMER fortgeschrieben, auch bei ausdrücklicher Wahl —
    * sonst gälte beim späteren Zurückschalten auf Auto ein veralteter Wert.
-   * Gestempelt wird nur bei `auto`.
+   * Gestempelt wird über `resolveThemeMode`, nicht nur bei `auto`: bei
+   * ausdrücklicher Wahl liefert die Funktion die Wahl selbst zurück und der
+   * Systemwert bleibt wirkungslos — der Aufruf ist dann ein Leerlauf-Stempel
+   * auf den bereits geltenden Modus. Der lohnt sich trotzdem, weil der Effekt
+   * schon beim ERSTEN Mount läuft: ohne ihn bliebe `dataset.theme` bis zur
+   * nächsten Wahl unangetastet und verließe sich stillschweigend darauf, dass
+   * das Server-Markup es schon richtig gesetzt hat.
    *
    * `preference` steht in den Abhängigkeiten (statt in einem Ref): der Effekt
    * hängt sich dann bei jeder Wahl neu ein. Das ist einmal pro Klick und
@@ -763,7 +769,7 @@ export function AntdProvider({
     const nachziehen = () => {
       const system: ThemeMode = mq.matches ? "dark" : "light";
       document.cookie = themeSystemCookieString(system, cookieDomain);
-      if (preference === "auto") stempeln(system);
+      stempeln(resolveThemeMode(preference, system));
     };
     nachziehen();
     mq.addEventListener("change", nachziehen);
