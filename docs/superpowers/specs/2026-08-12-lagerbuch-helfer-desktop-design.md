@@ -151,8 +151,14 @@ ist nur, ob `.gate` selbst (`:156`) mit `justify-content: center` auf einem hohe
 Schirm noch stimmig steht.
 
 **Entnahme / Artikel-Detail** (`Entnahme.tsx:95-190`) — heute eine Kette aus
-Bestands-Karte, Entnahme-Karte und FEFO-Karte untereinander. Ab 768px:
-Bestandszahl und Entnahme nebeneinander, FEFO darunter über die volle Breite.
+Bestands-Karte, Entnahme-Karte und FEFO-Karte untereinander. Diese Ansicht
+bekommt ab 768px **keine** volle Bahn, sondern eine engere Lesebreite von 720px.
+
+Nicht jede Ansicht gewinnt durch 1200px: hier stehen eine Zahl, ein Stepper und
+eine kurze Chargenliste. Über die volle Bahn gezogen stünde der 24px-Titel allein
+in einer Zeile mit 90 % Weißraum. Eine zweispaltige Fassung wäre die naheliegende
+Alternative und ist verworfen — sie verlangt einen Umbau der Kettenstruktur und
+liefert eine rechte Spalte, die nach dem Stepper leer ist.
 
 ### 4. Was unverändert bleibt
 
