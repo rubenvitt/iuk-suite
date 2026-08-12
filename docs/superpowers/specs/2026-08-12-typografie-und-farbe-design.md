@@ -23,7 +23,7 @@ zerfällt damit in eine Reparatur und einen Ausbau, und die Reparatur trägt den
 |---|---|---|
 | **A** | Die drei Schrift-Rollenvariablen werden real; Display-Familie kommt hinzu | `app/layout.tsx`, `app/globals.css`, `_lib/bauform.test.ts` |
 | **B** | Eine Rollen-Leiter der Suite statt zweier modul-eigener | `core/theme/schrift.ts`, die zwei Adapter |
-| **C** | Farbvokabular des Vorbilds als Suite-Muster, mit Dunkelzweig | `core/theme/flaechen.module.css` |
+| **C** | Suite-Farbvariablen mit Dunkelzweig; Farbvokabular schriftlich festgehalten | `app/globals.css`, `docs/design/README.md` |
 | **D** | Sichtbar gemacht in Shell und Portal | `core/shell/`, `app/m/portal/` |
 
 ### Was ausdrücklich nicht in dieser Spec liegt
@@ -204,13 +204,20 @@ Alle Größen liegen auf antds Leiter. `lineHeight` steht nur dort, wo es eine A
 gilt antds Vorgabe, damit kein Wert erfunden wird, den ein späterer Leser für geprüft hält (die
 Regel stammt aus `typo.ts` und wird übernommen).
 
-**Die gedämpfte Farbe ist eine `--iuk-*`-Variable aus Teil C, nie `--ant-*`** (Falle 2). `typo.ts`
-löst das heute über `--fb-muted` und begründet es dort ausführlich; suiteweit braucht es einen
-suiteweiten Träger, und den stellt Teil C auf `:root`.
+**⚠️ KORRIGIERT BEIM PLANEN (2026-08-12): die Rollen tragen KEINE Farbe.**
 
-**Daraus folgt eine Reihenfolge, die den Buchstaben widerspricht:** die Variablendeklaration aus
-Teil C muss vor Teil B stehen, sonst trägt `kicker` eine Farbe, die es nicht gibt — und der Ausfall
-wäre still (Falle 2). Siehe §9.
+Hier stand, `kicker` und `neben` trügen eine gedämpfte Farbe aus dem `--iuk-*`-Satz von Teil C. Das
+stößt sich an den Trägern: `feedback` färbt über `--fb-muted` (§4.7 seines Entwurfs, dort
+ausführlich begründet), `lagerbuch` rendert unter `.modul` mit `--lb-stahl`. Eine Farbe in `core`
+müsste einem der beiden aufgezwungen werden und änderte 23 Seiten optisch, obwohl der Auftrag nur
+die Familie betrifft.
+
+**Farbe bleibt beim Träger.** Die Rollen tragen Familie, Größe, Gewicht, Laufweite, Versalien und
+Ziffernstellung — sonst nichts. Wer gedämpften Text braucht, setzt die Farbe am Verwendungsort dazu;
+Shell und Portal nehmen dafür `--iuk-gedaempft` aus Teil C (**nie** `--ant-*`, Falle 2).
+
+**Folge für §9:** die Reihenfolge bleibt A → B → C → D. Die dort zunächst notierte Umkehr war allein
+durch die Farbe auf `kicker` begründet.
 
 ### B.3 Die zwei Adapter
 
@@ -247,8 +254,11 @@ die Freiheit, Barlow Condensed zu wählen, nicht die Pflicht, es zu lassen.
 
 ### C.1 Der Träger
 
-`core/theme/flaechen.module.css`, importiert im Wurzel-Layout, deklariert `--iuk-*`-Variablen auf
-`:root` und einen zweiten Satz unter `:root[data-theme="dark"]`.
+`app/globals.css` deklariert die `--iuk-*`-Variablen auf `:root` und einen zweiten Satz unter
+`:root[data-theme="dark"]`. **Dort und nicht in einer eigenen Datei:** `globals.css` ist das globale
+Stylesheet der Suite, wird vom Wurzel-Layout ohnehin geladen und beherbergt seit Teil A schon die
+drei Schrift-Rollenvariablen. Ein CSS-Modul wäre der falsche Ort — es hasht seine Klassennamen, und
+gebraucht werden hier ausschließlich Variablen auf `:root`.
 
 **Nie `--ant-*`** (Falle 2): antd deklariert seine Variablen auf der Scope-Klasse an den
 Wurzelelementen seiner eigenen Komponenten, nicht auf `:root`. Eigenes Markup sieht sie nicht, und
@@ -268,15 +278,37 @@ Vorlage ist `app/m/lagerbuch/_ui/verwaltung.module.css:1-33`: dort steht der vol
 beide Modi bereits, aus der Portierung des Vorbilds gewonnen. Die Suite-Variablen übernehmen diese
 Werte, statt sie ein zweites Mal herzuleiten.
 
-### C.3 Das Vokabular
+### C.3 Was nach `core` geht — und was nicht
+
+**⚠️ KORRIGIERT BEIM PLANEN (2026-08-12).** Hier stand eine Bausteinliste (KPI-Kante, getönte Chips,
+Abschnittsstreifen, Journal-Deltas, Gefahrenzone) als Inhalt eines `core/theme/flaechen.module.css`.
+Das stößt sich an §5.1: der Maßstab für `core` ist **ein zweiter, heute belegbarer Nutznießer**, und
+diese Bausteine haben genau einen — `lagerbuch/_ui/verwaltung.module.css`. Sie nach `core` zu heben,
+ohne dass ein zweites Modul sie ruft, wäre ein Framework für einen Nutzer.
+
+**Nach `core` gehen drei Variablen, die Teil D heute benutzt**, deklariert in `app/globals.css` auf
+`:root` mit Dunkelzweig:
+
+| Variable | hell | dunkel | Anwender in Teil D |
+|---|---|---|---|
+| `--iuk-marke` | `#c8000f` | `#e04452` | Markenstreifen, Aktivzustand, Kachelkante bei Hover |
+| `--iuk-gedaempft` | `#5b6570` | `#9aa4ad` | Drawer-Gruppentitel, Kicker und Nebentext im Portal |
+| `--iuk-linie` | `#d9dde1` | `#2a2f34` | Ruhezustand der Kachelkante |
+
+`--iuk-marke` ist im Dunkeln bewusst **nicht** `#c8000f`: auf nahezu Schwarz reicht der Kontrast für
+14px-Text nicht. antds Dunkel-Algorithmus rechnet sich seine eigene Primärfarbe aus — eigenes Markup
+muss das selbst tun, und der Wert wird gemessen, nicht geschätzt.
+
+**Das Baustein-Vokabular wird stattdessen in `docs/design/README.md` beschrieben**, damit das nächste
+Modul es nachbaut statt neu erfindet — und dann darf es umziehen:
 
 | Baustein | Griff |
 |---|---|
-| KPI-Kachel | `border-inline-start: 4px` in rot / gelb / ok / stahl |
-| Chip | Fläche und Text als **Paar** (`--iuk-ampel-ok-flaeche` + `--iuk-ampel-ok-text`), nie antds `Tag`-Vorgabe |
+| KPI-Kachel | `border-inline-start: 4px` in der Ampelfarbe, sonst neutral |
+| Chip | Fläche und Text als **Paar** (`…-flaeche` + `…-text`), nie antds `Tag`-Vorgabe |
 | Abschnittsstreifen in Karten | eigene Fläche, hell `#f6f8f9`, dunkel `#1c2024` |
-| Journal-Delta | grün / rot, zusätzlich mit Vorzeichen |
-| Gefahrenzone | 1px rote Kontur, versaler Titel in Rot |
+| Journal-Delta | grün / rot, **zusätzlich mit Vorzeichen** |
+| Gefahrenzone | 1px Kontur in Markenrot, versaler Titel |
 
 ### C.4 Die Linie, die das Vorbild nicht ziehen musste
 
@@ -328,8 +360,16 @@ ein eigenes Element ist keiner.
 ### D.2 Portal
 
 `app/m/portal/page.tsx` trägt heute `fontWeight: 600` und `fontSize: 14, opacity: 0.65` inline. Die
-Kacheln bekommen `SCHRIFT.titel`/`SCHRIFT.neben`, darüber einen Kicker, und eine farbige Innenkante
-je Modul.
+Kacheln bekommen `SCHRIFT.unterTitel`/`SCHRIFT.neben`, darüber einen Kicker, und eine Akzentkante.
+
+**⚠️ KORRIGIERT BEIM PLANEN (2026-08-12):** hier stand „eine farbige Innenkante **je Modul**". Eine
+Palette je Modul existiert nicht und müsste erfunden werden — und die einzige Markenfarbe der Suite
+ist Rot, das laut §6.4 nicht beliebig auf Flächen darf. Die Kachel trägt stattdessen eine ruhige
+Kante in `--iuk-linie`, die bei `:hover` und `:focus-within` auf `--iuk-marke` wechselt. Ein
+Zustand, eine Farbe, keine Erfindung.
+
+`opacity: 0.65` fällt ersatzlos: Deckkraft dimmt den Kontrast unprüfbar mit und hat keinen
+Dunkelzweig. An ihre Stelle tritt `--iuk-gedaempft`.
 
 `Card.Meta` bleibt verboten (Falle 1, Server Component) — das ist heute schon so gelöst und im
 Quelltext begründet.
@@ -376,14 +416,13 @@ Die Tore bleiben: `pnpm typecheck` · `pnpm lint` · `pnpm vitest run` · `pnpm 
 
 ## 9. Reihenfolge
 
-**A → C → B → D**, und die Vertauschung von B und C ist Absicht, kein Tippfehler. Jeder Schritt ist
-für sich lauffähig und abnehmbar.
+**A → B → C → D.** Jeder Schritt ist für sich lauffähig und abnehmbar.
 
 - **A** ist Reparatur mit belegbarem Vorher/Nachher und trägt alles Weitere. Nach A allein hat der
   Helfer-Weg seinen Charakter zurück.
-- **C vor B**, weil `SCHRIFT.kicker` und `SCHRIFT.neben` eine gedämpfte Farbe tragen und die aus dem
-  `--iuk-*`-Satz kommt (§5.2). Andersherum stünde die Farbe ins Leere, und zwar still.
 - **B** ohne A wäre wirkungslos — die Familie stünde ins Leere.
+- **C** ist von B unabhängig, seit die Rollen keine Farbe tragen (§5.2), muss aber vor D liegen:
+  D benutzt sein Vokabular.
 - **D** benutzt beides und ist das, was man sieht.
 
 ---
