@@ -158,7 +158,7 @@ mit Nein beantwortet, nicht stillschweigend vorausgesetzt.
    Teilbedingungen erfüllt.
    Stichprobe: `.fachraster` in `_ui/CheckFlow.tsx:468` sitzt unter
    `data-rolle="zaehlliste"` und ist laut `_ui/helfer.module.css` ein
-   CSS-Grid mit `repeat(auto-fill, minmax(...))` ab dem 768px-Zweig — das
+   CSS-Grid mit `repeat(auto-fit, minmax(...))` ab dem 768px-Zweig — das
    Ergebnis „mehrspaltig ab einer festen Mindestbreite" ist mit dem
    gemessenen Wert (388px Spaltenbreite bei 1440px verfügbarer Breite)
    konsistent, drei Spalten passen rechnerisch (3 × 388px + Lücken < 1200px
