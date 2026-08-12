@@ -50,7 +50,12 @@ import { SCHRIFT as SUITE } from "@/core/theme/schrift";
  * geschnitten war.
  */
 function ohneZiffernstellung(rolle: CSSProperties): CSSProperties {
-  const { fontVariantNumeric: _suiteWert, ...rest } = rolle;
+  // Kopieren und loeschen statt Destrukturierung mit Wegwerf-Bindung: eine
+  // Bindung, die nur existiert, um nicht benutzt zu werden, ist hier eine
+  // `no-unused-vars`-Warnung (die Regel honoriert das `_`-Praefix an dieser
+  // Stelle nicht) und benennt zudem nichts, was der Leser wiederfinden koennte.
+  const rest = { ...rolle };
+  delete rest.fontVariantNumeric;
   return rest;
 }
 

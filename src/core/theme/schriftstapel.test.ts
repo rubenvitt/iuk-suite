@@ -28,8 +28,20 @@ const css = GLOBALS.replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("Schriftstapel — die drei Rollenvariablen", () => {
   it("deklariert --font-display, --font-body und --font-mono auf :root", () => {
+    // AUF DEN HELLEN `:root`-BLOCK VERANKERT, nicht auf die ganze Datei —
+    // dieselbe Verankerung wie beim `--iuk-*`-Test weiter unten, und aus
+    // demselben Grund: eine Suche ueber den gesamten Text waere schon
+    // zufrieden, wenn die Variable NUR im Dunkelzweig stuende. Der Schriftstapel
+    // hat dort gar nichts zu suchen (Schrift schaltet nicht mit dem Modus), und
+    // eine Deklaration, die es doch nur dort gaebe, waere im Hellen wieder der
+    // stille Fallback — genau der Ausfall, gegen den diese Datei antritt.
+    // `:root\s*\{` matcht `:root[data-theme="dark"] {` nicht (das Attribut
+    // steht dazwischen) und `:root .ant-select-selector {` ebenso wenig;
+    // `--font-` im Block schliesst den `--iuk-*`-Block aus.
+    const hell = css.match(/:root\s*\{([^}]*--font-[^}]*)\}/);
+    expect(hell, "kein --font-Block auf dem hellen :root").not.toBeNull();
     for (const name of ["--font-display", "--font-body", "--font-mono"]) {
-      expect(css, `${name} wird in globals.css nicht deklariert`)
+      expect(hell![1]!, `${name} wird in globals.css nicht auf :root deklariert`)
         .toMatch(new RegExp(`${name}\\s*:`));
     }
   });
