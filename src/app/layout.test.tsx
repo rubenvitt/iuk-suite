@@ -13,12 +13,28 @@ import type { ReactElement } from "react";
  * Gerendert wird nicht: `RootLayout` ist eine Server Component, ihr Rueckgabe-
  * wert ist ein React-Element. Dessen Props zu lesen prueft genau die Zusage,
  * ohne antd, AntdRegistry oder eine DOM-Umgebung hochzufahren.
+ *
+ * DIE FAMILIE-VARIABLE-BINDUNG (Nachschaerfung Gesamtreview). Die urspruengliche
+ * Fassung ignorierte ihr Argument (`Barlow: () => ({ variable: "--font-body" })`)
+ * und lieferte den Wert unabhaengig davon, was `layout.tsx` uebergab. Vertauscht
+ * `layout.tsx` die `variable:`-Werte von `Barlow` und `Barlow_Condensed`, blieb
+ * dieser Mock — und damit der Test — gruen: gueltiges CSS/JSX, alle Gates
+ * gruen, Bruch still (Falle 2, ganzer Fliesstext in Barlow Condensed).
+ *
+ * Der Mock echot deshalb sein Argument, und `vi.fn()` haelt fest, WELCHER
+ * Aufruf welche Variable bekam — die Assertion unten prueft die Paarung
+ * Familie ↔ Variable, nicht nur, dass beide Werte irgendwo auftauchen.
  */
+const fontMocks = vi.hoisted(() => ({
+  barlow: vi.fn((optionen: { variable: string }) => ({ variable: optionen.variable })),
+  barlowCondensed: vi.fn((optionen: { variable: string }) => ({ variable: optionen.variable })),
+}));
+
 vi.mock("next/font/google", () => ({
   Geist: () => ({ variable: "--font-geist-sans" }),
   Geist_Mono: () => ({ variable: "--font-geist-mono" }),
-  Barlow: () => ({ variable: "--font-body" }),
-  Barlow_Condensed: () => ({ variable: "--font-display" }),
+  Barlow: fontMocks.barlow,
+  Barlow_Condensed: fontMocks.barlowCondensed,
   IBM_Plex_Mono: () => ({ variable: "--font-mono" }),
 }));
 
@@ -111,5 +127,22 @@ describe("Wurzel-Layout: Theme-Signal fuer CSS", () => {
     ]) {
       expect(klassen, `${name} fehlt in der className des <html>-Elements`).toContain(name);
     }
+  });
+
+  /**
+   * Ergaenzt die Additivitaets-Probe oben: die pruefte nur, dass alle fuenf
+   * Variablennamen IRGENDWO in der className stehen — eine Vertauschung der
+   * beiden Barlow-Werte liesse beide weiterhin auftauchen, nur an der
+   * falschen Familie. `fontMocks` haelt fest, mit welchem Argument `Barlow`
+   * bzw. `Barlow_Condensed` tatsaechlich aufgerufen wurden; das bindet die
+   * Zusicherung an die Familie, nicht nur an die blosse Anwesenheit des Werts.
+   */
+  it("Familie ↔ Variable: Barlow traegt --font-body, Barlow_Condensed traegt --font-display", () => {
+    // `barlow`/`barlowCondensed` in `layout.tsx` sind Modul-Konstanten — der
+    // Aufruf geschah beim Import oben, nicht erst beim Rendern.
+    expect(fontMocks.barlow).toHaveBeenCalledWith(expect.objectContaining({ variable: "--font-body" }));
+    expect(fontMocks.barlowCondensed).toHaveBeenCalledWith(
+      expect.objectContaining({ variable: "--font-display" }),
+    );
   });
 });

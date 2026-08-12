@@ -1435,8 +1435,20 @@ describe("die drei Schriftstapel kommen wirklich vom Wurzel-Layout", () => {
      */
     const layout = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8");
     const quelle = ohneKommentare(layout);
-    for (const name of ["--font-body", "--font-display", "--font-mono"]) {
-      expect(quelle, `${name} wird im Wurzel-Layout nicht als next/font-Variable gesetzt`)
+    // Nicht nur, DASS der Name irgendwo im Quelltext steht, sondern zu WELCHEM
+    // next/font/google-Aufruf die Zeile gehoert: ein Scan auf blosse
+    // Anwesenheit bliebe gruen, wenn jemand die `variable:`-Werte von Barlow
+    // und Barlow_Condensed vertauscht — gueltiges CSS, stiller Bruch (Falle 2).
+    // Jede Familie wird deshalb an IHREN eigenen Aufruf gebunden.
+    const bindungen: Array<[string, string]> = [
+      ["Barlow", "--font-body"],
+      ["Barlow_Condensed", "--font-display"],
+      ["IBM_Plex_Mono", "--font-mono"],
+    ];
+    for (const [familie, name] of bindungen) {
+      const aufruf = quelle.match(new RegExp(`\\b${familie}\\s*\\(\\s*\\{([^}]*)\\}\\s*\\)`));
+      expect(aufruf, `${familie}(...) wird im Wurzel-Layout nicht aufgerufen`).not.toBeNull();
+      expect(aufruf![1], `${familie}(...) setzt nicht variable: "${name}" — Familie und Variable sind entkoppelt`)
         .toMatch(new RegExp(`variable:\\s*["'\`]${name}["'\`]`));
     }
     // Die Deklaration allein genuegt nicht: ohne die `className` am <html> ist
