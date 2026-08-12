@@ -54,6 +54,11 @@ Das Paket ist mit Absicht RSC-fähig gebaut. **Das entbindet nicht von der Messu
 der Beleg ist ein echter Abruf einer Server Component, die `react-icons/pi` importiert
 (Abschnitt „Verifikation"), nicht diese Tabelle.
 
+**Gemessen am 12.08.2026** (Task 1, Step 5): `GET http://lagerbuch.localtest.me:3100/rscProbe`
+(temporäre Probe-Route, `PiSquaresFour` auf Modulebene ohne `"use client"`) → `HTTP 200`,
+`grep -c "<svg" /tmp/probe.html` → `1`. Der Abruf ist damit erbracht, nicht nur die Tabelle
+oben.
+
 Phosphor liegt unter `react-icons/pi`, Standardgewicht „regular" (`PiXxx`; die Varianten
 `…Bold`, `…Fill`, `…Light`, `…Thin`, `…Duotone` werden nicht verwendet). Alle 50 unten
 genannten Namen wurden gegen `package/pi/index.d.ts` (9.072 Exporte) geprüft und
@@ -253,6 +258,30 @@ weil ein selbst gesetztes Array die Standardliste je nach Zusammenführung verdr
 
 Die Route-Größen aus `pnpm build` werden vor und nach der Migration festgehalten, damit die
 Annahme belegt ist statt geglaubt.
+
+**Gemessen am 12.08.2026 (Task 9), nicht behauptet:**
+
+Der Next-16-Build mit Turbopack gibt in diesem Repo **keine Größenspalte** je Route mehr aus —
+nur die Routenliste mit dem `ƒ (Dynamic)`-Marker (bereits in Task 1 festgestellt, hier erneut
+bestätigt gegen den fertigen `pnpm build`-Lauf dieses Branches). Ein Vorher/Nachher-Diff der
+Build-Ausgabe selbst zeigt deshalb **nichts** — das ist eine Eigenschaft von Turbopack, keine
+Lücke dieser Migration. Gemessen wurde stattdessen am erzeugten Artefakt (`.next/static/chunks`),
+verglichen gegen einen frischen Build von `origin/main` (Commit `a46604d`) in einem separaten,
+danach wieder entfernten Worktree:
+
+| | `origin/main` (a46604d) | dieser Branch (`feat/lagerbuch-ux-verbesserungen`) |
+|---|---|---|
+| `chunks` gesamt (`du -sk`) | 4156 KB | 4144 KB |
+| Dateien > 200 KB | 461K, 447K, 351K, 215K | 461K, 447K, 351K, 285K |
+
+Der Branch ist **12 KB kleiner**, kein Sprung um mehrere hundert KB — das Signal, das ein
+mitgebündeltes Phosphor-Barrel (9.072 Zeichen) gezeigt hätte, bleibt aus. Die einzelnen
+`>200K`-Dateinamen unterscheiden sich zwischen den zwei Messungen (z. B. 215K auf `main` gegen
+285K auf dem Branch), aber das ist normale, inhaltsbasierte Chunk-Hash-Umbenennung zwischen zwei
+unabhängigen Turbopack-Builds — kein neuer Chunk. Zusätzlich: `grep -rn 'from "react-icons"'`
+(Barrel-Import ohne Set-Suffix) findet im gesamten `src/`-Baum keinen Treffer außerhalb eines
+Testliterals in `ikonen.test.ts` (das den verbotenen Fall absichtlich als Zeichenkette prüft,
+nicht als echten Import) — der Riegel aus Task 2 hält.
 
 ### 4d — Nav-Icons (`core/shell`)
 
