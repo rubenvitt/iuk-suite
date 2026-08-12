@@ -231,8 +231,8 @@
  * aber die naechste Datei, die er aufnimmt, braeche daran.
  *
  * `gap: 0 18px` heisst: senkrecht nichts, waagerecht 18px. Der senkrechte
- * Abstand kommt weiter aus `.fachKopf`s eigenem `margin` (:279) — eine
- * row-gap hier addierte sich dazu.
+ * Abstand kommt weiter aus `.fachKopf`s eigenem `margin` (Regel `.fachKopf`
+ * weiter unten in dieser Datei) — eine row-gap hier addierte sich dazu.
  */
 .fachraster {
   display: grid;
@@ -570,8 +570,8 @@
 
   /*
    * ZWEI SPALTEN AB 768px, DREI AB 1100px — ohne zweite Media Query: `auto-fit`
-   * mit `minmax` bricht selbst um. Das ist dieselbe Bauform, die `.gateKarten`
-   * (:163) schon benutzt, und sie haelt §7.7.1 („genau ein Breakpoint") ein.
+   * mit `minmax` bricht selbst um. Das ist dieselbe Bauform, die die Basisregel
+   * `.gateKarten` schon benutzt, und sie haelt §7.7.1 („genau ein Breakpoint") ein.
    *
    * 360px Mindestbreite je Spalte ist kein runder Wert, sondern der Platz, den
    * eine Zaehlzeile braucht: Pruefkreis 30 + Name + Stepper 3x56 = 168 + die

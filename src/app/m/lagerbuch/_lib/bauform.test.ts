@@ -651,8 +651,9 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
      * `gap: 0 18px` standen in der Basisregel, aber ungeschuetzt. Genau diese
      * zwei Eigenschaften sind es, an denen die Zaehlliste optisch kaputtgeht,
      * wenn sie jemand entfernt — ohne `align-items: start` zieht Grid jede
-     * Fachkarte auf die Hoehe der hoechsten in derselben Rasterzeile (:557),
-     * und eine fehlende `gap` liesse die Spalten aneinanderkleben.
+     * Fachkarte auf die Hoehe der hoechsten in derselben Rasterzeile
+     * (`align-items` in der `.fachraster`-Basisregel), und eine fehlende
+     * `gap` liesse die Spalten aneinanderkleben.
      */
     expect(css.slice(0, auf), "`.fachraster` ohne `align-items: start`").toMatch(
       /\.fachraster\s*\{[^}]*align-items:\s*start/,
@@ -665,7 +666,7 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
   it("das Listenraster repariert seine Trenner — sonst franst die obere Reihe aus", () => {
     /**
      * ⚠️ DAS IST DER EIGENTLICHE INHALT DIESES TASKS, nicht das Grid.
-     * `.zeile:first-child { border-top: none }` (:197) ist im Grid EINMAL wahr,
+     * Die Basisregel `.zeile:first-child { border-top: none }` ist im Grid EINMAL wahr,
      * nicht je Spalte: die rechte Zelle der obersten Reihe traegt dann eine
      * Linie, die linke nicht. Der Fehler ist rein optisch, faellt in keinem
      * Test auf und sieht nach Schlamperei aus, nicht nach einem Bug.
