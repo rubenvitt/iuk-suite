@@ -29,23 +29,23 @@ export type NavIkonName =
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.
- * Beide Icon-Felder sind optional; der Umschalter faellt in dieser Reihenfolge
- * zurueck: `iconUrl` → `ICONS[icon]` → neutrales Link-Icon. Ein Union-Typ zwaenge
- * jede Aufrufstelle zu einer Fallunterscheidung, die genau diesen Rueckfall
+ * Beide Icon-Felder sind optional; der Umschalter fällt in dieser Reihenfolge
+ * zurück: `iconUrl` → `ICONS[icon]` → neutrales Link-Icon. Ein Union-Typ zwänge
+ * jede Aufrufstelle zu einer Fallunterscheidung, die genau diesen Rückfall
  * nachbaut.
  */
 export interface LauncherEintrag {
-  /** Eindeutig ueber beide Quellen: Module tragen ihren Registry-Key, Dienste `dienst:<id>`. */
+  /** Eindeutig über beide Quellen: Module tragen ihren Registry-Key, Dienste `dienst:<id>`. */
   key: string;
   title: string;
   beschreibung?: string;
-  /** Schluessel der ICONS-Map — nur Suite-Module. Aufloesung NUR in Client-Inseln. */
+  /** Schlüssel der ICONS-Map — nur Suite-Module. Auflösung NUR in Client-Inseln. */
   icon?: string;
   /** Bild-URL — nur externe Dienste. */
   iconUrl?: string | null;
   href: string;
   abschnitt: string;
-  /** Oeffnet in neuem Tab (`services.openInNewTab`). */
+  /** Öffnet in neuem Tab (`services.openInNewTab`). */
   extern: boolean;
 }
 

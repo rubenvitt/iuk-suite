@@ -3,27 +3,27 @@ import type { Service } from "@/app/m/portal/_db/schema";
 import type { LauncherEintrag } from "@/core/shell/types";
 
 /**
- * DIE EINE FUNKTION, DIE DAS PORTAL FUER `core/shell` VEROEFFENTLICHT.
+ * DIE EINE FUNKTION, DIE DAS PORTAL FÜR `core/shell` VERÖFFENTLICHT.
  *
- * `docs/design/README.md` haelt fest, dass Modul-Interna kein API sind
+ * `docs/design/README.md` hält fest, dass Modul-Interna kein API sind
  * (`payloadToSvg` durfte nicht quer importiert werden). Der Launcher liegt aber
- * in `core/shell` und laeuft auf jeder Seite jedes angemeldeten Moduls, waehrend
+ * in `core/shell` und läuft auf jeder Seite jedes angemeldeten Moduls, während
  * die Dienste in DIESER Datenbank stehen. Statt `core` das Schema sehen zu
- * lassen, veroeffentlicht das Modul genau eine Funktion — dieselbe Bauform, die
+ * lassen, veröffentlicht das Modul genau eine Funktion — dieselbe Bauform, die
  * `core/bootstrap.ts` mit `seedPortal` schon nutzt.
  *
  * KEIN `"use client"`: `core/shell/launcherEintraege.ts` ist ein Server-Modul und
- * bekaeme sonst eine Client-Referenz statt der Funktion (`docs/design/README.md`,
+ * bekäme sonst eine Client-Referenz statt der Funktion (`docs/design/README.md`,
  * Falle 6).
  *
- * `launcherEintraege.test.ts` haelt mit einem Quelltext-Scan fest, dass
+ * `launcherEintraege.test.ts` hält mit einem Quelltext-Scan fest, dass
  * `core/shell` aus diesem Modul NUR diese Datei importiert.
  */
 export const ABSCHNITT_WEITERE = "Weitere Dienste";
 
 /**
- * Rein, damit sie ohne Datenbank pruefbar ist — der lesende Wrapper darunter
- * bleibt so duenn, dass an ihm nichts mehr schiefgehen kann.
+ * Rein, damit sie ohne Datenbank prüfbar ist — der lesende Wrapper darunter
+ * bleibt so dünn, dass an ihm nichts mehr schiefgehen kann.
  */
 export function dienstZuEintrag(dienst: Service): LauncherEintrag {
   return {
@@ -32,7 +32,7 @@ export function dienstZuEintrag(dienst: Service): LauncherEintrag {
     beschreibung: dienst.description.trim() || undefined,
     iconUrl: dienst.iconUrl,
     href: dienst.url,
-    abschnitt: dienst.category?.trim() ? dienst.category : ABSCHNITT_WEITERE,
+    abschnitt: dienst.category?.trim() || ABSCHNITT_WEITERE,
     extern: dienst.openInNewTab,
   };
 }
