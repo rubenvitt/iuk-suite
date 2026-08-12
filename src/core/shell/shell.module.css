@@ -274,9 +274,9 @@
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  /* `--iuk-gedaempft` statt der frueheren Deckkraft-Daempfung: Deckkraft
-     dimmt den Kontrast unpruefbar mit und traegt in beiden Modi verschieden.
-     Eine Variable hat einen Dunkelzweig, eine Deckkraft-Angabe nicht. */
+  /* `--iuk-gedaempft` statt `opacity: 0.6`: Deckkraft dimmt den Kontrast
+     unpruefbar mit und traegt in beiden Modi verschieden. Eine Variable hat
+     einen Dunkelzweig, eine Deckkraft nicht. */
   color: var(--iuk-gedaempft);
   padding-inline: 16px;
   padding-block: 8px;
