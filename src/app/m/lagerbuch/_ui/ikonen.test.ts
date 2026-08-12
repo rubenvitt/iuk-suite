@@ -2,11 +2,13 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import ts from "typescript";
-import { PFADE, type IkonName } from "./ikonen";
+import { ZEICHEN, type IkonName } from "./ikonen";
 
 const WURZEL = "src/app/m/lagerbuch";
-const IKON_NAMEN = new Set(Object.keys(PFADE));
-const ROHE_SVG_QUELLEN = new Set(["_ui/ikonen.tsx", "_ui/Plakette.tsx"]);
+const IKON_NAMEN = new Set(Object.keys(ZEICHEN));
+const ROHE_SVG_QUELLEN = new Set(["_ui/Plakette.tsx"]);
+// Die EINE erlaubte Zeichenquelle des Moduls.
+const ERLAUBTE_ZEICHENQUELLE = "react-icons/pi";
 
 function alleDateien(verzeichnis: string, endungen: string[]): string[] {
   const treffer: string[] = [];
@@ -181,7 +183,13 @@ function analysiereQuelle(
       spezifizierer === "lucide-react" ||
       spezifizierer.startsWith("lucide-react/") ||
       spezifizierer === "@/core/shell/icons" ||
-      /(?:^|\/)core\/shell\/icons(?:$|\/)/.test(spezifizierer)
+      /(?:^|\/)core\/shell\/icons(?:$|\/)/.test(spezifizierer) ||
+      // Der Wurzelimport zieht ALLE Sets (9.072 Zeichen) und umgeht die
+      // Set-Wahl; ein fremdes Set waere ein zweiter Zeichenstil im Modul.
+      spezifizierer === "react-icons" ||
+      (spezifizierer.startsWith("react-icons/")
+        && spezifizierer !== ERLAUBTE_ZEICHENQUELLE
+        && spezifizierer !== "react-icons/lib")
     );
   }
 
@@ -224,7 +232,7 @@ function analysiereQuelle(
     }
     if (ts.isSatisfiesExpression(ausdruck)) {
       // `satisfies` prueft dynamische Werte wirklich; nur sein Literal muss
-      // unten gegen die Laufzeit-Tabelle PFADE abgeglichen werden. Eine darin
+      // unten gegen die Laufzeit-Tabelle ZEICHEN abgeglichen werden. Eine darin
       // versteckte `as IkonName`-Assertion bleibt dagegen unsicher.
       return unsichereAssertion(ausdruck.expression, gesehen);
     }
@@ -327,9 +335,10 @@ function modulBefunde(): Befund[] {
  *
  * `core/shell/icons.test.ts` erlaubt antd-Icons in einer Client-Insel. Die
  * Lagerbuch-Regel geht weiter: kein fremdes Zeichenpaket im ganzen Modul und
- * kein Laufzeitname ausserhalb von PFADE. Genau zwei native SVG-Quellen sind
- * fachlich vorgesehen: das zentrale Zeichenvokabular und das Zifferblatt der
- * Plakette. Jede weitere Quelle bleibt gesperrt.
+ * kein Laufzeitname ausserhalb von ZEICHEN. Genau eine native SVG-Quelle ist
+ * fachlich noch vorgesehen: das Zifferblatt der Plakette. `ikonen.tsx` malt
+ * seit der Umstellung auf Phosphor selbst kein rohes `<svg>` mehr. Jede
+ * weitere Quelle bleibt gesperrt.
  */
 describe("Ikonen-Riegel: AST statt Textregex", () => {
   const dateien = alleDateien(WURZEL, [".ts", ".tsx"]);
@@ -343,12 +352,12 @@ describe("Ikonen-Riegel: AST statt Textregex", () => {
     expect(befunde.filter((b) => b.art === "verbotener-import").map((b) => b.detail)).toEqual([]);
   });
 
-  it("nur ikonen.tsx und Plakette.tsx erzeugen native SVGs", () => {
+  it("nur Plakette.tsx erzeugt natives SVG", () => {
     expect(befunde.filter((b) => b.art === "rohes-svg").map((b) => b.detail)).toEqual([]);
   });
 
-  it("haelt die beiden SVG-Ausnahmen namentlich und vollstaendig fest", () => {
-    expect([...ROHE_SVG_QUELLEN].sort()).toEqual(["_ui/Plakette.tsx", "_ui/ikonen.tsx"]);
+  it("haelt die SVG-Ausnahme namentlich und vollstaendig fest", () => {
+    expect([...ROHE_SVG_QUELLEN].sort()).toEqual(["_ui/Plakette.tsx"]);
     for (const datei of ROHE_SVG_QUELLEN) {
       const quelle = readFileSync(join(WURZEL, datei), "utf8");
       expect(
@@ -368,19 +377,28 @@ describe("Ikonen-Riegel: AST statt Textregex", () => {
     ).toEqual([]);
   });
 
-  it("ikonen.tsx traegt weder Import noch use-client-Direktive", () => {
+  it("ikonen.tsx importiert ausschliesslich react-icons und traegt kein use-client", () => {
     const quelle = readFileSync(join(WURZEL, "_ui/ikonen.tsx"), "utf8");
-    const source = ts.createSourceFile("ikonen.tsx", quelle, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    expect(
-      source.statements.filter(ts.isImportDeclaration).length +
-        source.statements.filter(ts.isImportEqualsDeclaration).length,
-    ).toBe(0);
+    const source = ts.createSourceFile(
+      "ikonen.tsx", quelle, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX,
+    );
+    const spezifizierer = source.statements
+      .filter(ts.isImportDeclaration)
+      .map((s) => (ts.isStringLiteral(s.moduleSpecifier) ? s.moduleSpecifier.text : ""));
+    // Genau die zwei erlaubten Quellen, nichts sonst — kein antd, kein CSS-Modul,
+    // nichts aus dem Modul selbst (das machte die Datei zyklisch importierbar).
+    expect([...spezifizierer].sort()).toEqual(["react-icons/lib", "react-icons/pi"]);
+    expect(source.statements.filter(ts.isImportEqualsDeclaration).length).toBe(0);
+    /*
+     * DAS "use client"-VERBOT BLEIBT UNVERAENDERT und ist die wichtigste Zeile
+     * dieses Tests: die Datei exportiert `IkonName`, und der Typ steht als
+     * Datenfeld in Anzeigezeilen, die Server Components lesen. Eine Direktive
+     * hier macht aus Falle 7 die Falle 6 — HTTP 200 mit still falschem Bild.
+     */
     expect(
       source.statements.some(
-        (s) =>
-          ts.isExpressionStatement(s) &&
-          ts.isStringLiteral(s.expression) &&
-          s.expression.text === "use client",
+        (s) => ts.isExpressionStatement(s) && ts.isStringLiteral(s.expression)
+          && s.expression.text === "use client",
       ),
     ).toBe(false);
   });
@@ -388,33 +406,31 @@ describe("Ikonen-Riegel: AST statt Textregex", () => {
 
 describe("Ikonen: die Union ist die Autoritaet", () => {
   it("fuehrt genau 36 Namen", () => {
-    expect(Object.keys(PFADE)).toHaveLength(36);
+    expect(Object.keys(ZEICHEN)).toHaveLength(36);
   });
 
   it("fuehrt die acht Fachzeichen namentlich", () => {
     const fach: IkonName[] = [
-      "warnung",
-      "medizin",
-      "objekt",
-      "sauerstoff",
-      "akku",
-      "verfall",
-      "handlager-griff",
-      "fahrzeug",
+      "warnung", "medizin", "objekt", "sauerstoff",
+      "akku", "verfall", "handlager-griff", "fahrzeug",
     ];
-    for (const name of fach) expect(PFADE[name], name).toBeTruthy();
+    for (const name of fach) expect(ZEICHEN[name], name).toBeTruthy();
   });
 
-  it("jeder Pfad ist ein nicht leeres `d`-Attribut", () => {
-    for (const [name, d] of Object.entries(PFADE)) {
-      expect(typeof d, name).toBe("string");
-      expect(d.trim().length, name).toBeGreaterThan(4);
-      expect(d, `${name} beginnt nicht mit einem Move-Befehl`).toMatch(/^[Mm]/);
+  it("bildet jeden Namen auf eine Komponente ab", () => {
+    for (const [name, Zeichen] of Object.entries(ZEICHEN)) {
+      expect(typeof Zeichen, name).toBe("function");
     }
   });
 
-  it("kein Pfad ist doppelt vergeben", () => {
-    const werte = Object.values(PFADE);
+  /*
+   * Loest die alte Pruefung „kein Pfad ist doppelt vergeben" ab. Sie hatte
+   * einen Zweck, der bleibt: zwei Namen auf DASSELBE Zeichen abzubilden ist
+   * fast immer ein Copy-Paste-Fehler in der Tabelle, und im Bild sind die
+   * beiden Stellen danach nicht mehr unterscheidbar.
+   */
+  it("kein Zeichen ist doppelt vergeben", () => {
+    const werte = Object.values(ZEICHEN);
     expect(new Set(werte).size).toBe(werte.length);
   });
 });
@@ -426,6 +442,21 @@ describe("AST-Riegel — dieselbe Analyse fuer reale Dateien und Negativ-Fixture
     erwartet: BefundArt | null;
   }[] = [
     { name: "Side-Effect-Import", quelle: 'import "@ant-design/icons";', erwartet: "verbotener-import" },
+    {
+      name: "Wurzelimport von react-icons",
+      quelle: 'import { FaBeer } from "react-icons";',
+      erwartet: "verbotener-import",
+    },
+    {
+      name: "fremdes react-icons-Set",
+      quelle: 'import { FaBeer } from "react-icons/fa";',
+      erwartet: "verbotener-import",
+    },
+    {
+      name: "erlaubte Zeichenquelle react-icons/pi",
+      quelle: 'import { PiWarning } from "react-icons/pi";',
+      erwartet: null,
+    },
     { name: "dynamischer Import", quelle: 'void import("lucide-react");', erwartet: "verbotener-import" },
     { name: "require", quelle: 'require("@/core/shell/icons");', erwartet: "verbotener-import" },
     {

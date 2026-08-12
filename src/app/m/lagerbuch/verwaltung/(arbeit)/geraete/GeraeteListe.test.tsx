@@ -22,7 +22,6 @@ import s from "../../../_ui/verwaltung.module.css";
 import { geraete, lagerorte } from "../../../_db/schema";
 import { migrierteTestDb } from "../../../_db/testdb";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
-import { PFADE } from "../../../_ui/ikonen";
 import {
   GeraeteListe,
   sucheTrifft,
@@ -227,8 +226,10 @@ describe("GeraeteListe", () => {
     expect(query("tr[data-row-key='obj-ohne-datum']").textContent)
       .not.toContain("kein MTK-Datum");
     expect(query("tr[data-row-key='obj-faellig']").textContent).toContain("abgelaufen (2 T)");
-    expect(query("tr[data-row-key='med-faellig'] path").getAttribute("d")).toBe(PFADE.medizin);
-    expect(query("tr[data-row-key='obj-faellig'] path").getAttribute("d")).toBe(PFADE.objekt);
+    expect(query("tr[data-row-key='med-faellig'] [data-zeichen]")
+      .getAttribute("data-zeichen")).toBe("medizin");
+    expect(query("tr[data-row-key='obj-faellig'] [data-zeichen]")
+      .getAttribute("data-zeichen")).toBe("objekt");
     expect(query("tr[data-row-key='obj-ohne-datum']").textContent).toContain("inaktiv");
   });
 

@@ -11,7 +11,6 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import s from "../../../_ui/verwaltung.module.css";
-import { PFADE } from "../../../_ui/ikonen";
 import { ChecksTabelle, type CheckAnzeigeZeile } from "./ChecksTabelle";
 
 const ZEILE: CheckAnzeigeZeile = {
@@ -96,9 +95,9 @@ describe("ChecksTabelle", () => {
     expect(zeile.textContent).toContain("1 Flasche niedrig");
     expect(zeile.textContent).toContain("9");
     expect(Array.from(
-      zeile.querySelectorAll("svg path"),
-      (pfad) => pfad.getAttribute("d"),
-    )).toEqual([PFADE.warnung, PFADE.sauerstoff]);
+      zeile.querySelectorAll("[data-zeichen]"),
+      (zeichen) => zeichen.getAttribute("data-zeichen"),
+    )).toEqual(["warnung", "sauerstoff"]);
     expect(queryAll(`.${s.rot}`)).toHaveLength(3);
     expect(queryAll(`.${s.gelb}`)).toHaveLength(1);
     expect(exists(".ant-pagination")).toBe(false);
