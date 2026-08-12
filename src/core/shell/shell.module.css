@@ -294,30 +294,40 @@
  * Suite hat einen Cookie-Umschalter, sonst bricht der Fall „System dunkel,
  * Umschalter hell". Dieselbe Bauform wie `feedback.css`.
  *
- * Die Hellwerte liegen zusätzlich auf dem nackten `:root`, damit ein Kontext
- * ohne Attribut (Druck, isolierte Vorschau) nicht ohne Farben dasteht.
+ * AN `.umschalter` GEHÄNGT, NICHT AN DEN NACKTEN `:root` — das war hier einmal
+ * anders und ist die Korrektur: jedes andere Modul mit Theme (`not-found.module.css`,
+ * `zettel.module.css`, `verwaltung.module.css`, `helfer.module.css`) hängt
+ * seine Variablen an eine LOKALE Klasse, nie an `:root` selbst, weil ein
+ * CSS-Modul `:root` nicht scopen kann — ein Name wie `--suite-flaeche` global
+ * in die Suite zu hängen wäre eine Kollision, die erst in einem fremden Modul
+ * auffiele, und `globals.css` zeigt, dass Theming dort bewusst NICHT passiert
+ * („Alles Thematische steckt in `src/core/theme/`"). Der einzige Konsument
+ * dieser drei Variablen ist ohnehin `.umschalterPanel` samt Kindern, alle
+ * Nachfahren von `.umschalter` (`AppUmschalter.tsx`) — der ursprüngliche
+ * Grund für den nackten `:root` („ein Kontext ohne Attribut, Druck, isolierte
+ * Vorschau, soll nicht ohne Farben dastehen") trägt nicht mehr: `.umschalter`
+ * selbst liefert die Hellwerte unabhängig von `data-theme`, ein Kontext ohne
+ * das Attribut sieht also weiterhin Farben.
+ *
  * Hellwerte = Suite-Tokens (`core/theme/tokens.ts`, `FARBEN.karte` /
  * `FARBEN.linie`), Dunkelwerte = antds Vorgaben — kein zweiter Farbeindruck
  * neben dem Rest der Suite.
  */
-:root,
-:root[data-theme="light"] {
+.umschalter {
   --suite-flaeche: #ffffff;
   --suite-linie: #d9dde1;
   --suite-hover: rgb(0 0 0 / 0.06);
-}
 
-:root[data-theme="dark"] {
-  --suite-flaeche: #141414;
-  --suite-linie: #303030;
-  --suite-hover: rgb(255 255 255 / 0.1);
-}
-
-.umschalter {
   position: relative;
   display: flex;
   align-items: center;
   min-width: 0;
+}
+
+:root[data-theme="dark"] .umschalter {
+  --suite-flaeche: #141414;
+  --suite-linie: #303030;
+  --suite-hover: rgb(255 255 255 / 0.1);
 }
 
 .umschalterAusloeser {

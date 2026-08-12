@@ -330,6 +330,39 @@ describe("shell.module.css", () => {
     expect(vorkommen[1][1]).toMatch(/inline-size:\s*\d+px/);
   });
 
+  it("gibt der Panel-Fläche eine Variable, die in BEIDEN Farbmodi einen Wert hat", () => {
+    /*
+     * GENAU DIESER FEHLER IST AUF DIESEM ZWEIG SCHON EINMAL PASSIERT: das Panel
+     * war weiß auf weiß, weil der Plan eine Variable erfunden hatte, die es
+     * nicht gab. `shell-css.test.ts` prüfte bis hierher nur die BREITE des
+     * Panels (siehe die zwei Tests oben) — nie, dass die Fläche überhaupt einen
+     * Dunkelwert besitzt. Diese Zusicherung schließt genau die Lücke.
+     *
+     * Der Variablenname wird aus der `background`-Deklaration von
+     * `.umschalterPanel` GELESEN, nicht als String verabredet: eine Umbenennung
+     * der Variable soll den Test nicht stillschweigend am eigentlichen
+     * Konsumenten vorbeiprüfen lassen.
+     */
+    const alle = cssRegeln(OHNE_KOMMENTARE);
+    const panelMitFlaeche = alle.find(
+      (r) => zieltAufKlasse(r.selektor, "umschalterPanel") && /background:/.test(r.deklarationen),
+    );
+    expect(panelMitFlaeche, "Regel .umschalterPanel mit `background` fehlt").toBeDefined();
+
+    const variable = /background:\s*var\((--[a-z0-9-]+)\)/.exec(panelMitFlaeche!.deklarationen);
+    expect(variable, "`background` von .umschalterPanel ist keine CSS-Variable").not.toBeNull();
+    const name = variable![1];
+
+    const deklariertDiese = (regel: CssRegel) =>
+      new RegExp(`(?:^|;)\\s*${name}\\s*:`).test(regel.deklarationen);
+
+    const hellwert = alle.some((r) => deklariertDiese(r) && !r.selektor.includes('[data-theme="dark"]'));
+    expect(hellwert, `${name} hat keinen Hellwert außerhalb von [data-theme="dark"]`).toBe(true);
+
+    const dunkelwert = alle.some((r) => deklariertDiese(r) && r.selektor.includes('[data-theme="dark"]'));
+    expect(dunkelwert, `${name} hat keinen Wert unter [data-theme="dark"]`).toBe(true);
+  });
+
   it("hebt den aktiven App-Eintrag im Umschalter-Panel hervor", () => {
     // Eigene Klasse statt `.navLink[aria-current]` (Begründung in
     // AppUmschalter.tsx): die Unterstreichung von `.navLink[aria-current]`
