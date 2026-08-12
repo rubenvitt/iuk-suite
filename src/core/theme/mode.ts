@@ -75,16 +75,6 @@ export function themeSystemCookieString(mode: ThemeMode, domain?: string): strin
 }
 
 /**
- * @deprecated Übergang. Schreibt noch den Altschlüssel und hat genau eine
- * Aufruferin: `AntdProvider`, das erst in Task 3 auf die getrennten Cookies
- * umgestellt wird. Fällt mit dieser Umstellung weg — beides zusammen, damit
- * der Baum nach jedem Commit übersetzt.
- */
-export function themeCookieString(mode: ThemeMode, domain?: string): string {
-  return cookieString(LEGACY_THEME_COOKIE, mode, domain);
-}
-
-/**
  * Läuft als Inline-Script im `<head>`.
  *
  * Es verhindert KEIN Flackern — das tut das serverseitig gelesene Cookie.

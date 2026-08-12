@@ -5,7 +5,14 @@ import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { Providers } from "@/components/providers";
 import { reauthProviderId } from "@/core/auth/pocketId";
 import { AntdProvider } from "@/core/theme/AntdProvider";
-import { LEGACY_THEME_COOKIE, parseThemeMode, themeInitScript } from "@/core/theme/mode";
+import {
+  THEME_PREF_COOKIE,
+  THEME_SYSTEM_COOKIE,
+  parseThemeMode,
+  parseThemePreference,
+  resolveThemeMode,
+  themeInitScript,
+} from "@/core/theme/mode";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -55,9 +62,12 @@ export default async function RootLayout({
   // Algorithmus trägt: kein Hydration-Mismatch, kein FOUC. Kostet nichts —
   // alle Routen sind durch Proxy-Rewrite und auth() ohnehin dynamisch.
   //
-  // UEBERGANG: liest noch den Altschluessel — Task 3 stellt das auf die
-  // getrennten Cookies (Praeferenz + Systemwert) um.
-  const mode = parseThemeMode((await cookies()).get(LEGACY_THEME_COOKIE)?.value);
+  // ZWEI Cookies, weil der Server `prefers-color-scheme` nicht sieht: die
+  // Wahl (auch `auto`) und der zuletzt vom Client beobachtete OS-Wert.
+  const keks = await cookies();
+  const preference = parseThemePreference(keks.get(THEME_PREF_COOKIE)?.value);
+  const system = parseThemeMode(keks.get(THEME_SYSTEM_COOKIE)?.value);
+  const mode = resolveThemeMode(preference, system);
   const cookieDomain = process.env.AUTH_COOKIE_DOMAIN || undefined;
 
   return (
@@ -68,9 +78,14 @@ export default async function RootLayout({
       // Scrollbalken und native Bedienelemente mit, aber CSS kann darauf nicht
       // selektieren. `data-theme` ist der verbindliche Selektor fuer eigene
       // CSS-Variablen jedes Moduls — bewusst NICHT `prefers-color-scheme`:
-      // die Suite hat einen Umschalter (Cookie `iuk-theme`, oben serverseitig
-      // gelesen), sonst bricht der Fall "System dunkel, Umschalter hell".
-      // Den Wechsel ohne Reload schreibt `AntdProvider.setMode` mit.
+      // die Suite hat einen Umschalter mit drei Zustaenden (`iuk-theme-pref`,
+      // oben serverseitig gelesen), sonst bricht der Fall "System dunkel,
+      // Umschalter hell".
+      //
+      // HIER STEHT IMMER DER AUFGELOESTE WERT, nie `auto`. Ein gestempeltes
+      // `auto` besteht typecheck, build und Vitest und kippt trotzdem jede
+      // Modulflaeche still auf helle Darstellung, waehrend antd dunkel rendert.
+      // Den Wechsel ohne Reload schreibt `AntdProvider` mit.
       data-theme={mode}
       style={{ colorScheme: mode }}
       suppressHydrationWarning
@@ -84,7 +99,11 @@ export default async function RootLayout({
           {/* Serverseitig aufgeloest: die Client-Komponente kann POCKET_ID_ISSUER
               nicht lesen. Ohne Pocket ID bleibt es beim harten Logout. */}
           <Providers reauthProvider={reauthProviderId()}>
-            <AntdProvider initialMode={mode} cookieDomain={cookieDomain}>
+            <AntdProvider
+              initialMode={mode}
+              initialPreference={preference}
+              cookieDomain={cookieDomain}
+            >
               {children}
             </AntdProvider>
           </Providers>
