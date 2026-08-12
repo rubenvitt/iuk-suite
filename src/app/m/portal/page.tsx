@@ -25,10 +25,16 @@ export default async function PortalPage() {
                 Property-Zugriffe auf antd-Compounds ergeben dort `undefined`
                 (siehe Global Constraints). Schlichtes Markup tut hier dasselbe. */}
             <Card hoverable size="small" style={{ height: "100%" }} className="portal-kachel">
-              {/* Kicker ueber dem Namen: der Griff des alten Lagerbuchs, das
-                  jede Karte mit einer versalen Zeile in Stahl aufmachte. Er
-                  traegt hier den Zweck der Kachel, nicht ihren Namen. */}
-              <div style={{ ...SCHRIFT.kicker, color: "var(--iuk-gedaempft)" }}>Dienst</div>
+              {s.category ? (
+                /* Die Rubrik als Kicker — der Griff des alten Lagerbuchs, das
+                   jede Karte mit einer versalen Zeile in Stahl aufmachte. Sie
+                   steht nur da, wo es eine gibt: ein Kicker, der auf jeder
+                   Kachel dasselbe Wort zeigt, waere Dekoration im Gewand von
+                   Struktur und truege keine Information. */
+                <div style={{ ...SCHRIFT.kicker, color: "var(--iuk-gedaempft)" }}>
+                  {s.category}
+                </div>
+              ) : null}
               <div style={SCHRIFT.unterTitel}>{s.name}</div>
               {s.description ? (
                 /* `--iuk-gedaempft` statt `opacity: 0.65`: Deckkraft dimmt den
