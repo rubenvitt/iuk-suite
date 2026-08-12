@@ -78,18 +78,37 @@
  * (`verwaltung.module.css:25`, dort `#e04452`) — und zwar wegen zweier
  * verschiedener AA-Schwellen. `--lb-rot` traegt dort Konturen und
  * Fokusringe; fuer Bedienelemente verlangt WCAG nur 3:1, und `#e04452`
- * besteht das klar. `--iuk-marke` traegt in Task 8 dagegen 14px-TEXT (den
- * aktiven Navigationseintrag), und Text verlangt 4.5:1. Nachgerechnet
- * (WCAG-Kontrastformel, sRGB-linearisiert) gegen die beiden dunklen
- * Flaechen, auf denen der Text tatsaechlich sitzt:
- *   #e04452 gegen #141414 (Layout.headerBg dunkel): 4.49:1 — knapp DARUNTER
- *   #e04452 gegen #16191c (Kartenflaeche dunkel):    4.30:1 — DARUNTER
- * Deshalb ein eigener, hellerer Wert mit Luft ueber der Schwelle (gleicher
- * Farbton, ca. 355°, nur angehoben):
- *   #e45a66 gegen #141414: 5.22:1
- *   #e45a66 gegen #16191c: 5.00:1
- * Wer `--iuk-marke` und `--lb-rot` spaeter zusammenzieht, muss diese Zahl
- * kennen, sonst faellt der Text wieder unter die Schwelle.
+ * besteht das klar. `--iuk-marke` traegt dagegen 14px-TEXT und Konturen, und
+ * Text verlangt 4.5:1.
+ *
+ * ⚠️ DIE FLAECHENZUORDNUNG WAR FALSCH und ist am 2026-08-12 berichtigt. Hier
+ * stand „die beiden dunklen Flaechen, auf denen der Text tatsaechlich sitzt:
+ * #141414 (Layout.headerBg), #16191c". Der aktive Navigationseintrag sitzt
+ * aber in `.modulnav`, und die traegt BEWUSST keine eigene Flaechenfarbe
+ * (`core/shell/shell.module.css`, dort ausgeschrieben) — sie liegt damit auf
+ * `Layout.bodyBg`, nicht auf `headerBg`. `bodyBg` ist `#000000` im Dunkeln und
+ * `#eef0f1` im Hellen (`core/theme/theme.ts`). Die beiden alten Flaechen sind
+ * nicht falsch, nur nicht DIESE: Kopfzeile und Kartenflaeche tragen die
+ * Markenfarbe ebenfalls, und fuer sie gelten die Zahlen weiter.
+ *
+ * Nachgerechnet (WCAG-Kontrastformel, sRGB-linearisiert), Flaeche fuer Flaeche:
+ *   Modulnavigation (Layout.bodyBg) — der Ort des aktiven Eintrags:
+ *     #e45a66 gegen #000000 (dunkel): 5.95:1
+ *     #c8000f gegen #eef0f1 (hell):   5.30:1
+ *   Kopfzeile (Layout.headerBg) und Kartenflaeche:
+ *     #e45a66 gegen #141414 (dunkel): 5.22:1
+ *     #e45a66 gegen #16191c (dunkel): 5.00:1
+ *     #c8000f gegen #ffffff (hell):   6.06:1
+ * Alle sechs liegen ueber 4.5:1 — es ist also KEIN Mangel an Barrierefreiheit,
+ * die Zuordnung stimmte nur nicht.
+ *
+ * DER EIGENE DUNKELWERT BLEIBT TROTZDEM BEGRUENDET, und zwar auf den engeren
+ * Flaechen: `#e04452` gegen `#141414` ergibt 4.49:1 und gegen `#16191c`
+ * 4.30:1 — beides unter der Textschwelle. (Auf `#000000` reichte `#e04452`
+ * mit 5.12:1; die Kopfzeile ist der Fall, der ihn kippt.) `#e45a66` ist
+ * derselbe Farbton, ca. 355°, nur angehoben, und hat auf allen drei dunklen
+ * Flaechen Luft. Wer `--iuk-marke` und `--lb-rot` spaeter zusammenzieht, muss
+ * diese Zahlen kennen, sonst faellt der Text wieder unter die Schwelle.
  */
 :root {
   --iuk-marke: #c8000f;

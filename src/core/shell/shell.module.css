@@ -312,13 +312,21 @@
  * Ort in der Chrome, an dem Markenfarbe eine Aussage traegt statt Dekoration zu
  * sein. `--iuk-marke` und nicht `--ant-color-primary` — eigenes Markup sieht
  * antds Variablen nicht (Falle 2); die Markierung verliert ihren Farbkanal.
- * `border-block-end-color` wird `currentColor` (2px bleiben), `color` zur
- * Kopfzeilenfarbe (Text bleibt). Uebrig ist `font-weight: 600` — darum ist das
- * Gewicht nicht redundant.
+ * FALLS `--iuk-marke` NICHT AUFLOEST — die Variable fehlt, ist umbenannt, oder
+ * `globals.css` kommt nicht an —, wird `border-block-end-color` zu
+ * `currentColor` (die 2px bleiben, nur in Textfarbe) und `color` zur geerbten
+ * Kopfzeilenfarbe (der Text bleibt, nur unmarkiert). Ohne diese Bedingung
+ * beschriebe der Satz das Gegenteil der drei Zeilen darunter. Der Ausfall ist
+ * still (Falle 2): die Regel steht da und traegt nichts mehr.
  *
- * `font-weight: 600` BLEIBT und ist nicht redundant: Bedeutung nie allein ueber
- * Farbe. Ohne das Gewicht verliert die Markierung bei Rot-Gruen-Blindheit und
- * in Graustufen ihre einzige Spur.
+ * `font-weight: 600` BLEIBT und ist nicht redundant — und zwar EINMAL
+ * begruendet, nicht zweimal: das Gewicht ist der Traeger, der uebrig bleibt,
+ * wenn der Farbkanal ausfaellt, und er faellt auf zwei voneinander unabhaengige
+ * Weisen aus — technisch (die unaufgeloeste Variable oben) und beim Leser (bei
+ * Rot-Gruen-Blindheit und in Graustufen traegt Farbe hier nichts). Bedeutung
+ * nie allein ueber Farbe. (Hier standen zwei aufeinanderfolgende Absaetze mit
+ * je einer der beiden Mechaniken — eine Restdoppelung aus zwei Fix-Runden. Sie
+ * begruenden dieselbe Zeile und stehen deshalb jetzt als ein Grund da.)
  */
 .navLink[aria-current] {
   border-block-end-color: var(--iuk-marke);
