@@ -31,7 +31,11 @@
  * Variable ist gueltiges CSS und faellt still auf `transparent` zurueck
  * (Falle 2). Einzige zugelassene Fremdvariablen sind `--font-display`,
  * `--font-body` und `--font-mono`: die liegen auf `:root` (Wurzel-Layout) und
- * damit unter beiden Traegern.
+ * damit unter beiden Traegern — SEIT DEM 12.08.2026 (Task 6). Vorher waren es
+ * nirgends deklarierte Namen: die Original-App laedt sie ueber next/font, bei
+ * der Portierung sind die drei Aufrufe nicht mitgekommen, und `--lb-display`
+ * war ein ungueltiger Wert (Falle 2, siehe `bauform.test.ts`, Scan „die drei
+ * Schriftstapel kommen wirklich vom Wurzel-Layout").
  */
 
 .rahmen {

@@ -499,7 +499,10 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     // rendert AUCH unter `.modul` aus `verwaltung.module.css`. Jede Variable,
     // die nur EINER der beiden Traeger kennt, ist auf dem anderen Ast still
     // `transparent`. `--font-display|body|mono` sind die Ausnahme — sie kommen
-    // vom Wurzel-Layout und liegen auf `:root`, also unter beiden Traegern.
+    // vom Wurzel-Layout und liegen auf `:root`, also unter beiden Traegern —
+    // SEIT DEM 12.08.2026 (Task 6). Vorher kamen sie von NIRGENDS: die drei
+    // next/font-Aufrufe fehlten seit der Portierung, siehe den Scan
+    // "die drei Schriftstapel kommen wirklich vom Wurzel-Layout" unten.
     //
     // ⚠️ DAS PRAEFIX ALLEIN TRUEG NICHT. `color: var(--lb-tinte2)` faengt mit
     // `--lb-` an und ist trotzdem NIRGENDS deklariert — genau der Ausfall, den
@@ -1407,5 +1410,38 @@ describe("Teil 4, T87 — die Riegelform je Flaechenart, ueber den Baum statt ue
       .not.toMatch(/\brequireLagerbuchHost\b/);
     expect(q, "der Rahmen gehoert in die Seiten, die seine Pflicht-Props kennen")
       .not.toMatch(/\bHelferRahmen\b/);
+  });
+});
+
+describe("die drei Schriftstapel kommen wirklich vom Wurzel-Layout", () => {
+  it("`src/app/layout.tsx` stellt --font-body, --font-display und --font-mono bereit", () => {
+    /**
+     * ⚠️ DIESER SCAN SCHLIESST EINE LUECKE, DIE ZWEI KOMMENTARE ALS GESCHLOSSEN
+     * BESCHRIEBEN HABEN. `helfer.module.css:32` und der `VOM_LAYOUT`-Kommentar
+     * weiter oben behaupten beide, die drei Namen kaemen „vom Wurzel-Layout und
+     * liegen auf :root". Gemessen am 12.08.2026: sie kamen von NIRGENDS. Die
+     * Original-App laedt sie ueber next/font; bei der Portierung sind sie nicht
+     * mitgekommen.
+     *
+     * WAS DAS KOSTET, und es ist mehr als eine falsche Schriftart: `--lb-display`
+     * ist dann ein ungueltiger Wert, und eine `font:`-KURZSCHREIBWEISE, die ihn
+     * benutzt, faellt VOLLSTAENDIG aus — samt Groesse und Gewicht. Der
+     * Artikeltitel in `Entnahme.tsx` rendert dadurch 14px/400 statt 24px/700.
+     * Falle 2: gueltiges CSS, stiller Ausfall.
+     *
+     * `VOM_LAYOUT` (oben) nimmt genau diese drei Namen von der
+     * `unaufloesbar`-Mengenpruefung aus. Diese Ausnahme ist nur zulaessig,
+     * solange dieser Scan sie deckt.
+     */
+    const layout = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8");
+    const quelle = ohneKommentare(layout);
+    for (const name of ["--font-body", "--font-display", "--font-mono"]) {
+      expect(quelle, `${name} wird im Wurzel-Layout nicht als next/font-Variable gesetzt`)
+        .toMatch(new RegExp(`variable:\\s*["'\`]${name}["'\`]`));
+    }
+    // Die Deklaration allein genuegt nicht: ohne die `className` am <html> ist
+    // die Variable nirgends im Dokument sichtbar.
+    expect(quelle, "die Schrift-Variablen haengen nicht am <html>-Element")
+      .toMatch(/<html[^>]*className=/);
   });
 });

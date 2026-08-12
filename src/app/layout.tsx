@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Barlow, Barlow_Condensed, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { Providers } from "@/components/providers";
 import { reauthProviderId } from "@/core/auth/pocketId";
@@ -16,6 +16,40 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+/*
+ * DIE DREI SCHRIFTEN DES LAGERBUCH. Sie standen in `_ui/helfer.module.css:64-66`
+ * schon immer als `var(--font-display|body|mono)` — nur geladen hat sie niemand:
+ * bei der Portierung aus der Alt-Anwendung sind die drei next/font-Aufrufe nicht
+ * mitgekommen. Gemessen am 12.08.2026 rendert der ganze Helfer-Zweig deshalb in
+ * Geist, und `font: 700 24px var(--lb-display)` faellt VOLLSTAENDIG aus (Falle 2).
+ *
+ * ⚠️ SIE AENDERN DIE SUITE-TYPOGRAFIE NICHT. `next/font` mit `variable:` deklariert
+ * eine CSS-Variable und sonst nichts; wirksam wird sie erst, wo jemand sie liest —
+ * und das tut ausschliesslich `m/lagerbuch/_ui/helfer.module.css`. Die uebrigen
+ * Module bleiben auf Geist.
+ *
+ * Die GEWICHTE sind aus `lagerbuch/src/app/layout.tsx` uebernommen und keine freie
+ * Wahl: ein fehlendes Gewicht laesst der Browser still synthetisch fett rendern.
+ */
+const barlow = Barlow({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-body",
+  display: "swap",
+});
+const barlowCondensed = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-display",
+  display: "swap",
+});
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -60,7 +94,7 @@ export default async function RootLayout({
   return (
     <html
       lang="de"
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${barlow.variable} ${barlowCondensed.variable} ${plexMono.variable}`}
       // BEIDES, nicht das eine statt des anderen: `colorScheme` zieht
       // Scrollbalken und native Bedienelemente mit, aber CSS kann darauf nicht
       // selektieren. `data-theme` ist der verbindliche Selektor fuer eigene

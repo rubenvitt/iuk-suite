@@ -17,6 +17,9 @@ import type { ReactElement } from "react";
 vi.mock("next/font/google", () => ({
   Geist: () => ({ variable: "--font-geist-sans" }),
   Geist_Mono: () => ({ variable: "--font-geist-mono" }),
+  Barlow: () => ({ variable: "--font-body" }),
+  Barlow_Condensed: () => ({ variable: "--font-display" }),
+  IBM_Plex_Mono: () => ({ variable: "--font-mono" }),
 }));
 
 const get = vi.fn();
