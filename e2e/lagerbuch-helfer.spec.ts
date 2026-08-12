@@ -460,3 +460,64 @@ test.describe("§12.1 Punkt 1 — der gemeldete Verfall ueberlebt bis in die Dat
     expect(nachher!.ergebnis, "der gemeldete Verfall muss im Ergebnis stehen").toContain("2090-09");
   });
 });
+
+test.describe("Task 2 (Typografie & Farbe, Teil A) — die Display-Familie im Helfer-Weg", () => {
+  /**
+   * DIE EINZIGE PRUEFUNG, DIE DEN URSPRUNGSFEHLER FAENGT. `helfer.module.css`
+   * loeste `--lb-display` ueber Monate gegen ein nicht deklariertes
+   * `--font-display` auf und fiel still auf "Arial Narrow" zurueck (Task 1
+   * dieses Plans behebt die Deklaration in `globals.css`). Im Quelltext ist
+   * ein fehlgeschlagener Font-Fallback von einer erfolgreichen Zuweisung NICHT
+   * zu unterscheiden — beide sehen aus wie `font-family: var(--lb-display)`.
+   * Nur ein echter Browser weiss, was am Ende dasteht.
+   *
+   * Gemessen wird die AUFGELOESTE VARIABLE und die tatsaechlich gerenderte
+   * `fontFamily` — nicht `document.fonts`: ob die Schriftdatei geladen wurde,
+   * ist eine andere (und flackernde) Frage; hier geht es nur darum, dass die
+   * Kette der Variablen ueberhaupt traegt.
+   *
+   * KEIN `data-testid="helfer-marke"`: das gibt es im Markup nicht, und ein
+   * neues einzufuehren waere eine Markup-Aenderung ausserhalb dieser Aufgabe.
+   * Die Marke (`HelferRahmen.tsx:77`, Klasse `.marke`) ist stattdessen ueber
+   * ihre CSS-Modul-Klasse erreichbar — gehasht, also ein Attribut-Teilselektor
+   * statt `.marke` direkt (dieselbe Bauform wie `HelferRahmen.test.tsx:189`
+   * fuer Vitest). `.first()` waehlt die AEUSSERE `div.marke`: der innere
+   * `span.markeAkzent` matcht denselben Teilstring, steht im Dokument aber
+   * NACH dem Div und erbt dessen `font-family` ohnehin per Kaskade.
+   */
+  test("der Helfer-Weg rendert die Display-Familie, nicht den Arial-Narrow-Fallback", async ({
+    page,
+  }) => {
+    // Zustand selbst hergestellt (§12.3), nicht vom Seed geerbt: derselbe
+    // Einstieg wie die uebrigen Tests dieser Datei, das aktive Token kommt aus
+    // `beforeEach` oben — unabhaengig davon, was vorherige Dateien hinterlassen.
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
+    await page.waitForURL(/\/helfer$/);
+
+    const stapel = await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue("--font-display").trim(),
+    );
+    expect(stapel, "--font-display ist auf :root nicht aufgeloest").not.toBe("");
+    expect(stapel).toContain("Barlow");
+
+    // Und die Familie kommt auch an der Marke an, nicht nur an der Wurzel.
+    const marke = page.locator('header [class*="marke"]').first();
+    await expect(marke).toBeVisible();
+    const gerendert = await marke.evaluate((el) => getComputedStyle(el).fontFamily);
+    expect(gerendert, `Marke rendert in: ${gerendert}`).toContain("Barlow");
+    /*
+     * NICHT `.not.toContain("Arial Narrow")`: `getComputedStyle().fontFamily`
+     * gibt den VOLLEN deklarierten Stapel zurueck, nicht die eine Schrift, die
+     * am Ende gezeichnet wird — "Arial Narrow" steht dort mit Absicht als
+     * Fallback-Eintrag (`globals.css`: `var(--font-barlow-condensed), "Arial
+     * Narrow", sans-serif`) und bliebe auch im REPARIERTEN Zustand im String.
+     * Die tragende Aussage ist die REIHENFOLGE: Barlow muss die ERSTE Familie
+     * sein, sonst waere sie nur irgendwo im Fallback-Stapel gelandet, statt die
+     * Kette angefuehrt zu haben — genau das war der Ursprungsfehler.
+     */
+    expect(
+      gerendert.split(",")[0],
+      `Barlow muss die erste Familie im Stapel sein, nicht nur enthalten: ${gerendert}`,
+    ).toContain("Barlow");
+  });
+});

@@ -104,7 +104,7 @@ export function Plakette({
         y="23.4"
         textAnchor="middle"
         style={{
-          fontFamily: "var(--font-geist-mono)",
+          fontFamily: "var(--font-mono)",
           fontSize: "8.6px",
           fontWeight: 600,
           fontVariantNumeric: "tabular-nums",

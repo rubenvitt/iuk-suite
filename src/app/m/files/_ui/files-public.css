@@ -126,7 +126,7 @@
      still wie Falle 5. `dvh` statt `svh`/`lvh`: `svh` laesst eine Luecke, sobald
      die Browserleiste einfaehrt, `lvh` erzwingt beim Laden einen Scrollbalken. */
   min-height: 100dvh;
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-body);
   /* Groessen und Zeiten werden verglichen (Dateigroesse, Restlaufzeit) —
      Proportionalziffern lassen die Spalte tanzen. */
   font-variant-numeric: tabular-nums lining-nums;

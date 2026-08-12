@@ -106,7 +106,7 @@ export type ZuordnungProps = {
 
 /** Kennungen sind zum Vergleichen da, nicht zum Lesen: mono 13 (§2.6). */
 const KENNUNG: CSSProperties = {
-  fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+  fontFamily: "var(--font-mono)",
   fontSize: 13,
 };
 

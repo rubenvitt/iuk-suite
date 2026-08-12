@@ -50,3 +50,61 @@ test("admin can delete a service", async ({ page }) => {
   // Zusicherung: die Zeile ist wirklich weg, nicht nur der Knopf vorhanden.
   await expect(row).toHaveCount(0);
 });
+
+/*
+ * DER EINZIGE BEWUSST GEFUEHRTE SPEZIFITAETSSTREIT DES MODULS — hier gemessen.
+ *
+ * `portal.css` setzt `.ant-card.portal-kachel` (0,2,0) gegen antds
+ * `.ant-card-hoverable:hover` (0,2,0) und begruendet die zusaetzliche Klasse
+ * ausfuehrlich. Diese Begruendung ist eine Behauptung ueber die KASKADE, und die
+ * besitzt kein Quelltext-Scan: welche von zwei gleich spezifischen Regeln
+ * gewinnt, entscheidet die Einbindungsreihenfolge im Browser. Bis 2026-08-12 gab
+ * es dafuer keine Zeile — `portal-kachel` kam in `e2e/` nirgends vor, obwohl der
+ * Kommentar dort auf eine Pruefung verwies, die nicht existierte.
+ *
+ * Gemessen wird die PHYSISCHE Aufloesung `border-left-color` (LTR) und mit
+ * `toHaveCSS`, nicht mit einem einmaligen `evaluate`: die Regel traegt
+ * `transition: border-color 120ms`, eine einzelne Messung direkt nach `hover()`
+ * laese einen Zwischenwert. `toHaveCSS` wiederholt, bis der Wert steht.
+ *
+ * Das Cookie wird ausdruecklich auf `light` gesetzt (`core/theme/mode.ts`, der
+ * Umschalter der Suite): die beiden erwarteten Hex-Codes sind die HELLEN Werte
+ * aus `globals.css`. Ohne das Cookie haenge der Test an der OS-Praeferenz des
+ * Laufs — im Dunkeln waeren es `#2a2f34`/`#e45a66`, und der Test wuerde einen
+ * intakten Kaskadenstreit als Bruch melden.
+ *
+ * Eigener Zustand: die Kachel ist der Seed-Dienst BookStack, denselben nutzt der
+ * erste Test dieser Datei. Kein Rueckgriff auf etwas, das ein anderer Test
+ * anlegt — Anlege- und Loeschtest teilen sich bei `workers: 1` dieselbe, einmal
+ * gewischte Datenbank.
+ */
+test("die Kachelkante steht in Ruhe auf --iuk-linie und im Hover auf --iuk-marke", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies([
+    { name: "iuk-theme", value: "light", url: "http://portal.localtest.me:3100" },
+  ]);
+  await devLogin(page, { host: "portal.localtest.me", groups: "" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  const link = page.getByTestId("service-tile").filter({ hasText: "BookStack" });
+  await expect(link).toHaveCount(1);
+  const kachel = link.locator(".portal-kachel");
+
+  // Ruhezustand: `--iuk-linie` = #d9dde1. Gewaenne antds `.ant-card-bordered`
+  // (Shorthand auf allen vier Seiten), stuende hier dessen neutraler Rahmen.
+  await expect(kachel).toHaveCSS("border-left-color", "rgb(217, 221, 225)");
+
+  await link.hover();
+  // Hover: `--iuk-marke` = #c8000f. Gewaenne `.ant-card-hoverable:hover`,
+  // stuende hier `rgba(0, 0, 0, 0)` — antd setzt dort `transparent`, und genau
+  // dieser stille Ausfall ist der Grund fuer die zusaetzliche `.ant-card`.
+  await expect(kachel).toHaveCSS("border-left-color", "rgb(200, 0, 15)");
+
+  // Die drei ANDEREN Kanten bleiben im Hover antds `transparent` — der
+  // Kommentar in `portal.css` sagt ausdruecklich, das Hover-Bild zeige NUR die
+  // rote Innenkante und keinen rundum roten Rahmen. Ohne diese Zeile ginge ein
+  // versehentliches `border-color` auf allen vier Seiten durch.
+  await expect(kachel).toHaveCSS("border-top-color", "rgba(0, 0, 0, 0)");
+});

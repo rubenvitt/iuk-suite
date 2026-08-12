@@ -16,7 +16,7 @@ export function OfflineProbe() {
     <div style={{ marginTop: SPACE.lg, display: "flex", flexDirection: "column", gap: SPACE.sm }}>
       <label htmlFor="probe">Eingabe</label>
       <Input id="probe" value={text} onChange={(e) => setText(e.target.value)} />
-      <output data-testid="probe-output" style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
+      <output data-testid="probe-output" style={{ fontFamily: "var(--font-mono)" }}>
         {text.split("").reverse().join("")}
       </output>
     </div>
