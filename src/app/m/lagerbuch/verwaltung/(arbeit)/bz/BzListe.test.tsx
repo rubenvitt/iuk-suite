@@ -558,11 +558,19 @@ describe("BZ-Übersichtsseite als Server Component", () => {
       "src/app/m/lagerbuch/verwaltung/(arbeit)/bz/page.tsx",
       "utf8",
     );
+    // EIN Abruf, wiederverwendet fuer Liste UND Kennzahlleiste — kein zweiter,
+    // stiller `bzGeraeteUebersicht`-Aufruf fuer die Kacheln.
     expect(quelle.match(/\bbzGeraeteUebersicht\s*\(/g)).toHaveLength(1);
-    expect(quelle).toMatch(/bzAnzeigeZeilen\s*\(\s*bzGeraeteUebersicht\s*\(/);
+    expect(quelle).toMatch(/const\s+geraete\s*=\s*bzGeraeteUebersicht\s*\(/);
+    expect(quelle).toMatch(/bzAnzeigeZeilen\s*\(\s*geraete\s*\)/);
     expect(quelle).not.toContain("/m/lagerbuch/verwaltung");
     expect(quelle).not.toContain("@ant-design/icons");
-    expect(quelle).not.toMatch(/from\s+["']antd["']/);
+    // Seit der Kennzahlleiste importiert die Seite aus "antd" — aber NUR die
+    // in Falle 1 (docs/design/README.md) gelisteten, COMPOUND-freien Namen.
+    const antdImport = quelle.match(/import\s*\{([^}]*)\}\s*from\s*["']antd["']/);
+    expect(antdImport).not.toBeNull();
+    const antdNamen = antdImport![1].split(",").map((n) => n.trim()).filter(Boolean);
+    expect(antdNamen.sort()).toEqual(["Col", "Row"]);
     expect(quelle).not.toMatch(/\b(?:Form|Table|Modal)\./);
   });
 });

@@ -134,7 +134,11 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         <Col xs={24} md={12} xl={6}>
           <Kachel
             zahl={akkuText}
-            beschriftung="Ø Akkulaufzeit"
+            /* Das Original nennt die Zahl der Wechsel mit
+             * (lagerbuch/src/app/verwaltung/(admin)/bz/[id]/page.tsx:45): ein
+             * Mittelwert aus zwei Intervallen und einer aus zwanzig sehen
+             * ohne sie gleich verlaesslich aus. */
+            beschriftung={`Ø Akku (${akku.anzahlWechsel} Wechsel)`}
           />
         </Col>
         <Col xs={24} md={12} xl={6}>
