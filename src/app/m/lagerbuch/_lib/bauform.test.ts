@@ -712,6 +712,18 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
       /\.lesebahn\s*\{[^}]*max-width:\s*720px/,
     );
   });
+
+  it("`.leer` (LeerZustand) bekommt im Desktop-Zweig dieselbe 720px-Kappung wie `.lesebahn`", () => {
+    // Der Leerzustand ist die noch kargere Detailansicht: ein Titel, ein
+    // Absatz, ein Rueckweg-Link — weniger Inhalt als die Entnahme, die als
+    // Begruendung fuer `.lesebahn` diente. Ohne eigene Kappung spannt sich
+    // `.leer` weiter ueber die volle 1200px-Bahn.
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const zweig = css.slice(css.search(/@media[^{]*min-width/));
+    expect(zweig, "`.leer` kappt im Desktop-Zweig nicht").toMatch(
+      /\.leer\s*\{[^}]*max-width:\s*720px/,
+    );
+  });
 });
 
 // ————————————————————————————————————————————————————————————————————————

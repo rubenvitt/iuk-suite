@@ -245,9 +245,12 @@
 /* Die schmalere Bahn fuer Detailansichten. `margin-inline: auto` ohne
    `max-width` tut nichts und wird ab 768px tragend — die Regel ist damit
    halb hier und halb im Desktop-Zweig, nicht tot. Sie gehoert in die BASIS,
-   weil `rahmen.test.tsx:60-68` Klassen nicht sieht, die es nur im
-   @media-Block gibt. Unter 768px braucht es sie ohnehin nicht: dort ist die
-   Bahn 560px und damit enger als jede Lesebreite. */
+   im selben Muster wie `.fachraster` und `.karteRaster` oben — NICHT weil
+   `rahmen.test.tsx:213-228` sie heute abfaengt: dieser Scan prueft nur
+   `s.…`-Nutzung in `OeffentlicherRahmen.tsx` und `LeerZustand.tsx`, und
+   `Entnahme.tsx` — der einzige heutige Verbraucher von `.lesebahn` — gehoert
+   nicht dazu. Unter 768px braucht es sie ohnehin nicht: dort ist die Bahn
+   560px und damit enger als jede Lesebreite. */
 .lesebahn { margin-inline: auto }
 .karte + .karte { margin-top: 10px }
 .kartePad { padding: 13px 14px }
@@ -430,7 +433,13 @@
 .knopfGeist { background: var(--lb-karte); color: var(--lb-tinte); border-color: var(--lb-linie) }
 
 /* ——— Leerzustand: der Rueckweg ist PFLICHT (§11.7, E5) ——— */
-.leer { padding: 22px 16px; text-align: center; color: var(--lb-stahl); font-size: 15px; line-height: 1.5 }
+/* `margin-inline: auto` gehoert aus demselben Grund wie bei `.lesebahn` in
+   die BASIS: ohne `max-width` tut sie nichts und wird erst im Desktop-Zweig
+   tragend. `.leer` ist noch karger als die Entnahme, die `.lesebahn`
+   begruendet hat — ein Titel, ein Absatz, ein Rueckweg-Link — und bekommt
+   dieselbe Behandlung, damit sie im Desktop-Zweig nicht ueber die volle
+   1200px-Bahn gezogen und dabei unzentriert stehen bleibt. */
+.leer { padding: 22px 16px; text-align: center; color: var(--lb-stahl); font-size: 15px; line-height: 1.5; margin-inline: auto }
 .leerWeg { margin-top: 14px; display: inline-flex }
 
 /* Fokus: `outline` mit `outline-offset`, nie ein ersatzloses Abschalten. Die
@@ -608,4 +617,13 @@
    * bei der die Entnahme-Karte ihre Innenaufteilung behaelt, ohne zu zerfallen.
    */
   .lesebahn { max-width: 720px }
+
+  /*
+   * DIE NOCH KARGERE DETAILANSICHT. `.leer` (LeerZustand) traegt nur einen
+   * Titel, einen Absatz und einen Rueckweg-Link — weniger Inhalt als die
+   * Entnahme, die als Begruendung fuer `.lesebahn` diente. Ohne eigene
+   * Kappung spannt sich der Text ueber die volle 1200px-Bahn. Dieselbe
+   * 720px-Grenze wie `.lesebahn`, aus demselben Grund.
+   */
+  .leer { max-width: 720px }
 }
