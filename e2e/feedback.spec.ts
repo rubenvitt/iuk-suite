@@ -486,10 +486,12 @@ test("ohne JavaScript: dieselbe Oberfläche, Absenden funktioniert, `required` g
 
 test("Dunkelmodus: die Notenfelder tragen die Dunkel-Palette", async ({ page, context }) => {
   // Der Umschalter der Suite IST dieses Cookie (`core/theme/mode.ts`,
-  // serverseitig gelesen) — er gilt auch ohne Login. Beide Richtungen werden
-  // geprueft: eine Zusicherung nur fuer dunkel wuerde auch eine fest
+  // serverseitig gelesen) — er gilt auch ohne Login. `iuk-theme-pref` traegt
+  // die ausdrueckliche Wahl und schlaegt damit die OS-Praeferenz; die
+  // Aufloesung des Auto-Zustands prueft `theme.spec.ts`. Beide Richtungen
+  // werden geprueft: eine Zusicherung nur fuer dunkel wuerde auch eine fest
   // eingebaute Dunkelfarbe durchlassen.
-  await context.addCookies([{ name: "iuk-theme", value: "light", url: FEEDBACK }]);
+  await context.addCookies([{ name: "iuk-theme-pref", value: "light", url: FEEDBACK }]);
   await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   const gewaehlt = chip(notenzeilen(page).first(), 1);
@@ -497,7 +499,7 @@ test("Dunkelmodus: die Notenfelder tragen die Dunkel-Palette", async ({ page, co
   // NOTEN_HELL[0] = #2F7F59 (`_lib/noten.ts`).
   await expect(gewaehlt).toHaveCSS("background-color", "rgb(47, 127, 89)");
 
-  await context.addCookies([{ name: "iuk-theme", value: "dark", url: FEEDBACK }]);
+  await context.addCookies([{ name: "iuk-theme-pref", value: "dark", url: FEEDBACK }]);
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   const dunkel = chip(notenzeilen(page).first(), 1);
