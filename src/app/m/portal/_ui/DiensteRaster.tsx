@@ -76,7 +76,10 @@ export function DiensteRaster({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
+    <div
+      data-testid="portal-grid"
+      style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
+    >
       <Input
         data-testid="portal-suche"
         type="search"
@@ -101,7 +104,7 @@ export function DiensteRaster({
             >
               {titel}
             </h2>
-            <Row gutter={[SPACE.lg, SPACE.lg]} data-testid="portal-grid">
+            <Row gutter={[SPACE.lg, SPACE.lg]}>
               {liste.map((e) => {
                 const Icon = e.icon ? (ICONS[e.icon] ?? AppstoreOutlined) : LinkOutlined;
                 return (

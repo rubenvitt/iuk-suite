@@ -41,6 +41,19 @@ describe("DiensteRaster", () => {
     expect(leer.textContent).toContain("freigeschaltet");
     expect(leer.textContent).toContain("iuk@example.org");
     expect(exists('[data-testid="portal-suche"]')).toBe(false);
+    // Der Leerzustand steigt vor dem Raster aus — kein `portal-grid` in diesem Zweig.
+    expect(exists('[data-testid="portal-grid"]')).toBe(false);
+  });
+
+  it("vergibt das Raster genau einmal, egal wie viele Abschnitte es gibt", async () => {
+    // Playwrights getByTestId ist strict: zwei Knoten mit derselben testId sind
+    // eine "resolved to N elements"-Verletzung, und e2e/portal.spec.ts:8 greift
+    // genau diese. Der Fehler entstand, als die Abschnitte eingezogen und das
+    // data-testid in der Schleife stehen blieb.
+    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
+    expect(queryAll('[data-testid="portal-grid"]').length).toBe(1);
+    // Zwei Abschnitte sind es in dieser Vorlage — sonst prüfte die Zeile darüber nichts.
+    expect(queryAll('[data-testid="portal-abschnitt"]').length).toBe(2);
   });
 
   it("zeigt ohne gepflegten Ansprechpartner nur die Erklärung", async () => {
