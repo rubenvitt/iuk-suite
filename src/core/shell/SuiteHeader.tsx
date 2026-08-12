@@ -12,7 +12,7 @@ import { Header } from "antd/es/layout/layout";
 import { auth } from "@/core/auth";
 import { getModule } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
-import { switcherEntries } from "@/core/shell/switcherEntries";
+import { launcherEintraege } from "@/core/shell/launcherEintraege";
 import { Modulnav, SuiteNav } from "@/core/shell/SuiteNav";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { SCHRIFT } from "@/core/theme/schrift";
@@ -28,8 +28,8 @@ import s from "./shell.module.css";
  * veraltet — `pnpm build` weist jede Route der Suite als `f (Dynamic)` aus,
  * weil das Root-Layout `cookies()` fuer den Theme-Modus liest.
  *
- * Die Eintraege werden HIER gebaut, nicht im Client: `switcherEntries()` liest
- * ueber `moduleUrl()` `process.env`, das im Client-Bundle nicht existiert.
+ * Die Eintraege werden HIER gebaut, nicht im Client: `launcherEintraege()`
+ * liest ueber `moduleUrl()` `process.env`, das im Client-Bundle nicht existiert.
  * `SuiteNav` bekommt nur fertige hrefs.
  */
 export async function SuiteHeader({
@@ -40,9 +40,13 @@ export async function SuiteHeader({
   nav?: SuiteNavItem[];
 }) {
   const session = await auth();
-  const mod = getModule(moduleKey);
   const angemeldet = !!session?.user;
-  const entries = switcherEntries(session?.user?.groups ?? null);
+  const mod = getModule(moduleKey);
+  // Anonym wird die Funktion GAR NICHT gerufen: `MinimalShell` nutzt dieselbe
+  // Kopfzeile wie `FullShell`, also oeffnete sonst jeder anonyme Aufruf von qr
+  // und beta die Portal-Datenbank fuer eine Liste, die anonym ohnehin nicht
+  // erscheint (Entwurf §3.2, §4).
+  const eintraege = angemeldet ? await launcherEintraege(session?.user?.groups ?? null) : [];
 
   /*
    * ZWEI GESCHWISTER, NICHT EIN VERSCHACHTELTER BLOCK — die Modulnavigation
@@ -88,7 +92,7 @@ export async function SuiteHeader({
           </strong>
         </Link>
         <SuiteNav
-          entries={entries}
+          entries={eintraege}
           nav={nav}
           userName={session?.user?.name ?? null}
           angemeldet={angemeldet}

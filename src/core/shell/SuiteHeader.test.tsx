@@ -23,16 +23,24 @@ import { renderToStaticMarkup } from "react-dom/server";
  * (`useThemeMode` wirft ausserhalb des Providers), und geprueft wird hier die
  * Kopfzeile, nicht ihr Inhalt.
  */
-const { authMock, suiteNavMock, modulnavMock } = vi.hoisted(() => ({
+const { authMock, suiteNavMock, modulnavMock, launcherEintraegeMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
   suiteNavMock: vi.fn(() => null),
   // Ein sichtbarer Platzhalter statt `null`: nur so laesst sich pruefen, WO im
   // Baum die zweite Zeile landet (siehe den Test dazu unten).
   modulnavMock: vi.fn(() => <i data-testid="modulnav-platz" />),
+  // `async`, weil die echte Funktion ein Promise liefert — ein synchroner Mock
+  // liesze `await eintraegeMock(...)` nur zufaellig funktionieren.
+  launcherEintraegeMock: vi.fn(async () => []),
 }));
 
 vi.mock("@/core/auth", () => ({ auth: authMock }));
 vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock, Modulnav: modulnavMock }));
+// `launcherEintraege` fragt ueber `dienstEintraege` die Portal-Datenbank ab —
+// hier geht es nur um Titel und Baumstruktur der Kopfzeile, nicht um die Liste
+// selbst (die hat `launcherEintraege.test.ts`). Als eigener Mock adressierbar,
+// weil der Test unten prueft, DASS er anonym gar nicht gerufen wird.
+vi.mock("@/core/shell/launcherEintraege", () => ({ launcherEintraege: launcherEintraegeMock }));
 
 import { SuiteHeader } from "./SuiteHeader";
 import { moduleUrl } from "./moduleUrl";
@@ -127,5 +135,26 @@ describe("SuiteHeader", () => {
     const kopf = wirt.querySelector('[data-testid="suite-header"]')!;
     expect(wirt.querySelector('[data-testid="modulnav-platz"]')).not.toBeNull();
     expect(kopf.querySelector('[data-testid="modulnav-platz"]')).toBeNull();
+  });
+
+  it("ruft launcherEintraege anonym gar nicht auf", async () => {
+    /*
+     * `MinimalShell` nutzt dieselbe Kopfzeile wie `FullShell` — jeder anonyme
+     * Aufruf von qr oder beta liefe sonst ueber `launcherEintraege` in die
+     * Portal-Datenbank, fuer eine Liste, die anonym ohnehin nicht erscheint
+     * (Entwurf §3.2, §4). Ohne diesen Test bliebe der `angemeldet ?`-Riegel
+     * unbeobachtet: Task 4 baut die Kopfzeile um, und ein versehentlich
+     * entfernter Riegel liesse jedes andere Tor gruen.
+     */
+    launcherEintraegeMock.mockClear();
+    authMock.mockResolvedValue(null);
+    suiteNavMock.mockClear();
+    const element = await SuiteHeader({ moduleKey: "qr" });
+    renderToStaticMarkup(element);
+    expect(launcherEintraegeMock).not.toHaveBeenCalled();
+    expect(suiteNavMock).toHaveBeenCalledWith(
+      expect.objectContaining({ entries: [], angemeldet: false }),
+      undefined,
+    );
   });
 });

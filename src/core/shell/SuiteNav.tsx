@@ -19,7 +19,7 @@ import { ThemeToggle } from "@/core/theme/ThemeToggle";
 // Client-Referenz statt des Objekts — HTTP 500, das kein Gate sieht.
 import { ICONS } from "@/core/shell/icons";
 import { NavIkone } from "@/core/shell/navIkonen";
-import type { AppSwitcherEntry, SuiteNavItem } from "@/core/shell/types";
+import type { LauncherEintrag, SuiteNavItem } from "@/core/shell/types";
 import s from "./shell.module.css";
 
 /*
@@ -212,7 +212,7 @@ export function SuiteNav({
   userName,
   angemeldet,
 }: {
-  entries: AppSwitcherEntry[];
+  entries: LauncherEintrag[];
   nav: SuiteNavItem[];
   userName: string | null;
   angemeldet: boolean;
@@ -244,7 +244,10 @@ export function SuiteNav({
   const pfad = usePathname();
 
   const modulLinks = entries.map((eintrag) => {
-    const Icon = ICONS[eintrag.icon] ?? AppstoreOutlined;
+    // `icon` ist in `LauncherEintrag` optional (nur Dienste tragen `iconUrl`
+    // statt dessen) — die Modulknopfreihe zeigt hier weiterhin nur Module, die
+    // `icon` immer setzen, aber der Typ verlangt den Rueckfall.
+    const Icon = ICONS[eintrag.icon ?? ""] ?? AppstoreOutlined;
     return (
       <Button key={eintrag.key} type="text" href={eintrag.href} icon={<Icon />}>
         {eintrag.title}

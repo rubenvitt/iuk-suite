@@ -14,7 +14,7 @@ import {
 import { Modulnav, SuiteNav, aktiverEintrag } from "./SuiteNav";
 import { ICONS } from "./icons";
 import { MODULES } from "@/core/registry";
-import type { AppSwitcherEntry, SuiteNavItem } from "./types";
+import type { LauncherEintrag, SuiteNavItem } from "./types";
 
 /**
  * DRAWER- UND MENUE-INHALT WERDEN MIT `…Portal`-ABFRAGEN GEPRUEFT,
@@ -48,9 +48,23 @@ vi.mock("next-auth/react", () => ({ signOut: signOutMock }));
 vi.mock("next/navigation", () => ({ usePathname: pathnameMock }));
 vi.mock("@/core/theme/ThemeToggle", () => ({ ThemeToggle: () => null }));
 
-const MODULE: AppSwitcherEntry[] = [
-  { key: "portal", title: "Portal", icon: "AppstoreOutlined", href: "https://iuk-ue.de" },
-  { key: "qr", title: "QR-Codes", icon: "QrcodeOutlined", href: "https://qr.iuk-ue.de" },
+const MODULE: LauncherEintrag[] = [
+  {
+    key: "portal",
+    title: "Portal",
+    icon: "AppstoreOutlined",
+    href: "https://iuk-ue.de",
+    abschnitt: "Apps",
+    extern: false,
+  },
+  {
+    key: "qr",
+    title: "QR-Codes",
+    icon: "QrcodeOutlined",
+    href: "https://qr.iuk-ue.de",
+    abschnitt: "Apps",
+    extern: false,
+  },
 ];
 
 const NAV: SuiteNavItem[] = [

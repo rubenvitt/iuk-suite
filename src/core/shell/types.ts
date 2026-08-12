@@ -1,16 +1,8 @@
 /**
- * Die Datenformen der Suite-Kopfzeile. Eigene Datei, weil `switcherEntries.ts`
+ * Die Datenformen der Suite-Kopfzeile. Eigene Datei, weil `launcherEintraege.ts`
  * (Server) und `SuiteNav.tsx` (Client) beide darauf zugreifen — laege der Typ
  * in der Client-Komponente, zoege der Server-Import sie mit ins Bundle.
  */
-
-/** Ein Modul im App-Wechsler. `icon` ist ein Ant-Design-Icons-Komponentenname. */
-export interface AppSwitcherEntry {
-  key: string;
-  title: string;
-  icon: string;
-  href: string;
-}
 
 /**
  * Schluessel eines Navigationszeichens. STRING-UNION, keine Ableitung aus der
