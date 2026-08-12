@@ -47,6 +47,13 @@ Diese Angaben gelten für **jeden** Task und werden nicht je Task wiederholt.
 - **Der neue Media-Block steht am Dateiende**, nach allen Basisregeln. Bei gleicher
   Spezifität entscheidet die Reihenfolge, und die Überschreibungen für `.tab` brauchen
   den späteren Platz.
+- **Keine breitenabhängige Kappung außerhalb des Media-Blocks.** Ein Ausdruck wie
+  `padding-inline: max(14px, calc((100% - 560px) / 2))` in einer Basisregel ist
+  **breitenstetig** — er schlägt ab 561px zu, nicht ab 768px. Der erste Entwurf dieses
+  Plans hatte genau diesen Fehler.
+- **Jede Sichtprüfung nimmt eine Breite aus der Mitte mit** (650px), nicht nur 375px und
+  1440px. Der Bereich zwischen Bahnbreite und Breakpoint ist der, in dem stetige
+  Ausdrücke unbemerkt zuschlagen.
 - **Sprache:** Kommentare und Commit-Nachrichten auf Deutsch, wie im Modul üblich.
   Keine personenbezogenen Daten (`lagerbuch/CLAUDE.md`).
 - **Nach jedem Task:** `pnpm typecheck && pnpm lint && pnpm vitest run` grün, dann
@@ -81,8 +88,26 @@ prüfbar und rückabwickelbar.
 
 **Interfaces:**
 - Produces: die CSS-Variable **`--lb-bahn`**, deklariert im Körper von `.rahmen` mit
-  dem Wert `560px`. Task 2 setzt sie im Media-Block auf `1200px` um. Jede
-  Breitenkappung des Zweigs liest ab jetzt diese Variable und schreibt keine eigene Zahl.
+  dem Wert `560px`, und `max-width: var(--lb-bahn)` an derselben Stelle. Task 2 setzt
+  die Variable im Media-Block auf `1200px` um und hebt dort die Kappung von `.rahmen`
+  auf. Jede Breitenkappung des Zweigs liest ab jetzt diese Variable und schreibt keine
+  eigene Zahl.
+
+> **⚠️ KORREKTUR NACH DEM ERSTEN REVIEW (12.08.2026).** Die ursprüngliche Fassung
+> dieses Tasks ließ `.rahmen` sofort vollbreit werden und kappte stattdessen die drei
+> Bänder per `padding-inline` — **ohne** Media Query. Das war ein Planfehler und
+> verletzte die eigene Abnahmebedingung: der Ausdruck ist breitenstetig, sein
+> Umschlagpunkt liegt bei `--lb-bahn` (560px), nicht bei 768px. Zwischen **561px und
+> 767px** änderte sich dadurch sehr wohl etwas — der Kartenhintergrund von Kopf- und
+> Reiterleiste lief randlos statt auf 560px, und die Inhaltsbreite sprang von 532px
+> auf 560px.
+>
+> Der Fehler war in Task 1 nicht behebbar, weil zwei Vorgaben einander ausschlossen.
+> **Die Auflösung: die Kappung bleibt unter dem Breakpoint genau, wie sie heute ist,
+> und der Desktop-Zweig aus Task 2 hebt sie auf.** Task 1 legt damit nur noch die
+> Variable und die Ableitung an; das `padding-inline` der drei Bänder wandert
+> vollständig nach Task 2. Unter 768px ist die Datei danach wirkungsgleich mit heute —
+> nicht „fast", sondern deckungsgleich.
 
 - [ ] **Schritt 1: Den Test umstellen, der heute die falsche Sache bezeugt**
 
@@ -103,39 +128,34 @@ Ersetze den Block:
 durch:
 
 ```js
-  it("`.rahmen` traegt die Huelle, aber KEINE Breitenkappung mehr", () => {
+  it("`.rahmen` kappt weiter auf 560px, aber ueber `--lb-bahn` statt ueber eine Zahl", () => {
     /**
-     * ⚠️ DIESER TEST HAT SEINE AUSSAGE GEWECHSELT (12.08.2026,
+     * ⚠️ DIESER TEST HAT SEINE AUSSAGE GESCHAERFT (12.08.2026,
      * Betreiberentscheidung 14). Vorher: `expect(css).toMatch(/max-width:\s*560px/)`
-     * gegen den ROHTEXT der Datei. Diese Form haette den Umbau NICHT bemerkt —
-     * sie war schon dann gruen, wenn die Zeichenfolge irgendwo stand, egal an
-     * welchem Selektor. Ein Test, der nach einem Umbau gruen bleibt und dabei
-     * etwas anderes bezeugt als sein Name sagt, ist schlimmer als keiner.
+     * gegen den ROHTEXT der Datei. Diese Form war schon dann gruen, wenn die
+     * Zeichenfolge IRGENDWO stand, egal an welchem Selektor — sie haette eine
+     * Verschiebung der Kappung an einen anderen Traeger nicht bemerkt. Ein Test,
+     * der nach einem Umbau gruen bleibt und dabei etwas anderes bezeugt als sein
+     * Name sagt, ist schlimmer als keiner.
      *
-     * `.rahmen` ist ab jetzt VOLLBREIT: der Papierhintergrund fuellt den Schirm,
-     * statt dass eine 560px-Saeule in fremdfarbiger Leere steht. Die Kappung
-     * liegt auf `.kopf`, `.inhalt` und `.tableiste` (siehe der Test darunter).
+     * ⚠️ UND `.rahmen` BEHAELT SEINE KAPPUNG — das ist die Korrektur nach dem
+     * ersten Review. Der erste Entwurf machte `.rahmen` sofort vollbreit und
+     * kappte stattdessen die drei Baender per `padding-inline`, ohne Media
+     * Query. Dieser Ausdruck ist BREITENSTETIG: sein Umschlagpunkt liegt bei
+     * `--lb-bahn`, also bei 560px, nicht bei 768px. Zwischen 561 und 767px lief
+     * der Kartenhintergrund dadurch randlos statt auf 560px, und die
+     * Inhaltsbreite sprang von 532 auf 560px — ein klarer Verstoss gegen „unter
+     * 768px aendert sich kein Pixel". Aufgehoben wird die Kappung jetzt
+     * ausschliesslich im Desktop-Zweig (Task 2).
      */
     const koerper = regelKoerper(lies(), /(?:^|\})\s*\.rahmen\s*\{/m);
     expect(koerper, "`.rahmen`-Regel fehlt").not.toBe("");
     expect(koerper, "die App-Huelle bleibt: innerer Scrollbereich statt Dokumentfluss")
       .toMatch(/height:\s*100dvh/);
-    expect(koerper, "`.rahmen` darf keine Breitenkappung mehr tragen")
-      .not.toMatch(/max-width/);
     expect(koerper, "`--lb-bahn` ist die EINE Quelle der Bahnbreite")
       .toMatch(/--lb-bahn:\s*560px/);
-  });
-
-  it("die drei Baender kappen ueber `--lb-bahn`, keines schreibt eine eigene Zahl", () => {
-    // Drei Selektoren, ein Ausdruck. Schriebe einer seine 560 selbst, liefe er
-    // beim Umschalten auf 1200px (Task 2) still auseinander — und der Fehler
-    // waere nur auf einem breiten Schirm sichtbar.
-    const css = lies();
-    for (const klasse of ["kopf", "inhalt", "tableiste"]) {
-      expect(css, `.${klasse} kappt nicht ueber --lb-bahn`).toMatch(
-        new RegExp(`\\.${klasse}\\s*\\{[^}]*padding-inline:\\s*max\\([^;]*--lb-bahn`),
-      );
-    }
+    expect(koerper, "die Kappung leitet sich ab, statt die Zahl zu wiederholen")
+      .toMatch(/max-width:\s*var\(--lb-bahn\)/);
   });
 ```
 
@@ -145,11 +165,11 @@ durch:
 cd /Users/rubeen/dev/personal/drk/iuk-suite && pnpm vitest run src/app/m/lagerbuch/_lib/bauform.test.ts
 ```
 
-Erwartet: **FAIL**, zwei Fälle. Der erste an
-`expect(koerper).not.toMatch(/max-width/)` — `.rahmen` trägt heute `max-width: 560px`.
-Der zweite an der `padding-inline`-Prüfung für `kopf` — die Regel gibt es noch nicht.
+Erwartet: **FAIL** an `expect(koerper).toMatch(/--lb-bahn:\s*560px/)` — die Variable
+gibt es noch nicht. Die `max-width`-Prüfung schlägt ebenfalls fehl, weil dort heute die
+Zahl statt der Ableitung steht.
 
-- [ ] **Schritt 3: `.rahmen` von der Kappung befreien**
+- [ ] **Schritt 3: Die Variable einführen und die Kappung darauf umstellen**
 
 In `helfer.module.css`, im `.rahmen`-Körper: die Zeilen
 
@@ -157,8 +177,6 @@ In `helfer.module.css`, im `.rahmen`-Körper: die Zeilen
   width: 100%;
   max-width: 560px;            /* kein Breakpoint — eine Obergrenze */
   margin-inline: auto;
-  height: 100dvh;              /* NICHT 100vh: sonst verschwindet die Tab-Leiste
-                                  unter einer eingeblendeten Adressleiste */
 ```
 
 ersetzen durch:
@@ -166,70 +184,48 @@ ersetzen durch:
 ```css
   /*
    * DIE BAHNBREITE — die EINE Zahl, die den Zweig kappt (Betreiberentscheidung
-   * 14, 12.08.2026). Sie steht hier und nicht dreimal an `.kopf`, `.inhalt` und
-   * `.tableiste`: der Media-Block am Dateiende setzt sie auf 1200px um, und
-   * eine Kappung, die ihre 560 selbst schriebe, liefe dabei still zurueck.
+   * 14, 12.08.2026). Sie steht hier und nicht an jeder kappenden Regel: der
+   * Media-Block am Dateiende setzt sie auf 1200px um, und eine Kappung, die
+   * ihre 560 selbst schriebe, liefe dabei still zurueck.
+   *
+   * ⚠️ SIE IST EIN MASS, KEINE FARBE, und gehoert deshalb NICHT in den
+   * Dunkelzweig. Die Tests, die „dieselben zwanzig Farbnamen" dort verlangen,
+   * laufen ueber eine feste Namensliste; `--lb-bahn` steht nicht darauf.
    */
   --lb-bahn: 560px;
 
   width: 100%;
   /*
-   * ⚠️ HIER STAND `max-width: 560px; margin-inline: auto`. Der Wert ist bei der
-   * Portierung entstanden und hat KEIN Vorbild im Alt-Bestand:
-   * `lagerbuch/src/app/globals.css:129` gibt `.app` `width: 100%` ohne Kappung.
-   * Auf einem 1440px-Schirm stand der ganze Helfer-Weg dadurch als schmale
-   * Saeule mit rund 62 % ungenutzter Flaeche.
+   * ⚠️ DIE KAPPUNG BLEIBT HIER, und das ist die Korrektur nach dem ersten
+   * Review. Der erste Entwurf machte `.rahmen` sofort vollbreit und kappte
+   * stattdessen `.kopf`, `.inhalt` und `.tableiste` per `padding-inline` — ohne
+   * Media Query. Dieser Ausdruck ist BREITENSTETIG: sein Umschlagpunkt liegt
+   * bei `--lb-bahn`, also bei 560px, NICHT bei 768px. Zwischen 561 und 767px
+   * lief der Kartenhintergrund von Kopf und Reiterleiste dadurch randlos statt
+   * auf 560px, und die Inhaltsbreite sprang von 532 auf 560px — ein Verstoss
+   * gegen die Abnahmebedingung „unter 768px aendert sich kein Pixel", und einer,
+   * den der vorgesehene Pruefplan (375px und 1440px) nicht einmal getroffen
+   * haette.
    *
-   * VOLLBREIT IST HIER KEINE STILFRAGE: `.rahmen` traegt `background:
-   * var(--lb-papier)`. Gekappt faerbt es nur die Saeule, und rechts und links
-   * steht die Grundfarbe des Dokuments — genau der „Fenster im Fenster"-Eindruck.
-   * Die Kappung liegt jetzt auf den drei Baendern darin.
+   * Aufgehoben wird die Kappung ausschliesslich im Desktop-Zweig am Dateiende.
+   * Unter 768px ist diese Datei damit wirkungsgleich mit dem Stand davor.
    */
-  height: 100dvh;              /* NICHT 100vh: sonst verschwindet die Tab-Leiste
-                                  unter einer eingeblendeten Adressleiste */
+  max-width: var(--lb-bahn);
+  margin-inline: auto;
 ```
 
-- [ ] **Schritt 4: Die drei Bänder kappen**
+`height: 100dvh` und der Rest des Körpers bleiben **unverändert**.
 
-`.kopf` (heute `:117-121`) — `padding-inline` **hinter** das `padding`-Kurzformat, sonst
-überschreibt das Kurzformat es wieder:
+- [ ] **Schritt 4: Nichts weiter**
 
-```css
-.kopf {
-  flex: none; display: flex; align-items: center; justify-content: space-between;
-  gap: 8px; padding: 11px 14px 9px;
-  padding-inline: max(14px, calc((100% - var(--lb-bahn)) / 2));
-  background: var(--lb-karte); border-bottom: 1px solid var(--lb-linie);
-}
-```
-
-`.inhalt` (heute `:133`):
-
-```css
-.inhalt {
-  flex: 1; overflow-y: auto; padding: 14px 14px 18px;
-  padding-inline: max(14px, calc((100% - var(--lb-bahn)) / 2));
-  -webkit-overflow-scrolling: touch;
-}
-```
-
-`.tableiste` (heute `:134`):
-
-```css
-.tableiste {
-  flex: none; display: flex; background: var(--lb-karte);
-  border-top: 1px solid var(--lb-linie);
-  padding-inline: max(0px, calc((100% - var(--lb-bahn)) / 2));
-}
-```
-
-> **Warum `max(0px, …)` bei der Leiste und `max(14px, …)` bei den anderen:** die zwei
-> Reiter sollen bis an die Bahnkante reichen (`.tab` trägt `flex: 1`), Kopf und Inhalt
-> brauchen unter 560px ihren Seitenabstand. `0px` mit Einheit, nicht `0` — `max()`
-> verlangt vergleichbare Typen.
-
-Der öffentliche Rahmen (`.oeffentlichInhalt`, `:149`) bleibt **unverändert**: das Gate
+Die drei Bänder (`.kopf`, `.inhalt`, `.tableiste`) werden in **diesem** Task nicht
+angefasst — ihr `padding-inline` gehört in den Media-Block und kommt in Task 2. Der
+öffentliche Rahmen (`.oeffentlichInhalt`, `:149`) bleibt ebenfalls unverändert: das Gate
 zentriert über `.gate` und `.gateKarten` selbst.
+
+Damit ist Task 1 rein vorbereitend: **unter jeder Breite verhält sich die Datei nach
+diesem Task exakt wie davor.** Das ist beabsichtigt und der Grund, warum der Fehler des
+ersten Entwurfs jetzt nicht mehr auftreten kann.
 
 - [ ] **Schritt 5: Testlauf — grün**
 
@@ -250,10 +246,13 @@ allgemein, aus `_lib/seedLokal.ts:132`; falls kein Seed vorhanden: `pnpm seed:lo
 open "http://lagerbuch.localtest.me:3000/t/100-100"
 ```
 
-Bei 375px Breite prüfen: `/helfer` und `/helfer/check` sehen aus wie vor dem Task.
-Bei 1440px: der Papierhintergrund füllt jetzt den ganzen Schirm, der Inhalt steht
-weiterhin in 560px-Bahn mittig. **Beides ist der erwartete Zwischenstand** — die
-Aufweitung kommt in Task 2.
+Prüfe `/helfer` bei **375px, 650px und 1440px**. Erwartung an allen dreien: **kein
+sichtbarer Unterschied** zum Stand vor dem Task. Task 1 stellt nur die Kappung auf eine
+Variable um, ohne ihren Wert zu ändern.
+
+> **650px steht hier nicht zufällig.** Der erste Entwurf dieses Tasks brach genau in
+> diesem Bereich, und ein Prüfplan aus nur 375px und 1440px hätte es nicht gesehen.
+> Jede Sichtprüfung dieses Plans nimmt die Mitte deshalb mit.
 
 - [ ] **Schritt 7: Commit**
 
@@ -320,9 +319,37 @@ erfindet keinen zweiten"` (ab `:622`), **nach** dem bestehenden
     expect(auf, "kein min-width-Zweig gefunden").toBeGreaterThan(-1);
     const zweig = css.slice(auf);
     expect(zweig, "die Bahn weitet nicht auf").toMatch(/--lb-bahn:\s*1200px/);
+    expect(zweig, "`.rahmen` gibt seine Kappung nicht ab").toMatch(
+      /\.rahmen\s*\{[^}]*max-width:\s*none/,
+    );
     expect(zweig, "die Reiterleiste wandert nicht nach oben").toMatch(
       /\.tableiste\s*\{[^}]*order:\s*-1/,
     );
+  });
+
+  it("die Kappung der drei Baender steht NUR im Desktop-Zweig", () => {
+    /**
+     * ⚠️ DIE ZUSICHERUNG, DIE AUS DEM ERSTEN REVIEW ENTSTANDEN IST. Der erste
+     * Entwurf setzte dieses `padding-inline` in die BASISREGELN der drei
+     * Klassen, ohne Media Query. Der Ausdruck ist breitenstetig und schlug
+     * damit schon ab 561px zu, nicht erst ab 768 — der Kartenhintergrund lief
+     * randlos, die Inhaltsbreite sprang um 28px. „Unter 768px aendert sich kein
+     * Pixel" war damit verletzt, ohne dass ein Test es gesehen haette.
+     *
+     * Der Scan prueft BEIDE Richtungen: im Zweig muss es stehen, davor nicht.
+     * Nur die zweite Haelfte faengt den Rueckfall.
+     */
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const auf = css.search(/@media[^{]*min-width/);
+    expect(auf, "kein min-width-Zweig gefunden").toBeGreaterThan(-1);
+    const davor = css.slice(0, auf);
+    const zweig = css.slice(auf);
+
+    expect(zweig, "die Baender kappen im Desktop-Zweig nicht ueber --lb-bahn").toMatch(
+      /padding-inline:\s*max\([^;]*--lb-bahn/,
+    );
+    expect(davor, "eine Kappung VOR dem Breakpoint schlaegt schon ab 561px zu")
+      .not.toMatch(/padding-inline:\s*max\(/);
   });
 ```
 
@@ -362,8 +389,36 @@ Ans **Ende** von `helfer.module.css`, nach der Fokus-Regel:
  * einsortiert bliebe die rote Linie still oben statt unten.
  * ———————————————————————————————————————————————————————————————————————— */
 @media (min-width: 768px) {
-  /* EINE Zeile weitet alle drei Baender: sie lesen `--lb-bahn` (Task 1). */
-  .rahmen { --lb-bahn: 1200px; }
+  /*
+   * ERST HIER GIBT `.rahmen` SEINE KAPPUNG AB — und ausschliesslich hier.
+   * Unterhalb bleibt er bei 560px wie eh und je; das ist die Abnahmebedingung
+   * „unter 768px aendert sich kein Pixel" in ihrer einzig haltbaren Form.
+   *
+   * VOLLBREIT IST KEINE STILFRAGE: `.rahmen` traegt `background:
+   * var(--lb-papier)`. Gekappt faerbt er nur die Saeule, und rechts und links
+   * steht die Grundfarbe des Dokuments — genau der „Fenster im Fenster"-Eindruck,
+   * den der Umbau beseitigen soll.
+   */
+  .rahmen { --lb-bahn: 1200px; max-width: none }
+
+  /*
+   * DIE DREI BAENDER UEBERNEHMEN DIE KAPPUNG. `padding-inline` steht in einer
+   * EIGENEN Regel und nicht in den Basisregeln der drei Klassen: dort traegt
+   * jede ein `padding`-KURZFORMAT, und das ueberschriebe `padding-inline`, wenn
+   * es davor stuende. Eine eigene Regel im spaeter stehenden Media-Block hat die
+   * Frage gar nicht erst (Falle 5).
+   *
+   * `max(…)` und nicht der nackte `calc`: zwischen 768px und 1200px ist
+   * `(100% - 1200px) / 2` NEGATIV, und ein negativer Innenabstand ist
+   * ungueltiges CSS — die Zeile fiele still ganz aus und die Baender haetten
+   * gar keinen Seitenabstand mehr.
+   */
+  .kopf, .inhalt { padding-inline: max(14px, calc((100% - var(--lb-bahn)) / 2)) }
+
+  /* `0px` statt `14px` und `0px` MIT Einheit: die zwei Reiter tragen `flex: 1`
+     und sollen bis an die Bahnkante reichen; `max()` verlangt vergleichbare
+     Typen, ein nacktes `0` macht die Funktion ungueltig. */
+  .tableiste { padding-inline: max(0px, calc((100% - var(--lb-bahn)) / 2)) }
 
   /*
    * DIE REITERLEISTE WANDERT NACH OBEN — per `order`, NICHT per zweitem Markup.
@@ -417,17 +472,38 @@ Ans **Ende** von `helfer.module.css`, nach der Fokus-Regel:
 }
 ```
 
-- [ ] **Schritt 4: Testlauf — grün**
+- [ ] **Schritt 4: Den Dateikopf nachziehen — er ist jetzt falsch**
+
+`helfer.module.css:5-11` behauptet im Eröffnungsabsatz weiterhin:
+
+> *„NULL MEDIA QUERIES fuer die Breite (§7.7.1). Eine Ansicht, die es nur in EINER
+> Fassung gibt, kann keinen zweiten Breakpoint einfuehren. Der Rahmen ist fluid mit
+> einer OBERGRENZE; auf 1280px steht er mittig …"*
+
+Ab diesem Task stimmt davon der erste Satz nicht mehr, und der letzte beschreibt ein
+Verhalten, das es nicht mehr gibt. **In einer Datei, deren ganzes Ethos ist, dass die
+Kommentare die Entscheidungen tragen, ist ein widersprüchlicher Eröffnungsabsatz ein
+echter Defekt** — nicht Kosmetik. Wer ihn stehen lässt, hinterlässt die nächste Person
+mit zwei Aussagen und keiner Möglichkeit zu erkennen, welche gilt.
+
+Schreibe den betreffenden Absatz um: **eine** Breiten-Media-Query, ab 768px, mit dem
+Verweis auf Betreiberentscheidung 14 und darauf, dass unterhalb alles bleibt. Der
+Hinweis auf `max-width: 767.98px` (falls je eine nötig wird) und die Ausnahme für
+`prefers-reduced-motion` bleiben **wörtlich** stehen — beide gelten unverändert.
+
+- [ ] **Schritt 5: Testlauf — grün**
 
 ```bash
 cd /Users/rubeen/dev/personal/drk/iuk-suite && pnpm vitest run src/app/m/lagerbuch
 ```
 
 Erwartet: **PASS**. `rahmen.test.tsx` löst genestete `@media`-Klammern in
-`deklarierteKlassen()` fünffach auf (`:64`) — die neuen Regeln im Block werden korrekt
-als Selektoren erkannt und nicht als Regelkörper verworfen.
+`deklarierteKlassen()` fünffach auf (`:64`) — der gesamte Media-Block fällt dabei weg.
+Für die Klassen dieses Tasks ist das unschädlich (alle sind schon in der Basis
+deklariert); für neue Klassen in späteren Tasks ist es der Grund, warum sie eine
+Basisregel brauchen.
 
-- [ ] **Schritt 5: Sichtprüfung bei vier Breiten**
+- [ ] **Schritt 6: Sichtprüfung bei fünf Breiten**
 
 ```bash
 open "http://lagerbuch.localtest.me:3000/t/100-100"
@@ -436,15 +512,21 @@ open "http://lagerbuch.localtest.me:3000/t/100-100"
 | Breite | Erwartung |
 |---|---|
 | 375px | unverändert gegenüber Task 1: Reiter **unten**, Bahn 560px |
+| 650px | **unverändert** — Bahn 560px, Kartenhintergrund endet bei 560px, Reiter unten |
 | 767px | unverändert — die Abfrage greift noch nicht |
 | 768px | Reiter springen **nach oben**, rote Linie unter dem aktiven Reiter |
 | 1440px | Bahn 1200px, Kopf und Inhalt nutzen die Breite |
+
+> **650px ist die wichtigste Zeile dieser Tabelle.** Genau dort brach der erste Entwurf.
+> Prüfe hier nicht nur „sieht plausibel aus", sondern gezielt: endet die weiße bzw.
+> dunkle Fläche von Kopf- und Reiterleiste bei 560px, mit Papiergrund daneben? Wenn sie
+> randlos bis zum Fensterrand läuft, ist die Kappung wieder stetig geworden.
 
 Zusätzlich `/` (Gate) bei 1440px: **„Im Dienst" und „Verwaltung" stehen jetzt
 nebeneinander.** `.gateKarten` (`:163`) hat sein `auto-fit`-Raster die ganze Zeit
 gehabt, konnte es im 560px-Elternteil aber nie auslösen.
 
-- [ ] **Schritt 6: Commit**
+- [ ] **Schritt 7: Commit**
 
 ```bash
 git add src/app/m/lagerbuch/_ui/helfer.module.css src/app/m/lagerbuch/_lib/bauform.test.ts
@@ -1068,7 +1150,7 @@ Telefonen benutzt; auf einem Monitor stand er als 560px-Säule mit rund 62 % ung
 Fläche und drei sichtbaren Positionen in der Zählliste. Was von §7.7.1 bleibt: genau ein
 Zweig, kein `max-width` darin, und die 767.98-Regel unberührt.
 
-- [ ] **Schritt 6: Commit**
+- [ ] **Schritt 7: Commit**
 
 ```bash
 git add e2e/lagerbuch-mobil.spec.ts docs/abnahme/2026-08-12-helfer-desktop.md docs/
