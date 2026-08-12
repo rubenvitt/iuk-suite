@@ -1018,7 +1018,207 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ---
 
-## Task 6: Abnahme — E2E deckt die Helfer-Seiten ab, Messwerte werden verfolgt
+## Task 6: Die drei Lagerbuch-Schriften nachziehen
+
+**Nachgetragen am 12.08.2026, Betreiberentscheidung.** Nicht Teil des ursprünglichen
+Plans — bei der Sichtprüfung von Task 5 gefunden.
+
+### Der Befund
+
+`_ui/helfer.module.css:64-66` leitet seine drei Schriftstapel ab:
+
+```css
+  --lb-display: var(--font-display), "Arial Narrow", sans-serif;
+  --lb-body: var(--font-body), system-ui, sans-serif;
+  --lb-mono: var(--font-mono), ui-monospace, monospace;
+```
+
+**`--font-display`, `--font-body` und `--font-mono` sind in dieser Suite nirgends
+definiert.** Ein `grep` über `src/` findet außer diesen drei Zeilen und zwei
+Kommentaren keinen Treffer. Die Original-App lädt sie über `next/font`
+(`lagerbuch/src/app/layout.tsx:2-23`): **Barlow** (400/500/600/700) als `--font-body`,
+**Barlow Condensed** (600/700) als `--font-display`, **IBM Plex Mono** (400/500/600)
+als `--font-mono`. Die Suite lädt nur Geist und Geist Mono.
+
+Zwei gemessene Folgen:
+
+1. **Der gesamte Helfer-Zweig rendert in Geist** statt in der schmalen Barlow
+   Condensed — Marke, Fach-Überschriften, Bestandszahlen, Stepper-Werte, Reiter.
+2. **Wo `font:` als Kurzschreibweise steht, fällt die ganze Deklaration aus.**
+   `Entnahme.tsx` setzt `font: "700 24px var(--lb-display)"`; gemessen rendert der
+   Artikeltitel mit **14px/400** statt 24px/700. Das ist Falle 2 in Reinform: eine
+   nicht auflösbare Variable ist gültiges CSS und scheitert still.
+
+**Zwei Kommentare schreiben die falsche Annahme fest** und gehören mit korrigiert:
+`helfer.module.css:32` („Einzige zugelassene Fremdvariablen sind `--font-display`,
+… die liegen auf `:root` (Wurzel-Layout)") und `bauform.test.ts:501` („sie kommen
+vom Wurzel-Layout und liegen auf `:root`").
+
+**Files:**
+- Modify: `src/app/layout.tsx` (drei `next/font`-Importe, drei Variablen ans `<html>`)
+- Modify: `src/app/m/lagerbuch/_ui/helfer.module.css` (Kommentar `:32`)
+- Modify: `src/app/m/lagerbuch/_lib/bauform.test.ts` (Kommentar `:501`, neue Zusicherung)
+
+**Interfaces:**
+- Produces: `--font-body`, `--font-display`, `--font-mono` auf `:root`, gesetzt über
+  die `className` des `<html>`-Elements.
+
+- [ ] **Schritt 1: Die Zusicherung schreiben**
+
+Der Scan gehört in `bauform.test.ts`, weil dort schon die Annahme steht, die er prüft.
+`VOM_LAYOUT` (`:519`) nimmt die drei Namen bereits von der `unaufloesbar`-Prüfung aus —
+**genau diese Ausnahme war bisher ungedeckt.**
+
+```js
+describe("die drei Schriftstapel kommen wirklich vom Wurzel-Layout", () => {
+  it("`src/app/layout.tsx` stellt --font-body, --font-display und --font-mono bereit", () => {
+    /**
+     * ⚠️ DIESER SCAN SCHLIESST EINE LUECKE, DIE ZWEI KOMMENTARE ALS GESCHLOSSEN
+     * BESCHRIEBEN HABEN. `helfer.module.css:32` und der `VOM_LAYOUT`-Kommentar
+     * weiter oben behaupten beide, die drei Namen kaemen „vom Wurzel-Layout und
+     * liegen auf :root". Gemessen am 12.08.2026: sie kamen von NIRGENDS. Die
+     * Original-App laedt sie ueber next/font; bei der Portierung sind sie nicht
+     * mitgekommen.
+     *
+     * WAS DAS KOSTET, und es ist mehr als eine falsche Schriftart: `--lb-display`
+     * ist dann ein ungueltiger Wert, und eine `font:`-KURZSCHREIBWEISE, die ihn
+     * benutzt, faellt VOLLSTAENDIG aus — samt Groesse und Gewicht. Der
+     * Artikeltitel in `Entnahme.tsx` rendert dadurch 14px/400 statt 24px/700.
+     * Falle 2: gueltiges CSS, stiller Ausfall.
+     *
+     * `VOM_LAYOUT` (oben) nimmt genau diese drei Namen von der
+     * `unaufloesbar`-Mengenpruefung aus. Diese Ausnahme ist nur zulaessig,
+     * solange dieser Scan sie deckt.
+     */
+    const layout = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8");
+    const quelle = ohneKommentare(layout);
+    for (const name of ["--font-body", "--font-display", "--font-mono"]) {
+      expect(quelle, `${name} wird im Wurzel-Layout nicht als next/font-Variable gesetzt`)
+        .toMatch(new RegExp(`variable:\\s*["'\`]${name}["'\`]`));
+    }
+    // Die Deklaration allein genuegt nicht: ohne die `className` am <html> ist
+    // die Variable nirgends im Dokument sichtbar.
+    expect(quelle, "die Schrift-Variablen haengen nicht am <html>-Element")
+      .toMatch(/<html[^>]*className=/);
+  });
+});
+```
+
+- [ ] **Schritt 2: Testlauf — er muss fehlschlagen**
+
+```bash
+cd /Users/rubeen/dev/personal/drk/iuk-suite && pnpm vitest run src/app/m/lagerbuch/_lib/bauform.test.ts
+```
+
+Erwartet: **FAIL** an `--font-body` — keine der drei Variablen existiert heute.
+
+- [ ] **Schritt 3: Die Schriften laden**
+
+In `src/app/layout.tsx`, bei den bestehenden Geist-Importen. **Gewichte exakt wie im
+Original** (`lagerbuch/src/app/layout.tsx:6-23`) — ein fehlendes Gewicht rendert
+still synthetisch fett:
+
+```tsx
+import { Barlow, Barlow_Condensed, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
+
+/*
+ * DIE DREI SCHRIFTEN DES LAGERBUCH. Sie standen in `_ui/helfer.module.css:64-66`
+ * schon immer als `var(--font-display|body|mono)` — nur geladen hat sie niemand:
+ * bei der Portierung aus der Alt-Anwendung sind die drei next/font-Aufrufe nicht
+ * mitgekommen. Gemessen am 12.08.2026 rendert der ganze Helfer-Zweig deshalb in
+ * Geist, und `font: 700 24px var(--lb-display)` faellt VOLLSTAENDIG aus (Falle 2).
+ *
+ * ⚠️ SIE AENDERN DIE SUITE-TYPOGRAFIE NICHT. `next/font` mit `variable:` deklariert
+ * eine CSS-Variable und sonst nichts; wirksam wird sie erst, wo jemand sie liest —
+ * und das tut ausschliesslich `m/lagerbuch/_ui/helfer.module.css`. Die uebrigen
+ * Module bleiben auf Geist.
+ *
+ * Die GEWICHTE sind aus `lagerbuch/src/app/layout.tsx` uebernommen und keine freie
+ * Wahl: ein fehlendes Gewicht laesst der Browser still synthetisch fett rendern.
+ */
+const barlow = Barlow({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-body",
+  display: "swap",
+});
+const barlowCondensed = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-display",
+  display: "swap",
+});
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+  display: "swap",
+});
+```
+
+Dann die drei `.variable`-Klassen an das `<html>`-Element hängen, **zusätzlich** zu
+den bestehenden Geist-Klassen — nicht an ihrer Stelle. Such die Stelle, an der
+`geistSans.variable` und `geistMono.variable` heute gesetzt werden, und ergänze dort.
+
+- [ ] **Schritt 4: Die zwei falschen Kommentare korrigieren**
+
+`helfer.module.css:32` und `bauform.test.ts:501` behaupten beide, die drei Namen
+lägen auf `:root` (Wurzel-Layout). Ab Schritt 3 stimmt das — aber beide Kommentare
+sollten benennen, dass es **seit dem 12.08.2026** stimmt und vorher eine stille
+Falschannahme war. Wer das nicht festhält, hält die Lücke für nie existent und
+entfernt beim nächsten Aufräumen die Schriften wieder aus dem Layout.
+
+- [ ] **Schritt 5: Testlauf — grün**
+
+```bash
+cd /Users/rubeen/dev/personal/drk/iuk-suite && pnpm vitest run && pnpm typecheck && pnpm lint
+```
+
+Erwartet: **PASS**. Achte auf `src/app/layout.test.ts` und `layout.test.tsx` — es gibt
+zwei Testdateien für das Wurzel-Layout; wenn eine die Klassenliste des `<html>`
+prüft, muss sie mitgezogen werden.
+
+- [ ] **Schritt 6: Sichtprüfung — hier zählt der Vergleich**
+
+```bash
+open "http://lagerbuch.localtest.me:3000/a/art-kompresse-10x10"
+```
+
+Bei 1440px prüfen:
+1. Der Artikeltitel steht in **24px fett**, nicht in 14px normal. Das ist der harte
+   Nachweis, dass `--lb-display` auflöst.
+2. „LAGERBUCH" im Kopf steht in einer **schmalen** Schrift (Barlow Condensed), nicht
+   in Geist.
+3. Die Bestandszahl und die Stepper-Werte stehen in derselben schmalen Schrift.
+4. Die Chargennummern stehen in **IBM Plex Mono**, nicht in Geist Mono.
+
+Zusätzlich **eine Seite eines anderen Moduls** (z. B. das Portal) aufrufen und
+bestätigen, dass sich dort **nichts** verändert hat.
+
+- [ ] **Schritt 7: Commit**
+
+```bash
+git add src/app/layout.tsx src/app/m/lagerbuch/_ui/helfer.module.css src/app/m/lagerbuch/_lib/bauform.test.ts
+git commit -m "fix(lagerbuch): die drei Schriften des Helfer-Wegs werden endlich geladen
+
+helfer.module.css leitet --lb-display/body/mono seit der Portierung aus
+--font-display/body/mono ab. Geladen hat die niemand: die drei
+next/font-Aufrufe sind aus der Alt-Anwendung nicht mitgekommen.
+
+Folge war nicht nur die falsche Schriftart. --lb-display war ein
+ungueltiger Wert, und die font-Kurzschreibweise in Entnahme.tsx fiel
+damit VOLLSTAENDIG aus — der Artikeltitel rendert 14px/400 statt
+24px/700 (Falle 2, stiller Ausfall).
+
+Zwei Kommentare behaupteten, die Variablen kaemen vom Wurzel-Layout.
+Jetzt stimmt das, und ein Scan haelt es fest.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+## Task 7: Abnahme — E2E deckt die Helfer-Seiten ab, Messwerte werden verfolgt
 
 `e2e/lagerbuch-mobil.spec.ts` prüft waagerechten Überlauf bei 390/834/1280px — aber
 nur auf **drei Verwaltungsseiten** (`:69-91`). Der ganze Helfer-Zweig ist heute nicht
