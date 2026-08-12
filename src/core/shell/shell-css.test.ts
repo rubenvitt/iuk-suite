@@ -156,7 +156,6 @@ describe("shell.module.css", () => {
      */
     const regel = /\.navLink\[aria-current\]\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
     expect(regel, "Regel `.navLink[aria-current]` fehlt (auf `=page` verengt?)").not.toBeNull();
-    expect(regel![1]).toMatch(/border-block-end-color:\s*var\(--iuk-marke\)/);
     expect(OHNE_KOMMENTARE).not.toMatch(/\.navLink\[aria-current=/);
   });
 
@@ -345,6 +344,18 @@ describe("Markenstreifen und Kopfzeilentypografie", () => {
     // BEDEUTUNG NIE ALLEIN UEBER FARBE. `font-weight: 600` stand hier schon und
     // BLEIBT — wer die Farbe fuer ausreichend haelt und das Gewicht entfernt,
     // nimmt rot-gruen-blinden Nutzern und Graustufendruck die Markierung ganz.
+    //
+    // WAS DIESER SCAN BESITZT UND WAS NICHT.
+    //
+    // Er besitzt: die Regel steht im Stylesheet, sie traegt `--iuk-marke` fuer
+    // beides (Unterkante und Schrift) statt eines Literals, und `font-weight: 600`
+    // bleibt. Das ist der Quelltext-Scan.
+    //
+    // Er besitzt NICHT, dass die Regel im Browser gegen antds Stylesheet gewinnt.
+    // Wenn antd morgen eine spezifischere Regel fuer `.modulnav` mitbringt, bliebe
+    // dieser Scan gruen — er liest nur das Stylesheet und sieht die Kaskade nicht.
+    // Diese Haelfte besitzt `e2e/shell-mobil.spec.ts` (Task 10), das Farbe und
+    // Gewicht am gerenderten Element in zwei Viewports und zwei Modi misst.
     const regel = OHNE_KOMMENTARE.match(/\.navLink\[aria-current\]\s*\{([^}]*)\}/);
     expect(regel, ".navLink[aria-current] fehlt").not.toBeNull();
     expect(regel![1]!).toMatch(/border-block-end-color:\s*var\(--iuk-marke\)/);
