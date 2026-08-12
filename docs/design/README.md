@@ -130,6 +130,42 @@ Drei Farbrollen, sauber getrennt:
    Fortschritt oder Zustand.
 3. **Neutral/Graphit** = alles andere, insbesondere Fortschritt und Mengen.
 
+### Rot: Chrome ja, Datenfläche nein
+
+`colorError === colorPrimary === #c8000f` (Falle 3) zwingt zu einer Linie, die anderswo nicht nötig
+wäre:
+
+- **Rot auf Chrome** — Markenstreifen, aktiver Navigationseintrag, Wortmarke, Gefahrenzone: ja.
+- **Rot auf einer Datenfläche** in einem Modul, wo Rot fachlich etwas bedeutet: **nie**. Dort gilt
+  eine eigene, getrennte Ampelfarbe.
+
+`lagerbuch` trennt `--lb-ampel-rot-text` (`#8c0d16`) von `--lb-rot` (`#c8000f`); `feedback` hält Rot
+ganz von der Notenskala fern. Die Trennung ist gelebte Praxis, hier nur aufgeschrieben.
+
+### Eigenes Markup: `--iuk-*`, nie `--ant-*`
+
+`app/globals.css` führt drei Suite-Variablen mit Dunkelzweig: `--iuk-marke`, `--iuk-gedaempft`,
+`--iuk-linie`. Mehr steht dort bewusst nicht — der Maßstab für `core` ist ein zweiter, heute
+belegbarer Nutznießer.
+
+### Das Farbvokabular für Arbeitsflächen
+
+Vorlage ist `app/m/lagerbuch/_ui/verwaltung.module.css`; es steht dort, weil es heute genau einen
+Anwender hat. Wer als zweites Modul dasselbe braucht, baut es **so** nach — und dann darf es
+umziehen:
+
+| Baustein | Griff |
+|---|---|
+| KPI-Kachel | `border-inline-start: 4px` in der Ampelfarbe, sonst neutral |
+| Chip | Fläche **und** Text als Paar (`…-flaeche` + `…-text`), nie antds `Tag`-Vorgabe |
+| Abschnittsstreifen in Karten | eigene Fläche, hell `#f6f8f9`, dunkel `#1c2024` |
+| Journal-Delta | grün/rot **plus Vorzeichen** — Bedeutung nie allein über Farbe |
+| Gefahrenzone | 1px Kontur in Markenrot, versaler Titel |
+
+Jede dieser Farben braucht ein geprüftes Gegenstück für den Dunkelmodus. **Das Vorbild, aus dem sie
+stammen, hatte keinen** — seine Palette ist durchgehend hell, und das ist der größte versteckte
+Posten bei jeder Portierung daraus.
+
 ## Barrierefreiheit — zwei Regeln, die tragen
 
 **Bedeutung nie allein über Farbe.** Eine Bewertung, ein Status, eine Warnung trägt immer zusätzlich
@@ -153,6 +189,27 @@ Ansichten dürfen eine eigene Skala haben, weil sie eine eigene Anmutung tragen.
 
 Ziffern, die verglichen werden, brauchen `font-variant-numeric: tabular-nums`. Eingabefelder nie unter
 16px (Begründung: Abschnitt „Mobil" unten).
+
+### Die drei Schrift-Rollen der Suite
+
+`app/globals.css` deklariert auf `:root`:
+
+| Variable | Rolle | heute |
+|---|---|---|
+| `--font-display` | Marke, Kicker, Überschriften, große Zahlen | Barlow Condensed |
+| `--font-body` | Fließtext, Formulare, Tabelleninhalt | Geist |
+| `--font-mono` | Journal, Codes, IDs, Fachnummern | Geist Mono |
+
+Es sind **Rollennamen, keine Schriftnamen** — ein Wechsel ist eine Zeile in `globals.css`.
+Modul-CSS zieht daraus seine eigenen Variablen (`--lb-display` im Lagerbuch); TypeScript-Rollen
+stehen in `core/theme/schrift.ts`, die beiden Module sind Adapter darüber.
+
+**Das war einmal ein toter Vertrag**, und das ist die Warnung, die bleibt: `helfer.module.css`
+benutzte diese drei Namen, das Wurzel-Layout registrierte sie nicht, und der Helfer-Weg rendete
+über Monate im Fallback „Arial Narrow". Ein Test nahm die drei Namen per Whitelist von seiner
+Prüfung aus. **Eine unaufgelöste CSS-Variable meldet sich nie** — der Riegel ist
+`core/theme/schriftstapel.test.ts` (prüft Deklaration *und* Registrierung), die Wirkung belegt
+allein Playwright über `getComputedStyle(...).fontFamily`.
 
 ## Mobil — ein Breakpoint, vier Regeln
 

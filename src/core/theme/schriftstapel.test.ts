@@ -59,3 +59,30 @@ describe("Schriftstapel — die drei Rollenvariablen", () => {
     }
   });
 });
+
+describe("Suite-Farbvariablen fuer eigenes Markup", () => {
+  const IUK = ["--iuk-marke", "--iuk-gedaempft", "--iuk-linie"];
+
+  it("deklariert jede --iuk-* auf :root", () => {
+    for (const name of IUK) {
+      expect(css, `${name} fehlt auf :root`).toMatch(new RegExp(`${name}\\s*:`));
+    }
+  });
+
+  it("gibt jeder --iuk-* einen Dunkelzweig", () => {
+    // Das alte Lagerbuch, dessen Palette hier einzieht, HATTE keinen
+    // Dunkelmodus. Jede portierte Farbe braucht ein Gegenstueck, sonst steht
+    // sie im Dunkelmodus auf einem Wert, den niemand geprueft hat.
+    const dunkel = css.match(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/);
+    expect(dunkel, "kein Dunkelzweig in globals.css").not.toBeNull();
+    for (const name of IUK) {
+      expect(dunkel![1]!, `${name} fehlt im Dunkelzweig`)
+        .toMatch(new RegExp(`${name}\\s*:`));
+    }
+  });
+
+  it("schaltet ueber data-theme, nicht ueber prefers-color-scheme", () => {
+    // `prefers-color-scheme` braeche den Fall „System dunkel, Umschalter hell".
+    expect(css).not.toMatch(/prefers-color-scheme/);
+  });
+});

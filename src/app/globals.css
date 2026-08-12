@@ -35,6 +35,44 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
+/*
+ * DIE FARBEN, DIE EIGENES MARKUP BRAUCHT — und nur die.
+ *
+ * `core/theme/tokens.ts` bleibt die Datei mit den Suite-Hex-Codes; von dort
+ * stammen diese Werte. Sie stehen hier ZUSAETZLICH als CSS-Variablen, weil
+ * eigenes Markup (Shell, Portal, Modul-CSS) keinen Zugriff auf TypeScript hat
+ * und `--ant-*` nicht sehen kann: antd deklariert die auf der Scope-Klasse
+ * SEINER Komponenten, nicht auf `:root`. Der Ausfall waere still — die Farbe
+ * verschwindet einfach (Falle 2).
+ *
+ * NUR DREI, UND DAS IST DER MASZSTAB, KEIN ANFANG. Nach `core` kommt, was einen
+ * heute belegbaren Anwender hat. Das Farbvokabular des alten Lagerbuchs
+ * (KPI-Kante, getoente Chips, Abschnittsstreifen, Journal-Deltas) hat genau
+ * EINEN Anwender — `app/m/lagerbuch/_ui/verwaltung.module.css`, wo es steht und
+ * bleibt. Es hierher zu heben waere ein Framework fuer einen Nutzer. Was das
+ * naechste Modul davon nachbauen soll, steht in `docs/design/README.md`.
+ *
+ * DER DUNKELZWEIG IST KEINE ZUGABE. Das Vorbild hatte gar keinen Dunkelmodus;
+ * seine Palette ist durchgehend hell. Jede portierte Farbe braucht deshalb ein
+ * geprueftes Gegenstueck. Die Werte hier stammen aus dem Dunkelzweig von
+ * `verwaltung.module.css`, wo die Frage schon einmal beantwortet wurde.
+ *
+ * `--iuk-marke` ist im Dunkeln NICHT `#c8000f`: auf nahezu Schwarz reicht der
+ * Kontrast fuer 14px-Text nicht. antds Dunkel-Algorithmus rechnet sich seine
+ * eigene Primaerfarbe aus; eigenes Markup muss das selbst tun.
+ */
+:root {
+  --iuk-marke: #c8000f;
+  --iuk-gedaempft: #5b6570;
+  --iuk-linie: #d9dde1;
+}
+
+:root[data-theme="dark"] {
+  --iuk-marke: #e04452;
+  --iuk-gedaempft: #9aa4ad;
+  --iuk-linie: #2a2f34;
+}
+
 html,
 body {
   height: 100%;
