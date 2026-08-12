@@ -1692,12 +1692,17 @@ test("mobil oeffnen Titel und Menue-Knopf zwei verschiedene Dinge", async ({ pag
  * liest. Er steht hier und nicht in Task 5, weil er zwei Seiten und einen
  * Neuladevorgang umfasst; nur ein laufender Server kann das belegen.
  *
- * Die Gruppe des Portal-Admins ist die SUITE-Admin-Gruppe (`portal` führt keine
- * eigene) — der richtige Wert steht in `core/registry.ts`/`core/groups`; nimm
- * ihn von dort, nicht aus dem Gedächtnis.
+ * Die Gruppe des Portal-Admins ist die SUITE-Admin-Gruppe: `portal` führt keine
+ * eigene (`registry.ts`, `adminGroups: []`), also greift `ADMIN_GROUP` aus
+ * `core/groups.ts` — Vorgabe `dashboard-admins`, und `playwright.config.ts`
+ * setzt die Variable nicht, die Vorgabe gilt also.
  */
 test("was die Verwaltung als Ansprechpartner pflegt, steht im leeren Portal", async ({ page }) => {
-  await devLogin(page, { host: "portal.localtest.me", groups: "<SUITE-ADMIN-GRUPPE>", callbackPath: "/admin" });
+  await devLogin(page, {
+    host: "portal.localtest.me",
+    groups: "dashboard-admins",
+    callbackPath: "/admin",
+  });
 
   await page.getByTestId("ansprechpartner-form").getByRole("textbox").fill("IuK-Gruppe — iuk@example.org");
   await page.getByTestId("ansprechpartner-form").getByRole("button", { name: /Speichern/ }).click();
