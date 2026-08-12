@@ -1426,8 +1426,9 @@ Umschalter hell".
 Dahinter stehen **zwei** Cookies, und der Grund ist, dass der Server `prefers-color-scheme` nicht
 sieht — die Medienabfrage existiert nur im Browser:
 
-| `iuk-theme-pref` | `auto \| light \| dark` | die Wahl. Fehlt → `auto` |
+| Cookie | Werte | Bedeutung |
 | --- | --- | --- |
+| `iuk-theme-pref` | `auto \| light \| dark` | die Wahl. Fehlt → `auto` |
 | `iuk-theme-system` | `light \| dark` | der zuletzt vom Client beobachtete OS-Wert |
 
 `resolveThemeMode` in `core/theme/mode.ts` ist die einzige Stelle, an der daraus ein Modus wird.
