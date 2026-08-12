@@ -728,6 +728,18 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
       /\.leer\s*\{[^}]*max-width:\s*720px/,
     );
   });
+
+  it("`.abschluss` (Sticky-Abschlussleiste) bekommt im Desktop-Zweig dieselbe 720px-Kappung wie `.lesebahn`", () => {
+    // Nachbesserung 12.08.2026: ungekappt zog die Leiste auf die volle
+    // 1200px-Bahn — 1084px Textspalte bei rund 200px tatsaechlichem Text,
+    // der Knopf an den rechten Rand gedrueckt, dazwischen 900px Leere.
+    // Dieselbe 720px-Grenze wie `.lesebahn`, aus demselben Grund.
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const zweig = css.slice(css.search(/@media[^{]*min-width/));
+    expect(zweig, "`.abschluss` kappt im Desktop-Zweig nicht").toMatch(
+      /\.abschluss\s*\{[^}]*max-width:\s*720px/,
+    );
+  });
 });
 
 // ————————————————————————————————————————————————————————————————————————
