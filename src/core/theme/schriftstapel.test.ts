@@ -94,4 +94,34 @@ describe("Suite-Farbvariablen fuer eigenes Markup", () => {
     // `prefers-color-scheme` braeche den Fall „System dunkel, Umschalter hell".
     expect(css).not.toMatch(/prefers-color-scheme/);
   });
+
+  it("gibt jeder --iuk-* im Dunkeln einen ANDEREN Wert als im Hellen", () => {
+    // Die beiden Tests oben pruefen nur, DASS ein Name mit Doppelpunkt
+    // auftaucht — nicht, welcher Wert dahinter steht. Ein vertauschter oder
+    // versehentlich kopierter Wert (Hellwert im Dunkelzweig, Dunkelwert im
+    // Hellzweig, oder schlicht zweimal derselbe Wert) waere fuer beide Tests
+    // unsichtbar, obwohl genau DAS die Frage ist, die der Dunkelzweig
+    // beantworten soll. Deshalb: Wert je Variable extrahieren und auf
+    // Ungleichheit pruefen — der Hex-Code selbst wird bewusst NICHT
+    // festgenagelt, nur dass er sich vom jeweils anderen Zweig unterscheidet.
+    const hell = css.match(/:root\s*\{([^}]*--iuk-[^}]*)\}/);
+    const dunkel = css.match(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/);
+    expect(hell, "kein --iuk-Block auf dem hellen :root").not.toBeNull();
+    expect(dunkel, "kein Dunkelzweig in globals.css").not.toBeNull();
+
+    for (const name of IUK) {
+      const hellTreffer = hell![1]!.match(new RegExp(`${name}\\s*:\\s*([^;]+);`));
+      const dunkelTreffer = dunkel![1]!.match(new RegExp(`${name}\\s*:\\s*([^;]+);`));
+      expect(hellTreffer, `${name}: kein auswertbarer Wert im Hellen`).not.toBeNull();
+      expect(dunkelTreffer, `${name}: kein auswertbarer Wert im Dunkeln`).not.toBeNull();
+
+      const hellWert = hellTreffer![1]!.trim();
+      const dunkelWert = dunkelTreffer![1]!.trim();
+      expect(
+        dunkelWert,
+        `${name}: Dunkelwert (${dunkelWert}) ist identisch zum Hellwert — ` +
+          `vertauscht oder kopiert?`,
+      ).not.toBe(hellWert);
+    }
+  });
 });
