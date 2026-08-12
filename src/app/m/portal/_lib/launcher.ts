@@ -37,7 +37,27 @@ export function dienstZuEintrag(dienst: Service): LauncherEintrag {
   };
 }
 
+/**
+ * TRY/CATCH MIT ABSICHT, NICHT VERGESSEN. `launcherEintraege()` läuft ÜBER
+ * `SuiteHeader` auf JEDER Seite JEDES angemeldeten Moduls — lagerbuch, files,
+ * feedback, qr, gamma, nicht nur portal. Vor dem Navigations-Umbau war die
+ * Modulliste der Kopfzeile synchron und rein aus der Registry; ein Problem der
+ * Portal-Datenbank brach nur das Portal. Ein Wurf von hier hätte seitdem eine
+ * andere Reichweite als ein Fehler im Portal selbst — dieselbe Überlegung wie
+ * bei `lagerbuchBootFehler()` in `core/bootstrap.ts` (die dort NIE wirft, weil
+ * sie sonst portal, qr, feedback und files mitnähme). `SQLITE_BUSY` unter
+ * einem gleichzeitigen Schreiber, ein falsches `DATA_DIR`, eine volle Platte
+ * oder eine beschädigte Datei dürfen also höchstens das Portal treffen, nie
+ * jede angemeldete Route der Suite. Bei einem Fehler fällt der Launcher auf
+ * „nur Module" zurück (`[]`), statt die Seite zu zerlegen — geloggt, damit der
+ * Fehler nicht still verschwindet (Bauform wie `app/m/files/_lib/storage.ts`).
+ */
 export async function dienstEintraege(groups: string[] | null): Promise<LauncherEintrag[]> {
-  const dienste = await getVisibleServicesForUser(groups ?? []);
-  return dienste.map(dienstZuEintrag);
+  try {
+    const dienste = await getVisibleServicesForUser(groups ?? []);
+    return dienste.map(dienstZuEintrag);
+  } catch (fehler) {
+    console.error("[portal][launcher] Dienste nicht ladbar, Launcher faellt auf Module zurueck:", fehler);
+    return [];
+  }
 }

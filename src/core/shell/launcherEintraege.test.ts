@@ -4,17 +4,32 @@ import { join } from "node:path";
 import {
   modulEintraege,
   mischeEintraege,
+  launcherEintraege,
   ABSCHNITT_APPS,
 } from "@/core/shell/launcherEintraege";
 import type { LauncherEintrag } from "@/core/shell/types";
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 function eintrag(teil: Partial<LauncherEintrag>): LauncherEintrag {
   return { key: "x", title: "X", href: "/", abschnitt: "A", extern: false, ...teil };
 }
+
+/*
+ * Gemockt wird EINE Ebene UNTER `dienstEintraege` (`_lib/services`, nicht
+ * `_lib/launcher`) — mit Absicht: `dienstEintraege` trägt seit Befund 1 selbst
+ * das `try`/`catch`, das diesen Test rechtfertigt. Ein Mock von
+ * `_lib/launcher` ersetzte die ganze Datei samt Fang; die echte Funktion liefe
+ * dann nie, und der Test bewiese nichts über sie. So bleibt `dienstEintraege`
+ * echt, nur ihr Aufruf in die Datenbank schlägt fehl — genau der Pfad, den
+ * Befund 1 beschreibt (`getVisibleServicesForUser` → `getDb()`).
+ */
+vi.mock("@/app/m/portal/_lib/services", () => ({
+  getVisibleServicesForUser: vi.fn(() => Promise.reject(new Error("SQLITE_BUSY"))),
+}));
 
 describe("modulEintraege", () => {
   it("verlinkt in Dev nur die für den Nutzer sichtbaren Module über *.localtest.me", () => {
@@ -83,6 +98,21 @@ describe("mischeEintraege", () => {
 
   it("liefert eine leere Liste, wenn beide Quellen leer sind", () => {
     expect(mischeEintraege([], [])).toEqual([]);
+  });
+});
+
+/*
+ * BEFUND 1: EIN FEHLER DER PORTAL-DATENBANK REISST NICHT DIE GANZE SUITE MIT.
+ * `launcherEintraege()` läuft über `SuiteHeader` auf jeder Seite jedes
+ * angemeldeten Moduls; ein `SQLITE_BUSY` im Portal darf deshalb höchstens das
+ * Portal treffen, nicht lagerbuch, files, feedback, qr oder gamma.
+ */
+describe("launcherEintraege — Fehlergrenze zum Portal", () => {
+  it("fällt bei einer werfenden Dienste-Abfrage auf die Modul-Einträge zurück, statt zu werfen", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(launcherEintraege([])).resolves.toEqual(modulEintraege([]));
   });
 });
 
