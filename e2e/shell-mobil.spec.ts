@@ -324,3 +324,125 @@ test.describe("Modulnavigation am laufenden Server", () => {
     await expect(nav.locator('a[aria-current="true"]')).toHaveText("Generator");
   });
 });
+
+/**
+ * TASK 10 — DIE WIRKUNG BELEGEN, NICHT NUR DEN QUELLTEXT.
+ *
+ * Alles bisherige in Teil A bis D ist per Regeltext geprueft (shell-css.test.ts
+ * & co.): "die Klasse traegt die richtige Deklaration". Das beweist nicht, dass
+ * ein Element gerendert wird, dass es gegen antds spaeter geladenes Stylesheet
+ * gewinnt, oder dass eine Media Query auf einem echten Viewport greift — genau
+ * DAS haben in diesem Projekt schon drei Regeln vorgetaeuscht, waehrend sie
+ * nichts bewirkten (`.nurMobil` gegen `.ant-btn`, `.kopf`-Polsterung gegen
+ * `.ant-layout-header`, `--font-display` nirgends deklariert). Nur ein echter
+ * Browser wertet Kaskade UND Media Query aus — das leisten die Tests hier.
+ *
+ * DER STREIFEN HAT KEIN `data-testid`. Er ist ein Geschwister VOR `<Header
+ * data-testid="suite-header">` innerhalb von antds `<Layout>` (SuiteHeader.tsx,
+ * FullShell.tsx) — `Layout` fuegt zwischen seinen Kindern kein zusaetzliches
+ * Element ein, der Streifen bleibt also der unmittelbare vorangehende
+ * Geschwisterknoten der Kopfzeile im DOM. Ein `xpath`-Achsenausdruck greift ihn
+ * darueber, ohne auf `[aria-hidden="true"]` angewiesen zu sein — antd setzt das
+ * Attribut an eigenen Knoten (z. B. Icons), und `.first()` waere dort der
+ * falsche Treffer. Keine Markup-Aenderung noetig.
+ */
+function streifenLocator(page: import("@playwright/test").Page) {
+  return page.locator('xpath=//*[@data-testid="suite-header"]/preceding-sibling::*[1]');
+}
+
+test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrift", () => {
+  test.describe("Desktop 1280x720", () => {
+    test.use({ viewport: { width: 1280, height: 720 } });
+
+    test("der Markenstreifen ist gerendert, 5px hoch und traegt Markenrot", async ({ page }) => {
+      // KEIN Zustand aus dem Seed noetig — jede angemeldete Seite reicht.
+      await devLogin(page, { host: "portal.localtest.me", groups: "" });
+      const streifen = streifenLocator(page);
+      await expect(streifen).toBeVisible();
+      await expect(streifen).toHaveCSS("height", "5px");
+      await expect(streifen).toHaveCSS("background-color", "rgb(200, 0, 15)");
+    });
+
+    test("der aktive Navigationseintrag traegt Markenrot fuer Schrift UND Unterkante, plus Gewicht 600", async ({
+      page,
+    }) => {
+      // `.navLink[aria-current]` lebt in `.modulnav`, NICHT in `.modulzeile`
+      // (die fuellen antd-Buttons des App-Switchers und tragen kein
+      // `aria-current`). feedback-admin auf der Modulwurzel markiert die
+      // Uebersicht mit `aria-current="page"` — derselbe Aufbau wie im
+      // bestehenden Test "markiert die Uebersicht auf der Modulwurzel" oben.
+      await devLogin(page, {
+        host: "feedback.localtest.me",
+        groups: "da-feedback-admin",
+        callbackPath: "/",
+      });
+      const aktiv = page.locator('[data-testid="modulnav"] a[aria-current]');
+      await expect(aktiv).toHaveCount(1);
+      await expect(aktiv).toHaveCSS("color", "rgb(200, 0, 15)");
+      // `border-block-end-color` meldet sich in `getComputedStyle` unter der
+      // physischen Eigenschaft — Schreibmodus der Suite ist horizontal-tb/ltr,
+      // "block-end" ist dort "bottom".
+      await expect(aktiv).toHaveCSS("border-bottom-color", "rgb(200, 0, 15)");
+      await expect(aktiv).toHaveCSS("font-weight", "600");
+    });
+
+    test("die Display-Familie kommt im Modultitel an", async ({ page }) => {
+      await devLogin(page, { host: "portal.localtest.me", groups: "" });
+      const titel = page.getByTestId("module-title");
+      const familie = await titel.evaluate((el) => getComputedStyle(el).fontFamily);
+      // "Barlow" statt exakt "Barlow Condensed": der Fallback-Pfad war frueher
+      // "Arial Narrow" (--font-display nirgends deklariert), das enthaelt kein
+      // "Barlow" — die Zusicherung faengt genau diesen Rueckfall.
+      expect(familie, `Modultitel rendert in: ${familie}`).toContain("Barlow");
+    });
+  });
+
+  test("mobil bleibt die Kopfzeile 64px hoch — der Streifen davor dehnt sie nicht", async ({
+    page,
+  }) => {
+    // Viewport 390x844 kommt vom Datei-weiten `test.use` oben.
+    //
+    // DER 390er LAUF IST NICHT DIE ZUGABE, sondern der Gegenpart zum
+    // Desktop-Streifentest: haenge der Streifen versehentlich INNERHALB des
+    // `<Header>` statt davor, waere `suite-header` 69px hoch statt 64 — und
+    // bei 1280px faellt das niemandem auf (dort ist reichlich Luft).
+    await devLogin(page, { host: "portal.localtest.me", groups: "" });
+    const kopf = page.getByTestId("suite-header");
+    const box = await kopf.boundingBox();
+    expect(box?.height).toBe(64);
+  });
+
+  test("im Dunkelmodus loest --iuk-marke zu #e45a66 auf, nicht zum hellen Wert", async ({
+    page,
+  }) => {
+    /*
+     * WEG FUER DIESE ZUSICHERUNG: `setAttribute("data-theme", "dark")` im
+     * Browser. Das reicht fuer EIGENE CSS-Variablen — sie haengen an
+     * `:root[data-theme="dark"]` in globals.css und werten das Attribut direkt
+     * aus. Es deckt NICHT antds eigene Tokens (Layout.headerBg etc.): die
+     * kommen aus dem serverseitig gewaehlten Algorithmus (Cookie `iuk-theme`,
+     * `core/theme/mode.ts`), ein client-seitig gesetztes Attribut aendert daran
+     * nichts. Fuer die reine `--iuk-marke`-Zusicherung ist das die richtige,
+     * schlankere Wahl — ein Cookie-Umweg mit Neuladen waere hier Mehraufwand
+     * ohne zusaetzliche Deckung.
+     *
+     * #e45a66 ist NICHT der Wert aus dem urspruenglichen Task-10-Brief
+     * (#e04452) — der wurde in Task 6 angehoben, weil #e04452 die AA-Schwelle
+     * gegen #141414 riss (4.49:1 statt 4.5). Der aktuelle Wert ist in Task 6
+     * gemessen (5.22:1 gegen #141414, 5.00:1 gegen #16191c) und in
+     * globals.css dokumentiert — diese Messung wird hier NICHT wiederholt.
+     *
+     * Ohne diese Zusicherung faellt der Dunkelzweig still auf den hellen Wert
+     * zurueck, sobald ihn jemand beim Aufraeumen entfernt: `--iuk-marke` waere
+     * dann in beiden Modi #c8000f, und kein Regeltext-Scan saehe das — die
+     * Deklaration stuende weiterhin da, nur der Selektor griffe nicht mehr.
+     */
+    await devLogin(page, { host: "portal.localtest.me", groups: "" });
+    await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+
+    const marke = await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue("--iuk-marke").trim(),
+    );
+    expect(marke).toBe("#e45a66");
+  });
+});
