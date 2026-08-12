@@ -18,6 +18,7 @@ export default async function PortalPage() {
             target={s.openInNewTab ? "_blank" : undefined}
             rel={s.openInNewTab ? "noopener noreferrer" : undefined}
             data-testid="service-tile"
+            className="portal-kachel-link"
             style={{ display: "block", height: "100%" }}
           >
             {/* Kein `Card.Meta`: diese Datei ist eine Server-Komponente, und
