@@ -1128,19 +1128,15 @@ Erwartet: alles grün.
 
 - [ ] **Schritt 7: Den echten Abruf prüfen**
 
-`build` und Vitest sehen die RSC-Fallen strukturell nicht — nur ein echter Abruf zeigt einen 500er. **Vorher prüfen, dass kein anderer `pnpm dev` läuft** (ein offener Dev-Server legt später die E2E-Suite lahm).
+`build` und Vitest sehen die RSC-Fallen strukturell nicht — nur ein echter Abruf zeigt einen 500er. Den liefert **Playwright**, das seinen eigenen Server auf Port 3100 startet (`webServer` in `playwright.config.ts`) und über echtes HTTP abruft:
 
 ```bash
-rtk pnpm dev
+rtk pnpm exec playwright test e2e/keystone.spec.ts e2e/shell-mobil.spec.ts
 ```
 
-In einem zweiten Terminal:
+`keystone` ruft alle drei Shell-Varianten ab — `beta` (minimal), `kioskdemo` (kiosk), `alpha`/`gamma` (full). Ein von Hand gestarteter `pnpm dev` plus `curl` ist dafür nicht nur unnötig, sondern schädlich: der Dev-Server bleibt offen und legt die E2E-Suite lahm.
 
-```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://qr.localtest.me:3000/
-```
-
-Erwartet: `200`. Bei `500` liegt es fast immer an einem Icon- oder Compound-Zugriff auf der Server-Seite.
+Erwartet: grün. Schlägt eine Navigation fehl, liegt es fast immer an einem Icon- oder Compound-Zugriff auf der Server-Seite.
 
 - [ ] **Schritt 8: Commit**
 
@@ -1307,7 +1303,15 @@ Dazu oben `const ansprechpartner = await leseAnsprechpartner();` und die zwei Im
 rtk pnpm typecheck && rtk pnpm lint && rtk pnpm build
 ```
 
-Dann mit laufendem `pnpm dev` als Portal-Admin `/admin` aufrufen, einen Wert speichern und den Neuladevorgang abwarten. Erwartet: der Wert steht nach dem Neuladen im Feld.
+Dazu der echte Abruf — **über Playwright, nicht über `pnpm dev` plus `curl`**:
+
+```bash
+rtk pnpm exec playwright test e2e/portal.spec.ts
+```
+
+Playwright startet seinen eigenen Server auf Port 3100 und ruft die Seiten über echtes HTTP ab; damit sieht es die RSC-Fallen, die `build` und Vitest strukturell nicht sehen. Ein von Hand gestarteter `pnpm dev` ist dafür nicht nur unnötig, sondern schädlich: er bleibt offen und legt die E2E-Suite lahm.
+
+Der Rundlauf durch das Formular (speichern → neu laden → Wert steht da) wird **nicht** hier von Hand geprüft, sondern in Task 7 als E2E festgeschrieben.
 
 - [ ] **Schritt 8: Commit**
 
@@ -1590,13 +1594,15 @@ Erwartet: PASS, 5 Tests.
 rtk pnpm vitest run && rtk pnpm typecheck && rtk pnpm lint && rtk pnpm build
 ```
 
-Dann mit laufendem `pnpm dev`:
+Dazu der echte Abruf — **über Playwright, nicht über `pnpm dev` plus `curl`**:
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://portal.localtest.me:3000/
+rtk pnpm exec playwright test e2e/portal.spec.ts
 ```
 
-Erwartet: `200` beziehungsweise eine Weiterleitung auf `/login` — kein `500`.
+Playwright startet seinen eigenen Server auf Port 3100 und ruft die Seite über echtes HTTP ab; damit sieht es die RSC-Fallen (Icon-Import in einer Server Component, Compound-Zugriff), die `build` und Vitest strukturell nicht sehen. Ein von Hand gestarteter `pnpm dev` ist dafür nicht nur unnötig, sondern schädlich — er bleibt offen und legt die E2E-Suite lahm.
+
+Erwartet: die Spec läuft grün. Ein 500er auf der Portal-Seite fiele hier als fehlgeschlagene Navigation auf.
 
 - [ ] **Schritt 7: Commit**
 
@@ -1618,7 +1624,7 @@ Die drei Zusagen, die nur ein laufender Server belegen kann.
 
 - [ ] **Schritt 1: Kein `pnpm dev` darf laufen**
 
-Ein offener Dev-Server auf demselben Port legt die E2E-Suite lahm. Prüfen und beenden:
+Playwright startet seinen **eigenen** Server (Port 3100, `webServer` in `playwright.config.ts`) — ein von Hand gestarteter `pnpm dev` wird nicht gebraucht und legt die Suite lahm. Prüfen und gegebenenfalls beenden:
 
 ```bash
 rtk pnpm exec playwright test --list | head -5
@@ -1647,7 +1653,9 @@ test("Umschalter oeffnet, filtert und wechselt das Modul", async ({ page }) => {
   await panel.getByTestId("app-suche").fill("gamma");
   await expect(panel.getByTestId("app-eintrag")).toHaveCount(1);
 
-  await panel.getByRole("menuitem", { name: /Gamma/ }).click();
+  // `link`, nicht `menuitem`: das Panel trägt bewusst keine ARIA-Menürollen —
+  // es enthält ein Suchfeld, und das Menümodell verträgt kein Textfeld.
+  await panel.getByRole("link", { name: /Gamma/ }).click();
   await expect(page.getByTestId("gamma-content")).toBeVisible();
   // Der Modultitel folgt dem Modul — sonst waere der Wechsel nur halb passiert.
   await expect(page.getByTestId("module-title")).toHaveText("Gamma");
@@ -1678,6 +1686,29 @@ test("mobil oeffnen Titel und Menue-Knopf zwei verschiedene Dinge", async ({ pag
   // Und im Drawer stehen KEINE Apps mehr.
   await expect(page.getByTestId("suite-drawer").getByTestId("app-eintrag")).toHaveCount(0);
 });
+
+/*
+ * Der Rundlauf des Ansprechpartners aus Task 5 — Verwaltung schreibt, Portal
+ * liest. Er steht hier und nicht in Task 5, weil er zwei Seiten und einen
+ * Neuladevorgang umfasst; nur ein laufender Server kann das belegen.
+ *
+ * Die Gruppe des Portal-Admins ist die SUITE-Admin-Gruppe (`portal` führt keine
+ * eigene) — der richtige Wert steht in `core/registry.ts`/`core/groups`; nimm
+ * ihn von dort, nicht aus dem Gedächtnis.
+ */
+test("was die Verwaltung als Ansprechpartner pflegt, steht im leeren Portal", async ({ page }) => {
+  await devLogin(page, { host: "portal.localtest.me", groups: "<SUITE-ADMIN-GRUPPE>", callbackPath: "/admin" });
+
+  await page.getByTestId("ansprechpartner-form").getByRole("textbox").fill("IuK-Gruppe — iuk@example.org");
+  await page.getByTestId("ansprechpartner-form").getByRole("button", { name: /Speichern/ }).click();
+
+  // Neu laden statt dem Formular zu glauben: der Wert muss die Datenbank
+  // erreicht haben, nicht nur den Client-State.
+  await page.reload();
+  await expect(page.getByTestId("ansprechpartner-form").getByRole("textbox")).toHaveValue(
+    "IuK-Gruppe — iuk@example.org",
+  );
+});
 ```
 
 - [ ] **Schritt 3: Die neue Spec laufen lassen**
@@ -1686,7 +1717,9 @@ test("mobil oeffnen Titel und Menue-Knopf zwei verschiedene Dinge", async ({ pag
 rtk pnpm exec playwright test e2e/launcher.spec.ts
 ```
 
-Erwartet: 3 Tests grün. Schlägt der Titel-Vergleich fehl, weil `module-title` nicht am erwarteten Knoten hängt: Task 3 setzt es im Umschalter-Auslöser, Task 4 im anonymen Link.
+Erwartet: 4 Tests grün. Schlägt der Titel-Vergleich fehl, weil `module-title` nicht am erwarteten Knoten hängt: Task 3 setzt es im Umschalter-Auslöser, Task 4 im anonymen Link.
+
+**Zum Leerzustand selbst:** ihn end-to-end zu erzwingen hieße, einer Sitzung jeden Zugang zu nehmen — `portal` und `qr` sind ohne Gruppenzwang für jeden Angemeldeten sichtbar, das ginge nur über `SUITE_ACCESS_GROUP_*` in der Server-Umgebung und damit für die ganze Suite. Der Leerzustand ist deshalb in `DiensteRaster.test.tsx` (Task 6) abgedeckt, und hier nur der Rundlauf des Wertes, den er anzeigt. Schreib diese Abgrenzung als Kommentar in die Spec, damit niemand später den vermeintlich fehlenden Test nachrüstet.
 
 - [ ] **Schritt 4: Die ganze Suite**
 
@@ -1712,8 +1745,9 @@ Alle fünf Tore, in dieser Reihenfolge:
 rtk pnpm typecheck && rtk pnpm lint && rtk pnpm vitest run && rtk pnpm build && rtk pnpm exec playwright test
 ```
 
-Dazu die drei Dinge, die kein Tor sieht:
+Der echte Abruf je Shell-Variante steckt bereits im letzten Tor: `keystone.spec.ts` ruft `beta` (minimal), `kioskdemo` (kiosk) und `alpha`/`gamma` (full) über echtes HTTP ab, und Playwright startet dafür seinen eigenen Server. Ein von Hand gestarteter `pnpm dev` plus `curl` prüft weniger und legt danach die Suite lahm.
 
-1. Ein echter Abruf je Shell-Variante — `qr` (minimal), `portal` (full), `kioskdemo` (kiosk) — muss `200` liefern, nicht `500`.
-2. Anonym auf `qr.localtest.me`: kein Umschalter, ein Anmelden-Knopf, und die Portal-Datenbank wird nicht gelesen.
-3. Ein Portal-Admin pflegt einen Ansprechpartner; ein Nutzer ohne Gruppen sieht ihn im Leerzustand.
+Dazu zwei Dinge, die kein Tor sieht und die von Hand angesehen werden müssen:
+
+1. **Anonym auf `qr.localtest.me`**: kein Umschalter, ein Anmelden-Knopf — und die Portal-Datenbank wird nicht gelesen. Der Test dazu steht in `SuiteHeader.test.tsx`; was er nicht zeigt, ist, wie es aussieht.
+2. **Der Leerzustand des Portals im Auge einer Person, die für nichts freigeschaltet ist.** Der Text ist die ganze Aussage der Seite; ob er trägt, entscheidet niemand am Selektor.

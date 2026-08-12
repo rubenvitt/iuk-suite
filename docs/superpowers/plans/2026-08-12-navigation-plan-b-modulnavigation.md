@@ -548,21 +548,15 @@ rtk pnpm vitest run && rtk pnpm typecheck && rtk pnpm lint && rtk pnpm build
 
 Erwartet: alles grün — `VerwaltungsRahmen.test.tsx:303` eingeschlossen, weil `SuiteNavItem[]` unverändert ist.
 
-- [ ] **Schritt 10: Echter Abruf**
+- [ ] **Schritt 10: Echter Abruf — über Playwright, nicht über `pnpm dev` plus `curl`**
 
-Kein zweiter `pnpm dev` darf laufen. Dann:
-
-```bash
-rtk pnpm dev
-```
-
-Und in einem zweiten Terminal gegen ein Modul **ohne** Abschnitte, das den unveränderten Zweig belegt:
+Playwright startet seinen **eigenen** Server (Port 3100, `webServer` in `playwright.config.ts`) und ruft die Seiten über echtes HTTP ab. Damit sieht es die RSC-Fallen, die `build` und Vitest strukturell nicht sehen — und es braucht keinen von Hand gestarteten Dev-Server, der danach offen bleibt und die Suite lahmlegt.
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://portal.localtest.me:3000/
+rtk pnpm exec playwright test e2e/portal.spec.ts e2e/keystone.spec.ts
 ```
 
-Erwartet: kein `500`. Der `Sider`-Importpfad ist genau hier prüfbar und sonst nirgends.
+`portal` belegt den unveränderten Zweig (Navigation **ohne** Abschnitte), `keystone` alle drei Shell-Varianten. Erwartet: grün. **Der `Sider`-Importpfad zeigt sich genau hier und sonst nirgends** — ein falscher tiefer Import ist ein 500er, den `typecheck` und `build` durchwinken.
 
 - [ ] **Schritt 11: Commit**
 
@@ -790,6 +784,6 @@ rtk pnpm typecheck && rtk pnpm lint && rtk pnpm vitest run && rtk pnpm build && 
 
 Dazu drei Dinge, die kein Tor sieht:
 
-1. `curl` gegen `portal.localtest.me` (ohne Abschnitte) und `lagerbuch.localtest.me/verwaltung` (mit) — beide ohne `500`. Der `Sider`-Importpfad zeigt sich nur hier.
+1. Der echte Abruf steckt in der Playwright-Suite oben (`e2e/modulnavigation.spec.ts` deckt `lagerbuch.…/verwaltung` mit Abschnitten und `portal.…` ohne ab). Der `Sider`-Importpfad zeigt sich nur dort — `typecheck` und `build` winken einen falschen tiefen Import durch.
 2. Die Lagerbuch-Verwaltung bei 1280px, 768px und 390px ansehen: keine seitwärts scrollende Seite, keine zweite Aktivmarkierung, kein doppelter Weg zur selben Seite.
 3. Die fachliche Zuordnung der fünf Abschnitte gegenlesen — sie ist aus dem Modul-Entwurf abgeleitet, nicht aus dem Einsatz.
