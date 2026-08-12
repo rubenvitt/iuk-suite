@@ -449,9 +449,15 @@ test("der Helfer-Weg rendert die Display-Familie, nicht den Arial-Narrow-Fallbac
   // Und die Rolle kommt auch an der Marke an, nicht nur an der Wurzel.
   const marke = page.getByTestId("helfer-marke"); // <- vorhandenes testid nutzen
   await expect(marke).toBeVisible();
+  // ⚠️ NICHT `.not.toContain("Arial Narrow")` — das war der erste Entwurf und
+  // er ist strukturell unerfuellbar. `getComputedStyle().fontFamily` liefert
+  // den VOLLEN deklarierten Stapel, und "Arial Narrow" steht darin zweimal
+  // voellig zu Recht: einmal als Fallback von `--font-display` (globals.css),
+  // einmal als Fallback von `--lb-display` (helfer.module.css). Die Zusage
+  // lautet nicht „Arial Narrow kommt nicht vor", sondern „Barlow kommt
+  // ZUERST" — genau das unterscheidet den reparierten vom kaputten Zustand.
   const gerendert = await marke.evaluate((el) => getComputedStyle(el).fontFamily);
-  expect(gerendert, `Marke rendert in: ${gerendert}`).toContain("Barlow");
-  expect(gerendert).not.toContain("Arial Narrow");
+  expect(gerendert.split(",")[0], `Marke rendert in: ${gerendert}`).toContain("Barlow");
 });
 ```
 
