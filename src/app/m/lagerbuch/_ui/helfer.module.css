@@ -214,6 +214,28 @@
 .gateHinweis { color: var(--lb-stahl); font-size: 13px }
 
 /* ——— Bausteine ——— */
+/*
+ * Der Container der Zaehlliste. EINSPALTIGES Grid, nicht `display: block` —
+ * optisch dasselbe, aber der Desktop-Zweig muss dann nur noch EINE
+ * Eigenschaft umsetzen statt die Anzeigeart zu wechseln.
+ *
+ * ⚠️ DIE KLASSE GEHOERT IN DIE BASIS, nicht nur in den @media-Block:
+ * `rahmen.test.tsx:60-68` leert genestete Klammern fuenffach, um Regelkoerper
+ * von Selektoren zu trennen — dabei faellt der GANZE @media-Block weg. Eine
+ * Klasse, die es nur dort gibt, gilt diesem Scan als nicht deklariert. Heute
+ * traefe das `.fachraster` nicht (der Scan liest nur die zwei Rahmen-Dateien),
+ * aber die naechste Datei, die er aufnimmt, braeche daran.
+ *
+ * `gap: 0 18px` heisst: senkrecht nichts, waagerecht 18px. Der senkrechte
+ * Abstand kommt weiter aus `.fachKopf`s eigenem `margin` (:279) — eine
+ * row-gap hier addierte sich dazu.
+ */
+.fachraster {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 18px;
+  align-items: start;
+}
 .karte { background: var(--lb-karte); border: 1px solid var(--lb-linie); border-radius: 14px; overflow: hidden }
 .karte + .karte { margin-top: 10px }
 .kartePad { padding: 13px 14px }
@@ -520,6 +542,22 @@
 
   /* Mehr Luft, sobald welche da ist. Die Seitenabstaende regelt `--lb-bahn`. */
   .inhalt { padding-block: 20px 26px; }
+
+  /*
+   * ZWEI SPALTEN AB 768px, DREI AB 1100px — ohne zweite Media Query: `auto-fit`
+   * mit `minmax` bricht selbst um. Das ist dieselbe Bauform, die `.gateKarten`
+   * (:163) schon benutzt, und sie haelt §7.7.1 („genau ein Breakpoint") ein.
+   *
+   * 360px Mindestbreite je Spalte ist kein runder Wert, sondern der Platz, den
+   * eine Zaehlzeile braucht: Pruefkreis 30 + Name + Stepper 3x56 = 168 + die
+   * Verfallszeile darunter. Enger bricht der Stepper um.
+   *
+   * EINE Eigenschaft — `display`, `gap` und `align-items` stehen schon in der
+   * Basisregel. `align-items: start` ist dort Pflicht: ohne das zieht Grid jede
+   * Karte auf die Hoehe der hoechsten Zeile, und ein Fach mit zwei Positionen
+   * bekaeme den Weissraum eines Fachs mit zwanzig.
+   */
+  .fachraster { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)) }
 
   /*
    * Das Kamerabild bekommt eine Obergrenze in px. Das `max-height: 58vh`

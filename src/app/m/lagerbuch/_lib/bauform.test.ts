@@ -623,6 +623,27 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     expect(css).toMatch(/:focus-visible[^{]*\{[^}]*outline-offset/);
     expect(css).not.toMatch(/outline:\s*none/);
   });
+
+  it("die Zaehlliste ist im Desktop-Zweig ein Raster", () => {
+    // Der teuerste Bildschirm des Zweigs: bei 1440px waren drei Positionen
+    // gleichzeitig lesbar, die Sticky-Leiste verdeckte eine vierte. Der Wert
+    // des ganzen Umbaus haengt an dieser einen Regel.
+    //
+    // ⚠️ ABWEICHUNG VOM BRIEFTEXT: dort lief die Zusicherung ausschliesslich
+    // gegen den Media-Block-Ausschnitt und war damit unerfuellbar —
+    // `display: grid` gehoert per Vorgabe in die BASIS (sonst gilt die Klasse
+    // dem Scan `rahmen.test.tsx:60-68` als nicht deklariert), der Media-Block
+    // traegt NUR die Spaltenzahl. Geprueft werden deshalb beide Haelften.
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const auf = css.search(/@media[^{]*min-width/);
+    expect(auf, "kein min-width-Zweig gefunden").toBeGreaterThan(-1);
+    expect(css.slice(0, auf), "`.fachraster` ist in der Basis kein Grid").toMatch(
+      /\.fachraster\s*\{[^}]*display:\s*grid/,
+    );
+    expect(css.slice(auf), "der Desktop-Zweig setzt die Spaltenzahl nicht").toMatch(
+      /\.fachraster\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit/,
+    );
+  });
 });
 
 // ————————————————————————————————————————————————————————————————————————
