@@ -73,8 +73,17 @@
  * `.ant-card-hoverable:hover` setzt die drei anderen Raender weiterhin auf
  * transparent. Der Hover-Zustand zeigt also bewusst NUR die rote Innenkante
  * plus antds Schatten, nicht einen rundum roten Rahmen — das ist eine
- * Aenderung an antds Hover-Bild, keine reine Ergaenzung, und gehoert in die
- * Pruefung von Task 10.
+ * Aenderung an antds Hover-Bild, keine reine Ergaenzung.
+ *
+ * WER DAS BEWEIST: `e2e/portal.spec.ts`, „die Kachelkante steht in Ruhe auf
+ * --iuk-linie und im Hover auf --iuk-marke". Hier stand ein Verweis auf „die
+ * Pruefung von Task 10" — die es nicht gab; `portal-kachel` kam in `e2e/`
+ * nirgends vor. Der ganze Absatz oben ist eine Aussage ueber die KASKADE, und
+ * die besitzt kein Quelltext-Scan: bei Gleichstand entscheidet die
+ * Einbindungsreihenfolge, und die sieht nur ein echter Browser. Der Test misst
+ * `border-left-color` im Ruhezustand UND nach `hover()` und deckt mit der
+ * Oberkante zusaetzlich ab, dass die drei anderen Raender antds `transparent`
+ * behalten.
  */
 .ant-card.portal-kachel {
   border-inline-start: 4px solid var(--iuk-linie);
