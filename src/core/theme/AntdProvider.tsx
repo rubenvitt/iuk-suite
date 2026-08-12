@@ -17,16 +17,12 @@ interface ThemeModeApi {
   /** Was die Person gewählt hat. Nur der Umschalter braucht das. */
   preference: ThemePreference;
   setPreference: (next: ThemePreference) => void;
-  /** @deprecated Übergangsgerüst für den Zwei-Zustands-Umschalter. Fällt mit
-   *  dem Dreier-Zyklus weg. */
-  setMode: (next: ThemeMode) => void;
 }
 
 const ThemeModeContext = createContext<ThemeModeApi>({
   mode: "light",
   preference: "auto",
   setPreference: () => {},
-  setMode: () => {},
 });
 
 export function useThemeMode(): ThemeModeApi {
@@ -125,11 +121,9 @@ export function AntdProvider({
     return () => mq.removeEventListener("change", nachziehen);
   }, [preference, cookieDomain, stempeln]);
 
-  const setMode = useCallback((next: ThemeMode) => setPreference(next), [setPreference]);
-
   const api = useMemo(
-    () => ({ mode, preference, setPreference, setMode }),
-    [mode, preference, setPreference, setMode],
+    () => ({ mode, preference, setPreference }),
+    [mode, preference, setPreference],
   );
 
   return (
