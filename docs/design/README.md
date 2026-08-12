@@ -158,9 +158,17 @@ umziehen:
 |---|---|
 | KPI-Kachel | `border-inline-start: 4px` in der Ampelfarbe, sonst neutral |
 | Chip | Fläche **und** Text als Paar (`…-flaeche` + `…-text`), nie antds `Tag`-Vorgabe |
-| Abschnittsstreifen in Karten | eigene Fläche, hell `#f6f8f9`, dunkel `#1c2024` |
 | Journal-Delta | grün/rot **plus Vorzeichen** — Bedeutung nie allein über Farbe |
 | Gefahrenzone | 1px Kontur in Markenrot, versaler Titel |
+
+Hier stand eine fünfte Zeile, „Abschnittsstreifen in Karten | eigene Fläche, hell `#f6f8f9`, dunkel
+`#1c2024`". **Sie ist am 2026-08-12 gestrichen, weil es den Baustein nicht gibt**: `#f6f8f9` kommt in
+`src/` nirgends vor, und `#1c2024` existiert zwar, aber als `--lb-ampel-grau-flaeche` — die Fläche
+eines *Chips*, nicht eines Abschnittsstreifens. Der Absatz darüber weist an, das Vokabular **so**
+nachzubauen; ein Umsetzer hätte in `verwaltung.module.css` vergeblich gesucht. (Das `.streifen` in
+`helfer.module.css` ist etwas anderes: der 5px hohe Markenstreifen in `--lb-rot`.) Wer einen
+Abschnittsstreifen tatsächlich braucht, entwirft ihn und trägt ihn dann hier ein — mit einem
+Fundort.
 
 Jede dieser Farben braucht ein geprüftes Gegenstück für den Dunkelmodus. **Das Vorbild, aus dem sie
 stammen, hatte keinen** — seine Palette ist durchgehend hell, und das ist der größte versteckte
@@ -223,8 +231,13 @@ allein Playwright über `getComputedStyle(...).fontFamily`.
 
 ### Spaltenköpfe einer antd-`Table`: über `title`, nie über CSS
 
-antd bietet für `Table` keinen Schrift-Token an — nur `headerBg`, `headerColor` und
-`headerSplitColor`. Der naheliegende Griff wäre eine Regel gegen `.ant-table-thead th`, und der ist
+antd bietet für `Table` durchaus Schrift-Token an — `cellFontSize`, `cellFontSizeMD`,
+`cellFontSizeSM`, `tableFontSize` und weitere (`node_modules/antd/es/table/style/index.d.ts`). Nur
+gilt keiner davon **allein für den Kopf**: sie treffen die Zelle und damit Kopf *und* Rumpf. Was der
+Kopf spezifisch bekommt, sind Flächen und Linien — `headerBg`, `headerColor`, `headerSplitColor`.
+Eine Typo-Rolle nur für den Spaltenkopf gibt es dort also nicht.
+
+Der naheliegende Griff wäre deshalb eine Regel gegen `.ant-table-thead th`, und der ist
 **falsch**: er kostet eine Spezifitätserhöhung *und* eine Kopplung an einen antd-internen
 Klassennamen, die ein Major still bricht.
 
