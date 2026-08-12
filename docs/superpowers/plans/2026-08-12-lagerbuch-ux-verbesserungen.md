@@ -1985,16 +1985,26 @@ pnpm typecheck && pnpm lint && pnpm vitest run && pnpm build 2>&1 | tee /tmp/lag
 
 Alle vier grün, bevor es weitergeht.
 
-- [ ] **Step 2: Bundle-Vergleich**
+- [ ] **Step 2: Bundle-Vergleich — über die Artefakte, nicht über die Build-Ausgabe**
+
+**Korrektur gegenüber dem ersten Entwurf** (gemessen in Task 1): Der Next-16-Build mit Turbopack gibt in diesem Repo **keine Größenspalte** aus — nur die Routenliste mit dem `ƒ (Dynamic)`-Marker. Ein `diff` der Build-Ausgaben zeigt deshalb nichts. Gemessen wird stattdessen am erzeugten Artefakt:
 
 ```bash
-diff <(grep -E "^\S*/(m/)?lagerbuch" /tmp/lagerbuch-build-vorher.txt) \
-     <(grep -E "^\S*/(m/)?lagerbuch" /tmp/lagerbuch-build-nachher.txt)
+du -sk .next/static/chunks | awk '{print "chunks gesamt: " $1 " KB"}'
+find .next/static/chunks -name "*.js" -size +200k -exec ls -lh {} \; | awk '{print $5, $9}' | sort -rh | head -10
 ```
 
-Erwartet: die Route-Größen bewegen sich moderat. **Ein Sprung um mehrere hundert KB heißt, dass das Phosphor-Barrel mitgebündelt wird** — dann prüfen, ob irgendwo `import … from "react-icons"` ohne Set-Suffix steht (der Riegel aus Task 1 sollte das gefangen haben) und den gemessenen Wert in der Spec festhalten.
+Vergleiche gegen denselben Befehl auf einem Build von `origin/main`. Wenn du keinen Vorher-Wert hast, erzeuge ihn:
 
-Die Zahlen werden in Abschnitt 4c der Spec eingetragen — sie war ausdrücklich als „wird belegt, nicht behauptet" formuliert.
+```bash
+git stash list >/dev/null; git worktree add /tmp/lb-baseline origin/main
+(cd /tmp/lb-baseline && pnpm install --silent && pnpm build >/dev/null 2>&1 && du -sk .next/static/chunks)
+git worktree remove /tmp/lb-baseline --force
+```
+
+**Worauf es ankommt:** ein Sprung um mehrere hundert KB hieße, dass das Phosphor-Barrel (9.072 Zeichen) mitgebündelt wird. Prüfe dann, ob irgendwo `import … from "react-icons"` ohne Set-Suffix steht — der Riegel aus Task 2 sollte das gefangen haben.
+
+Trage den gemessenen Wert **und die Tatsache, dass Turbopack keine Routengrößen ausgibt** in Abschnitt 4c der Spec ein. Der Abschnitt war als „wird belegt, nicht behauptet" formuliert; die ehrliche Fassung nennt, was messbar war und was nicht.
 
 - [ ] **Step 3: Der E2E-Test, der die Druckregel prüft**
 
