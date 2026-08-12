@@ -115,8 +115,8 @@ blockiert den Baubeginn**; zwei blockieren den **Cutover**.
 
 | # | Frage | Antwortet | Blockiert | Rückfall, mit dem dieser Plan baut |
 |---|---|---|---|---|
-| 7 | ~~In welchem Programm wird `bestellvorschlag.csv` geöffnet?~~ | ✅ **entschieden (D8, 04.08.2026): Tabellenkalkulation** | — | **A-J1 ist zur FESTLEGUNG hochgestuft.** Entscheidung 9-C wird umgesetzt: `csvTextZelle` neutralisiert `=`/`+`/`-`/`@` **nur** auf den drei Textspalten. ⚠️ **Der Betreiber will darüber hinaus Excel als Standard für alle Reports, auch über Module hinweg.** Das ist eine **suiteweite Formatentscheidung** und wird hier ausdrücklich **nicht** nebenbei vollzogen — siehe §2.3 |
-| — | **Der Probebogen aus 8-I** — welcher Drucker, welches gekaufte Etikettenmaterial? | Betreiber | **den Cutover**, nicht den Bau | **A-J2:** `core/qr` wird unverändert benutzt (Level H, `margin: 4`). Scheitert die Abnahme, ist der benannte Rückfall ein optionaler `margin`-Parameter an `qrSvg`, vom Etikettenbogen auf `1` gesetzt und an der Aufrufstelle mit dem Messergebnis begründet. **Level H bleibt in beiden Fällen.** T176, Schritt 8 führt die Runbook-Zeile |
+| 7 | ~~In welchem Programm wird `bestellvorschlag.csv` geöffnet?~~ | ✅ **entschieden (D8, 04.08.2026): Tabellenkalkulation** | — | **A-J1 ist zur FESTLEGUNG hochgestuft.** Entscheidung 9-C wird umgesetzt: `csvTextZelle` neutralisiert `=`/`+`/`-`/`@` **nur** auf den drei Textspalten. ⚠️ **Der Betreiber will darüber hinaus Excel als Standard für alle Reports, auch über Module hinweg.** Das ist eine **suiteweite Formatentscheidung** und wird hier ausdrücklich **nicht** nebenbei vollzogen — siehe §2.2 |
+| — | **Der Probebogen aus 8-I** — welcher Drucker, welches gekaufte Etikettenmaterial? | Betreiber | **den Cutover**, nicht den Bau | **A-J2:** `core/qr` wird unverändert benutzt (Level H, `margin: 4`). Scheitert die Abnahme, ist der benannte Rückfall ein optionaler `margin`-Parameter an `qrSvg`, vom Etikettenbogen auf `1` gesetzt und an der Aufrufstelle mit dem Messergebnis begründet. **Level H bleibt in beiden Fällen.** T176, Schritt 8 führt die Runbook-Zeile. ⚠️ **NACHGEZOGEN (Abschlussreview Teil 6, I2): `margin` allein reicht GEMESSEN nicht** — `4 → 1` bei Level H ergibt 0,465 mm und bleibt unter den 0,571 mm der Alt-Anwendung. Diese Zeile nennt nur den ERSTEN Knopf; der vollständige, zweistufige Rückfall samt gemessener Modulgrößen steht in **§10.2 / R30**. Die Annahme A-J2 selbst bleibt gültig — überholt ist ihr Rückfall, nicht ihre Entscheidung |
 | — | **Darf die Reihenfolge in `SUITE_HOST_LAGERBUCH` nach dem ersten Etikettendruck eingefroren werden?** (§8.1, 8-B) | Betreiber | nichts im Bau | **A-J3:** ja. `moduleUrl` nimmt `prodHostsFor(mod)[0]`; eine Umsortierung ändert **still** jeden ab dann gedruckten Bogen. T162 druckt den verwendeten Host als Text über den Bogen, damit die Person vor dem Drucken sieht, was sie druckt; T176 führt die Runbook-Auflage |
 | 9 | Soll eine abgelöste Domain dauerhaft als zweiter Host mitlaufen? (E16 b) | Betreiber | nichts | §2.6 erlaubt ≥ 2 Hosts. ⚠️ Fällt die Antwort „ja", **muss `lagerbuch.iuk-ue.de` Index 0 bleiben** — sonst drucken ab dem nächsten Bogen alle QR auf die Altdomain |
 | 4, 5, 6, 8 | Backup-Job · `scope_lagerort_id` als Riegel · Netz im Lagerraum · Hersteller-EANs | Betreiber | nichts hier | in Teil 2 (A31), Teil 3/4 abgehandelt; berühren diesen Plan nicht |
@@ -132,6 +132,13 @@ Wert nennt, ist er in der Spec belegt oder als Annahme `A-J<n>` markiert.
 | R31 | **`SUITE_HOST_LAGERBUCH`: Reihenfolge nach dem ersten Druck einfrieren** (§8.1) | `moduleUrl` liest Index 0. Eine Umsortierung ist eine stille Änderung an gedruckten Pixeln |
 | R32 | **Die Menge der physisch hängenden Etiketten ist echt größer als die Menge der druckbaren** (§8.4, Falle 26): `etikettenDaten` filtert hart auf `aktiv = true`, ein deaktivierter Artikel bleibt unter `/a/<id>` bebuchbar, ist aber nie wieder nachdruckbar. Die Differenz ist im Repo nicht abzählbar | Wer nach dem Cutover ein Etikett nachdrucken will und den Artikel nicht findet, sucht sonst einen Fehler, wo eine Entscheidung ist |
 | R33 | **Ankündigung: die beiden Knopfbeschriftungen auf `/verwaltung/bestellung` ändern sich** — `Liste kopieren` → `Liste kopieren (nur offene)`, `CSV` → `CSV (alle Zeilen)` (§9.1, 9-A) | Die beiden Wege liefern **verschieden viele Zeilen**, und heute verrät das nichts. Die Vereinheitlichung wäre eine Fachentscheidung im Gewand einer Aufräumarbeit — deshalb bleibt der Umfang und die Beschriftung wird ehrlich |
+
+⚠️ **Ältere, kürzere Fassung — nicht die maßgebliche.** §10.2 führt inzwischen **sieben** Zeilen
+(R30–R36) in der reicheren Fassung: ihr R30 trägt zusätzlich den benannten Rückfall (seit der Messung **zweistufig**: erst
+`margin`, dann die Fehlerkorrekturstufe — mit den dort gemessenen Modulgrößen), ihr R31 den Vorbehalt zu
+Betreiberfrage 9 („muss `lagerbuch.iuk-ue.de` Index 0 bleiben"). **Maßgeblich ist §10.2** — ins
+Cutover-Runbook übernommen als §16.2. Diese Tabelle bleibt unverändert stehen (historischer
+Abschnitt aus der ersten Fassung dieses Plans); ihre eigenen R30–R33 nicht als Quelle verwenden.
 
 ---
 
@@ -471,13 +478,27 @@ Pfade ohne Präfix liegen unter `src/app/m/lagerbuch/`.
 | `e2e/lagerbuch-helfer.spec.ts` | T171 | neu (J2) |
 | `_actions/guards.test.ts` | T172 | **ERGÄNZT** (Teil 2, T20) |
 | `_lib/bauform.test.ts` | T173 | **ERGÄNZT** (Teil 2, T21) |
+| `_lib/tokenForm.ts`, `_lib/tokenForm.test.ts` | T160 | neu — **Ruling A1**: `export const` in einer `"use server"`-Datei ist verboten (Next-Regel, `_actions/guards.test.ts` meldet es als Fremdform). Die vier Token-Konstanten ziehen deshalb nach `_lib/`; `_actions/tokens.ts` und `_actions/loeschen.ts` importieren sie |
+| `_ui/Chip.tsx` | T171 | **ERGÄNZT** (Teil 5, T106) — **Ruling A15**: optionale `title`-Prop. Additiv, 58 Aufrufstellen unverändert, genau **eine** übergibt `title` |
+| `verwaltung/(arbeit)/journal/**` (`JournalTable.tsx`, `JournalTable.test.tsx`, `page.tsx`, `page.test.tsx`) | T171 | **ERGÄNZT** (Teil 5, T147) — **Ruling A15**: `quelleId` wird durchgereicht und steht als `title` am Chip. ⚠️ **Hier steht seit A15 ein NEUES DOM-Attribut** — die Alt-Anwendung trug `title={j.quelleId}` (1:1-Pflicht), der Port hatte es verloren. Für `quelleTyp === "token"` **ist** `quelleId` der Zugangs-Code im Klartext |
+| `e2e/seed-lagerbuch.ts` | T170 | **ERGÄNZT** (Teil 3, T60) — **Ruling A10**: der längste Seed-Artikelname (20 Zeichen) reichte für T170s 28-Zeichen-Messung nicht; er wird **dort** auf 35 verlängert statt die Grenze im Test abzusenken |
 | — (nur Ausführung und Protokoll) | T174, T175, T176 | — |
+
+⚠️ **Die letzten fünf Zeilen sind aus den Rulings nachgetragen (Abschlussreview Teil 6, I5), nicht
+beim Planschreiben entstanden.** A1 und A10 schreiben ihre §5-Zeile ausdrücklich vor — sie kam
+trotzdem nie an, und §5 nannte sich zwischenzeitlich „mechanisch prüfbar", während fünf geänderte
+Dateien nicht darin standen. Die Ruling-Texte selbst liegen im **gitignorierten** Ledger; deshalb
+steht der tragende Grund hier ausgeschrieben statt nur als Kürzel. Spec 2 erbt diese Tabelle.
 
 **Keine `core`-Datei wird in diesem Plan angefasst.** Die drei `core`-Berührungen des Vorhabens sind
 abgeschlossen: `core/shell/icons.ts` (Teil 1, T2), `core/bootstrap.ts` (Teil 1 T8 + Teil 2) und
 `core/shell/shell.module.css` (Teil 5, T105). ⚠️ Insbesondere wird **`core/qr` nicht erweitert** —
 der optionale `margin`-Parameter ist der benannte Rückfall aus A-J2 und wird nur gezogen, wenn der
-Probebogen scheitert.
+Probebogen scheitert. ⚠️ **Der Rückfall ist seit der Messung ZWEISTUFIG** (erst `margin`, dann die
+Fehlerkorrekturstufe) — §10.2 / R30. **Beide** Stufen brauchen einen Parameter an
+`core/qr#qrSvg`, das heute gar keine Optionen nimmt; sie sind damit ein **Suite**-Eingriff NACH
+diesem Plan, kein Modul-Eingriff in ihm. Das ändert an dieser Zeile nichts — es benennt nur,
+was das Ziehen des Rückfalls kostet.
 
 **Die eine Reihenfolgebindung nach außen:** T164 (`g/[code]/page.tsx`) braucht
 `_lib/barcode.ts#normalisiereBarcode` aus **Teil 4** (T62). Ohne Teil 4 ist T164 nicht lauffähig; der
@@ -528,10 +549,42 @@ eine Abnahme über sechs Teile keine Zeile stillschweigend fremdem Protokoll üb
 prüft das Protokoll und trägt die fehlenden Zeilen selbst nach.**
 
 **Server:** `SUITE_HOST_LAGERBUCH=lagerbuch.localtest.me pnpm dev`, abgerufen als
-`http://lagerbuch.localtest.me:3000<pfad>`. **Der Modul-Host ist Pflicht** — auf `localhost` greift
-`requireLagerbuchHost` und jede Zeile antwortete 404 (Falle 61 von der richtigen Seite).
+`http://lagerbuch.localtest.me:3000<pfad>`. **Der Modul-Host ist Pflicht** — auf `localhost` ist keine
+einzige Zeile dieser Liste erreichbar (Falle 61 von der richtigen Seite).
+
+⚠️ **Korrektur aus T175 (gemessen, 2026-08-11):** hier stand „auf `localhost` greift
+`requireLagerbuchHost` und jede Zeile antwortete 404". Der **Effekt** stimmt, die **Ursache** nicht,
+und die Verwechslung ist folgenreich. Gemessen antwortet `localhost:3000` mit **307 → `/login`**, auch
+mit gültigem Sitzungscookie: `moduleForHost("localhost")` findet kein Modul und fällt auf `portal`
+zurück, dessen `requiresAuth`-Weiche in `decideRoute` **vor** jeder Modulseite greift — und
+`AUTH_COOKIE_DOMAIN=.localtest.me` schickt das Cookie ohnehin nicht an `localhost`.
+`requireLagerbuchHost` wird auf diesem Weg **nie erreicht**. Wer die Prüfung so wiederholt, glaubt den
+Host-Riegel getestet zu haben und hat portals Auth getestet.
+
+**Der Riegel allein wird dort belegt, wo nichts anderes davorsteht** — ein **innerer** Pfad auf einem
+fremden Suite-Host: `decideRoute` nimmt für `/m/lagerbuch/…` den Internal-Zweig, `lagerbuch` trägt
+`requiresAuth: false`, `canAccess` steigt sofort mit `true` aus, und die Anfrage landet ungefiltert auf
+`requireLagerbuchHost`. In T175 gemessen, gleiche Sitzung, gleicher Pfad, nur der `Host` unterscheidet:
+
+| Host | `/m/lagerbuch/verwaltung/artikel` | `/m/lagerbuch/verwaltung/etiketten` | `/m/lagerbuch/manifest.webmanifest` |
+|---|---|---|---|
+| `files.localtest.me` | **404** | **404** | **404** |
+| `portal.localtest.me` | **404** | **404** | **404** |
+| `lagerbuch.localtest.me` | 200 | 200 | 200 |
+
+Dauerhaft gehalten wird dieselbe Aussage von `e2e/lagerbuch-hosts.spec.ts` („Host-Riegel"): fünfzehn
+Einstiege, je **404 auf `feedback.localtest.me`** und **nicht-404 auf dem eigenen Host**, angemeldet
+**mit** Lagerbuch-Gruppe, damit der 404 nicht der Gruppenriegel ist.
 
 ### 7.1 Die 29 `page.tsx`
+
+⚠️ **„Verifiziert in: Teil 5, T151/2" ist eine dünnere Belegkette, als die Spalte nahelegt.** T175 hat
+nachgeschlagen: hinter dieser Angabe steht **kein Zeilenprotokoll**, der Commit von T151/2 sagt nur
+aggregiert „23 Verwaltungsrouten liefern 200". Welche Zeile mit welchem unterscheidenden Merkmal
+abgehakt wurde, ist dort nicht festgehalten. **T175 hat die Zeilen deshalb selbst gefahren** —
+wo „T175" in der Spalte steht, liegt eine eigene Messung vor. Die Lehre gilt sinngemäß für jede
+„Verifiziert in Teil N"-Spalte dieses Vorhabens: sie belegt, dass jemand **eine** Abnahme gefahren
+hat, nicht, dass **diese Zeile** dabei einzeln gesehen wurde.
 
 | ☐ | Pfad | Erwartet | Unterscheidendes Merkmal | Verifiziert in |
 |---|---|---|---|---|
@@ -539,8 +592,8 @@ prüft das Protokoll und trägt die fehlenden Zeilen selbst nach.**
 | ☐ | `/helfer` | 200 | Tab-Leiste, `aria-current="page"` auf „Entnahme" | **Teil 4** ⚠️ |
 | ☐ | `/helfer/check` | 200 | Fahrzeugwahl oder Leerzustand mit Rückweg | **Teil 4** ⚠️ |
 | ☐ | `/a/<bekannt>` | 200 | Artikelname + Entnahmeknopf | **Teil 4** ⚠️ |
-| ☐ | `/a/<unbekannt>` | **200**, nicht 303 | „Dieses Etikett gehört zu keinem Artikel mehr." (8-C) | **Teil 4** ⚠️ |
-| ☐ | `/g/<bekannt>` | 303 → `/verwaltung/geraete/<id>` bzw. `/verwaltung/bz/<id>` | `Location`-Kopf, **relativ** | **T175** |
+| ☐ | `/a/<unbekannt>` | **200**, nicht 303 | „Dieses Etikett kennt kein Artikel" + „Der Artikel wurde gelöscht oder das Etikett stammt aus einer anderen Anwendung. Bitte der Verwaltung melden." (8-C) ⚠️ Wortlaut aus T175 nachgezogen — hier stand „Dieses Etikett gehört zu keinem Artikel mehr."; die Substanz (200 statt 303, benannter Text) war nie strittig | **Teil 4** ⚠️ |
+| ☐ | `/g/<bekannt>` | **307** → `/verwaltung/geraete/<id>` bzw. `/verwaltung/bz/<id>` | `Location`-Kopf, **relativ** ⚠️ Erwartung aus T175 nachgezogen — hier stand 303; `redirect()` in einer Server Component liefert unter Next 16 einen **307**, gemessen an `/g/4012345678901` → `/verwaltung/geraete/ger-defi-rtw1` und `/g/4015630000018` → `/verwaltung/bz/bz-rtw1`. Für einen GET verhalten sich beide gleich; das tragende Merkmal ist und bleibt die **relative** `Location` | **T175** |
 | ☐ | `/g/<unbekannt>` | **200**, nicht 404 | „Kein Gerät zu diesem Barcode" + der **gescannte Code im Klartext** + Shell + Modulnavigation | **T175** |
 | ☐ | `/verwaltung` | 200 | KPI-Kacheln mit farbiger linker Kante | Teil 5, T151/2 |
 | ☐ | `/verwaltung/artikel` | 200 | `Table` + Excel-Knopf **ohne** `disabled` | **T175** (ERGÄNZT durch T165) |
@@ -557,10 +610,10 @@ prüft das Protokoll und trägt die fehlenden Zeilen selbst nach.**
 | ☐ | `/verwaltung/vorlagen/<id>` | 200 | Brotkrume + Gefahrenzone | Teil 5, T151/2 |
 | ☐ | `/verwaltung/geraete` | 200 | Fälligkeits-Chips mit Text | Teil 5, T151/2 |
 | ☐ | `/verwaltung/geraete/<id>` | 200 | Brotkrume | Teil 5, T151/2 |
-| ☐ | `/verwaltung/geraete/scan` | 200 | Kamera-Insel, vier unterscheidbare Zustände | Teil 5, T151/2 |
+| ☐ | `/verwaltung/geraete/scan` | 200 | Kamera-Insel, vier unterscheidbare Zustände ⚠️ Zusatz aus T175: das sind **Client**-Zustände — `kameraText()` (`_ui/BarcodeScanner.tsx`) verzweigt über `DOMException.name` aus `getUserMedia`. Über `http://` ist `window.isSecureContext` **falsch**, die Insel steigt **vor** dem zxing-Import aus, und ein blosser Abruf zeigt immer nur den **fünften** Zustand (`KEIN_SICHERER_KONTEXT`). Wer die vier sehen will, muss `isSecureContext` und `navigator.mediaDevices` im Browser präparieren — in T175 so gemessen | Teil 5, T151/2 |
 | ☐ | `/verwaltung/bz` | 200 | Fälligkeit „noch nie geprüft" als eigener Text | Teil 5, T151/2 |
 | ☐ | `/verwaltung/bz/<id>` | 200 | Logbuch mit `ref_snapshot`-Grenzen | Teil 5, T151/2 |
-| ☐ | `/verwaltung/bz/<id>/kontrolle` | 200 | `DatePicker picker="month"` mit Label „Verfallsmonat" | Teil 5, T151/2 |
+| ☐ | `/verwaltung/bz/<id>/kontrolle` | 200 | `DatePicker picker="month"` mit Label **„Kompressen-Verfall"** (gerendert `picker-month`) ⚠️ Wortlaut aus T175 nachgezogen — hier stand „Verfallsmonat"; die Implementierung (`KontrolleForm.tsx:127-134`) hat den Titel nie so getragen | Teil 5, T151/2 |
 | ☐ | `/verwaltung/bz/scan` | 200 | Kamera-Insel | Teil 5, T151/2 |
 | ☐ | `/verwaltung/sauerstoff` | 200 | „keine Messung", **nie** „0 %" | Teil 5, T151/2 |
 | ☐ | `/verwaltung/sauerstoff/<id>` | 200 | Brotkrume + Messverlauf | Teil 5, T151/2 |
@@ -614,7 +667,7 @@ gegen ihre alte Fassung gehalten."
 |---|---|---|---|---|
 | 1 | Das Verfallsfeld im Zählschritt wandert in die Check-Nutzlast, die Vorschau `{n} laufen ab` zählt mit (`CheckFlow.tsx:281,306`) | **Unit:** `_lib/checkNutzlast.ts` (Teil 3) — `checkNutzlast(args)` + `zaehleAblaufende(...)`. **DOM:** `_ui/CheckFlow.test.tsx` (Teil 4). **E2E:** `e2e/lagerbuch-helfer.spec.ts` (**T171**) | 3 | Unit ✅ · DOM ⚠️ Teil 4 · E2E **T171** |
 | 2 | Der clientseitige Artikelfilter, inline als `useMemo` (`ArtikelTable.tsx:112-123`) — sucht über Name, Fach **und** Chargennummer | **Unit:** `_lib/artikelFilter.ts` (Teil 3) — `artikelTrifft` / `artikelFiltern`. **Unit dazu (Kopplung):** `bestandExportZeilen(gefiltert)` bekommt **dieselbe** abgeleitete Liste — **T156, Schritt 6** | 2 | Filter ✅ · **Kopplung T156** |
-| 3 | Die Entprellung, die den Tastendruck als `?q=` in die URL schreibt, plus der `committedQ`-Tanz (`JournalFilter.tsx:29-36,44-52`) | **DOM:** `_ui/filter.test.tsx` (Teil 5, T109) — gefälschte Uhr, **ein** Schreibvorgang je Tipppause. **E2E:** die literale URL `?q=…` (Teil 5, T150) | 2 | ✅ |
+| 3 | Die Entprellung, die den Tastendruck als `?q=` in die URL schreibt, plus der `committedQ`-Tanz (`JournalFilter.tsx:29-36,44-52`) | **DOM:** `verwaltung/(arbeit)/journal/JournalFilter.test.tsx` (Teil 5, T147) — gefälschte Uhr, **ein** Schreibvorgang je Tipppause; `committedQ` selbst steht wörtlich in `JournalFilter.tsx:36`. Gestützt auf `_ui/filter.test.tsx` (T109), das die `useUrlFilter`-Schreibmechanik trägt, aber weder Debounce noch den `committedQ`-Tanz prüft. **E2E:** `e2e/lagerbuch-verwaltung.spec.ts` — T174-Befund: fehlte komplett (`e2e/lagerbuch-verwaltung.spec.ts` (T150) trug bis dahin ausschließlich die vier Modulnavigations-Zusicherungen; T150s eigener Scope nennt `_lib/nav.ts`/`.modulnav`, nicht die Journal-Suche). Per W1 sofort gefixt: T174 ergänzt den Test „Journalsuche schreibt die literale URL" in derselben Datei (Nachfolger von `suche-filter.spec.ts:30`), echt gefahren mit `pnpm build && pnpm exec playwright test e2e/lagerbuch-verwaltung.spec.ts` (7 passed) | 2 | ✅ |
 | 4 | `.jdelta.minus` — eine Entnahme erscheint im Journal negativ **und** abgesetzt (`verwaltung-flow.spec.ts:67`) | **Unit:** `_lib/journalZeile.ts` (Teil 3) — `journalZeile({typ,menge})` liefert `mengeText` + `zustand`. **DOM:** `journal/page.tsx`-Test (Teil 5, T147) | 2 | ✅ ⚠️ **nennt NIE einen Hexwert** |
 | 5 | Der Chip `bestellt` als Zeilenzustand, mit `exact: true` von der Fußnote getrennt (`inventur.spec.ts:29`) | **DOM:** `/verwaltung/bestellung` (Teil 5, T145). ⚠️ Der Text wird „bestellt seit &lt;Datum&gt;" — die Zusicherung wandert **mit** dem Text, nicht gegen ihn | 1 | ✅ |
 | 6 | `Endgültig löschen` bleibt gesperrt, bis der Name exakt getippt ist (`loeschen.spec.ts:50-54`) | **DOM:** `_ui/LoeschDialog.test.tsx` (Teil 5, T110). Reine Client-Zusage, gehört nicht in einen E2E | 1 | ✅ |
@@ -7284,20 +7337,28 @@ Die Alt-Anwendung ist eingefroren (`ca04eb1`); es wird dort **nichts gelöscht**
 gelöscht wird" heißt hier: **bevor die Alt-Instanz vom Netz geht**. Diese Tabelle wird abgehakt, und
 zwar mit dem Nachfolger **namentlich**:
 
+⚠️ **Die Nachfolger-Spalte trägt seit T176-A die MESSUNG, nicht mehr die Planannahme.** Befund F-1:
+`e2e/lagerbuch-verwaltung.spec.ts` war für **sieben** Zeilen als Nachfolger genannt und trägt davon
+gemessen **eine halbe** (die Journal-Hälfte von `suche-filter`). Ursache: die Tabelle wurde gefüllt,
+**bevor** T150 (Teil 5) seinen Zuschnitt „nur Modulnavigation" bekam, und danach nie gegen die
+gebaute Datei gehalten. **Alle 13 Alt-Aussagen sind getragen** — nur eben von Dateien, die die
+Tabelle nicht nannte; es ist eine Tabellendrift, keine Testlücke. Nach W1 folgt die Tabelle der
+Messung. **Anker sind Zusicherungsnamen, keine Zeilennummern** (DRK-192: Zeilenanker veralten).
+
 | ☐ | Alt-Spec | Fate | Nachfolger |
 |---|---|---|---|
 | ☐ | `bestand-export.spec.ts` | **Übernehmen** — Rolle+Name sind antd-neutral | `e2e/lagerbuch-bestand-export.spec.ts` (T168). ⚠️ Die Lücke wandert mit: geprüft wird nur die **Form** des Dateinamens, nie der Wert |
-| ☐ | `bz-scan.spec.ts` | **Umschreiben** — die vier `getByPlaceholder`-Anker sterben an `Form.Item label`; der Hydrations-Retry ist ein reines `next dev`-Artefakt und entfällt | `e2e/lagerbuch-verwaltung.spec.ts` (Teil 5, T150) |
+| ☐ | `bz-scan.spec.ts` | **Umschreiben** — die vier `getByPlaceholder`-Anker sterben an `Form.Item label`; der Hydrations-Retry ist ein reines `next dev`-Artefakt und entfällt | ⚠️ **NICHT** `e2e/lagerbuch-verwaltung.spec.ts` — von T176-A gemessen, die Datei trägt die Aussage nicht (F-1). Gemessene Träger: `verwaltung/(arbeit)/bz/scan/BzScanner.test.tsx` „ruft ausschließlich die BZ-Action auf und gibt deren Treffer weiter" · „bildet ok mit wert null auf null ab" (= unbekannter Barcode) · „wirft bei einem Actionfehler, statt Unbekanntheit zu behaupten" (**schärfer** als die Alt-Spec: trennt „Code unbekannt" von „Lesevorgang gescheitert"); `verwaltung/(arbeit)/bz/[id]/kontrolle/KontrolleForm.test.tsx` „meldet bestanden und setzt alle Eingaben auf ihre sichtbaren Defaults zurück"; `verwaltung/(arbeit)/bz/[id]/BzLogbuchTabelle.test.tsx` (Spalte 6 hängt am aufgelösten **Klarnamen**); `_db/quelle.test.ts` „loest oidc → users.name auf" + „faellt bei unbekannter Kennung auf die ROHE ID zurueck" |
 | ☐ | `check.spec.ts` | **Umschreiben**, Netz zuerst (§12.1 Punkt 1). `/abschließen/i` trifft heute genau einen Knopf, weil je Phase nur einer rendert; `Stepper` ist eigenes Markup und geht als Ganzes mit | `e2e/lagerbuch-helfer.spec.ts` (T171) + `_lib/checkNutzlast.test.ts` (Teil 3) |
 | ☐ | `etiketten.spec.ts` | **Umschreiben**, Netz zuerst (§12.1 Punkt 7). Der QR-Träger wechselt von `<img>` auf `<svg>` | `e2e/lagerbuch-etiketten.spec.ts` (T167) + `EtikettenBogen.test.tsx` (T162) + `_db/etiketten.test.ts` (T159) |
 | ☐ | `gate.spec.ts` | **Ersetzen** — die Aussage „login-freie Startseite" bleibt, der Zuschnitt folgt §3.6.6 und §3.9 | `e2e/lagerbuch-helfer.spec.ts` (T171) ⚠️ Teil 4 |
-| ☐ | `geraete.spec.ts` | **Teilen.** `:66` (`button "Defekt"`) ist die **Eingabe**seite und überlebt einen Umbau auf `Radio.Group` nicht; `:80` prüft das **persistierte** Literal und überlebt. `combobox "Standort"` bricht mit dem handgesetzten `role="combobox"` | `e2e/lagerbuch-verwaltung.spec.ts` (Teil 5, T150) |
+| ☐ | `geraete.spec.ts` | **Teilen.** `:66` (`button "Defekt"`) ist die **Eingabe**seite und überlebt einen Umbau auf `Radio.Group` nicht; `:80` prüft das **persistierte** Literal und überlebt. `combobox "Standort"` bricht mit dem handgesetzten `role="combobox"` | ⚠️ **NICHT** `e2e/lagerbuch-verwaltung.spec.ts` — von T176-A gemessen, die Datei trägt die überlebende Hälfte nicht (F-1). Gemessene Träger, **härter** als die Alt-Spec: `_lib/konstanten.test.ts` (`ZUSTAENDE` zeichengleich als Tripel, `ZUSTAND_DEFEKT === "Defekt"`, mit dem Grund „Historische ergebnis-JSONs tragen sie bereits"); gerendert in `verwaltung/(arbeit)/checks/[id]/page.test.tsx` (`{ ton: "rot", zeichen: null, text: "Defekt" }`); ausgewertet in `_lib/domain/check.test.ts` „`geraeteAuffaellig` zaehlt !vorhanden ODER zustand === 'Defekt'". Die **Eingabe**seite ist wie angekündigt gefallen und ersetzt durch `_ui/CheckFlow.test.tsx` „die Auswahl steht NICHT allein auf der Farbe — Haken UND `aria-pressed` tragen sie" |
 | ☐ | `helfer-flow.spec.ts` | **Umschreiben, fachlich.** ⚠️ `:56` verlangt wörtlich `/server-side exception/` — **der Absturz ist dort die erwartete Ausgabe**, und `:50-51` schreibt das selbst hin | `e2e/lagerbuch-helfer.spec.ts` (T171). ⚠️ Wer die alte Zeile stehen lässt, **konserviert den Ausfall**; wer sie ohne Begründung streicht, verliert die Zusage „Sperren wirkt sofort" — die serverseitige Hälfte liegt in `_lib/helferZugang.test.ts` und bleibt |
-| ☐ | `inventur.spec.ts` | **Umschreiben**, Netz zuerst (§12.1 Punkt 5). Der defensive Übersprung in `:26` fällt weg (§12.3, Regel 5) | `e2e/lagerbuch-verwaltung.spec.ts` (Teil 5, T150) |
-| ☐ | `loeschen.spec.ts` | **Umschreiben** — die selektorlastigste Spec des Bestands (4× `.drawer`, 2× `.modalbox`, 4× `tr.click`). Netz zuerst (§12.1 Punkt 6) | `_ui/LoeschDialog.test.tsx` (Teil 5, T110) + `e2e/lagerbuch-verwaltung.spec.ts` (T150) |
-| ☐ | `suche-filter.spec.ts` | **Umschreiben**, Netz zuerst (§12.1 Punkte 2 und 3), mit der Rollen-Gegenprobe aus §12.3 Regel 2. Die literale URL-Zusicherung `?q=Verband` **bleibt** — sie ist der einzige Beleg für den URL-Vertrag | `_ui/filter.test.tsx` + `e2e/lagerbuch-verwaltung.spec.ts` (Teil 5) |
-| ☐ | `verfall.spec.ts` | **Umschreiben.** `/× aussondern/` hängt zusätzlich an einem typografischen `×` im Knopftext | `e2e/lagerbuch-verwaltung.spec.ts` (Teil 5, T150) |
-| ☐ | `verwaltung-flow.spec.ts` | **Umschreiben**, sechs CSS-Kopplungen; Netz zuerst (§12.1 Punkt 4). Der eigene Kommentar `:48-50` hält fest, warum `.first()` dort bewusst vermieden wurde — Sekundenauflösung der `ts`-Spalte | `e2e/lagerbuch-verwaltung.spec.ts` (Teil 5, T150) + `_lib/journalZeile.test.ts` (Teil 3) |
+| ☐ | `inventur.spec.ts` | **Umschreiben**, Netz zuerst (§12.1 Punkt 5). Der defensive Übersprung in `:26` fällt weg (§12.3, Regel 5) | ⚠️ **NICHT** `e2e/lagerbuch-verwaltung.spec.ts` — von T176-A gemessen, die Datei trägt die Aussage nicht (F-1). Gemessene Träger: `verwaltung/(arbeit)/inventur/InventurForm.test.tsx` „erlaubt 0 bis 9999 und zeigt Abweichungen mit ASCII-Vorzeichen im Text" · „behält Werte bis zum Resolve, sperrt Doppelklicks und leert erst bei Erfolg" · „positionenAus — Lost-Update-Riegel"; die Journalbuchung `_actions/inventur.test.ts` „bucht die Abweichung per FEFO negativ mit typ korrektur"; die Chip-Trennung `verwaltung/(arbeit)/bestellung/BestellListe.test.tsx` „‚bestellt' (exact) trifft nur den datumslosen Chip, nie ‚bestellt seit …'" (von T174 nachgezogen, **exakt** die Aussage aus `:28-29`) |
+| ☐ | `loeschen.spec.ts` | **Umschreiben** — die selektorlastigste Spec des Bestands (4× `.drawer`, 2× `.modalbox`, 4× `tr.click`). Netz zuerst (§12.1 Punkt 6) | `_ui/LoeschDialog.test.tsx` (Teil 5, T110) trägt die Aussage vollständig und schärfer als die Alt-Spec: „der Loeschknopf bleibt gesperrt, solange der Name nicht exakt stimmt" · „zeigt den Grund und bietet Deaktivieren an, wenn nicht loeschbar" · „der Loeschknopf ist bei ‚nicht loeschbar' **gar nicht vorhanden**" · „ruft `pruefen` BEIM OEFFNEN, vor jeder Handlung" · „meldet den Grund NICHT als `Alert type=error`". ~~+ `e2e/lagerbuch-verwaltung.spec.ts` (T150)~~ — **von T176-A gemessen: diese E2E-Hälfte existiert nicht** (F-1). Die zehn Selektorkopplungen der Alt-Spec sind wie angekündigt alle gefallen |
+| ☐ | `suche-filter.spec.ts` | **Umschreiben**, Netz zuerst (§12.1 Punkte 2 und 3), mit der Rollen-Gegenprobe aus §12.3 Regel 2. Die literale URL-Zusicherung `?q=Verband` **bleibt** — sie ist der einzige Beleg für den URL-Vertrag. T174-Befund (behoben): die DOM-Hälfte lebt in `journal/JournalFilter.test.tsx` (T147), nicht in `_ui/filter.test.tsx` (T109, nur die `useUrlFilter`-Mechanik); die E2E-Hälfte fehlte komplett und wurde von T174 in `e2e/lagerbuch-verwaltung.spec.ts` ergänzt | `journal/JournalFilter.test.tsx` (T147) + `_ui/filter.test.tsx` (T109) + `e2e/lagerbuch-verwaltung.spec.ts` (T150 + T174) |
+| ☐ | `verfall.spec.ts` | **Umschreiben.** `/× aussondern/` hängt zusätzlich an einem typografischen `×` im Knopftext | ⚠️ **NICHT** `e2e/lagerbuch-verwaltung.spec.ts` — von T176-A gemessen, die Datei trägt die Aussage nicht (F-1). Gemessene Träger: `verwaltung/(arbeit)/verfall/AussondernRow.test.tsx` „bucht mit einem Kommentar, der die Charge nennt" (= der **Grund**) · „fragt vor dem Aussondern per Popconfirm, nicht per Modal" (damit ist die typografische `×`-Kopplung gefallen) · „der Knopf traegt ein `aria-label` mit der Charge" (**der Rollen-Ersatzanker** für `/× aussondern/`); das negative Delta `_actions/aussondern.test.ts` „schreibt genau **eine negative** korrektur fuer den Handlager-Rest" + „schliesst Bestand derselben Charge in einem Fahrzeug aus"; das Vorzeichen im Journal `_lib/journalZeile.test.ts` „eine Entnahme ist NEGATIV und traegt ein Minus" + „das Vorzeichen ist **ASCII**, kein typografisches Minus" |
+| ☐ | `verwaltung-flow.spec.ts` | **Umschreiben**, sechs CSS-Kopplungen; Netz zuerst (§12.1 Punkt 4). Der eigene Kommentar `:48-50` hält fest, warum `.first()` dort bewusst vermieden wurde — Sekundenauflösung der `ts`-Spalte | `_lib/journalZeile.test.ts` (Teil 3) trägt wie benannt (siehe Zeile `verfall.spec.ts`). ⚠️ **NICHT** `e2e/lagerbuch-verwaltung.spec.ts` — von T176-A gemessen, die Datei trägt die Flow-Hälfte nicht (F-1). Gemessene Träger der Flow-Hälfte: `_ui/ArtikelDrawer.test.tsx` „bindet den DatePicker an Form und sendet bei `NEUE_CHARGE` nur `neueCharge` mit `YYYY-MM`" · „sendet bei einer Bestandscharge nur `chargeId` und laedt den sichtbaren Bestand neu" · „sendet das ausgewaehlte Fahrzeug mit Menge und Kommentar" (plus Formsperre während laufender Buchung). **Der volle Rundlauf bis ins Journal existiert im echten Browser** — auf dem Helferweg statt dem Verwaltungsweg: `e2e/lagerbuch-helfer.spec.ts` „Gate → Helfer → Entnahme → Journal mit Token-Provenienz". Die Sekundenauflösungs-Begründung ist damit **gegenstandslos geworden, nicht übergangen**: die DOM-Fassung vergleicht Nutzlasten statt Tabellenzeilen |
 | ☐ | `verwaltung.spec.ts` | **(a) und (c) übertragen, (b) fällt.** Die literale URL `/\/\?returnTo=%2Fverwaltung%2Fartikel$/` hat nach dem Port **kein Ziel mehr** — die Spec wird **rot, nicht gegenstandslos**. Die reine `returnTo`-Logik ist ohnehin in `_lib/returnTo.test.ts` gegatet (Teil 2), inklusive Endlosschleifen-Schutz und Open-Redirect | `e2e/lagerbuch-hosts.spec.ts` (T169) + `_lib/returnTo.test.ts` (Teil 2) |
 
 - [ ] **Schritt 3: Die 40 Fehlerzustände aus §11.5 auf Abdeckung prüfen**
@@ -7312,7 +7373,7 @@ nachzubauen.
 |---|---|---|---|
 | **1–5** Gate: Code nicht erkannt · Budget erschöpft · modulweite Bremse · `/t/<code>` ungültig · `/t/<code>` gültig | Modul | **Teil 4** (§7.2), Texte aus `_lib/gateTexte.ts` (Teil 2) | ☐ |
 | **6–10** Sitzung abgelaufen · Code gesperrt · **Entnahme gebucht: 0** · teilweise gebucht · Netz weg | Modul | **Teil 4** (§7.3, §7.4.4). ⚠️ Zustand 8 ist heute ein **grüner Chip mit Häkchen** — „ein 200, das lügt, ist der teuerste Zustand dieser Tabelle" | ☐ |
-| **11** Die 22 deutschen Meldungstexte als **Rückgabewert** | Modul | **Teil 5** (T113–T126) und **Teil 4** (`check.ts`) | ☐ |
+| **11** Die deutschen Meldungstexte als **Rückgabewert** — gemessen: **35** Stellen in **14** Action-Dateien (gegatet ist die Form, nicht die Anzahl; ⚠️ Begründung unten) | Modul | **Teil 5** (T113–T126) und **Teil 4** (`check.ts`) | ☐ |
 | **12** Fahrzeug-Check: fremdes Objekt in der Nutzlast | **Modul-Grenze** | **Teil 4** (Wurf) → fällt an **`error.tsx` (T163)** | ☐ |
 | **13–14** Löschen abgelehnt (Historie) · Löschen scheitert am Fremdschlüssel | Modul | **Teil 5** (T110, T124) | ☐ |
 | **15** `/g/<code>`: Barcode unbekannt | Modul | **T164** (dieser Plan) | ☐ |
@@ -7331,6 +7392,19 @@ nachzubauen.
 | **38** Etikettenbogen ohne konfigurierte Domain | Modul | **T159 + T162** (dieser Plan) | ☐ |
 | **39** Zwischenablage ohne secure context | Modul | **T166** (dieser Plan) | ☐ |
 | **40** Auflöser findet die Kennung nicht | Modul | **Teil 1** (`_db/quelle.ts`) — der benannte Defektzustand aus §4.13 (i), protokolliert | ☐ |
+
+⚠️ **Zeile 11 trug bis zum 11.08.2026 die Zahl „22" — sie war eine Alt-App-Zahl** und ist durch die
+gemessene Zahl ersetzt. **Gemessen im Modul (11.08.2026): 35 literale `fehler: "`-Stellen in 14
+Produktiv-Action-Dateien** (`src/app/m/lagerbuch/_actions/*.ts` **ohne** `*.test.ts`; mit Testdateien
+zählt derselbe Ausdruck 89 in 25 Dateien — wer nachmisst, muss den Ausschluss mitzählen). Die „22"
+stammt aus der Alt-Anwendung: die zwei Kommentare, die sie heute noch nennen
+(`_lib/actionTypen.ts:21`, `error.test.tsx:48`), schreiben den Bezug ausdrücklich hin
+(`lagerbuch/src/actions/*`). ⚠️ **Die Zahl steht hier ohne Gate, und das ist Absicht:** die Spec
+verlangt die Texte „**als Rückgabewert**", und genau diese **Form** ist gegatet
+(`_lib/actionErgebnis.ts`, Test „verlangt im Fehlerzweig einen `fehler`-Text",
+`actionErgebnis.test.ts:162`). Eine Zusicherung, die die **Anzahl** festnagelt, deckelt keine
+Invariante, wird von jeder neuen Action rot und ist genau die von Ruling A7 verbotene Art —
+**hier also kein `toHaveLength`.**
 
 ⚠️ **Zwei Zeilen dieser Tabelle prüfen sich gegenseitig.** Zustand 16 (Suite-404 für
 Verwaltungs-Detailseiten) und Zustand 15/17 (gestaltete Zustände für `/g` und `/a`) sind **dieselbe
@@ -7412,9 +7486,17 @@ verliert die Helferin ihre Auskunft, in der anderen verrät die Suite die Existe
 - [ ] **Schritt 5: Die Runbook-Zeilen dieses Plans übergeben**
 
 R30 (Probebogen), R31 (Reihenfolge einfrieren), R32 (nachdruckbare ≠ hängende Etiketten) und R33
-(geänderte Knopfbeschriftungen) aus §2.3 werden **wörtlich** in das Cutover-Runbook übernommen.
+(geänderte Knopfbeschriftungen) aus §2.4 werden **wörtlich** in das Cutover-Runbook übernommen.
 ⚠️ **R30 ist keine Zeile, die man nachholt:** ein falsch bedruckter Bogen kostet gekauftes Material
 und einen Gang durch alle Fahrzeuge.
+
+⚠️ **Korrektur bei der Ausführung (T176-B, 11.08.2026): es sind sieben Zeilen, nicht vier.** §10.2
+führt zusätzlich **R34** (Token nur noch sperrbar — Ankündigungspflicht), **R35** (`APP_BASE_URL`
+ersatzlos streichen) und **R36** (Manifest-Gegentest auf dem Portal-Host). Übernommen wurde die
+Fassung aus **§10.2**, nicht die aus §2.4: §2.4 trägt eine ältere, kürzere Fassung — ihrem R30 fehlt
+der `margin`-Rückfall samt „Level H bleibt", ihrem R31 der Vorbehalt zu Betreiberfrage 9. Zielstelle:
+`docs/runbooks/lagerbuch-cutover.md` §16.2 (Wortlaut) und §15 (dieselben sieben als Handgriffe in
+der Reihenfolge des Ablaufs).
 
 - [ ] **Schritt 6: Die Übergabetabelle an Spec 2 schreiben**
 
@@ -7445,12 +7527,21 @@ Die drei Kopplungen ueber Plangrenzen hinweg, jede einzeln belegt:
   Verschiebungen protokolliert.
 
 Die 13 Alt-Specs sind abgewickelt (§12.5): eine uebernommen, elf umgeschrieben,
-eine geteilt. Vier Runbook-Zeilen (R30-R33) und die Uebergabetabelle an Spec 2
-sind ins Cutover-Runbook uebernommen.
-
-⚠️ Offen, solange Teil 4 keine Tasks traegt: der ganze Helfer-Weg. Siehe
-Plan-Teil 6, §2.1."
+eine geteilt. Sieben Runbook-Zeilen (R30-R36) und die Uebergabetabelle an Spec 2
+sind ins Cutover-Runbook uebernommen."
 ```
+
+⚠️ **Zwei Korrekturen an diesem Entwurf, bei der Ausführung vorgenommen (T176-B, 11.08.2026):**
+
+1. Die Schlusszeile „**⚠️ Offen, solange Teil 4 keine Tasks traegt: der ganze Helfer-Weg. Siehe
+   Plan-Teil 6, §2.1.**" ist **gestrichen**. Teil 4 ist gebaut und als **PR #29** gemergt; bliebe
+   die Zeile stehen, behauptete ausgerechnet der Abnahme-Commit eine Lücke, die es nicht gibt.
+2. „Vier Runbook-Zeilen (R30-R33)" → **sieben (R30-R36)**, siehe Schritt 5.
+
+**Der Entwurf ist Vorlage, nicht Vorschrift.** Die tatsächlich committete Fassung nennt zusätzlich
+die **eigenen** Gate-Zahlen des Abnahmelaufs (nicht die von T176-A) und das, was die Abnahme
+**gefunden** hat, statt nur was sie bestätigt hat. Wortlaut: Commit `133e6ba`. Drei seiner Aussagen
+wurden danach richtiggestellt, mit Begründung je Aussage: Nachtrag `487a6e5`.
 
 ---
 
@@ -7485,7 +7576,7 @@ gelesen, und ein Verweis in eine 845-KB-Spec ist unter Zeitdruck kein Verweis.
 
 | # | Übergabe | Warum sie nicht warten kann |
 |---|---|---|
-| **R30** | **Probebogen** auf dem tatsächlich benutzten Drucker, auf das tatsächlich gekaufte Etikettenmaterial, mit **zwei** Telefonen aus 15 cm gescannt — je fünf Etiketten aus der **ersten und der letzten** Zeile (8-I) | Kein Test kann das: `build` und Vitest sehen `@media print` gar nicht, Playwright rendert für den Bildschirm. Ein fehlerhafter Bogen kostet gekauftes Material und einen Gang durch alle Fahrzeuge. **Benannter Rückfall bei Fehlschlag:** optionaler `margin`-Parameter an `core/qr#qrSvg`, vom Etikettenbogen auf `1` gesetzt, an der Aufrufstelle mit dem Messergebnis begründet. **Level H bleibt in beiden Fällen** |
+| **R30** | **Probebogen** auf dem tatsächlich benutzten Drucker, auf das tatsächlich gekaufte Etikettenmaterial, mit **zwei** Telefonen aus 15 cm gescannt — je fünf Etiketten aus der **ersten und der letzten** Zeile (8-I) | Kein Test kann das: `build` und Vitest sehen `@media print` gar nicht, Playwright rendert für den Bildschirm. Ein fehlerhafter Bogen kostet gekauftes Material und einen Gang durch alle Fahrzeuge. ⚠️ **Die gedruckte QR-Modulgröße ist beim Port um 29 % gesunken, ohne dass es jemand entschieden hat.** Die Alt-Anwendung erzeugte mit Level **M, margin 1**, der Port nimmt die Suite-Konfiguration **H, margin 4** — bei zeichengleich 20 × 20 mm Fläche (1:1-Pflicht 22). Gemessen: Artikel-URL 0,571 → **0,408 mm** je Modul (−29 %), Token-URL 0,645 → **0,444 mm** (−31 %). **Benannter Rückfall bei Fehlschlag — ZWEI Stellräder, in dieser Reihenfolge:** **(1) `margin`** am `core/qr#qrSvg`-Aufruf des Etikettenbogens, `4 → 2 → 1`, an der Aufrufstelle mit dem Messergebnis begründet. **(2) Nur falls (1) nicht reicht: die Fehlerkorrekturstufe für DIESEN EINEN Erzeugungsweg, `H → Q → M`** — Preis ausgeschrieben: weniger Toleranz gegen Verschmutzung auf einem Etikett, das im Fahrzeug klebt. ⚠️ **Stellrad (1) allein holt den Altwert nicht ein:** `margin 4 → 1` bei Level H ergibt 41 + 2 = 43 Module → **0,465 mm**, immer noch unter den 0,571 mm der Alt-Anwendung. Wer nur am Rand dreht und wieder scheitert, hat sonst keinen zweiten benannten Knopf und improvisiert unter Zeitdruck. Damit ist A-J2s „Level H bleibt in beiden Fällen“ gemessen überholt — H bleibt die Vorgabe und der Regelfall, ist aber nicht mehr das letzte Wort. ⚠️ **KEINES der beiden Stellräder ist heute drehbar, ohne `core/qr` anzufassen:** `qrSvg(text)` nimmt gar keine Optionen, und `QR_OPTIONS` ist die EINE geteilte Konfiguration der ganzen Suite — sie hat drei divergierende Erzeugungsstellen abgelöst. Der Rückfall ist damit ein **Suite-Eingriff, keine Modularbeit**, und er muss als **Parameter je Aufruf** kommen, nie als Änderung an `QR_OPTIONS`: sonst änderte sich jeder QR-Code in portal, qr, files und feedback mit. Genau das meint „für DIESEN EINEN Erzeugungsweg“ |
 | **R31** | **Die Reihenfolge in `SUITE_HOST_LAGERBUCH` wird nach dem ersten Etikettendruck eingefroren** (8-B) | `moduleUrl` nimmt `prodHostsFor(mod)[0]`. Eine Umsortierung ändert **still** jeden ab dann gedruckten Bogen, während die alten Etiketten weiter auf den früheren ersten Eintrag zeigen. ⚠️ Fällt Betreiberfrage 9 auf „alte Domain mitlaufen lassen", **muss `lagerbuch.iuk-ue.de` Index 0 bleiben** |
 | **R32** | **Die Menge der physisch hängenden Etiketten ist echt größer als die der nachdruckbaren** (Falle 26) | `etikettenDaten` filtert hart auf `aktiv = true`; ein deaktivierter Artikel bleibt unter `/a/<id>` **bebuchbar**, ist aber nie wieder nachdruckbar. **Die Differenz ist im Repo nicht abzählbar.** Wer nach dem Cutover nachdrucken will und den Artikel nicht findet, sucht sonst einen Fehler, wo eine Entscheidung ist |
 | **R33** | **Ankündigung: die beiden Knopfbeschriftungen auf `/verwaltung/bestellung` ändern sich** — `Liste kopieren` → `Liste kopieren (nur offene)`, `CSV` → `CSV (alle Zeilen)` (9-A) | Die beiden Wege liefern **verschieden viele Zeilen**, und heute verrät das nichts. Der Umfang bleibt; die Beschriftung wird ehrlich |

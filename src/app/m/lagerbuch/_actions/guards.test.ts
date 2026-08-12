@@ -266,14 +266,14 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
      * rutschte genauso durch. Deshalb steht hier eine ALLOWLIST: gemeldet wird
      * jede Zeile, die mit `export` beginnt und KEINER anerkannten Form
      * entspricht. Neue Bauformen sind damit laut statt still — dieselbe Regel,
-     * die `_lib/bauform.test.ts:66-78` fuer sich selbst formuliert („Ein Scan
-     * darf falsch-positiv sein und laut, nie falsch-negativ und still").
+     * die `_lib/bauform.test.ts` fuer `ohneKommentare` selbst formuliert („Ein
+     * Scan darf falsch-positiv sein und laut, nie falsch-negativ und still").
      *
      * ⚠️ EIN `export const FOO = 5` WIRD MITGEMELDET, UND DAS IST RICHTIG. Ein
      * "use server"-Modul darf ausschliesslich async-Funktionen exportieren; ein
      * Wert-Export dort ist selbst der Fehler. Konstanten gehoeren nach `_lib/`.
      *
-     * ⚠️ DIESE DATEI IST BIS TEIL 6 EINGEFROREN (siehe Kopf, `:25`). Die
+     * ⚠️ DIESE DATEI IST BIS TEIL 6 EINGEFROREN (siehe Kopfkommentar). Die
      * Fehlermeldung unten ist damit der EINZIGE Kanal zu Teil 4 und Teil 5 — sie
      * nennt deshalb die REGEL, nicht nur den Verstoss.
      *
@@ -405,14 +405,14 @@ describe("Zaehlung (§2.1 a)", () => {
   const ADMIN = /requireLagerbuchAdmin\s*\(/;
   const HELFER = /requireHelferSchreibend\s*\(/;
 
-  it("hat 18 Action-Dateien; `guards.test.ts` ist die 19. Datei des Ordners", () => {
+  it("hat 18 Action-Dateien plus `guards.test.ts`", () => {
     // ⚠️ NICHT `readdirSync(ORDNER).toHaveLength(19)` (Ruling A7): der Ordner
     // hat 37 Eintraege. Gezaehlt werden die ACTION-Dateien; `guards.test.ts`
     // wird separat nachgewiesen, weil `actionDateien()` sie ausfiltert.
     const dateien = actionDateien();
     expect(Object.keys(SOLL), "Die Sollliste selbst nennt 18 Dateien.").toHaveLength(18);
     expect(dateien, "18 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
-    expect(existsSync(join(ORDNER, SELBST)), `${SELBST} ist die 19.`).toBe(true);
+    expect(existsSync(join(ORDNER, SELBST)), `${SELBST} liegt daneben.`).toBe(true);
   });
 
   it("hat je Datei genau so viele Deklarationen wie die Sollliste sagt", () => {
@@ -469,22 +469,26 @@ describe("Zaehlung (§2.1 a)", () => {
 
   /**
    * `export type` IST KEINE ACTION. `detail.ts` exportiert neben `getDetail`
-   * DREI Typen (ArtikelDetailCharge, ArtikelDetailBuchung, ArtikelDetailResult).
-   * Wer sie mitzaehlt, liest drei ungeschuetzte Actions, die keine sind — und
-   * „repariert" dann drei Typdeklarationen mit einem Riegel.
+   * auch Typen (heute ArtikelDetailCharge, ArtikelDetailBuchung,
+   * ArtikelDetailResult). Wer sie mitzaehlt, liest ungeschuetzte Actions, die
+   * keine sind — und „repariert" dann Typdeklarationen mit einem Riegel.
    *
-   * Die Regex liest `type` UND `interface` und ankert wie `ERLAUBT` am
-   * Zeilenanfang: eine der drei nach `interface` umzuschreiben ist dort erlaubt
-   * und darf hier nicht rot werden.
+   * Die Regex in `ERLAUBT` liest `type` UND `interface` und ankert am
+   * Zeilenanfang: eine der Deklarationen nach `interface` umzuschreiben ist dort
+   * erlaubt und darf hier nicht rot werden.
    *
-   * ⚠️ Fundort ohne Zeilennummer, mit Absicht: `ERLAUBT` steht im describe
-   * „_actions/ — jede exportierte Action ist bewacht", Zusicherung „kennt an
-   * einem Zeilenanfang mit `export` NUR die eine Action-Bauform und
-   * Typ-Exporte". Eine Zeilennummer veraltet beim naechsten Einschub darueber.
+   * ⚠️ DIE ANZAHL DER TYP-EXPORTE IST HIER BEWUSST NICHT MEHR FESTGENAGELT
+   * (Ruling A7, Abschlussreview-Fund T172 d). Ein `toHaveLength(3)` auf
+   * `detail.ts` faerbte rot, sobald jemand einen legitimen VIERTEN Typ ergaenzt
+   * — eine Zahl ohne Invariante dahinter. Die 3 deckelte nichts: sie war kein
+   * Grenzwert, sondern eine Abschrift des heutigen Zustands. Die tragende
+   * Haelfte steht unten und ist DIFFERENZIELL: was auch immer `detail.ts` an
+   * Typen exportiert, als ACTION darf dort genau `getDetail` herauskommen.
+   *
+   * ⚠️ NICHT ZU VERWECHSELN mit „bewacht 44 und listet genau 3 Ausnahmen": dort
+   * deckelt die 3 die echte Invariante 47 = 44 + 3 und bleibt.
    */
   it("verwirft `export type` und `export interface`", () => {
-    const quelle = readFileSync(join(ORDNER, "detail.ts"), "utf8");
-    expect(quelle.match(/^export\s+(?:type|interface)\s+\w+/gm) ?? []).toHaveLength(3);
     expect(actionsIn(exportierteActions(), "detail.ts")).toEqual(["getDetail"]);
   });
 

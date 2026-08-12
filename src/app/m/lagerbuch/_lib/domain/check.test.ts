@@ -37,7 +37,29 @@ describe("summiereCheckErgebnis — das ALTE Format", () => {
       positionen: 3, nachgefuellt: 8, korrigiert: 0,
       offen: 2,   // 2 + 0 + 0 — NICHT −2
       geraeteAuffaellig: 0, flaschenAuffaellig: 0, nichtBewertbar: 0, altFormat: true,
+      unlesbar: false,
     });
+  });
+
+  it("reicht `unlesbar` weiter — die Uebersicht braucht den Grund, nicht nur die Null", () => {
+    /**
+     * §11.5, Zustand 27. `summiereCheckErgebnis` speist BEIDE Leser (Uebersicht
+     * und Detail, §5.8.3). Ohne dieses Feld zeigt die Check-Historie fuer einen
+     * zerstoerten Datensatz eine ruhige `0` in der Positionen-Spalte — auf genau
+     * der Flaeche, auf der jemand nach Auffaelligkeiten sucht.
+     *
+     * ⚠️ Die Gegenprobe steht daneben und ist die wichtigere: „legitim leer"
+     * bleibt `false`.
+     */
+    expect(summiereCheckErgebnis("{kein json").unlesbar).toBe(true);
+    expect(summiereCheckErgebnis('"skalar"').unlesbar).toBe(true);
+
+    expect(summiereCheckErgebnis(JSON.stringify({
+      version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [],
+    })).unlesbar).toBe(false);
+    // Der offene Check (§4.4) und das Altformat (§11.5, 26) sind beide LESBAR.
+    expect(summiereCheckErgebnis(null).unlesbar).toBe(false);
+    expect(summiereCheckErgebnis("[]").unlesbar).toBe(false);
   });
 
   it("setzt altFormat: true — die Detailseite SAGT es", () => {
@@ -71,6 +93,7 @@ describe("summiereCheckErgebnis — das HEUTIGE Format", () => {
       korrigiert: 2,   // BETRAG von −2
       offen: 0,        // max(0, 6 − 5 − 1)
       geraeteAuffaellig: 2, flaschenAuffaellig: 1, nichtBewertbar: 0, altFormat: false,
+      unlesbar: false,
     });
   });
 
@@ -203,10 +226,15 @@ describe("offenJeArtikel — DIE EINE `offen`-Formel (§5.8.3)", () => {
 });
 
 describe("summiereCheckErgebnis — kaputte Eingaben", () => {
-  it("liefert bei kaputtem JSON Nullen statt eines Wurfs", () => {
+  it("liefert bei kaputtem JSON Nullen statt eines Wurfs — BENANNT als unlesbar", () => {
+    // ⚠️ Die Nullen allein waren der Fehlerzustand aus §11.5, 27: sie sind von
+    // einem Check mit wirklich 0 Positionen nicht unterscheidbar. Seit T176a1
+    // steht der Grund daneben, und genau dieses `toEqual` haelt fest, dass er
+    // NICHT verlorengeht.
     expect(summiereCheckErgebnis("{kaputt")).toEqual({
       positionen: 0, nachgefuellt: 0, korrigiert: 0, offen: 0,
       geraeteAuffaellig: 0, flaschenAuffaellig: 0, nichtBewertbar: 0, altFormat: false,
+      unlesbar: true,
     });
   });
 });

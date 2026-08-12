@@ -57,6 +57,23 @@ export type CheckSummen = {
   nichtBewertbar: number;
   /** Altformat (V1) ohne Positionsdetails. Die Detailseite SAGT es (§11.5, 26). */
   altFormat: boolean;
+  /**
+   * §11.5, Zustand 27: der Rohwert war nicht lesbar. **Alle Zaehler oben sind
+   * dann 0 — aber nicht, weil nichts zu melden war.**
+   *
+   * ⚠️ NICHT DASSELBE WIE `altFormat` (Zustand 26). Ein Altcheck ist LESBAR und
+   * traegt echte Zahlen; hier ist der Datensatz kaputt. Zwei Ursachen, zwei
+   * Felder — wer sie zusammenlegt, verliert genau die Unterscheidung, die ueber
+   * Datenrettung entscheidet.
+   *
+   * ⚠️ Es steht hier, weil es BEIDE Leser brauchen (§5.8.3): die Detailseite
+   * fuer ihre Warnung und die Uebersicht fuer die Positionen-Spalte, die sonst
+   * eine ruhige `0` zeigt. Solange nur die Detailseite las, lag es bewusst
+   * NICHT hier (T176a1, Commit 748e63c) — ein Feld ohne Leser ist die naechste
+   * Halbwahrheit. Mit dem zweiten Leser dreht dieselbe Begruendung um: eine
+   * zweite Herleitung derselben Wahrheit waere schlimmer.
+   */
+  unlesbar: boolean;
 };
 
 /**
@@ -92,6 +109,8 @@ export function summiereCheckErgebnis(roh: string | null): CheckSummen {
       flaschenAuffaellig: 0,
       nichtBewertbar: 0,
       altFormat: true,
+      // V1 ist LESBAR — es traegt nur keine Positionsdetails.
+      unlesbar: false,
     };
   }
 
@@ -132,5 +151,8 @@ export function summiereCheckErgebnis(roh: string | null): CheckSummen {
     flaschenAuffaellig,
     nichtBewertbar,
     altFormat: false,
+    // Der Grund kommt aus dem Parser und wird hier nur durchgereicht — die
+    // Zaehlung selbst kann ihn nicht kennen.
+    unlesbar: e.unlesbar === true,
   };
 }

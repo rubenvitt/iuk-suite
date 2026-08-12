@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import {
-  artikel, chargen, checks, geraete, lagerorte, lagerortVerfall,
+  artikel, bzGeraete, chargen, checks, geraete, lagerorte, lagerortVerfall,
   o2Flaschen, sollPositionen, tokens,
 } from "../_db/schema";
 import { seedLokalLagerbuch } from "./seedLokal";
@@ -298,7 +298,62 @@ describe("seedLokalLagerbuch", () => {
     for (const c of ["100-100", "200-200", "300-300", "900-900"]) expect(text).toContain(c);
     expect(text).toContain("http://lagerbuch.localtest.me:3000/verwaltung");
     expect(text).toContain("http://lagerbuch.localtest.me:3000/t/100-100");
+    // T175, Review-Fund 5: die Etikettenseite stand bis dahin in KEINER
+    // Zusicherung. Sie ist die einzige Adresse der Liste, die Token-Codes im
+    // KLARTEXT und als QR zeigt — faellt die Zeile heraus, prueft niemand mehr
+    // lokal den Bogen, und der Ausfall waere still.
+    expect(text).toContain("http://lagerbuch.localtest.me:3000/verwaltung/etiketten");
     expect(text).not.toContain("/m/lagerbuch/");
+  });
+
+  /**
+   * FUND AUS T175 (Abruf-Abnahme, §12.4). Das Protokoll trug bis dahin den Satz
+   * „Es gibt heute keine Route /g/<code>" — richtig, solange Teil 4 galt, und
+   * seit T164 FALSCH: `g/[code]/page.tsx` existiert, wurde abgerufen (307 mit
+   * relativem `Location` bei Treffer, 200 mit dem Klartext-Code bei
+   * Nichttreffer) und ist der Weg, den ein gescanntes Geraete-Typenschild geht.
+   *
+   * Ein Protokollsatz, der die Existenz einer Route BESTREITET, ist schlimmer
+   * als ein fehlender: wer lokal prueft, laesst die Route dann aus. Kein Gate
+   * sah ihn — es ist Fliesstext in einem Array.
+   *
+   * ZWEI HAELFTEN MIT UNGLEICHER TRAGFAEHIGKEIT — Review-Fund 6 aus T175 hat
+   * das benannt, und es steht hier, damit es niemand verwechselt:
+   *
+   *   POSITIV und datengebunden (traegt die Last): jeder im Protokoll genannte
+   *   `/g/<ziffern>` wird gegen `geraete.barcode` und `bzGeraete.barcode`
+   *   aufgeloest. Diese Haelfte ist WORTLAUTUNABHAENGIG — ein umformulierter
+   *   Hinweis bleibt gruen, ein Barcode ohne Geraet nicht.
+   *
+   *   NEGATIV und wortlautgebunden (Zusatz, kein Ersatz): das Muster unten
+   *   faengt die heute bekannten Bestreitungsformen. Es ist AUSDRUECKLICH
+   *   umgehbar — eine neu erfundene Formulierung („der /g/-Pfad ist nicht
+   *   implementiert") kaeme durch. Der Grund, es trotzdem zu behalten: der
+   *   konkrete Satz, der den Fund ausloeste, kann nicht unbemerkt zurueckkehren.
+   *   Wer ihm eine Phrasen-Ratejagd nachschiebt, baut eine Zusicherung, die
+   *   Vollstaendigkeit vortaeuscht — die positive Haelfte ist der Riegel.
+   */
+  it("nennt die /g/<barcode>-Adressen und bestreitet die Route NICHT mehr", async () => {
+    const protokoll = await seedLokalLagerbuch(t.db);
+    const text = protokoll.join("\n");
+
+    const bestreitung =
+      /(keine|keinen)\s+Route\s+\/g\/|Route\s+\/g\/[^\n]{0,40}(existiert nicht|gibt es nicht|ist nicht implementiert)|\/g\/[^\n]{0,20}(existiert nicht|gibt es nicht)/i;
+    expect(
+      bestreitung.test(text),
+      "das Protokoll bestreitet die Existenz von /g/ — seit T164 ist das falsch",
+    ).toBe(false);
+
+    const genannt = [...text.matchAll(/\/g\/(\d+)/g)].map((m) => m[1]);
+    expect(genannt.length, "das Protokoll nennt keine /g/<barcode>-Adresse").toBeGreaterThan(0);
+
+    const bekannt = new Set([
+      ...t.db.select().from(geraete).all().map((g) => g.barcode),
+      ...t.db.select().from(bzGeraete).all().map((g) => g.barcode),
+    ]);
+    for (const b of genannt) {
+      expect(bekannt.has(b), `Barcode ${b} steht im Protokoll, aber an keinem Geraet`).toBe(true);
+    }
   });
 
   it("ist idempotent — der zweite Lauf aendert KEINE Tabelle", async () => {

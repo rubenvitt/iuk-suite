@@ -27,6 +27,7 @@ const BASIS: CheckDetail = {
   flaschen: [],
   verfall: [],
   altFormat: false,
+  unlesbar: false,
   summe: {
     positionen: 0,
     nachgefuellt: 0,
@@ -36,6 +37,7 @@ const BASIS: CheckDetail = {
     flaschenAuffaellig: 0,
     nichtBewertbar: 0,
     altFormat: false,
+    unlesbar: false,
     verfallAuffaellig: 0,
   },
 };
@@ -398,6 +400,80 @@ describe("Check-Detailseite", () => {
 
     expect(tabellenAus(seite).nachfuellLeertext)
       .toBe("Dieser Check stammt aus dem alten Format — Einzelpositionen sind darin nicht enthalten.");
+  });
+
+  it("kennzeichnet ein unlesbares Ergebnis, statt 0 Positionen zu behaupten", () => {
+    /**
+     * §11.5, Zustand 27. Ohne diese Meldung sieht ein Check mit zerstoertem
+     * `ergebnis` aus wie einer, bei dem nichts zu tun war — die teuerste Sorte
+     * 200. Nach dem Cutover sucht jemand einen Datenfehler, wo ein
+     * Anzeigezustand fehlt.
+     */
+    const seite = checkDetailInhalt({ ...BASIS, unlesbar: true });
+
+    const alerts = elementeVomTyp(seite, Alert);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].props).toMatchObject({ type: "warning", showIcon: false });
+    // ⚠️ NIE `type="error"`: `colorError === colorPrimary === #c8000f`, ein roter
+    // Alert saehe hier aus wie eine Primaeraktion (§6.6.5).
+    expect(alerts[0].props.type).not.toBe("error");
+    expect(String(alerts[0].props.title)).toMatch(/^Ergebnis unlesbar/);
+
+    // Und KEINE der fuenf Tabellen darunter darf der Meldung widersprechen:
+    // „Keine Geraete in diesem Check." ist eine Tatsachenbehauptung, die hier
+    // niemand pruefen konnte — genauso wenig wie „Keine Einzelposition
+    // erfasst.". EIN Text fuer alle fuenf, weil es EINE Ursache ist.
+    expect(tabellenAus(seite).unlesbarLeertext).toMatch(/nicht lesbar/i);
+  });
+
+  it("nimmt bei unlesbarem Ergebnis ALLEN fuenf Tabellen die Tatsachenbehauptung", () => {
+    /**
+     * Review-Fund (Minor 3): angepasst war zunaechst nur der Nachfuell-Leertext.
+     * Danebenstanden weiter „Keine Positionen erfasst.", „Keine Geraete in
+     * diesem Check.", „Keine Flaschen in diesem Check." und „Keine
+     * Verfallsangabe in diesem Check." — vier Saetze, die etwas behaupten, was
+     * bei zerstoertem `ergebnis` niemand geprueft hat. Die Begruendung, die
+     * `nachfuellLeertext` geaendert hat, gilt fuer sie wortgleich.
+     */
+    const unlesbar = tabellenAus(checkDetailInhalt({ ...BASIS, unlesbar: true }));
+    expect(unlesbar.unlesbarLeertext).toBeTruthy();
+
+    // Die Gegenprobe: ein lesbarer Check bekommt KEINE Ueberschreibung, seine
+    // Tabellen sagen weiter „Keine Geraete in diesem Check." — was dort ja auch
+    // stimmt.
+    expect(tabellenAus(checkDetailInhalt(BASIS)).unlesbarLeertext).toBeFalsy();
+    // Und das Altformat behaelt seinen eigenen, anderen Nachfuell-Text.
+    const alt = tabellenAus(checkDetailInhalt({
+      ...BASIS, altFormat: true, summe: { ...BASIS.summe, altFormat: true },
+    }));
+    expect(alt.unlesbarLeertext).toBeFalsy();
+    expect(alt.nachfuellLeertext).toMatch(/alten Format/);
+  });
+
+  it("meldet NICHTS fuer einen lesbaren Check mit 0 Positionen", () => {
+    // Die Abgrenzung, an der die ganze Aenderung haengt: ein Check, der wirklich
+    // nichts zu melden hatte, ist ein gueltiger Zustand und bekommt KEINE
+    // Warnung. `BASIS` ist genau das — leere Listen, `unlesbar: false`.
+    expect(elementeVomTyp(checkDetailInhalt(BASIS), Alert)).toHaveLength(0);
+  });
+
+  it("haelt Altformat und unlesbar auseinander — je eine Meldung, nie beide", () => {
+    // Zwei Ursachen, zwei Texte. Sie schliessen einander aus (V1 kann nicht
+    // unlesbar sein), und keiner der beiden erklaert den anderen: „alt" heisst
+    // lesbar-aber-knapp, „unlesbar" heisst kaputt.
+    const altText = String(
+      elementeVomTyp(
+        checkDetailInhalt({ ...BASIS, altFormat: true, summe: { ...BASIS.summe, altFormat: true } }),
+        Alert,
+      )[0].props.title,
+    );
+    const unlesbarText = String(
+      elementeVomTyp(checkDetailInhalt({ ...BASIS, unlesbar: true }), Alert)[0].props.title,
+    );
+
+    expect(altText).not.toBe(unlesbarText);
+    expect(altText).not.toMatch(/unlesbar/i);
+    expect(unlesbarText).not.toMatch(/alten Format/i);
   });
 
   it("bereitet die gegen heute bewerteten Verfallszeilen serverseitig vor", () => {

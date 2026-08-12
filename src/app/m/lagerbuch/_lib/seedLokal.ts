@@ -710,9 +710,15 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     `  ${BASIS_URL}/verwaltung/inventur`,
     `  ${BASIS_URL}/verwaltung/journal`,
     `  ${BASIS_URL}/verwaltung/tokens`,
+    `  ${BASIS_URL}/verwaltung/etiketten          Bogen mit QR und Klartext-Codes`,
+    `  ${BASIS_URL}/g/4012345678901               Geraete-Barcode → Geraete-Detail`,
+    `  ${BASIS_URL}/g/4015630000018               Geraete-Barcode → BZ-Detail`,
     "",
-    "⚠️ Es gibt heute keine Route /g/<code> — das Gate liegt auf der Modulwurzel " +
-      "und nimmt denselben sechsstelligen Code entgegen wie /t/<code>.",
+    "⚠️ /g/<barcode> und /t/<code> sind ZWEI Namensraeume und nicht austauschbar: " +
+      "/t/ nimmt den sechsstelligen Zugangs-Code (denselben, den das Gate auf der " +
+      "Modulwurzel entgegennimmt), /g/ den Barcode vom Typenschild eines Geraets. " +
+      "Ein unbekannter Barcode antwortet mit 200 und nennt den gescannten Code, " +
+      "nicht mit 404 (Entscheidung 8-C2).",
   );
 
   return protokoll;

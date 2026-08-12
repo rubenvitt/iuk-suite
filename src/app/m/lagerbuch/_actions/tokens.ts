@@ -26,8 +26,10 @@ const ARTIKEL_FEHLER = "Artikel nicht gefunden oder inaktiv.";
  * §8.3 — DER TOKEN-VERTRAG. Alphabet, Laenge und Ziehungszahl stehen seit T160
  * benannt in `_lib/tokenForm.ts` und werden hier nur noch BENUTZT. Sie stehen
  * nicht in dieser Datei, weil eine `"use server"`-Datei ausschliesslich Actions
- * exportiert (T126 hat das so uebergeben, `_actions/guards.test.ts:265-267`
- * meldet jede andere Form).
+ * exportiert (T126 hat das so uebergeben; der Bauform-Scan in
+ * `_actions/guards.test.ts` — Zusicherung „kennt an einem Zeilenanfang mit
+ * `export` NUR die eine Action-Bauform und Typ-Exporte" — meldet jede andere
+ * Form).
  *
  * Der Bindestrich ist Teil des gespeicherten Werts. `normalisiereCode` fuegt
  * ihn beim Einloesen derselben sechs Ziffern wieder ein.

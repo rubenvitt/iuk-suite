@@ -4,7 +4,9 @@
  * WARUM DIESE VIER WERTE HIER STEHEN UND NICHT IN `_actions/`:
  * Ein `"use server"`-Modul darf ausschliesslich async-Funktionen exportieren —
  * jeder Export wird dort zu einer Server Action mit global aufrufbarer ID.
- * `_actions/guards.test.ts:265-267` meldet deshalb jedes `export const` in
+ * Der Bauform-Scan in `_actions/guards.test.ts` (Zusicherung „kennt an einem
+ * Zeilenanfang mit `export` NUR die eine Action-Bauform und Typ-Exporte")
+ * meldet deshalb jedes `export const` in
  * `_actions/` als Fremdform, und sein Kopfkommentar sagt woertlich, wohin
  * Konstanten gehoeren: nach `_lib/`.
  *

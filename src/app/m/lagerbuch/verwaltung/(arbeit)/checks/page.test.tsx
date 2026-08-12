@@ -217,6 +217,55 @@ describe("Checks-Seite", () => {
     });
   });
 
+  /**
+   * §11.5:10332 wörtlich: „die **Zeile** wird als ‚Ergebnis unlesbar'
+   * gekennzeichnet statt als ‚0 Positionen'". Die Tabellenzeile trifft das Wort
+   * mindestens so gut wie die Detailseite — und die Übersicht ist die Fläche,
+   * auf der jemand nach Auffälligkeiten sucht. Eine ruhige `0` dort ist genau
+   * das 200, das lügt.
+   */
+  describe("ein unlesbares ergebnis in der Übersicht (§11.5, 27)", () => {
+    it("zeigt in der Positionen-Spalte das Wort statt der Zahl", () => {
+      checkEintragen({ id: "check-kaputt", ergebnis: "{das ist kein json" });
+
+      const zeile = tabelleAus(checksInhalt(t.db, {})).zeilen[0];
+
+      expect(zeile.positionenText).toBe("unlesbar");
+    });
+
+    it("lässt eine lesbare Zeile mit 0 Positionen weiterhin 0 zeigen", () => {
+      // Die Gegenprobe, an der alles hängt: ein Check, der wirklich nichts zu
+      // melden hatte, ist ein gültiger Zustand. Wer hier „unlesbar" schreibt,
+      // kennzeichnet künftig jeden leeren Check.
+      checkEintragen({
+        id: "check-leer",
+        ergebnis: JSON.stringify({
+          version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [],
+        }),
+      });
+
+      expect(tabelleAus(checksInhalt(t.db, {})).zeilen[0].positionenText).toBe("0");
+    });
+
+    it("lässt das Altformat unberührt — es ist lesbar und zählt seine Einträge", () => {
+      checkEintragen({ id: "check-alt", ergebnis: JSON.stringify([{ fehlt: 3, gebucht: 1 }]) });
+
+      expect(tabelleAus(checksInhalt(t.db, {})).zeilen[0].positionenText).toBe("1");
+    });
+
+    it("schickt weiterhin nur JSON-sichere DTOs — die Entscheidung bleibt Text", () => {
+      // ⚠️ `CheckAnzeigeZeile` quert die RSC-Grenze (`ChecksTabelle` ist
+      // `"use client"`). Deshalb wandert KEIN `unlesbar`-Flag mit; die
+      // Entscheidung faellt serverseitig in `anzeigeZeile()` und geht als der
+      // fertige Text `positionenText` ueber die Naht.
+      checkEintragen({ id: "check-kaputt-2", ergebnis: "{kaputt" });
+
+      const props = tabelleAus(checksInhalt(t.db, {}));
+      expect(istRekursivJsonSicher(props)).toBe(true);
+      expect(props.zeilen[0]).not.toHaveProperty("unlesbar");
+    });
+  });
+
   it("koppelt 51 Checks an exakt die neuesten 50 IDs in der Totalordnung", () => {
     checksMitGleicherSekunde(51);
 

@@ -177,6 +177,9 @@ vergleichen, bevor der Router umschwenkt.
 Sitzung ist weg, und eine Helferin mitten im Fahrzeug-Check verliert ihren im Client gehaltenen
 Zwischenstand (ein Check dauert zehn bis zwanzig Minuten).
 
+**Danach wird `APP_BASE_URL` ersatzlos gestrichen** — das ist Handgriff **R35** aus §15. Erst
+ablesen und vergleichen, dann streichen; nie umgekehrt. Volltext der Begründung: §16.2.
+
 ---
 
 ## 8. Was beim Setzen von `SUITE_HOST_LAGERBUCH` schiefgehen kann
@@ -236,6 +239,10 @@ curl -si https://<portal-host>/manifest.webmanifest
 Lokal war das ein 307 in den Login, ohne jede Lagerbuch-Marke. Ein 200 mit Lagerbuch-Inhalt hieße,
 dass der Host-Riegel der fünf PWA-Route-Handler nicht greift.
 
+Diese Negativprobe **ist** Handgriff **R36** aus §15 — sie darf nicht ausgelassen werden, weil
+`start_url: "/"` ohne gesetztes `SUITE_HOST_LAGERBUCH` aufs Portal zeigt und eine installierte PWA
+dann im falschen Modul startet. Volltext: §16.2.
+
 ---
 
 ## 11. Generalprobe auf EINEM Gerät (R3)
@@ -251,6 +258,9 @@ strukturell nicht beweisbar:
 eingelöste Sitzung ist in der installierten PWA nicht da, und umgekehrt. Das ist kein Defekt, aber
 es muss vor dem Cutover einmal gesehen worden sein — sonst wird es am ersten Einsatztag als
 Ausfall gemeldet.
+
+Gehört mit §13 zusammen abgearbeitet: Schritt 3 (Systemkamera-Scan) setzt einen sicheren Kontext
+voraus — über eine IP oder `http://` zeigt der Scan nur `KEIN_SICHERER_KONTEXT`, siehe §13.
 
 ---
 
@@ -277,9 +287,279 @@ Ausdruck bleibt ausdrücklich Teil 6 (§8.4 R30); die lokale Teil-5-Abnahme erse
 
 ---
 
+## 13. ⚠️ Die Generalprobe MUSS über HTTPS laufen — sonst sind die Kamerawege ungeprüft
+
+**Handgriff: die Generalprobe über einen echten HTTPS-Namen fahren, nie über eine IP und nie über
+`http://`.** Gemessen bei der Abnahme (T175).
+
+Ohne sicheren Kontext gibt es kein `getUserMedia`. `/verwaltung/geraete/scan` und
+`/verwaltung/bz/scan` zeigen über `http://` **ausschließlich** den Zustand
+`KEIN_SICHERER_KONTEXT` samt manuellem Ersatzfeld — die Kamera wird nie angefragt.
+
+Das ist **kein Defekt**: `src/app/m/lagerbuch/_ui/BarcodeScanner.tsx` schreibt den Zustand aus,
+und §3.5.2 der Spec kennt ihn. Was fehlte, war die Betriebsfolge — dieses Runbook hatte dazu bis
+heute keine Zeile.
+
+⚠️ **Wer die Generalprobe über eine IP oder `http://` fährt, zieht einen von zwei falschen
+Schlüssen:** die Scan-Seiten seien kaputt (sie sind es nicht), **oder** sie seien geprüft (sie sind
+es nicht). Der zweite ist der teurere — er trägt eine ungeprüfte Kamerastrecke in den ersten
+Einsatztag.
+
+Gehört mit §11 zusammen abgearbeitet: dieselbe Generalprobe, ein Vorbehalt an ihren Zugang.
+
+---
+
+## 14. Checks aus dem Import: „Ergebnis unlesbar" ist gebaut, „offener Check" nicht
+
+**Handgriff nach dem Import, vor der Freigabe — EINE Abfrage entscheidet:** ⚠️ Dieselbe Abfrage gehört **zusätzlich vor** den Import gegen die **Alt**-Datenbank, damit es zwei vergleichbare Zahlen gibt — §17.3.
+
+```sql
+select count(*) from checks where ergebnis is null;
+```
+
+**Ist die Zahl 0, ist dieser Abschnitt erledigt.** Ist sie es nicht, weiter lesen: **so viele Checks
+zeigen nach dem Umzug „0 Positionen", ohne leer zu sein.**
+
+`ergebnis IS NULL` ist die maßgebliche Spalte, und zwar allein — `checkErgebnis.ts:200` gibt für
+`null` das leere Ergebnis **ohne** Unlesbar-Kennzeichen zurück, unabhängig davon, was in
+`completed_at` steht. Zum Einordnen der Treffer (**nicht** zum Abhaken):
+
+```sql
+select completed_at is null as offen, count(*)
+  from checks where ergebnis is null group by 1;
+```
+
+`offen = 1` sind regulär offene Checks (§4.4). ⚠️ **`offen = 0` ist ein Datenbefund:** eine Zeile mit
+Abschlusszeitpunkt, aber ohne Ergebnis — das erzeugt das Modul nie, und sie gehört einzeln
+angesehen, bevor sie freigegeben wird.
+
+**Was gebaut ist:** ein Check, dessen `ergebnis` **unlesbar** ist (kein JSON, falsche Form, oder
+geschrieben-aber-leer), zeigt auf der Detailseite die Meldung „**Ergebnis unlesbar**" und in der
+Positionen-Spalte der Übersicht das Wort `unlesbar` — **statt einer ruhigen `0`**. Nachgebaut am
+11.08.2026 (§11.5, Zustand 27); vorher log dort eine `0`, die wie ein leerer Check aussah. **Diese
+Zeilen fängt die Abfrage oben nicht** — sie tragen einen Wert.
+
+⚠️ **Sie sagen es aber nur zur Hälfte selbst.** Auf der **Detailseite** stimmt der Satz: dort steht
+die Meldung „Ergebnis unlesbar". Auf der **Übersicht** trägt dieselbe Zeile das Wort `unlesbar` in
+der Positionen-Spalte **und daneben einen grünen Chip „vollständig"** in der Ergebnis-Spalte — weil
+bei zerstörtem `ergebnis` alle Zähler `0` sind und deshalb kein einziger Chip gesetzt wird, worauf
+`checks/page.tsx` den Vollständig-Chip nachschiebt. **Wer beim Cutover eine Importmenge sichtet,
+liest die grüne Spalte zuerst.** Der Widerspruch ist **vorbestehend** und wird hier bewusst nicht
+im Vorbeigehen geändert: Chip und offener Check gehören zusammen geplant — das ist
+[DRK-196](https://app.clickup.com/t/86cb403fu), derselbe Posten wie unten.
+
+⚠️ **Was NICHT gebaut ist:** ein Check mit `ergebnis IS NULL` erscheint weiterhin als Check mit
+„**0 Positionen**". Bewusst so entschieden — `ergebnis IS NULL` als „unlesbar" zu lesen hätte
+**jeden** von §4.4 vorgesehenen offenen Check falsch gekennzeichnet, aus einer Lüge wären zwei
+geworden. Board-Posten [DRK-196](https://app.clickup.com/t/86cb403fu).
+
+**Warum das ein Cutover-Thema ist und kein Bau-Thema:** im Normalbetrieb sind solche Zeilen offene
+Checks und verschwinden von selbst — **der Datenimport aus der Alt-Anwendung kann sie in Mengen und
+in Formen mitbringen, die das Modul nie erzeugt.** Zählt die erste Abfrage mehr als 0, gehört die
+Zahl in die Cutover-Kommunikation.
+
+---
+
+## 15. Die sieben Übergaben aus Teil 6 als Handgriffe (R30–R36)
+
+Handlung zuerst, Reihenfolge im Ablauf, Begründung dahinter. **Der vollständige Wortlaut jeder
+Zeile steht in §16.2** — dort und nur dort, damit es eine Fassung gibt und nicht zwei.
+
+| # | Wann | Handgriff |
+|---|---|---|
+| **R30** | ⚠️ **VOR dem FREEZE**, mit Vorlauf für Nachbestellung — nicht erst vor dem Cutover | **Probebogen drucken** — echter Drucker, echtes gekauftes Etikettenmaterial, mit **zwei** Telefonen aus 15 cm gescannt, je fünf Etiketten aus der **ersten und der letzten** Zeile. **Keine Zeile, die man nachholt:** ein falsch bedruckter Bogen kostet gekauftes Material und einen Gang durch alle Fahrzeuge. **Wird er vor den Freeze gezogen, ist er gar kein Cutover-Schritt mehr** — und die Entscheidung über die zwei Stellräder fällt ohne Zeitdruck. Der vollständige Rückfall samt gemessener Modulgrößen steht in §16.2. ⚠️ **Wie groß der Bogen überhaupt wird, misst §17.1** — bei vierstelliger Artikelzahl ist der Probebogen ohnehin nur ein Ausschnitt |
+| **R31** | Direkt **nach** dem ersten Etikettendruck | **Reihenfolge in `SUITE_HOST_LAGERBUCH` einfrieren.** Ab hier keine Umsortierung mehr — sie ändert **still** jeden ab dann gedruckten Bogen |
+| **R32** | In die Cutover-Kommunikation | **Ansagen: die Menge der physisch hängenden Etiketten ist echt größer als die der nachdruckbaren.** Ein deaktivierter Artikel bleibt bebuchbar, ist aber nie wieder nachdruckbar. Die Differenz ist im Repo **nicht abzählbar** |
+| **R33** | In die Ankündigung, **vor** dem Umschwenken | **Ankündigen: zwei Knopfbeschriftungen auf `/verwaltung/bestellung` ändern sich** — `Liste kopieren` → `Liste kopieren (nur offene)`, `CSV` → `CSV (alle Zeilen)` |
+| **R34** | In die Ankündigung, **vor** dem Umschwenken | **Ankündigen: ein Zugangs-Code kann nach dem Cutover nur noch gesperrt, nie mehr gelöscht werden.** Wer heute einen versehentlich angelegten Code löscht, findet den Knopf nicht mehr — mit Grund ankündigen, nicht kommentarlos wegnehmen |
+| **R35** | **Ablesen vor** dem Umschwenken, **streichen beim** Umschwenken | **`APP_BASE_URL` ersatzlos streichen** — aber ihren heutigen Wert **vorher ablesen** und gegen `https://lagerbuch.iuk-ue.de` zeichenweise vergleichen (§7). Eine Angabe, zwei Folgen: gedruckte QR-Codes **und** das Überleben der Helfer-Sitzungen |
+| **R36** | **Nach** dem Umschwenken | **`curl -si https://<portal-host>/manifest.webmanifest`** — es darf das lagerbuch-Manifest **NICHT** liefern (§10) |
+
+---
+
+## 16. Übergabe an Spec 2 — Datenumzug, Generalprobe, Cutover
+
+⚠️ **Diese Sektion muss vollständig und wörtlich in das echte Cutover-Runbook übernommen werden —
+nicht zusammenfassen, nicht nur verlinken.** Dieses Dokument ist der Vorlauf, **nicht** das
+Cutover-Runbook (siehe Kopf dieser Datei): §16 ist darin die einzige Sektion mit
+**Übernahmepflicht** — keine gemessene Einzeltatsache aus dem Bau wie §1–§15, sondern die
+verbindliche Übergabeliste an Spec 2. Wer sie beim Schreiben des echten Runbooks (nach dem Muster
+von `files-cutover.md`) als „eine von vielen Fundstellen" behandelt statt als Pflichtquelle,
+verliert die Übergabe an Spec 2.
+
+**Diese Liste ist verbindlich. Wo Spec 2 davon abweicht, ist es ein Fehler in Spec 2, nicht hier**
+(§1.4). Sie steht hier vollständig und nicht als Verweis: das **künftige** Cutover-Runbook (nicht
+dieses Vorlauf-Dokument) wird unter Zeitdruck gelesen, und ein Verweis in eine 845-KB-Spec ist unter
+Zeitdruck kein Verweis.
+
+*Wörtlich übernommen aus `docs/superpowers/plans/2026-08-03-lagerbuch-modul-teil6.md`, §10
+(Schritte 5 und 6 von T176). Die Abschnittsnummern sind an dieses Dokument angepasst (§10.1 →
+§16.1, §10.2 → §16.2, §10.3 → §16.3), und der Satz zum Zeitdruck nennt hier ausdrücklich das
+**künftige** Runbook, weil dieses Dokument noch der Vorlauf ist — das sind die einzigen zwei
+bewussten Abweichungen. Der Tabelleninhalt ist zeichengleich.*
+
+### 16.1 Was Spec 2 aus Spec 1 erbt
+
+| Festlegung | Wert | Folge für Spec 2 |
+|---|---|---|
+| **Modul-Key** | `lagerbuch` | DB-Datei `lagerbuch.db` unter `DATA_DIR`; `SUITE_HOST_LAGERBUCH`, `SUITE_ADMIN_GROUP_LAGERBUCH` |
+| **Migrationsverzeichnis** | `src/app/m/lagerbuch/_db/migrations` | Dateinamen kommen aus `meta/_journal.json` und werden **nicht** erfunden |
+| **Prod-Domain** | `lagerbuch.iuk-ue.de`, ausschließlich über `SUITE_HOST_LAGERBUCH`; Registry `prodHosts: []` | Cutover = **eine** `.env`-Zeile plus `SUITE_TRAEFIK_RULE`; Rollback = dieselbe Zeile leeren. ⚠️ **Die gedruckten Etiketten werden dadurch nicht konfigurierbar** |
+| **Öffentliche Pfadform** | `/`, `/t/<code>`, `/g/<code>`, `/a/<artikelId>`, `/helfer/*`, `/verwaltung/*` bleiben **wörtlich** | Der Rewrite `<host>/a/x` → `/m/lagerbuch/a/x` macht das ohne Änderung; die Entscheidung gehört trotzdem ausdrücklich ins Runbook |
+| **Append-only** | die zwei Trigger aus `drizzle/0001_append_only.sql` **plus** das neue Paar auf `bz_kontrollen` | Ein Importer mit reinem `INSERT` läuft durch; **`onConflictDoUpdate` — das Muster beider vorhandener Importer — bricht** an `buchungen` beim zweiten Lauf. Wiederholbar ist `INSERT OR IGNORE`. ⚠️ **`INSERT OR REPLACE` ist die Falle:** es läuft bei `recursive_triggers = 0` (dem Default) durch und **umgeht den Trigger** |
+| **Einfügereihenfolge** | artikel → fahrzeug_templates → template_positionen → lagerorte → chargen → soll_positionen → buchungen/checks/lagerort_verfall → bz_geraete/o2_flaschen/geraete → bz_kontrollen/o2_messungen → tokens → users | `lagerorte.templateId` → `fahrzeug_templates` sieht rückwärts aus; zweite Abhilfe ist `PRAGMA defer_foreign_keys = ON` **innerhalb** der Transaktion |
+| **Zeitstempel-Einheit** | UNIX-**Sekunden**, Drizzle `mode: "timestamp"` | ⚠️ **Ein Faktor-1000-Fehler ist paritätsgrün.** Der Mapper normalisiert auf ganze Sekunden |
+| **Zeitzone** | `Europe/Berlin` als **Modulkonstante** im Code | `TZ` wird von Spec 1 **nicht** gesetzt; der Wert ist Runbook-Eingabe. Das Modul hängt bewusst nicht daran |
+| **Geheimnisse** | **nur** `HELFER_SESSION_SECRET` aus der produktiven `stack.env`, unter dem neuen Namen `LAGERBUCH_HELFER_SITZUNG_SECRET` | Laufende Helfer-Sitzungen (bis 12 h) überleben den Cutover — **nur, wenn der Modul-Host zeichengleich der heutige ist** (host-only Cookie). `AUTH_SECRET` der Suite bleibt unverändert. Abbau-Zeile: alte `stack.env` löschen |
+| **Kennungen (`sub`)** | ✅ **gemessen: gleich.** `subject_types_supported: ["public"]`, keine pairwise identifiers | **Es gibt keine Zuordnungstabelle**, und sie wird nicht gebraucht: der Weg fällt **per Identität** zur Nulloperation zusammen. ⚠️ Der Paritätscheck beantwortete die Frage nie (in beiden Fällen grün); die Stichprobe R11 bleibt |
+| **`users`-Tabelle** | Altbestand wird **gefiltert übernommen**, nicht geleert | Eine Zeile wandert genau dann, wenn ihre `id` in einer der sechs Autorenschaftsspalten vorkommt — das Prädikat **ist** der Waisenfilter. ⚠️ **Ausnahme:** Personen, deren einzige `users`-Zeile eine Waise ist (letzte Anmeldung vor `f2b515b`, 29.07.2026). Für die zeigt das Journal die **rohe Kennung**, und ihr Klarname steht **nur** in der Zeile, die der Filter aussortiert → **Bereinigung über die Klarnamen**, keine Übersetzungstabelle. `select count(*) from users` ist ohnehin **keine** Personenzahl |
+| **`BESTELL_FAKTOR`** | **ersatzlos gestrichen** | Kein Produktivpfad liest das Feld; ein produktiv gesetzter Wert hat nie etwas bewirkt. Er wandert **nicht** mit |
+| **Bestellvorschlag** | Lückenformel `max(0, mindestbestand − bestand)` | Die Faktor-Formel ist tot; keine Zeile der Bestellliste ändert sich |
+| **Health** | `/api/health/lagerbuch` | ⚠️ `<host>/api/health` antwortet nach dem Cutover weiter `ok`, **ohne etwas über lagerbuch zu sagen** (Falle 51). Monitor und `deployment.md` umstellen |
+| **Alte Modul-Endpunkte** | `src/app/api/health/route.ts` und `src/app/api/auth/[...nextauth]/route.ts` werden **nicht** portiert | Beide Präfixe stehen in `PASSTHROUGH` und erreichen das Modul nie |
+| **Rollback-Körnung** | grob | Ein Rückzug auf ein älteres Image nimmt portal, qr, feedback und files mit. **Der Teilrückzug ist `SUITE_HOST_LAGERBUCH` leeren + Host aus `SUITE_TRAEFIK_RULE`** — er nimmt die Domain vom Netz, statt eine ältere lagerbuch-Version auszuliefern |
+
+### 16.2 Was **dieser Plan** zusätzlich an Spec 2 übergibt
+
+| # | Übergabe | Warum sie nicht warten kann |
+|---|---|---|
+| **R30** | **Probebogen** auf dem tatsächlich benutzten Drucker, auf das tatsächlich gekaufte Etikettenmaterial, mit **zwei** Telefonen aus 15 cm gescannt — je fünf Etiketten aus der **ersten und der letzten** Zeile (8-I) | Kein Test kann das: `build` und Vitest sehen `@media print` gar nicht, Playwright rendert für den Bildschirm. Ein fehlerhafter Bogen kostet gekauftes Material und einen Gang durch alle Fahrzeuge. ⚠️ **Die gedruckte QR-Modulgröße ist beim Port um 29 % gesunken, ohne dass es jemand entschieden hat.** Die Alt-Anwendung erzeugte mit Level **M, margin 1**, der Port nimmt die Suite-Konfiguration **H, margin 4** — bei zeichengleich 20 × 20 mm Fläche (1:1-Pflicht 22). Gemessen: Artikel-URL 0,571 → **0,408 mm** je Modul (−29 %), Token-URL 0,645 → **0,444 mm** (−31 %). **Benannter Rückfall bei Fehlschlag — ZWEI Stellräder, in dieser Reihenfolge:** **(1) `margin`** am `core/qr#qrSvg`-Aufruf des Etikettenbogens, `4 → 2 → 1`, an der Aufrufstelle mit dem Messergebnis begründet. **(2) Nur falls (1) nicht reicht: die Fehlerkorrekturstufe für DIESEN EINEN Erzeugungsweg, `H → Q → M`** — Preis ausgeschrieben: weniger Toleranz gegen Verschmutzung auf einem Etikett, das im Fahrzeug klebt. ⚠️ **Stellrad (1) allein holt den Altwert nicht ein:** `margin 4 → 1` bei Level H ergibt 41 + 2 = 43 Module → **0,465 mm**, immer noch unter den 0,571 mm der Alt-Anwendung. Wer nur am Rand dreht und wieder scheitert, hat sonst keinen zweiten benannten Knopf und improvisiert unter Zeitdruck. Damit ist A-J2s „Level H bleibt in beiden Fällen“ gemessen überholt — H bleibt die Vorgabe und der Regelfall, ist aber nicht mehr das letzte Wort. ⚠️ **KEINES der beiden Stellräder ist heute drehbar, ohne `core/qr` anzufassen:** `qrSvg(text)` nimmt gar keine Optionen, und `QR_OPTIONS` ist die EINE geteilte Konfiguration der ganzen Suite — sie hat drei divergierende Erzeugungsstellen abgelöst. Der Rückfall ist damit ein **Suite-Eingriff, keine Modularbeit**, und er muss als **Parameter je Aufruf** kommen, nie als Änderung an `QR_OPTIONS`: sonst änderte sich jeder QR-Code in portal, qr, files und feedback mit. Genau das meint „für DIESEN EINEN Erzeugungsweg“ |
+| **R31** | **Die Reihenfolge in `SUITE_HOST_LAGERBUCH` wird nach dem ersten Etikettendruck eingefroren** (8-B) | `moduleUrl` nimmt `prodHostsFor(mod)[0]`. Eine Umsortierung ändert **still** jeden ab dann gedruckten Bogen, während die alten Etiketten weiter auf den früheren ersten Eintrag zeigen. ⚠️ Fällt Betreiberfrage 9 auf „alte Domain mitlaufen lassen", **muss `lagerbuch.iuk-ue.de` Index 0 bleiben** |
+| **R32** | **Die Menge der physisch hängenden Etiketten ist echt größer als die der nachdruckbaren** (Falle 26) | `etikettenDaten` filtert hart auf `aktiv = true`; ein deaktivierter Artikel bleibt unter `/a/<id>` **bebuchbar**, ist aber nie wieder nachdruckbar. **Die Differenz ist im Repo nicht abzählbar.** Wer nach dem Cutover nachdrucken will und den Artikel nicht findet, sucht sonst einen Fehler, wo eine Entscheidung ist |
+| **R33** | **Ankündigung: die beiden Knopfbeschriftungen auf `/verwaltung/bestellung` ändern sich** — `Liste kopieren` → `Liste kopieren (nur offene)`, `CSV` → `CSV (alle Zeilen)` (9-A) | Die beiden Wege liefern **verschieden viele Zeilen**, und heute verrät das nichts. Der Umfang bleibt; die Beschriftung wird ehrlich |
+| **R34** | **Entscheidung 8-F ist eine Verhaltensänderung mit Ankündigungspflicht:** ein Zugangs-Code kann nach dem Cutover **nur noch gesperrt**, nie mehr gelöscht werden | Verwaltende, die heute einen versehentlich angelegten Code löschen, finden den Knopf nicht mehr. Der Grund gehört in die Ankündigung: ein gelöschter Code konnte an ein später ausgestelltes Kärtchen zurückfallen, und historische Journalzeilen erschienen danach unter dem **neuen** Label |
+| **R35** | **`APP_BASE_URL` wird beim Cutover ersatzlos gestrichen** (8-B) | Sie wäre eine **sechste** Wahrheit neben `SUITE_HOST_LAGERBUCH`. ⚠️ Ihr heutiger Wert ist trotzdem **vorher** abzulesen: der Cutover muss verifizieren, dass er zeichengleich `https://lagerbuch.iuk-ue.de` lautet — sonst ist **jeder gedruckte QR aus Form 1 und 2 auf den alten Wert gebrannt**, und die Entscheidung fällt auf „alter Host als zweiter Eintrag" zurück. **Eine Frage, zwei Folgen:** dieselbe Angabe entscheidet, ob die Helfer-Sitzungen den Cutover überleben (host-only Cookie) |
+| **R36** | **`curl -si https://<portal-host>/manifest.webmanifest` darf das lagerbuch-Manifest NICHT liefern** | `start_url: "/"` zeigt ohne gesetztes `SUITE_HOST_LAGERBUCH` aufs **Portal**; eine installierte PWA startete dann im falschen Modul (Falle 56) |
+
+### 16.3 Drei Dinge, die Spec 2 **nicht** von hier erbt
+
+| Gegenstand | Warum nicht | Wo es hingehört |
+|---|---|---|
+| **`TZ=Europe/Berlin` setzen** | Der Suite-Container fährt heute ohne `TZ`; `node:26-alpine` liefert UTC. Alles, was portal, qr, feedback und files an Datumsgrenzen gezogen haben, ist in **UTC** gezogen worden — ein nachträgliches `TZ` verschöbe jede solche Grenze um ein bis zwei Stunden | **Eigener Schritt mit eigener Prüfung gegen die vier laufenden Module** (§1.5, Punkt 1) |
+| **Das Entfernen des Suite-Admin-Kurzschlusses** (`core/groups.ts:104`) | `isModuleAdmin` steigt heute für **jedes** Modul beim Suite-Admin früh mit `true` aus. Der Kurzschluss ist **kein Versehen** — `core/groups.ts:14` schreibt seinen Zweck aus. Ihn zu entfernen ist `core`-Arbeit und berührt portal, qr und files | Eigene Suite-Entscheidung. lagerbuch erreicht dasselbe Ziel modulintern, indem es `isModuleAdmin` gar nicht benutzt — und ist damit **vorwärtskompatibel** zu dem Refactoring |
+| **Das suiteweite Gating von `/m/*`** | Dass `/m/<key>/*` von jedem Suite-Host beantwortet wird, ist eine **Klasse** und kein lagerbuch-Problem (Falle 61) | Eigene Suite-Spec. Für Phase 5 genügt der modulinterne Host-Riegel — ⚠️ **lagerbuch ist allerdings das erste Modul, bei dem diese Klasse eine DATENWIRKUNG hätte statt einer kosmetischen**, und genau deshalb ist der Riegel dort nicht optional |
+
+Ebenso benachbart und ausdrücklich **nicht** durchgeführt: die Hebung des DOM-Test-Harness nach
+`src/core/` (§12.2). Der benannte Auslöser („sobald ein drittes Modul es braucht") ist mit `files`
+längst gefallen; die Hebung berührt über dreißig Importzeilen in drei fremden Modulen und
+`CLAUDE.md:106-107`, bringt lagerbuch **keinen** Nutzen und machte aus einem Modul-Port eine
+repo-weite Umbenennung **mitten in einer Cutover-Vorbereitung**. Sie gehört als eigener, benannter
+Suite-Posten protokolliert — **nicht** still über eine Modul-Spec eingeführt, und ebenso wenig still
+weiter übergangen.
+
+---
+
+## 17. ⚠️ Drei Abfragen gegen die **Alt**-Datenbank, **bevor** importiert wird
+
+Alle drei beantworten eine Frage, die der Paritätscheck strukturell **nicht** stellt: er beweist den
+Datenbank-**Rundlauf**, nicht die **Feldzuordnung** — ein konsistenter Zuordnungsfehler ist
+paritätsgrün. Drei `SELECT`s, drei Protokollzeilen. Spaltennamen sind an der eingefrorenen
+Alt-Anwendung (`ca04eb1`, `src/db/schema.ts`) nachgelesen, nicht geraten.
+
+### 17.1 Wie viele aktive Artikel und Codes bringt der Import mit? (Abschlussreview Teil 6, I1)
+
+**Handgriff — zuerst, weil diese eine Zahl entscheidet, ob der Rest überhaupt Arbeit ist:**
+
+```sql
+select count(*) from artikel where aktiv = 1;
+select count(*) from tokens  where aktiv = 1;
+```
+
+**Warum.** `/verwaltung/etiketten` hat **keine Obergrenze**: `_db/etiketten.ts` liest **alle** aktiven
+Artikel und **alle** aktiven Codes, erzeugt für jeden einen QR und rendert alle auf **eine** Seite.
+Die Seite ist `force-dynamic`, es gibt also **keinen Cache davor** — jeder Aufruf macht die Arbeit
+vollständig neu, und `qrSvg` ist CPU-gebunden in **einem** `Promise.all`. Dazu ein Verdoppler auf der
+Antwortgröße: `EtikettenBogen` trägt `"use client"` und bekommt die fertigen SVG-Zeichenketten als
+Props — sie stehen damit **zweimal** in derselben Antwort, im gerenderten HTML **und** im
+RSC-Flight-Payload.
+
+**Gemessen** (`qrcode` aus diesem Repo, Level H, margin 4, URL 51 Zeichen): **2.901 Byte je SVG**.
+
+| aktive Artikel + Codes | HTML | + Flight | Summe **je Aufruf** |
+|---|---|---|---|
+| 100 | 0,3 MB | 0,3 MB | **0,6 MB** |
+| 300 | 0,8 MB | 0,8 MB | **1,7 MB** |
+| 800 | 2,2 MB | 2,2 MB | **4,4 MB** |
+| 2000 | 5,5 MB | 5,5 MB | **11,1 MB** |
+
+**Erst messen, dann entscheiden.** Die Unbegrenztheit ist 1:1 aus dem Bestand geerbt
+(`lagerbuch/src/db/etiketten.ts:16-25`, ebenfalls ohne `LIMIT`) und damit **kein Regressionsfehler**.
+Neu ist zweierlei, und beides zeigt genau jetzt: der Bogen läuft im **geteilten** Suite-Container, ein
+CPU-Spike trifft `portal`, `files`, `feedback` und `qr` mit — und die Artikelzahl **nach** dem Import
+ist heute unbekannt, die Demodaten sagen darüber nichts. Bricht die Seite erst nach dem Import,
+bricht sie am schlechtesten Tag.
+
+- **Dreistellig:** es genügt, die Client-Grenze zu entdoppeln (siehe unten).
+- ⚠️ **Vierstellig:** dann gehört eine **Seitenteilung** in die Übergabe an Spec 2 — kein Bogen trägt
+  mehr „alle aktiven Artikel". Das ist eine **Fachentscheidung**, keine Optimierung, und der
+  Probebogen aus R30 ist dann ohnehin nur ein Ausschnitt.
+
+**Zwei Wege gegen die Verdopplung, beide geprüft und beide noch zu verifizieren, nicht zu glauben:**
+(1) **Auswahl rein über CSS** — das Markup ist bereits `<label>` mit verschachteltem
+`<input type="checkbox">`, also genau die Form, die `label:has(input:not(:checked))` bedient; als
+Insel bliebe nur der Zähler „Drucken (n)", und der braucht kein SVG. Zu prüfen ist, ob die
+Geometriezusagen aus Plan §9 zeichengleich bleiben — der `druck.test.ts`-Scan hängt an
+`.lb-etikettAbgewaehlt`, das dann anders entstünde. (2) **QR über eine Route**
+(`<img src="/…/qr/<id>.svg">`) — jedes SVG erscheint dann **null**mal inline; der Preis sind N
+Anfragen und ein neuer, riegelpflichtiger Route Handler.
+
+⚠️ **Der naheliegende Griff ist ausdrücklich ein Irrweg:** die Kacheln serverseitig rendern und als
+`children` in die Insel reichen behebt die Doppelung **nicht**. Server-gerenderte Kinder, die in eine
+Client-Komponente hineingereicht werden, landen als Element-Beschreibungen im Flight-Payload,
+`dangerouslySetInnerHTML`-Prop inbegriffen. Die Kopie entsteht durch das **Überqueren der Grenze**,
+nicht durch die Form der Prop — sie fällt nur, wenn das SVG die Client-Grenze **gar nicht** überquert.
+
+### 17.2 Trägt das Journal Zeilen unter einem Code, der ihnen nie gehörte? (Abschlussreview Teil 6, M13)
+
+**Handgriff:**
+
+```sql
+select distinct quelle_id from buchungen where quelle_typ = 'token';
+-- gegen:
+select code from tokens;
+```
+
+**Bleibt kein Rest, ist die Sache erledigt.** Bleibt einer, zeigt das Journal nach dem Import Zeilen
+unter einem Label, das nie zu ihnen gehörte.
+
+**Warum die Abfrage trotzdem nötig ist, obwohl der Alt-Code sie überflüssig macht.** Die Begründung
+für Entscheidung **8-F** (ein Code kann nur noch gesperrt, nie gelöscht werden — Zeile **R34**) steht
+in `_lib/tokenForm.ts` und nennt dort die **schwächere** Hälfte: ein gelöschter und neu vergebener
+Code lasse historische Journalzeilen unter dem **neuen** Label erscheinen. An der eingefrorenen
+Alt-Anwendung nachgelesen konnte das **per Konstruktion nicht passieren** — `pruefeToken`
+(`lagerbuch/src/actions/loeschen.ts`) ließ den Hard-Delete **nur** zu, solange `lastUsedAt` NULL war,
+und `lastUsedAt` wird bei der **Einlösung** gesetzt; eine Buchung mit `quelleTyp: "token"` setzt eine
+eingelöste Sitzung voraus. **8-F ist trotzdem richtig**, und der tragende Grund steht eine Zeile
+darüber: das **gedruckte, nie eingelöste Kärtchen**, das seinen Code an ein später ausgestelltes
+Token verliert — ein physisches Artefakt in einem Fahrzeug.
+
+⚠️ **Die Argumentation ruht auf einem Riegel des Alt-Codes und deckt keine von Hand oder per SQL
+bearbeitete Datenbank.** Genau dafür ist die Abfrage da. ⚠️ **Und seit Ruling A15 macht das
+`title`-Attribut im Journal solche Zeilen sichtbar, statt sie zu verbergen** — für
+`quelleTyp === "token"` **ist** `quelleId` der Code im Klartext.
+
+### 17.3 Wie viele offene Checks bringt der Import mit? (DRK-196, hochgestuft)
+
+**Handgriff:** die Abfrage aus **§14** (`select count(*) from checks where ergebnis is null;`) **schon
+vor dem Import** gegen die Alt-Datenbank fahren und die Zahl **nach** dem Import gegenprüfen.
+
+**Warum das keine Board-Sache ist, sondern eine Importprüfung.** Ein offener Check erscheint als Check
+mit „**0 Positionen**" — das Modul erzeugt solche Zeilen im Normalbetrieb nur vorübergehend, **der
+Datenimport kann sie in Mengen und Formen mitbringen, die das Modul nie erzeugt**. Zwei Zahlen, die
+zusammenpassen müssen: was vorher da war, muss nachher da sein — und nichts sonst. Weicht die Zahl
+ab, ist das ein **Zuordnungs**befund, und genau die sieht der Paritätscheck nicht.
+
+---
+
 ## Offene Posten auf dem Board
 
 | Posten | Inhalt |
 |---|---|
 | [86cb0q9ut](https://app.clickup.com/t/86cb0q9ut) | `core/bootstrap.test.ts` härten — der Wächter des Registrierungs-Dreiecks sieht weder eine auskommentierte noch eine falsch gezielte `COPY`-Zeile. Vorbestehend, betrifft alle fünf Module. |
 | [DRK-188](https://app.clickup.com/t/86cb0q9v9) | Der `__drizzle_migrations`-Prüfpunkt aus §2. |
+| [DRK-192](https://app.clickup.com/t/86cb3y71b) | ~47 veraltete `datei:zeile`-Kommentaranker unter `m/lagerbuch/`. Achte Instanz der Fundort-Klasse; T172s Bericht behauptet „nur einer" und liegt damit falsch. |
+| [DRK-193](https://app.clickup.com/t/86cb3y74v) | `_actions/buchung.ts` reicht im `catch` auch rohen SQLite-Text an die Oberfläche durch. **Kein Verstoß** — der Kanal ist gewollt und dokumentiert —, aber ein benannter Rand; Behebung wäre ein Sentinel-Fehlertyp und damit ein Entwurfseingriff. |
+| [86cb3y7db](https://app.clickup.com/t/86cb3y7db) | Drei ungetestete Anzeigeränder: Bestellvorschlag-Leertext, `EtikettenBasisFehlt`-Render (strukturell, async RSC), CheckFlow-Fußnote. |
+| [86cb3y7h0](https://app.clickup.com/t/86cb3y7h0) | Zwei Teil-1-Nachweise sind Protokoll-Übernahmen statt Messungen (COPY-Gegenprobe des Dreiecks, Schema-Diff). Hängt an 86cb0q9ut. |
+| [DRK-196](https://app.clickup.com/t/86cb403fu) | Ein **offener** Check (`ergebnis IS NULL`) erscheint als Check mit „0 Positionen" — siehe §14. Heute harmlos, nach dem Cutover nicht: der Datenimport kann solche Zeilen mitbringen. |
+| [86cb403u5](https://app.clickup.com/t/86cb403u5) | `/verwaltung/checks/[id]` ist E2E nur punktuell gedeckt: der neue Zustand ja, der Rest der Seite (Abgleich, Nachfüllung, Geräte, Sauerstoff, Verfall, Kacheln) nicht. |

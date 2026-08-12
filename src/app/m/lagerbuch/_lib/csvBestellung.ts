@@ -10,11 +10,28 @@ import { csvZelle, csvTextZelle } from "./csvZelle";
  *
  * WAS AUSDRUECKLICH NICHT "MIT REPARIERT" WIRD: das fehlende BOM und das `\n`.
  * Ein nachgeruestetes BOM kann einen Abnehmer stromabwaerts brechen, ohne dass
- * es im Modul sichtbar wird — und es verfehlte ausgerechnet die
- * Kopfzeilenerkennung des modul-eigenen Importers (./csv.ts:43-47, KOPFWORTE-
- * Vergleich). Ebenso unveraendert: der konstante Dateiname, obwohl wiederholte
- * Downloads im Download-Ordner kollidieren. Ein datierter Name waere eine
- * Verbesserung — und eine Formataenderung.
+ * es im Modul sichtbar wird — und der Abnehmer dieser Datei sitzt AUSSERHALB des
+ * Repos. Das ist der Grund, und es ist derselbe wie 1:1-Pflicht 28 oben.
+ *
+ * ⚠️ HIER STAND EIN FALSCHER FUNDORT: „es verfehlte ausgerechnet die
+ * Kopfzeilenerkennung des modul-eigenen Importers (./csv.ts, KOPFWORTE-
+ * Vergleich)". Der traegt nicht. `./csv.ts#KOPFWORTE` ist der ARTIKEL-Import
+ * mit fuenf Spalten (name, einheit, fach, mindestbestand, startbestand);
+ * `bestellvorschlag.csv` traegt sechs ANDERE. Die beiden Mengen sind DISJUNKT —
+ * `parseArtikelCsv` weist die Datei schon am ersten Feld ab — und es entfernt
+ * ein BOM ohnehin selbst (die Regex `/^\uFEFF/` gleich zu Beginn von `parseArtikelCsv`).
+ * Wer den alten Verweis nachprueft, findet „nicht betroffen" und haelt das
+ * Verbot fuer gegenstandslos. Das VERBOT BLEIBT RICHTIG; falsch war allein die
+ * Begruendung.
+ *
+ * ⚠️ DERSELBE BEFUND SCHLIESST EINE ZWEITE FRAGE: weil die Koepfe disjunkt sind,
+ * ist ein Rundlauf Export → Bearbeiten → Re-Import von `bestellvorschlag.csv`
+ * NICHT moeglich. Der Apostroph aus der Formel-Neutralisierung (`csvTextZelle`)
+ * kann auf diesem Weg also nicht in einen Artikelnamen zurueckwandern.
+ *
+ * Ebenso unveraendert: der konstante Dateiname, obwohl wiederholte Downloads im
+ * Download-Ordner kollidieren. Ein datierter Name waere eine Verbesserung — und
+ * eine Formataenderung.
  */
 
 export type BestellCsvZeile = {

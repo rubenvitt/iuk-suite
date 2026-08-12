@@ -357,3 +357,56 @@ describe("checkDetail — das ALTE Format", () => {
     expect(checkDetail(t.db, "gibtsnicht", NOW)).toBeNull();
   });
 });
+
+/**
+ * §11.5, Zustand 27. Der Leser reicht den Grund durch, den der Parser gefunden
+ * hat — sonst kommt er auf der Seite nie an, und ein zerstoerter Datensatz
+ * sieht dort aus wie ein Check, bei dem nichts zu tun war.
+ */
+describe("checkDetail — ein UNLESBARES ergebnis (§11.5, 27)", () => {
+  function checkMit(id: string, ergebnis: string | null) {
+    t.db.insert(checks).values({
+      id, fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: NOW, completedAt: NOW, ergebnis,
+    }).run();
+    return checkDetail(t.db, id, NOW)!;
+  }
+
+  it("meldet unlesbar bei kaputtem JSON", () => {
+    const d = checkMit("chk-kaputt", "{das ist kein json");
+    expect(d.unlesbar).toBe(true);
+    // Und es bleibt das, was es ist: KEIN Altformat. Zwei Ursachen, zwei Felder.
+    expect(d.altFormat).toBe(false);
+  });
+
+  it("meldet unlesbar bei JSON in falscher Form", () => {
+    expect(checkMit("chk-skalar", '"nur ein string"').unlesbar).toBe(true);
+  });
+
+  it("meldet NICHT unlesbar fuer einen legitim leeren Check", () => {
+    // Der Kern der Sache: 0 Positionen sind ein gueltiges Ergebnis. Wer hier
+    // warnt, warnt kuenftig bei jedem leeren Check.
+    const d = checkMit("chk-leer", JSON.stringify({
+      version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [],
+    }));
+    expect(d.unlesbar).toBe(false);
+    expect(d.summe.positionen).toBe(0);
+  });
+
+  it("meldet NICHT unlesbar fuer einen OFFENEN Check ohne ergebnis", () => {
+    // `completed_at IS NULL` ist eine vorgesehene Bauform (§4.4), und
+    // `seedLokal.ts:523-526` legt sie an. „Noch nichts geschrieben" ist kein
+    // Lesefehler.
+    expect(checkMit("chk-offen", null).unlesbar).toBe(false);
+  });
+
+  it("meldet NICHT unlesbar fuer das ALTE Format — das hat sein eigenes Signal", () => {
+    const d = checkMit("chk-alt-lesbar", JSON.stringify([{ fehlt: 3, gebucht: 1 }]));
+    expect(d.altFormat).toBe(true);
+    expect(d.unlesbar).toBe(false);
+  });
+
+  it("meldet NICHT unlesbar fuer einen gefuellten Check", () => {
+    expect(checkDetail(t.db, "chk-1", NOW)!.unlesbar).toBe(false);
+  });
+});

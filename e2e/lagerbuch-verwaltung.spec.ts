@@ -91,3 +91,139 @@ test.describe("lagerbuch — Modulnavigation", () => {
     ).toBeVisible();
   });
 });
+
+/**
+ * NACHFOLGER von `lagerbuch/e2e/suche-filter.spec.ts:20-33` (§12.1 Punkt 3).
+ * jsdom kann diese Zusicherung strukturell nicht halten: `JournalFilter.test.tsx`
+ * (Teil 5, T147) mockt `next/navigation` und prueft nur den Aufruf von
+ * `router.replace` — dass der ECHTE Browser die Adresszeile danach tatsaechlich
+ * traegt, beweist ausschliesslich ein Playwright-Lauf (§12.5-Tabelle: „Die
+ * literale URL-Zusicherung `?q=Verband` bleibt — sie ist der einzige Beleg fuer
+ * den URL-Vertrag"). T174-Befund: dieser Nachfolger fehlte bislang komplett.
+ */
+test.describe("lagerbuch — Journalsuche schreibt die literale URL (§12.1 Punkt 3)", () => {
+  test("Debounce schreibt den Suchbegriff als ?q=… in die Adresse", async ({ page }) => {
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung/journal",
+    });
+    await page.getByRole("searchbox", { name: "Suche" }).fill("Verband");
+    // Debounced (300ms, JournalFilter.tsx:44-52) → die URL bekommt den q-Parameter.
+    await expect(page).toHaveURL(/[?&]q=Verband/);
+  });
+});
+
+/**
+ * §11.5 Zustand 27, ECHT gerendert (T176a1).
+ *
+ * ⚠️ WARUM DAS HIER STEHEN MUSS UND NICHT IN VITEST GENUEGT. Die Check-
+ * Detailseite ist eine **Server Component ohne Insel**. `pnpm build`,
+ * `typecheck` und Vitest sehen genau die Fehler dort strukturell NICHT, die die
+ * Seite umbringen: ein Compound-Zugriff auf antd oder ein Import aus dem
+ * antd-Icon-Paket ergibt HTTP 500, und zwar schon beim Import, nicht beim
+ * Rendern. Ein gruener Vitest-Lauf ueber `checkDetailInhalt()` beweist die
+ * Auswahl des Zustands, nicht die Auslieferung der Seite.
+ *
+ * ⚠️ BEIDE Faelle stehen hier mit Absicht: der lesbare Check ist die Gegenprobe.
+ * Ohne ihn belegte der Lauf nur „irgendetwas warnt", nicht „es warnt GENAU
+ * dann". Ein Check mit 0 Positionen darf keine Warnung bekommen — das ist die
+ * Unterscheidung, an der der ganze Zustand haengt.
+ *
+ * Die Datensaetze kommen aus `seed-lagerbuch.ts` (`checkFixtures`).
+ */
+test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.5, 27)", () => {
+  test.beforeEach(async ({ page }) => {
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+  });
+
+  test("ein unlesbares ergebnis wird benannt — als Warnung, nie als Fehler", async ({ page }) => {
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks/e2e-check-unlesbar"));
+
+    // Erst der Status: ein 500 aus einer RSC-Falle wuerde sonst als „Text nicht
+    // gefunden" durchgehen und wie ein Textfehler aussehen.
+    expect(antwort?.status(), "die Seite muss ausliefern, nicht in eine RSC-Falle laufen").toBe(200);
+    await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
+
+    const meldung = page.locator(".ant-alert").filter({ hasText: "Ergebnis unlesbar" });
+    await expect(meldung).toHaveCount(1);
+    // ⚠️ `colorError === colorPrimary === #c8000f` (§6.6.5): ein roter Alert saehe
+    // aus wie eine Primaeraktion. Die Klasse ist der einzige Beleg, der die
+    // GERENDERTE Fassung prueft und nicht das Prop.
+    await expect(meldung).toHaveClass(/ant-alert-warning/);
+    await expect(meldung).not.toHaveClass(/ant-alert-error/);
+  });
+
+  test("ein legitim LEERER Check bekommt KEINE solche Warnung", async ({ page }) => {
+    /**
+     * ⚠️ DIE HAELFTE, DIE ZAEHLT. `e2e-check-leer` trägt ein gültiges, aber
+     * leeres V2-Ergebnis — der Check hatte wirklich 0 Positionen. Genau dieser
+     * Fall war vorher von „kaputt" nicht unterscheidbar; eine Warnung hier wäre
+     * schlimmer als gar keine, weil sie dann auf jedem leeren Check stünde.
+     */
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks/e2e-check-leer"));
+
+    expect(antwort?.status()).toBe(200);
+    await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
+    await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
+    // Die leeren Tabellen sagen weiter, was sie sagen dürfen — hier stimmt es ja.
+    await expect(page.getByText("Keine Geräte in diesem Check.")).toBeVisible();
+  });
+
+  test("ein gefüllter lesbarer Check bekommt KEINE solche Warnung", async ({ page }) => {
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks/e2e-check-lesbar"));
+
+    expect(antwort?.status()).toBe(200);
+    await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
+    // Die Seite ist da (der Abgleich des geseedeten Artikels steht drin) …
+    await expect(page.getByText("E2E Check Kompressen steril 10x10cm").first()).toBeVisible();
+    // … und sagt nichts von unlesbar.
+    await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
+  });
+
+  test("die Übersicht kennzeichnet die Zeile, statt eine ruhige 0 zu zeigen", async ({ page }) => {
+    // §11.5:10332 spricht von der ZEILE. `/verwaltung/checks` ist die Fläche, auf
+    // der jemand nach Auffälligkeiten sucht — dort ist die 0 das Irreführende.
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks"));
+
+    expect(antwort?.status()).toBe(200);
+    await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
+
+    // GENAU EINE Zeile trägt das Wort — der kaputte Datensatz. Die Zahl ist
+    // bewusst nicht an die Gesamtzahl der Zeilen gekoppelt: läuft der
+    // Helfer-Spec vorher, steht hier eine weitere (gültige) Check-Zeile.
+    await expect(page.getByRole("row").filter({ hasText: "unlesbar" })).toHaveCount(1);
+
+    /*
+     * DIE GEGENPROBE AUF DERSELBEN FLÄCHE — an einer BENANNTEN lesbaren Zeile,
+     * nicht am Wort „vollständig".
+     *
+     * ⚠️ Warum nicht „vollständig": die KAPUTTE Zeile trägt es mit. Bei
+     * zerstörtem `ergebnis` sind alle Zähler 0, `ergebnisChips` pusht deshalb
+     * keinen einzigen Chip und schiebt am Ende den Vollständig-Chip nach
+     * (`checks/page.tsx`). Dieselbe Zeile sagt also „unlesbar" in der
+     * Positionen-Spalte und grün „vollständig" in der Ergebnis-Spalte. Die
+     * frühere Fassung wäre damit auch dann grün gewesen, wenn
+     * `e2e-check-unlesbar` die EINZIGE Zeile der Tabelle wäre — genau das, was
+     * ihr eigener Kommentar ausschließen wollte. Sie war vakuös.
+     *
+     * Der Link trägt `detailHref = /verwaltung/checks/<id>` und ist damit der
+     * einzige Anker, der eine BESTIMMTE Zeile trifft: der Fahrzeugname taugt
+     * nicht (alle drei Seed-Checks hängen an `e2e-fahrzeug`), die Zeitspalte
+     * ebenso wenig.
+     *
+     * ⚠️ Der grüne Chip auf der kaputten Zeile ist ein VORBESTEHENDER Befund und
+     * wird hier bewusst nicht mitrepariert — Chip und offener Check gehören
+     * zusammen geplant (DRK-196, Runbook §14).
+     */
+    const lesbar = page
+      .getByRole("row")
+      .filter({ has: page.locator('a[href$="/verwaltung/checks/e2e-check-lesbar"]') });
+    await expect(lesbar).toHaveCount(1);
+    await expect(lesbar).not.toContainText("unlesbar");
+  });
+});
