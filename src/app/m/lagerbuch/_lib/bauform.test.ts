@@ -643,6 +643,20 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     expect(css.slice(auf), "der Desktop-Zweig setzt die Spaltenzahl nicht").toMatch(
       /\.fachraster\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit/,
     );
+    /**
+     * ⚠️ NACHTRAG AUS DEM REVIEW VON TASK 3: `align-items: start` und
+     * `gap: 0 18px` standen in der Basisregel, aber ungeschuetzt. Genau diese
+     * zwei Eigenschaften sind es, an denen die Zaehlliste optisch kaputtgeht,
+     * wenn sie jemand entfernt — ohne `align-items: start` zieht Grid jede
+     * Fachkarte auf die Hoehe der hoechsten in derselben Rasterzeile (:557),
+     * und eine fehlende `gap` liesse die Spalten aneinanderkleben.
+     */
+    expect(css.slice(0, auf), "`.fachraster` ohne `align-items: start`").toMatch(
+      /\.fachraster\s*\{[^}]*align-items:\s*start/,
+    );
+    expect(css.slice(0, auf), "`.fachraster` ohne `gap: 0 18px`").toMatch(
+      /\.fachraster\s*\{[^}]*gap:\s*0\s+18px/,
+    );
   });
 
   it("das Listenraster repariert seine Trenner — sonst franst die obere Reihe aus", () => {
