@@ -64,8 +64,17 @@ describe("Suite-Farbvariablen fuer eigenes Markup", () => {
   const IUK = ["--iuk-marke", "--iuk-gedaempft", "--iuk-linie"];
 
   it("deklariert jede --iuk-* auf :root", () => {
+    // Auf den HELLEN `:root`-Block verankert, nicht auf die ganze Datei: eine
+    // Suche ueber den gesamten Text waere schon zufrieden, wenn die Variable
+    // NUR im Dunkelzweig steht — genau die Luecke, die Falle (b) unten
+    // eigentlich abdecken soll, aber nicht abdeckt, wenn hier nicht verankert
+    // wird. `:root\s*\{` matcht `:root[data-theme="dark"] {` nicht (das
+    // Attribut steht dazwischen), und `--iuk-` im Block schliesst den
+    // Schrift-`:root`-Block aus.
+    const hell = css.match(/:root\s*\{([^}]*--iuk-[^}]*)\}/);
+    expect(hell, "kein --iuk-Block auf dem hellen :root").not.toBeNull();
     for (const name of IUK) {
-      expect(css, `${name} fehlt auf :root`).toMatch(new RegExp(`${name}\\s*:`));
+      expect(hell![1]!, `${name} fehlt auf :root`).toMatch(new RegExp(`${name}\\s*:`));
     }
   });
 
