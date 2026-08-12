@@ -15,6 +15,7 @@ import { moduleUrl } from "@/core/shell/moduleUrl";
 import { switcherEntries } from "@/core/shell/switcherEntries";
 import { Modulnav, SuiteNav } from "@/core/shell/SuiteNav";
 import type { SuiteNavItem } from "@/core/shell/types";
+import { SCHRIFT } from "@/core/theme/schrift";
 import s from "./shell.module.css";
 
 /**
@@ -62,6 +63,10 @@ export async function SuiteHeader({
    */
   return (
     <>
+      {/* Vor der Kopfzeile, nicht darin: eine Kante an der antd-Flaeche waere ein
+          Spezifitaetsstreit, ein eigenes Element ist keiner. `aria-hidden`, weil
+          der Streifen reine Marke ist und nichts vorliest. */}
+      <div className={s.streifen} aria-hidden="true" />
       <Header data-testid="suite-header" className={s.kopf}>
         {/*
          * Der Modultitel fuehrt auf die Startseite SEINES Moduls (Entwurf
@@ -73,7 +78,14 @@ export async function SuiteHeader({
          * Prod-Hosts; ohne Host bleibt "/" — nie ein toter Link.
          */}
         <Link href={moduleUrl(moduleKey) ?? "/"} className={s.titel}>
-          <strong data-testid="module-title">{mod.title}</strong>
+          {/* `data-testid` bleibt auf dem `<strong>` — der Keystone-E2E fragt es
+              dort ab. Die Rolle `unterTitel` (20/600) statt `titel` (24): die
+              Kopfzeile ist 64px hoch, 24px waeren darin zu laut. Die Sperrung
+              des Vorbilds kommt hier dazu, statt eine achte Rolle mit einem
+              einzigen Anwender anzulegen. */}
+          <strong data-testid="module-title" style={{ ...SCHRIFT.unterTitel, letterSpacing: "0.07em" }}>
+            {mod.title}
+          </strong>
         </Link>
         <SuiteNav
           entries={entries}

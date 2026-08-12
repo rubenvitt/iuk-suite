@@ -305,3 +305,26 @@ describe("shell.module.css", () => {
     expect(regel![1]).toMatch(/flex-wrap:\s*nowrap/);
   });
 });
+
+describe("Markenstreifen und Kopfzeilentypografie", () => {
+  it("legt den Streifen als eigene Klasse an, nicht als Kante an .kopf", () => {
+    // EIN EIGENES ELEMENT STATT EINER KANTE AN DER ANTD-FLAECHE, und das ist
+    // kein Stil: `.kopf` und `.ant-layout-header` sind beide (0,1,0), antds
+    // Stylesheet kommt spaeter. Eine `border-block-start` an `.kopf` waere
+    // derselbe Streit, den `padding-inline` an dieser Stelle schon einmal
+    // verloren hat (gemessen, siehe Kopf dieser Datei). Ein eigenes Element ist
+    // keiner.
+    expect(CSS).toMatch(/\.streifen\s*\{[^}]*background:\s*var\(--iuk-marke\)/);
+    expect(CSS).toMatch(/\.streifen\s*\{[^}]*height:\s*5px/);
+    expect(CSS).not.toMatch(/\.kopf\s*\{[^}]*border-block-start/);
+  });
+
+  it("faerbt den Drawer-Gruppentitel ueber die Suite-Variable statt ueber opacity", () => {
+    // `opacity: 0.6` dimmt auch den Kontrast des Hintergrunds mit und ist als
+    // Farbaussage nicht pruefbar. Eine Variable ist es.
+    const regel = CSS.match(/\.drawerTitel\s*\{([^}]*)\}/);
+    expect(regel, ".drawerTitel fehlt").not.toBeNull();
+    expect(regel![1]!).toMatch(/color:\s*var\(--iuk-gedaempft\)/);
+    expect(regel![1]!, "opacity als Farbersatz ist raus").not.toMatch(/opacity/);
+  });
+});

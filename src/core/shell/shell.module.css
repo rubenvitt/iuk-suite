@@ -14,6 +14,27 @@
  */
 
 /*
+ * DER MARKENSTREIFEN — 5px, der billigste Griff mit der groeszten Wirkung.
+ * Uebernommen aus dem alten Lagerbuch (`.stripe`), das ihn ueber jeder Ansicht
+ * trug.
+ *
+ * EIGENES ELEMENT, KEINE KANTE AN `.kopf`. `.kopf` und `.ant-layout-header`
+ * sind beide (0,1,0), und antds Stylesheet kommt spaeter — eine
+ * `border-block-start` dort waere derselbe Spezifitaetsstreit, den
+ * `padding-inline` an genau dieser Stelle schon einmal verloren hat. Ein
+ * eigenes Element steht auszerhalb des Streits.
+ *
+ * `flex: none`, damit es in keinem Flex-Kontext zusammengedrueckt wird, und
+ * `--iuk-marke` statt `--ant-color-primary`: eigenes Markup sieht antds
+ * Variablen nicht (Falle 2), der Streifen waere still unsichtbar.
+ */
+.streifen {
+  height: 5px;
+  flex: none;
+  background: var(--iuk-marke);
+}
+
+/*
  * KEIN `padding-inline` HIER — das ist kein Versehen, sondern der Fix.
  *
  * Diese Regel trug einmal `padding-inline: 16px`, und es galt nie: `.kopf` und
@@ -253,7 +274,10 @@
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  opacity: 0.6;
+  /* `--iuk-gedaempft` statt der frueheren Deckkraft-Daempfung: Deckkraft
+     dimmt den Kontrast unpruefbar mit und traegt in beiden Modi verschieden.
+     Eine Variable hat einen Dunkelzweig, eine Deckkraft-Angabe nicht. */
+  color: var(--iuk-gedaempft);
   padding-inline: 16px;
   padding-block: 8px;
 }
