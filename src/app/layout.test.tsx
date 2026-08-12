@@ -17,7 +17,7 @@ import type { ReactElement } from "react";
  * ohne antd, AntdRegistry oder eine DOM-Umgebung hochzufahren.
  *
  * DIE FAMILIE-VARIABLE-BINDUNG (Nachschaerfung Gesamtreview). Die urspruengliche
- * Fassung ignorierte ihr Argument (`Barlow: () => ({ variable: "--font-body" })`)
+ * Fassung ignorierte ihr Argument (`Barlow: () => ({ variable: "--font-barlow" })`)
  * und lieferte den Wert unabhaengig davon, was `layout.tsx` uebergab. Vertauscht
  * `layout.tsx` die `variable:`-Werte von `Barlow` und `Barlow_Condensed`, blieb
  * dieser Mock — und damit der Test — gruen: gueltiges CSS/JSX, alle Gates
@@ -37,7 +37,7 @@ vi.mock("next/font/google", () => ({
   Geist_Mono: () => ({ variable: "--font-geist-mono" }),
   Barlow: fontMocks.barlow,
   Barlow_Condensed: fontMocks.barlowCondensed,
-  IBM_Plex_Mono: () => ({ variable: "--font-mono" }),
+  IBM_Plex_Mono: () => ({ variable: "--font-plex-mono" }),
 }));
 
 const get = vi.fn();
@@ -135,15 +135,27 @@ describe("Wurzel-Layout: Theme-Signal fuer CSS", () => {
    * rot. Beide Richtungen sind damit tatsaechlich gedeckt, nicht nur behauptet.
    */
   it("Additivitaet: <html> traegt alle FUENF Font-Variablen, Geist bleibt neben den drei neuen stehen", async () => {
-    const html = await htmlElement("light");
+    // ⚠️ `{ pref: "light" }`, nicht `"light"` — und `tsc` faengt das NICHT.
+    // `htmlElement` nahm einmal den blanken Modus-String; mit dem
+    // Zwei-Cookie-Modell nimmt sie ein Objekt, dessen Felder beide optional
+    // sind. Ein String dagegen ist typkorrekt (gemessen: `pnpm typecheck` bleibt
+    // gruen), liefert beim Zugriff aber `undefined` fuer beide Kekse — der
+    // Aufruf haette also GAR KEIN Cookie gesetzt statt „hell", und nur der
+    // Rueckfall auf `light` liesz ihn richtig aussehen. Fuer diesen Test ohne
+    // Folgen, weil er nur die `className` liest; als Vorlage fuer den naechsten
+    // Fall waere es die stille Falle.
+    const html = await htmlElement({ pref: "light" });
     const klassen = (html.props.className ?? "").split(/\s+/).filter(Boolean);
 
+    // Die drei neuen heiszen nach der SCHRIFT (`layout.tsx`), nicht nach der
+    // Rolle — die Rollennamen `--font-display|body|mono` deklariert
+    // `globals.css`, und sie stehen deshalb hier bewusst NICHT.
     for (const name of [
       "--font-geist-sans",
       "--font-geist-mono",
-      "--font-body",
-      "--font-display",
-      "--font-mono",
+      "--font-barlow",
+      "--font-barlow-condensed",
+      "--font-plex-mono",
     ]) {
       expect(klassen, `${name} fehlt in der className des <html>-Elements`).toContain(name);
     }
@@ -157,12 +169,17 @@ describe("Wurzel-Layout: Theme-Signal fuer CSS", () => {
    * bzw. `Barlow_Condensed` tatsaechlich aufgerufen wurden; das bindet die
    * Zusicherung an die Familie, nicht nur an die blosse Anwesenheit des Werts.
    */
-  it("Familie ↔ Variable: Barlow traegt --font-body, Barlow_Condensed traegt --font-display", () => {
+  it("Familie ↔ Variable: Barlow traegt --font-barlow, Barlow_Condensed traegt --font-barlow-condensed", () => {
     // `barlow`/`barlowCondensed` in `layout.tsx` sind Modul-Konstanten — der
     // Aufruf geschah beim Import oben, nicht erst beim Rendern.
-    expect(fontMocks.barlow).toHaveBeenCalledWith(expect.objectContaining({ variable: "--font-body" }));
+    //
+    // ⚠️ DIE ERWARTETEN NAMEN SIND SCHRIFTNAMEN. Stuende hier `--font-body`,
+    // truege Barlow wieder die Fliesztext-ROLLE der Suite — und dann stritten
+    // `layout.tsx` und `globals.css` um dieselbe Variable, entschieden durch
+    // die Stylesheet-Reihenfolge (Falle 5, still).
+    expect(fontMocks.barlow).toHaveBeenCalledWith(expect.objectContaining({ variable: "--font-barlow" }));
     expect(fontMocks.barlowCondensed).toHaveBeenCalledWith(
-      expect.objectContaining({ variable: "--font-display" }),
+      expect.objectContaining({ variable: "--font-barlow-condensed" }),
     );
   });
 });

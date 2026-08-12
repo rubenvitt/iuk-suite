@@ -29,13 +29,35 @@
  * kennt — und NIE auf `--ant-*`: antd deklariert seine Variablen auf SEINER
  * Scope-Klasse, eigenes Markup sieht sie nicht, und eine nicht aufloesbare
  * Variable ist gueltiges CSS und faellt still auf `transparent` zurueck
- * (Falle 2). Einzige zugelassene Fremdvariablen sind `--font-display`,
- * `--font-body` und `--font-mono`: die liegen auf `:root` (Wurzel-Layout) und
- * damit unter beiden Traegern — SEIT DEM 12.08.2026 (Task 6). Vorher waren es
- * nirgends deklarierte Namen: die Original-App laedt sie ueber next/font, bei
- * der Portierung sind die drei Aufrufe nicht mitgekommen, und `--lb-display`
- * war ein ungueltiger Wert (Falle 2, siehe `bauform.test.ts`, Scan „die drei
- * Schriftstapel kommen wirklich vom Wurzel-Layout").
+ * (Falle 2). Einzige zugelassene Fremdvariablen sind die DREI SCHRIFT-
+ * VARIABLEN AUS `src/app/layout.tsx` — `--font-barlow-condensed`,
+ * `--font-barlow` und `--font-plex-mono`. Sie liegen nicht auf `:root`,
+ * sondern auf der `className` des `<html>` (so registriert `next/font` seine
+ * Variablen); `<html>` steht ueber beiden Traegern, die Werte sind damit unter
+ * `.rahmen` genauso sichtbar wie unter `.modul`.
+ *
+ * ⚠️ HIER STANDEN BIS 2026-08-12 DIE ROLLENNAMEN `--font-display|body|mono`,
+ * UND DAS WAR EINE BEHAUPTUNG UND KEINE TATSACHE: das Wurzel-Layout
+ * registrierte nur Geist, die drei Namen standen nirgends, und diese Datei
+ * rendete monatelang im Fallback ("Arial Narrow" / system-ui) — `--lb-display`
+ * war ein ungueltiger Wert, und eine `font:`-Kurzschreibweise damit faellt
+ * VOLLSTAENDIG aus, samt Groesse und Gewicht.
+ *
+ * ⚠️ UND SIE STEHEN AUS EINEM GRUND NICHT MEHR HIER. Die drei Rollennamen
+ * gehoeren inzwischen der SUITE (`app/globals.css`, gelesen von
+ * `core/theme/theme.ts` und `core/theme/schrift.ts`); dort loest `--font-body`
+ * auf Geist auf. Zeigte `--lb-body` weiter auf die ROLLE, bekaeme der
+ * Helfer-Weg Geist statt Barlow — die Reparatur waere rueckgaengig gemacht,
+ * und wieder still. Deshalb die Abbildung direkt auf die SCHRIFTNAMEN.
+ * `--font-barlow-condensed` ist die eine Variable, die beide Seiten lesen; das
+ * ist gewollt, es ist dieselbe Schrift.
+ *
+ * Wer die drei `next/font`-Aufrufe aus `layout.tsx` entfernt, stellt den
+ * Fallback-Zustand von oben wieder her — still, ohne roten Test aus dieser
+ * Datei. Die Riegel dafuer sitzen in `_lib/bauform.test.ts` (Scan „die
+ * Schriftstapel des Helfer-Wegs kommen wirklich von auszerhalb") und
+ * `core/theme/schriftstapel.test.ts`; die Wirkung belegt
+ * `e2e/lagerbuch-helfer.spec.ts`.
  */
 
 .rahmen {
@@ -69,9 +91,11 @@
   --lb-ampel-grau-text: #5b6570;
   --lb-ampel-grau-flaeche: #e7eaec;
 
-  --lb-display: var(--font-display), "Arial Narrow", sans-serif;
-  --lb-body: var(--font-body), system-ui, sans-serif;
-  --lb-mono: var(--font-mono), ui-monospace, monospace;
+  /* ⚠️ AUF DIE SCHRIFTNAMEN, NICHT AUF DIE SUITE-ROLLEN — siehe Kopfkommentar.
+     `--font-body` waere hier Geist und naehme dem Helfer-Weg sein Barlow. */
+  --lb-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
+  --lb-body: var(--font-barlow), system-ui, sans-serif;
+  --lb-mono: var(--font-plex-mono), ui-monospace, monospace;
 
   /*
    * DIE BAHNBREITE — die EINE Zahl, die den Zweig kappt (Betreiberentscheidung

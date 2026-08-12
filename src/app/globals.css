@@ -10,6 +10,118 @@
   box-sizing: border-box;
 }
 
+/*
+ * DIE DREI SCHRIFT-ROLLEN DER SUITE — Rollennamen, keine Schriftnamen.
+ *
+ * DAS HIER WAR EIN TOTER VERTRAG. `app/m/lagerbuch/_ui/helfer.module.css:64-66`
+ * loeste `--lb-display|body|mono` gegen genau diese drei Namen auf, und der
+ * Kommentar daneben behauptete, sie laegen auf `:root`. Sie lagen dort nicht —
+ * das Wurzel-Layout registrierte nur Geist. Der Helfer-Weg rendete in
+ * "Arial Narrow" / system-ui / ui-monospace, still, ueber Monate.
+ *
+ * WARUM ROLLENNAMEN UND NICHT `--font-geist-sans` DIREKT: der Bestand benutzt
+ * diese drei Namen bereits, und sie bezeichnen eine ROLLE (Display, Fliesztext,
+ * Daten), nicht eine Schrift. Ein spaeterer Schriftwechsel ist damit eine Zeile
+ * hier statt einer Suche ueber alle Module.
+ *
+ * ⚠️ DIESER SATZ WAR ZUNAECHST NUR FUER `--font-display` WAHR — nachgezogen am
+ * 2026-08-12. `--font-body` hatte EINEN Konsumenten (`helfer.module.css`), und
+ * der Fliesztext der ganzen Suite lief daran vorbei: `core/theme/theme.ts` gab
+ * antd `var(--font-geist-sans)` direkt. `--font-mono` hatte zwei, elf weitere
+ * Stellen schrieben `var(--font-geist-mono)`. Der Ausfall waere derselbe stille
+ * gewesen wie oben, nur andersherum: nicht Fallback statt Schrift, sondern ZWEI
+ * Schriften nebeneinander (in `lagerbuch` messbar — `SCHRIFT.mono` waere
+ * gewandert, `.fach`/`.footnote`/`.jts`/`.jdelta` nicht). Seither nennt kein
+ * Konsument mehr eine Familie direkt; `--font-geist-*` steht nur noch in der
+ * `next/font`-Registrierung (`app/layout.tsx`), in ihren Test-Mocks und in der
+ * Aufloesung drei Zeilen tiefer. Wer eine neue Schriftstelle anlegt, nimmt die
+ * Rolle — sonst faellt der Satz oben wieder auseinander.
+ *
+ * `core/theme/schriftstapel.test.ts` haelt beide Haelften fest: dass diese
+ * Deklarationen stehen UND dass `layout.tsx` die Familie registriert, aus der
+ * `--font-display` seinen Wert zieht. Ohne die zweite Haelfte waere derselbe
+ * stille Ausfall eine Ebene tiefer wieder moeglich.
+ */
+:root {
+  --font-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
+  --font-body: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+/*
+ * DIE FARBEN, DIE EIGENES MARKUP BRAUCHT — und nur die.
+ *
+ * `core/theme/tokens.ts` bleibt die Datei mit den Suite-Hex-Codes; von dort
+ * stammen diese Werte. Sie stehen hier ZUSAETZLICH als CSS-Variablen, weil
+ * eigenes Markup (Shell, Portal, Modul-CSS) keinen Zugriff auf TypeScript hat
+ * und `--ant-*` nicht sehen kann: antd deklariert die auf der Scope-Klasse
+ * SEINER Komponenten, nicht auf `:root`. Der Ausfall waere still — die Farbe
+ * verschwindet einfach (Falle 2).
+ *
+ * NUR DREI, UND DAS IST DER MASZSTAB, KEIN ANFANG. Nach `core` kommt, was einen
+ * heute belegbaren Anwender hat. Das Farbvokabular des alten Lagerbuchs
+ * (KPI-Kante, getoente Chips, Abschnittsstreifen, Journal-Deltas) hat genau
+ * EINEN Anwender — `app/m/lagerbuch/_ui/verwaltung.module.css`, wo es steht und
+ * bleibt. Es hierher zu heben waere ein Framework fuer einen Nutzer. Was das
+ * naechste Modul davon nachbauen soll, steht in `docs/design/README.md`.
+ *
+ * DER DUNKELZWEIG IST KEINE ZUGABE. Das Vorbild hatte gar keinen Dunkelmodus;
+ * seine Palette ist durchgehend hell. Jede portierte Farbe braucht deshalb ein
+ * geprueftes Gegenstueck. Die Werte hier stammen aus dem Dunkelzweig von
+ * `verwaltung.module.css`, wo die Frage schon einmal beantwortet wurde.
+ *
+ * `--iuk-marke` ist im Dunkeln NICHT `#c8000f`: auf nahezu Schwarz reicht der
+ * Kontrast fuer 14px-Text nicht. antds Dunkel-Algorithmus rechnet sich seine
+ * eigene Primaerfarbe aus; eigenes Markup muss das selbst tun.
+ *
+ * `--iuk-marke` WEICHT IM DUNKELN ABSICHTLICH VON `--lb-rot` AB
+ * (`verwaltung.module.css:25`, dort `#e04452`) — und zwar wegen zweier
+ * verschiedener AA-Schwellen. `--lb-rot` traegt dort Konturen und
+ * Fokusringe; fuer Bedienelemente verlangt WCAG nur 3:1, und `#e04452`
+ * besteht das klar. `--iuk-marke` traegt dagegen 14px-TEXT und Konturen, und
+ * Text verlangt 4.5:1.
+ *
+ * ⚠️ DIE FLAECHENZUORDNUNG WAR FALSCH und ist am 2026-08-12 berichtigt. Hier
+ * stand „die beiden dunklen Flaechen, auf denen der Text tatsaechlich sitzt:
+ * #141414 (Layout.headerBg), #16191c". Der aktive Navigationseintrag sitzt
+ * aber in `.modulnav`, und die traegt BEWUSST keine eigene Flaechenfarbe
+ * (`core/shell/shell.module.css`, dort ausgeschrieben) — sie liegt damit auf
+ * `Layout.bodyBg`, nicht auf `headerBg`. `bodyBg` ist `#000000` im Dunkeln und
+ * `#eef0f1` im Hellen (`core/theme/theme.ts`). Die beiden alten Flaechen sind
+ * nicht falsch, nur nicht DIESE: Kopfzeile und Kartenflaeche tragen die
+ * Markenfarbe ebenfalls, und fuer sie gelten die Zahlen weiter.
+ *
+ * Nachgerechnet (WCAG-Kontrastformel, sRGB-linearisiert), Flaeche fuer Flaeche:
+ *   Modulnavigation (Layout.bodyBg) — der Ort des aktiven Eintrags:
+ *     #e45a66 gegen #000000 (dunkel): 5.95:1
+ *     #c8000f gegen #eef0f1 (hell):   5.30:1
+ *   Kopfzeile (Layout.headerBg) und Kartenflaeche:
+ *     #e45a66 gegen #141414 (dunkel): 5.22:1
+ *     #e45a66 gegen #16191c (dunkel): 5.00:1
+ *     #c8000f gegen #ffffff (hell):   6.06:1
+ * Alle sechs liegen ueber 4.5:1 — es ist also KEIN Mangel an Barrierefreiheit,
+ * die Zuordnung stimmte nur nicht.
+ *
+ * DER EIGENE DUNKELWERT BLEIBT TROTZDEM BEGRUENDET, und zwar auf den engeren
+ * Flaechen: `#e04452` gegen `#141414` ergibt 4.49:1 und gegen `#16191c`
+ * 4.30:1 — beides unter der Textschwelle. (Auf `#000000` reichte `#e04452`
+ * mit 5.12:1; die Kopfzeile ist der Fall, der ihn kippt.) `#e45a66` ist
+ * derselbe Farbton, ca. 355°, nur angehoben, und hat auf allen drei dunklen
+ * Flaechen Luft. Wer `--iuk-marke` und `--lb-rot` spaeter zusammenzieht, muss
+ * diese Zahlen kennen, sonst faellt der Text wieder unter die Schwelle.
+ */
+:root {
+  --iuk-marke: #c8000f;
+  --iuk-gedaempft: #5b6570;
+  --iuk-linie: #d9dde1;
+}
+
+:root[data-theme="dark"] {
+  --iuk-marke: #e45a66;
+  --iuk-gedaempft: #9aa4ad;
+  --iuk-linie: #2a2f34;
+}
+
 html,
 body {
   height: 100%;

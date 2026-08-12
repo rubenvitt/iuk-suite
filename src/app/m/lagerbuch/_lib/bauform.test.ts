@@ -39,6 +39,50 @@ import { join, relative } from "node:path";
 const MODUL = join(process.cwd(), "src/app/m/lagerbuch");
 const SELBST = join(MODUL, "_lib/bauform.test.ts");
 
+/**
+ * DIE SCHRIFTVARIABLEN, DIE VON AUSSERHALB DES MODULS KOMMEN — HERGELEITET,
+ * NICHT BEHAUPTET.
+ *
+ * Hier stand `VOM_LAYOUT = /^--font-(display|body|mono)$/`, ein fest
+ * verdrahtetes Muster mit der Begruendung, diese drei laegen auf `:root`. Das
+ * war eine BEHAUPTUNG, und sie war falsch: das Layout registrierte nur Geist,
+ * die drei Namen standen nirgends, und `helfer.module.css` rendete im Fallback
+ * "Arial Narrow" — still, ueber Monate. Der Riegel war die Augenbinde.
+ *
+ * Der Mangel war nicht die Ausnahme, sondern dass niemand sie nachprueft. Die
+ * Menge wird deshalb GELESEN — und seit dem 12.08.2026 aus ZWEI Quellen, weil
+ * es zwei gibt:
+ *
+ *   - `src/app/layout.tsx` registriert ueber `next/font` die SCHRIFTNAMEN
+ *     (`--font-geist-sans`, `--font-barlow`, `--font-barlow-condensed`, …).
+ *     Genau diese liest `helfer.module.css` heute.
+ *   - `src/app/globals.css` deklariert auf `:root` die ROLLEN DER SUITE
+ *     (`--font-display`, `--font-body`, `--font-mono`), die auf die
+ *     Schriftnamen aufloesen und vom Rest der Suite gelesen werden.
+ *
+ * Nur eine der beiden Quellen zu lesen waere wieder eine Augenbinde, nur mit
+ * anderer Blickrichtung: `globals.css` allein kennt `--font-barlow` nicht und
+ * machte jede Nutzung im Helfer-Weg faelschlich zur „fremden Variable"; das
+ * Layout allein kennt die Rollen nicht. Die VEREINIGUNG ist die Menge der
+ * Namen, die auszerhalb dieses Moduls tatsaechlich einen Wert bekommen.
+ *
+ * Wer eine Registrierung oder eine Deklaration entfernt, schrumpft diese Menge
+ * — und die Pruefung unten wird rot, statt weiter zu schweigen.
+ *
+ * Die Regexe binden bewusst an die SYNTAXSTELLE (`variable:` bzw. `name:`) und
+ * nicht an das blosze Vorkommen des Namens: beide Dateien tragen lange
+ * Kommentarbloecke, in denen genau diese Namen im Fliesztext stehen.
+ */
+const GLOBALS = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "");
+const WURZEL_LAYOUT = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/\/\/[^\n]*/g, "");
+const VOM_LAYOUT = new Set([
+  ...[...WURZEL_LAYOUT.matchAll(/variable:\s*["'`](--font-[\w-]+)["'`]/g)].map((t) => t[1]!),
+  ...[...GLOBALS.matchAll(/(--font-[\w-]+)\s*:/g)].map((t) => t[1]!),
+]);
+
 /** Jede .ts/.tsx-Datei unter dem Modulbaum, rekursiv — diese Datei ausgenommen. */
 function quellDateien(wurzel: string = MODUL): string[] {
   if (!existsSync(wurzel)) return [];
@@ -498,11 +542,35 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     // Der Traeger-Vertrag in seiner scharfen Form: `_ui/BarcodeScanner.tsx`
     // rendert AUCH unter `.modul` aus `verwaltung.module.css`. Jede Variable,
     // die nur EINER der beiden Traeger kennt, ist auf dem anderen Ast still
-    // `transparent`. `--font-display|body|mono` sind die Ausnahme — sie kommen
-    // vom Wurzel-Layout und liegen auf `:root`, also unter beiden Traegern —
-    // SEIT DEM 12.08.2026 (Task 6). Vorher kamen sie von NIRGENDS: die drei
-    // next/font-Aufrufe fehlten seit der Portierung, siehe den Scan
-    // "die drei Schriftstapel kommen wirklich vom Wurzel-Layout" unten.
+    // `transparent`. Die `--font-*` sind die Ausnahme — sie kommen von
+    // auszerhalb des Moduls und haengen an `<html>`, also ueber beiden
+    // Traegern. SEIT DEM 12.08.2026: vorher kamen sie von NIRGENDS, die drei
+    // next/font-Aufrufe fehlten seit der Portierung (siehe den Scan „die
+    // Schriftstapel des Helfer-Wegs kommen wirklich von auszerhalb" unten).
+    //
+    // ⚠️ HIER STAND EINE AUSNAHMELISTE, UND SIE WAR DIE AUGENBINDE.
+    //
+    // `VOM_LAYOUT = /^--font-(display|body|mono)$/` nahm genau die drei Namen
+    // aus BEIDEN Pruefungen heraus, mit der Begruendung, sie kaemen vom
+    // Wurzel-Layout. Das stimmte nicht: das Layout registrierte nur Geist, die
+    // drei Namen waren NIRGENDS deklariert, und der Helfer-Weg rendete im
+    // Fallback "Arial Narrow". Der Test war an dieser Stelle nicht der Riegel,
+    // sondern der Grund, warum es niemand sah.
+    //
+    // Die Ausnahme BLEIBT — `deklariert` unten wird ausschliesslich aus den
+    // `.rahmen`/Dunkelzweig-Koerpern DIESER Datei gebaut und kann eine
+    // `--font-*`-Registrierung aus `app/layout.tsx` oder eine Deklaration aus
+    // `app/globals.css` strukturell nie enthalten, ganz gleich, ob sie dort
+    // korrekt steht oder nicht. Ersatzlos streichen ist deshalb unerfuellbar.
+    // Der Mangel war nicht die Ausnahme, sondern dass sie eine BEHAUPTUNG war,
+    // die niemand nachpruefte (fest verdrahtet, glaubt sich selbst). Heute
+    // wird `VOM_LAYOUT` aus BEIDEN Quellen GELESEN (oben bei den
+    // Modulkonstanten) — sie weiss es, statt es zu behaupten. Wer eine
+    // Registrierung oder Deklaration entfernt, schrumpft die Menge, und dieser
+    // Test wird rot statt weiter zu schweigen
+    // (`core/theme/schriftstapel.test.ts` haelt die Gegenseite der SUITE fest:
+    // dass `layout.tsx` die Familie liefert, aus der `--font-display` seinen
+    // Wert zieht).
     //
     // ⚠️ DAS PRAEFIX ALLEIN TRUEG NICHT. `color: var(--lb-tinte2)` faengt mit
     // `--lb-` an und ist trotzdem NIRGENDS deklariert — genau der Ausfall, den
@@ -517,9 +585,24 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     const deklariert = new Set(
       [...`${hell}\n${dunkel}`.matchAll(/(--[\w-]+)\s*:/g)].map((t) => t[1]!),
     );
-    // Die drei Schriftstapel kommen vom Wurzel-Layout und liegen auf `:root` —
-    // sie stehen in KEINEM der beiden Koerper und sind trotzdem aufloesbar.
-    const VOM_LAYOUT = /^--font-(display|body|mono)$/;
+
+    // Vakuum-Riegel fuer die hergeleitete Ausnahmemenge: eine LEERE
+    // `VOM_LAYOUT` waere die stille ersatzlose Streichung durch die Hintertuer
+    // — der Test liefe dann zwar ins Leere statt falsch gruen zu sein, aber
+    // die Ursache bliebe unklar. Die Menge ist die VEREINIGUNG aus den
+    // `next/font`-Registrierungen in `app/layout.tsx` und den `--font-*`-
+    // Deklarationen in `app/globals.css`; heute sind das acht Namen.
+    //
+    // ⚠️ DIE SCHRANKE BLEIBT BEWUSST BEI DREI und wandert NICHT auf den
+    // Ist-Stand mit — aus demselben Grund, aus dem die `genutzt`-Schranke
+    // weiter unten auf 10 statt auf 20 steht: beide Quellen duerfen wachsen und
+    // schrumpfen. Eine Untergrenze auf dem Ist-Stand waere eine
+    // Stolperdrahtleine fuer den naechsten Umsetzer, kein Riegel. Drei faengt,
+    // worum es geht: dass die Herleitung ueberhaupt etwas findet.
+    expect(
+      VOM_LAYOUT.size,
+      "weder layout.tsx noch globals.css liefern --font-*-Namen — der Scan liefe ins Leere",
+    ).toBeGreaterThanOrEqual(3);
 
     const genutzt = new Set(
       [...css.matchAll(/var\(\s*(--[\w-]+)/g)].map((t) => t[1]!),
@@ -537,13 +620,14 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
       .toBeGreaterThanOrEqual(10);
 
     const fremde = [...genutzt]
-      .filter((n) => !n.startsWith("--lb-") && !VOM_LAYOUT.test(n));
-    expect([...new Set(fremde)], "nur --lb-* und die drei --font-* sind erlaubt").toEqual([]);
+      .filter((n) => !n.startsWith("--lb-") && !VOM_LAYOUT.has(n));
+    expect([...new Set(fremde)], "nur --lb-* und die --font-* aus layout.tsx/globals.css sind erlaubt")
+      .toEqual([]);
 
     const unaufloesbar = [...genutzt]
-      .filter((n) => !deklariert.has(n) && !VOM_LAYOUT.test(n));
+      .filter((n) => !deklariert.has(n) && !VOM_LAYOUT.has(n));
     expect(unaufloesbar,
-      "benutzt, aber weder unter `.rahmen`/Dunkelzweig deklariert noch eine `--font-*` vom Layout")
+      "benutzt, aber weder unter `.rahmen`/Dunkelzweig deklariert noch eine `--font-*` aus layout.tsx/globals.css")
       .toEqual([]);
   });
 
@@ -1464,37 +1548,123 @@ describe("Teil 4, T87 — die Riegelform je Flaechenart, ueber den Baum statt ue
   });
 });
 
-describe("die drei Schriftstapel kommen wirklich vom Wurzel-Layout", () => {
-  it("`src/app/layout.tsx` stellt --font-body, --font-display und --font-mono bereit", () => {
+describe("die Schriftstapel des Helfer-Wegs kommen wirklich von auszerhalb", () => {
+  /**
+   * ⚠️ DIESER SCAN SCHLIESST EINE LUECKE, DIE ZWEI KOMMENTARE ALS GESCHLOSSEN
+   * BESCHRIEBEN HABEN. Der Kopf von `helfer.module.css` und der
+   * `VOM_LAYOUT`-Kommentar weiter oben behaupteten beide, die Schriftnamen
+   * kaemen „vom Wurzel-Layout und liegen auf :root". Gemessen am 12.08.2026:
+   * sie kamen von NIRGENDS. Die Original-App laedt sie ueber next/font; bei der
+   * Portierung sind die Aufrufe nicht mitgekommen.
+   *
+   * WAS DAS KOSTET, und es ist mehr als eine falsche Schriftart: `--lb-display`
+   * ist dann ein ungueltiger Wert, und eine `font:`-KURZSCHREIBWEISE, die ihn
+   * benutzt, faellt VOLLSTAENDIG aus — samt Groesse und Gewicht. Der
+   * Artikeltitel in `Entnahme.tsx` rendert dadurch 14px/400 statt 24px/700.
+   * Falle 2: gueltiges CSS, stiller Ausfall.
+   *
+   * `VOM_LAYOUT` (oben) nimmt genau diese Namen von der
+   * `unaufloesbar`-Mengenpruefung aus. Diese Ausnahme ist nur zulaessig,
+   * solange dieser Scan sie deckt.
+   *
+   * ⚠️ DIE ZUSAGE HAT SICH AM 12.08.2026 VERSCHOBEN, und der alte Wortlaut
+   * („`layout.tsx` stellt `--font-body`, `--font-display` und `--font-mono`
+   * bereit") ist seither FALSCH. Diese drei Namen sind die ROLLEN DER SUITE und
+   * werden in `app/globals.css` deklariert; `layout.tsx` registriert die
+   * SCHRIFTNAMEN. Beides zugleich ginge nicht — `--font-body` waere im
+   * Helfer-Weg Barlow und in der Suite Geist, und welche Deklaration gewinnt,
+   * entschiede die Stylesheet-Reihenfolge (Falle 5, still).
+   *
+   * Der Scan prueft deshalb die Zusage, die JETZT gilt und den Ursprungsfehler
+   * weiterhin faengt: jede `--font-*`, die `helfer.module.css` BENUTZT, bekommt
+   * auch irgendwo einen Wert. Die geprueften Namen werden AUS DER CSS-DATEI
+   * gelesen statt fest verdrahtet — dann wandert der Scan mit, wenn die Datei
+   * die Schrift wechselt, und behauptet nichts.
+   */
+  const HELFER_CSS = readFileSync(join(MODUL, "_ui/helfer.module.css"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  // Aus den `var(--font-…)`-NUTZUNGEN, nicht aus allen Namen der Datei: die
+  // `--lb-*` deklariert sie selbst und haben hier nichts zu suchen.
+  const GENUTZTE_SCHRIFTEN = [
+    ...new Set([...HELFER_CSS.matchAll(/var\(\s*(--font-[\w-]+)/g)].map((t) => t[1]!)),
+  ];
+
+  it("jede von `helfer.module.css` benutzte --font-* bekommt auch irgendwo einen Wert", () => {
+    // Vakuum-Riegel: benutzte die Datei gar keine `--font-*` mehr, liefe die
+    // Schleife leer durch und meldete Erfolg — genau die stille ersatzlose
+    // Streichung, gegen die dieser Block antritt. Drei ist der heutige Stand
+    // (`--lb-display`, `--lb-body`, `--lb-mono`).
+    expect(
+      GENUTZTE_SCHRIFTEN.length,
+      "helfer.module.css benutzt keine --font-* mehr — der Scan liefe ins Leere",
+    ).toBeGreaterThanOrEqual(3);
+
+    // `VOM_LAYOUT` ist die Vereinigung aus den `next/font`-Registrierungen in
+    // `layout.tsx` und den Rollen-Deklarationen in `globals.css` — genau die
+    // Menge der Namen, die auszerhalb dieses Moduls einen Wert bekommen.
+    for (const name of GENUTZTE_SCHRIFTEN) {
+      expect(
+        VOM_LAYOUT.has(name),
+        `${name} wird in helfer.module.css benutzt, aber weder in layout.tsx registriert ` +
+          `noch in globals.css deklariert — die Datei rendet im Fallback, still`,
+      ).toBe(true);
+    }
+  });
+
+  it("und keine davon ist eine ROLLE der Suite — sonst bekaeme der Helfer-Weg Geist", () => {
     /**
-     * ⚠️ DIESER SCAN SCHLIESST EINE LUECKE, DIE ZWEI KOMMENTARE ALS GESCHLOSSEN
-     * BESCHRIEBEN HABEN. `helfer.module.css:32` und der `VOM_LAYOUT`-Kommentar
-     * weiter oben behaupten beide, die drei Namen kaemen „vom Wurzel-Layout und
-     * liegen auf :root". Gemessen am 12.08.2026: sie kamen von NIRGENDS. Die
-     * Original-App laedt sie ueber next/font; bei der Portierung sind sie nicht
-     * mitgekommen.
+     * ⚠️ DIESE ZUSICHERUNG HAELT DIE HAELFTE, DIE DER TEST DARUEBER NICHT HALTEN
+     * KANN, und ohne sie waere die Zusammenfuehrung von main eine Aufweichung.
      *
-     * WAS DAS KOSTET, und es ist mehr als eine falsche Schriftart: `--lb-display`
-     * ist dann ein ungueltiger Wert, und eine `font:`-KURZSCHREIBWEISE, die ihn
-     * benutzt, faellt VOLLSTAENDIG aus — samt Groesse und Gewicht. Der
-     * Artikeltitel in `Entnahme.tsx` rendert dadurch 14px/400 statt 24px/700.
-     * Falle 2: gueltiges CSS, stiller Ausfall.
+     * Vorher hing die Kette anders zusammen: `helfer.module.css` las
+     * `--font-body`, und der Scan band `Barlow` an genau diesen Namen — damit
+     * war „der Helfer-Weg rendet in Barlow" durchgehend festgenagelt. Seit die
+     * drei Rollennamen der SUITE gehoeren, laeuft die Kette ueber
+     * `--font-barlow`, und der Test darueber wuerde ein zurueckgedrehtes
+     * `--lb-body: var(--font-body)` NICHT bemerken: `--font-body` bekommt in
+     * `globals.css` ja einen Wert, er ist bloss der falsche (Geist).
      *
-     * `VOM_LAYOUT` (oben) nimmt genau diese drei Namen von der
-     * `unaufloesbar`-Mengenpruefung aus. Diese Ausnahme ist nur zulaessig,
-     * solange dieser Scan sie deckt.
+     * Das waere der stille Rueckfall in genau den Zustand, den main repariert
+     * hat — richtig aussehender, gueltiger CSS-Text, kein roter Test.
+     *
+     * Die Rollenmenge wird AUS `globals.css` GELESEN, nicht verdrahtet: wer
+     * dort eine vierte Rolle aufmacht, ist automatisch mitgeschuetzt.
+     * `--font-barlow-condensed` faellt nicht darunter — er ist ein SCHRIFTname
+     * und wird von beiden Seiten gelesen, absichtlich: es ist dieselbe Schrift.
      */
-    const layout = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8");
-    const quelle = ohneKommentare(layout);
-    // Nicht nur, DASS der Name irgendwo im Quelltext steht, sondern zu WELCHEM
-    // next/font/google-Aufruf die Zeile gehoert: ein Scan auf blosse
-    // Anwesenheit bliebe gruen, wenn jemand die `variable:`-Werte von Barlow
-    // und Barlow_Condensed vertauscht — gueltiges CSS, stiller Bruch (Falle 2).
-    // Jede Familie wird deshalb an IHREN eigenen Aufruf gebunden.
+    const ROLLEN = [...GLOBALS.matchAll(/(--font-[\w-]+)\s*:/g)].map((t) => t[1]!);
+    expect(ROLLEN.length, "keine Rollen in globals.css gefunden — der Scan liefe ins Leere")
+      .toBeGreaterThanOrEqual(3);
+
+    const rollenImHelferWeg = GENUTZTE_SCHRIFTEN.filter((n) => ROLLEN.includes(n));
+    expect(
+      rollenImHelferWeg,
+      "helfer.module.css liest eine SUITE-ROLLE statt der Schrift — `--font-body` ist dort " +
+        "Geist, nicht Barlow, und der Helfer-Weg verlaere sein Originaltrio still",
+    ).toEqual([]);
+  });
+
+  it("Familie ↔ Variable: die drei Schriften tragen ihre eigenen Namen", () => {
+    /**
+     * Nicht nur, DASS der Name irgendwo im Quelltext steht, sondern zu WELCHEM
+     * next/font/google-Aufruf die Zeile gehoert: ein Scan auf blosse
+     * Anwesenheit bliebe gruen, wenn jemand die `variable:`-Werte von Barlow
+     * und Barlow_Condensed vertauscht — gueltiges CSS, stiller Bruch (Falle 2).
+     * Jede Familie wird deshalb an IHREN eigenen Aufruf gebunden.
+     *
+     * ⚠️ DIESE DREI ZEILEN SIND DIE EINZIGE STELLE, DIE `IBM_Plex_Mono` AN
+     * SEINE VARIABLE BINDET. `src/app/layout.test.tsx` haelt dieselbe Bindung
+     * fuer Barlow und Barlow_Condensed ueber `fontMocks` fest, aber Plex hat
+     * dort nur einen einfachen Mock. Wer hier kuerzt, verliert die Zusage
+     * ersatzlos.
+     */
+    const quelle = ohneKommentare(
+      readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8"),
+    );
     const bindungen: Array<[string, string]> = [
-      ["Barlow", "--font-body"],
-      ["Barlow_Condensed", "--font-display"],
-      ["IBM_Plex_Mono", "--font-mono"],
+      ["Barlow", "--font-barlow"],
+      ["Barlow_Condensed", "--font-barlow-condensed"],
+      ["IBM_Plex_Mono", "--font-plex-mono"],
     ];
     for (const [familie, name] of bindungen) {
       const aufruf = quelle.match(new RegExp(`\\b${familie}\\s*\\(\\s*\\{([^}]*)\\}\\s*\\)`));
@@ -1503,7 +1673,9 @@ describe("die drei Schriftstapel kommen wirklich vom Wurzel-Layout", () => {
         .toMatch(new RegExp(`variable:\\s*["'\`]${name}["'\`]`));
     }
     // Die Deklaration allein genuegt nicht: ohne die `className` am <html> ist
-    // die Variable nirgends im Dokument sichtbar.
+    // die Variable nirgends im Dokument sichtbar. Die schaerfere Form dieser
+    // Zusage (der tatsaechliche `className`-WERT, nicht nur die Anwesenheit des
+    // Attributs) steht in `src/app/layout.test.tsx`; die beiden ergaenzen sich.
     expect(quelle, "die Schrift-Variablen haengen nicht am <html>-Element")
       .toMatch(/<html[^>]*className=/);
   });

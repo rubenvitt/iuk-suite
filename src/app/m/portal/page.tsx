@@ -2,6 +2,7 @@ import { Card, Col, Row } from "antd";
 import { auth } from "@/core/auth";
 import { getVisibleServicesForUser } from "@/app/m/portal/_lib/services";
 
+import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 export default async function PortalPage() {
   const session = await auth();
@@ -17,15 +18,30 @@ export default async function PortalPage() {
             target={s.openInNewTab ? "_blank" : undefined}
             rel={s.openInNewTab ? "noopener noreferrer" : undefined}
             data-testid="service-tile"
+            className="portal-kachel-link"
             style={{ display: "block", height: "100%" }}
           >
             {/* Kein `Card.Meta`: diese Datei ist eine Server-Komponente, und
                 Property-Zugriffe auf antd-Compounds ergeben dort `undefined`
                 (siehe Global Constraints). Schlichtes Markup tut hier dasselbe. */}
-            <Card hoverable size="small" style={{ height: "100%" }}>
-              <div style={{ fontWeight: 600 }}>{s.name}</div>
+            <Card hoverable size="small" style={{ height: "100%" }} className="portal-kachel">
+              {s.category ? (
+                /* Die Rubrik als Kicker — der Griff des alten Lagerbuchs, das
+                   jede Karte mit einer versalen Zeile in Stahl aufmachte. Sie
+                   steht nur da, wo es eine gibt: ein Kicker, der auf jeder
+                   Kachel dasselbe Wort zeigt, waere Dekoration im Gewand von
+                   Struktur und truege keine Information. */
+                <div style={{ ...SCHRIFT.kicker, color: "var(--iuk-gedaempft)" }}>
+                  {s.category}
+                </div>
+              ) : null}
+              <div style={SCHRIFT.unterTitel}>{s.name}</div>
               {s.description ? (
-                <div style={{ fontSize: 14, opacity: 0.65 }}>{s.description}</div>
+                /* `--iuk-gedaempft` statt `opacity: 0.65`: Deckkraft dimmt den
+                   Kontrast unpruefbar mit und hat keinen Dunkelzweig. */
+                <div style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)" }}>
+                  {s.description}
+                </div>
               ) : null}
             </Card>
           </a>

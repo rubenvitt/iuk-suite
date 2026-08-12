@@ -35,8 +35,15 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
       colorSuccess: FARBEN.ok,
       colorLink: FARBEN.rot,
       borderRadius: 8,
-      fontFamily: "var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif",
-      fontFamilyCode: "var(--font-geist-mono), ui-monospace, monospace",
+      // ROLLE STATT SCHRIFTNAME, seit 2026-08-12. Hier stand
+      // `var(--font-geist-sans), …` bzw. `var(--font-geist-mono), …` — und
+      // genau das machte den Satz aus `docs/design/README.md` unwahr, ein
+      // Schriftwechsel sei „eine Zeile in `globals.css`": antds Fliesztext, also
+      // der Fliesztext der ganzen Suite, lief an `--font-body` vorbei. Die
+      // Gattungs-Rueckfaelle sind hier ABSICHTLICH nicht wiederholt: sie stehen
+      // in der Aufloesung in `globals.css` und wandern damit mit.
+      fontFamily: "var(--font-body)",
+      fontFamilyCode: "var(--font-mono)",
       // GLOBAL, nicht unter `components`: nur globale Tokens sieht
       // theme.getDesignToken(), und nur so greift die Höhe auch auf Select,
       // DatePicker & Co., statt auf eine handgepflegte Komponentenliste.

@@ -156,7 +156,6 @@ describe("shell.module.css", () => {
      */
     const regel = /\.navLink\[aria-current\]\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
     expect(regel, "Regel `.navLink[aria-current]` fehlt (auf `=page` verengt?)").not.toBeNull();
-    expect(regel![1]).toMatch(/border-block-end-color:\s*currentColor/);
     expect(OHNE_KOMMENTARE).not.toMatch(/\.navLink\[aria-current=/);
   });
 
@@ -303,5 +302,65 @@ describe("shell.module.css", () => {
     const regel = /\.modulzeile\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
     expect(regel, "Klasse .modulzeile fehlt").not.toBeNull();
     expect(regel![1]).toMatch(/flex-wrap:\s*nowrap/);
+  });
+});
+
+describe("Markenstreifen und Kopfzeilentypografie", () => {
+  it("legt den Streifen als eigene Klasse an, nicht als Kante an .kopf", () => {
+    // EIN EIGENES ELEMENT STATT EINER KANTE AN DER ANTD-FLAECHE, und das ist
+    // kein Stil: `.kopf` und `.ant-layout-header` sind beide (0,1,0), antds
+    // Stylesheet kommt spaeter. Eine `border-block-start` an `.kopf` waere
+    // derselbe Streit, den `padding-inline` an dieser Stelle schon einmal
+    // verloren hat (gemessen, siehe Kopf dieser Datei). Ein eigenes Element ist
+    // keiner.
+    //
+    // WAS DIESER SCAN BESITZT UND WAS NICHT.
+    //
+    // Er besitzt: die Regel steht im Stylesheet, sie traegt `--iuk-marke` statt
+    // eines Literals, und `.kopf` hat keine Kante bekommen. Das ist der
+    // Spezifitaetsstreit, und den entscheidet der Quelltext.
+    //
+    // Er besitzt NICHT, dass der Streifen ueberhaupt gerendert wird.
+    // Verschwaende jemand das `<div className={s.streifen}>` aus
+    // `SuiteHeader.tsx` und liesze die Klasse hier stehen, bliebe dieser Scan
+    // gruen — er liest nur das Stylesheet und sieht das Markup nicht. Diese
+    // Haelfte besitzt `e2e/shell-mobil.spec.ts` (Task 10), das die gerenderte
+    // Hoehe und Farbe im Browser misst.
+    expect(OHNE_KOMMENTARE).toMatch(/\.streifen\s*\{[^}]*background:\s*var\(--iuk-marke\)/);
+    expect(OHNE_KOMMENTARE).toMatch(/\.streifen\s*\{[^}]*height:\s*5px/);
+    expect(OHNE_KOMMENTARE).not.toMatch(/\.kopf\s*\{[^}]*border-block-start/);
+  });
+
+  it("faerbt den Drawer-Gruppentitel ueber die Suite-Variable statt ueber opacity", () => {
+    // `opacity: 0.6` dimmt auch den Kontrast des Hintergrunds mit und ist als
+    // Farbaussage nicht pruefbar. Eine Variable ist es.
+    const regel = OHNE_KOMMENTARE.match(/\.drawerTitel\s*\{([^}]*)\}/);
+    expect(regel, ".drawerTitel fehlt").not.toBeNull();
+    expect(regel![1]!).toMatch(/color:\s*var\(--iuk-gedaempft\)/);
+    expect(regel![1]!, "opacity als Farbersatz ist raus").not.toMatch(/opacity/);
+  });
+
+  it("markiert den aktiven Navigationseintrag in Markenrot UND mit Gewicht", () => {
+    // BEDEUTUNG NIE ALLEIN UEBER FARBE. `font-weight: 600` stand hier schon und
+    // BLEIBT — wer die Farbe fuer ausreichend haelt und das Gewicht entfernt,
+    // nimmt rot-gruen-blinden Nutzern und Graustufendruck die Markierung ganz.
+    //
+    // WAS DIESER SCAN BESITZT UND WAS NICHT.
+    //
+    // Er besitzt: die Regel steht im Stylesheet, sie traegt `--iuk-marke` fuer
+    // beides (Unterkante und Schrift) statt eines Literals, und `font-weight: 600`
+    // bleibt. Das ist der Quelltext-Scan.
+    //
+    // Er besitzt NICHT, dass die Regel im Browser gegen antds Stylesheet gewinnt.
+    // Wenn antd morgen eine spezifischere Regel fuer `.modulnav` mitbringt, bliebe
+    // dieser Scan gruen — er liest nur das Stylesheet und sieht die Kaskade nicht.
+    // Diese Haelfte besitzt `e2e/shell-mobil.spec.ts` (Task 10), das Farbe und
+    // Gewicht am gerenderten Element in zwei Viewports und zwei Modi misst.
+    const regel = OHNE_KOMMENTARE.match(/\.navLink\[aria-current\]\s*\{([^}]*)\}/);
+    expect(regel, ".navLink[aria-current] fehlt").not.toBeNull();
+    expect(regel![1]!).toMatch(/border-block-end-color:\s*var\(--iuk-marke\)/);
+    expect(regel![1]!).toMatch(/color:\s*var\(--iuk-marke\)/);
+    expect(regel![1]!, "das Gewicht ist die farbfreie Haelfte der Markierung")
+      .toMatch(/font-weight:\s*600/);
   });
 });

@@ -118,7 +118,7 @@ export function QrViewContent({
             width: "100%",
             maxWidth: 448,
             textAlign: "center",
-            fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+            fontFamily: "var(--font-mono)",
             fontSize: 14,
             wordBreak: "break-all",
           }}

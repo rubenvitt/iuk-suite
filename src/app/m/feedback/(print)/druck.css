@@ -68,7 +68,7 @@
   max-width: 174mm;
   margin: 0 auto;
   color: var(--fb-ink);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-body);
 }
 
 /* Traeger 1 von zwei fuer Suite-Rot: 3px, randlos, nie als Flaeche. */
@@ -112,7 +112,7 @@
 }
 
 .fb-aushang-url {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 12pt;
   word-break: break-all;
   margin: 8mm 0 0;

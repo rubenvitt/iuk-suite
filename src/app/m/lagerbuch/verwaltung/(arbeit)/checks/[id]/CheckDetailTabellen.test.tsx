@@ -144,8 +144,13 @@ describe("CheckDetailTabellen", () => {
       .toEqual(["Kompressen", "2026-08", "läuft bald ab"]);
     const druckGemessen = query("tr[data-row-key='flasche-1'] td:nth-child(2)");
     expect(druckGemessen.querySelector(`.${s.chip}`)).toBeNull();
+    // Mono-Indirektion (Task 5): SCHRIFT.mono bezieht die Familie seit dem
+    // Adapter ueber `core/theme/schrift.ts` — `--font-mono`, die ROLLE, statt
+    // der Familie. `--font-geist-mono` steht seit 2026-08-12 nur noch in der
+    // `next/font`-Registrierung (`app/layout.tsx`) und in der Aufloesung in
+    // `app/globals.css`; kein Konsument nennt sie mehr direkt.
     expect(druckGemessen.querySelector<HTMLElement>("span")?.style.fontFamily)
-      .toBe("var(--font-geist-mono)");
+      .toBe("var(--font-mono)");
     const druckUngemessen = query(
       "tr[data-row-key='flasche-ohne-druck'] td:nth-child(2)",
     );

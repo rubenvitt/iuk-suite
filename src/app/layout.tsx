@@ -27,19 +27,39 @@ const geistMono = Geist_Mono({
 
 /*
  * DIE DREI SCHRIFTEN DES LAGERBUCH. `--lb-display`, `--lb-body` und `--lb-mono`
- * in `_ui/helfer.module.css` standen schon immer als `var(--font-display|body|mono)`
- * — nur geladen hat sie niemand:
- * bei der Portierung aus der Alt-Anwendung sind die drei next/font-Aufrufe nicht
- * mitgekommen. Gemessen am 12.08.2026 rendert der ganze Helfer-Zweig deshalb in
- * Geist, und `font: 700 24px var(--lb-display)` faellt VOLLSTAENDIG aus (Falle 2).
+ * in `_ui/helfer.module.css` standen schon immer als `var(--font-…)` — nur
+ * geladen hat sie niemand: bei der Portierung aus der Alt-Anwendung sind die
+ * drei next/font-Aufrufe nicht mitgekommen. Gemessen am 12.08.2026 rendete der
+ * ganze Helfer-Zweig deshalb im Fallback, und `font: 700 24px var(--lb-display)`
+ * fiel VOLLSTAENDIG aus (Falle 2).
+ *
+ * ⚠️ DIE VARIABLEN HEISZEN NACH DER SCHRIFT, NICHT NACH DER ROLLE — und das ist
+ * der Unterschied, an dem alles haengt.
+ *
+ * Sie hieszen einmal `--font-body`, `--font-display`, `--font-mono`. Solange nur
+ * `helfer.module.css` sie las, war das folgenlos. Seither sind genau diese drei
+ * Namen die ROLLEN DER SUITE (aufgeloest in `app/globals.css`, gelesen von
+ * `core/theme/theme.ts`, `core/theme/schrift.ts` und einem Dutzend Modulstellen).
+ * Beides zugleich geht nicht: `--font-body` waere dann hier Barlow und dort
+ * Geist, und welche Deklaration gewinnt, entschiede die Stylesheet-Reihenfolge
+ * — Falle 5, und still.
+ *
+ * Deshalb tragen die drei Schriften hier IHRE EIGENEN NAMEN. Der Helfer-Weg
+ * bildet seine `--lb-*` direkt darauf ab und behaelt sein Originaltrio; die
+ * Suite behaelt Rollen, die halten, was sie sagen. Nur
+ * `--font-barlow-condensed` lesen beide — die Display-Rolle loest darauf auf,
+ * und das ist gewollt: es ist dieselbe Schrift.
  *
  * ⚠️ SIE AENDERN DIE SUITE-TYPOGRAFIE NICHT. `next/font` mit `variable:` deklariert
- * eine CSS-Variable und sonst nichts; wirksam wird sie erst, wo jemand sie liest —
- * und das tut ausschliesslich `m/lagerbuch/_ui/helfer.module.css`. Die uebrigen
- * Module bleiben auf Geist.
+ * eine CSS-Variable und sonst nichts; wirksam wird sie erst, wo jemand sie liest.
+ * Fliesztext und Formulare der Suite bleiben Geist — `--font-body` in
+ * `globals.css` loest auf `--font-geist-sans` auf, nicht auf Barlow.
  *
  * Die GEWICHTE sind aus `lagerbuch/src/app/layout.tsx` uebernommen und keine freie
  * Wahl: ein fehlendes Gewicht laesst der Browser still synthetisch fett rendern.
+ * Fuer `Barlow_Condensed` decken 600 und 700 beide Leser: den Helfer-Weg UND die
+ * Rollenleiter der Suite (`core/theme/schrift.ts`), die keine anderen Schnitte
+ * anfragt. Jedes weitere Gewicht waere ein Ladevorgang ohne Anwender.
  *
  * ⚠️ AUSNAHME: `IBM_Plex_Mono` traegt zusaetzlich `"700"`, das die Alt-Anwendung
  * NICHT lud (dort `font: 600 21px var(--mono)` fuer `.tokeninput`). Der Port
@@ -52,19 +72,19 @@ const geistMono = Geist_Mono({
 const barlow = Barlow({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-  variable: "--font-body",
+  variable: "--font-barlow",
   display: "swap",
 });
 const barlowCondensed = Barlow_Condensed({
   subsets: ["latin"],
   weight: ["600", "700"],
-  variable: "--font-display",
+  variable: "--font-barlow-condensed",
   display: "swap",
 });
 const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-  variable: "--font-mono",
+  variable: "--font-plex-mono",
   display: "swap",
 });
 
