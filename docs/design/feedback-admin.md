@@ -108,9 +108,9 @@ Notenflächen, die Text tragen, sind immer vollgesättigt mit `--note-ink`.
 sondern weil die verbindliche Spec der öffentlichen Ansicht sie bereits fordert
 (`docs/design/feedback-oeffentliche-ansicht.md`, §3.4: „`src/app/layout.tsx` setzt zusätzlich
 `data-theme={mode}`"). Es gibt also einen zweiten Nutznießer, bevor die Zeile existiert. Ergänzt um
-den Fund der Lagekarte: `AntdProvider.setMode` (`AntdProvider.tsx:42-50`) wechselt den Modus **ohne
-Reload**, muss also `document.documentElement.dataset.theme` mitschreiben — sonst bleiben Notenfarben
-bis zur nächsten Navigation auf der alten Palette.
+den Fund der Lagekarte: `AntdProvider` schreibt beim Umschalten über `setPreference` (`auto | light |
+dark`) `document.documentElement.dataset.theme` und `style.colorScheme` mit (`AntdProvider.tsx`) —
+sonst bleiben Notenfarben bis zur nächsten Navigation auf der alten Palette.
 
 ### 1.4 Die von der Jury benannten Schwächen des Gewinners — Lösung je Schwäche
 
@@ -929,12 +929,12 @@ Framework für einen Nutzer.
    Modultitel". Eine Zeile, kein Muster gebrochen, `data-testid` bleibt auf dem `<strong>`.
    Nebenbei: der Header bricht auf schmalen Fenstern über den Titel — `flexWrap: nowrap` +
    `overflow: hidden` auf der Switcher-Leiste.
-2. **`data-theme={mode}` auf `<html>` (`app/layout.tsx`) + Mitschreiben in
-   `AntdProvider.setMode`.** Zweiter Nutznießer existiert schon auf Papier: die verbindliche Spec der
+2. **`data-theme={mode}` auf `<html>` (`app/layout.tsx`) + Mitschreiben in `AntdProvider`, ausgelöst
+   über `setPreference`.** Zweiter Nutznießer existiert schon auf Papier: die verbindliche Spec der
    öffentlichen Ansicht fordert dieselbe Zeile (§3.4), und jede Route, die eigenes CSS auf den
    Theme-Modus selektieren will, braucht sie. Heute steht dort nur `style={{ colorScheme: mode }}`,
    darauf kann CSS nicht selektieren. Ohne das Mitschreiben im Client bleibt der Umschalter bis zur
-   nächsten Navigation wirkungslos für eigene Variablen (`AntdProvider.tsx:42-50`).
+   nächsten Navigation wirkungslos für eigene Variablen (`AntdProvider.tsx`).
 3. **Ergänzung des Docstrings in `core/theme/tokens.ts`.** Die Datei beansprucht, „die einzige Datei
    mit Hex-Codes" zu sein. Diese Spec legt die Notenpalette **nicht** dorthin (5.2) — also muss der
    Anspruch präzisiert werden, statt ihn stillschweigend zu verletzen: „Ausnahme: fachsemantische

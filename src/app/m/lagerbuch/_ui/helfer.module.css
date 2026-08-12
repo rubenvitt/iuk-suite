@@ -114,7 +114,7 @@
 }
 
 /*
- * Der Moduswechsel laeuft ueber `<html data-theme>` (Cookie `iuk-theme`,
+ * Der Moduswechsel laeuft ueber `<html data-theme>` (Cookie `iuk-theme-pref`,
  * serverseitig gelesen, src/app/layout.tsx) — NICHT ueber die
  * Systemabfrage. Die braeche den Fall „System dunkel, Umschalter hell", und
  * der Umschalter ist die Zusage der Suite, nicht das System.

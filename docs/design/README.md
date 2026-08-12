@@ -104,9 +104,19 @@ Client-Insel.
 
 ## Hell- und Dunkelmodus
 
-Die Suite hat einen **Umschalter** (Cookie `iuk-theme`, serverseitig gelesen) — auf
+Die Suite hat einen **Umschalter mit drei Zuständen** — `auto` (die Vorgabe), `light`, `dark`. Auf
 `prefers-color-scheme` zu selektieren ist deshalb **falsch**: es bricht den Fall „System dunkel,
 Umschalter hell".
+
+Dahinter stehen **zwei** Cookies, und der Grund ist, dass der Server `prefers-color-scheme` nicht
+sieht — die Medienabfrage existiert nur im Browser:
+
+| Cookie | Werte | Bedeutung |
+| --- | --- | --- |
+| `iuk-theme-pref` | `auto \| light \| dark` | die Wahl. Fehlt → `auto` |
+| `iuk-theme-system` | `light \| dark` | der zuletzt vom Client beobachtete OS-Wert |
+
+`resolveThemeMode` in `core/theme/mode.ts` ist die einzige Stelle, an der daraus ein Modus wird.
 
 `<html>` trägt `data-theme="light" | "dark"`. Eigenes CSS selektiert darauf:
 
@@ -114,8 +124,13 @@ Umschalter hell".
 :root[data-theme="dark"] { --fb-ink: #ECE9E2; }
 ```
 
-`AntdProvider.setMode` schreibt das Attribut beim Umschalten mit — ohne das bleiben eigene Variablen
-bis zur nächsten Navigation auf dem alten Modus stehen.
+**Dort steht nie `auto`.** Ein gestempeltes `auto` besteht `typecheck`, `pnpm build` und Vitest und
+kippt trotzdem jede eigene Fläche still auf helle Darstellung, während antd korrekt dunkel rendert —
+dieselbe Bauart wie Falle 2 und 5 oben.
+
+`AntdProvider` schreibt das Attribut beim Umschalten mit — ohne das bleiben eigene Variablen bis zur
+nächsten Navigation auf dem alten Modus stehen. Im Zustand `auto` zieht ein `matchMedia`-Effekt dort
+auch einen OS-Wechsel während der Sitzung nach.
 
 ## Farben und fachsemantische Paletten
 
