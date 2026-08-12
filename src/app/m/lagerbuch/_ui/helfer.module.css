@@ -65,9 +65,27 @@
   --lb-body: var(--font-body), system-ui, sans-serif;
   --lb-mono: var(--font-mono), ui-monospace, monospace;
 
+  /*
+   * DIE BAHNBREITE — die EINE Zahl, die den Zweig kappt (Betreiberentscheidung
+   * 14, 12.08.2026). Sie steht hier und nicht dreimal an `.kopf`, `.inhalt` und
+   * `.tableiste`: der Media-Block am Dateiende setzt sie auf 1200px um, und
+   * eine Kappung, die ihre 560 selbst schriebe, liefe dabei still zurueck.
+   */
+  --lb-bahn: 560px;
+
   width: 100%;
-  max-width: 560px;            /* kein Breakpoint — eine Obergrenze */
-  margin-inline: auto;
+  /*
+   * ⚠️ HIER STAND `max-width: 560px; margin-inline: auto`. Der Wert ist bei der
+   * Portierung entstanden und hat KEIN Vorbild im Alt-Bestand:
+   * `lagerbuch/src/app/globals.css:129` gibt `.app` `width: 100%` ohne Kappung.
+   * Auf einem 1440px-Schirm stand der ganze Helfer-Weg dadurch als schmale
+   * Saeule mit rund 62 % ungenutzter Flaeche.
+   *
+   * VOLLBREIT IST HIER KEINE STILFRAGE: `.rahmen` traegt `background:
+   * var(--lb-papier)`. Gekappt faerbt es nur die Saeule, und rechts und links
+   * steht die Grundfarbe des Dokuments — genau der „Fenster im Fenster"-Eindruck.
+   * Die Kappung liegt jetzt auf den drei Baendern darin.
+   */
   height: 100dvh;              /* NICHT 100vh: sonst verschwindet die Tab-Leiste
                                   unter einer eingeblendeten Adressleiste */
   display: flex;
@@ -117,6 +135,7 @@
 .kopf {
   flex: none; display: flex; align-items: center; justify-content: space-between;
   gap: 8px; padding: 11px 14px 9px;
+  padding-inline: max(14px, calc((100% - var(--lb-bahn)) / 2));
   background: var(--lb-karte); border-bottom: 1px solid var(--lb-linie);
 }
 .marke { font-family: var(--lb-display); font-weight: 700; font-size: 20px; letter-spacing: .07em }
@@ -130,8 +149,16 @@
   color: var(--lb-stahl); display: inline-flex; align-items: center; gap: 5px;
   min-height: 44px;
 }
-.inhalt { flex: 1; overflow-y: auto; padding: 14px 14px 18px; -webkit-overflow-scrolling: touch }
-.tableiste { flex: none; display: flex; background: var(--lb-karte); border-top: 1px solid var(--lb-linie) }
+.inhalt {
+  flex: 1; overflow-y: auto; padding: 14px 14px 18px;
+  padding-inline: max(14px, calc((100% - var(--lb-bahn)) / 2));
+  -webkit-overflow-scrolling: touch;
+}
+.tableiste {
+  flex: none; display: flex; background: var(--lb-karte);
+  border-top: 1px solid var(--lb-linie);
+  padding-inline: max(0px, calc((100% - var(--lb-bahn)) / 2));
+}
 .tab {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 9px 2px 8px; color: var(--lb-stahl); border-top: 2.5px solid transparent;
