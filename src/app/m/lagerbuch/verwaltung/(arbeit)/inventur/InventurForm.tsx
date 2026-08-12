@@ -5,6 +5,7 @@ import { Alert, Button, Flex, Input, InputNumber, Table } from "antd";
 import { inventurKorrektur } from "../../../_actions/inventur";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
+import { Ikone } from "../../../_ui/ikonen";
 import s from "../../../_ui/verwaltung.module.css";
 
 export type InventurZeile = {
@@ -129,17 +130,38 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
             title: "Ist",
             dataIndex: "id",
             align: "right",
-            render: (_wert: string, zeile) => (
-              <InputNumber<number>
-                size="small"
-                min={0}
-                max={9999}
-                disabled={laeuft}
-                aria-label={`Ist-Bestand ${zeile.name}`}
-                value={zeile.id in beruehrt ? beruehrt[zeile.id] : zeile.bestand}
-                onChange={(wert) => wertSetzen(zeile.id, wert)}
-              />
-            ),
+            render: (_wert: string, zeile) => {
+              // Einmal berechnet, von Minus-Knopf, Feld und Plus-Knopf gelesen --
+              // zwei Ableitungen desselben Werts liefen sonst auseinander.
+              const aktuell = zeile.id in beruehrt ? beruehrt[zeile.id]! : zeile.bestand;
+              return (
+                <Flex gap={4} align="center" justify="flex-end">
+                  <Button
+                    size="small"
+                    disabled={laeuft || aktuell <= 0}
+                    aria-label={`Ist-Bestand ${zeile.name} verringern`}
+                    onClick={() => wertSetzen(zeile.id, aktuell - 1)}
+                    icon={<Ikone name="minus" groesse={14} />}
+                  />
+                  <InputNumber<number>
+                    size="small"
+                    min={0}
+                    max={9999}
+                    disabled={laeuft}
+                    aria-label={`Ist-Bestand ${zeile.name}`}
+                    value={aktuell}
+                    onChange={(wert) => wertSetzen(zeile.id, wert)}
+                  />
+                  <Button
+                    size="small"
+                    disabled={laeuft || aktuell >= 9999}
+                    aria-label={`Ist-Bestand ${zeile.name} erhöhen`}
+                    onClick={() => wertSetzen(zeile.id, aktuell + 1)}
+                    icon={<Ikone name="plus" groesse={14} />}
+                  />
+                </Flex>
+              );
+            },
           },
         ]}
       />

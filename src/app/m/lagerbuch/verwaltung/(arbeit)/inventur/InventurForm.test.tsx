@@ -244,6 +244,58 @@ describe("InventurForm — asynchroner Abschluss", () => {
   });
 });
 
+const PLUS = '[aria-label="Ist-Bestand Mullbinde erhöhen"]';
+const MINUS = '[aria-label="Ist-Bestand Mullbinde verringern"]';
+
+describe("±-Knöpfe", () => {
+  it("erhöht und verringert den Ist-Wert über wertSetzen", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    const feld = query<HTMLInputElement>('[aria-label="Ist-Bestand Mullbinde"]');
+
+    expect(feld.value).toBe("12");
+    await click(PLUS);
+    expect(feld.value).toBe("13");
+    await click(MINUS);
+    await click(MINUS);
+    expect(feld.value).toBe("11");
+  });
+
+  /*
+   * DIE EIGENSCHAFT, DIE HIER NICHT KAPUTTGEHEN DARF: `positionenAus` reicht
+   * eine BERUEHRTE Zeile auch dann ein, wenn ihr Wert dem Seitenladebestand
+   * entspricht -- der Server vergleicht gegen den LIVE-Bestand und verhindert
+   * so Lost Updates. Plus-dann-Minus muss die Zeile also eingereicht lassen.
+   * Wer hier "unveraenderte Zeilen herausfiltert", entfernt den Schutz.
+   */
+  it("lässt eine berührte Zeile eingereicht, auch wenn + und − sich aufheben", async () => {
+    mocks.inventurKorrektur.mockResolvedValue({ ok: true, wert: { korrigiert: 0 } });
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    await click(PLUS);
+    await click(MINUS);
+    await fill('[aria-label="Kommentar"]', "Quartalsinventur");
+    await click('[data-rolle="abschluss"]');
+
+    expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
+      kommentar: "Quartalsinventur",
+      positionen: [{ artikelId: "a1", ist: 12 }],
+    });
+  });
+
+  it("zählt eine aufgehobene Änderung nicht als Abweichung", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    await click(PLUS);
+    await click(MINUS);
+    expect(query('[data-rolle="abschluss"]').textContent)
+      .toContain("0 Abweichungen");
+  });
+
+  it("sperrt − bei 0 und + bei 9999", async () => {
+    await mount(<InventurForm zeilen={[{ ...ZEILEN[0]!, bestand: 0 }]} />);
+    expect(query(MINUS).hasAttribute("disabled")).toBe(true);
+    expect(query(PLUS).hasAttribute("disabled")).toBe(false);
+  });
+});
+
 describe("Inventurseite als RSC", () => {
   it("liefert force-dynamic und nur primitive Zeilenprops", async () => {
     const { dynamic, inventurSeitenInhalt } = await import("./page");
