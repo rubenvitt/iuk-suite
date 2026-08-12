@@ -80,6 +80,13 @@ Auftretens (`sortOrder`, dann `name` — die bestehende Sortierung aus `getVisib
 
 `switcherEntries.ts` geht in dieser Datei auf und entfällt.
 
+**Anonym wird die Funktion gar nicht gerufen.** `SuiteHeader` ruft `launcherEintraege` nur bei
+`angemeldet` — nicht mit `groups: null`. Sonst öffnete jeder anonyme Aufruf von `qr` und `beta` die
+Portal-Datenbank für eine Liste, die §4 ohnehin nicht anzeigt, und `MinimalShell` ruft dieselbe
+Kopfzeile wie `FullShell`. Der Parametertyp bleibt trotzdem `string[] | null`, weil ein
+eingeloggter Nutzer ohne Gruppen `null` mitbringen kann; die Ersparnis liegt am Aufrufer, nicht im
+Typ.
+
 ### 3.3 Die Rechteprüfung bleibt zweigeteilt — mit Absicht
 
 Es liegt nahe, die beiden Filter zu einem zu verschmelzen. Das wäre falsch, und der Grund steht
@@ -116,10 +123,19 @@ sondern nur zum ersten Mal außerhalb des Bootstraps.
 naheliegende Verdrahtung, nicht jede denkbare — ein umbenanntes Re-Export käme durch. Das ist
 dieselbe eingestandene Grenze wie beim Seed-Scan und besser als nichts.
 
-**Kosten, benannt:** jede Seite jedes Moduls liest damit die Portal-Datenbank. Das ist tragbar, weil
-`core/bootstrap.ts` alle Modul-Datenbanken ohnehin beim Start öffnet und better-sqlite3 synchron aus
-dem Prozess liest; es ist keine Netzrunde. Sollte das je messbar stören, ist der Ausweg ein Cache in
-`dienstEintraege` — hinter derselben Signatur, ohne Änderung an `core`.
+**Kosten, benannt:** jede Seite jedes ANGEMELDETEN Moduls liest damit die Portal-Datenbank — auch
+unter `lagerbuch.…` oder `qr.…`. Das ist geprüft tragbar, nicht angenommen: `instrumentation.ts`
+ruft `register()` einmal beim Server-Boot **vor dem ersten Request** und darin `migrateAllModules()`
+für jedes Modul aus `MODULE_MIGRATIONS`; die Portal-Datenbank ist also migriert, unabhängig davon,
+welcher Host die Anfrage bedient. better-sqlite3 liest synchron aus dem Prozess, es ist keine
+Netzrunde.
+
+Der Vorbehalt aus `CLAUDE.md` — lagerbuch bekäme über `getModuleDb()` eine Verbindung ohne
+`lb_falte` — greift hier **nicht**: er betrifft den Boot-Seed, der vor den lagerbuch-eigenen
+Laufzeit-Vorbereitungen liefe, nicht einen Lesezugriff auf ein anderes, fertig migriertes Modul.
+
+Sollte das je messbar stören, ist der Ausweg ein Cache in `dienstEintraege` — hinter derselben
+Signatur, ohne Änderung an `core`.
 
 ### 3.5 Kein neues Feld in `ModuleDef`
 
@@ -147,6 +163,19 @@ Nutzermenü heute: nur so lässt sich `aria-expanded` am Auslöser setzen.
 3. Der Eintrag des aktuellen Moduls trägt `aria-current="true"` — „das ist die aktuelle App", nicht
    `"page"`, denn die aufgerufene Seite ist er in aller Regel nicht.
 4. Fußzeile: „Alle Apps im Portal".
+
+**Zwei `aria-current` im selben Dokument — und was das kostet.** Auf `/verwaltung/import` markiert
+die Modul-Navigation ihren Eintrag und das geöffnete Panel zusätzlich „Lagerbuch". Beides ist wahr
+und beides gehört so; die Aussagen betreffen verschiedene Ebenen. Zwei Folgen, beide vorweggenommen:
+
+- **Optisch keine.** `shell.module.css` unterstreicht `.navLink[aria-current]`, nicht
+  `[aria-current]` — die Regel ist bereits an die Klasse gebunden. Der Umschalter bekommt deshalb
+  eine **eigene Klasse** und darf `.navLink` nicht wiederverwenden. `shell-css.test.ts` hält das
+  fest (§7.1).
+- **Für Playwright schon.** Ein Locator auf `[aria-current]` fände zwei Knoten und wäre eine
+  Strict-Mode-Verletzung — dieselbe Falle, die das Repo bei `theme-toggle` und `abmelden` schon
+  zweimal umgeht. Jede Zusicherung auf die Aktivmarkierung wird deshalb über den umschließenden
+  `nav`-Knoten eingegrenzt, nie global gestellt.
 
 **Tastatur:** `Enter`/`Space` öffnet, Fokus springt ins Suchfeld, Pfeiltasten wandern durch die
 Einträge, `Esc` schließt und gibt den Fokus an den Auslöser zurück.
@@ -213,7 +242,8 @@ sechs Monaten immer noch von einem Modul allein benutzt, gehört sie zurück ins
 ### 5.3 Ausprägung
 
 - Ab 768px eine 240px breite Spalte links, klebend, mit eigenem Überlauf bei Überlänge.
-  `Sider` als **tiefer Named-Import** (`antd/es/layout/Sider`) — `Layout.Sider` als
+  `Sider` als **tiefer Named-Import** (`antd/es/layout/Sider` — Pfad gegen antd 6.5.3 geprüft, die
+  Datei liegt neben `layout.js`, aus dem `Header` und `Content` kommen) — `Layout.Sider` als
   Property-Zugriff ergibt in einer Server Component `undefined` und einen 500er (Falle 1, gleiche
   Begründung wie bei `Header` und `Content` heute).
 - Unter 768px keine Spalte; die Navigation steht im Drawer, mit denselben Abschnittsüberschriften.
@@ -272,7 +302,7 @@ Geprüft, welche überhaupt eintreten können:
 
 | Zustand | Erreichbar? | Verhalten |
 |---|---|---|
-| Portal ohne jeden Eintrag | ja, sobald `portal`/`qr` per `SUITE_ACCESS_GROUP_*` gegated werden | Überschrift „Für dich ist noch nichts freigeschaltet", ein Satz Erklärung, Ansprechpartner. Ist keiner gepflegt: nur die Erklärung |
+| Portal ohne jeden Eintrag | ja, sobald für `portal` und `qr` eine **echte Gruppe** in `SUITE_ACCESS_GROUP_*` steht — eine leer gesetzte Variable ist wirkungslos (`envAccessGroupsFor`), damit sie bei `requiresAuth: true` nicht still für alle öffnet | Überschrift „Für dich ist noch nichts freigeschaltet", ein Satz Erklärung, Ansprechpartner. Ist keiner gepflegt: nur die Erklärung |
 | Portal ohne Dienste, nur Module | ja, heute der Normalfall | Abschnitt „Apps"; der Dienste-Abschnitt entfällt, statt leer zu erscheinen |
 | Suche ohne Treffer (Panel und Portal) | ja | „Nichts gefunden für ‚…'", im Panel mit Weg ins Portal |
 | Umschalter ohne Einträge | praktisch nein — `portal` und `qr` sind ohne Gruppenzwang für jeden sichtbar | Fällt mit dem Portal-Leerzustand zusammen; kein eigener Text |
