@@ -101,4 +101,25 @@ describe("Geräte-Übersicht", () => {
     expect((kacheln[2]!.props as { zahl: ReactNode }).zahl).toBe(0);
     expect((kacheln[3]!.props as { zahl: ReactNode }).zahl).toBe(1);
   });
+
+  /*
+   * Formgleich zu bz/page.test.tsx:108 und sauerstoff/page.test.tsx:86 — hier
+   * mit ZWEI inaktiven Geraeten, je eines pro Klasse und beide mit einem
+   * Zustand, der ohne den `aktiv`-Filter eine der vier Kacheln haette
+   * anspringen lassen (ueberfaelliges MTK, abgelaufenes Objekt). Ein einzelnes
+   * inaktives Geraet haette nur `aktive.length` bewegt und den Filter in den
+   * drei uebrigen Kacheln ungeprueft gelassen.
+   */
+  it("zählt inaktive Geräte in keiner Kachel mit", () => {
+    t = migrierteTestDb("lagerbuch-geraete-inaktiv-");
+    lagerortAnlegen();
+    geraetAnlegen({ id: "g-alt", typ: "medizin", mtkFaellig: "2026-01-01", aktiv: false });
+    geraetAnlegen({ id: "o-alt", typ: "objekt", ablaufdatum: "2026-01-01", aktiv: false });
+
+    const kacheln = elementeVomTyp(geraeteSeitenInhalt(t.db, NOW), Kachel);
+    expect((kacheln[0]!.props as { zahl: ReactNode }).zahl).toBe(0);
+    expect((kacheln[1]!.props as { zahl: ReactNode }).zahl).toBe(0);
+    expect((kacheln[2]!.props as { zahl: ReactNode }).zahl).toBe(0);
+    expect((kacheln[3]!.props as { zahl: ReactNode }).zahl).toBe(0);
+  });
 });

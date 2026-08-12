@@ -11,10 +11,17 @@
  *
  * JEDES AEUSSERE ELEMENT TRAEGT `lb-nichtDrucken`. Die Klasse ist global
  * (druck.css ist ein gewoehnliches Stylesheet, kein CSS-Modul) und blendet
- * innerhalb @media print mit `!important` aus. Wer hier einen Inline-Style
- * fuer `display` ergaenzt, schlaegt die Regel und druckt das Chrome mit aufs
- * gekaufte Etikettenmaterial -- ohne dass ein Test oder `pnpm build` es vor
- * dem Drucker zeigte.
+ * innerhalb @media print mit `!important` aus. Genau das `!important` ist die
+ * Bedingung dafuer, dass die Regel HEUTE gewinnt: ein Inline-Style hat von
+ * Haus aus hoehere Praezedenz als jede Selektorregel eines externen
+ * Stylesheets, und React kann `!important` gar nicht ausdruecken (das CSSOM
+ * verwirft es) -- ein Inline-Style fuer `display` auf diesem Element druckte
+ * also trotzdem NICHT mit aufs Etikettenmaterial (Beleg: EtikettenBogen.tsx:80
+ * traegt genau so einen Inline-Style auf demselben Element wie
+ * `lb-nichtDrucken` und druckt korrekt nicht mit). DIE ECHTE INVARIANTE:
+ * `druck.css` muss das `!important` behalten (Begruendung dort, RULING A14).
+ * Faellt es weg, schlaegt jeder Inline-Style die Regel -- und erst DANN waere
+ * ein Inline-Style-`display` hier gefaehrlich.
  *
  * WARUM EINE CLIENT-INSEL: `page.tsx` ist eine Server Component und traegt
  * bewusst KEIN antd und KEIN Zeichen (Fallen 1 und 7). Der Druckknopf

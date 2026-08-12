@@ -37,9 +37,18 @@ describe("Bildschirm-Chrome des Etikettenbogens", () => {
    * Was hier haelt: dass die Klasse UEBERHAUPT an jedem aeusseren Element
    * steht. Dass sie im Druck greift, zeigt nur die Druckemulation (Task 9).
    *
-   * `!important` in druck.css ist kein Zufall: ein Inline-Style haette
-   * hoehere Praezedenz als jede Selektorregel des externen Stylesheets. Wer
-   * hier ein `style={{display:...}}` ergaenzt, druckt es mit aufs Etikett.
+   * `!important` in druck.css ist kein Zufall, aber die Gefahr, die es
+   * abwendet, ist die UMGEKEHRTE: ein Inline-Style haette von Haus aus
+   * hoehere Praezedenz als jede Selektorregel des externen Stylesheets, aber
+   * React kann `!important` gar nicht ausdruecken (das CSSOM verwirft es) --
+   * ein `style={{display:...}}` HIER druckte deshalb heute trotzdem NICHT
+   * mit aufs Etikett (Beleg: EtikettenBogen.tsx:80 traegt genau so einen
+   * Inline-Style auf demselben Element wie `lb-nichtDrucken` und druckt
+   * korrekt nicht mit). Die echte Invariante: `druck.css` muss das
+   * `!important` behalten — faellt es weg, schlaegt jeder Inline-Style die
+   * Regel, und ERST DANN waere die alte Warnung wieder wahr. Dieser Test
+   * bleibt trotzdem als stumpfer Quelltext-Scan stehen (Umbau steht auf dem
+   * Board, nicht in dieser Runde).
    */
   it("setzt keinen Inline-display-Style, der die Druckregel schlagen würde", () => {
     expect(QUELLE).not.toMatch(/style=\{\{[^}]*display:/);
