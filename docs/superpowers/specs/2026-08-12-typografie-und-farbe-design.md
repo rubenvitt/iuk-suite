@@ -429,8 +429,57 @@ Die Tore bleiben: `pnpm typecheck` · `pnpm lint` · `pnpm vitest run` · `pnpm 
 
 ## 10. Offene Punkte
 
-| | Punkt | Wer entscheidet |
+| | Punkt | Stand |
 |---|---|---|
-| 1 | Trägt Barlow Condensed neben Geist? (§7.3) | Messung im Browser, beide Modi |
-| 2 | Versalien auf `Table`-Spaltenköpfen — Spezifität vertretbar? (§7.3) | Messung; im Zweifel entfällt der Punkt |
-| 3 | Betreiberfrage 29 (sind die drei Schriften CD-gebunden?) bleibt unbeantwortet | Betreiber; berührt diese Spec nicht, weil die Rollen Rollen und keine Schriftnamen sind |
+| 1 | Trägt Barlow Condensed neben Geist? (§7.3) | **Entschieden 2026-08-12: ja.** Siehe unten. |
+| 2 | Versalien auf `Table`-Spaltenköpfen — Spezifität vertretbar? (§7.3) | **Erledigt 2026-08-12, anders als gedacht.** Siehe unten. |
+| 3 | Betreiberfrage 29 (sind die drei Schriften CD-gebunden?) | **Bleibt offen.** Berührt diese Spec nicht: die Rollen sind Rollen und keine Schriftnamen, eine Antwort ändert nur `app/globals.css`. |
+| 4 | Kacheln mit und ohne Rubrik stehen versetzt | **Neu, gemessen. Braucht eine Entscheidung des Betreibers.** Siehe unten. |
+
+### Zu 1 — Barlow Condensed trägt
+
+Gemessen im Browser, beide Modi, 1280×900, gegen den laufenden Dev-Server. `--font-display`
+löst in beiden Modi zu `"Barlow Condensed", "Barlow Condensed Fallback", "Arial Narrow", sans-serif`
+auf; Modultitel und Kacheltitel rendern darin.
+
+Das Bild trägt: die kondensierte Schrift gibt Marke, Modultitel, Seitenüberschriften und Kicker
+Struktur, während Navigation, Fließtext und Formulare in Geist bleiben. Die beiden stehen
+nebeneinander, ohne sich zu streiten. **Kein Anlass, die Familie zu tauschen.**
+
+Nebenbefund, der die Wahl bestätigt: `--iuk-marke` ist im Dunkeln der aufgehellte Ton `#e45a66`,
+gewählt für den **Textkontrast** am Aktivzustand (5.22 : 1 gegen `#141414`). Auf dem 5px-Streifen
+über der Kopfzeile steht er ebenfalls besser als das dunkle `#c8000f`, das auf Schwarz fast
+verschwände. Eine zweite Variable für Flächen ist deshalb nicht nötig.
+
+### Zu 2 — die Frage war falsch gestellt
+
+Gemessen: antds Spaltenköpfe rendern heute in `Geist`, 14px, 600, ohne Versalien und ohne Sperrung.
+
+Die Spec fragte, ob eine CSS-Regel gegen `.ant-table-thead th` — also eine Spezifitätserhöhung
+**plus** eine Kopplung an einen antd-internen Klassennamen — den Gewinn wert wäre. **Sie wäre gar
+nicht nötig:** antd rendert als Spaltenkopf, was in `columns[].title` steht. Ein
+`<span style={SCHRIFT.kicker}>Artikel</span>` dort erzeugt denselben Effekt **ohne** jede Regel
+gegen antd-Interna, ohne Spezifitätsstreit und ohne stille Bruchgefahr bei einem antd-Major.
+
+Damit ist der Einwand gegenstandslos, der den Punkt überhaupt fraglich machte. **Angewandt wird es
+hier trotzdem nicht:** die Tabellen liegen in `lagerbuch` und `files`, und beide Module stehen
+laut §1 ausdrücklich nicht in dieser Spec. Der Weg ist in `docs/design/README.md` festgehalten,
+damit das nächste Modul ihn nimmt statt eine CSS-Regel zu erfinden.
+
+### Zu 4 — der Versatz bei Kacheln ohne Rubrik
+
+**Gemessen: 19px.** Eine Kachel ohne `category` zeigt keinen Kicker; ihr Titel beginnt 19px höher
+als der einer Kachel mit Rubrik daneben. Weil beide Kacheln gleich hoch sind (`height: 100%`),
+bleibt unten ein sichtbar leeres Band — das liest sich als Fehler, nicht als Inhaltsvariation.
+
+**Die Ursache liegt nicht in der Typografie.** `app/m/portal/admin/service-form.tsx` bietet gar
+kein Feld für `category` an, und `createServiceAction` reicht keines durch. Jeder von Hand
+angelegte Dienst bekommt damit `category: null` — **und** `sortOrder: 0`, sortiert also vor die
+geseedeten Dienste. Die Mischung ist nicht der Ausnahmefall, sondern der Normalfall, sobald jemand
+einen Dienst anlegt.
+
+**Hier bewusst nicht behoben.** Die drei denkbaren Griffe sind alle schlechter als die Ursache zu
+beheben: eine reservierte Höhe wäre ein erfundener Wert; den Kicker unter den Titel zu ziehen
+verkehrt seine Rolle; ihn wegzulassen nimmt der Kachel die Rubrik. **Empfehlung: das
+Verwaltungsformular bekommt ein Feld für `category`.** Dann verschwindet der Mischfall an der
+Wurzel. Das ist eine Änderung am Modul `portal` jenseits dieser Spec und gehört dem Betreiber.

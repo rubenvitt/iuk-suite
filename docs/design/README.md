@@ -211,6 +211,23 @@ Prüfung aus. **Eine unaufgelöste CSS-Variable meldet sich nie** — der Riegel
 `core/theme/schriftstapel.test.ts` (prüft Deklaration *und* Registrierung), die Wirkung belegt
 allein Playwright über `getComputedStyle(...).fontFamily`.
 
+### Spaltenköpfe einer antd-`Table`: über `title`, nie über CSS
+
+antd bietet für `Table` keinen Schrift-Token an — nur `headerBg`, `headerColor` und
+`headerSplitColor`. Der naheliegende Griff wäre eine Regel gegen `.ant-table-thead th`, und der ist
+**falsch**: er kostet eine Spezifitätserhöhung *und* eine Kopplung an einen antd-internen
+Klassennamen, die ein Major still bricht.
+
+**Der richtige Weg braucht gar keine Regel.** antd rendert als Spaltenkopf, was in `columns[].title`
+steht — dort gehört die Rolle hin:
+
+```tsx
+{ title: <span style={SCHRIFT.kicker}>Artikel</span>, dataIndex: "name" }
+```
+
+Gemessen am 2026-08-12: ohne diesen Griff rendern Spaltenköpfe in Geist 14/600, ohne Versalien —
+sie unterscheiden sich vom Zelleninhalt allein durch das Gewicht und lesen sich kaum als Kopf.
+
 ## Mobil — ein Breakpoint, vier Regeln
 
 **768px ist der einzige Breakpoint der Suite** (= antds `md`, festgehalten in
