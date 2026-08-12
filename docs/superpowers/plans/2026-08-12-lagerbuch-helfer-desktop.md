@@ -396,8 +396,8 @@ Ans **Ende** von `helfer.module.css`, nach der Fokus-Regel:
  *     dies ist eine min-width-Abfrage.
  *
  * ⚠️ DIESER BLOCK STEHT AM DATEIENDE, und das ist tragend, keine Ordnung:
- * `.tab[aria-current="page"]` unten hat DIESELBE Spezifitaet wie die Basisregel
- * der Basisregel weiter oben in dieser Datei. Bei Gleichstand entscheidet
+ * `.tab[aria-current="page"]` unten hat DIESELBE Spezifitaet wie seine
+ * Basisregel weiter oben in dieser Datei. Bei Gleichstand entscheidet
  * die Reihenfolge (Falle 5) — vorne
  * einsortiert bliebe die rote Linie still oben statt unten.
  * ———————————————————————————————————————————————————————————————————————— */
