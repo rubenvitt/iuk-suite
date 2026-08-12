@@ -701,6 +701,17 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
       /\.karteRaster\s+\.zeile:nth-child\(2n\)/,
     );
   });
+
+  it("Detailansichten bekommen eine Lesebahn, nicht die volle Bahn", () => {
+    // 1200px sind fuer eine Liste richtig und fuer eine Detailseite falsch: ein
+    // 24px-Titel ueber 1200px hat 90 % Weissraum neben sich. `.lesebahn` ist
+    // die schmalere Bahn fuer Ansichten mit wenig, aber wichtigem Inhalt.
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const zweig = css.slice(css.search(/@media[^{]*min-width/));
+    expect(zweig, "`.lesebahn` kappt im Desktop-Zweig nicht").toMatch(
+      /\.lesebahn\s*\{[^}]*max-width:\s*720px/,
+    );
+  });
 });
 
 // ————————————————————————————————————————————————————————————————————————

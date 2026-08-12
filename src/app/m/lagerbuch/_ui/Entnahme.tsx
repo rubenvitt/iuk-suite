@@ -93,7 +93,7 @@ export function Entnahme({ detail, buchen }: { detail: EntnahmeDetail; buchen: B
   }
 
   return (
-    <>
+    <div className={s.lesebahn}>
       <Link className={s.rueckweg} href="/helfer">
         <Ikone name="chevron-links" groesse={15} />
         Zurück
@@ -192,6 +192,6 @@ export function Entnahme({ detail, buchen }: { detail: EntnahmeDetail; buchen: B
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }
