@@ -311,8 +311,10 @@
  * ROT STATT `currentColor`, seit 2026-08-12: die Aktivmarkierung ist der eine
  * Ort in der Chrome, an dem Markenfarbe eine Aussage traegt statt Dekoration zu
  * sein. `--iuk-marke` und nicht `--ant-color-primary` — eigenes Markup sieht
- * antds Variablen nicht (Falle 2), bei ungültiger Variablen wäre die Markierung
- * still unsichtbar (Rückfall auf Startwert/Vererbung).
+ * antds Variablen nicht (Falle 2); die Markierung verliert ihren Farbkanal.
+ * `border-block-end-color` wird `currentColor` (2px bleiben), `color` zur
+ * Kopfzeilenfarbe (Text bleibt). Uebrig ist `font-weight: 600` — darum ist das
+ * Gewicht nicht redundant.
  *
  * `font-weight: 600` BLEIBT und ist nicht redundant: Bedeutung nie allein ueber
  * Farbe. Ohne das Gewicht verliert die Markierung bei Rot-Gruen-Blindheit und
