@@ -314,6 +314,19 @@ describe("Markenstreifen und Kopfzeilentypografie", () => {
     // derselbe Streit, den `padding-inline` an dieser Stelle schon einmal
     // verloren hat (gemessen, siehe Kopf dieser Datei). Ein eigenes Element ist
     // keiner.
+    //
+    // WAS DIESER SCAN BESITZT UND WAS NICHT.
+    //
+    // Er besitzt: die Regel steht im Stylesheet, sie traegt `--iuk-marke` statt
+    // eines Literals, und `.kopf` hat keine Kante bekommen. Das ist der
+    // Spezifitaetsstreit, und den entscheidet der Quelltext.
+    //
+    // Er besitzt NICHT, dass der Streifen ueberhaupt gerendert wird.
+    // Verschwaende jemand das `<div className={s.streifen}>` aus
+    // `SuiteHeader.tsx` und liesze die Klasse hier stehen, bliebe dieser Scan
+    // gruen — er liest nur das Stylesheet und sieht das Markup nicht. Diese
+    // Haelfte besitzt `e2e/shell-mobil.spec.ts` (Task 10), das die gerenderte
+    // Hoehe und Farbe im Browser misst.
     expect(OHNE_KOMMENTARE).toMatch(/\.streifen\s*\{[^}]*background:\s*var\(--iuk-marke\)/);
     expect(OHNE_KOMMENTARE).toMatch(/\.streifen\s*\{[^}]*height:\s*5px/);
     expect(OHNE_KOMMENTARE).not.toMatch(/\.kopf\s*\{[^}]*border-block-start/);
