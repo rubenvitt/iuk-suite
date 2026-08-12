@@ -28,6 +28,28 @@ export type NavIkonName =
   | "inventur" | "journal" | "tokens" | "etiketten" | "import";
 
 /**
+ * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.
+ * Beide Icon-Felder sind optional; der Umschalter faellt in dieser Reihenfolge
+ * zurueck: `iconUrl` → `ICONS[icon]` → neutrales Link-Icon. Ein Union-Typ zwaenge
+ * jede Aufrufstelle zu einer Fallunterscheidung, die genau diesen Rueckfall
+ * nachbaut.
+ */
+export interface LauncherEintrag {
+  /** Eindeutig ueber beide Quellen: Module tragen ihren Registry-Key, Dienste `dienst:<id>`. */
+  key: string;
+  title: string;
+  beschreibung?: string;
+  /** Schluessel der ICONS-Map — nur Suite-Module. Aufloesung NUR in Client-Inseln. */
+  icon?: string;
+  /** Bild-URL — nur externe Dienste. */
+  iconUrl?: string | null;
+  href: string;
+  abschnitt: string;
+  /** Oeffnet in neuem Tab (`services.openInNewTab`). */
+  extern: boolean;
+}
+
+/**
  * Ein Eintrag der modul-internen Navigation. Module uebergeben das optional an
  * `Shell`; wer nichts uebergibt, bekommt genau das Bild von vorher.
  */
