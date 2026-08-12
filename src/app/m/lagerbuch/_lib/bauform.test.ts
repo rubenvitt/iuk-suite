@@ -652,6 +652,66 @@ describe("§7.7.1 — der eine Breakpoint, und dieses Modul erfindet keinen zwei
     expect(ohneKommentare(readFileSync(HELFER_CSS, "utf8"))).not.toMatch(/@media[^{]*max-width/i);
   });
 
+  it("hat GENAU EINEN min-width-Zweig, und der nennt kein max-width", () => {
+    /**
+     * Betreiberentscheidung 14 (12.08.2026) hebt „NULL Media Queries fuer die
+     * Breite" auf — fuer GENAU EINE Abfrage, nicht fuer beliebig viele. Der
+     * urspruengliche Grund von §7.7.1 traegt weiter: zwei Breakpoints heissen
+     * drei Fassungen, und die dritte prueft niemand.
+     *
+     * ⚠️ UND SIE DARF KEIN `max-width` ENTHALTEN. Eine kombinierte Abfrage wie
+     * `(min-width: 768px) and (max-width: 1200px)` loest den 767.98-Scan
+     * darunter aus — und zwar zu Recht: bei exakt 1200px gaelten sonst beide
+     * Seiten, und die Reihenfolge im Stylesheet entschiede.
+     */
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const zweige = [...css.matchAll(/@media([^{]*min-width[^{]*)\{/g)];
+    expect(zweige.length, "genau ein min-width-Zweig").toBe(1);
+    expect(zweige[0]![1], "der Zweig schaltet bei 768px").toMatch(/min-width:\s*768px/);
+    expect(zweige[0]![1], "kein max-width im selben Zweig").not.toMatch(/max-width/);
+  });
+
+  it("der Desktop-Zweig setzt die Bahn um und dreht die Reiterleiste nach oben", () => {
+    // Die zwei Zusagen, die den Zweig ueberhaupt rechtfertigen. Ohne sie waere
+    // er eine leere Abfrage, die den Test darueber bestehen laesst.
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const auf = css.search(/@media[^{]*min-width/);
+    expect(auf, "kein min-width-Zweig gefunden").toBeGreaterThan(-1);
+    const zweig = css.slice(auf);
+    expect(zweig, "die Bahn weitet nicht auf").toMatch(/--lb-bahn:\s*1200px/);
+    expect(zweig, "`.rahmen` gibt seine Kappung nicht ab").toMatch(
+      /\.rahmen\s*\{[^}]*max-width:\s*none/,
+    );
+    expect(zweig, "die Reiterleiste wandert nicht nach oben").toMatch(
+      /\.tableiste\s*\{[^}]*order:\s*-1/,
+    );
+  });
+
+  it("die Kappung der drei Baender steht NUR im Desktop-Zweig", () => {
+    /**
+     * ⚠️ DIE ZUSICHERUNG, DIE AUS DEM ERSTEN REVIEW ENTSTANDEN IST. Der erste
+     * Entwurf setzte dieses `padding-inline` in die BASISREGELN der drei
+     * Klassen, ohne Media Query. Der Ausdruck ist breitenstetig und schlug
+     * damit schon ab 561px zu, nicht erst ab 768 — der Kartenhintergrund lief
+     * randlos, die Inhaltsbreite sprang um 28px. „Unter 768px aendert sich kein
+     * Pixel" war damit verletzt, ohne dass ein Test es gesehen haette.
+     *
+     * Der Scan prueft BEIDE Richtungen: im Zweig muss es stehen, davor nicht.
+     * Nur die zweite Haelfte faengt den Rueckfall.
+     */
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const auf = css.search(/@media[^{]*min-width/);
+    expect(auf, "kein min-width-Zweig gefunden").toBeGreaterThan(-1);
+    const davor = css.slice(0, auf);
+    const zweig = css.slice(auf);
+
+    expect(zweig, "die Baender kappen im Desktop-Zweig nicht ueber --lb-bahn").toMatch(
+      /padding-inline:\s*max\([^;]*--lb-bahn/,
+    );
+    expect(davor, "eine Kappung VOR dem Breakpoint schlaegt schon ab 561px zu")
+      .not.toMatch(/padding-inline:\s*max\(/);
+  });
+
   it("jede `max-width`-Abfrage im ganzen Modulbaum schreibt 767.98", () => {
     // 767.98 und nicht 768: bei exakt 768px gelten sonst BEIDE Seiten, und die
     // Reihenfolge im Stylesheet entscheidet. Der Scan laeuft ueber ALLE .css

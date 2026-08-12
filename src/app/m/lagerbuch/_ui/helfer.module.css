@@ -2,13 +2,16 @@
  * DAS STYLESHEET DES HELFER-WEGS — §7.7, oeffentliche Ansichtsklasse
  * (Entscheidung 28 d). Kein antd, keine Suite-Shell, eigene Anmutung.
  *
- * NULL MEDIA QUERIES fuer die Breite (§7.7.1). Eine Ansicht, die es nur in
- * EINER Fassung gibt, kann keinen zweiten Breakpoint einfuehren. Der Rahmen ist
- * fluid mit einer OBERGRENZE; auf 1280px steht er mittig und traegt die
- * Tab-Leiste weiterhin unten. Waere hier je eine noetig, hiesse sie
- * `max-width: 767.98px` — nicht 768, sonst gelten bei exakt 768px beide Seiten
- * und die Reihenfolge im Stylesheet entscheidet. lagerbuch schaltet heute bei
- * 760px (globals.css:250); derselbe Fall, an beiden Enden unsichtbar.
+ * GENAU EINE Breiten-Media-Query (§7.7.1, aufgehoben fuer diesen einen Zweig
+ * durch Betreiberentscheidung 14, 12.08.2026): `@media (min-width: 768px)` am
+ * Dateiende. Der urspruengliche Grund von §7.7.1 traegt fuer jeden weiteren
+ * Breakpoint weiter — zwei Zweige heissen drei Fassungen, und die dritte
+ * prueft niemand. Unterhalb von 768px bleibt diese Datei wirkungsgleich mit
+ * dem Stand davor: kein Pixel aendert sich. Waere hier je eine `max-width`-
+ * Abfrage noetig, hiesse sie `max-width: 767.98px` — nicht 768, sonst gelten
+ * bei exakt 768px beide Seiten und die Reihenfolge im Stylesheet entscheidet.
+ * lagerbuch schaltet heute bei 760px (globals.css:250); derselbe Fall, an
+ * beiden Enden unsichtbar.
  *
  * ⚠️ DIE EINE AUSNAHME, ausdruecklich statt stillschweigend: ganz unten steht
  * ein `@media (prefers-reduced-motion: reduce)`. Global Constraint 16 sagt
@@ -403,4 +406,109 @@
 .rahmen a:focus-visible,
 .rahmen select:focus-visible {
   outline: 2px solid var(--lb-tinte); outline-offset: 2px; border-radius: 6px;
+}
+
+/* ————————————————————————————————————————————————————————————————————————
+ * DIE ZWEITE FASSUNG — ab 768px (Betreiberentscheidung 14, 12.08.2026).
+ *
+ * ⚠️ SIE HEBT DEN KOPFKOMMENTAR DIESER DATEI TEILWEISE AUF. Dort steht „NULL
+ * MEDIA QUERIES fuer die Breite (§7.7.1)", begruendet mit „eine Ansicht, die es
+ * nur in EINER Fassung gibt, kann keinen zweiten Breakpoint einfuehren". Genau
+ * diese Praemisse ist aufgehoben: der Helfer-Weg wird nicht nur auf Telefonen
+ * benutzt, und auf einem Monitor stand er als 560px-Saeule mit rund 62 %
+ * ungenutzter Flaeche — drei sichtbare Positionen in der Zaehlliste.
+ *
+ * WAS VON §7.7.1 BLEIBT, UND ES IST DAS MEISTE:
+ *   * GENAU EIN Zweig, nicht zwei. Drei Fassungen prueft niemand.
+ *   * KEIN `max-width` hier drin — sonst gaelten an der oberen Kante beide
+ *     Seiten und die Reihenfolge entschiede. `bauform.test.ts` haelt beides.
+ *   * Die 767.98-Regel fuer jede max-width-Abfrage im Modulbaum: unberuehrt,
+ *     dies ist eine min-width-Abfrage.
+ *
+ * ⚠️ DIESER BLOCK STEHT AM DATEIENDE, und das ist tragend, keine Ordnung:
+ * `.tab[aria-current="page"]` unten hat DIESELBE Spezifitaet wie die Basisregel
+ * (:143). Bei Gleichstand entscheidet die Reihenfolge (Falle 5) — vorne
+ * einsortiert bliebe die rote Linie still oben statt unten.
+ * ———————————————————————————————————————————————————————————————————————— */
+@media (min-width: 768px) {
+  /*
+   * ERST HIER GIBT `.rahmen` SEINE KAPPUNG AB — und ausschliesslich hier.
+   * Unterhalb bleibt er bei 560px wie eh und je; das ist die Abnahmebedingung
+   * „unter 768px aendert sich kein Pixel" in ihrer einzig haltbaren Form.
+   *
+   * VOLLBREIT IST KEINE STILFRAGE: `.rahmen` traegt `background:
+   * var(--lb-papier)`. Gekappt faerbt er nur die Saeule, und rechts und links
+   * steht die Grundfarbe des Dokuments — genau der „Fenster im Fenster"-Eindruck,
+   * den der Umbau beseitigen soll.
+   */
+  .rahmen { --lb-bahn: 1200px; max-width: none }
+
+  /*
+   * DIE DREI BAENDER UEBERNEHMEN DIE KAPPUNG. `padding-inline` steht in einer
+   * EIGENEN Regel und nicht in den Basisregeln der drei Klassen: dort traegt
+   * jede ein `padding`-KURZFORMAT, und das ueberschriebe `padding-inline`, wenn
+   * es davor stuende. Eine eigene Regel im spaeter stehenden Media-Block hat die
+   * Frage gar nicht erst (Falle 5).
+   *
+   * `max(…)` und nicht der nackte `calc`: zwischen 768px und 1200px ist
+   * `(100% - 1200px) / 2` NEGATIV, und ein negativer Innenabstand ist
+   * ungueltiges CSS — die Zeile fiele still ganz aus und die Baender haetten
+   * gar keinen Seitenabstand mehr.
+   */
+  .kopf, .inhalt { padding-inline: max(14px, calc((100% - var(--lb-bahn)) / 2)) }
+
+  /* `0px` statt `14px` und `0px` MIT Einheit: die zwei Reiter tragen `flex: 1`
+     und sollen bis an die Bahnkante reichen; `max()` verlangt vergleichbare
+     Typen, ein nacktes `0` macht die Funktion ungueltig. */
+  .tableiste { padding-inline: max(0px, calc((100% - var(--lb-bahn)) / 2)) }
+
+  /*
+   * DIE REITERLEISTE WANDERT NACH OBEN — per `order`, NICHT per zweitem Markup.
+   *
+   * ⚠️ WARUM NICHT „in den Kopf, neben die Marke": `<header>` und `<nav>` sind
+   * Geschwister in `.rahmen` (`HelferRahmen.tsx:75,128`); CSS kann das eine
+   * nicht in das andere schieben. Die naheliegende Loesung — die Reiter ZWEIMAL
+   * rendern und je eine Fassung ausblenden — braeche `data-testid="lb-tableiste"`
+   * auf zwei Treffer und damit E11/T171. Ein Knoten, eine `aria-current`-Marke.
+   */
+  .tableiste {
+    order: -1;
+    border-top: none;
+    border-bottom: 1px solid var(--lb-linie);
+  }
+
+  /*
+   * Waagerechte Reiter statt gestapelter Symbolknoepfe. `flex: 1` faellt weg —
+   * zwei Reiter, die sich 1200px teilen, waeren zwei riesige Flaechen.
+   *
+   * ⚠️ `min-height: 56px` BLEIBT. Das Suite-Tapmass gilt auch hier:
+   * `core/theme/tokens.ts:33` nennt es eine Einsatzanforderung (Handschuhe),
+   * und ein 834px-Tablet ist genauso ein Touchgeraet wie ein Telefon.
+   */
+  .tab {
+    flex: none;
+    flex-direction: row;
+    gap: 8px;
+    padding: 10px 18px;
+    min-height: 56px;
+    border-top: 2.5px solid transparent;
+    border-bottom: 2.5px solid transparent;
+  }
+
+  /* Die Marke wandert von oben nach unten — beide Kanten explizit, sonst bleibt
+     die Basisregel (:143) mit ihrer roten Oberkante stehen. */
+  .tab[aria-current="page"] {
+    border-top-color: transparent;
+    border-bottom-color: var(--lb-rot);
+  }
+
+  /* Mehr Luft, sobald welche da ist. Die Seitenabstaende regelt `--lb-bahn`. */
+  .inhalt { padding-block: 20px 26px; }
+
+  /*
+   * Das Kamerabild bekommt eine Obergrenze in px. `max-height: 58vh` (:326)
+   * sind auf 1440x900 rund 522px Video — auf einem Monitor nimmt das die ganze
+   * Ansicht ein, ohne dass der Code besser lesbar wuerde.
+   */
+  .scanVideo { max-height: min(58vh, 420px); }
 }
