@@ -61,8 +61,10 @@ export function DiensteRaster({
         subTitle={
           <>
             <p>
-              Welche Apps und Dienste du hier siehst, hängt an deinen Gruppen. Im Moment ist
-              für dich keine hinterlegt.
+              Welche Apps und Dienste du siehst, hängt an deinen Gruppen — im Moment passt keine
+              davon zu etwas, das hier steht. Wenn du gerade erst freigeschaltet wurdest: melde
+              dich einmal ab und wieder an. Neue Gruppen kommen mit der Anmeldung und werden sonst
+              erst nach bis zu einer Stunde von selbst nachgezogen.
             </p>
             {ansprechpartner ? (
               <p data-testid="portal-kontakt">
@@ -138,7 +140,14 @@ export function DiensteRaster({
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           {e.iconUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={e.iconUrl} alt="" width={20} height={20} />
+                            <img
+                              src={e.iconUrl}
+                              alt=""
+                              width={20}
+                              height={20}
+                              referrerPolicy="no-referrer"
+                              loading="lazy"
+                            />
                           ) : (
                             <Icon aria-hidden="true" />
                           )}

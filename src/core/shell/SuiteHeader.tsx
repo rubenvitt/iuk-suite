@@ -96,7 +96,12 @@ export async function SuiteHeader({
          * ein toter Link.
          */}
         {angemeldet ? (
-          <AppUmschalter modulTitel={mod.title} modulKey={moduleKey} eintraege={eintraege} />
+          <AppUmschalter
+            modulTitel={mod.title}
+            modulKey={moduleKey}
+            eintraege={eintraege}
+            portalHref={moduleUrl("portal")}
+          />
         ) : (
           <Link href={moduleUrl(moduleKey) ?? "/"} className={s.titel}>
             {/* `data-testid` bleibt auf dem `<strong>` — der Keystone-E2E fragt es

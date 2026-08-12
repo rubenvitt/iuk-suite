@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
+import type { ComponentProps } from "react";
 import { mount, unmount, query, queryAll, exists, fill, click } from "@/app/m/qr/_lib/test-dom";
 import { AppUmschalter } from "@/core/shell/AppUmschalter";
 import { ICONS } from "@/core/shell/icons";
@@ -12,8 +13,18 @@ const EINTRAEGE: LauncherEintrag[] = [
   { key: "dienst:1", title: "Nextcloud", beschreibung: "Dateiablage", href: "https://n", abschnitt: "Zusammenarbeit", extern: true },
 ];
 
-function umschalter() {
-  return <AppUmschalter modulTitel="Lagerbuch" modulKey="lagerbuch" eintraege={EINTRAEGE} />;
+// Overrides statt fester Props: neue Zustände (Befund 4 — Fußzeile, Befund 3
+// — leere Liste) sollen keinen der acht bestehenden Aufrufe anfassen müssen.
+function umschalter(overrides: Partial<ComponentProps<typeof AppUmschalter>> = {}) {
+  return (
+    <AppUmschalter
+      modulTitel="Lagerbuch"
+      modulKey="lagerbuch"
+      eintraege={EINTRAEGE}
+      portalHref="https://portal.localtest.me:3000"
+      {...overrides}
+    />
+  );
 }
 
 afterEach(async () => {
@@ -83,6 +94,54 @@ describe("AppUmschalter", () => {
     await fill('[data-testid="app-suche"]', "gibtesnicht");
     expect(exists('[data-testid="app-leer"]')).toBe(true);
     expect(query('[data-testid="app-leer"]').textContent).toContain("gibtesnicht");
+  });
+
+  /*
+   * BEFUND 3 — eine leere Liste ist keine gescheiterte Suche. Vor der Korrektur
+   * stand hier `Nichts gefunden für „".` mit leerem Suchbegriff: derselbe
+   * Zustand wie im Portal-Leerzustand, aber mit widersprechendem Text. Eigene
+   * testId statt `app-leer`, damit ein Playwright-Locator die beiden Zustände
+   * unterscheiden kann.
+   */
+  it("unterscheidet eine leere Liste von einer erfolglosen Suche", async () => {
+    await mount(umschalter({ eintraege: [] }));
+    await click('[data-testid="app-umschalter"]');
+    expect(exists('[data-testid="app-ohne-eintraege"]')).toBe(true);
+    expect(exists('[data-testid="app-leer"]')).toBe(false);
+    // Kein leerer Suchbegriff im Text — die Suche fand nicht statt.
+    expect(query('[data-testid="app-ohne-eintraege"]').textContent).not.toContain("„");
+  });
+
+  /*
+   * BEFUND 4 — die Fußzeile aus §4 Punkt 4 des Entwurfs. Sie muss in JEDEM
+   * Panel-Zustand stehen, nicht nur, wenn die Liste Treffer zeigt — für „Suche
+   * ohne Treffer" ist sie zugleich der in §6.2 geforderte Weg ins Portal.
+   */
+  it("zeigt die Fußzeile ins Portal mit Treffern", async () => {
+    await mount(umschalter());
+    await click('[data-testid="app-umschalter"]');
+    expect(query('[data-testid="app-fusszeile"]').getAttribute("href")).toBe(
+      "https://portal.localtest.me:3000",
+    );
+  });
+
+  it("zeigt die Fußzeile ins Portal bei einer Suche ohne Treffer", async () => {
+    await mount(umschalter());
+    await click('[data-testid="app-umschalter"]');
+    await fill('[data-testid="app-suche"]', "gibtesnicht");
+    expect(exists('[data-testid="app-fusszeile"]')).toBe(true);
+  });
+
+  it("zeigt die Fußzeile ins Portal ohne jeden Eintrag", async () => {
+    await mount(umschalter({ eintraege: [] }));
+    await click('[data-testid="app-umschalter"]');
+    expect(exists('[data-testid="app-fusszeile"]')).toBe(true);
+  });
+
+  it("lässt die Fußzeile weg, statt einen toten Link zu zeigen", async () => {
+    await mount(umschalter({ portalHref: null }));
+    await click('[data-testid="app-umschalter"]');
+    expect(exists('[data-testid="app-fusszeile"]')).toBe(false);
   });
 
   it("öffnet externe Dienste in neuem Tab, Suite-Module nicht", async () => {

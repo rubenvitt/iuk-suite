@@ -451,6 +451,29 @@
   opacity: 0.65;
 }
 
+/*
+ * Die Fußzeile des Panels — „Alle Apps im Portal", in jedem Zustand sichtbar
+ * (Begründung an der Stelle in `AppUmschalter.tsx`). Eigene Klasse statt
+ * `.appEintrag`: sie gehört nicht zur Liste und trägt kein `aria-current`.
+ */
+.umschalterFusszeile {
+  display: block;
+  margin-block-start: 4px;
+  padding: 8px 6px;
+  border-block-start: 1px solid var(--suite-linie);
+  color: inherit;
+  text-decoration: none;
+  font-size: 13px;
+  text-align: center;
+  opacity: 0.75;
+}
+
+.umschalterFusszeile:hover {
+  opacity: 1;
+  background: var(--suite-hover);
+  border-radius: 8px;
+}
+
 @media (min-width: 768px) {
   .umschalterPanel {
     inset-inline: 0 auto;

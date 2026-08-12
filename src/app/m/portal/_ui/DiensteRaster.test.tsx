@@ -45,6 +45,23 @@ describe("DiensteRaster", () => {
     expect(exists('[data-testid="portal-grid"]')).toBe(false);
   });
 
+  /*
+   * BEFUND 2. Der alte Satz behauptete „im Moment ist für dich keine [Gruppe]
+   * hinterlegt" — etwas, das die Komponente gar nicht wissen kann: sie kennt
+   * nur die GEMISCHTE LISTE, nicht die Gruppen der Person. Wer Gruppen hat, zu
+   * denen nur nichts passt, las damit eine Unwahrheit. Die Zusicherung oben
+   * (`toContain("freigeschaltet")`) würde schon auf der Überschrift allein
+   * grün bleiben — dieser Test pinnt deshalb zusätzlich den nächsten Schritt,
+   * den der neue Satz nennt.
+   */
+  it("nennt einen naechsten Schritt statt eine Unwahrheit ueber Gruppen", async () => {
+    await mount(<DiensteRaster eintraege={[]} ansprechpartner={null} />);
+    const leer = query('[data-testid="portal-leer"]');
+    expect(leer.textContent).not.toContain("ist für dich keine hinterlegt");
+    expect(leer.textContent).toContain("ab und wieder an");
+    expect(leer.textContent).toContain("bis zu einer Stunde");
+  });
+
   it("vergibt das Raster genau einmal, egal wie viele Abschnitte es gibt", async () => {
     // Playwrights getByTestId ist strict: zwei Knoten mit derselben testId sind
     // eine "resolved to N elements"-Verletzung, und e2e/portal.spec.ts:8 greift

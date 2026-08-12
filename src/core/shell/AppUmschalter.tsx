@@ -50,10 +50,19 @@ export function AppUmschalter({
   modulTitel,
   modulKey,
   eintraege,
+  portalHref,
 }: {
   modulTitel: string;
   modulKey: string;
   eintraege: LauncherEintrag[];
+  /**
+   * Fertiger Link auf die Portal-Startseite (§4 Punkt 4 des Entwurfs), oder
+   * `null`, wenn `moduleUrl("portal")` keinen liefert (Prod ohne konfigurierten
+   * Host). `AppUmschalter` ist eine Client-Insel und darf `process.env` nicht
+   * lesen — `SuiteHeader` reicht den fertigen `href` genauso durch wie bei den
+   * Einträgen selbst.
+   */
+  portalHref: string | null;
 }) {
   const [offen, setOffen] = useState(false);
   const [suche, setSuche] = useState("");
@@ -139,9 +148,21 @@ export function AppUmschalter({
             </label>
 
             {abschnitte.length === 0 ? (
-              <p data-testid="app-leer" className={s.umschalterLeer}>
-                Nichts gefunden für „{suche}“.
-              </p>
+              // Zwei Zustände, eine Bedingung — und sie sind NICHT dasselbe
+              // (Befund 3): eine leere Suche ist keine gescheiterte Suche.
+              // Ist `suche` leer, kann `abschnitte` nur leer sein, weil
+              // `eintraege` es schon ist (`gefiltert` liefert dann `eintraege`
+              // unveraendert zurueck) — der Zweig unten sagt deshalb nie etwas
+              // Falsches ueber eine Suche, die nie stattfand.
+              suche.trim() ? (
+                <p data-testid="app-leer" className={s.umschalterLeer}>
+                  Nichts gefunden für „{suche}“.
+                </p>
+              ) : (
+                <p data-testid="app-ohne-eintraege" className={s.umschalterLeer}>
+                  Für dich ist noch nichts freigeschaltet.
+                </p>
+              )
             ) : (
               abschnitte.map(([titel, liste]) => (
                 <div key={titel}>
@@ -163,7 +184,13 @@ export function AppUmschalter({
                         >
                           {e.iconUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={e.iconUrl} alt="" className={s.appEintragBild} />
+                            <img
+                              src={e.iconUrl}
+                              alt=""
+                              className={s.appEintragBild}
+                              referrerPolicy="no-referrer"
+                              loading="lazy"
+                            />
                           ) : (
                             <Icon aria-hidden="true" />
                           )}
@@ -180,6 +207,28 @@ export function AppUmschalter({
                 </div>
               ))
             )}
+
+            {/*
+             * FUSSZEILE, IN JEDEM ZUSTAND DES PANELS (§4 Punkt 4 des Entwurfs)
+             * — mit Treffern, ohne Treffer und ohne Einträge. Deshalb AUSSERHALB
+             * der Ternäre oben, nicht als ihr dritter Zweig: sie beantwortet
+             * nicht „was zeigt die Liste", sondern „wo geht's weiter", und das
+             * gilt unabhängig davon, was die Liste gerade zeigt. Für „Suche ohne
+             * Treffer" ist das zugleich der in §6.2 verlangte Weg ins Portal.
+             *
+             * Kein `href`, keine Fußzeile: `moduleUrl("portal")` liefert `null`,
+             * wenn Prod keinen Host für `portal` konfiguriert hat — ein toter
+             * Link wäre schlechter als keiner.
+             */}
+            {portalHref ? (
+              <a
+                data-testid="app-fusszeile"
+                className={s.umschalterFusszeile}
+                href={portalHref}
+              >
+                Alle Apps im Portal
+              </a>
+            ) : null}
           </div>
         </>
       ) : null}
