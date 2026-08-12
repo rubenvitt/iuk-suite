@@ -507,14 +507,31 @@ Erwartet: **FAIL** — `.fachraster` existiert nicht.
 
 - [ ] **Schritt 3: Die Klasse im Stylesheet anlegen**
 
-Basisregel zu den Bausteinen (bei `.karte`, etwa `:186`), damit sie **unter** 768px
-nachweislich nichts tut:
+Basisregel zu den Bausteinen (bei `.karte`, etwa `:186`):
 
 ```css
-/* Der Container der Zaehlliste. Unter 768px ist er ein blosser Behaelter —
-   die Fachkarten stehen untereinander wie bisher. Das Raster kommt aus dem
-   Desktop-Zweig am Dateiende. */
-.fachraster { display: block }
+/*
+ * Der Container der Zaehlliste. EINSPALTIGES Grid, nicht `display: block` —
+ * optisch dasselbe, aber der Desktop-Zweig muss dann nur noch EINE
+ * Eigenschaft umsetzen statt die Anzeigeart zu wechseln.
+ *
+ * ⚠️ DIE KLASSE GEHOERT IN DIE BASIS, nicht nur in den @media-Block:
+ * `rahmen.test.tsx:60-68` leert genestete Klammern fuenffach, um Regelkoerper
+ * von Selektoren zu trennen — dabei faellt der GANZE @media-Block weg. Eine
+ * Klasse, die es nur dort gibt, gilt diesem Scan als nicht deklariert. Heute
+ * traefe das `.fachraster` nicht (der Scan liest nur die zwei Rahmen-Dateien),
+ * aber die naechste Datei, die er aufnimmt, braeche daran.
+ *
+ * `gap: 0 18px` heisst: senkrecht nichts, waagerecht 18px. Der senkrechte
+ * Abstand kommt weiter aus `.fachKopf`s eigenem `margin` (:279) — eine
+ * row-gap hier addierte sich dazu.
+ */
+.fachraster {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 18px;
+  align-items: start;
+}
 ```
 
 Im Media-Block aus Task 2, vor `.scanVideo`:
@@ -529,16 +546,12 @@ Im Media-Block aus Task 2, vor `.scanVideo`:
    * eine Zaehlzeile braucht: Pruefkreis 30 + Name + Stepper 3x56 = 168 + die
    * Verfallszeile darunter. Enger bricht der Stepper um.
    *
-   * `align-items: start` ist Pflicht: ohne das zieht Grid jede Karte auf die
-   * Hoehe der hoechsten Zeile, und ein Fach mit zwei Positionen bekaeme den
-   * Weissraum eines Fachs mit zwanzig.
+   * EINE Eigenschaft — `display`, `gap` und `align-items` stehen schon in der
+   * Basisregel. `align-items: start` ist dort Pflicht: ohne das zieht Grid jede
+   * Karte auf die Hoehe der hoechsten Zeile, und ein Fach mit zwei Positionen
+   * bekaeme den Weissraum eines Fachs mit zwanzig.
    */
-  .fachraster {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-    gap: 0 18px;
-    align-items: start;
-  }
+  .fachraster { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)) }
 ```
 
 - [ ] **Schritt 4: Die Klasse setzen**
@@ -652,12 +665,15 @@ Erwartet: **FAIL** — `.karteRaster` existiert nicht.
 
 - [ ] **Schritt 3: Die Klasse im Stylesheet anlegen**
 
-Basisregel direkt nach `.karte` (`:186`):
+Basisregel direkt nach `.karte` (`:186`) — einspaltiges Grid, aus demselben Grund wie
+bei `.fachraster` in Task 3:
 
 ```css
-/* Zusatz zu `.karte` fuer lange, gleichfoermige Listen. Unter 768px wirkungslos:
-   die Zeilen stehen untereinander wie in jeder anderen Karte. */
-.karteRaster { display: block }
+/* Zusatz zu `.karte` fuer lange, gleichfoermige Listen. Einspaltig ist optisch
+   dasselbe wie der Blockfluss; der Desktop-Zweig setzt dann nur noch die
+   Spaltenzahl um. Die Klasse gehoert in die BASIS — `rahmen.test.tsx:60-68`
+   sieht Klassen nicht, die es nur im @media-Block gibt. */
+.karteRaster { display: grid; grid-template-columns: 1fr }
 ```
 
 Im Media-Block, nach `.fachraster`:
@@ -670,10 +686,7 @@ Im Media-Block, nach `.fachraster`:
    * saesse die senkrechte Kante an der falschen Zelle — und `auto-fit` sagt
    * einem CSS-Selektor nicht, wie viele Spalten es gerade erzeugt hat.
    */
-  .karteRaster {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
+  .karteRaster { grid-template-columns: 1fr 1fr }
 
   /* Jede Zelle bekommt ihre Oberkante zurueck … */
   .karteRaster .zeile { border-top: 1px solid var(--lb-linie) }
@@ -795,12 +808,17 @@ Erwartet: **FAIL** — `.lesebahn` existiert nicht.
 
 - [ ] **Schritt 3: Die Klasse anlegen**
 
-Basisregel bei den Bausteinen:
+Basisregel bei den Bausteinen — die **Zentrierung** steht hier, die Kappung im
+Desktop-Zweig:
 
 ```css
-/* Die schmalere Bahn fuer Detailansichten. Unter 768px wirkungslos — dort ist
-   die Bahn ohnehin 560px und damit enger als jede Lesebreite. */
-.lesebahn { width: 100% }
+/* Die schmalere Bahn fuer Detailansichten. `margin-inline: auto` ohne
+   `max-width` tut nichts und wird ab 768px tragend — die Regel ist damit
+   halb hier und halb im Desktop-Zweig, nicht tot. Sie gehoert in die BASIS,
+   weil `rahmen.test.tsx:60-68` Klassen nicht sieht, die es nur im
+   @media-Block gibt. Unter 768px braucht es sie ohnehin nicht: dort ist die
+   Bahn 560px und damit enger als jede Lesebreite. */
+.lesebahn { margin-inline: auto }
 ```
 
 Im Media-Block:
@@ -812,7 +830,7 @@ Im Media-Block:
    * 24px-Titel allein in einer Zeile mit 90 % Weissraum. 720px ist die Breite,
    * bei der die Entnahme-Karte ihre Innenaufteilung behaelt, ohne zu zerfallen.
    */
-  .lesebahn { max-width: 720px; margin-inline: auto }
+  .lesebahn { max-width: 720px }
 ```
 
 - [ ] **Schritt 4: Den Wrapper einziehen**
