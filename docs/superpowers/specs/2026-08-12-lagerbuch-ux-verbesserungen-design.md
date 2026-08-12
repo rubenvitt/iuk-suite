@@ -359,6 +359,32 @@ Branch die Druckroute anfasst.
 `default`-Bedingung; Icons rendern dort klaglos, auch wenn sie im echten RSC-Lauf brächen.
 Der Beleg ist ausschließlich der HTTP-200 aus Zeile 1 der Tabelle.
 
+**Gelaufen am 12.08.2026 (Task 9):**
+
+```
+pnpm exec playwright test
+177 passed (6.4m)
+```
+Volle Suite, nicht nur `e2e/lagerbuch-ux.spec.ts` — `core/shell` ist von diesem Branch
+angefasst und betrifft jedes Modul. Kein Test rot.
+
+Der Riegel-Vergleich (letzte Tabellenzeile), wörtlich, **mit** Sitzung aber **ohne**
+Lagerbuch-Gruppe gegenübergestellt:
+
+```
+etiketten (Sitzung, ohne Lagerbuch-Gruppe): 404
+artikel   (Sitzung, ohne Lagerbuch-Gruppe): 404
+```
+
+Zur Kontrolle zusätzlich ganz ohne Sitzung (roher `curl` ohne Cookies):
+
+```
+etiketten (keine Sitzung): 307
+artikel   (keine Sitzung): 307
+```
+
+Beide Paare sind je identisch — kein Zugriffsriegel beim Umbau des Chromes verloren gegangen.
+
 ## Abgrenzung
 
 Nicht in diesem Branch, gehört auf das ClickUp-Board („I&K Suite", 901524923921):
