@@ -12,7 +12,7 @@ import { Header } from "antd/es/layout/layout";
 import { auth } from "@/core/auth";
 import { getModule } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
-import { launcherEintraege } from "@/core/shell/launcherEintraege";
+import { modulEintraege } from "@/core/shell/launcherEintraege";
 import { Modulnav, SuiteNav } from "@/core/shell/SuiteNav";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { SCHRIFT } from "@/core/theme/schrift";
@@ -28,8 +28,8 @@ import s from "./shell.module.css";
  * veraltet — `pnpm build` weist jede Route der Suite als `f (Dynamic)` aus,
  * weil das Root-Layout `cookies()` fuer den Theme-Modus liest.
  *
- * Die Eintraege werden HIER gebaut, nicht im Client: `launcherEintraege()`
- * liest ueber `moduleUrl()` `process.env`, das im Client-Bundle nicht existiert.
+ * Die Eintraege werden HIER gebaut, nicht im Client: `modulEintraege()` liest
+ * über `moduleUrl()` `process.env`, das im Client-Bundle nicht existiert.
  * `SuiteNav` bekommt nur fertige hrefs.
  */
 export async function SuiteHeader({
@@ -42,11 +42,15 @@ export async function SuiteHeader({
   const session = await auth();
   const angemeldet = !!session?.user;
   const mod = getModule(moduleKey);
-  // Anonym wird die Funktion GAR NICHT gerufen: `MinimalShell` nutzt dieselbe
-  // Kopfzeile wie `FullShell`, also oeffnete sonst jeder anonyme Aufruf von qr
-  // und beta die Portal-Datenbank fuer eine Liste, die anonym ohnehin nicht
-  // erscheint (Entwurf §3.2, §4).
-  const eintraege = angemeldet ? await launcherEintraege(session?.user?.groups ?? null) : [];
+  // NUR `modulEintraege`, noch nicht die gemischte Liste: die Modulzeile ist
+  // in dieser Aufgabe unverändert (`SuiteNav.tsx`, `<nav aria-label="Module">`)
+  // und würde einen Dienst fälschlich als „Modul" auszeichnen — falsch für
+  // einen Screenreader — und `extern` (neuer Tab) nirgends lesen. Der Merge
+  // (`launcherEintraege`, der die Portal-Datenbank braucht) zieht hier erst in
+  // Task 4 ein, wo der App-Umschalter ihn tatsächlich konsumiert. Anonym
+  // bleibt die Liste leer: `modulEintraege` berührt zwar keine Datenbank,
+  // aber SuiteNav zeigt die Modulzeile ohnehin nur angemeldet.
+  const eintraege = angemeldet ? modulEintraege(session?.user?.groups ?? null) : [];
 
   /*
    * ZWEI GESCHWISTER, NICHT EIN VERSCHACHTELTER BLOCK — die Modulnavigation

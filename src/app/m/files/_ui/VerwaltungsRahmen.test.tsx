@@ -37,10 +37,9 @@ const { authMock, suiteNavMock, modulnavMock } = vi.hoisted(() => ({
 
 vi.mock("@/core/auth", () => ({ auth: authMock }));
 vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock, Modulnav: modulnavMock }));
-// `launcherEintraege` fragt ueber `dienstEintraege` die Portal-Datenbank ab —
-// hier geht es nur um den Rahmen um die Verwaltungsseite, nicht um die Liste
-// selbst (die hat `launcherEintraege.test.ts`).
-vi.mock("@/core/shell/launcherEintraege", () => ({ launcherEintraege: vi.fn(() => []) }));
+// KEIN Mock für `@/core/shell/launcherEintraege` (mehr): `SuiteHeader` ruft in
+// dieser Aufgabe nur `modulEintraege` — synchron, ohne Portal-Datenbank. Ein
+// Mock für eine Funktion, die dieser Pfad nicht mehr aufruft, wäre irreführend.
 
 import { VerwaltungsRahmen } from "./VerwaltungsRahmen";
 import { FILES_NAV } from "../_lib/nav";

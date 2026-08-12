@@ -29,21 +29,25 @@ const { authMock, suiteNavMock, modulnavMock, launcherEintraegeMock } = vi.hoist
   // Ein sichtbarer Platzhalter statt `null`: nur so laesst sich pruefen, WO im
   // Baum die zweite Zeile landet (siehe den Test dazu unten).
   modulnavMock: vi.fn(() => <i data-testid="modulnav-platz" />),
-  // `async`, weil die echte Funktion ein Promise liefert — ein synchroner Mock
-  // liesze `await eintraegeMock(...)` nur zufaellig funktionieren.
+  // `SuiteHeader` ruft in dieser Aufgabe nur `modulEintraege` (synchron, ohne
+  // DB). `launcherEintraege` bleibt trotzdem gemockt und adressierbar — der
+  // Test unten prüft gerade, DASS er NICHT aufgerufen wird (siehe dort).
   launcherEintraegeMock: vi.fn(async () => []),
 }));
 
 vi.mock("@/core/auth", () => ({ auth: authMock }));
 vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock, Modulnav: modulnavMock }));
-// `launcherEintraege` fragt ueber `dienstEintraege` die Portal-Datenbank ab —
-// hier geht es nur um Titel und Baumstruktur der Kopfzeile, nicht um die Liste
-// selbst (die hat `launcherEintraege.test.ts`). Als eigener Mock adressierbar,
-// weil der Test unten prueft, DASS er anonym gar nicht gerufen wird.
-vi.mock("@/core/shell/launcherEintraege", () => ({ launcherEintraege: launcherEintraegeMock }));
+// Nur `launcherEintraege` wird gemockt (Spion für den Test unten) —
+// `modulEintraege` bleibt die echte Implementierung: sie ist synchron, liest
+// nur Registry + `moduleUrl()` und ist damit ohne Portal-Datenbank aufrufbar.
+vi.mock("@/core/shell/launcherEintraege", async (importActual) => {
+  const echt = await importActual<typeof import("./launcherEintraege")>();
+  return { ...echt, launcherEintraege: launcherEintraegeMock };
+});
 
 import { SuiteHeader } from "./SuiteHeader";
 import { moduleUrl } from "./moduleUrl";
+import { modulEintraege } from "./launcherEintraege";
 import { MODULES } from "@/core/registry";
 import type { SuiteNavItem } from "./types";
 
@@ -137,24 +141,42 @@ describe("SuiteHeader", () => {
     expect(kopf.querySelector('[data-testid="modulnav-platz"]')).toBeNull();
   });
 
-  it("ruft launcherEintraege anonym gar nicht auf", async () => {
+  it("ruft launcherEintraege in dieser Aufgabe nie auf — weder angemeldet noch abgemeldet", async () => {
     /*
-     * `MinimalShell` nutzt dieselbe Kopfzeile wie `FullShell` — jeder anonyme
-     * Aufruf von qr oder beta liefe sonst ueber `launcherEintraege` in die
-     * Portal-Datenbank, fuer eine Liste, die anonym ohnehin nicht erscheint
-     * (Entwurf §3.2, §4). Ohne diesen Test bliebe der `angemeldet ?`-Riegel
-     * unbeobachtet: Task 4 baut die Kopfzeile um, und ein versehentlich
-     * entfernter Riegel liesse jedes andere Tor gruen.
+     * `SuiteNav` bekommt hier bewusst nur `modulEintraege`, nicht die
+     * gemischte Liste: die Modulzeile zeigt in dieser Aufgabe noch dieselbe
+     * `<nav aria-label="Module">`, in der ein Dienst als „Modul" ausgezeichnet
+     * wäre — falsch für einen Screenreader — und `extern` (neuer Tab) nirgends
+     * gelesen würde. Der Merge (`launcherEintraege`) zieht hier erst in
+     * Task 4 ein, wo der App-Umschalter ihn tatsächlich konsumiert.
+     *
+     * Weil `modulEintraege` synchron ist und keine Datenbank berührt, ist die
+     * frühere Zusicherung „anonym keine Portal-DB" hier bereits durch die
+     * Bauform erfüllt und für sich genommen keine Aussage mehr wert. Was
+     * bleibt zu prüfen: `launcherEintraege` (der DB-Pfad) wird WEDER
+     * angemeldet NOCH abgemeldet gerufen, und `SuiteNav` bekommt abgemeldet
+     * `entries: []`, angemeldet genau `modulEintraege(...)`. Die Zusicherung
+     * „anonym keine DB" wird erst wieder scharf, wenn Task 4
+     * `launcherEintraege` an dieser Stelle einzieht.
      */
     launcherEintraegeMock.mockClear();
-    authMock.mockResolvedValue(null);
     suiteNavMock.mockClear();
-    const element = await SuiteHeader({ moduleKey: "qr" });
-    renderToStaticMarkup(element);
-    expect(launcherEintraegeMock).not.toHaveBeenCalled();
-    expect(suiteNavMock).toHaveBeenCalledWith(
+
+    authMock.mockResolvedValue(null);
+    renderToStaticMarkup(await SuiteHeader({ moduleKey: "qr" }));
+    expect(suiteNavMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ entries: [], angemeldet: false }),
       undefined,
     );
+
+    const groups = ["alpha-users"];
+    authMock.mockResolvedValue({ user: { name: "Test", groups } });
+    renderToStaticMarkup(await SuiteHeader({ moduleKey: "qr" }));
+    expect(suiteNavMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entries: modulEintraege(groups), angemeldet: true }),
+      undefined,
+    );
+
+    expect(launcherEintraegeMock).not.toHaveBeenCalled();
   });
 });

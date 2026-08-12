@@ -246,7 +246,7 @@ export function SuiteNav({
   const modulLinks = entries.map((eintrag) => {
     // `icon` ist in `LauncherEintrag` optional (nur Dienste tragen `iconUrl`
     // statt dessen) — die Modulknopfreihe zeigt hier weiterhin nur Module, die
-    // `icon` immer setzen, aber der Typ verlangt den Rueckfall.
+    // `icon` immer setzen, aber der Typ verlangt den Rückfall.
     const Icon = ICONS[eintrag.icon ?? ""] ?? AppstoreOutlined;
     return (
       <Button key={eintrag.key} type="text" href={eintrag.href} icon={<Icon />}>

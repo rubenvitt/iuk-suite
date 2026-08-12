@@ -17,7 +17,7 @@ function eintrag(teil: Partial<LauncherEintrag>): LauncherEintrag {
 }
 
 describe("modulEintraege", () => {
-  it("verlinkt in Dev nur die fuer den Nutzer sichtbaren Module ueber *.localtest.me", () => {
+  it("verlinkt in Dev nur die für den Nutzer sichtbaren Module über *.localtest.me", () => {
     vi.stubEnv("PORT", "3000");
     const groups = ["da-feedback-gl", "iuk-files-admin", "lagerbuch_nutzer"];
     expect(modulEintraege(groups).map((e) => e.key)).toEqual([
@@ -32,7 +32,7 @@ describe("modulEintraege", () => {
     expect(gamma?.href).toBe("http://gamma.localtest.me:3000");
   });
 
-  it("laesst in Prod Module ohne eigene Domain weg", () => {
+  it("lässt in Prod Module ohne eigene Domain weg", () => {
     vi.stubEnv("NODE_ENV", "production");
     const eintraege = modulEintraege([]);
     expect(eintraege.map((e) => e.key)).toEqual(["portal"]);
@@ -44,14 +44,14 @@ describe("modulEintraege", () => {
     expect(modulEintraege(null).map((e) => e.key)).toEqual(["qr"]);
   });
 
-  it("steckt alle Module in denselben Abschnitt und traegt ihren Icon-Namen", () => {
+  it("steckt alle Module in denselben Abschnitt und trägt ihren Icon-Namen", () => {
     vi.stubEnv("PORT", "3000");
     const portal = modulEintraege([]).find((e) => e.key === "portal");
     expect(portal?.abschnitt).toBe(ABSCHNITT_APPS);
-    // Der NAME, nicht die Komponente: die Aufloesung gehoert in die Client-Insel
+    // Der NAME, nicht die Komponente: die Auflösung gehört in die Client-Insel
     // (`@ant-design/icons` in RSC ist HTTP 500, den kein Gate sieht).
     expect(portal?.icon).toBe("AppstoreOutlined");
-    // Module bleiben im selben Tab — sie liegen zwar auf fremden Hosts, gehoeren
+    // Module bleiben im selben Tab — sie liegen zwar auf fremden Hosts, gehören
     // aber zur Suite.
     expect(portal?.extern).toBe(false);
   });
@@ -76,7 +76,7 @@ describe("mischeEintraege", () => {
     ]);
   });
 
-  it("laesst den Apps-Abschnitt weg, wenn keine Module sichtbar sind", () => {
+  it("lässt den Apps-Abschnitt weg, wenn keine Module sichtbar sind", () => {
     const dienste = [eintrag({ key: "dienst:1", abschnitt: "Zusammenarbeit" })];
     expect(mischeEintraege([], dienste).map((e) => e.key)).toEqual(["dienst:1"]);
   });
@@ -89,15 +89,15 @@ describe("mischeEintraege", () => {
 /*
  * Der Riegel an der Schichtgrenze. `docs/design/README.md`: Modul-Interna sind
  * kein API. Genau EIN Import aus dem Portal ist verabredet — die
- * Launcher-Funktion. Ohne diesen Scan waechst der zweite lautlos nach, und
- * `core` haette danach das Portal-Schema im Blick.
+ * Launcher-Funktion. Ohne diesen Scan wächst der zweite lautlos nach, und
+ * `core` hätte danach das Portal-Schema im Blick.
  *
- * Der Scan faengt die naheliegende Verdrahtung, nicht jede denkbare: ein
- * umbenanntes Re-Export kaeme durch. Dieselbe eingestandene Grenze wie beim
+ * Der Scan fängt die naheliegende Verdrahtung, nicht jede denkbare: ein
+ * umbenanntes Re-Export käme durch. Dieselbe eingestandene Grenze wie beim
  * Seed-Scan in `scripts/seed-lokal.test.ts` — und besser als nichts.
  */
 describe("Grenze zwischen core/shell und dem Modul portal", () => {
-  it("importiert aus dem Portal ausschliesslich _lib/launcher", () => {
+  it("importiert aus dem Portal ausschließlich _lib/launcher", () => {
     const verzeichnis = "src/core/shell";
     const dateien = readdirSync(verzeichnis).filter((d) => /\.tsx?$/.test(d));
     expect(dateien.length).toBeGreaterThan(0);
