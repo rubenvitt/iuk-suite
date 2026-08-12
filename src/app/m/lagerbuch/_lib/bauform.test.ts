@@ -627,6 +627,37 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     expect(css).not.toMatch(/outline:\s*none/);
   });
 
+  it("traegt den Button-Reset aus der Alt-Anwendung, gescopet auf :where(.rahmen)", () => {
+    /**
+     * Nachbesserung 12.08.2026: `<button>` hatte im Helfer-Zweig keinen Reset —
+     * ein Stueck Alt-Bestand (lagerbuch/src/app/globals.css:39), das beim
+     * Portieren verlorenging. `.stepTaste` trug dadurch den UA-Default des
+     * Browsers: grauer Hintergrund, ein 2px `outset`-Rahmen.
+     *
+     * ⚠️ `:where(.rahmen)`, NICHT `.rahmen`: der nackte Klassen-Selektor
+     * `.rahmen button` haette Spezifitaet (0,1,1) — eine Klasse plus ein
+     * Elementselektor — und schluege damit `.beenden`/`.knopfRot`/
+     * `.knopfTinte`/`.knopfGeist`/`.abschlussGo` (alle 0,1,0), unabhaengig von
+     * ihrer Position im Stylesheet: der rote Primaerknopf waere transparent
+     * geworden. `:where(.rahmen)` nimmt der Klasse ihren Spezifitaetsbeitrag,
+     * uebrig bleibt nur `button` (0,0,1) — jede Button-Klasse gewinnt damit
+     * wie zuvor. Mutationsprobe: `:where(.rahmen)` durch `.rahmen` ersetzt,
+     * dieser Test bleibt gruen (er prueft nur, DASS der Reset da ist, nicht
+     * WELCHE Spezifitaet er hat) — deshalb die explizite `:where(`-Zusicherung
+     * unten, die genau diese Mutation faengt.
+     */
+    const css = lies();
+    expect(css, "Selektor muss :where(.rahmen) button lauten, nicht .rahmen button")
+      .toMatch(/:where\(\.rahmen\)\s+button\s*\{/);
+    const koerper = regelKoerper(css, /:where\(\.rahmen\)\s+button\s*\{/);
+    expect(koerper, "Button-Reset-Regel fehlt").not.toBe("");
+    expect(koerper).toMatch(/font:\s*inherit/);
+    expect(koerper).toMatch(/cursor:\s*pointer/);
+    expect(koerper).toMatch(/background:\s*none/);
+    expect(koerper).toMatch(/border:\s*none/);
+    expect(koerper).toMatch(/color:\s*inherit/);
+  });
+
   it("die Zaehlliste ist im Desktop-Zweig ein Raster", () => {
     // Der teuerste Bildschirm des Zweigs: bei 1440px waren drei Positionen
     // gleichzeitig lesbar, die Sticky-Leiste verdeckte eine vierte. Der Wert

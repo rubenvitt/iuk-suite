@@ -322,7 +322,32 @@
   display: flex; align-items: center; border: 1.5px solid var(--lb-linie);
   border-radius: 12px; background: var(--lb-karte); flex: none;
 }
+/*
+ * NACH DEM RESET (siehe unten bei der Fokus-Regel) IST `.stepTaste`
+ * HINTERGRUNDLOS — sauber, aber ohne den Reset unsichtbar: die 56px-Tapflaeche
+ * ist eine Einsatzanforderung (`core/theme/tokens.ts:33`, Bedienung mit
+ * Handschuhen), keine Stilfrage, und sie muss lesbar bleiben.
+ *
+ * STATT EINER HINTERGRUNDFLAECHE bekommen die beiden Aussentasten eine
+ * 1px-Trennlinie zum Wertfeld: eine Flaeche graute die ganze 56px-Taste aus
+ * und liesse sie wie deaktiviert wirken, eine Linie trennt sichtbar und
+ * bleibt dabei hell. `var(--lb-linie)` traegt in BEIDEN Modi genug Kontrast
+ * zu `var(--lb-karte)` — geprueft hell (#d9dde1 auf #ffffff) UND dunkel
+ * (#2c3238 auf #1c2126, dort heller als die Karte statt dunkler, aber
+ * ebenso sichtbar und ebenso dezent).
+ *
+ * `border-radius` auf den Aussentasten selbst, nicht auf `.stepper`: die
+ * 10.5px sind `.stepper`s eigene 12px minus dessen 1.5px-Rahmen — die
+ * konzentrische Innenrundung, damit die Tastenecke exakt unter der
+ * Aussenrundung des Rahmens liegt statt eckig dagegenzustehen.
+ *
+ * `box-sizing: border-box` (global, `globals.css:10`) haelt die Aussenmasse
+ * bei genau 56x56px: die neue 1px-Trennlinie verkleinert die Innenflaeche,
+ * nicht die Tapflaeche selbst — Abnahmebedingung „Tasten bleiben 56x56px".
+ */
 .stepTaste { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; color: var(--lb-tinte) }
+.stepTaste:first-child { border-right: 1px solid var(--lb-linie); border-radius: 10.5px 0 0 10.5px }
+.stepTaste:last-child { border-left: 1px solid var(--lb-linie); border-radius: 0 10.5px 10.5px 0 }
 .stepWert {
   min-width: 56px; height: 56px; text-align: center; background: transparent; border: 0;
   font: 700 20px/1 var(--lb-display); font-variant-numeric: tabular-nums; padding: 0;
@@ -445,6 +470,48 @@
    1200px-Bahn gezogen und dabei unzentriert stehen bleibt. */
 .leer { padding: 22px 16px; text-align: center; color: var(--lb-stahl); font-size: 15px; line-height: 1.5; margin-inline: auto }
 .leerWeg { margin-top: 14px; display: inline-flex }
+
+/*
+ * DER BUTTON-RESET — ALT-BESTAND AUS lagerbuch/src/app/globals.css:39, BEIM
+ * PORTIEREN VERLOREN GEGANGEN. Zeile 40 derselben Datei (die Fokus-Regel
+ * direkt darunter) ist zeichengleich mitgewandert; ihr Nachbar fehlte. Das ist
+ * derselbe Fehlertyp wie die drei fehlenden Schriftstapel im Kopfkommentar
+ * dieser Datei: ein Stueck Alt-Bestand, dessen Fehlen still aussieht wie eine
+ * Design-Entscheidung, obwohl es keine ist.
+ *
+ * GEMESSEN, NICHT VERMUTET: `.stepTaste` traegt ohne diese Regel
+ * `background: rgb(239,239,239)` und `border: 2px outset rgb(0,0,0)` — den
+ * UA-Default des Browsers. Ein per `document.createElement("button")` frisch
+ * erzeugter, ungestylter Button traegt im selben Lauf DENSELBEN Hintergrund.
+ * Das ist der Beweis: ein Fehler, kein Geschmacksproblem.
+ *
+ * ⚠️ SPEZIFITAET, NICHT NUR SELEKTOR-TEXT. Die naheliegende Schreibweise
+ * `.rahmen button { … }` haette Spezifitaet (0,1,1) — eine Klasse PLUS ein
+ * Elementselektor — und schluege damit JEDE der folgenden Ein-Klassen-Regeln
+ * (0,1,0), unabhaengig von deren Position im Stylesheet: `.beenden`,
+ * `.knopfRot`, `.knopfTinte`, `.knopfGeist`, `.abschlussGo` setzen alle
+ * `background`/`border`/`color` explizit, und der Reset haette sie mit
+ * `background: none` / `border: none` / `color: inherit` UEBERSTIMMT — der
+ * rote Primaerknopf waere transparent geworden, „Beenden" randlos. Kein
+ * einziger dieser Knoepfe baut auf dem Browser-Default auf (nur `.stepTaste`
+ * tut das, siehe oben); ohne die Spezifitaets-Korrektur haette der Reset sie
+ * aber trotzdem kaputtgemacht.
+ *
+ * `:where(.rahmen)` loest das: die Klammer nimmt der `.rahmen`-Klasse ihren
+ * Spezifitaetsbeitrag (zaehlt als 0), uebrig bleibt nur der Elementselektor
+ * `button` — Spezifitaet (0,0,1). Das ist GENAU das Profil, das der globale
+ * Reset der Alt-Anwendung ohnehin hatte (ein nackter `button`-Selektor); hier
+ * nur auf `.rahmen` gescopet, damit antd im Rest der Suite unberuehrt bleibt.
+ * Jede Button-Klasse dieser Datei (0,1,0 oder hoeher) gewinnt damit wie vor
+ * dem Reset, unabhaengig von ihrer Reihenfolge im Stylesheet.
+ */
+:where(.rahmen) button {
+  font: inherit;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: inherit;
+}
 
 /* Fokus: `outline` mit `outline-offset`, nie ein ersatzloses Abschalten. Die
    Suite-Regel erreicht nur antd-Komponenten; diese Zeile wandert zeichengleich
@@ -673,4 +740,15 @@
    */
   .abschluss { justify-content: center; }
   .abschlussInfo { flex: initial; }
+
+  /*
+   * STEPPER-HOVER — AUSSCHLIESSLICH HIER, NICHT IN DER BASIS. Unter 768px gibt
+   * es keinen echten Hover (Touch); eine Flaeche, die nach dem Antippen
+   * haengen bleibt, saehe aus wie ein ausgewaehlter Zustand, nicht wie eine
+   * Reaktion auf den Mauszeiger. `var(--lb-papier)` ist derselbe ruhige Ton,
+   * den `.rahmen` selbst als Seitenhintergrund traegt — dezent gegen
+   * `var(--lb-karte)` in BEIDEN Modi (im Dunkelzweig dunkler als die Karte
+   * statt heller, aber ebenso sichtbar).
+   */
+  .stepTaste:hover { background: var(--lb-papier) }
 }
