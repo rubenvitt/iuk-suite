@@ -567,10 +567,21 @@ describe("BZ-Übersichtsseite als Server Component", () => {
     expect(quelle).not.toContain("@ant-design/icons");
     // Seit der Kennzahlleiste importiert die Seite aus "antd" — aber NUR die
     // in Falle 1 (docs/design/README.md) gelisteten, COMPOUND-freien Namen.
-    const antdImport = quelle.match(/import\s*\{([^}]*)\}\s*from\s*["']antd["']/);
-    expect(antdImport).not.toBeNull();
-    const antdNamen = antdImport![1].split(",").map((n) => n.trim()).filter(Boolean);
-    expect(antdNamen.sort()).toEqual(["Col", "Row"]);
+    //
+    // ⚠️ ALLE Importzeilen pruefen, nicht nur die erste: `.match()` OHNE `/g`
+    // liefert nur den ersten Treffer im String, ein zweites `import { Typography }
+    // from "antd"` irgendwo darunter waere unsichtbar fuer den Riegel — genau
+    // der Schutz, den die fruehere Fassung (`not.toMatch(/from\s+["']antd["']/)`)
+    // noch hatte, weil sie auf ein Vorkommen IRGENDWO prueft. `matchAll` mit `/g`
+    // haelt diesen Schutz: jede Importzeile bekommt eine eigene Pruefung.
+    const antdImports = [...quelle.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']antd["']/g)];
+    expect(antdImports.length).toBeGreaterThan(0);
+    for (const [, gruppe] of antdImports) {
+      const antdNamen = gruppe.split(",").map((n) => n.trim()).filter(Boolean);
+      for (const name of antdNamen) {
+        expect(["Col", "Row"]).toContain(name);
+      }
+    }
     expect(quelle).not.toMatch(/\b(?:Form|Table|Modal)\./);
   });
 });
