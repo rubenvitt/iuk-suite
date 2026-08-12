@@ -1,4 +1,4 @@
-import { Card } from "antd";
+import { Card, Col, Row } from "antd";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getDb, type DB } from "../../../../_db/client";
@@ -6,6 +6,7 @@ import { artikelListe } from "../../../../_lib/lesepfade/artikel";
 import { templateDetail } from "../../../../_lib/lesepfade/fahrzeuge";
 import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Chip } from "../../../../_ui/Chip";
+import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { TemplateAktionen } from "./TemplateAktionen";
 import { TemplatePosEditor } from "./TemplatePosEditor";
@@ -38,19 +39,27 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
     kennung: fahrzeug.kennung,
     aktiv: fahrzeug.aktiv,
   }));
+  const faecher = new Set(positionen.map((p) => p.fachLabel)).size;
 
   return (
     <>
       <Brotkrume href="/verwaltung/vorlagen">Alle Vorlagen</Brotkrume>
       <SeitenKopf
         titel={detail.name}
-        beschreibung={(
-          <>
-            {positionen.length} Position(en) · {verknuepfteFahrzeuge.length} verknüpfte(s){" "}
-            Fahrzeug(e) {detail.aktiv ? null : <Chip ton="grau">inaktiv</Chip>}
-          </>
-        )}
+        beschreibung={detail.aktiv ? undefined : <Chip ton="grau">inaktiv</Chip>}
       />
+
+      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+        <Col xs={24} md={8}>
+          <Kachel zahl={positionen.length} beschriftung="Positionen" />
+        </Col>
+        <Col xs={24} md={8}>
+          <Kachel zahl={faecher} beschriftung="Fächer" />
+        </Col>
+        <Col xs={24} md={8}>
+          <Kachel zahl={verknuepfteFahrzeuge.length} beschriftung="Fahrzeuge" />
+        </Col>
+      </Row>
 
       <Card title="Positionen" style={{ marginBlockEnd: 16 }}>
         <TemplatePosEditor
