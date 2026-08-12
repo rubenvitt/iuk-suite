@@ -28,6 +28,16 @@ neuen E2E-Abdeckung in `e2e/lagerbuch-mobil.spec.ts`.
    unten als **„Koordinator-Messung"** gekennzeichnet und wurden stichprobenhaft
    gegen die Rasterregeln in `_ui/helfer.module.css` geprüft (siehe
    Anmerkungen), nicht blind übernommen.
+   ⚠️ **Nachgemessen im Endzustand nach Task 6, nicht nach Task 3.** Die erste
+   Fassung dieses Artefakts hatte die Dichte-Werte aus einer Messung nach
+   Task 3 übernommen — von **vor** der Schriftänderung in Task 6. Task 6
+   ändert die Schriftfamilie von `.zeileName`, und genau diese Schrift
+   bestimmt die Zeilenumbrüche der Artikelnamen und damit die Zeilenhöhe der
+   Zählliste: eine Dichteaussage auf Basis der Task-3-Messung hätte einen
+   Zustand zertifiziert, der so nie nachgemessen wurde. Die Werte in der
+   Tabelle unten sind deshalb **im Endzustand nach Task 6** neu erhoben, mit
+   der Schriftfamilie von `.zeileName` als vierter Messgröße — sie belegt,
+   dass die Messung tatsächlich nach der Schriftänderung liegt.
 
 Beide Quellen sind für die Aussage „kein Überlauf" und „Reiterleiste
 oben/unten" deckungsgleich — dort zählt nur die Breite, nicht die Datenmenge.
@@ -71,7 +81,7 @@ E2E-`webServer` (nicht committet — reproduzierbar mit dem Code im Anhang).
 | `/helfer/check?fz=e2e-fahrzeug` | 768 | dunkel | 1 von 1 | nein | oben | – |
 | `/helfer/check?fz=e2e-fahrzeug` | 1024 | hell | 1 von 1 | nein | oben | – |
 | `/helfer/check?fz=e2e-fahrzeug` | 1024 | dunkel | 1 von 1 | nein | oben | – |
-| `/helfer/check?fz=e2e-fahrzeug` | 1440 | hell | 1 von 1 (Fixture; **Koordinator-Messung auf reicherem Seed: 3 Spalten à 388px, 7 von 10, vorher 3** — s. u.) | nein | oben | – |
+| `/helfer/check?fz=e2e-fahrzeug` | 1440 | hell | 1 von 1 (Fixture; Dichte-Aussage s. eigene Koordinator-Tabelle unten) | nein | oben | – |
 | `/helfer/check?fz=e2e-fahrzeug` | 1440 | dunkel | 1 von 1 (Fixture) | nein | oben | – |
 | `/a/e2e-artikel` | 375 | hell | – (Entnahme, kein Zählschritt) | nein | unten | keine |
 | `/a/e2e-artikel` | 375 | dunkel | – | nein | unten | keine |
@@ -90,6 +100,29 @@ unten. Kein Überlauf in irgendeiner Zelle, in keinem Modus.
 375px liegen die beiden `.gateKarte`-Boxen (Zugangscode, Verwaltung)
 untereinander, ab 768px, 1024px und 1440px nebeneinander — in beiden Modi
 identisch.
+
+## Tabelle — Koordinator-Messung: Dichte der Zählliste (Endzustand nach Task 6)
+
+Eigene, klar abgegrenzte Tabelle — **nicht** in eine Zelle der E2E-Fixture-Tabelle
+gequetscht, damit die Quellentrennung aus dem Abschnitt oben durchgehalten wird.
+Grundlage: lokaler Demo-Seed (`_lib/seedLokal.ts`, Token `100-100`, Fahrzeug
+`fz-rtw-1`), Ansicht `/helfer/check?fz=fz-rtw-1`, 1440×900, heller Modus.
+Gemessen vom Koordinator, **nach** der Task-6-Schriftänderung, nicht übernommen
+aus der Task-3-Messung (Begründung s. o.).
+
+| Messgröße | Wert |
+|---|---|
+| Spalten | 3 à 388px |
+| Positionen gesamt | 10 |
+| gleichzeitig sichtbar | 7 |
+| Namen mit Zeilenumbruch | 6 von 10 |
+| Schriftfamilie von `.zeileName` | **Barlow** — Beleg, dass die Messung nach Task 6 liegt |
+
+Die Werte sind **identisch** zur früheren Task-3-Messung — die Barlow-Metrik
+verteilt die Zeilenumbrüche der Artikelnamen genauso wie die vorherige
+Geist-Vererbung. Das ist ein Messergebnis, keine Wiederholung ungeprüft
+übernommener Zahlen: die Frage „ändert Task 6 die Dichte?" wurde gestellt und
+mit Nein beantwortet, nicht stillschweigend vorausgesetzt.
 
 ## Die vier Abnahmesätze
 
@@ -117,10 +150,12 @@ identisch.
 3. **Die Zählliste erzeugt bei 1440px mindestens zwei Spalten, und es sind
    mindestens doppelt so viele Positionen gleichzeitig sichtbar wie bei
    375px.**
-   ✅ Bestätigt — **Koordinator-Messung**, weil die E2E-Fixture mit einer
-   einzigen Soll-Position keine Dichteaussage zulässt: bei 1440×900 **3 Spalten
-   à 388px, 7 von 10 Positionen sichtbar** (vorher 3 von 10 vor Task 3). 7 ≥ 2×3
-   und die Spaltenzahl liegt bei 3 ≥ 2 — beide Teilbedingungen erfüllt.
+   ✅ Bestätigt — **Koordinator-Messung im Endzustand nach Task 6** (eigene
+   Tabelle oben), weil die E2E-Fixture mit einer einzigen Soll-Position keine
+   Dichteaussage zulässt: bei 1440×900 **3 Spalten à 388px, 7 von 10
+   Positionen sichtbar** (bei 375px, vor jeder Rasteränderung dieses Plans,
+   waren es 3 von 10). 7 ≥ 2×3 und die Spaltenzahl liegt bei 3 ≥ 2 — beide
+   Teilbedingungen erfüllt.
    Stichprobe: `.fachraster` in `_ui/CheckFlow.tsx:468` sitzt unter
    `data-rolle="zaehlliste"` und ist laut `_ui/helfer.module.css` ein
    CSS-Grid mit `repeat(auto-fill, minmax(...))` ab dem 768px-Zweig — das
