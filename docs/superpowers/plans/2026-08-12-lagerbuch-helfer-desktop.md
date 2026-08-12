@@ -702,8 +702,13 @@ Anker ist unberührt.
 open "http://lagerbuch.localtest.me:3000/helfer/check?fz=fz-rtw-1"
 ```
 
-Bei 1440px: die Fachkarten stehen nebeneinander, **mindestens 10 Positionen** sind
-gleichzeitig sichtbar. Bei 375px: unverändert untereinander.
+Bei 1440px: die Fachkarten stehen nebeneinander, und es sind **mindestens doppelt so
+viele** Positionen gleichzeitig sichtbar wie bei 375px. Bei 375px: unverändert
+untereinander.
+
+> Gemessener Ist-Stand: 3 Spalten à 388px, 7 von 10 Positionen sichtbar statt 3.
+> Zähle über die Stepper (`[class*='stepper']`), nicht über `[class*='zeile']` —
+> letzteres trifft auch `zeileName` und `zeileMeta`.
 
 Prüfe zusätzlich, dass `.abschluss` (die Sticky-Leiste, `:309`) über der vollen Bahn
 sitzt und keine Karte verdeckt.
@@ -1166,8 +1171,17 @@ Dazu die vier Abnahmesätze im Klartext:
 
 1. Bei 375px ist **kein** Unterschied zum Stand vor Task 1 sichtbar.
 2. Das Gate zeigt ab 768px **zwei Karten nebeneinander**.
-3. Die Zählliste zeigt bei 1440px **mindestens 10 Positionen** gleichzeitig.
+3. Die Zählliste erzeugt bei 1440px **mindestens zwei Spalten**, und es sind
+   **mindestens doppelt so viele** Positionen gleichzeitig sichtbar wie bei 375px.
 4. **Kein** waagerechtes Scrollen auf keiner der vier Breiten, in keinem Modus.
+
+> **Zu Punkt 3 — die ursprüngliche Fassung war unerfüllbar** und lautete „mindestens 10
+> Positionen gleichzeitig". Der RTW-Check hat im Seed **insgesamt** nur zehn Positionen;
+> die Bedingung hätte nie erfüllt werden können und maß ohnehin die Seed-Daten statt der
+> Oberfläche. Gemessener Ist-Stand nach Task 3 bei 1440×900: **3 Spalten à 388px, 7 von
+> 10 Positionen sichtbar** gegenüber **3** vorher. Miss mit den Steppern, nicht mit
+> `[class*='zeile']` — letzteres trifft auch `zeileName` und `zeileMeta` und zählt
+> massiv zu hoch.
 
 - [ ] **Schritt 5: Die Entscheidung dokumentieren**
 
