@@ -310,7 +310,13 @@ describe("Notenlegende", () => {
     // `minmax(0, 1fr)`, nicht `1fr`: die auto-Untergrenze der Spalten ist der
     // Grund, aus dem die Zeile ueberhaupt herauslaufen konnte.
     expect(CSS_CODE).toMatch(/grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
-    expect(stil(wirt.querySelector(".fb-legende-woerter")!)).not.toContain("display");
+    // Praezise auf die CSS-Eigenschaft `display:` pruefen, nicht per blossem
+    // Teilstring: seit `T.kicker` die Display-Familie der Suite traegt, steht
+    // in JEDEM Inline-Style dieses Elements `font-family:var(--font-display)`
+    // — ein reiner `toContain("display")` schluege deshalb IMMER an, auch ohne
+    // die verbotene Eigenschaft. Das Wort "display" bleibt Teil des
+    // Variablennamens, nicht der Eigenschaft; die Zusicherung gilt unveraendert.
+    expect(stil(wirt.querySelector(".fb-legende-woerter")!)).not.toMatch(/(?<![\w-])display\s*:/);
   });
 
   // §4.11 verlangt „das identische 6-Spalten-Raster wie die Spuren darunter" —
