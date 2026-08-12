@@ -33,3 +33,47 @@
     width: 100%;
   }
 }
+
+/*
+ * DIE KACHELKANTE — ein Akzent, keine Palette je Modul.
+ *
+ * Der urspruengliche Entwurf sprach von "einer farbigen Innenkante je Modul".
+ * Das ist zurueckgenommen: eine Palette je Modul existiert nicht und muesste
+ * erfunden werden, und die einzige Markenfarbe der Suite ist Rot, das laut
+ * Design-README nicht beliebig auf Flaechen darf. Also stattdessen eine
+ * ruhige Kante in `--iuk-linie`, die bei Hover und Fokus auf `--iuk-marke`
+ * wechselt. Ein Zustand, eine Farbe, keine Erfindung.
+ *
+ * `:focus-within` neben `:hover`, weil der Link AUSSEN um die Card liegt
+ * (siehe page.tsx) und die Kachel damit per Tastatur erreichbar ist — der
+ * Zustand muss sichtbar bleiben. Der Fokusring der Suite bleibt unberuehrt,
+ * das hier ist zusaetzlich, kein Ersatz.
+ *
+ * ERHOEHTE SPEZIFITAET, UND WOGEGEN — geprueft, nicht vermutet
+ * (node_modules/antd/es/card/style/index.js, Zeilen 252-266):
+ * `.ant-card-bordered` setzt den Rahmen als Shorthand (`border: ...`,
+ * Spezifitaet 0,1,0) auf allen vier Seiten. Eine blanke
+ * `.portal-kachel { border-inline-start }` (ebenfalls 0,1,0) schluckt das nur
+ * per Ladereihenfolge — Falle 5. Schwerer wiegt der Hover:
+ * `.ant-card-hoverable:hover` setzt `border-color: transparent` (0,2,0) auf
+ * allen Seiten; eine `.portal-kachel:hover` (auch 0,2,0) haette dagegen exakt
+ * dieselbe Chance, zu verlieren. Deshalb `.ant-card.portal-kachel`: die
+ * zusaetzliche, ohnehin auf dem Knoten vorhandene antd-Klasse hebt uns auf
+ * 0,2,0 im Ruhezustand und 0,3,0 im Hover/Fokus — wir gewinnen unabhaengig
+ * von der Einbindungsreihenfolge, nicht zufaellig.
+ */
+.ant-card.portal-kachel {
+  border-inline-start: 4px solid var(--iuk-linie);
+  transition: border-color 120ms ease;
+}
+
+.ant-card.portal-kachel:hover,
+.ant-card.portal-kachel:focus-within {
+  border-inline-start-color: var(--iuk-marke);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ant-card.portal-kachel {
+    transition: none;
+  }
+}
