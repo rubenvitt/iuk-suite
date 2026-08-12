@@ -6,21 +6,21 @@ import { LAGERBUCH_NAV } from "./nav";
 describe("LAGERBUCH_NAV: die fuenfzehn Ziele", () => {
   it("fuehrt genau die 15 Eintraege aus SideNav.tsx:9-23, in dieser Reihenfolge", () => {
     expect(LAGERBUCH_NAV).toEqual([
-      { key: "uebersicht", title: "Übersicht", href: "/verwaltung" },
-      { key: "artikel", title: "Artikel", href: "/verwaltung/artikel" },
-      { key: "verfall", title: "Verfall", href: "/verwaltung/verfall" },
-      { key: "fahrzeuge", title: "Fahrzeuge", href: "/verwaltung/fahrzeuge" },
-      { key: "vorlagen", title: "Vorlagen", href: "/verwaltung/vorlagen" },
-      { key: "checks", title: "Checks", href: "/verwaltung/checks" },
-      { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz" },
-      { key: "sauerstoff", title: "Sauerstoff", href: "/verwaltung/sauerstoff" },
-      { key: "geraete", title: "Geräte", href: "/verwaltung/geraete" },
-      { key: "bestellung", title: "Bestellung", href: "/verwaltung/bestellung" },
-      { key: "inventur", title: "Inventur", href: "/verwaltung/inventur" },
-      { key: "journal", title: "Journal", href: "/verwaltung/journal" },
-      { key: "tokens", title: "Zugangs-Codes", href: "/verwaltung/tokens" },
-      { key: "etiketten", title: "Etiketten", href: "/verwaltung/etiketten" },
-      { key: "import", title: "Import", href: "/verwaltung/import" },
+      { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
+      { key: "artikel", title: "Artikel", href: "/verwaltung/artikel", ikon: "artikel" },
+      { key: "verfall", title: "Verfall", href: "/verwaltung/verfall", ikon: "verfall" },
+      { key: "fahrzeuge", title: "Fahrzeuge", href: "/verwaltung/fahrzeuge", ikon: "fahrzeuge" },
+      { key: "vorlagen", title: "Vorlagen", href: "/verwaltung/vorlagen", ikon: "vorlagen" },
+      { key: "checks", title: "Checks", href: "/verwaltung/checks", ikon: "checks" },
+      { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz", ikon: "bz" },
+      { key: "sauerstoff", title: "Sauerstoff", href: "/verwaltung/sauerstoff", ikon: "sauerstoff" },
+      { key: "geraete", title: "Geräte", href: "/verwaltung/geraete", ikon: "geraete" },
+      { key: "bestellung", title: "Bestellung", href: "/verwaltung/bestellung", ikon: "bestellung" },
+      { key: "inventur", title: "Inventur", href: "/verwaltung/inventur", ikon: "inventur" },
+      { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal" },
+      { key: "tokens", title: "Zugangs-Codes", href: "/verwaltung/tokens", ikon: "tokens" },
+      { key: "etiketten", title: "Etiketten", href: "/verwaltung/etiketten", ikon: "etiketten" },
+      { key: "import", title: "Import", href: "/verwaltung/import", ikon: "import" },
     ]);
   });
 
@@ -45,9 +45,19 @@ describe("LAGERBUCH_NAV: die fuenfzehn Ziele", () => {
     expect(ziele).not.toMatch(/kein-zugriff|identitaeten/);
   });
 
-  it("traegt kein icon-Feld", () => {
+  /*
+   * Seit Task 3 (core/shell/navIkonen.tsx) traegt jeder Eintrag ein `ikon` —
+   * hier ist `ikon` je Eintrag identisch mit `key`, weil beide dieselbe
+   * fachliche Kategorie benennen. Ob NAV_IKONEN zu jedem dieser Schluessel
+   * eine Komponente kennt, prueft `core/shell/navIkonen.test.tsx`, nicht
+   * diese Datei — sie kennt die Komponentenmap gar nicht (die liegt in einem
+   * "use client"-Modul, das eine Server-gelesene Datei wie diese nicht laden
+   * darf).
+   */
+  it("traegt fuer jeden Eintrag ein Zeichen, gleich dem eigenen Schluessel", () => {
     for (const e of LAGERBUCH_NAV) {
-      expect(Object.keys(e).sort()).toEqual(["href", "key", "title"]);
+      expect(e.ikon, e.key).toBe(e.key);
+      expect(Object.keys(e).sort()).toEqual(["href", "ikon", "key", "title"]);
     }
   });
 

@@ -18,6 +18,7 @@ import { ThemeToggle } from "@/core/theme/ThemeToggle";
 // dort): ein WERT-Export von hier waere in einer Server Component eine
 // Client-Referenz statt des Objekts — HTTP 500, das kein Gate sieht.
 import { ICONS } from "@/core/shell/icons";
+import { NavIkone } from "@/core/shell/navIkonen";
 import type { AppSwitcherEntry, SuiteNavItem } from "@/core/shell/types";
 import s from "./shell.module.css";
 
@@ -144,6 +145,7 @@ function navLinks(nav: SuiteNavItem[], pfad: string) {
         aktiv?.schluessel === eintrag.key ? (aktiv.genau ? "page" : "true") : undefined
       }
     >
+      <NavIkone name={eintrag.ikon} />
       {eintrag.title}
     </Link>
   ));
