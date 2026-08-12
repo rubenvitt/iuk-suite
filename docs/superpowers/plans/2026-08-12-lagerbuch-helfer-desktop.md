@@ -279,6 +279,13 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/app/m/lagerbuch/_ui/helfer.module.css` (neuer Block **am Dateiende**)
 - Modify: `src/app/m/lagerbuch/_lib/bauform.test.ts` (neue Zusicherung im
   `§7.7.1`-describe, `:622-656`)
+- Modify: `src/app/m/lagerbuch/_lib/ampel.test.ts` — **nachgetragen am 12.08.2026.**
+  Die Datei verbietet `min-width` pauschal in **beiden** Modul-Stylesheets. Der Plan
+  hatte das nicht vorhergesehen; ohne Öffnung ist Betreiberentscheidung 14 nicht
+  umsetzbar. Die Öffnung gehört **pro Datei** gesetzt (`helfer.module.css` frei,
+  `verwaltung.module.css` weiter gesperrt) und in einen **eigenen Commit** — eine
+  pauschale Lockerung nähme der Verwaltung eine Zusicherung ab, die niemand
+  aufgehoben hat.
 
 **Interfaces:**
 - Consumes: `--lb-bahn` aus Task 1.
@@ -322,9 +329,14 @@ erfindet keinen zweiten"` (ab `:622`), **nach** dem bestehenden
     expect(zweig, "`.rahmen` gibt seine Kappung nicht ab").toMatch(
       /\.rahmen\s*\{[^}]*max-width:\s*none/,
     );
+    // ⚠️ GEPRUEFT WIRD `.inhalt`, NICHT `.tableiste`. Ein `order: -1` auf der
+    // Leiste schoebe sie auch vor den roten Streifen — gemessen, und es sieht
+    // aus wie eine Trennlinie mitten im Kopf. Der Schub geht auf den Inhalt.
     expect(zweig, "die Reiterleiste wandert nicht nach oben").toMatch(
-      /\.tableiste\s*\{[^}]*order:\s*-1/,
+      /\.inhalt\s*\{[^}]*order:\s*1/,
     );
+    expect(zweig, "`order: -1` auf der Leiste schiebt sie vor den Streifen")
+      .not.toMatch(/\.tableiste\s*\{[^}]*order:/);
   });
 
   it("die Kappung der drei Baender steht NUR im Desktop-Zweig", () => {
@@ -385,7 +397,8 @@ Ans **Ende** von `helfer.module.css`, nach der Fokus-Regel:
  *
  * ⚠️ DIESER BLOCK STEHT AM DATEIENDE, und das ist tragend, keine Ordnung:
  * `.tab[aria-current="page"]` unten hat DIESELBE Spezifitaet wie die Basisregel
- * (:143). Bei Gleichstand entscheidet die Reihenfolge (Falle 5) — vorne
+ * der Basisregel weiter oben in dieser Datei. Bei Gleichstand entscheidet
+ * die Reihenfolge (Falle 5) — vorne
  * einsortiert bliebe die rote Linie still oben statt unten.
  * ———————————————————————————————————————————————————————————————————————— */
 @media (min-width: 768px) {
@@ -429,8 +442,21 @@ Ans **Ende** von `helfer.module.css`, nach der Fokus-Regel:
    * rendern und je eine Fassung ausblenden — braeche `data-testid="lb-tableiste"`
    * auf zwei Treffer und damit E11/T171. Ein Knoten, eine `aria-current`-Marke.
    */
+  /*
+   * ⚠️ DER SCHUB GEHT AUF `.inhalt`, NICHT AUF `.tableiste` — und das ist eine
+   * Korrektur aus der Sichtpruefung, kein Stilgeschmack. `order: -1` auf der
+   * Leiste setzt sie vor ALLE Geschwister, also auch vor `.streifen`: das rote
+   * Markenband landet dann ZWISCHEN Navigation und Kopf und liest sich als
+   * Trennlinie statt als Abschlusskante. Gemessen bei 768px und 1440px.
+   *
+   * `order: 1` auf dem Inhalt schiebt nur ihn ans Ende. Alle drei uebrigen
+   * behalten ihre Voreinstellung 0 und damit ihre DOM-Reihenfolge —
+   * Streifen, Kopf, Reiter. Eine Regel statt drei, und keine Zahl, die beim
+   * naechsten hinzugefuegten Kind nachgezogen werden muss.
+   */
+  .inhalt { order: 1 }
+
   .tableiste {
-    order: -1;
     border-top: none;
     border-bottom: 1px solid var(--lb-linie);
   }
@@ -454,7 +480,8 @@ Ans **Ende** von `helfer.module.css`, nach der Fokus-Regel:
   }
 
   /* Die Marke wandert von oben nach unten — beide Kanten explizit, sonst bleibt
-     die Basisregel (:143) mit ihrer roten Oberkante stehen. */
+     die Basisregel von `.tab[aria-current="page"]` weiter oben mit ihrer
+     roten Oberkante stehen. */
   .tab[aria-current="page"] {
     border-top-color: transparent;
     border-bottom-color: var(--lb-rot);
@@ -464,7 +491,8 @@ Ans **Ende** von `helfer.module.css`, nach der Fokus-Regel:
   .inhalt { padding-block: 20px 26px; }
 
   /*
-   * Das Kamerabild bekommt eine Obergrenze in px. `max-height: 58vh` (:326)
+   * Das Kamerabild bekommt eine Obergrenze in px. Das `max-height: 58vh`
+   * der Basisregel `.scanVideo`
    * sind auf 1440x900 rund 522px Video — auf einem Monitor nimmt das die ganze
    * Ansicht ein, ohne dass der Code besser lesbar wuerde.
    */
@@ -489,7 +517,13 @@ mit zwei Aussagen und keiner Möglichkeit zu erkennen, welche gilt.
 Schreibe den betreffenden Absatz um: **eine** Breiten-Media-Query, ab 768px, mit dem
 Verweis auf Betreiberentscheidung 14 und darauf, dass unterhalb alles bleibt. Der
 Hinweis auf `max-width: 767.98px` (falls je eine nötig wird) und die Ausnahme für
-`prefers-reduced-motion` bleiben **wörtlich** stehen — beide gelten unverändert.
+`prefers-reduced-motion` bleiben inhaltlich unverändert — beide gelten weiter.
+
+**Eine Ausnahme von „unverändert", und sie ist Pflicht:** der Kopf sagt heute, der
+`prefers-reduced-motion`-Zweig stehe „ganz unten". Ab diesem Task stimmt das nicht mehr
+— der neue Media-Block steht darunter. Ersetze die Ortsangabe durch eine
+positionsneutrale Formulierung („weiter unten in dieser Datei"). Eine Ortsangabe, die
+beim nächsten angehängten Block wieder falsch wird, ist keine gute Ortsangabe.
 
 - [ ] **Schritt 5: Testlauf — grün**
 
