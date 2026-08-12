@@ -544,39 +544,34 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
       .toEqual([]);
   });
 
-  it("`.rahmen` traegt die Huelle, aber KEINE Breitenkappung mehr", () => {
+  it("`.rahmen` kappt weiter auf 560px, aber ueber `--lb-bahn` statt ueber eine Zahl", () => {
     /**
-     * ⚠️ DIESER TEST HAT SEINE AUSSAGE GEWECHSELT (12.08.2026,
+     * ⚠️ DIESER TEST HAT SEINE AUSSAGE GESCHAERFT (12.08.2026,
      * Betreiberentscheidung 14). Vorher: `expect(css).toMatch(/max-width:\s*560px/)`
-     * gegen den ROHTEXT der Datei. Diese Form haette den Umbau NICHT bemerkt —
-     * sie war schon dann gruen, wenn die Zeichenfolge irgendwo stand, egal an
-     * welchem Selektor. Ein Test, der nach einem Umbau gruen bleibt und dabei
-     * etwas anderes bezeugt als sein Name sagt, ist schlimmer als keiner.
+     * gegen den ROHTEXT der Datei. Diese Form war schon dann gruen, wenn die
+     * Zeichenfolge IRGENDWO stand, egal an welchem Selektor — sie haette eine
+     * Verschiebung der Kappung an einen anderen Traeger nicht bemerkt. Ein Test,
+     * der nach einem Umbau gruen bleibt und dabei etwas anderes bezeugt als sein
+     * Name sagt, ist schlimmer als keiner.
      *
-     * `.rahmen` ist ab jetzt VOLLBREIT: der Papierhintergrund fuellt den Schirm,
-     * statt dass eine 560px-Saeule in fremdfarbiger Leere steht. Die Kappung
-     * liegt auf `.kopf`, `.inhalt` und `.tableiste` (siehe der Test darunter).
+     * ⚠️ UND `.rahmen` BEHAELT SEINE KAPPUNG — das ist die Korrektur nach dem
+     * ersten Review. Der erste Entwurf machte `.rahmen` sofort vollbreit und
+     * kappte stattdessen die drei Baender per `padding-inline`, ohne Media
+     * Query. Dieser Ausdruck ist BREITENSTETIG: sein Umschlagpunkt liegt bei
+     * `--lb-bahn`, also bei 560px, nicht bei 768px. Zwischen 561 und 767px lief
+     * der Kartenhintergrund dadurch randlos statt auf 560px, und die
+     * Inhaltsbreite sprang von 532 auf 560px — ein klarer Verstoss gegen „unter
+     * 768px aendert sich kein Pixel". Aufgehoben wird die Kappung jetzt
+     * ausschliesslich im Desktop-Zweig (Task 2).
      */
     const koerper = regelKoerper(lies(), /(?:^|\})\s*\.rahmen\s*\{/m);
     expect(koerper, "`.rahmen`-Regel fehlt").not.toBe("");
     expect(koerper, "die App-Huelle bleibt: innerer Scrollbereich statt Dokumentfluss")
       .toMatch(/height:\s*100dvh/);
-    expect(koerper, "`.rahmen` darf keine Breitenkappung mehr tragen")
-      .not.toMatch(/max-width/);
     expect(koerper, "`--lb-bahn` ist die EINE Quelle der Bahnbreite")
       .toMatch(/--lb-bahn:\s*560px/);
-  });
-
-  it("die drei Baender kappen ueber `--lb-bahn`, keines schreibt eine eigene Zahl", () => {
-    // Drei Selektoren, ein Ausdruck. Schriebe einer seine 560 selbst, liefe er
-    // beim Umschalten auf 1200px (Task 2) still auseinander — und der Fehler
-    // waere nur auf einem breiten Schirm sichtbar.
-    const css = lies();
-    for (const klasse of ["kopf", "inhalt", "tableiste"]) {
-      expect(css, `.${klasse} kappt nicht ueber --lb-bahn`).toMatch(
-        new RegExp(`\\.${klasse}\\s*\\{[^}]*padding-inline:\\s*max\\([^;]*--lb-bahn`),
-      );
-    }
+    expect(koerper, "die Kappung leitet sich ab, statt die Zahl zu wiederholen")
+      .toMatch(/max-width:\s*var\(--lb-bahn\)/);
   });
 
   it("erhoeht die Suite-Untergrenze im Verfallsfeld auf 18px und senkt sie NIE", () => {
