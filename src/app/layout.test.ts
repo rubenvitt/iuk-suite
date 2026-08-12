@@ -3,7 +3,11 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("next/font/google", () => ({
   Geist: () => ({ variable: "--font-geist-sans" }),
   Geist_Mono: () => ({ variable: "--font-geist-mono" }),
+  // Die Namen bilden `layout.tsx` ab: dort heiszen die drei Variablen nach der
+  // SCHRIFT, nicht nach der Rolle — die Rollennamen gehoeren `globals.css`.
+  Barlow: () => ({ variable: "--font-barlow" }),
   Barlow_Condensed: () => ({ variable: "--font-barlow-condensed" }),
+  IBM_Plex_Mono: () => ({ variable: "--font-plex-mono" }),
 }));
 
 vi.mock("next/headers", () => ({

@@ -10,7 +10,7 @@
  * PROPS von antd-Komponenten, eigenes Markup ausschliesslich `--fi-*`.
  *
  * WARUM `:root[data-theme]` UND NICHT `prefers-color-scheme`: die Suite hat
- * einen UMSCHALTER (Cookie `iuk-theme`, serverseitig gelesen, `<html
+ * einen UMSCHALTER (Cookie `iuk-theme-pref`, serverseitig gelesen, `<html
  * data-theme>` in `src/app/layout.tsx`). Auf `prefers-color-scheme` zu
  * selektieren bricht den Fall „System dunkel, Umschalter hell". Die Hellwerte
  * liegen zusaetzlich auf dem nackten `:root`, damit ein Kontext ohne Attribut

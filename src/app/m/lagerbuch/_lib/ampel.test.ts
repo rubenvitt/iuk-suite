@@ -98,8 +98,12 @@ describe("ampelVar", () => {
 });
 
 const CSS_DATEIEN = [
-  { pfad: "src/app/m/lagerbuch/_ui/verwaltung.module.css", traeger: "modul", pflicht: true },
-  { pfad: "src/app/m/lagerbuch/_ui/helfer.module.css", traeger: "rahmen", pflicht: true },
+  { pfad: "src/app/m/lagerbuch/_ui/verwaltung.module.css", traeger: "modul", pflicht: true, minWidthErlaubt: false },
+  // helfer.module.css: Betreiberentscheidung 14 (12.08.2026) erlaubt GENAU EINEN
+  // min-width-Zweig (§7.7.1-Aufhebung, siehe Kopfkommentar der Datei und
+  // `_lib/bauform.test.ts`, describe "§7.7.1"). Die Ausnahme gilt NUR hier —
+  // verwaltung.module.css bleibt bei der urspruenglichen NULL-Media-Query-Regel.
+  { pfad: "src/app/m/lagerbuch/_ui/helfer.module.css", traeger: "rahmen", pflicht: true, minWidthErlaubt: true },
 ] as const;
 
 describe("Ampelpalette: TS und CSS tragen dieselben Werte", () => {
@@ -174,7 +178,13 @@ describe("Ampelpalette: TS und CSS tragen dieselben Werte", () => {
         for (const treffer of css.matchAll(/\(max-width:\s*([\d.]+)px\)/g)) {
           expect(treffer[1]).toBe("767.98");
         }
-        expect(css).not.toMatch(/\(min-width:/);
+        // Betreiberentscheidung 14 (12.08.2026) erlaubt GENAU EINEN min-width-
+        // Zweig, und nur fuer helfer.module.css (`minWidthErlaubt`). Fuer jede
+        // andere Datei dieser Liste — heute verwaltung.module.css — gilt die
+        // urspruengliche Regel unveraendert: keine min-width-Abfrage.
+        if (!datei.minWidthErlaubt) {
+          expect(css).not.toMatch(/\(min-width:/);
+        }
       });
     });
   }

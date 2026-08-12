@@ -374,7 +374,7 @@ describe("files.css — Hell/Dunkel", () => {
   });
 
   /**
-   * Die Suite hat einen UMSCHALTER (Cookie `iuk-theme`, `<html data-theme>`).
+   * Die Suite hat einen UMSCHALTER (Cookie `iuk-theme-pref`, `<html data-theme>`).
    * Auf `prefers-color-scheme` zu selektieren bricht den Fall „System dunkel,
    * Umschalter hell" — und zwar still.
    */

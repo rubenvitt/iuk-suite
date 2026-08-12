@@ -2,20 +2,24 @@
  * DAS STYLESHEET DES HELFER-WEGS — §7.7, oeffentliche Ansichtsklasse
  * (Entscheidung 28 d). Kein antd, keine Suite-Shell, eigene Anmutung.
  *
- * NULL MEDIA QUERIES fuer die Breite (§7.7.1). Eine Ansicht, die es nur in
- * EINER Fassung gibt, kann keinen zweiten Breakpoint einfuehren. Der Rahmen ist
- * fluid mit einer OBERGRENZE; auf 1280px steht er mittig und traegt die
- * Tab-Leiste weiterhin unten. Waere hier je eine noetig, hiesse sie
- * `max-width: 767.98px` — nicht 768, sonst gelten bei exakt 768px beide Seiten
- * und die Reihenfolge im Stylesheet entscheidet. lagerbuch schaltet heute bei
- * 760px (globals.css:250); derselbe Fall, an beiden Enden unsichtbar.
+ * GENAU EINE Breiten-Media-Query (§7.7.1, aufgehoben fuer diesen einen Zweig
+ * durch Betreiberentscheidung 14, 12.08.2026): `@media (min-width: 768px)` am
+ * Dateiende. Der urspruengliche Grund von §7.7.1 traegt fuer jeden weiteren
+ * Breakpoint weiter — zwei Zweige heissen drei Fassungen, und die dritte
+ * prueft niemand. Unterhalb von 768px bleibt diese Datei wirkungsgleich mit
+ * dem Stand davor: kein Pixel aendert sich. Waere hier je eine `max-width`-
+ * Abfrage noetig, hiesse sie `max-width: 767.98px` — nicht 768, sonst gelten
+ * bei exakt 768px beide Seiten und die Reihenfolge im Stylesheet entscheidet.
+ * lagerbuch schaltet heute bei 760px (globals.css:250); derselbe Fall, an
+ * beiden Enden unsichtbar.
  *
- * ⚠️ DIE EINE AUSNAHME, ausdruecklich statt stillschweigend: ganz unten steht
- * ein `@media (prefers-reduced-motion: reduce)`. Global Constraint 16 sagt
- * woertlich „enthaelt NULL Media Queries" — gemeint sind BREITEN-Abfragen, und
- * `prefers-reduced-motion` ist keine. Wer den Constraint woertlich nimmt und
- * die Zeile streicht, verliert einen Zweig, den der Alt-Bestand heute schon hat
- * (globals.css:158-160). `_lib/bauform.test.ts` VERLANGT ihn deshalb.
+ * ⚠️ DIE EINE AUSNAHME, ausdruecklich statt stillschweigend: weiter unten in
+ * dieser Datei steht ein `@media (prefers-reduced-motion: reduce)`. Global
+ * Constraint 16 sagt woertlich „enthaelt NULL Media Queries" — gemeint sind
+ * BREITEN-Abfragen, und `prefers-reduced-motion` ist keine. Wer den Constraint
+ * woertlich nimmt und die Zeile streicht, verliert einen Zweig, den der
+ * Alt-Bestand heute schon hat (globals.css:158-160). `_lib/bauform.test.ts`
+ * VERLANGT ihn deshalb.
  *
  * `.rahmen` IST DER TRAEGER ALLER VARIABLEN. `_ui/verwaltung.module.css`
  * (Teil 5, T100) traegt unter `.modul` DENSELBEN Satz, weil
@@ -25,16 +29,34 @@
  * kennt — und NIE auf `--ant-*`: antd deklariert seine Variablen auf SEINER
  * Scope-Klasse, eigenes Markup sieht sie nicht, und eine nicht aufloesbare
  * Variable ist gueltiges CSS und faellt still auf `transparent` zurueck
- * (Falle 2). Einzige zugelassene Fremdvariablen sind `--font-display`,
- * `--font-body` und `--font-mono`: die liegen auf `:root` und werden von
- * `app/globals.css` deklariert.
+ * (Falle 2). Einzige zugelassene Fremdvariablen sind die DREI SCHRIFT-
+ * VARIABLEN AUS `src/app/layout.tsx` — `--font-barlow-condensed`,
+ * `--font-barlow` und `--font-plex-mono`. Sie liegen nicht auf `:root`,
+ * sondern auf der `className` des `<html>` (so registriert `next/font` seine
+ * Variablen); `<html>` steht ueber beiden Traegern, die Werte sind damit unter
+ * `.rahmen` genauso sichtbar wie unter `.modul`.
  *
- * ⚠️ DAS WAR BIS 2026-08-12 EINE BEHAUPTUNG UND KEINE TATSACHE. Das
- * Wurzel-Layout registrierte nur Geist; die drei Namen standen nirgends, und
- * diese Datei rendete im Fallback ("Arial Narrow" / system-ui). Wer die
- * Deklaration in `globals.css` entfernt, stellt genau diesen Zustand wieder
- * her — still, ohne roten Test aus dieser Datei. Der Riegel dafuer sitzt in
- * `core/theme/schriftstapel.test.ts`, die Wirkung belegt
+ * ⚠️ HIER STANDEN BIS 2026-08-12 DIE ROLLENNAMEN `--font-display|body|mono`,
+ * UND DAS WAR EINE BEHAUPTUNG UND KEINE TATSACHE: das Wurzel-Layout
+ * registrierte nur Geist, die drei Namen standen nirgends, und diese Datei
+ * rendete monatelang im Fallback ("Arial Narrow" / system-ui) — `--lb-display`
+ * war ein ungueltiger Wert, und eine `font:`-Kurzschreibweise damit faellt
+ * VOLLSTAENDIG aus, samt Groesse und Gewicht.
+ *
+ * ⚠️ UND SIE STEHEN AUS EINEM GRUND NICHT MEHR HIER. Die drei Rollennamen
+ * gehoeren inzwischen der SUITE (`app/globals.css`, gelesen von
+ * `core/theme/theme.ts` und `core/theme/schrift.ts`); dort loest `--font-body`
+ * auf Geist auf. Zeigte `--lb-body` weiter auf die ROLLE, bekaeme der
+ * Helfer-Weg Geist statt Barlow — die Reparatur waere rueckgaengig gemacht,
+ * und wieder still. Deshalb die Abbildung direkt auf die SCHRIFTNAMEN.
+ * `--font-barlow-condensed` ist die eine Variable, die beide Seiten lesen; das
+ * ist gewollt, es ist dieselbe Schrift.
+ *
+ * Wer die drei `next/font`-Aufrufe aus `layout.tsx` entfernt, stellt den
+ * Fallback-Zustand von oben wieder her — still, ohne roten Test aus dieser
+ * Datei. Die Riegel dafuer sitzen in `_lib/bauform.test.ts` (Scan „die
+ * Schriftstapel des Helfer-Wegs kommen wirklich von auszerhalb") und
+ * `core/theme/schriftstapel.test.ts`; die Wirkung belegt
  * `e2e/lagerbuch-helfer.spec.ts`.
  */
 
@@ -69,12 +91,41 @@
   --lb-ampel-grau-text: #5b6570;
   --lb-ampel-grau-flaeche: #e7eaec;
 
-  --lb-display: var(--font-display), "Arial Narrow", sans-serif;
-  --lb-body: var(--font-body), system-ui, sans-serif;
-  --lb-mono: var(--font-mono), ui-monospace, monospace;
+  /* ⚠️ AUF DIE SCHRIFTNAMEN, NICHT AUF DIE SUITE-ROLLEN — siehe Kopfkommentar.
+     `--font-body` waere hier Geist und naehme dem Helfer-Weg sein Barlow. */
+  --lb-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
+  --lb-body: var(--font-barlow), system-ui, sans-serif;
+  --lb-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /*
+   * DIE BAHNBREITE — die EINE Zahl, die den Zweig kappt (Betreiberentscheidung
+   * 14, 12.08.2026). Sie steht hier und nicht an jeder kappenden Regel: der
+   * Media-Block am Dateiende setzt sie auf 1200px um, und eine Kappung, die
+   * ihre 560 selbst schriebe, liefe dabei still zurueck.
+   *
+   * ⚠️ SIE IST EIN MASS, KEINE FARBE, und gehoert deshalb NICHT in den
+   * Dunkelzweig. Die Tests, die „dieselben zwanzig Farbnamen" dort verlangen,
+   * laufen ueber eine feste Namensliste; `--lb-bahn` steht nicht darauf.
+   */
+  --lb-bahn: 560px;
 
   width: 100%;
-  max-width: 560px;            /* kein Breakpoint — eine Obergrenze */
+  /*
+   * ⚠️ DIE KAPPUNG BLEIBT HIER, und das ist die Korrektur nach dem ersten
+   * Review. Der erste Entwurf machte `.rahmen` sofort vollbreit und kappte
+   * stattdessen `.kopf`, `.inhalt` und `.tableiste` per `padding-inline` — ohne
+   * Media Query. Dieser Ausdruck ist BREITENSTETIG: sein Umschlagpunkt liegt
+   * bei `--lb-bahn`, also bei 560px, NICHT bei 768px. Zwischen 561 und 767px
+   * lief der Kartenhintergrund von Kopf und Reiterleiste dadurch randlos statt
+   * auf 560px, und die Inhaltsbreite sprang von 532 auf 560px — ein Verstoss
+   * gegen die Abnahmebedingung „unter 768px aendert sich kein Pixel", und einer,
+   * den der vorgesehene Pruefplan (375px und 1440px) nicht einmal getroffen
+   * haette.
+   *
+   * Aufgehoben wird die Kappung ausschliesslich im Desktop-Zweig am Dateiende.
+   * Unter 768px ist diese Datei damit wirkungsgleich mit dem Stand davor.
+   */
+  max-width: var(--lb-bahn);
   margin-inline: auto;
   height: 100dvh;              /* NICHT 100vh: sonst verschwindet die Tab-Leiste
                                   unter einer eingeblendeten Adressleiste */
@@ -87,7 +138,7 @@
 }
 
 /*
- * Der Moduswechsel laeuft ueber `<html data-theme>` (Cookie `iuk-theme`,
+ * Der Moduswechsel laeuft ueber `<html data-theme>` (Cookie `iuk-theme-pref`,
  * serverseitig gelesen, src/app/layout.tsx) — NICHT ueber die
  * Systemabfrage. Die braeche den Fall „System dunkel, Umschalter hell", und
  * der Umschalter ist die Zusage der Suite, nicht das System.
@@ -191,7 +242,44 @@
 .gateHinweis { color: var(--lb-stahl); font-size: 13px }
 
 /* ——— Bausteine ——— */
+/*
+ * Der Container der Zaehlliste. EINSPALTIGES Grid, nicht `display: block` —
+ * optisch dasselbe, aber der Desktop-Zweig muss dann nur noch EINE
+ * Eigenschaft umsetzen statt die Anzeigeart zu wechseln.
+ *
+ * ⚠️ DIE KLASSE GEHOERT IN DIE BASIS, nicht nur in den @media-Block:
+ * `rahmen.test.tsx:60-68` leert genestete Klammern fuenffach, um Regelkoerper
+ * von Selektoren zu trennen — dabei faellt der GANZE @media-Block weg. Eine
+ * Klasse, die es nur dort gibt, gilt diesem Scan als nicht deklariert. Heute
+ * traefe das `.fachraster` nicht (der Scan liest nur die zwei Rahmen-Dateien),
+ * aber die naechste Datei, die er aufnimmt, braeche daran.
+ *
+ * `gap: 0 18px` heisst: senkrecht nichts, waagerecht 18px. Der senkrechte
+ * Abstand kommt weiter aus `.fachKopf`s eigenem `margin` (Regel `.fachKopf`
+ * weiter unten in dieser Datei) — eine row-gap hier addierte sich dazu.
+ */
+.fachraster {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 18px;
+  align-items: start;
+}
 .karte { background: var(--lb-karte); border: 1px solid var(--lb-linie); border-radius: 14px; overflow: hidden }
+/* Zusatz zu `.karte` fuer lange, gleichfoermige Listen. Einspaltig ist optisch
+   dasselbe wie der Blockfluss; der Desktop-Zweig setzt dann nur noch die
+   Spaltenzahl um. Die Klasse gehoert in die BASIS — `rahmen.test.tsx:60-68`
+   sieht Klassen nicht, die es nur im @media-Block gibt. */
+.karteRaster { display: grid; grid-template-columns: 1fr }
+/* Die schmalere Bahn fuer Detailansichten. `margin-inline: auto` ohne
+   `max-width` tut nichts und wird ab 768px tragend — die Regel ist damit
+   halb hier und halb im Desktop-Zweig, nicht tot. Sie gehoert in die BASIS,
+   im selben Muster wie `.fachraster` und `.karteRaster` oben — NICHT weil
+   `rahmen.test.tsx:213-228` sie heute abfaengt: dieser Scan prueft nur
+   `s.…`-Nutzung in `OeffentlicherRahmen.tsx` und `LeerZustand.tsx`, und
+   `Entnahme.tsx` — der einzige heutige Verbraucher von `.lesebahn` — gehoert
+   nicht dazu. Unter 768px braucht es sie ohnehin nicht: dort ist die Bahn
+   560px und damit enger als jede Lesebreite. */
+.lesebahn { margin-inline: auto }
 .karte + .karte { margin-top: 10px }
 .kartePad { padding: 13px 14px }
 .karteTitel {
@@ -258,7 +346,32 @@
   display: flex; align-items: center; border: 1.5px solid var(--lb-linie);
   border-radius: 12px; background: var(--lb-karte); flex: none;
 }
+/*
+ * NACH DEM RESET (siehe unten bei der Fokus-Regel) IST `.stepTaste`
+ * HINTERGRUNDLOS — sauber, aber ohne den Reset unsichtbar: die 56px-Tapflaeche
+ * ist eine Einsatzanforderung (`core/theme/tokens.ts:33`, Bedienung mit
+ * Handschuhen), keine Stilfrage, und sie muss lesbar bleiben.
+ *
+ * STATT EINER HINTERGRUNDFLAECHE bekommen die beiden Aussentasten eine
+ * 1px-Trennlinie zum Wertfeld: eine Flaeche graute die ganze 56px-Taste aus
+ * und liesse sie wie deaktiviert wirken, eine Linie trennt sichtbar und
+ * bleibt dabei hell. `var(--lb-linie)` traegt in BEIDEN Modi genug Kontrast
+ * zu `var(--lb-karte)` — geprueft hell (#d9dde1 auf #ffffff) UND dunkel
+ * (#2c3238 auf #1c2126, dort heller als die Karte statt dunkler, aber
+ * ebenso sichtbar und ebenso dezent).
+ *
+ * `border-radius` auf den Aussentasten selbst, nicht auf `.stepper`: die
+ * 10.5px sind `.stepper`s eigene 12px minus dessen 1.5px-Rahmen — die
+ * konzentrische Innenrundung, damit die Tastenecke exakt unter der
+ * Aussenrundung des Rahmens liegt statt eckig dagegenzustehen.
+ *
+ * `box-sizing: border-box` (global, `globals.css:10`) haelt die Aussenmasse
+ * bei genau 56x56px: die neue 1px-Trennlinie verkleinert die Innenflaeche,
+ * nicht die Tapflaeche selbst — Abnahmebedingung „Tasten bleiben 56x56px".
+ */
 .stepTaste { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; color: var(--lb-tinte) }
+.stepTaste:first-child { border-right: 1px solid var(--lb-linie); border-radius: 10.5px 0 0 10.5px }
+.stepTaste:last-child { border-left: 1px solid var(--lb-linie); border-radius: 0 10.5px 10.5px 0 }
 .stepWert {
   min-width: 56px; height: 56px; text-align: center; background: transparent; border: 0;
   font: 700 20px/1 var(--lb-display); font-variant-numeric: tabular-nums; padding: 0;
@@ -373,8 +486,56 @@
 .knopfGeist { background: var(--lb-karte); color: var(--lb-tinte); border-color: var(--lb-linie) }
 
 /* ——— Leerzustand: der Rueckweg ist PFLICHT (§11.7, E5) ——— */
-.leer { padding: 22px 16px; text-align: center; color: var(--lb-stahl); font-size: 15px; line-height: 1.5 }
+/* `margin-inline: auto` gehoert aus demselben Grund wie bei `.lesebahn` in
+   die BASIS: ohne `max-width` tut sie nichts und wird erst im Desktop-Zweig
+   tragend. `.leer` ist noch karger als die Entnahme, die `.lesebahn`
+   begruendet hat — ein Titel, ein Absatz, ein Rueckweg-Link — und bekommt
+   dieselbe Behandlung, damit sie im Desktop-Zweig nicht ueber die volle
+   1200px-Bahn gezogen und dabei unzentriert stehen bleibt. */
+.leer { padding: 22px 16px; text-align: center; color: var(--lb-stahl); font-size: 15px; line-height: 1.5; margin-inline: auto }
 .leerWeg { margin-top: 14px; display: inline-flex }
+
+/*
+ * DER BUTTON-RESET — ALT-BESTAND AUS lagerbuch/src/app/globals.css:39, BEIM
+ * PORTIEREN VERLOREN GEGANGEN. Zeile 40 derselben Datei (die Fokus-Regel
+ * direkt darunter) ist zeichengleich mitgewandert; ihr Nachbar fehlte. Das ist
+ * derselbe Fehlertyp wie die drei fehlenden Schriftstapel im Kopfkommentar
+ * dieser Datei: ein Stueck Alt-Bestand, dessen Fehlen still aussieht wie eine
+ * Design-Entscheidung, obwohl es keine ist.
+ *
+ * GEMESSEN, NICHT VERMUTET: `.stepTaste` traegt ohne diese Regel
+ * `background: rgb(239,239,239)` und `border: 2px outset rgb(0,0,0)` — den
+ * UA-Default des Browsers. Ein per `document.createElement("button")` frisch
+ * erzeugter, ungestylter Button traegt im selben Lauf DENSELBEN Hintergrund.
+ * Das ist der Beweis: ein Fehler, kein Geschmacksproblem.
+ *
+ * ⚠️ SPEZIFITAET, NICHT NUR SELEKTOR-TEXT. Die naheliegende Schreibweise
+ * `.rahmen button { … }` haette Spezifitaet (0,1,1) — eine Klasse PLUS ein
+ * Elementselektor — und schluege damit JEDE der folgenden Ein-Klassen-Regeln
+ * (0,1,0), unabhaengig von deren Position im Stylesheet: `.beenden`,
+ * `.knopfRot`, `.knopfTinte`, `.knopfGeist`, `.abschlussGo` setzen alle
+ * `background`/`border`/`color` explizit, und der Reset haette sie mit
+ * `background: none` / `border: none` / `color: inherit` UEBERSTIMMT — der
+ * rote Primaerknopf waere transparent geworden, „Beenden" randlos. Kein
+ * einziger dieser Knoepfe baut auf dem Browser-Default auf (nur `.stepTaste`
+ * tut das, siehe oben); ohne die Spezifitaets-Korrektur haette der Reset sie
+ * aber trotzdem kaputtgemacht.
+ *
+ * `:where(.rahmen)` loest das: die Klammer nimmt der `.rahmen`-Klasse ihren
+ * Spezifitaetsbeitrag (zaehlt als 0), uebrig bleibt nur der Elementselektor
+ * `button` — Spezifitaet (0,0,1). Das ist GENAU das Profil, das der globale
+ * Reset der Alt-Anwendung ohnehin hatte (ein nackter `button`-Selektor); hier
+ * nur auf `.rahmen` gescopet, damit antd im Rest der Suite unberuehrt bleibt.
+ * Jede Button-Klasse dieser Datei (0,1,0 oder hoeher) gewinnt damit wie vor
+ * dem Reset, unabhaengig von ihrer Reihenfolge im Stylesheet.
+ */
+:where(.rahmen) button {
+  font: inherit;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: inherit;
+}
 
 /* Fokus: `outline` mit `outline-offset`, nie ein ersatzloses Abschalten. Die
    Suite-Regel erreicht nur antd-Komponenten; diese Zeile wandert zeichengleich
@@ -384,4 +545,234 @@
 .rahmen a:focus-visible,
 .rahmen select:focus-visible {
   outline: 2px solid var(--lb-tinte); outline-offset: 2px; border-radius: 6px;
+}
+
+/* ————————————————————————————————————————————————————————————————————————
+ * DIE ZWEITE FASSUNG — ab 768px (Betreiberentscheidung 14, 12.08.2026).
+ *
+ * ⚠️ SIE HEBT DEN KOPFKOMMENTAR DIESER DATEI TEILWEISE AUF. Dort steht „NULL
+ * MEDIA QUERIES fuer die Breite (§7.7.1)", begruendet mit „eine Ansicht, die es
+ * nur in EINER Fassung gibt, kann keinen zweiten Breakpoint einfuehren". Genau
+ * diese Praemisse ist aufgehoben: der Helfer-Weg wird nicht nur auf Telefonen
+ * benutzt, und auf einem Monitor stand er als 560px-Saeule mit rund 62 %
+ * ungenutzter Flaeche — drei sichtbare Positionen in der Zaehlliste.
+ *
+ * WAS VON §7.7.1 BLEIBT, UND ES IST DAS MEISTE:
+ *   * GENAU EIN Zweig, nicht zwei. Drei Fassungen prueft niemand.
+ *   * KEIN `max-width` hier drin — sonst gaelten an der oberen Kante beide
+ *     Seiten und die Reihenfolge entschiede. `bauform.test.ts` haelt beides.
+ *   * Die 767.98-Regel fuer jede max-width-Abfrage im Modulbaum: unberuehrt,
+ *     dies ist eine min-width-Abfrage.
+ *
+ * ⚠️ DIESER BLOCK STEHT AM DATEIENDE, und das ist tragend, keine Ordnung:
+ * `.tab[aria-current="page"]` unten hat DIESELBE Spezifitaet wie seine
+ * Basisregel weiter oben in dieser Datei. Bei Gleichstand entscheidet die
+ * Reihenfolge (Falle 5) — vorne einsortiert bliebe die rote Linie still
+ * oben statt unten.
+ * ———————————————————————————————————————————————————————————————————————— */
+@media (min-width: 768px) {
+  /*
+   * ERST HIER GIBT `.rahmen` SEINE KAPPUNG AB — und ausschliesslich hier.
+   * Unterhalb bleibt er bei 560px wie eh und je; das ist die Abnahmebedingung
+   * „unter 768px aendert sich kein Pixel" in ihrer einzig haltbaren Form.
+   *
+   * VOLLBREIT IST KEINE STILFRAGE: `.rahmen` traegt `background:
+   * var(--lb-papier)`. Gekappt faerbt er nur die Saeule, und rechts und links
+   * steht die Grundfarbe des Dokuments — genau der „Fenster im Fenster"-Eindruck,
+   * den der Umbau beseitigen soll.
+   */
+  .rahmen { --lb-bahn: 1200px; max-width: none }
+
+  /*
+   * DIE DREI BAENDER UEBERNEHMEN DIE KAPPUNG. `padding-inline` steht in einer
+   * EIGENEN Regel und nicht in den Basisregeln der drei Klassen: dort traegt
+   * jede ein `padding`-KURZFORMAT, und das ueberschriebe `padding-inline`, wenn
+   * es davor stuende. Eine eigene Regel im spaeter stehenden Media-Block hat die
+   * Frage gar nicht erst (Falle 5).
+   *
+   * `max(…)` und nicht der nackte `calc`: zwischen 768px und 1200px ist
+   * `(100% - 1200px) / 2` NEGATIV, und ein negativer Innenabstand ist
+   * ungueltiges CSS — die Zeile fiele still ganz aus und die Baender haetten
+   * gar keinen Seitenabstand mehr.
+   */
+  .kopf, .inhalt { padding-inline: max(14px, calc((100% - var(--lb-bahn)) / 2)) }
+
+  /* `0px` statt `14px` und `0px` MIT Einheit: die zwei Reiter tragen `flex: 1`
+     und sollen bis an die Bahnkante reichen; `max()` verlangt vergleichbare
+     Typen, ein nacktes `0` macht die Funktion ungueltig. */
+  .tableiste { padding-inline: max(0px, calc((100% - var(--lb-bahn)) / 2)) }
+
+  /*
+   * DIE REITERLEISTE WANDERT NACH OBEN — per `order`, NICHT per zweitem Markup.
+   *
+   * ⚠️ WARUM NICHT „in den Kopf, neben die Marke": `<header>` und `<nav>` sind
+   * Geschwister in `.rahmen` (`HelferRahmen.tsx:75,128`); CSS kann das eine
+   * nicht in das andere schieben. Die naheliegende Loesung — die Reiter ZWEIMAL
+   * rendern und je eine Fassung ausblenden — braeche `data-testid="lb-tableiste"`
+   * auf zwei Treffer und damit E11/T171. Ein Knoten, eine `aria-current`-Marke.
+   */
+  /*
+   * ⚠️ DER SCHUB GEHT AUF `.inhalt`, NICHT AUF `.tableiste` — und das ist eine
+   * Korrektur aus der Sichtpruefung, kein Stilgeschmack. `order: -1` auf der
+   * Leiste setzt sie vor ALLE Geschwister, also auch vor `.streifen`: das rote
+   * Markenband landet dann ZWISCHEN Navigation und Kopf und liest sich als
+   * Trennlinie statt als Abschlusskante. Gemessen bei 768px und 1440px.
+   *
+   * `order: 1` auf dem Inhalt schiebt nur ihn ans Ende. Alle drei uebrigen
+   * behalten ihre Voreinstellung 0 und damit ihre DOM-Reihenfolge —
+   * Streifen, Kopf, Reiter. Eine Regel statt drei, und keine Zahl, die beim
+   * naechsten hinzugefuegten Kind nachgezogen werden muss.
+   */
+  .inhalt { order: 1 }
+
+  .tableiste {
+    border-top: none;
+    border-bottom: 1px solid var(--lb-linie);
+  }
+
+  /*
+   * Waagerechte Reiter statt gestapelter Symbolknoepfe. `flex: 1` faellt weg —
+   * zwei Reiter, die sich 1200px teilen, waeren zwei riesige Flaechen.
+   *
+   * ⚠️ `min-height: 56px` BLEIBT. Das Suite-Tapmass gilt auch hier:
+   * `core/theme/tokens.ts:33` nennt es eine Einsatzanforderung (Handschuhe),
+   * und ein 834px-Tablet ist genauso ein Touchgeraet wie ein Telefon.
+   */
+  .tab {
+    flex: none;
+    flex-direction: row;
+    gap: 8px;
+    padding: 10px 18px;
+    min-height: 56px;
+    border-top: 2.5px solid transparent;
+    border-bottom: 2.5px solid transparent;
+  }
+
+  /* Die Marke wandert von oben nach unten — beide Kanten explizit, sonst bleibt
+     die Basisregel von `.tab[aria-current="page"]` weiter oben mit ihrer
+     roten Oberkante stehen. */
+  .tab[aria-current="page"] {
+    border-top-color: transparent;
+    border-bottom-color: var(--lb-rot);
+  }
+
+  /* Mehr Luft, sobald welche da ist. Die Seitenabstaende regelt `--lb-bahn`. */
+  .inhalt { padding-block: 20px 26px; }
+
+  /*
+   * ZWEI SPALTEN AB 768px, DREI AB 1100px — ohne zweite Media Query: `auto-fit`
+   * mit `minmax` bricht selbst um. Das ist dieselbe Bauform, die die Basisregel
+   * `.gateKarten` schon benutzt, und sie haelt §7.7.1 („genau ein Breakpoint") ein.
+   *
+   * 360px Mindestbreite je Spalte ist kein runder Wert, sondern der Platz, den
+   * eine Zaehlzeile braucht: Pruefkreis 30 + Name + Stepper 3x56 = 168 + die
+   * Verfallszeile darunter. Enger bricht der Stepper um.
+   *
+   * EINE Eigenschaft — `display`, `gap` und `align-items` stehen schon in der
+   * Basisregel. `align-items: start` ist dort Pflicht: ohne das zieht Grid jede
+   * Karte auf die Hoehe der hoechsten Zeile, und ein Fach mit zwei Positionen
+   * bekaeme den Weissraum eines Fachs mit zwanzig.
+   */
+  .fachraster { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)) }
+
+  /*
+   * ZWEI SPALTEN, FEST — hier bewusst KEIN `auto-fit` wie bei `.fachraster`.
+   * Der Unterschied hat einen Grund: die Trennerregeln darunter zaehlen mit
+   * `:nth-child(2n)` und setzen damit ZWEI Spalten voraus. Bei drei Spalten
+   * saesse die senkrechte Kante an der falschen Zelle — und `auto-fit` sagt
+   * einem CSS-Selektor nicht, wie viele Spalten es gerade erzeugt hat.
+   */
+  .karteRaster { grid-template-columns: 1fr 1fr }
+
+  /* Jede Zelle bekommt ihre Oberkante zurueck … */
+  .karteRaster .zeile { border-top: 1px solid var(--lb-linie) }
+  /* … ausser den beiden der ersten Reihe. */
+  .karteRaster .zeile:nth-child(-n + 2) { border-top: none }
+  /* Die rechte Spalte trennt sich senkrecht von der linken. */
+  .karteRaster .zeile:nth-child(2n) { border-inline-start: 1px solid var(--lb-linie) }
+
+  /* Der Leer- und der Kein-Treffer-Hinweis sind KEINE `.zeile`, sondern ein
+     einzelnes `.kartePad`. Ohne diese Zeile sitzt der Text in der linken
+     Spalte und bricht auf halber Breite um, waehrend rechts Platz frei
+     bleibt — gemessen: 599px Text in einem 1200px-Raster. */
+  .karteRaster .kartePad { grid-column: 1 / -1 }
+
+  /*
+   * Das Kamerabild bekommt eine Obergrenze in px. Das `max-height: 58vh`
+   * der Basisregel `.scanVideo` ist auf 1440x900 rund 522px Video — auf
+   * einem Monitor nimmt das die ganze Ansicht ein, ohne dass der Code
+   * besser lesbar wuerde.
+   */
+  .scanVideo { max-height: min(58vh, 420px); }
+
+  /*
+   * NICHT JEDE ANSICHT GEWINNT DURCH 1200px. Die Entnahme zeigt eine Zahl, einen
+   * Stepper und eine kurze Chargenliste; ueber die volle Bahn gezogen steht ein
+   * 24px-Titel allein in einer Zeile mit 90 % Weissraum. 720px ist die Breite,
+   * bei der die Entnahme-Karte ihre Innenaufteilung behaelt, ohne zu zerfallen.
+   */
+  .lesebahn { max-width: 720px }
+
+  /*
+   * DIE NOCH KARGERE DETAILANSICHT. `.leer` (LeerZustand) traegt nur einen
+   * Titel, einen Absatz und einen Rueckweg-Link — weniger Inhalt als die
+   * Entnahme, die als Begruendung fuer `.lesebahn` diente. Ohne eigene
+   * Kappung spannt sich der Text ueber die volle 1200px-Bahn. Dieselbe
+   * 720px-Grenze wie `.lesebahn`, aus demselben Grund.
+   */
+  .leer { max-width: 720px }
+
+  /*
+   * NACHBESSERUNG (12.08.2026, zweite Runde — Betreiberentscheidung nach
+   * Sichtpruefung des ersten Fixes). `.abschluss` ist KEINE Detailansicht wie
+   * `.lesebahn`/`.leer` — sie ist die Abschlusskante EINES Rasters
+   * (`.fachraster`/`.karteRaster`), das selbst die volle 1200px-Bahn nutzt.
+   *
+   * ⚠️ ERSTER VERSUCH VERWORFEN: eine 720px-Kappung mit `margin-inline: auto`
+   * (wie bei `.lesebahn`) behob den gestreckten Balken, erzeugte aber einen
+   * NEUEN Fehler — gemessen am gerenderten Bild: der zentrierte 720px-Kasten
+   * lag bahnmittig, traf aber KEINE Spaltenkante des `.fachraster`-Rasters
+   * darueber (`auto-fit`, `minmax(360px, 1fr)`, keine feste Spaltenzahl). Aus
+   * einem gestreckten Balken wurde ein schwebender Kasten — weder bahn- noch
+   * spaltenbuendig. Wer diese Kappung erneut vorschlaegt: sie wurde probiert
+   * und daran gescheitert, nicht uebersehen.
+   *
+   * DIE EIGENTLICHE URSACHE WAR NIE DIE BREITE DER LEISTE, SONDERN DASS IHR
+   * INHALT AUSEINANDERGEZOGEN WIRD. Die Leiste bleibt deshalb VOLLBREIT — das
+   * ist ihre Abschlusskante zum Raster, buendig zu `.fachraster` und
+   * `.karteRaster`, die dieselbe `.inhalt`-Polsterung erben — und nur ihr
+   * INHALT wird zentriert: `justify-content: center` auf der Leiste, dazu
+   * `.abschlussInfo` OHNE `flex: 1` im Desktop-Zweig, sonst zoege der Text
+   * die Gruppe wieder auseinander. Ergebnis: `[Text][Abstand][Knopf]` als
+   * kompakte Einheit in der Mitte des vollbreiten Balkens, statt zwei Blaecke
+   * an gegenueberliegenden Kanten.
+   *
+   * Geprueft gegen alle vier realen Textfaelle aus `CheckFlow.tsx` (kurz:
+   * „Alles auf Soll"/„Nichts nachzufuellen" — lang: „1 unter Soll"/„1 laufen
+   * ab · Weiter zur Nachfuellung aus dem Handlager" — und die Faelle aus
+   * Geraete-, Flaschen- und Nachfuell-Schritt bis zu „Bestaetigen bucht
+   * Handlager → <Fahrzeugname>"): in jedem Fall bleibt die Gruppe kompakt und
+   * mittig, kein Auseinanderfallen, kein Leerstreifen — anders als bei
+   * `flex: 1` mit Linksbuendigkeit, wo kurze Texte einen Streifen rechts vom
+   * Knopf freiliessen.
+   *
+   * `position: sticky` steht dem nicht im Weg: es verschiebt nur die
+   * BLOCKACHSE (`bottom`), sobald der Scrollcontainer (`.inhalt`,
+   * `overflow-y: auto`) den Schwellwert erreicht. `justify-content` wirkt in
+   * der INLINE-ACHSE der Flex-Zeile und wird beim Einrasten nicht neu
+   * berechnet — kein Sprung beim Scrollen.
+   */
+  .abschluss { justify-content: center; }
+  .abschlussInfo { flex: initial; }
+
+  /*
+   * STEPPER-HOVER — AUSSCHLIESSLICH HIER, NICHT IN DER BASIS. Unter 768px gibt
+   * es keinen echten Hover (Touch); eine Flaeche, die nach dem Antippen
+   * haengen bleibt, saehe aus wie ein ausgewaehlter Zustand, nicht wie eine
+   * Reaktion auf den Mauszeiger. `var(--lb-papier)` ist derselbe ruhige Ton,
+   * den `.rahmen` selbst als Seitenhintergrund traegt — dezent gegen
+   * `var(--lb-karte)` in BEIDEN Modi (im Dunkelzweig dunkler als die Karte
+   * statt heller, aber ebenso sichtbar).
+   */
+  .stepTaste:hover { background: var(--lb-papier) }
 }

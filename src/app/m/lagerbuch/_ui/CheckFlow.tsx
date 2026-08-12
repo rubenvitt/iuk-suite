@@ -465,7 +465,7 @@ export function CheckFlow({
           </p>
         </div>
 
-        <div data-rolle="zaehlliste">
+        <div className={s.fachraster} data-rolle="zaehlliste">
           {faecher.map((fach) => (
             <div key={fach}>
               <div className={s.fachKopf}>{fach}</div>

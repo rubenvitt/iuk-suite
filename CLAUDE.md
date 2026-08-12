@@ -41,8 +41,12 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
    Rückfall trägt still das falsche Icon. Laut ist besser als still.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
-`prefers-color-scheme`), und die Regel für `src/core` lautet: nur was ein **zweites, heute belegbares**
-Modul braucht.
+`prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb
+**zwei** Cookies: `iuk-theme-pref` trägt die Wahl (`auto|light|dark`), `iuk-theme-system` den
+zuletzt vom Client beobachteten OS-Wert, weil der Server `prefers-color-scheme` nicht sieht.
+`data-theme` trägt **immer** den aufgelösten Wert `light`/`dark`; ein gestempeltes `auto` besteht
+`build` und Vitest und kippt trotzdem jede Modulfläche still auf helle Darstellung. Die Regel für
+`src/core` lautet: nur was ein **zweites, heute belegbares** Modul braucht.
 
 Ausführliche Referenzentwürfe: `docs/design/feedback-oeffentliche-ansicht.md` (öffentliche, login-freie
 Ansichten) und `docs/design/feedback-admin.md` (Admin-Arbeitsseiten).

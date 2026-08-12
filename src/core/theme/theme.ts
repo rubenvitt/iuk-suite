@@ -6,6 +6,16 @@ import { FARBEN, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
 export type ThemeMode = "light" | "dark";
 
 /**
+ * Was die Person GEWÄHLT hat — nicht, was daraus folgt. `auto` ist die Vorgabe
+ * und heißt „folge dem Betriebssystem"; die Auflösung nach `ThemeMode` macht
+ * `resolveThemeMode` in `mode.ts`, weil sie den zweiten Cookie-Wert braucht.
+ *
+ * Die Trennung ist keine Kosmetik: `buildTheme` und `<html data-theme>` dürfen
+ * `auto` nie zu sehen bekommen.
+ */
+export type ThemePreference = "auto" | "light" | "dark";
+
+/**
  * Das Design-System der Suite als eine Funktion. Reine Berechnung, kein React —
  * dadurch in `theme.test.ts` statisch prüfbar und aus Server- wie
  * Client-Komponenten aufrufbar.
