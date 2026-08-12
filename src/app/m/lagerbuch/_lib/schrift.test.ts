@@ -10,35 +10,60 @@ const LEITER = [12, 14, 16, 20, 24, 30];
 describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {
   it("entspricht dem vollstaendigen Rollenvertrag — keine vertauschten oder zusaetzlichen Felder", () => {
     expect(SCHRIFT).toEqual({
+      // Seit 2026-08-12 Adapter ueber core/theme/schrift.ts (Task 5, A-S1
+      // ausgetragen). Alle sieben Rollen beziehen core, aber ohne dessen
+      // fontVariantNumeric — die Ziffernstellung ist in diesem Modul eine
+      // eigene, engere Entscheidung (nur zahl/mono, s. schrift.ts). Sichtbar
+      // aendert sich dadurch nur die Schriftfamilie, plus zwei wirkungslose
+      // fontWeight: 400 (CSS-Vorgabewert, zugleich der Wert der Suite-Leiter).
       titel: {
+        fontFamily: "var(--font-display)",
         fontSize: 24,
         fontWeight: 600,
         letterSpacing: "0.02em",
         lineHeight: 1.2,
       },
       abschnitt: {
+        fontFamily: "var(--font-display)",
         fontSize: 12,
         fontWeight: 600,
         letterSpacing: "0.09em",
         textTransform: "uppercase",
       },
       feldname: {
+        fontFamily: "var(--font-display)",
         fontSize: 12,
         fontWeight: 600,
         letterSpacing: "0.09em",
         textTransform: "uppercase",
       },
-      text: { fontSize: 14 },
-      neben: { fontSize: 12 },
+      text: {
+        fontSize: 14,
+        // neu, aber wirkungslos: CSS-Vorgabewert, zugleich der Wert der
+        // Suite-Leiter (SUITE.text ist 14/400).
+        fontWeight: 400,
+      },
+      neben: {
+        fontSize: 12,
+        // neu, aber wirkungslos, s. `text`.
+        fontWeight: 400,
+      },
       zahl: {
+        fontFamily: "var(--font-display)",
         fontSize: 24,
         fontWeight: 700,
+        // unveraendert "tabular-nums" — gezielt gepickt, nicht aus dem
+        // core-Spread uebernommen (der brächte "tabular-nums lining-nums").
         fontVariantNumeric: "tabular-nums",
         lineHeight: 1,
       },
       mono: {
-        fontFamily: "var(--font-geist-mono)",
+        // Mono-Indirektion: --font-geist-mono -> --font-mono.
+        fontFamily: "var(--font-mono)",
         fontSize: 12,
+        // neu, aber wirkungslos, s. `text`.
+        fontWeight: 400,
+        // unveraendert "tabular-nums", s. `zahl`.
         fontVariantNumeric: "tabular-nums",
       },
     });
@@ -60,6 +85,22 @@ describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {
       expect(SCHRIFT[rolle].textTransform, rolle).toBe("uppercase");
       expect(SCHRIFT[rolle].letterSpacing, rolle).toBeTruthy();
       expect(SCHRIFT[rolle].fontWeight, rolle).toBe(600);
+    }
+  });
+
+  it("bezieht die Mono-Rolle ueber die Suite-Rolle, nicht ueber Geist direkt", () => {
+    // `--font-mono` statt `--font-geist-mono`: ein Schriftwechsel ist damit eine
+    // Zeile in `globals.css` statt einer Suche ueber alle Module.
+    expect(SCHRIFT.mono.fontFamily).toBe("var(--font-mono)");
+  });
+
+  it("gibt Titel, Abschnitt, Feldname und Zahl die Display-Familie", () => {
+    // DIE RUECKNAHME VON A-S1, festgehalten statt stillschweigend: bis
+    // 2026-08-12 bekam die Verwaltung bewusst Geist, weil die Display-Rolle
+    // hier Struktur trug und nicht Marke. Der Auftrag hat das umgedreht.
+    for (const rolle of ["titel", "abschnitt", "feldname", "zahl"] as const) {
+      expect(SCHRIFT[rolle].fontFamily, `${rolle} ohne Display-Familie`)
+        .toBe("var(--font-display)");
     }
   });
 
