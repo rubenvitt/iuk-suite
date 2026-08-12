@@ -237,6 +237,11 @@
   align-items: start;
 }
 .karte { background: var(--lb-karte); border: 1px solid var(--lb-linie); border-radius: 14px; overflow: hidden }
+/* Zusatz zu `.karte` fuer lange, gleichfoermige Listen. Einspaltig ist optisch
+   dasselbe wie der Blockfluss; der Desktop-Zweig setzt dann nur noch die
+   Spaltenzahl um. Die Klasse gehoert in die BASIS — `rahmen.test.tsx:60-68`
+   sieht Klassen nicht, die es nur im @media-Block gibt. */
+.karteRaster { display: grid; grid-template-columns: 1fr }
 .karte + .karte { margin-top: 10px }
 .kartePad { padding: 13px 14px }
 .karteTitel {
@@ -558,6 +563,22 @@
    * bekaeme den Weissraum eines Fachs mit zwanzig.
    */
   .fachraster { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)) }
+
+  /*
+   * ZWEI SPALTEN, FEST — hier bewusst KEIN `auto-fit` wie bei `.fachraster`.
+   * Der Unterschied hat einen Grund: die Trennerregeln darunter zaehlen mit
+   * `:nth-child(2n)` und setzen damit ZWEI Spalten voraus. Bei drei Spalten
+   * saesse die senkrechte Kante an der falschen Zelle — und `auto-fit` sagt
+   * einem CSS-Selektor nicht, wie viele Spalten es gerade erzeugt hat.
+   */
+  .karteRaster { grid-template-columns: 1fr 1fr }
+
+  /* Jede Zelle bekommt ihre Oberkante zurueck … */
+  .karteRaster .zeile { border-top: 1px solid var(--lb-linie) }
+  /* … ausser den beiden der ersten Reihe. */
+  .karteRaster .zeile:nth-child(-n + 2) { border-top: none }
+  /* Die rechte Spalte trennt sich senkrecht von der linken. */
+  .karteRaster .zeile:nth-child(2n) { border-inline-start: 1px solid var(--lb-linie) }
 
   /*
    * Das Kamerabild bekommt eine Obergrenze in px. Das `max-height: 58vh`

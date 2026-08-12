@@ -80,7 +80,7 @@ export function ArtikelSuche({ artikel }: { artikel: ArtikelZeileHelfer[] }) {
         data-rolle="artikel-suche"
       />
 
-      <div className={s.karte}>
+      <div className={`${s.karte} ${s.karteRaster}`}>
         {/*
           DIE BEIDEN LEERLAGEN SIND VERSCHIEDEN, und das ist keine Feinheit:
           „Kein Artikel gefunden" bei leerer Datenbank schickt die Helferin auf

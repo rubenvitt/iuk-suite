@@ -644,6 +644,39 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
       /\.fachraster\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit/,
     );
   });
+
+  it("das Listenraster repariert seine Trenner — sonst franst die obere Reihe aus", () => {
+    /**
+     * ⚠️ DAS IST DER EIGENTLICHE INHALT DIESES TASKS, nicht das Grid.
+     * `.zeile:first-child { border-top: none }` (:197) ist im Grid EINMAL wahr,
+     * nicht je Spalte: die rechte Zelle der obersten Reihe traegt dann eine
+     * Linie, die linke nicht. Der Fehler ist rein optisch, faellt in keinem
+     * Test auf und sieht nach Schlamperei aus, nicht nach einem Bug.
+     *
+     * `:nth-child(-n + 2)` nimmt beide Zellen der ersten Reihe aus,
+     * `:nth-child(2n)` gibt jeder rechten Zelle ihre senkrechte Kante.
+     *
+     * ⚠️ ABWEICHUNG VOM BRIEFTEXT: dort lief auch die `display: grid`-Zusicherung
+     * gegen den Media-Block-Ausschnitt und war damit unerfuellbar — dieselbe
+     * Korrektur wie beim `.fachraster`-Test oben: `display: grid` gehoert per
+     * Vorgabe in die BASIS (sonst gilt die Klasse dem Scan
+     * `rahmen.test.tsx:60-68` als nicht deklariert), der Media-Block traegt nur
+     * die feste Spaltenzahl und die Trenner. Geprueft werden deshalb beide
+     * Haelften getrennt.
+     */
+    const css = ohneKommentare(readFileSync(HELFER_CSS, "utf8"));
+    const auf = css.search(/@media[^{]*min-width/);
+    const zweig = css.slice(auf);
+    expect(css.slice(0, auf), "kein Grid auf `.karteRaster` in der Basis").toMatch(
+      /\.karteRaster\s*\{[^}]*display:\s*grid/,
+    );
+    expect(zweig, "die erste Reihe wird nicht von der Trennlinie ausgenommen").toMatch(
+      /\.karteRaster\s+\.zeile:nth-child\(-n\s*\+\s*2\)/,
+    );
+    expect(zweig, "die rechte Spalte bekommt keine senkrechte Kante").toMatch(
+      /\.karteRaster\s+\.zeile:nth-child\(2n\)/,
+    );
+  });
 });
 
 // ————————————————————————————————————————————————————————————————————————
