@@ -108,6 +108,18 @@
  * (`.chip` + Ton-Klassen), mit eigenen `--auf-*`-Variablen statt antds `Tag`.
  * Jede Stufe TRAEGT IMMER DAS WORT (Text-Kind der Komponente aus Aufgabe 6) —
  * Farbe hier ist die verzichtbare letzte Schicht, nie die einzige.
+ *
+ * ABSTANDS-AUSNAHME VON DER SPACE-LEITER (4/8/12/16/24/32): `.chip` (Polster),
+ * `.ohneAnker` (Polster) und `.backlink` (Zeichen-Textabstand) liegen bewusst
+ * NICHT auf der Leiter — die Werte sind aus `lagerbuch/_ui/verwaltung.module.css`
+ * uebernommen (`.chip`, `.fach`, `.backlink`), also gelebte Praxis derselben
+ * Suite und nicht frei gewaehlt. Die Leiter bemisst Abstaende zwischen
+ * FLAECHEN; ein Chip ist eine Marke in Textgroesse, deren Polster sich an der
+ * Zeilenhoehe orientiert, nicht am Flaechenraster — auf 4px/8px gebracht
+ * wirkt er klobig, auf 0 verliert er die Pillenform. Die Ausnahme gilt NUR
+ * fuer diese drei Klassen; jede Flaeche bleibt auf der Leiter, und
+ * `aufgaben-css.test.ts` (Aussage 6) haelt genau das fest, statt es nur zu
+ * behaupten — eine vierte, unbenannte Ausnahme faellt dort durch.
  */
 .chip {
   display: inline-flex;
@@ -149,6 +161,13 @@
  * Fehlen jeder Chip-Form. Kombiniert mit `.chip`, ausser `.prioText`, das
  * bewusst KEINE Chip-Form bekommt (nur Wort, gedaempft — die schwaechste
  * Stufe der Rangskala).
+ *
+ * `--auf-stahl` ist hier sichtbarer Text und deshalb in `aufgaben-css.test.ts`
+ * (Aussage 5) gegen `--auf-papier` gemessen (hell 5.19, dunkel 7.47) — mit dem
+ * Vorbehalt, dass diese Messung die dokumentierte ANNAHME ist, nicht ihr
+ * Beweis: auf welchem Hintergrund `.prioKontur`/`.prioText` in Aufgabe 6/7
+ * tatsaechlich landen, entscheidet sich dort (deren Brief legt `--auf-papier`
+ * deshalb ausdruecklich fest).
  */
 .prioGefuellt {
   color: var(--auf-rost-text);
@@ -260,6 +279,7 @@
   align-items: center;
   border: 1px dashed var(--auf-linie);
   border-radius: 4px;
+  /* Abstands-Ausnahme von der SPACE-Leiter, s. Kommentar bei `.chip` oben. */
   padding: 1px 6px;
   color: var(--auf-stahl);
   font-size: 12px;
@@ -295,6 +315,7 @@
 .backlink {
   display: inline-flex;
   align-items: center;
+  /* Abstands-Ausnahme von der SPACE-Leiter, s. Kommentar bei `.chip` oben. */
   gap: 6px;
   min-height: 44px;
   color: var(--auf-stahl);

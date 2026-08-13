@@ -329,4 +329,66 @@ describe("aufgaben.module.css — Aussage 5: gemessener AA-Kontrast", () => {
       SCHWELLE_AA,
     );
   });
+
+  /**
+   * `--auf-stahl` ist die Textfarbe von `.prioKontur`/`.prioText` (sichtbarer
+   * Text), fällt aber als BASISvariable nicht unter das `-text`/`-flaeche`-
+   * Muster von `tonPaare()` und bliebe sonst ungemessen. Der Vorbehalt: diese
+   * Messung nimmt `--auf-papier` als Hintergrund an, weil das die einzige
+   * heute belegbare Annahme ist — den tatsächlichen Hintergrund legen erst
+   * Aufgabe 6/7 fest.
+   */
+  it(`hält --auf-stahl auf --auf-papier ≥ ${SCHWELLE_AA} Kontrast — hell UND dunkel`, () => {
+    const hellWert = kontrastverhaeltnis(hell.get("--auf-stahl") ?? "", hell.get("--auf-papier") ?? "");
+    const dunkelWert = kontrastverhaeltnis(
+      dunkel.get("--auf-stahl") ?? "",
+      dunkel.get("--auf-papier") ?? "",
+    );
+    expect(hellWert, `hell: ${hellWert.toFixed(2)} < ${SCHWELLE_AA}`).toBeGreaterThanOrEqual(
+      SCHWELLE_AA,
+    );
+    expect(dunkelWert, `dunkel: ${dunkelWert.toFixed(2)} < ${SCHWELLE_AA}`).toBeGreaterThanOrEqual(
+      SCHWELLE_AA,
+    );
+  });
+});
+
+/**
+ * SPACE-LEITER (Brief, Abschnitt „Weitere Festlegungen“): Abstände liegen auf
+ * 4/8/12/16/24/32, mit genau den benannten Ausnahmen aus dem Kopfkommentar bei
+ * `.chip`. Der Riegel hier ist die Gegenprobe zu diesem Versprechen, nicht nur
+ * eine Wiederholung davon: `.chip`, `.ohneAnker` und `.backlink` wurden schon
+ * einmal wortgleich aus `lagerbuch` übernommen, OHNE dass die Ausnahme benannt
+ * war — genau drei unkommentierte Werte außerhalb der Leiter. Ohne diesen Test
+ * kann eine vierte, wieder unbenannte Ausnahme auf demselben Weg dazukommen;
+ * mit ihm muss jeder künftige Wert außerhalb der Leiter zu einer der drei
+ * aufgezählten Klassen gehören, sonst schlägt der Test rot.
+ */
+const SPACE_LEITER = [4, 8, 12, 16, 24, 32];
+const ABSTANDS_AUSNAHMEN = [".chip", ".ohneAnker", ".backlink"];
+
+describe("aufgaben.module.css — Aussage 6: Abstände auf der SPACE-Leiter oder benannte Ausnahme", () => {
+  it("jeder `padding`- und `gap`-Wert liegt auf 4/8/12/16/24/32 oder gehört zu .chip/.ohneAnker/.backlink", () => {
+    const verstoesse: string[] = [];
+    for (const regel of ALLE_REGELN) {
+      const gehoertZurAusnahme = ABSTANDS_AUSNAHMEN.some((klasse) =>
+        regel.selektor.includes(klasse),
+      );
+      const deklarationen = regel.rumpf
+        .split(";")
+        .map((d) => d.trim())
+        .filter(Boolean);
+      for (const deklaration of deklarationen) {
+        const treffer = /^(padding[a-z-]*|gap)\s*:\s*(.+)$/i.exec(deklaration);
+        if (!treffer) continue;
+        const werte = [...treffer[2].matchAll(/([\d.]+)px/g)].map((m) => Number(m[1]));
+        for (const wert of werte) {
+          if (!SPACE_LEITER.includes(wert) && !gehoertZurAusnahme) {
+            verstoesse.push(`${regel.selektor} → ${deklaration}`);
+          }
+        }
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
 });
