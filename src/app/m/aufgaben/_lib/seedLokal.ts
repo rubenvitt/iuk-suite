@@ -30,26 +30,44 @@ import { personen, type Rolle } from "../_db/schema";
  */
 
 interface DemoPerson {
-  vorname: string;
+  /**
+   * Die Anmeldeadresse (ohne `dev:`-Praefix und Domain), EXPLIZIT statt aus
+   * `name` abgeleitet — sonst laufen Anzeigename und Anmeldeadresse auseinander
+   * (siehe Jönne unten).
+   */
+  sub: string;
   name: string;
   initialen: string;
   rolle: Rolle;
 }
 
-/** Namen aus der Spec (§1, §4); der dritte BuFDi ist dort nicht benannt — "Mira" ist hier festgelegt. */
+/**
+ * Namen aus der Spec (§1, §4); der dritte BuFDi ist dort nicht benannt — "Mira"
+ * ist hier festgelegt.
+ *
+ * `sub` bleibt ASCII, AUCH bei "Jönne" (`joenne`, nicht `jönne`): die
+ * Anmeldeadresse ist eine Zeichenfolge, die ein Mensch abtippt, um lokal die
+ * Rolle zu wechseln (Spec §13, kein Demo-Rollenwechsler). Ein falsch
+ * getroffenes "ö" ergaebe einen `sub` ohne `personen`-Zeile, und der Befund
+ * waere `notFound()` — "die Seite ist kaputt" statt "falsch angemeldet". Das
+ * Login-Feld ist ausserdem ein normales antd-`<Input>` ohne `type="email"`,
+ * pruefte den Wert also nicht vorher. Und die Datenbankwerte dieses Moduls
+ * meiden Umlaute ohnehin aus Prinzip (`zurueckgewiesen`, nicht
+ * "zurückgewiesen"). Der Anzeigename bleibt "Jönne" — nur die Adresse weicht ab.
+ */
 const DEMO_PERSONEN: DemoPerson[] = [
-  { vorname: "Sarah", name: "Sarah", initialen: "SA", rolle: "koordination" },
-  { vorname: "Schulle", name: "Schulle", initialen: "SC", rolle: "auftrag" },
-  { vorname: "Jönne", name: "Jönne", initialen: "JÖ", rolle: "auftrag" },
-  { vorname: "Lea", name: "Lea", initialen: "LE", rolle: "bufdi" },
-  { vorname: "Noah", name: "Noah", initialen: "NO", rolle: "bufdi" },
-  { vorname: "Mira", name: "Mira", initialen: "MI", rolle: "bufdi" },
+  { sub: "sarah", name: "Sarah", initialen: "SA", rolle: "koordination" },
+  { sub: "schulle", name: "Schulle", initialen: "SC", rolle: "auftrag" },
+  { sub: "joenne", name: "Jönne", initialen: "JÖ", rolle: "auftrag" },
+  { sub: "lea", name: "Lea", initialen: "LE", rolle: "bufdi" },
+  { sub: "noah", name: "Noah", initialen: "NO", rolle: "bufdi" },
+  { sub: "mira", name: "Mira", initialen: "MI", rolle: "bufdi" },
 ];
 
 const AKTIV_VON = "2026-08-01";
 
-function subFuer(vorname: string): string {
-  return `dev:${vorname.toLowerCase()}@localtest.me`;
+function subFuer(person: DemoPerson): string {
+  return `dev:${person.sub}@localtest.me`;
 }
 
 /** Legt die sechs Demo-Personen des Moduls `aufgaben` an. */
@@ -57,7 +75,7 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
   const zeilen: string[] = [];
 
   for (const person of DEMO_PERSONEN) {
-    const sub = subFuer(person.vorname);
+    const sub = subFuer(person);
     const vorhanden = db.select().from(personen).where(eq(personen.sub, sub)).get();
     if (vorhanden) {
       zeilen.push(`aufgaben: Person ${person.name} (${sub}) war schon da — übersprungen.`);

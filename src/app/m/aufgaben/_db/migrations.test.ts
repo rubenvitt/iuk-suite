@@ -117,9 +117,27 @@ describe("Migration 0000", () => {
          VALUES ('v1','a1','eingestellt','p1',1)`,
       )
       .run();
+    // Dateien und Nachweise gehoeren mit ins Spiel — sonst haette ein spaeter
+    // verlorenes `ON DELETE cascade` an genau diesen beiden Tabellen hier
+    // keinen Zeugen. Die Nachweis-Zeile trägt zusaetzlich `datei_id`, damit
+    // auch dieser Verweis mitgeprueft ist.
+    sqlite
+      .prepare(
+        `INSERT INTO dateien (id, aufgabe_id, dateiname, mime, groesse, scan_status, erstellt_am)
+         VALUES ('d1','a1','nachweis.jpg','image/jpeg',1024,'sauber',1)`,
+      )
+      .run();
+    sqlite
+      .prepare(
+        `INSERT INTO nachweise (id, aufgabe_id, art, datei_id, erstellt_von, erstellt_am)
+         VALUES ('n1','a1','bild','d1','p1',1)`,
+      )
+      .run();
     sqlite.prepare("DELETE FROM aufgaben WHERE id='a1'").run();
-    const rest = sqlite.prepare("SELECT COUNT(*) AS n FROM verlauf").get() as { n: number };
-    expect(rest.n).toBe(0);
+    for (const t of ["verlauf", "dateien", "nachweise"]) {
+      const rest = sqlite.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get() as { n: number };
+      expect(rest.n, t).toBe(0);
+    }
     sqlite.close();
   });
 
@@ -130,7 +148,7 @@ describe("Migration 0000", () => {
    * ganzen Dienstjahres mitnimmt.
    */
   it("kaskadiert NICHT von personen aus", () => {
-    const sql = readFileSync(join(process.cwd(), ORDNER, "0000_" + naechsteDatei()), "utf8");
+    const sql = readFileSync(join(process.cwd(), ORDNER, naechsteDatei()), "utf8");
     const personenVerweise = sql
       .split("\n")
       .filter((z) => /REFERENCES\s+`?personen`?/i.test(z));
@@ -143,5 +161,5 @@ describe("Migration 0000", () => {
 function naechsteDatei(): string {
   const datei = readdirSync(join(process.cwd(), ORDNER)).find((d) => d.startsWith("0000_"));
   if (!datei) throw new Error("Migration 0000 nicht gefunden");
-  return datei.slice("0000_".length);
+  return datei;
 }
