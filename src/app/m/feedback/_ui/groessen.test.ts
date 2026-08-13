@@ -13,10 +13,14 @@ import { join } from "node:path";
  * Trefferflaeche braucht. Der schwerste Fall war das „…"-Menue der
  * Verlaufszeile: 24px BREIT, und es ist das einzige Bedienelement der Zeile.
  *
- * DIE AUSNAHME IST BENANNT, NICHT UEBERSEHEN: `Aktualisierer.tsx` traegt
- * `size="small"` mit einer Begruendung im Quelltext („die Regel richtet sich
- * gegen `size=\"large\"`"). Sie steht unten in AUSNAHMEN und faellt auf, wenn
- * jemand eine zweite hinzufuegt, ohne sie hier einzutragen.
+ * FRUEHER STAND HIER EINE AUSNAHME: `Aktualisierer.tsx` trug `size="small"` an
+ * `AktualisierenKnopf` mit der Begruendung, `controlHeight` falle ohne `size`
+ * auf 56 zurueck. Task 11 (`ARBEITSDICHTE`, `controlHeight: 44`) hat die
+ * Grundlage der Begruendung entfernt — ein Knopf ohne `size` faellt seither auf
+ * 44, nicht mehr auf 56 —, und `size="small"` ist seither entfernt (derselbe
+ * Nachtrag wie die elf Fundstellen der Aufgaben 8/9). AUSNAHMEN ist seitdem
+ * leer; sie bleibt als Menge stehen, damit eine kuenftige, wirklich begruendete
+ * Ausnahme hier eingetragen werden kann, statt den Scan selbst aufzuweichen.
  *
  * `size` am `<Table>` selbst ist KEIN Bedienelement, sondern Zellpolster — der
  * Scan sucht deshalb nach `size=` an `<Button`, nicht an jeder Komponente.
@@ -28,7 +32,7 @@ import { join } from "node:path";
  * der Filter unten strikt auf `=== "Button"` prueft und ein Typparameter das
  * nie ist; es ist nur nicht dieselbe Zusicherung, die der erste Satz nahelegt.
  */
-const AUSNAHMEN = new Set(["Aktualisierer.tsx"]);
+const AUSNAHMEN = new Set<string>([]);
 
 function tsxDateien(verzeichnis: string): string[] {
   return readdirSync(verzeichnis)

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { Breadcrumb } from "antd";
 import { auth } from "@/core/auth";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "@/app/m/feedback/_db/client";
 import { listGroups, listEvenings, getSurveyByEvening, listResponses } from "@/app/m/feedback/_db/queries";
 import { viewerFromSession } from "@/app/m/feedback/_lib/viewer";
@@ -9,11 +9,10 @@ import { isFeedbackAdmin } from "@/app/m/feedback/_lib/access";
 import { computeDAStats } from "@/app/m/feedback/_lib/aggregation";
 import { NOTEN_FENSTER } from "@/app/m/feedback/_lib/noten";
 import type { Question } from "@/app/m/feedback/_lib/questions";
-import { T } from "@/app/m/feedback/_ui/typo";
 import { VergleichTabelle, type VergleichZeile } from "@/app/m/feedback/_ui/VergleichTabelle";
 
 /**
- * DER GRUPPENVERGLEICH (Entwurf §3.4, Kopfzone §4.2, Breadcrumb §4.1).
+ * DER GRUPPENVERGLEICH (Entwurf §3.4, Kopfzone §4.2, Rückweg §4.1).
  *
  * Nur für Voll-Admins (`isFeedbackAdmin`): „Vergleich" hat keine `group_id`, gegen
  * die `assertGroupAccess`/`guardPage` prüfen könnten — die Seite zeigt Daten ALLER
@@ -103,22 +102,25 @@ export default async function VergleichPage() {
     });
 
   return (
-    <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
-      <header style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <Breadcrumb
-          style={T.meta}
-          items={[
-            { title: <Link href="/m/feedback">Gruppen</Link> },
-            { title: "Gruppenvergleich" },
-          ]}
+    <>
+      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+        <Seitenkopf
+          titel="Gruppenvergleich"
+          beschreibung="Ø Note (1 = beste) je Gruppe, über alle Dienstabende — bester zuerst."
+          zurueck={{ titel: "Gruppen", href: "/m/feedback" }}
         />
-        <h1 style={{ ...T.h1, margin: 0, textWrap: "balance" }}>Gruppenvergleich</h1>
-        <p style={{ ...T.meta, margin: 0 }}>
-          Ø Note (1 = beste) je Gruppe, über alle Dienstabende — bester zuerst.
-        </p>
-      </header>
-
-      <VergleichTabelle zeilen={zeilen} />
-    </div>
+      </div>
+      <div
+        style={{
+          maxWidth: 1120,
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: SPACE.xl,
+        }}
+      >
+        <VergleichTabelle zeilen={zeilen} />
+      </div>
+    </>
   );
 }

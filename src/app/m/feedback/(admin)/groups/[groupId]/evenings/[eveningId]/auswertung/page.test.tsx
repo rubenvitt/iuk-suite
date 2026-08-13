@@ -307,20 +307,15 @@ describe("Auswertung — Kennzahlen, Kopfzone und Leerzustand (§3.2, §4.2, §4
     expect((await zeichne(evening.id)).textContent).not.toContain("bitte nicht als Urteil");
   });
 
-  it("traegt Breadcrumb, Ueberschrift und die Textknoepfe der Seite", async () => {
+  it("traegt Rueckweg, Ueberschrift und die Textknoepfe der Seite", async () => {
     const evening = seed(NUR_SCHULNOTE, [{ q1: 2 }]);
     const wirt = await zeichne(evening.id);
 
-    // Breadcrumb: der Zurueck-Weg (§4.1) — Wurzel, Gruppe mit Link aufs Cockpit,
-    // Seitentitel als letzter Punkt.
-    const brotkrumen = [...wirt.querySelectorAll<HTMLElement>(".ant-breadcrumb a")].map((a) => ({
-      text: a.textContent,
-      href: a.getAttribute("href"),
-    }));
-    expect(brotkrumen).toEqual([
-      { text: "Gruppen", href: "/m/feedback" },
-      { text: "Bereitschaft", href: "/m/feedback/groups/1" },
-    ]);
+    // Rückweg (§4.1, vormals eine dreistufige Breadcrumb, seit Task 11
+    // `Seitenkopf`s `zurueck`): direkt zum Cockpit der Gruppe, nicht zur Wurzel.
+    const rueckweg = wirt.querySelector<HTMLElement>('[data-testid="seitenkopf-zurueck"]');
+    expect(rueckweg?.textContent).toContain("Bereitschaft");
+    expect(rueckweg?.getAttribute("href")).toBe("/m/feedback/groups/1");
     expect(wirt.querySelector("h1")?.textContent).toBe("Auswertung — Mi., 22.07.2026");
     expect(wirt.textContent).toContain("Bereitschaft");
     expect(wirt.textContent).toContain("Funk");

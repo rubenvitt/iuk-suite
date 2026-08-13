@@ -229,8 +229,8 @@ describe("Trend — die Kurve laeuft ueber `_ui/NotenVerlauf`, nicht ueber `core
 /**
  * KOPFZONE, ZEITFENSTER UND DER WEG ZURUECK (§3.3, §4.1, §4.2).
  *
- * Die Seite war per URL-Eingabe erreichbar und danach eine Sackgasse: keine
- * Breadcrumb, kein Zeitfenster, kein CSV. Alle drei haengen an dieser Kopfzone.
+ * Die Seite war per URL-Eingabe erreichbar und danach eine Sackgasse: kein
+ * Rückweg, kein Zeitfenster, kein CSV. Alle drei haengen an dieser Kopfzone.
  */
 describe("Trend — Kopfzone, Zeitfenster, Rueckweg", () => {
   /** Ein Abend `zurueck` Monate in der Vergangenheit, mit einer Note. */
@@ -255,17 +255,14 @@ describe("Trend — Kopfzone, Zeitfenster, Rueckweg", () => {
     return datum;
   }
 
-  it("traegt Breadcrumb mit dem Weg aufs Cockpit und den CSV-Knopf", async () => {
+  it("traegt Rueckweg zum Cockpit und den CSV-Knopf", async () => {
     abend(NUR_SCHULNOTE, [{ q1: 2 }]);
     const wirt = await zeichne();
-    const brotkrumen = [...wirt.querySelectorAll<HTMLElement>(".ant-breadcrumb a")].map((a) => ({
-      text: a.textContent,
-      href: a.getAttribute("href"),
-    }));
-    expect(brotkrumen).toEqual([
-      { text: "Gruppen", href: "/m/feedback" },
-      { text: "Bereitschaft", href: "/m/feedback/groups/1" },
-    ]);
+    // Rückweg (§4.1, vormals eine Breadcrumb, seit Task 11 `Seitenkopf`s
+    // `zurueck`): direkt zum Cockpit der Gruppe, nicht zur Wurzel.
+    const rueckweg = wirt.querySelector<HTMLElement>('[data-testid="seitenkopf-zurueck"]');
+    expect(rueckweg?.textContent).toContain("Bereitschaft");
+    expect(rueckweg?.getAttribute("href")).toBe("/m/feedback/groups/1");
     const ziele = [...wirt.querySelectorAll<HTMLElement>("a")].map((a) => a.getAttribute("href"));
     expect(ziele).toContain("/m/feedback/groups/1/export.csv");
   });

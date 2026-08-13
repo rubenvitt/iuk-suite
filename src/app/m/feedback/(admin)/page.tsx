@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { Button, Result } from "antd";
 import { auth } from "@/core/auth";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../_db/client";
 import { listGroups, memberGroupIdsFor } from "../_db/queries";
 import { viewerFromSession } from "../_lib/viewer";
@@ -10,7 +12,6 @@ import { cockpitZustand } from "../_lib/cockpit";
 import { computeDAStats } from "../_lib/aggregation";
 import type { Question } from "../_lib/questions";
 import { listResponses } from "../_db/queries";
-import { T } from "../_ui/typo";
 import { formatTagMonat, formatZeitpunkt } from "../_ui/datum";
 import { Gruppenkarten, type Gruppenkarte } from "../_ui/Gruppenkarten";
 
@@ -31,10 +32,11 @@ import { Gruppenkarten, type Gruppenkarte } from "../_ui/Gruppenkarten";
  *    absteigend (§3.1). Wer eine laufende Umfrage hat, sucht sie — und nicht die
  *    alphabetisch erste Gruppe.
  *
- * SERVER COMPONENT: kein Compound-Zugriff auf antd (§4.13) — Überschriften nativ
- * mit `T.*`, `Input.Search` und `Modal` liegen in `_ui/Gruppenkarten.tsx`. Keine
- * Breadcrumb: diese Seite IST die Wurzel, ein Krümel auf sich selbst wäre eine
- * Schleife (§4.1).
+ * SERVER COMPONENT: kein Compound-Zugriff auf antd (§4.13) — der Kopf kommt aus
+ * `core/shell/Seitenkopf` (Task 11, gemeinsamer Seitenkopf der Suite), `Input.Search`
+ * und `Modal` liegen in `_ui/Gruppenkarten.tsx`. Kein `zurueck`: diese Seite IST die
+ * Wurzel, ein Rückweg auf sich selbst wäre eine Schleife (§4.1) — dieselbe Begründung,
+ * die vorher die Breadcrumb ausließ.
  */
 export default async function FeedbackEinstieg() {
   const viewer = viewerFromSession(await auth());
@@ -99,36 +101,39 @@ export default async function FeedbackEinstieg() {
     .map((x) => x.karte);
 
   return (
-    <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
-      <header style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            flexWrap: "wrap",
-            gap: 8,
-          }}
-        >
-          <h1 style={{ ...T.h1, margin: 0, textWrap: "balance" }}>Deine Gruppen</h1>
-          {/* Der Vergleich hat keine `group_id`, gegen die ein Guard prüfen könnte
-              — er zeigt Daten ALLER Gruppen. Deshalb steht der Weg dorthin nur
-              Admins offen, und die Seite selbst prüft es ein zweites Mal (§3.4). */}
-          {istAdmin && (
-            <Button type="text" href="/m/feedback/vergleich">
-              Gruppenvergleich
-            </Button>
-          )}
-        </div>
-        <p style={{ ...T.meta, margin: 0 }}>Je Gruppe ein dauerhafter QR-Code.</p>
-      </header>
-
-      {karten.length === 0 && !istAdmin ? (
-        <Result status="info" title="Dir ist noch keine Gruppe zugeordnet." />
-      ) : (
-        <Gruppenkarten gruppen={karten} istAdmin={istAdmin} />
-      )}
-    </div>
+    <>
+      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+        <Seitenkopf
+          titel="Deine Gruppen"
+          beschreibung="Je Gruppe ein dauerhafter QR-Code."
+          // Der Vergleich hat keine `group_id`, gegen die ein Guard prüfen könnte
+          // — er zeigt Daten ALLER Gruppen. Deshalb steht der Weg dorthin nur
+          // Admins offen, und die Seite selbst prüft es ein zweites Mal (§3.4).
+          aktionen={
+            istAdmin ? (
+              <Button type="text" href="/m/feedback/vergleich">
+                Gruppenvergleich
+              </Button>
+            ) : undefined
+          }
+        />
+      </div>
+      <div
+        style={{
+          maxWidth: 1120,
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: SPACE.xl,
+        }}
+      >
+        {karten.length === 0 && !istAdmin ? (
+          <Result status="info" title="Dir ist noch keine Gruppe zugeordnet." />
+        ) : (
+          <Gruppenkarten gruppen={karten} istAdmin={istAdmin} />
+        )}
+      </div>
+    </>
   );
 }
 

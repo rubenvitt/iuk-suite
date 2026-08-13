@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import Link from "next/link";
-import { Breadcrumb, Button, Card, Col, Row, Statistic } from "antd";
+import { Button, Card, Col, Row, Statistic } from "antd";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../../../_db/client";
 import { getGroup, listGroupMembers, listKnownUsers, listResponses } from "../../../_db/queries";
 import type { SurveyRow } from "../../../_db/schema";
@@ -29,8 +30,8 @@ import { einstiegZiel } from "../../../_lib/einstieg";
  * DAS COCKPIT (Entwurf §2.1). Die einzige Arbeitsseite des Moduls.
  *
  * Server Component: kein Compound-Zugriff auf antd (§4.13 — `Typography.*`,
- * `Card.Meta`, `Breadcrumb.Item` … ergeben HTTP 500, den `pnpm build` nicht
- * sieht), `Breadcrumb` deshalb über `items`, Überschriften nativ mit `T.*`.
+ * `Card.Meta` … ergeben HTTP 500, den `pnpm build` nicht sieht), der Kopf kommt
+ * aus `core/shell/Seitenkopf` (Task 11), Überschriften sonst nativ mit `T.*`.
  *
  * Der Zustand wird EINMAL entschieden (`cockpitZustand`) und dann nur noch
  * dargestellt. Die Reihenfolge im DOM ist in jedem Zustand dieselbe: Kopfzone,
@@ -39,14 +40,15 @@ import { einstiegZiel } from "../../../_lib/einstieg";
  * einspaltig, und der Verlauf entfällt vollständig — ein leeres Fach ist
  * schlimmer als kein Fach (§4.3).
  *
- * DIE BREADCRUMB IST BEDINGT (§4.1). „Gruppen › Bereitschaft" gibt es nur für
- * Nutzer, für die der Einstieg eine Seite MIT Inhalt ist — also ab zwei
- * zugänglichen Gruppen oder für einen Voll-Admin. Für den häufigsten Nutzer des
- * Moduls (Gruppenleiter, kein Voll-Admin, genau eine Gruppe) leitet
- * `/m/feedback` per `redirect` sofort wieder hierher: der Krümel wäre garantiert
- * ein Weg auf die Seite zurück, auf der man steht. Entschieden wird das von
- * `einstiegZiel` — DERSELBEN Funktion, die den `redirect` auslöst (§3.1), damit
- * Weiterleitung und Krümel nicht auseinanderlaufen können.
+ * DER RÜCKWEG IST BEDINGT (§4.1, vormals eine Breadcrumb „Gruppen › Bereitschaft",
+ * seit Task 11 `Seitenkopf`s `zurueck`). Er steht nur für Nutzer, für die der
+ * Einstieg eine Seite MIT Inhalt ist — also ab zwei zugänglichen Gruppen oder für
+ * einen Voll-Admin. Für den häufigsten Nutzer des Moduls (Gruppenleiter, kein
+ * Voll-Admin, genau eine Gruppe) leitet `/m/feedback` per `redirect` sofort wieder
+ * hierher: der Rückweg wäre garantiert ein Weg auf die Seite zurück, auf der man
+ * steht. Entschieden wird das von `einstiegZiel` — DERSELBEN Funktion, die den
+ * `redirect` auslöst (§3.1), damit Weiterleitung und Rückweg nicht auseinanderlaufen
+ * können.
  */
 export default async function Cockpit({
   params,
@@ -63,7 +65,7 @@ export default async function Cockpit({
   const istAdmin = isFeedbackAdmin(viewer);
   // Kein zweiter Datenbankgriff: `memberIds` kommt aus dem Guard, der sie
   // ohnehin gerechnet hat. `einstiegZiel !== null` heißt „der Einstieg leitet
-  // diesen Nutzer hierher zurück" — dann keine Breadcrumb (§4.1).
+  // diesen Nutzer hierher zurück" — dann kein `zurueck` am Seitenkopf (§4.1).
   const einstiegLeitetZurueck =
     einstiegZiel(accessibleGroupFilter(viewer, memberIds), istAdmin) !== null;
 
@@ -186,113 +188,100 @@ export default async function Cockpit({
   const teilnahmeUrl = teilnahmeUrlAus(await headers(), buildToken(group.slug, group.secret));
 
   return (
-    <div
-      style={{
-        maxWidth: einrichtung ? 760 : 1120,
-        margin: "0 auto",
-        display: "flex",
-        flexDirection: "column",
-        gap: 24,
-      }}
-    >
-      <header style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {!einstiegLeitetZurueck && (
-          <Breadcrumb
-            style={T.meta}
-            items={[
-              // „Gruppen" wortgenau wie §4.1 — dasselbe Wort tragen die Breadcrumbs
-              // der Unterseiten, sonst heißt die Wurzel je nach Seite anders.
-              { title: <Link href="/m/feedback">Gruppen</Link> },
-              { title: group.name },
-            ]}
-          />
-        )}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            flexWrap: "wrap",
-            gap: 8,
-          }}
-        >
-          <h1 style={{ ...T.h1, margin: 0, textWrap: "balance" }}>{group.name}</h1>
-        </div>
-        <p style={{ ...T.meta, margin: 0 }}>{kontextzeile(abendZahl, letzteNoten)}</p>
-      </header>
-
-      <Row gutter={[24, 24]}>
-        <Col xs={24} lg={einrichtung ? 24 : 15}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            {zustand.letzterAbend && (
-              <LetzterAbend groupId={id} lage={zustand.letzterAbend} db={db} />
-            )}
-            <Lagekarte
-              groupId={id}
-              zustand={zustand}
-              jetzt={jetzt}
-              stunden={stunden}
-              heute={heuteInZone(jetzt)}
-              freitexte={laufendeFreitexte}
-              verteilungen={laufendeVerteilungen}
-              teilnahmeUrl={teilnahmeUrl}
-              gruppenname={group.name}
-            />
-          </div>
-        </Col>
-        {/*
-         * Rechte Spalte: die Teilnahme-Zone (QR, Link, Aushang). Sie hängt an der
-         * GRUPPE, nicht an der Umfrage, und steht deshalb in JEDER Belegung —
-         * auch in der Betriebsart „Einrichtung", wo sie einspaltig unter die
-         * Lagekarte rutscht (§2.1: „Die Reihenfolge bleibt Lagekarte →
-         * Teilnahme"). Genau dort trägt sie ihre einzige Variante: „Du kannst den
-         * Aushang schon vor dem ersten Abend drucken." Würde die Spalte in der
-         * Einrichtung entfallen, wäre dieser Satz unerreichbar.
-         *
-         * `fb-sticky` klebt erst ab `lg` (Klasse, nicht inline — §2.1).
-         */}
-        <Col xs={24} lg={einrichtung ? 24 : 9} style={{ alignSelf: "flex-start" }}>
-          <div className={einrichtung ? undefined : "fb-sticky"}>
-            <Teilnahme
-              url={teilnahmeUrl}
-              token={buildToken(group.slug, group.secret)}
-              groupId={id}
-              erststart={zustand.belegung === "A"}
-            />
-          </div>
-        </Col>
-      </Row>
-
-      {/*
-       * ZONE d — VERLAUF (§2.1 Punkt 3), volle Breite unter dem Arbeitsfeld. In
-       * der Betriebsart „Einrichtung" entfällt sie VOLLSTÄNDIG: ein leeres Fach
-       * ist schlimmer als kein Fach (§4.3), und die Lagekarte trägt dort die
-       * Schrittzeile.
-       */}
-      {!einrichtung && (
-        <Verlauf groupId={id} zeilen={verlaufZeilen} heute={heuteInZone(jetzt)} />
-      )}
-
-      {/*
-       * ZONE e — EINSTELLUNGEN (§2.6). Sie steht in JEDEM Zustand, auch in der
-       * Betriebsart „Einrichtung": anders als der Verlauf ist sie dort nicht leer,
-       * sondern die einzige Stelle, an der Name, Frist und (fuer Admins) die
-       * Leitung einer neuen Gruppe korrigierbar sind. Eingeklappt, mit 32px
-       * Abstand nach oben (§4.8) — der `gap: 24` des Wrappers plus diese 8.
-       */}
-      <div style={{ marginTop: 8 }}>
-        <EinstellungenPanel
-          groupId={id}
-          name={group.name}
-          closeAfterHours={group.closeAfterHours}
-          istAdmin={istAdmin}
-          leitung={leitung}
-          verzeichnisAktiv={verzeichnis?.status === "ok"}
-          abende={abendZahl}
-          rueckmeldungen={rueckmeldungenGesamt}
+    <>
+      <div style={{ maxWidth: einrichtung ? 760 : 1120, margin: "0 auto" }}>
+        {/* „Gruppen" wortgenau wie §4.1 — derselbe Titel wie am Rückweg der
+            Unterseiten, sonst heißt die Wurzel je nach Seite anders. Bedingt wie
+            vormals die Breadcrumb: fehlt der Rückweg, würde er auf `/m/feedback`
+            führen, das denselben Nutzer per `redirect` sofort hierher zurückwirft. */}
+        <Seitenkopf
+          titel={group.name}
+          beschreibung={kontextzeile(abendZahl, letzteNoten)}
+          zurueck={einstiegLeitetZurueck ? undefined : { titel: "Gruppen", href: "/m/feedback" }}
         />
       </div>
-    </div>
+      <div
+        style={{
+          maxWidth: einrichtung ? 760 : 1120,
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: SPACE.xl,
+        }}
+      >
+        <Row gutter={[SPACE.xl, SPACE.xl]}>
+          <Col xs={24} lg={einrichtung ? 24 : 15}>
+            <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xl }}>
+              {zustand.letzterAbend && (
+                <LetzterAbend groupId={id} lage={zustand.letzterAbend} db={db} />
+              )}
+              <Lagekarte
+                groupId={id}
+                zustand={zustand}
+                jetzt={jetzt}
+                stunden={stunden}
+                heute={heuteInZone(jetzt)}
+                freitexte={laufendeFreitexte}
+                verteilungen={laufendeVerteilungen}
+                teilnahmeUrl={teilnahmeUrl}
+                gruppenname={group.name}
+              />
+            </div>
+          </Col>
+          {/*
+           * Rechte Spalte: die Teilnahme-Zone (QR, Link, Aushang). Sie hängt an der
+           * GRUPPE, nicht an der Umfrage, und steht deshalb in JEDER Belegung —
+           * auch in der Betriebsart „Einrichtung", wo sie einspaltig unter die
+           * Lagekarte rutscht (§2.1: „Die Reihenfolge bleibt Lagekarte →
+           * Teilnahme"). Genau dort trägt sie ihre einzige Variante: „Du kannst den
+           * Aushang schon vor dem ersten Abend drucken." Würde die Spalte in der
+           * Einrichtung entfallen, wäre dieser Satz unerreichbar.
+           *
+           * `fb-sticky` klebt erst ab `lg` (Klasse, nicht inline — §2.1).
+           */}
+          <Col xs={24} lg={einrichtung ? 24 : 9} style={{ alignSelf: "flex-start" }}>
+            <div className={einrichtung ? undefined : "fb-sticky"}>
+              <Teilnahme
+                url={teilnahmeUrl}
+                token={buildToken(group.slug, group.secret)}
+                groupId={id}
+                erststart={zustand.belegung === "A"}
+              />
+            </div>
+          </Col>
+        </Row>
+
+        {/*
+         * ZONE d — VERLAUF (§2.1 Punkt 3), volle Breite unter dem Arbeitsfeld. In
+         * der Betriebsart „Einrichtung" entfällt sie VOLLSTÄNDIG: ein leeres Fach
+         * ist schlimmer als kein Fach (§4.3), und die Lagekarte trägt dort die
+         * Schrittzeile.
+         */}
+        {!einrichtung && (
+          <Verlauf groupId={id} zeilen={verlaufZeilen} heute={heuteInZone(jetzt)} />
+        )}
+
+        {/*
+         * ZONE e — EINSTELLUNGEN (§2.6). Sie steht in JEDEM Zustand, auch in der
+         * Betriebsart „Einrichtung": anders als der Verlauf ist sie dort nicht leer,
+         * sondern die einzige Stelle, an der Name, Frist und (fuer Admins) die
+         * Leitung einer neuen Gruppe korrigierbar sind. Eingeklappt, mit 32px
+         * Abstand nach oben (§4.8) — der `gap: 24` des Wrappers plus diese 8.
+         */}
+        <div style={{ marginTop: SPACE.sm }}>
+          <EinstellungenPanel
+            groupId={id}
+            name={group.name}
+            closeAfterHours={group.closeAfterHours}
+            istAdmin={istAdmin}
+            leitung={leitung}
+            verzeichnisAktiv={verzeichnis?.status === "ok"}
+            abende={abendZahl}
+            rueckmeldungen={rueckmeldungenGesamt}
+          />
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -411,11 +400,11 @@ function LetzterAbend({
         body: { padding: "var(--fb-kartenpolster)" },
       }}
     >
-      <p style={{ ...T.body, margin: "0 0 12px" }}>
+      <p style={{ ...T.body, margin: `0 0 ${SPACE.md}px` }}>
         {formatDatumKurz(lage.evening.date)}
         {lage.evening.topic ? ` · ${lage.evening.topic}` : ""}
       </p>
-      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: SPACE.lg, flexWrap: "wrap" }}>
         <Statistic
           value={lage.responseCount}
           valueStyle={T.h2}
