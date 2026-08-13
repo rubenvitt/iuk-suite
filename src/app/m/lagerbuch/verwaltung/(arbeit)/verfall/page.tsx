@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Card, Empty } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../_db/client";
 import { ampelTon } from "../../../_lib/format";
 import { lagerortVerfallListe, verfallListe } from "../../../_lib/lesepfade/verfall";
@@ -30,7 +31,7 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         beschreibung="Chargen im Handlager nach Verfallsampel — und die im Fahrzeug gemeldeten Angaben."
       />
 
-      <Card title="Chargen im Handlager" style={{ marginBlockEnd: 24 }}>
+      <Card title="Chargen im Handlager" style={{ marginBlockEnd: SPACE.xl }}>
         {chargen.length === 0 ? (
           <Empty description="Keine auffällige Charge im Handlager." />
         ) : (
@@ -69,15 +70,21 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
-                  padding: "12px 0",
+                  gap: SPACE.md,
+                  padding: `${SPACE.md}px 0`,
                   borderBlockEnd: "1px solid var(--lb-linie)",
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ ...SCHRIFT.text, fontWeight: 600 }}>{meldung.artikelName}</div>
                   <div
-                    style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBlockStart: 4 }}
+                    style={{
+                      display: "flex",
+                      // 6 liegt nicht auf der SPACE-Skala; bleibt Literal.
+                      gap: 6,
+                      flexWrap: "wrap",
+                      marginBlockStart: SPACE.xs,
+                    }}
                   >
                     <Link
                       href={`/verwaltung/fahrzeuge/${meldung.lagerortId}`}

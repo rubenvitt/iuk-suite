@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Alert, Button, Flex, Input, InputNumber, Table } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { inventurKorrektur } from "../../../_actions/inventur";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
@@ -92,20 +93,23 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
         scroll={{ x: "max-content" }}
         aria-label="Inventur"
         dataSource={zeilen}
-        locale={{ emptyText: "Keine Artikel vorhanden." }}
+        // Punkt 5 der Pruefliste: der Leertext nennt den naechsten Schritt.
+        locale={{ emptyText: "Keine Artikel vorhanden. Lege sie zuerst unter Artikel & Bestand an." }}
+        // Spaltenkoepfe tragen die Kicker-Rolle ueber `title`, nie ueber CSS
+        // gegen `.ant-table-thead` (docs/design/README.md).
         columns={[
           {
-            title: "Artikel",
+            title: <span style={SCHRIFT.feldname}>Artikel</span>,
             dataIndex: "name",
             render: (wert: string) => <span style={{ fontWeight: 600 }}>{wert}</span>,
           },
           {
-            title: "Fach",
+            title: <span style={SCHRIFT.feldname}>Fach</span>,
             dataIndex: "fach",
             render: (wert: string) => <span className={s.fach}>{wert}</span>,
           },
           {
-            title: "Bestand",
+            title: <span style={SCHRIFT.feldname}>Bestand</span>,
             dataIndex: "bestand",
             align: "right",
             render: (wert: number, zeile) => (
@@ -113,7 +117,7 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
             ),
           },
           {
-            title: "Abweichung",
+            title: <span style={SCHRIFT.feldname}>Abweichung</span>,
             dataIndex: "id",
             render: (_wert: string, zeile) => {
               if (!(zeile.id in beruehrt)) return null;
@@ -127,7 +131,7 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
             },
           },
           {
-            title: "Ist",
+            title: <span style={SCHRIFT.feldname}>Ist</span>,
             dataIndex: "id",
             align: "right",
             render: (_wert: string, zeile) => {
@@ -135,7 +139,7 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
               // zwei Ableitungen desselben Werts liefen sonst auseinander.
               const aktuell = zeile.id in beruehrt ? beruehrt[zeile.id]! : zeile.bestand;
               return (
-                <Flex gap={4} align="center" justify="flex-end">
+                <Flex gap={SPACE.xs} align="center" justify="flex-end">
                   <Button
                     size="small"
                     disabled={laeuft || aktuell <= 0}
@@ -165,7 +169,7 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
           },
         ]}
       />
-      <Flex vertical gap={8} style={{ marginBlockStart: 12 }}>
+      <Flex vertical gap={SPACE.sm} style={{ marginBlockStart: SPACE.md }}>
         <Input
           aria-label="Kommentar"
           placeholder="Kommentar (Pflicht), z. B. Quartalsinventur 07/2026"

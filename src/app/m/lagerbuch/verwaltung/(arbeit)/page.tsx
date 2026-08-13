@@ -1,5 +1,6 @@
 import { Card, Col, Empty, Row } from "antd";
 import Link from "next/link";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../_db/client";
 import { verfallSchwellen, verfallStatus } from "../../_lib/domain/verfall";
 import { ampelTon, chargeText, type AmpelTon } from "../../_lib/format";
@@ -89,7 +90,7 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
         })} Uhr`}
       />
 
-      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={8}>
           <Kachel
             zahl={k.unterMindest}
@@ -124,7 +125,7 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
         </Col>
       </Row>
 
-      <Card title="Kritische Artikel" style={{ marginBlockEnd: 24 }}>
+      <Card title="Kritische Artikel" style={{ marginBlockEnd: SPACE.xl }}>
         {kritisch.length === 0 ? (
           <Empty description="Alles im grünen Bereich." />
         ) : (
@@ -135,8 +136,11 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
-                  padding: "10px 0",
+                  // 10 -> SPACE.md (12): dieselbe Zeilenform wie
+                  // VerfallItem.tsx und die "Im Fahrzeug gemeldet"-Liste
+                  // (verfall/page.tsx) — dort steht bereits SPACE.md.
+                  gap: SPACE.md,
+                  padding: `${SPACE.md}px 0`,
                   borderBlockEnd: "1px solid var(--lb-linie)",
                 }}
               >
@@ -150,9 +154,11 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
                   <div
                     style={{
                       display: "flex",
+                      // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32);
+                      // bleibt Literal, siehe Bericht.
                       gap: 6,
                       flexWrap: "wrap",
-                      marginBlockStart: 4,
+                      marginBlockStart: SPACE.xs,
                     }}
                   >
                     <span className={s.fach}>{zeile.fach}</span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Empty, Table, type TableProps } from "antd";
+import { SCHRIFT } from "../../_lib/schrift";
 import s from "../../_ui/verwaltung.module.css";
 
 export type UebersichtJournalZeile = {
@@ -12,17 +13,19 @@ export type UebersichtJournalZeile = {
   deltaTon: "negativ" | "positiv" | "neutral";
 };
 
+// Spaltenkoepfe tragen die Kicker-Rolle ueber `title`, nie ueber CSS gegen
+// `.ant-table-thead` (docs/design/README.md, „Spaltenkoepfe einer antd-Table").
 const SPALTEN: TableProps<UebersichtJournalZeile>["columns"] = [
   {
-    title: "Zeit",
+    title: <span style={SCHRIFT.feldname}>Zeit</span>,
     dataIndex: "zeitText",
     key: "zeit",
     render: (zeitText: string) => <span className={s.jts}>{zeitText}</span>,
   },
-  { title: "Artikel", dataIndex: "artikelName", key: "artikel" },
-  { title: "Vorgang", dataIndex: "vorgangText", key: "vorgang" },
+  { title: <span style={SCHRIFT.feldname}>Artikel</span>, dataIndex: "artikelName", key: "artikel" },
+  { title: <span style={SCHRIFT.feldname}>Vorgang</span>, dataIndex: "vorgangText", key: "vorgang" },
   {
-    title: "Δ",
+    title: <span style={SCHRIFT.feldname}>Δ</span>,
     dataIndex: "deltaText",
     key: "menge",
     align: "right",
@@ -45,7 +48,13 @@ export function LetzteBuchungenTable({ zeilen }: {
   zeilen: UebersichtJournalZeile[];
 }) {
   if (zeilen.length === 0) {
-    return <Empty description="Noch keine Buchungen." />;
+    // Punkt 5 der Pruefliste: der Leerzustand nennt, woher Buchungen kommen,
+    // statt nur "nichts da" zu sagen.
+    return (
+      <Empty
+        description="Noch keine Buchungen. Buchungen entstehen beim Ein- und Auslagern im Artikelbestand."
+      />
+    );
   }
 
   return (

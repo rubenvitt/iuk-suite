@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Alert, Button, Flex, Input, Modal, Table, type TableProps } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { markiereBestellt } from "../../../_actions/bestellung";
 import { baueBestellCsv, BESTELL_CSV_DATEINAME } from "../../../_lib/csvBestellung";
 import { bestellListeText } from "../../../_lib/bestellText";
@@ -114,6 +115,9 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
     });
   }
 
+  // Spaltenkoepfe tragen die Kicker-Rolle ueber `title`, nie ueber CSS gegen
+  // `.ant-table-thead` (docs/design/README.md). Die Markierungsspalte bleibt
+  // ohne Titeltext -- ein Kicker haette hier nichts zu beschriften.
   const spalten: TableProps<BestellAnzeigeZeile>["columns"] = [
     {
       title: "",
@@ -123,6 +127,7 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
       render: (_bestellt: boolean, z) => (
         <Button
           shape="circle"
+          size="small"
           disabled={laeuft}
           aria-label={
             z.bestellt ? "Bestellung zurücknehmen" : "Als bestellt markieren"
@@ -133,7 +138,7 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
       ),
     },
     {
-      title: "Artikel",
+      title: <span style={SCHRIFT.feldname}>Artikel</span>,
       dataIndex: "name",
       key: "name",
       render: (name: string, z) => (
@@ -149,13 +154,13 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
       ),
     },
     {
-      title: "Fach",
+      title: <span style={SCHRIFT.feldname}>Fach</span>,
       dataIndex: "fach",
       key: "fach",
       render: (fach: string) => <span className={s.fach}>{fach}</span>,
     },
     {
-      title: "Bestand / Min.",
+      title: <span style={SCHRIFT.feldname}>Bestand / Min.</span>,
       dataIndex: "bestand",
       key: "bestand",
       render: (bestand: number, z) => (
@@ -165,7 +170,7 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
       ),
     },
     {
-      title: "Status",
+      title: <span style={SCHRIFT.feldname}>Status</span>,
       dataIndex: "bestellt",
       key: "status",
       render: (_bestellt: boolean, z) => {
@@ -174,14 +179,14 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
       },
     },
     {
-      title: "Vorschlag",
+      title: <span style={SCHRIFT.feldname}>Vorschlag</span>,
       dataIndex: "vorschlag",
       key: "vorschlag",
       align: "right",
       render: (vorschlag: number, z) => (
         <span style={SCHRIFT.zahl}>
           {vorschlag}
-          <span style={{ ...SCHRIFT.neben, marginInlineStart: 4 }}>
+          <span style={{ ...SCHRIFT.neben, marginInlineStart: SPACE.xs }}>
             {z.einheit}
           </span>
         </span>
@@ -196,7 +201,7 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
           type="success"
           showIcon={false}
           title={meldung}
-          style={{ marginBlockEnd: 12 }}
+          style={{ marginBlockEnd: SPACE.md }}
         />
       ) : null}
       {fehler ? (
@@ -204,11 +209,11 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
           type="warning"
           showIcon={false}
           title={fehler}
-          style={{ marginBlockEnd: 12 }}
+          style={{ marginBlockEnd: SPACE.md }}
         />
       ) : null}
 
-      <Flex gap={12} wrap align="center" style={{ marginBlockEnd: 12 }}>
+      <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
         <Button
           data-testid="lb-kopieren"
           icon={<Ikone name="kopieren" groesse={16} />}

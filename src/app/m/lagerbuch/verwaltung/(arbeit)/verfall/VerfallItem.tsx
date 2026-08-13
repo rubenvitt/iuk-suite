@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SPACE } from "@/core/theme/tokens";
 import { ampelTon } from "../../../_lib/format";
 import type { Ampel } from "../../../_lib/domain/verfall";
 import { SCHRIFT } from "../../../_lib/schrift";
@@ -32,15 +33,23 @@ export function VerfallItem({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 12,
-        padding: "12px 0",
+        gap: SPACE.md,
+        padding: `${SPACE.md}px 0`,
         borderBlockEnd: "1px solid var(--lb-linie)",
       }}
     >
       <Plakette verfall={verfall} ampel={ampel} statusText={text} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ ...SCHRIFT.text, fontWeight: 600 }}>{artikelName}</div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBlockStart: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            // 6 liegt nicht auf der SPACE-Skala; bleibt Literal.
+            gap: 6,
+            flexWrap: "wrap",
+            marginBlockStart: SPACE.xs,
+          }}
+        >
           <span className={s.fach}>{chargenNr}</span>
           <Chip ton={ampelTon(ampel)}>{text}</Chip>
           <span style={SCHRIFT.neben}>Rest {rest} {einheit}</span>
