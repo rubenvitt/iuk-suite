@@ -8,6 +8,7 @@ import {
   routinen,
   verlauf,
   type AufgabeRow,
+  type Ereignis,
   type NachweisRow,
   type PersonRow,
   type Rolle,
@@ -150,10 +151,16 @@ export function nachweiseFuer(db: DB, aufgabeId: string): NachweisRow[] {
  * `ts` bekommt bewusst KEIN Argument: der Zeitpunkt eines Verlaufseintrags ist der Moment des
  * Schreibens, nicht ein von aussen mitgebrachter Wert — die Spalte traegt ohnehin einen
  * `$defaultFn(() => new Date())` (Schema).
+ *
+ * `ereignis: Ereignis` STATT `string` (nachgezogen in Aufgabe 8, die `EREIGNISSE` erst einfuehrt):
+ * ohne diese Verengung waere `EREIGNISSE` nur eine Behauptung, die niemand am einzigen Schreibpfad
+ * durchsetzt — genau die Luecke, die Aufgabe 7 schon einmal eine ganze Suite gruen liess, obwohl
+ * der tragende Mechanismus fehlte. `_lib/seedLokal.ts` (der einzige heutige Aufrufer) haelt sich
+ * bereits an das Vokabular und braucht deshalb keine Anpassung ausser dem Typ ihres eigenen Felds.
  */
 export function schreibeVerlauf(
   db: DB,
-  eintrag: { aufgabeId: string; ereignis: string; akteurId: string; notiz?: string },
+  eintrag: { aufgabeId: string; ereignis: Ereignis; akteurId: string; notiz?: string },
 ): VerlaufRow {
   return db
     .insert(verlauf)

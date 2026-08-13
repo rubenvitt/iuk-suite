@@ -6,6 +6,7 @@ import {
   nachweise,
   personen,
   routinen,
+  type Ereignis,
   type NachweisArt,
   type Prioritaet,
   type Rolle,
@@ -93,7 +94,9 @@ function subFuer(person: DemoPerson): string {
 }
 
 interface VerlaufEintrag {
-  ereignis: string;
+  /** `Ereignis` statt `string` seit Aufgabe 8 (`EREIGNISSE`, `_db/schema.ts`) — der Seed war das
+   * Vokabular, das jene Aufgabe erst festgehalten hat, und haelt sich unveraendert daran. */
+  ereignis: Ereignis;
   akteurId: string;
   notiz?: string;
 }

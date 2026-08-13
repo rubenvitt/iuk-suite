@@ -44,6 +44,40 @@ export const PRIORITAETEN = ["hoch", "mittel", "niedrig"] as const;
 export const NACHWEIS_ARTEN = ["text", "bild"] as const;
 
 /**
+ * DAS VOKABULAR DES VERLAUFS (Aufgabe 4 hatte es im Seed etabliert, ohne dass ein Typ es hielt —
+ * `_lib/seedLokal.ts` schrieb `eingestellt`, `verteilt`, `eingeplant`, `gestartet`,
+ * `fertig_gemeldet`, `zurueckgewiesen`, `abgeschlossen` frei Hand). Diese zehn Werte sind genau
+ * die, die die Uebergangstabelle (Spec §5.2, `_lib/lebenszyklus.ts`) erzeugt: `einstellen` →
+ * `eingestellt`; `verteilen` → `verteilt`; `umverteilen` → `umverteilt`; `einplanen` →
+ * `eingeplant`; `starten` → `gestartet`; `zuruecksetzen` → `zurueckgesetzt`; `fertig`
+ * (Fremdaufgabe) → `fertig_gemeldet`; `fertig` (Selbstaufgabe) ODER `freigeben` → `abgeschlossen`
+ * (derselbe Endzustand, zwei Wege dorthin); `zurueckweisen` → `zurueckgewiesen`; `wiederaufnehmen`
+ * → `wiederaufgenommen`. `zurueckziehen` erzeugt KEIN Ereignis — es loescht die Aufgabe samt
+ * Verlauf, es bleibt also keine Zeile, die eines tragen koennte.
+ *
+ * Der Seed-Wortschatz ist eine ECHTE TEILMENGE dieser zehn Werte — kein Widerspruch, keine
+ * Nacharbeit an `seedLokal.ts` noetig.
+ *
+ * DIE SPALTE `verlauf.ereignis` BLEIBT `text` OHNE `enum` — das ist bewusst und braucht keine
+ * Migration: der Verlauf soll spaeter Ereignisse aufnehmen koennen, die HEUTE noch nicht
+ * feststehen (eine Vertretungsfreigabe schreibt eine eigene Zeile, Spec §6). `Ereignis` ist die
+ * Zusage NACH INNEN — an `schreibeVerlauf` (`_db/queries.ts`) und jeden Aufrufer dort —, keine
+ * Beschraenkung IN der Datenbank.
+ */
+export const EREIGNISSE = [
+  "eingestellt",
+  "verteilt",
+  "umverteilt",
+  "eingeplant",
+  "gestartet",
+  "zurueckgesetzt",
+  "fertig_gemeldet",
+  "abgeschlossen",
+  "zurueckgewiesen",
+  "wiederaufgenommen",
+] as const;
+
+/**
  * Der Scan-Zustand einer Nachweisdatei. `sauber` ist der EINZIGE Wert, der
  * ausliefert — dieselbe Linie wie `istFreigegeben` im Modul `files`, und
  * `offen` gibt ausdruecklich nicht frei.
@@ -258,3 +292,4 @@ export type Status = (typeof STATUS_WERTE)[number];
 export type Prioritaet = (typeof PRIORITAETEN)[number];
 export type NachweisArt = (typeof NACHWEIS_ARTEN)[number];
 export type ScanStatus = (typeof SCAN_STATUS)[number];
+export type Ereignis = (typeof EREIGNISSE)[number];
