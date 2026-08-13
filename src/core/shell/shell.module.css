@@ -286,14 +286,18 @@
  * Klasse (`.appEintrag`), sonst trüge sein aktiver Eintrag dieselbe
  * Hervorhebung.
  *
- * KEINE `--suite-flaeche`/`--suite-linie`/`--suite-hover` hier: diese drei
- * Variablen hängen an `.umschalter` bzw. `:root[data-theme="dark"] .umschalter`
- * (weiter unten in dieser Datei) — ein CSS-Modul kann `:root` nicht scopen, die
- * frühere globale Deklaration war ein Regelverstoß und ist deshalb eingeengt
- * worden. Die Seitenleiste liegt außerhalb dieses Teilbaums und sähe sie nicht;
- * der Fehler wäre still (die Fläche verschwände einfach). `Sider theme="light"`
- * bringt seine Fläche selbst mit (antd-Token), `.modulleiste` braucht deshalb
- * keine eigene.
+ * KEINE `--suite-flaeche`/`--suite-linie` hier: diese zwei Variablen hängen an
+ * `.umschalter` bzw. `:root[data-theme="dark"] .umschalter` (weiter unten in
+ * dieser Datei) — ein CSS-Modul kann `:root` nicht scopen, die frühere globale
+ * Deklaration war ein Regelverstoß und ist deshalb eingeengt worden. Sie sind
+ * panel-lokal, die Seitenleiste liegt außerhalb dieses Teilbaums und sähe sie
+ * weiterhin nicht.
+ *
+ * `--suite-hover` GILT DAS NICHT MEHR: sie ist seit 2026-08-13 als
+ * `--iuk-flaeche-aktiv` nach `globals.css` gewandert — und zwar GENAU DAMIT
+ * die Seitenleiste (ab Aufgabe 4) sie lesen kann; Begründung am neuen
+ * Kommentar dort. `Sider theme="light"` bringt seine Fläche selbst mit
+ * (antd-Token), `.modulleiste` braucht deshalb keine eigene.
  */
 .sider {
   display: none;
@@ -365,12 +369,20 @@
  * in die Suite zu hängen wäre eine Kollision, die erst in einem fremden Modul
  * auffiele, und `globals.css` zeigt, dass Theming dort bewusst NICHT passiert
  * („Alles Thematische steckt in `src/core/theme/`"). Der einzige Konsument
- * dieser drei Variablen ist ohnehin `.umschalterPanel` samt Kindern, alle
+ * dieser zwei Variablen ist ohnehin `.umschalterPanel` samt Kindern, alle
  * Nachfahren von `.umschalter` (`AppUmschalter.tsx`) — der ursprüngliche
  * Grund für den nackten `:root` („ein Kontext ohne Attribut, Druck, isolierte
  * Vorschau, soll nicht ohne Farben dastehen") trägt nicht mehr: `.umschalter`
  * selbst liefert die Hellwerte unabhängig von `data-theme`, ein Kontext ohne
  * das Attribut sieht also weiterhin Farben.
+ *
+ * NUR NOCH ZWEI, SEIT 2026-08-13: `--suite-hover` ist als `--iuk-flaeche-aktiv`
+ * nach `globals.css` gewandert — und zwar GENAU DESHALB, weil die Seitenleiste
+ * sie dort (ab Aufgabe 4) sehen soll; die Begründung oben („eine Kollision, die
+ * erst in einem fremden Modul auffiele") gilt für `--suite-flaeche` und
+ * `--suite-linie` unverändert weiter, sie bleiben panel-lokal und für die
+ * Leiste unsichtbar. Details zur getönten Fläche stehen jetzt am neuen
+ * Kommentar in `globals.css` bei `--iuk-flaeche-aktiv`.
  *
  * Hellwerte = Suite-Tokens (`core/theme/tokens.ts`, `FARBEN.karte` /
  * `FARBEN.linie`), Dunkelwerte = antds Vorgaben — kein zweiter Farbeindruck
