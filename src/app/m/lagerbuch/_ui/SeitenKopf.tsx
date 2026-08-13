@@ -8,11 +8,16 @@ export { Seitenkopf as SeitenKopf } from "@/core/shell/Seitenkopf";
  * `_lib/schrift.ts` über `core/theme/schrift.ts`.
  *
  * Die Lagerbuch-Fassung zog ihre Rollen bisher aus `_lib/schrift.ts`, die
- * Suite-Fassung zieht sie aus `core/theme/schrift.ts`. NICHT derselbe Wert,
- * nachgeprüft statt geglaubt: `_lib/schrift.ts` streicht `fontVariantNumeric`
- * aus `titel` und `neben` (Funktion `ohneZiffernstellung`), die Suite-Fassung
- * trägt es über `ZIFFERN` auf jeder Rolle. `<h1>` und Beschreibung tragen
- * seit diesem Umzug `tabular-nums lining-nums`, wo sie es vorher nicht taten
- * — sichtbar nur, wenn Titel oder Beschreibung Ziffern enthalten. Siehe
- * Bericht zu Aufgabe 7 (`task-7-report.md`) für die vollständige Abwägung.
+ * Suite-Fassung zieht sie aus `core/theme/schrift.ts` — zunächst NICHT
+ * derselbe Wert, nachgeprüft statt geglaubt: `_lib/schrift.ts` streicht
+ * `fontVariantNumeric` aus `titel` und `neben` (Funktion
+ * `ohneZiffernstellung`), `core/theme/schrift.ts` trägt es über `ZIFFERN` auf
+ * jeder Rolle, weil dieselbe Rolle auch Tabellenzellen und KPI-Werte bedient.
+ * Ein Seitenkopf ist keins von beidem — eine Überschrift vergleicht nichts —
+ * und `core/shell/Seitenkopf.tsx` trifft seit dem Befund aus dem Review zu
+ * Aufgabe 7 dieselbe Entscheidung wie hier: eine eigene, kleine Kopie von
+ * `ohneZiffernstellung` (kein Import aus diesem Modul — Modul-Interna sind
+ * kein API von `core` aus) streicht die Eigenschaft dort ebenso aus `titel`
+ * und `neben`. Damit ist es jetzt tatsächlich derselbe Wert, nur aus zwei
+ * unabhängigen, gleich begründeten Stellen statt aus einer gemeinsamen.
  */

@@ -1,8 +1,28 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
+
+/**
+ * OHNE ZIFFERNSTELLUNG, UND DAS IST HIER DIE ALLGEMEINE REGEL, NICHT NUR
+ * LAGERBUCHS AUSNAHME. `core/theme/schrift.ts` setzt `fontVariantNumeric:
+ * "tabular-nums lining-nums"` auf JEDER Rolle, weil dieselben Rollen auch
+ * Tabellenzellen und KPI-Werte bedienen — dort MUESSEN Ziffern
+ * untereinanderstehen, damit Spalten vergleichbar bleiben. Eine Ueberschrift
+ * vergleicht nichts: `titel` und `neben` tragen hier deshalb ihre Rolle ohne
+ * diese Eigenschaft. `lagerbuch/_lib/schrift.ts` hatte dieselbe Begruendung
+ * bereits fuer sich allein aufgeschrieben (Funktion `ohneZiffernstellung`);
+ * sie gilt fuer den Seitenkopf gleichermaszen und jetzt fuer alle vier
+ * Module, nicht nur fuer Lagerbuch. Eigene, kleine Kopie statt Import aus
+ * `lagerbuch/_lib/`: das waere die falsche Richtung, Modul-Interna sind kein
+ * API von `core` aus.
+ */
+function ohneZiffernstellung(rolle: CSSProperties): CSSProperties {
+  const rest = { ...rolle };
+  delete rest.fontVariantNumeric;
+  return rest;
+}
 
 /**
  * DER KOPF JEDER ARBEITSSEITE DER SUITE.
@@ -47,7 +67,7 @@ export function Seitenkopf({
           data-testid="seitenkopf-zurueck"
           href={zurueck.href}
           style={{
-            ...SCHRIFT.neben,
+            ...ohneZiffernstellung(SCHRIFT.neben),
             display: "inline-block",
             marginBlockEnd: SPACE.xs,
             color: "inherit",
@@ -66,11 +86,15 @@ export function Seitenkopf({
         }}
       >
         <div style={{ minWidth: 0 }}>
-          <h1 style={{ ...SCHRIFT.titel, margin: 0 }}>{titel}</h1>
+          <h1 style={{ ...ohneZiffernstellung(SCHRIFT.titel), margin: 0 }}>{titel}</h1>
           {beschreibung ? (
             <p
               data-testid="seitenkopf-beschreibung"
-              style={{ ...SCHRIFT.neben, margin: `${SPACE.xs}px 0 0`, maxWidth: "72ch" }}
+              style={{
+                ...ohneZiffernstellung(SCHRIFT.neben),
+                margin: `${SPACE.xs}px 0 0`,
+                maxWidth: "72ch",
+              }}
             >
               {beschreibung}
             </p>
