@@ -22,7 +22,6 @@ import s from "../../../_ui/verwaltung.module.css";
 import { geraete, lagerorte } from "../../../_db/schema";
 import { migrierteTestDb } from "../../../_db/testdb";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
-import { PFADE } from "../../../_ui/ikonen";
 import {
   GeraeteListe,
   sucheTrifft,
@@ -227,8 +226,10 @@ describe("GeraeteListe", () => {
     expect(query("tr[data-row-key='obj-ohne-datum']").textContent)
       .not.toContain("kein MTK-Datum");
     expect(query("tr[data-row-key='obj-faellig']").textContent).toContain("abgelaufen (2 T)");
-    expect(query("tr[data-row-key='med-faellig'] path").getAttribute("d")).toBe(PFADE.medizin);
-    expect(query("tr[data-row-key='obj-faellig'] path").getAttribute("d")).toBe(PFADE.objekt);
+    expect(query("tr[data-row-key='med-faellig'] [data-zeichen]")
+      .getAttribute("data-zeichen")).toBe("medizin");
+    expect(query("tr[data-row-key='obj-faellig'] [data-zeichen]")
+      .getAttribute("data-zeichen")).toBe("objekt");
     expect(query("tr[data-row-key='obj-ohne-datum']").textContent).toContain("inaktiv");
   });
 
@@ -602,10 +603,28 @@ describe("Geräte-Übersichtsseite als Server Component", () => {
       "src/app/m/lagerbuch/verwaltung/(arbeit)/geraete/page.tsx",
       "utf8",
     );
+    // EIN Abruf, wiederverwendet fuer Liste UND Kennzahlleiste — kein zweiter,
+    // stiller `geraeteUebersicht`-Aufruf fuer die Kacheln.
     expect(page.match(/\bgeraeteUebersicht\s*\(/g)).toHaveLength(1);
     expect(page).not.toContain("/m/lagerbuch/verwaltung");
     expect(page).not.toContain("@ant-design/icons");
-    expect(page).not.toMatch(/from\s+["']antd["']/);
+    // Seit der Kennzahlleiste importiert die Seite aus "antd" — aber NUR die
+    // in Falle 1 (docs/design/README.md) gelisteten, COMPOUND-freien Namen.
+    //
+    // ⚠️ ALLE Importzeilen pruefen, nicht nur die erste: `.match()` OHNE `/g`
+    // liefert nur den ersten Treffer im String, ein zweites `import { Typography }
+    // from "antd"` irgendwo darunter waere unsichtbar fuer den Riegel — genau
+    // der Schutz, den die fruehere Fassung (`not.toMatch(/from\s+["']antd["']/)`)
+    // noch hatte, weil sie auf ein Vorkommen IRGENDWO prueft. `matchAll` mit `/g`
+    // haelt diesen Schutz: jede Importzeile bekommt eine eigene Pruefung.
+    const antdImports = [...page.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']antd["']/g)];
+    expect(antdImports.length).toBeGreaterThan(0);
+    for (const [, gruppe] of antdImports) {
+      const antdNamen = gruppe.split(",").map((n) => n.trim()).filter(Boolean);
+      for (const name of antdNamen) {
+        expect(["Col", "Row"]).toContain(name);
+      }
+    }
     expect(page).not.toMatch(/\b(?:Form|Table|Modal)\./);
   });
 });

@@ -1,35 +1,45 @@
 /*
- * DIE EINE ZEICHENQUELLE DES MODULS — KEIN "use client", KEIN FREMDES PAKET.
+ * DIE EINE ZEICHENQUELLE DES MODULS — die Union ist die Autoritaet, die
+ * Aufloesung liegt bei Phosphor (react-icons/pi).
  *
- * Zwei Fallen, gegenlaeufig, und diese Datei loest beide:
+ * Bis 2026-08-12 malte diese Datei 36 SVG-Pfade selbst, weil das Modul KEIN
+ * fremdes Zeichenpaket haben durfte (Falle 7: @ant-design/icons ergibt in
+ * einer Server Component HTTP 500 schon beim Import). Betreiberentscheidung
+ * E1 kehrt das um; der Beleg, dass react-icons davon nicht betroffen ist,
+ * steht in der Spec und wurde in Task 1 an einem echten Abruf gemessen.
  *
- *  * Falle 6 — eine Server Component, die aus einem "use client"-Modul einen
- *    WERT importiert, bekommt eine Client-Referenz statt des Wertes. Diese
- *    Datei exportiert neben der Komponente die Tabelle PFADE, und Seiten lesen
- *    sie. Also: kein "use client".
- *  * Falle 7 — die Gegenrichtung: ein Modul, das Client sein MUESSTE und in
- *    der RSC-Ebene ausgewertet wird. Trifft hier nicht zu: die Datei ruft
- *    NICHTS auf Modulebene auf und gibt nur JSX zurueck, laeuft also in beiden
- *    Ebenen.
+ * WAS SICH NICHT AENDERT UND SICH NICHT AENDERN DARF:
  *
- * WER "use client" AN DEN ANFANG SCHREIBT, VERWANDELT 7 IN 6: HTTP 200 mit
- * LEERER Map und still falschem Bild. Genau das ist `core/shell/icons.ts` bis
- * 2026-08-01 passiert und hat einen halben Tag gekostet (`:29-33`).
- * `ikonen.test.ts` riegelt es ab.
+ *  * KEIN "use client". Diese Datei exportiert den TYP `IkonName`, und der
+ *    steht als DATENFELD in serialisierbaren Anzeigezeilen
+ *    (`CheckErgebnisChip.zeichen`, `checks/ChecksTabelle.tsx:12`), die von
+ *    Server Components gelesen werden. Wer hier "use client" ergaenzt, macht
+ *    aus Falle 7 die Falle 6: HTTP 200 mit leerer Map und still falschem
+ *    Bild. Genau das ist `core/shell/icons.ts` bis 2026-08-01 passiert.
+ *  * DIE UNION BLEIBT DIE AUTORITAET. `ikonen.test.ts` prueft jeden literal
+ *    benutzten Namen gegen sie. Wer ein Zeichen ergaenzt, ergaenzt HIER.
  *
- * DIE UNION IST DIE AUTORITAET. 36 Namen; `ikonen.test.ts` prueft gegen sie,
- * nicht gegen eine Aufzaehlung in der Spec. Wer ein Zeichen ergaenzt, ergaenzt
- * HIER — auch der Helfer-Weg (Teil 4) und der Etikettenbogen (Teil 6). Es gibt
- * im Modul genau eine Zeichenquelle statt zweier, damit die acht Fachzeichen
- * auf beiden Wegen gleich aussehen.
+ * WAS NEU IST: `data-zeichen`. Das Attribut traegt den Namen ins DOM, damit
+ * Tests „an dieser Stelle steht das Warnzeichen" pruefen koennen, ohne an
+ * SVG-Pfaddaten zu kleben. Die alten Tests verglichen `PFADE.warnung` gegen
+ * ein `d`-Attribut; Phosphor-Zeichen bestehen aus mehreren Pfaden, und ein
+ * Paket-Update aenderte die Zusicherung still.
  *
- * WAS DIE REGEL NICHT BETRIFFT: die Suite-Kopfzeile. `SuiteHeader`/`SuiteNav`
- * benutzen `core/shell/icons.ts` fuer den Modulwechsler — das ist core-Code in
- * einer Client-Komponente und funktioniert. Ebenso die Zeichen, die antd
- * SELBST rendert (der Pfeil eines `Select`, das Kreuz eines `Modal`, der
- * Sortierpfeil einer `Table`): die kommen aus antds eigenem Buendel innerhalb
- * seiner Client-Komponenten und sind kein Import des Moduls.
+ * WER MEHR ZEICHEN BRAUCHT, ALS DIE UNION FUEHRT, importiert direkt aus
+ * `react-icons/pi`. Die Union ist nur dort Pflicht, wo ein Name ueber eine
+ * Komponentengrenze wandert.
  */
+import type { IconType } from "react-icons/lib";
+import {
+  PiArchive, PiArrowCounterClockwise, PiArrowLeft, PiArrowRight,
+  PiArrowsClockwise, PiBarcode, PiBatteryCharging, PiCalendarX,
+  PiCaretLeft, PiCaretRight, PiCaretUpDown, PiCheck, PiCopy,
+  PiDownloadSimple, PiFlashlight, PiHandGrabbing, PiHeartbeat, PiInfo,
+  PiKey, PiLink, PiLinkBreak, PiList, PiMagnifyingGlass, PiMinus,
+  PiMinusBold, PiPackage, PiPencilSimple, PiPlus, PiPlusBold, PiPrinter,
+  PiQrCode, PiTable, PiTrash, PiTruck, PiUploadSimple, PiWarning,
+  PiWind, PiX,
+} from "react-icons/pi";
 
 /** 28 reine UI-Zeichen und 8 Fachzeichen. Reihenfolge wie Spec 6.5.2. */
 export type IkonName =
@@ -43,50 +53,59 @@ export type IkonName =
   | "warnung" | "medizin" | "objekt" | "sauerstoff" | "akku" | "verfall"
   | "handlager-griff" | "fahrzeug";
 
-/**
- * Ein `d`-Attribut je Name. Mehrteilige Zeichen setzen die Teilpfade mit `M`
- * hintereinander — ein `<path>` genuegt, weil alle Teile dieselbe
- * Strichfuehrung tragen.
- */
-export const PFADE: Record<IkonName, string> = {
+/** Ein Phosphor-Zeichen je Name. Loest `PFADE` ab. */
+export const ZEICHEN: Record<IkonName, IconType> = {
   // ── UI ───────────────────────────────────────────────────────────────────
-  "pfeil-links": "M19 12H5 M12 19l-7-7 7-7",
-  "pfeil-rechts": "M5 12h14 M12 5l7 7-7 7",
-  "chevron-rechts": "M9 18l6-6-6-6",
-  "chevron-links": "M15 18l-6-6 6-6",
-  plus: "M12 5v14 M5 12h14",
-  minus: "M5 12h14",
-  kreuz: "M18 6L6 18 M6 6l12 12",
-  haken: "M20 6L9 17l-5-5",
-  stift: "M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z",
-  papierkorb: "M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6 M10 11v6 M14 11v6",
-  archiv: "M21 8v13H3V8 M1 3h22v5H1z M10 12h4",
-  kopieren: "M9 9h11v11H9z M5 15H4V4h11v1",
-  herunterladen: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
-  hochladen: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12",
-  drucken: "M6 9V2h12v7 M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2 M6 14h12v8H6z",
-  lupe: "M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z M21 21l-4.35-4.35",
-  info: "M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Z M12 16v-4 M12 8h.01",
-  erneut: "M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15",
-  zuruecksetzen: "M1 4v6h6 M3.51 15a9 9 0 1 0 2.13-9.36L1 10",
-  verketten: "M15 7h3a5 5 0 0 1 0 10h-3 M9 17H6A5 5 0 0 1 6 7h3 M8 12h8",
-  entketten: "M18.36 6.64A9 9 0 0 1 20.77 15 M6.16 6.16a9 9 0 1 0 12.68 12.68 M2 2l20 20",
-  tabelle: "M3 3h18v18H3z M3 9h18 M3 15h18 M9 3v18",
-  liste: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
-  scannen: "M3 7V5a2 2 0 0 1 2-2h2 M17 3h2a2 2 0 0 1 2 2v2 M21 17v2a2 2 0 0 1-2 2h-2 M7 21H5a2 2 0 0 1-2-2v-2 M7 8v8 M11 8v8 M15 8v8",
-  qr: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h3v3h-3z M18 18h3v3h-3z",
-  schluessel: "M21 2l-9.6 9.6 M15.5 7.5l3 3 M8.5 21a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11Z",
-  taschenlampe: "M18 6c0 2-2 2-2 4v10a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10c0-2-2-2-2-4V2h12z M6 6h12 M12 12v3",
-  "auf-ab": "M7 15l5 5 5-5 M7 9l5-5 5 5",
+  "pfeil-links": PiArrowLeft,
+  "pfeil-rechts": PiArrowRight,
+  "chevron-rechts": PiCaretRight,
+  "chevron-links": PiCaretLeft,
+  plus: PiPlus,
+  minus: PiMinus,
+  kreuz: PiX,
+  haken: PiCheck,
+  stift: PiPencilSimple,
+  papierkorb: PiTrash,
+  archiv: PiArchive,
+  kopieren: PiCopy,
+  herunterladen: PiDownloadSimple,
+  hochladen: PiUploadSimple,
+  drucken: PiPrinter,
+  lupe: PiMagnifyingGlass,
+  info: PiInfo,
+  erneut: PiArrowsClockwise,
+  zuruecksetzen: PiArrowCounterClockwise,
+  verketten: PiLink,
+  entketten: PiLinkBreak,
+  tabelle: PiTable,
+  liste: PiList,
+  scannen: PiBarcode,
+  qr: PiQrCode,
+  schluessel: PiKey,
+  taschenlampe: PiFlashlight,
+  "auf-ab": PiCaretUpDown,
   // ── Fachzeichen (Spec 6.5.4) ─────────────────────────────────────────────
-  warnung: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z M12 9v4 M12 17h.01",
-  medizin: "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21l8.84-8.61a5.5 5.5 0 0 0 0-7.78Z M3.22 12H9.5l.5-1 2 4 .5-2h5.79",
-  objekt: "M16.5 9.4L7.5 4.21 M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z M3.27 6.96L12 12.01l8.73-5.05 M12 22.08V12",
-  sauerstoff: "M17.7 7.7A2.5 2.5 0 1 1 19.5 12H2 M9.6 4.6A2 2 0 1 1 11 8H2 M12.6 19.4A2 2 0 1 0 14 16H2",
-  akku: "M15 7h4a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2 M6 7H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h4 M23 11v2 M11 7l-4 5h5l-4 5",
-  verfall: "M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5 M16 2v4 M8 2v4 M3 10h18 M18 22a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z M18 16.5V18l1 1",
-  "handlager-griff": "M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14 M3.27 6.96L12 12.01l8.73-5.05 M12 22.08V12 M18.5 19a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z M22 22l-1.5-1.5",
-  fahrzeug: "M1 3h15v13H1z M16 8h4l3 3v5h-7V8Z M5.5 21a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z M18.5 21a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z",
+  warnung: PiWarning,
+  medizin: PiHeartbeat,
+  objekt: PiPackage,
+  sauerstoff: PiWind,
+  akku: PiBatteryCharging,
+  verfall: PiCalendarX,
+  "handlager-griff": PiHandGrabbing,
+  fahrzeug: PiTruck,
+};
+
+/**
+ * Kraeftige Zweitfassung fuer die Zeichen, die den `staerke`-Regler brauchen.
+ *
+ * NUR ZWEI EINTRAEGE, und das ist Absicht: heute ruft allein der Helfer-Stepper
+ * mit `staerke > 2` (`Stepper.tsx:99,129`). Jeder weitere Eintrag waere ein
+ * zweites Aussehen ohne Aufrufer — und die Regel des Moduls ist ein Aussehen
+ * je Zeichen, solange nichts anderes belegt ist.
+ */
+const ZEICHEN_KRAEFTIG: Partial<Record<IkonName, IconType>> = {
+  plus: PiPlusBold,
+  minus: PiMinusBold,
 };
 
 /**
@@ -94,13 +113,26 @@ export const PFADE: Record<IkonName, string> = {
  * am Bedienelement benannt; der Scanner-Taschenlampenschalter traegt dort
  * zusaetzlich `aria-pressed`.
  *
- * `staerke` ist die einzige Ausnahme von „ein Aussehen fuer alle 36 Zeichen":
- * der Helfer-Stepper (`Stepper.tsx`) zeichnet `minus`/`plus` bewusst
- * kraeftiger als der Default — nach dem Button-Reset (`helfer.module.css`)
- * traegt die 56px-Taste keinen Rahmen und keinen Hintergrund mehr, und die
- * Strichstaerke des Zeichens selbst entscheidet dann mit, wie deutlich sie in
- * der Flaeche steht. Ungenutzt bleibt sie beim Default `2`, zeichengleich mit
- * dem bisherigen Verhalten.
+ * `aria-hidden`, `focusable` und `flex:none` stehen HIER und nicht an den 52
+ * Aufrufstellen: react-icons setzt keines davon von selbst, und eine Regel,
+ * die an 52 Stellen wiederholt werden muss, wird an der 53. vergessen.
+ *
+ * ⚠️ `staerke` UEBERLEBT DIE PHOSPHOR-UMSTELLUNG, ABER NICHT ALS strokeWidth.
+ * Die Absicht stammt aus `5a3aa16` und bleibt gueltig: der Helfer-Stepper
+ * (`Stepper.tsx:99,129`) zeichnet `minus`/`plus` kraeftiger, weil die 56px-Taste
+ * nach dem Button-Reset (`helfer.module.css`) weder Rahmen noch Hintergrund
+ * traegt — dann entscheidet das Zeichen selbst, wie deutlich die Flaeche steht.
+ *
+ * Die alten Pfade waren STRICHzeichnungen, dort war `strokeWidth` der Regler.
+ * Phosphor-Zeichen sind GEFUELLT (`strokeWidth: 0`), und ein `strokeWidth` an
+ * ihnen ist wirkungslos — es haette den Regler still verschluckt und die Taste
+ * waere duenner geworden, ohne dass ein Test es zeigt. Der Regler waehlt
+ * deshalb jetzt das GEWICHT: ab `staerke > 2` die Bold-Variante, sofern
+ * `ZEICHEN_KRAEFTIG` eine fuehrt.
+ *
+ * Die Tabelle fuehrt bewusst nur die zwei Zeichen, die den Regler heute
+ * brauchen — nicht alle 36. Ein Name ohne Eintrag faellt auf sein
+ * Normalgewicht zurueck: sichtbar unveraendert, nie ein Absturz.
  */
 export function Ikone({
   name,
@@ -111,21 +143,14 @@ export function Ikone({
   groesse?: number;
   staerke?: number;
 }) {
+  const Zeichen = (staerke > 2 ? ZEICHEN_KRAEFTIG[name] : undefined) ?? ZEICHEN[name];
   return (
-    <svg
-      width={groesse}
-      height={groesse}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={staerke}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <Zeichen
+      size={groesse}
       aria-hidden
       focusable="false"
+      data-zeichen={name}
       style={{ flex: "none" }}
-    >
-      <path d={PFADE[name]} />
-    </svg>
+    />
   );
 }

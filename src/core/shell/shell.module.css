@@ -294,6 +294,7 @@
 .navLink {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   min-height: 56px;
   padding-inline: 12px;
   color: inherit;

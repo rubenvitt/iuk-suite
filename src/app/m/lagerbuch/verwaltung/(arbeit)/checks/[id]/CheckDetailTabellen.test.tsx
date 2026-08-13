@@ -11,7 +11,6 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import s from "../../../../_ui/verwaltung.module.css";
-import { PFADE } from "../../../../_ui/ikonen";
 import {
   CheckDetailTabellen,
   type CheckDetailTabellenProps,
@@ -156,9 +155,9 @@ describe("CheckDetailTabellen", () => {
     );
     expect(druckUngemessen.querySelector(`.${s.grau}`)).not.toBeNull();
     expect(Array.from(
-      document.querySelectorAll("tbody svg path"),
-      (pfad) => pfad.getAttribute("d"),
-    )).toEqual([PFADE.warnung, PFADE.warnung]);
+      document.querySelectorAll("tbody [data-zeichen]"),
+      (zeichen) => zeichen.getAttribute("data-zeichen"),
+    )).toEqual(["warnung", "warnung"]);
     expect(queryAll(`.${s.rot}`).length).toBeGreaterThanOrEqual(2);
     expect(queryAll(`.${s.ok}`).length).toBeGreaterThanOrEqual(2);
     expect(queryAll(`.${s.gelb}`).length).toBeGreaterThanOrEqual(2);

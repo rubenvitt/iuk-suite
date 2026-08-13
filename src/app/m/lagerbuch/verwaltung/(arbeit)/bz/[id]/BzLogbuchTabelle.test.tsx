@@ -128,9 +128,7 @@ describe("BzLogbuchTabelle", () => {
     expect(akku?.getAttribute("aria-hidden")).toBe("true");
     expect(akku?.getAttribute("width")).toBe("12");
     expect(akku?.getAttribute("height")).toBe("12");
-    expect(akku?.querySelector("path")?.getAttribute("d")).toBe(
-      "M15 7h4a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2 M6 7H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h4 M23 11v2 M11 7l-4 5h5l-4 5",
-    );
+    expect(akku?.getAttribute("data-zeichen")).toBe("akku");
   });
 
   it("erhält Leertext, Gedankenstriche und horizontalen Scrollvertrag", async () => {

@@ -15,6 +15,7 @@ import {
 import { migrierteTestDb, type TestDb } from "../../../../_db/testdb";
 import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Chip } from "../../../../_ui/Chip";
+import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import verwaltungStyles from "../../../../_ui/verwaltung.module.css";
 import { TemplateAktionen } from "./TemplateAktionen";
@@ -208,13 +209,21 @@ describe("Vorlagen-Detailseite als Server Component", () => {
 
     const kopf = elementeVomTyp(inhalt, SeitenKopf)[0];
     expect((kopf.props as { titel: string }).titel).toBe("RTW Standard");
-    expect(textVon((kopf.props as { beschreibung: ReactNode }).beschreibung)).toContain(
-      "1 Position(en) · 2 verknüpfte(s) Fahrzeug(e)",
-    );
     expect(elementeVomTyp(
       (kopf.props as { beschreibung: ReactNode }).beschreibung,
       Chip,
     )).toHaveLength(1);
+
+    // Die Zahlen aus dem frueheren Fliesstext stehen jetzt auf den Kacheln,
+    // nicht mehr zusaetzlich in der Kopf-Beschreibung (sonst stuende dieselbe
+    // Zahl zweimal auf der Seite).
+    const kacheln = elementeVomTyp(inhalt, Kachel);
+    expect(kacheln.map((k) => (k.props as { beschriftung: ReactNode }).beschriftung)).toEqual([
+      "Positionen",
+      "Fächer",
+      "Fahrzeuge",
+    ]);
+    expect(kacheln.map((k) => (k.props as { zahl: ReactNode }).zahl)).toEqual([1, 1, 2]);
 
     expect(elementeVomTyp(inhalt, Card).map((karte) =>
       (karte.props as { title: string }).title)).toEqual([

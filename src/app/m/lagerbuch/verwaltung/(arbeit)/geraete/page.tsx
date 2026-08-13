@@ -1,3 +1,4 @@
+import { Col, Row } from "antd";
 import { getDb } from "../../../_db/client";
 import type { Leser } from "../../../_lib/lesepfade/bestand";
 import {
@@ -5,6 +6,7 @@ import {
   type GeraetZeile,
 } from "../../../_lib/lesepfade/geraete";
 import { lagerortOptionen } from "../../../_lib/lesepfade/bz";
+import { Kachel } from "../../../_ui/Kachel";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import {
   GeraeteListe,
@@ -35,8 +37,29 @@ export function geraeteAnzeigeZeilen(zeilen: GeraetZeile[]): GeraetAnzeigeZeile[
 }
 
 export function geraeteSeitenInhalt(db: Leser, jetzt: Date = new Date()) {
-  const zeilen = geraeteAnzeigeZeilen(geraeteUebersicht(db, jetzt));
+  // EIN Abruf, wiederverwendet fuer Liste UND Kennzahlleiste — ein zweiter
+  // `geraeteUebersicht`-Aufruf waere ein zweiter Datenbankdurchlauf fuer
+  // dieselbe Frage.
+  const geraeteZeilen = geraeteUebersicht(db, jetzt);
+  const zeilen = geraeteAnzeigeZeilen(geraeteZeilen);
   const lagerorte = lagerortOptionen(db);
+
+  const aktive = geraeteZeilen.filter((g) => g.aktiv);
+  /*
+   * `DatumFaelligkeit.ampel` ist laut domain/geraet.ts NUR aussagekraeftig,
+   * wenn `keinDatum === false`. Ein Geraet ohne gepflegtes Datum darf keine
+   * Faelligkeit melden — sonst zaehlt die Kachel Pflegeluecken als Missstand,
+   * und die Zahl waechst mit jedem neu angelegten Geraet.
+   */
+  const mtkFaellig = aktive.filter(
+    (g) => g.typ === "medizin" && !g.faelligkeit.keinDatum && g.faelligkeit.ampel !== "gruen",
+  ).length;
+  const mtkUeberfaellig = aktive.filter(
+    (g) => g.typ === "medizin" && g.faelligkeit.ueberfaellig,
+  ).length;
+  const objektAblaufend = aktive.filter(
+    (g) => g.typ === "objekt" && !g.faelligkeit.keinDatum && g.faelligkeit.ampel !== "gruen",
+  ).length;
 
   return (
     <>
@@ -44,6 +67,34 @@ export function geraeteSeitenInhalt(db: Leser, jetzt: Date = new Date()) {
         titel="Geräte"
         beschreibung="Medizintechnik mit MTK-Frist und Objekte mit Ablaufdatum — zwei Klassen, eine Liste."
       />
+
+      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+        <Col xs={24} md={12} xl={6}>
+          <Kachel zahl={aktive.length} beschriftung="Aktive Geräte" />
+        </Col>
+        <Col xs={24} md={12} xl={6}>
+          <Kachel
+            zahl={mtkFaellig}
+            beschriftung="MTK fällig/bald"
+            ton={mtkFaellig ? "gelb" : "ok"}
+          />
+        </Col>
+        <Col xs={24} md={12} xl={6}>
+          <Kachel
+            zahl={mtkUeberfaellig}
+            beschriftung="MTK überfällig"
+            ton={mtkUeberfaellig ? "rot" : "ok"}
+          />
+        </Col>
+        <Col xs={24} md={12} xl={6}>
+          <Kachel
+            zahl={objektAblaufend}
+            beschriftung="Objekte ablaufend"
+            ton={objektAblaufend ? "gelb" : "ok"}
+          />
+        </Col>
+      </Row>
+
       <GeraeteListe zeilen={zeilen} lagerorte={lagerorte} />
     </>
   );

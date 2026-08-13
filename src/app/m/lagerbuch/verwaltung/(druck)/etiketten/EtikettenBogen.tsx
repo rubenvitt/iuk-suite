@@ -23,8 +23,9 @@ import { Button } from "antd";
  * (EtikettenBogen.tsx:3,34) — das Paket fuehrt die Suite gar nicht, und ein
  * direkter @ant-design/icons-Import ist modulweit verboten, auch in
  * Client-Inseln (§6.5.1). Der verbleibende Weg waere ein Name aus
- * _ui/ikonen.tsx; ein Name, den PFADE dort nicht fuehrt, faerbt
- * _ui/ikonen.test.ts rot. Text ist hier billiger und ehrlicher.
+ * `_ui/ikonen.tsx` — die Zeichenquelle des Moduls ist dort seit der
+ * Icon-Migration die Union `IkonName` mit der Tabelle `ZEICHEN` (nicht mehr
+ * `PFADE`). Text ist hier billiger und ehrlicher.
  *
  * KEIN `size` am Button: controlHeight ist 56 und damit schon das richtige Mass;
  * `size="large"` waere 72px (Falle 4).

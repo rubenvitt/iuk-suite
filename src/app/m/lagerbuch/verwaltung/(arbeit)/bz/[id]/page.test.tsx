@@ -265,7 +265,7 @@ describe("BZ-Geräteblatt als Server Component", () => {
     const kacheln = elementeVomTyp(seite, Kachel);
     expect(kacheln).toHaveLength(4);
     expect(kacheln.map((element) => (element.props as { beschriftung: ReactNode }).beschriftung))
-      .toEqual(["Nächste Kontrolle", "Letzte Kontrolle", "Ø Akkulaufzeit", "Status / Standort"]);
+      .toEqual(["Nächste Kontrolle", "Letzte Kontrolle", "Ø Akku (3 Wechsel)", "Status / Standort"]);
     expect(kacheln.map((element) => textVon(
       (element.props as { zahl: ReactNode }).zahl,
     ))).toEqual([

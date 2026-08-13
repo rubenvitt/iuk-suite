@@ -3,6 +3,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { act } from "react";
 import { readFileSync } from "node:fs";
 import { mount, unmount, query, exists, fill, click, rerender } from "@/app/m/qr/_lib/test-dom";
+import { Ikone } from "./ikonen";
 import { Stepper } from "./Stepper";
 
 const QUELLE = "src/app/m/lagerbuch/_ui/Stepper.tsx";
@@ -200,5 +201,42 @@ describe("Stepper — Benennung und Mass", () => {
     const roh = readFileSync(QUELLE, "utf8");
     expect(roh).toMatch(/^"use client";/m);
     expect(ohneKommentare(roh)).not.toMatch(/from "antd|@ant-design\/icons|lucide-react/);
+  });
+
+  /*
+   * DER REGLER, DER BEI DER PHOSPHOR-UMSTELLUNG FAST STILL VERSCHWUNDEN WAERE.
+   *
+   * `staerke` kam mit dem Button-Reset (5a3aa16): die 56px-Taste traegt weder
+   * Rahmen noch Hintergrund, also entscheidet das Zeichen selbst, wie deutlich
+   * sie steht. Bei den alten Strichpfaden war der Regler `strokeWidth`.
+   * Phosphor-Zeichen sind GEFUELLT — ein `strokeWidth` an ihnen tut nichts.
+   * `_ui/ikonen.tsx` bildet den Regler deshalb auf das GEWICHT ab.
+   *
+   * ⚠️ OHNE DIESEN TEST WAERE DER AUSFALL STILL: die Taste saehe nur duenner
+   * aus, `staerke={2.5}` staende weiter im Quelltext, und kein Gate wuerde rot.
+   * Geprueft wird deshalb der Unterschied im Markup, nicht ein Attributwert —
+   * welches Attribut das Gewicht traegt, ist Sache von react-icons.
+   */
+  it("zeichnet die Stepper-Tasten kraeftiger als das Normalgewicht", async () => {
+    await mount(<Stepper wert={1} setWert={() => {}} />);
+    const ausStepper = query(`${PLUS} svg`).innerHTML;
+    await unmount();
+
+    // Dieselbe Ikone ohne Regler — der Default aus `_ui/ikonen.tsx`.
+    await mount(<Ikone name="plus" groesse={20} />);
+    const normal = query("svg").innerHTML;
+
+    expect(ausStepper).not.toBe(normal);
+  });
+
+  it("faellt fuer ein Zeichen ohne kraeftige Fassung auf sein Normalgewicht zurueck", async () => {
+    // `haken` hat keinen Eintrag in ZEICHEN_KRAEFTIG. Der Regler darf dort
+    // nichts tun — und vor allem nicht werfen.
+    await mount(<Ikone name="haken" groesse={20} staerke={2.5} />);
+    const mitRegler = query("svg").innerHTML;
+    await unmount();
+
+    await mount(<Ikone name="haken" groesse={20} />);
+    expect(query("svg").innerHTML).toBe(mitRegler);
   });
 });

@@ -24,10 +24,11 @@ import s from "./verwaltung.module.css";
  * DIE ZAHL TRAEGT `tabular-nums` (§6.7.3). Kacheln stehen nebeneinander und
  * werden verglichen; ohne sie wandern die Ziffern gegeneinander.
  *
- * SECHS DER 39 KACHELN SIND LINKS (`page.tsx:41,46`). Eine klickbare Kachel
- * ohne erkennbare Klickbarkeit ist eine Sackgasse fuer alle, die es nicht
- * zufaellig ausprobieren — deshalb tragen die verlinkten ein Chevron und
- * (ueber `.kpiLink`) einen Hover, und die nicht verlinkten tragen KEINEN
+ * EIN TEIL DER KACHELN IST VERLINKT (Beispiel: die beiden `verfall`-Kacheln
+ * auf `verwaltung/(arbeit)/page.tsx`). Eine klickbare Kachel ohne erkennbare
+ * Klickbarkeit ist eine Sackgasse fuer alle, die es nicht zufaellig
+ * ausprobieren — deshalb tragen die verlinkten ein Chevron und (ueber
+ * `.kpiLink`) einen Hover, und die nicht verlinkten tragen KEINEN
  * Hover-Effekt.
  *
  * DIE ANORDNUNG MACHT DER AUFRUFER mit `Row`/`Col` und `xs`/`md`, nicht diese

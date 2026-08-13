@@ -5,6 +5,7 @@ import { getDb } from "../../../_db/client";
 import { etikettenDaten, EtikettenBasisFehlt } from "../../../_db/etiketten";
 import { etikettenDomainFehlt } from "../../../_lib/zustandTexte";
 import { EtikettenBogen } from "./EtikettenBogen";
+import { EtikettenChrome } from "./EtikettenChrome";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,11 @@ export const dynamic = "force-dynamic";
  * beim Rendern, waehrend typecheck und build gruen bleiben (Falle 7). Der
  * einfachste Weg, beide Fallen strukturell auszuschliessen, ist: gar kein antd
  * hier. Was antd braucht, steht in der Insel daneben.
+ *
+ * DAS BILDSCHIRM-CHROME IST GENAU DIESE INSEL: `EtikettenChrome` traegt den
+ * `<h1>`, die Basis-Zeile und den Druckknopf, ist "use client" und bleibt
+ * damit ausserhalb dieser Datei — die beiden Fallen bleiben strukturell
+ * ausgeschlossen, statt nur beachtet.
  */
 export default async function EtikettenSeite() {
   requireLagerbuchHost(await headers());
@@ -60,17 +66,7 @@ export default async function EtikettenSeite() {
 
   return (
     <>
-      <h1 className="lb-nichtDrucken">Etiketten</h1>
-      {/*
-        §8.1, 8-B, Fehlerzustand 2: `moduleUrl` nimmt prodHostsFor(mod)[0]. Eine
-        Umsortierung von SUITE_HOST_LAGERBUCH aendert STILL jeden ab dann
-        gedruckten Bogen, waehrend die alten Etiketten weiter auf den frueheren
-        ersten Eintrag zeigen. Diese Zeile kostet nichts und ist der einzige Weg,
-        den Fehler VOR dem Papier zu bemerken.
-      */}
-      <p className="lb-nichtDrucken" data-testid="lb-basis">
-        Alle QR-Codes zeigen auf {daten.basis}
-      </p>
+      <EtikettenChrome basis={daten.basis} />
       <EtikettenBogen artikel={daten.artikel} tokens={daten.tokens} />
       {/*
         BETREIBERENTSCHEIDUNG, 10.08.2026 (Review-Nachtrag zu T162): der

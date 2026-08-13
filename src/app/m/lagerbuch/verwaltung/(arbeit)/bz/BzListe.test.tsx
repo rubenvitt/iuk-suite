@@ -558,11 +558,30 @@ describe("BZ-Übersichtsseite als Server Component", () => {
       "src/app/m/lagerbuch/verwaltung/(arbeit)/bz/page.tsx",
       "utf8",
     );
+    // EIN Abruf, wiederverwendet fuer Liste UND Kennzahlleiste — kein zweiter,
+    // stiller `bzGeraeteUebersicht`-Aufruf fuer die Kacheln.
     expect(quelle.match(/\bbzGeraeteUebersicht\s*\(/g)).toHaveLength(1);
-    expect(quelle).toMatch(/bzAnzeigeZeilen\s*\(\s*bzGeraeteUebersicht\s*\(/);
+    expect(quelle).toMatch(/const\s+geraete\s*=\s*bzGeraeteUebersicht\s*\(/);
+    expect(quelle).toMatch(/bzAnzeigeZeilen\s*\(\s*geraete\s*\)/);
     expect(quelle).not.toContain("/m/lagerbuch/verwaltung");
     expect(quelle).not.toContain("@ant-design/icons");
-    expect(quelle).not.toMatch(/from\s+["']antd["']/);
+    // Seit der Kennzahlleiste importiert die Seite aus "antd" — aber NUR die
+    // in Falle 1 (docs/design/README.md) gelisteten, COMPOUND-freien Namen.
+    //
+    // ⚠️ ALLE Importzeilen pruefen, nicht nur die erste: `.match()` OHNE `/g`
+    // liefert nur den ersten Treffer im String, ein zweites `import { Typography }
+    // from "antd"` irgendwo darunter waere unsichtbar fuer den Riegel — genau
+    // der Schutz, den die fruehere Fassung (`not.toMatch(/from\s+["']antd["']/)`)
+    // noch hatte, weil sie auf ein Vorkommen IRGENDWO prueft. `matchAll` mit `/g`
+    // haelt diesen Schutz: jede Importzeile bekommt eine eigene Pruefung.
+    const antdImports = [...quelle.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']antd["']/g)];
+    expect(antdImports.length).toBeGreaterThan(0);
+    for (const [, gruppe] of antdImports) {
+      const antdNamen = gruppe.split(",").map((n) => n.trim()).filter(Boolean);
+      for (const name of antdNamen) {
+        expect(["Col", "Row"]).toContain(name);
+      }
+    }
     expect(quelle).not.toMatch(/\b(?:Form|Table|Modal)\./);
   });
 });
