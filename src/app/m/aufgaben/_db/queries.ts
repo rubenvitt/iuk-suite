@@ -51,7 +51,12 @@ export function allePersonen(db: DB): PersonRow[] {
     );
 }
 
-/** Fuer Verteillisten und Plan-Navigation — eine ausgeschiedene Person verschwindet hier. */
+/**
+ * Fuer Plan-Navigation — eine ausgeschiedene Person verschwindet hier. NICHT fuer Verteillisten:
+ * die Koordination selbst ist aktiv und stuende hier drin, obwohl sie nicht verteilt bekommen
+ * soll (`darfFreigeben` in `_lib/zugang.ts` begruendet das). Verteillisten speisen sich aus
+ * `bufdis()`.
+ */
 export function aktivePersonen(db: DB, heute: string): PersonRow[] {
   return allePersonen(db).filter((p) => istAktiv(p, heute));
 }
