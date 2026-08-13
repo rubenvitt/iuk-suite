@@ -176,6 +176,7 @@ describe("aufgabeEinstellenAction", () => {
       await aufgabeEinstellenAction({ ok: true }, form({ beschreibung: "  " })),
     );
     expect(ergebnis.fieldErrors.beschreibung).toBeTruthy();
+    expect(ergebnis.values.titel).toBe("Verbandskaesten pruefen");
     expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
   });
 
@@ -187,6 +188,7 @@ describe("aufgabeEinstellenAction", () => {
       await aufgabeEinstellenAction({ ok: true }, form({ faelligAm: "20.08.2026" })),
     );
     expect(ergebnis.fieldErrors.faelligAm).toBeTruthy();
+    expect(ergebnis.values.faelligAm).toBe("20.08.2026");
     expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
   });
 
@@ -198,6 +200,7 @@ describe("aufgabeEinstellenAction", () => {
       await aufgabeEinstellenAction({ ok: true }, form({ dauerMinuten: "0" })),
     );
     expect(ergebnis.fieldErrors.dauerMinuten).toBeTruthy();
+    expect(ergebnis.values.dauerMinuten).toBe("0");
     expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
   });
 
@@ -209,6 +212,7 @@ describe("aufgabeEinstellenAction", () => {
       await aufgabeEinstellenAction({ ok: true }, form({ dauerMinuten: "abc" })),
     );
     expect(ergebnis.fieldErrors.dauerMinuten).toBeTruthy();
+    expect(ergebnis.values.dauerMinuten).toBe("abc");
   });
 
   it("eine ungueltige Uhrzeit bei faelligUhrzeit kommt als Feldfehler zurueck", async () => {
@@ -219,6 +223,7 @@ describe("aufgabeEinstellenAction", () => {
       await aufgabeEinstellenAction({ ok: true }, form({ faelligUhrzeit: "9 Uhr" })),
     );
     expect(ergebnis.fieldErrors.faelligUhrzeit).toBeTruthy();
+    expect(ergebnis.values.faelligUhrzeit).toBe("9 Uhr");
   });
 
   it("eine manipulierte Prioritaet wirft, statt als Feldfehler zurueckzukommen", async () => {
@@ -227,7 +232,7 @@ describe("aufgabeEinstellenAction", () => {
 
     await expect(
       aufgabeEinstellenAction({ ok: true }, form({ prioritaet: "dringend" })),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/Unbekannte Prioritaet/);
     expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
   });
 
@@ -235,7 +240,12 @@ describe("aufgabeEinstellenAction", () => {
     const bufdi = legePerson("dev:alina@test", "bufdi");
     anmelden(bufdi);
 
-    await expect(aufgabeEinstellenAction({ ok: true }, form())).rejects.toThrow();
+    // Muster statt bloss "irgendein Wurf" (Review Fix-Runde 1, Punkt 6): sonst waere ein Wurf aus
+    // einem ANDEREN Grund (z. B. eine kaputte Fixtur, die personFuerSession in notFound() laufen
+    // laesst) ebenfalls gruen, obwohl er nichts ueber die gepruefte Zusage aussagt.
+    await expect(aufgabeEinstellenAction({ ok: true }, form())).rejects.toThrow(
+      /Auftraggeber oder die Koordination/,
+    );
     expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
   });
 
@@ -243,7 +253,9 @@ describe("aufgabeEinstellenAction", () => {
     const exAuftrag = legePerson("dev:ex-auftrag@test", "auftrag", { aktivBis: "2026-08-01" });
     anmelden(exAuftrag);
 
-    await expect(aufgabeEinstellenAction({ ok: true }, form())).rejects.toThrow();
+    await expect(aufgabeEinstellenAction({ ok: true }, form())).rejects.toThrow(
+      /Auftraggeber oder die Koordination/,
+    );
     expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
   });
 
@@ -253,7 +265,7 @@ describe("aufgabeEinstellenAction", () => {
 
     await expect(
       aufgabeEinstellenAction({ ok: true }, form({ fuerSichSelbst: "true" })),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/ausgeschiedene Person kann sich keine neue Aufgabe/);
     expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
   });
 });
@@ -288,6 +300,9 @@ describe("verteilenAction", () => {
     const letzte = letzteVerlaufszeile(task.id)!;
     expect(letzte.ereignis).toBe("verteilt");
     expect(letzte.akteurId).toBe(koordination.id);
+    // DER VERLAUF IST DIE LEISTUNGSDOKUMENTATION (Spec §6) — die notiz ist kein Beiwerk (Review
+    // Fix-Runde 1, Punkt 5).
+    expect(letzte.notiz).toBe("Vorschlag: 2026-08-14 09:00");
     expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
   });
 
@@ -301,6 +316,8 @@ describe("verteilenAction", () => {
       await verteilenAction({ ok: true }, form(task.id, { zielId: "nicht-vorhanden" })),
     );
     expect(ergebnis.fieldErrors.zielId).toBeTruthy();
+    expect(ergebnis.values.zielId).toBe("nicht-vorhanden");
+    expect(ergebnis.values.aufgabeId).toBe(task.id);
     expect(aufgabe(t.db, task.id)!.status).toBe("eingegangen");
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });
@@ -316,6 +333,7 @@ describe("verteilenAction", () => {
       await verteilenAction({ ok: true }, form(task.id, { zielId: inaktiv.id })),
     );
     expect(ergebnis.fieldErrors.zielId).toBeTruthy();
+    expect(ergebnis.values.zielId).toBe(inaktiv.id);
     expect(aufgabe(t.db, task.id)!.status).toBe("eingegangen");
   });
 
@@ -330,6 +348,7 @@ describe("verteilenAction", () => {
       await verteilenAction({ ok: true }, form(task.id, { zielId: anderer.id })),
     );
     expect(ergebnis.fieldErrors.zielId).toBeTruthy();
+    expect(ergebnis.values.zielId).toBe(anderer.id);
   });
 
   it("„Ziel ist die Koordination selbst“ wird als Feldfehler abgelehnt — die dritte Uebergabe aus Aufgabe 8", async () => {
@@ -346,6 +365,7 @@ describe("verteilenAction", () => {
       await verteilenAction({ ok: true }, form(task.id, { zielId: koordination.id })),
     );
     expect(ergebnis.fieldErrors.zielId).toBeTruthy();
+    expect(ergebnis.values.zielId).toBe(koordination.id);
     const nachher = aufgabe(t.db, task.id)!;
     expect(nachher.status).toBe("eingegangen");
     expect(nachher.zugewiesenAn).toBeNull();
@@ -357,7 +377,9 @@ describe("verteilenAction", () => {
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
     anmelden(auftrag);
 
-    await expect(verteilenAction({ ok: true }, form(task.id, { zielId: bufdi.id }))).rejects.toThrow();
+    await expect(verteilenAction({ ok: true }, form(task.id, { zielId: bufdi.id }))).rejects.toThrow(
+      /darf die Aktion "verteilen"/,
+    );
     expect(aufgabe(t.db, task.id)!.status).toBe("eingegangen");
   });
 
@@ -370,7 +392,7 @@ describe("verteilenAction", () => {
 
     await expect(
       verteilenAction({ ok: true }, form(task.id, { zielId: bufdi.id })),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/darf die Aktion "verteilen"/);
     expect(aufgabe(t.db, task.id)!.status).toBe("eingegangen");
   });
 
@@ -389,7 +411,7 @@ describe("verteilenAction", () => {
 
     await expect(
       verteilenAction({ ok: true }, form(task.id, { zielId: bufdi2.id })),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/Aktion "verteilen" ist im Zustand "verteilt" nicht vorgesehen/);
     expect(aufgabe(t.db, task.id)!.zugewiesenAn).toBe(bufdi1.id);
   });
 });
@@ -402,7 +424,14 @@ describe("umverteilenAction", () => {
     return f;
   }
 
-  /** Planung mit NICHT-Null-`planRang`, sonst wuerde eine Gegenprobe die Leerung nicht sehen koennen. */
+  /**
+   * Planung mit NICHT-Null-`planRang`, sonst wuerde eine Gegenprobe die Leerung nicht sehen
+   * koennen — UND ein stehengebliebener Zeitvorschlag aus der vorherigen Verteilung
+   * (`vorschlagDatum`/`vorschlagUhrzeit`), sonst waere derselbe blinde Fleck bei einer Spalte
+   * weiter offen (Review Fix-Runde 1, Punkt 1): ohne diesen stehenden Vorschlag koennte eine
+   * konditionale Variante der Leerung ("nur schreiben, wenn ein neuer Vorschlag mitkommt") die
+   * Suite nicht rot machen, weil es nichts zu loeschen gaebe.
+   */
   function verteilteAufgabeMitPlanung(erstellerId: string, prueferId: string, zugewiesenAn: string) {
     return legeAufgabe({
       erstellerId,
@@ -412,6 +441,8 @@ describe("umverteilenAction", () => {
       planDatum: "2026-08-17",
       planUhrzeit: "10:00",
       planRang: 3,
+      vorschlagDatum: "2026-08-10",
+      vorschlagUhrzeit: "08:00",
     });
   }
 
@@ -433,10 +464,17 @@ describe("umverteilenAction", () => {
     expect(nachher.planDatum).toBeNull();
     expect(nachher.planUhrzeit).toBeNull();
     expect(nachher.planRang).toBe(0);
+    // DER ALTE ZEITVORSCHLAG GALT DER VORHERIGEN ZIELPERSON (Review Fix-Runde 1, Punkt 1): ohne
+    // neuen Vorschlag im selben Zug wird er geleert, nicht stehen gelassen — sonst zeigte
+    // `vorschlagOffen` der NEUEN Person einen Vorschlag an, den nie jemand fuer sie ausgesprochen hat.
+    expect(nachher.vorschlagDatum).toBeNull();
+    expect(nachher.vorschlagUhrzeit).toBeNull();
 
     const letzte = letzteVerlaufszeile(task.id)!;
     expect(letzte.ereignis).toBe("umverteilt");
     expect(letzte.akteurId).toBe(koordination.id);
+    // KEIN "Vorschlag: …" in der Notiz, weil kein neuer Vorschlag mitkam (Review Fix-Runde 1, Punkt 5).
+    expect(letzte.notiz).toBeNull();
   });
 
   it("ein neuer Zeitvorschlag darf im selben Zug gesetzt werden", async () => {
@@ -455,6 +493,7 @@ describe("umverteilenAction", () => {
     const nachher = aufgabe(t.db, task.id)!;
     expect(nachher.vorschlagDatum).toBe("2026-08-18");
     expect(nachher.vorschlagUhrzeit).toBe("11:00");
+    expect(letzteVerlaufszeile(task.id)!.notiz).toBe("Vorschlag: 2026-08-18 11:00");
   });
 
   it("„Ziel ist die Koordination selbst“ wird auch beim Umverteilen als Feldfehler abgelehnt", async () => {
@@ -468,6 +507,7 @@ describe("umverteilenAction", () => {
       await umverteilenAction({ ok: true }, form(task.id, { zielId: koordination.id })),
     );
     expect(ergebnis.fieldErrors.zielId).toBeTruthy();
+    expect(ergebnis.values.zielId).toBe(koordination.id);
     const nachher = aufgabe(t.db, task.id)!;
     expect(nachher.zugewiesenAn).toBe(bufdi1.id);
     expect(nachher.planDatum).toBe("2026-08-17"); // unveraendert bei Ablehnung
@@ -482,7 +522,7 @@ describe("umverteilenAction", () => {
 
     await expect(
       umverteilenAction({ ok: true }, form(task.id, { zielId: bufdi2.id })),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/darf die Aktion "umverteilen"/);
     expect(aufgabe(t.db, task.id)!.zugewiesenAn).toBe(bufdi1.id);
   });
 
@@ -496,7 +536,7 @@ describe("umverteilenAction", () => {
 
     await expect(
       umverteilenAction({ ok: true }, form(task.id, { zielId: bufdi2.id })),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/darf die Aktion "umverteilen"/);
     expect(aufgabe(t.db, task.id)!.zugewiesenAn).toBe(bufdi1.id);
   });
 
@@ -509,7 +549,7 @@ describe("umverteilenAction", () => {
 
     await expect(
       umverteilenAction({ ok: true }, form(task.id, { zielId: bufdi.id })),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/Aktion "umverteilen" ist im Zustand "eingegangen" nicht vorgesehen/);
     expect(aufgabe(t.db, task.id)!.status).toBe("eingegangen");
   });
 });
@@ -551,7 +591,9 @@ describe("zurueckziehenAction", () => {
     const task = legeAufgabe({ erstellerId: auftrag.id });
     anmelden(bufdi);
 
-    await expect(zurueckziehenAction(form(task.id))).rejects.toThrow();
+    await expect(zurueckziehenAction(form(task.id))).rejects.toThrow(
+      /Nur die Erstellerin bzw. der Ersteller oder die Koordination/,
+    );
     expect(aufgabe(t.db, task.id)).not.toBeNull();
   });
 
@@ -560,7 +602,9 @@ describe("zurueckziehenAction", () => {
     const task = legeAufgabe({ erstellerId: exAuftrag.id });
     anmelden(exAuftrag);
 
-    await expect(zurueckziehenAction(form(task.id))).rejects.toThrow();
+    await expect(zurueckziehenAction(form(task.id))).rejects.toThrow(
+      /Nur die Erstellerin bzw. der Ersteller oder die Koordination/,
+    );
     expect(aufgabe(t.db, task.id)).not.toBeNull();
   });
 
@@ -577,7 +621,9 @@ describe("zurueckziehenAction", () => {
       });
       anmelden(auftrag);
 
-      await expect(zurueckziehenAction(form(task.id))).rejects.toThrow();
+      await expect(zurueckziehenAction(form(task.id))).rejects.toThrow(
+        /Zurueckziehen ist nur aus dem Zustand "eingegangen" moeglich/,
+      );
       expect(aufgabe(t.db, task.id)).not.toBeNull();
     },
   );
@@ -586,6 +632,8 @@ describe("zurueckziehenAction", () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
     anmelden(auftrag);
 
-    await expect(zurueckziehenAction(form("nicht-vorhanden"))).rejects.toThrow();
+    await expect(zurueckziehenAction(form("nicht-vorhanden"))).rejects.toThrow(
+      /nicht gefunden/,
+    );
   });
 });

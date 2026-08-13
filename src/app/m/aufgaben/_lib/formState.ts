@@ -19,7 +19,7 @@
  * deckungsgleich, eine Vereinheitlichung zoege zwei laufende Module in einen Umbau, und sie gehoert
  * als eigene Aufgabe mit eigener Begruendung gemacht — nicht nebenbei in einer Aufgabe ueber die
  * Actions eines dritten Moduls. Wer sie angeht, hat mit dieser Datei den dritten belegbaren
- * Nutznieser.
+ * Nutzniesser.
  *
  * Kein "use client" — Typen und reine Funktionen, gelesen von Server-Actions UND Client-Inseln.
  */

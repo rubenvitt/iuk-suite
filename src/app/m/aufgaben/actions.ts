@@ -100,6 +100,14 @@ export async function aufgabeEinstellenAction(
     faelligUhrzeit: feld(formData, "faelligUhrzeit"),
     dauerMinuten: feld(formData, "dauerMinuten"),
     nachweisArt: feld(formData, "nachweisArt") || "text",
+    // BEIDE SCHALTER GEHOEREN IN `values` (Review Fix-Runde 1, Punkt 2): `feldWert` liefert im
+    // Fehlerzustand NUR, was hier steht, nicht die Vorbelegung — ein fehlendes Feld kommt als LEER
+    // zurueck, nicht als "unveraendert". Bei einem Textfeld ist das harmlos; hier kippt ein
+    // verlorenes `fuerSichSelbst` die Aufgabe beim zweiten Absendeversuch von Selbst- auf
+    // Fremdaufgabe, und eine BuFDi, die `darfEinstellenFuerAndere` nicht erfuellt, wirft dann beim
+    // NAECHSTEN Versuch — auf genau der technischen Fehlerseite, die `FormState` verhindern soll.
+    fuerSichSelbst: istGesetzt(formData, "fuerSichSelbst") ? "true" : "",
+    nachweisPflicht: istGesetzt(formData, "nachweisPflicht") ? "true" : "",
   };
 
   // Nur ueber ein manipuliertes Formular erreichbar (die Oberflaeche bietet je ein `<select>` mit
@@ -129,7 +137,7 @@ export async function aufgabeEinstellenAction(
   }
   if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
 
-  const nachweisPflicht = istGesetzt(formData, "nachweisPflicht");
+  const nachweisPflicht = values.nachweisPflicht === "true";
 
   const neue = erstelleAufgabe(db, {
     titel,
@@ -200,6 +208,10 @@ async function verteilenGemeinsam(
    * `bufdis()` (z. B. einer vierten Rolle) nicht automatisch mitzoege.
    */
   const values = {
+    // `aufgabeId` gehoert mit hinein — Vorbild `files/(verwaltung)/actions.ts` fuehrt sein `"id"`
+    // in `values` ausdruecklich mit (Review Fix-Runde 1, Punkt 2): ohne sie wuesste ein erneutes
+    // Absenden nach einem Feldfehler nicht mehr, fuer welche Aufgabe der Dialog offen war.
+    aufgabeId,
     zielId: feld(formData, "zielId"),
     vorschlagDatum: feld(formData, "vorschlagDatum"),
     vorschlagUhrzeit: feld(formData, "vorschlagUhrzeit"),
