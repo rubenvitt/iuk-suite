@@ -66,6 +66,37 @@ function ohneZiffernstellung(rolle: CSSProperties): CSSProperties {
  * als Wortlaut ("kleiner als", Zeichenname o. ä.) unpassend vor dem eigentlich
  * gemeinten Linktext. Der zugängliche Name bleibt dadurch schlicht der Titel
  * des Rückwegs.
+ *
+ * `minHeight: 44` AM RÜCKWEG-LINK (zweiter Nachtrag, Review Aufgabe 9): Aufgabe
+ * 8 hat die 44px-Tapfläche (WCAG 2.5.8) verbindlich gemacht und die
+ * `size="small"`-Ausnahme aus `docs/design/README.md` gestrichen — elf
+ * Fundstellen in den Aufgaben 8/9 sind seither dafür zurückgenommen worden.
+ * `Brotkrume.tsx` hatte diese Fläche für denselben Link schon
+ * (`.backlink { min-height: 44px }`); der Rückweg hier unterbot sie, bis
+ * dieser Nachtrag es behob. Übernommen ist NICHT die CSS-Klasse selbst —
+ * `Brotkrume` ist Modul-CSS, dieser Baustein liegt in `core` und bekommt einen
+ * Inline-Stil, wie der Rest der Komponente. Übernommen ist das MUSTER:
+ * `display: "inline-flex"` + `alignItems: "center"` statt weiterhin
+ * `"inline-block"`, denn `min-height` allein zentriert eine Zeile nicht — ohne
+ * die beiden zusätzlichen Eigenschaften stünde der Text am oberen Rand einer
+ * jetzt deutlich höheren Box. Die `44` steht als Literal da: `ARBEITSDICHTE`
+ * (`core/theme/theme.ts`) setzt zwar `controlHeight: 44`, aber das ist ein
+ * antd-Token für antd-Komponenten — dieser Rückweg ist ein rohes `<Link>`
+ * außerhalb jeder antd-Steuerung und erbt den Wert nicht.
+ *
+ * DER ABSTAND ZUR ÜBERSCHRIFT BLEIBT `SPACE.xs`, UNVERÄNDERT — geprüft, nicht
+ * übersehen. Die 44px-Box wächst symmetrisch um den Text (zentriert), das
+ * verschiebt die Überschrift auf jeder Seite mit `zurueck` sichtbar nach
+ * unten (grob abgeschätzt anhand der Zeilenhöhe von `neben`, 12px/normal, auf
+ * gut 25–30px zusätzliche Boxhöhe — mit echten Schriftmetriken nicht
+ * nachgemessen, dieser Aufgabe fehlt dafür ein Browser-Lauf). Diese
+ * Verschiebung wird bewusst NICHT durch einen kleineren Randwert
+ * kaschiert: sie ist die direkte, gewollte Folge der Tapflächen-Vorgabe,
+ * kein Layoutfehler — dieselbe Kategorie wie die elf bereits akzeptierten
+ * Vergrößerungen in den Aufgaben 8/9. Ein `marginBlockEnd` kleiner als
+ * `SPACE.xs` würde nur den Abstand HINTER einer ohnehin schon großzügigen,
+ * zentrierten Box weiter verkleinern, nicht die Boxhöhe selbst, und stünde
+ * damit ohne eigenen Nutzen da.
  */
 export function Seitenkopf({
   titel,
@@ -87,7 +118,9 @@ export function Seitenkopf({
             href={zurueck.href}
             style={{
               ...ohneZiffernstellung(SCHRIFT.neben),
-              display: "inline-block",
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 44,
               marginBlockEnd: SPACE.xs,
               color: "inherit",
             }}

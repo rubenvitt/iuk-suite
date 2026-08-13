@@ -112,4 +112,20 @@ describe("Seitenkopf", () => {
     expect(glyph?.getAttribute("aria-hidden")).toBe("true");
     expect(glyph?.textContent).toContain("‹");
   });
+
+  it("haelt eine 44px-Tapflaeche am Rueckweg, den Text darin vertikal mittig", async () => {
+    /*
+     * Dritter Nachtrag, Review Aufgabe 9: `Brotkrume.tsx` setzt fuer denselben
+     * Link `min-height: 44px` (WCAG 2.5.8) ueber `.backlink` — seit Aufgabe 8
+     * verbindlich fuer die ganze Suite, elf Fundstellen wurden dafuer bereits
+     * zurueckgenommen. Ohne eigene Mindesthoehe unterbietet der Rueckweg genau
+     * diese Schwelle. `min-height` allein zentriert den Text nicht — deshalb
+     * zusaetzlich `display: inline-flex` und `align-items: center` pruefen,
+     * sonst waere die Box zwar hoch genug, der Text aber am oberen Rand.
+     */
+    await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
+    const style = query('[data-testid="seitenkopf-zurueck"]').getAttribute("style");
+    expect(style).toMatch(/min-height:\s*44px/);
+    expect(style).toMatch(/align-items:\s*center/);
+  });
 });
