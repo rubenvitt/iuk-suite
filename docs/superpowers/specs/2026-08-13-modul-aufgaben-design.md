@@ -71,6 +71,14 @@ QR-Generator). Dieses Modul hat keinen — jede Ansicht setzt eine bekannte Pers
 übernommenes `false` würde den generischen Middleware-Riegel abschalten und die Durchsetzung
 komplett ins Modul verlagern, ohne dass irgendetwas dadurch möglich würde.
 
+**Die Gruppe `iuk-aufgaben-nutzer` muss in Pocket ID angelegt werden, bevor das Modul produktiv
+erreichbar ist** — eine nicht existierende Gruppe in `requiredGroups` sperrt jeden aus, den
+Betreiber eingeschlossen. Lokal ist das **kein** Problem: `.env.local` setzt `AUTH_DEV_LOGIN=true`,
+und der Dev-Login nimmt Gruppen als freies Eingabefeld an (`core/auth/config.ts`, Provider
+`dev-login`) — Bauabschnitt 1 ist also ohne Pocket-ID-Arbeit durchklickbar. Zusätzlich sind beide
+Gruppen per Env überschreibbar (`SUITE_ACCESS_GROUP_AUFGABEN`, `SUITE_ADMIN_GROUP_AUFGABEN`), was
+einer Instanz mit anders benannten SSO-Gruppen den Weg offen hält.
+
 **`ScheduleOutlined` muss in die `ICONS`-Map in `core/shell/icons.ts`.** Fehlt es dort, fällt der
 Registry-Eintrag **still** auf `AppstoreOutlined` zurück — „Aufgaben" wäre dann in Kopfzeile und
 Drawer jeder Suite-Seite nicht vom „Portal" zu unterscheiden. Kein Fehler, kein Log. `SuiteNav.test.tsx`
@@ -240,6 +248,7 @@ ist die Bedingung dafür, dass Oberfläche und Riegel nicht auseinanderlaufen.
 |---|---|
 | `requireAufgabenAccess()` | Modulzugang über die Gruppe. Ruft das `layout.tsx` als Backstop |
 | `personFuerSession()` | löst die aufrufende Person aus `person` auf. Kein Eintrag → `notFound()` |
+| `istAktiv(person)` | `aktiv_bis` leer oder in der Zukunft |
 | `darfVerteilen(person)` | `rolle === "koordination"` |
 | `darfFreigeben(person, aufgabe)` | `person.id === aufgabe.pruefer_id` **oder** `rolle === "koordination"` |
 | `darfPlanAendern(person, zielPersonId)` | `person.id === zielPersonId` (BuFDis ändern nur den eigenen Plan) |
@@ -250,6 +259,12 @@ Zwei Regeln, die dabei nicht verhandelbar sind:
 
 - **Die Zugehörigkeit kommt aus der Aufgabe in der Datenbank, nie aus einem URL-Parameter.** Sonst
   ist `/m/aufgaben/a/17` ein IDOR. Vorbild: `assertGroupAccess` im Modul `feedback`.
+- **Eine ausgeschiedene Person behält lesenden Zugang zur eigenen Geschichte.** `personFuerSession()`
+  findet ihre Zeile weiterhin; `istAktiv()` ist falsch, und daraus folgt: keine neuen Aufgaben, kein
+  Einplanen, kein Freigeben, nicht in Verteillisten, nicht in der Plan-Navigation — aber die eigenen
+  abgeschlossenen Aufgaben, Nachweise und Verlaufszeilen bleiben abrufbar. Ein ehemaliger BuFDi soll
+  seine Dokumentation noch einsehen können; ihn auszuschließen wäre die unfreundliche Auslegung
+  desselben Feldes.
 - **Kein Eintrag in `person` ergibt `notFound()`, nicht 403.** Mehrere Riegel der Suite werfen
   absichtlich 404, damit die Existenz einer Seite nicht verraten wird. Umgekehrt darf kein
   Navigationseintrag und kein Knopf auf eine Seite zeigen, die für die klickende Person 404 ist —
@@ -383,7 +398,41 @@ Auslastungsbalken und Tagesbudgets sind neutral/graphit. Menge ist keine Statusf
 drei getrennte Farbrollen). Ein **überbuchter Tag** bekommt eine Kante plus Text
 („8,5 von 7,8 Std. — überbucht"), keinen roten Balken.
 
-### 9.4 Eigene Variablen, eigene Schrift-Rollen
+### 9.4 Übernommene Muster — kein dritter Satz von irgendetwas
+
+Drei Dinge sind in der Suite bereits entschieden und werden **übernommen, nicht neu erfunden**. Der
+Maßstab dahinter ist die `core`-Regel: eine dritte Fassung derselben Sache ist genau der Fehler, gegen
+den sie geschrieben ist.
+
+**Schrift: `core/theme/schrift.ts`, direkt.** Diese Datei existiert schon und ist bereits das
+Ergebnis einer eingetretenen Verdopplung — `feedback/_ui/typo.ts` (`T`) und
+`lagerbuch/_lib/schrift.ts` (`SCHRIFT`) sind beide nur noch Adapter darüber. `aufgaben` legt **keinen
+dritten Adapter** an, sondern liest die Rollen direkt; ein Adapter wäre erst gerechtfertigt, wenn das
+Modul eine eigene Benennung bräuchte, und es braucht keine. Alle Werte liegen auf antds Leiter
+(12/14/16/20/24/30) — **keine neue Größe**, der Charakter kommt aus Familie, Versalien, Gewicht und
+Ziffernstellung. Farbe gehört nicht zur Rolle: sie wird am Verwendungsort über `--auf-*` dazugesetzt.
+
+**Seitenkopf: das Muster aus `feedback` (§4.2 in `docs/design/feedback-admin.md`).** Flach, keine
+Karte, `margin-bottom: 24`, drei Zeilen — Breadcrumb (12) · `<h1>` 24/600 mit den Textknöpfen der
+Seite rechts in derselben Zeile (`justify-content: space-between; align-items: flex-end; flex-wrap:
+wrap`) · eine Kontextzeile in 12/gedämpft. Auf 390px bleibt `<h1>` bei 24 mit `text-wrap: balance`,
+die Knöpfe rutschen darunter, die Kontextzeile bleibt. Überschriften sind **natives
+`<h1>`/`<h2>`/`<h3>`** mit den Rollen aus `schrift.ts` — **`Typography` kommt im ganzen Modul nicht
+vor**, auch nicht in Client-Komponenten. Das ist eine Regel, die man nicht pro Datei prüfen muss, und
+sie schließt Falle 1 (`Typography.Title` in RSC) strukturell aus statt sie zu umgehen.
+
+Die Kontextzeile je Einstieg: BuFDi „Diese Woche: 5 Aufgaben, 12,5 von 39 Std. verplant" ·
+Koordination „3 zu verteilen · 2 warten auf Freigabe" · Auftraggeber „4 Aufträge offen, 1 wartet auf
+deine Freigabe". Leer jeweils mit einem eigenen Satz, nie eine leere Zeile.
+
+**Abstände, Radien, Bewegung, Fokus: die Disziplin aus `feedback` §4.8.** Abstände ausschließlich aus
+`SPACE` in `core/theme/tokens.ts` (4/8/12/16/24/32). Radien: drei Werte, keine weiteren. Bewegung
+sparsam und `prefers-reduced-motion: reduce` behandelt — insbesondere **keine Aufbau-Choreografie der
+Tagesspalten und kein Zähl-Effekt auf den KPI-Kacheln**. Fokus: antds Ring für antd-Komponenten, für
+eigenes Interaktives (Tageskarten, Zeilenlinks) `:focus-visible { outline: 2px solid …;
+outline-offset: 2px }`, nie `outline: none` ohne Ersatz.
+
+### 9.5 Eigene Variablen und Dunkelmodus
 
 Eigenes Markup nutzt `--auf-*`, **nie `--ant-*`**: antd deklariert seine Variablen auf seiner
 Scope-Klasse, nicht auf `:root`, und eigenes Markup außerhalb eines antd-Komponentenbaums sieht sie
@@ -393,16 +442,23 @@ Dunkelmodus wird über `:root[data-theme="dark"] .modul` selektiert, **nicht** �
 `prefers-color-scheme`: der Umschalter der Suite hat drei Zustände, und eine Medienabfrage bricht
 den Fall „System dunkel, Umschalter hell".
 
-Schrift über die drei Suite-Rollen (`--font-display`, `--font-body`, `--font-mono`) bzw.
-`core/theme/schrift.ts`, keine Familie direkt genannt. Stundenzahlen und Budgets bekommen
-`font-variant-numeric: tabular-nums`. Bedienelemente setzen **kein `size`** — `controlHeight: 56`
-ist bereits das richtige Touchmaß, `size="large"` wäre 72px. Ausnahme: `size="small"` innerhalb von
-Tabellenzeilen.
+Schriftfamilien nur über die drei Suite-Rollen (`--font-display`, `--font-body`, `--font-mono`), nie
+eine Familie direkt genannt — `core/theme/schriftstapel.test.ts` prüft Deklaration und Registrierung,
+aber **eine unaufgelöste CSS-Variable meldet sich nie**. Stundenzahlen und Budgets bekommen
+`font-variant-numeric: tabular-nums`.
+
+Bedienelemente setzen **kein `size`** — `controlHeight: 56` ist bereits das richtige Touchmaß,
+`size="large"` wäre 72px. Ausnahme: `size="small"` innerhalb von Tabellenzeilen.
 
 Spaltenköpfe einer antd-`Table` bekommen ihre Typo-Rolle über `columns[].title`, nie über eine
-CSS-Regel gegen `.ant-table-thead th`.
+CSS-Regel gegen `.ant-table-thead th` — das kostete sonst eine Spezifitätserhöhung *und* eine
+Kopplung an einen antd-internen Klassennamen, die ein Major still bricht.
 
-### 9.5 Mobil — 768px, ein Breakpoint
+Wo eigenes CSS trotzdem auf einer antd-Komponente sitzt: eine Klasse mehr voranstellen, **nie
+`!important`**, nie mehr als nötig — und die Erhöhung kommentieren, sonst entfernt sie die nächste
+Aufräumrunde als vermeintlichen Ballast.
+
+### 9.6 Mobil — 768px, ein Breakpoint
 
 Die Tagesspalten werden bei 390px **einspaltig**, mit einer echten Radiogruppe Mo–Fr als
 Tageswähler darüber (ein Tabstop, Pfeiltasten wählen nativ — keine Knopfreihe).
@@ -418,7 +474,7 @@ suiteweit gesperrt).
 Genau deshalb war „Tagesspalten" die richtige Grundform: das Wochengitter Tag × Uhrzeit hätte hier
 einen zweiten, eigenen Bildschirm gebraucht.
 
-### 9.6 RSC-Grenze
+### 9.7 RSC-Grenze
 
 Alle Seiten sind **Server Components**, die die Daten serverseitig lesen und die Berechtigung aus
 der Datenbank auflösen. Client-Inseln sind:
@@ -438,13 +494,13 @@ Ebenso: **Werte, die eine Server Component liest, liegen in einem Modul ohne `"u
 hier `_lib/`. Eine Konstante aus einem Client-Modul kommt als Client-Referenz an, nicht als Wert;
 TypeScript ist zufrieden, `build` findet nichts, und Vitest kann es strukturell nicht sehen.
 
-### 9.7 Leerzustände
+### 9.8 Leerzustände
 
 Ausgeschrieben, für jede Liste einen: „Posteingang leer — alles verteilt" · „Noch keine Routinen
 angelegt" mit Anlege-Knopf · „Keine Freigabe offen" · „Keine überfälligen Aufgaben" · und für einen
 leeren Tag in der Spalte, weil eine leere Spalte sonst wie ein Ladefehler aussieht.
 
-### 9.8 Fehler aus Server-Actions
+### 9.9 Fehler aus Server-Actions
 
 Kommen über `useActionState` **am Feld** an, nicht auf einer technischen Fehlerseite mit
 Datenverlust. Destruktive Aktionen (Zurückziehen, Zurückweisen, Person deaktivieren) sind
@@ -498,8 +554,21 @@ Sobald das Modul eine Datenbank hat (Bauabschnitt 2), braucht es **drei** zusamm
 
 Fehlt die dritte, läuft es lokal und bricht im Container.
 
-Unabhängig davon und **schon in Bauabschnitt 1**: `ScheduleOutlined` in die `ICONS`-Map in
-`core/shell/icons.ts` (§3).
+Unabhängig davon und **schon in Bauabschnitt 1**:
+
+- `ScheduleOutlined` in die `ICONS`-Map in `core/shell/icons.ts` (§3).
+- Drei dokumentierte Zeilen in `.env.example`: `SUITE_HOST_AUFGABEN`,
+  `SUITE_ACCESS_GROUP_AUFGABEN`, `SUITE_ADMIN_GROUP_AUFGABEN`. Jedes bestehende Modul ist so
+  überschreibbar und dort dokumentiert; ein Variablenname, den nur die Registry kennt, ist für den
+  Betreiber nicht auffindbar. **Und die Semantik ist nicht symmetrisch**: eine leer gesetzte
+  `SUITE_HOST_*` heißt „keine Prod-Hosts" (damit lässt sich ein Cutover ohne Rebuild zurücknehmen),
+  eine leer gesetzte `SUITE_ACCESS_GROUP_*` ist dagegen wirkungslos oder bricht den Boot ab — bei
+  `requiresAuth: true` wäre die leere Liste eine stille Öffnung für alle Eingeloggten. Der Kommentar
+  in `.env.example` muss diesen Unterschied nennen.
+- `SUITE_HOST_AUFGABEN=aufgaben.localtest.me` in `.env.local`, damit der Host-Weg lokal dem
+  Produktionsweg entspricht. Ohne die Zeile ist das Modul nur unter `/m/aufgaben` erreichbar (was für
+  Bauabschnitt 1 genügt), und `moduleForHost` löst zusätzlich `aufgaben.localtest.me` ohnehin über die
+  eingebaute Konvention auf.
 
 ## 12. Bauabschnitte
 
