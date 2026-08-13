@@ -377,20 +377,31 @@
  * neben dem Rest der Suite.
  */
 .umschalter {
+  /* NUR NOCH ZWEI LOKALE VARIABLEN. `--suite-hover` ist am 2026-08-13 als
+     `--iuk-flaeche-aktiv` nach `globals.css` gewandert, weil die Seitenleiste
+     denselben Wert braucht und ihn hier nicht saehe. Diese beiden bleiben
+     lokal: sie beschreiben Flaeche und Kontur eines aufklappenden Panels und
+     haben keinen zweiten Nutznieszer. Hellwerte = Suite-Tokens
+     (`core/theme/tokens.ts`), Dunkelwerte = antds Vorgaben. */
   --suite-flaeche: #ffffff;
   --suite-linie: #d9dde1;
-  --suite-hover: rgb(0 0 0 / 0.06);
 
   position: relative;
   display: flex;
   align-items: center;
   min-width: 0;
+
+  /* DIE URSACHE DES UNBENUTZBAREN PANELS — ausfuehrlich begruendet im
+     gleichnamigen Test in `shell-css.test.ts`. Kurz: antd setzt auf
+     `.ant-layout-header` ein `line-height: 64px`, und dieser Knoten haengt
+     darin. Ohne diese Zeile ist jeder Panel-Eintrag 80px hoch und der
+     Ausloeser 76px. Am gemeinsamen Vorfahren, nicht an beiden einzeln. */
+  line-height: normal;
 }
 
 :root[data-theme="dark"] .umschalter {
   --suite-flaeche: #141414;
   --suite-linie: #303030;
-  --suite-hover: rgb(255 255 255 / 0.1);
 }
 
 .umschalterAusloeser {
@@ -407,9 +418,20 @@
   min-width: 0;
 }
 
-.umschalterAusloeser:hover,
+/*
+ * HIER STAND `border-color: currentColor` — der schwarze Rahmen. Er war nicht
+ * die Ursache, sondern das, was die Ursache sichtbar machte: er zeichnete den
+ * durch die geerbte Zeilenhoehe auf 76px aufgeblaehten Knopf in Textfarbe nach.
+ * Eine Flaeche statt einer Kontur, und die Kontur nur im geoeffneten Zustand —
+ * dort trennt sie den Ausloeser vom Panel darunter, das dieselbe Kontur traegt.
+ */
+.umschalterAusloeser:hover {
+  background: var(--iuk-flaeche-aktiv);
+}
+
 .umschalterAusloeser[aria-expanded="true"] {
-  border-color: currentColor;
+  background: var(--iuk-flaeche-aktiv);
+  border-color: var(--suite-linie);
 }
 
 .umschalterAusloeser strong {
@@ -418,9 +440,25 @@
   white-space: nowrap;
 }
 
+/* `--iuk-gedaempft` statt `opacity`: Deckkraft dimmt den Kontrast unpruefbar
+   mit und traegt in beiden Modi verschieden. */
 .umschalterPfeil {
   font-size: 12px;
-  opacity: 0.6;
+  color: var(--iuk-gedaempft);
+  transition: transform 0.15s;
+}
+
+.umschalterAusloeser[aria-expanded="true"] .umschalterPfeil {
+  transform: rotate(180deg);
+}
+
+/* Die Drehung ist die einzige Bewegung in dieser Datei — und deshalb die
+   einzige Stelle, die einen reduced-motion-Zweig schuldet. Der Endzustand
+   bleibt: der Pfeil zeigt weiterhin nach oben, er kommt nur ohne Weg dorthin. */
+@media (prefers-reduced-motion: reduce) {
+  .umschalterPfeil {
+    transition: none;
+  }
 }
 
 /* Deckt den Rest der Seite ab, damit ein Klick daneben schließt. Unter dem
@@ -443,7 +481,7 @@
   inset-block-start: calc(100% + 8px);
   max-height: 70vh;
   overflow-y: auto;
-  padding: 12px;
+  padding: 8px;
   border-radius: 12px;
   border: 1px solid var(--suite-linie);
   background: var(--suite-flaeche);
@@ -455,7 +493,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  margin-block-end: 12px;
+  margin-block-end: 8px;
   border: 1px solid var(--suite-linie);
   border-radius: 8px;
 }
@@ -471,10 +509,12 @@
   outline: none;
 }
 
+/* Nur Polsterung und Farbe. Die TYPOGRAFIE kommt als Inline-Stil aus
+   `SCHRIFT.kicker` (AppUmschalter.tsx) — eine zweite Abschrift der Rolle in
+   CSS waere genau die Doppelung, gegen die `core/theme/schrift.ts` gebaut ist. */
 .umschalterAbschnitt {
-  padding: 4px 6px;
-  font-size: 12px;
-  opacity: 0.65;
+  padding: 8px 8px 4px;
+  color: var(--iuk-gedaempft);
 }
 
 .umschalterListe {
@@ -484,27 +524,38 @@
 }
 
 .umschalterLeer {
-  padding: 12px 6px;
+  padding: 12px 8px;
   margin: 0;
-  opacity: 0.75;
+  color: var(--iuk-gedaempft);
 }
 
+/*
+ * DIESELBE AKTIVSPRACHE WIE DIE SEITENLEISTE — 3px linker Akzent in
+ * `--iuk-marke` auf getoenter Flaeche. Ein Panel-Eintrag und ein
+ * Leisteneintrag bedeuten dasselbe („das ist die Stelle, an der du bist");
+ * sie duerfen nicht verschieden aussehen.
+ *
+ * Der transparente Rahmen steht auch im Ruhezustand, sonst springt die
+ * Beschriftung beim Wechsel der aktiven Zeile um 3px zur Seite.
+ */
 .appEintrag {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
+  border-inline-start: 3px solid transparent;
   border-radius: 8px;
   color: inherit;
   text-decoration: none;
 }
 
 .appEintrag:hover {
-  background: var(--suite-hover);
+  background: var(--iuk-flaeche-aktiv);
 }
 
 .appEintrag[aria-current] {
-  background: var(--suite-hover);
+  border-inline-start-color: var(--iuk-marke);
+  background: var(--iuk-flaeche-aktiv);
   font-weight: 600;
 }
 
@@ -521,7 +572,7 @@
 .appEintragText {
   display: block;
   font-size: 12px;
-  opacity: 0.65;
+  color: var(--iuk-gedaempft);
 }
 
 /*
@@ -534,22 +585,21 @@
   margin-block-start: 4px;
   padding: 8px 6px;
   border-block-start: 1px solid var(--suite-linie);
-  color: inherit;
+  color: var(--iuk-gedaempft);
   text-decoration: none;
   font-size: 13px;
   text-align: center;
-  opacity: 0.75;
 }
 
 .umschalterFusszeile:hover {
-  opacity: 1;
-  background: var(--suite-hover);
+  color: inherit;
+  background: var(--iuk-flaeche-aktiv);
   border-radius: 8px;
 }
 
 @media (min-width: 768px) {
   .umschalterPanel {
     inset-inline: 0 auto;
-    inline-size: 360px;
+    inline-size: 320px;
   }
 }

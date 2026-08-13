@@ -301,6 +301,76 @@ describe("shell.module.css", () => {
     expect(OHNE_KOMMENTARE).not.toMatch(/\.modulzeile\b/);
   });
 
+  it("nimmt dem Umschalter die von antd geerbte Zeilenhoehe", () => {
+    /*
+     * DIE URSACHE DES UNBENUTZBAREN PANELS, und sie steht in keiner Datei
+     * dieses Repos: `antd/es/layout/style/index.js:50` setzt auf
+     * `.ant-layout-header` ein `lineHeight: unit(headerHeight)` — in dieser
+     * Suite 64px. Der Umschalter haengt als DOM-Kind im `<Header>`;
+     * `position: absolute` am Panel aendert den enthaltenden Block, NICHT die
+     * Vererbungskette. Gemessen waren daraus 82px je Panel-Eintrag
+     * (8px Polster + 64px Zeilenbox + 8px Polster) und ein 76px hoher
+     * Ausloeser in einer 64px hohen Kopfzeile.
+     *
+     * Die Deklaration steht am gemeinsamen VORFAHREN von Ausloeser und Panel,
+     * nicht an beiden einzeln: es ist eine Ursache, und zwei Deklarationen
+     * dafuer laufen beim naechsten Anfassen auseinander.
+     *
+     * `normal` und keine Zahl: eine Zahl waere eine erfundene Skala, die ein
+     * spaeterer Leser fuer geprueft haelt (dieselbe Regel wie in
+     * `core/theme/schrift.ts`).
+     *
+     * DIESE DATEI BESITZT „die Regel steht da". Dass sie WIRKT, besitzt
+     * `e2e/shell-mobil.spec.ts` — antd spritzt seine Regel zur Laufzeit ueber
+     * cssinjs ein, kein Quelltext-Scan und kein jsdom kann sie sehen.
+     */
+    const regel = /\.umschalter\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .umschalter fehlt").not.toBeNull();
+    expect(regel![1], "antds .ant-layout-header vererbt sonst line-height: 64px").toMatch(
+      /line-height:\s*normal/,
+    );
+  });
+
+  it("faerbt Nebentext ueber `--iuk-gedaempft` statt ueber Deckkraft", () => {
+    // Deckkraft dimmt den Kontrast unpruefbar mit und traegt in beiden Modi
+    // verschieden; eine Variable hat einen Dunkelzweig. Dieselbe Begruendung
+    // steht seit jeher an `.drawerTitel` — sie galt nur fuer den Umschalter
+    // nicht (`.umschalterAbschnitt`, `.appEintragText`, `.umschalterLeer`,
+    // `.umschalterFusszeile`, `.umschalterPfeil` standen auf `opacity`).
+    for (const regel of cssRegeln(OHNE_KOMMENTARE)) {
+      expect(regel.deklarationen, `opacity in "${regel.selektor}"`).not.toMatch(
+        /(?:^|;)\s*opacity\s*:/,
+      );
+    }
+  });
+
+  it("gibt der aktiven Flaeche eine Variable mit Wert in BEIDEN Farbmodi", () => {
+    /*
+     * Dieselbe Bauart wie der Panel-Flaechen-Test darunter, und aus demselben
+     * Grund: auf diesem Zweig war das Panel schon einmal weiss auf weiss, weil
+     * ein Plan eine Variable erfunden hatte, die es nicht gab. `--iuk-flaeche-
+     * aktiv` wird von `.appEintrag`, `.umschalterAusloeser` UND (ab Aufgabe 4)
+     * `.navLink` gelesen — ein Fehlgriff faerbt drei Stellen still leer.
+     *
+     * Sie steht in `app/globals.css` und nicht hier: ein CSS-Modul kann `:root`
+     * nicht scopen, und zwei Nutznieszer (Umschalter-Panel, Seitenleiste)
+     * erfuellen den Maszstab aus `docs/design/README.md`.
+     */
+    const GLOBALS = readFileSync("src/app/globals.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const alle = cssRegeln(GLOBALS);
+    const deklariert = (regel: CssRegel) =>
+      /(?:^|;)\s*--iuk-flaeche-aktiv\s*:/.test(regel.deklarationen);
+
+    expect(
+      alle.some((r) => deklariert(r) && !r.selektor.includes('[data-theme="dark"]')),
+      "--iuk-flaeche-aktiv hat keinen Hellwert",
+    ).toBe(true);
+    expect(
+      alle.some((r) => deklariert(r) && r.selektor.includes('[data-theme="dark"]')),
+      "--iuk-flaeche-aktiv hat keinen Wert unter [data-theme=dark]",
+    ).toBe(true);
+  });
+
   it("spannt das Umschalter-Panel mobil über die volle Breite", () => {
     /*
      * Mobil eine vollbreite Fläche unter der Kopfzeile (`AppUmschalter.tsx`).

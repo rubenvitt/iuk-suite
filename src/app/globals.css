@@ -58,8 +58,15 @@
  * SEINER Komponenten, nicht auf `:root`. Der Ausfall waere still — die Farbe
  * verschwindet einfach (Falle 2).
  *
- * NUR DREI, UND DAS IST DER MASZSTAB, KEIN ANFANG. Nach `core` kommt, was einen
- * heute belegbaren Anwender hat. Das Farbvokabular des alten Lagerbuchs
+ * VIER, UND DAS IST DER MASZSTAB, KEIN ANFANG. Nach `core` kommt, was einen
+ * heute belegbaren Anwender hat. `--iuk-flaeche-aktiv` ist am 2026-08-13
+ * dazugekommen und hat deren zwei: die getoente Flaeche des aktiven Eintrags
+ * im App-Umschalter-Panel und dieselbe Flaeche in der Seitenleiste. Sie hing
+ * vorher als `--suite-hover` an `.umschalter` und war ausserhalb dieses
+ * Teilbaums unsichtbar — die Seitenleiste haette sie nicht gesehen, und der
+ * Fehler waere still gewesen (Falle 2).
+ *
+ * Das Farbvokabular des alten Lagerbuchs
  * (KPI-Kante, getoente Chips, Abschnittsstreifen, Journal-Deltas) hat genau
  * EINEN Anwender — `app/m/lagerbuch/_ui/verwaltung.module.css`, wo es steht und
  * bleibt. Es hierher zu heben waere ein Framework fuer einen Nutzer. Was das
@@ -114,12 +121,14 @@
   --iuk-marke: #c8000f;
   --iuk-gedaempft: #5b6570;
   --iuk-linie: #d9dde1;
+  --iuk-flaeche-aktiv: rgb(0 0 0 / 0.06);
 }
 
 :root[data-theme="dark"] {
   --iuk-marke: #e45a66;
   --iuk-gedaempft: #9aa4ad;
   --iuk-linie: #2a2f34;
+  --iuk-flaeche-aktiv: rgb(255 255 255 / 0.1);
 }
 
 html,
