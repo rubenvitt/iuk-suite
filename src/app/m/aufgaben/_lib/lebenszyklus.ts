@@ -109,9 +109,11 @@ const TABELLE: Regel[] = [
     aktion: "einplanen",
     nach: "verteilt",
     // `a.zugewiesenAn` ist im Zustand "verteilt" immer gesetzt (die Aufgabe kam nur ueber
-    // "verteilen"/"umverteilen" hierher, und beide setzen zugewiesenAn) — der Fallback "" traegt
-    // also nie eine echte Person und macht den Vergleich in darfPlanAendern nur typsicher.
-    wer: (p, a, heute) => darfPlanAendern(p, a.zugewiesenAn ?? "", heute),
+    // "verteilen"/"umverteilen" hierher, und beide setzen zugewiesenAn). Der explizite
+    // `null`-Ausstieg statt eines Sentinel-Strings (Review Fix-Runde 1): ein Fallback wie `?? ""`
+    // waere eine stille Falle, sobald `id`-Werte je normalisiert wuerden — `null` sagt direkt, dass
+    // dieser Fall nach der Invariante nie eintritt, statt ihn hinter einem erfundenen Wert zu verstecken.
+    wer: (p, a, heute) => a.zugewiesenAn !== null && darfPlanAendern(p, a.zugewiesenAn, heute),
   },
   { von: "verteilt", aktion: "starten", nach: "in_arbeit", wer: istZugewiesenerBuFDi },
   { von: "in_arbeit", aktion: "zuruecksetzen", nach: "verteilt", wer: istZugewiesenerBuFDi },

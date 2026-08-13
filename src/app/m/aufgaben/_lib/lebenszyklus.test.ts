@@ -211,6 +211,52 @@ describe("uebergang — dieselben 60 Zellen fuer eine AUSGESCHIEDENE privilegier
   );
 });
 
+describe("uebergang — dieselben 60 Zellen fuer eine UNBETEILIGTE AKTIVE Person", () => {
+  /*
+   * FIX-RUNDE 1 (Review): der Ausgeschieden-Lauf oben deckt nur `istAktiv` ab — er reicht immer
+   * DIE PRIVILEGIERTE Person herein, nur mit `aktivBis` in der Vergangenheit. Fuer die vier
+   * "zugewiesener BuFDi"-Aktionen `zuruecksetzen`/`fertig`/`wiederaufnehmen` (und `starten`, dort
+   * bereits einzeln getestet) bleibt die IDENTITAETSPRUEFUNG `p.id === a.zugewiesenAn` damit
+   * ungeprueft: ersetzte man sie durch blosses `istAktiv(p, heute)`, blieb die gesamte Suite gruen
+   * — jeder aktive BuFDi haette die Aufgaben aller anderen zuruecksetzen, fertigmelden und
+   * wiederaufnehmen koennen. Dieser Lauf schliesst die Luecke mit demselben Bauplan wie der
+   * Ausgeschieden-Lauf: eine AKTIVE, aber an dieser Aufgabe UNBETEILIGTE Person (Rolle `bufdi`,
+   * fremde `id`) darf KEINEN der sechzig Faelle.
+   */
+  it.each(STATUS_WERTE.flatMap((von) => AKTIONEN.map((aktion) => [von, aktion] as const)))(
+    "%s × %s — unbeteiligt, aber aktiv → immer abgelehnt",
+    (von, aktion) => {
+      const a = akteure();
+      const unbeteiligt = person("bufdi", { id: "unbeteiligt-id" });
+      const t = aufgabe({ status: von, erstellerId: a.ersteller.id, zugewiesenAn: a.bufdi.id, prueferId: a.pruefer.id });
+      const ergebnis = uebergang(t, aktion, unbeteiligt, HEUTE);
+      expect(ergebnis.erlaubt).toBe(false);
+      if (!ergebnis.erlaubt) expect(ergebnis.grund.length).toBeGreaterThan(0);
+    },
+  );
+
+  /*
+   * DIE ZWEITE BETREIBERKLAUSEL AUS `darfFreigeben` (zugang.ts): der ZUGEWIESENE gibt seine
+   * eigene Fremdaufgabe nicht frei, auch wenn er aktiv ist und selbst gar nicht `pruefer_id`
+   * trifft. Ohne einen eigenen Fall dafuer waere dieser Zweig in `uebergang` (Zeile
+   * `freigabe_offen` × `freigeben`) nirgends verdrahtet geprueft — der 60-Zellen-Lauf oben prueft
+   * `unbeteiligt-id`, nicht `a.bufdi.id` selbst, faende diese Luecke also nicht.
+   */
+  it("freigeben durch den zugewiesenen aktiven BuFDi: abgelehnt, auch wenn er nicht Pruefer ist", () => {
+    const a = akteure();
+    const t = aufgabe({
+      status: "freigabe_offen",
+      erstellerId: a.ersteller.id,
+      zugewiesenAn: a.bufdi.id,
+      prueferId: a.pruefer.id,
+      istSelbst: false,
+    });
+    const ergebnis = uebergang(t, "freigeben", a.bufdi, HEUTE);
+    expect(ergebnis.erlaubt).toBe(false);
+    if (!ergebnis.erlaubt) expect(ergebnis.grund.length).toBeGreaterThan(0);
+  });
+});
+
 describe("Sonderregel 1 — Selbstaufgaben nehmen die Kurzstrecke bei 'fertig'", () => {
   it("Fremdaufgabe: in_arbeit -> freigabe_offen", () => {
     const a = akteure();
