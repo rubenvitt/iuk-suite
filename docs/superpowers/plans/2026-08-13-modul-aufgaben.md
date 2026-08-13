@@ -1203,11 +1203,11 @@ describe("Beschriftungen sind vollstaendig", () => {
    * Markenrot — `colorError === colorPrimary === #c8000f`, und ein rotes Chip
    * auf einer Datenflaeche liest sich als Primaeraktion.
    */
-  it("gibt genau „zurueckgewiesen" den Ton achtung", () => {
+  it("gibt genau „zurueckgewiesen“ den Ton achtung", () => {
     expect(STATUS_WERTE.filter((s) => STATUS_TON[s] === "achtung")).toEqual(["zurueckgewiesen"]);
   });
 
-  it("gibt genau „abgeschlossen" den Ton ok", () => {
+  it("gibt genau „abgeschlossen“ den Ton ok", () => {
     expect(STATUS_WERTE.filter((s) => STATUS_TON[s] === "ok")).toEqual(["abgeschlossen"]);
   });
 
@@ -1216,7 +1216,7 @@ describe("Beschriftungen sind vollstaendig", () => {
    * Kontur → nur Text. Waere „hoch" nicht die einzige gefuellte Stufe, verschwaende
    * die Rangfolge in Graustufen.
    */
-  it("gibt genau „hoch" die gefuellte Form", () => {
+  it("gibt genau „hoch“ die gefuellte Form", () => {
     expect(PRIORITAETEN.filter((p) => PRIORITAET_FORM[p] === "gefuellt")).toEqual(["hoch"]);
   });
 });
