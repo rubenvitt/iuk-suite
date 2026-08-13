@@ -1,4 +1,5 @@
 import { Col, Row } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../../../_db/client";
 import type { Leser } from "../../../_lib/lesepfade/bestand";
 import {
@@ -68,7 +69,7 @@ export function geraeteSeitenInhalt(db: Leser, jetzt: Date = new Date()) {
         beschreibung="Medizintechnik mit MTK-Frist und Objekte mit Ablaufdatum — zwei Klassen, eine Liste."
       />
 
-      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel zahl={aktive.length} beschriftung="Aktive Geräte" />
         </Col>

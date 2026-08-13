@@ -2,6 +2,7 @@ import { Card, Col, Row } from "antd";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { lagerorte } from "../../../../_db/schema";
 import { ampelTon } from "../../../../_lib/format";
@@ -13,7 +14,6 @@ import {
 } from "../../../../_lib/lesepfade/fahrzeuge";
 import { verfallFuerLagerort } from "../../../../_lib/lesepfade/verfall";
 import { SCHRIFT } from "../../../../_lib/schrift";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
@@ -93,12 +93,12 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
 
   return (
     <>
-      <Brotkrume href="/verwaltung/fahrzeuge">Fahrzeuge</Brotkrume>
       <SeitenKopf
         titel={fahrzeug.name}
         beschreibung={fahrzeug.kennung ? (
           <span style={SCHRIFT.mono}>{fahrzeug.kennung}</span>
         ) : undefined}
+        zurueck={{ titel: "Fahrzeuge", href: "/verwaltung/fahrzeuge" }}
         aktionen={(
           <FahrzeugAktivToggle
             id={fahrzeug.id}
@@ -108,7 +108,7 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         )}
       />
 
-      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={8}>
           <Kachel zahl={aktivePositionen.length} beschriftung="Soll-Positionen" />
         </Col>
@@ -124,7 +124,9 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         </Col>
       </Row>
 
-      <h2 style={{ ...SCHRIFT.abschnitt, margin: "0 0 8px" }}>Vorlage</h2>
+      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: 0, marginBlockEnd: SPACE.sm }}>
+        Vorlage
+      </h2>
       <Card>
         <TemplateVerknuepfung
           fahrzeugId={fahrzeug.id}
@@ -134,10 +136,14 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         />
       </Card>
 
-      <h2 style={{ ...SCHRIFT.abschnitt, margin: "24px 0 8px" }}>Soll-Bestückung</h2>
+      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
+        Soll-Bestückung
+      </h2>
       <SollEditor fahrzeugId={fahrzeug.id} positionen={soll} artikel={artikel} />
 
-      <h2 style={{ ...SCHRIFT.abschnitt, margin: "24px 0 8px" }}>Verfall im Fahrzeug</h2>
+      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
+        Verfall im Fahrzeug
+      </h2>
       <Card>
         <VerfallEditor lagerortId={fahrzeug.id} eintraege={verfall} />
       </Card>

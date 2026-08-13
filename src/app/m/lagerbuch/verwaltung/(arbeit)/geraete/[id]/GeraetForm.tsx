@@ -9,6 +9,7 @@ import {
 import { Alert, Button, DatePicker, Form, Input, Radio, Select } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useRouter } from "next/navigation";
+import { SPACE } from "@/core/theme/tokens";
 import { geraetSpeichern } from "../../../../_actions/geraete";
 import type { ActionErgebnis } from "../../../../_lib/actionErgebnis";
 
@@ -144,6 +145,8 @@ export function GeraetForm({
         ablaufdatum: initial.ablaufdatum ? dayjs(initial.ablaufdatum) : null,
       }}
       onFinish={speichern}
+      // 20 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und hat keine
+      // Geschwisterzeile in dieser Datei; bleibt Literal.
       style={{ maxWidth: 760, marginBlockStart: 20 }}
     >
       <Form.Item name="typ" label="Klasse">
@@ -207,7 +210,7 @@ export function GeraetForm({
           type="success"
           showIcon={false}
           title="Gespeichert."
-          style={{ marginBlockStart: 12 }}
+          style={{ marginBlockStart: SPACE.md }}
         />
       ) : null}
       {zustand && !zustand.ok ? (
@@ -215,7 +218,7 @@ export function GeraetForm({
           type="warning"
           showIcon={false}
           title={zustand.fehler}
-          style={{ marginBlockStart: 12 }}
+          style={{ marginBlockStart: SPACE.md }}
         />
       ) : null}
     </Form>

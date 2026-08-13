@@ -16,20 +16,20 @@ export type VerlaufAnzeigeZeile = {
 
 const VERLAUF_SPALTEN = [
   {
-    title: "Zeitpunkt",
+    title: <span style={SCHRIFT.feldname}>Zeitpunkt</span>,
     dataIndex: "zeitpunktText",
     key: "zeitpunkt",
     render: (text: string) => <span className={s.jts}>{text}</span>,
   },
   {
-    title: "Druck",
+    title: <span style={SCHRIFT.feldname}>Druck</span>,
     dataIndex: "druckBar",
     key: "druck",
     align: "right",
     render: (wert: number) => <span style={SCHRIFT.mono}>{wert} bar</span>,
   },
   {
-    title: "Herkunft",
+    title: <span style={SCHRIFT.feldname}>Herkunft</span>,
     dataIndex: "herkunft",
     key: "herkunft",
     render: (wert: VerlaufAnzeigeZeile["herkunft"]) => (
@@ -37,13 +37,13 @@ const VERLAUF_SPALTEN = [
     ),
   },
   {
-    title: "Wer",
+    title: <span style={SCHRIFT.feldname}>Wer</span>,
     dataIndex: "werText",
     key: "wer",
     render: (text: string) => <Chip ton="grau">{text}</Chip>,
   },
   {
-    title: "Kommentar",
+    title: <span style={SCHRIFT.feldname}>Kommentar</span>,
     dataIndex: "kommentarText",
     key: "kommentar",
     render: (text: string | null) => (

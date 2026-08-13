@@ -3,8 +3,10 @@
 import { useState, useTransition } from "react";
 import { Alert, DatePicker, Table, type TableProps } from "antd";
 import dayjs from "dayjs";
+import { SPACE } from "@/core/theme/tokens";
 import { verfallSetzen } from "../../../../_actions/lagerortVerfall";
 import type { AmpelTon } from "../../../../_lib/format";
+import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
 import { monatAusPicker } from "../../../../_ui/monat";
 
@@ -68,24 +70,27 @@ export function VerfallEditor({
 
   const spalten: TableProps<VerfallAnzeigeZeile>["columns"] = [
     {
-      title: "Artikel",
+      title: <span style={SCHRIFT.feldname}>Artikel</span>,
       dataIndex: "artikelName",
       key: "artikel",
       render: (name: string) => <strong>{name}</strong>,
     },
-    { title: "Fach", dataIndex: "fachText", key: "fach" },
+    { title: <span style={SCHRIFT.feldname}>Fach</span>, dataIndex: "fachText", key: "fach" },
     {
-      title: "Verfall",
+      title: <span style={SCHRIFT.feldname}>Verfall</span>,
       dataIndex: "verfall",
       key: "verfall",
       render: (_verfall: string | null, eintrag) => {
         const monat = monatFuer(eintrag);
         return (
+          // KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
+          // docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
+          // ist hier bereits die volle wie die halbe Bediendichte, "small"
+          // unterbietet die Mindesttapflaeche (WCAG 2.5.8).
           <DatePicker
             picker="month"
             format="YYYY-MM"
             allowClear
-            size="small"
             disabled={laeuft}
             value={monat ? dayjs(`${monat}-01`) : null}
             onChange={(wert) => monatSetzen(eintrag, wert)}
@@ -95,7 +100,7 @@ export function VerfallEditor({
       },
     },
     {
-      title: "Status",
+      title: <span style={SCHRIFT.feldname}>Status</span>,
       dataIndex: "statusText",
       key: "status",
       render: (statusText: string | null, eintrag) => statusText && eintrag.statusTon ? (
@@ -107,7 +112,7 @@ export function VerfallEditor({
   ];
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div style={{ display: "grid", gap: SPACE.md }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
       <Table<VerfallAnzeigeZeile>
         rowKey="artikelId"

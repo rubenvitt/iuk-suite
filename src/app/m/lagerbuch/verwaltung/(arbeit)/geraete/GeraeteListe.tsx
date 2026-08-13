@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, Checkbox, Flex, Table } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../_lib/format";
 import type { GeraetTyp } from "../../../_lib/domain/geraet";
 import { toggleInSet } from "../../../_lib/mengen";
@@ -75,7 +76,7 @@ export function GeraeteListe({
 
   return (
     <>
-      <Flex gap={12} wrap align="center" style={{ marginBlockEnd: 12 }}>
+      <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
         <Suchfeld
           wert={suche}
           onWert={setSuche}
@@ -143,7 +144,7 @@ export function GeraeteListe({
         }}
         columns={[
           {
-            title: "Gerät",
+            title: <span style={SCHRIFT.feldname}>Gerät</span>,
             dataIndex: "name",
             render: (wert: string, zeile) => (
               <span>
@@ -154,7 +155,7 @@ export function GeraeteListe({
                   {wert}
                 </Link>
                 {zeile.barcode ? (
-                  <span style={{ ...SCHRIFT.mono, marginInlineStart: 8 }}>
+                  <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
                     {zeile.barcode}
                   </span>
                 ) : null}
@@ -162,7 +163,7 @@ export function GeraeteListe({
             ),
           },
           {
-            title: "Klasse",
+            title: <span style={SCHRIFT.feldname}>Klasse</span>,
             dataIndex: "typ",
             render: (wert: GeraetTyp) => (
               <Chip ton="grau" zeichen={wert === "medizin" ? "medizin" : "objekt"}>
@@ -170,9 +171,9 @@ export function GeraeteListe({
               </Chip>
             ),
           },
-          { title: "Standort", dataIndex: "lagerortName" },
+          { title: <span style={SCHRIFT.feldname}>Standort</span>, dataIndex: "lagerortName" },
           {
-            title: "Fälligkeit",
+            title: <span style={SCHRIFT.feldname}>Fälligkeit</span>,
             dataIndex: "chip",
             render: (chip: GeraetAnzeigeZeile["chip"]) => chip === null ? null : (
               <Chip
@@ -184,7 +185,7 @@ export function GeraeteListe({
             ),
           },
           {
-            title: "Status",
+            title: <span style={SCHRIFT.feldname}>Status</span>,
             dataIndex: "aktiv",
             render: (wert: boolean) => wert ? null : <Chip ton="grau">inaktiv</Chip>,
           },

@@ -13,7 +13,6 @@ import {
   templatePositionen,
 } from "../../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../../_db/testdb";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
@@ -48,14 +47,6 @@ function elementeVomTyp(wert: ReactNode, typ: unknown): ReactElement[] {
   const treffer = wert.type === typ ? [wert] : [];
   const kinder = (wert.props as { children?: ReactNode }).children;
   return [...treffer, ...elementeVomTyp(kinder, typ)];
-}
-
-function textVon(wert: ReactNode): string {
-  if (wert === null || wert === undefined || typeof wert === "boolean") return "";
-  if (typeof wert === "string" || typeof wert === "number") return String(wert);
-  if (Array.isArray(wert)) return wert.map(textVon).join("");
-  if (!isValidElement(wert)) return "";
-  return textVon((wert.props as { children?: ReactNode }).children);
 }
 
 function istRekursivJsonSicher(wert: unknown): boolean {
@@ -201,13 +192,13 @@ describe("Vorlagen-Detailseite als Server Component", () => {
     await expect(seite("fehlt")).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
-  it("zeigt Pflicht-Brotkrume, Kopf und die drei Bereiche", async () => {
+  it("zeigt Pflicht-Rueckweg, Kopf und die drei Bereiche", async () => {
     const inhalt = await seite();
-    const brotkrume = elementeVomTyp(inhalt, Brotkrume)[0];
-    expect((brotkrume.props as { href: string }).href).toBe("/verwaltung/vorlagen");
-    expect(textVon(brotkrume)).toBe("Alle Vorlagen");
-
     const kopf = elementeVomTyp(inhalt, SeitenKopf)[0];
+    const zurueck = (kopf.props as {
+      zurueck?: { titel: string; href: string };
+    }).zurueck;
+    expect(zurueck).toEqual({ titel: "Alle Vorlagen", href: "/verwaltung/vorlagen" });
     expect((kopf.props as { titel: string }).titel).toBe("RTW Standard");
     expect(elementeVomTyp(
       (kopf.props as { beschreibung: ReactNode }).beschreibung,

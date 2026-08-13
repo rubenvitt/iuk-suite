@@ -12,6 +12,7 @@ import {
   Table,
   type TableProps,
 } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import {
   templatePositionEntfernen,
   templatePositionSetzen,
@@ -77,9 +78,10 @@ export function TemplatePosEditor({
    * Zieht einen entprellten Schreibvorgang beim Verlassen des Feldes vor.
    *
    * Ohne das ist jede Aenderung verloren, die innerhalb der Entprellzeit von
-   * einem Klick auf die Brotkrume oder einem Seitenwechsel gefolgt wird — der
-   * Aufraeumer in `useEffect` loescht den Timer, ohne ihn auszufuehren, und es
-   * gibt keinen Hinweis darauf. Form aus `bz/[id]/ReferenzEditor.tsx`.
+   * einem Klick auf den `zurueck`-Weg im Seitenkopf oder einem Seitenwechsel
+   * gefolgt wird — der Aufraeumer in `useEffect` loescht den Timer, ohne ihn
+   * auszufuehren, und es gibt keinen Hinweis darauf. Form aus
+   * `bz/[id]/ReferenzEditor.tsx`.
    */
   function timerVorziehen(id: string): void {
     const ausstehend = timer.current[id];
@@ -145,16 +147,19 @@ export function TemplatePosEditor({
 
   const spalten: TableProps<TemplatePositionZeile>["columns"] = [
     {
-      title: "Fach",
+      title: <span style={SCHRIFT.feldname}>Fach</span>,
       dataIndex: "fachLabel",
       key: "fach",
       render: (fachLabel: string) => <span className={s.fach}>{fachLabel}</span>,
     },
     {
-      title: "Artikel",
+      title: <span style={SCHRIFT.feldname}>Artikel</span>,
       dataIndex: "artikelName",
       key: "artikel",
       render: (artikelName: string, position) => (
+        // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+        // Zweizeiler aus Artikelname und Bestandstext, keine Geschwisterzeile
+        // in diesem Zuschnitt, die einen Skalenwert nahelegen wuerde.
         <div style={{ display: "grid", gap: 2 }}>
           <strong>{artikelName}</strong>
           <span style={SCHRIFT.neben}>
@@ -164,13 +169,16 @@ export function TemplatePosEditor({
       ),
     },
     {
-      title: "Soll",
+      title: <span style={SCHRIFT.feldname}>Soll</span>,
       dataIndex: "soll",
       key: "soll",
       align: "right",
       render: (wert: number, position) => (
+        // KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
+        // docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
+        // ist hier bereits die volle wie die halbe Bediendichte, "small"
+        // unterbietet die Mindesttapflaeche (WCAG 2.5.8).
         <InputNumber
-          size="small"
           min={1}
           max={9999}
           precision={0}
@@ -186,6 +194,7 @@ export function TemplatePosEditor({
       dataIndex: "id",
       key: "aktion",
       render: (_id: string, position) => (
+        // KEIN size="small" an der Zeilenaktion, s. o.
         <Popconfirm
           title="Position entfernen?"
           okText="Entfernen"
@@ -202,7 +211,6 @@ export function TemplatePosEditor({
           })}
         >
           <Button
-            size="small"
             danger
             loading={laeuft}
             icon={<Ikone name="papierkorb" groesse={14} />}
@@ -214,7 +222,7 @@ export function TemplatePosEditor({
   ];
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div style={{ display: "grid", gap: SPACE.md }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
       <Table<TemplatePositionZeile>
         rowKey="id"
@@ -225,7 +233,7 @@ export function TemplatePosEditor({
         locale={{ emptyText: "Noch keine Position. Lege unten die erste an." }}
         columns={spalten}
       />
-      <Flex gap={8} wrap align="center">
+      <Flex gap={SPACE.sm} wrap align="center">
         <Input
           placeholder="Fach"
           aria-label="Fach"

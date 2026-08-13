@@ -30,7 +30,7 @@ import {
 } from "@/app/m/qr/_lib/test-dom";
 import { geraete, lagerorte } from "../../../../_db/schema";
 import { migrierteTestDb } from "../../../../_db/testdb";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
+import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import {
   GeraetForm,
   lagerortFilter,
@@ -401,7 +401,7 @@ describe("GeraetAktivToggle", () => {
 });
 
 describe("Geräteseite als RSC", () => {
-  it("liefert force-dynamic, Brotkrume und nur primitive Form-Props", async () => {
+  it("liefert force-dynamic, den Rueckweg im Seitenkopf und nur primitive Form-Props", async () => {
     const { dynamic, geraetSeitenInhalt } = await import("./page");
     const testDb = migrierteTestDb("lagerbuch-geraet-detail-");
     try {
@@ -427,10 +427,13 @@ describe("Geräteseite als RSC", () => {
       }).run();
 
       const inhalt = geraetSeitenInhalt(testDb.db, "geraet-rsc", new Date("2026-08-07"));
-      const [brotkrume] = elementeVomTyp(inhalt, Brotkrume);
+      const [kopf] = elementeVomTyp(inhalt, SeitenKopf);
       const [form] = elementeVomTyp(inhalt, GeraetForm);
       const [toggle] = elementeVomTyp(inhalt, GeraetAktivToggle);
-      expect(brotkrume.props).toEqual({ href: "/verwaltung/geraete", children: "Geräte" });
+      const zurueck = (kopf.props as {
+        zurueck?: { titel: string; href: string };
+      }).zurueck;
+      expect(zurueck).toEqual({ titel: "Geräte", href: "/verwaltung/geraete" });
       expect(form.props).toEqual(expect.objectContaining({
         initial: expect.objectContaining({
           id: "geraet-rsc",

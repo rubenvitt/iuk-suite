@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { Alert, Button, Flex, Form, Input, Modal, Popconfirm, Space, Switch } from "antd";
 import { useRouter } from "next/navigation";
+import { SPACE } from "@/core/theme/tokens";
 import {
   deleteTemplate,
   renameTemplate,
@@ -133,8 +134,8 @@ export function TemplateAktionen({
   }
 
   return (
-    <Space orientation="vertical" size={12} style={{ width: "100%" }}>
-      <Flex gap={8} wrap align="center">
+    <Space orientation="vertical" size={SPACE.md} style={{ width: "100%" }}>
+      <Flex gap={SPACE.sm} wrap align="center">
         <Button
           icon={<Ikone name="stift" groesse={16} />}
           disabled={laeuft}

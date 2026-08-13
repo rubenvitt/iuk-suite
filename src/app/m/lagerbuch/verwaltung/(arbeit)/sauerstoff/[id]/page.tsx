@@ -1,12 +1,12 @@
 import { Card, Col, Row } from "antd";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { ampelTon } from "../../../../_lib/format";
 import { o2FlascheDetail, type O2MessungZeile } from "../../../../_lib/lesepfade/o2";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { fmtTs } from "../../../../_lib/zeit";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import s from "../../../../_ui/verwaltung.module.css";
@@ -40,10 +40,10 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
 
   return (
     <>
-      <Brotkrume href="/verwaltung/sauerstoff">Sauerstoffflaschen</Brotkrume>
       <SeitenKopf
         titel={flasche.name}
         beschreibung="Der aktuelle Druck ist immer die jüngste Messung. Eine Fehlmessung lässt sich durch eine neue Messung korrigieren."
+        zurueck={{ titel: "Sauerstoffflaschen", href: "/verwaltung/sauerstoff" }}
         aktionen={(
           <FlascheAktivToggle
             id={flasche.id}
@@ -53,7 +53,7 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
         )}
       />
 
-      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel
             zahl={juengste ? `${juengste.druckBar} bar` : "–"}
@@ -76,6 +76,9 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
         <Col xs={24} md={12} xl={6}>
           <Kachel
             zahl={(
+              // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+              // Zweizeiler in einer Kachel, keine Geschwisterzeile in diesem
+              // Zuschnitt, die einen Skalenwert nahelegen wuerde.
               <span style={{ display: "grid", gap: 2 }}>
                 <span>{flasche.aktiv ? "Aktiv" : "Inaktiv"}</span>
                 <span style={SCHRIFT.neben}>{detail.lagerortName}</span>
@@ -88,12 +91,12 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
       </Row>
 
       {status?.niedrig ? (
-        <div className={s.warnbox} style={{ ...SCHRIFT.text, marginBlockEnd: 24 }}>
+        <div className={s.warnbox} style={{ ...SCHRIFT.text, marginBlockEnd: SPACE.xl }}>
           Niedriger Druck — die Flasche gehört getauscht.
         </div>
       ) : null}
 
-      <Card title="Stammdaten" style={{ marginBlockEnd: 24 }}>
+      <Card title="Stammdaten" style={{ marginBlockEnd: SPACE.xl }}>
         <ReferenzFelder
           id={flasche.id}
           name={flasche.name}
@@ -103,7 +106,7 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
         />
       </Card>
 
-      <Card title="Neue Messung" style={{ marginBlockEnd: 24 }}>
+      <Card title="Neue Messung" style={{ marginBlockEnd: SPACE.xl }}>
         <MessungForm flascheId={flasche.id} />
       </Card>
 

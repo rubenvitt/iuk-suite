@@ -21,7 +21,6 @@ import {
 } from "../../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../../_db/testdb";
 import { HANDLAGER_ID } from "../../../../_lib/konstanten";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
@@ -296,8 +295,11 @@ describe("Fahrzeugblatt als Server Component", () => {
     expect(dynamic).toBe("force-dynamic");
     expect(FahrzeugBlatt).toBeTypeOf("function");
     const seite = fahrzeugInhalt(t.db, "fz-1", JETZT);
-    const [brotkrume] = elementeVomTyp(seite, Brotkrume);
-    expect(brotkrume.props.href).toBe("/verwaltung/fahrzeuge");
+    const [kopf] = elementeVomTyp(seite, SeitenKopf);
+    const zurueck = (kopf.props as {
+      zurueck?: { titel: string; href: string };
+    }).zurueck;
+    expect(zurueck).toEqual({ titel: "Fahrzeuge", href: "/verwaltung/fahrzeuge" });
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/fahrzeuge/[id]/page.tsx",
       "utf8",

@@ -17,7 +17,6 @@ import {
 import { lagerorte, o2Flaschen, o2Messungen, users } from "../../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../../_db/testdb";
 import type { Loeschbarkeit } from "../../../../_lib/loeschen";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import s from "../../../../_ui/verwaltung.module.css";
@@ -236,7 +235,7 @@ afterEach(async () => {
 });
 
 describe("Flaschenblatt als Server Component", () => {
-  it("zeigt vier KPIs, Ampel-Rot-Warnung, Brotkrume und die Client-Inseln", () => {
+  it("zeigt vier KPIs, Ampel-Rot-Warnung, Rueckweg und die Client-Inseln", () => {
     const seite = o2FlascheInhalt(t.db, "flasche-1");
     const kacheln = elementeVomTyp(seite, Kachel);
     expect(kacheln).toHaveLength(4);
@@ -248,9 +247,10 @@ describe("Flaschenblatt als Server Component", () => {
     expect(kacheln.map((kachel) => (kachel.props as { ton?: string }).ton))
       .toEqual([undefined, "rot", undefined, "ok"]);
 
-    const brotkrume = elementeVomTyp(seite, Brotkrume)[0];
-    expect((brotkrume.props as { href: string }).href).toBe("/verwaltung/sauerstoff");
     const kopf = elementeVomTyp(seite, SeitenKopf)[0];
+    expect((kopf.props as {
+      zurueck?: { titel: string; href: string };
+    }).zurueck).toEqual({ titel: "Sauerstoffflaschen", href: "/verwaltung/sauerstoff" });
     expect(elementeVomTyp(seite, ReferenzFelder)[0].props).toEqual({
       id: "flasche-1",
       name: "O2 Detail",

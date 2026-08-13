@@ -12,6 +12,7 @@ import {
   Popconfirm,
   Select,
 } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import {
   fahrzeugTemplateLoesen,
   fahrzeugTemplateSync,
@@ -137,13 +138,15 @@ export function TemplateVerknuepfung({
   return (
     <div
       data-rolle="template-verknuepfung"
+      // 10 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und hat keine
+      // Geschwisterzeile in diesem Zuschnitt; bleibt Literal.
       style={{ display: "grid", gap: 10 }}
     >
       <div data-rolle="aktuelle-vorlage">
         Aktuelle Vorlage: <strong>{aktuelleVorlage?.name ?? "keine"}</strong>
       </div>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-      <Flex gap={8} wrap align="center">
+      <Flex gap={SPACE.sm} wrap align="center">
         <Select<string, TemplateOption>
           showSearch
           filterOption={templateFilter}
@@ -242,7 +245,7 @@ export function TemplateVerknuepfung({
               type="warning"
               showIcon={false}
               title={modalFehler}
-              style={{ marginBlockEnd: 12 }}
+              style={{ marginBlockEnd: SPACE.md }}
             />
           ) : null}
           <Form.Item name="name" label="Name">

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, Checkbox, Flex, Table } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
@@ -62,7 +63,7 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
 
   return (
     <>
-      <Flex gap={12} wrap align="center" style={{ marginBlockEnd: 12 }}>
+      <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
         <Suchfeld
           wert={suche}
           onWert={setSuche}
@@ -111,7 +112,7 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
         }}
         columns={[
           {
-            title: "Fahrzeug",
+            title: <span style={SCHRIFT.feldname}>Fahrzeug</span>,
             dataIndex: "name",
             render: (wert: string, zeile) => (
               <span>
@@ -122,7 +123,7 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
                   {wert}
                 </Link>
                 {zeile.kennung ? (
-                  <span style={{ ...SCHRIFT.mono, marginInlineStart: 8 }}>
+                  <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
                     {zeile.kennung}
                   </span>
                 ) : null}
@@ -130,7 +131,7 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
             ),
           },
           {
-            title: "Vorlage",
+            title: <span style={SCHRIFT.feldname}>Vorlage</span>,
             dataIndex: "templateName",
             render: (wert: string | null) => wert ? (
               <Chip ton="grau">{wert}</Chip>
@@ -139,7 +140,7 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
             ),
           },
           {
-            title: "Bestückung",
+            title: <span style={SCHRIFT.feldname}>Bestückung</span>,
             dataIndex: "positionen",
             render: (_wert: number, zeile) => (
               <span style={SCHRIFT.neben}>
@@ -150,9 +151,12 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
             ),
           },
           {
-            title: "Status",
+            title: <span style={SCHRIFT.feldname}>Status</span>,
             dataIndex: "aktiv",
             render: (_wert: boolean, zeile) => (
+              // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+              // Chip-Zeilenabstand, wie in ArtikelTable.tsx (Aufgabe 8), bleibt
+              // Literal statt auf einen sichtbar groeberen Wert gerundet.
               <Flex gap={6} wrap>
                 {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
                 {zeile.artikelUnterSoll > 0 ? (
@@ -172,7 +176,7 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
             ),
           },
           {
-            title: "Zuletzt geprüft",
+            title: <span style={SCHRIFT.feldname}>Zuletzt geprüft</span>,
             dataIndex: "letzterCheckText",
             render: (wert: string | null) => (
               <span style={SCHRIFT.neben}>{wert ?? "noch nie geprüft"}</span>

@@ -186,7 +186,10 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
       .toEqual(["2"]);
     expect(queryAll(`tbody td .${s.fach}`).map((zelle) => zelle.textContent))
       .toEqual(["Fach A", "Fach B", "Fach C"]);
-    expect(queryAll("tbody .ant-input-number-sm")).toHaveLength(4);
+    // KEIN size="small" (Arbeitsdichte, WCAG 2.5.8) -- die vier Soll-Felder
+    // tragen die volle 44px-Bedienhoehe, keine `-sm`-Modifikatorklasse.
+    expect(queryAll("tbody .ant-input-number")).toHaveLength(4);
+    expect(queryAll("tbody .ant-input-number-sm")).toHaveLength(0);
   });
 
   it("zeigt Grabsteine durchgestrichen mit Chip und Restore-Weg", async () => {
