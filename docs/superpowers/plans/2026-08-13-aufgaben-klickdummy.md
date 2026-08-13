@@ -1675,23 +1675,31 @@ describe("darfPlanAendern", () => {
 });
 
 describe("darfPlanSehen", () => {
-  it("laesst BuFDis die Plaene der anderen lesen", () => {
-    expect(darfPlanSehen(LEA, "noah")).toBe(true);
-    expect(darfPlanSehen(NOAH, "lea")).toBe(true);
-  });
-
-  it("laesst Koordination und Auftraggeber alle Plaene lesen", () => {
-    expect(darfPlanSehen(SARAH, "lea")).toBe(true);
-    expect(darfPlanSehen(SCHULLE, "noah")).toBe(true);
-  });
-
   /*
-   * SICHT IST NICHT AN AKTIVITAET GEBUNDEN: ein ehemaliger BuFDi darf seine
-   * eigene Geschichte noch einsehen. Ihn auszuschliessen waere die
-   * unfreundliche Auslegung desselben Feldes.
+   * DIESES PRAEDIKAT IST HEUTE KONSTANT WAHR, und der Test sagt das, statt es
+   * mit drei Faellen zu verdecken.
+   *
+   * Drei Einzeltests („BuFDis gegenseitig", „Koordination alle", „Ausgeschiedene
+   * lesen ihre Geschichte") koennten bei dieser Fassung NICHT FEHLSCHLAGEN. Sie
+   * lasen sich wie Abdeckung und waren keine — genau die Art gruener Balken, die
+   * spaeter jemand fuer eine Zusicherung haelt. Der eine Test unten ist ehrlich:
+   * er haelt die POLITIK fest („jeder darf jeden Plan sehen") und schlaegt fehl,
+   * sobald sie sich aendert, ohne zu behaupten, drei Faelle unterschieden zu
+   * haben.
+   *
+   * WARUM DAS PRAEDIKAT TROTZDEM EXISTIERT: es ist die benannte Naht, die
+   * Bauabschnitt 2 braucht. Die Alternative waere, in
+   * `plan/[personId]/page.tsx` gar nichts zu pruefen — dann muesste die spaetere
+   * Einschraenkung erst die Stelle finden, an der sie hingehoert. Die Sicht ist
+   * dabei ABSICHTLICH nicht an `istAktiv` gebunden: ein ehemaliger BuFDi darf
+   * seine eigene Geschichte noch einsehen.
    */
-  it("laesst eine ausgeschiedene Person den eigenen Plan lesen", () => {
-    expect(darfPlanSehen(EHEMALIG, EHEMALIG.id)).toBe(true);
+  it("erlaubt heute jeder Rolle jeden Plan — auch einer ausgeschiedenen Person", () => {
+    const paare: [Person, string][] = [
+      [LEA, "noah"], [NOAH, "lea"], [SARAH, "lea"], [SCHULLE, "noah"],
+      [EHEMALIG, EHEMALIG.id], [EHEMALIG, "lea"],
+    ];
+    expect(paare.filter(([p, ziel]) => !darfPlanSehen(p, ziel))).toEqual([]);
   });
 });
 
@@ -5157,7 +5165,7 @@ waere ein Orakel."
 - Modify: `src/app/m/aufgaben/page.tsx` (Rolle `koordination` verteilen)
 
 **Interfaces:**
-- Produces: `EinstiegKoordination({ daten, person, jetzt })`; `verteilenInhalt(daten, person, jetzt)`; `personenInhalt(daten, person, heute)`
+- Produces: `EinstiegKoordination({ daten, person, jetzt })`; `verteilenInhalt(daten, person, jetzt)`; `personenInhalt(daten, heute)` — **zwei** Argumente; die Seite prüft die Befugnis selbst und der Inhalt braucht den Aufrufer nicht
 
 - [ ] **Step 1: Test schreiben (schlägt fehl)**
 
@@ -5601,7 +5609,7 @@ import { SCHRIFT } from "@/core/theme/schrift";
 import { fmtStunden, fmtTagKurz } from "../_lib/anzeige";
 import { demoDaten, isoTag } from "../_lib/demoDaten";
 import { aktuelleDemoPerson } from "../_lib/demoRolle";
-import type { DemoDaten, Person, Rolle } from "../_lib/typen";
+import type { DemoDaten, Rolle } from "../_lib/typen";
 import { darfPersonenVerwalten, istAktiv } from "../_lib/zugang";
 import { Chip } from "../_ui/Chip";
 import { SeitenKopf } from "../_ui/SeitenKopf";
@@ -5625,7 +5633,7 @@ const ROLLENTEXT: Record<Rolle, string> = {
  * Loeschaktion — und die Dokumentation des vergangenen Jahres ist genau das,
  * was das Modul herstellen soll.
  */
-export function personenInhalt(daten: DemoDaten, _person: Person, heute: string) {
+export function personenInhalt(daten: DemoDaten, heute: string) {
   return (
     <>
       <SeitenKopf
@@ -5687,7 +5695,7 @@ export default async function PersonenSeite() {
   const heute = isoTag(jetzt);
   const person = await aktuelleDemoPerson(jetzt);
   if (!darfPersonenVerwalten(person, heute)) notFound();
-  return personenInhalt(demoDaten(jetzt), person, heute);
+  return personenInhalt(demoDaten(jetzt), heute);
 }
 ```
 
