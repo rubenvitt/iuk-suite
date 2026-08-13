@@ -99,7 +99,55 @@ export function fmtTagKurz(iso: string): string {
   return `${WOCHENTAGE_KURZ[d.getUTCDay()]}, ${tag}.${monat}.`;
 }
 
+/**
+ * "HH:MM" seit Mitternacht in Minuten — GEPRUEFT, nicht bloss geparst.
+ *
+ * BIS AUFGABE 7 HATTE DIESE FUNKTION KEINEN AUFRUFER MIT UNVALIDIERTEN WERTEN.
+ * `tagesOrdnung` (`_lib/tagesplan.ts`) ist der erste: `planUhrzeit` und
+ * `routinen.uhrzeit` kommen aus der Datenbank und damit letztlich aus einem
+ * Formular. Ein leerer String oder eine fehlende ":" ergaben vorher STILL
+ * `NaN` — und `NaN` vergleicht sich mit `<`/`>` immer als `false`, macht die
+ * stabile Sortierung eines ganzen Tages also unbrauchbar, OHNE dass irgendwo
+ * etwas rot wird: die Anker-Reihenfolge zerfaellt lautlos in die urspruengliche
+ * Feldreihenfolge.
+ *
+ * ENTSCHEIDUNG: WERFEN, NICHT AUF DEN TAGESBEGINN ZURUECKFALLEN. Diese Suite
+ * behandelt einen fehlerhaften Eingabewert grundsaetzlich als sichtbaren
+ * Fehler, nie als leise Ersetzung (vgl. `SeitenKopf` — wirft bei leerem
+ * `kontext`, statt eine leere Zeile zu rendern; `routineAmTag` — prueft
+ * `undefined` explizit, statt sich auf eine zufaellig richtige `NaN`-Rechnung
+ * zu verlassen). Ein Ruecksprung auf `TAGESBEGINN_MINUTEN` waere hier die
+ * schlimmere Wahl: er saehe wie ein plausibler Anker aus und wuerde denselben
+ * Fehler erzeugen, den `minutenVon` gerade verhindern soll — nur eine Stufe
+ * subtiler, weil der Wert jetzt eine echte Uhrzeit TRAEGT statt `NaN` zu SEIN.
+ * Diese Funktion ist zudem die letzte Verteidigungslinie, nicht die erste:
+ * `planUhrzeit`/`uhrzeit` sollten durch Formularvalidierung (spaetere
+ * Aufgaben) nie ungueltig hier ankommen — der Wurf ist die Ausnahmesicherung,
+ * die genau das ausspricht, wenn sie doch einmal umgangen wird.
+ *
+ * DAS MUSTER VERLANGT ZWEI STELLEN FUER STUNDE UND MINUTE — `schema.ts`
+ * dokumentiert die Spalten ausdruecklich als "HH:MM", nicht als "H:MM", und
+ * `minutenVon` prueft genau den dokumentierten Vertrag, keinen laxeren. Ein
+ * Aufrufer, der eine einzelne Ziffer braucht, aendert das hier bewusst, statt
+ * dass die Pruefung stillschweigend mehr zulaesst, als die Spalte verspricht.
+ */
 export function minutenVon(uhrzeit: string): number {
-  const [h, m] = uhrzeit.split(":").map(Number);
-  return h * 60 + m;
+  const treffer = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(uhrzeit);
+  if (!treffer) {
+    throw new Error(`"${uhrzeit}" ist keine gueltige Uhrzeit im Format HH:MM.`);
+  }
+  return Number(treffer[1]) * 60 + Number(treffer[2]);
+}
+
+/**
+ * Die Umkehrung von `minutenVon` — fuer die Anker-Spur der Tagesordnung
+ * (`_ui/Wochenplan.tsx`), die nur echte Anker anzeigt und dafuer ihre
+ * Uhrzeit als Text braucht. Nimmt bewusst KEINE Tagesgrenze an (1500 Minuten
+ * ergeben "25:00"): eine spaete Routine ueber Mitternacht ist eine denkbare
+ * Eingabe, und ein Modulo-Wrap waere die still falsche Uhrzeit.
+ */
+export function fmtUhrzeit(minuten: number): string {
+  const h = Math.floor(minuten / 60);
+  const m = minuten % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }

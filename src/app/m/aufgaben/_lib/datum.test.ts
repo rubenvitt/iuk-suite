@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   fmtTagKurz,
+  fmtUhrzeit,
   isoTag,
   minutenVon,
   montagDerWoche,
@@ -164,5 +165,57 @@ describe("minutenVon", () => {
     expect(minutenVon("08:00")).toBe(480);
     expect(minutenVon("11:30")).toBe(690);
     expect(minutenVon("23:59")).toBe(1439);
+  });
+
+  /*
+   * `schema.ts` dokumentiert die Spalte ausdruecklich als "HH:MM" — ZWEI
+   * Stellen fuer die Stunde. Eine einzelne fuehrende Ziffer wird deshalb
+   * ABGELEHNT statt grosszuegig angenommen: die Pruefung darf nicht mehr
+   * zulassen, als die Spalte verspricht.
+   */
+  it("wirft bei einer einzelnen Ziffer fuer die Stunde (das dokumentierte Format ist HH:MM, nicht H:MM)", () => {
+    expect(() => minutenVon("9:05")).toThrow(/gueltige Uhrzeit/);
+  });
+
+  /*
+   * DER VERTAGTE BEFUND AUS AUFGABE 3: bis `tagesOrdnung` (Aufgabe 7) hatte
+   * diese Funktion keinen Aufrufer mit unvalidierten Werten, und ein leerer
+   * String oder eine fehlende ":" ergaben STILL `NaN` — eine Sortierung nach
+   * `NaN` schlaegt nie rot an, sie liefert nur eine falsche Reihenfolge.
+   * `minutenVon` wirft jetzt, statt `NaN` weiterzugeben.
+   */
+  it("wirft bei einem leeren String, statt NaN zu liefern", () => {
+    expect(() => minutenVon("")).toThrow(/gueltige Uhrzeit/);
+  });
+
+  it("wirft ohne Doppelpunkt", () => {
+    expect(() => minutenVon("0800")).toThrow(/gueltige Uhrzeit/);
+  });
+
+  it("wirft bei einer Stunde oder Minute ausserhalb des gueltigen Bereichs", () => {
+    expect(() => minutenVon("24:00")).toThrow(/gueltige Uhrzeit/);
+    expect(() => minutenVon("08:60")).toThrow(/gueltige Uhrzeit/);
+  });
+
+  it("wirft bei nicht-numerischen Anteilen", () => {
+    expect(() => minutenVon("ab:cd")).toThrow(/gueltige Uhrzeit/);
+  });
+});
+
+describe("fmtUhrzeit", () => {
+  it("ist die Umkehrung von minutenVon", () => {
+    expect(fmtUhrzeit(0)).toBe("00:00");
+    expect(fmtUhrzeit(480)).toBe("08:00");
+    expect(fmtUhrzeit(690)).toBe("11:30");
+    expect(fmtUhrzeit(1439)).toBe("23:59");
+  });
+
+  it("polstert Stunde und Minute auf zwei Stellen", () => {
+    expect(fmtUhrzeit(545)).toBe("09:05");
+  });
+
+  /** Keine Tagesgrenze angenommen — ein Modulo-Wrap waere die still falsche Uhrzeit. */
+  it("wraps nicht ueber Mitternacht, sondern zeigt Stunden ueber 23", () => {
+    expect(fmtUhrzeit(1500)).toBe("25:00");
   });
 });
