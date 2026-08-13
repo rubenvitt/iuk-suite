@@ -51,4 +51,17 @@ export interface SuiteNavItem {
   href: string;
   /** Optional. Aufgeloest in SuiteNav — hier steht NIE eine Komponente. */
   ikon?: NavIkonName;
+  /**
+   * Überschrift, unter der dieser Eintrag steht. FEHLT SIE ÜBERALL, bleibt es
+   * die Zeile von heute — Portal, Feedback und Dateien ändern sich damit um
+   * null Zeilen.
+   *
+   * Ein OPTIONALES FELD und bewusst keine verschachtelte Struktur
+   * (`{ titel, items[] }`): die hätte `aktiverEintrag` flach machen lassen, was
+   * der Aufrufer schachtelt, dem Drawer einen zweiten Zweig gegeben und die
+   * Quelltext-Zusicherung in `lagerbuch/_ui/VerwaltungsRahmen.test.tsx:303`
+   * gebrochen (`typ: "SuiteNavItem[]"`). So bleibt die Liste flach und
+   * Gruppierung reine Darstellung.
+   */
+  abschnitt?: string;
 }
