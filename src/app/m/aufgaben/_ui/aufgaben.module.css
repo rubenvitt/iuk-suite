@@ -1,7 +1,6 @@
 /*
  * Modul-CSS von `aufgaben`. `.modul` ist der Traeger aller --auf-*-Variablen.
- * Aufgabe 5 baut die Datei vollstaendig aus; hier steht nur, was der erste
- * Abruf braucht.
+ * Aufgabe 5 baut die Datei vollstaendig aus.
  *
  * WARUM EIGENE VARIABLEN UND NICHT --ant-*: antd deklariert seine Variablen auf
  * SEINER Scope-Klasse, nicht an `:root`. Eigenes Markup ausserhalb eines
@@ -10,12 +9,60 @@
  * WARUM :root[data-theme="dark"] UND NICHT prefers-color-scheme: der Umschalter
  * der Suite hat drei Zustaende. Auf die Medienabfrage zu selektieren bricht den
  * Fall „System dunkel, Umschalter hell".
+ *
+ * WARUM GENAU EINE MEDIENABFRAGE, UND KEINE FUER prefers-reduced-motion: diese
+ * Datei fuehrt bewusst KEINE Animation und KEINEN `transition` ein — keine
+ * Aufbau-Choreografie der Tagesspalten, kein Zaehl-Effekt auf den KPI-Kacheln
+ * (Spec §9.4). „Bewegung sparsam behandeln" ist hier also durch Abwesenheit
+ * erfuellt, nicht durch eine `@media (prefers-reduced-motion: reduce)`-Ausnahme:
+ * wo nichts sich bewegt, gibt es nichts zu reduzieren. Wer hier spaeter einen
+ * Hover-`transition` ergaenzt, schuldet in derselben Aenderung die Ausnahme
+ * UND verletzt damit „genau eine Medienabfrage" — dann gehoert die Abwaegung
+ * neu, nicht stillschweigend nachgetragen.
+ *
+ * WARUM KEINE `font-size`-REGEL FUER EIGENE FELDER: „Eingabefelder nie unter
+ * 16px" ist in der Suite bereits an ZWEI Stellen geloest — `globals.css`
+ * (bare `input`/`select`/`textarea`, 16px) und `core/theme/theme.ts`
+ * (`inputFontSize`/`inputFontSizeLG` fuer Input/InputNumber/DatePicker, weil
+ * deren Feld kein `input`-Element ist). Eine dritte Fassung hier waere genau
+ * die Verdopplung, gegen die die `core`-Regel steht (Spec §9.4).
  */
 .modul {
   --auf-tinte: #1a1d20;
   --auf-stahl: #5b6570;
   --auf-linie: #d9dde1;
   --auf-papier: #eef0f1;
+
+  /*
+   * Zustands- UND Prioritaets-Chip-Paare, je `--auf-<ton>-text` /
+   * `--auf-<ton>-flaeche`. Alle sechs Werte sind mit gemessenem AA-Kontrast
+   * (>= 4.5, siehe aufgaben-css.test.ts) gewaehlt, nicht geschaetzt — Spec
+   * §9.2.
+   *
+   * `grau` deckt `eingegangen`/`verteilt`. `stahl` (hier: SAETTIGT den Ton zu
+   * einem eigenen Stahlblau fuer den Zustand `in_arbeit`) ist bewusst NICHT
+   * dasselbe wie das gedaempfte, ungesaettigte `--auf-stahl` oben: dieses
+   * gedaempfte Grau bleibt fuer `.prioKontur`/`.prioText` reserviert, damit
+   * ein Prioritaets- und ein Zustands-Chip in derselben Zeile nicht
+   * verwechselbar werden (Spec §9.1 letzter Satz).
+   * `ocker` deckt `freigabe_offen`, `ok` (gruen) `abgeschlossen`.
+   * `achtung` ist die Ampel-ROT-TEXTFARBE fuer `zurueckgewiesen` — ausdruecklich
+   * NICHT Suite-Rot (`#c8000f`), das las sich sonst als Primaerknopf.
+   * `rost` ist die EINE Akzent-Hue der Prioritaets-Rangskala (`.prioGefuellt`,
+   * Stufe „Hoch") und aus demselben Grund nicht Suite-Rot.
+   */
+  --auf-grau-text: #4d5661;
+  --auf-grau-flaeche: #e7eaec;
+  --auf-stahl-text: #245a76;
+  --auf-stahl-flaeche: #dbe7ee;
+  --auf-ocker-text: #8a5200;
+  --auf-ocker-flaeche: #fbf1dc;
+  --auf-ok-text: #186b34;
+  --auf-ok-flaeche: #e4f2e9;
+  --auf-achtung-text: #8c0d16;
+  --auf-achtung-flaeche: #f6e3e0;
+  --auf-rost-text: #7a3418;
+  --auf-rost-flaeche: #f4e4d8;
 }
 
 :root[data-theme="dark"] .modul {
@@ -23,12 +70,269 @@
   --auf-stahl: #9aa4ad;
   --auf-linie: #2a2f34;
   --auf-papier: #0f1113;
+
+  --auf-grau-text: #c3ccd3;
+  --auf-grau-flaeche: #232830;
+  --auf-stahl-text: #8fc4e6;
+  --auf-stahl-flaeche: #122733;
+  --auf-ocker-text: #e3b463;
+  --auf-ocker-flaeche: #2c2109;
+  --auf-ok-text: #8fe0ab;
+  --auf-ok-flaeche: #10261a;
+  --auf-achtung-text: #f0a39c;
+  --auf-achtung-flaeche: #2c1210;
+  --auf-rost-text: #e6a97e;
+  --auf-rost-flaeche: #2c1c10;
 }
 
+/*
+ * Fokus fuer eigenes Interaktives. `a`/`button`/`input`/`select` decken die
+ * gewoehnlichen Faelle; `.tagSpalte`/`.kpiLink`/`.backlink` kommen dazu, weil
+ * sie eigene interaktive Flaechen sind, die kein natives Element sein muessen
+ * (z. B. ein Tageskarten-Link ohne Wrapper-`<a>`). Nie `outline: none` ohne
+ * Ersatz.
+ */
 .modul a:focus-visible,
 .modul button:focus-visible,
 .modul input:focus-visible,
-.modul select:focus-visible {
+.modul select:focus-visible,
+.modul .tagSpalte:focus-visible,
+.modul .kpiLink:focus-visible,
+.modul .backlink:focus-visible {
   outline: 2px solid var(--iuk-marke);
   outline-offset: 2px;
+}
+
+/*
+ * ZUSTANDS-CHIP. Nachgebaut nach `lagerbuch/_ui/verwaltung.module.css`
+ * (`.chip` + Ton-Klassen), mit eigenen `--auf-*`-Variablen statt antds `Tag`.
+ * Jede Stufe TRAEGT IMMER DAS WORT (Text-Kind der Komponente aus Aufgabe 6) —
+ * Farbe hier ist die verzichtbare letzte Schicht, nie die einzige.
+ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 2.5px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tonGrau {
+  color: var(--auf-grau-text);
+  background: var(--auf-grau-flaeche);
+}
+.tonStahl {
+  color: var(--auf-stahl-text);
+  background: var(--auf-stahl-flaeche);
+}
+.tonOcker {
+  color: var(--auf-ocker-text);
+  background: var(--auf-ocker-flaeche);
+}
+.tonOk {
+  color: var(--auf-ok-text);
+  background: var(--auf-ok-flaeche);
+}
+.tonAchtung {
+  color: var(--auf-achtung-text);
+  background: var(--auf-achtung-flaeche);
+}
+
+/*
+ * PRIORITAETS-CHIP — eine Rangskala, keine Ampel (Spec §9.1). Die Helligkeit/
+ * das Gewicht laeuft monoton ueber die FORM (gefuellt > Kontur > nur Text),
+ * nicht ueber drei verschiedene Hues: „Hoch" ist die einzige Akzent-Hue
+ * (`--auf-rost-*`), „Mittel" und „Niedrig" bleiben auf dem gedaempften
+ * neutralen `--auf-stahl` und unterscheiden sich nur durch Kontur bzw. das
+ * Fehlen jeder Chip-Form. Kombiniert mit `.chip`, ausser `.prioText`, das
+ * bewusst KEINE Chip-Form bekommt (nur Wort, gedaempft — die schwaechste
+ * Stufe der Rangskala).
+ */
+.prioGefuellt {
+  color: var(--auf-rost-text);
+  background: var(--auf-rost-flaeche);
+}
+.prioKontur {
+  color: var(--auf-stahl);
+  background: transparent;
+  border: 1.5px solid var(--auf-stahl);
+}
+.prioText {
+  color: var(--auf-stahl);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/*
+ * KPI-KACHEL. `.kpiKante*` hat ABSICHTLICH keinen Grauwert — eine Kachel ohne
+ * Befund bekommt keine Kante (Spec-Vorgabe, s. Brief Aufgabe 5). Zahlen immer
+ * `tabular-nums`, sonst springt die Kachelbreite mit jedem neuen Wert.
+ */
+.kpi {
+  height: 100%;
+  border-inline-start: 4px solid transparent;
+  border-radius: 8px;
+  padding-inline-start: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.kpiKanteAchtung {
+  border-inline-start-color: var(--auf-achtung-text);
+}
+.kpiKanteOcker {
+  border-inline-start-color: var(--auf-ocker-text);
+}
+.kpiKanteOk {
+  border-inline-start-color: var(--auf-ok-text);
+}
+/* Kein `:hover`-`transition`: siehe Kopfkommentar zur Medienabfrage-Zahl. */
+.kpiLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.kpiLink:hover {
+  background: var(--auf-papier);
+}
+
+/*
+ * WOCHE/TAG. `.wochenGitter` (Desktop, 5 Spalten Mo–Fr) und `.tagesListe`
+ * (Mobil, einspaltig mit Tageswaehler aus Aufgabe 7) rendern BEIDE ins HTML;
+ * die Medienabfrage unten blendet je eine aus. Kein `Grid.useBreakpoint` — in
+ * Server Components ohnehin verboten, und es zeigt beim ersten Render die
+ * falsche Variante.
+ */
+.wochenGitter {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.tagesListe {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+.tagSpalte {
+  border: 1px solid var(--auf-linie);
+  border-radius: 8px;
+  background: var(--auf-papier);
+  padding: 12px;
+}
+.tagKopf {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--auf-tinte);
+}
+/*
+ * Auslastung ist NEUTRAL/GRAPHIT, nie Statusfarbe — Menge ist keine
+ * Statusaussage (Spec §9.3). `.budgetUeberbucht` bekommt deshalb eine Kante
+ * PLUS Text-Gewicht, keinen roten Balken und keine Ton-Variable.
+ */
+.budget {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--auf-stahl);
+  white-space: nowrap;
+}
+.budgetUeberbucht {
+  border-inline-start: 3px solid var(--auf-tinte);
+  padding-inline-start: 8px;
+  font-weight: 700;
+  color: var(--auf-tinte);
+}
+
+/*
+ * TAGESORDNUNG. `.ankerSpur` fuehrt die Zeitanker-Spur einer Tagesspalte,
+ * `.ohneAnker` markiert Aufgaben ohne Zeitanker (gestrichelt statt farbig —
+ * das Fehlen eines Ankers ist kein Fehlerzustand).
+ */
+.ankerSpur {
+  border-inline-start: 2px solid var(--auf-linie);
+  padding-inline-start: 12px;
+}
+.ohneAnker {
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed var(--auf-linie);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--auf-stahl);
+  font-size: 12px;
+}
+
+/*
+ * SONSTIGES. `.knopfzeile` steht ausserhalb jeder Medienabfrage in der
+ * Desktop-Form (Reihe); die Mobil-Form (Spalte, voller Breite) steht unten im
+ * einzigen 767.98px-Block.
+ */
+.routineZeile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.knopfzeile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.journal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jts {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--auf-stahl);
+  white-space: nowrap;
+}
+.backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--auf-stahl);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.backlink:hover {
+  color: var(--auf-tinte);
+}
+
+/*
+ * DIE EINE MEDIENABFRAGE DER GANZEN DATEI. 767.98px statt 768px, sonst
+ * gaelten bei exakt 768px beide Seiten und die Reihenfolge im Stylesheet
+ * entschiede (Spec §9.6).
+ */
+@media (max-width: 767.98px) {
+  .wochenGitter {
+    display: none;
+  }
+  .tagesListe {
+    display: flex;
+  }
+  .knopfzeile {
+    flex-direction: column;
+  }
+  /*
+   * SPEZIFITAETSERHOEHUNG: `.knopfzeile > *` allein ist (0,1,0) — genauso viel
+   * wie antds `.ant-btn` — und verliert gegen antd durch Dokumentreihenfolge
+   * (antds Stylesheet wird nach diesem hier eingebunden, Falle 5). `.modul
+   * .knopfzeile > *` ist (0,2,0) und gewinnt unabhaengig von der Reihenfolge.
+   * Eine Klasse mehr, nie `!important`, nie mehr als noetig — und deshalb hier
+   * kommentiert, sonst entfernt die naechste Aufraeumrunde den Praefix als
+   * vermeintlichen Ballast.
+   */
+  .modul .knopfzeile > * {
+    width: 100%;
+  }
 }
