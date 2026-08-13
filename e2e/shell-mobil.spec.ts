@@ -580,12 +580,56 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () 
       groups: LAGERBUCH_ADMIN_GRUPPE,
       callbackPath: "/verwaltung",
     });
+    await expect(page.getByTestId("modulleiste")).toBeVisible();
+    /*
+     * ERST WENN DIE LEISTE WIRKLICH KLEBT, DANN SCROLLEN. `next dev` reicht
+     * antds cssinjs-Regeln nach; bis dahin steht die Seitenleiste UEBER dem
+     * Inhalt statt daneben und traegt `position: relative`. Eine Messung in
+     * diesem Zustand beschriebe eine andere Seite als die, ueber die dieser
+     * Test etwas sagt — und `toHaveCSS` faellt LAUT, falls die Regel gar nicht
+     * kommt, statt still den falschen Zustand zu vermessen. (Genau diese Regel
+     * ist der Befund dieses Umbaus: antds `.ant-layout-sider` traegt
+     * `position: relative`, gleiche Spezifitaet, spaeter im Dokument — deshalb
+     * `.sider.sider` in `shell.module.css`.)
+     */
+    await expect(page.locator(".ant-layout-sider")).toHaveCSS("position", "sticky");
     await page.mouse.wheel(0, 600);
+    /*
+     * AUF DAS SCROLLEN WARTEN, NICHT NUR ES AUSLOESEN — und das ist ein Befund,
+     * kein vorsorgliches Warten. `mouse.wheel` schickt das Ereignis ab; das
+     * Scrollen selbst passiert danach. Ohne dieses Warten stand `window.scrollY`
+     * in DREI von drei Wiederholungen (`--repeat-each=3`) noch auf 0, und die
+     * Messung unten beschrieb die UNGESCROLLTE Seite. Dort steht die Leiste
+     * ohnehin an der Unterkante der Kopfzeile — die Zusicherung war also gruen,
+     * ohne je die Aussage zu pruefen, fuer die es sie gibt („die richtige und
+     * die kaputte Fassung sagen ohne Scrollen dasselbe", Absatz oben).
+     */
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 
-    const kopf = (await page.getByTestId("suite-header").boundingBox())!;
-    const leiste = (await page.getByTestId("modulleiste").boundingBox())!;
-    expect(leiste.y).toBeGreaterThanOrEqual(kopf.y + kopf.height - 1);
-    expect(leiste.y).toBeLessThan(kopf.y + kopf.height + 8);
+    /*
+     * BEIDE KAESTEN IN EINEM LESEVORGANG. Zwei `boundingBox()`-Aufrufe sind
+     * zwei Playwright-Rundlaeufe und damit zwei Zeitpunkte; verglichen wuerden
+     * sie, als waeren sie derselbe Zustand. Auf einer Seite MIT Seitenleiste
+     * ist das nachweislich falsch — in `e2e/files-mobil.spec.ts` (`kaesten`)
+     * steht der gemessene Fall ausgeschrieben, dort verschob derselbe
+     * Zwischenzustand einen Knopf um 240px waagerecht und 180px senkrecht.
+     * Ein `evaluate` ist EIN Layout-Lesevorgang.
+     */
+    const mass = await page.evaluate(() => {
+      const kopf = document.querySelector('[data-testid="suite-header"]')!.getBoundingClientRect();
+      const leiste = document.querySelector('[data-testid="modulleiste"]')!.getBoundingClientRect();
+      return {
+        scrollY: window.scrollY,
+        kopfUnterkante: kopf.y + kopf.height,
+        leisteOberkante: leiste.y,
+      };
+    });
+    console.log(`Kopf/Leiste nach wheel(0,600): ${JSON.stringify(mass)}`);
+    // Ohne echtes Scrollen sagen die richtige und die kaputte Fassung dasselbe —
+    // die Messung muss also zuerst belegen, dass ueberhaupt gescrollt wurde.
+    expect(mass.scrollY).toBeGreaterThan(0);
+    expect(mass.leisteOberkante).toBeGreaterThanOrEqual(mass.kopfUnterkante - 1);
+    expect(mass.leisteOberkante).toBeLessThan(mass.kopfUnterkante + 8);
   });
 
   test("Arbeitsflächen sind dichter als Einsatzformulare", async ({ page }) => {
