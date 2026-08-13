@@ -180,53 +180,66 @@
 
 /*
  * Die Modulnavigation ist `next/link` und damit rohes Markup — antds
- * Button-Aussehen faellt hier weg und muss gesetzt werden. Bewusst KEINE
- * `--ant-*`-Variablen: die sieht eigenes Markup nicht (der Fehler waere still).
- * `currentColor` erbt die Schriftfarbe der Kopfzeile und traegt damit hell wie
- * dunkel, ohne eine zweite Farbquelle aufzumachen.
+ * Button-Aussehen fällt hier weg und muss gesetzt werden. Bewusst KEINE
+ * `--ant-*`-Variablen: die sieht eigenes Markup nicht (der Fehler wäre still).
+ * `currentColor` erbt die Schriftfarbe und trägt damit hell wie dunkel, ohne
+ * eine zweite Farbquelle aufzumachen.
  *
- * `min-height: 56px` ist das Touch-Masz der Suite (`TAP` in core/theme/tokens).
+ * `min-height: 56px` ist das Touch-Maß der Suite (`TAP` in core/theme/tokens)
+ * und gilt hier für den DRAWER. Die Seitenleiste überschreibt es weiter unten
+ * auf 40px — sie existiert unterhalb von 768px gar nicht und wird mit Maus
+ * bedient.
+ *
+ * `flex` STATT `inline-flex`, seit 2026-08-13 — und das ist keine Kosmetik.
+ * `.modulleiste` und `.drawerGruppe` sind Flex-SPALTEN; ein `inline-flex`-Kind
+ * schrumpft dort auf seine Inhaltsbreite, und die getönte Fläche des aktiven
+ * Eintrags endete mitten in der Leiste hinter dem längsten Wort. Ein
+ * Block-Kind dehnt sich (`align-items: stretch` ist die Vorgabe der Spalte) und
+ * die Markierung reicht über die ganze Zeile. Solange die Markierung eine
+ * Unterstreichung war, fiel das nicht auf.
  */
 .navLink {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   min-height: 56px;
   padding-inline: 12px;
+  border-inline-start: 3px solid transparent;
+  border-radius: 6px;
   color: inherit;
   text-decoration: none;
-  border-block-end: 2px solid transparent;
+}
+
+.navLink:hover {
+  background: var(--iuk-flaeche-aktiv);
 }
 
 /*
  * `[aria-current]` OHNE Wert, und das ist Absicht: der Wert ist `"page"` auf der
- * aufgerufenen Seite und `"true"` auf einer Seite, die nur zum Abschnitt gehoert
+ * aufgerufenen Seite und `"true"` auf einer Seite, die nur zum Abschnitt gehört
  * (SuiteNav.tsx, `aktiverEintrag`). Optisch ist beides dieselbe Hervorhebung;
- * ein Selektor auf `="page"` liesze die Abschnitts-Markierung still verschwinden
- * — der Link waere dann markiert, saehe aber unmarkiert aus.
+ * ein Selektor auf `="page"` ließe die Abschnitts-Markierung still verschwinden.
  *
- * ROT STATT `currentColor`, seit 2026-08-12: die Aktivmarkierung ist der eine
- * Ort in der Chrome, an dem Markenfarbe eine Aussage traegt statt Dekoration zu
- * sein. `--iuk-marke` und nicht `--ant-color-primary` — eigenes Markup sieht
- * antds Variablen nicht (Falle 2); die Markierung verliert ihren Farbkanal.
- * FALLS `--iuk-marke` NICHT AUFLOEST — die Variable fehlt, ist umbenannt, oder
- * `globals.css` kommt nicht an —, wird `border-block-end-color` zu
- * `currentColor` (die 2px bleiben, nur in Textfarbe) und `color` zur geerbten
- * Kopfzeilenfarbe (der Text bleibt, nur unmarkiert). Ohne diese Bedingung
- * beschriebe der Satz das Gegenteil der drei Zeilen darunter. Der Ausfall ist
- * still (Falle 2): die Regel steht da und traegt nichts mehr.
+ * LINKER AKZENT STATT UNTERSTRICH, seit 2026-08-13. `border-block-end` war das
+ * richtige Zeichen für eine waagerechte Leiste; in der senkrechten Liste zog
+ * derselbe Selektor einen roten Strich über die volle Leistenbreite, der sich
+ * als Trennlinie las. Dieselbe Aktivsprache trägt jetzt auch der App-Umschalter
+ * (`.appEintrag[aria-current]`) — ein Panel-Eintrag und ein Leisteneintrag
+ * bedeuten dasselbe.
  *
- * `font-weight: 600` BLEIBT und ist nicht redundant — und zwar EINMAL
- * begruendet, nicht zweimal: das Gewicht ist der Traeger, der uebrig bleibt,
- * wenn der Farbkanal ausfaellt, und er faellt auf zwei voneinander unabhaengige
- * Weisen aus — technisch (die unaufgeloeste Variable oben) und beim Leser (bei
- * Rot-Gruen-Blindheit und in Graustufen traegt Farbe hier nichts). Bedeutung
- * nie allein ueber Farbe. (Hier standen zwei aufeinanderfolgende Absaetze mit
- * je einer der beiden Mechaniken — eine Restdoppelung aus zwei Fix-Runden. Sie
- * begruenden dieselbe Zeile und stehen deshalb jetzt als ein Grund da.)
+ * FALLS `--iuk-marke` NICHT AUFLÖST — die Variable fehlt, ist umbenannt, oder
+ * `globals.css` kommt nicht an —, fällt der Akzent auf `transparent` zurück
+ * (die 3px bleiben als Leerraum) und `color` auf die geerbte Schriftfarbe. Der
+ * Ausfall ist still (Falle 2).
+ *
+ * `font-weight: 600` BLEIBT und ist nicht redundant: es ist der Träger, der
+ * übrig bleibt, wenn der Farbkanal ausfällt — technisch wie beim Leser (bei
+ * Rot-Grün-Blindheit und in Graustufen trägt Farbe hier nichts). Bedeutung nie
+ * allein über Farbe.
  */
 .navLink[aria-current] {
-  border-block-end-color: var(--iuk-marke);
+  border-inline-start-color: var(--iuk-marke);
+  background: var(--iuk-flaeche-aktiv);
   color: var(--iuk-marke);
   font-weight: 600;
 }
@@ -289,24 +302,37 @@
   padding: 12px 8px;
 }
 
+/*
+ * 40px STATT 56 — Begründung im gleichnamigen Test in `shell-css.test.ts`.
+ * Der `.modulleiste`-Präfix ist (0,2,0) und trägt die Regel; ohne ihn stünde
+ * sie gleichauf mit der Basisregel und die Reihenfolge entschiede.
+ */
+.modulleiste .navLink {
+  min-height: 40px;
+}
+
 .navGruppe {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
+/*
+ * 20px = SPACE.lg + SPACE.xs. Keine neue Zahl, eine Summe zweier vorhandener
+ * (`core/theme/tokens.ts`). Bei 40px-Zeilen muss die Trennung ZWISCHEN Gruppen
+ * deutlich größer sein als die zwischen Zeilen (2px), sonst zerfällt die
+ * Ordnung — 16px waren dafür zu wenig.
+ */
 .navGruppe + .navGruppe {
-  margin-block-start: 16px;
+  margin-block-start: 20px;
 }
 
-/* `--iuk-gedaempft` statt `opacity`, wie `.drawerTitel` oben: Deckkraft dimmt
-   den Kontrast unprüfbar mit und trägt in beiden Modi verschieden, eine
-   Variable hat einen Dunkelzweig. `.navAbschnitt` ist dieselbe Rolle
-   (gedämpfte Gruppenüberschrift) wie `.drawerTitel` und bekommt deshalb
-   dieselbe Lösung statt einer eigenen. */
+/* Nur Polsterung und Farbe. Die TYPOGRAFIE kommt als Inline-Stil aus
+   `SCHRIFT.kicker` (`navGruppen` in SuiteNav.tsx) — dieselbe Aufteilung wie
+   bei `.umschalterAbschnitt`, und aus demselben Grund: `core/theme/schrift.ts`
+   ist die eine Quelle. */
 .navAbschnitt {
-  padding: 4px 9px;
-  font-size: 12px;
+  padding: 4px 12px;
   color: var(--iuk-gedaempft);
 }
 
@@ -317,6 +343,10 @@
     inset-block-start: var(--iuk-kopf);
     block-size: calc(100vh - var(--iuk-kopf));
     overflow-y: auto;
+    /* Ohne sie steht die Leiste ohne erkennbaren Grund neben dem Inhalt.
+       `--iuk-linie` gibt es global mit Dunkelzweig; `--ant-*` sähe eigenes
+       Markup nicht (Falle 2). */
+    border-inline-end: 1px solid var(--iuk-linie);
   }
 }
 

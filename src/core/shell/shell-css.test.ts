@@ -491,6 +491,70 @@ describe("shell.module.css", () => {
     const regel = /\.navAbschnitt\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
     expect(regel, "Klasse .navAbschnitt fehlt").not.toBeNull();
   });
+
+  it("markiert den aktiven Eintrag mit linkem Akzent statt Unterstrich", () => {
+    /*
+     * `border-block-end` war das richtige Zeichen für eine WAAGERECHTE Leiste.
+     * In der Seitenleiste zog derselbe Selektor einen roten Strich UNTER dem
+     * aktiven Eintrag über die volle Leistenbreite — er las sich als
+     * Trennlinie zwischen zwei Gruppen, nicht als Auswahl. Im gemeldeten
+     * Screenshot stand er unter „Übersicht" und direkt über der Überschrift
+     * „Bestand", was die Fehldeutung noch verstärkte.
+     *
+     * `--iuk-marke` und nicht `--ant-color-primary`: eigenes Markup sieht antds
+     * Variablen nicht (Falle 2), die Markierung verlöre ihren Farbkanal.
+     *
+     * `font-weight: 600` BLEIBT und ist nicht redundant: es ist der Träger,
+     * der übrig bleibt, wenn der Farbkanal ausfällt — technisch (unaufgelöste
+     * Variable) wie beim Leser (Rot-Grün-Blindheit, Graustufen). Bedeutung nie
+     * allein über Farbe.
+     */
+    const regel = /\.navLink\[aria-current\]\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Regel `.navLink[aria-current]` fehlt").not.toBeNull();
+    expect(regel![1], "waagerechtes Aktiv-Idiom in einer senkrechten Liste").not.toMatch(
+      /border-block-end/,
+    );
+    expect(regel![1]).toMatch(/border-inline-start-color:\s*var\(--iuk-marke\)/);
+    expect(regel![1]).toMatch(/background:\s*var\(--iuk-flaeche-aktiv\)/);
+    expect(regel![1]).toMatch(/font-weight:\s*600/);
+  });
+
+  it("haelt den Ruhezustand auf demselben linken Rand wie den aktiven", () => {
+    // Ohne den transparenten Rahmen springt die Beschriftung beim Wechsel der
+    // aktiven Zeile um 3px zur Seite.
+    const regel = /\.navLink\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .navLink fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/border-inline-start:\s*3px solid transparent/);
+  });
+
+  it("gibt der Leiste eine dichtere Zeile als dem Drawer", () => {
+    /*
+     * `.navLink` bleibt in seiner Basis auf 56px — das ist der Drawer, und dort
+     * ist es ein Finger (`TAP` in core/theme/tokens.ts, Einsatzanforderung).
+     * Die Leiste existiert unterhalb von 768px gar nicht und wird mit Maus
+     * bedient; 40px ist antds eigenes Maß.
+     *
+     * `.modulleiste .navLink` ist (0,2,0). Die Verschachtelung ist NICHT
+     * Ballast: `.navLink` allein wäre (0,1,0) und stünde gleichauf mit der
+     * Basisregel — bei Gleichstand entschiede die Reihenfolge. Sie ist auch
+     * kein Spezifitätsstreit mit antd: `<a>` aus `next/link` trägt keine
+     * antd-Klasse. Wer sie entfernt, macht aus einer Regel eine Wette.
+     */
+    const regel = /\.modulleiste\s+\.navLink\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Regel `.modulleiste .navLink` fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/min-height:\s*40px/);
+
+    const basis = /\.navLink\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(basis![1], "der Drawer braucht das Tap-Masz").toMatch(/min-height:\s*56px/);
+  });
+
+  it("setzt die Leiste mit einer Kante vom Inhalt ab", () => {
+    // Ohne sie steht die Leiste ohne erkennbaren Grund neben dem Inhalt —
+    // die zweite Hälfte von „passt nicht hinein". `--iuk-linie` gibt es
+    // global mit Dunkelzweig; `--ant-*` sähe eigenes Markup nicht (Falle 2).
+    const { desktop } = erwartetRobusteSiderUmschaltung(OHNE_KOMMENTARE);
+    expect(desktop.deklarationen).toMatch(/border-inline-end:\s*1px solid var\(--iuk-linie\)/);
+  });
 });
 
 describe("Markenstreifen und Kopfzeilentypografie", () => {
@@ -538,27 +602,20 @@ describe("Markenstreifen und Kopfzeilentypografie", () => {
     expect(regel![1]!, "opacity als Farbersatz ist raus").not.toMatch(/opacity/);
   });
 
-  it("markiert den aktiven Navigationseintrag in Markenrot UND mit Gewicht", () => {
-    // BEDEUTUNG NIE ALLEIN UEBER FARBE. `font-weight: 600` stand hier schon und
-    // BLEIBT — wer die Farbe fuer ausreichend haelt und das Gewicht entfernt,
-    // nimmt rot-gruen-blinden Nutzern und Graustufendruck die Markierung ganz.
-    //
-    // WAS DIESER SCAN BESITZT UND WAS NICHT.
-    //
-    // Er besitzt: die Regel steht im Stylesheet, sie traegt `--iuk-marke` fuer
-    // beides (Unterkante und Schrift) statt eines Literals, und `font-weight: 600`
-    // bleibt. Das ist der Quelltext-Scan.
-    //
-    // Er besitzt NICHT, dass die Regel im Browser gegen antds Stylesheet gewinnt.
-    // Wenn antd morgen eine spezifischere Regel fuer `.modulnav` mitbringt, bliebe
-    // dieser Scan gruen — er liest nur das Stylesheet und sieht die Kaskade nicht.
-    // Diese Haelfte besitzt `e2e/shell-mobil.spec.ts` (Task 10), das Farbe und
-    // Gewicht am gerenderten Element in zwei Viewports und zwei Modi misst.
-    const regel = OHNE_KOMMENTARE.match(/\.navLink\[aria-current\]\s*\{([^}]*)\}/);
-    expect(regel, ".navLink[aria-current] fehlt").not.toBeNull();
-    expect(regel![1]!).toMatch(/border-block-end-color:\s*var\(--iuk-marke\)/);
-    expect(regel![1]!).toMatch(/color:\s*var\(--iuk-marke\)/);
-    expect(regel![1]!, "das Gewicht ist die farbfreie Haelfte der Markierung")
-      .toMatch(/font-weight:\s*600/);
-  });
+  /*
+   * DIESER TEST STAND HIER FRÜHER ALS „markiert den aktiven Navigationseintrag
+   * in Markenrot UND mit Gewicht" und prüfte `border-block-end-color` — genau
+   * das waagerechte Idiom, das Aufgabe 4 durch den linken Akzent ersetzt
+   * (`.navLink[aria-current]` weiter oben in dieser Datei). Die Aufgabe 4
+   * zugeschriebene Notiz „hier ist nichts mehr zu entfernen" galt nur den
+   * `.modulnav`-Tests aus Aufgabe 2 — dieser Test zielte auf `.navLink`, nicht
+   * auf `.modulnav`, und blieb deshalb stehen, obwohl er dieselbe Regel wie
+   * der neue Test „markiert den aktiven Eintrag mit linkem Akzent statt
+   * Unterstrich" prüft, nur mit dem alten, jetzt falschen Erwartungswert. Ein
+   * Beibehalten hätte den Testlauf nach Schritt 3 dauerhaft rot gehalten:
+   * keine CSS-Regel kann gleichzeitig `border-block-end-color` UND
+   * `border-inline-start-color` als Aktivmarkierung tragen. Entfernt statt
+   * angepasst, weil der neue Test dieselbe Aussage („Farbe UND Gewicht
+   * markieren den aktiven Eintrag") bereits vollständig trägt.
+   */
 });

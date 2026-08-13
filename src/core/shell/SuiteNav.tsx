@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
 import { gruppiereNav } from "@/core/shell/navAbschnitte";
+import { SCHRIFT } from "@/core/theme/schrift";
 // `NavIkone` bleibt: die Modulnavigation traegt seit dem Phosphor-Umbau je
 // Eintrag ein Zeichen. Die ICONS-Map dagegen faellt hier weg — sie bediente die
 // Modulknopfreihe, und die gibt es nicht mehr; aufgeloest wird sie jetzt
@@ -176,7 +177,7 @@ export function navGruppen(nav: SuiteNavItem[], pfad: string) {
   return gruppen.map((gruppe) => (
     <div key={gruppe.titel ?? "__ohne"} className={s.navGruppe}>
       {gruppe.titel ? (
-        <div data-testid="nav-abschnitt" className={s.navAbschnitt}>
+        <div data-testid="nav-abschnitt" className={s.navAbschnitt} style={SCHRIFT.kicker}>
           {gruppe.titel}
         </div>
       ) : null}
