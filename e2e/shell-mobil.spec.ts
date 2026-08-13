@@ -19,15 +19,23 @@ import { devLogin } from "./fixtures";
  */
 test.use({ viewport: { width: 390, height: 844 } });
 
-test("mobil: Modulknoepfe stehen nicht im Kopf, das Menue oeffnet sie", async ({ page }) => {
+test("mobil: der App-Wechsel hängt am Umschalter der Kopfzeile, nicht am Menü", async ({
+  page,
+}) => {
+  /*
+   * Die alte Modulknopfreihe (`modulzeile`) ist ersatzlos entfallen, und mit
+   * ihr auch die Modulliste im Drawer — der App-Wechsel hängt seit dem
+   * Navigations-Umbau am Umschalter der Kopfzeile, UND ZWAR AUF JEDER GRÖSSE
+   * (SuiteHeader.tsx, `AppUmschalter` trägt kein `.nurDesktop`/`.nurMobil`).
+   * Anders als der Menü-Knopf (`.nurMobil`, mobil-only) ist der Umschalter
+   * hier also direkt erreichbar, ohne den Drawer erst zu öffnen.
+   */
   await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
   await expect(page.getByTestId("suite-header")).toBeVisible();
-  // Die Knopfreihe ist im DOM, aber per CSS ausgeblendet — genau das ist der
-  // Unterschied, den jsdom nicht sehen kann.
-  await expect(page.getByTestId("modulzeile")).toBeHidden();
-
-  await page.getByTestId("menue-knopf").click();
-  await expect(page.getByTestId("suite-drawer").getByRole("link", { name: /Alpha/ })).toBeVisible();
+  await page.getByTestId("app-umschalter").click();
+  await expect(
+    page.getByTestId("app-panel").getByRole("link", { name: /Alpha/ }),
+  ).toBeVisible();
 });
 
 test("mobil: die Kopfzeile bleibt einzeilig", async ({ page }) => {
@@ -57,13 +65,6 @@ test("mobil: die Modulnavigation steht nicht als zweite Zeile im Weg", async ({ 
   );
   console.log(`Unterkante der Kopfzeile mit Modulnav-Slot bei 390x844: ${gesamt}px`);
   expect(gesamt).toBeLessThanOrEqual(72);
-});
-
-test("mobil: der Drawer fuehrt in ein anderes Modul", async ({ page }) => {
-  await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
-  await page.getByTestId("menue-knopf").click();
-  await page.getByTestId("suite-drawer").getByRole("link", { name: /Alpha/ }).click();
-  await expect(page.getByTestId("alpha-content")).toBeVisible();
 });
 
 test("mobil: abmelden haengt am Nutzermenue, nicht mehr im Drawer", async ({ page }) => {
@@ -166,12 +167,24 @@ for (const breite of [768, 820, 900]) {
       await expect(titel).toBeVisible();
       const sichtbar = await titel.evaluate((el) => {
         /*
-         * NICHT die Breite des `<strong>` selbst — das waere eine Messung, die
-         * den Defekt nicht sieht. `.titel` (der Link darum) traegt
-         * `overflow: hidden`; bei 768px mass der `<strong>` unveraendert 68px,
-         * waehrend der Link 0px breit war. `toBeVisible()` allein war deshalb
-         * auch VOR dem Fix gruen. Gemessen wird der KLIPPENDE Kasten, denn nur
-         * der sagt, wie viel vom Titel jemand sieht.
+         * NICHT zwingend die Breite des `<strong>` selbst — das waere eine
+         * Messung, die den Defekt nicht sieht, WENN das Element, das klippt,
+         * ein anderes ist. Ursprünglich (anonym, `.titel`-Link um den Titel)
+         * traf genau das zu: `.titel` trug `overflow: hidden`, bei 768px mass
+         * der `<strong>` unveraendert 68px, waehrend der Link 0px breit war —
+         * `toBeVisible()` allein war deshalb auch VOR dem Fix gruen.
+         *
+         * SEIT DEM APP-UMSCHALTER IST DER TITEL ANGEMELDET KEIN `<a>` MEHR,
+         * SONDERN EIN `<strong>` IN EINEM `<button>` (`AppUmschalter.tsx`).
+         * `el.closest("a")` findet dort nichts, `link` bleibt `null`, und der
+         * Fallback `?? el` misst den `<strong>` direkt — das ist jetzt richtig
+         * so: `.umschalterAusloeser strong` (`shell.module.css`) traegt seit
+         * dem Umbau selbst `overflow: hidden; text-overflow: ellipsis`, ist
+         * also SELBST der klippende Kasten, nicht mehr sein Elternknoten. Die
+         * Zusicherung haelt aus einem anderen Grund als hier urspruenglich
+         * gemessen: `.closest("a")` bleibt fuer den ANONYMEN Zweig noetig
+         * (`SuiteHeader.tsx` rendert dort weiterhin `<Link className={s.titel}>`),
+         * greift dort aber nicht, wenn die Person angemeldet ist.
          */
         const link = el.closest("a");
         return Math.round((link ?? el).getBoundingClientRect().width);
@@ -267,6 +280,11 @@ test.describe("Modulnavigation am laufenden Server", () => {
       innerWidth: window.innerWidth,
     }));
     expect(quer.scrollWidth).toBeLessThanOrEqual(quer.innerWidth);
+    // `closest("a")` findet hier nichts mehr (angemeldeter Titel = `<strong>`
+    // in einem `<button>`, nicht in einem `<a>`) — der Fallback `?? el` misst
+    // dann den `<strong>` selbst, und der klippt seit dem App-Umschalter
+    // wieder korrekt ueber `.umschalterAusloeser strong`. Ausfuehrliche
+    // Begruendung am ersten Vorkommen dieser Messung oben in dieser Datei.
     const sichtbar = await page
       .getByTestId("module-title")
       .evaluate((el) => Math.round((el.closest("a") ?? el).getBoundingClientRect().width));

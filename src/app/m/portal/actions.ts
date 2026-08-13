@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { requireModuleAdmin } from "@/core/auth/guards";
 import { createService, deleteService } from "@/app/m/portal/_lib/services";
+import { setzeAnsprechpartner } from "@/app/m/portal/_lib/einstellungen";
 
 const assertAdmin = () => requireModuleAdmin("portal");
 
@@ -26,3 +27,9 @@ export async function deleteServiceAction(formData: FormData) {
 // exercises an update flow yet — the brief marks it optional. Add it via
 // updateService() (already exported by _lib/services.ts) when a real
 // "edit service" UI lands.
+
+export async function setzeAnsprechpartnerAction(formData: FormData) {
+  await assertAdmin();
+  await setzeAnsprechpartner(String(formData.get("ansprechpartner") ?? "").trim());
+  revalidatePath("/m/portal");
+}

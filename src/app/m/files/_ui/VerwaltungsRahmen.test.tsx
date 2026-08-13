@@ -37,10 +37,18 @@ const { authMock, suiteNavMock, modulnavMock } = vi.hoisted(() => ({
 
 vi.mock("@/core/auth", () => ({ auth: authMock }));
 vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock, Modulnav: modulnavMock }));
+// `launcherEintraege` GEMOCKT, seit dem Navigations-Umbau nötig: `SuiteHeader`
+// ruft es angemeldet für den App-Umschalter, und die echte Implementierung
+// erreicht über `dienstEintraege` die Portal-Datenbank — die es in diesem Test
+// nicht gibt (kein `getModuleDb("portal")`-Setup hier, dieser Test dreht sich
+// um `files`). Ohne den Mock scheitert der Test unten an `SqliteError: no such
+// table: services`, nicht an der eigentlich geprüften Aussage.
+vi.mock("@/core/shell/launcherEintraege", () => ({ launcherEintraege: vi.fn(async () => []) }));
 
 import { VerwaltungsRahmen } from "./VerwaltungsRahmen";
 import { FILES_NAV } from "../_lib/nav";
 import { Shell } from "@/core/shell/Shell";
+import { AppUmschalter } from "@/core/shell/AppUmschalter";
 import { getModule } from "@/core/registry";
 
 const NAV_QUELLE = readFileSync("src/app/m/files/_lib/nav.ts", "utf8");
@@ -189,15 +197,30 @@ async function VerwaltungsRahmenGerendert(): Promise<unknown> {
 }
 
 /**
- * Loest jede `async`-Komponente im Baum auf, bis nur noch synchrone Elemente
- * uebrig sind. Rekursiv, weil `Shell` → `FullShell` → `SuiteHeader` drei Stufen
- * sind und die mittlere die asynchrone ist.
+ * Löst jede Server-Komponente im Baum auf (`Shell` synchron, `FullShell` und
+ * `SuiteHeader` `async`), bis nur noch Blätter übrig sind — rekursiv, weil
+ * die drei Stufen ineinander verschachtelt sind.
+ *
+ * `AppUmschalter` wird bewusst NICHT aufgelöst, obwohl es typeof "function"
+ * ist wie die Server Components auch: seit dem Navigations-Umbau hängt es
+ * angemeldet im Baum, und es ist eine Client-Komponente mit `useState`. Reacts
+ * Hooks brauchen den echten Renderer-Kontext; ein bloßer `fn(props)`-Aufruf
+ * außerhalb davon wirft "Invalid hook call" (kein Dispatcher gesetzt).
+ * `next/link`s `Link` trifft dasselbe Problem nie — es ist per `forwardRef`
+ * gebaut (`typeof Link === "object"`, nicht `"function"`) und fällt schon
+ * über die allgemeine Bedingung unten aus der Auflösung heraus. Für
+ * `AppUmschalter` gilt das nicht, deshalb der explizite Ausschluss: es bleibt
+ * als unaufgelöstes Element stehen und wird korrekt vom abschließenden
+ * `renderToStaticMarkup` gerendert — das läuft im echten React-Renderkontext
+ * und darf Hooks aufrufen. Für diesen Test ist das ausreichend: geprüft wird
+ * hier nur, DASS `nav` bis zu `Modulnav` durchreicht, nicht der Inhalt des
+ * Umschalters (den deckt `AppUmschalter.test.tsx` ab).
  */
 async function aufloesen(element: unknown): Promise<unknown> {
   if (Array.isArray(element)) return Promise.all(element.map(aufloesen));
   if (!element || typeof element !== "object") return element;
   const el = element as ReactElement<Record<string, unknown>> & { type: unknown };
-  if (typeof el.type !== "function") {
+  if (typeof el.type !== "function" || el.type === AppUmschalter) {
     if (el.props && "children" in el.props) {
       const kinder = await aufloesen(el.props.children);
       return { ...el, props: { ...el.props, children: kinder } };

@@ -21,3 +21,17 @@ export const services = sqliteTable("services", {
 
 export type Service = typeof services.$inferSelect;
 export type NewService = typeof services.$inferInsert;
+
+/**
+ * Schlüssel/Wert für Portal-Einstellungen. Heute genau ein Schlüssel:
+ * `ansprechpartner` — der Kontakt, den der Leerzustand nennt, wenn jemand für
+ * nichts freigeschaltet ist. Eine Tabelle statt einer env-Variable, weil sonst
+ * jede Änderung einen Deploy kostet und die Person, die den Kontakt kennt, die
+ * Portal-Verwaltung ist.
+ */
+export const einstellungen = sqliteTable("portal_einstellungen", {
+  schluessel: text("schluessel").primaryKey(),
+  wert: text("wert").notNull(),
+});
+
+export type Einstellung = typeof einstellungen.$inferSelect;

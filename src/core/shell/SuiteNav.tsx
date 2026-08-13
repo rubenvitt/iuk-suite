@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import {
-  AppstoreOutlined,
-  LoginOutlined,
-  LogoutOutlined,
-  MenuOutlined,
-} from "@ant-design/icons";
+import { LoginOutlined, LogoutOutlined, MenuOutlined } from "@ant-design/icons";
 import { Avatar, Button, Drawer, Dropdown } from "antd";
 import type { MenuProps } from "antd";
 import { signOut } from "next-auth/react";
@@ -14,12 +9,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
-// Die Icon-Map liegt bewusst in einem Modul OHNE `"use client"` (Begruendung
-// dort): ein WERT-Export von hier waere in einer Server Component eine
-// Client-Referenz statt des Objekts — HTTP 500, das kein Gate sieht.
-import { ICONS } from "@/core/shell/icons";
+import { gruppiereNav } from "@/core/shell/navAbschnitte";
+// `NavIkone` bleibt: die Modulnavigation traegt seit dem Phosphor-Umbau je
+// Eintrag ein Zeichen. Die ICONS-Map dagegen faellt hier weg — sie bediente die
+// Modulknopfreihe, und die gibt es nicht mehr; aufgeloest wird sie jetzt
+// ausschliesslich im `AppUmschalter`.
 import { NavIkone } from "@/core/shell/navIkonen";
-import type { AppSwitcherEntry, SuiteNavItem } from "@/core/shell/types";
+import type { SuiteNavItem } from "@/core/shell/types";
 import s from "./shell.module.css";
 
 /*
@@ -134,12 +130,13 @@ export function aktiverEintrag(pfad: string, nav: SuiteNavItem[]): AktiverEintra
  * Die optische Hervorhebung haengt deshalb an `[aria-current]` ohne Wert
  * (shell.module.css) und nicht an `[aria-current="page"]`.
  */
-function navLinks(nav: SuiteNavItem[], pfad: string) {
-  const aktiv = aktiverEintrag(pfad, nav);
-  return nav.map((eintrag) => (
+function navLinks(sichtbar: SuiteNavItem[], pfad: string, ganze: SuiteNavItem[] = sichtbar) {
+  const aktiv = aktiverEintrag(pfad, ganze);
+  return sichtbar.map((eintrag) => (
     <Link
       key={eintrag.key}
       href={eintrag.href}
+      data-testid="nav-link"
       className={s.navLink}
       aria-current={
         aktiv?.schluessel === eintrag.key ? (aktiv.genau ? "page" : "true") : undefined
@@ -148,6 +145,43 @@ function navLinks(nav: SuiteNavItem[], pfad: string) {
       <NavIkone name={eintrag.ikon} />
       {eintrag.title}
     </Link>
+  ));
+}
+
+/**
+ * Dieselben Links, nur mit Überschriften dazwischen — geteilt zwischen der
+ * Seitenleiste und dem Drawer. Eine Funktion statt zweier Abschriften, weil
+ * die Aktivmarkierung an beiden Stellen dieselbe Aussage treffen muss.
+ *
+ * `aktiverEintrag` bekommt die FLACHE Liste und bleibt damit unverändert: die
+ * Gruppierung ist Darstellung, nicht Bedeutung.
+ *
+ * EINE EINZIGE TITELLOSE GRUPPE — die flache Navigation — bekommt KEINEN
+ * `.navGruppe`-Wrapper, sondern ihre Links direkt. Das ist kein Sonderfall
+ * fürs Aussehen, sondern eine Kaskadenfrage: der Drawer (`SuiteNav`) hängt
+ * diese Rückgabe in `.drawerGruppe` (`gap: 4px`, wirkt zwischen DIREKTEN
+ * Kindern). Ein Wrapper dazwischen ließe dieses `gap` nur noch EINMAL feuern
+ * (zwischen Überschrift und dem einen Wrapper) statt je zweimal zwischen den
+ * Links — der sichtbare Abstand fiele still auf `.navGruppe`s eigene 2px,
+ * obwohl beide CSS-Regeln für sich genommen unverändert korrekt blieben. Ohne
+ * Wrapper bleibt die Kaskade für ein Modul ohne Abschnitte exakt die von vor
+ * diesem Task, in JEDEM Konsumenten (Drawer wie Seitenleiste) — nicht nur in
+ * dem einen, an dem der Fehler zuerst auffiel.
+ */
+export function navGruppen(nav: SuiteNavItem[], pfad: string) {
+  const gruppen = gruppiereNav(nav);
+  if (gruppen.length === 1 && gruppen[0].titel === null) {
+    return navLinks(nav, pfad);
+  }
+  return gruppen.map((gruppe) => (
+    <div key={gruppe.titel ?? "__ohne"} className={s.navGruppe}>
+      {gruppe.titel ? (
+        <div data-testid="nav-abschnitt" className={s.navAbschnitt}>
+          {gruppe.titel}
+        </div>
+      ) : null}
+      {navLinks(gruppe.items, pfad, nav)}
+    </div>
   ));
 }
 
@@ -185,14 +219,15 @@ export function Modulnav({ nav }: { nav: SuiteNavItem[] }) {
 
 /**
  * Die Navigation der Suite: mobil ein Drawer hinter dem Menue-Knopf, ab 768px
- * eine Knopfreihe in der Kopfzeile. BEIDES wird immer gerendert; welche man
- * sieht, entscheidet `shell.module.css`. Ein JS-Breakpoint zeigte beim ersten
- * Render die falsche Variante, und `Grid.useBreakpoint` ist ohnehin verboten.
+ * bleibt der Menü-Knopf weg und der Theme-Umschalter steht direkt im Kopf.
+ * BEIDE Ausprägungen werden immer gerendert; welche man sieht, entscheidet
+ * `shell.module.css`. Ein JS-Breakpoint zeigte beim ersten Render die falsche
+ * Variante, und `Grid.useBreakpoint` ist ohnehin verboten.
  *
- * Die Modul-Knoepfe sind `Button href=…` (rendert ein `<a>`, Rolle "link") und
- * bewusst NICHT in einem Dropdown: `keystone.spec.ts:35` prueft
- * `getByRole("link", {name: /Alpha/})` OHNE vorheriges Oeffnen. Playwright
- * laeuft ohne Viewport-Angabe, also auf 1280x720 — dort greift `.nurDesktop`.
+ * DER APP-WECHSEL HÄNGT NICHT MEHR HIER — er ist an den Modultitel gewandert
+ * (`AppUmschalter`, Auslöser in `SuiteHeader`). Diese Komponente kennt keine
+ * Module mehr, nur noch die modul-interne Navigation (Drawer), den
+ * Menü-Knopf, den Theme-Umschalter und das Avatar-/Anmelden-Menü.
  *
  * DER NUTZERBLOCK HAENGT AM AVATAR, AUF BEIDEN GROESZEN, UND NICHT MEHR IM
  * DRAWER. Der Drawer ist nur mobil erreichbar (`.nurMobil` am Oeffner); solange
@@ -203,16 +238,14 @@ export function Modulnav({ nav }: { nav: SuiteNavItem[] }) {
  * Strict-Mode-Verletzung („resolved to 2 elements"), unabhaengig davon, dass
  * einer per CSS unsichtbar ist. Genau dieselbe Ueberlegung steht schon beim
  * Theme-Umschalter, der deshalb im Drawer eine eigene testId traegt. Der Drawer
- * behaelt damit Modulnavigation, Module und Theme; Name und Abmelden gehoeren
- * dem Avatar-Menue.
+ * behält damit Modulnavigation und Theme; Name und Abmelden gehören dem
+ * Avatar-Menü.
  */
 export function SuiteNav({
-  entries,
   nav,
   userName,
   angemeldet,
 }: {
-  entries: AppSwitcherEntry[];
   nav: SuiteNavItem[];
   userName: string | null;
   angemeldet: boolean;
@@ -243,18 +276,11 @@ export function SuiteNav({
   );
   const pfad = usePathname();
 
-  const modulLinks = entries.map((eintrag) => {
-    const Icon = ICONS[eintrag.icon] ?? AppstoreOutlined;
-    return (
-      <Button key={eintrag.key} type="text" href={eintrag.href} icon={<Icon />}>
-        {eintrag.title}
-      </Button>
-    );
-  });
-
-  // Nur noch fuer den Drawer: die sichtbare zweite Zeile gehoert `Modulnav`,
-  // einem Geschwister des `<Header>` (siehe dort).
-  const drawerNavLinks = navLinks(nav, pfad);
+  // Nur noch für den Drawer: die sichtbare zweite Zeile gehört `Modulnav`,
+  // einem Geschwister des `<Header>` (siehe dort). Gruppiert wie die
+  // Seitenleiste (`navGruppen`) — für eine flache Navigation liefert
+  // `gruppiereNav` genau eine titellose Gruppe, also ändert sich hier nichts.
+  const drawerNavGruppen = navGruppen(nav, pfad);
 
   /*
    * Der Name steht als Gruppentitel im Menue — sichtbar, aber fuer einen
@@ -299,15 +325,6 @@ export function SuiteNav({
           icon={<MenuOutlined />}
           onClick={() => setOffen(true)}
         />
-        {angemeldet ? (
-          <nav
-            aria-label="Module"
-            data-testid="modulzeile"
-            className={`${s.nurDesktop} ${s.modulzeile}`}
-          >
-            {modulLinks}
-          </nav>
-        ) : null}
         {/* Der zweite Umschalter steht im Drawer (unten) und traegt dort eine
             eigene testId — zwei Knoten mit `data-testid="theme-toggle"` waeren
             fuer jeden kuenftigen Playwright-Zugriff eine Strict-Mode-Verletzung
@@ -408,23 +425,21 @@ export function SuiteNav({
             {nav.length > 0 ? (
               <div className={s.drawerGruppe}>
                 <div className={s.drawerTitel}>In diesem Modul</div>
-                {drawerNavLinks}
+                {drawerNavGruppen}
               </div>
             ) : null}
 
-            {angemeldet ? (
-              <div className={s.drawerGruppe}>
-                <div className={s.drawerTitel}>Module</div>
-                {modulLinks}
-              </div>
-            ) : null}
+            {/* Kein Modul-Abschnitt mehr: die Apps hängen am Umschalter der
+                Kopfzeile, auf JEDER Größe. Der Drawer trägt damit genau
+                eine Sache — die Modulnavigation — und der Umschalter genau
+                eine andere.
 
-            {/* Kein Nutzerblock mehr: Name und Abmelden haengen am Avatar-Menue
+                Kein Nutzerblock mehr: Name und Abmelden hängen am Avatar-Menü
                 der Kopfzeile, Anmelden an dessen anonymem Gegenstueck. Beide
                 sind auf JEDER Groesze erreichbar, der Drawer nur unterhalb von
                 768px — und ein zweiter `data-testid="abmelden"` waere fuer
                 Playwright eine Strict-Mode-Verletzung. Der Drawer traegt damit
-                Modulnavigation, Module und Theme. */}
+                genau Modulnavigation und Theme. */}
             <div className={s.drawerGruppe}>
               <ThemeToggle testId="theme-toggle-drawer" />
             </div>

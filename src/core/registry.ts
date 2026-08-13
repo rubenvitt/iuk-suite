@@ -92,11 +92,12 @@ export const MODULES: ModuleDef[] = [
   // Lage wie bei qr und feedback. In Dev/E2E kommen die Hosts aus SUITE_HOST_FILES.
   // icon: NICHT „irgendein existierender @ant-design/icons-Name" — wirksam ist
   // allein die Map ICONS in `core/shell/icons.ts`. Ein Name, der dort FEHLT,
-  // fällt STILL auf AppstoreOutlined zurück (einziger Konsument: SuiteNav) —
-  // „Dateien" wäre dann vom „Portal" nicht zu unterscheiden, in Kopfzeile UND
-  // Drawer jeder Suite-Seite.
+  // fällt STILL auf AppstoreOutlined zurück (zwei Konsumenten seit dem
+  // Navigations-Umbau: `AppUmschalter.tsx` und `DiensteRaster.tsx`) —
+  // „Dateien" wäre dann vom „Portal" nicht zu unterscheiden, im Umschalter-Panel
+  // UND im Portal-Raster jeder Suite-Seite.
   // FolderOutlined steht in ICONS, und die Map ist exportiert, damit
-  // `SuiteNav.test.tsx` sie gegen die echte MODULES-Liste hier prüft: ein
+  // `AppUmschalter.test.tsx` sie gegen die echte MODULES-Liste hier prüft: ein
   // Modul-Icon ohne Eintrag ist ab jetzt ein roter Test statt eines stillen
   // Duplikats.
   { key: "files", title: "Dateien", icon: "FolderOutlined", shell: "full",

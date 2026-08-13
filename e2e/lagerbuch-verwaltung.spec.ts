@@ -6,7 +6,19 @@ import {
   lagerbuchUrl,
 } from "./helpers/lagerbuch";
 
-/** Browserverträge der Modulnavigation, die jsdom nicht beobachten kann. */
+/**
+ * Browserverträge der Modulnavigation, die jsdom nicht beobachten kann.
+ *
+ * FIX-RUNDE 1 (2026-08-13): von `modulnav` auf `modulleiste` umgezogen. Seit
+ * Task 3 dieses Plans (`496de16`) vergibt `LAGERBUCH_NAV` `abschnitt`-Felder,
+ * `SuiteHeader.tsx` rendert die zweite Kopfzeile (`modulnav`) deshalb für
+ * dieses Modul nicht mehr — die Navigation steht seitdem als Seitenleiste
+ * (`modulleiste`) im `Sider` von `FullShell`. Die Zusagen selbst gelten
+ * unverändert weiter, nur ihre Gestalt hat gewechselt: von einer waagerechten
+ * Zeile zu einer senkrechten Leiste. Zwei Tests wechseln deshalb die Achse
+ * (Breiten- zu Höhenüberlauf), einer bekommt zusätzlich eine
+ * Nicht-Vakuitäts-Reparatur.
+ */
 test.describe("lagerbuch — Modulnavigation", () => {
   test.beforeEach(async ({ page }) => {
     await devLogin(page, {
@@ -19,7 +31,7 @@ test.describe("lagerbuch — Modulnavigation", () => {
   test("markiert genau einen Eintrag auf /verwaltung/artikel", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
-    const markiert = page.getByTestId("modulnav").locator("a[aria-current]");
+    const markiert = page.getByTestId("modulleiste").locator("a[aria-current]");
     await expect(markiert).toHaveCount(1);
     await expect(markiert).toHaveText("Artikel");
   });
@@ -27,7 +39,7 @@ test.describe("lagerbuch — Modulnavigation", () => {
   test("markiert die Übersicht auf /verwaltung", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto(lagerbuchUrl("/verwaltung"));
-    const markiert = page.getByTestId("modulnav").locator("a[aria-current]");
+    const markiert = page.getByTestId("modulleiste").locator("a[aria-current]");
     await expect(markiert).toHaveCount(1);
     await expect(markiert).toHaveText("Übersicht");
   });
@@ -35,18 +47,38 @@ test.describe("lagerbuch — Modulnavigation", () => {
   test("markiert auf einer Detailseite gar nichts", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto(lagerbuchUrl("/verwaltung/geraete"));
+    const leiste = page.getByTestId("modulleiste");
+    // Gegenprobe vor der Null (Fix-Runde 1): die Leiste trägt hier
+    // tatsächlich einen Link — sonst bewiese die Null unten (kein
+    // aria-current) auch bei einem verunglückten data-testid nichts.
+    await expect(leiste.getByRole("link", { name: "Geräte" })).toBeVisible();
+
     await page.getByRole("link", { name: "E2E Spineboard" }).click();
-    await expect(page).toHaveURL(/\/verwaltung\/geraete\/[^/]+$/);
-    await expect(page.getByTestId("modulnav").locator("a[aria-current]")).toHaveCount(0);
+    /*
+     * EIGENES ZEITBUDGET, und der Grund steht in `playwright.config.ts` an
+     * `retries`: `next dev` übersetzt die Zielroute beim ERSTEN Aufruf. Der
+     * Test hat dafür 90 s, diese Zusicherung aber nur Playwrights Vorgabe von
+     * 5 s — unter Last läuft sie ab, während die Navigation noch arbeitet, und
+     * pollt so lange die alte Adresse. Genau dieser Fall wurde am 12.08.2026
+     * gemessen (13 Pollversuche, unveränderter Rerun grün).
+     *
+     * Die Zahl deckt die Übersetzung ab und bleibt deutlich unter dem
+     * Test-Timeout: ein echter Navigationsfehler fällt weiterhin auf, nur eben
+     * nach 30 s statt nach 5.
+     */
+    await expect(page).toHaveURL(/\/verwaltung\/geraete\/[^/]+$/, { timeout: 30_000 });
+    await expect(leiste.locator("a[aria-current]")).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Brotkrume" })).toBeVisible();
   });
 
-  test("fünfzehn Einträge schieben die Seite bei Desktop-Überlauf nicht seitwärts", async ({ page }) => {
+  test("fünfzehn Einträge in der Leiste schieben die Seite nicht seitwärts — sie fängt ihren Überlauf senkrecht ab", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
-    const nav = page.getByTestId("modulnav");
-    await expect(nav).toBeVisible();
-    await expect(nav.locator("a")).toHaveCount(15);
+    const leiste = page.getByTestId("modulleiste");
+    await expect(leiste).toBeVisible();
+    await expect(leiste.locator("a")).toHaveCount(15);
 
     const masse = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
@@ -54,12 +86,32 @@ test.describe("lagerbuch — Modulnavigation", () => {
     }));
     expect(masse.scroll).toBe(masse.client);
 
-    // Bei 1280px passen die Links mit der aktuellen Schrift knapp hinein. Der
-    // zweite Messpunkt bleibt oberhalb des Mobil-Breakpoints und beweist die
-    // eigentliche overflow-x-Kopplung unter realem Überlauf.
+    /*
+     * ACHSENWECHSEL (Fix-Runde 1). Die fünfzehn Einträge standen bis Task 3
+     * als waagerechte Zeile (`modulnav`) und brachen die Seite seitwärts um,
+     * wenn sie nicht in sich selbst überliefen — der alte Test maß das bei
+     * 1280px (passt) und 900px (überläuft) auf der Breitenachse. Als
+     * Seitenleiste ist die Zusage dieselbe — die Navigation bringt die Seite
+     * nicht zum Scrollen —, nur der Container fängt seinen Überlauf jetzt
+     * senkrecht ab (`.sider` in `shell.module.css`: `block-size:
+     * calc(100vh - 64px)`, `overflow-y: auto`).
+     *
+     * GEMESSEN, nicht angenommen: zwanzig Zeilen (fünfzehn 56px-Links plus
+     * fünf Überschriften, siehe `nav.ts`) ergeben eine Inhaltshöhe von
+     * 1116px (`aside.scrollHeight`, in einem Wegwerf-Testlauf gemessen).
+     * Das überschreitet `100vh - 64px` schon bei 800px Viewporthöhe
+     * (736px Innenraum) — der Überlauf steht bei jeder realistischen
+     * Desktop-Höhe, nicht erst ab einer knappen Grenze. 900px Breite bleibt
+     * trotzdem der richtige zweite Messpunkt: dieselbe Breite wie im alten
+     * Test, als Gegenprobe gegen eine breitenabhängige Regression.
+     */
     await page.setViewportSize({ width: 900, height: 720 });
-    await expect(nav).toBeVisible();
-    expect(await nav.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    await expect(leiste).toBeVisible();
+    const ueberlaeuft = await leiste.evaluate((element) => {
+      const aside = element.closest("aside")!;
+      return aside.scrollHeight > aside.clientHeight;
+    });
+    expect(ueberlaeuft).toBe(true);
     const lastMasse = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
       client: document.documentElement.clientWidth,
@@ -68,23 +120,44 @@ test.describe("lagerbuch — Modulnavigation", () => {
   });
 
   test("der Container scrollt beim Fokussieren zum letzten Link", async ({ page }) => {
-    // Bei 1280px passen die real gerenderten 15 Links auf dieser Schrift knapp
-    // vollständig hinein. 900px bleibt Desktop (die Leiste ist sichtbar),
-    // erzwingt aber den Überlauf, den die Tastaturzusage tatsächlich braucht.
+    /*
+     * ACHSENWECHSEL (Fix-Runde 1). Dieselbe Breite wie im alten Test
+     * (900x720, Desktop, die Leiste ist sichtbar), aber tragend ist jetzt die
+     * Höhe: bei 720px Viewporthöhe überläuft die Leiste senkrecht (gemessen
+     * im vorigen Test: 1116px Inhalt gegen 656px Innenraum bei dieser
+     * Fenstergröße), nicht mehr waagerecht.
+     */
     await page.setViewportSize({ width: 900, height: 720 });
     await page.goto(lagerbuchUrl("/verwaltung"));
-    const nav = page.getByTestId("modulnav");
-    expect(await nav.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    const nav = page.getByTestId("modulleiste");
+    const ueberlaeuft = await nav.evaluate((element) => {
+      const aside = element.closest("aside")!;
+      return aside.scrollHeight > aside.clientHeight;
+    });
+    expect(ueberlaeuft).toBe(true);
     const letzter = nav.getByRole("link", { name: "Import" });
     await letzter.focus();
     await expect(letzter).toBeFocused();
-    expect(await nav.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+    const scrollTop = await nav.evaluate((element) => element.closest("aside")!.scrollTop);
+    expect(scrollTop).toBeGreaterThan(0);
   });
 
   test("bei 390px ist die Leiste unsichtbar und die Ziele stehen im Drawer", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
-    await expect(page.getByTestId("modulnav")).toBeHidden();
+    const leiste = page.getByTestId("modulleiste");
+    /*
+     * NICHT-VAKUÄRE GEGENPROBE (Fix-Runde 1). `toBeHidden()` ist in
+     * Playwright auch dann wahr, wenn der Knoten gar nicht existiert. Im
+     * Code nachgesehen (`FullShell.tsx`, `shell.module.css`): der `Sider`
+     * wird unabhängig von der Fensterbreite gerendert (`mitLeiste` hängt an
+     * `hatAbschnitte(nav)`, nicht an der Größe) — nur `.sider` trägt
+     * `display: none` unterhalb von 768px. Die Leiste steht also im DOM und
+     * wird ausschließlich per CSS unsichtbar gemacht. `toHaveCount(1)` davor
+     * beweist das, bevor `toBeHidden()` etwas über die Sichtbarkeit sagt.
+     */
+    await expect(leiste).toHaveCount(1);
+    await expect(leiste).toBeHidden();
     await page.getByTestId("menue-knopf").click();
     await expect(
       page.getByTestId("suite-drawer").getByRole("link", { name: "Journal" }),

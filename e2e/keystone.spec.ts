@@ -36,5 +36,11 @@ test("SSO: one login serves alpha + gamma; switcher reflects groups", async ({ p
   await expect(page.getByTestId("gamma-content")).toBeVisible();
   await expect(page.getByTestId("suite-header")).toBeVisible();
   // switcher contains Alpha (group present)
-  await expect(page.getByRole("link", { name: /Alpha/ })).toBeVisible();
+  // Der App-Wechsel hängt seit dem Navigations-Umbau am Modultitel, nicht mehr
+  // an einer Knopfreihe: erst öffnen, dann prüfen. Die Zusage dahinter ist
+  // unverändert — die Session trägt `alpha-users`, also steht Alpha drin.
+  await page.getByTestId("app-umschalter").click();
+  await expect(
+    page.getByTestId("app-panel").getByRole("link", { name: /Alpha/ }),
+  ).toBeVisible();
 });

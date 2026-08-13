@@ -77,6 +77,16 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
   test("Inventur: +/- veraendert den Wert und laesst ihn wieder buchbar zurueck", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/inventur"));
     /*
+     * WARTEN, BIS DAS JAVASCRIPT DA IST — dieselbe Vorsichtsmaßnahme, die
+     * `devLogin` in `fixtures.ts` mit derselben Begründung trifft. Die
+     * +/-Knöpfe stehen im SSR-HTML und sind sofort anklickbar; ihr `onClick`
+     * hängt aber am Client. Landet der Klick vorher, bleibt der Wert stehen
+     * und `toHaveValue` läuft nach seinen 5 Sekunden ab — genau so in der CI
+     * am 13.08.2026 gesehen (`14 × locator resolved to <input value="9">`),
+     * während derselbe Commit im Rerun durchlief.
+     */
+    await page.waitForLoadState("networkidle");
+    /*
      * NICHT `tbody tr` ungefiltert: antd's Table setzt als ERSTES `<tr>` im
      * `<tbody>` eine unsichtbare `ant-table-measure-row` (height:0, dient der
      * Spaltenbreitenmessung nach der Hydration) — `.first()` traf dort ins
@@ -104,18 +114,25 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
    *
    * Die Zeichenzahl selbst ist eine zweite, unabhaengige Zusicherung:
    * `LAGERBUCH_NAV` fuehrt exakt 15 Eintraege, jeder mit genau einem
-   * Zeichen, und nur echtes DOM zaehlt sie richtig. NICHT
-   * `page.locator("nav svg")` — die Seite traegt eine ZWEITE nav-Landmarke
-   * (App-Switcher, aria-label="Module", SuiteNav.tsx:304), deren Knoepfe je
-   * ein eigenes svg aus @ant-design/icons tragen. Ein ungefilterter Selektor
-   * zaehlt beide und ergibt 15 + Anzahl sichtbarer Module. Gefiltert auf
-   * `data-testid="modulnav"` (SuiteNav.tsx:178) trifft er nur die
-   * Lagerbuch-eigene Navigation.
+   * Zeichen, und nur echtes DOM zaehlt sie richtig.
+   *
+   * GEFILTERT, UND DER GRUND HAT SICH GEAENDERT: hier stand
+   * `data-testid="modulnav"`, mit der Begruendung, eine ZWEITE nav-Landmarke
+   * (die Modulknopfreihe des App-Switchers, `aria-label="Module"`) wuerde
+   * sonst mitgezaehlt. Diese Knopfreihe gibt es nicht mehr — der Modultitel
+   * ist seit dem Navigations-Umbau selbst der Umschalter, und sein Panel
+   * entsteht nur, wenn es offen ist. Gefiltert wird trotzdem, aus einem
+   * anderen Grund: die Kopfzeile traegt Zeichen (Chevron, Menue, Theme), und
+   * ein ungefiltertes `page.locator("svg")` zaehlte sie mit.
+   *
+   * `modulleiste` statt `modulnav`, weil das Lagerbuch seine fuenfzehn Ziele
+   * seit den Abschnitten als Seitenleiste fuehrt und nicht mehr als zweite
+   * Kopfzeile. Die Zusage ist dieselbe geblieben, nur ihre Gestalt nicht.
    */
   test("Navigation traegt Zeichen und die Seite antwortet", async ({ page }) => {
     const antwort = await page.goto(lagerbuchUrl("/verwaltung"));
     expect(antwort?.status()).toBe(200);
-    await expect(page.getByTestId("modulnav").locator("svg")).toHaveCount(15, {
+    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(15, {
       timeout: 10_000,
     });
   });

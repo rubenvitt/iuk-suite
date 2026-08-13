@@ -12,8 +12,10 @@ import { Header } from "antd/es/layout/layout";
 import { auth } from "@/core/auth";
 import { getModule } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
-import { switcherEntries } from "@/core/shell/switcherEntries";
+import { launcherEintraege } from "@/core/shell/launcherEintraege";
+import { AppUmschalter } from "@/core/shell/AppUmschalter";
 import { Modulnav, SuiteNav } from "@/core/shell/SuiteNav";
+import { hatAbschnitte } from "@/core/shell/navAbschnitte";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { SCHRIFT } from "@/core/theme/schrift";
 import s from "./shell.module.css";
@@ -28,9 +30,10 @@ import s from "./shell.module.css";
  * veraltet — `pnpm build` weist jede Route der Suite als `f (Dynamic)` aus,
  * weil das Root-Layout `cookies()` fuer den Theme-Modus liest.
  *
- * Die Eintraege werden HIER gebaut, nicht im Client: `switcherEntries()` liest
- * ueber `moduleUrl()` `process.env`, das im Client-Bundle nicht existiert.
- * `SuiteNav` bekommt nur fertige hrefs.
+ * Die Einträge werden HIER gebaut, nicht im Client: `launcherEintraege()`
+ * liest über `moduleUrl()` `process.env`, das im Client-Bundle nicht existiert,
+ * und erreicht für die Dienste-Hälfte die Portal-Datenbank. `AppUmschalter`
+ * bekommt nur die fertige Liste mit fertigen hrefs.
  */
 export async function SuiteHeader({
   moduleKey,
@@ -40,9 +43,15 @@ export async function SuiteHeader({
   nav?: SuiteNavItem[];
 }) {
   const session = await auth();
-  const mod = getModule(moduleKey);
   const angemeldet = !!session?.user;
-  const entries = switcherEntries(session?.user?.groups ?? null);
+  const mod = getModule(moduleKey);
+  // DIE GEMISCHTE LISTE — Module UND Dienste —, aber NUR angemeldet: der
+  // App-Umschalter ist der einzige Konsument, und er existiert anonym gar
+  // nicht (Begründung am JSX unten). `launcherEintraege` erreicht für die
+  // Dienste-Hälfte die Portal-Datenbank; ein anonymer Aufruf würde sie für
+  // eine Liste öffnen, die niemand zu sehen bekommt. Deshalb bleibt sie hier
+  // ungerufen, und die Liste bleibt `[]`.
+  const eintraege = angemeldet ? await launcherEintraege(session?.user?.groups ?? null) : [];
 
   /*
    * ZWEI GESCHWISTER, NICHT EIN VERSCHACHTELTER BLOCK — die Modulnavigation
@@ -69,32 +78,56 @@ export async function SuiteHeader({
       <div className={s.streifen} aria-hidden="true" />
       <Header data-testid="suite-header" className={s.kopf}>
         {/*
-         * Der Modultitel fuehrt auf die Startseite SEINES Moduls (Entwurf
-         * feedback-admin §4.1). Ohne diesen Link ist jede Unterseite eine
-         * Sackgasse — der Defekt hing an der Shell und galt fuer jedes Modul.
+         * DER TITEL IST JETZT DER UMSCHALTER, kein Link mehr.
          *
-         * `data-testid` bleibt auf dem `<strong>` und wandert NICHT an den
-         * Link: der Keystone-E2E fragt es dort ab. `moduleUrl` kennt Dev- und
-         * Prod-Hosts; ohne Host bleibt "/" — nie ein toter Link.
+         * Der Weg zurück auf die Modulstartseite geht nicht verloren, er
+         * wandert: als eigener, markierter Eintrag im Panel und als erster
+         * Eintrag der Modulnavigation. Das kostet einen Klick. Der Gegenwert
+         * ist, dass „wo bin ich" und „wohin kann ich" an einer Stelle stehen
+         * statt an zweien — und dass die Kopfzeile nicht mehr jedes sichtbare
+         * Modul aufführt.
+         *
+         * Anonym gibt es keinen Umschalter, sondern nur den Titel: eine
+         * Liste, deren Einträge sämtlich zum Login umleiten, verspricht
+         * „hier kannst du hin" und liefert „hier musst du dich erst anmelden"
+         * (Suite-Chrome §6). `data-testid="module-title"` steht deshalb in
+         * GENAU EINEM der beiden Zweige — nie in beiden, sonst fände ein
+         * Playwright-Locator zwei Knoten (Strict-Mode-Verletzung).
+         * `moduleUrl` kennt Dev- und Prod-Hosts; ohne Host bleibt "/" — nie
+         * ein toter Link.
          */}
-        <Link href={moduleUrl(moduleKey) ?? "/"} className={s.titel}>
-          {/* `data-testid` bleibt auf dem `<strong>` — der Keystone-E2E fragt es
-              dort ab. Die Rolle `unterTitel` (20/600) statt `titel` (24): die
-              Kopfzeile ist 64px hoch, 24px waeren darin zu laut. Die Sperrung
-              des Vorbilds kommt hier dazu, statt eine achte Rolle mit einem
-              einzigen Anwender anzulegen. */}
-          <strong data-testid="module-title" style={{ ...SCHRIFT.unterTitel, letterSpacing: "0.07em" }}>
-            {mod.title}
-          </strong>
-        </Link>
-        <SuiteNav
-          entries={entries}
-          nav={nav}
-          userName={session?.user?.name ?? null}
-          angemeldet={angemeldet}
-        />
+        {angemeldet ? (
+          <AppUmschalter
+            modulTitel={mod.title}
+            modulKey={moduleKey}
+            eintraege={eintraege}
+            portalHref={moduleUrl("portal")}
+          />
+        ) : (
+          <Link href={moduleUrl(moduleKey) ?? "/"} className={s.titel}>
+            {/* `data-testid` bleibt auf dem `<strong>` — der Keystone-E2E fragt es
+                dort ab. Die Rolle `unterTitel` (20/600) statt `titel` (24): die
+                Kopfzeile ist 64px hoch, 24px wären darin zu laut. Die Sperrung
+                des Vorbilds kommt hier dazu, statt eine achte Rolle mit einem
+                einzigen Anwender anzulegen.
+
+                DIESELBE Rolle trägt der Titel im `AppUmschalter` — sonst sähe
+                der Modulname angemeldet anders aus als anonym, und das wäre
+                weder gewollt noch erklärbar. */}
+            <strong
+              data-testid="module-title"
+              style={{ ...SCHRIFT.unterTitel, letterSpacing: "0.07em" }}
+            >
+              {mod.title}
+            </strong>
+          </Link>
+        )}
+        <SuiteNav nav={nav} userName={session?.user?.name ?? null} angemeldet={angemeldet} />
       </Header>
-      <Modulnav nav={nav} />
+      {/* Zweite Zeile NUR ohne Abschnitte. Trägt die Navigation Abschnitte, steht
+          sie als Seitenleiste in `FullShell` — beides gleichzeitig wäre dieselbe
+          Aussage an zwei Stellen, mit zwei Aktivmarkierungen. */}
+      {hatAbschnitte(nav) ? null : <Modulnav nav={nav} />}
     </>
   );
 }

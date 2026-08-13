@@ -37,6 +37,23 @@ test.describe("Excel-Export des Bestands", () => {
 
   test("liefert eine echte .xlsx mit datiertem Namen", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
+    /*
+     * WARTEN, BIS DAS JAVASCRIPT DA IST — dieselbe Vorsichtsmassnahme, die
+     * `devLogin` in `fixtures.ts` mit derselben Begruendung trifft.
+     *
+     * `toBeEnabled()` unten traegt sie NICHT: `disabled` ist ein
+     * DOM-Attribut und steht im SSR-HTML laengst richtig, die Zusicherung ist
+     * also schon vor der Hydration gruen. Der Klick landet dann auf einem
+     * Knopf ohne Handler, `waitForEvent("download")` wartet auf ein Ereignis,
+     * das nie kommt, und der Test laeuft in den 90-Sekunden-Timeout — genau so
+     * in der CI am 13.08.2026 gesehen, waehrend derselbe Commit im Rerun
+     * durchlief.
+     *
+     * Der Knopf laedt seine Bibliothek zudem erst beim Klick nach
+     * (`await import("write-excel-file/browser")`), was den kalten Fall
+     * zusaetzlich verlaengert.
+     */
+    await page.waitForLoadState("networkidle");
 
     const knopf = page.getByRole("button", { name: /Excel-Liste/ });
     await expect(knopf).toBeEnabled(); // Teil 5s Vorgriff ist eingeloest (T165)
