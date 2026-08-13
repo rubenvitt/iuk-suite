@@ -33,6 +33,7 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   // Handlager-Zeile gehört ohnehin nicht hierher: sie ist eine Migrationszeile
   // (0003_handlager.sql), keine Testdatenzeile.
   { key: "lagerbuch", migrationsFolder: "src/app/m/lagerbuch/_db/migrations" },
+  { key: "aufgaben", migrationsFolder: "src/app/m/aufgaben/_db/migrations" },
 ];
 
 /**
