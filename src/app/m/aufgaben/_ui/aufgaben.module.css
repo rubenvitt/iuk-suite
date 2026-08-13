@@ -1,0 +1,34 @@
+/*
+ * Modul-CSS von `aufgaben`. `.modul` ist der Traeger aller --auf-*-Variablen.
+ * Aufgabe 5 baut die Datei vollstaendig aus; hier steht nur, was der erste
+ * Abruf braucht.
+ *
+ * WARUM EIGENE VARIABLEN UND NICHT --ant-*: antd deklariert seine Variablen auf
+ * SEINER Scope-Klasse, nicht an `:root`. Eigenes Markup ausserhalb eines
+ * antd-Komponentenbaums sieht sie NICHT, und der Fehler ist still.
+ *
+ * WARUM :root[data-theme="dark"] UND NICHT prefers-color-scheme: der Umschalter
+ * der Suite hat drei Zustaende. Auf die Medienabfrage zu selektieren bricht den
+ * Fall „System dunkel, Umschalter hell".
+ */
+.modul {
+  --auf-tinte: #1a1d20;
+  --auf-stahl: #5b6570;
+  --auf-linie: #d9dde1;
+  --auf-papier: #eef0f1;
+}
+
+:root[data-theme="dark"] .modul {
+  --auf-tinte: #ece9e2;
+  --auf-stahl: #9aa4ad;
+  --auf-linie: #2a2f34;
+  --auf-papier: #0f1113;
+}
+
+.modul a:focus-visible,
+.modul button:focus-visible,
+.modul input:focus-visible,
+.modul select:focus-visible {
+  outline: 2px solid var(--iuk-marke);
+  outline-offset: 2px;
+}

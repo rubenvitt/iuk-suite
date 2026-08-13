@@ -8,6 +8,7 @@ import {
   FolderOutlined,
   GlobalOutlined,
   QrcodeOutlined,
+  ScheduleOutlined,
 } from "@ant-design/icons";
 import type { ComponentType } from "react";
 
@@ -142,4 +143,5 @@ export const ICONS: Record<string, ComponentType> = {
   CommentOutlined,
   FolderOutlined,
   ContainerOutlined,
+  ScheduleOutlined,
 };
