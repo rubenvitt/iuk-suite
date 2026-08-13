@@ -33,11 +33,12 @@ describe("Seitenkopf", () => {
         aktionen={<button type="button">Anlegen</button>}
       />,
     );
+    // `query()` wirft bereits, wenn das Element fehlt (`test-dom.tsx`) — ein
+    // zusaetzliches `.not.toBeNull()` danach koennte strukturell nie fallen
+    // und stand hier als tote Zusicherung (Review-Befund, Aufgabe 7 Runde 2).
     const beschreibung = query('[data-testid="seitenkopf-beschreibung"]');
-    expect(beschreibung).not.toBeNull();
     expect(beschreibung.textContent).toBe("Sichtbar, sobald übergeben.");
     const aktionen = query('[data-testid="seitenkopf-aktionen"]');
-    expect(aktionen).not.toBeNull();
     expect(aktionen.textContent).toBe("Anlegen");
   });
 
@@ -46,14 +47,28 @@ describe("Seitenkopf", () => {
      * `core/theme/schrift.ts` setzt `fontVariantNumeric: "tabular-nums
      * lining-nums"` auf jeder Rolle, weil dieselben Rollen auch Tabellenzellen
      * und KPI-Werte bedienen. Der Seitenkopf ist keins von beidem — die
-     * Eigenschaft muss draußen bleiben, sonst setzt eine spätere Aufräumrunde
-     * die Rolle wieder pur ein, ohne dass ein Test es merkt.
+     * Eigenschaft muss an ALLEN DREI Stellen draußen bleiben (Titel,
+     * Beschreibung, Rückweg-Link — alle drei benutzen `ohneZiffernstellung`),
+     * sonst setzt eine spätere Aufräumrunde die Rolle an genau einer Stelle
+     * wieder pur ein, ohne dass ein Test es merkt. Deshalb hier mit `zurueck`
+     * mounten und alle drei Knoten in einer Schleife prüfen, statt den
+     * Rückweg-Link separat und ungetestet zu lassen.
      */
-    await mount(<Seitenkopf titel="Artikel" beschreibung="Text" />);
-    expect(query("h1").getAttribute("style")).not.toMatch(/font-variant-numeric/);
-    expect(query('[data-testid="seitenkopf-beschreibung"]').getAttribute("style")).not.toMatch(
-      /font-variant-numeric/,
+    await mount(
+      <Seitenkopf
+        titel="Artikel"
+        beschreibung="Text"
+        zurueck={{ titel: "Zurück", href: "/verwaltung" }}
+      />,
     );
+    const knoten = [
+      query("h1"),
+      query('[data-testid="seitenkopf-beschreibung"]'),
+      query('[data-testid="seitenkopf-zurueck"]'),
+    ];
+    for (const el of knoten) {
+      expect(el.getAttribute("style")).not.toMatch(/font-variant-numeric/);
+    }
   });
 
   it("trägt einen Rückweg, wenn einer übergeben wird", async () => {
@@ -63,8 +78,9 @@ describe("Seitenkopf", () => {
      * gemeinsamen Träger — jede Detailseite löste es selbst oder gar nicht.
      */
     await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
+    // `query()` wirft bereits, wenn das Element fehlt — kein `.not.toBeNull()`
+    // davor (dieselbe tote Bauform wie oben, im selben Zug bereinigt).
     const link = query('[data-testid="seitenkopf-zurueck"]') as HTMLAnchorElement;
-    expect(link).not.toBeNull();
     expect(link.getAttribute("href")).toBe("/verwaltung/artikel");
     expect(link.textContent).toContain("Artikel");
   });
