@@ -141,6 +141,63 @@ export function nachweiseFuer(db: DB, aufgabeId: string): NachweisRow[] {
 }
 
 /**
+ * ERSTELLT EINE AUFGABE — Aufgabe 9, `aufgabeEinstellenAction`. Nimmt bewusst ein flaches Objekt
+ * statt `typeof aufgaben.$inferInsert`: der Aufrufer soll nicht `id`/`erstelltAm`/`aktualisiertAm`
+ * mitgeben koennen (beide `$defaultFn`), und `planRang`/`vorschlagDatum`/`vorschlagUhrzeit` sind
+ * beim Einstellen nie gesetzt (eine neue Aufgabe hat weder Plan noch Vorschlag).
+ */
+export function erstelleAufgabe(
+  db: DB,
+  werte: {
+    titel: string;
+    beschreibung: string;
+    prioritaet: (typeof aufgaben.$inferInsert)["prioritaet"];
+    erstellerId: string;
+    zugewiesenAn: string | null;
+    status: (typeof aufgaben.$inferInsert)["status"];
+    faelligAm: string;
+    faelligUhrzeit: string | null;
+    dauerMinuten: number;
+    nachweisPflicht: boolean;
+    nachweisArt: (typeof aufgaben.$inferInsert)["nachweisArt"];
+    prueferId: string | null;
+    istSelbst: boolean;
+  },
+): AufgabeRow {
+  return db.insert(aufgaben).values(werte).returning().get();
+}
+
+/**
+ * AKTUALISIERT EINE AUFGABE — das gemeinsame Schreibprimitiv fuer `verteilen`, `umverteilen` und
+ * jeden weiteren Uebergang aus Aufgabe 10-12. `aktualisiertAm` bekommt HIER, an der einen Stelle,
+ * IMMER einen frischen Wert: die Spalte traegt zwar `$defaultFn(() => new Date())`, aber das feuert
+ * NUR beim Insert — ein Update ohne diese Zeile liesse `aktualisiertAm` bei jedem Statuswechsel
+ * lautlos veralten.
+ */
+export function aktualisiereAufgabe(
+  db: DB,
+  id: string,
+  patch: Partial<Omit<typeof aufgaben.$inferInsert, "id" | "erstellerId" | "erstelltAm">>,
+): AufgabeRow {
+  return db
+    .update(aufgaben)
+    .set({ ...patch, aktualisiertAm: new Date() })
+    .where(eq(aufgaben.id, id))
+    .returning()
+    .get();
+}
+
+/**
+ * LOESCHT EINE AUFGABE SAMT VERLAUF (und Nachweisen/Dateien) — `zurueckziehenAction`, NUR aus
+ * `eingegangen` (das prueft `uebergang()`, nicht diese Funktion). Die Kaskade steht im Schema
+ * (`onDelete: "cascade"` auf `verlauf.aufgabeId`/`nachweise.aufgabeId`/`dateien.aufgabeId`, von
+ * Aufgabe 2 getestet) — ein zweiter, manueller Loeschlauf hier waere dieselbe Zusage doppelt gehalten.
+ */
+export function loescheAufgabe(db: DB, id: string): void {
+  db.delete(aufgaben).where(eq(aufgaben.id, id)).run();
+}
+
+/**
  * DAS EINE SCHREIBPRIMITIV DIESER AUFGABE. Jeder Uebergang der Uebergangstabelle (Spec §5.2)
  * schreibt eine Verlaufszeile — diese Funktion ist damit heute schon belegbar gebraucht (erster
  * Aufrufer: `_lib/seedLokal.ts`). Die UEBRIGEN Schreibprimitive (Aufgabe erstellen, verteilen,
