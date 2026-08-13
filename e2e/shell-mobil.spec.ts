@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { devLogin } from "./fixtures";
+import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST } from "./helpers/lagerbuch";
 
 /**
  * Der einzige Ort, der Media Queries wirklich auswertet. Was `shell-css.test.ts`
@@ -477,5 +478,201 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
       getComputedStyle(document.documentElement).getPropertyValue("--iuk-marke").trim(),
     );
     expect(marke).toBe("#e45a66");
+  });
+});
+
+/**
+ * AUFGABE 6 — DER EINE GEBUENDELTE PLAYWRIGHT-LAUF.
+ *
+ * Alle fuenf vorangegangenen Aufgaben (App-Umschalter, SuiteRahmen, klebende
+ * Kopfzeile, Seitenleiste, Arbeitsdichte) sind per Regeltext geprueft und
+ * committet, aber KEINE davon ist im Browser belegt: antd spritzt seine
+ * Regeln zur Laufzeit ueber cssinjs ein, und die stehen in keiner Datei
+ * dieses Repos — kein Quelltext-Scan und kein jsdom sieht sie. Nur dieser
+ * Lauf beweist, dass etwas davon tatsaechlich wirkt.
+ */
+test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () => {
+  test.use({ viewport: { width: 1280, height: 720 } });
+
+  test("die Kopfzeile vererbt dem Umschalter keine Zeilenhöhe mehr", async ({ page }) => {
+    /*
+     * DIE EINZIGE STELLE, DIE DAS BEWEISEN KANN. antd setzt auf
+     * `.ant-layout-header` ein `line-height: 64px` (layout/style/index.js:50)
+     * und spritzt die Regel zur Laufzeit über cssinjs ein — sie steht in
+     * keiner Datei dieses Repos. `shell-css.test.ts` hält fest, dass die
+     * Gegenmaßnahme DASTEHT; ob sie WIRKT, weiß nur der Browser.
+     *
+     * Gemessen wird der Auslöser und nicht das Panel, weil er auch
+     * geschlossen existiert — und weil er es war, der mit 76px in einer 64px
+     * hohen Kopfzeile stand.
+     */
+    await devLogin(page, { host: "portal.localtest.me", groups: "" });
+
+    const ausloeser = page.getByTestId("app-umschalter");
+    await expect(ausloeser).toBeVisible();
+    expect(await ausloeser.evaluate((el) => getComputedStyle(el).lineHeight)).not.toBe("64px");
+    expect((await ausloeser.boundingBox())!.height).toBeLessThan(56);
+  });
+
+  test("ein Panel-Eintrag ist eine Zeile, keine Fläche", async ({ page }) => {
+    await devLogin(page, { host: "portal.localtest.me", groups: "" });
+    await page.getByTestId("app-umschalter").click();
+
+    const eintrag = page.getByTestId("app-eintrag").first();
+    await expect(eintrag).toBeVisible();
+    expect((await eintrag.boundingBox())!.height).toBeLessThan(56);
+  });
+
+  test("das offene Panel liegt über der Seitenleiste", async ({ page }) => {
+    /*
+     * DIE EINE MESSUNG ZUM STAPELKONTEXT, den dieser Umbau NEU einführt.
+     *
+     * `.kopfBlock` bekommt `position: sticky` und `z-index: 100` und wird damit
+     * zum Stapelkontext. Darin liegen `.umschalterFang` (900) und
+     * `.umschalterPanel` (901) — ihre Zahlen gelten ab sofort nur noch
+     * INNERHALB dieses Kontexts, nicht mehr gegen die ganze Seite. Die
+     * Seitenleiste ist ebenfalls `position: sticky`, aber ohne `z-index`
+     * (`auto`) und außerhalb des Kontexts: sie malt über nicht-positionierten
+     * Inhalt und unter `.kopfBlock`.
+     *
+     * Das ist das gewünschte Ergebnis — und genau deshalb wird es gemessen.
+     * Das Panel klappt nach UNTEN auf und deckt dabei die obersten Zeilen der
+     * Leiste ab; kippte die Reihenfolge, wäre der erste Eintrag des Panels
+     * unklickbar, und keine der anderen fünf Messungen sähe das.
+     *
+     * `hit-testable` und nicht nur `visible`: ein verdeckter Knoten ist im
+     * Sinne von Playwright weiterhin sichtbar. `click` mit kurzem Timeout
+     * schlägt fehl, sobald ein anderer Knoten den Punkt abfängt („intercepts
+     * pointer events") — das ist die Aussage, die hier gebraucht wird.
+     */
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+    await expect(page.getByTestId("modulleiste")).toBeVisible();
+
+    await page.getByTestId("app-umschalter").click();
+    const ersterEintrag = page.getByTestId("app-eintrag").first();
+    await expect(ersterEintrag).toBeVisible();
+    await ersterEintrag.click({ trial: true, timeout: 2000 });
+  });
+
+  test("die Leiste trägt die Navigation, es gibt keine zweite Zeile", async ({ page }) => {
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+
+    await expect(page.getByTestId("modulleiste")).toBeVisible();
+    await expect(page.getByTestId("modulnav")).toHaveCount(0);
+  });
+
+  test("die Kopfzeile bleibt stehen und lässt kein Loch über der Leiste", async ({ page }) => {
+    /*
+     * Der Defekt war NICHT sichtbar, solange man nicht scrollte: die Leiste
+     * klebte bei 64px unter einer Kopfzeile, die mitscrollte. Deshalb das
+     * `wheel` — ohne es sagen die richtige und die kaputte Fassung dasselbe.
+     */
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+    await page.mouse.wheel(0, 600);
+
+    const kopf = (await page.getByTestId("suite-header").boundingBox())!;
+    const leiste = (await page.getByTestId("modulleiste").boundingBox())!;
+    expect(leiste.y).toBeGreaterThanOrEqual(kopf.y + kopf.height - 1);
+    expect(leiste.y).toBeLessThan(kopf.y + kopf.height + 8);
+  });
+
+  test("Arbeitsflächen sind dichter als Einsatzformulare", async ({ page }) => {
+    /*
+     * Die eine Messung, die die zweite Bediendichte belegt. `theme.test.ts`
+     * hält fest, WAS `ARBEITSDICHTE` setzt; dass antd das Elterntheme
+     * tatsächlich mischt und die 40px unten ankommen, weiß nur der Browser.
+     *
+     * KORREKTUR GEGENUEBER DEM BRIEF: `button.ant-btn` ohne Einschraenkung
+     * traf nicht den beabsichtigten Arbeitsflaechen-Knopf, sondern den ERSTEN
+     * `.ant-btn` im DOM ueberhaupt — das ist der mobile Menue-Knopf in der
+     * Kopfzeile (`SuiteNav.tsx`, `data-testid="menue-knopf"`, Klasse
+     * `.nurMobil`). Er steht bei 1280px auf `display:none` und ist trotzdem
+     * IMMER im Markup (dasselbe Muster wie ueberall in dieser Suite: „beide
+     * Auspraegungen stehen im DOM, CSS blendet eine aus"). `boundingBox()`
+     * auf einem unsichtbaren Knoten liefert `null`, `.height` darauf ein
+     * `TypeError` — kein Befund ueber die Bediendichte, sondern ein zu weiter
+     * Selektor. Und selbst ein sichtbarer erster Treffer waere hier falsch
+     * gewesen: die Kopfzeile traegt bewusst NICHT die Arbeitsdichte
+     * (`theme.ts`-Kommentar zu Aufgabe 5: „nicht ueber der Kopfzeile, die in
+     * jedem Modul gleich aussehen soll") — ein Kopfzeilen-Knopf haette immer
+     * ~56px gemessen, unabhaengig davon, ob `ARBEITSDICHTE` wirkt.
+     * `.ant-layout-content` (antd, `Content` aus `SuiteRahmen.tsx`) grenzt
+     * zuverlaessig auf den Inhaltsbereich ein, in dem `FullShell`/
+     * `MinimalShell` ihre jeweilige Dichte anlegen.
+     */
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung/artikel",
+    });
+    /*
+     * DIE SCHRANKEN SIND `>= 44` UND `< 56`, NICHT MEHR `> 36` UND `< 44` — und
+     * die Korrektur kam aus genau diesem Lauf.
+     *
+     * `ARBEITSDICHTE` stand auf `controlHeight: 40`, weil der Plan die
+     * Shell-VARIANTE mit dem Zeigergeraet gleichgesetzt hatte. `FullShell`
+     * rendert aber auch bei 390px, und dort unterschritten die 40px die
+     * Mindest-Tapflaeche: drei Zusicherungen fielen gleichzeitig
+     * (`lagerbuch-mobil.spec.ts:312`, `mobil-admin.spec.ts:304` und `:413`).
+     * Der Wert steht seither auf 44 (WCAG 2.5.8), und diese Schranken ziehen
+     * nach.
+     *
+     * SIE UNTERSCHEIDEN WEITERHIN: 56 ist `TAP` (Einsatzmasz, unten gemessen),
+     * 72 ist `TAP_XL`. Ein `< 56` faellt also, sobald die Arbeitsdichte
+     * ausbleibt oder das Elterntheme durchschlaegt — genau die Aussage, die
+     * hier gebraucht wird. Gemessen auf `/verwaltung/artikel`: „Excel-Liste"
+     * 127x44, „Neuer Artikel" 140x44.
+     */
+    const arbeit = (
+      await page.locator(".ant-layout-content button.ant-btn").first().boundingBox()
+    )!.height;
+    expect(arbeit).toBeGreaterThanOrEqual(44);
+    expect(arbeit).toBeLessThan(56);
+
+    await page.goto("http://qr.localtest.me:3100/");
+    const einsatz = (
+      await page.locator(".ant-layout-content button.ant-btn").first().boundingBox()
+    )!.height;
+    expect(einsatz).toBeGreaterThanOrEqual(56);
+  });
+});
+
+test.describe("Wirkungsnachweis Navigation und Dichte — Mittelband 820px", () => {
+  /*
+   * 820px, nicht nur 390 und 1280. `docs/design/README.md` ist dazu
+   * ausdrücklich: die beiden letzten Shell-Defekte lagen BEIDE im Mittelband
+   * und waren an beiden Enden unsichtbar — die Knopfregel bei 600 statt 768,
+   * und die Kopfzeile mit 904px Mindestbreite zwischen 768 und 903.
+   *
+   * Die Datei hat dafür schon einen Block (`Mittelbreite ${breite}px`); dieser
+   * hier misst die Leiste, die es dort vorher nicht gab.
+   */
+  test.use({ viewport: { width: 820, height: 900 } });
+
+  test("kein waagerechter Überlauf, und der Titel behält Breite", async ({ page }) => {
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+
+    const breiten = await page.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(breiten.scroll).toBeLessThanOrEqual(breiten.client + 1);
+    expect((await page.getByTestId("module-title").boundingBox())!.width).toBeGreaterThan(0);
   });
 });

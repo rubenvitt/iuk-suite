@@ -89,10 +89,17 @@ describe("ARBEITSDICHTE", () => {
      *
      * `Radio` MUSS mit: das Elterntheme setzt `radioSize: 28, dotSize: 14`,
      * weil die Trefferfläche mit Handschuhen die ganze Zeile ist. Neben einem
-     * 40px-Bedienelement ist eine 28px-Marke unverhältnismäßig, und der
+     * 44px-Bedienelement ist eine 28px-Marke unverhältnismäßig, und der
      * Grund trägt am Schreibtisch nicht.
+     *
+     * 44 UND NICHT 40 — der gebündelte Playwright-Lauf (Aufgabe 6) hat den
+     * Planfehler aufgedeckt: die Dichte hängt an der Shell-VARIANTE, aber
+     * `FullShell` rendert auch bei 390px. 40px unterschritt dort die
+     * Mindest-Tapfläche (WCAG 2.5.8), und drei Zusicherungen sagten es
+     * gleichzeitig. Die Begründung in voller Länge steht am Wert selbst
+     * (`theme.ts`), samt der Frage, warum `controlHeightLG` NICHT mitwandert.
      */
-    expect(ARBEITSDICHTE.token).toEqual({ controlHeight: 40, controlHeightLG: 48 });
+    expect(ARBEITSDICHTE.token).toEqual({ controlHeight: 44, controlHeightLG: 48 });
     expect(ARBEITSDICHTE.components).toEqual({ Radio: { radioSize: 16, dotSize: 8 } });
     expect(ARBEITSDICHTE.algorithm, "algorithm wird geerbt, nie wiederholt").toBeUndefined();
     expect(ARBEITSDICHTE.token?.colorPrimary, "Farben werden geerbt, nie wiederholt").toBeUndefined();

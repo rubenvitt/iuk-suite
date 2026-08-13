@@ -426,15 +426,63 @@ async function zuKleineSchrift(page: Page) {
 
 type Kasten = { x: number; y: number; width: number; height: number };
 
+/**
+ * ALLE KAESTEN IN EINEM DURCHGANG — und das ist keine Optimierung, sondern die
+ * Voraussetzung dafuer, dass der Vergleich ueberhaupt etwas heiszt.
+ *
+ * VORHER stand hier eine Schleife aus `locator.boundingBox()`, also EIN
+ * Playwright-Rundlauf JE KNOPF. Zwei Kaesten aus zwei Rundlaeufen beschreiben
+ * zwei verschiedene Zeitpunkte, und `pruefeKnopfreihe` vergleicht sie, als
+ * waeren sie derselbe Zustand. Solange sich das Layout dazwischen nicht regt,
+ * faellt das nicht auf.
+ *
+ * SEIT DER MODULLEISTE (Aufgabe 2) REGT ES SICH. `next dev` — und der
+ * Playwright-`webServer` ist einer — liefert antds cssinjs-Regeln erst nach dem
+ * ersten Aufbau nach. Bis `.ant-layout-has-sider { flex-direction: row }` da
+ * ist, steht die Seitenleiste UEBER dem Inhalt statt daneben: der Inhalt ist
+ * volle Breite und alles darunter rund 180px tiefer. GEMESSEN im gebuendelten
+ * Lauf zu Aufgabe 6, 1280px: „Ausgewaehlte herunterladen" bei x=16 y=709 (noch
+ * ohne die Regel), „Ausgewaehlte loeschen" bei x=476 y=529 (mit ihr) — zwei
+ * Knoepfe, die in Wahrheit nebeneinander stehen, gemeldet als Umbruch. Vor der
+ * Leiste gab es diesen Unterschied nicht: ohne Sider sahen beide Zustaende
+ * gleich aus.
+ *
+ * Ein `evaluate` ist EIN Layout-Lesevorgang; die Kaesten stammen damit
+ * garantiert aus derselben Fassung der Seite. Der Aufrufer wartet zusaetzlich
+ * auf Ruhe — beides zusammen, weil das eine den falschen VERGLEICH ausschlieszt
+ * und das andere den falschen ZEITPUNKT.
+ */
 async function kaesten(kinder: Locator): Promise<Kasten[]> {
   const anzahl = await kinder.count();
-  const aus: Kasten[] = [];
-  for (let i = 0; i < anzahl; i += 1) {
-    const kasten = await kinder.nth(i).boundingBox();
-    expect(kasten, `Knopf ${i} hat keinen Kasten — steht er im DOM und sichtbar?`).not.toBeNull();
-    aus.push(kasten!);
-  }
+  const aus = await kinder.evaluateAll((els) =>
+    els.map((el) => {
+      const b = el.getBoundingClientRect();
+      return { x: b.x, y: b.y, width: b.width, height: b.height };
+    }),
+  );
+  expect(aus.length, "nicht jeder Knopf hat einen Kasten geliefert").toBe(anzahl);
   return aus;
+}
+
+/**
+ * Dieselbe atomare Messung fuer Knoten, die KEIN gemeinsamer Locator einsammelt
+ * — die Sammelaktionen des Posteingangs stehen unter drei verschiedenen
+ * `data-testid`s (Leiste, ZIP-Knopf, Loeschen-Knopf), und der Loeschen-Knopf
+ * liegt zusaetzlich in einem `<form>`. Begruendung wie bei `kaesten` oben.
+ */
+async function kaestenNachTestId(page: Page, testIds: string[]): Promise<Kasten[]> {
+  const aus = await page.evaluate((ids) => {
+    return ids.map((id) => {
+      const el = document.querySelector(`[data-testid="${id}"]`);
+      if (el === null) return null;
+      const b = el.getBoundingClientRect();
+      return { x: b.x, y: b.y, width: b.width, height: b.height };
+    });
+  }, testIds);
+  for (const [i, k] of aus.entries()) {
+    expect(k, `„${testIds[i]}" hat keinen Kasten — steht der Knoten im DOM?`).not.toBeNull();
+  }
+  return aus as Kasten[];
 }
 
 /**
@@ -594,7 +642,15 @@ for (const vp of VIEWPORTS) {
       expect(antwort?.status(), "Posteingang: HTTP").toBe(200);
       const leiste = page.getByTestId("files-inbox-sammelaktionen");
       await expect(leiste).toBeVisible();
-      const leistenKasten = (await leiste.boundingBox())!;
+      /*
+       * ERST RUHE, DANN MESSEN. `next dev` reicht antds cssinjs-Regeln nach; bis
+       * `.ant-layout-has-sider` da ist, steht die Modulleiste ueber statt neben
+       * dem Inhalt und alles darunter an der falschen Stelle (ausfuehrlich bei
+       * `kaesten`). Vor der Leiste (Aufgabe 2) war dieser Zwischenzustand vom
+       * Endzustand nicht zu unterscheiden — deshalb steht das Warten erst jetzt
+       * hier.
+       */
+      await page.waitForLoadState("networkidle");
       /*
        * DIE BEIDEN KNOEPFE EINZELN, NICHT ALLE KINDER DER LEISTE: „Ausgewaehlte
        * loeschen" sitzt in einem `<form>` — ein Kindselektor traefe die
@@ -602,14 +658,18 @@ for (const vp of VIEWPORTS) {
        * voll breit, waehrend der Knopf darin auto-breit bliebe. Genau dieser
        * Unterschied ist in `posteingang.module.css` ausgeschrieben, und nur eine
        * Messung AM KNOPF sieht ihn.
+       *
+       * Leiste UND Knoepfe in EINEM Lesevorgang, siehe `kaestenNachTestId`.
        */
+      const [leistenKasten, zipKasten, loeschenKasten] = await kaestenNachTestId(page, [
+        "files-inbox-sammelaktionen",
+        "files-inbox-zip",
+        "files-inbox-loeschen-auswahl",
+      ]);
       pruefeKnopfreihe(
         "Posteingang — Sammelaktionen",
         leistenKasten,
-        [
-          (await page.getByTestId("files-inbox-zip").boundingBox())!,
-          (await page.getByTestId("files-inbox-loeschen-auswahl").boundingBox())!,
-        ],
+        [zipKasten, loeschenKasten],
         vp.schmal,
       );
 

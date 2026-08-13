@@ -333,7 +333,30 @@
 }
 
 @media (min-width: 768px) {
-  .sider {
+  /*
+   * ZWEI KLASSEN, NICHT EINE — und das ist der Unterschied zwischen „die Regel
+   * steht da" und „die Regel gilt" (Falle 5, docs/design/README.md).
+   *
+   * antd setzt `position: relative` auf `.ant-layout-sider`
+   * (antd/es/layout/style/sider.js:25). `.sider` allein ist (0,1,0), genau wie
+   * `.ant-layout-sider` — bei Gleichstand entscheidet die Dokumentreihenfolge,
+   * und antds cssinjs-Stylesheet kommt SPAETER. GEMESSEN im Browser (Aufgabe 6),
+   * nicht hergeleitet: `getComputedStyle(sider).position` war "relative",
+   * `top` stand korrekt auf "69px" — und weil `top` an einem `relative`-Knoten
+   * bloss verschiebt statt zu kleben, scrollte die Leiste mit und stand nach
+   * `wheel(0, 600)` bei y = -145 statt bei der Unterkante der Kopfzeile.
+   * Dieselbe Kollision wie bei `.kopf`/`padding-inline` und `.nurMobil`/`.ant-btn`.
+   *
+   * (0,2,0) schlaegt antd unabhaengig von der Reihenfolge; `!important` waere zu
+   * viel. Die Basisregel `.sider { display: none }` bleibt einklassig — dort
+   * gibt es keine antd-Deklaration, gegen die sie antreten muesste.
+   *
+   * Ein Vorfahr mit `overflow != visible` bricht `sticky` ebenfalls; das war es
+   * hier NICHT: die ganze Kette (`.ant-layout-has-sider`, `.ant-layout`,
+   * `.modul`, `.ant-app`, `body`, `html`) steht auf `overflow: visible`,
+   * ebenfalls im selben Lauf nachgemessen.
+   */
+  .sider.sider {
     display: block;
     position: sticky;
     inset-block-start: var(--iuk-kopf);
@@ -420,11 +443,30 @@
   --suite-linie: #303030;
 }
 
+/*
+ * `min-block-size: 44px` IST DIE TAPFLÄCHE, nicht Optik. GEMESSEN im
+ * gebündelten Playwright-Lauf (Aufgabe 6): der Auslöser stand auf 130x38 und
+ * fiel damit in `e2e/lagerbuch-mobil.spec.ts:312` („jede Zeilenaktion ist
+ * mindestens 44 x 44 px") — er ist seit dem Navigations-Umbau der Weg zu jeder
+ * anderen App und liegt auf JEDER Breite in der Kopfzeile, auch am Telefon.
+ *
+ * Die 38px waren kein Versehen, sondern die Folge der Reparatur darüber:
+ * `line-height: normal` an `.umschalter` nimmt die von `.ant-layout-header`
+ * geerbten 64px heraus, und danach trug nur noch Inhalt plus 6px Polsterung.
+ * Eine größere Polsterung wäre der falsche Griff — sie verschöbe den Text
+ * gegenüber `.titel`, dem abgemeldeten Gegenstück. Ein Boden lässt die
+ * Typografie in Ruhe.
+ *
+ * KEIN Spezifitätsstreit: dies ist ein nacktes `<button>` in eigenem Markup
+ * (`AppUmschalter.tsx`), kein `.ant-btn`. 44 < 56 — die Kopfzeile (64px)
+ * bleibt einzeilig, und `e2e/shell-mobil.spec.ts` misst das mit.
+ */
 .umschalterAusloeser {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
+  min-block-size: 44px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: none;

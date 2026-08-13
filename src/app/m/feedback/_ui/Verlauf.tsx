@@ -371,7 +371,23 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
         {
           title: "Aktion",
           key: "aktion",
-          width: 130,
+          /*
+           * 150 UND NICHT 130 — die Seitenleiste hat der Tabelle 240px genommen.
+           *
+           * Der Inhalt dieser Zelle („Bearbeiten" plus das „…"-Menue) misst
+           * gemessene 142px und konnte in 130px noch nie hinein. Sichtbar wurde
+           * das erst jetzt: `table-layout: auto` verteilt Ueberschuss auch auf
+           * Spalten MIT Breitenangabe, und solange die Tabelle 1248px breit war,
+           * bekam diese Spalte genug Zugabe. Mit der Modulleiste (Aufgabe 2) ist
+           * die Tabelle 1008px breit und liegt eng — die Spalte bleibt bei ihren
+           * 130px, und die 12px Ueberstand standen bei 1280px als
+           * `scrollWidth = 1284` im Dokument (`e2e/mobil-admin.spec.ts:696`).
+           *
+           * 150 ist keine neue Zahl: „Ø Note" und „Zustand" nebenan stehen schon
+           * darauf. Gemessen mit dieser Breite: Spalte 150, Inhalt 142,
+           * `scrollWidth == innerWidth`.
+           */
+          width: 150,
           align: "right",
           render: (_, z) => (
             <span
@@ -379,6 +395,17 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "flex-end",
+                /*
+                 * `wrap` ist der Auffangboden zu den 150px oben, nicht Optik:
+                 * ohne ihn ist diese Zeile unteilbar und JEDER Zuwachs der
+                 * Beschriftungsbreite (breitere Schriftmetriken auf dem
+                 * CI-Runner — in dieser Datei schon einmal teuer, siehe den
+                 * Legenden-Absatz in `mobil-admin.spec.ts:704`) landet wieder
+                 * als waagerechter Scroll auf der GANZEN Seite. Mit `wrap`
+                 * rutscht im Zweifel das „…"-Menue in eine zweite Zeile: haesslich
+                 * statt kaputt.
+                 */
+                flexWrap: "wrap",
                 gap: SPACE.sm,
               }}
             >
