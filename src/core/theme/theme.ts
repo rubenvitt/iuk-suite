@@ -132,3 +132,46 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
     },
   };
 }
+
+/**
+ * DIE ZWEITE BEDIENDICHTE — für Arbeitsflächen am Schreibtisch.
+ *
+ * `buildTheme` setzt `controlHeight: TAP` (56) und `controlHeightLG: TAP_XL`
+ * (72). Das ist eine EINSATZANFORDERUNG (Bedienung mit Handschuhen), keine
+ * Stilfrage, und sie bleibt unverändert. Der Fehler war ihre REICHWEITE: sie
+ * galt auch auf den Verwaltungsseiten, die mit Maus und Tastatur bedient
+ * werden — und ein 56px-Knopf neben einem 56px-Select neben einem 56px-Feld
+ * ergibt genau den Eindruck „zu viel Weißraum, nicht Ant Design".
+ *
+ * NUR DREI GRÖSZEN, ALLES ANDERE GEERBT. antd mischt ein verschachteltes
+ * Theme in das Elterntheme (`antd/es/config-provider/hooks/useTheme.js:44-53`):
+ * `token` flach, `components` eine Ebene tief, der Rest per Spread. `algorithm`,
+ * `colorPrimary`, `fontFamily`, `Layout` und `Input.inputFontSize` kommen
+ * dadurch von selbst. Sie hier zu wiederholen wäre eine Kopie, die beim
+ * nächsten Themewechsel still auseinanderläuft; `theme.test.ts` verbietet es.
+ *
+ * `Radio` MUSS mit. `buildTheme` setzt `radioSize: 28, dotSize: 14`, weil die
+ * Trefferfläche mit Handschuhen die ganze Zeile aus Marke und Beschriftung
+ * ist. Neben einem 40px-Bedienelement ist eine 28px-Marke unverhältnismäßig,
+ * und der Grund trägt am Schreibtisch nicht. Checkbox braucht kein
+ * Gegenstück: ihre Marke ist `controlHeight / 2` und fällt automatisch mit.
+ *
+ * `cssVar.key` AUSDRÜCKLICH: ohne ihn erzeugt antd über `useId` einen
+ * generierten Schlüssel und warnt in der Entwicklung davor (useTheme.js:19).
+ *
+ * KEIN `"use client"` in dieser Datei — `FullShell` ist eine Server Component
+ * und liest diesen Wert mittelbar. Aus einem Client-Modul käme eine
+ * Client-Referenz statt des Objekts (Falle 6).
+ *
+ * WO SIE GILT: über dem INHALT von `FullShell` — portal, feedback, files,
+ * lagerbuch, alpha, gamma. NICHT über `MinimalShell` (qr, beta: Einsatz-
+ * formulare) und NICHT über der Kopfzeile, die in jedem Modul gleich aussehen
+ * soll. Die drei tatsächlich handschuhkritischen Ansichten
+ * (`lagerbuch/helfer`, `feedback/f`, `files/(oeffentlich-*)`) benutzen gar
+ * keine Shell und sind strukturell unberührt.
+ */
+export const ARBEITSDICHTE: ThemeConfig = {
+  cssVar: { key: "iuk-arbeit" },
+  token: { controlHeight: 40, controlHeightLG: 48 },
+  components: { Radio: { radioSize: 16, dotSize: 8 } },
+};

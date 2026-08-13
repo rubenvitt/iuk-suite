@@ -50,6 +50,7 @@ import { VerwaltungsRahmen } from "./VerwaltungsRahmen";
 import { FILES_NAV } from "../_lib/nav";
 import { Shell } from "@/core/shell/Shell";
 import { AppUmschalter } from "@/core/shell/AppUmschalter";
+import { Arbeitsdichte } from "@/core/theme/Arbeitsdichte";
 import { getModule } from "@/core/registry";
 
 const NAV_QUELLE = readFileSync("src/app/m/files/_lib/nav.ts", "utf8");
@@ -217,12 +218,16 @@ async function VerwaltungsRahmenGerendert(): Promise<unknown> {
  * hier nur, DASS `nav` bis zu `Modulleiste` durchreicht (gemockt, siehe
  * Dateikopf — sonst dieselbe Hook-Falle wie bei `AppUmschalter`), nicht der
  * Inhalt des Umschalters (den deckt `AppUmschalter.test.tsx` ab).
+ *
+ * `Arbeitsdichte` (seit Aufgabe 5, Bediendichte) trifft dieselbe Falle:
+ * `FullShell` legt sie um `children`, und sie rendert `ConfigProvider`, das
+ * intern `useContext` ruft. Derselbe Ausschluss, aus demselben Grund.
  */
 async function aufloesen(element: unknown): Promise<unknown> {
   if (Array.isArray(element)) return Promise.all(element.map(aufloesen));
   if (!element || typeof element !== "object") return element;
   const el = element as ReactElement<Record<string, unknown>> & { type: unknown };
-  if (typeof el.type !== "function" || el.type === AppUmschalter) {
+  if (typeof el.type !== "function" || el.type === AppUmschalter || el.type === Arbeitsdichte) {
     if (el.props && "children" in el.props) {
       const kinder = await aufloesen(el.props.children);
       return { ...el, props: { ...el.props, children: kinder } };
