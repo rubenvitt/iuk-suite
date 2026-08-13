@@ -1,6 +1,9 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import { gruppiereNav, hatAbschnitte } from "@/core/shell/navAbschnitte";
 import type { SuiteNavItem } from "@/core/shell/types";
+import { MODULES } from "@/core/registry";
 
 const OHNE: SuiteNavItem[] = [
   { key: "start", title: "Freigaben", href: "/" },
@@ -48,5 +51,31 @@ describe("gruppiereNav", () => {
 
   it("liefert für eine leere Liste nichts, statt einer leeren Gruppe", () => {
     expect(gruppiereNav([])).toEqual([]);
+  });
+});
+
+/*
+ * Die Seitenleiste hängt in `FullShell`. Vergäbe ein `minimal`- oder
+ * `kiosk`-Modul Abschnitte, verschwänden sie lautlos: die Einträge landeten in
+ * der zweiten Zeile, ohne Überschriften. Kein Fehler, kein Log — nur eine
+ * Gliederung, die niemand sieht.
+ */
+describe("Abschnitte gibt es nur in der full-Shell", () => {
+  it("kein minimal- oder kiosk-Modul vergibt abschnitt in seiner Nav", () => {
+    const nichtFull = MODULES.filter((m) => m.shell !== "full").map((m) => m.key);
+    for (const key of nichtFull) {
+      const verzeichnis = `src/app/m/${key}`;
+      let dateien: string[];
+      try {
+        dateien = readdirSync(join(verzeichnis, "_lib"));
+      } catch {
+        continue; // Modul ohne _lib — nichts zu prüfen.
+      }
+      for (const datei of dateien.filter((d) => /nav\.tsx?$/.test(d))) {
+        const quelle = readFileSync(join(verzeichnis, "_lib", datei), "utf8");
+        expect(quelle, `${key}/_lib/${datei} vergibt abschnitt, bekommt aber keine Leiste`)
+          .not.toMatch(/abschnitt\s*:/);
+      }
+    }
   });
 });
