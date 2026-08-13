@@ -17,6 +17,33 @@ verschachtelten antd-`ConfigProvider`, der das Elterntheme erbt und nur drei Tok
 
 **Tech-Stack:** Next.js 16 (App Router, RSC) · Ant Design 6 · CSS Modules · Vitest (jsdom + Quelltext-Scan) · Playwright
 
+## Korrekturen während der Ausführung
+
+Dieser Plan wurde beim Umsetzen an zwei Stellen als **falsch** erkannt und berichtigt. Beide
+Korrekturen stehen unten schon eingearbeitet; hier stehen sie zusammen, damit niemand die alte
+Fassung aus einem Commit-Diff für die gültige hält.
+
+1. **Aufgabe 4, Begründung für `display: flex`.** Der ursprüngliche Kommentar behauptete, ein
+   `inline-flex`-Kind schrumpfe in einer Flex-Spalte auf seine Inhaltsbreite und die getönte Fläche
+   des aktiven Eintrags habe deshalb hinter dem längsten Wort geendet. **Das kann nicht passieren:**
+   Flex-Items werden blockifiziert (CSS Display Module Level 3) — `inline-flex` *ist* dort `flex` —,
+   und `align-items` ist an keinem der drei Container gesetzt, steht also auf `normal`/`stretch`.
+   Der Fehlerhergang war beim Planschreiben **hergeleitet, nicht beobachtet**, in einem Repo, das
+   „GEMESSEN, nicht hergeleitet" an mehreren Stellen als Maßstab führt. Die Zeile bleibt, die
+   Begründung ist gestrichen.
+
+2. **Aufgabe 4, Test der Aktivmarkierung.** Der vorgeschriebene Test prüfte Akzentfarbe, Fläche und
+   Gewicht, aber **nicht** `color`. Damit wäre die Textfarbe des aktiven Eintrags ungetestet
+   geblieben — und genau sie trägt die 4.5:1-Rechnung in `globals.css`, nicht die 3px-Akzentlinie.
+   Die Zusicherung ist ergänzt, mit Anker: ein nacktes `/color:/` matcht false-positiv in
+   `border-inline-start-color:`.
+
+Eine dritte Korrektur betraf **Aufgabe 2** und ist dort nicht eingearbeitet, weil sie eine Streichung
+war: der vorgeschriebene Test „rendert keine zweite Zeile mehr unter der Kopfzeile" war
+tautologisch — `SuiteNav` ist im Testaufbau auf `() => null` gemockt, ein Knoten mit
+`data-testid="modulnav"` konnte dort nie entstehen. Er wurde ersatzlos gestrichen; die Aussage
+tragen `shell-css.test.ts` und `navAbschnitte.test.ts` bereits.
+
 ## Globale Randbedingungen
 
 Sie gelten für **jede** Aufgabe, auch wo sie dort nicht wiederholt werden.
@@ -1211,6 +1238,12 @@ Kaskaden-Prüfmuster und `erwartetRobusteSiderUmschaltung` stehen seit Aufgabe 3
     );
     expect(regel![1]).toMatch(/border-inline-start-color:\s*var\(--iuk-marke\)/);
     expect(regel![1]).toMatch(/background:\s*var\(--iuk-flaeche-aktiv\)/);
+    // DIE TEXTFARBE, und der Anker ist keine Feinheit: ein nacktes `/color:/`
+    // matcht false-positiv in `border-inline-start-color:` und bleibt gruen,
+    // auch wenn `color` gar nicht mehr dasteht. Dieselbe Anker-Konvention wie
+    // in `deklarationsWerte` weiter oben. Die Textfarbe traegt die
+    // 4.5:1-Rechnung in `globals.css` — die Akzentlinie tut das nicht.
+    expect(regel![1]).toMatch(/(?:^|;)\s*color:\s*var\(--iuk-marke\)/);
     expect(regel![1]).toMatch(/font-weight:\s*600/);
   });
 
@@ -1279,13 +1312,10 @@ Ersetze in `src/core/shell/shell.module.css` die Blöcke `.navLink`, `.navLink[a
  * auf 40px — sie existiert unterhalb von 768px gar nicht und wird mit Maus
  * bedient.
  *
- * `flex` STATT `inline-flex`, seit 2026-08-13 — und das ist keine Kosmetik.
- * `.modulleiste` und `.drawerGruppe` sind Flex-SPALTEN; ein `inline-flex`-Kind
- * schrumpft dort auf seine Inhaltsbreite, und die getoente Flaeche des aktiven
- * Eintrags endete mitten in der Leiste hinter dem laengsten Wort. Ein
- * Block-Kind dehnt sich (`align-items: stretch` ist die Vorgabe der Spalte) und
- * die Markierung reicht ueber die ganze Zeile. Solange die Markierung eine
- * Unterstreichung war, fiel das nicht auf.
+ * `flex` und nicht `inline-flex`: fuer ein Flex-Kind ist das dasselbe
+ * (Flex-Items werden blockifiziert, CSS Display Module Level 3) — `flex` sagt
+ * die Absicht nur direkter, diese Zeile ist eine Listenzeile, kein
+ * Inline-Element.
  */
 .navLink {
   display: flex;
