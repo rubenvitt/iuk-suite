@@ -73,9 +73,9 @@ describe("allePersonen — sortiert nach Rolle, dann Name", () => {
     legePerson("b1", "bufdi", { name: "Zoe" });
     legePerson("b2", "bufdi", { name: "Anna" });
     legePerson("a1", "auftrag", { name: "Bert" });
-    legePerson("k1", "koordination", { name: "Sarah" });
+    legePerson("k1", "koordination", { name: "Rike" });
     const namen = allePersonen(t.db).map((p) => p.name);
-    expect(namen).toEqual(["Sarah", "Bert", "Anna", "Zoe"]);
+    expect(namen).toEqual(["Rike", "Bert", "Anna", "Zoe"]);
   });
 });
 
@@ -90,11 +90,11 @@ describe("aktivePersonen — schliesst ausgeschiedene aus", () => {
 
 describe("bufdis — aktive Personen mit rolle === 'bufdi'", () => {
   it("schliesst koordination/auftrag UND ausgeschiedene BuFDis aus", () => {
-    const lea = legePerson("lea", "bufdi");
-    legePerson("noah-ex", "bufdi", { aktivBis: "2026-08-01" });
-    legePerson("sarah", "koordination");
-    legePerson("schulle", "auftrag");
-    expect(bufdis(t.db, HEUTE).map((p) => p.id)).toEqual([lea.id]);
+    const alina = legePerson("alina", "bufdi");
+    legePerson("bendix-ex", "bufdi", { aktivBis: "2026-08-01" });
+    legePerson("rike", "koordination");
+    legePerson("malte", "auftrag");
+    expect(bufdis(t.db, HEUTE).map((p) => p.id)).toEqual([alina.id]);
   });
 });
 
@@ -124,12 +124,12 @@ describe("aufgabe — Einzelabruf", () => {
 describe("aufgabenFuerPerson — zugewiesenAn === personId", () => {
   it("schliesst Aufgaben anderer Personen aus", () => {
     const ersteller = legePerson("e2", "auftrag");
-    const lea = legePerson("lea2", "bufdi");
-    const noah = legePerson("noah2", "bufdi");
-    const leaAufgabe = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: lea.id });
-    legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: noah.id });
-    const ergebnis = aufgabenFuerPerson(t.db, lea.id);
-    expect(ergebnis.map((a) => a.id)).toEqual([leaAufgabe.id]);
+    const alina = legePerson("alina2", "bufdi");
+    const bendix = legePerson("bendix2", "bufdi");
+    const alinaAufgabe = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: alina.id });
+    legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bendix.id });
+    const ergebnis = aufgabenFuerPerson(t.db, alina.id);
+    expect(ergebnis.map((a) => a.id)).toEqual([alinaAufgabe.id]);
   });
 });
 
@@ -154,7 +154,7 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, dritter)).toEqual([]);
+    expect(freigabenFuer(t.db, dritter, HEUTE)).toEqual([]);
   });
 
   it("der eingetragene Pruefer sieht genau seine Aufgabe, keine fremde", () => {
@@ -174,41 +174,42 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
       prueferId: andererPruefer.id,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, pruefer).map((a) => a.id)).toEqual([meine.id]);
+    expect(freigabenFuer(t.db, pruefer, HEUTE).map((a) => a.id)).toEqual([meine.id]);
   });
 
   it("koordination sieht ALLE offenen Freigaben, auch fremde", () => {
     const ersteller = legePerson("fe3-ersteller", "auftrag");
     const pruefer = legePerson("fe3-pruefer", "auftrag");
     const bufdi = legePerson("fe3-bufdi", "bufdi");
-    const sarah = legePerson("fe3-sarah", "koordination");
+    const rike = legePerson("fe3-rike", "koordination");
     legeAufgabe({
       erstellerId: ersteller.id,
       zugewiesenAn: bufdi.id,
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, sarah)).toHaveLength(1);
+    expect(freigabenFuer(t.db, rike, HEUTE)).toHaveLength(1);
   });
 
   it("schliesst Aufgaben aus, die nicht freigabe_offen sind — auch fuer koordination", () => {
     const ersteller = legePerson("fe4-ersteller", "auftrag");
     const bufdi = legePerson("fe4-bufdi", "bufdi");
-    const sarah = legePerson("fe4-sarah", "koordination");
+    const rike = legePerson("fe4-rike", "koordination");
     legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "in_arbeit" });
-    expect(freigabenFuer(t.db, sarah)).toEqual([]);
+    expect(freigabenFuer(t.db, rike, HEUTE)).toEqual([]);
   });
 
   it("eine Selbstaufgabe im Status freigabe_offen kann es nicht geben — aber selbst dann liefert die Funktion nichts an eine ausgeschiedene koordination", () => {
     const bufdi = legePerson("fe5-bufdi", "bufdi");
-    const sarahEx = legePerson("fe5-sarah-ex", "koordination", { aktivBis: "2026-08-01" });
+    const rikeEx = legePerson("fe5-rike-ex", "koordination", { aktivBis: "2026-08-01" });
     legeAufgabe({
       erstellerId: bufdi.id,
       zugewiesenAn: bufdi.id,
-      prueferId: bufdi.id,
+      prueferId: null,
+      istSelbst: true,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, sarahEx)).toEqual([]);
+    expect(freigabenFuer(t.db, rikeEx, HEUTE)).toEqual([]);
   });
 });
 
@@ -233,18 +234,18 @@ describe("archiv — status === 'abgeschlossen'", () => {
 
 describe("routinenFuer", () => {
   it("schliesst Routinen anderer Personen aus", () => {
-    const lea = legePerson("rou1-lea", "bufdi");
-    const noah = legePerson("rou1-noah", "bufdi");
+    const alina = legePerson("rou1-alina", "bufdi");
+    const bendix = legePerson("rou1-bendix", "bufdi");
     const meine = t.db
       .insert(routinen)
-      .values({ personId: lea.id, titel: "R", wochentage: 31, dauerMinuten: 30 })
+      .values({ personId: alina.id, titel: "R", wochentage: 31, dauerMinuten: 30 })
       .returning()
       .get();
     t.db
       .insert(routinen)
-      .values({ personId: noah.id, titel: "R2", wochentage: 31, dauerMinuten: 30 })
+      .values({ personId: bendix.id, titel: "R2", wochentage: 31, dauerMinuten: 30 })
       .run();
-    expect(routinenFuer(t.db, lea.id).map((r) => r.id)).toEqual([meine.id]);
+    expect(routinenFuer(t.db, alina.id).map((r) => r.id)).toEqual([meine.id]);
   });
 });
 

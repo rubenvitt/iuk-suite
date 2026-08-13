@@ -1,5 +1,4 @@
 import { asc, eq } from "drizzle-orm";
-import { isoTag } from "../_lib/datum";
 import { darfFreigeben, istAktiv } from "../_lib/zugang";
 import type { DB } from "./client";
 import {
@@ -33,13 +32,23 @@ import {
 
 const ROLLEN_RANG: Record<Rolle, number> = { koordination: 0, auftrag: 1, bufdi: 2 };
 
-/** Sortiert: Rolle in der fachlichen Rangfolge, dann Name alphabetisch. */
+/**
+ * Sortiert: Rolle in der fachlichen Rangfolge, dann Name alphabetisch.
+ *
+ * `localeCompare(b.name, "de")` MIT explizitem Gebietsschema — ohne Argument haengt die
+ * Sortierung eines Namens mit Umlaut gegen einen ohne an der Standard-Locale des Prozesses.
+ * Vier weitere Stellen im Repo geben die Sprache aus demselben Grund mit an
+ * (`core/auth/devGroups.ts`, `core/directory/index.ts`, `feedback/_lib/personen.ts`,
+ * `lagerbuch/_lib/lesepfade/bestellung.ts`).
+ */
 export function allePersonen(db: DB): PersonRow[] {
   return db
     .select()
     .from(personen)
     .all()
-    .sort((a, b) => ROLLEN_RANG[a.rolle] - ROLLEN_RANG[b.rolle] || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) => ROLLEN_RANG[a.rolle] - ROLLEN_RANG[b.rolle] || a.name.localeCompare(b.name, "de"),
+    );
 }
 
 /** Fuer Verteillisten und Plan-Navigation — eine ausgeschiedene Person verschwindet hier. */
@@ -79,14 +88,13 @@ export function posteingang(db: DB): AufgabeRow[] {
  * `darfFreigeben` wahr waere — Oberflaeche und Riegel sagen an dieser Stelle dasselbe, statt einer
  * Warteschlange, die mehr zeigt als der Knopf erlaubt.
  *
- * `heute` wird HIER ermittelt, nicht vom Aufrufer uebernommen — die Signatur (Brief, Aufgabe 4)
- * nimmt bewusst kein `heute`-Argument: „bin ich gerade zur Freigabe befugt" ist unmittelbar eine
- * Frage nach JETZT, nicht nach einem an anderer Stelle im Request schon berechneten Anzeigetag.
- * Der einzige Aufruf von `isoTag(new Date())` in diesem Modul steht bewusst NUR hier — die
- * Zeitzone bleibt trotzdem an der einen Stelle (`_lib/datum.ts`), diese Funktion fragt sie nur ab.
+ * `heute` kommt VOM AUFRUFER, wie ueberall sonst im Modul — die urspruengliche Brief-Vorgabe
+ * (kein `heute`-Argument, `isoTag(new Date())` hier selbst ermittelt) haengte die fuenf Tests
+ * dieser Funktion an die echte Systemuhr und war ein Mangel des Briefs, nicht der Umsetzung. Die
+ * Zeitzone bleibt trotzdem an der einen Stelle (`_lib/datum.ts`); diese Funktion bekommt das
+ * Ergebnis nur uebergeben, statt es selbst abzufragen.
  */
-export function freigabenFuer(db: DB, p: PersonRow): AufgabeRow[] {
-  const heute = isoTag(new Date());
+export function freigabenFuer(db: DB, p: PersonRow, heute: string): AufgabeRow[] {
   return db
     .select()
     .from(aufgaben)
@@ -153,4 +161,3 @@ export function schreibeVerlauf(
     .returning()
     .get();
 }
-

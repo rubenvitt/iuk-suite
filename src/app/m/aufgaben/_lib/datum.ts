@@ -68,6 +68,20 @@ export function wochenTage(montagIso: string): string[] {
   });
 }
 
+/**
+ * `iso`, um `n` Kalendertage verschoben (negativ = rueckwaerts) — ueber denselben
+ * sommerzeitfesten Anker wie `wochenTage`. DIE EINE STELLE fuer Tagesarithmetik
+ * im Modul: `new Date(Date.now() + n * TAG_MS)` rechnet auf dem rohen Instant und
+ * verlegt danach nur die Zone, nicht die Arithmetik — an einer Umstellungsnacht
+ * verschiebt sich das Ergebnis um eine Stunde und damit moeglicherweise um einen
+ * Kalendertag.
+ */
+export function tagePlus(iso: string, n: number): string {
+  const d = anker(iso);
+  d.setUTCDate(d.getUTCDate() + n);
+  return ausAnker(d);
+}
+
 const WOCHENTAGE_KURZ = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"] as const;
 
 /**

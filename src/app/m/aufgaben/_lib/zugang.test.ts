@@ -88,9 +88,9 @@ describe("personFuerSession", () => {
   });
 
   it("Sitzung mit passender Zeile: die Person, aufgeloest ueber sub", async () => {
-    const sarah = legePerson("dev:sarah@localtest.me", "koordination");
-    sitzung = { user: { id: "dev:sarah@localtest.me" } };
-    await expect(personFuerSession(t.db)).resolves.toEqual(sarah);
+    const rike = legePerson("dev:rike@localtest.me", "koordination");
+    sitzung = { user: { id: "dev:rike@localtest.me" } };
+    await expect(personFuerSession(t.db)).resolves.toEqual(rike);
   });
 });
 
@@ -174,7 +174,7 @@ describe("darfPlanAendern — ausschliesslich die Zielperson selbst, auch nicht 
   /*
    * Das Praedikat fragt NUR nach Identitaet (`p.id === zielPersonId`), nicht nach Rolle — jede
    * Rolle aendert IHREN EIGENEN Plan. Die eigentliche Aussage der Regel ("auch koordination nicht
-   * FREMDE Plaene") steht im Test direkt darunter, mit Sarah und Leas Plan.
+   * FREMDE Plaene") steht im Test direkt darunter, mit Rike und Alinas Plan.
    */
   it.each<Rolle>(["koordination", "auftrag", "bufdi"])(
     "Rolle %s auf den EIGENEN Plan → true",
@@ -184,10 +184,10 @@ describe("darfPlanAendern — ausschliesslich die Zielperson selbst, auch nicht 
     },
   );
 
-  it("Sarah (koordination) darf Leas Plan nicht aendern — sie schlaegt nur vor", () => {
-    const sarah = legePerson("pa-sarah", "koordination");
-    const lea = legePerson("pa-lea", "bufdi");
-    expect(darfPlanAendern(sarah, lea.id, HEUTE)).toBe(false);
+  it("Rike (koordination) darf Alinas Plan nicht aendern — sie schlaegt nur vor", () => {
+    const rike = legePerson("pa-rike", "koordination");
+    const alina = legePerson("pa-alina", "bufdi");
+    expect(darfPlanAendern(rike, alina.id, HEUTE)).toBe(false);
   });
 
   it("ausgeschiedener BuFDi aendert den eigenen Plan nicht mehr", () => {
@@ -201,7 +201,7 @@ describe("darfFreigeben", () => {
    * DIE KREUZPROBE: Selbstaufgabe × alle drei Rollen. `istSelbst` gewinnt IMMER, auch gegen
    * `rolle === "koordination"` und selbst wenn `prueferId` zufaellig auf die pruefende Person
    * zeigt — ohne diese erste Zeile stimmten `prueferId === null` (Selbstaufgaben haben keinen
-   * Pruefer) und `rolle === "koordination"` je fuer sich, und Sarah bekaeme einen Freigabeknopf
+   * Pruefer) und `rolle === "koordination"` je fuer sich, und Rike bekaeme einen Freigabeknopf
    * fuer eine Aufgabe, die gar keine Freigabestufe hat.
    */
   it.each<Rolle>(["koordination", "auftrag", "bufdi"])(
@@ -236,14 +236,14 @@ describe("darfFreigeben", () => {
     const ersteller = legePerson("fr2-ersteller", "auftrag");
     const pruefer = legePerson("fr2-pruefer", "auftrag");
     const bufdi = legePerson("fr2-bufdi", "bufdi");
-    const sarah = legePerson("fr2-sarah", "koordination");
+    const rike = legePerson("fr2-rike", "koordination");
     const a = legeAufgabe({
       erstellerId: ersteller.id,
       zugewiesenAn: bufdi.id,
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(darfFreigeben(sarah, a, HEUTE)).toBe(true);
+    expect(darfFreigeben(rike, a, HEUTE)).toBe(true);
   });
 
   it("Fremdaufgabe: ein Dritter (weder Pruefer noch koordination) darf nicht", () => {
@@ -272,6 +272,25 @@ describe("darfFreigeben", () => {
     });
     expect(darfFreigeben(pruefer, a, HEUTE)).toBe(false);
   });
+
+  /*
+   * BETREIBERENTSCHEIDUNG 2026-08-13: die Koordination verteilt, sie arbeitet nicht mit. Ohne
+   * diese Klausel waere hier ein begehbarer Pfad: Ersteller fremd (`ersteller !== zugewiesenAn`,
+   * `istSelbst` bleibt `false`), die Koordination verteilt die Aufgabe an SICH SELBST, bearbeitet
+   * sie und gibt am Ende ihre eigene Arbeit frei — das Vier-Augen-Prinzip fiele fuer genau diesen
+   * Fall aus, obwohl es mit dem Ersteller einen regulaeren Pruefer gaebe.
+   */
+  it("die Koordination gibt eine ihr selbst zugewiesene Fremdaufgabe NICHT frei", () => {
+    const ersteller = legePerson("fr5-ersteller", "auftrag");
+    const rike = legePerson("fr5-rike", "koordination");
+    const a = legeAufgabe({
+      erstellerId: ersteller.id,
+      zugewiesenAn: rike.id,
+      prueferId: ersteller.id,
+      status: "freigabe_offen",
+    });
+    expect(darfFreigeben(rike, a, HEUTE)).toBe(false);
+  });
 });
 
 /**
@@ -279,10 +298,9 @@ describe("darfFreigeben", () => {
  * bewegt aber nichts (Spec §7). Deshalb tragen die folgenden Praedikate bewusst KEIN
  * `heute`-Argument. Der eigentliche Beweis dafuer steht NICHT in der Abwesenheit eines Parameters,
  * sondern im eigenen Testblock weiter unten ("Sichtpraedikate gelten weiter fuer Ausgeschiedene"):
- * ohne ihn koennte jemand `istAktiv` still IN eine dieser Funktionen einbauen (etwa so, wie
- * `freigabenFuer` `heute` selbst ermittelt) — die Signatur bliebe gleich, der Typecheck bliebe
- * gruen, und genau der Fall aus Spec §7 (ein ehemaliger BuFDi sieht seine eigene Dokumentation
- * nicht mehr) waere ungetestet kaputt.
+ * ohne ihn koennte jemand `istAktiv` still IN eine dieser Funktionen einbauen — die Signatur
+ * bliebe gleich, der Typecheck bliebe gruen, und genau der Fall aus Spec §7 (ein ehemaliger BuFDi
+ * sieht seine eigene Dokumentation nicht mehr) waere ungetestet kaputt.
  */
 describe("darfPlanSehen — fuer alle wahr", () => {
   it.each<Rolle>(["koordination", "auftrag", "bufdi"])(
@@ -297,7 +315,7 @@ describe("darfPlanSehen — fuer alle wahr", () => {
 
 describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht jeder BuFDi", () => {
   it("koordination sieht jeden Nachweis", () => {
-    const sarah = legePerson("ns-sarah", "koordination");
+    const rike = legePerson("ns-rike", "koordination");
     const ersteller = legePerson("ns-ersteller", "auftrag");
     const bufdi = legePerson("ns-bufdi", "bufdi");
     const a = legeAufgabe({
@@ -305,7 +323,7 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
       zugewiesenAn: bufdi.id,
       status: "freigabe_offen",
     });
-    expect(darfNachweisSehen(sarah, a)).toBe(true);
+    expect(darfNachweisSehen(rike, a)).toBe(true);
   });
 
   it("der Ersteller der Aufgabe sieht den Nachweis", () => {
@@ -365,7 +383,7 @@ describe("Sichtpraedikate gelten weiter fuer Ausgeschiedene", () => {
 describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sein", () => {
   it("koordination !== Pruefer: Vertretung", () => {
     const pruefer = legePerson("vf-pruefer", "auftrag");
-    const sarah = legePerson("vf-sarah", "koordination");
+    const rike = legePerson("vf-rike", "koordination");
     const bufdi = legePerson("vf-bufdi", "bufdi");
     const a = legeAufgabe({
       erstellerId: pruefer.id,
@@ -373,19 +391,19 @@ describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sei
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(istVertretungsfreigabe(sarah, a)).toBe(true);
+    expect(istVertretungsfreigabe(rike, a)).toBe(true);
   });
 
   it("koordination === Pruefer: keine Vertretung", () => {
-    const sarah = legePerson("vf2-sarah", "koordination");
+    const rike = legePerson("vf2-rike", "koordination");
     const bufdi = legePerson("vf2-bufdi", "bufdi");
     const a = legeAufgabe({
-      erstellerId: sarah.id,
+      erstellerId: rike.id,
       zugewiesenAn: bufdi.id,
-      prueferId: sarah.id,
+      prueferId: rike.id,
       status: "freigabe_offen",
     });
-    expect(istVertretungsfreigabe(sarah, a)).toBe(false);
+    expect(istVertretungsfreigabe(rike, a)).toBe(false);
   });
 
   it("kein koordination-Freigeber: nie Vertretung, egal wer Pruefer ist", () => {
@@ -399,5 +417,25 @@ describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sei
       status: "freigabe_offen",
     });
     expect(istVertretungsfreigabe(anderer, a)).toBe(false);
+  });
+
+  /*
+   * `prueferId === null` gehoert zu einer SELBSTAUFGABE (Schema-Kommentar: "Null genau dann, wenn
+   * istSelbst"). Kein heutiger Pfad erzeugt eine FREMDAUFGABE ohne Pruefer, aber die Funktion
+   * verlaesst sich sonst auf eine Zusage, die anderswo gehalten werden muss — ohne die Klausel
+   * `&& a.prueferId !== null` waere dieser Fall `true` und Aufgabe 10 schriebe daraus
+   * "Freigegeben von X in Vertretung fuer —".
+   */
+  it("kein eingetragener Pruefer: keine Vertretung, auch fuer koordination", () => {
+    const rike = legePerson("vf4-rike", "koordination");
+    const bufdi = legePerson("vf4-bufdi", "bufdi");
+    const a = legeAufgabe({
+      erstellerId: bufdi.id,
+      zugewiesenAn: bufdi.id,
+      prueferId: null,
+      istSelbst: true,
+      status: "in_arbeit",
+    });
+    expect(istVertretungsfreigabe(rike, a)).toBe(false);
   });
 });

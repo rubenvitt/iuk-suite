@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { fmtTagKurz, isoTag, minutenVon, montagDerWoche, wochenTage, wochentagVon } from "./datum";
+import {
+  fmtTagKurz,
+  isoTag,
+  minutenVon,
+  montagDerWoche,
+  tagePlus,
+  wochenTage,
+  wochentagVon,
+} from "./datum";
 
 describe("isoTag", () => {
   /*
@@ -21,6 +29,27 @@ describe("isoTag", () => {
   it("rechnet auch in der Winterzeit richtig", () => {
     // 2026-01-05 00:30 MEZ = 2026-01-04 23:30 UTC
     expect(isoTag(new Date("2026-01-04T23:30:00Z"))).toBe("2026-01-05");
+  });
+
+  /*
+   * DIE UMSTELLUNGSNACHT MAERZ 2026 (letzter Sonntag, 29.03., 01:00 UTC: CET →
+   * CEST): kurz davor ist Berlin noch UTC+1, kurz danach UTC+2. Beide Seiten
+   * muessen trotzdem denselben Kalendertag liefern, solange die Berliner
+   * Uhrzeit auf derselben Seite von Mitternacht liegt.
+   */
+  it("bleibt ueber die Umstellungsnacht im Maerz korrekt", () => {
+    // 2026-03-29 00:30 MEZ (UTC+1, vor der Umstellung) = 2026-03-28 23:30 UTC
+    expect(isoTag(new Date("2026-03-28T23:30:00Z"))).toBe("2026-03-29");
+    // 2026-03-29 03:30 MESZ (UTC+2, nach der Umstellung) = 2026-03-29 01:30 UTC
+    expect(isoTag(new Date("2026-03-29T01:30:00Z"))).toBe("2026-03-29");
+  });
+
+  /** Die Umstellungsnacht Oktober 2026 (letzter Sonntag, 25.10., 01:00 UTC: CEST → CET). */
+  it("bleibt ueber die Umstellungsnacht im Oktober korrekt", () => {
+    // 2026-10-25 00:30 MESZ (UTC+2, vor der Umstellung) = 2026-10-24 22:30 UTC
+    expect(isoTag(new Date("2026-10-24T22:30:00Z"))).toBe("2026-10-25");
+    // 2026-10-25 02:30 MEZ (UTC+1, nach der Umstellung) = 2026-10-25 01:30 UTC
+    expect(isoTag(new Date("2026-10-25T01:30:00Z"))).toBe("2026-10-25");
   });
 });
 
@@ -59,6 +88,17 @@ describe("montagDerWoche", () => {
   it("laeuft ueber einen Monatswechsel", () => {
     expect(montagDerWoche("2026-09-02")).toBe("2026-08-31");
   });
+
+  /** 2025-12-29 ist ein Montag; die Woche endet erst im neuen Jahr. */
+  it("laeuft ueber den Jahreswechsel", () => {
+    expect(montagDerWoche("2025-12-29")).toBe("2025-12-29");
+    expect(montagDerWoche("2026-01-02")).toBe("2025-12-29");
+  });
+
+  /** 2028 ist ein Schaltjahr, 2028-02-28 ist ein Montag: die Woche enthaelt den 29.02. */
+  it("laeuft ueber den 29. Februar in einem Schaltjahr", () => {
+    expect(montagDerWoche("2028-02-29")).toBe("2028-02-28");
+  });
 });
 
 describe("wochenTage", () => {
@@ -72,6 +112,42 @@ describe("wochenTage", () => {
     expect(wochenTage("2026-08-31")).toEqual([
       "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04",
     ]);
+  });
+
+  it("laeuft ueber den Jahreswechsel", () => {
+    expect(wochenTage("2025-12-29")).toEqual([
+      "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02",
+    ]);
+  });
+
+  /** Schaltjahr 2028: der 29.02. steckt als Dienstag mitten in der Woche. */
+  it("enthaelt den 29. Februar in einem Schaltjahr", () => {
+    expect(wochenTage("2028-02-28")).toEqual([
+      "2028-02-28", "2028-02-29", "2028-03-01", "2028-03-02", "2028-03-03",
+    ]);
+  });
+});
+
+describe("tagePlus", () => {
+  it("verschiebt um n Kalendertage, vorwaerts und rueckwaerts", () => {
+    expect(tagePlus("2026-08-13", 3)).toBe("2026-08-16");
+    expect(tagePlus("2026-08-13", -3)).toBe("2026-08-10");
+    expect(tagePlus("2026-08-13", 0)).toBe("2026-08-13");
+  });
+
+  it("laeuft ueber einen Monatswechsel", () => {
+    expect(tagePlus("2026-08-30", 3)).toBe("2026-09-02");
+  });
+
+  /*
+   * DER FALL, DER EINE ROHE `Date.now() + n * TAG_MS`-RECHNUNG KIPPT: liegt der
+   * Aufruf innerhalb einer Stunde um Mitternacht in einer Umstellungsnacht, rutscht
+   * das Ergebnis dort um einen Kalendertag. `tagePlus` rechnet stattdessen ueber
+   * den Anker 12:00 UTC und ist deshalb unempfindlich dagegen.
+   */
+  it("bleibt ueber eine Umstellungsnacht korrekt", () => {
+    expect(tagePlus("2026-10-24", 1)).toBe("2026-10-25");
+    expect(tagePlus("2026-03-28", 1)).toBe("2026-03-29");
   });
 });
 

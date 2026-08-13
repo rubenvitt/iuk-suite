@@ -43,7 +43,7 @@ describe("seedLokalAufgaben — rein additiv", () => {
     t.db
       .insert(personen)
       .values({
-        sub: "dev:sarah@localtest.me",
+        sub: "dev:rike@localtest.me",
         name: "Handangelegt",
         initialen: "HA",
         rolle: "bufdi",
@@ -51,16 +51,23 @@ describe("seedLokalAufgaben — rein additiv", () => {
       })
       .run();
     await seedLokalAufgaben(t.db);
-    const sarah = t.db
+    const rike = t.db
       .select()
       .from(personen)
       .all()
-      .find((p) => p.sub === "dev:sarah@localtest.me");
-    expect(sarah?.name).toBe("Handangelegt");
-    expect(sarah?.rolle).toBe("bufdi");
+      .find((p) => p.sub === "dev:rike@localtest.me");
+    expect(rike?.name).toBe("Handangelegt");
+    expect(rike?.rolle).toBe("bufdi");
   });
 
-  it("eine vorher von Hand angelegte Aufgabe bleibt unangetastet", async () => {
+  /*
+   * KOLLIDIERENDER TITEL, nicht ein beliebiger: eine handangelegte Aufgabe, die mit KEINEM
+   * Demo-Titel uebereinstimmt, belegt nur, dass der Seed nichts LOESCHT — den
+   * Ueberspringen-Zweig (Titel schon vorhanden → keine zweite Zeile, die vorhandene bleibt
+   * unveraendert) trifft sie nie. Der Personen-Test darueber macht es mit `dev:rike@localtest.me`
+   * schon richtig; hier derselbe Trick mit einem der neun Demo-Titel.
+   */
+  it("eine vorher von Hand angelegte Aufgabe mit demselben Titel wie eine Demo-Aufgabe bleibt unangetastet", async () => {
     const ersteller = t.db
       .insert(personen)
       .values({ sub: "x", name: "X", initialen: "XX", rolle: "auftrag", aktivVon: "2026-01-01" })
@@ -69,8 +76,8 @@ describe("seedLokalAufgaben — rein additiv", () => {
     t.db
       .insert(aufgaben)
       .values({
-        titel: "Handangelegte Aufgabe",
-        beschreibung: "B",
+        titel: "Verbandskästen im Fahrzeugpark prüfen",
+        beschreibung: "Handangelegt.",
         prioritaet: "mittel",
         erstellerId: ersteller.id,
         status: "eingegangen",
@@ -79,12 +86,13 @@ describe("seedLokalAufgaben — rein additiv", () => {
       })
       .run();
     await seedLokalAufgaben(t.db);
-    const meine = t.db
+    const treffer = t.db
       .select()
       .from(aufgaben)
       .all()
-      .filter((a) => a.titel === "Handangelegte Aufgabe");
-    expect(meine).toHaveLength(1);
+      .filter((a) => a.titel === "Verbandskästen im Fahrzeugpark prüfen");
+    expect(treffer).toHaveLength(1);
+    expect(treffer[0].beschreibung).toBe("Handangelegt.");
   });
 });
 
@@ -139,11 +147,23 @@ describe("seedLokalAufgaben — die Zusagen sind wirklich erfuellt", () => {
     const geplante = alleAufgaben.filter(
       (a) => a.planDatum !== null && a.zugewiesenAn !== null && bufdiIds.has(a.zugewiesenAn),
     );
-    const tage = new Set(geplante.map((a) => a.planDatum));
-    expect(tage.size).toBeGreaterThanOrEqual(2);
 
-    const personenMitPlan = new Set(geplante.map((a) => a.zugewiesenAn));
-    expect(personenMitPlan.size).toBeGreaterThanOrEqual(2);
+    /*
+     * PRO PERSON GRUPPIEREN, nicht ueber alle hinweg: zwei Personen mit je genau EINEM,
+     * aber verschiedenen Tag erfuellten eine ueber-alle-Personen-Zaehlung ebenfalls — das ist
+     * genau der Zustand, den dieser Test nicht sehen darf. Die Zusage ist "mindestens zwei
+     * BuFDis haben je Aufgaben an mindestens zwei verschiedenen Tagen".
+     */
+    const tageProPerson = new Map<string, Set<string>>();
+    for (const a of geplante) {
+      const menge = tageProPerson.get(a.zugewiesenAn as string) ?? new Set<string>();
+      menge.add(a.planDatum as string);
+      tageProPerson.set(a.zugewiesenAn as string, menge);
+    }
+    const personenMitMehrerenTagen = [...tageProPerson.values()].filter(
+      (tage) => tage.size >= 2,
+    );
+    expect(personenMitMehrerenTagen.length).toBeGreaterThanOrEqual(2);
 
     const minutenProPersonUndTag = new Map<string, number>();
     for (const a of geplante) {

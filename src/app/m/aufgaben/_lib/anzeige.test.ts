@@ -22,22 +22,22 @@ import {
 
 const AUFGABE: AufgabeRow = {
   id: "x", titel: "T", beschreibung: "B", prioritaet: "mittel",
-  erstellerId: "schulle", zugewiesenAn: "lea", status: "verteilt",
+  erstellerId: "malte", zugewiesenAn: "alina", status: "verteilt",
   faelligAm: "2026-08-14", faelligUhrzeit: null, dauerMinuten: 60,
-  nachweisPflicht: false, nachweisArt: "text", prueferId: "schulle",
+  nachweisPflicht: false, nachweisArt: "text", prueferId: "malte",
   istSelbst: false, planDatum: null, planUhrzeit: null, planRang: 0,
   vorschlagDatum: null, vorschlagUhrzeit: null,
   erstelltAm: new Date(0), aktualisiertAm: new Date(0),
 };
 
-const LEA: PersonRow = {
-  id: "lea", sub: "dev:lea@localtest.me", name: "Lea", initialen: "LE",
+const ALINA: PersonRow = {
+  id: "alina", sub: "dev:alina@localtest.me", name: "Alina", initialen: "AL",
   rolle: "bufdi", sollMinutenTag: 468, aktivVon: "2026-08-01", aktivBis: null,
   erstelltAm: new Date(0),
 };
 
 const routine = (over: Partial<RoutineRow>): RoutineRow => ({
-  id: "r", personId: "lea", titel: "R", wochentage: 0b11111,
+  id: "r", personId: "alina", titel: "R", wochentage: 0b11111,
   uhrzeit: "08:00", dauerMinuten: 45, aktiv: true, erstelltAm: new Date(0),
   ...over,
 });
@@ -175,7 +175,7 @@ describe("tagesBudget", () => {
         { ...AUFGABE, id: "a", planDatum: MO, dauerMinuten: 120 },
         { ...AUFGABE, id: "b", planDatum: MO, dauerMinuten: 60 },
       ],
-      [], LEA, MO,
+      [], ALINA, MO,
     );
     expect(b.verplantMinuten).toBe(180);
     expect(b.sollMinuten).toBe(468);
@@ -187,10 +187,10 @@ describe("tagesBudget", () => {
       [
         { ...AUFGABE, id: "a", planDatum: MO, dauerMinuten: 120 },
         { ...AUFGABE, id: "b", planDatum: "2026-08-11", dauerMinuten: 999 },
-        { ...AUFGABE, id: "c", planDatum: MO, zugewiesenAn: "noah", dauerMinuten: 999 },
+        { ...AUFGABE, id: "c", planDatum: MO, zugewiesenAn: "bendix", dauerMinuten: 999 },
         { ...AUFGABE, id: "d", planDatum: null, dauerMinuten: 999 },
       ],
-      [], LEA, MO,
+      [], ALINA, MO,
     );
     expect(b.verplantMinuten).toBe(120);
   });
@@ -207,23 +207,23 @@ describe("tagesBudget", () => {
         routine({ id: "r1", wochentage: 0b00001, dauerMinuten: 45 }),
         routine({ id: "r2", wochentage: 0b00001, dauerMinuten: 300, aktiv: false }),
         routine({ id: "r3", wochentage: 0b00010, dauerMinuten: 300 }),
-        routine({ id: "r4", wochentage: 0b00001, dauerMinuten: 300, personId: "noah" }),
+        routine({ id: "r4", wochentage: 0b00001, dauerMinuten: 300, personId: "bendix" }),
       ],
-      LEA, MO,
+      ALINA, MO,
     );
     expect(b.verplantMinuten).toBe(105);
   });
 
   it("meldet Ueberbuchung erst oberhalb des Solls", () => {
-    expect(tagesBudget([{ ...AUFGABE, planDatum: MO, dauerMinuten: 468 }], [], LEA, MO).ueberbucht).toBe(false);
-    expect(tagesBudget([{ ...AUFGABE, planDatum: MO, dauerMinuten: 469 }], [], LEA, MO).ueberbucht).toBe(true);
+    expect(tagesBudget([{ ...AUFGABE, planDatum: MO, dauerMinuten: 468 }], [], ALINA, MO).ueberbucht).toBe(false);
+    expect(tagesBudget([{ ...AUFGABE, planDatum: MO, dauerMinuten: 469 }], [], ALINA, MO).ueberbucht).toBe(true);
   });
 
   it("nimmt am Wochenende die Aufgaben, aber keine Routinen", () => {
     const b = tagesBudget(
       [{ ...AUFGABE, planDatum: "2026-08-15", dauerMinuten: 60 }],
       [routine({ wochentage: 0b11111, dauerMinuten: 60 })],
-      LEA, "2026-08-15",
+      ALINA, "2026-08-15",
     );
     expect(b.verplantMinuten).toBe(60);
   });
@@ -249,5 +249,15 @@ describe("Formatierung", () => {
     expect(fmtStunden(120)).toBe("2");
     expect(fmtStunden(165)).toBe("2,75");
     expect(fmtStunden(0)).toBe("0");
+  });
+
+  /** Runde Zehnerwerte verlieren den gesamten Nachkommaanteil samt Komma, nicht nur Nullen. */
+  it("schreibt runde Zehnerwerte ohne Komma", () => {
+    expect(fmtStunden(600)).toBe("10");
+  });
+
+  /** Eine halbe Stunde behaelt genau eine Nachkommastelle. */
+  it("schreibt eine halbe Stunde als 0,5", () => {
+    expect(fmtStunden(30)).toBe("0,5");
   });
 });
