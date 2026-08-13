@@ -54,7 +54,19 @@ test.describe("lagerbuch — Modulnavigation", () => {
     await expect(leiste.getByRole("link", { name: "Geräte" })).toBeVisible();
 
     await page.getByRole("link", { name: "E2E Spineboard" }).click();
-    await expect(page).toHaveURL(/\/verwaltung\/geraete\/[^/]+$/);
+    /*
+     * EIGENES ZEITBUDGET, und der Grund steht in `playwright.config.ts` an
+     * `retries`: `next dev` übersetzt die Zielroute beim ERSTEN Aufruf. Der
+     * Test hat dafür 90 s, diese Zusicherung aber nur Playwrights Vorgabe von
+     * 5 s — unter Last läuft sie ab, während die Navigation noch arbeitet, und
+     * pollt so lange die alte Adresse. Genau dieser Fall wurde am 12.08.2026
+     * gemessen (13 Pollversuche, unveränderter Rerun grün).
+     *
+     * Die Zahl deckt die Übersetzung ab und bleibt deutlich unter dem
+     * Test-Timeout: ein echter Navigationsfehler fällt weiterhin auf, nur eben
+     * nach 30 s statt nach 5.
+     */
+    await expect(page).toHaveURL(/\/verwaltung\/geraete\/[^/]+$/, { timeout: 30_000 });
     await expect(leiste.locator("a[aria-current]")).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Brotkrume" })).toBeVisible();
   });

@@ -77,6 +77,16 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
   test("Inventur: +/- veraendert den Wert und laesst ihn wieder buchbar zurueck", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/inventur"));
     /*
+     * WARTEN, BIS DAS JAVASCRIPT DA IST — dieselbe Vorsichtsmaßnahme, die
+     * `devLogin` in `fixtures.ts` mit derselben Begründung trifft. Die
+     * +/-Knöpfe stehen im SSR-HTML und sind sofort anklickbar; ihr `onClick`
+     * hängt aber am Client. Landet der Klick vorher, bleibt der Wert stehen
+     * und `toHaveValue` läuft nach seinen 5 Sekunden ab — genau so in der CI
+     * am 13.08.2026 gesehen (`14 × locator resolved to <input value="9">`),
+     * während derselbe Commit im Rerun durchlief.
+     */
+    await page.waitForLoadState("networkidle");
+    /*
      * NICHT `tbody tr` ungefiltert: antd's Table setzt als ERSTES `<tr>` im
      * `<tbody>` eine unsichtbare `ant-table-measure-row` (height:0, dient der
      * Spaltenbreitenmessung nach der Hydration) — `.first()` traf dort ins
