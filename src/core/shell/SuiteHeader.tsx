@@ -67,7 +67,7 @@ export async function SuiteHeader({
    * bleibt 64.
    */
   return (
-    <>
+    <div className={s.kopfBlock}>
       {/* Vor der Kopfzeile, nicht darin: eine Kante an der antd-Flaeche waere ein
           Spezifitaetsstreit, ein eigenes Element ist keiner. `aria-hidden`, weil
           der Streifen reine Marke ist und nichts vorliest. */}
@@ -120,6 +120,6 @@ export async function SuiteHeader({
         )}
         <SuiteNav nav={nav} userName={session?.user?.name ?? null} angemeldet={angemeldet} />
       </Header>
-    </>
+    </div>
   );
 }

@@ -58,6 +58,50 @@ function deklarationsWerte(regeln: CssRegel[], eigenschaft: string): string[] {
   );
 }
 
+function siderRegeln(css: string): CssRegel[] {
+  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  return cssRegeln(ohneKommentare).filter((regel) => zieltAufKlasse(regel.selektor, "sider"));
+}
+
+/**
+ * DIE DREI KASKADEN-PRUEFMUSTER, UEBERNOMMEN VON `.modulnav`.
+ *
+ * Sie pruefen eine KLASSE VON FEHLERN: ein gruener Ersttreffer, hinter dem eine
+ * spaetere Regel dieselbe Eigenschaft still ueberschreibt. Mit dem Wegfall der
+ * zweiten Kopfzeile (2026-08-13) waeren sie sonst ersatzlos verloren gewesen.
+ *
+ * Die Invarianten: genau EIN `display`-Wert vor dem Breakpoint (`none`), genau
+ * EINER darin (`block`), genau EIN `inset-block-start`. Eine zweite Regel mit
+ * demselben Wert ist ebenso ein Kaskadenrisiko wie eine mit `initial`.
+ *
+ * Die Media Query wird erst AB der Position der `.sider`-Basisregel gesucht:
+ * die Basisregel steht selbst HINTER dem ersten `(min-width: 768px)`-Block
+ * (`.rechts .nurMobil` & Co.). Eine Suche ab der ersten Fundstelle schnitte
+ * sie nicht ab, und der folgende `.sider`-Treffer waere der FALSCHE. Genau
+ * diese Falle steht schon am Test „klebt die Seitenleiste ab 768px fest".
+ */
+function erwartetRobusteSiderUmschaltung(css: string) {
+  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const basisIndex = ohneKommentare.indexOf(".sider {");
+  expect(basisIndex, "Basisregel .sider fehlt").toBeGreaterThanOrEqual(0);
+
+  const mediaStart = ohneKommentare.indexOf("@media (min-width: 768px)", basisIndex);
+  expect(mediaStart, "Desktop-Breakpoint nach der .sider-Basisregel fehlt").toBeGreaterThanOrEqual(0);
+
+  const basis = siderRegeln(ohneKommentare.slice(basisIndex, mediaStart));
+  expect(basis, "vor der Media Query muss genau eine Basisregel .sider stehen").toHaveLength(1);
+  expect(deklarationsWerte(basis, "display")).toEqual(["none"]);
+
+  const desktop = siderRegeln(ohneKommentare.slice(mediaStart));
+  expect(desktop, "ab 768px muss genau eine Regel .sider stehen").toHaveLength(1);
+  expect(deklarationsWerte(desktop, "display")).toEqual(["block"]);
+  expect(deklarationsWerte(siderRegeln(ohneKommentare), "inset-block-start")).toEqual([
+    "var(--iuk-kopf)",
+  ]);
+
+  return { basis: basis[0], desktop: desktop[0] };
+}
+
 describe("shell.module.css", () => {
   it("kennt genau einen Breakpoint, und der ist 768px", () => {
     const breakpoints = [...OHNE_KOMMENTARE.matchAll(/\(min-width:\s*(\d+)px\)/g)].map((m) => m[1]);
@@ -325,10 +369,11 @@ describe("shell.module.css", () => {
 
   it("klebt die Seitenleiste ab 768px unter der Kopfzeile fest", () => {
     /*
-     * `inset-block-start` muss denselben Wert wie `headerHeight` (64px)
-     * tragen — weicht er ab, klebt die Leiste unter oder über der Kopfzeile,
-     * und `build` sieht das nicht (nur ein echter Browser wertet die
-     * Media Query aus).
+     * `inset-block-start` muss dieselbe Variable wie `--iuk-kopf` tragen —
+     * weicht sie ab, klebt die Leiste unter oder über der Kopfzeile, und
+     * `build` sieht das nicht (nur ein echter Browser wertet die Media Query
+     * aus). Die Zahl selbst (69px, aus `headerHeight` + Streifenhoehe) prueft
+     * der Test „rechnet --iuk-kopf aus headerHeight UND Streifenhoehe" unten.
      *
      * NICHT die erste `(min-width: 768px)`-Fundstelle im Dokument nehmen (wie
      * beim `.nurMobil`-Test oben): DIE Basisregel `.sider { display: none }`
@@ -347,7 +392,99 @@ describe("shell.module.css", () => {
     expect(regel, ".sider wird ab 768px nicht sichtbar gemacht").not.toBeNull();
     expect(regel![1]).toMatch(/display:\s*block/);
     expect(regel![1]).toMatch(/position:\s*sticky/);
-    expect(regel![1]).toMatch(/inset-block-start:\s*64px/);
+    expect(regel![1]).toMatch(/inset-block-start:\s*var\(--iuk-kopf\)/);
+  });
+
+  it("rechnet `--iuk-kopf` aus headerHeight UND Streifenhoehe", async () => {
+    /*
+     * DIE LEISTE KLEBTE AN DER FALSCHEN KANTE, und beides war falsch.
+     *
+     * Sie stand auf `inset-block-start: 64px` — dem Wert von
+     * `Layout.headerHeight`. Ueber der Kopfzeile steht aber zusaetzlich der
+     * 5px hohe Markenstreifen, und die Kopfzeile war ueberhaupt nicht
+     * klebend: beim Scrollen wanderte sie weg und ueber der Leiste stand ein
+     * 64px hohes Loch.
+     *
+     * Seit 2026-08-13 klebt der ganze Kopfblock (Streifen + Kopfzeile) und die
+     * Leiste darunter bei 69px. Die Zahl faellt aus zwei Groeszen, die es
+     * schon gibt — und genau die Situation „eine dritte Zahl laeuft still
+     * daneben" ist der Befund, den dieser Test verriegelt.
+     *
+     * CSS kann die TypeScript-Konstante nicht lesen, dieser Test schon: er
+     * liest `headerHeight` aus `buildTheme` und die Streifenhoehe aus dem CSS
+     * und haelt die Summe gegen `--iuk-kopf`.
+     */
+    const { buildTheme } = await import("@/core/theme/theme");
+    const headerHeight = buildTheme("light").components?.Layout?.headerHeight;
+    expect(typeof headerHeight, "Layout.headerHeight fehlt in buildTheme").toBe("number");
+
+    const streifen = /\.streifen\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(streifen, "Klasse .streifen fehlt").not.toBeNull();
+    const streifenHoehe = /height:\s*(\d+)px/.exec(streifen![1]);
+    expect(streifenHoehe, ".streifen hat keine Hoehe in px").not.toBeNull();
+
+    const kopf = /--iuk-kopf:\s*(\d+)px/.exec(OHNE_KOMMENTARE);
+    expect(kopf, "Variable --iuk-kopf fehlt").not.toBeNull();
+    expect(Number(kopf![1])).toBe(Number(headerHeight) + Number(streifenHoehe![1]));
+  });
+
+  it("laeszt den Kopfblock kleben, nicht nur die Leiste", () => {
+    /*
+     * Ohne das ist `--iuk-kopf` eine richtige Zahl fuer eine falsche Annahme:
+     * die Leiste klebt bei 69px unter einer Kopfzeile, die weggescrollt ist.
+     *
+     * Der Streifen klebt NICHT selbst, er sitzt im selben klebenden Block —
+     * zwei unabhaengig klebende Elemente waeren zwei Zahlen statt einer.
+     *
+     * `z-index` ist noetig, weil ein klebender Knoten ohne ihn von spaeterem
+     * Inhalt ueberzeichnet wird. Er erzeugt zugleich einen Stapelkontext, in
+     * dem `.umschalterFang` (900) und `.umschalterPanel` (901) liegen — beide
+     * bleiben damit ueber dem Seiteninhalt (auto = 0), und antds Drawer (1000,
+     * ins `body` portalisiert) bleibt darueber. Wer diese Zahl senkt, prueft
+     * alle drei.
+     */
+    const regel = /\.kopfBlock\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .kopfBlock fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/position:\s*sticky/);
+    expect(regel![1]).toMatch(/inset-block-start:\s*0/);
+    expect(regel![1]).toMatch(/z-index:\s*\d+/);
+  });
+
+  it("verwirft eine spaetere `.sider`-Ueberschreibung trotz gruenem Ersttreffer", () => {
+    const mutation = `${OHNE_KOMMENTARE}
+      .sider {
+        display: none;
+        inset-block-start: 0;
+      }
+    `;
+
+    // Genau der naive Ersttreffer: er bleibt gruen und sieht die spaetere
+    // Kaskaden-Ueberschreibung nicht.
+    const ersterTreffer = /\.sider\s*\{([^}]*)\}/.exec(mutation);
+    expect(ersterTreffer, "Basisregel .sider fehlt").not.toBeNull();
+    expect(ersterTreffer![1]).toMatch(/display:\s*none/);
+
+    expect(() => erwartetRobusteSiderUmschaltung(mutation)).toThrow();
+  });
+
+  it("verwirft `.sider` als erstes Kind einer spaeteren Media Query", () => {
+    const mutation = `${OHNE_KOMMENTARE}
+      @media (min-width: 768px) {
+        .sider {
+          display: none;
+        }
+      }
+    `;
+    expect(() => erwartetRobusteSiderUmschaltung(mutation)).toThrow();
+  });
+
+  it("ignoriert Kommentare und aehnlich benannte Klassen bei .sider", () => {
+    const nurNamen = `${CSS}
+      /* .sider { display: none; } */
+      .siderleiste { display: none; }
+      .nicht-sider { display: none; }
+    `;
+    expect(() => erwartetRobusteSiderUmschaltung(nurNamen)).not.toThrow();
   });
 
   it("kennt die Klasse .navAbschnitt", () => {

@@ -14,6 +14,27 @@
  */
 
 /*
+ * DER KLEBENDE KOPFBLOCK — Markenstreifen und Kopfzeile als eine Einheit.
+ *
+ * Vorher klebte nur die Seitenleiste (`inset-block-start: 64px`), waehrend die
+ * Kopfzeile mitscrollte: beim Scrollen stand ueber der Leiste ein 64px hohes
+ * Loch. Und die 64 war zusaetzlich zu klein, weil der Streifen darueber steht.
+ *
+ * EIN Block statt zweier klebender Elemente: sonst waeren zwei Zahlen zu
+ * pflegen statt einer, und `--iuk-kopf` (an `.sider`) muesste beide kennen.
+ *
+ * `z-index` erzeugt hier einen Stapelkontext. Das ist gewollt und in
+ * `shell-css.test.ts` ausgeschrieben: `.umschalterFang` (900) und
+ * `.umschalterPanel` (901) liegen darin und bleiben ueber dem Seiteninhalt
+ * (`auto` = 0); antds Drawer wird ins `body` portalisiert und liegt darueber.
+ */
+.kopfBlock {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 100;
+}
+
+/*
  * DER MARKENSTREIFEN — 5px, der billigste Griff mit der groeszten Wirkung.
  * Uebernommen aus dem alten Lagerbuch (`.stripe`), das ihn ueber jeder Ansicht
  * trug.
@@ -247,6 +268,17 @@
  * (antd-Token), `.modulleiste` braucht deshalb keine eigene.
  */
 .sider {
+  /*
+   * 64px Kopfzeile (`Layout.headerHeight`, core/theme/theme.ts) + 5px
+   * Markenstreifen (`.streifen` oben). Die Summe steht hier EINMAL; ein
+   * zweiter Ort dafuer ist genau der Fehler, den `shell-css.test.ts` mit
+   * „rechnet --iuk-kopf aus headerHeight UND Streifenhoehe" verriegelt.
+   *
+   * An `.sider` und nicht an `:root`: ein CSS-Modul kann `:root` nicht scopen,
+   * und `.sider` ist der einzige Konsument.
+   */
+  --iuk-kopf: 69px;
+
   display: none;
 }
 
@@ -282,9 +314,8 @@
   .sider {
     display: block;
     position: sticky;
-    /* Unter der 64px-Kopfzeile; `headerHeight` bleibt unverändert. */
-    inset-block-start: 64px;
-    block-size: calc(100vh - 64px);
+    inset-block-start: var(--iuk-kopf);
+    block-size: calc(100vh - var(--iuk-kopf));
     overflow-y: auto;
   }
 }
