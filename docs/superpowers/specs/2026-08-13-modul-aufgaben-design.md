@@ -20,7 +20,7 @@ Vier Anforderungen, die daraus folgen:
 
 Ein Klickdummy als eigenständige HTML-Datei liegt unter `bufdi-koordination-klickdummy.html`
 (Wurzel des Repositories). Er ist **Referenz für den Funktionsumfang, nicht für die Gestaltung** —
-sein Design gehört nicht zur Suite. Er wird im Zuge von Bauabschnitt 1 gelöscht.
+sein Design gehört nicht zur Suite. Er wird am Ende der Umsetzung gelöscht.
 
 ## 2. Getroffene Entscheidungen
 
@@ -34,18 +34,33 @@ Fünf Fragen waren fachlich offen; alle fünf sind entschieden.
 | Nachweisformen v1 | **Text und Bild**. Video vertagt | Der große Sprung ist „überhaupt Dateien annehmen"; Video ist danach vor allem eine Speicher- und Backup-Frage, also eine Betriebsentscheidung |
 | Sichtbarkeit | BuFDis sehen die Zeitpläne der anderen **lesend**; Nachweise nur Verfasser, Sarah und der jeweilige Auftraggeber | Vertretungsabsprachen ohne Sarah als Nadelöhr, aber Leistungsnachweise sind kein Aushang |
 
-Dazu zwei Entscheidungen zur Reihenfolge:
+Dazu drei Entscheidungen zum Bauweg:
 
-- **Drag & Drop ist gewünscht**, kommt aber als **Bauabschnitt 5** — nicht als Sparmaßnahme, sondern
-  weil es mit der Tastatur nicht bedienbar und auf dem Handy nicht zuverlässig ist. Die Knopf- und
-  Formularstrecke ist deshalb ohnehin Pflicht, und wenn sie steht, ist Ziehen eine Schicht darüber
-  mit denselben Server-Actions.
-- **Upload und Virenscan werden nach `src/core/upload` gehoben, und `files` wird im selben
-  Arbeitsschritt darauf umgestellt.** Modul-Interna sind kein API (Präzedenz: `payloadToSvg`), also
-  darf `aufgaben` die Fassung aus `files` nicht quer importieren. Hebt man nur und lässt `files` auf
-  seiner eigenen Fassung stehen, gibt es zwei Implementierungen desselben Sicherheitsmechanismus und
-  die `core`-Regel ist nur formal erfüllt. Das ist der einzige Posten, der ein bestehendes Modul
-  anfasst — deshalb steht er spät (Bauabschnitt 4) und ist beim Erreichen erneut zu prüfen.
+- **Es entsteht die Anwendung, kein Klickdummy** (Betreiberentscheid 2026-08-13). Ein erster
+  Bauabschnitt mit fest verdrahteten Daten und einem Demo-Rollenwechsler ist gestrichen: Rollen
+  kommen von Anfang an aus der Sitzung. Der vorhandene `bufdi-koordination-klickdummy.html` bleibt
+  Referenz für den **Funktionsumfang** und wird am Ende gelöscht.
+- **Drag & Drop ist gewünscht und im Umfang** — aber es ist nie der einzige Weg. Mit der Tastatur ist
+  Ziehen nicht bedienbar und auf dem Handy nicht zuverlässig, also ist die Knopf- und
+  Formularstrecke ohnehin Pflicht; Ziehen ist eine Schicht darüber mit denselben Server-Actions und
+  wird nach ihr gebaut.
+- **Nur das clamd-*Protokoll* geht nach `core`, nicht die Warteschlange.** Das Spec sagte zunächst
+  „Upload und Virenscan nach `src/core/upload` heben und `files` mitziehen". Am 2026-08-13 gemessen
+  ist das **nicht eine Sache, sondern zwei**: `files/_lib/av.ts` hat 728 Zeilen, davon sind Zeile
+  35–262 das generische clamd-Protokoll (die vier Bauregeln „settelt immer, genau einmal, wirft nie
+  asynchron") und Zeile 264–728 eine Warteschlange, die **die Datenbank von `files` ist** —
+  `AvTabelle = "share_files" | "inbox_files"`, die Aufträge sind die Zeilen mit
+  `av_status = 'scanning'`, ein Arbeiter je Container.
+
+  Die Suite hat **eine SQLite pro Modul**. Ein geteilter Arbeiter müsste also mehrere Datenbanken
+  öffnen und eine Auftragsreihenfolge über sie führen — das ist eine neue Architektur, keine
+  Verschiebung, und sie fasst `_lib/boot.ts`, `instrumentation.ts` und den prozessweiten Netzhaken an.
+  Deshalb: `core/av/scanner.ts` bekommt `scanne(pfad, konfig)` samt Antwortauswertung,
+  `istFreigegeben` und Netzhaken — **die Konfiguration als Argument**, damit `FILES_AV_*` unangetastet
+  bleibt. Die Warteschlange bleibt bei jedem Modul; `aufgaben` bekommt eine kleine über seine **eine**
+  Tabelle. `files` ändert sich an einer Aufrufstelle. Der `core`-Maßstab ist damit erfüllt (zwei heute
+  belegbare Nutznießer des Protokolls), ohne dass jemand einen datenbankübergreifenden Arbeiter
+  erfindet.
 
 ## 3. Registrierung als Modul
 
@@ -62,7 +77,7 @@ ein Aufgabenwerkzeug.
 | `requiredGroups` | `["iuk-aufgaben-nutzer"]` |
 | `adminGroups` | `["iuk-aufgaben-koordination"]` |
 | `prodHosts` | `[]` (Domain kommt aus `SUITE_HOST_AUFGABEN`) |
-| `showInSwitcher` | `false` bis Bauabschnitt 2 abgeschlossen ist, dann `true` |
+| `showInSwitcher` | `false`, bis Abschnitt E steht; dann `true` (ein halbfertiges Modul gehört nicht in die Navigation aller Nutzer) |
 | `switcherGroupSources` | `["access"]` |
 
 **`requiresAuth: true` ist hier richtig**, obwohl vier bestehende Module ausdrücklich das Gegenteil
@@ -75,7 +90,7 @@ komplett ins Modul verlagern, ohne dass irgendetwas dadurch möglich würde.
 erreichbar ist** — eine nicht existierende Gruppe in `requiredGroups` sperrt jeden aus, den
 Betreiber eingeschlossen. Lokal ist das **kein** Problem: `.env.local` setzt `AUTH_DEV_LOGIN=true`,
 und der Dev-Login nimmt Gruppen als freies Eingabefeld an (`core/auth/config.ts`, Provider
-`dev-login`) — Bauabschnitt 1 ist also ohne Pocket-ID-Arbeit durchklickbar. Zusätzlich sind beide
+`dev-login`) — die Entwicklung braucht also keine Pocket-ID-Arbeit. Zusätzlich sind beide
 Gruppen per Env überschreibbar (`SUITE_ACCESS_GROUP_AUFGABEN`, `SUITE_ADMIN_GROUP_AUFGABEN`), was
 einer Instanz mit anders benannten SSO-Gruppen den Weg offen hält.
 
@@ -348,11 +363,11 @@ Die Aktionszone unten trägt **nur, was diese Person mit dieser Aufgabe in diese
 Zurückweisen ist bestätigungspflichtig und verlangt Text: eine Zurückweisung ohne Begründung ist für
 den BuFDi wertlos.
 
-### 8.5 Einplanen ohne Drag & Drop (Bauabschnitt 1–4)
+### 8.5 Einplanen per Formular — die Grundlage unter dem Ziehen
 
 Eine Aufgabe in einen Tag legen ist ein kleines Formular: Tag, optional Uhrzeit, Dauerschätzung.
 Die Reihenfolge innerhalb des Tages regeln Auf-/Ab-Knöpfe auf `plan_rang`. Das ist mit der Tastatur
-bedienbar, funktioniert auf dem Handy, und ist die Grundlage, auf der Bauabschnitt 5 aufsetzt.
+bedienbar, funktioniert auf dem Handy, und ist die Grundlage, auf der Abschnitt G (Ziehen) aufsetzt.
 
 ## 9. Darstellung
 
@@ -386,8 +401,9 @@ Nachgebaut nach dem Vokabular aus `lagerbuch/_ui/verwaltung.module.css`, mit eig
 | `abgeschlossen` | grün |
 | `zurückgewiesen` | Ampel-Rot-**Text**farbe, nicht Markenrot |
 
-**Die vollständige Palette wird in Bauabschnitt 1 festgelegt**, weil dort die Farben zum ersten Mal
-erscheinen — nicht später, sonst trägt der Klickdummy provisorische Werte, die niemand mehr anfasst.
+**Die vollständige Palette wird in Abschnitt B festgelegt**, weil dort die Farben zum ersten Mal
+erscheinen — nicht später, sonst tragen die ersten Bildschirme provisorische Werte, die niemand mehr
+anfasst.
 Sie wird mit **gemessenem** AA-Kontrast geliefert, nicht mit geschätztem, und jeder Wert braucht ein
 geprüftes Gegenstück für den Dunkelmodus. Letzteres ist der größte versteckte Posten bei jeder
 Übernahme aus `lagerbuch`, dessen Palette durchgehend hell ist.
@@ -546,7 +562,8 @@ Vollständiger Lauf vor jedem Abschluss: `pnpm typecheck` · `pnpm lint` · `pnp
 
 ## 11. Das Dreieck und die vierte Zeile
 
-Sobald das Modul eine Datenbank hat (Bauabschnitt 2), braucht es **drei** zusammenpassende Einträge:
+Das Modul hat von Anfang an eine Datenbank (Abschnitt A). Es braucht deshalb **drei**
+zusammenpassende Einträge, und zwar sofort:
 
 1. `src/app/m/aufgaben/_db/migrations/`
 2. die Zeile in `MODULE_MIGRATIONS` in `core/bootstrap.ts`
@@ -554,7 +571,7 @@ Sobald das Modul eine Datenbank hat (Bauabschnitt 2), braucht es **drei** zusamm
 
 Fehlt die dritte, läuft es lokal und bricht im Container.
 
-Unabhängig davon und **schon in Bauabschnitt 1**:
+Dazu, in derselben ersten Runde:
 
 - `ScheduleOutlined` in die `ICONS`-Map in `core/shell/icons.ts` (§3).
 - Drei dokumentierte Zeilen in `.env.example`: `SUITE_HOST_AUFGABEN`,
@@ -565,43 +582,50 @@ Unabhängig davon und **schon in Bauabschnitt 1**:
   eine leer gesetzte `SUITE_ACCESS_GROUP_*` ist dagegen wirkungslos oder bricht den Boot ab — bei
   `requiresAuth: true` wäre die leere Liste eine stille Öffnung für alle Eingeloggten. Der Kommentar
   in `.env.example` muss diesen Unterschied nennen.
-- `SUITE_HOST_AUFGABEN=aufgaben.localtest.me` in `.env.local`, damit der Host-Weg lokal dem
-  Produktionsweg entspricht. Ohne die Zeile ist das Modul nur unter `/m/aufgaben` erreichbar (was für
-  Bauabschnitt 1 genügt), und `moduleForHost` löst zusätzlich `aufgaben.localtest.me` ohnehin über die
-  eingebaute Konvention auf.
+- **Keine Zeile in `.env.local` nötig:** `moduleForHost` löst `aufgaben.localtest.me` über die
+  eingebaute Wildcard-Konvention auf, auch ohne `SUITE_HOST_AUFGABEN`. Die Zeile in `.env.example`
+  ist Dokumentation für den Produktionsbetrieb, kein Entwicklungsschritt.
 
-## 12. Bauabschnitte
+## 12. Gliederung der Umsetzung
+
+**Ein Plan über das ganze Modul** (Betreiberentscheid 2026-08-13). Die Abschnitte unten sind seine
+Gliederung, keine getrennten Vorhaben mit eigenen Abnahmen.
 
 | # | Inhalt | Ergebnis |
 |---|---|---|
-| 1 | **Klickdummy als Modulroute.** Registry, ICONS-Zeile, Shell, alle Bildschirme aus §8 mit fest verdrahteten Daten aus `_lib/demoDaten.ts`. Kein `_db/`, also kein Dreieck. Demo-Rollenwechsler. Alte HTML-Datei löschen | Durchklickbar unter `/m/aufgaben`, sieht aus wie die Suite |
-| 2 | **Fundament.** Datenbank, `person`, Zugang (§7), Einstellen, Verteilen, Lebenszyklus (§5) mit Textnachweis, Verlauf, Freigabe und Vertretung. `showInSwitcher: true` | Das Modul ist produktiv nutzbar |
-| 3 | **Zeitplan.** Tagesspalten, Einplanen und Verschieben per Formular und Auf/Ab, Routinen, Tagesbudget, fremde Pläne lesend | Anforderung 3 erfüllt |
-| 4 | **Bildnachweis.** `core/upload` (Upload, MIME-Prüfung, Größenlimit, Virenscan) heben, `files` darauf umstellen, `aufgaben` daran anschließen | Anforderung 4 vollständig erfüllt |
-| 5 | **Drag & Drop.** Ziehen zwischen Tagen und innerhalb eines Tages, ab 768px. Dieselben Server-Actions wie Bauabschnitt 3; die Knopfstrecke bleibt | Gewünschter Komfort |
-| 6 | **Feinschliff.** Archiv mit Filtern, Überfälligkeitsliste, In-App-Erinnerung „länger als X Tage in Freigabe offen" | Betriebsreife |
+| A | **Fundament.** Registry, ICONS-Zeile, `.env.example`, Datenbank samt Dreieck (§11), Schema, `person`, Zugang aus der Sitzung (§7), `seedLokal` | Das Modul antwortet und kennt seine Personen |
+| B | **Bausteine.** Farbvokabular in hell und dunkel, Zeichenquelle, Chip, Kachel, Seitenkopf, Aufgabenliste, Wochenplan mit Mobilumschaltung | Die Oberfläche trägt die Suite-Regeln |
+| C | **Lebenszyklus.** Alle Server-Actions der Übergangstabelle (§5.2), Verlauf, Freigabe samt Vertretung, Textnachweis, `useActionState` am Feld | Anforderungen 1, 2 und 4 (schriftlich) erfüllt |
+| D | **Zeitplan.** Tagesspalten, Einplanen und Verschieben per Formular und Auf/Ab, Routinen, Tagesbudget, fremde Pläne lesend | Anforderung 3 erfüllt |
+| E | **Seiten.** Die neun Routen aus §8, drei rollenabhängige Einstiege, Archiv, Überfälligkeitsliste | Jede Action hat einen Weg in der Oberfläche |
+| F | **Bildnachweis.** `core/av/scanner.ts` (Protokoll, siehe §2), `files` an einer Aufrufstelle umstellen, modul-eigene Warteschlange, Upload mit MIME- und Größenprüfung | Anforderung 4 vollständig erfüllt |
+| G | **Drag & Drop.** Ziehen zwischen Tagen und innerhalb eines Tages, ab 768px, auf denselben Actions wie D. Die Knopfstrecke bleibt | Gewünschter Komfort |
 
-**Dieses Spec beschreibt das ganze Modul, ein Umsetzungsplan deckt einen Bauabschnitt.** Der erste
-Plan hat Bauabschnitt 1 zum Gegenstand; die Abschnitte 2–6 bekommen eigene Pläne, wenn der jeweils
-vorige steht. Ein Plan über alle sechs wäre zum Zeitpunkt seiner Erstellung in der zweiten Hälfte
-schon veraltet.
+**Ein Vorbehalt, benannt statt verschwiegen:** die späteren Abschnitte eines langen Plans veralten,
+während die früheren gebaut werden — F fasst zudem ein laufendes Modul an. Der Betreiber hat den
+Umfang am 2026-08-13 nach diesem Hinweis bestätigt. Praktische Folge für die Umsetzung: **F und G
+werden erst geschrieben, wenn A–E stehen**, und wer sie dann anfasst, prüft ihre Annahmen gegen den
+dann geltenden Code, statt sie für gesetzt zu nehmen.
 
 ## 13. Streichposten und offene Punkte
 
-**Muss vor dem Echtbetrieb verschwinden:**
+**Es gibt keinen Demo-Rollenwechsler, und das ist kein Verzicht, sondern der bessere Weg.** Lokal
+wechselt man die Rolle, indem man sich mit einer anderen Adresse am Dev-Login anmeldet: dessen
+`sub` ist `dev:<email>` (`core/auth/config.ts`), und `seedLokal` legt für jede Demo-Person eine
+`person`-Zeile mit genau diesem `sub` an. Damit läuft die Rollenauflösung im Entwicklungsbetrieb
+durch **dieselbe** Strecke wie in Produktion — ein Umschalter wäre eine zweite, und genau die hätte
+den Echtbetrieb erreichen können.
 
-- Der **Demo-Rollenwechsler** aus Bauabschnitt 1. Er ist sichtbar als Demo gekennzeichnet und darf
-  den Echtbetrieb nicht erreichen — mit ihm wäre jede Rolle von jedem einnehmbar.
-- Die fest verdrahteten Daten in `_lib/demoDaten.ts`, sobald Bauabschnitt 2 sie ersetzt (das
-  Gegenstück ist `_lib/seedLokal.ts`, das bleibt).
-- `bufdi-koordination-klickdummy.html` in der Repository-Wurzel, gelöscht in Bauabschnitt 1.
+**Muss vor dem Echtbetrieb verschwinden:** `bufdi-koordination-klickdummy.html` in der
+Repository-Wurzel — Referenz für den Funktionsumfang, nicht für die Gestaltung, gelöscht mit dem
+letzten Abschnitt.
 
 **Bewusst nicht in dieser Fassung:**
 
 - **Video als Nachweisform.** Vertagt, weil die Kosten im Speicher und im Backup liegen, nicht in
-  der Oberfläche — eine Betriebsentscheidung. Die Upload-Strecke aus Bauabschnitt 4 kann es später
+  der Oberfläche — eine Betriebsentscheidung. Die Upload-Strecke aus Abschnitt F kann es später
   ohne Umbau annehmen; es braucht dann nur ein höheres Limit und eine geklärte Speicherplanung.
-- **Benachrichtigungen per E-Mail oder Push.** Bauabschnitt 6 bringt eine In-App-Liste. Eine
+- **Benachrichtigungen per E-Mail oder Push.** Abschnitt E bringt die Überfälligkeitsliste in der Anwendung. Eine
   Mailstrecke ist ein eigenes Vorhaben mit eigener Infrastrukturfrage.
 - **Abwesenheiten und Urlaub.** Ein abwesender BuFDi hat heute einfach einen leeren Zeitplan. Ein
   eigenes Abwesenheitsmodell würde die Budgetrechnung, die Verteilansicht und die
