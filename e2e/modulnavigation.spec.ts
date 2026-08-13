@@ -5,9 +5,11 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST } from "./helpers/lagerbuch";
 /**
  * Der echte Abruf zu Plan B: die Lagerbuch-Verwaltung bekommt fünf Abschnitte
  * in einer Seitenleiste statt fünfzehn gleichrangiger Einträge in einer
- * umbrechenden Zeile, und Module ohne Abschnitte bleiben unverändert. Beides
- * hängt an einem laufenden Server (`Sider`-Importpfad, echtes CSS unter den
- * drei Breite-Klassen) — `typecheck`, `pnpm build` und Vitest sehen es nicht.
+ * umbrechenden Zeile. Seit 2026-08-13 (Navigations-Umbau) bekommt JEDES Modul
+ * mit Navigation dieselbe Leiste, ob mit oder ohne Abschnitte — nur ein Modul
+ * ganz ohne Navigation bleibt ohne sie. Beides hängt an einem laufenden Server
+ * (`Sider`-Importpfad, echtes CSS unter den drei Breite-Klassen) —
+ * `typecheck`, `pnpm build` und Vitest sehen es nicht.
  *
  * Gruppe und Host kommen aus `./helpers/lagerbuch`, nicht als Literal: dieselbe
  * Konstante steht in `playwright.config.ts` in `webServer.env`
@@ -32,9 +34,6 @@ test("ab 768px steht die Navigation als Leiste mit Abschnitten", async ({ page }
     "Protokoll",
     "Einrichtung",
   ]);
-  // Die zweite Kopfzeile entfällt für dieses Modul — sonst stünde dieselbe
-  // Aussage zweimal, mit zwei Aktivmarkierungen.
-  await expect(page.getByTestId("modulnav")).toHaveCount(0);
 });
 
 test("die Aktivmarkierung steht genau einmal und am richtigen Eintrag", async ({ page }) => {
@@ -75,14 +74,11 @@ test("unter 768px liegt die Navigation im Drawer, mit denselben Abschnitten", as
   await expect(drawer.getByTestId("nav-abschnitt").first()).toHaveText("Bestand");
 });
 
-test("ein Modul ohne Abschnitte behält seine Zeile", async ({ page }) => {
+test("ein Modul ohne Navigation bekommt keine Leiste", async ({ page }) => {
   /*
-   * GEGENPROBE VOR DER NULL. Die Leiste (`modulleiste`) taucht sonst in
-   * keinem anderen Spec auf — anders als `modulnav` oben, das u. a.
-   * `files-hosts.spec.ts` und `shell-mobil.spec.ts` positiv belegen. Ohne
-   * diesen ersten Schritt wäre `toHaveCount(0)` weiter unten auch dann grün,
-   * wenn der Selektor durch einen verunglückten `data-testid` NIRGENDS mehr
-   * träfe — die Null bewiese dann gar nichts.
+   * GEGENPROBE VOR DER NULL. Ohne diesen ersten Schritt wäre `toHaveCount(0)`
+   * weiter unten auch dann grün, wenn der Selektor durch einen verunglückten
+   * `data-testid` NIRGENDS mehr träfe — die Null bewiese dann gar nichts.
    */
   await devLogin(page, {
     host: LAGERBUCH_HOST,
@@ -98,8 +94,8 @@ test("ein Modul ohne Abschnitte behält seine Zeile", async ({ page }) => {
   // files-fileshare.spec.ts:499.
   await page.context().clearCookies();
   // Portal: ohne Verwaltungsrecht liefert `navFuerPortal` eine leere Liste
-  // (`layout.tsx`), also weder Seitenleiste noch die alte Zeile — genau das
-  // Bild, das ein Modul ohne Abschnitte behalten soll.
+  // (`layout.tsx`) — die Leiste haengt an `nav.length > 0` (`SuiteRahmen.tsx`),
+  // ein Modul ohne Navigation bekommt also gar keine Leiste.
   await devLogin(page, { host: "portal.localtest.me", groups: "", callbackPath: "/" });
   await expect(page.getByTestId("modulleiste")).toHaveCount(0);
 });

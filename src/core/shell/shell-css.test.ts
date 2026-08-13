@@ -51,47 +51,11 @@ function zieltAufKlasse(selektor: string, klasse: string): boolean {
   return new RegExp(`(^|[^A-Za-z0-9_-])\\.${klasse}(?![A-Za-z0-9_-])`).test(selektor);
 }
 
-function modulnavRegeln(css: string): CssRegel[] {
-  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-  return cssRegeln(ohneKommentare).filter((regel) => zieltAufKlasse(regel.selektor, "modulnav"));
-}
-
 function deklarationsWerte(regeln: CssRegel[], eigenschaft: string): string[] {
   const muster = new RegExp(`(?:^|;)\\s*${eigenschaft}\\s*:\\s*([^;}]+)`, "g");
   return regeln.flatMap((regel) =>
     [...regel.deklarationen.matchAll(muster)].map((deklaration) => deklaration[1].trim()),
   );
-}
-
-function modulnavStruktur(css: string) {
-  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-  const mediaStart = ohneKommentare.indexOf("@media (min-width: 768px)");
-  expect(mediaStart, "einziger Desktop-Breakpoint fehlt").toBeGreaterThanOrEqual(0);
-
-  const basisRegeln = modulnavRegeln(ohneKommentare.slice(0, mediaStart));
-  expect(basisRegeln, "vor der Media Query muss genau eine Basisregel .modulnav stehen").toHaveLength(1);
-
-  return {
-    basis: basisRegeln[0],
-    alle: modulnavRegeln(ohneKommentare),
-    abBreakpoint: ohneKommentare.slice(mediaStart),
-  };
-}
-
-function erwartetRobusteModulnavUeberlaufbehandlung(css: string) {
-  const struktur = modulnavStruktur(css);
-
-  // Genau eine Quelle je Eigenschaft: eine zweite Regel mit demselben Wert ist
-  // ebenso ein Kaskadenrisiko wie eine mit `hidden` oder `initial`.
-  expect(deklarationsWerte(struktur.alle, "overflow-x")).toEqual(["auto"]);
-  expect(deklarationsWerte(struktur.alle, "scrollbar-width")).toEqual(["thin"]);
-  for (const regel of struktur.alle) {
-    expect(regel.deklarationen, `scroll-behavior in "${regel.selektor}"`).not.toMatch(
-      /(?:^|;)\s*scroll-behavior\s*:/,
-    );
-  }
-
-  return struktur;
 }
 
 describe("shell.module.css", () => {
@@ -159,93 +123,6 @@ describe("shell.module.css", () => {
     expect(OHNE_KOMMENTARE).not.toMatch(/\.navLink\[aria-current=/);
   });
 
-  it("laeszt `.modulnav` waagerecht scrollen statt `documentElement`", () => {
-    /*
-     * DIE UEBERLAUFBEHANDLUNG (Spec 6.3.2 des lagerbuch-Entwurfs,
-     * Entscheidung 31).
-     *
-     * `.modulnav` ist ein Flex-Container mit `nowrap` ab 768px; `.navLink`
-     * traegt `min-height: 56px` und `padding-inline: 12px`. Ein Modul mit
-     * VIELEN Abschnitten sprengt die Zeile: lagerbuch hat 15 Eintraege mit
-     * zusammen 127 Zeichen, ueberschlaegig 1.300-1.400px. Bei 1280px kann kein
-     * Link unter seine `min-content`-Breite schrumpfen — also lief die Zeile
-     * ueber, und `documentElement` scrollte waagerecht. Das ist nicht „die
-     * Leiste sieht eng aus", das ist die ganze Seite, die seitwaerts wandert.
-     *
-     * `scrollbar-width: thin` haelt die Leiste bei ihrer Hoehe. Der
-     * Unterstrich der Aktivmarkierung (`.navLink[aria-current]`, 2px) darf
-     * nicht unter einer Scrollleiste verschwinden — deshalb scrollt der
-     * CONTAINER und nicht `documentElement`.
-     *
-     * DIESE DATEI BESITZT „die Regel steht da". Ob sie WIRKT, besitzt der
-     * Playwright-Lauf bei 1280x720 (`e2e/lagerbuch-verwaltung.spec.ts`) — bei
-     * 390px sind die richtige und die kaputte Fassung nicht zu unterscheiden,
-     * weil `.modulnav` dort auf `display: none` steht.
-     */
-    const { basis } = erwartetRobusteModulnavUeberlaufbehandlung(OHNE_KOMMENTARE);
-    expect(basis.deklarationen).toMatch(/overflow-x:\s*auto/);
-    expect(basis.deklarationen).toMatch(/scrollbar-width:\s*thin/);
-  });
-
-  it("animiert das Scrollen der Modulnavigation nicht", () => {
-    // `prefers-reduced-motion` bleibt unberuehrt: es wird nichts animiert und
-    // `scroll-behavior` bleibt ungesetzt. Ein `scroll-behavior: smooth` hier
-    // waere eine Animation ohne Gegenstueck im reduced-motion-Zweig.
-    const { alle } = modulnavStruktur(OHNE_KOMMENTARE);
-    for (const regel of alle) {
-      expect(regel.deklarationen, `scroll-behavior in "${regel.selektor}"`).not.toMatch(
-        /(?:^|;)\s*scroll-behavior\s*:/,
-      );
-    }
-  });
-
-  it("verwirft eine spaetere `.modulnav`-Ueberschreibung trotz gruenem Ersttreffer", () => {
-    const mutation = `${OHNE_KOMMENTARE}
-      .modulnav {
-        overflow-x: hidden;
-        scroll-behavior: smooth;
-      }
-    `;
-
-    // Genau der bisherige Ersttreffer: er bleibt gruen und sieht die spaetere
-    // Kaskaden-Ueberschreibung nicht.
-    const ersterTreffer = /\.modulnav\s*\{([^}]*)\}/.exec(mutation);
-    expect(ersterTreffer, "Basisregel .modulnav fehlt").not.toBeNull();
-    expect(ersterTreffer![1]).toMatch(/overflow-x:\s*auto/);
-    expect(ersterTreffer![1]).toMatch(/scrollbar-width:\s*thin/);
-    expect(ersterTreffer![1]).not.toMatch(/scroll-behavior/);
-
-    // Die robuste Zusage sieht ALLE Regeln und lehnt sowohl die spaetere
-    // `hidden`-Ueberschreibung als auch deren `scroll-behavior` ab.
-    expect(() => erwartetRobusteModulnavUeberlaufbehandlung(mutation)).toThrow();
-  });
-
-  it("verwirft `.modulnav` als erstes Kind einer spaeteren Media Query", () => {
-    const mutation = `${OHNE_KOMMENTARE}
-      @media (min-width: 1000px) {
-        .modulnav {
-          overflow-x: hidden;
-          scroll-behavior: smooth;
-        }
-      }
-    `;
-
-    // Die Media-Regel ist nach der bestehenden 768px-Regel spaeter und kann
-    // sie im Browser ueberstimmen. Auch als ERSTES Kind muss sie der Scanner
-    // finden; vor dem Fix ueberspringt er genau diese Position.
-    expect(() => erwartetRobusteModulnavUeberlaufbehandlung(mutation)).toThrow();
-  });
-
-  it("ignoriert Kommentare und aehnlich benannte Klassen bei .modulnav", () => {
-    const nurNamen = `${CSS}
-      /* .modulnav { overflow-x: hidden; scroll-behavior: smooth; } */
-      .modulnavigation { overflow-x: hidden; scroll-behavior: smooth; }
-      .nicht-modulnav { scrollbar-width: none; }
-    `;
-
-    expect(() => erwartetRobusteModulnavUeberlaufbehandlung(nurNamen)).not.toThrow();
-  });
-
   it("nutzt keine `--ant-*`-Variablen (die sieht eigenes Markup nicht)", () => {
     expect(OHNE_KOMMENTARE).not.toMatch(/var\(--ant-/);
   });
@@ -280,25 +157,21 @@ describe("shell.module.css", () => {
     expect(regel![1], "padding in .kopf verliert gegen .ant-layout-header").not.toMatch(/padding/);
   });
 
-  it("haelt die Modulnavigation unterhalb von 768px aus dem Weg", () => {
-    /*
-     * Seit sie eine EIGENE ZEILE unter der Kopfzeile ist, deckt der
-     * 390px-Hoehentest sie nicht mehr ab — er misst `suite-header`, und die
-     * Zeile steht daneben. Zeigte sie sich mobil, kaeme sie zu den 64px hinzu.
-     * Das sichtbare Ergebnis besitzt `e2e/shell-mobil.spec.ts`, die Regel hier.
-     */
-    const { basis, abBreakpoint } = modulnavStruktur(OHNE_KOMMENTARE);
-    expect(basis.deklarationen).toMatch(/display:\s*none/);
-    const desktopRegeln = modulnavRegeln(abBreakpoint);
-    expect(desktopRegeln, "Desktopregel .modulnav fehlt").toHaveLength(1);
-    expect(desktopRegeln[0].deklarationen).toMatch(/display:\s*flex/);
-  });
-
   it("kennt die Klasse .modulzeile nicht mehr", () => {
     // Die Modulknopfreihe ist mit dem Navigations-Umbau ersatzlos entfallen —
     // die Apps hängen jetzt am Umschalter der Kopfzeile. Ein Wiederauftauchen
     // der Klasse wäre ein Rückbau, den kein anderer Test hier fängt.
     expect(OHNE_KOMMENTARE).not.toMatch(/\.modulzeile\b/);
+  });
+
+  it("kennt die Klasse .modulnav nicht mehr", () => {
+    /*
+     * Die zweite Kopfzeile ist am 2026-08-13 ersatzlos entfallen: jedes Modul
+     * mit Navigation traegt die Seitenleiste. Ein Wiederauftauchen der Klasse
+     * waere die Rueckkehr zu zwei Navigationsparadigmen — dasselbe Muster wie
+     * beim Test `"kennt die Klasse .modulzeile nicht mehr"` darueber.
+     */
+    expect(OHNE_KOMMENTARE).not.toMatch(/\.modulnav\b/);
   });
 
   it("nimmt dem Umschalter die von antd geerbte Zeilenhoehe", () => {

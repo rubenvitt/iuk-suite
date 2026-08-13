@@ -48,22 +48,25 @@ test("mobil: die Kopfzeile bleibt einzeilig", async ({ page }) => {
   expect(hoehe).toBeLessThanOrEqual(72);
 });
 
-test("mobil: die Modulnavigation steht nicht als zweite Zeile im Weg", async ({ page }) => {
+test("mobil: die Modulnavigation steht nicht im Weg", async ({ page }) => {
   /*
-   * NEU NOETIG, seit die Modulnavigation eine eigene Zeile UNTER der Kopfzeile
-   * ist: der Hoehentest darueber misst `suite-header` und sieht sie damit gar
-   * nicht mehr. Zeigte sie sich mobil, kaeme sie zu den 64px der Kopfzeile
-   * hinzu und niemand faende es.
+   * Seit 2026-08-13 liegt die Modulnavigation in der Seitenleiste
+   * (`SuiteRahmen`, `.sider`), nicht mehr in einer eigenen Zeile UNTER der
+   * Kopfzeile. Unterhalb von 768px steht `.sider` auf `display: none`
+   * (shell.module.css) — der Hoehentest darueber misst `suite-header` und
+   * sieht die Leiste damit ohnehin nicht mehr; hier wird zusaetzlich
+   * nachgewiesen, dass sie wirklich unsichtbar bleibt und die Kopfzeile nicht
+   * aufblaeht.
    *
    * `qr` statt `portal`, weil `portal` den `nav`-Slot nicht befuellt — dort
    * gaebe es nichts zu verbergen. Anonym erreichbar (`requiresAuth: false`).
    */
   await page.goto("http://qr.localtest.me:3100/");
-  await expect(page.getByTestId("modulnav")).toBeHidden();
+  await expect(page.getByTestId("modulleiste")).toBeHidden();
   const gesamt = await page.evaluate(
     () => document.querySelector('[data-testid="suite-header"]')!.getBoundingClientRect().bottom,
   );
-  console.log(`Unterkante der Kopfzeile mit Modulnav-Slot bei 390x844: ${gesamt}px`);
+  console.log(`Unterkante der Kopfzeile mit Modulleiste-Slot bei 390x844: ${gesamt}px`);
   expect(gesamt).toBeLessThanOrEqual(72);
 });
 
@@ -139,6 +142,12 @@ test("mobil: anonym steht der Anmelden-Weg in der Kopfzeile", async ({ page }) =
  * (736px Inhalt gegen 573 + 16 Abstand = 589 fuer `.rechts` allein), nur (2)
  * liesze die Seite weiter seitwaerts scrollen. Deshalb pruefen die Zusagen
  * unten BEIDES.
+ *
+ * NACHTRAG 2026-08-13: `.modulnav` (die zweite Zeile) ist ersatzlos entfallen,
+ * die Modulnavigation liegt seither in der Seitenleiste (`modulleiste`,
+ * `SuiteRahmen`). Die Messungen oben bleiben als historischer Befund stehen —
+ * die Zusagen unten pruefen dieselbe Struktur (Leiste beginnt links, unterhalb
+ * der Kopfzeile, keine seitliche Ueberschreitung) an der neuen Bauform.
  */
 for (const breite of [768, 820, 900]) {
   test.describe(`Mittelbreite ${breite}px`, () => {
@@ -154,7 +163,7 @@ for (const breite of [768, 820, 900]) {
         groups: "da-feedback-admin",
         callbackPath: "/",
       });
-      await expect(page.getByTestId("modulnav")).toBeVisible();
+      await expect(page.getByTestId("modulleiste")).toBeVisible();
 
       const quer = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
@@ -194,13 +203,14 @@ for (const breite of [768, 820, 900]) {
 
       /*
        * Und die Struktur selbst, nicht nur ihr Symptom. Die beiden Zusagen
-       * darueber waeren auch mit `.modulnav` als drittem Flex-Kind erfuellbar,
-       * sobald es zufaellig passt — dann faellt die Kopfzeile beim naechsten
-       * Modul mit einem Eintrag mehr wieder um. Die Modulnavigation gehoert
-       * UNTER die Kopfzeile (Entwurf §4, "zweite Zeile").
+       * darueber waeren auch mit der Leiste als drittem Flex-Kind DER
+       * KOPFZEILE erfuellbar, sobald es zufaellig passt — dann faellt die
+       * Kopfzeile beim naechsten Modul mit einem Eintrag mehr wieder um. Die
+       * Modulnavigation gehoert UNTER die Kopfzeile, als eigene Seitenleiste
+       * (`SuiteRahmen`), nicht als Kind von `.kopf`.
        */
       const kopf = (await page.getByTestId("suite-header").boundingBox())!;
-      const nav = (await page.getByTestId("modulnav").boundingBox())!;
+      const nav = (await page.getByTestId("modulleiste").boundingBox())!;
       expect(nav.y).toBeGreaterThanOrEqual(kopf.y + kopf.height - 1);
     });
   });
@@ -248,19 +258,23 @@ test.describe("Desktop — was ohne Drawer erreichbar sein muss", () => {
 });
 
 test.describe("Modulnavigation am laufenden Server", () => {
-  // Desktop-Viewport (Standard), weil `.modulnav` dort sichtbar ist.
+  // Desktop-Viewport (Standard), weil `.sider`/`modulleiste` dort sichtbar ist.
   test.use({ viewport: { width: 1280, height: 720 } });
 
-  test("steht als zweite Zeile UNTER der Kopfzeile, nicht neben dem Avatar", async ({ page }) => {
+  test("steht als Seitenleiste UNTER der Kopfzeile, nicht neben dem Avatar", async ({ page }) => {
     /*
      * Die letzte Zeile der Messtabelle aus dem Fundbericht: bei 1280px stand
      * die Modulnavigation RECHTS NEBEN dem Avatar (x=981, y=-1) statt unter der
      * Kopfzeile. Das war schon auf dem Desktop nicht der Entwurf (§4, Tabelle
      * "zweite Zeile") — nur fiel es dort nicht auf, weil genug Platz da war.
+     * Seit 2026-08-13 ist die Modulnavigation keine Zeile mehr, sondern die
+     * Seitenleiste (`modulleiste`) — die Zusage bleibt dieselbe: sie beginnt
+     * links, unterhalb der Kopfzeile, nicht daneben.
      *
      * Ohne diese Zusage waere die Struktur ungeprueft: bei 1280px scrollt auch
-     * die alte Fassung nicht seitwaerts und der Titel ist breit genug. Der
-     * Rueckbau in ein drittes Flex-Kind waere gruen durchgelaufen.
+     * eine fehlerhafte Fassung nicht seitwaerts und der Titel ist breit genug.
+     * Ein Rueckbau in ein drittes Flex-Kind der Kopfzeile waere gruen
+     * durchgelaufen.
      */
     await devLogin(page, {
       host: "feedback.localtest.me",
@@ -268,8 +282,8 @@ test.describe("Modulnavigation am laufenden Server", () => {
       callbackPath: "/",
     });
     const kopf = (await page.getByTestId("suite-header").boundingBox())!;
-    const nav = (await page.getByTestId("modulnav").boundingBox())!;
-    console.log(`1280px: Kopf ${JSON.stringify(kopf)}, Modulnav ${JSON.stringify(nav)}`);
+    const nav = (await page.getByTestId("modulleiste").boundingBox())!;
+    console.log(`1280px: Kopf ${JSON.stringify(kopf)}, Modulleiste ${JSON.stringify(nav)}`);
     // Beginnt links am selben Rand und liegt vollstaendig unterhalb.
     expect(nav.x).toBeLessThan(kopf.x + 32);
     expect(nav.y).toBeGreaterThanOrEqual(kopf.y + kopf.height - 1);
@@ -303,7 +317,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
       groups: "da-feedback-admin",
       callbackPath: "/vergleich",
     });
-    const aktiv = page.locator('[data-testid="modulnav"] a[aria-current="page"]');
+    const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current="page"]');
     await expect(aktiv).toHaveCount(1);
     await expect(aktiv).toHaveText("Vergleich");
   });
@@ -314,7 +328,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
       groups: "da-feedback-admin",
       callbackPath: "/",
     });
-    const aktiv = page.locator('[data-testid="modulnav"] a[aria-current="page"]');
+    const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current="page"]');
     await expect(aktiv).toHaveCount(1);
     await expect(aktiv).toHaveText("Übersicht");
   });
@@ -337,7 +351,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
      * `qr` braucht keine Anmeldung (`requiresAuth: false`).
      */
     await page.goto("http://qr.localtest.me:3100/wifi");
-    const nav = page.locator('[data-testid="modulnav"]');
+    const nav = page.locator('[data-testid="modulleiste"]');
     await expect(nav.locator('a[aria-current="page"]')).toHaveCount(0);
     await expect(nav.locator('a[aria-current="true"]')).toHaveText("Generator");
   });
@@ -384,17 +398,18 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
     test("der aktive Navigationseintrag traegt Markenrot fuer Schrift UND Unterkante, plus Gewicht 600", async ({
       page,
     }) => {
-      // `.navLink[aria-current]` lebt in `.modulnav`, NICHT in `.modulzeile`
-      // (die fuellen antd-Buttons des App-Switchers und tragen kein
-      // `aria-current`). feedback-admin auf der Modulwurzel markiert die
-      // Uebersicht mit `aria-current="page"` — derselbe Aufbau wie im
-      // bestehenden Test "markiert die Uebersicht auf der Modulwurzel" oben.
+      // `.navLink[aria-current]` lebt in der Seitenleiste (`modulleiste`),
+      // NICHT in `.modulzeile` (die fuellen antd-Buttons des App-Switchers und
+      // tragen kein `aria-current`). feedback-admin auf der Modulwurzel
+      // markiert die Uebersicht mit `aria-current="page"` — derselbe Aufbau
+      // wie im bestehenden Test "markiert die Uebersicht auf der Modulwurzel"
+      // oben.
       await devLogin(page, {
         host: "feedback.localtest.me",
         groups: "da-feedback-admin",
         callbackPath: "/",
       });
-      const aktiv = page.locator('[data-testid="modulnav"] a[aria-current]');
+      const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current]');
       await expect(aktiv).toHaveCount(1);
       await expect(aktiv).toHaveCSS("color", "rgb(200, 0, 15)");
       // `border-block-end-color` meldet sich in `getComputedStyle` unter der

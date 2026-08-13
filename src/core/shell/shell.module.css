@@ -111,9 +111,8 @@
  * `.rechts .nurMobil` ist (0,2,0) und schlaegt `.ant-btn` unabhaengig von der
  * Reihenfolge. Kein `!important`, weil eine Klasse mehr reicht.
  *
- * Warum `.nurDesktop` und `.modulnav` das NICHT brauchen: die sitzen auf
- * `<nav>` und `<span>`, wo antd gar nicht mitbietet. Genau diese Asymmetrie
- * hat den Fehler durchgelassen.
+ * Warum `.nurDesktop` das NICHT braucht: die sitzt auf einem `<span>`, wo antd
+ * gar nicht mitbietet. Genau diese Asymmetrie hat den Fehler durchgelassen.
  *
  * Basis UND Media Query tragen den Praefix. Nur die Media Query zu erhoehen
  * liesze die Basis weiter gegen `.ant-btn` verlieren — mobil ist das heute
@@ -132,54 +131,6 @@
    damit auf schmalen Geraeten nichts aufblitzt, bevor CSS greift. */
 .nurDesktop {
   display: none;
-}
-
-/*
- * Die modul-interne Navigation als ZWEITE ZEILE UNTER der Kopfzeile — nur
- * Desktop, nur wenn das Modul welche uebergibt.
- *
- * Der Knoten ist ein Geschwister des `<Header>` und kein Kind (SuiteHeader.tsx).
- * Solange er im Kopf sasz, war er dort das dritte Flex-Kind und nahm dem Titel
- * die Breite weg: zwischen 768px und 903px blieben von ihm 0px, und die Seite
- * scrollte seitwaerts. Hier unten konkurriert nichts mehr.
- *
- * `align-items: center`, weil die Zeile ihre Hoehe jetzt selbst aus den Links
- * bezieht (56px Tap-Masz) statt aus `headerHeight`.
- *
- * Bewusst OHNE eigene Flaechenfarbe: sie liegt damit auf `Layout.bodyBg` statt
- * auf `headerBg` und setzt sich ueber die untere Linie vom Inhalt ab. Die
- * Alternative brauchte entweder `--ant-*` (sieht eigenes Markup nicht, Falle 2)
- * oder eine zweite Farbquelle neben `core/theme`.
- */
-.modulnav {
-  display: none;
-  align-items: center;
-  gap: 4px;
-  padding-inline: 16px;
-  border-block-end: 1px solid;
-  border-color: color-mix(in srgb, currentColor 12%, transparent);
-
-  /*
-   * UEBERLAUFBEHANDLUNG — ein Modul mit vielen Abschnitten sprengt die Zeile.
-   * `lagerbuch` faehrt sie als erstes ueber die Belastungsgrenze: 15 Eintraege
-   * mit zusammen 127 Zeichen liegen ueberschlaegig bei 1.300-1.400px, und bei
-   * 1280px kann kein Link unter seine `min-content`-Breite schrumpfen. Ohne
-   * diese zwei Zeilen scrollt `documentElement` waagerecht — nicht die Leiste,
-   * die ganze Seite.
-   *
-   * Der Unterstrich der Aktivmarkierung (`.navLink[aria-current]`, 2px) darf
-   * nicht unter einer Scrollleiste verschwinden — deshalb scrollt der
-   * CONTAINER, und die Links behalten ihre volle Hoehe.
-   *
-   * `scroll-behavior` bleibt ungesetzt: es wird nichts animiert, und
-   * `prefers-reduced-motion` ist damit unberuehrt.
-   *
-   * Ein `overflow-x`-Container mit fokussierbaren Kindern scrollt beim Tabben
-   * VON SELBST zum fokussierten Link — die Zusicherung dazu ist ein
-   * Playwright-Schritt, kein Quelltext-Scan.
-   */
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 .drawerGruppe {
@@ -267,10 +218,6 @@
   }
 
   .nurDesktop {
-    display: flex;
-  }
-
-  .modulnav {
     display: flex;
   }
 }
