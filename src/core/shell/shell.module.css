@@ -276,6 +276,69 @@
 }
 
 /*
+ * DIE SEITENLEISTE. Unter 768px steht sie NICHT da — die Navigation liegt dort
+ * im Drawer. Die Umschaltung läuft über Media Queries und nicht über antds
+ * `breakpoint`-Prop am Sider: das ist JS und zeigt beim ersten Render die
+ * falsche Variante.
+ *
+ * `.navLink` gilt hier weiter, samt seiner `[aria-current]`-Markierung — sie ist
+ * DIESER Navigation zugeordnet. Der App-Umschalter benutzt bewusst eine eigene
+ * Klasse (`.appEintrag`), sonst trüge sein aktiver Eintrag dieselbe
+ * Hervorhebung.
+ *
+ * KEINE `--suite-flaeche`/`--suite-linie`/`--suite-hover` hier: diese drei
+ * Variablen hängen an `.umschalter` bzw. `:root[data-theme="dark"] .umschalter`
+ * (weiter unten in dieser Datei) — ein CSS-Modul kann `:root` nicht scopen, die
+ * frühere globale Deklaration war ein Regelverstoß und ist deshalb eingeengt
+ * worden. Die Seitenleiste liegt außerhalb dieses Teilbaums und sähe sie nicht;
+ * der Fehler wäre still (die Fläche verschwände einfach). `Sider theme="light"`
+ * bringt seine Fläche selbst mit (antd-Token), `.modulleiste` braucht deshalb
+ * keine eigene.
+ */
+.sider {
+  display: none;
+}
+
+.modulleiste {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 8px;
+}
+
+.navGruppe {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navGruppe + .navGruppe {
+  margin-block-start: 16px;
+}
+
+/* `--iuk-gedaempft` statt `opacity`, wie `.drawerTitel` oben: Deckkraft dimmt
+   den Kontrast unprüfbar mit und trägt in beiden Modi verschieden, eine
+   Variable hat einen Dunkelzweig. `.navAbschnitt` ist dieselbe Rolle
+   (gedämpfte Gruppenüberschrift) wie `.drawerTitel` und bekommt deshalb
+   dieselbe Lösung statt einer eigenen. */
+.navAbschnitt {
+  padding: 4px 9px;
+  font-size: 12px;
+  color: var(--iuk-gedaempft);
+}
+
+@media (min-width: 768px) {
+  .sider {
+    display: block;
+    position: sticky;
+    /* Unter der 64px-Kopfzeile; `headerHeight` bleibt unverändert. */
+    inset-block-start: 64px;
+    block-size: calc(100vh - 64px);
+    overflow-y: auto;
+  }
+}
+
+/*
  * DER APP-UMSCHALTER. Eigene Klassen statt `.navLink`, weil dessen
  * `[aria-current]`-Unterstreichung der Modulnavigation gehört — siehe die
  * ausführliche Begründung in AppUmschalter.tsx.

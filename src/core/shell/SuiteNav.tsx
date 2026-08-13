@@ -9,6 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
+import { gruppiereNav } from "@/core/shell/navAbschnitte";
 // `NavIkone` bleibt: die Modulnavigation traegt seit dem Phosphor-Umbau je
 // Eintrag ein Zeichen. Die ICONS-Map dagegen faellt hier weg — sie bediente die
 // Modulknopfreihe, und die gibt es nicht mehr; aufgeloest wird sie jetzt
@@ -129,12 +130,13 @@ export function aktiverEintrag(pfad: string, nav: SuiteNavItem[]): AktiverEintra
  * Die optische Hervorhebung haengt deshalb an `[aria-current]` ohne Wert
  * (shell.module.css) und nicht an `[aria-current="page"]`.
  */
-function navLinks(nav: SuiteNavItem[], pfad: string) {
-  const aktiv = aktiverEintrag(pfad, nav);
-  return nav.map((eintrag) => (
+function navLinks(sichtbar: SuiteNavItem[], pfad: string, ganze: SuiteNavItem[] = sichtbar) {
+  const aktiv = aktiverEintrag(pfad, ganze);
+  return sichtbar.map((eintrag) => (
     <Link
       key={eintrag.key}
       href={eintrag.href}
+      data-testid="nav-link"
       className={s.navLink}
       aria-current={
         aktiv?.schluessel === eintrag.key ? (aktiv.genau ? "page" : "true") : undefined
@@ -143,6 +145,27 @@ function navLinks(nav: SuiteNavItem[], pfad: string) {
       <NavIkone name={eintrag.ikon} />
       {eintrag.title}
     </Link>
+  ));
+}
+
+/**
+ * Dieselben Links, nur mit Überschriften dazwischen — geteilt zwischen der
+ * Seitenleiste und dem Drawer. Eine Funktion statt zweier Abschriften, weil
+ * die Aktivmarkierung an beiden Stellen dieselbe Aussage treffen muss.
+ *
+ * `aktiverEintrag` bekommt die FLACHE Liste und bleibt damit unverändert: die
+ * Gruppierung ist Darstellung, nicht Bedeutung.
+ */
+export function navGruppen(nav: SuiteNavItem[], pfad: string) {
+  return gruppiereNav(nav).map((gruppe) => (
+    <div key={gruppe.titel ?? "__ohne"} className={s.navGruppe}>
+      {gruppe.titel ? (
+        <div data-testid="nav-abschnitt" className={s.navAbschnitt}>
+          {gruppe.titel}
+        </div>
+      ) : null}
+      {navLinks(gruppe.items, pfad, nav)}
+    </div>
   ));
 }
 
@@ -237,9 +260,11 @@ export function SuiteNav({
   );
   const pfad = usePathname();
 
-  // Nur noch fuer den Drawer: die sichtbare zweite Zeile gehoert `Modulnav`,
-  // einem Geschwister des `<Header>` (siehe dort).
-  const drawerNavLinks = navLinks(nav, pfad);
+  // Nur noch für den Drawer: die sichtbare zweite Zeile gehört `Modulnav`,
+  // einem Geschwister des `<Header>` (siehe dort). Gruppiert wie die
+  // Seitenleiste (`navGruppen`) — für eine flache Navigation liefert
+  // `gruppiereNav` genau eine titellose Gruppe, also ändert sich hier nichts.
+  const drawerNavGruppen = navGruppen(nav, pfad);
 
   /*
    * Der Name steht als Gruppentitel im Menue — sichtbar, aber fuer einen
@@ -384,7 +409,7 @@ export function SuiteNav({
             {nav.length > 0 ? (
               <div className={s.drawerGruppe}>
                 <div className={s.drawerTitel}>In diesem Modul</div>
-                {drawerNavLinks}
+                {drawerNavGruppen}
               </div>
             ) : null}
 

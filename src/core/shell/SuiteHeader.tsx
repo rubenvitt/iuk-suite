@@ -15,6 +15,7 @@ import { moduleUrl } from "@/core/shell/moduleUrl";
 import { launcherEintraege } from "@/core/shell/launcherEintraege";
 import { AppUmschalter } from "@/core/shell/AppUmschalter";
 import { Modulnav, SuiteNav } from "@/core/shell/SuiteNav";
+import { hatAbschnitte } from "@/core/shell/navAbschnitte";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { SCHRIFT } from "@/core/theme/schrift";
 import s from "./shell.module.css";
@@ -123,7 +124,10 @@ export async function SuiteHeader({
         )}
         <SuiteNav nav={nav} userName={session?.user?.name ?? null} angemeldet={angemeldet} />
       </Header>
-      <Modulnav nav={nav} />
+      {/* Zweite Zeile NUR ohne Abschnitte. Trägt die Navigation Abschnitte, steht
+          sie als Seitenleiste in `FullShell` — beides gleichzeitig wäre dieselbe
+          Aussage an zwei Stellen, mit zwei Aktivmarkierungen. */}
+      {hatAbschnitte(nav) ? null : <Modulnav nav={nav} />}
     </>
   );
 }

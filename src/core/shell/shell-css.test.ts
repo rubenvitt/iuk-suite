@@ -371,6 +371,46 @@ describe("shell.module.css", () => {
     expect(regel, "Regel `.appEintrag[aria-current]` fehlt").not.toBeNull();
     expect(regel![1]).toMatch(/font-weight:\s*600/);
   });
+
+  it("versteckt die Seitenleiste unterhalb von 768px", () => {
+    // Die Leiste darf mobil nicht bloß schmal werden, sie darf gar nicht da
+    // sein — die Navigation liegt dort im Drawer (`SuiteNav.tsx`).
+    const basis = /\.sider\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(basis, "Klasse .sider fehlt").not.toBeNull();
+    expect(basis![1]).toMatch(/display:\s*none/);
+  });
+
+  it("klebt die Seitenleiste ab 768px unter der Kopfzeile fest", () => {
+    /*
+     * `inset-block-start` muss denselben Wert wie `headerHeight` (64px)
+     * tragen — weicht er ab, klebt die Leiste unter oder über der Kopfzeile,
+     * und `build` sieht das nicht (nur ein echter Browser wertet die
+     * Media Query aus).
+     *
+     * NICHT die erste `(min-width: 768px)`-Fundstelle im Dokument nehmen (wie
+     * beim `.nurMobil`-Test oben): DIE Basisregel `.sider { display: none }`
+     * steht selbst HINTER der ersten Media Query (`.rechts .nurMobil` &
+     * Co.) — eine Suche ab der ersten Fundstelle schnitte die Basisregel
+     * nicht ab und der folgende `.sider`-Treffer wäre der FALSCHE (`display:
+     * none` statt `display: block`). Deshalb: die Media Query wird erst AB
+     * der Position der `.sider`-Basisregel gesucht.
+     */
+    const basisIndex = OHNE_KOMMENTARE.indexOf(".sider {");
+    expect(basisIndex, "Basisregel .sider fehlt").toBeGreaterThanOrEqual(0);
+    const mediaIndex = OHNE_KOMMENTARE.indexOf("(min-width: 768px)", basisIndex);
+    expect(mediaIndex, "Media Query fuer .sider fehlt").toBeGreaterThanOrEqual(0);
+    const abBreakpoint = OHNE_KOMMENTARE.slice(mediaIndex);
+    const regel = /\.sider\s*\{([^}]*)\}/.exec(abBreakpoint);
+    expect(regel, ".sider wird ab 768px nicht sichtbar gemacht").not.toBeNull();
+    expect(regel![1]).toMatch(/display:\s*block/);
+    expect(regel![1]).toMatch(/position:\s*sticky/);
+    expect(regel![1]).toMatch(/inset-block-start:\s*64px/);
+  });
+
+  it("kennt die Klasse .navAbschnitt", () => {
+    const regel = /\.navAbschnitt\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .navAbschnitt fehlt").not.toBeNull();
+  });
 });
 
 describe("Markenstreifen und Kopfzeilentypografie", () => {
@@ -404,6 +444,16 @@ describe("Markenstreifen und Kopfzeilentypografie", () => {
     // Farbaussage nicht pruefbar. Eine Variable ist es.
     const regel = OHNE_KOMMENTARE.match(/\.drawerTitel\s*\{([^}]*)\}/);
     expect(regel, ".drawerTitel fehlt").not.toBeNull();
+    expect(regel![1]!).toMatch(/color:\s*var\(--iuk-gedaempft\)/);
+    expect(regel![1]!, "opacity als Farbersatz ist raus").not.toMatch(/opacity/);
+  });
+
+  it("färbt die Abschnittsüberschrift der Modulnavigation ebenso über die Suite-Variable", () => {
+    // Dieselbe Rolle wie `.drawerTitel` (gedämpfte Gruppenüberschrift), also
+    // dieselbe Lösung statt eines eigenen `opacity`-Werts — Begründung siehe
+    // Test oben.
+    const regel = OHNE_KOMMENTARE.match(/\.navAbschnitt\s*\{([^}]*)\}/);
+    expect(regel, ".navAbschnitt fehlt").not.toBeNull();
     expect(regel![1]!).toMatch(/color:\s*var\(--iuk-gedaempft\)/);
     expect(regel![1]!, "opacity als Farbersatz ist raus").not.toMatch(/opacity/);
   });
