@@ -52,8 +52,14 @@ export function AussondernRow({
         okButtonProps={{ loading: laeuft }}
         onConfirm={bestaetigen}
       >
+        {/* KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
+            docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
+            ist hier bereits die volle wie die halbe Bediendichte, "small"
+            unterbietet die Mindesttapflaeche (WCAG 2.5.8).
+            e2e/lagerbuch-mobil.spec.ts:312 misst das heute nur auf
+            /verwaltung/bestellung -- diese Seite ist (noch) nicht im
+            Testpfad, die Regel gilt trotzdem. */}
         <Button
-          size="small"
           danger
           loading={laeuft}
           icon={<Ikone name="kreuz" groesse={14} />}

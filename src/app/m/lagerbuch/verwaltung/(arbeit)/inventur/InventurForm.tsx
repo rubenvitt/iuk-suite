@@ -139,16 +139,21 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
               // zwei Ableitungen desselben Werts liefen sonst auseinander.
               const aktuell = zeile.id in beruehrt ? beruehrt[zeile.id]! : zeile.bestand;
               return (
+                // KEIN size="small" an den drei Bedienelementen: die alte
+                // Zeilenaktions-Ausnahme (Falle 4, docs/design/README.md) ist
+                // mit der Arbeitsdichte gefallen -- 44px ist hier bereits die
+                // volle wie die halbe Bediendichte, "small" unterbietet die
+                // Mindesttapflaeche (WCAG 2.5.8). e2e/lagerbuch-mobil.spec.ts:312
+                // misst das heute nur auf /verwaltung/bestellung -- diese Seite
+                // ist (noch) nicht im Testpfad, die Regel gilt trotzdem.
                 <Flex gap={SPACE.xs} align="center" justify="flex-end">
                   <Button
-                    size="small"
                     disabled={laeuft || aktuell <= 0}
                     aria-label={`Ist-Bestand ${zeile.name} verringern`}
                     onClick={() => wertSetzen(zeile.id, aktuell - 1)}
                     icon={<Ikone name="minus" groesse={14} />}
                   />
                   <InputNumber<number>
-                    size="small"
                     min={0}
                     max={9999}
                     disabled={laeuft}
@@ -157,7 +162,6 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
                     onChange={(wert) => wertSetzen(zeile.id, wert)}
                   />
                   <Button
-                    size="small"
                     disabled={laeuft || aktuell >= 9999}
                     aria-label={`Ist-Bestand ${zeile.name} erhöhen`}
                     onClick={() => wertSetzen(zeile.id, aktuell + 1)}

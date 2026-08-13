@@ -125,9 +125,14 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
       key: "markierung",
       width: 48,
       render: (_bestellt: boolean, z) => (
+        // KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
+        // docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
+        // ist hier bereits die volle wie die halbe Bediendichte. "small"
+        // unterbietet die Mindesttapflaeche und wird von
+        // e2e/lagerbuch-mobil.spec.ts:312 geprueft (misst ALLE
+        // a[href]/button/input/textarea/select auf 44px breit UND hoch).
         <Button
           shape="circle"
-          size="small"
           disabled={laeuft}
           aria-label={
             z.bestellt ? "Bestellung zurücknehmen" : "Als bestellt markieren"
