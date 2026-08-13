@@ -33,6 +33,12 @@ describe("PrioritaetChip — erschoepfend ueber PRIORITAETEN", () => {
     await mount(<PrioritaetChip prioritaet={prioritaet} />);
     const el = query("span");
     expect(el.textContent).toBe(PRIORITAET_TEXT[prioritaet]);
+    const form = PRIORITAET_FORM[prioritaet];
+    const formKlasse = { gefuellt: s.prioGefuellt, kontur: s.prioKontur, text: s.prioText }[form];
+    expect(el.className.split(" ")).toContain(formKlasse);
+    // Dieselbe Namensfalle wie bei StatusChip: `s[form]` waere bei einem
+    // Tippfehler `undefined`, PRIORITAETEN hat heute zufaellig genau drei
+    // Werte — die drei Einzeltests unten schliessen die Luecke nur deshalb.
     expect(el.className).not.toMatch(/undefined/);
   });
 

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { SeitenKopf } from "./SeitenKopf";
+import { alleQuellDateien, ohneKommentare } from "./testQuellscan";
 
 afterEach(async () => {
   await unmount();
@@ -88,7 +88,7 @@ describe("SeitenKopf — die Kontextzeile ist nie leer", () => {
  * DIE VIER MODULWEITEN QUELLTEXT-VERBOTE — hier und nicht verteilt, weil
  * SeitenKopf genau die Baustelle ist, die `Typography`/`Grid.useBreakpoint`
  * am ehesten anzieht (Seitenkopf, Ueberschriften, Responsive-Umschaltung).
- * Vorbild fuer „vier Importformen, nicht eine" ist `src/core/shell/
+ * Vorbild fuer „vier Importformen, nicht eine“ ist `src/core/shell/
  * icons.test.ts`: dort liessen drei Wegwerf-Importeure (`await import`,
  * bloßer `import`, `require`) einen Riegel gruen, der nur `from "…"` sah.
  *
@@ -98,24 +98,6 @@ describe("SeitenKopf — die Kontextzeile ist nie leer", () => {
  * seinem Importeur-Scan ausnimmt.
  */
 const WURZEL = "src/app/m/aufgaben";
-
-function alleQuellDateien(verzeichnis: string, treffer: string[] = []): string[] {
-  for (const eintrag of readdirSync(verzeichnis)) {
-    const pfad = join(verzeichnis, eintrag);
-    if (statSync(pfad).isDirectory()) {
-      alleQuellDateien(pfad, treffer);
-      continue;
-    }
-    if (!/\.tsx?$/.test(eintrag)) continue;
-    if (/\.test\.tsx?$/.test(eintrag)) continue; // Tests schreiben UEBER die Verbote.
-    treffer.push(pfad);
-  }
-  return treffer;
-}
-
-function ohneKommentare(quelle: string): string {
-  return quelle.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-}
 
 /** Vier Importformen — Muster `core/shell/icons.test.ts`. */
 function importSpezifizierer(quelle: string): string[] {
@@ -130,7 +112,14 @@ function scanneDatei(datei: string, quelle: string): Befund[] {
   const befunde: Befund[] = [];
 
   // 1. Kein `Typography` — auch nicht als Import, auch nicht in Client-Komponenten.
-  if (/\bTypography\b/.test(roh)) {
+  //
+  // KEINE SCHLIESZENDE WORTGRENZE: `antd` exportiert `TypographyProps` als
+  // eigenstaendigen Namen (`node_modules/antd/lib/index.d.ts`), und zwischen
+  // „Typography“ und „Props“ gibt es keinen Uebergang Wort→Nicht-Wort — mit
+  // `\bTypography\b` rutschte `import type { TypographyProps } from "antd"`
+  // durch den Scan, den er zu fangen verspricht. Die OEFFNENDE Wortgrenze
+  // bleibt: `MyTypography` faengt der Scan weiterhin nicht.
+  if (/\bTypography/.test(roh)) {
     befunde.push({ datei, regel: "Typography" });
   }
 
@@ -175,10 +164,27 @@ describe("Die vier modulweiten Quelltext-Verbote", () => {
    * GEGENPROBE, wie bei `icons.test.ts`: ein Scan, der bei null Treffern
    * ebenso gruen bliebe wie bei zehn, beweist nichts. Diese Negativ-Fixturen
    * bestaetigen, dass `scanneDatei` tatsaechlich die verbotenen Formen sieht.
+   *
+   * Die drei anderen Verbote sind auf dasselbe Muster (schliessende
+   * Wortgrenze frisst einen laengeren antd-Exportnamen) durchgesehen, nicht
+   * nur unerwaehnt gelassen:
+   *   - `size="large"`: der Wert liegt zwischen Anfuehrungszeichen — das
+   *     schliessende Zeichen ist bereits kein Wortzeichen, eine explizite
+   *     `\b` waere dort ueberfluessig, keine Luecke.
+   *   - `Grid.useBreakpoint` (`/\buseBreakpoint\b/`): `antd`s
+   *     `grid/index.d.ts` exportiert genau `useBreakpoint`, keinen laengeren
+   *     Namen, der damit beginnt (nachgesehen im installierten Paket) — die
+   *     schliessende Wortgrenze hat heute nichts, wodurch sie durchrutschen
+   *     koennte.
+   *   - `@ant-design/icons`: Treffer laufen ueber Gleichheit/`startsWith`
+   *     auf dem Importpfad, nicht ueber eine Wortgrenzen-Regex — eine
+   *     Erweiterung wie `@ant-design/icons-svg` waere ein anderes Paket und
+   *     zu Recht kein Treffer.
    */
   const faelle: { name: string; quelle: string; regel: string }[] = [
     { name: "Named Import Typography", quelle: 'import { Typography } from "antd";', regel: "Typography" },
     { name: "Compound-Zugriff Typography.Title", quelle: "<Typography.Title>x</Typography.Title>;", regel: "Typography" },
+    { name: "Import type TypographyProps", quelle: 'import type { TypographyProps } from "antd";', regel: "Typography" },
     { name: "statischer Import @ant-design/icons", quelle: 'import { X } from "@ant-design/icons";', regel: "@ant-design/icons" },
     { name: "Side-Effect-Import @ant-design/icons", quelle: 'import "@ant-design/icons";', regel: "@ant-design/icons" },
     { name: "dynamischer Import @ant-design/icons", quelle: 'void import("@ant-design/icons");', regel: "@ant-design/icons" },

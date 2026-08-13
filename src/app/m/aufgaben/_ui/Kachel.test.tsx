@@ -13,7 +13,7 @@ afterEach(async () => {
  * fachliche Logik, und ihre WIRKUNG (Kantenfarbe, kein Rot auf der Zahl)
  * prueft Playwright in Aufgabe 21 ueber `getComputedStyle`; jsdom wertet
  * keine Custom-Property-Farben aus einem CSS-Modul aus. Diese Handvoll
- * Zusicherungen lohnt trotzdem: dieselbe „undefined-Klasse"-Falle, die Chip
+ * Zusicherungen lohnt trotzdem: dieselbe „undefined-Klasse“-Falle, die Chip
  * und Kachel in `lagerbuch` beide betrifft, gilt hier unveraendert fuer
  * `KANTE[ton]`.
  */

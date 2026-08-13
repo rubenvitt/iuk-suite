@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Breadcrumb } from "antd";
 import { SCHRIFT } from "@/core/theme/schrift";
+import { SPACE } from "@/core/theme/tokens";
 
 /*
  * DER KOPF JEDER SEITE DES MODULS (Spec §9.4, Muster `docs/design/
@@ -62,9 +63,9 @@ export function SeitenKopf({
   }
 
   return (
-    <div style={{ marginBlockEnd: 24 }}>
+    <div style={{ marginBlockEnd: SPACE.xl }}>
       <Breadcrumb
-        style={{ ...SCHRIFT.neben, marginBlockEnd: 4 }}
+        style={{ ...SCHRIFT.neben, marginBlockEnd: SPACE.xs }}
         items={brotkrume.map((eintrag) => ({
           title: eintrag.href ? <Link href={eintrag.href}>{eintrag.label}</Link> : eintrag.label,
         }))}
@@ -75,13 +76,15 @@ export function SeitenKopf({
           justifyContent: "space-between",
           alignItems: "flex-end",
           flexWrap: "wrap",
-          gap: 8,
+          gap: SPACE.sm,
         }}
       >
         <h1 style={{ ...SCHRIFT.titel, margin: 0, textWrap: "balance" }}>{titel}</h1>
-        {aktionen ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{aktionen}</div> : null}
+        {aktionen ? (
+          <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>{aktionen}</div>
+        ) : null}
       </div>
-      <p style={{ ...SCHRIFT.neben, margin: "4px 0 0" }}>{kontext}</p>
+      <p style={{ ...SCHRIFT.neben, margin: `${SPACE.xs}px 0 0` }}>{kontext}</p>
     </div>
   );
 }

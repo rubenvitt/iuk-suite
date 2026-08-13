@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, afterEach } from "vitest";
 import { mount, unmount, query } from "@/app/m/qr/_lib/test-dom";
 import { ZEICHEN, Ikone, type IkonName } from "./ikonen";
+import { alleQuellDateien as alleDateien, ohneKommentare } from "./testQuellscan";
 
 afterEach(async () => {
   await unmount();
@@ -11,24 +12,6 @@ afterEach(async () => {
 
 const WURZEL = "src/app/m/aufgaben";
 const IKON_NAMEN = new Set(Object.keys(ZEICHEN));
-
-function alleDateien(verzeichnis: string, treffer: string[] = []): string[] {
-  for (const eintrag of readdirSync(verzeichnis)) {
-    const pfad = join(verzeichnis, eintrag);
-    if (statSync(pfad).isDirectory()) {
-      alleDateien(pfad, treffer);
-      continue;
-    }
-    if (!/\.tsx?$/.test(eintrag)) continue;
-    if (/\.test\.tsx?$/.test(eintrag)) continue; // Tests sind nicht die Quelle, die die Union bindet.
-    treffer.push(pfad);
-  }
-  return treffer;
-}
-
-function ohneKommentare(quelle: string): string {
-  return quelle.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-}
 
 /**
  * NUR DIE LITERALE FORM (`name="…"` / `name={"…"}`), keine Alias- oder

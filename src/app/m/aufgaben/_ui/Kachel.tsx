@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Card } from "antd";
 import type { ChipTon } from "../_lib/anzeige";
 import { SCHRIFT } from "@/core/theme/schrift";
+import { SPACE } from "@/core/theme/tokens";
 import { Ikone } from "./ikonen";
 import s from "./aufgaben.module.css";
 
@@ -60,11 +61,11 @@ export function Kachel({
   const kante = ton ? KANTE[ton] : undefined;
   const inhalt = (
     <div className={[s.kpi, kante].filter(Boolean).join(" ")}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: SPACE.sm }}>
         <span style={SCHRIFT.zahl}>{zahl}</span>
         {href ? <Ikone name="chevron-rechts" /> : null}
       </div>
-      <div style={{ ...SCHRIFT.neben, marginBlockStart: 4 }}>{beschriftung}</div>
+      <div style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>{beschriftung}</div>
     </div>
   );
 
