@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { darfFreigeben, istAktiv } from "../_lib/zugang";
 import type { DB } from "./client";
 import {
@@ -138,6 +138,59 @@ export function verlaufFuer(db: DB, aufgabeId: string): VerlaufRow[] {
 
 export function nachweiseFuer(db: DB, aufgabeId: string): NachweisRow[] {
   return db.select().from(nachweise).where(eq(nachweise.aufgabeId, aufgabeId)).all();
+}
+
+/**
+ * DER PLATZ FUER EINPLANEN (Aufgabe 10, `einplanenAction`) — DICHTE SKALA JE PERSON UND TAG,
+ * AUFSTEIGEND. Diese Funktion ORDNET NIE UM, sie entscheidet nur den Platz eines EINZELNEN
+ * Einplanens; das Auf-/Ab-Paar aus Spec §8.5 (Aufgabe 12) und das Ziehen (Aufgabe 20) sind eigene
+ * Schreiboperationen AUF dieser Skala, keine Erweiterung dieser Funktion.
+ *
+ * ZWEI FAELLE:
+ *  - Der Tag AENDERT SICH (oder die Aufgabe hatte noch keinen `planDatum`): sie wird ANS ENDE des
+ *    NEUEN Tages gehaengt (`max(planRang) + 1`, oder 0 wenn der Tag dort noch leer ist) — ein
+ *    frisch eingeplanter Eintrag hat noch keine gewaehlte Position innerhalb des Tages.
+ *  - Der Tag BLEIBT GLEICH (nur die Uhrzeit wird korrigiert, keine Verschiebung): der BISHERIGE
+ *    `planRang` bleibt STEHEN. Ohne diese Ausnahme wuerde ein zweites `einplanen` auf denselben Tag
+ *    die Aufgabe erneut ans Ende haengen — eine reine Korrekturbuchung der Uhrzeit verschoebe die
+ *    Position in der Liste schweigend. Die Gestaltungshoheit ueber den eigenen Tag
+ *    (`darfPlanAendern`-Kommentar in `_lib/zugang.ts`) gilt auch fuer eine Reihenfolge, die die
+ *    Person bereits selbst gewaehlt hat.
+ *
+ * Die Abfrage im zweiten Fall schliesst die AUFGABE SELBST implizit aus: sie wird nur erreicht, wenn
+ * `task.planDatum !== planDatum` gilt, und die eigene (alte) Zeile der Aufgabe traegt dann per
+ * Definition NICHT den neuen `planDatum`-Wert, taucht also im Filter nicht auf — ein separates
+ * `ne(aufgaben.id, task.id)` waere derselbe Ausschluss ein zweites Mal.
+ *
+ * Nutzt den Index `aufgaben_plan_idx` auf `(zugewiesen_an, plan_datum)` (Schema-Kommentar), fuer
+ * genau diese Abfrage angelegt.
+ */
+export function planRangFuerEinplanen(db: DB, task: AufgabeRow, planDatum: string): number {
+  if (task.planDatum === planDatum) return task.planRang;
+  if (task.zugewiesenAn === null) return 0; // Invariante: "einplanen" ist nur ab "verteilt" erreichbar, das setzt zugewiesenAn immer.
+  const zeilen = db
+    .select({ planRang: aufgaben.planRang })
+    .from(aufgaben)
+    .where(and(eq(aufgaben.zugewiesenAn, task.zugewiesenAn), eq(aufgaben.planDatum, planDatum)))
+    .all();
+  if (zeilen.length === 0) return 0;
+  return Math.max(...zeilen.map((z) => z.planRang)) + 1;
+}
+
+/**
+ * SCHREIBT EINEN TEXTNACHWEIS (Aufgabe 10, `fertigMeldenAction`). Der Bildnachweis (`dateiId`
+ * gesetzt) kommt erst mit dem Upload aus Aufgabe 17-19 — diese Funktion schreibt deshalb nur die
+ * Textform; `dateiId` bleibt in dieser Aufgabe immer `null`.
+ */
+export function erstelleNachweis(
+  db: DB,
+  werte: { aufgabeId: string; text: string; erstelltVon: string },
+): NachweisRow {
+  return db
+    .insert(nachweise)
+    .values({ aufgabeId: werte.aufgabeId, art: "text", text: werte.text, erstelltVon: werte.erstelltVon })
+    .returning()
+    .get();
 }
 
 /**

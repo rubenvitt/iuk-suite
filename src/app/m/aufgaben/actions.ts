@@ -2,8 +2,19 @@
 
 import { revalidatePath } from "next/cache";
 import { getDb } from "./_db/client";
-import { aufgabe, aktualisiereAufgabe, bufdis, erstelleAufgabe, loescheAufgabe, schreibeVerlauf } from "./_db/queries";
-import type { Ereignis } from "./_db/schema";
+import {
+  aufgabe,
+  aktualisiereAufgabe,
+  bufdis,
+  erstelleAufgabe,
+  erstelleNachweis,
+  loescheAufgabe,
+  nachweiseFuer,
+  personNachId,
+  planRangFuerEinplanen,
+  schreibeVerlauf,
+} from "./_db/queries";
+import type { AufgabeRow, Ereignis } from "./_db/schema";
 import {
   istGueltigeDauerMinuten,
   istGueltigeNachweisArt,
@@ -13,14 +24,14 @@ import {
 } from "./_lib/eingabe";
 import type { FormState } from "./_lib/formState";
 import { anfangsZustand, uebergang, type Aktion } from "./_lib/lebenszyklus";
-import { personFuerSession } from "./_lib/zugang";
+import { istVertretungsfreigabe, personFuerSession } from "./_lib/zugang";
 import { isoTag } from "./_lib/datum";
 
 /*
- * DIE VIER ACTIONS DIESER AUFGABE — `einstellen`, `verteilen`, `umverteilen`, `zurueckziehen`.
- * Aufgaben 10-12 ergaenzen weitere Actions IN DERSELBEN DATEI (Brief); die Naht dafuer sind die
- * Helfer unten (`revalidate`, `feld`, `istGesetzt`, `_lib/eingabe.ts`), die keine dieser vier
- * Actions exklusiv fuer sich beansprucht.
+ * DIE VIER ACTIONS DER AUFGABE 9 — `einstellen`, `verteilen`, `umverteilen`, `zurueckziehen`.
+ * DIESE AUFGABE (10) ERGAENZT DIE RESTLICHEN SIEBEN — `starten`, `zuruecksetzen`, `einplanen`,
+ * `fertig`, `freigeben`, `zurueckweisen`, `wiederaufnehmen` — IN DERSELBEN DATEI (Brief), auf
+ * denselben Helfern (`revalidate`, `feld`, `istGesetzt`, `_lib/eingabe.ts`).
  *
  * DIE KETTE IST FUER JEDE ACTION DIESELBE, UND IHRE REIHENFOLGE IST DIE ZUSAGE (Brief):
  *   personFuerSession  →  Praedikat (hier: `uebergang()`/`anfangsZustand()`)  →  schreiben
@@ -38,6 +49,13 @@ import { isoTag } from "./_lib/datum";
  * DIE BERECHTIGUNG WIRD NICHT NACHGEBAUT: `uebergang()`/`anfangsZustand()` (`_lib/lebenszyklus.ts`)
  * ziehen ihre Praedikate ausschliesslich aus `_lib/zugang.ts`. Diese Datei prueft selbst keinen
  * Zustand und keine Rolle nach.
+ *
+ * ZWEI NORMATIVE PFLICHTEN LIEGEN AUSSERHALB DER UEBERGANGSTABELLE (Brief, Uebergabe aus Aufgabe 8):
+ * `uebergang()` bekommt nur `(AufgabeRow, Aktion, PersonRow, heute)` und sieht deshalb WEDER einen
+ * Begruendungstext NOCH die `nachweise`-Tabelle. Diese Datei ist die EINZIGE Stelle, an der beide
+ * noch durchgesetzt werden koennen — siehe `zurueckweisenAction` (Begruendung Pflicht, Spec §5.2)
+ * und `fertigMeldenAction` (Nachweispflicht, Spec §5.3). Beide sind FELDFEHLER, keine Wuerfe: eine
+ * fehlende Begruendung oder ein fehlender Nachweis ist ein unvollstaendiges Formular, kein Angriff.
  */
 
 /**
@@ -298,4 +316,310 @@ export async function zurueckziehenAction(formData: FormData): Promise<void> {
 
   loescheAufgabe(db, task.id);
   revalidate();
+}
+
+/*
+ * AB HIER AUFGABE 10 — DIE RESTLICHEN SIEBEN UEBERGAENGE. Vier davon (`starten`, `zuruecksetzen`,
+ * `freigeben`, `wiederaufnehmen`) tragen kein Feld, das fehlschlagen koennte (nur `aufgabeId`) —
+ * dieselbe Ueberlegung wie bei `zurueckziehenAction`: kein `FormState`, keine
+ * `useActionState`-Signatur. `einplanen`, `fertig` und `zurueckweisen` haben je mindestens ein
+ * Formularfeld und tragen deshalb `FormState`.
+ */
+
+/**
+ * DER GEMEINSAME RUMPF FUER STARTEN, ZURUECKSETZEN UND WIEDERAUFNEHMEN — alle drei sind eine reine
+ * Statuswechsel-Aktion ohne eigenes Formularfeld, mit `Ereignis` 1:1 aus `_db/schema.ts`
+ * (`EREIGNISSE`-Kommentar: `starten` → `gestartet`, `zuruecksetzen` → `zurueckgesetzt`,
+ * `wiederaufnehmen` → `wiederaufgenommen`). Ein viertes Formular fuer denselben Rumpf waere
+ * derselbe Code ein drittes Mal gehalten (vgl. `verteilenGemeinsam` oben).
+ */
+async function einfacherUebergang(
+  formData: FormData,
+  aktion: Extract<Aktion, "starten" | "zuruecksetzen" | "wiederaufnehmen">,
+  ereignis: Ereignis,
+): Promise<void> {
+  const db = getDb();
+  const person = await personFuerSession(db);
+  const heute = isoTag(new Date());
+
+  const aufgabeId = feld(formData, "aufgabeId");
+  const task = aufgabe(db, aufgabeId);
+  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+
+  const ergebnis = uebergang(task, aktion, person, heute);
+  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
+  if (ergebnis.wirkung !== "aendern") {
+    // Verteidigungslinie fuer den Typ, wie in `verteilenGemeinsam": keine dieser drei Aktionen
+    // erzeugt bei `uebergang()` `wirkung: "loeschen"`.
+    throw new Error("Unerwartetes Uebergangsergebnis.");
+  }
+
+  aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
+  schreibeVerlauf(db, { aufgabeId: task.id, ereignis, akteurId: person.id });
+  revalidate();
+}
+
+/** `verteilt` → `in_arbeit` (Spec §5.2) — nur der zugewiesene BuFDi. */
+export async function startenAction(formData: FormData): Promise<void> {
+  return einfacherUebergang(formData, "starten", "gestartet");
+}
+
+/** `in_arbeit` → `verteilt` (Spec §5.2) — nur der zugewiesene BuFDi. */
+export async function zuruecksetzenAction(formData: FormData): Promise<void> {
+  return einfacherUebergang(formData, "zuruecksetzen", "zurueckgesetzt");
+}
+
+/** `zurueckgewiesen` → `in_arbeit` (Spec §5.2) — nur der zugewiesene BuFDi. */
+export async function wiederaufnehmenAction(formData: FormData): Promise<void> {
+  return einfacherUebergang(formData, "wiederaufnehmen", "wiederaufgenommen");
+}
+
+/**
+ * DIE VERLAUFSNOTIZ ZU "EINGEPLANT" (Spec §5.1): der Zeitvorschlag BLEIBT STEHEN, wenn eingeplant
+ * wird — "der Verlauf soll belegen koennen, ob angenommen oder abgewichen wurde" (Brief). Diese
+ * Funktion ist die Stelle, die das festhaelt, weil `aktualisiereAufgabe` den Vorschlag unveraendert
+ * laesst (er wird nur bei `verteilen`/`umverteilen` neu gesetzt) und `task` deshalb noch den
+ * VORHERIGEN Vorschlag traegt, waehrend `planDatum`/`planUhrzeit` bereits die NEUEN, gerade
+ * eingeplanten Werte sind.
+ *
+ * Kein Vorschlag vorhanden → schlichtes "Eingeplant: …". Ein Vorschlag, der zum eingeplanten Tag
+ * UND (falls angegeben) zur eingeplanten Uhrzeit passt, gilt als angenommen; alles andere als
+ * Abweichung, mit beiden Angaben nebeneinander — genau das, was "belegen koennen, ob angenommen
+ * oder abgewichen wurde" fordert.
+ */
+function einplanenNotiz(task: AufgabeRow, planDatum: string, planUhrzeit: string | null): string {
+  const geplant = `${planDatum}${planUhrzeit !== null ? ` ${planUhrzeit}` : ""}`;
+  if (task.vorschlagDatum === null) return `Eingeplant: ${geplant}`;
+
+  const vorschlag = `${task.vorschlagDatum}${task.vorschlagUhrzeit !== null ? ` ${task.vorschlagUhrzeit}` : ""}`;
+  const angenommen =
+    task.vorschlagDatum === planDatum &&
+    (task.vorschlagUhrzeit === null || task.vorschlagUhrzeit === planUhrzeit);
+  return angenommen
+    ? `Vorschlag angenommen: ${geplant}`
+    : `Vorschlag abgewichen — Vorschlag: ${vorschlag}, eingeplant: ${geplant}`;
+}
+
+/**
+ * EINPLANEN (Spec §5.1, §5.2, §8.5) — der Server-Teil sowohl des Formulars (Aufgabe 12) als auch
+ * des Ziehens (Aufgabe 20). BEIDE rufen DIESELBE Action (Brief); diese Datei entscheidet nur, WAS
+ * gespeichert wird, nicht WIE die Oberflaeche den Wert ermittelt.
+ *
+ * `uebergang()` prueft die Berechtigung bereits vollstaendig ueber
+ * `darfPlanAendern(p, a.zugewiesenAn, heute)` (TABELLE-Zeile "verteilt"→"einplanen",
+ * `_lib/lebenszyklus.ts`) — AUCH DIE KOORDINATION SCHEITERT DORT: sie schlaegt vor
+ * (`vorschlagDatum`), sie setzt nicht (`_lib/zugang.ts`-Kommentar zu `darfPlanAendern`). Diese
+ * Action baut diese Pruefung nicht nach.
+ *
+ * `planRang` KOMMT AUS `planRangFuerEinplanen` (`_db/queries.ts`), NICHT AUS EINEM FORMULARFELD —
+ * die Reihenfolge innerhalb eines Tages ist keine Eingabe dieses kleinen Formulars (Spec §8.5:
+ * "Die Reihenfolge innerhalb des Tages regeln Auf-/Ab-Knoepfe", das ist Aufgabe 12).
+ */
+export async function einplanenAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const db = getDb();
+  const person = await personFuerSession(db);
+  const heute = isoTag(new Date());
+
+  const aufgabeId = feld(formData, "aufgabeId");
+  const task = aufgabe(db, aufgabeId);
+  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+
+  const ergebnis = uebergang(task, "einplanen", person, heute);
+  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
+  if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
+
+  const values = {
+    aufgabeId,
+    planDatum: feld(formData, "planDatum"),
+    planUhrzeit: feld(formData, "planUhrzeit"),
+  };
+  const fieldErrors: Record<string, string> = {};
+  const planDatum = values.planDatum.trim();
+  if (!istGueltigerIsoTag(planDatum)) {
+    fieldErrors.planDatum = "Plantag fehlt oder ist ungueltig.";
+  }
+  const planUhrzeit = values.planUhrzeit.trim();
+  if (planUhrzeit !== "" && !istGueltigeUhrzeit(planUhrzeit)) {
+    fieldErrors.planUhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
+  }
+  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+
+  const geplanteUhrzeit = planUhrzeit === "" ? null : planUhrzeit;
+  const planRang = planRangFuerEinplanen(db, task, planDatum);
+
+  aktualisiereAufgabe(db, task.id, { planDatum, planUhrzeit: geplanteUhrzeit, planRang });
+  schreibeVerlauf(db, {
+    aufgabeId: task.id,
+    ereignis: "eingeplant",
+    akteurId: person.id,
+    notiz: einplanenNotiz(task, planDatum, geplanteUhrzeit),
+  });
+  revalidate();
+  return { ok: true };
+}
+
+/**
+ * FERTIG MELDEN (Spec §5.2, §5.3) — `in_arbeit` → `freigabe_offen` (Fremdaufgabe) ODER
+ * `abgeschlossen` (Selbstaufgabe, die Kurzstrecke). WELCHER der beiden Faelle vorliegt, ENTSCHEIDET
+ * `uebergang()` BEREITS (TABELLE hat zwei Zeilen fuer `in_arbeit`×`fertig`, unterschieden durch
+ * `gilt: istSelbst`) — diese Action fragt `task.istSelbst` deshalb NICHT selbst ab (Brief: "nimm
+ * das Ergebnis von dort"), sondern leitet Ereignis UND Status aus `ergebnis.nach` ab: derselbe
+ * Endzustand "abgeschlossen" entsteht hier UND bei `freigebenAction` (`_db/schema.ts`,
+ * `EREIGNISSE`-Kommentar: "derselbe Endzustand, zwei Wege dorthin"), deshalb ist "abgeschlossen"
+ * (nicht "fertig_gemeldet") auch das Ereignis fuer den Selbstaufgaben-Weg.
+ *
+ * DIE ZWEITE UEBERGABE AUS AUFGABE 8 (Brief): `uebergang()` sieht `nachweisPflicht`/`nachweisArt`
+ * auf der Zeile, aber NICHT, ob ein `nachweise`-Datensatz vorliegt — das ist eine eigene Tabelle.
+ * Diese Action LIEST sie (`nachweiseFuer`), sie SCHLIESST nicht von einem ausgefuellten Feld auf
+ * einen erfuellten Nachweis. Ein fehlender/unpassender Nachweis ist ein FELDFEHLER: das Formular
+ * ist unvollstaendig, kein Angriff.
+ *
+ * DIE PFLICHT IST EINE UNTERGRENZE, KEINE BESCHRAENKUNG (Spec §5.3, woertlich im Brief): "bild"
+ * verlangt eine DATEI und erlaubt zusaetzlich Text; "text" verlangt TEXT und erlaubt zusaetzlich
+ * eine Datei. Ein vorhandener Text ersetzt bei `nachweisArt === "bild"` deshalb NICHT die
+ * Bildpruefung — genau der Fall, den ein verkuerztes "irgendein Nachweis vorhanden" uebersehen wuerde.
+ *
+ * DER BILDNACHWEIS SELBST KOMMT ERST MIT AUFGABE 17-19 (Brief). Die Pruefung hier fragt deshalb nur,
+ * OB EIN `nachweise`-DATENSATZ MIT `art === "bild"` EXISTIERT — sie kann (noch) nicht gegen
+ * `dateien.scanStatus` joinen, weil `nachweise.dateiId` heute von niemandem gesetzt wird. AUFGABE 19
+ * SCHAERFT GENAU DAS: sie ergaenzt den Join gegen `dateien.scanStatus === "sauber"`, sodass ein noch
+ * nicht sauber gescanntes Bild NICHT ausreicht. Diese Zeile absichtlich NICHT auf "Text vorhanden"
+ * verkuerzt zu lassen (Brief), auch wenn Bilder heute noch nicht hochladbar sind — sonst waere die
+ * Pruefung spaeter still zu schwach.
+ */
+export async function fertigMeldenAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const db = getDb();
+  const person = await personFuerSession(db);
+  const heute = isoTag(new Date());
+
+  const aufgabeId = feld(formData, "aufgabeId");
+  const task = aufgabe(db, aufgabeId);
+  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+
+  const ergebnis = uebergang(task, "fertig", person, heute);
+  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
+  if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
+
+  const values = { aufgabeId, nachweisText: feld(formData, "nachweisText") };
+  const nachweisText = values.nachweisText.trim();
+
+  if (task.nachweisPflicht) {
+    const vorhandene = nachweiseFuer(db, task.id);
+    if (task.nachweisArt === "bild") {
+      const hatBild = vorhandene.some((n) => n.art === "bild");
+      if (!hatBild) {
+        return {
+          ok: false,
+          // Eigener Schluessel "nachweis" statt "nachweisText": diese Ablehnung handelt vom
+          // FEHLENDEN BILD, nicht vom Inhalt des Textfelds — ein Formular mit ausgefuelltem Text
+          // UND fehlendem Bild soll nicht so aussehen, als sei der Text das Problem.
+          fieldErrors: { nachweis: "Fuer diese Aufgabe ist ein Bildnachweis erforderlich." },
+          values,
+        };
+      }
+    } else {
+      const hatText =
+        nachweisText !== "" || vorhandene.some((n) => n.art === "text" && (n.text ?? "").trim() !== "");
+      if (!hatText) {
+        return {
+          ok: false,
+          fieldErrors: { nachweisText: "Fuer diese Aufgabe ist ein Textnachweis erforderlich." },
+          values,
+        };
+      }
+    }
+  }
+
+  if (nachweisText !== "") {
+    erstelleNachweis(db, { aufgabeId: task.id, text: nachweisText, erstelltVon: person.id });
+  }
+
+  aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
+  schreibeVerlauf(db, {
+    aufgabeId: task.id,
+    ereignis: ergebnis.nach === "abgeschlossen" ? "abgeschlossen" : "fertig_gemeldet",
+    akteurId: person.id,
+  });
+  revalidate();
+  return { ok: true };
+}
+
+/**
+ * FREIGEBEN — `freigabe_offen` → `abgeschlossen` (Spec §5.2), nur Pruefer oder `koordination`
+ * (`uebergang()` prueft `darfFreigeben`). Kein Formularfeld ausser `aufgabeId`, deshalb kein
+ * `FormState` — wie `zurueckziehenAction`.
+ *
+ * DIE VERTRETUNGSFREIGABE (Brief, Spec §6 `verlauf`): schreibt die Verlaufszeile ALS SOLCHE, wenn
+ * `istVertretungsfreigabe(person, task)` wahr ist — "Freigegeben von X in Vertretung für Y". Das
+ * ist der Punkt, an dem die Leistungsdokumentation aussagekraeftig wird oder nicht: ohne die
+ * Unterscheidung saehe eine Freigabe durch die Koordination in Vertretung genauso aus wie eine durch
+ * den eingetragenen Pruefer, und am Ende des Dienstjahres liesse sich nicht mehr nachvollziehen, wer
+ * tatsaechlich geprueft hat.
+ *
+ * `istVertretungsfreigabe` traegt selbst die Klausel `prueferId !== null` (die Invariante, dass jede
+ * Fremdaufgabe einen Pruefer hat — Aufgabe 9 stellt das beim Einstellen her); diese Action baut das
+ * nicht nach, sie nutzt nur, dass `task.prueferId` innerhalb des `if` deshalb `string` ist.
+ */
+export async function freigebenAction(formData: FormData): Promise<void> {
+  const db = getDb();
+  const person = await personFuerSession(db);
+  const heute = isoTag(new Date());
+
+  const aufgabeId = feld(formData, "aufgabeId");
+  const task = aufgabe(db, aufgabeId);
+  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+
+  const ergebnis = uebergang(task, "freigeben", person, heute);
+  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
+  if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
+
+  let notiz: string | undefined;
+  if (istVertretungsfreigabe(person, task) && task.prueferId !== null) {
+    const pruefer = personNachId(db, task.prueferId);
+    notiz = `Freigegeben von ${person.name} in Vertretung für ${pruefer?.name ?? task.prueferId}`;
+  }
+
+  aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
+  schreibeVerlauf(db, { aufgabeId: task.id, ereignis: "abgeschlossen", akteurId: person.id, notiz });
+  revalidate();
+}
+
+/**
+ * ZURUECKWEISEN — `freigabe_offen` → `zurueckgewiesen` (Spec §5.2), nur Pruefer oder `koordination`.
+ *
+ * DIE ERSTE UEBERGABE AUS AUFGABE 8 (Brief): die Spec-Tabelle schreibt woertlich "Begruendung
+ * Pflicht" — `uebergang()` sieht keinen Begruendungstext und kann das strukturell nicht pruefen,
+ * diese Action ist die einzige verbleibende Stelle. Eine leere Begruendung ist ein FELDFEHLER
+ * (Spec §8.4: "eine Zurueckweisung ohne Begruendung ist fuer den BuFDi wertlos" — ein unvollstaendiges
+ * Formular, kein Angriff), und sie gehoert in die VERLAUFSZEILE (`notiz`), nicht nur in ein Feld auf
+ * der Aufgabe: der Verlauf ist die Leistungsdokumentation (Spec §6).
+ */
+export async function zurueckweisenAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const db = getDb();
+  const person = await personFuerSession(db);
+  const heute = isoTag(new Date());
+
+  const aufgabeId = feld(formData, "aufgabeId");
+  const task = aufgabe(db, aufgabeId);
+  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+
+  const ergebnis = uebergang(task, "zurueckweisen", person, heute);
+  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
+  if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
+
+  const values = { aufgabeId, begruendung: feld(formData, "begruendung") };
+  const begruendung = values.begruendung.trim();
+  if (begruendung === "") {
+    return { ok: false, fieldErrors: { begruendung: "Eine Begruendung ist Pflicht." }, values };
+  }
+
+  aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
+  schreibeVerlauf(db, {
+    aufgabeId: task.id,
+    ereignis: "zurueckgewiesen",
+    akteurId: person.id,
+    notiz: begruendung,
+  });
+  revalidate();
+  return { ok: true };
 }

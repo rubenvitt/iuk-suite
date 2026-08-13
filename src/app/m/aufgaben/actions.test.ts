@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TestDb } from "./_db/testdb";
 import { migrierteTestDb } from "./_db/testdb";
-import { aufgaben, personen, type AufgabeRow, type PersonRow, type Rolle } from "./_db/schema";
+import { aufgaben, nachweise, personen, type AufgabeRow, type PersonRow, type Rolle } from "./_db/schema";
 import { aufgabe, schreibeVerlauf, verlaufFuer } from "./_db/queries";
 
 /*
@@ -29,9 +29,16 @@ vi.mock("./_db/client", () => ({ getDb: () => t.db }));
 
 import {
   aufgabeEinstellenAction,
+  einplanenAction,
+  fertigMeldenAction,
+  freigebenAction,
+  startenAction,
   umverteilenAction,
   verteilenAction,
+  wiederaufnehmenAction,
   zurueckziehenAction,
+  zurueckweisenAction,
+  zuruecksetzenAction,
 } from "./actions";
 import type { FormState } from "./_lib/formState";
 
@@ -634,6 +641,636 @@ describe("zurueckziehenAction", () => {
 
     await expect(zurueckziehenAction(form("nicht-vorhanden"))).rejects.toThrow(
       /nicht gefunden/,
+    );
+  });
+});
+
+/*
+ * AB HIER AUFGABE 10 — DIE RESTLICHEN SIEBEN UEBERGAENGE.
+ */
+
+function legeNachweis(
+  aufgabeId: string,
+  art: "text" | "bild",
+  erstelltVon: string,
+  text: string | null = null,
+) {
+  return t.db.insert(nachweise).values({ aufgabeId, art, text, erstelltVon }).returning().get();
+}
+
+describe("startenAction", () => {
+  function form(aufgabeId: string): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    return f;
+  }
+
+  it("der zugewiesene BuFDi startet eine verteilte Aufgabe — sie wird in_arbeit, mit Verlaufszeile", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id });
+    anmelden(bufdi);
+
+    await startenAction(form(task.id));
+
+    expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    const letzte = letzteVerlaufszeile(task.id)!;
+    expect(letzte.ereignis).toBe("gestartet");
+    expect(letzte.akteurId).toBe(bufdi.id);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("eine unbeteiligte BuFDi darf eine fremd zugewiesene Aufgabe nicht starten", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi1.id });
+    anmelden(bufdi2);
+
+    await expect(startenAction(form(task.id))).rejects.toThrow(/darf die Aktion "starten"/);
+    expect(aufgabe(t.db, task.id)!.status).toBe("verteilt");
+  });
+
+  it("eine ausgeschiedene BuFDi, die es duerfte, wenn sie aktiv waere, wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const exBufdi = legePerson("dev:ex-alina@test", "bufdi", { aktivBis: "2026-08-01" });
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: exBufdi.id });
+    anmelden(exBufdi);
+
+    await expect(startenAction(form(task.id))).rejects.toThrow(/darf die Aktion "starten"/);
+    expect(aufgabe(t.db, task.id)!.status).toBe("verteilt");
+  });
+
+  it("aus dem Zustand eingegangen wird nicht gestartet", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
+    anmelden(bufdi);
+
+    await expect(startenAction(form(task.id))).rejects.toThrow(
+      /Aktion "starten" ist im Zustand "eingegangen" nicht vorgesehen/,
+    );
+  });
+
+  it("eine unbekannte aufgabeId wirft", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    await expect(startenAction(form("nicht-vorhanden"))).rejects.toThrow(/nicht gefunden/);
+  });
+});
+
+describe("zuruecksetzenAction", () => {
+  function form(aufgabeId: string): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    return f;
+  }
+
+  it("der zugewiesene BuFDi setzt eine begonnene Aufgabe zurueck — sie wird wieder verteilt", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id });
+    anmelden(bufdi);
+
+    await zuruecksetzenAction(form(task.id));
+
+    expect(aufgabe(t.db, task.id)!.status).toBe("verteilt");
+    const letzte = letzteVerlaufszeile(task.id)!;
+    expect(letzte.ereignis).toBe("zurueckgesetzt");
+    expect(letzte.akteurId).toBe(bufdi.id);
+  });
+
+  it("eine unbeteiligte BuFDi darf nicht zuruecksetzen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi1.id });
+    anmelden(bufdi2);
+
+    await expect(zuruecksetzenAction(form(task.id))).rejects.toThrow(/darf die Aktion "zuruecksetzen"/);
+    expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+  });
+
+  it("eine ausgeschiedene BuFDi, die es duerfte, wenn sie aktiv waere, wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const exBufdi = legePerson("dev:ex-alina@test", "bufdi", { aktivBis: "2026-08-01" });
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: exBufdi.id });
+    anmelden(exBufdi);
+
+    await expect(zuruecksetzenAction(form(task.id))).rejects.toThrow(/darf die Aktion "zuruecksetzen"/);
+  });
+});
+
+describe("einplanenAction", () => {
+  function form(aufgabeId: string, over: Record<string, string> = {}): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    for (const [k, v] of Object.entries(over)) f.set(k, v);
+    return f;
+  }
+
+  it("der zugewiesene BuFDi plant eine Aufgabe in einen leeren Tag — planRang 0, Verlaufszeile „Eingeplant“", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id });
+    anmelden(bufdi);
+
+    const ergebnis = await einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17", planUhrzeit: "09:30" }));
+    expect(ergebnis).toEqual({ ok: true });
+
+    const nachher = aufgabe(t.db, task.id)!;
+    expect(nachher.planDatum).toBe("2026-08-17");
+    expect(nachher.planUhrzeit).toBe("09:30");
+    expect(nachher.planRang).toBe(0);
+
+    const letzte = letzteVerlaufszeile(task.id)!;
+    expect(letzte.ereignis).toBe("eingeplant");
+    expect(letzte.notiz).toBe("Eingeplant: 2026-08-17 09:30");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("eine zweite Aufgabe am selben Tag derselben Person wird ANS ENDE gehaengt (planRang = max+1)", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id, planDatum: "2026-08-17", planRang: 0 });
+    legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id, planDatum: "2026-08-17", planRang: 2 });
+    const neue = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id });
+    anmelden(bufdi);
+
+    await einplanenAction({ ok: true }, form(neue.id, { planDatum: "2026-08-17" }));
+
+    expect(aufgabe(t.db, neue.id)!.planRang).toBe(3);
+  });
+
+  /**
+   * DIE GEGENPROBE ZUR PLANRANG-ENTSCHEIDUNG (Brief + Beratung): ohne die "gleicher Tag behaelt
+   * seinen Rang"-Ausnahme wuerde ein zweites `einplanen` auf denselben Tag (z. B. nur die Uhrzeit
+   * korrigieren) die Aufgabe ERNEUT ans Ende haengen, weil die Abfrage die eigene, bereits am
+   * Zieltag liegende Zeile mitzaehlt. Dieser Test faellt genau dann rot, wenn diese Ausnahme fehlt.
+   */
+  it("ein erneutes Einplanen auf DENSELBEN Tag behaelt den bisherigen planRang (keine Neusortierung)", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    // Zwei Aufgaben am selben Tag; "erste" hat den niedrigeren Rang und liegt VOR "zweite".
+    const erste = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id, planDatum: "2026-08-17", planRang: 0 });
+    legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id, planDatum: "2026-08-17", planRang: 1 });
+    anmelden(bufdi);
+
+    // "erste" wird NOCH EINMAL fuer denselben Tag eingeplant, nur mit einer anderen Uhrzeit.
+    await einplanenAction({ ok: true }, form(erste.id, { planDatum: "2026-08-17", planUhrzeit: "14:00" }));
+
+    // Der Rang bleibt 0 — "erste" haengt NICHT hinter "zweite" (Rang 1).
+    expect(aufgabe(t.db, erste.id)!.planRang).toBe(0);
+  });
+
+  it("ein angenommener Zeitvorschlag: Plantag und Uhrzeit stimmen ueberein — Verlaufszeile „Vorschlag angenommen“", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+      vorschlagDatum: "2026-08-17", vorschlagUhrzeit: "09:00",
+    });
+    anmelden(bufdi);
+
+    await einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17", planUhrzeit: "09:00" }));
+
+    expect(letzteVerlaufszeile(task.id)!.notiz).toBe("Vorschlag angenommen: 2026-08-17 09:00");
+    // DER VORSCHLAG BLEIBT STEHEN (Spec §5.1) — der Verlauf soll belegen koennen, ob angenommen
+    // oder abgewichen wurde, deshalb wird er NICHT geleert.
+    expect(aufgabe(t.db, task.id)!.vorschlagDatum).toBe("2026-08-17");
+  });
+
+  it("ein abweichend eingeplanter Tag — Verlaufszeile „Vorschlag abgewichen“ mit beiden Angaben", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+      vorschlagDatum: "2026-08-17", vorschlagUhrzeit: "09:00",
+    });
+    anmelden(bufdi);
+
+    await einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-18", planUhrzeit: "11:00" }));
+
+    expect(letzteVerlaufszeile(task.id)!.notiz).toBe(
+      "Vorschlag abgewichen — Vorschlag: 2026-08-17 09:00, eingeplant: 2026-08-18 11:00",
+    );
+  });
+
+  it("ein ungueltiger planDatum kommt als Feldfehler zurueck, die Eingaben bleiben stehen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id });
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(
+      await einplanenAction({ ok: true }, form(task.id, { planDatum: "17.08.2026" })),
+    );
+    expect(ergebnis.fieldErrors.planDatum).toBeTruthy();
+    expect(ergebnis.values.planDatum).toBe("17.08.2026");
+    expect(aufgabe(t.db, task.id)!.planDatum).toBeNull();
+  });
+
+  it("eine ungueltige planUhrzeit kommt als Feldfehler zurueck", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id });
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(
+      await einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17", planUhrzeit: "9 Uhr" })),
+    );
+    expect(ergebnis.fieldErrors.planUhrzeit).toBeTruthy();
+    expect(aufgabe(t.db, task.id)!.planDatum).toBeNull();
+  });
+
+  it("die Koordination darf keinen fremden Plan aendern, obwohl sie sonst fast alles darf", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const koordination = legePerson("dev:rike@test", "koordination");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id });
+    anmelden(koordination);
+
+    await expect(
+      einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17" })),
+    ).rejects.toThrow(/darf die Aktion "einplanen"/);
+    expect(aufgabe(t.db, task.id)!.planDatum).toBeNull();
+  });
+
+  it("eine unbeteiligte BuFDi darf den Plan einer anderen nicht aendern", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi1.id });
+    anmelden(bufdi2);
+
+    await expect(
+      einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17" })),
+    ).rejects.toThrow(/darf die Aktion "einplanen"/);
+  });
+
+  it("eine ausgeschiedene BuFDi, die es duerfte, wenn sie aktiv waere, wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const exBufdi = legePerson("dev:ex-alina@test", "bufdi", { aktivBis: "2026-08-01" });
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: exBufdi.id });
+    anmelden(exBufdi);
+
+    await expect(
+      einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17" })),
+    ).rejects.toThrow(/darf die Aktion "einplanen"/);
+  });
+
+  it("aus dem Zustand eingegangen wird nicht eingeplant", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
+    anmelden(bufdi);
+
+    await expect(
+      einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17" })),
+    ).rejects.toThrow(/Aktion "einplanen" ist im Zustand "eingegangen" nicht vorgesehen/);
+  });
+});
+
+describe("fertigMeldenAction", () => {
+  function form(aufgabeId: string, over: Record<string, string> = {}): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    for (const [k, v] of Object.entries(over)) f.set(k, v);
+    return f;
+  }
+
+  it("eine Fremdaufgabe ohne Nachweispflicht landet auf freigabe_offen, Ereignis fertig_gemeldet", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: false,
+    });
+    anmelden(bufdi);
+
+    const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id));
+    expect(ergebnis).toEqual({ ok: true });
+
+    expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+    const letzte = letzteVerlaufszeile(task.id)!;
+    expect(letzte.ereignis).toBe("fertig_gemeldet");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("eine Selbstaufgabe geht die Kurzstrecke: fertig melden landet DIREKT auf abgeschlossen", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: bufdi.id, status: "in_arbeit", zugewiesenAn: bufdi.id, istSelbst: true, prueferId: null,
+      nachweisPflicht: false,
+    });
+    anmelden(bufdi);
+
+    const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id));
+    expect(ergebnis).toEqual({ ok: true });
+
+    expect(aufgabe(t.db, task.id)!.status).toBe("abgeschlossen");
+    // ERGEBNIS AUS `uebergang()` UEBERNOMMEN, NICHT `istSelbst` erneut abgefragt (Brief): dasselbe
+    // Vokabular wie bei `freigebenAction` -- "derselbe Endzustand, zwei Wege dorthin".
+    expect(letzteVerlaufszeile(task.id)!.ereignis).toBe("abgeschlossen");
+  });
+
+  it("Nachweispflicht Text: fertig melden OHNE Text wird als Feldfehler abgelehnt", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "text",
+    });
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
+    expect(ergebnis.fieldErrors.nachweisText).toBeTruthy();
+    expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("Nachweispflicht Text: fertig melden MIT Text geht durch und schreibt den Nachweis", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "text",
+    });
+    anmelden(bufdi);
+
+    const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id, { nachweisText: "Bestand kontrolliert, alles vollstaendig." }));
+    expect(ergebnis).toEqual({ ok: true });
+    expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+
+    const nachweise_ = t.db.select().from(nachweise).all();
+    expect(nachweise_).toHaveLength(1);
+    expect(nachweise_[0]!.art).toBe("text");
+    expect(nachweise_[0]!.text).toBe("Bestand kontrolliert, alles vollstaendig.");
+    expect(nachweise_[0]!.erstelltVon).toBe(bufdi.id);
+  });
+
+  it("Nachweispflicht Bild: fertig melden OHNE Bild wird abgelehnt, auch wenn Text vorhanden ist — die Untergrenzen-Regel", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "bild",
+    });
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(
+      await fertigMeldenAction({ ok: true }, form(task.id, { nachweisText: "Text ist da, aber kein Bild." })),
+    );
+    expect(ergebnis.fieldErrors.nachweis).toBeTruthy();
+    expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    // KEIN NACHWEIS GESCHRIEBEN — die Ablehnung kommt VOR dem Schreiben.
+    expect(t.db.select().from(nachweise).all()).toHaveLength(0);
+  });
+
+  it("Nachweispflicht Bild: ein vorhandener Bild-Nachweis reicht auch OHNE Text", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "bild",
+    });
+    legeNachweis(task.id, "bild", bufdi.id);
+    anmelden(bufdi);
+
+    const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id));
+    expect(ergebnis).toEqual({ ok: true });
+    expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+  });
+
+  it("eine unbeteiligte BuFDi darf eine fremd zugewiesene Aufgabe nicht fertig melden", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi1.id });
+    anmelden(bufdi2);
+
+    await expect(fertigMeldenAction({ ok: true }, form(task.id))).rejects.toThrow(/darf die Aktion "fertig"/);
+  });
+
+  it("eine ausgeschiedene BuFDi, die es duerfte, wenn sie aktiv waere, wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const exBufdi = legePerson("dev:ex-alina@test", "bufdi", { aktivBis: "2026-08-01" });
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: exBufdi.id });
+    anmelden(exBufdi);
+
+    await expect(fertigMeldenAction({ ok: true }, form(task.id))).rejects.toThrow(/darf die Aktion "fertig"/);
+  });
+});
+
+describe("freigebenAction", () => {
+  function form(aufgabeId: string): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    return f;
+  }
+
+  it("der eingetragene Pruefer gibt frei — abgeschlossen, KEINE Vertretungsnotiz", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
+    anmelden(auftrag);
+
+    await freigebenAction(form(task.id));
+
+    expect(aufgabe(t.db, task.id)!.status).toBe("abgeschlossen");
+    const letzte = letzteVerlaufszeile(task.id)!;
+    expect(letzte.ereignis).toBe("abgeschlossen");
+    expect(letzte.akteurId).toBe(auftrag.id);
+    expect(letzte.notiz).toBeNull();
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("die Koordination gibt IN VERTRETUNG frei — die Verlaufszeile nennt Vertretung UND den regulaeren Pruefer", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const koordination = legePerson("dev:rike@test", "koordination");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
+    anmelden(koordination);
+
+    await freigebenAction(form(task.id));
+
+    expect(aufgabe(t.db, task.id)!.status).toBe("abgeschlossen");
+    const letzte = letzteVerlaufszeile(task.id)!;
+    expect(letzte.akteurId).toBe(koordination.id);
+    // DER REGULAERE PRUEFER DANEBEN GESTELLT (Brief): dessen Zeile (siehe Test oben) hat KEINE
+    // Notiz, diese hier NENNT die Vertretung und den Namen des regulaeren Pruefers.
+    expect(letzte.notiz).toBe(`Freigegeben von ${koordination.name} in Vertretung für ${auftrag.name}`);
+  });
+
+  it("der zugewiesene BuFDi darf die eigene Aufgabe nicht freigeben, selbst wenn er als Pruefer eingetragen ist", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: bufdi.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
+    anmelden(bufdi);
+
+    await expect(freigebenAction(form(task.id))).rejects.toThrow(/darf die Aktion "freigeben"/);
+    expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+  });
+
+  it("eine unbeteiligte BuFDi darf nicht freigeben", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi1.id });
+    anmelden(bufdi2);
+
+    await expect(freigebenAction(form(task.id))).rejects.toThrow(/darf die Aktion "freigeben"/);
+  });
+
+  it("eine ausgeschiedene Koordination, die es duerfte, wenn sie aktiv waere, wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const exKoordination = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2026-08-01" });
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
+    anmelden(exKoordination);
+
+    await expect(freigebenAction(form(task.id))).rejects.toThrow(/darf die Aktion "freigeben"/);
+  });
+
+  it("aus dem Zustand in_arbeit wird nicht freigegeben", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id });
+    anmelden(auftrag);
+
+    await expect(freigebenAction(form(task.id))).rejects.toThrow(
+      /Aktion "freigeben" ist im Zustand "in_arbeit" nicht vorgesehen/,
+    );
+  });
+});
+
+describe("zurueckweisenAction", () => {
+  function form(aufgabeId: string, over: Record<string, string> = {}): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    for (const [k, v] of Object.entries(over)) f.set(k, v);
+    return f;
+  }
+
+  it("der eingetragene Pruefer weist mit Begruendung zurueck — zurueckgewiesen, Begruendung im Verlauf", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
+    anmelden(auftrag);
+
+    const ergebnis = await zurueckweisenAction(
+      { ok: true },
+      form(task.id, { begruendung: "Verfallsdaten wurden nicht kontrolliert." }),
+    );
+    expect(ergebnis).toEqual({ ok: true });
+
+    expect(aufgabe(t.db, task.id)!.status).toBe("zurueckgewiesen");
+    const letzte = letzteVerlaufszeile(task.id)!;
+    expect(letzte.ereignis).toBe("zurueckgewiesen");
+    // DIE BEGRUENDUNG GEHOERT IN DIE VERLAUFSZEILE (Brief): der Verlauf ist die
+    // Leistungsdokumentation, nicht nur ein Feld auf der Aufgabe.
+    expect(letzte.notiz).toBe("Verfallsdaten wurden nicht kontrolliert.");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("eine leere Begruendung wird als Feldfehler abgelehnt, mit den Eingaben in values", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
+    anmelden(auftrag);
+
+    const ergebnis = erwarteFeldfehler(await zurueckweisenAction({ ok: true }, form(task.id)));
+    expect(ergebnis.fieldErrors.begruendung).toBeTruthy();
+    expect(ergebnis.values.aufgabeId).toBe(task.id);
+    expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("eine Begruendung aus nur Leerzeichen wird ebenfalls als Feldfehler abgelehnt", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
+    anmelden(auftrag);
+
+    const ergebnis = erwarteFeldfehler(
+      await zurueckweisenAction({ ok: true }, form(task.id, { begruendung: "   " })),
+    );
+    expect(ergebnis.fieldErrors.begruendung).toBeTruthy();
+  });
+
+  it("eine unbeteiligte BuFDi darf nicht zurueckweisen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi1.id });
+    anmelden(bufdi2);
+
+    await expect(
+      zurueckweisenAction({ ok: true }, form(task.id, { begruendung: "Nein." })),
+    ).rejects.toThrow(/darf die Aktion "zurueckweisen"/);
+  });
+
+  it("ein ausgeschiedener Pruefer, der es duerfte, wenn er aktiv waere, wirft", async () => {
+    const exAuftrag = legePerson("dev:ex-malte@test", "auftrag", { aktivBis: "2026-08-01" });
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: exAuftrag.id, prueferId: exAuftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
+    anmelden(exAuftrag);
+
+    await expect(
+      zurueckweisenAction({ ok: true }, form(task.id, { begruendung: "Nein." })),
+    ).rejects.toThrow(/darf die Aktion "zurueckweisen"/);
+  });
+});
+
+describe("wiederaufnehmenAction", () => {
+  function form(aufgabeId: string): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    return f;
+  }
+
+  it("der zugewiesene BuFDi nimmt eine zurueckgewiesene Aufgabe wieder auf — sie wird in_arbeit", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "zurueckgewiesen", zugewiesenAn: bufdi.id });
+    anmelden(bufdi);
+
+    await wiederaufnehmenAction(form(task.id));
+
+    expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    const letzte = letzteVerlaufszeile(task.id)!;
+    expect(letzte.ereignis).toBe("wiederaufgenommen");
+    expect(letzte.akteurId).toBe(bufdi.id);
+  });
+
+  it("eine unbeteiligte BuFDi darf nicht wiederaufnehmen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "zurueckgewiesen", zugewiesenAn: bufdi1.id });
+    anmelden(bufdi2);
+
+    await expect(wiederaufnehmenAction(form(task.id))).rejects.toThrow(/darf die Aktion "wiederaufnehmen"/);
+  });
+
+  it("eine ausgeschiedene BuFDi, die es duerfte, wenn sie aktiv waere, wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const exBufdi = legePerson("dev:ex-alina@test", "bufdi", { aktivBis: "2026-08-01" });
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "zurueckgewiesen", zugewiesenAn: exBufdi.id });
+    anmelden(exBufdi);
+
+    await expect(wiederaufnehmenAction(form(task.id))).rejects.toThrow(/darf die Aktion "wiederaufnehmen"/);
+  });
+
+  it("aus dem Zustand verteilt wird nicht wiederaufgenommen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id });
+    anmelden(bufdi);
+
+    await expect(wiederaufnehmenAction(form(task.id))).rejects.toThrow(
+      /Aktion "wiederaufnehmen" ist im Zustand "verteilt" nicht vorgesehen/,
     );
   });
 });
