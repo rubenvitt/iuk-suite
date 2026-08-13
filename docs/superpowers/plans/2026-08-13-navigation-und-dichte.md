@@ -1617,9 +1617,18 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * DIE DICHTE LIEGT UM DEN INHALT, NICHT UM DEN RAHMEN. Die Kopfzeile soll in
  * jedem Modul gleich aussehen, gleich welcher Variante darunter — und ihre drei
  * Bedienelemente (Menue, Theme, Avatar) sind auf jeder Groesze potenzielle
- * Fingerziele. Die Seitenleiste bleibt ebenfalls auszerhalb: sie ist rohes
- * `next/link`-Markup und liest gar keinen `controlHeight`-Token; sie mit
- * einzuschlieszen waere eine Grenze ohne Wirkung.
+ * Fingerziele.
+ *
+ * DIE SEITENLEISTE BLEIBT EBENFALLS AUSZERHALB, und der Grund ist genauer als
+ * „sie liest keinen Token". Ihre Eintraege sind rohes `next/link`-Markup, das
+ * stimmt. Der `Sider` SELBST leitet aber sehr wohl aus `controlHeightLG` ab:
+ * `triggerHeight`, `zeroTriggerWidth` und `zeroTriggerHeight`
+ * (antd/es/layout/style/index.js:99-103). Wirkungslos sind die nur, WEIL dieser
+ * Sider weder `collapsible` noch `breakpoint` traegt — beides ist bewusst nicht
+ * gesetzt (antds Sider-Breakpoints laufen ueber JS und zeigen beim ersten
+ * Render die falsche Variante). Wer den Sider spaeter einklappbar macht, holt
+ * sich damit einen 80px-Ausloeser neben 40px-Bedienelemente und muss diese
+ * Grenze neu entscheiden.
  */
 export async function FullShell({
   moduleKey,
@@ -1731,6 +1740,41 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () 
     const eintrag = page.getByTestId("app-eintrag").first();
     await expect(eintrag).toBeVisible();
     expect((await eintrag.boundingBox())!.height).toBeLessThan(56);
+  });
+
+  test("das offene Panel liegt ueber der Seitenleiste", async ({ page }) => {
+    /*
+     * DIE EINE MESSUNG ZUM STAPELKONTEXT, den dieser Umbau NEU einfuehrt.
+     *
+     * `.kopfBlock` bekommt `position: sticky` und `z-index: 100` und wird damit
+     * zum Stapelkontext. Darin liegen `.umschalterFang` (900) und
+     * `.umschalterPanel` (901) — ihre Zahlen gelten ab sofort nur noch
+     * INNERHALB dieses Kontexts, nicht mehr gegen die ganze Seite. Die
+     * Seitenleiste ist ebenfalls `position: sticky`, aber ohne `z-index`
+     * (`auto`) und auszerhalb des Kontexts: sie malt ueber nicht-positionierten
+     * Inhalt und unter `.kopfBlock`.
+     *
+     * Das ist das gewuenschte Ergebnis — und genau deshalb wird es gemessen.
+     * Das Panel klappt nach UNTEN auf und deckt dabei die obersten Zeilen der
+     * Leiste ab; kippte die Reihenfolge, waere der erste Eintrag des Panels
+     * unklickbar, und keine der anderen fuenf Messungen saehe das.
+     *
+     * `hit-testable` und nicht nur `visible`: ein verdeckter Knoten ist im
+     * Sinne von Playwright weiterhin sichtbar. `click` mit kurzem Timeout
+     * schlaegt fehl, sobald ein anderer Knoten den Punkt abfaengt („intercepts
+     * pointer events") — das ist die Aussage, die hier gebraucht wird.
+     */
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+    await expect(page.getByTestId("modulleiste")).toBeVisible();
+
+    await page.getByTestId("app-umschalter").click();
+    const ersterEintrag = page.getByTestId("app-eintrag").first();
+    await expect(ersterEintrag).toBeVisible();
+    await ersterEintrag.click({ trial: true, timeout: 2000 });
   });
 
   test("die Leiste traegt die Navigation, es gibt keine zweite Zeile", async ({ page }) => {
@@ -2071,10 +2115,27 @@ Für **jede** Seite im Zuschnitt der Aufgabe:
    Literale — sie gehören zu anderen Achsen.
 4. **Tabellen.** Spaltenköpfe über `columns[].title` mit `<span style={SCHRIFT.kicker}>`, nie über
    CSS gegen `.ant-table-thead`. `scroll={{ x: … }}` gesetzt: Summe der `width`-Angaben, wenn die
-   Spalten welche tragen, sonst `"max-content"`. **Vorsicht:** rc-table schaltet auf
-   `table-layout: fixed`, sobald eine Spalte `fixed`/`ellipsis` trägt oder `scroll.y` gesetzt ist —
-   dann ändert sich auch das Desktop-Bild. Zeilenaktionen `size="small"`.
+   Spalten welche tragen, sonst `"max-content"`. Zeilenaktionen `size="small"`.
    Ausnahme: eine Tabelle, die unter 768px auf `display: none` steht, braucht kein `scroll`.
+
+   **⚠️ DIESER SCHRITT KANN DAS DESKTOP-BILD STILL VERÄNDERN, und kein Tor sieht es.** rc-table
+   schaltet auf `table-layout: fixed`, sobald eine Spalte `fixed` oder `ellipsis` trägt oder
+   `scroll.y` gesetzt ist (`rc-table/lib/Table.js:426-442`); dann verteilt es die Spalten
+   gleichmäßig. `documentElement.scrollWidth` bleibt dabei unauffällig — es läuft ja nichts über,
+   die Spalten stehen nur woanders. `pnpm build`, `vitest` und ein Quelltext-Scan können das
+   strukturell nicht sehen.
+
+   **Deshalb, je angefasster Tabelle:** Spaltenbreiten bei 1280px **vorher und nachher** messen und
+   die beiden Zahlenreihen in die Commit-Botschaft schreiben. Das ist die Messung, die
+   `docs/design/README.md` an dieser Stelle ausdrücklich vorschreibt.
+
+   ```js
+   // In der Konsole des laufenden Browsers, auf der Seite mit der Tabelle:
+   [...document.querySelectorAll(".ant-table-thead th")].map((th) => Math.round(th.getBoundingClientRect().width))
+   ```
+
+   Weichen die Reihen ab, ist das kein Fehlschlag — aber es ist eine **Entscheidung**, und sie
+   gehört begründet in den Commit, nicht unbemerkt in den Diff.
 5. **Leerzustände.** Jede Liste und jedes Diagramm hat einen, und er benennt den nächsten Schritt.
    Ein leeres Achsenkreuz sieht kaputt aus.
 6. **Rot nie auf einer Datenfläche**, wo Rot fachlich etwas bedeutet. Warnungen sind
