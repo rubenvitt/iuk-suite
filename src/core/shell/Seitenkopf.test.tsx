@@ -84,4 +84,32 @@ describe("Seitenkopf", () => {
     expect(link.getAttribute("href")).toBe("/verwaltung/artikel");
     expect(link.textContent).toContain("Artikel");
   });
+
+  it("fasst den Rückweg in ein benanntes Landmark, nicht in einen nackten Link", async () => {
+    /*
+     * Nachtrag aus dem Review zu Aufgabe 9: die Vorlage `Brotkrume.tsx` fasst
+     * denselben Link in `<nav aria-label="Brotkrume">`. Ohne eigenes Landmark
+     * hier verlieren alle Seiten, die auf `zurueck` umstellen, das Sprungziel
+     * fuer Screenreader-Bedienung. Der Name ist bewusst nicht "Brotkrume" —
+     * beide Fassungen rendern genau einen Link, keine mehrstufige Brotkrume.
+     */
+    await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
+    const landmark = query('nav[aria-label="Zurück"]');
+    const link = query('[data-testid="seitenkopf-zurueck"]');
+    expect(landmark.contains(link)).toBe(true);
+  });
+
+  it("versteckt das Pfeilzeichen vor Screenreadern, der Linktext bleibt der einzige Wortlaut", async () => {
+    /*
+     * `‹` ist ein Textzeichen, kein Icon wie bei `Brotkrume` (dessen `Ikone`
+     * bereits `aria-hidden` traegt). Ohne eigenes `aria-hidden` wuerde ein
+     * Screenreader das Zeichen mitlesen, bevor er den eigentlichen Linktext
+     * ausspricht.
+     */
+    await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
+    const link = query('[data-testid="seitenkopf-zurueck"]');
+    const glyph = link.querySelector("span");
+    expect(glyph?.getAttribute("aria-hidden")).toBe("true");
+    expect(glyph?.textContent).toContain("‹");
+  });
 });

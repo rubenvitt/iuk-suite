@@ -48,6 +48,24 @@ function ohneZiffernstellung(rolle: CSSProperties): CSSProperties {
  * KEIN ZEICHEN AM RÜCKWEG. `@ant-design/icons` in einer Server Component
  * ergibt HTTP 500 schon beim Import, und `"use client"` behebt das nicht, es
  * macht es still (Falle 7). Das Pfeilzeichen steht deshalb als Textliteral da.
+ *
+ * `<nav aria-label="Zurück">` UM DEN LINK (Nachtrag, Review Aufgabe 9): die
+ * Vorlage `lagerbuch/_ui/Brotkrume.tsx` fasst denselben Link in ein benanntes
+ * Landmark (`aria-label="Brotkrume"`); ohne eigenes Landmark hier verlieren
+ * alle Seiten, die auf `zurueck` umstellen, das Sprungziel — per Screenreader
+ * springt man zwischen Landmarks, statt den Kopfbereich zu durchlaufen. Der
+ * Name ist bewusst NICHT „Brotkrume" abgeschrieben: beide Fassungen rendern
+ * genau EINEN Link, keine mehrstufige Brotkrume (nachgemessen, nicht
+ * angenommen) — „Brotkrume" wäre ein Modulname, der die Sache falsch
+ * beschreibt. „Zurück" trifft die Funktion.
+ *
+ * DAS PFEILZEICHEN TRÄGT `aria-hidden` (Nachtrag, Review Aufgabe 9): anders
+ * als `Brotkrume`, die ein SVG-Icon benutzt (in `ikonen.tsx` bereits
+ * `aria-hidden`+`focusable="false"`, weil „alle Zeichen dekorativ" sind), ist
+ * `‹` hier ein bloßes Textzeichen und würde ohne `aria-hidden` mitgelesen —
+ * als Wortlaut ("kleiner als", Zeichenname o. ä.) unpassend vor dem eigentlich
+ * gemeinten Linktext. Der zugängliche Name bleibt dadurch schlicht der Titel
+ * des Rückwegs.
  */
 export function Seitenkopf({
   titel,
@@ -63,18 +81,21 @@ export function Seitenkopf({
   return (
     <div style={{ marginBlockEnd: SPACE.lg }}>
       {zurueck ? (
-        <Link
-          data-testid="seitenkopf-zurueck"
-          href={zurueck.href}
-          style={{
-            ...ohneZiffernstellung(SCHRIFT.neben),
-            display: "inline-block",
-            marginBlockEnd: SPACE.xs,
-            color: "inherit",
-          }}
-        >
-          ‹ {zurueck.titel}
-        </Link>
+        <nav aria-label="Zurück">
+          <Link
+            data-testid="seitenkopf-zurueck"
+            href={zurueck.href}
+            style={{
+              ...ohneZiffernstellung(SCHRIFT.neben),
+              display: "inline-block",
+              marginBlockEnd: SPACE.xs,
+              color: "inherit",
+            }}
+          >
+            <span aria-hidden="true">‹ </span>
+            {zurueck.titel}
+          </Link>
+        </nav>
       ) : null}
       <div
         style={{
