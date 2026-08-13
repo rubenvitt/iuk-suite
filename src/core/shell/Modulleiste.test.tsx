@@ -5,9 +5,9 @@ import type { SuiteNavItem } from "@/core/shell/types";
 
 /*
  * Das Mocken von `usePathname` folgt `SuiteNav.test.tsx`, nicht der Variante
- * aus dem Aufgaben-Brief: dort ist es ein `vi.fn()`, dessen Rueckgabewert per
- * `mockReturnValue` je Test gesetzt wird, kein veraenderliches `{ wert }`-
- * Objekt. Zwei Bauformen fuer denselben Mock im selben Verzeichnis waeren ein
+ * aus dem Aufgaben-Brief: dort ist es ein `vi.fn()`, dessen Rückgabewert per
+ * `mockReturnValue` je Test gesetzt wird, kein veränderliches `{ wert }`-
+ * Objekt. Zwei Bauformen für denselben Mock im selben Verzeichnis wären ein
  * Stilbruch ohne fachlichen Grund.
  */
 const { pathnameMock } = vi.hoisted(() => ({ pathnameMock: vi.fn(() => "/verwaltung") }));
@@ -58,15 +58,15 @@ describe("Modulleiste", () => {
    * anderen, jede Gruppe fände ihren Treffer für sich allein zum selben
    * Ergebnis. Diese Vorlage erzwingt den Unterschied: `kurz` ("/artikel",
    * Gruppe "Bestand") ist Suffix von `lang` ("/verwaltung/artikel", Gruppe
-   * "Archiv") — der aufgerufene Pfad passt auf BEIDE. `aktiverEintrag` waehlt
-   * global den laengsten Treffer (`lang`); nur wenn beide Gruppen denselben
-   * dritten Parameter (die VOLLSTAENDIGE Liste) bekommen, sehen sie dieselbe
-   * Entscheidung. Bekaeme `navLinks` ihn nicht, faende jede Gruppe ihren
-   * EIGENEN Treffer in ihrer eigenen Teilliste — `kurz` UND `lang` waeren
-   * gleichzeitig markiert. Empirisch geprueft: mit `ganze = sichtbar` als
-   * Default (dritten Parameter entfernt) schlaegt genau diese Zusicherung fehl
-   * (`aktiv.length` wird 2 statt 1), waehrend die drei uebrigen Tests in
-   * dieser Datei weiterhin gruen bleiben — siehe Bericht.
+   * "Archiv") — der aufgerufene Pfad passt auf BEIDE. `aktiverEintrag` wählt
+   * global den längsten Treffer (`lang`); nur wenn beide Gruppen denselben
+   * dritten Parameter (die VOLLSTÄNDIGE Liste) bekommen, sehen sie dieselbe
+   * Entscheidung. Bekäme `navLinks` ihn nicht, fände jede Gruppe ihren
+   * EIGENEN Treffer in ihrer eigenen Teilliste — `kurz` UND `lang` wären
+   * gleichzeitig markiert. Empirisch geprüft: mit `ganze = sichtbar` als
+   * Default (dritten Parameter entfernt) schlägt genau diese Zusicherung fehl
+   * (`aktiv.length` wird 2 statt 1), während die drei übrigen Tests in
+   * dieser Datei weiterhin grün bleiben — siehe Bericht.
    */
   it("markiert nur den global spezifischsten Treffer, nicht jede Gruppe für sich", async () => {
     const UEBERLAPPEND: SuiteNavItem[] = [

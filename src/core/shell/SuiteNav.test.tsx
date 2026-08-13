@@ -13,6 +13,7 @@ import {
 } from "@/app/m/qr/_lib/test-dom";
 import { Modulnav, SuiteNav, aktiverEintrag } from "./SuiteNav";
 import type { SuiteNavItem } from "./types";
+import s from "./shell.module.css";
 
 /**
  * DRAWER- UND MENUE-INHALT WERDEN MIT `…Portal`-ABFRAGEN GEPRUEFT,
@@ -175,6 +176,33 @@ describe("SuiteNav — angemeldet", () => {
     const titel = Array.from(drawer.querySelectorAll("a")).map((a) => a.textContent);
     expect(titel).toContain("Uebersicht");
     expect(titel).toContain("Vergleich");
+  });
+
+  it("hängt die Drawer-Links einer flachen Navigation direkt in .drawerGruppe, ohne Gruppen-Wrapper", async () => {
+    /*
+     * FIX-RUNDE 1, BEFUND 1: `.drawerGruppe` trägt `gap: 4px` — es wirkt
+     * zwischen DIREKTEN Kindern. `NAV` hier ist flach (kein Eintrag trägt
+     * `abschnitt`), `gruppiereNav` liefert dafür genau eine titellose Gruppe.
+     * Würde `navGruppen` diese eine Gruppe trotzdem in einen
+     * `.navGruppe`-Wrapper (`gap: 2px`) packen, sähe `.drawerGruppe` nur noch
+     * EIN Kind (den Wrapper) statt der beiden Links — ihr `gap` griffe dann
+     * gar nicht mehr zwischen den Links, und der sichtbare Abstand fiele still
+     * von 4px auf `.navGruppe`s 2px. Beide CSS-Regeln blieben dabei für sich
+     * genommen unverändert korrekt — das ist eine Frage der VERSCHACHTELUNG,
+     * kein CSS-Quelltext-Scan sieht sie. Deshalb hier, direkt an den erzeugten
+     * Knoten.
+     */
+    await zeichne({ nav: NAV });
+    const drawer = queryPortal('[data-testid="suite-drawer"]');
+    const links = [...drawer.querySelectorAll('[data-testid="nav-link"]')];
+    expect(links.length).toBeGreaterThanOrEqual(2);
+    for (const link of links) {
+      const elternKlassen = link.parentElement?.className.split(" ") ?? [];
+      expect(elternKlassen, "Link hängt nicht direkt in .drawerGruppe").toContain(s.drawerGruppe);
+      expect(elternKlassen, "Link hängt in einem zusätzlichen .navGruppe-Wrapper").not.toContain(
+        s.navGruppe,
+      );
+    }
   });
 
   it("laesst die Modulnavigation NICHT mehr in der Kopfzeile stehen", async () => {

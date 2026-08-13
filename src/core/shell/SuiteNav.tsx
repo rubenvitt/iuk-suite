@@ -155,9 +155,25 @@ function navLinks(sichtbar: SuiteNavItem[], pfad: string, ganze: SuiteNavItem[] 
  *
  * `aktiverEintrag` bekommt die FLACHE Liste und bleibt damit unverändert: die
  * Gruppierung ist Darstellung, nicht Bedeutung.
+ *
+ * EINE EINZIGE TITELLOSE GRUPPE — die flache Navigation — bekommt KEINEN
+ * `.navGruppe`-Wrapper, sondern ihre Links direkt. Das ist kein Sonderfall
+ * fürs Aussehen, sondern eine Kaskadenfrage: der Drawer (`SuiteNav`) hängt
+ * diese Rückgabe in `.drawerGruppe` (`gap: 4px`, wirkt zwischen DIREKTEN
+ * Kindern). Ein Wrapper dazwischen ließe dieses `gap` nur noch EINMAL feuern
+ * (zwischen Überschrift und dem einen Wrapper) statt je zweimal zwischen den
+ * Links — der sichtbare Abstand fiele still auf `.navGruppe`s eigene 2px,
+ * obwohl beide CSS-Regeln für sich genommen unverändert korrekt blieben. Ohne
+ * Wrapper bleibt die Kaskade für ein Modul ohne Abschnitte exakt die von vor
+ * diesem Task, in JEDEM Konsumenten (Drawer wie Seitenleiste) — nicht nur in
+ * dem einen, an dem der Fehler zuerst auffiel.
  */
 export function navGruppen(nav: SuiteNavItem[], pfad: string) {
-  return gruppiereNav(nav).map((gruppe) => (
+  const gruppen = gruppiereNav(nav);
+  if (gruppen.length === 1 && gruppen[0].titel === null) {
+    return navLinks(nav, pfad);
+  }
+  return gruppen.map((gruppe) => (
     <div key={gruppe.titel ?? "__ohne"} className={s.navGruppe}>
       {gruppe.titel ? (
         <div data-testid="nav-abschnitt" className={s.navAbschnitt}>

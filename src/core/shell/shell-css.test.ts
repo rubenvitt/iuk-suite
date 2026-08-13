@@ -398,7 +398,7 @@ describe("shell.module.css", () => {
     const basisIndex = OHNE_KOMMENTARE.indexOf(".sider {");
     expect(basisIndex, "Basisregel .sider fehlt").toBeGreaterThanOrEqual(0);
     const mediaIndex = OHNE_KOMMENTARE.indexOf("(min-width: 768px)", basisIndex);
-    expect(mediaIndex, "Media Query fuer .sider fehlt").toBeGreaterThanOrEqual(0);
+    expect(mediaIndex, "Media Query für .sider fehlt").toBeGreaterThanOrEqual(0);
     const abBreakpoint = OHNE_KOMMENTARE.slice(mediaIndex);
     const regel = /\.sider\s*\{([^}]*)\}/.exec(abBreakpoint);
     expect(regel, ".sider wird ab 768px nicht sichtbar gemacht").not.toBeNull();
