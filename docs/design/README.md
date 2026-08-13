@@ -58,8 +58,24 @@ ungenügend"), darf Rot **niemals auf einer Datenfläche** erscheinen — kein r
 
 **4. `size="large"` ist 72px, nicht 56.**
 `controlHeight: TAP` (56) ist die Suite-Vorgabe und schon das richtige Touch-Maß;
-`controlHeightLG` ist 72. **`size` auf Bedienelementen also gar nicht setzen.** Ausnahme:
-`size="small"` innerhalb von Tabellenzeilen, weil eine 56px-Zeilenaktion die Zeile sprengt.
+`controlHeightLG` ist 72. **`size` auf Bedienelementen also gar nicht setzen.**
+
+**⚠️ SEIT 2026-08-13 GIBT ES ZWEI BEDIENDICHTEN, und die alte Ausnahme ist damit gefallen.**
+Hier stand: „Ausnahme: `size="small"` innerhalb von Tabellenzeilen, weil eine 56px-Zeilenaktion die
+Zeile sprengt." Beides ist überholt:
+
+- **Auf `FullShell`-Seiten (Arbeitsflächen) sind Bedienelemente 44px**, nicht 56 — `ARBEITSDICHTE`
+  in `core/theme/theme.ts` legt sie über den Inhalt. 56/72 gilt weiter für `MinimalShell` (`qr`,
+  `beta`) und für alles ohne Shell (`lagerbuch/helfer`, `feedback/f`, `files/(oeffentlich-*)`).
+  44 ist WCAG 2.5.8 und gilt **überall**, weil `FullShell` auch auf dem Telefon rendert.
+- **Die `size="small"`-Ausnahme trägt nicht mehr.** Ihr Grund waren die 56px; eine 44px-Zeilenaktion
+  sprengt keine Zeile. Was bliebe, wäre der Schaden: an einer ikonischen Zeilenaktion ergibt
+  `size="small"` 24px und unterbietet die Mindesttapfläche. `e2e/lagerbuch-mobil.spec.ts:312` hat
+  seine Messung **wegen genau eines solchen Knopfes** von „44px breit" auf „44px breit UND hoch"
+  verschärft.
+
+Wo eine Zeile mit 44px-Aktionen wirklich zu voll wird, ist das ein Entwurfsproblem der Zeile — kein
+Anlass, die Tapfläche zu unterbieten.
 
 **5. Eigenes CSS und antd-CSS treffen sich, und die Spezifität entscheidet — meist gegen dich.**
 Der Fehler ist immer still: im Quelltext steht alles richtig, die Regel matcht, sie greift nur nicht.

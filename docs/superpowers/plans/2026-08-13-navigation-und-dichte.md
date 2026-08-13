@@ -2145,7 +2145,18 @@ Für **jede** Seite im Zuschnitt der Aufgabe:
    Literale — sie gehören zu anderen Achsen.
 4. **Tabellen.** Spaltenköpfe über `columns[].title` mit `<span style={SCHRIFT.kicker}>`, nie über
    CSS gegen `.ant-table-thead`. `scroll={{ x: … }}` gesetzt: Summe der `width`-Angaben, wenn die
-   Spalten welche tragen, sonst `"max-content"`. Zeilenaktionen `size="small"`.
+   Spalten welche tragen, sonst `"max-content"`.
+
+   **⚠️ ZEILENAKTIONEN BEKOMMEN KEIN `size="small"` MEHR** — korrigiert am 2026-08-13, nach
+   Aufgabe 8. Hier stand die Ausnahme aus `docs/design/README.md`; ihre Begründung dort lautet
+   „weil eine 56px-Zeilenaktion die Zeile sprengt". Seit Aufgabe 5 sind Bedienelemente auf
+   `FullShell`-Seiten **44px**, nicht 56 — die Begründung trägt nicht mehr. Was bleibt, ist der
+   Schaden: `size="small"` an einer ikonischen Zeilenaktion ergibt 24px und fällt unter die
+   Mindesttapfläche, die `e2e/lagerbuch-mobil.spec.ts:312` ausdrücklich **wegen genau eines
+   solchen Knopfes** von „44px breit" auf „44px breit UND hoch" verschärft hat.
+
+   Zeilenaktionen behalten also die 44px der Arbeitsdichte. Wo eine Zeile dadurch wirklich zu
+   voll wird, ist das ein Befund für den Bericht — keine Einladung, die Tapfläche zu unterbieten.
    Ausnahme: eine Tabelle, die unter 768px auf `display: none` steht, braucht kein `scroll`.
 
    **⚠️ DIESER SCHRITT KANN DAS DESKTOP-BILD STILL VERÄNDERN, und kein Tor sieht es.** rc-table
