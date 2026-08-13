@@ -119,6 +119,29 @@ describe("AufgabenListe", () => {
     expect(queryAll("button")).toHaveLength(0);
   });
 
+  /*
+   * DIE BEIDEN TESTS OBEN PRUEFEN JE EINE EINZELNE ZEILE MIT/OHNE Aktion —
+   * das faengt nicht, wenn `aktionen` versehentlich fuer ALLE Zeilen gelten
+   * wuerde (z. B. ein Copy-Paste-Fehler, der die erste Zeile ihre Aktionen an
+   * jede weitere weiterreicht). Hier zwei Zeilen, nur eine mit `aktionen`.
+   */
+  it("bei mehreren Zeilen traegt nur die Zeile mit eigenen Aktionen einen Knopf", async () => {
+    await mount(
+      <AufgabenListe
+        zeilen={[
+          { aufgabe: { ...AUFGABE, id: "a" }, aktionen: <button type="button">Annehmen</button> },
+          { aufgabe: { ...AUFGABE, id: "b" } },
+        ]}
+        heute="2026-08-01"
+        leerText="leer"
+      />,
+    );
+    const zeilen = queryAll("li");
+    expect(zeilen).toHaveLength(2);
+    expect(zeilen[0]!.querySelectorAll("button")).toHaveLength(1);
+    expect(zeilen[1]!.querySelectorAll("button")).toHaveLength(0);
+  });
+
   it("der Leerzustand zeigt den uebergebenen Satz, ohne <ul>", async () => {
     await mount(
       <AufgabenListe zeilen={[]} heute="2026-08-01" leerText="Posteingang leer — alles verteilt" />,

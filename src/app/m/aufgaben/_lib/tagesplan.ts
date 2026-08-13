@@ -94,7 +94,6 @@ export function tagesOrdnung(
   // drei — sichtbar konsistent, in Wahrheit falsch.
   const aufgabenDesTags = aufgaben
     .filter((a) => a.zugewiesenAn === personId && a.planDatum === datum)
-    .slice()
     .sort((a, b) => a.planRang - b.planRang);
 
   let ankerMinuten = TAGESBEGINN_MINUTEN;

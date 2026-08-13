@@ -183,21 +183,34 @@ describe("Wochenplan", () => {
     expect(queryAll("button")).toHaveLength(0);
   });
 
-  it("zeigt für einen leeren Tag den eigenen Satz", async () => {
+  it("zeigt für einen leeren Tag den eigenen Satz, in beiden Ausprägungen", async () => {
     await mount(
       <Wochenplan aufgaben={[]} routinen={[]} person={ALINA} montag={MONTAG} heute={MONTAG} />,
     );
-    expect(queryAll(`.${s.tagSpalte}`)[0].textContent).toContain("Nichts eingeplant.");
+    for (const rolle of ["wochengitter", "tagesliste"]) {
+      expect(
+        queryAll(`[data-rolle="${rolle}"] .${s.tagSpalte}`)[0]!.textContent,
+        rolle,
+      ).toContain("Nichts eingeplant.");
+    }
   });
 
-  it("markiert den heutigen Tag", async () => {
+  /*
+   * BEIDE AUSPRAEGUNGEN GEPRUEFT, NICHT NUR EINE — ein Fehler, der die
+   * Markierung nur in einer der beiden Ausprägungen setzt (z. B. weil `heute`
+   * nur an EINEN der beiden `<TagSpalte>`-Aufrufe durchgereicht wird), bliebe
+   * sonst unentdeckt.
+   */
+  it("markiert den heutigen Tag, in beiden Ausprägungen", async () => {
     await mount(
       <Wochenplan aufgaben={[]} routinen={[]} person={ALINA} montag={MONTAG} heute={DIENSTAG} />,
     );
-    const spalten = queryAll(`.${s.tagSpalte}`);
-    // Montag ist die erste Spalte, Dienstag die zweite (wochenTage liefert Mo..Fr).
-    expect(spalten[0].getAttribute("aria-current")).toBeNull();
-    expect(spalten[1].getAttribute("aria-current")).toBe("date");
+    for (const rolle of ["wochengitter", "tagesliste"]) {
+      const spalten = queryAll(`[data-rolle="${rolle}"] .${s.tagSpalte}`);
+      // Montag ist die erste Spalte, Dienstag die zweite (wochenTage liefert Mo..Fr).
+      expect(spalten[0]!.getAttribute("aria-current"), rolle).toBeNull();
+      expect(spalten[1]!.getAttribute("aria-current"), rolle).toBe("date");
+    }
   });
 
   /*

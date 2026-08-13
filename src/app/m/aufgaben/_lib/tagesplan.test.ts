@@ -113,6 +113,68 @@ describe("tagesOrdnung — die Anker-Regel", () => {
     expect(ordnung.every((e) => e.minuten === 600)).toBe(true);
   });
 
+  /*
+   * FIX-RUNDE 1 (Review): DER GLEICHSTANDSTEST OBEN BRICHT NUR, WEIL DORT
+   * KEIN ANKER AN DER FALSCHEN STELLE BETEILIGT IST — er sagt nichts darueber,
+   * ob Schritt 1 wirklich ALS VORWAERTSLAUF UEBER DIE PLANRANG-SORTIERTE
+   * LISTE gebaut ist. Haette jemand das `.sort((a, b) => a.planRang -
+   * b.planRang)` in Schritt 1 entfernt, waere die gesamte bisherige Suite
+   * gruen geblieben: kein Test uebergab Anker und Nachfolger in einer
+   * ROHREIHENFOLGE, die von ihrer `planRang`-Reihenfolge abweicht.
+   *
+   * HIER SCHON: der Anker ("anker") steht im FELD VOR seinem freien
+   * Vorgaenger ("frei"), aber `planRang` sagt das Gegenteil (frei=1,
+   * anker=2). Richtig sortiert erbt "frei" NICHTS von "anker" (er kommt
+   * planRang-maessig VOR ihm) und bleibt bei TAGESBEGINN_MINUTEN; wird
+   * dagegen die Rohreihenfolge des Feldes verwendet, verankert "anker" ZUERST
+   * (er steht im Feld vorn) und "frei" erbt dessen 600 statt bei 480 zu
+   * bleiben — GENAU der Fehler, den die Korrektur der Ursachenbeschreibung
+   * benennt. GEGENGEPRUEFT: mit entferntem `.sort()` in Schritt 1 wird dieser
+   * Test tatsaechlich rot (`frei` landet bei 600 statt 480, in der Reihenfolge
+   * ["anker", "frei"] statt ["frei", "anker"]).
+   */
+  it("baut Schritt 1 als Vorwaertslauf ueber die planRang-sortierte Liste, nicht ueber die Feld-Rohreihenfolge", () => {
+    const ordnung = tagesOrdnung(
+      [
+        aufgabe({ id: "anker", planRang: 2, planUhrzeit: "10:00" }),
+        aufgabe({ id: "frei", planRang: 1, planUhrzeit: null }),
+      ],
+      [],
+      "alina",
+      MO,
+    );
+    expect(ordnung.map((e) => e.id)).toEqual(["frei", "anker"]);
+    expect(ordnung[0]).toMatchObject({ id: "frei", minuten: TAGESBEGINN_MINUTEN, zeigtUhrzeit: false });
+    expect(ordnung[1]).toMatchObject({ id: "anker", minuten: 600, zeigtUhrzeit: true });
+  });
+
+  /**
+   * Dieselbe Zusage ueber eine LAENGERE Kette (zwei Anker, je ein freier
+   * Nachfolger dazwischen), UND in verwuerfelter Rohreihenfolge — die
+   * Eingabe steht absichtlich NICHT in `planRang`-Reihenfolge im Feld.
+   */
+  it("baut auch eine laengere Kette korrekt, wenn die Eingabe in verwuerfelter Rohreihenfolge kommt", () => {
+    const ordnung = tagesOrdnung(
+      [
+        aufgabe({ id: "f2", planRang: 4, planUhrzeit: null }),
+        aufgabe({ id: "a1", planRang: 1, planUhrzeit: "09:00" }),
+        aufgabe({ id: "f1", planRang: 2, planUhrzeit: null }),
+        aufgabe({ id: "a2", planRang: 3, planUhrzeit: "11:00" }),
+      ],
+      [],
+      "alina",
+      MO,
+    );
+    expect(
+      ordnung.map((e) => ({ id: e.id, minuten: e.minuten, zeigtUhrzeit: e.zeigtUhrzeit })),
+    ).toEqual([
+      { id: "a1", minuten: 540, zeigtUhrzeit: true },
+      { id: "f1", minuten: 540, zeigtUhrzeit: false },
+      { id: "a2", minuten: 660, zeigtUhrzeit: true },
+      { id: "f2", minuten: 660, zeigtUhrzeit: false },
+    ]);
+  });
+
   it("Routinen liegen richtig zwischen den Aufgaben, nach ihrer eigenen Uhrzeit", () => {
     const ordnung = tagesOrdnung(
       [
