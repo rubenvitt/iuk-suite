@@ -190,13 +190,9 @@
  * auf 40px — sie existiert unterhalb von 768px gar nicht und wird mit Maus
  * bedient.
  *
- * `flex` STATT `inline-flex`, seit 2026-08-13 — und das ist keine Kosmetik.
- * `.modulleiste` und `.drawerGruppe` sind Flex-SPALTEN; ein `inline-flex`-Kind
- * schrumpft dort auf seine Inhaltsbreite, und die getönte Fläche des aktiven
- * Eintrags endete mitten in der Leiste hinter dem längsten Wort. Ein
- * Block-Kind dehnt sich (`align-items: stretch` ist die Vorgabe der Spalte) und
- * die Markierung reicht über die ganze Zeile. Solange die Markierung eine
- * Unterstreichung war, fiel das nicht auf.
+ * `flex` und nicht `inline-flex`: für ein Flex-Kind ist das dasselbe (Flex-
+ * Items werden blockifiziert, CSS Display Module Level 3) — `flex` sagt die
+ * Absicht nur direkter, diese Zeile ist eine Listenzeile, kein Inline-Element.
  */
 .navLink {
   display: flex;

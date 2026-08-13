@@ -516,6 +516,12 @@ describe("shell.module.css", () => {
     );
     expect(regel![1]).toMatch(/border-inline-start-color:\s*var\(--iuk-marke\)/);
     expect(regel![1]).toMatch(/background:\s*var\(--iuk-flaeche-aktiv\)/);
+    // `(?:^|;)\s*color:` und NICHT das bloße `/color:/` — sonst matcht das
+    // Muster schon in `border-inline-start-color:` (das Wort endet auch auf
+    // "color:") und die Zusicherung wird nie rot, selbst wenn die eigentliche
+    // `color`-Deklaration fehlt. Dieselbe Verankerung wie in
+    // `deklarationsWerte` oben in dieser Datei.
+    expect(regel![1]).toMatch(/(?:^|;)\s*color:\s*var\(--iuk-marke\)/);
     expect(regel![1]).toMatch(/font-weight:\s*600/);
   });
 
@@ -614,8 +620,23 @@ describe("Markenstreifen und Kopfzeilentypografie", () => {
    * Unterstrich" prüft, nur mit dem alten, jetzt falschen Erwartungswert. Ein
    * Beibehalten hätte den Testlauf nach Schritt 3 dauerhaft rot gehalten:
    * keine CSS-Regel kann gleichzeitig `border-block-end-color` UND
-   * `border-inline-start-color` als Aktivmarkierung tragen. Entfernt statt
-   * angepasst, weil der neue Test dieselbe Aussage („Farbe UND Gewicht
-   * markieren den aktiven Eintrag") bereits vollständig trägt.
+   * `border-inline-start-color` als Aktivmarkierung tragen.
+   *
+   * ENTFERNT STATT ANGEPASST — UND DAS WAR ZUNÄCHST UNVOLLSTÄNDIG (Review-Fund
+   * Aufgabe 4). Der neue Test prüfte anfangs nur drei Kanäle (Akzentfarbe,
+   * Fläche, Gewicht) und ließ genau die Zusicherung fallen, die dieser alte
+   * Test zusätzlich trug: `color: var(--iuk-marke)` auf
+   * `.navLink[aria-current]`. Die Textfarbe ist aber der Träger der
+   * WCAG-Rechnung in `globals.css` — die 4.5:1-Schwelle gilt für TEXT gegen
+   * Fläche, nicht für die 3px-Akzentlinie. Ein künftiger Fix, der `color`
+   * versehentlich entfernt oder auf `inherit` setzt, wäre ohne diese
+   * Zusicherung still grün geblieben, und genau die in Aufgabe 4 belegte
+   * Kontrastzahl wäre dann stillschweigend ungültig geworden. Nachgetragen:
+   * der neue Test prüft jetzt VIER Kanäle — Akzentfarbe
+   * (`border-inline-start-color`), Fläche (`background`), Textfarbe (`color`)
+   * und Gewicht (`font-weight`). Das Gewicht bleibt trotzdem, nicht weil es
+   * redundant zur Farbe wäre, sondern weil es der Träger ist, der übrig
+   * bleibt, wenn der Farbkanal ausfällt — technisch (unaufgelöste Variable)
+   * wie beim Leser (Rot-Grün-Blindheit, Graustufen).
    */
 });
