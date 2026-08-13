@@ -4,7 +4,7 @@ import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { LAGERBUCH_NAV } from "./nav";
 
 describe("LAGERBUCH_NAV: die fuenfzehn Ziele", () => {
-  it("fuehrt genau die 15 Eintraege in Abschnitten, in dieser Reihenfolge", () => {
+  it("führt genau die 15 Einträge in Abschnitten, in dieser Reihenfolge", () => {
     expect(LAGERBUCH_NAV).toEqual([
       { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
       { key: "artikel", title: "Artikel", href: "/verwaltung/artikel", ikon: "artikel", abschnitt: "Bestand" },
@@ -46,21 +46,20 @@ describe("LAGERBUCH_NAV: die fuenfzehn Ziele", () => {
   });
 
   /*
-   * Seit Task 3 (core/shell/navIkonen.tsx) traegt jeder Eintrag ein `ikon` —
-   * hier ist `ikon` je Eintrag identisch mit `key`, weil beide dieselbe
-   * fachliche Kategorie benennen. Ob NAV_IKONEN zu jedem dieser Schluessel
-   * eine Komponente kennt, prueft `core/shell/navIkonen.test.tsx`, nicht
-   * diese Datei — sie kennt die Komponentenmap gar nicht (die liegt in einem
-   * "use client"-Modul, das eine Server-gelesene Datei wie diese nicht laden
-   * darf).
+   * Seit dem Phosphor-Umbau (core/shell/navIkonen.tsx) trägt jeder Eintrag ein
+   * `ikon` — hier je Eintrag identisch mit `key`, weil beide dieselbe fachliche
+   * Kategorie benennen. Ob NAV_IKONEN zu jedem dieser Schlüssel eine Komponente
+   * kennt, prüft `core/shell/navIkonen.test.tsx`, nicht diese Datei — sie kennt
+   * die Komponentenmap gar nicht (die liegt in einem "use client"-Modul, das
+   * eine Server-gelesene Datei wie diese nicht laden darf).
    */
-  it("traegt fuer jeden Eintrag ein Zeichen, gleich dem eigenen Schluessel", () => {
+  it("trägt je Eintrag ein Zeichen gleich dem Schlüssel und kein Feld außerhalb von SuiteNavItem", () => {
     for (const e of LAGERBUCH_NAV) {
       expect(e.ikon, e.key).toBe(e.key);
       // Positivliste statt exakter Feldmenge: `abschnitt` ist optional, trägt es
       // also nicht jeder Eintrag („Übersicht" steht vor der ersten Überschrift).
       // Die Liste ist genau die Feldmenge von `SuiteNavItem` — kein Eintrag darf
-      // etwas tragen, das der Typ nicht vorsieht.
+      // etwas tragen, das der Typ nicht vorsieht, insbesondere kein `icon`.
       expect(
         Object.keys(e).every((k) => ["key", "href", "title", "ikon", "abschnitt"].includes(k)),
       ).toBe(true);
