@@ -371,7 +371,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
  *
  * DER STREIFEN HAT KEIN `data-testid`. Er ist ein Geschwister VOR `<Header
  * data-testid="suite-header">` innerhalb von antds `<Layout>` (SuiteHeader.tsx,
- * FullShell.tsx) — `Layout` fuegt zwischen seinen Kindern kein zusaetzliches
+ * SuiteRahmen.tsx) — `Layout` fuegt zwischen seinen Kindern kein zusaetzliches
  * Element ein, der Streifen bleibt also der unmittelbare vorangehende
  * Geschwisterknoten der Kopfzeile im DOM. Ein `xpath`-Achsenausdruck greift ihn
  * darueber, ohne auf `[aria-hidden="true"]` angewiesen zu sein — antd setzt das

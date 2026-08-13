@@ -41,12 +41,19 @@ describe("gruppiereNav", () => {
 });
 
 /*
- * Die Seitenleiste hängt in `FullShell`. Vergäbe ein `minimal`- oder
- * `kiosk`-Modul Abschnitte, verschwänden sie lautlos: die Einträge landeten in
- * der zweiten Zeile, ohne Überschriften. Kein Fehler, kein Log — nur eine
- * Gliederung, die niemand sieht.
+ * Bis 2026-08-13 hing die Seitenleiste an `FullShell` allein: ein `minimal`-
+ * oder `kiosk`-Modul mit `abschnitt`-Einträgen verlor seine Gliederung
+ * lautlos in der zweiten Kopfzeile. Seit `SuiteRahmen` bekommt jedes Modul
+ * mit Navigation dieselbe Leiste, `minimal` eingeschlossen — dort würde
+ * `abschnitt` heute korrekt gruppiert dargestellt. Nur `kiosk` bekommt
+ * weiterhin gar keine Navigation (`Shell.tsx` reicht dort kein `nav` durch).
+ *
+ * Dieser Test hält trotzdem fest, dass HEUTE kein Modul außerhalb von `full`
+ * `abschnitt` vergibt — kein Verbot mehr, sondern eine Markierung: taucht
+ * `abschnitt` hier zum ersten Mal in einem `minimal`-Modul auf, soll das eine
+ * bewusste Entscheidung sein und keine zufällige.
  */
-describe("Abschnitte gibt es nur in der full-Shell", () => {
+describe("Abschnitte werden bislang nur in der full-Shell vergeben", () => {
   it("kein minimal- oder kiosk-Modul vergibt abschnitt in seiner Nav", () => {
     const nichtFull = MODULES.filter((m) => m.shell !== "full").map((m) => m.key);
     for (const key of nichtFull) {

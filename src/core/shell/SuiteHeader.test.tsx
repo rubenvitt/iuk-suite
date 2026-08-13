@@ -147,13 +147,14 @@ describe("SuiteHeader", () => {
     expect(suiteNavMock).toHaveBeenCalledWith(expect.objectContaining({ nav }), undefined);
   });
 
-  it("rendert keine zweite Zeile mehr unter der Kopfzeile", async () => {
-    // Die Modulnavigation liegt seit 2026-08-13 in der Seitenleiste
-    // (`SuiteRahmen`), auf jeder Groesze und in jedem Modul. Eine zweite Zeile
-    // hier waere dieselbe Aussage an zwei Stellen, mit zwei Aktivmarkierungen.
-    const wirt = await zeichne("feedback", [{ key: "start", title: "Übersicht", href: "/" }]);
-    expect(wirt.querySelector('[data-testid="modulnav"]')).toBeNull();
-  });
+  // KEIN Test „rendert keine zweite Zeile mehr unter der Kopfzeile" hier: in
+  // diesem Testaufbau ist `SuiteNav` auf `() => null` gemockt und es gibt
+  // keinen `Modulnav`-Mock — `[data-testid="modulnav"]` kann in diesem DOM
+  // strukturell nie treffen, die Zusicherung waere tautologisch und finge
+  // einen Rueckbau mit anderem Namen nicht. Die Aussage „es gibt keine zweite
+  // Zeile mehr" ist bereits doppelt getragen: `shell-css.test.ts`
+  // ("kennt die Klasse .modulnav nicht mehr") und `navAbschnitte.test.ts`
+  // (kein `hatAbschnitte`-Export mehr).
 
   it("ruft launcherEintraege NUR angemeldet — anonym bleibt die Portal-Datenbank ungelesen", async () => {
     /*

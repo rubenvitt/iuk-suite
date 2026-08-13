@@ -63,7 +63,7 @@ test("unter 768px liegt die Navigation im Drawer, mit denselben Abschnitten", as
    * `data-testid` wäre dieser Test also blind grün und würde nichts über den
    * Breakpoint aussagen. `toHaveCount(1)` beweist zuerst, dass die Leiste
    * tatsächlich im DOM steht (der `Sider` wird unter 768px NICHT weggelassen,
-   * siehe `FullShell.tsx` — die Umschaltung läuft rein über CSS). Erst danach
+   * siehe `SuiteRahmen.tsx` — die Umschaltung läuft rein über CSS). Erst danach
    * sagt `toBeHidden()` etwas darüber, dass sie dort unsichtbar bleibt.
    */
   await expect(leiste).toHaveCount(1);

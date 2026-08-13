@@ -298,7 +298,8 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
    * damit (a) jeder Knopf, der 44 px hoch, aber schmaler ist — also genau die
    * Icon-only-Zeilenaktion, fuer die §7.7.2 existiert (`BestellListe.tsx`
    * rendert eine als `<Button shape="circle">`) — und (b) jede `<a>`-Aktion und
-   * jeder Modulnav-Link, die auf `/verwaltung/bestellung` mitrendern. §7.7.2
+   * jeder Link der Modulnavigation, die auf `/verwaltung/bestellung`
+   * mitrendern. §7.7.2
    * spricht vom Tapmass, also von der FLAECHE. Die Luecke war still: sie sah aus
    * wie Deckung.
    *

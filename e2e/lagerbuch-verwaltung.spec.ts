@@ -149,12 +149,13 @@ test.describe("lagerbuch — Modulnavigation", () => {
     /*
      * NICHT-VAKUÄRE GEGENPROBE (Fix-Runde 1). `toBeHidden()` ist in
      * Playwright auch dann wahr, wenn der Knoten gar nicht existiert. Im
-     * Code nachgesehen (`FullShell.tsx`, `shell.module.css`): der `Sider`
-     * wird unabhängig von der Fensterbreite gerendert (`mitLeiste` hängt an
-     * `hatAbschnitte(nav)`, nicht an der Größe) — nur `.sider` trägt
-     * `display: none` unterhalb von 768px. Die Leiste steht also im DOM und
-     * wird ausschließlich per CSS unsichtbar gemacht. `toHaveCount(1)` davor
-     * beweist das, bevor `toBeHidden()` etwas über die Sichtbarkeit sagt.
+     * Code nachgesehen (`SuiteRahmen.tsx`, `shell.module.css`): der `Sider`
+     * wird unabhängig von der Fensterbreite gerendert (er steht immer da,
+     * wenn `nav.length > 0` ist — nicht erst ab einer bestimmten Größe) —
+     * nur `.sider` trägt `display: none` unterhalb von 768px. Die Leiste
+     * steht also im DOM und wird ausschließlich per CSS unsichtbar gemacht.
+     * `toHaveCount(1)` davor beweist das, bevor `toBeHidden()` etwas über die
+     * Sichtbarkeit sagt.
      */
     await expect(leiste).toHaveCount(1);
     await expect(leiste).toBeHidden();

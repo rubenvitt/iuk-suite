@@ -90,24 +90,41 @@
  *
  * ⚠️ DIE FLAECHENZUORDNUNG WAR FALSCH und ist am 2026-08-12 berichtigt. Hier
  * stand „die beiden dunklen Flaechen, auf denen der Text tatsaechlich sitzt:
- * #141414 (Layout.headerBg), #16191c". Der aktive Navigationseintrag sitzt
- * aber in `.modulnav`, und die traegt BEWUSST keine eigene Flaechenfarbe
- * (`core/shell/shell.module.css`, dort ausgeschrieben) — sie liegt damit auf
+ * #141414 (Layout.headerBg), #16191c". Der aktive Navigationseintrag sass
+ * damals in `.modulnav`, und die trug BEWUSST keine eigene Flaechenfarbe
+ * (`core/shell/shell.module.css`, dort ausgeschrieben) — sie lag damit auf
  * `Layout.bodyBg`, nicht auf `headerBg`. `bodyBg` ist `#000000` im Dunkeln und
- * `#eef0f1` im Hellen (`core/theme/theme.ts`). Die beiden alten Flaechen sind
- * nicht falsch, nur nicht DIESE: Kopfzeile und Kartenflaeche tragen die
- * Markenfarbe ebenfalls, und fuer sie gelten die Zahlen weiter.
+ * `#eef0f1` im Hellen (`core/theme/theme.ts`).
+ *
+ * ⚠️ OFFENE FRAGE SEIT 2026-08-13: `.modulnav` ist ersatzlos entfallen, der
+ * aktive Navigationseintrag sitzt seither in der Seitenleiste (`.sider` /
+ * `.modulleiste`) — einem antd `Sider theme="light"`, der seine Flaeche SELBST
+ * mitbringt (antd-Token, siehe `core/shell/shell.module.css` bei `.sider`) und
+ * damit NICHT mehr auf `Layout.bodyBg` liegt. Die beiden Zahlen unten fuer
+ * „Modulnavigation" (5.95:1 / 5.30:1) beschreiben deshalb nicht mehr die
+ * heutige Flaeche — welchen Wert der erzwungene Hell-Sider insbesondere im
+ * DUNKLEN Theme tatsaechlich traegt, ist hier NICHT nachgerechnet. Aufgabe 4
+ * baut die Aktivmarkierung ohnehin um und muss diese Zahl neu belegen, bevor
+ * sie hier wieder als gueltig gilt.
+ *
+ * Die beiden anderen Flaechen sind davon unberuehrt: Kopfzeile und
+ * Kartenflaeche tragen die Markenfarbe ebenfalls, und fuer sie gelten die
+ * Zahlen weiter.
  *
  * Nachgerechnet (WCAG-Kontrastformel, sRGB-linearisiert), Flaeche fuer Flaeche:
- *   Modulnavigation (Layout.bodyBg) — der Ort des aktiven Eintrags:
+ *   Modulnavigation (Layout.bodyBg, Stand VOR der Seitenleiste — siehe offene
+ *   Frage oben) — der Ort des aktiven Eintrags bis 2026-08-13:
  *     #e45a66 gegen #000000 (dunkel): 5.95:1
  *     #c8000f gegen #eef0f1 (hell):   5.30:1
  *   Kopfzeile (Layout.headerBg) und Kartenflaeche:
  *     #e45a66 gegen #141414 (dunkel): 5.22:1
  *     #e45a66 gegen #16191c (dunkel): 5.00:1
  *     #c8000f gegen #ffffff (hell):   6.06:1
- * Alle sechs liegen ueber 4.5:1 — es ist also KEIN Mangel an Barrierefreiheit,
- * die Zuordnung stimmte nur nicht.
+ * Die vier Kopfzeilen-/Kartenflaeche-Werte liegen ueber 4.5:1 und sind
+ * aktuell. Die beiden Modulnavigations-Werte sind der Stand vor der
+ * Seitenleiste (s. o.) — kein Mangel an Barrierefreiheit war hier je
+ * gemessen, nur die Flaechenzuordnung stimmte zunaechst nicht und ist jetzt
+ * ein zweites Mal offen.
  *
  * DER EIGENE DUNKELWERT BLEIBT TROTZDEM BEGRUENDET, und zwar auf den engeren
  * Flaechen: `#e04452` gegen `#141414` ergibt 4.49:1 und gegen `#16191c`
