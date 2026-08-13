@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Alert, Button, Checkbox, Flex, Table } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { setTokenAktiv } from "../../../_actions/tokens";
 import { falte } from "../../../_lib/suche";
 import { toggleInSet } from "../../../_lib/mengen";
@@ -85,7 +86,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
 
   return (
     <>
-      <Flex gap={12} wrap align="center" style={{ marginBlockEnd: 12 }}>
+      <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
         <Suchfeld
           wert={suche}
           onWert={setSuche}
@@ -125,7 +126,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
           type="warning"
           showIcon={false}
           title={fehler}
-          style={{ marginBlockEnd: 12 }}
+          style={{ marginBlockEnd: SPACE.md }}
         />
       ) : null}
 
@@ -142,15 +143,15 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
         }}
         columns={[
           {
-            title: "Code",
+            title: <span style={SCHRIFT.feldname}>Code</span>,
             dataIndex: "code",
             render: (code: string) => (
               <span style={{ ...SCHRIFT.mono, fontWeight: 600 }}>{code}</span>
             ),
           },
-          { title: "Bezeichnung", dataIndex: "label" },
+          { title: <span style={SCHRIFT.feldname}>Bezeichnung</span>, dataIndex: "label" },
           {
-            title: "Ziel",
+            title: <span style={SCHRIFT.feldname}>Ziel</span>,
             dataIndex: "zielTyp",
             render: (_wert: unknown, zeile) => {
               const ziel = zielVon(zeile);
@@ -167,14 +168,14 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
             },
           },
           {
-            title: "Status",
+            title: <span style={SCHRIFT.feldname}>Status</span>,
             dataIndex: "aktiv",
             render: (aktiv: boolean) => (
               <Chip ton={aktiv ? "ok" : "rot"}>{aktiv ? "aktiv" : "gesperrt"}</Chip>
             ),
           },
           {
-            title: "Zuletzt benutzt",
+            title: <span style={SCHRIFT.feldname}>Zuletzt benutzt</span>,
             dataIndex: "lastUsedText",
             render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
           },
@@ -182,9 +183,12 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
             title: "",
             key: "aktionen",
             render: (_wert: unknown, zeile) => (
-              <Flex gap={8} align="center">
+              <Flex gap={SPACE.sm} align="center">
+                {/* KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
+                    docs/design/README.md) ist mit der Arbeitsdichte gefallen --
+                    44px ist hier bereits die volle wie die halbe Bediendichte,
+                    "small" unterbietet die Mindesttapflaeche (WCAG 2.5.8). */}
                 <Button
-                  size="small"
                   disabled={laeuft}
                   onClick={() => statusAendern(zeile)}
                 >

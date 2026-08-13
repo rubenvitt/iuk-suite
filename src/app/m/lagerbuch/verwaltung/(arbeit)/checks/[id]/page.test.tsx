@@ -4,7 +4,6 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import type { CheckDetail } from "../../../../_lib/lesepfade/checks";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import {
@@ -380,14 +379,13 @@ describe("Check-Detailseite", () => {
     };
     const seite = checkDetailInhalt(check);
 
-    const brotkrumen = elementeVomTyp(seite, Brotkrume);
-    expect(brotkrumen).toHaveLength(1);
-    expect(brotkrumen[0].props).toMatchObject({ href: "/verwaltung/checks" });
-    expect(textVon(brotkrumen[0])).toBe("Fahrzeug-Checks");
-
     const koepfe = elementeVomTyp(seite, SeitenKopf);
     expect(koepfe).toHaveLength(1);
     expect(koepfe[0].props).toMatchObject({ titel: "RTW 1" });
+    const zurueck = (koepfe[0].props as {
+      zurueck?: { titel: string; href: string };
+    }).zurueck;
+    expect(zurueck).toEqual({ titel: "Fahrzeug-Checks", href: "/verwaltung/checks" });
     expect(textVon(koepfe[0].props.beschreibung as ReactNode)).toMatch(/gegen heute gerechnet/i);
 
     const alerts = elementeVomTyp(seite, Alert);

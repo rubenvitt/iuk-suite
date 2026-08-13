@@ -21,7 +21,6 @@ import {
 } from "@/app/m/qr/_lib/test-dom";
 import { bzGeraete, lagerorte } from "../../../../../_db/schema";
 import { migrierteTestDb } from "../../../../../_db/testdb";
-import { Brotkrume } from "../../../../../_ui/Brotkrume";
 import { SeitenKopf } from "../../../../../_ui/SeitenKopf";
 import { KontrolleForm } from "./KontrolleForm";
 import { dynamic, kontrolleSeiteInhalt } from "./page";
@@ -419,11 +418,12 @@ describe("Kontrollseite als Server Component", () => {
       });
       expect(istRekursivJsonSicher(formProps)).toBe(true);
 
-      const brotkrume = elementeVomTyp(inhalt, Brotkrume)[0];
-      expect((brotkrume.props as { href: string }).href).toBe("/verwaltung/bz/bz-1");
-      expect((brotkrume.props as { children: ReactNode }).children).toBe("Accu-Chek A");
       const kopf = elementeVomTyp(inhalt, SeitenKopf)[0];
       expect((kopf.props as { titel: string }).titel).toBe("Kontrolle erfassen");
+      const zurueck = (kopf.props as {
+        zurueck?: { titel: string; href: string };
+      }).zurueck;
+      expect(zurueck).toEqual({ titel: "Accu-Chek A", href: "/verwaltung/bz/bz-1" });
       expect(dynamic).toBe("force-dynamic");
     } finally {
       testDb.schliessen();

@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { Alert, Card, Input, InputNumber, Select } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { geraetSpeichern } from "../../../../_actions/bz";
 import type { LagerortOption } from "../../../../_lib/lesepfade/bz";
 import { SCHRIFT } from "../../../../_lib/schrift";
@@ -196,12 +197,14 @@ function ReferenzEditorInhalt({
   }));
 
   return (
-    <Card title="Referenz & Streifen-Lot" style={{ marginBlockEnd: 24 }}>
+    <Card title="Referenz & Streifen-Lot" style={{ marginBlockEnd: SPACE.xl }}>
       <div
         ref={wurzel}
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+          // 14 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und hat keine
+          // Geschwisterzeile in diesem Zuschnitt; bleibt Literal.
           gap: 14,
         }}
       >
@@ -303,6 +306,8 @@ function ReferenzEditorInhalt({
           type="warning"
           showIcon={false}
           title={fehler}
+          // 14 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- derselbe
+          // Wert wie der Gitterabstand oben, keine Geschwisterzeile.
           style={{ marginBlockStart: 14 }}
         />
       ) : null}
@@ -312,6 +317,8 @@ function ReferenzEditorInhalt({
 
 function Feld({ label, children }: { label: string; children: ReactNode }) {
   return (
+    // 5 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- enger Abstand
+    // zwischen Feldname und Eingabe, kein Skalenwert ohne sichtbaren Sprung.
     <label style={{ display: "grid", gap: 5 }}>
       <span style={SCHRIFT.feldname}>{label}</span>
       {children}

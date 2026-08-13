@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Col, Row } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../_db/client";
 import {
   bzAkkuKennzahlGesamt,
@@ -45,7 +46,7 @@ export function bzSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         beschreibung="Blutzuckermessgeräte mit Kontrollfrist, Referenzbereichen und Logbuch."
       />
 
-      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel zahl={aktive.length} beschriftung="Aktive Geräte" />
         </Col>

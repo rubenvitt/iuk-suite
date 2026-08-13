@@ -31,7 +31,7 @@ export type ChecksTabelleProps = {
 
 const SPALTEN = [
   {
-    title: "Fahrzeug",
+    title: <span style={SCHRIFT.feldname}>Fahrzeug</span>,
     dataIndex: "fahrzeugName",
     key: "fahrzeug",
     render: (name: string, zeile: CheckAnzeigeZeile) => (
@@ -41,16 +41,19 @@ const SPALTEN = [
     ),
   },
   {
-    title: "Abgeschlossen",
+    title: <span style={SCHRIFT.feldname}>Abgeschlossen</span>,
     dataIndex: "abgeschlossenText",
     key: "abgeschlossen",
     render: (text: string) => <span className={s.jts}>{text}</span>,
   },
   {
-    title: "Ergebnis",
+    title: <span style={SCHRIFT.feldname}>Ergebnis</span>,
     dataIndex: "ergebnisChips",
     key: "ergebnis",
     render: (chips: CheckErgebnisChip[]) => (
+      // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- enger
+      // Chip-Zeilenabstand, wie in ArtikelTable.tsx (Aufgabe 8), bleibt
+      // Literal statt auf einen sichtbar groeberen Wert gerundet.
       <Flex gap={6} wrap>
         {chips.map((chip) => (
           <Chip
@@ -65,7 +68,7 @@ const SPALTEN = [
     ),
   },
   {
-    title: "Positionen",
+    title: <span style={SCHRIFT.feldname}>Positionen</span>,
     dataIndex: "positionenText",
     key: "positionen",
     align: "right" as const,

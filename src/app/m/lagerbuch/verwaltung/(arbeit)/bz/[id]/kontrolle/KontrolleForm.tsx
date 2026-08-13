@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Alert, Button, DatePicker, Form, Input, InputNumber, Radio } from "antd";
 import type { Dayjs } from "dayjs";
+import { SPACE } from "@/core/theme/tokens";
 import { kontrolleErfassen } from "../../../../../_actions/bz";
 import { monatAusPicker } from "../../../../../_ui/monat";
 
@@ -179,7 +180,7 @@ export function KontrolleForm({
             ? "Kontrolle gespeichert — bestanden."
             : "Kontrolle gespeichert — NICHT bestanden."}
           role="status"
-          style={{ marginBlockStart: 12 }}
+          style={{ marginBlockStart: SPACE.md }}
         />
       ) : null}
       {fehler ? (
@@ -188,7 +189,7 @@ export function KontrolleForm({
           showIcon={false}
           title={fehler}
           role="alert"
-          style={{ marginBlockStart: 12 }}
+          style={{ marginBlockStart: SPACE.md }}
         />
       ) : null}
     </Form>

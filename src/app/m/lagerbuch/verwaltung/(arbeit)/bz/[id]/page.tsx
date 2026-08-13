@@ -2,6 +2,7 @@ import { Card, Col, Row } from "antd";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { ampelTon } from "../../../../_lib/format";
 import { BZ_LOGBUCH_GRENZE } from "../../../../_lib/grenzen";
@@ -13,7 +14,6 @@ import {
 } from "../../../../_lib/lesepfade/bz";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { fmtTs } from "../../../../_lib/zeit";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { BzAktivToggle } from "./BzAktivToggle";
@@ -109,14 +109,14 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
 
   return (
     <>
-      <Brotkrume href="/verwaltung/bz">BZ-Geräte</Brotkrume>
       <SeitenKopf
         titel={geraet.name}
         beschreibung={geraet.barcode ? `Barcode ${geraet.barcode}` : "Kein Barcode hinterlegt"}
+        zurueck={{ titel: "BZ-Geräte", href: "/verwaltung/bz" }}
         aktionen={<BzAktivToggle id={geraet.id} name={geraet.name} aktiv={geraet.aktiv} />}
       />
 
-      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel
             zahl={faelligText}
@@ -144,6 +144,9 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         <Col xs={24} md={12} xl={6}>
           <Kachel
             zahl={(
+              // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- enger
+              // Zweizeiler aus Status und Standort, keine Geschwisterzeile in
+              // dieser Kachel, die einen Skalenwert nahelegen wuerde.
               <span style={{ display: "grid", gap: 2 }}>
                 <span>{geraet.aktiv ? "Aktiv" : "Inaktiv"}</span>
                 <span style={SCHRIFT.neben}>{detail.lagerortName}</span>
@@ -162,7 +165,7 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
       */}
       <ReferenzEditor geraet={editor} lagerorte={lagerortOptionen(db)} />
 
-      <div style={{ marginBlockEnd: 16 }}>
+      <div style={{ marginBlockEnd: SPACE.lg }}>
         <Link
           href={`/verwaltung/bz/${geraet.id}/kontrolle`}
           role="button"
@@ -172,7 +175,7 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
             alignItems: "center",
             minHeight: 44,
             borderRadius: 6,
-            paddingInline: 16,
+            paddingInline: SPACE.lg,
             color: "white",
             background: "var(--lb-rot)",
             fontWeight: 600,

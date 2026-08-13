@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Alert, Button, Flex, Form, Table, type TableProps } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { importArtikelCsv } from "../../../_actions/csv";
 import { parseArtikelCsv, type CsvZeile } from "../../../_lib/csv";
 import { SCHRIFT } from "../../../_lib/schrift";
@@ -37,31 +38,31 @@ export function vorschauAus(
 
 const VORSCHAU_SPALTEN = [
   {
-    title: "Artikel",
+    title: <span style={SCHRIFT.feldname}>Artikel</span>,
     dataIndex: "name",
     key: "artikel",
     render: (wert: string) => <span style={{ fontWeight: 600 }}>{wert}</span>,
   },
   {
-    title: "Fach",
+    title: <span style={SCHRIFT.feldname}>Fach</span>,
     dataIndex: "fach",
     key: "fach",
     render: (wert: string) => <span className={s.fach}>{wert}</span>,
   },
   {
-    title: "Einheit",
+    title: <span style={SCHRIFT.feldname}>Einheit</span>,
     dataIndex: "einheit",
     key: "einheit",
   },
   {
-    title: "Mindestbestand",
+    title: <span style={SCHRIFT.feldname}>Mindestbestand</span>,
     dataIndex: "mindestbestand",
     key: "mindestbestand",
     align: "right",
     render: (wert: number) => <span style={SCHRIFT.zahl}>{wert}</span>,
   },
   {
-    title: "Startbestand",
+    title: <span style={SCHRIFT.feldname}>Startbestand</span>,
     dataIndex: "startbestand",
     key: "startbestand",
     align: "right",
@@ -96,6 +97,9 @@ export function Fehlerbericht({ fehler }: { fehler: string[] }) {
       showIcon={false}
       title={titel}
       description={
+        // 18 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- der
+        // Standard-Listeneinzug fuer eine <ul> aus Fehlerzeilen, kein
+        // Skalenwert ohne sichtbaren Sprung.
         <ul style={{ margin: 0, paddingInlineStart: 18 }}>
           {fehler.map((eintrag, index) => (
             <li key={`${index}-${eintrag}`} style={SCHRIFT.mono}>{eintrag}</li>
@@ -167,7 +171,7 @@ export function ImportForm() {
 
   return (
     <Form layout="vertical" onFinish={importieren}>
-      <Flex vertical gap={12}>
+      <Flex vertical gap={SPACE.md}>
         <Form.Item label="CSV-Datei">
           <input
             ref={dateifeld}

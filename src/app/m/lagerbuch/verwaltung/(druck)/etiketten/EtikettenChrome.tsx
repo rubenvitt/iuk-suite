@@ -33,6 +33,7 @@
  */
 import { Button, Flex } from "antd";
 import Link from "next/link";
+import { SPACE } from "@/core/theme/tokens";
 import { Ikone } from "../../../_ui/ikonen";
 
 export function EtikettenChrome({ basis }: { basis: string }) {
@@ -47,13 +48,16 @@ export function EtikettenChrome({ basis }: { basis: string }) {
         unsichtbar.
       */}
       <Link href="/verwaltung">
+        {/* 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- enger
+            Abstand zwischen Pfeil-Icon und Text, kein Skalenwert ohne
+            sichtbaren Sprung. */}
         <Flex align="center" gap={6}>
           <Ikone name="pfeil-links" groesse={15} />
           Zurück zur Verwaltung
         </Flex>
       </Link>
 
-      <Flex align="center" justify="space-between" gap={12} style={{ marginBlock: 12 }}>
+      <Flex align="center" justify="space-between" gap={SPACE.md} style={{ marginBlock: SPACE.md }}>
         <div>
           <h1 style={{ margin: 0 }}>Etiketten</h1>
           {/*
