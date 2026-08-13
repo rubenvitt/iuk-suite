@@ -36,6 +36,29 @@ export default defineConfig({
    * sich mit der naechsten Spec.
    */
   timeout: 90_000,
+  /*
+   * WIEDERHOLUNGEN NUR IN DER CI — und der Grund ist derselbe wie beim
+   * `timeout` darueber, nur eine Ebene tiefer.
+   *
+   * `next dev` uebersetzt eine Route beim ERSTEN Aufruf. Der Test-Timeout von
+   * 90 s deckt das ab; die EINZELNE Zusicherung tut es nicht: `expect` bricht
+   * nach seinem Default von 5 s ab, lange bevor der Test selbst aufgibt. Ein
+   * Klick auf einen Link, dessen Zielroute noch uebersetzt wird, laesst
+   * `toHaveURL` deshalb unter Last auflaufen, waehrend die Navigation noch
+   * laeuft. Gemessen am 12.08.2026: derselbe Commit faellt einmal
+   * (`e2e/lagerbuch-verwaltung.spec.ts:35`, 13 Pollversuche auf der alten URL)
+   * und laeuft im unveraenderten Rerun durch.
+   *
+   * ⚠️ DIE WIEDERHOLUNG IST KEINE ENTSCHULDIGUNG FUER EINEN WACKLIGEN TEST.
+   * Sie faengt Uebersetzungslatenz, nicht Logikfehler: ein Test, der aus
+   * fachlichen Gruenden mal so und mal anders ausgeht, wird auch im zweiten
+   * Anlauf rot, und `flaky` im Report ist das Signal, ihn anzusehen — nicht,
+   * die Zahl zu erhoehen.
+   *
+   * LOKAL BLEIBT ES BEI NULL: wer hier entwickelt, soll einen fehlschlagenden
+   * Test sofort sehen und nicht hinter einem stillen zweiten Versuch.
+   */
+  retries: process.env.CI ? 2 : 0,
   use: { baseURL: "http://portal.localtest.me:3100" },
   /*
    * ZWEI Server, deshalb ein Array (Spec §6.8). Der Fake-clamd steht vorne, weil
