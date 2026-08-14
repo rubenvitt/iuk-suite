@@ -153,10 +153,18 @@ export function Gate({
         <div className={s.gateKarte}>
           <h2>Im Dienst</h2>
           <p className={s.fussnote}>
-            Für Helfer:innen: Code vom Regal- oder Fahrzeugetikett eingeben – ohne Konto, ohne
-            Passwort. Nur Entnahme.
+            Gib den Code vom Etikett am Regal oder im Fahrzeug ein. Kein Konto, kein Passwort. Damit
+            kannst du Material entnehmen, aber nichts verwalten.
           </p>
-          <form action={formAction}>
+          {/*
+            `.gateForm` traegt dieselbe Spalte wie `.gateKarte` (Flex, gap 12px)
+            — nicht aus Symmetrie, sondern weil `<form>` sonst ein BLOCK ist:
+            `.knopf` ist `inline-flex` ohne `width`, und in einem Block schrumpft
+            er auf seinen Text, waehrend derselbe `.knopf` als DIREKTES Kind der
+            Verwaltungskarte durch deren `align-items: stretch` ueber die volle
+            Breite geht. Gleiche Klasse, anderes Elternteil, zwei Knopfbreiten.
+          */}
+          <form className={s.gateForm} action={formAction}>
             <input type="hidden" name="returnTo" value={returnTo} />
             {/*
               `inputMode="numeric"`, `maxLength` und `pattern` sind zusammen die
@@ -174,11 +182,7 @@ export function Gate({
               pattern="[0-9]{3}-?[0-9]{3}"
               placeholder="000-000"
               aria-label="Zugangs-Code"
-              aria-describedby="codehinweis"
             />
-            <div id="codehinweis" className={s.gateHinweis}>
-              Sechs Ziffern vom Kärtchen, mit oder ohne Bindestrich.
-            </div>
             {/*
               `role="alert"`: seit dem Netzfall erscheint dieser Ort auch
               NACHTRAEGLICH — nach einem Antippen, ohne Seitenwechsel. Ohne die
@@ -204,8 +208,8 @@ export function Gate({
         <div className={s.gateKarte}>
           <h2>Verwaltung</h2>
           <p className={s.fussnote}>
-            Volles {LAGERBUCH_MARKE}: Artikel &amp; Chargen, Soll-Bestückung der Fahrzeuge,
-            Bestellvorschläge, Journal und Zugangs-Codes.
+            Hier verwaltest du das ganze {LAGERBUCH_MARKE}: Artikel und Chargen, die
+            Soll-Bestückung der Fahrzeuge, Bestellvorschläge, das Journal und die Zugangs-Codes.
           </p>
           <div style={{ flex: 1 }} />
           {/*

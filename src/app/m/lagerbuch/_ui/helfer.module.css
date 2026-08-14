@@ -228,6 +228,16 @@
   padding: 18px 16px; display: flex; flex-direction: column; gap: 12px;
 }
 /*
+ * Dieselbe Spalte wie `.gateKarte`, und zwar aus einem Grund, nicht aus
+ * Symmetrie: `<form>` ist per Vorgabe ein BLOCK. `.knopf` ist `inline-flex`
+ * ohne `width` und schrumpft darin auf seinen Text — waehrend derselbe `.knopf`
+ * als DIREKTES Kind von `.gateKarte` durch deren `align-items: stretch` ueber
+ * die volle Kartenbreite geht. Ohne diese Regel tragen die beiden Karten
+ * sichtbar verschieden breite Knoepfe. `gap: 12px` haelt zugleich den Abstand,
+ * den die Karte ihren direkten Kindern gibt und der im Formular sonst fehlt.
+ */
+.gateForm { display: flex; flex-direction: column; gap: 12px }
+/*
  * Das Zahlenfeld. 24px statt der heutigen 21 (§7.7.2 Punkt 1) — deutlich ueber
  * der 16px-Untergrenze, weil sechs Ziffern auf einem Handy in einer
  * Fahrzeughalle abgelesen und getippt werden.
@@ -239,7 +249,6 @@
   min-height: 56px; font-variant-numeric: tabular-nums;
 }
 .gateFehler { color: var(--lb-ampel-rot-text); font-size: 13px; font-weight: 600 }
-.gateHinweis { color: var(--lb-stahl); font-size: 13px }
 
 /* ——— Bausteine ——— */
 /*
