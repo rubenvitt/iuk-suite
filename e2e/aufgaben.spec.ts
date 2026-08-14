@@ -280,3 +280,161 @@ test("Personenverwaltung-Gegenprobe: eine bufdi-Person bekommt auf /personen 404
   const res = await page.goto(`http://${HOST}:3100/personen`);
   expect(res?.status()).toBe(404);
 });
+
+/*
+ * AUFGABE 15 — DER AUFTRAGGEBER: EINSTIEG, „AUFGABE EINSTELLEN", FREIGABEN. Drei voellig neue
+ * Routen-Abrufe (`/`, jetzt mit `EinstiegAuftrag` statt des Platzhalters aus Aufgabe 13, plus die
+ * beiden NEUEN Routen `/neu` und `/freigaben`) UND zwei neue Client-Inseln
+ * (`AufgabeFormular.tsx`, `FreigabeZone.tsx`) — dieselbe Kombination, die `typecheck`, `lint`,
+ * `build` und Vitest strukturell nicht sehen koennen (Kopfkommentar oben).
+ *
+ * `malte@localtest.me` TRIFFT DIE `auftrag`-PERSONA AUS `seedLokal.ts` (schon oben als
+ * Verteilen-Gegenprobe genutzt).
+ */
+test("Meine Auftraege: ein Auftraggeber meldet sich an, die Modulwurzel zeigt „Meine Aufträge“ und bleibt fehlerfrei", async ({
+  page,
+}) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "malte@localtest.me",
+    callbackPath: "/",
+  });
+  const res = await page.goto(`http://${HOST}:3100/`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Meine Aufträge", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Aufgabe einstellen" })).toHaveAttribute(
+    "href",
+    "/neu",
+  );
+  expect(konsolenFehler).toEqual([]);
+});
+
+/**
+ * DIE KERNZUSAGE DIESER AUFGABE, END-TO-END (Spec §8.3, Brief woertlich): kein Weg zum Verteilen
+ * auf der Auftraggeber-Oberflaeche selbst — nicht nur die 404-Gegenprobe auf `/verteilen` (oben,
+ * seit Aufgabe 14), sondern die Abwesenheit des Verweises AUF DIESER SEITE. Sucht aktiv danach,
+ * statt es nur zu behaupten (Brief: „kann deine e2e-Assertion überhaupt rot werden").
+ */
+test("Meine Auftraege enthaelt keinen Weg zum Verteilen — kein Verweis, kein Knopf", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "malte@localtest.me",
+    callbackPath: "/",
+  });
+  await expect(page.getByRole("link", { name: "Verteilen" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Verteilen" })).toHaveCount(0);
+  const hrefs = await page.locator("a").evaluateAll((links) =>
+    links.map((l) => l.getAttribute("href")),
+  );
+  expect(hrefs.some((h) => h?.includes("verteilen"))).toBe(false);
+});
+
+test("Aufgabe einstellen: /neu antwortet mit 200 und zeigt das Formular samt „fuer mich selbst“-Wahl fuer auftrag", async ({
+  page,
+}) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "malte@localtest.me",
+    callbackPath: "/neu",
+  });
+  const res = await page.goto(`http://${HOST}:3100/neu`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Aufgabe einstellen", level: 1 })).toBeVisible();
+  await expect(page.getByLabel("Für mich selbst einstellen")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Aufgabe einstellen" })).toBeVisible();
+  expect(konsolenFehler).toEqual([]);
+});
+
+/**
+ * `/neu` GATET NICHT AUF EINE ROLLE (Spec §8: „BuFDis fuer sich selbst") — eine BuFDi erreicht die
+ * Seite ebenfalls, aber OHNE die Wahl „fuer mich selbst" (sie besteht fuer diese Rolle nicht,
+ * `darfEinstellenFuerAndere`).
+ */
+test("Aufgabe einstellen: eine BuFDi erreicht /neu ebenfalls, aber ohne die „fuer mich selbst“-Wahl", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "alina@localtest.me",
+    callbackPath: "/neu",
+  });
+  const res = await page.goto(`http://${HOST}:3100/neu`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Aufgabe einstellen", level: 1 })).toBeVisible();
+  await expect(page.getByLabel("Für mich selbst einstellen")).toHaveCount(0);
+});
+
+/**
+ * `/freigaben` — DIE WARTESCHLANGE ALS EIGENE ROUTE (Aufgabe 15, Spec §8). `tomke@localtest.me`
+ * TRIFFT DIE ZWEITE `auftrag`-PERSONA AUS `seedLokal.ts` — sie ist der eingetragene Pruefer der
+ * Demo-Aufgabe „Erste-Hilfe-Kurs Nachbereitung" (`status: "freigabe_offen"`), erscheint fuer sie
+ * also unter „Meine".
+ */
+test("Freigaben: /freigaben antwortet einer Auftraggeberin mit 200 und zeigt ihre eigene Freigabe", async ({
+  page,
+}) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "tomke@localtest.me",
+    callbackPath: "/freigaben",
+  });
+  const res = await page.goto(`http://${HOST}:3100/freigaben`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Freigaben", level: 1 })).toBeVisible();
+  await expect(page.getByText("Erste-Hilfe-Kurs Nachbereitung")).toBeVisible();
+  expect(konsolenFehler).toEqual([]);
+});
+
+/**
+ * DIESELBE AUFGABE, FUER DIE KOORDINATION „IN VERTRETUNG" (Tomke ist der eingetragene Pruefer,
+ * nicht Rike) — dieselbe Unterscheidung, die `istVertretungsfreigabe` traegt (`_lib/zugang.ts`).
+ */
+test("Freigaben: dieselbe Aufgabe erscheint fuer die Koordination unter „in Vertretung“", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "rike@localtest.me",
+    callbackPath: "/freigaben",
+  });
+  const res = await page.goto(`http://${HOST}:3100/freigaben`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByText("Erste-Hilfe-Kurs Nachbereitung")).toBeVisible();
+});
+
+test("Freigaben-Gegenprobe: eine BuFDi bekommt auf /freigaben 404", async ({ page }) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "alina@localtest.me",
+    callbackPath: "/",
+  });
+  const res = await page.goto(`http://${HOST}:3100/freigaben`);
+  expect(res?.status()).toBe(404);
+});

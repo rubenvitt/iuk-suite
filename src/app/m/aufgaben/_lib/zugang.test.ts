@@ -34,6 +34,7 @@ import {
   darfFreigeben,
   darfPlanSehen,
   darfNachweisSehen,
+  darfFreigabenSehen,
   istVertretungsfreigabe,
 } from "./zugang";
 
@@ -210,6 +211,22 @@ describe("darfPersonenVerwalten — nur koordination, und aktiv", () => {
   it("ausgeschiedene Koordination darf Personen nicht mehr verwalten", () => {
     const p = legePerson("pv-inaktiv", "koordination", { aktivBis: "2026-08-01" });
     expect(darfPersonenVerwalten(p, HEUTE)).toBe(false);
+  });
+});
+
+describe("darfFreigabenSehen — auftrag oder koordination, und aktiv (Aufgabe 15, Spec §8: '/freigaben')", () => {
+  it.each<[Rolle, boolean]>([
+    ["koordination", true],
+    ["auftrag", true],
+    ["bufdi", false],
+  ])("Rolle %s → %s", (rolle, erwartet) => {
+    const p = legePerson(`fs-${rolle}`, rolle);
+    expect(darfFreigabenSehen(p, HEUTE)).toBe(erwartet);
+  });
+
+  it("ausgeschiedener auftrag darf die Warteschlange nicht mehr sehen", () => {
+    const p = legePerson("fs-inaktiv", "auftrag", { aktivBis: "2026-08-01" });
+    expect(darfFreigabenSehen(p, HEUTE)).toBe(false);
   });
 });
 

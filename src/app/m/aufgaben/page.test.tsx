@@ -75,11 +75,19 @@ describe("aufgabenInhalt — der Verteiler waehlt nach Rolle (Spec §8)", () => 
     expect(document.body.textContent).not.toBe("");
   });
 
-  it("auftrag bekommt ebenfalls einen ehrlichen, benannten Platzhalter, mit anderem Titel", async () => {
+  /*
+   * SEIT AUFGABE 15 DIE ECHTE `EinstiegAuftrag` STATT DES PLATZHALTERS AUS AUFGABE 13 — die
+   * Verzweigung in `aufgabenInhalt` selbst aendert sich dabei nicht (dieselbe Zusage wie beim
+   * Wechsel auf `EinstiegKoordination` in Aufgabe 14). Die ausfuehrliche Pruefung (eigene
+   * Auftraege, Freigabe-Trennung, kein Verteil-Weg …) lebt in `_ui/EinstiegAuftrag.test.tsx` — hier
+   * nur der Beleg, dass DIESE Rolle DIESE Komponente bekommt.
+   */
+  it("auftrag bekommt „Meine Aufträge“ (EinstiegAuftrag)", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
     await mount(aufgabenInhalt(t.db, malte, HEUTE, {}));
     expect(query("h1").textContent).toBe("Meine Aufträge");
-    expect(document.body.textContent).toContain("Malte");
+    expect(document.body.textContent).toContain("Aufgabe einstellen");
+    expect(document.body.textContent).not.toContain("entsteht in einer der nächsten Aufgaben");
   });
 
   it("reicht woche/tag aus den Suchparametern an EinstiegBufdi durch", async () => {

@@ -1,4 +1,12 @@
-import type { AufgabeRow, PersonRow, Prioritaet, Rolle, RoutineRow, Status } from "../_db/schema";
+import type {
+  AufgabeRow,
+  NachweisArt,
+  PersonRow,
+  Prioritaet,
+  Rolle,
+  RoutineRow,
+  Status,
+} from "../_db/schema";
 import { wochentagVon } from "./datum";
 
 /*
@@ -63,6 +71,17 @@ export const ROLLE_TEXT: Record<Rolle, string> = {
   koordination: "Koordination",
   auftrag: "Auftraggeber",
   bufdi: "BuFDi",
+};
+
+/**
+ * DIE BESCHRIFTUNG DER NACHWEISFORM (Aufgabe 15, Spec §5.3) — die eine Quelle fuer
+ * `AufgabeFormular.tsx`s Formwahl UND `FreigabeZone.tsx`s Anzeige, welche Form ein Nachweis
+ * gerade traegt. Dieselbe Ueberlegung wie bei `ROLLE_TEXT`: eine zweite, freihaendige
+ * Beschriftung an einer der beiden Stellen liefe irgendwann auseinander.
+ */
+export const NACHWEIS_ART_TEXT: Record<NachweisArt, string> = {
+  text: "Text",
+  bild: "Bild",
 };
 
 /**

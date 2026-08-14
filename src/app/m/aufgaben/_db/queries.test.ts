@@ -35,6 +35,7 @@ import {
   schreibeVerlauf,
   verteilDaten,
   wochenAuslastungFuerBufdis,
+  freigabeDaten,
 } from "./queries";
 
 let t: TestDb;
@@ -223,6 +224,114 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
       status: "freigabe_offen",
     });
     expect(freigabenFuer(t.db, rikeEx, HEUTE)).toEqual([]);
+  });
+});
+
+describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgabe 15)", () => {
+  it("trennt „meine“ von „in Vertretung“ und loest Ersteller-/Zugewiesenennamen auf", () => {
+    const rike = legePerson("fd1-rike", "koordination");
+    const malte = legePerson("fd1-malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("fd1-alina", "bufdi", { name: "Alina" });
+    const meineAufgabe = legeAufgabe({
+      titel: "Meine",
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: rike.id,
+      status: "freigabe_offen",
+    });
+    const vertretungsAufgabe = legeAufgabe({
+      titel: "Vertretung",
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malte.id,
+      status: "freigabe_offen",
+    });
+
+    const daten = freigabeDaten(t.db, rike, HEUTE);
+
+    expect(daten.meine.map((z) => z.aufgabe.id)).toEqual([meineAufgabe.id]);
+    expect(daten.vertretung.map((z) => z.aufgabe.id)).toEqual([vertretungsAufgabe.id]);
+    expect(daten.meine[0]!.erstellerName).toBe("Malte");
+    expect(daten.meine[0]!.zugewiesenName).toBe("Alina");
+  });
+
+  it("traegt nur Nachweise seit der letzten Zurueckweisung, ueber `nachweiseSeitLetzterZurueckweisung`", () => {
+    const rike = legePerson("fd2-rike", "koordination");
+    const malte = legePerson("fd2-malte", "auftrag");
+    const alina = legePerson("fd2-alina", "bufdi");
+    const a = legeAufgabe({
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: rike.id,
+      status: "freigabe_offen",
+    });
+    // Feste, aufsteigende Zeitpunkte statt der Systemuhr: `nachweiseSeitLetzterZurueckweisung`
+    // vergleicht `nachweise.erstelltAm` gegen den `ts` der letzten Zurueckweisung — beides muss
+    // hier eindeutig auseinanderliegen, nicht auf demselben `new Date()`-Tick beruhen.
+    t.db
+      .insert(nachweise)
+      .values({
+        aufgabeId: a.id, art: "text", text: "Alt", erstelltVon: alina.id,
+        erstelltAm: new Date(1000),
+      })
+      .run();
+    t.db
+      .insert(verlauf)
+      .values({
+        aufgabeId: a.id, ereignis: "zurueckgewiesen", akteurId: rike.id, ts: new Date(2000),
+      })
+      .run();
+    t.db
+      .insert(nachweise)
+      .values({
+        aufgabeId: a.id, art: "text", text: "Neu", erstelltVon: alina.id,
+        erstelltAm: new Date(3000),
+      })
+      .run();
+
+    const daten = freigabeDaten(t.db, rike, HEUTE);
+    const texte = daten.meine[0]!.nachweise.map((n) => n.text);
+    expect(texte).toEqual(["Neu"]);
+  });
+
+  it("eine ausgeschiedene Person sieht keine Freigaben mehr (istAktiv gilt weiter)", () => {
+    const rikeEx = legePerson("fd3-rike-ex", "koordination", { aktivBis: "2026-08-01" });
+    const malte = legePerson("fd3-malte", "auftrag");
+    const alina = legePerson("fd3-alina", "bufdi");
+    legeAufgabe({
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malte.id,
+      status: "freigabe_offen",
+    });
+    const daten = freigabeDaten(t.db, rikeEx, HEUTE);
+    expect(daten.meine).toEqual([]);
+    expect(daten.vertretung).toEqual([]);
+  });
+
+  /*
+   * ADVISOR-FUND: die einzige bis dahin vorhandene Selbstaufgaben-Gegenprobe auf dieser Ebene
+   * (unten, "eine Selbstaufgabe ... kann es nicht geben") setzte eine AUSGESCHIEDENE Koordination
+   * ein — `istAktiv` allein liefert dort schon `[]`, die Zeile bewiese also nichts ueber
+   * `darfFreigeben`s ERSTE Klausel (`if (a.istSelbst) return false`). Diese Zeile nimmt eine AKTIVE
+   * Koordination: nur so kann ein geloeschtes `istSelbst`-Gate ueberhaupt rot werden.
+   */
+  it("eine Selbstaufgabe erscheint in KEINER Freigabe-Warteschlange — auch nicht bei einer aktiven Koordination", () => {
+    const rike = legePerson("fd4-rike", "koordination");
+    const bufdi = legePerson("fd4-bufdi", "bufdi");
+    // Fachlich unerreichbar (Spec §5.2: Selbstaufgaben nehmen die Kurzstrecke ohne
+    // `freigabe_offen`), aber `darfFreigeben`s erste Klausel soll sich nicht auf diese Invariante
+    // verlassen — dieselbe Verteidigungslinie wie `zugang.test.ts`s Kreuzprobe.
+    legeAufgabe({
+      erstellerId: bufdi.id,
+      zugewiesenAn: bufdi.id,
+      prueferId: null,
+      istSelbst: true,
+      status: "freigabe_offen",
+    });
+    const daten = freigabeDaten(t.db, rike, HEUTE);
+    expect(daten.meine).toEqual([]);
+    expect(daten.vertretung).toEqual([]);
   });
 });
 

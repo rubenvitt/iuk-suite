@@ -204,6 +204,30 @@ export function darfNachweisSehen(p: PersonRow, a: AufgabeRow): boolean {
 }
 
 /**
+ * GATE FUER DIE ROUTE `/freigaben` (Aufgabe 15, Spec §8: „für auftrag, koordination"). Trifft
+ * HEUTE denselben Ausdruck wie `darfEinstellenFuerAndere` — und wird trotzdem NICHT dorthin
+ * umgeleitet oder als Alias darauf gebaut: die beiden Fragen sind verschieden ("darf diese Person
+ * die Warteschlange SEHEN" vs. "darf sie eine Aufgabe FUER JEMAND ANDEREN erstellen"), und nur der
+ * heutige Rollenzuschnitt laesst sie zusammenfallen. Ein Nachbau ueber die falsche Naht war schon
+ * einmal der Fehler in dieser Datei (s. `darfPlanAendern`s Kopfkommentar, Entscheidung 3) — eine
+ * kuenftige Aenderung an EINER der beiden Fragen (z. B. eine Person, die nur noch freigeben, aber
+ * nicht mehr einstellen darf) duerfte die andere nicht versehentlich mitziehen.
+ *
+ * `freigabenFuer` (`_db/queries.ts`) filtert ohnehin serverseitig auf `darfFreigeben` je Aufgabe —
+ * eine `bufdi`-Person saehe die Warteschlange auch OHNE dieses Gate strukturell leer, weil
+ * `prueferId` nie auf eine `bufdi`-Zeile zeigt (nur `auftrag`/`koordination` duerfen fremd
+ * einstellen und werden damit zu `prueferId`, s. `anfangsZustand`). Das Gate hier ist trotzdem
+ * kein Sicherheitstheater: Spec §8 nennt die Route ausdruecklich rollengebunden, dieselbe Suite-
+ * Regel wie bei `/routinen`/`/verteilen`/`/personen` gilt auch hier — ein leerer Bildschirm ist
+ * kein 404, und ohne ein Gate an der Route selbst waere `/freigaben` fuer eine ausgeschiedene oder
+ * fachlich falsche Rolle trotzdem per direkter URL "erreichbar" (mit einer leeren Liste, aber
+ * eben 200 statt 404).
+ */
+export function darfFreigabenSehen(p: PersonRow, heute: string): boolean {
+  return (p.rolle === "auftrag" || p.rolle === "koordination") && istAktiv(p, heute);
+}
+
+/**
  * Wahr, wenn die Koordination freigibt, OHNE der eingetragene Pruefer zu sein. Aufgabe 10 schreibt
  * daraus die Verlaufszeile "Freigegeben von X in Vertretung fuer Y" — der Kern der
  * Leistungsdokumentation. Wird ausschliesslich NACH einem bereits bejahten `darfFreigeben`

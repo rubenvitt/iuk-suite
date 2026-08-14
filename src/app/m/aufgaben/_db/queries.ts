@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { namenMap, tagesBudget } from "../_lib/anzeige";
 import { montagDerWoche, wochenTage } from "../_lib/datum";
-import { darfFreigeben, istAktiv } from "../_lib/zugang";
+import { darfFreigeben, istAktiv, istVertretungsfreigabe } from "../_lib/zugang";
 import type { DB } from "./client";
 import {
   aufgaben,
@@ -233,6 +233,55 @@ export function freigabenFuer(db: DB, p: PersonRow, heute: string): AufgabeRow[]
     .where(eq(aufgaben.status, "freigabe_offen"))
     .all()
     .filter((a) => darfFreigeben(p, a, heute));
+}
+
+export interface FreigabeZeile {
+  aufgabe: AufgabeRow;
+  /** `person.id -> person.name` aufgeloest — fuer die Anzeige, wer die Aufgabe erstellt hat. */
+  erstellerName: string;
+  /** Wie `erstellerName`, fuer die Person, die die Arbeit ausgefuehrt hat (`zugewiesenAn`). */
+  zugewiesenName: string;
+  /**
+   * NACHWEISE SEIT DER LETZTEN ZURUECKWEISUNG (`nachweiseSeitLetzterZurueckweisung`) — NICHT
+   * `nachweiseFuer` ungefiltert: dieselbe Begruendung wie bei `fertigMeldenAction` (`actions.ts`),
+   * ein Nachweis vor einer Zurueckweisung ist genau der Beleg, den die Zurueckweisung fuer
+   * ungenuegend erklaert hat. Wer freigibt, soll sehen, was FUER DIESEN Versuch eingereicht wurde.
+   */
+  nachweise: NachweisRow[];
+}
+
+export interface FreigabeDaten {
+  /** `!istVertretungsfreigabe(person, a)` — die eigene, eingetragene Pruefung. */
+  meine: FreigabeZeile[];
+  /** `istVertretungsfreigabe(person, a)` — die Koordination sieht sie zusaetzlich. */
+  vertretung: FreigabeZeile[];
+}
+
+/**
+ * DIE EINE LADEFUNKTION FUER DIE FREIGABE-WARTESCHLANGE (Aufgabe 15) — Vorbild `verteilDaten`
+ * (Aufgabe 14, Fix-Runde 1): OHNE sie riefen `_ui/EinstiegAuftrag.tsx` (die eigene Warteschlange
+ * eines Auftraggebers) UND `freigaben/page.tsx` (die adressierbare Route) denselben
+ * Vier-Zeilen-Ladeblock je EINZELN auf — genau die Verdopplung, deren Review-Fund bei
+ * `EinstiegKoordination.tsx`/`verteilen/page.tsx` schon einmal einen halb bewachten Riegel
+ * hinterlassen hat (Aufgabe 14 Fix-Runde 1). Mit EINER exportierten Funktion fuer beide Aufrufer
+ * kann die Trennung „meine"/„in Vertretung" zwischen den beiden Seiten nicht mehr auseinanderlaufen.
+ *
+ * `heute` KOMMT ALS ARGUMENT, wie ueberall im Modul (`_lib/datum.ts` bleibt die einzige Stelle, die
+ * einen Kalendertag aus der Uhr liest).
+ */
+export function freigabeDaten(db: DB, person: PersonRow, heute: string): FreigabeDaten {
+  const freigabeListe = freigabenFuer(db, person, heute);
+  const namen = namenMap(allePersonen(db));
+  const zeile = (a: AufgabeRow): FreigabeZeile => ({
+    aufgabe: a,
+    erstellerName: namen[a.erstellerId] ?? "—",
+    zugewiesenName: a.zugewiesenAn !== null ? (namen[a.zugewiesenAn] ?? "—") : "—",
+    nachweise: nachweiseSeitLetzterZurueckweisung(db, a.id),
+  });
+  return {
+    meine: freigabeListe.filter((a) => !istVertretungsfreigabe(person, a)).map(zeile),
+    vertretung: freigabeListe.filter((a) => istVertretungsfreigabe(person, a)).map(zeile),
+  };
 }
 
 export function aufgabenVonErsteller(db: DB, personId: string): AufgabeRow[] {
