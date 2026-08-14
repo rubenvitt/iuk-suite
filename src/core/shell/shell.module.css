@@ -225,18 +225,31 @@
  *
  * FALLS `--iuk-marke` NICHT AUFLÖST — die Variable fehlt, ist umbenannt, oder
  * `globals.css` kommt nicht an —, fällt der Akzent auf `transparent` zurück
- * (die 3px bleiben als Leerraum) und `color` auf die geerbte Schriftfarbe. Der
- * Ausfall ist still (Falle 2).
+ * (die 3px bleiben als Leerraum). Der Ausfall ist still (Falle 2).
  *
- * `font-weight: 600` BLEIBT und ist nicht redundant: es ist der Träger, der
- * übrig bleibt, wenn der Farbkanal ausfällt — technisch wie beim Leser (bei
- * Rot-Grün-Blindheit und in Graustufen trägt Farbe hier nichts). Bedeutung nie
- * allein über Farbe.
+ * KEINE TEXTFARBE HIER — und zwar seit dem Schlussreview, als Folge genau der
+ * getönten Fläche eine Zeile darüber. Bis dahin trug die Regel
+ * `color: var(--iuk-marke)`, und das war belegt: der Text saß direkt auf
+ * `lightSiderBg` = `colorBgContainer` = `#141414`, wofür `globals.css` 5.22:1
+ * ausrechnet. Die Fläche hat den NENNER verschoben: `#141414` unter
+ * `rgb(255 255 255 / 0.1)` komponiert zu `#2c2c2c`, und `#e45a66` dagegen
+ * ergibt nur noch 3.96:1 — im Drawer (antds `colorBgElevated` = `#1f1f1f`,
+ * komponiert `#353535`) sogar 3.48:1. Beides unter 4.5:1, und 14px/600 ist
+ * kein „large text". (Hell war es unauffällig: `#c8000f` auf `#f0f0f0` =
+ * 5.32:1.) Die drei Zahlen sind GERECHNET, nicht im Browser gemessen.
+ *
+ * Der Ausweg ist nicht, `--iuk-marke` im Dunkeln anzuheben — das entwertete
+ * still die drei anderen in `globals.css` dokumentierten Rechnungen. Die
+ * Markierung trägt stattdessen, was sie ohnehin trug: die Akzentkante und
+ * `font-weight: 600`. Beides ist hier kein Ersatz, sondern der ursprüngliche
+ * Träger — es ist genau das, was übrig bleibt, wenn der Farbkanal ausfällt,
+ * technisch wie beim Leser (bei Rot-Grün-Blindheit und in Graustufen trägt
+ * Farbe hier nichts). Bedeutung nie allein über Farbe; jetzt auch nicht mehr
+ * teilweise.
  */
 .navLink[aria-current] {
   border-inline-start-color: var(--iuk-marke);
   background: var(--iuk-flaeche-aktiv);
-  color: var(--iuk-marke);
   font-weight: 600;
 }
 

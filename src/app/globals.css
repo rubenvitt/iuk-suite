@@ -109,10 +109,19 @@
  * `theme.darkAlgorithm` aus `antd`: `colorBgContainer` ist `#ffffff` hell und
  * `#141414` dunkel — GENAU dieselben zwei Werte wie `Layout.headerBg` (hell
  * `FARBEN.karte` = `#ffffff`, dunkel das Literal `#141414`, beide in
- * `core/theme/theme.ts`). Die Seitenleiste liegt damit auf derselben Fläche
- * wie die Kopfzeile, und die beiden „Kopfzeile"-Werte unten (6.06:1 hell,
- * 5.22:1 dunkel) gelten unverändert auch für sie mit — keine neue Zahl,
- * derselbe Nenner.
+ * `core/theme/theme.ts`).
+ *
+ * FÜR DIE SEITENLEISTE IST DIESE RECHNUNG SEIT DEM SCHLUSSREVIEW GEGENSTANDSLOS
+ * — hier stand, die „Kopfzeile"-Werte gälten für sie mit. Das galt nur, solange
+ * der aktive Eintrag nackt auf `lightSiderBg` saß. Er trägt seit Aufgabe 4 eine
+ * getönte Fläche (`--iuk-flaeche-aktiv`), und die verschiebt den Nenner. Die
+ * Antwort war NICHT, `--iuk-marke` anzuheben — das entwertete still die Zahlen
+ * unten —, sondern die Textfarbe fallen zu lassen: `.navLink[aria-current]`
+ * trägt seither KEINE Markenfarbe mehr, sondern markiert über Akzentkante und
+ * `font-weight: 600` (Begründung samt der gerechneten Zahlen an der Regel in
+ * `core/shell/shell.module.css`). Damit gibt es auf dieser Fläche keinen
+ * Markentext, für den eine Kontrastzahl zu führen wäre — die Fläche taucht in
+ * der Liste unten deshalb nicht mehr auf.
  *
  * Die beiden anderen Flächen sind davon unberührt: Kopfzeile und
  * Kartenfläche tragen die Markenfarbe ebenfalls, und für sie gelten die
@@ -123,15 +132,14 @@
  *   — der Ort des aktiven Eintrags bis 2026-08-13, rein historisch:
  *     #e45a66 gegen #000000 (dunkel): 5.95:1
  *     #c8000f gegen #eef0f1 (hell):   5.30:1
- *   Kopfzeile (Layout.headerBg), Kartenfläche UND Seitenleiste
- *   (Sider.lightSiderBg — siehe oben, dieselbe Fläche wie die Kopfzeile):
+ *   Kopfzeile (Layout.headerBg) und Kartenfläche:
  *     #e45a66 gegen #141414 (dunkel): 5.22:1
  *     #e45a66 gegen #16191c (dunkel): 5.00:1
  *     #c8000f gegen #ffffff (hell):   6.06:1
- * Die drei Kopfzeilen-/Kartenfläche-/Seitenleisten-Werte liegen über 4.5:1
- * und sind aktuell. Die beiden Modulnavigations-Werte sind der Stand vor der
- * Seitenleiste (s. o.) — kein Mangel an Barrierefreiheit war hier je
- * gemessen, nur die Flächenzuordnung stimmte zunächst nicht.
+ * Die drei Kopfzeilen-/Kartenflächen-Werte liegen über 4.5:1 und sind aktuell.
+ * Die beiden Modulnavigations-Werte sind der Stand vor der Seitenleiste
+ * (s. o.) — kein Mangel an Barrierefreiheit war hier je gemessen, nur die
+ * Flächenzuordnung stimmte zunächst nicht.
  *
  * DER EIGENE DUNKELWERT BLEIBT TROTZDEM BEGRUENDET, und zwar auf den engeren
  * Flaechen: `#e04452` gegen `#141414` ergibt 4.49:1 und gegen `#16191c`

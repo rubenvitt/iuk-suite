@@ -508,6 +508,17 @@ describe("shell.module.css", () => {
      * der übrig bleibt, wenn der Farbkanal ausfällt — technisch (unaufgelöste
      * Variable) wie beim Leser (Rot-Grün-Blindheit, Graustufen). Bedeutung nie
      * allein über Farbe.
+     *
+     * DREI KANÄLE, NICHT VIER — die Textfarbe fehlt hier ABSICHTLICH, und das
+     * ist die Umkehr eines früheren Nachtrags (Fließtext am Ende dieser Datei).
+     * `color: var(--iuk-marke)` war belegt, solange der aktive Eintrag nackt
+     * auf `lightSiderBg` (`#141414`) saß. Dieselbe Aufgabe 4, die den linken
+     * Akzent brachte, legte darunter aber `--iuk-flaeche-aktiv` — und die
+     * getönte Fläche verschiebt den Nenner: komponiert `#2c2c2c`, gegen
+     * `#e45a66` nur noch 3.96:1 (im Drawer 3.48:1), beides unter 4.5:1. Die
+     * Textfarbe ist deshalb im Schlussreview gestrichen worden. Eine
+     * Zusicherung auf sie wäre jetzt nicht bloß überflüssig, sondern hielte
+     * eine Kontrastregression fest.
      */
     const regel = /\.navLink\[aria-current\]\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
     expect(regel, "Regel `.navLink[aria-current]` fehlt").not.toBeNull();
@@ -516,13 +527,17 @@ describe("shell.module.css", () => {
     );
     expect(regel![1]).toMatch(/border-inline-start-color:\s*var\(--iuk-marke\)/);
     expect(regel![1]).toMatch(/background:\s*var\(--iuk-flaeche-aktiv\)/);
+    expect(regel![1]).toMatch(/font-weight:\s*600/);
     // `(?:^|;)\s*color:` und NICHT das bloße `/color:/` — sonst matcht das
     // Muster schon in `border-inline-start-color:` (das Wort endet auch auf
-    // "color:") und die Zusicherung wird nie rot, selbst wenn die eigentliche
-    // `color`-Deklaration fehlt. Dieselbe Verankerung wie in
-    // `deklarationsWerte` oben in dieser Datei.
-    expect(regel![1]).toMatch(/(?:^|;)\s*color:\s*var\(--iuk-marke\)/);
-    expect(regel![1]).toMatch(/font-weight:\s*600/);
+    // "color:") und die Zusicherung wäre schon durch die Akzentfarbe erfüllt,
+    // also nie rot. Dieselbe Verankerung wie in `deklarationsWerte` oben in
+    // dieser Datei — hier trägt sie die UMGEKEHRTE Richtung: keine eigene
+    // `color`-Deklaration mehr, damit die Markenfarbe nicht auf die getönte
+    // Fläche zurückkehrt (Begründung im Block über diesem Test).
+    expect(regel![1], "Markenfarbe zurück auf der getönten Fläche — 3.96:1").not.toMatch(
+      /(?:^|;)\s*color:/,
+    );
   });
 
   it("haelt den Ruhezustand auf demselben linken Rand wie den aktiven", () => {
@@ -626,17 +641,23 @@ describe("Markenstreifen und Kopfzeilentypografie", () => {
    * Aufgabe 4). Der neue Test prüfte anfangs nur drei Kanäle (Akzentfarbe,
    * Fläche, Gewicht) und ließ genau die Zusicherung fallen, die dieser alte
    * Test zusätzlich trug: `color: var(--iuk-marke)` auf
-   * `.navLink[aria-current]`. Die Textfarbe ist aber der Träger der
-   * WCAG-Rechnung in `globals.css` — die 4.5:1-Schwelle gilt für TEXT gegen
-   * Fläche, nicht für die 3px-Akzentlinie. Ein künftiger Fix, der `color`
-   * versehentlich entfernt oder auf `inherit` setzt, wäre ohne diese
-   * Zusicherung still grün geblieben, und genau die in Aufgabe 4 belegte
-   * Kontrastzahl wäre dann stillschweigend ungültig geworden. Nachgetragen:
-   * der neue Test prüft jetzt VIER Kanäle — Akzentfarbe
-   * (`border-inline-start-color`), Fläche (`background`), Textfarbe (`color`)
-   * und Gewicht (`font-weight`). Das Gewicht bleibt trotzdem, nicht weil es
-   * redundant zur Farbe wäre, sondern weil es der Träger ist, der übrig
-   * bleibt, wenn der Farbkanal ausfällt — technisch (unaufgelöste Variable)
-   * wie beim Leser (Rot-Grün-Blindheit, Graustufen).
+   * `.navLink[aria-current]`. Die Textfarbe galt als Träger der WCAG-Rechnung
+   * in `globals.css`, und der Nachtrag zog sie auf VIER Kanäle hoch.
+   *
+   * DIESER NACHTRAG IST IM SCHLUSSREVIEW WIEDER ZURÜCKGENOMMEN WORDEN, und
+   * zwar aus demselben Grund, aus dem er kam: der Kontrastrechnung. Er hatte
+   * eine Voraussetzung übersehen, die dieselbe Aufgabe 4 mitgebracht hatte —
+   * `background: var(--iuk-flaeche-aktiv)` unter demselben Text. Die
+   * `globals.css`-Zahl 5.22:1 gilt für `#e45a66` auf dem NACKTEN `#141414`;
+   * mit der Tönung komponiert die Fläche zu `#2c2c2c` und die Zahl fällt auf
+   * 3.96:1 (im Drawer, `colorBgElevated` `#1f1f1f`, auf 3.48:1). Die
+   * Zusicherung hat also nicht die Kontrastzahl bewacht, sondern eine
+   * Regression eingefroren — deshalb steht dort jetzt die Umkehrung: `color`
+   * darf NICHT wieder auftauchen. Was bewacht wird, sind die verbleibenden
+   * Träger. Das Gewicht bleibt, nicht weil es redundant zur Farbe wäre,
+   * sondern weil es der Träger ist, der übrig bleibt, wenn der Farbkanal
+   * ausfällt — technisch (unaufgelöste Variable) wie beim Leser
+   * (Rot-Grün-Blindheit, Graustufen). Nach dem Streichen der Textfarbe ist es
+   * der Träger, der überhaupt bleibt.
    */
 });
