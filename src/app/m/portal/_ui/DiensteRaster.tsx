@@ -137,7 +137,7 @@ export function DiensteRaster({
                         className="portal-kachel"
                         style={{ blockSize: "100%" }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
                           {e.iconUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -158,7 +158,7 @@ export function DiensteRaster({
                             style={{
                               ...SCHRIFT.neben,
                               color: "var(--iuk-gedaempft)",
-                              marginBlockStart: 4,
+                              marginBlockStart: SPACE.xs,
                             }}
                           >
                             {e.beschreibung}

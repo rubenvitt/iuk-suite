@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Input } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 
 /**
  * Der Kontakt, den der Portal-Leerzustand nennt. Freitext und bewusst kein
@@ -24,7 +25,7 @@ export function AnsprechpartnerForm({
         placeholder="z. B. IuK-Gruppe — iuk@kreisverband.example"
         aria-label="Ansprechpartner für Zugänge"
       />
-      <Button htmlType="submit" type="primary" style={{ marginBlockStart: 12 }}>
+      <Button htmlType="submit" type="primary" style={{ marginBlockStart: SPACE.md }}>
         Speichern
       </Button>
     </form>
