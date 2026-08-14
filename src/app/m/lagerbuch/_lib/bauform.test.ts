@@ -1086,8 +1086,15 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // `helfer/` (`page.tsx`, `layout.tsx`, `check/page.tsx`) +
     // `a/[artikelId]/page.tsx` + `t/[code]/route.ts` + `page.tsx` = 18.
     // Die Untergrenze unten haelt das fest.
+    //
+    // ⚠️ NACHTRAG 13.08.2026: `Brotkrume.tsx` ist aus dieser Liste GELOESCHT,
+    // weil die Datei geloescht ist (ihr Rueckweg liegt jetzt in
+    // `core/shell/Seitenkopf`). Ein Ausnahmename fuer eine nicht mehr
+    // existierende Datei ist nicht bloss Ballast: er wuerde einer kuenftigen
+    // Datei desselben Namens den antd-Import STILL durchwinken. Die Liste
+    // zaehlt damit elf Namen.
     const VERWALTUNG = new Set([
-      "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Brotkrume.tsx", "Kachel.tsx",
+      "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
     ]);

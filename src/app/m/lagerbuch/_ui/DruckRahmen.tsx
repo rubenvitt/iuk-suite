@@ -16,8 +16,14 @@ import s from "./verwaltung.module.css";
  * nicht ihren Traeger.
  *
  * WARUM AUCH DER DRUCKAST IHN BRAUCHT, obwohl er keinen Chip rendert: die
- * Fokusregel und die Brotkrume aus §6.8.4 gelten unter BEIDEN Group-Layouts.
+ * Fokusregel und der Rueckweg aus §6.8.4 gelten unter BEIDEN Group-Layouts.
  * Die einzige Aussage, die das haelt, ist ein echter Abruf je Modus (§6.6.7).
+ *
+ * §6.8.4 nannte den Rueckweg „Brotkrume"; die Komponente dieses Namens ist am
+ * 13.08.2026 geloescht worden. HIER FEHLT DESHALB NICHTS: dieser Rahmen traegt
+ * konstruktionsbedingt keine Navigation, und die Seiten darin bringen ihren
+ * Weg zurueck selbst mit — `EtikettenChrome.tsx:50` im Normalfall,
+ * `etiketten/page.tsx:59` und `:88` in den beiden leeren Zustaenden.
  *
  * KEIN "use client": der Rahmen ist eine Server Component und darf deshalb
  * keinen Compound-Zugriff auf antd und keinen Icon-Import tragen. Er traegt

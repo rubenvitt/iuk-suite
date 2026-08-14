@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { mount, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 import { SeitenKopf } from "./SeitenKopf";
-import { Brotkrume } from "./Brotkrume";
 import { Kachel } from "./Kachel";
 import s from "./verwaltung.module.css";
 
@@ -136,35 +135,6 @@ describe("SeitenKopf", () => {
   });
 });
 
-describe("Brotkrume", () => {
-  it("ist ein <nav aria-label=\"Brotkrume\"> mit einem Link", async () => {
-    await mount(<Brotkrume href="/verwaltung/geraete">Geräte</Brotkrume>);
-    expect(query("nav").getAttribute("aria-label")).toBe("Brotkrume");
-    const a = query("nav a");
-    expect(a.getAttribute("href")).toBe("/verwaltung/geraete");
-    expect(a.textContent).toContain("Geräte");
-  });
-
-  it("traegt die Modulklasse .backlink und einen Pfeil", async () => {
-    await mount(<Brotkrume href="/verwaltung/bz">BZ-Kontrolle</Brotkrume>);
-    expect(query("nav a").className.split(" ")).toContain(s.backlink);
-    expect(exists("nav a svg")).toBe(true);
-  });
-
-  it("benutzt KEIN antd-Breadcrumb", async () => {
-    // Breadcrumb steht nicht auf der RSC-sicheren Liste, und ob die Komponente
-    // in der RSC-Ebene laedt, ist NICHT gemessen. Eine ungemessene Annahme
-    // kostet hier HTTP 500 auf neun Seiten.
-    const quelle = readFileSync("src/app/m/lagerbuch/_ui/Brotkrume.tsx", "utf8");
-    expect(importiertAntdBreadcrumb(quelle)).toBe(false);
-  });
-
-  it("traegt die aeuszere Pfadform", async () => {
-    await mount(<Brotkrume href="/verwaltung/vorlagen">Vorlagen</Brotkrume>);
-    expect(query("nav a").getAttribute("href")).not.toMatch(/^\/m\/lagerbuch/);
-  });
-});
-
 describe("Kachel", () => {
   it("rendert Zahl und Beschriftung", async () => {
     await mount(<Kachel zahl={7} beschriftung="Artikel unter Mindestbestand" />);
@@ -223,13 +193,21 @@ describe("Kachel", () => {
   });
 });
 
-describe("Alle drei sind RSC-tauglich", () => {
-  it.each(["SeitenKopf", "Brotkrume", "Kachel"])("%s.tsx traegt kein \"use client\"", (name) => {
+/*
+ * ZWEI STATT DREI SEIT DEM 13.08.2026: `Brotkrume.tsx` ist geloescht, ihr
+ * Rueckweg liegt seit dem Navigations-Umbau in `core/shell/Seitenkopf`
+ * (Prop `zurueck`). Die Aussage dieses Blocks aendert sich dadurch NICHT — sie
+ * gilt jedem Baustein, den eine Server Component rendert, nicht der Zahl drei.
+ * Der Titel nennt deshalb keine Anzahl mehr: eine Zahl im Titel wird bei jedem
+ * weiteren Baustein still falsch, ohne dass ein Test rot wird.
+ */
+describe("Die Verwaltungsbausteine sind RSC-tauglich", () => {
+  it.each(["SeitenKopf", "Kachel"])("%s.tsx traegt kein \"use client\"", (name) => {
     const quelle = readFileSync(`src/app/m/lagerbuch/_ui/${name}.tsx`, "utf8");
     expect(hatUseClientDirektive(quelle)).toBe(false);
   });
 
-  it.each(["SeitenKopf", "Brotkrume", "Kachel"])("%s.tsx importiert keine Icons aus antd", (name) => {
+  it.each(["SeitenKopf", "Kachel"])("%s.tsx importiert keine Icons aus antd", (name) => {
     const quelle = readFileSync(`src/app/m/lagerbuch/_ui/${name}.tsx`, "utf8");
     expect(importiertAntdIcons(quelle)).toBe(false);
   });

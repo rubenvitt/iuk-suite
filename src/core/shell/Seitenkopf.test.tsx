@@ -87,7 +87,8 @@ describe("Seitenkopf", () => {
 
   it("fasst den Rückweg in ein benanntes Landmark, nicht in einen nackten Link", async () => {
     /*
-     * Nachtrag aus dem Review zu Aufgabe 9: die Vorlage `Brotkrume.tsx` fasst
+     * Nachtrag aus dem Review zu Aufgabe 9: die Vorlage `Brotkrume.tsx` — seit
+     * dem 13.08.2026 geloescht, dieser Baustein hat sie abgeloest — fasste
      * denselben Link in `<nav aria-label="Brotkrume">`. Ohne eigenes Landmark
      * hier verlieren alle Seiten, die auf `zurueck` umstellen, das Sprungziel
      * fuer Screenreader-Bedienung. Der Name ist bewusst nicht "Brotkrume" —
@@ -101,8 +102,8 @@ describe("Seitenkopf", () => {
 
   it("versteckt das Pfeilzeichen vor Screenreadern, der Linktext bleibt der einzige Wortlaut", async () => {
     /*
-     * `‹` ist ein Textzeichen, kein Icon wie bei `Brotkrume` (dessen `Ikone`
-     * bereits `aria-hidden` traegt). Ohne eigenes `aria-hidden` wuerde ein
+     * `‹` ist ein Textzeichen, kein Icon wie bei `Brotkrume` (deren `Ikone`
+     * bereits `aria-hidden` trug). Ohne eigenes `aria-hidden` wuerde ein
      * Screenreader das Zeichen mitlesen, bevor er den eigentlichen Linktext
      * ausspricht.
      */
@@ -115,7 +116,7 @@ describe("Seitenkopf", () => {
 
   it("haelt eine 44px-Tapflaeche am Rueckweg, den Text darin vertikal mittig", async () => {
     /*
-     * Dritter Nachtrag, Review Aufgabe 9: `Brotkrume.tsx` setzt fuer denselben
+     * Dritter Nachtrag, Review Aufgabe 9: `Brotkrume.tsx` setzte fuer denselben
      * Link `min-height: 44px` (WCAG 2.5.8) ueber `.backlink` — seit Aufgabe 8
      * verbindlich fuer die ganze Suite, elf Fundstellen wurden dafuer bereits
      * zurueckgenommen. Ohne eigene Mindesthoehe unterbietet der Rueckweg genau

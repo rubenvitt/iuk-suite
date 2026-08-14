@@ -50,9 +50,10 @@ function ohneZiffernstellung(rolle: CSSProperties): CSSProperties {
  * macht es still (Falle 7). Das Pfeilzeichen steht deshalb als Textliteral da.
  *
  * `<nav aria-label="Zurück">` UM DEN LINK (Nachtrag, Review Aufgabe 9): die
- * Vorlage `lagerbuch/_ui/Brotkrume.tsx` fasst denselben Link in ein benanntes
- * Landmark (`aria-label="Brotkrume"`); ohne eigenes Landmark hier verlieren
- * alle Seiten, die auf `zurueck` umstellen, das Sprungziel — per Screenreader
+ * Vorlage `lagerbuch/_ui/Brotkrume.tsx` — seit dem 13.08.2026 gelöscht, dieser
+ * Baustein hat sie abgelöst — fasste denselben Link in ein benanntes Landmark
+ * (`aria-label="Brotkrume"`); ohne eigenes Landmark hier verlieren alle
+ * Seiten, die auf `zurueck` umstellen, das Sprungziel — per Screenreader
  * springt man zwischen Landmarks, statt den Kopfbereich zu durchlaufen. Der
  * Name ist bewusst NICHT „Brotkrume" abgeschrieben: beide Fassungen rendern
  * genau EINEN Link, keine mehrstufige Brotkrume (nachgemessen, nicht
@@ -60,7 +61,7 @@ function ohneZiffernstellung(rolle: CSSProperties): CSSProperties {
  * beschreibt. „Zurück" trifft die Funktion.
  *
  * DAS PFEILZEICHEN TRÄGT `aria-hidden` (Nachtrag, Review Aufgabe 9): anders
- * als `Brotkrume`, die ein SVG-Icon benutzt (in `ikonen.tsx` bereits
+ * als `Brotkrume`, die ein SVG-Icon benutzte (in `ikonen.tsx` bereits
  * `aria-hidden`+`focusable="false"`, weil „alle Zeichen dekorativ" sind), ist
  * `‹` hier ein bloßes Textzeichen und würde ohne `aria-hidden` mitgelesen —
  * als Wortlaut ("kleiner als", Zeichenname o. ä.) unpassend vor dem eigentlich
@@ -74,7 +75,7 @@ function ohneZiffernstellung(rolle: CSSProperties): CSSProperties {
  * `Brotkrume.tsx` hatte diese Fläche für denselben Link schon
  * (`.backlink { min-height: 44px }`); der Rückweg hier unterbot sie, bis
  * dieser Nachtrag es behob. Übernommen ist NICHT die CSS-Klasse selbst —
- * `Brotkrume` ist Modul-CSS, dieser Baustein liegt in `core` und bekommt einen
+ * `Brotkrume` war Modul-CSS, dieser Baustein liegt in `core` und bekommt einen
  * Inline-Stil, wie der Rest der Komponente. Übernommen ist das MUSTER:
  * `display: "inline-flex"` + `alignItems: "center"` statt weiterhin
  * `"inline-block"`, denn `min-height` allein zentriert eine Zeile nicht — ohne
@@ -118,7 +119,7 @@ function ohneZiffernstellung(rolle: CSSProperties): CSSProperties {
  *
  * `Brotkrume.tsx` hatte die Antwort für dieselbe Bauform (Zeichen-Element plus
  * Text im Flex-Container) bereits: `.backlink { gap: 6px }`. NICHT
- * abgeschrieben — `Brotkrume` ist Modul-CSS mit eigener Skala, `core` zieht
+ * abgeschrieben — `Brotkrume` war Modul-CSS mit eigener Skala, `core` zieht
  * Abstände aus `SPACE` (`core/theme/tokens.ts`). Gewählt: `SPACE.xs` (4px),
  * nicht `SPACE.sm` (8px) — nachgemessen ist der ORIGINALE Leerzeichen-Abstand
  * unter `inline-block` rund 2,7px; `SPACE.xs` liegt dem am nächsten und hält
