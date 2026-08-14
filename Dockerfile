@@ -53,6 +53,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/qr/_db/migrations ./src
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/feedback/_db/migrations ./src/app/m/feedback/_db/migrations
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/files/_db/migrations ./src/app/m/files/_db/migrations
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/lagerbuch/_db/migrations ./src/app/m/lagerbuch/_db/migrations
+# core führt seit dem Sitzungswiderruf eine eigene Datenbank (`CORE_MIGRATIONS`).
+COPY --from=builder --chown=nextjs:nodejs /app/src/core/konto/_db/migrations ./src/core/konto/_db/migrations
 
 # (better-sqlite3 inkl. nativem Binding steckt bereits im standalone-Output —
 #  in dieser Umgebung verifiziert, siehe „Pre-flight". KEIN separater COPY: der

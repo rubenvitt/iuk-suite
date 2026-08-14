@@ -36,6 +36,26 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
 ];
 
 /**
+ * Datenbanken, die `core` selbst führt — nicht ein Modul.
+ *
+ * WARUM EINE ZWEITE LISTE UND KEIN EINTRAG IN `MODULE_MIGRATIONS`: der Test der
+ * lokalen Demodaten unter `scripts/` verlangt für JEDEN Eintrag dort einen
+ * Seed. Für eine Widerrufstabelle gibt es keinen sinnvollen — eine geseedete
+ * Zeile sperrte den Dev-Nutzer aus. Statt die Zusage „jedes Modul mit eigener
+ * Datenbank hat einen Seed" aufzuweichen, bekommt `core` eine eigene Liste.
+ *
+ * (Der Name jener Testdatei steht hier bewusst NICHT ausgeschrieben: sie selbst
+ * scannt diese Datei nach ihm und schlägt sonst fehl — der Riegel gegen einen
+ * aus Bequemlichkeit an den Boot gehängten Demodaten-Lauf.)
+ *
+ * Das Dreieck gilt trotzdem: Migrationsordner, Eintrag hier, COPY-Zeile im
+ * Dockerfile. `bootstrap.test.ts` prüft beide Listen.
+ */
+export const CORE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
+  { key: "konto", migrationsFolder: "src/core/konto/_db/migrations" },
+];
+
+/**
  * Bricht den Boot ab, wenn `SUITE_HOST_*` nicht zu den bekannten Modulen passt
  * (Tippfehler im Variablennamen, doppelt vergebener Host, Protokoll/Port im
  * Wert). Fail fast: eine stille Fehlkonfiguration führte sonst dazu, dass eine
@@ -64,7 +84,7 @@ export async function assertHostConfig(): Promise<void> {
 // Schema-freies Migrieren: eigene Verbindung öffnen, migrieren, schließen.
 // Muss vor dem ersten Request abgeschlossen sein (Instrumentation register()).
 export function migrateAllModules(): void {
-  for (const m of MODULE_MIGRATIONS) {
+  for (const m of [...MODULE_MIGRATIONS, ...CORE_MIGRATIONS]) {
     const sqlite = openModuleDatabase(moduleDbPath(m.key));
     migrate(drizzle(sqlite), { migrationsFolder: m.migrationsFolder });
     sqlite.close();

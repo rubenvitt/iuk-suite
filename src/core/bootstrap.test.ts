@@ -7,6 +7,7 @@ import {
   migrateAllModules,
   shouldSeed,
   MODULE_MIGRATIONS,
+  CORE_MIGRATIONS,
   assertHostConfig,
   startBackgroundWork,
 } from "@/core/bootstrap";
@@ -81,6 +82,10 @@ describe("migrateAllModules", () => {
  */
 describe("Modul-Registrierung ist vollständig", () => {
   const MODULE_DIR = "src/app/m";
+  // Beide Listen: das Dreieck (Ordner, Eintrag, COPY) gilt für eine core-DB
+  // genauso. Ohne diese Zeile fiele die COPY-Zeile für `konto` lautlos unter
+  // den Tisch und das Prod-Image bräche erst beim Boot.
+  const ALLE_MIGRATIONEN = [...MODULE_MIGRATIONS, ...CORE_MIGRATIONS];
 
   it("jedes Modul mit _db/ steht in MODULE_MIGRATIONS", () => {
     const withDb = readdirSync(MODULE_DIR, { withFileTypes: true })
@@ -91,7 +96,7 @@ describe("Modul-Registrierung ist vollständig", () => {
   });
 
   it("jeder Migrations-Ordner existiert und hat ein Journal", () => {
-    for (const m of MODULE_MIGRATIONS) {
+    for (const m of ALLE_MIGRATIONEN) {
       expect(existsSync(m.migrationsFolder), `${m.key}: ${m.migrationsFolder}`).toBe(true);
       expect(existsSync(`${m.migrationsFolder}/meta/_journal.json`), m.key).toBe(true);
     }
@@ -101,7 +106,7 @@ describe("Modul-Registrierung ist vollständig", () => {
     // Ohne COPY fehlen die Migrationen im standalone-Image und der Boot
     // scheitert erst im Container, nicht im Build.
     const dockerfile = readFileSync("Dockerfile", "utf8");
-    for (const m of MODULE_MIGRATIONS) {
+    for (const m of ALLE_MIGRATIONEN) {
       expect(dockerfile, `Dockerfile: COPY für ${m.key} fehlt`).toContain(m.migrationsFolder);
     }
   });
