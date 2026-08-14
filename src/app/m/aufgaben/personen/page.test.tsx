@@ -119,3 +119,48 @@ describe("PersonenPage — Rollen-Gate (Spec §4: nur koordination verwaltet Per
     expect(document.body.textContent).toContain("Du bist noch nicht im Modul eingetragen.");
   });
 });
+
+/**
+ * DER NOTAUSGANG (Fix-Runde 1, Betreiberentscheidung 2026-08-14, Spec §4 "plus der Suite-Admin") —
+ * geprueft auf der Route (`canAdminModule`), nicht im Praedikat. Die Gruppe "dashboard-admins" ist
+ * der Vorgabewert von `suiteAdminGroup()` (`core/groups.ts`, ohne `ADMIN_GROUP` in der Testumgebung
+ * gesetzt); "iuk-aufgaben-koordination" ist die modul-eigene Admin-Gruppe aus der Registry
+ * (`core/registry.ts`s `adminGroups` fuer `aufgaben`) — `isModuleAdmin` laesst BEIDE durch.
+ */
+describe("PersonenPage — der Notausgang fuer den Suite-/Modul-Admin", () => {
+  it("Suite-Admin OHNE eigene personen-Zeile kommt hinein — genau der Erstbetriebs-Fall", async () => {
+    // Bewusst KEINE `personen`-Zeile fuer diese Sitzung: eine frische Datenbank kennt noch gar
+    // keine `koordination`-Person, und genau das soll dieser Notausgang loesen.
+    sitzung = { user: { id: "dev:admin@test", groups: ["dashboard-admins"] } };
+    await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
+    expect(query("h1").textContent).toBe("Personenverwaltung");
+  });
+
+  it("die modul-eigene Admin-Gruppe (iuk-aufgaben-koordination) kommt ebenso hinein", async () => {
+    sitzung = { user: { id: "dev:modadmin@test", groups: ["iuk-aufgaben-koordination"] } };
+    await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
+    expect(query("h1").textContent).toBe("Personenverwaltung");
+  });
+
+  /**
+   * DER AUSSPERR-FALL, WOERTLICH (Fix-Auftrag Punkt 4): die EINZIGE Koordinationsperson hat ihr
+   * eigenes `aktivBis` auf gestern gesetzt (versehentlich oder als Jahreswechsel) — `darfPersonenVerwalten`
+   * lehnt sie jetzt ab (`istAktiv` ist falsch). OHNE den Notausgang waere `/personen` ab hier fuer
+   * NIEMANDEN mehr erreichbar, auch nicht fuer den Betreiber. Traegt dieselbe Sitzung zusaetzlich die
+   * Suite-Admin-Gruppe, kommt sie trotzdem hinein.
+   */
+  it("Aussperr-Fall: die einzige (jetzt beendete) Koordinationsperson kommt als Suite-Admin trotzdem hinein", async () => {
+    const exRike = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2026-08-12" });
+    sitzung = { user: { id: exRike.sub, groups: ["dashboard-admins"] } };
+    await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
+    expect(query("h1").textContent).toBe("Personenverwaltung");
+  });
+
+  it("eine Rolle ohne jede Admin-Gruppe bleibt bei notFound(), auch mit anderen, fremden Gruppen", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    sitzung = { user: { id: malte.sub, groups: ["irgendeine-andere-gruppe"] } };
+    await expect(PersonenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      "NEXT_NOT_FOUND",
+    );
+  });
+});
