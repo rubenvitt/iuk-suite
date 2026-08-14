@@ -117,28 +117,41 @@ function socketGrund(fehler: unknown, host: string, port: number): string {
 }
 
 /**
+ * Node begrenzt jeden Timer intern auf 2^31−1 ms (Int32): darueber wird er
+ * NICHT abgelehnt, sondern still auf diesen Wert gekuerzt
+ * (`TimeoutOverflowWarning`, gemessen). Ein `timeoutMs` von z. B. `1e15` liesse
+ * `socket.setTimeout` also nach ~2^31 ms statt nach der gewuenschten Ewigkeit
+ * abbrechen — das Gegenteil einer Zeitgrenze, plus eine Prozesswarnung im Log.
+ * `grenzen.ts` setzt fuer `FILES_AV_TIMEOUT_MS` nur einen Mindest-, keinen
+ * Hoechstwert (vorbestehend, keine Verschlechterung durch T17) — `core/av` ist
+ * jetzt trotzdem der richtige Ort, diese Grenze fuer JEDEN Aufrufer zu ziehen.
+ */
+const TIMEOUT_MAX_MS = 2_147_483_647;
+
+/**
  * Eine kaputte Konfiguration ist der VIERTE Fall aus der Zusage oben — und
  * `core/av` kann sich hier NICHT auf einen Aufrufer verlassen, der schon
  * geprueft hat: `files` liest `host`/`port`/`timeoutMs` zwar aus `grenzen()`
  * (dort mit Mindest- und Hoechstwert geprueft), aber `aufgaben` (T18) liest
  * seine eigenen Zahlen, und ein DRITTER Aufrufer ist nicht ausgeschlossen. Ein
  * ungueltiger `port` (z. B. 70000 oder `NaN`) laesst `net.createConnection`
- * SYNCHRON mit `ERR_SOCKET_BAD_PORT` scheitern — innerhalb des
- * Promise-Executors wird daraus zwar keine uncaught exception, aber eine
- * REJECTION, und genau die darf laut Kopfkommentar nie entstehen: T18 muesste
- * sonst einen zweiten Fehlerweg kennen, obendrein einen, den `files` heute nur
- * durch die Sorgfalt von `grenzen()` nie sieht.
+ * SYNCHRON mit `ERR_SOCKET_BAD_PORT` scheitern, ein `host` mit einem NUL-Byte
+ * SYNCHRON mit `ERR_INVALID_ARG_VALUE` — innerhalb des Promise-Executors wird
+ * daraus zwar keine uncaught exception, aber eine REJECTION, und genau die
+ * darf laut Kopfkommentar nie entstehen: T18 muesste sonst einen zweiten
+ * Fehlerweg kennen, obendrein einen, den `files` heute nur durch die
+ * Sorgfalt von `grenzen()` nie sieht.
  */
 function konfigFehler(konfig: AvKonfig): string | null {
   const { host, port, timeoutMs } = konfig;
-  if (typeof host !== "string" || host.trim() === "") {
-    return "ungueltige Konfiguration: host fehlt oder ist leer";
+  if (typeof host !== "string" || host.trim() === "" || host.includes("\0")) {
+    return "ungueltige Konfiguration: host fehlt, ist leer oder enthaelt ein NUL-Byte";
   }
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     return `ungueltige Konfiguration: port=${port} liegt ausserhalb 1-65535`;
   }
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    return `ungueltige Konfiguration: timeoutMs=${timeoutMs} muss positiv sein`;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > TIMEOUT_MAX_MS) {
+    return `ungueltige Konfiguration: timeoutMs=${timeoutMs} muss zwischen 1 und ${TIMEOUT_MAX_MS} liegen`;
   }
   return null;
 }
@@ -150,10 +163,20 @@ function konfigFehler(konfig: AvKonfig): string | null {
  * statt die Bytes ein zweites Mal ueber einen Socket zu schicken. Der Pfad
  * kommt vom Aufrufer — welche Datei das ist und wo sie liegt, weiss `core/av`
  * nicht und muss es nicht wissen.
+ *
+ * Ein Konfigurationsfehler wird SOFORT geloggt, nicht erst vom Aufrufer nach
+ * Wiederholungsversuchen: `files` loggt einen Konfigurationsfehler VOR jeder
+ * Verbindung schon selbst laut (siehe `_lib/av.ts`), aber ein Fehler, der erst
+ * hier (in einer bereits zusammengesetzten `konfig`) auffaellt, ist per
+ * Definition nicht voruebergehend — ein Aufrufer, der ihn wie einen
+ * Netzwerkfehler mehrfach wiederholt und erst danach loggt (`_db/schema.ts`
+ * kennt keine `av_grund`-Spalte), liesse den Betreiber unnoetig warten. Kein
+ * Modul-Praefix: `core/av` kennt weder `files` noch `aufgaben`.
  */
 export async function scanne(pfad: string, konfig: AvKonfig): Promise<AvErgebnis> {
   const fehler = konfigFehler(konfig);
   if (fehler !== null) {
+    console.error(`[core/av] Scan nicht moeglich, kaputte Konfiguration: ${fehler}`);
     return { art: "error", grund: fehler };
   }
 
@@ -174,7 +197,7 @@ export async function scanne(pfad: string, konfig: AvKonfig): Promise<AvErgebnis
     // aufgeloest. Umgekehrt braeuchte `abschluss` sonst ein `let uhr` mit
     // Undefined-Zweig, den niemand erreichen kann.
     const uhr = setTimeout(() => {
-      abschluss({ art: "error", grund: `Zeitgrenze von ${timeoutMs} ms ueberschritten` });
+      abschluss({ art: "error", grund: `Zeitgrenze von ${timeoutMs} ms überschritten` });
     }, timeoutMs);
 
     const abschluss = (ergebnis: AvErgebnis): void => {
@@ -203,7 +226,7 @@ export async function scanne(pfad: string, konfig: AvKonfig): Promise<AvErgebnis
     });
 
     socket.on("timeout", () => {
-      abschluss({ art: "error", grund: `Zeitgrenze von ${timeoutMs} ms ueberschritten (untaetig)` });
+      abschluss({ art: "error", grund: `Zeitgrenze von ${timeoutMs} ms überschritten (untätig)` });
     });
 
     socket.on("error", (fehler: unknown) => {
@@ -220,7 +243,7 @@ export async function scanne(pfad: string, konfig: AvKonfig): Promise<AvErgebnis
         grund:
           puffer === ""
             ? `Verbindung zu ${host}:${port} ohne Antwort geschlossen`
-            : `unvollstaendige Antwort des Scanners: ${puffer}`,
+            : `unvollständige Antwort des Scanners: ${puffer}`,
       });
     });
   });

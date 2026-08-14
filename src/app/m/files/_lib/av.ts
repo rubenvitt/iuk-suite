@@ -24,8 +24,6 @@ import { scanne as scanneKern, type AvErgebnis } from "@/core/av/scanner";
 import { grenzen, type Grenzen } from "./grenzen";
 import { scanPfad, type BlobZiel } from "./storage";
 
-export type { AvErgebnis } from "@/core/av/scanner";
-
 /**
  * EINE Konstante für BEIDE Tabellen (`share_files` und `inbox_files`, §4.6).
  * Zwei Listen wären zwei Statusmodelle, und das ist der belegte Preis von E18:

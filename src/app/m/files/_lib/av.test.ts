@@ -29,14 +29,17 @@
  * Seit T17 ist das clamd-PROTOKOLL selbst (die vier Bauregeln, deren
  * Quelltext-Zusicherung, und der prozessweite Netzhaken aus §6.4) geteilter
  * Suite-Code in `@/core/av/scanner`, mit eigener Testdatei
- * `src/core/av/scanner.test.ts` — eine zweite Testdatei fuer denselben
- * Vertrag wollen wir gerade NICHT. Diese Suite hier bleibt: sie pruefte und
- * prueft weiter die `files`-eigene Haelfte, die durch den Umzug UNVERAENDERT
- * bleiben muss — Konfiguration aus `_lib/grenzen.ts`, Pfadaufloesung ueber
- * `_lib/storage.ts` und die Weiterleitung an den geteilten Kern —, sowie das
- * fuenfwertige Statusvokabular und die Warteschlange (T17-Aufteilung: nur das
- * Protokoll wandert, nicht die Warteschlange, denn die IST die Datenbank von
- * `files`).
+ * `src/core/av/scanner.test.ts`. Dass die dortigen Protokollfaelle (Transport,
+ * Auswertung, jeder Ausgang settelt) hier nahezu wortgleich wieder auftauchen,
+ * ist KEINE Doppelung, sondern Absicht — der Brief verlangt ausdruecklich, dass
+ * `files` seine Zusicherungen ohne Anpassung behaelt: dort ist es ein
+ * UNIT-Test des Protokolls selbst (`scanne(pfad, konfig)`), hier ein
+ * INTEGRATIONS-Test der Komposition aus `_lib/grenzen.ts` (Konfiguration),
+ * `_lib/storage.ts` (Pfadaufloesung) und dem geteilten Kern — genau der
+ * Verdrahtung, die ein reiner Protokoll-Test nicht sehen kann. Diese Suite
+ * prueft ausserdem weiter das fuenfwertige Statusvokabular und die
+ * Warteschlange (T17-Aufteilung: nur das Protokoll wandert, nicht die
+ * Warteschlange, denn die IST die Datenbank von `files`).
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import net from "node:net";
@@ -454,6 +457,21 @@ describe("AV_STATUS und istFreigegeben — EINE Konstante, EINE Freigabeprüfung
     // hier auf, eine einzelne clean-Zeile saehe ihn nicht.
     const frei = AV_STATUS.filter((status: AvStatus) => istFreigegeben(status));
     expect(frei).toEqual(["clean"]);
+  });
+});
+
+describe("Quelltext-Zusicherung: kein `throw` in `av.ts` (Wrapper UND Warteschlange)", () => {
+  // Vor T17 ankerte diese Zusicherung am ersten `socket.on` in dieser Datei und
+  // verbot ein `throw` im GANZEN Rest — also auch in der Warteschlange
+  // (`arbeiteAvWarteschlangeAb`, die Timer in `starteAvArbeiter`, `reiheAvEin`).
+  // `core/av/scanner.test.ts` prueft diese Regel jetzt fuer den Socket-Automaten
+  // selbst, aber nur fuer `scanner.ts` — die Deckung der Warteschlange war ein
+  // Nebeneffekt der alten Dateiaufteilung und ist mit ihr verschwunden. Diese
+  // Zeile holt sie zurueck: EIN pauschales `\bthrow\b`-Verbot ueber die GANZE
+  // Datei, unabhaengig von Socket-Handlern (die es hier nicht mehr gibt).
+  it("`av.ts` enthaelt an keiner Stelle das Wort `throw`", () => {
+    const quelle = readFileSync(resolve(HIER, "av.ts"), "utf8");
+    expect(quelle).not.toMatch(/\bthrow\b/);
   });
 });
 

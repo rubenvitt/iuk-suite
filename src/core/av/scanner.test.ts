@@ -36,7 +36,15 @@
  *
  * Warum der Netzhaken aus `src/instrumentation.ts` hier mitgeprueft wird: er ist
  * die ZWEITE Linie desselben Vertrags (§6.4) und gehoert demselben Modul. Eine
- * eigene Testdatei dafuer waere eine zweite Stelle mit derselben Aussage.
+ * DRITTE Testdatei nur fuer ihn waere eine dritte Stelle mit demselben Fokus,
+ * ohne den restlichen Protokoll-Vertrag daneben, den diese Datei ohnehin
+ * prueft.
+ *
+ * `src/app/m/files/_lib/av.test.ts` prueft nahezu dieselben Faelle noch
+ * einmal — das ist KEINE Doppelung, sondern Absicht (siehe dortiger
+ * Kopfkommentar): dort als Integrationstest der `files`-Komposition
+ * (`grenzen()` + `storage.ts` + dieser Kern), hier als Unit-Test des
+ * Protokolls selbst.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import net from "node:net";
@@ -327,11 +335,12 @@ describe("scanne — eine kaputte Konfiguration bleibt ein Ergebnis, keine Rejec
   // `files` liest zwar aus `grenzen()` (dort mit Mindest-/Hoechstwert
   // geprueft), aber ein anderer Aufrufer (T18) muss das nicht tun. Ohne diese
   // Pruefung wirft `net.createConnection` bei einem ungueltigen Port SYNCHRON
-  // `ERR_SOCKET_BAD_PORT` — innerhalb des Promise-Executors wird daraus keine
-  // uncaught exception, aber eine REJECTION, und die darf laut Kopfkommentar
-  // nie entstehen.
+  // `ERR_SOCKET_BAD_PORT` (bzw. bei einem NUL-Byte im Host `ERR_INVALID_ARG_VALUE`)
+  // — innerhalb des Promise-Executors wird daraus keine uncaught exception,
+  // aber eine REJECTION, und die darf laut Kopfkommentar nie entstehen.
 
-  it("ein Port ausserhalb 1-65535 settelt als error, NICHT als Rejection", async () => {
+  it("ein Port ausserhalb 1-65535 settelt als error, NICHT als Rejection — und loggt SOFORT laut", async () => {
+    const laut = vi.spyOn(console, "error").mockImplementation(() => {});
     let rejected = false;
     const ergebnis = await scanne(PFAD, { host: "127.0.0.1", port: 70000, timeoutMs: 2000 }).catch(
       () => {
@@ -343,10 +352,14 @@ describe("scanne — eine kaputte Konfiguration bleibt ein Ergebnis, keine Rejec
     expect(rejected).toBe(false);
     expect(ergebnis).toMatchObject({ art: "error" });
     expect((ergebnis as { grund: string }).grund).toContain("port");
+    // SOFORT, nicht erst nach Wiederholungsversuchen eines Aufrufers: ein
+    // Konfigurationsfehler ist per Definition nicht voruebergehend.
+    expect(laut).toHaveBeenCalled();
     expect(ausfaelle).toEqual([]);
   });
 
   it("ein leerer host settelt als error, NICHT als Rejection", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const ergebnis = await scanne(PFAD, { host: "", port: 3310, timeoutMs: 2000 });
 
     expect(ergebnis).toMatchObject({ art: "error" });
@@ -354,8 +367,38 @@ describe("scanne — eine kaputte Konfiguration bleibt ein Ergebnis, keine Rejec
     expect(ausfaelle).toEqual([]);
   });
 
+  it("ein Host mit NUL-Byte settelt als error, NICHT als Rejection", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    let rejected = false;
+    const ergebnis = await scanne(PFAD, { host: "127.0.0.1\0evil", port: 3310, timeoutMs: 2000 }).catch(
+      () => {
+        rejected = true;
+        return undefined;
+      },
+    );
+
+    expect(rejected).toBe(false);
+    expect(ergebnis).toMatchObject({ art: "error" });
+    expect((ergebnis as { grund: string }).grund).toContain("host");
+    expect(ausfaelle).toEqual([]);
+  });
+
   it("ein nicht-positives timeoutMs settelt als error, NICHT als Rejection", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const ergebnis = await scanne(PFAD, { host: "127.0.0.1", port: 3310, timeoutMs: 0 });
+
+    expect(ergebnis).toMatchObject({ art: "error" });
+    expect((ergebnis as { grund: string }).grund).toContain("timeoutMs");
+    expect(ausfaelle).toEqual([]);
+  });
+
+  it("ein timeoutMs ueber der Node-Timer-Grenze (2^31-1 ms) settelt als error", async () => {
+    // Node kuerzt einen zu grossen Timer STILL auf ~2^31 ms statt ihn
+    // abzulehnen (gemessen: TimeoutOverflowWarning) — das Gegenteil der
+    // gewuenschten Zeitgrenze. `konfigFehler` faengt das ab, bevor ein Timer
+    // je gesetzt wird.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const ergebnis = await scanne(PFAD, { host: "127.0.0.1", port: 3310, timeoutMs: 1e15 });
 
     expect(ergebnis).toMatchObject({ art: "error" });
     expect((ergebnis as { grund: string }).grund).toContain("timeoutMs");
