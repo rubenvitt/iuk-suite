@@ -29,8 +29,13 @@ export async function register(): Promise<void> {
    * supported in the Edge Runtime" samt „Ecmascript file had an error" — der
    * Node-Pfad lief trotzdem, also ist es eine Warnung, die niemand mehr
    * zuordnet. Dasselbe Muster wie beim Bootstrap-Import darunter.
+   *
+   * Der Haken selbst liegt seit T17 in `@/core/av/scanner` (geteilter
+   * Suite-Code, zweiter Nutznieser `aufgaben`) — der Grund fuer den
+   * dynamischen Import haengt an DIESER Datei, nicht am Ablageort des Hakens,
+   * und gilt fuer sein neues Zuhause unveraendert weiter.
    */
-  const { registriereNetzhaken } = await import("@/app/m/files/_lib/av");
+  const { registriereNetzhaken } = await import("@/core/av/scanner");
   registriereNetzhaken();
 
   const {

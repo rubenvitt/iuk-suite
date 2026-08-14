@@ -26,9 +26,17 @@
  *   `{art:"error"}`, das sofort zurueckkommt, von der Zusage nicht zu
  *   unterscheiden.
  *
- * Warum der Netzhaken aus `src/instrumentation.ts` hier mitgeprueft wird: er ist
- * die ZWEITE Linie desselben Vertrags (§6.4) und gehoert demselben Task. Eine
- * eigene Testdatei dafuer waere eine zweite Stelle mit derselben Aussage.
+ * Seit T17 ist das clamd-PROTOKOLL selbst (die vier Bauregeln, deren
+ * Quelltext-Zusicherung, und der prozessweite Netzhaken aus §6.4) geteilter
+ * Suite-Code in `@/core/av/scanner`, mit eigener Testdatei
+ * `src/core/av/scanner.test.ts` — eine zweite Testdatei fuer denselben
+ * Vertrag wollen wir gerade NICHT. Diese Suite hier bleibt: sie pruefte und
+ * prueft weiter die `files`-eigene Haelfte, die durch den Umzug UNVERAENDERT
+ * bleiben muss — Konfiguration aus `_lib/grenzen.ts`, Pfadaufloesung ueber
+ * `_lib/storage.ts` und die Weiterleitung an den geteilten Kern —, sowie das
+ * fuenfwertige Statusvokabular und die Warteschlange (T17-Aufteilung: nur das
+ * Protokoll wandert, nicht die Warteschlange, denn die IST die Datenbank von
+ * `files`).
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import net from "node:net";
@@ -449,22 +457,6 @@ describe("AV_STATUS und istFreigegeben — EINE Konstante, EINE Freigabeprüfung
   });
 });
 
-describe("Quelltext-Zusicherung: kein `throw` in einem Socket-Handler", () => {
-  const quelle = readFileSync(resolve(HIER, "av.ts"), "utf8");
-
-  it("es gibt ueberhaupt Socket-Handler — sonst pruefte die Zeile darunter nichts", () => {
-    // Ohne diese Vorbedingung ist die Negativ-Zusicherung vakuum-gruen: sie
-    // waere auch dann erfuellt, wenn die Verbindungsvariable anders heisst und
-    // der Scan schlicht nichts findet.
-    const treffer = quelle.match(/socket\.on\(/g) ?? [];
-    expect(treffer.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it("nach dem ersten Socket-Handler steht kein `throw` in der Datei", () => {
-    expect(quelle).not.toMatch(/socket\.on\([^)]*\)[\s\S]*?throw/);
-  });
-});
-
 describe("scripts/fake-clamd.mjs — EIN Werkzeug fuer Vitest, `pnpm dev` und Playwright (§6.8)", () => {
   let kind: ChildProcessWithoutNullStreams;
   let port = 0;
@@ -634,102 +626,6 @@ describe("scripts/fake-clamd.mjs — EIN Werkzeug fuer Vitest, `pnpm dev` und Pl
     const antwort = await verbinde(`zSCAN ${pfad}\0`, 2);
 
     expect(antwort).toBe(`${pfad}: OK\0`);
-  });
-});
-
-describe("Netzhaken: prozessweite Zweitlinie, gerufen aus src/instrumentation.ts (§6.4)", () => {
-  type Zuhoerer = (fehler: unknown) => void;
-  const eigene: Array<{ ereignis: "uncaughtException" | "unhandledRejection"; zuhoerer: Zuhoerer }> =
-    [];
-
-  async function frischRegistrieren() {
-    // Frisches Modul, damit die Idempotenz-Wache nicht aus einer frueheren
-    // Zeile schon gesetzt ist.
-    vi.resetModules();
-    const modul = await import("./av");
-    const vorherU = process.listeners("uncaughtException").length;
-    const vorherR = process.listeners("unhandledRejection").length;
-    modul.registriereNetzhaken();
-    const uncaught = process.listeners("uncaughtException").at(-1) as (f: unknown) => void;
-    const rejection = process.listeners("unhandledRejection").at(-1) as (f: unknown) => void;
-    eigene.push({ ereignis: "uncaughtException", zuhoerer: uncaught });
-    eigene.push({ ereignis: "unhandledRejection", zuhoerer: rejection });
-    return {
-      modul,
-      uncaught,
-      rejection,
-      zuwachsU: process.listeners("uncaughtException").length - vorherU,
-      zuwachsR: process.listeners("unhandledRejection").length - vorherR,
-    };
-  }
-
-  afterEach(() => {
-    for (const { ereignis, zuhoerer } of eigene) process.off(ereignis, zuhoerer);
-    eigene.length = 0;
-  });
-
-  it("unhandledRejection: loggt mit Markierung und beendet NICHT", async () => {
-    const laut = vi.spyOn(console, "error").mockImplementation(() => {});
-    const ende = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
-    const { rejection } = await frischRegistrieren();
-
-    rejection(new Error("ein verlorenes Promise"));
-
-    expect(laut.mock.calls.flat().join(" ")).toContain("[suite] unhandledRejection");
-    // Ein `exit` hier machte aus einem verlorenen Promise einen Ausfall des
-    // ganzen Monolithen — die Umkehrung des Zwecks.
-    expect(ende).not.toHaveBeenCalled();
-  });
-
-  it("uncaughtException: loggt mit Markierung und beendet dann mit 1", async () => {
-    const laut = vi.spyOn(console, "error").mockImplementation(() => {});
-    const ende = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
-    const { uncaught } = await frischRegistrieren();
-
-    uncaught(new Error("ein Wurf aus dem Nichts"));
-
-    expect(laut.mock.calls.flat().join(" ")).toContain("[suite] uncaughtException");
-    // `restart: unless-stopped` (compose.yaml:4) ist der ehrlichere Weg als ein
-    // Prozess in undefiniertem Zustand.
-    expect(ende).toHaveBeenCalledWith(1);
-  });
-
-  it("zweimaliges Registrieren haengt keine zweiten Zuhoerer an", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const { modul, zuwachsU, zuwachsR } = await frischRegistrieren();
-    expect(zuwachsU).toBe(1);
-    expect(zuwachsR).toBe(1);
-
-    const vorherU = process.listeners("uncaughtException").length;
-    // `register()` laeuft unter HMR mehr als einmal; ohne Wache stuenden dann
-    // zwei Zuhoerer und der Prozess loggte doppelt und beendete doppelt.
-    modul.registriereNetzhaken();
-
-    expect(process.listeners("uncaughtException").length).toBe(vorherU);
-  });
-
-  it("src/instrumentation.ts ruft den Haken im Node-Zweig von register() — per DYNAMISCHEM Import", () => {
-    // Der Haken lebt in `_lib/av.ts` und nicht in `instrumentation.ts`, und das
-    // ist keine Bequemlichkeit: `instrumentation.ts` wird auch fuer das
-    // EDGE-Bundle uebersetzt, und der Bundler sieht `process.on` statisch —
-    // egal welcher Runtime-Guard davorsteht. Gemessen meldete `pnpm dev` sonst
-    // bei jedem Boot „A Node.js API is used (process.on) which is not supported
-    // in the Edge Runtime" samt „Ecmascript file had an error", waehrend der
-    // Node-Pfad funktionierte. Eine Warnung, die niemand mehr zuordnet.
-    //
-    // Ein Quelltext-Scan ist hier die ehrliche Ebene: `register()` auszufuehren
-    // hiesse, Migrationen und Host-Pruefung mitzustarten. Dass der Haken beim
-    // ECHTEN Boot greift, hat der Durchlauf mit `pnpm dev` belegt.
-    const quelle = readFileSync(resolve(REPO, "src", "instrumentation.ts"), "utf8");
-
-    expect(quelle).toMatch(/await import\(\s*"@\/app\/m\/files\/_lib\/av"\s*\)/);
-    expect(quelle).toMatch(/registriereNetzhaken\(\)/);
-    // Kein `process.on` in dieser Datei — genau das war der Befund.
-    expect(quelle).not.toMatch(/process\.on\(/);
-    // Und der Aufruf steht NACH dem Runtime-Guard: davor liefe er auch im Edge.
-    const guard = quelle.indexOf('NEXT_RUNTIME !== "nodejs"');
-    expect(guard).toBeGreaterThanOrEqual(0);
-    expect(quelle.indexOf("registriereNetzhaken()")).toBeGreaterThan(guard);
   });
 });
 

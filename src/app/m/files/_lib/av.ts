@@ -1,30 +1,15 @@
 /**
  * Der Scanner-Vertrag des Moduls `files` (Spec §6.2–§6.4).
  *
- * Zusage, absolut: `scanne(ziel)` settelt IMMER und GENAU EINMAL und wirft nie
- * asynchron. Ein Protokollfehler, eine Zeitüberschreitung, ein nicht
- * erreichbarer Scanner und eine kaputte Konfiguration sind alle dasselbe:
- * ein RÜCKGABEWERT `{art:"error"}`.
- *
- * Der belegte Anlass ist `drop`: sein `parseResponse` wirft bei jeder
- * unerwarteten Antwort, und der Wurf passiert im `socket.on('end')`-Callback
- * (`antivirus.js:11-26,56-58`) — also ausserhalb der synchronen Ausführung des
- * Promise-Konstruktors. Daraus wird KEINE Rejection, sondern eine uncaught
- * exception; das Promise settelt nie, und im Monolithen reisst das `portal`,
- * `qr` und `feedback` mit. Gemessen: Exit-Code 1.
- *
- * Deshalb gelten hier vier Bauregeln, und alle vier stehen bewusst VOR dem
- * ersten Ereignis-Zuhörer: `av.test.ts` scannt den Quelltext daraufhin, dass ab
- * dem ersten Zuhörer das Wort „wirf" (englisch) nirgends mehr vorkommt — und
- * ein Scan liest Kommentare mit, also gilt die Regel auch für diese Erklärung:
- *
- * 1. Es gibt genau EIN `abschluss(ergebnis)`, durch ein `bereits`-Flag
- *    idempotent, und ALLE Ereignisse laufen durch ihn (`error`, `close`,
- *    `timeout`, Zeitgrenze, Parse-Ergebnis).
- * 2. Kein Handler wirft. Ein Parse-Fehler ist ein Rückgabewert.
- * 3. Eine harte Zeitgrenze (`FILES_AV_TIMEOUT_MS`) läuft unabhängig vom Socket.
- * 4. `socket.destroy()` in JEDEM Ausgang — sonst leckt der Descriptor. Zeuge
- *    dafür ist in der Testsuite der Server, nicht das Promise.
+ * Das clamd-PROTOKOLL selbst — `AvErgebnis`, die Auswertung der Antwort, der
+ * Socket-Automat mit seinen vier Bauregeln und der prozessweite Netzhaken —
+ * ist seit T17 geteilter Suite-Code in `@/core/av/scanner` (zweiter belegter
+ * Nutznieser: `aufgaben`, T18). Diese Datei bleibt der `files`-eigene Teil:
+ * die Konfiguration aus `_lib/grenzen.ts`, die Pfadauflösung über
+ * `_lib/storage.ts`, das FÜNFWERTIGE Statusvokabular und die Warteschlange
+ * (siehe unten). `core/av` kennt keine Umgebungsvariable und keine
+ * Modulgrenzen — die Zahlen kommen bei jedem Aufruf aus `grenzen()` und
+ * werden hereingereicht, nie ein zweites Mal dort gelesen.
  *
  * Was hier NICHT existiert und nicht entstehen darf: ein fail-open-Schalter.
  * `istFreigegeben` kennt einen Wert. Drops `AV_FAIL_OPEN` war in beiden
@@ -32,11 +17,14 @@
  * erreicht wurde — ein Schalter, der Sicherheit verspricht und keine liefert,
  * ist schlimmer als keiner (§6.3).
  */
-import net from "node:net";
 import { and, eq, isNotNull } from "drizzle-orm";
+
+import { scanne as scanneKern, type AvErgebnis } from "@/core/av/scanner";
 
 import { grenzen, type Grenzen } from "./grenzen";
 import { scanPfad, type BlobZiel } from "./storage";
+
+export type { AvErgebnis } from "@/core/av/scanner";
 
 /**
  * EINE Konstante für BEIDE Tabellen (`share_files` und `inbox_files`, §4.6).
@@ -60,108 +48,9 @@ export function istFreigegeben(status: AvStatus): boolean {
 }
 
 /**
- * Einmal je Prozess, nicht je Aufruf: unter HMR läuft `register()` mehr als
- * einmal, und zwei Zuhörer loggten doppelt und beendeten doppelt.
- */
-let netzhakenGesetzt = false;
-
-/**
- * Der prozessweite Netzhaken (§6.4) — die ZWEITE Linie hinter dem Vertrag
- * darunter. Gerufen wird er aus `src/instrumentation.ts`, wo `register()` einmal
- * beim Boot läuft.
- *
- * Warum er HIER liegt und nicht dort: `instrumentation.ts` wird auch für das
- * Edge-Bundle übersetzt, und der Bundler sieht `process.on` statisch — mit
- * Runtime-Guard davor oder nicht. Gemessen war die Folge eine
- * Edge-Runtime-Warnung bei jedem `pnpm dev`. Von hier holt sie ein dynamischer
- * Import, genau wie `core/bootstrap`.
- *
- * Die beiden Ereignisse werden ABSICHTLICH verschieden behandelt:
- * `unhandledRejection` loggt und beendet NICHT (ein verlorenes Promise ist kein
- * Grund, die ganze Suite abzuschalten), `uncaughtException` loggt und beendet
- * dann mit 1 — ein unterdrückter uncaughtException lässt den Prozess in einem
- * undefinierten Zustand, und `restart: unless-stopped` (`compose.yaml:4`) ist
- * der ehrlichere Weg.
- *
- * Tragend ist `scanne` selbst; dieser Haken ist das Netz darunter und darf nicht
- * als Ersatz gelesen werden.
- */
-export function registriereNetzhaken(): void {
-  if (netzhakenGesetzt) return;
-  netzhakenGesetzt = true;
-  process.on("unhandledRejection", (grund) => {
-    console.error("[suite] unhandledRejection — der Prozess läuft weiter:", grund);
-  });
-  process.on("uncaughtException", (fehler) => {
-    console.error("[suite] uncaughtException — der Prozess wird beendet:", fehler);
-    process.exit(1);
-  });
-}
-
-export type AvErgebnis =
-  | { art: "clean" }
-  | { art: "infected"; signatur: string }
-  | { art: "error"; grund: string };
-
-/** Der Rahmen des clamd-Protokolls: `z`-Präfix beim Kommando, NUL als Ende. */
-const NUL = "\0";
-
-/**
- * Die Auswertung nach §6.3.3 — und ausdrücklich OHNE Verlass auf ein
- * `stream:`-Präfix. Gemessen antwortet eine Übergrösse
- * `INSTREAM size limit exceeded. ERROR`, also ohne Präfix; wer auf das Präfix
- * prüft, hält diese Antwort für unbekannt und (schlimmer) eine Antwort mit
- * Präfix für vertrauenswürdig.
- *
- * Reihenfolge ist Absicht: erst ` FOUND`, dann das exakte `<irgendwas>: OK`,
- * und alles andere ist `error` mit der ROHEN Antwort als Grund. Ein blankes
- * `OK` ohne Präfix ist damit kein Freibrief — die Spec sagt „genau
- * `stream: OK` bzw. `<pfad>: OK`", und die Lücke wäre eine Freigabe durch
- * Zufall.
- */
-function werteAntwortAus(roh: string): AvErgebnis {
-  const antwort = roh.trim();
-  const FUND = " FOUND";
-  if (antwort.endsWith(FUND)) {
-    const davor = antwort.slice(0, -FUND.length);
-    // Das Präfix ist `<pfad>: ` oder `stream: `. Der Pfad besteht aus IDs und
-    // enthält kein `: ` (siehe `_lib/storage.ts`), deshalb ist die LETZTE
-    // Vorkommnis die Trennstelle und die Signatur der Rest.
-    const trenner = davor.lastIndexOf(": ");
-    const signatur = (trenner >= 0 ? davor.slice(trenner + 2) : davor).trim();
-    return { art: "infected", signatur: signatur === "" ? davor.trim() : signatur };
-  }
-  if (/^.+: OK$/.test(antwort)) {
-    return { art: "clean" };
-  }
-  return { art: "error", grund: antwort === "" ? "leere Antwort des Scanners" : antwort };
-}
-
-function errnoCode(fehler: unknown): string | undefined {
-  if (typeof fehler === "object" && fehler !== null && "code" in fehler) {
-    const code = (fehler as NodeJS.ErrnoException).code;
-    return typeof code === "string" ? code : undefined;
-  }
-  return undefined;
-}
-
-/**
- * Der Grund für einen Socket-Fehler wird SELBST gebaut, nicht aus
- * `fehler.message` abgeschrieben: §6.8 sagt wörtlich `ECONNREFUSED <host>:<port>`
- * zu, und dieser String ist der Unterschied zwischen „der Scanner ist kaputt"
- * und „`pnpm dev:av` vergessen". Node schreibt ihn heute zufällig ähnlich; das
- * ist eine Bibliotheksmeldung und keine Zusage.
- */
-function socketGrund(fehler: unknown, host: string, port: number): string {
-  const code = errnoCode(fehler);
-  const adresse = `${host}:${port}`;
-  if (code !== undefined) return `${code} ${adresse}`;
-  const botschaft = fehler instanceof Error ? fehler.message : String(fehler);
-  return `Socketfehler ${adresse}: ${botschaft}`;
-}
-
-/**
- * Settelt IMMER, genau EINMAL. Wirft nie asynchron.
+ * Settelt IMMER, genau EINMAL. Wirft nie asynchron — die Zusage stammt aus
+ * `@/core/av/scanner`, das das Protokoll fuehrt; hier wird nur die Konfiguration
+ * beschafft und der Pfad aufgeloest, bevor eine Verbindung entsteht.
  *
  * Transport ist `zSCAN <pfad>` (kein INSTREAM): clamd liest die Datei selbst,
  * statt die Bytes ein zweites Mal über einen Socket zu schicken. Der Pfad kommt
@@ -194,71 +83,7 @@ export async function scanne(ziel: BlobZiel): Promise<AvErgebnis> {
     return { art: "error", grund };
   }
 
-  return new Promise<AvErgebnis>((erfuelle) => {
-    let bereits = false;
-    let puffer = "";
-
-    const socket = net.createConnection({ host, port });
-
-    // Die harte Zeitgrenze läuft am Socket VORBEI: `socket.setTimeout` ist eine
-    // Untätigkeitsgrenze und wird von jedem einzelnen Byte zurückgesetzt — ein
-    // Scanner, der langsam Unsinn tröpfelt, käme damit nie an ein Ende.
-    //
-    // Sie steht VOR `abschluss`, obwohl sie ihn ruft: ein Timer feuert nie im
-    // selben Zug wie seine Registrierung, also ist der Zugriff zur Laufzeit
-    // aufgelöst. Umgekehrt bräuchte `abschluss` sonst ein `let uhr` mit
-    // Undefined-Zweig, den niemand erreichen kann.
-    const uhr = setTimeout(() => {
-      abschluss({ art: "error", grund: `Zeitgrenze von ${timeoutMs} ms überschritten` });
-    }, timeoutMs);
-
-    const abschluss = (ergebnis: AvErgebnis): void => {
-      if (bereits) return;
-      bereits = true;
-      clearTimeout(uhr);
-      socket.destroy();
-      erfuelle(ergebnis);
-    };
-
-    // Zusätzlich die Untätigkeitsgrenze: sie beendet den häufigen Fall (Scanner
-    // nimmt an und schweigt) am Socket selbst, statt ihn nur auszusitzen.
-    socket.setTimeout(timeoutMs);
-
-    socket.on("connect", () => {
-      socket.write(`zSCAN ${pfad}${NUL}`);
-    });
-
-    socket.on("data", (stueck: Buffer) => {
-      puffer += stueck.toString("utf8");
-      const ende = puffer.indexOf(NUL);
-      // Die ERSTE vollständige Antwort entscheidet. Erst auf `end` über den
-      // gesamten Puffer auszuwerten hiesse: ein Scanner, der zweimal redet,
-      // bestimmt das Ergebnis mit seinem letzten Wort.
-      if (ende >= 0) abschluss(werteAntwortAus(puffer.slice(0, ende)));
-    });
-
-    socket.on("timeout", () => {
-      abschluss({ art: "error", grund: `Zeitgrenze von ${timeoutMs} ms überschritten (untätig)` });
-    });
-
-    socket.on("error", (fehler: unknown) => {
-      // Ohne diesen Zuhörer ist ein Socket-`error` eine uncaught exception —
-      // auch der, der nach einer bereits ausgewerteten Antwort eintrifft (RST).
-      abschluss({ art: "error", grund: socketGrund(fehler, host, port) });
-    });
-
-    socket.on("close", () => {
-      // Der Fall „Antwort ohne NUL, dann Abbruch". Der Grund nennt das
-      // Empfangene: „error" ohne Anhaltspunkt wäre für den Betreiber wertlos.
-      abschluss({
-        art: "error",
-        grund:
-          puffer === ""
-            ? `Verbindung zu ${host}:${port} ohne Antwort geschlossen`
-            : `unvollständige Antwort des Scanners: ${puffer}`,
-      });
-    });
-  });
+  return scanneKern(pfad, { host, port, timeoutMs });
 }
 
 // ---------------------------------------------------------------------------
