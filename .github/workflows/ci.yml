@@ -5,6 +5,19 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Ein E2E-Fehlschlag, der lokal nicht faellt, braucht zum Nachstellen genau die
+  # Bedingung, die ihn ausloest: kaltes `.next` auf einem kleinen Runner (siehe
+  # den Kommentar an `retries` in `playwright.config.ts`). Ohne
+  # diesen Ausloeser geht das nur ueber einen Push auf `main` oder einen offenen
+  # PR — ein blosser Branch-Push startet gar nichts.
+  #
+  # ⚠️ WIRKT ERST NACH DEM MERGE, UND ZWAR NUR HIER NACH VORNE: GitHub bietet
+  # `workflow_dispatch` ausschliesslich an, wenn der Ausloeser im Workflow des
+  # DEFAULT-BRANCHES steht — auf dem Zweig, der ihn einfuehrt, ist er noch nicht
+  # aufrufbar (nachgeprueft am 2026-08-14: `gh workflow run ci.yml --ref <zweig>`
+  # antwortet HTTP 422). Fuer die Untersuchung, die ihn veranlasst hat, traegt
+  # deshalb der `pull_request`-Ausloeser oben; der Nutzen liegt bei der naechsten.
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -64,6 +77,40 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e --shard=${{ matrix.shard }}/3
+      # OHNE DIESEN SCHRITT IST DER EINZIGE BELEG EINES ROTEN E2E-LAUFS WEG.
+      # Playwright legt zu jedem Fehlschlag `test-results/<test>/error-context.md`
+      # an (der `ariaSnapshot` der Seite im Moment des Scheiterns) und ab dem
+      # ersten Wiederholungsversuch eine `trace.zip`. Beide liegen nur im
+      # Arbeitsverzeichnis des Runners und sind mit ihm verschwunden — im Log
+      # steht danach nur noch die gescheiterte Zusicherung. Genau das ist am
+      # 2026-08-14 passiert (Lauf 31794072467): ein Klick auf einen `next/link`
+      # liess die Adresse 30 s lang unveraendert, dreimal hintereinander — die
+      # zwei Wiederholungen unten fingen es also NICHT. Der unveraenderte Rerun
+      # desselben Commits lief spaeter durch; die Stoerung sass im Zustand des
+      # Runners, nicht im Code. Nur war das erst nach einem halben Tag
+      # Ausschlussarbeit zu sehen, weil der Zustand der Seite fehlte.
+      #
+      # ⚠️ DER NAME MUSS DIE SHARD-NUMMER TRAGEN: `upload-artifact@v4` weist
+      # einen zweiten Upload unter bereits vergebenem Namen mit HTTP 409 ab —
+      # bei drei Shards waere ein fester Name also nicht nur mehrdeutig, er
+      # liesse zwei der drei Uploads scheitern, und zwar in genau dem Lauf, in
+      # dem man die Artefakte braucht.
+      #
+      # `if: failure()` und nicht `always()`: bei einem gruenen Lauf gibt es
+      # nichts zu sichern. Scheitert stattdessen `playwright install` davor,
+      # laeuft der Schritt zwar an, findet aber keine Dateien — dafuer
+      # `if-no-files-found: ignore`, sonst faerbte er einen bereits roten Lauf
+      # ein zweites Mal rot und verdeckte die eigentliche Ursache.
+      - name: Playwright-Artefakte sichern
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artefakte-shard-${{ matrix.shard }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
 
   # DER NAME `test` IST VERTRAGLICH, NICHT BESCHREIBEND: das Ruleset auf `main`
   # verlangt genau diesen Status-Kontext. Wuerden `checks` und `e2e (1/3)` …
