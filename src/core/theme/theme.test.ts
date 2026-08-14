@@ -95,7 +95,7 @@ describe("ARBEITSDICHTE", () => {
      * 44 UND NICHT 40 — der gebündelte Playwright-Lauf (Aufgabe 6) hat den
      * Planfehler aufgedeckt: die Dichte hängt an der Shell-VARIANTE, aber
      * `FullShell` rendert auch bei 390px. 40px unterschritt dort die
-     * Mindest-Tapfläche (WCAG 2.5.8), und drei Zusicherungen sagten es
+     * Mindest-Tapfläche (WCAG 2.5.5), und drei Zusicherungen sagten es
      * gleichzeitig. Die Begründung in voller Länge steht am Wert selbst
      * (`theme.ts`), samt der Frage, warum `controlHeightLG` NICHT mitwandert.
      */

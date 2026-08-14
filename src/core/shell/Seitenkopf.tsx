@@ -69,7 +69,7 @@ function ohneZiffernstellung(rolle: CSSProperties): CSSProperties {
  * des Rückwegs.
  *
  * `minHeight: 44` AM RÜCKWEG-LINK (zweiter Nachtrag, Review Aufgabe 9): Aufgabe
- * 8 hat die 44px-Tapfläche (WCAG 2.5.8) verbindlich gemacht und die
+ * 8 hat die 44px-Tapfläche (WCAG 2.5.5) verbindlich gemacht und die
  * `size="small"`-Ausnahme aus `docs/design/README.md` gestrichen — elf
  * Fundstellen in den Aufgaben 8/9 sind seither dafür zurückgenommen worden.
  * `Brotkrume.tsx` hatte diese Fläche für denselben Link schon

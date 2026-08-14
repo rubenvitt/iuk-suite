@@ -187,7 +187,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
                 {/* KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
                     docs/design/README.md) ist mit der Arbeitsdichte gefallen --
                     44px ist hier bereits die volle wie die halbe Bediendichte,
-                    "small" unterbietet die Mindesttapflaeche (WCAG 2.5.8). */}
+                    "small" unterbietet die Mindesttapflaeche (WCAG 2.5.5). */}
                 <Button
                   disabled={laeuft}
                   onClick={() => statusAendern(zeile)}

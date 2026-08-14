@@ -670,7 +670,7 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () 
      * rendert aber auch bei 390px, und dort unterschritten die 40px die
      * Mindest-Tapflaeche: drei Zusicherungen fielen gleichzeitig
      * (`lagerbuch-mobil.spec.ts:312`, `mobil-admin.spec.ts:304` und `:413`).
-     * Der Wert steht seither auf 44 (WCAG 2.5.8), und diese Schranken ziehen
+     * Der Wert steht seither auf 44 (WCAG 2.5.5), und diese Schranken ziehen
      * nach.
      *
      * SIE UNTERSCHEIDEN WEITERHIN: 56 ist `TAP` (Einsatzmasz, unten gemessen),

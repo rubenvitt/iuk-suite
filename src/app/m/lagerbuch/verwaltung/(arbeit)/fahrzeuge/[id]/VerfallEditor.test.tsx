@@ -109,7 +109,7 @@ describe("VerfallEditor — serverfertige Zeilen und Monatsfelder", () => {
     await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
 
     expect(queryAll(".ant-picker")).toHaveLength(3);
-    // KEIN size="small" (Arbeitsdichte, WCAG 2.5.8) -- volle 44px-Bedienhoehe,
+    // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5) -- volle 44px-Bedienhoehe,
     // keine `-small`-Modifikatorklasse.
     expect(queryAll(".ant-picker-small")).toHaveLength(0);
     expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)

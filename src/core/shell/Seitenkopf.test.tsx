@@ -117,7 +117,7 @@ describe("Seitenkopf", () => {
   it("haelt eine 44px-Tapflaeche am Rueckweg, den Text darin vertikal mittig", async () => {
     /*
      * Dritter Nachtrag, Review Aufgabe 9: `Brotkrume.tsx` setzte fuer denselben
-     * Link `min-height: 44px` (WCAG 2.5.8) ueber `.backlink` — seit Aufgabe 8
+     * Link `min-height: 44px` (WCAG 2.5.5) ueber `.backlink` — seit Aufgabe 8
      * verbindlich fuer die ganze Suite, elf Fundstellen wurden dafuer bereits
      * zurueckgenommen. Ohne eigene Mindesthoehe unterbietet der Rueckweg genau
      * diese Schwelle.

@@ -156,8 +156,10 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
  * unter demselben Daumen. 40px unterschritten damit die Mindest-Tapfläche, und
  * drei Zusicherungen sagten es gleichzeitig
  * (`e2e/lagerbuch-mobil.spec.ts:312`, `e2e/mobil-admin.spec.ts:304` und `:413`
- * — „Entfernen" stand auf 94x40). 44px ist WCAG 2.5.8 (Target Size, Minimum)
- * und im Repo längst die verankerte Untergrenze; sie ist keine neue Zahl.
+ * — „Entfernen" stand auf 94x40). 44px ist WCAG 2.5.5 (Target Size, Enhanced,
+ * Stufe AAA) und im Repo längst die verankerte Untergrenze; sie ist keine neue
+ * Zahl. NICHT 2.5.8 (Target Size, Minimum) — das ist die AA-Stufe und verlangt
+ * nur 24x24; die Suite liegt hier bewusst darüber, nicht knapp darunter.
  *
  * EINE ZAHL, ÜBERALL — kein Media Query, keine viewport-abhängige Dichte. Die
  * Höhe kommt aus einem antd-Token und landet als `--iuk-arbeit-control-height`

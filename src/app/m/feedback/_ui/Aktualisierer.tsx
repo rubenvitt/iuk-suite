@@ -68,7 +68,7 @@ export function Aktualisierer() {
  * `ARBEITSDICHTE` (Task 5, `controlHeight: 44`) fällt ein Knopf ohne `size`
  * heute auf 44px, nicht mehr auf 56. Die Begründung „lauter als die Zahl, um
  * die es geht" trug damit nicht mehr, und `size="small"` unterbietet die
- * 44px-Tapfläche (WCAG 2.5.8) — dieselbe Korrektur wie bei den elf
+ * 44px-Tapfläche (WCAG 2.5.5) — dieselbe Korrektur wie bei den elf
  * Zeilenaktionen-Fundstellen der Aufgaben 8/9, hier an einem Textknopf statt
  * einer Tabellenzeile.
  *

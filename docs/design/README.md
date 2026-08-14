@@ -67,7 +67,8 @@ Zeile sprengt." Beides ist überholt:
 - **Auf `FullShell`-Seiten (Arbeitsflächen) sind Bedienelemente 44px**, nicht 56 — `ARBEITSDICHTE`
   in `core/theme/theme.ts` legt sie über den Inhalt. 56/72 gilt weiter für `MinimalShell` (`qr`,
   `beta`) und für alles ohne Shell (`lagerbuch/helfer`, `feedback/f`, `files/(oeffentlich-*)`).
-  44 ist WCAG 2.5.8 und gilt **überall**, weil `FullShell` auch auf dem Telefon rendert.
+  44 ist WCAG 2.5.5 (Target Size, Enhanced — Stufe AAA, die Suite geht hier also über die
+  AA-Untergrenze hinaus) und gilt **überall**, weil `FullShell` auch auf dem Telefon rendert.
 - **Die `size="small"`-Ausnahme trägt nicht mehr.** Ihr Grund waren die 56px; eine 44px-Zeilenaktion
   sprengt keine Zeile. Was bliebe, wäre der Schaden: an einer ikonischen Zeilenaktion ergibt
   `size="small"` 24px und unterbietet die Mindesttapfläche. `e2e/lagerbuch-mobil.spec.ts:312` hat
@@ -342,7 +343,8 @@ oben und wird hier nicht wiederholt. Für „mobil" zählt nur die Folge: **44px
 weil `FullShell` dort genauso rendert — es gibt keine schmale Variante, die auf 56 zurückfiele. Eine
 viewport-abhängige Dichte wäre auch kein kleiner Zusatz: antds Höhen kommen aus Scope-Variablen, die
 man per Media Query überschreiben müsste, und damit stünde man mitten in Falle 5. Die 44 ist
-gleichzeitig die WCAG-2.5.8-Untergrenze — nach unten ist also ohnehin kein Spielraum.
+gleichzeitig die WCAG-2.5.5-Untergrenze (Target Size, Enhanced, Stufe AAA) — nach unten ist also
+ohnehin kein Spielraum.
 
 **antd-`Table` scrollt auf schmalen Geräten (`scroll={{ x: … }}`), sie bricht nicht um.** Eine
 umgebrochene Tabellenzeile ist unlesbarer als eine gescrollte.
