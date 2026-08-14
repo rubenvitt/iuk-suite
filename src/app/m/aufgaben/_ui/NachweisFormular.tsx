@@ -1,40 +1,58 @@
 "use client";
 
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { useRef, useState, type FormEvent } from "react";
 import { Button, Input } from "antd";
-import { nachweisHochladenAction } from "../actions";
 import type { NachweisArt } from "../_db/schema";
-import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
+import { FORM_START, feldFehler, type FormState } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 
 /**
- * DAS UPLOAD-FORMULAR (Aufgabe 19, Spec §5.3, §9.7) — Client-Insel, TEXT UND/ODER BILD, nach der
- * UNTERGRENZEN-REGEL: `nachweisArt === "bild"` verlangt eine Datei und erlaubt zusaetzlich Text,
- * `"text"` umgekehrt. Beide Felder stehen deshalb IMMER da, unabhaengig von `nachweisArt` — nur die
- * Beschriftung sagt, welches Feld hier Pflicht ist. Die tatsaechliche Pruefung liegt serverseitig in
- * `nachweisHochladenAction` (`actions.ts`); ein Sternchen im Label ist Affordanz, keine Zusicherung.
+ * DAS UPLOAD-FORMULAR (Aufgabe 19, Fix-Runde 1, Spec §5.3, §9.7) — Client-Insel, TEXT UND/ODER
+ * BILD, nach der UNTERGRENZEN-REGEL: `nachweisArt === "bild"` verlangt eine Datei und erlaubt
+ * zusaetzlich Text, `"text"` umgekehrt. Beide Felder stehen deshalb IMMER da, unabhaengig von
+ * `nachweisArt` — nur die Beschriftung sagt, welches Feld hier Pflicht ist. Die tatsaechliche
+ * Pruefung liegt serverseitig in `a/[id]/nachweis/hochladen/route.ts`; ein Sternchen im Label ist
+ * Affordanz, keine Zusicherung.
  *
- * EIGENSTAENDIG VON „FERTIG MELDEN": diese Komponente legt einen Nachweis an, waehrend die Aufgabe
- * `in_arbeit` bleibt — sie meldet nichts fertig. `_ui/AktionsZone.tsx` rendert sie NEBEN
- * `FertigMeldenFormular`, gesteuert ueber `optionen.nachweisHochladen` (`_lib/aktionsOptionen.ts`).
+ * SEIT FIX-RUNDE 1 KEIN `useActionState` MEHR: der Upload wanderte von einer Server Action auf
+ * einen Route Handler (`route.ts`s Kopfkommentar begruendet das Warum). Diese Komponente ruft ihn
+ * per `fetch` auf natives `onSubmit` — die `aufgabeId` steht dabei NUR NOCH IN DER URL
+ * (`/a/<id>/nachweis/hochladen`), nicht mehr zusaetzlich als verstecktes Formularfeld: zwei
+ * Quellen fuer dieselbe Angabe waeren genau die „zweite Fassung", die dieses Modul vermeidet.
  *
- * DIE DATEIAUSWAHL GEHT NACH JEDEM ABSENDEN VERLOREN (Brief, `_lib/formState.ts`s Kopfkommentar:
- * „`values` traegt jedes gesendete Feld zurueck" — bei einem Dateifeld geht das strukturell nicht).
- * React setzt ein `<form action={...}>` nach jedem Aufruf zurueck, Erfolg UND Feldfehler
- * gleichermassen — bei einem `<input type="file">` gibt es dafuer KEINEN Code-Weg zurueck (der
- * Browser gibt eine Dateiauswahl nicht programmatisch her). Der Hinweistext unter dem Feld steht
- * deshalb STAENDIG da, nicht nur nach einem Fehler: ein Foto, das gerade erst gemacht wurde, soll
- * niemand fuer „noch ausgewaehlt" halten, nur weil das Formular vorher einmal ohne Fehler durchging.
+ * DER SILENT-SUCCESS-RIEGEL (dieselbe Form wie `files/_ui/UploadInsel.tsx`): verliert die Sitzung
+ * MITTEN im Absenden, antwortet der Proxy (`src/proxy.ts`) mit einem Redirect auf `/login`, `fetch`
+ * FOLGT ihm (Vorgabe `redirect: "follow"`), und was ankommt, ist HTML der Anmeldeseite — HTTP 200,
+ * `ok === true`. Ohne die Pruefung auf `antwort.redirected` meldete dieses Formular Erfolg, obwohl
+ * nichts gespeichert wurde.
+ *
+ * `router.refresh()` NACH ERFOLG, NICHT AUTOMATISCH: `revalidatePath` in einem Route Handler
+ * markiert einen Pfad nur fuer die NAECHSTE Anfrage (anders als in einer Server Function, die die
+ * aktuell offene Seite automatisch nachzieht) — ohne den expliziten `router.refresh()`-Aufruf
+ * bliebe die Seite auf dem Stand vor dem Upload stehen, bis irgendeine andere Navigation sie neu
+ * laedt.
+ *
+ * DIE TEXTFRAGE IST KONTROLLIERT (`useState`, nicht `defaultValue`): ein serverseitig
+ * zurueckgegebener `values.text` wuerde ein reines `defaultValue`-Attribut nach dem ersten Rendern
+ * NICHT mehr in den lebenden Feldwert schreiben (dieselbe Falle, die `files/_ui/UploadInsel.tsx`s
+ * Kopfkommentar zu ihren vier Textfeldern beschreibt) — bei einem `<form action={...}>` erledigte
+ * das bislang React selbst (Formular-Reset nach jedem Aufruf), bei `onSubmit`+`fetch` nicht mehr.
+ *
+ * DIE DATEIAUSWAHL GEHT WEITERHIN NACH JEDEM ABSENDEN VERLOREN (Brief, unveraendert seit der
+ * ersten Fassung): `form.reset()` laeuft nach JEDEM Absendeversuch — Erfolg, Feldfehler UND
+ * harter Fehler gleichermassen, dieselbe Zusage wie zuvor. Der Hinweistext unter dem Feld steht
+ * deshalb weiterhin STAENDIG da, nicht nur nach einem Fehler.
  *
  * KEIN antd-`Form`, KEIN `@ant-design/icons` (Modulweite Vorgabe, `docs/design/README.md` Fallen 1
  * und 7). `Input.TextArea` ist ein Compound-Zugriff und in einer Server Component verboten — hier,
  * in der Client-Insel, ist er zulaessig (Spec §9.7).
  *
  * `maxBytes` KOMMT ALS PROP AUS DER SEITE (`NACHWEIS_MAX_BYTES`, `_lib/ablage.ts`), NICHT ALS
- * DIREKTER IMPORT HIER: `ablage.ts` importiert `node:fs/promises` auf Modulebene, ein Import dieser
- * Datei in einer Client-Insel buendelte das in den Browser (dieselbe Falle wie `_lib/scan.ts`s
- * Kopfkommentar zu `_db/client`, nur mit einem statischen statt einem dynamischen Import). Vorbild:
- * `files/_ui/UploadInsel.tsx`s `maxDateiBytes`-Prop.
+ * DIREKTER IMPORT HIER: `ablage.ts` importiert `node:fs/promises` auf Modulebene, ein Import
+ * dieser Datei in einer Client-Insel buendelte das in den Browser (dieselbe Falle wie
+ * `_lib/scan.ts`s Kopfkommentar zu `_db/client`, nur mit einem statischen statt einem dynamischen
+ * Import). Vorbild: `files/_ui/UploadInsel.tsx`s `maxDateiBytes`-Prop.
  */
 export interface NachweisFormularProps {
   aufgabeId: string;
@@ -47,17 +65,74 @@ function alsMiB(bytes: number): string {
 }
 
 export function NachweisFormular({ aufgabeId, nachweisArt, maxBytes }: NachweisFormularProps) {
-  const [state, formAction, isPending] = useActionState(nachweisHochladenAction, FORM_START);
-  const textFehler = feldFehler(state, "text");
-  const dateiFehler = feldFehler(state, "datei");
+  const router = useRouter();
+  const formularRef = useRef<HTMLFormElement>(null);
+  const [text, setText] = useState("");
+  const [zustand, setZustand] = useState<FormState>(FORM_START);
+  const [harterFehler, setHarterFehler] = useState<string | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+
+  const textFehler = feldFehler(zustand, "text");
+  const dateiFehler = feldFehler(zustand, "datei");
+
+  async function absenden(ereignis: FormEvent<HTMLFormElement>): Promise<void> {
+    ereignis.preventDefault();
+    const formular = ereignis.currentTarget;
+    const formData = new FormData(formular);
+    setLaeuft(true);
+    setHarterFehler(null);
+
+    try {
+      const antwort = await fetch(`/a/${aufgabeId}/nachweis/hochladen`, {
+        method: "POST",
+        body: formData,
+      });
+
+      // SILENT-SUCCESS-RIEGEL, s. Kopfkommentar — MUSS vor jeder anderen Auswertung stehen.
+      if (antwort.redirected) {
+        setHarterFehler(
+          "Die Anmeldung ist abgelaufen. Bitte neu anmelden — der Nachweis wurde nicht gespeichert.",
+        );
+        formularRef.current?.reset();
+        return;
+      }
+
+      const koerper: FormState | null = await antwort.json().catch(() => null);
+
+      if (antwort.ok && koerper?.ok) {
+        setZustand(FORM_START);
+        setText("");
+        formularRef.current?.reset();
+        router.refresh();
+        return;
+      }
+
+      if (koerper && koerper.ok === false) {
+        setZustand(koerper);
+        formularRef.current?.reset();
+        return;
+      }
+
+      // KEIN FELDFEHLER-KOERPER: Zugriffsablehnung (404, `route.ts`s `keinZugriff()`) oder ein
+      // unerwarteter Statuscode — sollte ueber die Oberflaeche nicht erreichbar sein
+      // (`optionen.nachweisHochladen` blendet den Knopf sonst schon aus), aber LAUT statt STILL,
+      // falls doch: kein kommentarloses Verschwinden der Anfrage.
+      setHarterFehler(`Der Nachweis konnte nicht gespeichert werden (HTTP ${antwort.status}).`);
+      formularRef.current?.reset();
+    } catch {
+      setHarterFehler("Die Verbindung ist abgebrochen. Bitte erneut versuchen.");
+      formularRef.current?.reset();
+    } finally {
+      setLaeuft(false);
+    }
+  }
 
   return (
     <form
-      action={formAction}
+      ref={formularRef}
+      onSubmit={(ereignis) => void absenden(ereignis)}
       style={{ display: "flex", flexDirection: "column", gap: SPACE.sm, maxWidth: 480 }}
     >
-      <input type="hidden" name="aufgabeId" value={aufgabeId} />
-
       <div>
         <label htmlFor="nf-text" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Nachweistext {nachweisArt === "text" ? "" : "(optional)"}
@@ -66,7 +141,8 @@ export function NachweisFormular({ aufgabeId, nachweisArt, maxBytes }: NachweisF
           id="nf-text"
           name="text"
           autoSize={{ minRows: 2, maxRows: 6 }}
-          defaultValue={feldWert(state, "text", "")}
+          value={text}
+          onChange={(ereignis) => setText(ereignis.target.value)}
           status={textFehler ? "error" : undefined}
           aria-invalid={textFehler ? true : undefined}
           aria-describedby={textFehler ? "nf-text-err" : undefined}
@@ -108,11 +184,17 @@ export function NachweisFormular({ aufgabeId, nachweisArt, maxBytes }: NachweisF
         ) : null}
       </div>
 
+      {harterFehler ? (
+        <p role="alert" style={{ margin: 0 }}>
+          {harterFehler}
+        </p>
+      ) : null}
+
       <Button
         type="primary"
         htmlType="submit"
-        loading={isPending}
-        disabled={isPending}
+        loading={laeuft}
+        disabled={laeuft}
         style={{ alignSelf: "flex-start" }}
       >
         Nachweis speichern

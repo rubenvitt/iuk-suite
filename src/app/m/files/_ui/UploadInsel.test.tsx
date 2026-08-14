@@ -557,8 +557,7 @@ describe("Das Formular", () => {
     await waehle(GROSS(), datei("zweite.png", REST, "image/png"));
 
     // Ein `name` am Dateifeld haenge die Bytes an die Server-Action-Nutzlast —
-    // und die kappt (§7.1, Kappungsebene 3; die Zahl steht seit Aufgabe 19 des
-    // Moduls `aufgaben` in `next.config.ts`, nicht mehr bei Next's Vorgabe von 1 MB).
+    // und die kappt bei 1 MB mit HTTP 413 (§7.1, Kappungsebene 3).
     expect(query<HTMLInputElement>('input[type="file"]').hasAttribute("name")).toBe(false);
     const namen = queryAll<HTMLInputElement>('input[type="hidden"][name="dateien"]');
     expect(namen.map((n) => n.value)).toEqual(["bericht.png", "zweite.png"]);

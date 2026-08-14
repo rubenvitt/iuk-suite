@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TestDb } from "./_db/testdb";
@@ -43,31 +40,12 @@ vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
 let t: TestDb;
 vi.mock("./_db/client", () => ({ getDb: () => t.db }));
 
-/**
- * `starteAufgabenScanArbeiter` GESTUBT (Aufgabe 19) — `nachweisHochladenAction` ruft ihn
- * fire-and-forget nach jedem Datei-Upload auf. UNGESTUBT liefe das gegen die ECHTE
- * `core/av/scanner.ts` und versuchte, den Hostnamen "clamav" aufzuloesen (`avKonfigAusEnv()`s
- * Vorgabe) — ein echter Netzwerkversuch, den ein Action-Level-Test nicht braucht und nicht
- * kontrollieren kann (dasselbe Prinzip wie `next/cache`/`@/core/auth` oben: Infrastruktur, die
- * anderswo eigens bewacht ist — `_lib/scan.test.ts` — wird hier nur als Interaktion geprueft, nicht
- * erneut in ihrer Wirkung). `istFreigegeben` bleibt UNGESTUBT — `fertigMeldenAction`s Pruefung
- * haengt an seinem echten Verhalten.
- */
-const { starteAufgabenScanArbeiterMock } = vi.hoisted(() => ({
-  starteAufgabenScanArbeiterMock: vi.fn(),
-}));
-vi.mock("./_lib/scan", async (importOriginal) => {
-  const echt = await importOriginal<typeof import("./_lib/scan")>();
-  return { ...echt, starteAufgabenScanArbeiter: starteAufgabenScanArbeiterMock };
-});
-
 import {
   aufgabeEinstellenAction,
   einplanenAction,
   einplanenAnnehmenAction,
   fertigMeldenAction,
   freigebenAction,
-  nachweisHochladenAction,
   personAendernAction,
   personAnlegenAction,
   personBeendenAction,
@@ -97,7 +75,6 @@ beforeEach(() => {
   t = migrierteTestDb();
   sitzung = null;
   revalidatePathMock.mockClear();
-  starteAufgabenScanArbeiterMock.mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(`${HEUTE}T12:00:00Z`));
 });
@@ -1546,186 +1523,6 @@ describe("fertigMeldenAction", () => {
       expect(ergebnis).toEqual({ ok: true });
       expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
     });
-  });
-});
-
-/*
- * NACHWEIS HOCHLADEN (Aufgabe 19) — TEXT UND/ODER BILD, KEIN UEBERGANG DER TABELLE. Mit ECHTEM
- * Dateisystemzugriff (`legeNachweisAb`, `_lib/ablage.ts`) — dieselbe Wahl wie `ablage.test.ts`:
- * `DATA_DIR` zeigt je Test auf ein frisches `mkdtemp`-Verzeichnis, kein Mock.
- */
-describe("nachweisHochladenAction", () => {
-  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
-  let datenVerzeichnis: string;
-  let vorherigesDataDir: string | undefined;
-
-  beforeEach(() => {
-    datenVerzeichnis = mkdtempSync(join(tmpdir(), "aufgaben-nachweis-upload-"));
-    vorherigesDataDir = process.env.DATA_DIR;
-    process.env.DATA_DIR = datenVerzeichnis;
-  });
-  afterEach(() => {
-    if (vorherigesDataDir === undefined) delete process.env.DATA_DIR;
-    else process.env.DATA_DIR = vorherigesDataDir;
-    rmSync(datenVerzeichnis, { recursive: true, force: true });
-  });
-
-  function form(aufgabeId: string, over: Record<string, string> = {}, datei?: File): FormData {
-    const f = new FormData();
-    f.set("aufgabeId", aufgabeId);
-    for (const [k, v] of Object.entries(over)) f.set(k, v);
-    if (datei) f.set("datei", datei);
-    return f;
-  }
-
-  function bildDatei(name = "beweisfoto.png"): File {
-    return new File([PNG], name, { type: "image/png" });
-  }
-
-  it("nachweisArt bild: legt Datei UND Nachweis an, scanStatus startet 'offen', der Arbeiter wird angestossen", async () => {
-    const auftrag = legePerson("dev:malte@test", "auftrag");
-    const bufdi = legePerson("dev:alina@test", "bufdi");
-    const task = legeAufgabe({
-      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
-      nachweisPflicht: true, nachweisArt: "bild",
-    });
-    anmelden(bufdi);
-
-    const ergebnis = await nachweisHochladenAction({ ok: true }, form(task.id, {}, bildDatei()));
-    expect(ergebnis).toEqual({ ok: true });
-
-    const zeilen = t.db.select().from(nachweise).all();
-    expect(zeilen).toHaveLength(1);
-    expect(zeilen[0]!.art).toBe("bild");
-    expect(zeilen[0]!.dateiId).not.toBeNull();
-
-    const dateiZeilen = t.db.select().from(dateien).all();
-    expect(dateiZeilen).toHaveLength(1);
-    expect(dateiZeilen[0]!.scanStatus).toBe("offen");
-    expect(dateiZeilen[0]!.id).toBe(zeilen[0]!.dateiId);
-
-    // FIRE-AND-FORGET: der Arbeiter wird ANGESTOSSEN, nicht abgewartet (Brief-Vertrag aus
-    // Aufgabe 18) — die Action selbst wartet nicht auf ein Scanergebnis.
-    expect(starteAufgabenScanArbeiterMock).toHaveBeenCalledTimes(1);
-    // DIE AUFGABE BLEIBT `in_arbeit`: der Upload ist kein Uebergang.
-    expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
-  });
-
-  it("nachweisArt bild OHNE Datei: Feldfehler `datei`, nichts wird geschrieben, der Arbeiter wird NICHT angestossen", async () => {
-    const auftrag = legePerson("dev:malte@test", "auftrag");
-    const bufdi = legePerson("dev:alina@test", "bufdi");
-    const task = legeAufgabe({
-      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
-      nachweisPflicht: true, nachweisArt: "bild",
-    });
-    anmelden(bufdi);
-
-    const ergebnis = erwarteFeldfehler(await nachweisHochladenAction({ ok: true }, form(task.id)));
-    expect(ergebnis.fieldErrors.datei).toBeTruthy();
-    expect(t.db.select().from(nachweise).all()).toHaveLength(0);
-    expect(t.db.select().from(dateien).all()).toHaveLength(0);
-    expect(starteAufgabenScanArbeiterMock).not.toHaveBeenCalled();
-  });
-
-  it("nachweisArt bild MIT Datei UND Text: beides landet auf derselben Zeile", async () => {
-    const auftrag = legePerson("dev:malte@test", "auftrag");
-    const bufdi = legePerson("dev:alina@test", "bufdi");
-    const task = legeAufgabe({
-      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
-      nachweisPflicht: true, nachweisArt: "bild",
-    });
-    anmelden(bufdi);
-
-    await nachweisHochladenAction({ ok: true }, form(task.id, { text: "Zusatzbemerkung." }, bildDatei()));
-    const zeile = t.db.select().from(nachweise).all()[0]!;
-    expect(zeile.art).toBe("bild");
-    expect(zeile.text).toBe("Zusatzbemerkung.");
-    expect(zeile.dateiId).not.toBeNull();
-  });
-
-  it("nachweisArt text OHNE Text: Feldfehler `text`, eine mitgeschickte Datei aendert daran nichts", async () => {
-    const auftrag = legePerson("dev:malte@test", "auftrag");
-    const bufdi = legePerson("dev:alina@test", "bufdi");
-    const task = legeAufgabe({
-      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
-      nachweisPflicht: true, nachweisArt: "text",
-    });
-    anmelden(bufdi);
-
-    const ergebnis = erwarteFeldfehler(await nachweisHochladenAction({ ok: true }, form(task.id, {}, bildDatei())));
-    expect(ergebnis.fieldErrors.text).toBeTruthy();
-  });
-
-  it("nachweisArt text MIT Text: legt einen Textnachweis an, kein Dateizugriff, kein Arbeiter-Anstoss", async () => {
-    const auftrag = legePerson("dev:malte@test", "auftrag");
-    const bufdi = legePerson("dev:alina@test", "bufdi");
-    const task = legeAufgabe({
-      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
-      nachweisPflicht: true, nachweisArt: "text",
-    });
-    anmelden(bufdi);
-
-    const ergebnis = await nachweisHochladenAction({ ok: true }, form(task.id, { text: "Erledigt." }));
-    expect(ergebnis).toEqual({ ok: true });
-    const zeile = t.db.select().from(nachweise).all()[0]!;
-    expect(zeile.art).toBe("text");
-    expect(zeile.dateiId).toBeNull();
-    expect(t.db.select().from(dateien).all()).toHaveLength(0);
-    expect(starteAufgabenScanArbeiterMock).not.toHaveBeenCalled();
-  });
-
-  it("eine ungueltige Datei (falsches Format) wird VOR jedem Insert abgelehnt — kein verwaister Datensatz", async () => {
-    const auftrag = legePerson("dev:malte@test", "auftrag");
-    const bufdi = legePerson("dev:alina@test", "bufdi");
-    const task = legeAufgabe({
-      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
-      nachweisPflicht: true, nachweisArt: "bild",
-    });
-    anmelden(bufdi);
-
-    const keinBild = new File([new Uint8Array([1, 2, 3, 4])], "nicht-bild.txt", { type: "text/plain" });
-    const ergebnis = erwarteFeldfehler(await nachweisHochladenAction({ ok: true }, form(task.id, {}, keinBild)));
-    expect(ergebnis.fieldErrors.datei).toBeTruthy();
-    expect(t.db.select().from(nachweise).all()).toHaveLength(0);
-    expect(t.db.select().from(dateien).all()).toHaveLength(0);
-  });
-
-  it("die zugewiesene Person UND status in_arbeit sind Pflicht — eine andere Person wirft", async () => {
-    const auftrag = legePerson("dev:malte@test", "auftrag");
-    const bufdi = legePerson("dev:alina@test", "bufdi");
-    const andere = legePerson("dev:bendix@test", "bufdi");
-    const task = legeAufgabe({
-      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
-      nachweisPflicht: true, nachweisArt: "bild",
-    });
-    anmelden(andere);
-
-    await expect(
-      nachweisHochladenAction({ ok: true }, form(task.id, {}, bildDatei())),
-    ).rejects.toThrow(/Keine Berechtigung/);
-  });
-
-  it("ein Zustand ausserhalb 'in_arbeit' wirft, auch fuer die zugewiesene Person", async () => {
-    const auftrag = legePerson("dev:malte@test", "auftrag");
-    const bufdi = legePerson("dev:alina@test", "bufdi");
-    const task = legeAufgabe({
-      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
-      nachweisPflicht: true, nachweisArt: "bild",
-    });
-    anmelden(bufdi);
-
-    await expect(
-      nachweisHochladenAction({ ok: true }, form(task.id, {}, bildDatei())),
-    ).rejects.toThrow(/Keine Berechtigung/);
-  });
-
-  it("eine unbekannte aufgabeId wirft", async () => {
-    const bufdi = legePerson("dev:alina@test", "bufdi");
-    anmelden(bufdi);
-    await expect(
-      nachweisHochladenAction({ ok: true }, form("nicht-vorhanden", {}, bildDatei())),
-    ).rejects.toThrow(/nicht gefunden/);
   });
 });
 

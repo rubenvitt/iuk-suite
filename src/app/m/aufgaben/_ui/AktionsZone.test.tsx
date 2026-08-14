@@ -22,6 +22,13 @@ import { FORM_START, type FormState } from "../_lib/formState";
  * tragen KEIN `useActionState` (natives `<form action={fn}>`, Vorbild `_ui/PersonenTabelle.tsx`s
  * „Beenden"), und die Zurueckziehen-Gegenprobe unten loest tatsaechlich `requestSubmit()` aus —
  * das ruft die Aktion direkt, ein Symbol wuerde dort einen Laufzeitfehler werfen.
+ *
+ * DRITTER MOCK, SEIT FIX-RUNDE 1: `next/navigation`s `useRouter` — `NachweisFormular` (gerendert,
+ * sobald `optionen.nachweisHochladen` gilt) ruft ihn seit dem Wechsel auf einen Route Handler bei
+ * JEDEM Rendern auf (`router.refresh()` nach einem Upload). Ohne den Mock wirft `mount()` schon
+ * beim Aufbau — kein `AppRouterContext` in jsdom, dieselbe Form wie `TagesWaehler.test.tsx`. Diese
+ * Datei loest `NachweisFormular` selbst nie aus (das ist `NachweisFormular.test.tsx`s Aufgabe),
+ * `refresh` bleibt deshalb ein `vi.fn()` ohne Erwartung.
  */
 const {
   useActionStateMock,
@@ -32,7 +39,6 @@ const {
   FERTIG_MARKER,
   FREIGEBEN_MARKER,
   ZURUECKWEISEN_MARKER,
-  NACHWEIS_HOCHLADEN_MARKER,
 } = vi.hoisted(() => ({
   useActionStateMock: vi.fn(),
   startenMock: vi.fn(),
@@ -42,13 +48,16 @@ const {
   FERTIG_MARKER: Symbol("fertigMeldenAction"),
   FREIGEBEN_MARKER: Symbol("freigebenAction"),
   ZURUECKWEISEN_MARKER: Symbol("zurueckweisenAction"),
-  NACHWEIS_HOCHLADEN_MARKER: Symbol("nachweisHochladenAction"),
 }));
 
 vi.mock("react", async (echt) => {
   const react = await echt<typeof import("react")>();
   return { ...react, useActionState: useActionStateMock };
 });
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 vi.mock("../actions", () => ({
   startenAction: startenMock,
@@ -58,7 +67,6 @@ vi.mock("../actions", () => ({
   fertigMeldenAction: FERTIG_MARKER,
   freigebenAction: FREIGEBEN_MARKER,
   zurueckweisenAction: ZURUECKWEISEN_MARKER,
-  nachweisHochladenAction: NACHWEIS_HOCHLADEN_MARKER,
 }));
 
 import { AktionsZone } from "./AktionsZone";

@@ -17,12 +17,8 @@ import css from "./uploadInsel.module.css";
  * und das ist keine Zutat, sondern die Folge einer gemessenen Zahl. Es gibt
  * DREI Kappungsebenen mit drei verschiedenen Symptomen (§9.2):
  *
- * 1. **Server Actions** — HTTP 413, laut. Next kappt hier standardmaessig bei 1 MB; seit Aufgabe 19
- *    des Moduls `aufgaben` steht in `next.config.ts` `serverActions.bodySizeLimit: "9mb"` (eine
- *    SUITEWEITE, nicht modul-scoped Einstellung — `aufgaben`s Bild-Upload braucht mehr als 1 MB).
- *    Fuer DIESE Datei aendert das nichts: `anlegenAction` nimmt ohnehin NIE Dateibytes entgegen
- *    (Punkt darunter), die wirksame Grenze fuer sie bleibt praktisch die naechste Kappungsebene.
- *    Deshalb geht durch `anlegenAction` ausschliesslich TEXT: Titel, Ablauf, Passwort und die
+ * 1. **Server Actions, 1 MB** — HTTP 413, laut. Deshalb geht durch
+ *    `anlegenAction` ausschliesslich TEXT: Titel, Ablauf, Passwort und die
  *    NAMEN der Dateien. Das `<input type="file">` traegt bewusst KEIN `name`;
  *    mit einem waeren die Bytes Teil der Action-Nutzlast.
  * 2. **Next-Proxy, 10 MiB** — STILL. `cloneBodyStream` bricht ab, schiebt
@@ -505,9 +501,7 @@ export function UploadInsel({
             {/*
              * KEIN `name` — und das ist die tragende Zeile dieses Formulars:
              * mit einem waeren die Bytes Teil der Server-Action-Nutzlast und
-             * jede groessere Datei ein HTTP 413 (§7.1, Kappungsebene 1 — die
-             * konkrete Zahl steht seit Aufgabe 19 des Moduls `aufgaben` in
-             * `next.config.ts`, nicht mehr bei Next's Vorgabe von 1 MB).
+             * jede Datei ueber 1 MB ein HTTP 413 (§7.1, Kappungsebene 1).
              * Uebertragen werden hier nur die NAMEN, als versteckte Felder.
              */}
             <input

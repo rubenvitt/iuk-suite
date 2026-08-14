@@ -10,7 +10,6 @@ import {
   bufdis,
   dateiNachId,
   erstelleAufgabe,
-  erstelleDatei,
   erstellePerson,
   erstelleNachweis,
   erstelleRoutine,
@@ -23,9 +22,8 @@ import {
   routineNachId,
   schreibeVerlauf,
 } from "./_db/queries";
-import { newId, type AufgabeRow, type Ereignis, type NachweisRow } from "./_db/schema";
+import type { AufgabeRow, Ereignis, NachweisRow } from "./_db/schema";
 import { WOCHENTAG_BIT } from "./_lib/anzeige";
-import { legeNachweisAb, NACHWEIS_MAX_BYTES } from "./_lib/ablage";
 import {
   istGueltigeDauerMinuten,
   istGueltigeNachweisArt,
@@ -36,9 +34,8 @@ import {
 } from "./_lib/eingabe";
 import { FORM_START, type FormState } from "./_lib/formState";
 import { anfangsZustand, uebergang, type Aktion } from "./_lib/lebenszyklus";
-import { istFreigegeben, starteAufgabenScanArbeiter } from "./_lib/scan";
+import { istFreigegeben } from "./_lib/scan";
 import {
-  darfNachweisHochladen,
   darfPersonenVerwalten,
   darfPlanAendern,
   istVertretungsfreigabe,
@@ -682,103 +679,15 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
 }
 
 /**
- * NACHWEIS HOCHLADEN — TEXT UND/ODER BILD (Aufgabe 19, Spec §5.3, `_ui/NachweisFormular.tsx`). KEIN
- * UEBERGANG DER TABELLE: der Status der Aufgabe aendert sich hier nicht, deshalb kein `uebergang()`-
- * Aufruf — die Berechtigung kommt direkt aus `darfNachweisHochladen` (`_lib/zugang.ts`) PLUS dem
- * Zustandscheck `status === "in_arbeit"` daneben (derselbe Aufbau wie `_lib/aktionsOptionen.ts`,
- * Kopfkommentar dort begruendet, warum der Zustand nicht IN das Praedikat wandert).
+ * NACHWEIS HOCHLADEN — WAR HIER EINE SERVER ACTION, IST SEIT AUFGABE 19 FIX-RUNDE 1 EIN ROUTE
+ * HANDLER: `a/[id]/nachweis/hochladen/route.ts`. Der Grund steht in dessen Kopfkommentar und in
+ * `next.config.ts`s zurueckgebautem Kommentar (`git log` fuer den Wortlaut) — kurz: eine Anhebung
+ * von `serverActions.bodySizeLimit` fuer diese eine Route haette sie fuer JEDE Server Action
+ * JEDES Moduls angehoben.
  *
- * `art: task.nachweisArt` — DER NACHWEIS TRAEGT IMMER DIE ART, DIE DIESE AUFGABE VERLANGT, nicht eine
- * von der Person gewaehlte: diese Action dient AUSSCHLIESSLICH dazu, die Pflicht DIESER Aufgabe zu
- * erfuellen (Spec §5.3s Untergrenzen-Regel), und `fertigMeldenAction` filtert ohnehin nur auf
- * `n.art === task.nachweisArt`. Ein zweites Feld "welche Art meinst du" waere eine Frage, die die
- * Aufgabe selbst schon beantwortet.
- *
- * `dateiId` ENTSTEHT VOR DEM NACHWEIS-INSERT, NICHT DANACH: `legeNachweisAb` (`_lib/ablage.ts`)
- * braucht die `id` VOR dem Schreiben (der Blob-Pfad entsteht aus ihr) — `newId()` mintet sie, der
- * Ablage-Aufruf schreibt den Blob, `erstelleDatei` schreibt die `dateien`-Zeile mit GENAU dieser ID,
- * und erst danach bekommt der `nachweise`-Insert sie als `dateiId` mit. Eine abgelehnte Datei
- * (falsches Format, zu gross) hinterlaesst dabei WEDER einen Blob NOCH eine `dateien`-Zeile NOCH
- * einen `nachweise`-Eintrag — `legeNachweisAb`s eigenes Fail-Closed (Kopfkommentar dort) plus der
- * fruehe `return` hier, bevor irgendein Insert passiert.
- *
- * KEIN `await` AUF DAS SCANERGEBNIS (Brief, Vertragspunkt aus Aufgabe 18): `bearbeiteOffeneDateien`
- * hat einen laufenden Durchlauf, und ein Aufrufer, der auf ihn wartet, koennte die Befunde eines
- * FREMDEN Laufs bekommen (`_lib/scan.ts`s Kopfkommentar zu `bearbeiteOffeneDateien`). Der Upload legt
- * ab, traegt `scan_status: "offen"` ein (Spaltenvorgabe) und stoesst `starteAufgabenScanArbeiter`
- * NUR AN (`void`, synchron, wirft nie) — die Oberflaeche sagt „wird geprueft", und die naechste
- * Anzeige (naechster Seitenaufruf) zeigt das Ergebnis.
- *
- * KEINE VERLAUFSZEILE: ein Nachweis-Upload ist selbst kein Uebergang der Tabelle (dieselbe
- * Begruendung wie bei `rangVerschiebenAction` — „eine Zeile je Klick waere Laerm") — die
- * dokumentationswuerdige Tatsache ist die FERTIGMELDUNG, die `fertigMeldenAction` bereits protokolliert.
+ * `_ui/NachweisFormular.tsx` ruft die Route jetzt direkt per `fetch`, nicht mehr ueber
+ * `useActionState` gegen eine Funktion aus dieser Datei.
  */
-export async function nachweisHochladenAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const db = getDb();
-  const person = await personFuerSession(db);
-  const heute = isoTag(new Date());
-
-  const aufgabeId = feld(formData, "aufgabeId");
-  const task = aufgabe(db, aufgabeId);
-  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
-  // ZUSTAND NEBEN DEM PRAEDIKAT, NICHT DARIN (s. Kopfkommentar): dieselbe Voraussetzung wie die
-  // `in_arbeit`×`fertig`-Zeile in `_lib/lebenszyklus.ts`s `TABELLE`.
-  if (task.status !== "in_arbeit" || !darfNachweisHochladen(person, task, heute)) {
-    throw new Error("Keine Berechtigung, fuer diese Aufgabe einen Nachweis anzulegen.");
-  }
-
-  const values = { aufgabeId, text: feld(formData, "text") };
-  const text = values.text.trim();
-  const dateiFeld = formData.get("datei");
-  const hatDatei = dateiFeld instanceof File && dateiFeld.size > 0;
-
-  // DIE UNTERGRENZEN-REGEL (Spec §5.3): "bild" verlangt eine Datei und erlaubt zusaetzlich Text,
-  // "text" umgekehrt. Beide Zweige lehnen HIER schon ab, bevor irgendetwas geschrieben wird — derselbe
-  // Grund wie bei `fertigMeldenAction`s Pflichtpruefung: ein unvollstaendiges Formular ist ein
-  // Feldfehler, kein Wurf.
-  const fieldErrors: Record<string, string> = {};
-  if (task.nachweisArt === "bild" && !hatDatei) {
-    fieldErrors.datei = "Für diese Aufgabe ist ein Bild erforderlich.";
-  }
-  if (task.nachweisArt === "text" && text === "") {
-    fieldErrors.text = "Für diese Aufgabe ist ein Text erforderlich.";
-  }
-  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
-
-  let dateiId: string | null = null;
-  if (hatDatei) {
-    const datei = dateiFeld as File;
-    const bytes = new Uint8Array(await datei.arrayBuffer());
-    const id = newId();
-    const befund = await legeNachweisAb(id, datei.name, bytes, NACHWEIS_MAX_BYTES);
-    if (!befund.ok) {
-      return { ok: false, fieldErrors: { datei: befund.meldung }, values };
-    }
-    erstelleDatei(db, {
-      id,
-      aufgabeId: task.id,
-      dateiname: datei.name,
-      mime: befund.mime,
-      groesse: befund.groesse,
-    });
-    dateiId = id;
-  }
-
-  erstelleNachweis(db, {
-    aufgabeId: task.id,
-    art: task.nachweisArt,
-    text: text === "" ? null : text,
-    dateiId,
-    erstelltVon: person.id,
-  });
-
-  // FIRE-AND-FORGET, NICHT AWAITEN (s. Kopfkommentar) — synchron und wirft nie
-  // (`starteAufgabenScanArbeiter`s eigener Vertrag, `_lib/scan.ts`).
-  if (dateiId !== null) starteAufgabenScanArbeiter(db);
-
-  revalidate();
-  return { ok: true };
-}
 
 /**
  * FREIGEBEN — `freigabe_offen` → `abgeschlossen` (Spec §5.2), nur Pruefer oder `koordination`
