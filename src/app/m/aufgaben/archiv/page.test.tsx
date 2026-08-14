@@ -108,6 +108,35 @@ describe("archivInhalt — filtert SERVERSEITIG auf das Sichtrecht (Spec §8)", 
     await mount(archivInhalt(t.db, bendix, HEUTE));
     expect(document.body.textContent).toContain("Alinas Aufgabe");
   });
+
+  /**
+   * FIX-RUNDE 1, MINOR 9: die Einschraenkung „nur `abgeschlossen`" liegt in `_db/queries.ts`s
+   * `archiv(db)` (vorbestehend, ausserhalb dieses Diffs) — aber ohne eine Zeile HIER waere sie nur
+   * GEERBT, nicht ZUGESICHERT: eine `in_arbeit`-Aufgabe, die versehentlich mitgezaehlt wuerde,
+   * bliebe in dieser Testdatei unbemerkt.
+   */
+  it("zeigt KEINE Aufgabe, die noch nicht abgeschlossen ist", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const alina = legePerson("dev:alina@test", "bufdi");
+    legeAufgabe({
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malte.id,
+      status: "abgeschlossen",
+      titel: "Abgeschlossen",
+    });
+    legeAufgabe({
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malte.id,
+      status: "in_arbeit",
+      titel: "Noch in Arbeit",
+    });
+
+    await mount(archivInhalt(t.db, malte, HEUTE));
+    expect(document.body.textContent).toContain("Abgeschlossen");
+    expect(document.body.textContent).not.toContain("Noch in Arbeit");
+  });
 });
 
 describe("archivInhalt — Filter auf Priorität", () => {

@@ -63,15 +63,23 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
     .get();
 }
 
-/** Der echte Default-Export je Nav-Schluessel — dieselbe Zuordnung wie `_lib/nav.ts`s hrefs. */
+/**
+ * DER ECHTE DEFAULT-EXPORT JE NAV-ZIEL — GESCHLUESSELT NACH `href`, NICHT NACH `key` (Fix-Runde 1,
+ * Important 1). Ein Schluesseln nach `key` faengt ein vertauschtes PRAEDIKAT (die Gegenprobe unten
+ * belegt das), aber KEIN vertauschtes ZIEL: mit `{ key: "verteilen", href: "/personen" }" haette die
+ * Schleife ueber den `key` weiterhin `VerteilenPage` gewaehlt, waere gruen geblieben, und eine
+ * `auftrag`-Person, die auf „Verteilen" klickt, waere auf `/personen` in Wahrheit auf 404 gelaufen.
+ * Ueber `href` gefunden, fuehrt der Eintrag ueber sein eigenes ZIEL zur Route — genau die Achse, die
+ * Spec §7 „strukturell ausgeschlossen" nennt.
+ */
 const ROUTEN: Record<string, () => Promise<unknown>> = {
-  start: () => AufgabenPage({ searchParams: Promise.resolve({}) }),
-  neu: () => NeuPage(),
-  verteilen: () => VerteilenPage(),
-  freigaben: () => FreigabenPage(),
-  routinen: () => RoutinenPage({ searchParams: Promise.resolve({}) }),
-  personen: () => PersonenPage({ searchParams: Promise.resolve({}) }),
-  archiv: () => ArchivPage({ searchParams: Promise.resolve({}) }),
+  "/": () => AufgabenPage({ searchParams: Promise.resolve({}) }),
+  "/neu": () => NeuPage(),
+  "/verteilen": () => VerteilenPage(),
+  "/freigaben": () => FreigabenPage(),
+  "/routinen": () => RoutinenPage({ searchParams: Promise.resolve({}) }),
+  "/personen": () => PersonenPage({ searchParams: Promise.resolve({}) }),
+  "/archiv": () => ArchivPage({ searchParams: Promise.resolve({}) }),
 };
 
 describe("aufgabenNav — Grundgeruest", () => {
@@ -142,24 +150,34 @@ describe("aktiverEintrag gegen aufgabenNav — die Wurzel gewinnt nicht gegen ei
 });
 
 describe("DIE KERNZUSAGE: jeder Navigationseintrag ist fuer die jeweilige Rolle tatsaechlich erreichbar", () => {
-  const ROLLEN: { rolle: Rolle; sub: string }[] = [
-    { rolle: "koordination", sub: "dev:rike@test" },
-    { rolle: "auftrag", sub: "dev:malte@test" },
-    { rolle: "bufdi", sub: "dev:alina@test" },
+  const ROLLEN: { bezeichnung: string; rolle: Rolle; sub: string; extra?: Partial<PersonRow> }[] = [
+    { bezeichnung: "koordination", rolle: "koordination", sub: "dev:rike@test" },
+    { bezeichnung: "auftrag", rolle: "auftrag", sub: "dev:malte@test" },
+    { bezeichnung: "bufdi", rolle: "bufdi", sub: "dev:alina@test" },
+    // MINOR 8 (Fix-Runde 1): die Reachability-SCHLEIFE deckte bislang nur aktive Personen ab — die
+    // ausgeschiedene Koordination stand nur im Schluesselmengen-Test oben, nicht hier. `neu`/`start`/
+    // `archiv` tragen bewusst kein `istAktiv`-Gate (Spec §8), eine ausgeschiedene Person erreicht sie
+    // also weiterhin; diese Zeile bindet das als echten Abruf, nicht nur als Behauptung.
+    {
+      bezeichnung: "ausgeschiedene koordination",
+      rolle: "koordination",
+      sub: "dev:ex-rike-reach@test",
+      extra: { aktivBis: "2020-01-01" },
+    },
   ];
 
-  for (const { rolle, sub } of ROLLEN) {
-    it(`${rolle}: jeder eigene Navigationseintrag antwortet — kein notFound()`, async () => {
-      const person = legePerson(sub, rolle);
+  for (const { bezeichnung, rolle, sub, extra } of ROLLEN) {
+    it(`${bezeichnung}: jeder eigene Navigationseintrag antwortet — kein notFound()`, async () => {
+      const person = legePerson(sub, rolle, extra);
       sitzung = { user: { id: sub } };
       const nav = aufgabenNav(person, HEUTE);
       expect(nav.length).toBeGreaterThan(0);
       for (const eintrag of nav) {
-        const route = ROUTEN[eintrag.key];
-        if (!route) throw new Error(`Keine Test-Route fuer nav-Eintrag "${eintrag.key}" hinterlegt.`);
+        const route = ROUTEN[eintrag.href];
+        if (!route) throw new Error(`Keine Test-Route fuer nav-Ziel "${eintrag.href}" hinterlegt.`);
         await expect(
           route(),
-          `Eintrag "${eintrag.key}" (${eintrag.href}) fuer Rolle "${rolle}"`,
+          `Eintrag "${eintrag.key}" (${eintrag.href}) fuer Rolle "${bezeichnung}"`,
         ).resolves.toBeTruthy();
       }
     });

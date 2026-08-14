@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { TestDb } from "./testdb";
 import { migrierteTestDb } from "./testdb";
@@ -406,6 +407,34 @@ describe("verlaufFuer — aufsteigend nach ts", () => {
     const ergebnis = verlaufFuer(t.db, a1.id);
     expect(ergebnis.map((v) => v.id)).toEqual([frueher.id, spaeter.id]);
     expect(ergebnis.every((v) => v.aufgabeId === a1.id)).toBe(true);
+  });
+
+  /**
+   * QUELLTEXTLICHER ZUSATZ (Fix-Runde 1, Important 2 — Gegenprobe empirisch widerlegt eine
+   * Annahme des Reviews): der Review verlangte, die drei Verlaufszeilen in `a/[id]/page.test.tsx`
+   * VERDREHT einzufuegen, damit ein entferntes `orderBy` den Journal-Test rot macht. Das wurde
+   * umgesetzt (s. dort) — ABER eine gezielte Gegenprobe (temporaer `orderBy` entfernt, dieselbe
+   * Fixtur, zusaetzlich `EXPLAIN QUERY PLAN` gegen die echte Datenbank gefahren) zeigt: SQLite
+   * nutzt fuer diese Abfrage den Index `verlauf_aufgabe_idx` auf `(aufgabe_id, ts)`
+   * (`SEARCH verlauf USING INDEX verlauf_aufgabe_idx (aufgabe_id=?)`), und ein Index-Scan liefert
+   * die Zeilen eines `aufgabe_id`-Werts bereits in `ts`-Reihenfolge — VOELLIG UNABHAENGIG von der
+   * Einfuegereihenfolge und OHNE explizites `ORDER BY`. Der DOM-Test in `a/[id]/page.test.tsx`
+   * bleibt deshalb auch bei entferntem `orderBy` GRUEN — er kann diesen einen Mechanismus nicht rot
+   * machen, so lange der Index existiert (an den Controller gemeldet, s. Bericht).
+   *
+   * DIESER TEST SCHLIESST GENAU DIESE LUECKE, quelltextlich statt verhaltensbasiert: er liest
+   * `_db/queries.ts` und prueft, dass `verlaufFuer`s Funktionskoerper `orderBy(asc(verlauf.ts))`
+   * woertlich enthaelt. Ein geloeschtes `orderBy` macht IHN rot, unabhaengig davon, ob SQLites
+   * Index-Wahl das Symptom gerade verdeckt — dieselbe Technik wie andernorts im Modul (`nav.test.ts`
+   * prueft z. B. die Abwesenheit von `"use client"` quelltextlich, nicht ueber Laufzeitverhalten).
+   */
+  it("`verlaufFuer` traegt `orderBy(asc(verlauf.ts))` im Quelltext — Gegenprobe fuer eine Faelle, die die Datenbank selbst kaschiert", () => {
+    const quelle = readFileSync("src/app/m/aufgaben/_db/queries.ts", "utf8");
+    const start = quelle.indexOf("export function verlaufFuer");
+    expect(start, "verlaufFuer nicht gefunden").toBeGreaterThan(-1);
+    const naechsteFunktion = quelle.indexOf("\nexport function", start + 1);
+    const koerper = quelle.slice(start, naechsteFunktion === -1 ? undefined : naechsteFunktion);
+    expect(koerper).toContain("orderBy(asc(verlauf.ts))");
   });
 });
 

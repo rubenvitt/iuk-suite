@@ -23,10 +23,9 @@ vi.mock("next/navigation", () => ({
 let mockDb: TestDb;
 vi.mock("./_db/client", () => ({ getDb: () => mockDb.db }));
 
+import { isoTag } from "./_lib/datum";
 import { aufgabenNav } from "./_lib/nav";
 import AufgabenLayout from "./layout";
-
-const HEUTE_MUSTER = /^\d{4}-\d{2}-\d{2}$/;
 
 let t: TestDb;
 beforeEach(() => {
@@ -69,11 +68,11 @@ describe("AufgabenLayout — Verdrahtung von nav an <Shell>", () => {
 
     // `heute` kommt aus `new Date()` — hier nicht gefaelscht, deshalb gegen die REALE Ableitung
     // verglichen (dieselbe Funktion, `aufgabenNav`), nicht gegen einen im Test fest verankerten Tag.
-    const irgendeinTag = shellElement.props.nav as { href: string }[] | undefined;
-    expect(irgendeinTag).toBeDefined();
-    const heuteHeute = new Date().toISOString().slice(0, 10);
-    expect(heuteHeute).toMatch(HEUTE_MUSTER);
-    expect(shellElement.props.nav).toEqual(aufgabenNav(rike, heuteHeute));
+    // `isoTag`, NICHT `toISOString().slice(0, 10)` (Fix-Runde 1, Minor 7): Letzteres ist ein
+    // UTC-Tag, `layout.tsx` rechnet aber in Europe/Berlin (`_lib/datum.ts`) — zwischen 00:00 und
+    // 02:00 Berliner Zeit waeren das verschiedene Kalendertage, und der Vergleich pruefte dann
+    // nicht mehr dasselbe `heute`, das `AufgabenLayout` tatsaechlich verwendet.
+    expect(shellElement.props.nav).toEqual(aufgabenNav(rike, isoTag(new Date())));
   });
 
   it("ohne personen-Zeile (Modulzugang, aber noch nicht eingetragen): <Shell> bekommt ein leeres nav-Prop", async () => {

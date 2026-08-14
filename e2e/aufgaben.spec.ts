@@ -548,9 +548,29 @@ test("Archiv: der Prioritätsfilter (Client-Insel) filtert serverseitig, ohne Ko
     email: "rike@localtest.me",
     callbackPath: "/archiv",
   });
+  // „Eigene Fortbildung: Reanimation auffrischen" ist die eine Demo-Aufgabe mit Prioritaet
+  // „niedrig" — VOR dem Filtern sichtbar (Gegenprobe, dass sie ueberhaupt existiert).
+  await expect(page.getByText("Eigene Fortbildung: Reanimation auffrischen")).toBeVisible();
+
   await page.getByLabel("Priorität").selectOption("hoch");
   await page.waitForURL((url) => url.search.includes("prioritaet=hoch"));
+  // `networkidle` VOR der naechsten Navigation (Vorbild `fixtures.ts`s `devLogin`, dieselbe
+  // Begruendung): das native GET-Formular loest eine ECHTE Seitennavigation aus, und eine zweite
+  // Navigation waehrend next-auths `SessionProvider` noch eine Sitzungsabfrage der vorherigen
+  // Seite offen hat, bricht diese ab — der Browser meldet das als `ClientFetchError`, kein
+  // Anwendungsfehler dieser Seite.
+  await page.waitForLoadState("networkidle");
   await expect(page.getByText("Eigene Fortbildung: Reanimation auffrischen")).toHaveCount(0);
+
+  // POSITIVE ZUSICHERUNG (Fix-Runde 1, Minor 6): die reine Abwesenheits-Pruefung oben liesse auch
+  // eine leere oder kaputt gerenderte Seite durchgehen. Auf „niedrig" zurueckgefiltert MUSS die
+  // Aufgabe wieder erscheinen — nur das beweist, dass der Filter tatsaechlich filtert, statt bloss
+  // alles auszublenden.
+  await page.getByLabel("Priorität").selectOption("niedrig");
+  await page.waitForURL((url) => url.search.includes("prioritaet=niedrig"));
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("Eigene Fortbildung: Reanimation auffrischen")).toBeVisible();
+
   expect(konsolenFehler).toEqual([]);
 });
 

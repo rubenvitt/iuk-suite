@@ -115,7 +115,7 @@ export function aufgabeInhalt(db: DB, person: PersonRow, task: AufgabeRow, heute
           )
         ) : (
           <p style={SCHRIFT.neben}>
-            Nachweise sind nur fuer Koordination, Ersteller, Zugewiesene und den eingetragenen Prüfer sichtbar.
+            Nachweise sind nur für Koordination, Ersteller, Zugewiesene und den eingetragenen Prüfer sichtbar.
           </p>
         )}
       </section>

@@ -143,7 +143,7 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     await mount(aufgabeInhalt(t.db, fremderBufdi, a, HEUTE));
     expect(document.body.textContent).not.toContain("Geheimer Bericht");
     expect(document.body.textContent).toContain(
-      "Nachweise sind nur fuer Koordination, Ersteller, Zugewiesene und den eingetragenen Prüfer sichtbar.",
+      "Nachweise sind nur für Koordination, Ersteller, Zugewiesene und den eingetragenen Prüfer sichtbar.",
     );
   });
 
@@ -178,16 +178,50 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     await mount(aufgabeInhalt(t.db, pruefer, a, HEUTE));
     expect(document.body.textContent).toContain("Nachweistext fuer den Pruefer.");
   });
+
+  /**
+   * DIE BETREIBERENTSCHEIDUNG AUS FIX-RUNDE 1 (`_lib/zugang.ts`s Kopfkommentar zur Pruefer-Klausel
+   * von `darfNachweisSehen`): ein AUSGESCHIEDENER Pruefer sieht den Nachweis weiterhin (Sichtpraedikat,
+   * kein `istAktiv`), bekommt aber ueber `aktionsOptionen`/`uebergang()`/`darfFreigeben` KEINE
+   * Freigabe-Aktion mehr — „sehen ohne handeln zu koennen" ist hier die Zusage, nicht die Luecke.
+   * Ein Test, der NUR eine Haelfte pruefte, koennte die andere unbemerkt verlieren.
+   */
+  it("ein AUSGESCHIEDENER Prüfer sieht den Nachweis weiterhin, bekommt aber keine Freigabe-Aktion mehr", async () => {
+    const ersteller = legePerson("dev:e2@test", "auftrag");
+    const exPruefer = legePerson("dev:p2@test", "auftrag", { aktivBis: "2020-01-01" });
+    const zugewiesen = legePerson("dev:z2@test", "bufdi");
+    const a = legeAufgabe({
+      erstellerId: ersteller.id,
+      zugewiesenAn: zugewiesen.id,
+      prueferId: exPruefer.id,
+      status: "freigabe_offen",
+    });
+    legeNachweis(a.id, "Nachweistext fuer den ausgeschiedenen Pruefer.", zugewiesen.id);
+
+    await mount(aufgabeInhalt(t.db, exPruefer, a, HEUTE));
+    expect(document.body.textContent).toContain("Nachweistext fuer den ausgeschiedenen Pruefer.");
+    expect(queryAll("[data-testid^='freigeben-']")).toHaveLength(0);
+    expect(queryAll("[data-testid^='zurueckweisen-']")).toHaveLength(0);
+    expect(document.body.textContent).toContain("Für diese Aufgabe ist derzeit keine Aktion möglich.");
+  });
 });
 
 describe("aufgabeInhalt — der Verlauf als Journal", () => {
+  /**
+   * DIE EINFUEGEREIHENFOLGE IST BEWUSST NICHT DIE ZEITLICHE (Fix-Runde 1, Important 2): vorher
+   * standen die drei Zeilen in aufsteigender `ts`-Reihenfolge im Code, sodass ein entferntes
+   * `orderBy(asc(verlauf.ts))` in `_db/queries.ts`s `verlaufFuer` unbemerkt geblieben waere — SQLite
+   * haette einfach die Einfuegereihenfolge zurueckgegeben, zufaellig identisch mit der erwarteten.
+   * `gestartet` (der spaeteste Zeitpunkt) steht jetzt ZUERST im Code, `eingestellt` (der frueheste)
+   * an zweiter Stelle — nur ein echtes `ORDER BY ts ASC` kann die Zusicherung unten noch erfuellen.
+   */
   it("zeigt jeden Eintrag vollständig, mit Akteur und Zeitpunkt, in AUFSTEIGENDER Reihenfolge", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
     const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
     const a = legeAufgabe({ erstellerId: malte.id, zugewiesenAn: alina.id, status: "in_arbeit" });
+    legeVerlauf(a.id, "gestartet", alina.id, new Date("2026-08-12T10:00:00Z"));
     legeVerlauf(a.id, "eingestellt", malte.id, new Date("2026-08-10T08:00:00Z"));
     legeVerlauf(a.id, "verteilt", malte.id, new Date("2026-08-11T09:00:00Z"));
-    legeVerlauf(a.id, "gestartet", alina.id, new Date("2026-08-12T10:00:00Z"));
 
     await mount(aufgabeInhalt(t.db, malte, a, HEUTE));
     const eintraege = queryAll("li").filter((li) => li.closest(`ul.${s.journal}`) !== null);

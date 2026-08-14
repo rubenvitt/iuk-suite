@@ -210,6 +210,25 @@ export function darfPlanSehen(p: PersonRow, zielPersonId: string): boolean {
  * sonst nur die halbe Wahrheit. `prueferId` zeigt nie auf eine `bufdi`-Zeile (nur `auftrag`/
  * `koordination` duerfen fremd einstellen und werden dabei zum Pruefer, `anfangsZustand()`) — die
  * Erweiterung oeffnet also keinen Nachweis fuer „jeden BuFDi", die Kernzusage aus Spec §2 bleibt.
+ *
+ * BEWUSST KEIN `istAktiv` AUCH IN DIESER KLAUSEL — BETREIBERENTSCHEIDUNG NACH FIX-RUNDE 1: ein
+ * AUSGESCHIEDENER Pruefer sieht den Nachweis auf `/a/<id>` DESHALB WEITERHIN, obwohl er ihn auf
+ * `/freigaben` nie sah (dort filtert `freigabenFuer`/`darfFreigeben`, und `darfFreigeben` endet auf
+ * `&& istAktiv(p, heute)` — ein ausgeschiedener Pruefer stand dort also nie). Zwei Haelften, beide
+ * gehoeren hierher:
+ *  1. WARUM ER SEHEN DARF: er muss beurteilen koennen, was er (oder in Vertretung die Koordination)
+ *     freigegeben hat — dieselbe Begruendung wie bei der Klausel selbst, „wer freigibt, muss sehen,
+ *     was er freigibt", gilt fuer die BEENDETE Amtszeit genauso wie fuer die laufende: eine
+ *     Leistungsdokumentation, die dem einstigen Pruefer nach seinem Ausscheiden die eigene
+ *     Pruefgeschichte entzieht, waere keine Dokumentation mehr.
+ *  2. WARUM KEIN `istAktiv`-GEFAELLE: dieses Praedikat ist ein SICHTPRAEDIKAT (Kopfkommentar dieser
+ *     Datei: „SICHTPRAEDIKATE pruefen `istAktiv` NICHT"), `istAktiv` in eine einzelne Klausel zu
+ *     ziehen braeche genau die Symmetrie, die Aufgabe 4 aufgestellt hat, und verlangte ein `heute` in
+ *     der Signatur an jeder Aufrufstelle. Die Handlungsseite bleibt trotzdem geschuetzt: `aktionsOptionen`
+ *     (`_lib/aktionsOptionen.ts`) ruft `uebergang()`, dessen `TABELLE`-Zeilen fuer „freigeben"/
+ *     „zurueckweisen" `darfFreigeben` verlangen — eine ausgeschiedene Pruefer-Person SIEHT den
+ *     Nachweis also, bekommt aber KEINE Freigabe-Aktion mehr angeboten. Sehen ohne Handeln ist hier
+ *     die Zusage, nicht die Luecke.
  */
 export function darfNachweisSehen(p: PersonRow, a: AufgabeRow): boolean {
   return (

@@ -50,13 +50,12 @@ export function AktionsZone({
   aufgabe: AufgabeRow;
   optionen: AktionsOptionen;
 }) {
-  const keineAktion =
-    !optionen.starten &&
-    !optionen.zuruecksetzen &&
-    !optionen.fertig &&
-    !optionen.freigeben &&
-    !optionen.wiederaufnehmen &&
-    !optionen.zurueckziehen;
+  // FIX-RUNDE 1, IMPORTANT 3: eine von Hand aufgezaehlte Fassung liess `optionen.zurueckweisen`
+  // aus (sechs von sieben Feldern) und war damit bereits inkonsistent, bevor sie einmal geaendert
+  // wurde — heute folgenlos, weil `_lib/lebenszyklus.ts`s `TABELLE` `freigeben`/`zurueckweisen`
+  // dasselbe `wer: darfFreigeben` teilt, aber genau die Naht, die in Aufgabe 14 einen Riegel zur
+  // Haelfte unbewacht liess. `Object.values` kann nicht veralten, wenn `AktionsOptionen` waechst.
+  const keineAktion = !Object.values(optionen).some(Boolean);
 
   if (keineAktion) {
     return <p>Für diese Aufgabe ist derzeit keine Aktion möglich.</p>;

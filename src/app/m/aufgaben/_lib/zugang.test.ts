@@ -456,6 +456,27 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
     });
     expect(darfNachweisSehen(pruefer, a)).toBe(true);
   });
+
+  /**
+   * BETREIBERENTSCHEIDUNG AUS FIX-RUNDE 1 (`_lib/zugang.ts`s Kopfkommentar zur Pruefer-Klausel):
+   * die Klausel traegt bewusst KEIN `istAktiv` — ein ausgeschiedener Pruefer sieht den Nachweis
+   * WEITERHIN, obwohl er ihn auf `/freigaben` nie sah (`darfFreigeben` prueft `istAktiv`, diese
+   * Funktion nicht). Die Handlungsseite bleibt trotzdem geschuetzt: `darfFreigeben(exPruefer, a,
+   * heute)` bleibt `false`, s. den eigenen `darfFreigeben`-Testblock.
+   */
+  it("ein AUSGESCHIEDENER Pruefer sieht den Nachweis trotzdem — Sichtpraedikat, kein istAktiv-Gefaelle", () => {
+    const ersteller = legePerson("ns6-ersteller", "auftrag");
+    const exPruefer = legePerson("ns6-expruefer", "auftrag", { aktivBis: "2020-01-01" });
+    const bufdi = legePerson("ns6-bufdi", "bufdi");
+    const a = legeAufgabe({
+      erstellerId: ersteller.id,
+      zugewiesenAn: bufdi.id,
+      prueferId: exPruefer.id,
+      status: "freigabe_offen",
+    });
+    expect(darfNachweisSehen(exPruefer, a)).toBe(true);
+    expect(darfFreigeben(exPruefer, a, HEUTE)).toBe(false);
+  });
 });
 
 describe("darfAufgabeSehen — koordination und jeder BuFDi sehen jede Aufgabe; auftrag nur die eigene", () => {
