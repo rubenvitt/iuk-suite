@@ -14,6 +14,11 @@ declare module "next-auth" {
       isAdmin: boolean;
     };
     error?: string;
+    /**
+     * Unix-SEKUNDEN der Anmeldung, aus `token.angemeldetSeit`. Die Profilseite
+     * zeigt sie als „angemeldet seit".
+     */
+    angemeldetSeit?: number;
   }
 
   interface User {
@@ -38,5 +43,17 @@ declare module "next-auth/jwt" {
      */
     refreshFailedAt?: number;
     error?: string;
+    /**
+     * Unix-SEKUNDEN der Anmeldung. Grundlage des Sitzungswiderrufs
+     * (`core/konto/widerruf.ts`).
+     *
+     * NICHT durch `iat` ersetzbar, auch wenn das dasselbe zu sein scheint:
+     * Auth.js signiert das Token bei JEDER Antwort neu
+     * (`@auth/core/lib/actions/session.js:40`) und setzt `iat` dabei auf die
+     * Gegenwart. Ein Widerruf waere nach genau einer Anfrage wieder ueberholt —
+     * und kein Gate sieht das, weil in einem Unit-Test niemand ein zweites Mal
+     * encodiert.
+     */
+    angemeldetSeit?: number;
   }
 }

@@ -10,6 +10,14 @@ const { auffrischenMock } = vi.hoisted(() => ({ auffrischenMock: vi.fn() }));
  */
 vi.mock("@/core/auth/refresh", () => ({ tokenAuffrischen: auffrischenMock }));
 
+/**
+ * Der Widerrufsspeicher als Attrappe — nicht die Datenbank. Hier zaehlt allein,
+ * WAS der Callback aus einer Antwort macht; dass die Epoche richtig gelesen
+ * wird, besitzt `core/konto/widerruf.test.ts`.
+ */
+const { widerrufenMock } = vi.hoisted(() => ({ widerrufenMock: vi.fn() }));
+vi.mock("@/core/konto/widerruf", () => ({ istWiderrufen: widerrufenMock }));
+
 import { authConfig } from "@/core/auth/config";
 
 /**
@@ -23,6 +31,8 @@ import { authConfig } from "@/core/auth/config";
 beforeEach(() => {
   auffrischenMock.mockReset();
   auffrischenMock.mockImplementation(async (token: unknown) => token);
+  widerrufenMock.mockReset();
+  widerrufenMock.mockReturnValue(false);
 });
 
 const jwtCallback = (request: NextRequest | undefined) => {
@@ -305,5 +315,58 @@ describe("authConfig — Schreibrecht-Weiche", () => {
       token: { expiresAt: Math.floor(Date.now() / 1000) + 3600 },
     } as never);
     expect(auffrischenMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * DER SITZUNGSWIDERRUF AM CALLBACK.
+ *
+ * Die Naht, an der „von allen Geraeten abmelden" wirksam wird — und die einzige
+ * Stelle, an der eine gueltig signierte Sitzung serverseitig ungueltig werden
+ * kann, solange die Suite `strategy: "jwt"` faehrt.
+ */
+describe("authConfig — Sitzungswiderruf", () => {
+  it("stempelt den Anmeldezeitpunkt bei der Anmeldung", async () => {
+    const vorher = Math.floor(Date.now() / 1000);
+    const token = await jwtCallback(anfrage)({
+      token: { sub: "s-1" },
+      account: { provider: "pocket-id", type: "oidc", providerAccountId: "s-1" },
+    } as never);
+    expect(token).not.toBeNull();
+    expect((token as { angemeldetSeit?: number }).angemeldetSeit).toBeGreaterThanOrEqual(vorher);
+  });
+
+  it("schreibt den Anmeldezeitpunkt bei Folgeaufrufen NICHT neu", async () => {
+    // Der Kern des Ganzen: wuerde der Stempel bei jedem Aufruf neu gesetzt,
+    // waere jeder Widerruf nach einer Anfrage wirkungslos.
+    const token = await jwtCallback(anfrage)({
+      token: { sub: "s-2", angemeldetSeit: 1_000 },
+    } as never);
+    expect((token as { angemeldetSeit?: number }).angemeldetSeit).toBe(1_000);
+  });
+
+  it("gibt null zurueck, wenn die Sitzung widerrufen ist", async () => {
+    widerrufenMock.mockReturnValue(true);
+    const token = await jwtCallback(anfrage)({
+      token: { sub: "s-3", angemeldetSeit: 1_000 },
+    } as never);
+    expect(token).toBeNull();
+  });
+
+  it("fragt den Widerruf mit sub und Anmeldezeitpunkt", async () => {
+    await jwtCallback(anfrage)({ token: { sub: "s-4", angemeldetSeit: 1_000 } } as never);
+    expect(widerrufenMock).toHaveBeenCalledWith("s-4", 1_000);
+  });
+
+  it("frischt ein widerrufenes Token gar nicht erst auf", async () => {
+    /*
+     * Reihenfolge ist hier Sicherheit, nicht Sparsamkeit: `tokenAuffrischen`
+     * rotiert bei Pocket ID das Refresh-Token. Fuer eine Sitzung, die gerade
+     * stirbt, waere das ein verschenkter Umlauf — und im schlimmsten Fall eine
+     * Rotation, deren Ergebnis niemand mehr entgegennimmt.
+     */
+    widerrufenMock.mockReturnValue(true);
+    await jwtCallback(anfrage)({ token: { sub: "s-5", angemeldetSeit: 1 } } as never);
+    expect(auffrischenMock).not.toHaveBeenCalled();
   });
 });
