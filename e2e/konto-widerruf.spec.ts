@@ -41,8 +41,18 @@ test("der Widerruf sperrt eine zweite, unabhaengige Sitzung aus", async ({ brows
   await seiteA.goto("http://portal.localtest.me:3100/profil");
   await seiteA.getByTestId("alle-abmelden").click();
   await seiteA.getByTestId("alle-abmelden-ja").click();
-  // Erst wenn A wirklich draussen ist, ist der Widerruf geschrieben.
-  await seiteA.waitForURL(/\/login/, { timeout: 45_000 });
+  /*
+   * Gewartet wird darauf, dass A die Profilseite VERLAESST — nicht darauf, dass
+   * A beim Login ankommt. `signOut` ruft die Server Action ab und navigiert
+   * ERST DANACH; der Widerruf steht also, sobald sich die Adresse bewegt.
+   *
+   * Auf `/login` zu warten waere hier falsch: `oidc-signout` baut sein Ziel aus
+   * `AUTH_URL`, und das ist in dieser E2E-Umgebung gar nicht gesetzt (siehe
+   * `webServer.env` in playwright.config.ts) — der Rueckfall ist
+   * `http://localhost:3000`, wo nichts lauscht. Der Test wuerde an einem
+   * Umstand der Testumgebung scheitern statt an der Sache.
+   */
+  await seiteA.waitForURL((url) => !url.pathname.includes("/profil"), { timeout: 45_000 });
 
   // B navigiert und landet beim Login — ohne dass B irgendetwas getan haette.
   await seiteB.goto("http://portal.localtest.me:3100/");
@@ -59,7 +69,7 @@ test("nach dem Widerruf traegt eine frische Anmeldung wieder", async ({ page }) 
   await page.goto("http://portal.localtest.me:3100/profil");
   await page.getByTestId("alle-abmelden").click();
   await page.getByTestId("alle-abmelden-ja").click();
-  await page.waitForURL(/\/login/, { timeout: 45_000 });
+  await page.waitForURL((url) => !url.pathname.includes("/profil"), { timeout: 45_000 });
 
   await devLogin(page, { host: "portal.localtest.me", email });
   await page.goto("http://portal.localtest.me:3100/");
