@@ -197,47 +197,52 @@ test.describe("Fahrzeug-Checklisten", () => {
   });
 
   /**
-   * ⚠️ `waitForURL` MIT EIGENEM ZEITBUDGET, NICHT `expect(page).toHaveURL(…)`.
+   * ⚠️ `waitUntil: "commit"`, UND DAS IST DER GANZE PUNKT DIESER ZWEI FAELLE.
    *
-   * Der Knopf ist ein `Button href`, also ein echter Anker: der Klick ist ein
-   * DOKUMENTWECHSEL, kein Client-Wechsel — die Zielseite wird samt aller
-   * Bündel neu geladen. `toHaveURL` erbt die Vorgabe von `expect` (5 s), und
-   * bis zum Commit der Navigation meldet `page.url()` weiter die ALTE Adresse.
-   * Ein `next dev` auf einem CI-Runner braucht dafuer regelmaessig laenger als
-   * fuenf Sekunden, und die Zusicherung faellt, waehrend die Navigation noch
-   * unterwegs ist — das Bild ist „14 × unexpected value <alte URL>", also
-   * ununterscheidbar von „der Knopf navigiert gar nicht".
+   * `page.waitForURL` wartet in der Vorgabe bis `"load"` — also bis das
+   * LADE-EREIGNIS der Zielseite gefeuert hat, nicht bis die Navigation
+   * stattgefunden hat. Unter `next dev` ist das zweierlei: die Adresse steht
+   * laengst richtig, waehrend die Seite noch Bundles, RSC-Nachzuegler und die
+   * HMR-Verbindung offen hat. Genau das stand in der CI-Meldung, und ich habe
+   * es zweimal falsch gelesen:
    *
-   * GEMESSEN, NICHT GERATEN: dieselbe Navigation auf einem KALTEN `next dev`
-   * kostet **4134 ms** — auf einer unbelasteten Maschine, gegen ein Budget von
-   * 5000 ms. Weniger als eine Sekunde Luft, bevor die Zusicherung faellt; ein
-   * CI-Runner ist kleiner, geteilt und hat die halbe Suite daneben im Ofen.
+   *     TimeoutError: page.waitForURL: Timeout 45000ms exceeded.
+   *     waiting for navigation until "load"
    *
-   * DIESELBE KLASSE STEHT SCHON IM REPO AUSGESCHRIEBEN: `fixtures.ts` haelt
-   * fuer den Anmeldeweg fest, dass 10 s „auf jeder Entwicklermaschine haelt und
-   * in der CI jedes Mal fiel" — kalt gemessen 13,7 s gegen 0,3 s warm.
+   * ⚠️ DIE ERSTE LESART WAR „ZU KNAPP BEMESSEN" — sie war falsch. Das Budget
+   * von 5 s auf 45 s zu heben half NICHT, und das ist der Beleg: gewartet wurde
+   * nie auf die Adresse, sondern auf `load`. Eine groessere Zahl vor derselben
+   * Bedingung kauft nichts. Der Lauf wurde davon nur laenger (13 min statt 8).
    *
-   * Beide Faelle unten hingen an derselben Kante; dass der erste eine Zeit lang
-   * gruen war, war Glueck und keine Aussage.
+   * ⚠️ DIE ZWEITE LESART WAR „DER KNOPF NAVIGIERT NICHT" — auch falsch, aber
+   * teuer: `toHaveURL` (Vorgabe 5 s) faellt mit „14 × unexpected value <alte
+   * URL>", weil `page.url()` bis zum Commit die alte Adresse meldet. Das Bild
+   * ist ununterscheidbar von einem kaputten Knopf und hat die Suche zuerst auf
+   * `ChecklisteKnopf` gelenkt. Dort WAR ein echter Fehler (ein `<button>` im
+   * `<a>`, behoben); er war nur nicht die Ursache DIESER Meldung.
    *
-   * `test.timeout` ist 90 s, das Budget ist also da — es war nur der falschen
-   * Zusicherung zugeteilt.
+   * WAS HIER WIRKLICH ZU ZEIGEN IST: dass der Klick navigiert UND das Blatt
+   * ankommt. Das erste sagt `"commit"`, das zweite die Zusicherung darunter,
+   * die auf den Inhalt wartet. Auf `load` wartet niemand — kein Nachladen einer
+   * Schrift entscheidet, ob dieser Weg funktioniert.
+   *
+   * Die STRUKTUR des Knopfes (ein Anker, kein Knopf darin, richtiges Ziel)
+   * haengt nicht mehr an diesen zwei Faellen: sie steht deterministisch in
+   * `verwaltung/(arbeit)/fahrzeuge/ChecklisteKnopf.test.tsx`.
    */
-  const NAVIGATION = 45_000;
+  const NAVIGATION = { timeout: 30_000, waitUntil: "commit" } as const;
 
   test("die Fahrzeugliste fuehrt auf den Bogen", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge"));
     await page.getByRole("link", { name: "Checklisten drucken" }).click();
-    await page.waitForURL(/\/verwaltung\/checklisten$/, { timeout: NAVIGATION });
+    await page.waitForURL(/\/verwaltung\/checklisten$/, NAVIGATION);
     await expect(page.locator(".lb-cl-blatt").nth(0)).toBeVisible();
   });
 
   test("das Fahrzeugblatt fuehrt auf genau sein eigenes Blatt", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge/e2e-fahrzeug"));
     await page.getByRole("link", { name: "Checkliste drucken" }).click();
-    await page.waitForURL(/\/verwaltung\/checklisten\?fz=e2e-fahrzeug$/, {
-      timeout: NAVIGATION,
-    });
+    await page.waitForURL(/\/verwaltung\/checklisten\?fz=e2e-fahrzeug$/, NAVIGATION);
     await expect(page.locator(".lb-cl-blatt")).toHaveCount(1);
   });
 
