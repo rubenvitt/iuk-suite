@@ -170,6 +170,7 @@ nicht steht, muss von der Server-Action abgelehnt werden.
 | `verteilt` | umverteilen | `verteilt` | `koordination` |
 | `verteilt` | einplanen / verschieben (`plan_datum`) | `verteilt` | zugewiesener BuFDi |
 | `verteilt` | Bearbeitung starten | `in_arbeit` | zugewiesener BuFDi |
+| `in_arbeit` | einplanen / verschieben (`plan_datum`) | `in_arbeit` | zugewiesener BuFDi |
 | `in_arbeit` | zurücksetzen | `verteilt` | zugewiesener BuFDi |
 | `in_arbeit` | fertig melden, **Fremdaufgabe** | `freigabe_offen` | zugewiesener BuFDi |
 | `in_arbeit` | fertig melden, **Selbstaufgabe** | `abgeschlossen` | zugewiesener BuFDi |
@@ -181,6 +182,14 @@ nicht steht, muss von der Server-Action abgelehnt werden.
 `plan_datum`, `plan_uhrzeit` und `plan_rang` geleert — ein Zeitplaneintrag gehört zu einer Person,
 nicht zu einer Aufgabe. Sonst erscheint die Aufgabe im Tag des neuen BuFDi an einer Stelle, die er
 nicht gewählt hat, und belegt dort Budget. Ein neuer Zeitvorschlag darf im selben Zug gesetzt werden.
+
+**Nachtrag vom 2026-08-13 — `in_arbeit` ist verschiebbar.** Die Zeile `in_arbeit` +
+einplanen/verschieben stand ursprünglich nicht hier. Der Widerspruch fiel bei der Umsetzung auf:
+`_lib/tagesplan.ts` zeigt Aufgaben in Arbeit regulär in der Tagesspalte — richtig, denn woran man
+gerade arbeitet, gehört in den Tag —, und ohne diese Zeile hätte das Ziehen einer sichtbaren
+`in_arbeit`-Aufgabe einen Wurf auf die technische Fehlerseite ausgelöst. Fachlich ist die Ergänzung
+das Naheliegende: wer eine angefangene Aufgabe heute nicht schafft, schiebt sie auf morgen, ohne sie
+erst zurücksetzen zu müssen. Betreiberentscheidung nach Vorlage der drei Möglichkeiten.
 
 Drei weitere Festlegungen, die in der Tabelle stecken und leicht übersehen werden:
 
