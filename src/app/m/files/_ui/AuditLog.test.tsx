@@ -124,6 +124,21 @@ describe("die Spaltenüberschriften sagen, was in der Spalte steht", () => {
     expect(ueberschriften).toContain("Zeit");
     expect(ueberschriften).toContain("Was");
   });
+
+  /**
+   * PUNKT 4, ZWEITER HALBSATZ (Review-Runde zu Aufgabe 12): Spaltenkoepfe
+   * tragen `SCHRIFT.kicker`, nicht nur ihren Text. Ohne diese Zusicherung
+   * naehme eine spaetere Aufraeumrunde das `<span style={SCHRIFT.kicker}>`
+   * als Ballast wieder heraus — der Text sieht fuer sich genommen unveraendert
+   * aus, die Rolle steckt ausschlieszlich im Stil.
+   */
+  it("traegt an der Spalte „Zeit“ die Rolle SCHRIFT.kicker (600, versal)", () => {
+    const kopf = zeige().querySelectorAll("th")[0];
+    const span = kopf?.querySelector("span");
+    expect(span?.textContent).toBe("Zeit");
+    expect(span?.style.fontWeight).toBe("600");
+    expect(span?.style.textTransform).toBe("uppercase");
+  });
 });
 
 describe("die Spalte „Was“", () => {

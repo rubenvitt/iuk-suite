@@ -1,0 +1,166 @@
+// @vitest-environment jsdom
+import { describe, it, expect, afterEach } from "vitest";
+import { mount, unmount, query, exists } from "@/app/m/qr/_lib/test-dom";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
+
+afterEach(unmount);
+
+describe("Seitenkopf", () => {
+  it("setzt den Titel als einziges h1", async () => {
+    await mount(<Seitenkopf titel="Artikel" />);
+    const ueberschriften = document.querySelectorAll("h1");
+    expect(ueberschriften).toHaveLength(1);
+    expect(ueberschriften[0].textContent).toBe("Artikel");
+  });
+
+  it("lässt Beschreibung und Aktionen weg, wenn keine da sind", async () => {
+    await mount(<Seitenkopf titel="Artikel" />);
+    expect(exists('[data-testid="seitenkopf-beschreibung"]')).toBe(false);
+    expect(exists('[data-testid="seitenkopf-aktionen"]')).toBe(false);
+  });
+
+  it("zeigt Beschreibung und Aktionen, wenn sie da sind", async () => {
+    /*
+     * Gegenprobe zum vorigen Test: der bloße Verzicht auf Assertion-Fehler bei
+     * Abwesenheit beweist nicht, dass die Haken bei Anwesenheit tatsächlich
+     * erscheinen — ein vertippter oder umbenannter `data-testid` fiele sonst
+     * nirgends auf. Aufgaben 8-13 hängen an genau diesen beiden Haken.
+     */
+    await mount(
+      <Seitenkopf
+        titel="Artikel"
+        beschreibung="Sichtbar, sobald übergeben."
+        aktionen={<button type="button">Anlegen</button>}
+      />,
+    );
+    // `query()` wirft bereits, wenn das Element fehlt (`test-dom.tsx`) — ein
+    // zusaetzliches `.not.toBeNull()` danach koennte strukturell nie fallen
+    // und stand hier als tote Zusicherung (Review-Befund, Aufgabe 7 Runde 2).
+    const beschreibung = query('[data-testid="seitenkopf-beschreibung"]');
+    expect(beschreibung.textContent).toBe("Sichtbar, sobald übergeben.");
+    const aktionen = query('[data-testid="seitenkopf-aktionen"]');
+    expect(aktionen.textContent).toBe("Anlegen");
+  });
+
+  it("trägt keine tabellarische Ziffernstellung — eine Überschrift vergleicht nichts", async () => {
+    /*
+     * `core/theme/schrift.ts` setzt `fontVariantNumeric: "tabular-nums
+     * lining-nums"` auf jeder Rolle, weil dieselben Rollen auch Tabellenzellen
+     * und KPI-Werte bedienen. Der Seitenkopf ist keins von beidem — die
+     * Eigenschaft muss an ALLEN DREI Stellen draußen bleiben (Titel,
+     * Beschreibung, Rückweg-Link — alle drei benutzen `ohneZiffernstellung`),
+     * sonst setzt eine spätere Aufräumrunde die Rolle an genau einer Stelle
+     * wieder pur ein, ohne dass ein Test es merkt. Deshalb hier mit `zurueck`
+     * mounten und alle drei Knoten in einer Schleife prüfen, statt den
+     * Rückweg-Link separat und ungetestet zu lassen.
+     */
+    await mount(
+      <Seitenkopf
+        titel="Artikel"
+        beschreibung="Text"
+        zurueck={{ titel: "Zurück", href: "/verwaltung" }}
+      />,
+    );
+    const knoten = [
+      query("h1"),
+      query('[data-testid="seitenkopf-beschreibung"]'),
+      query('[data-testid="seitenkopf-zurueck"]'),
+    ];
+    for (const el of knoten) {
+      expect(el.getAttribute("style")).not.toMatch(/font-variant-numeric/);
+    }
+  });
+
+  it("trägt einen Rückweg, wenn einer übergeben wird", async () => {
+    /*
+     * „Führt jede Seite zurück, oder ist sie eine Sackgasse?" steht als
+     * Prüf­frage in `docs/design/README.md` und hatte bis 2026-08-13 keinen
+     * gemeinsamen Träger — jede Detailseite löste es selbst oder gar nicht.
+     */
+    await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
+    // `query()` wirft bereits, wenn das Element fehlt — kein `.not.toBeNull()`
+    // davor (dieselbe tote Bauform wie oben, im selben Zug bereinigt).
+    const link = query('[data-testid="seitenkopf-zurueck"]') as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe("/verwaltung/artikel");
+    expect(link.textContent).toContain("Artikel");
+  });
+
+  it("fasst den Rückweg in ein benanntes Landmark, nicht in einen nackten Link", async () => {
+    /*
+     * Nachtrag aus dem Review zu Aufgabe 9: die Vorlage `Brotkrume.tsx` — seit
+     * dem 13.08.2026 geloescht, dieser Baustein hat sie abgeloest — fasste
+     * denselben Link in `<nav aria-label="Brotkrume">`. Ohne eigenes Landmark
+     * hier verlieren alle Seiten, die auf `zurueck` umstellen, das Sprungziel
+     * fuer Screenreader-Bedienung. Der Name ist bewusst nicht "Brotkrume" —
+     * beide Fassungen rendern genau einen Link, keine mehrstufige Brotkrume.
+     */
+    await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
+    const landmark = query('nav[aria-label="Zurück"]');
+    const link = query('[data-testid="seitenkopf-zurueck"]');
+    expect(landmark.contains(link)).toBe(true);
+  });
+
+  it("versteckt das Pfeilzeichen vor Screenreadern, der Linktext bleibt der einzige Wortlaut", async () => {
+    /*
+     * `‹` ist ein Textzeichen, kein Icon wie bei `Brotkrume` (deren `Ikone`
+     * bereits `aria-hidden` trug). Ohne eigenes `aria-hidden` wuerde ein
+     * Screenreader das Zeichen mitlesen, bevor er den eigentlichen Linktext
+     * ausspricht.
+     */
+    await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
+    const link = query('[data-testid="seitenkopf-zurueck"]');
+    const glyph = link.querySelector("span");
+    expect(glyph?.getAttribute("aria-hidden")).toBe("true");
+    expect(glyph?.textContent).toContain("‹");
+  });
+
+  it("haelt eine 44px-Tapflaeche am Rueckweg, den Text darin vertikal mittig", async () => {
+    /*
+     * Dritter Nachtrag, Review Aufgabe 9: `Brotkrume.tsx` setzte fuer denselben
+     * Link `min-height: 44px` (WCAG 2.5.5) ueber `.backlink` — seit Aufgabe 8
+     * verbindlich fuer die ganze Suite, elf Fundstellen wurden dafuer bereits
+     * zurueckgenommen. Ohne eigene Mindesthoehe unterbietet der Rueckweg genau
+     * diese Schwelle.
+     *
+     * Alle DREI Eigenschaften einzeln geprueft (Review-Nachbesserung): `display:
+     * inline-flex` fehlte hier zunaechst. `alignItems`/`minHeight` landen im
+     * `style`-String unabhaengig vom `display`-Wert — eine spaetere Aenderung,
+     * die nur `display` auf `inline-block` zurueckdreht und die anderen beiden
+     * stehen laeszt, waere durch die urspruengliche Fassung nicht aufgefallen,
+     * und genau das erzeugt das Fehlerbild, das der naechste Satz beschreibt:
+     * die Box ist hoch genug, der Text klebt am oberen Rand statt zentriert zu
+     * stehen.
+     */
+    await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
+    const style = query('[data-testid="seitenkopf-zurueck"]').getAttribute("style");
+    expect(style).toMatch(/display:\s*inline-flex/);
+    expect(style).toMatch(/min-height:\s*44px/);
+    expect(style).toMatch(/align-items:\s*center/);
+  });
+
+  it("traegt den Abstand zum Pfeilzeichen ueber gap, nicht ueber ein Leerzeichen im span", async () => {
+    /*
+     * Dritter Nachtrag, Review Aufgabe 9 (zweites Review): das Leerzeichen im
+     * `<span aria-hidden="true">‹ </span>` war der einzige Traeger des
+     * sichtbaren Abstands zum Linktext, solange der Container `inline-block`
+     * war. Seit dem zweiten Nachtrag ist der Container `inline-flex` — dort
+     * bildet der `<span>` sein EIGENES Flex-Zeilenkastenende, und ein
+     * NACHGESTELLTES Leerzeichen darin wird abgeschnitten. Im echten Browser
+     * nachgemessen (Range-/Breitenvergleich, siehe Fix-Bericht): mit dem
+     * Leerzeichen im span und OHNE `gap` rendert der Link exakt so breit wie
+     * eine Kontrolle ganz ohne Leerzeichen — das Leerzeichen trug null Pixel
+     * bei, der Rueckweg rendert `‹Artikel` statt `‹ Artikel`.
+     *
+     * jsdom rendert kein Flex-Layout und kann die Kollabierung selbst nicht
+     * sehen (das hat das Review ausdruecklich als Grenze des Werkzeugs benannt,
+     * nicht als Luecke in dieser Zusicherung) — pruefbar ist hier nur die
+     * QUELLE des Abstands: `gap` im Stil, und kein Leerzeichen mehr im `<span>`,
+     * damit nicht zwei Abstandsquellen nebeneinanderstehen.
+     */
+    await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
+    const link = query('[data-testid="seitenkopf-zurueck"]');
+    expect(link.getAttribute("style")).toMatch(/gap:\s*4px/);
+    const glyph = link.querySelector("span");
+    expect(glyph?.textContent).toBe("‹");
+  });
+});

@@ -290,8 +290,9 @@ describe("Einstieg — wer was sieht (§3.1)", () => {
     const wirt = await zeichne();
     expect(wirt.querySelector("h1")?.textContent).toBe("Deine Gruppen");
     expect(wirt.textContent).toContain("Je Gruppe ein dauerhafter QR-Code.");
-    // Der Einstieg ist die Wurzel — keine Breadcrumb, die auf sich selbst zeigt.
-    expect(wirt.querySelector(".ant-breadcrumb")).toBeNull();
+    // Der Einstieg ist die Wurzel — kein Rückweg, der auf sich selbst zeigt
+    // (vormals eine Breadcrumb, seit Task 11 `Seitenkopf`s `zurueck`).
+    expect(wirt.querySelector('[data-testid="seitenkopf-zurueck"]')).toBeNull();
   });
 
   it("bietet ab acht Gruppen ein Suchfeld, darunter nicht", async () => {

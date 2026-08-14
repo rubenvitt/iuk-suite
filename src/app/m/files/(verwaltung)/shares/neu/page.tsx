@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { grenzen } from "../../../_lib/grenzen";
 import { UploadInsel } from "../../../_ui/UploadInsel";
 
@@ -37,18 +36,14 @@ export default async function NeueFreigabeSeite() {
   return (
     <div data-testid="files-neue-freigabe">
       {/*
-       * DER WEG ZURUECK. Jede Verwaltungsseite fuehrt zurueck, sonst ist sie
-       * eine Sackgasse (`docs/design/README.md:244`). Ziel ist die
-       * Modulwurzel — `/shares/<id>` (T41) gibt es noch nicht, und ein Weg in
-       * einen 404 waere schlimmer als kein Weg.
+       * Punkt 1 der Pruefliste: `Seitenkopf` (`@/core/shell/Seitenkopf`, RSC-
+       * sicher — kein Compound-Zugriff, kein `@ant-design/icons`-Import).
+       * `zurueck` traegt dieselbe Begruendung wie der fruehere Textlink: jede
+       * Verwaltungsseite fuehrt zurueck, sonst ist sie eine Sackgasse
+       * (`docs/design/README.md:244`). Ziel ist die Modulwurzel — `/shares/neu`
+       * ist keine `[id]`-Route, aber ohne Rueckweg trotzdem eine Sackgasse.
        */}
-      <p>
-        <Link href="/">← Alle Freigaben</Link>
-      </p>
-
-      {/* Ein nacktes `<h1>` und NICHT `Typography.Title`: der Compound-Zugriff
-          ist in RSC `undefined` und ergibt HTTP 500. */}
-      <h1>Neue Freigabe</h1>
+      <Seitenkopf titel="Neue Freigabe" zurueck={{ titel: "Alle Freigaben", href: "/" }} />
 
       <UploadInsel
         maxAblaufTage={g.maxAblaufTage}

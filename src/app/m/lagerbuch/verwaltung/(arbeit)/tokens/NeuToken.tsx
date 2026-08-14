@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Alert, Button, Form, Input, Modal, Radio, Select } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { createToken } from "../../../_actions/tokens";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Ikone } from "../../../_ui/ikonen";
@@ -175,7 +176,7 @@ export function NeuToken({
         </Form>
         {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
         {code ? (
-          <div role="status" style={{ marginBlockStart: 16 }}>
+          <div role="status" style={{ marginBlockStart: SPACE.lg }}>
             <div>Erzeugter Code — jetzt notieren:</div>
             <div style={{ ...SCHRIFT.mono, fontSize: 28, fontWeight: 700 }}>{code}</div>
           </div>

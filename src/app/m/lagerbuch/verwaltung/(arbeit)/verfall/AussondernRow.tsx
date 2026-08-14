@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Alert, Button, Popconfirm } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { aussondern } from "../../../_actions/aussondern";
 import { Ikone } from "../../../_ui/ikonen";
 
@@ -42,7 +43,7 @@ export function AussondernRow({
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm, flexWrap: "wrap" }}>
       <Popconfirm
         title="Charge aussondern?"
         description={`Bucht den Handlager-Rest von ${bezeichnung} als Korrektur aus.`}
@@ -51,8 +52,14 @@ export function AussondernRow({
         okButtonProps={{ loading: laeuft }}
         onConfirm={bestaetigen}
       >
+        {/* KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
+            docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
+            ist hier bereits die volle wie die halbe Bediendichte, "small"
+            unterbietet die Mindesttapflaeche (WCAG 2.5.5).
+            e2e/lagerbuch-mobil.spec.ts:312 misst das heute nur auf
+            /verwaltung/bestellung -- diese Seite ist (noch) nicht im
+            Testpfad, die Regel gilt trotzdem. */}
         <Button
-          size="small"
           danger
           loading={laeuft}
           icon={<Ikone name="kreuz" groesse={14} />}

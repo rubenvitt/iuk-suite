@@ -63,10 +63,14 @@ export function Aktualisierer() {
  * für 50 Aufrufe im Jahr ablehnt. Die Rückmeldung ist die Zahl selbst, plus die
  * Stand-Zeile, die sich mitbewegt.
  *
- * `size="small"` ist hier die Ausnahme von „`size` gar nicht setzen": die Regel
- * richtet sich gegen `size="large"` (72px statt der vorgegebenen 56), und ein
- * 56px-Knopf neben einer 12px-Metazeile wäre der lauteste Punkt der Fußzeile —
- * lauter als die Zahl, um die es geht.
+ * KEIN `size="small"` MEHR (Nachtrag Task 11): die frühere Ausnahme richtete
+ * sich gegen `size="large"` (72px) bzw. den 56px-Rückfall ohne `size` — mit
+ * `ARBEITSDICHTE` (Task 5, `controlHeight: 44`) fällt ein Knopf ohne `size`
+ * heute auf 44px, nicht mehr auf 56. Die Begründung „lauter als die Zahl, um
+ * die es geht" trug damit nicht mehr, und `size="small"` unterbietet die
+ * 44px-Tapfläche (WCAG 2.5.5) — dieselbe Korrektur wie bei den elf
+ * Zeilenaktionen-Fundstellen der Aufgaben 8/9, hier an einem Textknopf statt
+ * einer Tabellenzeile.
  *
  * Er liegt als GESCHWISTER der Stand-Zeile in der Fußzeile, nicht in ihr: die
  * Zeile trägt das einzige `aria-live="polite"` des Moduls (§4.14), und eine
@@ -77,7 +81,7 @@ export function AktualisierenKnopf() {
   const router = useRouter();
 
   return (
-    <Button type="text" size="small" onClick={() => router.refresh()}>
+    <Button type="text" onClick={() => router.refresh()}>
       Aktualisieren
     </Button>
   );

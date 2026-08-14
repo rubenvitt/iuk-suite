@@ -64,7 +64,13 @@ export function VergleichTabelle({ zeilen }: { zeilen: VergleichZeile[] }) {
        * (Noten.tsx:412) — genau der Fall, fuer den `max-content` gebaut ist.
        */
       scroll={{ x: "max-content" }}
-      locale={{ emptyText: "Keine Gruppen" }}
+      /*
+       * §4.3, Punkt 5: der Leertext nennt den nächsten Schritt statt nur den
+       * Zustand — die einzige Stelle, an der er entsteht, ist der Einstieg
+       * (`+ Neue Gruppe`), den nur ein Admin sieht, also derselbe Kreis, der
+       * diese Seite überhaupt erreicht.
+       */
+      locale={{ emptyText: 'Keine Gruppen — leg eine unter „Deine Gruppen" an.' }}
       onRow={() => ({ "data-testid": "vergleich-row" }) as React.HTMLAttributes<HTMLElement>}
       columns={[
         {

@@ -44,6 +44,9 @@ function levelZelle({
   return (
     <span style={{ whiteSpace: "nowrap" }}>
       <Chip ton={ton ?? "gelb"}>{bezeichnung} {wert}</Chip>
+      {/* 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- enger Abstand
+          zwischen Chip und Klammerzusatz in derselben Zelle, kein
+          Skalenwert ohne sichtbaren Sprung. */}
       <span style={{ ...SCHRIFT.neben, marginInlineStart: 6 }}>
         (damals {min}–{max})
       </span>
@@ -53,19 +56,19 @@ function levelZelle({
 
 const LOGBUCH_SPALTEN = [
   {
-    title: "Zeitpunkt",
+    title: <span style={SCHRIFT.feldname}>Zeitpunkt</span>,
     dataIndex: "zeitpunktText",
     key: "zeitpunkt",
     render: (text: string) => <span className={s.jts}>{text}</span>,
   },
   {
-    title: "Ergebnis",
+    title: <span style={SCHRIFT.feldname}>Ergebnis</span>,
     dataIndex: "ergebnisText",
     key: "ergebnis",
     render: (text: string, zeile) => <Chip ton={zeile.ergebnisTon}>{text}</Chip>,
   },
   {
-    title: "Level 1",
+    title: <span style={SCHRIFT.feldname}>Level 1</span>,
     dataIndex: "level1Wert",
     key: "level1",
     render: (_wert: number | null, zeile) => levelZelle({
@@ -77,7 +80,7 @@ const LOGBUCH_SPALTEN = [
     }),
   },
   {
-    title: "Level 2",
+    title: <span style={SCHRIFT.feldname}>Level 2</span>,
     dataIndex: "level2Wert",
     key: "level2",
     render: (_wert: number | null, zeile) => levelZelle({
@@ -89,13 +92,13 @@ const LOGBUCH_SPALTEN = [
     }),
   },
   {
-    title: "Verbrauch",
+    title: <span style={SCHRIFT.feldname}>Verbrauch</span>,
     dataIndex: "verbrauchText",
     key: "verbrauch",
     render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
   },
   {
-    title: "Akku",
+    title: <span style={SCHRIFT.feldname}>Akku</span>,
     dataIndex: "akkuText",
     key: "akku",
     render: (text: BzLogbuchAnzeigeZeile["akkuText"], zeile) => (
@@ -105,13 +108,13 @@ const LOGBUCH_SPALTEN = [
     ),
   },
   {
-    title: "Wer",
+    title: <span style={SCHRIFT.feldname}>Wer</span>,
     dataIndex: "werText",
     key: "wer",
     render: (text: string) => <Chip ton="grau">{text}</Chip>,
   },
   {
-    title: "Kommentar",
+    title: <span style={SCHRIFT.feldname}>Kommentar</span>,
     dataIndex: "kommentarText",
     key: "kommentar",
     render: (text: string | null) => text ?? <span style={SCHRIFT.neben}>—</span>,

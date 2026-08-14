@@ -5,7 +5,6 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { GeraetScanner } from "./GeraetScanner";
 import GeraetScanSeite, { dynamic } from "./page";
@@ -142,15 +141,15 @@ describe("GeraetScanner", () => {
 });
 
 describe("Geräte-Scan-Seite", () => {
-  it("ist dynamisch und führt per Brotkrume zurück zur Geräte-Liste", () => {
+  it("ist dynamisch und führt per Seitenkopf-Rueckweg zurück zur Geräte-Liste", () => {
     const inhalt = GeraetScanSeite();
-    const brotkrume = elementeVomTyp(inhalt, Brotkrume)[0];
     const kopf = elementeVomTyp(inhalt, SeitenKopf)[0];
 
     expect(dynamic).toBe("force-dynamic");
-    expect((brotkrume.props as { href: string }).href).toBe("/verwaltung/geraete");
-    expect((brotkrume.props as { children: ReactNode }).children).toBe("Geräte");
     expect((kopf.props as { titel: string }).titel).toBe("Gerät scannen");
+    expect((kopf.props as {
+      zurueck?: { titel: string; href: string };
+    }).zurueck).toEqual({ titel: "Geräte", href: "/verwaltung/geraete" });
     expect(elementeVomTyp(inhalt, GeraetScanner)).toHaveLength(1);
   });
 

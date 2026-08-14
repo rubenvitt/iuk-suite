@@ -2,6 +2,7 @@
 
 import { Table, type TableProps } from "antd";
 import Link from "next/link";
+import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
 
 export type VerknuepftesFahrzeugDto = {
@@ -13,7 +14,7 @@ export type VerknuepftesFahrzeugDto = {
 
 const SPALTEN: TableProps<VerknuepftesFahrzeugDto>["columns"] = [
   {
-    title: "Fahrzeug",
+    title: <span style={SCHRIFT.feldname}>Fahrzeug</span>,
     dataIndex: "name",
     key: "fahrzeug",
     render: (name: string, fahrzeug) => (
@@ -23,7 +24,7 @@ const SPALTEN: TableProps<VerknuepftesFahrzeugDto>["columns"] = [
     ),
   },
   {
-    title: "Status",
+    title: <span style={SCHRIFT.feldname}>Status</span>,
     dataIndex: "aktiv",
     key: "status",
     render: (aktiv: boolean) => aktiv ? null : <Chip ton="grau">inaktiv</Chip>,

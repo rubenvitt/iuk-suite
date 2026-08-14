@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { devLogin } from "./fixtures";
+import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST } from "./helpers/lagerbuch";
 
 /**
  * Der einzige Ort, der Media Queries wirklich auswertet. Was `shell-css.test.ts`
@@ -48,22 +49,25 @@ test("mobil: die Kopfzeile bleibt einzeilig", async ({ page }) => {
   expect(hoehe).toBeLessThanOrEqual(72);
 });
 
-test("mobil: die Modulnavigation steht nicht als zweite Zeile im Weg", async ({ page }) => {
+test("mobil: die Modulnavigation steht nicht im Weg", async ({ page }) => {
   /*
-   * NEU NOETIG, seit die Modulnavigation eine eigene Zeile UNTER der Kopfzeile
-   * ist: der Hoehentest darueber misst `suite-header` und sieht sie damit gar
-   * nicht mehr. Zeigte sie sich mobil, kaeme sie zu den 64px der Kopfzeile
-   * hinzu und niemand faende es.
+   * Seit 2026-08-13 liegt die Modulnavigation in der Seitenleiste
+   * (`SuiteRahmen`, `.sider`), nicht mehr in einer eigenen Zeile UNTER der
+   * Kopfzeile. Unterhalb von 768px steht `.sider` auf `display: none`
+   * (shell.module.css) — der Hoehentest darueber misst `suite-header` und
+   * sieht die Leiste damit ohnehin nicht mehr; hier wird zusaetzlich
+   * nachgewiesen, dass sie wirklich unsichtbar bleibt und die Kopfzeile nicht
+   * aufblaeht.
    *
    * `qr` statt `portal`, weil `portal` den `nav`-Slot nicht befuellt — dort
    * gaebe es nichts zu verbergen. Anonym erreichbar (`requiresAuth: false`).
    */
   await page.goto("http://qr.localtest.me:3100/");
-  await expect(page.getByTestId("modulnav")).toBeHidden();
+  await expect(page.getByTestId("modulleiste")).toBeHidden();
   const gesamt = await page.evaluate(
     () => document.querySelector('[data-testid="suite-header"]')!.getBoundingClientRect().bottom,
   );
-  console.log(`Unterkante der Kopfzeile mit Modulnav-Slot bei 390x844: ${gesamt}px`);
+  console.log(`Unterkante der Kopfzeile mit Modulleiste-Slot bei 390x844: ${gesamt}px`);
   expect(gesamt).toBeLessThanOrEqual(72);
 });
 
@@ -139,6 +143,12 @@ test("mobil: anonym steht der Anmelden-Weg in der Kopfzeile", async ({ page }) =
  * (736px Inhalt gegen 573 + 16 Abstand = 589 fuer `.rechts` allein), nur (2)
  * liesze die Seite weiter seitwaerts scrollen. Deshalb pruefen die Zusagen
  * unten BEIDES.
+ *
+ * NACHTRAG 2026-08-13: `.modulnav` (die zweite Zeile) ist ersatzlos entfallen,
+ * die Modulnavigation liegt seither in der Seitenleiste (`modulleiste`,
+ * `SuiteRahmen`). Die Messungen oben bleiben als historischer Befund stehen —
+ * die Zusagen unten pruefen dieselbe Struktur (Leiste beginnt links, unterhalb
+ * der Kopfzeile, keine seitliche Ueberschreitung) an der neuen Bauform.
  */
 for (const breite of [768, 820, 900]) {
   test.describe(`Mittelbreite ${breite}px`, () => {
@@ -154,7 +164,7 @@ for (const breite of [768, 820, 900]) {
         groups: "da-feedback-admin",
         callbackPath: "/",
       });
-      await expect(page.getByTestId("modulnav")).toBeVisible();
+      await expect(page.getByTestId("modulleiste")).toBeVisible();
 
       const quer = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
@@ -194,13 +204,14 @@ for (const breite of [768, 820, 900]) {
 
       /*
        * Und die Struktur selbst, nicht nur ihr Symptom. Die beiden Zusagen
-       * darueber waeren auch mit `.modulnav` als drittem Flex-Kind erfuellbar,
-       * sobald es zufaellig passt — dann faellt die Kopfzeile beim naechsten
-       * Modul mit einem Eintrag mehr wieder um. Die Modulnavigation gehoert
-       * UNTER die Kopfzeile (Entwurf §4, "zweite Zeile").
+       * darueber waeren auch mit der Leiste als drittem Flex-Kind DER
+       * KOPFZEILE erfuellbar, sobald es zufaellig passt — dann faellt die
+       * Kopfzeile beim naechsten Modul mit einem Eintrag mehr wieder um. Die
+       * Modulnavigation gehoert UNTER die Kopfzeile, als eigene Seitenleiste
+       * (`SuiteRahmen`), nicht als Kind von `.kopf`.
        */
       const kopf = (await page.getByTestId("suite-header").boundingBox())!;
-      const nav = (await page.getByTestId("modulnav").boundingBox())!;
+      const nav = (await page.getByTestId("modulleiste").boundingBox())!;
       expect(nav.y).toBeGreaterThanOrEqual(kopf.y + kopf.height - 1);
     });
   });
@@ -248,19 +259,23 @@ test.describe("Desktop — was ohne Drawer erreichbar sein muss", () => {
 });
 
 test.describe("Modulnavigation am laufenden Server", () => {
-  // Desktop-Viewport (Standard), weil `.modulnav` dort sichtbar ist.
+  // Desktop-Viewport (Standard), weil `.sider`/`modulleiste` dort sichtbar ist.
   test.use({ viewport: { width: 1280, height: 720 } });
 
-  test("steht als zweite Zeile UNTER der Kopfzeile, nicht neben dem Avatar", async ({ page }) => {
+  test("steht als Seitenleiste UNTER der Kopfzeile, nicht neben dem Avatar", async ({ page }) => {
     /*
      * Die letzte Zeile der Messtabelle aus dem Fundbericht: bei 1280px stand
      * die Modulnavigation RECHTS NEBEN dem Avatar (x=981, y=-1) statt unter der
      * Kopfzeile. Das war schon auf dem Desktop nicht der Entwurf (§4, Tabelle
      * "zweite Zeile") — nur fiel es dort nicht auf, weil genug Platz da war.
+     * Seit 2026-08-13 ist die Modulnavigation keine Zeile mehr, sondern die
+     * Seitenleiste (`modulleiste`) — die Zusage bleibt dieselbe: sie beginnt
+     * links, unterhalb der Kopfzeile, nicht daneben.
      *
      * Ohne diese Zusage waere die Struktur ungeprueft: bei 1280px scrollt auch
-     * die alte Fassung nicht seitwaerts und der Titel ist breit genug. Der
-     * Rueckbau in ein drittes Flex-Kind waere gruen durchgelaufen.
+     * eine fehlerhafte Fassung nicht seitwaerts und der Titel ist breit genug.
+     * Ein Rueckbau in ein drittes Flex-Kind der Kopfzeile waere gruen
+     * durchgelaufen.
      */
     await devLogin(page, {
       host: "feedback.localtest.me",
@@ -268,8 +283,8 @@ test.describe("Modulnavigation am laufenden Server", () => {
       callbackPath: "/",
     });
     const kopf = (await page.getByTestId("suite-header").boundingBox())!;
-    const nav = (await page.getByTestId("modulnav").boundingBox())!;
-    console.log(`1280px: Kopf ${JSON.stringify(kopf)}, Modulnav ${JSON.stringify(nav)}`);
+    const nav = (await page.getByTestId("modulleiste").boundingBox())!;
+    console.log(`1280px: Kopf ${JSON.stringify(kopf)}, Modulleiste ${JSON.stringify(nav)}`);
     // Beginnt links am selben Rand und liegt vollstaendig unterhalb.
     expect(nav.x).toBeLessThan(kopf.x + 32);
     expect(nav.y).toBeGreaterThanOrEqual(kopf.y + kopf.height - 1);
@@ -303,7 +318,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
       groups: "da-feedback-admin",
       callbackPath: "/vergleich",
     });
-    const aktiv = page.locator('[data-testid="modulnav"] a[aria-current="page"]');
+    const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current="page"]');
     await expect(aktiv).toHaveCount(1);
     await expect(aktiv).toHaveText("Vergleich");
   });
@@ -314,7 +329,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
       groups: "da-feedback-admin",
       callbackPath: "/",
     });
-    const aktiv = page.locator('[data-testid="modulnav"] a[aria-current="page"]');
+    const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current="page"]');
     await expect(aktiv).toHaveCount(1);
     await expect(aktiv).toHaveText("Übersicht");
   });
@@ -337,7 +352,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
      * `qr` braucht keine Anmeldung (`requiresAuth: false`).
      */
     await page.goto("http://qr.localtest.me:3100/wifi");
-    const nav = page.locator('[data-testid="modulnav"]');
+    const nav = page.locator('[data-testid="modulleiste"]');
     await expect(nav.locator('a[aria-current="page"]')).toHaveCount(0);
     await expect(nav.locator('a[aria-current="true"]')).toHaveText("Generator");
   });
@@ -357,7 +372,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
  *
  * DER STREIFEN HAT KEIN `data-testid`. Er ist ein Geschwister VOR `<Header
  * data-testid="suite-header">` innerhalb von antds `<Layout>` (SuiteHeader.tsx,
- * FullShell.tsx) — `Layout` fuegt zwischen seinen Kindern kein zusaetzliches
+ * SuiteRahmen.tsx) — `Layout` fuegt zwischen seinen Kindern kein zusaetzliches
  * Element ein, der Streifen bleibt also der unmittelbare vorangehende
  * Geschwisterknoten der Kopfzeile im DOM. Ein `xpath`-Achsenausdruck greift ihn
  * darueber, ohne auf `[aria-hidden="true"]` angewiesen zu sein — antd setzt das
@@ -381,26 +396,50 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
       await expect(streifen).toHaveCSS("background-color", "rgb(200, 0, 15)");
     });
 
-    test("der aktive Navigationseintrag traegt Markenrot fuer Schrift UND Unterkante, plus Gewicht 600", async ({
+    test("der aktive Navigationseintrag traegt den 3px-Linksakzent in Markenrot, plus Gewicht 600", async ({
       page,
     }) => {
-      // `.navLink[aria-current]` lebt in `.modulnav`, NICHT in `.modulzeile`
-      // (die fuellen antd-Buttons des App-Switchers und tragen kein
-      // `aria-current`). feedback-admin auf der Modulwurzel markiert die
+      // `.navLink[aria-current]` lebt in der Seitenleiste (`modulleiste`). Die
+      // Apps haengen am Umschalter der Kopfzeile (`.umschalter`) und tragen
+      // eine eigene Klasse (`.appEintrag`) — der Selektor unten kann sie also
+      // nicht mitgreifen. feedback-admin auf der Modulwurzel markiert die
       // Uebersicht mit `aria-current="page"` — derselbe Aufbau wie im
       // bestehenden Test "markiert die Uebersicht auf der Modulwurzel" oben.
+      //
+      // DIESER BLOCK PRUEFTE FRUEHER "Schrift UND Unterkante", und beides war
+      // falsch geworden:
+      //
+      // Die Unterkante zuerst. `.navLink` setzt nur `border-inline-start`;
+      // `border-bottom-style` ist `none`, die Breite 0, und
+      // `border-bottom-color` faellt damit auf `currentcolor` zurueck — also
+      // auf genau die `color`, die eine Zeile darueber schon zugesichert war.
+      // Die Zusicherung konnte nicht fallen: wer den Linksakzent ersatzlos
+      // loescht, haette hier weiterhin Gruen bekommen. Damit war die sichtbare
+      // Aktivmarkierung der Seitenleiste im Browser nirgends belegt, nur als
+      // Regeltext in `shell-css.test.ts`.
+      //
+      // Die Schriftfarbe danach: sie ist mit der Kontrast-Korrektur des
+      // Schlussreviews entfallen (`#e45a66` auf der getoenten Flaeche ergab im
+      // Dunkeln 3.96:1). `.navLink[aria-current]` traegt keine eigene `color`
+      // mehr; eine Zusicherung darauf haette die Regression festgehalten.
+      //
+      // Zugesichert wird deshalb der Traeger, der wirklich da ist: Farbe UND
+      // Breite des linken Akzents. Beide einzeln, weil eine allein nicht
+      // reicht — ohne die Breite bliebe der Ausfall von `border-inline-start`
+      // unbemerkt, ohne die Farbe der Ausfall von `--iuk-marke`.
+      //
+      // `border-inline-start-*` meldet sich in `getComputedStyle` unter der
+      // physischen Eigenschaft — Schreibmodus der Suite ist horizontal-tb/ltr,
+      // "inline-start" ist dort "left".
       await devLogin(page, {
         host: "feedback.localtest.me",
         groups: "da-feedback-admin",
         callbackPath: "/",
       });
-      const aktiv = page.locator('[data-testid="modulnav"] a[aria-current]');
+      const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current]');
       await expect(aktiv).toHaveCount(1);
-      await expect(aktiv).toHaveCSS("color", "rgb(200, 0, 15)");
-      // `border-block-end-color` meldet sich in `getComputedStyle` unter der
-      // physischen Eigenschaft — Schreibmodus der Suite ist horizontal-tb/ltr,
-      // "block-end" ist dort "bottom".
-      await expect(aktiv).toHaveCSS("border-bottom-color", "rgb(200, 0, 15)");
+      await expect(aktiv).toHaveCSS("border-left-color", "rgb(200, 0, 15)");
+      await expect(aktiv).toHaveCSS("border-left-width", "3px");
       await expect(aktiv).toHaveCSS("font-weight", "600");
     });
 
@@ -462,5 +501,245 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
       getComputedStyle(document.documentElement).getPropertyValue("--iuk-marke").trim(),
     );
     expect(marke).toBe("#e45a66");
+  });
+});
+
+/**
+ * AUFGABE 6 — DER EINE GEBUENDELTE PLAYWRIGHT-LAUF.
+ *
+ * Alle fuenf vorangegangenen Aufgaben (App-Umschalter, SuiteRahmen, klebende
+ * Kopfzeile, Seitenleiste, Arbeitsdichte) sind per Regeltext geprueft und
+ * committet, aber KEINE davon ist im Browser belegt: antd spritzt seine
+ * Regeln zur Laufzeit ueber cssinjs ein, und die stehen in keiner Datei
+ * dieses Repos — kein Quelltext-Scan und kein jsdom sieht sie. Nur dieser
+ * Lauf beweist, dass etwas davon tatsaechlich wirkt.
+ */
+test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () => {
+  test.use({ viewport: { width: 1280, height: 720 } });
+
+  test("die Kopfzeile vererbt dem Umschalter keine Zeilenhöhe mehr", async ({ page }) => {
+    /*
+     * DIE EINZIGE STELLE, DIE DAS BEWEISEN KANN. antd setzt auf
+     * `.ant-layout-header` ein `line-height: 64px` (layout/style/index.js:50)
+     * und spritzt die Regel zur Laufzeit über cssinjs ein — sie steht in
+     * keiner Datei dieses Repos. `shell-css.test.ts` hält fest, dass die
+     * Gegenmaßnahme DASTEHT; ob sie WIRKT, weiß nur der Browser.
+     *
+     * Gemessen wird der Auslöser und nicht das Panel, weil er auch
+     * geschlossen existiert — und weil er es war, der mit 76px in einer 64px
+     * hohen Kopfzeile stand.
+     */
+    await devLogin(page, { host: "portal.localtest.me", groups: "" });
+
+    const ausloeser = page.getByTestId("app-umschalter");
+    await expect(ausloeser).toBeVisible();
+    expect(await ausloeser.evaluate((el) => getComputedStyle(el).lineHeight)).not.toBe("64px");
+    expect((await ausloeser.boundingBox())!.height).toBeLessThan(56);
+  });
+
+  test("ein Panel-Eintrag ist eine Zeile, keine Fläche", async ({ page }) => {
+    await devLogin(page, { host: "portal.localtest.me", groups: "" });
+    await page.getByTestId("app-umschalter").click();
+
+    const eintrag = page.getByTestId("app-eintrag").first();
+    await expect(eintrag).toBeVisible();
+    expect((await eintrag.boundingBox())!.height).toBeLessThan(56);
+  });
+
+  test("das offene Panel liegt über der Seitenleiste", async ({ page }) => {
+    /*
+     * DIE EINE MESSUNG ZUM STAPELKONTEXT, den dieser Umbau NEU einführt.
+     *
+     * `.kopfBlock` bekommt `position: sticky` und `z-index: 100` und wird damit
+     * zum Stapelkontext. Darin liegen `.umschalterFang` (900) und
+     * `.umschalterPanel` (901) — ihre Zahlen gelten ab sofort nur noch
+     * INNERHALB dieses Kontexts, nicht mehr gegen die ganze Seite. Die
+     * Seitenleiste ist ebenfalls `position: sticky`, aber ohne `z-index`
+     * (`auto`) und außerhalb des Kontexts: sie malt über nicht-positionierten
+     * Inhalt und unter `.kopfBlock`.
+     *
+     * Das ist das gewünschte Ergebnis — und genau deshalb wird es gemessen.
+     * Das Panel klappt nach UNTEN auf und deckt dabei die obersten Zeilen der
+     * Leiste ab; kippte die Reihenfolge, wäre der erste Eintrag des Panels
+     * unklickbar, und keine der anderen fünf Messungen sähe das.
+     *
+     * `hit-testable` und nicht nur `visible`: ein verdeckter Knoten ist im
+     * Sinne von Playwright weiterhin sichtbar. `click` mit kurzem Timeout
+     * schlägt fehl, sobald ein anderer Knoten den Punkt abfängt („intercepts
+     * pointer events") — das ist die Aussage, die hier gebraucht wird.
+     */
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+    await expect(page.getByTestId("modulleiste")).toBeVisible();
+
+    await page.getByTestId("app-umschalter").click();
+    const ersterEintrag = page.getByTestId("app-eintrag").first();
+    await expect(ersterEintrag).toBeVisible();
+    await ersterEintrag.click({ trial: true, timeout: 2000 });
+  });
+
+  test("die Leiste trägt die Navigation, es gibt keine zweite Zeile", async ({ page }) => {
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+
+    await expect(page.getByTestId("modulleiste")).toBeVisible();
+    await expect(page.getByTestId("modulnav")).toHaveCount(0);
+  });
+
+  test("die Kopfzeile bleibt stehen und lässt kein Loch über der Leiste", async ({ page }) => {
+    /*
+     * Der Defekt war NICHT sichtbar, solange man nicht scrollte: die Leiste
+     * klebte bei 64px unter einer Kopfzeile, die mitscrollte. Deshalb das
+     * `wheel` — ohne es sagen die richtige und die kaputte Fassung dasselbe.
+     */
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+    await expect(page.getByTestId("modulleiste")).toBeVisible();
+    /*
+     * ERST WENN DIE LEISTE WIRKLICH KLEBT, DANN SCROLLEN. `next dev` reicht
+     * antds cssinjs-Regeln nach; bis dahin steht die Seitenleiste UEBER dem
+     * Inhalt statt daneben und traegt `position: relative`. Eine Messung in
+     * diesem Zustand beschriebe eine andere Seite als die, ueber die dieser
+     * Test etwas sagt — und `toHaveCSS` faellt LAUT, falls die Regel gar nicht
+     * kommt, statt still den falschen Zustand zu vermessen. (Genau diese Regel
+     * ist der Befund dieses Umbaus: antds `.ant-layout-sider` traegt
+     * `position: relative`, gleiche Spezifitaet, spaeter im Dokument — deshalb
+     * `.sider.sider` in `shell.module.css`.)
+     */
+    await expect(page.locator(".ant-layout-sider")).toHaveCSS("position", "sticky");
+    await page.mouse.wheel(0, 600);
+    /*
+     * AUF DAS SCROLLEN WARTEN, NICHT NUR ES AUSLOESEN — und das ist ein Befund,
+     * kein vorsorgliches Warten. `mouse.wheel` schickt das Ereignis ab; das
+     * Scrollen selbst passiert danach. Ohne dieses Warten stand `window.scrollY`
+     * in DREI von drei Wiederholungen (`--repeat-each=3`) noch auf 0, und die
+     * Messung unten beschrieb die UNGESCROLLTE Seite. Dort steht die Leiste
+     * ohnehin an der Unterkante der Kopfzeile — die Zusicherung war also gruen,
+     * ohne je die Aussage zu pruefen, fuer die es sie gibt („die richtige und
+     * die kaputte Fassung sagen ohne Scrollen dasselbe", Absatz oben).
+     */
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    /*
+     * BEIDE KAESTEN IN EINEM LESEVORGANG. Zwei `boundingBox()`-Aufrufe sind
+     * zwei Playwright-Rundlaeufe und damit zwei Zeitpunkte; verglichen wuerden
+     * sie, als waeren sie derselbe Zustand. Auf einer Seite MIT Seitenleiste
+     * ist das nachweislich falsch — in `e2e/files-mobil.spec.ts` (`kaesten`)
+     * steht der gemessene Fall ausgeschrieben, dort verschob derselbe
+     * Zwischenzustand einen Knopf um 240px waagerecht und 180px senkrecht.
+     * Ein `evaluate` ist EIN Layout-Lesevorgang.
+     */
+    const mass = await page.evaluate(() => {
+      const kopf = document.querySelector('[data-testid="suite-header"]')!.getBoundingClientRect();
+      const leiste = document.querySelector('[data-testid="modulleiste"]')!.getBoundingClientRect();
+      return {
+        scrollY: window.scrollY,
+        kopfUnterkante: kopf.y + kopf.height,
+        leisteOberkante: leiste.y,
+      };
+    });
+    console.log(`Kopf/Leiste nach wheel(0,600): ${JSON.stringify(mass)}`);
+    // Ohne echtes Scrollen sagen die richtige und die kaputte Fassung dasselbe —
+    // die Messung muss also zuerst belegen, dass ueberhaupt gescrollt wurde.
+    expect(mass.scrollY).toBeGreaterThan(0);
+    expect(mass.leisteOberkante).toBeGreaterThanOrEqual(mass.kopfUnterkante - 1);
+    expect(mass.leisteOberkante).toBeLessThan(mass.kopfUnterkante + 8);
+  });
+
+  test("Arbeitsflächen sind dichter als Einsatzformulare", async ({ page }) => {
+    /*
+     * Die eine Messung, die die zweite Bediendichte belegt. `theme.test.ts`
+     * hält fest, WAS `ARBEITSDICHTE` setzt; dass antd das Elterntheme
+     * tatsächlich mischt und die 40px unten ankommen, weiß nur der Browser.
+     *
+     * KORREKTUR GEGENUEBER DEM BRIEF: `button.ant-btn` ohne Einschraenkung
+     * traf nicht den beabsichtigten Arbeitsflaechen-Knopf, sondern den ERSTEN
+     * `.ant-btn` im DOM ueberhaupt — das ist der mobile Menue-Knopf in der
+     * Kopfzeile (`SuiteNav.tsx`, `data-testid="menue-knopf"`, Klasse
+     * `.nurMobil`). Er steht bei 1280px auf `display:none` und ist trotzdem
+     * IMMER im Markup (dasselbe Muster wie ueberall in dieser Suite: „beide
+     * Auspraegungen stehen im DOM, CSS blendet eine aus"). `boundingBox()`
+     * auf einem unsichtbaren Knoten liefert `null`, `.height` darauf ein
+     * `TypeError` — kein Befund ueber die Bediendichte, sondern ein zu weiter
+     * Selektor. Und selbst ein sichtbarer erster Treffer waere hier falsch
+     * gewesen: die Kopfzeile traegt bewusst NICHT die Arbeitsdichte
+     * (`theme.ts`-Kommentar zu Aufgabe 5: „nicht ueber der Kopfzeile, die in
+     * jedem Modul gleich aussehen soll") — ein Kopfzeilen-Knopf haette immer
+     * ~56px gemessen, unabhaengig davon, ob `ARBEITSDICHTE` wirkt.
+     * `.ant-layout-content` (antd, `Content` aus `SuiteRahmen.tsx`) grenzt
+     * zuverlaessig auf den Inhaltsbereich ein, in dem `FullShell`/
+     * `MinimalShell` ihre jeweilige Dichte anlegen.
+     */
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung/artikel",
+    });
+    /*
+     * DIE SCHRANKEN SIND `>= 44` UND `< 56`, NICHT MEHR `> 36` UND `< 44` — und
+     * die Korrektur kam aus genau diesem Lauf.
+     *
+     * `ARBEITSDICHTE` stand auf `controlHeight: 40`, weil der Plan die
+     * Shell-VARIANTE mit dem Zeigergeraet gleichgesetzt hatte. `FullShell`
+     * rendert aber auch bei 390px, und dort unterschritten die 40px die
+     * Mindest-Tapflaeche: drei Zusicherungen fielen gleichzeitig
+     * (`lagerbuch-mobil.spec.ts:312`, `mobil-admin.spec.ts:304` und `:413`).
+     * Der Wert steht seither auf 44 (WCAG 2.5.5), und diese Schranken ziehen
+     * nach.
+     *
+     * SIE UNTERSCHEIDEN WEITERHIN: 56 ist `TAP` (Einsatzmasz, unten gemessen),
+     * 72 ist `TAP_XL`. Ein `< 56` faellt also, sobald die Arbeitsdichte
+     * ausbleibt oder das Elterntheme durchschlaegt — genau die Aussage, die
+     * hier gebraucht wird. Gemessen auf `/verwaltung/artikel`: „Excel-Liste"
+     * 127x44, „Neuer Artikel" 140x44.
+     */
+    const arbeit = (
+      await page.locator(".ant-layout-content button.ant-btn").first().boundingBox()
+    )!.height;
+    expect(arbeit).toBeGreaterThanOrEqual(44);
+    expect(arbeit).toBeLessThan(56);
+
+    await page.goto("http://qr.localtest.me:3100/");
+    const einsatz = (
+      await page.locator(".ant-layout-content button.ant-btn").first().boundingBox()
+    )!.height;
+    expect(einsatz).toBeGreaterThanOrEqual(56);
+  });
+});
+
+test.describe("Wirkungsnachweis Navigation und Dichte — Mittelband 820px", () => {
+  /*
+   * 820px, nicht nur 390 und 1280. `docs/design/README.md` ist dazu
+   * ausdrücklich: die beiden letzten Shell-Defekte lagen BEIDE im Mittelband
+   * und waren an beiden Enden unsichtbar — die Knopfregel bei 600 statt 768,
+   * und die Kopfzeile mit 904px Mindestbreite zwischen 768 und 903.
+   *
+   * Die Datei hat dafür schon einen Block (`Mittelbreite ${breite}px`); dieser
+   * hier misst die Leiste, die es dort vorher nicht gab.
+   */
+  test.use({ viewport: { width: 820, height: 900 } });
+
+  test("kein waagerechter Überlauf, und der Titel behält Breite", async ({ page }) => {
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+
+    const breiten = await page.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(breiten.scroll).toBeLessThanOrEqual(breiten.client + 1);
+    expect((await page.getByTestId("module-title").boundingBox())!.width).toBeGreaterThan(0);
   });
 });

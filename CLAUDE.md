@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **sieben Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **acht Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -15,8 +15,11 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
    Markup sieht sie nicht, und der Fehler ist still (die Linie verschwindet einfach).
 3. **`colorError === colorPrimary === #c8000f`** — ein `Alert type="error"` sieht aus wie eine
    Primäraktion. In Modulen, wo Rot fachliche Bedeutung trägt, gehört Rot nie auf eine Datenfläche.
-4. **`size="large"` ist 72px** — `controlHeight: 56` ist die Vorgabe und schon das richtige Maß, also
-   `size` gar nicht setzen.
+4. **`size="large"` ist 72px** — `size` auf Bedienelementen also gar nicht setzen. **Seit dem
+   Navigations-Umbau gibt es zwei Bediendichten:** `FullShell`-Inhalte tragen `controlHeight: 44`
+   (`ARBEITSDICHTE` in `core/theme/theme.ts`), `MinimalShell` (`qr`, `beta`) und alles ohne Shell
+   behalten 56/72. 44 ist WCAG 2.5.5 (Target Size, Enhanced — Stufe AAA) und gilt **überall**, weil
+   `FullShell` auch auf dem Telefon rendert.
 5. **Eigenes CSS gegen antd-CSS entscheidet die Spezifität, meist gegen dich** — und immer still: die
    Regel steht richtig da und greift nur nicht. Drei Ausprägungen (Gleichstand → antd gewinnt durch
    Reihenfolge · eigene Regel zu schwach · eigene Regel zu stark und trifft das eigene Modul). Wo antd
@@ -39,6 +42,13 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
    als Client markierten Modul nicht an, hier wertet RSC ein Modul aus, das Client sein müsste. Setzt
    man `"use client"` auf `icons.ts`, verwandelt sich 7 in 6 — HTTP 200 mit **leerer** Map, und der
    Rückfall trägt still das falsche Icon. Laut ist besser als still.
+8. **Die Kopfzeile vererbt ihre Zeilenhöhe an jedes Kind** — `antd/es/layout/style/index.js` setzt auf
+   `.ant-layout-header` ein `lineHeight` in Kopfzeilenhöhe (hier **64px**), und `position: absolute`
+   ändert den enthaltenden Block, **nicht die Vererbungskette**. Gemessen: 82px je Eintrag im Panel
+   des App-Umschalters und 76px am Auslöser — in einer 64px hohen Kopfzeile. **Kein Gate findet das:**
+   antd spritzt die Regel zur Laufzeit über cssinjs ein, sie steht in **keiner Datei des Repos**, und
+   jsdom rechnet keine Zeilenboxen — nur ein echter Browser kennt die Zahl. Abhilfe: `line-height:
+   normal` am **gemeinsamen Vorfahren**, nicht an jedem Kind einzeln.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb

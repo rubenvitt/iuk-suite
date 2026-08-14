@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Col, Row } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { lagerortOptionen } from "../../../../_lib/lesepfade/bz";
 import { geraetById } from "../../../../_lib/lesepfade/geraete";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { GeraetAktivToggle } from "./GeraetAktivToggle";
@@ -26,10 +26,10 @@ export function geraetSeitenInhalt(db: DB, id: string, jetzt: Date): ReactNode {
 
   return (
     <>
-      <Brotkrume href="/verwaltung/geraete">Geräte</Brotkrume>
       <SeitenKopf
         titel={geraet.name}
         beschreibung={chip ? undefined : "Für diese Klasse ist kein Datum gepflegt."}
+        zurueck={{ titel: "Geräte", href: "/verwaltung/geraete" }}
         aktionen={(
           <GeraetAktivToggle
             id={geraet.id}
@@ -39,7 +39,7 @@ export function geraetSeitenInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         )}
       />
 
-      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel
             zahl={geraet.typ === "medizin" ? "Medizin" : "Objekt"}

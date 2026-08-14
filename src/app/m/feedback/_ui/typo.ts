@@ -21,11 +21,21 @@ import { SCHRIFT, ZIFFERN as ZIFFERN_SUITE } from "@/core/theme/schrift";
  * nie, und der Ausfall waere still. Die eigenen Variablen stehen in
  * `feedback.css`.
  *
- * WAS SICH SICHTBAR AENDERT, IST GENAU EINES: die Familie. `kicker`, `h1`,
- * `h2` und `zahl` tragen jetzt die Display-Familie der Suite. Groeszen,
- * Gewichte, Laufweiten, Zeilenhoehen und Farben bleiben, was §4.7 fuer dieses
- * Modul festlegt — auch dort, wo die Suite-Rolle etwas anderes vorschlaegt.
- * Die Abweichungen stehen einzeln an ihrer Rolle, mit Grund.
+ * WAS SICH SICHTBAR AENDERT, IST GENAU EINES: die Familie. `kicker`, `h2` und
+ * `zahl` tragen jetzt die Display-Familie der Suite. Groeszen, Gewichte,
+ * Laufweiten, Zeilenhoehen und Farben bleiben, was §4.7 fuer dieses Modul
+ * festlegt — auch dort, wo die Suite-Rolle etwas anderes vorschlaegt. Die
+ * Abweichungen stehen einzeln an ihrer Rolle, mit Grund.
+ *
+ * `h1` IST SEIT AUFGABE 11 (NAVIGATION/DICHTE) ENTFALLEN. Die Rolle bediente
+ * ausschlieszlich die fuenf eigenen `<h1>`-Ueberschriften der Admin-Seiten;
+ * alle fuenf sind seither `core/shell/Seitenkopf`, der seinen Titel ueber
+ * `SCHRIFT.titel` selbst traegt und dieses Modul dafuer nicht mehr liest. Der
+ * Adapter-Gedanke oben gilt fuer `h1` NICHT ruecknehmbar: die Rolle war
+ * ausdruecklich modul-eigen abweichend von `SCHRIFT.titel` (keine Laufweite,
+ * keine Zeilenhoehe, siehe die Begruendung, die bis hierher an `h2` und `zahl`
+ * haengen blieb) — Seitenkopf traegt jetzt die Suite-Rolle ungekuerzt, eine
+ * bewusste, keine uebersehene Vereinheitlichung.
  *
  * DIE LAUFWEITE IST DER FALL, AN DEM DAS ZUERST AUFFIEL: die Suite-Rolle
  * traegt 0.09em (aus dem alten Lagerbuch), dieses Modul .12em. Beide sind
@@ -41,12 +51,11 @@ import { SCHRIFT, ZIFFERN as ZIFFERN_SUITE } from "@/core/theme/schrift";
  * seinen zweiten, heute belegbaren Nutznieszer verloren. Wo die Suite-Rolle
  * dagegen etwas MITBRINGT, das §4.7 fuer dieses Modul ausdruecklich nicht
  * will, geht das Spreaden-und-Ueberschreiben nicht — aus einem Spread laesst
- * sich nichts wieder herausnehmen. `h1`, `h2` und `zahl` picken deshalb
- * gezielt nur die `fontFamily` und schreiben den Rest selbst aus: betroffen
- * sind `letterSpacing` (h1, h2) und `lineHeight` (h1, zahl) — §4.7 nennt fuer
- * diese Rollen keine, und diese Datei hielt schon vor dem Adapter ausdruecklich
- * fest, dass das Absicht ist (kein Wert, den ein spaeterer Leser fuer geprueft
- * haelt).
+ * sich nichts wieder herausnehmen. `h2` und `zahl` picken deshalb gezielt nur
+ * die `fontFamily` und schreiben den Rest selbst aus: betroffen sind
+ * `letterSpacing` (h2) und `lineHeight` (zahl) — §4.7 nennt fuer diese Rollen
+ * keine, und diese Datei hielt schon vor dem Adapter ausdruecklich fest, dass
+ * das Absicht ist (kein Wert, den ein spaeterer Leser fuer geprueft haelt).
  *
  * WAS HIER BLEIBT UND NICHT NACH `core` DARF: `lead` (16/600). Die Rolle hat in
  * `lagerbuch` kein Gegenstueck; eine Rolle mit einem Anwender ist eine
@@ -98,13 +107,6 @@ export const T = {
    * hier nicht mitgenommen.
    */
   h2: { ...ZIFFERN_SUITE, fontFamily: SCHRIFT.unterTitel.fontFamily, fontSize: 20, fontWeight: 600 },
-  /**
-   * 24/600 — `<h1>`. Nur die Familie kommt aus `core`, aus demselben Grund wie
-   * bei `h2`: §4.7 nennt weder Laufweite noch Zeilenhoehe. Die Suite-Rolle
-   * `titel` traegt 0.02em Laufweite und `lineHeight: 1.2` — das ist die
-   * Vorgabe fuer `lagerbuch`, nicht fuer dieses Modul.
-   */
-  h1: { ...ZIFFERN_SUITE, fontFamily: SCHRIFT.titel.fontFamily, fontSize: 24, fontWeight: 600 },
   /**
    * 30/600 — NUR der laufende Ruecklaufzaehler. Sonst nirgends. Familie kommt
    * aus `core`; das Gewicht bleibt 600 (die Suite-Rolle `zahl` ist 700 — das

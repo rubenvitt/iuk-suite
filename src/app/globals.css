@@ -58,8 +58,15 @@
  * SEINER Komponenten, nicht auf `:root`. Der Ausfall waere still — die Farbe
  * verschwindet einfach (Falle 2).
  *
- * NUR DREI, UND DAS IST DER MASZSTAB, KEIN ANFANG. Nach `core` kommt, was einen
- * heute belegbaren Anwender hat. Das Farbvokabular des alten Lagerbuchs
+ * VIER, UND DAS IST DER MASZSTAB, KEIN ANFANG. Nach `core` kommt, was einen
+ * heute belegbaren Anwender hat. `--iuk-flaeche-aktiv` ist am 2026-08-13
+ * dazugekommen und hat deren zwei: die getoente Flaeche des aktiven Eintrags
+ * im App-Umschalter-Panel und dieselbe Flaeche in der Seitenleiste. Sie hing
+ * vorher als `--suite-hover` an `.umschalter` und war ausserhalb dieses
+ * Teilbaums unsichtbar — die Seitenleiste haette sie nicht gesehen, und der
+ * Fehler waere still gewesen (Falle 2).
+ *
+ * Das Farbvokabular des alten Lagerbuchs
  * (KPI-Kante, getoente Chips, Abschnittsstreifen, Journal-Deltas) hat genau
  * EINEN Anwender — `app/m/lagerbuch/_ui/verwaltung.module.css`, wo es steht und
  * bleibt. Es hierher zu heben waere ein Framework fuer einen Nutzer. Was das
@@ -83,24 +90,56 @@
  *
  * ⚠️ DIE FLAECHENZUORDNUNG WAR FALSCH und ist am 2026-08-12 berichtigt. Hier
  * stand „die beiden dunklen Flaechen, auf denen der Text tatsaechlich sitzt:
- * #141414 (Layout.headerBg), #16191c". Der aktive Navigationseintrag sitzt
- * aber in `.modulnav`, und die traegt BEWUSST keine eigene Flaechenfarbe
- * (`core/shell/shell.module.css`, dort ausgeschrieben) — sie liegt damit auf
+ * #141414 (Layout.headerBg), #16191c". Der aktive Navigationseintrag sass
+ * damals in `.modulnav`, und die trug BEWUSST keine eigene Flaechenfarbe
+ * (`core/shell/shell.module.css`, dort ausgeschrieben) — sie lag damit auf
  * `Layout.bodyBg`, nicht auf `headerBg`. `bodyBg` ist `#000000` im Dunkeln und
- * `#eef0f1` im Hellen (`core/theme/theme.ts`). Die beiden alten Flaechen sind
- * nicht falsch, nur nicht DIESE: Kopfzeile und Kartenflaeche tragen die
- * Markenfarbe ebenfalls, und fuer sie gelten die Zahlen weiter.
+ * `#eef0f1` im Hellen (`core/theme/theme.ts`).
  *
- * Nachgerechnet (WCAG-Kontrastformel, sRGB-linearisiert), Flaeche fuer Flaeche:
- *   Modulnavigation (Layout.bodyBg) — der Ort des aktiven Eintrags:
+ * DIE OFFENE FRAGE SEIT 2026-08-13 IST MIT AUFGABE 4 GEKLÄRT: `.modulnav` ist
+ * ersatzlos entfallen, der aktive Navigationseintrag sitzt seither in der
+ * Seitenleiste (`.sider` / `.modulleiste`) — einem antd `Sider theme="light"`.
+ * Er bringt seine Fläche SELBST mit, über den Komponenten-Token
+ * `lightSiderBg` (`node_modules/antd/es/layout/style/index.js`,
+ * `prepareComponentToken`); `core/theme/theme.ts` überschreibt ihn in seinen
+ * `Layout`-Tokens NICHT, also fällt er auf antds Vorgabe zurück:
+ * `lightSiderBg: colorBgContainer` — ein globaler Token, den der ALGORITHMUS
+ * liefert (`defaultAlgorithm` hell, `darkAlgorithm` dunkel), nicht der
+ * `Layout`-Block. Nachgerechnet mit `theme.defaultAlgorithm`/
+ * `theme.darkAlgorithm` aus `antd`: `colorBgContainer` ist `#ffffff` hell und
+ * `#141414` dunkel — GENAU dieselben zwei Werte wie `Layout.headerBg` (hell
+ * `FARBEN.karte` = `#ffffff`, dunkel das Literal `#141414`, beide in
+ * `core/theme/theme.ts`).
+ *
+ * FÜR DIE SEITENLEISTE IST DIESE RECHNUNG SEIT DEM SCHLUSSREVIEW GEGENSTANDSLOS
+ * — hier stand, die „Kopfzeile"-Werte gälten für sie mit. Das galt nur, solange
+ * der aktive Eintrag nackt auf `lightSiderBg` saß. Er trägt seit Aufgabe 4 eine
+ * getönte Fläche (`--iuk-flaeche-aktiv`), und die verschiebt den Nenner. Die
+ * Antwort war NICHT, `--iuk-marke` anzuheben — das entwertete still die Zahlen
+ * unten —, sondern die Textfarbe fallen zu lassen: `.navLink[aria-current]`
+ * trägt seither KEINE Markenfarbe mehr, sondern markiert über Akzentkante und
+ * `font-weight: 600` (Begründung samt der gerechneten Zahlen an der Regel in
+ * `core/shell/shell.module.css`). Damit gibt es auf dieser Fläche keinen
+ * Markentext, für den eine Kontrastzahl zu führen wäre — die Fläche taucht in
+ * der Liste unten deshalb nicht mehr auf.
+ *
+ * Die beiden anderen Flächen sind davon unberührt: Kopfzeile und
+ * Kartenfläche tragen die Markenfarbe ebenfalls, und für sie gelten die
+ * Zahlen weiter.
+ *
+ * Nachgerechnet (WCAG-Kontrastformel, sRGB-linearisiert), Fläche für Fläche:
+ *   Modulnavigation (Layout.bodyBg, Stand VOR der Seitenleiste — siehe oben)
+ *   — der Ort des aktiven Eintrags bis 2026-08-13, rein historisch:
  *     #e45a66 gegen #000000 (dunkel): 5.95:1
  *     #c8000f gegen #eef0f1 (hell):   5.30:1
- *   Kopfzeile (Layout.headerBg) und Kartenflaeche:
+ *   Kopfzeile (Layout.headerBg) und Kartenfläche:
  *     #e45a66 gegen #141414 (dunkel): 5.22:1
  *     #e45a66 gegen #16191c (dunkel): 5.00:1
  *     #c8000f gegen #ffffff (hell):   6.06:1
- * Alle sechs liegen ueber 4.5:1 — es ist also KEIN Mangel an Barrierefreiheit,
- * die Zuordnung stimmte nur nicht.
+ * Die drei Kopfzeilen-/Kartenflächen-Werte liegen über 4.5:1 und sind aktuell.
+ * Die beiden Modulnavigations-Werte sind der Stand vor der Seitenleiste
+ * (s. o.) — kein Mangel an Barrierefreiheit war hier je gemessen, nur die
+ * Flächenzuordnung stimmte zunächst nicht.
  *
  * DER EIGENE DUNKELWERT BLEIBT TROTZDEM BEGRUENDET, und zwar auf den engeren
  * Flaechen: `#e04452` gegen `#141414` ergibt 4.49:1 und gegen `#16191c`
@@ -114,12 +153,14 @@
   --iuk-marke: #c8000f;
   --iuk-gedaempft: #5b6570;
   --iuk-linie: #d9dde1;
+  --iuk-flaeche-aktiv: rgb(0 0 0 / 0.06);
 }
 
 :root[data-theme="dark"] {
   --iuk-marke: #e45a66;
   --iuk-gedaempft: #9aa4ad;
   --iuk-linie: #2a2f34;
+  --iuk-flaeche-aktiv: rgb(255 255 255 / 0.1);
 }
 
 html,

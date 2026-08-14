@@ -68,7 +68,36 @@ test.describe("lagerbuch — Modulnavigation", () => {
      */
     await expect(page).toHaveURL(/\/verwaltung\/geraete\/[^/]+$/, { timeout: 30_000 });
     await expect(leiste.locator("a[aria-current]")).toHaveCount(0);
-    await expect(page.getByRole("navigation", { name: "Brotkrume" })).toBeVisible();
+    /*
+     * DAS LANDMARK HEISST „Zurück", NICHT MEHR „Brotkrume" (Fix-Runde 2,
+     * 2026-08-14) — und das ist die einzige Änderung an dieser Zusicherung.
+     *
+     * GEMESSEN, nicht erschlossen: Playwrights `ariaSnapshot` dieser Seite
+     * (`test-results/…/error-context.md` des roten Laufs) zeigt unter `main`
+     * genau einen Rückweg, und zwar
+     *   `navigation "Zurück"` → `link "Geräte"` → `/url: /verwaltung/geraete`.
+     * Das Landmark ist also weder verschwunden noch namenlos geworden; es
+     * heißt anders.
+     *
+     * Der Grund steht ausgeschrieben in `core/shell/Seitenkopf.tsx`: die
+     * Detailseiten sind vom modul-eigenen `lagerbuch/_ui/Brotkrume.tsx` auf den
+     * gemeinsamen `Seitenkopf` umgestellt, und der benennt sein Landmark
+     * bewusst „Zurück" — beide Fassungen rendern genau EINEN Link, „Brotkrume"
+     * wäre für eine einstufige Rückkehr der falsche Name. Die Zusage dieser
+     * Zeile („die Detailseite ist keine Sackgasse, der Weg zurück ist ein
+     * benanntes Sprungziel") gilt unverändert.
+     *
+     * ZWEITE ZEILE STATT NUR UMBENENNUNG: `toBeVisible()` allein beweist nur,
+     * dass IRGENDEIN so benanntes Landmark da ist. Erst das Ziel darin macht
+     * daraus die Aussage, die der Test führen will — zurück zur Liste, von der
+     * dieser Test hergekommen ist.
+     */
+    const rueckweg = page.getByRole("navigation", { name: "Zurück" });
+    await expect(rueckweg).toBeVisible();
+    await expect(rueckweg.getByRole("link", { name: "Geräte" })).toHaveAttribute(
+      "href",
+      "/verwaltung/geraete",
+    );
   });
 
   test("fünfzehn Einträge in der Leiste schieben die Seite nicht seitwärts — sie fängt ihren Überlauf senkrecht ab", async ({
@@ -149,12 +178,13 @@ test.describe("lagerbuch — Modulnavigation", () => {
     /*
      * NICHT-VAKUÄRE GEGENPROBE (Fix-Runde 1). `toBeHidden()` ist in
      * Playwright auch dann wahr, wenn der Knoten gar nicht existiert. Im
-     * Code nachgesehen (`FullShell.tsx`, `shell.module.css`): der `Sider`
-     * wird unabhängig von der Fensterbreite gerendert (`mitLeiste` hängt an
-     * `hatAbschnitte(nav)`, nicht an der Größe) — nur `.sider` trägt
-     * `display: none` unterhalb von 768px. Die Leiste steht also im DOM und
-     * wird ausschließlich per CSS unsichtbar gemacht. `toHaveCount(1)` davor
-     * beweist das, bevor `toBeHidden()` etwas über die Sichtbarkeit sagt.
+     * Code nachgesehen (`SuiteRahmen.tsx`, `shell.module.css`): der `Sider`
+     * wird unabhängig von der Fensterbreite gerendert (er steht immer da,
+     * wenn `nav.length > 0` ist — nicht erst ab einer bestimmten Größe) —
+     * nur `.sider` trägt `display: none` unterhalb von 768px. Die Leiste
+     * steht also im DOM und wird ausschließlich per CSS unsichtbar gemacht.
+     * `toHaveCount(1)` davor beweist das, bevor `toBeHidden()` etwas über die
+     * Sichtbarkeit sagt.
      */
     await expect(leiste).toHaveCount(1);
     await expect(leiste).toBeHidden();

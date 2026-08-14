@@ -10,6 +10,8 @@ import {
   type AnlegenErgebnis,
   type ZugangslinkFormState,
 } from "../(verwaltung)/zugangslinks/actions";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SCHRIFT } from "@/core/theme/schrift";
 import styles from "./zugangslinks.module.css";
 
 /**
@@ -157,7 +159,14 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
         className={ausgabe !== null ? styles.nichtDrucken : undefined}
         data-testid="files-zugangslinks-rest"
       >
-        <h1>Abgabelinks</h1>
+        {/* Punkt 1 der Pruefliste: `Seitenkopf` statt eines nackten `<h1>`.
+            Bleibt INNERHALB des Druck-Unterdrueckungs-`div`s (`nichtDrucken`):
+            ein RSC-`Seitenkopf` in `page.tsx` liesse den Titel beim Drucken
+            der Ausgabe mitlaufen, ausserhalb der eigentlich gedruckten
+            Flaeche — dieselbe Stelle, an der schon `<h1>` stand. Kein
+            `zurueck` — Navigationseintrag der Modulleiste, keine
+            Detailseite. */}
+        <Seitenkopf titel="Abgabelinks" />
 
         {ohneHost && (
           <Alert
@@ -170,8 +179,9 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
         )}
 
         <div className={styles.knopfzeile}>
-          {/* Kein `size`: `controlHeight` ist 56 und schon das richtige
-              Touch-Masz; `size="large"` waeren 72px. */}
+          {/* Kein `size`: `ARBEITSDICHTE` setzt `controlHeight` auf 44 (nicht
+              mehr 56, korrigiert Aufgabe 12) — schon das richtige Masz;
+              `size="large"` waeren 72px. */}
           <Button
             type="primary"
             disabled={ohneHost}
@@ -225,12 +235,19 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
 
 // ---------------------------------------------------------------------------
 
+/**
+ * SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
+ * in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): jeder
+ * Textkopf ein `<span style={SCHRIFT.kicker}>`, nie CSS gegen
+ * `.ant-table-thead`. `aktionen` bleibt `title: ""` — kein Text, keine Rolle
+ * mit Wirkung; die Aktionsspalte braucht keinen Kopf.
+ */
 function spalten(inboxBasis: string | null) {
   return [
-    { key: "name", title: "Bezeichnung", dataIndex: "name" },
+    { key: "name", title: <span style={SCHRIFT.kicker}>Bezeichnung</span>, dataIndex: "name" },
     {
       key: "token",
-      title: "Code",
+      title: <span style={SCHRIFT.kicker}>Code</span>,
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         // Mit Auslassungszeichen, damit niemand die sieben Zeichen fuer den
         // ganzen Code haelt und sie abzuschreiben versucht.
@@ -239,7 +256,7 @@ function spalten(inboxBasis: string | null) {
     },
     {
       key: "laufzeit",
-      title: "Laufzeit",
+      title: <span style={SCHRIFT.kicker}>Laufzeit</span>,
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         <div>
           <div className={styles.zahlen}>{zeile.laufzeitText}</div>
@@ -249,7 +266,7 @@ function spalten(inboxBasis: string | null) {
     },
     {
       key: "restbudget",
-      title: "Restbudget",
+      title: <span style={SCHRIFT.kicker}>Restbudget</span>,
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         <div className={styles.budgetZelle}>
           <span className={styles.zahlen}>
@@ -271,12 +288,12 @@ function spalten(inboxBasis: string | null) {
     },
     {
       key: "zustand",
-      title: "Zustand",
+      title: <span style={SCHRIFT.kicker}>Zustand</span>,
       render: (_: unknown, zeile: ZugangslinkZeile) => <span>{ZUSTAND_TEXT[zeile.zustand]}</span>,
     },
     {
       key: "uploads",
-      title: "Uploads",
+      title: <span style={SCHRIFT.kicker}>Uploads</span>,
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         <span className={styles.zahlen}>{zeile.uploads}</span>
       ),
@@ -490,10 +507,12 @@ function AufstockenFeld({ zeile }: { zeile: ZugangslinkZeile }) {
 
   return (
     <>
-      {/* `size="small"` ist INNERHALB von Tabellenzeilen erlaubt und hier
-          noetig: eine 56px-Zeilenaktion sprengt die Zeile. */}
+      {/* KEIN `size="small"` MEHR (korrigiert Aufgabe 12): `ARBEITSDICHTE`
+          setzt `controlHeight` auf 44 — die alte Ausnahme „56px-Zeilenaktion
+          sprengt die Zeile" traegt nicht mehr, `size="small"` faellt auf 24px
+          und unterbietet die Mindesttapflaeche (`docs/design/README.md`,
+          Falle 4). */}
       <Button
-        size="small"
         data-testid={`files-zugangslink-aufstocken-${zeile.id}`}
         onClick={() => setOffen((auf) => !auf)}
       >
@@ -509,23 +528,21 @@ function AufstockenFeld({ zeile }: { zeile: ZugangslinkZeile }) {
            * Upload ueberschreiben.
            */}
           <Input
-            size="small"
             name="zusatzDateien"
             inputMode="numeric"
             aria-label={`Zusätzliche Dateien für ${zeile.name}`}
             placeholder="+ Dateien"
           />
           <Input
-            size="small"
             name="zusatzBytes"
             inputMode="numeric"
             aria-label={`Zusätzliche Bytes für ${zeile.name}`}
             placeholder="+ Bytes"
           />
           {/* Waehrend der Vorgang laeuft, ist der Knopf gesperrt — siehe oben:
-              ein zweiter Absender addierte ein zweites Mal. */}
+              ein zweiter Absender addierte ein zweites Mal. Kein `size="small"`
+              mehr — siehe Kommentar oben. */}
           <Button
-            size="small"
             htmlType="submit"
             loading={laeuft}
             disabled={laeuft}
@@ -562,7 +579,8 @@ function WiderrufenKnopf({ zeile }: { zeile: ZugangslinkZeile }) {
          * #c8000f`, ein roter Vollknopf waere pixelgleich mit einer
          * Primaeraktion. Rot bleibt am Rand.
          */}
-        <Button size="small" danger data-testid={`files-zugangslink-widerrufen-${zeile.id}`}>
+        {/* Kein `size="small"` mehr — siehe `AufstockenFeld` oben. */}
+        <Button danger data-testid={`files-zugangslink-widerrufen-${zeile.id}`}>
           Widerrufen
         </Button>
       </Popconfirm>

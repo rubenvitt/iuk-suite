@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
 import { gruppiereNav } from "@/core/shell/navAbschnitte";
+import { SCHRIFT } from "@/core/theme/schrift";
 // `NavIkone` bleibt: die Modulnavigation traegt seit dem Phosphor-Umbau je
 // Eintrag ein Zeichen. Die ICONS-Map dagegen faellt hier weg — sie bediente die
 // Modulknopfreihe, und die gibt es nicht mehr; aufgeloest wird sie jetzt
@@ -106,8 +107,8 @@ export function aktiverEintrag(pfad: string, nav: SuiteNavItem[]): AktiverEintra
 }
 
 /**
- * Die Links der Modulnavigation — geteilt zwischen der zweiten Zeile
- * (`Modulnav`, unter der Kopfzeile) und dem Drawer (mobil). Eine Funktion statt
+ * Die Links der Modulnavigation — geteilt zwischen der Seitenleiste
+ * (`Modulleiste`) und dem Drawer (mobil). Eine Funktion statt
  * zweier Abschriften, weil die Aktivmarkierung an beiden Stellen dieselbe
  * Aussage treffen muss.
  *
@@ -176,45 +177,13 @@ export function navGruppen(nav: SuiteNavItem[], pfad: string) {
   return gruppen.map((gruppe) => (
     <div key={gruppe.titel ?? "__ohne"} className={s.navGruppe}>
       {gruppe.titel ? (
-        <div data-testid="nav-abschnitt" className={s.navAbschnitt}>
+        <div data-testid="nav-abschnitt" className={s.navAbschnitt} style={SCHRIFT.kicker}>
           {gruppe.titel}
         </div>
       ) : null}
       {navLinks(gruppe.items, pfad, nav)}
     </div>
   ));
-}
-
-/**
- * DIE MODULNAVIGATION ALS EIGENE ZEILE UNTER DER KOPFZEILE — nicht als drittes
- * Kind darin.
- *
- * Sie war ein Geschwister von `.rechts` und landete damit als dritte Spalte im
- * Flex-Container `.kopf`. Nachgeben konnte dort nur der Titel (`.rechts` steht
- * auf `flex: 0 0 auto`, die Navigation behielt ihre Inhaltsbreite): zwischen
- * 768px und 903px schrumpfte er auf 0px und jede Seite scrollte seitwaerts
- * (gemessen: rechte Kante 904px). Der Titel ist der Link zurueck auf die
- * Modulstartseite — ohne ihn ist jede Unterseite eine Sackgasse.
- *
- * Der Entwurf sah das nie anders vor (`2026-07-27-suite-chrome-design.md` §4,
- * Tabelle: „zweite Zeile — Modul-Navigation, wenn uebergeben"). Dass sie auch
- * bei 1280px rechts neben dem Avatar stand, war derselbe Fehler, nur ohne
- * sichtbare Folge.
- *
- * EIGENE KOMPONENTE, nicht Teil von `SuiteNav`: sie muss ein GESCHWISTER des
- * `<Header>` sein, `SuiteNav` steht darin. Client-Komponente, weil die
- * Aktivmarkierung `usePathname()` braucht. Sie traegt bewusst KEIN eigenes
- * `<Layout.Header>` — `headerHeight` bleibt 64 (Entwurf §4), die zweite Zeile
- * kommt darunter hinzu.
- */
-export function Modulnav({ nav }: { nav: SuiteNavItem[] }) {
-  const pfad = usePathname();
-  if (nav.length === 0) return null;
-  return (
-    <nav aria-label="Modulnavigation" data-testid="modulnav" className={s.modulnav}>
-      {navLinks(nav, pfad)}
-    </nav>
-  );
 }
 
 /**
@@ -276,10 +245,10 @@ export function SuiteNav({
   );
   const pfad = usePathname();
 
-  // Nur noch für den Drawer: die sichtbare zweite Zeile gehört `Modulnav`,
-  // einem Geschwister des `<Header>` (siehe dort). Gruppiert wie die
-  // Seitenleiste (`navGruppen`) — für eine flache Navigation liefert
-  // `gruppiereNav` genau eine titellose Gruppe, also ändert sich hier nichts.
+  // Nur noch für den Drawer: die sichtbare Navigation liegt in der
+  // Seitenleiste (`SuiteRahmen`). Gruppiert wie dort (`navGruppen`) — für eine
+  // flache Navigation liefert `gruppiereNav` genau eine titellose Gruppe, also
+  // ändert sich hier nichts.
   const drawerNavGruppen = navGruppen(nav, pfad);
 
   /*

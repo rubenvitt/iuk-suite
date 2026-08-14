@@ -11,3 +11,7 @@ node_modules
 
 # Betriebsnotizen, lokal (Gruppenlisten, abgelesene Serverwerte) — nie committen
 .betrieb-lokal/
+
+# Arbeitsverzeichnis der Subagenten-Ausfuehrung (Ledger, Briefs, Reviewpakete).
+# Reiner Kladdenraum je Plan — der Nachweis liegt in der Git-Historie.
+.superpowers/

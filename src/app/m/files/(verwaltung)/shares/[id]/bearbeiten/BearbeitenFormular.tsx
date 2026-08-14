@@ -176,9 +176,12 @@ export function BearbeitenFormular(props: BearbeitenFormularProps) {
             data-testid="files-bearbeiten-fehler"
             message={zeilenFehler}
             action={
-              <Button size="small" href="/">
-                Zur Übersicht
-              </Button>
+              // Kein `size="small"` mehr: dieser Knopf sitzt in einer
+              // Alert-Aktion, keiner Tabellenzeile — die alte Ausnahme aus
+              // `docs/design/README.md`, Falle 4, galt nie fuer diese Stelle,
+              // und `size="small"` faellt auf 24px, unter die Mindesttapflaeche
+              // (korrigiert Aufgabe 12).
+              <Button href="/">Zur Übersicht</Button>
             }
           />
         )}
@@ -337,17 +340,24 @@ export function BearbeitenFormular(props: BearbeitenFormularProps) {
         )}
 
         <div className={css.aktionen}>
-          {/* Kein `size`: `controlHeight` ist 56 und schon das richtige
-              Touch-Mass, `size="large"` waeren 72px. */}
+          {/* Kein `size`: `ARBEITSDICHTE` setzt `controlHeight` auf 44 (nicht
+              mehr 56, korrigiert Aufgabe 12) — schon das richtige Masz,
+              `size="large"` waeren 72px. */}
           <Button className={css.knopf} type="primary" htmlType="submit">
             Änderungen speichern
           </Button>
           {/*
            * DER WEG ZURUECK STEHT AM FORMULAR, nicht nur in der Kopfzeile: wer
            * hier steht und doch nichts aendern will, braucht ihn genau hier.
-           * Ziel ist die Modulwurzel — Begruendung in `page.tsx`.
+           * Ziel ist `/shares/<id>` — dieselbe unmittelbare Elternseite wie
+           * `Seitenkopf.zurueck` in `page.tsx` (Aufgabe 12): dort steht auch die
+           * ausfuehrliche Begruendung, warum das die Modulwurzel abgeloest hat.
+           * Diese Zeile war frueher `href="/"` mit derselben veralteten
+           * Praemisse wie der damalige Kommentar in `page.tsx` — mitkorrigiert,
+           * sonst wuerde der Seitenkopf-Rueckweg und der Abbrechen-Knopf auf
+           * derselben Seite an zwei verschiedene Ziele fuehren.
            */}
-          <Button className={css.knopf} href="/">
+          <Button className={css.knopf} href={`/shares/${props.shareId}`}>
             Abbrechen
           </Button>
         </div>

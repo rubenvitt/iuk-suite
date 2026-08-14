@@ -12,7 +12,6 @@ import {
 import { bzGeraete, bzKontrollen, lagerorte } from "../../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../../_db/testdb";
 import { BZ_LOGBUCH_GRENZE } from "../../../../_lib/grenzen";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { BzAktivToggle } from "./BzAktivToggle";
@@ -277,8 +276,6 @@ describe("BZ-Geräteblatt als Server Component", () => {
     expect(kacheln.map((element) => (element.props as { ton?: string }).ton))
       .toEqual(["ok", "ok", undefined, "ok"]);
 
-    const brotkrume = elementeVomTyp(seite, Brotkrume)[0];
-    expect((brotkrume.props as { href: string }).href).toBe("/verwaltung/bz");
     const links = elementeVomTyp(seite, Link);
     expect(links.map((element) => (element.props as { href?: string }).href))
       .toContain("/verwaltung/bz/bz-1/kontrolle");
@@ -297,6 +294,10 @@ describe("BZ-Geräteblatt als Server Component", () => {
     expect(enthaeltDate(editorProps)).toBe(false);
 
     const kopf = elementeVomTyp(seite, SeitenKopf)[0];
+    const zurueck = (kopf.props as {
+      zurueck?: { titel: string; href: string };
+    }).zurueck;
+    expect(zurueck).toEqual({ titel: "BZ-Geräte", href: "/verwaltung/bz" });
     const status = elementeVomTyp(
       (kopf.props as { aktionen: ReactNode }).aktionen,
       BzAktivToggle,

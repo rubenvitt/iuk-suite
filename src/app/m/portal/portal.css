@@ -86,7 +86,14 @@
  * behalten.
  */
 .ant-card.portal-kachel {
-  border-inline-start: 4px solid var(--iuk-linie);
+  /* 3px, nicht mehr 4px (Durchgang Aufgabe 13): derselbe linke Akzent wie
+     `.navLink[aria-current]` und `.appEintrag[aria-current]` in
+     `core/shell/shell.module.css` — die Suite fuehrt genau eine Akzentbreite,
+     und hier stand ohne genannten Grund eine zweite. Die FARBE bleibt bewusst
+     unveraendert: `--iuk-linie` in Ruhe, `--iuk-marke` bei Hover/Fokus ist
+     ein Interaktions-, kein Aktiv-Signal (eine Kachel traegt kein
+     `aria-current`) und damit keine "gleiche Sache" wie der Umschalter. */
+  border-inline-start: 3px solid var(--iuk-linie);
   /* `box-shadow` bewusst mitgefuehrt: `.ant-card-hoverable` transitioniert
      border-color UND box-shadow (0,1,0). Unser `transition`-Shorthand
      (0,2,0) ersetzt die gesamte Eigenschaft, nicht nur border-color — ohne

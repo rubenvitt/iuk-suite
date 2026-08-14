@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Button } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 
 /**
  * DIE AUSWAHL-INSEL DES ETIKETTENBOGENS (Spec §8.4).
@@ -78,7 +79,10 @@ export function EtikettenBogen({ artikel, tokens }: { artikel: A[]; tokens: T[] 
 
   return (
     <>
-      <div className="lb-nichtDrucken" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      <div
+        className="lb-nichtDrucken"
+        style={{ display: "flex", gap: SPACE.sm, marginBottom: SPACE.md }}
+      >
         <Button data-testid="lb-alle" onClick={() => setGewaehlt(new Set(keys))}>
           Alle
         </Button>

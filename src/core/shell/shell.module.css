@@ -14,6 +14,27 @@
  */
 
 /*
+ * DER KLEBENDE KOPFBLOCK — Markenstreifen und Kopfzeile als eine Einheit.
+ *
+ * Vorher klebte nur die Seitenleiste (`inset-block-start: 64px`), waehrend die
+ * Kopfzeile mitscrollte: beim Scrollen stand ueber der Leiste ein 64px hohes
+ * Loch. Und die 64 war zusaetzlich zu klein, weil der Streifen darueber steht.
+ *
+ * EIN Block statt zweier klebender Elemente: sonst waeren zwei Zahlen zu
+ * pflegen statt einer, und `--iuk-kopf` (an `.sider`) muesste beide kennen.
+ *
+ * `z-index` erzeugt hier einen Stapelkontext. Das ist gewollt und in
+ * `shell-css.test.ts` ausgeschrieben: `.umschalterFang` (900) und
+ * `.umschalterPanel` (901) liegen darin und bleiben ueber dem Seiteninhalt
+ * (`auto` = 0); antds Drawer wird ins `body` portalisiert und liegt darueber.
+ */
+.kopfBlock {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 100;
+}
+
+/*
  * DER MARKENSTREIFEN — 5px, der billigste Griff mit der groeszten Wirkung.
  * Uebernommen aus dem alten Lagerbuch (`.stripe`), das ihn ueber jeder Ansicht
  * trug.
@@ -111,9 +132,8 @@
  * `.rechts .nurMobil` ist (0,2,0) und schlaegt `.ant-btn` unabhaengig von der
  * Reihenfolge. Kein `!important`, weil eine Klasse mehr reicht.
  *
- * Warum `.nurDesktop` und `.modulnav` das NICHT brauchen: die sitzen auf
- * `<nav>` und `<span>`, wo antd gar nicht mitbietet. Genau diese Asymmetrie
- * hat den Fehler durchgelassen.
+ * Warum `.nurDesktop` das NICHT braucht: die sitzt auf einem `<span>`, wo antd
+ * gar nicht mitbietet. Genau diese Asymmetrie hat den Fehler durchgelassen.
  *
  * Basis UND Media Query tragen den Praefix. Nur die Media Query zu erhoehen
  * liesze die Basis weiter gegen `.ant-btn` verlieren — mobil ist das heute
@@ -132,54 +152,6 @@
    damit auf schmalen Geraeten nichts aufblitzt, bevor CSS greift. */
 .nurDesktop {
   display: none;
-}
-
-/*
- * Die modul-interne Navigation als ZWEITE ZEILE UNTER der Kopfzeile — nur
- * Desktop, nur wenn das Modul welche uebergibt.
- *
- * Der Knoten ist ein Geschwister des `<Header>` und kein Kind (SuiteHeader.tsx).
- * Solange er im Kopf sasz, war er dort das dritte Flex-Kind und nahm dem Titel
- * die Breite weg: zwischen 768px und 903px blieben von ihm 0px, und die Seite
- * scrollte seitwaerts. Hier unten konkurriert nichts mehr.
- *
- * `align-items: center`, weil die Zeile ihre Hoehe jetzt selbst aus den Links
- * bezieht (56px Tap-Masz) statt aus `headerHeight`.
- *
- * Bewusst OHNE eigene Flaechenfarbe: sie liegt damit auf `Layout.bodyBg` statt
- * auf `headerBg` und setzt sich ueber die untere Linie vom Inhalt ab. Die
- * Alternative brauchte entweder `--ant-*` (sieht eigenes Markup nicht, Falle 2)
- * oder eine zweite Farbquelle neben `core/theme`.
- */
-.modulnav {
-  display: none;
-  align-items: center;
-  gap: 4px;
-  padding-inline: 16px;
-  border-block-end: 1px solid;
-  border-color: color-mix(in srgb, currentColor 12%, transparent);
-
-  /*
-   * UEBERLAUFBEHANDLUNG — ein Modul mit vielen Abschnitten sprengt die Zeile.
-   * `lagerbuch` faehrt sie als erstes ueber die Belastungsgrenze: 15 Eintraege
-   * mit zusammen 127 Zeichen liegen ueberschlaegig bei 1.300-1.400px, und bei
-   * 1280px kann kein Link unter seine `min-content`-Breite schrumpfen. Ohne
-   * diese zwei Zeilen scrollt `documentElement` waagerecht — nicht die Leiste,
-   * die ganze Seite.
-   *
-   * Der Unterstrich der Aktivmarkierung (`.navLink[aria-current]`, 2px) darf
-   * nicht unter einer Scrollleiste verschwinden — deshalb scrollt der
-   * CONTAINER, und die Links behalten ihre volle Hoehe.
-   *
-   * `scroll-behavior` bleibt ungesetzt: es wird nichts animiert, und
-   * `prefers-reduced-motion` ist damit unberuehrt.
-   *
-   * Ein `overflow-x`-Container mit fokussierbaren Kindern scrollt beim Tabben
-   * VON SELBST zum fokussierten Link — die Zusicherung dazu ist ein
-   * Playwright-Schritt, kein Quelltext-Scan.
-   */
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 .drawerGruppe {
@@ -208,54 +180,85 @@
 
 /*
  * Die Modulnavigation ist `next/link` und damit rohes Markup — antds
- * Button-Aussehen faellt hier weg und muss gesetzt werden. Bewusst KEINE
- * `--ant-*`-Variablen: die sieht eigenes Markup nicht (der Fehler waere still).
- * `currentColor` erbt die Schriftfarbe der Kopfzeile und traegt damit hell wie
- * dunkel, ohne eine zweite Farbquelle aufzumachen.
+ * Button-Aussehen fällt hier weg und muss gesetzt werden. Bewusst KEINE
+ * `--ant-*`-Variablen: die sieht eigenes Markup nicht (der Fehler wäre still).
+ * `currentColor` erbt die Schriftfarbe und trägt damit hell wie dunkel, ohne
+ * eine zweite Farbquelle aufzumachen.
  *
- * `min-height: 56px` ist das Touch-Masz der Suite (`TAP` in core/theme/tokens).
+ * `min-height: 56px` ist das Touch-Maß der Suite (`TAP` in core/theme/tokens)
+ * und gilt hier für den DRAWER. Die Seitenleiste überschreibt es weiter unten
+ * auf 40px — sie existiert unterhalb von 768px gar nicht und wird mit Maus
+ * bedient.
+ *
+ * `flex` und nicht `inline-flex`: für ein Flex-Kind ist das dasselbe (Flex-
+ * Items werden blockifiziert, CSS Display Module Level 3) — `flex` sagt die
+ * Absicht nur direkter, diese Zeile ist eine Listenzeile, kein Inline-Element.
  */
 .navLink {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   min-height: 56px;
   padding-inline: 12px;
+  border-inline-start: 3px solid transparent;
+  border-radius: 6px;
   color: inherit;
   text-decoration: none;
-  border-block-end: 2px solid transparent;
+}
+
+.navLink:hover {
+  background: var(--iuk-flaeche-aktiv);
 }
 
 /*
  * `[aria-current]` OHNE Wert, und das ist Absicht: der Wert ist `"page"` auf der
- * aufgerufenen Seite und `"true"` auf einer Seite, die nur zum Abschnitt gehoert
+ * aufgerufenen Seite und `"true"` auf einer Seite, die nur zum Abschnitt gehört
  * (SuiteNav.tsx, `aktiverEintrag`). Optisch ist beides dieselbe Hervorhebung;
- * ein Selektor auf `="page"` liesze die Abschnitts-Markierung still verschwinden
- * — der Link waere dann markiert, saehe aber unmarkiert aus.
+ * ein Selektor auf `="page"` ließe die Abschnitts-Markierung still verschwinden.
  *
- * ROT STATT `currentColor`, seit 2026-08-12: die Aktivmarkierung ist der eine
- * Ort in der Chrome, an dem Markenfarbe eine Aussage traegt statt Dekoration zu
- * sein. `--iuk-marke` und nicht `--ant-color-primary` — eigenes Markup sieht
- * antds Variablen nicht (Falle 2); die Markierung verliert ihren Farbkanal.
- * FALLS `--iuk-marke` NICHT AUFLOEST — die Variable fehlt, ist umbenannt, oder
- * `globals.css` kommt nicht an —, wird `border-block-end-color` zu
- * `currentColor` (die 2px bleiben, nur in Textfarbe) und `color` zur geerbten
- * Kopfzeilenfarbe (der Text bleibt, nur unmarkiert). Ohne diese Bedingung
- * beschriebe der Satz das Gegenteil der drei Zeilen darunter. Der Ausfall ist
- * still (Falle 2): die Regel steht da und traegt nichts mehr.
+ * LINKER AKZENT STATT UNTERSTRICH, seit 2026-08-13. `border-block-end` war das
+ * richtige Zeichen für eine waagerechte Leiste; in der senkrechten Liste zog
+ * derselbe Selektor einen roten Strich über die volle Leistenbreite, der sich
+ * als Trennlinie las. Dieselbe Aktivsprache trägt jetzt auch der App-Umschalter
+ * (`.appEintrag[aria-current]`) — ein Panel-Eintrag und ein Leisteneintrag
+ * bedeuten dasselbe.
  *
- * `font-weight: 600` BLEIBT und ist nicht redundant — und zwar EINMAL
- * begruendet, nicht zweimal: das Gewicht ist der Traeger, der uebrig bleibt,
- * wenn der Farbkanal ausfaellt, und er faellt auf zwei voneinander unabhaengige
- * Weisen aus — technisch (die unaufgeloeste Variable oben) und beim Leser (bei
- * Rot-Gruen-Blindheit und in Graustufen traegt Farbe hier nichts). Bedeutung
- * nie allein ueber Farbe. (Hier standen zwei aufeinanderfolgende Absaetze mit
- * je einer der beiden Mechaniken — eine Restdoppelung aus zwei Fix-Runden. Sie
- * begruenden dieselbe Zeile und stehen deshalb jetzt als ein Grund da.)
+ * FALLS `--iuk-marke` NICHT AUFLÖST — die Variable fehlt, ist umbenannt, oder
+ * `globals.css` kommt nicht an —, fällt der Akzent NICHT auf das `transparent`
+ * der Kurzschreibweise oben zurück. Hier stand das einmal so; es ist falsch.
+ * Eine Variable, die erst zur Rechenzeit scheitert („invalid at computed-value
+ * time"), macht die Deklaration zu `unset` — und für die NICHT vererbte
+ * `border-inline-start-color` ist `unset` der Initialwert `currentcolor`, nicht
+ * der Wert, der ohne diese Regel kaskadiert wäre. `.navLink` trägt
+ * `color: inherit`, also wird aus dem Akzent eine Kante in der geerbten
+ * Schriftfarbe: die 3px verschwinden nicht, sie verlieren nur ihr Rot. Für die
+ * Markierung ist das der glimpflichere Ausfall — die Kante bleibt sichtbar,
+ * und `font-weight: 600` steht ohnehin daneben. Still ist er trotzdem
+ * (Falle 2).
+ *
+ * KEINE TEXTFARBE HIER — und zwar seit dem Schlussreview, als Folge genau der
+ * getönten Fläche eine Zeile darüber. Bis dahin trug die Regel
+ * `color: var(--iuk-marke)`, und das war belegt: der Text saß direkt auf
+ * `lightSiderBg` = `colorBgContainer` = `#141414`, wofür `globals.css` 5.22:1
+ * ausrechnet. Die Fläche hat den NENNER verschoben: `#141414` unter
+ * `rgb(255 255 255 / 0.1)` komponiert zu `#2c2c2c`, und `#e45a66` dagegen
+ * ergibt nur noch 3.96:1 — im Drawer (antds `colorBgElevated` = `#1f1f1f`,
+ * komponiert `#353535`) sogar 3.48:1. Beides unter 4.5:1, und 14px/600 ist
+ * kein „large text". (Hell war es unauffällig: `#c8000f` auf `#f0f0f0` =
+ * 5.32:1.) Die drei Zahlen sind GERECHNET, nicht im Browser gemessen.
+ *
+ * Der Ausweg ist nicht, `--iuk-marke` im Dunkeln anzuheben — das entwertete
+ * still die drei anderen in `globals.css` dokumentierten Rechnungen. Die
+ * Markierung trägt stattdessen, was sie ohnehin trug: die Akzentkante und
+ * `font-weight: 600`. Beides ist hier kein Ersatz, sondern der ursprüngliche
+ * Träger — es ist genau das, was übrig bleibt, wenn der Farbkanal ausfällt,
+ * technisch wie beim Leser (bei Rot-Grün-Blindheit und in Graustufen trägt
+ * Farbe hier nichts). Bedeutung nie allein über Farbe; jetzt auch nicht mehr
+ * teilweise.
  */
 .navLink[aria-current] {
-  border-block-end-color: var(--iuk-marke);
-  color: var(--iuk-marke);
+  border-inline-start-color: var(--iuk-marke);
+  background: var(--iuk-flaeche-aktiv);
   font-weight: 600;
 }
 
@@ -267,10 +270,6 @@
   }
 
   .nurDesktop {
-    display: flex;
-  }
-
-  .modulnav {
     display: flex;
   }
 }
@@ -286,16 +285,31 @@
  * Klasse (`.appEintrag`), sonst trüge sein aktiver Eintrag dieselbe
  * Hervorhebung.
  *
- * KEINE `--suite-flaeche`/`--suite-linie`/`--suite-hover` hier: diese drei
- * Variablen hängen an `.umschalter` bzw. `:root[data-theme="dark"] .umschalter`
- * (weiter unten in dieser Datei) — ein CSS-Modul kann `:root` nicht scopen, die
- * frühere globale Deklaration war ein Regelverstoß und ist deshalb eingeengt
- * worden. Die Seitenleiste liegt außerhalb dieses Teilbaums und sähe sie nicht;
- * der Fehler wäre still (die Fläche verschwände einfach). `Sider theme="light"`
- * bringt seine Fläche selbst mit (antd-Token), `.modulleiste` braucht deshalb
- * keine eigene.
+ * KEINE `--suite-flaeche`/`--suite-linie` hier: diese zwei Variablen hängen an
+ * `.umschalter` bzw. `:root[data-theme="dark"] .umschalter` (weiter unten in
+ * dieser Datei) — ein CSS-Modul kann `:root` nicht scopen, die frühere globale
+ * Deklaration war ein Regelverstoß und ist deshalb eingeengt worden. Sie sind
+ * panel-lokal, die Seitenleiste liegt außerhalb dieses Teilbaums und sähe sie
+ * weiterhin nicht.
+ *
+ * `--suite-hover` GILT DAS NICHT MEHR: sie ist seit 2026-08-13 als
+ * `--iuk-flaeche-aktiv` nach `globals.css` gewandert — und zwar GENAU DAMIT
+ * die Seitenleiste (ab Aufgabe 4) sie lesen kann; Begründung am neuen
+ * Kommentar dort. `Sider theme="light"` bringt seine Fläche selbst mit
+ * (antd-Token), `.modulleiste` braucht deshalb keine eigene.
  */
 .sider {
+  /*
+   * 64px Kopfzeile (`Layout.headerHeight`, core/theme/theme.ts) + 5px
+   * Markenstreifen (`.streifen` oben). Die Summe steht hier EINMAL; ein
+   * zweiter Ort dafuer ist genau der Fehler, den `shell-css.test.ts` mit
+   * „rechnet --iuk-kopf aus headerHeight UND Streifenhoehe" verriegelt.
+   *
+   * An `.sider` und nicht an `:root`: ein CSS-Modul kann `:root` nicht scopen,
+   * und `.sider` ist der einzige Konsument.
+   */
+  --iuk-kopf: 69px;
+
   display: none;
 }
 
@@ -306,35 +320,74 @@
   padding: 12px 8px;
 }
 
+/*
+ * 40px STATT 56 — Begründung im gleichnamigen Test in `shell-css.test.ts`.
+ * Der `.modulleiste`-Präfix ist (0,2,0) und trägt die Regel; ohne ihn stünde
+ * sie gleichauf mit der Basisregel und die Reihenfolge entschiede.
+ */
+.modulleiste .navLink {
+  min-height: 40px;
+}
+
 .navGruppe {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
+/*
+ * 20px = SPACE.lg + SPACE.xs. Keine neue Zahl, eine Summe zweier vorhandener
+ * (`core/theme/tokens.ts`). Bei 40px-Zeilen muss die Trennung ZWISCHEN Gruppen
+ * deutlich größer sein als die zwischen Zeilen (2px), sonst zerfällt die
+ * Ordnung — 16px waren dafür zu wenig.
+ */
 .navGruppe + .navGruppe {
-  margin-block-start: 16px;
+  margin-block-start: 20px;
 }
 
-/* `--iuk-gedaempft` statt `opacity`, wie `.drawerTitel` oben: Deckkraft dimmt
-   den Kontrast unprüfbar mit und trägt in beiden Modi verschieden, eine
-   Variable hat einen Dunkelzweig. `.navAbschnitt` ist dieselbe Rolle
-   (gedämpfte Gruppenüberschrift) wie `.drawerTitel` und bekommt deshalb
-   dieselbe Lösung statt einer eigenen. */
+/* Nur Polsterung und Farbe. Die TYPOGRAFIE kommt als Inline-Stil aus
+   `SCHRIFT.kicker` (`navGruppen` in SuiteNav.tsx) — dieselbe Aufteilung wie
+   bei `.umschalterAbschnitt`, und aus demselben Grund: `core/theme/schrift.ts`
+   ist die eine Quelle. */
 .navAbschnitt {
-  padding: 4px 9px;
-  font-size: 12px;
+  padding: 4px 12px;
   color: var(--iuk-gedaempft);
 }
 
 @media (min-width: 768px) {
-  .sider {
+  /*
+   * ZWEI KLASSEN, NICHT EINE — und das ist der Unterschied zwischen „die Regel
+   * steht da" und „die Regel gilt" (Falle 5, docs/design/README.md).
+   *
+   * antd setzt `position: relative` auf `.ant-layout-sider`
+   * (antd/es/layout/style/sider.js:25). `.sider` allein ist (0,1,0), genau wie
+   * `.ant-layout-sider` — bei Gleichstand entscheidet die Dokumentreihenfolge,
+   * und antds cssinjs-Stylesheet kommt SPAETER. GEMESSEN im Browser (Aufgabe 6),
+   * nicht hergeleitet: `getComputedStyle(sider).position` war "relative",
+   * `top` stand korrekt auf "69px" — und weil `top` an einem `relative`-Knoten
+   * bloss verschiebt statt zu kleben, scrollte die Leiste mit und stand nach
+   * `wheel(0, 600)` bei y = -145 statt bei der Unterkante der Kopfzeile.
+   * Dieselbe Kollision wie bei `.kopf`/`padding-inline` und `.nurMobil`/`.ant-btn`.
+   *
+   * (0,2,0) schlaegt antd unabhaengig von der Reihenfolge; `!important` waere zu
+   * viel. Die Basisregel `.sider { display: none }` bleibt einklassig — dort
+   * gibt es keine antd-Deklaration, gegen die sie antreten muesste.
+   *
+   * Ein Vorfahr mit `overflow != visible` bricht `sticky` ebenfalls; das war es
+   * hier NICHT: die ganze Kette (`.ant-layout-has-sider`, `.ant-layout`,
+   * `.modul`, `.ant-app`, `body`, `html`) steht auf `overflow: visible`,
+   * ebenfalls im selben Lauf nachgemessen.
+   */
+  .sider.sider {
     display: block;
     position: sticky;
-    /* Unter der 64px-Kopfzeile; `headerHeight` bleibt unverändert. */
-    inset-block-start: 64px;
-    block-size: calc(100vh - 64px);
+    inset-block-start: var(--iuk-kopf);
+    block-size: calc(100vh - var(--iuk-kopf));
     overflow-y: auto;
+    /* Ohne sie steht die Leiste ohne erkennbaren Grund neben dem Inhalt.
+       `--iuk-linie` gibt es global mit Dunkelzweig; `--ant-*` sähe eigenes
+       Markup nicht (Falle 2). */
+    border-inline-end: 1px solid var(--iuk-linie);
   }
 }
 
@@ -365,39 +418,78 @@
  * in die Suite zu hängen wäre eine Kollision, die erst in einem fremden Modul
  * auffiele, und `globals.css` zeigt, dass Theming dort bewusst NICHT passiert
  * („Alles Thematische steckt in `src/core/theme/`"). Der einzige Konsument
- * dieser drei Variablen ist ohnehin `.umschalterPanel` samt Kindern, alle
+ * dieser zwei Variablen ist ohnehin `.umschalterPanel` samt Kindern, alle
  * Nachfahren von `.umschalter` (`AppUmschalter.tsx`) — der ursprüngliche
  * Grund für den nackten `:root` („ein Kontext ohne Attribut, Druck, isolierte
  * Vorschau, soll nicht ohne Farben dastehen") trägt nicht mehr: `.umschalter`
  * selbst liefert die Hellwerte unabhängig von `data-theme`, ein Kontext ohne
  * das Attribut sieht also weiterhin Farben.
  *
+ * NUR NOCH ZWEI, SEIT 2026-08-13: `--suite-hover` ist als `--iuk-flaeche-aktiv`
+ * nach `globals.css` gewandert — und zwar GENAU DESHALB, weil die Seitenleiste
+ * sie dort (ab Aufgabe 4) sehen soll; die Begründung oben („eine Kollision, die
+ * erst in einem fremden Modul auffiele") gilt für `--suite-flaeche` und
+ * `--suite-linie` unverändert weiter, sie bleiben panel-lokal und für die
+ * Leiste unsichtbar. Details zur getönten Fläche stehen jetzt am neuen
+ * Kommentar in `globals.css` bei `--iuk-flaeche-aktiv`.
+ *
  * Hellwerte = Suite-Tokens (`core/theme/tokens.ts`, `FARBEN.karte` /
  * `FARBEN.linie`), Dunkelwerte = antds Vorgaben — kein zweiter Farbeindruck
  * neben dem Rest der Suite.
  */
 .umschalter {
+  /* NUR NOCH ZWEI LOKALE VARIABLEN. `--suite-hover` ist am 2026-08-13 als
+     `--iuk-flaeche-aktiv` nach `globals.css` gewandert, weil die Seitenleiste
+     denselben Wert braucht und ihn hier nicht saehe. Diese beiden bleiben
+     lokal: sie beschreiben Flaeche und Kontur eines aufklappenden Panels und
+     haben keinen zweiten Nutznieszer. Hellwerte = Suite-Tokens
+     (`core/theme/tokens.ts`), Dunkelwerte = antds Vorgaben. */
   --suite-flaeche: #ffffff;
   --suite-linie: #d9dde1;
-  --suite-hover: rgb(0 0 0 / 0.06);
 
   position: relative;
   display: flex;
   align-items: center;
   min-width: 0;
+
+  /* DIE URSACHE DES UNBENUTZBAREN PANELS — ausfuehrlich begruendet im
+     gleichnamigen Test in `shell-css.test.ts`. Kurz: antd setzt auf
+     `.ant-layout-header` ein `line-height: 64px`, und dieser Knoten haengt
+     darin. Ohne diese Zeile ist jeder Panel-Eintrag 82px hoch (8px Polster +
+     64px Zeilenbox + 8px Polster) und der Ausloeser 76px. Am gemeinsamen
+     Vorfahren, nicht an beiden einzeln. */
+  line-height: normal;
 }
 
 :root[data-theme="dark"] .umschalter {
   --suite-flaeche: #141414;
   --suite-linie: #303030;
-  --suite-hover: rgb(255 255 255 / 0.1);
 }
 
+/*
+ * `min-block-size: 44px` IST DIE TAPFLÄCHE, nicht Optik. GEMESSEN im
+ * gebündelten Playwright-Lauf (Aufgabe 6): der Auslöser stand auf 130x38 und
+ * fiel damit in `e2e/lagerbuch-mobil.spec.ts:312` („jede Zeilenaktion ist
+ * mindestens 44 x 44 px") — er ist seit dem Navigations-Umbau der Weg zu jeder
+ * anderen App und liegt auf JEDER Breite in der Kopfzeile, auch am Telefon.
+ *
+ * Die 38px waren kein Versehen, sondern die Folge der Reparatur darüber:
+ * `line-height: normal` an `.umschalter` nimmt die von `.ant-layout-header`
+ * geerbten 64px heraus, und danach trug nur noch Inhalt plus 6px Polsterung.
+ * Eine größere Polsterung wäre der falsche Griff — sie verschöbe den Text
+ * gegenüber `.titel`, dem abgemeldeten Gegenstück. Ein Boden lässt die
+ * Typografie in Ruhe.
+ *
+ * KEIN Spezifitätsstreit: dies ist ein nacktes `<button>` in eigenem Markup
+ * (`AppUmschalter.tsx`), kein `.ant-btn`. 44 < 56 — die Kopfzeile (64px)
+ * bleibt einzeilig, und `e2e/shell-mobil.spec.ts` misst das mit.
+ */
 .umschalterAusloeser {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
+  min-block-size: 44px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: none;
@@ -407,9 +499,20 @@
   min-width: 0;
 }
 
-.umschalterAusloeser:hover,
+/*
+ * HIER STAND `border-color: currentColor` — der schwarze Rahmen. Er war nicht
+ * die Ursache, sondern das, was die Ursache sichtbar machte: er zeichnete den
+ * durch die geerbte Zeilenhoehe auf 76px aufgeblaehten Knopf in Textfarbe nach.
+ * Eine Flaeche statt einer Kontur, und die Kontur nur im geoeffneten Zustand —
+ * dort trennt sie den Ausloeser vom Panel darunter, das dieselbe Kontur traegt.
+ */
+.umschalterAusloeser:hover {
+  background: var(--iuk-flaeche-aktiv);
+}
+
 .umschalterAusloeser[aria-expanded="true"] {
-  border-color: currentColor;
+  background: var(--iuk-flaeche-aktiv);
+  border-color: var(--suite-linie);
 }
 
 .umschalterAusloeser strong {
@@ -418,9 +521,25 @@
   white-space: nowrap;
 }
 
+/* `--iuk-gedaempft` statt `opacity`: Deckkraft dimmt den Kontrast unpruefbar
+   mit und traegt in beiden Modi verschieden. */
 .umschalterPfeil {
   font-size: 12px;
-  opacity: 0.6;
+  color: var(--iuk-gedaempft);
+  transition: transform 0.15s;
+}
+
+.umschalterAusloeser[aria-expanded="true"] .umschalterPfeil {
+  transform: rotate(180deg);
+}
+
+/* Die Drehung ist die einzige Bewegung in dieser Datei — und deshalb die
+   einzige Stelle, die einen reduced-motion-Zweig schuldet. Der Endzustand
+   bleibt: der Pfeil zeigt weiterhin nach oben, er kommt nur ohne Weg dorthin. */
+@media (prefers-reduced-motion: reduce) {
+  .umschalterPfeil {
+    transition: none;
+  }
 }
 
 /* Deckt den Rest der Seite ab, damit ein Klick daneben schließt. Unter dem
@@ -443,7 +562,7 @@
   inset-block-start: calc(100% + 8px);
   max-height: 70vh;
   overflow-y: auto;
-  padding: 12px;
+  padding: 8px;
   border-radius: 12px;
   border: 1px solid var(--suite-linie);
   background: var(--suite-flaeche);
@@ -455,7 +574,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  margin-block-end: 12px;
+  margin-block-end: 8px;
   border: 1px solid var(--suite-linie);
   border-radius: 8px;
 }
@@ -471,10 +590,12 @@
   outline: none;
 }
 
+/* Nur Polsterung und Farbe. Die TYPOGRAFIE kommt als Inline-Stil aus
+   `SCHRIFT.kicker` (AppUmschalter.tsx) — eine zweite Abschrift der Rolle in
+   CSS waere genau die Doppelung, gegen die `core/theme/schrift.ts` gebaut ist. */
 .umschalterAbschnitt {
-  padding: 4px 6px;
-  font-size: 12px;
-  opacity: 0.65;
+  padding: 8px 8px 4px;
+  color: var(--iuk-gedaempft);
 }
 
 .umschalterListe {
@@ -484,27 +605,38 @@
 }
 
 .umschalterLeer {
-  padding: 12px 6px;
+  padding: 12px 8px;
   margin: 0;
-  opacity: 0.75;
+  color: var(--iuk-gedaempft);
 }
 
+/*
+ * DIESELBE AKTIVSPRACHE WIE DIE SEITENLEISTE — 3px linker Akzent in
+ * `--iuk-marke` auf getoenter Flaeche. Ein Panel-Eintrag und ein
+ * Leisteneintrag bedeuten dasselbe („das ist die Stelle, an der du bist");
+ * sie duerfen nicht verschieden aussehen.
+ *
+ * Der transparente Rahmen steht auch im Ruhezustand, sonst springt die
+ * Beschriftung beim Wechsel der aktiven Zeile um 3px zur Seite.
+ */
 .appEintrag {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
+  border-inline-start: 3px solid transparent;
   border-radius: 8px;
   color: inherit;
   text-decoration: none;
 }
 
 .appEintrag:hover {
-  background: var(--suite-hover);
+  background: var(--iuk-flaeche-aktiv);
 }
 
 .appEintrag[aria-current] {
-  background: var(--suite-hover);
+  border-inline-start-color: var(--iuk-marke);
+  background: var(--iuk-flaeche-aktiv);
   font-weight: 600;
 }
 
@@ -521,7 +653,7 @@
 .appEintragText {
   display: block;
   font-size: 12px;
-  opacity: 0.65;
+  color: var(--iuk-gedaempft);
 }
 
 /*
@@ -534,22 +666,21 @@
   margin-block-start: 4px;
   padding: 8px 6px;
   border-block-start: 1px solid var(--suite-linie);
-  color: inherit;
+  color: var(--iuk-gedaempft);
   text-decoration: none;
   font-size: 13px;
   text-align: center;
-  opacity: 0.75;
 }
 
 .umschalterFusszeile:hover {
-  opacity: 1;
-  background: var(--suite-hover);
+  color: inherit;
+  background: var(--iuk-flaeche-aktiv);
   border-radius: 8px;
 }
 
 @media (min-width: 768px) {
   .umschalterPanel {
     inset-inline: 0 auto;
-    inline-size: 360px;
+    inline-size: 320px;
   }
 }

@@ -136,7 +136,10 @@ describe("TemplatePosEditor — echte Vorlagenzeilen und Tabelle", () => {
       .toContain("Mullbinde");
     expect(query("tr[data-row-key='pos-a']").textContent)
       .toContain("Handlager C2 · Rol");
-    expect(queryAll("tbody .ant-input-number-sm")).toHaveLength(2);
+    // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5) -- die zwei Soll-Felder
+    // tragen die volle 44px-Bedienhoehe, keine `-sm`-Modifikatorklasse.
+    expect(queryAll("tbody .ant-input-number")).toHaveLength(2);
+    expect(queryAll("tbody .ant-input-number-sm")).toHaveLength(0);
     expect(document.body.querySelector(".ant-pagination")).toBeNull();
     expect(query(".ant-table-content").getAttribute("style"))
       .toContain("overflow-x: auto");

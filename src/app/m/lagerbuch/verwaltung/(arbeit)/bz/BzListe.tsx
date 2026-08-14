@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, Checkbox, Flex, Table } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { falte } from "../../../_lib/suche";
 import { SCHRIFT } from "../../../_lib/schrift";
 import type { LagerortOption } from "../../../_lib/lesepfade/bz";
@@ -47,7 +48,7 @@ export function BzListe({
 
   return (
     <>
-      <Flex gap={12} wrap align="center" style={{ marginBlockEnd: 12 }}>
+      <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
         <Suchfeld
           wert={suche}
           onWert={setSuche}
@@ -93,7 +94,7 @@ export function BzListe({
         }}
         columns={[
           {
-            title: "Gerät",
+            title: <span style={SCHRIFT.feldname}>Gerät</span>,
             dataIndex: "name",
             render: (wert: string, zeile) => (
               <span>
@@ -104,16 +105,16 @@ export function BzListe({
                   {wert}
                 </Link>
                 {zeile.barcode ? (
-                  <span style={{ ...SCHRIFT.mono, marginInlineStart: 8 }}>
+                  <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
                     {zeile.barcode}
                   </span>
                 ) : null}
               </span>
             ),
           },
-          { title: "Standort", dataIndex: "lagerortName" },
+          { title: <span style={SCHRIFT.feldname}>Standort</span>, dataIndex: "lagerortName" },
           {
-            title: "Fälligkeit",
+            title: <span style={SCHRIFT.feldname}>Fälligkeit</span>,
             dataIndex: "faelligkeitText",
             render: (wert: string, zeile) => (
               <Chip
@@ -125,14 +126,14 @@ export function BzListe({
             ),
           },
           {
-            title: "Letzte Kontrolle",
+            title: <span style={SCHRIFT.feldname}>Letzte Kontrolle</span>,
             dataIndex: "letzteKontrolleText",
             render: (wert: string | null) => (
               <span style={SCHRIFT.mono}>{wert ?? "–"}</span>
             ),
           },
           {
-            title: "Status",
+            title: <span style={SCHRIFT.feldname}>Status</span>,
             dataIndex: "aktiv",
             render: (wert: boolean) => wert ? null : <Chip ton="grau">inaktiv</Chip>,
           },

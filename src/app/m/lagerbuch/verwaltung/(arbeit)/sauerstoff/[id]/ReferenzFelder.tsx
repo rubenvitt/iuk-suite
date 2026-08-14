@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Alert, Input, InputNumber } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { flascheSpeichern } from "../../../../_actions/sauerstoff";
 import { SCHRIFT } from "../../../../_lib/schrift";
 
@@ -123,12 +124,14 @@ function ReferenzFelderInhalt({ start }: { start: ReferenzWerte }) {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div style={{ display: "grid", gap: SPACE.md }}>
       <div
         ref={wurzel}
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+          // 14 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und hat keine
+          // Geschwisterzeile in dieser Datei; bleibt Literal.
           gap: 14,
         }}
       >
@@ -172,6 +175,8 @@ function ReferenzFelderInhalt({ start }: { start: ReferenzWerte }) {
 
 function Feld({ label, children }: { label: string; children: React.ReactNode }) {
   return (
+    // 5 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und hat keine
+    // Geschwisterzeile in dieser Datei; bleibt Literal.
     <label style={{ display: "grid", gap: 5 }}>
       <span style={SCHRIFT.feldname}>{label}</span>
       {children}

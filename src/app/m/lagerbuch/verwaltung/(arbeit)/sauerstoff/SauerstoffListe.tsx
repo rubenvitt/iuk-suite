@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Checkbox, Flex, Progress, Table } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { ampelTon } from "../../../_lib/format";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
@@ -47,7 +48,7 @@ export function SauerstoffListe({
 
   return (
     <>
-      <Flex gap={12} wrap align="center" style={{ marginBlockEnd: 12 }}>
+      <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
         <Suchfeld
           wert={suche}
           onWert={setSuche}
@@ -78,11 +79,11 @@ export function SauerstoffListe({
         locale={{
           emptyText: filterAktiv
             ? "Keine Sauerstoffflasche passt zu den Filtern."
-            : "Noch keine Sauerstoffflaschen vorhanden.",
+            : "Noch keine Sauerstoffflaschen vorhanden. Lege oben die erste an.",
         }}
         columns={[
           {
-            title: "Flasche",
+            title: <span style={SCHRIFT.feldname}>Flasche</span>,
             dataIndex: "name",
             render: (wert: string, zeile) => (
               <span>
@@ -92,14 +93,14 @@ export function SauerstoffListe({
                 >
                   {wert}
                 </Link>
-                <span style={{ ...SCHRIFT.mono, marginInlineStart: 8 }}>
+                <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
                   {zeile.lagerortName}
                 </span>
               </span>
             ),
           },
           {
-            title: "Druck",
+            title: <span style={SCHRIFT.feldname}>Druck</span>,
             dataIndex: "letzterDruck",
             align: "right",
             render: (wert: number | null) => (
@@ -107,12 +108,12 @@ export function SauerstoffListe({
             ),
           },
           {
-            title: "Füllstand",
+            title: <span style={SCHRIFT.feldname}>Füllstand</span>,
             dataIndex: "status",
             render: (_: unknown, zeile) => zeile.status === null ? (
               <Chip ton="grau">keine Messung</Chip>
             ) : (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: SPACE.sm }}>
                 <Progress
                   percent={zeile.status.prozent}
                   showInfo={false}
@@ -128,7 +129,7 @@ export function SauerstoffListe({
             ),
           },
           {
-            title: "Herkunft",
+            title: <span style={SCHRIFT.feldname}>Herkunft</span>,
             dataIndex: "herkunft",
             render: (wert: SauerstoffAnzeigeZeile["herkunft"]) => wert === null ? (
               <span style={SCHRIFT.neben}>—</span>
@@ -137,7 +138,7 @@ export function SauerstoffListe({
             ),
           },
           {
-            title: "Größe",
+            title: <span style={SCHRIFT.feldname}>Größe</span>,
             dataIndex: "groesseLiter",
             render: (wert: number | null, zeile) => (
               <span style={SCHRIFT.neben}>
@@ -147,7 +148,7 @@ export function SauerstoffListe({
             ),
           },
           {
-            title: "Status",
+            title: <span style={SCHRIFT.feldname}>Status</span>,
             dataIndex: "aktiv",
             render: (wert: boolean) => wert ? null : <Chip ton="grau">inaktiv</Chip>,
           },

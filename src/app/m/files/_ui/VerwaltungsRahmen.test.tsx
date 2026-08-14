@@ -14,29 +14,30 @@ import type { ReactElement } from "react";
  * Modulwurzel ohne Navigation — Spec §3.5. Beide rufen darum diesen Rahmen.
  *
  * `SuiteNav` ist ersetzt: eine Client-Komponente mit antd-Kontext
- * (`useThemeMode` wirft auszerhalb des Providers). `Modulnav` bekommt einen
+ * (`useThemeMode` wirft auszerhalb des Providers). `Modulleiste` bekommt einen
  * SICHTBAREN Platzhalter, damit pruefbar ist, DASS und MIT WAS sie gerufen wird —
- * das ist die zweite Zeile der Kopfzeile und damit die Modulnavigation selbst.
+ * das ist die Seitenleiste (`SuiteRahmen`) und damit die Modulnavigation selbst.
  */
-const { authMock, suiteNavMock, modulnavMock } = vi.hoisted(() => ({
+const { authMock, suiteNavMock, modulleisteMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
   suiteNavMock: vi.fn(() => null),
   /*
    * Der Platzhalter TRAEGT die Zahl der angekommenen Eintraege — damit steht die
    * Aussage „die Navigation ist da" im gerenderten Markup und nicht nur in einem
-   * Mock-Aufrufprotokoll. `Modulnav` rendert bei leerer Liste nichts, ein
-   * verlorenes `nav` waere sonst eine still fehlende Zeile.
+   * Mock-Aufrufprotokoll. `Modulleiste` rendert bei leerer Liste nichts, ein
+   * verlorenes `nav` waere sonst eine still fehlende Leiste.
    */
-  modulnavMock: vi.fn((props: { nav: unknown }) => (
+  modulleisteMock: vi.fn((props: { nav: unknown }) => (
     <i
-      data-testid="modulnav-platz"
+      data-testid="modulleiste-platz"
       data-anzahl={Array.isArray(props.nav) ? props.nav.length : -1}
     />
   )),
 }));
 
 vi.mock("@/core/auth", () => ({ auth: authMock }));
-vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock, Modulnav: modulnavMock }));
+vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock }));
+vi.mock("@/core/shell/Modulleiste", () => ({ Modulleiste: modulleisteMock }));
 // `launcherEintraege` GEMOCKT, seit dem Navigations-Umbau nötig: `SuiteHeader`
 // ruft es angemeldet für den App-Umschalter, und die echte Implementierung
 // erreicht über `dienstEintraege` die Portal-Datenbank — die es in diesem Test
@@ -49,6 +50,7 @@ import { VerwaltungsRahmen } from "./VerwaltungsRahmen";
 import { FILES_NAV } from "../_lib/nav";
 import { Shell } from "@/core/shell/Shell";
 import { AppUmschalter } from "@/core/shell/AppUmschalter";
+import { Arbeitsdichte } from "@/core/theme/Arbeitsdichte";
 import { getModule } from "@/core/registry";
 
 const NAV_QUELLE = readFileSync("src/app/m/files/_lib/nav.ts", "utf8");
@@ -162,19 +164,19 @@ describe("VerwaltungsRahmen", () => {
   });
 
   /**
-   * Und der Durchlauf durch die ECHTE Shell: dass `nav` bei `Modulnav`
-   * ankommt, ist die Aussage „die Modulnavigation ist da" — `Modulnav` rendert
-   * bei leerer Liste ohnehin nichts (`SuiteNav.tsx`), ein verlorenes `nav`
-   * waere also eine still fehlende Zeile.
+   * Und der Durchlauf durch die ECHTE Shell: dass `nav` bei `Modulleiste`
+   * ankommt, ist die Aussage „die Modulnavigation ist da" — `Modulleiste`
+   * rendert bei leerer Liste ohnehin nichts (`Modulleiste.tsx`), ein
+   * verlorenes `nav` waere also eine still fehlende Leiste.
    */
   it("laesst `nav` bis zur Modulnavigation durchlaufen und rendert die Kinder", async () => {
     authMock.mockResolvedValue({ user: { name: "Test", groups: [] } });
-    modulnavMock.mockClear();
+    modulleisteMock.mockClear();
     const markup = renderToStaticMarkup(
       (await VerwaltungsRahmenGerendert()) as ReactElement,
     );
-    expect(modulnavMock).toHaveBeenCalled();
-    expect(modulnavMock.mock.calls[0][0]).toEqual({ nav: FILES_NAV });
+    expect(modulleisteMock).toHaveBeenCalled();
+    expect(modulleisteMock.mock.calls[0][0]).toEqual({ nav: FILES_NAV });
     // Die drei Eintraege stehen im Markup, nicht nur im Aufrufprotokoll.
     expect(markup).toContain('data-anzahl="3"');
     expect(markup).toContain("files-kind");
@@ -213,14 +215,19 @@ async function VerwaltungsRahmenGerendert(): Promise<unknown> {
  * als unaufgelöstes Element stehen und wird korrekt vom abschließenden
  * `renderToStaticMarkup` gerendert — das läuft im echten React-Renderkontext
  * und darf Hooks aufrufen. Für diesen Test ist das ausreichend: geprüft wird
- * hier nur, DASS `nav` bis zu `Modulnav` durchreicht, nicht der Inhalt des
- * Umschalters (den deckt `AppUmschalter.test.tsx` ab).
+ * hier nur, DASS `nav` bis zu `Modulleiste` durchreicht (gemockt, siehe
+ * Dateikopf — sonst dieselbe Hook-Falle wie bei `AppUmschalter`), nicht der
+ * Inhalt des Umschalters (den deckt `AppUmschalter.test.tsx` ab).
+ *
+ * `Arbeitsdichte` (seit Aufgabe 5, Bediendichte) trifft dieselbe Falle:
+ * `FullShell` legt sie um `children`, und sie rendert `ConfigProvider`, das
+ * intern `useContext` ruft. Derselbe Ausschluss, aus demselben Grund.
  */
 async function aufloesen(element: unknown): Promise<unknown> {
   if (Array.isArray(element)) return Promise.all(element.map(aufloesen));
   if (!element || typeof element !== "object") return element;
   const el = element as ReactElement<Record<string, unknown>> & { type: unknown };
-  if (typeof el.type !== "function" || el.type === AppUmschalter) {
+  if (typeof el.type !== "function" || el.type === AppUmschalter || el.type === Arbeitsdichte) {
     if (el.props && "children" in el.props) {
       const kinder = await aufloesen(el.props.children);
       return { ...el, props: { ...el.props, children: kinder } };

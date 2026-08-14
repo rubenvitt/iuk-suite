@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { theme as antdTheme } from "antd";
-import { buildTheme, type ThemeMode } from "@/core/theme/theme";
+import { ARBEITSDICHTE, buildTheme, type ThemeMode } from "@/core/theme/theme";
 import { FARBEN, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
 
 const MODES: ThemeMode[] = ["light", "dark"];
@@ -69,5 +69,57 @@ describe("buildTheme", () => {
     // e2e/qr.spec.ts ("Bedienelemente bleiben mit Handschuhen treffbar").
     const cfg = buildTheme(mode);
     expect(cfg.components?.Radio?.radioSize).toBeGreaterThanOrEqual(28);
+  });
+});
+
+describe("ARBEITSDICHTE", () => {
+  it("setzt genau die drei Größen und erbt alles andere", () => {
+    /*
+     * `controlHeight: TAP` (56) ist eine EINSATZANFORDERUNG — Bedienung mit
+     * Handschuhen —, keine Stilfrage. Der Fehler war nie der Wert, sondern
+     * seine REICHWEITE: er galt auch dort, wo mit Maus und Tastatur an einem
+     * Schreibtisch gearbeitet wird.
+     *
+     * NACHGESEHEN, NICHT ANGENOMMEN (antd/es/config-provider/hooks/
+     * useTheme.js:44-53): antd mischt `{...parentThemeConfig, ...themeConfig}`,
+     * `token` flach und `components` eine Ebene tief. `algorithm`,
+     * `colorPrimary`, `fontFamily`, `Layout` und `Input.inputFontSize` werden
+     * also GEERBT. Wiederholte man sie hier, liefe die Kopie beim nächsten
+     * Themewechsel still auseinander — genau das prüft dieser Test.
+     *
+     * `Radio` MUSS mit: das Elterntheme setzt `radioSize: 28, dotSize: 14`,
+     * weil die Trefferfläche mit Handschuhen die ganze Zeile ist. Neben einem
+     * 44px-Bedienelement ist eine 28px-Marke unverhältnismäßig, und der
+     * Grund trägt am Schreibtisch nicht.
+     *
+     * 44 UND NICHT 40 — der gebündelte Playwright-Lauf (Aufgabe 6) hat den
+     * Planfehler aufgedeckt: die Dichte hängt an der Shell-VARIANTE, aber
+     * `FullShell` rendert auch bei 390px. 40px unterschritt dort die
+     * Mindest-Tapfläche (WCAG 2.5.5), und drei Zusicherungen sagten es
+     * gleichzeitig. Die Begründung in voller Länge steht am Wert selbst
+     * (`theme.ts`), samt der Frage, warum `controlHeightLG` NICHT mitwandert.
+     */
+    expect(ARBEITSDICHTE.token).toEqual({ controlHeight: 44, controlHeightLG: 48 });
+    expect(ARBEITSDICHTE.components).toEqual({ Radio: { radioSize: 16, dotSize: 8 } });
+    expect(ARBEITSDICHTE.algorithm, "algorithm wird geerbt, nie wiederholt").toBeUndefined();
+    expect(ARBEITSDICHTE.token?.colorPrimary, "Farben werden geerbt, nie wiederholt").toBeUndefined();
+  });
+
+  it("trägt einen ausdrücklichen cssVar-Schlüssel", () => {
+    /*
+     * Ohne ihn erzeugt antd über `useId` einen generierten Schlüssel
+     * (useTheme.js:35) und warnt in der Entwicklung ausdrücklich davor
+     * (useTheme.js:19). Ein stabiler Name ist außerdem im Inspektor
+     * auffindbar — `iuk` für die Suite, `iuk-arbeit` für die Dichte darin.
+     */
+    expect(ARBEITSDICHTE.cssVar).toEqual({ key: "iuk-arbeit" });
+  });
+
+  it("lässt `buildTheme` beim Handschuh-Maß", () => {
+    // Die Einsatzanforderung bleibt die Vorgabe der Suite. Was sich geändert
+    // hat, ist allein, wo sie NICHT mehr gilt.
+    const t = buildTheme("light");
+    expect(t.token?.controlHeight).toBe(56);
+    expect(t.token?.controlHeightLG).toBe(72);
   });
 });

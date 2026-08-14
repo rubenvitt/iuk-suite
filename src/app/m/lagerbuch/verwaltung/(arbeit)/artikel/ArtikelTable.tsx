@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Alert, Button, Checkbox, Flex, Select, Table } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import {
   artikelFiltern,
   LEERER_FILTER,
@@ -179,7 +180,7 @@ export function ArtikelTable({
 
   return (
     <>
-      <Flex gap={12} wrap align="center" style={{ marginBlockEnd: 12 }}>
+      <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
         <Suchfeld
           wert={filter.suche}
           onWert={(suche) => setFilter((vorher) => ({ ...vorher, suche }))}
@@ -261,7 +262,7 @@ export function ArtikelTable({
           type="warning"
           showIcon={false}
           title={exportFehler}
-          style={{ marginBlockEnd: 12 }}
+          style={{ marginBlockEnd: SPACE.md }}
         />
       ) : null}
 
@@ -277,9 +278,11 @@ export function ArtikelTable({
             : "Noch keine Artikel. Lege oben den ersten an.",
         }}
         onRow={(zeile) => ({ onClick: () => setOffenerArtikel(zeile.id) })}
+        // Spaltenkoepfe tragen die Kicker-Rolle ueber `title`, nie ueber CSS
+        // gegen `.ant-table-thead` (docs/design/README.md).
         columns={[
           {
-            title: "Artikel",
+            title: <span style={SCHRIFT.feldname}>Artikel</span>,
             dataIndex: "name",
             render: (wert: string, zeile) => (
               <Button
@@ -292,12 +295,12 @@ export function ArtikelTable({
             ),
           },
           {
-            title: "Fach",
+            title: <span style={SCHRIFT.feldname}>Fach</span>,
             dataIndex: "fach",
             render: (wert: string) => <span className={s.fach}>{wert}</span>,
           },
           {
-            title: "Bestand",
+            title: <span style={SCHRIFT.feldname}>Bestand</span>,
             dataIndex: "bestand",
             align: "right",
             render: (wert: number, zeile) => (
@@ -307,17 +310,20 @@ export function ArtikelTable({
             ),
           },
           {
-            title: "Min.",
+            title: <span style={SCHRIFT.feldname}>Min.</span>,
             dataIndex: "mindestbestand",
             align: "right",
             render: (wert: number) => <span style={SCHRIFT.mono}>{wert}</span>,
           },
           {
-            title: "Nächster Verfall",
+            title: <span style={SCHRIFT.feldname}>Nächster Verfall</span>,
             dataIndex: "naechsteCharge",
             render: (_wert: unknown, zeile) => (
               zeile.naechsteCharge && zeile.naechsteAmpel && zeile.naechsteAblaufText
                 ? (
+                  // 7 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und
+                  // hat keine Geschwisterzeile in diesem Zuschnitt; bleibt
+                  // Literal, siehe Bericht.
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
                     <Plakette
                       verfall={zeile.naechsteCharge.verfall}
@@ -331,9 +337,11 @@ export function ArtikelTable({
             ),
           },
           {
-            title: "Status",
+            title: <span style={SCHRIFT.feldname}>Status</span>,
             dataIndex: "aktiv",
             render: (_wert: boolean, zeile) => (
+              // 6 liegt nicht auf der SPACE-Skala; bleibt Literal (wie an den
+              // uebrigen Chip-Zeilen dieses Zuschnitts).
               <Flex gap={6} wrap>
                 {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
                 {zeile.aktiv && !zeile.unterMindest && !zeile.naechsteAblaufText

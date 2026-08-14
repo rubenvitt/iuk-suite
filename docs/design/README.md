@@ -34,7 +34,7 @@ Modul in ein anderes importiert werden: Modul-Interna sind kein API.
 
 ## Fallen, die der Build nicht findet
 
-Diese sechs kosten je einen halben Tag, wenn man sie nicht kennt. Keine davon fällt in `pnpm build` auf.
+Diese acht kosten je einen halben Tag, wenn man sie nicht kennt. Keine davon fällt in `pnpm build` auf.
 
 **1. Compound-Zugriff auf antd in einer Server Component → HTTP 500.**
 Verboten in RSC: `Typography.*`, `Form.Item`, `Descriptions.Item`, `List.Item`, `Card.Meta`,
@@ -58,8 +58,25 @@ ungenügend"), darf Rot **niemals auf einer Datenfläche** erscheinen — kein r
 
 **4. `size="large"` ist 72px, nicht 56.**
 `controlHeight: TAP` (56) ist die Suite-Vorgabe und schon das richtige Touch-Maß;
-`controlHeightLG` ist 72. **`size` auf Bedienelementen also gar nicht setzen.** Ausnahme:
-`size="small"` innerhalb von Tabellenzeilen, weil eine 56px-Zeilenaktion die Zeile sprengt.
+`controlHeightLG` ist 72. **`size` auf Bedienelementen also gar nicht setzen.**
+
+**⚠️ SEIT 2026-08-13 GIBT ES ZWEI BEDIENDICHTEN, und die alte Ausnahme ist damit gefallen.**
+Hier stand: „Ausnahme: `size="small"` innerhalb von Tabellenzeilen, weil eine 56px-Zeilenaktion die
+Zeile sprengt." Beides ist überholt:
+
+- **Auf `FullShell`-Seiten (Arbeitsflächen) sind Bedienelemente 44px**, nicht 56 — `ARBEITSDICHTE`
+  in `core/theme/theme.ts` legt sie über den Inhalt. 56/72 gilt weiter für `MinimalShell` (`qr`,
+  `beta`) und für alles ohne Shell (`lagerbuch/helfer`, `feedback/f`, `files/(oeffentlich-*)`).
+  44 ist WCAG 2.5.5 (Target Size, Enhanced — Stufe AAA, die Suite geht hier also über die
+  AA-Untergrenze hinaus) und gilt **überall**, weil `FullShell` auch auf dem Telefon rendert.
+- **Die `size="small"`-Ausnahme trägt nicht mehr.** Ihr Grund waren die 56px; eine 44px-Zeilenaktion
+  sprengt keine Zeile. Was bliebe, wäre der Schaden: an einer ikonischen Zeilenaktion ergibt
+  `size="small"` 24px und unterbietet die Mindesttapfläche. `e2e/lagerbuch-mobil.spec.ts:312` hat
+  seine Messung **wegen genau eines solchen Knopfes** von „44px breit" auf „44px breit UND hoch"
+  verschärft.
+
+Wo eine Zeile mit 44px-Aktionen wirklich zu voll wird, ist das ein Entwurfsproblem der Zeile — kein
+Anlass, die Tapfläche zu unterbieten.
 
 **5. Eigenes CSS und antd-CSS treffen sich, und die Spezifität entscheidet — meist gegen dich.**
 Der Fehler ist immer still: im Quelltext steht alles richtig, die Regel matcht, sie greift nur nicht.
@@ -101,6 +118,45 @@ jeden prüfen, ob ihn eine Datei ohne `"use client"` importiert. Am 2026-07-27 e
 Kandidaten und genau einen Treffer (`MONATS_FENSTER`, behoben). Die drei anderen —
 `MAX_SERIEN`, `AKTUALISIERUNGS_TAKT_MS`, `SPERRE_MS` — haben keinen Importeur jenseits ihrer eigenen
 Client-Insel.
+
+**7. `@ant-design/icons` in einer Server Component → HTTP 500, und `"use client"` behebt das nicht.**
+Der nackte Spezifizierer löst über `exports["."].node.import` in den CJS-Zweig auf, der
+`createContext` auf **Modulebene** ruft; in der RSC-Ebene gibt es das nicht →
+`TypeError: (0, _react.createContext) is not a function`, **schon beim Import, nicht beim Rendern**.
+`typecheck` und `build` bleiben grün, und **Vitest kann es strukturell nicht sehen**: dort lädt `react`
+über die `default`-Bedingung, `createContext` IST eine Funktion, die Icons rendern klaglos. Nur ein
+echter Abruf zeigt den 500.
+
+**Regel:** Client-Insel oder eigenes Inline-SVG. Ein Tiefen-Import (`@ant-design/icons/es`) geht
+gemessen durch, ist aber kein Vertrag, auf den man bauen sollte.
+
+**Nicht mit Falle 6 zusammenlegen — die Ursachen sind gegenläufig.** Dort kommt ein Wert aus einem als
+Client markierten Modul nicht an; hier wertet RSC ein Modul aus, das Client sein müsste. Wer `"use
+client"` auf eine Icon-Sammelstelle setzt, verwandelt 7 in 6: HTTP 200 mit **leerer** Map, und der
+Rückfall trägt still das falsche Icon. Laut ist besser als still.
+`src/core/shell/icons.test.ts` riegelt das repo-weit ab — geht der Test rot, liegt die Ursache fast
+nie in `core/shell`, sondern in der Datei, die die Fehlermeldung nennt.
+
+**8. Die geerbte Zeilenhöhe der Kopfzeile — sie steht in keiner Datei dieses Repos.**
+`antd/es/layout/style/index.js:50` setzt auf `.ant-layout-header` ein `lineHeight` in
+Kopfzeilenhöhe — in dieser Suite **64px**. Jedes DOM-Kind des `<Header>` erbt das.
+**`position: absolute` ändert den enthaltenden Block, nicht die Vererbungskette** — genau die
+Annahme, an der man hier vorbeiläuft.
+
+Gemessen: das Panel des App-Umschalters hatte dadurch **82px je Eintrag** (8px Polster + 64px
+Zeilenbox + 8px Polster) und der Auslöser **76px** — in einer 64px hohen Kopfzeile. Beschreibungstexte
+brachen mit 64px Zeilenabstand um.
+
+**Warum kein Gate es findet:** antd spritzt die Regel zur Laufzeit über cssinjs ein. Sie steht in
+**keiner Datei des Repos** — ein Quelltext-Scan kann sie strukturell nicht sehen, und jsdom rechnet
+keine Zeilenboxen. Nur `getComputedStyle` in einem echten Browser kennt die Zahl. Dieselbe
+Aussagenteilung wie bei Falle 5: `core/shell/shell-css.test.ts` besitzt „die Regel steht da",
+`e2e/shell-mobil.spec.ts` besitzt „sie wirkt".
+
+**Regel:** `line-height: normal` am **gemeinsamen Vorfahren** (`core/shell/shell.module.css`,
+`.umschalter`), nicht an jedem Kind einzeln — eine Ursache, eine Deklaration; zwei laufen beim
+nächsten Anfassen auseinander. `normal` und keine Zahl: eine Zahl wäre eine erfundene Skala, die ein
+späterer Leser für geprüft hält.
 
 ## Hell- und Dunkelmodus
 
@@ -266,7 +322,7 @@ steht — dort gehört die Rolle hin:
 Gemessen am 2026-08-12: ohne diesen Griff rendern Spaltenköpfe in Geist 14/600, ohne Versalien —
 sie unterscheiden sich vom Zelleninhalt allein durch das Gewicht und lesen sich kaum als Kopf.
 
-## Mobil — ein Breakpoint, vier Regeln
+## Mobil — ein Breakpoint
 
 **768px ist der einzige Breakpoint der Suite** (= antds `md`, festgehalten in
 `core/shell/shell-css.test.ts`). Kein Modul erfindet einen zweiten; `Row`/`Col` bekommen `xs`/`md`,
@@ -281,6 +337,14 @@ Regeln sind eine Einheit: ohne Zoom kann niemand mehr heranholen, was zu klein i
 sich damit umgedreht — früher war 16px die Abwehr gegen iOS' Auto-Zoom, heute ist es reine
 Lesbarkeit. Wer eine der beiden anfasst, prüft die andere (`app/layout.tsx`, `app/globals.css`,
 `core/theme/feldschrift.test.ts`).
+
+**Die Bediendichte hängt an der Shell, nicht am Viewport.** Welche Höhe wo gilt, steht bei Falle 4
+oben und wird hier nicht wiederholt. Für „mobil" zählt nur die Folge: **44px gelten auch auf 390px**,
+weil `FullShell` dort genauso rendert — es gibt keine schmale Variante, die auf 56 zurückfiele. Eine
+viewport-abhängige Dichte wäre auch kein kleiner Zusatz: antds Höhen kommen aus Scope-Variablen, die
+man per Media Query überschreiben müsste, und damit stünde man mitten in Falle 5. Die 44 ist
+gleichzeitig die WCAG-2.5.5-Untergrenze (Target Size, Enhanced, Stufe AAA) — nach unten ist also
+ohnehin kein Spielraum.
 
 **antd-`Table` scrollt auf schmalen Geräten (`scroll={{ x: … }}`), sie bricht nicht um.** Eine
 umgebrochene Tabellenzeile ist unlesbarer als eine gescrollte.

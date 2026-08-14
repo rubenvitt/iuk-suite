@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, DatePicker, Flex, Input, Select } from "antd";
 import dayjs from "dayjs";
+import { SPACE } from "@/core/theme/tokens";
 import { typLabel } from "../../../_lib/format";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { useUrlFilter } from "../../../_ui/useUrlFilter";
@@ -99,8 +100,8 @@ export function JournalFilter({
   };
 
   return (
-    <Flex vertical gap={8} style={{ marginBlockEnd: 12 }}>
-      <Flex gap={12} wrap align="center">
+    <Flex vertical gap={SPACE.sm} style={{ marginBlockEnd: SPACE.md }}>
+      <Flex gap={SPACE.md} wrap align="center">
         <Input
           type="search"
           aria-label="Suche"

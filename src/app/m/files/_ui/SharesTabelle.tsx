@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useRef, useState, type ReactNode } from "react";
 import { Alert, Button, Card, Popconfirm, Skeleton, Table } from "antd";
 import {
   CheckCircleOutlined,
@@ -10,6 +10,7 @@ import {
   QuestionCircleOutlined,
   StopOutlined,
 } from "@ant-design/icons";
+import { SCHRIFT } from "@/core/theme/schrift";
 
 import { shareLoeschenAction, type ShareFormZustand } from "../(verwaltung)/actions";
 /*
@@ -130,35 +131,51 @@ function fehlerText(zustand: ShareFormZustand): string | null {
  * Die Spalten, EINMAL — und die Ueberschriften des Skeletts lesen dieselbe
  * Quelle (siehe `SPALTEN_TITEL`). Zwei getippte Listen wuerden auseinanderlaufen,
  * und das Skelett waere dann das Skelett einer anderen Tabelle.
+ *
+ * SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
+ * in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): jeder
+ * Textkopf ein `<span style={SCHRIFT.kicker}>`, nie CSS gegen
+ * `.ant-table-thead`. `aktionen` bleibt `title: ""` — kein Text, keine Rolle
+ * mit Wirkung; die Aktionsspalte braucht keinen Kopf. Deshalb ist `SPALTEN_TITEL`
+ * jetzt `ReactNode[]`, nicht mehr `string[]` — das Skelett rendert `{titel}`
+ * ohnehin nur als Kind eines `<th>`, das nimmt beides.
  */
 function spalten(qrOeffnen: (zeile: ShareZeile) => void) {
   return [
-    { key: "titel", title: "Titel", dataIndex: "titel" },
-    { key: "typ", title: "Typ", dataIndex: "typText" },
+    { key: "titel", title: <span style={SCHRIFT.kicker}>Titel</span>, dataIndex: "titel" },
+    { key: "typ", title: <span style={SCHRIFT.kicker}>Typ</span>, dataIndex: "typText" },
     {
       key: "dateien",
-      title: "Dateien",
+      title: <span style={SCHRIFT.kicker}>Dateien</span>,
       render: (_: unknown, zeile: ShareZeile) => <Dateimenge zeile={zeile} />,
     },
-    { key: "groesse", title: "Größe", dataIndex: "groesseText" },
+    { key: "groesse", title: <span style={SCHRIFT.kicker}>Größe</span>, dataIndex: "groesseText" },
     {
       key: "ablauf",
-      title: "Ablauf",
+      title: <span style={SCHRIFT.kicker}>Ablauf</span>,
       render: (_: unknown, zeile: ShareZeile) => <Ablauf zeile={zeile} />,
     },
-    { key: "downloads", title: "Downloads", dataIndex: "downloadsText" },
+    {
+      key: "downloads",
+      title: <span style={SCHRIFT.kicker}>Downloads</span>,
+      dataIndex: "downloadsText",
+    },
     {
       key: "passwort",
-      title: "Passwort",
+      title: <span style={SCHRIFT.kicker}>Passwort</span>,
       // Ja/Nein als WORT: ein Schloss-Symbol allein traegt die Aussage nicht.
       render: (_: unknown, zeile: ShareZeile) => <span>{zeile.hatPasswort ? "Ja" : "Nein"}</span>,
     },
     {
       key: "av",
-      title: "AV-Zustand",
+      title: <span style={SCHRIFT.kicker}>AV-Zustand</span>,
       render: (_: unknown, zeile: ShareZeile) => <AvZustand wert={zeile.avSammelwert} />,
     },
-    { key: "erstelltVon", title: "Erstellt von", dataIndex: "erstelltVonText" },
+    {
+      key: "erstelltVon",
+      title: <span style={SCHRIFT.kicker}>Erstellt von</span>,
+      dataIndex: "erstelltVonText",
+    },
     {
       key: "aktionen",
       title: "",
@@ -170,7 +187,7 @@ function spalten(qrOeffnen: (zeile: ShareZeile) => void) {
 }
 
 /** Die Ueberschriften AUS den Spalten, nicht daneben getippt. */
-const SPALTEN_TITEL: string[] = spalten(() => undefined).map((spalte) => spalte.title);
+const SPALTEN_TITEL: ReactNode[] = spalten(() => undefined).map((spalte) => spalte.title);
 
 function Dateimenge({ zeile }: { zeile: ShareZeile }) {
   return (
@@ -281,6 +298,10 @@ export function SharesTabelleSkelett() {
             <tr key={zeilenNummer}>
               {SPALTEN_TITEL.map((_, i) => (
                 <td key={i}>
+                  {/* `size="small"` bleibt hier: das ist ein Ladeplatzhalter,
+                      kein Bedienelement — nicht interaktiv, keine Tapflaeche.
+                      Die neue `size="small"`-Regel (Aufgabe 12) gilt echten
+                      Zeilenaktionen, nicht ihrem Skelett. */}
                   <Skeleton.Button active block size="small" />
                 </td>
               ))}
@@ -351,23 +372,30 @@ function ZeilenAktionen({
   const fehler = fehlerText(zustand);
 
   /*
-   * `size="small"` NUR in der Tabelle: eine 56px-Zeilenaktion sprengt die Zeile.
-   * In der Karte bleibt `controlHeight` (56) stehen und `block` macht die
-   * Knoepfe voll breit — unter 768px stehen Handlungsknoepfe untereinander und
-   * in voller Breite, ein 630px breiter Knopf liest sich als Flaeche, nicht als
-   * Ziel. `size="large"` waeren 72px und ist nirgends richtig.
+   * KEIN `size="small"` MEHR AN ZEILENAKTIONEN (korrigiert Aufgabe 12, nach
+   * Aufgabe 8): die alte Ausnahme galt der 56px-`controlHeight` — eine
+   * 44px-Zeilenaktion (`ARBEITSDICHTE`) sprengt keine Zeile mehr, waehrend
+   * `size="small"` auf 24px faellt und die Mindesttapflaeche unterbietet
+   * (`docs/design/README.md`, Falle 4). In der Karte bleibt `block` bestehen —
+   * unter 768px stehen Handlungsknoepfe untereinander und in voller Breite,
+   * ein 630px breiter Knopf liest sich als Flaeche, nicht als Ziel.
    */
   const inTabelle = kennung === "tabelle";
-  const masz = inTabelle ? ({ size: "small" } as const) : ({ block: true } as const);
+  const masz = inTabelle ? {} : ({ block: true } as const);
 
   return (
     <div>
       {/*
-       * Das Ziel entsteht in T42 (Welle 7). Bis dahin fuehrt der Knopf in einen
-       * 404 aus ABWESENHEIT — nicht in einen Riegel: es gibt genau EINE
-       * Zugriffsstufe, und wer die Tabelle sieht, darf auch bearbeiten (§2.4).
-       * Die Gegenprobe „kein Einstiegspunkt fuehrt dorthin, wo die aufrufende
-       * Person nicht hindarf" ist damit erfuellt.
+       * KORREKTUR (Aufgabe 12): dieser Kommentar behauptete, das Ziel entstehe
+       * erst in T42 (Welle 7) und der Knopf fuehre bis dahin in einen 404 aus
+       * ABWESENHEIT — das war zum Zeitpunkt des Kommentars richtig, ist aber
+       * seit T42s Umsetzung UEBERHOLT: `/shares/<id>/bearbeiten` existiert
+       * (`shares/[id]/bearbeiten/page.tsx`) und ist selbst Teil dieses
+       * Zuschnitts. Der Riegel-Teil der Begruendung bleibt gueltig: es gibt
+       * genau EINE Zugriffsstufe, und wer die Tabelle sieht, darf auch
+       * bearbeiten (§2.4) — die Gegenprobe „kein Einstiegspunkt fuehrt dorthin,
+       * wo die aufrufende Person nicht hindarf" ist damit weiterhin erfuellt,
+       * nur nicht mehr ueber eine Abwesenheit, sondern ueber ein bestehendes Ziel.
        */}
       <Button
         {...masz}
@@ -428,8 +456,8 @@ function ZeilenAktionen({
           data-testid={`files-share-fehler-${kennung}-${zeile.id}`}
           message={fehler}
           action={
+            // Kein `size="small"` mehr — siehe Kommentar an `masz` oben.
             <Button
-              size="small"
               data-testid={`files-share-wiederholen-${kennung}-${zeile.id}`}
               onClick={() => formular.current?.requestSubmit()}
             >

@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Button, Card, Table } from "antd";
 
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SCHRIFT } from "@/core/theme/schrift";
 import { avWiederholenAction } from "../../actions";
 import { ladeAuditLog, ladeShareDetail, type ShareDatei } from "../../../_db/queries";
 import type { AvStatus } from "../../../_lib/av";
@@ -25,8 +26,12 @@ import { ShareDetailAktionen } from "../../../_ui/ShareDetailAktionen";
  * 1. **Compound-Zugriff auf antd in RSC.** `Typography.Title`,
  *    `Descriptions.Item`, `List.Item`, `Card.Meta` sind hier die naheliegende
  *    Wahl und in einer Server Component `undefined`
- *    (`docs/design/README.md:39-44`). Deshalb ein nacktes `<h1>` und Absätze in
- *    einer `Card` statt `Descriptions`. `Card`, `Table` und `Button` sind sicher.
+ *    (`docs/design/README.md:39-44`). Deshalb Absätze in einer `Card` statt
+ *    `Descriptions`, und die Überschrift über `Seitenkopf`
+ *    (`@/core/shell/Seitenkopf`, seit Aufgabe 12 — davor ein nacktes `<h1>` an
+ *    derselben Stelle, aus demselben Grund: auch `Seitenkopf` selbst rendert
+ *    nur ein nacktes `<h1>`, kein `Typography.Title`). `Card`, `Table` und
+ *    `Button` sind sicher.
  * 2. **Eine `render`-Funktion in `columns`** reicht eine FUNKTION über die
  *    RSC-Grenze an `Table`. Die Spalten unten tragen deshalb nur `dataIndex`;
  *    was eine Zelle zeigt, entsteht **vorher** in `zuAnzeige()`. React-Elemente
@@ -250,8 +255,11 @@ function zustand(datei: ShareDatei): { text: string; symbol: SymbolName } {
  * nicht der Anzeigetext: eine Zeile ohne vollständige Bytes zeigt „nicht
  * vollständig übertragen", trägt den AV-Zustand aber weiterhin.
  *
- * `size="small"`, weil er in einer Tabellenzeile sitzt — die ausdrückliche
- * Ausnahme von „`size` gar nicht setzen" (`docs/design/README.md:59-62`).
+ * KEIN `size="small"` MEHR (korrigiert Aufgabe 12, nach Aufgabe 8): die alte
+ * Ausnahme „size in einer Tabellenzeile" galt der 56px-`controlHeight` — eine
+ * 44px-Zeilenaktion (`ARBEITSDICHTE`) sprengt keine Zeile mehr, während
+ * `size="small"` auf 24px fällt und die Mindesttapfläche unterbietet
+ * (`docs/design/README.md`, Falle 4).
  */
 function AvWiederholen({ fileId }: { fileId: string }) {
   return (
@@ -262,11 +270,7 @@ function AvWiederholen({ fileId }: { fileId: string }) {
       <input type="hidden" name="id" value={fileId} />
       {/* `htmlType="submit"` ausgeschrieben: antds Vorgabe ist `"button"`, und
           ohne die Angabe schickte der Knopf still nichts ab. */}
-      <Button
-        size="small"
-        htmlType="submit"
-        data-testid={`files-detail-av-wiederholen-${fileId}`}
-      >
+      <Button htmlType="submit" data-testid={`files-detail-av-wiederholen-${fileId}`}>
         Prüfung wiederholen
       </Button>
     </form>
@@ -288,26 +292,65 @@ type DateiZeile = {
  * SPALTENBREITEN IN PIXELN — die Einheit steht im Namen (§9.1). Die Summe wird
  * gerechnet, nicht getippt: tragen die Spalten `width`, ist sie die einzige
  * ehrliche `scroll.x`-Angabe (`docs/design/README.md:176-182`).
+ *
+ * `SPALTE_AKTION_PX` 200 → 240 (Aufgabe 12): die Zeilenaktion `AvWiederholen`
+ * verlor `size="small"` (siehe dort) und ist damit etwas breiter — `default`
+ * trägt ein größeres `paddingInline` als `small`. Kein Wert ist hier
+ * GEMESSEN (kein Browser-Lauf in dieser Aufgabe); die Spalte ist deshalb nicht
+ * knapp berechnet, sondern bewusst großzügig verbreitert, dieselbe
+ * Vorsichtsregel wie Aufgabe 6 an `Verlauf.tsx` (dort 130→150, nicht auf die
+ * knappste passende Zahl). `table-layout` bleibt `auto` (keine Spalte trägt
+ * `fixed`/`ellipsis`, `scroll.y` ist nicht gesetzt), die Verbreiterung nimmt
+ * also keiner Nachbarspalte etwas weg — sie vergrößert nur die Summe.
  */
 const SPALTE_NAME_PX = 340;
 const SPALTE_GROESSE_PX = 160;
 const SPALTE_ZUSTAND_PX = 280;
-const SPALTE_AKTION_PX = 200;
+const SPALTE_AKTION_PX = 240;
 const DATEI_TABELLE_BREITE_PX =
   SPALTE_NAME_PX + SPALTE_GROESSE_PX + SPALTE_ZUSTAND_PX + SPALTE_AKTION_PX;
 
 /** Nur `dataIndex`, keine `render`-Funktion — Begründung im Kopfkommentar. Und
  *  keine Spalte trägt `fixed` oder `ellipsis`, `scroll.y` bleibt ungesetzt:
- *  sonst schaltet rc-table auf `table-layout: fixed` (`lib/Table.js:426-442`). */
+ *  sonst schaltet rc-table auf `table-layout: fixed` (`lib/Table.js:426-442`).
+ *
+ *  SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
+ *  in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): ein
+ *  `<span style={SCHRIFT.kicker}>` je Kopf statt eines nackten Strings, nie
+ *  CSS gegen `.ant-table-thead`. `SCHRIFT` kommt direkt aus `@/core/theme`,
+ *  nicht über einen modul-eigenen Adapter — `files` hat keinen (anders als
+ *  `lagerbuch/_lib/schrift.ts` oder `feedback/_ui/typo.ts`), also entfällt der
+ *  Umweg. RSC-sicher: ein bloßes Objekt mit `CSSProperties`, kein Hook, kein
+ *  antd-Compound-Zugriff. */
 const DATEI_SPALTEN = [
-  { key: "name", title: "Datei", dataIndex: "dateiname", width: SPALTE_NAME_PX },
-  { key: "groesse", title: "Größe", dataIndex: "groesseText", width: SPALTE_GROESSE_PX },
-  { key: "zustand", title: "Zustand", dataIndex: "zustandInhalt", width: SPALTE_ZUSTAND_PX },
+  {
+    key: "name",
+    title: <span style={SCHRIFT.kicker}>Datei</span>,
+    dataIndex: "dateiname",
+    width: SPALTE_NAME_PX,
+  },
+  {
+    key: "groesse",
+    title: <span style={SCHRIFT.kicker}>Größe</span>,
+    dataIndex: "groesseText",
+    width: SPALTE_GROESSE_PX,
+  },
+  {
+    key: "zustand",
+    title: <span style={SCHRIFT.kicker}>Zustand</span>,
+    dataIndex: "zustandInhalt",
+    width: SPALTE_ZUSTAND_PX,
+  },
   /* Die Aktion steht in einer EIGENEN Spalte, nicht in der Zustandszelle: der
      Zustand ist ein Wert, der Knopf eine Handlung — dieselbe Trennung wie in
      `_ui/PosteingangTabelle.tsx`. Die Zelle bleibt leer, wo es nichts zu tun
      gibt; ein „—" behauptete einen Wert, den es hier nicht gibt. */
-  { key: "aktion", title: "Aktion", dataIndex: "aktionInhalt", width: SPALTE_AKTION_PX },
+  {
+    key: "aktion",
+    title: <span style={SCHRIFT.kicker}>Aktion</span>,
+    dataIndex: "aktionInhalt",
+    width: SPALTE_AKTION_PX,
+  },
 ];
 
 function zuAnzeige(datei: ShareDatei): DateiZeile {
@@ -385,18 +428,20 @@ export default async function ShareDetailSeite({
 
   return (
     <div data-testid="files-share-detail">
-      {/* DER WEG ZURÜCK. Jede Verwaltungsseite führt zurück, sonst ist sie eine
-          Sackgasse (`docs/design/README.md:244`). */}
-      <p>
-        <Link href="/" data-testid="files-detail-zurueck">
-          ← Alle Freigaben
-        </Link>
-      </p>
-
-      {/* Ein nacktes `<h1>` und NICHT `Typography.Title`: der Compound-Zugriff
-          ist in RSC `undefined` und ergibt HTTP 500. */}
-      <h1>{detail.titel}</h1>
-      {detail.beschreibung !== null && <p>{detail.beschreibung}</p>}
+      {/*
+       * Punkt 1 der Prüfliste: `Seitenkopf` (RSC-sicher) statt `<h1>` + `<p>`
+       * + Textlink. `zurueck` trägt dieselbe Begründung wie der frühere
+       * Link: jede Verwaltungsseite führt zurück, sonst ist sie eine
+       * Sackgasse (`docs/design/README.md:244`). Diese Seite ist eine
+       * `[id]`-Detailseite — `zurueck` ist hier Pflicht (Aufgabe-12-Zuschnitt).
+       * Der bisherige Testanker `files-detail-zurueck` entfällt zugunsten des
+       * gemeinsamen `seitenkopf-zurueck` (`page.test.tsx` nachgezogen).
+       */}
+      <Seitenkopf
+        titel={detail.titel}
+        beschreibung={detail.beschreibung ?? undefined}
+        zurueck={{ titel: "Alle Freigaben", href: "/" }}
+      />
 
       <Card title="Freigabe" data-testid="files-detail-metadaten">
         <p>Typ: {detail.typ === "file" ? "Datei" : "Ordner"}</p>
@@ -469,7 +514,24 @@ export default async function ShareDetailSeite({
 
       <Card title="Dateien" data-testid="files-detail-dateien">
         {dateiZeilen.length === 0 ? (
-          <p>Diese Freigabe hat keine Dateizeile.</p>
+          /*
+           * PUNKT 5 DER PRÜFLISTE — Leerzustand mit nächstem Schritt. Der
+           * Weg dorthin ist über die Anwendung praktisch unerreichbar:
+           * `anlegenAction` verlangt „mindestens eine Datei"
+           * (`(verwaltung)/actions.ts:203`), und es gibt keine Action, die
+           * eine einzelne `share_files`-Zeile löscht — nur `shareLoeschenAction`
+           * für die GANZE Freigabe. Erreichbar bliebe nur ein fehlerhafter
+           * Altimport ohne Dateizeilen. Trotzdem: derselbe Ausweg wie beim
+           * Zwischenzustand „alle Dateien unvollständig" oben — „erneut
+           * hochladen" ist der einzige sinnvolle nächste Schritt, den es für
+           * eine Freigabe ohne Dateizeile gibt.
+           */
+          <>
+            <p>Diese Freigabe hat keine Dateizeile.</p>
+            <Button type="primary" href="/shares/neu">
+              Erneut hochladen
+            </Button>
+          </>
         ) : (
           <Table<DateiZeile>
             rowKey="id"

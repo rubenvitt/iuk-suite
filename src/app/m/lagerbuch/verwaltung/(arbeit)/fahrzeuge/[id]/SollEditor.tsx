@@ -12,6 +12,7 @@ import {
   Table,
   type TableProps,
 } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import {
   sollPositionEntfernen,
   sollPositionSetzen,
@@ -171,9 +172,10 @@ export function SollEditor({
    * Zieht einen entprellten Schreibvorgang beim Verlassen des Feldes vor.
    *
    * Ohne das ist jede Aenderung verloren, die innerhalb der Entprellzeit von
-   * einem Klick auf die Brotkrume oder einem Seitenwechsel gefolgt wird — der
-   * Aufraeumer in `useEffect` loescht den Timer, ohne ihn auszufuehren, und es
-   * gibt keinen Hinweis darauf. Form aus `bz/[id]/ReferenzEditor.tsx`.
+   * einem Klick auf den `zurueck`-Weg im Seitenkopf oder einem Seitenwechsel
+   * gefolgt wird — der Aufraeumer in `useEffect` loescht den Timer, ohne ihn
+   * auszufuehren, und es gibt keinen Hinweis darauf. Form aus
+   * `bz/[id]/ReferenzEditor.tsx`.
    */
   function ausstehendenSollCommitAusfuehren(positionId: string): void {
     const ausstehend = timer.current[positionId];
@@ -184,17 +186,20 @@ export function SollEditor({
 
   const spalten: TableProps<SollAnzeigeZeile>["columns"] = [
     {
-      title: "Fach",
+      title: <span style={SCHRIFT.feldname}>Fach</span>,
       dataIndex: "fachLabel",
       key: "fach",
       onCell: (position) => ({ rowSpan: position.rowSpan }),
       render: (fachLabel: string) => <span className={s.fach}>{fachLabel}</span>,
     },
     {
-      title: "Artikel",
+      title: <span style={SCHRIFT.feldname}>Artikel</span>,
       dataIndex: "artikelName",
       key: "artikel",
       render: (artikelName: string, position) => (
+        // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+        // Zweizeiler aus Artikelname und Bestandstext, keine Geschwisterzeile
+        // in diesem Zuschnitt, die einen Skalenwert nahelegen wuerde.
         <div style={{ display: "grid", gap: 2 }}>
           <span
             data-rolle={position.entfernt ? "grabstein" : undefined}
@@ -213,13 +218,16 @@ export function SollEditor({
       ),
     },
     {
-      title: "Soll",
+      title: <span style={SCHRIFT.feldname}>Soll</span>,
       dataIndex: "soll",
       key: "soll",
       align: "right",
       render: (wert: number, position) => (
+        // KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
+        // docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
+        // ist hier bereits die volle wie die halbe Bediendichte, "small"
+        // unterbietet die Mindesttapflaeche (WCAG 2.5.5).
         <InputNumber
-          size="small"
           min={1}
           max={9999}
           precision={0}
@@ -232,7 +240,7 @@ export function SollEditor({
       ),
     },
     {
-      title: "Herkunft",
+      title: <span style={SCHRIFT.feldname}>Herkunft</span>,
       dataIndex: "herkunft",
       key: "herkunft",
       render: (herkunft: SollZeile["herkunft"]) => (
@@ -244,8 +252,8 @@ export function SollEditor({
       dataIndex: "id",
       key: "aktion",
       render: (_id: string, position) => position.entfernt ? (
+        // KEIN size="small" an den beiden Zeilenaktionen unten, s. o.
         <Button
-          size="small"
           data-rolle="wiederherstellen"
           loading={laeuft}
           icon={<Ikone name="zuruecksetzen" groesse={14} />}
@@ -280,7 +288,6 @@ export function SollEditor({
           }}
         >
           <Button
-            size="small"
             danger
             loading={laeuft}
             icon={<Ikone name="papierkorb" groesse={14} />}
@@ -292,7 +299,7 @@ export function SollEditor({
   ];
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div style={{ display: "grid", gap: SPACE.md }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
       <Table<SollAnzeigeZeile>
         rowKey="id"
@@ -303,7 +310,7 @@ export function SollEditor({
         locale={{ emptyText: "Noch keine Soll-Position. Lege unten die erste an." }}
         columns={spalten}
       />
-      <Flex gap={8} wrap align="center">
+      <Flex gap={SPACE.sm} wrap align="center">
         <Input
           placeholder="Fach"
           aria-label="Fach"

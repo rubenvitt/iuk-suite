@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { Breadcrumb, Button } from "antd";
+import { Button } from "antd";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SPACE } from "@/core/theme/tokens";
 import { getGroup, listEvenings, getSurveyByEvening, listResponses } from "@/app/m/feedback/_db/queries";
 import { guardPage } from "@/app/m/feedback/_lib/guardPage";
 import { computeDAStats, computeGroupTrend, type DAStats } from "@/app/m/feedback/_lib/aggregation";
@@ -12,7 +13,7 @@ import { MonatsSegment } from "@/app/m/feedback/_ui/Segment";
 import { fensterAus } from "@/app/m/feedback/_lib/trendfenster";
 
 /**
- * DER TREND EINER GRUPPE (Entwurf §3.3, Kopfzone §4.2, Breadcrumb §4.1).
+ * DER TREND EINER GRUPPE (Entwurf §3.3, Kopfzone §4.2, Rückweg §4.1).
  *
  * DREI ENTSCHEIDUNGEN:
  *
@@ -34,8 +35,8 @@ import { fensterAus } from "@/app/m/feedback/_lib/trendfenster";
  *    Gesamtlinie, damit nicht zwei Rechnungen zwei Kurven fuer dieselbe Frage
  *    ergeben.
  *
- * SERVER COMPONENT: `Breadcrumb` über `items`, `Segmented` in der Client-Insel
- * `_ui/Segment.tsx` (§4.13).
+ * SERVER COMPONENT: der Kopf kommt aus `core/shell/Seitenkopf` (Task 11),
+ * `Segmented` in der Client-Insel `_ui/Segment.tsx` (§4.13).
  */
 export default async function TrendPage({
   params,
@@ -77,79 +78,87 @@ export default async function TrendPage({
   const trend = computeGroupTrend(evenings, from, to);
 
   return (
-    <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
-      <header style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <Breadcrumb
-          style={T.meta}
-          items={[
-            { title: <Link href="/m/feedback">Gruppen</Link> },
-            { title: <Link href={`/m/feedback/groups/${group.id}`}>{group.name}</Link> },
-            { title: "Trend" },
-          ]}
+    <>
+      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+        <Seitenkopf
+          titel={`Trend — ${group.name}`}
+          // „Ø Note (1 = beste)" wortgenau wie der Spaltenkopf aus §4.11: ohne
+          // die Richtung liest sich eine 2,0 wie eine schwache Bewertung.
+          beschreibung={`Ø Note (1 = beste) je Monat, letzte ${monate} Monate.`}
+          zurueck={{ titel: group.name, href: `/m/feedback/groups/${group.id}` }}
+          // `fb-knopfzeile` bleibt als eigener Container erhalten: die Klasse
+          // stapelt Zeitfenster und CSV unter 768px auf volle Breite
+          // (`feedback.css`) — der reine `flexWrap` von `Seitenkopf`s `aktionen`
+          // leistet das nicht, er lässt beide nur zeilenweise umbrechen.
+          aktionen={
+            <span className="fb-knopfzeile">
+              <MonatsSegment monate={monate} />
+              <Button
+                type="text"
+                href={`/m/feedback/groups/${group.id}/export.csv`}
+                className="fb-block-mobil"
+              >
+                CSV
+              </Button>
+            </span>
+          }
         />
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            flexWrap: "wrap",
-            gap: 8,
-          }}
-        >
-          <h1 style={{ ...T.h1, margin: 0, textWrap: "balance" }}>Trend — {group.name}</h1>
-          <span className="fb-knopfzeile">
-            <MonatsSegment monate={monate} />
-            <Button
-              type="text"
-              href={`/m/feedback/groups/${group.id}/export.csv`}
-              className="fb-block-mobil"
-            >
-              CSV
-            </Button>
-          </span>
-        </div>
-        {/* „Ø Note (1 = beste)" wortgenau wie der Spaltenkopf aus §4.11: ohne
-            die Richtung liest sich eine 2,0 wie eine schwache Bewertung. */}
-        <p style={{ ...T.meta, margin: 0 }}>
-          Ø Note (1 = beste) je Monat, letzte {monate} Monate.
-        </p>
-      </header>
-
-      <TrendDiagramm
-        punkte={trend.map((t) => ({ label: t.label, note: t.avg }))}
-        fragen={fragenAus(trend)}
-      />
-
-      <ul
+      </div>
+      <div
         style={{
-          margin: 0,
-          paddingLeft: 24,
+          maxWidth: 1120,
+          margin: "0 auto",
           display: "flex",
           flexDirection: "column",
-          gap: 4,
+          gap: SPACE.xl,
         }}
       >
+        <TrendDiagramm
+          punkte={trend.map((t) => ({ label: t.label, note: t.avg }))}
+          fragen={fragenAus(trend)}
+        />
+
         {/*
-         * `t.avg` ist der SCHULNOTEN-Ø (§4.12) — die Notenpille trägt ihn mit
-         * Ziffer, Wort und Farbe, damit die Zeile nicht allein an der Zahl
-         * hängt. Monate mit Altbestands-Fragen bekommen die Fußnote: ihr Ø ist
-         * aus weniger Fragen gebildet als der Bogen hat, und ohne den Satz
-         * bliebe unerklärt, warum ein Monat mit Rückmeldungen „—" zeigt.
+         * KEIN EIGENER LEERZUSTAND HIER (Punkt 5 geprüft, nicht übersehen):
+         * `computeGroupTrend` traegt einen Bucket fuer JEDEN Monat des Fensters
+         * (siehe `fragenAus` unten und `enumerateMonths` in `_lib/aggregation.ts`)
+         * — diese Liste ist strukturell nie leer, auch ohne einen einzigen
+         * ausgewerteten Abend zeigt jede Zeile „0 Rückmeldungen". Das Diagramm
+         * darueber hat den eigenen Leerzustand („Weniger als zwei ausgewertete
+         * Abende — fuer einen Verlauf zu frueh.", `NotenVerlauf.tsx`), weil ES
+         * bei zu wenigen Punkten sonst ein kaputtes Achsenkreuz zeigen wuerde.
          */}
-        {trend.map((t) => (
-          <li key={t.label}>
-            <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={T.body}>{t.label}:</span>
-              <Notenpille note={t.avg} />
-              <span style={T.meta}>
-                ({t.responseCount} Rückmeldung{t.responseCount === 1 ? "" : "en"})
+        <ul
+          style={{
+            margin: 0,
+            paddingLeft: SPACE.xl,
+            display: "flex",
+            flexDirection: "column",
+            gap: SPACE.xs,
+          }}
+        >
+          {/*
+           * `t.avg` ist der SCHULNOTEN-Ø (§4.12) — die Notenpille trägt ihn mit
+           * Ziffer, Wort und Farbe, damit die Zeile nicht allein an der Zahl
+           * hängt. Monate mit Altbestands-Fragen bekommen die Fußnote: ihr Ø ist
+           * aus weniger Fragen gebildet als der Bogen hat, und ohne den Satz
+           * bliebe unerklärt, warum ein Monat mit Rückmeldungen „—" zeigt.
+           */}
+          {trend.map((t) => (
+            <li key={t.label}>
+              <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm, flexWrap: "wrap" }}>
+                <span style={T.body}>{t.label}:</span>
+                <Notenpille note={t.avg} />
+                <span style={T.meta}>
+                  ({t.responseCount} Rückmeldung{t.responseCount === 1 ? "" : "en"})
+                </span>
+                {t.hasLegacyScale && <Altbestandsfussnote />}
               </span>
-              {t.hasLegacyScale && <Altbestandsfussnote />}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
   );
 }
 

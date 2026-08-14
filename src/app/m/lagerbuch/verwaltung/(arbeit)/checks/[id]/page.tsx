@@ -1,10 +1,10 @@
 import { Alert, Col, Row } from "antd";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../../../../_db/client";
 import { ampelTon } from "../../../../_lib/format";
 import { checkDetail, type CheckDetail } from "../../../../_lib/lesepfade/checks";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import {
@@ -100,9 +100,9 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
 
   return (
     <>
-      <Brotkrume href="/verwaltung/checks">Fahrzeug-Checks</Brotkrume>
       <SeitenKopf
         titel={check.fahrzeugName}
+        zurueck={{ titel: "Fahrzeug-Checks", href: "/verwaltung/checks" }}
         beschreibung={(
           <>
             Abgeschlossen{" "}
@@ -121,7 +121,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         <Alert
           type="warning"
           showIcon={false}
-          style={{ marginBlockEnd: 16 }}
+          style={{ marginBlockEnd: SPACE.lg }}
           title="Dieser Check stammt aus dem alten Format. Die Einzelpositionen sind darin nicht enthalten; die Summen unten sind vollständig."
         />
       ) : null}
@@ -149,12 +149,12 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         <Alert
           type="warning"
           showIcon={false}
-          style={{ marginBlockEnd: 16 }}
+          style={{ marginBlockEnd: SPACE.lg }}
           title="Ergebnis unlesbar: Dieser Check trägt ein beschädigtes Ergebnis. Die Listen und Summen unten sind deshalb leer — das heißt nicht, dass nichts zu tun war."
         />
       ) : null}
 
-      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={6}>
           <Kachel
             zahl={check.summe.positionen}

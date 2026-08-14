@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
-import { gruppiereNav, hatAbschnitte } from "@/core/shell/navAbschnitte";
+import { gruppiereNav } from "@/core/shell/navAbschnitte";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { MODULES } from "@/core/registry";
 
@@ -16,20 +16,6 @@ const MIT: SuiteNavItem[] = [
   { key: "journal", title: "Journal", href: "/verwaltung/journal", abschnitt: "Protokoll" },
   { key: "verfall", title: "Verfall", href: "/verwaltung/verfall", abschnitt: "Bestand" },
 ];
-
-describe("hatAbschnitte", () => {
-  it("ist falsch für eine flache Liste und wahr, sobald EIN Eintrag einen Abschnitt trägt", () => {
-    expect(hatAbschnitte(OHNE)).toBe(false);
-    expect(hatAbschnitte(MIT)).toBe(true);
-    expect(hatAbschnitte([])).toBe(false);
-  });
-
-  it("wertet Leerraum nicht als Abschnitt", () => {
-    // Sonst kippte die ganze Navigation in die Seitenleiste, wegen eines
-    // Leerzeichens — und die Überschrift wäre unsichtbar.
-    expect(hatAbschnitte([{ key: "a", title: "A", href: "/a", abschnitt: "  " }])).toBe(false);
-  });
-});
 
 describe("gruppiereNav", () => {
   it("stellt Einträge ohne Abschnitt voran, vor jeder Überschrift", () => {
@@ -55,12 +41,19 @@ describe("gruppiereNav", () => {
 });
 
 /*
- * Die Seitenleiste hängt in `FullShell`. Vergäbe ein `minimal`- oder
- * `kiosk`-Modul Abschnitte, verschwänden sie lautlos: die Einträge landeten in
- * der zweiten Zeile, ohne Überschriften. Kein Fehler, kein Log — nur eine
- * Gliederung, die niemand sieht.
+ * Bis 2026-08-13 hing die Seitenleiste an `FullShell` allein: ein `minimal`-
+ * oder `kiosk`-Modul mit `abschnitt`-Einträgen verlor seine Gliederung
+ * lautlos in der zweiten Kopfzeile. Seit `SuiteRahmen` bekommt jedes Modul
+ * mit Navigation dieselbe Leiste, `minimal` eingeschlossen — dort würde
+ * `abschnitt` heute korrekt gruppiert dargestellt. Nur `kiosk` bekommt
+ * weiterhin gar keine Navigation (`Shell.tsx` reicht dort kein `nav` durch).
+ *
+ * Dieser Test hält trotzdem fest, dass HEUTE kein Modul außerhalb von `full`
+ * `abschnitt` vergibt — kein Verbot mehr, sondern eine Markierung: taucht
+ * `abschnitt` hier zum ersten Mal in einem `minimal`-Modul auf, soll das eine
+ * bewusste Entscheidung sein und keine zufällige.
  */
-describe("Abschnitte gibt es nur in der full-Shell", () => {
+describe("Abschnitte werden bislang nur in der full-Shell vergeben", () => {
   it("kein minimal- oder kiosk-Modul vergibt abschnitt in seiner Nav", () => {
     const nichtFull = MODULES.filter((m) => m.shell !== "full").map((m) => m.key);
     for (const key of nichtFull) {
@@ -77,5 +70,27 @@ describe("Abschnitte gibt es nur in der full-Shell", () => {
           .not.toMatch(/abschnitt\s*:/);
       }
     }
+  });
+});
+
+describe("die Bauform haengt nicht mehr an den Daten", () => {
+  it("exportiert kein `hatAbschnitte` mehr", async () => {
+    /*
+     * DIE FORM FOLGTE DEN DATEN — und das war der Fehler. `hatAbschnitte`
+     * machte ein OPTIONALES Feld zur Entscheidung ueber die Bauform: mit
+     * `abschnitt` eine Seitenleiste, ohne eine zweite Kopfzeile. Fuer die
+     * benutzende Person war das nicht ablesbar; sie sah keine Datenlage,
+     * sie sah zwei Anwendungen.
+     *
+     * Seit 2026-08-13 bekommt JEDES Modul mit Navigation die Leiste.
+     * `gruppiereNav` bleibt — die Gruppierung INNERHALB der Leiste ist
+     * weiterhin datengetrieben, nur nicht mehr die Bauform.
+     *
+     * Dieser Test faengt das Wiedereinfuehren. Ohne ihn kaeme das Praedikat
+     * beim naechsten Modul mit vielen Eintraegen als naheliegende Loesung
+     * zurueck.
+     */
+    const modul = await import("@/core/shell/navAbschnitte");
+    expect(Object.keys(modul)).not.toContain("hatAbschnitte");
   });
 });

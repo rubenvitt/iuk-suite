@@ -4,14 +4,13 @@ import {
   mount,
   unmount,
   query,
-  queryAll,
   click,
   exists,
   queryPortal,
   existsPortal,
   clickPortal,
 } from "@/app/m/qr/_lib/test-dom";
-import { Modulnav, SuiteNav, aktiverEintrag } from "./SuiteNav";
+import { SuiteNav, aktiverEintrag } from "./SuiteNav";
 import type { SuiteNavItem } from "./types";
 import s from "./shell.module.css";
 
@@ -218,52 +217,6 @@ describe("SuiteNav — angemeldet", () => {
      * Mittelbreiten), und die Aktivmarkierung bliebe an beiden Orten gruen.
      */
     await zeichne({ nav: NAV });
-    expect(exists('[data-testid="modulnav"]')).toBe(false);
-  });
-});
-
-describe("Modulnav — die zweite Zeile unter der Kopfzeile", () => {
-  // Uebernommen aus dem `SuiteNav`-Block, seit die Zeile eine eigene Komponente
-  // ist. Sie steht im Wirt (kein Portal), also `query`/`exists`.
-
-  it("zeigt die Modulnavigation, wenn das Modul welche uebergibt", async () => {
-    await mount(<Modulnav nav={NAV} />);
-    const zeile = query('[data-testid="modulnav"]');
-    expect(Array.from(zeile.querySelectorAll("a")).map((a) => a.textContent)).toEqual([
-      "Uebersicht",
-      "Vergleich",
-    ]);
-  });
-
-  it("markiert den aktiven Eintrag der Modulnavigation als aktuelle SEITE", async () => {
-    pathnameMock.mockReturnValue("/vergleich");
-    await mount(<Modulnav nav={NAV} />);
-    const aktiv = queryAll('[data-testid="modulnav"] a[aria-current="page"]');
-    expect(aktiv).toHaveLength(1);
-    expect(aktiv[0].getAttribute("href")).toBe("/vergleich");
-  });
-
-  it("markiert auf einer Seite ohne eigenen Eintrag nur den ABSCHNITT, nicht die Seite", async () => {
-    /*
-     * DER FUND AUS DEM ABSCHLUSSREVIEW. Auf `/wifi`, `/tel`, `/contact`,
-     * `/groups/17`, `/trend`, `/auswertung` passt kein Eintrag; der
-     * Wurzel-Fallback markierte dort trotzdem „Uebersicht" mit
-     * `aria-current="page"` — eine Falschaussage gegenueber einem Screenreader
-     * auf sechs Routen. Jetzt `"true"`: derselbe Rahmen, aber die schwaechere
-     * und wahre Aussage.
-     */
-    pathnameMock.mockReturnValue("/wifi");
-    await mount(<Modulnav nav={NAV} />);
-    expect(queryAll('[data-testid="modulnav"] a[aria-current="page"]')).toHaveLength(0);
-    const abschnitt = queryAll('[data-testid="modulnav"] a[aria-current="true"]');
-    expect(abschnitt).toHaveLength(1);
-    expect(abschnitt[0].getAttribute("href")).toBe("/");
-  });
-
-  it("rendert gar nichts, wenn das Modul keine Navigation uebergibt", async () => {
-    // Fuenf von sieben Modulen uebergeben nichts — sie duerfen keine leere
-    // Zeile und keine Trennlinie unter der Kopfzeile bekommen.
-    await mount(<Modulnav nav={[]} />);
     expect(exists('[data-testid="modulnav"]')).toBe(false);
   });
 });

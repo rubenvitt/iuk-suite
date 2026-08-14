@@ -2,6 +2,7 @@
 
 import { Button, DatePicker, Flex, Select } from "antd";
 import dayjs from "dayjs";
+import { SPACE } from "@/core/theme/tokens";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { useUrlFilter } from "../../../_ui/useUrlFilter";
 import s from "../../../_ui/verwaltung.module.css";
@@ -42,8 +43,8 @@ export function ChecksFilter({
   const hatFilter = Boolean(fz || von || bis || hinweise.length > 0);
 
   return (
-    <Flex vertical gap={8} style={{ marginBlockEnd: 12 }}>
-      <Flex gap={12} wrap align="center">
+    <Flex vertical gap={SPACE.sm} style={{ marginBlockEnd: SPACE.md }}>
+      <Flex gap={SPACE.md} wrap align="center">
         <Select<string, FahrzeugOption>
           showSearch
           allowClear

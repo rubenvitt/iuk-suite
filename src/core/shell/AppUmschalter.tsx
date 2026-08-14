@@ -166,7 +166,19 @@ export function AppUmschalter({
             ) : (
               abschnitte.map(([titel, liste]) => (
                 <div key={titel}>
-                  <div data-testid="app-abschnitt" className={s.umschalterAbschnitt}>
+                  {/* Die Rolle als INLINE-STIL, die Polsterung und Farbe als
+                      Klasse: `core/theme/schrift.ts` ist die eine Quelle fuer
+                      Typografie, und eine zweite Abschrift von `kicker` in
+                      `shell.module.css` waere genau die Doppelung, gegen die
+                      die Rollen-Datei gebaut ist. `SCHRIFT` liegt in einem
+                      Modul ohne `"use client"`; von einer Client-Insel dorthin
+                      zu greifen ist die unproblematische Richtung (Falle 6
+                      verbietet die umgekehrte). */}
+                  <div
+                    data-testid="app-abschnitt"
+                    className={s.umschalterAbschnitt}
+                    style={SCHRIFT.kicker}
+                  >
                     {titel}
                   </div>
                   <div className={s.umschalterListe}>

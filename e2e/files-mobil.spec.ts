@@ -426,15 +426,110 @@ async function zuKleineSchrift(page: Page) {
 
 type Kasten = { x: number; y: number; width: number; height: number };
 
-async function kaesten(kinder: Locator): Promise<Kasten[]> {
-  const anzahl = await kinder.count();
-  const aus: Kasten[] = [];
-  for (let i = 0; i < anzahl; i += 1) {
-    const kasten = await kinder.nth(i).boundingBox();
-    expect(kasten, `Knopf ${i} hat keinen Kasten — steht er im DOM und sichtbar?`).not.toBeNull();
-    aus.push(kasten!);
+/**
+ * ALLE KAESTEN IN EINEM DURCHGANG — und das ist keine Optimierung, sondern die
+ * Voraussetzung dafuer, dass der Vergleich ueberhaupt etwas heiszt.
+ *
+ * VORHER stand hier eine Schleife aus `locator.boundingBox()`, also EIN
+ * Playwright-Rundlauf JE KNOPF. Zwei Kaesten aus zwei Rundlaeufen beschreiben
+ * zwei verschiedene Zeitpunkte, und `pruefeKnopfreihe` vergleicht sie, als
+ * waeren sie derselbe Zustand. Solange sich das Layout dazwischen nicht regt,
+ * faellt das nicht auf.
+ *
+ * SEIT DER MODULLEISTE (Aufgabe 2) REGT ES SICH. `next dev` — und der
+ * Playwright-`webServer` ist einer — liefert antds cssinjs-Regeln erst nach dem
+ * ersten Aufbau nach. Bis `.ant-layout-has-sider { flex-direction: row }` da
+ * ist, steht die Seitenleiste UEBER dem Inhalt statt daneben: der Inhalt ist
+ * volle Breite und alles darunter rund 180px tiefer. GEMESSEN im gebuendelten
+ * Lauf zu Aufgabe 6, 1280px: „Ausgewaehlte herunterladen" bei x=16 y=709 (noch
+ * ohne die Regel), „Ausgewaehlte loeschen" bei x=476 y=529 (mit ihr) — zwei
+ * Knoepfe, die in Wahrheit nebeneinander stehen, gemeldet als Umbruch. Vor der
+ * Leiste gab es diesen Unterschied nicht: ohne Sider sahen beide Zustaende
+ * gleich aus.
+ *
+ * Ein `evaluate` ist EIN Layout-Lesevorgang; die Kaesten stammen damit
+ * garantiert aus derselben Fassung der Seite. Der Aufrufer wartet zusaetzlich
+ * auf Ruhe — beides zusammen, weil das eine den falschen VERGLEICH ausschlieszt
+ * und das andere den falschen ZEITPUNKT. Der Container gehoert MIT in denselben
+ * Lesevorgang: `pruefeKnopfreihe` misst die Knopfbreite gegen ihn, also ist auch
+ * das ein Vergleich, und ein zweiter Rundlauf dafuer waere derselbe Fehler in
+ * klein.
+ *
+ * ⚠️ UND DER RUECKWEG BRAUCHT EINE EIGENE ZUSICHERUNG, sonst wird aus der
+ * Umstellung ein stiller Verlust. `locator.boundingBox()` lieferte fuer einen
+ * nicht gerenderten Knoten `null`, und ein `not.toBeNull()` fiel LAUT um;
+ * `getBoundingClientRect()` in `evaluate` liefert fuer `display: none` dagegen
+ * lauter Nullen — einen gueltig aussehenden Kasten. Verschwaenden die Knoepfe,
+ * saehe `pruefeKnopfreihe` bei `schmal === false` lauter Nullen und faende sie
+ * einwandfrei („|0−0| ≤ 2", „0 ≥ 0+0−1", „0 < Container−2"): gruen bei 834 und
+ * 1280, und nur der 390er-Zweig haette es ueber die Volle-Breite-Pruefung noch
+ * gefangen. Eine Zaehlung („so viele Kaesten wie Knoten") kann das nicht
+ * ersetzen — `evaluateAll` liefert IMMER genau einen Eintrag je Treffer, die
+ * Zusicherung koennte gar nicht fallen. Gemessen wird deshalb die AUSDEHNUNG.
+ */
+async function kaestenMitContainer(
+  container: Locator,
+  kindSelektor: string,
+): Promise<{ container: Kasten; kinder: Kasten[] }> {
+  const roh = await container.evaluate((el, sel) => {
+    const lies = (n: Element) => {
+      const b = n.getBoundingClientRect();
+      return {
+        name: (n.textContent || n.getAttribute("aria-label") || n.tagName).trim().slice(0, 30),
+        x: b.x,
+        y: b.y,
+        width: b.width,
+        height: b.height,
+      };
+    };
+    return {
+      container: lies(el),
+      kinder: [...el.querySelectorAll(sel)].map(lies),
+    };
+  }, kindSelektor);
+
+  for (const k of [roh.container, ...roh.kinder]) {
+    expect(
+      k.width > 0 && k.height > 0,
+      `„${k.name}" ist nicht gerendert (${Math.round(k.width)}x${Math.round(k.height)}) — ` +
+        "ein Nullkasten besteht jede Anordnungspruefung stillschweigend",
+    ).toBe(true);
   }
-  return aus;
+  return roh;
+}
+
+/**
+ * Dieselbe atomare Messung fuer Knoten, die KEIN gemeinsamer Selektor
+ * einsammelt — die Sammelaktionen des Posteingangs stehen unter drei
+ * verschiedenen `data-testid`s (Leiste, ZIP-Knopf, Loeschen-Knopf), und der
+ * Loeschen-Knopf liegt zusaetzlich in einem `<form>`. Die Reihenfolge ist hier
+ * ausgeschrieben und nicht die Dokumentreihenfolge eines Komma-Selektors:
+ * `pruefeKnopfreihe` vergleicht Nachbar mit Nachbar, die Reihenfolge IST also
+ * Teil der Aussage.
+ *
+ * Begruendung fuer den einen Lesevorgang UND fuer die Ausdehnungspruefung wie
+ * bei `kaestenMitContainer` oben. `null` und Nullkasten sind hier zwei
+ * verschiedene Befunde und tragen deshalb zwei verschiedene Botschaften:
+ * „steht nicht im DOM" gegen „steht da, ist aber nicht gerendert".
+ */
+async function kaestenNachTestId(page: Page, testIds: string[]): Promise<Kasten[]> {
+  const aus = await page.evaluate((ids) => {
+    return ids.map((id) => {
+      const el = document.querySelector(`[data-testid="${id}"]`);
+      if (el === null) return null;
+      const b = el.getBoundingClientRect();
+      return { x: b.x, y: b.y, width: b.width, height: b.height };
+    });
+  }, testIds);
+  for (const [i, k] of aus.entries()) {
+    expect(k, `„${testIds[i]}" hat keinen Kasten — steht der Knoten im DOM?`).not.toBeNull();
+    expect(
+      k!.width > 0 && k!.height > 0,
+      `„${testIds[i]}" ist nicht gerendert (${Math.round(k!.width)}x${Math.round(k!.height)}) — ` +
+        "ein Nullkasten besteht jede Anordnungspruefung stillschweigend",
+    ).toBe(true);
+  }
+  return aus as Kasten[];
 }
 
 /**
@@ -594,7 +689,15 @@ for (const vp of VIEWPORTS) {
       expect(antwort?.status(), "Posteingang: HTTP").toBe(200);
       const leiste = page.getByTestId("files-inbox-sammelaktionen");
       await expect(leiste).toBeVisible();
-      const leistenKasten = (await leiste.boundingBox())!;
+      /*
+       * ERST RUHE, DANN MESSEN. `next dev` reicht antds cssinjs-Regeln nach; bis
+       * `.ant-layout-has-sider` da ist, steht die Modulleiste ueber statt neben
+       * dem Inhalt und alles darunter an der falschen Stelle (ausfuehrlich bei
+       * `kaesten`). Vor der Leiste (Aufgabe 2) war dieser Zwischenzustand vom
+       * Endzustand nicht zu unterscheiden — deshalb steht das Warten erst jetzt
+       * hier.
+       */
+      await page.waitForLoadState("networkidle");
       /*
        * DIE BEIDEN KNOEPFE EINZELN, NICHT ALLE KINDER DER LEISTE: „Ausgewaehlte
        * loeschen" sitzt in einem `<form>` — ein Kindselektor traefe die
@@ -602,14 +705,18 @@ for (const vp of VIEWPORTS) {
        * voll breit, waehrend der Knopf darin auto-breit bliebe. Genau dieser
        * Unterschied ist in `posteingang.module.css` ausgeschrieben, und nur eine
        * Messung AM KNOPF sieht ihn.
+       *
+       * Leiste UND Knoepfe in EINEM Lesevorgang, siehe `kaestenNachTestId`.
        */
+      const [leistenKasten, zipKasten, loeschenKasten] = await kaestenNachTestId(page, [
+        "files-inbox-sammelaktionen",
+        "files-inbox-zip",
+        "files-inbox-loeschen-auswahl",
+      ]);
       pruefeKnopfreihe(
         "Posteingang — Sammelaktionen",
         leistenKasten,
-        [
-          (await page.getByTestId("files-inbox-zip").boundingBox())!,
-          (await page.getByTestId("files-inbox-loeschen-auswahl").boundingBox())!,
-        ],
+        [zipKasten, loeschenKasten],
         vp.schmal,
       );
 
@@ -620,14 +727,15 @@ for (const vp of VIEWPORTS) {
       const zeile = page.locator(`[data-file-id="${DATEI_OFFEN}"]`);
       await expect(zeile).toBeVisible();
       const knopfzeile = zeile.locator("p.fp-knopfzeile");
-      const knoepfe = knopfzeile.locator("a.fp-knopf");
       // Herunterladen UND Vorschau: eine PNG unter `FILES_VORSCHAU_MAX_BYTES`
       // traegt beide. Mit nur einem Knopf pruefte die Reihe nichts.
-      await expect(knoepfe).toHaveCount(2);
+      await expect(knopfzeile.locator("a.fp-knopf")).toHaveCount(2);
+      // Zeile UND Knoepfe in EINEM Lesevorgang, siehe `kaestenMitContainer`.
+      const dateizeile = await kaestenMitContainer(knopfzeile, "a.fp-knopf");
       pruefeKnopfreihe(
         "/s/<id> — Dateizeile",
-        (await knopfzeile.boundingBox())!,
-        await kaesten(knoepfe),
+        dateizeile.container,
+        dateizeile.kinder,
         vp.schmal,
       );
 

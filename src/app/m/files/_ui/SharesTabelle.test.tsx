@@ -227,6 +227,23 @@ describe("Punkt 4 — die Zeile zeigt Zustand, Menge und Datum", () => {
     expect(text).toContain("sub-1");
   });
 
+  /**
+   * PUNKT 4, ZWEITER HALBSATZ (Review-Runde zu Aufgabe 12): Spaltenkoepfe
+   * tragen `SCHRIFT.kicker`, nicht nur ihren Text. Ohne diese Zusicherung
+   * naehme eine spaetere Aufraeumrunde das `<span style={SCHRIFT.kicker}>`
+   * als Ballast wieder heraus — der Text sieht fuer sich genommen unveraendert
+   * aus, die Rolle steckt ausschlieszlich im Stil. Die Aktionsspalte bleibt
+   * ausgenommen (`title: ""`, siehe `spalten()`), deshalb hier „Titel".
+   */
+  it("traegt an der Spalte „Titel“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
+    await zeige();
+    const kopf = queryAll("thead.ant-table-thead th")[0];
+    const span = kopf?.querySelector("span");
+    expect(span?.textContent).toBe("Titel");
+    expect(span?.style.fontWeight).toBe("600");
+    expect(span?.style.textTransform).toBe("uppercase");
+  });
+
   /** `n / ∞` und `n / m` sind zwei verschiedene Aussagen — eine Zeile mit Limit
    *  und eine ohne, sonst waere „irgendein Bruchstrich" schon gruen. */
   it("schreibt ein unbegrenztes Limit als `n / ∞`", async () => {

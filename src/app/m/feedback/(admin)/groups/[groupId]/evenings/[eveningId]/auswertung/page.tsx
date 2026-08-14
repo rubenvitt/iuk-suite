@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { Breadcrumb, Button, Card, Col, Result, Row } from "antd";
+import { Button, Card, Col, Result, Row } from "antd";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "@/app/m/feedback/_db/client";
 import { getEvening, getGroup, getSurveyByEvening, listResponses } from "@/app/m/feedback/_db/queries";
 import { guardPage } from "@/app/m/feedback/_lib/guardPage";
@@ -19,8 +20,8 @@ import {
 import { PromptBlock } from "@/app/m/feedback/_ui/PromptBlock";
 
 /**
- * DIE AUSWERTUNG EINES DIENSTABENDS (Entwurf §3.2, Kopfzone §4.2, Breadcrumb
- * §4.1, Leerzustände §4.3).
+ * DIE AUSWERTUNG EINES DIENSTABENDS (Entwurf §3.2, Kopfzone §4.2, Rückweg §4.1,
+ * Leerzustände §4.3).
  *
  * VIER ENTSCHEIDUNGEN, DIE HIER UND NUR HIER LIEGEN:
  *
@@ -40,9 +41,9 @@ import { PromptBlock } from "@/app/m/feedback/_ui/PromptBlock";
  * 4. EIN NENNER WIRD NIE ERFUNDEN (§2.3, hier für den Rücklauf): ohne
  *    `participantCount` steht „3 Rückmeldungen", kein „von", kein Prozentwert.
  *
- * SERVER COMPONENT: kein Compound-Zugriff auf antd (§4.13) — `Breadcrumb` über
- * `items`, Überschriften nativ mit `T.*`, `Collapse` + `Input.TextArea` des
- * Prompts liegen in der Client-Insel `PromptBlock`.
+ * SERVER COMPONENT: kein Compound-Zugriff auf antd (§4.13) — der Kopf kommt aus
+ * `core/shell/Seitenkopf` (Task 11), Überschriften sonst nativ mit `T.*`,
+ * `Collapse` + `Input.TextArea` des Prompts liegen in der Client-Insel `PromptBlock`.
  */
 export default async function AuswertungPage({
   params,
@@ -125,50 +126,40 @@ export default async function AuswertungPage({
     .length;
 
   return (
-    <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
+    <>
       {/*
-       * KOPFZONE (§4.2): drei Zeilen, flach, keine Karte. Die Breadcrumb IST der
-       * Zurück-Weg (§4.1) — ein zusätzlicher „← Zurück"-Knopf entfällt, zwei
-       * Rückwege sind ein Rückweg zu viel.
+       * KOPFZONE (§4.2): der Rückweg IST der Weg zurück (§4.1, vormals eine
+       * dreistufige Breadcrumb „Gruppen › Gruppe › Auswertung", seit Task 11
+       * `Seitenkopf`s `zurueck` zur unmittelbaren Elternseite, dem Cockpit) — ein
+       * zusätzlicher „← Zurück"-Knopf entfällt, zwei Rückwege sind ein Rückweg zu
+       * viel.
        */}
-      <header style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <Breadcrumb
-          style={T.meta}
-          items={[
-            { title: <Link href="/m/feedback">Gruppen</Link> },
-            { title: <Link href={`/m/feedback/groups/${group.id}`}>{group.name}</Link> },
-            { title: "Auswertung" },
-          ]}
+      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+        <Seitenkopf
+          titel={`Auswertung — ${formatAbendtag(evening.date)}`}
+          beschreibung={`${group.name}${evening.topic ? ` · ${evening.topic}` : ""}`}
+          zurueck={{ titel: group.name, href: `/m/feedback/groups/${group.id}` }}
+          aktionen={
+            <>
+              <Button type="text" href={csv}>
+                CSV
+              </Button>
+              <Button type="text" href={`/m/feedback/groups/${group.id}/trend`}>
+                Trend
+              </Button>
+            </>
+          }
         />
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            flexWrap: "wrap",
-            gap: 8,
-          }}
-        >
-          <h1 style={{ ...T.h1, margin: 0, textWrap: "balance" }}>
-            Auswertung — {formatAbendtag(evening.date)}
-          </h1>
-          {/* Textknöpfe der Seite, in derselben Zeile wie die Überschrift; auf
-              390px rutschen sie darunter (`flexWrap`). */}
-          <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Button type="text" href={csv}>
-              CSV
-            </Button>
-            <Button type="text" href={`/m/feedback/groups/${group.id}/trend`}>
-              Trend
-            </Button>
-          </span>
-        </div>
-        <p style={{ ...T.body, margin: 0, color: "var(--fb-muted)" }}>
-          {group.name}
-          {evening.topic ? ` · ${evening.topic}` : ""}
-        </p>
-      </header>
-
+      </div>
+      <div
+        style={{
+          maxWidth: 1120,
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: SPACE.xl,
+        }}
+      >
       {stats.responseCount === 0 ? (
         /* §4.3: der Satz statt leerer Spuren — der CSV-Link bleibt in der Kopfzone. */
         <Result status="info" title="Zu diesem Abend ist keine Rückmeldung eingegangen." />
@@ -184,8 +175,8 @@ export default async function AuswertungPage({
               <p
                 style={{
                   ...T.body,
-                  margin: "0 0 16px",
-                  paddingLeft: 12,
+                  margin: `0 0 ${SPACE.lg}px`,
+                  paddingLeft: SPACE.md,
                   borderLeft: "3px solid var(--fb-line)",
                 }}
               >
@@ -193,10 +184,10 @@ export default async function AuswertungPage({
                 — bitte nicht als Urteil über den Abend lesen.
               </p>
             )}
-            <Row gutter={[24, 16]}>
+            <Row gutter={[SPACE.xl, SPACE.lg]}>
               <Col xs={24} sm={8}>
                 <p style={{ ...T.kicker, margin: 0 }}>RÜCKLAUF</p>
-                <p style={{ ...T.zahl, margin: "4px 0 0" }}>
+                <p style={{ ...T.zahl, margin: `${SPACE.xs}px 0 0` }}>
                   {nenner === null
                     ? `${stats.responseCount} ${stats.responseCount === 1 ? "Rückmeldung" : "Rückmeldungen"}`
                     : `${stats.responseCount} von ${nenner}`}
@@ -205,24 +196,24 @@ export default async function AuswertungPage({
               </Col>
               <Col xs={24} sm={8}>
                 <p style={{ ...T.kicker, margin: 0 }}>GESAMTNOTE</p>
-                <div style={{ marginTop: 4 }}>
+                <div style={{ marginTop: SPACE.xs }}>
                   <Notenplakette note={stats.avgSchulnote} fragen={gemitteltAus} />
                 </div>
                 {stats.hasLegacyScale && (
-                  <p style={{ margin: "4px 0 0" }}>
+                  <p style={{ margin: `${SPACE.xs}px 0 0` }}>
                     <Altbestandsfussnote />
                   </p>
                 )}
               </Col>
               <Col xs={24} sm={8}>
                 <p style={{ ...T.kicker, margin: 0 }}>FREITEXTE</p>
-                <p style={{ ...T.zahl, margin: "4px 0 0" }}>{freitexte}</p>
+                <p style={{ ...T.zahl, margin: `${SPACE.xs}px 0 0` }}>{freitexte}</p>
               </Col>
             </Row>
           </Card>
 
           {verteilungen.length > 0 && (
-            <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <section style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
               <h2 style={{ ...T.lead, margin: 0 }}>Bewertungsfragen</h2>
               {/*
                * Die Legende EINMAL, im identischen Sechs-Spalten-Raster der Spuren
@@ -243,7 +234,9 @@ export default async function AuswertungPage({
                   {/* Sektions-Kicker aus `_lib/questions.ts` — dieselben drei
                       Namen, unter denen der Teilnehmer geantwortet hat (§3.2). */}
                   {(i === 0 || sektionVon(i) !== sektionVon(i - 1)) && (
-                    <p style={{ ...T.kicker, margin: "12px 0 4px" }}>{SEKTIONEN[sektionVon(i)]}</p>
+                    <p style={{ ...T.kicker, margin: `${SPACE.md}px 0 ${SPACE.xs}px` }}>
+                      {SEKTIONEN[sektionVon(i)]}
+                    </p>
                   )}
                   <div className="fb-spurzeile">
                     <span style={{ ...T.meta, textAlign: "right" }}>{i + 1}</span>
@@ -267,13 +260,17 @@ export default async function AuswertungPage({
              * hinter „alle 7 anzeigen" — als natives `<details>`, damit dafür keine
              * Client-Insel und kein JavaScript nötig ist.
              */
-            <section style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: "68ch" }}>
+            <section
+              style={{ display: "flex", flexDirection: "column", gap: SPACE.lg, maxWidth: "68ch" }}
+            >
               <h2 style={{ ...T.lead, margin: 0 }}>Freitexte</h2>
               {stats.texts
                 .filter((frage) => frage.values.length > 0)
                 .map((frage) => (
                   <div key={frage.questionId}>
-                    <h3 style={{ ...T.body, fontWeight: 600, margin: "0 0 8px" }}>{frage.text}</h3>
+                    <h3 style={{ ...T.body, fontWeight: 600, margin: `0 0 ${SPACE.sm}px` }}>
+                      {frage.text}
+                    </h3>
                     {frage.values.slice(0, SICHTBARE_ZITATE).map((wert, i) => (
                       <Zitat key={i} text={wert} />
                     ))}
@@ -295,7 +292,8 @@ export default async function AuswertungPage({
           <PromptBlock prompt={prompt} />
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -313,8 +311,8 @@ function Zitat({ text }: { text: string }) {
         ...ZIFFERN,
         fontSize: 14,
         lineHeight: 1.6,
-        margin: "0 0 8px",
-        paddingLeft: 12,
+        margin: `0 0 ${SPACE.sm}px`,
+        paddingLeft: SPACE.md,
         borderLeft: "2px solid var(--fb-split)",
       }}
     >

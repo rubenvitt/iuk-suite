@@ -136,6 +136,24 @@ async function zuKleineKnoepfe(page: Page) {
   );
 }
 
+/**
+ * DIE 44px-PRÜFUNG EINER FLÄCHE — seit Fix-Runde 2 für ALLE Flächen dieselbe,
+ * weil es keine Ausnahme mehr gibt (Begründung an der Aufrufstelle).
+ *
+ * Der Zähler davor ist der Riegel gegen Vakuität und nicht Zierde:
+ * `zuKleineKnoepfe` liefert auch auf einer leeren, umgeleiteten oder
+ * gescheiterten Seite `[]` — ohne ihn wäre `toEqual([])` grün, ohne je ein
+ * Bedienelement gesehen zu haben.
+ *
+ * Verglichen wird die ROHE Liste samt `B×H`: die Maße stehen dadurch in der
+ * Fehlermeldung, statt vor dem Vergleich weggeschnitten zu werden.
+ */
+async function keinesZuKlein(page: Page, name: string) {
+  const alle = await page.locator(".ant-btn").count();
+  expect(alle, `${name}: gar keine Bedienelemente gefunden`).toBeGreaterThan(0);
+  expect(await zuKleineKnoepfe(page), name).toEqual([]);
+}
+
 /** Die Seiten des Durchgangs. Host und Pfad getrennt, weil die Sitzung ueber alle Hosts traegt. */
 const SEITEN = [
   { name: "feedback — Gruppenliste", host: "feedback.localtest.me", pfad: "/" },
@@ -301,7 +319,10 @@ test.describe("390x844 — das Telefon", () => {
     }
   });
 
-  test("kein Bedienelement ist schmaler oder niedriger als 44px — auszer der einen benannten Ausnahme", async ({
+  // Der Titel nannte bis Fix-Runde 2 „die eine benannte Ausnahme". Sie gibt es
+  // seit `ARBEITSDICHTE` nicht mehr (Begründung an der Messung unten); ein
+  // Titel, der sie weiter verspricht, wäre eine falsche Aussage über den Test.
+  test("kein Bedienelement ist schmaler oder niedriger als 44px — auf keiner der drei Flaechen", async ({
     page,
   }) => {
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
@@ -361,27 +382,41 @@ test.describe("390x844 — das Telefon", () => {
     await expect(page.getByRole("button", { name: "Gruppe löschen" })).toBeVisible();
 
     /*
-     * NICHT `toEqual([])`, UND DAS IST DER PUNKT DIESES TESTS.
+     * DIE EINE AUSNAHME IST WEG — UND DAS IST JETZT DER PUNKT DIESES TESTS.
      *
-     * `Aktualisierer.tsx:80` behaelt sein `size="small"` — die eine begruendete
-     * Ausnahme von der `size`-Regel (Begruendung ab Zeile 66: ein 56px-Knopf
-     * neben einer 12px-Metazeile waere der lauteste Punkt der Fuszzeile). Sie
-     * erscheint, sobald eine Umfrage laeuft, und auf Gruppe 1 laeuft immer eine.
-     * Gemessen bei 390px, wortgleich vor und nach Aufgabe 5:
-     * `{"w":99,"h":42,"t":"Aktualisieren"}`.
+     * Hier stand bis Fix-Runde 2 (2026-08-14) ein `toEqual(["Aktualisieren"])`:
+     * `Aktualisierer.tsx` trug `size="small"`, und die Begründung dafür war,
+     * dass ein Knopf ohne `size` auf die 56px der Suite zurückfiele und damit
+     * neben einer 12px-Metazeile der lauteste Punkt der Fußzeile wäre.
+     * Gemessen war er `{"t":"Aktualisieren","w":99,"h":42}` — 42 ist
+     * `controlHeightSM`, also 56 × 0,75.
      *
-     * Sie hier still wegzufiltern waere die falsche Loesung: eine ZWEITE
-     * Ausnahme rutschte dann unbemerkt mit durch. Erwartet wird deshalb genau
-     * diese eine — kommt eine zweite dazu, wird der Test rot und nennt sie.
+     * `ARBEITSDICHTE` (`controlHeight: 44`) hat diese Begründung ersatzlos
+     * entfernt: ein Knopf ohne `size` fällt seither auf 44 und nicht mehr auf
+     * 56, „lauter als die Zahl, um die es geht" trägt nicht mehr. Das
+     * `size="small"` ist deshalb zurückgenommen (Nachtrag Task 11,
+     * `Aktualisierer.tsx`) — dieselbe Korrektur wie an den zwölf
+     * Zeilenaktionen-Fundstellen, und `feedback/_ui/groessen.test.ts` führt
+     * seine `AUSNAHMEN`-Menge aus demselben Grund seitdem leer.
      *
-     * Erwartet wird die BESCHRIFTUNG, nicht `99x42`: die 42 sind
-     * `controlHeightSM` (56 x 0,75) und damit fest, die 99 haengen an der
-     * Textbreite. Die Zahl steht als Messwert im Kommentar, nicht in der Zusage.
+     * ⚠️ GEMESSEN, NICHT ANGENOMMEN, und zwar genau die Unterscheidung, an der
+     * diese Änderung hängt: „gewachsen" oder „verschwunden". Im Browser bei
+     * 390x844 auf `/groups/1`, mit demselben hergestellten Zustand wie hier:
+     * 14 `.ant-btn` auf der Seite, davon GENAU EINER mit der Beschriftung
+     * „Aktualisieren", und der misst `115x44` (vorher `99x42`), Klassen
+     * `ant-btn iuk-arbeit ant-btn-text …`. Der Knopf ist also da und erfüllt
+     * die Fläche — er ist nicht aus dem DOM gefallen und wird auch nicht vom
+     * Locator verfehlt. Rechnerisch wäre das nicht zu klären gewesen:
+     * `controlHeightSM` läge unter `ARBEITSDICHTE` bei 33, also WEITER unter
+     * 44 — ein bloß umgerechnetes `size="small"` hätte hier immer noch
+     * gestanden.
+     *
+     * Damit gibt es keinen zweiten Zweig mehr, und `/groups/1` durchläuft
+     * dieselbe Prüfung wie die beiden Flächen darunter (`keinesZuKlein`) statt
+     * eine eigene, schwächere. Eine künftige echte Ausnahme gehört dann auch
+     * hier wieder benannt — nicht weggefiltert.
      */
-    const zuKlein = await zuKleineKnoepfe(page);
-    expect(zuKlein.map((z) => z.replace(/ \d+x\d+$/, "")), `gemessen: ${zuKlein.join(" | ")}`).toEqual([
-      "Aktualisieren",
-    ]);
+    await keinesZuKlein(page, "http://feedback.localtest.me:3100/groups/1");
 
     /*
      * DIE ZWEI ANDEREN VON AUFGABE 5 BEHOBENEN FLAECHEN, und sie kosten nichts:
@@ -390,9 +425,7 @@ test.describe("390x844 — das Telefon", () => {
      * `/groups/1/trend` traegt die acht Fragen-Schalter aus `TrendDiagramm.tsx`
      * (gemessen VOR Aufgabe 5: acht Knoepfe mit `h:42`, von 207 bis 279px breit),
      * `portal/admin` die „Löschen"-Knoepfe aus `service-table.tsx` (gemessen
-     * VORHER: zweimal 70x42, aus dem Seed zwei Dienste). Hier ist `[]` die
-     * richtige Erwartung — auf beiden Seiten laeuft keine Umfrage, die
-     * Aktualisierer-Ausnahme kommt also gar nicht ins Spiel.
+     * VORHER: zweimal 70x42, aus dem Seed zwei Dienste).
      */
     for (const ziel of [
       "http://feedback.localtest.me:3100/groups/1/trend",
@@ -400,13 +433,7 @@ test.describe("390x844 — das Telefon", () => {
     ]) {
       await page.goto(ziel);
       await page.waitForLoadState("networkidle");
-      // ERST ZAEHLEN, DANN MESSEN: `zuKleineKnoepfe` liefert auch auf einer
-      // leeren oder gescheiterten Seite `[]` — ohne diese Zeile waere `toEqual([])`
-      // gruen, ohne je einen Knopf gesehen zu haben.
-      const alle = await page.locator(".ant-btn").count();
-      expect(alle, `${ziel}: gar keine Bedienelemente gefunden`).toBeGreaterThan(0);
-      const rest = await zuKleineKnoepfe(page);
-      expect(rest, ziel).toEqual([]);
+      await keinesZuKlein(page, ziel);
     }
   });
 

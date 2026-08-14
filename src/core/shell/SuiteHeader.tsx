@@ -14,8 +14,7 @@ import { getModule } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { launcherEintraege } from "@/core/shell/launcherEintraege";
 import { AppUmschalter } from "@/core/shell/AppUmschalter";
-import { Modulnav, SuiteNav } from "@/core/shell/SuiteNav";
-import { hatAbschnitte } from "@/core/shell/navAbschnitte";
+import { SuiteNav } from "@/core/shell/SuiteNav";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { SCHRIFT } from "@/core/theme/schrift";
 import s from "./shell.module.css";
@@ -54,24 +53,21 @@ export async function SuiteHeader({
   const eintraege = angemeldet ? await launcherEintraege(session?.user?.groups ?? null) : [];
 
   /*
-   * ZWEI GESCHWISTER, NICHT EIN VERSCHACHTELTER BLOCK — die Modulnavigation
-   * steht UNTER der Kopfzeile und nicht darin.
+   * NUR NOCH DIE KOPFZEILE. Bis 2026-08-13 stand hier eine zweite Zeile mit
+   * der Modulnavigation, wenn diese keine Abschnitte trug. Sie ist ersatzlos
+   * entfallen — die Navigation liegt jetzt in jedem Modul in der Seitenleiste
+   * (`SuiteRahmen`), mobil im Drawer.
    *
-   * Als drittes Flex-Kind von `.kopf` konkurrierte sie mit dem Titel um die
-   * Breite: zwischen 768px und 903px schrumpfte er auf 0px und die Seite
-   * scrollte seitwaerts (rechte Kante 904px, gemessen). Der Entwurf (§4,
-   * Tabelle) sah immer eine „zweite Zeile" vor, und `headerHeight` bleibt
-   * deshalb 64 — die Zeile kommt darunter hinzu, statt den Kopf zu dehnen.
-   * Die ausfuehrliche Begruendung steht an `Modulnav` in `SuiteNav.tsx`.
-   *
-   * `data-testid="suite-header"` bleibt am `<Header>` und umfasst die zweite
-   * Zeile damit NICHT mehr. Das ist gewollt: der 390px-Hoehentest misst genau
-   * diesen Knoten und soll weiter nur die Kopfzeile messen. Dass die zweite
-   * Zeile mobil unsichtbar bleibt, hat seitdem eine eigene Zusicherung in
-   * `e2e/shell-mobil.spec.ts`.
+   * Der historische Grund fuer die zweite ZEILE (statt einer dritten Spalte im
+   * Kopf) bleibt lesenswert, weil er die heutige Kopfzeile erklaert: als
+   * drittes Flex-Kind von `.kopf` konkurrierte die Navigation mit dem Titel um
+   * die Breite und drueckte ihn zwischen 768px und 903px auf 0px — die Seite
+   * scrollte seitwaerts (rechte Kante 904px, gemessen). Deshalb steht in
+   * `.kopf` heute nur noch der Umschalter und `.rechts`, und `headerHeight`
+   * bleibt 64.
    */
   return (
-    <>
+    <div className={s.kopfBlock}>
       {/* Vor der Kopfzeile, nicht darin: eine Kante an der antd-Flaeche waere ein
           Spezifitaetsstreit, ein eigenes Element ist keiner. `aria-hidden`, weil
           der Streifen reine Marke ist und nichts vorliest. */}
@@ -124,10 +120,6 @@ export async function SuiteHeader({
         )}
         <SuiteNav nav={nav} userName={session?.user?.name ?? null} angemeldet={angemeldet} />
       </Header>
-      {/* Zweite Zeile NUR ohne Abschnitte. Trägt die Navigation Abschnitte, steht
-          sie als Seitenleiste in `FullShell` — beides gleichzeitig wäre dieselbe
-          Aussage an zwei Stellen, mit zwei Aktivmarkierungen. */}
-      {hatAbschnitte(nav) ? null : <Modulnav nav={nav} />}
-    </>
+    </div>
   );
 }

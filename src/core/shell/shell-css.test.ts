@@ -51,11 +51,6 @@ function zieltAufKlasse(selektor: string, klasse: string): boolean {
   return new RegExp(`(^|[^A-Za-z0-9_-])\\.${klasse}(?![A-Za-z0-9_-])`).test(selektor);
 }
 
-function modulnavRegeln(css: string): CssRegel[] {
-  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-  return cssRegeln(ohneKommentare).filter((regel) => zieltAufKlasse(regel.selektor, "modulnav"));
-}
-
 function deklarationsWerte(regeln: CssRegel[], eigenschaft: string): string[] {
   const muster = new RegExp(`(?:^|;)\\s*${eigenschaft}\\s*:\\s*([^;}]+)`, "g");
   return regeln.flatMap((regel) =>
@@ -63,35 +58,48 @@ function deklarationsWerte(regeln: CssRegel[], eigenschaft: string): string[] {
   );
 }
 
-function modulnavStruktur(css: string) {
+function siderRegeln(css: string): CssRegel[] {
   const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-  const mediaStart = ohneKommentare.indexOf("@media (min-width: 768px)");
-  expect(mediaStart, "einziger Desktop-Breakpoint fehlt").toBeGreaterThanOrEqual(0);
-
-  const basisRegeln = modulnavRegeln(ohneKommentare.slice(0, mediaStart));
-  expect(basisRegeln, "vor der Media Query muss genau eine Basisregel .modulnav stehen").toHaveLength(1);
-
-  return {
-    basis: basisRegeln[0],
-    alle: modulnavRegeln(ohneKommentare),
-    abBreakpoint: ohneKommentare.slice(mediaStart),
-  };
+  return cssRegeln(ohneKommentare).filter((regel) => zieltAufKlasse(regel.selektor, "sider"));
 }
 
-function erwartetRobusteModulnavUeberlaufbehandlung(css: string) {
-  const struktur = modulnavStruktur(css);
+/**
+ * DIE DREI KASKADEN-PRUEFMUSTER, UEBERNOMMEN VON `.modulnav`.
+ *
+ * Sie pruefen eine KLASSE VON FEHLERN: ein gruener Ersttreffer, hinter dem eine
+ * spaetere Regel dieselbe Eigenschaft still ueberschreibt. Mit dem Wegfall der
+ * zweiten Kopfzeile (2026-08-13) waeren sie sonst ersatzlos verloren gewesen.
+ *
+ * Die Invarianten: genau EIN `display`-Wert vor dem Breakpoint (`none`), genau
+ * EINER darin (`block`), genau EIN `inset-block-start`. Eine zweite Regel mit
+ * demselben Wert ist ebenso ein Kaskadenrisiko wie eine mit `initial`.
+ *
+ * Die Media Query wird erst AB der Position der `.sider`-Basisregel gesucht:
+ * die Basisregel steht selbst HINTER dem ersten `(min-width: 768px)`-Block
+ * (`.rechts .nurMobil` & Co.). Eine Suche ab der ersten Fundstelle schnitte
+ * sie nicht ab, und der folgende `.sider`-Treffer waere der FALSCHE. Genau
+ * diese Falle steht schon am Test „klebt die Seitenleiste ab 768px fest".
+ */
+function erwartetRobusteSiderUmschaltung(css: string) {
+  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const basisIndex = ohneKommentare.indexOf(".sider {");
+  expect(basisIndex, "Basisregel .sider fehlt").toBeGreaterThanOrEqual(0);
 
-  // Genau eine Quelle je Eigenschaft: eine zweite Regel mit demselben Wert ist
-  // ebenso ein Kaskadenrisiko wie eine mit `hidden` oder `initial`.
-  expect(deklarationsWerte(struktur.alle, "overflow-x")).toEqual(["auto"]);
-  expect(deklarationsWerte(struktur.alle, "scrollbar-width")).toEqual(["thin"]);
-  for (const regel of struktur.alle) {
-    expect(regel.deklarationen, `scroll-behavior in "${regel.selektor}"`).not.toMatch(
-      /(?:^|;)\s*scroll-behavior\s*:/,
-    );
-  }
+  const mediaStart = ohneKommentare.indexOf("@media (min-width: 768px)", basisIndex);
+  expect(mediaStart, "Desktop-Breakpoint nach der .sider-Basisregel fehlt").toBeGreaterThanOrEqual(0);
 
-  return struktur;
+  const basis = siderRegeln(ohneKommentare.slice(basisIndex, mediaStart));
+  expect(basis, "vor der Media Query muss genau eine Basisregel .sider stehen").toHaveLength(1);
+  expect(deklarationsWerte(basis, "display")).toEqual(["none"]);
+
+  const desktop = siderRegeln(ohneKommentare.slice(mediaStart));
+  expect(desktop, "ab 768px muss genau eine Regel .sider stehen").toHaveLength(1);
+  expect(deklarationsWerte(desktop, "display")).toEqual(["block"]);
+  expect(deklarationsWerte(siderRegeln(ohneKommentare), "inset-block-start")).toEqual([
+    "var(--iuk-kopf)",
+  ]);
+
+  return { basis: basis[0], desktop: desktop[0] };
 }
 
 describe("shell.module.css", () => {
@@ -159,93 +167,6 @@ describe("shell.module.css", () => {
     expect(OHNE_KOMMENTARE).not.toMatch(/\.navLink\[aria-current=/);
   });
 
-  it("laeszt `.modulnav` waagerecht scrollen statt `documentElement`", () => {
-    /*
-     * DIE UEBERLAUFBEHANDLUNG (Spec 6.3.2 des lagerbuch-Entwurfs,
-     * Entscheidung 31).
-     *
-     * `.modulnav` ist ein Flex-Container mit `nowrap` ab 768px; `.navLink`
-     * traegt `min-height: 56px` und `padding-inline: 12px`. Ein Modul mit
-     * VIELEN Abschnitten sprengt die Zeile: lagerbuch hat 15 Eintraege mit
-     * zusammen 127 Zeichen, ueberschlaegig 1.300-1.400px. Bei 1280px kann kein
-     * Link unter seine `min-content`-Breite schrumpfen — also lief die Zeile
-     * ueber, und `documentElement` scrollte waagerecht. Das ist nicht „die
-     * Leiste sieht eng aus", das ist die ganze Seite, die seitwaerts wandert.
-     *
-     * `scrollbar-width: thin` haelt die Leiste bei ihrer Hoehe. Der
-     * Unterstrich der Aktivmarkierung (`.navLink[aria-current]`, 2px) darf
-     * nicht unter einer Scrollleiste verschwinden — deshalb scrollt der
-     * CONTAINER und nicht `documentElement`.
-     *
-     * DIESE DATEI BESITZT „die Regel steht da". Ob sie WIRKT, besitzt der
-     * Playwright-Lauf bei 1280x720 (`e2e/lagerbuch-verwaltung.spec.ts`) — bei
-     * 390px sind die richtige und die kaputte Fassung nicht zu unterscheiden,
-     * weil `.modulnav` dort auf `display: none` steht.
-     */
-    const { basis } = erwartetRobusteModulnavUeberlaufbehandlung(OHNE_KOMMENTARE);
-    expect(basis.deklarationen).toMatch(/overflow-x:\s*auto/);
-    expect(basis.deklarationen).toMatch(/scrollbar-width:\s*thin/);
-  });
-
-  it("animiert das Scrollen der Modulnavigation nicht", () => {
-    // `prefers-reduced-motion` bleibt unberuehrt: es wird nichts animiert und
-    // `scroll-behavior` bleibt ungesetzt. Ein `scroll-behavior: smooth` hier
-    // waere eine Animation ohne Gegenstueck im reduced-motion-Zweig.
-    const { alle } = modulnavStruktur(OHNE_KOMMENTARE);
-    for (const regel of alle) {
-      expect(regel.deklarationen, `scroll-behavior in "${regel.selektor}"`).not.toMatch(
-        /(?:^|;)\s*scroll-behavior\s*:/,
-      );
-    }
-  });
-
-  it("verwirft eine spaetere `.modulnav`-Ueberschreibung trotz gruenem Ersttreffer", () => {
-    const mutation = `${OHNE_KOMMENTARE}
-      .modulnav {
-        overflow-x: hidden;
-        scroll-behavior: smooth;
-      }
-    `;
-
-    // Genau der bisherige Ersttreffer: er bleibt gruen und sieht die spaetere
-    // Kaskaden-Ueberschreibung nicht.
-    const ersterTreffer = /\.modulnav\s*\{([^}]*)\}/.exec(mutation);
-    expect(ersterTreffer, "Basisregel .modulnav fehlt").not.toBeNull();
-    expect(ersterTreffer![1]).toMatch(/overflow-x:\s*auto/);
-    expect(ersterTreffer![1]).toMatch(/scrollbar-width:\s*thin/);
-    expect(ersterTreffer![1]).not.toMatch(/scroll-behavior/);
-
-    // Die robuste Zusage sieht ALLE Regeln und lehnt sowohl die spaetere
-    // `hidden`-Ueberschreibung als auch deren `scroll-behavior` ab.
-    expect(() => erwartetRobusteModulnavUeberlaufbehandlung(mutation)).toThrow();
-  });
-
-  it("verwirft `.modulnav` als erstes Kind einer spaeteren Media Query", () => {
-    const mutation = `${OHNE_KOMMENTARE}
-      @media (min-width: 1000px) {
-        .modulnav {
-          overflow-x: hidden;
-          scroll-behavior: smooth;
-        }
-      }
-    `;
-
-    // Die Media-Regel ist nach der bestehenden 768px-Regel spaeter und kann
-    // sie im Browser ueberstimmen. Auch als ERSTES Kind muss sie der Scanner
-    // finden; vor dem Fix ueberspringt er genau diese Position.
-    expect(() => erwartetRobusteModulnavUeberlaufbehandlung(mutation)).toThrow();
-  });
-
-  it("ignoriert Kommentare und aehnlich benannte Klassen bei .modulnav", () => {
-    const nurNamen = `${CSS}
-      /* .modulnav { overflow-x: hidden; scroll-behavior: smooth; } */
-      .modulnavigation { overflow-x: hidden; scroll-behavior: smooth; }
-      .nicht-modulnav { scrollbar-width: none; }
-    `;
-
-    expect(() => erwartetRobusteModulnavUeberlaufbehandlung(nurNamen)).not.toThrow();
-  });
-
   it("nutzt keine `--ant-*`-Variablen (die sieht eigenes Markup nicht)", () => {
     expect(OHNE_KOMMENTARE).not.toMatch(/var\(--ant-/);
   });
@@ -280,25 +201,91 @@ describe("shell.module.css", () => {
     expect(regel![1], "padding in .kopf verliert gegen .ant-layout-header").not.toMatch(/padding/);
   });
 
-  it("haelt die Modulnavigation unterhalb von 768px aus dem Weg", () => {
-    /*
-     * Seit sie eine EIGENE ZEILE unter der Kopfzeile ist, deckt der
-     * 390px-Hoehentest sie nicht mehr ab — er misst `suite-header`, und die
-     * Zeile steht daneben. Zeigte sie sich mobil, kaeme sie zu den 64px hinzu.
-     * Das sichtbare Ergebnis besitzt `e2e/shell-mobil.spec.ts`, die Regel hier.
-     */
-    const { basis, abBreakpoint } = modulnavStruktur(OHNE_KOMMENTARE);
-    expect(basis.deklarationen).toMatch(/display:\s*none/);
-    const desktopRegeln = modulnavRegeln(abBreakpoint);
-    expect(desktopRegeln, "Desktopregel .modulnav fehlt").toHaveLength(1);
-    expect(desktopRegeln[0].deklarationen).toMatch(/display:\s*flex/);
-  });
-
   it("kennt die Klasse .modulzeile nicht mehr", () => {
     // Die Modulknopfreihe ist mit dem Navigations-Umbau ersatzlos entfallen —
     // die Apps hängen jetzt am Umschalter der Kopfzeile. Ein Wiederauftauchen
     // der Klasse wäre ein Rückbau, den kein anderer Test hier fängt.
     expect(OHNE_KOMMENTARE).not.toMatch(/\.modulzeile\b/);
+  });
+
+  it("kennt die Klasse .modulnav nicht mehr", () => {
+    /*
+     * Die zweite Kopfzeile ist am 2026-08-13 ersatzlos entfallen: jedes Modul
+     * mit Navigation traegt die Seitenleiste. Ein Wiederauftauchen der Klasse
+     * waere die Rueckkehr zu zwei Navigationsparadigmen — dasselbe Muster wie
+     * beim Test `"kennt die Klasse .modulzeile nicht mehr"` darueber.
+     */
+    expect(OHNE_KOMMENTARE).not.toMatch(/\.modulnav\b/);
+  });
+
+  it("nimmt dem Umschalter die von antd geerbte Zeilenhoehe", () => {
+    /*
+     * DIE URSACHE DES UNBENUTZBAREN PANELS, und sie steht in keiner Datei
+     * dieses Repos: `antd/es/layout/style/index.js:50` setzt auf
+     * `.ant-layout-header` ein `lineHeight: unit(headerHeight)` — in dieser
+     * Suite 64px. Der Umschalter haengt als DOM-Kind im `<Header>`;
+     * `position: absolute` am Panel aendert den enthaltenden Block, NICHT die
+     * Vererbungskette. Gemessen waren daraus 82px je Panel-Eintrag
+     * (8px Polster + 64px Zeilenbox + 8px Polster) und ein 76px hoher
+     * Ausloeser in einer 64px hohen Kopfzeile.
+     *
+     * Die Deklaration steht am gemeinsamen VORFAHREN von Ausloeser und Panel,
+     * nicht an beiden einzeln: es ist eine Ursache, und zwei Deklarationen
+     * dafuer laufen beim naechsten Anfassen auseinander.
+     *
+     * `normal` und keine Zahl: eine Zahl waere eine erfundene Skala, die ein
+     * spaeterer Leser fuer geprueft haelt (dieselbe Regel wie in
+     * `core/theme/schrift.ts`).
+     *
+     * DIESE DATEI BESITZT „die Regel steht da". Dass sie WIRKT, besitzt
+     * `e2e/shell-mobil.spec.ts` — antd spritzt seine Regel zur Laufzeit ueber
+     * cssinjs ein, kein Quelltext-Scan und kein jsdom kann sie sehen.
+     */
+    const regel = /\.umschalter\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .umschalter fehlt").not.toBeNull();
+    expect(regel![1], "antds .ant-layout-header vererbt sonst line-height: 64px").toMatch(
+      /line-height:\s*normal/,
+    );
+  });
+
+  it("faerbt Nebentext ueber `--iuk-gedaempft` statt ueber Deckkraft", () => {
+    // Deckkraft dimmt den Kontrast unpruefbar mit und traegt in beiden Modi
+    // verschieden; eine Variable hat einen Dunkelzweig. Dieselbe Begruendung
+    // steht seit jeher an `.drawerTitel` — sie galt nur fuer den Umschalter
+    // nicht (`.umschalterAbschnitt`, `.appEintragText`, `.umschalterLeer`,
+    // `.umschalterFusszeile`, `.umschalterPfeil` standen auf `opacity`).
+    for (const regel of cssRegeln(OHNE_KOMMENTARE)) {
+      expect(regel.deklarationen, `opacity in "${regel.selektor}"`).not.toMatch(
+        /(?:^|;)\s*opacity\s*:/,
+      );
+    }
+  });
+
+  it("gibt der aktiven Flaeche eine Variable mit Wert in BEIDEN Farbmodi", () => {
+    /*
+     * Dieselbe Bauart wie der Panel-Flaechen-Test darunter, und aus demselben
+     * Grund: auf diesem Zweig war das Panel schon einmal weiss auf weiss, weil
+     * ein Plan eine Variable erfunden hatte, die es nicht gab. `--iuk-flaeche-
+     * aktiv` wird von `.appEintrag`, `.umschalterAusloeser` UND (ab Aufgabe 4)
+     * `.navLink` gelesen — ein Fehlgriff faerbt drei Stellen still leer.
+     *
+     * Sie steht in `app/globals.css` und nicht hier: ein CSS-Modul kann `:root`
+     * nicht scopen, und zwei Nutznieszer (Umschalter-Panel, Seitenleiste)
+     * erfuellen den Maszstab aus `docs/design/README.md`.
+     */
+    const GLOBALS = readFileSync("src/app/globals.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const alle = cssRegeln(GLOBALS);
+    const deklariert = (regel: CssRegel) =>
+      /(?:^|;)\s*--iuk-flaeche-aktiv\s*:/.test(regel.deklarationen);
+
+    expect(
+      alle.some((r) => deklariert(r) && !r.selektor.includes('[data-theme="dark"]')),
+      "--iuk-flaeche-aktiv hat keinen Hellwert",
+    ).toBe(true);
+    expect(
+      alle.some((r) => deklariert(r) && r.selektor.includes('[data-theme="dark"]')),
+      "--iuk-flaeche-aktiv hat keinen Wert unter [data-theme=dark]",
+    ).toBe(true);
   });
 
   it("spannt das Umschalter-Panel mobil über die volle Breite", () => {
@@ -382,10 +369,11 @@ describe("shell.module.css", () => {
 
   it("klebt die Seitenleiste ab 768px unter der Kopfzeile fest", () => {
     /*
-     * `inset-block-start` muss denselben Wert wie `headerHeight` (64px)
-     * tragen — weicht er ab, klebt die Leiste unter oder über der Kopfzeile,
-     * und `build` sieht das nicht (nur ein echter Browser wertet die
-     * Media Query aus).
+     * `inset-block-start` muss dieselbe Variable wie `--iuk-kopf` tragen —
+     * weicht sie ab, klebt die Leiste unter oder über der Kopfzeile, und
+     * `build` sieht das nicht (nur ein echter Browser wertet die Media Query
+     * aus). Die Zahl selbst (69px, aus `headerHeight` + Streifenhoehe) prueft
+     * der Test „rechnet --iuk-kopf aus headerHeight UND Streifenhoehe" unten.
      *
      * NICHT die erste `(min-width: 768px)`-Fundstelle im Dokument nehmen (wie
      * beim `.nurMobil`-Test oben): DIE Basisregel `.sider { display: none }`
@@ -404,12 +392,189 @@ describe("shell.module.css", () => {
     expect(regel, ".sider wird ab 768px nicht sichtbar gemacht").not.toBeNull();
     expect(regel![1]).toMatch(/display:\s*block/);
     expect(regel![1]).toMatch(/position:\s*sticky/);
-    expect(regel![1]).toMatch(/inset-block-start:\s*64px/);
+    expect(regel![1]).toMatch(/inset-block-start:\s*var\(--iuk-kopf\)/);
+  });
+
+  it("rechnet `--iuk-kopf` aus headerHeight UND Streifenhoehe", async () => {
+    /*
+     * DIE LEISTE KLEBTE AN DER FALSCHEN KANTE, und beides war falsch.
+     *
+     * Sie stand auf `inset-block-start: 64px` — dem Wert von
+     * `Layout.headerHeight`. Ueber der Kopfzeile steht aber zusaetzlich der
+     * 5px hohe Markenstreifen, und die Kopfzeile war ueberhaupt nicht
+     * klebend: beim Scrollen wanderte sie weg und ueber der Leiste stand ein
+     * 64px hohes Loch.
+     *
+     * Seit 2026-08-13 klebt der ganze Kopfblock (Streifen + Kopfzeile) und die
+     * Leiste darunter bei 69px. Die Zahl faellt aus zwei Groeszen, die es
+     * schon gibt — und genau die Situation „eine dritte Zahl laeuft still
+     * daneben" ist der Befund, den dieser Test verriegelt.
+     *
+     * CSS kann die TypeScript-Konstante nicht lesen, dieser Test schon: er
+     * liest `headerHeight` aus `buildTheme` und die Streifenhoehe aus dem CSS
+     * und haelt die Summe gegen `--iuk-kopf`.
+     */
+    const { buildTheme } = await import("@/core/theme/theme");
+    const headerHeight = buildTheme("light").components?.Layout?.headerHeight;
+    expect(typeof headerHeight, "Layout.headerHeight fehlt in buildTheme").toBe("number");
+
+    const streifen = /\.streifen\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(streifen, "Klasse .streifen fehlt").not.toBeNull();
+    const streifenHoehe = /height:\s*(\d+)px/.exec(streifen![1]);
+    expect(streifenHoehe, ".streifen hat keine Hoehe in px").not.toBeNull();
+
+    const kopf = /--iuk-kopf:\s*(\d+)px/.exec(OHNE_KOMMENTARE);
+    expect(kopf, "Variable --iuk-kopf fehlt").not.toBeNull();
+    expect(Number(kopf![1])).toBe(Number(headerHeight) + Number(streifenHoehe![1]));
+  });
+
+  it("laeszt den Kopfblock kleben, nicht nur die Leiste", () => {
+    /*
+     * Ohne das ist `--iuk-kopf` eine richtige Zahl fuer eine falsche Annahme:
+     * die Leiste klebt bei 69px unter einer Kopfzeile, die weggescrollt ist.
+     *
+     * Der Streifen klebt NICHT selbst, er sitzt im selben klebenden Block —
+     * zwei unabhaengig klebende Elemente waeren zwei Zahlen statt einer.
+     *
+     * `z-index` ist noetig, weil ein klebender Knoten ohne ihn von spaeterem
+     * Inhalt ueberzeichnet wird. Er erzeugt zugleich einen Stapelkontext, in
+     * dem `.umschalterFang` (900) und `.umschalterPanel` (901) liegen — beide
+     * bleiben damit ueber dem Seiteninhalt (auto = 0), und antds Drawer (1000,
+     * ins `body` portalisiert) bleibt darueber. Wer diese Zahl senkt, prueft
+     * alle drei.
+     */
+    const regel = /\.kopfBlock\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .kopfBlock fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/position:\s*sticky/);
+    expect(regel![1]).toMatch(/inset-block-start:\s*0/);
+    expect(regel![1]).toMatch(/z-index:\s*\d+/);
+  });
+
+  it("verwirft eine spaetere `.sider`-Ueberschreibung trotz gruenem Ersttreffer", () => {
+    const mutation = `${OHNE_KOMMENTARE}
+      .sider {
+        display: none;
+        inset-block-start: 0;
+      }
+    `;
+
+    // Genau der naive Ersttreffer: er bleibt gruen und sieht die spaetere
+    // Kaskaden-Ueberschreibung nicht.
+    const ersterTreffer = /\.sider\s*\{([^}]*)\}/.exec(mutation);
+    expect(ersterTreffer, "Basisregel .sider fehlt").not.toBeNull();
+    expect(ersterTreffer![1]).toMatch(/display:\s*none/);
+
+    expect(() => erwartetRobusteSiderUmschaltung(mutation)).toThrow();
+  });
+
+  it("verwirft `.sider` als erstes Kind einer spaeteren Media Query", () => {
+    const mutation = `${OHNE_KOMMENTARE}
+      @media (min-width: 768px) {
+        .sider {
+          display: none;
+        }
+      }
+    `;
+    expect(() => erwartetRobusteSiderUmschaltung(mutation)).toThrow();
+  });
+
+  it("ignoriert Kommentare und aehnlich benannte Klassen bei .sider", () => {
+    const nurNamen = `${CSS}
+      /* .sider { display: none; } */
+      .siderleiste { display: none; }
+      .nicht-sider { display: none; }
+    `;
+    expect(() => erwartetRobusteSiderUmschaltung(nurNamen)).not.toThrow();
   });
 
   it("kennt die Klasse .navAbschnitt", () => {
     const regel = /\.navAbschnitt\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
     expect(regel, "Klasse .navAbschnitt fehlt").not.toBeNull();
+  });
+
+  it("markiert den aktiven Eintrag mit linkem Akzent statt Unterstrich", () => {
+    /*
+     * `border-block-end` war das richtige Zeichen für eine WAAGERECHTE Leiste.
+     * In der Seitenleiste zog derselbe Selektor einen roten Strich UNTER dem
+     * aktiven Eintrag über die volle Leistenbreite — er las sich als
+     * Trennlinie zwischen zwei Gruppen, nicht als Auswahl. Im gemeldeten
+     * Screenshot stand er unter „Übersicht" und direkt über der Überschrift
+     * „Bestand", was die Fehldeutung noch verstärkte.
+     *
+     * `--iuk-marke` und nicht `--ant-color-primary`: eigenes Markup sieht antds
+     * Variablen nicht (Falle 2), die Markierung verlöre ihren Farbkanal.
+     *
+     * `font-weight: 600` BLEIBT und ist nicht redundant: es ist der Träger,
+     * der übrig bleibt, wenn der Farbkanal ausfällt — technisch (unaufgelöste
+     * Variable) wie beim Leser (Rot-Grün-Blindheit, Graustufen). Bedeutung nie
+     * allein über Farbe.
+     *
+     * DREI KANÄLE, NICHT VIER — die Textfarbe fehlt hier ABSICHTLICH, und das
+     * ist die Umkehr eines früheren Nachtrags (Fließtext am Ende dieser Datei).
+     * `color: var(--iuk-marke)` war belegt, solange der aktive Eintrag nackt
+     * auf `lightSiderBg` (`#141414`) saß. Dieselbe Aufgabe 4, die den linken
+     * Akzent brachte, legte darunter aber `--iuk-flaeche-aktiv` — und die
+     * getönte Fläche verschiebt den Nenner: komponiert `#2c2c2c`, gegen
+     * `#e45a66` nur noch 3.96:1 (im Drawer 3.48:1), beides unter 4.5:1. Die
+     * Textfarbe ist deshalb im Schlussreview gestrichen worden. Eine
+     * Zusicherung auf sie wäre jetzt nicht bloß überflüssig, sondern hielte
+     * eine Kontrastregression fest.
+     */
+    const regel = /\.navLink\[aria-current\]\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Regel `.navLink[aria-current]` fehlt").not.toBeNull();
+    expect(regel![1], "waagerechtes Aktiv-Idiom in einer senkrechten Liste").not.toMatch(
+      /border-block-end/,
+    );
+    expect(regel![1]).toMatch(/border-inline-start-color:\s*var\(--iuk-marke\)/);
+    expect(regel![1]).toMatch(/background:\s*var\(--iuk-flaeche-aktiv\)/);
+    expect(regel![1]).toMatch(/font-weight:\s*600/);
+    // `(?:^|;)\s*color:` und NICHT das bloße `/color:/` — sonst matcht das
+    // Muster schon in `border-inline-start-color:` (das Wort endet auch auf
+    // "color:") und die Zusicherung wäre schon durch die Akzentfarbe erfüllt,
+    // also nie rot. Dieselbe Verankerung wie in `deklarationsWerte` oben in
+    // dieser Datei — hier trägt sie die UMGEKEHRTE Richtung: keine eigene
+    // `color`-Deklaration mehr, damit die Markenfarbe nicht auf die getönte
+    // Fläche zurückkehrt (Begründung im Block über diesem Test).
+    expect(regel![1], "Markenfarbe zurück auf der getönten Fläche — 3.96:1").not.toMatch(
+      /(?:^|;)\s*color:/,
+    );
+  });
+
+  it("haelt den Ruhezustand auf demselben linken Rand wie den aktiven", () => {
+    // Ohne den transparenten Rahmen springt die Beschriftung beim Wechsel der
+    // aktiven Zeile um 3px zur Seite.
+    const regel = /\.navLink\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .navLink fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/border-inline-start:\s*3px solid transparent/);
+  });
+
+  it("gibt der Leiste eine dichtere Zeile als dem Drawer", () => {
+    /*
+     * `.navLink` bleibt in seiner Basis auf 56px — das ist der Drawer, und dort
+     * ist es ein Finger (`TAP` in core/theme/tokens.ts, Einsatzanforderung).
+     * Die Leiste existiert unterhalb von 768px gar nicht und wird mit Maus
+     * bedient; 40px ist antds eigenes Maß.
+     *
+     * `.modulleiste .navLink` ist (0,2,0). Die Verschachtelung ist NICHT
+     * Ballast: `.navLink` allein wäre (0,1,0) und stünde gleichauf mit der
+     * Basisregel — bei Gleichstand entschiede die Reihenfolge. Sie ist auch
+     * kein Spezifitätsstreit mit antd: `<a>` aus `next/link` trägt keine
+     * antd-Klasse. Wer sie entfernt, macht aus einer Regel eine Wette.
+     */
+    const regel = /\.modulleiste\s+\.navLink\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Regel `.modulleiste .navLink` fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/min-height:\s*40px/);
+
+    const basis = /\.navLink\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(basis![1], "der Drawer braucht das Tap-Masz").toMatch(/min-height:\s*56px/);
+  });
+
+  it("setzt die Leiste mit einer Kante vom Inhalt ab", () => {
+    // Ohne sie steht die Leiste ohne erkennbaren Grund neben dem Inhalt —
+    // die zweite Hälfte von „passt nicht hinein". `--iuk-linie` gibt es
+    // global mit Dunkelzweig; `--ant-*` sähe eigenes Markup nicht (Falle 2).
+    const { desktop } = erwartetRobusteSiderUmschaltung(OHNE_KOMMENTARE);
+    expect(desktop.deklarationen).toMatch(/border-inline-end:\s*1px solid var\(--iuk-linie\)/);
   });
 });
 
@@ -458,27 +623,41 @@ describe("Markenstreifen und Kopfzeilentypografie", () => {
     expect(regel![1]!, "opacity als Farbersatz ist raus").not.toMatch(/opacity/);
   });
 
-  it("markiert den aktiven Navigationseintrag in Markenrot UND mit Gewicht", () => {
-    // BEDEUTUNG NIE ALLEIN UEBER FARBE. `font-weight: 600` stand hier schon und
-    // BLEIBT — wer die Farbe fuer ausreichend haelt und das Gewicht entfernt,
-    // nimmt rot-gruen-blinden Nutzern und Graustufendruck die Markierung ganz.
-    //
-    // WAS DIESER SCAN BESITZT UND WAS NICHT.
-    //
-    // Er besitzt: die Regel steht im Stylesheet, sie traegt `--iuk-marke` fuer
-    // beides (Unterkante und Schrift) statt eines Literals, und `font-weight: 600`
-    // bleibt. Das ist der Quelltext-Scan.
-    //
-    // Er besitzt NICHT, dass die Regel im Browser gegen antds Stylesheet gewinnt.
-    // Wenn antd morgen eine spezifischere Regel fuer `.modulnav` mitbringt, bliebe
-    // dieser Scan gruen — er liest nur das Stylesheet und sieht die Kaskade nicht.
-    // Diese Haelfte besitzt `e2e/shell-mobil.spec.ts` (Task 10), das Farbe und
-    // Gewicht am gerenderten Element in zwei Viewports und zwei Modi misst.
-    const regel = OHNE_KOMMENTARE.match(/\.navLink\[aria-current\]\s*\{([^}]*)\}/);
-    expect(regel, ".navLink[aria-current] fehlt").not.toBeNull();
-    expect(regel![1]!).toMatch(/border-block-end-color:\s*var\(--iuk-marke\)/);
-    expect(regel![1]!).toMatch(/color:\s*var\(--iuk-marke\)/);
-    expect(regel![1]!, "das Gewicht ist die farbfreie Haelfte der Markierung")
-      .toMatch(/font-weight:\s*600/);
-  });
+  /*
+   * DIESER TEST STAND HIER FRÜHER ALS „markiert den aktiven Navigationseintrag
+   * in Markenrot UND mit Gewicht" und prüfte `border-block-end-color` — genau
+   * das waagerechte Idiom, das Aufgabe 4 durch den linken Akzent ersetzt
+   * (`.navLink[aria-current]` weiter oben in dieser Datei). Die Aufgabe 4
+   * zugeschriebene Notiz „hier ist nichts mehr zu entfernen" galt nur den
+   * `.modulnav`-Tests aus Aufgabe 2 — dieser Test zielte auf `.navLink`, nicht
+   * auf `.modulnav`, und blieb deshalb stehen, obwohl er dieselbe Regel wie
+   * der neue Test „markiert den aktiven Eintrag mit linkem Akzent statt
+   * Unterstrich" prüft, nur mit dem alten, jetzt falschen Erwartungswert. Ein
+   * Beibehalten hätte den Testlauf nach Schritt 3 dauerhaft rot gehalten:
+   * keine CSS-Regel kann gleichzeitig `border-block-end-color` UND
+   * `border-inline-start-color` als Aktivmarkierung tragen.
+   *
+   * ENTFERNT STATT ANGEPASST — UND DAS WAR ZUNÄCHST UNVOLLSTÄNDIG (Review-Fund
+   * Aufgabe 4). Der neue Test prüfte anfangs nur drei Kanäle (Akzentfarbe,
+   * Fläche, Gewicht) und ließ genau die Zusicherung fallen, die dieser alte
+   * Test zusätzlich trug: `color: var(--iuk-marke)` auf
+   * `.navLink[aria-current]`. Die Textfarbe galt als Träger der WCAG-Rechnung
+   * in `globals.css`, und der Nachtrag zog sie auf VIER Kanäle hoch.
+   *
+   * DIESER NACHTRAG IST IM SCHLUSSREVIEW WIEDER ZURÜCKGENOMMEN WORDEN, und
+   * zwar aus demselben Grund, aus dem er kam: der Kontrastrechnung. Er hatte
+   * eine Voraussetzung übersehen, die dieselbe Aufgabe 4 mitgebracht hatte —
+   * `background: var(--iuk-flaeche-aktiv)` unter demselben Text. Die
+   * `globals.css`-Zahl 5.22:1 gilt für `#e45a66` auf dem NACKTEN `#141414`;
+   * mit der Tönung komponiert die Fläche zu `#2c2c2c` und die Zahl fällt auf
+   * 3.96:1 (im Drawer, `colorBgElevated` `#1f1f1f`, auf 3.48:1). Die
+   * Zusicherung hat also nicht die Kontrastzahl bewacht, sondern eine
+   * Regression eingefroren — deshalb steht dort jetzt die Umkehrung: `color`
+   * darf NICHT wieder auftauchen. Was bewacht wird, sind die verbleibenden
+   * Träger. Das Gewicht bleibt, nicht weil es redundant zur Farbe wäre,
+   * sondern weil es der Träger ist, der übrig bleibt, wenn der Farbkanal
+   * ausfällt — technisch (unaufgelöste Variable) wie beim Leser
+   * (Rot-Grün-Blindheit, Graustufen). Nach dem Streichen der Textfarbe ist es
+   * der Träger, der überhaupt bleibt.
+   */
 });

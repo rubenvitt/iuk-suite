@@ -1,26 +1,25 @@
 import type { SuiteNavItem } from "@/core/shell/types";
 
 /**
- * DIE FORM FOLGT DEN DATEN, NICHT EINEM SCHWELLENWERT.
+ * DIE GRUPPIERUNG INNERHALB DER LEISTE — nicht mehr die Bauform.
  *
- * KEIN `"use client"`: `SuiteHeader` und `FullShell` sind Server Components und
- * lesen `hatAbschnitte`. Ein `"use client"` hier ergäbe dort eine
- * Client-Referenz statt der Funktion — HTTP 500, das kein Gate sieht
- * (`docs/design/README.md`, Falle 6).
+ * Hier stand bis 2026-08-13 zusaetzlich `hatAbschnitte`, und daraus leiteten
+ * `SuiteHeader` und `FullShell` ZWEI Bauformen ab: mit `abschnitt` eine
+ * Seitenleiste, ohne eine zweite Kopfzeile. Das war in sich schluessig und
+ * trotzdem der Fehler — ein optionales Feld entschied, ob dasselbe Produkt
+ * links oder oben navigiert. Seither bekommt jedes Modul mit Navigation die
+ * Leiste, und diese Datei beantwortet nur noch, wie ihre Eintraege darin
+ * gruppiert sind.
  *
- * Warum kein Schwellenwert auf der Anzahl („ab zehn Einträgen eine Leiste"):
- * das wäre eine Zahl, die niemand begründen kann und die bei elf anders
- * aussieht als bei zehn. Und warum kein zusätzliches Prop am `Shell`: das
- * erlaubte zwei Modulen, sich bei gleicher Datenlage verschieden zu verhalten.
+ * KEIN `"use client"`: `Modulleiste` ist zwar eine Client-Komponente, aber der
+ * Typ `SuiteNavItem` wird auch von Server Components gelesen. Ein `"use
+ * client"` hier ergaebe dort eine Client-Referenz statt der Funktion — HTTP
+ * 500, das kein Gate sieht (`docs/design/README.md`, Falle 6).
  */
 export interface NavAbschnitt {
   /** `null` = die Einträge VOR der ersten Überschrift. */
   titel: string | null;
   items: SuiteNavItem[];
-}
-
-export function hatAbschnitte(nav: SuiteNavItem[]): boolean {
-  return nav.some((e) => (e.abschnitt?.trim() ?? "") !== "");
 }
 
 /**

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Alert, Space, Switch } from "antd";
 import { useRouter } from "next/navigation";
+import { SPACE } from "@/core/theme/tokens";
 import { setGeraetAktiv } from "../../../../_actions/bz";
 import {
   deaktiviereElement,
@@ -67,7 +68,7 @@ export function BzAktivToggle({
   }
 
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div style={{ display: "grid", gap: SPACE.sm }}>
       <Space wrap>
         <Switch
           checked={istAktiv}

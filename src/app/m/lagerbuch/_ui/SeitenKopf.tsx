@@ -1,50 +1,23 @@
-import type { ReactNode } from "react";
-import { SCHRIFT } from "../_lib/schrift";
+export { Seitenkopf as SeitenKopf } from "@/core/shell/Seitenkopf";
 
-/**
- * DER KOPF JEDER VERWALTUNGSSEITE — ersetzt `.mainhead` (`globals.css:197`).
+/*
+ * ADAPTER, KEINE ZWEITE FASSUNG. Der Kopf ist am 2026-08-13 nach
+ * `core/shell/Seitenkopf.tsx` gezogen, weil `feedback`, `files` und `portal`
+ * ihn ebenfalls brauchen. Der Name bleibt hier stehen, damit die 24
+ * Aufrufstellen dieses Moduls unverändert bleiben — dasselbe Muster wie bei
+ * `_lib/schrift.ts` über `core/theme/schrift.ts`.
  *
- * KEINE CLIENT-DIREKTIVE, und das ist der Punkt: die Ueberschrift ist NACKTES
- * `<h1>` mit einer Typografie-Rolle aus `_lib/schrift.ts`, nicht
- * `Typography.Title`. Ein Compound-Zugriff auf antd ergibt in einer Server
- * Component HTTP 500 (Falle 1) — und die Alternative „macht die Ueberschrift
- * halt zu einer Client-Insel" kostete 23 Client-Grenzen fuer eine Zeile Text.
- *
- * `aktionen` steht rechts oben (Anlegen-Knopf, Aktiv-Schalter, Export),
- * `beschreibung` darunter. Beide sind optional; die meisten Detailseiten
- * tragen nur `titel` und `aktionen`.
- *
- * Die Rolle kommt als INLINE-STIL und nicht als CSS-Klasse: `_lib/schrift.ts`
- * ist die eine Quelle, und eine zweite Abschrift in `verwaltung.module.css`
- * waere genau die Doppelung, gegen die die Rollen-Datei gebaut ist.
+ * Die Lagerbuch-Fassung zog ihre Rollen bisher aus `_lib/schrift.ts`, die
+ * Suite-Fassung zieht sie aus `core/theme/schrift.ts` — zunächst NICHT
+ * derselbe Wert, nachgeprüft statt geglaubt: `_lib/schrift.ts` streicht
+ * `fontVariantNumeric` aus `titel` und `neben` (Funktion
+ * `ohneZiffernstellung`), `core/theme/schrift.ts` trägt es über `ZIFFERN` auf
+ * jeder Rolle, weil dieselbe Rolle auch Tabellenzellen und KPI-Werte bedient.
+ * Ein Seitenkopf ist keins von beidem — eine Überschrift vergleicht nichts —
+ * und `core/shell/Seitenkopf.tsx` trifft seit dem Befund aus dem Review zu
+ * Aufgabe 7 dieselbe Entscheidung wie hier: eine eigene, kleine Kopie von
+ * `ohneZiffernstellung` (kein Import aus diesem Modul — Modul-Interna sind
+ * kein API von `core` aus) streicht die Eigenschaft dort ebenso aus `titel`
+ * und `neben`. Damit ist es jetzt tatsächlich derselbe Wert, nur aus zwei
+ * unabhängigen, gleich begründeten Stellen statt aus einer gemeinsamen.
  */
-export function SeitenKopf({
-  titel,
-  beschreibung,
-  aktionen,
-}: {
-  titel: string;
-  beschreibung?: ReactNode;
-  aktionen?: ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: 12,
-        marginBlockEnd: 16,
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <h1 style={{ ...SCHRIFT.titel, margin: 0 }}>{titel}</h1>
-        {beschreibung ? (
-          <p style={{ ...SCHRIFT.neben, margin: "6px 0 0", maxWidth: "72ch" }}>{beschreibung}</p>
-        ) : null}
-      </div>
-      {aktionen ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{aktionen}</div> : null}
-    </div>
-  );
-}

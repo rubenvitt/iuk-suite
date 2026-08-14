@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Table } from "antd";
+import { SCHRIFT } from "@/core/theme/schrift";
 
 export interface ServiceRow {
   id: string;
@@ -49,12 +50,21 @@ export function ServiceTable({
        * pixelgenau. Belegt in `e2e/mobil-admin.spec.ts` bei 1280x800.
        */
       scroll={{ x: "max-content" }}
+      // Kein Diagramm, keine Karte darunter — der Leerzustand nennt den
+      // naechsten Schritt direkt (Formular steht im selben Abschnitt darunter).
+      locale={{ emptyText: "Noch keine Dienste angelegt. Lege unten den ersten an." }}
       onRow={() => ({ "data-testid": "service-row" }) as React.HTMLAttributes<HTMLElement>}
       columns={[
-        { title: "Name", dataIndex: "name" },
-        { title: "Slug", dataIndex: "slug" },
-        { title: "URL", dataIndex: "url" },
-        { title: "Öffentlich", dataIndex: "isPublic", render: (v: boolean) => (v ? "ja" : "nein") },
+        // Spaltenkoepfe ueber `columns[].title`, nicht ueber CSS gegen
+        // `.ant-table-thead` (docs/design/README.md).
+        { title: <span style={SCHRIFT.kicker}>Name</span>, dataIndex: "name" },
+        { title: <span style={SCHRIFT.kicker}>Slug</span>, dataIndex: "slug" },
+        { title: <span style={SCHRIFT.kicker}>URL</span>, dataIndex: "url" },
+        {
+          title: <span style={SCHRIFT.kicker}>Öffentlich</span>,
+          dataIndex: "isPublic",
+          render: (v: boolean) => (v ? "ja" : "nein"),
+        },
         {
           title: "",
           key: "aktionen",

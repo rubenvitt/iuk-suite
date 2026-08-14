@@ -132,3 +132,80 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
     },
   };
 }
+
+/**
+ * DIE ZWEITE BEDIENDICHTE — für Arbeitsflächen am Schreibtisch.
+ *
+ * `buildTheme` setzt `controlHeight: TAP` (56) und `controlHeightLG: TAP_XL`
+ * (72). Das ist eine EINSATZANFORDERUNG (Bedienung mit Handschuhen), keine
+ * Stilfrage, und sie bleibt unverändert. Der Fehler war ihre REICHWEITE: sie
+ * galt auch auf den Verwaltungsseiten, die mit Maus und Tastatur bedient
+ * werden — und ein 56px-Knopf neben einem 56px-Select neben einem 56px-Feld
+ * ergibt genau den Eindruck „zu viel Weißraum, nicht Ant Design".
+ *
+ * NUR DREI GRÖSZEN, ALLES ANDERE GEERBT. antd mischt ein verschachteltes
+ * Theme in das Elterntheme (`antd/es/config-provider/hooks/useTheme.js:44-53`):
+ * `token` flach, `components` eine Ebene tief, der Rest per Spread. `algorithm`,
+ * `colorPrimary`, `fontFamily`, `Layout` und `Input.inputFontSize` kommen
+ * dadurch von selbst. Sie hier zu wiederholen wäre eine Kopie, die beim
+ * nächsten Themewechsel still auseinanderläuft; `theme.test.ts` verbietet es.
+ *
+ * 44 UND NICHT 40, seit dem gebündelten Playwright-Lauf (Aufgabe 6). Der Plan
+ * hatte SHELL-VARIANTE mit ZEIGERGERÄT gleichgesetzt — das ist falsch:
+ * `FullShell` rendert auch auf einem 390px-Telefon, dort liegt dieselbe Dichte
+ * unter demselben Daumen. 40px unterschritten damit die Mindest-Tapfläche, und
+ * drei Zusicherungen sagten es gleichzeitig
+ * (`e2e/lagerbuch-mobil.spec.ts:312`, `e2e/mobil-admin.spec.ts:304` und `:413`
+ * — „Entfernen" stand auf 94x40). 44px ist WCAG 2.5.5 (Target Size, Enhanced,
+ * Stufe AAA) und im Repo längst die verankerte Untergrenze; sie ist keine neue
+ * Zahl. NICHT 2.5.8 (Target Size, Minimum) — das ist die AA-Stufe und verlangt
+ * nur 24x24; die Suite liegt hier bewusst darüber, nicht knapp darunter.
+ *
+ * EINE ZAHL, ÜBERALL — kein Media Query, keine viewport-abhängige Dichte. Die
+ * Höhe kommt aus einem antd-Token und landet als `--iuk-arbeit-control-height`
+ * auf antds SCOPE-Klasse; sie unter 768px zurückzudrehen hieße, genau diese
+ * `--ant-*`/`--iuk-arbeit-*`-Variablen von auszen zu überschreiben. Das ist
+ * Falle 5 (docs/design/README.md) in Reinform, und der Fehler wäre still: die
+ * Regel stünde richtig da und griffe nicht.
+ *
+ * `controlHeightLG` BLEIBT BEI 48, und das ist eine Entscheidung, keine
+ * Auslassung. Der Anlass der Änderung ist der 44px-Boden, und 48 liegt schon
+ * darüber. Alles, was spürbar größer wäre, landet bei TAP (56) — dem
+ * EINSATZ-Grundmaß —, und eine „große" Arbeitsfläche wäre dann so hoch wie ein
+ * Einsatzformular: genau der Unterschied, für den diese Dichte existiert, wäre
+ * wieder weg. Die eigentliche Aufgabe des Eintrags ist ohnehin, den Durchfall
+ * auf `TAP_XL` (72) zu verhindern.
+ *
+ * Und er kann NICHT die Kopfzeile verengen, auch wenn antd
+ * `headerPadding = controlHeightLG * 1.25` ableitet (`prepareComponentToken`,
+ * antd/es/layout/style/index.js:85+94): `buildTheme` setzt
+ * `components.Layout.headerPadding` (und `headerHeight`) ausdrücklich, und
+ * `useTheme` mischt `components` eine Ebene tief — `ARBEITSDICHTE` erbt den
+ * ganzen `Layout`-Block des Elterntheme unverändert. Nachgesehen, nicht
+ * angenommen.
+ *
+ * `Radio` MUSS mit. `buildTheme` setzt `radioSize: 28, dotSize: 14`, weil die
+ * Trefferfläche mit Handschuhen die ganze Zeile aus Marke und Beschriftung
+ * ist. Neben einem 44px-Bedienelement ist eine 28px-Marke unverhältnismäßig,
+ * und der Grund trägt am Schreibtisch nicht. Checkbox braucht kein
+ * Gegenstück: ihre Marke ist `controlHeight / 2` und fällt automatisch mit.
+ *
+ * `cssVar.key` AUSDRÜCKLICH: ohne ihn erzeugt antd über `useId` einen
+ * generierten Schlüssel und warnt in der Entwicklung davor (useTheme.js:19).
+ *
+ * KEIN `"use client"` in dieser Datei — `FullShell` ist eine Server Component
+ * und liest diesen Wert mittelbar. Aus einem Client-Modul käme eine
+ * Client-Referenz statt des Objekts (Falle 6).
+ *
+ * WO SIE GILT: über dem INHALT von `FullShell` — portal, feedback, files,
+ * lagerbuch, alpha, gamma. NICHT über `MinimalShell` (qr, beta: Einsatz-
+ * formulare) und NICHT über der Kopfzeile, die in jedem Modul gleich aussehen
+ * soll. Die drei tatsächlich handschuhkritischen Ansichten
+ * (`lagerbuch/helfer`, `feedback/f`, `files/(oeffentlich-*)`) benutzen gar
+ * keine Shell und sind strukturell unberührt.
+ */
+export const ARBEITSDICHTE: ThemeConfig = {
+  cssVar: { key: "iuk-arbeit" },
+  token: { controlHeight: 44, controlHeightLG: 48 },
+  components: { Radio: { radioSize: 16, dotSize: 8 } },
+};

@@ -52,8 +52,6 @@
 .kpiLink { display: block; color: inherit; text-decoration: none; }
 .kpiLink:hover { background: var(--lb-papier); }
 
-.backlink { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--lb-stahl); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-decoration: none; text-transform: uppercase; }
-.backlink:hover { color: var(--lb-tinte); }
 .fach { border: 1px solid var(--lb-linie); border-radius: 4px; padding: 1px 6px; color: var(--lb-stahl); font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 .filtertreffer { color: var(--lb-stahl); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .footnote { color: var(--lb-stahl); font-family: var(--font-mono); font-size: 12px; }

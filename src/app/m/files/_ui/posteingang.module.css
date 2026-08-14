@@ -74,6 +74,28 @@
   gap: 12px;
 }
 
+/*
+ * DER AUSWAHLSTAND BEKOMMT EINE EIGENE ZEILE — damit die Knoepfe eine behalten.
+ *
+ * Seit der Modulleiste (Aufgabe 2) hat der Inhalt 240px weniger. GEMESSEN bei
+ * 834px: die Leiste ist 562px breit, ihre drei Kinder brauchen
+ * 165 + 12 + 208 + 12 + 168 = 565px. Drei Pixel — und weil `flex-wrap` UMBRICHT
+ * statt zu STAUCHEN, rutschte nicht der Text, sondern „Ausgewaehlte loeschen" in
+ * die zweite Zeile, allein und unter seinem Nachbarn
+ * (`e2e/files-mobil.spec.ts:585`).
+ *
+ * Der Text und nicht der Umbruch ist die Stellschraube, und zwar dauerhaft: er
+ * traegt die Auswahl („12 ausgewaehlt (1,4 GB)") und ist damit von veraenderlicher
+ * Laenge. Solange er um dieselbe Zeile konkurriert, haengt die Anordnung der
+ * Handlungsknoepfe am Zufall der Auswahl. Mit einer eigenen Zeile haengt sie nur
+ * noch an den Knoepfen selbst.
+ *
+ * Eng auf `.knopfzeile` gescopet: `.hinweis` steht auch auszerhalb dieser Reihe.
+ */
+.knopfzeile .hinweis {
+  flex-basis: 100%;
+}
+
 .hinweis {
   color: var(--fi-muted);
   font-size: 14px;

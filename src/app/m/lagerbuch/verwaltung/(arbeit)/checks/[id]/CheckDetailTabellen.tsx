@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, Table, type TableProps } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../../_lib/format";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
@@ -87,37 +88,37 @@ function AnzeigeChip({ chip }: { chip: DetailChipAnzeige }) {
 }
 
 const ABGLEICH_SPALTEN = [
-  { title: "Artikel", dataIndex: "artikel", key: "artikel" },
+  { title: <span style={SCHRIFT.feldname}>Artikel</span>, dataIndex: "artikel", key: "artikel" },
   {
-    title: "Soll",
+    title: <span style={SCHRIFT.feldname}>Soll</span>,
     dataIndex: "sollText",
     key: "soll",
     align: "right" as const,
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: "Gezählt",
+    title: <span style={SCHRIFT.feldname}>Gezählt</span>,
     dataIndex: "istText",
     key: "ist",
     align: "right" as const,
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: "Korrigiert",
+    title: <span style={SCHRIFT.feldname}>Korrigiert</span>,
     dataIndex: "korrekturText",
     key: "korrektur",
     align: "right" as const,
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: "Nachgefüllt",
+    title: <span style={SCHRIFT.feldname}>Nachgefüllt</span>,
     dataIndex: "nachgefuelltText",
     key: "nachgefuellt",
     align: "right" as const,
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: "Offen",
+    title: <span style={SCHRIFT.feldname}>Offen</span>,
     dataIndex: "offenChip",
     key: "offen",
     render: (offenChip: DetailChipAnzeige) => <AnzeigeChip chip={offenChip} />,
@@ -126,13 +127,13 @@ const ABGLEICH_SPALTEN = [
 
 const NACHFUELL_SPALTEN = [
   {
-    title: "Fach",
+    title: <span style={SCHRIFT.feldname}>Fach</span>,
     dataIndex: "fachText",
     key: "fach",
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: "Artikel",
+    title: <span style={SCHRIFT.feldname}>Artikel</span>,
     dataIndex: "artikelText",
     key: "artikel",
     render: (text: string, zeile: NachfuellAnzeigeZeile) => (
@@ -143,21 +144,21 @@ const NACHFUELL_SPALTEN = [
     ),
   },
   {
-    title: "Soll",
+    title: <span style={SCHRIFT.feldname}>Soll</span>,
     dataIndex: "sollText",
     key: "soll",
     align: "right" as const,
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: "Gezählt",
+    title: <span style={SCHRIFT.feldname}>Gezählt</span>,
     dataIndex: "istText",
     key: "ist",
     align: "right" as const,
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: "Lücke im Fach",
+    title: <span style={SCHRIFT.feldname}>Lücke im Fach</span>,
     dataIndex: "lueckeChip",
     key: "luecke",
     render: (lueckeChip: DetailChipAnzeige) => <AnzeigeChip chip={lueckeChip} />,
@@ -165,21 +166,21 @@ const NACHFUELL_SPALTEN = [
 ] satisfies TableProps<NachfuellAnzeigeZeile>["columns"];
 
 const GERAETE_SPALTEN = [
-  { title: "Gerät", dataIndex: "name", key: "name" },
+  { title: <span style={SCHRIFT.feldname}>Gerät</span>, dataIndex: "name", key: "name" },
   {
-    title: "Vorhanden",
+    title: <span style={SCHRIFT.feldname}>Vorhanden</span>,
     dataIndex: "vorhandenChip",
     key: "vorhanden",
     render: (vorhandenChip: DetailChipAnzeige) => <AnzeigeChip chip={vorhandenChip} />,
   },
   {
-    title: "Zustand",
+    title: <span style={SCHRIFT.feldname}>Zustand</span>,
     dataIndex: "zustandChip",
     key: "zustand",
     render: (zustandChip: DetailChipAnzeige) => <AnzeigeChip chip={zustandChip} />,
   },
   {
-    title: "Bemerkung",
+    title: <span style={SCHRIFT.feldname}>Bemerkung</span>,
     dataIndex: "bemerkungText",
     key: "bemerkung",
     render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
@@ -187,9 +188,9 @@ const GERAETE_SPALTEN = [
 ] satisfies TableProps<GeraetAnzeigeZeile>["columns"];
 
 const FLASCHEN_SPALTEN = [
-  { title: "Flasche", dataIndex: "name", key: "name" },
+  { title: <span style={SCHRIFT.feldname}>Flasche</span>, dataIndex: "name", key: "name" },
   {
-    title: "Druck",
+    title: <span style={SCHRIFT.feldname}>Druck</span>,
     dataIndex: "druck",
     key: "druck",
     align: "right" as const,
@@ -198,7 +199,7 @@ const FLASCHEN_SPALTEN = [
       : <span style={SCHRIFT.mono}>{druck.text}</span>,
   },
   {
-    title: "Füllstand",
+    title: <span style={SCHRIFT.feldname}>Füllstand</span>,
     dataIndex: "fuellstandChip",
     key: "fuellstand",
     render: (fuellstandChip: DetailChipAnzeige) => (
@@ -208,15 +209,15 @@ const FLASCHEN_SPALTEN = [
 ] satisfies TableProps<FlascheAnzeigeZeile>["columns"];
 
 const VERFALL_SPALTEN = [
-  { title: "Artikel", dataIndex: "artikel", key: "artikel" },
+  { title: <span style={SCHRIFT.feldname}>Artikel</span>, dataIndex: "artikel", key: "artikel" },
   {
-    title: "Verfall",
+    title: <span style={SCHRIFT.feldname}>Verfall</span>,
     dataIndex: "verfallText",
     key: "verfall",
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: "Status",
+    title: <span style={SCHRIFT.feldname}>Status</span>,
     dataIndex: "statusChip",
     key: "status",
     render: (statusChip: DetailChipAnzeige) => <AnzeigeChip chip={statusChip} />,
@@ -236,7 +237,7 @@ export function CheckDetailTabellen({
   const leertext = (vorgabe: string) => unlesbarLeertext ?? vorgabe;
   return (
     <>
-      <Card title="Abgleich" style={{ marginBlockEnd: 16 }}>
+      <Card title="Abgleich" style={{ marginBlockEnd: SPACE.lg }}>
         <Table<AbgleichAnzeigeZeile>
           rowKey="id"
           pagination={false}
@@ -247,7 +248,7 @@ export function CheckDetailTabellen({
           columns={ABGLEICH_SPALTEN}
         />
       </Card>
-      <Card title="Nachfüllung (je Fach)" style={{ marginBlockEnd: 16 }}>
+      <Card title="Nachfüllung (je Fach)" style={{ marginBlockEnd: SPACE.lg }}>
         <Table<NachfuellAnzeigeZeile>
           rowKey="id"
           pagination={false}
@@ -258,7 +259,7 @@ export function CheckDetailTabellen({
           columns={NACHFUELL_SPALTEN}
         />
       </Card>
-      <Card title="Geräte" style={{ marginBlockEnd: 16 }}>
+      <Card title="Geräte" style={{ marginBlockEnd: SPACE.lg }}>
         <Table<GeraetAnzeigeZeile>
           rowKey="id"
           pagination={false}
@@ -269,7 +270,7 @@ export function CheckDetailTabellen({
           columns={GERAETE_SPALTEN}
         />
       </Card>
-      <Card title="Sauerstoff" style={{ marginBlockEnd: 16 }}>
+      <Card title="Sauerstoff" style={{ marginBlockEnd: SPACE.lg }}>
         <Table<FlascheAnzeigeZeile>
           rowKey="id"
           pagination={false}

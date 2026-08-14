@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Alert, Button, Form, Input, InputNumber } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { messungErfassen } from "../../../../_actions/sauerstoff";
 
 const MESSUNG_FEHLER = "Messung konnte nicht gespeichert werden.";
@@ -89,7 +90,7 @@ export function MessungForm({ flascheId }: { flascheId: string }) {
           type="success"
           showIcon={false}
           title={meldung}
-          style={{ marginInlineStart: 12 }}
+          style={{ marginInlineStart: SPACE.md }}
         />
       ) : null}
       {fehler ? (
@@ -97,7 +98,7 @@ export function MessungForm({ flascheId }: { flascheId: string }) {
           type="warning"
           showIcon={false}
           title={fehler}
-          style={{ marginInlineStart: 12 }}
+          style={{ marginInlineStart: SPACE.md }}
         />
       ) : null}
     </Form>

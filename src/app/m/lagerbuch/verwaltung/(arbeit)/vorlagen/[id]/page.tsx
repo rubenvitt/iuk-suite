@@ -1,10 +1,10 @@
 import { Card, Col, Row } from "antd";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { artikelListe } from "../../../../_lib/lesepfade/artikel";
 import { templateDetail } from "../../../../_lib/lesepfade/fahrzeuge";
-import { Brotkrume } from "../../../../_ui/Brotkrume";
 import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
@@ -43,13 +43,13 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
 
   return (
     <>
-      <Brotkrume href="/verwaltung/vorlagen">Alle Vorlagen</Brotkrume>
       <SeitenKopf
         titel={detail.name}
         beschreibung={detail.aktiv ? undefined : <Chip ton="grau">inaktiv</Chip>}
+        zurueck={{ titel: "Alle Vorlagen", href: "/verwaltung/vorlagen" }}
       />
 
-      <Row gutter={[12, 12]} style={{ marginBlockEnd: 24 }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={8}>
           <Kachel zahl={positionen.length} beschriftung="Positionen" />
         </Col>
@@ -61,7 +61,7 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
         </Col>
       </Row>
 
-      <Card title="Positionen" style={{ marginBlockEnd: 16 }}>
+      <Card title="Positionen" style={{ marginBlockEnd: SPACE.lg }}>
         <TemplatePosEditor
           templateId={detail.id}
           positionen={positionen}
@@ -69,7 +69,7 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
         />
       </Card>
 
-      <Card title="Verknüpfte Fahrzeuge" style={{ marginBlockEnd: 16 }}>
+      <Card title="Verknüpfte Fahrzeuge" style={{ marginBlockEnd: SPACE.lg }}>
         <VerknuepfteFahrzeugeTable zeilen={verknuepfteFahrzeuge} />
       </Card>
 

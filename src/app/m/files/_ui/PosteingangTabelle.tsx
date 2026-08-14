@@ -46,6 +46,8 @@ import { SCHREIBBARE_KATEGORIEN, anzeigeKategorie } from "../_lib/kategorien";
  * unten ist ohne einen fehlenden Fall nicht uebersetzbar.
  */
 import type { AvStatus } from "../_lib/av";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SCHRIFT } from "@/core/theme/schrift";
 import styles from "./posteingang.module.css";
 
 /**
@@ -299,7 +301,10 @@ export function PosteingangTabelle({ zeilen, jetztSekunden }: PosteingangTabelle
   if (zeilen.length === 0) {
     return (
       <div className={styles.seite} data-testid="files-posteingang-leer">
-        <h1>Posteingang</h1>
+        {/* Punkt 1 der Pruefliste: `Seitenkopf` statt eines nackten `<h1>`.
+            Kein `zurueck` — diese Seite ist ein Navigationseintrag der
+            Modulleiste (`FILES_NAV`), keine Detailseite. */}
+        <Seitenkopf titel="Posteingang" />
         <Card>
           <p>Noch keine Abgabe eingegangen.</p>
           <p className={styles.hinweis}>
@@ -322,7 +327,8 @@ export function PosteingangTabelle({ zeilen, jetztSekunden }: PosteingangTabelle
 
   return (
     <div className={styles.seite}>
-      <h1>Posteingang</h1>
+      {/* Punkt 1 der Pruefliste — Begruendung an der leeren Fassung oben. */}
+      <Seitenkopf titel="Posteingang" />
 
       <div className={styles.filterleiste} data-testid="files-posteingang-filter">
         <FilterGruppe
@@ -523,12 +529,19 @@ function auswahlSpalte(
  * DIE ACHT SPALTEN AUS §8.6, in ihrer Reihenfolge. `data-spalte` traegt jede
  * Zelle, weil ein Test sonst ueber Textinhalte raten muesste — und „Altbestand"
  * stuende dann irgendwo in der Zeile statt in DIESER Spalte.
+ *
+ * SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
+ * in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): jeder
+ * Kopf ein `<span style={SCHRIFT.kicker}>` statt eines nackten Strings, nie
+ * CSS gegen `.ant-table-thead`. Die Auswahlspalte (`auswahlSpalte()` oben)
+ * bleibt ausgenommen — ihr Kopf ist eine Checkbox, kein Text, die Rolle wäre
+ * dort ohne Wirkung.
  */
 function spalten() {
   return [
     {
       key: "zeit",
-      title: "Zeit",
+      title: <span style={SCHRIFT.kicker}>Zeit</span>,
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="zeit" className={styles.zahlen}>
           {zeile.empfangenText}
@@ -537,14 +550,14 @@ function spalten() {
     },
     {
       key: "dateiname",
-      title: "Dateiname",
+      title: <span style={SCHRIFT.kicker}>Dateiname</span>,
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="dateiname">{zeile.dateiname}</span>
       ),
     },
     {
       key: "groesse",
-      title: "Größe",
+      title: <span style={SCHRIFT.kicker}>Größe</span>,
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="groesse" className={styles.zahlen}>
           {byteText(zeile.groesseBytes)}
@@ -553,7 +566,7 @@ function spalten() {
     },
     {
       key: "kategorie",
-      title: "Kategorie",
+      title: <span style={SCHRIFT.kicker}>Kategorie</span>,
       render: (_: unknown, zeile: PosteingangZeile) => (
         // ROH, auch wenn der Wert unbekannt ist: der Altbestand traegt, was
         // `sanitizeCategory` durchliess. Eine Zeile zu verwerfen, deren Datei
@@ -563,7 +576,7 @@ function spalten() {
     },
     {
       key: "hinweis",
-      title: "Hinweis",
+      title: <span style={SCHRIFT.kicker}>Hinweis</span>,
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="hinweis" className={styles.hinweistext}>
           {zeile.hinweis ?? "—"}
@@ -572,7 +585,7 @@ function spalten() {
     },
     {
       key: "avstatus",
-      title: "AV-Status",
+      title: <span style={SCHRIFT.kicker}>AV-Status</span>,
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="avstatus">
           <AvZustand status={zeile.avStatus} />
@@ -581,7 +594,7 @@ function spalten() {
     },
     {
       key: "abgabelink",
-      title: "Abgabelink",
+      title: <span style={SCHRIFT.kicker}>Abgabelink</span>,
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="abgabelink">
           <Abgabelink link={zeile.abgabelink} />
@@ -590,7 +603,7 @@ function spalten() {
     },
     {
       key: "aktionen",
-      title: "Aktionen",
+      title: <span style={SCHRIFT.kicker}>Aktionen</span>,
       render: (_: unknown, zeile: PosteingangZeile) => (
         <ZeilenAktionen zeile={zeile} kennung="tabelle" />
       ),
@@ -749,22 +762,18 @@ function ZeilenAktionen({
   const fehler = fehlerText(zustand);
 
   /*
-   * `size="small"` NUR in der Tabelle: eine 56px-Zeilenaktion sprengt die Zeile.
-   * In der Karte bleibt `controlHeight` (56) stehen und `block` macht die
-   * Knoepfe voll breit — unter 768px stehen Handlungsknoepfe untereinander und
-   * in voller Breite. `size="large"` waeren 72px und ist nirgends richtig.
+   * KEIN `size="small"` MEHR AN ZEILENAKTIONEN (korrigiert Aufgabe 12, nach
+   * Aufgabe 8): die alte Ausnahme galt der 56px-`controlHeight` — eine
+   * 44px-Zeilenaktion (`ARBEITSDICHTE`) sprengt keine Zeile mehr, waehrend
+   * `size="small"` auf 24px faellt und die Mindesttapflaeche unterbietet
+   * (`docs/design/README.md`, Falle 4). In der Karte bleibt `block` bestehen —
+   * unter 768px stehen Handlungsknoepfe untereinander und in voller Breite.
    */
   const inTabelle = kennung === "tabelle";
-  const masz = inTabelle ? ({ size: "small" } as const) : ({ block: true } as const);
-  /*
-   * DER WIEDERHOLEN-KNOPF BRAUCHT EIN EIGENES MASZ, und zwar aus zwei
-   * Richtungen: `masz` waere falsch, weil `block` in einer Alert-Aktion eine
-   * vollbreite Flaeche ergaebe; ein hartes `size="small"` waere falsch, weil
-   * dieser Zweig AUCH in der Karte rendert und dort keine Tabellenzeile
-   * darunterliegt (`docs/design/README.md:59-62`). Bleibt: `small` in der
-   * Tabelle, sonst gar keine Angabe — dann steht `controlHeight` (56).
-   */
-  const maszAlert = inTabelle ? ({ size: "small" } as const) : {};
+  const masz = inTabelle ? {} : ({ block: true } as const);
+  /* Der Wiederholen-Knopf in der Alert-Aktion braucht keine eigene Ausnahme
+     mehr — ohne `size` steht `controlHeight` (44) an beiden Stellen. */
+  const maszAlert = {};
 
   return (
     <div>

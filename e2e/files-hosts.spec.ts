@@ -72,19 +72,19 @@ test("1 — Verwaltungs-Host: `/` zeigt die Freigaben-Uebersicht und die dreigli
 
   /*
    * DREI Eintraege, und die Zahl ist die Zusage — nicht die Anwesenheit des
-   * Behaelters: `Modulnav` rendert bei leerer Liste gar nichts
-   * (`SuiteNav.tsx:175`), aber eine Liste mit einem Eintrag ergaebe denselben
+   * Behaelters: `Modulleiste` rendert bei leerer Liste gar nichts
+   * (`Modulleiste.tsx:29`), aber eine Liste mit einem Eintrag ergaebe denselben
    * `data-testid` und dieselbe gruene Behaelter-Pruefung.
    *
-   * Auf `modulnav` eingegrenzt, weil der Drawer dieselben Links ein zweites Mal
-   * traegt (`SuiteNav.tsx:405-413`) — ein ungegrenztes `getByRole("link")` waere
-   * eine Strict-Mode-Verletzung, kein Befund.
+   * Auf `modulleiste` eingegrenzt, weil der Drawer dieselben Links ein zweites
+   * Mal traegt (`SuiteNav.tsx:251`, `:396`) — ein ungegrenztes
+   * `getByRole("link")` waere eine Strict-Mode-Verletzung, kein Befund.
    */
-  const modulnav = page.getByTestId("modulnav");
-  await expect(modulnav.getByRole("link")).toHaveCount(3);
-  await expect(modulnav.getByRole("link", { name: "Freigaben" })).toBeVisible();
-  await expect(modulnav.getByRole("link", { name: "Posteingang" })).toBeVisible();
-  await expect(modulnav.getByRole("link", { name: "Abgabelinks" })).toBeVisible();
+  const modulleiste = page.getByTestId("modulleiste");
+  await expect(modulleiste.getByRole("link")).toHaveCount(3);
+  await expect(modulleiste.getByRole("link", { name: "Freigaben" })).toBeVisible();
+  await expect(modulleiste.getByRole("link", { name: "Posteingang" })).toBeVisible();
+  await expect(modulleiste.getByRole("link", { name: "Abgabelinks" })).toBeVisible();
 });
 
 test("2 — Inbox-Host: `/` zeigt die Abgabe-Hinweisseite, ohne Shell und ohne App-Switcher", async ({
@@ -107,7 +107,7 @@ test("2 — Inbox-Host: `/` zeigt die Abgabe-Hinweisseite, ohne Shell und ohne A
   // betreten darf — jeder Eintrag eine Sackgasse.
   await expect(page.getByTestId("suite-header")).toHaveCount(0);
   await expect(page.getByTestId("app-umschalter")).toHaveCount(0);
-  await expect(page.getByTestId("modulnav")).toHaveCount(0);
+  await expect(page.getByTestId("modulleiste")).toHaveCount(0);
 });
 
 test("3 — Inbox-Host: ein Verwaltungspfad antwortet 404, derselbe Pfad auf dem Verwaltungs-Host aber nicht", async ({

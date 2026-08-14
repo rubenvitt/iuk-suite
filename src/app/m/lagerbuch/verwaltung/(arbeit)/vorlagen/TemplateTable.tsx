@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Table, type TableProps } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
 
@@ -16,7 +17,7 @@ export type TemplateAnzeigeZeile = {
 
 const SPALTEN: TableProps<TemplateAnzeigeZeile>["columns"] = [
   {
-    title: "Vorlage",
+    title: <span style={SCHRIFT.feldname}>Vorlage</span>,
     dataIndex: "name",
     render: (name: string, zeile) => (
       <span>
@@ -24,7 +25,7 @@ const SPALTEN: TableProps<TemplateAnzeigeZeile>["columns"] = [
           {name}
         </Link>
         {zeile.inaktiv ? (
-          <span style={{ marginInlineStart: 8 }}>
+          <span style={{ marginInlineStart: SPACE.sm }}>
             <Chip ton="grau">inaktiv</Chip>
           </span>
         ) : null}
@@ -32,12 +33,12 @@ const SPALTEN: TableProps<TemplateAnzeigeZeile>["columns"] = [
     ),
   },
   {
-    title: "Bestückung",
+    title: <span style={SCHRIFT.feldname}>Bestückung</span>,
     dataIndex: "bestueckungText",
     render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
   },
   {
-    title: "Fahrzeuge",
+    title: <span style={SCHRIFT.feldname}>Fahrzeuge</span>,
     dataIndex: "fahrzeugeText",
     render: (text: string) => (
       <Chip ton="grau" zeichen="fahrzeug">{text}</Chip>

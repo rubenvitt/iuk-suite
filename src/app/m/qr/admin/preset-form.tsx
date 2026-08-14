@@ -24,6 +24,15 @@ const ENCRYPTIONS = [
 ];
 
 /**
+ * ALLE `size="large"` UND `TAP_ROW`/`TAP_XL` IN DIESER DATEI BLEIBEN
+ * (Durchgang Aufgabe 13). Dieses Formular rendert unter `qr/admin`, und `qr`
+ * läuft auf `MinimalShell` (core/shell/MinimalShell.tsx) mit dem
+ * Handschuh-Maß der Suite (`controlHeight: 56`, `controlHeightLG: 72`) — die
+ * 44px-Arbeitsdichte aus Aufgabe 5 gilt hier NICHT, anders als auf den
+ * `FullShell`-Verwaltungsseiten der anderen Module. Kein Rest, kein Versehen.
+ */
+
+/**
  * Die beiden Auswahlfelder bleiben NATIVE `<select>` statt antds `Select` — das
  * ist kein Versehen, sondern eine Anforderung dieses Formulars:
  *

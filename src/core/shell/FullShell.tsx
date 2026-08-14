@@ -1,18 +1,27 @@
-import { Layout } from "antd";
-// Siehe SuiteHeader.tsx: direkte Named-Imports aus dem tiefen Pfad, nicht
-// `Layout.Content` / `Layout.Sider` — Property-Zugriffe auf antd-Compounds
-// ergeben in einer Server Component `undefined` und HTTP 500. `Sider` liegt in
-// einer eigenen Datei neben `layout.js` (antd 6.5.3, nachgesehen).
-import { Content } from "antd/es/layout/layout";
-import Sider from "antd/es/layout/Sider";
-
-import { SuiteHeader } from "@/core/shell/SuiteHeader";
-import { Modulleiste } from "@/core/shell/Modulleiste";
-import { hatAbschnitte } from "@/core/shell/navAbschnitte";
+import { SuiteRahmen } from "@/core/shell/SuiteRahmen";
+import { Arbeitsdichte } from "@/core/theme/Arbeitsdichte";
 import type { SuiteNavItem } from "@/core/shell/types";
-import { SPACE } from "@/core/theme/tokens";
-import s from "./shell.module.css";
 
+/**
+ * Die Arbeitsflächen-Variante: volle Inhaltsbreite, Seitenleiste wenn das
+ * Modul eine Navigation übergibt, und die dichtere Bediendichte darüber.
+ *
+ * DIE DICHTE LIEGT UM DEN INHALT, NICHT UM DEN RAHMEN. Die Kopfzeile soll in
+ * jedem Modul gleich aussehen, gleich welcher Variante darunter — und ihre drei
+ * Bedienelemente (Menü, Theme, Avatar) sind auf jeder Größe potenzielle
+ * Fingerziele.
+ *
+ * DIE SEITENLEISTE BLEIBT EBENFALLS AUSZERHALB, und der Grund ist genauer als
+ * „sie liest keinen Token". Ihre Einträge sind rohes `next/link`-Markup, das
+ * stimmt. Der `Sider` SELBST leitet aber sehr wohl aus `controlHeightLG` ab:
+ * `triggerHeight`, `zeroTriggerWidth` und `zeroTriggerHeight`
+ * (antd/es/layout/style/index.js:99-103). Wirkungslos sind die nur, WEIL dieser
+ * Sider weder `collapsible` noch `breakpoint` trägt — beides ist bewusst nicht
+ * gesetzt (antds Sider-Breakpoints laufen über JS und zeigen beim ersten
+ * Render die falsche Variante). Wer den Sider später einklappbar macht, holt
+ * sich damit einen 80px-Auslöser neben 40px-Bedienelemente und muss diese
+ * Grenze neu entscheiden.
+ */
 export async function FullShell({
   moduleKey,
   nav,
@@ -22,27 +31,9 @@ export async function FullShell({
   nav?: SuiteNavItem[];
   children: React.ReactNode;
 }) {
-  const mitLeiste = hatAbschnitte(nav ?? []);
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <SuiteHeader moduleKey={moduleKey} nav={nav} />
-      {mitLeiste ? (
-        <Layout>
-          {/*
-           * `breakpoint`/`collapsedWidth` bewusst NICHT gesetzt: antds
-           * Sider-Breakpoints laufen über JS und zeigen beim ersten Render die
-           * falsche Variante. Die Umschaltung macht `shell.module.css` mit dem
-           * einen Suite-Breakpoint — unter 768px steht die Leiste gar nicht da,
-           * die Navigation liegt dort im Drawer.
-           */}
-          <Sider width={240} theme="light" className={s.sider}>
-            <Modulleiste nav={nav ?? []} />
-          </Sider>
-          <Content style={{ padding: SPACE.lg }}>{children}</Content>
-        </Layout>
-      ) : (
-        <Content style={{ padding: SPACE.lg }}>{children}</Content>
-      )}
-    </Layout>
+    <SuiteRahmen moduleKey={moduleKey} nav={nav}>
+      <Arbeitsdichte>{children}</Arbeitsdichte>
+    </SuiteRahmen>
   );
 }

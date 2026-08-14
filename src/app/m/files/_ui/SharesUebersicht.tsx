@@ -5,6 +5,7 @@ import { ladeUebersicht, type UebersichtZeile } from "../_db/queries";
 import { entschaerfeTitel } from "../_lib/zip";
 import { zeitpunktBerlin } from "../_lib/zeit";
 import type { Rolle } from "../_lib/hostRolle";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { AblageKachel } from "./AblageKachel";
 import { SharesTabelle, SharesTabelleSkelett, type ShareZeile } from "./SharesTabelle";
 
@@ -144,21 +145,30 @@ export async function SharesUebersicht({ rolle }: { rolle: Rolle }) {
 
   return (
     <div data-testid="files-uebersicht">
-      <h1>Freigaben</h1>
-
       {/*
-       * DER EINSTIEG STEHT IMMER DA, nicht nur im Leerzustand. §10.2 nennt fuer
-       * `anlegenAction` zwei Wege: `/shares/neu` und diesen Knopf auf `/`. Ohne
-       * ihn gaebe es ab der ERSTEN Freigabe keinen Weg mehr zu einer zweiten —
-       * die Modulnavigation kennt „Freigabe anlegen" nicht (`_lib/nav.ts`), und
-       * der Knopf im Leerzustand ist dann per Definition unsichtbar.
+       * Punkt 1 der Pruefliste: `Seitenkopf` statt eines nackten `<h1>`. Kein
+       * `zurueck` — diese Seite ist die Modulwurzel, ein Rueckweg auf sich
+       * selbst waere eine Schleife.
        *
-       * Kein `size`: `controlHeight` ist 56 und schon das richtige Touch-Masz,
-       * `size="large"` waeren 72px.
+       * DER EINSTIEG STEHT IMMER DA, nicht nur im Leerzustand — jetzt in
+       * `aktionen`. §10.2 nennt fuer `anlegenAction` zwei Wege: `/shares/neu`
+       * und diesen Knopf auf `/`. Ohne ihn gaebe es ab der ERSTEN Freigabe
+       * keinen Weg mehr zu einer zweiten — die Modulnavigation kennt „Freigabe
+       * anlegen" nicht (`_lib/nav.ts`), und der Knopf im Leerzustand ist dann
+       * per Definition unsichtbar. `aktionen` bleibt AUSSERHALB der
+       * `Suspense`-Grenze (Seitenkopf steht davor), unveraendert sofort da.
+       *
+       * Kein `size`: `controlHeight` ist 44 (`ARBEITSDICHTE`) und schon das
+       * richtige Masz, `size="large"` waeren 72px.
        */}
-      <Button type="primary" href="/shares/neu" data-testid="files-uebersicht-anlegen">
-        Freigabe anlegen
-      </Button>
+      <Seitenkopf
+        titel="Freigaben"
+        aktionen={
+          <Button type="primary" href="/shares/neu" data-testid="files-uebersicht-anlegen">
+            Freigabe anlegen
+          </Button>
+        }
+      />
 
       <Suspense fallback={<SharesTabelleSkelett />}>
         <Zeilen />

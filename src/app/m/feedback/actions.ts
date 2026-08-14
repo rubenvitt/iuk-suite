@@ -18,7 +18,6 @@ import {
   insertEvening,
   updateEvening,
   deleteEvening,
-  insertSurvey,
   setSurveyStatus,
   activateSurvey,
   createAndStartSurvey,
@@ -32,7 +31,7 @@ import type { FormState } from "./_lib/formState";
 import { assertGroupAccess, isFeedbackAdmin } from "./_lib/access";
 import { viewerFromSession } from "./_lib/viewer";
 import { generateSecret } from "./_lib/token";
-import { STANDARD_QUESTIONS, coerceAnswer, isRatingType, type Question } from "./_lib/questions";
+import { coerceAnswer, isRatingType, type Question } from "./_lib/questions";
 import {
   computeClosesAt,
   nextStatusOnAccess,
@@ -491,18 +490,6 @@ export async function deleteEveningAction(formData: FormData) {
 }
 
 // ---- Umfragen ----
-export async function createSurveyAction(formData: FormData) {
-  const eveningId = num(formData.get("eveningId"));
-  const { db } = await guardGroup(await groupIdOfEvening(eveningId));
-  if (getSurveyByEvening(db, eveningId)) throw new Error("Umfrage existiert bereits");
-  insertSurvey(db, {
-    eveningId,
-    questions: JSON.stringify(STANDARD_QUESTIONS),
-    closeAfterHours: parseHours(formData.get("closeAfterHours")),
-    createdAt: new Date(),
-  });
-  revalidate();
-}
 export async function activateSurveyAction(formData: FormData) {
   const id = num(formData.get("id"));
   const { db } = await guardGroup(await groupIdOfSurvey(id));
@@ -518,20 +505,37 @@ export async function activateSurveyAction(formData: FormData) {
   activateSurvey(db, id, computeClosesAt(eve.date, hours), now);
   revalidate();
 }
-export async function closeSurveyAction(formData: FormData) {
-  const id = num(formData.get("id"));
-  const { db } = await guardGroup(await groupIdOfSurvey(id));
-  setSurveyStatus(db, id, "closed", { closedAt: new Date() });
-  revalidate();
-}
 /*
- * `archiveSurveyAction` IST ENTFALLEN (Spec: „`archived` verliert die
- * Oberflächen-Aktion", „Ausdrücklich nicht gebaut: `archived` als Bedienschritt").
- * Geschrieben werden nur noch `active` und `closed`; `draft` und `archived`
- * bleiben tolerant LESBAR (Altbestand, Import) — `nextStatusOnAccess` kennt sie
- * weiter, und der Verlauf weist einen Entwurf als Altbestand aus. Ihr einziger
- * Aufrufer war `(admin)/SurveyControls.tsx`, das mit der Abend-Detailseite
- * gelöscht wurde (§4.16).
+ * `archiveSurveyAction`, `createSurveyAction` UND `closeSurveyAction` SIND
+ * ENTFALLEN. `archiveSurveyAction` zuerst (Spec: „`archived` verliert die
+ * Oberflächen-Aktion", „Ausdrücklich nicht gebaut: `archived` als
+ * Bedienschritt") — ihr einziger Aufrufer war `(admin)/SurveyControls.tsx`, das
+ * mit der Abend-Detailseite gelöscht wurde (§4.16). `createSurveyAction`
+ * („Umfrage erstellen") und `closeSurveyAction` („Schließen") waren dieselben
+ * Geschwister-Actions jenes entfernten Dreischritts „Umfrage erstellen"/
+ * „Aktivieren"/„Schließen"/„Archivieren" — beim damaligen Aufräumen übersehen
+ * und in Aufgabe 11 (Navigation/Dichte) desselben Plans nachgetragen entfernt.
+ * `activateSurveyAction` — der vierte Schritt jenes Dreischritts — blieb
+ * unverwaist: `StartenKnopf` in `_ui/Verlauf.tsx` ruft sie weiterhin für
+ * Altbestands-Entwürfe auf.
+ *
+ * Geschrieben werden seither nur noch `active` und `closed`; `draft` und
+ * `archived` bleiben tolerant LESBAR (Altbestand, Import) — `nextStatusOnAccess`
+ * kennt sie weiter, und der Verlauf weist einen Entwurf als Altbestand aus.
+ *
+ * Die Wirkung der beiden entfernten Actions tragen vollständig ihre
+ * Nachfolger: `startFeedbackAction` legt Abend UND Umfrage in einer
+ * Transaktion an (`createAndStartSurvey`), `beendeFeedbackAction` schließt eine
+ * laufende Umfrage — beide mit Aufrufer (`_ui/StartFormular.tsx`,
+ * `_ui/BeendenKnopf.tsx`). Geprüft vor der Entfernung: `"use server"` steht im
+ * Modul nur in dieser Datei, kein UI-Weg rief eine der beiden, und keine
+ * Testzusicherung ging dabei verloren, die eine Aussage über bleibenden Code
+ * trifft — die einzige Revalidierungs-Zusicherung für „Beenden" existierte
+ * bereits unabhängig für `beendeFeedbackAction` (`actions.test.ts`, „schließt
+ * genau die genannte Umfrage und revalidiert das Cockpit"); der Aufruf, der
+ * `closeSurveyAction` als reine Testvorbereitung (geschlossene Umfrage
+ * herstellen) benutzte, ist auf einen direkten `setSurveyStatus`-Aufruf
+ * umgestellt.
  */
 
 /**

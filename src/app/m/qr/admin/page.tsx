@@ -6,7 +6,20 @@ import { PresetForm } from "@/app/m/qr/admin/preset-form";
 import { deletePresetAction } from "@/app/m/qr/actions";
 import { RAHMEN } from "@/app/m/qr/_lib/style";
 import { SPACE, TAP } from "@/core/theme/tokens";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
 
+/**
+ * HANDSCHUH-DICHTE, NICHT ARBEITSDICHTE (Durchgang Aufgabe 13): `qr` läuft
+ * unter `MinimalShell` (core/shell/MinimalShell.tsx) und behält dort das
+ * Handschuh-Maß (`controlHeight: 56`, `controlHeightLG: 72`) — die
+ * 44px-Arbeitsdichte aus Aufgabe 5 gilt auf dieser Seite NICHT. `TAP` unten
+ * (56px am Bearbeiten-Link) und die `size="large"`-Vorkommen in
+ * `preset-form.tsx` sind deshalb kein Handschuh-Rest, sondern weiterhin die
+ * richtige Größe. Ein künftiger Durchgang, der nach 44px-Resten sucht, soll
+ * hier nicht fündig werden — Punkt 2 der Prüfliste aus
+ * `.superpowers/sdd/2026-08-13-navigation-und-dichte/task-13-brief.md` gilt
+ * für diese Seite ausdrücklich nicht.
+ */
 export default async function QrAdminPage({
   searchParams,
 }: {
@@ -22,12 +35,12 @@ export default async function QrAdminPage({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl }} data-testid="qr-admin">
+      <Seitenkopf titel="Presets verwalten" />
       {/* Server-Komponente: Überschriften als schlichtes HTML, kein
           `Typography.Title` — `X.Y` auf einem antd-Import ergäbe hier einen 500er
           (Global Constraints). Aus demselben Grund bleibt die Liste ein
           <ul>/<li> statt `List`/`List.Item`. */}
       <section style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Presets verwalten</h1>
         <ul
           style={{
             display: "flex",
@@ -78,7 +91,18 @@ export default async function QrAdminPage({
                 {p.label}{" "}
                 {/* Der Slug ist eine Nutzereingabe ohne Leerzeichen; ohne
                     `anywhere` ist er ein einziges, unteilbares Wort. */}
-                <code style={{ opacity: 0.65, overflowWrap: "anywhere", minWidth: 0 }}>{p.id}</code>
+                {/* `--iuk-gedaempft` statt `opacity`: Deckkraft dimmt den
+                    Kontrast unprüfbar mit und hat keinen Dunkelzweig
+                    (globale Randbedingung, Durchgang Aufgabe 13). */}
+                <code
+                  style={{
+                    color: "var(--iuk-gedaempft)",
+                    overflowWrap: "anywhere",
+                    minWidth: 0,
+                  }}
+                >
+                  {p.id}
+                </code>
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
                 {/* Ein Link, kein Formular: das Bearbeiten aendert nichts, es
@@ -107,7 +131,11 @@ export default async function QrAdminPage({
             </li>
           ))}
         </ul>
-        {presets.length === 0 && <p style={{ opacity: 0.65 }}>Noch keine Presets angelegt.</p>}
+        {presets.length === 0 && (
+          <p style={{ color: "var(--iuk-gedaempft)" }}>
+            Noch keine Presets angelegt. Lege unten das erste an.
+          </p>
+        )}
       </section>
 
       <section style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
