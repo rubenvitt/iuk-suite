@@ -19,7 +19,7 @@
  * - die Konfiguration kommt von AUSSEN: zwei verschiedene, unerreichbare Ports
  *   erzeugen zwei verschiedene `grund`-Texte, nicht denselben.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import net from "node:net";
 import { nanoid } from "nanoid";
 
@@ -30,6 +30,7 @@ import { migrierteTestDb } from "../_db/testdb";
 import { aufgaben, dateien, personen, type PersonRow, type ScanStatus } from "../_db/schema";
 
 import { avKonfigAusEnv, bearbeiteOffeneDateien, istFreigegeben } from "./scan";
+import { nachweisPfad } from "./ablage";
 
 // ---------------------------------------------------------------------------
 // Ein echter clamd-Sprecher — Vorbild `core/av/scanner.test.ts`.
@@ -37,14 +38,24 @@ import { avKonfigAusEnv, bearbeiteOffeneDateien, istFreigegeben } from "./scan";
 
 interface Lauscher {
   readonly port: number;
-  anzahlBefehle(): number;
+  /**
+   * Fix Runde 1 (Review), Important 2/Minor 3: eine reine ANZAHL maskiert
+   * hinter dem `WHERE scan_status = 'offen'`-Vorbehalt beim Schreiben — ein
+   * Arbeiter, der versehentlich ALLE Zeilen selektiert, hinterließe wegen des
+   * Vorbehalts trotzdem einen unveränderten DB-Zustand, und nur die ANZAHL der
+   * beim Server angekommenen Befehle würde den Fehler zeigen. Der vollständige
+   * BEFEHL macht die Prüfung zusätzlich UNABHÄNGIG vom Vorbehalt: er beweist
+   * nicht nur "wie viele", sondern "welcher Pfad" — die Naht zwischen
+   * `ablage.ts` (`nachweisPfad`) und `scan.ts`.
+   */
+  befehle(): string[];
   stoppe(): Promise<void>;
 }
 
 type Reaktion = (befehl: string) => string;
 
 async function lausche(reagiere: Reaktion): Promise<Lauscher> {
-  let anzahl = 0;
+  const empfangen: string[] = [];
   const server = net.createServer((verbindung) => {
     let puffer = "";
     verbindung.on("data", (stueck) => {
@@ -53,7 +64,7 @@ async function lausche(reagiere: Reaktion): Promise<Lauscher> {
       if (ende < 0) return;
       const befehl = puffer.slice(0, ende);
       puffer = puffer.slice(ende + 1);
-      anzahl += 1;
+      empfangen.push(befehl);
       verbindung.end(`${reagiere(befehl)}\0`);
     });
     verbindung.on("error", () => {});
@@ -62,7 +73,7 @@ async function lausche(reagiere: Reaktion): Promise<Lauscher> {
   const adresse = server.address() as net.AddressInfo;
   return {
     port: adresse.port,
-    anzahlBefehle: () => anzahl,
+    befehle: () => [...empfangen],
     stoppe: () => new Promise<void>((fertig) => server.close(() => fertig())),
   };
 }
@@ -127,6 +138,34 @@ function legeDatei(aufgabeId: string, scanStatus: ScanStatus): { id: string } {
     .get();
 }
 
+/**
+ * Fix Runde 1 (Review), Important 1: simuliert ein DAUERHAFT scheiterndes
+ * Schreiben (z. B. `SQLITE_FULL`/`SQLITE_READONLY`) — genau der Fall, der ohne
+ * den Fortschrittsvorbehalt in `fuehreDurchlaufAus` eine Endlosschleife wäre.
+ * `select` bleibt unangetastet (echte Datenbank), nur `update(...).set(...)
+ * .where(...).run()` wirft — dieselbe Kette, die `scan.ts` tatsächlich ruft.
+ */
+function dbMitFehlschlagendemUpdate(basis: TestDb["db"]): TestDb["db"] {
+  return new Proxy(basis, {
+    get(target, prop, receiver) {
+      if (prop === "update") {
+        return () => ({
+          set: () => ({
+            where: () => ({
+              run: () => {
+                throw Object.assign(new Error("simulierter Schreibfehler (SQLITE_FULL)"), {
+                  code: "SQLITE_FULL",
+                });
+              },
+            }),
+          }),
+        });
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as TestDb["db"];
+}
+
 describe("istFreigegeben — nur 'sauber' liefert aus, alle vier Werte einzeln geprüft", () => {
   it.each([
     ["offen", false],
@@ -153,9 +192,12 @@ describe("bearbeiteOffeneDateien — nimmt nur 'offen'e Dateien, lässt die übr
       const befunde = await bearbeiteOffeneDateien(t.db, konfigFuer(server.port));
 
       expect(befunde).toEqual([{ id: offen.id, status: "sauber", grund: undefined }]);
-      // GENAU EIN Befehl beim Server — die drei anderen Zeilen wurden nicht
-      // einmal angefragt, nicht nur "nicht geschrieben".
-      expect(server.anzahlBefehle()).toBe(1);
+      // GENAU EIN Befehl beim Server, UND fuer GENAU den Pfad der offenen
+      // Zeile — die drei anderen Zeilen wurden nicht einmal angefragt, nicht
+      // nur "nicht geschrieben" (der `WHERE scan_status = 'offen'`-Vorbehalt
+      // beim Schreiben wuerde einen Fehler hier sonst maskieren, siehe
+      // Kommentar an `Lauscher.befehle`).
+      expect(server.befehle()).toEqual([`zSCAN ${nachweisPfad(offen.id)}`]);
 
       const alle = t.db.select().from(dateien).all();
       const nachId = new Map(alle.map((z) => [z.id, z]));
@@ -178,9 +220,47 @@ describe("bearbeiteOffeneDateien — nimmt nur 'offen'e Dateien, lässt die übr
     try {
       const befunde = await bearbeiteOffeneDateien(t.db, konfigFuer(server.port));
       expect(befunde).toEqual([]);
-      expect(server.anzahlBefehle()).toBe(0);
+      expect(server.befehle()).toEqual([]);
     } finally {
       await server.stoppe();
+    }
+  });
+});
+
+describe("ein dauerhaft scheiterndes Schreiben beendet den Durchlauf, statt endlos zu drehen", () => {
+  /*
+   * Fix Runde 1, Important 1 — die Gegenprobe, die der Reviewer verlangt hat:
+   * OHNE den Fortschrittsvorbehalt in `fuehreDurchlaufAus` würde dieselbe
+   * Zeile (weiterhin `offen`, weil das Schreiben nie gelingt) bei jeder
+   * Iteration der äußeren Schleife erneut selektiert und erneut gescannt —
+   * unbegrenzt. Der Beweis ist die Anzahl der beim Server angekommenen
+   * Befehle: GENAU EINER, nicht mehr.
+   */
+  it("scannt genau einmal, bricht dann laut ab, und die Zeile bleibt 'offen'", async () => {
+    const person = legePerson("dev:a@b");
+    const aufgabeId = legeAufgabeFuer(person.id);
+    legeDatei(aufgabeId, "offen");
+
+    const konsoleFehler = vi.spyOn(console, "error").mockImplementation(() => {});
+    const server = await lausche((befehl) => `${pfadAusBefehl(befehl)}: OK`);
+    try {
+      const kaputteDb = dbMitFehlschlagendemUpdate(t.db);
+      const befunde = await bearbeiteOffeneDateien(kaputteDb, konfigFuer(server.port));
+
+      // Kein Befund — kein Schreiben ist je gelungen.
+      expect(befunde).toEqual([]);
+      // GENAU EIN Scan-Versuch. Wäre die Schleife nicht durch den
+      // Fortschrittsvorbehalt begrenzt, stünde hier eine beliebig hohe Zahl —
+      // dieser Test würde nie fertig, statt rot zu werden.
+      expect(server.befehle().length).toBe(1);
+      // Der Abbruch ist LAUT, nicht still.
+      expect(konsoleFehler).toHaveBeenCalledWith(expect.stringContaining("Durchlauf abgebrochen"));
+
+      const zeile = t.db.select().from(dateien).all()[0];
+      expect(zeile.scanStatus).toBe("offen");
+    } finally {
+      await server.stoppe();
+      konsoleFehler.mockRestore();
     }
   });
 });

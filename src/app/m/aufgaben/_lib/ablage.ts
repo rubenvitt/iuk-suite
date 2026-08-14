@@ -38,8 +38,12 @@
  * Groessenpruefung bestanden sind. Es gibt deshalb keine Zwischendatei und
  * keinen Aufraeumpfad wie bei `files` (chunked Upload) — bei „ein paar
  * Bildern pro Woche" ist das ganze Bild im Speicher zu halten unproblematisch,
- * und eine abgelehnte Datei hinterlaesst dadurch STRUKTURELL keinen Rest: es
- * gibt keinen Schreibvorgang, den man rueckgaengig machen muesste.
+ * und eine ABGELEHNTE Datei hinterlaesst dadurch STRUKTURELL keinen Rest: es
+ * gibt keinen Schreibvorgang, den man rueckgaengig machen muesste. Ein
+ * SCHREIBFEHLER (ENOSPC, ein unvollstaendiges `write`) NACH dem `open("wx",…)`
+ * ist ein zweiter Fall — die Datei existiert dann schon als leerer/halber
+ * Rest — und wird im `catch` explizit mit `unlink` aufgeraeumt, bevor der
+ * Fehler weiterfliegt (Fix Runde 1).
  *
  * KEIN `"use client"`, KEIN `@ant-design/icons` (Fallen 6 und 7).
  */
@@ -240,11 +244,28 @@ export async function legeNachweisAb(
   await mkdir(dirname(pfad), { recursive: true, mode: ABLAGE_MODUS });
   const griff = await open(pfad, "wx", BLOB_MODUS);
   try {
-    await griff.write(bytes);
+    // `write` liefert die TATSAECHLICH geschriebene Byteanzahl — bei einer
+    // regulaeren Datei praktisch immer vollstaendig, aber ungeprueft wuerde ein
+    // abweichender Wert `ok:true` mit einer `groesse` melden, die die abgelegte
+    // Datei gar nicht hat (Fix Runde 1, Minor 5).
+    const { bytesWritten } = await griff.write(bytes);
+    if (bytesWritten !== bytes.byteLength) {
+      throw new Error(
+        `[aufgaben][ablage] unvollständiger Schreibvorgang: ${bytesWritten}/${bytes.byteLength} Bytes geschrieben`,
+      );
+    }
     await griff.sync();
-  } finally {
+  } catch (fehler) {
+    // Die Datei existiert bereits (`wx` legt sie an, BEVOR `write` scheitern
+    // kann) — ein Schreibfehler NACH diesem Punkt (ENOSPC, der obige
+    // Teilschreib-Fehler) hinterliesse sonst einen verwaisten Teilblob. „Keine
+    // halbe Datei" gilt deshalb auch im Fehlerfall, nicht nur bei einer
+    // Ablehnung VOR dem ersten Schreibversuch (Fix Runde 1, Minor 4).
     await griff.close().catch(() => {});
+    await unlink(pfad).catch(() => {});
+    throw fehler;
   }
+  await griff.close().catch(() => {});
 
   return { ok: true, mime, groesse: bytes.byteLength };
 }

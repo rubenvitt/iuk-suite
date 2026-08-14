@@ -142,10 +142,16 @@ function statusFuer(ergebnis: AvErgebnis): "sauber" | "befund" | "fehler" {
  * demselben Grund wie in `files/_lib/av.ts`: BILLIG und eine zweite Linie,
  * falls doch einmal zwei Aufrufe dieselbe Zeile erreichen.
  *
- * Wirft NICHT weiter: ein Fehler beim Schreiben (die Datenbank ist gesperrt,
- * etwa) wird geloggt, und die Zeile bleibt `offen` fuer den naechsten
- * Durchlauf — das ist der einzige Fall, in dem eine Zeile laenger als noetig
- * `offen` bleibt, und er ist LAUT, nicht still.
+ * Wirft NICHT weiter: ein Fehler beim Schreiben (die Datenbank ist voll,
+ * schreibgeschuetzt, gesperrt) wird geloggt, und die Zeile bleibt `offen` —
+ * LAUT, nicht still. **Fix Runde 1:** „bleibt offen fuer den naechsten
+ * Durchlauf" hiess vorher „fuer die naechste ITERATION derselben Schleife in
+ * `fuehreDurchlaufAus`" — bei einem DAUERHAFT scheiternden Schreibvorgang
+ * (volles/schreibgeschuetztes Volume) waere das eine Endlosschleife gewesen,
+ * die pro Iteration erneut `zSCAN` gegen clamd feuert. Der Fortschrittsvorbehalt
+ * in `fuehreDurchlaufAus` (siehe dort) haelt diese Funktion selbst unveraendert
+ * — sie liefert weiterhin `null` bei jedem Scheitern —, verhindert aber, dass
+ * die AEUSSERE Schleife auf ausschliesslich scheiternden Zeilen weiterdreht.
  */
 async function verarbeiteZeile(
   db: AufgabenDb,
@@ -208,6 +214,30 @@ async function verarbeiteZeile(
  * Endet, sobald die Auswahl leer ist — „ein Arbeiter, der nichts findet,
  * hoert auf" ist damit woertlich erfuellt: es gibt keinen Zustand, den ein
  * `stoppe...()` beenden muesste, weil die Funktion selbst endet.
+ *
+ * **Fix Runde 1 — Fortschrittsvorbehalt gegen eine Endlosschleife.** Die
+ * AEUSSERE Schleife selektiert nach jeder inneren Runde erneut — das war so
+ * gedacht fuer NEUE `offen`-Zeilen (ein weiterer Upload waehrend des Laufs),
+ * hatte aber eine Luecke: `verarbeiteZeile` liefert auch dann `null`, wenn das
+ * SCHREIBEN scheitert (Volume voll/schreibgeschuetzt) — die Zeile bleibt
+ * `offen` und wird von der naechsten SELECT-Iteration SOFORT wieder erfasst,
+ * ohne dass sich etwas geaendert haette. Ohne Gegenmassnahme dreht die
+ * Schleife dann unbegrenzt und feuert bei jeder Iteration erneut `zSCAN` gegen
+ * clamd — und `laufenderDurchlauf` (siehe unten) bliebe dauerhaft besetzt,
+ * sodass jeder spaetere `starteAufgabenScanArbeiter()`-Aufruf sich still an
+ * diesen festgefahrenen Lauf haengt statt einen neuen zu starten.
+ *
+ * Deshalb: die aeussere Schleife geht nur dann in eine weitere Iteration,
+ * wenn MINDESTENS EINE Zeile dieser Runde tatsaechlich ein Ergebnis
+ * geschrieben hat (`fortschritt`). Schreiben alle Zeilen einer Runde
+ * fehlgeschlagen, bricht der Durchlauf LAUT ab, statt endlos zu drehen — die
+ * betroffenen Zeilen bleiben `offen` und werden beim naechsten ANGESTOSSENEN
+ * Durchlauf (naechster Upload, naechster Boot) erneut versucht. Das deckt
+ * bewusst auch den harmlosen Fall ab, in dem `verarbeiteZeile` `null` liefert,
+ * weil eine Zeile zwischen Auswahl und Schreiben nicht mehr `offen` war
+ * (`treffer.changes === 0`) — dieser Fall ist selbstaufloesend (die Zeile ist
+ * dann laengst nicht mehr `offen` und faellt beim naechsten SELECT ohnehin
+ * heraus), der Fortschrittsvorbehalt behandelt ihn nur vorsorglich gleich.
  */
 async function fuehreDurchlaufAus(db: AufgabenDb, konfig: AvKonfig): Promise<ScanBefund[]> {
   const tabelle = await holeTabelle();
@@ -222,9 +252,22 @@ async function fuehreDurchlaufAus(db: AufgabenDb, konfig: AvKonfig): Promise<Sca
       .all();
     if (offene.length === 0) return befunde;
 
+    let fortschritt = false;
     for (const zeile of offene) {
       const befund = await verarbeiteZeile(db, tabelle, zeile, konfig);
-      if (befund !== null) befunde.push(befund);
+      if (befund !== null) {
+        befunde.push(befund);
+        fortschritt = true;
+      }
+    }
+
+    if (!fortschritt) {
+      console.error(
+        `[aufgaben][scan] Durchlauf abgebrochen: ${offene.length} 'offen'e Zeile(n) blieben ohne ` +
+          "Ergebnis — kein Fortschritt in dieser Runde, ein weiterer Versuch waere eine Endlosschleife. " +
+          "Erneuter Versuch beim naechsten angestossenen Durchlauf.",
+      );
+      return befunde;
     }
     // Zurueck zum SELECT: waehrend dieses Durchlaufs koennen neue `offen`-
     // Zeilen entstanden sein (ein weiterer Upload). Der naechste Durchlauf
@@ -236,10 +279,23 @@ async function fuehreDurchlaufAus(db: AufgabenDb, konfig: AvKonfig): Promise<Sca
 let laufenderDurchlauf: Promise<ScanBefund[]> | null = null;
 
 /**
- * Verarbeitet die Warteschlange bis sie leer ist und gibt jeden Befund
+ * Verarbeitet die Warteschlange bis sie leer ist (oder bis kein Fortschritt
+ * mehr moeglich ist, siehe `fuehreDurchlaufAus`) und gibt jeden Befund
  * zurueck. Wirft weiter, wenn `fuehreDurchlaufAus` selbst einen unerwarteten
  * Fehler hat (z. B. `holeDb`/`holeTabelle` schlagen fehl) — Aufrufer, die das
  * nicht behandeln wollen, nutzen `starteAufgabenScanArbeiter` weiter unten.
+ *
+ * **Vertragspunkt fuer AWAITENDE Aufrufer (nicht nur `starteAufgabenScanArbeiter`,
+ * das das Ergebnis ohnehin verwirft):** ueberlappende Aufrufe TEILEN sich
+ * denselben laufenden Durchlauf (`laufenderDurchlauf` oben). Das zurueckgegebene
+ * Array gehoert dann dem GETEILTEN Lauf, nicht dem eigenen Aufruf — ein
+ * Aufrufer, der eine bestimmte `id` erwartet, findet sie darin MOEGLICHERWEISE
+ * NICHT (der geteilte Lauf kann seine letzte, leere Selektion schon VOR der
+ * Einreihung der eigenen Zeile gemacht haben, oder er endet wegen des
+ * Fortschrittsvorbehalts oben, bevor die eigene Zeile je gescannt wurde). Ein
+ * Aufrufer, der das Ergebnis EINER bestimmten Datei braucht (Aufgabe 19: „wurde
+ * mein Nachweis geprueft?"), muss nach dem Await die eigene Zeile per `id`
+ * NACHLESEN — nicht im zurueckgegebenen Array danach suchen.
  */
 export function bearbeiteOffeneDateien(
   db?: AufgabenDb,

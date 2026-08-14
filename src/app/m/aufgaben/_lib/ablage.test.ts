@@ -10,13 +10,55 @@
  * Dateisystem, kein Mock: die Aussage „liegt unter der Wurzel" ist eine
  * Aussage ueber echte Pfade, und ein Mock koennte sie nicht falsifizieren.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { nanoid } from "nanoid";
 
 import { legeNachweisAb, leseNachweis, loescheNachweis, nachweisPfad, UngueltigeId } from "./ablage";
+
+/*
+ * Fix Runde 1 (Review), Minor 4/5: ein Schreibfehler NACH `open("wx", …)`
+ * hinterliess vorher einen verwaisten Teilblob, und `write` wurde ungeprueft
+ * vertraut. Beide Faelle brauchen einen ECHT scheiternden `write` — dafuer
+ * wird `node:fs/promises` an GENAU der Stelle gemockt (Vorbild
+ * `files/_lib/storage.test.ts`), alles andere bleibt das echte Dateisystem.
+ */
+const fsSteuerung = vi.hoisted(() => ({
+  naechsterWriteWirft: false,
+  naechsterWriteKuerzt: false,
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const echt = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...echt,
+    open: async (...args: Parameters<typeof echt.open>) => {
+      const griff = await echt.open(...args);
+      if (!fsSteuerung.naechsterWriteWirft && !fsSteuerung.naechsterWriteKuerzt) return griff;
+      return {
+        write: async (buf: Uint8Array) => {
+          if (fsSteuerung.naechsterWriteWirft) {
+            fsSteuerung.naechsterWriteWirft = false;
+            throw Object.assign(new Error("simuliert: ENOSPC"), { code: "ENOSPC" });
+          }
+          if (fsSteuerung.naechsterWriteKuerzt) {
+            fsSteuerung.naechsterWriteKuerzt = false;
+            const echtesErgebnis = await griff.write(buf);
+            // Meldet EINEN Byte weniger, als tatsaechlich (und vollstaendig)
+            // geschrieben wurde — die Simulation eines Schreibvorgangs, der
+            // sich selbst falsch meldet.
+            return { ...echtesErgebnis, bytesWritten: echtesErgebnis.bytesWritten - 1 };
+          }
+          return griff.write(buf);
+        },
+        sync: () => griff.sync(),
+        close: () => griff.close(),
+      } as unknown as typeof griff;
+    },
+  };
+});
 
 let datenVerzeichnis: string;
 let vorherigesDataDir: string | undefined;
@@ -134,6 +176,35 @@ describe("legeNachweisAb — fail-closed: keine halbe Datei", () => {
     // Nicht nur „diese eine Datei fehlt" — die Wurzel selbst wurde nie
     // angelegt, weil vor jedem Schreibversuch geprüft wird.
     expect(existsSync(AblageWurzel())).toBe(false);
+  });
+
+  /*
+   * Fix Runde 1, Minor 4: „keine halbe Datei" galt vorher nur für eine
+   * ABLEHNUNG vor dem ersten Schreibversuch. `open("wx", …)` legt die Datei
+   * aber bereits AN, bevor überhaupt ein Byte fließt — ein Schreibfehler
+   * DANACH (ENOSPC) hätte einen leeren/halben Rest hinterlassen. Diese Zeile
+   * beweist die Aufräumung mit einem ECHT scheiternden `write` (kein Mock,
+   * der nur behauptet zu scheitern — der Mock ersetzt `write`, das
+   * anschließende `unlink` läuft gegen das echte Dateisystem).
+   */
+  it("räumt eine bereits angelegte Datei auf, wenn der Schreibvorgang danach scheitert (ENOSPC)", async () => {
+    const id = nanoid();
+    fsSteuerung.naechsterWriteWirft = true;
+    await expect(legeNachweisAb(id, "bild.png", PNG)).rejects.toThrow(/ENOSPC/);
+    expect(existsSync(join(AblageWurzel(), id))).toBe(false);
+  });
+
+  /*
+   * Fix Runde 1, Minor 5: `write` wurde bisher ungeprüft vertraut. Diese
+   * Zeile simuliert einen Schreibvorgang, der WENIGER Bytes meldet, als
+   * angefordert — ohne die Prüfung bliebe die Datei mit falscher `groesse`
+   * liegen, obwohl der Erfolgsbefund `ok:true` behauptet hätte.
+   */
+  it("erkennt einen unvollständigen Schreibvorgang und räumt auf, statt ok:true zu melden", async () => {
+    const id = nanoid();
+    fsSteuerung.naechsterWriteKuerzt = true;
+    await expect(legeNachweisAb(id, "bild.png", PNG)).rejects.toThrow(/unvollständiger Schreibvorgang/);
+    expect(existsSync(join(AblageWurzel(), id))).toBe(false);
   });
 });
 
