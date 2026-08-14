@@ -249,6 +249,37 @@ export function planRangFuerEinplanen(db: DB, task: AufgabeRow, planDatum: strin
 }
 
 /**
+ * ALLE AUFGABEN EINER PERSON AN EINEM PLANTAG, AUFSTEIGEND NACH `planRang` (Aufgabe 12,
+ * `rangVerschiebenAction`) — DIESELBE SKALA, DIE `tagesOrdnung` (`_lib/tagesplan.ts`, Schritt 1) FUER
+ * DIE AUFGABEN-TEILFOLGE EINES TAGES VERWENDET: derselbe Filter
+ * (`zugewiesenAn === personId && planDatum === datum`), dieselbe Sortierung nach `planRang`. "Erster"
+ * und "letzter" beziehen sich deshalb NUR auf die AUFGABEN dieser Person an diesem Tag — Routinen
+ * zaehlen nicht mit, sie tragen keinen `planRang` und keine Aktionen (Spec §8.1: "Routineblöcke ...
+ * tragen keine Aktionen"). Eine Aufgabe, die in der gemischten `tagesOrdnung`-Ansicht visuell HINTER
+ * einem Routineblock steht, kann auf DIESER Skala trotzdem die erste sein — das ist beabsichtigt,
+ * kein Fehler dieser Funktion, und Aufrufer (Aufgabe 13/20), die `istErste`/`istLetzte` fuer
+ * `RangKnoepfe` ableiten, muessen von DIESER Liste ausgehen, nicht von `tagesOrdnung`s Ergebnis.
+ *
+ * Sekundaer nach `id` sortiert — rein defensiv: ueber `einplanenAction`/`planRangFuerEinplanen` ist
+ * ein Gleichstand innerhalb eines Tages nicht erreichbar (die Skala bleibt dort je Tag lueckenlos
+ * eindeutig, `max(planRang) + 1` fuer jeden neu ankommenden Eintrag), aber die Nachbarermittlung in
+ * `rangVerschiebenAction` soll nicht von der zufaelligen Ruecklieferreihenfolge der SQL-Abfrage
+ * abhaengen, falls doch einmal zwei Zeilen denselben Rang tragen (z. B. ein direkt geschriebener
+ * Seed).
+ *
+ * Nutzt denselben Index wie `planRangFuerEinplanen`: `aufgaben_plan_idx` auf
+ * `(zugewiesen_an, plan_datum)`.
+ */
+export function planEintraegeFuerTag(db: DB, personId: string, planDatum: string): AufgabeRow[] {
+  return db
+    .select()
+    .from(aufgaben)
+    .where(and(eq(aufgaben.zugewiesenAn, personId), eq(aufgaben.planDatum, planDatum)))
+    .all()
+    .sort((a, b) => a.planRang - b.planRang || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/**
  * SCHREIBT EINEN TEXTNACHWEIS (Aufgabe 10, `fertigMeldenAction`). Der Bildnachweis (`dateiId`
  * gesetzt) kommt erst mit dem Upload aus Aufgabe 17-19 — diese Funktion schreibt deshalb nur die
  * Textform; `dateiId` bleibt in dieser Aufgabe immer `null`.

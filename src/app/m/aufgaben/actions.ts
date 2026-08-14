@@ -13,6 +13,7 @@ import {
   loescheAufgabe,
   nachweiseSeitLetzterZurueckweisung,
   personNachId,
+  planEintraegeFuerTag,
   planRangFuerEinplanen,
   routineNachId,
   schreibeVerlauf,
@@ -804,5 +805,106 @@ export async function routineRuhenAction(formData: FormData): Promise<void> {
   }
 
   aktualisiereRoutine(db, bestehende.id, { aktiv: !bestehende.aktiv });
+  revalidate();
+}
+
+/*
+ * AB HIER AUFGABE 12 — DER RANGWECHSEL AUF `planRang` (Spec §8.5, §9.6, Brief). Die zweite Haelfte
+ * dieser Aufgabe, `einplanenAction`, gibt es bereits seit Aufgabe 10 (Kopfkommentar dort) — sie wird
+ * hier nur AUFGERUFEN, nicht neu gebaut; `EinplanenFormular.tsx` ruft sie direkt.
+ */
+
+const RICHTUNGEN = ["hoch", "runter"] as const;
+type Richtung = (typeof RICHTUNGEN)[number];
+function istGueltigeRichtung(s: string): s is Richtung {
+  return (RICHTUNGEN as readonly string[]).includes(s);
+}
+
+/**
+ * TAUSCHT DEN RANG ZWEIER BENACHBARTER AUFGABEN DERSELBEN PERSON AM SELBEN TAG (Spec §8.5, Brief:
+ * „Auf und Ab auf `planRang`, innerhalb eines Tages"). DER TAUSCH LIEGT HIER, NICHT IN DER
+ * CLIENT-INSEL (`RangKnoepfe.tsx`, Brief): sonst laege Fachlogik im Browser, und Aufgabe 20 (Ziehen)
+ * muesste sie ein zweites Mal bauen — dieselbe Ueberlegung wie bei `einplanenAction`, die beide
+ * Bedienwege (Formular UND Ziehen) teilen sollen.
+ *
+ * KEIN `FormState`: `aufgabeId` und `richtung` sind keine Formularfelder, die als Feldfehler
+ * scheitern koennten — beide kommen aus versteckten Feldern eines von der Oberflaeche kontrollierten
+ * Formulars (Vorbild `routineRuhenAction`/`freigebenAction`: kein Text, der sich vertippen liesse).
+ * Ein unbekannter Wert ist nur ueber ein manipuliertes Formular erreichbar und wirft deshalb, statt
+ * einen Feldfehler zurueckzugeben.
+ *
+ * KEIN `uebergang()`: ein Rangwechsel ist KEIN Statuswechsel der Uebergangstabelle — Spec §5.2 kennt
+ * dafuer keine Zeile, und Spec §8.5 nennt ihn ausdruecklich einen Zeitplanvorgang, keinen
+ * Zustandswechsel. Wie bei den drei Routinen-Actions (Aufgabe 11, Kopfkommentar dort) kommt die
+ * Berechtigung deshalb DIREKT aus `darfPlanAendern` (`_lib/zugang.ts`), nicht aus `uebergang()`.
+ * AUCH DIE KOORDINATION SCHEITERT DARAN (Brief) — sie schlaegt vor (`vorschlagDatum`), sie setzt
+ * nicht (`darfPlanAendern`-Kommentar in `_lib/zugang.ts`).
+ *
+ * DIE SKALA IST `planEintraegeFuerTag` (`_db/queries.ts`) — DIESELBE, DIE `tagesOrdnung`
+ * (`_lib/tagesplan.ts`) fuer die AUFGABEN-Teilfolge eines Tages verwendet (beide filtern
+ * `zugewiesenAn === personId && planDatum === datum` und sortieren nach `planRang`). „Kein Nachbar in
+ * dieser Richtung" (die erste Aufgabe + „hoch", die letzte + „runter") WIRFT HIER, SERVERSEITIG — die
+ * deaktivierten Knoepfe in der Insel sind nur die AFFORDANZ (sie zeigen die Grenze an), nicht die
+ * Pruefung selbst; ein manipuliertes Formular darf nicht funktionieren, nur weil der Browser den
+ * Knopf deaktiviert haette. Diese Bedingung ist der Wurf, den die zweite Gegenprobe des Briefs
+ * („Begrenzung erster hat kein Auf entfernen") auf DIESER Ebene rot werden lassen soll — die Insel
+ * traegt dieselbe Begrenzung ein zweites Mal (`RangKnoepfe.tsx`, `istErste`/`istLetzte`), und beide
+ * Ebenen sind einzeln bewacht (`RangKnoepfe.test.tsx` bzw. dieser Datei Tests).
+ *
+ * KEINE VERLAUFSZEILE — EIGENE BEGRUENDUNG, KEINE WIEDERHOLUNG VON AUFGABE 11 (Brief verlangt das
+ * ausdruecklich): Aufgabe 11 verzichtete auf eine Verlaufszeile fuer Routinen aus einem STRUKTURELLEN
+ * Grund (`verlauf.aufgabeId` ist `NOT NULL` und referenziert `aufgaben.id`; eine Routine hat keine).
+ * Dieser Grund GILT HIER NICHT — eine Aufgabe hat immer eine `aufgabeId`, ein Rangwechsel KOENNTE
+ * technisch eine Zeile schreiben. Die Entscheidung dagegen ist trotzdem richtig, aus einem ANDEREN
+ * Grund: ein Rangtausch aendert NUR die Reihenfolge INNERHALB eines Tages — er aendert nie, AN
+ * WELCHEM TAG oder UM WELCHE UHRZEIT eine Aufgabe steht. Genau das ist `einplanenAction` vorbehalten,
+ * und die schreibt dafuer bereits eine „Eingeplant: …"-Zeile (mit Vorschlags-Abgleich, s. dort). Der
+ * Verlauf ist die Leistungsdokumentation (Spec §6) — WELCHER TAG und WELCHE UHRZEIT sind darin die
+ * dokumentationswuerdigen Fakten, nicht die Position innerhalb eines Tages, die die Person ohnehin
+ * frei sortieren darf. Eine Zeile je Auf-/Ab-Klick waere reines Rauschen ohne Dokumentationswert
+ * (Brief: „eine Zeile je Auf-Klick wäre Lärm"), waehrend „gar nichts" hier NICHTS verliert, das eine
+ * Umplanung betrifft — jede ECHTE Umplanung (anderer Tag, andere Uhrzeit) laeuft ausschliesslich ueber
+ * `einplanenAction` und wird DORT bereits festgehalten. `EREIGNISSE` (`_db/schema.ts`) braucht deshalb
+ * kein neues Mitglied.
+ */
+export async function rangVerschiebenAction(formData: FormData): Promise<void> {
+  const db = getDb();
+  const person = await personFuerSession(db);
+  const heute = isoTag(new Date());
+
+  const aufgabeId = feld(formData, "aufgabeId");
+  const task = aufgabe(db, aufgabeId);
+  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+
+  // `darfPlanAendern` will die ZIELPERSON als `string` — eine unzugewiesene Aufgabe (`null`) hat
+  // strukturell keine Person, deren Plan geaendert werden koennte, und faellt deshalb hier heraus,
+  // statt `darfPlanAendern` mit einem erfundenen Platzhalter aufzurufen.
+  const zielPersonId = task.zugewiesenAn;
+  if (zielPersonId === null || !darfPlanAendern(person, zielPersonId, heute)) {
+    throw new Error("Keine Berechtigung, diesen Rang zu aendern.");
+  }
+  if (task.planDatum === null) {
+    throw new Error("Aufgabe ist nicht eingeplant — kein Rang zu verschieben.");
+  }
+
+  const richtung = feld(formData, "richtung");
+  if (!istGueltigeRichtung(richtung)) {
+    throw new Error(`Unbekannte Richtung "${richtung}".`);
+  }
+
+  const zeilen = planEintraegeFuerTag(db, zielPersonId, task.planDatum);
+  const index = zeilen.findIndex((z) => z.id === task.id);
+  // Unerreichbar nach heutiger Rechtslage: `zeilen` filtert exakt auf
+  // `zugewiesenAn === zielPersonId && planDatum === task.planDatum`, und `task` selbst erfuellt beide
+  // Bedingungen (wir haben `zielPersonId`/`task.planDatum` gerade aus `task` gelesen) — kein `-1`
+  // erreichbar, ohne dass sich die Aufgabe zwischen den beiden Lesevorgaengen aenderte.
+  const nachbarIndex = richtung === "hoch" ? index - 1 : index + 1;
+  if (nachbarIndex < 0 || nachbarIndex >= zeilen.length) {
+    throw new Error("Kein Nachbar in dieser Richtung.");
+  }
+  const nachbar = zeilen[nachbarIndex]!;
+
+  aktualisiereAufgabe(db, task.id, { planRang: nachbar.planRang });
+  aktualisiereAufgabe(db, nachbar.id, { planRang: task.planRang });
   revalidate();
 }

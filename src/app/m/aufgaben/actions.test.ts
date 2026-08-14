@@ -42,6 +42,7 @@ import {
   einplanenAction,
   fertigMeldenAction,
   freigebenAction,
+  rangVerschiebenAction,
   routineAendernAction,
   routineAnlegenAction,
   routineRuhenAction,
@@ -1774,5 +1775,253 @@ describe("routineRuhenAction", () => {
     anmelden(bufdi);
 
     await expect(routineRuhenAction(form("unbekannt"))).rejects.toThrow(/Routine "unbekannt" nicht gefunden/);
+  });
+});
+
+describe("rangVerschiebenAction", () => {
+  function form(aufgabeId: string, richtung: string): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    f.set("richtung", richtung);
+    return f;
+  }
+
+  /**
+   * DREI EINTRAEGE, KEINER AUF DEM SCHEMA-VORGABEWERT (Review-Hinweis, Vorbild der
+   * `planRang: 7`-Begruendung bei `einplanenAction` oben, Zeile ~825): Raenge 3/5/8 statt 0/1/2 —
+   * sonst bewiese ein gruener Test nichts, weil ein NICHT geschriebener Rang zufaellig ohnehin beim
+   * Vorgabewert stuende. Die "Mitte" ist die Aufgabe, an der getauscht wird; "Erste" und "Letzte"
+   * sind die Nachbarn, "Deckung" (anderer Tag) und "Fremd" (andere Person, selber Tag, SELBE Raenge)
+   * sind die Gegenproben fuer die Tag-/Personen-Eingrenzung.
+   */
+  function drei(bufdi: PersonRow, auftrag: PersonRow, tag: string) {
+    const erste = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+      titel: "Erste", planDatum: tag, planRang: 3,
+    });
+    const mitte = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+      titel: "Mitte", planDatum: tag, planRang: 5,
+    });
+    const letzte = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+      titel: "Letzte", planDatum: tag, planRang: 8,
+    });
+    return { erste, mitte, letzte };
+  }
+
+  it("hoch tauscht die Mitte mit ihrem Vorgaenger — genau zwei Raenge aendern sich, der dritte bleibt", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const { erste, mitte, letzte } = drei(bufdi, auftrag, "2026-08-17");
+    anmelden(bufdi);
+
+    await rangVerschiebenAction(form(mitte.id, "hoch"));
+
+    expect(aufgabe(t.db, mitte.id)!.planRang).toBe(3);
+    expect(aufgabe(t.db, erste.id)!.planRang).toBe(5);
+    expect(aufgabe(t.db, letzte.id)!.planRang).toBe(8); // unberuehrt
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("runter tauscht die Mitte mit ihrem Nachfolger — genau zwei Raenge aendern sich, der dritte bleibt", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const { erste, mitte, letzte } = drei(bufdi, auftrag, "2026-08-17");
+    anmelden(bufdi);
+
+    await rangVerschiebenAction(form(mitte.id, "runter"));
+
+    expect(aufgabe(t.db, mitte.id)!.planRang).toBe(8);
+    expect(aufgabe(t.db, letzte.id)!.planRang).toBe(5);
+    expect(aufgabe(t.db, erste.id)!.planRang).toBe(3); // unberuehrt
+  });
+
+  it("schreibt KEINE Verlaufszeile — ein Rangtausch ist keine Umplanung (eigene Begruendung, actions.ts)", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const { mitte } = drei(bufdi, auftrag, "2026-08-17");
+    anmelden(bufdi);
+
+    await rangVerschiebenAction(form(mitte.id, "hoch"));
+
+    expect(verlaufFuer(t.db, mitte.id)).toEqual([]);
+  });
+
+  it("eine andere Person am selben Tag mit denselben Raengen bleibt unberuehrt — die Skala ist je Person", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const { mitte } = drei(bufdi1, auftrag, "2026-08-17");
+    const fremdeMitte = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi2.id,
+      titel: "Fremde Mitte", planDatum: "2026-08-17", planRang: 5,
+    });
+    anmelden(bufdi1);
+
+    await rangVerschiebenAction(form(mitte.id, "hoch"));
+
+    expect(aufgabe(t.db, fremdeMitte.id)!.planRang).toBe(5);
+  });
+
+  it("dieselbe Person an einem ANDEREN Tag mit demselben Rang bleibt unberuehrt — die Skala ist je Tag", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const { mitte } = drei(bufdi, auftrag, "2026-08-17");
+    const andererTag = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+      titel: "Anderer Tag", planDatum: "2026-08-18", planRang: 5,
+    });
+    anmelden(bufdi);
+
+    await rangVerschiebenAction(form(mitte.id, "hoch"));
+
+    expect(aufgabe(t.db, andererTag.id)!.planRang).toBe(5);
+  });
+
+  /*
+   * GEGENPROBE (b), ZWEITE HAELFTE: wird der Grenzwurf unten in `rangVerschiebenAction`
+   * (`nachbarIndex < 0 || nachbarIndex >= zeilen.length`) entfernt, wird DIESER Test rot — "hoch" auf
+   * die erste Zeile faende `zeilen[-1]` (`undefined`) und schriebe `planRang: undefined` bzw. wuerfe
+   * einen anderen (ungeprueften) Fehler statt der hier erwarteten Meldung.
+   */
+  it("die erste Aufgabe hat keinen Vorgaenger — hoch wirft, mit geprüfter Meldung", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const { erste } = drei(bufdi, auftrag, "2026-08-17");
+    anmelden(bufdi);
+
+    await expect(rangVerschiebenAction(form(erste.id, "hoch"))).rejects.toThrow(
+      /Kein Nachbar in dieser Richtung\./,
+    );
+    expect(aufgabe(t.db, erste.id)!.planRang).toBe(3);
+  });
+
+  it("die letzte Aufgabe hat keinen Nachfolger — runter wirft, mit geprüfter Meldung", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const { letzte } = drei(bufdi, auftrag, "2026-08-17");
+    anmelden(bufdi);
+
+    await expect(rangVerschiebenAction(form(letzte.id, "runter"))).rejects.toThrow(
+      /Kein Nachbar in dieser Richtung\./,
+    );
+    expect(aufgabe(t.db, letzte.id)!.planRang).toBe(8);
+  });
+
+  it("eine einzelne eingeplante Aufgabe ist erste UND letzte — beide Richtungen werfen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const einzige = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+      planDatum: "2026-08-17", planRang: 3,
+    });
+    anmelden(bufdi);
+
+    await expect(rangVerschiebenAction(form(einzige.id, "hoch"))).rejects.toThrow(
+      /Kein Nachbar in dieser Richtung\./,
+    );
+    await expect(rangVerschiebenAction(form(einzige.id, "runter"))).rejects.toThrow(
+      /Kein Nachbar in dieser Richtung\./,
+    );
+  });
+
+  /*
+   * GEGENPROBE (a): wird die `darfPlanAendern`-Pruefung in `rangVerschiebenAction` entfernt, werden
+   * DIESE DREI Tests rot (fremde aktive BuFDi, Koordination, ausgeschiedene eigene Person) — jeder
+   * prueft die Meldung, nicht nur, dass ueberhaupt geworfen wird (Lektion 4).
+   */
+  it("eine unbeteiligte BuFDi darf den Rang einer anderen Person nicht aendern", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const { mitte } = drei(bufdi1, auftrag, "2026-08-17");
+    anmelden(bufdi2);
+
+    await expect(rangVerschiebenAction(form(mitte.id, "hoch"))).rejects.toThrow(
+      /Keine Berechtigung, diesen Rang zu aendern\./,
+    );
+    expect(aufgabe(t.db, mitte.id)!.planRang).toBe(5);
+  });
+
+  it("auch die Koordination darf keinen fremden Rang verschieben", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const koordination = legePerson("dev:rike@test", "koordination");
+    const { mitte } = drei(bufdi, auftrag, "2026-08-17");
+    anmelden(koordination);
+
+    await expect(rangVerschiebenAction(form(mitte.id, "hoch"))).rejects.toThrow(
+      /Keine Berechtigung, diesen Rang zu aendern\./,
+    );
+    expect(aufgabe(t.db, mitte.id)!.planRang).toBe(5);
+  });
+
+  it("eine ausgeschiedene BuFDi, die es duerfte, wenn sie aktiv waere, wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const exBufdi = legePerson("dev:ex-alina@test", "bufdi", { aktivBis: "2026-08-01" });
+    const { mitte } = drei(exBufdi, auftrag, "2026-08-17");
+    anmelden(exBufdi);
+
+    await expect(rangVerschiebenAction(form(mitte.id, "hoch"))).rejects.toThrow(
+      /Keine Berechtigung, diesen Rang zu aendern\./,
+    );
+  });
+
+  it("eine unbekannte aufgabeId wirft", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    await expect(rangVerschiebenAction(form("unbekannt", "hoch"))).rejects.toThrow(
+      /Aufgabe "unbekannt" nicht gefunden/,
+    );
+  });
+
+  it("eine nicht eingeplante Aufgabe hat keinen Rang zu verschieben", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id });
+    anmelden(bufdi);
+
+    await expect(rangVerschiebenAction(form(task.id, "hoch"))).rejects.toThrow(
+      /Aufgabe ist nicht eingeplant/,
+    );
+  });
+
+  it("eine unbekannte Richtung ist nur ueber ein manipuliertes Formular erreichbar und wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const { mitte } = drei(bufdi, auftrag, "2026-08-17");
+    anmelden(bufdi);
+
+    await expect(rangVerschiebenAction(form(mitte.id, "seitwaerts"))).rejects.toThrow(
+      /Unbekannte Richtung "seitwaerts"/,
+    );
+  });
+
+  /**
+   * DIESELBE ZUSAGE WIE BEI `einplanenAction` (Spec-Nachtrag 2026-08-13): ein Rangwechsel prueft
+   * `task.status` nirgends — `darfPlanAendern` kennt nur die Zuweisung, keinen Zustand. Eine
+   * `in_arbeit`-Aufgabe laesst sich also genauso verschieben wie eine `verteilt`e.
+   */
+  it("eine Aufgabe in_arbeit laesst sich im Rang verschieben wie jede andere", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const erste = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      planDatum: "2026-08-17", planRang: 3,
+    });
+    const mitte = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+      planDatum: "2026-08-17", planRang: 5,
+    });
+    anmelden(bufdi);
+
+    await rangVerschiebenAction(form(mitte.id, "hoch"));
+
+    expect(aufgabe(t.db, mitte.id)!.status).toBe("verteilt");
+    expect(aufgabe(t.db, erste.id)!.status).toBe("in_arbeit");
+    expect(aufgabe(t.db, mitte.id)!.planRang).toBe(3);
+    expect(aufgabe(t.db, erste.id)!.planRang).toBe(5);
   });
 });
