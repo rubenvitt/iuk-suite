@@ -59,7 +59,31 @@ export default defineConfig({
    * Test sofort sehen und nicht hinter einem stillen zweiten Versuch.
    */
   retries: process.env.CI ? 2 : 0,
-  use: { baseURL: "http://portal.localtest.me:3100" },
+  use: {
+    baseURL: "http://portal.localtest.me:3100",
+    /*
+     * `on-first-retry` und bewusst NICHT `retain-on-failure`: die Aufzeichnung
+     * kostet in jedem Test Zeit und Platz, `retries` ist aber oben schon auf
+     * „nur in der CI" gestellt — dieser Wert zeichnet damit genau dann auf,
+     * wenn ein Lauf bereits einmal rot war, und im gruenen Normalfall nie.
+     *
+     * DER GRUND STEHT IM LAUF 31794072467 (2026-08-14): ein Klick auf einen
+     * `next/link` liess die Adresse 30 s lang unveraendert, dreimal
+     * hintereinander — die Wiederholungen oben fingen es nicht, weil die
+     * Stoerung ueber alle drei Versuche anhielt. Aus dem Log war NICHT zu
+     * entscheiden, ob die Anfrage ueberhaupt hinausging oder ob sie ohne Antwort
+     * blieb, und genau diese Unterscheidung traegt der Netzwerkteil der
+     * Ablaufverfolgung. Der unveraenderte Rerun lief spaeter durch; die Ursache
+     * lag im Runner-Zustand — belegen liess sich das aber erst NACH einem halben
+     * Tag Ausschlussarbeit, und beim naechsten Mal soll die Aufzeichnung das in
+     * Minuten leisten.
+     *
+     * ⚠️ DIE DATEI ENTSTEHT HIER UND IST MIT DEM RUNNER WIEDER WEG. Sie
+     * hinauszuretten ist Sache des Schritts „Playwright-Artefakte sichern" in
+     * `.github/workflows/ci.yml` — ohne ihn ist dieser Wert wirkungslos.
+     */
+    trace: "on-first-retry",
+  },
   /*
    * ZWEI Server, deshalb ein Array (Spec §6.8). Der Fake-clamd steht vorne, weil
    * er vor `next dev` bereit sein soll; tragend ist aber nicht die Reihenfolge,
