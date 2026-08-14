@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import { getDb, type DB } from "../_db/client";
-import { allePersonen, bufdis, posteingang, wochenAuslastungFuerBufdis } from "../_db/queries";
-import { namenMap } from "../_lib/anzeige";
-import { isoTag, montagDerWoche, wochenTage } from "../_lib/datum";
+import { verteilDaten } from "../_db/queries";
+import { isoTag } from "../_lib/datum";
 import { darfVerteilen, personFuerSeite, subFuerSitzung } from "../_lib/zugang";
 import { NichtEingetragenSeite } from "../_ui/NichtEingetragenSeite";
 import { SeitenKopf } from "../_ui/SeitenKopf";
@@ -18,13 +17,14 @@ export const dynamic = "force-dynamic";
  *
  * `verteilenInhalt` IST DIE REINE, EXPORTIERTE INHALTSFUNKTION (Vorbild `routinenInhalt`) — sie
  * bekommt `heute` bereits aufgeloest und braucht keine Sitzung; `page.test.tsx` ruft sie direkt.
+ *
+ * `verteilDaten(db, heute)` (`_db/queries.ts`, Fix-Runde 1) IST DIE EINE LADEFUNKTION FUER DEN
+ * POSTEINGANG — `_ui/EinstiegKoordination.tsx` ruft dieselbe Funktion, nicht eine zweite Fassung
+ * desselben Ladeblocks (s. deren Kopfkommentar fuer die Review-Begruendung).
  */
 export function verteilenInhalt(db: DB, heute: string) {
-  const zuVerteilenListe = posteingang(db);
-  const bufdisListe = bufdis(db, heute);
-  const tage = wochenTage(montagDerWoche(heute));
-  const auslastung = wochenAuslastungFuerBufdis(db, bufdisListe, tage);
-  const erstellerNamen = namenMap(allePersonen(db));
+  const { posteingang: zuVerteilenListe, erstellerNamen, bufdis: bufdisListe, auslastung, tage } =
+    verteilDaten(db, heute);
 
   const kontext =
     zuVerteilenListe.length === 0

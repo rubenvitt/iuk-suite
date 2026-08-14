@@ -33,6 +33,7 @@ import {
   rangGrenzen,
   erstelleNachweis,
   schreibeVerlauf,
+  verteilDaten,
   wochenAuslastungFuerBufdis,
 } from "./queries";
 
@@ -606,6 +607,40 @@ describe("wochenAuslastungFuerBufdis — dieselbe Rechnung wie tagesBudget, aufs
     });
     const ergebnis = wochenAuslastungFuerBufdis(t.db, [bendix], ["2026-08-17"]);
     expect(ergebnis[0]!.ueberbucht).toBe(true);
+  });
+});
+
+/**
+ * DIE EINE LADEFUNKTION FUER DEN POSTEINGANG (Aufgabe 14, Fix-Runde 1, Important 1+2) —
+ * `EinstiegKoordination.tsx` UND `verteilen/page.tsx` rufen ausschliesslich SIE, keine eigene
+ * Fassung mehr. Diese Gegenprobe bindet die Zielliste an DER QUELLE, statt sich auf die beiden
+ * Aufrufer zu verlassen: sie WUERDE ROT, ersetzte `verteilDaten` `bufdis()` durch `aktivePersonen()`
+ * — die Fixtur traegt bewusst eine `koordination`- UND eine `auftrag`-Person zusaetzlich zu den
+ * BuFDis (derselbe Aufbau wie die bisherige `verteilen/page.test.tsx`-Gegenprobe), damit ein
+ * schwaecherer Filter (`rolle !== "koordination"`) ebenfalls auffiele.
+ */
+describe("verteilDaten — die Zielliste kommt aus bufdis(), nicht aus aktivePersonen()", () => {
+  it("liefert genau die aktiven BuFDis als Zielliste — nicht koordination, nicht auftrag", () => {
+    legePerson("vd1-rike", "koordination");
+    const malte = legePerson("vd1-malte", "auftrag");
+    const alina = legePerson("vd1-alina", "bufdi");
+    const bendix = legePerson("vd1-bendix", "bufdi");
+    legeAufgabe({ erstellerId: malte.id, status: "eingegangen" });
+
+    const daten = verteilDaten(t.db, HEUTE);
+    expect(daten.bufdis.map((p) => p.id).sort()).toEqual([alina.id, bendix.id].sort());
+  });
+
+  it("bindet Posteingang, Auftraggeber-Namen und Auslastung im selben Aufruf", () => {
+    const malte = legePerson("vd2-malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("vd2-alina", "bufdi", { name: "Alina" });
+    const aufgabe1 = legeAufgabe({ erstellerId: malte.id, status: "eingegangen" });
+
+    const daten = verteilDaten(t.db, HEUTE);
+    expect(daten.posteingang.map((a) => a.id)).toEqual([aufgabe1.id]);
+    expect(daten.erstellerNamen[malte.id]).toBe("Malte");
+    expect(daten.auslastung.map((z) => z.person.id)).toEqual([alina.id]);
+    expect(daten.tage).toHaveLength(5);
   });
 });
 

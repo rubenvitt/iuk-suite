@@ -1,5 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
-import { tagesBudget } from "../_lib/anzeige";
+import { namenMap, tagesBudget } from "../_lib/anzeige";
+import { montagDerWoche, wochenTage } from "../_lib/datum";
 import { darfFreigeben, istAktiv } from "../_lib/zugang";
 import type { DB } from "./client";
 import {
@@ -99,6 +100,47 @@ export function wochenAuslastungFuerBufdis(
     const sollMinuten = budgets.reduce((summe, b) => summe + b.sollMinuten, 0);
     return { person, verplantMinuten, sollMinuten, ueberbucht: verplantMinuten > sollMinuten };
   });
+}
+
+export interface VerteilDaten {
+  /** `status === "eingegangen"` — der Posteingang. */
+  posteingang: AufgabeRow[];
+  /** `person.id -> person.name`, fuer die Spalte „Auftraggeber". */
+  erstellerNamen: Record<string, string>;
+  /** Die Zielliste — aus `bufdis()`, NICHT aus `aktivePersonen()`. */
+  bufdis: PersonRow[];
+  auslastung: AuslastungZeile[];
+  /** Die fuenf Tage der aktuellen Woche. */
+  tage: string[];
+}
+
+/**
+ * DIE EINE LADEFUNKTION FUER DEN POSTEINGANG (Aufgabe 14, Fix-Runde 1, Review-Important 1+2) — VOR
+ * dieser Fassung riefen `_ui/EinstiegKoordination.tsx` (der Einstieg, "/", die Seite, die die
+ * Koordination TAEGLICH benutzt) UND `verteilen/page.tsx` (die zusaetzliche, adressierbare Route)
+ * denselben Fuenf-Zeilen-Ladeblock je EINZELN auf — wortgleich, aber ZWEIMAL. Die Gegenprobe des
+ * Reviews zeigt genau die Gefahr: ein Austausch von `bufdis(db, heute)` gegen `aktivePersonen(db,
+ * heute)` in `EinstiegKoordination.tsx` allein liess die gesamte Vitest-Suite UND alle e2e-Faelle
+ * gruen, weil die einzige Gegenprobe fuer die Zielliste (`verteilen/page.test.tsx`) nur die ZWEITE
+ * Aufrufstelle band. Mit EINER exportierten Funktion fuer BEIDE Seiten kann die Zielliste nicht mehr
+ * auseinanderlaufen, und dieselbe Gegenprobe deckt jetzt automatisch beide Routen ab.
+ *
+ * WARUM HIER UND NICHT IN `_lib/`: die Funktion liest die Datenbank (mehrere `_db/queries.ts`-Lese-
+ * pfade) UND wendet `tagesBudget`/`namenMap` darauf an — dieselbe Mischung aus Lesepfad und
+ * Ableitung wie `freigabenFuer` (die ebenfalls `darfFreigeben` aus `_lib/zugang.ts` auf ein
+ * Leseergebnis anwendet) und `wochenAuslastungFuerBufdis` oben. `_lib/anzeige.ts` bleibt frei von
+ * jedem `db`-Parameter, wie ueberall im Modul.
+ *
+ * `heute` KOMMT ALS ARGUMENT — `montagDerWoche`/`wochenTage` (`_lib/datum.ts`) sind die einzige
+ * Stelle, die aus einem Kalendertag eine Woche macht; diese Funktion ruft sie nur auf.
+ */
+export function verteilDaten(db: DB, heute: string): VerteilDaten {
+  const posteingangListe = posteingang(db);
+  const bufdisListe = bufdis(db, heute);
+  const tage = wochenTage(montagDerWoche(heute));
+  const auslastung = wochenAuslastungFuerBufdis(db, bufdisListe, tage);
+  const erstellerNamen = namenMap(allePersonen(db));
+  return { posteingang: posteingangListe, erstellerNamen, bufdis: bufdisListe, auslastung, tage };
 }
 
 /**

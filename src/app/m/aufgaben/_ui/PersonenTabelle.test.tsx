@@ -86,14 +86,22 @@ describe("PersonenTabelle — Zeilenaktionen tragen die EIGENE person.id, nicht 
   });
 });
 
+/**
+ * FIX-RUNDE 1, MINOR 2: `/löschen|entfernen/i` statt exakter Gleichheit auf `"Löschen"`, und ZWEI
+ * Zeilen (eine aktive, eine ausgeschiedene) statt einer — vorher haette eine spaeter ergaenzte
+ * Aktion „Person löschen" oder „Entfernen" den Test unveraendert bestanden.
+ */
 describe("PersonenTabelle — es gibt keine Loeschen-Aktion", () => {
-  it("kein Knopf/Link traegt den Text „Löschen“", async () => {
+  it("kein Knopf/Link nennt Loeschen oder Entfernen, in keiner der beiden Zeilen", async () => {
     const zeilen: PersonenZeile[] = [
       { person: person({ id: "p1", name: "Erste" }), istAktivHeute: true },
+      { person: person({ id: "p2", name: "Zweite", aktivBis: "2020-01-01" }), istAktivHeute: false },
     ];
     await mount(<PersonenTabelle zeilen={zeilen} />);
     const alleKnoepfeUndLinks = [...queryAll("button"), ...queryAll("a")];
-    expect(alleKnoepfeUndLinks.some((el) => el.textContent === "Löschen")).toBe(false);
+    expect(alleKnoepfeUndLinks.some((el) => /löschen|entfernen/i.test(el.textContent ?? ""))).toBe(
+      false,
+    );
   });
 });
 

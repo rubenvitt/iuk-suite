@@ -1,17 +1,9 @@
 import Link from "next/link";
 import { Col, Row } from "antd";
-import {
-  alleAufgaben,
-  allePersonen,
-  bufdis,
-  freigabenFuer,
-  posteingang,
-  wochenAuslastungFuerBufdis,
-} from "../_db/queries";
+import { alleAufgaben, freigabenFuer, verteilDaten } from "../_db/queries";
 import type { DB } from "../_db/client";
 import type { PersonRow } from "../_db/schema";
-import { istUeberfaellig, namenMap } from "../_lib/anzeige";
-import { montagDerWoche, wochenTage } from "../_lib/datum";
+import { istUeberfaellig } from "../_lib/anzeige";
 import { darfVerteilen, istVertretungsfreigabe } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -41,6 +33,14 @@ import { VerteilenTabelle } from "./VerteilenDialog";
  * existieren heute noch nicht — ein Verweis dorthin waere ein Knopf auf eine 404-Seite (Spec §7).
  * Beide KPI-Kacheln verlinken deshalb auf einen Anker AUF DIESER Seite (`#freigabe`,
  * `#ueberfaellig`), nicht auf eine noch nicht gebaute Route.
+ *
+ * `verteilDaten(db, heute)` (`_db/queries.ts`, Fix-Runde 1) IST DIE EINE LADEFUNKTION FUER DEN
+ * POSTEINGANG — `verteilen/page.tsx` ruft SIE, NICHT eine zweite Fassung desselben Ladeblocks. Vor
+ * dieser Aenderung riefen beide Seiten `bufdis(db, heute)`/`wochenAuslastungFuerBufdis`/`namenMap`
+ * je EINZELN auf; ein Review deckte auf, dass ein Austausch von `bufdis()` gegen `aktivePersonen()`
+ * genau HIER (der Seite, die die Koordination TAEGLICH benutzt) von keinem Test gesehen worden
+ * waere. Mit einer gemeinsamen Funktion kann die Zielliste zwischen `/` und `/verteilen` nicht mehr
+ * auseinanderlaufen.
  */
 export function EinstiegKoordination({
   db,
@@ -51,11 +51,8 @@ export function EinstiegKoordination({
   person: PersonRow;
   heute: string;
 }) {
-  const zuVerteilenListe = posteingang(db);
-  const bufdisListe = bufdis(db, heute);
-  const tage = wochenTage(montagDerWoche(heute));
-  const auslastung = wochenAuslastungFuerBufdis(db, bufdisListe, tage);
-  const erstellerNamen = namenMap(allePersonen(db));
+  const { posteingang: zuVerteilenListe, erstellerNamen, bufdis: bufdisListe, auslastung, tage } =
+    verteilDaten(db, heute);
 
   // DIE UEBERFAELLIGKEITS- UND ZURUECKGEWIESEN-ZAHLEN SIND SYSTEMWEIT (alle Aufgaben, nicht nur die
   // eigenen) — die Koordination ist die einzige Rolle mit diesem Ueberblick (Spec §8.2).

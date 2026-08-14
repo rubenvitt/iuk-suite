@@ -195,6 +195,10 @@ test("Verteilung: die Koordination meldet sich an, die Modulwurzel zeigt „Vert
   const res = await page.goto(`http://${HOST}:3100/`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
+  // Minor 4 (Fix-Runde 1): dieser h1-Abruf allein waere auch vor Aufgabe 14 gruen gewesen (der
+  // Platzhalter aus Aufgabe 13 trug denselben Titel) — die Posteingang-Zeile bindet den ECHTEN
+  // Inhalt, wie es der `/verteilen`-Abruf unten schon tut.
+  await expect(page.getByText("Verbandskästen im Fahrzeugpark prüfen")).toBeVisible();
   expect(konsolenFehler).toEqual([]);
 });
 

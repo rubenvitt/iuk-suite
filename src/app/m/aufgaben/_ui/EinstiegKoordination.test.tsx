@@ -55,17 +55,24 @@ function kpiZahlen(): (string | null | undefined)[] {
 }
 
 describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlange, Ueberfaelligkeit", () => {
+  /**
+   * FIX-RUNDE 1, IMPORTANT 3: die vier Fixturzahlen sind ABSICHTLICH VERSCHIEDEN (2/3/1/4), nicht
+   * mehr drei gleiche Werte — sonst kann eine Vertauschung zwischen „Freigabe offen", „Überfällig"
+   * und „Zurückgewiesen" nicht rot werden. Zusaetzlich werden jetzt ALLE Listen, die eine Kachel
+   * traegt, im SELBEN Mount gegen ihre Kachelzahl gehalten (Posteingang-Tabelle, beide
+   * Freigabe-Listen, Ueberfaelligkeitsliste) — nicht nur die Ueberfaelligkeitsliste wie zuvor.
+   */
   it("die KPI-Zahlen stimmen mit den Listen darunter ueberein — Frist zaehlt, nicht der Zeitplan", async () => {
     const rike = legePerson("dev:rike@test", "koordination", { name: "Rike" });
     const malte = legePerson("dev:malte@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi");
 
-    // Zu verteilen: zwei Aufgaben im Posteingang.
+    // Zu verteilen: ZWEI Aufgaben im Posteingang.
     legeAufgabe({ titel: "Posteingang 1", erstellerId: malte.id, status: "eingegangen" });
     legeAufgabe({ titel: "Posteingang 2", erstellerId: malte.id, status: "eingegangen" });
 
     // UEBERFAELLIG, TROTZ PLANDATUM IN DER ZUKUNFT: die Frist zaehlt, nicht der Zeitplan (Spec
-    // §8.2, Brief). faelligAm liegt VOR heute, planDatum NACH heute.
+    // §8.2, Brief). faelligAm liegt VOR heute, planDatum NACH heute. EINE Aufgabe.
     legeAufgabe({
       titel: "Ueberfaellig trotz Planung",
       erstellerId: malte.id,
@@ -86,27 +93,52 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
       planDatum: null,
     });
 
-    // Freigabe offen: eine, mit Rike als Pruefer (Vertretung).
+    // Freigabe offen: DREI Aufgaben — zwei "meine" (Rike ist Pruefer), eine "in Vertretung"
+    // (Malte ist Pruefer, Rike sieht sie trotzdem als koordination).
     legeAufgabe({
-      titel: "Wartet auf Freigabe",
-      erstellerId: rike.id,
+      titel: "Meine Freigabe 1",
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: rike.id,
+      status: "freigabe_offen",
+    });
+    legeAufgabe({
+      titel: "Meine Freigabe 2",
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: rike.id,
+      status: "freigabe_offen",
+    });
+    legeAufgabe({
+      titel: "Vertretungsfall",
+      erstellerId: malte.id,
       zugewiesenAn: alina.id,
       prueferId: malte.id,
       status: "freigabe_offen",
     });
 
-    // Zurueckgewiesen: eine.
-    legeAufgabe({
-      titel: "Zurueckgewiesen",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "zurueckgewiesen",
-    });
+    // Zurueckgewiesen: VIER Aufgaben.
+    for (let i = 1; i <= 4; i++) {
+      legeAufgabe({
+        titel: `Zurueckgewiesen ${i}`,
+        erstellerId: malte.id,
+        zugewiesenAn: alina.id,
+        prueferId: malte.id,
+        status: "zurueckgewiesen",
+      });
+    }
 
     await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
 
-    expect(kpiZahlen()).toEqual(["2", "1", "1", "1"]);
+    expect(kpiZahlen()).toEqual(["2", "3", "1", "4"]);
+
+    // Posteingang-Tabelle: GENAU die zwei Zeilen der Kachel "Zu verteilen".
+    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
+
+    // Freigabe-Listen: zwei "meine" plus eine "in Vertretung" — zusammen die DREI der Kachel.
+    const freigabeListen = query("#freigabe").querySelectorAll("ul");
+    expect(freigabeListen[0]!.querySelectorAll("li")).toHaveLength(2);
+    expect(freigabeListen[1]!.querySelectorAll("li")).toHaveLength(1);
 
     // DIESELBE ZAHL, DIESELBE LISTE, IM SELBEN RENDER: die Ueberfaelligkeitsliste enthaelt GENAU
     // die eine Aufgabe mit verstrichener Frist, nicht die ungeplante mit Frist in der Zukunft.
@@ -116,15 +148,24 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
     expect(ueberfaelligZeilen[0]!.textContent).not.toContain("Ungeplant, aber nicht ueberfaellig");
   });
 
+  /**
+   * FIX-RUNDE 1, MINOR 1: „Meine Freigabe" traegt jetzt `erstellerId: malte`, NICHT mehr
+   * `erstellerId: rike` — vorher koppelten beide Fixturzeilen `erstellerId` an `prueferId`
+   * (`erstellerId === prueferId` fuer „meine", `erstellerId === prueferId` fuer „Vertretung"), und
+   * eine falsche Implementierung ueber `a.erstellerId !== person.id` statt
+   * `istVertretungsfreigabe` haette den Test unveraendert bestanden. Jetzt bindet nur noch
+   * `prueferId`.
+   */
   it("die Freigabe-Warteschlange trennt „meine“ von „in Vertretung“", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
     const malte = legePerson("dev:malte@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi");
 
-    // MEINE: Rike selbst ist die eingetragene Pruefer.
+    // MEINE: Rike ist die eingetragene Pruefer — ABER NICHT die Erstellerin (entkoppelt von
+    // `erstellerId`, s. Kopfkommentar).
     legeAufgabe({
       titel: "Meine Freigabe",
-      erstellerId: rike.id,
+      erstellerId: malte.id,
       zugewiesenAn: alina.id,
       prueferId: rike.id,
       status: "freigabe_offen",

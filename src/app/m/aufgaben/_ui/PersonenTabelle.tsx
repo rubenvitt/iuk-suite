@@ -108,7 +108,7 @@ function ZeilenAktionen({ zeile }: { zeile: PersonenZeile }) {
           <input type="hidden" name="personId" value={zeile.person.id} />
           <Popconfirm
             title="Person beenden?"
-            description={`„${zeile.person.name}" verschwindet danach aus Verteillisten und ` +
+            description={`„${zeile.person.name}“ verschwindet danach aus Verteillisten und ` +
               `Plan-Navigation. Aufgaben, Nachweise und Verlaufszeilen bleiben lesbar.`}
             okText="Beenden"
             cancelText="Abbrechen"
