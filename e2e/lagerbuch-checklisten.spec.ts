@@ -196,17 +196,48 @@ test.describe("Fahrzeug-Checklisten", () => {
     await expect(bogen).toHaveClass(/lb-cl-kompakt/);
   });
 
+  /**
+   * ⚠️ `waitForURL` MIT EIGENEM ZEITBUDGET, NICHT `expect(page).toHaveURL(…)`.
+   *
+   * Der Knopf ist ein `Button href`, also ein echter Anker: der Klick ist ein
+   * DOKUMENTWECHSEL, kein Client-Wechsel — die Zielseite wird samt aller
+   * Bündel neu geladen. `toHaveURL` erbt die Vorgabe von `expect` (5 s), und
+   * bis zum Commit der Navigation meldet `page.url()` weiter die ALTE Adresse.
+   * Ein `next dev` auf einem CI-Runner braucht dafuer regelmaessig laenger als
+   * fuenf Sekunden, und die Zusicherung faellt, waehrend die Navigation noch
+   * unterwegs ist — das Bild ist „14 × unexpected value <alte URL>", also
+   * ununterscheidbar von „der Knopf navigiert gar nicht".
+   *
+   * GEMESSEN, NICHT GERATEN: dieselbe Navigation auf einem KALTEN `next dev`
+   * kostet **4134 ms** — auf einer unbelasteten Maschine, gegen ein Budget von
+   * 5000 ms. Weniger als eine Sekunde Luft, bevor die Zusicherung faellt; ein
+   * CI-Runner ist kleiner, geteilt und hat die halbe Suite daneben im Ofen.
+   *
+   * DIESELBE KLASSE STEHT SCHON IM REPO AUSGESCHRIEBEN: `fixtures.ts` haelt
+   * fuer den Anmeldeweg fest, dass 10 s „auf jeder Entwicklermaschine haelt und
+   * in der CI jedes Mal fiel" — kalt gemessen 13,7 s gegen 0,3 s warm.
+   *
+   * Beide Faelle unten hingen an derselben Kante; dass der erste eine Zeit lang
+   * gruen war, war Glueck und keine Aussage.
+   *
+   * `test.timeout` ist 90 s, das Budget ist also da — es war nur der falschen
+   * Zusicherung zugeteilt.
+   */
+  const NAVIGATION = 45_000;
+
   test("die Fahrzeugliste fuehrt auf den Bogen", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge"));
     await page.getByRole("link", { name: "Checklisten drucken" }).click();
-    await expect(page).toHaveURL(/\/verwaltung\/checklisten$/);
+    await page.waitForURL(/\/verwaltung\/checklisten$/, { timeout: NAVIGATION });
     await expect(page.locator(".lb-cl-blatt").nth(0)).toBeVisible();
   });
 
   test("das Fahrzeugblatt fuehrt auf genau sein eigenes Blatt", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge/e2e-fahrzeug"));
     await page.getByRole("link", { name: "Checkliste drucken" }).click();
-    await expect(page).toHaveURL(/\/verwaltung\/checklisten\?fz=e2e-fahrzeug$/);
+    await page.waitForURL(/\/verwaltung\/checklisten\?fz=e2e-fahrzeug$/, {
+      timeout: NAVIGATION,
+    });
     await expect(page.locator(".lb-cl-blatt")).toHaveCount(1);
   });
 
