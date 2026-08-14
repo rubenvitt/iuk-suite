@@ -294,6 +294,19 @@ Zwei Regeln, die dabei nicht verhandelbar sind:
   Navigationseintrag und kein Knopf auf eine Seite zeigen, die für die klickende Person 404 ist —
   weil Oberfläche und Riegel dieselben Funktionen aufrufen, ist das strukturell ausgeschlossen.
 
+  **Nachtrag vom 2026-08-14 — eine Ausnahme, und nur diese eine.** Wer die **Zugangsgruppe des
+  Moduls hat**, aber keine `person`-Zeile, bekommt statt 404 eine **Erklärseite**: „Du bist noch
+  nicht im Modul eingetragen — wende dich an die Koordination." Der Fall wurde bei der Umsetzung
+  sichtbar: ein neuer BuFDi steht in Pocket ID bereits in `iuk-aufgaben-nutzer`, ist aber im Modul
+  noch nicht angelegt, und ein 404 gibt ihm nichts, womit er weiterkäme. Die Begründung für 404 —
+  die Existenz einer Seite nicht verraten — trägt hier nicht: die Person **hat** den Modulzugang,
+  es gibt vor ihr nichts zu verbergen.
+
+  **Alles andere bleibt 404**, und das ist die Grenze der Ausnahme: eine unbekannte Aufgaben- oder
+  Personen-Id in der URL (`/a/<id>`, `/plan/<personId>`) ergibt weiterhin `notFound()`, denn dort
+  geht es um Objekte, die es geben könnte oder nicht. Und wer die Zugangsgruppe **nicht** hat,
+  scheitert unverändert am Middleware-Riegel mit 403.
+
 ## 8. Bildschirme
 
 Routen unter `/m/aufgaben`:
