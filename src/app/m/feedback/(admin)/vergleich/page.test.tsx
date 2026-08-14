@@ -223,6 +223,15 @@ describe("Vergleich — Tabelle, Ordnung, Spalten", () => {
     expect(viel.textContent).not.toContain("nicht vergleichbar");
   });
 
+  it("nennt ohne Gruppen den naechsten Schritt statt nur den Zustand (§4.3 Punkt 5)", async () => {
+    const text = (await zeichne()).textContent ?? "";
+    expect(text).toContain("Keine Gruppen");
+    // Der Leertext bleibt kein reiner Zustandssatz — er nennt den Ort, an dem
+    // eine Gruppe entsteht, denselben, den nur ein Admin (Zielgruppe dieser
+    // Seite) ohnehin sieht.
+    expect(text).toContain("Deine Gruppen");
+  });
+
   it("importiert `core/charts` nicht mehr", () => {
     const quelle = readFileSync(
       join(process.cwd(), "src/app/m/feedback/(admin)/vergleich/page.tsx"),

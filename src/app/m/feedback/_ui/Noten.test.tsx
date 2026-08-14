@@ -529,9 +529,19 @@ describe("feedback.css — der Spiegel gegen TypeScript", () => {
   });
 });
 
-describe("typo.ts — sieben Rollen, keine Ad-hoc-Groesse", () => {
-  it("bringt genau die sieben Rollen des Entwurfs", () => {
-    expect(Object.keys(T)).toEqual(["kicker", "meta", "body", "lead", "h2", "h1", "zahl"]);
+describe("typo.ts — sechs Rollen, keine Ad-hoc-Groesse", () => {
+  /**
+   * VORMALS SIEBEN, MIT `h1` (Aufgabe 11, Navigation/Dichte hat sie entfernt).
+   * `h1` bediente ausschlieszlich die eigenen `<h1>`-Ueberschriften der
+   * Admin-Seiten; alle fuenf sind seither `core/shell/Seitenkopf`, der seinen
+   * Titel selbst traegt (`SCHRIFT.titel`, ungekuerzt) und diese Datei dafuer
+   * nicht mehr liest. Sechs Rollen bedienen weiterhin echte, im Modul lebende
+   * Anwender — bringt jemand eine `h1`-Rolle zurueck, gehoert auch wieder ein
+   * Anwender dazu, sonst waere es dieselbe Ad-hoc-Groesze, die dieser Test
+   * verhindern soll.
+   */
+  it("bringt genau die sechs Rollen des Entwurfs", () => {
+    expect(Object.keys(T)).toEqual(["kicker", "meta", "body", "lead", "h2", "zahl"]);
   });
 
   it("haelt Groesse und Gewicht der Leiter", () => {
@@ -547,7 +557,6 @@ describe("typo.ts — sieben Rollen, keine Ad-hoc-Groesse", () => {
     expect(T.lead.fontSize).toBe(16);
     expect(T.lead.fontWeight).toBe(600);
     expect(T.h2.fontSize).toBe(20);
-    expect(T.h1.fontSize).toBe(24);
     expect(T.zahl.fontSize).toBe(30);
     expect(T.zahl.fontWeight).toBe(600);
   });

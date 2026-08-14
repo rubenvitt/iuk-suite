@@ -266,7 +266,8 @@ export default async function Cockpit({
          * Betriebsart „Einrichtung": anders als der Verlauf ist sie dort nicht leer,
          * sondern die einzige Stelle, an der Name, Frist und (fuer Admins) die
          * Leitung einer neuen Gruppe korrigierbar sind. Eingeklappt, mit 32px
-         * Abstand nach oben (§4.8) — der `gap: 24` des Wrappers plus diese 8.
+         * Abstand nach oben (§4.8) — der `SPACE.xl` (24) des Wrappers plus dieses
+         * `SPACE.sm` (8).
          */}
         <div style={{ marginTop: SPACE.sm }}>
           <EinstellungenPanel

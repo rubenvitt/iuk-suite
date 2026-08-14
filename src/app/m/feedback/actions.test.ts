@@ -18,6 +18,7 @@ import {
   setGroupMembers,
   upsertKnownUser,
   insertResponse,
+  setSurveyStatus,
 } from "./_db/queries";
 import {
   computeClosesAt,
@@ -700,17 +701,12 @@ describe("revalidate: der Pfad schließt das Cockpit ein", () => {
     expect(revalidatePathMock).not.toHaveBeenCalledWith("/m/feedback/admin");
   });
 
-  it("auch beim Beenden — dieselbe Seite muss den neuen Zustand zeigen", async () => {
-    const { closeSurveyAction } = await loadActions();
-    const { survey } = seedActiveSurvey("bereitschaft", "abc12");
-    alsGruppenleitung("bereitschaft");
-
-    const f = new FormData();
-    f.set("id", String(survey.id));
-    await closeSurveyAction(f);
-
-    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
-  });
+  // Das Gegenstück „auch beim Beenden" stand hier vormals auf `closeSurveyAction`
+  // (entfernt, Review Aufgabe 11 — kein Aufrufer, superseded durch
+  // `beendeFeedbackAction`). Dieselbe Zusicherung existiert unverändert und
+  // unabhängig im describe-Block „beendeFeedbackAction: der geplante
+  // Schluss-Schritt" weiter unten — kein Verlust an Abdeckung, keine Kopie
+  // nötig.
 });
 
 /**
@@ -1186,13 +1182,15 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
   });
 
   it("eine geschlossene Umfrage bekommt keine neue Frist — sie läuft nicht mehr", async () => {
-    const { updateEveningAction, closeSurveyAction } = await loadActions();
+    const { updateEveningAction } = await loadActions();
     const { survey } = seedActiveSurvey("bereitschaft", "abc12", 0, 48);
     const eveningId = getSurvey(db, survey.id)!.eveningId;
     alsGruppenleitung("bereitschaft");
-    const zu = new FormData();
-    zu.set("id", String(survey.id));
-    await closeSurveyAction(zu);
+    // Vorbereitung nur: die geschlossene Umfrage entsteht hier direkt über die
+    // Datenbank-Hilfsfunktion, nicht mehr über `closeSurveyAction` (entfernt,
+    // Review Aufgabe 11) — diese Zeile prüft `updateEveningAction`, nicht den
+    // Weg, auf dem die Umfrage geschlossen wurde.
+    setSurveyStatus(db, survey.id, "closed", { closedAt: new Date() });
     const vorher = getSurvey(db, survey.id)!.closesAt;
 
     const f = new FormData();
