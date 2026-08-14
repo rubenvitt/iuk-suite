@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  EREIGNISSE,
   PRIORITAETEN,
   ROLLEN,
   STATUS_WERTE,
@@ -8,6 +9,7 @@ import {
   type RoutineRow,
 } from "../_db/schema";
 import {
+  EREIGNIS_TEXT,
   PRIORITAET_FORM,
   PRIORITAET_TEXT,
   ROLLE_TEXT,
@@ -95,6 +97,25 @@ describe("Beschriftungen sind vollstaendig", () => {
     for (const r of ROLLEN) {
       expect(ROLLE_TEXT[r], `Text ${r}`).toBeTruthy();
     }
+  });
+
+  /**
+   * ERSCHOEPFEND WIE OBEN (Aufgabe 16, Spec §6 `verlauf`): ein fehlendes Ereignis waere im Journal
+   * eine leere Zeile — genau die Stelle, an der die Leistungsdokumentation aussagekraeftig sein
+   * soll (Spec §6). Jeder der zehn Werte aus `EREIGNISSE` braucht deshalb eine eigene, nicht-leere
+   * Beschriftung, und die Zahl der Schluessel muss exakt uebereinstimmen — kein zusaetzlicher, aus
+   * einem Tippfehler entstandener Eintrag bleibt sonst unbemerkt stehen.
+   */
+  it("hat fuer jedes Verlaufs-Ereignis eine eigene Beschriftung (Aufgabe 16)", () => {
+    for (const e of EREIGNISSE) {
+      expect(EREIGNIS_TEXT[e], `Text ${e}`).toBeTruthy();
+    }
+    expect(Object.keys(EREIGNIS_TEXT).sort()).toEqual([...EREIGNISSE].sort());
+  });
+
+  it("traegt fuer jedes Ereignis eine VERSCHIEDENE Beschriftung — keine zwei Werte mit demselben Text", () => {
+    const texte = EREIGNISSE.map((e) => EREIGNIS_TEXT[e]);
+    expect(new Set(texte).size).toBe(EREIGNISSE.length);
   });
 });
 

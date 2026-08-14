@@ -46,7 +46,42 @@ import s from "./aufgaben.module.css";
  * deaktivieren) UND KEIN `useActionState` — dieselbe Form wie `RoutinenTabelle.tsx`s
  * `routineRuhenAction`: ein natives `<form action={freigebenAction}>` mit einem einzigen versteckten
  * Feld.
+ *
+ * `FreigabeAktionen` IST EXPORTIERT (Aufgabe 16) — die Knopfzeile (Freigeben/Zurückweisen) samt
+ * Bestaetigungsdialog, OHNE Titel/Chips/Meta/Nachweis drumherum. `a/[id]/page.tsx`s
+ * `_ui/AktionsZone.tsx` haengt sie dort ein, WEIL die Detailseite Titel, Chips, Metablock und
+ * Nachweisbereich bereits selbst als eigene Abschnitte zeigt (Spec §8.4) — eine eingebettete volle
+ * `FreigabeKarte` verlinkte dort auf sich selbst und wiederholte, was schon auf derselben Seite
+ * steht. `FreigabeKarte` unten ruft `FreigabeAktionen` fuer genau dieselbe Logik — KEINE zweite
+ * Fassung von „Freigeben"/„Zurückweisen bestaetigungspflichtig", nur ein zweiter Aufrufer.
  */
+export function FreigabeAktionen({ aufgabe }: { aufgabe: FreigabeZeile["aufgabe"] }) {
+  const [zurueckweisenOffen, setZurueckweisenOffen] = useState(false);
+
+  return (
+    <>
+      <div className={s.knopfzeile}>
+        <form action={freigebenAction}>
+          <input type="hidden" name="aufgabeId" value={aufgabe.id} />
+          <Button type="primary" size="small" htmlType="submit" data-testid={`freigeben-${aufgabe.id}`}>
+            Freigeben
+          </Button>
+        </form>
+        <Button
+          size="small"
+          onClick={() => setZurueckweisenOffen(true)}
+          data-testid={`zurueckweisen-${aufgabe.id}`}
+        >
+          Zurückweisen
+        </Button>
+      </div>
+
+      {zurueckweisenOffen ? (
+        <ZurueckweisenModal aufgabe={aufgabe} onClose={() => setZurueckweisenOffen(false)} />
+      ) : null}
+    </>
+  );
+}
 
 export interface FreigabeZoneProps {
   meine: FreigabeZeile[];
@@ -104,7 +139,6 @@ function FreigabeListe({ zeilen, heute }: { zeilen: FreigabeZeile[]; heute: stri
 }
 
 function FreigabeKarte({ zeile, heute }: { zeile: FreigabeZeile; heute: string }) {
-  const [zurueckweisenOffen, setZurueckweisenOffen] = useState(false);
   const { aufgabe } = zeile;
 
   return (
@@ -128,25 +162,7 @@ function FreigabeKarte({ zeile, heute }: { zeile: FreigabeZeile; heute: string }
 
       <NachweisBlock nachweise={zeile.nachweise} />
 
-      <div className={s.knopfzeile}>
-        <form action={freigebenAction}>
-          <input type="hidden" name="aufgabeId" value={aufgabe.id} />
-          <Button type="primary" size="small" htmlType="submit" data-testid={`freigeben-${aufgabe.id}`}>
-            Freigeben
-          </Button>
-        </form>
-        <Button
-          size="small"
-          onClick={() => setZurueckweisenOffen(true)}
-          data-testid={`zurueckweisen-${aufgabe.id}`}
-        >
-          Zurückweisen
-        </Button>
-      </div>
-
-      {zurueckweisenOffen ? (
-        <ZurueckweisenModal aufgabe={aufgabe} onClose={() => setZurueckweisenOffen(false)} />
-      ) : null}
+      <FreigabeAktionen aufgabe={aufgabe} />
     </div>
   );
 }

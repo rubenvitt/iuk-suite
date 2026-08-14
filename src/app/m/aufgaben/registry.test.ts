@@ -25,12 +25,13 @@ describe("Registrierung des Moduls aufgaben", () => {
   });
 
   /*
-   * Ein halbfertiges Modul gehoert nicht in die Navigation aller Nutzer.
-   * Aufgabe 16 dreht den Wert und aendert DIESE Zeile mit — der Test ist die
-   * Erinnerung daran, nicht ein Verbot.
+   * Ein halbfertiges Modul gehoert nicht in die Navigation aller Nutzer — bis Aufgabe 16. Diese
+   * Zeile dreht mit ihr mit: das Modul ist jetzt vollstaendig begehbar (`/a/<id>`, `/archiv` und die
+   * rollenabhaengige Modulnavigation stehen), und genau das ist der Moment, den der Test aus
+   * Aufgabe 1 sich gemerkt hatte.
    */
-  it("ist bis Aufgabe 16 nicht im App-Switcher", () => {
-    expect(findModule("aufgaben")!.showInSwitcher).toBe(false);
+  it("ist seit Aufgabe 16 im App-Switcher — das Modul ist vollstaendig begehbar", () => {
+    expect(findModule("aufgaben")!.showInSwitcher).toBe(true);
   });
 
   it("verlangt die Zugangsgruppe iuk-aufgaben-nutzer", () => {

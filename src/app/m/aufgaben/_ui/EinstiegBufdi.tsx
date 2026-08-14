@@ -45,6 +45,20 @@ import { Wochenplan } from "./Wochenplan";
  * DIE ZAHLEN DER KACHELN UND DIE LISTE DARUNTER TEILEN SICH DIESELBE ABLEITUNG
  * (`wartetAufEinplanung`/`heuteOffen` aus `_lib/anzeige.ts`) UND DENSELBEN LESEPFAD
  * (`aufgabenFuerPerson`) — keine zweite Zaehlung.
+ *
+ * DIE ZWEI VERTAGTEN KPI-VERWEISE (Aufgabe 16) — „Freigabe offen" und „Zurückgewiesen" trugen bis
+ * hierhin bewusst KEIN `href` (Aufgabe 13: „ein Knopf auf eine 404-Seite wäre schlechter als
+ * keiner" — `/freigaben` existierte noch nicht, UND ist ohnehin fuer `bufdi` KEIN Ziel: die Route
+ * ist auf `auftrag`/`koordination` gegatet, `darfFreigabenSehen`, weil sie die Warteschlange DERER
+ * zeigt, die freigeben, nicht der Zugewiesenen). Beide Kacheln verlinken deshalb NICHT auf
+ * `/freigaben`, sondern auf zwei neue, schreibgeschuetzte Abschnitte AUF DIESER Seite
+ * (`#freigabe-offen`, `#zurueckgewiesen`) — dieselbe Form wie die bereits bestehenden Anker
+ * `#posteingang` hier bzw. `#freigabe`/`#ueberfaellig` in `EinstiegKoordination.tsx`. SCHREIBGESCHUETZT,
+ * NICHT WEIL ES NICHTS ZU TUN GAEBE (`zurueckgewiesen` erlaubt der zugewiesenen Person durchaus
+ * „Wiederaufnehmen"), SONDERN WEIL DIE AKTION BEREITS EINEN ORT HAT: `/a/<id>`s Aktionszone (Aufgabe
+ * 16). Ein zweiter, hier eingebauter Knopf waere dieselbe Aktion an zwei Stellen gehalten — die
+ * Person klickt stattdessen auf den Titel und landet auf der Seite, die ohnehin alles zeigt
+ * (Verlauf, Zurückweisungsgrund, Aktion).
  */
 export function EinstiegBufdi({
   db,
@@ -124,10 +138,20 @@ export function EinstiegBufdi({
           />
         </Col>
         <Col xs={12} md={6}>
-          <Kachel zahl={freigabeOffenListe.length} beschriftung="Freigabe offen" ton="ocker" />
+          <Kachel
+            zahl={freigabeOffenListe.length}
+            beschriftung="Freigabe offen"
+            ton="ocker"
+            href={freigabeOffenListe.length > 0 ? "#freigabe-offen" : undefined}
+          />
         </Col>
         <Col xs={12} md={6}>
-          <Kachel zahl={zurueckgewiesenListe.length} beschriftung="Zurückgewiesen" ton="achtung" />
+          <Kachel
+            zahl={zurueckgewiesenListe.length}
+            beschriftung="Zurückgewiesen"
+            ton="achtung"
+            href={zurueckgewiesenListe.length > 0 ? "#zurueckgewiesen" : undefined}
+          />
         </Col>
       </Row>
 
@@ -155,6 +179,24 @@ export function EinstiegBufdi({
         zeigeAktionen={zeigeAktionen}
         rang={rang}
       />
+
+      <section id="freigabe-offen" style={{ marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.xl }}>
+        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Freigabe offen</h2>
+        <AufgabenListe
+          zeilen={freigabeOffenListe.map((a) => ({ aufgabe: a }))}
+          heute={heute}
+          leerText="Keine Aufgabe wartet auf Freigabe."
+        />
+      </section>
+
+      <section id="zurueckgewiesen" style={{ marginBlockEnd: SPACE.xl }}>
+        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Zurückgewiesen</h2>
+        <AufgabenListe
+          zeilen={zurueckgewiesenListe.map((a) => ({ aufgabe: a }))}
+          heute={heute}
+          leerText="Keine zurückgewiesene Aufgabe."
+        />
+      </section>
 
       <div
         style={{

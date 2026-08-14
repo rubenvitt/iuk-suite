@@ -162,6 +162,36 @@ export function ausgewaehlterTag(tage: readonly string[], heute: string, tagPara
   return tage[0]!;
 }
 
+/**
+ * Numerische Teile eines echten Zeitpunkts in Deutschland — `en-CA` wie `ISO_FORMAT`, wieder wegen
+ * der stabilen, rein numerischen Ausgabe, diesmal zusaetzlich mit Uhrzeit. `hourCycle: "h23"`
+ * erzwingt 24-Stunden-Anzeige unabhaengig vom Standardverhalten des Gebietsschemas.
+ */
+const ZEITPUNKT_TEILE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/**
+ * „13.08.2026, 09:14" — fuer Verlaufszeilen (`_ui/AktionsZone.tsx`, `a/[id]/page.tsx`), die einen
+ * ECHTEN Zeitpunkt zeigen (`verlauf.ts`), nicht einen Kalendertag wie `fmtTagKurz`. Eigene
+ * Zusammensetzung aus `formatToParts` statt `format()` direkt: die Satzzeichen ("." und ", ")
+ * bleiben damit FEST, unabhaengig davon, welche Interpunktion eine ICU-Fassung fuer „en-CA" waehlt
+ * — dieselbe Vorsicht wie bei `fmtTagKurz`, das aus demselben Grund keine Intl-Wochentagsnamen
+ * uebernimmt.
+ */
+export function fmtZeitpunkt(zeitpunkt: Date): string {
+  const teile = Object.fromEntries(
+    ZEITPUNKT_TEILE.formatToParts(zeitpunkt).map((teil) => [teil.type, teil.value]),
+  );
+  return `${teile.day}.${teile.month}.${teile.year}, ${teile.hour}:${teile.minute}`;
+}
+
 export function minutenVon(uhrzeit: string): number {
   const treffer = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(uhrzeit);
   if (!treffer) {

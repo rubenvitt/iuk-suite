@@ -34,6 +34,7 @@ import {
   darfFreigeben,
   darfPlanSehen,
   darfNachweisSehen,
+  darfAufgabeSehen,
   darfFreigabenSehen,
   istVertretungsfreigabe,
 } from "./zugang";
@@ -434,6 +435,71 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
       status: "freigabe_offen",
     });
     expect(darfNachweisSehen(fremd, a)).toBe(false);
+  });
+
+  /**
+   * DIE NEUE KLAUSEL (Aufgabe 16, Widerspruch — s. Bericht): der eingetragene Pruefer ist WEDER
+   * Ersteller NOCH Zugewiesener und sah den Nachweis vorher trotzdem schon auf `/freigaben`
+   * (`_db/queries.ts`s `freigabeDaten` haengt ihn ueber `darfFreigeben` an, nicht ueber
+   * `darfNachweisSehen`) — ohne diese Klausel haette `/a/<id>` (Aufgabe 16) ihm denselben Nachweis
+   * verweigert, den er auf der Freigabe-Warteschlange bereits sieht.
+   */
+  it("der eingetragene Pruefer sieht den Nachweis, auch wenn er weder Ersteller noch Zugewiesener ist", () => {
+    const ersteller = legePerson("ns5-ersteller", "auftrag");
+    const pruefer = legePerson("ns5-pruefer", "auftrag");
+    const bufdi = legePerson("ns5-bufdi", "bufdi");
+    const a = legeAufgabe({
+      erstellerId: ersteller.id,
+      zugewiesenAn: bufdi.id,
+      prueferId: pruefer.id,
+      status: "freigabe_offen",
+    });
+    expect(darfNachweisSehen(pruefer, a)).toBe(true);
+  });
+});
+
+describe("darfAufgabeSehen — koordination und jeder BuFDi sehen jede Aufgabe; auftrag nur die eigene", () => {
+  it("koordination sieht jede Aufgabe", () => {
+    const rike = legePerson("das-rike", "koordination");
+    const ersteller = legePerson("das-ersteller", "auftrag");
+    const a = legeAufgabe({ erstellerId: ersteller.id });
+    expect(darfAufgabeSehen(rike, a)).toBe(true);
+  });
+
+  it("JEDER BuFDi sieht jede Aufgabe — das Spiegelbild zu darfPlanSehen", () => {
+    const ersteller = legePerson("das2-ersteller", "auftrag");
+    const zugewiesen = legePerson("das2-zugewiesen", "bufdi");
+    const fremderBufdi = legePerson("das2-fremd", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: zugewiesen.id });
+    expect(darfAufgabeSehen(fremderBufdi, a)).toBe(true);
+  });
+
+  it("ein Auftraggeber sieht eine FREMDE Aufgabe (anderer Ersteller, kein Pruefer) NICHT", () => {
+    const ersteller = legePerson("das3-ersteller", "auftrag");
+    const fremderAuftrag = legePerson("das3-fremd", "auftrag");
+    const a = legeAufgabe({ erstellerId: ersteller.id, prueferId: ersteller.id });
+    expect(darfAufgabeSehen(fremderAuftrag, a)).toBe(false);
+  });
+
+  it("der Ersteller sieht die eigene Aufgabe", () => {
+    const ersteller = legePerson("das4-ersteller", "auftrag");
+    const a = legeAufgabe({ erstellerId: ersteller.id, prueferId: ersteller.id });
+    expect(darfAufgabeSehen(ersteller, a)).toBe(true);
+  });
+
+  it("der eingetragene Pruefer sieht die Aufgabe, auch ohne Ersteller oder Zugewiesener zu sein", () => {
+    const ersteller = legePerson("das5-ersteller", "auftrag");
+    const pruefer = legePerson("das5-pruefer", "auftrag");
+    const bufdi = legePerson("das5-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id, prueferId: pruefer.id });
+    expect(darfAufgabeSehen(pruefer, a)).toBe(true);
+  });
+
+  it("gilt unabhaengig von istAktiv — Sichtpraedikat, kein Handlungspraedikat", () => {
+    const ersteller = legePerson("das6-ersteller", "auftrag");
+    const exBufdi = legePerson("das6-ex", "bufdi", { aktivBis: "2020-01-01" });
+    const a = legeAufgabe({ erstellerId: ersteller.id });
+    expect(darfAufgabeSehen(exBufdi, a)).toBe(true);
   });
 });
 

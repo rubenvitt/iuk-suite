@@ -188,9 +188,9 @@ export function darfPlanSehen(p: PersonRow, zielPersonId: string): boolean {
 }
 
 /**
- * Verfasserin, `koordination`, oder der Ersteller der Aufgabe — NICHT jeder BuFDi.
- * "Leistungsnachweise sind kein Aushang" (Spec §2). Kein `istAktiv`: dieselbe Begruendung wie bei
- * `darfPlanSehen` — Einsicht in die eigene Geschichte bleibt bestehen.
+ * Verfasserin, `koordination`, der Ersteller der Aufgabe, ODER der eingetragene Pruefer — NICHT
+ * jeder BuFDi. "Leistungsnachweise sind kein Aushang" (Spec §2). Kein `istAktiv`: dieselbe
+ * Begruendung wie bei `darfPlanSehen` — Einsicht in die eigene Geschichte bleibt bestehen.
  *
  * Liest „Verfasser" als „aktuell Zugewiesener" (`a.zugewiesenAn`), nicht als
  * `nachweise.erstelltVon` — die `AufgabeRow` allein kennt Letzteres nicht. Heute deckungsgleich,
@@ -198,9 +198,57 @@ export function darfPlanSehen(p: PersonRow, zielPersonId: string): boolean {
  * Fertigmelden aus `in_arbeit` entsteht: eine Aufgabe mit Nachweis kann die zugewiesene Person
  * also nicht mehr gewechselt haben. Diese Uebereinstimmung haengt an Aufgabe 8 (der
  * Uebergangstabelle) und muesste dort erneut geprueft werden, falls sich das je aendert.
+ *
+ * DIE PRUEFER-KLAUSEL IST NEU (Aufgabe 16, Widerspruch — s. Bericht): Spec §7 nennt woertlich nur
+ * „Koordination, Ersteller, Zugewiesener", aber `_db/queries.ts`s `freigabeDaten` haengt jeder
+ * `FreigabeZeile` ihre Nachweise an, OHNE `darfNachweisSehen` zu pruefen — sie filtert nur ueber
+ * `freigabenFuer`/`darfFreigeben`, die den Pruefer einschliesst. Ohne diese Klausel saehe der
+ * eingetragene Pruefer den Nachweis auf `/freigaben` (`FreigabeZone.tsx`), aber nicht auf
+ * `/a/<id>` (Aufgabe 16, `darfNachweisSehen`-gestuetzter Nachweisbereich) — dieselbe Person, dieselbe
+ * Aufgabe, zwei verschiedene Antworten auf dieselbe Frage. Und fachlich ist die Klausel ohnehin
+ * richtig: „wer freigibt, muss sehen, was er freigibt" (`FreigabeZone.tsx`s Kopfkommentar) waere
+ * sonst nur die halbe Wahrheit. `prueferId` zeigt nie auf eine `bufdi`-Zeile (nur `auftrag`/
+ * `koordination` duerfen fremd einstellen und werden dabei zum Pruefer, `anfangsZustand()`) — die
+ * Erweiterung oeffnet also keinen Nachweis fuer „jeden BuFDi", die Kernzusage aus Spec §2 bleibt.
  */
 export function darfNachweisSehen(p: PersonRow, a: AufgabeRow): boolean {
-  return p.rolle === "koordination" || p.id === a.erstellerId || p.id === a.zugewiesenAn;
+  return (
+    p.rolle === "koordination" ||
+    p.id === a.erstellerId ||
+    p.id === a.zugewiesenAn ||
+    p.id === a.prueferId
+  );
+}
+
+/**
+ * SICHTPRAEDIKAT FUER `/a/<id>` UND `/archiv` (Aufgabe 16) — Spec §7 nennt dafuer keinen eigenen
+ * Namen; diese Funktion ist die Uebersetzung von "wer die Aufgabe nicht sehen darf, bekommt
+ * `notFound()`" in ein Praedikat, wie jedes andere hier.
+ *
+ * `rolle === "bufdi"` SIEHT JEDE AUFGABE — DAS SPIEGELBILD ZU `darfPlanSehen` (dort: jeder BuFDi
+ * sieht jeden BuFDi-Zeitplan lesend, "Vertretungsabsprachen ohne die Koordination als
+ * Nadeloehr", Spec §2). Eine Aufgabe ist der Dateninhalt genau des Zeitplans, den `darfPlanSehen`
+ * schon oeffnet — diese Klausel macht nur ausdruecklich, was ueber die Zeitplan-Sicht ohnehin
+ * einsehbar waere.
+ *
+ * `auftrag` BLEIBT ENGER: Spec §2 gewaehrt nur BuFDis das lesende Sehen der anderen: ein
+ * Auftraggeber sieht fremde Auftraege nicht automatisch. Fuer `auftrag` bleibt die Sicht also auf
+ * `erstellerId`/`prueferId` beschraenkt — praktisch dasselbe Feld, weil `prueferId === erstellerId`
+ * fuer jede heute ueber die Oberflaeche eingestellte Fremdaufgabe gilt (`aufgabeEinstellenAction`);
+ * die Pruefer-Klausel bleibt trotzdem eigens benannt, falls das je auseinanderlaeuft (`umverteilen`
+ * ruehrt `prueferId` nicht an, s. `verteilenGemeinsam` in `actions.ts`).
+ *
+ * KEIN `istAktiv` — SICHTPRAEDIKAT (Kopfkommentar dieser Datei): eine ausgeschiedene Person liest
+ * ihre eigene Geschichte weiter (Spec §7).
+ */
+export function darfAufgabeSehen(p: PersonRow, a: AufgabeRow): boolean {
+  return (
+    p.rolle === "koordination" ||
+    p.rolle === "bufdi" ||
+    p.id === a.erstellerId ||
+    p.id === a.zugewiesenAn ||
+    p.id === a.prueferId
+  );
 }
 
 /**

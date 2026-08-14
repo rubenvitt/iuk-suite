@@ -174,6 +174,68 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
     expect(verweis, "Verweis auf #posteingang fehlt").toBeTruthy();
   });
 
+  /**
+   * DIE ZWEI VERTAGTEN KPI-VERWEISE (Aufgabe 16) — beide zeigen jetzt auf eigene Anker AUF DIESER
+   * Seite, NICHT auf `/freigaben` (das ist fuer `bufdi` kein Ziel — `darfFreigabenSehen` gilt nur
+   * fuer `auftrag`/`koordination`, ein Verweis dorthin waere 404).
+   */
+  it('"Freigabe offen" verlinkt auf #freigabe-offen, "Zurückgewiesen" auf #zurueckgewiesen — NICHT auf /freigaben', async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const alina = legePerson("dev:alina@test", "bufdi");
+    legeAufgabe({
+      titel: "Wartet auf Freigabe",
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malte.id,
+      status: "freigabe_offen",
+    });
+    legeAufgabe({
+      titel: "Muss ueberarbeitet werden",
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malte.id,
+      status: "zurueckgewiesen",
+    });
+    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+
+    const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
+    expect(hrefs).toContain("#freigabe-offen");
+    expect(hrefs).toContain("#zurueckgewiesen");
+    expect(hrefs.some((h) => h?.includes("freigaben"))).toBe(false);
+  });
+
+  it("die Abschnitte #freigabe-offen und #zurueckgewiesen zeigen genau die jeweiligen Aufgaben", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const alina = legePerson("dev:alina@test", "bufdi");
+    legeAufgabe({
+      titel: "Wartet auf Freigabe",
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malte.id,
+      status: "freigabe_offen",
+    });
+    legeAufgabe({
+      titel: "Muss ueberarbeitet werden",
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malte.id,
+      status: "zurueckgewiesen",
+    });
+    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+
+    expect(query("#freigabe-offen").textContent).toContain("Wartet auf Freigabe");
+    expect(query("#freigabe-offen").textContent).not.toContain("Muss ueberarbeitet werden");
+    expect(query("#zurueckgewiesen").textContent).toContain("Muss ueberarbeitet werden");
+    expect(query("#zurueckgewiesen").textContent).not.toContain("Wartet auf Freigabe");
+  });
+
+  it("die Abschnitte #freigabe-offen und #zurueckgewiesen zeigen je einen ausgeschriebenen Leertext", async () => {
+    const alina = legePerson("dev:alina@test", "bufdi");
+    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    expect(query("#freigabe-offen").textContent).toContain("Keine Aufgabe wartet auf Freigabe.");
+    expect(query("#zurueckgewiesen").textContent).toContain("Keine zurückgewiesene Aufgabe.");
+  });
+
   it("Posteingang-Zeile OHNE Vorschlag zeigt nur „Anders einplanen“, keinen „Annehmen“-Knopf", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi");

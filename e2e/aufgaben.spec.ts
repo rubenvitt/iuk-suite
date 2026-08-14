@@ -309,10 +309,13 @@ test("Meine Auftraege: ein Auftraggeber meldet sich an, die Modulwurzel zeigt �
   const res = await page.goto(`http://${HOST}:3100/`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Meine Aufträge", level: 1 })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Aufgabe einstellen" })).toHaveAttribute(
-    "href",
-    "/neu",
-  );
+  // GEZIELT AUF DEN SEITENINHALT, NICHT AUF DIE MODULNAVIGATION (Aufgabe 16): seit `_lib/nav.ts`
+  // traegt auch die Kopfzeilen-Navigation einen Verweis „Aufgabe einstellen" auf `/neu` — derselbe
+  // Name existiert jetzt ZWEIMAL auf der Seite (Nav-Link UND der Knopf im Seitenkopf), ein
+  // ungezielter `page.getByRole("link", …)` waere seitdem mehrdeutig.
+  await expect(
+    page.getByTestId("aufgaben-content").getByRole("link", { name: "Aufgabe einstellen" }),
+  ).toHaveAttribute("href", "/neu");
   expect(konsolenFehler).toEqual([]);
 });
 
@@ -437,4 +440,136 @@ test("Freigaben-Gegenprobe: eine BuFDi bekommt auf /freigaben 404", async ({ pag
   });
   const res = await page.goto(`http://${HOST}:3100/freigaben`);
   expect(res?.status()).toBe(404);
+});
+
+/*
+ * AUFGABE 16 — AUFGABENDETAIL, ARCHIV, MODULNAVIGATION, SICHTBAR IM APP-SWITCHER. ZWEI VOELLIG
+ * NEUE ROUTEN (`/a/<id>`, `/archiv") UND DIE ERSTE `Popconfirm`-CLIENT-INSEL AUSSERHALB VON
+ * `PersonenTabelle.tsx` (`_ui/AktionsZone.tsx`s „Zurückziehen") — dieselbe Kombination, die
+ * `typecheck`, `lint`, `build` und Vitest strukturell nicht sehen koennen (Kopfkommentar oben).
+ *
+ * DIE ID KOMMT AUS DEM GERENDERTEN MARKUP, NICHT FEST VERDRAHTET (Vorbild der
+ * `/plan/<fremde-person>`-Test oben): `seedLokal.ts`s Ids sind `nanoid`-Werte, kein stabiler Wert.
+ * „Verbandskästen im Fahrzeugpark prüfen" ist die eine, noch `eingegangene` Demo-Aufgabe Maltes —
+ * ihr Titel verlinkt in „Meine Aufträge" (`_ui/AufgabenListe.tsx`) auf `/a/<id>`.
+ */
+test("Aufgabendetail: /a/<id> antwortet mit 200, zeigt Chip-Zeile, Metablock, Verlauf und die Zurückziehen-Aktion", async ({
+  page,
+}) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "malte@localtest.me",
+    callbackPath: "/",
+  });
+
+  const detailLink = page.getByRole("link", { name: "Verbandskästen im Fahrzeugpark prüfen" });
+  const href = await detailLink.getAttribute("href");
+  expect(href, "kein Verweis auf das Aufgabendetail gefunden").toBeTruthy();
+  expect(href).toMatch(/^\/a\//);
+
+  const res = await page.goto(`http://${HOST}:3100${href}`);
+  expect(res?.status()).toBe(200);
+  await expect(
+    page.getByRole("heading", { name: "Verbandskästen im Fahrzeugpark prüfen", level: 1 }),
+  ).toBeVisible();
+  // DIE CHIP-ZEILE (Zustand, Prioritaet) UND DER METABLOCK (Auftraggeber). "Malte" steht mehrfach
+  // auf der Seite (Kontextzeile, Metablock, Verlauf) — `getByText` gezielt auf den Metablock-Wert
+  // (`<dd>`) eingeschraenkt, statt mehrdeutig ueber die ganze Seite zu suchen.
+  await expect(page.getByText("Zu verteilen")).toBeVisible();
+  await expect(page.getByText("Mittel")).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: "Malte" })).toBeVisible();
+  // DER VERLAUF ALS JOURNAL — mindestens der Eintrag "Eingestellt" aus dem Seed.
+  await expect(page.getByText("Eingestellt")).toBeVisible();
+  // DIE AKTIONSZONE: Malte ist Ersteller einer Aufgabe im Zustand "eingegangen" — "Zurückziehen"
+  // ist bestaetigungspflichtig (Spec §9.9) und deshalb die ERSTE echte `Popconfirm`-Client-Insel
+  // ausserhalb von `_ui/PersonenTabelle.tsx`.
+  await expect(page.getByRole("button", { name: "Zurückziehen" })).toBeVisible();
+  expect(konsolenFehler).toEqual([]);
+});
+
+test("Aufgabendetail-Gegenprobe: /a/<unbekannt> ergibt 404", async ({ page }) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "malte@localtest.me",
+    callbackPath: "/",
+  });
+  const res = await page.goto(`http://${HOST}:3100/a/unbekannte-id`);
+  expect(res?.status()).toBe(404);
+});
+
+/**
+ * ARCHIV: FUER ALLE, GEFILTERT AUF SICHTRECHT (Spec §8). Rike (koordination) sieht JEDE
+ * abgeschlossene Aufgabe — sowohl Bendix' Selbstaufgabe als auch Dörtes (ausgeschiedene) Aufgabe,
+ * die Malte fuer sie eingestellt hat.
+ */
+test("Archiv: /archiv antwortet mit 200 und zeigt abgeschlossene Aufgaben, gefiltert auf das Sichtrecht", async ({
+  page,
+}) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "rike@localtest.me",
+    callbackPath: "/archiv",
+  });
+  const res = await page.goto(`http://${HOST}:3100/archiv`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Archiv", level: 1 })).toBeVisible();
+  await expect(page.getByText("Eigene Fortbildung: Reanimation auffrischen")).toBeVisible();
+  await expect(page.getByText("Depotbestand Winterausstattung dokumentieren")).toBeVisible();
+  expect(konsolenFehler).toEqual([]);
+});
+
+test("Archiv: der Prioritätsfilter (Client-Insel) filtert serverseitig, ohne Konsolenfehler", async ({
+  page,
+}) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "rike@localtest.me",
+    callbackPath: "/archiv",
+  });
+  await page.getByLabel("Priorität").selectOption("hoch");
+  await page.waitForURL((url) => url.search.includes("prioritaet=hoch"));
+  await expect(page.getByText("Eigene Fortbildung: Reanimation auffrischen")).toHaveCount(0);
+  expect(konsolenFehler).toEqual([]);
+});
+
+/**
+ * SICHTBAR IM APP-SWITCHER (Aufgabe 16, `showInSwitcher: true`) — geprueft VON EINEM ANDEREN
+ * MODUL AUS (Vorbild `keystone.spec.ts`s „switcher reflects groups"), nicht von der aufgaben-Seite
+ * selbst: dort traegt seit dieser Aufgabe AUCH die Modulnavigation einen Eintrag „Aufgaben" (der
+ * Wurzel-Anker aus `_lib/nav.ts`), und beide Verweise waeren unter demselben Namen mehrdeutig.
+ * `alpha-users,iuk-aufgaben-nutzer` ist EINE Sitzung mit BEIDEN Gruppen — dieselbe SSO-Zusicherung
+ * wie in `keystone.spec.ts`.
+ */
+test("App-Switcher: seit Aufgabe 16 erscheint „Aufgaben“ fuer eine Person mit der Zugangsgruppe", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: "alpha.localtest.me",
+    groups: `alpha-users,${GRUPPE}`,
+    callbackPath: "/",
+  });
+  await expect(page.getByTestId("alpha-content")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Aufgaben/ })).toBeVisible();
 });

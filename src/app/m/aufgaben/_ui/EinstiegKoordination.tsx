@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { Col, Row } from "antd";
-import { alleAufgaben, freigabenFuer, verteilDaten } from "../_db/queries";
+import { alleAufgaben, freigabeDaten, verteilDaten } from "../_db/queries";
 import type { DB } from "../_db/client";
 import type { PersonRow } from "../_db/schema";
 import { istUeberfaellig } from "../_lib/anzeige";
-import { darfVerteilen, istVertretungsfreigabe } from "../_lib/zugang";
+import { darfVerteilen } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { AufgabenListe } from "./AufgabenListe";
+import { FreigabeZone } from "./FreigabeZone";
 import { Kachel } from "./Kachel";
 import { SeitenKopf } from "./SeitenKopf";
 import { VerteilenTabelle } from "./VerteilenDialog";
@@ -28,11 +29,19 @@ import { VerteilenTabelle } from "./VerteilenDialog";
  * bereits sichtbaren Tabelle zeigt), sondern auf den Anker `#posteingang` auf derselben Seite —
  * dieselbe Form wie `EinstiegBufdi.tsx`s Kachel „Einzuplanen" (`#posteingang`).
  *
- * DIE FREIGABE-WARTESCHLANGE UND DIE UEBERFAELLIGKEITSLISTE STEHEN EBENFALLS INLINE, aus demselben
- * Grund: `/freigaben` (Aufgabe 15) und eine eigene Ueberfaelligkeits-Route (Aufgabe 16, `/archiv`)
- * existieren heute noch nicht — ein Verweis dorthin waere ein Knopf auf eine 404-Seite (Spec §7).
- * Beide KPI-Kacheln verlinken deshalb auf einen Anker AUF DIESER Seite (`#freigabe`,
- * `#ueberfaellig`), nicht auf eine noch nicht gebaute Route.
+ * DIE FREIGABE-WARTESCHLANGE UND DIE UEBERFAELLIGKEITSLISTE STEHEN EBENFALLS INLINE: eine eigene
+ * Ueberfaelligkeits-Route gibt es weiterhin nicht (Spec §8 fuehrt keine), ein Verweis dorthin waere
+ * ein Knopf auf eine 404-Seite (Spec §7). Beide KPI-Kacheln verlinken deshalb auf einen Anker AUF
+ * DIESER Seite (`#freigabe`, `#ueberfaellig`).
+ *
+ * DIE FREIGABE-SEKTION IST SEIT AUFGABE 16 SCHREIBFAEHIG (vorher schreibgeschuetzt, Beobachtung aus
+ * Aufgabe 15s Bericht): sie zeigte bislang nur `AufgabenListe` OHNE Freigeben-/Zurueckweisen-
+ * Knoepfe — die Koordination sah hier etwas, womit sie nichts tun konnte, und musste erst nach
+ * `/freigaben` wechseln. `FreigabeZone` (Aufgabe 15, wiederverwendet von `EinstiegAuftrag.tsx` UND
+ * `/freigaben`) haengt jetzt auch hier ein, mit `freigabeDaten(db, person, heute)` als LADEFUNKTION
+ * — dieselbe wie bei den beiden anderen Aufrufern, KEINE eigene, hier gehaltene Fassung von
+ * `freigabenFuer`/`istVertretungsfreigabe` mehr (Vorbild `verteilDaten`s Fix-Runde-1-Lehre: zwei
+ * separate Ladebloecke fuer dieselbe Sache laufen auseinander, ohne dass ein Test es sieht).
  *
  * `verteilDaten(db, heute)` (`_db/queries.ts`, Fix-Runde 1) IST DIE EINE LADEFUNKTION FUER DEN
  * POSTEINGANG — `verteilen/page.tsx` ruft SIE, NICHT eine zweite Fassung desselben Ladeblocks. Vor
@@ -60,14 +69,14 @@ export function EinstiegKoordination({
   const ueberfaelligListe = alle.filter((a) => istUeberfaellig(a, heute));
   const zurueckgewiesenListe = alle.filter((a) => a.status === "zurueckgewiesen");
 
-  // DIESELBE ABLEITUNG WIE `freigebenAction`/`istVertretungsfreigabe` (`_lib/zugang.ts`) — die
-  // Trennung „meine"/„in Vertretung" ist keine zweite Bedingung, sondern dasselbe Praedikat, das
-  // auch die Verlaufszeile "Freigegeben von X in Vertretung fuer Y" erzeugt.
-  const freigabeListe = freigabenFuer(db, person, heute);
-  const meineFreigabe = freigabeListe.filter((a) => !istVertretungsfreigabe(person, a));
-  const vertretungFreigabe = freigabeListe.filter((a) => istVertretungsfreigabe(person, a));
+  // `freigabeDaten` (`_db/queries.ts`, Aufgabe 15) IST DIE EINE LADEFUNKTION FUER DIE
+  // FREIGABE-WARTESCHLANGE — dieselbe, die `_ui/EinstiegAuftrag.tsx` UND `freigaben/page.tsx`
+  // aufrufen. Sie wendet `darfFreigeben`/`istVertretungsfreigabe` bereits an; diese Datei baut
+  // beides nicht mehr nach.
+  const { meine: meineFreigabe, vertretung: vertretungFreigabe } = freigabeDaten(db, person, heute);
+  const freigabeAnzahl = meineFreigabe.length + vertretungFreigabe.length;
 
-  const kontext = `${zuVerteilenListe.length} zu verteilen · ${freigabeListe.length} warten auf Freigabe.`;
+  const kontext = `${zuVerteilenListe.length} zu verteilen · ${freigabeAnzahl} warten auf Freigabe.`;
 
   return (
     <>
@@ -83,10 +92,10 @@ export function EinstiegKoordination({
         </Col>
         <Col xs={12} md={6}>
           <Kachel
-            zahl={freigabeListe.length}
+            zahl={freigabeAnzahl}
             beschriftung="Freigabe offen"
             ton="ocker"
-            href={freigabeListe.length > 0 ? "#freigabe" : undefined}
+            href={freigabeAnzahl > 0 ? "#freigabe" : undefined}
           />
         </Col>
         <Col xs={12} md={6}>
@@ -117,26 +126,7 @@ export function EinstiegKoordination({
 
       <section id="freigabe" style={{ marginBlockEnd: SPACE.xl }}>
         <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Freigabe-Warteschlange</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
-          <div>
-            <h3 style={{ ...SCHRIFT.text, fontWeight: 600, margin: `0 0 ${SPACE.xs}px` }}>Meine</h3>
-            <AufgabenListe
-              zeilen={meineFreigabe.map((a) => ({ aufgabe: a }))}
-              heute={heute}
-              leerText="Keine Freigabe offen"
-            />
-          </div>
-          <div>
-            <h3 style={{ ...SCHRIFT.text, fontWeight: 600, margin: `0 0 ${SPACE.xs}px` }}>
-              In Vertretung
-            </h3>
-            <AufgabenListe
-              zeilen={vertretungFreigabe.map((a) => ({ aufgabe: a }))}
-              heute={heute}
-              leerText="Keine Freigabe in Vertretung offen"
-            />
-          </div>
-        </div>
+        <FreigabeZone meine={meineFreigabe} vertretung={vertretungFreigabe} heute={heute} />
       </section>
 
       <section id="ueberfaellig" style={{ marginBlockEnd: SPACE.xl }}>
@@ -151,10 +141,12 @@ export function EinstiegKoordination({
       <div style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
         <Link href="/personen">Personenverwaltung</Link>
         {/*
-         * ARCHIV: KEIN VERWEIS INS LEERE (Spec §7) — `/archiv` entsteht erst in Aufgabe 16. Die
-         * Ueberfaelligkeitsliste braucht hier keinen zweiten Fusszeilen-Verweis: sie steht bereits
-         * vollstaendig oben, ueber die KPI-Kachel „Ueberfaellig" erreichbar.
+         * ARCHIV (Aufgabe 16): jetzt ein echter Fusszeilen-Verweis, kein Verweis mehr ins Leere.
+         * Die Ueberfaelligkeitsliste braucht trotzdem KEINEN eigenen zweiten Verweis: sie steht
+         * bereits vollstaendig oben, ueber die KPI-Kachel „Ueberfaellig" erreichbar — `/archiv`
+         * zeigt ohnehin nur `abgeschlossene`, nicht ueberfaellige Aufgaben.
          */}
+        <Link href="/archiv">Archiv</Link>
       </div>
     </>
   );

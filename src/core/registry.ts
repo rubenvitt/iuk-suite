@@ -142,8 +142,9 @@ export const MODULES: ModuleDef[] = [
   // Begruendung in Spec §4 (BuFDis rotieren jaehrlich, und am JWT haengt ein
   // Verzugsfenster von einer Stunde).
   //
-  // showInSwitcher: false, bis die Seiten stehen (Aufgabe 16 dreht den Wert);
-  // `src/app/m/aufgaben/registry.test.ts` haelt beide Stufen fest.
+  // showInSwitcher: true seit Aufgabe 16 — das Modul ist jetzt vollstaendig begehbar (alle Seiten
+  // aus Spec §8 stehen, die Modulnavigation baut ihre Eintraege aus denselben Praedikaten, die die
+  // Routen gaten). `src/app/m/aufgaben/registry.test.ts` haelt beide Stufen fest.
   //
   // icon: NICHT „irgendein existierender @ant-design/icons-Name" — wirksam ist
   // allein die Map ICONS in `core/shell/icons.ts`. Ein dort FEHLENDER Name
@@ -152,7 +153,7 @@ export const MODULES: ModuleDef[] = [
   { key: "aufgaben", title: "Aufgaben", icon: "ScheduleOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["iuk-aufgaben-nutzer"],
     adminGroups: ["iuk-aufgaben-koordination"], prodHosts: [],
-    showInSwitcher: false, switcherGroupSources: ["access"] },
+    showInSwitcher: true, switcherGroupSources: ["access"] },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },

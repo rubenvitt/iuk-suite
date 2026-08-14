@@ -3,6 +3,7 @@ import {
   ausgewaehlterTag,
   fmtTagKurz,
   fmtUhrzeit,
+  fmtZeitpunkt,
   isoTag,
   minutenVon,
   montagAusParam,
@@ -219,6 +220,29 @@ describe("fmtUhrzeit", () => {
   /** Keine Tagesgrenze angenommen — ein Modulo-Wrap waere die still falsche Uhrzeit. */
   it("wraps nicht ueber Mitternacht, sondern zeigt Stunden ueber 23", () => {
     expect(fmtUhrzeit(1500)).toBe("25:00");
+  });
+});
+
+describe("fmtZeitpunkt", () => {
+  it("formatiert Tag, Monat, Jahr und Uhrzeit in Europe/Berlin", () => {
+    // 2026-08-13 11:14 Berliner Sommerzeit = 09:14 UTC
+    expect(fmtZeitpunkt(new Date("2026-08-13T09:14:00Z"))).toBe("13.08.2026, 11:14");
+  });
+
+  it("polstert Stunde und Minute auf zwei Stellen", () => {
+    // 2026-01-05 08:05 MEZ = 07:05 UTC
+    expect(fmtZeitpunkt(new Date("2026-01-05T07:05:00Z"))).toBe("05.01.2026, 08:05");
+  });
+
+  it("traegt 24-Stunden-Anzeige — keine 12-Stunden-Form mit AM/PM", () => {
+    // 2026-08-13 22:30 Berliner Sommerzeit = 20:30 UTC
+    expect(fmtZeitpunkt(new Date("2026-08-13T20:30:00Z"))).toBe("13.08.2026, 22:30");
+  });
+
+  it("rechnet in der Winterzeit richtig, nicht in UTC", () => {
+    // 2026-01-05 00:30 MEZ = 2026-01-04 23:30 UTC — Kalendertag UND Uhrzeit muessen den
+    // Berliner Wert zeigen, nicht den UTC-Vortag.
+    expect(fmtZeitpunkt(new Date("2026-01-04T23:30:00Z"))).toBe("05.01.2026, 00:30");
   });
 });
 

@@ -242,12 +242,36 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
     expect(zurueckgewiesenKachel.closest("a")).toBeNull();
   });
 
-  it("verlinkt die Personenverwaltung, aber nicht das Archiv (Spec §7, kommt erst mit Aufgabe 16)", async () => {
+  it("verlinkt die Personenverwaltung UND das Archiv (Aufgabe 16)", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
     await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
     const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/personen");
-    expect(hrefs).not.toContain("/archiv");
+    expect(hrefs).toContain("/archiv");
+  });
+
+  /**
+   * DIE FREIGABE-SEKTION IST SEIT AUFGABE 16 SCHREIBFAEHIG (vorher schreibgeschuetzt, Aufgabe
+   * 15s offen gelassene Beobachtung) — sie zeigt jetzt dieselben Freigeben-/Zurueckweisen-Knoepfe
+   * wie `/freigaben`/`EinstiegAuftrag.tsx` (`FreigabeAktionen` aus `FreigabeZone.tsx`), statt einer
+   * schreibgeschuetzten Liste.
+   */
+  it("die Freigabe-Sektion traegt jetzt Freigeben-/Zurueckweisen-Knoepfe (FreigabeZone, nicht mehr schreibgeschuetzt)", async () => {
+    const rike = legePerson("dev:rike@test", "koordination");
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const alina = legePerson("dev:alina@test", "bufdi");
+    const meineFreigabe = legeAufgabe({
+      titel: "Meine Freigabe",
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: rike.id,
+      status: "freigabe_offen",
+    });
+
+    await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
+
+    expect(queryAll(`[data-testid='freigeben-${meineFreigabe.id}']`)).toHaveLength(1);
+    expect(queryAll(`[data-testid='zurueckweisen-${meineFreigabe.id}']`)).toHaveLength(1);
   });
 
   it("die Kontextzeile nennt beide Zahlen (Spec §9.4-Beispiel)", async () => {

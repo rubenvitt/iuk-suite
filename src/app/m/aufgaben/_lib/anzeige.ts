@@ -1,5 +1,6 @@
 import type {
   AufgabeRow,
+  Ereignis,
   NachweisArt,
   PersonRow,
   Prioritaet,
@@ -82,6 +83,27 @@ export const ROLLE_TEXT: Record<Rolle, string> = {
 export const NACHWEIS_ART_TEXT: Record<NachweisArt, string> = {
   text: "Text",
   bild: "Bild",
+};
+
+/**
+ * DIE BESCHRIFTUNG JEDES VERLAUFS-EREIGNISSES (Aufgabe 16, Spec §6 `verlauf`) — die eine Quelle
+ * fuer `a/[id]/page.tsx`s Journal. `EREIGNISSE` (`_db/schema.ts`) traegt die zehn Datenbankwerte
+ * ohne Umlaute; diese Map haengt die lesbare Form daneben, wie `STATUS_TEXT`/`ROLLE_TEXT` es fuer
+ * ihre jeweilige Spalte tun. `zurueckziehen` erzeugt KEIN Ereignis (es loescht die Aufgabe samt
+ * Verlauf, `schema.ts`-Kommentar) und fehlt hier deshalb zu Recht — es gibt keine Zeile, die diese
+ * Beschriftung je tragen koennte.
+ */
+export const EREIGNIS_TEXT: Record<Ereignis, string> = {
+  eingestellt: "Eingestellt",
+  verteilt: "Verteilt",
+  umverteilt: "Umverteilt",
+  eingeplant: "Eingeplant",
+  gestartet: "Bearbeitung gestartet",
+  zurueckgesetzt: "Bearbeitung zurückgesetzt",
+  fertig_gemeldet: "Fertig gemeldet",
+  abgeschlossen: "Abgeschlossen",
+  zurueckgewiesen: "Zurückgewiesen",
+  wiederaufgenommen: "Bearbeitung wieder aufgenommen",
 };
 
 /**
