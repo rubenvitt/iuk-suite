@@ -77,8 +77,22 @@ export async function deletePresetAction(formData: FormData) {
 }
 
 /**
- * HEUTE UNERREICHBAR — und das ist eine bewusste Lücke, kein Versehen und kein
- * toter Rest. Wer hier aufräumt, lese erst zu Ende.
+ * OHNE OBERFLÄCHE — eine bewusste Lücke, kein Versehen und kein toter Rest.
+ * Wer hier aufräumt, lese erst zu Ende.
+ *
+ * NICHT „unaufrufbar", und der Unterschied trägt hier die Sicherheit. Hier
+ * stand einmal „HEUTE UNERREICHBAR"; das lädt einen späteren Leser ein, „kein
+ * Aufrufer" für „nicht adressierbar" zu halten. Ein Export aus einem
+ * `"use server"`-Modul bekommt eine Action-ID und ist über die Wire
+ * adressierbar, ob eine Oberfläche ihn ruft oder nicht — die Abwesenheit eines
+ * Bedienelements ist keine Zugangssperre. Was die Lücke tatsächlich trägt, ist
+ * `requireModuleAdmin("qr")` als erste Anweisung im Rumpf; fiele der Riegel,
+ * wäre das Fehlen einer Oberfläche kein Ersatz.
+ *
+ * ZUR VOLLSTÄNDIGKEIT: `ids: string[]` ist die einzige Action dieses Moduls,
+ * die ihre Nutzlast ohne Formvalidierung durchreicht. Das ist vertretbar, aber
+ * es soll dastehen — sie ist admin-gegattert, und `eq()` gegen etwas, das kein
+ * String ist, trifft schlicht keine Zeile.
  *
  * Die Action ist vollständig und geprüft (Guard, `presets.ts`, eigene Fälle in
  * `actions.test.ts`). Was fehlt, ist der EINSTIEGSPUNKT: die Admin-Oberfläche
@@ -102,7 +116,8 @@ export async function deletePresetAction(formData: FormData) {
  * doppelte zu entfernen, und die Wiederbeschaffung wäre kein Zurückholen von
  * Code, sondern erneutes Durchdenken von Guard und Persistenz.
  *
- * Kurz: unerreichbar aus Absicht, nicht aus Verfall. Wer die Oberfläche baut,
+ * Kurz: ohne Oberfläche aus Absicht, nicht aus Verfall — und gesichert durch
+ * den Riegel, nicht durch die fehlende Oberfläche. Wer die Oberfläche baut,
  * darf diesen Kommentar mit ihr zusammen entfernen.
  */
 export async function reorderPresetsAction(ids: string[]) {
