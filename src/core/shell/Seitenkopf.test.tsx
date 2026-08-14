@@ -119,12 +119,20 @@ describe("Seitenkopf", () => {
      * Link `min-height: 44px` (WCAG 2.5.8) ueber `.backlink` — seit Aufgabe 8
      * verbindlich fuer die ganze Suite, elf Fundstellen wurden dafuer bereits
      * zurueckgenommen. Ohne eigene Mindesthoehe unterbietet der Rueckweg genau
-     * diese Schwelle. `min-height` allein zentriert den Text nicht — deshalb
-     * zusaetzlich `display: inline-flex` und `align-items: center` pruefen,
-     * sonst waere die Box zwar hoch genug, der Text aber am oberen Rand.
+     * diese Schwelle.
+     *
+     * Alle DREI Eigenschaften einzeln geprueft (Review-Nachbesserung): `display:
+     * inline-flex` fehlte hier zunaechst. `alignItems`/`minHeight` landen im
+     * `style`-String unabhaengig vom `display`-Wert — eine spaetere Aenderung,
+     * die nur `display` auf `inline-block` zurueckdreht und die anderen beiden
+     * stehen laeszt, waere durch die urspruengliche Fassung nicht aufgefallen,
+     * und genau das erzeugt das Fehlerbild, das der naechste Satz beschreibt:
+     * die Box ist hoch genug, der Text klebt am oberen Rand statt zentriert zu
+     * stehen.
      */
     await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
     const style = query('[data-testid="seitenkopf-zurueck"]').getAttribute("style");
+    expect(style).toMatch(/display:\s*inline-flex/);
     expect(style).toMatch(/min-height:\s*44px/);
     expect(style).toMatch(/align-items:\s*center/);
   });
