@@ -97,6 +97,35 @@ function ohneZiffernstellung(rolle: CSSProperties): CSSProperties {
  * `SPACE.xs` würde nur den Abstand HINTER einer ohnehin schon großzügigen,
  * zentrierten Box weiter verkleinern, nicht die Boxhöhe selbst, und stünde
  * damit ohne eigenen Nutzen da.
+ *
+ * `gap: SPACE.xs` STATT EINES LEERZEICHENS IM `<span>` (dritter Nachtrag,
+ * Review Aufgabe 9 — im Browser nachgemessen, nicht im Kopf gerechnet): das
+ * `<span aria-hidden="true">‹ </span>` trug sein Leerzeichen bis hierher als
+ * SICHTBARKEITSTRÄGER des Abstands zum Linktext. Unter `inline-block` (Stand
+ * nach dem ersten Nachtrag) rendert ein Leerzeichen am Zeilenende eines
+ * Inline-Kindelements normal; unter `inline-flex` (seit dem zweiten Nachtrag,
+ * s. o.) bildet das `<span>` sein EIGENES Flex-Zeilenkastenende, und ein
+ * NACHGESTELLTES Leerzeichen wird dort abgeschnitten — nachgemessen mit einer
+ * isolierten HTML-Seite im echten Browser: `A` (heutiger Stand: `inline-flex`,
+ * Leerzeichen im `span`) rendert exakt so breit wie `E` (Kontrolle ohne jedes
+ * Leerzeichen) — das Leerzeichen trug NULL Pixel bei. `D` (Referenz:
+ * `inline-block`, dasselbe Leerzeichen) war dagegen ~2,7px breiter als seine
+ * Kontrolle — dort trug es sichtbar bei. Ergebnis: `‹Artikel` statt
+ * `‹ Artikel` auf jeder Seite mit `zurueck`, seit dem zweiten Nachtrag. Kein
+ * Test kann das sehen: `textContent` enthält das Leerzeichen im DOM-String
+ * weiterhin, `jsdom` rendert kein Flex-Layout — die Kollabierung ist rein
+ * visuell und damit eine Grenze des Testwerkzeugs, nicht der Zusicherungen.
+ *
+ * `Brotkrume.tsx` hatte die Antwort für dieselbe Bauform (Zeichen-Element plus
+ * Text im Flex-Container) bereits: `.backlink { gap: 6px }`. NICHT
+ * abgeschrieben — `Brotkrume` ist Modul-CSS mit eigener Skala, `core` zieht
+ * Abstände aus `SPACE` (`core/theme/tokens.ts`). Gewählt: `SPACE.xs` (4px),
+ * nicht `SPACE.sm` (8px) — nachgemessen ist der ORIGINALE Leerzeichen-Abstand
+ * unter `inline-block` rund 2,7px; `SPACE.xs` liegt dem am nächsten und hält
+ * die Anmutung nah am Stand vor dem zweiten Nachtrag, `SPACE.sm` hätte den
+ * Abstand optisch fast verdreifacht. `gap` und nicht mehr das Leerzeichen im
+ * `<span>`: mit beiden Quellen nebeneinander würde eine spätere Änderung an
+ * einer davon das Bild still verschieben — `gap` ist jetzt die EINE Quelle.
  */
 export function Seitenkopf({
   titel,
@@ -120,12 +149,13 @@ export function Seitenkopf({
               ...ohneZiffernstellung(SCHRIFT.neben),
               display: "inline-flex",
               alignItems: "center",
+              gap: SPACE.xs,
               minHeight: 44,
               marginBlockEnd: SPACE.xs,
               color: "inherit",
             }}
           >
-            <span aria-hidden="true">‹ </span>
+            <span aria-hidden="true">‹</span>
             {zurueck.titel}
           </Link>
         </nav>

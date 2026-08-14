@@ -136,4 +136,30 @@ describe("Seitenkopf", () => {
     expect(style).toMatch(/min-height:\s*44px/);
     expect(style).toMatch(/align-items:\s*center/);
   });
+
+  it("traegt den Abstand zum Pfeilzeichen ueber gap, nicht ueber ein Leerzeichen im span", async () => {
+    /*
+     * Dritter Nachtrag, Review Aufgabe 9 (zweites Review): das Leerzeichen im
+     * `<span aria-hidden="true">‹ </span>` war der einzige Traeger des
+     * sichtbaren Abstands zum Linktext, solange der Container `inline-block`
+     * war. Seit dem zweiten Nachtrag ist der Container `inline-flex` — dort
+     * bildet der `<span>` sein EIGENES Flex-Zeilenkastenende, und ein
+     * NACHGESTELLTES Leerzeichen darin wird abgeschnitten. Im echten Browser
+     * nachgemessen (Range-/Breitenvergleich, siehe Fix-Bericht): mit dem
+     * Leerzeichen im span und OHNE `gap` rendert der Link exakt so breit wie
+     * eine Kontrolle ganz ohne Leerzeichen — das Leerzeichen trug null Pixel
+     * bei, der Rueckweg rendert `‹Artikel` statt `‹ Artikel`.
+     *
+     * jsdom rendert kein Flex-Layout und kann die Kollabierung selbst nicht
+     * sehen (das hat das Review ausdruecklich als Grenze des Werkzeugs benannt,
+     * nicht als Luecke in dieser Zusicherung) — pruefbar ist hier nur die
+     * QUELLE des Abstands: `gap` im Stil, und kein Leerzeichen mehr im `<span>`,
+     * damit nicht zwei Abstandsquellen nebeneinanderstehen.
+     */
+    await mount(<Seitenkopf titel="Kompressen" zurueck={{ titel: "Artikel", href: "/verwaltung/artikel" }} />);
+    const link = query('[data-testid="seitenkopf-zurueck"]');
+    expect(link.getAttribute("style")).toMatch(/gap:\s*4px/);
+    const glyph = link.querySelector("span");
+    expect(glyph?.textContent).toBe("‹");
+  });
 });
