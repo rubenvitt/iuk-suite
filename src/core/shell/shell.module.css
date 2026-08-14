@@ -447,7 +447,32 @@
   --suite-flaeche: #ffffff;
   --suite-linie: #d9dde1;
 
-  position: relative;
+  /*
+   * KEIN `position: relative` IN DER BASIS — und das ist der Fix, nicht eine
+   * ersparte Zeile.
+   *
+   * Es stand hier, und damit war `.umschalter` der enthaltende Block des
+   * Panels. Ein `inset-inline: 0` daran spannt aber nicht den Bildschirm auf,
+   * sondern DEN AUSLOESER: gemessen am Telefon war das Panel so breit wie der
+   * Modultitel (~124px statt 390px). Der Inhalt passte nicht hinein, und weil
+   * `overflow-y: auto` das `overflow-x: visible` daneben auf `auto` hochzieht
+   * (CSS Overflow 3, §3), liesz sich das Panel seitwaerts schieben — der
+   * gemeldete Defekt. Die Absicht („mobil eine vollbreite Flaeche unter der
+   * Kopfzeile", `.umschalterPanel` weiter unten) war also nie erfuellt; die
+   * Deklaration stand richtig da und meinte den falschen Kasten.
+   *
+   * Ohne `position` faellt der enthaltende Block auf den naechsten
+   * positionierten Vorfahren zurueck, und das ist `.kopfBlock` (`sticky` zaehlt
+   * als positioniert). Der spannt genau die Bildschirmbreite auf, und
+   * `calc(100% + 8px)` misst dort seine Hoehe — Streifen plus Kopfzeile —,
+   * bleibt also ohne eine zweite Zahl neben `--iuk-kopf` richtig. Zwischen
+   * beiden liegt nur `.ant-layout-header`, und das traegt kein `position`
+   * (antd/es/layout/style/index.js, nachgesehen).
+   *
+   * AB 768px KOMMT `position: relative` ZURUECK (unten in der Media Query):
+   * dort ist das Panel ein Popover unter dem Ausloeser und muss an ihm haengen,
+   * nicht am Bildschirmrand.
+   */
   display: flex;
   align-items: center;
   min-width: 0;
@@ -554,6 +579,11 @@
  * Mobil eine vollbreite Fläche unter der Kopfzeile, ab 768px ein Popover.
  * Das ist der einzige Suite-Breakpoint; `Grid.useBreakpoint` ist verboten und
  * ein JS-Breakpoint zeigte beim ersten Render die falsche Variante.
+ *
+ * WORAUF SICH `inset-inline: 0` UND `calc(100% + 8px)` BEZIEHEN, entscheidet
+ * `.umschalter` — mobil auf den `.kopfBlock` (Bildschirmbreite, Höhe von
+ * Streifen + Kopfzeile), ab 768px auf den Auslöser. Die ausführliche
+ * Begründung steht dort; hier ändert sich zwischen beiden Größen keine Zeile.
  */
 .umschalterPanel {
   position: absolute;
@@ -561,6 +591,15 @@
   inset-inline: 0;
   inset-block-start: calc(100% + 8px);
   max-height: 70vh;
+  /*
+   * `overflow-x` AUSGESCHRIEBEN, obwohl nur senkrecht gescrollt werden soll:
+   * `visible` neben einem nicht-`visible` Wert wird auf `auto` hochgezogen
+   * (CSS Overflow 3, §3). Das Panel war deshalb waagerecht schiebbar, sobald
+   * irgendein Inhalt überstand — genau der gemeldete Defekt. `hidden` ist hier
+   * die Zusage, nicht die Kaschierung: die Einträge unten geben von sich aus
+   * nach (`.appEintragTexte`), es soll nur nichts mehr zu scrollen geben.
+   */
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 8px;
   border-radius: 12px;
@@ -640,6 +679,28 @@
   font-weight: 600;
 }
 
+/*
+ * DAS ZEICHEN BEHÄLT SEINE GRÖSSE, DER TEXT GIBT NACH. Ohne beides schiebt ein
+ * langer Titel oder eine lange Beschreibung das Panel breiter als den
+ * Bildschirm: ein Flex-Kind steht auf `min-inline-size: auto` und schrumpft
+ * deshalb NICHT unter seinen Inhalt (CSS Flexbox 1, §4.5) — die Standardregel,
+ * die man immer wieder einzeln aushebeln muss. `overflow-wrap: anywhere` fängt
+ * zusätzlich das einzelne lange Wort ohne Trennstelle (Dienstnamen aus der
+ * Portal-Datenbank sind Freitext, keine Wortgruppen mit Leerzeichen).
+ *
+ * `:first-child` und nicht `.appEintragBild`: das Zeichen ist je nach Eintrag
+ * ein `<img>` ODER ein antd-Icon (`AppUmschalter.tsx`), und beide würden ohne
+ * `flex: none` neben einem zu breiten Text zusammengedrückt.
+ */
+.appEintrag > :first-child {
+  flex: none;
+}
+
+.appEintragTexte {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
 .appEintragBild {
   inline-size: 20px;
   block-size: 20px;
@@ -679,6 +740,16 @@
 }
 
 @media (min-width: 768px) {
+  /*
+   * AB HIER HÄNGT DAS PANEL WIEDER AM AUSLÖSER, nicht am Kopfblock — die
+   * Umkehrung der Basis-Regel oben, samt Begründung dort. Ein Popover fester
+   * Breite muss unter dem Modultitel stehen; am Kopfblock ausgerichtet klebte
+   * es am linken Bildschirmrand, um die Kopfzeilen-Polsterung daneben.
+   */
+  .umschalter {
+    position: relative;
+  }
+
   .umschalterPanel {
     inset-inline: 0 auto;
     inline-size: 320px;

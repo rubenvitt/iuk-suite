@@ -6,6 +6,7 @@ import { AppUmschalter } from "@/core/shell/AppUmschalter";
 import { ICONS } from "@/core/shell/icons";
 import { MODULES } from "@/core/registry";
 import type { LauncherEintrag } from "@/core/shell/types";
+import s from "./shell.module.css";
 
 const EINTRAEGE: LauncherEintrag[] = [
   { key: "portal", title: "Portal", icon: "AppstoreOutlined", href: "https://p", abschnitt: "Apps", extern: false },
@@ -75,6 +76,29 @@ describe("AppUmschalter", () => {
     // dieselbe Falle wie bei theme-toggle und abmelden).
     for (const el of queryAll('[data-testid="app-eintrag"]')) {
       expect(el.className).not.toMatch(/navLink/);
+    }
+  });
+
+  it("lässt den Textblock eines Eintrags schrumpfen, statt das Panel aufzuschieben", async () => {
+    /*
+     * DIE MARKUP-HÄLFTE des seitwärts scrollenden Panels. `shell-css.test.ts`
+     * hält fest, dass `.appEintragTexte { min-inline-size: 0 }` DASTEHT — ob
+     * die Klasse überhaupt an einem Knoten hängt, sieht nur ein Renderlauf.
+     * Ein Flex-Kind steht sonst auf `min-inline-size: auto` und schrumpft NICHT
+     * unter seinen Inhalt (CSS Flexbox 1, §4.5); ein langer Dienstname schob
+     * das Panel damit über den Bildschirmrand.
+     *
+     * Der Klassenname wird aus dem CSS-Modul GELESEN und nicht als String
+     * verabredet — unter Turbopack sind die Klassen gehasht, ein Literal wäre
+     * nie ein Treffer.
+     */
+    await mount(umschalter());
+    await click('[data-testid="app-umschalter"]');
+    for (const eintrag of queryAll('[data-testid="app-eintrag"]')) {
+      expect(
+        eintrag.querySelector(`.${s.appEintragTexte}`),
+        `Eintrag ohne .appEintragTexte: ${eintrag.textContent}`,
+      ).not.toBeNull();
     }
   });
 

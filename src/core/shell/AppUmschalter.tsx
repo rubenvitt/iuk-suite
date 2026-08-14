@@ -206,7 +206,13 @@ export function AppUmschalter({
                           ) : (
                             <Icon aria-hidden="true" />
                           )}
-                          <span>
+                          {/* Die Klasse ist nicht kosmetisch: sie erlaubt dem
+                              Textblock, unter seine Inhaltsbreite zu schrumpfen
+                              (`min-inline-size: 0`, Begründung an der Regel in
+                              `shell.module.css`). Ohne sie schiebt ein langer
+                              Dienstname das Panel über den Bildschirmrand
+                              hinaus. */}
+                          <span className={s.appEintragTexte}>
                             <span className={s.appEintragTitel}>{e.title}</span>
                             {e.beschreibung ? (
                               <span className={s.appEintragText}>{e.beschreibung}</span>

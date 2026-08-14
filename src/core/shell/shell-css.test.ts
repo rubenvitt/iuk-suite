@@ -308,6 +308,79 @@ describe("shell.module.css", () => {
     expect(vorkommen[0][1]).toMatch(/inset-inline:\s*0\s*(?:;|$)/);
   });
 
+  it("haengt das mobile Panel an den Kopfblock, nicht an den Ausloeser", () => {
+    /*
+     * DER GEMELDETE DEFEKT, als Regel festgehalten.
+     *
+     * `.umschalter` trug `position: relative` und war damit der enthaltende
+     * Block des Panels. `inset-inline: 0` daran spannt nicht den Bildschirm
+     * auf, sondern DEN AUSLOESER — am Telefon gemessen ~124px statt 390px. Die
+     * Zusage im Test darueber („spannt das Panel mobil ueber die volle
+     * Breite") war deshalb wahr ueber den Regeltext und falsch ueber das
+     * Ergebnis: die Deklaration stand da und meinte den falschen Kasten.
+     *
+     * Ohne `position` faellt der enthaltende Block auf `.kopfBlock` zurueck
+     * (`sticky` zaehlt als positioniert) — Bildschirmbreite, und
+     * `calc(100% + 8px)` misst dort Streifen plus Kopfzeile.
+     *
+     * WAS DIESER TEST BESITZT: die Deklaration ist weg bzw. steht ab 768px
+     * wieder da. WAS ER NICHT BESITZT: dass zwischen `.kopfBlock` und
+     * `.umschalter` kein DRITTER Knoten positioniert ist — `.ant-layout-header`
+     * traegt heute kein `position`, aber das steht in antds Stylesheet und in
+     * keiner Datei dieses Repos. Diese Haelfte besitzt `e2e/shell-mobil.spec.ts`
+     * („das offene Panel fuellt die Bildschirmbreite").
+     */
+    const vorkommen = [...OHNE_KOMMENTARE.matchAll(/(?:^|[^A-Za-z0-9_-])\.umschalter\s*\{([^}]*)\}/g)];
+    expect(vorkommen.length, "Klasse .umschalter fehlt").toBeGreaterThanOrEqual(2);
+    expect(
+      vorkommen[0][1],
+      "`position` in der Basisregel macht den Ausloeser zum enthaltenden Block",
+    ).not.toMatch(/(?:^|;)\s*position\s*:/);
+
+    // Ab 768px genau umgekehrt: das Popover haengt am Ausloeser. Der letzte
+    // 768px-Block ist der des Umschalters (der erste traegt `.nurMobil` & Co.).
+    const mediaStart = OHNE_KOMMENTARE.lastIndexOf("@media (min-width: 768px)");
+    const desktop = vorkommen.filter(
+      (treffer) => treffer.index! > mediaStart && /position:\s*relative/.test(treffer[1]),
+    );
+    expect(desktop, "ab 768px fehlt `.umschalter { position: relative }`").toHaveLength(1);
+  });
+
+  it("laeszt das Umschalter-Panel nicht seitwaerts scrollen", () => {
+    /*
+     * `overflow-y: auto` allein genuegt NICHT, und der Grund ist eine stille
+     * Umrechnung: steht `overflow-x` auf `visible` und `overflow-y` nicht, zieht
+     * der Browser `overflow-x` auf `auto` hoch (CSS Overflow 3, §3). Das Panel
+     * war deshalb waagerecht schiebbar, sobald irgendein Inhalt ueberstand —
+     * genau die gemeldete Beobachtung („ich kann den App-Umschalter nach links
+     * und rechts bewegen").
+     *
+     * Ein Quelltext-Scan ist hier die richtige Ebene: jsdom rechnet keine
+     * Scrollbereiche, und die Umrechnung passiert im Browser ohne dass eine
+     * Regel dafuer irgendwo stuende.
+     */
+    const vorkommen = [...OHNE_KOMMENTARE.matchAll(/\.umschalterPanel\s*\{([^}]*)\}/g)];
+    expect(vorkommen.length, "Klasse .umschalterPanel fehlt").toBeGreaterThanOrEqual(2);
+    expect(vorkommen[0][1], "`overflow-x: visible` wird neben `overflow-y` zu `auto`").toMatch(
+      /overflow-x:\s*hidden/,
+    );
+  });
+
+  it("laeszt den Text eines App-Eintrags nachgeben statt das Panel aufzuschieben", () => {
+    /*
+     * Die zweite Haelfte des seitwaerts scrollenden Panels: ein Flex-Kind steht
+     * auf `min-inline-size: auto` und schrumpft NICHT unter seinen Inhalt
+     * (CSS Flexbox 1, §4.5). Ein langer Dienstname schob das Panel damit breiter
+     * als den Bildschirm — `overflow-x: hidden` (Test darueber) verbaende das
+     * nur, statt es zu beheben: der Text waere abgeschnitten und unerreichbar.
+     *
+     * Die Klasse muss im Markup ankommen; das prueft `AppUmschalter.test.tsx`.
+     */
+    const regel = /\.appEintragTexte\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
+    expect(regel, "Klasse .appEintragTexte fehlt").not.toBeNull();
+    expect(regel![1]).toMatch(/min-inline-size:\s*0/);
+  });
+
   it("macht aus dem Umschalter-Panel ab 768px ein schmales Popover", () => {
     // Ab 768px keine vollbreite Fläche mehr, sondern ein Popover fester
     // Breite unter dem Auslöser — sonst zöge das Panel bei 1280px quer durch
