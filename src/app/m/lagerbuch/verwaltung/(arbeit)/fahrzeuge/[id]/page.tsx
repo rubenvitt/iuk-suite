@@ -16,6 +16,7 @@ import { verfallFuerLagerort } from "../../../../_lib/lesepfade/verfall";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
+import { ChecklisteKnopf } from "../ChecklisteKnopf";
 import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
 import { SollEditor } from "./SollEditor";
 import { TemplateVerknuepfung } from "./TemplateVerknuepfung";
@@ -100,11 +101,23 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         ) : undefined}
         zurueck={{ titel: "Fahrzeuge", href: "/verwaltung/fahrzeuge" }}
         aktionen={(
-          <FahrzeugAktivToggle
-            id={fahrzeug.id}
-            name={fahrzeug.name}
-            aktiv={fahrzeug.aktiv}
-          />
+          <>
+            {/*
+              MIT `fahrzeugId` — und damit ausdruecklich AUCH fuer ein
+              stillgelegtes Fahrzeug. `checklistenDaten` filtert `aktiv` nur,
+              wenn gar keine Auswahl uebergeben wurde; wer hier steht, hat das
+              Fahrzeug vor sich und meint genau dieses eine.
+            */}
+            <ChecklisteKnopf
+              fahrzeugId={fahrzeug.id}
+              beschriftung="Checkliste drucken"
+            />
+            <FahrzeugAktivToggle
+              id={fahrzeug.id}
+              name={fahrzeug.name}
+              aktiv={fahrzeug.aktiv}
+            />
+          </>
         )}
       />
 

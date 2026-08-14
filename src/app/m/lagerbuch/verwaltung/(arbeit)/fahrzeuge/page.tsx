@@ -5,6 +5,7 @@ import {
   type FahrzeugUebersichtZeile,
 } from "../../../_lib/lesepfade/fahrzeuge";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
+import { ChecklisteKnopf } from "./ChecklisteKnopf";
 import {
   FahrzeugeListe,
   type FahrzeugAnzeigeZeile,
@@ -45,9 +46,18 @@ export function fahrzeugeSeitenInhalt(db: DB, jetzt: Date): ReactNode {
 
   return (
     <>
+      {/*
+        Der Knopf traegt KEINE `fahrzeugId` und meint damit alle AKTIVEN
+        Fahrzeuge — bewusst nicht die gerade gefilterte Tabelle: Suche und
+        Filter leben als Zustand in der Client-Insel darunter und stehen nicht
+        in der URL, koennten also gar nicht mitwandern. Ein Knopf, der „drucke,
+        was ich sehe" verspricht und „drucke alle" tut, ist schlimmer als
+        einer, der von vornherein „alle" sagt.
+      */}
       <SeitenKopf
         titel="Fahrzeuge"
         beschreibung="Flotte mit Soll-Abgleich und Verfallsmeldungen aus den Fahrzeug-Checks."
+        aktionen={<ChecklisteKnopf beschriftung="Checklisten drucken" />}
       />
       <FahrzeugeListe zeilen={zeilen} />
     </>

@@ -121,6 +121,361 @@
   flex: none;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+ * DIE FAHRZEUG-CHECKLISTE (`(druck)/checklisten/`) — Praefix `lb-cl-`.
+ *
+ * WARUM SIE IN DIESER DATEI STEHT UND NICHT IN EINER EIGENEN: `druck.test.ts`
+ * haelt modulweit fest, dass es GENAU EINE Datei mit `@media print` gibt, und
+ * dass es diese ist. Das ist keine Formalie — die Sichtbarkeitsumkehr aus
+ * globals.css:277 (`body * { visibility: hidden }`) ist genau daran
+ * gescheitert, dass Druckregeln sich ueber mehrere Stellen verteilten und
+ * gegenseitig Seiten leerten (Falle 43). Ein zweites Stylesheet hier waere der
+ * erste Schritt zurueck dorthin. Aus demselben Grund stehen die
+ * BILDSCHIRM-Regeln VOR dem `@media print`-Block und die Druckregeln DARIN:
+ * `druck.test.ts` schneidet die Datei an `indexOf("@media")` in „Bildschirm"
+ * und „Druck" und pruefte sonst den falschen Teil.
+ *
+ * ES GELTEN DIESELBEN VIER VERBOTE WIE OBEN, und sie sind hier gepruefte
+ * Zusicherungen, keine Stilfrage: kein `--ant-` (Falle 2 — die Variablen haengen
+ * an antds Scope-Klasse und waeren auf eigenem Markup still leer), kein `.ant-`,
+ * kein nackter `input`-Selektor, und NIRGENDS `visibility: hidden` oder `body *`.
+ *
+ * ⚠️ DER LETZTE PUNKT HAT EINE KONSTRUKTIVE FOLGE, DIE MAN SONST ERST IM TEST
+ * MERKT: die Blindzaehlung (Sollmengen verdecken) kann hier NICHT als CSS-Regel
+ * stehen. Sie ist deshalb im Bauteil eine Fallunterscheidung im JSX — die Zahl
+ * wird gar nicht erst gerendert. Das ist ohnehin das ehrlichere Verhalten: ein
+ * bloss verdecktes Soll stuende weiterhin im Quelltext und im PDF-Textlayer,
+ * und „Blindzaehlung" waere eine Behauptung statt einer Eigenschaft.
+ *
+ * EIN BLATT PAPIER HAT KEINEN DUNKELMODUS — alle Farben sind LITERALE. Das
+ * `(druck)`-Layout haengt unter `.modul`, dessen `--lb-*`-Satz im Dunkelzweig
+ * kippt; ein `var(--lb-tinte)` hier druckte aus einer dunkel eingestellten
+ * Sitzung helle Schrift auf weisses Papier, und `print-color-adjust: exact`
+ * unten verbietet dem Browser jede Notrechnung.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.lb-cl-bogen {
+  background: #ffffff;
+  color: #000000;
+  font-family: var(--font-body);
+}
+
+/* DAS BLATT. Am Bildschirm eine Papierattrappe in A4-Breite, damit vor dem
+ * Druck sichtbar ist, was auf eine Seite passt; im Druck faellt die Attrappe
+ * weg (siehe @media print). */
+.lb-cl-blatt {
+  box-sizing: border-box;
+  max-width: 210mm;
+  margin: 0 auto 8mm;
+  padding: 10mm 9mm;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #d9dde1;
+  border-radius: 4px;
+}
+
+/* Der Kopf traegt die Identitaet des Fahrzeugs. Die kraeftige Unterkante ist
+ * der einzige 2px-Strich des Blattes — sie trennt „welches Fahrzeug" von
+ * „was ist zu tun" und ueberlebt auch einen schwachen Toner. */
+.lb-cl-kopf {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6mm;
+  border-bottom: 2px solid #000000;
+  padding-bottom: 2mm;
+}
+
+.lb-cl-titel {
+  margin: 0;
+  font-size: 15pt;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.lb-cl-kennung {
+  font-family: var(--font-mono);
+  font-size: 10pt;
+  font-weight: 600;
+}
+
+.lb-cl-meta {
+  text-align: right;
+  font-size: 8pt;
+  line-height: 1.4;
+  color: #333b42;
+}
+
+/* Die Unterschriftszeile. `flex-wrap` statt fester Spalten: bei „kompakt"
+ * schrumpft die Schrift, nicht die Zahl der Felder. */
+.lb-cl-signatur {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3mm 6mm;
+  margin-top: 3mm;
+  font-size: 9pt;
+}
+
+.lb-cl-signaturFeld {
+  display: flex;
+  align-items: flex-end;
+  gap: 2mm;
+  flex: 1 1 45mm;
+}
+
+/* Die Schreiblinie. `flex: 1` laesst sie den Rest der Zeile fuellen —
+ * `min-width` haelt sie auch dann breit genug zum Schreiben, wenn drei Felder
+ * in eine Zeile fallen. */
+.lb-cl-linie {
+  flex: 1 1 auto;
+  min-width: 22mm;
+  border-bottom: 1px solid #6b747d;
+  height: 5mm;
+}
+
+.lb-cl-abschnitt {
+  margin: 6mm 0 1.5mm;
+  font-size: 10pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid #000000;
+  padding-bottom: 1mm;
+  /* Eine Ueberschrift am Seitenfuss, deren Tabelle erst auf der Folgeseite
+   * beginnt, ist der klassische Druckfehler dieser Sorte Blatt. */
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.lb-cl-fach {
+  margin: 3mm 0 0;
+  font-size: 9.5pt;
+  font-weight: 700;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.lb-cl-fachZahl {
+  font-weight: 400;
+  font-family: var(--font-mono);
+  font-size: 8pt;
+  color: #4a545d;
+}
+
+.lb-cl-tabelle {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  margin-top: 1mm;
+}
+
+/* `table-header-group` WIEDERHOLT DIE KOPFZEILE AUF JEDER FOLGESEITE. Ohne
+ * sie steht ab Seite zwei eine Spalte „20" ohne Ueberschrift da, und niemand
+ * weiss mehr, ob das Soll oder Ist ist. Der Browser tut das fuer `thead` von
+ * Haus aus — aber nur, solange niemand `display` daran anfasst; die Zeile
+ * schreibt die Absicht fest. */
+.lb-cl-tabelle thead {
+  display: table-header-group;
+}
+
+.lb-cl-tabelle th {
+  text-align: left;
+  font-size: 7.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #333b42;
+  border-bottom: 1px solid #000000;
+  padding: 1mm 1.5mm;
+  white-space: nowrap;
+}
+
+.lb-cl-tabelle td {
+  padding: 1.4mm 1.5mm;
+  border-bottom: 1px solid #ccd2d7;
+  vertical-align: middle;
+}
+
+/* Eine Zeile, die ueber den Seitenrand bricht, ist auf einer Abhakliste ein
+ * echter Fehler: der Haken landet auf Seite 1, der Artikelname auf Seite 2. */
+.lb-cl-tabelle tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* Zebra AM `tr`, Schreibfeld-Toenung am `td` (unten). Zwei verschiedene
+ * Elemente — die td-Flaeche deckt die tr-Flaeche ab, ganz ohne
+ * Spezifitaetswettlauf (Falle 5). */
+.lb-cl-tabelle tbody tr:nth-child(even) {
+  background: #f5f7f8;
+}
+
+/* Die Spalten. Feste Breiten fuer alles, was gezaehlt oder abgehakt wird —
+ * nur der Artikelname darf den Rest nehmen. */
+.lb-cl-sHaken {
+  width: 7mm;
+  text-align: center;
+}
+
+.lb-cl-sLager {
+  width: 17mm;
+  font-family: var(--font-mono);
+  font-size: 8pt;
+  color: #4a545d;
+}
+
+.lb-cl-sSoll {
+  width: 20mm;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lb-cl-sVerfall {
+  width: 30mm;
+  font-size: 8pt;
+}
+
+.lb-cl-sBar {
+  width: 24mm;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* DIE EINZUTRAGENDE SPALTE. Die Toenung sagt „hier wird geschrieben", ohne
+ * dass ein Wort dafuer noetig waere — und sie ueberlebt den Graustufendruck,
+ * anders als jede Farbcodierung.
+ *
+ * ⚠️ DIE REGEL TRIFFT `th` UND `td`, damit das Band von der Ueberschrift bis
+ * zur letzten Zeile durchlaeuft. Nur am `td` gesetzt, begaenne die Toenung eine
+ * Zeile zu spaet und laese sich als „ab hier gilt etwas anderes".
+ *
+ * ⚠️ SIE STREITET NICHT MIT DEM ZEBRA, und zwar konstruktiv statt ueber
+ * Spezifitaet (Falle 5): das Zebra liegt am `tr`, diese Flaeche am `td`. Zwei
+ * verschiedene Elemente — die Zellenflaeche deckt die Zeilenflaeche ab, ohne
+ * dass eine Reihenfolge oder ein Selektorgewicht darueber entscheiden muesste. */
+.lb-cl-tabelle .lb-cl-sIst,
+.lb-cl-tabelle .lb-cl-sBemerkung {
+  background: #e8ecef;
+  border-left: 1px solid #ccd2d7;
+  border-right: 1px solid #ccd2d7;
+}
+
+/* ⚠️ ZWEI KLASSEN STATT EINER MIT ZUSATZBREITE, und das ist der Punkt: eine
+ * Zahl braucht 22mm, eine handschriftliche Bemerkung nicht. Ein zweites
+ * `width` per Zusatzklasse auf DIESELBE Zelle waere ein Spezifitaets-
+ * GLEICHSTAND (`.lb-cl-tabelle .lb-cl-sIst` gegen `.lb-cl-tabelle .lb-cl-x`,
+ * beide 0-2-0) — dann entschiede allein die Reihenfolge im Stylesheet, und
+ * zwar still (Falle 5). Die Flaeche teilen sich beide oben; nur die Breite
+ * steht getrennt. */
+.lb-cl-tabelle .lb-cl-sIst {
+  width: 22mm;
+}
+
+.lb-cl-tabelle .lb-cl-sBemerkung {
+  width: 45mm;
+}
+
+.lb-cl-artikel {
+  font-weight: 500;
+}
+
+/* Die Abhak-Spalte traegt als Ueberschrift ein Haekchen — auf 7mm Breite ist
+ * kein Wort unterzubringen. Fuer den Vorleser steht das Wort trotzdem da.
+ *
+ * ⚠️ ABGESCHNITTEN, NICHT AUSGEBLENDET: `visibility: hidden` ist modulweit
+ * gesperrt (`druck.test.ts`, Falle 43), und `display: none` naehme dem
+ * Vorleser genau den Text, um dessentwillen er dasteht. */
+.lb-cl-nurLeser {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Papier ist einfarbig: ein auffaelliger Verfall wird FETT und mit einem
+ * vorangestellten Rufzeichen ausgezeichnet, nicht rot (Falle 3). */
+.lb-cl-warnung {
+  font-weight: 700;
+}
+
+/* Das Kaestchen zum Abhaken. Ein gezeichnetes Quadrat, KEIN Formularelement:
+ * ein echtes Kontrollkaestchen druckt je nach Browser als graue Flaeche oder
+ * gar nicht, und dieses hier soll mit dem Kugelschreiber ausgefuellt werden. */
+.lb-cl-box {
+  display: inline-block;
+  width: 3.4mm;
+  height: 3.4mm;
+  border: 1px solid #333b42;
+  border-radius: 0.4mm;
+  vertical-align: -0.4mm;
+}
+
+/* Die drei Zustandskaestchen am Geraet stehen als Gruppe in einer Zelle. */
+.lb-cl-zustand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1mm 3mm;
+  font-size: 8pt;
+  white-space: nowrap;
+}
+
+.lb-cl-zustandWahl {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.2mm;
+}
+
+.lb-cl-notiz {
+  color: #4a545d;
+  font-size: 8pt;
+}
+
+.lb-cl-fuss {
+  margin-top: 5mm;
+  padding-top: 1.5mm;
+  border-top: 1px solid #ccd2d7;
+  font-size: 7.5pt;
+  color: #4a545d;
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+}
+
+.lb-cl-leer {
+  margin: 2mm 0 0;
+  font-size: 9pt;
+  color: #4a545d;
+}
+
+/* KOMPAKT — eine Dichtestufe, kein zweites Layout. Sie greift nur an
+ * Polstern und Schriftgraden; jede Spaltenbreite und jede Regel darueber
+ * bleibt, wie sie ist. Eine 60-Positionen-Liste spart damit rund eine Seite.
+ *
+ * ⚠️ DIE 44px-ARBEITSDICHTE AUS `core/theme` GILT HIER NICHT (Falle 4): sie
+ * gilt fuer BEDIENELEMENTE unter `FullShell`. Auf diesem Blatt gibt es keine —
+ * die Kaestchen werden mit dem Stift ausgefuellt, nicht angetippt. Die
+ * Bedienleiste daneben liegt ausserhalb von `.lb-cl-kompakt` und behaelt ihr
+ * Tippmass. */
+.lb-cl-kompakt .lb-cl-blatt {
+  padding: 8mm 8mm;
+}
+
+.lb-cl-kompakt .lb-cl-tabelle {
+  font-size: 8pt;
+}
+
+.lb-cl-kompakt .lb-cl-tabelle td {
+  padding: 0.8mm 1.2mm;
+}
+
+.lb-cl-kompakt .lb-cl-abschnitt {
+  margin: 4mm 0 1mm;
+}
+
 @media print {
   /* RULING A14 (entscheidungen.md, 10.08.2026) — `!important` ist hier PFLICHT,
    * nicht Kosmetik.
@@ -167,5 +522,46 @@
    * und verschoebe jede folgende Kachel um eine Position. */
   .lb-etikettAbgewaehlt {
     display: none;
+  }
+
+  /* ── DIE FAHRZEUG-CHECKLISTE AUF PAPIER ──────────────────────────────────
+   *
+   * Die Papierattrappe des Bildschirms faellt weg: Rahmen, Rundung, Schatten
+   * und die A4-Kappung sind AM BILDSCHIRM eine Vorschau und AUF PAPIER ein
+   * zweiter, kleinerer Rand innerhalb von `@page { margin: 8mm }`.
+   *
+   * ⚠️ `max-width: none` IST DIE LOAD-BEARING ZEILE. `210mm` ist die volle
+   * Blattbreite; zusammen mit dem 8mm-Seitenrand oben ergaebe das eine
+   * Bahn, die 16mm breiter ist als der Satzspiegel — Chrome skaliert dann
+   * still auf ~92 % herunter, und jede Schriftgroesse dieses Stylesheets
+   * stimmt nicht mehr. Das sieht man erst in der Druckvorschau. */
+  .lb-cl-blatt {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  /* JEDES FAHRZEUG BEGINNT AUF EINEM NEUEN BLATT — aber ueber
+   * `break-before` am ZWEITEN und jedem weiteren, NICHT ueber `break-after`
+   * an allen. `break-after: page` am letzten Blatt wirft eine leere
+   * Schlussseite aus; bei zehn Fahrzeugen faellt das niemandem auf, bei
+   * einem einzigen ist die Haelfte des Ausdrucks leer.
+   *
+   * ⚠️ Der Geschwisterselektor setzt voraus, dass zwischen zwei Blaettern
+   * KEIN weiteres Element steht. Deshalb traegt die Bedienleiste in
+   * `ChecklistenBogen.tsx` ihr eigenes Elternelement und steht nicht als
+   * Geschwister zwischen den Blaettern. */
+  .lb-cl-blatt + .lb-cl-blatt {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Der Bogen selbst darf im Druck keine Flaeche mehr setzen — sonst
+   * druckte der Browser bei `print-color-adjust: exact` eine vollflaechige
+   * weisse Ebene ueber jede Seite. Harmlos auf Papier, teuer im PDF. */
+  .lb-cl-bogen {
+    background: transparent;
   }
 }
