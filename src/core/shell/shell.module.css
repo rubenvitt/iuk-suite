@@ -224,8 +224,17 @@
  * bedeuten dasselbe.
  *
  * FALLS `--iuk-marke` NICHT AUFLÖST — die Variable fehlt, ist umbenannt, oder
- * `globals.css` kommt nicht an —, fällt der Akzent auf `transparent` zurück
- * (die 3px bleiben als Leerraum). Der Ausfall ist still (Falle 2).
+ * `globals.css` kommt nicht an —, fällt der Akzent NICHT auf das `transparent`
+ * der Kurzschreibweise oben zurück. Hier stand das einmal so; es ist falsch.
+ * Eine Variable, die erst zur Rechenzeit scheitert („invalid at computed-value
+ * time"), macht die Deklaration zu `unset` — und für die NICHT vererbte
+ * `border-inline-start-color` ist `unset` der Initialwert `currentcolor`, nicht
+ * der Wert, der ohne diese Regel kaskadiert wäre. `.navLink` trägt
+ * `color: inherit`, also wird aus dem Akzent eine Kante in der geerbten
+ * Schriftfarbe: die 3px verschwinden nicht, sie verlieren nur ihr Rot. Für die
+ * Markierung ist das der glimpflichere Ausfall — die Kante bleibt sichtbar,
+ * und `font-weight: 600` steht ohnehin daneben. Still ist er trotzdem
+ * (Falle 2).
  *
  * KEINE TEXTFARBE HIER — und zwar seit dem Schlussreview, als Folge genau der
  * getönten Fläche eine Zeile darüber. Bis dahin trug die Regel
