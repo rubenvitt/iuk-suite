@@ -76,6 +76,35 @@ export async function deletePresetAction(formData: FormData) {
   revalidateQr();
 }
 
+/**
+ * HEUTE UNERREICHBAR — und das ist eine bewusste Lücke, kein Versehen und kein
+ * toter Rest. Wer hier aufräumt, lese erst zu Ende.
+ *
+ * Die Action ist vollständig und geprüft (Guard, `presets.ts`, eigene Fälle in
+ * `actions.test.ts`). Was fehlt, ist der EINSTIEGSPUNKT: die Admin-Oberfläche
+ * des Moduls hat kein Bedienelement, das sie aufruft. QR-Presets lassen sich
+ * darum nicht umsortieren; sie erscheinen in der Reihenfolge, die
+ * `presets.ts` liefert.
+ *
+ * WARUM SIE NICHT GEBAUT WIRD. Eine Sortier-Oberfläche verlangt
+ * Entwurfsentscheidungen, die niemand getroffen hat — Ziehen und Ablegen,
+ * Pfeiltasten je Zeile, ein Zahlenfeld für die Reihenfolge, etwas anderes.
+ * Jede Antwort zieht eigene Folgen nach sich (Tastaturbedienung,
+ * Trefferflächen, Verhalten auf dem Telefon). Diese Datei ist nicht der Ort,
+ * an dem eine davon nebenbei gefällt wird. Solange die Entscheidung aussteht,
+ * ist „keine Oberfläche" der ehrliche Zustand.
+ *
+ * WARUM SIE NICHT GELÖSCHT WIRD, obwohl im Modul `feedback` zwei Actions ohne
+ * Aufrufer genau dafür gelöscht wurden: dort war der Grund, dass eine
+ * NACHFOLGE-ACTION dieselbe Wirkung schon abdeckte — die alten waren abgelöst,
+ * ihre Fähigkeit blieb erreichbar. Hier deckt keine andere Action das
+ * Umsortieren ab. Ein Löschen nähme dem Modul eine Fähigkeit, statt eine
+ * doppelte zu entfernen, und die Wiederbeschaffung wäre kein Zurückholen von
+ * Code, sondern erneutes Durchdenken von Guard und Persistenz.
+ *
+ * Kurz: unerreichbar aus Absicht, nicht aus Verfall. Wer die Oberfläche baut,
+ * darf diesen Kommentar mit ihr zusammen entfernen.
+ */
 export async function reorderPresetsAction(ids: string[]) {
   await requireModuleAdmin("qr");
   await reorderPresets(ids);
