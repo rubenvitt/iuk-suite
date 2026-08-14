@@ -238,4 +238,15 @@ describe("RoutinenPage — Rollen-Gate (Aufgabe 13, Spec §8: '/routinen' fuer b
     sitzung = { user: { id: doerte.sub } };
     await expect(RoutinenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
+
+  /*
+   * SPEC-NACHTRAG 2026-08-14: Modulzugang ohne `personen`-Zeile ist die Erklaerseite, NICHT
+   * `notFound()` — VOR dem Rollen-Gate, das ohne eine aufgeloeste Person gar nicht pruefbar waere.
+   */
+  it("Sitzung ohne personen-Zeile: die Erklaerseite (200), kein notFound()", async () => {
+    sitzung = { user: { id: "dev:unbekannt@test" } };
+    const element = await RoutinenPage({ searchParams: Promise.resolve({}) });
+    await mount(element);
+    expect(document.body.textContent).toContain("Du bist noch nicht im Modul eingetragen.");
+  });
 });

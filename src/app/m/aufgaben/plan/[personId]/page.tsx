@@ -4,8 +4,9 @@ import { aufgabenFuerPerson, personNachId, rangGrenzen, routinenFuer } from "../
 import type { PersonRow } from "../../_db/schema";
 import { fmtStunden, tagesBudget, wartetAufEinplanung } from "../../_lib/anzeige";
 import { ausgewaehlterTag, isoTag, montagAusParam, wochenTage } from "../../_lib/datum";
-import { darfPlanAendern, darfPlanSehen, personFuerSession } from "../../_lib/zugang";
+import { darfPlanAendern, darfPlanSehen, personFuerSeite } from "../../_lib/zugang";
 import { EinplanenFormular } from "../../_ui/EinplanenFormular";
+import { NichtEingetragenSeite } from "../../_ui/NichtEingetragenSeite";
 import { SeitenKopf } from "../../_ui/SeitenKopf";
 import { TagesWaehler } from "../../_ui/TagesWaehler";
 import { WochenWaehler } from "../../_ui/WochenWaehler";
@@ -136,7 +137,11 @@ export default async function PlanPage({
   searchParams: Promise<{ woche?: string; tag?: string }>;
 }) {
   const db = getDb();
-  const betrachter = await personFuerSession(db);
+  // `personFuerSeite` statt `personFuerSession`: Modulzugang ohne `personen`-Zeile ist die eigene
+  // Erklaerseite, nicht `notFound()` (Spec-Nachtrag 2026-08-14, `_lib/zugang.ts`). Erst DANACH die
+  // Ziel-Id aufloesen — eine unbekannte Objekt-Id bleibt `notFound()` (Grenze der Ausnahme).
+  const betrachter = await personFuerSeite(db);
+  if (!betrachter) return <NichtEingetragenSeite />;
   const { personId } = await params;
   const ziel = personNachId(db, personId);
   if (!ziel) notFound();

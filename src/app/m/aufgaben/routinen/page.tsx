@@ -5,7 +5,8 @@ import { getDb, type DB } from "../_db/client";
 import { routinenFuer } from "../_db/queries";
 import type { PersonRow } from "../_db/schema";
 import { isoTag } from "../_lib/datum";
-import { darfRoutinenVerwalten, personFuerSession } from "../_lib/zugang";
+import { darfRoutinenVerwalten, personFuerSeite } from "../_lib/zugang";
+import { NichtEingetragenSeite } from "../_ui/NichtEingetragenSeite";
 import { RoutineFormular } from "../_ui/RoutineFormular";
 import { RoutinenTabelle } from "../_ui/RoutinenTabelle";
 import { SeitenKopf } from "../_ui/SeitenKopf";
@@ -94,11 +95,15 @@ export default async function RoutinenPage({
   searchParams: Promise<{ bearbeiten?: string }>;
 }) {
   const db = getDb();
-  const person = await personFuerSession(db);
+  // `personFuerSeite` statt `personFuerSession`: Modulzugang ohne `personen`-Zeile ist die eigene
+  // Erklaerseite, nicht `notFound()` (Spec-Nachtrag 2026-08-14, `_lib/zugang.ts`).
+  const person = await personFuerSeite(db);
+  if (!person) return <NichtEingetragenSeite />;
   // AUFGABE 13 (offener Punkt aus Aufgabe 11, s. Kommentar bei `darfRoutinenVerwalten`): Spec §8
   // nennt `/routinen` ausdruecklich "für bufdi" — ohne dieses Gate waere die Route fuer
   // `koordination`/`auftrag` per direkter URL trotzdem erreichbar, auch wenn keine Navigation
-  // dorthin verlinkt.
+  // dorthin verlinkt. Eine ROLLENFRAGE, keine Fassung der Modulzugang-Ausnahme oben — bleibt
+  // `notFound()`.
   if (!darfRoutinenVerwalten(person, isoTag(new Date()))) notFound();
   const { bearbeiten } = await searchParams;
   return routinenInhalt(db, person, bearbeiten);

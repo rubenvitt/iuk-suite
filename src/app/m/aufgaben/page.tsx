@@ -1,8 +1,9 @@
 import type { PersonRow } from "./_db/schema";
 import { getDb, type DB } from "./_db/client";
 import { isoTag } from "./_lib/datum";
-import { personFuerSession } from "./_lib/zugang";
+import { personFuerSeite } from "./_lib/zugang";
 import { EinstiegBufdi } from "./_ui/EinstiegBufdi";
+import { NichtEingetragenSeite } from "./_ui/NichtEingetragenSeite";
 import { SeitenKopf } from "./_ui/SeitenKopf";
 
 export const dynamic = "force-dynamic";
@@ -76,11 +77,18 @@ export default async function AufgabenPage({
   searchParams: Promise<{ woche?: string; tag?: string }>;
 }) {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const person = await personFuerSeite(db);
   const heute = isoTag(new Date());
   const params = await searchParams;
   // `data-testid="aufgaben-content"` bleibt aus Aufgabe 1 stehen — `e2e/aufgaben.spec.ts`s erster
   // Test prueft ihn bereits, und ein Wegfall haette diesen bestehenden Vertrag stillschweigend
   // gebrochen, ohne dass irgendein Gate aus Aufgabe 1-12 das noch sieht.
-  return <div data-testid="aufgaben-content">{aufgabenInhalt(db, person, heute, params)}</div>;
+  //
+  // `person === null` (Modulzugang, aber keine `personen`-Zeile, Spec-Nachtrag 2026-08-14): die
+  // Erklaerseite statt `notFound()` — s. `_lib/zugang.ts`s `personFuerSeite`.
+  return (
+    <div data-testid="aufgaben-content">
+      {person ? aufgabenInhalt(db, person, heute, params) : <NichtEingetragenSeite />}
+    </div>
+  );
 }

@@ -26,18 +26,43 @@ import { personen, type AufgabeRow, type PersonRow } from "../_db/schema";
  */
 
 /**
- * Sitzung → Person. `session.user.id` ist der Pocket-ID-`sub` (`core/auth/config.ts` setzt
- * `session.user.id = token.sub`), und `personen.sub` ist genau darauf indiziert.
+ * Sitzung → Person, ODER `null` (Spec-Nachtrag 2026-08-14, `1d36008`, Aufgabe 13 Fix-Runde 1).
+ * `session.user.id` ist der Pocket-ID-`sub` (`core/auth/config.ts` setzt `session.user.id =
+ * token.sub`), und `personen.sub` ist genau darauf indiziert.
  *
- * KEIN TREFFER → `notFound()`, NICHT 403 — genauso ohne Sitzung. Mehrere Riegel der Suite werfen
- * absichtlich 404, damit die Existenz einer Seite nicht verraten wird (Spec §7); ein 403 verriete
- * "es gibt hier etwas, du darfst nur nicht", ein 404 nicht.
+ * OHNE SITZUNG → weiterhin `notFound()`: die Middleware laesst diesen Pfad nur mit gueltiger
+ * Sitzung UND Zugangsgruppe durch (`core/routing.ts`); ein Aufruf ohne `sub` waere ein Zustand,
+ * den es im Betrieb nicht geben sollte, kein realer Nutzungsfall, der eine eigene Seite verdient.
+ *
+ * KEINE `personen`-ZEILE → `null`, NICHT `notFound()`: die Zugangsgruppe allein beweist, dass die
+ * Person Modulzugang hat (die Middleware hat sie schon geprueft) — ihr fehlt nur die lokale
+ * Personen-Zeile, z. B. eine frisch in Pocket ID freigeschaltete BuFDi, die die Koordination noch
+ * nicht angelegt hat. `notFound()` gaebe ihr nichts, womit sie weiterkaeme, und die Begruendung
+ * fuer 404 in Spec §7 ("die Existenz einer Seite nicht verraten") traegt hier nicht: die Person
+ * HAT den Zugang, es gibt vor ihr nichts zu verbergen. Diese Funktion RENDERT NICHTS SELBST — sie
+ * liefert nur `null`, jede Seite waehlt selbst die Form (heute einheitlich `NichtEingetragenSeite`,
+ * s. `_ui/NichtEingetragenSeite.tsx`), weil sie ihren eigenen Aufrufpfad kennt.
+ *
+ * DIE GRENZE DIESER AUSNAHME, DAMIT SIE NICHT VERALLGEMEINERT WIRD: das gilt NUR fuer die
+ * Sitzungsperson selbst. Eine unbekannte OBJEKT-Id in der URL (`/plan/<personId>`, kuenftig
+ * `/a/<id>`) bleibt `notFound()` — dort geht es um ein Objekt, das es geben koennte oder nicht,
+ * nicht um die eigene, noch fehlende Personen-Zeile.
  */
-export async function personFuerSession(db: DB): Promise<PersonRow> {
+export async function personFuerSeite(db: DB): Promise<PersonRow | null> {
   const session = await auth();
   const sub = session?.user?.id;
   if (!sub) notFound();
-  const person = db.select().from(personen).where(eq(personen.sub, sub)).get();
+  return db.select().from(personen).where(eq(personen.sub, sub)).get() ?? null;
+}
+
+/**
+ * Wie `personFuerSeite`, aber fuer Server-Actions: eine Aktion hat keine Seite, auf der sie eine
+ * Erklaerung anzeigen koennte, und eine Schreiboperation ohne zurechenbare Personen-Zeile darf
+ * ohnehin nicht stattfinden — deshalb bleibt hier der Wurf die richtige Antwort, unveraendert seit
+ * Aufgabe 4. Jede Seite dagegen ruft `personFuerSeite` (s. dort).
+ */
+export async function personFuerSession(db: DB): Promise<PersonRow> {
+  const person = await personFuerSeite(db);
   if (!person) notFound();
   return person;
 }

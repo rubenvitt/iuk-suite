@@ -22,6 +22,7 @@ let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
 
 import {
+  personFuerSeite,
   personFuerSession,
   istAktiv,
   darfVerteilen,
@@ -92,6 +93,29 @@ describe("personFuerSession", () => {
     const rike = legePerson("dev:rike@localtest.me", "koordination");
     sitzung = { user: { id: "dev:rike@localtest.me" } };
     await expect(personFuerSession(t.db)).resolves.toEqual(rike);
+  });
+});
+
+/*
+ * `personFuerSeite` (Spec-Nachtrag 2026-08-14, `1d36008`): dieselbe Aufloesung wie
+ * `personFuerSession`, ausser dass eine fehlende `personen`-Zeile `null` statt `notFound()` ergibt
+ * — jede Seite waehlt selbst, was sie mit `null` macht (heute: `NichtEingetragenSeite`).
+ */
+describe("personFuerSeite", () => {
+  it("ohne Sitzung: weiterhin notFound(), kein `null`", async () => {
+    sitzung = null;
+    await expect(personFuerSeite(t.db)).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("Sitzung ohne passende personen-Zeile: `null`, KEIN notFound() (die Ausnahme)", async () => {
+    sitzung = { user: { id: "dev:unbekannt@localtest.me" } };
+    await expect(personFuerSeite(t.db)).resolves.toBeNull();
+  });
+
+  it("Sitzung mit passender Zeile: die Person, aufgeloest ueber sub", async () => {
+    const rike = legePerson("dev:rike@localtest.me", "koordination");
+    sitzung = { user: { id: "dev:rike@localtest.me" } };
+    await expect(personFuerSeite(t.db)).resolves.toEqual(rike);
   });
 });
 

@@ -11,16 +11,29 @@ const GRUPPE = "iuk-aufgaben-nutzer";
  * data-theme="auto") bestehen `pnpm typecheck`, `pnpm lint`, `pnpm build` UND
  * `pnpm vitest run`. Nur ein echter Abruf zeigt den 500.
  *
- * `email: "alina@localtest.me"` SEIT AUFGABE 13, NICHT MEHR DIE ANONYME DEV-ADRESSE: die
- * Modulwurzel ruft ab hier `personFuerSession()` (der Platzhalter aus Aufgabe 1 tat das nicht), und
- * die anonyme Standardadresse (`dev@localtest.me`) hat keine `personen`-Zeile — sie ergaebe jetzt
- * `notFound()` statt 200. Genau DAS ist die neue, gewollte Zusage dieser Aufgabe ("Ab hier wird das
- * Modul benutzbar"), keine Regression dieses Tests.
+ * WIEDER DIE ANONYME DEV-ADRESSE (`dev@localtest.me`), SEIT FIX-RUNDE 1 (Spec-Nachtrag 2026-08-14,
+ * `1d36008`): zwischenzeitlich mit `email: "alina@localtest.me"` umgangen, weil die anonyme Adresse
+ * (Modulzugang, aber keine `personen`-Zeile) `notFound()` ergab. Genau dieser Fall bekommt jetzt die
+ * Erklaerseite statt 404 (s. `NichtEingetragenSeite`, eigener Test unten) — die anonyme Adresse
+ * pruefte also wieder etwas Sinnvolles: die Modulwurzel antwortet 200, unabhaengig davon, ob die
+ * Person schon eine `personen`-Zeile hat.
  */
 test("Modulwurzel antwortet mit 200 und traegt die Suite-Kopfzeile", async ({ page }) => {
-  await devLogin(page, { host: HOST, groups: GRUPPE, email: "alina@localtest.me", callbackPath: "/" });
+  await devLogin(page, { host: HOST, groups: GRUPPE, callbackPath: "/" });
   await expect(page.getByTestId("aufgaben-content")).toBeVisible();
   await expect(page.getByTestId("suite-header")).toBeVisible();
+});
+
+/**
+ * DIE ERKLAERSEITE SELBST (Spec-Nachtrag 2026-08-14, `1d36008`, Fix-Runde 1): der Fall wurde bei
+ * genau diesem Test sichtbar — die anonyme Dev-Adresse hat Modulzugang (die Zugangsgruppe), aber
+ * keine `personen`-Zeile, und bekommt seit dieser Runde eine Erklaerseite statt `notFound()`.
+ */
+test("Modulzugang ohne personen-Zeile zeigt die Erklaerseite, keine 404", async ({ page }) => {
+  await devLogin(page, { host: HOST, groups: GRUPPE, callbackPath: "/" });
+  const res = await page.goto(`http://${HOST}:3100/`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByText("Du bist noch nicht im Modul eingetragen.")).toBeVisible();
 });
 
 test("ohne die Zugangsgruppe verweigert die Middleware den Zugang", async ({ page }) => {
@@ -126,8 +139,30 @@ test("/plan/<fremde-person> ist lesbar, aber ohne jede Aktion — kein Formular,
   const res = await page.goto(`http://${HOST}:3100${href}`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Zeitplan von /);
-  await expect(page.getByRole("button", { name: "Einplanen" })).toHaveCount(0);
+  // KEIN `getByRole("button", { name: "Einplanen" })`-Assert (Review-Fund, Fix-Runde 1): der Seed
+  // gibt jedem BuFDi ausschliesslich bereits verplante Aufgaben, die Liste waere also AUCH dann
+  // leer, wenn `darfAendern` durch "immer wahr" ersetzt wuerde — eine Assertion, die nie rot werden
+  // kann, ist kein Beleg. Die beiden Verschiebe-Assertions binden dagegen echt: RangKnoepfe werden
+  // nur bei `zeigeAktionen` ueberhaupt gerendert.
   await expect(page.getByRole("button", { name: /nach oben verschieben/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /nach unten verschieben/ })).toHaveCount(0);
   expect(konsolenFehler).toEqual([]);
+});
+
+/**
+ * DIE GRENZE DER AUSNAHME AUS SPEC-NACHTRAG 2026-08-14, END-TO-END GEPRUEFT, NICHT NUR BEHAUPTET:
+ * eine unbekannte OBJEKT-Id in der URL bleibt `notFound()` — anders als die eigene, fehlende
+ * `personen`-Zeile der Sitzungsperson (s. Test oben), bei der die Person selbst durchaus existiert.
+ */
+test("/plan/<unbekannte-id> bleibt notFound() — die Grenze der Erklaerseiten-Ausnahme", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "alina@localtest.me",
+    callbackPath: "/",
+  });
+  const res = await page.goto(`http://${HOST}:3100/plan/unbekannte-id`);
+  expect(res?.status()).toBe(404);
 });

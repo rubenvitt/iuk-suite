@@ -5,8 +5,8 @@ import { migrierteTestDb, type TestDb } from "./_db/testdb";
 import { personen, type PersonRow, type Rolle } from "./_db/schema";
 
 /*
- * MOCKS: `next/navigation` (fuer `notFound()`, ausgeloest von `personFuerSession`, UND fuer
- * `useRouter`/`usePathname`/`useSearchParams`, gebraucht von `TagesWaehler` innerhalb der
+ * MOCKS: `next/navigation` (fuer `notFound()`, ausgeloest von `personFuerSeite` OHNE Sitzung, UND
+ * fuer `useRouter`/`usePathname`/`useSearchParams`, gebraucht von `TagesWaehler` innerhalb der
  * `bufdi`-Fassung), `@/core/auth` (fuer die Sitzung) und `./_db/client` (fuer die Testdatenbank) —
  * dieselbe Form wie `_lib/zugang.test.ts` und `routinen/page.test.tsx`.
  */
@@ -90,11 +90,18 @@ describe("AufgabenPage — Default-Export", () => {
     expect(query('[data-testid="aufgaben-content"]')).toBeTruthy();
   });
 
-  it("kein Eintrag in personen: notFound(), nicht 403", async () => {
+  /*
+   * SPEC-NACHTRAG 2026-08-14 (`1d36008`, Fix-Runde 1): Modulzugang (Sitzung vorhanden) OHNE
+   * `personen`-Zeile ist NICHT mehr `notFound()` — die Erklaerseite `NichtEingetragenSeite`,
+   * weil die Person den Modulzugang hat (die Middleware hat ihn schon geprueft), es also nichts
+   * vor ihr zu verbergen gibt.
+   */
+  it("Sitzung ohne personen-Zeile: die Erklaerseite (200), kein notFound()", async () => {
     sitzung = { user: { id: "dev:unbekannt@test" } };
-    await expect(AufgabenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
+    const element = await AufgabenPage({ searchParams: Promise.resolve({}) });
+    await mount(element);
+    expect(query('[data-testid="aufgaben-content"]')).toBeTruthy();
+    expect(document.body.textContent).toContain("Du bist noch nicht im Modul eingetragen.");
   });
 
   it("ohne Sitzung: ebenfalls notFound()", async () => {
