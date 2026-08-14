@@ -6,13 +6,20 @@ import { aufgabenFuerPerson, bufdis, rangGrenzen, routinenFuer } from "../_db/qu
 import type { AufgabeRow, PersonRow } from "../_db/schema";
 import type { DB } from "../_db/client";
 import {
+  aufgabenInWoche,
   fmtStunden,
   heuteOffen,
   tagesBudget,
   vorschlagOffen,
   wartetAufEinplanung,
 } from "../_lib/anzeige";
-import { ausgewaehlterTag, montagAusParam, montagDerWoche, wochenTage } from "../_lib/datum";
+import {
+  ausgewaehlterTag,
+  fmtTagKurz,
+  montagAusParam,
+  montagDerWoche,
+  wochenTage,
+} from "../_lib/datum";
 import { darfPlanAendern, darfRoutinenVerwalten } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -78,9 +85,9 @@ export function EinstiegBufdi({
   const budgets = tage.map((tag) => tagesBudget(meineAufgaben, meineRoutinen, person, tag));
   const verplantMinuten = budgets.reduce((summe, b) => summe + b.verplantMinuten, 0);
   const sollMinuten = budgets.reduce((summe, b) => summe + b.sollMinuten, 0);
-  const aufgabenDieseWoche = meineAufgaben.filter(
-    (a) => a.planDatum !== null && tage.includes(a.planDatum),
-  ).length;
+  // `aufgabenInWoche` (`_lib/anzeige.ts`, Review Fix-Runde 1): vorher eine dritte, ungetestete
+  // Fassung dieser Mitgliedschaft inline hier — jetzt dieselbe Ableitung wie ueberall sonst.
+  const aufgabenDieseWoche = aufgabenInWoche(meineAufgaben, tage);
   const kontext =
     `Diese Woche: ${aufgabenDieseWoche} Aufgabe${aufgabenDieseWoche === 1 ? "" : "n"}, ` +
     `${fmtStunden(verplantMinuten)} von ${fmtStunden(sollMinuten)} Std. verplant.`;
@@ -180,6 +187,12 @@ export function EinstiegBufdi({
  * eines sichtbaren Formulars. Nur gerendert, wenn `vorschlagOffen` — ohne Vorschlag gibt es nichts
  * anzunehmen, nur „Anders einplanen" bleibt.
  *
+ * DER VORSCHLAG STEHT IM KNOPFTEXT (Spec §8.1, Review Fix-Runde 1 — vorher stand nur "Annehmen",
+ * ohne dass irgendwo auf der Seite stand, WAS angenommen wird): „Annehmen: Do, 13.08." bzw. mit
+ * Uhrzeit „Annehmen: Do, 13.08., 09:00" — `vorschlagUhrzeit` ist entweder `null` (keine Uhrzeit im
+ * Vorschlag, ein Anker wie bei jedem anderen Eintrag) oder eine bereits validierte "HH:MM"-Zeichenkette
+ * (`istGueltigeUhrzeit` in `actions.ts`), deshalb ohne weitere Formatierung eingesetzt.
+ *
  * „ANDERS EINPLANEN" OEFFNET `EinplanenFormular` — NICHT HIER, SONDERN AUF `/plan/<eigene id>`
  * (Aufgabe 13 baut auch diese Route): der Anker `#einplanen-<id>` springt dort zu genau dem
  * Formular dieser Aufgabe, vorbelegt mit `task.planDatum` (leer) bzw. einer manuell gewaehlten
@@ -195,7 +208,8 @@ function posteingangAktionen(a: AufgabeRow, person: PersonRow): ReactNode {
           <input type="hidden" name="planDatum" value={a.vorschlagDatum ?? ""} />
           <input type="hidden" name="planUhrzeit" value={a.vorschlagUhrzeit ?? ""} />
           <Button type="primary" htmlType="submit">
-            Annehmen
+            Annehmen: {fmtTagKurz(a.vorschlagDatum!)}
+            {a.vorschlagUhrzeit ? `, ${a.vorschlagUhrzeit}` : ""}
           </Button>
         </form>
       ) : null}

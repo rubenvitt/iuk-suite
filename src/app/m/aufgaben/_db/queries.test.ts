@@ -485,9 +485,20 @@ describe("rangGrenzen (Aufgabe 13) — istErste/istLetzte aus derselben Skala wi
     });
   });
 
+  /*
+   * REVIEW FIX-RUNDE 1, Minor #4: die drei Zeilen wurden vorher in EXAKT ihrer Rangreihenfolge
+   * (0, 1, 2) eingefuegt — eine kaputte Sortierung in `rangGrenzen`/`planEintraegeFuerTag` (z. B.
+   * nach Einfuegereihenfolge statt nach `planRang`) haette diesen Test unveraendert bestanden.
+   * Jetzt in umgekehrter Rangreihenfolge eingefuegt (2, 0, 1), damit die Assertion tatsaechlich auf
+   * `planRang` beruht, nicht auf der Einfuegereihenfolge.
+   */
   it("mehrere Eintraege an einem Tag: nur die aeusseren Raender tragen istErste/istLetzte", () => {
     const ersteller = legePerson("rg2", "auftrag");
     const bufdi = legePerson("rg2-bufdi", "bufdi");
+    const letzte = legeAufgabe({
+      erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "verteilt",
+      planDatum: "2026-08-17", planRang: 2,
+    });
     const erste = legeAufgabe({
       erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "verteilt",
       planDatum: "2026-08-17", planRang: 0,
@@ -495,10 +506,6 @@ describe("rangGrenzen (Aufgabe 13) — istErste/istLetzte aus derselben Skala wi
     const mitte = legeAufgabe({
       erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "verteilt",
       planDatum: "2026-08-17", planRang: 1,
-    });
-    const letzte = legeAufgabe({
-      erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "verteilt",
-      planDatum: "2026-08-17", planRang: 2,
     });
     const ergebnis = rangGrenzen(t.db, bufdi.id, ["2026-08-17"]);
     expect(ergebnis[erste.id]).toEqual({ istErste: true, istLetzte: false });

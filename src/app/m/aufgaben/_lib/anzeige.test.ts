@@ -12,6 +12,7 @@ import {
   STATUS_TEXT,
   STATUS_TON,
   WOCHENTAG_BIT,
+  aufgabenInWoche,
   fmtDauer,
   fmtStunden,
   fmtWochentage,
@@ -198,6 +199,31 @@ describe("heuteOffen", () => {
     expect(heuteOffen({ ...AUFGABE, planDatum: "2026-08-13", status: "abgeschlossen" }, "2026-08-13")).toBe(
       false,
     );
+  });
+});
+
+describe("aufgabenInWoche", () => {
+  const TAGE = ["2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14"] as const;
+
+  it("zaehlt nur Aufgaben mit planDatum in der uebergebenen Wochenliste", () => {
+    const aufgaben = [
+      { ...AUFGABE, planDatum: "2026-08-11" },
+      { ...AUFGABE, planDatum: "2026-08-24" }, // andere Woche
+      { ...AUFGABE, planDatum: null },
+    ];
+    expect(aufgabenInWoche(aufgaben, TAGE)).toBe(1);
+  });
+
+  it("zaehlt UNABHAENGIG vom Status — dieselbe Zusage wie tagesOrdnung/tagesBudget", () => {
+    const aufgaben = [
+      { ...AUFGABE, planDatum: "2026-08-10", status: "abgeschlossen" as const },
+      { ...AUFGABE, planDatum: "2026-08-14", status: "zurueckgewiesen" as const },
+    ];
+    expect(aufgabenInWoche(aufgaben, TAGE)).toBe(2);
+  });
+
+  it("leere Liste: 0", () => {
+    expect(aufgabenInWoche([], TAGE)).toBe(0);
   });
 });
 

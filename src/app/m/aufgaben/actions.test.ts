@@ -1137,6 +1137,34 @@ describe("einplanenAnnehmenAction — die Form-Bruecke fuer „Annehmen“ (Aufg
       einplanenAnnehmenAction(form(task.id, { planDatum: "2026-08-17" })),
     ).rejects.toThrow();
   });
+
+  /*
+   * REVIEW FIX-RUNDE 1, IMPORTANT: `einplanenAction` gibt bei einem ungueltigen `planDatum`
+   * `{ ok: false, fieldErrors }` zurueck — KEINEN Wurf. Die vorherige Fassung dieser Bruecke
+   * verwarf dieses Ergebnis stillschweigend: `revalidate()` lief nicht, die Seite kam unveraendert
+   * zurueck, ohne jede Meldung. Jetzt wirft die Bruecke selbst, sobald `ergebnis.ok === false`.
+   */
+  it("wirft bei einem Feldfehler, statt ihn stillschweigend zu verwerfen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id,
+      prueferId: auftrag.id,
+      status: "verteilt",
+      zugewiesenAn: bufdi.id,
+      vorschlagDatum: "2026-08-17",
+    });
+    anmelden(bufdi);
+
+    // Ein leeres `planDatum` ist ein Feldfehler in `einplanenAction`, kein Berechtigungswurf —
+    // genau der Fall, den die alte Bruecke stillschweigend verschluckte.
+    await expect(einplanenAnnehmenAction(form(task.id, { planDatum: "" }))).rejects.toThrow(
+      /Plantag/,
+    );
+
+    // UND unveraendert: kein stiller No-Op hat die Aufgabe doch irgendwie eingeplant.
+    expect(aufgabe(t.db, task.id)!.planDatum).toBeNull();
+  });
 });
 
 describe("fertigMeldenAction", () => {

@@ -513,17 +513,32 @@ export async function einplanenAction(_prev: FormState, formData: FormData): Pro
  * dessen Signatur `(prev: FormState, formData) => Promise<FormState>` passt nur auf
  * `useActionState` (eine Client-Insel) — ein zustandsloses `<form action={fn}>` verlangt
  * `(formData: FormData) => Promise<void>`. Diese Funktion ist die DUENNE BRUECKE dazwischen: sie
- * ruft `einplanenAction` UNVERAENDERT auf (Brief: „durch denselben Weg") und verwirft nur dessen
- * Rueckgabe.
+ * ruft `einplanenAction` UNVERAENDERT auf (Brief: „durch denselben Weg").
  *
- * DAS VERWERFEN IST UNBEDENKLICH: `planDatum`/`planUhrzeit` kommen aus `vorschlagDatum`/
- * `vorschlagUhrzeit` der Aufgabe — beide bereits gueltige, gespeicherte Werte, keine Nutzereingabe,
- * an denen die Feldvalidierung in `einplanenAction` nicht scheitern kann. Eine abgelehnte
- * Berechtigung (z. B. ein Wettlauf, die Aufgabe wurde zwischen Laden und Klick umverteilt) WIRFT in
- * `einplanenAction` bereits (kein `FormState`-Fall) und propagiert hier unveraendert weiter.
+ * WIRFT BEI `fieldErrors`, STATT SIE ZU VERWERFEN (Review Fix-Runde 1, Important — vorherige
+ * Fassung schluckte `FormState`s Fehlerzweig komplett): `einplanenAction` gibt bei einem ungueltigen
+ * `planDatum`/`planUhrzeit` KEINEN Wurf zurueck, sondern `{ ok: false, fieldErrors }` — ein
+ * Rueckgabewert, den nur `useActionState` liest. Ein stilles `await einplanenAction(...)` ohne
+ * Pruefung des Ergebnisses waere bei einem Fehler ein Klick ohne jede Wirkung: kein `revalidate()`,
+ * keine Meldung, keine Verlaufszeile — der schlechteste aller Fehlerfaelle, weil er wie ein
+ * Bedienfehler der klickenden Person aussieht, nicht wie ein Programmfehler. Diese Bruecke wirft
+ * deshalb JETZT bei `!ergebnis.ok`, mit den Feldfehlern im Text — laut ist besser als still (dieselbe
+ * Antwort wie bei `icons.ts`, `anfangsZustand()`, `freigebenAction`).
+ *
+ * WARUM DAS NICHT NUR THEORETISCH IST: die drei versteckten Felder in `_ui/EinstiegBufdi.tsx`
+ * kommen aus `vorschlagDatum`/`vorschlagUhrzeit` der Aufgabe, geschrieben `?? ""` — eine Aufgabe
+ * OHNE Vorschlag rendert dort ohnehin keinen „Annehmen"-Knopf (`vorschlagOffen`), aber eine
+ * VERTAUSCHTE Quelle (z. B. `a.planDatum` statt `a.vorschlagDatum`) waere `typecheck`, `lint`,
+ * `build` und der ganzen bisherigen Suite unsichtbar geblieben — genau das haelt jetzt
+ * `actions.test.ts` fest, mit einem geleerten `vorschlagDatum`.
  */
 export async function einplanenAnnehmenAction(formData: FormData): Promise<void> {
-  await einplanenAction(FORM_START, formData);
+  const ergebnis = await einplanenAction(FORM_START, formData);
+  if (!ergebnis.ok) {
+    throw new Error(
+      `Annehmen fehlgeschlagen: ${Object.values(ergebnis.fieldErrors).join(" ")}`,
+    );
+  }
 }
 
 /**

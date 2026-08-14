@@ -214,6 +214,44 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
     expect(zeile.textContent).toContain("Anders einplanen");
   });
 
+  /*
+   * REVIEW FIX-RUNDE 1, IMPORTANT: der Vorschlag muss LESBAR auf der Seite stehen (Spec §8.1,
+   * "die Zeile MIT dem Zeitvorschlag") UND die drei versteckten Formularfelder muessen die
+   * VORGESCHLAGENEN Werte tragen, nicht irgendeinen anderen Wert der Aufgabe — vorher pruefte kein
+   * Test die Feldwerte, nur den Zeilentext, und eine vertauschte Quelle (`a.planDatum` statt
+   * `a.vorschlagDatum`) waere unbemerkt geblieben.
+   */
+  it('"Annehmen" zeigt den Zeitvorschlag im Knopftext UND bindet ihn in die versteckten Felder', async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const alina = legePerson("dev:alina@test", "bufdi");
+    const aufgabe = legeAufgabe({
+      titel: "Mit Vorschlag",
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malte.id,
+      status: "verteilt",
+      planDatum: null,
+      vorschlagDatum: "2026-08-12",
+      vorschlagUhrzeit: "09:00",
+    });
+    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    const zeile = queryAll("li").find((li) => li.textContent?.includes("Mit Vorschlag"))!;
+    expect(zeile.textContent).toContain("Mi, 12.08.");
+    expect(zeile.textContent).toContain("09:00");
+
+    const formular = zeile.querySelector("form")!;
+    expect(formular).toBeTruthy();
+    expect(formular.querySelector<HTMLInputElement>('input[name="aufgabeId"]')!.value).toBe(
+      aufgabe.id,
+    );
+    expect(formular.querySelector<HTMLInputElement>('input[name="planDatum"]')!.value).toBe(
+      "2026-08-12",
+    );
+    expect(formular.querySelector<HTMLInputElement>('input[name="planUhrzeit"]')!.value).toBe(
+      "09:00",
+    );
+  });
+
   it("leerer Posteingang zeigt den ausgeschriebenen Leerzustand", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
     await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
@@ -312,8 +350,12 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
       })
       .run();
     await mount(<EinstiegBufdi db={t.db} person={alina} heute={MONTAG} />);
-    // Kein Knopf im Wochenplan fuer die Routine allein (kein Aufgabeneintrag vorhanden).
-    const routineZeile = queryAll('[class*="routineZeile"]')[0];
-    expect(routineZeile?.querySelector("button")).toBeFalsy();
+    // REVIEW FIX-RUNDE 1, Minor #2: `queryAll(...)[0]` gefolgt von `routineZeile?.querySelector(...)`
+    // bestand den Test auch dann, wenn die Zeile GAR NICHT existierte (`undefined?.foo()` ist
+    // `undefined`, also "falsy"). `toBeTruthy()` zuerst, dann die exakte CSS-Modul-Klasse statt des
+    // Substring-Selektors (den kein anderer Test dieser Datei benutzt).
+    const routineZeile = queryAll(`.${s.routineZeile}`)[0];
+    expect(routineZeile, "Routinenzeile im Wochenplan fehlt").toBeTruthy();
+    expect(routineZeile.querySelector("button")).toBeFalsy();
   });
 });

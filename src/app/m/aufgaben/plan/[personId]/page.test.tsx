@@ -140,6 +140,14 @@ describe("planInhalt — eigener Plan aenderbar, fremder lesend (Spec §7, Kern 
     expect(queryAll("form")).toHaveLength(0);
   });
 
+  /*
+   * REVIEW FIX-RUNDE 1, Minor #1: die vorherige Fixtur (nur eine `abgeschlossen`-Aufgabe
+   * ausserhalb der angezeigten Woche) hielt auch dann, wenn `darfPlanAendern` durch "immer wahr"
+   * ersetzt wuerde — sie bewies auf dieser Route nichts. Jetzt zusaetzlich eine Aufgabe, die
+   * `wartetAufEinplanung` erfuellen wuerde (`verteilt`, `planDatum: null`) UND eine, die IN der
+   * angezeigten Woche liegt (`planDatum: HEUTE`, dort haette eine faelschlich erlaubte
+   * `darfAendern` einen RangKnopf gerendert).
+   */
   it("eine ausgeschiedene Person liest den eigenen, historischen Plan weiterhin, ohne Aktionen", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
     const doerte = legePerson("dev:doerte@test", "bufdi", { name: "Dörte", aktivBis: "2020-01-01" });
@@ -151,11 +159,28 @@ describe("planInhalt — eigener Plan aenderbar, fremder lesend (Spec §7, Kern 
       status: "abgeschlossen",
       planDatum: "2019-12-01",
     });
+    legeAufgabe({
+      titel: "Noch nicht eingeplant",
+      erstellerId: malte.id,
+      zugewiesenAn: doerte.id,
+      prueferId: malte.id,
+      status: "verteilt",
+      planDatum: null,
+    });
+    legeAufgabe({
+      titel: "In der angezeigten Woche",
+      erstellerId: malte.id,
+      zugewiesenAn: doerte.id,
+      prueferId: malte.id,
+      status: "verteilt",
+      planDatum: HEUTE,
+    });
 
     await mount(planInhalt(t.db, doerte, doerte, HEUTE, {}));
 
     expect(document.body.textContent).not.toContain("Einzuplanen");
     expect(queryAll("form")).toHaveLength(0);
+    expect(queryAll("button")).toHaveLength(0);
   });
 });
 
@@ -263,10 +288,25 @@ describe("PlanPage — Default-Export: IDOR-Schutz und notFound()", () => {
     expect(query("h1").textContent).toBe("Zeitplan von Bendix");
   });
 
-  it("ohne Sitzung: notFound() (personFuerSession)", async () => {
+  it("ohne Sitzung: notFound() (personFuerSeite)", async () => {
     sitzung = null;
     await expect(
       PlanPage({ params: Promise.resolve({ personId: "irrelevant" }), searchParams: Promise.resolve({}) }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  /*
+   * SPEC-NACHTRAG 2026-08-14: Modulzugang ohne `personen`-Zeile ist die Erklaerseite, NICHT
+   * `notFound()` — und zwar VOR der Aufloesung der Ziel-Id, die unbekannte Objekt-Id oben bleibt
+   * die einzige `notFound()`-Quelle dieser Route.
+   */
+  it("Sitzung ohne personen-Zeile: die Erklaerseite (200), kein notFound()", async () => {
+    sitzung = { user: { id: "dev:unbekannt@test" } };
+    const element = await PlanPage({
+      params: Promise.resolve({ personId: "irrelevant" }),
+      searchParams: Promise.resolve({}),
+    });
+    await mount(element);
+    expect(document.body.textContent).toContain("Du bist noch nicht im Modul eingetragen.");
   });
 });

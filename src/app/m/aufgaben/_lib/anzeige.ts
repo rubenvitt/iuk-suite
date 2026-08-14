@@ -97,6 +97,19 @@ export function heuteOffen(a: AufgabeRow, heute: string): boolean {
   return a.planDatum === heute && a.status !== "abgeschlossen";
 }
 
+/**
+ * ANZAHL DER AUFGABEN IN EINER WOCHE (Review Fix-Runde 1, Minor — vorher eine dritte, ungeteste
+ * Fassung derselben Mitgliedschaft inline in `_ui/EinstiegBufdi.tsx`). KEIN Statusfilter, absichtlich
+ * — dieselbe Zusage wie `tagesOrdnung`/`tagesBudget` in `_lib/tagesplan.ts` ("ALLE Zustaende
+ * zaehlen, auch abgeschlossen"): eine Kontextzeile, die weniger Aufgaben zaehlt als die
+ * Tagesspalten darunter zeigen, waere sichtbar inkonsistent. `aufgaben` ist bereits auf die
+ * betrachtete Person gefiltert (Aufrufer: `aufgabenFuerPerson`), diese Funktion filtert nur noch
+ * nach Wochenzugehoerigkeit.
+ */
+export function aufgabenInWoche(aufgaben: readonly AufgabeRow[], tage: readonly string[]): number {
+  return aufgaben.filter((a) => a.planDatum !== null && tage.includes(a.planDatum)).length;
+}
+
 /** Bit je Wochentag: Index 0 = Montag. Die Maske liegt in `routinen.wochentage`. */
 export const WOCHENTAG_BIT = [1, 2, 4, 8, 16] as const;
 
