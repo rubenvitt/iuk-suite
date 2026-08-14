@@ -111,6 +111,19 @@ interface DemoAufgabe {
   status: Status;
   faelligAm: string;
   planDatum?: string | null;
+  /**
+   * VORGABE 0 (Schema-Default) — GENÜGT NICHT MEHR, SOBALD ZWEI AUFGABEN DERSELBEN PERSON AUF
+   * DENSELBEN TAG FALLEN (Aufgabe 20, e2e-Fund): der Seed legt Aufgaben über `erstelleAufgabe` an,
+   * nicht über `einplanenAction`/`planRangFuerEinplanen` — es gibt also niemanden, der hier
+   * automatisch hochzählt. Zwei Aufgaben mit stillschweigend GLEICHEM `planRang` (der Vorgabewert)
+   * sind auf der Skala, die `planEintraegeFuerTag`/`rangVerschiebenAction` benutzen, UNUNTERSCHEIDBAR
+   * — ein Rangtausch zwischen ihnen tauscht zwei gleiche Werte und ändert sichtbar NICHTS. Das ist
+   * genau die Lektion „eine Fixtur mit identischen Zahlen prüft nichts": ein Playwright-Zug, der
+   * Bendix' Montag testete, blieb deshalb ohne sichtbare Wirkung, bis dies hier explizit
+   * durchgezählt wurde. Wo eine Person mehr als eine Aufgabe an einem Tag hat, MUSS `planRang`
+   * deshalb explizit und aufsteigend vergeben werden.
+   */
+  planRang?: number;
   dauerMinuten: number;
   istSelbst?: boolean;
   nachweisPflicht?: boolean;
@@ -145,6 +158,7 @@ function legeAufgabeAn(db: DB, zeilen: string[], demo: DemoAufgabe): void {
       status: demo.status,
       faelligAm: demo.faelligAm,
       planDatum: demo.planDatum ?? null,
+      planRang: demo.planRang ?? 0,
       dauerMinuten: demo.dauerMinuten,
       istSelbst: demo.istSelbst ?? false,
       nachweisPflicht: demo.nachweisPflicht ?? false,
@@ -443,6 +457,11 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
   });
 
   // Überbuchter Tag: Bendix' Montag trägt 300 + 250 = 550 Minuten, über sollMinutenTag (468).
+  // ZWEI AUFGABEN, EIN TAG, EINE PERSON — `planRang` EXPLIZIT GESTAFFELT (0/1, Aufgabe 20-Fund):
+  // ohne das teilten sich beide den Schema-Vorgabewert 0 und wären auf der `planEintraegeFuerTag`-
+  // Skala ununterscheidbar — ein Rangtausch (Knopf ODER Ziehen) tauschte zwei gleiche Werte und
+  // bliebe sichtbar wirkungslos. Die Reihenfolge (Materialtransport vor Nachbereitung) entspricht
+  // der fachlichen Chronologie (erst transportieren, dann nachbereiten).
   legeAufgabeAn(db, zeilen, {
     titel: "Materialtransport Kreisverband",
     beschreibung: "Sanitätsmaterial vom Kreisverband zur Ortsgruppe transportieren.",
@@ -453,6 +472,7 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
     status: "verteilt",
     faelligAm: mo,
     planDatum: mo,
+    planRang: 0,
     dauerMinuten: 300,
     verlauf: [
       { ereignis: "eingestellt", akteurId: ids.malte },
@@ -471,11 +491,39 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
     status: "verteilt",
     faelligAm: mo,
     planDatum: mo,
+    planRang: 1,
     dauerMinuten: 250,
     verlauf: [
       { ereignis: "eingestellt", akteurId: ids.malte },
       { ereignis: "verteilt", akteurId: ids.malte },
       { ereignis: "eingeplant", akteurId: ids.bendix },
+    ],
+  });
+
+  // EINE in_arbeit-AUFGABE INNERHALB DER AKTUELLEN WOCHE (Aufgabe 20, e2e-Beleg fuer "in_arbeit ist
+  // ziehbar, ohne Sonderfall", Spec-Nachtrag `72ef235`): die einzige bisherige in_arbeit-Demo-
+  // Aufgabe ("Sanitätswache Stadtfest vorbereiten" oben) liegt drei Tage VOR heute und damit
+  // planDatum-maessig ausserhalb der Standard-Wochenansicht (sie ist die Ueberfaellig-Fixture,
+  // absichtlich in der Vergangenheit) — fuer einen echten Zug in `e2e/aufgaben.spec.ts` ohne
+  // Wochenwaehler-Navigation nicht erreichbar. Carla traegt sie, nicht Alina/Bendix, damit sie
+  // keiner der beiden bestehenden Montags-Konstellationen (Alinas Standwache, Bendix' Ueberbuchung)
+  // in die Quere kommt.
+  legeAufgabeAn(db, zeilen, {
+    titel: "Blutdruckmessgeräte kalibrieren",
+    beschreibung: "Kalibrierung nach Hersteller-Vorgabe durchführen, Protokoll ablegen.",
+    prioritaet: "mittel",
+    erstellerId: ids.rike,
+    zugewiesenAn: ids.carla,
+    prueferId: ids.rike,
+    status: "in_arbeit",
+    faelligAm: tagePlus(heute, 3),
+    planDatum: mo,
+    dauerMinuten: 30,
+    verlauf: [
+      { ereignis: "eingestellt", akteurId: ids.rike },
+      { ereignis: "verteilt", akteurId: ids.rike },
+      { ereignis: "eingeplant", akteurId: ids.carla },
+      { ereignis: "gestartet", akteurId: ids.carla },
     ],
   });
 

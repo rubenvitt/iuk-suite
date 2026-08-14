@@ -313,7 +313,7 @@ describe("Wochenplan", () => {
           montag={MONTAG}
           heute={MONTAG}
           zeigeAktionen
-          rang={{ a1: { istErste: false, istLetzte: false } }}
+          rang={{ a1: { istErste: false, istLetzte: false, index: 0 } }}
         />,
       );
       // Zwei Ausprägungen (Gitter + Liste), je zwei Knoepfe (Auf/Ab) — vier insgesamt.
@@ -331,7 +331,7 @@ describe("Wochenplan", () => {
           montag={MONTAG}
           heute={MONTAG}
           zeigeAktionen
-          rang={{ r1: { istErste: false, istLetzte: false } }}
+          rang={{ r1: { istErste: false, istLetzte: false, index: 0 } }}
         />,
       );
       expect(queryAll("button")).toHaveLength(0);
@@ -352,6 +352,111 @@ describe("Wochenplan", () => {
       const knoepfe = queryAll<HTMLButtonElement>("button");
       expect(knoepfe.length).toBeGreaterThan(0);
       expect(knoepfe.every((b) => b.disabled)).toBe(true);
+    });
+  });
+
+  /*
+   * AUFGABE 20 — DER ZIEHGRIFF UND DER LINK AUF DIE DETAILSEITE. Vier Aussagen, jede mit einer
+   * echten Gegenprobe im Kopf: ein Ziehgriff, der ueberall erschiene, waere keine Zusage, sondern
+   * Zufall.
+   */
+  describe("Ziehgriff und Titel-Link (Aufgabe 20)", () => {
+    it("der Aufgabentitel ist ein Link auf /a/<id>, in BEIDEN Ausprägungen", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1", titel: "Verbandskasten prüfen" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+        />,
+      );
+      const links = queryAll<HTMLAnchorElement>("a[href='/a/a1']");
+      expect(links).toHaveLength(2); // Gitter + Liste
+      expect(links[0]!.textContent).toBe("Verbandskasten prüfen");
+      // Der Link darf die native Link-Ziehgeste nicht ausloesen (Brief: Link und Ziehgriff
+      // vertragen sich schlecht) — s. Kopfkommentar `EintragZeile`.
+      expect(links.every((a) => a.draggable)).toBe(false);
+    });
+
+    it("ohne zeigeAktionen: kein Ziehgriff, wie kein RangKnoepfe-Knopf", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+        />,
+      );
+      expect(queryAll("[data-aufgabe-id]")).toHaveLength(0);
+    });
+
+    it("mit zeigeAktionen und Rang-Index: Ziehgriff NUR in der Gitter-, nicht in der Listen-Ausprägung", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{ a1: { istErste: false, istLetzte: false, index: 2 } }}
+        />,
+      );
+      const griffeGitter = queryAll('[data-rolle="wochengitter"] [data-aufgabe-id="a1"]');
+      const griffeListe = queryAll('[data-rolle="tagesliste"] [data-aufgabe-id="a1"]');
+      expect(griffeGitter).toHaveLength(1);
+      expect(griffeListe).toHaveLength(0);
+      expect(griffeGitter[0]!.getAttribute("data-plan-index")).toBe("2");
+      expect(griffeGitter[0]!.getAttribute("draggable")).toBe("true");
+    });
+
+    it("eine Routine bekommt trotz zeigeAktionen keinen Ziehgriff", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[]}
+          routinen={[routine({ id: "r1" })]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{ r1: { istErste: false, istLetzte: false, index: 0 } }}
+        />,
+      );
+      expect(queryAll("[data-aufgabe-id]")).toHaveLength(0);
+    });
+
+    /*
+     * GEGENPROBE: fehlt der Eintrag in `rang` (derselbe Randfall wie bei den Knoepfen oben), liefert
+     * `TagSpalte` defensiv `index: -1` — dieser Test haelt fest, dass das die Zeile NICHT ziehbar
+     * macht, statt mit einem geratenen Index weiterzurechnen (Kopfkommentar `RangGrenze`).
+     */
+    it("fehlt der Eintrag in rang (Index -1): kein Ziehgriff, obwohl RangKnoepfe erscheinen", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{}}
+        />,
+      );
+      expect(queryAll("[data-aufgabe-id]")).toHaveLength(0);
+      expect(queryAll("button").length).toBeGreaterThan(0); // RangKnoepfe bleiben, s. Test oben.
+    });
+
+    it("data-tag steht NUR an der Gitter-Ausprägung der Tagesspalte, nicht an der Liste", async () => {
+      await mount(
+        <Wochenplan aufgaben={[]} routinen={[]} person={ALINA} montag={MONTAG} heute={MONTAG} />,
+      );
+      const gitterSpalten = queryAll(`[data-rolle="wochengitter"] .${s.tagSpalte}`);
+      const listeSpalten = queryAll(`[data-rolle="tagesliste"] .${s.tagSpalte}`);
+      expect(gitterSpalten.every((el) => el.hasAttribute("data-tag"))).toBe(true);
+      expect(listeSpalten.every((el) => !el.hasAttribute("data-tag"))).toBe(true);
+      expect(gitterSpalten[0]!.getAttribute("data-tag")).toBe(MONTAG);
     });
   });
 });

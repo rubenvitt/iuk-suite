@@ -493,17 +493,24 @@ export function planEintraegeFuerTag(db: DB, personId: string, planDatum: string
  * Liste (die mischt Routinen ein, die keinen `planRang` tragen). Eine Schleife ueber
  * `planEintraegeFuerTag` je Tag der Woche — DIESELBE Funktion, die `rangVerschiebenAction` selbst
  * als Nachbarskala nutzt, hier nur fuer die Anzeige vorab ausgewertet statt bei jedem Klick neu.
+ *
+ * `index` KOMMT MIT AUFGABE 20 DAZU (Ziehen): dieselbe Schleife kennt die Position `i` ohnehin
+ * schon (vorher nur fuer `istErste`/`istLetzte` benutzt) — `ZiehBereich.tsx` braucht sie, um beim
+ * Ablegen INNERHALB eines Tages die Zielposition auf eine Anzahl Schritte fuer
+ * `rangVerschiebenAction` abzubilden, OHNE eine zweite Rangberechnung im Browser aufzumachen (Brief).
+ * Ein zweiter, eigener Durchlauf fuer nur diesen einen Zusatzwert waere dieselbe Schleife zweimal
+ * gehalten.
  */
 export function rangGrenzen(
   db: DB,
   personId: string,
   tage: readonly string[],
-): Record<string, { istErste: boolean; istLetzte: boolean }> {
-  const ergebnis: Record<string, { istErste: boolean; istLetzte: boolean }> = {};
+): Record<string, { istErste: boolean; istLetzte: boolean; index: number }> {
+  const ergebnis: Record<string, { istErste: boolean; istLetzte: boolean; index: number }> = {};
   for (const tag of tage) {
     const zeilen = planEintraegeFuerTag(db, personId, tag);
     zeilen.forEach((zeile, i) => {
-      ergebnis[zeile.id] = { istErste: i === 0, istLetzte: i === zeilen.length - 1 };
+      ergebnis[zeile.id] = { istErste: i === 0, istLetzte: i === zeilen.length - 1, index: i };
     });
   }
   return ergebnis;

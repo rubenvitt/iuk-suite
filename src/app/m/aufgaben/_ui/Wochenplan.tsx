@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { AufgabeRow, PersonRow, RoutineRow } from "../_db/schema";
 import { type Budget, fmtStunden, tagesBudget } from "../_lib/anzeige";
 import { fmtTagKurz, fmtUhrzeit, wochenTage } from "../_lib/datum";
@@ -5,13 +6,18 @@ import { type TagesEintrag, tagesOrdnung } from "../_lib/tagesplan";
 import { SPACE } from "@/core/theme/tokens";
 import { Ikone } from "./ikonen";
 import { RangKnoepfe } from "./RangKnoepfe";
+import { ZiehBereich } from "./ZiehBereich";
 import s from "./aufgaben.module.css";
 
 /*
- * FUENF TAGESSPALTEN MO–FR (Spec §8.1). KEIN "use client" — die Interaktion
- * (Verschieben, Reihenfolge aendern) kommt in Aufgabe 12/20; hier wird nur
- * dargestellt. KEIN `Grid.useBreakpoint` — in Server Components verboten und
- * zeigt beim ersten Render die falsche Variante (Spec §9.6).
+ * FUENF TAGESSPALTEN MO–FR (Spec §8.1). KEIN "use client" HIER — diese Datei bleibt Server
+ * Component und liefert nur Markup samt Daten-Attributen; das ZIEHEN SELBST (Aufgabe 20, ab 768px)
+ * sitzt in der Client-Insel `ZiehBereich.tsx`, die NUR die desktop-`.wochenGitter`-Ausprägung
+ * umschliesst (`mobilTag` bleibt bei der Tagesliste, Ziehen existiert unter 768px nicht, Spec §8.5/
+ * §9.6). Diese Datei rechnet fuer das Ziehen NICHTS zusaetzlich: `data-tag` (TagSpalte) und
+ * `data-aufgabe-id`/`data-plan-index`/`data-plan-uhrzeit` (EintragZeile, s. dort) sind reine
+ * Attribute, `ZiehBereich.tsx` liest sie nur. KEIN `Grid.useBreakpoint` — in Server Components
+ * verboten und zeigt beim ersten Render die falsche Variante (Spec §9.6).
  *
  * BEIDE AUSPRAEGUNGEN RENDERN INS HTML, CSS BLENDET EINE AUS: `.wochenGitter`
  * (Desktop) und `.tagesListe` (Mobil) tragen `data-rolle`, damit ein Test ohne
@@ -63,6 +69,14 @@ interface TagesDaten {
 export interface RangGrenze {
   istErste: boolean;
   istLetzte: boolean;
+  /**
+   * Aufgabe 20: die Position dieser Aufgabe auf der `planEintraegeFuerTag`-Skala (dieselbe, aus der
+   * `istErste`/`istLetzte` schon stammen) — `ZiehBereich.tsx` bildet damit eine Ablageposition auf
+   * eine Anzahl `rangVerschiebenAction`-Schritte ab. `-1` ist der defensive Randwert, wenn ein
+   * Eintrag in `rang` fehlt (s. `TagSpalte` unten): ein unbekannter Index macht die Zeile NICHT
+   * ziehbar, statt mit einem geratenen Wert weiterzurechnen.
+   */
+  index: number;
 }
 
 export function Wochenplan({
@@ -97,11 +111,24 @@ export function Wochenplan({
 
   return (
     <>
-      <div className={s.wochenGitter} data-rolle="wochengitter">
+      {/*
+       * `ZiehBereich` IST `.wochenGitter` SELBST (s. Kopfkommentar dort) — nur diese Ausprägung
+       * bekommt `ziehbar`: unter 768px ist `.wochenGitter` per CSS unsichtbar, und Ziehen existiert
+       * dort nicht (Spec §9.6), deshalb bleibt die `.tagesListe`-Ausprägung unten unveraendert ohne
+       * `ziehbar`.
+       */}
+      <ZiehBereich interaktiv={zeigeAktionen === true}>
         {tage.map((t) => (
-          <TagSpalte key={t.tag} {...t} heute={heute} zeigeAktionen={zeigeAktionen} rang={rang} />
+          <TagSpalte
+            key={t.tag}
+            {...t}
+            heute={heute}
+            zeigeAktionen={zeigeAktionen}
+            rang={rang}
+            ziehbar
+          />
         ))}
-      </div>
+      </ZiehBereich>
       <div className={s.tagesListe} data-rolle="tagesliste">
         {tage.map((t) => (
           <TagSpalte
@@ -126,11 +153,14 @@ function TagSpalte({
   versteckt,
   zeigeAktionen,
   rang,
+  ziehbar,
 }: TagesDaten & {
   heute: string;
   versteckt?: boolean;
   zeigeAktionen?: boolean;
   rang?: Record<string, RangGrenze>;
+  /** NUR bei der Desktop-(`.wochenGitter`)-Ausprägung gesetzt — s. Kopfkommentar `ZiehBereich.tsx`. */
+  ziehbar?: boolean;
 }) {
   const istHeute = tag === heute;
   return (
@@ -138,6 +168,9 @@ function TagSpalte({
       className={s.tagSpalte}
       aria-current={istHeute ? "date" : undefined}
       style={versteckt ? { display: "none" } : undefined}
+      // `data-tag` IST DAS ZIEL-ATTRIBUT, DAS `ZiehBereich.tsx` per `closest()` findet (Aufgabe 20)
+      // — nur gesetzt, wo Ziehen ueberhaupt existiert (`ziehbar`), s. Kopfkommentar dort.
+      data-tag={ziehbar ? tag : undefined}
     >
       <div className={s.tagKopf}>{fmtTagKurz(tag)}</div>
       <BudgetZeile budget={budget} />
@@ -150,8 +183,11 @@ function TagSpalte({
               <EintragZeile
                 eintrag={eintrag}
                 aktionen={
-                  zeigeAktionen && eintrag.art === "aufgabe" ? (rang?.[eintrag.id] ?? { istErste: true, istLetzte: true }) : undefined
+                  zeigeAktionen && eintrag.art === "aufgabe"
+                    ? (rang?.[eintrag.id] ?? { istErste: true, istLetzte: true, index: -1 })
+                    : undefined
                 }
+                ziehbar={ziehbar}
               />
             </li>
           ))}
@@ -188,8 +224,36 @@ function BudgetZeile({ budget }: { budget: Budget }) {
  * `aktionen` (eine `RangGrenze`) ist NUR fuer `art === "aufgabe"` gesetzt —
  * eine Routine bekommt sie strukturell nie (Spec §8.1: "Routineblöcke ...
  * tragen keine Aktionen"), der Aufrufer (`TagSpalte`) filtert das bereits.
+ * Aus demselben Grund bekommt auch nur `art === "aufgabe"` je einen Ziehgriff — Routinen sind nie
+ * ziehbar, strukturell, nicht per Sonderfall-Abfrage hier (Spec §8.1, Brief Aufgabe 20).
+ *
+ * DER AUFGABENTITEL IST SEIT AUFGABE 20 EIN LINK AUF `/a/<id>` (Fund aus Aufgabe 19: der Wochenplan
+ * war bis hierhin die einzige Modulansicht ohne Weg zur Detailseite, anders als
+ * `AufgabenListe.tsx`). `draggable={false}` DARAUF IST BEWUSST (Brief: "ein Link und ein Ziehgriff
+ * auf demselben Element vertragen sich schlecht") — ein `<a>` ist in Browsern von sich aus
+ * ziehbar (Lesezeichen-Ziehgeste); ohne diese Zeile wuerde ein an der LINK-Flaeche begonnener Zug
+ * die native Link-Zieh-Geste ausloesen (sichtbar als Ziel-Ghost, aber wirkungslos, weil
+ * `ZiehBereich.tsx`s `onDragStart` nur auf `[data-aufgabe-id]` reagiert — s. dort) statt sauber
+ * INS LEERE zu laufen. Die eigentliche Ziehflaeche ist der SEPARATE Ziehgriff (`⠿`) davor, der
+ * selbst kein Link ist und deshalb mit dem Titel nicht kollidiert — GENAU DIE im Brief vorgeschlagene
+ * Loesung ("ein eigener Ziehgriff neben dem Titel"), im ECHTEN BROWSER geprueft (kein Unit-Test kann
+ * eine versehentliche Navigation beim Ziehen zeigen, Brief).
+ *
+ * DER ZIEHGRIFF SELBST TRAEGT KEIN `aufgaben.module.css`-KLASSE: `cursor`/`data-*` stehen inline,
+ * damit diese Aufgabe keine neue Regel und keine zweite Medienabfrage in die Datei schuldet (Bericht
+ * begruendet das ausfuehrlich) — ein reines Textzeichen (`⠿`, U+283F), `aria-hidden`, weil es keine
+ * eigene, von der Zeile losgeloeste Bedeutung traegt und NICHT fokussierbar ist (Ziehen ist keine
+ * tastaturbediente Aktion, `RangKnoepfe` bleibt dafuer der Weg, Spec §8.5).
  */
-function EintragZeile({ eintrag, aktionen }: { eintrag: TagesEintrag; aktionen?: RangGrenze }) {
+function EintragZeile({
+  eintrag,
+  aktionen,
+  ziehbar,
+}: {
+  eintrag: TagesEintrag;
+  aktionen?: RangGrenze;
+  ziehbar?: boolean;
+}) {
   const zeit = eintrag.zeigtUhrzeit ? (
     <span className={s.ankerSpur}>{fmtUhrzeit(eintrag.minuten)}</span>
   ) : (
@@ -206,10 +270,30 @@ function EintragZeile({ eintrag, aktionen }: { eintrag: TagesEintrag; aktionen?:
     );
   }
 
+  // Nur ziehbar, wenn die Desktop-Ausprägung es erlaubt UND ein echter Rang-Index vorliegt
+  // (`index: -1` ist der defensive Randwert aus `TagSpalte`, s. `RangGrenze`-Kommentar) — ein
+  // unbekannter Index macht die Zeile lieber nicht ziehbar, statt mit einer geratenen Position
+  // weiterzurechnen.
+  const zeigeZiehgriff = ziehbar === true && aktionen !== undefined && aktionen.index >= 0;
+
   return (
     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: SPACE.sm }}>
       {zeit}
-      <span>{eintrag.titel}</span>
+      {zeigeZiehgriff ? (
+        <span
+          draggable
+          data-aufgabe-id={eintrag.id}
+          data-plan-index={aktionen!.index}
+          data-plan-uhrzeit={eintrag.aufgabe?.planUhrzeit ?? ""}
+          aria-hidden="true"
+          style={{ cursor: "grab" }}
+        >
+          ⠿
+        </span>
+      ) : null}
+      <Link href={`/a/${eintrag.id}`} draggable={false}>
+        {eintrag.titel}
+      </Link>
       {aktionen ? (
         <RangKnoepfe
           aufgabeId={eintrag.id}

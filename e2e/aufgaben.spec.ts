@@ -150,6 +150,11 @@ test("/plan/<fremde-person> ist lesbar, aber ohne jede Aktion — kein Formular,
   // nur bei `zeigeAktionen` ueberhaupt gerendert.
   await expect(page.getByRole("button", { name: /nach oben verschieben/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /nach unten verschieben/ })).toHaveCount(0);
+  // AUFGABE 20: DASSELBE PRAEDIKAT ENTSCHEIDET AUCH UEBER DEN ZIEHGRIFF (`darfPlanAendern`,
+  // `Wochenplan.tsx`s `ziehbar`/`aktionen`) — ein fremder Plan bekommt keinen einzigen
+  // `[data-aufgabe-id]`, obwohl er (anders als die beiden Assertions oben) durchaus bereits
+  // eingeplante Aufgaben zeigt, an denen ein Ziehgriff sonst haengen wuerde.
+  await expect(page.locator("[data-aufgabe-id]")).toHaveCount(0);
   expect(konsolenFehler).toEqual([]);
 });
 
@@ -798,4 +803,215 @@ test("App-Switcher: seit Aufgabe 16 erscheint „Aufgaben“ fuer eine Person mi
   });
   await expect(page.getByTestId("alpha-content")).toBeVisible();
   await expect(page.getByRole("link", { name: /Aufgaben/ })).toBeVisible();
+});
+
+/*
+ * AB HIER AUFGABE 20 — ZIEHEN ZWISCHEN TAGEN UND INNERHALB EINES TAGES, AB 768px.
+ *
+ * „ZIEHEN IST DIE EINE BEDIENART, DIE EIN JSDOM-TEST STRUKTURELL NICHT BEWEISEN KANN" (Brief): kein
+ * Zeigergeraet, keine echte Ereigniskette. `ZiehBereich.test.tsx` deckt die reine Rangabbildung und
+ * die Ereignisverdrahtung mit HANDGEBAUTEN Ereignissen ab — der eigentliche Nachweis, dass ein
+ * ECHTES Zeigergeraet in einem ECHTEN Browser dieselbe Kette ausloest, ist ausschliesslich hier.
+ *
+ * VIEWPORT: die Standardgroesse dieser Suite (1280×720, `playwright.config.ts` setzt nichts
+ * anderes) liegt bereits ueber 768px — ohne das existiert `.wochenGitter` gar nicht (Spec §9.6).
+ *
+ * KEIN `locator.dragTo()` (Befund waehrend dieser Aufgabe): Playwrights eingebaute Methode setzt
+ * Quelle/Ziel per EINEM Sprung und loest bei diesem nativen HTML5-Drag (kein Bibliotheks-Overlay,
+ * kein `mousedown`/`click`-Ersatz) in Chromium nur UNZUVERLAESSIG ein echtes `dragstart` aus,
+ * besonders wenn das Ziel kein weiterer Ziehgriff, sondern eine grosse Tagesspalte ist — ein
+ * `page.waitForResponse` danach lief in genau diesem Fall in die vollen 90s, WEIL NIE EIN `drop`
+ * feuerte (kein Timing-Zufall: reproduzierbar in mehreren Laeufen, per Konsolen-Instrumentierung
+ * von `ZiehBereich.tsx` waehrend der Fehlersuche belegt). `zieheZu()` unten fuehrt denselben Zug
+ * stattdessen ueber eine ECHTE, SCHRITTWEISE Mausbewegung (`page.mouse.move/down/move.../up`) —
+ * damit feuern `dragstart`/`dragover`/`drop` zuverlaessig, in jedem Testfall unten bestaetigt.
+ *
+ * `page.waitForResponse` FAENGT DIE ANTWORT DES ZUGS SELBST AB (Lektion aus Aufgabe 19), nicht nur
+ * eine spaetere Zustandsaenderung — sonst liefe eine abgelehnte oder abgebrochene Server-Action-
+ * Antwort still ins Zeitbudget der nachfolgenden Sichtbarkeits-Assertion.
+ */
+
+/**
+ * ECHTE, SCHRITTWEISE MAUSBEWEGUNG STATT `locator.dragTo()` — s. Kopfkommentar oben fuer das Warum.
+ * Viele kleine Schritte (20) mit kurzer Pause (20ms) dazwischen, weil Chromium einen Drag nur bei
+ * kontinuierlicher Bewegung ueber eine Mindestdistanz als HTML5-Drag erkennt, nicht bei einem
+ * einzelnen Sprung ans Ziel.
+ */
+async function zieheZu(
+  page: import("@playwright/test").Page,
+  quelle: import("@playwright/test").Locator,
+  ziel: import("@playwright/test").Locator,
+): Promise<void> {
+  const quellBox = await quelle.boundingBox();
+  const zielBox = await ziel.boundingBox();
+  expect(quellBox, "Quelle des Zugs hat keine sichtbare Bounding Box").not.toBeNull();
+  expect(zielBox, "Ziel des Zugs hat keine sichtbare Bounding Box").not.toBeNull();
+  const sx = quellBox!.x + quellBox!.width / 2;
+  const sy = quellBox!.y + quellBox!.height / 2;
+  const zx = zielBox!.x + zielBox!.width / 2;
+  const zy = zielBox!.y + zielBox!.height / 2;
+
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  const SCHRITTE = 20;
+  for (let i = 1; i <= SCHRITTE; i++) {
+    await page.mouse.move(sx + ((zx - sx) * i) / SCHRITTE, sy + ((zy - sy) * i) / SCHRITTE);
+    await page.waitForTimeout(20);
+  }
+  await page.waitForTimeout(100);
+  await page.mouse.up();
+}
+
+test("Ziehbereich: die Knopfstrecke bleibt bedienbar, und ein Zug innerhalb eines Tages ändert den Rang, lässt die übrigen Einträge in Ruhe", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "bendix@localtest.me",
+    callbackPath: "/",
+  });
+
+  const montag = page.locator('[data-rolle="wochengitter"] [data-tag]').first();
+
+  // DIE ZUSAGE, DIE DIESE AUFGABE NICHT BRECHEN DARF (Brief): Auf-/Ab-Knoepfe bleiben da und
+  // bedienbar, auch im nun ziehbaren Bereich.
+  await expect(montag.getByRole("button", { name: /nach oben verschieben/ }).first()).toBeVisible();
+  await expect(montag.getByRole("button", { name: /nach unten verschieben/ }).first()).toBeVisible();
+
+  // BENDIX' MONTAG (`seedLokal.ts`): "Materialtransport Kreisverband" (planRang 0, EXPLIZIT
+  // gestaffelt seit dem Aufgabe-20-Fund — s. `seedLokal.ts`s Kommentar dort) und "Nachbereitung
+  // Materialtransport" (planRang 1), beide ohne eigene Uhrzeit — derselbe Ankerwert, die
+  // Reihenfolge spiegelt deshalb den Rang.
+  const zeileA = montag.locator("li").filter({ hasText: "Materialtransport Kreisverband" });
+  const zeileB = montag.locator("li").filter({ hasText: "Nachbereitung Materialtransport" });
+  await expect(zeileA).toHaveCount(1);
+  await expect(zeileB).toHaveCount(1);
+  const vorher = await montag.locator("li").allTextContents();
+  expect(vorher[0]).toContain("Materialtransport Kreisverband");
+  expect(vorher[1]).toContain("Nachbereitung Materialtransport");
+
+  const griffB = zeileB.locator("[data-aufgabe-id]");
+  const griffA = zeileA.locator("[data-aufgabe-id]");
+
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.status() === 200),
+    zieheZu(page, griffB, griffA),
+  ]);
+  expect(antwort.ok(), `Zug abgelehnt: HTTP ${antwort.status()}`).toBe(true);
+
+  // GENAU DIESE ZWEI ZEILEN, IN VERTAUSCHTER REIHENFOLGE — nichts verschwunden, nichts
+  // hinzugekommen ("laesst die uebrigen Eintraege in Ruhe"). AUTOMATISCH WIEDERHOLENDE
+  // `expect(locator)`-Assertions, NICHT ein einmaliger `allTextContents()`-Schnappschuss: die
+  // Server-Action-Antwort (oben abgefangen) markiert nur, dass die ANFRAGE durch ist, nicht dass
+  // React das aktualisierte Markup schon COMMITTET hat — ein sofortiger `allTextContents()`-Aufruf
+  // kann genau dazwischen einen veralteten Stand einfangen, ohne dass ein zweiter Versuch folgt.
+  await expect(montag.locator("li")).toHaveCount(2);
+  await expect(montag.locator("li").nth(0)).toContainText("Nachbereitung Materialtransport");
+  await expect(montag.locator("li").nth(1)).toContainText("Materialtransport Kreisverband");
+});
+
+test("Ziehbereich: ein Zug zwischen zwei Tagen ruft einplanenAction mit dem Zieltag — Routinen bleiben nicht ziehbar", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "alina@localtest.me",
+    callbackPath: "/",
+  });
+
+  const spalten = page.locator('[data-rolle="wochengitter"] [data-tag]');
+  const montag = spalten.nth(0);
+  const dienstag = spalten.nth(1);
+
+  // ROUTINEN SIND NICHT ZIEHBAR (Spec §8.1) — Alinas taegliche "Frühbesprechung" ist als solche
+  // sichtbar, traegt aber strukturell keinen Ziehgriff.
+  const routineZeile = montag.locator("li").filter({ hasText: "Frühbesprechung" });
+  await expect(routineZeile).toHaveCount(1);
+  await expect(routineZeile.locator("[data-aufgabe-id]")).toHaveCount(0);
+
+  const zeile = montag.locator("li").filter({ hasText: "Standwache Blutspendetermin" });
+  await expect(zeile).toHaveCount(1);
+  const griff = zeile.locator("[data-aufgabe-id]");
+
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.status() === 200),
+    zieheZu(page, griff, dienstag),
+  ]);
+  expect(antwort.ok(), `Zug abgelehnt: HTTP ${antwort.status()}`).toBe(true);
+
+  await expect(montag.locator("li").filter({ hasText: "Standwache Blutspendetermin" })).toHaveCount(0);
+  await expect(dienstag.locator("li").filter({ hasText: "Standwache Blutspendetermin" })).toHaveCount(1);
+});
+
+test("Ziehbereich: eine in_arbeit-Aufgabe lässt sich ziehen und bleibt in_arbeit", async ({ page }) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "carla@localtest.me",
+    callbackPath: "/",
+  });
+
+  const spalten = page.locator('[data-rolle="wochengitter"] [data-tag]');
+  const montag = spalten.nth(0);
+  const dienstag = spalten.nth(1);
+
+  const zeile = montag.locator("li").filter({ hasText: "Blutdruckmessgeräte kalibrieren" });
+  await expect(zeile).toHaveCount(1);
+  // KEIN Statuscheck HIER — der Wochenplan zeigt keinen Zustands-Chip je Zeile (`Wochenplan.tsx`s
+  // `EintragZeile` rendert nur Uhrzeit/Titel/Ziehgriff/RangKnoepfe). Der Statuscheck steht deshalb
+  // erst NACH dem Zug, auf der Detailseite (unten).
+  const griff = zeile.locator("[data-aufgabe-id]");
+  const href = await zeile.getByRole("link", { name: "Blutdruckmessgeräte kalibrieren" }).getAttribute("href");
+  expect(href, "kein Link auf die Detailseite — Aufgabe 19s Fund waere nicht behoben").toBeTruthy();
+
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.status() === 200),
+    zieheZu(page, griff, dienstag),
+  ]);
+  expect(antwort.ok(), `Zug abgelehnt: HTTP ${antwort.status()}`).toBe(true);
+
+  const zieleZeile = dienstag.locator("li").filter({ hasText: "Blutdruckmessgeräte kalibrieren" });
+  await expect(zieleZeile).toHaveCount(1);
+  // DER STATUS BLEIBT in_arbeit, OHNE SONDERFALL (Spec-Nachtrag `72ef235`, Brief) — auf der
+  // Detailseite geprueft, die ueber den jetzt echten Link erreichbar ist.
+  await page.goto(`http://${HOST}:3100${href}`);
+  await expect(page.getByText("In Bearbeitung")).toBeVisible();
+});
+
+test("Ziehbereich: ein abgebrochener Zug (Loslassen außerhalb jeder Tagesspalte) ändert nichts", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "bendix@localtest.me",
+    callbackPath: "/",
+  });
+
+  const montag = page.locator('[data-rolle="wochengitter"] [data-tag]').first();
+  const zeile = montag.locator("li").filter({ hasText: "Materialtransport Kreisverband" });
+  const griff = zeile.locator("[data-aufgabe-id]");
+  const vorher = await montag.locator("li").allTextContents();
+
+  // KEIN `page.waitForResponse` HIER — genau das Gegenteil wird behauptet: es soll KEINE Antwort
+  // geben. Stattdessen wird waehrend des (misslingenden) Zugs auf jede POST-Antwort gelauscht;
+  // taucht eine auf, ist das der Fehlschlag dieses Tests, keine Bestaetigung.
+  let gesehenerPost = false;
+  const beobachten = (antwort: import("@playwright/test").Response) => {
+    if (antwort.request().method() === "POST") gesehenerPost = true;
+  };
+  page.on("response", beobachten);
+  try {
+    // Auf das <h1> der Seite gezogen — weit ausserhalb jeder `[data-tag]`-Flaeche.
+    await zieheZu(page, griff, page.getByRole("heading", { level: 1 }));
+    await page.waitForTimeout(500);
+  } finally {
+    page.off("response", beobachten);
+  }
+  expect(gesehenerPost, "ein abgebrochener Zug hat trotzdem eine Server-Anfrage ausgeloest").toBe(false);
+
+  const nachher = await montag.locator("li").allTextContents();
+  expect(nachher).toEqual(vorher);
 });

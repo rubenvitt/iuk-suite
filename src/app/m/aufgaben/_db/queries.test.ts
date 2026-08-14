@@ -710,7 +710,7 @@ describe("rangGrenzen (Aufgabe 13) — istErste/istLetzte aus derselben Skala wi
       planRang: 0,
     });
     expect(rangGrenzen(t.db, bufdi.id, ["2026-08-17"])).toEqual({
-      [a.id]: { istErste: true, istLetzte: true },
+      [a.id]: { istErste: true, istLetzte: true, index: 0 },
     });
   });
 
@@ -737,9 +737,9 @@ describe("rangGrenzen (Aufgabe 13) — istErste/istLetzte aus derselben Skala wi
       planDatum: "2026-08-17", planRang: 1,
     });
     const ergebnis = rangGrenzen(t.db, bufdi.id, ["2026-08-17"]);
-    expect(ergebnis[erste.id]).toEqual({ istErste: true, istLetzte: false });
-    expect(ergebnis[mitte.id]).toEqual({ istErste: false, istLetzte: false });
-    expect(ergebnis[letzte.id]).toEqual({ istErste: false, istLetzte: true });
+    expect(ergebnis[erste.id]).toEqual({ istErste: true, istLetzte: false, index: 0 });
+    expect(ergebnis[mitte.id]).toEqual({ istErste: false, istLetzte: false, index: 1 });
+    expect(ergebnis[letzte.id]).toEqual({ istErste: false, istLetzte: true, index: 2 });
   });
 
   it("deckt mehrere Tage der Woche ab, jeder Tag mit seiner eigenen Skala", () => {
@@ -754,8 +754,8 @@ describe("rangGrenzen (Aufgabe 13) — istErste/istLetzte aus derselben Skala wi
       planDatum: "2026-08-18", planRang: 0,
     });
     const ergebnis = rangGrenzen(t.db, bufdi.id, ["2026-08-17", "2026-08-18"]);
-    expect(ergebnis[montag.id]).toEqual({ istErste: true, istLetzte: true });
-    expect(ergebnis[dienstag.id]).toEqual({ istErste: true, istLetzte: true });
+    expect(ergebnis[montag.id]).toEqual({ istErste: true, istLetzte: true, index: 0 });
+    expect(ergebnis[dienstag.id]).toEqual({ istErste: true, istLetzte: true, index: 0 });
   });
 
   it("eine noch nicht eingeplante Aufgabe (planDatum null) taucht in keinem Tag auf", () => {
