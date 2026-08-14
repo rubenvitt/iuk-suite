@@ -157,6 +157,20 @@ describe("aufgaben.module.css — Aussage 4: die Umschaltung sitzt richtig herum
     expect(inMedia![1]).not.toMatch(/display\s*:\s*none/);
   });
 
+  /**
+   * DER MOBILE TAGESWAEHLER (Aufgabe 13) — dieselbe Umschaltung wie `.tagesListe`: unsichtbar in
+   * der Basisregel, sichtbar (`flex`) nur innerhalb des 767.98px-Blocks.
+   */
+  it("zeigt `.tagesWaehler` NUR innerhalb des 767.98px-Blocks", () => {
+    const inBasis = /\.tagesWaehler\s*\{([^}]*)\}/.exec(BASIS);
+    expect(inBasis, ".tagesWaehler fehlt in der Basisregel").not.toBeNull();
+    expect(inBasis![1]).toMatch(/display\s*:\s*none/);
+
+    const inMedia = MEDIA_767_BLOECKE.map((b) => /\.tagesWaehler\s*\{([^}]*)\}/.exec(b)).find(Boolean);
+    expect(inMedia, ".tagesWaehler fehlt in einem 767.98px-Block").not.toBeUndefined();
+    expect(inMedia![1]).not.toMatch(/display\s*:\s*none/);
+  });
+
   it("stellt der antd-Spezifität in `.knopfzeile > *` eine eigene Klasse voran", () => {
     const inMedia = MEDIA_767_BLOECKE.map((b) => /\.modul \.knopfzeile > \*\s*\{([^}]*)\}/.exec(b)).find(
       Boolean,

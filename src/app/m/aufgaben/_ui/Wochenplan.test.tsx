@@ -233,4 +233,125 @@ describe("Wochenplan", () => {
     expect(tagesOrdnungSpy).toHaveBeenCalledTimes(5);
     expect(tagesBudgetSpy).toHaveBeenCalledTimes(5);
   });
+
+  /*
+   * DER MOBILE TAGESWAEHLER (Aufgabe 13, Spec §9.6): `mobilTag` blendet in der MOBILEN Ausprägung
+   * (`.tagesListe`) alle Tage AUSSER dem ausgewaehlten aus — inline, server-berechnet, ohne
+   * Client-JS. Die DESKTOP-Ausprägung (`.wochenGitter`) bleibt UNBERUEHRT: der Tageswaehler
+   * existiert nur mobil, und ein Fehler, der auch das Gitter filtert, faellt nur auf, wenn beide
+   * Ausprägungen einzeln geprueft werden.
+   */
+  describe("mobilTag — nur die mobile Ausprägung filtert, das Gitter zeigt immer alle fünf", () => {
+    it("zeigt in der Tagesliste nur den ausgewaehlten Tag sichtbar, die anderen vier mit display:none", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          mobilTag={DIENSTAG}
+        />,
+      );
+      const spalten = queryAll(`[data-rolle="tagesliste"] .${s.tagSpalte}`);
+      expect(spalten).toHaveLength(5);
+      expect(spalten[0]!.style.display).toBe("none"); // Montag
+      expect(spalten[1]!.style.display).toBe(""); // Dienstag, ausgewaehlt
+      expect(spalten[2]!.style.display).toBe("none");
+    });
+
+    it("laesst das Wochengitter unveraendert — alle fünf Spalten sichtbar", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          mobilTag={DIENSTAG}
+        />,
+      );
+      const spalten = queryAll(`[data-rolle="wochengitter"] .${s.tagSpalte}`);
+      expect(spalten).toHaveLength(5);
+      for (const spalte of spalten) expect(spalte.style.display).not.toBe("none");
+    });
+
+    it("ohne mobilTag: keine Spalte wird ausgeblendet — bestehende Aufrufer bleiben unveraendert", async () => {
+      await mount(
+        <Wochenplan aufgaben={[]} routinen={[]} person={ALINA} montag={MONTAG} heute={MONTAG} />,
+      );
+      const spalten = queryAll(`[data-rolle="tagesliste"] .${s.tagSpalte}`);
+      for (const spalte of spalten) expect(spalte.style.display).not.toBe("none");
+    });
+  });
+
+  /*
+   * RANGKNOEPFE (Aufgabe 13, Spec §8.5): nur bei `zeigeAktionen` UND nur fuer AUFGABEN-Eintraege,
+   * nie fuer Routinen — dieselbe Zusage wie oben ("kein Knopf" fuer Routinen), jetzt mit
+   * `zeigeAktionen: true`, wo ein Nachbau der Pruefung sie sonst uebersehen koennte.
+   */
+  describe("zeigeAktionen/rang — RangKnoepfe je Aufgaben-Eintrag, nie fuer Routinen", () => {
+    it("ohne zeigeAktionen: kein Knopf, wie bisher", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+        />,
+      );
+      expect(queryAll("button")).toHaveLength(0);
+    });
+
+    it("mit zeigeAktionen und passendem rang: Auf/Ab je Eintrag, in BEIDEN Ausprägungen", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{ a1: { istErste: false, istLetzte: false } }}
+        />,
+      );
+      // Zwei Ausprägungen (Gitter + Liste), je zwei Knoepfe (Auf/Ab) — vier insgesamt.
+      expect(queryAll("button")).toHaveLength(4);
+      const auf = queryAll("button").filter((b) => b.textContent?.includes("Auf"));
+      expect(auf.every((b) => !b.hasAttribute("disabled"))).toBe(true);
+    });
+
+    it("eine Routine bekommt trotz zeigeAktionen keine RangKnoepfe", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[]}
+          routinen={[routine({ id: "r1" })]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{ r1: { istErste: false, istLetzte: false } }}
+        />,
+      );
+      expect(queryAll("button")).toHaveLength(0);
+    });
+
+    it("fehlt der Eintrag in rang, gilt er defensiv als Rand: beide Knoepfe deaktiviert", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{}}
+        />,
+      );
+      const knoepfe = queryAll<HTMLButtonElement>("button");
+      expect(knoepfe.length).toBeGreaterThan(0);
+      expect(knoepfe.every((b) => b.disabled)).toBe(true);
+    });
+  });
 });

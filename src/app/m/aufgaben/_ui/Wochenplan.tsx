@@ -4,6 +4,7 @@ import { fmtTagKurz, fmtUhrzeit, wochenTage } from "../_lib/datum";
 import { type TagesEintrag, tagesOrdnung } from "../_lib/tagesplan";
 import { SPACE } from "@/core/theme/tokens";
 import { Ikone } from "./ikonen";
+import { RangKnoepfe } from "./RangKnoepfe";
 import s from "./aufgaben.module.css";
 
 /*
@@ -31,6 +32,26 @@ import s from "./aufgaben.module.css";
  * `montag`/`heute` KOMMEN ALS ARGUMENTE HEREIN, NIE AUS `new Date()` HIER —
  * die Zeitzone lebt ausschliesslich in `_lib/datum.ts`, und ein Test mit
  * fester Uhr braucht genau diesen Einstiegspunkt (Brief).
+ *
+ * AUFGABE 13 ERGAENZT ZWEI OPTIONALE FAEHIGKEITEN, BEIDE STANDARDMAESSIG AUS
+ * (bestehende Aufrufer ohne die neuen Props verhalten sich unveraendert):
+ *
+ *  - `mobilTag`: der TAGESWAEHLER (Spec §9.6) blendet in der MOBILEN Ausprägung
+ *    (`.tagesListe`) alle Tage AUSSER dem ausgewaehlten aus (inline `display:
+ *    none` je Spalte) — server-berechnet aus dem `tag`-Suchparameter
+ *    (`_lib/datum.ts`s `ausgewaehlterTag`), keine Client-Filterung noetig. Die
+ *    DESKTOP-Ausprägung (`.wochenGitter`) bleibt davon unberuehrt und zeigt
+ *    immer alle fuenf Spalten — der Tageswaehler existiert nur mobil.
+ *  - `zeigeAktionen`/`rang`: nur wenn `darfPlanAendern` fuer die angezeigte
+ *    Person wahr ist (Aufrufer entscheidet, diese Komponente prueft es nicht
+ *    selbst), bekommt jeder AUFGABEN-Eintrag `RangKnoepfe` (Spec §8.5) —
+ *    Routineneintraege NIE (Spec §8.1: "Routineblöcke ... tragen keine
+ *    Aktionen"). `rang` MUSS aus `_db/queries.ts`s `rangGrenzen` stammen
+ *    (dieselbe Skala wie `RangKnoepfe.tsx`s Kopfkommentar verlangt), nicht aus
+ *    `tagesOrdnung`s gemischter Liste. Fehlt ein Eintrag in `rang` (sollte bei
+ *    korrekter Aufrufung nicht vorkommen), gilt er defensiv als Rand auf
+ *    beiden Seiten — lieber ein Knopf zu viel deaktiviert als ein serverseitig
+ *    ohnehin abgelehnter Klick.
  */
 
 interface TagesDaten {
@@ -39,12 +60,20 @@ interface TagesDaten {
   budget: Budget;
 }
 
+export interface RangGrenze {
+  istErste: boolean;
+  istLetzte: boolean;
+}
+
 export function Wochenplan({
   aufgaben,
   routinen,
   person,
   montag,
   heute,
+  mobilTag,
+  zeigeAktionen,
+  rang,
 }: {
   aufgaben: AufgabeRow[];
   routinen: RoutineRow[];
@@ -53,6 +82,12 @@ export function Wochenplan({
   montag: string;
   /** ISO-Tagesstring des heutigen Tages — fuer die Markierung der aktuellen Spalte. */
   heute: string;
+  /** Nur mobil (`.tagesListe`) wirksam: die uebrigen vier Tage werden ausgeblendet, nicht entfernt. */
+  mobilTag?: string;
+  /** Nur wahr, wenn `darfPlanAendern` fuer `person` zutrifft — der Aufrufer entscheidet. */
+  zeigeAktionen?: boolean;
+  /** Aus `_db/queries.ts`s `rangGrenzen`, NICHT aus `tagesOrdnung` abgeleitet. */
+  rang?: Record<string, RangGrenze>;
 }) {
   const tage: TagesDaten[] = wochenTage(montag).map((tag) => ({
     tag,
@@ -64,22 +99,46 @@ export function Wochenplan({
     <>
       <div className={s.wochenGitter} data-rolle="wochengitter">
         {tage.map((t) => (
-          <TagSpalte key={t.tag} {...t} heute={heute} />
+          <TagSpalte key={t.tag} {...t} heute={heute} zeigeAktionen={zeigeAktionen} rang={rang} />
         ))}
       </div>
       <div className={s.tagesListe} data-rolle="tagesliste">
         {tage.map((t) => (
-          <TagSpalte key={t.tag} {...t} heute={heute} />
+          <TagSpalte
+            key={t.tag}
+            {...t}
+            heute={heute}
+            versteckt={mobilTag !== undefined && mobilTag !== t.tag}
+            zeigeAktionen={zeigeAktionen}
+            rang={rang}
+          />
         ))}
       </div>
     </>
   );
 }
 
-function TagSpalte({ tag, ordnung, budget, heute }: TagesDaten & { heute: string }) {
+function TagSpalte({
+  tag,
+  ordnung,
+  budget,
+  heute,
+  versteckt,
+  zeigeAktionen,
+  rang,
+}: TagesDaten & {
+  heute: string;
+  versteckt?: boolean;
+  zeigeAktionen?: boolean;
+  rang?: Record<string, RangGrenze>;
+}) {
   const istHeute = tag === heute;
   return (
-    <div className={s.tagSpalte} aria-current={istHeute ? "date" : undefined}>
+    <div
+      className={s.tagSpalte}
+      aria-current={istHeute ? "date" : undefined}
+      style={versteckt ? { display: "none" } : undefined}
+    >
       <div className={s.tagKopf}>{fmtTagKurz(tag)}</div>
       <BudgetZeile budget={budget} />
       {ordnung.length === 0 ? (
@@ -88,7 +147,12 @@ function TagSpalte({ tag, ordnung, budget, heute }: TagesDaten & { heute: string
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {ordnung.map((eintrag) => (
             <li key={`${eintrag.art}-${eintrag.id}`}>
-              <EintragZeile eintrag={eintrag} />
+              <EintragZeile
+                eintrag={eintrag}
+                aktionen={
+                  zeigeAktionen && eintrag.art === "aufgabe" ? (rang?.[eintrag.id] ?? { istErste: true, istLetzte: true }) : undefined
+                }
+              />
             </li>
           ))}
         </ul>
@@ -120,8 +184,12 @@ function BudgetZeile({ budget }: { budget: Budget }) {
  * Klasse und das Icon; eine Aufgaben-Zeile bleibt schmuckloses Layout, damit
  * die Markierung tatsaechlich EINE Bedeutung tragen bleibt statt fuer beide
  * Arten gleich auszusehen.
+ *
+ * `aktionen` (eine `RangGrenze`) ist NUR fuer `art === "aufgabe"` gesetzt —
+ * eine Routine bekommt sie strukturell nie (Spec §8.1: "Routineblöcke ...
+ * tragen keine Aktionen"), der Aufrufer (`TagSpalte`) filtert das bereits.
  */
-function EintragZeile({ eintrag }: { eintrag: TagesEintrag }) {
+function EintragZeile({ eintrag, aktionen }: { eintrag: TagesEintrag; aktionen?: RangGrenze }) {
   const zeit = eintrag.zeigtUhrzeit ? (
     <span className={s.ankerSpur}>{fmtUhrzeit(eintrag.minuten)}</span>
   ) : (
@@ -139,9 +207,17 @@ function EintragZeile({ eintrag }: { eintrag: TagesEintrag }) {
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
+    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: SPACE.sm }}>
       {zeit}
       <span>{eintrag.titel}</span>
+      {aktionen ? (
+        <RangKnoepfe
+          aufgabeId={eintrag.id}
+          titel={eintrag.titel}
+          istErste={aktionen.istErste}
+          istLetzte={aktionen.istLetzte}
+        />
+      ) : null}
     </div>
   );
 }

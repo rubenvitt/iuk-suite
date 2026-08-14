@@ -27,6 +27,7 @@ import {
   darfVerteilen,
   darfEinstellenFuerAndere,
   darfPersonenVerwalten,
+  darfRoutinenVerwalten,
   darfPlanAendern,
   darfFreigeben,
   darfPlanSehen,
@@ -167,6 +168,22 @@ describe("darfPersonenVerwalten — nur koordination, und aktiv", () => {
   it("ausgeschiedene Koordination darf Personen nicht mehr verwalten", () => {
     const p = legePerson("pv-inaktiv", "koordination", { aktivBis: "2026-08-01" });
     expect(darfPersonenVerwalten(p, HEUTE)).toBe(false);
+  });
+});
+
+describe("darfRoutinenVerwalten — nur bufdi, und aktiv (Aufgabe 13, Spec §8: '/routinen' fuer bufdi)", () => {
+  it.each<[Rolle, boolean]>([
+    ["koordination", false],
+    ["auftrag", false],
+    ["bufdi", true],
+  ])("Rolle %s → %s", (rolle, erwartet) => {
+    const p = legePerson(`rv-${rolle}`, rolle);
+    expect(darfRoutinenVerwalten(p, HEUTE)).toBe(erwartet);
+  });
+
+  it("ein ausgeschiedener BuFDi darf keine Routinen mehr verwalten", () => {
+    const p = legePerson("rv-inaktiv", "bufdi", { aktivBis: "2026-08-01" });
+    expect(darfRoutinenVerwalten(p, HEUTE)).toBe(false);
   });
 });
 

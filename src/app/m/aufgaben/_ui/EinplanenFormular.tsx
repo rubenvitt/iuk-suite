@@ -40,13 +40,30 @@ import { SPACE } from "@/core/theme/tokens";
  * muss gueltig sein und wird bei einem Fehler in `values` zurueckgetragen (Lektion 3: `feldWert`
  * ignoriert im Fehlerzustand die Vorbelegung). Vorbelegt mit `task.dauerMinuten` — ein normales
  * Absenden traegt deshalb praktisch immer einen echten, gueltigen Wert.
+ *
+ * `idPrefix` (Aufgabe 13, Gegenprobe-Fund): `/plan/[personId]` rendert diese Datei einmal PRO
+ * einzuplanender Aufgabe (`nochEinzuplanen.map(...)`). Mit dem alten festen Praefix `ep-` teilten
+ * sich zwei oder mehr Formulare dieselben Feld-Ids — jedes `label[for]` zeigte auf das ERSTE
+ * Formular, `aria-describedby` ebenso. Der Aufrufer reicht deshalb `task.id` ein (Default `"ep"`
+ * haelt diese Datei UND `EinplanenFormular.test.tsx`, die den alten festen Praefix pruefen,
+ * unveraendert lauffaehig).
  */
-export function EinplanenFormular({ task }: { task: AufgabeRow }) {
+export function EinplanenFormular({
+  task,
+  idPrefix = "ep",
+}: {
+  task: AufgabeRow;
+  idPrefix?: string;
+}) {
   const [state, formAction, isPending] = useActionState(einplanenAction, FORM_START);
 
   const planDatumFehler = feldFehler(state, "planDatum");
   const planUhrzeitFehler = feldFehler(state, "planUhrzeit");
   const dauerFehler = feldFehler(state, "dauerMinuten");
+
+  const idPlanDatum = `${idPrefix}-planDatum`;
+  const idPlanUhrzeit = `${idPrefix}-planUhrzeit`;
+  const idDauerMinuten = `${idPrefix}-dauerMinuten`;
 
   return (
     <form
@@ -56,61 +73,61 @@ export function EinplanenFormular({ task }: { task: AufgabeRow }) {
       <input type="hidden" name="aufgabeId" value={task.id} />
 
       <div>
-        <label htmlFor="ep-planDatum" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
+        <label htmlFor={idPlanDatum} style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Tag
         </label>
         <Input
-          id="ep-planDatum"
+          id={idPlanDatum}
           name="planDatum"
           type="date"
           defaultValue={feldWert(state, "planDatum", task.planDatum ?? "")}
           status={planDatumFehler ? "error" : undefined}
           aria-invalid={planDatumFehler ? true : undefined}
-          aria-describedby={planDatumFehler ? "ep-planDatum-err" : undefined}
+          aria-describedby={planDatumFehler ? `${idPlanDatum}-err` : undefined}
         />
         {planDatumFehler ? (
-          <p id="ep-planDatum-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
+          <p id={`${idPlanDatum}-err`} style={{ margin: `${SPACE.xs}px 0 0` }}>
             {planDatumFehler}
           </p>
         ) : null}
       </div>
 
       <div>
-        <label htmlFor="ep-planUhrzeit" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
+        <label htmlFor={idPlanUhrzeit} style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Uhrzeit (optional)
         </label>
         <Input
-          id="ep-planUhrzeit"
+          id={idPlanUhrzeit}
           name="planUhrzeit"
           type="time"
           defaultValue={feldWert(state, "planUhrzeit", task.planUhrzeit ?? "")}
           status={planUhrzeitFehler ? "error" : undefined}
           aria-invalid={planUhrzeitFehler ? true : undefined}
-          aria-describedby={planUhrzeitFehler ? "ep-planUhrzeit-err" : undefined}
+          aria-describedby={planUhrzeitFehler ? `${idPlanUhrzeit}-err` : undefined}
         />
         {planUhrzeitFehler ? (
-          <p id="ep-planUhrzeit-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
+          <p id={`${idPlanUhrzeit}-err`} style={{ margin: `${SPACE.xs}px 0 0` }}>
             {planUhrzeitFehler}
           </p>
         ) : null}
       </div>
 
       <div>
-        <label htmlFor="ep-dauerMinuten" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
+        <label htmlFor={idDauerMinuten} style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Dauerschätzung in Minuten
         </label>
         <Input
-          id="ep-dauerMinuten"
+          id={idDauerMinuten}
           name="dauerMinuten"
           type="number"
           min={1}
           defaultValue={feldWert(state, "dauerMinuten", task.dauerMinuten.toString())}
           status={dauerFehler ? "error" : undefined}
           aria-invalid={dauerFehler ? true : undefined}
-          aria-describedby={dauerFehler ? "ep-dauerMinuten-err" : undefined}
+          aria-describedby={dauerFehler ? `${idDauerMinuten}-err` : undefined}
         />
         {dauerFehler ? (
-          <p id="ep-dauerMinuten-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
+          <p id={`${idDauerMinuten}-err`} style={{ margin: `${SPACE.xs}px 0 0` }}>
             {dauerFehler}
           </p>
         ) : null}

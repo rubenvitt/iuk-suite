@@ -15,10 +15,12 @@ import {
   fmtDauer,
   fmtStunden,
   fmtWochentage,
+  heuteOffen,
   istUeberfaellig,
   routineAmTag,
   tagesBudget,
   vorschlagOffen,
+  wartetAufEinplanung,
 } from "./anzeige";
 
 const AUFGABE: AufgabeRow = {
@@ -136,6 +138,66 @@ describe("istUeberfaellig", () => {
     for (const s of STATUS_WERTE.filter((x) => x !== "abgeschlossen")) {
       expect(istUeberfaellig({ ...AUFGABE, faelligAm: "2026-08-01", status: s }, "2026-08-13"), s).toBe(true);
     }
+  });
+});
+
+describe("wartetAufEinplanung — der Posteingang-Streifen der BuFDi-Woche", () => {
+  it("verteilt, ohne planDatum: wahr, auch OHNE Zeitvorschlag", () => {
+    expect(
+      wartetAufEinplanung({ ...AUFGABE, status: "verteilt", planDatum: null, vorschlagDatum: null }),
+    ).toBe(true);
+  });
+
+  it("verteilt, ohne planDatum, MIT Zeitvorschlag: ebenfalls wahr — dieselbe Bedingung wie ohne Vorschlag", () => {
+    expect(
+      wartetAufEinplanung({
+        ...AUFGABE,
+        status: "verteilt",
+        planDatum: null,
+        vorschlagDatum: "2026-08-14",
+      }),
+    ).toBe(true);
+  });
+
+  it("sobald planDatum gesetzt ist: falsch, auch wenn der Vorschlag stehen bleibt", () => {
+    expect(
+      wartetAufEinplanung({
+        ...AUFGABE,
+        status: "verteilt",
+        planDatum: "2026-08-14",
+        vorschlagDatum: "2026-08-10",
+      }),
+    ).toBe(false);
+  });
+
+  it("ist fuer jeden anderen Zustand falsch, auch ohne planDatum", () => {
+    for (const s of STATUS_WERTE.filter((x) => x !== "verteilt")) {
+      expect(wartetAufEinplanung({ ...AUFGABE, status: s, planDatum: null }), s).toBe(false);
+    }
+  });
+});
+
+describe("heuteOffen", () => {
+  it("auf heute eingeplant und nicht abgeschlossen: wahr", () => {
+    expect(heuteOffen({ ...AUFGABE, planDatum: "2026-08-13", status: "in_arbeit" }, "2026-08-13")).toBe(
+      true,
+    );
+  });
+
+  it("auf einen anderen Tag eingeplant: falsch", () => {
+    expect(heuteOffen({ ...AUFGABE, planDatum: "2026-08-14", status: "in_arbeit" }, "2026-08-13")).toBe(
+      false,
+    );
+  });
+
+  it("ohne planDatum: falsch", () => {
+    expect(heuteOffen({ ...AUFGABE, planDatum: null, status: "verteilt" }, "2026-08-13")).toBe(false);
+  });
+
+  it("auf heute eingeplant, aber abgeschlossen: falsch", () => {
+    expect(heuteOffen({ ...AUFGABE, planDatum: "2026-08-13", status: "abgeschlossen" }, "2026-08-13")).toBe(
+      false,
+    );
   });
 });
 

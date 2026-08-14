@@ -40,6 +40,7 @@ vi.mock("./_db/client", () => ({ getDb: () => t.db }));
 import {
   aufgabeEinstellenAction,
   einplanenAction,
+  einplanenAnnehmenAction,
   fertigMeldenAction,
   freigebenAction,
   rangVerschiebenAction,
@@ -1077,6 +1078,64 @@ describe("einplanenAction", () => {
       // derselbe `fieldErrors`-Rueckgabepfad wie bei jedem anderen Feld dieser Action.
       expect(aufgabe(t.db, task.id)!.planDatum).toBeNull();
     });
+  });
+});
+
+describe("einplanenAnnehmenAction — die Form-Bruecke fuer „Annehmen“ (Aufgabe 13, EinstiegBufdi)", () => {
+  function form(aufgabeId: string, over: Record<string, string> = {}): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    for (const [k, v] of Object.entries(over)) f.set(k, v);
+    return f;
+  }
+
+  /*
+   * DIE ZUSAGE, DIE DIE AUFGABE VERLANGT: „Annehmen“ LAEUFT DURCH DENSELBEN WEG WIE EIN MANUELLES
+   * EINPLANEN — dieselbe Verlaufsnotiz (`einplanenNotiz` erkennt „Vorschlag angenommen"), derselbe
+   * `planRang`, dieselbe Berechtigungspruefung. Ein Nachbau, der nur `planDatum`/`planUhrzeit`
+   * direkt schriebe, liesse genau diese Notiz und die Rang-Berechnung aus.
+   */
+  it("plant die Aufgabe mit den vorgeschlagenen Werten ein und schreibt „Vorschlag angenommen“ in den Verlauf", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id,
+      prueferId: auftrag.id,
+      status: "verteilt",
+      zugewiesenAn: bufdi.id,
+      vorschlagDatum: "2026-08-17",
+      vorschlagUhrzeit: "09:00",
+    });
+    anmelden(bufdi);
+
+    await einplanenAnnehmenAction(form(task.id, { planDatum: "2026-08-17", planUhrzeit: "09:00" }));
+
+    const nachher = aufgabe(t.db, task.id)!;
+    expect(nachher.planDatum).toBe("2026-08-17");
+    expect(nachher.planUhrzeit).toBe("09:00");
+
+    const letzte = letzteVerlaufszeile(task.id)!;
+    expect(letzte.ereignis).toBe("eingeplant");
+    expect(letzte.notiz).toBe("Vorschlag angenommen: 2026-08-17 09:00");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("wirft wie einplanenAction, wenn die Berechtigung fehlt — keine stille Ablehnung", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const andereBufdi = legePerson("dev:bendix@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id,
+      prueferId: auftrag.id,
+      status: "verteilt",
+      zugewiesenAn: bufdi.id,
+      vorschlagDatum: "2026-08-17",
+    });
+    anmelden(andereBufdi);
+
+    await expect(
+      einplanenAnnehmenAction(form(task.id, { planDatum: "2026-08-17" })),
+    ).rejects.toThrow();
   });
 });
 

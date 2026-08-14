@@ -1,13 +1,30 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
-import { personen, routinen, type PersonRow } from "../_db/schema";
-import { routinenInhalt } from "./page";
+import { personen, routinen, type PersonRow, type Rolle } from "../_db/schema";
 
 /*
- * `routinenInhalt` IST DIE REINE, EXPORTIERTE INHALTSFUNKTION (Brief) — dieser Test ruft
- * AUSSCHLIESSLICH sie, nie den Default-Export `RoutinenPage`: der braucht eine Sitzung
+ * ZWEI MOCKS, NUR FUER DEN NEUEN BLOCK GANZ UNTEN (Aufgabe 13, `darfRoutinenVerwalten`-Gate):
+ * dieselbe Form wie `_lib/zugang.test.ts`. `sitzung`/`testDb` sind `let`-Variablen, die
+ * `beforeEach` neu setzt — die Mock-Factories schliessen ueber sie, Vitest hebt `vi.mock` ohnehin
+ * vor die Imports.
+ */
+let sitzung: unknown = null;
+vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
+vi.mock("next/navigation", () => ({
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND");
+  },
+}));
+let mockDb: TestDb;
+vi.mock("../_db/client", () => ({ getDb: () => mockDb.db }));
+
+import RoutinenPage, { routinenInhalt } from "./page";
+
+/*
+ * `routinenInhalt` IST DIE REINE, EXPORTIERTE INHALTSFUNKTION (Brief) — die meisten Tests unten
+ * rufen AUSSCHLIESSLICH sie, nie den Default-Export `RoutinenPage`: der braucht eine Sitzung
  * (`personFuerSession`), und genau das soll Vitest nicht stellen muessen.
  */
 
@@ -15,6 +32,8 @@ let t: TestDb;
 
 beforeEach(() => {
   t = migrierteTestDb();
+  mockDb = t;
+  sitzung = null;
 });
 
 afterEach(async () => {
@@ -182,5 +201,41 @@ describe("routinenInhalt — bearbeiten ueber ?bearbeiten=<id>", () => {
     await mount(routinenInhalt(t.db, alina, "unbekannt"));
 
     expect(document.body.textContent).toContain("Neue Routine anlegen");
+  });
+});
+
+/*
+ * DER DEFAULT-EXPORT — GENAU HIER, WEIL ER DAS ROLLEN-GATE TRAEGT (Aufgabe 13, `darfRoutinenVerwalten`
+ * in `_lib/zugang.ts`). Braucht die Mocks oben, deshalb bewusst NICHT im selben Stil wie die Tests
+ * darueber (die rufen nur `routinenInhalt`, ohne Sitzung).
+ */
+describe("RoutinenPage — Rollen-Gate (Aufgabe 13, Spec §8: '/routinen' fuer bufdi)", () => {
+  function legeRollenPerson(sub: string, rolle: Rolle): PersonRow {
+    return legePerson(sub, { rolle });
+  }
+
+  it("bufdi: die Seite antwortet normal", async () => {
+    const alina = legeRollenPerson("dev:alina@test", "bufdi");
+    sitzung = { user: { id: alina.sub } };
+    await mount(await RoutinenPage({ searchParams: Promise.resolve({}) }));
+    expect(query("h1").textContent).toBe("Routinen");
+  });
+
+  it("koordination: notFound(), nicht 403", async () => {
+    const rike = legeRollenPerson("dev:rike@test", "koordination");
+    sitzung = { user: { id: rike.sub } };
+    await expect(RoutinenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("auftrag: notFound()", async () => {
+    const malte = legeRollenPerson("dev:malte@test", "auftrag");
+    sitzung = { user: { id: malte.sub } };
+    await expect(RoutinenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("ein ausgeschiedener bufdi bekommt ebenfalls notFound()", async () => {
+    const doerte = legePerson("dev:doerte@test", { rolle: "bufdi", aktivBis: "2020-01-01" });
+    sitzung = { user: { id: doerte.sub } };
+    await expect(RoutinenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 });

@@ -232,6 +232,16 @@
   flex-direction: column;
   gap: 12px;
 }
+/*
+ * DER MOBILE TAGESWAEHLER (Aufgabe 13, Spec §9.6) — sitzt wie `.tagesListe` nur unterhalb von
+ * 767.98px im DOM sichtbar; `TagesWaehler.tsx` rendert das `<fieldset>` immer, diese Klasse blendet
+ * es auf dem Desktop aus. Abstaende zwischen den fuenf Radiozeilen setzt die Komponente selbst
+ * inline (SPACE-Token) — nicht hier, sonst kollidierte eine `gap`-Deklaration hier mit der
+ * `display`-Umschaltung um dieselbe Deklaration.
+ */
+.tagesWaehler {
+  display: none;
+}
 .tagSpalte {
   border: 1px solid var(--auf-linie);
   border-radius: 8px;
@@ -339,6 +349,9 @@
     display: none;
   }
   .tagesListe {
+    display: flex;
+  }
+  .tagesWaehler {
     display: flex;
   }
   .knopfzeile {

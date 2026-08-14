@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  ausgewaehlterTag,
   fmtTagKurz,
   fmtUhrzeit,
   isoTag,
   minutenVon,
+  montagAusParam,
   montagDerWoche,
   tagePlus,
   wochenTage,
@@ -217,5 +219,52 @@ describe("fmtUhrzeit", () => {
   /** Keine Tagesgrenze angenommen — ein Modulo-Wrap waere die still falsche Uhrzeit. */
   it("wraps nicht ueber Mitternacht, sondern zeigt Stunden ueber 23", () => {
     expect(fmtUhrzeit(1500)).toBe("25:00");
+  });
+});
+
+describe("montagAusParam", () => {
+  it("ohne Parameter: der Montag der Woche von heute", () => {
+    expect(montagAusParam(undefined, "2026-08-13")).toBe(montagDerWoche("2026-08-13"));
+  });
+
+  it("mit einem gueltigen Tag: der Montag von DESSEN Woche, nicht der von heute", () => {
+    expect(montagAusParam("2026-08-20", "2026-08-13")).toBe(montagDerWoche("2026-08-20"));
+  });
+
+  /*
+   * EIN URL-PARAMETER IST KEIN FORMULARFELD — eine unbrauchbare Zeichenkette faellt auf die
+   * aktuelle Woche zurueck, statt eine Fehlerseite auszuloesen (`montagDerWoche("abc")` wirft
+   * ueber `toISOString` bei einer echten Invalid Date).
+   */
+  it("mit einer unbrauchbaren Zeichenkette: die aktuelle Woche, kein Wurf", () => {
+    expect(montagAusParam("abc", "2026-08-13")).toBe(montagDerWoche("2026-08-13"));
+  });
+
+  it("mit leerem String: die aktuelle Woche", () => {
+    expect(montagAusParam("", "2026-08-13")).toBe(montagDerWoche("2026-08-13"));
+  });
+});
+
+describe("ausgewaehlterTag", () => {
+  const TAGE = wochenTage("2026-08-10"); // Mo 10.08. .. Fr 14.08.
+
+  it("ein Parameter, der einer der fuenf Tage ist: genau der", () => {
+    expect(ausgewaehlterTag(TAGE, "2026-08-10", "2026-08-12")).toBe("2026-08-12");
+  });
+
+  it("ohne Parameter, aber heute liegt in der Woche: heute", () => {
+    expect(ausgewaehlterTag(TAGE, "2026-08-12", undefined)).toBe("2026-08-12");
+  });
+
+  it("ein Parameter ausserhalb der fuenf Tage: faellt auf heute zurueck, nicht auf den Parameter", () => {
+    expect(ausgewaehlterTag(TAGE, "2026-08-12", "2026-09-01")).toBe("2026-08-12");
+  });
+
+  it("weder Parameter noch heute in der Woche: der erste Tag (Montag)", () => {
+    expect(ausgewaehlterTag(TAGE, "2026-09-01", undefined)).toBe("2026-08-10");
+  });
+
+  it("ein Parameter, der ein Wochenende der angezeigten Woche waere, zaehlt nicht — Mo-Fr sind die einzigen fuenf", () => {
+    expect(ausgewaehlterTag(TAGE, "2026-08-01", "2026-08-15")).toBe("2026-08-10");
   });
 });

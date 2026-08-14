@@ -27,7 +27,7 @@ import {
   istGueltigerIsoTag,
   istGueltigeUhrzeit,
 } from "./_lib/eingabe";
-import type { FormState } from "./_lib/formState";
+import { FORM_START, type FormState } from "./_lib/formState";
 import { anfangsZustand, uebergang, type Aktion } from "./_lib/lebenszyklus";
 import { darfPlanAendern, istVertretungsfreigabe, personFuerSession } from "./_lib/zugang";
 import { isoTag } from "./_lib/datum";
@@ -502,6 +502,28 @@ export async function einplanenAction(_prev: FormState, formData: FormData): Pro
   });
   revalidate();
   return { ok: true };
+}
+
+/**
+ * DIE FORM-ADAPTER-VARIANTE VON `einplanenAction` FUER „ANNEHMEN" (Aufgabe 13, Posteingang-Streifen
+ * in `_ui/EinstiegBufdi.tsx`). „ANNEHMEN" IST KEIN NEUER UEBERGANG (Brief) — es ist `einplanenAction`
+ * mit dem vorgeschlagenen Tag und der vorgeschlagenen Uhrzeit, aus einem SCHLICHTEN Formular OHNE
+ * sichtbare Felder abgeschickt (nur versteckte, vom Server selbst gesetzte Werte, keine
+ * Nutzereingabe). Ein solches Formular kann `einplanenAction` NICHT direkt als `action`-Prop nehmen:
+ * dessen Signatur `(prev: FormState, formData) => Promise<FormState>` passt nur auf
+ * `useActionState` (eine Client-Insel) — ein zustandsloses `<form action={fn}>` verlangt
+ * `(formData: FormData) => Promise<void>`. Diese Funktion ist die DUENNE BRUECKE dazwischen: sie
+ * ruft `einplanenAction` UNVERAENDERT auf (Brief: „durch denselben Weg") und verwirft nur dessen
+ * Rueckgabe.
+ *
+ * DAS VERWERFEN IST UNBEDENKLICH: `planDatum`/`planUhrzeit` kommen aus `vorschlagDatum`/
+ * `vorschlagUhrzeit` der Aufgabe — beide bereits gueltige, gespeicherte Werte, keine Nutzereingabe,
+ * an denen die Feldvalidierung in `einplanenAction` nicht scheitern kann. Eine abgelehnte
+ * Berechtigung (z. B. ein Wettlauf, die Aufgabe wurde zwischen Laden und Klick umverteilt) WIRFT in
+ * `einplanenAction` bereits (kein `FormState`-Fall) und propagiert hier unveraendert weiter.
+ */
+export async function einplanenAnnehmenAction(formData: FormData): Promise<void> {
+  await einplanenAction(FORM_START, formData);
 }
 
 /**

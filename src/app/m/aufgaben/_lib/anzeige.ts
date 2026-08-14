@@ -72,6 +72,31 @@ export function istUeberfaellig(a: AufgabeRow, heute: string): boolean {
   return a.status !== "abgeschlossen" && a.faelligAm < heute;
 }
 
+/**
+ * WARTET AUF EINPLANUNG (Spec §8.1, Aufgabe 13) — der Posteingang-Streifen
+ * der BuFDi-Woche „Meine Woche": verteilt UND noch in keinem Tag. BEWUSST
+ * WEITER als `vorschlagOffen`: eine Aufgabe OHNE Zeitvorschlag gehoert
+ * genauso hierher (die Zeile zeigt dann schlicht keinen Vorschlag) — der
+ * Brief nennt den Streifen "was verteilt und noch in keinem Tag liegt", ohne
+ * einen Vorschlag vorauszusetzen.
+ *
+ * DIESELBE Ableitung speist die KPI-Kachel "Einzuplanen" UND die Liste
+ * darunter (`EinstiegBufdi.tsx`) — zwei Fassungen derselben Bedingung liefen
+ * sonst auseinander, und der Fehler waere nicht sichtbar kaputt, nur falsch.
+ */
+export function wartetAufEinplanung(a: AufgabeRow): boolean {
+  return a.status === "verteilt" && a.planDatum === null;
+}
+
+/**
+ * HEUTE OFFEN (Spec §8.1) — auf den heutigen Tag eingeplant und noch nicht
+ * abgeschlossen. `heute` kommt als Argument wie bei `istUeberfaellig`, nie
+ * aus `new Date()` hier.
+ */
+export function heuteOffen(a: AufgabeRow, heute: string): boolean {
+  return a.planDatum === heute && a.status !== "abgeschlossen";
+}
+
 /** Bit je Wochentag: Index 0 = Montag. Die Maske liegt in `routinen.wochentage`. */
 export const WOCHENTAG_BIT = [1, 2, 4, 8, 16] as const;
 

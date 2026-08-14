@@ -27,6 +27,7 @@ import {
   nachweiseFuer,
   nachweiseSeitLetzterZurueckweisung,
   planRangFuerEinplanen,
+  rangGrenzen,
   erstelleNachweis,
   schreibeVerlauf,
 } from "./queries";
@@ -465,5 +466,74 @@ describe("schreibeVerlauf — das eine Schreibprimitiv dieser Aufgabe", () => {
       akteurId: ersteller.id,
     });
     expect(zeile.notiz).toBeNull();
+  });
+});
+
+describe("rangGrenzen (Aufgabe 13) — istErste/istLetzte aus derselben Skala wie planEintraegeFuerTag", () => {
+  it("ein einzelner Eintrag an einem Tag ist zugleich erste und letzte Zeile", () => {
+    const ersteller = legePerson("rg1", "auftrag");
+    const bufdi = legePerson("rg1-bufdi", "bufdi");
+    const a = legeAufgabe({
+      erstellerId: ersteller.id,
+      zugewiesenAn: bufdi.id,
+      status: "verteilt",
+      planDatum: "2026-08-17",
+      planRang: 0,
+    });
+    expect(rangGrenzen(t.db, bufdi.id, ["2026-08-17"])).toEqual({
+      [a.id]: { istErste: true, istLetzte: true },
+    });
+  });
+
+  it("mehrere Eintraege an einem Tag: nur die aeusseren Raender tragen istErste/istLetzte", () => {
+    const ersteller = legePerson("rg2", "auftrag");
+    const bufdi = legePerson("rg2-bufdi", "bufdi");
+    const erste = legeAufgabe({
+      erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "verteilt",
+      planDatum: "2026-08-17", planRang: 0,
+    });
+    const mitte = legeAufgabe({
+      erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "verteilt",
+      planDatum: "2026-08-17", planRang: 1,
+    });
+    const letzte = legeAufgabe({
+      erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "verteilt",
+      planDatum: "2026-08-17", planRang: 2,
+    });
+    const ergebnis = rangGrenzen(t.db, bufdi.id, ["2026-08-17"]);
+    expect(ergebnis[erste.id]).toEqual({ istErste: true, istLetzte: false });
+    expect(ergebnis[mitte.id]).toEqual({ istErste: false, istLetzte: false });
+    expect(ergebnis[letzte.id]).toEqual({ istErste: false, istLetzte: true });
+  });
+
+  it("deckt mehrere Tage der Woche ab, jeder Tag mit seiner eigenen Skala", () => {
+    const ersteller = legePerson("rg3", "auftrag");
+    const bufdi = legePerson("rg3-bufdi", "bufdi");
+    const montag = legeAufgabe({
+      erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "verteilt",
+      planDatum: "2026-08-17", planRang: 0,
+    });
+    const dienstag = legeAufgabe({
+      erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "verteilt",
+      planDatum: "2026-08-18", planRang: 0,
+    });
+    const ergebnis = rangGrenzen(t.db, bufdi.id, ["2026-08-17", "2026-08-18"]);
+    expect(ergebnis[montag.id]).toEqual({ istErste: true, istLetzte: true });
+    expect(ergebnis[dienstag.id]).toEqual({ istErste: true, istLetzte: true });
+  });
+
+  it("eine noch nicht eingeplante Aufgabe (planDatum null) taucht in keinem Tag auf", () => {
+    const ersteller = legePerson("rg4", "auftrag");
+    const bufdi = legePerson("rg4-bufdi", "bufdi");
+    const nichtGeplant = legeAufgabe({
+      erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "verteilt", planDatum: null,
+    });
+    const ergebnis = rangGrenzen(t.db, bufdi.id, ["2026-08-17"]);
+    expect(ergebnis[nichtGeplant.id]).toBeUndefined();
+  });
+
+  it("eine leere Tagesliste ergibt ein leeres Ergebnis, kein Wurf", () => {
+    const bufdi = legePerson("rg5-bufdi", "bufdi");
+    expect(rangGrenzen(t.db, bufdi.id, [])).toEqual({});
   });
 });

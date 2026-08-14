@@ -280,6 +280,29 @@ export function planEintraegeFuerTag(db: DB, personId: string, planDatum: string
 }
 
 /**
+ * DIE RANG-GRENZEN JE TAG DER ANGEZEIGTEN WOCHE (Aufgabe 13) — fuer `RangKnoepfe` auf
+ * `EinstiegBufdi`/`plan/[personId]`: `istErste`/`istLetzte` MUESSEN laut `RangKnoepfe.tsx`s
+ * Kopfkommentar aus `planEintraegeFuerTag` abgeleitet sein, NICHT aus `tagesOrdnung`s gemischter
+ * Liste (die mischt Routinen ein, die keinen `planRang` tragen). Eine Schleife ueber
+ * `planEintraegeFuerTag` je Tag der Woche — DIESELBE Funktion, die `rangVerschiebenAction` selbst
+ * als Nachbarskala nutzt, hier nur fuer die Anzeige vorab ausgewertet statt bei jedem Klick neu.
+ */
+export function rangGrenzen(
+  db: DB,
+  personId: string,
+  tage: readonly string[],
+): Record<string, { istErste: boolean; istLetzte: boolean }> {
+  const ergebnis: Record<string, { istErste: boolean; istLetzte: boolean }> = {};
+  for (const tag of tage) {
+    const zeilen = planEintraegeFuerTag(db, personId, tag);
+    zeilen.forEach((zeile, i) => {
+      ergebnis[zeile.id] = { istErste: i === 0, istLetzte: i === zeilen.length - 1 };
+    });
+  }
+  return ergebnis;
+}
+
+/**
  * SCHREIBT EINEN TEXTNACHWEIS (Aufgabe 10, `fertigMeldenAction`). Der Bildnachweis (`dateiId`
  * gesetzt) kommt erst mit dem Upload aus Aufgabe 17-19 — diese Funktion schreibt deshalb nur die
  * Textform; `dateiId` bleibt in dieser Aufgabe immer `null`.

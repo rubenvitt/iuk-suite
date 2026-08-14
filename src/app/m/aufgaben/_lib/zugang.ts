@@ -73,6 +73,25 @@ export function darfPersonenVerwalten(p: PersonRow, heute: string): boolean {
 }
 
 /**
+ * `/routinen` IST LAUT SPEC §8 "für bufdi" (Aufgabe 13, offener Punkt aus Aufgabe 11: die Route
+ * trug bis hierhin nur `darfPlanAendern`, also "nur die eigene Person", ohne Ruecksicht auf die
+ * Rolle). ENTSCHEIDUNG (Aufgabe 13, s. Bericht): die Route bekommt DIESES Gate direkt, statt sich
+ * auf einen kuenftigen Navigationseintrag zu verlassen, der (noch) nicht existiert — Aufgabe 13
+ * baut keine Modulnavigation, nur den EINEN Fusszeilen-Verweis "Routinen verwalten" in
+ * `EinstiegBufdi.tsx`, und der zeigt ohnehin nur BuFDis. Ohne ein Gate an der Route selbst waere
+ * `/routinen` fuer `koordination`/`auftrag` trotzdem per direkter URL erreichbar — praktisch
+ * harmlos (Aufgabe 11: eine Koordinationsperson verwaltete allenfalls ihre eigenen Zeitbloecke),
+ * aber Spec §8 nennt die Route ausdruecklich rollengebunden, und dieselbe Suite-Regel wie ueberall
+ * sonst gilt auch hier: dieselbe Bedingung an EINER Stelle, nicht implizit "niemand verlinkt
+ * dorthin". `istAktiv` PLUS `rolle === "bufdi"` — dieselbe Form wie jedes andere
+ * Handlungspraedikat dieser Datei (Kopfkommentar: "HANDLUNGSPRAEDIKATE pruefen istAktiv JEDES FUER
+ * SICH").
+ */
+export function darfRoutinenVerwalten(p: PersonRow, heute: string): boolean {
+  return p.rolle === "bufdi" && istAktiv(p, heute);
+}
+
+/**
  * AUCH DIE KOORDINATION AENDERT KEINE FREMDEN PLAENE. Die Koordination *schlaegt vor*
  * (`vorschlag_datum`), sie setzt nicht (`plan_datum`) — die Gestaltungshoheit ueber den eigenen
  * Tag liegt beim BuFDi (Anforderung 3 des Auftraggebers). Also ausschliesslich die Zielperson

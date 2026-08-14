@@ -131,6 +131,37 @@ export function fmtTagKurz(iso: string): string {
  * Aufrufer, der eine einzelne Ziffer braucht, aendert das hier bewusst, statt
  * dass die Pruefung stillschweigend mehr zulaesst, als die Spalte verspricht.
  */
+/**
+ * DER MONTAG AUS DEM SUCHPARAMETER `woche` (Aufgabe 13) — oder die aktuelle Woche, wenn der
+ * Parameter fehlt oder kein verwertbares Kalenderdatum ist. `montagDerWoche`/`anker` werfen ueber
+ * `toISOString` bei einer echten Invalid Date (z. B. `param === "abc"`); der `try/catch` faengt
+ * genau das. EIN URL-PARAMETER IST KEIN FORMULARFELD: eine grobe Fehleingabe (auch ein Tag, den
+ * es laut `_lib/eingabe.ts`s `istGueltigerIsoTag` gar nicht gibt, z. B. „2026-02-30", das JS
+ * still auf den 2. Maerz vorrollt) zeigt hier bewusst eine nahegelegene Woche statt einer
+ * Fehlerseite — anders als ein Formularfeld verlangt eine Adresszeile keine Feldablehnung.
+ */
+export function montagAusParam(param: string | undefined, heute: string): string {
+  if (!param) return montagDerWoche(heute);
+  try {
+    return montagDerWoche(param);
+  } catch {
+    return montagDerWoche(heute);
+  }
+}
+
+/**
+ * DER AUSGEWAEHLTE TAG FUER DEN MOBILEN TAGESWAEHLER (Aufgabe 13, Spec §9.6) — der Suchparameter
+ * `tag`, wenn er EINER DER FUENF TAGE der angezeigten Woche ist (das schliesst einen manipulierten
+ * oder veralteten Wert automatisch aus, ohne eine zweite Gueltigkeitspruefung); sonst „heute", wenn
+ * es in dieser Woche liegt; sonst der erste Tag (Montag) — eine kuenftige oder vergangene Woche hat
+ * kein „heute" unter ihren fuenf Tagen.
+ */
+export function ausgewaehlterTag(tage: readonly string[], heute: string, tagParam?: string): string {
+  if (tagParam && tage.includes(tagParam)) return tagParam;
+  if (tage.includes(heute)) return heute;
+  return tage[0]!;
+}
+
 export function minutenVon(uhrzeit: string): number {
   const treffer = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(uhrzeit);
   if (!treffer) {
