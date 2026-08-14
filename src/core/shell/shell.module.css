@@ -433,8 +433,9 @@
   /* DIE URSACHE DES UNBENUTZBAREN PANELS — ausfuehrlich begruendet im
      gleichnamigen Test in `shell-css.test.ts`. Kurz: antd setzt auf
      `.ant-layout-header` ein `line-height: 64px`, und dieser Knoten haengt
-     darin. Ohne diese Zeile ist jeder Panel-Eintrag 80px hoch und der
-     Ausloeser 76px. Am gemeinsamen Vorfahren, nicht an beiden einzeln. */
+     darin. Ohne diese Zeile ist jeder Panel-Eintrag 82px hoch (8px Polster +
+     64px Zeilenbox + 8px Polster) und der Ausloeser 76px. Am gemeinsamen
+     Vorfahren, nicht an beiden einzeln. */
   line-height: normal;
 }
 
