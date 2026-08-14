@@ -11,7 +11,7 @@ import s from "./aufgaben.module.css";
  * `EinplanenFormular.tsx`) BLEIBT: sie ist der Weg, der auf dem Handy, mit der Tastatur und mit
  * einem Screenreader funktioniert, und Ziehen ist keines davon (Brief, Spec §8.5).
  *
- * "use client" STEHT IN ZEILE 1, VOR JEDEM KOMMENTAR. KEIN `@ant-design/icons` — diese Datei
+ * `"use client"` STEHT IN ZEILE 1, VOR JEDEM KOMMENTAR. KEIN `@ant-design/icons` — diese Datei
  * braucht ohnehin keines (der Ziehgriff ist ein reines Textzeichen, s. `Wochenplan.tsx`).
  *
  * NUR EIN WRAPPER, KEINE ZWEITE RENDERKOPIE: `Wochenplan.tsx`/`TagSpalte`/`EintragZeile` bleiben
@@ -20,7 +20,7 @@ import s from "./aufgaben.module.css";
  * Quelle eines Zugs identifiziert. Diese Datei rechnet NICHTS ueber Aufgaben oder Reihenfolge neu —
  * sie liest nur, was serverseitig schon berechnet und als Attribut ins DOM geschrieben wurde
  * (`_db/queries.ts`s `rangGrenzen`, jetzt mit `index`). Das ist genau die Zusage aus dem Brief:
- * "keine zweite Rangberechnung im Browser".
+ * „keine zweite Rangberechnung im Browser“.
  *
  * DIESER `<div>` IST `.wochenGitter` SELBST, KEIN ZUSAETZLICHER WRAPPER DARIN: die CSS-Grid-Spalten
  * (`grid-template-columns: repeat(5, ...)`, `aufgaben.module.css`) verlangen die fuenf `TagSpalte`-
@@ -44,8 +44,8 @@ import s from "./aufgaben.module.css";
  * dafuer keine eigene Fallunterscheidung — `onDragStart`/`onDrop` finden per `closest()` schlicht
  * kein Attribut und tun nichts.
  *
- * SICHTBARKEIT VOR DEM LOSLASSEN (Brief: "Ziel und Wirkung muessen sichtbar sein, bevor losgelassen
- * wird"): `markiere()` setzt beim Ueberfahren eines gueltigen Ziels (Tagesspalte oder einzelne Zeile)
+ * SICHTBARKEIT VOR DEM LOSLASSEN (Brief: „Ziel und Wirkung muessen sichtbar sein, bevor losgelassen
+ * wird“): `markiere()` setzt beim Ueberfahren eines gueltigen Ziels (Tagesspalte oder einzelne Zeile)
  * einen `outline` PER INLINE-STYLE — keine neue CSS-Klasse, keine `transition`. Das ist bewusst kein
  * Bewegungseffekt (Spec §9.4, Merkposten aus Aufgabe 5): ein `outline`-Wechsel ist ein diskreter
  * Zustandswechsel wie `.kpiLink:hover` es fuer Hintergrund schon ist, keine Animation. `aufgaben.
@@ -56,8 +56,8 @@ import s from "./aufgaben.module.css";
  * einem `drop`-Ereignis (nur zu `dragend`) bzw. `onDrop` bricht selbst fruehzeitig ab (kein Ziel,
  * Ziel = Quelle) — in beiden Faellen wird keine Action gerufen.
  *
- * DIE RANGBERECHNUNG BEIM ABLEGEN INNERHALB EINES TAGES (Brief: "ueberleg, wie du sie auf planRang
- * abbildest, und benutz die Rang-Action aus Aufgabe 12"): `zielAusAblage` (unten, eine REINE
+ * DIE RANGBERECHNUNG BEIM ABLEGEN INNERHALB EINES TAGES (Brief: „ueberleg, wie du sie auf planRang
+ * abbildest, und benutz die Rang-Action aus Aufgabe 12“): `zielAusAblage` (unten, eine REINE
  * Funktion ohne DOM) bildet Quell-/Zielposition auf eine Anzahl `hoch`/`runter`-Schritte ab.
  * `onDrop` ruft `rangVerschiebenAction` dafuer SO OFT WIE NOETIG, hintereinander — jeder einzelne
  * Aufruf tauscht nur mit dem unmittelbaren Nachbarn (server-seitig, `_db/queries.ts`s
@@ -66,11 +66,11 @@ import s from "./aufgaben.module.css";
  *
  * CROSS-TAG-ZUEGE LANDEN AM TAGESENDE (Spec §8.5-Nachtrag, `einplanenAction`s Kopfkommentar): die
  * Zielposition INNERHALB eines fremden Tages ist beim Ziehen zwischen Tagen nicht frei waehlbar
- * (Brief nennt das Schema aus Aufgabe 10 als geltend: "neuer Eintrag ans Ende des Zieltags"), deshalb
+ * (Brief nennt das Schema aus Aufgabe 10 als geltend: „neuer Eintrag ans Ende des Zieltags“), deshalb
  * ruft dieser Zweig `einplanenAction` mit dem Zieltag und laesst `planRangFuerEinplanen`
  * (`_db/queries.ts`) die Position bestimmen. `planUhrzeit` wird dabei UNVERAENDERT mitgegeben
  * (`data-plan-uhrzeit`, aus `eintrag.aufgabe.planUhrzeit`) — `einplanenAction` ueberschreibt das Feld
- * IMMER (anders als `dauerMinuten`, wo Leerstring "unveraendert" heisst), ein leer gesendetes Feld
+ * IMMER (anders als `dauerMinuten`, wo Leerstring „unveraendert“ heisst), ein leer gesendetes Feld
  * loeschte hier also eine bestehende Uhrzeit still. `dauerMinuten` bleibt leer (unveraendert) —
  * Ziehen setzt nie eine neue Dauer.
  */
@@ -90,10 +90,10 @@ export type Ziel = ZielTag | ZielRang | null;
  * REINE ABBILDUNG ABLAGEORT → WIRKUNG, OHNE DOM UND OHNE NETZWERK — deshalb ohne jedes
  * Zeigergeraet in `ZiehBereich.test.tsx` vollstaendig pruefbar, waehrend der eigentliche Zug (das
  * Zeigergeraet, die echte Ereigniskette) ausschliesslich der Playwright-Fall beweisen kann (Brief:
- * "Ziehen ist die eine Bedienart, die ein jsdom-Test strukturell nicht beweisen kann").
+ * „Ziehen ist die eine Bedienart, die ein jsdom-Test strukturell nicht beweisen kann“).
  *
- * `zielIndex: null` BEDEUTET "kein bestimmter Nachbar getroffen" (leere Flaeche unterhalb der
- * letzten Zeile) und wird auf "ans Ende dieses Tages" abgebildet — NICHT auf "kein Zug": ein
+ * `zielIndex: null` BEDEUTET „kein bestimmter Nachbar getroffen“ (leere Flaeche unterhalb der
+ * letzten Zeile) und wird auf „ans Ende dieses Tages“ abgebildet — NICHT auf „kein Zug“: ein
  * Loslassen auf sich selbst (`zielIndex === quellIndex`) ist der einzige echte No-Op-Fall, und den
  * schliesst `ZiehBereich.tsx`s `onDrop` bereits VOR dem Aufruf hier aus (getroffene Zeile === Quelle).
  */
@@ -240,7 +240,21 @@ export function ZiehBereich({
           const formData = new FormData();
           formData.set("aufgabeId", gezogen.id);
           formData.set("richtung", wirkung.richtung);
-          await rangVerschiebenAction(formData);
+          // FEHLERBEHANDLUNG SYMMETRISCH ZUM TAG-ZWEIG (Review-Fund): `rangVerschiebenAction`
+          // liefert kein `FormState` (kein `.ok` zum Pruefen) — sie WIRFT bei jeder Ablehnung
+          // (Berechtigung, kein Nachbar in dieser Richtung). Ohne dieses `try`/`catch` waere das
+          // trotzdem laut (der Wurf propagiert durch `startTransition` hinaus), aber INKONSISTENT
+          // zum Tag-Zweig formuliert — dieselbe Nachricht/dasselbe Praefix wie dort, statt einer
+          // rohen, unformatierten Server-Fehlermeldung. Laut statt still war in diesem Modul
+          // wiederholt die richtige Antwort; ein fehlgeschlagener Rangwechsel, der nichts sagt,
+          // waere derselbe stille No-Op wie „Klick, nichts passiert“ (Aufgabe 13).
+          try {
+            await rangVerschiebenAction(formData);
+          } catch (fehler) {
+            throw new Error(
+              `Verschieben fehlgeschlagen: ${fehler instanceof Error ? fehler.message : String(fehler)}`,
+            );
+          }
         }
       }
     });

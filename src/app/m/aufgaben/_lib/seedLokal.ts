@@ -500,9 +500,9 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
     ],
   });
 
-  // EINE in_arbeit-AUFGABE INNERHALB DER AKTUELLEN WOCHE (Aufgabe 20, e2e-Beleg fuer "in_arbeit ist
-  // ziehbar, ohne Sonderfall", Spec-Nachtrag `72ef235`): die einzige bisherige in_arbeit-Demo-
-  // Aufgabe ("Sanitätswache Stadtfest vorbereiten" oben) liegt drei Tage VOR heute und damit
+  // EINE in_arbeit-AUFGABE INNERHALB DER AKTUELLEN WOCHE (Aufgabe 20, e2e-Beleg fuer „in_arbeit ist
+  // ziehbar, ohne Sonderfall“, Spec-Nachtrag `72ef235`): die einzige bisherige in_arbeit-Demo-
+  // Aufgabe („Sanitätswache Stadtfest vorbereiten“ oben) liegt drei Tage VOR heute und damit
   // planDatum-maessig ausserhalb der Standard-Wochenansicht (sie ist die Ueberfaellig-Fixture,
   // absichtlich in der Vergangenheit) — fuer einen echten Zug in `e2e/aufgaben.spec.ts` ohne
   // Wochenwaehler-Navigation nicht erreichbar. Carla traegt sie, nicht Alina/Bendix, damit sie

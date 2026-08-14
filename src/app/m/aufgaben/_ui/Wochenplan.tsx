@@ -10,7 +10,7 @@ import { ZiehBereich } from "./ZiehBereich";
 import s from "./aufgaben.module.css";
 
 /*
- * FUENF TAGESSPALTEN MO–FR (Spec §8.1). KEIN "use client" HIER — diese Datei bleibt Server
+ * FUENF TAGESSPALTEN MO–FR (Spec §8.1). KEIN `"use client"` HIER — diese Datei bleibt Server
  * Component und liefert nur Markup samt Daten-Attributen; das ZIEHEN SELBST (Aufgabe 20, ab 768px)
  * sitzt in der Client-Insel `ZiehBereich.tsx`, die NUR die desktop-`.wochenGitter`-Ausprägung
  * umschliesst (`mobilTag` bleibt bei der Tagesliste, Ziehen existiert unter 768px nicht, Spec §8.5/
@@ -229,14 +229,14 @@ function BudgetZeile({ budget }: { budget: Budget }) {
  *
  * DER AUFGABENTITEL IST SEIT AUFGABE 20 EIN LINK AUF `/a/<id>` (Fund aus Aufgabe 19: der Wochenplan
  * war bis hierhin die einzige Modulansicht ohne Weg zur Detailseite, anders als
- * `AufgabenListe.tsx`). `draggable={false}` DARAUF IST BEWUSST (Brief: "ein Link und ein Ziehgriff
- * auf demselben Element vertragen sich schlecht") — ein `<a>` ist in Browsern von sich aus
+ * `AufgabenListe.tsx`). `draggable={false}` DARAUF IST BEWUSST (Brief: „ein Link und ein Ziehgriff
+ * auf demselben Element vertragen sich schlecht“) — ein `<a>` ist in Browsern von sich aus
  * ziehbar (Lesezeichen-Ziehgeste); ohne diese Zeile wuerde ein an der LINK-Flaeche begonnener Zug
  * die native Link-Zieh-Geste ausloesen (sichtbar als Ziel-Ghost, aber wirkungslos, weil
  * `ZiehBereich.tsx`s `onDragStart` nur auf `[data-aufgabe-id]` reagiert — s. dort) statt sauber
  * INS LEERE zu laufen. Die eigentliche Ziehflaeche ist der SEPARATE Ziehgriff (`⠿`) davor, der
  * selbst kein Link ist und deshalb mit dem Titel nicht kollidiert — GENAU DIE im Brief vorgeschlagene
- * Loesung ("ein eigener Ziehgriff neben dem Titel"), im ECHTEN BROWSER geprueft (kein Unit-Test kann
+ * Loesung („ein eigener Ziehgriff neben dem Titel“), im ECHTEN BROWSER geprueft (kein Unit-Test kann
  * eine versehentliche Navigation beim Ziehen zeigen, Brief).
  *
  * DER ZIEHGRIFF SELBST TRAEGT KEIN `aufgaben.module.css`-KLASSE: `cursor`/`data-*` stehen inline,

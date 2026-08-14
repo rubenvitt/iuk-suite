@@ -808,7 +808,7 @@ test("App-Switcher: seit Aufgabe 16 erscheint „Aufgaben“ fuer eine Person mi
 /*
  * AB HIER AUFGABE 20 — ZIEHEN ZWISCHEN TAGEN UND INNERHALB EINES TAGES, AB 768px.
  *
- * „ZIEHEN IST DIE EINE BEDIENART, DIE EIN JSDOM-TEST STRUKTURELL NICHT BEWEISEN KANN" (Brief): kein
+ * „ZIEHEN IST DIE EINE BEDIENART, DIE EIN JSDOM-TEST STRUKTURELL NICHT BEWEISEN KANN“ (Brief): kein
  * Zeigergeraet, keine echte Ereigniskette. `ZiehBereich.test.tsx` deckt die reine Rangabbildung und
  * die Ereignisverdrahtung mit HANDGEBAUTEN Ereignissen ab — der eigentliche Nachweis, dass ein
  * ECHTES Zeigergeraet in einem ECHTEN Browser dieselbe Kette ausloest, ist ausschliesslich hier.
@@ -879,9 +879,9 @@ test("Ziehbereich: die Knopfstrecke bleibt bedienbar, und ein Zug innerhalb eine
   await expect(montag.getByRole("button", { name: /nach oben verschieben/ }).first()).toBeVisible();
   await expect(montag.getByRole("button", { name: /nach unten verschieben/ }).first()).toBeVisible();
 
-  // BENDIX' MONTAG (`seedLokal.ts`): "Materialtransport Kreisverband" (planRang 0, EXPLIZIT
-  // gestaffelt seit dem Aufgabe-20-Fund — s. `seedLokal.ts`s Kommentar dort) und "Nachbereitung
-  // Materialtransport" (planRang 1), beide ohne eigene Uhrzeit — derselbe Ankerwert, die
+  // BENDIX' MONTAG (`seedLokal.ts`): „Materialtransport Kreisverband“ (planRang 0, EXPLIZIT
+  // gestaffelt seit dem Aufgabe-20-Fund — s. `seedLokal.ts`s Kommentar dort) und „Nachbereitung
+  // Materialtransport“ (planRang 1), beide ohne eigene Uhrzeit — derselbe Ankerwert, die
   // Reihenfolge spiegelt deshalb den Rang.
   const zeileA = montag.locator("li").filter({ hasText: "Materialtransport Kreisverband" });
   const zeileB = montag.locator("li").filter({ hasText: "Nachbereitung Materialtransport" });
@@ -901,7 +901,7 @@ test("Ziehbereich: die Knopfstrecke bleibt bedienbar, und ein Zug innerhalb eine
   expect(antwort.ok(), `Zug abgelehnt: HTTP ${antwort.status()}`).toBe(true);
 
   // GENAU DIESE ZWEI ZEILEN, IN VERTAUSCHTER REIHENFOLGE — nichts verschwunden, nichts
-  // hinzugekommen ("laesst die uebrigen Eintraege in Ruhe"). AUTOMATISCH WIEDERHOLENDE
+  // hinzugekommen („laesst die uebrigen Eintraege in Ruhe“). AUTOMATISCH WIEDERHOLENDE
   // `expect(locator)`-Assertions, NICHT ein einmaliger `allTextContents()`-Schnappschuss: die
   // Server-Action-Antwort (oben abgefangen) markiert nur, dass die ANFRAGE durch ist, nicht dass
   // React das aktualisierte Markup schon COMMITTET hat — ein sofortiger `allTextContents()`-Aufruf
@@ -925,7 +925,7 @@ test("Ziehbereich: ein Zug zwischen zwei Tagen ruft einplanenAction mit dem Ziel
   const montag = spalten.nth(0);
   const dienstag = spalten.nth(1);
 
-  // ROUTINEN SIND NICHT ZIEHBAR (Spec §8.1) — Alinas taegliche "Frühbesprechung" ist als solche
+  // ROUTINEN SIND NICHT ZIEHBAR (Spec §8.1) — Alinas taegliche „Frühbesprechung“ ist als solche
   // sichtbar, traegt aber strukturell keinen Ziehgriff.
   const routineZeile = montag.locator("li").filter({ hasText: "Frühbesprechung" });
   await expect(routineZeile).toHaveCount(1);
@@ -1006,7 +1006,12 @@ test("Ziehbereich: ein abgebrochener Zug (Loslassen außerhalb jeder Tagesspalte
   try {
     // Auf das <h1> der Seite gezogen — weit ausserhalb jeder `[data-tag]`-Flaeche.
     await zieheZu(page, griff, page.getByRole("heading", { level: 1 }));
-    await page.waitForTimeout(500);
+    // KEIN fester `waitForTimeout` (Review-Fund): ein Test, der beweisen soll, dass NICHTS
+    // passiert, darf sich nicht auf eine geratene Wartezeit verlassen — zu kurz macht ihn blind,
+    // zu lang bremst ihn unnoetig. `networkidle` wartet stattdessen auf ein beobachtbares Signal
+    // (keine Netzwerkaktivitaet mehr), dasselbe Muster wie `devLogin` es schon nutzt, und ist damit
+    // an den tatsaechlichen Netzwerkzustand gekoppelt, nicht an eine Konstante.
+    await page.waitForLoadState("networkidle");
   } finally {
     page.off("response", beobachten);
   }

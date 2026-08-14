@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
-import { act } from "react";
+import { act, Component, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
 
 /*
- * DIE GRENZE DIESES TESTS (Brief, Aufgabe 20): "Ziehen ist die eine Bedienart, die ein jsdom-Test
- * strukturell nicht beweisen kann" — hier gibt es kein echtes Zeigergeraet und keine echte
+ * DIE GRENZE DIESES TESTS (Brief, Aufgabe 20): „Ziehen ist die eine Bedienart, die ein jsdom-Test
+ * strukturell nicht beweisen kann“ — hier gibt es kein echtes Zeigergeraet und keine echte
  * Ereigniskette. Was HIER geprueft wird, ist deshalb zweigeteilt:
  *
  *  1. `zielAusAblage` — eine REINE Funktion ohne DOM, vollstaendig pruefbar.
@@ -58,10 +58,10 @@ describe("ZiehBereich — Zeile 1", () => {
 });
 
 /*
- * DIE REINE ABBILDUNG — KEIN DOM, KEIN NETZWERK. Der Brief verlangt "benutz die Rang-Action aus
- * Aufgabe 12, statt eine zweite Rangberechnung im Browser aufzumachen": diese Funktion IST diese
- * eine erlaubte Abbildung, nicht eine Rangberechnung — sie liefert ausschliesslich "wie viele
- * hoch/runter-Schritte", nie einen neuen `planRang`-Wert.
+ * DIE REINE ABBILDUNG — KEIN DOM, KEIN NETZWERK. Der Brief verlangt „benutz die Rang-Action aus
+ * Aufgabe 12, statt eine zweite Rangberechnung im Browser aufzumachen“: diese Funktion IST diese
+ * eine erlaubte Abbildung, nicht eine Rangberechnung — sie liefert ausschliesslich „wie viele
+ * hoch/runter-Schritte“, nie einen neuen `planRang`-Wert.
  */
 describe("zielAusAblage — reine Abbildung Ablageort → Wirkung", () => {
   it("ein anderer Zieltag ist immer ein Tageswechsel, unabhaengig von den Indizes", () => {
@@ -188,7 +188,7 @@ describe("ZiehBereich — DOM-Verdrahtung", () => {
   });
 
   /*
-   * ABGEBROCHENER ZUG (Brief: "Escape, Loslassen außerhalb ändert nichts"). Escape selbst feuert im
+   * ABGEBROCHENER ZUG (Brief: „Escape, Loslassen außerhalb ändert nichts“). Escape selbst feuert im
    * Browser kein `drop`, nur `dragend` — ein `dragstart` OHNE nachfolgendes `drop` ist deshalb die
    * jsdom-Nachbildung dieses Falls.
    */
@@ -250,5 +250,104 @@ describe("ZiehBereich — DOM-Verdrahtung", () => {
     // Direktes Kind ist die Tagesspalte selbst — kein Zwischen-`<div>`, sonst braeche das
     // CSS-Grid-Rastermass von `.wochenGitter` (Kopfkommentar `ZiehBereich.tsx`).
     expect(wurzel.firstElementChild?.getAttribute("data-tag")).toBe("2026-08-17");
+  });
+});
+
+/*
+ * SICHTBARKEIT VOR DEM LOSLASSEN (Review-Fund: bislang nur behauptet, keine Zeile prueft es) —
+ * Brief-Pflicht („Ziel und Wirkung muessen sichtbar sein, bevor losgelassen wird, sonst ist es
+ * Raten“). `markiere()` setzt/entfernt einen `outline` PER INLINE-STYLE auf dem ueberfahrenen
+ * Element — diese Gruppe prueft genau diese beiden Seiten: gesetzt bei `dragover` ueber einem
+ * gueltigen Ziel, entfernt bei `dragend`, UND: nur das AKTUELLE Ziel traegt die Markierung, ein
+ * Wechsel raeumt das vorherige ab (sonst blieben zwei Markierungen gleichzeitig sichtbar stehen).
+ */
+describe("ZiehBereich — Sichtbarkeit vor dem Loslassen (markiere())", () => {
+  it("dragover ueber einem gueltigen Ziel setzt ein sichtbares outline", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const a2 = query('[data-aufgabe-id="a2"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    expect(a2.style.outline).toBe("");
+    a2.dispatchEvent(zugEreignis("dragover"));
+    expect(a2.style.outline).not.toBe("");
+  });
+
+  it("dragend entfernt die Markierung wieder — auch bei einem abgebrochenen Zug", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const a2 = query('[data-aufgabe-id="a2"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    a2.dispatchEvent(zugEreignis("dragover"));
+    expect(a2.style.outline).not.toBe("");
+    a1.dispatchEvent(zugEreignis("dragend"));
+    expect(a2.style.outline).toBe("");
+  });
+
+  it("wechselt das Ziel: nur das AKTUELLE Element traegt die Markierung, das vorherige wird zurueckgesetzt", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const b1 = query('[data-aufgabe-id="b1"]');
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const a2 = query('[data-aufgabe-id="a2"]');
+    b1.dispatchEvent(zugEreignis("dragstart"));
+    a1.dispatchEvent(zugEreignis("dragover"));
+    expect(a1.style.outline).not.toBe("");
+    a2.dispatchEvent(zugEreignis("dragover"));
+    expect(a1.style.outline).toBe(""); // abgeraeumt, nicht doppelt markiert
+    expect(a2.style.outline).not.toBe("");
+  });
+
+  it("dragover ausserhalb jeder Tagesspalte markiert nichts (und raeumt eine vorherige Markierung ab)", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const b1 = query('[data-aufgabe-id="b1"]');
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const wurzel = query('[data-rolle="wochengitter"]');
+    b1.dispatchEvent(zugEreignis("dragstart"));
+    a1.dispatchEvent(zugEreignis("dragover"));
+    expect(a1.style.outline).not.toBe("");
+    wurzel.dispatchEvent(zugEreignis("dragover"));
+    expect(a1.style.outline).toBe("");
+  });
+});
+
+/*
+ * FEHLERBEHANDLUNG SYMMETRISCH ZUM TAG-ZWEIG (Review-Fund): `rangVerschiebenAction` liefert kein
+ * `FormState`, sondern wirft bei jeder Ablehnung — `onDrop`s Rang-Zweig faengt das jetzt (`try`/
+ * `catch`) und wirft mit demselben `"Verschieben fehlgeschlagen: …"`-Praefix wie der Tag-Zweig, statt
+ * die rohe Server-Fehlermeldung unformatiert durchzureichen. Eine Error Boundary macht den
+ * tatsaechlich geworfenen Fehler pruefbar, statt nur zu behaupten, dass „laut, nicht still“ gilt.
+ */
+class Fehlergrenze extends Component<{ children: ReactNode }, { fehler: string | null }> {
+  state = { fehler: null as string | null };
+  static getDerivedStateFromError(fehler: unknown) {
+    return { fehler: fehler instanceof Error ? fehler.message : String(fehler) };
+  }
+  render() {
+    if (this.state.fehler !== null) return <div data-testid="ziehfehler">{this.state.fehler}</div>;
+    return this.props.children;
+  }
+}
+
+describe("ZiehBereich — Fehlerbehandlung im Rang-Zweig", () => {
+  it("ein abgelehnter rangVerschiebenAction-Aufruf wirft mit demselben Praefix wie der Tag-Zweig", async () => {
+    rangVerschiebenActionMock.mockRejectedValueOnce(new Error("Kein Nachbar in dieser Richtung."));
+    await mount(
+      <Fehlergrenze>
+        <ZiehBereich interaktiv>{KINDER}</ZiehBereich>
+      </Fehlergrenze>,
+    );
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const a2 = query('[data-aufgabe-id="a2"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    a2.dispatchEvent(zugEreignis("dragover"));
+    await act(async () => {
+      a2.dispatchEvent(zugEreignis("drop"));
+      // Mehrere Mikrotasks abwarten, bis der geworfene Fehler die Error Boundary erreicht hat.
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(query('[data-testid="ziehfehler"]').textContent).toBe(
+      "Verschieben fehlgeschlagen: Kein Nachbar in dieser Richtung.",
+    );
   });
 });
