@@ -71,7 +71,7 @@ afterEach(async () => {
 });
 
 describe("EinplanenFormular — Zeile 1 und die Action", () => {
-  it('„use client" steht als allererste Zeile der Datei, vor jedem Kommentar', () => {
+  it("„use client“ steht als allererste Zeile der Datei, vor jedem Kommentar", () => {
     const quelle = readFileSync("src/app/m/aufgaben/_ui/EinplanenFormular.tsx", "utf8");
     expect(quelle.split("\n")[0]).toBe('"use client";');
   });
@@ -100,12 +100,15 @@ describe("EinplanenFormular — Vorbelegung", () => {
     expect(query<HTMLInputElement>("#ep-planUhrzeit").value).toBe("");
   });
 
-  it("zeigt die Dauerschaetzung lesend, ohne sie als Formularfeld zu senden", async () => {
+  /**
+   * FIX-RUNDE 1 (Betreiberentscheidung): die Dauerschaetzung ist jetzt ein ECHTES Eingabefeld,
+   * vorbelegt mit dem bisherigen Wert der Aufgabe — nicht mehr der reine Lesetext der ersten
+   * Fassung.
+   */
+  it("zeigt die Dauerschaetzung vorbelegt als echtes Eingabefeld", async () => {
     await mount(<EinplanenFormular task={task({ id: "a1", dauerMinuten: 90 })} />);
-    expect(query("form").textContent).toContain("Dauerschätzung");
-    // KEIN EINGABEFELD FUER DIE DAUER (Kopfkommentar der Komponente, Widerspruch im Bericht): kein
-    // `name="dauerMinuten"` irgendwo im Formular — nur Lesetext.
-    expect(queryAll("[name='dauerMinuten']")).toHaveLength(0);
+    expect(query<HTMLInputElement>("#ep-dauerMinuten").value).toBe("90");
+    expect(query<HTMLInputElement>("input[name='dauerMinuten']").type).toBe("number");
   });
 
   it("die Uhrzeit ist optional — kein `required`, kein erzwungener Wert", async () => {
@@ -156,8 +159,8 @@ describe("EinplanenFormular — kein Sonderfall fuer in_arbeit", () => {
 });
 
 describe("EinplanenFormular — Absenden", () => {
-  it("sendet aufgabeId, Tag und Uhrzeit", async () => {
-    await mount(<EinplanenFormular task={task({ id: "a1" })} />);
+  it("sendet aufgabeId, Tag, Uhrzeit und die (vorbelegte) Dauerschaetzung", async () => {
+    await mount(<EinplanenFormular task={task({ id: "a1", dauerMinuten: 60 })} />);
     await fill("#ep-planDatum", "2026-08-18");
     await fill("#ep-planUhrzeit", "10:15");
     await submitForm();
@@ -167,6 +170,9 @@ describe("EinplanenFormular — Absenden", () => {
     expect(formData.get("aufgabeId")).toBe("a1");
     expect(formData.get("planDatum")).toBe("2026-08-18");
     expect(formData.get("planUhrzeit")).toBe("10:15");
+    // VORBELEGT, NICHT ANGEFASST — ein normales Absenden traegt trotzdem die bisherige Dauer mit,
+    // weil das Feld nie leer gerendert wird.
+    expect(formData.get("dauerMinuten")).toBe("60");
   });
 
   it("ein leeres Uhrzeitfeld wird mitgesendet, nicht als Fehler behandelt", async () => {
@@ -176,6 +182,16 @@ describe("EinplanenFormular — Absenden", () => {
 
     const formData = absendenMock.mock.calls[0]![0] as FormData;
     expect(formData.get("planUhrzeit")).toBe("");
+  });
+
+  it("eine geaenderte Dauerschaetzung wird mit dem NEUEN Wert gesendet", async () => {
+    await mount(<EinplanenFormular task={task({ id: "a1", dauerMinuten: 60 })} />);
+    await fill("#ep-planDatum", "2026-08-18");
+    await fill("#ep-dauerMinuten", "90");
+    await submitForm();
+
+    const formData = absendenMock.mock.calls[0]![0] as FormData;
+    expect(formData.get("dauerMinuten")).toBe("90");
   });
 });
 
@@ -229,6 +245,25 @@ describe("EinplanenFormular — Feldfehler tragen die Eingaben mit, nicht die Vo
     );
     expect(query<HTMLInputElement>("#ep-planUhrzeit").value).toBe("");
     expect(query("#ep-planUhrzeit-err").textContent).toBe("Uhrzeit ungueltig — Format HH:MM.");
+  });
+
+  /*
+   * DIESELBE LEKTION FUER DAS VIERTE FELD: die Aufgabe traegt bereits eine gueltige Dauer (60), der
+   * Fehlerzustand traegt fuer dasselbe Feld die (ungueltige) EINGETIPPTE Zeichenkette zurueck ("0").
+   * Das Feld muss GENAU "0" zeigen, nicht "60" — sonst waere die Vorbelegung staerker als der
+   * zurueckgemeldete Serverzustand, und die Person saehe ihren Tippfehler nicht mehr.
+   */
+  it("ein ungueltiger values.dauerMinuten im Fehlerzustand ueberschreibt eine vorhandene Vorbelegung", async () => {
+    stelleZustandEin({
+      ok: false,
+      fieldErrors: { dauerMinuten: "Dauerschaetzung muss eine ganze Zahl groesser 0 sein." },
+      values: { aufgabeId: "a1", planDatum: "2026-08-18", planUhrzeit: "", dauerMinuten: "0" },
+    });
+    await mount(<EinplanenFormular task={task({ id: "a1", dauerMinuten: 60 })} />);
+    expect(query<HTMLInputElement>("#ep-dauerMinuten").value).toBe("0");
+    expect(query("#ep-dauerMinuten-err").textContent).toBe(
+      "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.",
+    );
   });
 });
 

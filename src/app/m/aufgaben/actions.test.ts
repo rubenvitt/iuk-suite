@@ -1015,6 +1015,69 @@ describe("einplanenAction", () => {
       einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17" })),
     ).rejects.toThrow(/Aktion "einplanen" ist im Zustand "eingegangen" nicht vorgesehen/);
   });
+
+  /*
+   * FIX-RUNDE 1 (Betreiberentscheidung): `dauerMinuten` ist ein viertes, OPTIONALES Feld — leer
+   * laesst den bestehenden Wert unveraendert, gesendet muss es gueltig sein. Die zehn Tests OBERHALB
+   * dieser Gruppe senden das Feld nirgends und bleiben genau deshalb gruen (Vorhersage aus dem
+   * Bericht zu Aufgabe 12, jetzt bestaetigt statt nur behauptet).
+   */
+  describe("dauerMinuten — viertes, optionales Feld (Fix-Runde 1)", () => {
+    it("ein gesendeter, gueltiger Wert aendert die Dauerschaetzung", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+        dauerMinuten: 60,
+      });
+      anmelden(bufdi);
+
+      const ergebnis = await einplanenAction(
+        { ok: true },
+        form(task.id, { planDatum: "2026-08-17", dauerMinuten: "90" }),
+      );
+      expect(ergebnis).toEqual({ ok: true });
+      expect(aufgabe(t.db, task.id)!.dauerMinuten).toBe(90);
+    });
+
+    it("ein LEERES Feld laesst die bestehende Dauerschaetzung unveraendert", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+        dauerMinuten: 60,
+      });
+      anmelden(bufdi);
+
+      // KEIN `dauerMinuten` im Formular — genau das Verhalten der zehn bestehenden Tests oben.
+      await einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17" }));
+
+      expect(aufgabe(t.db, task.id)!.dauerMinuten).toBe(60);
+    });
+
+    it("ein ungueltiger Wert kommt als Feldfehler zurueck und traegt die Eingabe mit — die Dauer bleibt unveraendert", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+        dauerMinuten: 60,
+      });
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(
+        await einplanenAction(
+          { ok: true },
+          form(task.id, { planDatum: "2026-08-17", dauerMinuten: "0" }),
+        ),
+      );
+      expect(ergebnis.fieldErrors.dauerMinuten).toBeTruthy();
+      expect(ergebnis.values.dauerMinuten).toBe("0");
+      expect(aufgabe(t.db, task.id)!.dauerMinuten).toBe(60);
+      // KEIN TEILWEISES SCHREIBEN: ein Feldfehler bei der Dauer verhindert AUCH das Einplanen selbst —
+      // derselbe `fieldErrors`-Rueckgabepfad wie bei jedem anderen Feld dieser Action.
+      expect(aufgabe(t.db, task.id)!.planDatum).toBeNull();
+    });
+  });
 });
 
 describe("fertigMeldenAction", () => {

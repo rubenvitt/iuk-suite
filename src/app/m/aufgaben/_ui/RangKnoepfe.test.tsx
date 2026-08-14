@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 describe("RangKnoepfe — Zeile 1", () => {
-  it('„use client" steht als allererste Zeile der Datei, vor jedem Kommentar', () => {
+  it("„use client“ steht als allererste Zeile der Datei, vor jedem Kommentar", () => {
     const quelle = readFileSync("src/app/m/aufgaben/_ui/RangKnoepfe.tsx", "utf8");
     expect(quelle.split("\n")[0]).toBe('"use client";');
   });

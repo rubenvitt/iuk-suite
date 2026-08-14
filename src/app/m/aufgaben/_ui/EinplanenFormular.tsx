@@ -4,7 +4,6 @@ import { useActionState } from "react";
 import { Button, Input } from "antd";
 import { einplanenAction } from "../actions";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
-import { fmtDauer } from "../_lib/anzeige";
 import type { AufgabeRow } from "../_db/schema";
 import { SPACE } from "@/core/theme/tokens";
 
@@ -31,28 +30,23 @@ import { SPACE } from "@/core/theme/tokens";
  * Das Feld traegt deshalb weder `required` noch sonst einen Zwang zu einer Uhrzeit, nur die
  * Beschriftung „(optional)" wie bei `RoutineFormular`s Uhrzeitfeld.
  *
- * DAUERSCHAETZUNG STEHT NUR LESEND DA, KEIN EINGABEFELD (Widerspruch, an den Controller gemeldet,
- * siehe Bericht): Brief und Spec §8.5 zaehlen „Dauerschätzung" wortgleich als drittes FELD des
- * kleinen Formulars auf, neben Tag und Uhrzeit. `einplanenAction` (Aufgabe 10, „du rufst sie, du
- * baust sie nicht neu") liest und schreibt aber ausschliesslich `planDatum`/`planUhrzeit` — kein
- * `dauerMinuten`. Ein drittes, ECHTES Eingabefeld haette drei Folgen, von denen keine tragbar ist:
- * (a) die Action muesste erweitert werden, entgegen der ausdruecklichen Anweisung dieser Aufgabe; (b)
- * ein gesendetes, aber von der Action ignoriertes Feld waere GENAU der Fehler aus Lektion 3 dieser
- * Aufgabenreihe — `einplanenAction` echot es nicht in `values`, ein Feldfehler liesse die Eingabe
- * verschwinden, statt sie zurueckzutragen; (c) die rund zehn bestehenden `einplanenAction`-Tests
- * (Aufgabe 10) senden nur `planDatum`/`planUhrzeit` und wuerden bei einer PFLICHT-Dauer alle rot.
- * Deshalb: `fmtDauer(task.dauerMinuten)` als reiner Lesetext, ohne `name`-Attribut — die Zusage aus
- * Spec §8.2 ("zeigt daneben die Wochenauslastung ... damit der Vorschlag nicht ins Leere geht") ist
- * das naechste Vorbild dafuer, dass ein Kontextwert im selben Dialog stehen darf, ohne ein
- * Formularfeld zu sein. Wer die Dauerschaetzung beim Einplanen tatsaechlich AENDERBAR haben will,
- * muss `einplanenAction` um ein viertes, mit `istGueltigeDauerMinuten` geprueftes und in `values`
- * echotes Feld erweitern — das ist eine Brief-Korrektur, keine, die diese Aufgabe still vornimmt.
+ * DAUERSCHAETZUNG IST EIN VIERTES, ECHTES EINGABEFELD (Betreiberentscheidung nach Aufgabe 12, Fix-
+ * Runde 1 — nicht mehr der reine Lesetext der ersten Fassung): das Tagesbudget im Wochenplan rechnet
+ * mit `dauerMinuten`, und wer eine Aufgabe einplant, weiss oft besser als der Auftraggeber, wie lange
+ * sie dauert — die urspruengliche Schaetzung ist eine Annahme, kein Faktum. `einplanenAction`
+ * (`actions.ts`) traegt dafuer jetzt ein viertes Feld, mit derselben Zweiteilung wie `planUhrzeit`:
+ * LEER laesst den bestehenden Wert unveraendert (die Spalte ist `NOT NULL` — „optional" heisst hier
+ * NICHT „darf leer bleiben", jede Aufgabe hat immer schon eine gueltige Dauer), ein GESENDETER Wert
+ * muss gueltig sein und wird bei einem Fehler in `values` zurueckgetragen (Lektion 3: `feldWert`
+ * ignoriert im Fehlerzustand die Vorbelegung). Vorbelegt mit `task.dauerMinuten` — ein normales
+ * Absenden traegt deshalb praktisch immer einen echten, gueltigen Wert.
  */
 export function EinplanenFormular({ task }: { task: AufgabeRow }) {
   const [state, formAction, isPending] = useActionState(einplanenAction, FORM_START);
 
   const planDatumFehler = feldFehler(state, "planDatum");
   const planUhrzeitFehler = feldFehler(state, "planUhrzeit");
+  const dauerFehler = feldFehler(state, "dauerMinuten");
 
   return (
     <form
@@ -60,8 +54,6 @@ export function EinplanenFormular({ task }: { task: AufgabeRow }) {
       style={{ display: "flex", flexDirection: "column", gap: SPACE.md, maxWidth: 480 }}
     >
       <input type="hidden" name="aufgabeId" value={task.id} />
-
-      <p style={{ margin: 0 }}>Dauerschätzung: {fmtDauer(task.dauerMinuten)}</p>
 
       <div>
         <label htmlFor="ep-planDatum" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
@@ -99,6 +91,27 @@ export function EinplanenFormular({ task }: { task: AufgabeRow }) {
         {planUhrzeitFehler ? (
           <p id="ep-planUhrzeit-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
             {planUhrzeitFehler}
+          </p>
+        ) : null}
+      </div>
+
+      <div>
+        <label htmlFor="ep-dauerMinuten" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
+          Dauerschätzung in Minuten
+        </label>
+        <Input
+          id="ep-dauerMinuten"
+          name="dauerMinuten"
+          type="number"
+          min={1}
+          defaultValue={feldWert(state, "dauerMinuten", task.dauerMinuten.toString())}
+          status={dauerFehler ? "error" : undefined}
+          aria-invalid={dauerFehler ? true : undefined}
+          aria-describedby={dauerFehler ? "ep-dauerMinuten-err" : undefined}
+        />
+        {dauerFehler ? (
+          <p id="ep-dauerMinuten-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
+            {dauerFehler}
           </p>
         ) : null}
       </div>

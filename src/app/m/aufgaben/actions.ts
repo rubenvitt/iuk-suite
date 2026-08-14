@@ -427,6 +427,21 @@ function einplanenNotiz(task: AufgabeRow, planDatum: string, planUhrzeit: string
  * "Die Reihenfolge innerhalb des Tages regeln Auf-/Ab-Knoepfe", das ist Aufgabe 12). Die Funktion
  * liest nur `task.planDatum`/`task.zugewiesenAn`, nicht `task.status` — eine `in_arbeit`-Aufgabe, die
  * auf einen anderen Tag geschoben wird, ist fuer sie derselbe Fall wie eine `verteilt`e.
+ *
+ * `dauerMinuten` IST EIN VIERTES, OPTIONALES FELD (Betreiberentscheidung nach Aufgabe 12: das
+ * Tagesbudget im Wochenplan rechnet mit `dauerMinuten`, und wer eine Aufgabe einplant, weiss oft
+ * besser als der Auftraggeber, wie lange sie dauert — die urspruengliche Schaetzung ist eine Annahme,
+ * kein Faktum). „Optional" heisst hier NICHT „darf `null` werden" (die Spalte ist `NOT NULL`,
+ * `_db/schema.ts`) — jede Aufgabe hat immer bereits eine gueltige Dauer —, sondern „ein leeres Feld
+ * LAESST DEN BESTEHENDEN WERT UNVERAENDERT". Ein GESENDETER, aber UNGUELTIGER Wert ist dagegen ein
+ * Feldfehler wie jedes andere Feld, mit `values.dauerMinuten` zurueckgetragen (Lektion 3 dieser
+ * Aufgabenreihe: `feldWert` ignoriert im Fehlerzustand die Vorbelegung — ohne den Ruecktransport
+ * kaeme ein Tippfehler leer statt mit der eingetippten Zahl zurueck). `EinplanenFormular.tsx` schickt
+ * das Feld in der Praxis IMMER vorbelegt mit `task.dauerMinuten` — die Optionalitaet traegt die
+ * Rueckwaertskompatibilitaet zu Aufgabe 20 (Ziehen setzt vielleicht nie eine Dauer) und zu den
+ * bestehenden `einplanenAction`-Tests aus Aufgabe 10, die das Feld nicht kennen und weiterhin gruen
+ * bleiben sollen — ein PFLICHTFELD haette hier Rueckwaertskompatibilitaet gegen eine schon
+ * abgenommene Testreihe gebrochen, ohne dass die Fachlichkeit das verlangt.
  */
 export async function einplanenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();
@@ -445,6 +460,7 @@ export async function einplanenAction(_prev: FormState, formData: FormData): Pro
     aufgabeId,
     planDatum: feld(formData, "planDatum"),
     planUhrzeit: feld(formData, "planUhrzeit"),
+    dauerMinuten: feld(formData, "dauerMinuten"),
   };
   const fieldErrors: Record<string, string> = {};
   const planDatum = values.planDatum.trim();
@@ -455,12 +471,29 @@ export async function einplanenAction(_prev: FormState, formData: FormData): Pro
   if (planUhrzeit !== "" && !istGueltigeUhrzeit(planUhrzeit)) {
     fieldErrors.planUhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
   }
+  // LEER = UNVERAENDERT, GESENDET = MUSS GUELTIG SEIN (Kopfkommentar oben) — dieselbe Zweiteilung wie
+  // bei `planUhrzeit`, nur mit einem anderen "leer bedeutet"-Ergebnis (dort `null`, hier "kein Patch").
+  const dauerMinutenRoh = values.dauerMinuten.trim();
+  let dauerMinuten: number | undefined;
+  if (dauerMinutenRoh !== "") {
+    const n = Number(dauerMinutenRoh);
+    if (!istGueltigeDauerMinuten(n)) {
+      fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
+    } else {
+      dauerMinuten = n;
+    }
+  }
   if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
 
   const geplanteUhrzeit = planUhrzeit === "" ? null : planUhrzeit;
   const planRang = planRangFuerEinplanen(db, task, planDatum);
 
-  aktualisiereAufgabe(db, task.id, { planDatum, planUhrzeit: geplanteUhrzeit, planRang });
+  aktualisiereAufgabe(db, task.id, {
+    planDatum,
+    planUhrzeit: geplanteUhrzeit,
+    planRang,
+    ...(dauerMinuten !== undefined ? { dauerMinuten } : {}),
+  });
   schreibeVerlauf(db, {
     aufgabeId: task.id,
     ereignis: "eingeplant",
