@@ -6,12 +6,13 @@ import {
   clickPortal,
   existsPortal,
   mount,
+  query,
   queryAll,
   queryPortal,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
-import type { FreigabeZeile } from "../_db/queries";
-import type { AufgabeRow, NachweisRow } from "../_db/schema";
+import type { FreigabeZeile, NachweisMitDatei } from "../_db/queries";
+import type { AufgabeRow, DateiRow, NachweisRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
 
 /*
@@ -76,6 +77,32 @@ function nachweis(over: Partial<NachweisRow> & Pick<NachweisRow, "id" | "aufgabe
     erstelltAm: new Date(0),
     ...over,
   };
+}
+
+function datei(over: Partial<DateiRow> & Pick<DateiRow, "id">): DateiRow {
+  return {
+    aufgabeId: "a1",
+    dateiname: "bild.jpg",
+    mime: "image/jpeg",
+    groesse: 1024,
+    scanStatus: "sauber",
+    scanGeprueftAm: new Date(0),
+    erstelltAm: new Date(0),
+    ...over,
+  };
+}
+
+/**
+ * `NachweisMitDatei` STATT DES ROHEN `NachweisRow` (Aufgabe 19) — `FreigabeZeile.nachweise` traegt
+ * seitdem das VORBERECHNETE `freigegeben` mit (`_db/queries.ts`s `mitDatei`), diese Fabrik baut die
+ * Huelle drumherum, damit bestehende Tests nur EIN Argument mehr brauchen statt ihre Fixtur komplett
+ * umzubauen.
+ */
+function mitDatei(
+  n: NachweisRow,
+  over: { datei?: DateiRow | null; freigegeben?: boolean } = {},
+): NachweisMitDatei {
+  return { nachweis: n, datei: over.datei ?? null, freigegeben: over.freigegeben ?? false };
 }
 
 function zeile(over: Partial<FreigabeZeile> & { aufgabe: AufgabeRow }): FreigabeZeile {
@@ -153,7 +180,7 @@ describe("FreigabeZone — ZWEI Zeilen je Liste (Lehre 5 dieser Aufgabenreihe)",
     const meine = [
       zeile({
         aufgabe: aufgabe({ id: "a1", titel: "Mit Nachweis" }),
-        nachweise: [nachweis({ id: "n1", aufgabeId: "a1", text: "Kurs durchgefuehrt." })],
+        nachweise: [mitDatei(nachweis({ id: "n1", aufgabeId: "a1", text: "Kurs durchgefuehrt." }))],
       }),
       zeile({ aufgabe: aufgabe({ id: "a2", titel: "Ohne Nachweis" }), nachweise: [] }),
     ];
@@ -162,6 +189,49 @@ describe("FreigabeZone — ZWEI Zeilen je Liste (Lehre 5 dieser Aufgabenreihe)",
     const karten = queryAll("li").filter((li) => li.querySelector("[data-testid^='freigeben-']"));
     expect(karten[0]!.textContent).toContain("Kurs durchgefuehrt.");
     expect(karten[1]!.textContent).toContain("Kein Nachweis hinterlegt.");
+  });
+});
+
+/**
+ * DER BILDTEIL (Aufgabe 19, Brief: „der Bildteil kommt in die vorbereitete Naht"). `NachweisBild`
+ * selbst ist ausfuehrlich in `NachweisBild.test.tsx` bewacht — hier wird nur die WIRING geprueft:
+ * `FreigabeZone` reicht `datei`/`freigegeben` unveraendert durch, es trifft keine eigene Entscheidung.
+ */
+describe("FreigabeZone — der Bildteil eines Nachweises (Aufgabe 19)", () => {
+  it("ein `sauber`es Bild wird als <img> angezeigt", async () => {
+    const meine = [
+      zeile({
+        aufgabe: aufgabe({ id: "a1", titel: "Mit Bild" }),
+        nachweise: [
+          mitDatei(nachweis({ id: "n1", aufgabeId: "a1", art: "bild", text: null, dateiId: "d1" }), {
+            datei: datei({ id: "d1", scanStatus: "sauber" }),
+            freigegeben: true,
+          }),
+        ],
+      }),
+    ];
+    await mount(<FreigabeZone meine={meine} vertretung={[]} heute="2026-08-13" />);
+    const img = query<HTMLImageElement>("[data-testid='nachweis-bild']");
+    expect(img.getAttribute("src")).toBe("/a/a1/nachweis/n1");
+  });
+
+  it("ein NICHT-sauberes Bild wird NICHT angezeigt — mit Begruendung an seiner Stelle", async () => {
+    const meine = [
+      zeile({
+        aufgabe: aufgabe({ id: "a1", titel: "Wird noch geprueft" }),
+        nachweise: [
+          mitDatei(nachweis({ id: "n1", aufgabeId: "a1", art: "bild", text: null, dateiId: "d1" }), {
+            datei: datei({ id: "d1", scanStatus: "offen" }),
+            freigegeben: false,
+          }),
+        ],
+      }),
+    ];
+    await mount(<FreigabeZone meine={meine} vertretung={[]} heute="2026-08-13" />);
+    expect(document.querySelector("img")).toBeNull();
+    expect(query("[data-testid='nachweis-bild-grund']").textContent).toContain(
+      "wird noch geprüft",
+    );
   });
 });
 

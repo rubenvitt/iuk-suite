@@ -11,6 +11,7 @@ import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import { PrioritaetChip, StatusChip } from "./Chip";
 import { Ikone } from "./ikonen";
+import { NachweisBild } from "./NachweisBild";
 import s from "./aufgaben.module.css";
 
 /*
@@ -160,7 +161,7 @@ function FreigabeKarte({ zeile, heute }: { zeile: FreigabeZeile; heute: string }
         {aufgabe.nachweisPflicht ? `Ja (${NACHWEIS_ART_TEXT[aufgabe.nachweisArt]})` : "Nein"}
       </p>
 
-      <NachweisBlock nachweise={zeile.nachweise} />
+      <NachweisBlock aufgabeId={aufgabe.id} nachweise={zeile.nachweise} />
 
       <FreigabeAktionen aufgabe={aufgabe} />
     </div>
@@ -168,10 +169,18 @@ function FreigabeKarte({ zeile, heute }: { zeile: FreigabeZeile; heute: string }
 }
 
 /**
- * `art === "bild"` (Aufgabe 19-Naht, s. Kopfkommentar): heute unerreichbar (kein Upload erzeugt
- * einen Bildnachweis), aber strukturell vorhanden, damit Aufgabe 19 nur die Auslieferung einhaengt.
+ * `art === "bild"` HAENGT SEIT AUFGABE 19 AN `NachweisBild` (`./NachweisBild.tsx`) — derselben
+ * Komponente wie `a/[id]/page.tsx`s Nachweisbereich, „keine zweite Fassung" der Bedingung „nur
+ * sauber zeigt". Diese Funktion trifft selbst KEINE Entscheidung ueber Sichtbarkeit: `freigegeben`
+ * kommt bereits fertig berechnet aus `_db/queries.ts`s `mitDatei`.
  */
-function NachweisBlock({ nachweise }: { nachweise: FreigabeZeile["nachweise"] }) {
+function NachweisBlock({
+  aufgabeId,
+  nachweise,
+}: {
+  aufgabeId: string;
+  nachweise: FreigabeZeile["nachweise"];
+}) {
   return (
     <div>
       <p style={{ margin: `0 0 ${SPACE.xs}px`, fontSize: 12, fontWeight: 600 }}>Nachweis</p>
@@ -179,7 +188,7 @@ function NachweisBlock({ nachweise }: { nachweise: FreigabeZeile["nachweise"] })
         <p style={{ margin: 0, fontSize: 12 }}>Kein Nachweis hinterlegt.</p>
       ) : (
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: SPACE.xs }}>
-          {nachweise.map((n) => (
+          {nachweise.map(({ nachweis: n, datei, freigegeben }) => (
             <li key={n.id} style={{ display: "flex", alignItems: "flex-start", gap: SPACE.xs }}>
               {n.art === "text" ? (
                 <>
@@ -187,10 +196,12 @@ function NachweisBlock({ nachweise }: { nachweise: FreigabeZeile["nachweise"] })
                   <span style={{ fontSize: 12 }}>{n.text}</span>
                 </>
               ) : (
-                <>
-                  <Ikone name="nachweis-bild" />
-                  <span style={{ fontSize: 12 }}>Bildnachweis — Anzeige folgt (Aufgabe 19).</span>
-                </>
+                <NachweisBild
+                  aufgabeId={aufgabeId}
+                  nachweisId={n.id}
+                  datei={datei}
+                  freigegeben={freigegeben}
+                />
               )}
             </li>
           ))}

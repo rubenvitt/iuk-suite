@@ -1,16 +1,20 @@
 import { and, asc, eq } from "drizzle-orm";
 import { namenMap, tagesBudget } from "../_lib/anzeige";
 import { montagDerWoche, wochenTage } from "../_lib/datum";
+import { istFreigegeben } from "../_lib/scan";
 import { darfFreigeben, istAktiv, istVertretungsfreigabe } from "../_lib/zugang";
 import type { DB } from "./client";
 import {
   aufgaben,
+  dateien,
   nachweise,
   personen,
   routinen,
   verlauf,
   type AufgabeRow,
+  type DateiRow,
   type Ereignis,
+  type NachweisArt,
   type NachweisRow,
   type PersonRow,
   type Rolle,
@@ -190,6 +194,30 @@ export function personNachId(db: DB, id: string): PersonRow | null {
   return db.select().from(personen).where(eq(personen.id, id)).get() ?? null;
 }
 
+/**
+ * LEGT EINE `dateien`-ZEILE MIT VORGEGEBENER `id` AN (Aufgabe 19) — anders als jedes andere
+ * `erstelle*` dieser Datei, das `id` dem `$defaultFn` ueberlaesst: `_lib/ablage.ts`s `legeNachweisAb`
+ * braucht die ID VOR dem Schreiben (der Blob-Pfad entsteht aus ihr), also muss der Aufrufer sie
+ * VORHER minten (`newId()`, `_db/schema.ts`) und HIER, beim INSERT, wiederverwenden — DB-Zeile und
+ * Blob teilen sich dieselbe ID, ohne dass die eine auf die andere wartet (dieselbe Entkopplung wie
+ * `files`s `BlobZiel`, `_lib/ablage.ts`s Kopfkommentar zu `legeNachweisAb`).
+ */
+export function erstelleDatei(
+  db: DB,
+  werte: { id: string; aufgabeId: string; dateiname: string; mime: string; groesse: number },
+): DateiRow {
+  return db.insert(dateien).values(werte).returning().get();
+}
+
+/** Fehlende Zeile → `null`, kein Wurf — dieselbe Form wie `personNachId`. */
+export function dateiNachId(db: DB, id: string): DateiRow | null {
+  return db.select().from(dateien).where(eq(dateien.id, id)).get() ?? null;
+}
+
+export function nachweisNachId(db: DB, id: string): NachweisRow | null {
+  return db.select().from(nachweise).where(eq(nachweise.id, id)).get() ?? null;
+}
+
 export function aufgabe(db: DB, id: string): AufgabeRow | null {
   return db.select().from(aufgaben).where(eq(aufgaben.id, id)).get() ?? null;
 }
@@ -246,8 +274,12 @@ export interface FreigabeZeile {
    * `nachweiseFuer` ungefiltert: dieselbe Begruendung wie bei `fertigMeldenAction` (`actions.ts`),
    * ein Nachweis vor einer Zurueckweisung ist genau der Beleg, den die Zurueckweisung fuer
    * ungenuegend erklaert hat. Wer freigibt, soll sehen, was FUER DIESEN Versuch eingereicht wurde.
+   *
+   * `NachweisMitDatei[]` SEIT AUFGABE 19 (vorher `NachweisRow[]`): „wer freigibt, muss sehen, was er
+   * freigibt" (`_ui/FreigabeZone.tsx`s Kopfkommentar) schliesst den Bildteil ein, und der braucht
+   * `datei`/`freigegeben`, nicht nur `dateiId`.
    */
-  nachweise: NachweisRow[];
+  nachweise: NachweisMitDatei[];
 }
 
 export interface FreigabeDaten {
@@ -276,7 +308,7 @@ export function freigabeDaten(db: DB, person: PersonRow, heute: string): Freigab
     aufgabe: a,
     erstellerName: namen[a.erstellerId] ?? "—",
     zugewiesenName: a.zugewiesenAn !== null ? (namen[a.zugewiesenAn] ?? "—") : "—",
-    nachweise: nachweiseSeitLetzterZurueckweisung(db, a.id),
+    nachweise: mitDatei(db, nachweiseSeitLetzterZurueckweisung(db, a.id)),
   });
   return {
     meine: freigabeListe.filter((a) => !istVertretungsfreigabe(person, a)).map(zeile),
@@ -478,19 +510,51 @@ export function rangGrenzen(
 }
 
 /**
- * SCHREIBT EINEN TEXTNACHWEIS (Aufgabe 10, `fertigMeldenAction`). Der Bildnachweis (`dateiId`
- * gesetzt) kommt erst mit dem Upload aus Aufgabe 17-19 — diese Funktion schreibt deshalb nur die
- * Textform; `dateiId` bleibt in dieser Aufgabe immer `null`.
+ * SCHREIBT EINEN NACHWEIS (Aufgabe 10 fuer den Textzweig, Aufgabe 19 verallgemeinert um `art` und
+ * `dateiId`). `art` ist PFLICHT und KEIN `$defaultFn` (anders als beim Einfuegen der Aufgabe selbst):
+ * ein Nachweis ohne erkennbare Art waere eine Zeile, die `fertigMeldenAction`s Pflichtpruefung nicht
+ * zuordnen koennte. `dateiId` bleibt optional (Vorgabe `null`) — der Textzweig aus Aufgabe 10 (ruft
+ * diese Funktion ohne `dateiId`) bleibt dadurch unveraendert lauffaehig.
  */
 export function erstelleNachweis(
   db: DB,
-  werte: { aufgabeId: string; text: string; erstelltVon: string },
+  werte: { aufgabeId: string; art: NachweisArt; text: string | null; dateiId?: string | null; erstelltVon: string },
 ): NachweisRow {
   return db
     .insert(nachweise)
-    .values({ aufgabeId: werte.aufgabeId, art: "text", text: werte.text, erstelltVon: werte.erstelltVon })
+    .values({
+      aufgabeId: werte.aufgabeId,
+      art: werte.art,
+      text: werte.text,
+      dateiId: werte.dateiId ?? null,
+      erstelltVon: werte.erstelltVon,
+    })
     .returning()
     .get();
+}
+
+/**
+ * EIN NACHWEIS SAMT SEINER DATEI (Aufgabe 19) — die Anzeige (`a/[id]/page.tsx`, `_ui/FreigabeZone.tsx`)
+ * braucht mehr als `dateiId`: `dateiname`, `mime` und vor allem `scanStatus`, um „nur sauber zeigt"
+ * (`_lib/scan.ts`s `istFreigegeben`) zu entscheiden. `freigegeben` wird HIER, EIN EINZIGES MAL,
+ * berechnet — nicht in jeder Anzeige noch einmal: „keine zweite Fassung einer Bedingung" (Brief).
+ * `_ui/FreigabeZone.tsx` ("use client") bekommt dadurch nur das fertige Boolean als Prop und muss
+ * `_lib/scan.ts` selbst NIE importieren — dessen Kopfkommentar sichert nur den `_db/client`-Import
+ * dynamisch ab, nicht die STATISCHEN Importe von `@/core/av/scanner`/`./ablage`, die ein Client-Bundle
+ * ebenfalls mitrisse.
+ */
+export interface NachweisMitDatei {
+  nachweis: NachweisRow;
+  datei: DateiRow | null;
+  /** `datei !== null && istFreigegeben(datei.scanStatus)` — `false` bei einem Text-Nachweis (kein `dateiId`) oder einer Datenzeile ohne Datei. */
+  freigegeben: boolean;
+}
+
+export function mitDatei(db: DB, liste: readonly NachweisRow[]): NachweisMitDatei[] {
+  return liste.map((nachweis) => {
+    const datei = nachweis.dateiId !== null ? dateiNachId(db, nachweis.dateiId) : null;
+    return { nachweis, datei, freigegeben: datei !== null && istFreigegeben(datei.scanStatus) };
+  });
 }
 
 /**

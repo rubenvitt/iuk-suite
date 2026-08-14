@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AufgabeRow, PersonRow, Rolle } from "../_db/schema";
 import { aktionsOptionen } from "./aktionsOptionen";
 import { uebergang } from "./lebenszyklus";
+import { darfNachweisHochladen } from "./zugang";
 
 const HEUTE = "2026-08-13";
 
@@ -57,6 +58,7 @@ const ALLE_AUS: Record<string, boolean> = {
   zurueckweisen: false,
   wiederaufnehmen: false,
   zurueckziehen: false,
+  nachweisHochladen: false,
 };
 
 describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht nach", () => {
@@ -78,6 +80,10 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
       zurueckweisen: uebergang(a, "zurueckweisen", bufdi, HEUTE).erlaubt,
       wiederaufnehmen: uebergang(a, "wiederaufnehmen", bufdi, HEUTE).erlaubt,
       zurueckziehen: uebergang(a, "zurueckziehen", bufdi, HEUTE).erlaubt,
+      // KEIN `uebergang()`-Aufruf hier (Aufgabe 19, Kopfkommentar von `aktionsOptionen`): Nachweis
+      // hochladen ist kein Uebergang der Tabelle. `a.status === "verteilt"` in dieser Fixtur macht
+      // das Ergebnis ohnehin `false`, unabhaengig von `darfNachweisHochladen`.
+      nachweisHochladen: a.status === "in_arbeit" && a.nachweisPflicht && darfNachweisHochladen(bufdi, a, HEUTE),
     };
     expect(aktionsOptionen(a, bufdi, HEUTE)).toEqual(erwartet);
   });
@@ -95,6 +101,31 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
       ...ALLE_AUS,
       zuruecksetzen: true,
       fertig: true,
+      // KEIN nachweisHochladen: diese Fixtur setzt `nachweisPflicht` nicht (Vorgabe `false`
+      // ueber die `aufgabe()`-Fabrik oben) — ohne Pflicht gibt es nichts, das ein Nachweis
+      // erfuellen muesste.
+    });
+  });
+
+  /**
+   * NACHWEIS HOCHLADEN (Aufgabe 19) — braucht ZUSAETZLICH ZU `in_arbeit`+zugewiesen `nachweisPflicht:
+   * true`, sonst bleibt es bei der Fixtur direkt oben aus. Isoliert von `fertig`: beide Felder teilen
+   * sich hier dieselbe Grundbedingung, `nachweisHochladen` traegt aber die Pflicht zusaetzlich.
+   */
+  it("„in_arbeit“, zugewiesene BuFDi, nachweisPflicht: nachweisHochladen ist zusaetzlich erlaubt", () => {
+    const bufdi = person("bufdi", { id: "bufdi-b2" });
+    const a = aufgabe({
+      status: "in_arbeit",
+      zugewiesenAn: bufdi.id,
+      istSelbst: false,
+      nachweisPflicht: true,
+      nachweisArt: "bild",
+    });
+    expect(aktionsOptionen(a, bufdi, HEUTE)).toEqual({
+      ...ALLE_AUS,
+      zuruecksetzen: true,
+      fertig: true,
+      nachweisHochladen: true,
     });
   });
 

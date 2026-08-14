@@ -7,6 +7,7 @@ import {
   aufgaben,
   routinen,
   nachweise,
+  dateien,
   verlauf,
   type PersonRow,
   type Rolle,
@@ -33,6 +34,10 @@ import {
   planRangFuerEinplanen,
   rangGrenzen,
   erstelleNachweis,
+  erstelleDatei,
+  dateiNachId,
+  nachweisNachId,
+  mitDatei,
   schreibeVerlauf,
   verteilDaten,
   wochenAuslastungFuerBufdis,
@@ -291,7 +296,7 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
       .run();
 
     const daten = freigabeDaten(t.db, rike, HEUTE);
-    const texte = daten.meine[0]!.nachweise.map((n) => n.text);
+    const texte = daten.meine[0]!.nachweise.map((n) => n.nachweis.text);
     expect(texte).toEqual(["Neu"]);
   });
 
@@ -580,11 +585,88 @@ describe("erstelleNachweis (Aufgabe 10, Review Fix-Runde 1, Minor #4)", () => {
     const ersteller = legePerson("en1", "auftrag");
     const bufdi = legePerson("en1-bufdi", "bufdi");
     const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
-    const n = erstelleNachweis(t.db, { aufgabeId: a.id, text: "Erledigt.", erstelltVon: bufdi.id });
+    const n = erstelleNachweis(t.db, { aufgabeId: a.id, art: "text", text: "Erledigt.", erstelltVon: bufdi.id });
     expect(n.art).toBe("text");
     expect(n.text).toBe("Erledigt.");
     expect(n.erstelltVon).toBe(bufdi.id);
     expect(n.dateiId).toBeNull();
+  });
+
+  it("schreibt einen Bildnachweis mit dateiId (Aufgabe 19)", () => {
+    const ersteller = legePerson("en2", "auftrag");
+    const bufdi = legePerson("en2-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    const datei = t.db
+      .insert(dateien)
+      .values({ aufgabeId: a.id, dateiname: "b.jpg", mime: "image/jpeg", groesse: 10 })
+      .returning()
+      .get();
+    const n = erstelleNachweis(t.db, { aufgabeId: a.id, art: "bild", text: null, dateiId: datei.id, erstelltVon: bufdi.id });
+    expect(n.art).toBe("bild");
+    expect(n.text).toBeNull();
+    expect(n.dateiId).toBe(datei.id);
+  });
+});
+
+describe("erstelleDatei / dateiNachId / nachweisNachId (Aufgabe 19)", () => {
+  it("erstelleDatei legt eine Zeile mit der gegebenen id an, dateiNachId findet sie wieder", () => {
+    const ersteller = legePerson("ed1", "auftrag");
+    const a = legeAufgabe({ erstellerId: ersteller.id });
+    const zeile = erstelleDatei(t.db, { id: "ed1datei00000000000x", aufgabeId: a.id, dateiname: "b.jpg", mime: "image/jpeg", groesse: 42 });
+    expect(zeile.id).toBe("ed1datei00000000000x");
+    expect(zeile.scanStatus).toBe("offen");
+    expect(dateiNachId(t.db, zeile.id)).toEqual(zeile);
+  });
+
+  it("dateiNachId liefert null fuer eine unbekannte id, statt zu werfen", () => {
+    expect(dateiNachId(t.db, "unbekannt")).toBeNull();
+  });
+
+  it("nachweisNachId findet eine Zeile ueber ihre id, null bei unbekannter id", () => {
+    const ersteller = legePerson("nn1", "auftrag");
+    const bufdi = legePerson("nn1-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    const n = erstelleNachweis(t.db, { aufgabeId: a.id, art: "text", text: "T", erstelltVon: bufdi.id });
+    expect(nachweisNachId(t.db, n.id)).toEqual(n);
+    expect(nachweisNachId(t.db, "unbekannt")).toBeNull();
+  });
+});
+
+/**
+ * `mitDatei` — DIE EINE STELLE, DIE `istFreigegeben` FUER DIE ANZEIGE AUFRUFT (Aufgabe 19, „keine
+ * zweite Fassung einer Bedingung"). `freigebenDaten` (Freigabe-Warteschlange) und `a/[id]/page.tsx`
+ * teilen sich diese Funktion — hier direkt getestet, ueber alle vier Scan-Zustaende UND den
+ * Text-Nachweis-Fall (kein `dateiId`).
+ */
+describe("mitDatei — freigegeben ist genau istFreigegeben(datei.scanStatus), nie zweimal berechnet", () => {
+  it("ein Text-Nachweis (dateiId: null) hat datei: null und freigegeben: false", () => {
+    const ersteller = legePerson("md1", "auftrag");
+    const bufdi = legePerson("md1-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    const n = erstelleNachweis(t.db, { aufgabeId: a.id, art: "text", text: "T", erstelltVon: bufdi.id });
+    const [ergebnis] = mitDatei(t.db, [n]);
+    expect(ergebnis).toEqual({ nachweis: n, datei: null, freigegeben: false });
+  });
+
+  it.each(["offen", "befund", "fehler"] as const)("scanStatus '%s': freigegeben ist false", (status) => {
+    const ersteller = legePerson(`md-${status}`, "auftrag");
+    const bufdi = legePerson(`md-${status}-bufdi`, "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    const datei = t.db.insert(dateien).values({ aufgabeId: a.id, dateiname: "b.jpg", mime: "image/jpeg", groesse: 1, scanStatus: status }).returning().get();
+    const n = erstelleNachweis(t.db, { aufgabeId: a.id, art: "bild", text: null, dateiId: datei.id, erstelltVon: bufdi.id });
+    const [ergebnis] = mitDatei(t.db, [n]);
+    expect(ergebnis!.freigegeben).toBe(false);
+    expect(ergebnis!.datei).toEqual(datei);
+  });
+
+  it("scanStatus 'sauber': freigegeben ist true", () => {
+    const ersteller = legePerson("md-sauber", "auftrag");
+    const bufdi = legePerson("md-sauber-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    const datei = t.db.insert(dateien).values({ aufgabeId: a.id, dateiname: "b.jpg", mime: "image/jpeg", groesse: 1, scanStatus: "sauber" }).returning().get();
+    const n = erstelleNachweis(t.db, { aufgabeId: a.id, art: "bild", text: null, dateiId: datei.id, erstelltVon: bufdi.id });
+    const [ergebnis] = mitDatei(t.db, [n]);
+    expect(ergebnis!.freigegeben).toBe(true);
   });
 });
 

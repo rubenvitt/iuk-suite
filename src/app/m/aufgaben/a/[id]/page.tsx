@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { getDb, type DB } from "../../_db/client";
-import { allePersonen, aufgabe, nachweiseFuer, verlaufFuer } from "../../_db/queries";
+import { allePersonen, aufgabe, mitDatei, nachweiseFuer, verlaufFuer } from "../../_db/queries";
 import type { AufgabeRow, PersonRow } from "../../_db/schema";
+import { NACHWEIS_MAX_BYTES } from "../../_lib/ablage";
 import { aktionsOptionen } from "../../_lib/aktionsOptionen";
 import { EREIGNIS_TEXT, NACHWEIS_ART_TEXT, namenMap } from "../../_lib/anzeige";
 import { fmtTagKurz, fmtZeitpunkt, isoTag } from "../../_lib/datum";
@@ -9,6 +10,7 @@ import { darfAufgabeSehen, darfNachweisSehen, personFuerSeite, subFuerSitzung } 
 import { AktionsZone } from "../../_ui/AktionsZone";
 import { PrioritaetChip, StatusChip } from "../../_ui/Chip";
 import { Ikone } from "../../_ui/ikonen";
+import { NachweisBild } from "../../_ui/NachweisBild";
 import { NichtEingetragenSeite } from "../../_ui/NichtEingetragenSeite";
 import { SeitenKopf } from "../../_ui/SeitenKopf";
 import { SCHRIFT } from "@/core/theme/schrift";
@@ -48,7 +50,7 @@ export function aufgabeInhalt(db: DB, person: PersonRow, task: AufgabeRow, heute
   const pruefName = task.prueferId !== null ? (namen[task.prueferId] ?? "—") : "—";
 
   const nachweisSichtbar = darfNachweisSehen(person, task);
-  const nachweisListe = nachweisSichtbar ? nachweiseFuer(db, task.id) : [];
+  const nachweisListe = nachweisSichtbar ? mitDatei(db, nachweiseFuer(db, task.id)) : [];
   const verlaufListe = verlaufFuer(db, task.id);
   const optionen = aktionsOptionen(task, person, heute);
 
@@ -95,7 +97,7 @@ export function aufgabeInhalt(db: DB, person: PersonRow, task: AufgabeRow, heute
             <p style={SCHRIFT.text}>Noch kein Nachweis hinterlegt.</p>
           ) : (
             <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: SPACE.xs }}>
-              {nachweisListe.map((n) => (
+              {nachweisListe.map(({ nachweis: n, datei, freigegeben }) => (
                 <li key={n.id} style={{ display: "flex", alignItems: "flex-start", gap: SPACE.xs }}>
                   {n.art === "text" ? (
                     <>
@@ -103,11 +105,12 @@ export function aufgabeInhalt(db: DB, person: PersonRow, task: AufgabeRow, heute
                       <span style={SCHRIFT.text}>{n.text}</span>
                     </>
                   ) : (
-                    <>
-                      <Ikone name="nachweis-bild" />
-                      {/* Auslieferung folgt erst mit Aufgabe 19 (core/av/scanner.ts, Ablage-Warteschlange). */}
-                      <span style={SCHRIFT.text}>Bildnachweis — Anzeige folgt (Aufgabe 19).</span>
-                    </>
+                    <NachweisBild
+                      aufgabeId={task.id}
+                      nachweisId={n.id}
+                      datei={datei}
+                      freigegeben={freigegeben}
+                    />
                   )}
                 </li>
               ))}
@@ -122,7 +125,7 @@ export function aufgabeInhalt(db: DB, person: PersonRow, task: AufgabeRow, heute
 
       <section id="aktion" style={{ marginBlockEnd: SPACE.xl }}>
         <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Aktion</h2>
-        <AktionsZone aufgabe={task} optionen={optionen} />
+        <AktionsZone aufgabe={task} optionen={optionen} nachweisMaxBytes={NACHWEIS_MAX_BYTES} />
       </section>
 
       <section id="verlauf">

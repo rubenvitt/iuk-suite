@@ -1,5 +1,6 @@
 import type { AufgabeRow, PersonRow } from "../_db/schema";
 import { uebergang, type Aktion } from "./lebenszyklus";
+import { darfNachweisHochladen } from "./zugang";
 
 /*
  * WELCHE AKTIONEN DIESE PERSON MIT DIESER AUFGABE JETZT AUSFUEHREN DARF (Aufgabe 16, Brief) — fuer
@@ -29,6 +30,14 @@ export interface AktionsOptionen {
   zurueckweisen: boolean;
   wiederaufnehmen: boolean;
   zurueckziehen: boolean;
+  /**
+   * NACHWEIS HOCHLADEN (Aufgabe 19) — KEIN Uebergang der Tabelle, deshalb NICHT ueber `uebergang()`
+   * ermittelt wie die sieben Felder oben, sondern direkt unten. Erlaubt bei genau der Bedingung, die
+   * `_lib/lebenszyklus.ts`s `in_arbeit`×`fertig`-Zeile fuer "wer" traegt (`darfNachweisHochladen`,
+   * dieselbe Formel wie das dortige private `istZugewiesenerBuFDi`), PLUS `nachweisPflicht` — ohne
+   * Pflicht gibt es nichts, das ein Nachweis erfuellen muesste.
+   */
+  nachweisHochladen: boolean;
 }
 
 const GEPRUEFTE_AKTIONEN: readonly (keyof AktionsOptionen)[] = [
@@ -46,5 +55,10 @@ export function aktionsOptionen(a: AufgabeRow, p: PersonRow, heute: string): Akt
   for (const aktion of GEPRUEFTE_AKTIONEN) {
     ergebnis[aktion] = uebergang(a, aktion as Aktion, p, heute).erlaubt;
   }
+  // `a.status === "in_arbeit"` steht HIER und nicht in `darfNachweisHochladen` (`_lib/zugang.ts`) —
+  // dieselbe Zustandsvoraussetzung wie die `in_arbeit`×`fertig`-Zeile in `_lib/lebenszyklus.ts`s
+  // `TABELLE`, aber der Upload selbst ist kein Uebergang jener Tabelle und hat dort keine eigene
+  // Zeile. `zugang.ts` bleibt damit bei reinen Personen-/Rollenfragen (Kopfkommentar dort).
+  ergebnis.nachweisHochladen = a.status === "in_arbeit" && a.nachweisPflicht && darfNachweisHochladen(p, a, heute);
   return ergebnis;
 }

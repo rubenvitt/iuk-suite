@@ -319,6 +319,32 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
     ],
   });
 
+  // VERTEILT, UNVERPLANT, MIT BILD-NACHWEISPFLICHT (Aufgabe 19) — die eine Demo-Aufgabe, an der
+  // sich der Upload UND die Auslieferung end-to-end vorfuehren lassen (e2e/aufgaben.spec.ts).
+  // BEWUSST NICHT SCHON `in_arbeit`: `wartetAufEinplanung` (`_lib/anzeige.ts`, `status ===
+  // "verteilt" && planDatum === null`) ist die einzige Bedingung, unter der ein Aufgabentitel in
+  // Alinas Posteingang als ECHTER LINK erscheint (`_ui/AufgabenListe.tsx`) — die Wochenplan-Spalten
+  // rendern Titel nur als Text, ohne Verweis (`_ui/Wochenplan.tsx`). Der e2e-Test klickt sich also
+  // ueber den Posteingang zur Detailseite und startet die Aufgabe dort selbst (Knopf „Bearbeitung
+  // starten"), bevor er den Nachweis hochlaedt.
+  legeAufgabeAn(db, zeilen, {
+    titel: "Fahrzeugerstausstattung fotografisch dokumentieren",
+    beschreibung: "Vollständigkeit der Erstausstattung im Rettungswagen 3 per Foto belegen.",
+    prioritaet: "mittel",
+    erstellerId: ids.malte,
+    zugewiesenAn: ids.alina,
+    prueferId: ids.malte,
+    status: "verteilt",
+    faelligAm: tagePlus(heute, 5),
+    dauerMinuten: 20,
+    nachweisPflicht: true,
+    nachweisArt: "bild",
+    verlauf: [
+      { ereignis: "eingestellt", akteurId: ids.malte },
+      { ereignis: "verteilt", akteurId: ids.malte },
+    ],
+  });
+
   // nachweisPflicht: true, mit passendem Nachweis — freigabe_offen zeigt "Nachweis liegt vor".
   legeAufgabeAn(db, zeilen, {
     titel: "Erste-Hilfe-Kurs Nachbereitung",

@@ -1,14 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getDb } from "./_db/client";
+import { getDb, type DB } from "./_db/client";
 import {
   aufgabe,
   aktualisiereAufgabe,
   aktualisierePerson,
   aktualisiereRoutine,
   bufdis,
+  dateiNachId,
   erstelleAufgabe,
+  erstelleDatei,
   erstellePerson,
   erstelleNachweis,
   erstelleRoutine,
@@ -21,8 +23,9 @@ import {
   routineNachId,
   schreibeVerlauf,
 } from "./_db/queries";
-import type { AufgabeRow, Ereignis } from "./_db/schema";
+import { newId, type AufgabeRow, type Ereignis, type NachweisRow } from "./_db/schema";
 import { WOCHENTAG_BIT } from "./_lib/anzeige";
+import { legeNachweisAb, NACHWEIS_MAX_BYTES } from "./_lib/ablage";
 import {
   istGueltigeDauerMinuten,
   istGueltigeNachweisArt,
@@ -33,7 +36,9 @@ import {
 } from "./_lib/eingabe";
 import { FORM_START, type FormState } from "./_lib/formState";
 import { anfangsZustand, uebergang, type Aktion } from "./_lib/lebenszyklus";
+import { istFreigegeben, starteAufgabenScanArbeiter } from "./_lib/scan";
 import {
+  darfNachweisHochladen,
   darfPersonenVerwalten,
   darfPlanAendern,
   istVertretungsfreigabe,
@@ -583,14 +588,41 @@ export async function einplanenAnnehmenAction(formData: FormData): Promise<void>
  * "erfuellt" — die Nachweispflicht waere dann eine Huerde, die man genau einmal nimmt. Gilt fuer
  * beide Zweige gleichermassen, weil beide aus derselben `vorhandene`-Liste lesen.
  *
- * DER BILDNACHWEIS SELBST KOMMT ERST MIT AUFGABE 17-19 (Brief). Die Pruefung hier fragt deshalb nur,
- * OB EIN `nachweise`-DATENSATZ MIT `art === "bild"` EXISTIERT — sie kann (noch) nicht gegen
- * `dateien.scanStatus` joinen, weil `nachweise.dateiId` heute von niemandem gesetzt wird. AUFGABE 19
- * SCHAERFT GENAU DAS: sie ergaenzt den Join gegen `dateien.scanStatus === "sauber"`, sodass ein noch
- * nicht sauber gescanntes Bild NICHT ausreicht. Diese Zeile absichtlich NICHT auf "Text vorhanden"
- * verkuerzt zu lassen (Brief), auch wenn Bilder heute noch nicht hochladbar sind — sonst waere die
- * Pruefung spaeter still zu schwach.
+ * DER BILDNACHWEIS KOMMT MIT AUFGABE 19: die Pruefung joint jetzt gegen `dateien.scanStatus`
+ * (`istFreigegeben`, `_lib/scan.ts` — DIESELBE Funktion wie die Auslieferung in `a/[id]/nachweis/
+ * [nachweisId]/route.ts`, keine zweite Fassung von "nur sauber liefert aus"). Nicht „irgendein Bild
+ * vorhanden", sondern „ein Bild, dessen zugehoerige Datei GENAU `sauber` ist" — `offen` (der Zustand
+ * direkt nach jedem Upload) und `befund`/`fehler` erfuellen die Pflicht ausdruecklich NICHT.
+ *
+ * DIE FOLGE, DIE DIE OBERFLAECHE ERKLAEREN MUSS (Brief): direkt nach dem Upload ist der Status
+ * `offen`. Ein Klick auf „Fertig melden" in genau diesem Moment wird abgelehnt — und die Meldung sagt
+ * „wird noch geprueft", nicht „fehlt": eine Person, die GERADE ein Bild hochgeladen hat, wird sonst
+ * beschuldigt, gar nichts eingereicht zu haben. `bildMeldung` unten unterscheidet drei Faelle: KEIN
+ * Bild vorhanden (die urspruengliche Meldung), das NEUESTE Bild ist noch `offen` (Auskunft, keine
+ * Luege), oder es ist `befund`/`fehler` (abgelehnt — ein neues Bild ist noetig).
  */
+function neuesterBildNachweis(vorhandene: readonly NachweisRow[]): NachweisRow | undefined {
+  const bilder = vorhandene.filter((n) => n.art === "bild" && n.dateiId !== null);
+  // `erstelltAm` traegt Sekundenaufloesung (Schema-Kommentar) — bei einem Gleichstand entscheidet
+  // die zuletzt eingefuegte Zeile (Array-Reihenfolge von `nachweiseFuer`), keine erfundene zweite
+  // Sortierregel.
+  return bilder.reduce<NachweisRow | undefined>(
+    (neuester, n) => (neuester === undefined || n.erstelltAm >= neuester.erstelltAm ? n : neuester),
+    undefined,
+  );
+}
+
+function bildMeldung(db: DB, vorhandene: readonly NachweisRow[]): string | null {
+  const neuester = neuesterBildNachweis(vorhandene);
+  if (neuester === undefined) return "Für diese Aufgabe ist ein Bildnachweis erforderlich.";
+  const datei = neuester.dateiId !== null ? dateiNachId(db, neuester.dateiId) : null;
+  if (datei !== null && istFreigegeben(datei.scanStatus)) return null;
+  if (datei !== null && datei.scanStatus === "offen") {
+    return "Der Nachweis wird noch geprüft — bitte gleich erneut versuchen.";
+  }
+  return "Der hochgeladene Nachweis wurde nicht freigegeben. Bitte ein neues Bild hochladen.";
+}
+
 export async function fertigMeldenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();
   const person = await personFuerSession(db);
@@ -610,14 +642,15 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
   if (task.nachweisPflicht) {
     const vorhandene = nachweiseSeitLetzterZurueckweisung(db, task.id);
     if (task.nachweisArt === "bild") {
-      const hatBild = vorhandene.some((n) => n.art === "bild");
-      if (!hatBild) {
+      const meldung = bildMeldung(db, vorhandene);
+      if (meldung !== null) {
         return {
           ok: false,
           // Eigener Schluessel "nachweis" statt "nachweisText": diese Ablehnung handelt vom
-          // FEHLENDEN BILD, nicht vom Inhalt des Textfelds — ein Formular mit ausgefuelltem Text
-          // UND fehlendem Bild soll nicht so aussehen, als sei der Text das Problem.
-          fieldErrors: { nachweis: "Fuer diese Aufgabe ist ein Bildnachweis erforderlich." },
+          // FEHLENDEN/NOCH NICHT FREIGEGEBENEN BILD, nicht vom Inhalt des Textfelds — ein Formular
+          // mit ausgefuelltem Text UND fehlendem Bild soll nicht so aussehen, als sei der Text das
+          // Problem.
+          fieldErrors: { nachweis: meldung },
           values,
         };
       }
@@ -635,7 +668,7 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
   }
 
   if (nachweisText !== "") {
-    erstelleNachweis(db, { aufgabeId: task.id, text: nachweisText, erstelltVon: person.id });
+    erstelleNachweis(db, { aufgabeId: task.id, art: "text", text: nachweisText, erstelltVon: person.id });
   }
 
   aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
@@ -644,6 +677,105 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
     ereignis: ergebnis.nach === "abgeschlossen" ? "abgeschlossen" : "fertig_gemeldet",
     akteurId: person.id,
   });
+  revalidate();
+  return { ok: true };
+}
+
+/**
+ * NACHWEIS HOCHLADEN — TEXT UND/ODER BILD (Aufgabe 19, Spec §5.3, `_ui/NachweisFormular.tsx`). KEIN
+ * UEBERGANG DER TABELLE: der Status der Aufgabe aendert sich hier nicht, deshalb kein `uebergang()`-
+ * Aufruf — die Berechtigung kommt direkt aus `darfNachweisHochladen` (`_lib/zugang.ts`) PLUS dem
+ * Zustandscheck `status === "in_arbeit"` daneben (derselbe Aufbau wie `_lib/aktionsOptionen.ts`,
+ * Kopfkommentar dort begruendet, warum der Zustand nicht IN das Praedikat wandert).
+ *
+ * `art: task.nachweisArt` — DER NACHWEIS TRAEGT IMMER DIE ART, DIE DIESE AUFGABE VERLANGT, nicht eine
+ * von der Person gewaehlte: diese Action dient AUSSCHLIESSLICH dazu, die Pflicht DIESER Aufgabe zu
+ * erfuellen (Spec §5.3s Untergrenzen-Regel), und `fertigMeldenAction` filtert ohnehin nur auf
+ * `n.art === task.nachweisArt`. Ein zweites Feld "welche Art meinst du" waere eine Frage, die die
+ * Aufgabe selbst schon beantwortet.
+ *
+ * `dateiId` ENTSTEHT VOR DEM NACHWEIS-INSERT, NICHT DANACH: `legeNachweisAb` (`_lib/ablage.ts`)
+ * braucht die `id` VOR dem Schreiben (der Blob-Pfad entsteht aus ihr) — `newId()` mintet sie, der
+ * Ablage-Aufruf schreibt den Blob, `erstelleDatei` schreibt die `dateien`-Zeile mit GENAU dieser ID,
+ * und erst danach bekommt der `nachweise`-Insert sie als `dateiId` mit. Eine abgelehnte Datei
+ * (falsches Format, zu gross) hinterlaesst dabei WEDER einen Blob NOCH eine `dateien`-Zeile NOCH
+ * einen `nachweise`-Eintrag — `legeNachweisAb`s eigenes Fail-Closed (Kopfkommentar dort) plus der
+ * fruehe `return` hier, bevor irgendein Insert passiert.
+ *
+ * KEIN `await` AUF DAS SCANERGEBNIS (Brief, Vertragspunkt aus Aufgabe 18): `bearbeiteOffeneDateien`
+ * hat einen laufenden Durchlauf, und ein Aufrufer, der auf ihn wartet, koennte die Befunde eines
+ * FREMDEN Laufs bekommen (`_lib/scan.ts`s Kopfkommentar zu `bearbeiteOffeneDateien`). Der Upload legt
+ * ab, traegt `scan_status: "offen"` ein (Spaltenvorgabe) und stoesst `starteAufgabenScanArbeiter`
+ * NUR AN (`void`, synchron, wirft nie) — die Oberflaeche sagt „wird geprueft", und die naechste
+ * Anzeige (naechster Seitenaufruf) zeigt das Ergebnis.
+ *
+ * KEINE VERLAUFSZEILE: ein Nachweis-Upload ist selbst kein Uebergang der Tabelle (dieselbe
+ * Begruendung wie bei `rangVerschiebenAction` — „eine Zeile je Klick waere Laerm") — die
+ * dokumentationswuerdige Tatsache ist die FERTIGMELDUNG, die `fertigMeldenAction` bereits protokolliert.
+ */
+export async function nachweisHochladenAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const db = getDb();
+  const person = await personFuerSession(db);
+  const heute = isoTag(new Date());
+
+  const aufgabeId = feld(formData, "aufgabeId");
+  const task = aufgabe(db, aufgabeId);
+  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+  // ZUSTAND NEBEN DEM PRAEDIKAT, NICHT DARIN (s. Kopfkommentar): dieselbe Voraussetzung wie die
+  // `in_arbeit`×`fertig`-Zeile in `_lib/lebenszyklus.ts`s `TABELLE`.
+  if (task.status !== "in_arbeit" || !darfNachweisHochladen(person, task, heute)) {
+    throw new Error("Keine Berechtigung, fuer diese Aufgabe einen Nachweis anzulegen.");
+  }
+
+  const values = { aufgabeId, text: feld(formData, "text") };
+  const text = values.text.trim();
+  const dateiFeld = formData.get("datei");
+  const hatDatei = dateiFeld instanceof File && dateiFeld.size > 0;
+
+  // DIE UNTERGRENZEN-REGEL (Spec §5.3): "bild" verlangt eine Datei und erlaubt zusaetzlich Text,
+  // "text" umgekehrt. Beide Zweige lehnen HIER schon ab, bevor irgendetwas geschrieben wird — derselbe
+  // Grund wie bei `fertigMeldenAction`s Pflichtpruefung: ein unvollstaendiges Formular ist ein
+  // Feldfehler, kein Wurf.
+  const fieldErrors: Record<string, string> = {};
+  if (task.nachweisArt === "bild" && !hatDatei) {
+    fieldErrors.datei = "Für diese Aufgabe ist ein Bild erforderlich.";
+  }
+  if (task.nachweisArt === "text" && text === "") {
+    fieldErrors.text = "Für diese Aufgabe ist ein Text erforderlich.";
+  }
+  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+
+  let dateiId: string | null = null;
+  if (hatDatei) {
+    const datei = dateiFeld as File;
+    const bytes = new Uint8Array(await datei.arrayBuffer());
+    const id = newId();
+    const befund = await legeNachweisAb(id, datei.name, bytes, NACHWEIS_MAX_BYTES);
+    if (!befund.ok) {
+      return { ok: false, fieldErrors: { datei: befund.meldung }, values };
+    }
+    erstelleDatei(db, {
+      id,
+      aufgabeId: task.id,
+      dateiname: datei.name,
+      mime: befund.mime,
+      groesse: befund.groesse,
+    });
+    dateiId = id;
+  }
+
+  erstelleNachweis(db, {
+    aufgabeId: task.id,
+    art: task.nachweisArt,
+    text: text === "" ? null : text,
+    dateiId,
+    erstelltVon: person.id,
+  });
+
+  // FIRE-AND-FORGET, NICHT AWAITEN (s. Kopfkommentar) — synchron und wirft nie
+  // (`starteAufgabenScanArbeiter`s eigener Vertrag, `_lib/scan.ts`).
+  if (dateiId !== null) starteAufgabenScanArbeiter(db);
+
   revalidate();
   return { ok: true };
 }

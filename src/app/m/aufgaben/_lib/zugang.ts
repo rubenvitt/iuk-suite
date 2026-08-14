@@ -240,6 +240,22 @@ export function darfNachweisSehen(p: PersonRow, a: AufgabeRow): boolean {
 }
 
 /**
+ * WER EINEN NACHWEIS ANLEGEN DARF (Aufgabe 19) — PERSONEN-BEDINGUNG, dieselbe Formel wie
+ * `istZugewiesenerBuFDi` in `_lib/lebenszyklus.ts` (dort privat, exklusiv fuer die Uebergangstabelle
+ * gebaut). BEWUSST OHNE den Zustand `a.status === "in_arbeit"` in DIESER Funktion: der
+ * Kopfkommentar dieser Datei zieht die Grenze klar — HANDLUNGSPRAEDIKATE beantworten
+ * Personen-/Rollenfragen, ZUSTANDSBEDINGUNGEN gehoeren in `_lib/lebenszyklus.ts`s `TABELLE`
+ * (Entscheidung 3 dort). Der Nachweis-Upload ist selbst KEIN Uebergang der Tabelle (er aendert
+ * keinen `status`), traegt aber dieselbe Zustandsvoraussetzung wie die `in_arbeit`×`fertig`-Zeile —
+ * `_lib/aktionsOptionen.ts` prueft `a.status === "in_arbeit"` deshalb DANEBEN, nicht hier: eine
+ * zweite Fassung von "in_arbeit" waere sonst an zwei Stellen zu pflegen, eine davon in einer Datei,
+ * die laut eigenem Vertrag keine Zustaende kennt.
+ */
+export function darfNachweisHochladen(p: PersonRow, a: AufgabeRow, heute: string): boolean {
+  return p.id === a.zugewiesenAn && istAktiv(p, heute);
+}
+
+/**
  * SICHTPRAEDIKAT FUER `/a/<id>` UND `/archiv` (Aufgabe 16) — Spec §7 nennt dafuer keinen eigenen
  * Namen; diese Funktion ist die Uebersetzung von "wer die Aufgabe nicht sehen darf, bekommt
  * `notFound()`" in ein Praedikat, wie jedes andere hier.

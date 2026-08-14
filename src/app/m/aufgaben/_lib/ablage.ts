@@ -184,6 +184,38 @@ function bildTypAus(praefix: Uint8Array): ErlaubterBildTyp | null {
 }
 
 /**
+ * DIE LAUFZEIT-FASSUNG DER ALLOWLIST (Aufgabe 19) — ABGELEITET aus `SIGNATUREN`, nicht von Hand
+ * abgeschrieben: `ErlaubterBildTyp` ist ein TYP und loescht sich zur Laufzeit auf, `dateien.mime`
+ * ist dagegen eine gewoehnliche `text`-Spalte. Die Auslieferung (`a/[id]/nachweis/[nachweisId]/
+ * route.ts`) braucht eine Liste, die sie GEGEN eine aus der Datenbank gelesene Zeichenkette pruefen
+ * kann — ein von Hand kopiertes Array waere die zweite Fassung derselben Menge und liefe auseinander,
+ * sobald `SIGNATUREN` einen Typ verliert oder gewinnt.
+ */
+export const ERLAUBTE_BILD_TYPEN: readonly ErlaubterBildTyp[] = Array.from(
+  new Set(SIGNATUREN.map((s) => s.typ)),
+);
+
+export function istErlaubterBildTyp(mime: string): mime is ErlaubterBildTyp {
+  return (ERLAUBTE_BILD_TYPEN as readonly string[]).includes(mime);
+}
+
+/**
+ * Dateiendung je erlaubtem Typ — AUSSCHLIESSLICH fuer den `Content-Disposition`-Dateinamen der
+ * Auslieferung. Bewusst NICHT aus `dateiname` (der gespeicherte Upload-Name) abgeleitet: dieselbe
+ * Vorsicht wie bei `pfadFuer` oben, nur fuer einen HTTP-Kopf statt einen Dateisystempfad — ein
+ * Name mit Anfuehrungszeichen oder einem Zeilenumbruch waere dort eine Kopfzeilen-Injektion, kein
+ * Traversal, aber derselbe Fehlerklasse ("Nutzereingabe ungeprueft in eine strukturierte Stelle").
+ */
+export const ENDUNG_FUER: Record<ErlaubterBildTyp, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
+
+/**
  * 8 MiB — eine Betreiberzahl mit einer erfundenen Vorbelegung, aber an EINER
  * Stelle. `dateien.groesse` (Spec §6) speichert die GEMESSENE Groesse, diese
  * Konstante ist die Obergrenze dagegen.

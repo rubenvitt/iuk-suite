@@ -1,8 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { devLogin } from "./fixtures";
+import { setzeAvModus } from "./helpers/avModus";
 
 const HOST = "aufgaben.localtest.me";
 const GRUPPE = "iuk-aufgaben-nutzer";
+
+/** Minimale, aber echte PNG-Signatur (8 Bytes) plus etwas Nutzlast — `_lib/ablage.ts` prueft nur die Magic Bytes. */
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 
 /**
  * WARUM DIESER ABRUF DER WICHTIGSTE TEST DES MODULS IST: die vier Suite-Fallen,
@@ -572,6 +576,163 @@ test("Archiv: der Prioritätsfilter (Client-Insel) filtert serverseitig, ohne Ko
   await expect(page.getByText("Eigene Fortbildung: Reanimation auffrischen")).toBeVisible();
 
   expect(konsolenFehler).toEqual([]);
+});
+
+/*
+ * AUFGABE 19 — NACHWEIS HOCHLADEN UND AUSLIEFERN. DER SICHERHEITSKRITISCHSTE PFAD DES MODULS, UND
+ * EINE NEUE ROUTE (`/a/<id>/nachweis/<nachweisId>`) — genau die Bauform, bei der ein fehlender
+ * Riegel im Vitest-Test unsichtbar bliebe (kein Layout, keine Middleware ueber einem Route
+ * Handler). `AUFGABEN_AV_HOST/PORT` zeigen in `playwright.config.ts` auf DENSELBEN Fake-clamd wie
+ * `files` — `setzeAvModus` macht den Scan-Ausgang deterministisch, ohne echtes clamd.
+ *
+ * `expect.poll(...).toPass()`-AEHNLICHES MUSTER STATT FESTER WARTEZEIT: der Scan laeuft
+ * fire-and-forget NACH dem Upload (Brief-Vertrag aus Aufgabe 18 — die Action wartet nicht darauf),
+ * die Seite zeigt das Ergebnis erst beim NAECHSTEN Aufruf. `wartenAufNachweisStatus` laedt die
+ * Seite deshalb wiederholt neu, bis der erwartete Zustand erscheint, statt eine Zeit zu raten.
+ *
+ * „Fahrzeugerstausstattung fotografisch dokumentieren" (`_lib/seedLokal.ts`) ist die eigens dafuer
+ * angelegte Demo-Aufgabe: `verteilt`, unverplant, `nachweisPflicht: true`, `nachweisArt: "bild"`,
+ * zugewiesen an Alina, OHNE vorhandenen Nachweis — die Tests unten durchlaufen den Upload selbst.
+ *
+ * `verteilt`+unverplant IST KEIN ZUFALL (Kopfkommentar `seedLokal.ts`): nur in diesem Zustand
+ * erscheint der Titel als ECHTER LINK (Alinas Posteingang, `wartetAufEinplanung`) — die
+ * Wochenplan-Spalten verlinken nicht (`_ui/Wochenplan.tsx` rendert Titel nur als Text).
+ * `oeffneNachweisAufgabe` klickt sich ueber den Posteingang zur Detailseite und startet die
+ * Aufgabe dort selbst (`in_arbeit`), bevor Upload/Fertig-melden ueberhaupt angeboten werden.
+ */
+const NACHWEIS_AUFGABE = "Fahrzeugerstausstattung fotografisch dokumentieren";
+
+// GEMERKTER PFAD, EINMAL GEFUNDEN (Modulebene, ueberlebt einzelne Tests — `workers: 1` haelt
+// denselben Node-Prozess fuer die ganze Datei): sobald die Aufgabe gestartet ist (`in_arbeit`),
+// verschwindet ihr Titel aus Alinas Posteingang (`wartetAufEinplanung` verlangt `status ===
+// "verteilt"`) — der ZWEITE Test dieser Suite faende sonst gar keinen Link mehr. Der erste Aufruf
+// entdeckt den Pfad ueber den echten Link (beweist, dass er existiert), jeder weitere navigiert
+// direkt dorthin.
+let nachweisHref: string | null = null;
+/** Der `src` des zuletzt erfolgreich ausgelieferten, `sauber`en Bildes — fuer die IDOR-Gegenprobe im naechsten Test. */
+let sauberesNachweisSrc: string | null = null;
+
+async function oeffneNachweisAufgabe(page: import("@playwright/test").Page): Promise<void> {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "alina@localtest.me",
+    callbackPath: "/",
+  });
+
+  if (nachweisHref === null) {
+    const link = page.getByRole("link", { name: NACHWEIS_AUFGABE });
+    const href = await link.getAttribute("href");
+    expect(href, "kein Verweis auf die Nachweis-Demoaufgabe gefunden").toBeTruthy();
+    nachweisHref = href;
+  }
+  await page.goto(`http://${HOST}:3100${nachweisHref}`);
+
+  // NUR BEIM ERSTEN AUFRUF SICHTBAR: eine bereits gestartete Aufgabe zeigt „Bearbeitung starten"
+  // nicht mehr (`aktionsOptionen.starten` wird dann false) — der zweite Test dieser Datei trifft
+  // die Aufgabe schon `in_arbeit` an, der Knopf fehlt dann folgerichtig.
+  const startenKnopf = page.getByRole("button", { name: "Bearbeitung starten" });
+  if (await startenKnopf.isVisible().catch(() => false)) {
+    await startenKnopf.click();
+    await expect(page.getByRole("button", { name: "Nachweis speichern" })).toBeVisible();
+  }
+}
+
+/**
+ * LAEDT DIE SEITE WIEDERHOLT NEU, BIS DIE BEDINGUNG ZUTRIFFT (oder das Zeitbudget aufgebraucht
+ * ist) — der Scan ist asynchron, die Seite zeigt sein Ergebnis erst nach einem neuen Aufruf.
+ */
+async function wartenAufNachweisStatus(
+  page: import("@playwright/test").Page,
+  bedingung: () => Promise<boolean>,
+  versucheMax = 20,
+): Promise<void> {
+  for (let i = 0; i < versucheMax; i++) {
+    if (await bedingung()) return;
+    await page.waitForTimeout(250);
+    await page.reload();
+  }
+  throw new Error(`Der erwartete Nachweis-Zustand ist nach ${versucheMax} Versuchen nicht eingetreten.`);
+}
+
+test("Nachweis hochladen — ein Fund (Fake-clamd „found“) wird NICHT ausgeliefert, Fertig melden bleibt verweigert", async ({
+  page,
+}) => {
+  setzeAvModus("found");
+  await oeffneNachweisAufgabe(page);
+
+  await page.locator("#nf-datei").setInputFiles({ name: "beweisfoto.png", mimeType: "image/png", buffer: PNG });
+  await page.getByRole("button", { name: "Nachweis speichern" }).click();
+  await expect(page.getByRole("button", { name: "Nachweis speichern" })).toBeVisible();
+
+  await wartenAufNachweisStatus(page, async () => {
+    const grund = page.getByTestId("nachweis-bild-grund");
+    if ((await grund.count()) === 0) return false;
+    const text = (await grund.textContent()) ?? "";
+    return !text.includes("wird noch geprüft");
+  });
+
+  // KEIN BILD — der Fund wird nicht ausgeliefert, weder inline noch als direkter Abruf.
+  await expect(page.getByTestId("nachweis-bild")).toHaveCount(0);
+
+  // FERTIG MELDEN BLEIBT VERWEIGERT — die genaue Wortwahl ("wird noch geprueft" vs. "nicht
+  // freigegeben") ist Vitest-Sache (`actions.test.ts`); hier zaehlt nur die Invariante, die fuer
+  // JEDEN Nicht-„sauber"-Zustand gilt: kein Fortschritt, die Aufgabe bleibt „In Bearbeitung".
+  await page.getByRole("button", { name: "Fertig melden" }).click();
+  await expect(page.getByText(/Für diese Aufgabe ist ein Bildnachweis erforderlich\.|nicht freigegeben|geprüft/)).toBeVisible();
+  await expect(page.getByText("In Bearbeitung")).toBeVisible();
+});
+
+test("Nachweis hochladen — ein sauberes Bild (Fake-clamd „ok“) wird ausgeliefert, Fertig melden geht danach durch", async ({
+  page,
+}) => {
+  setzeAvModus("ok");
+  await oeffneNachweisAufgabe(page);
+
+  await page.locator("#nf-datei").setInputFiles({ name: "beweisfoto.png", mimeType: "image/png", buffer: PNG });
+  await page.getByRole("button", { name: "Nachweis speichern" }).click();
+
+  await wartenAufNachweisStatus(page, async () => (await page.getByTestId("nachweis-bild").count()) > 0);
+
+  // DIE ECHTE AUSLIEFERUNG: Bytes UND Content-Type kommen tatsaechlich vom Server, nicht nur die
+  // <img>-Praesenz im Markup.
+  const src = await page.getByTestId("nachweis-bild").getAttribute("src");
+  expect(src, "kein src auf dem ausgelieferten Bild").toBeTruthy();
+  const antwort = await page.request.get(`http://${HOST}:3100${src}`);
+  expect(antwort.status()).toBe(200);
+  expect(antwort.headers()["content-type"]).toBe("image/png");
+  expect(Buffer.compare(await antwort.body(), PNG)).toBe(0);
+
+  // FERTIG MELDEN GEHT JETZT DURCH — die Nachweispflicht ist mit einem `sauber`en Bild erfuellt.
+  await page.getByRole("button", { name: "Fertig melden" }).click();
+  await expect(page.getByRole("heading", { name: NACHWEIS_AUFGABE, level: 1 })).toBeVisible();
+  await expect(page.getByText("Freigabe offen")).toBeVisible();
+
+  // Fuer die IDOR-/Sichtrecht-Gegenprobe im NAECHSTEN Test aufgehoben — ein zweiter `devLogin`
+  // INNERHALB dieses Tests waere ein zweiter echter Anmeldevorgang mit bereits gueltiger Sitzung
+  // (Alina) und lief in der Praxis in einen Timeout auf der Anmeldeseite; ein FRISCHER Playwright-
+  // Test (eigener Browserkontext, keine Sitzung) ist der sauberere Weg, dieselbe Aussage zu pruefen.
+  sauberesNachweisSrc = src;
+});
+
+/**
+ * DIE IDOR-/SICHTRECHT-GEGENPROBE, ECHT ABGERUFEN, IN EINEM FRISCHEN KONTEXT: Carla (eine andere
+ * BuFDi, weder Ersteller, Zugewiesene, Pruefer noch Koordination dieser Aufgabe) bekommt denselben
+ * Pfad NICHT — 404, kein Redirect, keine Anmeldeseite. `darfNachweisSehen` gilt in der Route,
+ * nicht nur auf der Seite (Spec §2: „Leistungsnachweise sind kein Aushang").
+ */
+test("Nachweis-Auslieferung: eine andere BuFDi ohne darfNachweisSehen bekommt denselben Pfad NICHT — 404", async ({
+  page,
+}) => {
+  expect(sauberesNachweisSrc, "der vorige Test hat kein sauberes Bild geliefert").toBeTruthy();
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "carla@localtest.me",
+    callbackPath: "/",
+  });
+  const antwort = await page.request.get(`http://${HOST}:3100${sauberesNachweisSrc}`);
+  expect(antwort.status()).toBe(404);
 });
 
 /**

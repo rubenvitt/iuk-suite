@@ -31,6 +31,7 @@ import {
   darfPersonenVerwalten,
   darfRoutinenVerwalten,
   darfPlanAendern,
+  darfNachweisHochladen,
   darfFreigeben,
   darfPlanSehen,
   darfNachweisSehen,
@@ -270,6 +271,39 @@ describe("darfPlanAendern — ausschliesslich die Zielperson selbst, auch nicht 
   it("ausgeschiedener BuFDi aendert den eigenen Plan nicht mehr", () => {
     const p = legePerson("pa-inaktiv", "bufdi", { aktivBis: "2026-08-01" });
     expect(darfPlanAendern(p, p.id, HEUTE)).toBe(false);
+  });
+});
+
+/**
+ * `darfNachweisHochladen` TRAEGT BEWUSST KEINE ZUSTANDSBEDINGUNG (Aufgabe 19, Kopfkommentar der
+ * Funktion) — der `in_arbeit`-Check steht in `_lib/aktionsOptionen.ts`, nicht hier. Diese Tests
+ * pruefen deshalb ausschliesslich die Personen-Frage; eine Fixtur mit `status` waere hier
+ * KONFUNDIERT, weil das Praedikat den Status gar nicht liest.
+ */
+describe("darfNachweisHochladen — die zugewiesene Person, aktiv; der Zustand ist nicht ihre Sache", () => {
+  it("die zugewiesene, aktive Person darf", () => {
+    const bufdi = legePerson("nh-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: bufdi.id, zugewiesenAn: bufdi.id });
+    expect(darfNachweisHochladen(bufdi, a, HEUTE)).toBe(true);
+  });
+
+  it("eine andere Person — auch koordination — darf nicht, auch wenn sie erstellt hat", () => {
+    const bufdi = legePerson("nh-bufdi2", "bufdi");
+    const koordination = legePerson("nh-koord", "koordination");
+    const a = legeAufgabe({ erstellerId: koordination.id, zugewiesenAn: bufdi.id });
+    expect(darfNachweisHochladen(koordination, a, HEUTE)).toBe(false);
+  });
+
+  it("die zugewiesene, aber ausgeschiedene Person darf nicht mehr", () => {
+    const bufdi = legePerson("nh-ex", "bufdi", { aktivBis: "2026-08-01" });
+    const a = legeAufgabe({ erstellerId: bufdi.id, zugewiesenAn: bufdi.id });
+    expect(darfNachweisHochladen(bufdi, a, HEUTE)).toBe(false);
+  });
+
+  it("eine unzugewiesene Aufgabe (zugewiesenAn: null) hat niemanden, der duerfte", () => {
+    const bufdi = legePerson("nh-bufdi3", "bufdi");
+    const a = legeAufgabe({ erstellerId: bufdi.id, zugewiesenAn: null });
+    expect(darfNachweisHochladen(bufdi, a, HEUTE)).toBe(false);
   });
 });
 

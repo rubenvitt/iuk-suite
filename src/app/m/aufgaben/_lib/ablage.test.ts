@@ -16,7 +16,16 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { nanoid } from "nanoid";
 
-import { legeNachweisAb, leseNachweis, loescheNachweis, nachweisPfad, UngueltigeId } from "./ablage";
+import {
+  ENDUNG_FUER,
+  ERLAUBTE_BILD_TYPEN,
+  istErlaubterBildTyp,
+  legeNachweisAb,
+  leseNachweis,
+  loescheNachweis,
+  nachweisPfad,
+  UngueltigeId,
+} from "./ablage";
 
 /*
  * Fix Runde 1 (Review), Minor 4/5: ein Schreibfehler NACH `open("wx", …)`
@@ -258,5 +267,38 @@ describe("leseNachweis / loescheNachweis", () => {
     await legeNachweisAb(id, "bild.png", PNG);
     await loescheNachweis(id);
     expect(await leseNachweis(id)).toBeNull();
+  });
+});
+
+/**
+ * AUFGABE 19: DIE LAUFZEIT-ALLOWLIST FUER DIE AUSLIEFERUNG. `ErlaubterBildTyp` ist ein Typ und
+ * loescht sich zur Laufzeit auf — `route.ts` braucht eine echte Liste, um einen aus der Datenbank
+ * gelesenen `mime`-Wert zu pruefen (eine Zeile, die per Import/Handkorrektur einen fremden Wert
+ * traegt, ist derselbe Datenfehler-Fall wie eine verdorbene `id`).
+ */
+describe("ERLAUBTE_BILD_TYPEN / istErlaubterBildTyp — die Allowlist zur Laufzeit", () => {
+  it("enthaelt genau die sechs Bildformate, die legeNachweisAb ueber Magic Bytes erkennt", () => {
+    expect([...ERLAUBTE_BILD_TYPEN].sort()).toEqual(
+      ["image/gif", "image/heic", "image/heif", "image/jpeg", "image/png", "image/webp"].sort(),
+    );
+  });
+
+  it("istErlaubterBildTyp ist wahr fuer jeden Eintrag der Liste", () => {
+    for (const typ of ERLAUBTE_BILD_TYPEN) {
+      expect(istErlaubterBildTyp(typ)).toBe(true);
+    }
+  });
+
+  it("istErlaubterBildTyp ist falsch fuer einen nicht zugelassenen oder erfundenen Typ", () => {
+    expect(istErlaubterBildTyp("text/html")).toBe(false);
+    expect(istErlaubterBildTyp("application/octet-stream")).toBe(false);
+    expect(istErlaubterBildTyp("")).toBe(false);
+  });
+
+  it("ENDUNG_FUER traegt fuer jeden erlaubten Typ genau eine Endung, nie aus dateiname abgeleitet", () => {
+    for (const typ of ERLAUBTE_BILD_TYPEN) {
+      expect(typeof ENDUNG_FUER[typ]).toBe("string");
+      expect(ENDUNG_FUER[typ].length).toBeGreaterThan(0);
+    }
   });
 });

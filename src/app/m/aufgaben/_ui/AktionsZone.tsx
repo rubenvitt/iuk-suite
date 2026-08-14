@@ -15,6 +15,7 @@ import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import { FreigabeAktionen } from "./FreigabeZone";
+import { NachweisFormular } from "./NachweisFormular";
 
 /*
  * DIE AKTIONSZONE VON `/a/<id>` (Spec §8.4, Aufgabe 16) — trägt NUR, was diese Person mit dieser
@@ -46,9 +47,17 @@ import { FreigabeAktionen } from "./FreigabeZone";
 export function AktionsZone({
   aufgabe,
   optionen,
+  nachweisMaxBytes,
 }: {
   aufgabe: AufgabeRow;
   optionen: AktionsOptionen;
+  /**
+   * `NACHWEIS_MAX_BYTES` (`_lib/ablage.ts`), ALS PROP AUS `a/[id]/page.tsx` — diese Datei darf
+   * `_lib/ablage.ts` nicht importieren (`node:fs/promises` auf Modulebene buendelte das in den
+   * Browser, s. `_ui/NachweisFormular.tsx`s Kopfkommentar). PFLICHT statt optional mit Vorgabe:
+   * eine zweite, hier erfundene Zahl waere die zweite Fassung derselben Konstante.
+   */
+  nachweisMaxBytes: number;
 }) {
   // FIX-RUNDE 1, IMPORTANT 3: eine von Hand aufgezaehlte Fassung liess `optionen.zurueckweisen`
   // aus (sechs von sieben Feldern) und war damit bereits inkonsistent, bevor sie einmal geaendert
@@ -71,6 +80,13 @@ export function AktionsZone({
           aufgabeId={aufgabe.id}
           aktion={zuruecksetzenAction}
           beschriftung="Bearbeitung zurücksetzen"
+        />
+      ) : null}
+      {optionen.nachweisHochladen ? (
+        <NachweisFormular
+          aufgabeId={aufgabe.id}
+          nachweisArt={aufgabe.nachweisArt}
+          maxBytes={nachweisMaxBytes}
         />
       ) : null}
       {optionen.fertig ? <FertigMeldenFormular aufgabe={aufgabe} /> : null}
@@ -114,11 +130,17 @@ function EinfacheAktion({
 
 /**
  * „FERTIG MELDEN" (Spec §5.3, §8.4) — DIE PFLICHT IST EINE UNTERGRENZE: `nachweisArt === "bild"`
- * verlangt heute eine Datei, die diese Oberflaeche NOCH NICHT anbietet (Aufgabe 17-19); die
- * Server-Action lehnt in diesem Fall MIT FELDFEHLER `nachweis` ab (`actions.ts`s
- * `fertigMeldenAction`-Kopfkommentar) — NICHT `nachweisText`. BEIDE SCHLUESSEL WERDEN GERENDERT:
- * wuerde nur `nachweisText` gelesen, verschwaende der Bild-Pflicht-Fehler nach dem Absenden
+ * verlangt eine Datei, die seit Aufgabe 19 ueber `NachweisFormular` (oben in `AktionsZone`, sobald
+ * `optionen.nachweisHochladen` gilt) hochgeladen wird — NICHT ueber dieses Formular hier, das nur
+ * Text entgegennimmt. Die Server-Action lehnt ohne ein `sauber`es Bild MIT FELDFEHLER `nachweis` ab
+ * (`actions.ts`s `fertigMeldenAction`-Kopfkommentar) — NICHT `nachweisText`. BEIDE SCHLUESSEL WERDEN
+ * GERENDERT: wuerde nur `nachweisText` gelesen, verschwaende der Bild-Fehler nach dem Absenden
  * spurlos — genau die stille Fehlerklasse, die dieses Modul immer wieder gefangen hat.
+ *
+ * DER HINWEISTEXT FUER `bild` NENNT DIE SICHERHEITSPRUEFUNG, NICHT „folgt spaeter" (Aufgabe 19 hat
+ * den Upload gebaut): eine Person, die GERADE ein Bild hochgeladen hat und sofort auf „Fertig
+ * melden" klickt, sieht `scan_status: "offen"` — der Feldfehler sagt dann „wird noch geprueft",
+ * nicht „fehlt" (Brief, wortgleich verlangt).
  */
 function FertigMeldenFormular({ aufgabe }: { aufgabe: AufgabeRow }) {
   const [state, formAction, isPending] = useActionState(fertigMeldenAction, FORM_START);
@@ -136,7 +158,7 @@ function FertigMeldenFormular({ aufgabe }: { aufgabe: AufgabeRow }) {
         <p style={{ margin: 0, fontSize: 12 }}>
           Nachweispflicht: {NACHWEIS_ART_TEXT[aufgabe.nachweisArt]}
           {aufgabe.nachweisArt === "bild"
-            ? " — Bildupload folgt in einer späteren Aufgabe, bis dahin nur per Text erfüllbar."
+            ? " — der Bildnachweis muss die Sicherheitsprüfung bestanden haben (Status „sauber“), bevor diese Aufgabe fertig gemeldet werden kann."
             : ""}
         </p>
       ) : null}

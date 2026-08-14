@@ -1,9 +1,13 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TestDb } from "./_db/testdb";
 import { migrierteTestDb } from "./_db/testdb";
 import {
   aufgaben,
+  dateien,
   nachweise,
   personen,
   routinen,
@@ -12,6 +16,7 @@ import {
   type PersonRow,
   type Rolle,
   type RoutineRow,
+  type ScanStatus,
 } from "./_db/schema";
 import { aufgabe, personNachId, routineNachId, schreibeVerlauf, verlaufFuer } from "./_db/queries";
 
@@ -38,12 +43,31 @@ vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
 let t: TestDb;
 vi.mock("./_db/client", () => ({ getDb: () => t.db }));
 
+/**
+ * `starteAufgabenScanArbeiter` GESTUBT (Aufgabe 19) — `nachweisHochladenAction` ruft ihn
+ * fire-and-forget nach jedem Datei-Upload auf. UNGESTUBT liefe das gegen die ECHTE
+ * `core/av/scanner.ts` und versuchte, den Hostnamen "clamav" aufzuloesen (`avKonfigAusEnv()`s
+ * Vorgabe) — ein echter Netzwerkversuch, den ein Action-Level-Test nicht braucht und nicht
+ * kontrollieren kann (dasselbe Prinzip wie `next/cache`/`@/core/auth` oben: Infrastruktur, die
+ * anderswo eigens bewacht ist — `_lib/scan.test.ts` — wird hier nur als Interaktion geprueft, nicht
+ * erneut in ihrer Wirkung). `istFreigegeben` bleibt UNGESTUBT — `fertigMeldenAction`s Pruefung
+ * haengt an seinem echten Verhalten.
+ */
+const { starteAufgabenScanArbeiterMock } = vi.hoisted(() => ({
+  starteAufgabenScanArbeiterMock: vi.fn(),
+}));
+vi.mock("./_lib/scan", async (importOriginal) => {
+  const echt = await importOriginal<typeof import("./_lib/scan")>();
+  return { ...echt, starteAufgabenScanArbeiter: starteAufgabenScanArbeiterMock };
+});
+
 import {
   aufgabeEinstellenAction,
   einplanenAction,
   einplanenAnnehmenAction,
   fertigMeldenAction,
   freigebenAction,
+  nachweisHochladenAction,
   personAendernAction,
   personAnlegenAction,
   personBeendenAction,
@@ -73,6 +97,7 @@ beforeEach(() => {
   t = migrierteTestDb();
   sitzung = null;
   revalidatePathMock.mockClear();
+  starteAufgabenScanArbeiterMock.mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(`${HEUTE}T12:00:00Z`));
 });
@@ -713,6 +738,46 @@ function legeVerlaufMitZeit(aufgabeId: string, ereignis: string, akteurId: strin
   return t.db.insert(verlauf).values({ aufgabeId, ereignis, akteurId, ts }).returning().get();
 }
 
+/**
+ * EINE `dateien`-ZEILE MIT GEWAEHLTEM `scanStatus` (Aufgabe 19) — fuer `fertigMeldenAction`s
+ * geschaerfte Pruefung: ein Bild-Nachweis erfuellt die Pflicht nur, wenn seine `dateien`-Zeile
+ * GENAU `sauber` traegt.
+ */
+function legeDatei(aufgabeId: string, scanStatus: ScanStatus) {
+  return t.db
+    .insert(dateien)
+    .values({ aufgabeId, dateiname: "bild.jpg", mime: "image/jpeg", groesse: 1024, scanStatus })
+    .returning()
+    .get();
+}
+
+/**
+ * EIN BILD-NACHWEIS MIT ECHTER `dateiId` (Aufgabe 19) — anders als `legeNachweis(..., "bild", ...)"
+ * oben (Aufgabe 10, VOR `dateiId`/`scanStatus`): diese Fabrik haengt eine echte `dateien`-Zeile an,
+ * mit dem gewaehlten Scan-Status. Ein `erstelltAm` kann fuer die
+ * „seit-letzter-Zurueckweisung"-Tests explizit gesetzt werden.
+ */
+function legeNachweisMitDatei(
+  aufgabeId: string,
+  erstelltVon: string,
+  scanStatus: ScanStatus,
+  erstelltAm?: Date,
+) {
+  const datei = legeDatei(aufgabeId, scanStatus);
+  return t.db
+    .insert(nachweise)
+    .values({
+      aufgabeId,
+      art: "bild",
+      text: null,
+      dateiId: datei.id,
+      erstelltVon,
+      ...(erstelltAm ? { erstelltAm } : {}),
+    })
+    .returning()
+    .get();
+}
+
 describe("startenAction", () => {
   function form(aufgabeId: string): FormData {
     const f = new FormData();
@@ -1267,19 +1332,107 @@ describe("fertigMeldenAction", () => {
     expect(t.db.select().from(nachweise).all()).toHaveLength(0);
   });
 
-  it("Nachweispflicht Bild: ein vorhandener Bild-Nachweis reicht auch OHNE Text", async () => {
+  it("Nachweispflicht Bild: ein vorhandener, SAUBERER Bild-Nachweis reicht auch OHNE Text", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const task = legeAufgabe({
       erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
       nachweisPflicht: true, nachweisArt: "bild",
     });
-    legeNachweis(task.id, "bild", bufdi.id);
+    legeNachweisMitDatei(task.id, bufdi.id, "sauber");
     anmelden(bufdi);
 
     const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id));
     expect(ergebnis).toEqual({ ok: true });
     expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+  });
+
+  /**
+   * DIE GESCHAERFTE PRUEFUNG (Aufgabe 19, Naht aus Aufgabe 10): EXAKT `sauber` liefert die Pflicht
+   * ab — `offen`, `befund` UND `fehler` je EINZELN gepruft, nicht stichprobenweise (Brief).
+   */
+  describe("Nachweispflicht Bild — der Scan-Status entscheidet, erschoepfend ueber alle vier Zustaende", () => {
+    it("`offen` (direkt nach dem Upload): abgelehnt, MIT der Auskunft 'wird noch geprueft' — nicht 'fehlt'", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitDatei(task.id, bufdi.id, "offen");
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
+      expect(ergebnis.fieldErrors.nachweis).toContain("wird noch geprüft");
+      expect(ergebnis.fieldErrors.nachweis).not.toContain("erforderlich");
+      expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    });
+
+    it("`befund`: abgelehnt", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitDatei(task.id, bufdi.id, "befund");
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
+      expect(ergebnis.fieldErrors.nachweis).toBeTruthy();
+      expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    });
+
+    it("`fehler`: abgelehnt", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitDatei(task.id, bufdi.id, "fehler");
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
+      expect(ergebnis.fieldErrors.nachweis).toBeTruthy();
+      expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    });
+
+    it("`sauber`: geht durch (Gegenprobe zu den drei Ablehnungen oben)", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitDatei(task.id, bufdi.id, "sauber");
+      anmelden(bufdi);
+
+      const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id));
+      expect(ergebnis).toEqual({ ok: true });
+      expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+    });
+
+    /**
+     * DER ALT-FALL AUS AUFGABE 10 (VOR `dateiId`): ein Bild-Nachweis-Datensatz OHNE angehaengte
+     * Datei erfuellt die Pflicht NICHT MEHR — sonst liesse sich die Pflicht durch eine reine
+     * `nachweise`-Zeile ohne je gescanntes Bild vortaeuschen, genau die Luecke, die Aufgabe 19
+     * schliesst.
+     */
+    it("ein Bild-Nachweis OHNE angehaengte Datei (dateiId: null) erfuellt die Pflicht nicht mehr", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweis(task.id, "bild", bufdi.id);
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
+      expect(ergebnis.fieldErrors.nachweis).toContain("erforderlich");
+      expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    });
   });
 
   it("eine unbeteiligte BuFDi darf eine fremd zugewiesene Aufgabe nicht fertig melden", async () => {
@@ -1358,38 +1511,221 @@ describe("fertigMeldenAction", () => {
       expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
     });
 
-    it("Bild: der alte Bild-Nachweis reicht nicht, ein Feldfehler kommt zurueck", async () => {
+    it("Bild: der alte, SAUBERE Bild-Nachweis reicht nicht, ein Feldfehler kommt zurueck", async () => {
       const auftrag = legePerson("dev:malte@test", "auftrag");
       const bufdi = legePerson("dev:alina@test", "bufdi");
       const task = legeAufgabe({
         erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
         nachweisPflicht: true, nachweisArt: "bild",
       });
-      legeNachweisMitZeit(task.id, "bild", bufdi.id, new Date("2026-08-10T08:00:00Z"));
+      // AUSDRUECKLICH `sauber` (nicht `offen`/`befund`/`fehler`): dieser Test beweist den
+      // ZEITFILTER ("vor der Zurueckweisung zaehlt nicht"), nicht den Scan-Status-Filter — beide
+      // duerfen sich nicht vermischen, sonst waere unklar, WELCHE der beiden Bedingungen ablehnt.
+      legeNachweisMitDatei(task.id, bufdi.id, "sauber", new Date("2026-08-10T08:00:00Z"));
       legeVerlaufMitZeit(task.id, "zurueckgewiesen", auftrag.id, new Date("2026-08-11T08:00:00Z"));
       anmelden(bufdi);
 
       const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
-      expect(ergebnis.fieldErrors.nachweis).toBeTruthy();
+      expect(ergebnis.fieldErrors.nachweis).toContain("erforderlich");
       expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
     });
 
-    it("Bild: ein NEUER Bild-Nachweis nach der Zurueckweisung erfuellt die Pflicht", async () => {
+    it("Bild: ein NEUER, SAUBERER Bild-Nachweis nach der Zurueckweisung erfuellt die Pflicht", async () => {
       const auftrag = legePerson("dev:malte@test", "auftrag");
       const bufdi = legePerson("dev:alina@test", "bufdi");
       const task = legeAufgabe({
         erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
         nachweisPflicht: true, nachweisArt: "bild",
       });
-      legeNachweisMitZeit(task.id, "bild", bufdi.id, new Date("2026-08-10T08:00:00Z"));
+      legeNachweisMitDatei(task.id, bufdi.id, "sauber", new Date("2026-08-10T08:00:00Z"));
       legeVerlaufMitZeit(task.id, "zurueckgewiesen", auftrag.id, new Date("2026-08-11T08:00:00Z"));
-      legeNachweisMitZeit(task.id, "bild", bufdi.id, new Date("2026-08-12T08:00:00Z"));
+      legeNachweisMitDatei(task.id, bufdi.id, "sauber", new Date("2026-08-12T08:00:00Z"));
       anmelden(bufdi);
 
       const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id));
       expect(ergebnis).toEqual({ ok: true });
       expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
     });
+  });
+});
+
+/*
+ * NACHWEIS HOCHLADEN (Aufgabe 19) — TEXT UND/ODER BILD, KEIN UEBERGANG DER TABELLE. Mit ECHTEM
+ * Dateisystemzugriff (`legeNachweisAb`, `_lib/ablage.ts`) — dieselbe Wahl wie `ablage.test.ts`:
+ * `DATA_DIR` zeigt je Test auf ein frisches `mkdtemp`-Verzeichnis, kein Mock.
+ */
+describe("nachweisHochladenAction", () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+  let datenVerzeichnis: string;
+  let vorherigesDataDir: string | undefined;
+
+  beforeEach(() => {
+    datenVerzeichnis = mkdtempSync(join(tmpdir(), "aufgaben-nachweis-upload-"));
+    vorherigesDataDir = process.env.DATA_DIR;
+    process.env.DATA_DIR = datenVerzeichnis;
+  });
+  afterEach(() => {
+    if (vorherigesDataDir === undefined) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = vorherigesDataDir;
+    rmSync(datenVerzeichnis, { recursive: true, force: true });
+  });
+
+  function form(aufgabeId: string, over: Record<string, string> = {}, datei?: File): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    for (const [k, v] of Object.entries(over)) f.set(k, v);
+    if (datei) f.set("datei", datei);
+    return f;
+  }
+
+  function bildDatei(name = "beweisfoto.png"): File {
+    return new File([PNG], name, { type: "image/png" });
+  }
+
+  it("nachweisArt bild: legt Datei UND Nachweis an, scanStatus startet 'offen', der Arbeiter wird angestossen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "bild",
+    });
+    anmelden(bufdi);
+
+    const ergebnis = await nachweisHochladenAction({ ok: true }, form(task.id, {}, bildDatei()));
+    expect(ergebnis).toEqual({ ok: true });
+
+    const zeilen = t.db.select().from(nachweise).all();
+    expect(zeilen).toHaveLength(1);
+    expect(zeilen[0]!.art).toBe("bild");
+    expect(zeilen[0]!.dateiId).not.toBeNull();
+
+    const dateiZeilen = t.db.select().from(dateien).all();
+    expect(dateiZeilen).toHaveLength(1);
+    expect(dateiZeilen[0]!.scanStatus).toBe("offen");
+    expect(dateiZeilen[0]!.id).toBe(zeilen[0]!.dateiId);
+
+    // FIRE-AND-FORGET: der Arbeiter wird ANGESTOSSEN, nicht abgewartet (Brief-Vertrag aus
+    // Aufgabe 18) — die Action selbst wartet nicht auf ein Scanergebnis.
+    expect(starteAufgabenScanArbeiterMock).toHaveBeenCalledTimes(1);
+    // DIE AUFGABE BLEIBT `in_arbeit`: der Upload ist kein Uebergang.
+    expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("nachweisArt bild OHNE Datei: Feldfehler `datei`, nichts wird geschrieben, der Arbeiter wird NICHT angestossen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "bild",
+    });
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(await nachweisHochladenAction({ ok: true }, form(task.id)));
+    expect(ergebnis.fieldErrors.datei).toBeTruthy();
+    expect(t.db.select().from(nachweise).all()).toHaveLength(0);
+    expect(t.db.select().from(dateien).all()).toHaveLength(0);
+    expect(starteAufgabenScanArbeiterMock).not.toHaveBeenCalled();
+  });
+
+  it("nachweisArt bild MIT Datei UND Text: beides landet auf derselben Zeile", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "bild",
+    });
+    anmelden(bufdi);
+
+    await nachweisHochladenAction({ ok: true }, form(task.id, { text: "Zusatzbemerkung." }, bildDatei()));
+    const zeile = t.db.select().from(nachweise).all()[0]!;
+    expect(zeile.art).toBe("bild");
+    expect(zeile.text).toBe("Zusatzbemerkung.");
+    expect(zeile.dateiId).not.toBeNull();
+  });
+
+  it("nachweisArt text OHNE Text: Feldfehler `text`, eine mitgeschickte Datei aendert daran nichts", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "text",
+    });
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(await nachweisHochladenAction({ ok: true }, form(task.id, {}, bildDatei())));
+    expect(ergebnis.fieldErrors.text).toBeTruthy();
+  });
+
+  it("nachweisArt text MIT Text: legt einen Textnachweis an, kein Dateizugriff, kein Arbeiter-Anstoss", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "text",
+    });
+    anmelden(bufdi);
+
+    const ergebnis = await nachweisHochladenAction({ ok: true }, form(task.id, { text: "Erledigt." }));
+    expect(ergebnis).toEqual({ ok: true });
+    const zeile = t.db.select().from(nachweise).all()[0]!;
+    expect(zeile.art).toBe("text");
+    expect(zeile.dateiId).toBeNull();
+    expect(t.db.select().from(dateien).all()).toHaveLength(0);
+    expect(starteAufgabenScanArbeiterMock).not.toHaveBeenCalled();
+  });
+
+  it("eine ungueltige Datei (falsches Format) wird VOR jedem Insert abgelehnt — kein verwaister Datensatz", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "bild",
+    });
+    anmelden(bufdi);
+
+    const keinBild = new File([new Uint8Array([1, 2, 3, 4])], "nicht-bild.txt", { type: "text/plain" });
+    const ergebnis = erwarteFeldfehler(await nachweisHochladenAction({ ok: true }, form(task.id, {}, keinBild)));
+    expect(ergebnis.fieldErrors.datei).toBeTruthy();
+    expect(t.db.select().from(nachweise).all()).toHaveLength(0);
+    expect(t.db.select().from(dateien).all()).toHaveLength(0);
+  });
+
+  it("die zugewiesene Person UND status in_arbeit sind Pflicht — eine andere Person wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const andere = legePerson("dev:bendix@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "bild",
+    });
+    anmelden(andere);
+
+    await expect(
+      nachweisHochladenAction({ ok: true }, form(task.id, {}, bildDatei())),
+    ).rejects.toThrow(/Keine Berechtigung/);
+  });
+
+  it("ein Zustand ausserhalb 'in_arbeit' wirft, auch fuer die zugewiesene Person", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "bild",
+    });
+    anmelden(bufdi);
+
+    await expect(
+      nachweisHochladenAction({ ok: true }, form(task.id, {}, bildDatei())),
+    ).rejects.toThrow(/Keine Berechtigung/);
+  });
+
+  it("eine unbekannte aufgabeId wirft", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+    await expect(
+      nachweisHochladenAction({ ok: true }, form("nicht-vorhanden", {}, bildDatei())),
+    ).rejects.toThrow(/nicht gefunden/);
   });
 });
 

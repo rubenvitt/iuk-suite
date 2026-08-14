@@ -32,6 +32,7 @@ const {
   FERTIG_MARKER,
   FREIGEBEN_MARKER,
   ZURUECKWEISEN_MARKER,
+  NACHWEIS_HOCHLADEN_MARKER,
 } = vi.hoisted(() => ({
   useActionStateMock: vi.fn(),
   startenMock: vi.fn(),
@@ -41,6 +42,7 @@ const {
   FERTIG_MARKER: Symbol("fertigMeldenAction"),
   FREIGEBEN_MARKER: Symbol("freigebenAction"),
   ZURUECKWEISEN_MARKER: Symbol("zurueckweisenAction"),
+  NACHWEIS_HOCHLADEN_MARKER: Symbol("nachweisHochladenAction"),
 }));
 
 vi.mock("react", async (echt) => {
@@ -56,6 +58,7 @@ vi.mock("../actions", () => ({
   fertigMeldenAction: FERTIG_MARKER,
   freigebenAction: FREIGEBEN_MARKER,
   zurueckweisenAction: ZURUECKWEISEN_MARKER,
+  nachweisHochladenAction: NACHWEIS_HOCHLADEN_MARKER,
 }));
 
 import { AktionsZone } from "./AktionsZone";
@@ -94,7 +97,11 @@ const ALLE_AUS: AktionsOptionen = {
   zurueckweisen: false,
   wiederaufnehmen: false,
   zurueckziehen: false,
+  nachweisHochladen: false,
 };
+
+/** Beliebiger, aber realistischer Wert — `AktionsZone` verlangt `nachweisMaxBytes` als Pflicht-Prop. */
+const MAX_BYTES = 8 * 1024 * 1024;
 
 let absendenMock: ReturnType<typeof vi.fn>;
 function stelleZustandEin(zustand: FormState, laeuft = false): void {
@@ -116,7 +123,7 @@ afterEach(async () => {
 
 describe("AktionsZone — keine Aktion moeglich", () => {
   it("zeigt einen ausgeschriebenen Satz, wenn keine einzige Aktion erlaubt ist (z. B. Endzustand)", async () => {
-    await mount(<AktionsZone aufgabe={aufgabe({ id: "a1", status: "abgeschlossen" })} optionen={ALLE_AUS} />);
+    await mount(<AktionsZone nachweisMaxBytes={MAX_BYTES} aufgabe={aufgabe({ id: "a1", status: "abgeschlossen" })} optionen={ALLE_AUS} />);
     expect(document.body.textContent).toContain("Für diese Aufgabe ist derzeit keine Aktion möglich.");
     expect(queryAll("button")).toHaveLength(0);
   });
@@ -125,7 +132,7 @@ describe("AktionsZone — keine Aktion moeglich", () => {
 describe("AktionsZone — einfache Statuswechsel (starten, zuruecksetzen, wiederaufnehmen)", () => {
   it("„Bearbeitung starten“ traegt die aufgabeId und ruft startenAction beim Absenden", async () => {
     await mount(
-      <AktionsZone aufgabe={aufgabe({ id: "a1", status: "verteilt" })} optionen={{ ...ALLE_AUS, starten: true }} />,
+      <AktionsZone nachweisMaxBytes={MAX_BYTES} aufgabe={aufgabe({ id: "a1", status: "verteilt" })} optionen={{ ...ALLE_AUS, starten: true }} />,
     );
     await click("button");
     expect(startenMock).toHaveBeenCalledTimes(1);
@@ -135,6 +142,7 @@ describe("AktionsZone — einfache Statuswechsel (starten, zuruecksetzen, wieder
   it("zeigt zuruecksetzen UND fertig GLEICHZEITIG, wenn beide erlaubt sind (in_arbeit, Fremdaufgabe)", async () => {
     await mount(
       <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
         aufgabe={aufgabe({ id: "a1", status: "in_arbeit" })}
         optionen={{ ...ALLE_AUS, zuruecksetzen: true, fertig: true }}
       />,
@@ -146,6 +154,7 @@ describe("AktionsZone — einfache Statuswechsel (starten, zuruecksetzen, wieder
   it("„Bearbeitung zurücksetzen“ ruft zuruecksetzenAction mit der eigenen aufgabeId", async () => {
     await mount(
       <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
         aufgabe={aufgabe({ id: "a2", status: "in_arbeit" })}
         optionen={{ ...ALLE_AUS, zuruecksetzen: true }}
       />,
@@ -158,6 +167,7 @@ describe("AktionsZone — einfache Statuswechsel (starten, zuruecksetzen, wieder
   it("„Bearbeitung wieder aufnehmen“ ruft wiederaufnehmenAction mit der eigenen aufgabeId", async () => {
     await mount(
       <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
         aufgabe={aufgabe({ id: "a3", status: "zurueckgewiesen" })}
         optionen={{ ...ALLE_AUS, wiederaufnehmen: true }}
       />,
@@ -169,15 +179,16 @@ describe("AktionsZone — einfache Statuswechsel (starten, zuruecksetzen, wieder
 });
 
 describe("AktionsZone — Fertig melden, Nachweispflicht als Untergrenze", () => {
-  it("zeigt den Nachweispflicht-Hinweis fuer Bildnachweis, mit dem Hinweis auf den fehlenden Upload", async () => {
+  it("zeigt den Nachweispflicht-Hinweis fuer Bildnachweis, mit dem Hinweis auf die Sicherheitspruefung", async () => {
     await mount(
       <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
         aufgabe={aufgabe({ id: "a1", status: "in_arbeit", nachweisPflicht: true, nachweisArt: "bild" })}
         optionen={{ ...ALLE_AUS, fertig: true }}
       />,
     );
     expect(document.body.textContent).toContain("Nachweispflicht: Bild");
-    expect(document.body.textContent).toContain("Bildupload folgt in einer späteren Aufgabe");
+    expect(document.body.textContent).toContain("Sicherheitsprüfung");
   });
 
   it("zeigt den Feldfehler zum Textfeld (`nachweisText`)", async () => {
@@ -187,7 +198,7 @@ describe("AktionsZone — Fertig melden, Nachweispflicht als Untergrenze", () =>
       values: { aufgabeId: "a1", nachweisText: "" },
     });
     await mount(
-      <AktionsZone aufgabe={aufgabe({ id: "a1", nachweisPflicht: true })} optionen={{ ...ALLE_AUS, fertig: true }} />,
+      <AktionsZone nachweisMaxBytes={MAX_BYTES} aufgabe={aufgabe({ id: "a1", nachweisPflicht: true })} optionen={{ ...ALLE_AUS, fertig: true }} />,
     );
     expect(document.body.textContent).toContain("Für diese Aufgabe ist ein Textnachweis erforderlich.");
   });
@@ -206,6 +217,7 @@ describe("AktionsZone — Fertig melden, Nachweispflicht als Untergrenze", () =>
     });
     await mount(
       <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
         aufgabe={aufgabe({ id: "a1", nachweisPflicht: true, nachweisArt: "bild" })}
         optionen={{ ...ALLE_AUS, fertig: true }}
       />,
@@ -214,10 +226,44 @@ describe("AktionsZone — Fertig melden, Nachweispflicht als Untergrenze", () =>
   });
 });
 
+/**
+ * NACHWEIS HOCHLADEN (Aufgabe 19) — DIE WIRING-ZUSAGE: `NachweisFormular` rendert genau dann, wenn
+ * `optionen.nachweisHochladen` gilt, und bekommt `aufgabeId`/`nachweisArt`/`maxBytes` durchgereicht.
+ * Das FORMULAR SELBST (Feldfehler, Untergrenzen-Hinweise) ist in `NachweisFormular.test.tsx`
+ * bewacht — hier zaehlt nur, DASS und WANN `AktionsZone` es einhaengt.
+ */
+describe("AktionsZone — Nachweis hochladen (Aufgabe 19)", () => {
+  it("rendert NachweisFormular NICHT, wenn optionen.nachweisHochladen false ist — auch bei fertig: true", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "in_arbeit", nachweisPflicht: true, nachweisArt: "bild" })}
+        optionen={{ ...ALLE_AUS, fertig: true }}
+      />,
+    );
+    expect(document.body.textContent).not.toContain("Nachweis speichern");
+  });
+
+  it("rendert NachweisFormular, wenn optionen.nachweisHochladen true ist, NEBEN Fertig melden", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "in_arbeit", nachweisPflicht: true, nachweisArt: "bild" })}
+        optionen={{ ...ALLE_AUS, fertig: true, nachweisHochladen: true }}
+      />,
+    );
+    expect(document.body.textContent).toContain("Nachweis speichern");
+    expect(document.body.textContent).toContain("Fertig melden");
+    const dateiFeld = document.querySelector<HTMLInputElement>("input[type='file']");
+    expect(dateiFeld).not.toBeNull();
+  });
+});
+
 describe("AktionsZone — Freigeben/Zurückweisen kommen aus FreigabeZone.tsx, keine zweite Fassung", () => {
   it("rendert die Testids von `FreigabeAktionen` (freigeben-<id>, zurueckweisen-<id>)", async () => {
     await mount(
       <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
         aufgabe={aufgabe({ id: "a1", status: "freigabe_offen" })}
         optionen={{ ...ALLE_AUS, freigeben: true }}
       />,
@@ -231,6 +277,7 @@ describe("AktionsZone — Zurückziehen ist bestätigungspflichtig (Spec §9.9)"
   it("oeffnet erst nach dem Klick eine Bestaetigung; sendet erst NACH der Bestaetigung ab, mit der eigenen aufgabeId", async () => {
     await mount(
       <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
         aufgabe={aufgabe({ id: "a1", status: "eingegangen" })}
         optionen={{ ...ALLE_AUS, zurueckziehen: true }}
       />,
@@ -255,6 +302,7 @@ describe("AktionsZone — Zurückziehen ist bestätigungspflichtig (Spec §9.9)"
   it("„Abbrechen“ schliesst die Bestaetigung, ohne abzusenden", async () => {
     await mount(
       <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
         aufgabe={aufgabe({ id: "a1", status: "eingegangen" })}
         optionen={{ ...ALLE_AUS, zurueckziehen: true }}
       />,

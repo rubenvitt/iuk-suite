@@ -212,6 +212,19 @@ export default defineConfig({
         // meinen wie Fake und Testhelfer.
         FAKE_CLAMD_MODUS_DATEI: AV_MODUS_DATEI,
         /*
+         * DASSELBE Fake-clamd, jetzt auch fuer `aufgaben` (Aufgabe 19): `_lib/scan.ts` liest seine
+         * EIGENEN Variablen (`AUFGABEN_AV_*`, nie `FILES_AV_*` — Kopfkommentar dort, „eine geteilte
+         * Zahl waere eine Kopplung, die niemand gewaehlt hat"), zeigt aber auf denselben Prozess:
+         * EIN Fake-clamd-Server fuer beide Module, `workers: 1` macht das sicher (kein
+         * Modus-Wettlauf zwischen zwei parallelen Specs). Ohne diese drei Zeilen liefe
+         * `_lib/scan.ts`s Vorgabe `avKonfigAusEnv()` auf den Hostnamen "clamav" — in `next dev`
+         * unaufloesbar, jeder Scan endet als 'fehler', und `e2e/aufgaben.spec.ts`s Upload-Faelle
+         * waeren nie 'sauber' pruefbar.
+         */
+        AUFGABEN_AV_HOST: "127.0.0.1",
+        AUFGABEN_AV_PORT: "3310",
+        AUFGABEN_AV_TIMEOUT_MS: "2000",
+        /*
          * Die neun Lagerbuch-Zeilen kommen aus EINER Quelle (Festlegung H9,
          * Spec §12.6 Punkt 2): `devLogin(…, { groups })` in jedem
          * Verwaltungs-Spec liest DIESELBE Konstante wie
