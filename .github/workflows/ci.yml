@@ -19,12 +19,24 @@ on:
   # deshalb der `pull_request`-Ausloeser oben; der Nutzen liegt bei der naechsten.
   workflow_dispatch:
 
+# Kleinstmoegliches Recht als Vorgabe fuer den GITHUB_TOKEN. `checks`, `e2e`
+# und `test` brauchen nur den Checkout und erben es damit; `build` und `merge`
+# heben es fuer sich auf `packages: write` an, weil sie nach ghcr.io schreiben.
+# Ohne diese Zeile gilt die Repo-Vorgabe, die je nach Einstellung Schreibrechte
+# auf ALLE Bereiche mitgibt (CodeQL-Befund 5).
+permissions:
+  contents: read
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  test:
+  # lint/typecheck/vitest hingen frueher SERIELL vor e2e im selben Job und
+  # kosteten dort 4:37, ohne dass e2e etwas von ihnen braucht. Als eigener Job
+  # laufen sie parallel zu den Shards; der kritische Pfad ist seither die
+  # laengste Einzelspur, nicht die Summe.
+  checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,8 +51,40 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+
+  # DREI SHARDS, NICHT MEHR WORKER — und das ist keine Geschmacksfrage.
+  # `playwright.config.ts` steht auf `workers: 1`, weil der Fake-clamd seine
+  # Modusdatei prozessweit teilt und `FILES_AV_PARALLEL: 1` die Reihenfolge
+  # festnagelt; zwei Worker auf EINER Maschine wuerden sich gegenseitig den
+  # AV-Modus umschreiben. Ein Shard dagegen ist ein eigener Runner mit eigenem
+  # Fake-clamd, eigenem `.data/e2e` und eigener `FAKE_CLAMD_MODUS: ok`-
+  # Vorbelegung — der geteilte Zustand wird dupliziert statt geteilt. Tests
+  # derselben Datei bleiben unter `--shard` beieinander, die Reihenfolge
+  # innerhalb einer Spec ueberlebt also.
+  #
+  # Warum drei: gemessen 211 Tests in 18:18 bei einem Worker, davon ~90-120 s
+  # Fixkosten je Shard (Checkout, setup-node, `playwright install`, Server-Boot).
+  # 3 Shards ≈ 8 min, 4 ≈ 6,5 min — danach frisst der Vorspann den Gewinn.
+  e2e:
+    strategy:
+      # Ohne das verdeckt der erste rote Shard die anderen, und man sieht nach
+      # einem Fehlschlag nur einen Teil der Suite.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm e2e
+      - run: pnpm e2e --shard=${{ matrix.shard }}/3
       # OHNE DIESEN SCHRITT IST DER EINZIGE BELEG EINES ROTEN E2E-LAUFS WEG.
       # Playwright legt zu jedem Fehlschlag `test-results/<test>/error-context.md`
       # an (der `ariaSnapshot` der Seite im Moment des Scheiterns) und ab dem
@@ -54,8 +98,14 @@ jobs:
       # Runners, nicht im Code. Nur war das erst nach einem halben Tag
       # Ausschlussarbeit zu sehen, weil der Zustand der Seite fehlte.
       #
+      # ⚠️ DER NAME MUSS DIE SHARD-NUMMER TRAGEN: `upload-artifact@v4` weist
+      # einen zweiten Upload unter bereits vergebenem Namen mit HTTP 409 ab —
+      # bei drei Shards waere ein fester Name also nicht nur mehrdeutig, er
+      # liesse zwei der drei Uploads scheitern, und zwar in genau dem Lauf, in
+      # dem man die Artefakte braucht.
+      #
       # `if: failure()` und nicht `always()`: bei einem gruenen Lauf gibt es
-      # nichts zu sichern. Faellt stattdessen `lint`/`typecheck`/`test` davor,
+      # nichts zu sichern. Scheitert stattdessen `playwright install` davor,
       # laeuft der Schritt zwar an, findet aber keine Dateien — dafuer
       # `if-no-files-found: ignore`, sonst faerbte er einen bereits roten Lauf
       # ein zweites Mal rot und verdeckte die eigentliche Ursache.
@@ -63,12 +113,34 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-artefakte
+          name: playwright-artefakte-shard-${{ matrix.shard }}
           path: |
             test-results/
             playwright-report/
           if-no-files-found: ignore
           retention-days: 14
+
+  # DER NAME `test` IST VERTRAGLICH, NICHT BESCHREIBEND: das Ruleset auf `main`
+  # verlangt genau diesen Status-Kontext. Wuerden `checks` und `e2e (1/3)` …
+  # direkt als erforderliche Checks dienen, bliebe `test` auf ewig ausstehend
+  # und JEDER Merge waere blockiert — bei gruener CI.
+  #
+  # `if: always()` ist Teil desselben Vertrags: ohne das wird der Job bei einem
+  # roten Bedarf uebersprungen statt rot, und ein uebersprungener Pflicht-Check
+  # blockiert genauso. Er muss laufen und scheitern.
+  test:
+    needs: [checks, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # `needs.e2e.result` ist nur `success`, wenn ALLE Matrix-Jobs es sind —
+      # ein einzelner roter Shard reicht. Der Vergleich faengt zugleich
+      # `cancelled` und `skipped` ab.
+      - name: Ergebnisse der Vorstufen prüfen
+        run: |
+          echo "checks=${{ needs.checks.result }} e2e=${{ needs.e2e.result }}"
+          test "${{ needs.checks.result }}" = "success"
+          test "${{ needs.e2e.result }}" = "success"
 
   # Je Architektur ein Job auf NATIVEM Runner statt einem Job mit QEMU.
   # Grund: der emulierte arm64-Build kompiliert better-sqlite3 nativ und lief
