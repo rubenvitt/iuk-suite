@@ -66,7 +66,9 @@ describe("Profilseite", () => {
     // eine Sitzung verlaesst, muss ihr Fehlen selbst beantworten — sonst ist
     // der Ausfall ein Renderfehler statt einer Umleitung. `redirect()` wirft;
     // genau das wird hier bezeugt.
-    authMock.mockResolvedValue(null);
+    // `as never` wie oben: `auth` ist ueberladen, und `vi.mocked` waehlt die
+    // Middleware-Ueberladung, deren Rueckgabetyp kein `null` kennt.
+    authMock.mockResolvedValue(null as never);
     await expect(ProfilPage()).rejects.toThrow();
   });
 });
