@@ -369,11 +369,16 @@ function ZeilenAktionen({
   return (
     <div>
       {/*
-       * Das Ziel entsteht in T42 (Welle 7). Bis dahin fuehrt der Knopf in einen
-       * 404 aus ABWESENHEIT — nicht in einen Riegel: es gibt genau EINE
-       * Zugriffsstufe, und wer die Tabelle sieht, darf auch bearbeiten (§2.4).
-       * Die Gegenprobe „kein Einstiegspunkt fuehrt dorthin, wo die aufrufende
-       * Person nicht hindarf" ist damit erfuellt.
+       * KORREKTUR (Aufgabe 12): dieser Kommentar behauptete, das Ziel entstehe
+       * erst in T42 (Welle 7) und der Knopf fuehre bis dahin in einen 404 aus
+       * ABWESENHEIT — das war zum Zeitpunkt des Kommentars richtig, ist aber
+       * seit T42s Umsetzung UEBERHOLT: `/shares/<id>/bearbeiten` existiert
+       * (`shares/[id]/bearbeiten/page.tsx`) und ist selbst Teil dieses
+       * Zuschnitts. Der Riegel-Teil der Begruendung bleibt gueltig: es gibt
+       * genau EINE Zugriffsstufe, und wer die Tabelle sieht, darf auch
+       * bearbeiten (§2.4) — die Gegenprobe „kein Einstiegspunkt fuehrt dorthin,
+       * wo die aufrufende Person nicht hindarf" ist damit weiterhin erfuellt,
+       * nur nicht mehr ueber eine Abwesenheit, sondern ueber ein bestehendes Ziel.
        */}
       <Button
         {...masz}

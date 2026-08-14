@@ -349,9 +349,15 @@ export function BearbeitenFormular(props: BearbeitenFormularProps) {
           {/*
            * DER WEG ZURUECK STEHT AM FORMULAR, nicht nur in der Kopfzeile: wer
            * hier steht und doch nichts aendern will, braucht ihn genau hier.
-           * Ziel ist die Modulwurzel — Begruendung in `page.tsx`.
+           * Ziel ist `/shares/<id>` — dieselbe unmittelbare Elternseite wie
+           * `Seitenkopf.zurueck` in `page.tsx` (Aufgabe 12): dort steht auch die
+           * ausfuehrliche Begruendung, warum das die Modulwurzel abgeloest hat.
+           * Diese Zeile war frueher `href="/"` mit derselben veralteten
+           * Praemisse wie der damalige Kommentar in `page.tsx` — mitkorrigiert,
+           * sonst wuerde der Seitenkopf-Rueckweg und der Abbrechen-Knopf auf
+           * derselben Seite an zwei verschiedene Ziele fuehren.
            */}
-          <Button className={css.knopf} href="/">
+          <Button className={css.knopf} href={`/shares/${props.shareId}`}>
             Abbrechen
           </Button>
         </div>
