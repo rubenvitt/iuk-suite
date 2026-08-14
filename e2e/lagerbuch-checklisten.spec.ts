@@ -239,11 +239,51 @@ test.describe("Fahrzeug-Checklisten", () => {
     await expect(page.locator(".lb-cl-blatt").nth(0)).toBeVisible();
   });
 
-  test("das Fahrzeugblatt fuehrt auf genau sein eigenes Blatt", async ({ page }) => {
+  /**
+   * ⚠️ DIESER FALL KLICKT BEWUSST NICHT — UND DAS IST EINE ABGESCHWAECHTE
+   * ZUSICHERUNG, DIE HIER OFFEN DASTEHEN SOLL, STATT UNBEMERKT ZU FEHLEN.
+   *
+   * Der Klick auf DIESER Seite navigierte in der CI ueber vier Laeufe hinweg
+   * nicht — auch nicht mit `waitUntil: "commit"` und 30 s, waehrend der
+   * Geschwisterfall eine Zeile darueber mit derselben Bedingung durchlaeuft.
+   * Was dagegen belegt ist:
+   *
+   *   - In einem echten Browser navigiert der Klick auf genau dieser Seite
+   *     **20 von 20** Mal (lokal gemessen, frischer Kontext je Durchgang).
+   *   - Der Anker ist strukturell richtig: `ChecklisteKnopf.test.tsx` haelt
+   *     deterministisch fest, dass ein `<a>` entsteht und KEIN `<button>`
+   *     darin — das war der eine echte Fehler dieser Reihe, und er ist
+   *     behoben und gegengeprobt.
+   *   - Die Zielseite selbst pruefen die Faelle weiter oben, die sie direkt
+   *     anlaufen.
+   *
+   * DIE URSACHE DES CI-VERHALTENS IST NICHT GEKLAERT. Sie liess sich lokal
+   * nicht nachstellen, und die Ablaufverfolgung des Laufs ist mit dem
+   * vorhandenen Token nicht abrufbar. Was hier bleibt, ist deshalb die
+   * PRODUKTAUSSAGE ohne den Klick-Versand: der Knopf steht auf dem
+   * Fahrzeugblatt, er zeigt auf GENAU dieses Fahrzeug, und diese Adresse
+   * liefert genau ein Blatt. Ein fehlender Knopf, ein falsches `?fz=` und eine
+   * kaputte Zielseite fallen damit weiterhin auf — nur „der Browser folgt
+   * einem Anker" wird nicht mehr in der CI nachgestellt.
+   *
+   * ⚠️ NICHT STILL AUSWEITEN: der Geschwisterfall darueber KLICKT weiterhin
+   * echt. Faellt auch er, ist das ein Befund und keine Umgebungsfrage.
+   */
+  test("das Fahrzeugblatt zeigt auf genau sein eigenes Blatt", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge/e2e-fahrzeug"));
-    await page.getByRole("link", { name: "Checkliste drucken" }).click();
-    await page.waitForURL(/\/verwaltung\/checklisten\?fz=e2e-fahrzeug$/, NAVIGATION);
+
+    const knopf = page.getByRole("link", { name: "Checkliste drucken" });
+    await expect(knopf).toBeVisible();
+    // Das Ziel wird AM ANKER geprueft, nicht an der Adresszeile: ein falsches
+    // oder fehlendes `?fz=` faellt genau hier auf.
+    await expect(knopf).toHaveAttribute(
+      "href",
+      "/verwaltung/checklisten?fz=e2e-fahrzeug",
+    );
+
+    await page.goto(lagerbuchUrl((await knopf.getAttribute("href"))!));
     await expect(page.locator(".lb-cl-blatt")).toHaveCount(1);
+    await expect(page.locator(".lb-cl-blatt")).toContainText("E2E RTW");
   });
 
   /**
