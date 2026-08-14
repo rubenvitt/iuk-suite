@@ -214,6 +214,22 @@ describe("Punkt 1 — die Zeile zeigt Zustand und Restbudget, nicht nur einen Na
     expect(text).toContain("3");
   });
 
+  /**
+   * PUNKT 4, ZWEITER HALBSATZ (Review-Runde zu Aufgabe 12): Spaltenkoepfe
+   * tragen `SCHRIFT.kicker`, nicht nur ihren Text. Ohne diese Zusicherung
+   * naehme eine spaetere Aufraeumrunde das `<span style={SCHRIFT.kicker}>`
+   * als Ballast wieder heraus — der Text sieht fuer sich genommen unveraendert
+   * aus, die Rolle steckt ausschlieszlich im Stil.
+   */
+  it("traegt an der Spalte „Bezeichnung“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
+    await zeige({ zeilen: [zeile()] });
+    const kopf = queryAll("thead.ant-table-thead th")[0];
+    const span = kopf?.querySelector("span");
+    expect(span?.textContent).toBe("Bezeichnung");
+    expect(span?.style.fontWeight).toBe("600");
+    expect(span?.style.textTransform).toBe("uppercase");
+  });
+
   it("benennt die drei Zustaende mit Text, nicht ueber Farbe", async () => {
     await zeige({
       zeilen: [

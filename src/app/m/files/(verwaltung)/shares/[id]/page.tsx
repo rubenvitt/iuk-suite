@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Button, Card, Table } from "antd";
 
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SCHRIFT } from "@/core/theme/schrift";
 import { avWiederholenAction } from "../../actions";
 import { ladeAuditLog, ladeShareDetail, type ShareDatei } from "../../../_db/queries";
 import type { AvStatus } from "../../../_lib/av";
@@ -311,16 +312,45 @@ const DATEI_TABELLE_BREITE_PX =
 
 /** Nur `dataIndex`, keine `render`-Funktion — Begründung im Kopfkommentar. Und
  *  keine Spalte trägt `fixed` oder `ellipsis`, `scroll.y` bleibt ungesetzt:
- *  sonst schaltet rc-table auf `table-layout: fixed` (`lib/Table.js:426-442`). */
+ *  sonst schaltet rc-table auf `table-layout: fixed` (`lib/Table.js:426-442`).
+ *
+ *  SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
+ *  in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): ein
+ *  `<span style={SCHRIFT.kicker}>` je Kopf statt eines nackten Strings, nie
+ *  CSS gegen `.ant-table-thead`. `SCHRIFT` kommt direkt aus `@/core/theme`,
+ *  nicht über einen modul-eigenen Adapter — `files` hat keinen (anders als
+ *  `lagerbuch/_lib/schrift.ts` oder `feedback/_ui/typo.ts`), also entfällt der
+ *  Umweg. RSC-sicher: ein bloßes Objekt mit `CSSProperties`, kein Hook, kein
+ *  antd-Compound-Zugriff. */
 const DATEI_SPALTEN = [
-  { key: "name", title: "Datei", dataIndex: "dateiname", width: SPALTE_NAME_PX },
-  { key: "groesse", title: "Größe", dataIndex: "groesseText", width: SPALTE_GROESSE_PX },
-  { key: "zustand", title: "Zustand", dataIndex: "zustandInhalt", width: SPALTE_ZUSTAND_PX },
+  {
+    key: "name",
+    title: <span style={SCHRIFT.kicker}>Datei</span>,
+    dataIndex: "dateiname",
+    width: SPALTE_NAME_PX,
+  },
+  {
+    key: "groesse",
+    title: <span style={SCHRIFT.kicker}>Größe</span>,
+    dataIndex: "groesseText",
+    width: SPALTE_GROESSE_PX,
+  },
+  {
+    key: "zustand",
+    title: <span style={SCHRIFT.kicker}>Zustand</span>,
+    dataIndex: "zustandInhalt",
+    width: SPALTE_ZUSTAND_PX,
+  },
   /* Die Aktion steht in einer EIGENEN Spalte, nicht in der Zustandszelle: der
      Zustand ist ein Wert, der Knopf eine Handlung — dieselbe Trennung wie in
      `_ui/PosteingangTabelle.tsx`. Die Zelle bleibt leer, wo es nichts zu tun
      gibt; ein „—" behauptete einen Wert, den es hier nicht gibt. */
-  { key: "aktion", title: "Aktion", dataIndex: "aktionInhalt", width: SPALTE_AKTION_PX },
+  {
+    key: "aktion",
+    title: <span style={SCHRIFT.kicker}>Aktion</span>,
+    dataIndex: "aktionInhalt",
+    width: SPALTE_AKTION_PX,
+  },
 ];
 
 function zuAnzeige(datei: ShareDatei): DateiZeile {

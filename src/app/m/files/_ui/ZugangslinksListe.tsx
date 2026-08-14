@@ -11,6 +11,7 @@ import {
   type ZugangslinkFormState,
 } from "../(verwaltung)/zugangslinks/actions";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SCHRIFT } from "@/core/theme/schrift";
 import styles from "./zugangslinks.module.css";
 
 /**
@@ -234,12 +235,19 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
 
 // ---------------------------------------------------------------------------
 
+/**
+ * SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
+ * in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): jeder
+ * Textkopf ein `<span style={SCHRIFT.kicker}>`, nie CSS gegen
+ * `.ant-table-thead`. `aktionen` bleibt `title: ""` — kein Text, keine Rolle
+ * mit Wirkung; die Aktionsspalte braucht keinen Kopf.
+ */
 function spalten(inboxBasis: string | null) {
   return [
-    { key: "name", title: "Bezeichnung", dataIndex: "name" },
+    { key: "name", title: <span style={SCHRIFT.kicker}>Bezeichnung</span>, dataIndex: "name" },
     {
       key: "token",
-      title: "Code",
+      title: <span style={SCHRIFT.kicker}>Code</span>,
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         // Mit Auslassungszeichen, damit niemand die sieben Zeichen fuer den
         // ganzen Code haelt und sie abzuschreiben versucht.
@@ -248,7 +256,7 @@ function spalten(inboxBasis: string | null) {
     },
     {
       key: "laufzeit",
-      title: "Laufzeit",
+      title: <span style={SCHRIFT.kicker}>Laufzeit</span>,
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         <div>
           <div className={styles.zahlen}>{zeile.laufzeitText}</div>
@@ -258,7 +266,7 @@ function spalten(inboxBasis: string | null) {
     },
     {
       key: "restbudget",
-      title: "Restbudget",
+      title: <span style={SCHRIFT.kicker}>Restbudget</span>,
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         <div className={styles.budgetZelle}>
           <span className={styles.zahlen}>
@@ -280,12 +288,12 @@ function spalten(inboxBasis: string | null) {
     },
     {
       key: "zustand",
-      title: "Zustand",
+      title: <span style={SCHRIFT.kicker}>Zustand</span>,
       render: (_: unknown, zeile: ZugangslinkZeile) => <span>{ZUSTAND_TEXT[zeile.zustand]}</span>,
     },
     {
       key: "uploads",
-      title: "Uploads",
+      title: <span style={SCHRIFT.kicker}>Uploads</span>,
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         <span className={styles.zahlen}>{zeile.uploads}</span>
       ),

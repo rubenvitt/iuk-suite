@@ -263,6 +263,22 @@ describe("Punkt 1 — Spalten und Vorgabesortierung", () => {
     expect(tabellenDateinamen()).toEqual(["lage.txt", "plan.pdf", "bericht.docx"]);
   });
 
+  /**
+   * PUNKT 4, ZWEITER HALBSATZ (Review-Runde zu Aufgabe 12): Spaltenkoepfe
+   * tragen `SCHRIFT.kicker`, nicht nur ihren Text. Ohne diese Zusicherung
+   * naehme eine spaetere Aufraeumrunde das `<span style={SCHRIFT.kicker}>`
+   * als Ballast wieder heraus — der Text sieht fuer sich genommen unveraendert
+   * aus, die Rolle steckt ausschlieszlich im Stil.
+   */
+  it("traegt an der Spalte „Zeit“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
+    await zeige();
+    const kopf = queryAll("thead.ant-table-thead th")[1]; // Index 0 ist die Auswahlspalte.
+    const span = kopf?.querySelector("span");
+    expect(span?.textContent).toBe("Zeit");
+    expect(span?.style.fontWeight).toBe("600");
+    expect(span?.style.textTransform).toBe("uppercase");
+  });
+
   it("zeigt Groeszen in BINAEREN Einheiten mit dem Wort dazu", async () => {
     await zeige();
     // Die Einheit steht im Text, nicht in einem Kommentar (§9.1): „1,0 MB" und

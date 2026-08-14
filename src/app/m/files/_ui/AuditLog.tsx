@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card, Table } from "antd";
+import { SCHRIFT } from "@/core/theme/schrift";
 
 /**
  * DAS AUDIT-LOG DER SHARE-DETAILSEITE (Spec §7.8, §4.5; Plan T41 Punkt 4).
@@ -84,10 +85,17 @@ type AnzeigeZeile = AuditLogZeile & { wasText: string };
  * schaltet rc-table auf `table-layout: fixed`, verteilt die Spalten gleichmäßig
  * und das Desktop-Bild ändert sich, ohne dass irgendwo etwas überläuft
  * (`lib/Table.js:426-442`).
+ *
+ * SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
+ * in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): ein
+ * `<span style={SCHRIFT.kicker}>` je Kopf, nie CSS gegen `.ant-table-thead`.
+ * Ein React-Element in `title` ist serialisierbar (anders als eine Funktion in
+ * `render`, siehe oben) — dieselbe Grenze, die diese Spalten schon für ihre
+ * Zellinhalte einhalten, gilt hier unverändert.
  */
 const SPALTEN = [
-  { key: "zeit", title: "Zeit", dataIndex: "zeitText", width: SPALTE_ZEIT_PX },
-  { key: "was", title: "Was", dataIndex: "wasText", width: SPALTE_WAS_PX },
+  { key: "zeit", title: <span style={SCHRIFT.kicker}>Zeit</span>, dataIndex: "zeitText", width: SPALTE_ZEIT_PX },
+  { key: "was", title: <span style={SCHRIFT.kicker}>Was</span>, dataIndex: "wasText", width: SPALTE_WAS_PX },
   {
     /*
      * DER WORTLAUT IST DIE ZUSAGE (§7.8). `client_ip_unbestaetigt` kommt ohne
@@ -96,11 +104,16 @@ const SPALTEN = [
      * Aussage, die sie nicht hat.
      */
     key: "ip",
-    title: "IP (unbestätigt, gekürzt)",
+    title: <span style={SCHRIFT.kicker}>IP (unbestätigt, gekürzt)</span>,
     dataIndex: "ipText",
     width: SPALTE_IP_GEKUERZT_PX,
   },
-  { key: "agent", title: "Browser/Gerät", dataIndex: "agentText", width: SPALTE_AGENT_PX },
+  {
+    key: "agent",
+    title: <span style={SCHRIFT.kicker}>Browser/Gerät</span>,
+    dataIndex: "agentText",
+    width: SPALTE_AGENT_PX,
+  },
 ];
 
 /**

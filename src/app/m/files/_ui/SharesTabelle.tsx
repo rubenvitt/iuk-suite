@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useRef, useState, type ReactNode } from "react";
 import { Alert, Button, Card, Popconfirm, Skeleton, Table } from "antd";
 import {
   CheckCircleOutlined,
@@ -10,6 +10,7 @@ import {
   QuestionCircleOutlined,
   StopOutlined,
 } from "@ant-design/icons";
+import { SCHRIFT } from "@/core/theme/schrift";
 
 import { shareLoeschenAction, type ShareFormZustand } from "../(verwaltung)/actions";
 /*
@@ -130,35 +131,51 @@ function fehlerText(zustand: ShareFormZustand): string | null {
  * Die Spalten, EINMAL — und die Ueberschriften des Skeletts lesen dieselbe
  * Quelle (siehe `SPALTEN_TITEL`). Zwei getippte Listen wuerden auseinanderlaufen,
  * und das Skelett waere dann das Skelett einer anderen Tabelle.
+ *
+ * SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
+ * in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): jeder
+ * Textkopf ein `<span style={SCHRIFT.kicker}>`, nie CSS gegen
+ * `.ant-table-thead`. `aktionen` bleibt `title: ""` — kein Text, keine Rolle
+ * mit Wirkung; die Aktionsspalte braucht keinen Kopf. Deshalb ist `SPALTEN_TITEL`
+ * jetzt `ReactNode[]`, nicht mehr `string[]` — das Skelett rendert `{titel}`
+ * ohnehin nur als Kind eines `<th>`, das nimmt beides.
  */
 function spalten(qrOeffnen: (zeile: ShareZeile) => void) {
   return [
-    { key: "titel", title: "Titel", dataIndex: "titel" },
-    { key: "typ", title: "Typ", dataIndex: "typText" },
+    { key: "titel", title: <span style={SCHRIFT.kicker}>Titel</span>, dataIndex: "titel" },
+    { key: "typ", title: <span style={SCHRIFT.kicker}>Typ</span>, dataIndex: "typText" },
     {
       key: "dateien",
-      title: "Dateien",
+      title: <span style={SCHRIFT.kicker}>Dateien</span>,
       render: (_: unknown, zeile: ShareZeile) => <Dateimenge zeile={zeile} />,
     },
-    { key: "groesse", title: "Größe", dataIndex: "groesseText" },
+    { key: "groesse", title: <span style={SCHRIFT.kicker}>Größe</span>, dataIndex: "groesseText" },
     {
       key: "ablauf",
-      title: "Ablauf",
+      title: <span style={SCHRIFT.kicker}>Ablauf</span>,
       render: (_: unknown, zeile: ShareZeile) => <Ablauf zeile={zeile} />,
     },
-    { key: "downloads", title: "Downloads", dataIndex: "downloadsText" },
+    {
+      key: "downloads",
+      title: <span style={SCHRIFT.kicker}>Downloads</span>,
+      dataIndex: "downloadsText",
+    },
     {
       key: "passwort",
-      title: "Passwort",
+      title: <span style={SCHRIFT.kicker}>Passwort</span>,
       // Ja/Nein als WORT: ein Schloss-Symbol allein traegt die Aussage nicht.
       render: (_: unknown, zeile: ShareZeile) => <span>{zeile.hatPasswort ? "Ja" : "Nein"}</span>,
     },
     {
       key: "av",
-      title: "AV-Zustand",
+      title: <span style={SCHRIFT.kicker}>AV-Zustand</span>,
       render: (_: unknown, zeile: ShareZeile) => <AvZustand wert={zeile.avSammelwert} />,
     },
-    { key: "erstelltVon", title: "Erstellt von", dataIndex: "erstelltVonText" },
+    {
+      key: "erstelltVon",
+      title: <span style={SCHRIFT.kicker}>Erstellt von</span>,
+      dataIndex: "erstelltVonText",
+    },
     {
       key: "aktionen",
       title: "",
@@ -170,7 +187,7 @@ function spalten(qrOeffnen: (zeile: ShareZeile) => void) {
 }
 
 /** Die Ueberschriften AUS den Spalten, nicht daneben getippt. */
-const SPALTEN_TITEL: string[] = spalten(() => undefined).map((spalte) => spalte.title);
+const SPALTEN_TITEL: ReactNode[] = spalten(() => undefined).map((spalte) => spalte.title);
 
 function Dateimenge({ zeile }: { zeile: ShareZeile }) {
   return (

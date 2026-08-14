@@ -349,6 +349,30 @@ describe("Punkt 1 — unbekannte ID", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Aufgabe 12, Punkt 4 (Review) — Spaltenköpfe der Dateitabelle
+// ---------------------------------------------------------------------------
+
+describe("Aufgabe 12, Punkt 4 (Review) — Spaltenköpfe tragen SCHRIFT.kicker", () => {
+  /**
+   * PUNKT 4, ZWEITER HALBSATZ (Review-Runde zu Aufgabe 12): Spaltenkoepfe
+   * tragen `SCHRIFT.kicker`, nicht nur ihren Text. Ohne diese Zusicherung
+   * naehme eine spaetere Aufraeumrunde das `<span style={SCHRIFT.kicker}>`
+   * als Ballast wieder heraus — der Text sieht fuer sich genommen unveraendert
+   * aus, die Rolle steckt ausschlieszlich im Stil.
+   */
+  it("traegt an der Spalte „Datei“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
+    await legeShare();
+    await legeDatei({ id: DATEI_A, dateiname: "a.pdf", avStatus: "clean" });
+    const wirt = await dom();
+    const kopf = wirt.querySelectorAll("thead.ant-table-thead th")[0];
+    const span = kopf?.querySelector("span");
+    expect(span?.textContent).toBe("Datei");
+    expect(span?.style.fontWeight).toBe("600");
+    expect(span?.style.textTransform).toBe("uppercase");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Punkt 2 — AV-Zustand je Datei als Text UND Symbol
 // ---------------------------------------------------------------------------
 
