@@ -167,7 +167,9 @@ describe("leseNachweis / loescheNachweis", () => {
     const id = nanoid();
     await legeNachweisAb(id, "bild.png", PNG);
     const zurueck = await leseNachweis(id);
-    expect(zurueck).toEqual(PNG);
+    // `leseNachweis` liefert ein Node-`Buffer` (Uint8Array-Subklasse) — `toEqual`
+    // unterscheidet die Klasse, deshalb wird gegen ein `Buffer` verglichen.
+    expect(zurueck).toEqual(Buffer.from(PNG));
   });
 
   it("liefert null für eine fehlende Datei, statt zu werfen", async () => {
