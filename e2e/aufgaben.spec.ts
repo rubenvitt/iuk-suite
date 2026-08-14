@@ -625,6 +625,24 @@ async function oeffneNachweisAufgabe(page: import("@playwright/test").Page): Pro
     const href = await link.getAttribute("href");
     expect(href, "kein Verweis auf die Nachweis-Demoaufgabe gefunden").toBeTruthy();
     nachweisHref = href;
+
+    /*
+     * DIE UPLOAD-ROUTE VOR DEM ECHTEN POST UEBERSETZEN — dasselbe Bild wie
+     * `files-fileshare.spec.ts`s Warmlauf vor `/api/download/[id]` (Kopfkommentar
+     * dort). `next dev`/Turbopack kompiliert einen Route Handler beim ERSTEN
+     * Treffer; landet der eigentliche `fetch("...nachweis/hochladen", {method:
+     * "POST"})` aus `NachweisFormular.tsx` waehrend genau dieser Erstkompilierung,
+     * loest der HMR-Kanal einen vollen Seiten-Reload aus, und der Browser bricht
+     * die schon laufende Anfrage MIT AB (`net::ERR_ABORTED`, `canceled: true`,
+     * NIE eine Antwort) — kein Timing-Zufall, gemessen per CDP-`Network`-Domaene:
+     * derselbe Klick liefert nach diesem Warmlauf zuverlaessig `200`, ohne ihn
+     * zuverlaessig `ERR_ABORTED`. Ein `GET` auf eine Route, die nur `POST`
+     * exportiert, kompiliert genauso (Next generiert die 405-Antwort erst NACH
+     * dem Laden des Moduls) und ist harmlos: er beruehrt weder Zugriffsrecht
+     * noch Datenbank.
+     */
+    const warmlauf = await page.request.get(`http://${HOST}:3100${nachweisHref}/nachweis/hochladen`);
+    expect(warmlauf.status(), await warmlauf.text()).toBe(405);
   }
   await page.goto(`http://${HOST}:3100${nachweisHref}`);
 
@@ -655,6 +673,24 @@ async function wartenAufNachweisStatus(
   throw new Error(`Der erwartete Nachweis-Zustand ist nach ${versucheMax} Versuchen nicht eingetreten.`);
 }
 
+/**
+ * KLICKT „NACHWEIS SPEICHERN" UND PRUEFT DIE ANTWORT SELBST, STATT NUR AUF EINEN
+ * SPAETEREN ZUSTANDSWECHSEL ZU WARTEN (Befund `task-19-befund.md`): ohne diese
+ * Pruefung lief eine abgelehnte Antwort (404/405/413 — Routenkollision,
+ * Zustandsriegel, zu grosse Anfrage) STILL in `wartenAufNachweisStatus`s
+ * Zeitbudget, und die Fehlermeldung lautete „Zustand nicht eingetreten" statt
+ * „Upload abgelehnt". `page.waitForResponse` faengt GENAU die Antwort auf
+ * `.../nachweis/hochladen` ab — unabhaengig davon, ob sie ankommt, bevor oder
+ * nachdem der Klick selbst aufgeloest ist.
+ */
+async function sendeNachweis(page: import("@playwright/test").Page): Promise<void> {
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/nachweis/hochladen")),
+    page.getByRole("button", { name: "Nachweis speichern" }).click(),
+  ]);
+  expect(antwort.ok(), `Upload abgelehnt: HTTP ${antwort.status()} — ${await antwort.text()}`).toBe(true);
+}
+
 test("Nachweis hochladen — ein Fund (Fake-clamd „found“) wird NICHT ausgeliefert, Fertig melden bleibt verweigert", async ({
   page,
 }) => {
@@ -662,7 +698,7 @@ test("Nachweis hochladen — ein Fund (Fake-clamd „found“) wird NICHT ausgel
   await oeffneNachweisAufgabe(page);
 
   await page.locator("#nf-datei").setInputFiles({ name: "beweisfoto.png", mimeType: "image/png", buffer: PNG });
-  await page.getByRole("button", { name: "Nachweis speichern" }).click();
+  await sendeNachweis(page);
   await expect(page.getByRole("button", { name: "Nachweis speichern" })).toBeVisible();
 
   await wartenAufNachweisStatus(page, async () => {
@@ -690,7 +726,7 @@ test("Nachweis hochladen — ein sauberes Bild (Fake-clamd „ok“) wird ausgel
   await oeffneNachweisAufgabe(page);
 
   await page.locator("#nf-datei").setInputFiles({ name: "beweisfoto.png", mimeType: "image/png", buffer: PNG });
-  await page.getByRole("button", { name: "Nachweis speichern" }).click();
+  await sendeNachweis(page);
 
   await wartenAufNachweisStatus(page, async () => (await page.getByTestId("nachweis-bild").count()) > 0);
 
@@ -724,7 +760,16 @@ test("Nachweis hochladen — ein sauberes Bild (Fake-clamd „ok“) wird ausgel
 test("Nachweis-Auslieferung: eine andere BuFDi ohne darfNachweisSehen bekommt denselben Pfad NICHT — 404", async ({
   page,
 }) => {
-  expect(sauberesNachweisSrc, "der vorige Test hat kein sauberes Bild geliefert").toBeTruthy();
+  // UEBERSPRUNGEN STATT ROT, MIT BEGRUENDUNG (Befund `task-19-befund.md`): dieser
+  // Test haengt am VORIGEN (`sauberesNachweisSrc` entsteht dort) — `workers: 1`
+  // macht das zulaessig, aber ein fehlgeschlagener Upload im vorigen Test darf
+  // hier nicht als ZWEITER, eigenstaendiger Fehler erscheinen (`toBeTruthy()`
+  // auf `null`). Ein klarer Ueberspringgrund haelt fest, WESSEN Fehlschlag das
+  // eigentlich ist, statt ihn zu verdecken.
+  test.skip(
+    sauberesNachweisSrc === null,
+    "übersprungen: der vorige Test („ein sauberes Bild … wird ausgeliefert“) hat kein sauberesNachweisSrc geliefert — siehe dessen Fehlschlag, nicht diesen",
+  );
   await devLogin(page, {
     host: HOST,
     groups: GRUPPE,
