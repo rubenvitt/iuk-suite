@@ -396,15 +396,41 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
       await expect(streifen).toHaveCSS("background-color", "rgb(200, 0, 15)");
     });
 
-    test("der aktive Navigationseintrag traegt Markenrot fuer Schrift UND Unterkante, plus Gewicht 600", async ({
+    test("der aktive Navigationseintrag traegt den 3px-Linksakzent in Markenrot, plus Gewicht 600", async ({
       page,
     }) => {
-      // `.navLink[aria-current]` lebt in der Seitenleiste (`modulleiste`),
-      // NICHT in `.modulzeile` (die fuellen antd-Buttons des App-Switchers und
-      // tragen kein `aria-current`). feedback-admin auf der Modulwurzel
-      // markiert die Uebersicht mit `aria-current="page"` — derselbe Aufbau
-      // wie im bestehenden Test "markiert die Uebersicht auf der Modulwurzel"
-      // oben.
+      // `.navLink[aria-current]` lebt in der Seitenleiste (`modulleiste`). Die
+      // Apps haengen am Umschalter der Kopfzeile (`.umschalter`) und tragen
+      // eine eigene Klasse (`.appEintrag`) — der Selektor unten kann sie also
+      // nicht mitgreifen. feedback-admin auf der Modulwurzel markiert die
+      // Uebersicht mit `aria-current="page"` — derselbe Aufbau wie im
+      // bestehenden Test "markiert die Uebersicht auf der Modulwurzel" oben.
+      //
+      // DIESER BLOCK PRUEFTE FRUEHER "Schrift UND Unterkante", und beides war
+      // falsch geworden:
+      //
+      // Die Unterkante zuerst. `.navLink` setzt nur `border-inline-start`;
+      // `border-bottom-style` ist `none`, die Breite 0, und
+      // `border-bottom-color` faellt damit auf `currentcolor` zurueck — also
+      // auf genau die `color`, die eine Zeile darueber schon zugesichert war.
+      // Die Zusicherung konnte nicht fallen: wer den Linksakzent ersatzlos
+      // loescht, haette hier weiterhin Gruen bekommen. Damit war die sichtbare
+      // Aktivmarkierung der Seitenleiste im Browser nirgends belegt, nur als
+      // Regeltext in `shell-css.test.ts`.
+      //
+      // Die Schriftfarbe danach: sie ist mit der Kontrast-Korrektur des
+      // Schlussreviews entfallen (`#e45a66` auf der getoenten Flaeche ergab im
+      // Dunkeln 3.96:1). `.navLink[aria-current]` traegt keine eigene `color`
+      // mehr; eine Zusicherung darauf haette die Regression festgehalten.
+      //
+      // Zugesichert wird deshalb der Traeger, der wirklich da ist: Farbe UND
+      // Breite des linken Akzents. Beide einzeln, weil eine allein nicht
+      // reicht — ohne die Breite bliebe der Ausfall von `border-inline-start`
+      // unbemerkt, ohne die Farbe der Ausfall von `--iuk-marke`.
+      //
+      // `border-inline-start-*` meldet sich in `getComputedStyle` unter der
+      // physischen Eigenschaft — Schreibmodus der Suite ist horizontal-tb/ltr,
+      // "inline-start" ist dort "left".
       await devLogin(page, {
         host: "feedback.localtest.me",
         groups: "da-feedback-admin",
@@ -412,11 +438,8 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
       });
       const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current]');
       await expect(aktiv).toHaveCount(1);
-      await expect(aktiv).toHaveCSS("color", "rgb(200, 0, 15)");
-      // `border-block-end-color` meldet sich in `getComputedStyle` unter der
-      // physischen Eigenschaft — Schreibmodus der Suite ist horizontal-tb/ltr,
-      // "block-end" ist dort "bottom".
-      await expect(aktiv).toHaveCSS("border-bottom-color", "rgb(200, 0, 15)");
+      await expect(aktiv).toHaveCSS("border-left-color", "rgb(200, 0, 15)");
+      await expect(aktiv).toHaveCSS("border-left-width", "3px");
       await expect(aktiv).toHaveCSS("font-weight", "600");
     });
 
