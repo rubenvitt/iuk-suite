@@ -40,19 +40,30 @@ test("der Widerruf sperrt eine zweite, unabhaengige Sitzung aus", async ({ brows
 
   await seiteA.goto("http://portal.localtest.me:3100/profil");
   await seiteA.getByTestId("alle-abmelden").click();
-  await seiteA.getByTestId("alle-abmelden-ja").click();
   /*
-   * Gewartet wird darauf, dass A die Profilseite VERLAESST — nicht darauf, dass
-   * A beim Login ankommt. `signOut` ruft die Server Action ab und navigiert
-   * ERST DANACH; der Widerruf steht also, sobald sich die Adresse bewegt.
+   * DER SYNCHRONISATIONSPUNKT, und warum es NICHT die Adresse sein kann.
    *
-   * Auf `/login` zu warten waere hier falsch: `oidc-signout` baut sein Ziel aus
-   * `AUTH_URL`, und das ist in dieser E2E-Umgebung gar nicht gesetzt (siehe
-   * `webServer.env` in playwright.config.ts) — der Rueckfall ist
-   * `http://localhost:3000`, wo nichts lauscht. Der Test wuerde an einem
-   * Umstand der Testumgebung scheitern statt an der Sache.
+   * Der Widerruf steht, sobald `signOut` laeuft: `bestaetigt()` in
+   * `ProfilAnsicht` ruft ERST die Server Action ab und DANN `signOut`. Die
+   * Anfrage an `/api/auth/oidc-signout` ist damit der frueheste Zeitpunkt, an
+   * dem der Widerruf sicher geschrieben ist.
+   *
+   * Auf die ADRESSE zu warten scheitert hier, und zwar gemessen: `oidc-signout`
+   * baut sein Ziel aus `AUTH_URL`, das in dieser E2E-Umgebung gar nicht gesetzt
+   * ist (`webServer.env` in playwright.config.ts). Der Rueckfall ist
+   * `http://localhost:3000`, wo nichts lauscht — `waitForURL` WIRFT dann
+   * `net::ERR_CONNECTION_REFUSED`, statt auf dem Praedikat aufzuloesen. Der
+   * Test waere an einem Umstand der Testumgebung gescheitert, nicht an der
+   * Sache.
+   *
+   * Der Warteposten wird VOR dem Klick scharf gemacht; danach waere die
+   * Anfrage womoeglich schon durch.
    */
-  await seiteA.waitForURL((url) => !url.pathname.includes("/profil"), { timeout: 45_000 });
+  const abgemeldet = seiteA.waitForRequest((req) => req.url().includes("/api/auth/oidc-signout"), {
+    timeout: 45_000,
+  });
+  await seiteA.getByTestId("alle-abmelden-ja").click();
+  await abgemeldet;
 
   // B navigiert und landet beim Login — ohne dass B irgendetwas getan haette.
   await seiteB.goto("http://portal.localtest.me:3100/");
@@ -68,8 +79,12 @@ test("nach dem Widerruf traegt eine frische Anmeldung wieder", async ({ page }) 
   await devLogin(page, { host: "portal.localtest.me", email });
   await page.goto("http://portal.localtest.me:3100/profil");
   await page.getByTestId("alle-abmelden").click();
+  // Derselbe Warteposten wie oben, aus demselben Grund.
+  const abgemeldet = page.waitForRequest((req) => req.url().includes("/api/auth/oidc-signout"), {
+    timeout: 45_000,
+  });
   await page.getByTestId("alle-abmelden-ja").click();
-  await page.waitForURL((url) => !url.pathname.includes("/profil"), { timeout: 45_000 });
+  await abgemeldet;
 
   await devLogin(page, { host: "portal.localtest.me", email });
   await page.goto("http://portal.localtest.me:3100/");

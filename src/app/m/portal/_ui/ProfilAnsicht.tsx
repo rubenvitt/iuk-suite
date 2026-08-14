@@ -75,8 +75,11 @@ export function ProfilAnsicht({
     }
   }
 
+  // `orientation`, nicht `direction`: antd 6 hat `direction` abgekündigt und
+  // warnt zur Laufzeit. Kein Gate sieht das — die Verwarnung stand nur im
+  // Protokoll des Playwright-Laufs. Vorbild: `lagerbuch/…/TemplateAktionen`.
   return (
-    <Space direction="vertical" size="large" style={{ display: "flex" }}>
+    <Space orientation="vertical" size="large" style={{ display: "flex" }}>
       <Card title="Angaben aus der Anmeldung">
         <Zeile titel="Name">{name ?? "Unbekannt"}</Zeile>
         <Zeile titel="E-Mail">{email ?? "Keine hinterlegt"}</Zeile>
