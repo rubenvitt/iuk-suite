@@ -82,6 +82,24 @@ export function routineAmTag(r: RoutineRow, wochentag: number): boolean {
   return r.aktiv && bit !== undefined && (r.wochentage & bit) !== 0;
 }
 
+/** Kurzform je Index von `WOCHENTAG_BIT` (0 = Montag … 4 = Freitag). Nur fuer `fmtWochentage`. */
+const WOCHENTAG_KURZ_MO_FR: readonly string[] = ["Mo", "Di", "Mi", "Do", "Fr"];
+
+/**
+ * Die Wochentage EINER Routine lesbar, nicht als Zahl (Aufgabe 11, Spec §8.1:
+ * „die Wochentage lesbar (nicht die Zahl)"). Liest `WOCHENTAG_BIT` in
+ * AUFSTEIGENDER Reihenfolge — DIESELBE Quelle wie `routineAmTag` — statt die
+ * Maske selbst zu zerlegen: Auswahl → Maske → Anzeige haengt damit an EINER
+ * Stelle, nicht an zwei Fassungen, die auseinanderlaufen koennten (genau die
+ * Stelle, an der ein Off-by-one still falsch waere — eine Routine erschiene
+ * dann am falschen Tag, und niemand saehe es auszer der betroffenen Person).
+ */
+export function fmtWochentage(maske: number): string {
+  return WOCHENTAG_BIT.map((bit, i) => ((maske & bit) !== 0 ? WOCHENTAG_KURZ_MO_FR[i] : null))
+    .filter((tag): tag is string => tag !== null)
+    .join(", ");
+}
+
 export interface Budget {
   verplantMinuten: number;
   sollMinuten: number;

@@ -5,16 +5,20 @@ import { getDb } from "./_db/client";
 import {
   aufgabe,
   aktualisiereAufgabe,
+  aktualisiereRoutine,
   bufdis,
   erstelleAufgabe,
   erstelleNachweis,
+  erstelleRoutine,
   loescheAufgabe,
   nachweiseSeitLetzterZurueckweisung,
   personNachId,
   planRangFuerEinplanen,
+  routineNachId,
   schreibeVerlauf,
 } from "./_db/queries";
 import type { AufgabeRow, Ereignis } from "./_db/schema";
+import { WOCHENTAG_BIT } from "./_lib/anzeige";
 import {
   istGueltigeDauerMinuten,
   istGueltigeNachweisArt,
@@ -24,7 +28,7 @@ import {
 } from "./_lib/eingabe";
 import type { FormState } from "./_lib/formState";
 import { anfangsZustand, uebergang, type Aktion } from "./_lib/lebenszyklus";
-import { istVertretungsfreigabe, personFuerSession } from "./_lib/zugang";
+import { darfPlanAendern, istVertretungsfreigabe, personFuerSession } from "./_lib/zugang";
 import { isoTag } from "./_lib/datum";
 
 /*
@@ -651,4 +655,154 @@ export async function zurueckweisenAction(_prev: FormState, formData: FormData):
   });
   revalidate();
   return { ok: true };
+}
+
+/*
+ * AB HIER AUFGABE 11 — ROUTINEN (Spec §6 `routine`, §8.1, §9.5, §9.7-§9.9).
+ *
+ * EINE ROUTINE DURCHLAEUFT `uebergang()` NICHT (Brief, Spec §6): sie ist kein Aufgabendatensatz —
+ * kein Status, kein Nachweis, keine Freigabe, die Uebergangstabelle kennt sie nicht. Die drei Actions
+ * hier pruefen die Berechtigung deshalb DIREKT ueber `_lib/zugang.ts`, statt einen Aufruf zu bauen,
+ * den `uebergang()` strukturell nicht bedienen kann.
+ *
+ * `darfPlanAendern(p, zielPersonId, heute)` IST DAS RICHTIGE PRAEDIKAT, KEIN EIGENES (Brief): eine
+ * Routine ist ein Zeitplaneintrag mit Wiederholung — sie zweitens zu schuetzen waere eine zweite
+ * Fassung derselben Regel (`p.id === zielPersonId` und aktiv), die bei einer kuenftigen Aenderung von
+ * `darfPlanAendern` nicht automatisch mitzoege. AUCH DIE KOORDINATION SCHEITERT DARAN — die einzige
+ * Klausel ist `p.id === zielPersonId`, sie schlaegt vor, sie setzt nicht (`_lib/zugang.ts`-Kommentar).
+ * `routineAnlegenAction` liest dabei GAR KEIN Zielperson-Feld aus dem Formular: `zielPersonId` ist
+ * immer die anmeldende Person selbst — ein manipuliertes Formular mit einem fremden `personId`-Feld
+ * haette hier strukturell keinen Empfaenger, nicht nur eine gepruefte Ablehnung.
+ *
+ * KEINE VERLAUFSZEILE FUER ROUTINEN — ENTSCHEIDUNG (Brief liess das offen, Bericht begruendet sie
+ * ausfuehrlich): `verlauf.aufgabe_id` ist NOT NULL und referenziert `aufgaben.id` (`_db/schema.ts`);
+ * eine Routine hat keine `aufgabeId`, und eine erfundene waere eine falsche Tatsachenbehauptung in der
+ * Leistungsdokumentation (Brief: „was NICHT geht"). Ein ZWEITER Weg (eine eigene Routinen-Historie)
+ * entfaellt ebenfalls: der Verlauf IST die Leistungsdokumentation (Spec §6 zu `verlauf`), und eine
+ * Routine hat laut Spec §6 ausdruecklich KEINE Leistung, die zu dokumentieren waere — „ohne Status,
+ * ohne Nachweis, ohne Freigabe". Ergo: gar kein Verlauf, fuer keine der drei Actions.
+ */
+
+/** Ein Wochentags-Index (0-4, Mo-Fr) je gesetztem Kontrollkaestchen `name="wochentage"`. */
+function wochentageAusFormData(formData: FormData): number[] {
+  return formData
+    .getAll("wochentage")
+    .map((wert) => Number(wert))
+    .filter((i) => Number.isInteger(i) && i >= 0 && i < WOCHENTAG_BIT.length);
+}
+
+/** Die Bitmaske aus einer Liste von Wochentags-Indizes — `_lib/anzeige.ts`s `WOCHENTAG_BIT`, nicht nachgebaut. */
+function maskeAusIndizes(indizes: number[]): number {
+  return indizes.reduce((maske, i) => maske | WOCHENTAG_BIT[i]!, 0);
+}
+
+/**
+ * DER GEMEINSAME RUMPF FUER ANLEGEN UND AENDERN — beide Formulare tragen dieselben vier Felder
+ * (Titel, Wochentage, Uhrzeit, Dauer), und der einzige Unterschied ist, ob eine bestehende Zeile
+ * geladen und geprueft wird oder die anmeldende Person selbst das Ziel ist. Vorbild `verteilenGemeinsam`
+ * oben: ein zweites, fast identisches Formular waere derselbe Code doppelt gehalten.
+ *
+ * `routineId === null` HEISST „ANLEGEN": `zielPersonId` ist dann `person.id` — eine Routine wird
+ * immer fuer die eigene Person angelegt, nie fuer eine andere (Brief: „gehoert einer Person, nur sie
+ * verwaltet sie"). `routineId !== null` HEISST „AENDERN": die bestehende Zeile wird geladen, und
+ * `zielPersonId` ist ihre `personId` — eine unbekannte `routineId` wirft, wie bei jeder anderen Action
+ * dieser Datei (Vorbild `verteilenGemeinsam`s `aufgabe(db, aufgabeId)`-Pruefung).
+ */
+async function routineFormularGemeinsam(
+  formData: FormData,
+  routineId: string | null,
+): Promise<FormState> {
+  const db = getDb();
+  const person = await personFuerSession(db);
+  const heute = isoTag(new Date());
+
+  const bestehende = routineId === null ? null : routineNachId(db, routineId);
+  if (routineId !== null && !bestehende) {
+    throw new Error(`Routine "${routineId}" nicht gefunden.`);
+  }
+  const zielPersonId = bestehende ? bestehende.personId : person.id;
+  if (!darfPlanAendern(person, zielPersonId, heute)) {
+    throw new Error("Keine Berechtigung, diese Routine zu aendern.");
+  }
+
+  const indizes = wochentageAusFormData(formData);
+  const values: Record<string, string> = {
+    titel: feld(formData, "titel"),
+    // KOMMAGETRENNTE INDIZES, NICHT DIE FERTIGE MASKE (Review-Punkt aus dem Brief: „values traegt
+    // JEDES gesendete Feld zurueck"): `RoutineFormular.tsx` liest diese Liste zurueck, um nach einem
+    // Feldfehler GENAU die zuvor angehakten Kontrollkaestchen wieder zu setzen — mit der fertigen
+    // Maske allein waere das dieselbe Zerlegung ein zweites Mal, diesmal in der Client-Insel.
+    wochentage: indizes.join(","),
+    uhrzeit: feld(formData, "uhrzeit"),
+    dauerMinuten: feld(formData, "dauerMinuten"),
+  };
+  if (routineId !== null) values.routineId = routineId;
+
+  const fieldErrors: Record<string, string> = {};
+  const titel = values.titel.trim();
+  if (titel === "") fieldErrors.titel = "Titel fehlt.";
+  if (indizes.length === 0) {
+    fieldErrors.wochentage = "Mindestens ein Wochentag muss gewaehlt sein.";
+  }
+  const uhrzeit = values.uhrzeit.trim();
+  if (uhrzeit !== "" && !istGueltigeUhrzeit(uhrzeit)) {
+    fieldErrors.uhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
+  }
+  const dauerMinuten = Number(values.dauerMinuten);
+  if (!istGueltigeDauerMinuten(dauerMinuten)) {
+    fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
+  }
+  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+
+  const werte = {
+    titel,
+    wochentage: maskeAusIndizes(indizes),
+    uhrzeit: uhrzeit === "" ? null : uhrzeit,
+    dauerMinuten,
+  };
+
+  if (bestehende) {
+    aktualisiereRoutine(db, bestehende.id, werte);
+  } else {
+    erstelleRoutine(db, { personId: zielPersonId, ...werte });
+  }
+  revalidate();
+  return { ok: true };
+}
+
+/** ANLEGEN — immer fuer die anmeldende Person selbst (Spec §6, §8.1). */
+export async function routineAnlegenAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  return routineFormularGemeinsam(formData, null);
+}
+
+/**
+ * AENDERN — dieselben vier Felder an einer bestehenden Routine. `routineId` ist hier PFLICHT (anders
+ * als bei `routineAnlegenAction`, wo es keine gibt) — ein leeres Feld ist nur ueber ein manipuliertes
+ * Formular erreichbar (die Oberflaeche traegt es immer als verstecktes Feld) und wirft deshalb, statt
+ * einen Feldfehler zurueckzugeben.
+ */
+export async function routineAendernAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const routineId = feld(formData, "routineId");
+  if (routineId === "") throw new Error("routineId fehlt.");
+  return routineFormularGemeinsam(formData, routineId);
+}
+
+/**
+ * RUHEN LASSEN / WIEDER AUFWECKEN — schaltet `aktiv` um. Kein Formularfeld ausser `routineId`,
+ * deshalb kein `FormState` — wie `zurueckziehenAction`/`freigebenAction` oben.
+ */
+export async function routineRuhenAction(formData: FormData): Promise<void> {
+  const db = getDb();
+  const person = await personFuerSession(db);
+  const heute = isoTag(new Date());
+
+  const routineId = feld(formData, "routineId");
+  const bestehende = routineNachId(db, routineId);
+  if (!bestehende) throw new Error(`Routine "${routineId}" nicht gefunden.`);
+  if (!darfPlanAendern(person, bestehende.personId, heute)) {
+    throw new Error("Keine Berechtigung, diese Routine zu aendern.");
+  }
+
+  aktualisiereRoutine(db, bestehende.id, { aktiv: !bestehende.aktiv });
+  revalidate();
 }

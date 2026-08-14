@@ -126,8 +126,18 @@ export default defineConfig({
       },
     },
     {
+      /*
+       * `scripts/seed-lokal.ts aufgaben` NACH dem lagerbuch-Seed, VOR `next dev` (Aufgabe 11): das
+       * Modul seedet bewusst NICHT am Boot-Pfad (`docs/... shouldSeed()`-Begruendung, `_lib/
+       * seedLokal.ts`-Kopfkommentar) — ohne diese Zeile bliebe die `person`-Tabelle bei einem
+       * frischen `rm -rf ./.data/e2e` leer, und JEDE Anmeldung (jede Adresse) traefe
+       * `personFuerSession()`s `notFound()`. Idempotent und additiv (derselbe Kopfkommentar), also
+       * unbedenklich vor jedem Lauf neu auszufuehren. `pnpm seed:lokal aufgaben` selbst ruft
+       * `migrateAllModules()` auf und braucht dafuer keinen laufenden Server — reiner Dateizugriff
+       * auf dieselbe `DATA_DIR`, die `next dev` gleich danach oeffnet.
+       */
       command:
-        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && next dev -p 3100",
+        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && next dev -p 3100",
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht

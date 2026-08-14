@@ -122,6 +122,44 @@ export function routinenFuer(db: DB, personId: string): RoutineRow[] {
   return db.select().from(routinen).where(eq(routinen.personId, personId)).all();
 }
 
+export function routineNachId(db: DB, id: string): RoutineRow | null {
+  return db.select().from(routinen).where(eq(routinen.id, id)).get() ?? null;
+}
+
+/**
+ * ERSTELLT EINE ROUTINE — Aufgabe 11, `routineAnlegenAction`. Flaches Objekt wie
+ * `erstelleAufgabe`: der Aufrufer soll `id`/`erstelltAm`/`aktiv` nicht mitgeben
+ * koennen (`aktiv` traegt `$defaultFn`-freien `default(true)` im Schema — eine
+ * neu angelegte Routine ruht nie).
+ */
+export function erstelleRoutine(
+  db: DB,
+  werte: {
+    personId: string;
+    titel: string;
+    wochentage: number;
+    uhrzeit: string | null;
+    dauerMinuten: number;
+  },
+): RoutineRow {
+  return db.insert(routinen).values(werte).returning().get();
+}
+
+/**
+ * AKTUALISIERT EINE ROUTINE — `routineAendernAction` (Titel/Wochentage/Uhrzeit/Dauer) UND
+ * `routineRuhenAction` (nur `aktiv`), deshalb ein gemeinsames Schreibprimitiv statt zweier fast
+ * gleicher Funktionen. Anders als `aktualisiereAufgabe`: KEIN erzwungenes `aktualisiertAm` — die
+ * Tabelle `routinen` fuehrt keine solche Spalte (`_db/schema.ts`), eine Routine traegt keine
+ * Historie, die einen „zuletzt geaendert"-Zeitpunkt bräuchte.
+ */
+export function aktualisiereRoutine(
+  db: DB,
+  id: string,
+  patch: Partial<Omit<typeof routinen.$inferInsert, "id" | "personId" | "erstelltAm">>,
+): RoutineRow {
+  return db.update(routinen).set(patch).where(eq(routinen.id, id)).returning().get();
+}
+
 /**
  * Aufsteigend nach `ts` — die Geschichte einer Aufgabe in der Reihenfolge, in der sie geschah.
  * `ORDER BY` in SQL statt eines JS-Sorts: das nutzt `verlauf_aufgabe_idx` auf

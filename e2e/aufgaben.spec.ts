@@ -27,3 +27,38 @@ test("ohne die Zugangsgruppe verweigert die Middleware den Zugang", async ({ pag
   const res = await page.goto(`http://${HOST}:3100/`);
   expect(res?.status()).toBe(403);
 });
+
+/**
+ * DIE ERSTE NEUE ROUTE SEIT AUFGABE 1 UND DIE ERSTE CLIENT-INSEL DES MODULS (Aufgabe 11, Brief) —
+ * genau die Kombination, die `typecheck`, `lint`, `build` UND Vitest strukturell nicht sehen koennen
+ * (die vier Suite-Fallen im Kopfkommentar oben). Nur dieser echte Abruf zeigt einen HTTP 500.
+ *
+ * `sub: "dev:alina@localtest.me"` TRIFFT GENAU DIE BUFDI-PERSONA AUS `seedLokal.ts`
+ * (`subFuer({ sub: "alina", ... }) === "dev:alina@localtest.me"`) — Alina ist eine der drei BuFDis,
+ * fuer die `/routinen` gedacht ist (Spec §8).
+ *
+ * DIE KONSOLE BLEIBT FEHLERFREI: die Client-Insel `RoutineFormular` ist der einzige Ort im Modul, an
+ * dem ein Hydrationsfehler (Server- und Client-Markup weichen voneinander ab) ueberhaupt entstehen
+ * koennte — ein solcher Fehler besteht `pnpm build` UND Vitest, meldet sich aber laut in der Konsole
+ * eines echten Browsers.
+ */
+test("Routinen: BuFDi meldet sich an, /routinen antwortet mit 200 und bleibt fehlerfrei", async ({
+  page,
+}) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "alina@localtest.me",
+    callbackPath: "/routinen",
+  });
+
+  await expect(page.getByRole("heading", { name: "Routinen", level: 1 })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Routine anlegen" })).toBeVisible();
+  expect(konsolenFehler).toEqual([]);
+});

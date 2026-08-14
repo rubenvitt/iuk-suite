@@ -14,6 +14,7 @@ import {
   WOCHENTAG_BIT,
   fmtDauer,
   fmtStunden,
+  fmtWochentage,
   istUeberfaellig,
   routineAmTag,
   tagesBudget,
@@ -163,6 +164,47 @@ describe("routineAmTag", () => {
    */
   it("gilt an einem Index ausserhalb der Woche nicht", () => {
     expect(routineAmTag(routine({ wochentage: 0b11111 }), 5)).toBe(false);
+  });
+});
+
+describe("fmtWochentage", () => {
+  /*
+   * DIE BITMASKE GEHT IN BEIDE RICHTUNGEN RICHTIG (Brief) — GENAU DIE STELLE, AN DER EIN OFF-BY-ONE
+   * STILL FALSCH WAERE: eine Routine erschiene dann am falschen Tag im Wochenplan, und niemand saehe
+   * es auszer der betroffenen Person. Diese Tests pruefen jedes Bit EINZELN gegen seinen erwarteten
+   * Wochentag, nicht nur eine Gesamtmaske gegen eine Gesamtzeichenkette — sonst koennten sich zwei
+   * vertauschte Bits gegenseitig aufheben und der Test bliebe gruen.
+   */
+  it("liest Bit 0 als Montag", () => {
+    expect(fmtWochentage(0b00001)).toBe("Mo");
+  });
+
+  it("liest Bit 1 als Dienstag", () => {
+    expect(fmtWochentage(0b00010)).toBe("Di");
+  });
+
+  it("liest Bit 2 als Mittwoch", () => {
+    expect(fmtWochentage(0b00100)).toBe("Mi");
+  });
+
+  it("liest Bit 3 als Donnerstag", () => {
+    expect(fmtWochentage(0b01000)).toBe("Do");
+  });
+
+  it("liest Bit 4 als Freitag", () => {
+    expect(fmtWochentage(0b10000)).toBe("Fr");
+  });
+
+  it("reiht mehrere Tage aufsteigend, nicht in Setzreihenfolge", () => {
+    expect(fmtWochentage(0b10101)).toBe("Mo, Mi, Fr");
+  });
+
+  it("nennt alle fuenf Tage bei voller Maske", () => {
+    expect(fmtWochentage(0b11111)).toBe("Mo, Di, Mi, Do, Fr");
+  });
+
+  it("ergibt einen leeren Text ohne gesetztes Bit", () => {
+    expect(fmtWochentage(0)).toBe("");
   });
 });
 

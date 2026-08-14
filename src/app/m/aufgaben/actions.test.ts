@@ -1,8 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TestDb } from "./_db/testdb";
 import { migrierteTestDb } from "./_db/testdb";
-import { aufgaben, nachweise, personen, verlauf, type AufgabeRow, type PersonRow, type Rolle } from "./_db/schema";
-import { aufgabe, schreibeVerlauf, verlaufFuer } from "./_db/queries";
+import {
+  aufgaben,
+  nachweise,
+  personen,
+  routinen,
+  verlauf,
+  type AufgabeRow,
+  type PersonRow,
+  type Rolle,
+  type RoutineRow,
+} from "./_db/schema";
+import { aufgabe, routineNachId, schreibeVerlauf, verlaufFuer } from "./_db/queries";
 
 /*
  * DASSELBE PRUEFSTAND-MUSTER WIE `_lib/zugang.test.ts` (echte In-Memory-DB ueber
@@ -32,6 +42,9 @@ import {
   einplanenAction,
   fertigMeldenAction,
   freigebenAction,
+  routineAendernAction,
+  routineAnlegenAction,
+  routineRuhenAction,
   startenAction,
   umverteilenAction,
   verteilenAction,
@@ -88,6 +101,20 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert>): AufgabeRow {
       status: "eingegangen",
       faelligAm: "2026-08-20",
       dauerMinuten: 60,
+      ...extra,
+    })
+    .returning()
+    .get();
+}
+
+function legeRoutine(extra: Partial<typeof routinen.$inferInsert> & { personId: string }): RoutineRow {
+  return t.db
+    .insert(routinen)
+    .values({
+      titel: "Fruehbesprechung",
+      wochentage: 0b11111,
+      uhrzeit: "08:00",
+      dauerMinuten: 15,
       ...extra,
     })
     .returning()
@@ -1446,5 +1473,306 @@ describe("wiederaufnehmenAction", () => {
     await expect(wiederaufnehmenAction(form(task.id))).rejects.toThrow(
       /Aktion "wiederaufnehmen" ist im Zustand "verteilt" nicht vorgesehen/,
     );
+  });
+});
+
+/*
+ * AB HIER AUFGABE 11 — ROUTINEN. EINE ROUTINE DURCHLAEUFT `uebergang()` NICHT (Spec §6): kein
+ * `status`, kein Verlauf. Die drei Actions pruefen `darfPlanAendern` direkt — DASSELBE Praedikat,
+ * das den Zeitplan schuetzt, keine zweite Fassung derselben Regel.
+ */
+
+const BERECHTIGUNGS_MELDUNG = /Keine Berechtigung, diese Routine zu aendern\./;
+
+describe("routineAnlegenAction", () => {
+  function form(over: Record<string, string | string[]> = {}): FormData {
+    const f = new FormData();
+    f.set("titel", "Fruehsport");
+    f.set("uhrzeit", "07:00");
+    f.set("dauerMinuten", "30");
+    for (const wert of (over.wochentage as string[] | undefined) ?? ["0", "2", "4"]) {
+      f.append("wochentage", wert);
+    }
+    for (const [k, v] of Object.entries(over)) {
+      if (k === "wochentage") continue;
+      f.set(k, v as string);
+    }
+    return f;
+  }
+
+  it("legt eine Routine fuer die anmeldende Person an, mit der richtigen Bitmaske", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    const ergebnis = await routineAnlegenAction({ ok: true }, form());
+    expect(ergebnis).toEqual({ ok: true });
+
+    const zeilen = t.db.select().from(routinen).all();
+    expect(zeilen).toHaveLength(1);
+    const neue = zeilen[0]!;
+    expect(neue.personId).toBe(bufdi.id);
+    expect(neue.titel).toBe("Fruehsport");
+    // Mo (Bit 0) + Mi (Bit 2) + Fr (Bit 4) = 1 + 4 + 16 = 21 — DIE BITMASKE GEHT RICHTIG (Brief).
+    expect(neue.wochentage).toBe(0b10101);
+    expect(neue.uhrzeit).toBe("07:00");
+    expect(neue.dauerMinuten).toBe(30);
+    expect(neue.aktiv).toBe(true);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("ignoriert ein untergeschobenes fremdes personId-Feld — die Routine gehoert IMMER der anmeldenden Person", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const fremde = legePerson("dev:bendix@test", "bufdi");
+    anmelden(bufdi);
+
+    await routineAnlegenAction({ ok: true }, form({ personId: fremde.id }));
+
+    const neue = t.db.select().from(routinen).all()[0]!;
+    expect(neue.personId).toBe(bufdi.id);
+  });
+
+  it("eine ausgeschiedene Person darf sich selbst keine Routine mehr anlegen", async () => {
+    const exBufdi = legePerson("dev:ex-alina@test", "bufdi", { aktivBis: "2026-08-01" });
+    anmelden(exBufdi);
+
+    await expect(routineAnlegenAction({ ok: true }, form())).rejects.toThrow(BERECHTIGUNGS_MELDUNG);
+  });
+
+  it("ohne Wochentag wird abgelehnt — eine Routine ohne einen einzigen Tag ist sinnlos", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(await routineAnlegenAction({ ok: true }, form({ wochentage: [] })));
+    expect(ergebnis.fieldErrors.wochentage).toBeTruthy();
+    expect(t.db.select().from(routinen).all()).toHaveLength(0);
+  });
+
+  it("leerer Titel wird abgelehnt", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(await routineAnlegenAction({ ok: true }, form({ titel: "  " })));
+    expect(ergebnis.fieldErrors.titel).toBeTruthy();
+  });
+
+  it("eine nicht-positive Dauer wird abgelehnt", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(
+      await routineAnlegenAction({ ok: true }, form({ dauerMinuten: "0" })),
+    );
+    expect(ergebnis.fieldErrors.dauerMinuten).toBeTruthy();
+  });
+
+  it("eine ungueltige Uhrzeit wird als Feldfehler abgelehnt, nicht als Wurf (minutenVon wirft seit Aufgabe 7)", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(
+      await routineAnlegenAction({ ok: true }, form({ uhrzeit: "25:99" })),
+    );
+    expect(ergebnis.fieldErrors.uhrzeit).toBeTruthy();
+  });
+
+  it("eine leere Uhrzeit ist gueltig — sie ist optional", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    const ergebnis = await routineAnlegenAction({ ok: true }, form({ uhrzeit: "" }));
+    expect(ergebnis).toEqual({ ok: true });
+    expect(t.db.select().from(routinen).all()[0]!.uhrzeit).toBeNull();
+  });
+
+  it("ein Feldfehler traegt alle Eingaben zurueck, EINSCHLIESSLICH der Wochentagsauswahl", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(
+      await routineAnlegenAction(
+        { ok: true },
+        form({ titel: "", wochentage: ["1", "3"], uhrzeit: "09:15", dauerMinuten: "20" }),
+      ),
+    );
+    expect(ergebnis.values.wochentage).toBe("1,3");
+    expect(ergebnis.values.uhrzeit).toBe("09:15");
+    expect(ergebnis.values.dauerMinuten).toBe("20");
+  });
+});
+
+describe("routineAendernAction", () => {
+  function form(routineId: string, over: Record<string, string | string[]> = {}): FormData {
+    const f = new FormData();
+    f.set("routineId", routineId);
+    f.set("titel", "Fruehsport, angepasst");
+    f.set("uhrzeit", "07:30");
+    f.set("dauerMinuten", "45");
+    for (const wert of (over.wochentage as string[] | undefined) ?? ["1", "3"]) {
+      f.append("wochentage", wert);
+    }
+    for (const [k, v] of Object.entries(over)) {
+      if (k === "wochentage") continue;
+      f.set(k, v as string);
+    }
+    return f;
+  }
+
+  it("die eigene Person aendert Titel, Wochentage, Uhrzeit und Dauer", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const routine = legeRoutine({ personId: bufdi.id });
+    anmelden(bufdi);
+
+    const ergebnis = await routineAendernAction({ ok: true }, form(routine.id));
+    expect(ergebnis).toEqual({ ok: true });
+
+    const aktualisiert = routineNachId(t.db, routine.id)!;
+    expect(aktualisiert.titel).toBe("Fruehsport, angepasst");
+    // Di (Bit 1) + Do (Bit 3) = 2 + 8 = 10.
+    expect(aktualisiert.wochentage).toBe(0b01010);
+    expect(aktualisiert.uhrzeit).toBe("07:30");
+    expect(aktualisiert.dauerMinuten).toBe(45);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  /*
+   * DIE GEGENPROBE, DIE DER BRIEF VERLANGT: "auch die Koordination darf keine fremden Routinen ...
+   * aendern." — mit einer fremden AKTIVEN Person UND mit einer ausgeschiedenen, je mit der Meldung
+   * geprueft (nicht nur, DASS geworfen wird).
+   */
+  it("eine fremde AKTIVE BuFDi darf eine Routine nicht aendern", async () => {
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const routine = legeRoutine({ personId: bufdi1.id });
+    anmelden(bufdi2);
+
+    await expect(routineAendernAction({ ok: true }, form(routine.id))).rejects.toThrow(
+      BERECHTIGUNGS_MELDUNG,
+    );
+  });
+
+  it("auch die Koordination darf eine fremde Routine nicht aendern — sie schlaegt vor, sie setzt nicht", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const koordination = legePerson("dev:rike@test", "koordination");
+    const routine = legeRoutine({ personId: bufdi.id });
+    anmelden(koordination);
+
+    await expect(routineAendernAction({ ok: true }, form(routine.id))).rejects.toThrow(
+      BERECHTIGUNGS_MELDUNG,
+    );
+  });
+
+  it("eine ausgeschiedene Person darf ihre eigene Routine nicht mehr aendern", async () => {
+    const exBufdi = legePerson("dev:ex-alina@test", "bufdi", { aktivBis: "2026-08-01" });
+    const routine = legeRoutine({ personId: exBufdi.id });
+    anmelden(exBufdi);
+
+    await expect(routineAendernAction({ ok: true }, form(routine.id))).rejects.toThrow(
+      BERECHTIGUNGS_MELDUNG,
+    );
+  });
+
+  it("eine unbekannte routineId wirft", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    await expect(routineAendernAction({ ok: true }, form("unbekannt"))).rejects.toThrow(
+      /Routine "unbekannt" nicht gefunden/,
+    );
+  });
+
+  it("eine fehlende routineId wirft", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+    const f = form("");
+    f.delete("routineId");
+
+    await expect(routineAendernAction({ ok: true }, f)).rejects.toThrow(/routineId fehlt/);
+  });
+
+  it("ohne Wochentag wird abgelehnt", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const routine = legeRoutine({ personId: bufdi.id });
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(
+      await routineAendernAction({ ok: true }, form(routine.id, { wochentage: [] })),
+    );
+    expect(ergebnis.fieldErrors.wochentage).toBeTruthy();
+    // DIE GEGENPROBE FUER "ANGENOMMEN, NICHT NUR BEHAUPTET": unveraendert in der Datenbank.
+    expect(routineNachId(t.db, routine.id)!.wochentage).toBe(routine.wochentage);
+  });
+
+  it("ein Feldfehler traegt alle Eingaben zurueck, EINSCHLIESSLICH der Wochentagsauswahl und der routineId", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const routine = legeRoutine({ personId: bufdi.id });
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(
+      await routineAendernAction({ ok: true }, form(routine.id, { titel: "", wochentage: ["0"] })),
+    );
+    expect(ergebnis.values.routineId).toBe(routine.id);
+    expect(ergebnis.values.wochentage).toBe("0");
+  });
+});
+
+describe("routineRuhenAction", () => {
+  function form(routineId: string): FormData {
+    const f = new FormData();
+    f.set("routineId", routineId);
+    return f;
+  }
+
+  it("schaltet eine aktive Routine auf ruhend", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const routine = legeRoutine({ personId: bufdi.id, aktiv: true });
+    anmelden(bufdi);
+
+    await routineRuhenAction(form(routine.id));
+
+    expect(routineNachId(t.db, routine.id)!.aktiv).toBe(false);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("weckt eine ruhende Routine wieder auf", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const routine = legeRoutine({ personId: bufdi.id, aktiv: false });
+    anmelden(bufdi);
+
+    await routineRuhenAction(form(routine.id));
+
+    expect(routineNachId(t.db, routine.id)!.aktiv).toBe(true);
+  });
+
+  it("eine fremde AKTIVE BuFDi darf eine Routine nicht ruhen schalten", async () => {
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const routine = legeRoutine({ personId: bufdi1.id });
+    anmelden(bufdi2);
+
+    await expect(routineRuhenAction(form(routine.id))).rejects.toThrow(BERECHTIGUNGS_MELDUNG);
+  });
+
+  it("auch die Koordination darf eine fremde Routine nicht ruhen schalten", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const koordination = legePerson("dev:rike@test", "koordination");
+    const routine = legeRoutine({ personId: bufdi.id });
+    anmelden(koordination);
+
+    await expect(routineRuhenAction(form(routine.id))).rejects.toThrow(BERECHTIGUNGS_MELDUNG);
+  });
+
+  it("eine ausgeschiedene Person darf ihre eigene Routine nicht mehr umschalten", async () => {
+    const exBufdi = legePerson("dev:ex-alina@test", "bufdi", { aktivBis: "2026-08-01" });
+    const routine = legeRoutine({ personId: exBufdi.id });
+    anmelden(exBufdi);
+
+    await expect(routineRuhenAction(form(routine.id))).rejects.toThrow(BERECHTIGUNGS_MELDUNG);
+  });
+
+  it("eine unbekannte routineId wirft", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    await expect(routineRuhenAction(form("unbekannt"))).rejects.toThrow(/Routine "unbekannt" nicht gefunden/);
   });
 });
