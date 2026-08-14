@@ -130,8 +130,19 @@ export function aktiverEintrag(pfad: string, nav: SuiteNavItem[]): AktiverEintra
  *
  * Die optische Hervorhebung haengt deshalb an `[aria-current]` ohne Wert
  * (shell.module.css) und nicht an `[aria-current="page"]`.
+ *
+ * `aufKlick` IST OPTIONAL UND HAT GENAU EINEN AUFRUFER: den Drawer. Er muss sich
+ * nach der Wahl eines Ziels selbst schlieszen — `next/link` navigiert clientseitig,
+ * die Seite wird also nicht neu geladen, und ohne dieses Zutun bleibt der Drawer
+ * ueber der frisch geoeffneten Seite stehen. Die Seitenleiste (`Modulleiste`)
+ * uebergibt nichts: dort gibt es nichts zu schlieszen.
  */
-function navLinks(sichtbar: SuiteNavItem[], pfad: string, ganze: SuiteNavItem[] = sichtbar) {
+function navLinks(
+  sichtbar: SuiteNavItem[],
+  pfad: string,
+  ganze: SuiteNavItem[] = sichtbar,
+  aufKlick?: () => void,
+) {
   const aktiv = aktiverEintrag(pfad, ganze);
   return sichtbar.map((eintrag) => (
     <Link
@@ -142,6 +153,7 @@ function navLinks(sichtbar: SuiteNavItem[], pfad: string, ganze: SuiteNavItem[] 
       aria-current={
         aktiv?.schluessel === eintrag.key ? (aktiv.genau ? "page" : "true") : undefined
       }
+      onClick={aufKlick}
     >
       <NavIkone name={eintrag.ikon} />
       {eintrag.title}
@@ -169,10 +181,10 @@ function navLinks(sichtbar: SuiteNavItem[], pfad: string, ganze: SuiteNavItem[] 
  * diesem Task, in JEDEM Konsumenten (Drawer wie Seitenleiste) — nicht nur in
  * dem einen, an dem der Fehler zuerst auffiel.
  */
-export function navGruppen(nav: SuiteNavItem[], pfad: string) {
+export function navGruppen(nav: SuiteNavItem[], pfad: string, aufKlick?: () => void) {
   const gruppen = gruppiereNav(nav);
   if (gruppen.length === 1 && gruppen[0].titel === null) {
-    return navLinks(nav, pfad);
+    return navLinks(nav, pfad, nav, aufKlick);
   }
   return gruppen.map((gruppe) => (
     <div key={gruppe.titel ?? "__ohne"} className={s.navGruppe}>
@@ -181,7 +193,7 @@ export function navGruppen(nav: SuiteNavItem[], pfad: string) {
           {gruppe.titel}
         </div>
       ) : null}
-      {navLinks(gruppe.items, pfad, nav)}
+      {navLinks(gruppe.items, pfad, nav, aufKlick)}
     </div>
   ));
 }
@@ -245,11 +257,23 @@ export function SuiteNav({
   );
   const pfad = usePathname();
 
-  // Nur noch für den Drawer: die sichtbare Navigation liegt in der
-  // Seitenleiste (`SuiteRahmen`). Gruppiert wie dort (`navGruppen`) — für eine
-  // flache Navigation liefert `gruppiereNav` genau eine titellose Gruppe, also
-  // ändert sich hier nichts.
-  const drawerNavGruppen = navGruppen(nav, pfad);
+  /*
+   * Nur noch für den Drawer: die sichtbare Navigation liegt in der
+   * Seitenleiste (`SuiteRahmen`). Gruppiert wie dort (`navGruppen`) — für eine
+   * flache Navigation liefert `gruppiereNav` genau eine titellose Gruppe, also
+   * ändert sich hier nichts.
+   *
+   * DER DRAWER SCHLIESZT SICH BEIM KLICK AUF EINEN EINTRAG SELBST, und das ist
+   * kein Feinschliff: `next/link` navigiert clientseitig (bewusst so, siehe
+   * `navLinks`), die Seite wird also NICHT neu geladen — ohne dieses
+   * `setOffen(false)` bleibt der Drawer samt Maske ueber der gerade
+   * aufgerufenen Seite stehen und muss von Hand geschlossen werden. Ein voller
+   * Seitenwechsel (`<a>`) waere die Alternative und ist aus demselben Grund
+   * verworfen wie in `navLinks` ausgeschrieben: er wirft die ganze Anwendung
+   * weg. `Drawer.onClose` allein reicht nicht — es feuert nur bei Maske,
+   * Schlieszkreuz und Escape, nicht bei einem Klick INNERHALB des Inhalts.
+   */
+  const drawerNavGruppen = navGruppen(nav, pfad, () => setOffen(false));
 
   /*
    * Der Name steht als Gruppentitel im Menue — sichtbar, aber fuer einen

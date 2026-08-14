@@ -1,16 +1,18 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
+import type { ReactElement } from "react";
 import {
   mount,
   unmount,
   query,
   click,
+  clickElement,
   exists,
   queryPortal,
   existsPortal,
   clickPortal,
 } from "@/app/m/qr/_lib/test-dom";
-import { SuiteNav, aktiverEintrag } from "./SuiteNav";
+import { SuiteNav, aktiverEintrag, navGruppen } from "./SuiteNav";
 import type { SuiteNavItem } from "./types";
 import s from "./shell.module.css";
 
@@ -202,6 +204,64 @@ describe("SuiteNav — angemeldet", () => {
         s.navGruppe,
       );
     }
+  });
+
+  it("schlieszt den Drawer, sobald ein Navigationseintrag gewaehlt wurde", async () => {
+    /*
+     * DER GEMELDETE DEFEKT: nach dem Klick auf einen Eintrag blieb der Drawer
+     * samt Maske ueber der gerade aufgerufenen Seite stehen und musste von Hand
+     * geschlossen werden.
+     *
+     * Der Grund ist die bewusste Bauform der Links: `next/link` navigiert
+     * CLIENTSEITIG (Begruendung in `SuiteNav.tsx`), die Seite wird also nicht
+     * neu geladen — und `Drawer.onClose` feuert nur bei Maske, Schlieszkreuz
+     * und Escape, nie bei einem Klick INNERHALB des Inhalts. Ohne ein eigenes
+     * `setOffen(false)` gibt es niemanden, der schlieszt.
+     *
+     * GEMESSEN WIRD `aria-expanded` AM OEFFNER, nicht die Sichtbarkeit des
+     * Drawers: der Inhalt steht wegen `forceRender` auch geschlossen im DOM,
+     * und jsdom rechnet keine Animation aus. Das Attribut haengt direkt an
+     * `offen` und ist damit die ehrliche Messgroesze — und zugleich die Zusage
+     * an Screenreader.
+     *
+     * DIESER TEST SCHREIBT EIN „Not implemented: navigation" NACH STDERR, und
+     * das ist erwartet, kein Fehlschlag: jsdom kennt keine echte Navigation, und
+     * `clickElement` erzeugt ein nicht abbrechbares Ereignis — die
+     * Standardaktion des `<a>` laeuft also los und laeuft ins Leere. Wer die
+     * Zeile fuer den Defekt haelt, sucht an der falschen Stelle.
+     */
+    await zeichne({ nav: NAV });
+    await click('[data-testid="menue-knopf"]');
+    expect(query('[data-testid="menue-knopf"]').getAttribute("aria-expanded")).toBe("true");
+
+    const drawer = queryPortal('[data-testid="suite-drawer"]');
+    const ziel = [...drawer.querySelectorAll<HTMLElement>('[data-testid="nav-link"]')].find(
+      (a) => a.textContent === "Vergleich",
+    );
+    expect(ziel, "Drawer ohne Navigationseintrag Vergleich").toBeDefined();
+    await clickElement(ziel!);
+
+    expect(query('[data-testid="menue-knopf"]').getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("haengt den Schlieszer NUR an den Drawer, nicht an die Seitenleiste", async () => {
+    /*
+     * Die Kehrseite der Zusage darueber, und sie ist nicht selbstverstaendlich:
+     * `navGruppen` ist EINE Funktion fuer Drawer UND Seitenleiste
+     * (`Modulleiste`). Ein fest verdrahtetes `onClick` haette die Leiste
+     * mitgenommen, wo es gar keinen Drawer zu schlieszen gibt. Deshalb ist der
+     * Rueckruf ein ARGUMENT, und `Modulleiste` uebergibt keines.
+     *
+     * Am React-Element gemessen und nicht am DOM: ob ein Element
+     * `onClick={undefined}` traegt, sieht man dem gerenderten `<a>` nicht an.
+     */
+    const ohne = navGruppen(NAV, "/") as ReactElement<{ onClick?: () => void }>[];
+    expect(ohne.length).toBeGreaterThan(0);
+    for (const link of ohne) expect(link.props.onClick).toBeUndefined();
+
+    const schliessen = vi.fn();
+    const mit = navGruppen(NAV, "/", schliessen) as ReactElement<{ onClick?: () => void }>[];
+    for (const link of mit) expect(link.props.onClick).toBe(schliessen);
   });
 
   it("laesst die Modulnavigation NICHT mehr in der Kopfzeile stehen", async () => {

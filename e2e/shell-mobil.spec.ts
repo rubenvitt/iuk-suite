@@ -39,6 +39,120 @@ test("mobil: der App-Wechsel hängt am Umschalter der Kopfzeile, nicht am Menü"
   ).toBeVisible();
 });
 
+test("mobil: das offene Panel fuellt die Bildschirmbreite und scrollt nicht seitwaerts", async ({
+  page,
+}) => {
+  /*
+   * DER EINZIGE ORT, DER DEN GEMELDETEN DEFEKT SEHEN KANN.
+   *
+   * `.umschalterPanel` trug `inset-inline: 0` und `shell-css.test.ts` sicherte
+   * das als „vollbreite Flaeche" zu — die Deklaration meinte aber den falschen
+   * Kasten: solange `.umschalter` `position: relative` trug, war ER der
+   * enthaltende Block, und das Panel wurde so breit wie der Modultitel
+   * (gemessen ~124px bei 390px Bildschirm). Der Inhalt passte nicht hinein,
+   * `overflow-y: auto` zog das `overflow-x` daneben auf `auto` hoch, und das
+   * Panel liesz sich waagerecht schieben.
+   *
+   * Kein Quelltext-Scan findet das: die Regel stand richtig da. Erst die
+   * ausgerechnete Geometrie zeigt, worauf sie sich bezog.
+   *
+   * `scrollWidth > clientWidth` am Panel ist die direkte Uebersetzung von „ich
+   * kann es nach links und rechts bewegen"; die Breitenmessung daneben belegt
+   * die Ursache und nicht nur das Symptom (ein Panel koennte auch ohne
+   * Ueberlauf zu schmal sein).
+   */
+  await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
+  await page.getByTestId("app-umschalter").click();
+  await expect(page.getByTestId("app-panel")).toBeVisible();
+
+  const mass = await page.evaluate(() => {
+    const panel = document.querySelector('[data-testid="app-panel"]') as HTMLElement;
+    return {
+      breite: Math.round(panel.getBoundingClientRect().width),
+      scrollWidth: panel.scrollWidth,
+      clientWidth: panel.clientWidth,
+      innerWidth: window.innerWidth,
+      dokument: document.documentElement.scrollWidth,
+    };
+  });
+  console.log(`Panel bei 390x844: ${JSON.stringify(mass)}`);
+
+  // Vollbreit: nicht mehr die Breite des Ausloesers (die lag bei ~124px).
+  expect(mass.breite).toBe(mass.innerWidth);
+  // Und nichts, was sich seitwaerts schieben liesze — weder im Panel noch auf
+  // der Seite dahinter.
+  expect(mass.scrollWidth).toBeLessThanOrEqual(mass.clientWidth);
+  expect(mass.dokument).toBeLessThanOrEqual(mass.innerWidth);
+});
+
+test("desktop: das Panel bleibt ab 768px ein Popover am Ausloeser", async ({ page }) => {
+  /*
+   * Die Gegenprobe zur Zusage darueber, und sie ist noetig: der Fix nimmt
+   * `.umschalter` sein `position: relative` und gibt es ab 768px zurueck. Faellt
+   * die Media-Query-Haelfte weg, klebt das Popover am linken BILDSCHIRMrand
+   * statt unter dem Modultitel — um die Kopfzeilen-Polsterung daneben. Keine
+   * andere Messung in dieser Datei saehe das.
+   */
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
+  await page.getByTestId("app-umschalter").click();
+
+  const mass = await page.evaluate(() => {
+    const panel = document.querySelector('[data-testid="app-panel"]')!.getBoundingClientRect();
+    const ausloeser = document
+      .querySelector('[data-testid="app-umschalter"]')!
+      .getBoundingClientRect();
+    return { panelX: Math.round(panel.x), ausloeserX: Math.round(ausloeser.x) };
+  });
+  console.log(`Popover bei 1280x720: ${JSON.stringify(mass)}`);
+  expect(mass.ausloeserX).toBeGreaterThan(0);
+  expect(Math.abs(mass.panelX - mass.ausloeserX)).toBeLessThanOrEqual(1);
+});
+
+test("mobil: der Drawer schlieszt sich nach der Wahl eines Navigationsziels", async ({ page }) => {
+  /*
+   * DER ZWEITE GEMELDETE DEFEKT. `next/link` navigiert clientseitig — die Seite
+   * wird nicht neu geladen, und `Drawer.onClose` feuert nur bei Maske,
+   * Schlieszkreuz und Escape. Ohne ein eigenes `setOffen(false)` stand der
+   * Drawer nach dem Klick weiter ueber der frisch aufgerufenen Seite.
+   *
+   * feedback-Admin und NICHT das anonyme `qr`, obwohl letzteres billiger waere:
+   * `qr` traegt abgemeldet GENAU EINEN Navigationseintrag („Generator", href
+   * `/`) — ein Klick darauf verlaesst die Modulwurzel nicht, und ohne echten
+   * Seitenwechsel bewiese der Test nicht, was er behauptet (gemessen: der
+   * Locator auf den zweiten Eintrag lief in den Timeout). `feedback` hat
+   * „Uebersicht" UND „Vergleich", dieselbe Route wie die Aktivmarkierungs-Tests
+   * weiter unten in dieser Datei.
+   *
+   * `toBeHidden` und nicht `toHaveCount(0)`: der Drawer traegt `forceRender`,
+   * sein Inhalt bleibt im DOM. Und die Zusage endet nicht an der Sichtbarkeit —
+   * die MASKE ist es, die die Seite unbenutzbar machte; `click` auf einen
+   * Seiteninhalt schlaegt fehl, solange sie Zeiger abfaengt.
+   */
+  await devLogin(page, {
+    host: "feedback.localtest.me",
+    groups: "da-feedback-admin",
+    callbackPath: "/",
+  });
+  await page.getByTestId("menue-knopf").click();
+  await expect(page.getByTestId("suite-drawer")).toBeVisible();
+
+  await page
+    .getByTestId("suite-drawer")
+    .getByTestId("nav-link")
+    .filter({ hasText: "Vergleich" })
+    .click();
+
+  await expect(page).toHaveURL(/\/vergleich$/);
+  await expect(page.getByTestId("suite-drawer")).toBeHidden();
+  await expect(page.getByTestId("menue-knopf")).toHaveAttribute("aria-expanded", "false");
+  // Die Seite darunter ist wieder bedienbar — keine Maske, die Klicks frisst.
+  // `trial` klickt nicht wirklich, sondern prueft nur, ob der Punkt getroffen
+  // wuerde ("intercepts pointer events") — dieselbe Bauform wie beim
+  // Stapelkontext-Test weiter unten.
+  await page.getByTestId("app-umschalter").click({ trial: true, timeout: 2000 });
+});
+
 test("mobil: die Kopfzeile bleibt einzeilig", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
   const kopf = page.getByTestId("suite-header");
