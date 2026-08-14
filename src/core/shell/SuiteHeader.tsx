@@ -118,7 +118,14 @@ export async function SuiteHeader({
             </strong>
           </Link>
         )}
-        <SuiteNav nav={nav} userName={session?.user?.name ?? null} angemeldet={angemeldet} />
+        {/* `profilHref` nur angemeldet: anonym gaebe es nichts zu zeigen, und
+            der Eintrag fuehrte auf eine Seite, die sofort zum Login umleitet. */}
+        <SuiteNav
+          nav={nav}
+          userName={session?.user?.name ?? null}
+          angemeldet={angemeldet}
+          profilHref={angemeldet ? moduleUrl("portal") : null}
+        />
       </Header>
     </div>
   );
