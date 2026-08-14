@@ -13,7 +13,10 @@ import {
 import {
   allePersonen,
   aktivePersonen,
+  aktualisierePerson,
+  alleAufgaben,
   bufdis,
+  erstellePerson,
   personNachSub,
   personNachId,
   aufgabe,
@@ -30,6 +33,7 @@ import {
   rangGrenzen,
   erstelleNachweis,
   schreibeVerlauf,
+  wochenAuslastungFuerBufdis,
 } from "./queries";
 
 let t: TestDb;
@@ -48,6 +52,10 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
       name: extra.name ?? sub,
       initialen: extra.initialen ?? sub.slice(0, 2).toUpperCase(),
       rolle,
+      // `?? extra.sollMinutenTag` (Aufgabe 14): erst ab hier von einem Aufrufer gebraucht
+      // (`wochenAuslastungFuerBufdis`-Tests brauchen unterschiedliche Sollwerte je Person) — ohne
+      // Angabe bleibt es beim Schema-Vorgabewert 468, wie vorher.
+      sollMinutenTag: extra.sollMinutenTag ?? 468,
       aktivVon: extra.aktivVon ?? "2026-01-01",
       aktivBis: extra.aktivBis ?? null,
     })
@@ -542,5 +550,93 @@ describe("rangGrenzen (Aufgabe 13) — istErste/istLetzte aus derselben Skala wi
   it("eine leere Tagesliste ergibt ein leeres Ergebnis, kein Wurf", () => {
     const bufdi = legePerson("rg5-bufdi", "bufdi");
     expect(rangGrenzen(t.db, bufdi.id, [])).toEqual({});
+  });
+});
+
+/*
+ * AB HIER AUFGABE 14 — DIE POSTEINGANG-TABELLE, DIE PERSONENVERWALTUNG.
+ */
+
+describe("alleAufgaben — ungefiltert, fuer den systemweiten Ueberblick der Koordination", () => {
+  it("liefert Aufgaben JEDER Person, nicht nur einer einzelnen", () => {
+    const ersteller = legePerson("aa1", "auftrag");
+    const alina = legePerson("aa1-alina", "bufdi");
+    const bendix = legePerson("aa1-bendix", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: alina.id });
+    const b = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bendix.id });
+    expect(alleAufgaben(t.db).map((x) => x.id).sort()).toEqual([a.id, b.id].sort());
+  });
+});
+
+describe("wochenAuslastungFuerBufdis — dieselbe Rechnung wie tagesBudget, aufsummiert", () => {
+  it("summiert ueber alle uebergebenen Tage, je BuFDi getrennt", () => {
+    const ersteller = legePerson("wa1", "auftrag");
+    const alina = legePerson("wa1-alina", "bufdi", { sollMinutenTag: 400 });
+    const bendix = legePerson("wa1-bendix", "bufdi", { sollMinutenTag: 400 });
+    legeAufgabe({
+      erstellerId: ersteller.id, zugewiesenAn: alina.id, status: "verteilt",
+      planDatum: "2026-08-17", dauerMinuten: 120,
+    });
+    legeAufgabe({
+      erstellerId: ersteller.id, zugewiesenAn: alina.id, status: "verteilt",
+      planDatum: "2026-08-18", dauerMinuten: 90,
+    });
+    // Bendix bleibt an beiden Tagen leer — die Rechnung darf ihn trotzdem mit 0 fuehren, nicht
+    // auslassen.
+    const ergebnis = wochenAuslastungFuerBufdis(
+      t.db,
+      [alina, bendix],
+      ["2026-08-17", "2026-08-18"],
+    );
+    const alinaZeile = ergebnis.find((z) => z.person.id === alina.id)!;
+    const bendixZeile = ergebnis.find((z) => z.person.id === bendix.id)!;
+    expect(alinaZeile.verplantMinuten).toBe(210);
+    expect(alinaZeile.sollMinuten).toBe(800);
+    expect(alinaZeile.ueberbucht).toBe(false);
+    expect(bendixZeile.verplantMinuten).toBe(0);
+    expect(bendixZeile.sollMinuten).toBe(800);
+  });
+
+  it("meldet ueberbucht, wenn die Summe echt ueber dem Soll liegt", () => {
+    const ersteller = legePerson("wa2", "auftrag");
+    const bendix = legePerson("wa2-bendix", "bufdi", { sollMinutenTag: 100 });
+    legeAufgabe({
+      erstellerId: ersteller.id, zugewiesenAn: bendix.id, status: "verteilt",
+      planDatum: "2026-08-17", dauerMinuten: 150,
+    });
+    const ergebnis = wochenAuslastungFuerBufdis(t.db, [bendix], ["2026-08-17"]);
+    expect(ergebnis[0]!.ueberbucht).toBe(true);
+  });
+});
+
+describe("erstellePerson / aktualisierePerson", () => {
+  it("legt eine Person mit den uebergebenen Werten an", () => {
+    const p = erstellePerson(t.db, {
+      sub: "neu@localtest.me",
+      name: "Neu",
+      initialen: "NE",
+      rolle: "bufdi",
+      sollMinutenTag: 300,
+      aktivVon: "2026-08-14",
+      aktivBis: null,
+    });
+    expect(personNachId(t.db, p.id)).toMatchObject({
+      sub: "neu@localtest.me", name: "Neu", rolle: "bufdi", sollMinutenTag: 300,
+    });
+  });
+
+  it("aendert eine bestehende Person, ohne `sub` anzufassen", () => {
+    const p = legePerson("aend-sub@localtest.me", "bufdi", { name: "Alt" });
+    const aktualisiert = aktualisierePerson(t.db, p.id, { name: "Neu", sollMinutenTag: 500 });
+    expect(aktualisiert.name).toBe("Neu");
+    expect(aktualisiert.sollMinutenTag).toBe(500);
+    expect(aktualisiert.sub).toBe("aend-sub@localtest.me");
+  });
+
+  it("Beenden setzt nur `aktivBis`, aendert sonst nichts", () => {
+    const p = legePerson("beenden@localtest.me", "bufdi", { aktivBis: null });
+    const beendet = aktualisierePerson(t.db, p.id, { aktivBis: "2026-08-14" });
+    expect(beendet.aktivBis).toBe("2026-08-14");
+    expect(beendet.name).toBe(p.name);
   });
 });

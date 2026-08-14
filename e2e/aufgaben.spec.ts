@@ -166,3 +166,113 @@ test("/plan/<unbekannte-id> bleibt notFound() — die Grenze der Erklaerseiten-A
   const res = await page.goto(`http://${HOST}:3100/plan/unbekannte-id`);
   expect(res?.status()).toBe(404);
 });
+
+/*
+ * AUFGABE 14 — DIE KOORDINATION: EINSTIEG, VERTEILUNG, PERSONENVERWALTUNG. Zwei voellig neue
+ * Routen (`/verteilen`, `/personen`) UND die erste echte `EinstiegKoordination` statt des
+ * Platzhalters aus Aufgabe 13 — dieselbe Kombination aus neuer Route und neuer Client-Insel
+ * (`VerteilenDialog.tsx`s Table+Modal, `PersonenFormular.tsx`, `PersonenTabelle.tsx`), die
+ * `typecheck`, `lint`, `build` und Vitest strukturell nicht sehen koennen (Kopfkommentar oben).
+ *
+ * `rike@localtest.me` TRIFFT GENAU DIE KOORDINATIONS-PERSONA AUS `seedLokal.ts`
+ * (`subFuer({ sub: "rike", ... }) === "dev:rike@localtest.me"`).
+ */
+test("Verteilung: die Koordination meldet sich an, die Modulwurzel zeigt „Verteilung“ und bleibt fehlerfrei", async ({
+  page,
+}) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "rike@localtest.me",
+    callbackPath: "/",
+  });
+  const res = await page.goto(`http://${HOST}:3100/`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
+  expect(konsolenFehler).toEqual([]);
+});
+
+test("Verteilen: /verteilen antwortet der Koordination mit 200 und zeigt den Posteingang", async ({
+  page,
+}) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "rike@localtest.me",
+    callbackPath: "/verteilen",
+  });
+  const res = await page.goto(`http://${HOST}:3100/verteilen`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Verteilen", level: 1 })).toBeVisible();
+  // Der Seed legt „Verbandskästen im Fahrzeugpark prüfen" als eingegangene, noch unverteilte
+  // Aufgabe an — genau die Zeile, die diese Seite zeigen soll.
+  await expect(page.getByText("Verbandskästen im Fahrzeugpark prüfen")).toBeVisible();
+  expect(konsolenFehler).toEqual([]);
+});
+
+/**
+ * DIE KERNZUSAGE DER GESAMTEN AUFGABE (Spec §8.3, Brief woertlich): „/verteilen antwortet einer
+ * auftrag-Person mit 404, und der Weg dorthin existiert in ihrer Oberflaeche nicht. Beides prueft
+ * dasselbe Praedikat aus derselben Quelle." — das ist die Antwort auf die urspruengliche
+ * Beschwerde, dass Jönne und Schulle (hier: Malte, Tomke) faktisch mitverteilen, ohne die
+ * Gesamtlage zu kennen. EIN E2E-FALL DAFUER IST PFLICHT, NICHT NUR EIN VITEST-TEST (Brief) — diese
+ * Zusage ist bereits auf Vitest-Ebene gebunden (`verteilen/page.test.tsx`), hier zusaetzlich
+ * end-to-end, weil sie die eigentliche fachliche Kernanforderung des Moduls traegt.
+ */
+test("Verteilen-Gegenprobe: eine auftrag-Person bekommt auf /verteilen 404 — der Weg existiert in ihrer Oberflaeche nicht", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "malte@localtest.me",
+    callbackPath: "/",
+  });
+  const res = await page.goto(`http://${HOST}:3100/verteilen`);
+  expect(res?.status()).toBe(404);
+});
+
+test("Personenverwaltung: /personen antwortet der Koordination mit 200", async ({ page }) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "rike@localtest.me",
+    callbackPath: "/personen",
+  });
+  const res = await page.goto(`http://${HOST}:3100/personen`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Personenverwaltung", level: 1 })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Person anlegen" })).toBeVisible();
+  expect(konsolenFehler).toEqual([]);
+});
+
+test("Personenverwaltung-Gegenprobe: eine bufdi-Person bekommt auf /personen 404", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "alina@localtest.me",
+    callbackPath: "/",
+  });
+  const res = await page.goto(`http://${HOST}:3100/personen`);
+  expect(res?.status()).toBe(404);
+});

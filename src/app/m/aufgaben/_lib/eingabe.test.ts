@@ -3,6 +3,7 @@ import {
   istGueltigeDauerMinuten,
   istGueltigeNachweisArt,
   istGueltigePrioritaet,
+  istGueltigeRolle,
   istGueltigerIsoTag,
   istGueltigeUhrzeit,
 } from "./eingabe";
@@ -111,5 +112,17 @@ describe("istGueltigeNachweisArt", () => {
 
   it("lehnt einen erfundenen Wert ab (Video ist vertagt, Spec §2)", () => {
     expect(istGueltigeNachweisArt("video")).toBe(false);
+  });
+});
+
+describe("istGueltigeRolle", () => {
+  it("akzeptiert die drei Werte aus ROLLEN", () => {
+    expect(istGueltigeRolle("koordination")).toBe(true);
+    expect(istGueltigeRolle("auftrag")).toBe(true);
+    expect(istGueltigeRolle("bufdi")).toBe(true);
+  });
+
+  it("lehnt einen erfundenen Wert ab", () => {
+    expect(istGueltigeRolle("admin")).toBe(false);
   });
 });

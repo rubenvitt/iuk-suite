@@ -24,6 +24,7 @@ vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
 import {
   personFuerSeite,
   personFuerSession,
+  subFuerSitzung,
   istAktiv,
   darfVerteilen,
   darfEinstellenFuerAndere,
@@ -116,6 +117,23 @@ describe("personFuerSeite", () => {
     const rike = legePerson("dev:rike@localtest.me", "koordination");
     sitzung = { user: { id: "dev:rike@localtest.me" } };
     await expect(personFuerSeite(t.db)).resolves.toEqual(rike);
+  });
+});
+
+/**
+ * `subFuerSitzung` (Aufgabe 14) — der Ausgang aus `NichtEingetragenSeite`: isoliert aus
+ * `personFuerSeite`, OHNE Datenbank, OHNE Wurf. Keine dritte Fassung: beide Funktionen lesen
+ * `session?.user?.id` ueber denselben `sitzung`-Mock.
+ */
+describe("subFuerSitzung", () => {
+  it("ohne Sitzung: `null`, KEIN notFound()", async () => {
+    sitzung = null;
+    await expect(subFuerSitzung()).resolves.toBeNull();
+  });
+
+  it("mit Sitzung, unabhaengig von einer personen-Zeile: der `sub`", async () => {
+    sitzung = { user: { id: "dev:unbekannt@localtest.me" } };
+    await expect(subFuerSitzung()).resolves.toBe("dev:unbekannt@localtest.me");
   });
 });
 

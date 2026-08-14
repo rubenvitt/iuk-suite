@@ -60,11 +60,18 @@ describe("aufgabenInhalt — der Verteiler waehlt nach Rolle (Spec §8)", () => 
     expect(query("h1").textContent).toBe("Meine Woche");
   });
 
-  it("koordination bekommt einen ehrlichen, benannten Platzhalter — keine leere Seite", async () => {
+  /*
+   * SEIT AUFGABE 14 DIE ECHTE `EinstiegKoordination` STATT DES PLATZHALTERS — die Verzweigung in
+   * `aufgabenInhalt` selbst aendert sich dabei nicht (Aufgabe 13s Bericht kuendigt das ausdruecklich
+   * an: "nur der jeweilige case-Zweig tauscht seinen Rueckgabewert"). Die ausfuehrliche Pruefung
+   * (KPI-Zahlen, Freigabe-Trennung, Ueberfaelligkeit …) lebt in `_ui/EinstiegKoordination.test.tsx`
+   * — hier nur der Beleg, dass DIESE Rolle DIESE Komponente bekommt.
+   */
+  it("koordination bekommt „Verteilung“ (EinstiegKoordination)", async () => {
     const rike = legePerson("dev:rike@test", "koordination", { name: "Rike" });
     await mount(aufgabenInhalt(t.db, rike, HEUTE, {}));
     expect(query("h1").textContent).toBe("Verteilung");
-    expect(document.body.textContent).toContain("Rike");
+    expect(document.body.textContent).toContain("Zu verteilen");
     expect(document.body.textContent).not.toBe("");
   });
 

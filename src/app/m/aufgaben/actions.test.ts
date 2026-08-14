@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TestDb } from "./_db/testdb";
 import { migrierteTestDb } from "./_db/testdb";
@@ -12,7 +13,7 @@ import {
   type Rolle,
   type RoutineRow,
 } from "./_db/schema";
-import { aufgabe, routineNachId, schreibeVerlauf, verlaufFuer } from "./_db/queries";
+import { aufgabe, personNachId, routineNachId, schreibeVerlauf, verlaufFuer } from "./_db/queries";
 
 /*
  * DASSELBE PRUEFSTAND-MUSTER WIE `_lib/zugang.test.ts` (echte In-Memory-DB ueber
@@ -43,6 +44,9 @@ import {
   einplanenAnnehmenAction,
   fertigMeldenAction,
   freigebenAction,
+  personAendernAction,
+  personAnlegenAction,
+  personBeendenAction,
   rangVerschiebenAction,
   routineAendernAction,
   routineAnlegenAction,
@@ -2173,5 +2177,232 @@ describe("rangVerschiebenAction", () => {
     expect(aufgabe(t.db, erste.id)!.status).toBe("in_arbeit");
     expect(aufgabe(t.db, mitte.id)!.planRang).toBe(3);
     expect(aufgabe(t.db, erste.id)!.planRang).toBe(5);
+  });
+});
+
+/*
+ * AB HIER AUFGABE 14 — DIE PERSONENVERWALTUNG.
+ */
+
+describe("personAnlegenAction", () => {
+  function form(over: Record<string, string> = {}): FormData {
+    const f = new FormData();
+    f.set("sub", "dev:neu@localtest.me");
+    f.set("name", "Neu");
+    f.set("initialen", "NE");
+    f.set("rolle", "bufdi");
+    f.set("sollMinutenTag", "300");
+    f.set("aktivVon", "2026-08-14");
+    f.set("aktivBis", "");
+    for (const [k, v] of Object.entries(over)) f.set(k, v);
+    return f;
+  }
+
+  it("koordination legt eine Person an", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    anmelden(koordination);
+
+    const ergebnis = await personAnlegenAction({ ok: true }, form());
+    expect(ergebnis).toEqual({ ok: true });
+
+    const neue = t.db
+      .select()
+      .from(personen)
+      .where(eq(personen.sub, "dev:neu@localtest.me"))
+      .get()!;
+    expect(neue).toMatchObject({
+      name: "Neu", initialen: "NE", rolle: "bufdi", sollMinutenTag: 300,
+      aktivVon: "2026-08-14", aktivBis: null,
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  /**
+   * PERSISTENT-, NICHT NORMALISIERT: Pocket-ID-`sub`-Werte sind gross-/kleinschreibungssensitiv.
+   * Eine `.toLowerCase()` auf dem Weg hinein wuerde eine Zeile erzeugen, die bei der naechsten
+   * Anmeldung mit dem tatsaechlichen (gemischten) `sub` STILL nie trifft.
+   */
+  it("normalisiert den sub NICHT (Gross-/Kleinschreibung bleibt erhalten)", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    anmelden(koordination);
+
+    await personAnlegenAction({ ok: true }, form({ sub: "dev:MixedCase@Localtest.me" }));
+    const neue = t.db
+      .select()
+      .from(personen)
+      .where(eq(personen.sub, "dev:MixedCase@Localtest.me"))
+      .get();
+    expect(neue).toBeTruthy();
+    const tiefergestellt = t.db
+      .select()
+      .from(personen)
+      .where(eq(personen.sub, "dev:mixedcase@localtest.me"))
+      .get();
+    expect(tiefergestellt).toBeUndefined();
+  });
+
+  it("ein leerer Name kommt als Feldfehler zurueck, values traegt jedes Feld", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    anmelden(koordination);
+
+    const ergebnis = erwarteFeldfehler(
+      await personAnlegenAction({ ok: true }, form({ name: "  " })),
+    );
+    expect(ergebnis.fieldErrors.name).toBeTruthy();
+    expect(ergebnis.values.sub).toBe("dev:neu@localtest.me");
+    expect(ergebnis.values.rolle).toBe("bufdi");
+    expect(ergebnis.values.sollMinutenTag).toBe("300");
+  });
+
+  it("ein bereits vergebener sub kommt als Feldfehler zurueck, keine zweite Zeile entsteht", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    legePerson("dev:doppelt@localtest.me", "bufdi");
+    anmelden(koordination);
+
+    const ergebnis = erwarteFeldfehler(
+      await personAnlegenAction({ ok: true }, form({ sub: "dev:doppelt@localtest.me" })),
+    );
+    expect(ergebnis.fieldErrors.sub).toBeTruthy();
+    const treffer = t.db
+      .select()
+      .from(personen)
+      .where(eq(personen.sub, "dev:doppelt@localtest.me"))
+      .all();
+    expect(treffer).toHaveLength(1);
+  });
+
+  it("aktivBis vor aktivVon kommt als Feldfehler zurueck", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    anmelden(koordination);
+
+    const ergebnis = erwarteFeldfehler(
+      await personAnlegenAction({ ok: true }, form({ aktivBis: "2026-08-01" })),
+    );
+    expect(ergebnis.fieldErrors.aktivBis).toBeTruthy();
+  });
+
+  it("eine unbekannte Rolle ist nur ueber ein manipuliertes Formular erreichbar und wirft", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    anmelden(koordination);
+
+    await expect(
+      personAnlegenAction({ ok: true }, form({ rolle: "admin" })),
+    ).rejects.toThrow(/Unbekannte Rolle/);
+  });
+
+  it("auftrag darf keine Personen anlegen — wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    anmelden(auftrag);
+
+    await expect(personAnlegenAction({ ok: true }, form())).rejects.toThrow(
+      /Keine Berechtigung/,
+    );
+  });
+
+  it("bufdi darf keine Personen anlegen — wirft", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    await expect(personAnlegenAction({ ok: true }, form())).rejects.toThrow(
+      /Keine Berechtigung/,
+    );
+  });
+});
+
+describe("personAendernAction", () => {
+  function form(personId: string, over: Record<string, string> = {}): FormData {
+    const f = new FormData();
+    f.set("personId", personId);
+    f.set("name", "Geaendert");
+    f.set("initialen", "GA");
+    f.set("rolle", "bufdi");
+    f.set("sollMinutenTag", "400");
+    f.set("aktivVon", "2026-08-01");
+    f.set("aktivBis", "");
+    for (const [k, v] of Object.entries(over)) f.set(k, v);
+    return f;
+  }
+
+  it("koordination aendert eine bestehende Person", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    const ziel = legePerson("dev:alina@test", "bufdi", { name: "Alt" });
+    anmelden(koordination);
+
+    const ergebnis = await personAendernAction({ ok: true }, form(ziel.id));
+    expect(ergebnis).toEqual({ ok: true });
+    expect(personNachId(t.db, ziel.id)).toMatchObject({ name: "Geaendert", sollMinutenTag: 400 });
+  });
+
+  /**
+   * DER `sub` BLEIBT UNVERAENDERLICH, AUCH UEBER EIN MANIPULIERTES FORMULAR: `personAendernAction`
+   * liest das Feld `sub` aus `formData` gar nicht erst — ein geaendertes `sub` haengte die gesamte
+   * Geschichte einer Person still an eine andere Anmeldung um.
+   */
+  it("ein mitgeschicktes sub-Feld wird ignoriert — der sub bleibt stehen", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    const ziel = legePerson("dev:alina@test", "bufdi");
+    anmelden(koordination);
+
+    await personAendernAction({ ok: true }, form(ziel.id, { sub: "dev:uebernommen@test" }));
+    expect(personNachId(t.db, ziel.id)!.sub).toBe("dev:alina@test");
+  });
+
+  it("fehlendes personId wirft", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    anmelden(koordination);
+
+    await expect(personAendernAction({ ok: true }, form(""))).rejects.toThrow(/personId fehlt/);
+  });
+
+  it("unbekanntes personId wirft", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    anmelden(koordination);
+
+    await expect(
+      personAendernAction({ ok: true }, form("unbekannte-id")),
+    ).rejects.toThrow(/nicht gefunden/);
+  });
+
+  it("auftrag darf keine Personen aendern — wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const ziel = legePerson("dev:alina@test", "bufdi");
+    anmelden(auftrag);
+
+    await expect(personAendernAction({ ok: true }, form(ziel.id))).rejects.toThrow(
+      /Keine Berechtigung/,
+    );
+  });
+});
+
+describe("personBeendenAction — setzt aktivBis auf HEUTE", () => {
+  function form(personId: string): FormData {
+    const f = new FormData();
+    f.set("personId", personId);
+    return f;
+  }
+
+  it("koordination beendet eine aktive Person", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    const ziel = legePerson("dev:alina@test", "bufdi", { aktivBis: null });
+    anmelden(koordination);
+
+    await personBeendenAction(form(ziel.id));
+    expect(personNachId(t.db, ziel.id)!.aktivBis).toBe(HEUTE);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  it("unbekanntes personId wirft", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    anmelden(koordination);
+
+    await expect(personBeendenAction(form("unbekannte-id"))).rejects.toThrow(/nicht gefunden/);
+  });
+
+  it("auftrag darf keine Personen beenden — wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const ziel = legePerson("dev:alina@test", "bufdi");
+    anmelden(auftrag);
+
+    await expect(personBeendenAction(form(ziel.id))).rejects.toThrow(/Keine Berechtigung/);
   });
 });

@@ -1,4 +1,5 @@
 import { and, asc, eq } from "drizzle-orm";
+import { tagesBudget } from "../_lib/anzeige";
 import { darfFreigeben, istAktiv } from "../_lib/zugang";
 import type { DB } from "./client";
 import {
@@ -67,6 +68,78 @@ export function bufdis(db: DB, heute: string): PersonRow[] {
   return aktivePersonen(db, heute).filter((p) => p.rolle === "bufdi");
 }
 
+export interface AuslastungZeile {
+  person: PersonRow;
+  verplantMinuten: number;
+  sollMinuten: number;
+  ueberbucht: boolean;
+}
+
+/**
+ * WOCHENAUSLASTUNG JE AKTIVER BUFDI (Aufgabe 14, Spec §8.2: "Wochenauslastung aller drei BuFDis",
+ * neben dem Verteilen-Dialog, "damit der Vorschlag nicht ins Leere geht"). DIESELBE RECHNUNG WIE
+ * `EinstiegBufdi.tsx`s EIGENE WOCHE (`tagesBudget` je Tag der Woche, aufsummiert) — nur hier fuer
+ * ALLE BuFDis statt fuer eine einzelne Person, und OHNE EINEN ZWEITEN ALGORITHMUS: `tagesBudget`
+ * (`_lib/anzeige.ts`) bleibt die eine Stelle, die weiss, was "verplant" heisst.
+ *
+ * `tage` KOMMT ALS ARGUMENT, NICHT AUS `_lib/datum.ts` HIER SELBST ERMITTELT — dieselbe Regel wie
+ * ueberall im Modul: die Zeitrechnung bleibt bei `_lib/datum.ts`, diese Funktion bekommt das
+ * Ergebnis nur uebergeben.
+ */
+export function wochenAuslastungFuerBufdis(
+  db: DB,
+  bufdisListe: readonly PersonRow[],
+  tage: readonly string[],
+): AuslastungZeile[] {
+  return bufdisListe.map((person) => {
+    const aufgabenDerPerson = aufgabenFuerPerson(db, person.id);
+    const routinenDerPerson = routinenFuer(db, person.id);
+    const budgets = tage.map((tag) => tagesBudget(aufgabenDerPerson, routinenDerPerson, person, tag));
+    const verplantMinuten = budgets.reduce((summe, b) => summe + b.verplantMinuten, 0);
+    const sollMinuten = budgets.reduce((summe, b) => summe + b.sollMinuten, 0);
+    return { person, verplantMinuten, sollMinuten, ueberbucht: verplantMinuten > sollMinuten };
+  });
+}
+
+/**
+ * ERSTELLT EINE PERSON (Aufgabe 14, `personAnlegenAction`) — die Personenverwaltung selbst, die
+ * Route, ueber die eine Person ueberhaupt erst mit einer `personen`-Zeile ausgestattet wird (der
+ * Ausgang aus `NichtEingetragenSeite`). Flaches Objekt wie `erstelleAufgabe`/`erstelleRoutine`: der
+ * Aufrufer soll `id`/`erstelltAm` nicht mitgeben koennen (beide `$defaultFn`).
+ */
+export function erstellePerson(
+  db: DB,
+  werte: {
+    sub: string;
+    name: string;
+    initialen: string;
+    rolle: (typeof personen.$inferInsert)["rolle"];
+    sollMinutenTag: number;
+    aktivVon: string;
+    aktivBis: string | null;
+  },
+): PersonRow {
+  return db.insert(personen).values(werte).returning().get();
+}
+
+/**
+ * AKTUALISIERT EINE PERSON — `personAendernAction` (alle Felder ausser `sub`) UND
+ * `personBeendenAction` (nur `aktivBis`), deshalb ein gemeinsames Schreibprimitiv statt zweier fast
+ * gleicher Funktionen (Vorbild `aktualisiereRoutine`). `sub` steht bewusst NICHT in `Partial<Omit<…>>`
+ * darunter, weil `Omit` es nicht ausschliesst — s. Kopfkommentar von `personAendernAction` in
+ * `actions.ts`: ein geaendertes `sub` wuerde die ganze Geschichte einer Person still an eine andere
+ * Pocket-ID-Anmeldung umhaengen, und diese Funktion erzwingt diese Regel nicht selbst, weil ein
+ * DB-Primitiv nicht die richtige Stelle fuer eine fachliche Entscheidung ist — das tut der Aufrufer,
+ * indem er `sub` in `werte` nie mitgibt.
+ */
+export function aktualisierePerson(
+  db: DB,
+  id: string,
+  patch: Partial<Omit<typeof personen.$inferInsert, "id" | "erstelltAm">>,
+): PersonRow {
+  return db.update(personen).set(patch).where(eq(personen.id, id)).returning().get();
+}
+
 export function personNachSub(db: DB, sub: string): PersonRow | null {
   return db.select().from(personen).where(eq(personen.sub, sub)).get() ?? null;
 }
@@ -87,6 +160,17 @@ export function aufgabenFuerPerson(db: DB, personId: string): AufgabeRow[] {
 /** `status === "eingegangen"` — noch niemandem zugewiesen. */
 export function posteingang(db: DB): AufgabeRow[] {
   return db.select().from(aufgaben).where(eq(aufgaben.status, "eingegangen")).all();
+}
+
+/**
+ * ALLE AUFGABEN, UNGEFILTERT (Aufgabe 14) — die Koordination ist die einzige Rolle mit einem
+ * systemweiten Ueberblick (Spec §8.2: die Ueberfaelligkeits-KPI und -liste zaehlen ALLE Aufgaben,
+ * nicht nur die einer Person). `istUeberfaellig`/der Statusfilter auf `zurueckgewiesen` laufen beim
+ * AUFRUFER (`_ui/EinstiegKoordination.tsx`) ueber dieses Ergebnis — dieselbe Aufteilung wie ueberall
+ * im Modul: Lesepfad hier, Ableitung in `_lib/anzeige.ts`.
+ */
+export function alleAufgaben(db: DB): AufgabeRow[] {
+  return db.select().from(aufgaben).all();
 }
 
 /**

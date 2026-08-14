@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PRIORITAETEN,
+  ROLLEN,
   STATUS_WERTE,
   type AufgabeRow,
   type PersonRow,
@@ -9,6 +10,7 @@ import {
 import {
   PRIORITAET_FORM,
   PRIORITAET_TEXT,
+  ROLLE_TEXT,
   STATUS_TEXT,
   STATUS_TON,
   WOCHENTAG_BIT,
@@ -18,6 +20,7 @@ import {
   fmtWochentage,
   heuteOffen,
   istUeberfaellig,
+  namenMap,
   routineAmTag,
   tagesBudget,
   vorschlagOffen,
@@ -86,6 +89,23 @@ describe("Beschriftungen sind vollstaendig", () => {
    */
   it("gibt genau „hoch“ die gefuellte Form", () => {
     expect(PRIORITAETEN.filter((p) => PRIORITAET_FORM[p] === "gefuellt")).toEqual(["hoch"]);
+  });
+
+  it("hat fuer jede Rolle eine Beschriftung (Aufgabe 14)", () => {
+    for (const r of ROLLEN) {
+      expect(ROLLE_TEXT[r], `Text ${r}`).toBeTruthy();
+    }
+  });
+});
+
+describe("namenMap — Aufgabe 14", () => {
+  it("bildet id auf name ab", () => {
+    const malte: PersonRow = { ...ALINA, id: "malte", name: "Malte" };
+    expect(namenMap([ALINA, malte])).toEqual({ alina: "Alina", malte: "Malte" });
+  });
+
+  it("liefert ein leeres Objekt fuer eine leere Liste", () => {
+    expect(namenMap([])).toEqual({});
   });
 });
 

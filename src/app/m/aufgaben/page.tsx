@@ -1,8 +1,9 @@
 import type { PersonRow } from "./_db/schema";
 import { getDb, type DB } from "./_db/client";
 import { isoTag } from "./_lib/datum";
-import { personFuerSeite } from "./_lib/zugang";
+import { personFuerSeite, subFuerSitzung } from "./_lib/zugang";
 import { EinstiegBufdi } from "./_ui/EinstiegBufdi";
+import { EinstiegKoordination } from "./_ui/EinstiegKoordination";
 import { NichtEingetragenSeite } from "./_ui/NichtEingetragenSeite";
 import { SeitenKopf } from "./_ui/SeitenKopf";
 
@@ -14,8 +15,8 @@ export const dynamic = "force-dynamic";
  * DER EINSTIEG IST ROLLENABHAENGIG, NICHT EIN DASHBOARD FUER ALLE MIT AUSGEGRAUTEN TEILEN (Spec
  * §8): jede Fassung antwortet auf "was muss ich jetzt tun?", nicht auf "was gibt es alles?". Diese
  * Datei bleibt DUENN — sie loest die Person auf und verzweigt, die eigentliche Arbeit liegt in
- * `_ui/EinstiegBufdi.tsx` (fuer `bufdi`) bzw. in `EinstiegKoordination`/`EinstiegAuftrag`, die die
- * Aufgaben 14 und 15 hier einhaengen.
+ * `_ui/EinstiegBufdi.tsx` (fuer `bufdi`), `_ui/EinstiegKoordination.tsx` (fuer `koordination`, seit
+ * Aufgabe 14) bzw. in `EinstiegAuftrag`, das Aufgabe 15 hier einhaengt.
  *
  * `aufgabenInhalt` IST DIE REINE, EXPORTIERTE VERZWEIGUNGSFUNKTION (Vorbild `routinenInhalt` in
  * `routinen/page.tsx`) — `page.test.tsx` ruft sie fuer die Rollenpruefung direkt, ohne eine Sitzung
@@ -40,7 +41,7 @@ export function aufgabenInhalt(
         />
       );
     case "koordination":
-      return <EinstiegPlatzhalter titel="Verteilung" person={person} />;
+      return <EinstiegKoordination db={db} person={person} heute={heute} />;
     case "auftrag":
       return <EinstiegPlatzhalter titel="Meine Aufträge" person={person} />;
     default: {
@@ -54,12 +55,12 @@ export function aufgabenInhalt(
 }
 
 /**
- * PROVISORISCH — nur bis Aufgabe 14 (`EinstiegKoordination`, Route `/verteilen`) und Aufgabe 15
- * (`EinstiegAuftrag`, Route `/neu`) ihre echten Fassungen einhaengen. KEINE leere Seite (die wie
- * ein Fehler aussaehe) und KEIN Vorgriff auf Funktionsumfang, den diese Aufgabe nicht baut — nur
- * ein ehrlicher, mit Namen angesprochener Hinweis, dass der Bereich existiert und in Kuerze folgt.
- * Die Verzweigung in `aufgabenInhalt` oben aendert sich beim Einhaengen NICHT, nur der jeweilige
- * `case`-Zweig tauscht seinen Rueckgabewert gegen die echte Komponente.
+ * PROVISORISCH — nur bis Aufgabe 15 (`EinstiegAuftrag`, Route `/neu`) ihre echte Fassung einhaengt.
+ * KEINE leere Seite (die wie ein Fehler aussaehe) und KEIN Vorgriff auf Funktionsumfang, den diese
+ * Aufgabe nicht baut — nur ein ehrlicher, mit Namen angesprochener Hinweis, dass der Bereich
+ * existiert und in Kuerze folgt. Die Verzweigung in `aufgabenInhalt` oben aendert sich beim
+ * Einhaengen NICHT, nur der `auftrag`-Zweig tauscht seinen Rueckgabewert gegen die echte Komponente
+ * (Aufgabe 14 hat das gerade fuer `koordination` getan, unveraendert an dieser Stelle).
  */
 function EinstiegPlatzhalter({ titel, person }: { titel: string; person: PersonRow }) {
   return (
@@ -88,7 +89,11 @@ export default async function AufgabenPage({
   // Erklaerseite statt `notFound()` — s. `_lib/zugang.ts`s `personFuerSeite`.
   return (
     <div data-testid="aufgaben-content">
-      {person ? aufgabenInhalt(db, person, heute, params) : <NichtEingetragenSeite />}
+      {person ? (
+        aufgabenInhalt(db, person, heute, params)
+      ) : (
+        <NichtEingetragenSeite sub={await subFuerSitzung()} />
+      )}
     </div>
   );
 }

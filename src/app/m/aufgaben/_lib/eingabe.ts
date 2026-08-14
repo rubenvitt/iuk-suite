@@ -1,4 +1,11 @@
-import { NACHWEIS_ARTEN, PRIORITAETEN, type NachweisArt, type Prioritaet } from "../_db/schema";
+import {
+  NACHWEIS_ARTEN,
+  PRIORITAETEN,
+  ROLLEN,
+  type NachweisArt,
+  type Prioritaet,
+  type Rolle,
+} from "../_db/schema";
 
 /*
  * REINE EINGABEPRUEFUNG FUER FORMULARE — kein "use client", keine Datenbank, keine Sitzung. Aufgabe
@@ -41,4 +48,9 @@ export function istGueltigePrioritaet(s: string): s is Prioritaet {
 
 export function istGueltigeNachweisArt(s: string): s is NachweisArt {
   return (NACHWEIS_ARTEN as readonly string[]).includes(s);
+}
+
+/** Aufgabe 14 (Personenverwaltung) — dieselbe Form wie `istGueltigePrioritaet`. */
+export function istGueltigeRolle(s: string): s is Rolle {
+  return (ROLLEN as readonly string[]).includes(s);
 }

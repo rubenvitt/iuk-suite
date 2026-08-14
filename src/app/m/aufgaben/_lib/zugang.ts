@@ -56,6 +56,28 @@ export async function personFuerSeite(db: DB): Promise<PersonRow | null> {
 }
 
 /**
+ * DER `sub` DER SITZUNGSPERSON, ISOLIERT AUS `personFuerSeite` (Aufgabe 14) — der Ausgang aus
+ * `NichtEingetragenSeite`: eine Person mit Modulzugang, aber ohne `personen`-Zeile, kann ihren
+ * eigenen `sub` NIRGENDS sonst nachschlagen (er ist kein Feld, das die Koordination raten dürfte,
+ * s. `_ui/PersonenFormular.tsx`s Kopfkommentar), aber die Seite, die genau diesen Fall zeigt, kennt
+ * ihn bereits — `personFuerSeite` liest ihn, wirft ihn aber weg, sobald `personen` keine Zeile hat.
+ *
+ * KEINE AENDERUNG AN `personFuerSeite` SELBST: drei bestehende Aufrufer (`page.tsx`,
+ * `plan/[personId]/page.tsx`, `routinen/page.tsx`) sind bereits getestet und sollen bei diesem
+ * Zusatzbedarf unveraendert bleiben. Diese Funktion dupliziert nur den `auth()`-Aufruf (billig, kein
+ * Datenbankzugriff), nicht die Grenzentscheidung — die bleibt allein bei `personFuerSeite`.
+ *
+ * `null` OHNE SITZUNG: dieselbe Lage wie in `personFuerSeite`, aber diese Funktion wirft nicht,
+ * weil sie nur ergaenzend neben einem bereits geworfenen/aufgeloesten `personFuerSeite`-Aufruf
+ * steht — ein zweiter `notFound()` an derselben Stelle waere kein zweiter Fehlerpfad, nur derselbe
+ * doppelt ausgeloest.
+ */
+export async function subFuerSitzung(): Promise<string | null> {
+  const session = await auth();
+  return session?.user?.id ?? null;
+}
+
+/**
  * Wie `personFuerSeite`, aber fuer Server-Actions: eine Aktion hat keine Seite, auf der sie eine
  * Erklaerung anzeigen koennte, und eine Schreiboperation ohne zurechenbare Personen-Zeile darf
  * ohnehin nicht stattfinden — deshalb bleibt hier der Wurf die richtige Antwort, unveraendert seit

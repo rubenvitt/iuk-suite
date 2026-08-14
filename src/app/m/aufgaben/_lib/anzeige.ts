@@ -1,4 +1,4 @@
-import type { AufgabeRow, PersonRow, Prioritaet, RoutineRow, Status } from "../_db/schema";
+import type { AufgabeRow, PersonRow, Prioritaet, Rolle, RoutineRow, Status } from "../_db/schema";
 import { wochentagVon } from "./datum";
 
 /*
@@ -52,6 +52,30 @@ export const PRIORITAET_FORM: Record<Prioritaet, PrioritaetForm> = {
   mittel: "kontur",
   niedrig: "text",
 };
+
+/**
+ * DIE BESCHRIFTUNG DER DREI ROLLEN (Aufgabe 14, Spec §4) — die eine Quelle fuer
+ * `PersonenFormular.tsx`s Auswahlfeld UND `PersonenTabelle.tsx`s Anzeige. Ohne diese Konstante
+ * traegt jede Aufrufstelle ihre eigene Beschriftung, und eine dritte Fassung faellt genau dann
+ * auseinander, wenn nur eine der beiden Stellen "Auftraggeber" statt "auftrag" nachzieht.
+ */
+export const ROLLE_TEXT: Record<Rolle, string> = {
+  koordination: "Koordination",
+  auftrag: "Auftraggeber",
+  bufdi: "BuFDi",
+};
+
+/**
+ * NAME JE PERSON-ID (Aufgabe 14) — fuer Tabellen, die eine FREMDE Person je Zeile nennen (die
+ * Posteingang-Tabelle nennt den Auftraggeber, nicht den aktuellen Betrachter). Eine Ableitung aus
+ * BEREITS GELADENEN Personen, keine zweite Datenbankabfrage je Zeile: der Aufrufer hat `PersonRow[]`
+ * ohnehin schon (z. B. `allePersonen(db)`), und diese Funktion baut daraus nur die Umkehrung
+ * `id -> name`, damit eine Client-Insel (Tabelle mit `render`-Funktionen, Falle 3) NUR
+ * serialisierbare Werte braucht statt eines Callbacks ueber die RSC-Grenze.
+ */
+export function namenMap(personenListe: readonly PersonRow[]): Record<string, string> {
+  return Object.fromEntries(personenListe.map((p) => [p.id, p.name]));
+}
 
 /**
  * „Zeitvorschlag offen" (Spec §5.1) — ein ABGELEITETER Zustand, kein siebter

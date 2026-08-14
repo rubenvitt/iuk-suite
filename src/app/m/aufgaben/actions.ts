@@ -5,14 +5,17 @@ import { getDb } from "./_db/client";
 import {
   aufgabe,
   aktualisiereAufgabe,
+  aktualisierePerson,
   aktualisiereRoutine,
   bufdis,
   erstelleAufgabe,
+  erstellePerson,
   erstelleNachweis,
   erstelleRoutine,
   loescheAufgabe,
   nachweiseSeitLetzterZurueckweisung,
   personNachId,
+  personNachSub,
   planEintraegeFuerTag,
   planRangFuerEinplanen,
   routineNachId,
@@ -25,11 +28,17 @@ import {
   istGueltigeNachweisArt,
   istGueltigePrioritaet,
   istGueltigerIsoTag,
+  istGueltigeRolle,
   istGueltigeUhrzeit,
 } from "./_lib/eingabe";
 import { FORM_START, type FormState } from "./_lib/formState";
 import { anfangsZustand, uebergang, type Aktion } from "./_lib/lebenszyklus";
-import { darfPlanAendern, istVertretungsfreigabe, personFuerSession } from "./_lib/zugang";
+import {
+  darfPersonenVerwalten,
+  darfPlanAendern,
+  istVertretungsfreigabe,
+  personFuerSession,
+} from "./_lib/zugang";
 import { isoTag } from "./_lib/datum";
 
 /*
@@ -976,5 +985,179 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
 
   aktualisiereAufgabe(db, task.id, { planRang: nachbar.planRang });
   aktualisiereAufgabe(db, nachbar.id, { planRang: task.planRang });
+  revalidate();
+}
+
+/*
+ * AB HIER AUFGABE 14 — DIE PERSONENVERWALTUNG (Spec §4, §7 personen-Tabelle, Brief). Gatet
+ * ausschliesslich ueber `darfPersonenVerwalten` (`_lib/zugang.ts`) — dieselbe Bedingung, mit der
+ * `personen/page.tsx` die Route selbst schuetzt.
+ *
+ * ES GIBT KEINE LOESCHEN-AKTION, UND DAS IST ABSICHT (Brief, Spec §4): eine ausgeschiedene Person
+ * wird ueber `aktivBis` beendet, nicht entfernt — ihre Aufgaben, Nachweise und Verlaufszeilen
+ * bleiben lesbar (Fremdschluessel aus `aufgaben`/`nachweise`/`verlauf` auf `personen.id`). Wer hier
+ * eine `personLoeschenAction` vermisst: das ist kein vergessener Fall, sondern die Fachlichkeit
+ * (Jahreswechsel ist keine Loeschaktion) — bitte nicht ergaenzen.
+ */
+
+/**
+ * DER GEMEINSAME RUMPF FUER ANLEGEN UND AENDERN — Vorbild `verteilenGemeinsam`/
+ * `routineFormularGemeinsam`. `personId === null` heisst „anlegen" (der `sub` ist ein echtes
+ * Formularfeld); `personId !== null` heisst „aendern" (der `sub` bleibt unveraendert, s. u.).
+ */
+async function personFormularGemeinsam(
+  formData: FormData,
+  personId: string | null,
+): Promise<FormState> {
+  const db = getDb();
+  const bearbeiter = await personFuerSession(db);
+  const heute = isoTag(new Date());
+  if (!darfPersonenVerwalten(bearbeiter, heute)) {
+    throw new Error("Keine Berechtigung, Personen zu verwalten.");
+  }
+
+  const bestehende = personId === null ? null : personNachId(db, personId);
+  if (personId !== null && !bestehende) {
+    throw new Error(`Person "${personId}" nicht gefunden.`);
+  }
+
+  const values: Record<string, string> = {
+    name: feld(formData, "name"),
+    rolle: feld(formData, "rolle"),
+    initialen: feld(formData, "initialen"),
+    sollMinutenTag: feld(formData, "sollMinutenTag"),
+    aktivVon: feld(formData, "aktivVon"),
+    aktivBis: feld(formData, "aktivBis"),
+  };
+  // NUR BEIM ANLEGEN EIN FORMULARFELD (Brief, Betreiberentscheidung dieser Aufgabe — s. Bericht):
+  // `sub` ist die Pocket-ID-Kennung, unter Aufgabe 13s `NichtEingetragenSeite` fuer die betroffene
+  // Person selbst sichtbar (`_lib/zugang.ts`s `subFuerSitzung`) — sie gibt sie der Koordination
+  // durch, statt dass die Koordination sie raet. NACH DEM ANLEGEN BLEIBT `sub` UNVERAENDERLICH: ein
+  // spaeter geaendertes `sub` haengte die GESAMTE Geschichte einer Person (Aufgaben, Nachweise,
+  // Verlauf) still an eine andere Pocket-ID-Anmeldung um — `personAendernAction` liest das Feld
+  // deshalb gar nicht erst aus `formData`.
+  if (bestehende === null) values.sub = feld(formData, "sub");
+  if (personId !== null) values.personId = personId;
+
+  // Nur ueber ein manipuliertes Formular erreichbar (die Oberflaeche bietet ein `<select>` mit
+  // genau den gueltigen Werten an) — deshalb Wurf statt Feldfehler, wie bei `istGueltigePrioritaet`.
+  if (!istGueltigeRolle(values.rolle)) {
+    throw new Error(`Unbekannte Rolle "${values.rolle}".`);
+  }
+
+  const fieldErrors: Record<string, string> = {};
+  const name = values.name.trim();
+  if (name === "") fieldErrors.name = "Name fehlt.";
+  const initialen = values.initialen.trim();
+  if (initialen === "") fieldErrors.initialen = "Initialen fehlen.";
+  const sollMinutenTag = Number(values.sollMinutenTag);
+  if (!istGueltigeDauerMinuten(sollMinutenTag)) {
+    fieldErrors.sollMinutenTag = "Soll-Minuten pro Tag muss eine ganze Zahl groesser 0 sein.";
+  }
+  if (!istGueltigerIsoTag(values.aktivVon)) {
+    fieldErrors.aktivVon = "Aktiv von fehlt oder ist ungueltig.";
+  }
+  const aktivBis = values.aktivBis.trim();
+  if (aktivBis !== "" && !istGueltigerIsoTag(aktivBis)) {
+    fieldErrors.aktivBis = "Aktiv bis ist ungueltig.";
+  }
+  // `aktivBis` SCHLIESST EIN (Brief, Spec §4) — die Reihenfolge selbst ist trotzdem eine
+  // Formalpruefung: ein Enddatum vor dem Anfang waere in jeder Auslegung falsch.
+  if (aktivBis !== "" && istGueltigerIsoTag(values.aktivVon) && aktivBis < values.aktivVon) {
+    fieldErrors.aktivBis = "Aktiv bis darf nicht vor Aktiv von liegen.";
+  }
+
+  let sub = "";
+  if (bestehende === null) {
+    // KEIN `.toLowerCase()`, KEIN TRIMMEN AUSSER RANDLEERZEICHEN: Pocket-ID-`sub`-Werte sind
+    // gross-/kleinschreibungssensitiv — eine Normalisierung erzeugte eine Zeile, die bei der
+    // naechsten Anmeldung STILL nie trifft (`personFuerSeite` vergleicht exakt).
+    sub = values.sub.trim();
+    if (sub === "") {
+      fieldErrors.sub = "Die Pocket-ID-Kennung fehlt.";
+    } else if (personNachSub(db, sub)) {
+      // DIE EINDEUTIGKEIT WIRD HIER GEPRUEFT, NICHT DEM UNIQUE-INDEX UEBERLASSEN
+      // (`personen_sub_idx"): eine SQLite-Constraint-Verletzung waere ein Wurf auf der technischen
+      // Fehlerseite, obwohl es sich um ein gewoehnliches, vom Formular her erwartbares Problem
+      // handelt ("diese Person gibt es schon") — ein Feldfehler ist hier die ehrlichere Antwort.
+      fieldErrors.sub = "Diese Kennung ist bereits vergeben.";
+    }
+  }
+
+  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+
+  const aktivBisWert = aktivBis === "" ? null : aktivBis;
+  if (bestehende) {
+    aktualisierePerson(db, bestehende.id, {
+      name,
+      initialen,
+      rolle: values.rolle,
+      sollMinutenTag,
+      aktivVon: values.aktivVon,
+      aktivBis: aktivBisWert,
+    });
+  } else {
+    erstellePerson(db, {
+      sub,
+      name,
+      initialen,
+      rolle: values.rolle,
+      sollMinutenTag,
+      aktivVon: values.aktivVon,
+      aktivBis: aktivBisWert,
+    });
+  }
+  revalidate();
+  return { ok: true };
+}
+
+/** ANLEGEN — der einzige Weg, aus einer Pocket-ID-Kennung eine `personen`-Zeile zu machen. */
+export async function personAnlegenAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return personFormularGemeinsam(formData, null);
+}
+
+/**
+ * AENDERN — dieselben Felder ausser `sub` an einer bestehenden Person. `personId` ist hier PFLICHT
+ * (anders als bei `personAnlegenAction`) — ein leeres Feld ist nur ueber ein manipuliertes Formular
+ * erreichbar und wirft deshalb, statt einen Feldfehler zurueckzugeben (Vorbild
+ * `routineAendernAction`).
+ */
+export async function personAendernAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const personId = feld(formData, "personId");
+  if (personId === "") throw new Error("personId fehlt.");
+  return personFormularGemeinsam(formData, personId);
+}
+
+/**
+ * BEENDEN — setzt `aktivBis` auf HEUTE. Kein `FormState` (nur `personId`, kein Formularfeld, das
+ * scheitern koennte) — dieselbe Wahl wie `zurueckziehenAction`/`freigebenAction`.
+ *
+ * BESTAETIGUNGSPFLICHTIG (Spec §9.9 nennt „Person deaktivieren" ausdruecklich): die Bestaetigung
+ * selbst ist Oberflaechensache (`_ui/PersonenTabelle.tsx`s `Popconfirm`, Vorbild
+ * `files/_ui/ShareDetailAktionen.tsx`) — diese Action prueft nur die Berechtigung und schreibt.
+ *
+ * EIN SPAETERES, ABWEICHENDES ENDDATUM BLEIBT UEBER DAS ALLGEMEINE FORMULAR ERREICHBAR
+ * (`personAendernAction`, Feld `aktivBis`) — dieser Knopf ist die schnelle Antwort auf den
+ * Normalfall „heute ist der letzte Tag", keine zweite, engere Fassung derselben Schreiboperation.
+ */
+export async function personBeendenAction(formData: FormData): Promise<void> {
+  const db = getDb();
+  const bearbeiter = await personFuerSession(db);
+  const heute = isoTag(new Date());
+  if (!darfPersonenVerwalten(bearbeiter, heute)) {
+    throw new Error("Keine Berechtigung, Personen zu verwalten.");
+  }
+
+  const personId = feld(formData, "personId");
+  const ziel = personNachId(db, personId);
+  if (!ziel) throw new Error(`Person "${personId}" nicht gefunden.`);
+
+  aktualisierePerson(db, ziel.id, { aktivBis: heute });
   revalidate();
 }
