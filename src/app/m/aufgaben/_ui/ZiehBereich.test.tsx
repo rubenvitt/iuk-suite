@@ -19,11 +19,18 @@ import { mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
  */
 
 const { einplanenActionMock, rangVerschiebenActionMock } = vi.hoisted(() => ({
-  // Parameter EXPLIZIT getippt (auch wenn ungenutzt): sonst leitet Vitest die Aufrufsignatur aus
-  // der Implementierung ab (nullstellig), und `mock.calls[0]` traegt dann ein leeres Tupel ohne
-  // Indizes — `pnpm typecheck` lehnt den Zugriff auf `calls[0]![0]`/`[1]` weiter unten dann ab.
-  einplanenActionMock: vi.fn(async (_prev: unknown, _formData: FormData) => ({ ok: true }) as const),
-  rangVerschiebenActionMock: vi.fn(async (_formData: FormData) => undefined),
+  // AUFRUFSIGNATUR UEBER DEN GENERIC-PARAMETER VON `vi.fn`, NICHT UEBER BENANNTE PARAMETER DER
+  // IMPLEMENTIERUNG (Review-Fund, Fix-Runde 2 — drei ungenutzte, aber getippte Parameter erhoehten
+  // sonst die Lint-Warnzahl): ohne eine explizite Signatur leitet Vitest die Aufrufsignatur aus der
+  // Implementierung ab (nullstellig), und `mock.calls[0]` traegt dann ein leeres Tupel ohne Indizes
+  // — `pnpm typecheck` lehnt den Zugriff auf `calls[0]![0]`/`[1]` weiter unten dann ab. Eine
+  // nullstellige Implementierung ist einem mehrstelligen Funktionstyp zuweisbar (JS ignoriert
+  // ueberzaehlige Argumente), der Generic-Parameter allein legt deshalb die Signatur fest, ohne
+  // dass die Implementierung selbst ungenutzte Parameternamen tragen muesste.
+  einplanenActionMock: vi.fn<(prev: unknown, formData: FormData) => Promise<{ ok: true }>>(
+    async () => ({ ok: true }) as const,
+  ),
+  rangVerschiebenActionMock: vi.fn<(formData: FormData) => Promise<undefined>>(async () => undefined),
 }));
 
 vi.mock("../actions", () => ({
