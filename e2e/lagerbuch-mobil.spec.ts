@@ -102,10 +102,38 @@ const SEITEN: { pfad: string; anker: (page: Page) => Promise<void> }[] = [
  * Gruppe, Port, URLs, Token-Codes), und ein Layout-Helfer gehoert nicht dazu
  * (Vorbild: `e2e/files-mobil.spec.ts:346-366` haelt ihn ebenfalls lokal).
  */
+/**
+ * ⚠️ `doc` ALLEIN IST FUER DEN HELFER-ZWEIG BLIND, und das hat einen gemeldeten
+ * Defekt durchgelassen (2026-08-14: „auf mobile laesst sich die Helfer-View
+ * verschieben, die ist zu breit").
+ *
+ * `.rahmen` traegt `overflow: hidden` (`_ui/helfer.module.css`) — damit KANN
+ * `document.documentElement.scrollWidth` dort nie ueber die Fensterbreite
+ * gehen, gleichgueltig wie breit der Inhalt wird. Gescrollt wird eine Ebene
+ * tiefer: `.inhalt` (das `<main>`) hat `overflow-y: auto`, und ein
+ * `overflow-x: visible` daneben zieht der Browser auf `auto` hoch (CSS
+ * Overflow 3, §3). Gemessen wurden dort 416px Inhalt in einem 390px-Kasten,
+ * waehrend `doc` unveraendert 390 meldete und der Test gruen blieb.
+ *
+ * Deshalb misst `innen` JEDEN Scrollkasten der Seite. Das ist keine
+ * Verdopplung von `doc`: die beiden treffen verschiedene Bauformen — `doc` die
+ * Seiten ohne eigenen Rahmen (Verwaltung), `innen` die mit.
+ *
+ * `schuldige` bleibt am Fenster gemessen und ist damit auch fuer `innen`
+ * brauchbar: was rechts aus dem SICHTFELD ragt, ist genau das, was den inneren
+ * Kasten aufgeblasen hat.
+ */
 async function ueberlauf(page: Page) {
   return page.evaluate(() => ({
     vw: window.innerWidth,
     doc: document.documentElement.scrollWidth,
+    innen: [...document.querySelectorAll<HTMLElement>("body *")]
+      .filter((el) => el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 1)
+      .map((el) => {
+        const klasse = typeof el.className === "string" ? el.className : "";
+        return `${el.tagName}.${klasse.slice(0, 40)} ${el.scrollWidth}>${el.clientWidth}`;
+      })
+      .slice(0, 5),
     schuldige: [...document.querySelectorAll("body *")]
       .filter((el) => {
         const b = el.getBoundingClientRect();
@@ -498,6 +526,19 @@ test.describe("Der Helfer-Zweig laeuft bei keiner Breite ueber", () => {
             mass.doc,
             `${seite.pfad} bei ${b.width}px: ${mass.schuldige.join(" | ")}`,
           ).toBeLessThanOrEqual(mass.vw);
+          /*
+           * DIE ZUSAGE, DIE HIER GEFEHLT HAT. `.rahmen { overflow: hidden }`
+           * haelt `doc` fuer diesen Zweig konstant auf der Fensterbreite — die
+           * Zeile darueber konnte den gemeldeten Defekt gar nicht sehen
+           * (gemessen: `<main>` 416 in 390, `doc` 390, Test gruen). Der
+           * Helfer schob die Liste dabei mit dem Finger seitwaerts.
+           *
+           * Ausfuehrliche Begruendung an `ueberlauf` oben in dieser Datei.
+           */
+          expect(
+            mass.innen,
+            `${seite.pfad} bei ${b.width}px scrollt innen: ${mass.schuldige.join(" | ")}`,
+          ).toEqual([]);
         });
       }
     });

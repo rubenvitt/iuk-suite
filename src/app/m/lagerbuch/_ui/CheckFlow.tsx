@@ -499,28 +499,6 @@ export function CheckFlow({
                                 ersatzlos weg (§7.7.2 Punkt 3). */}
                             {vc && <HelferChip ton={vc.ton}>{vc.text}</HelferChip>}
                           </div>
-                          {traegtFeld && (
-                            <div className={s.verfallZeile}>
-                              {/* Natives <input type="month"> — kein antd-DatePicker
-                                  (§7.7.2 Punkt 4): die Klasse ist ohnehin ohne
-                                  Bibliothek, die native Monatsauswahl ist mit
-                                  Handschuhen einhaendig bedienbar, und es entfaellt
-                                  jede Dayjs-Umrechnung. `pattern` und `inputMode`
-                                  sind der Rueckfall fuer Browser, die `month` als
-                                  Textfeld rendern; die STRENGE selbst ist
-                                  serverseitig (MONAT_REGEX, §4.6). */}
-                              <input
-                                type="month"
-                                inputMode="numeric"
-                                pattern="\d{4}-\d{2}"
-                                aria-label={`Verfall ${p.artikelName}`}
-                                value={vw}
-                                onChange={(e) =>
-                                  setVerfallState((v) => ({ ...v, [p.artikelId]: e.target.value }))
-                                }
-                              />
-                            </div>
-                          )}
                         </div>
                         {/* max grosszuegig ueber Soll: echter Ueberbestand muss
                             zaehlbar sein, sonst korrigiert der Abgleich real
@@ -533,6 +511,38 @@ export function CheckFlow({
                           beschriftung={p.artikelName}
                           setWert={(v) => setIst((z) => ({ ...z, [p.id]: v }))}
                         />
+                        {/*
+                          GESCHWISTER VON KREIS, TEXT UND STEPPER — NICHT MEHR
+                          KIND VON `.zeileHaupt`. §7.7.2 Punkt 2 gibt dem
+                          Verfallsfeld „eine eigene, volle Zeile"; im
+                          `.zeileHaupt` bekam es nur dessen SPALTE, am Telefon
+                          neben dem 56er-Stepper rund 110px. Als Geschwister mit
+                          `flex: 1 0 100%` (shell-seitig in `.verfallZeile`)
+                          faellt es unter alle drei und nimmt die volle
+                          Kartenbreite ein.
+                        */}
+                        {traegtFeld && (
+                          <div className={s.verfallZeile}>
+                            {/* Natives <input type="month"> — kein antd-DatePicker
+                                (§7.7.2 Punkt 4): die Klasse ist ohnehin ohne
+                                Bibliothek, die native Monatsauswahl ist mit
+                                Handschuhen einhaendig bedienbar, und es entfaellt
+                                jede Dayjs-Umrechnung. `pattern` und `inputMode`
+                                sind der Rueckfall fuer Browser, die `month` als
+                                Textfeld rendern; die STRENGE selbst ist
+                                serverseitig (MONAT_REGEX, §4.6). */}
+                            <input
+                              type="month"
+                              inputMode="numeric"
+                              pattern="\d{4}-\d{2}"
+                              aria-label={`Verfall ${p.artikelName}`}
+                              value={vw}
+                              onChange={(e) =>
+                                setVerfallState((v) => ({ ...v, [p.artikelId]: e.target.value }))
+                              }
+                            />
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -913,7 +923,13 @@ export function CheckFlow({
             onClick={abschliessen}
             data-rolle="abschliessen"
           >
-            Gelegt &amp; abschließen
+            {/* „Gelegt & abschließen" stand hier und war kein Satz, sondern
+                zwei Bruchstücke: ein Partizip ohne Bezug plus ein Infinitiv.
+                Der Knopf bestätigt, was die Karte darüber verlangt („Aus dem
+                Handlager aufs Fahrzeug legen") — er sagt das jetzt in denselben
+                Worten. Dass damit der Check endet, steht im Text daneben
+                („Bestätigen bucht Handlager → …"). */}
+            Aufs Fahrzeug gelegt
           </button>
         ) : (
           <button

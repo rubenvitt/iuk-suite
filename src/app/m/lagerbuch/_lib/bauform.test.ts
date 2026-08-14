@@ -1057,6 +1057,79 @@ describe("§7.7.2 — die Luecke in `core/theme/feldschrift.test.ts`, modul-loka
   });
 });
 
+describe("§7.7 — der Helfer-Weg passt in 390px, weil jedes Stueck nachgeben DARF", () => {
+  /*
+   * DER GEMELDETE DEFEKT VOM 14.08.2026: „auf mobile laesst sich die
+   * Helfer-View verschieben, die ist zu breit." Gemessen im Browser bei 390px:
+   * `<main>` scrollWidth 416 gegen clientWidth 390, `.fachraster` 402 gegen
+   * 362 — der Helfer schob die Zaehlliste mit dem Finger seitwaerts, und der
+   * „+"-Knopf des Steppers stand auszerhalb des Bildschirms.
+   *
+   * KEINE EINZIGE REGEL WAR FALSCH GESCHRIEBEN. Es waren vier Voreinstellungen
+   * von CSS, die alle dasselbe sagen — „ich schrumpfe nicht unter meinen
+   * Inhalt" — und die man jede einzeln aushebeln muss:
+   *   1. `1fr` ist `minmax(auto, 1fr)`; das `auto` ist die min-content-Breite
+   *      der Spur (CSS Grid 1, §7.2.3.1).
+   *   2. Ein Flex-Kind steht auf `min-width: auto` (CSS Flexbox 1, §4.5) —
+   *      hier das native `<input type="month">` mit gemessenen ~150px.
+   *   3. Ein langes Wort bricht ohne `overflow-wrap` nicht.
+   *   4. Dasselbe `min-width: auto` noch einmal in der Schrittleiste.
+   *
+   * WAS DIESER SCAN BESITZT: dass die vier Gegenmaszahmen DASTEHEN. Dass sie
+   * WIRKEN, besitzt `e2e/lagerbuch-mobil.spec.ts` — es misst seit demselben Tag
+   * auch die INNEREN Scrollkaesten. Bis dahin sah es nur
+   * `document.scrollWidth`, und den haelt `.rahmen { overflow: hidden }`
+   * konstant: der Defekt lief durch einen gruenen Test hindurch.
+   */
+  const regeln = cssRegeln(readFileSync(HELFER_CSS, "utf8"));
+  /*
+   * DAS ERSTE Vorkommen, nicht das einzige — `cssRegeln` faltet die At-Rules
+   * weg (`:472`), der Desktop-Block am Dateiende steht danach flach neben der
+   * Basis. `.fachraster` und `.karteRaster` haben dort legitim eine ZWEITE,
+   * mehrspaltige Fassung; die Zusagen hier gelten der Basis, also dem Telefon.
+   * Ein `toHaveLength(1)` waere deshalb rot, ohne dass etwas kaputt ist.
+   */
+  const regel = (selektor: string) => {
+    const treffer = regeln.filter((r) => r.selektor === selektor);
+    expect(treffer.length, `Regel \`${selektor}\` fehlt in helfer.module.css`).toBeGreaterThan(0);
+    return treffer[0]!.koerper;
+  };
+
+  it("die Kartenraster duerfen unter ihren Inhalt schrumpfen", () => {
+    // `1fr` allein waere `minmax(auto, 1fr)` und zoege die min-content-Breite
+    // der breitesten Zeile in die Spur — die Liste waere wieder zu breit,
+    // waehrend `.karte { overflow: hidden }` nur INNERHALB der (schon zu
+    // breiten) Karte klippt.
+    expect(regel(".fachraster")).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+    expect(regel(".karteRaster")).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  });
+
+  it("das Verfallsfeld bekommt eine volle Zeile UND einen Boden von 0", () => {
+    // `flex: 1 0 100%` gibt ihm die ganze Kartenbreite (§7.7.2 Punkt 2 wollte
+    // das; im `.zeileHaupt` bekam es nur dessen Spalte). `min-width: 0` am
+    // Input nimmt ihm den ~150px-Boden, mit dem er die Zeile aufblies.
+    expect(regel(".verfallZeile")).toMatch(/flex:\s*1 0 100%/);
+    expect(regel(".verfallZeile input")).toMatch(/min-width:\s*0/);
+    // Und die Zeile muss umbrechen duerfen, sonst faellt nichts nach unten.
+    expect(regel(".zeile")).toMatch(/flex-wrap:\s*wrap/);
+  });
+
+  it("ein Artikelname ohne Leerzeichen bricht, statt abgeschnitten zu werden", () => {
+    // Neben dem 56er-Stepper bleiben am Telefon ~110px. „Patientenuebersicht"
+    // misst bei 15px/600 rund 150px — ohne Umbruch bliebe nur, die Karte
+    // breiter zu machen (Ueberlauf) oder von `overflow: hidden` geklippt zu
+    // werden. Beides ist schlechter als ein Umbruch im Wort.
+    expect(regel(".zeileName")).toMatch(/overflow-wrap:\s*anywhere/);
+  });
+
+  it("die Schrittleiste bricht um, statt seitwaerts auszuweichen", () => {
+    // Vier Schritte („Zaehlen · Nachfuellen · Geraete · Sauerstoff") messen
+    // zusammen ueber 440px gegen 358px verfuegbare Breite.
+    expect(regel(".schritte")).toMatch(/flex-wrap:\s*wrap/);
+    expect(regel(".schritt")).toMatch(/min-width:\s*0/);
+  });
+});
+
 describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
   it("keine Datei auf `_ui/`, `helfer/`, `a/`, `t/` oder `page.tsx` importiert `antd` oder `@ant-design/icons`, ausser den Verwaltungsbausteinen", () => {
     // `core/shell/icons.test.ts:147-171` faengt repo-weit NUR die Icons. Ein

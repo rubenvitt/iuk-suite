@@ -178,6 +178,16 @@
   gap: 8px; padding: 11px 14px 9px;
   background: var(--lb-karte); border-bottom: 1px solid var(--lb-linie);
 }
+/*
+ * Der Textblock gibt nach, der Ausstieg nie. `.etikett` traegt die volle
+ * Sitzungskennung („Zugang: Token 112-035 · 40-92-5 · UE-RK-379") und
+ * `Restzeit` darunter im Warnfall einen ganzen Satz; ohne `min-width: 0`
+ * schoebe deren min-content den „Beenden"-Knopf aus dem Kopf. Und der wird
+ * NICHT vom `.inhalt` aufgefangen: `.kopf` liegt auszerhalb, `.rahmen` traegt
+ * `overflow: hidden` — der Knopf verschwaende also, statt scrollbar zu sein.
+ * Kein `data-`Haken noetig, `.kopf` hat genau ein Textkind (`HelferRahmen.tsx`).
+ */
+.kopf > div { min-width: 0 }
 .marke { font-family: var(--lb-display); font-weight: 700; font-size: 20px; letter-spacing: .07em }
 .markeAkzent { color: var(--lb-rot) }
 .etikett { font-size: 12px; color: var(--lb-stahl); margin-top: 1px }
@@ -187,7 +197,7 @@
   font-size: 13px; font-weight: 600; border: 1.5px solid var(--lb-linie);
   background: var(--lb-karte); border-radius: 99px; padding: 8px 14px;
   color: var(--lb-stahl); display: inline-flex; align-items: center; gap: 5px;
-  min-height: 44px;
+  min-height: 44px; flex: none; white-space: nowrap;
 }
 .inhalt { flex: 1; overflow-y: auto; padding: 14px 14px 18px; -webkit-overflow-scrolling: touch }
 .tableiste { flex: none; display: flex; background: var(--lb-karte); border-top: 1px solid var(--lb-linie) }
@@ -267,9 +277,29 @@
  * Abstand kommt weiter aus `.fachKopf`s eigenem `margin` (Regel `.fachKopf`
  * weiter unten in dieser Datei) — eine row-gap hier addierte sich dazu.
  */
+/*
+ * `minmax(0, 1fr)` UND NICHT `1fr` — der Unterschied ist die halbe Ursache des
+ * waagerechten Ueberlaufs am Telefon (gemessen 2026-08-14: `.fachraster`
+ * scrollWidth 402 gegen clientWidth 362).
+ *
+ * `1fr` ist die Kurzform von `minmax(auto, 1fr)`, und dieses `auto` ist der
+ * INHALTSBEDINGTE Mindestwert der Spur (CSS Grid 1, §7.2.3.1): die Spur waechst
+ * auf die min-content-Breite ihres breitesten Kindes und schiebt damit die
+ * ganze Liste ueber den Bildschirmrand. `.karte`s `overflow: hidden` faengt das
+ * NICHT — es klippt erst INNERHALB der Karte, nachdem die Karte schon zu breit
+ * geworden ist.
+ *
+ * Mit `minmax(0, 1fr)` darf die Spur unter ihren Inhalt schrumpfen; was dann
+ * noch nicht passt, muss in der ZEILE nachgeben (`.zeile`, `.zeileName`,
+ * `.verfallZeile input` weiter unten) — dort ist es sichtbar und bricht um,
+ * statt sich seitwaerts wegzuschieben.
+ *
+ * `gap: 0 18px` heisst: senkrecht nichts, waagerecht 18px. Der senkrechte
+ * Abstand kommt weiter aus `.fachKopf`s eigenem `margin`.
+ */
 .fachraster {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0 18px;
   align-items: start;
 }
@@ -278,7 +308,7 @@
    dasselbe wie der Blockfluss; der Desktop-Zweig setzt dann nur noch die
    Spaltenzahl um. Die Klasse gehoert in die BASIS — `rahmen.test.tsx:60-68`
    sieht Klassen nicht, die es nur im @media-Block gibt. */
-.karteRaster { display: grid; grid-template-columns: 1fr }
+.karteRaster { display: grid; grid-template-columns: minmax(0, 1fr) }
 /* Die schmalere Bahn fuer Detailansichten. `margin-inline: auto` ohne
    `max-width` tut nichts und wird ab 768px tragend — die Regel ist damit
    halb hier und halb im Desktop-Zweig, nicht tot. Sie gehoert in die BASIS,
@@ -295,13 +325,31 @@
   font-family: var(--lb-display); font-weight: 600; font-size: 14px; letter-spacing: .09em;
   text-transform: uppercase; color: var(--lb-stahl); padding: 11px 14px 0;
 }
+/*
+ * `flex-wrap: wrap` traegt das Verfallsfeld, nicht die Zaehlzeile selbst:
+ * Kreis, Text und Stepper bleiben in EINER Zeile (keiner von ihnen hat eine
+ * Basis, die umbrechen koennte), und `.verfallZeile` faellt mit seiner
+ * 100%-Basis darunter. Siehe die Begruendung an `.verfallZeile`.
+ */
 .zeile {
-  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 11px; width: 100%; text-align: left;
   padding: 12px 14px; border-top: 1px solid var(--lb-linie); color: inherit; text-decoration: none;
 }
 .zeile:first-child { border-top: none }
 .zeileHaupt { flex: 1; min-width: 0 }
-.zeileName { font-weight: 600; font-size: 15px; line-height: 1.25 }
+/*
+ * `overflow-wrap: anywhere` IST HIER DER GLIMPFLICHERE AUSFALL, nicht Kosmetik.
+ *
+ * Neben dem 56er-Stepper (Einsatzmasz, unverhandelbar) bleiben dem Textblock am
+ * Telefon rund 110px. Ein Artikelname ohne Leerzeichen — „Patientenuebersicht"
+ * aus dem gemeldeten Screenshot misst bei 15px/600 etwa 150px — passt da nicht
+ * hinein, und ohne diese Zeile hat er nur zwei Auswege: die Karte breiter
+ * machen (dann scrollt die Seite seitwaerts, der gemeldete Defekt) oder von
+ * `.karte { overflow: hidden }` abgeschnitten werden. Beides ist schlechter als
+ * ein Umbruch mitten im Wort: der Name bleibt vollstaendig lesbar, und genau
+ * darauf zeigt der Helfer beim Zaehlen.
+ */
+.zeileName { font-weight: 600; font-size: 15px; line-height: 1.25; overflow-wrap: anywhere }
 .zeileMeta { display: flex; align-items: center; gap: 7px; margin-top: 5px; flex-wrap: wrap; font-size: 13px; color: var(--lb-stahl) }
 .fach {
   font-family: var(--lb-mono); font-size: 12px; font-weight: 600;
@@ -392,9 +440,23 @@
 }
 
 /* ——— Fahrzeug-Check ——— */
-.schritte { display: flex; gap: 8px; margin: 0 2px 14px }
+/*
+ * `flex-wrap: wrap` + `min-width: 0`, weil vier Schritte am Telefon nicht
+ * nebeneinander passen. Ein Fahrzeug mit Geraeten UND Flaschen traegt die volle
+ * Folge „Zaehlen · Nachfuellen · Geraete · Sauerstoff" (`CheckFlow.tsx`,
+ * PHASE_LABEL); je Kachel sind das 22px Polster + 22px Ziffer + 8px Abstand +
+ * Beschriftung, zusammen ueber 440px gegen 358px verfuegbare Breite. Ohne
+ * `min-width: 0` gibt ein `flex: 1`-Kind seine min-content-Breite nicht her
+ * (CSS Flexbox 1, §4.5), die Leiste haette also nicht schrumpfen KOENNEN — sie
+ * waere seitwaerts ausgewichen.
+ *
+ * Umbrechen und nicht abschneiden: die Leiste sagt dem Helfer, wo im Ablauf er
+ * steht. Zwei Reihen sind dafuer in Ordnung, ein halb sichtbarer vierter
+ * Schritt nicht.
+ */
+.schritte { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 2px 14px }
 .schritt {
-  flex: 1; display: flex; align-items: center; gap: 8px; padding: 9px 11px;
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 9px 11px;
   border: 1.5px solid var(--lb-linie); border-radius: 11px; background: var(--lb-karte);
   font-weight: 600; font-size: 13px; color: var(--lb-stahl);
 }
@@ -427,9 +489,26 @@
  * der Scan liest den Selektortext und die Zahl, `.verfallZeile input` matcht,
  * und der Test wird rot. Das ist Absicht.
  */
-.verfallZeile { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--lb-stahl) }
+/*
+ * `flex: 1 0 100%` MACHT AUS DER „EIGENEN ZEILE" ERST EINE GANZE. Das Feld lag
+ * bis 2026-08-14 IM `.zeileHaupt` und hatte damit nur dessen Spalte — neben dem
+ * 56er-Stepper am Telefon rund 110px. Jetzt ist es ein Geschwister von Kreis,
+ * Text und Stepper und faellt mit seiner 100%-Basis unter alle drei (`.zeile`
+ * traegt dafuer `flex-wrap: wrap`). §7.7.2 Punkt 2 wollte genau das; das Markup
+ * gab es nur nicht her.
+ *
+ * `min-width: 0` AM INPUT ist die andere Haelfte des gemeldeten Ueberlaufs.
+ * Ein Flex-Kind steht auf `min-width: auto` und schrumpft NICHT unter seine
+ * min-content-Breite (CSS Flexbox 1, §4.5); ein natives `<input type="month">`
+ * bringt dabei Spinner-Felder und Kalendersymbol mit und misst gemessen ~150px.
+ * Es war damit der Bodensatz, der die ganze Zeile auf 400px aufblies (Karte:
+ * 362px) — die Zeile konnte gar nicht passen, egal wie kurz der Artikelname
+ * war. Die Zeile bleibt auch mit voller Breite noetig: `flex: 1 0 100%` gibt
+ * die Basis vor, nicht den Boden.
+ */
+.verfallZeile { display: flex; flex: 1 0 100%; align-items: center; gap: 8px; margin-top: 8px; color: var(--lb-stahl) }
 .verfallZeile input {
-  flex: 1; border: 1.5px solid var(--lb-linie); border-radius: 10px; padding: 10px 12px;
+  flex: 1; min-width: 0; border: 1.5px solid var(--lb-linie); border-radius: 10px; padding: 10px 12px;
   font-size: 18px; min-height: 56px; background: var(--lb-karte); color: var(--lb-tinte);
 }
 .nfZeile { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border-top: 1px solid var(--lb-linie) }
@@ -470,7 +549,17 @@
   background: rgba(255, 255, 255, .9); color: var(--lb-tinte);
 }
 .lampeAn { background: var(--lb-rot); color: #fff }
+/*
+ * `min-width: 0` an den Feldern, nicht an der Zeile: `.codefeld` traegt 24px
+ * Mono mit `letter-spacing: .16em` und ein `<input>` bringt ohne `size` seine
+ * eigene Vorgabebreite mit (20 Zeichen). Als Flex-Kind ohne diese Zeile ist
+ * genau das sein Boden — gemessen weit ueber 350px, waehrend daneben noch ein
+ * „Weiter"-Knopf steht. Die Fehler-/Erneuerungszeile des Checks haette die
+ * Seite damit seitwaerts geschoben, und zwar ausgerechnet in dem Moment, in dem
+ * der Helfer ohnehin schon feststeckt.
+ */
 .feldZeile { display: flex; gap: 8px; align-items: stretch }
+.feldZeile .codefeld, .feldZeile .feld { min-width: 0 }
 .feld {
   width: 100%; border: 1.5px solid var(--lb-linie); border-radius: 10px; padding: 12px;
   font-size: 16px; background: var(--lb-karte); color: var(--lb-tinte); min-height: 56px;
