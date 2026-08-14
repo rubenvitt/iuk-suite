@@ -790,6 +790,34 @@ describe("einplanenAction", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
   });
 
+  /**
+   * SPEC-NACHTRAG VOM 2026-08-13 (Betreiberentscheidung, `72ef235`): `in_arbeit` ist jetzt ein
+   * zulaessiger Ausgangszustand fuer `einplanen`. Der Widerspruch, den diese Aufgabe gemeldet hatte,
+   * ist damit aufgeloest — `_lib/tagesplan.ts` zeigt eine `in_arbeit`-Aufgabe mit `planDatum`
+   * regulaer in der Tagesspalte, und jetzt kann sie auch verschoben werden, ohne erst zurueckgesetzt
+   * werden zu muessen.
+   */
+  it("eine Aufgabe in in_arbeit wird verschoben — bleibt in_arbeit, der Verlauf haelt es fest", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      planDatum: "2026-08-14", planUhrzeit: "10:00", planRang: 0,
+    });
+    anmelden(bufdi);
+
+    const ergebnis = await einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17" }));
+    expect(ergebnis).toEqual({ ok: true });
+
+    const nachher = aufgabe(t.db, task.id)!;
+    expect(nachher.status).toBe("in_arbeit");
+    expect(nachher.planDatum).toBe("2026-08-17");
+
+    const letzte = letzteVerlaufszeile(task.id)!;
+    expect(letzte.ereignis).toBe("eingeplant");
+    expect(letzte.notiz).toBe("Eingeplant: 2026-08-17");
+  });
+
   it("eine zweite Aufgabe am selben Tag derselben Person wird ANS ENDE gehaengt (planRang = max+1)", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");

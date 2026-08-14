@@ -9,16 +9,21 @@ import { anfangsZustand, uebergang, type Aktion } from "./lebenszyklus";
  * `Aktion`-Typ — sie teilt sich keine Datenstruktur mit der Implementierung. Nur so kann der Test
  * ueberhaupt rot werden, wenn dort eine Zeile verschwindet oder eine neue auftaucht.
  *
- * BEFUND (an den Auftraggeber, nicht still aufgeloest): Brief und Spec-Tabelle listen ELF Zeilen,
- * weil `fertig` zweimal auftaucht (Fremd- und Selbstaufgabe mit unterschiedlichem `nach`). Im
- * SECHS-MAL-ZEHN-RASTER ist das aber dieselbe Zelle `(in_arbeit, fertig)` — die Verzweigung laeuft
- * ueber `istSelbst`, eine Eigenschaft der AUFGABE, nicht ueber Status oder Aktion. Im Raster gibt es
- * deshalb ZEHN erlaubte Zellen und FUENFZIG abgelehnte, nicht elf/neunundvierzig, wie der Brief in
- * seinem Test-Abschnitt behauptet ("die elf erlaubten... die anderen neunundvierzig"). Die
- * Selbstaufgaben-Verzweigung wird weiter unten als eigene Sonderregel mit eigener Gegenprobe
- * getestet (`describe("Sonderregel 1 ...")`) — sie fehlt nirgends, sie zaehlt im 60er-Raster nur
- * nicht als zweite Zelle. `ERLAUBTE_UEBERGAENGE.length` wird unten auf genau 10 geprueft, damit
- * diese Zaehlung eine gewachte Tatsache ist und keine Behauptung im Bericht.
+ * BEFUND (an den Auftraggeber, nicht still aufgeloest, Aufgabe 8): Brief und urspruengliche
+ * Spec-Tabelle listeten ELF Zeilen, weil `fertig` zweimal auftaucht (Fremd- und Selbstaufgabe mit
+ * unterschiedlichem `nach`). Im SECHS-MAL-ZEHN-RASTER ist das aber dieselbe Zelle
+ * `(in_arbeit, fertig)` — die Verzweigung laeuft ueber `istSelbst`, eine Eigenschaft der AUFGABE,
+ * nicht ueber Status oder Aktion. Im Raster gab es deshalb ZEHN erlaubte Zellen, nicht elf, wie der
+ * Brief in seinem Test-Abschnitt behauptet hatte. Die Selbstaufgaben-Verzweigung wird weiter unten
+ * als eigene Sonderregel mit eigener Gegenprobe getestet (`describe("Sonderregel 1 ...")`) — sie
+ * fehlt nirgends, sie zaehlt im 60er-Raster nur nicht als zweite Zelle.
+ *
+ * NACHTRAG VOM 2026-08-13 (Aufgabe 10, Spec-Commit `72ef235`): eine ECHTE elfte Zelle kam hinzu —
+ * `(in_arbeit, einplanen) → in_arbeit` —, aus einem voellig anderen Grund als der obige Befund: eine
+ * neue, tatsaechlich zusaetzliche Spec-Zeile, keine Doppelzaehlung. Das Raster hat damit wieder ELF
+ * erlaubte Zellen und NEUNUNDVIERZIG abgelehnte — zufaellig dieselbe Zahl, die der Brief-Fehler aus
+ * Aufgabe 8 schon einmal (aus falschem Grund) nannte. `ERLAUBTE_UEBERGAENGE.length` wird unten auf
+ * genau 11 geprueft, damit diese Zaehlung eine gewachte Tatsache ist und keine Behauptung im Bericht.
  */
 
 let seq = 0;
@@ -137,9 +142,10 @@ type ErwarteterUebergang =
   | { von: Status; aktion: Aktion; wirkung: "loeschen" };
 
 /**
- * SPEC §5.2, VON HAND ABGESCHRIEBEN — die zehn erlaubten Zellen des 60er-Rasters. `fertig` steht
- * hier mit der FREMDAUFGABEN-Ausrichtung (`freigabe_offen`); die Selbstaufgaben-Kurzstrecke ist
- * Sonderregel 1 weiter unten, nicht eine zweite Zelle (siehe Kopfkommentar-Befund).
+ * SPEC §5.2, VON HAND ABGESCHRIEBEN — die elf erlaubten Zellen des 60er-Rasters (Nachtrag vom
+ * 2026-08-13: `in_arbeit`×`einplanen` kam hinzu, Aufgabe 10). `fertig` steht hier mit der
+ * FREMDAUFGABEN-Ausrichtung (`freigabe_offen`); die Selbstaufgaben-Kurzstrecke ist Sonderregel 1
+ * weiter unten, nicht eine zweite Zelle (siehe Kopfkommentar-Befund).
  */
 const ERLAUBTE_UEBERGAENGE: ErwarteterUebergang[] = [
   { von: "eingegangen", aktion: "verteilen", wirkung: "aendern", nach: "verteilt" },
@@ -147,6 +153,7 @@ const ERLAUBTE_UEBERGAENGE: ErwarteterUebergang[] = [
   { von: "verteilt", aktion: "umverteilen", wirkung: "aendern", nach: "verteilt" },
   { von: "verteilt", aktion: "einplanen", wirkung: "aendern", nach: "verteilt" },
   { von: "verteilt", aktion: "starten", wirkung: "aendern", nach: "in_arbeit" },
+  { von: "in_arbeit", aktion: "einplanen", wirkung: "aendern", nach: "in_arbeit" },
   { von: "in_arbeit", aktion: "zuruecksetzen", wirkung: "aendern", nach: "verteilt" },
   { von: "in_arbeit", aktion: "fertig", wirkung: "aendern", nach: "freigabe_offen" },
   { von: "freigabe_offen", aktion: "freigeben", wirkung: "aendern", nach: "abgeschlossen" },
@@ -155,8 +162,8 @@ const ERLAUBTE_UEBERGAENGE: ErwarteterUebergang[] = [
 ];
 
 describe("uebergang — das 60-Zellen-Raster (6 Zustaende × 10 Aktionen)", () => {
-  it("genau zehn Zellen sind erlaubt — die Befund-Zaehlung ist eine gewachte Tatsache", () => {
-    expect(ERLAUBTE_UEBERGAENGE.length).toBe(10);
+  it("genau elf Zellen sind erlaubt — die Befund-Zaehlung ist eine gewachte Tatsache", () => {
+    expect(ERLAUBTE_UEBERGAENGE.length).toBe(11);
   });
 
   it.each(STATUS_WERTE.flatMap((von) => AKTIONEN.map((aktion) => [von, aktion] as const)))(

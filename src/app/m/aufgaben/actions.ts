@@ -405,15 +405,23 @@ function einplanenNotiz(task: AufgabeRow, planDatum: string, planUhrzeit: string
  * des Ziehens (Aufgabe 20). BEIDE rufen DIESELBE Action (Brief); diese Datei entscheidet nur, WAS
  * gespeichert wird, nicht WIE die Oberflaeche den Wert ermittelt.
  *
+ * ZWEI AUSGANGSZUSTAENDE, BEIDE VON `uebergang()` ENTSCHIEDEN, NICHT HIER: `verteilt`→`verteilt`
+ * (die urspruengliche Zeile) UND seit dem Spec-Nachtrag vom 2026-08-13 (Betreiberentscheidung,
+ * `72ef235`) auch `in_arbeit`→`in_arbeit` — wer eine angefangene Aufgabe heute nicht schafft, schiebt
+ * sie auf morgen, ohne sie erst zuruecksetzen zu muessen. Diese Action fragt `task.status` dafuer
+ * NICHT ab: `uebergang()` traegt beide Zeilen in `TABELLE` (`_lib/lebenszyklus.ts`) mit identischer
+ * Berechtigung und identischer `planLoeschen: false`-Semantik, die Action nimmt nur das Ergebnis.
+ *
  * `uebergang()` prueft die Berechtigung bereits vollstaendig ueber
- * `darfPlanAendern(p, a.zugewiesenAn, heute)` (TABELLE-Zeile "verteilt"→"einplanen",
- * `_lib/lebenszyklus.ts`) — AUCH DIE KOORDINATION SCHEITERT DORT: sie schlaegt vor
- * (`vorschlagDatum`), sie setzt nicht (`_lib/zugang.ts`-Kommentar zu `darfPlanAendern`). Diese
- * Action baut diese Pruefung nicht nach.
+ * `darfPlanAendern(p, a.zugewiesenAn, heute)` (`_lib/lebenszyklus.ts`) — AUCH DIE KOORDINATION
+ * SCHEITERT DORT: sie schlaegt vor (`vorschlagDatum`), sie setzt nicht (`_lib/zugang.ts`-Kommentar zu
+ * `darfPlanAendern`). Diese Action baut diese Pruefung nicht nach.
  *
  * `planRang` KOMMT AUS `planRangFuerEinplanen` (`_db/queries.ts`), NICHT AUS EINEM FORMULARFELD —
  * die Reihenfolge innerhalb eines Tages ist keine Eingabe dieses kleinen Formulars (Spec §8.5:
- * "Die Reihenfolge innerhalb des Tages regeln Auf-/Ab-Knoepfe", das ist Aufgabe 12).
+ * "Die Reihenfolge innerhalb des Tages regeln Auf-/Ab-Knoepfe", das ist Aufgabe 12). Die Funktion
+ * liest nur `task.planDatum`/`task.zugewiesenAn`, nicht `task.status` — eine `in_arbeit`-Aufgabe, die
+ * auf einen anderen Tag geschoben wird, ist fuer sie derselbe Fall wie eine `verteilt`e.
  */
 export async function einplanenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();

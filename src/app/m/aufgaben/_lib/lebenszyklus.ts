@@ -26,7 +26,7 @@ import { darfEinstellenFuerAndere, darfFreigeben, darfPlanAendern, darfVerteilen
  *    "aendern"-Erfolgsfall kann Aufgabe 9 es nicht vergessen abzufragen, so wie sie `nach` nicht
  *    vergessen kann — ein optionales Feld liesse sich schweigend ignorieren, ein Pflichtfeld nicht.
  *
- * 3. "ZUGEWIESENER BUFDI" (fuenf der elf Tabellenzeilen: einplanen, starten, zuruecksetzen, fertig,
+ * 3. "ZUGEWIESENER BUFDI" (fuenf der zwoelf Tabellenzeilen: einplanen, starten, zuruecksetzen, fertig,
  *    wiederaufnehmen) ist NICHT `darfPlanAendern` fuer alle fuenf — nur `einplanen` AENDERT
  *    tatsaechlich den Plan, und nur dort ist `darfPlanAendern(p, a.zugewiesenAn, heute)` die
  *    passende Berechtigung, wortgleich zum Brief ("Wo die Tabelle 'zugewiesener BuFDi' sagt, ist
@@ -86,8 +86,17 @@ interface Regel {
 }
 
 /**
- * SPEC §5.2, ZEILE FUER ZEILE — zehn der elf Tabellenzeilen (die elfte, `zurueckziehen`, hat
+ * SPEC §5.2, ZEILE FUER ZEILE — elf der zwoelf Tabellenzeilen (die zwoelfte, `zurueckziehen`, hat
  * keinen Zielzustand und steht deshalb als Sonderfall in `uebergang()`, nicht hier).
+ *
+ * NACHTRAG VOM 2026-08-13 (`in_arbeit` × `einplanen`, Betreiberentscheidung, Spec-Commit
+ * `72ef235`): die Zeile fehlte urspruenglich. `_lib/tagesplan.ts` zeigt eine `in_arbeit`-Aufgabe mit
+ * `planDatum` regulaer in der Tagesspalte — richtig, denn woran man gerade arbeitet, gehoert in den
+ * Tag —, aber ohne diese Zeile haette das Verschieben einer solchen, sichtbaren Aufgabe (Aufgabe 20)
+ * einen Wurf auf die technische Fehlerseite ausgeloest. Fachlich: wer eine angefangene Aufgabe heute
+ * nicht schafft, schiebt sie auf morgen, ohne sie erst zuruecksetzen zu muessen. Dieselbe
+ * Berechtigung und dieselbe `planLoeschen`-Semantik (`false`, Einplanen setzt, es raeumt nicht) wie
+ * die `verteilt`-Zeile — kein zweiter, eigener Ausdruck.
  */
 const TABELLE: Regel[] = [
   {
@@ -116,6 +125,15 @@ const TABELLE: Regel[] = [
     wer: (p, a, heute) => a.zugewiesenAn !== null && darfPlanAendern(p, a.zugewiesenAn, heute),
   },
   { von: "verteilt", aktion: "starten", nach: "in_arbeit", wer: istZugewiesenerBuFDi },
+  {
+    von: "in_arbeit",
+    aktion: "einplanen",
+    nach: "in_arbeit",
+    // Dieselbe Invariante und dieselbe Berechtigung wie die "verteilt"-Zeile oben: `zugewiesenAn`
+    // ist in "in_arbeit" ebenfalls immer gesetzt (nur ueber "starten" aus "verteilt" erreichbar,
+    // und das setzt es nicht zurueck).
+    wer: (p, a, heute) => a.zugewiesenAn !== null && darfPlanAendern(p, a.zugewiesenAn, heute),
+  },
   { von: "in_arbeit", aktion: "zuruecksetzen", nach: "verteilt", wer: istZugewiesenerBuFDi },
   {
     von: "in_arbeit",
