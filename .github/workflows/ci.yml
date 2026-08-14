@@ -19,6 +19,14 @@ on:
   # deshalb der `pull_request`-Ausloeser oben; der Nutzen liegt bei der naechsten.
   workflow_dispatch:
 
+# Kleinstmoegliches Recht als Vorgabe fuer den GITHUB_TOKEN. `checks`, `e2e`
+# und `test` brauchen nur den Checkout und erben es damit; `build` und `merge`
+# heben es fuer sich auf `packages: write` an, weil sie nach ghcr.io schreiben.
+# Ohne diese Zeile gilt die Repo-Vorgabe, die je nach Einstellung Schreibrechte
+# auf ALLE Bereiche mitgibt (CodeQL-Befund 5).
+permissions:
+  contents: read
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
