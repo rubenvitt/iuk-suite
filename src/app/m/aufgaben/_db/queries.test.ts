@@ -25,6 +25,9 @@ import {
   routinenFuer,
   verlaufFuer,
   nachweiseFuer,
+  nachweiseSeitLetzterZurueckweisung,
+  planRangFuerEinplanen,
+  erstelleNachweis,
   schreibeVerlauf,
 } from "./queries";
 
@@ -303,6 +306,137 @@ describe("nachweiseFuer", () => {
       .values({ aufgabeId: a2.id, art: "text", text: "Anderer.", erstelltVon: bufdi.id })
       .run();
     expect(nachweiseFuer(t.db, a1.id).map((n) => n.id)).toEqual([meiner.id]);
+  });
+});
+
+describe("nachweiseSeitLetzterZurueckweisung (Aufgabe 10, Review Fix-Runde 1, Befund #6)", () => {
+  it("ohne Zurueckweisung in der Historie zaehlen alle Nachweise", () => {
+    const ersteller = legePerson("nszw1", "auftrag");
+    const bufdi = legePerson("nszw1-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    const n1 = t.db
+      .insert(nachweise)
+      .values({ aufgabeId: a.id, art: "text", text: "Erster.", erstelltVon: bufdi.id })
+      .returning()
+      .get();
+    expect(nachweiseSeitLetzterZurueckweisung(t.db, a.id).map((n) => n.id)).toEqual([n1.id]);
+  });
+
+  it("ein Nachweis von VOR der letzten Zurueckweisung zaehlt nicht mehr", () => {
+    const ersteller = legePerson("nszw2", "auftrag");
+    const bufdi = legePerson("nszw2-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    t.db
+      .insert(nachweise)
+      .values({
+        aufgabeId: a.id,
+        art: "text",
+        text: "Alt.",
+        erstelltVon: bufdi.id,
+        erstelltAm: new Date("2026-08-10T08:00:00Z"),
+      })
+      .run();
+    t.db
+      .insert(verlauf)
+      .values({
+        aufgabeId: a.id,
+        ereignis: "zurueckgewiesen",
+        akteurId: ersteller.id,
+        ts: new Date("2026-08-11T08:00:00Z"),
+      })
+      .run();
+    expect(nachweiseSeitLetzterZurueckweisung(t.db, a.id)).toEqual([]);
+  });
+
+  it("ein Nachweis von NACH der letzten Zurueckweisung zaehlt", () => {
+    const ersteller = legePerson("nszw3", "auftrag");
+    const bufdi = legePerson("nszw3-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    t.db
+      .insert(verlauf)
+      .values({
+        aufgabeId: a.id,
+        ereignis: "zurueckgewiesen",
+        akteurId: ersteller.id,
+        ts: new Date("2026-08-11T08:00:00Z"),
+      })
+      .run();
+    const neu = t.db
+      .insert(nachweise)
+      .values({
+        aufgabeId: a.id,
+        art: "text",
+        text: "Neu.",
+        erstelltVon: bufdi.id,
+        erstelltAm: new Date("2026-08-12T08:00:00Z"),
+      })
+      .returning()
+      .get();
+    expect(nachweiseSeitLetzterZurueckweisung(t.db, a.id).map((n) => n.id)).toEqual([neu.id]);
+  });
+
+  it("zaehlt ab der LETZTEN Zurueckweisung, nicht der ersten", () => {
+    const ersteller = legePerson("nszw4", "auftrag");
+    const bufdi = legePerson("nszw4-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    // Nachweis ZWISCHEN den beiden Zurueckweisungen — er zaehlt NICHT, weil es eine ZWEITE gab.
+    t.db
+      .insert(verlauf)
+      .values({ aufgabeId: a.id, ereignis: "zurueckgewiesen", akteurId: ersteller.id, ts: new Date("2026-08-10T08:00:00Z") })
+      .run();
+    t.db
+      .insert(nachweise)
+      .values({ aufgabeId: a.id, art: "text", text: "Zwischendrin.", erstelltVon: bufdi.id, erstelltAm: new Date("2026-08-11T08:00:00Z") })
+      .run();
+    t.db
+      .insert(verlauf)
+      .values({ aufgabeId: a.id, ereignis: "zurueckgewiesen", akteurId: ersteller.id, ts: new Date("2026-08-12T08:00:00Z") })
+      .run();
+    expect(nachweiseSeitLetzterZurueckweisung(t.db, a.id)).toEqual([]);
+  });
+});
+
+describe("planRangFuerEinplanen (Aufgabe 10, Review Fix-Runde 1, Minor #4)", () => {
+  it("leerer Zieltag: 0", () => {
+    const ersteller = legePerson("prfe1", "auftrag");
+    const bufdi = legePerson("prfe1-bufdi", "bufdi");
+    const task = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id, planRang: 7 });
+    expect(planRangFuerEinplanen(t.db, task, "2026-08-17")).toBe(0);
+  });
+
+  it("belegter Zieltag: max(planRang) + 1", () => {
+    const ersteller = legePerson("prfe2", "auftrag");
+    const bufdi = legePerson("prfe2-bufdi", "bufdi");
+    legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id, planDatum: "2026-08-17", planRang: 0 });
+    legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id, planDatum: "2026-08-17", planRang: 2 });
+    const neue = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    expect(planRangFuerEinplanen(t.db, neue, "2026-08-17")).toBe(3);
+  });
+
+  it("derselbe Zieltag wie bisher: der bisherige planRang bleibt stehen", () => {
+    const ersteller = legePerson("prfe3", "auftrag");
+    const bufdi = legePerson("prfe3-bufdi", "bufdi");
+    const task = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id, planDatum: "2026-08-17", planRang: 4 });
+    expect(planRangFuerEinplanen(t.db, task, "2026-08-17")).toBe(4);
+  });
+
+  it("zugewiesenAn === null: fruehe 0, laut Invariante unerreichbar, aber pruefbar", () => {
+    const ersteller = legePerson("prfe4", "auftrag");
+    const task = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: null });
+    expect(planRangFuerEinplanen(t.db, task, "2026-08-17")).toBe(0);
+  });
+});
+
+describe("erstelleNachweis (Aufgabe 10, Review Fix-Runde 1, Minor #4)", () => {
+  it("schreibt einen Textnachweis, dateiId bleibt null", () => {
+    const ersteller = legePerson("en1", "auftrag");
+    const bufdi = legePerson("en1-bufdi", "bufdi");
+    const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id });
+    const n = erstelleNachweis(t.db, { aufgabeId: a.id, text: "Erledigt.", erstelltVon: bufdi.id });
+    expect(n.art).toBe("text");
+    expect(n.text).toBe("Erledigt.");
+    expect(n.erstelltVon).toBe(bufdi.id);
+    expect(n.dateiId).toBeNull();
   });
 });
 

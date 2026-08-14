@@ -141,6 +141,36 @@ export function nachweiseFuer(db: DB, aufgabeId: string): NachweisRow[] {
 }
 
 /**
+ * NACHWEISE, DIE DIE PFLICHT NOCH ERFUELLEN DUERFEN (Aufgabe 10, Review Fix-Runde 1, Befund #6,
+ * Betreiberentscheidung 2026-08-14) — nur die, die NACH der letzten Zurueckweisung entstanden sind.
+ *
+ * BEGRUENDUNG, ABLEITBAR, NICHT GESCHMACKSSACHE: ein Nachweis ist der BELEG FUER EINE
+ * FERTIGMELDUNG. Eine Zurueckweisung erklaert genau diese Fertigmeldung fuer ungenuegend — und
+ * damit auch ihren Beleg. Bliebe ein alter Nachweis gueltig, koennte eine zurueckgewiesene Aufgabe
+ * beim zweiten Anlauf OHNE JEDE NEUE HANDLUNG abgeschlossen werden (fertig melden -> zurueckgewiesen
+ * -> wiederaufnehmen -> erneut fertig melden mit LEEREM Textfeld, weil die alte Zeile die
+ * Untergrenze noch "erfuellt") — die Nachweispflicht waere dann eine Huerde, die man genau einmal
+ * nimmt. Das gilt fuer BEIDE Zweige (`text` und `bild`) gleichermassen: `fertigMeldenAction` ruft
+ * diese Funktion einmal fuer beide auf, keine zweite Fassung derselben Regel.
+ *
+ * Der Zeitpunkt kommt aus dem VERLAUF (der ohnehin da ist), nicht aus einem zusaetzlichen Feld auf
+ * der Aufgabe — die letzte Zeile mit `ereignis === "zurueckgewiesen"`. Gibt es keine, zaehlen alle
+ * Nachweise (der Normalfall: eine Aufgabe, die noch nie zurueckgewiesen wurde).
+ */
+export function nachweiseSeitLetzterZurueckweisung(db: DB, aufgabeId: string): NachweisRow[] {
+  const historie = verlaufFuer(db, aufgabeId);
+  let gueltigAb: Date | null = null;
+  for (let i = historie.length - 1; i >= 0; i--) {
+    if (historie[i]!.ereignis === "zurueckgewiesen") {
+      gueltigAb = historie[i]!.ts;
+      break;
+    }
+  }
+  const alle = nachweiseFuer(db, aufgabeId);
+  return gueltigAb === null ? alle : alle.filter((n) => n.erstelltAm > gueltigAb!);
+}
+
+/**
  * DER PLATZ FUER EINPLANEN (Aufgabe 10, `einplanenAction`) — DICHTE SKALA JE PERSON UND TAG,
  * AUFSTEIGEND. Diese Funktion ORDNET NIE UM, sie entscheidet nur den Platz eines EINZELNEN
  * Einplanens; das Auf-/Ab-Paar aus Spec §8.5 (Aufgabe 12) und das Ziehen (Aufgabe 20) sind eigene
@@ -167,7 +197,10 @@ export function nachweiseFuer(db: DB, aufgabeId: string): NachweisRow[] {
  */
 export function planRangFuerEinplanen(db: DB, task: AufgabeRow, planDatum: string): number {
   if (task.planDatum === planDatum) return task.planRang;
-  if (task.zugewiesenAn === null) return 0; // Invariante: "einplanen" ist nur ab "verteilt" erreichbar, das setzt zugewiesenAn immer.
+  // Invariante: "einplanen" ist nur ab "verteilt" ODER "in_arbeit" erreichbar (Spec-Nachtrag
+  // 2026-08-13), und beide Zustaende setzen `zugewiesenAn` immer (ueber "verteilen"/"umverteilen"
+  // bzw. das nachfolgende "starten") — dieser Zweig ist damit nach heutiger Tabelle unerreichbar.
+  if (task.zugewiesenAn === null) return 0;
   const zeilen = db
     .select({ planRang: aufgaben.planRang })
     .from(aufgaben)

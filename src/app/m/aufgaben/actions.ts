@@ -9,7 +9,7 @@ import {
   erstelleAufgabe,
   erstelleNachweis,
   loescheAufgabe,
-  nachweiseFuer,
+  nachweiseSeitLetzterZurueckweisung,
   personNachId,
   planRangFuerEinplanen,
   schreibeVerlauf,
@@ -478,14 +478,26 @@ export async function einplanenAction(_prev: FormState, formData: FormData): Pro
  *
  * DIE ZWEITE UEBERGABE AUS AUFGABE 8 (Brief): `uebergang()` sieht `nachweisPflicht`/`nachweisArt`
  * auf der Zeile, aber NICHT, ob ein `nachweise`-Datensatz vorliegt — das ist eine eigene Tabelle.
- * Diese Action LIEST sie (`nachweiseFuer`), sie SCHLIESST nicht von einem ausgefuellten Feld auf
- * einen erfuellten Nachweis. Ein fehlender/unpassender Nachweis ist ein FELDFEHLER: das Formular
- * ist unvollstaendig, kein Angriff.
+ * Diese Action LIEST sie (`nachweiseSeitLetzterZurueckweisung`), sie SCHLIESST nicht von einem
+ * ausgefuellten Feld auf einen erfuellten Nachweis. Ein fehlender/unpassender Nachweis ist ein
+ * FELDFEHLER: das Formular ist unvollstaendig, kein Angriff.
  *
  * DIE PFLICHT IST EINE UNTERGRENZE, KEINE BESCHRAENKUNG (Spec §5.3, woertlich im Brief): "bild"
  * verlangt eine DATEI und erlaubt zusaetzlich Text; "text" verlangt TEXT und erlaubt zusaetzlich
  * eine Datei. Ein vorhandener Text ersetzt bei `nachweisArt === "bild"` deshalb NICHT die
- * Bildpruefung — genau der Fall, den ein verkuerztes "irgendein Nachweis vorhanden" uebersehen wuerde.
+ * Bildpruefung — genau der Fall, den ein verkuerztes "irgendein Nachweis vorhanden" uebersehen wuerde
+ * (Review Fix-Runde 1, Important #1: der Textzweig filtert ausdruecklich auf `art === "text"`, nicht
+ * auf "irgendein Nachweis existiert" — sonst genuegte ein Bild-Nachweis fuer eine textpflichtige
+ * Aufgabe).
+ *
+ * EIN ALTER NACHWEIS ERFUELLT DIE PFLICHT NICHT ERNEUT (Review Fix-Runde 1, Befund #6,
+ * Betreiberentscheidung 2026-08-14): `nachweiseSeitLetzterZurueckweisung` liefert nur Nachweise, die
+ * NACH der letzten Zurueckweisung entstanden sind — ein Nachweis ist der Beleg fuer eine
+ * Fertigmeldung, und eine Zurueckweisung erklaert genau diese Fertigmeldung samt Beleg fuer
+ * ungenuegend. Ohne diesen Filter koennte "fertig melden -> zurueckgewiesen -> wiederaufnehmen ->
+ * erneut fertig melden mit LEEREM Feld" durchgehen, weil die alte Zeile die Untergrenze noch
+ * "erfuellt" — die Nachweispflicht waere dann eine Huerde, die man genau einmal nimmt. Gilt fuer
+ * beide Zweige gleichermassen, weil beide aus derselben `vorhandene`-Liste lesen.
  *
  * DER BILDNACHWEIS SELBST KOMMT ERST MIT AUFGABE 17-19 (Brief). Die Pruefung hier fragt deshalb nur,
  * OB EIN `nachweise`-DATENSATZ MIT `art === "bild"` EXISTIERT — sie kann (noch) nicht gegen
@@ -512,7 +524,7 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
   const nachweisText = values.nachweisText.trim();
 
   if (task.nachweisPflicht) {
-    const vorhandene = nachweiseFuer(db, task.id);
+    const vorhandene = nachweiseSeitLetzterZurueckweisung(db, task.id);
     if (task.nachweisArt === "bild") {
       const hatBild = vorhandene.some((n) => n.art === "bild");
       if (!hatBild) {
@@ -567,6 +579,12 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
  * `istVertretungsfreigabe` traegt selbst die Klausel `prueferId !== null` (die Invariante, dass jede
  * Fremdaufgabe einen Pruefer hat — Aufgabe 9 stellt das beim Einstellen her); diese Action baut das
  * nicht nach, sie nutzt nur, dass `task.prueferId` innerhalb des `if` deshalb `string` ist.
+ *
+ * FINDET `personNachId` DEN PRUEFER TROTZDEM NICHT (Review Fix-Runde 1, Minor #5), WIRFT DIESE
+ * ACTION, STATT SEINE ID INS JOURNAL ZU SCHREIBEN: `personNachId` liefert `null` nur bei einer
+ * Datenbankinkonsistenz (eine `prueferId`, die auf keine Person mehr zeigt), und die Verlaufszeile
+ * ist laut Spec §6 die LEISTUNGSDOKUMENTATION — eine UUID statt eines Namens waere ein stiller
+ * Qualitaetsverlust genau an der Stelle, die aussagekraeftig sein soll. Laut ist besser als still.
  */
 export async function freigebenAction(formData: FormData): Promise<void> {
   const db = getDb();
@@ -584,7 +602,10 @@ export async function freigebenAction(formData: FormData): Promise<void> {
   let notiz: string | undefined;
   if (istVertretungsfreigabe(person, task) && task.prueferId !== null) {
     const pruefer = personNachId(db, task.prueferId);
-    notiz = `Freigegeben von ${person.name} in Vertretung für ${pruefer?.name ?? task.prueferId}`;
+    if (!pruefer) {
+      throw new Error(`Pruefer "${task.prueferId}" nicht gefunden — Datenbankinkonsistenz.`);
+    }
+    notiz = `Freigegeben von ${person.name} in Vertretung für ${pruefer.name}`;
   }
 
   aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });

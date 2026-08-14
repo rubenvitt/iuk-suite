@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TestDb } from "./_db/testdb";
 import { migrierteTestDb } from "./_db/testdb";
-import { aufgaben, nachweise, personen, type AufgabeRow, type PersonRow, type Rolle } from "./_db/schema";
+import { aufgaben, nachweise, personen, verlauf, type AufgabeRow, type PersonRow, type Rolle } from "./_db/schema";
 import { aufgabe, schreibeVerlauf, verlaufFuer } from "./_db/queries";
 
 /*
@@ -658,6 +658,28 @@ function legeNachweis(
   return t.db.insert(nachweise).values({ aufgabeId, art, text, erstelltVon }).returning().get();
 }
 
+/**
+ * MIT EXPLIZITEM `erstelltAm` (Review Fix-Runde 1, Befund #6) — die Tests zur
+ * "Nachweis nach Zurueckweisung"-Regel brauchen einen Nachweis, dessen Zeitpunkt NACHWEISLICH vor
+ * oder nach einer Zurueckweisungs-Verlaufszeile liegt. `vi.setSystemTime` ist in dieser Datei
+ * EINMALIG in `beforeEach` gesetzt (Systemzeit bleibt sonst eingefroren) — ein expliziter Zeitpunkt
+ * hier ist deshalb verlaesslicher als zwei Aufrufe mit dazwischenliegendem Zeitsprung.
+ */
+function legeNachweisMitZeit(
+  aufgabeId: string,
+  art: "text" | "bild",
+  erstelltVon: string,
+  erstelltAm: Date,
+  text: string | null = null,
+) {
+  return t.db.insert(nachweise).values({ aufgabeId, art, text, erstelltVon, erstelltAm }).returning().get();
+}
+
+/** Dasselbe Prinzip wie `legeNachweisMitZeit`, fuer die Zurueckweisungs-Verlaufszeile selbst. */
+function legeVerlaufMitZeit(aufgabeId: string, ereignis: string, akteurId: string, ts: Date) {
+  return t.db.insert(verlauf).values({ aufgabeId, ereignis, akteurId, ts }).returning().get();
+}
+
 describe("startenAction", () => {
   function form(aufgabeId: string): FormData {
     const f = new FormData();
@@ -773,7 +795,11 @@ describe("einplanenAction", () => {
   it("der zugewiesene BuFDi plant eine Aufgabe in einen leeren Tag — planRang 0, Verlaufszeile „Eingeplant“", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");
-    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id });
+    // `planRang: 7` als Ausgangswert (Review Fix-Runde 1, Minor #1): der Schema-Vorgabewert ist
+    // ohnehin 0, `expect(...).toBe(0)` unten bliebe also gruen, wuerde `planRang` gar nicht
+    // geschrieben. Ein vom Vorgabewert VERSCHIEDENER Ausgangswert macht die Zusicherung echt — sie
+    // beweist, dass der leere Zieltag wirklich auf 0 GERECHNET wird, nicht nur zufaellig dabeisteht.
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id, planRang: 7 });
     anmelden(bufdi);
 
     const ergebnis = await einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17", planUhrzeit: "09:30" }));
@@ -791,11 +817,11 @@ describe("einplanenAction", () => {
   });
 
   /**
-   * SPEC-NACHTRAG VOM 2026-08-13 (Betreiberentscheidung, `72ef235`): `in_arbeit` ist jetzt ein
-   * zulaessiger Ausgangszustand fuer `einplanen`. Der Widerspruch, den diese Aufgabe gemeldet hatte,
-   * ist damit aufgeloest — `_lib/tagesplan.ts` zeigt eine `in_arbeit`-Aufgabe mit `planDatum`
-   * regulaer in der Tagesspalte, und jetzt kann sie auch verschoben werden, ohne erst zurueckgesetzt
-   * werden zu muessen.
+   * SPEC-NACHTRAG VOM 2026-08-13 (Teil 1 der Fix-Runde 1, Betreiberentscheidung, `72ef235`):
+   * `in_arbeit` ist jetzt ein zulaessiger Ausgangszustand fuer `einplanen`. Der Widerspruch, den
+   * diese Aufgabe gemeldet hatte, ist damit aufgeloest — `_lib/tagesplan.ts` zeigt eine
+   * `in_arbeit`-Aufgabe mit `planDatum` regulaer in der Tagesspalte, und jetzt kann sie auch
+   * verschoben werden, ohne erst zurueckgesetzt werden zu muessen.
    */
   it("eine Aufgabe in in_arbeit wird verschoben — bleibt in_arbeit, der Verlauf haelt es fest", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
@@ -909,6 +935,9 @@ describe("einplanenAction", () => {
       await einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17", planUhrzeit: "9 Uhr" })),
     );
     expect(ergebnis.fieldErrors.planUhrzeit).toBeTruthy();
+    // `values.planUhrzeit` war bisher unbehauptet (Review Fix-Runde 1, Minor #3) — ohne diese Zeile
+    // koennte die Action das Feld beim Feldfehler vergessen haben, und niemand haette es gemerkt.
+    expect(ergebnis.values.planUhrzeit).toBe("9 Uhr");
     expect(aufgabe(t.db, task.id)!.planDatum).toBeNull();
   });
 
@@ -1089,6 +1118,97 @@ describe("fertigMeldenAction", () => {
 
     await expect(fertigMeldenAction({ ok: true }, form(task.id))).rejects.toThrow(/darf die Aktion "fertig"/);
   });
+
+  /**
+   * REVIEW FIX-RUNDE 1, IMPORTANT #1 — VIERTES VORKOMMEN DESSELBEN MUSTERS DIESER REIHE. Ohne
+   * diesen Test liesse sich die Artfilterung im Textzweig
+   * (`vorhandene.some((n) => n.art === "text" && …)`) auf "irgendein Nachweis genuegt"
+   * (`vorhandene.length > 0`) verkuerzen, ohne dass die Suite rot wird — der Bild-Nachweis hier
+   * beweist, dass NUR ein Text-Nachweis die Textpflicht erfuellt, kein beliebiger.
+   */
+  it("ein Bild-Nachweis erfuellt NICHT die Textpflicht — die Artfilterung im Textzweig ist bewacht", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+      nachweisPflicht: true, nachweisArt: "text",
+    });
+    legeNachweis(task.id, "bild", bufdi.id);
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
+    expect(ergebnis.fieldErrors.nachweisText).toBeTruthy();
+    expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+  });
+
+  describe("ein Nachweis von VOR der letzten Zurueckweisung erfuellt die Pflicht nicht erneut (Befund #6)", () => {
+    it("Text: der alte Nachweis reicht nicht, ein Feldfehler kommt zurueck", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "text",
+      });
+      // Der Nachweis entstand VOR der Zurueckweisung — z. B. beim ersten, unzureichenden Anlauf.
+      legeNachweisMitZeit(task.id, "text", bufdi.id, new Date("2026-08-10T08:00:00Z"), "Alter Nachweis.");
+      legeVerlaufMitZeit(task.id, "zurueckgewiesen", auftrag.id, new Date("2026-08-11T08:00:00Z"));
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
+      expect(ergebnis.fieldErrors.nachweisText).toBeTruthy();
+      expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    });
+
+    it("Text: ein NEUER Nachweis nach der Zurueckweisung erfuellt die Pflicht", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "text",
+      });
+      legeNachweisMitZeit(task.id, "text", bufdi.id, new Date("2026-08-10T08:00:00Z"), "Alter Nachweis.");
+      legeVerlaufMitZeit(task.id, "zurueckgewiesen", auftrag.id, new Date("2026-08-11T08:00:00Z"));
+      legeNachweisMitZeit(task.id, "text", bufdi.id, new Date("2026-08-12T08:00:00Z"), "Neuer Nachweis.");
+      anmelden(bufdi);
+
+      const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id));
+      expect(ergebnis).toEqual({ ok: true });
+      expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+    });
+
+    it("Bild: der alte Bild-Nachweis reicht nicht, ein Feldfehler kommt zurueck", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitZeit(task.id, "bild", bufdi.id, new Date("2026-08-10T08:00:00Z"));
+      legeVerlaufMitZeit(task.id, "zurueckgewiesen", auftrag.id, new Date("2026-08-11T08:00:00Z"));
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
+      expect(ergebnis.fieldErrors.nachweis).toBeTruthy();
+      expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    });
+
+    it("Bild: ein NEUER Bild-Nachweis nach der Zurueckweisung erfuellt die Pflicht", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitZeit(task.id, "bild", bufdi.id, new Date("2026-08-10T08:00:00Z"));
+      legeVerlaufMitZeit(task.id, "zurueckgewiesen", auftrag.id, new Date("2026-08-11T08:00:00Z"));
+      legeNachweisMitZeit(task.id, "bild", bufdi.id, new Date("2026-08-12T08:00:00Z"));
+      anmelden(bufdi);
+
+      const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id));
+      expect(ergebnis).toEqual({ ok: true });
+      expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+    });
+  });
 });
 
 describe("freigebenAction", () => {
@@ -1171,6 +1291,28 @@ describe("freigebenAction", () => {
       /Aktion "freigeben" ist im Zustand "in_arbeit" nicht vorgesehen/,
     );
   });
+
+  /**
+   * REVIEW FIX-RUNDE 1, MINOR #5 — laut statt still. `personNachId` liefert nur bei einer
+   * Datenbankinkonsistenz `null` (eine `prueferId`, die auf keine Person mehr zeigt); eine solche
+   * Zeile ist unter `foreign_keys = ON` (`testdb.ts`) reguer gar nicht einfuegbar — die Pragma wird
+   * hier bewusst kurz ausgeschaltet, um GENAU diese sonst unerreichbare Inkonsistenz nachzustellen.
+   */
+  it("wirft, statt eine UUID ins Journal zu schreiben, wenn der eingetragene Pruefer nicht mehr existiert", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+
+    t.sqlite.pragma("foreign_keys = OFF");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id, prueferId: "verwaiste-pruefer-id", status: "freigabe_offen", zugewiesenAn: bufdi.id,
+    });
+    t.sqlite.pragma("foreign_keys = ON");
+    anmelden(koordination);
+
+    await expect(freigebenAction(form(task.id))).rejects.toThrow(/Pruefer .* nicht gefunden/);
+    expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+  });
 });
 
 describe("zurueckweisenAction", () => {
@@ -1225,6 +1367,10 @@ describe("zurueckweisenAction", () => {
       await zurueckweisenAction({ ok: true }, form(task.id, { begruendung: "   " })),
     );
     expect(ergebnis.fieldErrors.begruendung).toBeTruthy();
+    // `values.begruendung` kommt UNVERAENDERT zurueck, auch wenn es nur Leerzeichen sind (Review
+    // Fix-Runde 1, Minor #3) — sonst wuesste die Oberflaeche nach dem Feldfehler nicht mehr, was im
+    // Feld stand.
+    expect(ergebnis.values.begruendung).toBe("   ");
   });
 
   it("eine unbeteiligte BuFDi darf nicht zurueckweisen", async () => {
