@@ -467,15 +467,21 @@ describe("Punkt 5 — Widerrufen", () => {
 // Punkt 6 — Groessen der Bedienelemente
 // ---------------------------------------------------------------------------
 
-describe("Punkt 6 — `size=\"small\"` nur in Tabellenzeilen", () => {
-  it("gibt jedem Knopf IN der Tabelle `small` und keinem ausserhalb", async () => {
+describe('Punkt 6 — kein `size="small"` mehr, weder in Tabellenzeilen noch ausserhalb', () => {
+  /*
+   * KORRIGIERT AUFGABE 12: die alte Ausnahme „size=small INNERHALB von
+   * Tabellenzeilen" galt der 56px-`controlHeight` — bei `ARBEITSDICHTE` (44)
+   * unterbietet `size="small"` (24px) die Mindesttapflaeche, egal ob Zeile
+   * oder nicht (`docs/design/README.md`, Falle 4).
+   */
+  it("gibt keinem Knopf `small` — weder in der Tabelle noch ausserhalb", async () => {
     nachDemAnlegen();
     await zeige();
 
     const inZeilen = queryAll("tbody.ant-table-tbody .ant-btn");
     expect(inZeilen.length, "keine Zeilenaktion gefunden").toBeGreaterThan(0);
     for (const knopf of inZeilen) {
-      expect(knopf.className, `Zeilenaktion ohne small: ${knopf.textContent}`).toContain(
+      expect(knopf.className, `Zeilenaktion mit small: ${knopf.textContent}`).not.toContain(
         "ant-btn-sm",
       );
     }
@@ -483,8 +489,9 @@ describe("Punkt 6 — `size=\"small\"` nur in Tabellenzeilen", () => {
     const draussen = queryAll(".ant-btn").filter((k) => !k.closest("tbody.ant-table-tbody"));
     expect(draussen.length, "kein Knopf ausserhalb der Tabelle gefunden").toBeGreaterThan(0);
     for (const knopf of draussen) {
-      // `controlHeight` ist 56 und schon das richtige Touch-Masz; `size="large"`
-      // waeren 72px, `small` waere zu klein fuer einen Handlungsknopf.
+      // `ARBEITSDICHTE` setzt `controlHeight` auf 44 und schon das richtige
+      // Masz; `size="large"` waeren 72px, `small` waere zu klein fuer einen
+      // Handlungsknopf.
       expect(knopf.className, `Handlungsknopf mit small: ${knopf.textContent}`).not.toContain(
         "ant-btn-sm",
       );

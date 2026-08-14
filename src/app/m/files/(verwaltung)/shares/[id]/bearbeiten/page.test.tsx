@@ -308,7 +308,11 @@ describe("die Seite laedt die Zeile", () => {
 
   it("fuehrt zurueck — die Seite ist keine Sackgasse", async () => {
     await legeShare({ id: "sh1234abcd" });
-    expect(await markup("sh1234abcd")).toContain('href="/"');
+    // Seit Aufgabe 12: `zurueck` fuehrt auf die unmittelbare Elternseite
+    // `/shares/<id>`, nicht mehr auf die Modulwurzel — die Detailseite
+    // existiert (anders als zur Zeit des frueheren Kommentars) und ist die
+    // Seite, von der aus „Bearbeiten" tatsaechlich aufgerufen wird.
+    expect(await markup("sh1234abcd")).toContain('href="/shares/sh1234abcd"');
   });
 });
 

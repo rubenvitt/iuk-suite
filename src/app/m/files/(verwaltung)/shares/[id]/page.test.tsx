@@ -706,7 +706,11 @@ describe("Punkt 5 — „Downloads aufstocken“ nur bei gesetztem Limit", () =>
 describe("Punkt 6 — kein Sackgassen-Detail", () => {
   it("fuehrt zurueck auf die Freigabenliste", async () => {
     await legeShare();
-    const zurueck = (await dom()).querySelector("[data-testid='files-detail-zurueck']");
+    // `seitenkopf-zurueck` statt `files-detail-zurueck` seit Aufgabe 12: der
+    // Weg zurueck steht jetzt im gemeinsamen `Seitenkopf`
+    // (`@/core/shell/Seitenkopf`), derselbe Testanker wie in jedem anderen
+    // Modul.
+    const zurueck = (await dom()).querySelector("[data-testid='seitenkopf-zurueck']");
     expect(zurueck, "kein Zurueck-Weg").not.toBeNull();
     expect(zurueck?.getAttribute("href")).toBe("/");
   });
@@ -838,6 +842,33 @@ describe("Punkt 8 — keine Datei vollständig übertragen", () => {
     await legeShare();
     await legeDatei({ id: DATEI_A });
     expect((await dom()).querySelector("[data-testid='files-detail-leer']")).toBeNull();
+  });
+});
+
+/**
+ * NACHTRAG AUFGABE 12, PUNKT 5 DER PRÜFLISTE. Diese Freigabe hat NICHT eine
+ * unvollständige Datei (siehe oben), sondern gar keine Dateizeile — ein
+ * Zustand, den `anlegenAction` über die Anwendung ausschließt
+ * („mindestens eine Datei", `(verwaltung)/actions.ts:203`), der aber über
+ * einen fehlerhaften Altimport technisch entstehen kann. Ohne diesen Test
+ * bliebe der `dateiZeilen.length === 0`-Zweig ungeprüft — er ist strukturell
+ * anders als der Zwischenzustand oben (`legeDatei` wird hier gar nicht
+ * gerufen) und fällt deshalb durch keinen der beiden Tests darüber.
+ */
+describe("Aufgabe 12, Punkt 5 — keine einzige Dateizeile", () => {
+  it("nennt den Zustand und bietet 'Erneut hochladen'", async () => {
+    await legeShare();
+
+    const wirt = await dom();
+    expect(wirt.textContent).toContain("Diese Freigabe hat keine Dateizeile.");
+    // Der Weg heraus steht IN der „Dateien"-Karte, nicht nur allgemein auf der
+    // Seite — sonst wäre die Zusicherung durch den Seitenkopf-Rückweg
+    // (ebenfalls `href="/"`, nicht `/shares/neu`) nicht unterscheidbar.
+    const dateienKarte = wirt.querySelector("[data-testid='files-detail-dateien']");
+    expect(
+      dateienKarte?.querySelector("a[href='/shares/neu']"),
+      "kein Weg aus dem Leerzustand",
+    ).not.toBeNull();
   });
 });
 

@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { ladeShareDetail } from "../../../../_db/queries";
 import { grenzen } from "../../../../_lib/grenzen";
 import { zeitpunktBerlin } from "../../../../_lib/zeit";
@@ -87,20 +87,30 @@ export default async function ShareBearbeitenSeite({
   return (
     <div data-testid="files-share-bearbeiten">
       {/*
-       * DER WEG ZURUECK. Jede Verwaltungsseite fuehrt zurueck, sonst ist sie
-       * eine Sackgasse (`docs/design/README.md:244`). Ziel ist die Modulwurzel
-       * und NICHT `/shares/<id>`: die Detailseite entsteht in einem anderen Task
-       * derselben Welle, und ein Weg in einen 404 waere schlimmer als ein Weg
-       * eine Ebene hoeher. Dieselbe Entscheidung wie in `shares/neu/page.tsx`.
+       * Punkt 1 der Pruefliste: `Seitenkopf` statt `<h1>` + `<p>` + Textlink.
+       * `beschreibung` traegt den Freigabetitel — dieselbe Stelle, an der
+       * zuvor der eigene `<p>{share.titel}</p>` stand.
+       *
+       * `zurueck` fuehrt auf `/shares/${share.id}` — die UNMITTELBARE
+       * Elternseite, nicht die Modulwurzel. Der fruehere Textlink zielte auf
+       * `/` mit der Begruendung „`/shares/<id>` gibt es noch nicht, das ist
+       * ein anderer Task derselben Welle" — das stimmte zum Zeitpunkt jenes
+       * Kommentars, ist aber seit Langem UEBERHOLT: die Detailseite existiert
+       * (`shares/[id]/page.tsx`, in meinem eigenen Zuschnitt bearbeitet) und
+       * ist die Seite, von der aus „Bearbeiten" tatsaechlich aufgerufen wird
+       * (`_ui/SharesTabelle.tsx`, `_ui/ShareDetailAktionen.tsx`). Zur Wurzel
+       * zurueckzuspringen liesze eine Zwischenebene aus — dieselbe Regel wie
+       * `feedback/(admin)/groups/[groupId]/evenings/[eveningId]/auswertung`
+       * (`zurueck` nennt den unmittelbaren Elternnamen, nicht die Modulwurzel,
+       * Aufgabe 11). Die Freigabe existiert an dieser Stelle nachweislich
+       * (`share !== null`, oben geprueft), ein Sprung dorthin fuehrt also in
+       * KEIN `notFound()`.
        */}
-      <p>
-        <Link href="/">← Alle Freigaben</Link>
-      </p>
-
-      {/* Ein nacktes `<h1>` und NICHT `Typography.Title`: der Compound-Zugriff
-          ist in RSC `undefined` und ergibt HTTP 500. */}
-      <h1>Freigabe bearbeiten</h1>
-      <p>{share.titel}</p>
+      <Seitenkopf
+        titel="Freigabe bearbeiten"
+        beschreibung={share.titel}
+        zurueck={{ titel: share.titel, href: `/shares/${share.id}` }}
+      />
 
       <BearbeitenFormular
         shareId={share.id}

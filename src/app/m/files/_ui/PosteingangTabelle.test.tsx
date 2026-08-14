@@ -563,14 +563,19 @@ describe("Punkt 7 — beide Darstellungen, Scroll und Knopfgroeszen", () => {
     expect(queryAll("[data-testid^='files-inbox-karte-']")).toHaveLength(3);
   });
 
-  it("gibt jedem Knopf IN der Tabelle `small` und keinem auszerhalb", async () => {
+  /*
+   * KORRIGIERT AUFGABE 12: die alte Ausnahme „size=small INNERHALB von
+   * Tabellenzeilen" galt der 56px-`controlHeight` — bei `ARBEITSDICHTE` (44)
+   * unterbietet `size="small"` (24px) die Mindesttapflaeche, egal ob Zeile
+   * oder nicht. Die Zusicherung dreht sich deshalb um: KEIN Knopf traegt
+   * `ant-btn-sm`, weder in der Tabelle noch auszerhalb.
+   */
+  it("gibt keinem Knopf `small` — weder in der Tabelle noch auszerhalb", async () => {
     await zeige();
     const inZeilen = queryAll("tbody.ant-table-tbody .ant-btn");
     expect(inZeilen.length, "keine Zeilenaktion gefunden").toBeGreaterThan(0);
     for (const knopf of inZeilen) {
-      // Eine 56px-Zeilenaktion sprengt die Zeile; `size="small"` ist INNERHALB
-      // von Tabellenzeilen ausdruecklich erlaubt (`docs/design/README.md:59-62`).
-      expect(knopf.className, `Zeilenaktion ohne small: ${knopf.textContent}`).toContain(
+      expect(knopf.className, `Zeilenaktion mit small: ${knopf.textContent}`).not.toContain(
         "ant-btn-sm",
       );
     }
@@ -578,8 +583,8 @@ describe("Punkt 7 — beide Darstellungen, Scroll und Knopfgroeszen", () => {
     const draussen = queryAll(".ant-btn").filter((k) => !k.closest("tbody.ant-table-tbody"));
     expect(draussen.length, "kein Knopf auszerhalb der Tabelle gefunden").toBeGreaterThan(0);
     for (const knopf of draussen) {
-      // `controlHeight` ist 56 und schon das richtige Touch-Masz; `size="large"`
-      // waeren 72px.
+      // `ARBEITSDICHTE` setzt `controlHeight` auf 44 und schon das richtige
+      // Masz; `size="large"` waeren 72px.
       expect(knopf.className, `Handlungsknopf mit small: ${knopf.textContent}`).not.toContain(
         "ant-btn-sm",
       );
@@ -612,21 +617,20 @@ describe("Punkt 7 — beide Darstellungen, Scroll und Knopfgroeszen", () => {
    * oben konnte ihn strukturell nicht sehen. Der Zustand wird deshalb HIER
    * gesetzt, je Test und nicht global.
    */
-  it("gibt dem Wiederholen-Knopf `small` nur IN der Tabelle, nicht in der Karte", async () => {
+  it("gibt dem Wiederholen-Knopf `small` an KEINER Stelle — weder Tabelle noch Karte", async () => {
     imFehler();
     await zeige([NEU]);
 
-    const inTabelle = query(`[data-testid='files-inbox-wiederholen-tabelle-${NEU.id}']`);
-    expect(inTabelle.className, "Zeilenaktion ohne small").toContain("ant-btn-sm");
-
     /*
-     * Die Karte steht AUSZERHALB jeder Tabellenzeile — dort ist `size="small"`
-     * ein Verstosz gegen die 44px-Trefferflaeche auf genau dem Geraet, fuer das
-     * die Kartenliste ueberhaupt existiert (`docs/design/README.md:59-62`:
-     * `size` gar nicht setzen, Ausnahme `small` INNERHALB von Tabellenzeilen).
-     * `block` waere hier ebenfalls falsch: eine vollbreite Flaeche in einer
-     * Alert-Aktion.
+     * KORRIGIERT AUFGABE 12 — siehe Kommentar an der Schwestertest oben. Beide
+     * Darstellungen tragen jetzt dieselbe 44px-`controlHeight`, ohne `size`.
+     * `block` bleibt weiterhin falsch fuer den Alert-Wiederholen-Knopf: eine
+     * vollbreite Flaeche in einer Alert-Aktion.
      */
+    const inTabelle = query(`[data-testid='files-inbox-wiederholen-tabelle-${NEU.id}']`);
+    expect(inTabelle.className, "Zeilenaktion mit small").not.toContain("ant-btn-sm");
+    expect(inTabelle.className, "Zeilenaktion mit large").not.toContain("ant-btn-lg");
+
     const inKarte = query(`[data-testid='files-inbox-wiederholen-karte-${NEU.id}']`);
     expect(inKarte.className, "Kartenaktion mit small").not.toContain("ant-btn-sm");
     expect(inKarte.className, "Kartenaktion mit large").not.toContain("ant-btn-lg");

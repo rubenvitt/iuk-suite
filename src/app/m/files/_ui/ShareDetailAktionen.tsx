@@ -43,10 +43,12 @@ import styles from "./shareDetailAktionen.module.css";
  *    Ein Kindselektor auf der Zeile träfe dort nur das `<form>`; der Knopf darin
  *    bliebe auto-breit und stünde halb so breit neben seinen Nachbarn. Die
  *    Begründung der Spezifität steht in der CSS-Datei, wo die Regel steht.
- *  - `size` wird an keinem Knopf gesetzt. `controlHeight` ist 56 und schon das
- *    richtige Touch-Maß; `size="large"` wären 72px, `size="small"`
- *    unterschritte die 44px-Trefferfläche (Ausnahme wäre nur eine Tabellenzeile,
- *    und eine solche gibt es hier nicht).
+ *  - `size` wird an keinem Knopf gesetzt. `ARBEITSDICHTE` setzt `controlHeight`
+ *    auf 44 (nicht mehr 56, korrigiert Aufgabe 12) und schon das richtige
+ *    Touch-Maß; `size="large"` wären 72px, `size="small"` unterschritte die
+ *    44px-Trefferfläche — und seit Aufgabe 12 gibt es dafür keine Ausnahme
+ *    mehr, auch nicht innerhalb einer Tabellenzeile (`docs/design/README.md`,
+ *    Falle 4). Eine Tabellenzeile gibt es hier ohnehin nicht.
  *
  * DIE WERTE KOMMEN FERTIG HEREIN — Text, keine `Date`-Objekte, keine
  * Drizzle-Zeilen. Dieselben drei Gründe wie bei `SharesTabelle`: `password_hash`

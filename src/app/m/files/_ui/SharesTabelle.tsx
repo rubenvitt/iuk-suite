@@ -281,6 +281,10 @@ export function SharesTabelleSkelett() {
             <tr key={zeilenNummer}>
               {SPALTEN_TITEL.map((_, i) => (
                 <td key={i}>
+                  {/* `size="small"` bleibt hier: das ist ein Ladeplatzhalter,
+                      kein Bedienelement — nicht interaktiv, keine Tapflaeche.
+                      Die neue `size="small"`-Regel (Aufgabe 12) gilt echten
+                      Zeilenaktionen, nicht ihrem Skelett. */}
                   <Skeleton.Button active block size="small" />
                 </td>
               ))}
@@ -351,14 +355,16 @@ function ZeilenAktionen({
   const fehler = fehlerText(zustand);
 
   /*
-   * `size="small"` NUR in der Tabelle: eine 56px-Zeilenaktion sprengt die Zeile.
-   * In der Karte bleibt `controlHeight` (56) stehen und `block` macht die
-   * Knoepfe voll breit — unter 768px stehen Handlungsknoepfe untereinander und
-   * in voller Breite, ein 630px breiter Knopf liest sich als Flaeche, nicht als
-   * Ziel. `size="large"` waeren 72px und ist nirgends richtig.
+   * KEIN `size="small"` MEHR AN ZEILENAKTIONEN (korrigiert Aufgabe 12, nach
+   * Aufgabe 8): die alte Ausnahme galt der 56px-`controlHeight` — eine
+   * 44px-Zeilenaktion (`ARBEITSDICHTE`) sprengt keine Zeile mehr, waehrend
+   * `size="small"` auf 24px faellt und die Mindesttapflaeche unterbietet
+   * (`docs/design/README.md`, Falle 4). In der Karte bleibt `block` bestehen —
+   * unter 768px stehen Handlungsknoepfe untereinander und in voller Breite,
+   * ein 630px breiter Knopf liest sich als Flaeche, nicht als Ziel.
    */
   const inTabelle = kennung === "tabelle";
-  const masz = inTabelle ? ({ size: "small" } as const) : ({ block: true } as const);
+  const masz = inTabelle ? {} : ({ block: true } as const);
 
   return (
     <div>
@@ -428,8 +434,8 @@ function ZeilenAktionen({
           data-testid={`files-share-fehler-${kennung}-${zeile.id}`}
           message={fehler}
           action={
+            // Kein `size="small"` mehr — siehe Kommentar an `masz` oben.
             <Button
-              size="small"
               data-testid={`files-share-wiederholen-${kennung}-${zeile.id}`}
               onClick={() => formular.current?.requestSubmit()}
             >
