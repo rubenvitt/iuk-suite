@@ -213,10 +213,21 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
 });
 
 describe("Gate — das Zahlenfeld (§7.2.4)", () => {
-  it("traegt inputmode, maxlength, pattern, aria-label und aria-describedby", async () => {
+  it("traegt inputmode, maxlength, pattern, aria-label — und KEIN aria-describedby", async () => {
     // inputMode/maxlength/pattern sind zusammen die billigste Massnahme gegen
     // Fehleingaben am GEMEINSAMEN Rate-Limit-Eimer (Falle 24): alle Helferinnen
     // hinter demselben Uplink teilen sich fuenf Fehlversuche pro Minute.
+    //
+    // ⚠️ DER SICHTBARE FORMATHINWEIS UNTER DEM FELD IST ENTFALLEN (Betreiber-
+    // wunsch), und mit ihm `aria-describedby="codehinweis"`. Die frueher hier
+    // benachbarte Zusage („der beschriebene Hinweis existiert wirklich") hatte
+    // genau EINE Prämisse — ein lebendes `aria-describedby` — und ist deshalb
+    // geloescht statt abgeschwaecht worden. WAS BLEIBT, ist ihr eigentlicher
+    // Zweck: ein Verweis, der ins Leere zeigt, ist fuer eine Bildschirmleserin
+    // schlechter als keiner, weil sie dann gar nichts sagt und es niemandem
+    // auffaellt. Diese Zeile haelt genau das in der neuen Form fest — kein
+    // halber Rueckbau, der das Attribut stehen laesst und das Ziel entfernt.
+    // Das Format traegt weiterhin `placeholder="000-000"` samt `pattern`.
     await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
     const f = query<HTMLInputElement>("input[name='code']");
     expect(f.getAttribute("inputmode")).toBe("numeric");
@@ -224,21 +235,8 @@ describe("Gate — das Zahlenfeld (§7.2.4)", () => {
     expect(f.getAttribute("pattern")).toBe("[0-9]{3}-?[0-9]{3}");
     expect(f.getAttribute("placeholder")).toBe("000-000");
     expect(f.getAttribute("aria-label")).toBe("Zugangs-Code");
-    expect(f.getAttribute("aria-describedby")).toBe("codehinweis");
+    expect(f.getAttribute("aria-describedby")).toBeNull();
     expect(f.getAttribute("autocomplete")).toBe("off");
-  });
-
-  it("der beschriebene Hinweis existiert wirklich — am NAMEN entlang gepruft", async () => {
-    // Ein `aria-describedby`, das ins Leere zeigt, ist fuer eine
-    // Bildschirmleserin schlechter als keins: sie sagt gar nichts und niemand
-    // merkt es. Deshalb wird der Zielknoten UEBER DEN GELESENEN NAMEN gesucht
-    // und nicht ueber ein zweites Literal — ein umbenanntes `id` faellt sonst
-    // erst auf, wenn beide Literale zufaellig auseinanderlaufen.
-    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
-    const ziel = query<HTMLInputElement>("input[name='code']").getAttribute("aria-describedby");
-    expect(ziel).toBeTruthy();
-    expect(exists(`#${ziel}`)).toBe(true);
-    expect(query(`#${ziel}`).textContent?.trim().length).toBeGreaterThan(0);
   });
 
   it("reicht `returnTo` als verstecktes Feld durch", async () => {
