@@ -163,3 +163,41 @@ function naechsteDatei(): string {
   if (!datei) throw new Error("Migration 0000 nicht gefunden");
   return datei;
 }
+
+/*
+ * Aufgabe 18 — Migration 0001, zwei nachgeholte Indizes (siehe Kopfkommentar
+ * von `_db/schema.ts` bei `dateien`). Zwei Zusicherungen, und beide brauchen
+ * eine GEGENPROBE, sonst bleibt „0000 ist unverändert" ungeprüft: eine
+ * spätere Bearbeitung, die stattdessen 0000 anfasst, müsste HIER auffallen,
+ * nicht nur „die Indizes existieren irgendwo".
+ */
+describe("Migration 0001 — zwei nachgeholte Indizes auf `dateien`", () => {
+  function datei0001(): string {
+    const datei = readdirSync(join(process.cwd(), ORDNER)).find((d) => d.startsWith("0001_"));
+    if (!datei) throw new Error("Migration 0001 nicht gefunden");
+    return datei;
+  }
+
+  it("0001 legt den Index auf aufgabe_id UND auf scan_status an", () => {
+    const sql = readFileSync(join(process.cwd(), ORDNER, datei0001()), "utf8");
+    expect(sql).toMatch(/CREATE INDEX `dateien_aufgabe_idx` ON `dateien` \(`aufgabe_id`\)/);
+    expect(sql).toMatch(/CREATE INDEX `dateien_scan_idx` ON `dateien` \(`scan_status`\)/);
+  });
+
+  it("0000 nennt diese beiden Indizes NICHT — sie gehören zu 0001, nicht nachträglich in 0000", () => {
+    const sql0000 = readFileSync(join(process.cwd(), ORDNER, naechsteDatei()), "utf8");
+    expect(sql0000).not.toContain("dateien_aufgabe_idx");
+    expect(sql0000).not.toContain("dateien_scan_idx");
+  });
+
+  it("nach der vollen Migration existieren beide Indizes in sqlite_master", () => {
+    const sqlite = frisch();
+    const indizes = sqlite
+      .prepare("SELECT name FROM sqlite_master WHERE type='index'")
+      .all()
+      .map((z) => (z as { name: string }).name);
+    expect(indizes).toContain("dateien_aufgabe_idx");
+    expect(indizes).toContain("dateien_scan_idx");
+    sqlite.close();
+  });
+});

@@ -12,6 +12,7 @@ import * as feedbackSchema from "@/app/m/feedback/_db/schema";
 import { seedFeedback } from "@/app/m/feedback/_lib/seed";
 import { filesBootFehler, starteFilesHintergrund } from "@/app/m/files/_lib/boot";
 import { lagerbuchBootFehler } from "@/app/m/lagerbuch/_lib/boot";
+import { starteAufgabenScanArbeiter } from "@/app/m/aufgaben/_lib/scan";
 
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
 // Migrations-Pfad ist cwd-relativ: Dev = Repo-Root, Prod = /app (Dockerfile
@@ -116,6 +117,9 @@ export function shouldSeed(): boolean {
  */
 export function startBackgroundWork(): void {
   starteFilesHintergrund();
+  // Wiederaufnahme liegen gebliebener `offen`-Dateien nach einem Absturz
+  // (Aufgabe 18) — synchron und wirft nie, siehe `_lib/scan.ts`.
+  starteAufgabenScanArbeiter();
 }
 
 export async function seedAllModules(): Promise<void> {

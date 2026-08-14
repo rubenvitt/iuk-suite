@@ -8,6 +8,13 @@
       "when": 1786615643227,
       "tag": "0000_heavy_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1786722299517,
+      "tag": "0001_heavy_black_tarantula",
+      "breakpoints": true
     }
   ]
 }

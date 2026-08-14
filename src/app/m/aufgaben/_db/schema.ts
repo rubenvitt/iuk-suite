@@ -233,26 +233,56 @@ export const nachweise = sqliteTable(
   (t) => [index("nachweise_aufgabe_idx").on(t.aufgabeId)],
 );
 
-export const dateien = sqliteTable("dateien", {
-  id: text("id").primaryKey().$defaultFn(newId),
-  aufgabeId: text("aufgabe_id")
-    .notNull()
-    .references(() => aufgaben.id, { onDelete: "cascade" }),
-  dateiname: text("dateiname").notNull(),
-  mime: text("mime").notNull(),
-  groesse: integer("groesse").notNull(),
-  /**
-   * `offen` ist die Vorbelegung und gibt NICHT frei. Fail-closed: eine Datei,
-   * die noch nicht geprueft ist, wird nicht ausgeliefert. Das ist dieselbe
-   * Linie wie `istFreigegeben` im Modul `files`, wo `unscanned` ebenfalls
-   * gesperrt bleibt — gerade weil es der Fall ist, den noch niemand geprueft hat.
-   */
-  scanStatus: text("scan_status", { enum: SCAN_STATUS }).notNull().default("offen"),
-  scanGeprueftAm: integer("scan_geprueft_am", { mode: "timestamp" }),
-  erstelltAm: integer("erstellt_am", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+/**
+ * KEINE SPALTE `pfad` — Abweichung von Spec §6, ENTSCHIEDEN in Aufgabe 18.
+ *
+ * Spec §6 listet `pfad` als Spalte von `datei`; hier wird er stattdessen
+ * ABGELEITET (`_lib/ablage.ts`, `pfadFuer(id)`), aus genau zwei Gruenden:
+ *
+ * 1. Der Pfad ist eine reine Funktion von `id` und Ablagewurzel (`DATA_DIR`).
+ *    Eine gespeicherte Spalte waere ZUSTAND, der von der Ableitungsregel
+ *    auseinanderlaufen kann — zieht die Ablage um (ein anderes `DATA_DIR`),
+ *    ist das eine Konfigurationsaenderung, keine Migration ueber jede Zeile.
+ * 2. Aendert sich die Ableitungsregel selbst (z. B. ein Unterverzeichnis pro
+ *    Aufgabe), stehen alte und neue Regel sonst NEBENEINANDER in derselben
+ *    Spalte, und niemand kann einer Zeile ansehen, welche Regel fuer sie galt.
+ *
+ * `_lib/storage.ts` im Modul `files` ist das Vorbild: auch dort entsteht der
+ * Pfad ausschliesslich aus IDs, nie aus einer gespeicherten Spalte — genau
+ * damit verschwindet die Traversal-Klasse strukturell statt per Guard.
+ */
+export const dateien = sqliteTable(
+  "dateien",
+  {
+    id: text("id").primaryKey().$defaultFn(newId),
+    aufgabeId: text("aufgabe_id")
+      .notNull()
+      .references(() => aufgaben.id, { onDelete: "cascade" }),
+    dateiname: text("dateiname").notNull(),
+    mime: text("mime").notNull(),
+    groesse: integer("groesse").notNull(),
+    /**
+     * `offen` ist die Vorbelegung und gibt NICHT frei. Fail-closed: eine Datei,
+     * die noch nicht geprueft ist, wird nicht ausgeliefert. Das ist dieselbe
+     * Linie wie `istFreigegeben` im Modul `files`, wo `unscanned` ebenfalls
+     * gesperrt bleibt — gerade weil es der Fall ist, den noch niemand geprueft hat.
+     */
+    scanStatus: text("scan_status", { enum: SCAN_STATUS }).notNull().default("offen"),
+    scanGeprueftAm: integer("scan_geprueft_am", { mode: "timestamp" }),
+    erstelltAm: integer("erstellt_am", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    // Migration 0001 (Aufgabe 18) — nachgeholt aus dem Review von Aufgabe 2:
+    // `dateien` hatte, anders als seine Kaskaden-Geschwister `nachweise` und
+    // `verlauf`, KEINEN Index auf `aufgabe_id`.
+    index("dateien_aufgabe_idx").on(t.aufgabeId),
+    // Derselbe Zug: die Warteschlange (`_lib/scan.ts`) braucht einen Index auf
+    // `scan_status`, um "alles was offen ist" nicht per Tabellenscan zu finden.
+    index("dateien_scan_idx").on(t.scanStatus),
+  ],
+);
 
 /**
  * DER VERLAUF IST EINE TABELLE, KEIN TEXTFELD. Jeder Uebergang schreibt eine
