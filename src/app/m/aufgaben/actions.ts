@@ -25,6 +25,8 @@ import {
 import type { AufgabeRow, Ereignis, NachweisRow } from "./_db/schema";
 import { WOCHENTAG_BIT } from "./_lib/anzeige";
 import {
+  PERSONEN_SUCHE_MAX_TREFFER,
+  PERSONEN_SUCHE_MIN_ZEICHEN,
   istGueltigeDauerMinuten,
   istGueltigeNachweisArt,
   istGueltigePrioritaet,
@@ -43,7 +45,8 @@ import {
   akteurFuerSession,
 } from "./_lib/zugang";
 import { isoTag } from "./_lib/datum";
-import { canAdminModule } from "@/core/auth/guards";
+import { canAdminModule, requireModuleAdmin } from "@/core/auth/guards";
+import { getDirectory, type DirectoryResult } from "@/core/directory";
 
 /*
  * DIE VIER ACTIONS DER AUFGABE 9 — `einstellen`, `verteilen`, `umverteilen`, `zurueckziehen`.
@@ -1064,8 +1067,16 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
  * hier spaeter "vereinfacht", nimmt beide Folgen zurueck.
  *
  * `canAdminModule` STATT `requireModuleAdmin` (beide `core/auth/guards.ts`): gebraucht wird die
- * ODER-Haelfte einer Bedingung, nicht ein eigener Abbruch — `requireModuleAdmin` wuerfe jede
- * regulaere Koordinationsperson ohne Suite-Admin-Gruppe hinaus.
+ * ODER-Haelfte einer Bedingung, nicht ein eigener Abbruch.
+ *
+ * ⚠️ DER FRUEHERE ZUSATZ „`requireModuleAdmin` wuerfe jede regulaere Koordinationsperson ohne
+ * Suite-Admin-Gruppe hinaus" GILT SEIT DEM QUELLENWECHSEL (2026-08-15) NICHT MEHR und stand hier
+ * bis zum Verzeichnis-Autofill: `istKoordination` IST inzwischen `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), die beiden Haelften dieser Oder-Bedingung sind also
+ * deckungsgleich geworden. Der Zweig bleibt trotzdem stehen, und zwar wegen der REIHENFOLGE (s. o.)
+ * — nicht, weil er einen zweiten Personenkreis oeffnete. Wer eine Wache braucht, die VOR jedem
+ * Datenzugriff abbricht und keine Personenzeile lesen muss, nimmt seit demselben Datum
+ * `requireModuleAdmin` — s. `personenSucheAction` weiter unten.
  *
  * ES GIBT KEINE LOESCHEN-AKTION, UND DAS IST ABSICHT (Brief, Spec §4): eine ausgeschiedene Person
  * wird ueber `aktivBis` beendet, nicht entfernt — ihre Aufgaben, Nachweise und Verlaufszeilen
@@ -1102,6 +1113,67 @@ async function verlangePersonenverwaltung(db: DB, heute: string): Promise<void> 
   if (!darfPersonenVerwalten(bearbeiter, heute)) {
     throw new Error("Keine Berechtigung, Personen zu verwalten.");
   }
+}
+
+/**
+ * KEIN AUSFALL AUS DEM VERZEICHNIS DARF EINE ACTION MITNEHMEN. `core/directory` sagt zu, nie zu
+ * werfen (jeder Ausfall ist ein `status`) — diese drei Zeilen kosten nichts und ueberleben einen
+ * spaeteren Austausch des Clients gegen einen, der doch wirft.
+ *
+ * MODULPRIVATE KOPIE DES HELFERS AUS `feedback/actions.ts` (Zeile 274), bewusst nicht importiert —
+ * dieselbe Ueberlegung wie bei `KAESTCHEN_AN`/`istGesetzt` weiter oben: Modul-Interna eines ANDEREN
+ * Moduls sind kein API (`docs/design/README.md`).
+ */
+async function ohneAusfall(abruf: () => Promise<DirectoryResult>): Promise<DirectoryResult> {
+  try {
+    return await abruf();
+  } catch {
+    return { status: "error", people: [] };
+  }
+}
+
+/**
+ * DIE PERSONENSUCHE HINTER DEM AUTOFILL DES ANLEGE-FORMULARS (Entwurf 2026-08-15 §6). Vorbild
+ * woertlich: `feedback/actions.ts`s `suchePersonenAction` und `feedback/_ui/Zuordnung.tsx`.
+ *
+ * SIE LOEST DAS PROBLEM, DAS DER KOPFKOMMENTAR VON `_ui/PersonenFormular.tsx` BISHER NUR VERWALTEN
+ * KONNTE: die Koordination musste sich den `sub` von der betroffenen Person vorlesen lassen (die
+ * sieht ihn auf `_ui/NichtEingetragenSeite.tsx`). Dieser Weg BLEIBT — er ist der Rueckfall, wenn
+ * kein Verzeichnis hinterlegt oder erreichbar ist —, ist aber nicht mehr der einzige.
+ *
+ * DREI EIGENSCHAFTEN, DIE HIER UND NUR HIER DURCHGESETZT WERDEN:
+ *
+ * 1. KOORDINATIONSSACHE, UND DER RIEGEL STEHT IN DER ERSTEN ZEILE — VOR jedem Netzzugriff. Was
+ *    hier zurueckkommt, ist die Mitgliederliste der GANZEN Organisation, nicht die des Moduls
+ *    (`core/directory` kennt keine Gruppen, s. Entwurf §6). Eine Wache NACH dem Abruf waere ein
+ *    Datenabfluss mit anschliessender Fehlermeldung.
+ *
+ *    `requireModuleAdmin` UND NICHT DIE ODER-BEDINGUNG AUS `verlangePersonenverwaltung`: seit dem
+ *    Quellenwechsel sind beide Haelften jener Bedingung deckungsgleich (`istKoordination` IST
+ *    `canAdminModule`, s. dort), und diese Action braucht ueberhaupt keine `personen`-Zeile — sie
+ *    schreibt nichts und rechnet mit keiner `personen.id`. Ein `akteurFuerSession` davor waere ein
+ *    Datenbankzugriff, der nur `notFound()` werfen kann, und zwar ausgerechnet fuer die frisch
+ *    freigeschaltete Koordination, die noch keine Zeile hat.
+ *
+ * 2. DATENSPARSAMKEIT. Ueber die RSC-Grenze gehen hoechstens `PERSONEN_SUCHE_MAX_TREFFER` Personen
+ *    pro Anschlag, nie der Abzug. Gefiltert wird serverseitig auf dem gecachten Abzug.
+ *
+ * 3. AUSFALL BRICHT NICHTS. Der `status` geht MIT zurueck, statt zu einer leeren Liste eingeebnet
+ *    zu werden: nur so kann die Oberflaeche „das Verzeichnis kennt niemanden mit diesem Namen" von
+ *    „das Verzeichnis antwortet gerade nicht" unterscheiden — und im zweiten Fall darf sie die
+ *    getippte Kennung nicht als falsch hinstellen.
+ *
+ * Sie gibt keinen `FormState` zurueck: sie ist kein Formular, sondern eine Abfrage.
+ */
+export async function personenSucheAction(q: string): Promise<DirectoryResult> {
+  await requireModuleAdmin("aufgaben");
+  const begriff = String(q ?? "").trim();
+  // Dieselbe Untergrenze wie in der Insel — hier noch einmal, weil ein Aufruf der Action nicht
+  // durch die Insel gehen MUSS: eine Server-Action ist ein oeffentlicher Endpunkt.
+  if (begriff.length < PERSONEN_SUCHE_MIN_ZEICHEN) {
+    return { status: "ok", people: [] };
+  }
+  return ohneAusfall(() => getDirectory().search(begriff, PERSONEN_SUCHE_MAX_TREFFER));
 }
 
 /**

@@ -40,6 +40,21 @@ vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
 let t: TestDb;
 vi.mock("./_db/client", () => ({ getDb: () => t.db }));
 
+/*
+ * DAS VERZEICHNIS WIRD NICHT NACHGEBAUT, SONDERN VERDRAHTET (Verzeichnis-Autofill 2026-08-15).
+ * Gemockt ist NUR `getDirectory` — die Instanz dahinter ist die ECHTE `createDirectory` mit einem
+ * eingesetzten `transport` (der Netzwerkrand, den `core/directory` genau dafuer als Schnittstelle
+ * fuehrt). Damit laufen Sortierung, Deckelung, Feldabbildung und vor allem der
+ * `unconfigured`-Zweig als das, was sie im Betrieb sind, statt als Rueckgabewert eines Mocks: ein
+ * `vi.fn().mockResolvedValue({ status: "unconfigured" })` bezeugte nur, dass der Test selbst
+ * "unconfigured" hineingelegt hat.
+ */
+let verzeichnis: Directory;
+vi.mock("@/core/directory", async (echt) => ({
+  ...(await echt<typeof import("@/core/directory")>()),
+  getDirectory: () => verzeichnis,
+}));
+
 import {
   aufgabeEinstellenAction,
   einplanenAction,
@@ -49,6 +64,7 @@ import {
   personAendernAction,
   personAnlegenAction,
   personBeendenAction,
+  personenSucheAction,
   rangVerschiebenAction,
   routineAendernAction,
   routineAnlegenAction,
@@ -62,6 +78,7 @@ import {
   zuruecksetzenAction,
 } from "./actions";
 import type { FormState } from "./_lib/formState";
+import { createDirectory, type Directory, type DirectoryTransport } from "@/core/directory";
 
 /**
  * HEUTE IST EIN FESTES DATUM, KEIN "je nach Testlauf" — die Actions ermitteln `heute` selbst ueber
@@ -2757,5 +2774,128 @@ describe("personBeendenAction — setzt aktivBis auf HEUTE", () => {
 
     await personBeendenAction(form(ziel.id));
     expect(personNachId(t.db, ziel.id)!.aktivBis).toBe(HEUTE);
+  });
+});
+
+/**
+ * DIE PERSONENSUCHE IM VERZEICHNIS (Entwurf 2026-08-15 §6, Aufgabe 5 des Plans).
+ *
+ * Drei Zusagen, und alle drei brechen still, wenn sie niemand festhaelt:
+ *
+ * 1. DER RIEGEL STEHT VOR DEM ABRUF, nicht danach. Was hier zurueckkommt, ist die Mitgliederliste
+ *    der ganzen Organisation — eine Wache nach dem Abruf waere ein Datenabfluss mit anschliessender
+ *    Fehlermeldung. Der Test prueft deshalb nicht nur den Wurf, sondern dass der `transport`
+ *    UEBERHAUPT NICHT angefasst wurde.
+ * 2. OHNE VERZEICHNIS WIRD NICHT GEWORFEN, sondern `status: "unconfigured"` gemeldet. Daran haengt
+ *    der Rueckfallweg des Formulars: `core/directory` sagt zu, nie zu werfen, und
+ *    `_ui/PersonenFormular.tsx` baut sein Textfeld genau auf diese Zusage.
+ * 3. DIE KENNUNG KOMMT UNVERAENDERT DURCH. `sub`-Werte sind gross-/kleinschreibungssensitiv; eine
+ *    normalisierte Kennung erzeugte eine Zeile, die bei der naechsten Anmeldung STILL nie trifft.
+ */
+describe("personenSucheAction — die Personensuche im Verzeichnis", () => {
+  const NUTZER = [
+    { id: "PID-Alina", displayName: "Alina Rathje", email: "alina@iuk.example" },
+    { id: "pid-bendix", displayName: "Bendix Petersen", email: "bendix@iuk.example" },
+  ];
+
+  let abrufe: string[];
+  function transport(nutzer: unknown[] = NUTZER): DirectoryTransport {
+    return async (url) => {
+      abrufe.push(url);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: nutzer, pagination: { totalPages: 1 } }),
+      };
+    };
+  }
+  function mitVerzeichnis(): void {
+    verzeichnis = createDirectory({
+      baseUrl: "https://id.test",
+      apiKey: "geheim",
+      transport: transport(),
+    });
+  }
+
+  beforeEach(() => {
+    abrufe = [];
+    // Vorgabe ist das UNKONFIGURIERTE Verzeichnis — wer Treffer erwartet, sagt es ausdruecklich.
+    verzeichnis = createDirectory({});
+  });
+
+  it("gibt Treffer aus dem Verzeichnis zurueck, mit der Kennung unveraendert", async () => {
+    mitVerzeichnis();
+    anmelden(legePerson("dev:rike@test", "auftrag"), true);
+
+    const ergebnis = await personenSucheAction("alina");
+
+    expect(ergebnis.status).toBe("ok");
+    expect(ergebnis.people).toEqual([
+      { userId: "PID-Alina", name: "Alina Rathje", email: "alina@iuk.example" },
+    ]);
+  });
+
+  it("verlangt die Koordinationsrolle — und fragt das Verzeichnis GAR NICHT ERST", async () => {
+    mitVerzeichnis();
+    anmelden(legePerson("dev:alina@test", "bufdi"));
+
+    await expect(personenSucheAction("alina")).rejects.toThrow("Forbidden");
+    expect(abrufe, "das Verzeichnis wurde VOR der Rechtefrage abgerufen").toEqual([]);
+  });
+
+  it("auch eine auftrag-Zeile ohne Koordinationsgruppe wird abgewiesen", async () => {
+    mitVerzeichnis();
+    anmelden(legePerson("dev:malte@test", "auftrag"));
+
+    await expect(personenSucheAction("alina")).rejects.toThrow("Forbidden");
+    expect(abrufe).toEqual([]);
+  });
+
+  it("ohne POCKET_ID_API_KEY liefert sie status 'unconfigured' statt zu werfen", async () => {
+    anmelden(legePerson("dev:rike@test", "auftrag"), true);
+
+    const ergebnis = await personenSucheAction("alina");
+
+    expect(ergebnis.status).toBe("unconfigured");
+    expect(ergebnis.people).toEqual([]);
+  });
+
+  it("antwortet das Verzeichnis nicht, ist das ein status und kein Wurf", async () => {
+    verzeichnis = createDirectory({
+      baseUrl: "https://id.test",
+      apiKey: "geheim",
+      transport: async (url) => {
+        abrufe.push(url);
+        return { ok: false, status: 401, json: async () => ({}) };
+      },
+    });
+    anmelden(legePerson("dev:rike@test", "auftrag"), true);
+
+    const ergebnis = await personenSucheAction("alina");
+
+    expect(ergebnis.status).toBe("error");
+    expect(ergebnis.people).toEqual([]);
+  });
+
+  /**
+   * DIE UNTERGRENZE GILT AUCH HIER, NICHT NUR IN DER INSEL: eine Server-Action ist ein
+   * oeffentlicher Endpunkt, und ein einzelnes Zeichen ist als Antwort eine halbe Mitgliederliste.
+   */
+  it("unter zwei Zeichen wird gar nicht erst abgerufen", async () => {
+    mitVerzeichnis();
+    anmelden(legePerson("dev:rike@test", "auftrag"), true);
+
+    expect(await personenSucheAction("a")).toEqual({ status: "ok", people: [] });
+    expect(await personenSucheAction("   ")).toEqual({ status: "ok", people: [] });
+    expect(abrufe).toEqual([]);
+  });
+
+  it("der Suite-Admin darf ebenfalls suchen — derselbe Rueckweg wie ueberall im Modul", async () => {
+    mitVerzeichnis();
+    sitzung = { user: { id: "dev:admin@test", groups: ["dashboard-admins"] } };
+
+    const ergebnis = await personenSucheAction("bendix");
+
+    expect(ergebnis.people.map((p) => p.userId)).toEqual(["pid-bendix"]);
   });
 });

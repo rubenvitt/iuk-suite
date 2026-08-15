@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { canAdminModule } from "@/core/auth/guards";
+import { isDirectoryConfigured } from "@/core/directory";
 import { getDb, type DB } from "../_db/client";
 import { allePersonen } from "../_db/queries";
 import { isoTag } from "../_lib/datum";
@@ -57,7 +58,24 @@ export const dynamic = "force-dynamic";
  * s. deren Kopfkommentar: ein Import aus `_lib/zugang.ts` in eine Client-Insel wuerde next-auths
  * `auth()` ins Client-Bundle ziehen.
  */
-export function personenInhalt(db: DB, heute: string, bearbeitenId?: string) {
+export function personenInhalt(
+  db: DB,
+  heute: string,
+  bearbeitenId?: string,
+  /**
+   * Ist ein Personenverzeichnis hinterlegt? Reine Env-Frage (`isDirectoryConfigured`), KEIN Abruf —
+   * `/personen` braucht die Nutzerliste nicht, es braucht nur die Entscheidung, welches Eingabefeld
+   * die Anlage bekommt. Ein `getDirectory().list()` bloss zur Feldwahl haengte das Gesamtbudget des
+   * Verzeichnisses (15 s) an jeden Seitenaufbau. `feedback`s Cockpit-Seite fragt aus einem anderen
+   * Grund den echten `status` ab: sie laedt das Verzeichnis ohnehin, um Namen aufzuloesen.
+   *
+   * DIE ERSETZUNG IST TREU, UND DARAUF BERUHT DER RUECKFALLWEG: `createDirectory` setzt intern
+   * `konfiguriert = baseUrl !== "" && apiKey !== ""` — dieselben zwei Env-Werte, dieselbe
+   * Bedingung wie `isDirectoryConfigured`. `verzeichnisAktiv === false` heisst deshalb genau: jede
+   * `search()` LIEFERTE `status: "unconfigured"`.
+   */
+  verzeichnisAktiv = false,
+) {
   const personenListe = allePersonen(db);
   const bearbeiten = bearbeitenId
     ? (personenListe.find((p) => p.id === bearbeitenId) ?? null)
@@ -84,7 +102,11 @@ export function personenInhalt(db: DB, heute: string, bearbeitenId?: string) {
         <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>
           {bearbeiten ? `Person „${bearbeiten.name}“ ändern` : "Neue Person anlegen"}
         </h2>
-        <PersonenFormular person={bearbeiten ?? undefined} key={bearbeiten?.id ?? "neu"} />
+        <PersonenFormular
+          person={bearbeiten ?? undefined}
+          verzeichnisAktiv={verzeichnisAktiv}
+          key={bearbeiten?.id ?? "neu"}
+        />
         {bearbeiten ? (
           <Link href="/personen" style={{ display: "inline-block", marginBlockStart: SPACE.sm }}>
             Abbrechen
@@ -104,6 +126,11 @@ export default async function PersonenPage({
 }) {
   const db = getDb();
   const heute = isoTag(new Date());
+  // BEIDE RUECKGABEWEGE UNTEN BRAUCHEN IHN — und der ERSTE ist der, den eine koordinierende Person
+  // tatsaechlich nimmt (der Notausgang kehrt vor `akteurFuerSeite` zurueck). Ihn dort zu vergessen
+  // machte das Autofill fuer genau die Menschen unsichtbar, fuer die es gebaut ist, ohne dass ein
+  // Test rot wuerde.
+  const verzeichnisAktiv = isDirectoryConfigured();
   // DER NOTAUSGANG ZUERST, VOR JEDER PERSONEN-ZEILEN-FRAGE: ein Suite-Admin (oder eine Person in
   // der modul-eigenen Admin-Gruppe) kommt hinein, AUCH OHNE eigene `personen`-Zeile — das ist genau
   // der Fall, der den Erstbetrieb ueberhaupt loest (Fix-Runde 1, s. Kopfkommentar). Wuerde zuerst
@@ -119,7 +146,7 @@ export default async function PersonenPage({
     // Aufruf steht sie da. Bewusst NICHT durch einen zweiten Anlegepfad hier geheilt: ein zweiter
     // Schreibort fuer dieselbe Zeile waere teurer als die eine fehlende Zeile in einer Liste.
     const { bearbeiten } = await searchParams;
-    return personenInhalt(db, heute, bearbeiten);
+    return personenInhalt(db, heute, bearbeiten, verzeichnisAktiv);
   }
 
   const akteur = await akteurFuerSeite(db);
@@ -129,5 +156,5 @@ export default async function PersonenPage({
   // sehen) — dieselbe Bedingung, die diese Route hier durchsetzt.
   if (!darfPersonenVerwalten(akteur, heute)) notFound();
   const { bearbeiten } = await searchParams;
-  return personenInhalt(db, heute, bearbeiten);
+  return personenInhalt(db, heute, bearbeiten, verzeichnisAktiv);
 }

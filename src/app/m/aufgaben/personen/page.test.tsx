@@ -211,3 +211,25 @@ describe("PersonenPage — der Notausgang fuer den Suite-/Modul-Admin", () => {
     );
   });
 });
+
+/**
+ * DIE FELDWAHL DER PERSONENANLAGE REICHT DURCH (Verzeichnis-Autofill 2026-08-15).
+ *
+ * `personenInhalt` entscheidet sie nicht selbst — `isDirectoryConfigured()` steht im Default-Export,
+ * damit diese reine Inhaltsfunktion ohne Env auskommt. Der Test haelt fest, dass der Wert beim
+ * Formular ANKOMMT: er ist die einzige Naht zwischen "ein Key ist hinterlegt" und "die Koordination
+ * bekommt eine Suche statt eines Rate-Feldes", und ohne ihn faellt sie still auf das Textfeld
+ * zurueck, ohne dass irgendetwas rot wuerde.
+ */
+describe("personenInhalt — das Verzeichnis entscheidet ueber das Kennungsfeld", () => {
+  it("ohne Verzeichnis: das Textfeld traegt name='sub' (der Rueckfallweg)", async () => {
+    await mount(personenInhalt(t.db, HEUTE));
+    expect(query<HTMLInputElement>("#pf-sub").getAttribute("name")).toBe("sub");
+  });
+
+  it("mit Verzeichnis: dieselbe Id, aber als Suchfeld ohne name", async () => {
+    await mount(personenInhalt(t.db, HEUTE, undefined, true));
+    expect(query("#pf-sub").getAttribute("name")).toBeNull();
+    expect(queryAll<HTMLInputElement>("input[name='sub']")).toHaveLength(1);
+  });
+});

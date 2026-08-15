@@ -249,6 +249,35 @@ export default defineConfig({
          * lagerbuch-Gegenstueck: dessen Boot-Riegel haengt an
          * `requiresAuth: false`, `aufgaben` traegt `true`.
          */
+        /*
+         * KEIN PERSONENVERZEICHNIS IN E2E — und das ist eine Angleichung an die
+         * CI, keine Einschraenkung.
+         *
+         * `core/directory` (Pocket ID `GET /api/users`) haengt an
+         * `POCKET_ID_API_URL`/`POCKET_ID_API_KEY`. In der CI ist BEIDES nicht
+         * gesetzt (kein `POCKET_ID_*` in `.github/workflows/`), lokal setzt
+         * `.env.local` sie auf den ECHTEN Identitaetsanbieter — und `next dev`
+         * laeuft im Repo-Wurzelverzeichnis und liest diese Datei mit. Bis zum
+         * Verzeichnis-Autofill (2026-08-15) war das folgenlos; seither
+         * entscheidet der Key, WELCHES Eingabefeld `/personen` fuer die
+         * Personenanlage rendert (`isDirectoryConfigured` →
+         * `_ui/PersonenFormular.tsx`). Ohne diese Zeile liefe derselbe Test
+         * lokal durch den Such- und in der CI durch den Textfeld-Zweig, und die
+         * Suite haenge lokal zusaetzlich an der Erreichbarkeit von id.iuk-ue.de
+         * — ein Netzaufruf pro Anschlag, aus einem Testlauf heraus. Genau die
+         * Bauform, die der Absatz unter `...AUFGABEN_ENV` schon fuer die
+         * Gruppennamen beschreibt: nicht rot, sondern rennabhaengig gruen.
+         *
+         * ⚠️ EIN LEERER WERT REICHT: `isDirectoryConfigured` und
+         * `createDirectory` verlangen BEIDE einen nichtleeren Key
+         * (`apiKey.trim() !== ""`). Die URL darf stehen bleiben — sie faellt
+         * ohnehin auf `POCKET_ID_ISSUER` zurueck, den die Dev-Anmeldung braucht.
+         *
+         * Der Suchzweig ist damit e2e-seitig NICHT gedeckt; er haengt an
+         * `_ui/PersonenFormular.test.tsx` und `actions.test.ts`. Ein echter
+         * Abruf gegen ein FREMDES System waere dafuer der falsche Beweis.
+         */
+        POCKET_ID_API_KEY: "",
         ...AUFGABEN_ENV,
         /*
          * Die neun Lagerbuch-Zeilen kommen aus EINER Quelle (Festlegung H9,

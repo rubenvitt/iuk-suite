@@ -1681,9 +1681,16 @@ test("Leerer Start: eine Anmeldung mit Koordinationsgruppe ohne personen-Zeile l
  * Zeile begehbar ist. Alle Personen, die er braucht, legt er selbst an; keine Persona aus
  * `seedLokal.ts` kommt darin vor. Genau das war vor dem 2026-08-15 unmoeglich.
  *
- * ⚠️ DER `sub` WIRD ABGETIPPT, NICHT GESUCHT: das Verzeichnis-Autofill im Personenformular (Aufgabe
- * 5 des Plans) kommt NACH dieser Runde. Das Formular traegt heute ein Textfeld `#pf-sub`, und
- * `dev:<email>` ist genau das, was `core/auth/config.ts` fuer eine Dev-Anmeldung als `sub` baut.
+ * ⚠️ DER `sub` WIRD ABGETIPPT, NICHT GESUCHT — UND SEIT DEM VERZEICHNIS-AUTOFILL (2026-08-15,
+ * Aufgabe 5 des Plans) IST DAS EINE AUSSAGE UEBER DIE UMGEBUNG, NICHT MEHR UEBER DEN FUNKTIONS-
+ * UMFANG. Das Autofill ist gebaut; `playwright.config.ts` setzt `POCKET_ID_API_KEY: ""` (Begruendung
+ * dort), also rendert `/personen` hier den RUECKFALLZWEIG: ein Textfeld `#pf-sub`, unveraendert.
+ * `dev:<email>` ist genau das, was `core/auth/config.ts` fuer eine Dev-Anmeldung als `sub` baut —
+ * und ein Verzeichnis kennt eine Dev-Anmeldung ohnehin nicht.
+ *
+ * Die Zeile darunter traegt damit doppelte Last: sie tippt eine Kennung ab UND belegt, dass der
+ * Rueckfallweg des Formulars steht. Er ist auch im SUCHZWEIG derselbe Selektor (`#pf-sub` ist dort
+ * das Suchfeld, und was darin steht, IST der abgeschickte `sub`) — s. dessen Kopfkommentar.
  *
  * JEDE AUSGELOESTE ANFRAGE WIRD AUF IHRE ANTWORT GEPRUEFT (`klickeUndWarteAufSeite`, CLAUDE.md
  * Falle 10) — und weil eine Feldfehler-Antwort ebenfalls HTTP 200 traegt

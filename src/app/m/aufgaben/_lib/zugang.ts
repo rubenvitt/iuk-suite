@@ -4,6 +4,7 @@ import { auth } from "@/core/auth";
 import { canAdminModule } from "@/core/auth/guards";
 import type { DB } from "../_db/client";
 import { personen, type AufgabeRow, type PersonRow } from "../_db/schema";
+import { initialenAus } from "./anzeige";
 import { isoTag } from "./datum";
 
 /*
@@ -161,19 +162,12 @@ export async function akteurFuer(person: PersonRow): Promise<Akteur> {
   return { person, istKoordination: await canAdminModule("aufgaben") };
 }
 
-/**
- * DIE INITIALEN AUS EINEM NAMEN — zwei Buchstaben, wie sie die Koordination im Formular auch von
- * Hand vergibt. Zwei oder mehr Namensteile ergeben die Anfangsbuchstaben der ersten beiden, ein
- * einzelner Teil (oder eine E-Mail als Ersatzname) seine ersten beiden Zeichen. `initialen` ist
- * `NOT NULL` und steht in jeder Liste des Moduls; ein leerer Wert waere eine Zelle, die niemand
- * zuordnen kann. Die Koordination korrigiert beides ueber `/personen` in zwei Klicks.
+/*
+ * `initialenAus` STAND BIS ZUM VERZEICHNIS-AUTOFILL (2026-08-15) HIER und liegt seitdem in
+ * `_lib/anzeige.ts` — dieselbe Ableitung braucht seither auch `_ui/PersonenFormular.tsx`, und das
+ * ist eine Client-Insel: ein Import aus DIESER Datei zoege `@/core/auth` ins Client-Bundle. Die
+ * Begruendung steht ausgeschrieben am Ziel.
  */
-function initialenAus(name: string): string {
-  const teile = name.trim().split(/\s+/).filter(Boolean);
-  const roh =
-    teile.length >= 2 ? `${teile[0]!.slice(0, 1)}${teile[1]!.slice(0, 1)}` : (teile[0] ?? "").slice(0, 2);
-  return (roh || "??").toUpperCase();
-}
 
 /**
  * DIE PERSONENZEILE FUER EINE KOORDINIERENDE PERSON, DIE NOCH KEINE HAT (Entwurf 2026-08-15 §4).
