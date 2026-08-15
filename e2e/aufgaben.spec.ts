@@ -792,6 +792,15 @@ test("Nachweis-Auslieferung: eine andere BuFDi ohne darfNachweisSehen bekommt de
  * Wurzel-Anker aus `_lib/nav.ts`), und beide Verweise waeren unter demselben Namen mehrdeutig.
  * `alpha-users,iuk-aufgaben-nutzer` ist EINE Sitzung mit BEIDEN Gruppen — dieselbe SSO-Zusicherung
  * wie in `keystone.spec.ts`.
+ *
+ * ERST OEFFNEN, DANN PRUEFEN (nachgezogen beim Rebase auf `main`): der App-Wechsel haengt seit dem
+ * Navigations-Umbau am Modultitel und nicht mehr an einer immer sichtbaren Knopfreihe — die
+ * Eintraege stehen in einem Panel hinter `app-umschalter`. Ein blankes
+ * `getByRole("link", { name: /Aufgaben/ })` fand vorher nichts mehr. Die ZUSAGE ist unveraendert
+ * („die Sitzung traegt die Zugangsgruppe, also steht Aufgaben im Umschalter"); nur ihr Weg dorthin
+ * ist einer mehr. Wortgleich mit `keystone.spec.ts`s „switcher reflects groups", das dieselbe
+ * Umstellung auf `main` bereits vollzogen hat — die Einschraenkung auf `app-panel` erledigt
+ * nebenbei die Mehrdeutigkeit, die der Absatz oben umgeht.
  */
 test("App-Switcher: seit Aufgabe 16 erscheint „Aufgaben“ fuer eine Person mit der Zugangsgruppe", async ({
   page,
@@ -802,7 +811,8 @@ test("App-Switcher: seit Aufgabe 16 erscheint „Aufgaben“ fuer eine Person mi
     callbackPath: "/",
   });
   await expect(page.getByTestId("alpha-content")).toBeVisible();
-  await expect(page.getByRole("link", { name: /Aufgaben/ })).toBeVisible();
+  await page.getByTestId("app-umschalter").click();
+  await expect(page.getByTestId("app-panel").getByRole("link", { name: /Aufgaben/ })).toBeVisible();
 });
 
 /*
