@@ -2515,6 +2515,27 @@ describe("personAnlegenAction", () => {
     expect(await personAnlegenAction({ ok: true }, form())).toEqual({ ok: true });
     expect(t.db.select().from(personen).all()).toHaveLength(1);
   });
+
+  /**
+   * `canAdminModule` IST NICHT `session.user.isAdmin` — `CLAUDE.md` schaerft genau diese
+   * Unterscheidung eigens ein: `isAdmin` heisst suiteweit „ist Betreiber", die Frage „darf diese
+   * Person Modul X verwalten?" beantwortet `isModuleAdmin` aus `core/groups`, und das liest
+   * AUSSCHLIESSLICH `session.user.groups` (Suite-Admin-Gruppe ODER `adminGroups` des Moduls aus
+   * der Registry). Im ganzen Modul `aufgaben` kommt `isAdmin` deshalb nirgends vor.
+   *
+   * DIESER TEST IST DER RIEGEL GEGEN DIE NAHELIEGENDE FEHLBEHEBUNG: wer den Notausgang spaeter
+   * „vereinfacht", indem er auf `session.user.isAdmin` prueft, oeffnet ihn fuer einen anderen
+   * Personenkreis als den entschiedenen — und die drei Tests darueber blieben dabei gruen, weil
+   * ihre Sitzungen die Gruppen ohnehin tragen. Umgekehrt belegt dieser Fall, dass die drei nicht
+   * aus dem falschen Grund gruen sind: eine Sitzung MIT `isAdmin`, aber OHNE jede Gruppe kommt
+   * nicht durch.
+   */
+  it("eine Sitzung mit session.user.isAdmin, aber ohne jede Gruppe kommt NICHT durch", async () => {
+    sitzung = { user: { id: "dev:betreiber@test", isAdmin: true, groups: [] } };
+
+    await expect(personAnlegenAction({ ok: true }, form())).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(t.db.select().from(personen).all()).toHaveLength(0);
+  });
 });
 
 describe("personAendernAction", () => {
