@@ -1020,3 +1020,441 @@ test("Ziehbereich: ein abgebrochener Zug (Loslassen außerhalb jeder Tagesspalte
   const nachher = await montag.locator("li").allTextContents();
   expect(nachher).toEqual(vorher);
 });
+
+/*
+ * AB HIER AUFGABE 21 — DIE UMSCHALTUNG BEI DREI VIEWPORTS, DER WAAGERECHTE-SCROLL-CHECK, DER
+ * DUNKELMODUS, DIE VERTAGTE TASTATURBEDIENUNG UND DER VOLLE DURCHLAUF. Der volle Durchlauf steht
+ * ABSICHTLICH ALS LETZTER FALL DER GANZEN DATEI (Begruendung an seinem eigenen Kopfkommentar) —
+ * alles andere in diesem Block ist les-/zustandsneutral fuer die Woche, auf die Aufgabe 20s
+ * Zieh-Tests sich verlassen, ausser dem Tastatur-Fall (der VERAENDERT Bendix' Montag ein weiteres
+ * Mal) — auch er steht deshalb nach den Zieh-Tests, nicht davor.
+ */
+
+/*
+ * DIE UMSCHALTUNG BEI 390, 820 UND 1280PX (Spec §9.6, §10, Brief Teil 4 Punkt 4). Beide
+ * Auspraegungen rendern IMMER ins HTML (Kopfkommentar `Wochenplan.tsx`); nur eine Medienabfrage
+ * (767.98px) blendet je eine aus — ein Sichtbarkeits-Check ist deshalb der einzige, der die
+ * tatsaechlich AUSGELIEFERTE Umschaltung sieht, kein jsdom-Test wertet eine `@media`-Regel aus.
+ * 820px ist ausdruecklich die Mitte zwischen den beiden Enden (Spec §10: „die Suite hatte dort
+ * zweimal Defekte, die an beiden Enden unsichtbar waren").
+ */
+for (const vp of [
+  { breite: 390, hoehe: 844, sichtbar: "tagesliste" as const },
+  { breite: 820, hoehe: 1180, sichtbar: "wochengitter" as const },
+  { breite: 1280, hoehe: 720, sichtbar: "wochengitter" as const },
+]) {
+  test.describe(`Umschaltung bei ${vp.breite}px`, () => {
+    test.use({ viewport: { width: vp.breite, height: vp.hoehe } });
+
+    test(`zeigt ${
+      vp.sichtbar === "tagesliste"
+        ? "die Tagesliste, nicht das Wochengitter"
+        : "das Wochengitter, nicht die Tagesliste"
+    }`, async ({ page }) => {
+      await devLogin(page, { host: HOST, groups: GRUPPE, email: "alina@localtest.me", callbackPath: "/" });
+
+      const wochengitter = page.locator('[data-rolle="wochengitter"]');
+      const tagesliste = page.locator('[data-rolle="tagesliste"]');
+
+      if (vp.sichtbar === "tagesliste") {
+        await expect(tagesliste).toBeVisible();
+        await expect(wochengitter).toBeHidden();
+      } else {
+        await expect(wochengitter).toBeVisible();
+        await expect(tagesliste).toBeHidden();
+      }
+    });
+  });
+}
+
+/**
+ * KEIN WAAGERECHTES SCROLLEN AUF KEINEM DER DREI VIEWPORTS (Brief Teil 4, Punkt 5) — LOKAL IN
+ * DIESER DATEI, NICHT IN EINEM HELFER: Vorbild `e2e/lagerbuch-mobil.spec.ts:98-104`, dieselbe
+ * Begruendung dort ("ein Layout-Helfer gehoert nicht zu dem, was diese Datei traegt").
+ *
+ * GEMESSEN WIRD `documentElement` UND `body`: die Brief-Formulierung nennt woertlich
+ * `scrollWidth <= clientWidth am body`, die uebliche Aussagekraft liegt aber am `documentElement`
+ * (Vorbild `lagerbuch-mobil.spec.ts`). Beide Werte werden deshalb geprueft, statt sich fuer einen
+ * zu entscheiden — weichen sie je einmal ab, ist DAS ein Befund fuer den Bericht, keine still
+ * aufgeloeste Wahl.
+ *
+ * MINDESTENS EINE SEITE MIT ECHTER `Table` IST PFLICHT (`/verteilen`, `/personen`): die
+ * Brief-Begruendung ist woertlich "die Zusicherung, an der eine Tabelle ohne `scroll={{x}}`
+ * auffaellt" — ein Sweep nur ueber "Meine Woche" (keine `Table`) waere dafuer wirkungslos.
+ */
+async function ueberlauf(page: import("@playwright/test").Page) {
+  return page.evaluate(() => ({
+    vwDoc: document.documentElement.clientWidth,
+    scrollDoc: document.documentElement.scrollWidth,
+    vwBody: document.body.clientWidth,
+    scrollBody: document.body.scrollWidth,
+    schuldige: [...document.querySelectorAll("body *")]
+      .filter((el) => {
+        const b = el.getBoundingClientRect();
+        return b.right > window.innerWidth + 1 && b.width > 1 && b.height > 1;
+      })
+      .map((el) => {
+        const b = el.getBoundingClientRect();
+        const klasse = typeof el.className === "string" ? el.className : "";
+        return `${el.tagName}.${klasse.slice(0, 40)} rechts=${Math.round(b.right)} text="${(el.textContent ?? "").trim().slice(0, 60)}"`;
+      })
+      .slice(0, 5),
+  }));
+}
+
+const UEBERLAUF_SEITEN: { pfad: string; email: string; titel: string }[] = [
+  { pfad: "/", email: "alina@localtest.me", titel: "Meine Woche" },
+  // `Table` mit `scroll={{x: "max-content"}}` — die eine Seite, fuer die diese Zusicherung
+  // ueberhaupt etwas beweist (s. Kopfkommentar).
+  { pfad: "/verteilen", email: "rike@localtest.me", titel: "Verteilen" },
+  { pfad: "/personen", email: "rike@localtest.me", titel: "Personenverwaltung" },
+  { pfad: "/archiv", email: "rike@localtest.me", titel: "Archiv" },
+];
+
+for (const vp of [
+  { breite: 390, hoehe: 844 },
+  { breite: 820, hoehe: 1180 },
+  { breite: 1280, hoehe: 720 },
+]) {
+  test.describe(`Kein waagerechtes Scrollen bei ${vp.breite}px`, () => {
+    test.use({ viewport: { width: vp.breite, height: vp.hoehe } });
+
+    for (const seite of UEBERLAUF_SEITEN) {
+      test(`${seite.pfad} laeuft nicht ueber`, async ({ page }) => {
+        await devLogin(page, {
+          host: HOST,
+          groups: GRUPPE,
+          email: seite.email,
+          callbackPath: seite.pfad,
+        });
+        const antwort = await page.goto(`http://${HOST}:3100${seite.pfad}`);
+        expect(antwort?.status(), `${seite.pfad}: HTTP`).toBe(200);
+        await expect(page.getByRole("heading", { name: seite.titel, level: 1 })).toBeVisible();
+        await page.waitForLoadState("networkidle");
+
+        const mass = await ueberlauf(page);
+        expect(
+          mass.scrollDoc,
+          `${seite.pfad} bei ${vp.breite}px (documentElement): ${mass.schuldige.join(" | ")}`,
+        ).toBeLessThanOrEqual(mass.vwDoc);
+        expect(
+          mass.scrollBody,
+          `${seite.pfad} bei ${vp.breite}px (body): ${mass.schuldige.join(" | ")}`,
+        ).toBeLessThanOrEqual(mass.vwBody);
+      });
+    }
+  });
+}
+
+/**
+ * DUNKELMODUS UEBER `getComputedStyle`, NICHT UEBER DAS ATTRIBUT (Brief Teil 4, Punkt 6): eine
+ * unaufgeloeste `--auf-*`-Variable meldet sich nie von selbst — nur eine tatsaechliche Auswertung
+ * zeigt, ob sie zu ihrem dunklen Wert aufloest. ERST DER HELLE WERT, DANN ERST NACH DEM UMSCHALTEN
+ * DER DUNKLE (advisor-Hinweis): nur den dunklen Wert zu pruefen koennte "der Umschalter wirkt" nicht
+ * von "beide Zweige sind ohnehin dunkel" unterscheiden.
+ *
+ * `setAttribute("data-theme", "dark")` IM BROWSER REICHT HIER (Vorbild `shell-mobil.spec.ts`s
+ * `--iuk-marke`-Test): `--auf-*` haengt an `:root[data-theme="dark"] .modul` in
+ * `aufgaben.module.css` und wertet das Attribut direkt aus, unabhaengig vom serverseitig gesetzten
+ * Theme-Cookie.
+ */
+test("Dunkelmodus: --auf-tinte loest ueber getComputedStyle tatsaechlich zu ihrem dunklen Wert auf", async ({
+  page,
+}) => {
+  await devLogin(page, { host: HOST, groups: GRUPPE, email: "alina@localtest.me", callbackPath: "/" });
+  const inhalt = page.getByTestId("aufgaben-content");
+
+  const hell = await inhalt.evaluate((el) =>
+    getComputedStyle(el).getPropertyValue("--auf-tinte").trim(),
+  );
+  expect(hell, "heller Wert weicht von aufgaben.module.css ab").toBe("#1a1d20");
+
+  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+  const dunkel = await inhalt.evaluate((el) =>
+    getComputedStyle(el).getPropertyValue("--auf-tinte").trim(),
+  );
+  expect(
+    dunkel,
+    "im Dunkelmodus bleibt --auf-tinte auf dem hellen Wert stehen — eine unaufgeloeste CSS-Variable meldet sich nie von selbst",
+  ).toBe("#ece9e2");
+});
+
+/**
+ * DIE VERTAGTE TASTATURBEDIENUNG (aus Aufgabe 12, Spec §8.5: „das ist mit der Tastatur bedienbar
+ * ... die Grundlage, auf der Abschnitt G aufsetzt") UND IHRE GEGENPROBE (Fokus muss SICHTBAR
+ * bleiben) — beide gehoeren hierher, nicht in einen jsdom-Test (Aufgabe-12-Begruendung, woertlich
+ * im Brief: „der haette am Ende jsdom geprueft, nicht die Zusage aus Spec §8.5").
+ *
+ * EINE ECHTE TAB-KETTE, KEIN `.focus()`: nur echte `Tab`-Tastendruecke durchlaufen dieselbe
+ * Browser-interne Tabreihenfolge, die eine Person ohne Maus erlebt — `.focus()` uebersprnge genau
+ * die Frage, ob das Element ueberhaupt ERREICHBAR ist. Ein deaktivierter Button (`disabled`, nicht
+ * `aria-disabled` — `RangKnoepfe.tsx`s Kopfkommentar) ist nativ kein Tab-Stopp; der erste Eintrag
+ * eines Tages traegt deshalb keinen erreichbaren „nach oben"-Knopf, der zweite (nicht `istErste`)
+ * schon — genau der wird hier angesteuert.
+ */
+async function tabZu(
+  page: import("@playwright/test").Page,
+  ziel: import("@playwright/test").Locator,
+  maxTabs = 150,
+): Promise<void> {
+  for (let i = 0; i < maxTabs; i++) {
+    const fokussiert = await ziel
+      .evaluate((el) => el === document.activeElement)
+      .catch(() => false);
+    if (fokussiert) return;
+    await page.keyboard.press("Tab");
+  }
+  throw new Error(`Ziel wurde nach ${maxTabs} Tab-Druecken nicht fokussiert.`);
+}
+
+test("Tastaturbedienung: eine Aufgabe laesst sich ohne Maus verschieben (Tab, Enter) — der Fokus bleibt sichtbar", async ({
+  page,
+}) => {
+  await devLogin(page, { host: HOST, groups: GRUPPE, email: "bendix@localtest.me", callbackPath: "/" });
+
+  const montag = page.locator('[data-rolle="wochengitter"] [data-tag]').first();
+  const vorher = await montag.locator("li").allTextContents();
+  expect(vorher.length, "Bendix' ueberbuchter Montag braucht zwei Eintraege fuer diesen Test").toBeGreaterThanOrEqual(2);
+
+  const zweiteZeile = montag.locator("li").nth(1);
+  const hochKnopf = zweiteZeile.getByRole("button", { name: /nach oben verschieben/ });
+  await expect(hochKnopf).toBeEnabled();
+
+  await tabZu(page, hochKnopf);
+  await expect(hochKnopf).toBeFocused();
+
+  // DIE GEGENPROBE: DER FOKUS MUSS SICHTBAR SEIN (Brief) — `outline-width` UND `outline-style`,
+  // nicht nur eines von beiden (ein `2px`-Ring mit `style: none` rendert ebenfalls nichts).
+  const fokusStil = await hochKnopf.evaluate((el) => {
+    const stil = getComputedStyle(el);
+    return { breite: stil.outlineWidth, art: stil.outlineStyle };
+  });
+  expect(fokusStil.breite, "Fokusring unsichtbar: outline-width ist 0px").not.toBe("0px");
+  expect(fokusStil.art, "Fokusring unsichtbar: outline-style ist none").not.toBe("none");
+
+  const seite = page.url();
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url() === seite),
+    page.keyboard.press("Enter"),
+  ]);
+  expect(antwort.ok(), `Verschieben abgelehnt: HTTP ${antwort.status()}`).toBe(true);
+
+  await expect(montag.locator("li")).toHaveCount(vorher.length);
+  // GENAU DIE ERSTEN ZWEI ZEILEN VERTAUSCHT — dieselbe Zusicherungslinie wie der Maus-Zug weiter
+  // oben, nicht nur "irgendetwas hat sich geaendert".
+  await expect(montag.locator("li").nth(0)).toHaveText(vorher[1]);
+  await expect(montag.locator("li").nth(1)).toHaveText(vorher[0]);
+});
+
+function inTagen(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * ROLLENWECHSEL INNERHALB DESSELBEN TESTFALLS (Brief: „der volle Durchlauf, in EINEM Testfall").
+ * EIN ZWEITER `devLogin`-AUFRUF IM SELBEN BROWSERKONTEXT WUERDE OHNE DAS COOKIE-LOESCHEN NIE DAS
+ * FORMULAR SEHEN: `src/app/login/page.tsx` leitet `/login` bei einer BEREITS authentifizierten
+ * Sitzung sofort mit `if (session?.user) redirect("/")` weiter — VOR jedem Blick auf das
+ * E-Mail-/Gruppenfeld. Ohne `clearCookies()` waere der Fehlschlag zudem IRREFUEHREND: `devLogin`s
+ * eigenes `waitForURL(url => !url.pathname.startsWith("/login"))` loest bei diesem Redirect SOFORT
+ * auf (die URL verlaesst ja tatsaechlich "/login"), das Formular fehlt trotzdem — der naechste
+ * Schritt schlaegt dann mit einem `getByLabel("email")`-Timeout fehl, nicht mit einer Meldung, die
+ * "schon angemeldet" sagt. Das Cookie-Loeschen bildet nach, was Spec §13 ohnehin als vorgesehenen
+ * Rollenwechsel beschreibt ("man wechselt sich, indem man sich mit einer anderen Adresse
+ * anmeldet") — ohne bestehende Sitzung waere es ohnehin wirkungslos.
+ */
+async function wechsleRolle(
+  page: import("@playwright/test").Page,
+  opts: Parameters<typeof devLogin>[1],
+): Promise<void> {
+  await page.context().clearCookies();
+  await devLogin(page, opts);
+}
+
+/**
+ * WARTET AUF DIE POST-ANTWORT DER GERADE GEKLICKTEN SERVER ACTION, GENAU AUF DIE URL DER
+ * AKTUELLEN SEITE (Server Actions posten per Vorgabe auf die Seite, von der sie ausgehen) — NICHT
+ * nur auf "irgendeine POST-Antwort": ein bloßes `method() === "POST"`-Praedikat koennte sich an
+ * eine unbeteiligte Anfrage haengen und ein gruenes, aber bedeutungsloses Ergebnis liefern.
+ *
+ * `antwort.ok()` IST HIER NUR EINE TRANSPORTZUSICHERUNG (advisor-Befund): `aufgabeEinstellenAction`,
+ * `verteilenAction` & Co. antworten bei einem FELDFEHLER ebenfalls mit HTTP 200
+ * (`{ok:false, fieldErrors}`) — die eigentliche Zusicherung je Schritt im Test unten ist deshalb
+ * immer ein sichtbarer ZUSTANDSWECHSEL (ein Link erscheint, ein Dialog schliesst sich, ein
+ * Status-Chip aendert sich), NIE allein diese Antwortpruefung.
+ */
+async function klickeUndWarteAufSeite(
+  page: import("@playwright/test").Page,
+  aktion: () => Promise<void>,
+): Promise<void> {
+  const seite = page.url();
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url() === seite),
+    aktion(),
+  ]);
+  expect(
+    antwort.ok(),
+    `Aktion auf ${seite} abgelehnt: HTTP ${antwort.status()} — ${await antwort.text()}`,
+  ).toBe(true);
+}
+
+/**
+ * DER VOLLE DURCHLAUF — DER TEST, FUER DEN DAS MODUL GEBAUT WURDE (Brief, woertlich): einstellen
+ * (Auftraggeber) → verteilen mit Zeitvorschlag (Koordination) → annehmen (BuFDi) → Bearbeitung
+ * starten → fertig melden mit Bildnachweis → freigeben (Prüfer), IN EINEM Testfall, mit
+ * Rollenwechseln. Jede der sechzehn Actions ist laengst einzeln geprueft (Aufgaben 9/10/12/19/20);
+ * dieser Fall belegt, dass sie ZUSAMMEN funktionieren — die Uebergangstabelle, die Nachweispflicht
+ * und die Freigabe in einer einzigen, echten Geschichte.
+ *
+ * EINE EIGENE, EINDEUTIG BENANNTE AUFGABE (Spec §10: „jeder e2e-Test stellt seinen Zustand selbst
+ * her") — `Date.now()` im Titel macht sie ueber mehrere Laeufe gegen einen WARMEN Server hinweg
+ * eindeutig (ein `pnpm exec playwright test` gegen dieselbe, nicht neu geseedete `.data/e2e`-DB
+ * haette sonst bei einem zweiten Lauf zwei gleichnamige Zeilen und `getByRole("link", {name:
+ * titel})` wuerde mehrdeutig) — `Date.now()` ist hier zulaessig, das Verbot aus den
+ * Workflow-Skript-Regeln gilt nicht fuer Playwright-Testdateien.
+ *
+ * DER ZEITVORSCHLAG LIEGT ZWEI WOCHEN IN DER ZUKUNFT (`inTagen(14)`), WEIT AUSSERHALB DER VON
+ * AUFGABE 20s ZIEH-TESTS GENUTZTEN AKTUELLEN WOCHE: die Aufgabe erscheint dadurch nie im
+ * Standard-Wochenplan (Alinas/Bendix'/Carlas aktuelle Woche bleibt unberuehrt), was diesen ganzen
+ * Test von den Zieh-Tests entkoppelt — dieselbe Ueberlegung wie der Kopfkommentar am Blockanfang.
+ *
+ * CARLA IST DIE ZIELPERSON (nicht Alina/Bendix, die restlichen Tests dieser Datei nutzen sie
+ * bereits fuer andere Zustaende): eine dritte, bisher wenig beanspruchte BuFDi haelt das Risiko
+ * einer zufaelligen Kollision klein.
+ *
+ * MALTE IST AUFTRAGGEBER **UND** PRUEFER — kein Zufall, sondern Spec §5.2/§9 (Brief-Kommentar
+ * `aufgabeEinstellenAction`): eine Fremdaufgabe bekommt beim Einstellen automatisch den Ersteller
+ * als Pruefer (`prueferId: start.istSelbst ? null : ersteller.id`). Der Rollenwechsel am Ende geht
+ * deshalb zurueck zu Malte, nicht zu einer vierten Person.
+ */
+test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, starten, fertig melden mit Bildnachweis, freigeben — ueber drei Rollen", async ({
+  page,
+}) => {
+  setzeAvModus("ok");
+  const titel = `E2E-Rundlauf ${Date.now()}: Fahrzeugtafel erneuern`;
+  const faelligAm = inTagen(21);
+  const vorschlagDatum = inTagen(14);
+
+  // 1. EINSTELLEN — Malte, Auftraggeber, ueber /neu. Bildnachweispflicht angehakt, damit der
+  // Durchlauf spaeter den Bildnachweis-Weg nimmt (Brief: „fertig melden mit Bildnachweis").
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "malte@localtest.me",
+    callbackPath: "/neu",
+  });
+  await page.goto(`http://${HOST}:3100/neu`);
+  await page.locator("#af-titel").fill(titel);
+  await page
+    .locator("#af-beschreibung")
+    .fill("Vom vollen e2e-Durchlauf (Aufgabe 21) angelegte Testaufgabe.");
+  await page.locator("#af-faelligAm").fill(faelligAm);
+  await page.locator("#af-dauerMinuten").fill("30");
+  // Checkbox ZUERST, dann erst erscheint #af-nachweisart ueberhaupt (AufgabeFormular.tsx rendert
+  // das Auswahlfeld nur bei angehaktem Schalter) — die umgekehrte Reihenfolge schluege still fehl.
+  await page.locator("#af-nachweispflicht").check();
+  await page.locator("#af-nachweisart").selectOption("bild");
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: "Aufgabe einstellen" }).click(),
+  );
+
+  await page.goto(`http://${HOST}:3100/`);
+  const neueAufgabe = page.getByRole("link", { name: titel });
+  const href = await neueAufgabe.getAttribute("href");
+  expect(
+    href,
+    "Aufgabe wurde nicht angelegt — kein Verweis auf sie in „Meine Aufträge“",
+  ).toBeTruthy();
+  const aufgabeId = href!.replace("/a/", "");
+
+  // 2. VERTEILEN MIT ZEITVORSCHLAG — Rike, Koordination, an Carla.
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "rike@localtest.me",
+    callbackPath: "/verteilen",
+  });
+  await page.goto(`http://${HOST}:3100/verteilen`);
+  await page.getByTestId(`verteilen-${aufgabeId}`).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByLabel("Carla").check();
+  await page.locator("#vd-vorschlag-datum").fill(vorschlagDatum);
+  await page.locator("#vd-vorschlag-uhrzeit").fill("09:00");
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("dialog").getByRole("button", { name: "Verteilen" }).click(),
+  );
+  // DER DIALOG SCHLIESST SICH VON SELBST (`VerteilenDialog.tsx`s Kopfkommentar): das ist der
+  // eigentliche Beleg, dass die Aufgabe `status: "eingegangen"` verlassen hat — kein zweiter,
+  // separat gepflegter Zustand, der auseinanderlaufen koennte.
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByTestId(`verteilen-${aufgabeId}`)).toHaveCount(0);
+
+  // 3. ANNEHMEN — Carla, BuFDi, uebernimmt den Zeitvorschlag unveraendert.
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "carla@localtest.me",
+    callbackPath: "/",
+  });
+  const posteingangZeile = page.locator("#posteingang li").filter({ hasText: titel });
+  await expect(posteingangZeile).toHaveCount(1);
+  const annehmenKnopf = posteingangZeile.getByRole("button", { name: /^Annehmen:/ });
+  await expect(annehmenKnopf).toBeVisible();
+  await klickeUndWarteAufSeite(page, () => annehmenKnopf.click());
+  // DIE AUFGABE VERLAESST DEN POSTEINGANG: `wartetAufEinplanung` verlangt `planDatum === null`,
+  // und das ist nach „Annehmen" nicht mehr wahr — der eigentliche Beleg, kein Knopftext.
+  await expect(page.locator("#posteingang").getByText(titel)).toHaveCount(0);
+
+  // 4. BEARBEITUNG STARTEN — Carla, auf der Detailseite.
+  await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
+  await expect(page.getByRole("heading", { name: titel, level: 1 })).toBeVisible();
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: "Bearbeitung starten" }).click(),
+  );
+  await expect(page.getByText("In Bearbeitung")).toBeVisible();
+
+  // 5. FERTIG MELDEN MIT BILDNACHWEIS — WARMLAUF ZUERST (Lektion 1: Turbopack-Kompilierfenster,
+  // dasselbe Bild wie `oeffneNachweisAufgabe` oben), DANN DIE ANTWORT DES UPLOADS SELBST PRUEFEN
+  // (Lektion 2, dasselbe Bild wie `sendeNachweis` oben) — statt nur auf einen spaeteren
+  // Zustandswechsel zu warten.
+  const warmlauf = await page.request.get(`http://${HOST}:3100/a/${aufgabeId}/nachweis/hochladen`);
+  expect(warmlauf.status(), await warmlauf.text()).toBe(405);
+
+  await page
+    .locator("#nf-datei")
+    .setInputFiles({ name: "rundlauf.png", mimeType: "image/png", buffer: PNG });
+  const [uploadAntwort] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/nachweis/hochladen")),
+    page.getByRole("button", { name: "Nachweis speichern" }).click(),
+  ]);
+  expect(
+    uploadAntwort.ok(),
+    `Upload abgelehnt: HTTP ${uploadAntwort.status()} — ${await uploadAntwort.text()}`,
+  ).toBe(true);
+
+  await wartenAufNachweisStatus(page, async () => (await page.getByTestId("nachweis-bild").count()) > 0);
+
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: "Fertig melden" }).click(),
+  );
+  await expect(page.getByText("Freigabe offen")).toBeVisible();
+
+  // 6. FREIGEBEN — zurueck zu Malte: Auftraggeber UND (weil keine Selbstaufgabe) automatisch der
+  // eingetragene Pruefer (s. Kopfkommentar).
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "malte@localtest.me",
+    callbackPath: "/",
+  });
+  await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
+  await klickeUndWarteAufSeite(page, () => page.getByTestId(`freigeben-${aufgabeId}`).click());
+  // `exact: true`, NICHT nur `getByText("Abgeschlossen")` (gefunden beim ersten Lauf): das Journal
+  // traegt seit `abgeschlossen` NUN AUCH eine Verlaufszeile, deren Text "Abgeschlossen" ALS
+  // TEILSTRING enthaelt ("... — Abgeschlossen", `EREIGNIS_TEXT`) — ohne `exact` waere die Abfrage
+  // seit genau diesem Schritt mehrdeutig (Strict-Mode-Fehler), der Status-Chip ist aber der einzige
+  // Treffer mit GENAU diesem Text.
+  await expect(page.getByText("Abgeschlossen", { exact: true })).toBeVisible();
+});

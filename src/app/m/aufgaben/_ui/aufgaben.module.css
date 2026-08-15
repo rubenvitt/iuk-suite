@@ -303,6 +303,18 @@
 .routineZeile {
   display: flex;
   align-items: center;
+  /*
+   * `flex-wrap: wrap` FEHLTE HIER (Aufgabe 21, e2e-Fund per Ueberlauf-Sweep bei 820px): die
+   * Aufgaben-Zeile (`Wochenplan.tsx`s `EintragZeile`, nicht-Routine-Zweig) traegt `flexWrap: "wrap"`
+   * bereits INLINE, dieser Zweig (Routine) nicht — bei fuenf schmalen Spalten (820px, Spec §9.6)
+   * ueberlief ein langer, unteilbarer Routinename (z. B. "Frühbesprechung") die Tagesspalte UND das
+   * Dokument nach rechts, weil `minmax(0, 1fr)` zwar die GRID-Spur auf 0 schrumpfen laesst, aber
+   * nichts an der Flex-Zeile DARIN ohne diese Deklaration daran hinderte, ueber ihre eigene Breite
+   * hinauszuwachsen. Kein Gate vor Aufgabe 21 sah das: die Suite testete `.wochenGitter` bisher nur
+   * bei 1280px (breite Spalten) und 390px (`.tagesListe`, gar keine Spalten) — 820px ist genau der
+   * Fall dazwischen, den Spec §10 deshalb ausdruecklich verlangt.
+   */
+  flex-wrap: wrap;
   gap: 8px;
 }
 .knopfzeile {
