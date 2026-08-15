@@ -48,21 +48,22 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
  * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
  * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
  * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
- * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * dieser Datei DIESELBE bleibt, bekommt eine koordinierende Person hier genau die Gruppe, die ihre
  * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
  *
- * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * SEIT `ROLLEN = ["auftrag", "bufdi"]` MUSS DER AUFRUFER ES SAGEN: aus der Zeile ist es nicht mehr
+ * ableitbar. `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
  */
-function anmelden(p: PersonRow): void {
+function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
   };
 }
 
 describe("personenInhalt — Kopf, Formular, Tabelle", () => {
   it("zeigt den Titel, die Anzahl und das Anlege-Formular", async () => {
-    legePerson("dev:rike@test", "koordination", { name: "Rike" });
+    legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     legePerson("dev:alina@test", "bufdi", { name: "Alina" });
     await mount(personenInhalt(t.db, HEUTE));
     expect(query("h1").textContent).toBe("Personenverwaltung");
@@ -72,14 +73,14 @@ describe("personenInhalt — Kopf, Formular, Tabelle", () => {
   });
 
   it("zeigt genau eine ausgeschiedene Person in der aktiv-Zahl korrekt", async () => {
-    legePerson("dev:rike@test", "koordination");
+    legePerson("dev:rike@test", "auftrag");
     legePerson("dev:doerte@test", "bufdi", { aktivBis: "2020-01-01" });
     await mount(personenInhalt(t.db, HEUTE));
     expect(document.body.textContent).toContain("2 Personen im Modul, davon 1 aktiv");
   });
 
   it("mit bearbeitenId: zeigt das Aendern-Formular vorbelegt, mit Abbrechen-Verweis", async () => {
-    legePerson("dev:rike@test", "koordination");
+    legePerson("dev:rike@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
     await mount(personenInhalt(t.db, HEUTE, alina.id));
     expect(query("h2").textContent).toBe("Person „Alina“ ändern");
@@ -90,16 +91,16 @@ describe("personenInhalt — Kopf, Formular, Tabelle", () => {
   });
 
   it("eine unbekannte bearbeitenId zeigt das Anlege-Formular, kein Fehler", async () => {
-    legePerson("dev:rike@test", "koordination");
+    legePerson("dev:rike@test", "auftrag");
     await mount(personenInhalt(t.db, HEUTE, "unbekannte-id"));
     expect(query("h2").textContent).toBe("Neue Person anlegen");
   });
 });
 
-describe("PersonenPage — Rollen-Gate (Spec §4: nur koordination verwaltet Personen)", () => {
-  it("koordination: die Seite antwortet normal", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    anmelden(rike);
+describe("PersonenPage — Rollen-Gate (Spec §4: nur die Koordination verwaltet Personen)", () => {
+  it("die Koordination: die Seite antwortet normal", async () => {
+    const rike = legePerson("dev:rike@test", "auftrag");
+    anmelden(rike, true);
     await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Personenverwaltung");
   });
@@ -139,8 +140,8 @@ describe("PersonenPage — Rollen-Gate (Spec §4: nur koordination verwaltet Per
    * `darfFreigabenSehen` enden nach wie vor auf `&& istAktiv(akteur.person, heute)`.
    */
   it("eine ausgeschiedene Koordination MIT Gruppe kommt hinein — die Gruppe traegt die Rolle, nicht aktivBis", async () => {
-    const exRike = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2020-01-01" });
-    anmelden(exRike);
+    const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2020-01-01" });
+    anmelden(exRike, true);
     await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Personenverwaltung");
   });
@@ -169,8 +170,8 @@ describe("PersonenPage — der Notausgang fuer den Suite-/Modul-Admin", () => {
    * („Suite-Admin OHNE eigene personen-Zeile legt die erste Person an").
    */
   it("Suite-Admin OHNE eigene personen-Zeile bekommt die Seite mit dem Formular (Lesepfad)", async () => {
-    // Bewusst KEINE `personen`-Zeile fuer diese Sitzung: eine frische Datenbank kennt noch gar
-    // keine `koordination`-Person, und genau das soll dieser Notausgang loesen.
+    // Bewusst KEINE `personen`-Zeile fuer diese Sitzung: eine frische Datenbank kennt ueberhaupt
+    // keine Person, und genau das soll dieser Notausgang loesen.
     sitzung = { user: { id: "dev:admin@test", groups: ["dashboard-admins"] } };
     await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Personenverwaltung");
@@ -190,7 +191,7 @@ describe("PersonenPage — der Notausgang fuer den Suite-/Modul-Admin", () => {
    * Suite-Admin-Gruppe, kommt sie trotzdem hinein.
    */
   it("Aussperr-Fall: die einzige (jetzt beendete) Koordinationsperson kommt als Suite-Admin trotzdem hinein", async () => {
-    const exRike = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2026-08-12" });
+    const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-12" });
     sitzung = { user: { id: exRike.sub, groups: ["dashboard-admins"] } };
     await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Personenverwaltung");

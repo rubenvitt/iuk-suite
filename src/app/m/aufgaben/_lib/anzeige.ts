@@ -63,13 +63,16 @@ export const PRIORITAET_FORM: Record<Prioritaet, PrioritaetForm> = {
 };
 
 /**
- * DIE BESCHRIFTUNG DER DREI ROLLEN (Aufgabe 14, Spec §4) — die eine Quelle fuer
- * `PersonenFormular.tsx`s Auswahlfeld UND `PersonenTabelle.tsx`s Anzeige. Ohne diese Konstante
+ * DIE BESCHRIFTUNG DER ZWEI ROLLEN (Aufgabe 14, Spec §4 mit Nachtrag 2026-08-15) — die eine Quelle
+ * fuer `PersonenFormular.tsx`s Auswahlfeld UND `PersonenTabelle.tsx`s Anzeige. Ohne diese Konstante
  * traegt jede Aufrufstelle ihre eigene Beschriftung, und eine dritte Fassung faellt genau dann
  * auseinander, wenn nur eine der beiden Stellen "Auftraggeber" statt "auftrag" nachzieht.
+ *
+ * "Koordination" IST HIER KEINE ZEILE MEHR: die Rolle kommt aus der Auth-Gruppe (`_lib/zugang.ts`),
+ * und ein Eintrag hier haette der Koordination ein Auswahlfeld angeboten, das die Datenbank nicht
+ * mehr kennt.
  */
 export const ROLLE_TEXT: Record<Rolle, string> = {
-  koordination: "Koordination",
   auftrag: "Auftraggeber",
   bufdi: "BuFDi",
 };

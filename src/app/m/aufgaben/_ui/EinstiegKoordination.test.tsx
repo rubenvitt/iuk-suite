@@ -56,12 +56,18 @@ function kpiZahlen(): (string | null | undefined)[] {
 }
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
- * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — eine Ableitung aus der Zeile ginge gar nicht mehr,
+ * `ROLLEN` kennt `koordination` nicht mehr. Rike traegt deshalb `auftrag` in der Tabelle und wird
+ * hier durchgehend als `akteur(rike, true)` gereicht — DIESE Seite IST der Koordinationseinstieg,
+ * und die Sitzungsperson koordiniert darauf immer. Nicht jede einzelne Zusage unten HAENGT an dem
+ * `true` (die Leerzustands- und Verweistests kaemen auch ohne Gruppe zum selben Ergebnis); die
+ * tragenden tun es: `freigabeDaten` liest `istKoordination` fuer die Vertretungsliste, und
+ * `darfVerteilen` gibt die Posteingang-Tabelle nur damit frei (`EinstiegKoordination.tsx`).
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlange, Ueberfaelligkeit", () => {
@@ -73,7 +79,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
    * Freigabe-Listen, Ueberfaelligkeitsliste) — nicht nur die Ueberfaelligkeitsliste wie zuvor.
    */
   it("die KPI-Zahlen stimmen mit den Listen darunter ueberein — Frist zaehlt, nicht der Zeitplan", async () => {
-    const rike = legePerson("dev:rike@test", "koordination", { name: "Rike" });
+    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     const malte = legePerson("dev:malte@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi");
 
@@ -104,7 +110,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
     });
 
     // Freigabe offen: DREI Aufgaben — zwei "meine" (Rike ist Pruefer), eine "in Vertretung"
-    // (Malte ist Pruefer, Rike sieht sie trotzdem als koordination).
+    // (Malte ist Pruefer, Rike sieht sie trotzdem, weil sie koordiniert).
     legeAufgabe({
       titel: "Meine Freigabe 1",
       erstellerId: malte.id,
@@ -138,7 +144,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
       });
     }
 
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
 
     expect(kpiZahlen()).toEqual(["2", "3", "1", "4"]);
 
@@ -171,7 +177,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
    * `prueferId`.
    */
   it("die Freigabe-Warteschlange trennt „meine“ von „in Vertretung“", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
+    const rike = legePerson("dev:rike@test", "auftrag");
     const malte = legePerson("dev:malte@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi");
 
@@ -193,7 +199,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
       status: "freigabe_offen",
     });
 
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
 
     const abschnitt = query("#freigabe");
     const ueberschriften = Array.from(abschnitt.querySelectorAll("h3")).map((h) => h.textContent);
@@ -207,8 +213,8 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
   });
 
   it("Leerzustaende: jede der vier Listen traegt ihren eigenen ausgeschriebenen Satz", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
+    const rike = legePerson("dev:rike@test", "auftrag");
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
     expect(document.body.textContent).toContain("Posteingang leer — alles verteilt");
     expect(document.body.textContent).toContain("Keine Freigabe offen");
     expect(document.body.textContent).toContain("Keine Freigabe in Vertretung offen");
@@ -217,8 +223,8 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
   });
 
   it("0-Kacheln bleiben stehen und sind nicht verlinkt (kein <a>)", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
+    const rike = legePerson("dev:rike@test", "auftrag");
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
     const kacheln = queryAll(`.${s.kpi}`);
     expect(kacheln).toHaveLength(4);
     for (const kachel of kacheln) {
@@ -236,7 +242,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
    * plausibel aussieht).
    */
   it("jede Kachel mit Zahl > 0 traegt ein Ziel, das auf dieser Seite existiert — alle vier", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
+    const rike = legePerson("dev:rike@test", "auftrag");
     const malte = legePerson("dev:malte@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi");
     legeAufgabe({ titel: "P", erstellerId: malte.id, status: "eingegangen" });
@@ -253,7 +259,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
       status: "zurueckgewiesen",
     });
 
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
 
     const kacheln = queryAll(`.${s.kpi}`);
     expect(kacheln).toHaveLength(4);
@@ -278,8 +284,8 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
   });
 
   it("verlinkt die Personenverwaltung UND das Archiv (Aufgabe 16)", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
+    const rike = legePerson("dev:rike@test", "auftrag");
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
     const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/personen");
     expect(hrefs).toContain("/archiv");
@@ -292,7 +298,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
    * schreibgeschuetzten Liste.
    */
   it("die Freigabe-Sektion traegt jetzt Freigeben-/Zurueckweisen-Knoepfe (FreigabeZone, nicht mehr schreibgeschuetzt)", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
+    const rike = legePerson("dev:rike@test", "auftrag");
     const malte = legePerson("dev:malte@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi");
     const meineFreigabe = legeAufgabe({
@@ -303,18 +309,18 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
       status: "freigabe_offen",
     });
 
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
 
     expect(queryAll(`[data-testid='freigeben-${meineFreigabe.id}']`)).toHaveLength(1);
     expect(queryAll(`[data-testid='zurueckweisen-${meineFreigabe.id}']`)).toHaveLength(1);
   });
 
   it("die Kontextzeile nennt beide Zahlen (Spec §9.4-Beispiel)", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
+    const rike = legePerson("dev:rike@test", "auftrag");
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ titel: "P1", erstellerId: malte.id, status: "eingegangen" });
     legeAufgabe({ titel: "P2", erstellerId: malte.id, status: "eingegangen" });
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
     expect(document.body.textContent).toContain("2 zu verteilen");
     expect(document.body.textContent).toContain("0 warten auf Freigabe");
   });

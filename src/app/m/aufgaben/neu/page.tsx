@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 /*
  * `/neu` — AUFGABE EINSTELLEN (Spec §8, §8.3, Aufgabe 15). Fuer JEDE Rolle erreichbar (Spec §8s
- * Tabelle: „auftrag, koordination; BuFDis fuer sich selbst") — ANDERS ALS `/routinen`/`/verteilen`/
+ * Tabelle: „auftrag, koordination; BuFDis fuer sich selbst" — die Koordination kommt seit dem
+ * 2026-08-15 aus der Auth-Gruppe, nicht mehr aus der Rollenspalte) — ANDERS ALS `/routinen`/`/verteilen`/
  * `/personen`/`/freigaben` traegt diese Route DESHALB KEIN rollengebundenes `notFound()`-Gate: jede
  * aktive Person mit einer `personen`-Zeile darf zumindest fuer sich selbst einstellen
  * (`anfangsZustand()`, `_lib/lebenszyklus.ts`), und genau DAS entscheidet, nicht ein zweites,

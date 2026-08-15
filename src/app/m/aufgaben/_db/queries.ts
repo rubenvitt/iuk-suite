@@ -37,7 +37,15 @@ import {
  * fuer die Gegenprobe: `assertGroupAccess` im Modul `feedback`.
  */
 
-const ROLLEN_RANG: Record<Rolle, number> = { koordination: 0, auftrag: 1, bufdi: 2 };
+/**
+ * ZWEI RAENGE STATT DREI (Quellenwechsel 2026-08-15): `koordination` ist keine Rolle der
+ * Modultabelle mehr, sondern eine Auth-Gruppe (`_db/schema.ts`s `ROLLEN`). Die bisherigen
+ * Koordinationszeilen tragen seit Migration `0002` `auftrag` und sortieren sich damit alphabetisch
+ * unter die uebrigen Auftraggeber ein — sie stehen also NICHT mehr zwingend an erster Stelle.
+ * Diese Liste ordnet die ZEILE, nicht die Handlungsberechtigung; wer koordiniert, ist ihr nicht
+ * anzusehen (und soll es hier auch nicht sein, s. `_lib/zugang.ts`).
+ */
+const ROLLEN_RANG: Record<Rolle, number> = { auftrag: 0, bufdi: 1 };
 
 /**
  * Sortiert: Rolle in der fachlichen Rangfolge, dann Name alphabetisch.
@@ -60,9 +68,14 @@ export function allePersonen(db: DB): PersonRow[] {
 
 /**
  * Fuer Plan-Navigation — eine ausgeschiedene Person verschwindet hier. NICHT fuer Verteillisten:
- * die Koordination selbst ist aktiv und stuende hier drin, obwohl sie nicht verteilt bekommen
+ * eine koordinierende Person ist aktiv und stuende hier drin, obwohl sie nicht verteilt bekommen
  * soll (`darfFreigeben` in `_lib/zugang.ts` begruendet das). Verteillisten speisen sich aus
  * `bufdis()`.
+ *
+ * SEIT DEM QUELLENWECHSEL (2026-08-15) WIEGT DAS SCHWERER, NICHT LEICHTER: wer koordiniert, traegt
+ * in dieser Tabelle `auftrag` und ist der Zeile nicht mehr anzusehen. Ein `rolle !== "koordination"`
+ * als Filter gaebe es nicht mehr — `bufdis()` ist der einzige Weg, der die Koordination
+ * strukturell aus einer Zielliste haelt.
  */
 export function aktivePersonen(db: DB, heute: string): PersonRow[] {
   return allePersonen(db).filter((p) => istAktiv(p, heute));

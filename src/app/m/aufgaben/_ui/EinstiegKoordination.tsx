@@ -23,7 +23,7 @@ import { VerteilenTabelle } from "./VerteilenDialog";
  * vollstaendig, nicht nur ein Verweis auf `/verteilen`. Die Route `/verteilen` bleibt TROTZDEM
  * bestehen, mit DERSELBEN Tabelle (`_ui/VerteilenDialog.tsx`s `VerteilenTabelle`, ein einziger
  * Baustein fuer beide Seiten) — sie ist die adressierbare Route aus Spec §8's Tabelle und traegt den
- * 404-Riegel aus Spec §8.3 (`auftrag`/`bufdi` bekommen 404, `koordination` 200). Die KPI-Kachel „Zu
+ * 404-Riegel aus Spec §8.3 (wer nicht koordiniert, bekommt 404, die Koordination 200). Die KPI-Kachel „Zu
  * verteilen" verlinkt deshalb NICHT auf `/verteilen` (das waere ein Knopf, der auf eine Kopie der
  * bereits sichtbaren Tabelle zeigt), sondern auf den Anker `#posteingang` auf derselben Seite —
  * dieselbe Form wie `EinstiegBufdi.tsx`s Kachel „Einzuplanen" (`#posteingang`).

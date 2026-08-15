@@ -51,12 +51,13 @@ function aufgabe(extra: Partial<AufgabeRow> = {}): AufgabeRow {
 }
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM der Prädikate, NICHT ihre Antwort: `istKoordination` folgt hier weiterhin genau
- * der Rolle der Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle`. Jede Zusage dieser Datei bleibt unveraendert — nur die
+ * Fixtur sagt jetzt aus, was sie vorher aus der Rolle ableitete.
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 const ALLE_AUS: Record<string, boolean> = {
@@ -171,10 +172,10 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
    * (durch einen Dateneingriff) `istSelbst` UND `freigabe_offen` truege, bekaeme die Koordination
    * dafuer keine Freigabe-Aktion.
    */
-  it("Selbstaufgabe, koordination: KEINE Freigabe-Aktion, auch bei (fachlich unerreichbarem) „freigabe_offen“", () => {
-    const koordination = person("koordination", { id: "koord-1" });
+  it("Selbstaufgabe, Koordination: KEINE Freigabe-Aktion, auch bei (fachlich unerreichbarem) „freigabe_offen“", () => {
+    const koordination = person("auftrag", { id: "koord-1" });
     const a = aufgabe({ status: "freigabe_offen", istSelbst: true, prueferId: null });
-    expect(aktionsOptionen(a, akteur(koordination), HEUTE)).toEqual(ALLE_AUS);
+    expect(aktionsOptionen(a, akteur(koordination, true), HEUTE)).toEqual(ALLE_AUS);
   });
 
   it("„zurueckgewiesen“, zugewiesene BuFDi: NUR wiederaufnehmen ist erlaubt", () => {

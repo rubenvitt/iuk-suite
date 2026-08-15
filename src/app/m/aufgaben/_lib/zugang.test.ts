@@ -68,12 +68,15 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
 }
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` aendert die AUFRUFFORM der
- * Praedikate, NICHT ihre Antwort: `istKoordination` folgt hier weiterhin genau der Rolle der
- * Zeile, damit jede Zusage dieser Datei unveraendert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE: seit dem Quellenwechsel (2026-08-15) liegt die Koordination auf einer ANDEREN
+ * ACHSE als `rolle` — sie kommt aus der Auth-Gruppe, und `ROLLEN` kennt `koordination` gar nicht
+ * mehr. Genau deshalb pruefen die Tabellen unten VIER Kombinationen (zwei Rollen × mit/ohne
+ * Gruppe) statt der bisherigen drei Rollen: die frueher gar nicht darstellbaren Faelle
+ * ("auftrag MIT Gruppe", "bufdi MIT Gruppe") sind die interessanten.
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert>) {
@@ -105,7 +108,7 @@ describe("personFuerSession", () => {
   });
 
   it("Sitzung mit passender Zeile: die Person, aufgeloest ueber sub", async () => {
-    const rike = legePerson("dev:rike@localtest.me", "koordination");
+    const rike = legePerson("dev:rike@localtest.me", "auftrag");
     sitzung = { user: { id: "dev:rike@localtest.me" } };
     await expect(personFuerSession(t.db)).resolves.toEqual(rike);
   });
@@ -128,7 +131,7 @@ describe("personFuerSeite", () => {
   });
 
   it("Sitzung mit passender Zeile: die Person, aufgeloest ueber sub", async () => {
-    const rike = legePerson("dev:rike@localtest.me", "koordination");
+    const rike = legePerson("dev:rike@localtest.me", "auftrag");
     sitzung = { user: { id: "dev:rike@localtest.me" } };
     await expect(personFuerSeite(t.db)).resolves.toEqual(rike);
   });
@@ -154,8 +157,14 @@ describe("akteurFuerSeite — die Koordination kommt aus der Gruppe, nicht aus d
     expect(a?.istKoordination).toBe(true);
   });
 
-  it("eine koordination-Zeile OHNE Gruppe koordiniert NICHT", async () => {
-    legePerson("dev:rike@localtest.me", "koordination");
+  /*
+   * FRUEHER HIESS DIESER FALL "eine koordination-Zeile OHNE Gruppe koordiniert NICHT" — die Zeile
+   * gibt es seit `ROLLEN = ["auftrag", "bufdi"]` nicht mehr, die AUSSAGE bleibt dieselbe und wiegt
+   * sogar schwerer: KEIN Wert der Modultabelle verleiht die Koordination, auch nicht der, den die
+   * frueher koordinierenden Zeilen per Migration `0002` bekommen haben.
+   */
+  it("eine auftrag-Zeile OHNE Gruppe koordiniert NICHT", async () => {
+    legePerson("dev:rike@localtest.me", "auftrag");
     sitzung = { user: { id: "dev:rike@localtest.me", groups: [] } };
     const a = await akteurFuerSeite(t.db);
     expect(a?.istKoordination).toBe(false);
@@ -217,35 +226,43 @@ describe("istAktiv — aktivBis ist EINSCHLIESSEND", () => {
 });
 
 /**
- * ERSCHOEPFEND UEBER DIE DREI ROLLEN, nicht stichprobenweise (Brief-Vorgabe): jedes
- * Handlungspraedikat wird fuer koordination/auftrag/bufdi UND einmal fuer eine ausgeschiedene
- * Person geprueft. Handlungspraedikate pruefen istAktiv SELBST statt hinter einem vorgeschalteten
- * Gate — sonst ist der ausgeschiedene Fall genau der, den niemand testet.
+ * ERSCHOEPFEND UEBER DIE VIER KOMBINATIONEN, nicht stichprobenweise (Brief-Vorgabe): jedes
+ * Handlungspraedikat wird fuer `auftrag`/`bufdi` × mit/ohne Koordinationsgruppe UND einmal fuer eine
+ * ausgeschiedene Person geprueft. Handlungspraedikate pruefen istAktiv SELBST statt hinter einem
+ * vorgeschalteten Gate — sonst ist der ausgeschiedene Fall genau der, den niemand testet.
+ *
+ * VIER ZEILEN STATT DREI SEIT DEM QUELLENWECHSEL (2026-08-15): die Achsen `rolle` und
+ * `istKoordination` sind unabhaengig geworden, also wird ueber BEIDE erschoepft. Die frueher gar
+ * nicht darstellbaren Zeilen ("auftrag MIT Gruppe", "bufdi MIT Gruppe") sind dabei die
+ * interessanten — sie beschreiben genau die Personen, die es im Betrieb ab jetzt gibt. Eine
+ * Tabelle, die nach dem Umbau kuerzer waere als vorher, haette Deckung verloren statt gewonnen.
  */
-describe("darfVerteilen — nur koordination, und aktiv", () => {
-  it.each<[Rolle, boolean]>([
-    ["koordination", true],
-    ["auftrag", false],
-    ["bufdi", false],
-  ])("Rolle %s → %s", (rolle, erwartet) => {
-    const p = legePerson(`v-${rolle}`, rolle);
-    expect(darfVerteilen(akteur(p), HEUTE)).toBe(erwartet);
+describe("darfVerteilen — nur die Koordination, und aktiv", () => {
+  it.each<[Rolle, boolean, boolean]>([
+    ["auftrag", false, false],
+    ["auftrag", true, true],
+    ["bufdi", false, false],
+    ["bufdi", true, true],
+  ])("Rolle %s, koordiniert %s → %s", (rolle, istKoordination, erwartet) => {
+    const p = legePerson(`v-${rolle}-${istKoordination}`, rolle);
+    expect(darfVerteilen(akteur(p, istKoordination), HEUTE)).toBe(erwartet);
   });
 
   it("ausgeschiedene Koordination darf nicht mehr verteilen", () => {
-    const p = legePerson("v-inaktiv", "koordination", { aktivBis: "2026-08-01" });
-    expect(darfVerteilen(akteur(p), HEUTE)).toBe(false);
+    const p = legePerson("v-inaktiv", "auftrag", { aktivBis: "2026-08-01" });
+    expect(darfVerteilen(akteur(p, true), HEUTE)).toBe(false);
   });
 });
 
-describe("darfEinstellenFuerAndere — auftrag oder koordination, und aktiv", () => {
-  it.each<[Rolle, boolean]>([
-    ["koordination", true],
-    ["auftrag", true],
-    ["bufdi", false],
-  ])("Rolle %s → %s", (rolle, erwartet) => {
-    const p = legePerson(`e-${rolle}`, rolle);
-    expect(darfEinstellenFuerAndere(akteur(p), HEUTE)).toBe(erwartet);
+describe("darfEinstellenFuerAndere — auftrag oder die Koordination, und aktiv", () => {
+  it.each<[Rolle, boolean, boolean]>([
+    ["auftrag", false, true],
+    ["auftrag", true, true],
+    ["bufdi", false, false],
+    ["bufdi", true, true],
+  ])("Rolle %s, koordiniert %s → %s", (rolle, istKoordination, erwartet) => {
+    const p = legePerson(`e-${rolle}-${istKoordination}`, rolle);
+    expect(darfEinstellenFuerAndere(akteur(p, istKoordination), HEUTE)).toBe(erwartet);
   });
 
   it("ausgeschiedener auftrag darf nicht mehr fremd einstellen", () => {
@@ -254,30 +271,32 @@ describe("darfEinstellenFuerAndere — auftrag oder koordination, und aktiv", ()
   });
 });
 
-describe("darfPersonenVerwalten — nur koordination, und aktiv", () => {
-  it.each<[Rolle, boolean]>([
-    ["koordination", true],
-    ["auftrag", false],
-    ["bufdi", false],
-  ])("Rolle %s → %s", (rolle, erwartet) => {
-    const p = legePerson(`pv-${rolle}`, rolle);
-    expect(darfPersonenVerwalten(akteur(p), HEUTE)).toBe(erwartet);
+describe("darfPersonenVerwalten — nur die Koordination, und aktiv", () => {
+  it.each<[Rolle, boolean, boolean]>([
+    ["auftrag", false, false],
+    ["auftrag", true, true],
+    ["bufdi", false, false],
+    ["bufdi", true, true],
+  ])("Rolle %s, koordiniert %s → %s", (rolle, istKoordination, erwartet) => {
+    const p = legePerson(`pv-${rolle}-${istKoordination}`, rolle);
+    expect(darfPersonenVerwalten(akteur(p, istKoordination), HEUTE)).toBe(erwartet);
   });
 
   it("ausgeschiedene Koordination darf Personen nicht mehr verwalten", () => {
-    const p = legePerson("pv-inaktiv", "koordination", { aktivBis: "2026-08-01" });
-    expect(darfPersonenVerwalten(akteur(p), HEUTE)).toBe(false);
+    const p = legePerson("pv-inaktiv", "auftrag", { aktivBis: "2026-08-01" });
+    expect(darfPersonenVerwalten(akteur(p, true), HEUTE)).toBe(false);
   });
 });
 
-describe("darfFreigabenSehen — auftrag oder koordination, und aktiv (Aufgabe 15, Spec §8: '/freigaben')", () => {
-  it.each<[Rolle, boolean]>([
-    ["koordination", true],
-    ["auftrag", true],
-    ["bufdi", false],
-  ])("Rolle %s → %s", (rolle, erwartet) => {
-    const p = legePerson(`fs-${rolle}`, rolle);
-    expect(darfFreigabenSehen(akteur(p), HEUTE)).toBe(erwartet);
+describe("darfFreigabenSehen — auftrag oder die Koordination, und aktiv (Aufgabe 15, Spec §8: '/freigaben')", () => {
+  it.each<[Rolle, boolean, boolean]>([
+    ["auftrag", false, true],
+    ["auftrag", true, true],
+    ["bufdi", false, false],
+    ["bufdi", true, true],
+  ])("Rolle %s, koordiniert %s → %s", (rolle, istKoordination, erwartet) => {
+    const p = legePerson(`fs-${rolle}-${istKoordination}`, rolle);
+    expect(darfFreigabenSehen(akteur(p, istKoordination), HEUTE)).toBe(erwartet);
   });
 
   it("ausgeschiedener auftrag darf die Warteschlange nicht mehr sehen", () => {
@@ -286,14 +305,21 @@ describe("darfFreigabenSehen — auftrag oder koordination, und aktiv (Aufgabe 1
   });
 });
 
+/*
+ * `/routinen` BLEIBT AN DER ZEILE, NICHT AN DER GRUPPE (Entwurf 2026-08-15, "bewusst nicht Teil"):
+ * die Koordinationsgruppe oeffnet die Routinenverwaltung NICHT — die Tabelle nennt "bufdi MIT
+ * Gruppe" trotzdem, weil `true` dort aus der ROLLE folgt und nicht aus der Gruppe. Faellt die Zeile
+ * je auf `istKoordination` zurueck, wird "auftrag, koordiniert true" rot.
+ */
 describe("darfRoutinenVerwalten — nur bufdi, und aktiv (Aufgabe 13, Spec §8: '/routinen' fuer bufdi)", () => {
-  it.each<[Rolle, boolean]>([
-    ["koordination", false],
-    ["auftrag", false],
-    ["bufdi", true],
-  ])("Rolle %s → %s", (rolle, erwartet) => {
-    const p = legePerson(`rv-${rolle}`, rolle);
-    expect(darfRoutinenVerwalten(akteur(p), HEUTE)).toBe(erwartet);
+  it.each<[Rolle, boolean, boolean]>([
+    ["auftrag", false, false],
+    ["auftrag", true, false],
+    ["bufdi", false, true],
+    ["bufdi", true, true],
+  ])("Rolle %s, koordiniert %s → %s", (rolle, istKoordination, erwartet) => {
+    const p = legePerson(`rv-${rolle}-${istKoordination}`, rolle);
+    expect(darfRoutinenVerwalten(akteur(p, istKoordination), HEUTE)).toBe(erwartet);
   });
 
   it("ein ausgeschiedener BuFDi darf keine Routinen mehr verwalten", () => {
@@ -302,24 +328,27 @@ describe("darfRoutinenVerwalten — nur bufdi, und aktiv (Aufgabe 13, Spec §8: 
   });
 });
 
-describe("darfPlanAendern — ausschliesslich die Zielperson selbst, auch nicht koordination", () => {
+describe("darfPlanAendern — ausschliesslich die Zielperson selbst, auch nicht die Koordination", () => {
   /*
-   * Das Praedikat fragt NUR nach Identitaet (`p.id === zielPersonId`), nicht nach Rolle — jede
-   * Rolle aendert IHREN EIGENEN Plan. Die eigentliche Aussage der Regel ("auch koordination nicht
-   * FREMDE Plaene") steht im Test direkt darunter, mit Rike und Alinas Plan.
+   * Das Praedikat fragt NUR nach Identitaet (`p.id === zielPersonId`), nicht nach Rolle und nicht
+   * nach der Gruppe — jede Person aendert IHREN EIGENEN Plan. Die eigentliche Aussage der Regel
+   * ("auch die Koordination nicht FREMDE Plaene") steht im Test direkt darunter, mit Rike und
+   * Alinas Plan.
    */
-  it.each<Rolle>(["koordination", "auftrag", "bufdi"])(
-    "Rolle %s auf den EIGENEN Plan → true",
-    (rolle) => {
-      const p = legePerson(`pa-${rolle}`, rolle);
-      expect(darfPlanAendern(akteur(p), p.id, HEUTE)).toBe(true);
-    },
-  );
+  it.each<[Rolle, boolean]>([
+    ["auftrag", false],
+    ["auftrag", true],
+    ["bufdi", false],
+    ["bufdi", true],
+  ])("Rolle %s, koordiniert %s, auf den EIGENEN Plan → true", (rolle, istKoordination) => {
+    const p = legePerson(`pa-${rolle}-${istKoordination}`, rolle);
+    expect(darfPlanAendern(akteur(p, istKoordination), p.id, HEUTE)).toBe(true);
+  });
 
-  it("Rike (koordination) darf Alinas Plan nicht aendern — sie schlaegt nur vor", () => {
-    const rike = legePerson("pa-rike", "koordination");
+  it("Rike (koordiniert) darf Alinas Plan nicht aendern — sie schlaegt nur vor", () => {
+    const rike = legePerson("pa-rike", "auftrag");
     const alina = legePerson("pa-alina", "bufdi");
-    expect(darfPlanAendern(akteur(rike), alina.id, HEUTE)).toBe(false);
+    expect(darfPlanAendern(akteur(rike, true), alina.id, HEUTE)).toBe(false);
   });
 
   it("ausgeschiedener BuFDi aendert den eigenen Plan nicht mehr", () => {
@@ -343,9 +372,9 @@ describe("darfNachweisHochladen — die zugewiesene Person, aktiv; der Zustand i
 
   it("eine andere Person — auch koordination — darf nicht, auch wenn sie erstellt hat", () => {
     const bufdi = legePerson("nh-bufdi2", "bufdi");
-    const koordination = legePerson("nh-koord", "koordination");
+    const koordination = legePerson("nh-koord", "auftrag");
     const a = legeAufgabe({ erstellerId: koordination.id, zugewiesenAn: bufdi.id });
-    expect(darfNachweisHochladen(akteur(koordination), a, HEUTE)).toBe(false);
+    expect(darfNachweisHochladen(akteur(koordination, true), a, HEUTE)).toBe(false);
   });
 
   it("die zugewiesene, aber ausgeschiedene Person darf nicht mehr", () => {
@@ -363,26 +392,28 @@ describe("darfNachweisHochladen — die zugewiesene Person, aktiv; der Zustand i
 
 describe("darfFreigeben", () => {
   /**
-   * DIE KREUZPROBE: Selbstaufgabe × alle drei Rollen. `istSelbst` gewinnt IMMER, auch gegen
-   * `rolle === "koordination"` und selbst wenn `prueferId` zufaellig auf die pruefende Person
-   * zeigt — ohne diese erste Zeile stimmten `prueferId === null` (Selbstaufgaben haben keinen
-   * Pruefer) und `rolle === "koordination"` je fuer sich, und Rike bekaeme einen Freigabeknopf
-   * fuer eine Aufgabe, die gar keine Freigabestufe hat.
+   * DIE KREUZPROBE: Selbstaufgabe × alle vier Kombinationen. `istSelbst` gewinnt IMMER, auch gegen
+   * `istKoordination` und selbst wenn `prueferId` zufaellig auf die pruefende Person zeigt — ohne
+   * diese erste Zeile stimmten `prueferId === null` (Selbstaufgaben haben keinen Pruefer) und
+   * `istKoordination` je fuer sich, und Rike bekaeme einen Freigabeknopf fuer eine Aufgabe, die gar
+   * keine Freigabestufe hat.
    */
-  it.each<Rolle>(["koordination", "auftrag", "bufdi"])(
-    "Selbstaufgabe: IMMER false, auch fuer %s",
-    (rolle) => {
-      const p = legePerson(`sa-${rolle}`, rolle);
-      const a = legeAufgabe({
-        erstellerId: p.id,
-        zugewiesenAn: p.id,
-        istSelbst: true,
-        prueferId: null,
-        status: "in_arbeit",
-      });
-      expect(darfFreigeben(akteur(p), a, HEUTE)).toBe(false);
-    },
-  );
+  it.each<[Rolle, boolean]>([
+    ["auftrag", false],
+    ["auftrag", true],
+    ["bufdi", false],
+    ["bufdi", true],
+  ])("Selbstaufgabe: IMMER false, auch fuer %s (koordiniert %s)", (rolle, istKoordination) => {
+    const p = legePerson(`sa-${rolle}-${istKoordination}`, rolle);
+    const a = legeAufgabe({
+      erstellerId: p.id,
+      zugewiesenAn: p.id,
+      istSelbst: true,
+      prueferId: null,
+      status: "in_arbeit",
+    });
+    expect(darfFreigeben(akteur(p, istKoordination), a, HEUTE)).toBe(false);
+  });
 
   it("Fremdaufgabe: der eingetragene Pruefer darf freigeben", () => {
     const ersteller = legePerson("fr-ersteller", "auftrag");
@@ -401,14 +432,14 @@ describe("darfFreigeben", () => {
     const ersteller = legePerson("fr2-ersteller", "auftrag");
     const pruefer = legePerson("fr2-pruefer", "auftrag");
     const bufdi = legePerson("fr2-bufdi", "bufdi");
-    const rike = legePerson("fr2-rike", "koordination");
+    const rike = legePerson("fr2-rike", "auftrag");
     const a = legeAufgabe({
       erstellerId: ersteller.id,
       zugewiesenAn: bufdi.id,
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(darfFreigeben(akteur(rike), a, HEUTE)).toBe(true);
+    expect(darfFreigeben(akteur(rike, true), a, HEUTE)).toBe(true);
   });
 
   it("Fremdaufgabe: ein Dritter (weder Pruefer noch koordination) darf nicht", () => {
@@ -447,14 +478,14 @@ describe("darfFreigeben", () => {
    */
   it("die Koordination gibt eine ihr selbst zugewiesene Fremdaufgabe NICHT frei", () => {
     const ersteller = legePerson("fr5-ersteller", "auftrag");
-    const rike = legePerson("fr5-rike", "koordination");
+    const rike = legePerson("fr5-rike", "auftrag");
     const a = legeAufgabe({
       erstellerId: ersteller.id,
       zugewiesenAn: rike.id,
       prueferId: ersteller.id,
       status: "freigabe_offen",
     });
-    expect(darfFreigeben(akteur(rike), a, HEUTE)).toBe(false);
+    expect(darfFreigeben(akteur(rike, true), a, HEUTE)).toBe(false);
   });
 });
 
@@ -468,19 +499,21 @@ describe("darfFreigeben", () => {
  * sieht seine eigene Dokumentation nicht mehr) waere ungetestet kaputt.
  */
 describe("darfPlanSehen — fuer alle wahr", () => {
-  it.each<Rolle>(["koordination", "auftrag", "bufdi"])(
-    "Rolle %s sieht den Plan jeder anderen Person",
-    (rolle) => {
-      const p = legePerson(`ps-${rolle}`, rolle);
-      const andere = legePerson(`ps-ziel-${rolle}`, "bufdi");
-      expect(darfPlanSehen(akteur(p), andere.id)).toBe(true);
-    },
-  );
+  it.each<[Rolle, boolean]>([
+    ["auftrag", false],
+    ["auftrag", true],
+    ["bufdi", false],
+    ["bufdi", true],
+  ])("Rolle %s (koordiniert %s) sieht den Plan jeder anderen Person", (rolle, istKoordination) => {
+    const p = legePerson(`ps-${rolle}-${istKoordination}`, rolle);
+    const andere = legePerson(`ps-ziel-${rolle}-${istKoordination}`, "bufdi");
+    expect(darfPlanSehen(akteur(p, istKoordination), andere.id)).toBe(true);
+  });
 });
 
 describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht jeder BuFDi", () => {
   it("koordination sieht jeden Nachweis", () => {
-    const rike = legePerson("ns-rike", "koordination");
+    const rike = legePerson("ns-rike", "auftrag");
     const ersteller = legePerson("ns-ersteller", "auftrag");
     const bufdi = legePerson("ns-bufdi", "bufdi");
     const a = legeAufgabe({
@@ -488,7 +521,7 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
       zugewiesenAn: bufdi.id,
       status: "freigabe_offen",
     });
-    expect(darfNachweisSehen(akteur(rike), a)).toBe(true);
+    expect(darfNachweisSehen(akteur(rike, true), a)).toBe(true);
   });
 
   it("der Ersteller der Aufgabe sieht den Nachweis", () => {
@@ -569,10 +602,10 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
 
 describe("darfAufgabeSehen — koordination und jeder BuFDi sehen jede Aufgabe; auftrag nur die eigene", () => {
   it("koordination sieht jede Aufgabe", () => {
-    const rike = legePerson("das-rike", "koordination");
+    const rike = legePerson("das-rike", "auftrag");
     const ersteller = legePerson("das-ersteller", "auftrag");
     const a = legeAufgabe({ erstellerId: ersteller.id });
-    expect(darfAufgabeSehen(akteur(rike), a)).toBe(true);
+    expect(darfAufgabeSehen(akteur(rike, true), a)).toBe(true);
   });
 
   it("JEDER BuFDi sieht jede Aufgabe — das Spiegelbild zu darfPlanSehen", () => {
@@ -634,7 +667,7 @@ describe("Sichtpraedikate gelten weiter fuer Ausgeschiedene", () => {
 describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sein", () => {
   it("koordination !== Pruefer: Vertretung", () => {
     const pruefer = legePerson("vf-pruefer", "auftrag");
-    const rike = legePerson("vf-rike", "koordination");
+    const rike = legePerson("vf-rike", "auftrag");
     const bufdi = legePerson("vf-bufdi", "bufdi");
     const a = legeAufgabe({
       erstellerId: pruefer.id,
@@ -642,11 +675,11 @@ describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sei
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(istVertretungsfreigabe(akteur(rike), a)).toBe(true);
+    expect(istVertretungsfreigabe(akteur(rike, true), a)).toBe(true);
   });
 
   it("koordination === Pruefer: keine Vertretung", () => {
-    const rike = legePerson("vf2-rike", "koordination");
+    const rike = legePerson("vf2-rike", "auftrag");
     const bufdi = legePerson("vf2-bufdi", "bufdi");
     const a = legeAufgabe({
       erstellerId: rike.id,
@@ -654,7 +687,7 @@ describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sei
       prueferId: rike.id,
       status: "freigabe_offen",
     });
-    expect(istVertretungsfreigabe(akteur(rike), a)).toBe(false);
+    expect(istVertretungsfreigabe(akteur(rike, true), a)).toBe(false);
   });
 
   it("kein koordination-Freigeber: nie Vertretung, egal wer Pruefer ist", () => {
@@ -678,7 +711,7 @@ describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sei
    * "Freigegeben von X in Vertretung fuer —".
    */
   it("kein eingetragener Pruefer: keine Vertretung, auch fuer koordination", () => {
-    const rike = legePerson("vf4-rike", "koordination");
+    const rike = legePerson("vf4-rike", "auftrag");
     const bufdi = legePerson("vf4-bufdi", "bufdi");
     const a = legeAufgabe({
       erstellerId: bufdi.id,
@@ -687,6 +720,6 @@ describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sei
       istSelbst: true,
       status: "in_arbeit",
     });
-    expect(istVertretungsfreigabe(akteur(rike), a)).toBe(false);
+    expect(istVertretungsfreigabe(akteur(rike, true), a)).toBe(false);
   });
 });

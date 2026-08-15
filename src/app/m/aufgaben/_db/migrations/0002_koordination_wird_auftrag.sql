@@ -1,0 +1,13 @@
+-- Die Koordinationsrolle kommt seit dem 2026-08-15 aus der Auth-Gruppe
+-- (`canAdminModule("aufgaben")`, aufgeloest in `_lib/zugang.ts`), nicht mehr aus dieser Spalte.
+-- `ROLLEN` (`_db/schema.ts`) kennt nur noch `auftrag` und `bufdi`.
+--
+-- EIN REINES DATEN-UPDATE, KEINE STRUKTURAENDERUNG: `text("rolle", { enum: ROLLEN })` erzeugt in
+-- SQLite KEIN `CHECK` — die Spalte ist schlicht `rolle text NOT NULL` (0000, Zeile 62). Ohne diese
+-- Zeile blieben Alt-Zeilen mit `koordination` stehen und faenden in `ROLLEN_RANG`/`ROLLE_TEXT`
+-- keinen Eintrag mehr (`undefined` in der Sortierung, leere Beschriftung in der Tabelle).
+--
+-- ZIEL IST `auftrag` UND NIEMALS `bufdi`: `verteilDaten` speist die Verteillisten aus `bufdis()`,
+-- damit die Koordination nicht in ihrer eigenen Zielliste steht — daran haengt das
+-- Vier-Augen-Prinzip aus der Betreiberentscheidung vom 2026-08-13 (s. `darfFreigeben`).
+UPDATE personen SET rolle = 'auftrag' WHERE rolle = 'koordination';

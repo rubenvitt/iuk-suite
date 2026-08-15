@@ -106,6 +106,23 @@ describe("PersonenFormular — Anlegen: der sub ist ein echtes Feld, mit Erklaer
   });
 });
 
+/**
+ * DIE ROLLENAUSWAHL BIETET DIE KOORDINATION NICHT MEHR AN (Quellenwechsel 2026-08-15) — und das ist
+ * kein kosmetischer Punkt: solange „Koordination" hier zur Wahl stuende, verspraeche das Formular
+ * eine Vergabe, die es nicht mehr leisten kann (die Rolle kommt aus der Pocket-ID-Gruppe, s.
+ * `_lib/zugang.ts`), und die Koordination suchte den Fehler bei sich statt in der Gruppenpflege.
+ * Die Auswahl liest `ROLLEN`/`ROLLE_TEXT` (`_db/schema.ts`, `_lib/anzeige.ts`) — dieser Test bindet
+ * das ANGEBOT an die eine Quelle, statt es nur zu behaupten.
+ */
+describe("PersonenFormular — die Rollenauswahl kennt nur noch die zwei Tabellenrollen", () => {
+  it("bietet genau `auftrag` und `bufdi` an, nicht die Koordination", async () => {
+    await mount(<PersonenFormular />);
+    const optionen = queryAll<HTMLOptionElement>("#pf-rolle option");
+    expect(optionen.map((o) => o.value)).toEqual(["auftrag", "bufdi"]);
+    expect(optionen.map((o) => o.textContent)).toEqual(["Auftraggeber", "BuFDi"]);
+  });
+});
+
 describe("PersonenFormular — Aendern: der sub ist NICHT mehr editierbar", () => {
   it("zeigt Name/Rolle/Soll-Zeit/aktivVon/aktivBis vorbelegt, das versteckte personId, den Speichern-Knopf", async () => {
     await mount(<PersonenFormular person={PERSON} />);

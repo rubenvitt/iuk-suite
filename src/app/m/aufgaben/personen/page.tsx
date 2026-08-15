@@ -116,8 +116,8 @@ export default async function PersonenPage({
   const akteur = await akteurFuerSeite(db);
   if (!akteur) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
   // DASSELBE PRAEDIKAT WIE DIE OBERFLAECHE: `EinstiegKoordination.tsx`s Fusszeilen-Verweis auf
-  // `/personen` erscheint nur fuer `koordination` (die einzige Rolle, die diesen Einstieg je sieht)
-  // — dieselbe Bedingung, die diese Route hier durchsetzt.
+  // `/personen` erscheint nur fuer die Koordination (die einzigen Menschen, die diesen Einstieg je
+  // sehen) — dieselbe Bedingung, die diese Route hier durchsetzt.
   if (!darfPersonenVerwalten(akteur, heute)) notFound();
   const { bearbeiten } = await searchParams;
   return personenInhalt(db, heute, bearbeiten);

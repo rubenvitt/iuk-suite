@@ -40,12 +40,13 @@ afterEach(async () => {
 const HEUTE = "2026-08-10";
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
- * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — genau darum verzweigt `aufgabenInhalt` zuerst auf
+ * `istKoordination` und erst danach auf die Rolle.
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
@@ -77,9 +78,9 @@ describe("aufgabenInhalt — der Verteiler waehlt nach Rolle (Spec §8)", () => 
    * (KPI-Zahlen, Freigabe-Trennung, Ueberfaelligkeit …) lebt in `_ui/EinstiegKoordination.test.tsx`
    * — hier nur der Beleg, dass DIESE Rolle DIESE Komponente bekommt.
    */
-  it("koordination bekommt „Verteilung“ (EinstiegKoordination)", async () => {
-    const rike = legePerson("dev:rike@test", "koordination", { name: "Rike" });
-    await mount(aufgabenInhalt(t.db, akteur(rike), HEUTE, {}));
+  it("die Koordination bekommt „Verteilung“ (EinstiegKoordination)", async () => {
+    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
+    await mount(aufgabenInhalt(t.db, akteur(rike, true), HEUTE, {}));
     expect(query("h1").textContent).toBe("Verteilung");
     expect(document.body.textContent).toContain("Zu verteilen");
     expect(document.body.textContent).not.toBe("");
@@ -98,6 +99,26 @@ describe("aufgabenInhalt — der Verteiler waehlt nach Rolle (Spec §8)", () => 
     expect(query("h1").textContent).toBe("Meine Aufträge");
     expect(document.body.textContent).toContain("Aufgabe einstellen");
     expect(document.body.textContent).not.toContain("entsteht in einer der nächsten Aufgaben");
+  });
+
+  /*
+   * DIE GRUPPE SCHLAEGT DIE ZEILE (Quellenwechsel 2026-08-15) — der Fall, den es vor dem Umbau
+   * nicht geben konnte und der die neue Verzweigungsreihenfolge in `aufgabenInhalt` festhaelt:
+   * `istKoordination` wird ZUERST gefragt, die Datenbankrolle erst danach. Die beiden Zeilen unten
+   * sind nicht zwei Fassungen desselben Tests: die erste zeigt, dass eine `bufdi`-ZEILE die
+   * Koordination nicht mehr ueberstimmt (frueher haette `switch (rolle)` hier „Meine Woche"
+   * geliefert), die zweite die Gegenprobe ohne Gruppe.
+   */
+  it("Koordinationsgruppe schlaegt die Datenbankrolle — auch eine bufdi-Zeile bekommt „Verteilung“", async () => {
+    const alina = legePerson("dev:alina-koord@test", "bufdi", { name: "Alina" });
+    await mount(aufgabenInhalt(t.db, akteur(alina, true), HEUTE, {}));
+    expect(query("h1").textContent).toBe("Verteilung");
+  });
+
+  it("dieselbe bufdi-Zeile OHNE Gruppe bekommt weiterhin „Meine Woche“", async () => {
+    const alina = legePerson("dev:alina-ohne@test", "bufdi", { name: "Alina" });
+    await mount(aufgabenInhalt(t.db, akteur(alina), HEUTE, {}));
+    expect(query("h1").textContent).toBe("Meine Woche");
   });
 
   it("reicht woche/tag aus den Suchparametern an EinstiegBufdi durch", async () => {

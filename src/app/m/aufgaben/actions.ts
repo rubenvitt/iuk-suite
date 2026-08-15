@@ -239,9 +239,12 @@ async function verteilenGemeinsam(
    * entscheidung 2026-08-13, `darfFreigeben`-Kommentar in `_lib/zugang.ts`) — die Action verlaesst
    * sich nicht auf deren Filter, sie STELLT ihn selbst her. Ein Nachbau als
    * `akteur.person.rolle === "bufdi" && istAktiv(...)` waere genau der Nachbau, den der Brief verbietet:
-   * er traefe die Koordination selbst nicht (deren Rolle ist "koordination"), aber er haette
-   * dieselbe Pruefung ein zweites Mal an einer Stelle liegen, die bei einer spaeteren Aenderung von
-   * `bufdis()` (z. B. einer vierten Rolle) nicht automatisch mitzoege.
+   * er haette dieselbe Pruefung ein zweites Mal an einer Stelle liegen, die bei einer spaeteren
+   * Aenderung von `bufdis()` nicht automatisch mitzoege. SEIT DEM QUELLENWECHSEL (2026-08-15) waere
+   * er sogar EINE STUFE GEFAEHRLICHER: die koordinierende Person traegt in der Tabelle `auftrag`
+   * (`_db/schema.ts`s `ROLLEN` kennt `koordination` nicht mehr), ein handgeschriebener Rollenfilter
+   * kann sie also gar nicht mehr benennen — `bufdis()` ist der einzige Ausdruck, der sie
+   * strukturell aus der Zielliste haelt.
    */
   const values = {
     // `aufgabeId` gehoert mit hinein — Vorbild `files/(verwaltung)/actions.ts` fuehrt sein `"id"`
@@ -298,19 +301,19 @@ async function verteilenGemeinsam(
   return { ok: true };
 }
 
-/** `eingegangen` → `verteilt` (Spec §5.2) — nur `koordination` (`uebergang()` prueft `darfVerteilen`). */
+/** `eingegangen` → `verteilt` (Spec §5.2) — nur die Koordination (`uebergang()` prueft `darfVerteilen`). */
 export async function verteilenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   return verteilenGemeinsam(formData, "verteilen", "verteilt");
 }
 
-/** `verteilt` → `verteilt`, mit geleerter Planung (Spec §5.2) — nur `koordination`. */
+/** `verteilt` → `verteilt`, mit geleerter Planung (Spec §5.2) — nur die Koordination. */
 export async function umverteilenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   return verteilenGemeinsam(formData, "umverteilen", "umverteilt");
 }
 
 /**
  * ZURUECKZIEHEN — LOESCHT DIE AUFGABE, NUR AUS `eingegangen` (Spec §5.2, `uebergang()` prueft
- * Zustand UND Berechtigung: Ersteller oder `koordination`). Kein `FormState`: es gibt kein Feld,
+ * Zustand UND Berechtigung: Ersteller oder Koordination). Kein `FormState`: es gibt kein Feld,
  * das fehlschlagen koennte (nur eine `aufgabeId`), also keine `useActionState`-Signatur — dieselbe
  * Wahl wie `deleteGroupAction` in `feedback/actions.ts`.
  *
@@ -692,7 +695,7 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
  */
 
 /**
- * FREIGEBEN — `freigabe_offen` → `abgeschlossen` (Spec §5.2), nur Pruefer oder `koordination`
+ * FREIGEBEN — `freigabe_offen` → `abgeschlossen` (Spec §5.2), nur Pruefer oder Koordination
  * (`uebergang()` prueft `darfFreigeben`). Kein Formularfeld ausser `aufgabeId`, deshalb kein
  * `FormState` — wie `zurueckziehenAction`.
  *
@@ -741,7 +744,7 @@ export async function freigebenAction(formData: FormData): Promise<void> {
 }
 
 /**
- * ZURUECKWEISEN — `freigabe_offen` → `zurueckgewiesen` (Spec §5.2), nur Pruefer oder `koordination`.
+ * ZURUECKWEISEN — `freigabe_offen` → `zurueckgewiesen` (Spec §5.2), nur Pruefer oder Koordination.
  *
  * DIE ERSTE UEBERGABE AUS AUFGABE 8 (Brief): die Spec-Tabelle schreibt woertlich "Begruendung
  * Pflicht" — `uebergang()` sieht keinen Begruendungstext und kann das strukturell nicht pruefen,
@@ -791,7 +794,7 @@ export async function zurueckweisenAction(_prev: FormState, formData: FormData):
  * `darfRoutinenVerwalten` STEHT SEIT DEM ABSCHLUSSREVIEW (G6) NEBEN `darfPlanAendern`, IN ALLEN
  * DREI ACTIONS: `routinen/page.tsx:107` gatet die Route mit `darfRoutinenVerwalten`
  * (`rolle === "bufdi" && istAktiv`), die Actions prueften bis dahin nur `darfPlanAendern`
- * (Identitaet + aktiv). Eine `koordination`- oder `auftrag`-Person bekam auf `/routinen` also ein
+ * (Identitaet + aktiv). Eine koordinierende oder eine `auftrag`-Person bekam auf `/routinen` also ein
  * `notFound()`, konnte aber per direktem POST ihre EIGENEN Routinen anlegen, aendern und ruhen
  * lassen — "Recht ohne Knopf". Praktisch harmlos (fremde Routinen blieben durch `darfPlanAendern`
  * verschlossen), aber es war die EINZIGE Stelle im Modul, an der Oberflaeche und Riegel auf

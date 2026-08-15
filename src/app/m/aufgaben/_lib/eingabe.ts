@@ -50,7 +50,16 @@ export function istGueltigeNachweisArt(s: string): s is NachweisArt {
   return (NACHWEIS_ARTEN as readonly string[]).includes(s);
 }
 
-/** Aufgabe 14 (Personenverwaltung) — dieselbe Form wie `istGueltigePrioritaet`. */
+/**
+ * Aufgabe 14 (Personenverwaltung) — dieselbe Form wie `istGueltigePrioritaet`.
+ *
+ * SEIT DEM QUELLENWECHSEL (2026-08-15) IST DAS ZUGLEICH DER RIEGEL GEGEN DEN ABGESCHAFFTEN WERT:
+ * `ROLLEN` kennt `koordination` nicht mehr (die Rolle kommt aus der Auth-Gruppe), also lehnt diese
+ * Funktion ihn ab — ohne dass hier eine zweite Liste zu pflegen waere. SQLite haette ihn
+ * angenommen: `text("rolle", { enum })` erzeugt dort kein `CHECK`, die Spalte ist schlicht
+ * `text NOT NULL`. Diese Funktion ist damit die einzige Stelle, die eine handgeschriebene
+ * Formulareingabe `rolle=koordination` aufhaelt.
+ */
 export function istGueltigeRolle(s: string): s is Rolle {
   return (ROLLEN as readonly string[]).includes(s);
 }

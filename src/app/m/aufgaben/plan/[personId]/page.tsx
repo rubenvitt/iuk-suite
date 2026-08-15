@@ -36,7 +36,7 @@ export const dynamic = "force-dynamic";
  * DIE ZUGEHOERIGKEIT KOMMT AUS DER DATENBANK, NIE AUS DEM URL-PARAMETER (Spec §7): `personId`
  * wird ueber `personNachId` aufgeloest; gibt es die Person nicht, `notFound()` — sonst waere
  * `/plan/17` ein IDOR. `darfPlanSehen` ist fuer ALLE wahr (Spec: BuFDis sehen die Zeitplaene der
- * anderen lesend, `koordination`/`auftrag` ohnehin), wird aber TROTZDEM aufgerufen — dieselbe
+ * anderen lesend, wer koordiniert und `auftrag` ohnehin), wird aber TROTZDEM aufgerufen — dieselbe
  * Quelle wie ueberall im Modul, nicht eine implizite Zusage, die nirgends mehr geprueft wird.
  *
  * `darfPlanAendern` ENTSCHEIDET, OB AKTIONEN ERSCHEINEN — nur der eigene Plan ist aenderbar, auch

@@ -31,12 +31,14 @@ afterEach(async () => {
 });
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
- * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — `akteur(rike, true)` macht an jeder Fixtur sichtbar,
+ * dass diese Zusage die Gruppe voraussetzt, während `akteur(malte)` denselben `auftrag` OHNE Gruppe
+ * meint. Eine Ableitung aus der Zeile ginge nicht mehr: `ROLLEN` kennt `koordination` nicht mehr.
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
@@ -97,14 +99,20 @@ describe("archivInhalt — filtert SERVERSEITIG auf das Sichtrecht (Spec §8)", 
     expect(document.body.textContent).not.toContain("Tomkes Aufgabe");
   });
 
+  /*
+   * DIE GEGENPROBE ZUM TEST DARUEBER, UND SEIT DEM QUELLENWECHSEL (2026-08-15) SCHAERFER ALS VORHER:
+   * Rike traegt hier DIESELBE Zeile wie Malte und Tomke (`auftrag`) und sieht trotzdem beide fremden
+   * Aufgaben — der Unterschied liegt ALLEIN in `akteur(rike, true)`, also in der Gruppe. Faellt das
+   * `true` weg, ist Rike ein gewoehnlicher Auftraggeber und der Test wird rot.
+   */
   it("die Koordination sieht JEDE abgeschlossene Aufgabe", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
+    const rike = legePerson("dev:rike@test", "auftrag");
     const malte = legePerson("dev:malte@test", "auftrag");
     const tomke = legePerson("dev:tomke@test", "auftrag");
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Maltes Aufgabe" });
     legeAufgabe({ erstellerId: tomke.id, prueferId: tomke.id, titel: "Tomkes Aufgabe" });
 
-    await mount(archivInhalt(t.db, akteur(rike), HEUTE));
+    await mount(archivInhalt(t.db, akteur(rike, true), HEUTE));
     expect(document.body.textContent).toContain("Maltes Aufgabe");
     expect(document.body.textContent).toContain("Tomkes Aufgabe");
   });

@@ -40,12 +40,15 @@ afterEach(async () => {
 });
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
- * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — eine koordinierende Person traegt in der Tabelle
+ * typischerweise `auftrag`. Eine Ableitung aus der Zeile ginge gar nicht mehr: `ROLLEN` kennt
+ * `koordination` nicht mehr. `akteur(rike, true)` macht an der Fixtur sichtbar, dass die Zusage die
+ * Gruppe voraussetzt, waehrend `akteur(malte)` denselben `auftrag` OHNE Gruppe meint.
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
@@ -88,18 +91,20 @@ function legeNachweis(aufgabeId: string, text: string, erstelltVon: string) {
 }
 
 /**
- * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, UND ZWAR AUSDRUECKLICH AM AUFRUF
  * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
- * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
- * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
- * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ * (`_lib/zugang.ts`s `akteurFuer`), also aus `session.user.groups` — nicht mehr aus
+ * `personen.rolle`, die den Wert `koordination` gar nicht mehr kennt. Rolle und Koordination sind
+ * zwei unabhaengige Achsen; welche der beiden eine Zusage traegt, steht deshalb am Aufruf
+ * (`anmelden(rike, true)`) und nicht mehr verdeckt in der Fixtur-Zeile. Die FIXTUR wandert mit der
+ * Quelle, die ERWARTUNG bleibt stehen.
  *
  * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
  */
-function anmelden(p: PersonRow): void {
+function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
   };
 }
 
@@ -261,7 +266,11 @@ describe("aufgabeInhalt — der Verlauf als Journal", () => {
   });
 
   it("eine Vertretungsfreigabe ist als solche erkennbar — die Notiz steht im Journal", async () => {
-    const rike = legePerson("dev:rike@test", "koordination", { name: "Rike" });
+    // `rike` KOORDINIERT, TRAEGT ABER `auftrag` (Quellenwechsel 2026-08-15) — die Vertretung ist
+    // eine Frage von `istKoordination` (`istVertretungsfreigabe`), nicht mehr eine der Rolle,
+    // weshalb das `true` unten die fachlich richtige Fixtur ist. Die Zusicherung selbst haengt
+    // NICHT daran: die Notiz steht in `verlauf` und wird ohnehin gerendert.
+    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     const tomke = legePerson("dev:tomke@test", "auftrag", { name: "Tomke" });
     const carla = legePerson("dev:carla@test", "bufdi", { name: "Carla" });
     const a = legeAufgabe({
@@ -278,7 +287,7 @@ describe("aufgabeInhalt — der Verlauf als Journal", () => {
       "Freigegeben von Rike in Vertretung für Tomke",
     );
 
-    await mount(aufgabeInhalt(t.db, akteur(rike), a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(rike, true), a, HEUTE));
     expect(document.body.textContent).toContain("Freigegeben von Rike in Vertretung für Tomke");
   });
 });
@@ -312,10 +321,12 @@ describe("AufgabeDetailPage — Sichtrecht und die Grenze der Erklärseiten-Ausn
   });
 
   it("die Koordination sieht jede Aufgabe (200), auch eine fremde", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
+    // ALLEIN DIE GRUPPE TRAEGT DIESE ZUSAGE: `rike` ist derselbe `auftrag` wie `tomke` im Test
+    // darueber, der auf einer fremden Aufgabe `notFound()` bekommt. Der Unterschied ist das `true`.
+    const rike = legePerson("dev:rike@test", "auftrag");
     const malte = legePerson("dev:malte@test", "auftrag");
     const a = legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Fremde Aufgabe" });
-    anmelden(rike);
+    anmelden(rike, true);
     const element = await AufgabeDetailPage({ params: Promise.resolve({ id: a.id }) });
     await mount(element);
     expect(query("h1").textContent).toBe("Fremde Aufgabe");

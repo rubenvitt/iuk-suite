@@ -196,7 +196,7 @@ export function darfPersonenVerwalten(akteur: Akteur, heute: string): boolean {
  * auf einen kuenftigen Navigationseintrag zu verlassen, der (noch) nicht existiert — Aufgabe 13
  * baut keine Modulnavigation, nur den EINEN Fusszeilen-Verweis "Routinen verwalten" in
  * `EinstiegBufdi.tsx`, und der zeigt ohnehin nur BuFDis. Ohne ein Gate an der Route selbst waere
- * `/routinen` fuer `koordination`/`auftrag` trotzdem per direkter URL erreichbar — praktisch
+ * `/routinen` fuer `auftrag` und fuer die Koordination trotzdem per direkter URL erreichbar — praktisch
  * harmlos (Aufgabe 11: eine Koordinationsperson verwaltete allenfalls ihre eigenen Zeitbloecke),
  * aber Spec §8 nennt die Route ausdruecklich rollengebunden, und dieselbe Suite-Regel wie ueberall
  * sonst gilt auch hier: dieselbe Bedingung an EINER Stelle, nicht implizit "niemand verlinkt
@@ -244,7 +244,7 @@ export function darfFreigeben(akteur: Akteur, a: AufgabeRow, heute: string): boo
 
 /**
  * FUER ALLE WAHR. BuFDis sehen die Zeitplaene der anderen lesend — Vertretungsabsprachen ohne die
- * Koordination als Nadeloehr —, `koordination` und `auftrag` sehen ohnehin alle. Kein `istAktiv`:
+ * Koordination als Nadeloehr —, die Koordination und `auftrag` sehen ohnehin alle. Kein `istAktiv`:
  * ein ausgeschiedener BuFDi liest weiterhin, was war.
  *
  * Die Parameter bleiben Teil der Signatur, obwohl das Ergebnis nicht von ihnen abhaengt: Aufrufer

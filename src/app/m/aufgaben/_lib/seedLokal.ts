@@ -79,7 +79,11 @@ interface DemoPerson {
  * hier von sich aus schon ASCII sind.
  */
 const DEMO_PERSONEN: DemoPerson[] = [
-  { sub: "rike", name: "Rike", initialen: "RI", rolle: "koordination" },
+  // RIKE KOORDINIERT WEITERHIN — ABER NICHT MEHR UEBER DIESE SPALTE (Quellenwechsel 2026-08-15):
+  // `rolle` kennt nur noch `auftrag`/`bufdi` (`_db/schema.ts`s `ROLLEN`), die Koordination kommt
+  // aus der Auth-Gruppe. Lokal haengt man sie im Dev-Login an (`?groups=`); `auftrag` ist dabei
+  // fachlich richtig und nicht bloss der Rest — die Koordination stellt Aufgaben fuer andere ein.
+  { sub: "rike", name: "Rike", initialen: "RI", rolle: "auftrag" },
   { sub: "malte", name: "Malte", initialen: "MA", rolle: "auftrag" },
   { sub: "tomke", name: "Tomke", initialen: "TO", rolle: "auftrag" },
   { sub: "alina", name: "Alina", initialen: "AL", rolle: "bufdi" },

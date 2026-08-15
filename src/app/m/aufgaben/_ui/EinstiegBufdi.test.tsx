@@ -75,12 +75,15 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
 }
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
- * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — eine Ableitung aus der Zeile ginge gar nicht mehr,
+ * `ROLLEN` kennt `koordination` nicht mehr. Jeder Aufruf dieser Datei bleibt bei der Vorgabe
+ * `false`: `EinstiegBufdi` wird durchweg fuer eine BuFDi OHNE Koordinationsgruppe geprueft, und
+ * genau das meinten die Fixturen schon vorher.
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
@@ -186,8 +189,8 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
 
   /**
    * DIE ZWEI VERTAGTEN KPI-VERWEISE (Aufgabe 16) — beide zeigen jetzt auf eigene Anker AUF DIESER
-   * Seite, NICHT auf `/freigaben` (das ist fuer `bufdi` kein Ziel — `darfFreigabenSehen` gilt nur
-   * fuer `auftrag`/`koordination`, ein Verweis dorthin waere 404).
+   * Seite, NICHT auf `/freigaben` (das ist fuer diese BuFDi kein Ziel — `darfFreigabenSehen` gilt
+   * nur fuer `auftrag` oder wer koordiniert, ein Verweis dorthin waere 404).
    */
   it('"Freigabe offen" verlinkt auf #freigabe-offen, "Zurückgewiesen" auf #zurueckgewiesen — NICHT auf /freigaben', async () => {
     const malte = legePerson("dev:malte@test", "auftrag");

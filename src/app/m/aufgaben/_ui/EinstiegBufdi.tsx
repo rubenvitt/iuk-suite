@@ -49,7 +49,7 @@ import { Wochenplan } from "./Wochenplan";
  * DIE ZWEI VERTAGTEN KPI-VERWEISE (Aufgabe 16) — „Freigabe offen" und „Zurückgewiesen" trugen bis
  * hierhin bewusst KEIN `href` (Aufgabe 13: „ein Knopf auf eine 404-Seite wäre schlechter als
  * keiner" — `/freigaben` existierte noch nicht, UND ist ohnehin fuer `bufdi` KEIN Ziel: die Route
- * ist auf `auftrag`/`koordination` gegatet, `darfFreigabenSehen`, weil sie die Warteschlange DERER
+ * ist auf `auftrag` und die Koordination gegatet, `darfFreigabenSehen`, weil sie die Warteschlange DERER
  * zeigt, die freigeben, nicht der Zugewiesenen). Beide Kacheln verlinken deshalb NICHT auf
  * `/freigaben`, sondern auf zwei neue, schreibgeschuetzte Abschnitte AUF DIESER Seite
  * (`#freigabe-offen`, `#zurueckgewiesen`) — dieselbe Form wie die bereits bestehenden Anker

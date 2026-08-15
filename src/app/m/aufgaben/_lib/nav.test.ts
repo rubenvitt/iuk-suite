@@ -7,8 +7,8 @@ import type { Akteur } from "./zugang";
 /*
  * DIE REACHABILITY-GEGENPROBE (Brief: „ein Test dafuer ist die eigentliche Zusage dieser
  * Aufgabe"). EINE KONSISTENZPRUEFUNG ALLEIN GEGEN DIE IMPORTIERTEN PRAEDIKATE WAERE KEIN
- * AUSREICHENDER TEST: `darfVerteilen` und `darfPersonenVerwalten` sind fuer die Rolle
- * `koordination` HEUTE EXTENSIONAL IDENTISCH (`_lib/zugang.ts`) — ein vertauschter Aufruf in
+ * AUSREICHENDER TEST: `darfVerteilen` und `darfPersonenVerwalten` sind fuer eine koordinierende
+ * Person HEUTE EXTENSIONAL IDENTISCH (`_lib/zugang.ts`) — ein vertauschter Aufruf in
  * `nav.ts` (z. B. "verteilen" gated ueber `darfPersonenVerwalten") bliebe bei einem reinen
  * Praedikat-Vergleich unbemerkt. Dieser Test ruft deshalb die ECHTEN Seiten-Default-Exporte
  * (Vorbild `verteilen/page.test.tsx`s Rollen-Gate-Block) und prueft: JEDER Eintrag, den
@@ -65,12 +65,15 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
 }
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM der Prädikate, NICHT ihre Antwort: `istKoordination` folgt hier weiterhin genau
- * der Rolle der Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle`. Wichtig fuer GENAU DIESE Datei: `akteur(...)` und
+ * `anmelden(...)` muessen DASSELBE sagen — die Reachability-Gegenprobe unten vergleicht die
+ * Navigation (aus dem `Akteur`) mit dem echten Seitenabruf (aus der Sitzung), und eine Fixtur, die
+ * nur eine der beiden Haelften koordinieren laesst, pruefte zwei verschiedene Personen.
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 /**
@@ -96,34 +99,35 @@ const ROUTEN: Record<string, () => Promise<unknown>> = {
  * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
  * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
  * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
- * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * dieser Datei DIESELBE bleibt, bekommt eine koordinierende Person hier genau die Gruppe, die ihre
  * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
  *
- * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * SEIT `ROLLEN = ["auftrag", "bufdi"]` MUSS DER AUFRUFER ES SAGEN: aus der Zeile ist es nicht mehr
+ * ableitbar. `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
  */
-function anmelden(p: PersonRow): void {
+function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
   };
 }
 
 describe("aufgabenNav — Grundgeruest", () => {
   it("traegt genau EINEN Wurzeleintrag mit href '/'", () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    expect(aufgabenNav(akteur(rike), HEUTE).filter((e) => e.href === "/")).toHaveLength(1);
+    const rike = legePerson("dev:rike@test", "auftrag");
+    expect(aufgabenNav(akteur(rike, true), HEUTE).filter((e) => e.href === "/")).toHaveLength(1);
   });
 
   it("hat eindeutige Schluessel und eindeutige Ziele", () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    const nav = aufgabenNav(akteur(rike), HEUTE);
+    const rike = legePerson("dev:rike@test", "auftrag");
+    const nav = aufgabenNav(akteur(rike, true), HEUTE);
     expect(new Set(nav.map((e) => e.key)).size).toBe(nav.length);
     expect(new Set(nav.map((e) => e.href)).size).toBe(nav.length);
   });
 
   it("traegt ausschliesslich die AEUSZERE Pfadform, nie /m/aufgaben/...", () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    for (const e of aufgabenNav(akteur(rike), HEUTE)) {
+    const rike = legePerson("dev:rike@test", "auftrag");
+    for (const e of aufgabenNav(akteur(rike, true), HEUTE)) {
       expect(e.href, e.key).not.toMatch(/^\/m\/aufgaben/);
     }
   });
@@ -131,8 +135,8 @@ describe("aufgabenNav — Grundgeruest", () => {
 
 describe("aufgabenNav — genau die erwartete Eintragsmenge je Rolle (echte, unterschiedliche Mengen)", () => {
   it("koordination: start, neu, verteilen, freigaben, personen, archiv — NICHT routinen", () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    expect(aufgabenNav(akteur(rike), HEUTE).map((e) => e.key)).toEqual([
+    const rike = legePerson("dev:rike@test", "auftrag");
+    expect(aufgabenNav(akteur(rike, true), HEUTE).map((e) => e.key)).toEqual([
       "start",
       "neu",
       "verteilen",
@@ -153,8 +157,8 @@ describe("aufgabenNav — genau die erwartete Eintragsmenge je Rolle (echte, unt
   });
 
   it("eine ausgeschiedene koordination verliert jeden rollengebundenen Eintrag, behaelt start/neu/archiv", () => {
-    const exRike = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2020-01-01" });
-    expect(aufgabenNav(akteur(exRike), HEUTE).map((e) => e.key)).toEqual(["start", "neu", "archiv"]);
+    const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2020-01-01" });
+    expect(aufgabenNav(akteur(exRike, true), HEUTE).map((e) => e.key)).toEqual(["start", "neu", "archiv"]);
   });
 });
 
@@ -176,27 +180,48 @@ describe("aktiverEintrag gegen aufgabenNav — die Wurzel gewinnt nicht gegen ei
 });
 
 describe("DIE KERNZUSAGE: jeder Navigationseintrag ist fuer die jeweilige Rolle tatsaechlich erreichbar", () => {
-  const ROLLEN: { bezeichnung: string; rolle: Rolle; sub: string; extra?: Partial<PersonRow> }[] = [
-    { bezeichnung: "koordination", rolle: "koordination", sub: "dev:rike@test" },
-    { bezeichnung: "auftrag", rolle: "auftrag", sub: "dev:malte@test" },
-    { bezeichnung: "bufdi", rolle: "bufdi", sub: "dev:alina@test" },
+  /*
+   * DIE PERSONEN DES BETRIEBS, NICHT DIE WERTE EINER SPALTE (Quellenwechsel 2026-08-15): seit
+   * `rolle` und `istKoordination` unabhaengige Achsen sind, beschreibt jede Zeile eine
+   * KOMBINATION. Neu hinzugekommen ist „bufdi MIT Koordinationsgruppe" — vorher nicht
+   * darstellbar, ab jetzt ein Fall, den der Betrieb erzeugen kann (jemand steht in der
+   * Koordinationsgruppe UND hat eine BuFDi-Zeile), und der die einzige Person ist, die
+   * `/routinen` UND `/verteilen` zugleich erreicht.
+   */
+  const PERSONEN: {
+    bezeichnung: string;
+    rolle: Rolle;
+    koordiniert: boolean;
+    sub: string;
+    extra?: Partial<PersonRow>;
+  }[] = [
+    { bezeichnung: "koordination", rolle: "auftrag", koordiniert: true, sub: "dev:rike@test" },
+    { bezeichnung: "auftrag", rolle: "auftrag", koordiniert: false, sub: "dev:malte@test" },
+    { bezeichnung: "bufdi", rolle: "bufdi", koordiniert: false, sub: "dev:alina@test" },
+    {
+      bezeichnung: "bufdi MIT Koordinationsgruppe",
+      rolle: "bufdi",
+      koordiniert: true,
+      sub: "dev:alina-koord@test",
+    },
     // MINOR 8 (Fix-Runde 1): die Reachability-SCHLEIFE deckte bislang nur aktive Personen ab — die
     // ausgeschiedene Koordination stand nur im Schluesselmengen-Test oben, nicht hier. `neu`/`start`/
     // `archiv` tragen bewusst kein `istAktiv`-Gate (Spec §8), eine ausgeschiedene Person erreicht sie
     // also weiterhin; diese Zeile bindet das als echten Abruf, nicht nur als Behauptung.
     {
       bezeichnung: "ausgeschiedene koordination",
-      rolle: "koordination",
+      rolle: "auftrag",
+      koordiniert: true,
       sub: "dev:ex-rike-reach@test",
       extra: { aktivBis: "2020-01-01" },
     },
   ];
 
-  for (const { bezeichnung, rolle, sub, extra } of ROLLEN) {
+  for (const { bezeichnung, rolle, koordiniert, sub, extra } of PERSONEN) {
     it(`${bezeichnung}: jeder eigene Navigationseintrag antwortet — kein notFound()`, async () => {
       const person = legePerson(sub, rolle, extra);
-      anmelden(person);
-      const nav = aufgabenNav(akteur(person), HEUTE);
+      anmelden(person, koordiniert);
+      const nav = aufgabenNav(akteur(person, koordiniert), HEUTE);
       expect(nav.length).toBeGreaterThan(0);
       for (const eintrag of nav) {
         const route = ROUTEN[eintrag.href];
@@ -225,9 +250,9 @@ describe("DIE KERNZUSAGE: jeder Navigationseintrag ist fuer die jeweilige Rolle 
     await expect(PersonenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
-  it("/routinen lehnt koordination und auftrag tatsaechlich mit notFound() ab", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    anmelden(rike);
+  it("/routinen lehnt die Koordination und auftrag tatsaechlich mit notFound() ab", async () => {
+    const rike = legePerson("dev:rike@test", "auftrag");
+    anmelden(rike, true);
     await expect(RoutinenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
 
     const t2 = migrierteTestDb();

@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 /*
  * `/freigaben` — DIE FREIGABE-WARTESCHLANGE ALS EIGENE, ADRESSIERBARE ROUTE (Spec §8, Aufgabe 15).
- * Fuer `auftrag`/`koordination` (`darfFreigabenSehen`, `_lib/zugang.ts` — EIN EIGENES, benanntes
+ * Fuer `auftrag` und die Koordination (`darfFreigabenSehen`, `_lib/zugang.ts` — EIN EIGENES, benanntes
  * Praedikat, KEIN Alias auf `darfEinstellenFuerAndere`, obwohl beide heute denselben Ausdruck
  * auswerten: s. dessen Kopfkommentar fuer die Begruendung).
  *
@@ -50,7 +50,7 @@ export default async function FreigabenPage() {
   if (!akteur) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
   const heute = isoTag(new Date());
   // DASSELBE PRAEDIKAT WIE DIE OBERFLAECHE: `EinstiegAuftrag.tsx`s eigene Freigabe-Warteschlange
-  // erscheint nur fuer `auftrag`, `EinstiegKoordination.tsx`s nur fuer `koordination` — dieselbe
+  // erscheint nur fuer `auftrag`, `EinstiegKoordination.tsx`s nur fuer die Koordination — dieselbe
   // Bedingung, zusammengefasst, durchsetzt diese Route.
   if (!darfFreigabenSehen(akteur, heute)) notFound();
   return freigabenInhalt(db, akteur, heute);

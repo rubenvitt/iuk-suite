@@ -50,12 +50,16 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
 }
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
- * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — eine Ableitung aus der Zeile ginge gar nicht mehr,
+ * `ROLLEN` kennt `koordination` nicht mehr. Malte bleibt hier ueberall bei der Vorgabe `false`:
+ * diese Datei prueft den `auftrag` OHNE Koordinationsgruppe, und das ist keine Nachlaessigkeit,
+ * sondern die Voraussetzung mehrerer Zusagen unten (mit Gruppe liesse `darfFreigeben` die fremde
+ * Freigabe durch, s. den Kommentar bei „Anderer Pruefer").
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlange (Spec §8.3)", () => {
@@ -112,25 +116,35 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
   });
 
   /*
-   * FUER `auftrag` BLEIBT „IN VERTRETUNG" STRUKTURELL IMMER LEER (`istVertretungsfreigabe` verlangt
-   * `rolle === "koordination"`, `_lib/zugang.ts`) — die Trennung „meine"/„in Vertretung" MIT je
-   * einem Fall auf BEIDEN Seiten ist deshalb keine Aussage, die dieser Einstieg je selbst zeigen
-   * kann; sie gehoert der Rolle, fuer die Vertretung ueberhaupt vorkommt (`freigaben/page.test.tsx`
-   * mit `koordination`, und `EinstiegKoordination.test.tsx`). Hier wird geprueft, dass „meine"
-   * korrekt fuellt UND „in Vertretung" nicht faelschlich mitzieht, was eine fremde Freigabe (mit
-   * einem ANDEREN Pruefer) waere.
+   * FUER EINEN `auftrag` OHNE KOORDINATIONSGRUPPE BLEIBT „IN VERTRETUNG" IMMER LEER
+   * (`istVertretungsfreigabe` verlangt `istKoordination`, `_lib/zugang.ts`) — die Trennung
+   * „meine"/„in Vertretung" MIT je einem Fall auf BEIDEN Seiten ist deshalb keine Aussage, die
+   * dieser Einstieg fuer DIESEN Akteur je selbst zeigen kann; sie gehoert dorthin, wo Vertretung
+   * ueberhaupt vorkommt (`freigaben/page.test.tsx` und `EinstiegKoordination.test.tsx`, beide mit
+   * einem koordinierenden Akteur). Hier wird geprueft, dass „meine" korrekt fuellt UND „in
+   * Vertretung" nicht faelschlich mitzieht, was eine fremde Freigabe (mit einem ANDEREN Pruefer)
+   * waere.
+   *
+   * DIESE BEGRUENDUNG STAND BIS ZUM 2026-08-15 SCHAERFER DA („fuer `auftrag` STRUKTURELL immer
+   * leer", weil `istVertretungsfreigabe` `rolle === "koordination"` verlangte) — seit dem
+   * Quellenwechsel liegen Rolle und Koordination auf zwei unabhaengigen Achsen: eine Zeile mit
+   * `rolle: "auftrag"` UND Koordinationsgruppe SIEHT Vertretungsfaelle. Die Leere haengt hier also
+   * am zweiten Argument von `akteur(malte)` (Vorgabe `false`), nicht mehr an der Rolle allein —
+   * deshalb steht die Begruendung jetzt in der schwaecheren, wahren Fassung.
    */
   it("„meine“ zeigt die eigene Freigabe; eine fremde (anderer Pruefer) erscheint in KEINER Liste", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
-    const rike = legePerson("dev:rike@test", "koordination", { name: "Rike" });
+    // Rike koordiniert — hier aber nur als FREMDE Pruefer-/Erstellerzeile im Bild; welcher Akteur
+    // gerendert wird, entscheidet allein `akteur(malte)` weiter unten.
+    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
     // MEINE: Malte ist der eingetragene Pruefer.
     legeAufgabe({
       titel: "Meine Freigabe", erstellerId: rike.id, zugewiesenAn: alina.id,
       prueferId: malte.id, status: "freigabe_offen",
     });
-    // EIN ANDERER PRUEFER (Rike) — `darfFreigeben` lehnt das fuer Malte rundweg ab (weder Pruefer
-    // noch koordination); die Aufgabe darf in KEINER seiner beiden Listen auftauchen.
+    // EIN ANDERER PRUEFER (Rike) — `darfFreigeben` lehnt das fuer Malte rundweg ab (er ist weder
+    // der Pruefer noch koordiniert er); die Aufgabe darf in KEINER seiner beiden Listen auftauchen.
     legeAufgabe({
       titel: "Anderer Pruefer", erstellerId: rike.id, zugewiesenAn: alina.id,
       prueferId: rike.id, status: "freigabe_offen",

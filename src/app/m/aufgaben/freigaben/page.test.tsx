@@ -31,12 +31,14 @@ afterEach(async () => {
 const HEUTE = "2026-08-13";
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
- * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — auf DIESER Route besonders sichtbar, weil sie fuer
+ * `auftrag` MIT und OHNE Gruppe offensteht und die Trennung „meine"/„in Vertretung" allein an
+ * `istKoordination` haengt (`istVertretungsfreigabe`).
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
@@ -74,22 +76,22 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
  * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
  * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
  * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
- * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * dieser Datei DIESELBE bleibt, bekommt eine koordinierende Person hier genau die Gruppe, die ihre
  * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
  *
  * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
  */
-function anmelden(p: PersonRow): void {
+function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
   };
 }
 
 describe("freigabenInhalt", () => {
   it("traegt die Ueberschrift und den ausgeschriebenen Leerzustand", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    await mount(freigabenInhalt(t.db, akteur(rike), HEUTE));
+    const rike = legePerson("dev:rike@test", "auftrag");
+    await mount(freigabenInhalt(t.db, akteur(rike, true), HEUTE));
     expect(query("h1").textContent).toBe("Freigaben");
     expect(document.body.textContent).toContain("Keine Freigabe offen.");
   });
@@ -100,7 +102,7 @@ describe("freigabenInhalt", () => {
    * Titeln, damit eine Vertauschung sichtbar rot wuerde.
    */
   it("trennt „meine“ von „in Vertretung“, je ein Fall, fuer die Koordination", async () => {
-    const rike = legePerson("dev:rike@test", "koordination", { name: "Rike" });
+    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
     const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
     legeAufgabe({
@@ -112,7 +114,7 @@ describe("freigabenInhalt", () => {
       prueferId: malte.id, status: "freigabe_offen",
     });
 
-    await mount(freigabenInhalt(t.db, akteur(rike), HEUTE));
+    await mount(freigabenInhalt(t.db, akteur(rike, true), HEUTE));
 
     const ueberschriften = queryAll("h3").map((h) => h.textContent);
     expect(ueberschriften).toEqual(["Meine", "In Vertretung"]);
@@ -124,19 +126,19 @@ describe("freigabenInhalt", () => {
   });
 
   it("die Kontextzeile nennt die Gesamtzahl", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
+    const rike = legePerson("dev:rike@test", "auftrag");
     const malte = legePerson("dev:malte@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi");
     legeAufgabe({
       titel: "F1", erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: rike.id,
       status: "freigabe_offen",
     });
-    await mount(freigabenInhalt(t.db, akteur(rike), HEUTE));
+    await mount(freigabenInhalt(t.db, akteur(rike, true), HEUTE));
     expect(document.body.textContent).toContain("1 Aufgabe warten auf Freigabe.");
   });
 });
 
-describe("FreigabenPage — Rollen-Gate (Aufgabe 15, Spec §8: '/freigaben' fuer auftrag, koordination)", () => {
+describe("FreigabenPage — Rollen-Gate (Aufgabe 15, Spec §8: '/freigaben' fuer auftrag und die Koordination)", () => {
   it("auftrag: die Seite antwortet normal", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
     anmelden(malte);
@@ -144,9 +146,9 @@ describe("FreigabenPage — Rollen-Gate (Aufgabe 15, Spec §8: '/freigaben' fuer
     expect(query("h1").textContent).toBe("Freigaben");
   });
 
-  it("koordination: die Seite antwortet normal", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    anmelden(rike);
+  it("die Koordination: die Seite antwortet normal", async () => {
+    const rike = legePerson("dev:rike@test", "auftrag");
+    anmelden(rike, true);
     await mount(await FreigabenPage());
     expect(query("h1").textContent).toBe("Freigaben");
   });

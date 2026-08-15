@@ -38,12 +38,14 @@ afterEach(async () => {
 const HEUTE = "2026-08-10"; // Montag
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
- * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — `akteur(rike, true)` macht an jeder Fixtur sichtbar,
+ * dass diese Zusage die Gruppe voraussetzt, während `akteur(malte)` denselben `auftrag` OHNE Gruppe
+ * meint. Eine Ableitung aus der Zeile ginge nicht mehr: `ROLLEN` kennt `koordination` nicht mehr.
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
 }
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
@@ -130,10 +132,16 @@ describe("planInhalt — eigener Plan aenderbar, fremder lesend (Spec §7, Kern 
   /*
    * AUCH DIE KOORDINATION SCHEITERT AN EINEM FREMDEN PLAN (Spec, `_lib/zugang.ts`-Kommentar zu
    * `darfPlanAendern`): sie schlaegt vor, sie setzt nicht.
+   *
+   * `akteur(rike, true)` IST HIER KEINE FORMSACHE, SONDERN DIE GANZE ZUSAGE (Quellenwechsel
+   * 2026-08-15): Rikes Zeile traegt `auftrag` wie jede andere, ihre Koordination steht allein in der
+   * Gruppe. OHNE das `true` bliebe der Test gruen und behauptete nur noch das Schwaechere ("ein
+   * beliebiger Auftraggeber sieht einen fremden Plan lesend") — die eigentliche Aussage, dass auch
+   * die KOORDINATION dort nichts aendern darf, waere still verschwunden.
    */
   it("auch die Koordination sieht einen fremden Plan nur lesend", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    const rike = legePerson("dev:rike@test", "koordination");
+    const rike = legePerson("dev:rike@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
     legeAufgabe({
       titel: "X",
@@ -144,7 +152,7 @@ describe("planInhalt — eigener Plan aenderbar, fremder lesend (Spec §7, Kern 
       planDatum: null,
     });
 
-    await mount(planInhalt(t.db, akteur(rike), alina, HEUTE, {}));
+    await mount(planInhalt(t.db, akteur(rike, true), alina, HEUTE, {}));
 
     expect(document.body.textContent).not.toContain("Einzuplanen");
     expect(queryAll("form")).toHaveLength(0);

@@ -90,7 +90,16 @@ const _EXHAUSTIV: Record<Aktion, true> = {
 };
 const AKTIONEN = Object.keys(_EXHAUSTIV) as Aktion[];
 
-/** Die vier Rollen-Slots, mit denen das Raster arbeitet — dieselben IDs wie in `aufgabe()`. */
+/**
+ * Die vier Rollen-Slots, mit denen das Raster arbeitet — dieselben IDs wie in `aufgabe()`.
+ *
+ * DER SLOT `koordination` IST SEIT DEM QUELLENWECHSEL (2026-08-15) KEIN ROLLENWERT MEHR, SONDERN
+ * EINE GRUPPENZUGEHOERIGKEIT: `ROLLEN` kennt nur noch `auftrag`/`bufdi`, und wer koordiniert, steht
+ * in `Akteur.istKoordination` (aus der Auth-Gruppe). Die Zeile traegt deshalb `auftrag` — fachlich
+ * richtig, weil die Koordination fuer andere einstellt —, und die Koordinationseigenschaft haengt
+ * am `Akteur`, nicht an der Person. Der Slot behaelt seinen Namen, weil er die FACHLICHE Rolle im
+ * Raster benennt, nicht den Datenbankwert.
+ */
 interface Akteure {
   koordination: PersonRow;
   ersteller: PersonRow;
@@ -100,7 +109,7 @@ interface Akteure {
 
 function akteure(): Akteure {
   return {
-    koordination: person("koordination"),
+    koordination: person("auftrag", { id: "koordination-id" }),
     ersteller: person("auftrag", { id: "ersteller-id" }),
     bufdi: person("bufdi", { id: "bufdi-id" }),
     pruefer: person("auftrag", { id: "pruefer-id" }),
@@ -108,12 +117,22 @@ function akteure(): Akteure {
 }
 
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
- * AUFRUFFORM der Prädikate, NICHT ihre Antwort: `istKoordination` folgt hier weiterhin genau
- * der Rolle der Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE: die Koordination kommt aus der Auth-Gruppe und liegt damit auf einer ANDEREN Achse
+ * als `rolle`. Jede Zusage dieser Datei bleibt unveraendert — nur die Fixtur sagt jetzt aus, was sie
+ * vorher aus der Rolle ableitete.
  */
-function akteur(p: PersonRow): Akteur {
-  return { person: p, istKoordination: p.rolle === "koordination" };
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
+}
+
+/**
+ * DERSELBE AKTEUR, ABER FUER DIE RASTERLAEUFE: dort waehlt `privilegiert()` die handelnde Person
+ * erst zur Laufzeit aus den vier Slots aus, und nur der Slot `koordination` traegt die Gruppe. Ohne
+ * diese eine Stelle muesste jede Rasterzelle die Fallunterscheidung selbst treffen.
+ */
+function akteurImRaster(p: PersonRow, a: Akteure): Akteur {
+  return akteur(p, p.id === a.koordination.id);
 }
 
 /**
@@ -183,7 +202,7 @@ describe("uebergang — das 60-Zellen-Raster (6 Zustaende × 10 Aktionen)", () =
       const a = akteure();
       const p = privilegiert(aktion, a);
       const t = aufgabe({ status: von, erstellerId: a.ersteller.id, zugewiesenAn: a.bufdi.id, prueferId: a.pruefer.id });
-      const ergebnis = uebergang(t, aktion, akteur(p), HEUTE);
+      const ergebnis = uebergang(t, aktion, akteurImRaster(p, a), HEUTE);
 
       if (!erwartet) {
         expect(ergebnis.erlaubt).toBe(false);
@@ -214,14 +233,14 @@ describe("uebergang — dieselben 60 Zellen fuer eine AUSGESCHIEDENE privilegier
     "%s × %s — ausgeschieden → immer abgelehnt",
     (von, aktion) => {
       const a: Akteure = {
-        koordination: person("koordination", { id: "k-ex", aktivBis: "2026-08-01" }),
+        koordination: person("auftrag", { id: "koordination-id", aktivBis: "2026-08-01" }),
         ersteller: person("auftrag", { id: "ersteller-id", aktivBis: "2026-08-01" }),
         bufdi: person("bufdi", { id: "bufdi-id", aktivBis: "2026-08-01" }),
         pruefer: person("auftrag", { id: "pruefer-id", aktivBis: "2026-08-01" }),
       };
       const p = privilegiert(aktion, a);
       const t = aufgabe({ status: von, erstellerId: a.ersteller.id, zugewiesenAn: a.bufdi.id, prueferId: a.pruefer.id });
-      const ergebnis = uebergang(t, aktion, akteur(p), HEUTE);
+      const ergebnis = uebergang(t, aktion, akteurImRaster(p, a), HEUTE);
       expect(ergebnis.erlaubt).toBe(false);
       if (!ergebnis.erlaubt) expect(ergebnis.grund.length).toBeGreaterThan(0);
     },
@@ -308,7 +327,7 @@ describe("Sonderregel 2 — zurueckziehen geht NUR aus 'eingegangen'", () => {
   it("aus eingegangen: die Koordination darf ebenfalls zurueckziehen, auch als Nicht-Erstellerin", () => {
     const a = akteure();
     const t = aufgabe({ status: "eingegangen", erstellerId: a.ersteller.id });
-    expect(uebergang(t, "zurueckziehen", akteur(a.koordination), HEUTE)).toEqual({ erlaubt: true, wirkung: "loeschen" });
+    expect(uebergang(t, "zurueckziehen", akteur(a.koordination, true), HEUTE)).toEqual({ erlaubt: true, wirkung: "loeschen" });
   });
 
   it("aus eingegangen: ein Dritter (weder Erstellerin noch Koordination) darf nicht zurueckziehen", () => {
@@ -324,7 +343,7 @@ describe("Sonderregel 3 — umverteilen raeumt die Planung (Wirkung, kein Zielzu
   it("planLoeschen ist true bei umverteilen", () => {
     const a = akteure();
     const t = aufgabe({ status: "verteilt", planDatum: "2026-08-14", planUhrzeit: "09:00", planRang: 2 });
-    const ergebnis = uebergang(t, "umverteilen", akteur(a.koordination), HEUTE);
+    const ergebnis = uebergang(t, "umverteilen", akteur(a.koordination, true), HEUTE);
     expect(ergebnis).toMatchObject({ erlaubt: true, wirkung: "aendern", nach: "verteilt", planLoeschen: true });
   });
 
@@ -346,7 +365,7 @@ describe("Sonderregel 3 — umverteilen raeumt die Planung (Wirkung, kein Zielzu
       const a = akteure();
       const p = privilegiert(aktion, a);
       const t = aufgabe({ status: erwartet.von, erstellerId: a.ersteller.id, zugewiesenAn: a.bufdi.id, prueferId: a.pruefer.id });
-      const ergebnis = uebergang(t, aktion, akteur(p), HEUTE);
+      const ergebnis = uebergang(t, aktion, akteurImRaster(p, a), HEUTE);
       expect(ergebnis).toMatchObject({ erlaubt: true, planLoeschen: false });
     },
   );
@@ -360,14 +379,14 @@ describe("Berechtigung je erlaubtem Uebergang — die vorgesehene Rolle darf, an
   it("Koordination darf NICHT einplanen — das ist Sache des zugewiesenen BuFDi (fremde Plaene)", () => {
     const a = akteure();
     const t = aufgabe({ status: "verteilt", zugewiesenAn: a.bufdi.id });
-    const ergebnis = uebergang(t, "einplanen", akteur(a.koordination), HEUTE);
+    const ergebnis = uebergang(t, "einplanen", akteur(a.koordination, true), HEUTE);
     expect(ergebnis.erlaubt).toBe(false);
   });
 
   it("Koordination darf eine ihr selbst zugewiesene Fremdaufgabe NICHT freigeben", () => {
     const a = akteure();
     const t = aufgabe({ status: "freigabe_offen", erstellerId: a.ersteller.id, zugewiesenAn: a.koordination.id, prueferId: a.ersteller.id, istSelbst: false });
-    const ergebnis = uebergang(t, "freigeben", akteur(a.koordination), HEUTE);
+    const ergebnis = uebergang(t, "freigeben", akteur(a.koordination, true), HEUTE);
     expect(ergebnis.erlaubt).toBe(false);
   });
 
@@ -385,7 +404,7 @@ describe("Berechtigung je erlaubtem Uebergang — die vorgesehene Rolle darf, an
     expect(uebergang(t, "zurueckweisen", akteur(dritter), HEUTE).erlaubt).toBe(false);
   });
 
-  it("auftrag (nicht koordination) darf nicht verteilen", () => {
+  it("auftrag OHNE Koordinationsgruppe darf nicht verteilen", () => {
     const a = akteure();
     const t = aufgabe({ status: "eingegangen" });
     expect(uebergang(t, "verteilen", akteur(a.ersteller), HEUTE).erlaubt).toBe(false);
@@ -443,9 +462,9 @@ describe("anfangsZustand — einstellen ist keine Aktion, aber beide Ausprägung
     });
   });
 
-  it("fremd, durch koordination: eingegangen, nicht zugewiesen", () => {
-    const ersteller = person("koordination");
-    expect(anfangsZustand(akteur(ersteller), false, HEUTE)).toEqual({
+  it("fremd, durch die Koordination: eingegangen, nicht zugewiesen", () => {
+    const ersteller = person("auftrag");
+    expect(anfangsZustand(akteur(ersteller, true), false, HEUTE)).toEqual({
       erlaubt: true,
       status: "eingegangen",
       zugewiesenAn: null,
@@ -453,10 +472,21 @@ describe("anfangsZustand — einstellen ist keine Aktion, aber beide Ausprägung
     });
   });
 
-  it("fuer sich selbst, jede Rolle: verteilt, an sich selbst, istSelbst true", () => {
-    for (const rolle of ["koordination", "auftrag", "bufdi"] as const) {
+  /*
+   * VIER KOMBINATIONEN STATT DREI ROLLEN (Quellenwechsel 2026-08-15): `rolle` und `istKoordination`
+   * sind unabhaengige Achsen geworden, also laeuft die Schleife ueber beide. „Jede Rolle darf fuer
+   * sich selbst einstellen" heisst jetzt ausdruecklich auch: eine BuFDi-Zeile MIT
+   * Koordinationsgruppe und eine auftrag-Zeile OHNE.
+   */
+  it("fuer sich selbst, jede Kombination: verteilt, an sich selbst, istSelbst true", () => {
+    for (const [rolle, istKoordination] of [
+      ["auftrag", false],
+      ["auftrag", true],
+      ["bufdi", false],
+      ["bufdi", true],
+    ] as const) {
       const ersteller = person(rolle);
-      expect(anfangsZustand(akteur(ersteller), true, HEUTE)).toEqual({
+      expect(anfangsZustand(akteur(ersteller, istKoordination), true, HEUTE)).toEqual({
         erlaubt: true,
         status: "verteilt",
         zugewiesenAn: ersteller.id,
@@ -465,7 +495,7 @@ describe("anfangsZustand — einstellen ist keine Aktion, aber beide Ausprägung
     }
   });
 
-  it("fremd, durch bufdi: abgelehnt — nur auftrag oder koordination stellen fuer andere ein", () => {
+  it("fremd, durch bufdi: abgelehnt — nur auftrag oder die Koordination stellen fuer andere ein", () => {
     const bufdi = person("bufdi");
     const ergebnis = anfangsZustand(akteur(bufdi), false, HEUTE);
     expect(ergebnis.erlaubt).toBe(false);

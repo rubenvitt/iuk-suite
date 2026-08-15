@@ -101,7 +101,7 @@ export default async function RoutinenPage({
   if (!akteur) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
   // AUFGABE 13 (offener Punkt aus Aufgabe 11, s. Kommentar bei `darfRoutinenVerwalten`): Spec §8
   // nennt `/routinen` ausdruecklich "für bufdi" — ohne dieses Gate waere die Route fuer
-  // `koordination`/`auftrag` per direkter URL trotzdem erreichbar, auch wenn keine Navigation
+  // eine koordinierende oder eine `auftrag`-Person per direkter URL trotzdem erreichbar, auch wenn keine Navigation
   // dorthin verlinkt. Eine ROLLENFRAGE, keine Fassung der Modulzugang-Ausnahme oben — bleibt
   // `notFound()`.
   if (!darfRoutinenVerwalten(akteur, isoTag(new Date()))) notFound();

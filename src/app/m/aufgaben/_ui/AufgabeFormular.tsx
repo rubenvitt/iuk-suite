@@ -33,7 +33,7 @@ import { SPACE } from "@/core/theme/tokens";
  *     das nicht nach, sie liest nur `feldWert`/`checkboxVorbelegt`.
  *
  * „FUER MICH SELBST EINSTELLEN" ERSCHEINT NUR, WO DIE WAHL BESTEHT (Brief, Spec §5.2): jede Rolle
- * darf fuer sich selbst einstellen, nur `auftrag`/`koordination` auch fuer andere — das entscheidet
+ * darf fuer sich selbst einstellen, nur `auftrag` und die Koordination auch fuer andere — das entscheidet
  * `anfangsZustand()` bereits (`_lib/lebenszyklus.ts`). `darfFuerAndere` kommt darum FERTIG BERECHNET
  * vom Server herein (`darfEinstellenFuerAndere(person, heute)`, `_lib/zugang.ts`), NICHT als Import
  * hier: `zugang.ts` importiert `auth()` aus `@/core/auth` (next-auth) — ein Wert- oder

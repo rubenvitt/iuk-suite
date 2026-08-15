@@ -133,17 +133,21 @@ function legeRoutine(extra: Partial<typeof routinen.$inferInsert> & { personId: 
  * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
  * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
  * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
- * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * dieser Datei DIESELBE bleibt, bekommt eine koordinierende Person hier genau die Gruppe, die ihre
  * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * SEIT `ROLLEN = ["auftrag", "bufdi"]` MUSS DER AUFRUFER ES SAGEN (`anmelden(p, true)`): aus der
+ * Zeile ist es nicht mehr ableitbar — sie traegt `auftrag` wie jede andere Auftraggeber-Zeile, und
+ * genau das ist der Punkt des Umbaus.
  *
  * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt. Die wenigen Tests, die eine
  * Sitzung MIT ausdruecklichen Gruppen brauchen (Suite-Admin, Modul-Admin ohne Zeile), setzen
  * `sitzung` weiterhin selbst — sie pruefen genau diese Gruppenfrage.
  */
-function anmelden(p: PersonRow): void {
+function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
   };
 }
 
@@ -336,10 +340,10 @@ describe("verteilenAction", () => {
 
   it("verteilt eine eingegangene Aufgabe an eine aktive BuFDi, mit Zeitvorschlag und Verlaufszeile", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     const ergebnis = await verteilenAction(
       { ok: true },
@@ -364,9 +368,9 @@ describe("verteilenAction", () => {
 
   it("eine unbekannte Zielperson kommt als Feldfehler zurueck, die Aufgabe bleibt eingegangen", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     const ergebnis = erwarteFeldfehler(
       await verteilenAction({ ok: true }, form(task.id, { zielId: "nicht-vorhanden" })),
@@ -380,10 +384,10 @@ describe("verteilenAction", () => {
 
   it("eine INAKTIVE BuFDi als Ziel kommt als Feldfehler zurueck, auch wenn sie sonst passt", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const inaktiv = legePerson("dev:doerte@test", "bufdi", { aktivBis: "2026-08-01" });
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     const ergebnis = erwarteFeldfehler(
       await verteilenAction({ ok: true }, form(task.id, { zielId: inaktiv.id })),
@@ -395,10 +399,10 @@ describe("verteilenAction", () => {
 
   it("eine aktive Nicht-BuFDi-Person als Ziel kommt als Feldfehler zurueck", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const anderer = legePerson("dev:tomke@test", "auftrag");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     const ergebnis = erwarteFeldfehler(
       await verteilenAction({ ok: true }, form(task.id, { zielId: anderer.id })),
@@ -409,9 +413,9 @@ describe("verteilenAction", () => {
 
   it("„Ziel ist die Koordination selbst“ wird als Feldfehler abgelehnt — die dritte Uebergabe aus Aufgabe 8", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     // Die Koordination ist aktiv und existiert — nur `bufdis()` schliesst sie aus, weil ihre
     // Rolle nicht "bufdi" ist. Ohne diese Pruefung liesse sich hier eine fremd eingestellte
@@ -441,10 +445,10 @@ describe("verteilenAction", () => {
 
   it("eine ausgeschiedene Koordination, die es duerfte, wenn sie aktiv waere, wirft", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const exKoordination = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2026-08-01" });
+    const exKoordination = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-01" });
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
-    anmelden(exKoordination);
+    anmelden(exKoordination, true);
 
     await expect(
       verteilenAction({ ok: true }, form(task.id, { zielId: bufdi.id })),
@@ -454,7 +458,7 @@ describe("verteilenAction", () => {
 
   it("eine bereits verteilte Aufgabe wird nicht ueber verteilenAction erneut verteilt", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const bufdi1 = legePerson("dev:alina@test", "bufdi");
     const bufdi2 = legePerson("dev:bendix@test", "bufdi");
     const task = legeAufgabe({
@@ -463,7 +467,7 @@ describe("verteilenAction", () => {
       status: "verteilt",
       zugewiesenAn: bufdi1.id,
     });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await expect(
       verteilenAction({ ok: true }, form(task.id, { zielId: bufdi2.id })),
@@ -504,11 +508,11 @@ describe("umverteilenAction", () => {
 
   it("verteilt eine verteilte Aufgabe an eine andere aktive BuFDi und raeumt die Planung", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const bufdi1 = legePerson("dev:alina@test", "bufdi");
     const bufdi2 = legePerson("dev:bendix@test", "bufdi");
     const task = verteilteAufgabeMitPlanung(auftrag.id, auftrag.id, bufdi1.id);
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     const ergebnis = await umverteilenAction({ ok: true }, form(task.id, { zielId: bufdi2.id }));
     expect(ergebnis).toEqual({ ok: true });
@@ -535,11 +539,11 @@ describe("umverteilenAction", () => {
 
   it("ein neuer Zeitvorschlag darf im selben Zug gesetzt werden", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const bufdi1 = legePerson("dev:alina@test", "bufdi");
     const bufdi2 = legePerson("dev:bendix@test", "bufdi");
     const task = verteilteAufgabeMitPlanung(auftrag.id, auftrag.id, bufdi1.id);
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await umverteilenAction(
       { ok: true },
@@ -554,10 +558,10 @@ describe("umverteilenAction", () => {
 
   it("„Ziel ist die Koordination selbst“ wird auch beim Umverteilen als Feldfehler abgelehnt", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const bufdi1 = legePerson("dev:alina@test", "bufdi");
     const task = verteilteAufgabeMitPlanung(auftrag.id, auftrag.id, bufdi1.id);
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     const ergebnis = erwarteFeldfehler(
       await umverteilenAction({ ok: true }, form(task.id, { zielId: koordination.id })),
@@ -584,11 +588,11 @@ describe("umverteilenAction", () => {
 
   it("eine ausgeschiedene Koordination, die es duerfte, wenn sie aktiv waere, wirft", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const exKoordination = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2026-08-01" });
+    const exKoordination = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-01" });
     const bufdi1 = legePerson("dev:alina@test", "bufdi");
     const bufdi2 = legePerson("dev:bendix@test", "bufdi");
     const task = verteilteAufgabeMitPlanung(auftrag.id, auftrag.id, bufdi1.id);
-    anmelden(exKoordination);
+    anmelden(exKoordination, true);
 
     await expect(
       umverteilenAction({ ok: true }, form(task.id, { zielId: bufdi2.id })),
@@ -598,10 +602,10 @@ describe("umverteilenAction", () => {
 
   it("eine noch eingegangene Aufgabe wird nicht ueber umverteilenAction verteilt", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await expect(
       umverteilenAction({ ok: true }, form(task.id, { zielId: bufdi.id })),
@@ -632,9 +636,9 @@ describe("zurueckziehenAction", () => {
 
   it("die Koordination kann eine fremde eingegangene Aufgabe ebenfalls zurueckziehen", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const task = legeAufgabe({ erstellerId: auftrag.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await zurueckziehenAction(form(task.id));
 
@@ -1032,10 +1036,10 @@ describe("einplanenAction", () => {
 
   it("die Koordination darf keinen fremden Plan aendern, obwohl sie sonst fast alles darf", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "verteilt", zugewiesenAn: bufdi.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await expect(
       einplanenAction({ ok: true }, form(task.id, { planDatum: "2026-08-17" })),
@@ -1565,10 +1569,10 @@ describe("freigebenAction", () => {
 
   it("die Koordination gibt IN VERTRETUNG frei — die Verlaufszeile nennt Vertretung UND den regulaeren Pruefer", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await freigebenAction(form(task.id));
 
@@ -1602,10 +1606,10 @@ describe("freigebenAction", () => {
 
   it("eine ausgeschiedene Koordination, die es duerfte, wenn sie aktiv waere, wirft", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
-    const exKoordination = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2026-08-01" });
+    const exKoordination = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-01" });
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
-    anmelden(exKoordination);
+    anmelden(exKoordination, true);
 
     await expect(freigebenAction(form(task.id))).rejects.toThrow(/darf die Aktion "freigeben"/);
   });
@@ -1628,7 +1632,7 @@ describe("freigebenAction", () => {
    * hier bewusst kurz ausgeschaltet, um GENAU diese sonst unerreichbare Inkonsistenz nachzustellen.
    */
   it("wirft, statt eine UUID ins Journal zu schreiben, wenn der eingetragene Pruefer nicht mehr existiert", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const auftrag = legePerson("dev:malte@test", "auftrag");
 
@@ -1637,7 +1641,7 @@ describe("freigebenAction", () => {
       erstellerId: auftrag.id, prueferId: "verwaiste-pruefer-id", status: "freigabe_offen", zugewiesenAn: bufdi.id,
     });
     t.sqlite.pragma("foreign_keys = ON");
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await expect(freigebenAction(form(task.id))).rejects.toThrow(/Pruefer .* nicht gefunden/);
     expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
@@ -1849,8 +1853,8 @@ describe("routineAnlegenAction", () => {
    * Action, hier und in den beiden Gruppen darunter.
    */
   it("die Koordination legt auch sich selbst keine Routine an — /routinen ist rollengebunden", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
-    anmelden(koordination);
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    anmelden(koordination, true);
 
     await expect(routineAnlegenAction({ ok: true }, form())).rejects.toThrow(BERECHTIGUNGS_MELDUNG);
     expect(t.db.select().from(routinen).all()).toHaveLength(0);
@@ -1970,9 +1974,9 @@ describe("routineAendernAction", () => {
 
   it("auch die Koordination darf eine fremde Routine nicht aendern — sie schlaegt vor, sie setzt nicht", async () => {
     const bufdi = legePerson("dev:alina@test", "bufdi");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const routine = legeRoutine({ personId: bufdi.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await expect(routineAendernAction({ ok: true }, form(routine.id))).rejects.toThrow(
       BERECHTIGUNGS_MELDUNG,
@@ -1991,9 +1995,9 @@ describe("routineAendernAction", () => {
 
   /** DIE ROLLE, DIE DIE ROUTE ERZWINGT (Abschlussreview G6) — s. `routineAnlegenAction` oben. */
   it("die Koordination aendert auch ihre EIGENE Routine nicht — die Rolle riegelt, nicht nur die Identitaet", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const eigene = legeRoutine({ personId: koordination.id, titel: "Unveraendert" });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await expect(routineAendernAction({ ok: true }, form(eigene.id))).rejects.toThrow(
       BERECHTIGUNGS_MELDUNG,
@@ -2084,9 +2088,9 @@ describe("routineRuhenAction", () => {
 
   it("auch die Koordination darf eine fremde Routine nicht ruhen schalten", async () => {
     const bufdi = legePerson("dev:alina@test", "bufdi");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const routine = legeRoutine({ personId: bufdi.id });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await expect(routineRuhenAction(form(routine.id))).rejects.toThrow(BERECHTIGUNGS_MELDUNG);
   });
@@ -2286,9 +2290,9 @@ describe("rangVerschiebenAction", () => {
   it("auch die Koordination darf keinen fremden Rang verschieben", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const { mitte } = drei(bufdi, auftrag, "2026-08-17");
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await expect(rangVerschiebenAction(form(mitte.id, "hoch"))).rejects.toThrow(
       /Keine Berechtigung, diesen Rang zu aendern\./,
@@ -2384,8 +2388,8 @@ describe("personAnlegenAction", () => {
   }
 
   it("koordination legt eine Person an", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
-    anmelden(koordination);
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    anmelden(koordination, true);
 
     const ergebnis = await personAnlegenAction({ ok: true }, form());
     expect(ergebnis).toEqual({ ok: true });
@@ -2408,8 +2412,8 @@ describe("personAnlegenAction", () => {
    * Anmeldung mit dem tatsaechlichen (gemischten) `sub` STILL nie trifft.
    */
   it("normalisiert den sub NICHT (Gross-/Kleinschreibung bleibt erhalten)", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
-    anmelden(koordination);
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    anmelden(koordination, true);
 
     await personAnlegenAction({ ok: true }, form({ sub: "dev:MixedCase@Localtest.me" }));
     const neue = t.db
@@ -2427,8 +2431,8 @@ describe("personAnlegenAction", () => {
   });
 
   it("ein leerer Name kommt als Feldfehler zurueck, values traegt jedes Feld", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
-    anmelden(koordination);
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    anmelden(koordination, true);
 
     const ergebnis = erwarteFeldfehler(
       await personAnlegenAction({ ok: true }, form({ name: "  " })),
@@ -2440,9 +2444,9 @@ describe("personAnlegenAction", () => {
   });
 
   it("ein bereits vergebener sub kommt als Feldfehler zurueck, keine zweite Zeile entsteht", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     legePerson("dev:doppelt@localtest.me", "bufdi");
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     const ergebnis = erwarteFeldfehler(
       await personAnlegenAction({ ok: true }, form({ sub: "dev:doppelt@localtest.me" })),
@@ -2457,8 +2461,8 @@ describe("personAnlegenAction", () => {
   });
 
   it("aktivBis vor aktivVon kommt als Feldfehler zurueck", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
-    anmelden(koordination);
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    anmelden(koordination, true);
 
     const ergebnis = erwarteFeldfehler(
       await personAnlegenAction({ ok: true }, form({ aktivBis: "2026-08-01" })),
@@ -2467,8 +2471,8 @@ describe("personAnlegenAction", () => {
   });
 
   it("eine unbekannte Rolle ist nur ueber ein manipuliertes Formular erreichbar und wirft", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
-    anmelden(koordination);
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    anmelden(koordination, true);
 
     await expect(
       personAnlegenAction({ ok: true }, form({ rolle: "admin" })),
@@ -2567,9 +2571,9 @@ describe("personAendernAction", () => {
   }
 
   it("koordination aendert eine bestehende Person", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const ziel = legePerson("dev:alina@test", "bufdi", { name: "Alt" });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     const ergebnis = await personAendernAction({ ok: true }, form(ziel.id));
     expect(ergebnis).toEqual({ ok: true });
@@ -2582,24 +2586,24 @@ describe("personAendernAction", () => {
    * Geschichte einer Person still an eine andere Anmeldung um.
    */
   it("ein mitgeschicktes sub-Feld wird ignoriert — der sub bleibt stehen", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const ziel = legePerson("dev:alina@test", "bufdi");
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await personAendernAction({ ok: true }, form(ziel.id, { sub: "dev:uebernommen@test" }));
     expect(personNachId(t.db, ziel.id)!.sub).toBe("dev:alina@test");
   });
 
   it("fehlendes personId wirft", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
-    anmelden(koordination);
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    anmelden(koordination, true);
 
     await expect(personAendernAction({ ok: true }, form(""))).rejects.toThrow(/personId fehlt/);
   });
 
   it("unbekanntes personId wirft", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
-    anmelden(koordination);
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    anmelden(koordination, true);
 
     await expect(
       personAendernAction({ ok: true }, form("unbekannte-id")),
@@ -2624,23 +2628,29 @@ describe("personAendernAction", () => {
    * Formular (`personen/page.test.tsx` belegt das), koennte es aber nicht absenden — nur ein
    * direkter Datenbankeingriff hoebe die Sperre auf.
    *
-   * `rolle: "koordination"` IST HIER PFLICHT UND KEINE FIXTUR-KOSMETIK: das `form()` dieser Gruppe
-   * traegt sonst `bufdi`, und eine Reaktivierung, die die Person dabei still zur BuFDi degradiert,
-   * loeste den Fall gerade NICHT auf — sie waere wieder aktiv, aber ohne das Recht, das sie
-   * zurueckholen wollte. Deshalb pruefen die Zusicherungen unten BEIDE Felder.
+   * DAS AUSDRUECKLICHE `rolle` IM FORMULAR IST PFLICHT UND KEINE FIXTUR-KOSMETIK: das `form()`
+   * dieser Gruppe traegt sonst `bufdi`, und eine Reaktivierung, die die Person dabei still zur
+   * BuFDi degradiert, loeste den Fall gerade NICHT auf — sie waere wieder aktiv, aber ohne das
+   * Recht, das sie zurueckholen wollte. Deshalb pruefen die Zusicherungen unten BEIDE Felder.
+   *
+   * SEIT DEM QUELLENWECHSEL (2026-08-15) HEISST DIESE ROLLE `auftrag`, NICHT MEHR `koordination` —
+   * und die Aussage wird dadurch SCHAERFER, nicht schwaecher: die Koordination selbst haengt jetzt
+   * an der Auth-Gruppe und kann von diesem Formular gar nicht mehr entzogen werden; was hier
+   * schiefgehen koennte, ist die stille Degradierung zur BuFDi, die ihr `darfEinstellenFuerAndere`
+   * und `darfFreigabenSehen` naehme. Genau das prueft die Zeile weiterhin.
    */
   it("Aussperr-Fall: die beendete einzige Koordinationsperson reaktiviert sich als Suite-Admin — mit ihrer Rolle", async () => {
-    const exRike = legePerson("dev:rike@test", "koordination", { aktivBis: "2026-08-12" });
+    const exRike = legePerson("dev:rike@test", "auftrag", { aktivBis: "2026-08-12" });
     sitzung = { user: { id: exRike.sub, groups: ["dashboard-admins"] } };
 
     const ergebnis = await personAendernAction(
       { ok: true },
-      form(exRike.id, { rolle: "koordination", aktivBis: "" }),
+      form(exRike.id, { rolle: "auftrag", aktivBis: "" }),
     );
     expect(ergebnis).toEqual({ ok: true });
     expect(personNachId(t.db, exRike.id)).toMatchObject({
       aktivBis: null,
-      rolle: "koordination",
+      rolle: "auftrag",
     });
   });
 });
@@ -2653,9 +2663,9 @@ describe("personBeendenAction — setzt aktivBis auf HEUTE", () => {
   }
 
   it("koordination beendet eine aktive Person", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const ziel = legePerson("dev:alina@test", "bufdi", { aktivBis: null });
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     await personBeendenAction(form(ziel.id));
     expect(personNachId(t.db, ziel.id)!.aktivBis).toBe(HEUTE);
@@ -2663,8 +2673,8 @@ describe("personBeendenAction — setzt aktivBis auf HEUTE", () => {
   });
 
   it("unbekanntes personId wirft", async () => {
-    const koordination = legePerson("dev:rike@test", "koordination");
-    anmelden(koordination);
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    anmelden(koordination, true);
 
     await expect(personBeendenAction(form("unbekannte-id"))).rejects.toThrow(/nicht gefunden/);
   });
