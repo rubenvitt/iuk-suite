@@ -144,6 +144,106 @@ const KINDER = (
   </>
 );
 
+/*
+ * EIN ZWEITER, WIRKLICHKEITSNAHER AUFBAU — NUR DER ZIEHGRIFF TRAEGT `data-aufgabe-id`
+ * (Abschlussreview W6). `KINDER` oben legt das Attribut auf die ganze Zeile; im Betrieb sitzt es
+ * ausschliesslich auf dem `⠿`-Zeichen (`_ui/Wochenplan.tsx`), und die Zeile daneben (Uhrzeit,
+ * Titel-Link, Rangknoepfe, Polster) ist ein Vielfaches davon. Mit `KINDER` ist der Zweig
+ * `quellTag === zielTag && zielIndex === null` deshalb GAR NICHT ERREICHBAR — jedes Loslassen
+ * trifft dort eine Zeile mit Index.
+ *
+ * Genau dieser Zweig ist aber der praktisch haeufigste Bediengang: wer am selben Tag loslaesst und
+ * das eine Zeichen verfehlt (auf dem Titel, der Uhrzeit, den Knoepfen, dem Polster oder unter der
+ * letzten Zeile), nimmt ihn. Er ist der einzige, in dem `anzahlZielTag` (`ZiehBereich.tsx:211`,
+ * `spalte.querySelectorAll("[data-aufgabe-id]").length`) das Ergebnis bestimmt.
+ */
+const ZEILEN_KINDER = (
+  <>
+    <div data-tag="2026-08-17">
+      <div data-rolle="zeile-a1">
+        <span data-aufgabe-id="a1" data-plan-index="0" data-plan-uhrzeit="" draggable>
+          ⠿
+        </span>
+        <a href="/a/a1" data-rolle="titel-a1">
+          Aufgabe a1
+        </a>
+      </div>
+      <div data-rolle="zeile-a2">
+        <span data-aufgabe-id="a2" data-plan-index="1" data-plan-uhrzeit="" draggable>
+          ⠿
+        </span>
+        <a href="/a/a2" data-rolle="titel-a2">
+          Aufgabe a2
+        </a>
+      </div>
+      <div data-rolle="polster" style={{ minHeight: 40 }} />
+    </div>
+  </>
+);
+
+/*
+ * DIE MUTATION, DIE BIS ZUM ABSCHLUSSREVIEW GRUEN GEBLIEBEN WAERE:
+ *   const anzahlZielTag = spalte.querySelectorAll("[data-aufgabe-id]").length - 1;
+ * Der Aufbau ist absichtlich so gewaehlt, dass sie nicht "eine Position zu frueh" ergibt, sondern
+ * GAR KEINE Aktion: zwei Eintraege, Quelle auf Index 0 — unmutiert `ziel = 1` (ein Schritt
+ * runter), mutiert `ziel = 0 === quellIndex` → `null`, also das stille Nichts ohne Meldung, das
+ * dieses Modul in Aufgabe 13 schon einmal bekaempft hat. Ein "kein Aufruf" ist das schaerfere Rot
+ * als ein "ein Aufruf weniger".
+ */
+describe("ZiehBereich — Loslassen NEBEN dem Ziehgriff (anzahlZielTag)", () => {
+  it("Loslassen auf der Zeilenflaeche (Titel, nicht Griff) desselben Tages schiebt ans Ende", async () => {
+    await mount(<ZiehBereich interaktiv>{ZEILEN_KINDER}</ZiehBereich>);
+    const griffA1 = query('[data-aufgabe-id="a1"]');
+    const titelA2 = query('[data-rolle="titel-a2"]');
+    griffA1.dispatchEvent(zugEreignis("dragstart"));
+    titelA2.dispatchEvent(zugEreignis("dragover"));
+    await act(async () => {
+      titelA2.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).toHaveBeenCalledTimes(1);
+    const formData = rangVerschiebenActionMock.mock.calls[0]![0] as FormData;
+    expect(formData.get("aufgabeId")).toBe("a1");
+    expect(formData.get("richtung")).toBe("runter");
+  });
+
+  it("Loslassen auf der leeren Spaltenflaeche unter der letzten Zeile schiebt ans Ende", async () => {
+    await mount(<ZiehBereich interaktiv>{ZEILEN_KINDER}</ZiehBereich>);
+    const griffA1 = query('[data-aufgabe-id="a1"]');
+    const polster = query('[data-rolle="polster"]');
+    griffA1.dispatchEvent(zugEreignis("dragstart"));
+    polster.dispatchEvent(zugEreignis("dragover"));
+    await act(async () => {
+      polster.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).toHaveBeenCalledTimes(1);
+    const formData = rangVerschiebenActionMock.mock.calls[0]![0] as FormData;
+    expect(formData.get("aufgabeId")).toBe("a1");
+    expect(formData.get("richtung")).toBe("runter");
+  });
+
+  /*
+   * DIE GEGENPROBE ZUR GEGENPROBE: steht die Quelle bereits an letzter Stelle, ist dasselbe
+   * Loslassen ein echtes Nichts — sonst waere oben nicht belegt, dass die Zahl aus dem DOM
+   * ueberhaupt gelesen wird, sondern nur, dass irgendein Schritt ausgeloest wird.
+   */
+  it("dieselbe Flaeche, aber die Quelle steht schon hinten: keine Aktion", async () => {
+    await mount(<ZiehBereich interaktiv>{ZEILEN_KINDER}</ZiehBereich>);
+    const griffA2 = query('[data-aufgabe-id="a2"]');
+    const polster = query('[data-rolle="polster"]');
+    griffA2.dispatchEvent(zugEreignis("dragstart"));
+    await act(async () => {
+      polster.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("ZiehBereich — DOM-Verdrahtung", () => {
   it("ein Zug innerhalb eines Tages ruft rangVerschiebenAction genau schritte-mal, mit der richtigen richtung", async () => {
     await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);

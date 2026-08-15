@@ -252,7 +252,10 @@ describe("POST /a/<id>/nachweis/hochladen — legt Datei UND/ODER Nachweis an", 
  * VOR dem vollstaendigen Einlesen des Rumpfs.
  */
 describe("POST /a/<id>/nachweis/hochladen — der fruehe content-length-Riegel", () => {
-  it("eine Anfrage mit einem `content-length` weit ueber NACHWEIS_MAX_BYTES wird abgelehnt, OHNE den Rumpf zu lesen", async () => {
+  // DER TITEL BEHAUPTET NICHT MEHR DIE REIHENFOLGE (Abschlussreview W7): keine der drei
+  // Zusicherungen hier unterscheidet "vor dem Puffern abgelehnt" von "nach dem Puffern abgelehnt".
+  // Diese Frage klaert der letzte Test dieser Gruppe, mit einem Rumpf, der beim Lesen wirft.
+  it("eine Anfrage mit einem `content-length` weit ueber NACHWEIS_MAX_BYTES wird abgelehnt — 413, kein Datensatz", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, zugewiesenAn: bufdi.id, status: "in_arbeit", nachweisArt: "bild" });
@@ -265,5 +268,101 @@ describe("POST /a/<id>/nachweis/hochladen — der fruehe content-length-Riegel",
     const koerper = (await antwort.json()) as { ok: false; fieldErrors: Record<string, string> };
     expect(koerper.fieldErrors.datei).toBeTruthy();
     expect(t.db.select().from(dateien).all()).toHaveLength(0);
+  });
+
+  /*
+   * DIE SCHWELLE EXAKT, NICHT „WEIT DARUEBER" (Abschlussreview W7). Der Test darueber schickt
+   * 100 MiB und bliebe deshalb auch dann gruen, wenn `MULTIPART_UEBERHANG_BYTES` versehentlich von
+   * `64 * 1024` auf `64 * 1024 * 1024` waechst — die Schwelle laege dann bei 72 MiB statt bei
+   * 8 MiB + 64 KiB, und der Riegel liesse alles bis dahin durch, ohne dass eine Zeile rot wuerde.
+   * Vorbild ist `_lib/ablage.test.ts` ("nimmt eine Datei GENAU an der Grenze an"), das seine Grenze
+   * mit Wert und Wert−1 pinnt.
+   *
+   * DIE ZAHL STEHT HIER ALS LITERAL, UND ZWAR ABSICHTLICH: `MULTIPART_UEBERHANG_BYTES` ist in
+   * `route.ts` bewusst NICHT exportiert (jeder zusaetzliche Export aus einem Route Handler ist
+   * Next.js gegenueber eine Zusage ueber die Modulform), und ein Test, der seine Erwartung aus der
+   * gepruefteten Quelle bezieht, prueft nichts. Aendert jemand den Rand absichtlich, gehoert diese
+   * Zeile mitgeaendert — genau das ist der Riegel.
+   */
+  const SCHWELLE = 8 * 1024 * 1024 + 64 * 1024; // NACHWEIS_MAX_BYTES + MULTIPART_UEBERHANG_BYTES
+
+  it("genau EIN Byte ueber der Schwelle wird abgelehnt — 413", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, zugewiesenAn: bufdi.id, status: "in_arbeit", nachweisArt: "bild" });
+    anmelden(bufdi);
+
+    const antwort = await ruf(task.id, form({}, bildDatei()), {
+      "content-length": String(SCHWELLE + 1),
+    });
+    expect(antwort.status).toBe(413);
+  });
+
+  /*
+   * `not.toBe(413)` STATT `toBe(200)`, UND DAS IST KEINE BEQUEMLICHKEIT: hier steht ein
+   * vorgetaeuschtes `content-length` von ~8 MiB an einem Rumpf von ein paar hundert Byte. Was
+   * `req.formData()` mit dieser Diskrepanz macht, ist undici-Sache und kein Vertrag dieses Moduls —
+   * wirft es, antwortet die Route mit 400. Beides beweist, was hier zu beweisen ist: die Schwelle
+   * wurde NICHT ueberschritten. Ein `toBe(200)` haenge diesen Riegel-Test an fremdes Verhalten.
+   */
+  it("GENAU auf der Schwelle wird nicht vom content-length-Riegel abgewiesen — Gleichstand ist erlaubt", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, zugewiesenAn: bufdi.id, status: "in_arbeit", nachweisArt: "bild" });
+    anmelden(bufdi);
+
+    const antwort = await ruf(task.id, form({}, bildDatei()), {
+      "content-length": String(SCHWELLE),
+    });
+    expect(antwort.status).not.toBe(413);
+  });
+
+  /*
+   * DIE REIHENFOLGE, NICHT NUR DIE WIRKUNG (Abschlussreview W7). Der Titel des Tests darueber
+   * versprach "OHNE den Rumpf zu lesen", und keine seiner Zusicherungen konnte das belegen:
+   * verschiebt man den `inhaltZuGross`-Block HINTER `await req.formData()`, sind Status, Rumpf und
+   * Datenbankzustand identisch — gruen. Genau daran haengt der einzige Schutz gegen eine Anfrage,
+   * die absichtlich Gigabytes in den Speicher schiebt, seit der Server-Action-Deckel von 1 MB mit
+   * dem Umbau auf den Route Handler weggefallen ist.
+   *
+   * DER AUFBAU MACHT DAS LESEN SELBST BEOBACHTBAR: der Rumpf ist ein `ReadableStream`, der beim
+   * ersten Lesen WIRFT. Laeuft der Riegel zuerst, sieht die Route den Strom nie und antwortet 413.
+   * Steht er hinter `req.formData()`, wirft der Lesevorgang, der `catch`-Zweig greift, und die
+   * Route antwortet 400 — dieselbe Anfrage, ein anderer Status. Das ist die Unterscheidung, die
+   * dem Befund fehlte.
+   *
+   * `duplex: "half"` IST PFLICHT (undici/Node) fuer einen Strom als Rumpf und steht nicht in den
+   * DOM-Typen von `RequestInit` — daher die Erweiterung beim Aufruf, kein `any`.
+   */
+  it("der Riegel greift VOR dem Lesen des Rumpfs — ein Rumpf, der beim Lesen wirft, wird nie angefasst", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, zugewiesenAn: bufdi.id, status: "in_arbeit", nachweisArt: "bild" });
+    anmelden(bufdi);
+
+    const unlesbar = new ReadableStream({
+      start(steuerung) {
+        steuerung.error(new Error("Dieser Rumpf haette nie gelesen werden duerfen."));
+      },
+    });
+    const anfrageMitUnlesbaremRumpf = new Request(
+      "http://aufgaben.localtest.me/a/x/nachweis/hochladen",
+      {
+        method: "POST",
+        body: unlesbar,
+        headers: {
+          "content-type": "multipart/form-data; boundary=grenze",
+          "content-length": String(SCHWELLE + 1),
+        },
+        duplex: "half",
+      } as RequestInit & { duplex: "half" },
+    );
+
+    const antwort = await POST(anfrageMitUnlesbaremRumpf, {
+      params: Promise.resolve({ id: task.id }),
+    });
+    // 413 = der Riegel kam zuerst. 400 waere die Antwort des `catch`-Zweigs um `req.formData()`,
+    // also der Beweis, dass der Rumpf doch gelesen wurde.
+    expect(antwort.status).toBe(413);
   });
 });

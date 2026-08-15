@@ -88,13 +88,14 @@ async function legeDatei(
   aufgabeId: string,
   scanStatus: "offen" | "sauber" | "befund" | "fehler",
   mime = "image/png",
+  dateiname = "beweisfoto.png",
 ) {
   const id = nanoid();
-  const befund = await legeNachweisAb(id, "beweisfoto.png", PNG);
+  const befund = await legeNachweisAb(id, dateiname, PNG);
   if (!befund.ok) throw new Error("Testaufbau: legeNachweisAb ist fehlgeschlagen");
   return t.db
     .insert(dateien)
-    .values({ id, aufgabeId, dateiname: "beweisfoto.png", mime, groesse: befund.groesse, scanStatus })
+    .values({ id, aufgabeId, dateiname, mime, groesse: befund.groesse, scanStatus })
     .returning()
     .get();
 }
@@ -141,8 +142,43 @@ describe("GET /a/<id>/nachweis/<nachweisId> — Bedingung 1: exakt 'sauber' lief
     expect(antwort.headers.get("content-type")).toBe("image/png");
     expect(antwort.headers.get("x-content-type-options")).toBe("nosniff");
     expect(antwort.headers.get("cache-control")).toBe("private, no-store");
+    // DER DATEINAME IM KOPF WIRD GEBAUT, NICHT UEBERNOMMEN (Abschlussreview W5): `nachweis-<id>`
+    // plus die Endung aus `ENDUNG_FUER[mime]` — die Datenbankspalte `dateiname` kommt darin nicht
+    // vor. Bis zum Abschlussreview gab es im ganzen Modul NULL Zusicherungen auf diesen Kopf.
+    expect(antwort.headers.get("content-disposition")).toBe(
+      `inline; filename="nachweis-${datei.id}.png"`,
+    );
     const bytes = new Uint8Array(await antwort.arrayBuffer());
     expect(bytes).toEqual(PNG);
+  });
+
+  /**
+   * DIE GEGENPROBE ZUM KOPF (Abschlussreview W5) — der Grund, warum der gebaute Name kein
+   * Stilentscheid ist: `dateien.dateiname` ist der ROHE `File.name` des Uploads
+   * (`hochladen/route.ts`) und wird ABSICHTLICH NIE bereinigt (`_lib/ablage.ts` schreibt
+   * ausdruecklich `void dateiname`, weil der Name in den Ablagepfad nicht eingeht). Flosse er in
+   * den `content-disposition`-Kopf, braeche ein `"` die Quoted-String auf und haengte eigene
+   * Kopfparameter an; ein CR/LF liesse den `Response`-Konstruktor werfen — ein unbehandelter 500
+   * auf dem sicherheitskritischsten Pfad des Moduls.
+   *
+   * DIE MUTATION, DIE OHNE DIESEN FALL GRUEN BLIEBE:
+   *   `inline; filename="${datei.dateiname}.${ENDUNG_FUER[datei.mime]}"`
+   * (`ENDUNG_FUER` bliebe benutzt, also auch kein Lint-Befund).
+   */
+  it("ein feindseliger dateiname taucht im content-disposition NICHT auf", async () => {
+    const ersteller = legePerson("dev:malte@test", "auftrag");
+    const task = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: ersteller.id, istSelbst: true });
+    const datei = await legeDatei(task.id, "sauber", "image/png", 'a"b.png');
+    const nachweis = legeNachweis(task.id, datei.id, ersteller.id);
+    anmelden(ersteller);
+
+    const antwort = await ruf(task.id, nachweis.id);
+    expect(antwort.status).toBe(200);
+    // Der gespeicherte Name steht wirklich so in der Datenbank — der Kopf traegt ihn trotzdem nicht.
+    expect(datei.dateiname).toBe('a"b.png');
+    const kopf = antwort.headers.get("content-disposition")!;
+    expect(kopf).not.toContain('a"b');
+    expect(kopf).toBe(`inline; filename="nachweis-${datei.id}.png"`);
   });
 });
 

@@ -295,7 +295,15 @@ describe("ERLAUBTE_BILD_TYPEN / istErlaubterBildTyp — die Allowlist zur Laufze
     expect(istErlaubterBildTyp("")).toBe(false);
   });
 
-  it("ENDUNG_FUER traegt fuer jeden erlaubten Typ genau eine Endung, nie aus dateiname abgeleitet", () => {
+  /*
+   * DER TITEL SAGT JETZT NUR NOCH, WAS DER RUMPF PRUEFT (Abschlussreview W5): er lautete
+   * "… genau eine Endung, NIE AUS `dateiname` ABGELEITET" und prueft doch nur, dass jeder
+   * Kartenwert eine nichtleere Zeichenkette ist — die zweite Haelfte konnte gar nicht rot werden,
+   * weil `dateiname` hier nirgends vorkommt. WO SIE JETZT GEPRUEFT WIRD: in der Auslieferung
+   * selbst, `a/[id]/nachweis/[nachweisId]/route.test.ts` ("ein feindseliger dateiname taucht im
+   * content-disposition NICHT auf") — dort, wo der Kopf tatsaechlich gebaut wird.
+   */
+  it("ENDUNG_FUER traegt fuer jeden erlaubten Typ genau eine nichtleere Endung", () => {
     for (const typ of ERLAUBTE_BILD_TYPEN) {
       expect(typeof ENDUNG_FUER[typ]).toBe("string");
       expect(ENDUNG_FUER[typ].length).toBeGreaterThan(0);
