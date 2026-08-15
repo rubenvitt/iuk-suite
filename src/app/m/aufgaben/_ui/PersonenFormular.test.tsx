@@ -382,6 +382,61 @@ describe("PersonenFormular — Anlegen MIT Verzeichnis: Suche statt blindem Text
     expect(query("#pf-sub-err").textContent).toBe("Diese Kennung ist bereits vergeben.");
   });
 
+  /**
+   * DASSELBE FUER NAME UND INITIALEN — der Fall, den die erste Fassung uebersah (Review-Runde).
+   *
+   * Beide Felder haengen im Suchzweig am selben Remount-Schluessel wie das Suchfeld, weil ein
+   * Treffer sie ueberschreiben muss. Fehlten die Serverwerte darin, montierten sie beim Absenden
+   * leer neu und blieben es: die Koordination bekaeme zu einem Fehler in einem GANZ ANDEREN Feld
+   * ("Aktiv von fehlt") beim naechsten Absenden zusaetzlich "Name fehlt." und "Initialen fehlen."
+   * — und muesste eine gerade getroffene Auswahl neu treffen.
+   *
+   * Im Rueckfallzweig gibt es den Fall nicht (kein `key`, `defaultValue` traegt) — die Gegenprobe
+   * steht deshalb daneben.
+   */
+  it("nach einem Feldfehler stehen auch Name und Initialen wieder da", async () => {
+    personenSucheActionMock.mockResolvedValue({ status: "ok", people: TREFFER });
+    await mitVerzeichnis();
+    await tippe("al");
+    const alina = vorschlagsknoten().find((k) => (k.textContent ?? "").includes("PID-Alina"));
+    if (!alina) throw new Error("Vorschlag 'PID-Alina' nicht gefunden");
+    await clickElement(alina);
+    await submitForm();
+
+    // Der Server bemaengelt ein ANDERES Feld und traegt alle gesendeten Werte zurueck.
+    stelleZustandEin({
+      ok: false,
+      fieldErrors: { aktivVon: "Aktiv von fehlt oder ist ungueltig." },
+      values: {
+        sub: "PID-Alina", name: "Alina Rathje", initialen: "AR", rolle: "auftrag",
+        sollMinutenTag: "468", aktivVon: "", aktivBis: "",
+      },
+    });
+    await rerender(<PersonenFormular verzeichnisAktiv sucheVerzoegerungMs={0} />);
+
+    expect(query<HTMLInputElement>("#pf-name").value).toBe("Alina Rathje");
+    expect(query<HTMLInputElement>("#pf-initialen").value).toBe("AR");
+    expect(query<HTMLInputElement>("input[name='sub']").value).toBe("PID-Alina");
+  });
+
+  it("Gegenprobe ohne Verzeichnis: dort tragen Name und Initialen ohnehin", async () => {
+    await mount(<PersonenFormular />);
+    await fill("#pf-name", "Alina Rathje");
+    await submitForm();
+
+    stelleZustandEin({
+      ok: false,
+      fieldErrors: { aktivVon: "Aktiv von fehlt oder ist ungueltig." },
+      values: {
+        sub: "dev:alina@localtest.me", name: "Alina Rathje", initialen: "AR", rolle: "auftrag",
+        sollMinutenTag: "468", aktivVon: "", aktivBis: "",
+      },
+    });
+    await rerender(<PersonenFormular />);
+
+    expect(query<HTMLInputElement>("#pf-name").value).toBe("Alina Rathje");
+  });
+
   it("beim Aendern gibt es kein Suchfeld — der sub bleibt unveraenderlich", async () => {
     await mount(<PersonenFormular person={PERSON} verzeichnisAktiv />);
     expect(exists("#pf-sub")).toBe(false);

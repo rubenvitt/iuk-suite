@@ -123,9 +123,29 @@ export function PersonenFormular({
     formAction(daten);
   };
   const sucheAktiv = verzeichnisAktiv && !person;
-  // `undefined` heisst „kein Remount" — in jedem Zweig ohne Suche bleibt das Formular exakt das,
-  // was es vor dem Autofill war.
-  const vorbelegungsKey = sucheAktiv ? `${absendeZaehler}:${treffer?.userId ?? ""}` : undefined;
+  /*
+   * `undefined` heisst „kein Remount" — in jedem Zweig ohne Suche bleibt das Formular exakt das,
+   * was es vor dem Autofill war (dort erledigt `defaultValue` alles von selbst).
+   *
+   * DREI TEILE, UND DER DRITTE IST DER, DEN MAN VERGISST (Review-Runde zu dieser Aufgabe):
+   * `absendeZaehler` steigt beim ABSENDEN, `state` traegt zu diesem Zeitpunkt noch die ALTE
+   * Antwort. Beide Felder montieren also im Moment des Absendens leer neu — und die Antwort des
+   * Servers kommt DANACH. Ohne die Serverwerte im Schluessel gaebe es keinen zweiten Remount, und
+   * Name und Initialen blieben nach einem Feldfehler leer, obwohl `values` sie zurueckgetragen hat
+   * (Kopfkommentar Punkt 4). Die Koordination bekaeme zu einem Fehler in einem GANZ ANDEREN Feld
+   * zwei zusaetzliche Pflichtfeldfehler und muesste eine gerade getroffene Auswahl neu treffen.
+   *
+   * Derselbe Fehler, dieselbe Ursache und dieselbe Behebung wie beim Suchfeld weiter unten — er
+   * war hier nur an zwei statt an einer Stelle zu machen.
+   */
+  const vorbelegungsKey = sucheAktiv
+    ? [
+        absendeZaehler,
+        treffer?.userId ?? "",
+        feldWert(state, "name", ""),
+        feldWert(state, "initialen", ""),
+      ].join(" ")
+    : undefined;
 
   const nameFehler = feldFehler(state, "name");
   const initialenFehler = feldFehler(state, "initialen");
