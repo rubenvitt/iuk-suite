@@ -67,6 +67,12 @@ Ein Modul mit eigener Datenbank braucht **drei** zusammenpassende Einträge, son
 fehl: das Migrationsverzeichnis unter `_db/`, der Eintrag in `MODULE_MIGRATIONS` (`core/bootstrap.ts`),
 und die `COPY`-Zeile im `Dockerfile`. Fehlt der dritte, läuft es lokal und bricht im Container.
 
+Datenbanken, die **`core` selbst** führt, stehen in **`CORE_MIGRATIONS`** statt in `MODULE_MIGRATIONS`
+(heute: `konto`, der Sitzungswiderruf). Das Dreieck gilt dort unverändert und wird von
+`bootstrap.test.ts` über **beide** Listen geprüft. Die zweite Liste existiert, weil der Seed-Test unter
+`scripts/` für jeden Eintrag in `MODULE_MIGRATIONS` einen lokalen Seed verlangt — und eine geseedete
+Widerrufszeile sperrte den Dev-Nutzer aus.
+
 Modul-Metadaten (Auth, Gruppen, Hosts) stehen in `src/core/registry.ts`; pro Modul überschreibbar per
 `SUITE_HOST_<KEY>` und `SUITE_ADMIN_GROUP_<KEY>`.
 

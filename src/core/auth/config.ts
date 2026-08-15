@@ -10,6 +10,7 @@ import { authCookies } from "@/core/auth/cookies";
 import { suiteRedirect } from "@/core/auth/redirect";
 import { suiteAdminGroup } from "@/core/groups";
 import { tokenAuffrischen } from "@/core/auth/refresh";
+import { istWiderrufen } from "@/core/konto/widerruf";
 
 /**
  * Die NextAuth-Konfiguration — als FUNKTION ueber die Anfrage, nicht als Objekt.
@@ -108,6 +109,21 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
           token.expiresAt = account.expires_at;
         }
 
+        /*
+         * DER ANMELDEZEITPUNKT — nur bei der Anmeldung, nie danach.
+         *
+         * Dieselbe Bedingung wie beim `sub` weiter unten: `account` bzw. `user`
+         * liegen ausschliesslich beim Anmelden an. Jeder spaetere Aufruf traegt
+         * den Wert unveraendert weiter, `tokenAuffrischen` fasst ihn nicht an.
+         *
+         * Warum nicht `token.iat`: siehe `src/types/next-auth.d.ts`. Kurz —
+         * Auth.js setzt `iat` bei jeder Antwort neu, der Widerruf waere nach
+         * einer Anfrage ueberholt, und kein Gate sieht es.
+         */
+        if (account || user) {
+          token.angemeldetSeit = Math.floor(Date.now() / 1000);
+        }
+
         // Extract groups from the OIDC profile
         if (profile) {
           /*
@@ -158,6 +174,25 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
         // entscheidet refresh.ts. `darfSchreiben` ist der Kern: nur wenn das
         // Ergebnis dieses Aufrufs beim Browser ankommen kann, darf das
         // Refresh-Token bei Pocket ID rotiert werden. Siehe Kopfkommentar.
+        /*
+         * DER SITZUNGSWIDERRUF. `null` ist der von Auth.js vorgesehene Weg
+         * (`@auth/core/index.d.ts:331` — `Awaitable<JWT | null>`), und er wirkt
+         * SERVERSEITIG: `lib/actions/session.js:34-51` loescht bei `null` das
+         * Sitzungs-Cookie, statt es neu zu setzen. Damit ist die Sitzung auf
+         * ALLEN Wegen tot — Proxy, RSC, Server Action, API-Route.
+         *
+         * Ein `token.error` waere dagegen nur ein Hinweis an den Browser.
+         * Schlimmer: `components/providers.tsx` beantwortet `RefreshTokenError`
+         * mit einem STILLEN Neu-Login; diesen Weg wiederzuverwenden hiesze, die
+         * widerrufene Person sofort wieder anzumelden.
+         *
+         * VOR `tokenAuffrischen`, nicht danach: fuer eine sterbende Sitzung das
+         * Refresh-Token bei Pocket ID zu rotieren, bringt niemandem etwas — und
+         * eine Rotation, deren Ergebnis niemand mehr entgegennimmt, macht den
+         * naechsten Versuch zur Wiederverwendung.
+         */
+        if (istWiderrufen(token.sub, token.angemeldetSeit)) return null;
+
         return tokenAuffrischen(token, { darfSchreiben: request !== undefined });
       },
       session({ session, token }) {
@@ -173,6 +208,12 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
         }
         if (token.error) {
           session.error = token.error as string;
+        }
+        // Fuer die Profilseite („angemeldet seit"). Sie ist der einzige
+        // Konsument; der Widerruf selbst liest den Wert aus dem Token, nicht
+        // aus der Sitzung.
+        if (typeof token.angemeldetSeit === "number") {
+          session.angemeldetSeit = token.angemeldetSeit;
         }
         return session;
       },

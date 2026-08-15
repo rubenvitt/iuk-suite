@@ -226,10 +226,13 @@ export function SuiteNav({
   nav,
   userName,
   angemeldet,
+  profilHref,
 }: {
   nav: SuiteNavItem[];
   userName: string | null;
   angemeldet: boolean;
+  /** Basis-URL des Portals, oder `null`, wenn es keine gibt. Siehe `profilEintrag`. */
+  profilHref: string | null;
 }) {
   const [offen, setOffen] = useState(false);
   /*
@@ -281,6 +284,35 @@ export function SuiteNav({
    * traegt der Ausloeser den Namen zusaetzlich in seinem `aria-label`. Die
    * Initialen im Avatar sind fuer sich genommen bedeutungslos.
    */
+  /*
+   * DER WEG AUFS PROFIL — und warum er auf einen ANDEREN Host zeigen darf.
+   *
+   * Die Profilseite existiert genau einmal, im Portal. Das Sitzungs-Cookie gilt
+   * ueber alle Modul-Hosts (`core/auth/cookies.ts`), eine Kopie je Modul waere
+   * fuenf Kopien derselben Seite. Der Preis ist ein Hostwechsel; deshalb ein
+   * echtes `<a>` und kein `next/link` — ueber eine Domaingrenze hinweg gibt es
+   * nichts clientseitig zu navigieren.
+   *
+   * KEIN ZIEL, KEIN EINTRAG: `moduleUrl` liefert in Prod `null`, solange keine
+   * Domain aufs Portal zeigt. Ein toter Link ist schlimmer als kein Link —
+   * dieselbe Regel wie beim Modultitel in `SuiteHeader`.
+   *
+   * Bewusst OHNE Zeichen: der `LogoutOutlined` daneben steht fuer die eine
+   * folgenschwere Handlung, und ein zweites Zeichen naehme ihm die Betonung.
+   */
+  const profilEintrag = profilHref
+    ? [
+        {
+          key: "profil",
+          label: (
+            <a data-testid="profil-link" href={`${profilHref}/profil`}>
+              Profil
+            </a>
+          ),
+        },
+      ]
+    : [];
+
   const abmeldenEintrag = {
     key: "abmelden",
     icon: <LogoutOutlined />,
@@ -300,10 +332,10 @@ export function SuiteNav({
           key: "nutzer",
           type: "group",
           label: <span data-testid="nutzername">{userName}</span>,
-          children: [abmeldenEintrag],
+          children: [...profilEintrag, abmeldenEintrag],
         },
       ]
-    : [abmeldenEintrag];
+    : [...profilEintrag, abmeldenEintrag];
 
   return (
     <>

@@ -54,7 +54,15 @@ const NAV: SuiteNavItem[] = [
 ];
 
 async function zeichne(props: Partial<Parameters<typeof SuiteNav>[0]> = {}) {
-  await mount(<SuiteNav nav={[]} userName="Ruben Vitt" angemeldet {...props} />);
+  await mount(
+    <SuiteNav
+      nav={[]}
+      userName="Ruben Vitt"
+      angemeldet
+      profilHref="http://portal.localtest.me:3000"
+      {...props}
+    />,
+  );
 }
 
 /** Das Avatar-Menue oeffnen. Es ist bewusst NICHT vorgerendert (siehe Test unten). */
@@ -93,6 +101,26 @@ describe("SuiteNav — angemeldet", () => {
     // Derselbe Weg, den SessionGuard bei RefreshTokenError automatisch geht —
     // ohne ihn endete der Logout auf einer 404 (siehe oidc-signout/route.ts).
     expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/api/auth/oidc-signout" });
+  });
+
+  it("fuehrt aus dem Nutzermenue aufs Profil", async () => {
+    await zeichne();
+    await oeffneNutzermenue();
+    const link = queryPortal<HTMLAnchorElement>('[data-testid="profil-link"]');
+    expect(link.getAttribute("href")).toBe("http://portal.localtest.me:3000/profil");
+  });
+
+  it("laesst den Eintrag weg, wenn es kein Portal-Ziel gibt", async () => {
+    /*
+     * `moduleUrl` liefert in Prod `null`, solange keine Domain aufs Portal
+     * zeigt. Ein Eintrag ohne Ziel waere ein toter Link — dieselbe Regel wie
+     * beim Modultitel in `SuiteHeader`.
+     */
+    await zeichne({ profilHref: null });
+    await oeffneNutzermenue();
+    expect(existsPortal('[data-testid="profil-link"]')).toBe(false);
+    // Abmelden bleibt davon unberuehrt: es haengt an keinem Host.
+    expect(existsPortal('[data-testid="abmelden"]')).toBe(true);
   });
 
   it("laesst Abmelden NICHT zusaetzlich im Drawer stehen", async () => {
