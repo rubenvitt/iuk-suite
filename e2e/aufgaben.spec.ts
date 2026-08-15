@@ -1719,6 +1719,17 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   // 2. EINEN BUFDI ANLEGEN — ueber `/personen`, mit abgetipptem `sub`.
   const personenSeite = await page.goto(`http://${HOST}:3100/personen`);
   expect(personenSeite?.status()).toBe(200);
+  /*
+   * DER RUECKFALLZWEIG IST HIER DER GERENDERTE, UND DAS WIRD ZUGESICHERT STATT ANGENOMMEN:
+   * `playwright.config.ts` setzt `POCKET_ID_API_KEY: ""` (Begruendung dort), also traegt `#pf-sub`
+   * das Textfeld mit `name="sub"` und nicht das Suchfeld (dessen inneres `<input>` traegt keinen
+   * Namen). Ohne diese Zeile waere ein wirkungslos gewordenes Ueberschreiben — jemand sortiert
+   * `webServer.env` um, Next aendert die Vorrangregel, eine `.env.*` kommt dazu — NICHT rot,
+   * sondern gegenteilig gruen: `#pf-sub` nimmt in BEIDEN Zweigen eine getippte Kennung an, der
+   * Test liefe also klaglos durch den Suchzweig und riefe dabei bei jedem Anschlag einen fremden
+   * Identitaetsanbieter.
+   */
+  await expect(page.locator("#pf-sub")).toHaveAttribute("name", "sub");
   await page.locator("#pf-sub").fill(`dev:${bufdiAdresse}`);
   await page.locator("#pf-name").fill(bufdiName);
   await page.locator("#pf-initialen").fill("RB");
