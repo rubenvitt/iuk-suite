@@ -1826,6 +1826,22 @@ describe("routineAnlegenAction", () => {
     await expect(routineAnlegenAction({ ok: true }, form())).rejects.toThrow(BERECHTIGUNGS_MELDUNG);
   });
 
+  /*
+   * DIE ROLLE, DIE DIE ROUTE ERZWINGT (Abschlussreview G6) — bis dahin ungeprueft und ungeriegelt:
+   * `/routinen` gatet mit `darfRoutinenVerwalten` (`rolle === "bufdi"`), die Actions nur mit
+   * `darfPlanAendern` (Identitaet). Die bestehenden Gegenproben treffen alle eine FREMDE Routine
+   * und werden deshalb schon von `darfPlanAendern` abgewiesen — der Fall "falsche Rolle, EIGENE
+   * Routine" kam auf beiden Seiten nicht vor und lief per direktem POST durch. Je ein Fall pro
+   * Action, hier und in den beiden Gruppen darunter.
+   */
+  it("die Koordination legt auch sich selbst keine Routine an — /routinen ist rollengebunden", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    anmelden(koordination);
+
+    await expect(routineAnlegenAction({ ok: true }, form())).rejects.toThrow(BERECHTIGUNGS_MELDUNG);
+    expect(t.db.select().from(routinen).all()).toHaveLength(0);
+  });
+
   it("ohne Wochentag wird abgelehnt — eine Routine ohne einen einzigen Tag ist sinnlos", async () => {
     const bufdi = legePerson("dev:alina@test", "bufdi");
     anmelden(bufdi);
@@ -1959,6 +1975,18 @@ describe("routineAendernAction", () => {
     );
   });
 
+  /** DIE ROLLE, DIE DIE ROUTE ERZWINGT (Abschlussreview G6) — s. `routineAnlegenAction` oben. */
+  it("die Koordination aendert auch ihre EIGENE Routine nicht — die Rolle riegelt, nicht nur die Identitaet", async () => {
+    const koordination = legePerson("dev:rike@test", "koordination");
+    const eigene = legeRoutine({ personId: koordination.id, titel: "Unveraendert" });
+    anmelden(koordination);
+
+    await expect(routineAendernAction({ ok: true }, form(eigene.id))).rejects.toThrow(
+      BERECHTIGUNGS_MELDUNG,
+    );
+    expect(routineNachId(t.db, eigene.id)!.titel).toBe("Unveraendert");
+  });
+
   it("eine unbekannte routineId wirft", async () => {
     const bufdi = legePerson("dev:alina@test", "bufdi");
     anmelden(bufdi);
@@ -2062,6 +2090,16 @@ describe("routineRuhenAction", () => {
     anmelden(bufdi);
 
     await expect(routineRuhenAction(form("unbekannt"))).rejects.toThrow(/Routine "unbekannt" nicht gefunden/);
+  });
+
+  /** DIE ROLLE, DIE DIE ROUTE ERZWINGT (Abschlussreview G6) — s. `routineAnlegenAction` oben. */
+  it("eine auftrag-Person schaltet auch ihre EIGENE Routine nicht ruhend", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const eigene = legeRoutine({ personId: auftrag.id, aktiv: true });
+    anmelden(auftrag);
+
+    await expect(routineRuhenAction(form(eigene.id))).rejects.toThrow(BERECHTIGUNGS_MELDUNG);
+    expect(routineNachId(t.db, eigene.id)!.aktiv).toBe(true);
   });
 });
 

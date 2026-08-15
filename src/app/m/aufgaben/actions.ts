@@ -38,6 +38,7 @@ import { istFreigegeben } from "./_lib/scan";
 import {
   darfPersonenVerwalten,
   darfPlanAendern,
+  darfRoutinenVerwalten,
   istVertretungsfreigabe,
   personFuerSession,
 } from "./_lib/zugang";
@@ -787,6 +788,18 @@ export async function zurueckweisenAction(_prev: FormState, formData: FormData):
  * hier pruefen die Berechtigung deshalb DIREKT ueber `_lib/zugang.ts`, statt einen Aufruf zu bauen,
  * den `uebergang()` strukturell nicht bedienen kann.
  *
+ * `darfRoutinenVerwalten` STEHT SEIT DEM ABSCHLUSSREVIEW (G6) NEBEN `darfPlanAendern`, IN ALLEN
+ * DREI ACTIONS: `routinen/page.tsx:107` gatet die Route mit `darfRoutinenVerwalten`
+ * (`rolle === "bufdi" && istAktiv`), die Actions prueften bis dahin nur `darfPlanAendern`
+ * (Identitaet + aktiv). Eine `koordination`- oder `auftrag`-Person bekam auf `/routinen` also ein
+ * `notFound()`, konnte aber per direktem POST ihre EIGENEN Routinen anlegen, aendern und ruhen
+ * lassen — "Recht ohne Knopf". Praktisch harmlos (fremde Routinen blieben durch `darfPlanAendern`
+ * verschlossen), aber es war die EINZIGE Stelle im Modul, an der Oberflaeche und Riegel auf
+ * verschiedene Praedikate zeigten, und `_lib/zugang.ts`s eigene Begruendung fuer
+ * `darfRoutinenVerwalten` lautet ausdruecklich: "dieselbe Bedingung an EINER Stelle, nicht implizit
+ * 'niemand verlinkt dorthin'". Diese Zusage hielt die Action-Seite nicht ein; die Ausnahme kostete
+ * mehr als der Einzeiler.
+ *
  * `darfPlanAendern(p, zielPersonId, heute)` IST DAS RICHTIGE PRAEDIKAT, KEIN EIGENES (Brief): eine
  * Routine ist ein Zeitplaneintrag mit Wiederholung — sie zweitens zu schuetzen waere eine zweite
  * Fassung derselben Regel (`p.id === zielPersonId` und aktiv), die bei einer kuenftigen Aenderung von
@@ -843,7 +856,7 @@ async function routineFormularGemeinsam(
     throw new Error(`Routine "${routineId}" nicht gefunden.`);
   }
   const zielPersonId = bestehende ? bestehende.personId : person.id;
-  if (!darfPlanAendern(person, zielPersonId, heute)) {
+  if (!darfRoutinenVerwalten(person, heute) || !darfPlanAendern(person, zielPersonId, heute)) {
     throw new Error("Keine Berechtigung, diese Routine zu aendern.");
   }
 
@@ -921,7 +934,10 @@ export async function routineRuhenAction(formData: FormData): Promise<void> {
   const routineId = feld(formData, "routineId");
   const bestehende = routineNachId(db, routineId);
   if (!bestehende) throw new Error(`Routine "${routineId}" nicht gefunden.`);
-  if (!darfPlanAendern(person, bestehende.personId, heute)) {
+  if (
+    !darfRoutinenVerwalten(person, heute) ||
+    !darfPlanAendern(person, bestehende.personId, heute)
+  ) {
     throw new Error("Keine Berechtigung, diese Routine zu aendern.");
   }
 
