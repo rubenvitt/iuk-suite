@@ -1,9 +1,14 @@
 import type { SuiteNavItem } from "@/core/shell/types";
-import type { PersonRow } from "../_db/schema";
-import { darfFreigabenSehen, darfPersonenVerwalten, darfRoutinenVerwalten, darfVerteilen } from "./zugang";
+import {
+  darfFreigabenSehen,
+  darfPersonenVerwalten,
+  darfRoutinenVerwalten,
+  darfVerteilen,
+  type Akteur,
+} from "./zugang";
 
 /*
- * DIE MODULNAVIGATION JE ROLLE (Aufgabe 16, Spec §7) — `layout.tsx` reicht das Ergebnis als
+ * DIE MODULNAVIGATION JE AKTEUR (Aufgabe 16, Spec §7) — `layout.tsx` reicht das Ergebnis als
  * `nav`-Prop an `<Shell>` durch (`Shell`-Signatur, `SuiteNavItem[]`). Bis hierhin trug das Modul
  * KEINE Navigation (Aufgabe 1, ausdruecklich vermerkt).
  *
@@ -16,7 +21,7 @@ import { darfFreigabenSehen, darfPersonenVerwalten, darfRoutinenVerwalten, darfV
  * — NICHT aus einer zweiten, hier nachgebauten Rollenabfrage. `nav.test.ts` ruft dafuer die
  * echten Seiten-Default-Exporte auf (nicht nur diese Ableitung gegen sich selbst): eine
  * Konsistenzpruefung allein gegen die importierten Praedikate waere keine ausreichende
- * Gegenprobe, weil `darfVerteilen` und `darfPersonenVerwalten` fuer `koordination` HEUTE
+ * Gegenprobe, weil `darfVerteilen` und `darfPersonenVerwalten` fuer die Koordination HEUTE
  * extensional identisch sind (`_lib/zugang.ts`) — ein vertauschter Aufruf bliebe unbemerkt, ein
  * echter Seitenabruf nicht.
  *
@@ -35,21 +40,21 @@ import { darfFreigabenSehen, darfPersonenVerwalten, darfRoutinenVerwalten, darfV
  * ist nicht Teil dieser Aufgabe (Brief nennt es nicht) — `ikon` bleibt optional, Vorbild
  * `files/_lib/nav.ts`, das ebenfalls ohne auskommt.
  */
-export function aufgabenNav(person: PersonRow, heute: string): SuiteNavItem[] {
+export function aufgabenNav(akteur: Akteur, heute: string): SuiteNavItem[] {
   const eintraege: SuiteNavItem[] = [{ key: "start", title: "Aufgaben", href: "/" }];
 
   eintraege.push({ key: "neu", title: "Aufgabe einstellen", href: "/neu" });
 
-  if (darfVerteilen(person, heute)) {
+  if (darfVerteilen(akteur, heute)) {
     eintraege.push({ key: "verteilen", title: "Verteilen", href: "/verteilen" });
   }
-  if (darfFreigabenSehen(person, heute)) {
+  if (darfFreigabenSehen(akteur, heute)) {
     eintraege.push({ key: "freigaben", title: "Freigaben", href: "/freigaben" });
   }
-  if (darfRoutinenVerwalten(person, heute)) {
+  if (darfRoutinenVerwalten(akteur, heute)) {
     eintraege.push({ key: "routinen", title: "Routinen", href: "/routinen" });
   }
-  if (darfPersonenVerwalten(person, heute)) {
+  if (darfPersonenVerwalten(akteur, heute)) {
     eintraege.push({ key: "personen", title: "Personen", href: "/personen" });
   }
 

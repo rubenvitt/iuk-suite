@@ -11,6 +11,7 @@ import {
   type PersonRow,
   type Rolle,
 } from "../../_db/schema";
+import type { Akteur } from "../../_lib/zugang";
 import s from "../../_ui/aufgaben.module.css";
 
 let sitzung: unknown = null;
@@ -37,6 +38,18 @@ afterEach(async () => {
   await unmount();
   t.schliessen();
 });
+
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — eine koordinierende Person traegt in der Tabelle
+ * typischerweise `auftrag`. Eine Ableitung aus der Zeile ginge gar nicht mehr: `ROLLEN` kennt
+ * `koordination` nicht mehr. `akteur(rike, true)` macht an der Fixtur sichtbar, dass die Zusage die
+ * Gruppe voraussetzt, waehrend `akteur(malte)` denselben `auftrag` OHNE Gruppe meint.
+ */
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
+}
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -77,6 +90,24 @@ function legeNachweis(aufgabeId: string, text: string, erstelltVon: string) {
   return t.db.insert(nachweise).values({ aufgabeId, art: "text", text, erstelltVon }).returning().get();
 }
 
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, UND ZWAR AUSDRUECKLICH AM AUFRUF
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), also aus `session.user.groups` — nicht mehr aus
+ * `personen.rolle`, die den Wert `koordination` gar nicht mehr kennt. Rolle und Koordination sind
+ * zwei unabhaengige Achsen; welche der beiden eine Zusage traegt, steht deshalb am Aufruf
+ * (`anmelden(rike, true)`) und nicht mehr verdeckt in der Fixtur-Zeile. Die FIXTUR wandert mit der
+ * Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
+ */
+function anmelden(p: PersonRow, koordiniert = false): void {
+  sitzung = {
+    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+  };
+}
+
 describe("aufgabeInhalt — Titel, Chip-Zeile, Erklärung ungekürzt, Metablock", () => {
   it("zeigt Titel, Zustand, Priorität, Nachweispflicht und die Erklärung VOLLSTÄNDIG", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
@@ -93,7 +124,7 @@ describe("aufgabeInhalt — Titel, Chip-Zeile, Erklärung ungekürzt, Metablock"
       nachweisPflicht: true,
       nachweisArt: "text",
     });
-    await mount(aufgabeInhalt(t.db, malte, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(malte), a, HEUTE));
 
     expect(query("h1").textContent).toBe("Verbandskästen prüfen");
     expect(document.body.textContent).toContain("Verteilt");
@@ -112,7 +143,7 @@ describe("aufgabeInhalt — Titel, Chip-Zeile, Erklärung ungekürzt, Metablock"
       faelligAm: "2026-08-25",
       dauerMinuten: 90,
     });
-    await mount(aufgabeInhalt(t.db, malte, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(malte), a, HEUTE));
 
     expect(document.body.textContent).toContain("Malte");
     expect(document.body.textContent).toContain("Alina");
@@ -122,7 +153,7 @@ describe("aufgabeInhalt — Titel, Chip-Zeile, Erklärung ungekürzt, Metablock"
   it("eine noch nicht verteilte Aufgabe zeigt „Noch nicht verteilt“ statt eines Namens", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
     const a = legeAufgabe({ erstellerId: malte.id, zugewiesenAn: null, status: "eingegangen" });
-    await mount(aufgabeInhalt(t.db, malte, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(malte), a, HEUTE));
     expect(document.body.textContent).toContain("Noch nicht verteilt");
   });
 });
@@ -140,7 +171,7 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     });
     legeNachweis(a.id, "Geheimer Bericht, den nur die Beteiligten sehen sollen.", zugewiesen.id);
 
-    await mount(aufgabeInhalt(t.db, fremderBufdi, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(fremderBufdi), a, HEUTE));
     expect(document.body.textContent).not.toContain("Geheimer Bericht");
     expect(document.body.textContent).toContain(
       "Nachweise sind nur für Koordination, Ersteller, Zugewiesene und den eingetragenen Prüfer sichtbar.",
@@ -158,7 +189,7 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     });
     legeNachweis(a.id, "Kurs durchgeführt, 8 Teilnehmende.", zugewiesen.id);
 
-    await mount(aufgabeInhalt(t.db, zugewiesen, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(zugewiesen), a, HEUTE));
     expect(document.body.textContent).toContain("Kurs durchgeführt, 8 Teilnehmende.");
   });
 
@@ -175,7 +206,7 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     });
     legeNachweis(a.id, "Nachweistext fuer den Pruefer.", zugewiesen.id);
 
-    await mount(aufgabeInhalt(t.db, pruefer, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(pruefer), a, HEUTE));
     expect(document.body.textContent).toContain("Nachweistext fuer den Pruefer.");
   });
 
@@ -198,7 +229,7 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     });
     legeNachweis(a.id, "Nachweistext fuer den ausgeschiedenen Pruefer.", zugewiesen.id);
 
-    await mount(aufgabeInhalt(t.db, exPruefer, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(exPruefer), a, HEUTE));
     expect(document.body.textContent).toContain("Nachweistext fuer den ausgeschiedenen Pruefer.");
     expect(queryAll("[data-testid^='freigeben-']")).toHaveLength(0);
     expect(queryAll("[data-testid^='zurueckweisen-']")).toHaveLength(0);
@@ -223,7 +254,7 @@ describe("aufgabeInhalt — der Verlauf als Journal", () => {
     legeVerlauf(a.id, "eingestellt", malte.id, new Date("2026-08-10T08:00:00Z"));
     legeVerlauf(a.id, "verteilt", malte.id, new Date("2026-08-11T09:00:00Z"));
 
-    await mount(aufgabeInhalt(t.db, malte, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(malte), a, HEUTE));
     const eintraege = queryAll("li").filter((li) => li.closest(`ul.${s.journal}`) !== null);
     expect(eintraege).toHaveLength(3);
     const texte = eintraege.map((li) => li.textContent ?? "");
@@ -235,7 +266,11 @@ describe("aufgabeInhalt — der Verlauf als Journal", () => {
   });
 
   it("eine Vertretungsfreigabe ist als solche erkennbar — die Notiz steht im Journal", async () => {
-    const rike = legePerson("dev:rike@test", "koordination", { name: "Rike" });
+    // `rike` KOORDINIERT, TRAEGT ABER `auftrag` (Quellenwechsel 2026-08-15) — die Vertretung ist
+    // eine Frage von `istKoordination` (`istVertretungsfreigabe`), nicht mehr eine der Rolle,
+    // weshalb das `true` unten die fachlich richtige Fixtur ist. Die Zusicherung selbst haengt
+    // NICHT daran: die Notiz steht in `verlauf` und wird ohnehin gerendert.
+    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     const tomke = legePerson("dev:tomke@test", "auftrag", { name: "Tomke" });
     const carla = legePerson("dev:carla@test", "bufdi", { name: "Carla" });
     const a = legeAufgabe({
@@ -252,7 +287,7 @@ describe("aufgabeInhalt — der Verlauf als Journal", () => {
       "Freigegeben von Rike in Vertretung für Tomke",
     );
 
-    await mount(aufgabeInhalt(t.db, rike, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(rike, true), a, HEUTE));
     expect(document.body.textContent).toContain("Freigegeben von Rike in Vertretung für Tomke");
   });
 });
@@ -260,7 +295,7 @@ describe("aufgabeInhalt — der Verlauf als Journal", () => {
 describe("AufgabeDetailPage — Sichtrecht und die Grenze der Erklärseiten-Ausnahme", () => {
   it("/a/<unbekannt> ergibt notFound() — die Grenze der Ausnahme aus dem Spec-Nachtrag", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    sitzung = { user: { id: alina.sub } };
+    anmelden(alina);
     await expect(
       AufgabeDetailPage({ params: Promise.resolve({ id: "unbekannte-id" }) }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
@@ -270,7 +305,7 @@ describe("AufgabeDetailPage — Sichtrecht und die Grenze der Erklärseiten-Ausn
     const malte = legePerson("dev:malte@test", "auftrag");
     const tomke = legePerson("dev:tomke@test", "auftrag");
     const a = legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, zugewiesenAn: null });
-    sitzung = { user: { id: tomke.sub } };
+    anmelden(tomke);
     await expect(
       AufgabeDetailPage({ params: Promise.resolve({ id: a.id }) }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
@@ -286,10 +321,12 @@ describe("AufgabeDetailPage — Sichtrecht und die Grenze der Erklärseiten-Ausn
   });
 
   it("die Koordination sieht jede Aufgabe (200), auch eine fremde", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
+    // ALLEIN DIE GRUPPE TRAEGT DIESE ZUSAGE: `rike` ist derselbe `auftrag` wie `tomke` im Test
+    // darueber, der auf einer fremden Aufgabe `notFound()` bekommt. Der Unterschied ist das `true`.
+    const rike = legePerson("dev:rike@test", "auftrag");
     const malte = legePerson("dev:malte@test", "auftrag");
     const a = legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Fremde Aufgabe" });
-    sitzung = { user: { id: rike.sub } };
+    anmelden(rike, true);
     const element = await AufgabeDetailPage({ params: Promise.resolve({ id: a.id }) });
     await mount(element);
     expect(query("h1").textContent).toBe("Fremde Aufgabe");

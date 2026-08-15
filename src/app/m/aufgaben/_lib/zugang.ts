@@ -1,28 +1,57 @@
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { auth } from "@/core/auth";
+import { canAdminModule } from "@/core/auth/guards";
 import type { DB } from "../_db/client";
 import { personen, type AufgabeRow, type PersonRow } from "../_db/schema";
+import { initialenAus } from "./anzeige";
+import { isoTag } from "./datum";
 
 /*
  * ZUGRIFFSSCHUTZ — die EINE Quelle (Spec §7). ALLE Seiten und ALLE Server-Actions rufen dieselben
  * Praedikate; das ist die Bedingung dafuer, dass Oberflaeche und Riegel nicht auseinanderlaufen.
  * KEIN "use client", KEIN Import aus `@ant-design/icons` (Fallen 6 und 7).
  *
- * `heute` kommt ueberall als ISO-Tagesstring HEREIN und wird NIE hier selbst ermittelt — die
- * Zeitzone steht ausschliesslich in `_lib/datum.ts` (`isoTag`), und ein zweiter Ort dafuer wäre
- * genau der Fehler, den Aufgabe 3 vermieden hat.
+ * `heute` kommt in JEDES PRAEDIKAT als ISO-Tagesstring HEREIN und wird von keinem selbst ermittelt
+ * — die Zeitzone steht ausschliesslich in `_lib/datum.ts` (`isoTag`), und ein zweiter Ort dafuer
+ * wäre genau der Fehler, den Aufgabe 3 vermieden hat. EINE AUSNAHME, UND SIE IST KEIN PRAEDIKAT:
+ * `legeKoordinationAn` (der Schreibpfad der JIT-Zeile) braucht ein `aktivVon`, bekommt aber kein
+ * `heute` gereicht — es ruft `isoTag` aus derselben EINEN Quelle, statt zu rechnen.
  *
  * ZWEI GRUPPEN VON PRAEDIKATEN, UND DIE GRENZE IST KEINE STILFRAGE:
  *
  * HANDLUNGSPRAEDIKATE (`darfVerteilen`, `darfEinstellenFuerAndere`, `darfPersonenVerwalten`,
- * `darfPlanAendern`, `darfFreigeben`) pruefen `istAktiv` JEDES FUER SICH, statt sich auf ein
- * vorgeschaltetes Gate zu verlassen. Ein Gate wird genau einmal vergessen, und dann ist es der
- * Fall, den niemand testet — die Pruefung gehoert also IN jedes einzelne Praedikat.
+ * `darfPlanAendern`, `darfFreigeben`, `darfRoutinenVerwalten`, `darfNachweisHochladen`) pruefen
+ * `istAktiv` JEDES FUER SICH, statt sich auf ein vorgeschaltetes Gate zu verlassen — SOWEIT SIE
+ * EINE ZEILENROLLE MESSEN (Einschraenkung seit dem 2026-08-15, ausgeschrieben im Absatz darunter:
+ * `darfVerteilen` und `darfPersonenVerwalten` fragen heute NUR noch die Gruppe und pruefen
+ * `istAktiv` gar nicht mehr). Ein Gate wird genau einmal vergessen, und dann ist es der Fall, den
+ * niemand testet — wo die Pruefung noetig ist, gehoert sie also IN jedes einzelne Praedikat.
  *
  * SICHTPRAEDIKATE (`darfPlanSehen`, `darfNachweisSehen`) pruefen `istAktiv` NICHT. Eine
- * ausgeschiedene Person liest ihre Geschichte, bewegt aber nichts (Spec §7) — deshalb tragen
- * genau die Handlungspraedikate ein `heute`-Argument, die beiden Sichtpraedikate nicht.
+ * ausgeschiedene Person liest ihre Geschichte, bewegt aber nichts (Spec §7) — deshalb tragen die
+ * Handlungspraedikate ein `heute`-Argument, die beiden Sichtpraedikate nicht. Das Argument ist
+ * seit dem 2026-08-15 eine FORMFRAGE, keine Wirkungszusage mehr: `darfVerteilen` und
+ * `darfPersonenVerwalten` behalten `heute` in der Signatur (`void heute`), damit jede Aufrufstelle
+ * und `_lib/lebenszyklus.ts`s `TABELLE[].wer` eine einzige Form haben — die Begruendung steht an
+ * den beiden Funktionen selbst.
+ *
+ * `istAktiv` MISST SEIT DEM 2026-08-15 NUR NOCH DIE ZEILENROLLEN (`auftrag`, `bufdi`), NICHT DIE
+ * KOORDINATION. Das ist keine Aufweichung der Regel darueber, sondern ihre Anwendung auf zwei
+ * Quellen: `aktivBis` ist eine Aussage der Modultabelle, und wo die Rolle NICHT aus der Tabelle
+ * kommt, kann die Tabelle sie auch nicht beenden. Der Entzug der Koordination laeuft ueber Pocket
+ * ID (Verzug bis zu einer Stunde, s. CLAUDE.md); ein `aktivBis` daneben ergaebe zwei
+ * widersprechende Aussagen ueber dieselbe Person — und die Koordination haette sich mit dem
+ * eigenen Formular aus der Personenverwaltung aussperren koennen. Betroffen sind `darfVerteilen`,
+ * `darfPersonenVerwalten`, `darfEinstellenFuerAndere`, `darfFreigeben`, `darfFreigabenSehen`; die
+ * beiden letzten behalten `istAktiv` in ihrer `auftrag`-Klausel.
+ *
+ * JEDES PRAEDIKAT FRAGT EINEN `Akteur`, NICHT EINE `PersonRow`: „wer handelt" hat zwei Haelften —
+ * die Personenzeile und die Frage, ob sie koordiniert —, und die zweite steht nicht zwingend in
+ * derselben Quelle wie die erste. Zusammengesetzt wird beides an GENAU EINER Stelle (`akteurFuer`);
+ * kein Praedikat fragt selbst nach, woher `istKoordination` kommt. Einzige Ausnahme ist `istAktiv`
+ * — eine reine Frage an die Zeile, die auch ausserhalb dieser Datei je Zeile gestellt wird
+ * (`personen/page.tsx`, `_db/queries.ts`).
  */
 
 /**
@@ -90,6 +119,157 @@ export async function personFuerSession(db: DB): Promise<PersonRow> {
 }
 
 /**
+ * WER HANDELT — die Personenzeile UND die Frage, ob sie koordiniert.
+ *
+ * Die beiden Haelften haben nicht zwingend dieselbe Quelle, und genau deshalb gibt es diesen Typ:
+ * jedes Praedikat dieser Datei bekommt das fertige Ergebnis, keines fragt selbst nach, woher
+ * `istKoordination` stammt.
+ */
+export type Akteur = { person: PersonRow; istKoordination: boolean };
+
+/**
+ * DIE EINE STELLE, AN DER EIN `Akteur` ENTSTEHT. Beide Aufloeser unten gehen hier durch, und die
+ * zwei Route Handler (`a/[id]/nachweis/…/route.ts`), die ihre Personenzeile aus eigenen Gruenden
+ * selbst aufloesen (sie duerfen `notFound()` nicht werfen, s. deren Kopfkommentare), ebenfalls.
+ *
+ * DIE KOORDINATION KOMMT AUS DER AUTH-GRUPPE, NICHT AUS `personen.rolle` (Entwurf 2026-08-15).
+ * Zwei Gruende, beide aus dem Betrieb:
+ *  1. OHNE DIESEN WEG GIBT ES KEINE ERSTE KOORDINATIONSZEILE. `darfPersonenVerwalten` verlangte
+ *     `rolle === "koordination"`, und die einzige Stelle, die je so eine Zeile schrieb, war
+ *     `_lib/seedLokal.ts` — auf einer frischen Produktivdatenbank duerfte niemand die erste Person
+ *     anlegen.
+ *  2. ZWEI REGISTER FUER DIESELBE FRAGE laufen auseinander: der Betreiber pflegt die Gruppe
+ *     `aufgaben_koordination` in Pocket ID ohnehin und musste dieselbe Person danach ein zweites
+ *     Mal in der Modultabelle eintragen. Dass es auseinandergelaufen ist, faellt erst auf, wenn
+ *     jemand nicht mehr hineinkommt.
+ *
+ * `bufdi`/`auftrag` BLEIBEN IN DER MODULTABELLE — die Begruendung aus `core/registry.ts` traegt
+ * fuer sie unveraendert (Jahresrotation eines ganzen BuFDi-Jahrgangs gegen ein Verzugsfenster von
+ * bis zu einer Stunde am JWT).
+ *
+ * DER SUITE-ADMIN KOMMT MIT DURCH, UND DAS IST GEWOLLT: `isModuleAdmin` (`core/groups.ts`) laesst
+ * `ADMIN_GROUP` neben den `adminGroups` des Moduls passieren. Ohne diesen Weg gaebe es keine
+ * Rueckkehr, wenn `SUITE_ADMIN_GROUP_AUFGABEN` fehlkonfiguriert ist — ein Tippfehler sperrte sonst
+ * JEDE Koordination aus. `feedback`/`files`/`lagerbuch` entscheiden das fuer sich bewusst anders
+ * (s. deren `_lib/access.ts`); hier ueberwiegt der Notausgang. `personen/page.tsx` tat seit dem
+ * 2026-08-14 genau dasselbe fuer eine EINZELNE Route — diese Zeile weitet es auf das Modul aus und
+ * erfindet keinen neuen Mechanismus.
+ *
+ * DER PREIS, AUSGESCHRIEBEN: ein Gruppenentzug wirkt mit bis zu einer Stunde Verzug (die Gruppen im
+ * JWT sind nur so frisch wie der letzte Token-Refresh, s. CLAUDE.md „Zugriffsschutz").
+ */
+export async function akteurFuer(person: PersonRow): Promise<Akteur> {
+  return { person, istKoordination: await canAdminModule("aufgaben") };
+}
+
+/*
+ * `initialenAus` STAND BIS ZUM VERZEICHNIS-AUTOFILL (2026-08-15) HIER und liegt seitdem in
+ * `_lib/anzeige.ts` — dieselbe Ableitung braucht seither auch `_ui/PersonenFormular.tsx`, und das
+ * ist eine Client-Insel: ein Import aus DIESER Datei zoege `@/core/auth` ins Client-Bundle. Die
+ * Begruendung steht ausgeschrieben am Ziel.
+ */
+
+/**
+ * DIE PERSONENZEILE FUER EINE KOORDINIERENDE PERSON, DIE NOCH KEINE HAT (Entwurf 2026-08-15 §4).
+ *
+ * WARUM DIE ZEILE UEBERHAUPT NOETIG IST: `aufgaben.erstellerId`/`prueferId` und `verlauf.akteurId`
+ * zeigen auf eine `personen.id`. Ohne Zeile koennte die Koordination nichts einstellen, nichts
+ * freigeben und keine Verlaufszeile erzeugen — die Gruppe allein oeffnet ihr die Oberflaeche, aber
+ * kein Schreibrecht mit zurechenbarer Herkunft.
+ *
+ * WARUM EIN SCHREIBVORGANG BEIM SEITENAUFBAU HIER VERTRETBAR IST — BEGRUENDUNGSPFLICHTIG, WEIL ES
+ * SONST NIRGENDS IM MODUL VORKOMMT: die Alternative (erst beim ersten Handeln anlegen) liesse `/`
+ * fuer die frisch freigeschaltete Koordination weiterhin „noch nicht eingetragen" zeigen — genau
+ * das Symptom, das dieser Umbau beseitigt (der leere Start IST das Abnahmekriterium). Der Zugriff
+ * ist ein einzelnes idempotentes `INSERT` gegen eine lokale SQLite-Datei, kein Netzaufruf, und er
+ * findet nur statt, wenn `canAdminModule` bereits `true` gesagt hat.
+ *
+ * `ON CONFLICT DO NOTHING` GEGEN `personen_sub_idx`, DANACH LESEN: parallele Prefetches derselben
+ * Sitzung (Next.js macht davon reichlich) liefen sonst in einen UNIQUE-Fehler. Das `returning()`
+ * waere bei einem Konflikt `undefined` — deshalb steht der `SELECT` danach und nicht daneben.
+ *
+ * DASS ES AUF JEDER MODULSEITE FEUERT, IST ABSICHT UND KEIN ZUFALL: `layout.tsx` ruft
+ * `akteurFuerSeite` fuer die Navigation, also entsteht die Zeile auch dann, wenn jemand direkt auf
+ * `/personen` landet (deren Default-Export geht ueber den `canAdminModule`-Notausgang und fragt die
+ * Personenzeile gar nicht). Genau darum darf dieser Pfad NUR idempotent sein — der zweite bis
+ * n-te Aufruf ist ein `INSERT`, das nichts tut, plus ein `SELECT`.
+ *
+ * DER SUITE-ADMIN BEKOMMT DIESE ZEILE EBENFALLS, UND ZWAR SCHON BEIM BLOSSEN BETRETEN DES MODULS —
+ * DAS IST EINE ENTSCHEIDUNG, KEIN NEBENEFFEKT (Review-Runde zum Quellenwechsel): `canAdminModule`
+ * laesst `ADMIN_GROUP` (`dashboard-admins`) mit durch, und der Entwurf will das ausdruecklich
+ * (Rueckweg bei fehlkonfiguriertem `SUITE_ADMIN_GROUP_AUFGABEN`). Ohne Zeile waere dieser Rueckweg
+ * die halbe Sache: der Betreiber saehe die Flaechen, koennte aber nichts einstellen, verteilen oder
+ * freigeben — `erstellerId`/`prueferId`/`akteurId` verlangen eine `personen.id`. DER PREIS,
+ * AUSGESCHRIEBEN: in `/personen` steht danach eine Zeile, die die Koordination nicht angelegt hat,
+ * und loeschen kann sie sie nicht (es gibt bewusst keine Loeschaktion, s. `actions.ts`) — nur ueber
+ * `aktivBis` beenden, was fuer eine Betreiberzeile genau die richtige Handhabe ist. Wer das enger
+ * ziehen will, muss die Gruppenfrage hier von `canAdminModule` auf die MODUL-Gruppe umstellen und
+ * dabei den Rueckweg neu beantworten; `zugang.test.ts` haelt den heutigen Stand als Fall fest.
+ *
+ * `rolle: "auftrag"` UND NIEMALS `"bufdi"`: `verteilDaten` speist die Verteillisten aus `bufdis()`,
+ * damit die Koordination nicht in ihrer eigenen Zielliste steht (Betreiberentscheidung 2026-08-13,
+ * s. `darfFreigeben`). `auftrag` ist zudem fachlich richtig — die Koordination stellt fuer andere
+ * ein. `sollMinutenTag` bleibt beim Schema-Vorgabewert; fuer die Koordination ist er bedeutungslos.
+ *
+ * `aktivVon` IST DER EINZIGE ORT DIESER DATEI, DER EIN DATUM SELBST ERMITTELT (s. Kopfkommentar):
+ * kein Praedikat tut das, dieser SCHREIBPFAD muss es, weil die Spalte `NOT NULL` ist und
+ * `akteurFuerSeite` kein `heute` entgegennimmt. Er nimmt dafuer `isoTag` aus `_lib/datum.ts` — die
+ * EINE Quelle der Zeitzone —, statt eine zweite Fassung zu bauen.
+ */
+function legeKoordinationAn(db: DB, sub: string, name: string): PersonRow {
+  db.insert(personen)
+    .values({
+      sub,
+      name,
+      initialen: initialenAus(name),
+      rolle: "auftrag",
+      aktivVon: isoTag(new Date()),
+      aktivBis: null,
+    })
+    .onConflictDoNothing()
+    .run();
+  const person = db.select().from(personen).where(eq(personen.sub, sub)).get();
+  if (!person) throw new Error(`Koordinationszeile fuer "${sub}" konnte nicht angelegt werden.`);
+  return person;
+}
+
+/**
+ * Wie `personFuerSeite`, nur als `Akteur` — MIT EINER AUSNAHME, DIE DEN ERSTBETRIEB TRAEGT: wer
+ * koordiniert und noch keine `personen`-Zeile hat, bekommt sie hier (s. `legeKoordinationAn`).
+ * `null` bleibt `null` fuer alle anderen — eine BuFDi ohne Zeile sieht weiterhin die Erklaerseite
+ * und wartet darauf, dass die Koordination sie eintraegt. Genau das ist der Unterschied: die
+ * Koordination kann auf niemanden warten, sie IST die Stelle, die eintraegt.
+ *
+ * `auth()` WIRD IM ANLEGE-ZWEIG EIN ZWEITES MAL GERUFEN, statt `personFuerSeite` umzubauen: derselbe
+ * Zug wie bei `subFuerSitzung` (s. dort) — billig, kein Datenbankzugriff, und die Grenzentscheidung
+ * „ohne Sitzung notFound(), ohne Zeile null" bleibt an EINER Stelle.
+ */
+export async function akteurFuerSeite(db: DB): Promise<Akteur | null> {
+  const person = await personFuerSeite(db);
+  if (person) return akteurFuer(person);
+  if (!(await canAdminModule("aufgaben"))) return null;
+  const nutzer = (await auth())?.user;
+  // Unerreichbar: `personFuerSeite` haette ohne Sitzung schon `notFound()` geworfen. Ein Wurf statt
+  // eines stillen Rueckfalls, falls sich das je aendert — laut ist besser als still.
+  if (!nutzer?.id) notFound();
+  return {
+    person: legeKoordinationAn(db, nutzer.id, nutzer.name ?? nutzer.email ?? nutzer.id),
+    istKoordination: true,
+  };
+}
+
+/**
+ * Wie `personFuerSession`, nur als `Akteur` — fuer Server-Actions, wirft `notFound()`.
+ *
+ * RUFT `personFuerSession` AUF, NICHT `akteurFuerSeite` MIT EIGENEM `notFound()`: der Wurf soll an
+ * GENAU EINER Stelle stehen (dort, mit seiner Begruendung), nicht ein zweites Mal hier — sonst
+ * pflegt eine spaetere Aenderung an der Sitzungsaufloesung zwei Faelle statt einem.
+ */
+export async function akteurFuerSession(db: DB): Promise<Akteur> {
+  return akteurFuer(await personFuerSession(db));
+}
+
+/**
  * `aktivBis` ist ein EINSCHLIESSENDES Ende. Am Enddatum selbst ist die Person noch aktiv — sonst
  * kann jemand an seinem letzten Diensttag nichts mehr abgeben. `null` heisst unbefristet.
  * `aktivVon` in der Zukunft (noch nicht angetreten) gilt ebenfalls als nicht aktiv.
@@ -100,23 +280,52 @@ export function istAktiv(p: PersonRow, heute: string): boolean {
   return true;
 }
 
-/** Nur die Koordination verteilt Aufgaben aus dem Posteingang. */
-export function darfVerteilen(p: PersonRow, heute: string): boolean {
-  return p.rolle === "koordination" && istAktiv(p, heute);
+/**
+ * Nur die Koordination verteilt Aufgaben aus dem Posteingang.
+ *
+ * OHNE `istAktiv` — UND DAS IST DIE AUSNAHME AUS DEM KOPFKOMMENTAR, NICHT IHR BRUCH (Entwurf
+ * 2026-08-15 §5): die GRUPPENMITGLIEDSCHAFT traegt diese Rolle, nicht die Zeile. `aktivBis` und
+ * Gruppe wuerden sonst zwei widersprechende Aussagen ueber dieselbe Person machen — die eine aus
+ * Pocket ID, die andere aus einer Zeile, die die Koordination sich selbst schreibt (`aktivBis` ist
+ * ein Feld des Personenformulars). Der Entzug laeuft ueber Pocket ID, mit dem bekannten
+ * Verzugsfenster von bis zu einer Stunde (s. CLAUDE.md „Zugriffsschutz").
+ *
+ * `heute` BLEIBT IN DER SIGNATUR, obwohl das Ergebnis nicht mehr davon abhaengt — dieselbe
+ * Ueberlegung wie bei `darfPlanSehen`: `_lib/nav.ts`, `_lib/lebenszyklus.ts`s `TABELLE[].wer` und
+ * jede Seite rufen die Handlungspraedikate in EINER Form, und ein Sonderfall ohne `heute` waere an
+ * jeder Aufrufstelle zu merken. Kommt die Zeitfrage je zurueck, kommt sie ohne Signaturbruch.
+ */
+export function darfVerteilen(akteur: Akteur, heute: string): boolean {
+  void heute;
+  return akteur.istKoordination;
 }
 
 /**
- * `auftrag` ODER `koordination` duerfen Aufgaben FUER ANDERE einstellen. Fuer sich selbst darf
+ * `auftrag` ODER die KOORDINATION duerfen Aufgaben FUER ANDERE einstellen. Fuer sich selbst darf
  * jede Rolle einstellen — das ist kein Praedikat, sondern der Normalfall (Spec §5.2, Zeile
  * "einstellen, fuer sich selbst"), und gehoert deshalb nicht hierher.
+ *
+ * ZWEI KLAUSELN MIT VERSCHIEDENEN ZEITREGELN, UND ZWAR ABSICHTLICH: fuer `auftrag` entscheidet
+ * weiterhin die Zeile (`istAktiv` — ein ausgeschiedener Auftraggeber stellt nichts mehr ein), fuer
+ * die Koordination die Gruppe (s. `darfVerteilen`). Beides in einem gemeinsamen `&& istAktiv(...)`
+ * zusammenzuziehen waere kuerzer und falsch.
  */
-export function darfEinstellenFuerAndere(p: PersonRow, heute: string): boolean {
-  return (p.rolle === "auftrag" || p.rolle === "koordination") && istAktiv(p, heute);
+export function darfEinstellenFuerAndere(akteur: Akteur, heute: string): boolean {
+  return akteur.istKoordination || (akteur.person.rolle === "auftrag" && istAktiv(akteur.person, heute));
 }
 
-/** `rolle === "koordination"` oeffnet die Personenverwaltung (Spec §4). */
-export function darfPersonenVerwalten(p: PersonRow, heute: string): boolean {
-  return p.rolle === "koordination" && istAktiv(p, heute);
+/**
+ * Wer koordiniert, oeffnet die Personenverwaltung (Spec §4). Ohne `istAktiv` — s. `darfVerteilen`.
+ *
+ * HIER WIEGT DIE REGEL AM SCHWERSTEN: eine Koordinationsperson, die ihr eigenes `aktivBis` auf
+ * gestern gesetzt hat, sperrte sich sonst aus der Personenverwaltung aus und koennte den Fehler
+ * nicht mehr zuruecknehmen (der Aussperr-Fall, s. `personen/page.tsx` und `actions.ts`). Genau
+ * dafuer stand dort bisher ein Notausgang; seit die Gruppe die Rolle traegt, braucht das Praedikat
+ * ihn an dieser Stelle nicht mehr.
+ */
+export function darfPersonenVerwalten(akteur: Akteur, heute: string): boolean {
+  void heute;
+  return akteur.istKoordination;
 }
 
 /**
@@ -126,7 +335,7 @@ export function darfPersonenVerwalten(p: PersonRow, heute: string): boolean {
  * auf einen kuenftigen Navigationseintrag zu verlassen, der (noch) nicht existiert — Aufgabe 13
  * baut keine Modulnavigation, nur den EINEN Fusszeilen-Verweis "Routinen verwalten" in
  * `EinstiegBufdi.tsx`, und der zeigt ohnehin nur BuFDis. Ohne ein Gate an der Route selbst waere
- * `/routinen` fuer `koordination`/`auftrag` trotzdem per direkter URL erreichbar — praktisch
+ * `/routinen` fuer `auftrag` und fuer die Koordination trotzdem per direkter URL erreichbar — praktisch
  * harmlos (Aufgabe 11: eine Koordinationsperson verwaltete allenfalls ihre eigenen Zeitbloecke),
  * aber Spec §8 nennt die Route ausdruecklich rollengebunden, und dieselbe Suite-Regel wie ueberall
  * sonst gilt auch hier: dieselbe Bedingung an EINER Stelle, nicht implizit "niemand verlinkt
@@ -134,8 +343,8 @@ export function darfPersonenVerwalten(p: PersonRow, heute: string): boolean {
  * Handlungspraedikat dieser Datei (Kopfkommentar: "HANDLUNGSPRAEDIKATE pruefen istAktiv JEDES FUER
  * SICH").
  */
-export function darfRoutinenVerwalten(p: PersonRow, heute: string): boolean {
-  return p.rolle === "bufdi" && istAktiv(p, heute);
+export function darfRoutinenVerwalten(akteur: Akteur, heute: string): boolean {
+  return akteur.person.rolle === "bufdi" && istAktiv(akteur.person, heute);
 }
 
 /**
@@ -144,14 +353,14 @@ export function darfRoutinenVerwalten(p: PersonRow, heute: string): boolean {
  * Tag liegt beim BuFDi (Anforderung 3 des Auftraggebers). Also ausschliesslich die Zielperson
  * selbst, und aktiv.
  */
-export function darfPlanAendern(p: PersonRow, zielPersonId: string, heute: string): boolean {
-  return p.id === zielPersonId && istAktiv(p, heute);
+export function darfPlanAendern(akteur: Akteur, zielPersonId: string, heute: string): boolean {
+  return akteur.person.id === zielPersonId && istAktiv(akteur.person, heute);
 }
 
 /**
  * FUER SELBSTAUFGABEN IMMER `false` — AUCH FUER DIE KOORDINATION. Das ist bewusst die erste
  * Zeile: ohne sie stimmten `prueferId === null` (Selbstaufgaben haben keinen Pruefer) und
- * `rolle === "koordination"` je fuer sich, und die Koordination bekaeme einen Freigabeknopf fuer
+ * `istKoordination` je fuer sich, und die Koordination bekaeme einen Freigabeknopf fuer
  * die eigene Aufgabe eines BuFDi — die gar keine Freigabestufe hat (Spec §5.2: Selbstaufgaben
  * gehen `in_arbeit` → `abgeschlossen`, ohne `freigabe_offen`).
  *
@@ -164,31 +373,38 @@ export function darfPlanAendern(p: PersonRow, zielPersonId: string, heute: strin
  * `bufdis()`, NICHT aus `aktivePersonen()` — sonst stuende die Koordination selbst darin, und der
  * Pfad waere wieder offen.
  *
- * Sonst: der eingetragene Pruefer ODER die Koordination, und aktiv.
+ * Sonst: der eingetragene Pruefer (und aktiv) ODER die Koordination.
+ *
+ * DIE BEIDEN OBEREN KLAUSELN STEHEN VOR DER KOORDINATIONS-KLAUSEL UND BLEIBEN WOERTLICH GUELTIG —
+ * daran aendert der Wegfall von `istAktiv` fuer die Koordination nichts: sie gibt weder eine
+ * Selbstaufgabe noch ihre eigene Fremdaufgabe frei. Der Pruefer wird weiterhin an `istAktiv`
+ * gemessen (seine Rolle steht in der Zeile), die Koordination nicht mehr (ihre steht in der
+ * Gruppe, s. `darfVerteilen`).
  */
-export function darfFreigeben(p: PersonRow, a: AufgabeRow, heute: string): boolean {
+export function darfFreigeben(akteur: Akteur, a: AufgabeRow, heute: string): boolean {
   if (a.istSelbst) return false;
-  if (p.id === a.zugewiesenAn) return false;
-  return (p.id === a.prueferId || p.rolle === "koordination") && istAktiv(p, heute);
+  if (akteur.person.id === a.zugewiesenAn) return false;
+  if (akteur.istKoordination) return true;
+  return akteur.person.id === a.prueferId && istAktiv(akteur.person, heute);
 }
 
 /**
  * FUER ALLE WAHR. BuFDis sehen die Zeitplaene der anderen lesend — Vertretungsabsprachen ohne die
- * Koordination als Nadeloehr —, `koordination` und `auftrag` sehen ohnehin alle. Kein `istAktiv`:
+ * Koordination als Nadeloehr —, die Koordination und `auftrag` sehen ohnehin alle. Kein `istAktiv`:
  * ein ausgeschiedener BuFDi liest weiterhin, was war.
  *
  * Die Parameter bleiben Teil der Signatur, obwohl das Ergebnis nicht von ihnen abhaengt: Aufrufer
- * stehen neben `darfPlanAendern(p, zielPersonId, heute)` und sollen dieselbe Form nutzen, statt an
- * dieser einen Stelle einen Sonderfall ohne Argumente zu pflegen.
+ * stehen neben `darfPlanAendern(akteur, zielPersonId, heute)` und sollen dieselbe Form nutzen,
+ * statt an dieser einen Stelle einen Sonderfall ohne Argumente zu pflegen.
  */
-export function darfPlanSehen(p: PersonRow, zielPersonId: string): boolean {
-  void p;
+export function darfPlanSehen(akteur: Akteur, zielPersonId: string): boolean {
+  void akteur;
   void zielPersonId;
   return true;
 }
 
 /**
- * Verfasserin, `koordination`, der Ersteller der Aufgabe, ODER der eingetragene Pruefer — NICHT
+ * Verfasserin, die KOORDINATION, der Ersteller der Aufgabe, ODER der eingetragene Pruefer — NICHT
  * jeder BuFDi. "Leistungsnachweise sind kein Aushang" (Spec §2). Kein `istAktiv`: dieselbe
  * Begruendung wie bei `darfPlanSehen` — Einsicht in die eigene Geschichte bleibt bestehen.
  *
@@ -207,9 +423,16 @@ export function darfPlanSehen(p: PersonRow, zielPersonId: string): boolean {
  * `/a/<id>` (Aufgabe 16, `darfNachweisSehen`-gestuetzter Nachweisbereich) — dieselbe Person, dieselbe
  * Aufgabe, zwei verschiedene Antworten auf dieselbe Frage. Und fachlich ist die Klausel ohnehin
  * richtig: „wer freigibt, muss sehen, was er freigibt" (`FreigabeZone.tsx`s Kopfkommentar) waere
- * sonst nur die halbe Wahrheit. `prueferId` zeigt nie auf eine `bufdi`-Zeile (nur `auftrag`/
- * `koordination` duerfen fremd einstellen und werden dabei zum Pruefer, `anfangsZustand()`) — die
- * Erweiterung oeffnet also keinen Nachweis fuer „jeden BuFDi", die Kernzusage aus Spec §2 bleibt.
+ * sonst nur die halbe Wahrheit. `prueferId` zeigt nur auf eine Zeile, die fremd einstellen durfte
+ * (`auftrag` ODER Koordination, `anfangsZustand()`) — die Erweiterung oeffnet also keinen Nachweis
+ * fuer „jeden BuFDi", die Kernzusage aus Spec §2 bleibt.
+ *
+ * DIESE BEGRUENDUNG STAND BIS ZUM 2026-08-15 SCHAERFER DA („`prueferId` zeigt NIE auf eine
+ * `bufdi`-Zeile") — und das ist seit dem Quellenwechsel nicht mehr strukturell wahr: eine Zeile mit
+ * `rolle: "bufdi"` UND Koordinationsgruppe kommt durch `darfEinstellenFuerAndere` und wird damit
+ * `prueferId`. KEIN LECK (dieselbe Person passiert dieses Praedikat ohnehin ueber `istKoordination`,
+ * und `darfAufgabeSehen` oeffnet jedem BuFDi ohnehin jede Aufgabe), aber die alte, absolute Form
+ * der Begruendung traegt nicht mehr — deshalb steht sie jetzt in der schwaecheren, wahren Fassung.
  *
  * BEWUSST KEIN `istAktiv` AUCH IN DIESER KLAUSEL — BETREIBERENTSCHEIDUNG NACH FIX-RUNDE 1: ein
  * AUSGESCHIEDENER Pruefer sieht den Nachweis auf `/a/<id>` DESHALB WEITERHIN, obwohl er ihn auf
@@ -230,12 +453,12 @@ export function darfPlanSehen(p: PersonRow, zielPersonId: string): boolean {
  *     Nachweis also, bekommt aber KEINE Freigabe-Aktion mehr angeboten. Sehen ohne Handeln ist hier
  *     die Zusage, nicht die Luecke.
  */
-export function darfNachweisSehen(p: PersonRow, a: AufgabeRow): boolean {
+export function darfNachweisSehen(akteur: Akteur, a: AufgabeRow): boolean {
   return (
-    p.rolle === "koordination" ||
-    p.id === a.erstellerId ||
-    p.id === a.zugewiesenAn ||
-    p.id === a.prueferId
+    akteur.istKoordination ||
+    akteur.person.id === a.erstellerId ||
+    akteur.person.id === a.zugewiesenAn ||
+    akteur.person.id === a.prueferId
   );
 }
 
@@ -251,8 +474,8 @@ export function darfNachweisSehen(p: PersonRow, a: AufgabeRow): boolean {
  * zweite Fassung von "in_arbeit" waere sonst an zwei Stellen zu pflegen, eine davon in einer Datei,
  * die laut eigenem Vertrag keine Zustaende kennt.
  */
-export function darfNachweisHochladen(p: PersonRow, a: AufgabeRow, heute: string): boolean {
-  return p.id === a.zugewiesenAn && istAktiv(p, heute);
+export function darfNachweisHochladen(akteur: Akteur, a: AufgabeRow, heute: string): boolean {
+  return akteur.person.id === a.zugewiesenAn && istAktiv(akteur.person, heute);
 }
 
 /**
@@ -276,13 +499,13 @@ export function darfNachweisHochladen(p: PersonRow, a: AufgabeRow, heute: string
  * KEIN `istAktiv` — SICHTPRAEDIKAT (Kopfkommentar dieser Datei): eine ausgeschiedene Person liest
  * ihre eigene Geschichte weiter (Spec §7).
  */
-export function darfAufgabeSehen(p: PersonRow, a: AufgabeRow): boolean {
+export function darfAufgabeSehen(akteur: Akteur, a: AufgabeRow): boolean {
   return (
-    p.rolle === "koordination" ||
-    p.rolle === "bufdi" ||
-    p.id === a.erstellerId ||
-    p.id === a.zugewiesenAn ||
-    p.id === a.prueferId
+    akteur.istKoordination ||
+    akteur.person.rolle === "bufdi" ||
+    akteur.person.id === a.erstellerId ||
+    akteur.person.id === a.zugewiesenAn ||
+    akteur.person.id === a.prueferId
   );
 }
 
@@ -297,17 +520,19 @@ export function darfAufgabeSehen(p: PersonRow, a: AufgabeRow): boolean {
  * nicht mehr einstellen darf) duerfte die andere nicht versehentlich mitziehen.
  *
  * `freigabenFuer` (`_db/queries.ts`) filtert ohnehin serverseitig auf `darfFreigeben` je Aufgabe —
- * eine `bufdi`-Person saehe die Warteschlange auch OHNE dieses Gate strukturell leer, weil
- * `prueferId` nie auf eine `bufdi`-Zeile zeigt (nur `auftrag`/`koordination` duerfen fremd
- * einstellen und werden damit zu `prueferId`, s. `anfangsZustand`). Das Gate hier ist trotzdem
+ * eine `bufdi`-Person OHNE Koordinationsgruppe saehe die Warteschlange auch OHNE dieses Gate leer,
+ * weil `prueferId` nur auf eine Zeile zeigt, die fremd einstellen durfte (s. `anfangsZustand`).
+ * Seit dem Quellenwechsel vom 2026-08-15 ist das keine ABSOLUTE Aussage ueber die Rolle `bufdi`
+ * mehr, sondern eine ueber die Gruppe — s. die ausfuehrliche Fassung bei `darfNachweisSehen`. Das
+ * Gate hier ist trotzdem
  * kein Sicherheitstheater: Spec §8 nennt die Route ausdruecklich rollengebunden, dieselbe Suite-
  * Regel wie bei `/routinen`/`/verteilen`/`/personen` gilt auch hier — ein leerer Bildschirm ist
  * kein 404, und ohne ein Gate an der Route selbst waere `/freigaben` fuer eine ausgeschiedene oder
  * fachlich falsche Rolle trotzdem per direkter URL "erreichbar" (mit einer leeren Liste, aber
  * eben 200 statt 404).
  */
-export function darfFreigabenSehen(p: PersonRow, heute: string): boolean {
-  return (p.rolle === "auftrag" || p.rolle === "koordination") && istAktiv(p, heute);
+export function darfFreigabenSehen(akteur: Akteur, heute: string): boolean {
+  return akteur.istKoordination || (akteur.person.rolle === "auftrag" && istAktiv(akteur.person, heute));
 }
 
 /**
@@ -322,6 +547,6 @@ export function darfFreigabenSehen(p: PersonRow, heute: string): boolean {
  * diesen Fall (der Seed setzt `prueferId` auf jeder Fremdaufgabe), aber die Funktion soll sich
  * nicht auf eine Zusage verlassen, die anderswo gehalten werden muss.
  */
-export function istVertretungsfreigabe(p: PersonRow, a: AufgabeRow): boolean {
-  return p.rolle === "koordination" && p.id !== a.prueferId && a.prueferId !== null;
+export function istVertretungsfreigabe(akteur: Akteur, a: AufgabeRow): boolean {
+  return akteur.istKoordination && akteur.person.id !== a.prueferId && a.prueferId !== null;
 }

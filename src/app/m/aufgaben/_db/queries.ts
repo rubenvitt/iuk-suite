@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { namenMap, tagesBudget } from "../_lib/anzeige";
 import { montagDerWoche, wochenTage } from "../_lib/datum";
 import { istFreigegeben } from "../_lib/scan";
-import { darfFreigeben, istAktiv, istVertretungsfreigabe } from "../_lib/zugang";
+import { darfFreigeben, istAktiv, istVertretungsfreigabe, type Akteur } from "../_lib/zugang";
 import type { DB } from "./client";
 import {
   aufgaben,
@@ -37,7 +37,15 @@ import {
  * fuer die Gegenprobe: `assertGroupAccess` im Modul `feedback`.
  */
 
-const ROLLEN_RANG: Record<Rolle, number> = { koordination: 0, auftrag: 1, bufdi: 2 };
+/**
+ * ZWEI RAENGE STATT DREI (Quellenwechsel 2026-08-15): `koordination` ist keine Rolle der
+ * Modultabelle mehr, sondern eine Auth-Gruppe (`_db/schema.ts`s `ROLLEN`). Die bisherigen
+ * Koordinationszeilen tragen seit Migration `0002` `auftrag` und sortieren sich damit alphabetisch
+ * unter die uebrigen Auftraggeber ein — sie stehen also NICHT mehr zwingend an erster Stelle.
+ * Diese Liste ordnet die ZEILE, nicht die Handlungsberechtigung; wer koordiniert, ist ihr nicht
+ * anzusehen (und soll es hier auch nicht sein, s. `_lib/zugang.ts`).
+ */
+const ROLLEN_RANG: Record<Rolle, number> = { auftrag: 0, bufdi: 1 };
 
 /**
  * Sortiert: Rolle in der fachlichen Rangfolge, dann Name alphabetisch.
@@ -60,9 +68,18 @@ export function allePersonen(db: DB): PersonRow[] {
 
 /**
  * Fuer Plan-Navigation — eine ausgeschiedene Person verschwindet hier. NICHT fuer Verteillisten:
- * die Koordination selbst ist aktiv und stuende hier drin, obwohl sie nicht verteilt bekommen
+ * eine koordinierende Person ist aktiv und stuende hier drin, obwohl sie nicht verteilt bekommen
  * soll (`darfFreigeben` in `_lib/zugang.ts` begruendet das). Verteillisten speisen sich aus
  * `bufdis()`.
+ *
+ * SEIT DEM QUELLENWECHSEL (2026-08-15) IST DIE ZUSAGE ANDERS GEBAUT: wer koordiniert, traegt in
+ * dieser Tabelle `auftrag` und ist der Zeile nicht mehr anzusehen. Ein Filter `rolle !==
+ * "koordination"` waere gar nicht mehr formulierbar; dass die Koordination nicht in der Zielliste
+ * steht, folgt jetzt daraus, dass beide Stellen, die ihre Zeile automatisch erzeugen (Migration
+ * `0002`, JIT-Anlage in `_lib/zugang.ts`), `auftrag` schreiben. Eine von Hand vergebene
+ * `bufdi`-Zeile fuer eine gruppentragende Person stuende sehr wohl drin — das Vier-Augen-Prinzip
+ * haengt deshalb nicht hieran, sondern an `darfFreigeben`s Klausel gegen die selbst zugewiesene
+ * Aufgabe. Diese Liste ist die zweite Linie, nicht die erste.
  */
 export function aktivePersonen(db: DB, heute: string): PersonRow[] {
   return allePersonen(db).filter((p) => istAktiv(p, heute));
@@ -254,13 +271,13 @@ export function alleAufgaben(db: DB): AufgabeRow[] {
  * Zeitzone bleibt trotzdem an der einen Stelle (`_lib/datum.ts`); diese Funktion bekommt das
  * Ergebnis nur uebergeben, statt es selbst abzufragen.
  */
-export function freigabenFuer(db: DB, p: PersonRow, heute: string): AufgabeRow[] {
+export function freigabenFuer(db: DB, akteur: Akteur, heute: string): AufgabeRow[] {
   return db
     .select()
     .from(aufgaben)
     .where(eq(aufgaben.status, "freigabe_offen"))
     .all()
-    .filter((a) => darfFreigeben(p, a, heute));
+    .filter((a) => darfFreigeben(akteur, a, heute));
 }
 
 export interface FreigabeZeile {
@@ -283,9 +300,9 @@ export interface FreigabeZeile {
 }
 
 export interface FreigabeDaten {
-  /** `!istVertretungsfreigabe(person, a)` — die eigene, eingetragene Pruefung. */
+  /** `!istVertretungsfreigabe(akteur, a)` — die eigene, eingetragene Pruefung. */
   meine: FreigabeZeile[];
-  /** `istVertretungsfreigabe(person, a)` — die Koordination sieht sie zusaetzlich. */
+  /** `istVertretungsfreigabe(akteur, a)` — die Koordination sieht sie zusaetzlich. */
   vertretung: FreigabeZeile[];
 }
 
@@ -301,8 +318,8 @@ export interface FreigabeDaten {
  * `heute` KOMMT ALS ARGUMENT, wie ueberall im Modul (`_lib/datum.ts` bleibt die einzige Stelle, die
  * einen Kalendertag aus der Uhr liest).
  */
-export function freigabeDaten(db: DB, person: PersonRow, heute: string): FreigabeDaten {
-  const freigabeListe = freigabenFuer(db, person, heute);
+export function freigabeDaten(db: DB, akteur: Akteur, heute: string): FreigabeDaten {
+  const freigabeListe = freigabenFuer(db, akteur, heute);
   const namen = namenMap(allePersonen(db));
   const zeile = (a: AufgabeRow): FreigabeZeile => ({
     aufgabe: a,
@@ -311,8 +328,8 @@ export function freigabeDaten(db: DB, person: PersonRow, heute: string): Freigab
     nachweise: mitDatei(db, nachweiseSeitLetzterZurueckweisung(db, a.id)),
   });
   return {
-    meine: freigabeListe.filter((a) => !istVertretungsfreigabe(person, a)).map(zeile),
-    vertretung: freigabeListe.filter((a) => istVertretungsfreigabe(person, a)).map(zeile),
+    meine: freigabeListe.filter((a) => !istVertretungsfreigabe(akteur, a)).map(zeile),
+    vertretung: freigabeListe.filter((a) => istVertretungsfreigabe(akteur, a)).map(zeile),
   };
 }
 

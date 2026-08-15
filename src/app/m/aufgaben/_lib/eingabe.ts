@@ -50,7 +50,35 @@ export function istGueltigeNachweisArt(s: string): s is NachweisArt {
   return (NACHWEIS_ARTEN as readonly string[]).includes(s);
 }
 
-/** Aufgabe 14 (Personenverwaltung) — dieselbe Form wie `istGueltigePrioritaet`. */
+/**
+ * Aufgabe 14 (Personenverwaltung) — dieselbe Form wie `istGueltigePrioritaet`.
+ *
+ * SEIT DEM QUELLENWECHSEL (2026-08-15) IST DAS ZUGLEICH DER RIEGEL GEGEN DEN ABGESCHAFFTEN WERT:
+ * `ROLLEN` kennt `koordination` nicht mehr (die Rolle kommt aus der Auth-Gruppe), also lehnt diese
+ * Funktion ihn ab — ohne dass hier eine zweite Liste zu pflegen waere. SQLite haette ihn
+ * angenommen: `text("rolle", { enum })` erzeugt dort kein `CHECK`, die Spalte ist schlicht
+ * `text NOT NULL`. Diese Funktion ist damit die einzige Stelle, die eine handgeschriebene
+ * Formulareingabe `rolle=koordination` aufhaelt.
+ */
 export function istGueltigeRolle(s: string): s is Rolle {
   return (ROLLEN as readonly string[]).includes(s);
 }
+
+/**
+ * AB WANN DIE PERSONENSUCHE UEBERHAUPT ABRUFT (Verzeichnis-Autofill, 2026-08-15). Unter zwei
+ * Zeichen ist jede Antwort eine halbe Mitgliederliste, und der Nutzen ist null. Dieselbe Zahl liest
+ * die Client-Insel (`_ui/PersonenFormular.tsx`, sie tippt gar nicht erst los) UND die Server-Action
+ * (`actions.ts`s `personenSucheAction`, sie glaubt der Insel nicht) — zwei Fassungen liefen
+ * auseinander, und die zweite waere die, die wirklich zaehlt.
+ */
+export const PERSONEN_SUCHE_MIN_ZEICHEN = 2;
+
+/**
+ * Wie viele Treffer die Personensuche hoechstens ueber die RSC-Grenze schickt.
+ *
+ * DATENSPARSAMKEIT, wie bei `feedback/_lib/personen.ts`s `SUCHE_MAX_TREFFER`: der vollstaendige
+ * Verzeichnisabzug bleibt im Serverprozess. Pro Anschlag gehen hoechstens so viele Personen an den
+ * Browser, und nur an eine koordinierende Anmeldung. 20 ist die Zahl, die in eine Auswahlliste
+ * passt; wer mehr Treffer hat, hat zu kurz getippt.
+ */
+export const PERSONEN_SUCHE_MAX_TREFFER = 20;

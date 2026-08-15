@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TestDb } from "../../../../_db/testdb";
 import { migrierteTestDb } from "../../../../_db/testdb";
-import { aufgaben, dateien, nachweise, personen } from "../../../../_db/schema";
+import { aufgaben, dateien, nachweise, personen, type Rolle } from "../../../../_db/schema";
 
 /**
  * `POST /a/<id>/nachweis/hochladen` — DER UPLOAD, SEIT FIX-RUNDE 1 EIN ROUTE HANDLER (vorher
@@ -50,7 +50,15 @@ afterEach(() => {
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 
-function legePerson(sub: string, rolle: "koordination" | "auftrag" | "bufdi") {
+// `Rolle` AUS DEM SCHEMA STATT EINER AUSGESCHRIEBENEN UNION: seit dem Quellenwechsel (2026-08-15)
+// kennt `ROLLEN` nur noch `auftrag` und `bufdi` — eine hier ausgeschriebene Liste waere eine zweite,
+// still veraltende Quelle.
+//
+// WARUM `anmelden` HIER KEINE GRUPPEN SETZT: der einzige Riegel dieser Route ist
+// `darfNachweisHochladen` (`route.ts`), und der ist `akteur.person.id === a.zugewiesenAn &&
+// istAktiv(...)` — er fragt `istKoordination` GAR NICHT. Die Koordinationsgruppe koennte an keiner
+// Zusage dieser Datei etwas aendern; sie zu setzen wuerde nur so aussehen, als tue sie es.
+function legePerson(sub: string, rolle: Rolle) {
   return t.db
     .insert(personen)
     .values({ sub, name: sub, initialen: "XX", rolle, aktivVon: "2026-01-01" })

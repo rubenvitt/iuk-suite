@@ -137,10 +137,27 @@ export const MODULES: ModuleDef[] = [
   // eingeschlossen. Lokal unkritisch: AUTH_DEV_LOGIN nimmt Gruppen als freies
   // Feld an.
   //
-  // adminGroups gatet die PERSONENVERWALTUNG. Die Rolle einer Person steht
-  // dagegen in der Modultabelle `personen`, NICHT in einer Pocket-ID-Gruppe —
-  // Begruendung in Spec §4 (BuFDis rotieren jaehrlich, und am JWT haengt ein
-  // Verzugsfenster von einer Stunde).
+  // adminGroups traegt die KOORDINATIONSROLLE — seit dem Quellenwechsel vom
+  // 2026-08-15 die ganze, nicht mehr nur die Personenverwaltung
+  // (`_lib/zugang.ts`s `akteurFuer` → `canAdminModule("aufgaben")`, Entwurf
+  // `docs/superpowers/specs/2026-08-15-aufgaben-koordination-aus-gruppe-design.md`,
+  // Nachtrag zu Spec §4).
+  //
+  // DIE ZEILENROLLEN `bufdi`/`auftrag` BLEIBEN IN DER MODULTABELLE `personen`,
+  // und die Begruendung aus Spec §4 traegt fuer sie unveraendert: BuFDis
+  // rotieren jaehrlich (ein ganzer Jahrgang, jeden Sommer, von jemandem mit
+  // Pocket-ID-Zugang zu pflegen), und am JWT haengt ein Verzugsfenster von bis
+  // zu einer Stunde. Fuer die KOORDINATION traegt dieselbe Begruendung nicht:
+  // sie wechselt selten, der Betreiber pflegt die Gruppe in Pocket ID ohnehin,
+  // und ein zweites Register in der Modultabelle lief mit dem ersten
+  // auseinander — was erst auffiel, wenn jemand nicht mehr hineinkam. Ohne
+  // diesen Weg gaebe es auf einer frischen Produktivdatenbank ueberhaupt
+  // niemanden, der die erste Person anlegen darf.
+  //
+  // ⚠️ EIN TIPPFEHLER IN SUITE_ADMIN_GROUP_AUFGABEN SPERRT DAMIT JEDE
+  // KOORDINATION AUS, nicht nur `/personen`. Der Rueckweg ist die
+  // Suite-Admin-Gruppe (`isModuleAdmin` laesst sie mit durch) — s. `.env.example`
+  // und `docs/runbooks/aufgaben-inbetriebnahme.md`.
   //
   // showInSwitcher: true seit Aufgabe 16 — das Modul ist jetzt vollstaendig begehbar (alle Seiten
   // aus Spec §8 stehen, die Modulnavigation baut ihre Eintraege aus denselben Praedikaten, die die

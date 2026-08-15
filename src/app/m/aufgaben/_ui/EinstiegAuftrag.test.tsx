@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, aufgaben, type PersonRow, type Rolle } from "../_db/schema";
+import type { Akteur } from "../_lib/zugang";
 
 const { EinstiegAuftrag } = await import("./EinstiegAuftrag");
 
@@ -48,10 +49,23 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
     .get();
 }
 
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — eine Ableitung aus der Zeile ginge gar nicht mehr,
+ * `ROLLEN` kennt `koordination` nicht mehr. Malte bleibt hier ueberall bei der Vorgabe `false`:
+ * diese Datei prueft den `auftrag` OHNE Koordinationsgruppe, und das ist keine Nachlaessigkeit,
+ * sondern die Voraussetzung mehrerer Zusagen unten (mit Gruppe liesse `darfFreigeben` die fremde
+ * Freigabe durch, s. den Kommentar bei „Anderer Pruefer").
+ */
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
+}
+
 describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlange (Spec §8.3)", () => {
   it("traegt den Knopf „Aufgabe einstellen“, der auf /neu fuehrt", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
     const knopf = queryAll<HTMLAnchorElement>("a").find((a) => a.textContent === "Aufgabe einstellen");
     expect(knopf?.getAttribute("href")).toBe("/neu");
   });
@@ -62,7 +76,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
     legeAufgabe({ titel: "Meine Aufgabe", erstellerId: malte.id });
     legeAufgabe({ titel: "Fremde Aufgabe", erstellerId: tomke.id });
 
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
 
     const abschnitt = query("#auftraege");
     expect(abschnitt.textContent).toContain("Meine Aufgabe");
@@ -83,7 +97,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
       prueferId: malte.id, status: "verteilt",
     });
 
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
 
     const zeilen = queryAll("#auftraege li");
     expect(zeilen).toHaveLength(2);
@@ -97,36 +111,46 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
 
   it("Leerzustand: „Noch keine eigenen Aufträge.“", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
     expect(query("#auftraege").textContent).toContain("Noch keine eigenen Aufträge.");
   });
 
   /*
-   * FUER `auftrag` BLEIBT „IN VERTRETUNG" STRUKTURELL IMMER LEER (`istVertretungsfreigabe` verlangt
-   * `rolle === "koordination"`, `_lib/zugang.ts`) — die Trennung „meine"/„in Vertretung" MIT je
-   * einem Fall auf BEIDEN Seiten ist deshalb keine Aussage, die dieser Einstieg je selbst zeigen
-   * kann; sie gehoert der Rolle, fuer die Vertretung ueberhaupt vorkommt (`freigaben/page.test.tsx`
-   * mit `koordination`, und `EinstiegKoordination.test.tsx`). Hier wird geprueft, dass „meine"
-   * korrekt fuellt UND „in Vertretung" nicht faelschlich mitzieht, was eine fremde Freigabe (mit
-   * einem ANDEREN Pruefer) waere.
+   * FUER EINEN `auftrag` OHNE KOORDINATIONSGRUPPE BLEIBT „IN VERTRETUNG" IMMER LEER
+   * (`istVertretungsfreigabe` verlangt `istKoordination`, `_lib/zugang.ts`) — die Trennung
+   * „meine"/„in Vertretung" MIT je einem Fall auf BEIDEN Seiten ist deshalb keine Aussage, die
+   * dieser Einstieg fuer DIESEN Akteur je selbst zeigen kann; sie gehoert dorthin, wo Vertretung
+   * ueberhaupt vorkommt (`freigaben/page.test.tsx` und `EinstiegKoordination.test.tsx`, beide mit
+   * einem koordinierenden Akteur). Hier wird geprueft, dass „meine" korrekt fuellt UND „in
+   * Vertretung" nicht faelschlich mitzieht, was eine fremde Freigabe (mit einem ANDEREN Pruefer)
+   * waere.
+   *
+   * DIESE BEGRUENDUNG STAND BIS ZUM 2026-08-15 SCHAERFER DA („fuer `auftrag` STRUKTURELL immer
+   * leer", weil `istVertretungsfreigabe` `rolle === "koordination"` verlangte) — seit dem
+   * Quellenwechsel liegen Rolle und Koordination auf zwei unabhaengigen Achsen: eine Zeile mit
+   * `rolle: "auftrag"` UND Koordinationsgruppe SIEHT Vertretungsfaelle. Die Leere haengt hier also
+   * am zweiten Argument von `akteur(malte)` (Vorgabe `false`), nicht mehr an der Rolle allein —
+   * deshalb steht die Begruendung jetzt in der schwaecheren, wahren Fassung.
    */
   it("„meine“ zeigt die eigene Freigabe; eine fremde (anderer Pruefer) erscheint in KEINER Liste", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
-    const rike = legePerson("dev:rike@test", "koordination", { name: "Rike" });
+    // Rike koordiniert — hier aber nur als FREMDE Pruefer-/Erstellerzeile im Bild; welcher Akteur
+    // gerendert wird, entscheidet allein `akteur(malte)` weiter unten.
+    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
     // MEINE: Malte ist der eingetragene Pruefer.
     legeAufgabe({
       titel: "Meine Freigabe", erstellerId: rike.id, zugewiesenAn: alina.id,
       prueferId: malte.id, status: "freigabe_offen",
     });
-    // EIN ANDERER PRUEFER (Rike) — `darfFreigeben` lehnt das fuer Malte rundweg ab (weder Pruefer
-    // noch koordination); die Aufgabe darf in KEINER seiner beiden Listen auftauchen.
+    // EIN ANDERER PRUEFER (Rike) — `darfFreigeben` lehnt das fuer Malte rundweg ab (er ist weder
+    // der Pruefer noch koordiniert er); die Aufgabe darf in KEINER seiner beiden Listen auftauchen.
     legeAufgabe({
       titel: "Anderer Pruefer", erstellerId: rike.id, zugewiesenAn: alina.id,
       prueferId: rike.id, status: "freigabe_offen",
     });
 
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
 
     const abschnitt = query("#freigabe");
     expect(abschnitt.textContent).toContain("Meine Freigabe");
@@ -136,7 +160,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
 
   it("Leerzustaende der Freigabe-Warteschlange, ausgeschrieben", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
     const abschnitt = query("#freigabe");
     expect(abschnitt.textContent).toContain("Keine Freigabe offen");
     expect(abschnitt.textContent).toContain("Keine Freigabe in Vertretung offen");
@@ -151,7 +175,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ titel: "Im Posteingang", erstellerId: malte.id, status: "eingegangen" });
 
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
 
     const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
     expect(hrefs.some((h) => h?.includes("verteilen"))).toBe(false);
@@ -166,7 +190,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ titel: "A", erstellerId: malte.id, status: "eingegangen" });
     legeAufgabe({ titel: "B", erstellerId: malte.id, status: "abgeschlossen" });
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
     expect(document.body.textContent).toContain("2 Aufträge insgesamt");
     expect(document.body.textContent).toContain("1 offen");
   });

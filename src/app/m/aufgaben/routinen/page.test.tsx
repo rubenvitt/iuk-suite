@@ -56,6 +56,22 @@ function legePerson(sub: string, extra: Partial<typeof personen.$inferInsert> = 
     .get();
 }
 
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. `koordiniert` steht deshalb
+ * AUSDRUECKLICH AM AUFRUF — ableiten liesse es sich nicht mehr, `ROLLEN` kennt `koordination` nicht
+ * mehr, und die beiden Achsen `rolle`/Gruppe sind unabhaengig geworden.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
+ */
+function anmelden(p: PersonRow, koordiniert = false): void {
+  sitzung = {
+    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+  };
+}
+
 function legeRoutine(personId: string, extra: Partial<typeof routinen.$inferInsert> = {}) {
   return t.db
     .insert(routinen)
@@ -214,28 +230,51 @@ describe("RoutinenPage — Rollen-Gate (Aufgabe 13, Spec §8: '/routinen' fuer b
     return legePerson(sub, { rolle });
   }
 
-  it("bufdi: die Seite antwortet normal", async () => {
+  /*
+   * VIER KOMBINATIONEN STATT DREI ROLLEN (Quellenwechsel 2026-08-15): `koordination` ist keine
+   * Rolle der Tabelle mehr, also wird das Gate ueber BEIDE Achsen erschoepft — `auftrag`/`bufdi` ×
+   * ohne/mit Koordinationsgruppe. Die frueher gar nicht darstellbare Zeile "bufdi MIT Gruppe" ist
+   * dabei die interessante: `/routinen` BLEIBT AN DER ZEILE, NICHT AN DER GRUPPE
+   * (`darfRoutinenVerwalten` fragt `rolle === "bufdi"`, s. dessen Kopfkommentar in
+   * `_lib/zugang.ts`). Ohne diese Zeile bliebe unbemerkt, wenn jemand die Route spaeter auf
+   * `istKoordination` umhaengt.
+   */
+  it("bufdi OHNE Koordinationsgruppe: die Seite antwortet normal", async () => {
     const alina = legeRollenPerson("dev:alina@test", "bufdi");
-    sitzung = { user: { id: alina.sub } };
+    anmelden(alina);
     await mount(await RoutinenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Routinen");
   });
 
-  it("koordination: notFound(), nicht 403", async () => {
-    const rike = legeRollenPerson("dev:rike@test", "koordination");
-    sitzung = { user: { id: rike.sub } };
+  it("bufdi MIT Koordinationsgruppe: die Seite antwortet ebenso normal — die Gruppe nimmt nichts weg", async () => {
+    const alina = legeRollenPerson("dev:alina@test", "bufdi");
+    anmelden(alina, true);
+    await mount(await RoutinenPage({ searchParams: Promise.resolve({}) }));
+    expect(query("h1").textContent).toBe("Routinen");
+  });
+
+  /*
+   * FRUEHER HIESS DIESER FALL "koordination: notFound(), nicht 403" — die Zeile gibt es seit
+   * `ROLLEN = ["auftrag", "bufdi"]` nicht mehr, die AUSSAGE bleibt woertlich dieselbe: wer
+   * koordiniert, verwaltet hier keine Routinen. Sie steht jetzt nur an der Gruppe statt an der
+   * Rolle — OHNE das `true` prueft die Zeile bloss noch einen gewoehnlichen Auftraggeber, also
+   * dasselbe wie der Test direkt darunter.
+   */
+  it("auftrag MIT Koordinationsgruppe (wer koordiniert): notFound(), nicht 403", async () => {
+    const rike = legeRollenPerson("dev:rike@test", "auftrag");
+    anmelden(rike, true);
     await expect(RoutinenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
-  it("auftrag: notFound()", async () => {
+  it("auftrag OHNE Koordinationsgruppe: notFound()", async () => {
     const malte = legeRollenPerson("dev:malte@test", "auftrag");
-    sitzung = { user: { id: malte.sub } };
+    anmelden(malte);
     await expect(RoutinenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("ein ausgeschiedener bufdi bekommt ebenfalls notFound()", async () => {
     const doerte = legePerson("dev:doerte@test", { rolle: "bufdi", aktivBis: "2020-01-01" });
-    sitzung = { user: { id: doerte.sub } };
+    anmelden(doerte);
     await expect(RoutinenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 

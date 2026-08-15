@@ -63,16 +63,45 @@ export const PRIORITAET_FORM: Record<Prioritaet, PrioritaetForm> = {
 };
 
 /**
- * DIE BESCHRIFTUNG DER DREI ROLLEN (Aufgabe 14, Spec §4) — die eine Quelle fuer
- * `PersonenFormular.tsx`s Auswahlfeld UND `PersonenTabelle.tsx`s Anzeige. Ohne diese Konstante
+ * DIE BESCHRIFTUNG DER ZWEI ROLLEN (Aufgabe 14, Spec §4 mit Nachtrag 2026-08-15) — die eine Quelle
+ * fuer `PersonenFormular.tsx`s Auswahlfeld UND `PersonenTabelle.tsx`s Anzeige. Ohne diese Konstante
  * traegt jede Aufrufstelle ihre eigene Beschriftung, und eine dritte Fassung faellt genau dann
  * auseinander, wenn nur eine der beiden Stellen "Auftraggeber" statt "auftrag" nachzieht.
+ *
+ * "Koordination" IST HIER KEINE ZEILE MEHR: die Rolle kommt aus der Auth-Gruppe (`_lib/zugang.ts`),
+ * und ein Eintrag hier haette der Koordination ein Auswahlfeld angeboten, das die Datenbank nicht
+ * mehr kennt.
  */
 export const ROLLE_TEXT: Record<Rolle, string> = {
-  koordination: "Koordination",
   auftrag: "Auftraggeber",
   bufdi: "BuFDi",
 };
+
+/**
+ * DIE INITIALEN AUS EINEM NAMEN — zwei Buchstaben, wie sie die Koordination im Formular auch von
+ * Hand vergibt. Zwei oder mehr Namensteile ergeben die Anfangsbuchstaben der ersten beiden, ein
+ * einzelner Teil (oder eine E-Mail als Ersatzname) seine ersten beiden Zeichen. `initialen` ist
+ * `NOT NULL` und steht in jeder Liste des Moduls; ein leerer Wert waere eine Zelle, die niemand
+ * zuordnen kann. Die Koordination korrigiert beides ueber `/personen` in zwei Klicks.
+ *
+ * SIE STAND BIS ZUM VERZEICHNIS-AUTOFILL (2026-08-15) PRIVAT IN `_lib/zugang.ts` — dort braucht sie
+ * die JIT-Zeile (`legeKoordinationAn`), hier braucht sie zusaetzlich das PERSONENFORMULAR, das nach
+ * einem Verzeichnistreffer `sub`, `name` UND die Initialen vorbelegt. Der Umzug war Pflicht, keine
+ * Ordnungsliebe: `zugang.ts` importiert `@/core/auth`, und ein Import daraus in die Client-Insel
+ * `_ui/PersonenFormular.tsx` zoege next-auth ins Client-Bundle (dieselbe Begruendung wie im
+ * Kopfkommentar von `_ui/PersonenTabelle.tsx`). Diese Datei traegt kein `"use client"` und keine
+ * Sitzung — sie ist die Stelle, die BEIDE Seiten lesen duerfen. Eine zweite Fassung im Formular
+ * waere die schlechtere Antwort gewesen: die Koordination saehe im Formular andere Initialen als
+ * die, die ihre eigene JIT-Zeile bekommen hat.
+ */
+export function initialenAus(name: string): string {
+  const teile = name.trim().split(/\s+/).filter(Boolean);
+  const roh =
+    teile.length >= 2
+      ? `${teile[0]!.slice(0, 1)}${teile[1]!.slice(0, 1)}`
+      : (teile[0] ?? "").slice(0, 2);
+  return (roh || "??").toUpperCase();
+}
 
 /**
  * DIE BESCHRIFTUNG DER NACHWEISFORM (Aufgabe 15, Spec §5.3) — die eine Quelle fuer

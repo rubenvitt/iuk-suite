@@ -201,3 +201,119 @@ describe("Migration 0001 — zwei nachgeholte Indizes auf `dateien`", () => {
     sqlite.close();
   });
 });
+
+/*
+ * Migration 0002 (Quellenwechsel 2026-08-15) — `ROLLEN` kennt nur noch `auftrag` und `bufdi`, die
+ * Koordination kommt aus der Auth-Gruppe (`_lib/zugang.ts`). Ein reines Daten-UPDATE, weil
+ * `text("rolle", { enum })` in SQLite KEIN `CHECK` erzeugt.
+ *
+ * DIESE GRUPPE HAELT DAS KERNRISIKO DES GANZEN UMBAUS: `verteilDaten` speist die Verteillisten aus
+ * `bufdis()`, DAMIT die Koordination nicht in ihrer eigenen Zielliste steht — daran haengt das
+ * Vier-Augen-Prinzip aus der Betreiberentscheidung vom 2026-08-13 (`darfFreigeben`s
+ * Kopfkommentar). Ein Umschreiben auf `bufdi` statt `auftrag` braeche diese Zusage STILL: die
+ * Migration liefe durch, jede Zeile haette einen gueltigen Rollenwert, und die Koordination stuende
+ * ab dem naechsten Seitenaufbau in der Liste, aus der sie ausdruecklich herausgehalten wird.
+ * Deshalb steht die Gegenprobe auf `bufdi` ausgeschrieben daneben.
+ */
+describe("Migration 0002 — koordination wird auftrag", () => {
+  function datei0002(): string {
+    const datei = readdirSync(join(process.cwd(), ORDNER)).find((d) => d.startsWith("0002_"));
+    if (!datei) throw new Error("Migration 0002 nicht gefunden");
+    return datei;
+  }
+
+  /**
+   * Die Zeile wird NACH der vollen Migration gesetzt und die 0002-Anweisung danach ERNEUT
+   * ausgefuehrt: `migrate()` kennt keinen Teil-Lauf bis 0001, und die Aussage dieses Tests ist die
+   * WIRKUNG DER ANWEISUNG, nicht die Reihenfolge des Migrators (die `_journal.json` haelt).
+   * `UPDATE … WHERE` ist idempotent — ein zweiter Lauf ist hier kein Kunstgriff, sondern genau das,
+   * was auf einer bestehenden Datenbank passiert.
+   */
+  function nachMigration0002(rolle: string): string {
+    const sqlite = frisch();
+    sqlite
+      .prepare(
+        `INSERT INTO personen (id, sub, name, initialen, rolle, soll_minuten_tag, aktiv_von, erstellt_am)
+         VALUES ('p1','dev:rike@b','Rike','RI',?,468,'2026-08-01',1)`,
+      )
+      .run(rolle);
+    sqlite.exec(readFileSync(join(process.cwd(), ORDNER, datei0002()), "utf8"));
+    const zeile = sqlite.prepare("SELECT rolle FROM personen WHERE id='p1'").get() as {
+      rolle: string;
+    };
+    sqlite.close();
+    return zeile.rolle;
+  }
+
+  it("schreibt eine koordination-Zeile auf auftrag um — und NIEMALS auf bufdi", () => {
+    expect(nachMigration0002("koordination")).toBe("auftrag");
+    expect(nachMigration0002("koordination")).not.toBe("bufdi");
+  });
+
+  it("laesst auftrag und bufdi unangetastet", () => {
+    expect(nachMigration0002("auftrag")).toBe("auftrag");
+    expect(nachMigration0002("bufdi")).toBe("bufdi");
+  });
+
+  /**
+   * MEHRERE ZEILEN AUF EINMAL, NICHT NUR EINE — und zwar gemischt: das `UPDATE` traegt ein `WHERE`,
+   * und ein vergessenes oder falsch gesetztes `WHERE` faellt an einer einzelnen Zeile nicht auf.
+   *
+   * OHNE VORHER GESETZTE ZEILEN WAERE DIESER FALL EINE TAUTOLOGIE (Review-Befund): `frisch()`
+   * liefert eine LEERE `personen`-Tabelle, ein `COUNT(*) … WHERE rolle='koordination'` darauf ist
+   * auch dann 0, wenn es die Migrationsdatei gar nicht gibt.
+   */
+  it("schreibt ALLE koordination-Zeilen um und laesst die anderen in Ruhe", () => {
+    const sqlite = frisch();
+    const einfuegen = sqlite.prepare(
+      `INSERT INTO personen (id, sub, name, initialen, rolle, soll_minuten_tag, aktiv_von, erstellt_am)
+       VALUES (?, ?, 'X', 'XX', ?, 468, '2026-08-01', 1)`,
+    );
+    einfuegen.run("k1", "dev:k1@b", "koordination");
+    einfuegen.run("k2", "dev:k2@b", "koordination");
+    einfuegen.run("a1", "dev:a1@b", "auftrag");
+    einfuegen.run("b1", "dev:b1@b", "bufdi");
+
+    sqlite.exec(readFileSync(join(process.cwd(), ORDNER, datei0002()), "utf8"));
+
+    const zaehle = (rolle: string) =>
+      (sqlite.prepare("SELECT COUNT(*) AS n FROM personen WHERE rolle=?").get(rolle) as { n: number })
+        .n;
+    expect(zaehle("koordination")).toBe(0);
+    expect(zaehle("auftrag")).toBe(3);
+    expect(zaehle("bufdi")).toBe(1);
+    sqlite.close();
+  });
+});
+
+/*
+ * DAS DRITTE TEIL DES MIGRATIONS-DREIECKS, DAS KEIN ANDERER TEST SIEHT: eine `.sql`-Datei ohne
+ * Eintrag in `_journal.json` wird beim Boot schlicht UEBERSPRUNGEN (kein Fehler, keine Meldung),
+ * ein Journal-Eintrag ohne Datei bricht den Start. Beides faellt sonst erst im Container auf.
+ */
+describe("Journal und Dateien passen zusammen", () => {
+  it("jede .sql-Datei hat genau einen Journal-Eintrag mit demselben Namen", () => {
+    const dateien = readdirSync(join(process.cwd(), ORDNER))
+      .filter((d) => d.endsWith(".sql"))
+      .map((d) => d.replace(/\.sql$/, ""))
+      .sort();
+    const journal = JSON.parse(
+      readFileSync(join(process.cwd(), ORDNER, "meta", "_journal.json"), "utf8"),
+    ) as { entries: { idx: number; tag: string }[] };
+    expect(journal.entries.map((e) => e.tag).sort()).toEqual(dateien);
+    expect(journal.entries.map((e) => e.idx)).toEqual(journal.entries.map((_, i) => i));
+  });
+
+  it("zu jedem Journal-Eintrag gibt es einen Schnappschuss", () => {
+    const schnappschuesse = readdirSync(join(process.cwd(), ORDNER, "meta")).filter((d) =>
+      d.endsWith("_snapshot.json"),
+    );
+    const journal = JSON.parse(
+      readFileSync(join(process.cwd(), ORDNER, "meta", "_journal.json"), "utf8"),
+    ) as { entries: { idx: number }[] };
+    for (const eintrag of journal.entries) {
+      const praefix = String(eintrag.idx).padStart(4, "0");
+      expect(schnappschuesse, praefix).toContain(`${praefix}_snapshot.json`);
+    }
+  });
+});

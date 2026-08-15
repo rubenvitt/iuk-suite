@@ -1,8 +1,8 @@
 import { getDb, type DB } from "../_db/client";
 import { archiv } from "../_db/queries";
-import { PRIORITAETEN, type PersonRow, type Prioritaet } from "../_db/schema";
+import { PRIORITAETEN, type Prioritaet } from "../_db/schema";
 import { isoTag } from "../_lib/datum";
-import { darfAufgabeSehen, personFuerSeite, subFuerSitzung } from "../_lib/zugang";
+import { akteurFuerSeite, darfAufgabeSehen, subFuerSitzung, type Akteur } from "../_lib/zugang";
 import { ArchivFilter } from "../_ui/ArchivFilter";
 import { AufgabenListe } from "../_ui/AufgabenListe";
 import { NichtEingetragenSeite } from "../_ui/NichtEingetragenSeite";
@@ -36,8 +36,8 @@ function alsPrioritaetsFilter(wert: string | undefined): Prioritaet | "" {
   return "";
 }
 
-export function archivInhalt(db: DB, person: PersonRow, heute: string, prioritaetParam?: string) {
-  const sichtbar = archiv(db).filter((a) => darfAufgabeSehen(person, a));
+export function archivInhalt(db: DB, akteur: Akteur, heute: string, prioritaetParam?: string) {
+  const sichtbar = archiv(db).filter((a) => darfAufgabeSehen(akteur, a));
   const prioritaet = alsPrioritaetsFilter(prioritaetParam);
   const gefiltert = prioritaet === "" ? sichtbar : sichtbar.filter((a) => a.prioritaet === prioritaet);
 
@@ -66,11 +66,11 @@ export default async function ArchivPage({
   searchParams: Promise<{ prioritaet?: string }>;
 }) {
   const db = getDb();
-  // `personFuerSeite` statt `personFuerSession`: Modulzugang ohne `personen`-Zeile ist die eigene
+  // `akteurFuerSeite` statt `akteurFuerSession`: Modulzugang ohne `personen`-Zeile ist die eigene
   // Erklaerseite, nicht `notFound()` (Spec-Nachtrag 2026-08-14).
-  const person = await personFuerSeite(db);
-  if (!person) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
+  const akteur = await akteurFuerSeite(db);
+  if (!akteur) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
   const heute = isoTag(new Date());
   const { prioritaet } = await searchParams;
-  return archivInhalt(db, person, heute, prioritaet);
+  return archivInhalt(db, akteur, heute, prioritaet);
 }

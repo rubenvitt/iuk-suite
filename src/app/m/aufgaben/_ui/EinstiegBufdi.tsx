@@ -20,7 +20,7 @@ import {
   montagDerWoche,
   wochenTage,
 } from "../_lib/datum";
-import { darfPlanAendern, darfRoutinenVerwalten } from "../_lib/zugang";
+import { darfPlanAendern, darfRoutinenVerwalten, type Akteur } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { AufgabenListe } from "./AufgabenListe";
@@ -49,7 +49,7 @@ import { Wochenplan } from "./Wochenplan";
  * DIE ZWEI VERTAGTEN KPI-VERWEISE (Aufgabe 16) — „Freigabe offen" und „Zurückgewiesen" trugen bis
  * hierhin bewusst KEIN `href` (Aufgabe 13: „ein Knopf auf eine 404-Seite wäre schlechter als
  * keiner" — `/freigaben` existierte noch nicht, UND ist ohnehin fuer `bufdi` KEIN Ziel: die Route
- * ist auf `auftrag`/`koordination` gegatet, `darfFreigabenSehen`, weil sie die Warteschlange DERER
+ * ist auf `auftrag` und die Koordination gegatet, `darfFreigabenSehen`, weil sie die Warteschlange DERER
  * zeigt, die freigeben, nicht der Zugewiesenen). Beide Kacheln verlinken deshalb NICHT auf
  * `/freigaben`, sondern auf zwei neue, schreibgeschuetzte Abschnitte AUF DIESER Seite
  * (`#freigabe-offen`, `#zurueckgewiesen`) — dieselbe Form wie die bereits bestehenden Anker
@@ -62,17 +62,20 @@ import { Wochenplan } from "./Wochenplan";
  */
 export function EinstiegBufdi({
   db,
-  person,
+  akteur,
   heute,
   wocheParam,
   tagParam,
 }: {
   db: DB;
-  person: PersonRow;
+  akteur: Akteur;
   heute: string;
   wocheParam?: string;
   tagParam?: string;
 }) {
+  // Die Zeile eigens benannt: sie speist die reinen Anzeige- und Ladepfade (`aufgabenFuerPerson`,
+  // `tagesBudget`, `Wochenplan person=`). Die beiden Rechtefragen unten stellen den `Akteur`.
+  const person = akteur.person;
   const montag = montagAusParam(wocheParam, heute);
   const tage = wochenTage(montag);
   const mobilTag = ausgewaehlterTag(tage, heute, tagParam);
@@ -83,13 +86,13 @@ export function EinstiegBufdi({
 
   // DASSELBE PRAEDIKAT WIE DIE ROUTE `/plan/[personId]` (`_lib/zugang.ts`) — auch fuer die EIGENE
   // Woche gilt: eine ausgeschiedene Person plant nichts mehr, auch nicht sich selbst.
-  const zeigeAktionen = darfPlanAendern(person, person.id, heute);
+  const zeigeAktionen = darfPlanAendern(akteur, person.id, heute);
   const rang = zeigeAktionen ? rangGrenzen(db, person.id, tage) : undefined;
   // DASSELBE PRAEDIKAT WIE `/routinen` SELBST (`darfRoutinenVerwalten`, Aufgabe 13) — nicht
   // `darfPlanAendern`, obwohl beide fuer eine aktive BuFDi heute denselben Wert liefern: der
   // Fussverweis muss dem Riegel der ZIELSEITE folgen, nicht einer zufaellig gleichwertigen
   // Bedingung (Spec §7: dasselbe Praedikat in Navigation und Riegel).
-  const darfRoutinen = darfRoutinenVerwalten(person, heute);
+  const darfRoutinen = darfRoutinenVerwalten(akteur, heute);
 
   const einzuplanen = meineAufgaben.filter(wartetAufEinplanung);
   const heuteOffenListe = meineAufgaben.filter((a) => heuteOffen(a, heute));

@@ -1,6 +1,6 @@
-import type { AufgabeRow, PersonRow } from "../_db/schema";
+import type { AufgabeRow } from "../_db/schema";
 import { uebergang, type Aktion } from "./lebenszyklus";
-import { darfNachweisHochladen } from "./zugang";
+import { darfNachweisHochladen, type Akteur } from "./zugang";
 
 /*
  * WELCHE AKTIONEN DIESE PERSON MIT DIESER AUFGABE JETZT AUSFUEHREN DARF (Aufgabe 16, Brief) — fuer
@@ -50,15 +50,16 @@ const GEPRUEFTE_AKTIONEN: readonly (keyof AktionsOptionen)[] = [
   "zurueckziehen",
 ];
 
-export function aktionsOptionen(a: AufgabeRow, p: PersonRow, heute: string): AktionsOptionen {
+export function aktionsOptionen(a: AufgabeRow, akteur: Akteur, heute: string): AktionsOptionen {
   const ergebnis = {} as AktionsOptionen;
   for (const aktion of GEPRUEFTE_AKTIONEN) {
-    ergebnis[aktion] = uebergang(a, aktion as Aktion, p, heute).erlaubt;
+    ergebnis[aktion] = uebergang(a, aktion as Aktion, akteur, heute).erlaubt;
   }
   // `a.status === "in_arbeit"` steht HIER und nicht in `darfNachweisHochladen` (`_lib/zugang.ts`) —
   // dieselbe Zustandsvoraussetzung wie die `in_arbeit`×`fertig`-Zeile in `_lib/lebenszyklus.ts`s
   // `TABELLE`, aber der Upload selbst ist kein Uebergang jener Tabelle und hat dort keine eigene
   // Zeile. `zugang.ts` bleibt damit bei reinen Personen-/Rollenfragen (Kopfkommentar dort).
-  ergebnis.nachweisHochladen = a.status === "in_arbeit" && a.nachweisPflicht && darfNachweisHochladen(p, a, heute);
+  ergebnis.nachweisHochladen =
+    a.status === "in_arbeit" && a.nachweisPflicht && darfNachweisHochladen(akteur, a, heute);
   return ergebnis;
 }

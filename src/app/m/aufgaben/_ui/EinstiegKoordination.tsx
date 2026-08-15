@@ -2,9 +2,8 @@ import Link from "next/link";
 import { Col, Row } from "antd";
 import { alleAufgaben, freigabeDaten, verteilDaten } from "../_db/queries";
 import type { DB } from "../_db/client";
-import type { PersonRow } from "../_db/schema";
 import { istUeberfaellig } from "../_lib/anzeige";
-import { darfVerteilen } from "../_lib/zugang";
+import { darfVerteilen, type Akteur } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { AufgabenListe } from "./AufgabenListe";
@@ -24,7 +23,7 @@ import { VerteilenTabelle } from "./VerteilenDialog";
  * vollstaendig, nicht nur ein Verweis auf `/verteilen`. Die Route `/verteilen` bleibt TROTZDEM
  * bestehen, mit DERSELBEN Tabelle (`_ui/VerteilenDialog.tsx`s `VerteilenTabelle`, ein einziger
  * Baustein fuer beide Seiten) — sie ist die adressierbare Route aus Spec §8's Tabelle und traegt den
- * 404-Riegel aus Spec §8.3 (`auftrag`/`bufdi` bekommen 404, `koordination` 200). Die KPI-Kachel „Zu
+ * 404-Riegel aus Spec §8.3 (wer nicht koordiniert, bekommt 404, die Koordination 200). Die KPI-Kachel „Zu
  * verteilen" verlinkt deshalb NICHT auf `/verteilen` (das waere ein Knopf, der auf eine Kopie der
  * bereits sichtbaren Tabelle zeigt), sondern auf den Anker `#posteingang` auf derselben Seite —
  * dieselbe Form wie `EinstiegBufdi.tsx`s Kachel „Einzuplanen" (`#posteingang`).
@@ -41,7 +40,7 @@ import { VerteilenTabelle } from "./VerteilenDialog";
  * Aufgabe 15s Bericht): sie zeigte bislang nur `AufgabenListe` OHNE Freigeben-/Zurueckweisen-
  * Knoepfe — die Koordination sah hier etwas, womit sie nichts tun konnte, und musste erst nach
  * `/freigaben` wechseln. `FreigabeZone` (Aufgabe 15, wiederverwendet von `EinstiegAuftrag.tsx` UND
- * `/freigaben`) haengt jetzt auch hier ein, mit `freigabeDaten(db, person, heute)` als LADEFUNKTION
+ * `/freigaben`) haengt jetzt auch hier ein, mit `freigabeDaten(db, akteur, heute)` als LADEFUNKTION
  * — dieselbe wie bei den beiden anderen Aufrufern, KEINE eigene, hier gehaltene Fassung von
  * `freigabenFuer`/`istVertretungsfreigabe` mehr (Vorbild `verteilDaten`s Fix-Runde-1-Lehre: zwei
  * separate Ladebloecke fuer dieselbe Sache laufen auseinander, ohne dass ein Test es sieht).
@@ -56,11 +55,11 @@ import { VerteilenTabelle } from "./VerteilenDialog";
  */
 export function EinstiegKoordination({
   db,
-  person,
+  akteur,
   heute,
 }: {
   db: DB;
-  person: PersonRow;
+  akteur: Akteur;
   heute: string;
 }) {
   const { posteingang: zuVerteilenListe, erstellerNamen, bufdis: bufdisListe, auslastung, tage } =
@@ -76,7 +75,7 @@ export function EinstiegKoordination({
   // FREIGABE-WARTESCHLANGE — dieselbe, die `_ui/EinstiegAuftrag.tsx` UND `freigaben/page.tsx`
   // aufrufen. Sie wendet `darfFreigeben`/`istVertretungsfreigabe` bereits an; diese Datei baut
   // beides nicht mehr nach.
-  const { meine: meineFreigabe, vertretung: vertretungFreigabe } = freigabeDaten(db, person, heute);
+  const { meine: meineFreigabe, vertretung: vertretungFreigabe } = freigabeDaten(db, akteur, heute);
   const freigabeAnzahl = meineFreigabe.length + vertretungFreigabe.length;
 
   const kontext = `${zuVerteilenListe.length} zu verteilen · ${freigabeAnzahl} warten auf Freigabe.`;
@@ -128,7 +127,7 @@ export function EinstiegKoordination({
           auslastung={auslastung}
           tage={tage}
           heute={heute}
-          darfVerteilen={darfVerteilen(person, heute)}
+          darfVerteilen={darfVerteilen(akteur, heute)}
         />
       </section>
 

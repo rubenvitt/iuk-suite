@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { aufgaben, personen, type AufgabeRow, type PersonRow, type Rolle } from "../_db/schema";
+import type { Akteur } from "../_lib/zugang";
 
 let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
@@ -28,6 +29,17 @@ afterEach(async () => {
   await unmount();
   t.schliessen();
 });
+
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — `akteur(rike, true)` macht an jeder Fixtur sichtbar,
+ * dass diese Zusage die Gruppe voraussetzt, während `akteur(malte)` denselben `auftrag` OHNE Gruppe
+ * meint. Eine Ableitung aus der Zeile ginge nicht mehr: `ROLLEN` kennt `koordination` nicht mehr.
+ */
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
+}
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -63,7 +75,7 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
 describe("archivInhalt — Leerzustand ausgeschrieben", () => {
   it("zeigt einen ausgeschriebenen Satz, wenn es noch keine abgeschlossene Aufgabe gibt", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    await mount(archivInhalt(t.db, malte, HEUTE));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE));
     expect(document.body.textContent).toContain("Noch keine abgeschlossene Aufgabe.");
   });
 });
@@ -82,19 +94,25 @@ describe("archivInhalt — filtert SERVERSEITIG auf das Sichtrecht (Spec §8)", 
     legeAufgabe({ erstellerId: tomke.id, prueferId: tomke.id, titel: "Tomkes Aufgabe" });
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Maltes Aufgabe" });
 
-    await mount(archivInhalt(t.db, malte, HEUTE));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE));
     expect(document.body.textContent).toContain("Maltes Aufgabe");
     expect(document.body.textContent).not.toContain("Tomkes Aufgabe");
   });
 
+  /*
+   * DIE GEGENPROBE ZUM TEST DARUEBER, UND SEIT DEM QUELLENWECHSEL (2026-08-15) SCHAERFER ALS VORHER:
+   * Rike traegt hier DIESELBE Zeile wie Malte und Tomke (`auftrag`) und sieht trotzdem beide fremden
+   * Aufgaben — der Unterschied liegt ALLEIN in `akteur(rike, true)`, also in der Gruppe. Faellt das
+   * `true` weg, ist Rike ein gewoehnlicher Auftraggeber und der Test wird rot.
+   */
   it("die Koordination sieht JEDE abgeschlossene Aufgabe", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
+    const rike = legePerson("dev:rike@test", "auftrag");
     const malte = legePerson("dev:malte@test", "auftrag");
     const tomke = legePerson("dev:tomke@test", "auftrag");
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Maltes Aufgabe" });
     legeAufgabe({ erstellerId: tomke.id, prueferId: tomke.id, titel: "Tomkes Aufgabe" });
 
-    await mount(archivInhalt(t.db, rike, HEUTE));
+    await mount(archivInhalt(t.db, akteur(rike, true), HEUTE));
     expect(document.body.textContent).toContain("Maltes Aufgabe");
     expect(document.body.textContent).toContain("Tomkes Aufgabe");
   });
@@ -105,7 +123,7 @@ describe("archivInhalt — filtert SERVERSEITIG auf das Sichtrecht (Spec §8)", 
     const bendix = legePerson("dev:bendix@test", "bufdi");
     legeAufgabe({ erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id, titel: "Alinas Aufgabe" });
 
-    await mount(archivInhalt(t.db, bendix, HEUTE));
+    await mount(archivInhalt(t.db, akteur(bendix), HEUTE));
     expect(document.body.textContent).toContain("Alinas Aufgabe");
   });
 
@@ -133,7 +151,7 @@ describe("archivInhalt — filtert SERVERSEITIG auf das Sichtrecht (Spec §8)", 
       titel: "Noch in Arbeit",
     });
 
-    await mount(archivInhalt(t.db, malte, HEUTE));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE));
     expect(document.body.textContent).toContain("Abgeschlossen");
     expect(document.body.textContent).not.toContain("Noch in Arbeit");
   });
@@ -146,7 +164,7 @@ describe("archivInhalt — Filter auf Priorität", () => {
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Hoch B", prioritaet: "hoch" });
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Mittel A", prioritaet: "mittel" });
 
-    await mount(archivInhalt(t.db, malte, HEUTE, "hoch"));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE, "hoch"));
     expect(document.body.textContent).toContain("Hoch A");
     expect(document.body.textContent).toContain("Hoch B");
     expect(document.body.textContent).not.toContain("Mittel A");
@@ -156,7 +174,7 @@ describe("archivInhalt — Filter auf Priorität", () => {
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Eine Aufgabe" });
 
-    await mount(archivInhalt(t.db, malte, HEUTE, "manipuliert"));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE, "manipuliert"));
     expect(document.body.textContent).toContain("Eine Aufgabe");
   });
 
@@ -164,7 +182,7 @@ describe("archivInhalt — Filter auf Priorität", () => {
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, prioritaet: "mittel" });
 
-    await mount(archivInhalt(t.db, malte, HEUTE, "hoch"));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE, "hoch"));
     expect(document.body.textContent).toContain("Keine abgeschlossene Aufgabe mit dieser Priorität.");
     expect(document.body.textContent).not.toContain("Noch keine abgeschlossene Aufgabe.");
   });

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, aufgaben, routinen, type PersonRow, type Rolle } from "../_db/schema";
+import type { Akteur } from "../_lib/zugang";
 import s from "./aufgaben.module.css";
 
 /*
@@ -73,10 +74,22 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
     .get();
 }
 
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — eine Ableitung aus der Zeile ginge gar nicht mehr,
+ * `ROLLEN` kennt `koordination` nicht mehr. Jeder Aufruf dieser Datei bleibt bei der Vorgabe
+ * `false`: `EinstiegBufdi` wird durchweg fuer eine BuFDi OHNE Koordinationsgruppe geprueft, und
+ * genau das meinten die Fixturen schon vorher.
+ */
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
+}
+
 describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
   it("zeigt den Wochenwaehler mit dem Datumsbereich der angezeigten Woche", async () => {
     const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
     expect(document.body.textContent).toContain("Mo, 10.08.");
     expect(document.body.textContent).toContain("Fr, 14.08.");
   });
@@ -130,7 +143,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
       status: "zurueckgewiesen",
     });
 
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
 
     const kacheln = queryAll(`.${s.kpi}`);
     const zahlen = kacheln.map((k) => k.querySelector("span")?.textContent);
@@ -148,7 +161,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
 
   it("eine 0-Kachel bleibt stehen und wird nicht klickbar (kein <a>)", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
     // Bei leerem Bestand sind alle vier Kacheln 0. "Einzuplanen" und "Heute offen" waeren sonst
     // verlinkt — hier duerfen sie es nicht sein.
     const kacheln = queryAll(`.${s.kpi}`);
@@ -169,15 +182,15 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
       status: "verteilt",
       planDatum: null,
     });
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
     const verweis = queryAll<HTMLAnchorElement>("a").find((a) => a.getAttribute("href") === "#posteingang");
     expect(verweis, "Verweis auf #posteingang fehlt").toBeTruthy();
   });
 
   /**
    * DIE ZWEI VERTAGTEN KPI-VERWEISE (Aufgabe 16) — beide zeigen jetzt auf eigene Anker AUF DIESER
-   * Seite, NICHT auf `/freigaben` (das ist fuer `bufdi` kein Ziel — `darfFreigabenSehen` gilt nur
-   * fuer `auftrag`/`koordination`, ein Verweis dorthin waere 404).
+   * Seite, NICHT auf `/freigaben` (das ist fuer diese BuFDi kein Ziel — `darfFreigabenSehen` gilt
+   * nur fuer `auftrag` oder wer koordiniert, ein Verweis dorthin waere 404).
    */
   it('"Freigabe offen" verlinkt auf #freigabe-offen, "Zurückgewiesen" auf #zurueckgewiesen — NICHT auf /freigaben', async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
@@ -196,7 +209,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
       prueferId: malte.id,
       status: "zurueckgewiesen",
     });
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
 
     const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("#freigabe-offen");
@@ -221,7 +234,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
       prueferId: malte.id,
       status: "zurueckgewiesen",
     });
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
 
     expect(query("#freigabe-offen").textContent).toContain("Wartet auf Freigabe");
     expect(query("#freigabe-offen").textContent).not.toContain("Muss ueberarbeitet werden");
@@ -231,7 +244,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
 
   it("die Abschnitte #freigabe-offen und #zurueckgewiesen zeigen je einen ausgeschriebenen Leertext", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
     expect(query("#freigabe-offen").textContent).toContain("Keine Aufgabe wartet auf Freigabe.");
     expect(query("#zurueckgewiesen").textContent).toContain("Keine zurückgewiesene Aufgabe.");
   });
@@ -247,7 +260,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
       status: "verteilt",
       planDatum: null,
     });
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
     // `query("li")` traefe die ERSTE `<li>` im Dokument — und `Breadcrumb` (in `SeitenKopf`)
     // rendert seine Krumen ebenfalls als `<li>`, VOR der Posteingang-Liste. Gezielt die Zeile mit
     // dem Aufgabentitel suchen, statt sich auf die Dokumentreihenfolge zu verlassen.
@@ -269,7 +282,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
       planDatum: null,
       vorschlagDatum: "2026-08-12",
     });
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
     const zeile = queryAll("li").find((li) => li.textContent?.includes("Mit Vorschlag"))!;
     expect(zeile, "Zeile „Mit Vorschlag“ fehlt").toBeTruthy();
     expect(zeile.textContent).toContain("Annehmen");
@@ -296,7 +309,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
       vorschlagDatum: "2026-08-12",
       vorschlagUhrzeit: "09:00",
     });
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
     const zeile = queryAll("li").find((li) => li.textContent?.includes("Mit Vorschlag"))!;
     expect(zeile.textContent).toContain("Mi, 12.08.");
     expect(zeile.textContent).toContain("09:00");
@@ -316,7 +329,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
 
   it("leerer Posteingang zeigt den ausgeschriebenen Leerzustand", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
     expect(document.body.textContent).toContain("Posteingang leer — alles verteilt");
   });
 
@@ -336,7 +349,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
       status: "verteilt",
       planDatum: null,
     });
-    await mount(<EinstiegBufdi db={t.db} person={doerte} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(doerte)} heute={HEUTE} />);
     const zeile = queryAll("li").find((li) => li.textContent?.includes("Alt"))!;
     expect(zeile, "Zeile „Alt“ fehlt").toBeTruthy();
     expect(zeile.textContent).not.toContain("Annehmen");
@@ -349,7 +362,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
     const bendix = legePerson("dev:bendix@test", "bufdi", { name: "Bendix" });
     legePerson("dev:doerte@test", "bufdi", { name: "Dörte", aktivBis: "2020-01-01" });
 
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
 
     const links = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
     expect(links).toContain("/routinen");
@@ -360,14 +373,14 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
 
   it("rendert die fuenf Tagesspalten (Wochenplan) und die Radiogruppe (TagesWaehler)", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
     expect(query('[data-rolle="wochengitter"]')).toBeTruthy();
     expect(queryAll('input[type="radio"]')).toHaveLength(5);
   });
 
   it("liest die Woche aus wocheParam, nicht aus heute", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={HEUTE} wocheParam="2026-08-24" />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} wocheParam="2026-08-24" />);
     expect(document.body.textContent).toContain("Mo, 24.08.");
   });
 
@@ -390,7 +403,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
     // Zwei Wochen vorgeblaettert (wocheParam), "Heute offen" bleibt trotzdem > 0 (heuteOffen
     // haengt nicht von der angezeigten Woche ab).
     await mount(
-      <EinstiegBufdi db={t.db} person={alina} heute={HEUTE} wocheParam="2026-08-24" />,
+      <EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} wocheParam="2026-08-24" />,
     );
     const verweis = queryAll<HTMLAnchorElement>("a").find((a) =>
       a.getAttribute("href")?.startsWith(`/plan/${alina.id}?woche=`),
@@ -411,7 +424,7 @@ describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
         dauerMinuten: 15,
       })
       .run();
-    await mount(<EinstiegBufdi db={t.db} person={alina} heute={MONTAG} />);
+    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={MONTAG} />);
     // REVIEW FIX-RUNDE 1, Minor #2: `queryAll(...)[0]` gefolgt von `routineZeile?.querySelector(...)`
     // bestand den Test auch dann, wenn die Zeile GAR NICHT existierte (`undefined?.foo()` ist
     // `undefined`, also "falsy"). `toBeTruthy()` zuerst, dann die exakte CSS-Modul-Klasse statt des

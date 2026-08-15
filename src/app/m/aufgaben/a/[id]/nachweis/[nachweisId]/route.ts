@@ -32,6 +32,10 @@
  * Dateisystempfad — `ENDUNG_FUER[datei.mime]` (`_lib/ablage.ts`) liefert eine sichere, feste
  * Endung, `nachweis-<id>` den Rest.
  *
+ * `akteurFuer(person)` STATT `akteurFuerSeite(db)`: der `Akteur` entsteht auch hier an der EINEN
+ * Stelle (`_lib/zugang.ts`), nur die Personenzeile loest diese Datei selbst auf — aus dem Grund
+ * direkt darunter.
+ *
  * `auth()`, NICHT `personFuerSeite()`: DIE LETZTERE WIRFT `notFound()` OHNE SITZUNG — fuer eine
  * Seite die richtige Antwort (Next faengt den Wurf und rendert die 404-Seite), fuer einen Route
  * Handler die FALSCHE (der Wurf liesse einen 500 durchschlagen, wo diese Datei einen sauberen
@@ -43,7 +47,7 @@ import { getDb } from "../../../../_db/client";
 import { aufgabe, dateiNachId, nachweisNachId, personNachSub } from "../../../../_db/queries";
 import { ENDUNG_FUER, istErlaubterBildTyp, leseNachweis } from "../../../../_lib/ablage";
 import { istFreigegeben } from "../../../../_lib/scan";
-import { darfNachweisSehen } from "../../../../_lib/zugang";
+import { akteurFuer, darfNachweisSehen } from "../../../../_lib/zugang";
 
 const KEIN_ZWISCHENSPEICHER = "private, no-store";
 const NICHT_VERFUEGBAR = "Dieser Nachweis ist nicht verfügbar.";
@@ -81,7 +85,7 @@ export async function GET(
   const task = aufgabe(db, id);
   if (!task) return zustand(404, NICHT_VERFUEGBAR);
   // BEDINGUNG 2.
-  if (!darfNachweisSehen(person, task)) return zustand(404, NICHT_VERFUEGBAR);
+  if (!darfNachweisSehen(await akteurFuer(person), task)) return zustand(404, NICHT_VERFUEGBAR);
 
   const nachweis = nachweisNachId(db, nachweisId);
   // DER IDOR-RIEGEL UEBER ZWEI ECKEN (s. Kopfkommentar).

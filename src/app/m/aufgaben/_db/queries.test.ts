@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { TestDb } from "./testdb";
 import { migrierteTestDb } from "./testdb";
+import type { Akteur } from "../_lib/zugang";
 import {
   personen,
   aufgaben,
@@ -71,6 +72,17 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
     .get();
 }
 
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
+ * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
+ * damit auf einer ANDEREN Achse als `rolle` — `akteur(rike, true)` macht an jeder Fixtur sichtbar,
+ * dass diese Zusage die Gruppe voraussetzt, während `akteur(malte)` denselben `auftrag` OHNE Gruppe
+ * meint. Eine Ableitung aus der Zeile ginge nicht mehr: `ROLLEN` kennt `koordination` nicht mehr.
+ */
+function akteur(p: PersonRow, istKoordination = false): Akteur {
+  return { person: p, istKoordination };
+}
+
 function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert>) {
   return t.db
     .insert(aufgaben)
@@ -89,13 +101,19 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert>) {
 }
 
 describe("allePersonen — sortiert nach Rolle, dann Name", () => {
-  it("koordination vor auftrag vor bufdi, innerhalb der Rolle alphabetisch", () => {
+  /*
+   * ZWEI RAENGE STATT DREI (Quellenwechsel 2026-08-15): `koordination` ist keine Rolle der Tabelle
+   * mehr. Rike traegt jetzt `auftrag` und sortiert sich damit ALPHABETISCH zwischen die uebrigen
+   * Auftraggeber — sie steht nicht mehr zwangslaeufig oben. Das ist die beabsichtigte Folge des
+   * Umbaus und keine Schwaechung: die Liste ordnet die ZEILE, nicht die Handlungsberechtigung.
+   */
+  it("auftrag vor bufdi, innerhalb der Rolle alphabetisch", () => {
     legePerson("b1", "bufdi", { name: "Zoe" });
     legePerson("b2", "bufdi", { name: "Anna" });
     legePerson("a1", "auftrag", { name: "Bert" });
-    legePerson("k1", "koordination", { name: "Rike" });
+    legePerson("k1", "auftrag", { name: "Rike" });
     const namen = allePersonen(t.db).map((p) => p.name);
-    expect(namen).toEqual(["Rike", "Bert", "Anna", "Zoe"]);
+    expect(namen).toEqual(["Bert", "Rike", "Anna", "Zoe"]);
   });
 });
 
@@ -109,12 +127,43 @@ describe("aktivePersonen — schliesst ausgeschiedene aus", () => {
 });
 
 describe("bufdis — aktive Personen mit rolle === 'bufdi'", () => {
-  it("schliesst koordination/auftrag UND ausgeschiedene BuFDis aus", () => {
+  it("schliesst auftrag UND ausgeschiedene BuFDis aus", () => {
     const alina = legePerson("alina", "bufdi");
     legePerson("bendix-ex", "bufdi", { aktivBis: "2026-08-01" });
-    legePerson("rike", "koordination");
+    legePerson("rike", "auftrag");
     legePerson("malte", "auftrag");
     expect(bufdis(t.db, HEUTE).map((p) => p.id)).toEqual([alina.id]);
+  });
+
+  /*
+   * DIE ZIELLISTE HAENGT AN DER ZEILE, NICHT AN DER GRUPPE — UND GENAU DAS MUSS MAN WISSEN
+   * (Quellenwechsel 2026-08-15, Entwurf §2, praezisiert in der Review-Runde).
+   *
+   * WARUM DIESE FUNKTION UEBERHAUPT ZAEHLT: `verteilDaten` speist die Verteillisten aus `bufdis()`
+   * statt aus `aktivePersonen()`, AUSDRUECKLICH damit die Koordination nicht in ihrer eigenen
+   * Zielliste steht (Betreiberentscheidung 2026-08-13, s. `darfFreigeben`s Kopfkommentar). Solange
+   * `rolle: "koordination"` in der Tabelle stand, hielt der Rollenfilter das von allein.
+   *
+   * WAS DIESE ZEILE PRUEFEN KANN UND WAS NICHT: `bufdis(db, heute)` bekommt keinen `Akteur` — es
+   * SIEHT die Gruppe strukturell nicht und kann sie also auch nicht ausschliessen. Der Test haelt
+   * deshalb genau die Zusage fest, die es gibt: eine Zeile mit `rolle: "auftrag"` steht nicht in
+   * der Liste, gleich wer sie in der Sitzung ist. Die Zusage „wer koordiniert, steht nie drin"
+   * haengt damit vollstaendig an den beiden Stellen, die solche Zeilen ERZEUGEN, und die tragen
+   * ihre eigenen Gegenproben: `_db/migrations.test.ts` (Bestand → `auftrag`, ausdruecklich nicht
+   * `bufdi`) und `_lib/zugang.test.ts` (die JIT-Zeile, ebenfalls `auftrag`).
+   *
+   * UND SIE IST NICHT ABSOLUT: die Koordination kann ueber `/personen` einer Person mit
+   * Koordinationsgruppe eine `bufdi`-Zeile geben — die stuende dann in `bufdis()`. Das ist keine
+   * Luecke im Vier-Augen-Prinzip: `darfFreigeben` lehnt eine SELBST ZUGEWIESENE Fremdaufgabe in
+   * seiner zweiten Klausel ab, vor jeder Rollen- und Gruppenfrage. `bufdis()` ist die zweite Linie,
+   * nicht die erste — wer sie fuer die erste haelt, baut den naechsten Umbau auf einer Zusage auf,
+   * die diese Funktion nicht geben kann.
+   */
+  it("enthaelt keine auftrag-Zeile — auch nicht die der koordinierenden Person", () => {
+    const alina = legePerson("bg-alina", "bufdi");
+    const rike = legePerson("bg-rike", "auftrag");
+    expect(bufdis(t.db, HEUTE).map((p) => p.id)).toEqual([alina.id]);
+    expect(bufdis(t.db, HEUTE).map((p) => p.id)).not.toContain(rike.id);
   });
 });
 
@@ -174,7 +223,7 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, dritter, HEUTE)).toEqual([]);
+    expect(freigabenFuer(t.db, akteur(dritter), HEUTE)).toEqual([]);
   });
 
   it("der eingetragene Pruefer sieht genau seine Aufgabe, keine fremde", () => {
@@ -194,34 +243,34 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
       prueferId: andererPruefer.id,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, pruefer, HEUTE).map((a) => a.id)).toEqual([meine.id]);
+    expect(freigabenFuer(t.db, akteur(pruefer), HEUTE).map((a) => a.id)).toEqual([meine.id]);
   });
 
   it("koordination sieht ALLE offenen Freigaben, auch fremde", () => {
     const ersteller = legePerson("fe3-ersteller", "auftrag");
     const pruefer = legePerson("fe3-pruefer", "auftrag");
     const bufdi = legePerson("fe3-bufdi", "bufdi");
-    const rike = legePerson("fe3-rike", "koordination");
+    const rike = legePerson("fe3-rike", "auftrag");
     legeAufgabe({
       erstellerId: ersteller.id,
       zugewiesenAn: bufdi.id,
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, rike, HEUTE)).toHaveLength(1);
+    expect(freigabenFuer(t.db, akteur(rike, true), HEUTE)).toHaveLength(1);
   });
 
   it("schliesst Aufgaben aus, die nicht freigabe_offen sind — auch fuer koordination", () => {
     const ersteller = legePerson("fe4-ersteller", "auftrag");
     const bufdi = legePerson("fe4-bufdi", "bufdi");
-    const rike = legePerson("fe4-rike", "koordination");
+    const rike = legePerson("fe4-rike", "auftrag");
     legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "in_arbeit" });
-    expect(freigabenFuer(t.db, rike, HEUTE)).toEqual([]);
+    expect(freigabenFuer(t.db, akteur(rike, true), HEUTE)).toEqual([]);
   });
 
-  it("eine Selbstaufgabe im Status freigabe_offen kann es nicht geben — aber selbst dann liefert die Funktion nichts an eine ausgeschiedene koordination", () => {
+  it("eine Selbstaufgabe im Status freigabe_offen kann es nicht geben — aber selbst dann liefert die Funktion nichts an eine (hier ausgeschiedene) koordinierende Person", () => {
     const bufdi = legePerson("fe5-bufdi", "bufdi");
-    const rikeEx = legePerson("fe5-rike-ex", "koordination", { aktivBis: "2026-08-01" });
+    const rikeEx = legePerson("fe5-rike-ex", "auftrag", { aktivBis: "2026-08-01" });
     legeAufgabe({
       erstellerId: bufdi.id,
       zugewiesenAn: bufdi.id,
@@ -229,13 +278,13 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
       istSelbst: true,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, rikeEx, HEUTE)).toEqual([]);
+    expect(freigabenFuer(t.db, akteur(rikeEx, true), HEUTE)).toEqual([]);
   });
 });
 
 describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgabe 15)", () => {
   it("trennt „meine“ von „in Vertretung“ und loest Ersteller-/Zugewiesenennamen auf", () => {
-    const rike = legePerson("fd1-rike", "koordination");
+    const rike = legePerson("fd1-rike", "auftrag");
     const malte = legePerson("fd1-malte", "auftrag", { name: "Malte" });
     const alina = legePerson("fd1-alina", "bufdi", { name: "Alina" });
     const meineAufgabe = legeAufgabe({
@@ -253,7 +302,7 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
       status: "freigabe_offen",
     });
 
-    const daten = freigabeDaten(t.db, rike, HEUTE);
+    const daten = freigabeDaten(t.db, akteur(rike, true), HEUTE);
 
     expect(daten.meine.map((z) => z.aufgabe.id)).toEqual([meineAufgabe.id]);
     expect(daten.vertretung.map((z) => z.aufgabe.id)).toEqual([vertretungsAufgabe.id]);
@@ -262,7 +311,7 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
   });
 
   it("traegt nur Nachweise seit der letzten Zurueckweisung, ueber `nachweiseSeitLetzterZurueckweisung`", () => {
-    const rike = legePerson("fd2-rike", "koordination");
+    const rike = legePerson("fd2-rike", "auftrag");
     const malte = legePerson("fd2-malte", "auftrag");
     const alina = legePerson("fd2-alina", "bufdi");
     const a = legeAufgabe({
@@ -295,35 +344,64 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
       })
       .run();
 
-    const daten = freigabeDaten(t.db, rike, HEUTE);
+    const daten = freigabeDaten(t.db, akteur(rike, true), HEUTE);
     const texte = daten.meine[0]!.nachweise.map((n) => n.nachweis.text);
     expect(texte).toEqual(["Neu"]);
   });
 
-  it("eine ausgeschiedene Person sieht keine Freigaben mehr (istAktiv gilt weiter)", () => {
-    const rikeEx = legePerson("fd3-rike-ex", "koordination", { aktivBis: "2026-08-01" });
+  /*
+   * `istAktiv` GILT WEITER — ABER NUR FUER DIE ZEILENROLLEN (Verhaltensaenderung 2026-08-15,
+   * Entwurf §5). Dieser Fall setzte frueher eine ausgeschiedene KOORDINATION ein und erwartete zwei
+   * leere Listen; seither traegt die Gruppe ihre Rolle, `aktivBis` beendet sie nicht mehr. Die
+   * Aussage „ausgeschieden sieht nichts mehr" bleibt bestehen, sie gehoert jetzt nur der Person, an
+   * der sie haengt: dem ausgeschiedenen `auftrag` OHNE Gruppe. Beide Haelften stehen hier
+   * nebeneinander, damit weder die eine noch die andere still verschwinden kann.
+   */
+  it("ein ausgeschiedener auftrag OHNE Gruppe sieht keine Freigaben mehr (istAktiv gilt fuer die Zeilenrolle weiter)", () => {
+    const malteEx = legePerson("fd3-malte-ex", "auftrag", { aktivBis: "2026-08-01" });
     const malte = legePerson("fd3-malte", "auftrag");
     const alina = legePerson("fd3-alina", "bufdi");
     legeAufgabe({
       erstellerId: malte.id,
       zugewiesenAn: alina.id,
-      prueferId: malte.id,
+      prueferId: malteEx.id,
       status: "freigabe_offen",
     });
-    const daten = freigabeDaten(t.db, rikeEx, HEUTE);
+    const daten = freigabeDaten(t.db, akteur(malteEx), HEUTE);
     expect(daten.meine).toEqual([]);
     expect(daten.vertretung).toEqual([]);
   });
 
+  it("eine ausgeschiedene KOORDINATION sieht die Warteschlange weiterhin — die Gruppe traegt ihre Rolle", () => {
+    const rikeEx = legePerson("fd3-rike-ex", "auftrag", { aktivBis: "2026-08-01" });
+    const malte = legePerson("fd3b-malte", "auftrag");
+    const alina = legePerson("fd3b-alina", "bufdi");
+    const a = legeAufgabe({
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malte.id,
+      status: "freigabe_offen",
+    });
+    const daten = freigabeDaten(t.db, akteur(rikeEx, true), HEUTE);
+    expect(daten.meine).toEqual([]);
+    expect(daten.vertretung.map((z) => z.aufgabe.id)).toEqual([a.id]);
+  });
+
   /*
-   * ADVISOR-FUND: die einzige bis dahin vorhandene Selbstaufgaben-Gegenprobe auf dieser Ebene
-   * (unten, "eine Selbstaufgabe ... kann es nicht geben") setzte eine AUSGESCHIEDENE Koordination
-   * ein — `istAktiv` allein liefert dort schon `[]`, die Zeile bewiese also nichts ueber
-   * `darfFreigeben`s ERSTE Klausel (`if (a.istSelbst) return false`). Diese Zeile nimmt eine AKTIVE
-   * Koordination: nur so kann ein geloeschtes `istSelbst`-Gate ueberhaupt rot werden.
+   * ADVISOR-FUND (mit Nachtrag vom 2026-08-15): die bis dahin einzige Selbstaufgaben-Gegenprobe auf
+   * dieser Ebene ("eine Selbstaufgabe ... kann es nicht geben", weiter oben) setzte eine
+   * AUSGESCHIEDENE Koordination ein — `istAktiv` allein lieferte dort schon `[]`, die Zeile bewies
+   * also nichts ueber `darfFreigeben`s ERSTE Klausel (`if (a.istSelbst) return false`). Diese Zeile
+   * nimmt eine AKTIVE Koordination und war damit die einzige, an der ein geloeschtes
+   * `istSelbst`-Gate rot werden konnte.
+   *
+   * SEIT DEM QUELLENWECHSEL TRAEGT AUCH DER ANDERE FALL: `darfFreigeben` misst die Koordination
+   * nicht mehr an `istAktiv`, dort stoppt jetzt ebenfalls allein `istSelbst`. Die beiden Faelle
+   * sind damit doppelt gemoppelt statt der eine scharf und der andere stumpf — der hier bleibt
+   * trotzdem stehen, weil er die Aussage OHNE Umweg ueber eine Zeitregel macht.
    */
   it("eine Selbstaufgabe erscheint in KEINER Freigabe-Warteschlange — auch nicht bei einer aktiven Koordination", () => {
-    const rike = legePerson("fd4-rike", "koordination");
+    const rike = legePerson("fd4-rike", "auftrag");
     const bufdi = legePerson("fd4-bufdi", "bufdi");
     // Fachlich unerreichbar (Spec §5.2: Selbstaufgaben nehmen die Kurzstrecke ohne
     // `freigabe_offen`), aber `darfFreigeben`s erste Klausel soll sich nicht auf diese Invariante
@@ -335,7 +413,7 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
       istSelbst: true,
       status: "freigabe_offen",
     });
-    const daten = freigabeDaten(t.db, rike, HEUTE);
+    const daten = freigabeDaten(t.db, akteur(rike, true), HEUTE);
     expect(daten.meine).toEqual([]);
     expect(daten.vertretung).toEqual([]);
   });
@@ -835,13 +913,18 @@ describe("wochenAuslastungFuerBufdis — dieselbe Rechnung wie tagesBudget, aufs
  * `EinstiegKoordination.tsx` UND `verteilen/page.tsx` rufen ausschliesslich SIE, keine eigene
  * Fassung mehr. Diese Gegenprobe bindet die Zielliste an DER QUELLE, statt sich auf die beiden
  * Aufrufer zu verlassen: sie WUERDE ROT, ersetzte `verteilDaten` `bufdis()` durch `aktivePersonen()`
- * — die Fixtur traegt bewusst eine `koordination`- UND eine `auftrag`-Person zusaetzlich zu den
- * BuFDis (derselbe Aufbau wie die bisherige `verteilen/page.test.tsx`-Gegenprobe), damit ein
- * schwaecherer Filter (`rolle !== "koordination"`) ebenfalls auffiele.
+ * — die Fixtur traegt bewusst ZWEI `auftrag`-Personen zusaetzlich zu den BuFDis (derselbe Aufbau wie
+ * die bisherige `verteilen/page.test.tsx`-Gegenprobe), von denen eine die frueher koordinierende
+ * ist.
+ *
+ * SEIT DEM QUELLENWECHSEL (2026-08-15) GIBT ES DIE SCHWAECHERE ALTERNATIVE GAR NICHT MEHR: ein
+ * Filter `rolle !== "koordination"` waere nicht mehr formulierbar, weil die Rolle nicht mehr in der
+ * Zeile steht. `bufdis()` ist damit der EINZIGE Weg, der die Koordination strukturell aus der
+ * Zielliste haelt — diese Gegenprobe wiegt seither schwerer, nicht leichter.
  */
 describe("verteilDaten — die Zielliste kommt aus bufdis(), nicht aus aktivePersonen()", () => {
-  it("liefert genau die aktiven BuFDis als Zielliste — nicht koordination, nicht auftrag", () => {
-    legePerson("vd1-rike", "koordination");
+  it("liefert genau die aktiven BuFDis als Zielliste — keine auftrag-Person", () => {
+    legePerson("vd1-rike", "auftrag");
     const malte = legePerson("vd1-malte", "auftrag");
     const alina = legePerson("vd1-alina", "bufdi");
     const bendix = legePerson("vd1-bendix", "bufdi");

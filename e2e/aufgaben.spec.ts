@@ -1,9 +1,29 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { devLogin } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
+import { AUFGABEN_KOORDINATION_GRUPPE, AUFGABEN_ZUGANG_GRUPPE } from "./helpers/aufgaben";
 
 const HOST = "aufgaben.localtest.me";
-const GRUPPE = "iuk-aufgaben-nutzer";
+
+/**
+ * DIE BEIDEN GRUPPEN KOMMEN AUS `helpers/aufgaben.ts`, NICHT ALS LITERALE VON HIER (Quellenwechsel
+ * 2026-08-15): `playwright.config.ts`s `webServer.env` setzt den E2E-Server auf DIESELBEN Werte.
+ * Zwei Literale liefen auseinander, sobald `.env.local` die Namen ueberschreibt — und der Lauf
+ * waere dann nicht rot, sondern GEGENTEILIG gruen (die Koordinationsfaelle bezeugten die 404-Riegel,
+ * die die Gegenproben ohnehin behaupten). Die ausfuehrliche Begruendung steht im Helfer.
+ */
+const GRUPPE = AUFGABEN_ZUGANG_GRUPPE;
+
+/**
+ * DIE KOORDINATIONSGRUPPE — seit dem Quellenwechsel vom 2026-08-15 traegt SIE die Rolle, nicht mehr
+ * `personen.rolle`. Rikes geseedete Zeile ist seitdem `auftrag` (`_lib/seedLokal.ts`); jede Sitzung,
+ * die auf eine Koordinationsflaeche will, meldet sich deshalb mit BEIDEN Gruppen an.
+ *
+ * ⚠️ SIE GEHOERT NICHT AN JEDE RIKE-ANMELDUNG: die Gegenproben dieser Datei (`/verteilen`,
+ * `/personen`, `/freigaben` fuer `auftrag`/`bufdi`) UND der Erklaerseiten-Fall weiter unten
+ * beweisen ihre Zusage gerade dadurch, dass sie OHNE sie laufen.
+ */
+const KOORDINATION = `${AUFGABEN_ZUGANG_GRUPPE},${AUFGABEN_KOORDINATION_GRUPPE}`;
 
 /** Minimale, aber echte PNG-Signatur (8 Bytes) plus etwas Nutzlast — `_lib/ablage.ts` prueft nur die Magic Bytes. */
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
@@ -185,6 +205,12 @@ test("/plan/<unbekannte-id> bleibt notFound() — die Grenze der Erklaerseiten-A
  *
  * `rike@localtest.me` TRIFFT GENAU DIE KOORDINATIONS-PERSONA AUS `seedLokal.ts`
  * (`subFuer({ sub: "rike", ... }) === "dev:rike@localtest.me"`).
+ *
+ * DIE ADRESSE ALLEIN REICHT SEIT DEM 2026-08-15 NICHT MEHR (Quellenwechsel): Rikes geseedete Zeile
+ * traegt `rolle: "auftrag"`, ihre Koordinationsrolle kommt aus der Auth-Gruppe. Jede Anmeldung
+ * dieser Datei, die eine Koordinationsflaeche erwartet, nimmt deshalb `KOORDINATION` (beide Gruppen)
+ * statt `GRUPPE`. Ohne diese Zeile bekaeme Rike „Meine Auftraege" statt der Verteilung — und die
+ * beiden 404-Gegenproben weiter unten waeren die einzigen Faelle, die noch etwas belegten.
  */
 test("Verteilung: die Koordination meldet sich an, die Modulwurzel zeigt „Verteilung“ und bleibt fehlerfrei", async ({
   page,
@@ -197,7 +223,7 @@ test("Verteilung: die Koordination meldet sich an, die Modulwurzel zeigt „Vert
 
   await devLogin(page, {
     host: HOST,
-    groups: GRUPPE,
+    groups: KOORDINATION,
     email: "rike@localtest.me",
     callbackPath: "/",
   });
@@ -222,7 +248,7 @@ test("Verteilen: /verteilen antwortet der Koordination mit 200 und zeigt den Pos
 
   await devLogin(page, {
     host: HOST,
-    groups: GRUPPE,
+    groups: KOORDINATION,
     email: "rike@localtest.me",
     callbackPath: "/verteilen",
   });
@@ -266,7 +292,7 @@ test("Personenverwaltung: /personen antwortet der Koordination mit 200", async (
 
   await devLogin(page, {
     host: HOST,
-    groups: GRUPPE,
+    groups: KOORDINATION,
     email: "rike@localtest.me",
     callbackPath: "/personen",
   });
@@ -431,7 +457,7 @@ test("Freigaben: dieselbe Aufgabe erscheint fuer die Koordination unter „in Ve
 }) => {
   await devLogin(page, {
     host: HOST,
-    groups: GRUPPE,
+    groups: KOORDINATION,
     email: "rike@localtest.me",
     callbackPath: "/freigaben",
   });
@@ -530,7 +556,7 @@ test("Archiv: /archiv antwortet mit 200 und zeigt abgeschlossene Aufgaben, gefil
 
   await devLogin(page, {
     host: HOST,
-    groups: GRUPPE,
+    groups: KOORDINATION,
     email: "rike@localtest.me",
     callbackPath: "/archiv",
   });
@@ -553,7 +579,7 @@ test("Archiv: der Prioritätsfilter (Client-Insel) filtert serverseitig, ohne Ko
 
   await devLogin(page, {
     host: HOST,
-    groups: GRUPPE,
+    groups: KOORDINATION,
     email: "rike@localtest.me",
     callbackPath: "/archiv",
   });
@@ -1034,7 +1060,9 @@ test("Ziehbereich: ein abgebrochener Zug (Loslassen außerhalb jeder Tagesspalte
 /*
  * AB HIER AUFGABE 21 — DIE UMSCHALTUNG BEI DREI VIEWPORTS, DER WAAGERECHTE-SCROLL-CHECK, DER
  * DUNKELMODUS, DIE VERTAGTE TASTATURBEDIENUNG UND DER VOLLE DURCHLAUF. Der volle Durchlauf steht
- * ABSICHTLICH ALS LETZTER FALL DER GANZEN DATEI (Begruendung an seinem eigenen Kopfkommentar) —
+ * ABSICHTLICH GANZ HINTEN (Begruendung an seinem eigenen Kopfkommentar) — seit dem 2026-08-15
+ * folgen ihm noch die ZWEI „leerer Start"-Faelle des Quellenwechsels, aus derselben Ueberlegung
+ * und mit derselben Vorkehrung: auch ihre Kalenderdaten liegen ausserhalb der aktuellen Woche —
  * alles andere in diesem Block ist les-/zustandsneutral fuer die Woche, auf die Aufgabe 20s
  * Zieh-Tests sich verlassen, ausser dem Tastatur-Fall (der VERAENDERT Bendix' Montag ein weiteres
  * Mal) — auch er steht deshalb nach den Zieh-Tests, nicht davor.
@@ -1112,8 +1140,21 @@ async function ueberlauf(page: import("@playwright/test").Page) {
   }));
 }
 
-const UEBERLAUF_SEITEN: { label: string; pfad: string; email: string; titel: string }[] = [
-  { label: "/ (Alina)", pfad: "/", email: "alina@localtest.me", titel: "Meine Woche" },
+/**
+ * `groups` IST SEIT DEM 2026-08-15 EIN EIGENES FELD JE ZEILE, KEIN FESTES `GRUPPE` IN DER SCHLEIFE
+ * (Quellenwechsel): drei dieser Zeilen fahren Koordinationsseiten (`/verteilen`, `/personen`,
+ * `/archiv`), und die erreicht Rike nur noch MIT der Koordinationsgruppe. Ohne dieses Feld waeren es
+ * bei vier Breiten ZWOELF rote Faelle, und ihre Meldung lautete „HTTP 404 statt 200" — nach einem
+ * kaputten Layout klingt das nicht.
+ *
+ * ⚠️ AUCH `/archiv` BRAUCHT SIE, obwohl die Route selbst kein Koordinationsgate traegt: die Zeile
+ * prueft `getByRole("heading", { name: "Archiv" })`, und die Seite antwortet einer `auftrag`-Person
+ * durchaus mit 200 — aber `darfAufgabeSehen` filtert ihr Bendix' Selbstaufgabe und Doertes Aufgabe
+ * weg (sie ist bei keiner der beiden Ersteller, Zugewiesene oder Pruefer). Die Gruppe haelt diese
+ * Zeile deshalb bei DEM Inhalt, dessen Breite sie messen soll.
+ */
+const UEBERLAUF_SEITEN: { label: string; pfad: string; email: string; groups: string; titel: string }[] = [
+  { label: "/ (Alina)", pfad: "/", email: "alina@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
   // BENDIX' UND CARLAS WOCHEN SIND DIE EIGENTLICHEN GEGENPROBEN (advisor-Hinweis nach dem ersten
   // 820px-Fund): `flex-wrap: wrap` auf `.routineZeile` behebt den langen Routinennamen, aber NICHT
   // notwendigerweise `.budget`/`.budgetUeberbucht` — beide tragen `white-space: nowrap`
@@ -1122,13 +1163,13 @@ const UEBERLAUF_SEITEN: { label: string; pfad: string; email: string; titel: str
   // Übergabe" ist der laengste Routinenname im ganzen Seed. Ohne diese beiden Zeilen bewiese der
   // Sweep nur "eine Person mit kurzen Texten laeuft nicht ueber" — nicht die Zusicherung, die der
   // Brief verlangt.
-  { label: "/ (Bendix, ueberbuchter Montag)", pfad: "/", email: "bendix@localtest.me", titel: "Meine Woche" },
-  { label: "/ (Carla, laengster Routinenname)", pfad: "/", email: "carla@localtest.me", titel: "Meine Woche" },
+  { label: "/ (Bendix, ueberbuchter Montag)", pfad: "/", email: "bendix@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
+  { label: "/ (Carla, laengster Routinenname)", pfad: "/", email: "carla@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
   // `Table` mit `scroll={{x: "max-content"}}` — die eine Seite, fuer die diese Zusicherung
   // ueberhaupt etwas beweist (s. Kopfkommentar).
-  { label: "/verteilen", pfad: "/verteilen", email: "rike@localtest.me", titel: "Verteilen" },
-  { label: "/personen", pfad: "/personen", email: "rike@localtest.me", titel: "Personenverwaltung" },
-  { label: "/archiv", pfad: "/archiv", email: "rike@localtest.me", titel: "Archiv" },
+  { label: "/verteilen", pfad: "/verteilen", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilen" },
+  { label: "/personen", pfad: "/personen", email: "rike@localtest.me", groups: KOORDINATION, titel: "Personenverwaltung" },
+  { label: "/archiv", pfad: "/archiv", email: "rike@localtest.me", groups: KOORDINATION, titel: "Archiv" },
 ];
 
 /*
@@ -1164,7 +1205,7 @@ for (const vp of [
       test(`${seite.label} laeuft nicht ueber`, async ({ page }) => {
         await devLogin(page, {
           host: HOST,
-          groups: GRUPPE,
+          groups: seite.groups,
           email: seite.email,
           callbackPath: seite.pfad,
         });
@@ -1413,7 +1454,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   // 2. VERTEILEN MIT ZEITVORSCHLAG — Rike, Koordination, an Carla.
   await wechsleRolle(page, {
     host: HOST,
-    groups: GRUPPE,
+    groups: KOORDINATION,
     email: "rike@localtest.me",
     callbackPath: "/verteilen",
   });
@@ -1497,5 +1538,285 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   // TEILSTRING enthaelt ("... — Abgeschlossen", `EREIGNIS_TEXT`) — ohne `exact` waere die Abfrage
   // seit genau diesem Schritt mehrdeutig (Strict-Mode-Fehler), der Status-Chip ist aber der einzige
   // Treffer mit GENAU diesem Text.
+  await expect(page.getByText("Abgeschlossen", { exact: true })).toBeVisible();
+});
+
+/*
+ * AB HIER DER QUELLENWECHSEL VOM 2026-08-15 — „DER LEERE START" (Umsetzungsplan, Abschnitt
+ * „Abnahme"). Die zwei Faelle unten sind der eigentliche Beweis des ganzen Umbaus, und es gab sie
+ * vorher NICHT — sie konnten nicht existieren: bis dahin schrieb ausschliesslich `_lib/seedLokal.ts`
+ * je eine `koordination`-Zeile, ohne Seed durfte also niemand die erste Person anlegen.
+ *
+ * SIE STEHEN NACH DEM VOLLEN DURCHLAUF, nicht davor, und die Vorkehrung ist dieselbe wie dort:
+ * ihre Aufgabe traegt Kalenderdaten zwei bzw. drei Wochen in der Zukunft und erscheint deshalb in
+ * keinem Standard-Wochenplan — Aufgabe 20s Zieh-Tests bleiben unberuehrt.
+ *
+ * ⚠️ EIGENE, PRO LAUF EINDEUTIGE ANMELDEADRESSEN STATT `dev@localtest.me` — UND DAS IST KEINE
+ * KOSMETIK: `dev@localtest.me` ist die Adresse, mit der der Test „Modulzugang ohne personen-Zeile
+ * zeigt die Erklaerseite, keine 404" (ganz oben) seine Zusage belegt. Beide Faelle hier legen ueber
+ * `akteurFuerSeite` eine JIT-Personenzeile an, und die bleibt in der EINEN geteilten `.data/e2e`-
+ * Datenbank fuer den ganzen Lauf stehen (`workers: 1`, `rm -rf ./.data/e2e` nur beim Serverstart).
+ * Mit `dev@localtest.me` haenge die Gruenheit jenes Tests damit an der REIHENFOLGE der Faelle in
+ * einer 1500-Zeilen-Datei — ein `--grep`, ein Shard oder eine spaetere Umsortierung braechen ihn,
+ * und die Meldung lautete „Erklaerseite fehlt" und zeigte auf den falschen Test. Genau die Familie
+ * aus CLAUDE.mds Fallen 10/11: ein Test, der etwas anderes misst, als sein Name sagt. Eine eigene
+ * Adresse je Fall ist ausserdem die staerkere Aussage — sie gilt fuer ein BELIEBIGES Konto mit der
+ * Gruppe, nicht fuer „das" Dev-Konto.
+ *
+ * `Date.now()` IM ADRESSTEIL, aus demselben Grund wie im vollen Durchlauf: gegen eine nicht neu
+ * angelegte `.data/e2e` haette ein zweiter Lauf sonst denselben `sub` schon vergeben
+ * (`personAnlegenAction` antwortet dann mit „Diese Kennung ist bereits vergeben.").
+ */
+
+/**
+ * DER BEWEIS DES UMBAUS (Entwurf 2026-08-15 §4, Plan-Abnahme Punkt 3): eine Anmeldung MIT
+ * Koordinationsgruppe und OHNE `personen`-Zeile landet auf der Verteilung — nicht auf der
+ * Erklaerseite „noch nicht eingetragen". Die Personenzeile entsteht dabei gerade erst, in
+ * `akteurFuerSeite`.
+ *
+ * ZWEITE HAELFTE, IDEMPOTENZ: eine zweite Navigation zeigt DIESELBE Person und legt keine zweite
+ * Zeile an. Gemessen an der Personenzahl aus dem Seitenkopf von `/personen`
+ * („N Personen im Modul, davon M aktiv.") — sie ist der einzige Wert dieser Oberflaeche, der die
+ * Anzahl unabhaengig vom Namen nennt. Der Name taugt hier NICHT als Schluessel: der Dev-Login
+ * vergibt JEDER Adresse `name: "Dev User"` (`core/auth/config.ts`), die JIT-Zeile heisst also bei
+ * jedem koordinierenden Konto gleich.
+ */
+const LEERER_START_KOORDINATION = `leerer-start-${Date.now()}@localtest.me`;
+
+async function personenZahl(page: import("@playwright/test").Page): Promise<number> {
+  const res = await page.goto(`http://${HOST}:3100/personen`);
+  expect(res?.status(), "/personen antwortet nicht mit 200").toBe(200);
+  const kontext = page.getByText(/\d+ Person(?:en)? im Modul, davon \d+ aktiv\./);
+  await expect(kontext).toBeVisible();
+  const text = (await kontext.textContent()) ?? "";
+  const treffer = /^(\d+) Person/.exec(text.trim());
+  expect(treffer, `Personenzahl nicht lesbar aus „${text}“`).not.toBeNull();
+  // DIESE FUNKTION NAVIGIERT SELBST — deshalb endet sie mit der Ruhezeile, nicht der Aufrufer
+  // (s. `ruheVorDerNaechstenNavigation`). Ohne sie bricht die NAECHSTE Navigation des Aufrufers
+  // den Sitzungsabruf DIESER Seite ab; gemessen, s. dort.
+  await ruheVorDerNaechstenNavigation(page);
+  return Number(treffer![1]);
+}
+
+/**
+ * WARUM NACH EINER NAVIGATION EINE RUHEZEILE STEHT — GEMESSEN, NICHT VERMUTET. Zwei naheliegende
+ * Vermutungen waren VORHER falsch (die Zahl der Navigationen; `wechsleRolle`s `clearCookies`), erst
+ * ein Lauf mit `page.on("requestfailed")` zeigte die Ursache im Klartext:
+ *
+ *     GET /api/auth/session -> net::ERR_ABORTED     (zweimal, direkt nach `/personen`)
+ *
+ * `SessionProvider` (`components/providers.tsx`) ruft bei JEDEM Mount `/api/auth/session`. Beginnt
+ * die naechste Navigation, waehrend dieser Abruf laeuft, bricht der Browser ihn ab, und next-auth
+ * schreibt daraus `ClientFetchError: Failed to fetch` — eine Meldung, die nach einem kaputten
+ * Sitzungsendpunkt klingt und keiner ist. `ERR_ABORTED` ist der Beleg: kein Zeitablauf, kein 500,
+ * keine verweigerte Verbindung, sondern ein vom Browser selbst abgebrochener Abruf.
+ *
+ * DAS IST FALLE 10 AUS `CLAUDE.md`, eine Ebene hoeher: dort trifft es einen POST auf einen frisch
+ * kompilierten Route Handler, hier den Sitzungsabruf der Client-Insel. Die anderen Tests dieser
+ * Datei, die `konsolenFehler` pruefen, navigieren nach dem Login GENAU EINMAL — sie konnten es
+ * strukturell nicht sehen.
+ *
+ * DIE RUHEZEILE FILTERT NICHTS WEG. Ein `ClientFetchError` aus der Pruefliste zu streichen waere
+ * das Verschweigen des Symptoms und machte die Konsolenpruefung ab sofort blind fuer echte Fehler
+ * derselben Form; `networkidle` beseitigt die URSACHE. Bleibt danach ein Konsolenfehler stehen,
+ * ist er echt.
+ *
+ * SIE GEHOERT ANS ENDE DER FUNKTION, DIE NAVIGIERT — nicht vor die naechste Navigation des
+ * Aufrufers. Genau daran scheiterte der erste Reparaturversuch: die Ruhezeilen standen im Test,
+ * aber `personenZahl` navigiert SELBST, und ihre Seite war es, deren Abruf abbrach.
+ */
+async function ruheVorDerNaechstenNavigation(page: Page): Promise<void> {
+  await page.waitForLoadState("networkidle");
+}
+
+test("Leerer Start: eine Anmeldung mit Koordinationsgruppe ohne personen-Zeile landet auf der Verteilung, nicht auf der Erklaerseite", async ({
+  page,
+}) => {
+  const konsolenFehler: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") konsolenFehler.push(msg.text());
+  });
+  page.on("pageerror", (err) => konsolenFehler.push(err.message));
+
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: KOORDINATION,
+    email: LEERER_START_KOORDINATION,
+    callbackPath: "/",
+  });
+
+  const res = await page.goto(`http://${HOST}:3100/`);
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
+  // DIE GEGENPROBE IN EINEM SATZ: genau dieser Text ist das Symptom, das der Umbau beseitigt.
+  await expect(page.getByText("Du bist noch nicht im Modul eingetragen.")).toHaveCount(0);
+  await ruheVorDerNaechstenNavigation(page);
+
+  const vorher = await personenZahl(page);
+
+  // ZWEITE NAVIGATION — die Stelle, an der ein nicht-idempotentes `INSERT` eine zweite Zeile
+  // erzeugte. `/verteilen` und `/` gehen beide ueber `akteurFuerSeite` (die Seite selbst UND
+  // `layout.tsx` fuer die Navigation), der Pfad wird hier also mehrfach durchlaufen.
+  const zweite = await page.goto(`http://${HOST}:3100/`);
+  expect(zweite?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
+  await ruheVorDerNaechstenNavigation(page);
+  const dritte = await page.goto(`http://${HOST}:3100/verteilen`);
+  expect(dritte?.status()).toBe(200);
+  await ruheVorDerNaechstenNavigation(page);
+
+  const nachher = await personenZahl(page);
+  expect(nachher, "die zweite Navigation hat eine zweite Personenzeile angelegt").toBe(vorher);
+
+  expect(konsolenFehler).toEqual([]);
+});
+
+/**
+ * DER ABNAHMEPFAD DES PLANS, SCHRITTE 4 UND 5 — DER VOLLE RUNDLAUF OHNE JEDE SEED-VORLEISTUNG: eine
+ * frisch freigeschaltete Koordination legt ueber `/personen` einen BuFDi an, stellt eine Aufgabe
+ * ein, verteilt sie, der BuFDi nimmt an, startet und meldet fertig, die Koordination gibt frei.
+ *
+ * ER IST NICHT DER ZWEITE „VOLLE DURCHLAUF" (der weiter oben deckt Zeitvorschlag, Bildnachweis und
+ * drei Rollen ab): DIESER Fall belegt etwas anderes — dass der Weg OHNE eine einzige geseedete
+ * Zeile begehbar ist. Alle Personen, die er braucht, legt er selbst an; keine Persona aus
+ * `seedLokal.ts` kommt darin vor. Genau das war vor dem 2026-08-15 unmoeglich.
+ *
+ * ⚠️ DER `sub` WIRD ABGETIPPT, NICHT GESUCHT — UND SEIT DEM VERZEICHNIS-AUTOFILL (2026-08-15,
+ * Aufgabe 5 des Plans) IST DAS EINE AUSSAGE UEBER DIE UMGEBUNG, NICHT MEHR UEBER DEN FUNKTIONS-
+ * UMFANG. Das Autofill ist gebaut; `playwright.config.ts` setzt `POCKET_ID_API_KEY: ""` (Begruendung
+ * dort), also rendert `/personen` hier den RUECKFALLZWEIG: ein Textfeld `#pf-sub`, unveraendert.
+ * `dev:<email>` ist genau das, was `core/auth/config.ts` fuer eine Dev-Anmeldung als `sub` baut —
+ * und ein Verzeichnis kennt eine Dev-Anmeldung ohnehin nicht.
+ *
+ * Die Zeile darunter traegt damit doppelte Last: sie tippt eine Kennung ab UND belegt, dass der
+ * Rueckfallweg des Formulars steht. Er ist auch im SUCHZWEIG derselbe Selektor (`#pf-sub` ist dort
+ * das Suchfeld, und was darin steht, IST der abgeschickte `sub`) — s. dessen Kopfkommentar.
+ *
+ * JEDE AUSGELOESTE ANFRAGE WIRD AUF IHRE ANTWORT GEPRUEFT (`klickeUndWarteAufSeite`, CLAUDE.md
+ * Falle 10) — und weil eine Feldfehler-Antwort ebenfalls HTTP 200 traegt
+ * (`{ok:false, fieldErrors}`, s. dessen Kopfkommentar), steht hinter JEDEM Schritt zusaetzlich ein
+ * sichtbarer Zustandswechsel. Ein Warmlauf-GET braucht dieser Fall nicht: er stoesst keinen Route
+ * Handler an (kein Nachweis-Upload), nur Server Actions auf bereits uebersetzte Seiten.
+ */
+test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen, einstellen, verteilen, fertig melden, freigeben", async ({
+  page,
+}) => {
+  const stempel = Date.now();
+  const koordination = `rundlauf-koordination-${stempel}@localtest.me`;
+  const bufdiAdresse = `rundlauf-bufdi-${stempel}@localtest.me`;
+  const bufdiName = `Rundlauf BuFDi ${stempel}`;
+  const titel = `E2E-Leerstart ${stempel}: Materialschrank sortieren`;
+
+  // 1. DIE KOORDINATION KOMMT OHNE ZEILE HEREIN — und bekommt sie beim ersten Aufruf.
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: KOORDINATION,
+    email: koordination,
+    callbackPath: "/",
+  });
+  await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
+
+  // 2. EINEN BUFDI ANLEGEN — ueber `/personen`, mit abgetipptem `sub`.
+  const personenSeite = await page.goto(`http://${HOST}:3100/personen`);
+  expect(personenSeite?.status()).toBe(200);
+  /*
+   * DER RUECKFALLZWEIG IST HIER DER GERENDERTE, UND DAS WIRD ZUGESICHERT STATT ANGENOMMEN:
+   * `playwright.config.ts` setzt `POCKET_ID_API_KEY: ""` (Begruendung dort), also traegt `#pf-sub`
+   * das Textfeld mit `name="sub"` und nicht das Suchfeld (dessen inneres `<input>` traegt keinen
+   * Namen). Ohne diese Zeile waere ein wirkungslos gewordenes Ueberschreiben — jemand sortiert
+   * `webServer.env` um, Next aendert die Vorrangregel, eine `.env.*` kommt dazu — NICHT rot,
+   * sondern gegenteilig gruen: `#pf-sub` nimmt in BEIDEN Zweigen eine getippte Kennung an, der
+   * Test liefe also klaglos durch den Suchzweig und riefe dabei bei jedem Anschlag einen fremden
+   * Identitaetsanbieter.
+   */
+  await expect(page.locator("#pf-sub")).toHaveAttribute("name", "sub");
+  await page.locator("#pf-sub").fill(`dev:${bufdiAdresse}`);
+  await page.locator("#pf-name").fill(bufdiName);
+  await page.locator("#pf-initialen").fill("RB");
+  await page.locator("#pf-rolle").selectOption("bufdi");
+  // AKTIV AB HEUTE, NICHT MORGEN: `istAktiv` misst `aktivVon > heute` — ein Datum in der Zukunft
+  // liesse jede spaetere Handlung dieses BuFDi scheitern, und zwar mit einem Befund, der nach
+  // einem Rechteproblem aussieht statt nach einem Datum.
+  await page.locator("#pf-aktiv-von").fill(inTagen(0));
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: "Person anlegen" }).click(),
+  );
+  // DER SICHTBARE ZUSTANDSWECHSEL (ein Feldfehler antwortet ebenfalls mit 200): die Zeile steht in
+  // der Tabelle. `getByRole("cell")` statt `getByText`, weil das Namensfeld des Formulars den
+  // gesendeten Wert zurueckträgt und sonst mehrdeutig waere.
+  await expect(page.getByRole("cell", { name: bufdiName })).toBeVisible();
+
+  // 3. EINE AUFGABE EINSTELLEN — als Koordination, fuer andere (kein „fuer mich selbst").
+  await page.goto(`http://${HOST}:3100/neu`);
+  await page.locator("#af-titel").fill(titel);
+  await page.locator("#af-beschreibung").fill("Vom Leerstart-Rundlauf angelegte Testaufgabe.");
+  await page.locator("#af-faelligAm").fill(inTagen(21));
+  await page.locator("#af-dauerMinuten").fill("45");
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: "Aufgabe einstellen" }).click(),
+  );
+
+  // 4. VERTEILEN — die Id kommt aus dem gerenderten Markup (`data-testid="verteilen-<id>"`), nicht
+  // fest verdrahtet: es ist eine `nanoid`, wie ueberall in dieser Datei.
+  const verteilenSeite = await page.goto(`http://${HOST}:3100/verteilen`);
+  expect(verteilenSeite?.status()).toBe(200);
+  const zeile = page.getByRole("row").filter({ hasText: titel });
+  await expect(zeile).toHaveCount(1);
+  const verteilenKnopf = zeile.getByRole("button", { name: "Verteilen" });
+  const testId = await verteilenKnopf.getAttribute("data-testid");
+  expect(testId, "kein Verteilen-Knopf zur frisch eingestellten Aufgabe").toBeTruthy();
+  const aufgabeId = testId!.replace("verteilen-", "");
+
+  await verteilenKnopf.click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByLabel(bufdiName).check();
+  // ZWEI WOCHEN VORAUS — haelt die Aufgabe aus der aktuellen Woche heraus (s. Blockkommentar).
+  await page.locator("#vd-vorschlag-datum").fill(inTagen(14));
+  await page.locator("#vd-vorschlag-uhrzeit").fill("10:00");
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("dialog").getByRole("button", { name: "Verteilen" }).click(),
+  );
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByTestId(`verteilen-${aufgabeId}`)).toHaveCount(0);
+
+  // 5. ANNEHMEN, STARTEN, FERTIG MELDEN — der frisch angelegte BuFDi, mit der ZUGANGSGRUPPE ALLEIN.
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: bufdiAdresse,
+    callbackPath: "/",
+  });
+  await expect(page.getByRole("heading", { name: "Meine Woche", level: 1 })).toBeVisible();
+  const posteingangZeile = page.locator("#posteingang li").filter({ hasText: titel });
+  await expect(posteingangZeile).toHaveCount(1);
+  await klickeUndWarteAufSeite(page, () =>
+    posteingangZeile.getByRole("button", { name: /^Annehmen:/ }).click(),
+  );
+  await expect(page.locator("#posteingang").getByText(titel)).toHaveCount(0);
+
+  await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: "Bearbeitung starten" }).click(),
+  );
+  await expect(page.getByText("In Bearbeitung")).toBeVisible();
+  // OHNE NACHWEISPFLICHT (bewusst — der Bildnachweis ist die Sache des vollen Durchlaufs oben):
+  // „Fertig melden" fuehrt direkt nach `freigabe_offen`.
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: "Fertig melden" }).click(),
+  );
+  await expect(page.getByText("Freigabe offen")).toBeVisible();
+
+  // 6. FREIGEBEN — zurueck zur Koordination. Sie ist hier zugleich der eingetragene Pruefer
+  // (`aufgabeEinstellenAction` setzt `prueferId` auf den Ersteller jeder Fremdaufgabe), und
+  // `darfFreigeben` laesst sie durch: die Aufgabe ist weder Selbstaufgabe noch ihr selbst
+  // zugewiesen — genau die zwei Klauseln, die das Vier-Augen-Prinzip halten.
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: KOORDINATION,
+    email: koordination,
+    callbackPath: "/",
+  });
+  await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
+  await klickeUndWarteAufSeite(page, () => page.getByTestId(`freigeben-${aufgabeId}`).click());
   await expect(page.getByText("Abgeschlossen", { exact: true })).toBeVisible();
 });

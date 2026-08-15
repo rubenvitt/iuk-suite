@@ -116,13 +116,24 @@ describe("istGueltigeNachweisArt", () => {
 });
 
 describe("istGueltigeRolle", () => {
-  it("akzeptiert die drei Werte aus ROLLEN", () => {
-    expect(istGueltigeRolle("koordination")).toBe(true);
+  it("akzeptiert die zwei Werte aus ROLLEN", () => {
     expect(istGueltigeRolle("auftrag")).toBe(true);
     expect(istGueltigeRolle("bufdi")).toBe(true);
   });
 
   it("lehnt einen erfundenen Wert ab", () => {
     expect(istGueltigeRolle("admin")).toBe(false);
+  });
+
+  /*
+   * DER ABGESCHAFFTE WERT WIRD AUSDRUECKLICH ABGELEHNT (Quellenwechsel 2026-08-15): `koordination`
+   * kommt nicht mehr aus der Modultabelle, sondern aus der Auth-Gruppe. Diese Zeile ist kein
+   * Selbstzweck — sie riegelt den Weg ab, ueber den der Wert zurueckkaeme: `personAnlegenAction`
+   * prueft jede Formulareingabe mit GENAU DIESER Funktion, und ein handgeschriebenes POST mit
+   * `rolle=koordination` waere sonst eine Zeile, die weder Migration `0002` noch `ROLLE_TEXT` noch
+   * `ROLLEN_RANG` kennt.
+   */
+  it("lehnt den abgeschafften Wert `koordination` ab — er kommt aus der Gruppe, nicht aus der Tabelle", () => {
+    expect(istGueltigeRolle("koordination")).toBe(false);
   });
 });

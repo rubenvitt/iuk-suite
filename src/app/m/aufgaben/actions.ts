@@ -25,6 +25,8 @@ import {
 import type { AufgabeRow, Ereignis, NachweisRow } from "./_db/schema";
 import { WOCHENTAG_BIT } from "./_lib/anzeige";
 import {
+  PERSONEN_SUCHE_MAX_TREFFER,
+  PERSONEN_SUCHE_MIN_ZEICHEN,
   istGueltigeDauerMinuten,
   istGueltigeNachweisArt,
   istGueltigePrioritaet,
@@ -40,10 +42,11 @@ import {
   darfPlanAendern,
   darfRoutinenVerwalten,
   istVertretungsfreigabe,
-  personFuerSession,
+  akteurFuerSession,
 } from "./_lib/zugang";
 import { isoTag } from "./_lib/datum";
-import { canAdminModule } from "@/core/auth/guards";
+import { canAdminModule, requireModuleAdmin } from "@/core/auth/guards";
+import { getDirectory, type DirectoryResult } from "@/core/directory";
 
 /*
  * DIE VIER ACTIONS DER AUFGABE 9 — `einstellen`, `verteilen`, `umverteilen`, `zurueckziehen`.
@@ -52,7 +55,7 @@ import { canAdminModule } from "@/core/auth/guards";
  * denselben Helfern (`revalidate`, `feld`, `istGesetzt`, `_lib/eingabe.ts`).
  *
  * DIE KETTE IST FUER JEDE ACTION DIESELBE, UND IHRE REIHENFOLGE IST DIE ZUSAGE (Brief):
- *   personFuerSession  →  Praedikat (hier: `uebergang()`/`anfangsZustand()`)  →  schreiben
+ *   akteurFuerSession  →  Praedikat (hier: `uebergang()`/`anfangsZustand()`)  →  schreiben
  *   →  Verlaufszeile  →  revalidatePath.
  *
  * ZWEI FEHLERARTEN, NIE VERMISCHT (Spec §9.9):
@@ -69,7 +72,7 @@ import { canAdminModule } from "@/core/auth/guards";
  * Zustand und keine Rolle nach.
  *
  * ZWEI NORMATIVE PFLICHTEN LIEGEN AUSSERHALB DER UEBERGANGSTABELLE (Brief, Uebergabe aus Aufgabe 8):
- * `uebergang()` bekommt nur `(AufgabeRow, Aktion, PersonRow, heute)` und sieht deshalb WEDER einen
+ * `uebergang()` bekommt nur `(AufgabeRow, Aktion, Akteur, heute)` und sieht deshalb WEDER einen
  * Begruendungstext NOCH die `nachweise`-Tabelle. Diese Datei ist die EINZIGE Stelle, an der beide
  * noch durchgesetzt werden koennen — siehe `zurueckweisenAction` (Begruendung Pflicht, Spec §5.2)
  * und `fertigMeldenAction` (Nachweispflicht, Spec §5.3). Beide sind FELDFEHLER, keine Wuerfe: eine
@@ -121,7 +124,7 @@ export async function aufgabeEinstellenAction(
   formData: FormData,
 ): Promise<FormState> {
   const db = getDb();
-  const ersteller = await personFuerSession(db);
+  const ersteller = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const fuerSichSelbst = istGesetzt(formData, "fuerSichSelbst");
@@ -179,7 +182,7 @@ export async function aufgabeEinstellenAction(
     titel,
     beschreibung,
     prioritaet: values.prioritaet,
-    erstellerId: ersteller.id,
+    erstellerId: ersteller.person.id,
     zugewiesenAn: start.zugewiesenAn,
     status: start.status,
     faelligAm: values.faelligAm,
@@ -189,11 +192,11 @@ export async function aufgabeEinstellenAction(
     nachweisArt: values.nachweisArt,
     // DIE INVARIANTE, AUF DIE `istVertretungsfreigabe` SICH VERLAESST (Brief): eine Fremdaufgabe
     // bekommt hier ihren Pruefer (den Ersteller), eine Selbstaufgabe keinen.
-    prueferId: start.istSelbst ? null : ersteller.id,
+    prueferId: start.istSelbst ? null : ersteller.person.id,
     istSelbst: start.istSelbst,
   });
 
-  schreibeVerlauf(db, { aufgabeId: neue.id, ereignis: "eingestellt", akteurId: ersteller.id });
+  schreibeVerlauf(db, { aufgabeId: neue.id, ereignis: "eingestellt", akteurId: ersteller.person.id });
   revalidate();
   return { ok: true };
 }
@@ -210,14 +213,14 @@ async function verteilenGemeinsam(
   ereignis: Ereignis,
 ): Promise<FormState> {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const akteur = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const aufgabeId = feld(formData, "aufgabeId");
   const task = aufgabe(db, aufgabeId);
   if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, aktion, person, heute);
+  const ergebnis = uebergang(task, aktion, akteur, heute);
   if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
   if (ergebnis.wirkung !== "aendern") {
     // Nur eine Verteidigungslinie fuer den Typ: "verteilen"/"umverteilen" erzeugen bei `uebergang()`
@@ -238,10 +241,13 @@ async function verteilenGemeinsam(
    * `bufdis(db, heute)` ist DIESELBE Quelle wie die Verteilliste der Oberflaeche (Betreiber-
    * entscheidung 2026-08-13, `darfFreigeben`-Kommentar in `_lib/zugang.ts`) — die Action verlaesst
    * sich nicht auf deren Filter, sie STELLT ihn selbst her. Ein Nachbau als
-   * `person.rolle === "bufdi" && istAktiv(...)` waere genau der Nachbau, den der Brief verbietet:
-   * er traefe die Koordination selbst nicht (deren Rolle ist "koordination"), aber er haette
-   * dieselbe Pruefung ein zweites Mal an einer Stelle liegen, die bei einer spaeteren Aenderung von
-   * `bufdis()` (z. B. einer vierten Rolle) nicht automatisch mitzoege.
+   * `akteur.person.rolle === "bufdi" && istAktiv(...)` waere genau der Nachbau, den der Brief verbietet:
+   * er haette dieselbe Pruefung ein zweites Mal an einer Stelle liegen, die bei einer spaeteren
+   * Aenderung von `bufdis()` nicht automatisch mitzoege. SEIT DEM QUELLENWECHSEL (2026-08-15) waere
+   * er sogar EINE STUFE GEFAEHRLICHER: die koordinierende Person traegt in der Tabelle `auftrag`
+   * (`_db/schema.ts`s `ROLLEN` kennt `koordination` nicht mehr), ein handgeschriebener Rollenfilter
+   * kann sie also gar nicht mehr benennen — `bufdis()` ist der einzige Ausdruck, der sie
+   * strukturell aus der Zielliste haelt.
    */
   const values = {
     // `aufgabeId` gehoert mit hinein — Vorbild `files/(verwaltung)/actions.ts` fuehrt sein `"id"`
@@ -288,7 +294,7 @@ async function verteilenGemeinsam(
   schreibeVerlauf(db, {
     aufgabeId: task.id,
     ereignis,
-    akteurId: person.id,
+    akteurId: akteur.person.id,
     notiz:
       vorschlagDatum !== ""
         ? `Vorschlag: ${vorschlagDatum}${vorschlagUhrzeit !== "" ? ` ${vorschlagUhrzeit}` : ""}`
@@ -298,19 +304,19 @@ async function verteilenGemeinsam(
   return { ok: true };
 }
 
-/** `eingegangen` → `verteilt` (Spec §5.2) — nur `koordination` (`uebergang()` prueft `darfVerteilen`). */
+/** `eingegangen` → `verteilt` (Spec §5.2) — nur die Koordination (`uebergang()` prueft `darfVerteilen`). */
 export async function verteilenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   return verteilenGemeinsam(formData, "verteilen", "verteilt");
 }
 
-/** `verteilt` → `verteilt`, mit geleerter Planung (Spec §5.2) — nur `koordination`. */
+/** `verteilt` → `verteilt`, mit geleerter Planung (Spec §5.2) — nur die Koordination. */
 export async function umverteilenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   return verteilenGemeinsam(formData, "umverteilen", "umverteilt");
 }
 
 /**
  * ZURUECKZIEHEN — LOESCHT DIE AUFGABE, NUR AUS `eingegangen` (Spec §5.2, `uebergang()` prueft
- * Zustand UND Berechtigung: Ersteller oder `koordination`). Kein `FormState`: es gibt kein Feld,
+ * Zustand UND Berechtigung: Ersteller oder Koordination). Kein `FormState`: es gibt kein Feld,
  * das fehlschlagen koennte (nur eine `aufgabeId`), also keine `useActionState`-Signatur — dieselbe
  * Wahl wie `deleteGroupAction` in `feedback/actions.ts`.
  *
@@ -322,14 +328,14 @@ export async function umverteilenAction(_prev: FormState, formData: FormData): P
  */
 export async function zurueckziehenAction(formData: FormData): Promise<void> {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const akteur = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const aufgabeId = feld(formData, "aufgabeId");
   const task = aufgabe(db, aufgabeId);
   if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, "zurueckziehen", person, heute);
+  const ergebnis = uebergang(task, "zurueckziehen", akteur, heute);
   if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
 
   loescheAufgabe(db, task.id);
@@ -357,14 +363,14 @@ async function einfacherUebergang(
   ereignis: Ereignis,
 ): Promise<void> {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const akteur = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const aufgabeId = feld(formData, "aufgabeId");
   const task = aufgabe(db, aufgabeId);
   if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, aktion, person, heute);
+  const ergebnis = uebergang(task, aktion, akteur, heute);
   if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
   if (ergebnis.wirkung !== "aendern") {
     // Verteidigungslinie fuer den Typ, wie in `verteilenGemeinsam": keine dieser drei Aktionen
@@ -373,7 +379,7 @@ async function einfacherUebergang(
   }
 
   aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
-  schreibeVerlauf(db, { aufgabeId: task.id, ereignis, akteurId: person.id });
+  schreibeVerlauf(db, { aufgabeId: task.id, ereignis, akteurId: akteur.person.id });
   revalidate();
 }
 
@@ -458,14 +464,14 @@ function einplanenNotiz(task: AufgabeRow, planDatum: string, planUhrzeit: string
  */
 export async function einplanenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const akteur = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const aufgabeId = feld(formData, "aufgabeId");
   const task = aufgabe(db, aufgabeId);
   if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, "einplanen", person, heute);
+  const ergebnis = uebergang(task, "einplanen", akteur, heute);
   if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
   if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
 
@@ -510,7 +516,7 @@ export async function einplanenAction(_prev: FormState, formData: FormData): Pro
   schreibeVerlauf(db, {
     aufgabeId: task.id,
     ereignis: "eingeplant",
-    akteurId: person.id,
+    akteurId: akteur.person.id,
     notiz: einplanenNotiz(task, planDatum, geplanteUhrzeit),
   });
   revalidate();
@@ -624,14 +630,14 @@ function bildMeldung(db: DB, vorhandene: readonly NachweisRow[]): string | null 
 
 export async function fertigMeldenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const akteur = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const aufgabeId = feld(formData, "aufgabeId");
   const task = aufgabe(db, aufgabeId);
   if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, "fertig", person, heute);
+  const ergebnis = uebergang(task, "fertig", akteur, heute);
   if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
   if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
 
@@ -667,14 +673,14 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
   }
 
   if (nachweisText !== "") {
-    erstelleNachweis(db, { aufgabeId: task.id, art: "text", text: nachweisText, erstelltVon: person.id });
+    erstelleNachweis(db, { aufgabeId: task.id, art: "text", text: nachweisText, erstelltVon: akteur.person.id });
   }
 
   aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
   schreibeVerlauf(db, {
     aufgabeId: task.id,
     ereignis: ergebnis.nach === "abgeschlossen" ? "abgeschlossen" : "fertig_gemeldet",
-    akteurId: person.id,
+    akteurId: akteur.person.id,
   });
   revalidate();
   return { ok: true };
@@ -692,12 +698,12 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
  */
 
 /**
- * FREIGEBEN — `freigabe_offen` → `abgeschlossen` (Spec §5.2), nur Pruefer oder `koordination`
+ * FREIGEBEN — `freigabe_offen` → `abgeschlossen` (Spec §5.2), nur Pruefer oder Koordination
  * (`uebergang()` prueft `darfFreigeben`). Kein Formularfeld ausser `aufgabeId`, deshalb kein
  * `FormState` — wie `zurueckziehenAction`.
  *
  * DIE VERTRETUNGSFREIGABE (Brief, Spec §6 `verlauf`): schreibt die Verlaufszeile ALS SOLCHE, wenn
- * `istVertretungsfreigabe(person, task)` wahr ist — "Freigegeben von X in Vertretung für Y". Das
+ * `istVertretungsfreigabe(akteur, task)` wahr ist — "Freigegeben von X in Vertretung für Y". Das
  * ist der Punkt, an dem die Leistungsdokumentation aussagekraeftig wird oder nicht: ohne die
  * Unterscheidung saehe eine Freigabe durch die Koordination in Vertretung genauso aus wie eine durch
  * den eingetragenen Pruefer, und am Ende des Dienstjahres liesse sich nicht mehr nachvollziehen, wer
@@ -715,33 +721,33 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
  */
 export async function freigebenAction(formData: FormData): Promise<void> {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const akteur = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const aufgabeId = feld(formData, "aufgabeId");
   const task = aufgabe(db, aufgabeId);
   if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, "freigeben", person, heute);
+  const ergebnis = uebergang(task, "freigeben", akteur, heute);
   if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
   if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
 
   let notiz: string | undefined;
-  if (istVertretungsfreigabe(person, task) && task.prueferId !== null) {
+  if (istVertretungsfreigabe(akteur, task) && task.prueferId !== null) {
     const pruefer = personNachId(db, task.prueferId);
     if (!pruefer) {
       throw new Error(`Pruefer "${task.prueferId}" nicht gefunden — Datenbankinkonsistenz.`);
     }
-    notiz = `Freigegeben von ${person.name} in Vertretung für ${pruefer.name}`;
+    notiz = `Freigegeben von ${akteur.person.name} in Vertretung für ${pruefer.name}`;
   }
 
   aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
-  schreibeVerlauf(db, { aufgabeId: task.id, ereignis: "abgeschlossen", akteurId: person.id, notiz });
+  schreibeVerlauf(db, { aufgabeId: task.id, ereignis: "abgeschlossen", akteurId: akteur.person.id, notiz });
   revalidate();
 }
 
 /**
- * ZURUECKWEISEN — `freigabe_offen` → `zurueckgewiesen` (Spec §5.2), nur Pruefer oder `koordination`.
+ * ZURUECKWEISEN — `freigabe_offen` → `zurueckgewiesen` (Spec §5.2), nur Pruefer oder Koordination.
  *
  * DIE ERSTE UEBERGABE AUS AUFGABE 8 (Brief): die Spec-Tabelle schreibt woertlich "Begruendung
  * Pflicht" — `uebergang()` sieht keinen Begruendungstext und kann das strukturell nicht pruefen,
@@ -752,14 +758,14 @@ export async function freigebenAction(formData: FormData): Promise<void> {
  */
 export async function zurueckweisenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const akteur = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const aufgabeId = feld(formData, "aufgabeId");
   const task = aufgabe(db, aufgabeId);
   if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, "zurueckweisen", person, heute);
+  const ergebnis = uebergang(task, "zurueckweisen", akteur, heute);
   if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
   if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
 
@@ -773,7 +779,7 @@ export async function zurueckweisenAction(_prev: FormState, formData: FormData):
   schreibeVerlauf(db, {
     aufgabeId: task.id,
     ereignis: "zurueckgewiesen",
-    akteurId: person.id,
+    akteurId: akteur.person.id,
     notiz: begruendung,
   });
   revalidate();
@@ -791,7 +797,7 @@ export async function zurueckweisenAction(_prev: FormState, formData: FormData):
  * `darfRoutinenVerwalten` STEHT SEIT DEM ABSCHLUSSREVIEW (G6) NEBEN `darfPlanAendern`, IN ALLEN
  * DREI ACTIONS: `routinen/page.tsx:107` gatet die Route mit `darfRoutinenVerwalten`
  * (`rolle === "bufdi" && istAktiv`), die Actions prueften bis dahin nur `darfPlanAendern`
- * (Identitaet + aktiv). Eine `koordination`- oder `auftrag`-Person bekam auf `/routinen` also ein
+ * (Identitaet + aktiv). Eine koordinierende oder eine `auftrag`-Person bekam auf `/routinen` also ein
  * `notFound()`, konnte aber per direktem POST ihre EIGENEN Routinen anlegen, aendern und ruhen
  * lassen — "Recht ohne Knopf". Praktisch harmlos (fremde Routinen blieben durch `darfPlanAendern`
  * verschlossen), aber es war die EINZIGE Stelle im Modul, an der Oberflaeche und Riegel auf
@@ -848,15 +854,15 @@ async function routineFormularGemeinsam(
   routineId: string | null,
 ): Promise<FormState> {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const akteur = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const bestehende = routineId === null ? null : routineNachId(db, routineId);
   if (routineId !== null && !bestehende) {
     throw new Error(`Routine "${routineId}" nicht gefunden.`);
   }
-  const zielPersonId = bestehende ? bestehende.personId : person.id;
-  if (!darfRoutinenVerwalten(person, heute) || !darfPlanAendern(person, zielPersonId, heute)) {
+  const zielPersonId = bestehende ? bestehende.personId : akteur.person.id;
+  if (!darfRoutinenVerwalten(akteur, heute) || !darfPlanAendern(akteur, zielPersonId, heute)) {
     throw new Error("Keine Berechtigung, diese Routine zu aendern.");
   }
 
@@ -928,15 +934,15 @@ export async function routineAendernAction(_prev: FormState, formData: FormData)
  */
 export async function routineRuhenAction(formData: FormData): Promise<void> {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const akteur = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const routineId = feld(formData, "routineId");
   const bestehende = routineNachId(db, routineId);
   if (!bestehende) throw new Error(`Routine "${routineId}" nicht gefunden.`);
   if (
-    !darfRoutinenVerwalten(person, heute) ||
-    !darfPlanAendern(person, bestehende.personId, heute)
+    !darfRoutinenVerwalten(akteur, heute) ||
+    !darfPlanAendern(akteur, bestehende.personId, heute)
   ) {
     throw new Error("Keine Berechtigung, diese Routine zu aendern.");
   }
@@ -1006,7 +1012,7 @@ function istGueltigeRichtung(s: string): s is Richtung {
  */
 export async function rangVerschiebenAction(formData: FormData): Promise<void> {
   const db = getDb();
-  const person = await personFuerSession(db);
+  const akteur = await akteurFuerSession(db);
   const heute = isoTag(new Date());
 
   const aufgabeId = feld(formData, "aufgabeId");
@@ -1017,7 +1023,7 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
   // strukturell keine Person, deren Plan geaendert werden koennte, und faellt deshalb hier heraus,
   // statt `darfPlanAendern` mit einem erfundenen Platzhalter aufzurufen.
   const zielPersonId = task.zugewiesenAn;
-  if (zielPersonId === null || !darfPlanAendern(person, zielPersonId, heute)) {
+  if (zielPersonId === null || !darfPlanAendern(akteur, zielPersonId, heute)) {
     throw new Error("Keine Berechtigung, diesen Rang zu aendern.");
   }
   if (task.planDatum === null) {
@@ -1061,8 +1067,16 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
  * hier spaeter "vereinfacht", nimmt beide Folgen zurueck.
  *
  * `canAdminModule` STATT `requireModuleAdmin` (beide `core/auth/guards.ts`): gebraucht wird die
- * ODER-Haelfte einer Bedingung, nicht ein eigener Abbruch — `requireModuleAdmin` wuerfe jede
- * regulaere Koordinationsperson ohne Suite-Admin-Gruppe hinaus.
+ * ODER-Haelfte einer Bedingung, nicht ein eigener Abbruch.
+ *
+ * ⚠️ DER FRUEHERE ZUSATZ „`requireModuleAdmin` wuerfe jede regulaere Koordinationsperson ohne
+ * Suite-Admin-Gruppe hinaus" GILT SEIT DEM QUELLENWECHSEL (2026-08-15) NICHT MEHR und stand hier
+ * bis zum Verzeichnis-Autofill: `istKoordination` IST inzwischen `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), die beiden Haelften dieser Oder-Bedingung sind also
+ * deckungsgleich geworden. Der Zweig bleibt trotzdem stehen, und zwar wegen der REIHENFOLGE (s. o.)
+ * — nicht, weil er einen zweiten Personenkreis oeffnete. Wer eine Wache braucht, die VOR jedem
+ * Datenzugriff abbricht und keine Personenzeile lesen muss, nimmt seit demselben Datum
+ * `requireModuleAdmin` — s. `personenSucheAction` weiter unten.
  *
  * ES GIBT KEINE LOESCHEN-AKTION, UND DAS IST ABSICHT (Brief, Spec §4): eine ausgeschiedene Person
  * wird ueber `aktivBis` beendet, nicht entfernt — ihre Aufgaben, Nachweise und Verlaufszeilen
@@ -1081,6 +1095,12 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
  * Reihenfolge wie in `personen/page.tsx`. Umgekehrt gefragt, faenge `personFuerSession`s
  * `notFound()` genau den Suite-Admin ohne eigene `personen`-Zeile ab, also den Erstbetriebs-Fall.
  *
+ * DIE JIT-ZEILE (`_lib/zugang.ts`s `akteurFuerSeite`, 2026-08-15) NIMMT DIESEM RIEGEL SEINE
+ * DRINGLICHKEIT, ABER NICHT SEINE AUFGABE: sie entsteht beim SEITENAUFBAU, und Actions bauen keine
+ * Seite auf. Ein POST, der vor jedem Seitenabruf dieser Sitzung eintrifft, traefe weiterhin auf
+ * `personFuerSession`s `notFound()` — deshalb bleibt der Zweig hier stehen, statt sich auf einen
+ * Aufrufpfad zu verlassen, der im Normalfall vorher lief.
+ *
  * `bearbeiter` LEBT NUR IN DIESER FUNKTION und wird nirgends zurueckgegeben: beide Aufrufer
  * arbeiten danach ausschliesslich mit ihren eigenen Werten (`bestehende`/`values`/`db` bzw.
  * `ziel`/`heute`). Fuer den Modul-Admin gibt es unter Umstaenden gar keine Zeile — ein
@@ -1089,10 +1109,71 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
  */
 async function verlangePersonenverwaltung(db: DB, heute: string): Promise<void> {
   if (await canAdminModule("aufgaben")) return;
-  const bearbeiter = await personFuerSession(db);
+  const bearbeiter = await akteurFuerSession(db);
   if (!darfPersonenVerwalten(bearbeiter, heute)) {
     throw new Error("Keine Berechtigung, Personen zu verwalten.");
   }
+}
+
+/**
+ * KEIN AUSFALL AUS DEM VERZEICHNIS DARF EINE ACTION MITNEHMEN. `core/directory` sagt zu, nie zu
+ * werfen (jeder Ausfall ist ein `status`) — diese drei Zeilen kosten nichts und ueberleben einen
+ * spaeteren Austausch des Clients gegen einen, der doch wirft.
+ *
+ * MODULPRIVATE KOPIE DES HELFERS AUS `feedback/actions.ts` (Zeile 274), bewusst nicht importiert —
+ * dieselbe Ueberlegung wie bei `KAESTCHEN_AN`/`istGesetzt` weiter oben: Modul-Interna eines ANDEREN
+ * Moduls sind kein API (`docs/design/README.md`).
+ */
+async function ohneAusfall(abruf: () => Promise<DirectoryResult>): Promise<DirectoryResult> {
+  try {
+    return await abruf();
+  } catch {
+    return { status: "error", people: [] };
+  }
+}
+
+/**
+ * DIE PERSONENSUCHE HINTER DEM AUTOFILL DES ANLEGE-FORMULARS (Entwurf 2026-08-15 §6). Vorbild
+ * woertlich: `feedback/actions.ts`s `suchePersonenAction` und `feedback/_ui/Zuordnung.tsx`.
+ *
+ * SIE LOEST DAS PROBLEM, DAS DER KOPFKOMMENTAR VON `_ui/PersonenFormular.tsx` BISHER NUR VERWALTEN
+ * KONNTE: die Koordination musste sich den `sub` von der betroffenen Person vorlesen lassen (die
+ * sieht ihn auf `_ui/NichtEingetragenSeite.tsx`). Dieser Weg BLEIBT — er ist der Rueckfall, wenn
+ * kein Verzeichnis hinterlegt oder erreichbar ist —, ist aber nicht mehr der einzige.
+ *
+ * DREI EIGENSCHAFTEN, DIE HIER UND NUR HIER DURCHGESETZT WERDEN:
+ *
+ * 1. KOORDINATIONSSACHE, UND DER RIEGEL STEHT IN DER ERSTEN ZEILE — VOR jedem Netzzugriff. Was
+ *    hier zurueckkommt, ist die Mitgliederliste der GANZEN Organisation, nicht die des Moduls
+ *    (`core/directory` kennt keine Gruppen, s. Entwurf §6). Eine Wache NACH dem Abruf waere ein
+ *    Datenabfluss mit anschliessender Fehlermeldung.
+ *
+ *    `requireModuleAdmin` UND NICHT DIE ODER-BEDINGUNG AUS `verlangePersonenverwaltung`: seit dem
+ *    Quellenwechsel sind beide Haelften jener Bedingung deckungsgleich (`istKoordination` IST
+ *    `canAdminModule`, s. dort), und diese Action braucht ueberhaupt keine `personen`-Zeile — sie
+ *    schreibt nichts und rechnet mit keiner `personen.id`. Ein `akteurFuerSession` davor waere ein
+ *    Datenbankzugriff, der nur `notFound()` werfen kann, und zwar ausgerechnet fuer die frisch
+ *    freigeschaltete Koordination, die noch keine Zeile hat.
+ *
+ * 2. DATENSPARSAMKEIT. Ueber die RSC-Grenze gehen hoechstens `PERSONEN_SUCHE_MAX_TREFFER` Personen
+ *    pro Anschlag, nie der Abzug. Gefiltert wird serverseitig auf dem gecachten Abzug.
+ *
+ * 3. AUSFALL BRICHT NICHTS. Der `status` geht MIT zurueck, statt zu einer leeren Liste eingeebnet
+ *    zu werden: nur so kann die Oberflaeche „das Verzeichnis kennt niemanden mit diesem Namen" von
+ *    „das Verzeichnis antwortet gerade nicht" unterscheiden — und im zweiten Fall darf sie die
+ *    getippte Kennung nicht als falsch hinstellen.
+ *
+ * Sie gibt keinen `FormState` zurueck: sie ist kein Formular, sondern eine Abfrage.
+ */
+export async function personenSucheAction(q: string): Promise<DirectoryResult> {
+  await requireModuleAdmin("aufgaben");
+  const begriff = String(q ?? "").trim();
+  // Dieselbe Untergrenze wie in der Insel — hier noch einmal, weil ein Aufruf der Action nicht
+  // durch die Insel gehen MUSS: eine Server-Action ist ein oeffentlicher Endpunkt.
+  if (begriff.length < PERSONEN_SUCHE_MIN_ZEICHEN) {
+    return { status: "ok", people: [] };
+  }
+  return ohneAusfall(() => getDirectory().search(begriff, PERSONEN_SUCHE_MAX_TREFFER));
 }
 
 /**

@@ -4,7 +4,13 @@ import { aufgabenFuerPerson, personNachId, rangGrenzen, routinenFuer } from "../
 import type { PersonRow } from "../../_db/schema";
 import { fmtStunden, tagesBudget, wartetAufEinplanung } from "../../_lib/anzeige";
 import { ausgewaehlterTag, isoTag, montagAusParam, wochenTage } from "../../_lib/datum";
-import { darfPlanAendern, darfPlanSehen, personFuerSeite, subFuerSitzung } from "../../_lib/zugang";
+import {
+  akteurFuerSeite,
+  darfPlanAendern,
+  darfPlanSehen,
+  subFuerSitzung,
+  type Akteur,
+} from "../../_lib/zugang";
 import { EinplanenFormular } from "../../_ui/EinplanenFormular";
 import { NichtEingetragenSeite } from "../../_ui/NichtEingetragenSeite";
 import { SeitenKopf } from "../../_ui/SeitenKopf";
@@ -19,14 +25,18 @@ export const dynamic = "force-dynamic";
 /*
  * DER ZEITPLAN EINER PERSON (Spec §7, §8, §8.5, Aufgabe 13) — eigener änderbar, fremder lesend.
  *
+ * ZWEI VERSCHIEDENE DINGE, DIE EIN MECHANISCHER UMBAU LEICHT ZUSAMMENZIEHT: `betrachter` ist der
+ * `Akteur` (er stellt die Rechtefragen), `ziel` bleibt eine reine `PersonRow` — es ist das ANGEZEIGTE
+ * Objekt und speist `Wochenplan`/`tagesBudget`, nicht ein Praedikat.
+ *
  * `planInhalt` IST DIE REINE, EXPORTIERTE INHALTSFUNKTION (Vorbild `routinenInhalt`) — sie bekommt
- * `betrachter`/`ziel` bereits aufgeloest und braucht keine Sitzung; nur der Default-Export ruft
- * `personFuerSession` und loest `personId` gegen die Datenbank auf.
+ * `betrachter`/`ziel` bereits aufgeloest und braucht keine Sitzung; nur der Default-Export loest
+ * den Akteur auf und schlaegt `personId` gegen die Datenbank nach.
  *
  * DIE ZUGEHOERIGKEIT KOMMT AUS DER DATENBANK, NIE AUS DEM URL-PARAMETER (Spec §7): `personId`
  * wird ueber `personNachId` aufgeloest; gibt es die Person nicht, `notFound()` — sonst waere
  * `/plan/17` ein IDOR. `darfPlanSehen` ist fuer ALLE wahr (Spec: BuFDis sehen die Zeitplaene der
- * anderen lesend, `koordination`/`auftrag` ohnehin), wird aber TROTZDEM aufgerufen — dieselbe
+ * anderen lesend, wer koordiniert und `auftrag` ohnehin), wird aber TROTZDEM aufgerufen — dieselbe
  * Quelle wie ueberall im Modul, nicht eine implizite Zusage, die nirgends mehr geprueft wird.
  *
  * `darfPlanAendern` ENTSCHEIDET, OB AKTIONEN ERSCHEINEN — nur der eigene Plan ist aenderbar, auch
@@ -38,7 +48,7 @@ export const dynamic = "force-dynamic";
  */
 export function planInhalt(
   db: DB,
-  betrachter: PersonRow,
+  betrachter: Akteur,
   ziel: PersonRow,
   heute: string,
   searchParams: { woche?: string; tag?: string },
@@ -65,7 +75,7 @@ export function planInhalt(
   // nicht neu gerechnet.
   const nochEinzuplanen = darfAendern ? aufgaben.filter(wartetAufEinplanung) : [];
 
-  const eigenerPlan = betrachter.id === ziel.id;
+  const eigenerPlan = betrachter.person.id === ziel.id;
 
   return (
     <>
@@ -137,10 +147,10 @@ export default async function PlanPage({
   searchParams: Promise<{ woche?: string; tag?: string }>;
 }) {
   const db = getDb();
-  // `personFuerSeite` statt `personFuerSession`: Modulzugang ohne `personen`-Zeile ist die eigene
+  // `akteurFuerSeite` statt `akteurFuerSession`: Modulzugang ohne `personen`-Zeile ist die eigene
   // Erklaerseite, nicht `notFound()` (Spec-Nachtrag 2026-08-14, `_lib/zugang.ts`). Erst DANACH die
   // Ziel-Id aufloesen — eine unbekannte Objekt-Id bleibt `notFound()` (Grenze der Ausnahme).
-  const betrachter = await personFuerSeite(db);
+  const betrachter = await akteurFuerSeite(db);
   if (!betrachter) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
   const { personId } = await params;
   const ziel = personNachId(db, personId);

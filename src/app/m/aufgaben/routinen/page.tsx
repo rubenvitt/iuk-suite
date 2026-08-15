@@ -5,7 +5,7 @@ import { getDb, type DB } from "../_db/client";
 import { routinenFuer } from "../_db/queries";
 import type { PersonRow } from "../_db/schema";
 import { isoTag } from "../_lib/datum";
-import { darfRoutinenVerwalten, personFuerSeite, subFuerSitzung } from "../_lib/zugang";
+import { akteurFuerSeite, darfRoutinenVerwalten, subFuerSitzung } from "../_lib/zugang";
 import { NichtEingetragenSeite } from "../_ui/NichtEingetragenSeite";
 import { RoutineFormular } from "../_ui/RoutineFormular";
 import { RoutinenTabelle } from "../_ui/RoutinenTabelle";
@@ -24,8 +24,8 @@ export const dynamic = "force-dynamic";
  * `verwaltungInhalt(db, jetzt)` braucht `jetzt`, weil seine Kopfzeile einen Zeitstempel traegt und
  * seine Kennzahlen vom Kalendertag abhaengen; diese Seite zeigt Routinen unabhaengig vom aktuellen
  * Tag (keine Budgetrechnung, keine Faelligkeit) — ein ungenutzter Parameter waere hier Attrappe, kein
- * Vertrag. `personFuerSession` bleibt trotzdem AUSSERHALB dieser Funktion (im Default-Export unten):
- * genau das ist der Teil, der eine Sitzung braucht und den Vitest nicht stellen soll.
+ * Vertrag. Die Aufloesung des Akteurs bleibt trotzdem AUSSERHALB dieser Funktion (im Default-Export
+ * unten): genau das ist der Teil, der eine Sitzung braucht und den Vitest nicht stellen soll.
  *
  * `bearbeitenId` KOMMT ALS ARGUMENT, NICHT AUS `searchParams` HIER DRIN — Vorbild `qr/admin/page.tsx`:
  * ein Link `?bearbeiten=<id>` waehlt aus, welche Routine das Formular oben zeigt, das Bearbeiten
@@ -95,16 +95,18 @@ export default async function RoutinenPage({
   searchParams: Promise<{ bearbeiten?: string }>;
 }) {
   const db = getDb();
-  // `personFuerSeite` statt `personFuerSession`: Modulzugang ohne `personen`-Zeile ist die eigene
+  // `akteurFuerSeite` statt `akteurFuerSession`: Modulzugang ohne `personen`-Zeile ist die eigene
   // Erklaerseite, nicht `notFound()` (Spec-Nachtrag 2026-08-14, `_lib/zugang.ts`).
-  const person = await personFuerSeite(db);
-  if (!person) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
+  const akteur = await akteurFuerSeite(db);
+  if (!akteur) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
   // AUFGABE 13 (offener Punkt aus Aufgabe 11, s. Kommentar bei `darfRoutinenVerwalten`): Spec §8
   // nennt `/routinen` ausdruecklich "für bufdi" — ohne dieses Gate waere die Route fuer
-  // `koordination`/`auftrag` per direkter URL trotzdem erreichbar, auch wenn keine Navigation
+  // eine koordinierende oder eine `auftrag`-Person per direkter URL trotzdem erreichbar, auch wenn keine Navigation
   // dorthin verlinkt. Eine ROLLENFRAGE, keine Fassung der Modulzugang-Ausnahme oben — bleibt
   // `notFound()`.
-  if (!darfRoutinenVerwalten(person, isoTag(new Date()))) notFound();
+  if (!darfRoutinenVerwalten(akteur, isoTag(new Date()))) notFound();
   const { bearbeiten } = await searchParams;
-  return routinenInhalt(db, person, bearbeiten);
+  // `routinenInhalt` STELLT KEINE RECHTEFRAGE — es bekommt weiterhin die reine Zeile, nicht den
+  // Akteur: die Berechtigung ist oben, an der Route, bereits entschieden.
+  return routinenInhalt(db, akteur.person, bearbeiten);
 }

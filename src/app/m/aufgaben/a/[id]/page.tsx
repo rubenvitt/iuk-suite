@@ -1,12 +1,18 @@
 import { notFound } from "next/navigation";
 import { getDb, type DB } from "../../_db/client";
 import { allePersonen, aufgabe, mitDatei, nachweiseFuer, verlaufFuer } from "../../_db/queries";
-import type { AufgabeRow, PersonRow } from "../../_db/schema";
+import type { AufgabeRow } from "../../_db/schema";
 import { NACHWEIS_MAX_BYTES } from "../../_lib/ablage";
 import { aktionsOptionen } from "../../_lib/aktionsOptionen";
 import { EREIGNIS_TEXT, NACHWEIS_ART_TEXT, namenMap } from "../../_lib/anzeige";
 import { fmtTagKurz, fmtZeitpunkt, isoTag } from "../../_lib/datum";
-import { darfAufgabeSehen, darfNachweisSehen, personFuerSeite, subFuerSitzung } from "../../_lib/zugang";
+import {
+  akteurFuerSeite,
+  darfAufgabeSehen,
+  darfNachweisSehen,
+  subFuerSitzung,
+  type Akteur,
+} from "../../_lib/zugang";
 import { AktionsZone } from "../../_ui/AktionsZone";
 import { PrioritaetChip, StatusChip } from "../../_ui/Chip";
 import { Ikone } from "../../_ui/ikonen";
@@ -30,7 +36,7 @@ export const dynamic = "force-dynamic";
  * (`darfAufgabeSehen`, `_lib/zugang.ts` — neu in dieser Aufgabe, s. Bericht), bekommt ebenfalls
  * `notFound()`, NICHT 403: dieselbe Suite-Linie wie ueberall sonst im Modul.
  *
- * DIE AKTIONSZONE ENTSCHEIDET NICHTS SELBST: `aktionsOptionen(task, person, heute)` (`_lib/`,
+ * DIE AKTIONSZONE ENTSCHEIDET NICHTS SELBST: `aktionsOptionen(task, akteur, heute)` (`_lib/`,
  * ruft `uebergang()` je Aktion) laeuft HIER, in der Server Component — `_ui/AktionsZone.tsx`
  * ("use client") importiert weder `_lib/zugang.ts` noch `_lib/lebenszyklus.ts` (beide zoegen
  * `@/core/auth` ins Client-Bundle).
@@ -40,19 +46,19 @@ export const dynamic = "force-dynamic";
  * sieht deshalb noch lange nicht ihre Nachweise.
  *
  * `aufgabeInhalt` IST DIE REINE, EXPORTIERTE INHALTSFUNKTION (Vorbild `routinenInhalt`) —
- * `page.test.tsx` ruft sie direkt, mit bereits aufgeloester Aufgabe und Person.
+ * `page.test.tsx` ruft sie direkt, mit bereits aufgeloester Aufgabe und aufgeloestem Akteur.
  */
-export function aufgabeInhalt(db: DB, person: PersonRow, task: AufgabeRow, heute: string) {
+export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: string) {
   const namen = namenMap(allePersonen(db));
   const erstellerName = namen[task.erstellerId] ?? "—";
   const zugewiesenName =
     task.zugewiesenAn !== null ? (namen[task.zugewiesenAn] ?? "—") : "Noch nicht verteilt";
   const pruefName = task.prueferId !== null ? (namen[task.prueferId] ?? "—") : "—";
 
-  const nachweisSichtbar = darfNachweisSehen(person, task);
+  const nachweisSichtbar = darfNachweisSehen(akteur, task);
   const nachweisListe = nachweisSichtbar ? mitDatei(db, nachweiseFuer(db, task.id)) : [];
   const verlaufListe = verlaufFuer(db, task.id);
-  const optionen = aktionsOptionen(task, person, heute);
+  const optionen = aktionsOptionen(task, akteur, heute);
 
   return (
     <>
@@ -156,17 +162,17 @@ function MetaEintrag({ label, wert }: { label: string; wert: string }) {
 
 export default async function AufgabeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const db = getDb();
-  // `personFuerSeite` statt `personFuerSession`: Modulzugang ohne `personen`-Zeile ist die eigene
+  // `akteurFuerSeite` statt `akteurFuerSession`: Modulzugang ohne `personen`-Zeile ist die eigene
   // Erklaerseite, nicht `notFound()` (Spec-Nachtrag 2026-08-14). Erst DANACH die Objekt-Id aufloesen
   // — eine unbekannte oder unsichtbare Aufgabe bleibt `notFound()` (Grenze der Ausnahme).
-  const person = await personFuerSeite(db);
-  if (!person) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
+  const akteur = await akteurFuerSeite(db);
+  if (!akteur) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
 
   const { id } = await params;
   const task = aufgabe(db, id);
   if (!task) notFound();
-  if (!darfAufgabeSehen(person, task)) notFound();
+  if (!darfAufgabeSehen(akteur, task)) notFound();
 
   const heute = isoTag(new Date());
-  return aufgabeInhalt(db, person, task, heute);
+  return aufgabeInhalt(db, akteur, task, heute);
 }

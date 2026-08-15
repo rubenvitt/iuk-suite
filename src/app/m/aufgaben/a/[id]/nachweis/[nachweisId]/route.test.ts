@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nanoid } from "nanoid";
 import type { TestDb } from "../../../../_db/testdb";
 import { migrierteTestDb } from "../../../../_db/testdb";
-import { aufgaben, dateien, nachweise, personen } from "../../../../_db/schema";
+import { aufgaben, dateien, nachweise, personen, type Rolle } from "../../../../_db/schema";
 import { legeNachweisAb } from "../../../../_lib/ablage";
 
 /**
@@ -52,7 +52,7 @@ afterEach(() => {
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 
-function legePerson(sub: string, rolle: "koordination" | "auftrag" | "bufdi") {
+function legePerson(sub: string, rolle: Rolle) {
   return t.db
     .insert(personen)
     .values({ sub, name: sub, initialen: "XX", rolle, aktivVon: "2026-01-01" })
@@ -108,8 +108,22 @@ function legeNachweis(aufgabeId: string, dateiId: string | null, erstelltVon: st
     .get();
 }
 
-function anmelden(person: { sub: string }): void {
-  sitzung = { user: { id: person.sub } };
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, UND ZWAR AUSDRUECKLICH AM AUFRUF
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), also aus `session.user.groups` — nicht mehr aus
+ * `personen.rolle`, die den Wert `koordination` gar nicht mehr kennt. Rolle und Koordination sind
+ * zwei unabhaengige Achsen; welche der beiden eine Zusage traegt, steht deshalb am Aufruf
+ * (`anmelden(koordination, true)`) und nicht mehr verdeckt in der Fixtur-Zeile. Die FIXTUR wandert
+ * mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
+ */
+function anmelden(person: { sub: string }, koordiniert = false): void {
+  sitzung = {
+    user: { id: person.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+  };
 }
 
 async function ruf(id: string, nachweisId: string): Promise<Response> {
@@ -197,13 +211,16 @@ describe("GET /a/<id>/nachweis/<nachweisId> — Bedingung 2: darfNachweisSehen",
     expect(antwort.status).toBe(404);
   });
 
-  it("die Koordination sieht den Nachweis (darfNachweisSehen: rolle === koordination)", async () => {
+  it("die Koordination sieht den Nachweis (darfNachweisSehen: istKoordination)", async () => {
     const ersteller = legePerson("dev:malte@test", "auftrag");
-    const koordination = legePerson("dev:rike@test", "koordination");
+    // ALLEIN DIE GRUPPE TRAEGT DIESE ZUSAGE: die Zeile ist wie `fremd` im Test darueber weder
+    // Ersteller noch Zugewiesene noch Pruefer, und keine Rolle der Tabelle oeffnet `darfNachweisSehen`
+    // — der einzige Unterschied zum 404 dort ist das `true` am `anmelden`.
+    const koordination = legePerson("dev:rike@test", "auftrag");
     const task = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: ersteller.id, istSelbst: true });
     const datei = await legeDatei(task.id, "sauber");
     const nachweis = legeNachweis(task.id, datei.id, ersteller.id);
-    anmelden(koordination);
+    anmelden(koordination, true);
 
     const antwort = await ruf(task.id, nachweis.id);
     expect(antwort.status).toBe(200);

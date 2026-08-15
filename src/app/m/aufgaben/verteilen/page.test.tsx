@@ -60,6 +60,23 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
     .get();
 }
 
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
+ * dieser Datei DIESELBE bleibt, bekommt eine koordinierende Person hier genau die Gruppe, die ihre
+ * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * SEIT `ROLLEN = ["auftrag", "bufdi"]` MUSS DER AUFRUFER ES SAGEN: aus der Zeile ist es nicht mehr
+ * ableitbar. `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
+ */
+function anmelden(p: PersonRow, koordiniert = false): void {
+  sitzung = {
+    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+  };
+}
+
 describe("verteilenInhalt — Kopf und Leerzustand", () => {
   it("zeigt den Titel „Verteilen“ und den Leerzustand ohne Posteingang", async () => {
     await mount(verteilenInhalt(t.db, HEUTE));
@@ -80,14 +97,15 @@ describe("verteilenInhalt — Kopf und Leerzustand", () => {
  * DIE ZIELLISTE KOMMT AUS `bufdis()`, NICHT AUS `aktivePersonen()` (Brief: „die dritte Linie eines
  * Riegels, nicht die erste") — GEPRUEFT AUF DER VOLLSTAENDIGEN SEITE, nicht nur an der Komponente:
  * die Komponente rendert nur, was ihr Prop liefert, die Aussage "woher kommt dieser Prop" liegt in
- * DIESER Datei (`verteilenInhalt`). Die Fixtur traegt bewusst koordination UND auftrag zusaetzlich zu
- * den BuFDis — „Rike fehlt" bewiese auch bei einem Filter auf `rolle !== "koordination"` (der
- * `auftrag` faelschlich mit einschlaesse); erst „genau die zwei BuFDi-Namen, nicht mehr" bindet die
- * echte Quelle.
+ * DIESER Datei (`verteilenInhalt`). Die Fixtur traegt bewusst ZWEI `auftrag`-Zeilen zusaetzlich zu
+ * den BuFDis (Rike koordiniert, Malte nicht) — „Rike fehlt" allein bewiese wenig; erst „genau die
+ * zwei BuFDi-Namen, nicht mehr" bindet die echte Quelle. Seit dem Quellenwechsel (2026-08-15) gibt
+ * es den frueher denkbaren schwaecheren Filter `rolle !== "koordination"` ohnehin nicht mehr: die
+ * Koordination ist der Zeile nicht anzusehen, `bufdis()` ist der einzige Weg, sie herauszuhalten.
  */
 describe("verteilenInhalt — die Zielliste des Verteil-Dialogs", () => {
   it("enthaelt genau die aktiven BuFDis — nicht die Koordination, nicht auftrag", async () => {
-    legePerson("dev:rike@test", "koordination", { name: "Rike" });
+    legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
     const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
     const bendix = legePerson("dev:bendix@test", "bufdi", { name: "Bendix" });
@@ -131,29 +149,42 @@ describe("verteilenInhalt — die Zielliste des Verteil-Dialogs", () => {
  * auftrag-Person mit 404, und der Weg dorthin existiert in ihrer Oberflaeche nicht. Beides prueft
  * dasselbe Praedikat aus derselben Quelle.").
  */
-describe("VerteilenPage — Rollen-Gate (Spec §8.3: '/verteilen' nur fuer koordination)", () => {
-  it("koordination: die Seite antwortet normal", async () => {
-    const rike = legePerson("dev:rike@test", "koordination");
-    sitzung = { user: { id: rike.sub } };
+describe("VerteilenPage — Rollen-Gate (Spec §8.3: '/verteilen' nur fuer die Koordination)", () => {
+  it("die Koordination: die Seite antwortet normal", async () => {
+    const rike = legePerson("dev:rike@test", "auftrag");
+    anmelden(rike, true);
     await mount(await VerteilenPage());
     expect(query("h1").textContent).toBe("Verteilen");
   });
 
   it("auftrag: notFound() — die Antwort auf 'Jönne und Schulle pfuschen immer wieder rein'", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    sitzung = { user: { id: malte.sub } };
+    anmelden(malte);
     await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("bufdi: ebenfalls notFound()", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    sitzung = { user: { id: alina.sub } };
+    anmelden(alina);
     await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
-  it("eine ausgeschiedene Koordination bekommt ebenfalls notFound()", async () => {
-    const exRike = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2020-01-01" });
-    sitzung = { user: { id: exRike.sub } };
+  /*
+   * VERHALTENSAENDERUNG VOM 2026-08-15 (Entwurf §5) — DIESER FALL ERWARTETE FRUEHER `notFound()`:
+   * `darfVerteilen` misst die Koordination nicht mehr an `aktivBis`, weil ihre Rolle aus der
+   * Pocket-ID-Gruppe kommt. Damit verschwindet auch die Ungleichheit, die `personen/page.tsx` bis
+   * hierhin ausgeschrieben hat (dort kam sie ueber den Notausgang schon hinein, hier nicht).
+   */
+  it("eine ausgeschiedene Koordination kommt weiterhin hinein — die Gruppe traegt die Rolle", async () => {
+    const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2020-01-01" });
+    anmelden(exRike, true);
+    await mount(await VerteilenPage());
+    expect(query("h1").textContent).toBe("Verteilen");
+  });
+
+  it("dieselbe ausgeschiedene Zeile OHNE Gruppe bekommt notFound()", async () => {
+    const exMalte = legePerson("dev:ex-malte@test", "auftrag", { aktivBis: "2020-01-01" });
+    anmelden(exMalte);
     await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 

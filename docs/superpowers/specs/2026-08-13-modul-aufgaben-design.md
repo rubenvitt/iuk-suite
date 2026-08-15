@@ -141,6 +141,40 @@ Personen-Zeilen-Frage; **dieselbe Oder-Klausel steht in den schreibenden Actions
 Zwischenzustand — Formular sichtbar, Absenden abgewiesen — war bis zum Abschlussreview real und ist
 genau kein Zugang: er ließ beide oben benannten Lagen unverändert bestehen.
 
+**Nachtrag vom 2026-08-15 — die Koordinationsrolle kommt aus der Auth-Gruppe** (Betreiberentscheidung
+2026-08-15, Entwurf `docs/superpowers/specs/2026-08-15-aufgaben-koordination-aus-gruppe-design.md`).
+Der Abschnitt oben bleibt **für `auftrag` und `bufdi` wörtlich gültig**; für die Koordination gilt er
+nicht mehr. Was sich geändert hat und warum:
+
+- **`rolle` kennt nur noch `auftrag` und `bufdi`** (Migration `0002_koordination_wird_auftrag.sql`,
+  ein reines Daten-`UPDATE`: `text("rolle", { enum })` erzeugt in SQLite kein `CHECK`). Die
+  bisherigen `koordination`-Zeilen wurden zu `auftrag` — fachlich richtig und nicht bloß der Rest:
+  die Koordination stellt Aufgaben für andere ein, und `darfEinstellenFuerAndere` erlaubt `auftrag`
+  ohnehin. **Niemals `bufdi`:** `verteilDaten` speist die Verteillisten aus `bufdis()`, damit die
+  Koordination nicht in ihrer eigenen Zielliste steht — daran hängt das Vier-Augen-Prinzip aus §7
+  (`darfFreigeben`).
+- **Wer koordiniert, entscheidet `adminGroups`** (`SUITE_ADMIN_GROUP_AUFGABEN`, aufgelöst über
+  `canAdminModule("aufgaben")`). Aufgelöst wird das an **genau einer Stelle**, `akteurFuer` in
+  `_lib/zugang.ts`; alle Prädikate fragen seitdem einen `Akteur = { person, istKoordination }` statt
+  einer `PersonRow`.
+- **Die zwei Gründe des Abschnitts oben tragen für die Koordination nicht.** Sie rotiert nicht
+  jährlich, und ihre Befugnis schließt keine Leistungsdokumentation ab, die eine Person betrifft, die
+  gerade ausscheidet — sie *verteilt*. Dagegen stand: es gab **keinen Weg zur allerersten
+  Koordinationszeile** (nur `_lib/seedLokal.ts` schrieb je eine), und der Betreiber pflegte
+  dieselbe Person in **zwei** Registern. Der Preis ist ausgeschrieben: ein Gruppenentzug wirkt mit
+  bis zu einer Stunde Verzug.
+- **Die Personenzeile entsteht beim ersten Aufruf** (`akteurFuerSeite`, idempotentes
+  `INSERT … ON CONFLICT DO NOTHING`), weil `erstellerId`/`prueferId`/`akteurId` auf eine
+  `personen.id` zeigen. Der Seed ist damit **nicht mehr die Voraussetzung für den Erstzugang**,
+  sondern nur noch der Weg zu einem gefüllten Modul.
+- **`istAktiv` misst die Koordination nicht mehr.** Die Gruppenmitgliedschaft trägt die Rolle; ein
+  `aktivBis` daneben ergäbe zwei widersprechende Aussagen über dieselbe Person — und die
+  Koordination hätte sich mit dem eigenen Formular aussperren können. Für `auftrag` und `bufdi`
+  bleibt `istAktiv` unverändert.
+
+Der Suite-Admin-Notausgang aus dem Nachtrag vom 2026-08-15 weiter oben bleibt bestehen; er ist seit
+dem Quellenwechsel keine Ausnahme mehr, sondern dieselbe Regel wie im ganzen Modul.
+
 **Personen tragen `aktiv_von` und `aktiv_bis`.** Ein ausgeschiedener BuFDi verschwindet aus
 Verteillisten und Zeitplan-Navigation; seine Aufgaben, Nachweise und Verlaufszeilen bleiben lesbar.
 Ohne dieses Feld ist der Jahreswechsel eine Löschaktion, und die Dokumentation des vergangenen
