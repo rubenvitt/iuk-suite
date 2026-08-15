@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, aufgaben, type PersonRow, type Rolle } from "../_db/schema";
+import type { Akteur } from "../_lib/zugang";
 
 const { EinstiegAuftrag } = await import("./EinstiegAuftrag");
 
@@ -48,10 +49,19 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
     .get();
 }
 
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
+ * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
+}
+
 describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlange (Spec §8.3)", () => {
   it("traegt den Knopf „Aufgabe einstellen“, der auf /neu fuehrt", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
     const knopf = queryAll<HTMLAnchorElement>("a").find((a) => a.textContent === "Aufgabe einstellen");
     expect(knopf?.getAttribute("href")).toBe("/neu");
   });
@@ -62,7 +72,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
     legeAufgabe({ titel: "Meine Aufgabe", erstellerId: malte.id });
     legeAufgabe({ titel: "Fremde Aufgabe", erstellerId: tomke.id });
 
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
 
     const abschnitt = query("#auftraege");
     expect(abschnitt.textContent).toContain("Meine Aufgabe");
@@ -83,7 +93,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
       prueferId: malte.id, status: "verteilt",
     });
 
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
 
     const zeilen = queryAll("#auftraege li");
     expect(zeilen).toHaveLength(2);
@@ -97,7 +107,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
 
   it("Leerzustand: „Noch keine eigenen Aufträge.“", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
     expect(query("#auftraege").textContent).toContain("Noch keine eigenen Aufträge.");
   });
 
@@ -126,7 +136,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
       prueferId: rike.id, status: "freigabe_offen",
     });
 
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
 
     const abschnitt = query("#freigabe");
     expect(abschnitt.textContent).toContain("Meine Freigabe");
@@ -136,7 +146,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
 
   it("Leerzustaende der Freigabe-Warteschlange, ausgeschrieben", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
     const abschnitt = query("#freigabe");
     expect(abschnitt.textContent).toContain("Keine Freigabe offen");
     expect(abschnitt.textContent).toContain("Keine Freigabe in Vertretung offen");
@@ -151,7 +161,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ titel: "Im Posteingang", erstellerId: malte.id, status: "eingegangen" });
 
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
 
     const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
     expect(hrefs.some((h) => h?.includes("verteilen"))).toBe(false);
@@ -166,7 +176,7 @@ describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlang
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ titel: "A", erstellerId: malte.id, status: "eingegangen" });
     legeAufgabe({ titel: "B", erstellerId: malte.id, status: "abgeschlossen" });
-    await mount(<EinstiegAuftrag db={t.db} person={malte} heute={HEUTE} />);
+    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
     expect(document.body.textContent).toContain("2 Aufträge insgesamt");
     expect(document.body.textContent).toContain("1 offen");
   });

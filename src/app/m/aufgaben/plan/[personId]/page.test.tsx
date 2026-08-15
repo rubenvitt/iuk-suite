@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { personen, aufgaben, type PersonRow, type Rolle } from "../../_db/schema";
+import type { Akteur } from "../../_lib/zugang";
 
 /*
  * MOCKS — dieselbe Form wie `page.test.tsx`: `next/navigation` (notFound + die Router-Hooks von
@@ -35,6 +36,15 @@ afterEach(async () => {
 });
 
 const HEUTE = "2026-08-10"; // Montag
+
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
+ * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
+}
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -80,7 +90,7 @@ describe("planInhalt — eigener Plan aenderbar, fremder lesend (Spec §7, Kern 
       planDatum: null,
     });
 
-    await mount(planInhalt(t.db, alina, alina, HEUTE, {}));
+    await mount(planInhalt(t.db, akteur(alina), alina, HEUTE, {}));
 
     expect(query("h1").textContent).toBe("Mein Zeitplan");
     expect(document.body.textContent).toContain("Einzuplanen");
@@ -107,7 +117,7 @@ describe("planInhalt — eigener Plan aenderbar, fremder lesend (Spec §7, Kern 
       planDatum: HEUTE,
     });
 
-    await mount(planInhalt(t.db, bendix, alina, HEUTE, {}));
+    await mount(planInhalt(t.db, akteur(bendix), alina, HEUTE, {}));
 
     expect(query("h1").textContent).toBe("Zeitplan von Alina");
     expect(document.body.textContent).toContain("Alinas Aufgabe"); // lesbar
@@ -134,7 +144,7 @@ describe("planInhalt — eigener Plan aenderbar, fremder lesend (Spec §7, Kern 
       planDatum: null,
     });
 
-    await mount(planInhalt(t.db, rike, alina, HEUTE, {}));
+    await mount(planInhalt(t.db, akteur(rike), alina, HEUTE, {}));
 
     expect(document.body.textContent).not.toContain("Einzuplanen");
     expect(queryAll("form")).toHaveLength(0);
@@ -176,7 +186,7 @@ describe("planInhalt — eigener Plan aenderbar, fremder lesend (Spec §7, Kern 
       planDatum: HEUTE,
     });
 
-    await mount(planInhalt(t.db, doerte, doerte, HEUTE, {}));
+    await mount(planInhalt(t.db, akteur(doerte), doerte, HEUTE, {}));
 
     expect(document.body.textContent).not.toContain("Einzuplanen");
     expect(queryAll("form")).toHaveLength(0);
@@ -187,14 +197,14 @@ describe("planInhalt — eigener Plan aenderbar, fremder lesend (Spec §7, Kern 
 describe("planInhalt — die Woche steht in der URL", () => {
   it("ein anderer woche-Suchparameter zeigt eine andere Woche", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(planInhalt(t.db, alina, alina, HEUTE, { woche: "2026-08-24" }));
+    await mount(planInhalt(t.db, akteur(alina), alina, HEUTE, { woche: "2026-08-24" }));
     expect(document.body.textContent).toContain("Mo, 24.08.");
     expect(document.body.textContent).not.toContain("Mo, 10.08.");
   });
 
   it("ohne Parameter zeigt die Woche von heute", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(planInhalt(t.db, alina, alina, HEUTE, {}));
+    await mount(planInhalt(t.db, akteur(alina), alina, HEUTE, {}));
     expect(document.body.textContent).toContain("Mo, 10.08.");
   });
 });
@@ -202,19 +212,19 @@ describe("planInhalt — die Woche steht in der URL", () => {
 describe("planInhalt — Tageswaehler und Leerzustaende", () => {
   it("zeigt die Radiogruppe mit fuenf Tagen", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(planInhalt(t.db, alina, alina, HEUTE, {}));
+    await mount(planInhalt(t.db, akteur(alina), alina, HEUTE, {}));
     expect(queryAll('input[type="radio"]')).toHaveLength(5);
   });
 
   it("eine leere Woche zeigt in jedem Tag den eigenen Satz", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(planInhalt(t.db, alina, alina, HEUTE, {}));
+    await mount(planInhalt(t.db, akteur(alina), alina, HEUTE, {}));
     expect(document.body.textContent).toContain("Nichts eingeplant.");
   });
 
   it("ohne noch einzuplanende Aufgaben erscheint kein Einzuplanen-Abschnitt, auch fuer den eigenen Plan", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(planInhalt(t.db, alina, alina, HEUTE, {}));
+    await mount(planInhalt(t.db, akteur(alina), alina, HEUTE, {}));
     expect(document.body.textContent).not.toContain("Einzuplanen");
   });
 
@@ -244,7 +254,7 @@ describe("planInhalt — Tageswaehler und Leerzustaende", () => {
       planDatum: null,
     });
 
-    await mount(planInhalt(t.db, alina, alina, HEUTE, {}));
+    await mount(planInhalt(t.db, akteur(alina), alina, HEUTE, {}));
 
     const formulare = queryAll("form");
     expect(formulare).toHaveLength(2);

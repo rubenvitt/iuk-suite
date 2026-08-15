@@ -23,6 +23,13 @@ import { personen, type AufgabeRow, type PersonRow } from "../_db/schema";
  * SICHTPRAEDIKATE (`darfPlanSehen`, `darfNachweisSehen`) pruefen `istAktiv` NICHT. Eine
  * ausgeschiedene Person liest ihre Geschichte, bewegt aber nichts (Spec §7) — deshalb tragen
  * genau die Handlungspraedikate ein `heute`-Argument, die beiden Sichtpraedikate nicht.
+ *
+ * JEDES PRAEDIKAT FRAGT EINEN `Akteur`, NICHT EINE `PersonRow`: „wer handelt" hat zwei Haelften —
+ * die Personenzeile und die Frage, ob sie koordiniert —, und die zweite steht nicht zwingend in
+ * derselben Quelle wie die erste. Zusammengesetzt wird beides an GENAU EINER Stelle (`akteurFuer`);
+ * kein Praedikat fragt selbst nach, woher `istKoordination` kommt. Einzige Ausnahme ist `istAktiv`
+ * — eine reine Frage an die Zeile, die auch ausserhalb dieser Datei je Zeile gestellt wird
+ * (`personen/page.tsx`, `_db/queries.ts`).
  */
 
 /**
@@ -90,6 +97,46 @@ export async function personFuerSession(db: DB): Promise<PersonRow> {
 }
 
 /**
+ * WER HANDELT — die Personenzeile UND die Frage, ob sie koordiniert.
+ *
+ * Die beiden Haelften haben nicht zwingend dieselbe Quelle, und genau deshalb gibt es diesen Typ:
+ * jedes Praedikat dieser Datei bekommt das fertige Ergebnis, keines fragt selbst nach, woher
+ * `istKoordination` stammt.
+ */
+export type Akteur = { person: PersonRow; istKoordination: boolean };
+
+/**
+ * DIE EINE STELLE, AN DER EIN `Akteur` ENTSTEHT. Beide Aufloeser unten gehen hier durch, und die
+ * zwei Route Handler (`a/[id]/nachweis/…/route.ts`), die ihre Personenzeile aus eigenen Gruenden
+ * selbst aufloesen (sie duerfen `notFound()` nicht werfen, s. deren Kopfkommentare), ebenfalls.
+ *
+ * `async`, OBWOHL HEUTE NICHTS ZU WARTEN IST: die Koordinationsfrage ist eine Frage an die Sitzung,
+ * sobald sie nicht mehr aus der Zeile beantwortet wird — eine synchrone Signatur muesste dann an
+ * jeder Aufrufstelle nachgezogen werden, statt nur hier.
+ */
+export async function akteurFuer(person: PersonRow): Promise<Akteur> {
+  return { person, istKoordination: person.rolle === "koordination" };
+}
+
+/** Wie `personFuerSeite`, nur als `Akteur` — `null` bleibt `null` (keine `personen`-Zeile). */
+export async function akteurFuerSeite(db: DB): Promise<Akteur | null> {
+  const person = await personFuerSeite(db);
+  if (!person) return null;
+  return akteurFuer(person);
+}
+
+/**
+ * Wie `personFuerSession`, nur als `Akteur` — fuer Server-Actions, wirft `notFound()`.
+ *
+ * RUFT `personFuerSession` AUF, NICHT `akteurFuerSeite` MIT EIGENEM `notFound()`: der Wurf soll an
+ * GENAU EINER Stelle stehen (dort, mit seiner Begruendung), nicht ein zweites Mal hier — sonst
+ * pflegt eine spaetere Aenderung an der Sitzungsaufloesung zwei Faelle statt einem.
+ */
+export async function akteurFuerSession(db: DB): Promise<Akteur> {
+  return akteurFuer(await personFuerSession(db));
+}
+
+/**
  * `aktivBis` ist ein EINSCHLIESSENDES Ende. Am Enddatum selbst ist die Person noch aktiv — sonst
  * kann jemand an seinem letzten Diensttag nichts mehr abgeben. `null` heisst unbefristet.
  * `aktivVon` in der Zukunft (noch nicht angetreten) gilt ebenfalls als nicht aktiv.
@@ -101,22 +148,22 @@ export function istAktiv(p: PersonRow, heute: string): boolean {
 }
 
 /** Nur die Koordination verteilt Aufgaben aus dem Posteingang. */
-export function darfVerteilen(p: PersonRow, heute: string): boolean {
-  return p.rolle === "koordination" && istAktiv(p, heute);
+export function darfVerteilen(akteur: Akteur, heute: string): boolean {
+  return akteur.istKoordination && istAktiv(akteur.person, heute);
 }
 
 /**
- * `auftrag` ODER `koordination` duerfen Aufgaben FUER ANDERE einstellen. Fuer sich selbst darf
+ * `auftrag` ODER die KOORDINATION duerfen Aufgaben FUER ANDERE einstellen. Fuer sich selbst darf
  * jede Rolle einstellen — das ist kein Praedikat, sondern der Normalfall (Spec §5.2, Zeile
  * "einstellen, fuer sich selbst"), und gehoert deshalb nicht hierher.
  */
-export function darfEinstellenFuerAndere(p: PersonRow, heute: string): boolean {
-  return (p.rolle === "auftrag" || p.rolle === "koordination") && istAktiv(p, heute);
+export function darfEinstellenFuerAndere(akteur: Akteur, heute: string): boolean {
+  return (akteur.person.rolle === "auftrag" || akteur.istKoordination) && istAktiv(akteur.person, heute);
 }
 
-/** `rolle === "koordination"` oeffnet die Personenverwaltung (Spec §4). */
-export function darfPersonenVerwalten(p: PersonRow, heute: string): boolean {
-  return p.rolle === "koordination" && istAktiv(p, heute);
+/** Wer koordiniert, oeffnet die Personenverwaltung (Spec §4). */
+export function darfPersonenVerwalten(akteur: Akteur, heute: string): boolean {
+  return akteur.istKoordination && istAktiv(akteur.person, heute);
 }
 
 /**
@@ -134,8 +181,8 @@ export function darfPersonenVerwalten(p: PersonRow, heute: string): boolean {
  * Handlungspraedikat dieser Datei (Kopfkommentar: "HANDLUNGSPRAEDIKATE pruefen istAktiv JEDES FUER
  * SICH").
  */
-export function darfRoutinenVerwalten(p: PersonRow, heute: string): boolean {
-  return p.rolle === "bufdi" && istAktiv(p, heute);
+export function darfRoutinenVerwalten(akteur: Akteur, heute: string): boolean {
+  return akteur.person.rolle === "bufdi" && istAktiv(akteur.person, heute);
 }
 
 /**
@@ -144,14 +191,14 @@ export function darfRoutinenVerwalten(p: PersonRow, heute: string): boolean {
  * Tag liegt beim BuFDi (Anforderung 3 des Auftraggebers). Also ausschliesslich die Zielperson
  * selbst, und aktiv.
  */
-export function darfPlanAendern(p: PersonRow, zielPersonId: string, heute: string): boolean {
-  return p.id === zielPersonId && istAktiv(p, heute);
+export function darfPlanAendern(akteur: Akteur, zielPersonId: string, heute: string): boolean {
+  return akteur.person.id === zielPersonId && istAktiv(akteur.person, heute);
 }
 
 /**
  * FUER SELBSTAUFGABEN IMMER `false` — AUCH FUER DIE KOORDINATION. Das ist bewusst die erste
  * Zeile: ohne sie stimmten `prueferId === null` (Selbstaufgaben haben keinen Pruefer) und
- * `rolle === "koordination"` je fuer sich, und die Koordination bekaeme einen Freigabeknopf fuer
+ * `istKoordination` je fuer sich, und die Koordination bekaeme einen Freigabeknopf fuer
  * die eigene Aufgabe eines BuFDi — die gar keine Freigabestufe hat (Spec §5.2: Selbstaufgaben
  * gehen `in_arbeit` → `abgeschlossen`, ohne `freigabe_offen`).
  *
@@ -166,10 +213,10 @@ export function darfPlanAendern(p: PersonRow, zielPersonId: string, heute: strin
  *
  * Sonst: der eingetragene Pruefer ODER die Koordination, und aktiv.
  */
-export function darfFreigeben(p: PersonRow, a: AufgabeRow, heute: string): boolean {
+export function darfFreigeben(akteur: Akteur, a: AufgabeRow, heute: string): boolean {
   if (a.istSelbst) return false;
-  if (p.id === a.zugewiesenAn) return false;
-  return (p.id === a.prueferId || p.rolle === "koordination") && istAktiv(p, heute);
+  if (akteur.person.id === a.zugewiesenAn) return false;
+  return (akteur.person.id === a.prueferId || akteur.istKoordination) && istAktiv(akteur.person, heute);
 }
 
 /**
@@ -178,17 +225,17 @@ export function darfFreigeben(p: PersonRow, a: AufgabeRow, heute: string): boole
  * ein ausgeschiedener BuFDi liest weiterhin, was war.
  *
  * Die Parameter bleiben Teil der Signatur, obwohl das Ergebnis nicht von ihnen abhaengt: Aufrufer
- * stehen neben `darfPlanAendern(p, zielPersonId, heute)` und sollen dieselbe Form nutzen, statt an
- * dieser einen Stelle einen Sonderfall ohne Argumente zu pflegen.
+ * stehen neben `darfPlanAendern(akteur, zielPersonId, heute)` und sollen dieselbe Form nutzen,
+ * statt an dieser einen Stelle einen Sonderfall ohne Argumente zu pflegen.
  */
-export function darfPlanSehen(p: PersonRow, zielPersonId: string): boolean {
-  void p;
+export function darfPlanSehen(akteur: Akteur, zielPersonId: string): boolean {
+  void akteur;
   void zielPersonId;
   return true;
 }
 
 /**
- * Verfasserin, `koordination`, der Ersteller der Aufgabe, ODER der eingetragene Pruefer — NICHT
+ * Verfasserin, die KOORDINATION, der Ersteller der Aufgabe, ODER der eingetragene Pruefer — NICHT
  * jeder BuFDi. "Leistungsnachweise sind kein Aushang" (Spec §2). Kein `istAktiv`: dieselbe
  * Begruendung wie bei `darfPlanSehen` — Einsicht in die eigene Geschichte bleibt bestehen.
  *
@@ -207,8 +254,8 @@ export function darfPlanSehen(p: PersonRow, zielPersonId: string): boolean {
  * `/a/<id>` (Aufgabe 16, `darfNachweisSehen`-gestuetzter Nachweisbereich) — dieselbe Person, dieselbe
  * Aufgabe, zwei verschiedene Antworten auf dieselbe Frage. Und fachlich ist die Klausel ohnehin
  * richtig: „wer freigibt, muss sehen, was er freigibt" (`FreigabeZone.tsx`s Kopfkommentar) waere
- * sonst nur die halbe Wahrheit. `prueferId` zeigt nie auf eine `bufdi`-Zeile (nur `auftrag`/
- * `koordination` duerfen fremd einstellen und werden dabei zum Pruefer, `anfangsZustand()`) — die
+ * sonst nur die halbe Wahrheit. `prueferId` zeigt nie auf eine `bufdi`-Zeile (nur `auftrag` und
+ * die Koordination duerfen fremd einstellen und werden dabei zum Pruefer, `anfangsZustand()`) — die
  * Erweiterung oeffnet also keinen Nachweis fuer „jeden BuFDi", die Kernzusage aus Spec §2 bleibt.
  *
  * BEWUSST KEIN `istAktiv` AUCH IN DIESER KLAUSEL — BETREIBERENTSCHEIDUNG NACH FIX-RUNDE 1: ein
@@ -230,12 +277,12 @@ export function darfPlanSehen(p: PersonRow, zielPersonId: string): boolean {
  *     Nachweis also, bekommt aber KEINE Freigabe-Aktion mehr angeboten. Sehen ohne Handeln ist hier
  *     die Zusage, nicht die Luecke.
  */
-export function darfNachweisSehen(p: PersonRow, a: AufgabeRow): boolean {
+export function darfNachweisSehen(akteur: Akteur, a: AufgabeRow): boolean {
   return (
-    p.rolle === "koordination" ||
-    p.id === a.erstellerId ||
-    p.id === a.zugewiesenAn ||
-    p.id === a.prueferId
+    akteur.istKoordination ||
+    akteur.person.id === a.erstellerId ||
+    akteur.person.id === a.zugewiesenAn ||
+    akteur.person.id === a.prueferId
   );
 }
 
@@ -251,8 +298,8 @@ export function darfNachweisSehen(p: PersonRow, a: AufgabeRow): boolean {
  * zweite Fassung von "in_arbeit" waere sonst an zwei Stellen zu pflegen, eine davon in einer Datei,
  * die laut eigenem Vertrag keine Zustaende kennt.
  */
-export function darfNachweisHochladen(p: PersonRow, a: AufgabeRow, heute: string): boolean {
-  return p.id === a.zugewiesenAn && istAktiv(p, heute);
+export function darfNachweisHochladen(akteur: Akteur, a: AufgabeRow, heute: string): boolean {
+  return akteur.person.id === a.zugewiesenAn && istAktiv(akteur.person, heute);
 }
 
 /**
@@ -276,13 +323,13 @@ export function darfNachweisHochladen(p: PersonRow, a: AufgabeRow, heute: string
  * KEIN `istAktiv` — SICHTPRAEDIKAT (Kopfkommentar dieser Datei): eine ausgeschiedene Person liest
  * ihre eigene Geschichte weiter (Spec §7).
  */
-export function darfAufgabeSehen(p: PersonRow, a: AufgabeRow): boolean {
+export function darfAufgabeSehen(akteur: Akteur, a: AufgabeRow): boolean {
   return (
-    p.rolle === "koordination" ||
-    p.rolle === "bufdi" ||
-    p.id === a.erstellerId ||
-    p.id === a.zugewiesenAn ||
-    p.id === a.prueferId
+    akteur.istKoordination ||
+    akteur.person.rolle === "bufdi" ||
+    akteur.person.id === a.erstellerId ||
+    akteur.person.id === a.zugewiesenAn ||
+    akteur.person.id === a.prueferId
   );
 }
 
@@ -306,8 +353,8 @@ export function darfAufgabeSehen(p: PersonRow, a: AufgabeRow): boolean {
  * fachlich falsche Rolle trotzdem per direkter URL "erreichbar" (mit einer leeren Liste, aber
  * eben 200 statt 404).
  */
-export function darfFreigabenSehen(p: PersonRow, heute: string): boolean {
-  return (p.rolle === "auftrag" || p.rolle === "koordination") && istAktiv(p, heute);
+export function darfFreigabenSehen(akteur: Akteur, heute: string): boolean {
+  return (akteur.person.rolle === "auftrag" || akteur.istKoordination) && istAktiv(akteur.person, heute);
 }
 
 /**
@@ -322,6 +369,6 @@ export function darfFreigabenSehen(p: PersonRow, heute: string): boolean {
  * diesen Fall (der Seed setzt `prueferId` auf jeder Fremdaufgabe), aber die Funktion soll sich
  * nicht auf eine Zusage verlassen, die anderswo gehalten werden muss.
  */
-export function istVertretungsfreigabe(p: PersonRow, a: AufgabeRow): boolean {
-  return p.rolle === "koordination" && p.id !== a.prueferId && a.prueferId !== null;
+export function istVertretungsfreigabe(akteur: Akteur, a: AufgabeRow): boolean {
+  return akteur.istKoordination && akteur.person.id !== a.prueferId && a.prueferId !== null;
 }

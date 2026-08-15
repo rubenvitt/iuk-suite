@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { migrierteTestDb, type TestDb } from "./_db/testdb";
 import { personen, type PersonRow, type Rolle } from "./_db/schema";
+import type { Akteur } from "./_lib/zugang";
 
 /*
  * DIESELBEN DREI MOCKS WIE JEDES `page.test.tsx` DES MODULS (Vorbild `verteilen/page.test.tsx`):
@@ -34,6 +35,15 @@ beforeEach(() => {
   sitzung = null;
 });
 afterEach(() => t.schliessen());
+
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
+ * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
+}
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -72,7 +82,7 @@ describe("AufgabenLayout — Verdrahtung von nav an <Shell>", () => {
     // UTC-Tag, `layout.tsx` rechnet aber in Europe/Berlin (`_lib/datum.ts`) — zwischen 00:00 und
     // 02:00 Berliner Zeit waeren das verschiedene Kalendertage, und der Vergleich pruefte dann
     // nicht mehr dasselbe `heute`, das `AufgabenLayout` tatsaechlich verwendet.
-    expect(shellElement.props.nav).toEqual(aufgabenNav(rike, isoTag(new Date())));
+    expect(shellElement.props.nav).toEqual(aufgabenNav(akteur(rike), isoTag(new Date())));
   });
 
   it("ohne personen-Zeile (Modulzugang, aber noch nicht eingetragen): <Shell> bekommt ein leeres nav-Prop", async () => {

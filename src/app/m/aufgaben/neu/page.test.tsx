@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, type PersonRow, type Rolle } from "../_db/schema";
+import type { Akteur } from "../_lib/zugang";
 
 let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
@@ -29,6 +30,15 @@ afterEach(async () => {
 
 const HEUTE = "2026-08-13";
 
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
+ * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
+}
+
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
     .insert(personen)
@@ -47,7 +57,7 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
 describe("neuInhalt — die Formularseite", () => {
   it("traegt die Ueberschrift und die Pflichtfeld-Kontextzeile", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    await mount(neuInhalt(malte, HEUTE));
+    await mount(neuInhalt(akteur(malte), HEUTE));
     expect(query("h1").textContent).toBe("Aufgabe einstellen");
     expect(document.body.textContent).toContain(
       "Titel, Erklärung, Priorität, Frist und Dauerschätzung sind Pflichtfelder.",
@@ -64,7 +74,7 @@ describe("neuInhalt — die Formularseite", () => {
     ["bufdi", false],
   ])("Rolle %s → Kontrollkaestchen „fuer mich selbst“ sichtbar: %s", async (rolle, sichtbar) => {
     const p = legePerson(`n-${rolle}`, rolle);
-    await mount(neuInhalt(p, HEUTE));
+    await mount(neuInhalt(akteur(p), HEUTE));
     expect(queryAll("#af-fuerSichSelbst")).toHaveLength(sichtbar ? 1 : 0);
   });
 });

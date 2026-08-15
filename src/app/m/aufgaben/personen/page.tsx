@@ -4,7 +4,7 @@ import { canAdminModule } from "@/core/auth/guards";
 import { getDb, type DB } from "../_db/client";
 import { allePersonen } from "../_db/queries";
 import { isoTag } from "../_lib/datum";
-import { darfPersonenVerwalten, istAktiv, personFuerSeite, subFuerSitzung } from "../_lib/zugang";
+import { akteurFuerSeite, darfPersonenVerwalten, istAktiv, subFuerSitzung } from "../_lib/zugang";
 import { NichtEingetragenSeite } from "../_ui/NichtEingetragenSeite";
 import { PersonenFormular } from "../_ui/PersonenFormular";
 import { PersonenTabelle, type PersonenZeile } from "../_ui/PersonenTabelle";
@@ -31,7 +31,7 @@ export const dynamic = "force-dynamic";
  * genau diesen Fehler.
  *
  * `personenInhalt` IST DIE REINE, EXPORTIERTE INHALTSFUNKTION (Vorbild `routinenInhalt`) — kein
- * `personFuerSession`/`darfPersonenVerwalten`/`canAdminModule`-Aufruf darin, `page.test.tsx` ruft sie
+ * `akteurFuerSeite`/`darfPersonenVerwalten`/`canAdminModule`-Aufruf darin, `page.test.tsx` ruft sie
  * direkt.
  *
  * `istAktiv` WIRD HIER, SERVERSEITIG, JE ZEILE BERECHNET (nicht in `_ui/PersonenTabelle.tsx`) —
@@ -88,7 +88,7 @@ export default async function PersonenPage({
   // DER NOTAUSGANG ZUERST, VOR JEDER PERSONEN-ZEILEN-FRAGE: ein Suite-Admin (oder eine Person in
   // der modul-eigenen Admin-Gruppe) kommt hinein, AUCH OHNE eigene `personen`-Zeile — das ist genau
   // der Fall, der den Erstbetrieb ueberhaupt loest (Fix-Runde 1, s. Kopfkommentar). Wuerde zuerst
-  // `personFuerSeite` gefragt und bei `null` sofort die Erklaerseite gerendert, faenge sie einen
+  // `akteurFuerSeite` gefragt und bei `null` sofort die Erklaerseite gerendert, faenge sie einen
   // Suite-Admin ab, der (noch) keine `personen`-Zeile hat — genau den Fall, den dieser Notausgang
   // beheben soll.
   if (await canAdminModule("aufgaben")) {
@@ -96,12 +96,12 @@ export default async function PersonenPage({
     return personenInhalt(db, heute, bearbeiten);
   }
 
-  const person = await personFuerSeite(db);
-  if (!person) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
+  const akteur = await akteurFuerSeite(db);
+  if (!akteur) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
   // DASSELBE PRAEDIKAT WIE DIE OBERFLAECHE: `EinstiegKoordination.tsx`s Fusszeilen-Verweis auf
   // `/personen` erscheint nur fuer `koordination` (die einzige Rolle, die diesen Einstieg je sieht)
   // — dieselbe Bedingung, die diese Route hier durchsetzt.
-  if (!darfPersonenVerwalten(person, heute)) notFound();
+  if (!darfPersonenVerwalten(akteur, heute)) notFound();
   const { bearbeiten } = await searchParams;
   return personenInhalt(db, heute, bearbeiten);
 }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, aufgaben, type PersonRow, type Rolle } from "../_db/schema";
+import type { Akteur } from "../_lib/zugang";
 import s from "./aufgaben.module.css";
 
 const { EinstiegKoordination } = await import("./EinstiegKoordination");
@@ -52,6 +53,15 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
 
 function kpiZahlen(): (string | null | undefined)[] {
   return queryAll(`.${s.kpi}`).map((k) => k.querySelector("span")?.textContent);
+}
+
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
+ * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
 }
 
 describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlange, Ueberfaelligkeit", () => {
@@ -128,7 +138,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
       });
     }
 
-    await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
 
     expect(kpiZahlen()).toEqual(["2", "3", "1", "4"]);
 
@@ -183,7 +193,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
       status: "freigabe_offen",
     });
 
-    await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
 
     const abschnitt = query("#freigabe");
     const ueberschriften = Array.from(abschnitt.querySelectorAll("h3")).map((h) => h.textContent);
@@ -198,7 +208,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
 
   it("Leerzustaende: jede der vier Listen traegt ihren eigenen ausgeschriebenen Satz", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
-    await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
     expect(document.body.textContent).toContain("Posteingang leer — alles verteilt");
     expect(document.body.textContent).toContain("Keine Freigabe offen");
     expect(document.body.textContent).toContain("Keine Freigabe in Vertretung offen");
@@ -208,7 +218,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
 
   it("0-Kacheln bleiben stehen und sind nicht verlinkt (kein <a>)", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
-    await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
     const kacheln = queryAll(`.${s.kpi}`);
     expect(kacheln).toHaveLength(4);
     for (const kachel of kacheln) {
@@ -243,7 +253,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
       status: "zurueckgewiesen",
     });
 
-    await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
 
     const kacheln = queryAll(`.${s.kpi}`);
     expect(kacheln).toHaveLength(4);
@@ -269,7 +279,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
 
   it("verlinkt die Personenverwaltung UND das Archiv (Aufgabe 16)", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
-    await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
     const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/personen");
     expect(hrefs).toContain("/archiv");
@@ -293,7 +303,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
       status: "freigabe_offen",
     });
 
-    await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
 
     expect(queryAll(`[data-testid='freigeben-${meineFreigabe.id}']`)).toHaveLength(1);
     expect(queryAll(`[data-testid='zurueckweisen-${meineFreigabe.id}']`)).toHaveLength(1);
@@ -304,7 +314,7 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ titel: "P1", erstellerId: malte.id, status: "eingegangen" });
     legeAufgabe({ titel: "P2", erstellerId: malte.id, status: "eingegangen" });
-    await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
+    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike)} heute={HEUTE} />);
     expect(document.body.textContent).toContain("2 zu verteilen");
     expect(document.body.textContent).toContain("0 warten auf Freigabe");
   });

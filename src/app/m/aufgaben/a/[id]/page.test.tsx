@@ -11,6 +11,7 @@ import {
   type PersonRow,
   type Rolle,
 } from "../../_db/schema";
+import type { Akteur } from "../../_lib/zugang";
 import s from "../../_ui/aufgaben.module.css";
 
 let sitzung: unknown = null;
@@ -37,6 +38,15 @@ afterEach(async () => {
   await unmount();
   t.schliessen();
 });
+
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
+ * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
+}
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -93,7 +103,7 @@ describe("aufgabeInhalt — Titel, Chip-Zeile, Erklärung ungekürzt, Metablock"
       nachweisPflicht: true,
       nachweisArt: "text",
     });
-    await mount(aufgabeInhalt(t.db, malte, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(malte), a, HEUTE));
 
     expect(query("h1").textContent).toBe("Verbandskästen prüfen");
     expect(document.body.textContent).toContain("Verteilt");
@@ -112,7 +122,7 @@ describe("aufgabeInhalt — Titel, Chip-Zeile, Erklärung ungekürzt, Metablock"
       faelligAm: "2026-08-25",
       dauerMinuten: 90,
     });
-    await mount(aufgabeInhalt(t.db, malte, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(malte), a, HEUTE));
 
     expect(document.body.textContent).toContain("Malte");
     expect(document.body.textContent).toContain("Alina");
@@ -122,7 +132,7 @@ describe("aufgabeInhalt — Titel, Chip-Zeile, Erklärung ungekürzt, Metablock"
   it("eine noch nicht verteilte Aufgabe zeigt „Noch nicht verteilt“ statt eines Namens", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
     const a = legeAufgabe({ erstellerId: malte.id, zugewiesenAn: null, status: "eingegangen" });
-    await mount(aufgabeInhalt(t.db, malte, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(malte), a, HEUTE));
     expect(document.body.textContent).toContain("Noch nicht verteilt");
   });
 });
@@ -140,7 +150,7 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     });
     legeNachweis(a.id, "Geheimer Bericht, den nur die Beteiligten sehen sollen.", zugewiesen.id);
 
-    await mount(aufgabeInhalt(t.db, fremderBufdi, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(fremderBufdi), a, HEUTE));
     expect(document.body.textContent).not.toContain("Geheimer Bericht");
     expect(document.body.textContent).toContain(
       "Nachweise sind nur für Koordination, Ersteller, Zugewiesene und den eingetragenen Prüfer sichtbar.",
@@ -158,7 +168,7 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     });
     legeNachweis(a.id, "Kurs durchgeführt, 8 Teilnehmende.", zugewiesen.id);
 
-    await mount(aufgabeInhalt(t.db, zugewiesen, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(zugewiesen), a, HEUTE));
     expect(document.body.textContent).toContain("Kurs durchgeführt, 8 Teilnehmende.");
   });
 
@@ -175,7 +185,7 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     });
     legeNachweis(a.id, "Nachweistext fuer den Pruefer.", zugewiesen.id);
 
-    await mount(aufgabeInhalt(t.db, pruefer, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(pruefer), a, HEUTE));
     expect(document.body.textContent).toContain("Nachweistext fuer den Pruefer.");
   });
 
@@ -198,7 +208,7 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     });
     legeNachweis(a.id, "Nachweistext fuer den ausgeschiedenen Pruefer.", zugewiesen.id);
 
-    await mount(aufgabeInhalt(t.db, exPruefer, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(exPruefer), a, HEUTE));
     expect(document.body.textContent).toContain("Nachweistext fuer den ausgeschiedenen Pruefer.");
     expect(queryAll("[data-testid^='freigeben-']")).toHaveLength(0);
     expect(queryAll("[data-testid^='zurueckweisen-']")).toHaveLength(0);
@@ -223,7 +233,7 @@ describe("aufgabeInhalt — der Verlauf als Journal", () => {
     legeVerlauf(a.id, "eingestellt", malte.id, new Date("2026-08-10T08:00:00Z"));
     legeVerlauf(a.id, "verteilt", malte.id, new Date("2026-08-11T09:00:00Z"));
 
-    await mount(aufgabeInhalt(t.db, malte, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(malte), a, HEUTE));
     const eintraege = queryAll("li").filter((li) => li.closest(`ul.${s.journal}`) !== null);
     expect(eintraege).toHaveLength(3);
     const texte = eintraege.map((li) => li.textContent ?? "");
@@ -252,7 +262,7 @@ describe("aufgabeInhalt — der Verlauf als Journal", () => {
       "Freigegeben von Rike in Vertretung für Tomke",
     );
 
-    await mount(aufgabeInhalt(t.db, rike, a, HEUTE));
+    await mount(aufgabeInhalt(t.db, akteur(rike), a, HEUTE));
     expect(document.body.textContent).toContain("Freigegeben von Rike in Vertretung für Tomke");
   });
 });

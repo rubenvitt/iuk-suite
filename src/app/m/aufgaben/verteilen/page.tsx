@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getDb, type DB } from "../_db/client";
 import { verteilDaten } from "../_db/queries";
 import { isoTag } from "../_lib/datum";
-import { darfVerteilen, personFuerSeite, subFuerSitzung } from "../_lib/zugang";
+import { akteurFuerSeite, darfVerteilen, subFuerSitzung } from "../_lib/zugang";
 import { NichtEingetragenSeite } from "../_ui/NichtEingetragenSeite";
 import { SeitenKopf } from "../_ui/SeitenKopf";
 import { VerteilenTabelle } from "../_ui/VerteilenDialog";
@@ -45,7 +45,7 @@ export function verteilenInhalt(db: DB, heute: string) {
         auslastung={auslastung}
         tage={tage}
         heute={heute}
-        // AUF DIESER EIGENEN ROUTE IMMER `true`: `darfVerteilen(person, heute)` hat den
+        // AUF DIESER EIGENEN ROUTE IMMER `true`: `darfVerteilen(akteur, heute)` hat den
         // Default-Export bereits ueber `notFound()` durchgesetzt (s. unten) — wer hier ankommt, IST
         // eine aktive Koordinationsperson.
         darfVerteilen
@@ -56,13 +56,13 @@ export function verteilenInhalt(db: DB, heute: string) {
 
 export default async function VerteilenPage() {
   const db = getDb();
-  const person = await personFuerSeite(db);
-  if (!person) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
+  const akteur = await akteurFuerSeite(db);
+  if (!akteur) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
   const heute = isoTag(new Date());
   // DASSELBE PRAEDIKAT WIE DIE OBERFLAECHE (Spec §8.3, Brief): "/verteilen antwortet einer
   // auftrag-Person mit 404, und der Weg dorthin existiert in ihrer Oberflaeche nicht. Beides prueft
   // dasselbe Praedikat aus derselben Quelle." — `darfVerteilen` ist genau das Praedikat, das auch
   // `verteilenAction` (`actions.ts`, ueber `uebergang()`) durchsetzt.
-  if (!darfVerteilen(person, heute)) notFound();
+  if (!darfVerteilen(akteur, heute)) notFound();
   return verteilenInhalt(db, heute);
 }

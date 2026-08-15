@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AufgabeRow, PersonRow, Rolle } from "../_db/schema";
 import { aktionsOptionen } from "./aktionsOptionen";
 import { uebergang } from "./lebenszyklus";
-import { darfNachweisHochladen } from "./zugang";
+import { darfNachweisHochladen, type Akteur } from "./zugang";
 
 const HEUTE = "2026-08-13";
 
@@ -50,6 +50,15 @@ function aufgabe(extra: Partial<AufgabeRow> = {}): AufgabeRow {
   };
 }
 
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM der Prädikate, NICHT ihre Antwort: `istKoordination` folgt hier weiterhin genau
+ * der Rolle der Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
+}
+
 const ALLE_AUS: Record<string, boolean> = {
   starten: false,
   zuruecksetzen: false,
@@ -73,31 +82,32 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
     const a = aufgabe({ status: "verteilt", zugewiesenAn: bufdi.id });
 
     const erwartet = {
-      starten: uebergang(a, "starten", bufdi, HEUTE).erlaubt,
-      zuruecksetzen: uebergang(a, "zuruecksetzen", bufdi, HEUTE).erlaubt,
-      fertig: uebergang(a, "fertig", bufdi, HEUTE).erlaubt,
-      freigeben: uebergang(a, "freigeben", bufdi, HEUTE).erlaubt,
-      zurueckweisen: uebergang(a, "zurueckweisen", bufdi, HEUTE).erlaubt,
-      wiederaufnehmen: uebergang(a, "wiederaufnehmen", bufdi, HEUTE).erlaubt,
-      zurueckziehen: uebergang(a, "zurueckziehen", bufdi, HEUTE).erlaubt,
+      starten: uebergang(a, "starten", akteur(bufdi), HEUTE).erlaubt,
+      zuruecksetzen: uebergang(a, "zuruecksetzen", akteur(bufdi), HEUTE).erlaubt,
+      fertig: uebergang(a, "fertig", akteur(bufdi), HEUTE).erlaubt,
+      freigeben: uebergang(a, "freigeben", akteur(bufdi), HEUTE).erlaubt,
+      zurueckweisen: uebergang(a, "zurueckweisen", akteur(bufdi), HEUTE).erlaubt,
+      wiederaufnehmen: uebergang(a, "wiederaufnehmen", akteur(bufdi), HEUTE).erlaubt,
+      zurueckziehen: uebergang(a, "zurueckziehen", akteur(bufdi), HEUTE).erlaubt,
       // KEIN `uebergang()`-Aufruf hier (Aufgabe 19, Kopfkommentar von `aktionsOptionen`): Nachweis
       // hochladen ist kein Uebergang der Tabelle. `a.status === "verteilt"` in dieser Fixtur macht
       // das Ergebnis ohnehin `false`, unabhaengig von `darfNachweisHochladen`.
-      nachweisHochladen: a.status === "in_arbeit" && a.nachweisPflicht && darfNachweisHochladen(bufdi, a, HEUTE),
+      nachweisHochladen:
+        a.status === "in_arbeit" && a.nachweisPflicht && darfNachweisHochladen(akteur(bufdi), a, HEUTE),
     };
-    expect(aktionsOptionen(a, bufdi, HEUTE)).toEqual(erwartet);
+    expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual(erwartet);
   });
 
   it("„verteilt“, zugewiesene BuFDi: NUR starten ist erlaubt", () => {
     const bufdi = person("bufdi", { id: "bufdi-a" });
     const a = aufgabe({ status: "verteilt", zugewiesenAn: bufdi.id });
-    expect(aktionsOptionen(a, bufdi, HEUTE)).toEqual({ ...ALLE_AUS, starten: true });
+    expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual({ ...ALLE_AUS, starten: true });
   });
 
   it("„in_arbeit“, zugewiesene BuFDi, Fremdaufgabe: zuruecksetzen UND fertig sind erlaubt", () => {
     const bufdi = person("bufdi", { id: "bufdi-b" });
     const a = aufgabe({ status: "in_arbeit", zugewiesenAn: bufdi.id, istSelbst: false });
-    expect(aktionsOptionen(a, bufdi, HEUTE)).toEqual({
+    expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual({
       ...ALLE_AUS,
       zuruecksetzen: true,
       fertig: true,
@@ -121,7 +131,7 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
       nachweisPflicht: true,
       nachweisArt: "bild",
     });
-    expect(aktionsOptionen(a, bufdi, HEUTE)).toEqual({
+    expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual({
       ...ALLE_AUS,
       zuruecksetzen: true,
       fertig: true,
@@ -132,7 +142,7 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
   it("„freigabe_offen“, eingetragener Pruefer: freigeben UND zurueckweisen sind erlaubt, sonst nichts", () => {
     const pruefer = person("auftrag", { id: "pruefer-y" });
     const a = aufgabe({ status: "freigabe_offen", prueferId: pruefer.id });
-    expect(aktionsOptionen(a, pruefer, HEUTE)).toEqual({
+    expect(aktionsOptionen(a, akteur(pruefer), HEUTE)).toEqual({
       ...ALLE_AUS,
       freigeben: true,
       zurueckweisen: true,
@@ -151,7 +161,7 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
     const bufdi = person("bufdi", { id: "bufdi-c" });
     const anderePerson = person("auftrag", { id: "pruefer-z" });
     const a = aufgabe({ status: "freigabe_offen", zugewiesenAn: bufdi.id, prueferId: anderePerson.id });
-    expect(aktionsOptionen(a, bufdi, HEUTE)).toEqual(ALLE_AUS);
+    expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual(ALLE_AUS);
   });
 
   /**
@@ -164,30 +174,30 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
   it("Selbstaufgabe, koordination: KEINE Freigabe-Aktion, auch bei (fachlich unerreichbarem) „freigabe_offen“", () => {
     const koordination = person("koordination", { id: "koord-1" });
     const a = aufgabe({ status: "freigabe_offen", istSelbst: true, prueferId: null });
-    expect(aktionsOptionen(a, koordination, HEUTE)).toEqual(ALLE_AUS);
+    expect(aktionsOptionen(a, akteur(koordination), HEUTE)).toEqual(ALLE_AUS);
   });
 
   it("„zurueckgewiesen“, zugewiesene BuFDi: NUR wiederaufnehmen ist erlaubt", () => {
     const bufdi = person("bufdi", { id: "bufdi-d" });
     const a = aufgabe({ status: "zurueckgewiesen", zugewiesenAn: bufdi.id });
-    expect(aktionsOptionen(a, bufdi, HEUTE)).toEqual({ ...ALLE_AUS, wiederaufnehmen: true });
+    expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual({ ...ALLE_AUS, wiederaufnehmen: true });
   });
 
   it("„eingegangen“, Ersteller: NUR zurueckziehen ist erlaubt", () => {
     const ersteller = person("auftrag", { id: "ersteller-e" });
     const a = aufgabe({ status: "eingegangen", erstellerId: ersteller.id, zugewiesenAn: null });
-    expect(aktionsOptionen(a, ersteller, HEUTE)).toEqual({ ...ALLE_AUS, zurueckziehen: true });
+    expect(aktionsOptionen(a, akteur(ersteller), HEUTE)).toEqual({ ...ALLE_AUS, zurueckziehen: true });
   });
 
   it("„abgeschlossen“, jede Rolle: gar keine Aktion — Endzustand", () => {
     const bufdi = person("bufdi", { id: "bufdi-f" });
     const a = aufgabe({ status: "abgeschlossen", zugewiesenAn: bufdi.id });
-    expect(aktionsOptionen(a, bufdi, HEUTE)).toEqual(ALLE_AUS);
+    expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual(ALLE_AUS);
   });
 
   it("eine ausgeschiedene, zugewiesene BuFDi bekommt keine einzige Aktion mehr", () => {
     const exBufdi = person("bufdi", { id: "bufdi-g", aktivBis: "2020-01-01" });
     const a = aufgabe({ status: "in_arbeit", zugewiesenAn: exBufdi.id });
-    expect(aktionsOptionen(a, exBufdi, HEUTE)).toEqual(ALLE_AUS);
+    expect(aktionsOptionen(a, akteur(exBufdi), HEUTE)).toEqual(ALLE_AUS);
   });
 });

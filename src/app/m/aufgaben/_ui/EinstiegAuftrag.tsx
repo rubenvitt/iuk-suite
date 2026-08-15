@@ -1,8 +1,9 @@
 import { Button } from "antd";
 import { allePersonen, aufgabenVonErsteller, freigabeDaten } from "../_db/queries";
 import type { DB } from "../_db/client";
-import type { AufgabeRow, PersonRow } from "../_db/schema";
+import type { AufgabeRow } from "../_db/schema";
 import { namenMap } from "../_lib/anzeige";
+import type { Akteur } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { AufgabenListe, type AufgabenListeZeile } from "./AufgabenListe";
@@ -35,17 +36,20 @@ import { SeitenKopf } from "./SeitenKopf";
  *
  * DIE FREIGABE-WARTESCHLANGE IST DIESELBE `FreigabeZone`-KOMPONENTE WIE `/freigaben` (Aufgabe 15,
  * Vorbild `VerteilenTabelle`s geteilte Verwendung durch `EinstiegKoordination.tsx` UND
- * `verteilen/page.tsx`) — `_db/queries.ts`s `freigabeDaten(db, person, heute)` ist die EINE
+ * `verteilen/page.tsx`) — `_db/queries.ts`s `freigabeDaten(db, akteur, heute)` ist die EINE
  * Ladefunktion fuer beide Aufrufer, s. deren Kopfkommentar. `EinstiegKoordination.tsx` bleibt
  * bewusst UNVERAENDERT (nicht Teil dieser Aufgabe): ihre eigene Freigabe-Sektion zeigt weiterhin nur
  * eine schreibgeschuetzte `AufgabenListe` ohne Aktionsknoepfe — ein bekannter, kleiner Nachzug, im
  * Bericht als Beobachtung festgehalten, keine stillschweigende Aenderung an einer Datei ausserhalb
  * des Auftrags dieser Aufgabe.
  */
-export function EinstiegAuftrag({ db, person, heute }: { db: DB; person: PersonRow; heute: string }) {
+export function EinstiegAuftrag({ db, akteur, heute }: { db: DB; akteur: Akteur; heute: string }) {
+  // Die Zeile eigens benannt, weil sie hier fast ueberall gebraucht wird (`id` fuer die eigenen
+  // Auftraege) — die Rechtefrage stellt allein `freigabeDaten` ueber den `Akteur`.
+  const person = akteur.person;
   const meineAuftraege = aufgabenVonErsteller(db, person.id);
   const namen = namenMap(allePersonen(db));
-  const { meine: meineFreigabe, vertretung: vertretungFreigabe } = freigabeDaten(db, person, heute);
+  const { meine: meineFreigabe, vertretung: vertretungFreigabe } = freigabeDaten(db, akteur, heute);
 
   const offenAnzahl = meineAuftraege.filter((a) => a.status !== "abgeschlossen").length;
   const freigabeAnzahl = meineFreigabe.length + vertretungFreigabe.length;

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "./_db/testdb";
 import { personen, type PersonRow, type Rolle } from "./_db/schema";
+import type { Akteur } from "./_lib/zugang";
 
 /*
  * MOCKS: `next/navigation` (fuer `notFound()`, ausgeloest von `personFuerSeite` OHNE Sitzung, UND
@@ -38,6 +39,15 @@ afterEach(async () => {
 
 const HEUTE = "2026-08-10";
 
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
+ * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
+}
+
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
     .insert(personen)
@@ -56,7 +66,7 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
 describe("aufgabenInhalt — der Verteiler waehlt nach Rolle (Spec §8)", () => {
   it("bufdi bekommt „Meine Woche“ (EinstiegBufdi)", async () => {
     const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
-    await mount(aufgabenInhalt(t.db, alina, HEUTE, {}));
+    await mount(aufgabenInhalt(t.db, akteur(alina), HEUTE, {}));
     expect(query("h1").textContent).toBe("Meine Woche");
   });
 
@@ -69,7 +79,7 @@ describe("aufgabenInhalt — der Verteiler waehlt nach Rolle (Spec §8)", () => 
    */
   it("koordination bekommt „Verteilung“ (EinstiegKoordination)", async () => {
     const rike = legePerson("dev:rike@test", "koordination", { name: "Rike" });
-    await mount(aufgabenInhalt(t.db, rike, HEUTE, {}));
+    await mount(aufgabenInhalt(t.db, akteur(rike), HEUTE, {}));
     expect(query("h1").textContent).toBe("Verteilung");
     expect(document.body.textContent).toContain("Zu verteilen");
     expect(document.body.textContent).not.toBe("");
@@ -84,7 +94,7 @@ describe("aufgabenInhalt — der Verteiler waehlt nach Rolle (Spec §8)", () => 
    */
   it("auftrag bekommt „Meine Aufträge“ (EinstiegAuftrag)", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
-    await mount(aufgabenInhalt(t.db, malte, HEUTE, {}));
+    await mount(aufgabenInhalt(t.db, akteur(malte), HEUTE, {}));
     expect(query("h1").textContent).toBe("Meine Aufträge");
     expect(document.body.textContent).toContain("Aufgabe einstellen");
     expect(document.body.textContent).not.toContain("entsteht in einer der nächsten Aufgaben");
@@ -92,7 +102,7 @@ describe("aufgabenInhalt — der Verteiler waehlt nach Rolle (Spec §8)", () => 
 
   it("reicht woche/tag aus den Suchparametern an EinstiegBufdi durch", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(aufgabenInhalt(t.db, alina, HEUTE, { woche: "2026-08-24" }));
+    await mount(aufgabenInhalt(t.db, akteur(alina), HEUTE, { woche: "2026-08-24" }));
     expect(document.body.textContent).toContain("Mo, 24.08.");
   });
 });

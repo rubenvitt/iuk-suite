@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, aufgaben, type PersonRow, type Rolle } from "../_db/schema";
+import type { Akteur } from "../_lib/zugang";
 
 let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
@@ -28,6 +29,15 @@ afterEach(async () => {
 });
 
 const HEUTE = "2026-08-13";
+
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
+ * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
+}
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -63,7 +73,7 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
 describe("freigabenInhalt", () => {
   it("traegt die Ueberschrift und den ausgeschriebenen Leerzustand", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
-    await mount(freigabenInhalt(t.db, rike, HEUTE));
+    await mount(freigabenInhalt(t.db, akteur(rike), HEUTE));
     expect(query("h1").textContent).toBe("Freigaben");
     expect(document.body.textContent).toContain("Keine Freigabe offen.");
   });
@@ -86,7 +96,7 @@ describe("freigabenInhalt", () => {
       prueferId: malte.id, status: "freigabe_offen",
     });
 
-    await mount(freigabenInhalt(t.db, rike, HEUTE));
+    await mount(freigabenInhalt(t.db, akteur(rike), HEUTE));
 
     const ueberschriften = queryAll("h3").map((h) => h.textContent);
     expect(ueberschriften).toEqual(["Meine", "In Vertretung"]);
@@ -105,7 +115,7 @@ describe("freigabenInhalt", () => {
       titel: "F1", erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: rike.id,
       status: "freigabe_offen",
     });
-    await mount(freigabenInhalt(t.db, rike, HEUTE));
+    await mount(freigabenInhalt(t.db, akteur(rike), HEUTE));
     expect(document.body.textContent).toContain("1 Aufgabe warten auf Freigabe.");
   });
 });

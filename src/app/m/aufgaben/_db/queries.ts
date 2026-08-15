@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { namenMap, tagesBudget } from "../_lib/anzeige";
 import { montagDerWoche, wochenTage } from "../_lib/datum";
 import { istFreigegeben } from "../_lib/scan";
-import { darfFreigeben, istAktiv, istVertretungsfreigabe } from "../_lib/zugang";
+import { darfFreigeben, istAktiv, istVertretungsfreigabe, type Akteur } from "../_lib/zugang";
 import type { DB } from "./client";
 import {
   aufgaben,
@@ -254,13 +254,13 @@ export function alleAufgaben(db: DB): AufgabeRow[] {
  * Zeitzone bleibt trotzdem an der einen Stelle (`_lib/datum.ts`); diese Funktion bekommt das
  * Ergebnis nur uebergeben, statt es selbst abzufragen.
  */
-export function freigabenFuer(db: DB, p: PersonRow, heute: string): AufgabeRow[] {
+export function freigabenFuer(db: DB, akteur: Akteur, heute: string): AufgabeRow[] {
   return db
     .select()
     .from(aufgaben)
     .where(eq(aufgaben.status, "freigabe_offen"))
     .all()
-    .filter((a) => darfFreigeben(p, a, heute));
+    .filter((a) => darfFreigeben(akteur, a, heute));
 }
 
 export interface FreigabeZeile {
@@ -283,9 +283,9 @@ export interface FreigabeZeile {
 }
 
 export interface FreigabeDaten {
-  /** `!istVertretungsfreigabe(person, a)` — die eigene, eingetragene Pruefung. */
+  /** `!istVertretungsfreigabe(akteur, a)` — die eigene, eingetragene Pruefung. */
   meine: FreigabeZeile[];
-  /** `istVertretungsfreigabe(person, a)` — die Koordination sieht sie zusaetzlich. */
+  /** `istVertretungsfreigabe(akteur, a)` — die Koordination sieht sie zusaetzlich. */
   vertretung: FreigabeZeile[];
 }
 
@@ -301,8 +301,8 @@ export interface FreigabeDaten {
  * `heute` KOMMT ALS ARGUMENT, wie ueberall im Modul (`_lib/datum.ts` bleibt die einzige Stelle, die
  * einen Kalendertag aus der Uhr liest).
  */
-export function freigabeDaten(db: DB, person: PersonRow, heute: string): FreigabeDaten {
-  const freigabeListe = freigabenFuer(db, person, heute);
+export function freigabeDaten(db: DB, akteur: Akteur, heute: string): FreigabeDaten {
+  const freigabeListe = freigabenFuer(db, akteur, heute);
   const namen = namenMap(allePersonen(db));
   const zeile = (a: AufgabeRow): FreigabeZeile => ({
     aufgabe: a,
@@ -311,8 +311,8 @@ export function freigabeDaten(db: DB, person: PersonRow, heute: string): Freigab
     nachweise: mitDatei(db, nachweiseSeitLetzterZurueckweisung(db, a.id)),
   });
   return {
-    meine: freigabeListe.filter((a) => !istVertretungsfreigabe(person, a)).map(zeile),
-    vertretung: freigabeListe.filter((a) => istVertretungsfreigabe(person, a)).map(zeile),
+    meine: freigabeListe.filter((a) => !istVertretungsfreigabe(akteur, a)).map(zeile),
+    vertretung: freigabeListe.filter((a) => istVertretungsfreigabe(akteur, a)).map(zeile),
   };
 }
 

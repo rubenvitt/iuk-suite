@@ -1,10 +1,17 @@
-import type { AufgabeRow, PersonRow, Status } from "../_db/schema";
-import { darfEinstellenFuerAndere, darfFreigeben, darfPlanAendern, darfVerteilen, istAktiv } from "./zugang";
+import type { AufgabeRow, Status } from "../_db/schema";
+import {
+  darfEinstellenFuerAndere,
+  darfFreigeben,
+  darfPlanAendern,
+  darfVerteilen,
+  istAktiv,
+  type Akteur,
+} from "./zugang";
 
 /*
  * DIE UEBERGANGSTABELLE — Spec §5.2, NORMATIV. Reine Funktionen, keine Datenbank, keine Sitzung
- * (Aufgabe 4-Vorgabe fuer dieses Modul: Rollen kommen aus der Datenbank, aber DIESE Datei liest
- * nicht selbst — Aufgabe 9/10 reichen die Zeile durch). KEIN "use client".
+ * (Aufgabe 4-Vorgabe fuer dieses Modul: DIESE Datei loest nicht selbst auf, wer handelt — der
+ * Aufrufer reicht einen fertigen `Akteur` durch). KEIN "use client".
  *
  * Spec §5.2 wird hier zu einer Datenstruktur (`TABELLE`), nicht zu verstreuten `if`s: die Tabelle
  * steht an GENAU EINER Stelle, und `uebergang()` lehnt alles ab, was dort nicht steht.
@@ -28,9 +35,9 @@ import { darfEinstellenFuerAndere, darfFreigeben, darfPlanAendern, darfVerteilen
  *
  * 3. "ZUGEWIESENER BUFDI" (fuenf der zwoelf Tabellenzeilen: einplanen, starten, zuruecksetzen, fertig,
  *    wiederaufnehmen) ist NICHT `darfPlanAendern` fuer alle fuenf — nur `einplanen` AENDERT
- *    tatsaechlich den Plan, und nur dort ist `darfPlanAendern(p, a.zugewiesenAn, heute)` die
+ *    tatsaechlich den Plan, und nur dort ist `darfPlanAendern(akteur, a.zugewiesenAn, heute)` die
  *    passende Berechtigung, wortgleich zum Brief ("Wo die Tabelle 'zugewiesener BuFDi' sagt, ist
- *    die Pruefung `p.id === a.zugewiesenAn` PLUS `istAktiv`"). Fuer die anderen vier steht dieselbe
+ *    die Pruefung `akteur.person.id === a.zugewiesenAn` PLUS `istAktiv`"). Fuer die anderen vier steht dieselbe
  *    Formel als lokaler Helfer `istZugewiesenerBuFDi`, gebaut auf dem importierten `istAktiv` — eine
  *    eigene, benannte Berechtigung fuer `darfPlanAendern` querzuverwenden waere die falsche Naht:
  *    ihr Vertrag ("wer darf DIESEN Plan aendern") hat mit "wer darf DIESE Aufgabe starten" nichts zu
@@ -61,12 +68,12 @@ export type UebergangErgebnis =
   | { erlaubt: false; grund: string };
 
 /**
- * `p.id === a.zugewiesenAn` PLUS `istAktiv` — die Formel, die der Brief fuer "zugewiesener BuFDi"
- * vorschreibt. Eine ausgeschiedene Person bewegt nichts, auch wenn sie noch als `zugewiesenAn`
- * eingetragen ist.
+ * `akteur.person.id === a.zugewiesenAn` PLUS `istAktiv` — die Formel, die der Brief fuer
+ * "zugewiesener BuFDi" vorschreibt. Eine ausgeschiedene Person bewegt nichts, auch wenn sie noch
+ * als `zugewiesenAn` eingetragen ist.
  */
-function istZugewiesenerBuFDi(p: PersonRow, a: AufgabeRow, heute: string): boolean {
-  return p.id === a.zugewiesenAn && istAktiv(p, heute);
+function istZugewiesenerBuFDi(akteur: Akteur, a: AufgabeRow, heute: string): boolean {
+  return akteur.person.id === a.zugewiesenAn && istAktiv(akteur.person, heute);
 }
 
 interface Regel {
@@ -80,7 +87,7 @@ interface Regel {
    */
   gilt?: (a: AufgabeRow) => boolean;
   nach: Status;
-  wer: (p: PersonRow, a: AufgabeRow, heute: string) => boolean;
+  wer: (akteur: Akteur, a: AufgabeRow, heute: string) => boolean;
   /** Regel 3 (Spec §5.2): nur bei `umverteilen` wahr. */
   planLoeschen?: boolean;
 }
@@ -104,13 +111,13 @@ const TABELLE: Regel[] = [
     aktion: "verteilen",
     nach: "verteilt",
     // `a` bleibt ungenutzt: "verteilen" fragt nur nach der Rolle, nicht nach der Aufgabe selbst.
-    wer: (p, _a, heute) => darfVerteilen(p, heute),
+    wer: (akteur, _a, heute) => darfVerteilen(akteur, heute),
   },
   {
     von: "verteilt",
     aktion: "umverteilen",
     nach: "verteilt",
-    wer: (p, _a, heute) => darfVerteilen(p, heute),
+    wer: (akteur, _a, heute) => darfVerteilen(akteur, heute),
     planLoeschen: true,
   },
   {
@@ -122,7 +129,7 @@ const TABELLE: Regel[] = [
     // `null`-Ausstieg statt eines Sentinel-Strings (Review Fix-Runde 1): ein Fallback wie `?? ""`
     // waere eine stille Falle, sobald `id`-Werte je normalisiert wuerden — `null` sagt direkt, dass
     // dieser Fall nach der Invariante nie eintritt, statt ihn hinter einem erfundenen Wert zu verstecken.
-    wer: (p, a, heute) => a.zugewiesenAn !== null && darfPlanAendern(p, a.zugewiesenAn, heute),
+    wer: (akteur, a, heute) => a.zugewiesenAn !== null && darfPlanAendern(akteur, a.zugewiesenAn, heute),
   },
   { von: "verteilt", aktion: "starten", nach: "in_arbeit", wer: istZugewiesenerBuFDi },
   {
@@ -132,7 +139,7 @@ const TABELLE: Regel[] = [
     // Dieselbe Invariante und dieselbe Berechtigung wie die "verteilt"-Zeile oben: `zugewiesenAn`
     // ist in "in_arbeit" ebenfalls immer gesetzt (nur ueber "starten" aus "verteilt" erreichbar,
     // und das setzt es nicht zurueck).
-    wer: (p, a, heute) => a.zugewiesenAn !== null && darfPlanAendern(p, a.zugewiesenAn, heute),
+    wer: (akteur, a, heute) => a.zugewiesenAn !== null && darfPlanAendern(akteur, a.zugewiesenAn, heute),
   },
   { von: "in_arbeit", aktion: "zuruecksetzen", nach: "verteilt", wer: istZugewiesenerBuFDi },
   {
@@ -162,7 +169,12 @@ const TABELLE: Regel[] = [
  * `zurueckziehen` ist eigens behandelt: es hat keinen `nach`-Zustand (siehe Kopfkommentar,
  * Entscheidung 1) und keine Zeile in `TABELLE`.
  */
-export function uebergang(a: AufgabeRow, aktion: Aktion, p: PersonRow, heute: string): UebergangErgebnis {
+export function uebergang(
+  a: AufgabeRow,
+  aktion: Aktion,
+  akteur: Akteur,
+  heute: string,
+): UebergangErgebnis {
   if (aktion === "zurueckziehen") {
     if (a.status !== "eingegangen") {
       return {
@@ -170,7 +182,9 @@ export function uebergang(a: AufgabeRow, aktion: Aktion, p: PersonRow, heute: st
         grund: `Zurueckziehen ist nur aus dem Zustand "eingegangen" moeglich — diese Aufgabe ist "${a.status}" und hat bereits eine Geschichte mit Dokumentationswert.`,
       };
     }
-    const darf = (p.id === a.erstellerId && istAktiv(p, heute)) || darfVerteilen(p, heute);
+    const darf =
+      (akteur.person.id === a.erstellerId && istAktiv(akteur.person, heute)) ||
+      darfVerteilen(akteur, heute);
     if (!darf) {
       return {
         erlaubt: false,
@@ -189,7 +203,7 @@ export function uebergang(a: AufgabeRow, aktion: Aktion, p: PersonRow, heute: st
       grund: `Die Aktion "${aktion}" ist im Zustand "${a.status}" nicht vorgesehen.`,
     };
   }
-  if (!regel.wer(p, a, heute)) {
+  if (!regel.wer(akteur, a, heute)) {
     return {
       erlaubt: false,
       grund: `Diese Person darf die Aktion "${aktion}" fuer diese Aufgabe nicht ausfuehren.`,
@@ -209,28 +223,28 @@ export type AnfangsZustandErgebnis =
  *
  * ZWEI AUSPRAEGUNGEN (Spec §5.2):
  *  - fremd:    `eingegangen`, NICHT zugewiesen — die Zuweisung passiert erst beim "verteilen".
- *              Nur `auftrag` oder `koordination` (`darfEinstellenFuerAndere`, traegt `istAktiv`).
+ *              Nur `auftrag` oder die Koordination (`darfEinstellenFuerAndere`, traegt `istAktiv`).
  *  - fuer sich: `verteilt`, direkt an sich selbst zugewiesen, `istSelbst: true` — jede Rolle.
  *
- * `istAktiv(ersteller, heute)` gilt fuer BEIDE Zweige, auch wenn Spec §5.2 das fuer den
+ * `istAktiv(ersteller.person, heute)` gilt fuer BEIDE Zweige, auch wenn Spec §5.2 das fuer den
  * Selbst-Zweig nicht ausdruecklich nennt: jedes andere Handlungspraedikat in `_lib/zugang.ts`
  * prueft `istAktiv` fuer sich selbst statt sich auf ein Gate zu verlassen (Kopfkommentar dort),
  * und eine ausgeschiedene Person, die sich selbst neue Arbeit zuweist, waere sonst die eine
  * Luecke, die dieses Muster nicht deckt.
  */
 export function anfangsZustand(
-  ersteller: PersonRow,
+  ersteller: Akteur,
   fuerSichSelbst: boolean,
   heute: string,
 ): AnfangsZustandErgebnis {
   if (fuerSichSelbst) {
-    if (!istAktiv(ersteller, heute)) {
+    if (!istAktiv(ersteller.person, heute)) {
       return {
         erlaubt: false,
         grund: "Eine ausgeschiedene Person kann sich keine neue Aufgabe mehr einstellen.",
       };
     }
-    return { erlaubt: true, status: "verteilt", zugewiesenAn: ersteller.id, istSelbst: true };
+    return { erlaubt: true, status: "verteilt", zugewiesenAn: ersteller.person.id, istSelbst: true };
   }
   if (!darfEinstellenFuerAndere(ersteller, heute)) {
     return {

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { aufgaben, personen, type AufgabeRow, type PersonRow, type Rolle } from "../_db/schema";
+import type { Akteur } from "../_lib/zugang";
 
 let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
@@ -28,6 +29,15 @@ afterEach(async () => {
   await unmount();
   t.schliessen();
 });
+
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM, NICHT das Verhalten: `istKoordination` folgt hier weiterhin genau der Rolle der
+ * Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
+}
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -63,7 +73,7 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
 describe("archivInhalt — Leerzustand ausgeschrieben", () => {
   it("zeigt einen ausgeschriebenen Satz, wenn es noch keine abgeschlossene Aufgabe gibt", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    await mount(archivInhalt(t.db, malte, HEUTE));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE));
     expect(document.body.textContent).toContain("Noch keine abgeschlossene Aufgabe.");
   });
 });
@@ -82,7 +92,7 @@ describe("archivInhalt — filtert SERVERSEITIG auf das Sichtrecht (Spec §8)", 
     legeAufgabe({ erstellerId: tomke.id, prueferId: tomke.id, titel: "Tomkes Aufgabe" });
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Maltes Aufgabe" });
 
-    await mount(archivInhalt(t.db, malte, HEUTE));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE));
     expect(document.body.textContent).toContain("Maltes Aufgabe");
     expect(document.body.textContent).not.toContain("Tomkes Aufgabe");
   });
@@ -94,7 +104,7 @@ describe("archivInhalt — filtert SERVERSEITIG auf das Sichtrecht (Spec §8)", 
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Maltes Aufgabe" });
     legeAufgabe({ erstellerId: tomke.id, prueferId: tomke.id, titel: "Tomkes Aufgabe" });
 
-    await mount(archivInhalt(t.db, rike, HEUTE));
+    await mount(archivInhalt(t.db, akteur(rike), HEUTE));
     expect(document.body.textContent).toContain("Maltes Aufgabe");
     expect(document.body.textContent).toContain("Tomkes Aufgabe");
   });
@@ -105,7 +115,7 @@ describe("archivInhalt — filtert SERVERSEITIG auf das Sichtrecht (Spec §8)", 
     const bendix = legePerson("dev:bendix@test", "bufdi");
     legeAufgabe({ erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id, titel: "Alinas Aufgabe" });
 
-    await mount(archivInhalt(t.db, bendix, HEUTE));
+    await mount(archivInhalt(t.db, akteur(bendix), HEUTE));
     expect(document.body.textContent).toContain("Alinas Aufgabe");
   });
 
@@ -133,7 +143,7 @@ describe("archivInhalt — filtert SERVERSEITIG auf das Sichtrecht (Spec §8)", 
       titel: "Noch in Arbeit",
     });
 
-    await mount(archivInhalt(t.db, malte, HEUTE));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE));
     expect(document.body.textContent).toContain("Abgeschlossen");
     expect(document.body.textContent).not.toContain("Noch in Arbeit");
   });
@@ -146,7 +156,7 @@ describe("archivInhalt — Filter auf Priorität", () => {
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Hoch B", prioritaet: "hoch" });
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Mittel A", prioritaet: "mittel" });
 
-    await mount(archivInhalt(t.db, malte, HEUTE, "hoch"));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE, "hoch"));
     expect(document.body.textContent).toContain("Hoch A");
     expect(document.body.textContent).toContain("Hoch B");
     expect(document.body.textContent).not.toContain("Mittel A");
@@ -156,7 +166,7 @@ describe("archivInhalt — Filter auf Priorität", () => {
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Eine Aufgabe" });
 
-    await mount(archivInhalt(t.db, malte, HEUTE, "manipuliert"));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE, "manipuliert"));
     expect(document.body.textContent).toContain("Eine Aufgabe");
   });
 
@@ -164,7 +174,7 @@ describe("archivInhalt — Filter auf Priorität", () => {
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, prioritaet: "mittel" });
 
-    await mount(archivInhalt(t.db, malte, HEUTE, "hoch"));
+    await mount(archivInhalt(t.db, akteur(malte), HEUTE, "hoch"));
     expect(document.body.textContent).toContain("Keine abgeschlossene Aufgabe mit dieser Priorität.");
     expect(document.body.textContent).not.toContain("Noch keine abgeschlossene Aufgabe.");
   });

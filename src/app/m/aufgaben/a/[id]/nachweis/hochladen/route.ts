@@ -63,7 +63,7 @@ import { newId } from "../../../../_db/schema";
 import { legeNachweisAb, NACHWEIS_MAX_BYTES } from "../../../../_lib/ablage";
 import { isoTag } from "../../../../_lib/datum";
 import { starteAufgabenScanArbeiter } from "../../../../_lib/scan";
-import { darfNachweisHochladen } from "../../../../_lib/zugang";
+import { akteurFuer, darfNachweisHochladen } from "../../../../_lib/zugang";
 import type { FormState } from "../../../../_lib/formState";
 
 const JSON_KOPF = {
@@ -127,7 +127,7 @@ export async function POST(
   const heute = isoTag(new Date());
   // DIESELBE VORAUSSETZUNG WIE DIE VORGAENGER-ACTION (Kopfkommentar `_lib/zugang.ts`s
   // `darfNachweisHochladen`): der Zustand `in_arbeit` steht NEBEN dem Praedikat, nicht darin.
-  if (task.status !== "in_arbeit" || !darfNachweisHochladen(person, task, heute)) {
+  if (task.status !== "in_arbeit" || !darfNachweisHochladen(await akteurFuer(person), task, heute)) {
     return keinZugriff();
   }
 

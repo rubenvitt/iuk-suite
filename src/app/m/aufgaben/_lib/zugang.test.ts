@@ -38,6 +38,7 @@ import {
   darfAufgabeSehen,
   darfFreigabenSehen,
   istVertretungsfreigabe,
+  type Akteur,
 } from "./zugang";
 
 let t: TestDb;
@@ -63,6 +64,15 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
     })
     .returning()
     .get();
+}
+
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` aendert die AUFRUFFORM der
+ * Praedikate, NICHT ihre Antwort: `istKoordination` folgt hier weiterhin genau der Rolle der
+ * Zeile, damit jede Zusage dieser Datei unveraendert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
 }
 
 function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert>) {
@@ -175,12 +185,12 @@ describe("darfVerteilen — nur koordination, und aktiv", () => {
     ["bufdi", false],
   ])("Rolle %s → %s", (rolle, erwartet) => {
     const p = legePerson(`v-${rolle}`, rolle);
-    expect(darfVerteilen(p, HEUTE)).toBe(erwartet);
+    expect(darfVerteilen(akteur(p), HEUTE)).toBe(erwartet);
   });
 
   it("ausgeschiedene Koordination darf nicht mehr verteilen", () => {
     const p = legePerson("v-inaktiv", "koordination", { aktivBis: "2026-08-01" });
-    expect(darfVerteilen(p, HEUTE)).toBe(false);
+    expect(darfVerteilen(akteur(p), HEUTE)).toBe(false);
   });
 });
 
@@ -191,12 +201,12 @@ describe("darfEinstellenFuerAndere — auftrag oder koordination, und aktiv", ()
     ["bufdi", false],
   ])("Rolle %s → %s", (rolle, erwartet) => {
     const p = legePerson(`e-${rolle}`, rolle);
-    expect(darfEinstellenFuerAndere(p, HEUTE)).toBe(erwartet);
+    expect(darfEinstellenFuerAndere(akteur(p), HEUTE)).toBe(erwartet);
   });
 
   it("ausgeschiedener auftrag darf nicht mehr fremd einstellen", () => {
     const p = legePerson("e-inaktiv", "auftrag", { aktivBis: "2026-08-01" });
-    expect(darfEinstellenFuerAndere(p, HEUTE)).toBe(false);
+    expect(darfEinstellenFuerAndere(akteur(p), HEUTE)).toBe(false);
   });
 });
 
@@ -207,12 +217,12 @@ describe("darfPersonenVerwalten — nur koordination, und aktiv", () => {
     ["bufdi", false],
   ])("Rolle %s → %s", (rolle, erwartet) => {
     const p = legePerson(`pv-${rolle}`, rolle);
-    expect(darfPersonenVerwalten(p, HEUTE)).toBe(erwartet);
+    expect(darfPersonenVerwalten(akteur(p), HEUTE)).toBe(erwartet);
   });
 
   it("ausgeschiedene Koordination darf Personen nicht mehr verwalten", () => {
     const p = legePerson("pv-inaktiv", "koordination", { aktivBis: "2026-08-01" });
-    expect(darfPersonenVerwalten(p, HEUTE)).toBe(false);
+    expect(darfPersonenVerwalten(akteur(p), HEUTE)).toBe(false);
   });
 });
 
@@ -223,12 +233,12 @@ describe("darfFreigabenSehen — auftrag oder koordination, und aktiv (Aufgabe 1
     ["bufdi", false],
   ])("Rolle %s → %s", (rolle, erwartet) => {
     const p = legePerson(`fs-${rolle}`, rolle);
-    expect(darfFreigabenSehen(p, HEUTE)).toBe(erwartet);
+    expect(darfFreigabenSehen(akteur(p), HEUTE)).toBe(erwartet);
   });
 
   it("ausgeschiedener auftrag darf die Warteschlange nicht mehr sehen", () => {
     const p = legePerson("fs-inaktiv", "auftrag", { aktivBis: "2026-08-01" });
-    expect(darfFreigabenSehen(p, HEUTE)).toBe(false);
+    expect(darfFreigabenSehen(akteur(p), HEUTE)).toBe(false);
   });
 });
 
@@ -239,12 +249,12 @@ describe("darfRoutinenVerwalten — nur bufdi, und aktiv (Aufgabe 13, Spec §8: 
     ["bufdi", true],
   ])("Rolle %s → %s", (rolle, erwartet) => {
     const p = legePerson(`rv-${rolle}`, rolle);
-    expect(darfRoutinenVerwalten(p, HEUTE)).toBe(erwartet);
+    expect(darfRoutinenVerwalten(akteur(p), HEUTE)).toBe(erwartet);
   });
 
   it("ein ausgeschiedener BuFDi darf keine Routinen mehr verwalten", () => {
     const p = legePerson("rv-inaktiv", "bufdi", { aktivBis: "2026-08-01" });
-    expect(darfRoutinenVerwalten(p, HEUTE)).toBe(false);
+    expect(darfRoutinenVerwalten(akteur(p), HEUTE)).toBe(false);
   });
 });
 
@@ -258,19 +268,19 @@ describe("darfPlanAendern — ausschliesslich die Zielperson selbst, auch nicht 
     "Rolle %s auf den EIGENEN Plan → true",
     (rolle) => {
       const p = legePerson(`pa-${rolle}`, rolle);
-      expect(darfPlanAendern(p, p.id, HEUTE)).toBe(true);
+      expect(darfPlanAendern(akteur(p), p.id, HEUTE)).toBe(true);
     },
   );
 
   it("Rike (koordination) darf Alinas Plan nicht aendern — sie schlaegt nur vor", () => {
     const rike = legePerson("pa-rike", "koordination");
     const alina = legePerson("pa-alina", "bufdi");
-    expect(darfPlanAendern(rike, alina.id, HEUTE)).toBe(false);
+    expect(darfPlanAendern(akteur(rike), alina.id, HEUTE)).toBe(false);
   });
 
   it("ausgeschiedener BuFDi aendert den eigenen Plan nicht mehr", () => {
     const p = legePerson("pa-inaktiv", "bufdi", { aktivBis: "2026-08-01" });
-    expect(darfPlanAendern(p, p.id, HEUTE)).toBe(false);
+    expect(darfPlanAendern(akteur(p), p.id, HEUTE)).toBe(false);
   });
 });
 
@@ -284,26 +294,26 @@ describe("darfNachweisHochladen — die zugewiesene Person, aktiv; der Zustand i
   it("die zugewiesene, aktive Person darf", () => {
     const bufdi = legePerson("nh-bufdi", "bufdi");
     const a = legeAufgabe({ erstellerId: bufdi.id, zugewiesenAn: bufdi.id });
-    expect(darfNachweisHochladen(bufdi, a, HEUTE)).toBe(true);
+    expect(darfNachweisHochladen(akteur(bufdi), a, HEUTE)).toBe(true);
   });
 
   it("eine andere Person — auch koordination — darf nicht, auch wenn sie erstellt hat", () => {
     const bufdi = legePerson("nh-bufdi2", "bufdi");
     const koordination = legePerson("nh-koord", "koordination");
     const a = legeAufgabe({ erstellerId: koordination.id, zugewiesenAn: bufdi.id });
-    expect(darfNachweisHochladen(koordination, a, HEUTE)).toBe(false);
+    expect(darfNachweisHochladen(akteur(koordination), a, HEUTE)).toBe(false);
   });
 
   it("die zugewiesene, aber ausgeschiedene Person darf nicht mehr", () => {
     const bufdi = legePerson("nh-ex", "bufdi", { aktivBis: "2026-08-01" });
     const a = legeAufgabe({ erstellerId: bufdi.id, zugewiesenAn: bufdi.id });
-    expect(darfNachweisHochladen(bufdi, a, HEUTE)).toBe(false);
+    expect(darfNachweisHochladen(akteur(bufdi), a, HEUTE)).toBe(false);
   });
 
   it("eine unzugewiesene Aufgabe (zugewiesenAn: null) hat niemanden, der duerfte", () => {
     const bufdi = legePerson("nh-bufdi3", "bufdi");
     const a = legeAufgabe({ erstellerId: bufdi.id, zugewiesenAn: null });
-    expect(darfNachweisHochladen(bufdi, a, HEUTE)).toBe(false);
+    expect(darfNachweisHochladen(akteur(bufdi), a, HEUTE)).toBe(false);
   });
 });
 
@@ -326,7 +336,7 @@ describe("darfFreigeben", () => {
         prueferId: null,
         status: "in_arbeit",
       });
-      expect(darfFreigeben(p, a, HEUTE)).toBe(false);
+      expect(darfFreigeben(akteur(p), a, HEUTE)).toBe(false);
     },
   );
 
@@ -340,7 +350,7 @@ describe("darfFreigeben", () => {
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(darfFreigeben(pruefer, a, HEUTE)).toBe(true);
+    expect(darfFreigeben(akteur(pruefer), a, HEUTE)).toBe(true);
   });
 
   it("Fremdaufgabe: koordination darf freigeben, auch ohne selbst Pruefer zu sein", () => {
@@ -354,7 +364,7 @@ describe("darfFreigeben", () => {
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(darfFreigeben(rike, a, HEUTE)).toBe(true);
+    expect(darfFreigeben(akteur(rike), a, HEUTE)).toBe(true);
   });
 
   it("Fremdaufgabe: ein Dritter (weder Pruefer noch koordination) darf nicht", () => {
@@ -368,7 +378,7 @@ describe("darfFreigeben", () => {
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(darfFreigeben(dritter, a, HEUTE)).toBe(false);
+    expect(darfFreigeben(akteur(dritter), a, HEUTE)).toBe(false);
   });
 
   it("ausgeschiedener Pruefer darf nicht mehr freigeben", () => {
@@ -381,7 +391,7 @@ describe("darfFreigeben", () => {
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(darfFreigeben(pruefer, a, HEUTE)).toBe(false);
+    expect(darfFreigeben(akteur(pruefer), a, HEUTE)).toBe(false);
   });
 
   /*
@@ -400,7 +410,7 @@ describe("darfFreigeben", () => {
       prueferId: ersteller.id,
       status: "freigabe_offen",
     });
-    expect(darfFreigeben(rike, a, HEUTE)).toBe(false);
+    expect(darfFreigeben(akteur(rike), a, HEUTE)).toBe(false);
   });
 });
 
@@ -419,7 +429,7 @@ describe("darfPlanSehen — fuer alle wahr", () => {
     (rolle) => {
       const p = legePerson(`ps-${rolle}`, rolle);
       const andere = legePerson(`ps-ziel-${rolle}`, "bufdi");
-      expect(darfPlanSehen(p, andere.id)).toBe(true);
+      expect(darfPlanSehen(akteur(p), andere.id)).toBe(true);
     },
   );
 });
@@ -434,7 +444,7 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
       zugewiesenAn: bufdi.id,
       status: "freigabe_offen",
     });
-    expect(darfNachweisSehen(rike, a)).toBe(true);
+    expect(darfNachweisSehen(akteur(rike), a)).toBe(true);
   });
 
   it("der Ersteller der Aufgabe sieht den Nachweis", () => {
@@ -445,7 +455,7 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
       zugewiesenAn: bufdi.id,
       status: "freigabe_offen",
     });
-    expect(darfNachweisSehen(ersteller, a)).toBe(true);
+    expect(darfNachweisSehen(akteur(ersteller), a)).toBe(true);
   });
 
   it("die zugewiesene Person (Verfasserin des Nachweises) sieht ihn", () => {
@@ -456,7 +466,7 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
       zugewiesenAn: bufdi.id,
       status: "freigabe_offen",
     });
-    expect(darfNachweisSehen(bufdi, a)).toBe(true);
+    expect(darfNachweisSehen(akteur(bufdi), a)).toBe(true);
   });
 
   it("ein fremder BuFDi sieht ihn NICHT — Leistungsnachweise sind kein Aushang", () => {
@@ -468,7 +478,7 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
       zugewiesenAn: bufdi.id,
       status: "freigabe_offen",
     });
-    expect(darfNachweisSehen(fremd, a)).toBe(false);
+    expect(darfNachweisSehen(akteur(fremd), a)).toBe(false);
   });
 
   /**
@@ -488,7 +498,7 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(darfNachweisSehen(pruefer, a)).toBe(true);
+    expect(darfNachweisSehen(akteur(pruefer), a)).toBe(true);
   });
 
   /**
@@ -508,8 +518,8 @@ describe("darfNachweisSehen — Verfasser, koordination, oder Ersteller; nicht j
       prueferId: exPruefer.id,
       status: "freigabe_offen",
     });
-    expect(darfNachweisSehen(exPruefer, a)).toBe(true);
-    expect(darfFreigeben(exPruefer, a, HEUTE)).toBe(false);
+    expect(darfNachweisSehen(akteur(exPruefer), a)).toBe(true);
+    expect(darfFreigeben(akteur(exPruefer), a, HEUTE)).toBe(false);
   });
 });
 
@@ -518,7 +528,7 @@ describe("darfAufgabeSehen — koordination und jeder BuFDi sehen jede Aufgabe; 
     const rike = legePerson("das-rike", "koordination");
     const ersteller = legePerson("das-ersteller", "auftrag");
     const a = legeAufgabe({ erstellerId: ersteller.id });
-    expect(darfAufgabeSehen(rike, a)).toBe(true);
+    expect(darfAufgabeSehen(akteur(rike), a)).toBe(true);
   });
 
   it("JEDER BuFDi sieht jede Aufgabe — das Spiegelbild zu darfPlanSehen", () => {
@@ -526,20 +536,20 @@ describe("darfAufgabeSehen — koordination und jeder BuFDi sehen jede Aufgabe; 
     const zugewiesen = legePerson("das2-zugewiesen", "bufdi");
     const fremderBufdi = legePerson("das2-fremd", "bufdi");
     const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: zugewiesen.id });
-    expect(darfAufgabeSehen(fremderBufdi, a)).toBe(true);
+    expect(darfAufgabeSehen(akteur(fremderBufdi), a)).toBe(true);
   });
 
   it("ein Auftraggeber sieht eine FREMDE Aufgabe (anderer Ersteller, kein Pruefer) NICHT", () => {
     const ersteller = legePerson("das3-ersteller", "auftrag");
     const fremderAuftrag = legePerson("das3-fremd", "auftrag");
     const a = legeAufgabe({ erstellerId: ersteller.id, prueferId: ersteller.id });
-    expect(darfAufgabeSehen(fremderAuftrag, a)).toBe(false);
+    expect(darfAufgabeSehen(akteur(fremderAuftrag), a)).toBe(false);
   });
 
   it("der Ersteller sieht die eigene Aufgabe", () => {
     const ersteller = legePerson("das4-ersteller", "auftrag");
     const a = legeAufgabe({ erstellerId: ersteller.id, prueferId: ersteller.id });
-    expect(darfAufgabeSehen(ersteller, a)).toBe(true);
+    expect(darfAufgabeSehen(akteur(ersteller), a)).toBe(true);
   });
 
   it("der eingetragene Pruefer sieht die Aufgabe, auch ohne Ersteller oder Zugewiesener zu sein", () => {
@@ -547,14 +557,14 @@ describe("darfAufgabeSehen — koordination und jeder BuFDi sehen jede Aufgabe; 
     const pruefer = legePerson("das5-pruefer", "auftrag");
     const bufdi = legePerson("das5-bufdi", "bufdi");
     const a = legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id, prueferId: pruefer.id });
-    expect(darfAufgabeSehen(pruefer, a)).toBe(true);
+    expect(darfAufgabeSehen(akteur(pruefer), a)).toBe(true);
   });
 
   it("gilt unabhaengig von istAktiv — Sichtpraedikat, kein Handlungspraedikat", () => {
     const ersteller = legePerson("das6-ersteller", "auftrag");
     const exBufdi = legePerson("das6-ex", "bufdi", { aktivBis: "2020-01-01" });
     const a = legeAufgabe({ erstellerId: ersteller.id });
-    expect(darfAufgabeSehen(exBufdi, a)).toBe(true);
+    expect(darfAufgabeSehen(akteur(exBufdi), a)).toBe(true);
   });
 });
 
@@ -562,7 +572,7 @@ describe("Sichtpraedikate gelten weiter fuer Ausgeschiedene", () => {
   it("eine ausgeschiedene Person sieht den Plan anderer weiterhin", () => {
     const ex = legePerson("sicht-ex", "bufdi", { aktivBis: "2026-08-01" });
     const andere = legePerson("sicht-ziel", "bufdi");
-    expect(darfPlanSehen(ex, andere.id)).toBe(true);
+    expect(darfPlanSehen(akteur(ex), andere.id)).toBe(true);
   });
 
   it("eine ausgeschiedene Person sieht den Nachweis ihrer eigenen (abgeschlossenen) Aufgabe weiterhin", () => {
@@ -573,7 +583,7 @@ describe("Sichtpraedikate gelten weiter fuer Ausgeschiedene", () => {
       zugewiesenAn: ex.id,
       status: "abgeschlossen",
     });
-    expect(darfNachweisSehen(ex, a)).toBe(true);
+    expect(darfNachweisSehen(akteur(ex), a)).toBe(true);
   });
 });
 
@@ -588,7 +598,7 @@ describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sei
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(istVertretungsfreigabe(rike, a)).toBe(true);
+    expect(istVertretungsfreigabe(akteur(rike), a)).toBe(true);
   });
 
   it("koordination === Pruefer: keine Vertretung", () => {
@@ -600,7 +610,7 @@ describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sei
       prueferId: rike.id,
       status: "freigabe_offen",
     });
-    expect(istVertretungsfreigabe(rike, a)).toBe(false);
+    expect(istVertretungsfreigabe(akteur(rike), a)).toBe(false);
   });
 
   it("kein koordination-Freigeber: nie Vertretung, egal wer Pruefer ist", () => {
@@ -613,7 +623,7 @@ describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sei
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(istVertretungsfreigabe(anderer, a)).toBe(false);
+    expect(istVertretungsfreigabe(akteur(anderer), a)).toBe(false);
   });
 
   /*
@@ -633,6 +643,6 @@ describe("istVertretungsfreigabe — koordination gibt frei, ohne Pruefer zu sei
       istSelbst: true,
       status: "in_arbeit",
     });
-    expect(istVertretungsfreigabe(rike, a)).toBe(false);
+    expect(istVertretungsfreigabe(akteur(rike), a)).toBe(false);
   });
 });

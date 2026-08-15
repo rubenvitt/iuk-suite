@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { TestDb } from "./testdb";
 import { migrierteTestDb } from "./testdb";
+import type { Akteur } from "../_lib/zugang";
 import {
   personen,
   aufgaben,
@@ -69,6 +70,15 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
     })
     .returning()
     .get();
+}
+
+/**
+ * DIE FIXTUR-ZEILE ALS `Akteur` — der Refactor auf `Akteur` (`_lib/zugang.ts`) ändert die
+ * AUFRUFFORM der Prädikate, NICHT ihre Antwort: `istKoordination` folgt hier weiterhin genau
+ * der Rolle der Zeile, damit jede Zusage dieser Datei unverändert bleibt.
+ */
+function akteur(p: PersonRow): Akteur {
+  return { person: p, istKoordination: p.rolle === "koordination" };
 }
 
 function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert>) {
@@ -174,7 +184,7 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, dritter, HEUTE)).toEqual([]);
+    expect(freigabenFuer(t.db, akteur(dritter), HEUTE)).toEqual([]);
   });
 
   it("der eingetragene Pruefer sieht genau seine Aufgabe, keine fremde", () => {
@@ -194,7 +204,7 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
       prueferId: andererPruefer.id,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, pruefer, HEUTE).map((a) => a.id)).toEqual([meine.id]);
+    expect(freigabenFuer(t.db, akteur(pruefer), HEUTE).map((a) => a.id)).toEqual([meine.id]);
   });
 
   it("koordination sieht ALLE offenen Freigaben, auch fremde", () => {
@@ -208,7 +218,7 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
       prueferId: pruefer.id,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, rike, HEUTE)).toHaveLength(1);
+    expect(freigabenFuer(t.db, akteur(rike), HEUTE)).toHaveLength(1);
   });
 
   it("schliesst Aufgaben aus, die nicht freigabe_offen sind — auch fuer koordination", () => {
@@ -216,7 +226,7 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
     const bufdi = legePerson("fe4-bufdi", "bufdi");
     const rike = legePerson("fe4-rike", "koordination");
     legeAufgabe({ erstellerId: ersteller.id, zugewiesenAn: bufdi.id, status: "in_arbeit" });
-    expect(freigabenFuer(t.db, rike, HEUTE)).toEqual([]);
+    expect(freigabenFuer(t.db, akteur(rike), HEUTE)).toEqual([]);
   });
 
   it("eine Selbstaufgabe im Status freigabe_offen kann es nicht geben — aber selbst dann liefert die Funktion nichts an eine ausgeschiedene koordination", () => {
@@ -229,7 +239,7 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
       istSelbst: true,
       status: "freigabe_offen",
     });
-    expect(freigabenFuer(t.db, rikeEx, HEUTE)).toEqual([]);
+    expect(freigabenFuer(t.db, akteur(rikeEx), HEUTE)).toEqual([]);
   });
 });
 
@@ -253,7 +263,7 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
       status: "freigabe_offen",
     });
 
-    const daten = freigabeDaten(t.db, rike, HEUTE);
+    const daten = freigabeDaten(t.db, akteur(rike), HEUTE);
 
     expect(daten.meine.map((z) => z.aufgabe.id)).toEqual([meineAufgabe.id]);
     expect(daten.vertretung.map((z) => z.aufgabe.id)).toEqual([vertretungsAufgabe.id]);
@@ -295,7 +305,7 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
       })
       .run();
 
-    const daten = freigabeDaten(t.db, rike, HEUTE);
+    const daten = freigabeDaten(t.db, akteur(rike), HEUTE);
     const texte = daten.meine[0]!.nachweise.map((n) => n.nachweis.text);
     expect(texte).toEqual(["Neu"]);
   });
@@ -310,7 +320,7 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
       prueferId: malte.id,
       status: "freigabe_offen",
     });
-    const daten = freigabeDaten(t.db, rikeEx, HEUTE);
+    const daten = freigabeDaten(t.db, akteur(rikeEx), HEUTE);
     expect(daten.meine).toEqual([]);
     expect(daten.vertretung).toEqual([]);
   });
@@ -335,7 +345,7 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
       istSelbst: true,
       status: "freigabe_offen",
     });
-    const daten = freigabeDaten(t.db, rike, HEUTE);
+    const daten = freigabeDaten(t.db, akteur(rike), HEUTE);
     expect(daten.meine).toEqual([]);
     expect(daten.vertretung).toEqual([]);
   });
