@@ -87,6 +87,22 @@ function legeNachweis(aufgabeId: string, text: string, erstelltVon: string) {
   return t.db.insert(nachweise).values({ aufgabeId, art: "text", text, erstelltVon }).returning().get();
 }
 
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
+ * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
+ */
+function anmelden(p: PersonRow): void {
+  sitzung = {
+    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+  };
+}
+
 describe("aufgabeInhalt — Titel, Chip-Zeile, Erklärung ungekürzt, Metablock", () => {
   it("zeigt Titel, Zustand, Priorität, Nachweispflicht und die Erklärung VOLLSTÄNDIG", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
@@ -270,7 +286,7 @@ describe("aufgabeInhalt — der Verlauf als Journal", () => {
 describe("AufgabeDetailPage — Sichtrecht und die Grenze der Erklärseiten-Ausnahme", () => {
   it("/a/<unbekannt> ergibt notFound() — die Grenze der Ausnahme aus dem Spec-Nachtrag", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    sitzung = { user: { id: alina.sub } };
+    anmelden(alina);
     await expect(
       AufgabeDetailPage({ params: Promise.resolve({ id: "unbekannte-id" }) }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
@@ -280,7 +296,7 @@ describe("AufgabeDetailPage — Sichtrecht und die Grenze der Erklärseiten-Ausn
     const malte = legePerson("dev:malte@test", "auftrag");
     const tomke = legePerson("dev:tomke@test", "auftrag");
     const a = legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, zugewiesenAn: null });
-    sitzung = { user: { id: tomke.sub } };
+    anmelden(tomke);
     await expect(
       AufgabeDetailPage({ params: Promise.resolve({ id: a.id }) }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
@@ -299,7 +315,7 @@ describe("AufgabeDetailPage — Sichtrecht und die Grenze der Erklärseiten-Ausn
     const rike = legePerson("dev:rike@test", "koordination");
     const malte = legePerson("dev:malte@test", "auftrag");
     const a = legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, titel: "Fremde Aufgabe" });
-    sitzung = { user: { id: rike.sub } };
+    anmelden(rike);
     const element = await AufgabeDetailPage({ params: Promise.resolve({ id: a.id }) });
     await mount(element);
     expect(query("h1").textContent).toBe("Fremde Aufgabe");

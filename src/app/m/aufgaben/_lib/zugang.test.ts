@@ -22,6 +22,7 @@ let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
 
 import {
+  akteurFuerSeite,
   personFuerSeite,
   personFuerSession,
   subFuerSitzung,
@@ -130,6 +131,49 @@ describe("personFuerSeite", () => {
     const rike = legePerson("dev:rike@localtest.me", "koordination");
     sitzung = { user: { id: "dev:rike@localtest.me" } };
     await expect(personFuerSeite(t.db)).resolves.toEqual(rike);
+  });
+});
+
+/**
+ * DIE KOORDINATION KOMMT AUS DER AUTH-GRUPPE, NICHT AUS DER ZEILE (Entwurf 2026-08-15).
+ *
+ * Die drei Faelle sind genau die drei Aussagen des Quellenwechsels: die Gruppe traegt die Rolle,
+ * die Zeile traegt sie NICHT mehr, und der Suite-Admin kommt mit durch. Sie brauchen keinen
+ * zusaetzlichen Mock — `canAdminModule` (`core/auth/guards.ts`) liest dieselbe `auth()`-Attrappe
+ * wie `personFuerSeite` und gleicht `session.user.groups` gegen die `adminGroups` des Moduls aus
+ * `core/registry.ts` ab. `iuk-aufgaben-koordination` und `dashboard-admins` sind deren
+ * Vorgabewerte; sie stehen hier woertlich, weil `SUITE_ADMIN_GROUP_AUFGABEN`/`ADMIN_GROUP` in der
+ * Testumgebung nicht gesetzt sind (der Fall, den der Betrieb per Env ueberschreibt, ist Sache von
+ * `core/groups.test.ts`, nicht dieser Datei).
+ */
+describe("akteurFuerSeite — die Koordination kommt aus der Gruppe, nicht aus der Zeile", () => {
+  it("eine auftrag-Zeile MIT Koordinationsgruppe koordiniert", async () => {
+    legePerson("dev:malte@localtest.me", "auftrag");
+    sitzung = { user: { id: "dev:malte@localtest.me", groups: ["iuk-aufgaben-koordination"] } };
+    const a = await akteurFuerSeite(t.db);
+    expect(a?.istKoordination).toBe(true);
+  });
+
+  it("eine koordination-Zeile OHNE Gruppe koordiniert NICHT", async () => {
+    legePerson("dev:rike@localtest.me", "koordination");
+    sitzung = { user: { id: "dev:rike@localtest.me", groups: [] } };
+    const a = await akteurFuerSeite(t.db);
+    expect(a?.istKoordination).toBe(false);
+  });
+
+  it("der Suite-Admin koordiniert — der Notausgang aus personen/page.tsx gilt jetzt modulweit", async () => {
+    legePerson("dev:betreiber@localtest.me", "bufdi");
+    sitzung = { user: { id: "dev:betreiber@localtest.me", groups: ["dashboard-admins"] } };
+    const a = await akteurFuerSeite(t.db);
+    expect(a?.istKoordination).toBe(true);
+  });
+
+  it("die Personenzeile selbst bleibt unberuehrt — nur `istKoordination` wechselt die Quelle", async () => {
+    const malte = legePerson("dev:malte2@localtest.me", "auftrag");
+    sitzung = { user: { id: "dev:malte2@localtest.me", groups: ["iuk-aufgaben-koordination"] } };
+    const a = await akteurFuerSeite(t.db);
+    expect(a?.person).toEqual(malte);
+    expect(a?.person.rolle).toBe("auftrag");
   });
 });
 

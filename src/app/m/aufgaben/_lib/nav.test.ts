@@ -92,6 +92,22 @@ const ROUTEN: Record<string, () => Promise<unknown>> = {
   "/archiv": () => ArchivPage({ searchParams: Promise.resolve({}) }),
 };
 
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
+ * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
+ */
+function anmelden(p: PersonRow): void {
+  sitzung = {
+    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+  };
+}
+
 describe("aufgabenNav — Grundgeruest", () => {
   it("traegt genau EINEN Wurzeleintrag mit href '/'", () => {
     const rike = legePerson("dev:rike@test", "koordination");
@@ -179,7 +195,7 @@ describe("DIE KERNZUSAGE: jeder Navigationseintrag ist fuer die jeweilige Rolle 
   for (const { bezeichnung, rolle, sub, extra } of ROLLEN) {
     it(`${bezeichnung}: jeder eigene Navigationseintrag antwortet — kein notFound()`, async () => {
       const person = legePerson(sub, rolle, extra);
-      sitzung = { user: { id: sub } };
+      anmelden(person);
       const nav = aufgabenNav(akteur(person), HEUTE);
       expect(nav.length).toBeGreaterThan(0);
       for (const eintrag of nav) {
@@ -203,7 +219,7 @@ describe("DIE KERNZUSAGE: jeder Navigationseintrag ist fuer die jeweilige Rolle 
    */
   it("die drei rollengebundenen Routen lehnen eine BuFDi tatsaechlich mit notFound() ab", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    sitzung = { user: { id: alina.sub } };
+    anmelden(alina);
     await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
     await expect(FreigabenPage()).rejects.toThrow("NEXT_NOT_FOUND");
     await expect(PersonenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
@@ -211,7 +227,7 @@ describe("DIE KERNZUSAGE: jeder Navigationseintrag ist fuer die jeweilige Rolle 
 
   it("/routinen lehnt koordination und auftrag tatsaechlich mit notFound() ab", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
-    sitzung = { user: { id: rike.sub } };
+    anmelden(rike);
     await expect(RoutinenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
 
     const t2 = migrierteTestDb();
@@ -221,7 +237,7 @@ describe("DIE KERNZUSAGE: jeder Navigationseintrag ist fuer die jeweilige Rolle 
       .values({ sub: "dev:malte@test", name: "Malte", initialen: "MA", rolle: "auftrag", aktivVon: "2026-01-01" })
       .returning()
       .get();
-    sitzung = { user: { id: malte.sub } };
+    anmelden(malte);
     await expect(RoutinenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
     t2.schliessen();
   });

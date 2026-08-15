@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { auth } from "@/core/auth";
+import { canAdminModule } from "@/core/auth/guards";
 import type { DB } from "../_db/client";
 import { personen, type AufgabeRow, type PersonRow } from "../_db/schema";
 
@@ -110,12 +111,34 @@ export type Akteur = { person: PersonRow; istKoordination: boolean };
  * zwei Route Handler (`a/[id]/nachweis/…/route.ts`), die ihre Personenzeile aus eigenen Gruenden
  * selbst aufloesen (sie duerfen `notFound()` nicht werfen, s. deren Kopfkommentare), ebenfalls.
  *
- * `async`, OBWOHL HEUTE NICHTS ZU WARTEN IST: die Koordinationsfrage ist eine Frage an die Sitzung,
- * sobald sie nicht mehr aus der Zeile beantwortet wird — eine synchrone Signatur muesste dann an
- * jeder Aufrufstelle nachgezogen werden, statt nur hier.
+ * DIE KOORDINATION KOMMT AUS DER AUTH-GRUPPE, NICHT AUS `personen.rolle` (Entwurf 2026-08-15).
+ * Zwei Gruende, beide aus dem Betrieb:
+ *  1. OHNE DIESEN WEG GIBT ES KEINE ERSTE KOORDINATIONSZEILE. `darfPersonenVerwalten` verlangte
+ *     `rolle === "koordination"`, und die einzige Stelle, die je so eine Zeile schrieb, war
+ *     `_lib/seedLokal.ts` — auf einer frischen Produktivdatenbank duerfte niemand die erste Person
+ *     anlegen.
+ *  2. ZWEI REGISTER FUER DIESELBE FRAGE laufen auseinander: der Betreiber pflegt die Gruppe
+ *     `aufgaben_koordination` in Pocket ID ohnehin und musste dieselbe Person danach ein zweites
+ *     Mal in der Modultabelle eintragen. Dass es auseinandergelaufen ist, faellt erst auf, wenn
+ *     jemand nicht mehr hineinkommt.
+ *
+ * `bufdi`/`auftrag` BLEIBEN IN DER MODULTABELLE — die Begruendung aus `core/registry.ts` traegt
+ * fuer sie unveraendert (Jahresrotation eines ganzen BuFDi-Jahrgangs gegen ein Verzugsfenster von
+ * bis zu einer Stunde am JWT).
+ *
+ * DER SUITE-ADMIN KOMMT MIT DURCH, UND DAS IST GEWOLLT: `isModuleAdmin` (`core/groups.ts`) laesst
+ * `ADMIN_GROUP` neben den `adminGroups` des Moduls passieren. Ohne diesen Weg gaebe es keine
+ * Rueckkehr, wenn `SUITE_ADMIN_GROUP_AUFGABEN` fehlkonfiguriert ist — ein Tippfehler sperrte sonst
+ * JEDE Koordination aus. `feedback`/`files`/`lagerbuch` entscheiden das fuer sich bewusst anders
+ * (s. deren `_lib/access.ts`); hier ueberwiegt der Notausgang. `personen/page.tsx` tat seit dem
+ * 2026-08-14 genau dasselbe fuer eine EINZELNE Route — diese Zeile weitet es auf das Modul aus und
+ * erfindet keinen neuen Mechanismus.
+ *
+ * DER PREIS, AUSGESCHRIEBEN: ein Gruppenentzug wirkt mit bis zu einer Stunde Verzug (die Gruppen im
+ * JWT sind nur so frisch wie der letzte Token-Refresh, s. CLAUDE.md „Zugriffsschutz").
  */
 export async function akteurFuer(person: PersonRow): Promise<Akteur> {
-  return { person, istKoordination: person.rolle === "koordination" };
+  return { person, istKoordination: await canAdminModule("aufgaben") };
 }
 
 /** Wie `personFuerSeite`, nur als `Akteur` — `null` bleibt `null` (keine `personen`-Zeile). */
@@ -254,9 +277,16 @@ export function darfPlanSehen(akteur: Akteur, zielPersonId: string): boolean {
  * `/a/<id>` (Aufgabe 16, `darfNachweisSehen`-gestuetzter Nachweisbereich) — dieselbe Person, dieselbe
  * Aufgabe, zwei verschiedene Antworten auf dieselbe Frage. Und fachlich ist die Klausel ohnehin
  * richtig: „wer freigibt, muss sehen, was er freigibt" (`FreigabeZone.tsx`s Kopfkommentar) waere
- * sonst nur die halbe Wahrheit. `prueferId` zeigt nie auf eine `bufdi`-Zeile (nur `auftrag` und
- * die Koordination duerfen fremd einstellen und werden dabei zum Pruefer, `anfangsZustand()`) — die
- * Erweiterung oeffnet also keinen Nachweis fuer „jeden BuFDi", die Kernzusage aus Spec §2 bleibt.
+ * sonst nur die halbe Wahrheit. `prueferId` zeigt nur auf eine Zeile, die fremd einstellen durfte
+ * (`auftrag` ODER Koordination, `anfangsZustand()`) — die Erweiterung oeffnet also keinen Nachweis
+ * fuer „jeden BuFDi", die Kernzusage aus Spec §2 bleibt.
+ *
+ * DIESE BEGRUENDUNG STAND BIS ZUM 2026-08-15 SCHAERFER DA („`prueferId` zeigt NIE auf eine
+ * `bufdi`-Zeile") — und das ist seit dem Quellenwechsel nicht mehr strukturell wahr: eine Zeile mit
+ * `rolle: "bufdi"` UND Koordinationsgruppe kommt durch `darfEinstellenFuerAndere` und wird damit
+ * `prueferId`. KEIN LECK (dieselbe Person passiert dieses Praedikat ohnehin ueber `istKoordination`,
+ * und `darfAufgabeSehen` oeffnet jedem BuFDi ohnehin jede Aufgabe), aber die alte, absolute Form
+ * der Begruendung traegt nicht mehr — deshalb steht sie jetzt in der schwaecheren, wahren Fassung.
  *
  * BEWUSST KEIN `istAktiv` AUCH IN DIESER KLAUSEL — BETREIBERENTSCHEIDUNG NACH FIX-RUNDE 1: ein
  * AUSGESCHIEDENER Pruefer sieht den Nachweis auf `/a/<id>` DESHALB WEITERHIN, obwohl er ihn auf
@@ -344,9 +374,11 @@ export function darfAufgabeSehen(akteur: Akteur, a: AufgabeRow): boolean {
  * nicht mehr einstellen darf) duerfte die andere nicht versehentlich mitziehen.
  *
  * `freigabenFuer` (`_db/queries.ts`) filtert ohnehin serverseitig auf `darfFreigeben` je Aufgabe —
- * eine `bufdi`-Person saehe die Warteschlange auch OHNE dieses Gate strukturell leer, weil
- * `prueferId` nie auf eine `bufdi`-Zeile zeigt (nur `auftrag`/`koordination` duerfen fremd
- * einstellen und werden damit zu `prueferId`, s. `anfangsZustand`). Das Gate hier ist trotzdem
+ * eine `bufdi`-Person OHNE Koordinationsgruppe saehe die Warteschlange auch OHNE dieses Gate leer,
+ * weil `prueferId` nur auf eine Zeile zeigt, die fremd einstellen durfte (s. `anfangsZustand`).
+ * Seit dem Quellenwechsel vom 2026-08-15 ist das keine ABSOLUTE Aussage ueber die Rolle `bufdi`
+ * mehr, sondern eine ueber die Gruppe — s. die ausfuehrliche Fassung bei `darfNachweisSehen`. Das
+ * Gate hier ist trotzdem
  * kein Sicherheitstheater: Spec §8 nennt die Route ausdruecklich rollengebunden, dieselbe Suite-
  * Regel wie bei `/routinen`/`/verteilen`/`/personen` gilt auch hier — ein leerer Bildschirm ist
  * kein 404, und ohne ein Gate an der Route selbst waere `/freigaben` fuer eine ausgeschiedene oder

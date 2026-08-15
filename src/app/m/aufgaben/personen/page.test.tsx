@@ -44,6 +44,22 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
     .get();
 }
 
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
+ * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
+ */
+function anmelden(p: PersonRow): void {
+  sitzung = {
+    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+  };
+}
+
 describe("personenInhalt — Kopf, Formular, Tabelle", () => {
   it("zeigt den Titel, die Anzahl und das Anlege-Formular", async () => {
     legePerson("dev:rike@test", "koordination", { name: "Rike" });
@@ -83,14 +99,14 @@ describe("personenInhalt — Kopf, Formular, Tabelle", () => {
 describe("PersonenPage — Rollen-Gate (Spec §4: nur koordination verwaltet Personen)", () => {
   it("koordination: die Seite antwortet normal", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
-    sitzung = { user: { id: rike.sub } };
+    anmelden(rike);
     await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Personenverwaltung");
   });
 
   it("auftrag: notFound()", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    sitzung = { user: { id: malte.sub } };
+    anmelden(malte);
     await expect(PersonenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
       "NEXT_NOT_FOUND",
     );
@@ -98,18 +114,35 @@ describe("PersonenPage — Rollen-Gate (Spec §4: nur koordination verwaltet Per
 
   it("bufdi: notFound()", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    sitzung = { user: { id: alina.sub } };
+    anmelden(alina);
     await expect(PersonenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
       "NEXT_NOT_FOUND",
     );
   });
 
-  it("eine ausgeschiedene Koordination bekommt ebenfalls notFound()", async () => {
+  /**
+   * DIE EINE ZUSAGE, DIE DER QUELLENWECHSEL (2026-08-15) UMDREHT — bewusst, nicht als Panne, und
+   * NUR AUF DIESER ROUTE. Bis dahin hiess dieser Fall „eine ausgeschiedene Koordination bekommt
+   * ebenfalls notFound()": die Rolle stand in der Zeile, und `darfPersonenVerwalten`s `istAktiv`
+   * lehnte sie ab.
+   *
+   * Jetzt traegt die GRUPPE die Rolle. Ein `aktivBis` auf der Zeile sagt ueber die
+   * Gruppenmitgliedschaft nichts aus — der Entzug laeuft ueber Pocket ID (Entwurf §5: „`istAktiv`
+   * gilt fuer die Koordination nicht mehr"). Und `personen/page.tsx`s NOTAUSGANG
+   * (`canAdminModule`, Betreiberentscheidung 2026-08-14) steht VOR jeder Personen-Zeilen-Frage: wer
+   * koordiniert, kommt hier hinein, bevor `darfPersonenVerwalten` ueberhaupt gefragt wird. Diese
+   * eine Route bekommt die Regel aus §5 deshalb schon jetzt, der Rest des Moduls erst mit der
+   * JIT-Zeile (Aufgabe 4 des Plans).
+   *
+   * DIE GEGENPROBE STEHT DANEBEN: auf `/verteilen` und `/freigaben` gilt fuer dieselbe Sitzung
+   * weiterhin `notFound()` — dort gibt es keinen Notausgang, und `darfVerteilen`/
+   * `darfFreigabenSehen` enden nach wie vor auf `&& istAktiv(akteur.person, heute)`.
+   */
+  it("eine ausgeschiedene Koordination MIT Gruppe kommt hinein — die Gruppe traegt die Rolle, nicht aktivBis", async () => {
     const exRike = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2020-01-01" });
-    sitzung = { user: { id: exRike.sub } };
-    await expect(PersonenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
+    anmelden(exRike);
+    await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
+    expect(query("h1").textContent).toBe("Personenverwaltung");
   });
 
   it("Sitzung ohne personen-Zeile: die Erklaerseite (200), kein notFound()", async () => {

@@ -18,17 +18,34 @@ export const dynamic = "force-dynamic";
  * `/personen` — DIE PERSONENVERWALTUNG (Spec §4, §7, §9.9, Aufgabe 14). Gatet ueber
  * `darfPersonenVerwalten` (`_lib/zugang.ts`) — MIT EINEM NOTAUSGANG fuer den Suite-Admin (Fix-Runde
  * 1, Betreiberentscheidung 2026-08-14): Spec §4 verlangt woertlich "plus der Suite-Admin
- * (isModuleAdmin aus core/groups)", und `darfPersonenVerwalten` deckte bislang nur die erste Haelfte
+ * (isModuleAdmin aus core/groups)", und `darfPersonenVerwalten` deckte damals nur die erste Haelfte
  * (die `koordination`-Rolle aus der `personen`-Tabelle). Ohne den Notausgang gaebe es KEINEN Weg zur
  * allerersten `koordination`-Zeile in einer frischen Datenbank, und eine versehentlich beendete
  * einzige Koordinationsperson sperrte auch den Betreiber selbst aus — s. Bericht.
  *
- * DER RIEGEL SITZT AUF DER ROUTE (`canAdminModule`, `core/auth/guards.ts`), NICHT IM PRAEDIKAT:
- * `darfPersonenVerwalten` bleibt synchron und rein, weil `_lib/lebenszyklus.ts` und jeder bestehende
- * Aufrufer (`actions.ts`) diese Signatur teilen — eine `isModuleAdmin`-Klausel DORT machte das
- * Praedikat asynchron oder verlangte einen `groups`-Parameter, den keiner der bestehenden Aufrufer
- * mitfuehrt. Wer das spaeter "aufraeumt", indem er den Suite-Admin-Fall ins Praedikat zieht, macht
- * genau diesen Fehler.
+ * SEIT DEM QUELLENWECHSEL (2026-08-15) IST DIESER NOTAUSGANG KEINE AUSNAHME MEHR, SONDERN DIESELBE
+ * REGEL WIE IM GANZEN MODUL: `darfPersonenVerwalten` fragt inzwischen `akteur.istKoordination`, und
+ * das kommt aus derselben Quelle wie hier — `canAdminModule("aufgaben")` (`_lib/zugang.ts`s
+ * `akteurFuer`). Was am 2026-08-14 fuer EINE Route entschieden wurde, gilt jetzt fuer alle.
+ *
+ * ER BLEIBT TROTZDEM STEHEN, UND ZWAR FUER GENAU EINEN FALL: eine Koordinationsperson OHNE eigene
+ * `personen`-Zeile. `akteurFuerSeite` liefert dafuer heute noch `null` (die Zeile fehlt), also
+ * bekaeme sie ohne diesen vorgezogenen Riegel die Erklaerseite statt der Personenverwaltung — und
+ * damit weiterhin keinen Weg zur allerersten Zeile in einer frischen Datenbank. Erst die JIT-Zeile
+ * (Aufgabe 4 des Plans) entschaerft das; bis dahin traegt dieser Notausgang den Erstbetrieb.
+ *
+ * ZWEITE FOLGE, AUSGESCHRIEBEN: weil er VOR jeder Personen-Zeilen-Frage steht, erreicht eine
+ * Koordinationsperson mit `aktivBis` in der Vergangenheit diese Route trotzdem — die Gruppe traegt
+ * die Rolle, nicht `aktivBis` (Entwurf §5). Auf `/verteilen` und `/freigaben` gilt das noch NICHT:
+ * dort endet das Praedikat weiterhin auf `&& istAktiv(...)`, und dort steht kein Notausgang. Diese
+ * Ungleichheit ist bekannt und wird mit Aufgabe 4 aufgeloest, nicht hier still.
+ *
+ * DER RIEGEL SITZT AUF DER ROUTE (`canAdminModule`, `core/auth/guards.ts`), NICHT IM PRAEDIKAT —
+ * und das gilt WEITER: `darfPersonenVerwalten` bleibt synchron und rein, weil
+ * `_lib/lebenszyklus.ts` und jeder bestehende Aufrufer (`actions.ts`) diese Signatur teilen. Die
+ * Gruppenfrage wird EINMAL beim Aufloesen des `Akteur` gestellt (`akteurFuer`) und als fertiges
+ * Boolean weitergereicht; wer sie stattdessen IN das Praedikat zieht, macht es asynchron oder
+ * verlangt einen `groups`-Parameter, den keiner der bestehenden Aufrufer mitfuehrt.
  *
  * `personenInhalt` IST DIE REINE, EXPORTIERTE INHALTSFUNKTION (Vorbild `routinenInhalt`) — kein
  * `akteurFuerSeite`/`darfPersonenVerwalten`/`canAdminModule`-Aufruf darin, `page.test.tsx` ruft sie

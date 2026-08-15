@@ -129,8 +129,22 @@ function legeRoutine(extra: Partial<typeof routinen.$inferInsert> & { personId: 
     .get();
 }
 
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
+ * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt. Die wenigen Tests, die eine
+ * Sitzung MIT ausdruecklichen Gruppen brauchen (Suite-Admin, Modul-Admin ohne Zeile), setzen
+ * `sitzung` weiterhin selbst — sie pruefen genau diese Gruppenfrage.
+ */
 function anmelden(p: PersonRow): void {
-  sitzung = { user: { id: p.sub } };
+  sitzung = {
+    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+  };
 }
 
 function letzteVerlaufszeile(aufgabeId: string) {

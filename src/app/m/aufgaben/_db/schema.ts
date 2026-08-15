@@ -23,8 +23,26 @@ import { nanoid } from "nanoid";
 
 export const newId = () => nanoid();
 
-/** Die drei Rollen (Spec §4). Werte ohne Umlaute — sie stehen in der Datenbank. */
-export const ROLLEN = ["koordination", "auftrag", "bufdi"] as const;
+/**
+ * DIE ZWEI ROLLEN DER MODULTABELLE (Spec §4 mit Nachtrag 2026-08-15). Werte ohne Umlaute — sie
+ * stehen in der Datenbank.
+ *
+ * DIE KOORDINATION STEHT NICHT MEHR DARUNTER: sie kommt seit dem Quellenwechsel aus der
+ * Auth-Gruppe (`canAdminModule("aufgaben")`, aufgeloest in `_lib/zugang.ts`s `akteurFuer`), nicht
+ * aus dieser Spalte — zwei Register fuer dieselbe Frage liefen auseinander, und auf einer frischen
+ * Datenbank durfte niemand die erste Person anlegen. Migration `0002` schreibt die bestehenden
+ * `koordination`-Zeilen auf `auftrag` um.
+ *
+ * WARUM `auftrag` UND NICHT `bufdi` — DER SCHAERFSTE PUNKT DES UMBAUS: `verteilDaten`
+ * (`_db/queries.ts`) speist die Verteillisten aus `bufdis()`, AUSDRUECKLICH damit die Koordination
+ * nicht in ihrer eigenen Zielliste steht; daran haengt die Betreiberentscheidung vom 2026-08-13
+ * (die Koordination gibt ihre eigene Fremdaufgabe nicht frei, sonst faellt das Vier-Augen-Prinzip
+ * fuer genau diesen Fall aus, s. `darfFreigeben`s Kopfkommentar). Eine Koordinationszeile mit
+ * `rolle: "bufdi"` braeche diese Zusage STILL. `auftrag` ist zudem fachlich richtig und nicht bloss
+ * der Rest: die Koordination stellt Aufgaben fuer andere ein, und `darfEinstellenFuerAndere`
+ * erlaubt `auftrag` ohnehin.
+ */
+export const ROLLEN = ["auftrag", "bufdi"] as const;
 
 /**
  * Die sechs Zustaende (Spec §5). Der siebte („Zeitvorschlag offen") wird

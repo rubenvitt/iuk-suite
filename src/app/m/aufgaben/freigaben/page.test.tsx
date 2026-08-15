@@ -70,6 +70,22 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
     .get();
 }
 
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
+ * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
+ */
+function anmelden(p: PersonRow): void {
+  sitzung = {
+    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+  };
+}
+
 describe("freigabenInhalt", () => {
   it("traegt die Ueberschrift und den ausgeschriebenen Leerzustand", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
@@ -123,27 +139,27 @@ describe("freigabenInhalt", () => {
 describe("FreigabenPage — Rollen-Gate (Aufgabe 15, Spec §8: '/freigaben' fuer auftrag, koordination)", () => {
   it("auftrag: die Seite antwortet normal", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    sitzung = { user: { id: malte.sub } };
+    anmelden(malte);
     await mount(await FreigabenPage());
     expect(query("h1").textContent).toBe("Freigaben");
   });
 
   it("koordination: die Seite antwortet normal", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
-    sitzung = { user: { id: rike.sub } };
+    anmelden(rike);
     await mount(await FreigabenPage());
     expect(query("h1").textContent).toBe("Freigaben");
   });
 
   it("bufdi: notFound()", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    sitzung = { user: { id: alina.sub } };
+    anmelden(alina);
     await expect(FreigabenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("ein ausgeschiedener auftrag bekommt ebenfalls notFound()", async () => {
     const malteEx = legePerson("dev:malte-ex@test", "auftrag", { aktivBis: "2020-01-01" });
-    sitzung = { user: { id: malteEx.sub } };
+    anmelden(malteEx);
     await expect(FreigabenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 

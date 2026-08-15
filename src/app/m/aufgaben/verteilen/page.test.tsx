@@ -60,6 +60,22 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
     .get();
 }
 
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
+ * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
+ */
+function anmelden(p: PersonRow): void {
+  sitzung = {
+    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+  };
+}
+
 describe("verteilenInhalt — Kopf und Leerzustand", () => {
   it("zeigt den Titel „Verteilen“ und den Leerzustand ohne Posteingang", async () => {
     await mount(verteilenInhalt(t.db, HEUTE));
@@ -134,26 +150,26 @@ describe("verteilenInhalt — die Zielliste des Verteil-Dialogs", () => {
 describe("VerteilenPage — Rollen-Gate (Spec §8.3: '/verteilen' nur fuer koordination)", () => {
   it("koordination: die Seite antwortet normal", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
-    sitzung = { user: { id: rike.sub } };
+    anmelden(rike);
     await mount(await VerteilenPage());
     expect(query("h1").textContent).toBe("Verteilen");
   });
 
   it("auftrag: notFound() — die Antwort auf 'Jönne und Schulle pfuschen immer wieder rein'", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    sitzung = { user: { id: malte.sub } };
+    anmelden(malte);
     await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("bufdi: ebenfalls notFound()", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    sitzung = { user: { id: alina.sub } };
+    anmelden(alina);
     await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("eine ausgeschiedene Koordination bekommt ebenfalls notFound()", async () => {
     const exRike = legePerson("dev:ex-rike@test", "koordination", { aktivBis: "2020-01-01" });
-    sitzung = { user: { id: exRike.sub } };
+    anmelden(exRike);
     await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nanoid } from "nanoid";
 import type { TestDb } from "../../../../_db/testdb";
 import { migrierteTestDb } from "../../../../_db/testdb";
-import { aufgaben, dateien, nachweise, personen } from "../../../../_db/schema";
+import { aufgaben, dateien, nachweise, personen, type Rolle } from "../../../../_db/schema";
 import { legeNachweisAb } from "../../../../_lib/ablage";
 
 /**
@@ -108,8 +108,20 @@ function legeNachweis(aufgabeId: string, dateiId: string | null, erstelltVon: st
     .get();
 }
 
-function anmelden(person: { sub: string }): void {
-  sitzung = { user: { id: person.sub } };
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
+ * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt. 
+ */
+function anmelden(person: { sub: string; rolle: Rolle }): void {
+  sitzung = {
+    user: { id: person.sub, groups: person.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+  };
 }
 
 async function ruf(id: string, nachweisId: string): Promise<Response> {

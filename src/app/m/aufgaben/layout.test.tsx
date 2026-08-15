@@ -66,10 +66,26 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
  * Component: ihr Rueckgabewert ist ein React-Element, kein DOM; `element.props.nav` zu lesen
  * prueft die Verdrahtung ohne Rendern.
  */
+/**
+ * ANMELDEN — DIE SITZUNG STELLT DIE KOORDINATIONSGRUPPE, SEIT DIE ZEILE SIE NICHT MEHR TRAEGT
+ * (Quellenwechsel 2026-08-15): `istKoordination` kommt aus `canAdminModule("aufgaben")`
+ * (`_lib/zugang.ts`s `akteurFuer`), nicht mehr aus `personen.rolle`. Damit jede bestehende Zusage
+ * dieser Datei DIESELBE bleibt, bekommt eine `koordination`-Zeile hier genau die Gruppe, die ihre
+ * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
+ *
+ * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
+ */
+function anmelden(p: PersonRow): void {
+  sitzung = {
+    user: { id: p.sub, groups: p.rolle === "koordination" ? ["iuk-aufgaben-koordination"] : [] },
+  };
+}
+
 describe("AufgabenLayout — Verdrahtung von nav an <Shell>", () => {
   it("mit personen-Zeile: <Shell> bekommt aufgabenNav(person, heute) als nav-Prop", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
-    sitzung = { user: { id: rike.sub } };
+    anmelden(rike);
 
     const element = (await AufgabenLayout({ children: null })) as ReactElement<{
       children: ReactElement<{ nav?: unknown }>;
@@ -98,7 +114,7 @@ describe("AufgabenLayout — Verdrahtung von nav an <Shell>", () => {
 
   it("die Navigation unterscheidet sich tatsaechlich nach Rolle — koordination bekommt mehr Eintraege als eine BuFDi", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
-    sitzung = { user: { id: rike.sub } };
+    anmelden(rike);
     const koordElement = (await AufgabenLayout({ children: null })) as ReactElement<{
       children: ReactElement<{ nav?: { key: string }[] }>;
     }>;
@@ -108,7 +124,7 @@ describe("AufgabenLayout — Verdrahtung von nav an <Shell>", () => {
     t = migrierteTestDb();
     mockDb = t;
     const alina = legePerson("dev:alina@test", "bufdi");
-    sitzung = { user: { id: alina.sub } };
+    anmelden(alina);
     const bufdiElement = (await AufgabenLayout({ children: null })) as ReactElement<{
       children: ReactElement<{ nav?: { key: string }[] }>;
     }>;
