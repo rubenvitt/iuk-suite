@@ -1,12 +1,11 @@
 "use client";
 
-import { useActionState, useRef } from "react";
-import { Button, Input, Popconfirm } from "antd";
+import { useActionState } from "react";
+import { Button, Input } from "antd";
 import {
   fertigMeldenAction,
   startenAction,
   wiederaufnehmenAction,
-  zurueckziehenAction,
   zuruecksetzenAction,
 } from "../actions";
 import type { AufgabeRow } from "../_db/schema";
@@ -16,6 +15,7 @@ import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import { FreigabeAktionen } from "./FreigabeZone";
 import { NachweisFormular } from "./NachweisFormular";
+import { ZurueckziehenKnopf } from "./ZurueckziehenKnopf";
 
 /*
  * DIE AKTIONSZONE VON `/a/<id>` (Spec §8.4, Aufgabe 16) — trägt NUR, was diese Person mit dieser
@@ -38,6 +38,10 @@ import { NachweisFormular } from "./NachweisFormular";
  *
  * ZURUECKZIEHEN IST BESTAETIGUNGSPFLICHTIG (Spec §9.9) — Vorbild `_ui/PersonenTabelle.tsx`s
  * „Beenden": `Popconfirm` plus ein `ref` aufs Formular, `onConfirm` loest `requestSubmit()` aus.
+ * SEIT DER OBERFLAECHEN-SPEC (§6.7) STEHT DIESER KNOPF IN `_ui/ZurueckziehenKnopf.tsx`, weil ihn
+ * die Fuehrungskarte des Auftraggebers (Rang 3) ebenfalls braucht — und die ist eine SERVER
+ * COMPONENT, aus der ein `onConfirm` nicht ueber die RSC-Grenze darf (Falle 9). Eine zweite
+ * Fassung hier waere dieselbe Bestaetigungspflicht an zwei Orten.
  * `zurueckziehenAction` LOESCHT DIE AUFGABE — nach dem Absenden existiert `/a/<id>` fuer diese Id
  * nicht mehr, und die naechste Revalidierung dieser Route zeigt `notFound()`. Das ist keine
  * Regression dieser Aufgabe: `zurueckziehenAction` (Aufgabe 9) redirectet heute nirgendwohin, und
@@ -194,26 +198,6 @@ function FertigMeldenFormular({ aufgabe }: { aufgabe: AufgabeRow }) {
       >
         Fertig melden
       </Button>
-    </form>
-  );
-}
-
-function ZurueckziehenKnopf({ aufgabeId }: { aufgabeId: string }) {
-  const formular = useRef<HTMLFormElement>(null);
-  return (
-    <form action={zurueckziehenAction} ref={formular}>
-      <input type="hidden" name="aufgabeId" value={aufgabeId} />
-      <Popconfirm
-        title="Aufgabe zurückziehen?"
-        description="Die Aufgabe wird samt ihrem gesamten Verlauf gelöscht. Das lässt sich nicht rückgängig machen."
-        okText="Zurückziehen"
-        cancelText="Abbrechen"
-        onConfirm={() => formular.current?.requestSubmit()}
-      >
-        <Button danger data-testid="zurueckziehen">
-          Zurückziehen
-        </Button>
-      </Popconfirm>
     </form>
   );
 }

@@ -657,6 +657,222 @@ export const ANLASS_TEXT: Record<AnlassArt, AnlassText> = {
 };
 
 /**
+ * WELCHE VERLAUFSZEILE DIE FUEHRUNGSKARTE JE ANLASS BRAUCHT (§4.2) — die Zuordnung steht bei der
+ * Beschriftung, weil sie zur Darstellung gehoert; der Datenbankzugriff bleibt beim Aufrufer
+ * (`letztesEreignis`, `_db/queries.ts`), denn diese Datei sieht kein `db`.
+ *
+ * Zwei Faelle: die Begruendung einer Zurueckweisung WOERTLICH (Koordination Rang 6, BuFDi Rang 2 —
+ * „das ist der ganze Wert einer Zurueckweisung") und „seit <Tag> in Bearbeitung" (BuFDi Rang 3).
+ * Beides steht ausschliesslich im Verlauf, nie auf der Aufgabenzeile.
+ */
+export const FUEHRUNG_EREIGNIS: Partial<Record<AnlassArt, Ereignis>> = {
+  koordZurueckgewiesen: "zurueckgewiesen",
+  bufdiZurueckgewiesen: "zurueckgewiesen",
+  bufdiInArbeit: "gestartet",
+};
+
+/**
+ * DIE SAETZE DES KARTENKOERPERS UND DER ZEILE „ALS NAECHSTES" (§4.2, Spalte „Die Karte zeigt").
+ *
+ * WARUM SIE HIER STEHEN UND NICHT IN `_ui/Fuehrungskarte.tsx`: fuenf dieser Saetze tragen das Wort
+ * „ueberfaellig", und der Quelltext-Scan aus §6.6 laesst es im ganzen Modul nur in `_ui/Frist.tsx`
+ * und in dieser Datei zu. Eine Karte, die ihre Prosa selbst formulierte, waere am ersten Tag rot —
+ * und zwar zu Recht: dann gaebe es wieder zwei Orte, an denen dieselbe Dringlichkeit
+ * unterschiedlich klingt, und genau das ist Befund (2).
+ *
+ * DAS VIERTE FELD VON `ANLASS_TEXT` BLEIBT DAVON UNBERUEHRT. `ANLASS_TEXT[art].satz` traegt die
+ * SECHS Saetze ohne jede Datenabhaengigkeit (die drei Ruhe- und die drei Negativsaetze); alles
+ * darunter braucht Titel, Namen, Zahlen oder Daten und steht hier. Zwei Records statt eines
+ * siebten Feldes, weil ein `satz: string | ((d) => string) | null` an jeder Aufrufstelle eine
+ * Fallunterscheidung erzwungen haette, die genau nichts entscheidet.
+ */
+export interface SatzDaten {
+  /** Wie viele Zeilen der Anlass traegt. */
+  anzahl: number;
+  /** Die fuehrende Zeile (`zeilen[0]`) — Leerstring, wenn der Anlass keinen Bestand hat. */
+  titel: string;
+  dauerMinuten: number;
+  status: Status;
+  /**
+   * TAGE SEIT DER FRIST der fuehrenden Zeile, 0 solange sie laeuft. Das ist NICHT die Liegezeit —
+   * die beiden Zahlen fallen fast nie zusammen, und ein Satz, der die eine nennt und die andere
+   * meint, ist nicht sichtbar kaputt, sondern nur falsch.
+   */
+  tageSeitFrist: number;
+  /**
+   * TAGE SEIT `erstelltAm` der fuehrenden Zeile. Sie erscheint erst AB EINEM VOLLEN TAG (§5): der
+   * Seed legt Aufgabe und Verlauf im selben Durchlauf an, jede Liegezeit dort ist also null, und
+   * „seit 0 Tagen" waere in einer frisch geseedeten Umgebung schlicht falsch. Die Saetze unten
+   * lassen den Zusatz bei 0 deshalb WEG, statt eine Null zu schreiben.
+   */
+  tageLiegezeit: number;
+  /** Ein aufgeloester Name — je Anlass Traeger, Auftraggeber oder Pruefer. */
+  name: string;
+  /** Ein fertig formatierter Kalendertag (`fmtTagKurz`), ggf. mit Uhrzeit. Leerstring: keiner. */
+  tag: string;
+  /** Die Frist der fuehrenden Zeile, wortgleich zu dem, was `<Frist>` zeigt. */
+  fristText: string;
+  /** Wie viele der gezaehlten Zeilen in Vertretung gepruefte Freigaben sind. */
+  vertretung: number;
+}
+
+export interface KartenText {
+  /** n = 1 — der Satz des Kartenkoerpers. `null`: die Karte zeigt Titel, Chips und `<Frist>`. */
+  einzeln: ((d: SatzDaten) => string) | null;
+  /** n > 1 — die Zahl und das Extrem. KEINE Aufgabe wird herausgegriffen (§4.3). */
+  mehrere: ((d: SatzDaten) => string) | null;
+  /** Die Zeile „ALS NAECHSTES" — ein Satz, kein Knopf (§4.2). */
+  naechstes: ((d: SatzDaten) => string) | null;
+}
+
+/** „1 Tag" gegen „2 Tagen" — die Singulargrenze steht hier und nicht an sechs Aufrufstellen. */
+function tage(n: number): string {
+  return `${n} ${n === 1 ? "Tag" : "Tagen"}`;
+}
+
+/** „1 Aufgabe" gegen „2 Aufgaben". */
+function aufgabenZahl(n: number): string {
+  return `${n} ${n === 1 ? "Aufgabe" : "Aufgaben"}`;
+}
+
+/**
+ * DER WOCHENENDSATZ HAT GENAU EINEN ORT — UND ES SIND NICHT ZWEI (§4.2). Er steht im
+ * KARTENKOERPER, wenn `bufdiKeinArbeitstag` fuehrt (Rang 4), und in der ALS-NAECHSTES-ZEILE, wenn
+ * er `anlaesse[1]` ist (der Sonntagsfall aus §5.4). Dieselbe Funktion in beiden Feldern, nicht
+ * zwei Fassungen, die auseinanderlaufen koennen.
+ */
+// KEIN SCHLUSSPUNKT NACH `d.tag`: `fmtTagKurz` LIEFERT IHN SCHON MIT („Mo, 24.08."). Ein zweiter
+// ergaebe „24.08..", und keine Typpruefung sieht das — nur ein Test, der den Satz WOERTLICH
+// vergleicht. Dasselbe gilt unten fuer jeden Satz, der auf einem Datum endet.
+const wochenende = (d: SatzDaten): string => `Wochenende. Nächster Arbeitstag: ${d.tag}`;
+
+const OHNE_SATZ: KartenText = { einzeln: null, mehrere: null, naechstes: null };
+
+export const KARTEN_TEXT: Record<AnlassArt, KartenText> = {
+  // ─── Koordination ─────────────────────────────────────────────────────────────────────────────
+  koordOhneTraeger: {
+    einzeln: (d) => `Zugewiesen an ${d.name}, die nicht mehr aktiv ist.`,
+    mehrere: (d) => `${d.anzahl} Aufgaben liegen bei Personen, die nicht mehr aktiv sind.`,
+    naechstes: (d) =>
+      `${aufgabenZahl(d.anzahl)} ${d.anzahl === 1 ? "liegt" : "liegen"} bei einer Person, die nicht mehr aktiv ist.`,
+  },
+  koordPosteingangUeberfaellig: {
+    einzeln: (d) => `Von ${d.name} · noch niemandem zugewiesen.`,
+    mehrere: (d) =>
+      `${d.anzahl} Aufgaben sind überfällig und noch niemandem zugewiesen — die älteste seit ${tage(d.tageSeitFrist)}.`,
+    naechstes: (d) =>
+      `${aufgabenZahl(d.anzahl)} im Posteingang ${d.anzahl === 1 ? "ist" : "sind"} überfällig.`,
+  },
+  koordPosteingang: {
+    einzeln: (d) => `Von ${d.name} · noch niemandem zugewiesen.`,
+    mehrere: (d) =>
+      `${d.anzahl} Aufgaben warten auf Verteilung${d.tageLiegezeit > 0 ? ` — die älteste liegt seit ${tage(d.tageLiegezeit)}` : ""}.`,
+    naechstes: (d) =>
+      `${aufgabenZahl(d.anzahl)} ${d.anzahl === 1 ? "wartet" : "warten"} auf Verteilung.`,
+  },
+  koordFreigabeOffen: {
+    einzeln: (d) => `${d.name} hat „${d.titel}“ fertig gemeldet.`,
+    mehrere: (d) =>
+      `${d.anzahl} Aufgaben warten auf Freigabe${d.vertretung > 0 ? ` (${d.vertretung} in Vertretung)` : ""}.`,
+    // DER KLAMMERZUSATZ OHNE ZAHL, WENN ALLE in Vertretung sind — dieselbe Regel wie in der
+    // Kontextzeile (§3.5): er ist eine PRAEZISIERUNG derselben Zahl, keine zweite.
+    naechstes: (d) =>
+      `${aufgabenZahl(d.anzahl)} ${d.anzahl === 1 ? "wartet" : "warten"} auf deine Freigabe${
+        d.vertretung === d.anzahl && d.vertretung > 0
+          ? " (in Vertretung)"
+          : d.vertretung > 0
+            ? ` (${d.vertretung} in Vertretung)`
+            : ""
+      }.`,
+  },
+  koordUeberfaelligVerteilt: {
+    einzeln: (d) => `Bei ${d.name}, ${STATUS_TEXT[d.status]}.`,
+    mehrere: (d) => `${d.anzahl} Aufgaben sind überfällig.`,
+    naechstes: (d) =>
+      `${aufgabenZahl(d.anzahl)} ${d.anzahl === 1 ? "ist" : "sind"} überfällig und noch nicht begonnen.`,
+  },
+  koordUeberfaelligInArbeit: {
+    einzeln: (d) => `Bei ${d.name}, ${STATUS_TEXT[d.status]}.`,
+    mehrere: (d) => `${d.anzahl} Aufgaben sind überfällig.`,
+    naechstes: (d) =>
+      `${aufgabenZahl(d.anzahl)} ${d.anzahl === 1 ? "ist" : "sind"} überfällig und in Bearbeitung.`,
+  },
+  koordZurueckgewiesen: {
+    einzeln: (d) =>
+      `Bei ${d.name}${d.tageLiegezeit > 0 ? ` seit ${tage(d.tageLiegezeit)}` : ""}.`,
+    mehrere: (d) => `${d.anzahl} Aufgaben wurden zurückgewiesen.`,
+    naechstes: (d) =>
+      `${aufgabenZahl(d.anzahl)} ${d.anzahl === 1 ? "wurde" : "wurden"} zurückgewiesen.`,
+  },
+  koordRuhe: OHNE_SATZ,
+  koordNegativ: OHNE_SATZ,
+
+  // ─── BuFDi ────────────────────────────────────────────────────────────────────────────────────
+  bufdiUeberfaellig: {
+    einzeln: null,
+    mehrere: (d) => `${d.anzahl} Aufgaben sind überfällig — die älteste seit ${tage(d.tageSeitFrist)}.`,
+    naechstes: (d) => `${aufgabenZahl(d.anzahl)} ${d.anzahl === 1 ? "ist" : "sind"} überfällig.`,
+  },
+  bufdiZurueckgewiesen: {
+    einzeln: (d) =>
+      d.tag === "" ? `Zurückgewiesen von ${d.name}.` : `Zurückgewiesen von ${d.name} am ${d.tag}`,
+    mehrere: (d) => `${d.anzahl} Aufgaben kamen zurück.`,
+    naechstes: (d) => `${aufgabenZahl(d.anzahl)} ${d.anzahl === 1 ? "kam" : "kamen"} zurück.`,
+  },
+  bufdiInArbeit: {
+    einzeln: (d) => (d.tag === "" ? "In Bearbeitung." : `Seit ${d.tag} in Bearbeitung.`),
+    mehrere: (d) => `${d.anzahl} Aufgaben sind in Bearbeitung.`,
+    naechstes: (d) =>
+      d.anzahl === 1
+        ? `In Bearbeitung: ${d.titel} · ${fmtDauer(d.dauerMinuten)}`
+        : `${d.anzahl} Aufgaben sind in Bearbeitung.`,
+  },
+  bufdiKeinArbeitstag: { einzeln: wochenende, mehrere: null, naechstes: wochenende },
+  bufdiHeuteOffen: {
+    einzeln: (d) => `Als Nächstes heute: ${d.titel}`,
+    mehrere: (d) => `${d.anzahl} Aufgaben stehen heute an.`,
+    naechstes: (d) =>
+      d.anzahl === 1
+        ? `Heute: ${d.titel} · ${fmtDauer(d.dauerMinuten)} · ${d.fristText}`
+        : `${d.anzahl} Aufgaben stehen heute an.`,
+  },
+  bufdiWartetAufEinplanung: {
+    // LEERSTRING HEISST „KEIN SATZ" (nicht „leerer Satz"): ohne Zeitvorschlag gibt es nichts
+    // anzunehmen, und die Karte zeigt dann Titel, Frist und Dauer — §4.2, Rang 6, „n=1 ohne".
+    einzeln: (d) => (d.tag === "" ? "" : `${d.name} schlägt ${d.tag} vor für „${d.titel}“.`),
+    mehrere: (d) => `${d.anzahl} Aufgaben warten auf einen Termin — die früheste Frist ist ${d.tag}`,
+    naechstes: (d) =>
+      `${aufgabenZahl(d.anzahl)} ${d.anzahl === 1 ? "wartet" : "warten"} auf einen Termin.`,
+  },
+  bufdiRuhe: OHNE_SATZ,
+  bufdiNegativ: OHNE_SATZ,
+
+  // ─── Auftraggeber ─────────────────────────────────────────────────────────────────────────────
+  auftragFreigabe: {
+    einzeln: (d) => `${d.name} hat „${d.titel}“ fertig gemeldet.`,
+    mehrere: (d) => `${d.anzahl} Aufgaben warten auf deine Freigabe.`,
+    naechstes: (d) =>
+      `${aufgabenZahl(d.anzahl)} ${d.anzahl === 1 ? "wartet" : "warten"} auf deine Freigabe.`,
+  },
+  auftragUeberfaellig: {
+    einzeln: (d) => `Bei ${d.name}, ${STATUS_TEXT[d.status]}.`,
+    mehrere: (d) => `${d.anzahl} deiner Aufträge sind überfällig.`,
+    naechstes: (d) => `${d.anzahl} deiner Aufträge ${d.anzahl === 1 ? "ist" : "sind"} überfällig.`,
+  },
+  auftragUnverteilt: {
+    // KEIN WORT UND KEIN `href` MIT DEM TEILSTRING `verteilen` ALS LINK (§5.3, e2e `:363`) — „noch
+    // nicht verteilt" ist TEXT, nie ein Weg. Das ist die andere Haelfte der Kernzusage aus
+    // Modulspec §8.3, und e2e sucht aktiv danach.
+    einzeln: () => "Noch niemandem zugewiesen.",
+    mehrere: (d) => `${d.anzahl} deiner Aufträge sind noch nicht verteilt.`,
+    naechstes: (d) =>
+      `${d.anzahl} deiner Aufträge ${d.anzahl === 1 ? "ist" : "sind"} noch nicht verteilt.`,
+  },
+  auftragRuhe: OHNE_SATZ,
+  auftragNegativ: OHNE_SATZ,
+};
+
+/**
  * EINE KENNZAHL DER KONTEXTZEILE (§3.5) — die Null als WORT, nie als Ziffer.
  *
  * Die Zusage aus §1.4 ist, dass die Kennzahl DASTEHT, nicht dass sie eine Ziffer traegt: eine

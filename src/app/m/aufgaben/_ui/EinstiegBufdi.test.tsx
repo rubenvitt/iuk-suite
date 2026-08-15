@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, aufgaben, routinen, type PersonRow, type Rolle } from "../_db/schema";
+import { wochenTage } from "../_lib/datum";
+import { lage } from "../_lib/lage";
 import type { Akteur } from "../_lib/zugang";
 import s from "./aufgaben.module.css";
 
@@ -12,7 +14,7 @@ import s from "./aufgaben.module.css";
  * jsdom+`mount()` nicht (dieselbe Form wie `TagesWaehler.test.tsx`/`QrView.test.tsx`).
  */
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => "/",
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -20,14 +22,17 @@ vi.mock("next/navigation", () => ({
 const { EinstiegBufdi } = await import("./EinstiegBufdi");
 
 /*
- * WIDERSPRUCH GEMELDET, NICHT STILL AUFGELOEST (s. Bericht): der Brief-Abschnitt „Was der Test
- * zeigen muss" verlangt „Der Posteingang-Streifen zeigt genau die Aufgaben mit vorschlagOffen" —
- * das ist ENGER als die Definition im selben Brief unter „EinstiegBufdi" UND als Spec §8.1
- * woertlich („was verteilt und noch in keinem Tag liegt", OHNE einen Vorschlag vorauszusetzen).
- * Nach der Vorgabe „wo Brief und Spec sich widersprechen, gilt der Spec" implementiert und testet
- * diese Datei die WEITERE Definition (`wartetAufEinplanung` in `_lib/anzeige.ts`) — eine verteilte,
- * noch nicht eingeplante Aufgabe OHNE Zeitvorschlag gehoert genauso in den Streifen, sie zeigt dort
- * nur keinen Vorschlag und keinen „Annehmen"-Knopf.
+ * „MEINE WOCHE" NACH DER OBERFLAECHEN-SPEC (2026-08-16 §3.4, §5.1).
+ *
+ * DIE KACHEL-FAELLE SIND MIT DEN KACHELN ENTFALLEN (§11.1) — „eine 0-Kachel bleibt stehen", „jede
+ * Kachel mit Zahl > 0 traegt ein Ziel" und die drei Ankerpruefungen (`#freigabe-offen`,
+ * `#zurueckgewiesen`) pruefen eine Bauform, die §1.4 aufhebt. AN IHRE STELLE TRITT DIE STAERKERE
+ * ZUSAGE AUS `lage.test.ts`: dort ist jede Sprosse jeder Leiter erschoepfend belegt, hier bleibt,
+ * was nur ueber das gerenderte DOM pruefbar ist — der Wrapper, die Reihenfolge, die Zahl der
+ * Primaerknoepfe und die Zeilenaktionen mit ihren versteckten Feldern.
+ *
+ * `lage()` WIRD HIER ECHT GERUFEN, nicht von Hand gebaut: `page.tsx` tut dasselbe, und ein Test
+ * gegen ein handgereichtes `Lage`-Objekt pruefte die Verdrahtung nicht, sondern setzte sie voraus.
  */
 
 let t: TestDb;
@@ -41,6 +46,7 @@ afterEach(async () => {
 
 const HEUTE = "2026-08-10"; // ein Montag
 const MONTAG = "2026-08-10";
+const TAGE = wochenTage(MONTAG);
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -74,363 +80,293 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
     .get();
 }
 
-/**
- * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
- * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
- * damit auf einer ANDEREN Achse als `rolle` — eine Ableitung aus der Zeile ginge gar nicht mehr,
- * `ROLLEN` kennt `koordination` nicht mehr. Jeder Aufruf dieser Datei bleibt bei der Vorgabe
- * `false`: `EinstiegBufdi` wird durchweg fuer eine BuFDi OHNE Koordinationsgruppe geprueft, und
- * genau das meinten die Fixturen schon vorher.
- */
 function akteur(p: PersonRow, istKoordination = false): Akteur {
   return { person: p, istKoordination };
 }
 
-describe("EinstiegBufdi — Kopf, KPI-Zeile, Posteingang, Wochenplan", () => {
-  it("zeigt den Wochenwaehler mit dem Datumsbereich der angezeigten Woche", async () => {
-    const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-    expect(document.body.textContent).toContain("Mo, 10.08.");
-    expect(document.body.textContent).toContain("Fr, 14.08.");
-  });
+/** Der ganze Aufruf, wie `aufgabenInhalt` ihn stellt — `lage()` genau einmal, aus derselben Woche. */
+async function zeige(p: PersonRow, params: { woche?: string; tag?: string } = {}): Promise<void> {
+  const a = akteur(p);
+  const tage = params.woche ? wochenTage(params.woche) : TAGE;
+  await mount(
+    <EinstiegBufdi
+      db={t.db}
+      akteur={a}
+      heute={HEUTE}
+      lage={lage(t.db, a, HEUTE, tage)}
+      wocheParam={params.woche}
+      tagParam={params.tag}
+    />,
+  );
+}
 
-  it("die vier KPI-Kacheln zeigen die richtigen Zahlen, aus DERSELBEN Ableitung wie die Liste darunter", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
+function flaeche(): HTMLElement {
+  return query("[data-testid='aufgaben-flaeche']");
+}
 
-    // Einzuplanen: verteilt, planDatum null — ZWEI Zeilen, eine davon OHNE Vorschlag.
-    legeAufgabe({
-      titel: "Ohne Vorschlag",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      planDatum: null,
-    });
-    legeAufgabe({
-      titel: "Mit Vorschlag",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      planDatum: null,
-      vorschlagDatum: "2026-08-12",
-      vorschlagUhrzeit: "09:00",
-    });
-    // Heute offen: planDatum === heute, nicht abgeschlossen.
-    legeAufgabe({
-      titel: "Heute dran",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "in_arbeit",
-      planDatum: HEUTE,
-    });
-    // Freigabe offen.
-    legeAufgabe({
-      titel: "Wartet auf Freigabe",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "freigabe_offen",
-    });
-    // Zurueckgewiesen.
-    legeAufgabe({
-      titel: "Muss ueberarbeitet werden",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "zurueckgewiesen",
-    });
-
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-
-    const kacheln = queryAll(`.${s.kpi}`);
-    const zahlen = kacheln.map((k) => k.querySelector("span")?.textContent);
-    expect(zahlen).toEqual(["2", "1", "1", "1"]);
-
-    // Die Liste darunter (Posteingang) zeigt exakt die zwei "Einzuplanen"-Zeilen — gezielt
-    // innerhalb von `#posteingang` gesucht: "Heute dran" traegt einen `planDatum` und erscheint
-    // deshalb ZUSAETZLICH im Wochenplan (in BEIDEN Ausprägungen), und `SeitenKopf`s `Breadcrumb`
-    // rendert seine Krumen ebenfalls als `<li>` — ein ungezielter `queryAll("li")` zaehlte all das mit.
-    const zeilen = queryAll("#posteingang li");
-    expect(zeilen.map((z) => z.textContent).join(" ")).toContain("Ohne Vorschlag");
-    expect(zeilen.map((z) => z.textContent).join(" ")).toContain("Mit Vorschlag");
-    expect(zeilen).toHaveLength(2);
-  });
-
-  it("eine 0-Kachel bleibt stehen und wird nicht klickbar (kein <a>)", async () => {
-    const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-    // Bei leerem Bestand sind alle vier Kacheln 0. "Einzuplanen" und "Heute offen" waeren sonst
-    // verlinkt — hier duerfen sie es nicht sein.
-    const kacheln = queryAll(`.${s.kpi}`);
-    expect(kacheln).toHaveLength(4);
-    for (const kachel of kacheln) {
-      expect(kachel.closest("a"), kachel.textContent ?? "").toBeNull();
-    }
-  });
-
-  it('"Einzuplanen" verlinkt bei einer Zahl > 0 auf den Posteingang-Anker', async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
-    legeAufgabe({
-      titel: "X",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      planDatum: null,
-    });
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-    const verweis = queryAll<HTMLAnchorElement>("a").find((a) => a.getAttribute("href") === "#posteingang");
-    expect(verweis, "Verweis auf #posteingang fehlt").toBeTruthy();
+describe("EinstiegBufdi — der Aufbau aus §3.4", () => {
+  /**
+   * DIE ZUSAGE, DIE EINEN EIGENEN WRAPPER UEBERHAUPT NOETIG MACHT (§3.3, §9/S7): „die
+   * Fuehrungskarte ist das erste Element in `aufgaben-content`" waere FALSCH — `page.tsx` legt
+   * jenen Wrapper um den GANZEN Einstieg, der `SeitenKopf` steht darin. Ein Test, der etwas
+   * anderes misst als sein Name sagt, gehoert in dieselbe Familie wie die Fallen 10 und 11.
+   */
+  it("die Fuehrungskarte ist das ERSTE Kind von `aufgaben-flaeche`", async () => {
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: alina.id, zugewiesenAn: alina.id, status: "verteilt" });
+    await zeige(alina);
+    expect(flaeche().firstElementChild?.getAttribute("data-rolle")).toBe("fuehrung");
   });
 
   /**
-   * DIE ZWEI VERTAGTEN KPI-VERWEISE (Aufgabe 16) — beide zeigen jetzt auf eigene Anker AUF DIESER
-   * Seite, NICHT auf `/freigaben` (das ist fuer diese BuFDi kein Ziel — `darfFreigabenSehen` gilt
-   * nur fuer `auftrag` oder wer koordiniert, ein Verweis dorthin waere 404).
+   * DER ZAEHLRIEGEL, GEMESSEN IM WRAPPER UND NICHT IN `main` (§1.3): die Suite-Shell bringt eigene
+   * Bedienelemente mit. Innerhalb der Flaeche gehoert der eine Primaerknopf der Karte.
    */
-  it('"Freigabe offen" verlinkt auf #freigabe-offen, "Zurückgewiesen" auf #zurueckgewiesen — NICHT auf /freigaben', async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
+  it("traegt in der ganzen Flaeche hoechstens einen `.ant-btn-primary`", async () => {
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    // Drei Zeilen, die frueher drei Kacheln gefuellt haetten: eine ueberfaellige, eine
+    // zurueckgewiesene und eine wartende. Genau EINE fuehrt, die uebrigen werden Zonen.
     legeAufgabe({
-      titel: "Wartet auf Freigabe",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "freigabe_offen",
-    });
-    legeAufgabe({
-      titel: "Muss ueberarbeitet werden",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "zurueckgewiesen",
-    });
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-
-    const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
-    expect(hrefs).toContain("#freigabe-offen");
-    expect(hrefs).toContain("#zurueckgewiesen");
-    expect(hrefs.some((h) => h?.includes("freigaben"))).toBe(false);
-  });
-
-  it("die Abschnitte #freigabe-offen und #zurueckgewiesen zeigen genau die jeweiligen Aufgaben", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
-    legeAufgabe({
-      titel: "Wartet auf Freigabe",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "freigabe_offen",
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Überfällig", status: "verteilt", faelligAm: "2026-08-01",
     });
     legeAufgabe({
-      titel: "Muss ueberarbeitet werden",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "zurueckgewiesen",
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Zurück", status: "zurueckgewiesen",
     });
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-
-    expect(query("#freigabe-offen").textContent).toContain("Wartet auf Freigabe");
-    expect(query("#freigabe-offen").textContent).not.toContain("Muss ueberarbeitet werden");
-    expect(query("#zurueckgewiesen").textContent).toContain("Muss ueberarbeitet werden");
-    expect(query("#zurueckgewiesen").textContent).not.toContain("Wartet auf Freigabe");
-  });
-
-  it("die Abschnitte #freigabe-offen und #zurueckgewiesen zeigen je einen ausgeschriebenen Leertext", async () => {
-    const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-    expect(query("#freigabe-offen").textContent).toContain("Keine Aufgabe wartet auf Freigabe.");
-    expect(query("#zurueckgewiesen").textContent).toContain("Keine zurückgewiesene Aufgabe.");
-  });
-
-  it("Posteingang-Zeile OHNE Vorschlag zeigt nur „Anders einplanen“, keinen „Annehmen“-Knopf", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
     legeAufgabe({
-      titel: "Ohne Vorschlag",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      planDatum: null,
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Wartet", status: "verteilt", vorschlagDatum: "2026-08-12",
     });
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-    // `query("li")` traefe die ERSTE `<li>` im Dokument — und `Breadcrumb` (in `SeitenKopf`)
-    // rendert seine Krumen ebenfalls als `<li>`, VOR der Posteingang-Liste. Gezielt die Zeile mit
-    // dem Aufgabentitel suchen, statt sich auf die Dokumentreihenfolge zu verlassen.
-    const zeile = queryAll("li").find((li) => li.textContent?.includes("Ohne Vorschlag"))!;
-    expect(zeile, "Zeile „Ohne Vorschlag“ fehlt").toBeTruthy();
-    expect(zeile.textContent).toContain("Anders einplanen");
-    expect(zeile.textContent).not.toContain("Annehmen");
+    await zeige(alina);
+    expect(flaeche().querySelectorAll(".ant-btn-primary").length).toBeLessThanOrEqual(1);
   });
 
-  it("Posteingang-Zeile MIT Vorschlag zeigt zusaetzlich „Annehmen“", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
-    legeAufgabe({
-      titel: "Mit Vorschlag",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      planDatum: null,
-      vorschlagDatum: "2026-08-12",
-    });
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-    const zeile = queryAll("li").find((li) => li.textContent?.includes("Mit Vorschlag"))!;
-    expect(zeile, "Zeile „Mit Vorschlag“ fehlt").toBeTruthy();
-    expect(zeile.textContent).toContain("Annehmen");
-    expect(zeile.textContent).toContain("Anders einplanen");
+  it("der Wochenwaehler steht im Seitenkopf und damit AUSSERHALB der Flaeche", async () => {
+    const alina = legePerson("alina", "bufdi");
+    await zeige(alina);
+    expect(query("[aria-label='Nächste Woche']")).toBeTruthy();
+    expect(flaeche().querySelector("[aria-label='Nächste Woche']")).toBeNull();
   });
 
-  /*
-   * REVIEW FIX-RUNDE 1, IMPORTANT: der Vorschlag muss LESBAR auf der Seite stehen (Spec §8.1,
-   * "die Zeile MIT dem Zeitvorschlag") UND die drei versteckten Formularfelder muessen die
-   * VORGESCHLAGENEN Werte tragen, nicht irgendeinen anderen Wert der Aufgabe — vorher pruefte kein
-   * Test die Feldwerte, nur den Zeilentext, und eine vertauschte Quelle (`a.planDatum` statt
-   * `a.vorschlagDatum`) waere unbemerkt geblieben.
-   */
-  it('"Annehmen" zeigt den Zeitvorschlag im Knopftext UND bindet ihn in die versteckten Felder', async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
-    const aufgabe = legeAufgabe({
-      titel: "Mit Vorschlag",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      planDatum: null,
-      vorschlagDatum: "2026-08-12",
-      vorschlagUhrzeit: "09:00",
-    });
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-    const zeile = queryAll("li").find((li) => li.textContent?.includes("Mit Vorschlag"))!;
-    expect(zeile.textContent).toContain("Mi, 12.08.");
-    expect(zeile.textContent).toContain("09:00");
-
-    const formular = zeile.querySelector("form")!;
-    expect(formular).toBeTruthy();
-    expect(formular.querySelector<HTMLInputElement>('input[name="aufgabeId"]')!.value).toBe(
-      aufgabe.id,
-    );
-    expect(formular.querySelector<HTMLInputElement>('input[name="planDatum"]')!.value).toBe(
-      "2026-08-12",
-    );
-    expect(formular.querySelector<HTMLInputElement>('input[name="planUhrzeit"]')!.value).toBe(
-      "09:00",
-    );
+  /** Die Kontextzeile traegt die Zahlen der gestrichenen Kacheln — inklusive der Nullen als WORT. */
+  it("die Kontextzeile kommt aus `lage()` und schreibt die Null als Wort", async () => {
+    const alina = legePerson("alina", "bufdi");
+    await zeige(alina);
+    const kontext = queryAll("p").map((p) => p.textContent ?? "");
+    const zeile = kontext.find((z) => z.startsWith("KW "));
+    expect(zeile, "keine Kontextzeile gefunden").toBeTruthy();
+    expect(zeile).toContain("nichts überfällig");
+    expect(zeile).toContain("nichts im Posteingang");
+    // DIE NULL ALS WORT, NIE ALS ZIFFER (§3.5) — geprueft an den KENNZAHLEN, nicht am
+    // Stundenpaar: „0 von 39 Std." ist EIN Wert mit Nenner, keine Kennzahl mit dem Wert null.
+    expect(zeile).not.toMatch(/0 (überfällig|im Posteingang|Aufgaben eingeplant)/);
   });
 
-  it("leerer Posteingang zeigt den ausgeschriebenen Leerzustand", async () => {
-    const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-    expect(document.body.textContent).toContain("Posteingang leer — alles verteilt");
-  });
-
-  /*
-   * EINE AUSGESCHIEDENE PERSON, DIE SICH SELBST BETRACHTET (Randfall): `zeigeAktionen` haengt an
-   * `darfPlanAendern`, das `istAktiv` prueft — ohne diese Kopplung bekaeme eine ausgeschiedene
-   * BuFDi trotzdem Annehmen/Anders-einplanen/RangKnoepfe fuer die eigene, laengst historische Woche.
-   */
-  it("eine ausgeschiedene Person sieht in ihrem Posteingang keine Aktionen mehr", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const doerte = legePerson("dev:doerte@test", "bufdi", { aktivBis: "2020-01-01" });
-    legeAufgabe({
-      titel: "Alt",
-      erstellerId: malte.id,
-      zugewiesenAn: doerte.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      planDatum: null,
-    });
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(doerte)} heute={HEUTE} />);
-    const zeile = queryAll("li").find((li) => li.textContent?.includes("Alt"))!;
-    expect(zeile, "Zeile „Alt“ fehlt").toBeTruthy();
-    expect(zeile.textContent).not.toContain("Annehmen");
-    expect(zeile.textContent).not.toContain("Anders einplanen");
-  });
-
-  it('zeigt "Routinen verwalten" und die Zeitplaene der anderen aktiven BuFDis im Fuss, nicht sich selbst', async () => {
-    legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
-    const bendix = legePerson("dev:bendix@test", "bufdi", { name: "Bendix" });
-    legePerson("dev:doerte@test", "bufdi", { name: "Dörte", aktivBis: "2020-01-01" });
-
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-
-    const links = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
-    expect(links).toContain("/routinen");
-    expect(links).toContain(`/plan/${bendix.id}`);
-    expect(links).not.toContain(`/plan/${alina.id}`);
-    expect(document.body.textContent).not.toContain("Dörte");
-  });
-
-  it("rendert die fuenf Tagesspalten (Wochenplan) und die Radiogruppe (TagesWaehler)", async () => {
-    const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} />);
-    expect(query('[data-rolle="wochengitter"]')).toBeTruthy();
-    expect(queryAll('input[type="radio"]')).toHaveLength(5);
+  /** Die Flaeche der Rolle steht IMMER, auch leer (Regel R2). */
+  it("die Wochenachse steht auch ohne jede Aufgabe", async () => {
+    const alina = legePerson("alina", "bufdi");
+    await zeige(alina);
+    expect(queryAll(`.${s.tagSpalte}`).length).toBeGreaterThanOrEqual(5);
+    expect(query("[data-rolle='tagesliste']")).toBeTruthy();
+    expect(query("[data-rolle='wochengitter']")).toBeTruthy();
   });
 
   it("liest die Woche aus wocheParam, nicht aus heute", async () => {
-    const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} wocheParam="2026-08-24" />);
-    expect(document.body.textContent).toContain("Mo, 24.08.");
+    const alina = legePerson("alina", "bufdi");
+    await zeige(alina, { woche: "2026-08-17" });
+    expect(query("[data-rolle='wochengitter']").textContent).toContain("17.08");
   });
+});
 
-  /*
-   * GEGENPROBE (advisor-Fund): die "Heute offen"-Kachel verlinkt auf die Woche, die "heute" ENTHAELT
-   * — nicht auf die gerade angezeigte Woche. Ohne diese Trennung fuehrte ein zwei Wochen
-   * vorgeblaetterter Aufruf zu einem Verweis auf eine Woche, in der "heute" gar nicht liegt.
+describe("EinstiegBufdi — Regel V: die Achse sagt, wenn sie unvollstaendig ist", () => {
+  /**
+   * DIE FUSSZEILE IST NICHT KOSMETIK, SONDERN DER BELEG FUER DIE PARTITIONSZUSAGE (§4.1): sie ist
+   * der Ort, an dem die Restmenge der BuFDi-Leiter sichtbar wird. Ohne sie faellt eine
+   * `in_arbeit`-Zeile ohne Plantag durch jede Sprosse UND durch jede Spalte.
    */
-  it('"Heute offen" verlinkt auf die Woche von HEUTE, auch wenn eine andere Woche angezeigt wird', async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
+  it("nennt eine Aufgabe ohne Plantag als „ohne Termin“", async () => {
+    const alina = legePerson("alina", "bufdi");
+    const malte = legePerson("malte", "auftrag");
     legeAufgabe({
-      titel: "Heute dran",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "in_arbeit",
-      planDatum: HEUTE,
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Ohne Termin", status: "in_arbeit", planDatum: null,
     });
-    // Zwei Wochen vorgeblaettert (wocheParam), "Heute offen" bleibt trotzdem > 0 (heuteOffen
-    // haengt nicht von der angezeigten Woche ab).
-    await mount(
-      <EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={HEUTE} wocheParam="2026-08-24" />,
-    );
-    const verweis = queryAll<HTMLAnchorElement>("a").find((a) =>
-      a.getAttribute("href")?.startsWith(`/plan/${alina.id}?woche=`),
-    );
-    expect(verweis, "Verweis auf /plan/<id>?woche=... fehlt").toBeTruthy();
-    expect(verweis!.getAttribute("href")).toBe(`/plan/${alina.id}?woche=${MONTAG}`);
+    await zeige(alina);
+    const text = flaeche().textContent ?? "";
+    expect(text).toContain("außerhalb dieser Woche");
+    expect(text).toContain("ohne Termin");
   });
 
-  it("routinen-Routine belegt keine Aktionen, RangKnoepfe erscheinen nur fuer Aufgaben", async () => {
-    const alina = legePerson("dev:alina@test", "bufdi");
+  it("nennt eine Aufgabe mit Plantag ausserhalb der Woche mit ihrem Datum", async () => {
+    const alina = legePerson("alina", "bufdi");
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Nächste Woche", status: "verteilt", planDatum: "2026-08-19",
+    });
+    await zeige(alina);
+    expect(flaeche().textContent).toContain("außerhalb dieser Woche");
+    expect(flaeche().textContent).toContain("19.08");
+  });
+
+  it("sagt nichts, wenn alles in der Achse Platz hat", async () => {
+    const alina = legePerson("alina", "bufdi");
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      status: "verteilt", planDatum: MONTAG,
+    });
+    await zeige(alina);
+    expect(flaeche().textContent).not.toContain("außerhalb dieser Woche");
+  });
+});
+
+describe("EinstiegBufdi — die Zone „Einzuplanen“ (Regel R3, Regel D)", () => {
+  /**
+   * BEI n = 1 NENNT DIE KARTE DIE AUFGABE, UND KEINE ZONE WIEDERHOLT SIE (R3). Das ist genau der
+   * Grund, aus dem §3.2 der DOM-Id `#posteingang` die garantierte Anwesenheit entzieht — und aus
+   * dem die beiden e2e-Stellen auf `getByRole` umgestellt sind.
+   */
+  it("bei genau einer wartenden Aufgabe entsteht KEINE Zone — die Karte nennt sie", async () => {
+    const alina = legePerson("alina", "bufdi");
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Einzige", status: "verteilt",
+    });
+    await zeige(alina);
+    expect(queryAll("#posteingang")).toHaveLength(0);
+    expect(query("[data-rolle='fuehrung']").textContent).toContain("Einzige");
+  });
+
+  it("ab zwei wartenden Aufgaben entsteht die Zone mit ihrer Zahl", async () => {
+    const alina = legePerson("alina", "bufdi");
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({ erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id, titel: "A", status: "verteilt" });
+    legeAufgabe({ erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id, titel: "B", status: "verteilt" });
+    await zeige(alina);
+    const zone = query("#posteingang");
+    expect(zone.querySelector("h2")?.textContent).toBe("Einzuplanen (2)");
+    expect(zone.querySelectorAll("li")).toHaveLength(2);
+  });
+
+  /**
+   * REGEL D — EIN DECKEL SETZT EINEN AUSGANG VORAUS. „Einzuplanen" hat mit `/plan/<eigene>` ein
+   * Sammelziel und wird deshalb bei fuenf Zeilen gekappt.
+   */
+  it("deckelt bei fuenf Zeilen und nennt den Ausgang", async () => {
+    const alina = legePerson("alina", "bufdi");
+    const malte = legePerson("malte", "auftrag");
+    for (let i = 0; i < 7; i++) {
+      legeAufgabe({
+        erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+        titel: `A${i}`, status: "verteilt", faelligAm: `2026-08-2${i}`,
+      });
+    }
+    await zeige(alina);
+    const zone = query("#posteingang");
+    expect(zone.querySelectorAll("li")).toHaveLength(5);
+    const deckel = Array.from(zone.querySelectorAll("a")).find((a) =>
+      (a.textContent ?? "").includes("weitere"),
+    );
+    expect(deckel?.textContent).toContain("und 2 weitere");
+    expect(deckel?.getAttribute("href")).toBe(`/plan/${alina.id}`);
+  });
+
+  /**
+   * „ANNEHMEN" BINDET DEN VORSCHLAG IN DIE VERSTECKTEN FELDER UND IN DEN KNOPFTEXT. Eine
+   * vertauschte Quelle (`planDatum` statt `vorschlagDatum`) waere `typecheck`, `lint` und `build`
+   * unsichtbar geblieben.
+   */
+  it("die Zeile mit Vorschlag traegt „Annehmen“ samt versteckten Feldern, die ohne nicht", async () => {
+    const alina = legePerson("alina", "bufdi");
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Mit Vorschlag", status: "verteilt", faelligAm: "2026-08-21",
+      vorschlagDatum: "2026-08-13", vorschlagUhrzeit: "09:00",
+    });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Ohne Vorschlag", status: "verteilt", faelligAm: "2026-08-22",
+    });
+    await zeige(alina);
+    const zeilen = queryAll("#posteingang li");
+    expect(zeilen).toHaveLength(2);
+
+    const mit = zeilen[0]!;
+    const knopf = mit.querySelector("button");
+    expect(knopf?.textContent).toBe("Annehmen: Do, 13.08., 09:00");
+    const felder = Array.from(mit.querySelectorAll<HTMLInputElement>("input[type=hidden]")).map(
+      (i) => [i.name, i.value] as const,
+    );
+    expect(felder).toContainEqual(["planDatum", "2026-08-13"]);
+    expect(felder).toContainEqual(["planUhrzeit", "09:00"]);
+
+    expect(zeilen[1]!.querySelectorAll("button")).toHaveLength(0);
+    expect(zeilen[1]!.querySelector("a[href*='#einplanen-']")).toBeTruthy();
+  });
+
+  /**
+   * DASSELBE PRAEDIKAT WIE DIE ROUTE (`darfPlanAendern`, mit `istAktiv`): eine ausgeschiedene
+   * Person plant nichts mehr, auch nicht sich selbst — sonst liefe der Klick in einen Wurf.
+   */
+  it("eine ausgeschiedene Person bekommt in der Zone keine Aktionen", async () => {
+    const alina = legePerson("alina", "bufdi", { aktivBis: "2026-08-01" });
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({ erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id, titel: "A", status: "verteilt" });
+    legeAufgabe({ erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id, titel: "B", status: "verteilt" });
+    await zeige(alina);
+    expect(query("#posteingang").querySelectorAll("button")).toHaveLength(0);
+  });
+});
+
+describe("EinstiegBufdi — der Fuss", () => {
+  /**
+   * „Routinen verwalten" FOLGT DEM RIEGEL DER ZIELSEITE (`darfRoutinenVerwalten`), nicht einer
+   * zufaellig gleichwertigen Bedingung — `/routinen` wirft sonst `notFound()`.
+   */
+  it("zeigt „Routinen verwalten“ und die Zeitplaene der anderen BuFDis, nicht den eigenen", async () => {
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    const bendix = legePerson("bendix", "bufdi", { name: "Bendix" });
+    legePerson("doerte", "bufdi", { name: "Dörte", aktivBis: "2026-01-31" });
+    await zeige(alina);
+    const ziele = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
+    expect(ziele).toContain("/routinen");
+    expect(ziele).toContain(`/plan/${bendix.id}`);
+    expect(ziele).not.toContain(`/plan/${alina.id}#`);
+    expect(queryAll("a").map((a) => a.textContent)).not.toContain("Zeitplan von Dörte");
+  });
+
+  it("laesst „Routinen verwalten“ weg, wenn die Person ausgeschieden ist", async () => {
+    const alina = legePerson("alina", "bufdi", { aktivBis: "2026-08-01" });
+    await zeige(alina);
+    expect(queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"))).not.toContain(
+      "/routinen",
+    );
+  });
+});
+
+describe("EinstiegBufdi — die Achse bleibt, wie sie war", () => {
+  it("Routinen tragen keine Rangknoepfe, Aufgaben schon", async () => {
+    const alina = legePerson("alina", "bufdi");
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Geplant", status: "verteilt", planDatum: MONTAG,
+    });
     t.db
       .insert(routinen)
       .values({
-        personId: alina.id,
-        titel: "Frühbesprechung",
-        wochentage: 0b11111,
-        uhrzeit: "08:00",
-        dauerMinuten: 15,
+        personId: alina.id, titel: "Frühbesprechung", wochentage: 0b11111,
+        uhrzeit: "08:00", dauerMinuten: 15, aktiv: true,
       })
       .run();
-    await mount(<EinstiegBufdi db={t.db} akteur={akteur(alina)} heute={MONTAG} />);
-    // REVIEW FIX-RUNDE 1, Minor #2: `queryAll(...)[0]` gefolgt von `routineZeile?.querySelector(...)`
-    // bestand den Test auch dann, wenn die Zeile GAR NICHT existierte (`undefined?.foo()` ist
-    // `undefined`, also "falsy"). `toBeTruthy()` zuerst, dann die exakte CSS-Modul-Klasse statt des
-    // Substring-Selektors (den kein anderer Test dieser Datei benutzt).
-    const routineZeile = queryAll(`.${s.routineZeile}`)[0];
-    expect(routineZeile, "Routinenzeile im Wochenplan fehlt").toBeTruthy();
-    expect(routineZeile.querySelector("button")).toBeFalsy();
+    await zeige(alina);
+    const gitter = query("[data-rolle='wochengitter']");
+    expect(gitter.textContent).toContain("Frühbesprechung");
+    expect(gitter.querySelectorAll("[data-aufgabe-id]").length).toBeGreaterThan(0);
   });
 });

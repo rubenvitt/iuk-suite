@@ -233,7 +233,20 @@ test("Verteilung: die Koordination meldet sich an, die Modulwurzel zeigt „Vert
   // Minor 4 (Fix-Runde 1): dieser h1-Abruf allein waere auch vor Aufgabe 14 gruen gewesen (der
   // Platzhalter aus Aufgabe 13 trug denselben Titel) — die Posteingang-Zeile bindet den ECHTEN
   // Inhalt, wie es der `/verteilen`-Abruf unten schon tut.
+  /*
+   * DIE ZEILE BLEIBT GRUEN UND WIRD FRAGIL — beides benannt (Oberflaechen-Spec §3.3, §11.2): im
+   * Seed ist genau EINE Aufgabe `eingegangen`, also n = 1, und die Fuehrungskarte nennt bei n = 1
+   * den Titel. Eine zweite `eingegangene` Aufgabe im Seed liesse die Karte eine ZAHL zeigen, und
+   * dieser Abruf waere rot, ohne dass sich an der Oberflaeche etwas geaendert haette.
+   *
+   * DIE ZUSICHERUNG AUF DIE KARTE STEHT DESHALB DANEBEN: sie bindet, WO der Titel steht, statt nur
+   * DASS er irgendwo steht — und sie ist zugleich der Beleg, dass die Fuehrungskarte an erster
+   * Stelle der Flaeche gerendert wird.
+   */
   await expect(page.getByText("Verbandskästen im Fahrzeugpark prüfen")).toBeVisible();
+  const fuehrung = page.getByTestId("aufgaben-flaeche").locator("[data-rolle='fuehrung']");
+  await expect(fuehrung).toHaveCount(1);
+  await expect(fuehrung).toContainText("Verbandskästen im Fahrzeugpark prüfen");
   expect(konsolenFehler).toEqual([]);
 });
 
@@ -1480,14 +1493,29 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
     email: "carla@localtest.me",
     callbackPath: "/",
   });
-  const posteingangZeile = page.locator("#posteingang li").filter({ hasText: titel });
-  await expect(posteingangZeile).toHaveCount(1);
-  const annehmenKnopf = posteingangZeile.getByRole("button", { name: /^Annehmen:/ });
+  /*
+   * DER ZUGRIFF GEHT UEBER DAS BEDIENELEMENT, NICHT UEBER DEN ZONENCONTAINER (Oberflaechen-Spec
+   * 2026-08-16 §3.2, §3.3, §11.2) — EIN FIX FUER ZWEI UNABHAENGIGE BRUCHURSACHEN:
+   *
+   *  (a) REGEL R3: eine Zone mit n = 1 ENTSTEHT GAR NICHT, weil die Fuehrungskarte die Aufgabe
+   *      schon nennt. `#posteingang` ist damit DATENABHAENGIG und darf von keinem Test
+   *      vorausgesetzt werden. Die Ids behalten ihre Schreibweise, nicht ihre Anwesenheit.
+   *  (b) REGEL D: die Zone ist auf fuenf Zeilen gedeckelt und nach Frist sortiert — die frisch
+   *      erzeugte Aufgabe liegt 14–21 Tage in der Zukunft und rutscht ans Ende.
+   *
+   * Der Test verliert damit eine Positionsannahme, die er nie begruendet hat: „Annehmen: <Tag>"
+   * traegt den Vorschlag im Knopftext und ist ueber ihn eindeutig. DIESELBE BEGRUENDUNG GILT FUER
+   * DIE ZWEITE FUNDSTELLE in „Leerer Start" weiter unten; sie steht nur hier.
+   */
+  const annehmenKnopf = page.getByRole("button", { name: /^Annehmen:/ });
   await expect(annehmenKnopf).toBeVisible();
   await klickeUndWarteAufSeite(page, () => annehmenKnopf.click());
   // DIE AUFGABE VERLAESST DEN POSTEINGANG: `wartetAufEinplanung` verlangt `planDatum === null`,
-  // und das ist nach „Annehmen" nicht mehr wahr — der eigentliche Beleg, kein Knopftext.
-  await expect(page.locator("#posteingang").getByText(titel)).toHaveCount(0);
+  // und das ist nach „Annehmen" nicht mehr wahr — der eigentliche Beleg, kein Knopftext. Gemessen
+  // an der ganzen Flaeche statt an der Zone, aus Grund (a) oben.
+  await expect(
+    page.getByTestId("aufgaben-flaeche").getByRole("button", { name: /^Annehmen:/ }),
+  ).toHaveCount(0);
 
   // 4. BEARBEITUNG STARTEN — Carla, auf der Detailseite.
   await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
@@ -1787,12 +1815,16 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
     callbackPath: "/",
   });
   await expect(page.getByRole("heading", { name: "Meine Woche", level: 1 })).toBeVisible();
-  const posteingangZeile = page.locator("#posteingang li").filter({ hasText: titel });
-  await expect(posteingangZeile).toHaveCount(1);
-  await klickeUndWarteAufSeite(page, () =>
-    posteingangZeile.getByRole("button", { name: /^Annehmen:/ }).click(),
-  );
-  await expect(page.locator("#posteingang").getByText(titel)).toHaveCount(0);
+  // DERSELBE FIX WIE IN „der volle Durchlauf", Schritt 3 — die Begruendung steht dort und wird
+  // hier nicht wiederholt. HIER TRAEGT SCHON (a) ALLEIN: die frisch angelegte Person hat nach
+  // Schritt 4 GENAU EINE wartende Aufgabe, also n = 1, also nennt die Fuehrungskarte sie und die
+  // Zone entfaellt — `expect(posteingangZeile).toHaveCount(1)` haette 0 gemessen.
+  const annehmen = page.getByRole("button", { name: /^Annehmen:/ });
+  await expect(annehmen).toBeVisible();
+  await klickeUndWarteAufSeite(page, () => annehmen.click());
+  await expect(
+    page.getByTestId("aufgaben-flaeche").getByRole("button", { name: /^Annehmen:/ }),
+  ).toHaveCount(0);
 
   await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
   await klickeUndWarteAufSeite(page, () =>

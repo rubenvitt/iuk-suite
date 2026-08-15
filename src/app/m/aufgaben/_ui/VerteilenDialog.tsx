@@ -155,6 +155,56 @@ export function VerteilenTabelle({
   );
 }
 
+/**
+ * DER VERTEIL-KNOPF DER FUEHRUNGSKARTE (Oberflaechen-Spec 2026-08-16 §4.2 Koordination Rang 2/3,
+ * §6.7) — DERSELBE `VerteilenModal` WIE AUF `/verteilen`, keine zweite Fassung.
+ *
+ * WARUM DIE INSEL HIER STEHT UND NICHT IN DER KARTE: `_ui/Fuehrungskarte.tsx` ist eine SERVER
+ * COMPONENT (§6.7). Der Modal braucht `onCancel` und einen `useState`-Schalter, also Funktionen
+ * als Props — aus einer Server Component heraus exakt Falle 9, und kein Tor ausser einem echten
+ * Abruf saehe den HTTP 500. Die Insel definiert ihre Funktionen selbst; die Karte importiert sie
+ * DIREKT und reicht ausschliesslich serialisierbare Daten hinein.
+ *
+ * MODAL-SICHTBARKEIT IST HIER EIN ECHTER ZUSTAND, ANDERS ALS IN `VerteilenTabelle` OBEN: dort
+ * folgt „offen" daraus, ob die Zeile noch im `posteingang`-Prop steht (der Dialog schliesst sich
+ * nach dem Verteilen von selbst, s. Kopfkommentar). Die Karte hat keine Liste, aus der eine Zeile
+ * verschwinden koennte — nach dem Verteilen wechselt der fuehrende Anlass, und die Karte wird
+ * ohnehin neu gerendert. `offen` faellt dabei auf `false` zurueck, weil der Baum neu entsteht.
+ *
+ * DER EINZIGE PRIMAERKNOPF DER FLAECHE (Regel P): `type="primary"` steht hier und NICHT im
+ * Abbrechen-Knopf des Modals — der Modal ist eine eigene Ebene und liegt im Portal, also
+ * ausserhalb von `data-testid="aufgaben-flaeche"`, wo der Zaehlriegel misst.
+ */
+export function VerteilenKnopf({
+  aufgabe,
+  bufdis,
+  auslastung,
+  tage,
+}: {
+  aufgabe: AufgabeRow;
+  bufdis: PersonRow[];
+  auslastung: AuslastungZeile[];
+  tage: readonly string[];
+}) {
+  const [offen, setOffen] = useState(false);
+  return (
+    <>
+      <Button type="primary" onClick={() => setOffen(true)} data-testid={`verteilen-${aufgabe.id}`}>
+        Verteilen
+      </Button>
+      {offen ? (
+        <VerteilenModal
+          aufgabe={aufgabe}
+          bufdis={bufdis}
+          auslastung={auslastung}
+          tage={tage}
+          onClose={() => setOffen(false)}
+        />
+      ) : null}
+    </>
+  );
+}
+
 function VerteilenModal({
   aufgabe,
   bufdis,

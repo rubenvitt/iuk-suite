@@ -49,21 +49,47 @@ import s from "./aufgaben.module.css";
  * `abgeschlossen` ausschliesst. Dass derselbe Aufruf dort schweigt, ist der Beleg, dass die
  * Bedingung nur an einer Stelle steht.
  */
-export function Frist({ aufgabe, heute }: { aufgabe: AufgabeRow; heute: string }) {
+/**
+ * DIE DREI AUSPRAEGUNGEN ALS REINE FUNKTION — die eine Verzweigung, an EINER Stelle.
+ *
+ * SIE IST EXPORTIERT, WEIL DIE FUEHRUNGSKARTE DEN WORTLAUT IN EINEM SATZ BRAUCHT, nicht als
+ * Markup: die Zeile „ALS NÄCHSTES" lautet „Heute: <Titel> · <Dauer> · Frist heute" (§4.2, §5.1),
+ * und ein zweiter, dort nachgebauter Dreizweig waere die vierte Fassung genau der Bedingung, gegen
+ * die diese Datei geschrieben ist. Der Quelltext-Scan aus §6.6 faenge sie NICHT — er sucht das
+ * WORT, und `FRIST_TEXT.heute` traegt es nicht.
+ */
+export function fristLage(
+  aufgabe: AufgabeRow,
+  heute: string,
+): { text: string; klasse: string; warnung: boolean } {
   if (istUeberfaellig(aufgabe, heute)) {
-    return (
-      <span className={s.fristUeberfaellig}>
-        <Ikone name="warnung" /> {FRIST_TEXT.ueberfaellig(tageZwischen(aufgabe.faelligAm, heute))}
-      </span>
-    );
+    return {
+      text: FRIST_TEXT.ueberfaellig(tageZwischen(aufgabe.faelligAm, heute)),
+      klasse: s.fristUeberfaellig,
+      warnung: true,
+    };
   }
 
   // `status !== "abgeschlossen"` STEHT HIER UND NICHT IN `istUeberfaellig`: eine heute faellige,
   // bereits abgeschlossene Aufgabe hat keine offene Frist mehr — „Frist heute" waere ueber sie eine
   // Aufforderung. Sie faellt auf die neutrale Form, die das Datum nennt.
   if (aufgabe.faelligAm === heute && aufgabe.status !== "abgeschlossen") {
-    return <span className={s.fristHeute}>{FRIST_TEXT.heute}</span>;
+    return { text: FRIST_TEXT.heute, klasse: s.fristHeute, warnung: false };
   }
 
-  return <span className={s.frist}>{FRIST_TEXT.frist(fmtTagKurz(aufgabe.faelligAm))}</span>;
+  return { text: FRIST_TEXT.frist(fmtTagKurz(aufgabe.faelligAm)), klasse: s.frist, warnung: false };
+}
+
+export function Frist({ aufgabe, heute }: { aufgabe: AufgabeRow; heute: string }) {
+  const { text, klasse, warnung } = fristLage(aufgabe, heute);
+  return (
+    <span className={klasse}>
+      {warnung ? (
+        <>
+          <Ikone name="warnung" />{" "}
+        </>
+      ) : null}
+      {text}
+    </span>
+  );
 }

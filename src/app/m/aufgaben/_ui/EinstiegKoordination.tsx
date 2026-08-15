@@ -1,193 +1,265 @@
 import Link from "next/link";
-import { Col, Row } from "antd";
-import { alleAufgaben, freigabeDaten, verteilDaten } from "../_db/queries";
+import {
+  aufgabenFuerPerson,
+  freigabeDaten,
+  routinenFuer,
+  verteilDaten,
+  type AuslastungZeile,
+} from "../_db/queries";
+import type { AufgabeRow } from "../_db/schema";
 import type { DB } from "../_db/client";
-import { UEBERGANG_KOORDINATION_TEXT, istUeberfaellig } from "../_lib/anzeige";
+import {
+  aufgabenInWoche,
+  fmtStunden,
+  ohnePlatzInDerAchse,
+  tagesBudget,
+  type AnlassArt,
+} from "../_lib/anzeige";
+import { fmtTagKurz } from "../_lib/datum";
+import { kartenGrunddaten } from "../_lib/kartendaten";
+import type { Lage } from "../_lib/lage";
 import { darfVerteilen, type Akteur } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
-import { AufgabenListe } from "./AufgabenListe";
-import { FreigabeZone } from "./FreigabeZone";
-import { Kachel } from "./Kachel";
+import { AnlassZone } from "./AnlassZone";
+import { Fuehrungskarte } from "./Fuehrungskarte";
 import { SeitenKopf } from "./SeitenKopf";
-import { VerteilenTabelle } from "./VerteilenDialog";
+import s from "./aufgaben.module.css";
 
 /*
- * „VERTEILUNG" — DER KOORDINATIONS-EINSTIEG (Spec §8.2, Aufgabe 14). Server Component (kein
- * "use client") — sie liest `db` direkt, wie `EinstiegBufdi.tsx`; `page.tsx` bleibt duenn.
+ * „VERTEILUNG" — DER KOORDINATIONS-EINSTIEG, NEU GEBAUT NACH DER OBERFLAECHEN-SPEC (2026-08-16
+ * §3.4, §5.2). Server Component (kein "use client").
  *
- * WAS AUF DEN EINSTIEG GEHOERT UND WAS AUF `/verteilen` — ENTSCHIEDEN, NICHT STILL UEBERGANGEN
- * (Brief verlangt genau diese Entscheidung): Spec §8.2 beschreibt den Posteingang ALS TEIL DES
- * EINSTIEGS ("Koordination (Sarah) — 'Verteilung'" ist die Ueberschrift des ganzen Abschnitts, und
- * "/" IST fuer die Koordination dieser Einstieg). Die Posteingang-Tabelle steht deshalb HIER,
- * vollstaendig, nicht nur ein Verweis auf `/verteilen`. Die Route `/verteilen` bleibt TROTZDEM
- * bestehen, mit DERSELBEN Tabelle (`_ui/VerteilenDialog.tsx`s `VerteilenTabelle`, ein einziger
- * Baustein fuer beide Seiten) — sie ist die adressierbare Route aus Spec §8's Tabelle und traegt den
- * 404-Riegel aus Spec §8.3 (wer nicht koordiniert, bekommt 404, die Koordination 200). Die KPI-Kachel „Zu
- * verteilen" verlinkt deshalb NICHT auf `/verteilen` (das waere ein Knopf, der auf eine Kopie der
- * bereits sichtbaren Tabelle zeigt), sondern auf den Anker `#posteingang` auf derselben Seite —
- * dieselbe Form wie `EinstiegBufdi.tsx`s Kachel „Einzuplanen" (`#posteingang`).
+ * WAS HIER VERSCHWUNDEN IST — UND WOHIN ES GEHT (§3.2):
  *
- * DIE FREIGABE-WARTESCHLANGE UND DIE UEBERFAELLIGKEITSLISTE STEHEN EBENFALLS INLINE: eine eigene
- * Ueberfaelligkeits-Route gibt es weiterhin nicht (Spec §8 fuehrt keine), ein Verweis dorthin waere
- * ein Knopf auf eine 404-Seite (Spec §7). Beide KPI-Kacheln verlinken deshalb auf einen Anker AUF
- * DIESER Seite (`#freigabe`, `#ueberfaellig`) — seit dem Abschlussreview (W4) gilt dasselbe fuer
- * die vierte Kachel und `#zurueckgewiesen`, s. dort. ALLE VIER Kacheln tragen damit ein Ziel,
- * sobald ihre Zahl > 0 ist; `EinstiegKoordination.test.tsx` prueft das ueber alle vier hinweg
- * statt je Kachel einzeln — genau diese Naht ist zweimal durchgerutscht.
+ *  - die vier KPI-Kacheln         -> die Kontextzeile (die Zahlen, inkl. der Nullen als WORT)
+ *  - `VerteilenTabelle` als Zone  -> die Karte bei n = 1 (Modal aus der Karte) · die Zone
+ *                                    „Zu verteilen (N)" mit Deckel bei n > 1 · `/verteilen`
+ *  - `FreigabeZone` als Zone      -> Karte bei n = 1 · Zone „Freigabe offen (N)" · `/freigaben`
+ *  - „Überfällige Aufgaben"       -> zwei getrennte Zonen (5a/5b), weil BEIDE gleichzeitig stehen
+ *                                    koennen und zwei Zonen mit derselben Ueberschrift ein
+ *                                    Anzeigefehler waeren, den kein Riegel faende (§3.5)
  *
- * DIE FREIGABE-SEKTION IST SEIT AUFGABE 16 SCHREIBFAEHIG (vorher schreibgeschuetzt, Beobachtung aus
- * Aufgabe 15s Bericht): sie zeigte bislang nur `AufgabenListe` OHNE Freigeben-/Zurueckweisen-
- * Knoepfe — die Koordination sah hier etwas, womit sie nichts tun konnte, und musste erst nach
- * `/freigaben` wechseln. `FreigabeZone` (Aufgabe 15, wiederverwendet von `EinstiegAuftrag.tsx` UND
- * `/freigaben`) haengt jetzt auch hier ein, mit `freigabeDaten(db, akteur, heute)` als LADEFUNKTION
- * — dieselbe wie bei den beiden anderen Aufrufern, KEINE eigene, hier gehaltene Fassung von
- * `freigabenFuer`/`istVertretungsfreigabe` mehr (Vorbild `verteilDaten`s Fix-Runde-1-Lehre: zwei
- * separate Ladebloecke fuer dieselbe Sache laufen auseinander, ohne dass ein Test es sieht).
+ * DIE DOPPELUNG WAR REAL, DIE STREICHRICHTUNG WAR ES NICHT (§3.1): `/verteilen` und `/freigaben`
+ * rendern DIESELBE Komponente aus DERSELBEN Ladefunktion wie dieser Einstieg — es waren nie zwei
+ * Fassungen, sondern EINE an zwei Orten. Was entfaellt, ist die Kopie im Einstieg, nicht die Route.
+ * Beide tragen ausserdem 404-Gegenproben, die es ohne sie nicht mehr gaebe.
  *
- * DIE DREI „UEBERFAELLIG"-ZEICHENKETTEN KOMMEN SEIT DER OBERFLAECHEN-SPEC AUS `_lib/anzeige.ts`
- * (`UEBERGANG_KOORDINATION_TEXT`) — der Quelltext-Scan in `_ui/Frist.test.tsx` laesst das Wort im
- * ganzen Modul nur in `_ui/Frist.tsx` und `_lib/anzeige.ts` zu (§6.6). Die drei Stellen hier
- * (KPI-Kachel, Abschnittsueberschrift, Leertext) STERBEN mit §11.4 Schritt 4/5, wenn die
- * Fuehrungskarte die KPI-Zeile ersetzt und die Ueberfaelligkeitsliste in die beiden Zonen
- * „Ueberfaellig, noch nicht begonnen" und „Ueberfaellig, in Bearbeitung" zerfaellt; bis dahin lesen
- * sie ihren Wortlaut von dort. GENAU DESHALB legt §11.4 den Scan (Schritt 2) NACH die Beschriftung
- * (Schritt 1) — ohne sie waere er hier am ersten Tag rot.
- *
- * `verteilDaten(db, heute)` (`_db/queries.ts`, Fix-Runde 1) IST DIE EINE LADEFUNKTION FUER DEN
- * POSTEINGANG — `verteilen/page.tsx` ruft SIE, NICHT eine zweite Fassung desselben Ladeblocks. Vor
- * dieser Aenderung riefen beide Seiten `bufdis(db, heute)`/`wochenAuslastungFuerBufdis`/`namenMap`
- * je EINZELN auf; ein Review deckte auf, dass ein Austausch von `bufdis()` gegen `aktivePersonen()`
- * genau HIER (der Seite, die die Koordination TAEGLICH benutzt) von keinem Test gesehen worden
- * waere. Mit einer gemeinsamen Funktion kann die Zielliste zwischen `/` und `/verteilen` nicht mehr
- * auseinanderlaufen.
+ * DIE FLAECHE DER ROLLE IST NICHT DER POSTEINGANG, SONDERN „DIE WOCHE DER DREI" (§5.2). Der Grund
+ * ist genau einer: die Auslastungszahlen existieren heute nur INNERHALB des Verteilen-Dialogs —
+ * also erst, nachdem man sich entschieden hat, ihn zu oeffnen. Vor dieser Entscheidung steht die
+ * Zahl nirgends. Es entsteht dabei KEINE zweite Rechnung: `wochenAuslastungFuerBufdis` summiert
+ * `tagesBudget` ueber die fuenf Tage, Routinen eingeschlossen — belegte Zeit, die eine Auslastung
+ * ohne sie unterschluege.
  */
 export function EinstiegKoordination({
   db,
   akteur,
   heute,
+  lage,
 }: {
   db: DB;
   akteur: Akteur;
   heute: string;
+  /** Der Zustands-Selektor, EINMAL in `page.tsx` gerufen (§4.1). */
+  lage: Lage;
 }) {
-  const { posteingang: zuVerteilenListe, erstellerNamen, bufdis: bufdisListe, auslastung, tage } =
-    verteilDaten(db, heute);
+  // `verteilDaten` IST DIE EINE LADEFUNKTION FUER DEN POSTEINGANG — `verteilen/page.tsx` ruft SIE,
+  // nicht eine zweite Fassung desselben Ladeblocks. Ohne sie waere ein Austausch von `bufdis()`
+  // gegen `aktivePersonen()` genau HIER von keinem Test gesehen worden.
+  const { bufdis: bufdisListe, auslastung, tage } = verteilDaten(db, heute);
+  // NUR DIE VERTRETUNGSHAELFTE WIRD HIER GEBRAUCHT: die ZAHLEN der Kontextzeile rechnet
+  // `lage()` (§3.5), die Zeilen selbst stehen als Zone. Was bleibt, ist die Frage „welche dieser
+  // Freigaben pruefe ich in Vertretung" — sie traegt den Klammerzusatz und den Zeilenzusatz.
+  const { vertretung: vertretungFreigabe } = freigabeDaten(db, akteur, heute);
+  const grund = kartenGrunddaten(db, akteur, heute, lage);
 
-  // DIE UEBERFAELLIGKEITS- UND ZURUECKGEWIESEN-ZAHLEN SIND SYSTEMWEIT (alle Aufgaben, nicht nur die
-  // eigenen) — die Koordination ist die einzige Rolle mit diesem Ueberblick (Spec §8.2).
-  const alle = alleAufgaben(db);
-  const ueberfaelligListe = alle.filter((a) => istUeberfaellig(a, heute));
-  const zurueckgewiesenListe = alle.filter((a) => a.status === "zurueckgewiesen");
-
-  // `freigabeDaten` (`_db/queries.ts`, Aufgabe 15) IST DIE EINE LADEFUNKTION FUER DIE
-  // FREIGABE-WARTESCHLANGE — dieselbe, die `_ui/EinstiegAuftrag.tsx` UND `freigaben/page.tsx`
-  // aufrufen. Sie wendet `darfFreigeben`/`istVertretungsfreigabe` bereits an; diese Datei baut
-  // beides nicht mehr nach.
-  const { meine: meineFreigabe, vertretung: vertretungFreigabe } = freigabeDaten(db, akteur, heute);
-  const freigabeAnzahl = meineFreigabe.length + vertretungFreigabe.length;
-
-  const kontext = `${zuVerteilenListe.length} zu verteilen · ${freigabeAnzahl} warten auf Freigabe.`;
+  const darfVert = darfVerteilen(akteur, heute);
 
   return (
     <>
-      <SeitenKopf brotkrume={[{ label: "Aufgaben" }]} titel="Verteilung" kontext={kontext} />
+      <SeitenKopf
+        brotkrume={[{ label: "Aufgaben" }]}
+        titel="Verteilung"
+        kontext={lage.kontext}
+        aktionen={
+          // TEXTKNOPF IM SEITENKOPF, ALSO AUSSERHALB DES WRAPPERS (§3.3, §5.2) — der Zaehlriegel
+          // misst `aufgaben-flaeche`, und „Aufgabe einstellen" ist kein Zustandswechsel an dem,
+          // was die Karte nennt (Regel P).
+          <Link href="/neu">Aufgabe einstellen</Link>
+        }
+      />
 
-      <Row gutter={[SPACE.sm, SPACE.sm]} style={{ marginBlockEnd: SPACE.xl }}>
-        <Col xs={12} md={6}>
-          <Kachel
-            zahl={zuVerteilenListe.length}
-            beschriftung="Zu verteilen"
-            href={zuVerteilenListe.length > 0 ? "#posteingang" : undefined}
-          />
-        </Col>
-        <Col xs={12} md={6}>
-          <Kachel
-            zahl={freigabeAnzahl}
-            beschriftung="Freigabe offen"
-            ton="ocker"
-            href={freigabeAnzahl > 0 ? "#freigabe" : undefined}
-          />
-        </Col>
-        <Col xs={12} md={6}>
-          <Kachel
-            zahl={ueberfaelligListe.length}
-            beschriftung={UEBERGANG_KOORDINATION_TEXT.kachelUeberfaellig}
-            ton="achtung"
-            href={ueberfaelligListe.length > 0 ? "#ueberfaellig" : undefined}
-          />
-        </Col>
-        <Col xs={12} md={6}>
-          <Kachel
-            zahl={zurueckgewiesenListe.length}
-            beschriftung="Zurückgewiesen"
-            ton="achtung"
-            href={zurueckgewiesenListe.length > 0 ? "#zurueckgewiesen" : undefined}
-          />
-        </Col>
-      </Row>
-
-      <section id="posteingang" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Posteingang</h2>
-        <VerteilenTabelle
-          posteingang={zuVerteilenListe}
-          erstellerNamen={erstellerNamen}
-          bufdis={bufdisListe}
-          auslastung={auslastung}
-          tage={tage}
+      <div data-testid="aufgaben-flaeche">
+        <Fuehrungskarte
+          lage={lage}
           heute={heute}
-          darfVerteilen={darfVerteilen(akteur, heute)}
+          eigenePersonId={akteur.person.id}
+          // DIE ZIELLISTE KOMMT AUS `bufdis()`, NICHT AUS `aktivePersonen()` — eine ausgeschiedene
+          // Person ist KEIN Verteilziel, und dieser Riegel bleibt woertlich (§11.3).
+          verteilen={darfVert ? { bufdis: bufdisListe, auslastung, tage } : null}
+          vertretungAnzahl={vertretungFreigabe.length}
+          morgen={null}
+          {...grund}
         />
-      </section>
 
-      <section id="freigabe" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Freigabe-Warteschlange</h2>
-        <FreigabeZone meine={meineFreigabe} vertretung={vertretungFreigabe} heute={heute} />
-      </section>
+        {/* ── 3 · DIE FLAECHE DER ROLLE: „Die Woche der drei" — immer da, auch leer (R2) ── */}
+        <WocheDerDrei db={db} auslastung={auslastung} tage={tage} />
 
-      <section id="ueberfaellig" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>
-          {UEBERGANG_KOORDINATION_TEXT.abschnittUeberfaellig}
-        </h2>
-        <AufgabenListe
-          zeilen={ueberfaelligListe.map((a) => ({ aufgabe: a }))}
-          heute={heute}
-          leerText={UEBERGANG_KOORDINATION_TEXT.leerUeberfaellig}
-        />
-      </section>
+        {/* ── 4 · DIE UEBRIGEN ANLAESSE ALS ZONEN, IN RANGFOLGE (Regel R3) ── */}
+        {lage.zonen.map((zone) => (
+          <AnlassZone
+            key={zone.art}
+            anlass={zone}
+            heute={heute}
+            eigenePersonId={akteur.person.id}
+            zusaetze={Object.fromEntries(
+              zone.zeilen.map(
+                (a) =>
+                  [a.id, koordZusatz(zone.art, a, grund.namen, vertretungFreigabe.map((z) => z.aufgabe.id))] as const,
+              ),
+            )}
+            // DAS DECKELZIEL VON `koordFreigabeOffen` HAENGT AN `darfFreigabenSehen` (§3.5): ein
+            // Auftraggeber ohne Koordination bekommt auf `/freigaben` 404 — ein Deckel dorthin
+            // waere ein Knopf auf eine 404-Seite.
+            deckelErlaubt={zone.art !== "koordFreigabeOffen" || grund.darfFreigabenSehen}
+          />
+        ))}
 
-      {/*
-       * DIE VIERTE KACHEL BEKOMMT IHR ZIEL (Abschlussreview W4) — bis dahin sah die Koordination
-       * auf ihrer taeglichen Einstiegsseite eine Zahl zurueckgewiesener Aufgaben und hatte KEINEN
-       * Weg zu ihnen: kein `href`, und `zurueckgewiesenListe` wurde im ganzen Modul nur fuer die
-       * Zahl selbst verwendet. Die Aufschiebung aus Aufgabe 13 war richtig ("ein Knopf auf eine
-       * 404-Seite waere schlechter als keiner"), nur wurde sie fuer diese eine Rolle nie
-       * aufgeloest — `EinstiegBufdi.tsx` hat es in Aufgabe 16 fuer beide seiner Kacheln getan.
-       *
-       * DIESELBE FORM WIE DORT: ein Anker AUF DIESER Seite, kein Verweis auf `/archiv` (das zeigt
-       * nur `abgeschlossene`) und keine erfundene gefilterte Route. SCHREIBGESCHUETZT aus
-       * demselben Grund wie in `EinstiegBufdi.tsx`: die Aktion hat mit `/a/<id>`s Aktionszone
-       * bereits einen Ort, ein zweiter Knopf hier waere dieselbe Aktion an zwei Stellen gehalten.
-       */}
-      <section id="zurueckgewiesen" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Zurückgewiesen</h2>
-        <AufgabenListe
-          zeilen={zurueckgewiesenListe.map((a) => ({ aufgabe: a }))}
-          heute={heute}
-          leerText="Keine zurückgewiesene Aufgabe."
-        />
-      </section>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
-        <Link href="/personen">Personenverwaltung</Link>
-        {/*
-         * ARCHIV (Aufgabe 16): jetzt ein echter Fusszeilen-Verweis, kein Verweis mehr ins Leere.
-         * Die Ueberfaelligkeitsliste braucht trotzdem KEINEN eigenen zweiten Verweis: sie steht
-         * bereits vollstaendig oben, ueber die KPI-Kachel „Ueberfaellig" erreichbar — `/archiv`
-         * zeigt ohnehin nur `abgeschlossene`, nicht ueberfaellige Aufgaben.
-         */}
-        <Link href="/archiv">Archiv</Link>
+        {/* ── 5 · FUSS ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
+          <Link href="/personen">Personenverwaltung</Link>
+          <Link href="/archiv">Archiv</Link>
+        </div>
       </div>
     </>
   );
+}
+
+/**
+ * „DIE WOCHE DER DREI" (§5.2) — EINE ZEILE JE PERSON MIT DEM WOCHENWERT, auch auf 360px
+ * vollstaendig. Das kostet KEINE Medienabfrage: `.lageGitter` benutzt dieselbe
+ * `auto-fit`-Formel wie `.wochenGitter` und liefert bei 360px eine Spalte. Wer unterwegs zuweisen
+ * soll, braucht die Wochenlast; eine Ansicht, die auf dem Telefon nur einen Tag zeigt, waere bei
+ * „gleichrangigem Telefon und Rechner" ein Rollenausfall, kein Komfortverlust.
+ *
+ * `<section aria-labelledby>` UND `data-person` JE PERSON (§1.3): sobald diese Zone je Person mehr
+ * als eine Zahl zeigt — und sie zeigt vier —, ist das die Adressierung, die `data-rolle` allein
+ * nicht leisten kann. Kostet nichts und macht die Zone fuer Screenreader bedienbar.
+ *
+ * ES ENTSTEHT KEINE ZWEITE RECHNUNG: die Wochensumme kommt aus `wochenAuslastungFuerBufdis`
+ * (ueber `verteilDaten`), der ueberbuchte Tag aus demselben `tagesBudget`, das auch die
+ * Tagesspalten der BuFDi-Achse fuellt.
+ */
+function WocheDerDrei({
+  db,
+  auslastung,
+  tage,
+}: {
+  db: DB;
+  auslastung: AuslastungZeile[];
+  tage: readonly string[];
+}) {
+  return (
+    <section style={{ marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.xl }}>
+      <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Die Woche der drei</h2>
+      {auslastung.length === 0 ? (
+        <p>
+          Es ist noch keine BuFDi eingetragen. <Link href="/personen">Personenverwaltung</Link>
+        </p>
+      ) : (
+        <div className={s.lageGitter}>
+          {auslastung.map((zeile) => (
+            <PersonenLage key={zeile.person.id} db={db} zeile={zeile} tage={tage} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PersonenLage({
+  db,
+  zeile,
+  tage,
+}: {
+  db: DB;
+  zeile: AuslastungZeile;
+  tage: readonly string[];
+}) {
+  const person = zeile.person;
+  const aufgabenDerPerson = aufgabenFuerPerson(db, person.id);
+  const routinenDerPerson = routinenFuer(db, person.id);
+  const ueberbucht = tage
+    .map((tag) => ({ tag, budget: tagesBudget(aufgabenDerPerson, routinenDerPerson, person, tag) }))
+    .filter((t) => t.budget.ueberbucht);
+  const ausserhalb = aufgabenDerPerson.filter((a) => ohnePlatzInDerAchse(a, tage));
+
+  return (
+    <section
+      aria-labelledby={`lage-${person.id}`}
+      data-person={person.id}
+      className={s.tagSpalte}
+    >
+      <h3 id={`lage-${person.id}`} className={s.tagKopf} style={{ margin: 0 }}>
+        {person.name}
+      </h3>
+      <p className={s.budget} style={{ margin: `${SPACE.xs}px 0 0` }}>
+        {fmtStunden(zeile.verplantMinuten)} / {fmtStunden(zeile.sollMinuten)} Std.
+      </p>
+      <p style={{ ...SCHRIFT.neben, margin: `${SPACE.xs}px 0 0` }}>
+        {aufgabenInWoche(aufgabenDerPerson, tage)} Aufgaben
+      </p>
+      {/*
+       * AUSLASTUNG IST NEUTRAL/GRAPHIT, NIE STATUSFARBE (Modulspec §9.3) — `.budgetUeberbucht`
+       * traegt Kante PLUS Wort, keinen roten Balken. Die Bedeutung kommt nie aus der Kante allein.
+       */}
+      {ueberbucht.length === 0 ? (
+        <p style={{ ...SCHRIFT.neben, margin: `${SPACE.xs}px 0 0` }}>kein Tag überbucht</p>
+      ) : (
+        ueberbucht.map(({ tag, budget }) => (
+          <p
+            key={tag}
+            className={`${s.budget} ${s.budgetUeberbucht}`}
+            style={{ margin: `${SPACE.xs}px 0 0` }}
+          >
+            {fmtTagKurz(tag)} überbucht: {fmtStunden(budget.verplantMinuten)} /{" "}
+            {fmtStunden(budget.sollMinuten)} Std.
+          </p>
+        ))
+      )}
+      {ausserhalb.length > 0 ? (
+        <p style={{ ...SCHRIFT.neben, margin: `${SPACE.xs}px 0 0` }}>
+          {ausserhalb.length} außerhalb dieser Woche
+        </p>
+      ) : null}
+      <p style={{ margin: `${SPACE.sm}px 0 0` }}>
+        <Link href={`/plan/${person.id}`}>Zeitplan ansehen</Link>
+      </p>
+    </section>
+  );
+}
+
+/**
+ * DER ROLLENZUSATZ EINER KOORDINATIONSZEILE (§3.6, §10 Prueffrage 7) — GENAU EINE Angabe je Zeile,
+ * als STRING in dieser Server Component gebildet (nie eine Funktion, Falle 9). Welche Angabe das
+ * ist, haengt am Anlass: der Posteingang nennt den Auftraggeber, alles Zugewiesene den Traeger,
+ * und die Freigabe zusaetzlich, ob sie in Vertretung gepruft wird — das ist die eine Auskunft, die
+ * `/freigaben` sonst als einziger Ort traegt.
+ */
+function koordZusatz(
+  art: AnlassArt,
+  a: AufgabeRow,
+  namen: Record<string, string>,
+  vertretungIds: readonly string[],
+): string | null {
+  if (art === "koordPosteingang" || art === "koordPosteingangUeberfaellig") {
+    return `Von ${namen[a.erstellerId] ?? "—"}`;
+  }
+  if (a.zugewiesenAn === null) return null;
+  const name = namen[a.zugewiesenAn] ?? "—";
+  if (art === "koordFreigabeOffen" && vertretungIds.includes(a.id)) {
+    return `${name} · in Vertretung für ${namen[a.prueferId ?? ""] ?? "—"}`;
+  }
+  return name;
 }

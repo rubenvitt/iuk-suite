@@ -400,6 +400,64 @@
 }
 
 /*
+ * DIE FUEHRUNGSKARTE (Oberflaechen-Spec 2026-08-16 §3.4, §6.5) — EIGENES MARKUP, KEIN antd-`Card`
+ * UND KEIN `Alert` (§9/S5). Das ist keine Stilfrage, sondern der Ausschluss einer stillen
+ * Kollision: `.fuehrung { padding: 24px }` und `.ant-card-body` sind beide (0,1,0), antds
+ * Stylesheet laedt spaeter und gewaenne durch Dokumentreihenfolge (Falle 5) — kein Tor saehe das.
+ * Ohne antd-Komponente gibt es keinen Gegenspieler. Ein `Alert type="error"` waere zusaetzlich
+ * Suite-Rot auf einer Datenflaeche (Falle 3). `_ui/Fuehrungskarte.test.tsx` scannt genau darauf.
+ *
+ * KEINE TOENUNG, KEINE FARBIGE KANTE (§3.4, §6.4): das Modul gibt Farbe bereits fuer sechs
+ * Zustandstoene und drei Prioritaetsgewichte aus; ein siebter Ton „hier ist die Fuehrung" waere
+ * eine Bedeutung zu viel auf einem vollen Kanal. Die Karte ist an DREI NICHT-FARBIGEN Merkmalen
+ * erkennbar: 24px Innenpolster (die Tagesspalten haben 12), Kicker in Versalien plus Ueberschrift
+ * in `SCHRIFT.unterTitel`, und als einzige Flaeche ein Primaerknopf.
+ *
+ * DIE FLAECHE IST DIESELBE WIE DIE DER TAGESSPALTE (`--auf-papier`/`--auf-linie`/8px) — es kommt
+ * KEINE neue `--auf-*`-Variable dazu und kein Wert aendert sich (§6.5). Damit bleibt e2e-Test 59
+ * (exakter `--auf-tinte`-Hexwert im Dunkelmodus) unberuehrt, und die Paaritaetspruefung in
+ * `aufgaben-css.test.ts` sieht nichts Neues.
+ */
+.fuehrung {
+  background: var(--auf-papier);
+  border: 1px solid var(--auf-linie);
+  border-radius: 8px;
+  padding: 24px;
+}
+.fuehrungKicker {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--auf-stahl);
+}
+/*
+ * „DIE WOCHE DER DREI" (§5.2) — eine Spalte je Person, OHNE eigene Medienabfrage: `auto-fit`
+ * liefert bei 360px eine Spalte, dieselbe Formel, die `.wochenGitter` schon benutzt. Wer unterwegs
+ * zuweisen soll, braucht die Wochenlast; eine Ansicht, die auf dem Telefon nur einen Tag zeigt,
+ * waere bei „gleichrangigem Telefon und Rechner" ein Rollenausfall, kein Komfortverlust.
+ */
+.lageGitter {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+}
+/*
+ * DIE ZEILENFORM DES GANZEN MODULS (`_ui/AufgabenZeile.tsx`, §3.6, §5.3). SIE STEHT HIER UND NICHT
+ * INLINE AN DER ZEILE, und das ist der Punkt: ein Inline-`style` schlaegt JEDE Regel eines
+ * Stylesheets, auch die aus einer Medienabfrage — die Kartenform unter 768px („vier Bloecke mit
+ * Trennlinie statt zwei umgebrochener Zeilen") waere mit einem inline gesetzten `display: flex`
+ * strukturell nicht erreichbar. Der Unterschied zwischen beiden Auspraegungen ist genau ein
+ * `flex-direction: column` unten.
+ */
+.zeilenListe > li {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/*
  * TAGESORDNUNG. `.ankerSpur` fuehrt die Zeitanker-Spur einer Tagesspalte,
  * `.ohneAnker` markiert Aufgaben ohne Zeitanker (gestrichelt statt farbig —
  * das Fehlen eines Ankers ist kein Fehlerzustand).
@@ -504,5 +562,18 @@
    */
   .modul .knopfzeile > * {
     width: 100%;
+  }
+  /*
+   * GENAU ZWEI NEUE REGELN, UND DIE LISTE IST ABSCHLIESSEND (§6.5): 24px Rand sind auf 360px zu
+   * viel, und die Zeilen brauchen unter 768px die Kartenform (§5.3). Die Knoepfe der Karte
+   * brauchen KEINE eigene Regel — sie stehen in `.knopfzeile`, und die Regel darueber greift
+   * schon; eine `.fuehrung`-spezialisierte Zweitfassung waere der Anfang der Spezifitaetsspirale
+   * aus Falle 5 (und die CSS-Pruefung sucht genau diesen Selektor).
+   */
+  .fuehrung {
+    padding: 16px;
+  }
+  .zeilenListe > li {
+    flex-direction: column;
   }
 }

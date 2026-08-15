@@ -1,12 +1,31 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, aufgaben, type PersonRow, type Rolle } from "../_db/schema";
+import { montagDerWoche, wochenTage } from "../_lib/datum";
+import { lage } from "../_lib/lage";
 import type { Akteur } from "../_lib/zugang";
-import s from "./aufgaben.module.css";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const { EinstiegKoordination } = await import("./EinstiegKoordination");
+
+/*
+ * „VERTEILUNG" NACH DER OBERFLAECHEN-SPEC (2026-08-16 §3.4, §5.2).
+ *
+ * DIE KACHEL-FAELLE SIND MIT DEN KACHELN ENTFALLEN (§11.1) — „0-Kacheln bleiben stehen" und „jede
+ * Kachel mit Zahl > 0 traegt ein Ziel" pruefen eine Bauform, die §1.4 aufhebt. An ihre Stelle
+ * tritt die staerkere Zusage aus `lage.test.ts`; hier bleibt, was nur ueber das gerenderte DOM
+ * pruefbar ist.
+ *
+ * `lage()` WIRD ECHT GERUFEN, wie `page.tsx` es tut — ein Test gegen ein handgereichtes
+ * `Lage`-Objekt pruefte die Verdrahtung nicht, sondern setzte sie voraus.
+ */
 
 let t: TestDb;
 beforeEach(() => {
@@ -18,6 +37,7 @@ afterEach(async () => {
 });
 
 const HEUTE = "2026-08-13";
+const TAGE = wochenTage(montagDerWoche(HEUTE));
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -51,277 +71,225 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
     .get();
 }
 
-function kpiZahlen(): (string | null | undefined)[] {
-  return queryAll(`.${s.kpi}`).map((k) => k.querySelector("span")?.textContent);
-}
-
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
- * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
- * damit auf einer ANDEREN Achse als `rolle` — eine Ableitung aus der Zeile ginge gar nicht mehr,
- * `ROLLEN` kennt `koordination` nicht mehr. Rike traegt deshalb `auftrag` in der Tabelle und wird
- * hier durchgehend als `akteur(rike, true)` gereicht — DIESE Seite IST der Koordinationseinstieg,
- * und die Sitzungsperson koordiniert darauf immer. Nicht jede einzelne Zusage unten HAENGT an dem
- * `true` (die Leerzustands- und Verweistests kaemen auch ohne Gruppe zum selben Ergebnis); die
- * tragenden tun es: `freigabeDaten` liest `istKoordination` fuer die Vertretungsliste, und
- * `darfVerteilen` gibt die Posteingang-Tabelle nur damit frei (`EinstiegKoordination.tsx`).
+ * `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF (Quellenwechsel 2026-08-15): die Koordination
+ * kommt aus der Auth-Gruppe und liegt auf einer ANDEREN Achse als `rolle`. Rike traegt deshalb
+ * `auftrag` in der Tabelle und wird hier durchgehend als koordinierend gereicht — DIESE Seite IST
+ * der Koordinationseinstieg.
  */
-function akteur(p: PersonRow, istKoordination = false): Akteur {
+function akteur(p: PersonRow, istKoordination = true): Akteur {
   return { person: p, istKoordination };
 }
 
-describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlange, Ueberfaelligkeit", () => {
-  /**
-   * FIX-RUNDE 1, IMPORTANT 3: die vier Fixturzahlen sind ABSICHTLICH VERSCHIEDEN (2/3/1/4), nicht
-   * mehr drei gleiche Werte — sonst kann eine Vertauschung zwischen „Freigabe offen", „Überfällig"
-   * und „Zurückgewiesen" nicht rot werden. Zusaetzlich werden jetzt ALLE Listen, die eine Kachel
-   * traegt, im SELBEN Mount gegen ihre Kachelzahl gehalten (Posteingang-Tabelle, beide
-   * Freigabe-Listen, Ueberfaelligkeitsliste) — nicht nur die Ueberfaelligkeitsliste wie zuvor.
-   */
-  it("die KPI-Zahlen stimmen mit den Listen darunter ueberein — Frist zaehlt, nicht der Zeitplan", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
+async function zeige(p: PersonRow, istKoordination = true): Promise<void> {
+  const a = akteur(p, istKoordination);
+  await mount(
+    <EinstiegKoordination db={t.db} akteur={a} heute={HEUTE} lage={lage(t.db, a, HEUTE, TAGE)} />,
+  );
+}
 
-    // Zu verteilen: ZWEI Aufgaben im Posteingang.
-    legeAufgabe({ titel: "Posteingang 1", erstellerId: malte.id, status: "eingegangen" });
-    legeAufgabe({ titel: "Posteingang 2", erstellerId: malte.id, status: "eingegangen" });
+function flaeche(): HTMLElement {
+  return query("[data-testid='aufgaben-flaeche']");
+}
 
-    // UEBERFAELLIG, TROTZ PLANDATUM IN DER ZUKUNFT: die Frist zaehlt, nicht der Zeitplan (Spec
-    // §8.2, Brief). faelligAm liegt VOR heute, planDatum NACH heute. EINE Aufgabe.
-    legeAufgabe({
-      titel: "Ueberfaellig trotz Planung",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      faelligAm: "2026-08-12",
-      planDatum: "2026-08-14",
-    });
-    // NICHT UEBERFAELLIG: ungeplant, aber Frist liegt in der Zukunft.
-    legeAufgabe({
-      titel: "Ungeplant, aber nicht ueberfaellig",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      faelligAm: "2026-08-20",
-      planDatum: null,
-    });
-
-    // Freigabe offen: DREI Aufgaben — zwei "meine" (Rike ist Pruefer), eine "in Vertretung"
-    // (Malte ist Pruefer, Rike sieht sie trotzdem, weil sie koordiniert).
-    legeAufgabe({
-      titel: "Meine Freigabe 1",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: rike.id,
-      status: "freigabe_offen",
-    });
-    legeAufgabe({
-      titel: "Meine Freigabe 2",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: rike.id,
-      status: "freigabe_offen",
-    });
-    legeAufgabe({
-      titel: "Vertretungsfall",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "freigabe_offen",
-    });
-
-    // Zurueckgewiesen: VIER Aufgaben.
-    for (let i = 1; i <= 4; i++) {
-      legeAufgabe({
-        titel: `Zurueckgewiesen ${i}`,
-        erstellerId: malte.id,
-        zugewiesenAn: alina.id,
-        prueferId: malte.id,
-        status: "zurueckgewiesen",
-      });
-    }
-
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-
-    expect(kpiZahlen()).toEqual(["2", "3", "1", "4"]);
-
-    // Posteingang-Tabelle: GENAU die zwei Zeilen der Kachel "Zu verteilen".
-    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
-
-    // Freigabe-Listen: zwei "meine" plus eine "in Vertretung" — zusammen die DREI der Kachel.
-    const freigabeListen = query("#freigabe").querySelectorAll("ul");
-    expect(freigabeListen[0]!.querySelectorAll("li")).toHaveLength(2);
-    expect(freigabeListen[1]!.querySelectorAll("li")).toHaveLength(1);
-
-    // DIESELBE ZAHL, DIESELBE LISTE, IM SELBEN RENDER: die Ueberfaelligkeitsliste enthaelt GENAU
-    // die eine Aufgabe mit verstrichener Frist, nicht die ungeplante mit Frist in der Zukunft.
-    const ueberfaelligZeilen = queryAll("#ueberfaellig li");
-    expect(ueberfaelligZeilen).toHaveLength(1);
-    expect(ueberfaelligZeilen[0]!.textContent).toContain("Ueberfaellig trotz Planung");
-    expect(ueberfaelligZeilen[0]!.textContent).not.toContain("Ungeplant, aber nicht ueberfaellig");
-
-    // DIE VIERTE LISTE, SEIT W4 VORHANDEN — dieselbe Regel wie fuer die drei darueber: die Zahl
-    // der Kachel und die Liste darunter kommen aus derselben Ableitung, im selben Render.
-    expect(queryAll("#zurueckgewiesen li")).toHaveLength(4);
+describe("EinstiegKoordination — der Aufbau aus §3.4", () => {
+  it("die Fuehrungskarte ist das ERSTE Kind von `aufgaben-flaeche`", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    legeAufgabe({ erstellerId: rike.id, titel: "Posteingang" });
+    await zeige(rike);
+    expect(flaeche().firstElementChild?.getAttribute("data-rolle")).toBe("fuehrung");
   });
 
   /**
-   * FIX-RUNDE 1, MINOR 1: „Meine Freigabe" traegt jetzt `erstellerId: malte`, NICHT mehr
-   * `erstellerId: rike` — vorher koppelten beide Fixturzeilen `erstellerId` an `prueferId`
-   * (`erstellerId === prueferId` fuer „meine", `erstellerId === prueferId` fuer „Vertretung"), und
-   * eine falsche Implementierung ueber `a.erstellerId !== person.id` statt
-   * `istVertretungsfreigabe` haette den Test unveraendert bestanden. Jetzt bindet nur noch
-   * `prueferId`.
+   * DER ZAEHLRIEGEL — gemessen im Wrapper und nicht in `main`. Die Lage unten ist bewusst voll:
+   * Posteingang, Freigabe, Ueberfaelliges und Zurueckgewiesenes gleichzeitig. Genau eine Sprosse
+   * fuehrt, die uebrigen werden Zonen — und Zonen tragen keine Primaerknoepfe.
    */
-  it("die Freigabe-Warteschlange trennt „meine“ von „in Vertretung“", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
-
-    // MEINE: Rike ist die eingetragene Pruefer — ABER NICHT die Erstellerin (entkoppelt von
-    // `erstellerId`, s. Kopfkommentar).
+  it("traegt in der ganzen Flaeche hoechstens einen `.ant-btn-primary`", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Posteingang" });
     legeAufgabe({
-      titel: "Meine Freigabe",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: rike.id,
-      status: "freigabe_offen",
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: rike.id,
+      titel: "Freigabe", status: "freigabe_offen",
     });
-    // IN VERTRETUNG: Malte ist der eingetragene Pruefer, Rike sieht sie trotzdem (Vertretung).
     legeAufgabe({
-      titel: "Vertretungsfall",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "freigabe_offen",
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Überfällig", status: "verteilt", faelligAm: "2026-08-01",
     });
-
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-
-    const abschnitt = query("#freigabe");
-    const ueberschriften = Array.from(abschnitt.querySelectorAll("h3")).map((h) => h.textContent);
-    expect(ueberschriften).toEqual(["Meine", "In Vertretung"]);
-
-    const listen = abschnitt.querySelectorAll("ul");
-    expect(listen[0]!.textContent).toContain("Meine Freigabe");
-    expect(listen[0]!.textContent).not.toContain("Vertretungsfall");
-    expect(listen[1]!.textContent).toContain("Vertretungsfall");
-    expect(listen[1]!.textContent).not.toContain("Meine Freigabe");
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Zurück", status: "zurueckgewiesen",
+    });
+    await zeige(rike);
+    expect(flaeche().querySelectorAll(".ant-btn-primary").length).toBeLessThanOrEqual(1);
   });
 
-  it("Leerzustaende: jede der vier Listen traegt ihren eigenen ausgeschriebenen Satz", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-    expect(document.body.textContent).toContain("Posteingang leer — alles verteilt");
-    expect(document.body.textContent).toContain("Keine Freigabe offen");
-    expect(document.body.textContent).toContain("Keine Freigabe in Vertretung offen");
-    expect(document.body.textContent).toContain("Keine überfälligen Aufgaben");
-    expect(document.body.textContent).toContain("Keine zurückgewiesene Aufgabe.");
+  /**
+   * DER TEXTKNOPF DES SEITENKOPFS STEHT AUSSERHALB DES WRAPPERS (§3.3, §9/S9) — der Zaehlriegel
+   * faende ihn gar nicht, und genau deshalb ist seine Demotion mit einer ANDEREN Begruendung
+   * belegt als die des „Annehmen"-Knopfs: „hoechstens ein Primaerknopf" gilt fuer die GANZE Seite.
+   *
+   * DER RUHEFALL IST BEWUSST AUSGESCHLOSSEN: dort traegt die Karte SELBST „Aufgabe einstellen" als
+   * ihren Primaerknopf (§4.3) — mit einer leeren Datenbank pruefte dieser Test also das Gegenteil
+   * dessen, was sein Name sagt.
+   */
+  it("„Aufgabe einstellen“ steht im Seitenkopf und dort als Textknopf, nicht als Primaerknopf", async () => {
+    const rike = legePerson("rike", "auftrag");
+    legeAufgabe({ erstellerId: rike.id });
+    await zeige(rike);
+    const neu = queryAll<HTMLAnchorElement>("a").filter((a) => a.getAttribute("href") === "/neu");
+    expect(neu).toHaveLength(1);
+    expect(neu[0]!.className).not.toContain("ant-btn-primary");
+    expect(flaeche().contains(neu[0]!)).toBe(false);
   });
 
-  it("0-Kacheln bleiben stehen und sind nicht verlinkt (kein <a>)", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-    const kacheln = queryAll(`.${s.kpi}`);
-    expect(kacheln).toHaveLength(4);
-    for (const kachel of kacheln) {
-      expect(kachel.closest("a"), kachel.textContent ?? "").toBeNull();
+  /** Die Kontextzeile traegt die Zahlen der gestrichenen Kacheln — die Null als WORT (§3.5). */
+  it("die Kontextzeile nennt alle vier Kennzahlen und schreibt die Null als Wort", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({ erstellerId: malte.id });
+    await zeige(rike);
+    const zeile = queryAll("p")
+      .map((p) => p.textContent ?? "")
+      .find((z) => z.includes("zu verteilen"));
+    expect(zeile).toBe(
+      "1 zu verteilen · nichts wartet auf Freigabe · nichts überfällig · nichts zurückgewiesen",
+    );
+  });
+});
+
+describe("EinstiegKoordination — „Die Woche der drei“ (Flaeche der Rolle, §5.2)", () => {
+  /**
+   * DIE ZAHL MUSS VOR DER ENTSCHEIDUNG SICHTBAR SEIN, ein Modal ueberhaupt zu oeffnen (§5.2/S10) —
+   * bis hierhin existierte die Auslastung nur INNERHALB des Verteilen-Dialogs.
+   */
+  it("zeigt je aktiver BuFDi eine adressierbare Zeile mit Wochenwert und Zeitplan-Verweis", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    const bendix = legePerson("bendix", "bufdi", { name: "Bendix" });
+    legePerson("doerte", "bufdi", { name: "Dörte", aktivBis: "2026-01-31" });
+    await zeige(rike);
+
+    const personen = queryAll("[data-person]");
+    expect(personen.map((p) => p.getAttribute("data-person")).sort()).toEqual(
+      [alina.id, bendix.id].sort(),
+    );
+    for (const abschnitt of personen) {
+      expect(abschnitt.getAttribute("aria-labelledby")).toBe(
+        `lage-${abschnitt.getAttribute("data-person")}`,
+      );
+      expect(abschnitt.textContent).toContain("/ 39 Std.");
+      expect(abschnitt.querySelector("a[href^='/plan/']")).toBeTruthy();
     }
   });
 
   /**
-   * DIE NAHT KACHEL → ZIEL, UEBER ALLE VIER KACHELN HINWEG (Abschlussreview W4) — kein Test je
-   * Kachel: genau diese Naht ist zweimal durchgerutscht (Aufgabe 13 vertagte zwei Kacheln ohne
-   * `href`, Aufgabe 16 loeste es nur fuer `EinstiegBufdi.tsx` auf, und „Zurückgewiesen" blieb hier
-   * ohne Ziel UND ohne Abschnitt). Vier Einzeltests haetten dieselbe Luecke ein drittes Mal offen
-   * gelassen — dieser hier zaehlt die Kacheln selbst ab und verlangt von JEDER mit Zahl > 0 ein
-   * Ziel, das es auf der Seite auch WIRKLICH GIBT (`getElementById`, nicht nur ein `href`, das
-   * plausibel aussieht).
+   * DER LEERFALL DER FLAECHE (§10 Prueffrage 6) — ein ausgeschriebener Satz mit dem Weg, ihn zu
+   * beheben, kein leerer Kasten, der wie ein Ladefehler aussieht.
    */
-  it("jede Kachel mit Zahl > 0 traegt ein Ziel, das auf dieser Seite existiert — alle vier", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
-    legeAufgabe({ titel: "P", erstellerId: malte.id, status: "eingegangen" });
-    legeAufgabe({
-      titel: "F", erstellerId: rike.id, zugewiesenAn: alina.id, prueferId: rike.id,
-      status: "freigabe_offen",
-    });
-    legeAufgabe({
-      titel: "U", erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
-      status: "verteilt", faelligAm: "2026-08-01",
-    });
-    legeAufgabe({
-      titel: "Z", erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
-      status: "zurueckgewiesen",
-    });
-
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-
-    const kacheln = queryAll(`.${s.kpi}`);
-    expect(kacheln).toHaveLength(4);
-    for (const kachel of kacheln) {
-      const beschriftung = kachel.textContent ?? "";
-      // Jede Kachel dieses Aufbaus traegt eine 1 — keine darf ohne Ziel bleiben.
-      const verweis = kachel.closest("a");
-      expect(verweis, `Kachel ohne Verweis: ${beschriftung}`).not.toBeNull();
-      const ziel = verweis!.getAttribute("href") ?? "";
-      expect(ziel, `Kachel mit leerem Verweis: ${beschriftung}`).not.toBe("");
-      // ERREICHBAR, NICHT NUR VORHANDEN: ein Anker ohne Abschnitt ist genau der Zustand vor W4.
-      if (ziel.startsWith("#")) {
-        expect(
-          document.getElementById(ziel.slice(1)),
-          `Anker ${ziel} hat keinen Abschnitt (Kachel: ${beschriftung})`,
-        ).not.toBeNull();
-      }
-    }
-
-    const hrefs = kacheln.map((k) => k.closest("a")!.getAttribute("href"));
-    expect(hrefs).toEqual(["#posteingang", "#freigabe", "#ueberfaellig", "#zurueckgewiesen"]);
-  });
-
-  it("verlinkt die Personenverwaltung UND das Archiv (Aufgabe 16)", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-    const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
-    expect(hrefs).toContain("/personen");
-    expect(hrefs).toContain("/archiv");
+  it("ohne aktive BuFDi steht der ausgeschriebene Satz samt Weg", async () => {
+    const rike = legePerson("rike", "auftrag");
+    await zeige(rike);
+    expect(flaeche().textContent).toContain("Es ist noch keine BuFDi eingetragen.");
   });
 
   /**
-   * DIE FREIGABE-SEKTION IST SEIT AUFGABE 16 SCHREIBFAEHIG (vorher schreibgeschuetzt, Aufgabe
-   * 15s offen gelassene Beobachtung) — sie zeigt jetzt dieselben Freigeben-/Zurueckweisen-Knoepfe
-   * wie `/freigaben`/`EinstiegAuftrag.tsx` (`FreigabeAktionen` aus `FreigabeZone.tsx`), statt einer
-   * schreibgeschuetzten Liste.
+   * AUSLASTUNG IST NEUTRAL, NIE STATUSFARBE (Modulspec §9.3): der ueberbuchte Tag bekommt Kante
+   * PLUS Wort. Das Wort ist die Zusage, die ein Test treffen kann — die Kante steht im CSS und
+   * wird dort geprueft.
    */
-  it("die Freigabe-Sektion traegt jetzt Freigeben-/Zurueckweisen-Knoepfe (FreigabeZone, nicht mehr schreibgeschuetzt)", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
-    const meineFreigabe = legeAufgabe({
-      titel: "Meine Freigabe",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: rike.id,
-      status: "freigabe_offen",
+  it("nennt einen ueberbuchten Tag beim Namen, statt ihn nur einzufaerben", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const alina = legePerson("alina", "bufdi", { name: "Alina", sollMinutenTag: 60 });
+    legeAufgabe({
+      erstellerId: rike.id, zugewiesenAn: alina.id, prueferId: rike.id,
+      status: "verteilt", planDatum: TAGE[0]!, dauerMinuten: 600,
     });
+    await zeige(rike);
+    const abschnitt = query(`[data-person='${alina.id}']`);
+    expect(abschnitt.textContent).toContain("überbucht");
+    expect(abschnitt.textContent).not.toContain("kein Tag überbucht");
+  });
+});
 
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-
-    expect(queryAll(`[data-testid='freigeben-${meineFreigabe.id}']`)).toHaveLength(1);
-    expect(queryAll(`[data-testid='zurueckweisen-${meineFreigabe.id}']`)).toHaveLength(1);
+describe("EinstiegKoordination — die Zonen (Regel R3, Regel D)", () => {
+  it("bei genau einer Aufgabe im Posteingang entsteht KEINE Zone — die Karte nennt sie", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Verbandskästen" });
+    await zeige(rike);
+    expect(queryAll("#posteingang")).toHaveLength(0);
+    expect(query("[data-rolle='fuehrung']").textContent).toContain("Verbandskästen");
   });
 
-  it("die Kontextzeile nennt beide Zahlen (Spec §9.4-Beispiel)", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    const malte = legePerson("dev:malte@test", "auftrag");
-    legeAufgabe({ titel: "P1", erstellerId: malte.id, status: "eingegangen" });
-    legeAufgabe({ titel: "P2", erstellerId: malte.id, status: "eingegangen" });
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-    expect(document.body.textContent).toContain("2 zu verteilen");
-    expect(document.body.textContent).toContain("0 warten auf Freigabe");
+  it("ab zwei Aufgaben traegt die Zone die Zahl in ihrer Ueberschrift", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({ erstellerId: malte.id, titel: "A" });
+    legeAufgabe({ erstellerId: malte.id, titel: "B" });
+    await zeige(rike);
+    expect(query("#posteingang h2").textContent).toBe("Zu verteilen (2)");
+  });
+
+  it("deckelt den Posteingang bei fuenf Zeilen und nennt `/verteilen` als Ausgang", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag");
+    for (let i = 0; i < 8; i++) legeAufgabe({ erstellerId: malte.id, titel: `A${i}`, faelligAm: `2026-08-2${i}` });
+    await zeige(rike);
+    const zone = query("#posteingang");
+    expect(zone.querySelectorAll("li")).toHaveLength(5);
+    const deckel = Array.from(zone.querySelectorAll("a")).find((a) =>
+      (a.textContent ?? "").includes("weitere"),
+    );
+    expect(deckel?.getAttribute("href")).toBe("/verteilen");
+    expect(deckel?.textContent).toContain("und 3 weitere");
+  });
+
+  /**
+   * ZWEI GETRENNTE UEBERSCHRIFTEN FUER 5a UND 5b (§3.5): sie koennen GLEICHZEITIG Zonen sein, und
+   * zwei Zonen mit derselben Ueberschrift waeren ein Anzeigefehler, den kein Riegel faende.
+   */
+  it("trennt „Ueberfaellig, noch nicht begonnen“ von „Ueberfaellig, in Bearbeitung“", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag");
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Posteingang" });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Nicht begonnen", status: "verteilt", faelligAm: "2026-08-01",
+    });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "In Arbeit", status: "in_arbeit", faelligAm: "2026-08-02",
+    });
+    await zeige(rike);
+    const ueberschriften = queryAll("h2").map((h) => h.textContent);
+    expect(ueberschriften).toContain("Überfällig, noch nicht begonnen (1)");
+    expect(ueberschriften).toContain("Überfällig, in Bearbeitung (1)");
+  });
+
+  /** GENAU EINE Angabe je Zeile (§3.6) — hier der Zugewiesene bzw. der Auftraggeber. */
+  it("jede Zonenzeile traegt genau einen Rollenzusatz", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    legeAufgabe({ erstellerId: malte.id, titel: "A" });
+    legeAufgabe({ erstellerId: malte.id, titel: "B" });
+    await zeige(rike);
+    for (const li of queryAll("#posteingang li")) {
+      expect(li.querySelectorAll("[data-rollen-zusatz]")).toHaveLength(1);
+      expect(li.querySelector("[data-rollen-zusatz]")?.textContent).toBe("Von Malte");
+    }
+  });
+});
+
+describe("EinstiegKoordination — der Fuss", () => {
+  it("verlinkt Personenverwaltung und Archiv", async () => {
+    const rike = legePerson("rike", "auftrag");
+    await zeige(rike);
+    const ziele = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
+    expect(ziele).toContain("/personen");
+    expect(ziele).toContain("/archiv");
   });
 });

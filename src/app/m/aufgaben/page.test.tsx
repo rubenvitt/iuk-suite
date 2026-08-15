@@ -76,14 +76,20 @@ describe("aufgabenInhalt — der Verteiler waehlt nach Rolle (Spec §8)", () => 
    * SEIT AUFGABE 14 DIE ECHTE `EinstiegKoordination` STATT DES PLATZHALTERS — die Verzweigung in
    * `aufgabenInhalt` selbst aendert sich dabei nicht (Aufgabe 13s Bericht kuendigt das ausdruecklich
    * an: "nur der jeweilige case-Zweig tauscht seinen Rueckgabewert"). Die ausfuehrliche Pruefung
-   * (KPI-Zahlen, Freigabe-Trennung, Ueberfaelligkeit …) lebt in `_ui/EinstiegKoordination.test.tsx`
+   * (Fuehrungskarte, „Die Woche der drei", die Zonen …) lebt in `_ui/EinstiegKoordination.test.tsx`
    * — hier nur der Beleg, dass DIESE Rolle DIESE Komponente bekommt.
+   *
+   * DIE ZWEITE ZUSICHERUNG NENNT SEIT DER OBERFLAECHEN-SPEC „Die Woche der drei" STATT „Zu
+   * verteilen": die KPI-Kachel dieses Namens ist mit §1.4 entfallen, und mit einer leeren
+   * Testdatenbank fuehrt die RUHE-Belegung — der String „Zu verteilen" kaeme dort gar nicht mehr
+   * vor. „Die Woche der drei" ist die Flaeche der Rolle und steht IMMER, auch leer (Regel R2), und
+   * ist damit die Zusicherung, die nicht von der Fixtur abhaengt.
    */
   it("die Koordination bekommt „Verteilung“ (EinstiegKoordination)", async () => {
     const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     await mount(aufgabenInhalt(t.db, akteur(rike, true), HEUTE, {}));
     expect(query("h1").textContent).toBe("Verteilung");
-    expect(document.body.textContent).toContain("Zu verteilen");
+    expect(document.body.textContent).toContain("Die Woche der drei");
     expect(document.body.textContent).not.toBe("");
   });
 
