@@ -42,6 +42,7 @@ import {
   personFuerSession,
 } from "./_lib/zugang";
 import { isoTag } from "./_lib/datum";
+import { canAdminModule } from "@/core/auth/guards";
 
 /*
  * DIE VIER ACTIONS DER AUFGABE 9 — `einstellen`, `verteilen`, `umverteilen`, `zurueckziehen`.
@@ -1030,9 +1031,22 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
 }
 
 /*
- * AB HIER AUFGABE 14 — DIE PERSONENVERWALTUNG (Spec §4, §7 personen-Tabelle, Brief). Gatet
- * ausschliesslich ueber `darfPersonenVerwalten` (`_lib/zugang.ts`) — dieselbe Bedingung, mit der
- * `personen/page.tsx` die Route selbst schuetzt.
+ * AB HIER AUFGABE 14 — DIE PERSONENVERWALTUNG (Spec §4, §7 personen-Tabelle, Brief). Gatet ueber
+ * `darfPersonenVerwalten` (`_lib/zugang.ts`) ODER `canAdminModule("aufgaben")` — dieselbe
+ * Oder-Bedingung, mit der `personen/page.tsx` die Route selbst schuetzt.
+ *
+ * DER NOTAUSGANG GILT AUF BEIDEN SEITEN, UND ZWAR SEIT DEM ABSCHLUSSREVIEW (K1): bis dahin stand er
+ * NUR auf der Seite. Der Suite-Admin sah das Formular und bekam beim Absenden `notFound()` aus
+ * `personFuerSession` — genau die zwei Folgen, die die Betreiberentscheidung vom 2026-08-14 abwenden
+ * sollte, bestanden damit unveraendert fort: in einer frischen Produktionsdatenbank gab es KEINEN
+ * Weg zur allerersten `personen`-Zeile (das Modul war ohne direkten Datenbankeingriff nicht in
+ * Betrieb zu nehmen), und die versehentlich beendete einzige Koordinationsperson konnte sich nicht
+ * selbst reaktivieren. EIN ZUGANG, DER NUR DEN LESEPFAD OEFFNET, IST KEIN ZUGANG — wer den Riegel
+ * hier spaeter "vereinfacht", nimmt beide Folgen zurueck.
+ *
+ * `canAdminModule` STATT `requireModuleAdmin` (beide `core/auth/guards.ts`): gebraucht wird die
+ * ODER-Haelfte einer Bedingung, nicht ein eigener Abbruch — `requireModuleAdmin` wuerfe jede
+ * regulaere Koordinationsperson ohne Suite-Admin-Gruppe hinaus.
  *
  * ES GIBT KEINE LOESCHEN-AKTION, UND DAS IST ABSICHT (Brief, Spec §4): eine ausgeschiedene Person
  * wird ueber `aktivBis` beendet, nicht entfernt — ihre Aufgaben, Nachweise und Verlaufszeilen
@@ -1040,6 +1054,30 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
  * eine `personLoeschenAction` vermisst: das ist kein vergessener Fall, sondern die Fachlichkeit
  * (Jahreswechsel ist keine Loeschaktion) — bitte nicht ergaenzen.
  */
+
+/**
+ * DER RIEGEL DER PERSONENVERWALTUNG — EINE STELLE FUER BEIDE SCHREIBWEGE (`personFormularGemeinsam`
+ * und `personBeendenAction`). Genau die Bauform, deren Fehlen K1 ausmachte: stuende die
+ * Oder-Bedingung zweimal ausgeschrieben da, koennte die naechste Aenderung wieder nur eine Haelfte
+ * treffen.
+ *
+ * DIE REIHENFOLGE IST TRAGEND: `canAdminModule` ZUERST, VOR JEDER PERSONEN-ZEILEN-FRAGE — dieselbe
+ * Reihenfolge wie in `personen/page.tsx`. Umgekehrt gefragt, faenge `personFuerSession`s
+ * `notFound()` genau den Suite-Admin ohne eigene `personen`-Zeile ab, also den Erstbetriebs-Fall.
+ *
+ * `bearbeiter` LEBT NUR IN DIESER FUNKTION und wird nirgends zurueckgegeben: beide Aufrufer
+ * arbeiten danach ausschliesslich mit ihren eigenen Werten (`bestehende`/`values`/`db` bzw.
+ * `ziel`/`heute`). Fuer den Modul-Admin gibt es unter Umstaenden gar keine Zeile — ein
+ * durchgereichter `PersonRow | null` waere eine Einladung, ihn als `erstelltVon`-artigen Wert zu
+ * verwenden und dabei still `null` zu schreiben.
+ */
+async function verlangePersonenverwaltung(db: DB, heute: string): Promise<void> {
+  if (await canAdminModule("aufgaben")) return;
+  const bearbeiter = await personFuerSession(db);
+  if (!darfPersonenVerwalten(bearbeiter, heute)) {
+    throw new Error("Keine Berechtigung, Personen zu verwalten.");
+  }
+}
 
 /**
  * DER GEMEINSAME RUMPF FUER ANLEGEN UND AENDERN — Vorbild `verteilenGemeinsam`/
@@ -1051,11 +1089,8 @@ async function personFormularGemeinsam(
   personId: string | null,
 ): Promise<FormState> {
   const db = getDb();
-  const bearbeiter = await personFuerSession(db);
   const heute = isoTag(new Date());
-  if (!darfPersonenVerwalten(bearbeiter, heute)) {
-    throw new Error("Keine Berechtigung, Personen zu verwalten.");
-  }
+  await verlangePersonenverwaltung(db, heute);
 
   const bestehende = personId === null ? null : personNachId(db, personId);
   if (personId !== null && !bestehende) {
@@ -1189,11 +1224,8 @@ export async function personAendernAction(
  */
 export async function personBeendenAction(formData: FormData): Promise<void> {
   const db = getDb();
-  const bearbeiter = await personFuerSession(db);
   const heute = isoTag(new Date());
-  if (!darfPersonenVerwalten(bearbeiter, heute)) {
-    throw new Error("Keine Berechtigung, Personen zu verwalten.");
-  }
+  await verlangePersonenverwaltung(db, heute);
 
   const personId = feld(formData, "personId");
   const ziel = personNachId(db, personId);

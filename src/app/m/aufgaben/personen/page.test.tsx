@@ -128,7 +128,14 @@ describe("PersonenPage — Rollen-Gate (Spec §4: nur koordination verwaltet Per
  * (`core/registry.ts`s `adminGroups` fuer `aufgaben`) — `isModuleAdmin` laesst BEIDE durch.
  */
 describe("PersonenPage — der Notausgang fuer den Suite-/Modul-Admin", () => {
-  it("Suite-Admin OHNE eigene personen-Zeile kommt hinein — genau der Erstbetriebs-Fall", async () => {
+  /**
+   * NUR DIE LESE-HAELFTE — DER NAME SAGT DAS JETZT AUCH (Abschlussreview K1). Bis dahin hiess
+   * dieser Test „genau der Erstbetriebs-Fall" und prueft doch nur, dass die SEITE rendert; der
+   * Erstbetriebs-Fall ist aber das SCHREIBEN der ersten Zeile, und das war zu diesem Zeitpunkt
+   * ueberhaupt nicht gebaut. Die Schreib-Haelfte steht seither in `actions.test.ts`
+   * („Suite-Admin OHNE eigene personen-Zeile legt die erste Person an").
+   */
+  it("Suite-Admin OHNE eigene personen-Zeile bekommt die Seite mit dem Formular (Lesepfad)", async () => {
     // Bewusst KEINE `personen`-Zeile fuer diese Sitzung: eine frische Datenbank kennt noch gar
     // keine `koordination`-Person, und genau das soll dieser Notausgang loesen.
     sitzung = { user: { id: "dev:admin@test", groups: ["dashboard-admins"] } };

@@ -2440,6 +2440,43 @@ describe("personAnlegenAction", () => {
       /Keine Berechtigung/,
     );
   });
+
+  /**
+   * DER ERSTBETRIEBS-FALL, UND ZWAR SCHREIBEND (Abschlussreview K1) — die Zusicherung, die bis zum
+   * Abschlussreview NIRGENDS gedeckt war: `personen/page.test.tsx` prueft nur, dass der Suite-Admin
+   * das FORMULAR sieht, und jeder Test hier begann bis dahin mit `legePerson(...)`, hatte also
+   * immer schon eine `personen`-Zeile fuer den Handelnden.
+   *
+   * BEWUSST KEIN `legePerson` FUER DIE SITZUNG: eine frische Produktionsdatenbank hat NULL
+   * `personen`-Zeilen (`core/bootstrap.ts` seedet `aufgaben` nicht), und `erstellePerson` hat im
+   * Produktionscode genau einen Aufrufer — diese Action. Wirft sie, ist das Modul ohne direkten
+   * Datenbankeingriff nicht in Betrieb zu nehmen.
+   *
+   * "dashboard-admins" ist der Vorgabewert von `suiteAdminGroup()` (`core/groups.ts`) — dieselbe
+   * Gruppe, mit der `personen/page.test.tsx` die Route-Haelfte desselben Notausgangs prueft.
+   */
+  it("Suite-Admin OHNE eigene personen-Zeile legt die erste Person an — die Zeile steht danach in der Datenbank", async () => {
+    sitzung = { user: { id: "dev:admin@test", groups: ["dashboard-admins"] } };
+
+    const ergebnis = await personAnlegenAction({ ok: true }, form());
+    expect(ergebnis).toEqual({ ok: true });
+
+    const erste = t.db
+      .select()
+      .from(personen)
+      .where(eq(personen.sub, "dev:neu@localtest.me"))
+      .get();
+    expect(erste).toMatchObject({ name: "Neu", rolle: "bufdi" });
+    // Und zwar die ALLERERSTE Zeile ueberhaupt — der Handelnde selbst hat keine.
+    expect(t.db.select().from(personen).all()).toHaveLength(1);
+  });
+
+  it("die modul-eigene Admin-Gruppe (iuk-aufgaben-koordination) legt ebenso an", async () => {
+    sitzung = { user: { id: "dev:modadmin@test", groups: ["iuk-aufgaben-koordination"] } };
+
+    expect(await personAnlegenAction({ ok: true }, form())).toEqual({ ok: true });
+    expect(t.db.select().from(personen).all()).toHaveLength(1);
+  });
 });
 
 describe("personAendernAction", () => {
@@ -2505,6 +2542,34 @@ describe("personAendernAction", () => {
       /Keine Berechtigung/,
     );
   });
+
+  /**
+   * DER AUSSPERR-FALL, UND ZWAR SCHREIBEND (Abschlussreview K1) — die zweite der beiden Folgen, die
+   * die Betreiberentscheidung vom 2026-08-14 abwenden sollte: die EINZIGE Koordinationsperson hat
+   * ihr eigenes `aktivBis` auf gestern gesetzt, `darfPersonenVerwalten` lehnt sie seither ab
+   * (`istAktiv` ist falsch). Ohne den Notausgang IN DER ACTION saehe sie als Suite-Admin zwar das
+   * Formular (`personen/page.test.tsx` belegt das), koennte es aber nicht absenden — nur ein
+   * direkter Datenbankeingriff hoebe die Sperre auf.
+   *
+   * `rolle: "koordination"` IST HIER PFLICHT UND KEINE FIXTUR-KOSMETIK: das `form()` dieser Gruppe
+   * traegt sonst `bufdi`, und eine Reaktivierung, die die Person dabei still zur BuFDi degradiert,
+   * loeste den Fall gerade NICHT auf — sie waere wieder aktiv, aber ohne das Recht, das sie
+   * zurueckholen wollte. Deshalb pruefen die Zusicherungen unten BEIDE Felder.
+   */
+  it("Aussperr-Fall: die beendete einzige Koordinationsperson reaktiviert sich als Suite-Admin — mit ihrer Rolle", async () => {
+    const exRike = legePerson("dev:rike@test", "koordination", { aktivBis: "2026-08-12" });
+    sitzung = { user: { id: exRike.sub, groups: ["dashboard-admins"] } };
+
+    const ergebnis = await personAendernAction(
+      { ok: true },
+      form(exRike.id, { rolle: "koordination", aktivBis: "" }),
+    );
+    expect(ergebnis).toEqual({ ok: true });
+    expect(personNachId(t.db, exRike.id)).toMatchObject({
+      aktivBis: null,
+      rolle: "koordination",
+    });
+  });
 });
 
 describe("personBeendenAction — setzt aktivBis auf HEUTE", () => {
@@ -2537,5 +2602,19 @@ describe("personBeendenAction — setzt aktivBis auf HEUTE", () => {
     anmelden(auftrag);
 
     await expect(personBeendenAction(form(ziel.id))).rejects.toThrow(/Keine Berechtigung/);
+  });
+
+  /**
+   * DIE ZWEITE HAELFTE DES NOTAUSGANGS (Abschlussreview K1): `personBeendenAction` trug denselben
+   * Riegel wie `personFormularGemeinsam` und musste ihn deshalb im selben Griff bekommen — sonst
+   * bliebe eine der beiden Schreibwege der Personenverwaltung fuer den Betreiber verschlossen,
+   * waehrend die andere offen ist.
+   */
+  it("Suite-Admin OHNE eigene personen-Zeile beendet eine Person", async () => {
+    const ziel = legePerson("dev:alina@test", "bufdi", { aktivBis: null });
+    sitzung = { user: { id: "dev:admin@test", groups: ["dashboard-admins"] } };
+
+    await personBeendenAction(form(ziel.id));
+    expect(personNachId(t.db, ziel.id)!.aktivBis).toBe(HEUTE);
   });
 });
