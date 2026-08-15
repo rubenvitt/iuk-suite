@@ -891,6 +891,23 @@ async function zieheZu(
   quelle: import("@playwright/test").Locator,
   ziel: import("@playwright/test").Locator,
 ): Promise<void> {
+  /*
+   * ERST IN DEN SICHTBAREN BEREICH ROLLEN, DANN MESSEN (Oberflaechen-Spec 2026-08-16, Schritt 4).
+   * `boundingBox()` liefert VIEWPORT-Koordinaten und rollt NICHT von selbst; `page.mouse.move()`
+   * nimmt ebenfalls Viewport-Koordinaten. Solange die Wochenachse das erste Element unter dem
+   * Seitenkopf war, lagen beide Griffe ohnehin im Bild. Seit die FUEHRUNGSKARTE darueber steht,
+   * rutscht die Achse bei einer langen Karte (Rang 1/3 mit Zustandsaktion, Sekundaerknoepfen und
+   * der Zeile „ALS NAECHSTES") unter die Falzkante — die Maus faehrt dann an Koordinaten unterhalb
+   * des Fensters, es feuert kein `dragstart`, und der Test laeuft in sein volles Zeitbudget mit
+   * einer Meldung, die nach einem abgelehnten POST klingt (Falle 11s Familie: ein Test, der etwas
+   * anderes misst, als sein Name sagt). GEMESSEN, NICHT VERMUTET: dieselben zwei Zuege scheiterten
+   * reproduzierbar bei Bendix und Carla — beide mit langer Karte — waehrend Alinas kuerzere Karte
+   * gruen blieb.
+   *
+   * DAS ZIEL ZUERST, DIE QUELLE ZULETZT: unter der Maus muss beim `mousedown` die QUELLE liegen.
+   */
+  await ziel.scrollIntoViewIfNeeded();
+  await quelle.scrollIntoViewIfNeeded();
   const quellBox = await quelle.boundingBox();
   const zielBox = await ziel.boundingBox();
   expect(quellBox, "Quelle des Zugs hat keine sichtbare Bounding Box").not.toBeNull();
