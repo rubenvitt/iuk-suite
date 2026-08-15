@@ -111,6 +111,13 @@ export default async function PersonenPage({
   // Suite-Admin ab, der (noch) keine `personen`-Zeile hat — genau den Fall, den dieser Notausgang
   // beheben soll.
   if (await canAdminModule("aufgaben")) {
+    // EINE KOSMETISCHE FOLGE, AUSGESCHRIEBEN STATT ENTDECKT (Review-Runde zum Quellenwechsel):
+    // dieser Zweig kehrt VOR `akteurFuerSeite` zurueck, legt die JIT-Zeile also nicht selbst an.
+    // Das tut `layout.tsx`, und Next rendert Layout und Seite im selben Request nebenlaeufig —
+    // ob die frisch koordinierende Person ihre EIGENE Zeile schon in der Liste unter dem Formular
+    // sieht, ist beim allerersten `/personen`-Aufruf deshalb nicht garantiert. Beim naechsten
+    // Aufruf steht sie da. Bewusst NICHT durch einen zweiten Anlegepfad hier geheilt: ein zweiter
+    // Schreibort fuer dieselbe Zeile waere teurer als die eine fehlende Zeile in einer Liste.
     const { bearbeiten } = await searchParams;
     return personenInhalt(db, heute, bearbeiten);
   }

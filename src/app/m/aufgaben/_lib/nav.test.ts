@@ -180,6 +180,30 @@ describe("aufgabenNav — genau die erwartete Eintragsmenge je Rolle (echte, unt
     const exMalte = legePerson("dev:ex-malte@test", "auftrag", { aktivBis: "2020-01-01" });
     expect(aufgabenNav(akteur(exMalte), HEUTE).map((e) => e.key)).toEqual(["start", "neu", "archiv"]);
   });
+
+  /*
+   * DIE EINZIGE PERSON, DIE ALLE SIEBEN EINTRAEGE SIEHT — und die es vor dem Quellenwechsel
+   * (2026-08-15) nicht geben konnte: eine `bufdi`-ZEILE mit Koordinationsgruppe. `routinen` kommt
+   * aus der Zeile (`darfRoutinenVerwalten`), `verteilen`/`freigaben`/`personen` aus der Gruppe.
+   *
+   * DAS EXAKTE SCHLUESSEL-SET IST HIER PFLICHT (Review-Befund): die Erreichbarkeitsschleife weiter
+   * unten faehrt diese Person zwar durch die echten Seiten, kann aber nur zu VIEL finden, nie zu
+   * wenig — sie iteriert genau die Eintraege, die `aufgabenNav` ausgibt. Fiele
+   * `akteur.istKoordination` aus einem der drei Praedikate, verschwaende der Eintrag samt seiner
+   * Pruefung, und nichts wuerde rot.
+   */
+  it("bufdi MIT Koordinationsgruppe: alle sieben Eintraege — routinen aus der Zeile, der Rest aus der Gruppe", () => {
+    const alina = legePerson("dev:alina-koord@test", "bufdi");
+    expect(aufgabenNav(akteur(alina, true), HEUTE).map((e) => e.key)).toEqual([
+      "start",
+      "neu",
+      "verteilen",
+      "freigaben",
+      "routinen",
+      "personen",
+      "archiv",
+    ]);
+  });
 });
 
 describe("aktiverEintrag gegen aufgabenNav — die Wurzel gewinnt nicht gegen eine laengere Uebereinstimmung", () => {

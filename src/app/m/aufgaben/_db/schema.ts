@@ -33,14 +33,17 @@ export const newId = () => nanoid();
  * Datenbank durfte niemand die erste Person anlegen. Migration `0002` schreibt die bestehenden
  * `koordination`-Zeilen auf `auftrag` um.
  *
- * WARUM `auftrag` UND NICHT `bufdi` — DER SCHAERFSTE PUNKT DES UMBAUS: `verteilDaten`
+ * WARUM DIE UMGESCHRIEBENEN ZEILEN `auftrag` BEKOMMEN UND NICHT `bufdi`: `verteilDaten`
  * (`_db/queries.ts`) speist die Verteillisten aus `bufdis()`, AUSDRUECKLICH damit die Koordination
- * nicht in ihrer eigenen Zielliste steht; daran haengt die Betreiberentscheidung vom 2026-08-13
- * (die Koordination gibt ihre eigene Fremdaufgabe nicht frei, sonst faellt das Vier-Augen-Prinzip
- * fuer genau diesen Fall aus, s. `darfFreigeben`s Kopfkommentar). Eine Koordinationszeile mit
- * `rolle: "bufdi"` braeche diese Zusage STILL. `auftrag` ist zudem fachlich richtig und nicht bloss
- * der Rest: die Koordination stellt Aufgaben fuer andere ein, und `darfEinstellenFuerAndere`
- * erlaubt `auftrag` ohnehin.
+ * nicht in ihrer eigenen Zielliste steht (Betreiberentscheidung 2026-08-13, s. `darfFreigeben`s
+ * Kopfkommentar). Eine automatisch entstandene Koordinationszeile mit `rolle: "bufdi"` — aus der
+ * Migration oder aus der JIT-Anlage in `_lib/zugang.ts` — setzte die Koordination STILL in ihre
+ * eigene Zielliste. Das ist kein Riegel, sondern eine Datenform-Zusage: die Koordination KANN einer
+ * gruppentragenden Person ueber `/personen` sehr wohl eine `bufdi`-Zeile geben. Der eigentliche
+ * Riegel des Vier-Augen-Prinzips steht in `darfFreigeben` (nie die selbst zugewiesene Aufgabe),
+ * `bufdis()` ist die zweite Linie. `auftrag` ist zudem fachlich richtig und nicht bloss der Rest:
+ * die Koordination stellt Aufgaben fuer andere ein, und `darfEinstellenFuerAndere` erlaubt
+ * `auftrag` ohnehin.
  */
 export const ROLLEN = ["auftrag", "bufdi"] as const;
 

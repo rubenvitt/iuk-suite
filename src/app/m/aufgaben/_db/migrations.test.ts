@@ -255,12 +255,33 @@ describe("Migration 0002 — koordination wird auftrag", () => {
     expect(nachMigration0002("bufdi")).toBe("bufdi");
   });
 
-  it("nach der vollen Migration bleibt keine koordination-Zeile uebrig", () => {
+  /**
+   * MEHRERE ZEILEN AUF EINMAL, NICHT NUR EINE — und zwar gemischt: das `UPDATE` traegt ein `WHERE`,
+   * und ein vergessenes oder falsch gesetztes `WHERE` faellt an einer einzelnen Zeile nicht auf.
+   *
+   * OHNE VORHER GESETZTE ZEILEN WAERE DIESER FALL EINE TAUTOLOGIE (Review-Befund): `frisch()`
+   * liefert eine LEERE `personen`-Tabelle, ein `COUNT(*) … WHERE rolle='koordination'` darauf ist
+   * auch dann 0, wenn es die Migrationsdatei gar nicht gibt.
+   */
+  it("schreibt ALLE koordination-Zeilen um und laesst die anderen in Ruhe", () => {
     const sqlite = frisch();
-    const rest = sqlite
-      .prepare("SELECT COUNT(*) AS n FROM personen WHERE rolle='koordination'")
-      .get() as { n: number };
-    expect(rest.n).toBe(0);
+    const einfuegen = sqlite.prepare(
+      `INSERT INTO personen (id, sub, name, initialen, rolle, soll_minuten_tag, aktiv_von, erstellt_am)
+       VALUES (?, ?, 'X', 'XX', ?, 468, '2026-08-01', 1)`,
+    );
+    einfuegen.run("k1", "dev:k1@b", "koordination");
+    einfuegen.run("k2", "dev:k2@b", "koordination");
+    einfuegen.run("a1", "dev:a1@b", "auftrag");
+    einfuegen.run("b1", "dev:b1@b", "bufdi");
+
+    sqlite.exec(readFileSync(join(process.cwd(), ORDNER, datei0002()), "utf8"));
+
+    const zaehle = (rolle: string) =>
+      (sqlite.prepare("SELECT COUNT(*) AS n FROM personen WHERE rolle=?").get(rolle) as { n: number })
+        .n;
+    expect(zaehle("koordination")).toBe(0);
+    expect(zaehle("auftrag")).toBe(3);
+    expect(zaehle("bufdi")).toBe(1);
     sqlite.close();
   });
 });

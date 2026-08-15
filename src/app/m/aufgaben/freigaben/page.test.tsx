@@ -159,7 +159,33 @@ describe("FreigabenPage — Rollen-Gate (Aufgabe 15, Spec §8: '/freigaben' fuer
     await expect(FreigabenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
-  it("ein ausgeschiedener auftrag bekommt ebenfalls notFound()", async () => {
+  /*
+   * DIE ZWEI FAELLE, DIE DIE KOORDINATIONSKLAUSEL VON `darfFreigabenSehen` ALLEIN TRAGEN
+   * (Review-Runde zum Quellenwechsel 2026-08-15). Der Fall „die Koordination: antwortet normal"
+   * oben beweist sie NICHT mehr: Rikes Zeile ist seither `auftrag` und aktiv, also bejaht schon die
+   * zweite Klausel (`rolle === "auftrag" && istAktiv`) — als die Zeile noch `koordination` trug, war
+   * das anders. Diese beiden Personen gibt es seit dem Quellenwechsel wirklich, und fuer beide ist
+   * `istKoordination` der EINZIGE Grund, warum die Route antwortet:
+   *  1. eine ausgeschiedene Koordination (die `auftrag`-Klausel scheitert an `istAktiv`),
+   *  2. eine koordinierende Person mit `bufdi`-Zeile (die `auftrag`-Klausel greift gar nicht).
+   * Ohne sie bliebe diese Datei gruen, streiche jemand `akteur.istKoordination ||` aus dem
+   * Praedikat — und der zweite Fall ist zugleich die Gegenprobe zu „bufdi: notFound()" darueber.
+   */
+  it("eine ausgeschiedene Koordination kommt hinein — die Gruppe traegt die Rolle, nicht aktivBis", async () => {
+    const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2020-01-01" });
+    anmelden(exRike, true);
+    await mount(await FreigabenPage());
+    expect(query("h1").textContent).toBe("Freigaben");
+  });
+
+  it("dieselbe bufdi-Zeile wie oben kommt MIT Koordinationsgruppe hinein", async () => {
+    const alina = legePerson("dev:alina-koord@test", "bufdi");
+    anmelden(alina, true);
+    await mount(await FreigabenPage());
+    expect(query("h1").textContent).toBe("Freigaben");
+  });
+
+  it("ein ausgeschiedener auftrag OHNE Gruppe bekommt notFound()", async () => {
     const malteEx = legePerson("dev:malte-ex@test", "auftrag", { aktivBis: "2020-01-01" });
     anmelden(malteEx);
     await expect(FreigabenPage()).rejects.toThrow("NEXT_NOT_FOUND");

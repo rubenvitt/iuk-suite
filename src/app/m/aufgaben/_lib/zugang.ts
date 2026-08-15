@@ -20,13 +20,20 @@ import { isoTag } from "./datum";
  * ZWEI GRUPPEN VON PRAEDIKATEN, UND DIE GRENZE IST KEINE STILFRAGE:
  *
  * HANDLUNGSPRAEDIKATE (`darfVerteilen`, `darfEinstellenFuerAndere`, `darfPersonenVerwalten`,
- * `darfPlanAendern`, `darfFreigeben`) pruefen `istAktiv` JEDES FUER SICH, statt sich auf ein
- * vorgeschaltetes Gate zu verlassen. Ein Gate wird genau einmal vergessen, und dann ist es der
- * Fall, den niemand testet — die Pruefung gehoert also IN jedes einzelne Praedikat.
+ * `darfPlanAendern`, `darfFreigeben`, `darfRoutinenVerwalten`, `darfNachweisHochladen`) pruefen
+ * `istAktiv` JEDES FUER SICH, statt sich auf ein vorgeschaltetes Gate zu verlassen — SOWEIT SIE
+ * EINE ZEILENROLLE MESSEN (Einschraenkung seit dem 2026-08-15, ausgeschrieben im Absatz darunter:
+ * `darfVerteilen` und `darfPersonenVerwalten` fragen heute NUR noch die Gruppe und pruefen
+ * `istAktiv` gar nicht mehr). Ein Gate wird genau einmal vergessen, und dann ist es der Fall, den
+ * niemand testet — wo die Pruefung noetig ist, gehoert sie also IN jedes einzelne Praedikat.
  *
  * SICHTPRAEDIKATE (`darfPlanSehen`, `darfNachweisSehen`) pruefen `istAktiv` NICHT. Eine
- * ausgeschiedene Person liest ihre Geschichte, bewegt aber nichts (Spec §7) — deshalb tragen
- * genau die Handlungspraedikate ein `heute`-Argument, die beiden Sichtpraedikate nicht.
+ * ausgeschiedene Person liest ihre Geschichte, bewegt aber nichts (Spec §7) — deshalb tragen die
+ * Handlungspraedikate ein `heute`-Argument, die beiden Sichtpraedikate nicht. Das Argument ist
+ * seit dem 2026-08-15 eine FORMFRAGE, keine Wirkungszusage mehr: `darfVerteilen` und
+ * `darfPersonenVerwalten` behalten `heute` in der Signatur (`void heute`), damit jede Aufrufstelle
+ * und `_lib/lebenszyklus.ts`s `TABELLE[].wer` eine einzige Form haben — die Begruendung steht an
+ * den beiden Funktionen selbst.
  *
  * `istAktiv` MISST SEIT DEM 2026-08-15 NUR NOCH DIE ZEILENROLLEN (`auftrag`, `bufdi`), NICHT DIE
  * KOORDINATION. Das ist keine Aufweichung der Regel darueber, sondern ihre Anwendung auf zwei
@@ -192,6 +199,18 @@ function initialenAus(name: string): string {
  * `/personen` landet (deren Default-Export geht ueber den `canAdminModule`-Notausgang und fragt die
  * Personenzeile gar nicht). Genau darum darf dieser Pfad NUR idempotent sein — der zweite bis
  * n-te Aufruf ist ein `INSERT`, das nichts tut, plus ein `SELECT`.
+ *
+ * DER SUITE-ADMIN BEKOMMT DIESE ZEILE EBENFALLS, UND ZWAR SCHON BEIM BLOSSEN BETRETEN DES MODULS —
+ * DAS IST EINE ENTSCHEIDUNG, KEIN NEBENEFFEKT (Review-Runde zum Quellenwechsel): `canAdminModule`
+ * laesst `ADMIN_GROUP` (`dashboard-admins`) mit durch, und der Entwurf will das ausdruecklich
+ * (Rueckweg bei fehlkonfiguriertem `SUITE_ADMIN_GROUP_AUFGABEN`). Ohne Zeile waere dieser Rueckweg
+ * die halbe Sache: der Betreiber saehe die Flaechen, koennte aber nichts einstellen, verteilen oder
+ * freigeben — `erstellerId`/`prueferId`/`akteurId` verlangen eine `personen.id`. DER PREIS,
+ * AUSGESCHRIEBEN: in `/personen` steht danach eine Zeile, die die Koordination nicht angelegt hat,
+ * und loeschen kann sie sie nicht (es gibt bewusst keine Loeschaktion, s. `actions.ts`) — nur ueber
+ * `aktivBis` beenden, was fuer eine Betreiberzeile genau die richtige Handhabe ist. Wer das enger
+ * ziehen will, muss die Gruppenfrage hier von `canAdminModule` auf die MODUL-Gruppe umstellen und
+ * dabei den Rueckweg neu beantworten; `zugang.test.ts` haelt den heutigen Stand als Fall fest.
  *
  * `rolle: "auftrag"` UND NIEMALS `"bufdi"`: `verteilDaten` speist die Verteillisten aus `bufdis()`,
  * damit die Koordination nicht in ihrer eigenen Zielliste steht (Betreiberentscheidung 2026-08-13,

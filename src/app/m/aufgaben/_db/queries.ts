@@ -72,10 +72,14 @@ export function allePersonen(db: DB): PersonRow[] {
  * soll (`darfFreigeben` in `_lib/zugang.ts` begruendet das). Verteillisten speisen sich aus
  * `bufdis()`.
  *
- * SEIT DEM QUELLENWECHSEL (2026-08-15) WIEGT DAS SCHWERER, NICHT LEICHTER: wer koordiniert, traegt
- * in dieser Tabelle `auftrag` und ist der Zeile nicht mehr anzusehen. Ein `rolle !== "koordination"`
- * als Filter gaebe es nicht mehr — `bufdis()` ist der einzige Weg, der die Koordination
- * strukturell aus einer Zielliste haelt.
+ * SEIT DEM QUELLENWECHSEL (2026-08-15) IST DIE ZUSAGE ANDERS GEBAUT: wer koordiniert, traegt in
+ * dieser Tabelle `auftrag` und ist der Zeile nicht mehr anzusehen. Ein Filter `rolle !==
+ * "koordination"` waere gar nicht mehr formulierbar; dass die Koordination nicht in der Zielliste
+ * steht, folgt jetzt daraus, dass beide Stellen, die ihre Zeile automatisch erzeugen (Migration
+ * `0002`, JIT-Anlage in `_lib/zugang.ts`), `auftrag` schreiben. Eine von Hand vergebene
+ * `bufdi`-Zeile fuer eine gruppentragende Person stuende sehr wohl drin — das Vier-Augen-Prinzip
+ * haengt deshalb nicht hieran, sondern an `darfFreigeben`s Klausel gegen die selbst zugewiesene
+ * Aufgabe. Diese Liste ist die zweite Linie, nicht die erste.
  */
 export function aktivePersonen(db: DB, heute: string): PersonRow[] {
   return allePersonen(db).filter((p) => istAktiv(p, heute));

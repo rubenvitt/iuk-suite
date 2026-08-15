@@ -493,8 +493,15 @@ describe("anfangsZustand — einstellen ist keine Aktion, aber beide Ausprägung
     });
   });
 
+  /*
+   * DIE ZEILE IST BEWUSST `bufdi` (Review-Runde zum Quellenwechsel): mit einer aktiven
+   * `auftrag`-Zeile traegt schon die ZWEITE Klausel von `darfEinstellenFuerAndere`
+   * (`rolle === "auftrag" && istAktiv`) die Zusage, und dieser Fall waere eine Kopie des Falls
+   * darueber. Eine koordinierende Person mit BuFDi-Zeile gibt es seit dem Quellenwechsel wirklich,
+   * und fuer sie ist `istKoordination` der einzige Grund, warum sie fuer andere einstellen darf.
+   */
   it("fremd, durch die Koordination: eingegangen, nicht zugewiesen", () => {
-    const ersteller = person("auftrag");
+    const ersteller = person("bufdi");
     expect(anfangsZustand(akteur(ersteller, true), false, HEUTE)).toEqual({
       erlaubt: true,
       status: "eingegangen",

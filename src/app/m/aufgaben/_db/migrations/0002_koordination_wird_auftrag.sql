@@ -8,6 +8,8 @@
 -- keinen Eintrag mehr (`undefined` in der Sortierung, leere Beschriftung in der Tabelle).
 --
 -- ZIEL IST `auftrag` UND NIEMALS `bufdi`: `verteilDaten` speist die Verteillisten aus `bufdis()`,
--- damit die Koordination nicht in ihrer eigenen Zielliste steht — daran haengt das
--- Vier-Augen-Prinzip aus der Betreiberentscheidung vom 2026-08-13 (s. `darfFreigeben`).
+-- damit die Koordination nicht in ihrer eigenen Zielliste steht (Betreiberentscheidung 2026-08-13,
+-- s. `darfFreigeben`). Ein `bufdi` hier setzte jede bisherige Koordinationsperson still in ihre
+-- eigene Zielliste. Das Vier-Augen-Prinzip selbst haengt an `darfFreigeben` (nie die selbst
+-- zugewiesene Aufgabe), nicht an dieser Zeile — sie ist die zweite Linie, nicht die erste.
 UPDATE personen SET rolle = 'auftrag' WHERE rolle = 'koordination';

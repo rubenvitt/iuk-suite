@@ -136,27 +136,32 @@ describe("bufdis — aktive Personen mit rolle === 'bufdi'", () => {
   });
 
   /*
-   * DER RIEGEL DES GANZEN UMBAUS (Quellenwechsel 2026-08-15, Entwurf §2): eine Person, die ueber
-   * die GRUPPE koordiniert, darf NIE in `bufdis()` erscheinen.
+   * DIE ZIELLISTE HAENGT AN DER ZEILE, NICHT AN DER GRUPPE — UND GENAU DAS MUSS MAN WISSEN
+   * (Quellenwechsel 2026-08-15, Entwurf §2, praezisiert in der Review-Runde).
    *
-   * WARUM DAS DER SCHAERFSTE PUNKT IST: `verteilDaten` speist die Verteillisten aus `bufdis()` statt
-   * aus `aktivePersonen()`, AUSDRUECKLICH damit die Koordination nicht in ihrer eigenen Zielliste
-   * steht — daran haengt die Betreiberentscheidung vom 2026-08-13 (die Koordination gibt ihre eigene
-   * Fremdaufgabe nicht frei, sonst faellt das Vier-Augen-Prinzip fuer genau diesen Fall aus,
-   * s. `darfFreigeben`s Kopfkommentar). Solange `rolle: "koordination"` in der Tabelle stand, hielt
-   * der Rollenfilter das von allein. Jetzt traegt die koordinierende Person `auftrag` — die Zusage
-   * haengt also daran, dass ihr NIE `bufdi` zugewiesen wird.
+   * WARUM DIESE FUNKTION UEBERHAUPT ZAEHLT: `verteilDaten` speist die Verteillisten aus `bufdis()`
+   * statt aus `aktivePersonen()`, AUSDRUECKLICH damit die Koordination nicht in ihrer eigenen
+   * Zielliste steht (Betreiberentscheidung 2026-08-13, s. `darfFreigeben`s Kopfkommentar). Solange
+   * `rolle: "koordination"` in der Tabelle stand, hielt der Rollenfilter das von allein.
    *
-   * DIESE ZEILE ALLEIN GENUEGT NICHT, UND DAS IST WICHTIG ZU WISSEN: sie prueft den Filter, nicht
-   * die beiden Stellen, die solche Zeilen ERZEUGEN. Die tragen ihre eigenen Gegenproben —
-   * `_db/migrations.test.ts` ("schreibt eine koordination-Zeile auf auftrag um — und NIEMALS auf
-   * bufdi") fuer den Bestand und `_lib/zugang.test.ts` (JIT-Zeile) fuer den Erstzugang.
+   * WAS DIESE ZEILE PRUEFEN KANN UND WAS NICHT: `bufdis(db, heute)` bekommt keinen `Akteur` — es
+   * SIEHT die Gruppe strukturell nicht und kann sie also auch nicht ausschliessen. Der Test haelt
+   * deshalb genau die Zusage fest, die es gibt: eine Zeile mit `rolle: "auftrag"` steht nicht in
+   * der Liste, gleich wer sie in der Sitzung ist. Die Zusage „wer koordiniert, steht nie drin"
+   * haengt damit vollstaendig an den beiden Stellen, die solche Zeilen ERZEUGEN, und die tragen
+   * ihre eigenen Gegenproben: `_db/migrations.test.ts` (Bestand → `auftrag`, ausdruecklich nicht
+   * `bufdi`) und `_lib/zugang.test.ts` (die JIT-Zeile, ebenfalls `auftrag`).
+   *
+   * UND SIE IST NICHT ABSOLUT: die Koordination kann ueber `/personen` einer Person mit
+   * Koordinationsgruppe eine `bufdi`-Zeile geben — die stuende dann in `bufdis()`. Das ist keine
+   * Luecke im Vier-Augen-Prinzip: `darfFreigeben` lehnt eine SELBST ZUGEWIESENE Fremdaufgabe in
+   * seiner zweiten Klausel ab, vor jeder Rollen- und Gruppenfrage. `bufdis()` ist die zweite Linie,
+   * nicht die erste — wer sie fuer die erste haelt, baut den naechsten Umbau auf einer Zusage auf,
+   * die diese Funktion nicht geben kann.
    */
-  it("enthaelt nie eine Person, die ueber die Gruppe koordiniert", () => {
+  it("enthaelt keine auftrag-Zeile — auch nicht die der koordinierenden Person", () => {
     const alina = legePerson("bg-alina", "bufdi");
     const rike = legePerson("bg-rike", "auftrag");
-    // Rike koordiniert — das steht in der Sitzung (`akteur(rike, true)`), nicht in der Zeile.
-    expect(akteur(rike, true).istKoordination).toBe(true);
     expect(bufdis(t.db, HEUTE).map((p) => p.id)).toEqual([alina.id]);
     expect(bufdis(t.db, HEUTE).map((p) => p.id)).not.toContain(rike.id);
   });
@@ -263,7 +268,7 @@ describe("freigabenFuer — filtert serverseitig auf darfFreigeben", () => {
     expect(freigabenFuer(t.db, akteur(rike, true), HEUTE)).toEqual([]);
   });
 
-  it("eine Selbstaufgabe im Status freigabe_offen kann es nicht geben — aber selbst dann liefert die Funktion nichts an eine ausgeschiedene koordination", () => {
+  it("eine Selbstaufgabe im Status freigabe_offen kann es nicht geben — aber selbst dann liefert die Funktion nichts an eine (hier ausgeschiedene) koordinierende Person", () => {
     const bufdi = legePerson("fe5-bufdi", "bufdi");
     const rikeEx = legePerson("fe5-rike-ex", "auftrag", { aktivBis: "2026-08-01" });
     legeAufgabe({
@@ -383,11 +388,17 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
   });
 
   /*
-   * ADVISOR-FUND: die einzige bis dahin vorhandene Selbstaufgaben-Gegenprobe auf dieser Ebene
-   * (unten, "eine Selbstaufgabe ... kann es nicht geben") setzte eine AUSGESCHIEDENE Koordination
-   * ein — `istAktiv` allein liefert dort schon `[]`, die Zeile bewiese also nichts ueber
-   * `darfFreigeben`s ERSTE Klausel (`if (a.istSelbst) return false`). Diese Zeile nimmt eine AKTIVE
-   * Koordination: nur so kann ein geloeschtes `istSelbst`-Gate ueberhaupt rot werden.
+   * ADVISOR-FUND (mit Nachtrag vom 2026-08-15): die bis dahin einzige Selbstaufgaben-Gegenprobe auf
+   * dieser Ebene ("eine Selbstaufgabe ... kann es nicht geben", weiter oben) setzte eine
+   * AUSGESCHIEDENE Koordination ein — `istAktiv` allein lieferte dort schon `[]`, die Zeile bewies
+   * also nichts ueber `darfFreigeben`s ERSTE Klausel (`if (a.istSelbst) return false`). Diese Zeile
+   * nimmt eine AKTIVE Koordination und war damit die einzige, an der ein geloeschtes
+   * `istSelbst`-Gate rot werden konnte.
+   *
+   * SEIT DEM QUELLENWECHSEL TRAEGT AUCH DER ANDERE FALL: `darfFreigeben` misst die Koordination
+   * nicht mehr an `istAktiv`, dort stoppt jetzt ebenfalls allein `istSelbst`. Die beiden Faelle
+   * sind damit doppelt gemoppelt statt der eine scharf und der andere stumpf — der hier bleibt
+   * trotzdem stehen, weil er die Aussage OHNE Umweg ueber eine Zeitregel macht.
    */
   it("eine Selbstaufgabe erscheint in KEINER Freigabe-Warteschlange — auch nicht bei einer aktiven Koordination", () => {
     const rike = legePerson("fd4-rike", "auftrag");

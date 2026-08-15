@@ -235,6 +235,26 @@ describe("akteurFuerSeite — die Koordination bekommt ihre Zeile beim ersten Au
   });
 
   /*
+   * DER SUITE-ADMIN BEKOMMT DIE ZEILE AUCH — GEPRUEFT, WEIL ES EINE ENTSCHEIDUNG IST UND KEIN
+   * NEBENEFFEKT (Review-Runde zum Quellenwechsel). `isModuleAdmin` laesst `dashboard-admins` neben
+   * der Modulgruppe passieren (`core/groups.ts`), und der Entwurf will diesen Rueckweg
+   * ausdruecklich: ohne Zeile saehe der Betreiber die Flaechen, koennte aber nichts einstellen,
+   * verteilen oder freigeben. Der Preis ist eine Zeile in `/personen`, die die Koordination nicht
+   * angelegt hat und nur ueber `aktivBis` beenden kann.
+   *
+   * DIESER FALL IST DER WAECHTER FUER DIE GEGENRICHTUNG: zieht jemand `legeKoordinationAn` spaeter
+   * auf die MODUL-Gruppe zusammen, wird diese Zeile rot — und die Frage nach dem Rueckweg muss dann
+   * beantwortet werden, statt sich still zu erledigen.
+   */
+  it("der Suite-Admin bekommt sie ebenfalls — der Rueckweg waere sonst nur der Lesepfad", async () => {
+    sitzung = { user: { id: "dev:betreiber@localtest.me", groups: ["dashboard-admins"] } };
+    const a = await akteurFuerSeite(t.db);
+    expect(a?.person.sub).toBe("dev:betreiber@localtest.me");
+    expect(a?.person.rolle).toBe("auftrag");
+    expect(allePersonen(t.db)).toHaveLength(1);
+  });
+
+  /*
    * NAME UND INITIALEN KOMMEN AUS DER SITZUNG, MIT ZWEI RUECKFALLSTUFEN: Pocket ID liefert nicht
    * jedem Konto einen `name`. Ein leerer Name waere in jeder Liste des Moduls eine namenlose Zeile,
    * die niemand zuordnen kann — die E-Mail und zuletzt der `sub` sind haesslicher, aber lesbar, und
