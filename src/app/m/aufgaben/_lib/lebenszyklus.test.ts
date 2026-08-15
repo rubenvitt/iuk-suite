@@ -225,12 +225,21 @@ describe("uebergang — dieselben 60 Zellen fuer eine AUSGESCHIEDENE privilegier
   /*
    * KEINER der zehn erlaubten Uebergaenge darf einer ausgeschiedenen Person offenstehen — nicht
    * zehn einzeln handgeschriebene Faelle, sondern derselbe Rasterlauf mit `aktivBis` in der
-   * Vergangenheit. `zurueckziehen` haengt an ZWEI Praedikaten (Ersteller ODER Koordination); die
-   * Koordination im Raster ist hier ebenfalls ausgeschieden, `darfVerteilen` faellt also auch dort
-   * weg, und der Ersteller-Zweig scheitert an `istAktiv` direkt.
+   * Vergangenheit. `zurueckziehen` haengt an ZWEI Praedikaten (Ersteller ODER Koordination); der
+   * Ersteller-Zweig scheitert an `istAktiv` direkt.
+   *
+   * MIT EINER AUSNAHME SEIT DEM 2026-08-15 (Entwurf §5), UND SIE IST DER PUNKT DIESES BLOCKS: WER
+   * UEBER DIE GRUPPE KOORDINIERT, WIRD NICHT MEHR AN `aktivBis` GEMESSEN — `verteilen` und
+   * `umverteilen` (die beiden Zellen, deren privilegierte Person die Koordination ist) bleiben ihr
+   * also offen. Das Raster laeuft weiterhin ueber ALLE 60 Zellen und rechnet die Ausnahme aus,
+   * statt sie zu ueberspringen: eine uebersprungene Zelle waere eine Zelle, die niemand mehr
+   * prueft. `zurueckziehen` bleibt abgelehnt, weil dort der AUSGESCHIEDENE ERSTELLER handelt, nicht
+   * die Koordination.
    */
+  const KOORDINATIONS_AKTIONEN = new Set<Aktion>(["verteilen", "umverteilen"]);
+
   it.each(STATUS_WERTE.flatMap((von) => AKTIONEN.map((aktion) => [von, aktion] as const)))(
-    "%s × %s — ausgeschieden → immer abgelehnt",
+    "%s × %s — ausgeschieden → abgelehnt, ausser die Koordination handelt",
     (von, aktion) => {
       const a: Akteure = {
         koordination: person("auftrag", { id: "koordination-id", aktivBis: "2026-08-01" }),
@@ -241,10 +250,32 @@ describe("uebergang — dieselben 60 Zellen fuer eine AUSGESCHIEDENE privilegier
       const p = privilegiert(aktion, a);
       const t = aufgabe({ status: von, erstellerId: a.ersteller.id, zugewiesenAn: a.bufdi.id, prueferId: a.pruefer.id });
       const ergebnis = uebergang(t, aktion, akteurImRaster(p, a), HEUTE);
-      expect(ergebnis.erlaubt).toBe(false);
+      // Die Zelle bleibt nur dann erlaubt, wenn sie ES OHNEHIN WAERE (`ERLAUBTE_UEBERGAENGE`) UND
+      // die Koordination handelt — jede andere der 60 Zellen bleibt abgelehnt.
+      const trotzdemErlaubt =
+        KOORDINATIONS_AKTIONEN.has(aktion) &&
+        ERLAUBTE_UEBERGAENGE.some((e) => e.von === von && e.aktion === aktion);
+      expect(ergebnis.erlaubt).toBe(trotzdemErlaubt);
       if (!ergebnis.erlaubt) expect(ergebnis.grund.length).toBeGreaterThan(0);
     },
   );
+
+  /*
+   * DIE GEGENPROBE ZUR AUSNAHME: dieselbe ausgeschiedene Person OHNE Gruppe bekommt die beiden
+   * Zellen NICHT. Ohne sie waere aus der Ausnahme oben ein stiller Wegfall des `istAktiv`-Riegels
+   * fuer `verteilen`/`umverteilen` ueberhaupt geworden.
+   */
+  it("dieselben Zellen bleiben einer ausgeschiedenen Person OHNE Koordinationsgruppe verschlossen", () => {
+    const exRike = person("auftrag", { id: "ex-ohne-gruppe", aktivBis: "2026-08-01" });
+    const bufdi = person("bufdi", { id: "bufdi-id" });
+    const eingegangen = aufgabe({ status: "eingegangen", erstellerId: "ersteller-id", zugewiesenAn: bufdi.id });
+    const verteilt = aufgabe({ status: "verteilt", erstellerId: "ersteller-id", zugewiesenAn: bufdi.id });
+    expect(uebergang(eingegangen, "verteilen", akteur(exRike), HEUTE).erlaubt).toBe(false);
+    expect(uebergang(verteilt, "umverteilen", akteur(exRike), HEUTE).erlaubt).toBe(false);
+    // …und MIT Gruppe eben doch — die beiden Zeilen zusammen sagen, woran es haengt.
+    expect(uebergang(eingegangen, "verteilen", akteur(exRike, true), HEUTE).erlaubt).toBe(true);
+    expect(uebergang(verteilt, "umverteilen", akteur(exRike, true), HEUTE).erlaubt).toBe(true);
+  });
 });
 
 describe("uebergang — dieselben 60 Zellen fuer eine UNBETEILIGTE AKTIVE Person", () => {

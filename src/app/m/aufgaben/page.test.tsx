@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "./_db/testdb";
 import { personen, type PersonRow, type Rolle } from "./_db/schema";
+import { allePersonen } from "./_db/queries";
 import type { Akteur } from "./_lib/zugang";
 
 /*
@@ -148,6 +149,34 @@ describe("AufgabenPage — Default-Export", () => {
     await mount(element);
     expect(query('[data-testid="aufgaben-content"]')).toBeTruthy();
     expect(document.body.textContent).toContain("Du bist noch nicht im Modul eingetragen.");
+  });
+
+  /**
+   * DER LEERE START — DAS ABNAHMEKRITERIUM DES GANZEN UMBAUS (Plan „Abnahme: der leere Start",
+   * Punkt 3), UND ZWAR ALS ZUSAMMENSPIEL, NICHT ALS ZWEI HALBE ZUSAGEN. Die JIT-Zeile
+   * (`_lib/zugang.test.ts`) und die Verzweigung auf `istKoordination` (oben in dieser Datei) sind
+   * jede fuer sich geprueft; dass sie ZUSAMMEN eine leere Datenbank in die Verteilung fuehren, ist
+   * eine dritte Aussage — sie laeuft ueber den Default-Export, also genau den Weg, den ein Abruf
+   * nimmt.
+   *
+   * DIE `personen`-TABELLE IST HIER BEWUSST LEER: kein Seed, keine Fixtur, nur eine Sitzung mit der
+   * Koordinationsgruppe. Waere der Weg kaputt, stuende hier die Erklaerseite „noch nicht
+   * eingetragen" — genau das Symptom, das der Entwurf beseitigt; deshalb steht dessen Abwesenheit
+   * ausdruecklich in einer eigenen Zusicherung und nicht nur implizit in der Ueberschrift.
+   *
+   * `e2e/aufgaben.spec.ts` bekommt denselben Fall als echten Abruf (Aufgabe 6 des Plans) — dieser
+   * Test ersetzt ihn nicht, er faengt den Bruch nur eine Gate-Stufe frueher.
+   */
+  it("leerer Start: Koordinationsgruppe OHNE personen-Zeile landet auf der Verteilung, nicht auf der Erklaerseite", async () => {
+    sitzung = {
+      user: { id: "dev:rike@test", name: "Rike Petersen", groups: ["iuk-aufgaben-koordination"] },
+    };
+    await mount(await AufgabenPage({ searchParams: Promise.resolve({}) }));
+    expect(query("h1").textContent).toBe("Verteilung");
+    expect(document.body.textContent).not.toContain("Du bist noch nicht im Modul eingetragen.");
+    const angelegt = allePersonen(t.db);
+    expect(angelegt).toHaveLength(1);
+    expect(angelegt[0]).toMatchObject({ sub: "dev:rike@test", rolle: "auftrag" });
   });
 
   it("ohne Sitzung: ebenfalls notFound()", async () => {

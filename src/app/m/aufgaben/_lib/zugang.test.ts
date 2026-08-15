@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TestDb } from "../_db/testdb";
 import { migrierteTestDb } from "../_db/testdb";
 import { personen, aufgaben, type PersonRow, type Rolle } from "../_db/schema";
+import { allePersonen, bufdis } from "../_db/queries";
+import { isoTag } from "./datum";
 
 /**
  * ZWEI MOCKS:
@@ -187,6 +189,88 @@ describe("akteurFuerSeite — die Koordination kommt aus der Gruppe, nicht aus d
 });
 
 /**
+ * DIE JIT-ZEILE (Entwurf 2026-08-15 §4) — DER LEERE START IST DAS ABNAHMEKRITERIUM.
+ *
+ * Eine koordinierende Person BRAUCHT eine `personen`-Zeile, sobald sie handelt: `erstellerId` und
+ * `prueferId` zeigen auf eine `personen.id`, und `verlauf.akteurId` ebenfalls. Ohne Zeile koennte
+ * sie nichts einstellen — und ohne diesen Anlegepfad zeigte `/` ihr weiterhin die Erklaerseite
+ * „noch nicht eingetragen", genau das Symptom, das dieser Umbau beseitigt.
+ *
+ * DIE DRITTE ZUSAGE IST DIE WICHTIGSTE: die angelegte Zeile traegt `auftrag`, NIE `bufdi` — sonst
+ * stuende die Koordination in ihrer eigenen Verteilliste (`verteilDaten` speist sie aus `bufdis()`),
+ * und das Vier-Augen-Prinzip aus der Betreiberentscheidung vom 2026-08-13 fiele still aus. Deshalb
+ * prueft der Fall das Ergebnis von `bufdis()` selbst und nicht nur den Rollenwert.
+ */
+describe("akteurFuerSeite — die Koordination bekommt ihre Zeile beim ersten Aufruf", () => {
+  const KOORDINATION = { id: "dev:rike@localtest.me", groups: ["iuk-aufgaben-koordination"] };
+
+  it("legt eine Zeile an, wenn die Gruppe da ist und keine Zeile existiert", async () => {
+    sitzung = { user: { ...KOORDINATION, name: "Rike Petersen" } };
+    const a = await akteurFuerSeite(t.db);
+    expect(a?.person.sub).toBe("dev:rike@localtest.me");
+    expect(a?.person.rolle).toBe("auftrag");
+    expect(a?.istKoordination).toBe(true);
+    expect(allePersonen(t.db)).toHaveLength(1);
+  });
+
+  it("die angelegte Zeile steht NIE in bufdis() — die Verteilliste bleibt frei von der Koordination", async () => {
+    sitzung = { user: { ...KOORDINATION, name: "Rike Petersen" } };
+    const a = await akteurFuerSeite(t.db);
+    expect(a?.person.rolle).not.toBe("bufdi");
+    expect(bufdis(t.db, HEUTE)).toEqual([]);
+  });
+
+  it("ist idempotent — zweimal aufgerufen bleibt es eine Zeile", async () => {
+    sitzung = { user: { ...KOORDINATION, name: "Rike Petersen" } };
+    const erst = await akteurFuerSeite(t.db);
+    const zweit = await akteurFuerSeite(t.db);
+    expect(allePersonen(t.db).filter((p) => p.sub === "dev:rike@localtest.me")).toHaveLength(1);
+    expect(zweit?.person.id).toBe(erst?.person.id);
+  });
+
+  it("legt KEINE Zeile an, wenn die Gruppe fehlt", async () => {
+    sitzung = { user: { id: "dev:fremd@localtest.me", groups: [] } };
+    expect(await akteurFuerSeite(t.db)).toBeNull();
+    expect(allePersonen(t.db)).toHaveLength(0);
+  });
+
+  /*
+   * NAME UND INITIALEN KOMMEN AUS DER SITZUNG, MIT ZWEI RUECKFALLSTUFEN: Pocket ID liefert nicht
+   * jedem Konto einen `name`. Ein leerer Name waere in jeder Liste des Moduls eine namenlose Zeile,
+   * die niemand zuordnen kann — die E-Mail und zuletzt der `sub` sind haesslicher, aber lesbar, und
+   * die Koordination kann beides ueber `/personen` sofort richtigstellen.
+   */
+  it("nimmt den Namen aus der Sitzung und leitet die Initialen daraus ab", async () => {
+    sitzung = { user: { ...KOORDINATION, name: "Rike Petersen" } };
+    const a = await akteurFuerSeite(t.db);
+    expect(a?.person.name).toBe("Rike Petersen");
+    expect(a?.person.initialen).toBe("RP");
+  });
+
+  it("ohne Namen die E-Mail, ohne E-Mail den sub", async () => {
+    sitzung = { user: { ...KOORDINATION, email: "rike@drk.example" } };
+    expect((await akteurFuerSeite(t.db))?.person.name).toBe("rike@drk.example");
+
+    const t2 = migrierteTestDb();
+    sitzung = { user: KOORDINATION };
+    expect((await akteurFuerSeite(t2.db))?.person.name).toBe("dev:rike@localtest.me");
+    t2.schliessen();
+  });
+
+  /*
+   * DIE ANGELEGTE ZEILE IST AKTIV UND UNBEFRISTET — sonst haette der erste Seitenaufbau eine
+   * Person erzeugt, die `istAktiv` sofort verneint, und jedes Praedikat, das die Zeile (statt der
+   * Gruppe) fragt, liefe ins Leere.
+   */
+  it("ist ab heute aktiv und unbefristet", async () => {
+    sitzung = { user: { ...KOORDINATION, name: "Rike" } };
+    const a = await akteurFuerSeite(t.db);
+    expect(a?.person.aktivBis).toBeNull();
+    expect(istAktiv(a!.person, isoTag(new Date()))).toBe(true);
+  });
+});
+
+/**
  * `subFuerSitzung` (Aufgabe 14) — der Ausgang aus `NichtEingetragenSeite`: isoliert aus
  * `personFuerSeite`, OHNE Datenbank, OHNE Wurf. Keine dritte Fassung: beide Funktionen lesen
  * `session?.user?.id` ueber denselben `sitzung`-Mock.
@@ -237,7 +321,7 @@ describe("istAktiv — aktivBis ist EINSCHLIESSEND", () => {
  * interessanten — sie beschreiben genau die Personen, die es im Betrieb ab jetzt gibt. Eine
  * Tabelle, die nach dem Umbau kuerzer waere als vorher, haette Deckung verloren statt gewonnen.
  */
-describe("darfVerteilen — nur die Koordination, und aktiv", () => {
+describe("darfVerteilen — nur die Koordination; `istAktiv` misst sie seit dem 2026-08-15 nicht mehr", () => {
   it.each<[Rolle, boolean, boolean]>([
     ["auftrag", false, false],
     ["auftrag", true, true],
@@ -248,13 +332,28 @@ describe("darfVerteilen — nur die Koordination, und aktiv", () => {
     expect(darfVerteilen(akteur(p, istKoordination), HEUTE)).toBe(erwartet);
   });
 
-  it("ausgeschiedene Koordination darf nicht mehr verteilen", () => {
+  /*
+   * VERHALTENSAENDERUNG VOM 2026-08-15 (Entwurf §5) — DIESE ZEILE STAND FRUEHER MIT DER UMGEKEHRTEN
+   * ERWARTUNG DA. `istAktiv` misst die Koordination nicht mehr: ihre Rolle kommt aus der
+   * Pocket-ID-Gruppe, `aktivBis` ist eine Aussage der Modultabelle, und beides nebeneinander
+   * ergaebe zwei widersprechende Aussagen ueber dieselbe Person. Der Entzug laeuft ueber Pocket ID
+   * (Verzug bis zu einer Stunde, s. CLAUDE.md).
+   *
+   * DIE GEGENPROBE DANEBEN IST PFLICHT: ohne sie waere aus der Aenderung ein stiller Wegfall des
+   * `istAktiv`-Riegels ueberhaupt geworden.
+   */
+  it("eine ausgeschiedene Koordination darf WEITERHIN verteilen — die Gruppe traegt die Rolle", () => {
     const p = legePerson("v-inaktiv", "auftrag", { aktivBis: "2026-08-01" });
-    expect(darfVerteilen(akteur(p, true), HEUTE)).toBe(false);
+    expect(darfVerteilen(akteur(p, true), HEUTE)).toBe(true);
+  });
+
+  it("dieselbe ausgeschiedene Zeile OHNE Gruppe darf nicht verteilen", () => {
+    const p = legePerson("v-inaktiv-ohne", "auftrag", { aktivBis: "2026-08-01" });
+    expect(darfVerteilen(akteur(p), HEUTE)).toBe(false);
   });
 });
 
-describe("darfEinstellenFuerAndere — auftrag oder die Koordination, und aktiv", () => {
+describe("darfEinstellenFuerAndere — die Koordination, oder ein AKTIVER auftrag", () => {
   it.each<[Rolle, boolean, boolean]>([
     ["auftrag", false, true],
     ["auftrag", true, true],
@@ -269,9 +368,16 @@ describe("darfEinstellenFuerAndere — auftrag oder die Koordination, und aktiv"
     const p = legePerson("e-inaktiv", "auftrag", { aktivBis: "2026-08-01" });
     expect(darfEinstellenFuerAndere(akteur(p), HEUTE)).toBe(false);
   });
+
+  /* ZWEI KLAUSELN, ZWEI ZEITREGELN (2026-08-15, Entwurf §5): dieselbe ausgeschiedene Zeile darf
+   * MIT Gruppe weiterhin — die Koordination haengt an der Gruppe, der `auftrag` an `istAktiv`. */
+  it("dieselbe ausgeschiedene Zeile MIT Gruppe darf weiterhin fremd einstellen", () => {
+    const p = legePerson("e-inaktiv-koord", "auftrag", { aktivBis: "2026-08-01" });
+    expect(darfEinstellenFuerAndere(akteur(p, true), HEUTE)).toBe(true);
+  });
 });
 
-describe("darfPersonenVerwalten — nur die Koordination, und aktiv", () => {
+describe("darfPersonenVerwalten — nur die Koordination; `istAktiv` misst sie nicht mehr", () => {
   it.each<[Rolle, boolean, boolean]>([
     ["auftrag", false, false],
     ["auftrag", true, true],
@@ -282,13 +388,24 @@ describe("darfPersonenVerwalten — nur die Koordination, und aktiv", () => {
     expect(darfPersonenVerwalten(akteur(p, istKoordination), HEUTE)).toBe(erwartet);
   });
 
-  it("ausgeschiedene Koordination darf Personen nicht mehr verwalten", () => {
+  /*
+   * DIESELBE VERHALTENSAENDERUNG (2026-08-15, Entwurf §5), UND HIER WIEGT SIE AM SCHWERSTEN: eine
+   * Koordinationsperson, die ihr eigenes `aktivBis` auf gestern setzt, sperrte sich sonst aus der
+   * Personenverwaltung aus und koennte den Fehler nicht mehr zuruecknehmen — der Aussperr-Fall, fuer
+   * den `personen/page.tsx` und `actions.ts` bis hierhin einen Notausgang brauchten.
+   */
+  it("eine ausgeschiedene Koordination darf Personen WEITERHIN verwalten — sonst sperrt sie sich selbst aus", () => {
     const p = legePerson("pv-inaktiv", "auftrag", { aktivBis: "2026-08-01" });
-    expect(darfPersonenVerwalten(akteur(p, true), HEUTE)).toBe(false);
+    expect(darfPersonenVerwalten(akteur(p, true), HEUTE)).toBe(true);
+  });
+
+  it("dieselbe ausgeschiedene Zeile OHNE Gruppe darf keine Personen verwalten", () => {
+    const p = legePerson("pv-inaktiv-ohne", "auftrag", { aktivBis: "2026-08-01" });
+    expect(darfPersonenVerwalten(akteur(p), HEUTE)).toBe(false);
   });
 });
 
-describe("darfFreigabenSehen — auftrag oder die Koordination, und aktiv (Aufgabe 15, Spec §8: '/freigaben')", () => {
+describe("darfFreigabenSehen — die Koordination, oder ein AKTIVER auftrag (Aufgabe 15, Spec §8: '/freigaben')", () => {
   it.each<[Rolle, boolean, boolean]>([
     ["auftrag", false, true],
     ["auftrag", true, true],
@@ -302,6 +419,12 @@ describe("darfFreigabenSehen — auftrag oder die Koordination, und aktiv (Aufga
   it("ausgeschiedener auftrag darf die Warteschlange nicht mehr sehen", () => {
     const p = legePerson("fs-inaktiv", "auftrag", { aktivBis: "2026-08-01" });
     expect(darfFreigabenSehen(akteur(p), HEUTE)).toBe(false);
+  });
+
+  /* Dieselbe Zweiteilung wie in `darfEinstellenFuerAndere` (2026-08-15, Entwurf §5). */
+  it("dieselbe ausgeschiedene Zeile MIT Gruppe sieht die Warteschlange weiterhin", () => {
+    const p = legePerson("fs-inaktiv-koord", "auftrag", { aktivBis: "2026-08-01" });
+    expect(darfFreigabenSehen(akteur(p, true), HEUTE)).toBe(true);
   });
 });
 
@@ -454,6 +577,27 @@ describe("darfFreigeben", () => {
       status: "freigabe_offen",
     });
     expect(darfFreigeben(akteur(dritter), a, HEUTE)).toBe(false);
+  });
+
+  /*
+   * DIE KOORDINATIONS-KLAUSEL VON `darfFreigeben` MISST `istAktiv` SEIT DEM 2026-08-15 NICHT MEHR,
+   * DIE PRUEFER-KLAUSEL SCHON — die beiden Faelle stehen deshalb nebeneinander. Die zwei fachlichen
+   * Klauseln davor (nie Selbstaufgaben, nie die eigene Fremdaufgabe) sind davon unberuehrt und
+   * haben ihre eigenen Faelle oben und unten.
+   */
+  it("eine ausgeschiedene Koordination gibt WEITERHIN frei — die Gruppe traegt die Rolle", () => {
+    const ersteller = legePerson("fr6-ersteller", "auftrag");
+    const pruefer = legePerson("fr6-pruefer", "auftrag");
+    const bufdi = legePerson("fr6-bufdi", "bufdi");
+    const exRike = legePerson("fr6-ex-rike", "auftrag", { aktivBis: "2026-08-01" });
+    const a = legeAufgabe({
+      erstellerId: ersteller.id,
+      zugewiesenAn: bufdi.id,
+      prueferId: pruefer.id,
+      status: "freigabe_offen",
+    });
+    expect(darfFreigeben(akteur(exRike, true), a, HEUTE)).toBe(true);
+    expect(darfFreigeben(akteur(exRike), a, HEUTE)).toBe(false);
   });
 
   it("ausgeschiedener Pruefer darf nicht mehr freigeben", () => {

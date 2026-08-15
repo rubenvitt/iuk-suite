@@ -28,17 +28,19 @@ export const dynamic = "force-dynamic";
  * das kommt aus derselben Quelle wie hier — `canAdminModule("aufgaben")` (`_lib/zugang.ts`s
  * `akteurFuer`). Was am 2026-08-14 fuer EINE Route entschieden wurde, gilt jetzt fuer alle.
  *
- * ER BLEIBT TROTZDEM STEHEN, UND ZWAR FUER GENAU EINEN FALL: eine Koordinationsperson OHNE eigene
- * `personen`-Zeile. `akteurFuerSeite` liefert dafuer heute noch `null` (die Zeile fehlt), also
- * bekaeme sie ohne diesen vorgezogenen Riegel die Erklaerseite statt der Personenverwaltung — und
- * damit weiterhin keinen Weg zur allerersten Zeile in einer frischen Datenbank. Erst die JIT-Zeile
- * (Aufgabe 4 des Plans) entschaerft das; bis dahin traegt dieser Notausgang den Erstbetrieb.
+ * ER BLEIBT TROTZDEM STEHEN, OBWOHL DIE JIT-ZEILE (`_lib/zugang.ts`s `akteurFuerSeite`, seit dem
+ * 2026-08-15) SEINEN HAUPTFALL UEBERNOMMEN HAT: eine Koordinationsperson OHNE eigene `personen`-
+ * Zeile bekommt sie dort beim ersten Seitenaufbau, `akteurFuerSeite` liefert ihr also kein `null`
+ * mehr. Was bleibt, ist die REIHENFOLGE als Zusage: dieser Riegel entscheidet die Zugangsfrage
+ * VOR jeder Personen-Zeilen-Frage und haengt damit an nichts, was in der Modultabelle stehen oder
+ * fehlen koennte. Wer ihn "vereinfacht", macht den Erstbetrieb wieder davon abhaengig, dass die
+ * Zeilenanlage an genau der richtigen Stelle vorher gelaufen ist.
  *
- * ZWEITE FOLGE, AUSGESCHRIEBEN: weil er VOR jeder Personen-Zeilen-Frage steht, erreicht eine
- * Koordinationsperson mit `aktivBis` in der Vergangenheit diese Route trotzdem — die Gruppe traegt
- * die Rolle, nicht `aktivBis` (Entwurf §5). Auf `/verteilen` und `/freigaben` gilt das noch NICHT:
- * dort endet das Praedikat weiterhin auf `&& istAktiv(...)`, und dort steht kein Notausgang. Diese
- * Ungleichheit ist bekannt und wird mit Aufgabe 4 aufgeloest, nicht hier still.
+ * ZWEITE FOLGE, AUSGESCHRIEBEN: eine Koordinationsperson mit `aktivBis` in der Vergangenheit
+ * erreicht diese Route — die Gruppe traegt die Rolle, nicht `aktivBis` (Entwurf §5). Das gilt seit
+ * dem 2026-08-15 auch fuer `/verteilen` und `/freigaben`: `darfVerteilen`/`darfPersonenVerwalten`
+ * messen die Koordination nicht mehr an `istAktiv`. Die frueher hier ausgeschriebene Ungleichheit
+ * zwischen dieser Route und den anderen ist damit aufgeloest, nicht bloss verschoben.
  *
  * DER RIEGEL SITZT AUF DER ROUTE (`canAdminModule`, `core/auth/guards.ts`), NICHT IM PRAEDIKAT —
  * und das gilt WEITER: `darfPersonenVerwalten` bleibt synchron und rein, weil

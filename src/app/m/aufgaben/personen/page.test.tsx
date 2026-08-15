@@ -122,22 +122,22 @@ describe("PersonenPage — Rollen-Gate (Spec §4: nur die Koordination verwaltet
   });
 
   /**
-   * DIE EINE ZUSAGE, DIE DER QUELLENWECHSEL (2026-08-15) UMDREHT — bewusst, nicht als Panne, und
-   * NUR AUF DIESER ROUTE. Bis dahin hiess dieser Fall „eine ausgeschiedene Koordination bekommt
-   * ebenfalls notFound()": die Rolle stand in der Zeile, und `darfPersonenVerwalten`s `istAktiv`
-   * lehnte sie ab.
+   * DIE EINE ZUSAGE, DIE DER QUELLENWECHSEL (2026-08-15) UMDREHT — bewusst, nicht als Panne. Bis
+   * dahin hiess dieser Fall „eine ausgeschiedene Koordination bekommt ebenfalls notFound()": die
+   * Rolle stand in der Zeile, und `darfPersonenVerwalten`s `istAktiv` lehnte sie ab.
    *
    * Jetzt traegt die GRUPPE die Rolle. Ein `aktivBis` auf der Zeile sagt ueber die
    * Gruppenmitgliedschaft nichts aus — der Entzug laeuft ueber Pocket ID (Entwurf §5: „`istAktiv`
-   * gilt fuer die Koordination nicht mehr"). Und `personen/page.tsx`s NOTAUSGANG
-   * (`canAdminModule`, Betreiberentscheidung 2026-08-14) steht VOR jeder Personen-Zeilen-Frage: wer
-   * koordiniert, kommt hier hinein, bevor `darfPersonenVerwalten` ueberhaupt gefragt wird. Diese
-   * eine Route bekommt die Regel aus §5 deshalb schon jetzt, der Rest des Moduls erst mit der
-   * JIT-Zeile (Aufgabe 4 des Plans).
+   * gilt fuer die Koordination nicht mehr"). ZWEI UNABHAENGIGE WEGE fuehren diese Sitzung inzwischen
+   * herein, und beide sollen sie hereinfuehren: der NOTAUSGANG (`canAdminModule`,
+   * Betreiberentscheidung 2026-08-14) steht vor jeder Personen-Zeilen-Frage, UND
+   * `darfPersonenVerwalten` selbst misst die Koordination nicht mehr an `istAktiv`.
    *
-   * DIE GEGENPROBE STEHT DANEBEN: auf `/verteilen` und `/freigaben` gilt fuer dieselbe Sitzung
-   * weiterhin `notFound()` — dort gibt es keinen Notausgang, und `darfVerteilen`/
-   * `darfFreigabenSehen` enden nach wie vor auf `&& istAktiv(akteur.person, heute)`.
+   * DIE FRUEHER HIER AUSGESCHRIEBENE UNGLEICHHEIT IST AUFGELOEST: `/verteilen` und `/freigaben`
+   * antworteten derselben Sitzung bis zum 2026-08-15 mit `notFound()`, weil dort kein Notausgang
+   * steht und die Praedikate auf `&& istAktiv(...)` endeten. Seit die Praedikate selbst nachgezogen
+   * sind, gilt fuer alle drei Routen dieselbe Regel — `verteilen/page.test.tsx` haelt die andere
+   * Haelfte fest.
    */
   it("eine ausgeschiedene Koordination MIT Gruppe kommt hinein — die Gruppe traegt die Rolle, nicht aktivBis", async () => {
     const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2020-01-01" });
@@ -185,10 +185,16 @@ describe("PersonenPage — der Notausgang fuer den Suite-/Modul-Admin", () => {
 
   /**
    * DER AUSSPERR-FALL, WOERTLICH (Fix-Auftrag Punkt 4): die EINZIGE Koordinationsperson hat ihr
-   * eigenes `aktivBis` auf gestern gesetzt (versehentlich oder als Jahreswechsel) — `darfPersonenVerwalten`
-   * lehnt sie jetzt ab (`istAktiv` ist falsch). OHNE den Notausgang waere `/personen` ab hier fuer
-   * NIEMANDEN mehr erreichbar, auch nicht fuer den Betreiber. Traegt dieselbe Sitzung zusaetzlich die
-   * Suite-Admin-Gruppe, kommt sie trotzdem hinein.
+   * eigenes `aktivBis` auf gestern gesetzt (versehentlich oder als Jahreswechsel). OHNE den
+   * Notausgang waere `/personen` fuer NIEMANDEN mehr erreichbar gewesen, auch nicht fuer den
+   * Betreiber. Traegt dieselbe Sitzung zusaetzlich die Suite-Admin-Gruppe, kommt sie trotzdem
+   * hinein.
+   *
+   * SEIT DEM 2026-08-15 IST DER FALL DOPPELT ABGESICHERT, UND DER TEST BLEIBT TROTZDEM STEHEN:
+   * `darfPersonenVerwalten` misst die Koordination nicht mehr an `istAktiv`, das Aussperren durch
+   * das eigene Formular ist also gar nicht mehr moeglich. Diese Zeile prueft weiterhin den ZWEITEN
+   * Weg — die Suite-Admin-Gruppe —, und der ist der einzige, der auch dann noch traegt, wenn
+   * `SUITE_ADMIN_GROUP_AUFGABEN` fehlkonfiguriert ist.
    */
   it("Aussperr-Fall: die einzige (jetzt beendete) Koordinationsperson kommt als Suite-Admin trotzdem hinein", async () => {
     const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-12" });

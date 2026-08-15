@@ -1084,6 +1084,12 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
  * Reihenfolge wie in `personen/page.tsx`. Umgekehrt gefragt, faenge `personFuerSession`s
  * `notFound()` genau den Suite-Admin ohne eigene `personen`-Zeile ab, also den Erstbetriebs-Fall.
  *
+ * DIE JIT-ZEILE (`_lib/zugang.ts`s `akteurFuerSeite`, 2026-08-15) NIMMT DIESEM RIEGEL SEINE
+ * DRINGLICHKEIT, ABER NICHT SEINE AUFGABE: sie entsteht beim SEITENAUFBAU, und Actions bauen keine
+ * Seite auf. Ein POST, der vor jedem Seitenabruf dieser Sitzung eintrifft, traefe weiterhin auf
+ * `personFuerSession`s `notFound()` — deshalb bleibt der Zweig hier stehen, statt sich auf einen
+ * Aufrufpfad zu verlassen, der im Normalfall vorher lief.
+ *
  * `bearbeiter` LEBT NUR IN DIESER FUNKTION und wird nirgends zurueckgegeben: beide Aufrufer
  * arbeiten danach ausschliesslich mit ihren eigenen Werten (`bestehende`/`values`/`db` bzw.
  * `ziel`/`heute`). Fuer den Modul-Admin gibt es unter Umstaenden gar keine Zeile — ein

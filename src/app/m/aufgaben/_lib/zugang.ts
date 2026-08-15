@@ -4,15 +4,18 @@ import { auth } from "@/core/auth";
 import { canAdminModule } from "@/core/auth/guards";
 import type { DB } from "../_db/client";
 import { personen, type AufgabeRow, type PersonRow } from "../_db/schema";
+import { isoTag } from "./datum";
 
 /*
  * ZUGRIFFSSCHUTZ — die EINE Quelle (Spec §7). ALLE Seiten und ALLE Server-Actions rufen dieselben
  * Praedikate; das ist die Bedingung dafuer, dass Oberflaeche und Riegel nicht auseinanderlaufen.
  * KEIN "use client", KEIN Import aus `@ant-design/icons` (Fallen 6 und 7).
  *
- * `heute` kommt ueberall als ISO-Tagesstring HEREIN und wird NIE hier selbst ermittelt — die
- * Zeitzone steht ausschliesslich in `_lib/datum.ts` (`isoTag`), und ein zweiter Ort dafuer wäre
- * genau der Fehler, den Aufgabe 3 vermieden hat.
+ * `heute` kommt in JEDES PRAEDIKAT als ISO-Tagesstring HEREIN und wird von keinem selbst ermittelt
+ * — die Zeitzone steht ausschliesslich in `_lib/datum.ts` (`isoTag`), und ein zweiter Ort dafuer
+ * wäre genau der Fehler, den Aufgabe 3 vermieden hat. EINE AUSNAHME, UND SIE IST KEIN PRAEDIKAT:
+ * `legeKoordinationAn` (der Schreibpfad der JIT-Zeile) braucht ein `aktivVon`, bekommt aber kein
+ * `heute` gereicht — es ruft `isoTag` aus derselben EINEN Quelle, statt zu rechnen.
  *
  * ZWEI GRUPPEN VON PRAEDIKATEN, UND DIE GRENZE IST KEINE STILFRAGE:
  *
@@ -24,6 +27,16 @@ import { personen, type AufgabeRow, type PersonRow } from "../_db/schema";
  * SICHTPRAEDIKATE (`darfPlanSehen`, `darfNachweisSehen`) pruefen `istAktiv` NICHT. Eine
  * ausgeschiedene Person liest ihre Geschichte, bewegt aber nichts (Spec §7) — deshalb tragen
  * genau die Handlungspraedikate ein `heute`-Argument, die beiden Sichtpraedikate nicht.
+ *
+ * `istAktiv` MISST SEIT DEM 2026-08-15 NUR NOCH DIE ZEILENROLLEN (`auftrag`, `bufdi`), NICHT DIE
+ * KOORDINATION. Das ist keine Aufweichung der Regel darueber, sondern ihre Anwendung auf zwei
+ * Quellen: `aktivBis` ist eine Aussage der Modultabelle, und wo die Rolle NICHT aus der Tabelle
+ * kommt, kann die Tabelle sie auch nicht beenden. Der Entzug der Koordination laeuft ueber Pocket
+ * ID (Verzug bis zu einer Stunde, s. CLAUDE.md); ein `aktivBis` daneben ergaebe zwei
+ * widersprechende Aussagen ueber dieselbe Person — und die Koordination haette sich mit dem
+ * eigenen Formular aus der Personenverwaltung aussperren koennen. Betroffen sind `darfVerteilen`,
+ * `darfPersonenVerwalten`, `darfEinstellenFuerAndere`, `darfFreigeben`, `darfFreigabenSehen`; die
+ * beiden letzten behalten `istAktiv` in ihrer `auftrag`-Klausel.
  *
  * JEDES PRAEDIKAT FRAGT EINEN `Akteur`, NICHT EINE `PersonRow`: „wer handelt" hat zwei Haelften —
  * die Personenzeile und die Frage, ob sie koordiniert —, und die zweite steht nicht zwingend in
@@ -141,11 +154,95 @@ export async function akteurFuer(person: PersonRow): Promise<Akteur> {
   return { person, istKoordination: await canAdminModule("aufgaben") };
 }
 
-/** Wie `personFuerSeite`, nur als `Akteur` — `null` bleibt `null` (keine `personen`-Zeile). */
+/**
+ * DIE INITIALEN AUS EINEM NAMEN — zwei Buchstaben, wie sie die Koordination im Formular auch von
+ * Hand vergibt. Zwei oder mehr Namensteile ergeben die Anfangsbuchstaben der ersten beiden, ein
+ * einzelner Teil (oder eine E-Mail als Ersatzname) seine ersten beiden Zeichen. `initialen` ist
+ * `NOT NULL` und steht in jeder Liste des Moduls; ein leerer Wert waere eine Zelle, die niemand
+ * zuordnen kann. Die Koordination korrigiert beides ueber `/personen` in zwei Klicks.
+ */
+function initialenAus(name: string): string {
+  const teile = name.trim().split(/\s+/).filter(Boolean);
+  const roh =
+    teile.length >= 2 ? `${teile[0]!.slice(0, 1)}${teile[1]!.slice(0, 1)}` : (teile[0] ?? "").slice(0, 2);
+  return (roh || "??").toUpperCase();
+}
+
+/**
+ * DIE PERSONENZEILE FUER EINE KOORDINIERENDE PERSON, DIE NOCH KEINE HAT (Entwurf 2026-08-15 §4).
+ *
+ * WARUM DIE ZEILE UEBERHAUPT NOETIG IST: `aufgaben.erstellerId`/`prueferId` und `verlauf.akteurId`
+ * zeigen auf eine `personen.id`. Ohne Zeile koennte die Koordination nichts einstellen, nichts
+ * freigeben und keine Verlaufszeile erzeugen — die Gruppe allein oeffnet ihr die Oberflaeche, aber
+ * kein Schreibrecht mit zurechenbarer Herkunft.
+ *
+ * WARUM EIN SCHREIBVORGANG BEIM SEITENAUFBAU HIER VERTRETBAR IST — BEGRUENDUNGSPFLICHTIG, WEIL ES
+ * SONST NIRGENDS IM MODUL VORKOMMT: die Alternative (erst beim ersten Handeln anlegen) liesse `/`
+ * fuer die frisch freigeschaltete Koordination weiterhin „noch nicht eingetragen" zeigen — genau
+ * das Symptom, das dieser Umbau beseitigt (der leere Start IST das Abnahmekriterium). Der Zugriff
+ * ist ein einzelnes idempotentes `INSERT` gegen eine lokale SQLite-Datei, kein Netzaufruf, und er
+ * findet nur statt, wenn `canAdminModule` bereits `true` gesagt hat.
+ *
+ * `ON CONFLICT DO NOTHING` GEGEN `personen_sub_idx`, DANACH LESEN: parallele Prefetches derselben
+ * Sitzung (Next.js macht davon reichlich) liefen sonst in einen UNIQUE-Fehler. Das `returning()`
+ * waere bei einem Konflikt `undefined` — deshalb steht der `SELECT` danach und nicht daneben.
+ *
+ * DASS ES AUF JEDER MODULSEITE FEUERT, IST ABSICHT UND KEIN ZUFALL: `layout.tsx` ruft
+ * `akteurFuerSeite` fuer die Navigation, also entsteht die Zeile auch dann, wenn jemand direkt auf
+ * `/personen` landet (deren Default-Export geht ueber den `canAdminModule`-Notausgang und fragt die
+ * Personenzeile gar nicht). Genau darum darf dieser Pfad NUR idempotent sein — der zweite bis
+ * n-te Aufruf ist ein `INSERT`, das nichts tut, plus ein `SELECT`.
+ *
+ * `rolle: "auftrag"` UND NIEMALS `"bufdi"`: `verteilDaten` speist die Verteillisten aus `bufdis()`,
+ * damit die Koordination nicht in ihrer eigenen Zielliste steht (Betreiberentscheidung 2026-08-13,
+ * s. `darfFreigeben`). `auftrag` ist zudem fachlich richtig — die Koordination stellt fuer andere
+ * ein. `sollMinutenTag` bleibt beim Schema-Vorgabewert; fuer die Koordination ist er bedeutungslos.
+ *
+ * `aktivVon` IST DER EINZIGE ORT DIESER DATEI, DER EIN DATUM SELBST ERMITTELT (s. Kopfkommentar):
+ * kein Praedikat tut das, dieser SCHREIBPFAD muss es, weil die Spalte `NOT NULL` ist und
+ * `akteurFuerSeite` kein `heute` entgegennimmt. Er nimmt dafuer `isoTag` aus `_lib/datum.ts` — die
+ * EINE Quelle der Zeitzone —, statt eine zweite Fassung zu bauen.
+ */
+function legeKoordinationAn(db: DB, sub: string, name: string): PersonRow {
+  db.insert(personen)
+    .values({
+      sub,
+      name,
+      initialen: initialenAus(name),
+      rolle: "auftrag",
+      aktivVon: isoTag(new Date()),
+      aktivBis: null,
+    })
+    .onConflictDoNothing()
+    .run();
+  const person = db.select().from(personen).where(eq(personen.sub, sub)).get();
+  if (!person) throw new Error(`Koordinationszeile fuer "${sub}" konnte nicht angelegt werden.`);
+  return person;
+}
+
+/**
+ * Wie `personFuerSeite`, nur als `Akteur` — MIT EINER AUSNAHME, DIE DEN ERSTBETRIEB TRAEGT: wer
+ * koordiniert und noch keine `personen`-Zeile hat, bekommt sie hier (s. `legeKoordinationAn`).
+ * `null` bleibt `null` fuer alle anderen — eine BuFDi ohne Zeile sieht weiterhin die Erklaerseite
+ * und wartet darauf, dass die Koordination sie eintraegt. Genau das ist der Unterschied: die
+ * Koordination kann auf niemanden warten, sie IST die Stelle, die eintraegt.
+ *
+ * `auth()` WIRD IM ANLEGE-ZWEIG EIN ZWEITES MAL GERUFEN, statt `personFuerSeite` umzubauen: derselbe
+ * Zug wie bei `subFuerSitzung` (s. dort) — billig, kein Datenbankzugriff, und die Grenzentscheidung
+ * „ohne Sitzung notFound(), ohne Zeile null" bleibt an EINER Stelle.
+ */
 export async function akteurFuerSeite(db: DB): Promise<Akteur | null> {
   const person = await personFuerSeite(db);
-  if (!person) return null;
-  return akteurFuer(person);
+  if (person) return akteurFuer(person);
+  if (!(await canAdminModule("aufgaben"))) return null;
+  const nutzer = (await auth())?.user;
+  // Unerreichbar: `personFuerSeite` haette ohne Sitzung schon `notFound()` geworfen. Ein Wurf statt
+  // eines stillen Rueckfalls, falls sich das je aendert — laut ist besser als still.
+  if (!nutzer?.id) notFound();
+  return {
+    person: legeKoordinationAn(db, nutzer.id, nutzer.name ?? nutzer.email ?? nutzer.id),
+    istKoordination: true,
+  };
 }
 
 /**
@@ -170,23 +267,52 @@ export function istAktiv(p: PersonRow, heute: string): boolean {
   return true;
 }
 
-/** Nur die Koordination verteilt Aufgaben aus dem Posteingang. */
+/**
+ * Nur die Koordination verteilt Aufgaben aus dem Posteingang.
+ *
+ * OHNE `istAktiv` — UND DAS IST DIE AUSNAHME AUS DEM KOPFKOMMENTAR, NICHT IHR BRUCH (Entwurf
+ * 2026-08-15 §5): die GRUPPENMITGLIEDSCHAFT traegt diese Rolle, nicht die Zeile. `aktivBis` und
+ * Gruppe wuerden sonst zwei widersprechende Aussagen ueber dieselbe Person machen — die eine aus
+ * Pocket ID, die andere aus einer Zeile, die die Koordination sich selbst schreibt (`aktivBis` ist
+ * ein Feld des Personenformulars). Der Entzug laeuft ueber Pocket ID, mit dem bekannten
+ * Verzugsfenster von bis zu einer Stunde (s. CLAUDE.md „Zugriffsschutz").
+ *
+ * `heute` BLEIBT IN DER SIGNATUR, obwohl das Ergebnis nicht mehr davon abhaengt — dieselbe
+ * Ueberlegung wie bei `darfPlanSehen`: `_lib/nav.ts`, `_lib/lebenszyklus.ts`s `TABELLE[].wer` und
+ * jede Seite rufen die Handlungspraedikate in EINER Form, und ein Sonderfall ohne `heute` waere an
+ * jeder Aufrufstelle zu merken. Kommt die Zeitfrage je zurueck, kommt sie ohne Signaturbruch.
+ */
 export function darfVerteilen(akteur: Akteur, heute: string): boolean {
-  return akteur.istKoordination && istAktiv(akteur.person, heute);
+  void heute;
+  return akteur.istKoordination;
 }
 
 /**
  * `auftrag` ODER die KOORDINATION duerfen Aufgaben FUER ANDERE einstellen. Fuer sich selbst darf
  * jede Rolle einstellen — das ist kein Praedikat, sondern der Normalfall (Spec §5.2, Zeile
  * "einstellen, fuer sich selbst"), und gehoert deshalb nicht hierher.
+ *
+ * ZWEI KLAUSELN MIT VERSCHIEDENEN ZEITREGELN, UND ZWAR ABSICHTLICH: fuer `auftrag` entscheidet
+ * weiterhin die Zeile (`istAktiv` — ein ausgeschiedener Auftraggeber stellt nichts mehr ein), fuer
+ * die Koordination die Gruppe (s. `darfVerteilen`). Beides in einem gemeinsamen `&& istAktiv(...)`
+ * zusammenzuziehen waere kuerzer und falsch.
  */
 export function darfEinstellenFuerAndere(akteur: Akteur, heute: string): boolean {
-  return (akteur.person.rolle === "auftrag" || akteur.istKoordination) && istAktiv(akteur.person, heute);
+  return akteur.istKoordination || (akteur.person.rolle === "auftrag" && istAktiv(akteur.person, heute));
 }
 
-/** Wer koordiniert, oeffnet die Personenverwaltung (Spec §4). */
+/**
+ * Wer koordiniert, oeffnet die Personenverwaltung (Spec §4). Ohne `istAktiv` — s. `darfVerteilen`.
+ *
+ * HIER WIEGT DIE REGEL AM SCHWERSTEN: eine Koordinationsperson, die ihr eigenes `aktivBis` auf
+ * gestern gesetzt hat, sperrte sich sonst aus der Personenverwaltung aus und koennte den Fehler
+ * nicht mehr zuruecknehmen (der Aussperr-Fall, s. `personen/page.tsx` und `actions.ts`). Genau
+ * dafuer stand dort bisher ein Notausgang; seit die Gruppe die Rolle traegt, braucht das Praedikat
+ * ihn an dieser Stelle nicht mehr.
+ */
 export function darfPersonenVerwalten(akteur: Akteur, heute: string): boolean {
-  return akteur.istKoordination && istAktiv(akteur.person, heute);
+  void heute;
+  return akteur.istKoordination;
 }
 
 /**
@@ -234,12 +360,19 @@ export function darfPlanAendern(akteur: Akteur, zielPersonId: string, heute: str
  * `bufdis()`, NICHT aus `aktivePersonen()` — sonst stuende die Koordination selbst darin, und der
  * Pfad waere wieder offen.
  *
- * Sonst: der eingetragene Pruefer ODER die Koordination, und aktiv.
+ * Sonst: der eingetragene Pruefer (und aktiv) ODER die Koordination.
+ *
+ * DIE BEIDEN OBEREN KLAUSELN STEHEN VOR DER KOORDINATIONS-KLAUSEL UND BLEIBEN WOERTLICH GUELTIG —
+ * daran aendert der Wegfall von `istAktiv` fuer die Koordination nichts: sie gibt weder eine
+ * Selbstaufgabe noch ihre eigene Fremdaufgabe frei. Der Pruefer wird weiterhin an `istAktiv`
+ * gemessen (seine Rolle steht in der Zeile), die Koordination nicht mehr (ihre steht in der
+ * Gruppe, s. `darfVerteilen`).
  */
 export function darfFreigeben(akteur: Akteur, a: AufgabeRow, heute: string): boolean {
   if (a.istSelbst) return false;
   if (akteur.person.id === a.zugewiesenAn) return false;
-  return (akteur.person.id === a.prueferId || akteur.istKoordination) && istAktiv(akteur.person, heute);
+  if (akteur.istKoordination) return true;
+  return akteur.person.id === a.prueferId && istAktiv(akteur.person, heute);
 }
 
 /**
@@ -386,7 +519,7 @@ export function darfAufgabeSehen(akteur: Akteur, a: AufgabeRow): boolean {
  * eben 200 statt 404).
  */
 export function darfFreigabenSehen(akteur: Akteur, heute: string): boolean {
-  return (akteur.person.rolle === "auftrag" || akteur.istKoordination) && istAktiv(akteur.person, heute);
+  return akteur.istKoordination || (akteur.person.rolle === "auftrag" && istAktiv(akteur.person, heute));
 }
 
 /**

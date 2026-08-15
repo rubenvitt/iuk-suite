@@ -169,9 +169,22 @@ describe("VerteilenPage — Rollen-Gate (Spec §8.3: '/verteilen' nur fuer die K
     await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
-  it("eine ausgeschiedene Koordination bekommt ebenfalls notFound()", async () => {
+  /*
+   * VERHALTENSAENDERUNG VOM 2026-08-15 (Entwurf §5) — DIESER FALL ERWARTETE FRUEHER `notFound()`:
+   * `darfVerteilen` misst die Koordination nicht mehr an `aktivBis`, weil ihre Rolle aus der
+   * Pocket-ID-Gruppe kommt. Damit verschwindet auch die Ungleichheit, die `personen/page.tsx` bis
+   * hierhin ausgeschrieben hat (dort kam sie ueber den Notausgang schon hinein, hier nicht).
+   */
+  it("eine ausgeschiedene Koordination kommt weiterhin hinein — die Gruppe traegt die Rolle", async () => {
     const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2020-01-01" });
     anmelden(exRike, true);
+    await mount(await VerteilenPage());
+    expect(query("h1").textContent).toBe("Verteilen");
+  });
+
+  it("dieselbe ausgeschiedene Zeile OHNE Gruppe bekommt notFound()", async () => {
+    const exMalte = legePerson("dev:ex-malte@test", "auftrag", { aktivBis: "2020-01-01" });
+    anmelden(exMalte);
     await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 

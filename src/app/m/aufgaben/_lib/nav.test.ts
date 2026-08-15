@@ -156,9 +156,29 @@ describe("aufgabenNav — genau die erwartete Eintragsmenge je Rolle (echte, unt
     expect(aufgabenNav(akteur(alina), HEUTE).map((e) => e.key)).toEqual(["start", "neu", "routinen", "archiv"]);
   });
 
-  it("eine ausgeschiedene koordination verliert jeden rollengebundenen Eintrag, behaelt start/neu/archiv", () => {
+  /*
+   * VERHALTENSAENDERUNG VOM 2026-08-15 (Entwurf §5) — DIESE ZEILE ERWARTETE FRUEHER `["start",
+   * "neu", "archiv"]`: `istAktiv` misst die Koordination nicht mehr, ihre Rolle kommt aus der
+   * Pocket-ID-Gruppe. Die Navigation behaelt damit genau die Eintraege, die die Routen ihr auch
+   * tatsaechlich oeffnen — und das ist die eigentliche Zusage dieser Datei: Oberflaeche und Riegel
+   * duerfen nicht auseinanderlaufen. Der Reachability-Lauf unten faehrt dieselbe Person durch die
+   * ECHTEN Seiten und wuerde rot, ginge das hier auseinander.
+   */
+  it("eine ausgeschiedene koordination behaelt ihre Eintraege — die Gruppe traegt die Rolle, nicht aktivBis", () => {
     const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2020-01-01" });
-    expect(aufgabenNav(akteur(exRike, true), HEUTE).map((e) => e.key)).toEqual(["start", "neu", "archiv"]);
+    expect(aufgabenNav(akteur(exRike, true), HEUTE).map((e) => e.key)).toEqual([
+      "start",
+      "neu",
+      "verteilen",
+      "freigaben",
+      "personen",
+      "archiv",
+    ]);
+  });
+
+  it("ein ausgeschiedener auftrag OHNE Gruppe verliert dagegen jeden rollengebundenen Eintrag", () => {
+    const exMalte = legePerson("dev:ex-malte@test", "auftrag", { aktivBis: "2020-01-01" });
+    expect(aufgabenNav(akteur(exMalte), HEUTE).map((e) => e.key)).toEqual(["start", "neu", "archiv"]);
   });
 });
 

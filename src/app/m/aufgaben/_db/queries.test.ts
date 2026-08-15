@@ -344,11 +344,34 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
     expect(texte).toEqual(["Neu"]);
   });
 
-  it("eine ausgeschiedene Person sieht keine Freigaben mehr (istAktiv gilt weiter)", () => {
-    const rikeEx = legePerson("fd3-rike-ex", "auftrag", { aktivBis: "2026-08-01" });
+  /*
+   * `istAktiv` GILT WEITER — ABER NUR FUER DIE ZEILENROLLEN (Verhaltensaenderung 2026-08-15,
+   * Entwurf §5). Dieser Fall setzte frueher eine ausgeschiedene KOORDINATION ein und erwartete zwei
+   * leere Listen; seither traegt die Gruppe ihre Rolle, `aktivBis` beendet sie nicht mehr. Die
+   * Aussage „ausgeschieden sieht nichts mehr" bleibt bestehen, sie gehoert jetzt nur der Person, an
+   * der sie haengt: dem ausgeschiedenen `auftrag` OHNE Gruppe. Beide Haelften stehen hier
+   * nebeneinander, damit weder die eine noch die andere still verschwinden kann.
+   */
+  it("ein ausgeschiedener auftrag OHNE Gruppe sieht keine Freigaben mehr (istAktiv gilt fuer die Zeilenrolle weiter)", () => {
+    const malteEx = legePerson("fd3-malte-ex", "auftrag", { aktivBis: "2026-08-01" });
     const malte = legePerson("fd3-malte", "auftrag");
     const alina = legePerson("fd3-alina", "bufdi");
     legeAufgabe({
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      prueferId: malteEx.id,
+      status: "freigabe_offen",
+    });
+    const daten = freigabeDaten(t.db, akteur(malteEx), HEUTE);
+    expect(daten.meine).toEqual([]);
+    expect(daten.vertretung).toEqual([]);
+  });
+
+  it("eine ausgeschiedene KOORDINATION sieht die Warteschlange weiterhin — die Gruppe traegt ihre Rolle", () => {
+    const rikeEx = legePerson("fd3-rike-ex", "auftrag", { aktivBis: "2026-08-01" });
+    const malte = legePerson("fd3b-malte", "auftrag");
+    const alina = legePerson("fd3b-alina", "bufdi");
+    const a = legeAufgabe({
       erstellerId: malte.id,
       zugewiesenAn: alina.id,
       prueferId: malte.id,
@@ -356,7 +379,7 @@ describe("freigabeDaten — die eine Ladefunktion fuer die Warteschlange (Aufgab
     });
     const daten = freigabeDaten(t.db, akteur(rikeEx, true), HEUTE);
     expect(daten.meine).toEqual([]);
-    expect(daten.vertretung).toEqual([]);
+    expect(daten.vertretung.map((z) => z.aufgabe.id)).toEqual([a.id]);
   });
 
   /*

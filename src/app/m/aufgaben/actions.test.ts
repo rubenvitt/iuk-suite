@@ -443,12 +443,35 @@ describe("verteilenAction", () => {
     expect(aufgabe(t.db, task.id)!.status).toBe("eingegangen");
   });
 
-  it("eine ausgeschiedene Koordination, die es duerfte, wenn sie aktiv waere, wirft", async () => {
+  /*
+   * VERHALTENSAENDERUNG VOM 2026-08-15 (Entwurf §5) — DIESER FALL STAND HIER FRUEHER MIT DER
+   * UMGEKEHRTEN ERWARTUNG („wirft"): `istAktiv` misst die Koordination nicht mehr. Ihre Rolle kommt
+   * aus der Pocket-ID-Gruppe, `aktivBis` ist eine Aussage der Modultabelle — beides nebeneinander
+   * ergaebe zwei widersprechende Aussagen ueber dieselbe Person, und die Koordination haette sich
+   * mit dem eigenen Personenformular aussperren koennen. Der Entzug laeuft ueber Pocket ID (Verzug
+   * bis zu einer Stunde, s. CLAUDE.md).
+   *
+   * DIE GEGENPROBE STEHT DIREKT DARUNTER: fuer eine Person OHNE Gruppe traegt `aktivBis`
+   * unveraendert — sonst waere aus dieser Aenderung ein stiller Wegfall des `istAktiv`-Riegels
+   * ueberhaupt geworden.
+   */
+  it("eine ausgeschiedene Koordination verteilt WEITERHIN — die Gruppe traegt die Rolle, nicht aktivBis", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
     const exKoordination = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-01" });
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
     anmelden(exKoordination, true);
+
+    expect(await verteilenAction({ ok: true }, form(task.id, { zielId: bufdi.id }))).toEqual({ ok: true });
+    expect(aufgabe(t.db, task.id)!.status).toBe("verteilt");
+  });
+
+  it("dieselbe ausgeschiedene Person OHNE Gruppe wirft weiterhin", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-01" });
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id });
+    anmelden(exRike);
 
     await expect(
       verteilenAction({ ok: true }, form(task.id, { zielId: bufdi.id })),
@@ -586,13 +609,27 @@ describe("umverteilenAction", () => {
     expect(aufgabe(t.db, task.id)!.zugewiesenAn).toBe(bufdi1.id);
   });
 
-  it("eine ausgeschiedene Koordination, die es duerfte, wenn sie aktiv waere, wirft", async () => {
+  /* Dieselbe Verhaltensaenderung wie bei `verteilenAction` (2026-08-15, Entwurf §5) — mit
+   * Gegenprobe ohne Gruppe. */
+  it("eine ausgeschiedene Koordination verteilt WEITERHIN um — die Gruppe traegt die Rolle", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
     const exKoordination = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-01" });
     const bufdi1 = legePerson("dev:alina@test", "bufdi");
     const bufdi2 = legePerson("dev:bendix@test", "bufdi");
     const task = verteilteAufgabeMitPlanung(auftrag.id, auftrag.id, bufdi1.id);
     anmelden(exKoordination, true);
+
+    expect(await umverteilenAction({ ok: true }, form(task.id, { zielId: bufdi2.id }))).toEqual({ ok: true });
+    expect(aufgabe(t.db, task.id)!.zugewiesenAn).toBe(bufdi2.id);
+  });
+
+  it("dieselbe ausgeschiedene Person OHNE Gruppe wirft weiterhin", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-01" });
+    const bufdi1 = legePerson("dev:alina@test", "bufdi");
+    const bufdi2 = legePerson("dev:bendix@test", "bufdi");
+    const task = verteilteAufgabeMitPlanung(auftrag.id, auftrag.id, bufdi1.id);
+    anmelden(exRike);
 
     await expect(
       umverteilenAction({ ok: true }, form(task.id, { zielId: bufdi2.id })),
@@ -1604,12 +1641,28 @@ describe("freigebenAction", () => {
     await expect(freigebenAction(form(task.id))).rejects.toThrow(/darf die Aktion "freigeben"/);
   });
 
-  it("eine ausgeschiedene Koordination, die es duerfte, wenn sie aktiv waere, wirft", async () => {
+  /*
+   * Dieselbe Verhaltensaenderung wie bei `verteilenAction` (2026-08-15, Entwurf §5), hier mit der
+   * schaerfsten Gegenprobe des Moduls daneben: ein ausgeschiedener PRUEFER bleibt ausgesperrt — die
+   * `auftrag`-Klausel von `darfFreigeben` misst `istAktiv` unveraendert, nur die
+   * Koordinations-Klausel nicht mehr.
+   */
+  it("eine ausgeschiedene Koordination gibt WEITERHIN frei — die Gruppe traegt die Rolle", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
     const exKoordination = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-01" });
     const bufdi = legePerson("dev:alina@test", "bufdi");
     const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
     anmelden(exKoordination, true);
+
+    await freigebenAction(form(task.id));
+    expect(aufgabe(t.db, task.id)!.status).toBe("abgeschlossen");
+  });
+
+  it("ein ausgeschiedener Pruefer OHNE Gruppe gibt weiterhin NICHT frei", async () => {
+    const exAuftrag = legePerson("dev:ex-malte@test", "auftrag", { aktivBis: "2026-08-01" });
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: exAuftrag.id, prueferId: exAuftrag.id, status: "freigabe_offen", zugewiesenAn: bufdi.id });
+    anmelden(exAuftrag);
 
     await expect(freigebenAction(form(task.id))).rejects.toThrow(/darf die Aktion "freigeben"/);
   });
@@ -2623,10 +2676,15 @@ describe("personAendernAction", () => {
   /**
    * DER AUSSPERR-FALL, UND ZWAR SCHREIBEND (Abschlussreview K1) — die zweite der beiden Folgen, die
    * die Betreiberentscheidung vom 2026-08-14 abwenden sollte: die EINZIGE Koordinationsperson hat
-   * ihr eigenes `aktivBis` auf gestern gesetzt, `darfPersonenVerwalten` lehnt sie seither ab
-   * (`istAktiv` ist falsch). Ohne den Notausgang IN DER ACTION saehe sie als Suite-Admin zwar das
-   * Formular (`personen/page.test.tsx` belegt das), koennte es aber nicht absenden — nur ein
-   * direkter Datenbankeingriff hoebe die Sperre auf.
+   * ihr eigenes `aktivBis` auf gestern gesetzt. Ohne den Notausgang IN DER ACTION saehe sie als
+   * Suite-Admin zwar das Formular (`personen/page.test.tsx` belegt das), koennte es aber nicht
+   * absenden — nur ein direkter Datenbankeingriff hoebe die Sperre auf.
+   *
+   * SEIT DEM 2026-08-15 SPERRT `aktivBis` DIE KOORDINATION UEBERHAUPT NICHT MEHR AUS
+   * (`darfPersonenVerwalten` misst sie nicht mehr an `istAktiv`) — dieser Fall prueft seither den
+   * ZWEITEN Weg, die Suite-Admin-Gruppe, und der traegt auch dann noch, wenn
+   * `SUITE_ADMIN_GROUP_AUFGABEN` fehlkonfiguriert ist. Genau deshalb steht die Sitzung hier mit
+   * `dashboard-admins` und NICHT mit der Koordinationsgruppe.
    *
    * DAS AUSDRUECKLICHE `rolle` IM FORMULAR IST PFLICHT UND KEINE FIXTUR-KOSMETIK: das `form()`
    * dieser Gruppe traegt sonst `bufdi`, und eine Reaktivierung, die die Person dabei still zur
