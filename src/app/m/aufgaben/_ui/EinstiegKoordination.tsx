@@ -32,7 +32,10 @@ import { VerteilenTabelle } from "./VerteilenDialog";
  * DIE FREIGABE-WARTESCHLANGE UND DIE UEBERFAELLIGKEITSLISTE STEHEN EBENFALLS INLINE: eine eigene
  * Ueberfaelligkeits-Route gibt es weiterhin nicht (Spec §8 fuehrt keine), ein Verweis dorthin waere
  * ein Knopf auf eine 404-Seite (Spec §7). Beide KPI-Kacheln verlinken deshalb auf einen Anker AUF
- * DIESER Seite (`#freigabe`, `#ueberfaellig`).
+ * DIESER Seite (`#freigabe`, `#ueberfaellig`) — seit dem Abschlussreview (W4) gilt dasselbe fuer
+ * die vierte Kachel und `#zurueckgewiesen`, s. dort. ALLE VIER Kacheln tragen damit ein Ziel,
+ * sobald ihre Zahl > 0 ist; `EinstiegKoordination.test.tsx` prueft das ueber alle vier hinweg
+ * statt je Kachel einzeln — genau diese Naht ist zweimal durchgerutscht.
  *
  * DIE FREIGABE-SEKTION IST SEIT AUFGABE 16 SCHREIBFAEHIG (vorher schreibgeschuetzt, Beobachtung aus
  * Aufgabe 15s Bericht): sie zeigte bislang nur `AufgabenListe` OHNE Freigeben-/Zurueckweisen-
@@ -107,7 +110,12 @@ export function EinstiegKoordination({
           />
         </Col>
         <Col xs={12} md={6}>
-          <Kachel zahl={zurueckgewiesenListe.length} beschriftung="Zurückgewiesen" ton="achtung" />
+          <Kachel
+            zahl={zurueckgewiesenListe.length}
+            beschriftung="Zurückgewiesen"
+            ton="achtung"
+            href={zurueckgewiesenListe.length > 0 ? "#zurueckgewiesen" : undefined}
+          />
         </Col>
       </Row>
 
@@ -135,6 +143,28 @@ export function EinstiegKoordination({
           zeilen={ueberfaelligListe.map((a) => ({ aufgabe: a }))}
           heute={heute}
           leerText="Keine überfälligen Aufgaben"
+        />
+      </section>
+
+      {/*
+       * DIE VIERTE KACHEL BEKOMMT IHR ZIEL (Abschlussreview W4) — bis dahin sah die Koordination
+       * auf ihrer taeglichen Einstiegsseite eine Zahl zurueckgewiesener Aufgaben und hatte KEINEN
+       * Weg zu ihnen: kein `href`, und `zurueckgewiesenListe` wurde im ganzen Modul nur fuer die
+       * Zahl selbst verwendet. Die Aufschiebung aus Aufgabe 13 war richtig ("ein Knopf auf eine
+       * 404-Seite waere schlechter als keiner"), nur wurde sie fuer diese eine Rolle nie
+       * aufgeloest — `EinstiegBufdi.tsx` hat es in Aufgabe 16 fuer beide seiner Kacheln getan.
+       *
+       * DIESELBE FORM WIE DORT: ein Anker AUF DIESER Seite, kein Verweis auf `/archiv` (das zeigt
+       * nur `abgeschlossene`) und keine erfundene gefilterte Route. SCHREIBGESCHUETZT aus
+       * demselben Grund wie in `EinstiegBufdi.tsx`: die Aktion hat mit `/a/<id>`s Aktionszone
+       * bereits einen Ort, ein zweiter Knopf hier waere dieselbe Aktion an zwei Stellen gehalten.
+       */}
+      <section id="zurueckgewiesen" style={{ marginBlockEnd: SPACE.xl }}>
+        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Zurückgewiesen</h2>
+        <AufgabenListe
+          zeilen={zurueckgewiesenListe.map((a) => ({ aufgabe: a }))}
+          heute={heute}
+          leerText="Keine zurückgewiesene Aufgabe."
         />
       </section>
 

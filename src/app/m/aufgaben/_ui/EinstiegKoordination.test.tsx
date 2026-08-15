@@ -146,6 +146,10 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
     expect(ueberfaelligZeilen).toHaveLength(1);
     expect(ueberfaelligZeilen[0]!.textContent).toContain("Ueberfaellig trotz Planung");
     expect(ueberfaelligZeilen[0]!.textContent).not.toContain("Ungeplant, aber nicht ueberfaellig");
+
+    // DIE VIERTE LISTE, SEIT W4 VORHANDEN — dieselbe Regel wie fuer die drei darueber: die Zahl
+    // der Kachel und die Liste darunter kommen aus derselben Ableitung, im selben Render.
+    expect(queryAll("#zurueckgewiesen li")).toHaveLength(4);
   });
 
   /**
@@ -192,13 +196,14 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
     expect(listen[1]!.textContent).not.toContain("Meine Freigabe");
   });
 
-  it("Leerzustaende: jede der drei Listen traegt ihren eigenen ausgeschriebenen Satz", async () => {
+  it("Leerzustaende: jede der vier Listen traegt ihren eigenen ausgeschriebenen Satz", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
     await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
     expect(document.body.textContent).toContain("Posteingang leer — alles verteilt");
     expect(document.body.textContent).toContain("Keine Freigabe offen");
     expect(document.body.textContent).toContain("Keine Freigabe in Vertretung offen");
     expect(document.body.textContent).toContain("Keine überfälligen Aufgaben");
+    expect(document.body.textContent).toContain("Keine zurückgewiesene Aufgabe.");
   });
 
   it("0-Kacheln bleiben stehen und sind nicht verlinkt (kein <a>)", async () => {
@@ -211,7 +216,16 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
     }
   });
 
-  it("Kacheln > 0 verlinken auf den jeweiligen Anker der eigenen Seite, „Zurückgewiesen“ nie", async () => {
+  /**
+   * DIE NAHT KACHEL → ZIEL, UEBER ALLE VIER KACHELN HINWEG (Abschlussreview W4) — kein Test je
+   * Kachel: genau diese Naht ist zweimal durchgerutscht (Aufgabe 13 vertagte zwei Kacheln ohne
+   * `href`, Aufgabe 16 loeste es nur fuer `EinstiegBufdi.tsx` auf, und „Zurückgewiesen" blieb hier
+   * ohne Ziel UND ohne Abschnitt). Vier Einzeltests haetten dieselbe Luecke ein drittes Mal offen
+   * gelassen — dieser hier zaehlt die Kacheln selbst ab und verlangt von JEDER mit Zahl > 0 ein
+   * Ziel, das es auf der Seite auch WIRKLICH GIBT (`getElementById`, nicht nur ein `href`, das
+   * plausibel aussieht).
+   */
+  it("jede Kachel mit Zahl > 0 traegt ein Ziel, das auf dieser Seite existiert — alle vier", async () => {
     const rike = legePerson("dev:rike@test", "koordination");
     const malte = legePerson("dev:malte@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi");
@@ -231,15 +245,26 @@ describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlang
 
     await mount(<EinstiegKoordination db={t.db} person={rike} heute={HEUTE} />);
 
-    const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
-    expect(hrefs).toContain("#posteingang");
-    expect(hrefs).toContain("#freigabe");
-    expect(hrefs).toContain("#ueberfaellig");
+    const kacheln = queryAll(`.${s.kpi}`);
+    expect(kacheln).toHaveLength(4);
+    for (const kachel of kacheln) {
+      const beschriftung = kachel.textContent ?? "";
+      // Jede Kachel dieses Aufbaus traegt eine 1 — keine darf ohne Ziel bleiben.
+      const verweis = kachel.closest("a");
+      expect(verweis, `Kachel ohne Verweis: ${beschriftung}`).not.toBeNull();
+      const ziel = verweis!.getAttribute("href") ?? "";
+      expect(ziel, `Kachel mit leerem Verweis: ${beschriftung}`).not.toBe("");
+      // ERREICHBAR, NICHT NUR VORHANDEN: ein Anker ohne Abschnitt ist genau der Zustand vor W4.
+      if (ziel.startsWith("#")) {
+        expect(
+          document.getElementById(ziel.slice(1)),
+          `Anker ${ziel} hat keinen Abschnitt (Kachel: ${beschriftung})`,
+        ).not.toBeNull();
+      }
+    }
 
-    const zurueckgewiesenKachel = queryAll(`.${s.kpi}`).find((k) =>
-      k.textContent?.includes("Zurückgewiesen"),
-    )!;
-    expect(zurueckgewiesenKachel.closest("a")).toBeNull();
+    const hrefs = kacheln.map((k) => k.closest("a")!.getAttribute("href"));
+    expect(hrefs).toEqual(["#posteingang", "#freigabe", "#ueberfaellig", "#zurueckgewiesen"]);
   });
 
   it("verlinkt die Personenverwaltung UND das Archiv (Aufgabe 16)", async () => {
