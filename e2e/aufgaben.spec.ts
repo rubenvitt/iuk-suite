@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { devLogin } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 import { AUFGABEN_KOORDINATION_GRUPPE, AUFGABEN_ZUGANG_GRUPPE } from "./helpers/aufgaben";
@@ -1591,7 +1591,42 @@ async function personenZahl(page: import("@playwright/test").Page): Promise<numb
   const text = (await kontext.textContent()) ?? "";
   const treffer = /^(\d+) Person/.exec(text.trim());
   expect(treffer, `Personenzahl nicht lesbar aus „${text}“`).not.toBeNull();
+  // DIESE FUNKTION NAVIGIERT SELBST — deshalb endet sie mit der Ruhezeile, nicht der Aufrufer
+  // (s. `ruheVorDerNaechstenNavigation`). Ohne sie bricht die NAECHSTE Navigation des Aufrufers
+  // den Sitzungsabruf DIESER Seite ab; gemessen, s. dort.
+  await ruheVorDerNaechstenNavigation(page);
   return Number(treffer![1]);
+}
+
+/**
+ * WARUM NACH EINER NAVIGATION EINE RUHEZEILE STEHT — GEMESSEN, NICHT VERMUTET. Zwei naheliegende
+ * Vermutungen waren VORHER falsch (die Zahl der Navigationen; `wechsleRolle`s `clearCookies`), erst
+ * ein Lauf mit `page.on("requestfailed")` zeigte die Ursache im Klartext:
+ *
+ *     GET /api/auth/session -> net::ERR_ABORTED     (zweimal, direkt nach `/personen`)
+ *
+ * `SessionProvider` (`components/providers.tsx`) ruft bei JEDEM Mount `/api/auth/session`. Beginnt
+ * die naechste Navigation, waehrend dieser Abruf laeuft, bricht der Browser ihn ab, und next-auth
+ * schreibt daraus `ClientFetchError: Failed to fetch` — eine Meldung, die nach einem kaputten
+ * Sitzungsendpunkt klingt und keiner ist. `ERR_ABORTED` ist der Beleg: kein Zeitablauf, kein 500,
+ * keine verweigerte Verbindung, sondern ein vom Browser selbst abgebrochener Abruf.
+ *
+ * DAS IST FALLE 10 AUS `CLAUDE.md`, eine Ebene hoeher: dort trifft es einen POST auf einen frisch
+ * kompilierten Route Handler, hier den Sitzungsabruf der Client-Insel. Die anderen Tests dieser
+ * Datei, die `konsolenFehler` pruefen, navigieren nach dem Login GENAU EINMAL — sie konnten es
+ * strukturell nicht sehen.
+ *
+ * DIE RUHEZEILE FILTERT NICHTS WEG. Ein `ClientFetchError` aus der Pruefliste zu streichen waere
+ * das Verschweigen des Symptoms und machte die Konsolenpruefung ab sofort blind fuer echte Fehler
+ * derselben Form; `networkidle` beseitigt die URSACHE. Bleibt danach ein Konsolenfehler stehen,
+ * ist er echt.
+ *
+ * SIE GEHOERT ANS ENDE DER FUNKTION, DIE NAVIGIERT — nicht vor die naechste Navigation des
+ * Aufrufers. Genau daran scheiterte der erste Reparaturversuch: die Ruhezeilen standen im Test,
+ * aber `personenZahl` navigiert SELBST, und ihre Seite war es, deren Abruf abbrach.
+ */
+async function ruheVorDerNaechstenNavigation(page: Page): Promise<void> {
+  await page.waitForLoadState("networkidle");
 }
 
 test("Leerer Start: eine Anmeldung mit Koordinationsgruppe ohne personen-Zeile landet auf der Verteilung, nicht auf der Erklaerseite", async ({
@@ -1615,6 +1650,7 @@ test("Leerer Start: eine Anmeldung mit Koordinationsgruppe ohne personen-Zeile l
   await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
   // DIE GEGENPROBE IN EINEM SATZ: genau dieser Text ist das Symptom, das der Umbau beseitigt.
   await expect(page.getByText("Du bist noch nicht im Modul eingetragen.")).toHaveCount(0);
+  await ruheVorDerNaechstenNavigation(page);
 
   const vorher = await personenZahl(page);
 
@@ -1624,8 +1660,10 @@ test("Leerer Start: eine Anmeldung mit Koordinationsgruppe ohne personen-Zeile l
   const zweite = await page.goto(`http://${HOST}:3100/`);
   expect(zweite?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
+  await ruheVorDerNaechstenNavigation(page);
   const dritte = await page.goto(`http://${HOST}:3100/verteilen`);
   expect(dritte?.status()).toBe(200);
+  await ruheVorDerNaechstenNavigation(page);
 
   const nachher = await personenZahl(page);
   expect(nachher, "die zweite Navigation hat eine zweite Personenzeile angelegt").toBe(vorher);
