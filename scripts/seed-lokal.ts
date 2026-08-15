@@ -43,6 +43,8 @@ import { seedLokalFiles } from "@/app/m/files/_lib/seedLokal";
 // Verbindung auf dieselbe WAL-Datei entsteht dadurch nicht.
 import { getDb as getLagerbuchDb } from "@/app/m/lagerbuch/_db/client";
 import { seedLokalLagerbuch } from "@/app/m/lagerbuch/_lib/seedLokal";
+import { getDb as getAufgabenDb } from "@/app/m/aufgaben/_db/client";
+import { seedLokalAufgaben } from "@/app/m/aufgaben/_lib/seedLokal";
 
 export interface SeedModul {
   key: string;
@@ -55,6 +57,7 @@ export const SEED_MODULE: SeedModul[] = [
   { key: "feedback", lauf: () => seedLokalFeedback(getModuleDb("feedback", feedbackSchema)) },
   { key: "files", lauf: () => seedLokalFiles(getModuleDb("files", filesSchema)) },
   { key: "lagerbuch", lauf: () => seedLokalLagerbuch(getLagerbuchDb()) },
+  { key: "aufgaben", lauf: () => seedLokalAufgaben(getAufgabenDb()) },
 ];
 
 /**

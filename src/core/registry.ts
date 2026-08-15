@@ -119,6 +119,41 @@ export const MODULES: ModuleDef[] = [
   { key: "lagerbuch", title: "Lagerbuch", icon: "ContainerOutlined", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["lagerbuch_nutzer"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
+  // aufgaben: Aufgabenverteilung und Zeitplanung fuer BuFDis
+  // (docs/superpowers/specs/2026-08-13-modul-aufgaben-design.md).
+  //
+  // requiresAuth: true — und das ist hier RICHTIG, obwohl qr, feedback, files
+  // und lagerbuch daneben ausdruecklich das Gegenteil festschreiben. Deren
+  // Begruendung ist jeweils ein ANONYMER TEILPFAD (/f/…, /s/…, /t/…, der
+  // QR-Generator). Dieses Modul hat keinen: jede Ansicht setzt eine bekannte
+  // Person voraus. Ein uebernommenes `false` wuerde den generischen
+  // Middleware-Riegel abschalten und die Durchsetzung komplett ins Modul
+  // verlagern, ohne dass dadurch irgendetwas moeglich wuerde.
+  //
+  // requiredGroups ist eine VORGABE, keine Festschreibung: eine Instanz mit
+  // anders benannten SSO-Gruppen setzt SUITE_ACCESS_GROUP_AUFGABEN. Die Gruppe
+  // MUSS in Pocket ID existieren, bevor das Modul produktiv erreichbar ist —
+  // eine nicht existierende Gruppe hier sperrt jeden aus, den Betreiber
+  // eingeschlossen. Lokal unkritisch: AUTH_DEV_LOGIN nimmt Gruppen als freies
+  // Feld an.
+  //
+  // adminGroups gatet die PERSONENVERWALTUNG. Die Rolle einer Person steht
+  // dagegen in der Modultabelle `personen`, NICHT in einer Pocket-ID-Gruppe —
+  // Begruendung in Spec §4 (BuFDis rotieren jaehrlich, und am JWT haengt ein
+  // Verzugsfenster von einer Stunde).
+  //
+  // showInSwitcher: true seit Aufgabe 16 — das Modul ist jetzt vollstaendig begehbar (alle Seiten
+  // aus Spec §8 stehen, die Modulnavigation baut ihre Eintraege aus denselben Praedikaten, die die
+  // Routen gaten). `src/app/m/aufgaben/registry.test.ts` haelt beide Stufen fest.
+  //
+  // icon: NICHT „irgendein existierender @ant-design/icons-Name" — wirksam ist
+  // allein die Map ICONS in `core/shell/icons.ts`. Ein dort FEHLENDER Name
+  // faellt STILL auf AppstoreOutlined zurueck, und „Aufgaben" waere vom
+  // „Portal" in Kopfzeile UND Drawer nicht zu unterscheiden.
+  { key: "aufgaben", title: "Aufgaben", icon: "ScheduleOutlined", shell: "full",
+    requiresAuth: true, requiredGroups: ["iuk-aufgaben-nutzer"],
+    adminGroups: ["iuk-aufgaben-koordination"], prodHosts: [],
+    showInSwitcher: true, switcherGroupSources: ["access"] },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },

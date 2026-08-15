@@ -1,26 +1,28 @@
 # Modul `aufgaben` — Aufgabenverteilung und Zeitplanung für BuFDis
 
-**Stand:** 2026-08-13 · **Status:** Entwurf freigegeben, Umsetzung offen
+**Stand:** 2026-08-13, zuletzt nachgetragen 2026-08-15 · **Status:** Umsetzung abgeschlossen (Aufgabe 21)
 
 ## 1. Das Problem, in den Worten des Auftraggebers
 
 Der Ortsverein hat ab dem kommenden Dienstjahr **drei** BuFDis statt einer. Damit wird die
-Aufgabenverteilung unübersichtlich, und zwei Beteiligte (Jönne, Schulle) verteilen faktisch mit,
-ohne die Gesamtlage zu kennen — Aufgaben werden doppelt vergeben, andere fallen durch. Sarah
+Aufgabenverteilung unübersichtlich, und zwei Beteiligte (Tomke, Malte) verteilen faktisch mit,
+ohne die Gesamtlage zu kennen — Aufgaben werden doppelt vergeben, andere fallen durch. Rike
 koordiniert, hat aber keinen Ort, an dem die eingehenden Aufträge zusammenlaufen.
 
 Vier Anforderungen, die daraus folgen:
 
-1. Auftraggeber (Schulle, Jönne, Sarah) stellen Aufgaben **mit Erklärung und Priorität** ein.
-2. Sarah verteilt sie auf die drei BuFDis und bringt sie in deren Zeitplan.
+1. Auftraggeber (Malte, Tomke, Rike) stellen Aufgaben **mit Erklärung und Priorität** ein.
+2. Rike verteilt sie auf die drei BuFDis und bringt sie in deren Zeitplan.
 3. BuFDis gestalten ihren Zeitplan **vorab selbst**, um sich Zeit für Routinearbeiten freizuhalten.
 4. Fremd gestellte Aufgaben können mit einer Flagge versehen werden, die den BuFDi zur
    **Dokumentation** der fertigen Arbeit zwingt, und ihre Erledigung muss vom Vorgesetzten
    **bestätigt** werden. Selbst gestellte Aufgaben nicht.
 
-Ein Klickdummy als eigenständige HTML-Datei liegt unter `bufdi-koordination-klickdummy.html`
-(Wurzel des Repositories). Er ist **Referenz für den Funktionsumfang, nicht für die Gestaltung** —
-sein Design gehört nicht zur Suite. Er wird im Zuge von Bauabschnitt 1 gelöscht.
+Ein Klickdummy als eigenständige HTML-Datei lag zu Beginn dieses Entwurfs unter
+`bufdi-koordination-klickdummy.html` (Wurzel des Repositories). Er war **Referenz für den
+Funktionsumfang, nicht für die Gestaltung** — sein Design gehörte nicht zur Suite. Er war planmäßig
+zum Abschluss der Umsetzung zu löschen; bei Aufgabe 21 (dem Abschluss) war er bereits fort — weder
+im Worktree noch im Haupt-Repository —, sodass dort nichts mehr zu löschen war.
 
 ## 2. Getroffene Entscheidungen
 
@@ -28,24 +30,40 @@ Fünf Fragen waren fachlich offen; alle fünf sind entschieden.
 
 | Frage | Entscheidung | Begründung |
 |---|---|---|
-| Wer legt den Zeitpunkt fest? | Sarah **schlägt vor**, der BuFDi bestätigt oder plant anders | Anforderung 3 gibt dem BuFDi die Gestaltungshoheit; Sarah braucht trotzdem einen Weg, Dringlichkeit auszudrücken |
+| Wer legt den Zeitpunkt fest? | Rike **schlägt vor**, der BuFDi bestätigt oder plant anders | Anforderung 3 gibt dem BuFDi die Gestaltungshoheit; Rike braucht trotzdem einen Weg, Dringlichkeit auszudrücken |
 | Bauform des Zeitplans | **Tagesspalten** mit Reihenfolge, Dauer und Tagesbudget; einzelne Einträge dürfen eine **feste Uhrzeit** tragen | Robust gegen die Realität, mobil ohne zweiten Bildschirm; feste Uhrzeiten bleiben möglich, wo sie real sind (Routinen, Termine) |
-| Freigabebefugnis | Der **Ersteller**, plus **Sarah als Vertretung** | Zurechnung bleibt beim Auftraggeber, aber nichts bleibt liegen, wenn er zwei Wochen im Urlaub ist |
+| Freigabebefugnis | Der **Ersteller**, plus **Rike als Vertretung** | Zurechnung bleibt beim Auftraggeber, aber nichts bleibt liegen, wenn er zwei Wochen im Urlaub ist |
 | Nachweisformen v1 | **Text und Bild**. Video vertagt | Der große Sprung ist „überhaupt Dateien annehmen"; Video ist danach vor allem eine Speicher- und Backup-Frage, also eine Betriebsentscheidung |
-| Sichtbarkeit | BuFDis sehen die Zeitpläne der anderen **lesend**; Nachweise nur Verfasser, Sarah und der jeweilige Auftraggeber | Vertretungsabsprachen ohne Sarah als Nadelöhr, aber Leistungsnachweise sind kein Aushang |
+| Sichtbarkeit | BuFDis sehen die Zeitpläne der anderen **lesend**; Nachweise nur Verfasser, Rike und der jeweilige Auftraggeber | Vertretungsabsprachen ohne Rike als Nadelöhr, aber Leistungsnachweise sind kein Aushang |
 
-Dazu zwei Entscheidungen zur Reihenfolge:
+Dazu drei Entscheidungen zum Bauweg:
 
-- **Drag & Drop ist gewünscht**, kommt aber als **Bauabschnitt 5** — nicht als Sparmaßnahme, sondern
-  weil es mit der Tastatur nicht bedienbar und auf dem Handy nicht zuverlässig ist. Die Knopf- und
-  Formularstrecke ist deshalb ohnehin Pflicht, und wenn sie steht, ist Ziehen eine Schicht darüber
-  mit denselben Server-Actions.
-- **Upload und Virenscan werden nach `src/core/upload` gehoben, und `files` wird im selben
-  Arbeitsschritt darauf umgestellt.** Modul-Interna sind kein API (Präzedenz: `payloadToSvg`), also
-  darf `aufgaben` die Fassung aus `files` nicht quer importieren. Hebt man nur und lässt `files` auf
-  seiner eigenen Fassung stehen, gibt es zwei Implementierungen desselben Sicherheitsmechanismus und
-  die `core`-Regel ist nur formal erfüllt. Das ist der einzige Posten, der ein bestehendes Modul
-  anfasst — deshalb steht er spät (Bauabschnitt 4) und ist beim Erreichen erneut zu prüfen.
+- **Es entsteht die Anwendung, kein Klickdummy** (Betreiberentscheid 2026-08-13). Ein erster
+  Bauabschnitt mit fest verdrahteten Daten und einem Demo-Rollenwechsler ist gestrichen: Rollen
+  kommen von Anfang an aus der Sitzung. Der zu Entwurfsbeginn vorhandene
+  `bufdi-koordination-klickdummy.html` blieb Referenz für den **Funktionsumfang**, bis er planmäßig
+  entfernt wurde (s. §1).
+- **Drag & Drop ist gewünscht und im Umfang** — aber es ist nie der einzige Weg. Mit der Tastatur ist
+  Ziehen nicht bedienbar und auf dem Handy nicht zuverlässig, also ist die Knopf- und
+  Formularstrecke ohnehin Pflicht; Ziehen ist eine Schicht darüber mit denselben Server-Actions und
+  wird nach ihr gebaut.
+- **Nur das clamd-*Protokoll* geht nach `core`, nicht die Warteschlange.** Das Spec sagte zunächst
+  „Upload und Virenscan nach `src/core/upload` heben und `files` mitziehen". Am 2026-08-13 gemessen
+  ist das **nicht eine Sache, sondern zwei**: `files/_lib/av.ts` hat 728 Zeilen, davon sind Zeile
+  35–262 das generische clamd-Protokoll (die vier Bauregeln „settelt immer, genau einmal, wirft nie
+  asynchron") und Zeile 264–728 eine Warteschlange, die **die Datenbank von `files` ist** —
+  `AvTabelle = "share_files" | "inbox_files"`, die Aufträge sind die Zeilen mit
+  `av_status = 'scanning'`, ein Arbeiter je Container.
+
+  Die Suite hat **eine SQLite pro Modul**. Ein geteilter Arbeiter müsste also mehrere Datenbanken
+  öffnen und eine Auftragsreihenfolge über sie führen — das ist eine neue Architektur, keine
+  Verschiebung, und sie fasst `_lib/boot.ts`, `instrumentation.ts` und den prozessweiten Netzhaken an.
+  Deshalb: `core/av/scanner.ts` bekommt `scanne(pfad, konfig)` samt Antwortauswertung,
+  `istFreigegeben` und Netzhaken — **die Konfiguration als Argument**, damit `FILES_AV_*` unangetastet
+  bleibt. Die Warteschlange bleibt bei jedem Modul; `aufgaben` bekommt eine kleine über seine **eine**
+  Tabelle. `files` ändert sich an einer Aufrufstelle. Der `core`-Maßstab ist damit erfüllt (zwei heute
+  belegbare Nutznießer des Protokolls), ohne dass jemand einen datenbankübergreifenden Arbeiter
+  erfindet.
 
 ## 3. Registrierung als Modul
 
@@ -62,7 +80,7 @@ ein Aufgabenwerkzeug.
 | `requiredGroups` | `["iuk-aufgaben-nutzer"]` |
 | `adminGroups` | `["iuk-aufgaben-koordination"]` |
 | `prodHosts` | `[]` (Domain kommt aus `SUITE_HOST_AUFGABEN`) |
-| `showInSwitcher` | `false` bis Bauabschnitt 2 abgeschlossen ist, dann `true` |
+| `showInSwitcher` | zunächst `false`, seit Aufgabe 16 (Abschnitt E) `true` (ein halbfertiges Modul gehört nicht in die Navigation aller Nutzer) |
 | `switcherGroupSources` | `["access"]` |
 
 **`requiresAuth: true` ist hier richtig**, obwohl vier bestehende Module ausdrücklich das Gegenteil
@@ -75,7 +93,7 @@ komplett ins Modul verlagern, ohne dass irgendetwas dadurch möglich würde.
 erreichbar ist** — eine nicht existierende Gruppe in `requiredGroups` sperrt jeden aus, den
 Betreiber eingeschlossen. Lokal ist das **kein** Problem: `.env.local` setzt `AUTH_DEV_LOGIN=true`,
 und der Dev-Login nimmt Gruppen als freies Eingabefeld an (`core/auth/config.ts`, Provider
-`dev-login`) — Bauabschnitt 1 ist also ohne Pocket-ID-Arbeit durchklickbar. Zusätzlich sind beide
+`dev-login`) — die Entwicklung braucht also keine Pocket-ID-Arbeit. Zusätzlich sind beide
 Gruppen per Env überschreibbar (`SUITE_ACCESS_GROUP_AUFGABEN`, `SUITE_ADMIN_GROUP_AUFGABEN`), was
 einer Instanz mit anders benannten SSO-Gruppen den Weg offen hält.
 
@@ -86,14 +104,14 @@ prüft die Map gegen die Registry und wird die fehlende Zeile melden.
 
 ## 4. Rollen — aus der Datenbank, nicht aus dem JWT
 
-Drei Rollen: `koordination` (Sarah), `auftrag` (Schulle, Jönne), `bufdi` (die drei BuFDis).
+Drei Rollen: `koordination` (Rike), `auftrag` (Malte, Tomke), `bufdi` (die drei BuFDis).
 
 Die Pocket-ID-Gruppe `iuk-aufgaben-nutzer` gatet **nur den Zugang zum Modul überhaupt**. Welche
 Rolle eine Person hat, steht in der Modultabelle `person` und wird bei jedem Zugriff serverseitig
 aus der Datenbank aufgelöst. Zwei Gründe, und beide sind zwingend:
 
 1. **BuFDis rotieren jährlich.** Eine Rolle in Pocket-ID-Gruppen muss dort jeden Sommer gepflegt
-   werden, von jemandem mit Pocket-ID-Zugang. Die Personenverwaltung im Modul kann Sarah selbst
+   werden, von jemandem mit Pocket-ID-Zugang. Die Personenverwaltung im Modul kann Rike selbst
    bedienen.
 2. **An der Rolle hängt die Freigabebefugnis.** Gruppen im JWT sind nur so frisch wie der letzte
    Token-Refresh — heute bis zu eine Stunde alt (Access-Token-Lebensdauer von Pocket ID). Für eine
@@ -103,6 +121,25 @@ aus der Datenbank aufgelöst. Zwei Gründe, und beide sind zwingend:
 
 Die Tabelle `person` pflegt, wer in `iuk-aufgaben-koordination` ist — plus der Suite-Admin
 (`isModuleAdmin` aus `core/groups`, **nicht** `session.user.isAdmin`, das ist suiteweit).
+
+**Nachtrag vom 2026-08-15 — wo der Suite-Admin-Zugang sitzt, und warum dort** (Betreiberentscheidung
+2026-08-14). Der Zugang ist ein **Notausgang** und löst zwei benannte Lagen: in einer frischen
+Produktionsdatenbank gibt es sonst keinen Weg zur allerersten `person`-Zeile (das Modul wird nicht
+geseedet, und die Personenverwaltung setzt eine aktive Koordinationsperson voraus), und setzt die
+einzige Koordinationsperson versehentlich ihr eigenes `aktiv_bis`, sperrt sie damit auch den
+Betreiber aus.
+
+Der Riegel dafür sitzt **auf der Route und in den Actions, nicht im Prädikat**:
+`darfPersonenVerwalten` muss **synchron und rein** bleiben, weil `_lib/lebenszyklus.ts` und jeder
+bestehende Aufrufer diese Signatur teilen — eine `isModuleAdmin`-Klausel *dort* machte das Prädikat
+asynchron oder verlangte einen `groups`-Parameter, den keiner der Aufrufer mitführt. Wer den
+Suite-Admin-Fall später „aufräumend" ins Prädikat zieht, macht genau diesen Fehler.
+
+**Beide Seiten, nicht nur die Seite.** `/personen` prüft `canAdminModule("aufgaben")` vor jeder
+Personen-Zeilen-Frage; **dieselbe Oder-Klausel steht in den schreibenden Actions**
+(`personAnlegenAction`/`personAendernAction`/`personBeendenAction`, gebündelt an einer Stelle). Der
+Zwischenzustand — Formular sichtbar, Absenden abgewiesen — war bis zum Abschlussreview real und ist
+genau kein Zugang: er ließ beide oben benannten Lagen unverändert bestehen.
 
 **Personen tragen `aktiv_von` und `aktiv_bis`.** Ein ausgeschiedener BuFDi verschwindet aus
 Verteillisten und Zeitplan-Navigation; seine Aufgaben, Nachweise und Verlaufszeilen bleiben lesbar.
@@ -128,7 +165,7 @@ in **einem** Modul ohne `"use client"` — sie wird von Server Components gelese
 
 ### 5.1 Der abgeleitete Zustand: „Zeitvorschlag offen"
 
-Sarah kann beim Verteilen Tag und optional Uhrzeit **vorschlagen**. Das sind zwei Felder auf der
+Rike kann beim Verteilen Tag und optional Uhrzeit **vorschlagen**. Das sind zwei Felder auf der
 Aufgabe (`vorschlag_datum`, `vorschlag_uhrzeit`), kein eigener Status. Die Anzeige leitet ab:
 
 ```
@@ -155,6 +192,7 @@ nicht steht, muss von der Server-Action abgelehnt werden.
 | `verteilt` | umverteilen | `verteilt` | `koordination` |
 | `verteilt` | einplanen / verschieben (`plan_datum`) | `verteilt` | zugewiesener BuFDi |
 | `verteilt` | Bearbeitung starten | `in_arbeit` | zugewiesener BuFDi |
+| `in_arbeit` | einplanen / verschieben (`plan_datum`) | `in_arbeit` | zugewiesener BuFDi |
 | `in_arbeit` | zurücksetzen | `verteilt` | zugewiesener BuFDi |
 | `in_arbeit` | fertig melden, **Fremdaufgabe** | `freigabe_offen` | zugewiesener BuFDi |
 | `in_arbeit` | fertig melden, **Selbstaufgabe** | `abgeschlossen` | zugewiesener BuFDi |
@@ -166,6 +204,14 @@ nicht steht, muss von der Server-Action abgelehnt werden.
 `plan_datum`, `plan_uhrzeit` und `plan_rang` geleert — ein Zeitplaneintrag gehört zu einer Person,
 nicht zu einer Aufgabe. Sonst erscheint die Aufgabe im Tag des neuen BuFDi an einer Stelle, die er
 nicht gewählt hat, und belegt dort Budget. Ein neuer Zeitvorschlag darf im selben Zug gesetzt werden.
+
+**Nachtrag vom 2026-08-13 — `in_arbeit` ist verschiebbar.** Die Zeile `in_arbeit` +
+einplanen/verschieben stand ursprünglich nicht hier. Der Widerspruch fiel bei der Umsetzung auf:
+`_lib/tagesplan.ts` zeigt Aufgaben in Arbeit regulär in der Tagesspalte — richtig, denn woran man
+gerade arbeitet, gehört in den Tag —, und ohne diese Zeile hätte das Ziehen einer sichtbaren
+`in_arbeit`-Aufgabe einen Wurf auf die technische Fehlerseite ausgelöst. Fachlich ist die Ergänzung
+das Naheliegende: wer eine angefangene Aufgabe heute nicht schafft, schiebt sie auf morgen, ohne sie
+erst zurücksetzen zu müssen. Betreiberentscheidung nach Vorlage der drei Möglichkeiten.
 
 Drei weitere Festlegungen, die in der Tabelle stecken und leicht übersehen werden:
 
@@ -194,9 +240,14 @@ erlaubt zusätzlich eine Datei. Die Pflicht ist also eine Untergrenze, keine Bes
 Eine eigene SQLite unter `src/app/m/aufgaben/_db/`, wie bei jedem Modul. Sechs Tabellen.
 
 ### `person`
-`id` · `sub` (Pocket-ID-Subject, unique) · `name` · `initialen` · `farbe` ·
+`id` · `sub` (Pocket-ID-Subject, unique) · `name` · `initialen` ·
 `rolle` (`koordination` | `auftrag` | `bufdi`) · `soll_minuten_tag` (Vorgabe 468 = 7,8 Std.) ·
 `aktiv_von` · `aktiv_bis` (nullable) · `erstellt_am`
+
+**`farbe` gibt es nicht, und das ist entschieden, nicht vergessen** (Pre-Flight vor Aufgabe 2). Der
+Entwurf führte die Spalte; sie widerspricht §9.4 („Farbe gehört nicht zur Rolle") — eine Person
+bekommt im Modul keine eigene Farbe zugeteilt, sonst entsteht neben der Statusfarbigkeit eine zweite,
+konkurrierende Farbsprache.
 
 ### `aufgabe`
 `id` · `titel` · `beschreibung` · `prioritaet` (`hoch` | `mittel` | `niedrig`) ·
@@ -225,8 +276,22 @@ Datensätze, die niemand liest, und jede Liste im Modul braucht einen Filter dag
 `datei_id` → `datei` (nullable) · `erstellt_von` → `person` · `erstellt_am`
 
 ### `datei`
-`id` · `aufgabe_id` · `dateiname` · `mime` · `groesse` · `pfad` ·
-`scan_status` (`offen` | `sauber` | `befund`) · `erstellt_am`
+`id` · `aufgabe_id` · `dateiname` · `mime` · `groesse` ·
+`scan_status` (`offen` | `sauber` | `befund` | `fehler`) · `erstellt_am`
+
+**`scan_status` hat vier Werte, nicht drei, und der vierte ist der wichtigste** (Pre-Flight vor
+Aufgabe 2): `fehler` trennt „der Scan lief schief" von „der Scan hat etwas gefunden" — fachlich zwei
+verschiedene Lagen, die man in einer Oberfläche verschieden erklärt. Ausgeliefert wird in **beiden**
+nicht: `istFreigegeben` (`_lib/scan.ts`) ist die einzige Fassung dieser Bedingung und gibt
+ausschließlich für `"sauber"` wahr zurück. Genau daran hängt Fail-closed — ein `!== "befund"` an
+irgendeiner Stelle lieferte einen fehlgeschlagenen Scan aus.
+
+**`pfad` gibt es nicht, und das ist entschieden, nicht vergessen** (Pre-Flight vor Aufgabe 2, dort
+ausdrücklich mit der Auflage, es „nicht still" zu tun). Der Ablagepfad wird aus `id` **abgeleitet**
+(`_lib/ablage.ts`s `nachweisPfad`), statt gespeichert: ein absoluter Pfad in der Datenbank ist beim
+ersten Umzug des Datenverzeichnisses falsch, und zwar still — die Zeile stimmt noch, die Datei ist
+weg. Der `dateiname` bleibt als **Anzeigename** erhalten und geht bewusst in keinen Pfad und in
+keinen HTTP-Kopf ein.
 
 ### `verlauf`
 `id` · `aufgabe_id` → `aufgabe` · `ereignis` · `akteur_id` → `person` · `notiz` (nullable) · `ts`
@@ -235,7 +300,7 @@ Index: `(aufgabe_id, ts)`.
 
 **Der Verlauf ist eine Tabelle, kein Textfeld auf der Aufgabe.** Jeder Übergang schreibt eine Zeile
 mit Akteur, Zeitstempel und Ereignis; eine Vertretungsfreigabe schreibt sie als solche
-(„Freigegeben von Sarah in Vertretung für Schulle"). Das ist die Leistungsdokumentation, die der
+(„Freigegeben von Rike in Vertretung für Malte"). Das ist die Leistungsdokumentation, die der
 gesamte Freigabemechanismus eigentlich herstellen soll — ohne sie hat man am Ende des Dienstjahres
 sechs Häkchen und keine Geschichte.
 
@@ -244,16 +309,65 @@ sechs Häkchen und keine Geschichte.
 `_lib/zugang.ts` hält die Prädikate. **Alle Seiten und alle Server-Actions rufen dieselben** — das
 ist die Bedingung dafür, dass Oberfläche und Riegel nicht auseinanderlaufen.
 
+Die Tabelle ist **vollständig gegen `_lib/zugang.ts` gezogen** (Stand 2026-08-15) — sie führt **alle**
+Exporte dieser Datei, nicht eine Auswahl (bewusst ohne Anzahl: eine gepflegte Zahl an dieser Stelle
+liefe beim nächsten Prädikat wieder auseinander). Alle Handlungsprädikate tragen `heute` als ISO-Tagesstring und
+prüfen `istAktiv` **jedes für sich**; die Sichtprädikate tragen es nicht und prüfen es nicht (eine
+ausgeschiedene Person liest ihre Geschichte weiter, s. u.).
+
 | Funktion | Aussage |
 |---|---|
-| `requireAufgabenAccess()` | Modulzugang über die Gruppe. Ruft das `layout.tsx` als Backstop |
-| `personFuerSession()` | löst die aufrufende Person aus `person` auf. Kein Eintrag → `notFound()` |
-| `istAktiv(person)` | `aktiv_bis` leer oder in der Zukunft |
-| `darfVerteilen(person)` | `rolle === "koordination"` |
-| `darfFreigeben(person, aufgabe)` | `person.id === aufgabe.pruefer_id` **oder** `rolle === "koordination"` |
-| `darfPlanAendern(person, zielPersonId)` | `person.id === zielPersonId` (BuFDis ändern nur den eigenen Plan) |
-| `darfPlanSehen(person, zielPersonId)` | jeder BuFDi sieht jeden BuFDi-Plan; `koordination` und `auftrag` alle |
-| `darfNachweisSehen(person, aufgabe)` | Verfasser, `koordination`, oder `person.id === aufgabe.ersteller_id` |
+| `personFuerSeite(db)` | **für Seiten:** Sitzung → `person`-Zeile **oder `null`**. Ohne Sitzung → `notFound()`; ohne `person`-Zeile → `null`, damit die Seite die Erklärseite rendern kann (Nachtrag 2026-08-14 unten) |
+| `subFuerSitzung()` | der Pocket-ID-`sub` der Sitzung, isoliert — der Ausgang aus der Erklärseite: die Person kann ihn sonst nirgends nachschlagen |
+| `personFuerSession(db)` | **für Server-Actions:** wie oben, aber keine `person`-Zeile → `notFound()`. Eine Schreiboperation ohne zurechenbare Zeile darf nicht stattfinden |
+| `istAktiv(person, heute)` | `aktiv_von` erreicht **und** `aktiv_bis` leer oder **heute oder später** (`aktiv_bis` schließt ein) |
+| `darfVerteilen(person, heute)` | `rolle === "koordination"` und aktiv |
+| `darfEinstellenFuerAndere(person, heute)` | `rolle === "auftrag"` oder `"koordination"`, und aktiv. Für **sich selbst** darf jede Rolle einstellen — das ist kein Prädikat, sondern der Normalfall |
+| `darfPersonenVerwalten(person, heute)` | `rolle === "koordination"` und aktiv. **Der Suite-Admin kommt zusätzlich hinein — der Riegel dafür sitzt auf der Route und in den Actions, nicht in diesem Prädikat** (§4, Nachtrag dort) |
+| `darfRoutinenVerwalten(person, heute)` | `rolle === "bufdi"` und aktiv (§8 nennt `/routinen` rollengebunden) |
+| `darfPlanAendern(person, zielPersonId, heute)` | `person.id === zielPersonId` und aktiv. **Auch die Koordination ändert keine fremden Pläne** — sie schlägt vor (`vorschlag_datum`), sie setzt nicht |
+| `darfFreigeben(person, aufgabe, heute)` | **`false` bei `ist_selbst`**, **`false` bei `person.id === aufgabe.zugewiesen_an`**, sonst `person.id === aufgabe.pruefer_id` **oder** `rolle === "koordination"`, und aktiv (beide Ausschlüsse: Nachtrag unten) |
+| `darfPlanSehen(person, zielPersonId)` | **für alle wahr.** Jeder BuFDi sieht jeden BuFDi-Plan lesend, `koordination`/`auftrag` ohnehin alle. Kein `istAktiv` |
+| `darfNachweisSehen(person, aufgabe)` | Verfasser (= aktuell Zugewiesener), `koordination`, `person.id === aufgabe.ersteller_id`, oder der eingetragene Prüfer (`person.id === aufgabe.pruefer_id`, Nachtrag unten). Kein `istAktiv` |
+| `darfNachweisHochladen(person, aufgabe, heute)` | `person.id === aufgabe.zugewiesen_an` und aktiv. **Ohne die Zustandsbedingung `in_arbeit`** — die steht daneben (§5.2, `_lib/lebenszyklus.ts`), nicht in diesem Prädikat |
+| `darfAufgabeSehen(person, aufgabe)` | `koordination` **oder** `bufdi` (Spiegelbild zu `darfPlanSehen`), sonst Ersteller, Zugewiesener oder Prüfer. `auftrag` bleibt damit enger als `bufdi`. Kein `istAktiv` |
+| `darfFreigabenSehen(person, heute)` | `rolle === "auftrag"` oder `"koordination"`, und aktiv (Gate für `/freigaben`). Trifft heute denselben Ausdruck wie `darfEinstellenFuerAndere` und ist trotzdem **kein Alias** darauf — es sind zwei Fragen |
+| `istVertretungsfreigabe(person, aufgabe)` | `rolle === "koordination"`, **nicht** der eingetragene Prüfer, und `pruefer_id` gesetzt — die Bedingung für die Verlaufszeile „in Vertretung für …" |
+
+**Nachtrag vom 2026-08-15 — `darfFreigeben` trägt zwei Ausschlüsse, und beide sind sicherheits-
+tragend.** Die Tabelle nannte bis hierher nur den Rumpf („Prüfer oder Koordination") und
+dokumentierte damit **zwei Riegel weg**, die zwei Reviews eigens gefunden und geschlossen haben:
+
+1. **`ist_selbst` → `false`, auch für die Koordination.** Selbstaufgaben haben gar keine
+   Freigabestufe (§5.2: `in_arbeit` → `abgeschlossen`). Ohne die Klausel stimmten `pruefer_id === null`
+   und `rolle === "koordination"` je für sich, und die Koordination bekäme einen Freigabeknopf für
+   eine Aufgabe, die keine Freigabe kennt.
+2. **`person.id === aufgabe.zugewiesen_an` → `false` (Betreiberentscheidung 2026-08-13).** Die
+   Koordination verteilt, sie arbeitet nicht mit. Ohne diese Klausel gibt es einen **begehbaren
+   Selbstfreigabe-Pfad**: fremd eingestellte Aufgabe an sich selbst verteilen (`ist_selbst` bleibt
+   dabei `false`, weil `ersteller_id !== zugewiesen_an`) und am Ende die eigene Arbeit freigeben —
+   das Vier-Augen-Prinzip fiele für genau diesen Fall aus. Daran hängt auch, dass Verteillisten sich
+   aus den BuFDis speisen und nicht aus allen aktiven Personen.
+
+Wer `darfFreigeben` gegen die alte Tabellenzeile „vereinfacht", öffnet den Pfad wieder — deshalb
+steht die Klausel jetzt hier und nicht nur im Code-Kommentar.
+
+**Nachtrag vom 2026-08-15 — es gibt bewusst kein `requireAufgabenAccess()`.** Die Tabelle führte
+einen solchen Backstop, den `layout.tsx` rufen solle. Er wurde im Pre-Flight vor Aufgabe 4 geprüft
+und **absichtlich nicht gebaut**, aus drei Gründen: der Gruppenriegel gehört der Middleware
+(`core/routing.ts`, `src/proxy.ts`), ein Layout-Backstop deckte ausgerechnet den **Route-Handler**-Fall
+nicht ab (Layouts laufen dort nicht), und der modul-interne Riegel ist `personFuerSession()` bzw.
+`personFuerSeite()` an jeder einzelnen Stelle. Ohne diesen Absatz wird das Fehlen beim nächsten Lesen
+erneut als Mangel gemeldet — und der Backstop gebaut, den Aufgabe 4 begründet nicht gebaut hat.
+
+**Nachtrag vom 2026-08-15 — `darfNachweisSehen` deckt auch den eingetragenen Prüfer ab.** Die Tabelle
+oben nannte ihn nicht, obwohl der Code es seit Aufgabe 16 längst tut. Der Grund: `freigabeDaten`
+filtert über `darfFreigeben` (das den Prüfer einschließt), ein Prüfer sah den Nachweis auf
+`/freigaben` also **schon vorher** — und hätte ihn auf `/a/<id>` verweigert bekommen, **während die
+Freigabe-Knöpfe für dieselbe Person sichtbar blieben**. Die Klausel trägt dabei **bewusst kein
+`istAktiv`** (Betreiberentscheidung 2026-08-14): Handlungsprädikate prüfen es, Sichtprädikate nicht,
+und eine benannte Prüferin gehört zur Geschichte dieser Aufgabe. Ohne diesen Satz wird die Kante beim
+nächsten Lesen erneut als Mangel gemeldet.
 
 Zwei Regeln, die dabei nicht verhandelbar sind:
 
@@ -269,6 +383,19 @@ Zwei Regeln, die dabei nicht verhandelbar sind:
   absichtlich 404, damit die Existenz einer Seite nicht verraten wird. Umgekehrt darf kein
   Navigationseintrag und kein Knopf auf eine Seite zeigen, die für die klickende Person 404 ist —
   weil Oberfläche und Riegel dieselben Funktionen aufrufen, ist das strukturell ausgeschlossen.
+
+  **Nachtrag vom 2026-08-14 — eine Ausnahme, und nur diese eine.** Wer die **Zugangsgruppe des
+  Moduls hat**, aber keine `person`-Zeile, bekommt statt 404 eine **Erklärseite**: „Du bist noch
+  nicht im Modul eingetragen — wende dich an die Koordination." Der Fall wurde bei der Umsetzung
+  sichtbar: ein neuer BuFDi steht in Pocket ID bereits in `iuk-aufgaben-nutzer`, ist aber im Modul
+  noch nicht angelegt, und ein 404 gibt ihm nichts, womit er weiterkäme. Die Begründung für 404 —
+  die Existenz einer Seite nicht verraten — trägt hier nicht: die Person **hat** den Modulzugang,
+  es gibt vor ihr nichts zu verbergen.
+
+  **Alles andere bleibt 404**, und das ist die Grenze der Ausnahme: eine unbekannte Aufgaben- oder
+  Personen-Id in der URL (`/a/<id>`, `/plan/<personId>`) ergibt weiterhin `notFound()`, denn dort
+  geht es um Objekte, die es geben könnte oder nicht. Und wer die Zugangsgruppe **nicht** hat,
+  scheitert unverändert am Middleware-Riegel mit 403.
 
 ## 8. Bildschirme
 
@@ -306,7 +433,7 @@ dahinter ein. Routineblöcke sind sichtbar als solche markiert und tragen keine 
 
 Fuß: „Routinen verwalten" und die Zeitpläne der beiden anderen BuFDis.
 
-### 8.2 Koordination (Sarah) — „Verteilung"
+### 8.2 Koordination (Rike) — „Verteilung"
 
 KPI-Zeile: *Zu verteilen · Freigabe offen · Überfällig · Zurückgewiesen*.
 
@@ -325,7 +452,7 @@ Darunter die **Freigabe-Warteschlange**, sichtbar getrennt in „meine" und „i
 
 Fuß: Personenverwaltung, Archiv, Überfälligkeitsliste.
 
-### 8.3 Auftraggeber (Schulle, Jönne) — „Meine Aufträge"
+### 8.3 Auftraggeber (Malte, Tomke) — „Meine Aufträge"
 
 Oben der Knopf, der der Grund für das ganze Modul ist: **„Aufgabe einstellen"**. Das Formular
 verlangt Titel, Erklärung, Priorität, Frist und Dauerschätzung; Nachweispflicht ist ein Schalter
@@ -333,7 +460,7 @@ mit Formwahl.
 
 Darunter die eigenen Aufträge mit Zustand und Empfänger, und die eigene Freigabe-Warteschlange.
 
-**Diese Ansicht enthält keine Verteil-Aktion.** Das ist die Antwort auf „Jönne und Schulle pfuschen
+**Diese Ansicht enthält keine Verteil-Aktion.** Das ist die Antwort auf „Tomke und Malte pfuschen
 immer wieder rein": der Weg zum Verteilen existiert in ihrer Oberfläche nicht, und `/verteilen`
 antwortet ihnen mit 404. Beides prüft dasselbe Prädikat aus derselben Quelle.
 
@@ -348,11 +475,11 @@ Die Aktionszone unten trägt **nur, was diese Person mit dieser Aufgabe in diese
 Zurückweisen ist bestätigungspflichtig und verlangt Text: eine Zurückweisung ohne Begründung ist für
 den BuFDi wertlos.
 
-### 8.5 Einplanen ohne Drag & Drop (Bauabschnitt 1–4)
+### 8.5 Einplanen per Formular — die Grundlage unter dem Ziehen
 
 Eine Aufgabe in einen Tag legen ist ein kleines Formular: Tag, optional Uhrzeit, Dauerschätzung.
 Die Reihenfolge innerhalb des Tages regeln Auf-/Ab-Knöpfe auf `plan_rang`. Das ist mit der Tastatur
-bedienbar, funktioniert auf dem Handy, und ist die Grundlage, auf der Bauabschnitt 5 aufsetzt.
+bedienbar, funktioniert auf dem Handy, und ist die Grundlage, auf der Abschnitt G (Ziehen) aufsetzt.
 
 ## 9. Darstellung
 
@@ -386,8 +513,9 @@ Nachgebaut nach dem Vokabular aus `lagerbuch/_ui/verwaltung.module.css`, mit eig
 | `abgeschlossen` | grün |
 | `zurückgewiesen` | Ampel-Rot-**Text**farbe, nicht Markenrot |
 
-**Die vollständige Palette wird in Bauabschnitt 1 festgelegt**, weil dort die Farben zum ersten Mal
-erscheinen — nicht später, sonst trägt der Klickdummy provisorische Werte, die niemand mehr anfasst.
+**Die vollständige Palette wird in Abschnitt B festgelegt**, weil dort die Farben zum ersten Mal
+erscheinen — nicht später, sonst tragen die ersten Bildschirme provisorische Werte, die niemand mehr
+anfasst.
 Sie wird mit **gemessenem** AA-Kontrast geliefert, nicht mit geschätztem, und jeder Wert braucht ein
 geprüftes Gegenstück für den Dunkelmodus. Letzteres ist der größte versteckte Posten bei jeder
 Übernahme aus `lagerbuch`, dessen Palette durchgehend hell ist.
@@ -447,8 +575,13 @@ eine Familie direkt genannt — `core/theme/schriftstapel.test.ts` prüft Deklar
 aber **eine unaufgelöste CSS-Variable meldet sich nie**. Stundenzahlen und Budgets bekommen
 `font-variant-numeric: tabular-nums`.
 
-Bedienelemente setzen **kein `size`** — `controlHeight: 56` ist bereits das richtige Touchmaß,
-`size="large"` wäre 72px. Ausnahme: `size="small"` innerhalb von Tabellenzeilen.
+Bedienelemente setzen **kein `size`**, ohne Ausnahme. `aufgaben` steht im Registry auf
+`shell: "full"`, und `FullShell` legt `ARBEITSDICHTE` (`core/theme/theme.ts`, `controlHeight: 44`)
+über den Inhalt — 44px ist WCAG 2.5.5 (AAA) und bereits das richtige Touchmaß; `size="large"` wäre
+72px, `size="small"` 24px und damit unter der Mindesttapfläche. **Die frühere Ausnahme
+(„`size="small"` innerhalb von Tabellenzeilen") ist gefallen**: ihr Grund waren die 56px, und eine
+44px-Zeilenaktion sprengt keine Zeile mehr (`docs/design/README.md`, Falle 4). Wo eine Zeile mit
+44px-Aktionen zu voll wird, ist das ein Entwurfsproblem der Zeile.
 
 Spaltenköpfe einer antd-`Table` bekommen ihre Typo-Rolle über `columns[].title`, nie über eine
 CSS-Regel gegen `.ant-table-thead th` — das kostete sonst eine Spezifitätserhöhung *und* eine
@@ -528,9 +661,9 @@ umschalten, und dass sie es auf dem Desktop *nicht* tun.
 - einen Abruf **jeder** neuen Route auf HTTP 200
 - die Umschaltung bei 390×844, 1280×720 **und 820px**. Die Mitte ist kein Luxus: die Suite hatte
   dort zweimal Defekte, die an beiden Enden unsichtbar waren
-- den vollen Durchlauf über drei Rollen: Schulle stellt ein → Sarah verteilt mit Zeitvorschlag →
-  Lea nimmt an, arbeitet, meldet mit Bildnachweis fertig → Schulle gibt frei
-- die Gegenprobe: Schulle ruft `/m/aufgaben/verteilen` direkt auf und bekommt **404**
+- den vollen Durchlauf über drei Rollen: Malte stellt ein → Rike verteilt mit Zeitvorschlag →
+  Alina nimmt an, arbeitet, meldet mit Bildnachweis fertig → Malte gibt frei
+- die Gegenprobe: Malte ruft `/m/aufgaben/verteilen` direkt auf und bekommt **404**
 - den Selbstaufgaben-Weg: keine Freigabe, direkt abgeschlossen
 
 **Jeder e2e-Test stellt seinen Zustand selbst her**, idempotent oder über eigens angelegte Daten.
@@ -546,7 +679,8 @@ Vollständiger Lauf vor jedem Abschluss: `pnpm typecheck` · `pnpm lint` · `pnp
 
 ## 11. Das Dreieck und die vierte Zeile
 
-Sobald das Modul eine Datenbank hat (Bauabschnitt 2), braucht es **drei** zusammenpassende Einträge:
+Das Modul hat von Anfang an eine Datenbank (Abschnitt A). Es braucht deshalb **drei**
+zusammenpassende Einträge, und zwar sofort:
 
 1. `src/app/m/aufgaben/_db/migrations/`
 2. die Zeile in `MODULE_MIGRATIONS` in `core/bootstrap.ts`
@@ -554,7 +688,7 @@ Sobald das Modul eine Datenbank hat (Bauabschnitt 2), braucht es **drei** zusamm
 
 Fehlt die dritte, läuft es lokal und bricht im Container.
 
-Unabhängig davon und **schon in Bauabschnitt 1**:
+Dazu, in derselben ersten Runde:
 
 - `ScheduleOutlined` in die `ICONS`-Map in `core/shell/icons.ts` (§3).
 - Drei dokumentierte Zeilen in `.env.example`: `SUITE_HOST_AUFGABEN`,
@@ -565,43 +699,51 @@ Unabhängig davon und **schon in Bauabschnitt 1**:
   eine leer gesetzte `SUITE_ACCESS_GROUP_*` ist dagegen wirkungslos oder bricht den Boot ab — bei
   `requiresAuth: true` wäre die leere Liste eine stille Öffnung für alle Eingeloggten. Der Kommentar
   in `.env.example` muss diesen Unterschied nennen.
-- `SUITE_HOST_AUFGABEN=aufgaben.localtest.me` in `.env.local`, damit der Host-Weg lokal dem
-  Produktionsweg entspricht. Ohne die Zeile ist das Modul nur unter `/m/aufgaben` erreichbar (was für
-  Bauabschnitt 1 genügt), und `moduleForHost` löst zusätzlich `aufgaben.localtest.me` ohnehin über die
-  eingebaute Konvention auf.
+- **Keine Zeile in `.env.local` nötig:** `moduleForHost` löst `aufgaben.localtest.me` über die
+  eingebaute Wildcard-Konvention auf, auch ohne `SUITE_HOST_AUFGABEN`. Die Zeile in `.env.example`
+  ist Dokumentation für den Produktionsbetrieb, kein Entwicklungsschritt.
 
-## 12. Bauabschnitte
+## 12. Gliederung der Umsetzung
+
+**Ein Plan über das ganze Modul** (Betreiberentscheid 2026-08-13). Die Abschnitte unten sind seine
+Gliederung, keine getrennten Vorhaben mit eigenen Abnahmen.
 
 | # | Inhalt | Ergebnis |
 |---|---|---|
-| 1 | **Klickdummy als Modulroute.** Registry, ICONS-Zeile, Shell, alle Bildschirme aus §8 mit fest verdrahteten Daten aus `_lib/demoDaten.ts`. Kein `_db/`, also kein Dreieck. Demo-Rollenwechsler. Alte HTML-Datei löschen | Durchklickbar unter `/m/aufgaben`, sieht aus wie die Suite |
-| 2 | **Fundament.** Datenbank, `person`, Zugang (§7), Einstellen, Verteilen, Lebenszyklus (§5) mit Textnachweis, Verlauf, Freigabe und Vertretung. `showInSwitcher: true` | Das Modul ist produktiv nutzbar |
-| 3 | **Zeitplan.** Tagesspalten, Einplanen und Verschieben per Formular und Auf/Ab, Routinen, Tagesbudget, fremde Pläne lesend | Anforderung 3 erfüllt |
-| 4 | **Bildnachweis.** `core/upload` (Upload, MIME-Prüfung, Größenlimit, Virenscan) heben, `files` darauf umstellen, `aufgaben` daran anschließen | Anforderung 4 vollständig erfüllt |
-| 5 | **Drag & Drop.** Ziehen zwischen Tagen und innerhalb eines Tages, ab 768px. Dieselben Server-Actions wie Bauabschnitt 3; die Knopfstrecke bleibt | Gewünschter Komfort |
-| 6 | **Feinschliff.** Archiv mit Filtern, Überfälligkeitsliste, In-App-Erinnerung „länger als X Tage in Freigabe offen" | Betriebsreife |
+| A | **Fundament.** Registry, ICONS-Zeile, `.env.example`, Datenbank samt Dreieck (§11), Schema, `person`, Zugang aus der Sitzung (§7), `seedLokal` | Das Modul antwortet und kennt seine Personen |
+| B | **Bausteine.** Farbvokabular in hell und dunkel, Zeichenquelle, Chip, Kachel, Seitenkopf, Aufgabenliste, Wochenplan mit Mobilumschaltung | Die Oberfläche trägt die Suite-Regeln |
+| C | **Lebenszyklus.** Alle Server-Actions der Übergangstabelle (§5.2), Verlauf, Freigabe samt Vertretung, Textnachweis, `useActionState` am Feld | Anforderungen 1, 2 und 4 (schriftlich) erfüllt |
+| D | **Zeitplan.** Tagesspalten, Einplanen und Verschieben per Formular und Auf/Ab, Routinen, Tagesbudget, fremde Pläne lesend | Anforderung 3 erfüllt |
+| E | **Seiten.** Die neun Routen aus §8, drei rollenabhängige Einstiege, Archiv, Überfälligkeitsliste | Jede Action hat einen Weg in der Oberfläche |
+| F | **Bildnachweis.** `core/av/scanner.ts` (Protokoll, siehe §2), `files` an einer Aufrufstelle umstellen, modul-eigene Warteschlange, Upload mit MIME- und Größenprüfung | Anforderung 4 vollständig erfüllt |
+| G | **Drag & Drop.** Ziehen zwischen Tagen und innerhalb eines Tages, ab 768px, auf denselben Actions wie D. Die Knopfstrecke bleibt | Gewünschter Komfort |
 
-**Dieses Spec beschreibt das ganze Modul, ein Umsetzungsplan deckt einen Bauabschnitt.** Der erste
-Plan hat Bauabschnitt 1 zum Gegenstand; die Abschnitte 2–6 bekommen eigene Pläne, wenn der jeweils
-vorige steht. Ein Plan über alle sechs wäre zum Zeitpunkt seiner Erstellung in der zweiten Hälfte
-schon veraltet.
+**Ein Vorbehalt, benannt statt verschwiegen:** die späteren Abschnitte eines langen Plans veralten,
+während die früheren gebaut werden — F fasst zudem ein laufendes Modul an. Der Betreiber hat den
+Umfang am 2026-08-13 nach diesem Hinweis bestätigt. Praktische Folge für die Umsetzung: **F und G
+werden erst geschrieben, wenn A–E stehen**, und wer sie dann anfasst, prüft ihre Annahmen gegen den
+dann geltenden Code, statt sie für gesetzt zu nehmen.
 
 ## 13. Streichposten und offene Punkte
 
-**Muss vor dem Echtbetrieb verschwinden:**
+**Es gibt keinen Demo-Rollenwechsler, und das ist kein Verzicht, sondern der bessere Weg.** Lokal
+wechselt man die Rolle, indem man sich mit einer anderen Adresse am Dev-Login anmeldet: dessen
+`sub` ist `dev:<email>` (`core/auth/config.ts`), und `seedLokal` legt für jede Demo-Person eine
+`person`-Zeile mit genau diesem `sub` an. Damit läuft die Rollenauflösung im Entwicklungsbetrieb
+durch **dieselbe** Strecke wie in Produktion — ein Umschalter wäre eine zweite, und genau die hätte
+den Echtbetrieb erreichen können.
 
-- Der **Demo-Rollenwechsler** aus Bauabschnitt 1. Er ist sichtbar als Demo gekennzeichnet und darf
-  den Echtbetrieb nicht erreichen — mit ihm wäre jede Rolle von jedem einnehmbar.
-- Die fest verdrahteten Daten in `_lib/demoDaten.ts`, sobald Bauabschnitt 2 sie ersetzt (das
-  Gegenstück ist `_lib/seedLokal.ts`, das bleibt).
-- `bufdi-koordination-klickdummy.html` in der Repository-Wurzel, gelöscht in Bauabschnitt 1.
+**Musste vor dem Echtbetrieb verschwinden, und ist es:** `bufdi-koordination-klickdummy.html` in der
+Repository-Wurzel — Referenz für den Funktionsumfang, nicht für die Gestaltung. Bei Aufgabe 21 (dem
+Abschluss der Umsetzung) war die Datei bereits weder im Worktree noch im Haupt-Repository vorhanden
+(s. §1).
 
 **Bewusst nicht in dieser Fassung:**
 
 - **Video als Nachweisform.** Vertagt, weil die Kosten im Speicher und im Backup liegen, nicht in
-  der Oberfläche — eine Betriebsentscheidung. Die Upload-Strecke aus Bauabschnitt 4 kann es später
+  der Oberfläche — eine Betriebsentscheidung. Die Upload-Strecke aus Abschnitt F kann es später
   ohne Umbau annehmen; es braucht dann nur ein höheres Limit und eine geklärte Speicherplanung.
-- **Benachrichtigungen per E-Mail oder Push.** Bauabschnitt 6 bringt eine In-App-Liste. Eine
+- **Benachrichtigungen per E-Mail oder Push.** Abschnitt E bringt die Überfälligkeitsliste in der Anwendung. Eine
   Mailstrecke ist ein eigenes Vorhaben mit eigener Infrastrukturfrage.
 - **Abwesenheiten und Urlaub.** Ein abwesender BuFDi hat heute einfach einen leeren Zeitplan. Ein
   eigenes Abwesenheitsmodell würde die Budgetrechnung, die Verteilansicht und die

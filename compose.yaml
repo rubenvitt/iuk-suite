@@ -52,6 +52,15 @@ services:
       # und einer Quota am Blob-Ort — Letztere ist eine Betreibervorgabe, keine
       # Codeentscheidung.
       - files_data:/data/files
+      # Eigener Mount fuer die Blobs des Moduls `aufgaben` (Bildnachweise, Aufgabe 19) — dasselbe
+      # Muster wie `files_data` direkt darueber, aus demselben Grund: clamd soll die
+      # Modul-DATENBANKEN nicht sehen (sie liegen in `suite_data`), nur die Blobs, die es scannen
+      # muss. `suite_data` MITZUMOUNTEN waere die falsche Abkuerzung — der Kommentar bei Zeile 49
+      # nennt den Grund (ein volllaufendes Upload-Volume erzeugte sonst ENOSPC genau dort, wo auch
+      # die vier Modul-DBs liegen), und er gilt hier unveraendert. `_lib/ablage.ts`s `ablageWurzel()`
+      # loest `DATA_DIR/aufgaben` auf — mit `DATA_DIR=/data` (oben) ist das exakt `/data/aufgaben`,
+      # der rechte Teil dieser Zeile.
+      - aufgaben_data:/data/aufgaben
     # `av` MUSS hier stehen: ohne dieses Netz erreicht die Suite clamd nicht,
     # jeder Scan läuft in ECONNREFUSED und nach FILES_AV_VERSUCHE in
     # `av_status = 'error'`. Das ist fail-closed und richtig, sieht aber wie ein
@@ -121,6 +130,11 @@ services:
       # `suite_data` ist bewusst NICHT gemountet: die vier Modul-Datenbanken
       # gehen den Scanner nichts an.
       - files_data:/data/files:ro
+      # DASSELBE benannte Volume wie unter `suite`, nur lesend (Aufgabe 19) — ohne diese Zeile sieht
+      # clamd das Ablageverzeichnis von `aufgaben` gar nicht, und jeder Scan endet mit „Can't access
+      # file ERROR" → dauerhaft `scan_status: 'fehler'`, nie eine Auslieferung, nie eine
+      # bildpflichtige Aufgabe abgeschlossen. Lokal (Fake-clamd, kein Compose) faellt das nicht auf.
+      - aufgaben_data:/data/aufgaben:ro
       # Ohne diesen Mount ist `clamd.files.conf` ein Repo-Schmuckstück und eine
       # Übergröße bleibt ein stilles `OK` (siehe Kopf der Datei).
       #
@@ -151,6 +165,8 @@ volumes:
     name: suite_data
   files_data:
     name: files_data
+  aufgaben_data:
+    name: aufgaben_data
   clamav_db:
     name: clamav_db
 

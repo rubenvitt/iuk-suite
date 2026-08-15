@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **acht Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **elf Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -49,6 +49,51 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
    antd spritzt die Regel zur Laufzeit über cssinjs ein, sie steht in **keiner Datei des Repos**, und
    jsdom rechnet keine Zeilenboxen — nur ein echter Browser kennt die Zahl. Abhilfe: `line-height:
    normal` am **gemeinsamen Vorfahren**, nicht an jedem Kind einzeln.
+9. **`<Table columns={[{ render: fn }]}>` geht nicht direkt aus einer Server Component** (gemessen
+   im Modul `aufgaben`, Aufgabe 11):
+   ```
+   Error: Functions cannot be passed directly to Client Components unless you explicitly
+   expose it by marking it with "use server".
+     {title: "Titel", key: "titel", render: function render}
+   ```
+   antds `Table` ist selbst eine Client-Komponente; ein `columns[].render`, das in einer Server
+   Component entsteht, ist eine **gewöhnliche Funktion** — keine Server Action —, und React lehnt
+   ab, sie über die RSC-Grenze zu reichen. **Warum kein Gate es sieht:** `pnpm build` prüft
+   Modulgrenzen statisch, nicht die tatsächliche Serialisierung eines Requests, und ein `mount()`
+   in jsdom ist ein einziger JS-Prozess **ohne RSC-Grenze überhaupt** — `typecheck`/`lint` sowieso
+   nicht. Nur ein echter Abruf zeigt es. **Abhilfe** (Vorbild `lagerbuch/verwaltung/(arbeit)/
+   LetzteBuchungenTable.tsx`, `aufgaben/_ui/RoutinenTabelle.tsx`): die Tabelle in eine eigene
+   `"use client"`-Komponente heben, die nur **serialisierbare** Daten als Prop bekommt und ihre
+   `render`-Funktionen selbst definiert. Server Actions dürfen als einzige über die Grenze — aber
+   **direkt importiert**, nicht als Prop durchgereicht. **Nicht mit Falle 1 oder 6 zusammenlegen**:
+   dort geht es um Compound-Zugriff bzw. um einen Client-Wert in RSC, hier um eine **Funktion, die
+   die Grenze überquert**.
+10. **Ein POST auf einen Route Handler kann während dessen Erstkompilierung abgebrochen werden**
+    (gemessen im Modul `aufgaben`, Aufgabe 19, per CDP-`Network`-Domäne, nicht vermutet). `next dev`/
+    Turbopack kompiliert einen Route Handler beim **ersten** Treffer; landet der eigentliche
+    `fetch(..., { method: "POST" })` genau in diesem Fenster, löst der HMR-Kanal einen vollen
+    Seiten-Reload aus, und der Browser **bricht die laufende Anfrage mit ab** — `net::ERR_ABORTED`,
+    `canceled: true`, **nie eine Antwort**. **Das Symptombild führt in die Irre:** keine
+    Datenbankzeile, keine Protokollzeile, und ein e2e-Test läuft in sein Zeitbudget mit einer
+    Meldung, die nach etwas ganz anderem klingt — isoliert grün, im Verbund rot, was erst an
+    Ressourcendruck oder geteilten Zustand denken lässt. **Abhilfe:** ein Warmlauf-GET auf dieselbe
+    Route vor dem ersten echten POST (Vorbild `e2e/files-fileshare.spec.ts`, das dieselbe Falle für
+    `/api/download/[id]` schon lange kennt — sie stand nur nicht an der Stelle, an der man sie
+    sucht). **Daraus folgt eine zweite Testregel:** ein e2e-Test, der eine Anfrage auslöst, **prüft
+    ihre Antwort** (`page.waitForResponse`), statt nur auf eine spätere Zustandsänderung zu warten —
+    sonst läuft jede abgelehnte Antwort (404, 405, 413, abgebrochen) still ins Zeitbudget und meldet
+    sich als etwas anderes.
+11. **`locator.dragTo()` löst kein zuverlässiges natives `dragstart` aus** (gemessen im Modul
+    `aufgaben`, Aufgabe 20): ein Zug zwischen zwei Tagesspalten lief reproduzierbar in den vollen
+    90-Sekunden-Timeout, ohne dass je ein `drop` feuerte — `dragstart` feuerte nur bei einem
+    kleinen Zielelement, nie bei einer großen Zielfläche. Eine echte, schrittweise Mausbewegung
+    (`page.mouse.move`/`down`/mehrfach `move` mit Pausen/`up`) löst dieselbe Kette zuverlässig aus;
+    Chromiums native Drag-Erkennung braucht offenbar eine kontinuierliche Bewegung über eine
+    Mindestdistanz, die ein einzelner `dragTo()`-Sprung nicht liefert.
+
+    **Fallen 10 und 11 sind Testfallen, keine Produktionsfallen** — beide gehören zur selben Familie
+    wie die zweite Testregel aus Falle 10: Fälle, in denen ein e2e-Test **etwas anderes misst, als
+    sein Name sagt**.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb

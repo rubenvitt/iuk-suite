@@ -1,0 +1,498 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import type { AufgabeRow, PersonRow, RoutineRow } from "../_db/schema";
+import s from "./aufgaben.module.css";
+
+/*
+ * SPIONE UM DIE ECHTEN FUNKTIONEN, NICHT UM ATTRAPPEN: `importOriginal` liefert
+ * die wirkliche Implementierung, der Spion zaehlt nur mit. Ein Vergleich der
+ * beiden Ausprägungen allein (Text A === Text B) beweist NICHT, dass nur
+ * EINMAL gerechnet wurde — zwei reine Funktionen liefern bei gleichen
+ * Eingaben ohnehin dasselbe Ergebnis. Die Aufrufzahl ist die einzige Aussage,
+ * die den Unterschied zwischen "einmal gerechnet, zweimal gerendert" und
+ * "zweimal gerechnet, zufaellig gleich" trifft.
+ */
+const { tagesOrdnungSpy, tagesBudgetSpy } = vi.hoisted(() => ({
+  tagesOrdnungSpy: vi.fn(),
+  tagesBudgetSpy: vi.fn(),
+}));
+
+vi.mock("../_lib/tagesplan", async (importOriginal) => {
+  const echte = await importOriginal<typeof import("../_lib/tagesplan")>();
+  return {
+    ...echte,
+    tagesOrdnung: (...args: Parameters<typeof echte.tagesOrdnung>) => {
+      tagesOrdnungSpy(...args);
+      return echte.tagesOrdnung(...args);
+    },
+  };
+});
+
+vi.mock("../_lib/anzeige", async (importOriginal) => {
+  const echte = await importOriginal<typeof import("../_lib/anzeige")>();
+  return {
+    ...echte,
+    tagesBudget: (...args: Parameters<typeof echte.tagesBudget>) => {
+      tagesBudgetSpy(...args);
+      return echte.tagesBudget(...args);
+    },
+  };
+});
+
+const { Wochenplan } = await import("./Wochenplan");
+
+afterEach(async () => {
+  await unmount();
+  tagesOrdnungSpy.mockClear();
+  tagesBudgetSpy.mockClear();
+});
+
+const MONTAG = "2026-08-10";
+const DIENSTAG = "2026-08-11";
+
+const ALINA: PersonRow = {
+  id: "alina", sub: "dev:alina@localtest.me", name: "Alina", initialen: "AL",
+  rolle: "bufdi", sollMinutenTag: 468, aktivVon: "2026-08-01", aktivBis: null,
+  erstelltAm: new Date(0),
+};
+
+const aufgabe = (over: Partial<AufgabeRow>): AufgabeRow => ({
+  id: "x", titel: "T", beschreibung: "B", prioritaet: "mittel",
+  erstellerId: "malte", zugewiesenAn: "alina", status: "verteilt",
+  faelligAm: "2026-08-14", faelligUhrzeit: null, dauerMinuten: 60,
+  nachweisPflicht: false, nachweisArt: "text", prueferId: "malte",
+  istSelbst: false, planDatum: MONTAG, planUhrzeit: null, planRang: 0,
+  vorschlagDatum: null, vorschlagUhrzeit: null,
+  erstelltAm: new Date(0), aktualisiertAm: new Date(0),
+  ...over,
+});
+
+const routine = (over: Partial<RoutineRow>): RoutineRow => ({
+  id: "r", personId: "alina", titel: "Frühbesprechung", wochentage: 0b11111,
+  uhrzeit: "08:00", dauerMinuten: 15, aktiv: true, erstelltAm: new Date(0),
+  ...over,
+});
+
+describe("Wochenplan", () => {
+  it("rendert beide data-rolle-Ausprägungen ins DOM", async () => {
+    await mount(
+      <Wochenplan aufgaben={[]} routinen={[]} person={ALINA} montag={MONTAG} heute={MONTAG} />,
+    );
+    expect(query('[data-rolle="wochengitter"]').className.split(" ")).toContain(s.wochenGitter);
+    expect(query('[data-rolle="tagesliste"]').className.split(" ")).toContain(s.tagesListe);
+  });
+
+  it("zeigt in beiden Ausprägungen dieselben Einträge in derselben Reihenfolge", async () => {
+    await mount(
+      <Wochenplan
+        aufgaben={[
+          aufgabe({ id: "a1", planRang: 1, planUhrzeit: "09:00", titel: "Anker" }),
+          aufgabe({ id: "f1", planRang: 2, planUhrzeit: null, titel: "Frei" }),
+        ]}
+        routinen={[routine({})]}
+        person={ALINA}
+        montag={MONTAG}
+        heute={MONTAG}
+      />,
+    );
+    // Beide Ausprägungen rendern ALLE fuenf Tage; wir vergleichen die Zeilen-
+    // TEXTE der ersten Spalte (Montag) in beiden Ausprägungen, in Reihenfolge.
+    const zeilenGitter = queryAll(
+      `[data-rolle="wochengitter"] .${s.tagSpalte}`,
+    )[0]!.querySelectorAll("li");
+    const zeilenListe = queryAll(
+      `[data-rolle="tagesliste"] .${s.tagSpalte}`,
+    )[0]!.querySelectorAll("li");
+    const textGitter = Array.from(zeilenGitter).map((li) => li.textContent);
+    const textListe = Array.from(zeilenListe).map((li) => li.textContent);
+    expect(textGitter.length).toBeGreaterThan(0);
+    expect(textGitter).toEqual(textListe);
+  });
+
+  /*
+   * FUENF SPALTEN, ZWEI AUSPRAEGUNGEN — GENAU ZEHN BUDGETZEILEN. Eine blosse
+   * "gibt es mindestens eine" waere schon erfuellt, wenn nur eine einzige
+   * Spalte ueberhaupt ein Budget zeigt; die Zaehlung deckt beide
+   * Ausprägungen UND alle fuenf Tage ab.
+   */
+  it("zeigt das Budget je Spalte — in jeder der fünf Spalten, in beiden Ausprägungen", async () => {
+    await mount(
+      <Wochenplan
+        aufgaben={[aufgabe({ dauerMinuten: 165 })]}
+        routinen={[]}
+        person={ALINA}
+        montag={MONTAG}
+        heute={MONTAG}
+      />,
+    );
+    const budgets = queryAll(`.${s.budget}`);
+    expect(budgets).toHaveLength(10);
+    expect(budgets[0].textContent).toContain("2,75");
+    expect(budgets[0].textContent).toContain("7,8 Std.");
+  });
+
+  it("markiert einen überbuchten Tag mit .budgetUeberbucht UND dem Text „überbucht“", async () => {
+    await mount(
+      <Wochenplan
+        aufgaben={[aufgabe({ planDatum: DIENSTAG, dauerMinuten: 500 })]}
+        routinen={[]}
+        person={ALINA}
+        montag={MONTAG}
+        heute={MONTAG}
+      />,
+    );
+    const ueberbucht = query(`.${s.budgetUeberbucht}`);
+    expect(ueberbucht.className.split(" ")).toContain(s.budget);
+    expect(ueberbucht.textContent).toContain("überbucht");
+  });
+
+  /**
+   * DER ZUSATZ HAT EINE EIGENE SPANNE, UND DAS FUEHRENDE LEERZEICHEN STEHT DARIN (Nach-Rebase-
+   * Runde, Befund B). `.budget` traegt `white-space: nowrap`, damit „9,17 / 7,80 Std." als EIN
+   * Wert zusammenbleibt; mit dem Zusatz war die Zeile gemessene 167px breit und passte in keine
+   * Tagesspalte, auch nicht bei 1280px (166px innen).
+   *
+   * DAS LEERZEICHEN IST DIE GANZE POINTE, UND DESHALB STEHT ES HIER ALS EIGENE ZUSICHERUNG: die
+   * Umbruchgelegenheit LIEGT an ihm, und ob sie gilt, entscheidet das `white-space` des Elements,
+   * das es enthaelt. Rutscht es beim naechsten Aufraeumen vor die Spanne, verbietet `nowrap` des
+   * Elternteils den Umbruch weiterhin — die Zeile laeuft wieder ueber, und ZWEI Gates koennen das
+   * strukturell nicht sehen: `textContent` ist in beiden Fassungen zeichengleich (die bestehende
+   * `toContain`-Zusicherung oben bleibt also gruen), und der 820px-Sweep misst den DOKUMENTRAND,
+   * waehrend der ueberbuchte Tag der Demodaten der Montag ist — der Ueberlauf laeuft in die
+   * Nachbarspalte, nie ueber den rechten Rand.
+   */
+  it("gibt dem Zusatz „— überbucht“ eine eigene Spanne, mit dem Leerzeichen DARIN", async () => {
+    await mount(
+      <Wochenplan
+        aufgaben={[aufgabe({ planDatum: DIENSTAG, dauerMinuten: 500 })]}
+        routinen={[]}
+        person={ALINA}
+        montag={MONTAG}
+        heute={MONTAG}
+      />,
+    );
+    const hinweis = query(`.${s.budgetUeberbucht} .${s.budgetHinweis}`);
+    expect(
+      hinweis.textContent,
+      "ohne fuehrendes Leerzeichen IN der Spanne bleibt die Regel eine Attrappe",
+    ).toMatch(/^\s/);
+    expect(hinweis.textContent).toContain("überbucht");
+    // Und das Zahlenpaar bleibt DRAUSSEN — sonst haette die Spanne den Umbruch an der falschen
+    // Stelle erlaubt.
+    expect(hinweis.textContent).not.toContain("Std.");
+  });
+
+  it("zeigt bei einem Anker die Uhrzeit, bei einem freien Eintrag keine", async () => {
+    await mount(
+      <Wochenplan
+        aufgaben={[
+          aufgabe({ id: "a1", planRang: 1, planUhrzeit: "09:00", titel: "Anker" }),
+          aufgabe({ id: "f1", planRang: 2, planUhrzeit: null, titel: "Frei" }),
+        ]}
+        routinen={[]}
+        person={ALINA}
+        montag={MONTAG}
+        heute={MONTAG}
+      />,
+    );
+    // Genau EIN Anker und EIN freier Eintrag, je einmal in jeder der zwei
+    // Ausprägungen — die Zaehlung ist die eigentliche Aussage: eine bloße
+    // "der freie Eintrag zeigt keine Uhrzeit" waere per Konstruktion nie
+    // rot, der eigentliche Fehlerfall (der FREIE Eintrag traegt faelschlich
+    // eine `.ankerSpur`) faellt nur auf, wenn man die Anzahl zaehlt.
+    const anker = queryAll(`.${s.ankerSpur}`);
+    const ohneAnker = queryAll(`.${s.ohneAnker}`);
+    expect(anker).toHaveLength(2);
+    expect(ohneAnker).toHaveLength(2);
+    expect(anker[0]!.textContent).toBe("09:00");
+    expect(ohneAnker[0]!.textContent).not.toMatch(/\d\d:\d\d/);
+  });
+
+  it("markiert Routinen sichtbar und rendert dafür keine Aktionen (kein Knopf)", async () => {
+    await mount(
+      <Wochenplan aufgaben={[]} routinen={[routine({})]} person={ALINA} montag={MONTAG} heute={MONTAG} />,
+    );
+    const routineZeile = query(`.${s.routineZeile}`);
+    expect(routineZeile.textContent).toContain("Frühbesprechung");
+    expect(query("svg").getAttribute("data-zeichen")).toBe("routine");
+    expect(queryAll("button")).toHaveLength(0);
+  });
+
+  it("zeigt für einen leeren Tag den eigenen Satz, in beiden Ausprägungen", async () => {
+    await mount(
+      <Wochenplan aufgaben={[]} routinen={[]} person={ALINA} montag={MONTAG} heute={MONTAG} />,
+    );
+    for (const rolle of ["wochengitter", "tagesliste"]) {
+      expect(
+        queryAll(`[data-rolle="${rolle}"] .${s.tagSpalte}`)[0]!.textContent,
+        rolle,
+      ).toContain("Nichts eingeplant.");
+    }
+  });
+
+  /*
+   * BEIDE AUSPRAEGUNGEN GEPRUEFT, NICHT NUR EINE — ein Fehler, der die
+   * Markierung nur in einer der beiden Ausprägungen setzt (z. B. weil `heute`
+   * nur an EINEN der beiden `<TagSpalte>`-Aufrufe durchgereicht wird), bliebe
+   * sonst unentdeckt.
+   */
+  it("markiert den heutigen Tag, in beiden Ausprägungen", async () => {
+    await mount(
+      <Wochenplan aufgaben={[]} routinen={[]} person={ALINA} montag={MONTAG} heute={DIENSTAG} />,
+    );
+    for (const rolle of ["wochengitter", "tagesliste"]) {
+      const spalten = queryAll(`[data-rolle="${rolle}"] .${s.tagSpalte}`);
+      // Montag ist die erste Spalte, Dienstag die zweite (wochenTage liefert Mo..Fr).
+      expect(spalten[0]!.getAttribute("aria-current"), rolle).toBeNull();
+      expect(spalten[1]!.getAttribute("aria-current"), rolle).toBe("date");
+    }
+  });
+
+  /*
+   * DIE ZUSAGE „EINMAL GERECHNET, ZWEIMAL GERENDERT": fuenf Tage in der Woche,
+   * also GENAU fuenf Aufrufe von `tagesOrdnung` und `tagesBudget` — nicht
+   * zehn. Zwei getrennte Berechnungen (eine je Ausprägung) waeren hier zehn
+   * Aufrufe und liefen auseinander, sobald sich die Eingaben zwischen den
+   * beiden Aufrufen aendern koennten, genau dann, wenn niemand hinsieht.
+   */
+  it("rechnet tagesOrdnung und tagesBudget genau fünfmal — einmal je Tag, nicht je Ausprägung", async () => {
+    await mount(
+      <Wochenplan
+        aufgaben={[aufgabe({})]}
+        routinen={[routine({})]}
+        person={ALINA}
+        montag={MONTAG}
+        heute={MONTAG}
+      />,
+    );
+    expect(tagesOrdnungSpy).toHaveBeenCalledTimes(5);
+    expect(tagesBudgetSpy).toHaveBeenCalledTimes(5);
+  });
+
+  /*
+   * DER MOBILE TAGESWAEHLER (Aufgabe 13, Spec §9.6): `mobilTag` blendet in der MOBILEN Ausprägung
+   * (`.tagesListe`) alle Tage AUSSER dem ausgewaehlten aus — inline, server-berechnet, ohne
+   * Client-JS. Die DESKTOP-Ausprägung (`.wochenGitter`) bleibt UNBERUEHRT: der Tageswaehler
+   * existiert nur mobil, und ein Fehler, der auch das Gitter filtert, faellt nur auf, wenn beide
+   * Ausprägungen einzeln geprueft werden.
+   */
+  describe("mobilTag — nur die mobile Ausprägung filtert, das Gitter zeigt immer alle fünf", () => {
+    it("zeigt in der Tagesliste nur den ausgewaehlten Tag sichtbar, die anderen vier mit display:none", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          mobilTag={DIENSTAG}
+        />,
+      );
+      const spalten = queryAll(`[data-rolle="tagesliste"] .${s.tagSpalte}`);
+      expect(spalten).toHaveLength(5);
+      expect(spalten[0]!.style.display).toBe("none"); // Montag
+      expect(spalten[1]!.style.display).toBe(""); // Dienstag, ausgewaehlt
+      expect(spalten[2]!.style.display).toBe("none");
+    });
+
+    it("laesst das Wochengitter unveraendert — alle fünf Spalten sichtbar", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          mobilTag={DIENSTAG}
+        />,
+      );
+      const spalten = queryAll(`[data-rolle="wochengitter"] .${s.tagSpalte}`);
+      expect(spalten).toHaveLength(5);
+      for (const spalte of spalten) expect(spalte.style.display).not.toBe("none");
+    });
+
+    it("ohne mobilTag: keine Spalte wird ausgeblendet — bestehende Aufrufer bleiben unveraendert", async () => {
+      await mount(
+        <Wochenplan aufgaben={[]} routinen={[]} person={ALINA} montag={MONTAG} heute={MONTAG} />,
+      );
+      const spalten = queryAll(`[data-rolle="tagesliste"] .${s.tagSpalte}`);
+      for (const spalte of spalten) expect(spalte.style.display).not.toBe("none");
+    });
+  });
+
+  /*
+   * RANGKNOEPFE (Aufgabe 13, Spec §8.5): nur bei `zeigeAktionen` UND nur fuer AUFGABEN-Eintraege,
+   * nie fuer Routinen — dieselbe Zusage wie oben ("kein Knopf" fuer Routinen), jetzt mit
+   * `zeigeAktionen: true`, wo ein Nachbau der Pruefung sie sonst uebersehen koennte.
+   */
+  describe("zeigeAktionen/rang — RangKnoepfe je Aufgaben-Eintrag, nie fuer Routinen", () => {
+    it("ohne zeigeAktionen: kein Knopf, wie bisher", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+        />,
+      );
+      expect(queryAll("button")).toHaveLength(0);
+    });
+
+    it("mit zeigeAktionen und passendem rang: Auf/Ab je Eintrag, in BEIDEN Ausprägungen", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{ a1: { istErste: false, istLetzte: false, index: 0 } }}
+        />,
+      );
+      // Zwei Ausprägungen (Gitter + Liste), je zwei Knoepfe (Auf/Ab) — vier insgesamt.
+      expect(queryAll("button")).toHaveLength(4);
+      const auf = queryAll("button").filter((b) => b.textContent?.includes("Auf"));
+      expect(auf.every((b) => !b.hasAttribute("disabled"))).toBe(true);
+    });
+
+    it("eine Routine bekommt trotz zeigeAktionen keine RangKnoepfe", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[]}
+          routinen={[routine({ id: "r1" })]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{ r1: { istErste: false, istLetzte: false, index: 0 } }}
+        />,
+      );
+      expect(queryAll("button")).toHaveLength(0);
+    });
+
+    it("fehlt der Eintrag in rang, gilt er defensiv als Rand: beide Knoepfe deaktiviert", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{}}
+        />,
+      );
+      const knoepfe = queryAll<HTMLButtonElement>("button");
+      expect(knoepfe.length).toBeGreaterThan(0);
+      expect(knoepfe.every((b) => b.disabled)).toBe(true);
+    });
+  });
+
+  /*
+   * AUFGABE 20 — DER ZIEHGRIFF UND DER LINK AUF DIE DETAILSEITE. Vier Aussagen, jede mit einer
+   * echten Gegenprobe im Kopf: ein Ziehgriff, der ueberall erschiene, waere keine Zusage, sondern
+   * Zufall.
+   */
+  describe("Ziehgriff und Titel-Link (Aufgabe 20)", () => {
+    it("der Aufgabentitel ist ein Link auf /a/<id>, in BEIDEN Ausprägungen", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1", titel: "Verbandskasten prüfen" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+        />,
+      );
+      const links = queryAll<HTMLAnchorElement>("a[href='/a/a1']");
+      expect(links).toHaveLength(2); // Gitter + Liste
+      expect(links[0]!.textContent).toBe("Verbandskasten prüfen");
+      // Der Link darf die native Link-Ziehgeste nicht ausloesen (Brief: Link und Ziehgriff
+      // vertragen sich schlecht) — s. Kopfkommentar `EintragZeile`.
+      expect(links.every((a) => a.draggable)).toBe(false);
+    });
+
+    it("ohne zeigeAktionen: kein Ziehgriff, wie kein RangKnoepfe-Knopf", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+        />,
+      );
+      expect(queryAll("[data-aufgabe-id]")).toHaveLength(0);
+    });
+
+    it("mit zeigeAktionen und Rang-Index: Ziehgriff NUR in der Gitter-, nicht in der Listen-Ausprägung", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{ a1: { istErste: false, istLetzte: false, index: 2 } }}
+        />,
+      );
+      const griffeGitter = queryAll('[data-rolle="wochengitter"] [data-aufgabe-id="a1"]');
+      const griffeListe = queryAll('[data-rolle="tagesliste"] [data-aufgabe-id="a1"]');
+      expect(griffeGitter).toHaveLength(1);
+      expect(griffeListe).toHaveLength(0);
+      expect(griffeGitter[0]!.getAttribute("data-plan-index")).toBe("2");
+      expect(griffeGitter[0]!.getAttribute("draggable")).toBe("true");
+    });
+
+    it("eine Routine bekommt trotz zeigeAktionen keinen Ziehgriff", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[]}
+          routinen={[routine({ id: "r1" })]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{ r1: { istErste: false, istLetzte: false, index: 0 } }}
+        />,
+      );
+      expect(queryAll("[data-aufgabe-id]")).toHaveLength(0);
+    });
+
+    /*
+     * GEGENPROBE: fehlt der Eintrag in `rang` (derselbe Randfall wie bei den Knoepfen oben), liefert
+     * `TagSpalte` defensiv `index: -1` — dieser Test haelt fest, dass das die Zeile NICHT ziehbar
+     * macht, statt mit einem geratenen Index weiterzurechnen (Kopfkommentar `RangGrenze`).
+     */
+    it("fehlt der Eintrag in rang (Index -1): kein Ziehgriff, obwohl RangKnoepfe erscheinen", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1" })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{}}
+        />,
+      );
+      expect(queryAll("[data-aufgabe-id]")).toHaveLength(0);
+      expect(queryAll("button").length).toBeGreaterThan(0); // RangKnoepfe bleiben, s. Test oben.
+    });
+
+    it("data-tag steht NUR an der Gitter-Ausprägung der Tagesspalte, nicht an der Liste", async () => {
+      await mount(
+        <Wochenplan aufgaben={[]} routinen={[]} person={ALINA} montag={MONTAG} heute={MONTAG} />,
+      );
+      const gitterSpalten = queryAll(`[data-rolle="wochengitter"] .${s.tagSpalte}`);
+      const listeSpalten = queryAll(`[data-rolle="tagesliste"] .${s.tagSpalte}`);
+      expect(gitterSpalten.every((el) => el.hasAttribute("data-tag"))).toBe(true);
+      expect(listeSpalten.every((el) => !el.hasAttribute("data-tag"))).toBe(true);
+      expect(gitterSpalten[0]!.getAttribute("data-tag")).toBe(MONTAG);
+    });
+  });
+});

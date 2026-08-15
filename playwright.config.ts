@@ -126,8 +126,18 @@ export default defineConfig({
       },
     },
     {
+      /*
+       * `scripts/seed-lokal.ts aufgaben` NACH dem lagerbuch-Seed, VOR `next dev` (Aufgabe 11): das
+       * Modul seedet bewusst NICHT am Boot-Pfad (`docs/... shouldSeed()`-Begruendung, `_lib/
+       * seedLokal.ts`-Kopfkommentar) — ohne diese Zeile bliebe die `person`-Tabelle bei einem
+       * frischen `rm -rf ./.data/e2e` leer, und JEDE Anmeldung (jede Adresse) traefe
+       * `personFuerSession()`s `notFound()`. Idempotent und additiv (derselbe Kopfkommentar), also
+       * unbedenklich vor jedem Lauf neu auszufuehren. `pnpm seed:lokal aufgaben` selbst ruft
+       * `migrateAllModules()` auf und braucht dafuer keinen laufenden Server — reiner Dateizugriff
+       * auf dieselbe `DATA_DIR`, die `next dev` gleich danach oeffnet.
+       */
       command:
-        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && next dev -p 3100",
+        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && next dev -p 3100",
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht
@@ -201,6 +211,19 @@ export default defineConfig({
         // Auch hier, nicht nur beim Fake: der Serverprozess muss dieselbe Datei
         // meinen wie Fake und Testhelfer.
         FAKE_CLAMD_MODUS_DATEI: AV_MODUS_DATEI,
+        /*
+         * DASSELBE Fake-clamd, jetzt auch fuer `aufgaben` (Aufgabe 19): `_lib/scan.ts` liest seine
+         * EIGENEN Variablen (`AUFGABEN_AV_*`, nie `FILES_AV_*` — Kopfkommentar dort, „eine geteilte
+         * Zahl waere eine Kopplung, die niemand gewaehlt hat"), zeigt aber auf denselben Prozess:
+         * EIN Fake-clamd-Server fuer beide Module, `workers: 1` macht das sicher (kein
+         * Modus-Wettlauf zwischen zwei parallelen Specs). Ohne diese drei Zeilen liefe
+         * `_lib/scan.ts`s Vorgabe `avKonfigAusEnv()` auf den Hostnamen "clamav" — in `next dev`
+         * unaufloesbar, jeder Scan endet als 'fehler', und `e2e/aufgaben.spec.ts`s Upload-Faelle
+         * waeren nie 'sauber' pruefbar.
+         */
+        AUFGABEN_AV_HOST: "127.0.0.1",
+        AUFGABEN_AV_PORT: "3310",
+        AUFGABEN_AV_TIMEOUT_MS: "2000",
         /*
          * Die neun Lagerbuch-Zeilen kommen aus EINER Quelle (Festlegung H9,
          * Spec §12.6 Punkt 2): `devLogin(…, { groups })` in jedem

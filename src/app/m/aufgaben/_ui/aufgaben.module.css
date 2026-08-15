@@ -1,0 +1,469 @@
+/*
+ * Modul-CSS von `aufgaben`. `.modul` ist der Traeger aller --auf-*-Variablen.
+ * Aufgabe 5 baut die Datei vollstaendig aus.
+ *
+ * WARUM EIGENE VARIABLEN UND NICHT --ant-*: antd deklariert seine Variablen auf
+ * SEINER Scope-Klasse, nicht an `:root`. Eigenes Markup ausserhalb eines
+ * antd-Komponentenbaums sieht sie NICHT, und der Fehler ist still.
+ *
+ * WARUM :root[data-theme="dark"] UND NICHT prefers-color-scheme: der Umschalter
+ * der Suite hat drei Zustaende. Auf die Medienabfrage zu selektieren bricht den
+ * Fall „System dunkel, Umschalter hell".
+ *
+ * WARUM GENAU EINE MEDIENABFRAGE, UND KEINE FUER prefers-reduced-motion: diese
+ * Datei fuehrt bewusst KEINE Animation und KEINEN `transition` ein — keine
+ * Aufbau-Choreografie der Tagesspalten, kein Zaehl-Effekt auf den KPI-Kacheln
+ * (Spec §9.4). „Bewegung sparsam behandeln" ist hier also durch Abwesenheit
+ * erfuellt, nicht durch eine `@media (prefers-reduced-motion: reduce)`-Ausnahme:
+ * wo nichts sich bewegt, gibt es nichts zu reduzieren. Wer hier spaeter einen
+ * Hover-`transition` ergaenzt, schuldet in derselben Aenderung die Ausnahme
+ * UND verletzt damit „genau eine Medienabfrage" — dann gehoert die Abwaegung
+ * neu, nicht stillschweigend nachgetragen.
+ *
+ * WARUM KEINE `font-size`-REGEL FUER EIGENE FELDER: „Eingabefelder nie unter
+ * 16px" ist in der Suite bereits an ZWEI Stellen geloest — `globals.css`
+ * (bare `input`/`select`/`textarea`, 16px) und `core/theme/theme.ts`
+ * (`inputFontSize`/`inputFontSizeLG` fuer Input/InputNumber/DatePicker, weil
+ * deren Feld kein `input`-Element ist). Eine dritte Fassung hier waere genau
+ * die Verdopplung, gegen die die `core`-Regel steht (Spec §9.4).
+ */
+.modul {
+  --auf-tinte: #1a1d20;
+  --auf-stahl: #5b6570;
+  --auf-linie: #d9dde1;
+  --auf-papier: #eef0f1;
+
+  /*
+   * Zustands- UND Prioritaets-Chip-Paare, je `--auf-<ton>-text` /
+   * `--auf-<ton>-flaeche`. Alle sechs Werte sind mit gemessenem AA-Kontrast
+   * (>= 4.5, siehe aufgaben-css.test.ts) gewaehlt, nicht geschaetzt — Spec
+   * §9.2.
+   *
+   * `grau` deckt `eingegangen`/`verteilt`. `stahl` (hier: SAETTIGT den Ton zu
+   * einem eigenen Stahlblau fuer den Zustand `in_arbeit`) ist bewusst NICHT
+   * dasselbe wie das gedaempfte, ungesaettigte `--auf-stahl` oben: dieses
+   * gedaempfte Grau bleibt fuer `.prioKontur`/`.prioText` reserviert, damit
+   * ein Prioritaets- und ein Zustands-Chip in derselben Zeile nicht
+   * verwechselbar werden (Spec §9.1 letzter Satz).
+   * `ocker` deckt `freigabe_offen`, `ok` (gruen) `abgeschlossen`.
+   * `achtung` ist die Ampel-ROT-TEXTFARBE fuer `zurueckgewiesen` — ausdruecklich
+   * NICHT Suite-Rot (`#c8000f`), das las sich sonst als Primaerknopf.
+   * `rost` ist die EINE Akzent-Hue der Prioritaets-Rangskala (`.prioGefuellt`,
+   * Stufe „Hoch") und aus demselben Grund nicht Suite-Rot.
+   */
+  --auf-grau-text: #4d5661;
+  --auf-grau-flaeche: #e7eaec;
+  --auf-stahl-text: #245a76;
+  --auf-stahl-flaeche: #dbe7ee;
+  --auf-ocker-text: #8a5200;
+  --auf-ocker-flaeche: #fbf1dc;
+  --auf-ok-text: #186b34;
+  --auf-ok-flaeche: #e4f2e9;
+  --auf-achtung-text: #8c0d16;
+  --auf-achtung-flaeche: #f6e3e0;
+  --auf-rost-text: #7a3418;
+  --auf-rost-flaeche: #f4e4d8;
+}
+
+:root[data-theme="dark"] .modul {
+  --auf-tinte: #ece9e2;
+  --auf-stahl: #9aa4ad;
+  --auf-linie: #2a2f34;
+  --auf-papier: #0f1113;
+
+  --auf-grau-text: #c3ccd3;
+  --auf-grau-flaeche: #232830;
+  --auf-stahl-text: #8fc4e6;
+  --auf-stahl-flaeche: #122733;
+  --auf-ocker-text: #e3b463;
+  --auf-ocker-flaeche: #2c2109;
+  --auf-ok-text: #8fe0ab;
+  --auf-ok-flaeche: #10261a;
+  --auf-achtung-text: #f0a39c;
+  --auf-achtung-flaeche: #2c1210;
+  --auf-rost-text: #e6a97e;
+  --auf-rost-flaeche: #2c1c10;
+}
+
+/*
+ * Fokus fuer eigenes Interaktives. `a`/`button`/`input`/`select` decken die
+ * gewoehnlichen Faelle; `.tagSpalte`/`.kpiLink`/`.backlink` kommen dazu, weil
+ * sie eigene interaktive Flaechen sind, die kein natives Element sein muessen
+ * (z. B. ein Tageskarten-Link ohne Wrapper-`<a>`). Nie `outline: none` ohne
+ * Ersatz.
+ */
+.modul a:focus-visible,
+.modul button:focus-visible,
+.modul input:focus-visible,
+.modul select:focus-visible,
+.modul .tagSpalte:focus-visible,
+.modul .kpiLink:focus-visible,
+.modul .backlink:focus-visible {
+  outline: 2px solid var(--iuk-marke);
+  outline-offset: 2px;
+}
+
+/*
+ * ZUSTANDS-CHIP. Nachgebaut nach `lagerbuch/_ui/verwaltung.module.css`
+ * (`.chip` + Ton-Klassen), mit eigenen `--auf-*`-Variablen statt antds `Tag`.
+ * Jede Stufe TRAEGT IMMER DAS WORT (Text-Kind der Komponente aus Aufgabe 6) —
+ * Farbe hier ist die verzichtbare letzte Schicht, nie die einzige.
+ *
+ * ABSTANDS-AUSNAHME VON DER SPACE-LEITER (4/8/12/16/24/32): `.chip` (Polster),
+ * `.ohneAnker` (Polster) und `.backlink` (Zeichen-Textabstand) liegen bewusst
+ * NICHT auf der Leiter — die Werte sind aus `lagerbuch/_ui/verwaltung.module.css`
+ * uebernommen (`.chip`, `.fach`, `.backlink`), also gelebte Praxis derselben
+ * Suite und nicht frei gewaehlt. Die Leiter bemisst Abstaende zwischen
+ * FLAECHEN; ein Chip ist eine Marke in Textgroesse, deren Polster sich an der
+ * Zeilenhoehe orientiert, nicht am Flaechenraster — auf 4px/8px gebracht
+ * wirkt er klobig, auf 0 verliert er die Pillenform. Die Ausnahme gilt NUR
+ * fuer diese drei Klassen; jede Flaeche bleibt auf der Leiter, und
+ * `aufgaben-css.test.ts` (Aussage 6) haelt genau das fest, statt es nur zu
+ * behaupten — eine vierte, unbenannte Ausnahme faellt dort durch.
+ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 2.5px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tonGrau {
+  color: var(--auf-grau-text);
+  background: var(--auf-grau-flaeche);
+}
+.tonStahl {
+  color: var(--auf-stahl-text);
+  background: var(--auf-stahl-flaeche);
+}
+.tonOcker {
+  color: var(--auf-ocker-text);
+  background: var(--auf-ocker-flaeche);
+}
+.tonOk {
+  color: var(--auf-ok-text);
+  background: var(--auf-ok-flaeche);
+}
+.tonAchtung {
+  color: var(--auf-achtung-text);
+  background: var(--auf-achtung-flaeche);
+}
+
+/*
+ * PRIORITAETS-CHIP — eine Rangskala, keine Ampel (Spec §9.1). Die Helligkeit/
+ * das Gewicht laeuft monoton ueber die FORM (gefuellt > Kontur > nur Text),
+ * nicht ueber drei verschiedene Hues: „Hoch" ist die einzige Akzent-Hue
+ * (`--auf-rost-*`), „Mittel" und „Niedrig" bleiben auf dem gedaempften
+ * neutralen `--auf-stahl` und unterscheiden sich nur durch Kontur bzw. das
+ * Fehlen jeder Chip-Form. Kombiniert mit `.chip`, ausser `.prioText`, das
+ * bewusst KEINE Chip-Form bekommt (nur Wort, gedaempft — die schwaechste
+ * Stufe der Rangskala).
+ *
+ * `--auf-stahl` ist hier sichtbarer Text und deshalb in `aufgaben-css.test.ts`
+ * (Aussage 5) gegen `--auf-papier` gemessen (hell 5.19, dunkel 7.47). Das war
+ * bis Aufgabe 6/7 eine dokumentierte ANNAHME; seither ist sie BESTAETIGT (nach-
+ * gesehen im Abschlussreview, G5): die Chips sitzen auf der Inhaltsflaeche, und
+ * `Layout.bodyBg` ist im Hellen `FARBEN.papier` = `#eef0f1`, also genau
+ * `--auf-papier`. Die zwei abweichenden Traegerflaechen sind beide guenstiger
+ * (Kartenflaeche `#ffffff`: 5.93; dunkles `Layout.bodyBg` `#000000`: 8.29) —
+ * die Messung bleibt damit der unguenstigste Fall.
+ */
+.prioGefuellt {
+  color: var(--auf-rost-text);
+  background: var(--auf-rost-flaeche);
+}
+.prioKontur {
+  color: var(--auf-stahl);
+  background: transparent;
+  border: 1.5px solid var(--auf-stahl);
+}
+.prioText {
+  color: var(--auf-stahl);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/*
+ * KPI-KACHEL. `.kpiKante*` hat ABSICHTLICH keinen Grauwert — eine Kachel ohne
+ * Befund bekommt keine Kante (Spec-Vorgabe, s. Brief Aufgabe 5). Zahlen immer
+ * `tabular-nums`, sonst springt die Kachelbreite mit jedem neuen Wert.
+ */
+.kpi {
+  height: 100%;
+  border-inline-start: 4px solid transparent;
+  border-radius: 8px;
+  padding-inline-start: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.kpiKanteAchtung {
+  border-inline-start-color: var(--auf-achtung-text);
+}
+.kpiKanteOcker {
+  border-inline-start-color: var(--auf-ocker-text);
+}
+.kpiKanteOk {
+  border-inline-start-color: var(--auf-ok-text);
+}
+/* Kein `:hover`-`transition`: siehe Kopfkommentar zur Medienabfrage-Zahl. */
+.kpiLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.kpiLink:hover {
+  background: var(--auf-papier);
+}
+
+/*
+ * WOCHE/TAG. `.wochenGitter` (Desktop, 5 Spalten Mo–Fr) und `.tagesListe`
+ * (Mobil, einspaltig mit Tageswaehler aus Aufgabe 7) rendern BEIDE ins HTML;
+ * die Medienabfrage unten blendet je eine aus. Kein `Grid.useBreakpoint` — in
+ * Server Components ohnehin verboten, und es zeigt beim ersten Render die
+ * falsche Variante.
+ */
+/*
+ * DIE SPALTENZAHL IST NICHT MEHR FEST FUENF (Nach-Rebase-Runde, Befund B). Hier stand
+ * `repeat(5, minmax(0, 1fr))` — fuenf Spalten, egal wie schmal die Flaeche ist. Das war gegen die
+ * VOLLE Fensterbreite austariert; seit `main`s Shell-Umbau bekommt jedes Modul mit Navigation eine
+ * 240px-Seitenleiste, und dem Inhalt bleiben bei 820px Fenster nur noch 580px. Gemessen: 100px
+ * Spaltenbreite, davon 74px innen — waehrend der laengste unteilbare Titel im Seed 138px braucht
+ * und Bendix' ueberbuchte Budgetzeile („9,17 / 7,80 Std. — überbucht", `white-space: nowrap`) 167px.
+ * Zwei Routinennamen ragten damit ueber das DOKUMENT hinaus (9px/18px, e2e-Sweep), die
+ * Budgetzeile ueber ihre SPALTE (~93px) — Letzteres sah kein Gate, weil der ueberbuchte Tag der
+ * MONTAG ist und der Ueberlauf in die Nachbarspalten lief statt an den Dokumentrand.
+ *
+ * `auto-fit` STATT EINER ZWEITEN MEDIENABFRAGE: die Datei hat genau eine (767.98px), der Plan
+ * schreibt „ein Breakpoint" fest, und `aufgaben-css.test.ts` nagelt beides fest. Eine
+ * Spaltenzahl nach Fensterbreite waere ausserdem wieder gegen die falsche Groesse austariert — die
+ * Seitenleiste, nicht das Fenster, hat den Platz genommen. `auto-fit` misst die TATSAECHLICHE
+ * Flaeche und kommt deshalb ohne jede Zahl ueber das Fenster aus.
+ *
+ * 180px IST AUS DEN MESSWERTEN GEWAEHLT, NICHT GERATEN: 180 abzueglich Rahmen und Polster
+ * (2 x 12px + 2 x 1px) ergibt 154px innen — mehr als die 138px des laengsten Titels. Gemessen,
+ * nicht gerechnet (darunter blendet die Medienabfrage das Gitter ohnehin aus): 768px → 2 Spalten,
+ * 820px → 2, 1024px → 3, 1170px → 4, **1280px → 5**, 1920px → 5, 2560px → 5. Die Schwelle zu fuenf
+ * Spalten liegt bei rund 1220px Fensterbreite (5 x 180 + 4 x 12 = 948px Gitterbreite noetig, und
+ * das Gitter ist rund 272px schmaler als das Fenster) — 1280px liegt sicher darueber, die
+ * gewohnte Wochenansicht bleibt dort also unveraendert.
+ *
+ * OBERHALB VON FUENF SPUREN KOLLABIEREN DIE LEEREN (`auto-fit`, nicht `auto-fill`): bei 1920px
+ * meldet `getComputedStyle` „320px 320px 320px 320px 320px 0px 0px 0px" — fuenf Tage ueber die
+ * volle Breite, drei Spuren auf null. Mit `auto-fill` stuenden dort acht Spuren und die fuenf Tage
+ * waeren schmal am linken Rand.
+ *
+ * `min(180px, 100%)` STATT NUR `180px`: wird die Flaeche je noch schmaler als eine Spalte (die
+ * naechste Aenderung an der Seitenleiste ist genau der Fall, der uns hierher gebracht hat), faellt
+ * das Gitter auf eine Spalte zurueck, statt mit einer 180px-Spur ueber seinen Kasten zu ragen.
+ */
+.wochenGitter {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 12px;
+}
+.tagesListe {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+/*
+ * DER MOBILE TAGESWAEHLER (Aufgabe 13, Spec §9.6) — sitzt wie `.tagesListe` nur unterhalb von
+ * 767.98px im DOM sichtbar; `TagesWaehler.tsx` rendert das `<fieldset>` immer, diese Klasse blendet
+ * es auf dem Desktop aus. Abstaende zwischen den fuenf Radiozeilen setzt die Komponente selbst
+ * inline (SPACE-Token) — nicht hier, sonst kollidierte eine `gap`-Deklaration hier mit der
+ * `display`-Umschaltung um dieselbe Deklaration.
+ */
+.tagesWaehler {
+  display: none;
+}
+/*
+ * `overflow-wrap: anywhere` IST DAS NETZ UNTER DER SPALTENZAHL, nicht ihr Ersatz. Die
+ * `auto-fit`-Regel oben ist gegen die HEUTIGEN Seed-Texte gerechnet (laengster unteilbarer Titel
+ * 138px); ein morgen eingetragener Routinenname kann laenger sein, und ohne diese Zeile schoebe er
+ * das Dokument wieder seitwaerts — genau der Befund, den diese Runde behebt, nur mit einer anderen
+ * Zeichenkette. Mit ihr bricht ein zu langes Einzelwort UMBRUCHFREI innerhalb der Spalte um, statt
+ * herauszuragen: die Zusicherung „kein waagerechtes Scrollen" haengt danach nicht mehr an der
+ * Laenge einer Fixtur.
+ *
+ * AM GEMEINSAMEN VORFAHREN, NICHT AN JEDER ZEILE EINZELN (Muster wie Falle 8 in `CLAUDE.md`):
+ * `overflow-wrap` vererbt sich, deckt also Routinenname, Aufgabentitel-Link, Budgetzeile und alles
+ * ab, was hier spaeter dazukommt — eine Deklaration je Kind liefe der naechsten Ergaenzung
+ * hinterher.
+ *
+ * ZWEI VERSCHIEDENE AUSFAELLE, ZWEI VERSCHIEDENE MITTEL — nicht verwechseln, sonst entfernt die
+ * naechste Runde das falsche:
+ *   - `overflow-wrap` haelt ein zu langes WORT innerhalb SEINER SPALTE.
+ *   - `min(180px, 100%)` oben haelt die SPALTE innerhalb ihres KASTENS. Die Untergrenze der Spur
+ *     ist eine feste Zahl; sie schrumpft nicht, weil der Inhalt schmaler wird.
+ * Beide werden gebraucht, keines ersetzt das andere.
+ *
+ * `anywhere` UND NICHT `break-word`: die beiden brechen die Zeile gleich, unterscheiden sich aber
+ * im `min-content`-Beitrag — nur `anywhere` senkt ihn. Das zaehlt ueberall dort, wo eine Groesse
+ * aus `min-content` abgeleitet wird statt aus einer festen Zahl (`fit-content`, `auto`-Spuren,
+ * Flex-Basis) — im heutigen Gitter ist die Untergrenze eine feste Zahl, aber `anywhere` ist die
+ * Fassung, die auch dann noch richtig ist, wenn sie es nicht mehr ist, und kostet nichts.
+ */
+.tagSpalte {
+  border: 1px solid var(--auf-linie);
+  border-radius: 8px;
+  background: var(--auf-papier);
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.tagKopf {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--auf-tinte);
+}
+/*
+ * Auslastung ist NEUTRAL/GRAPHIT, nie Statusfarbe — Menge ist keine
+ * Statusaussage (Spec §9.3). `.budgetUeberbucht` bekommt deshalb eine Kante
+ * PLUS Text-Gewicht, keinen roten Balken und keine Ton-Variable.
+ */
+.budget {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--auf-stahl);
+  white-space: nowrap;
+}
+.budgetUeberbucht {
+  border-inline-start: 3px solid var(--auf-tinte);
+  padding-inline-start: 8px;
+  font-weight: 700;
+  color: var(--auf-tinte);
+}
+/*
+ * DER EINE ERLAUBTE UMBRUCH IN EINER BUDGETZEILE (Nach-Rebase-Runde, Befund B). `.budget` traegt
+ * `white-space: nowrap`, und das ist richtig: „9,17 / 7,80 Std." ist EIN Wert, ein Umbruch mitten
+ * im Zahlenpaar waere schlechter als jeder Ueberlauf. Der ueberbuchte Zusatz ist aber kein Teil
+ * dieses Werts — er ist ein Anhang, und die ganze Zeile war mit ihm gemessene 167px breit, mehr als
+ * eine Tagesspalte je hat (166px innen selbst bei 1280px, dem breitesten Fall mit fuenf Spalten).
+ *
+ * KEIN GATE HAT DAS JE GESEHEN, UND ZWAR STRUKTURELL: der 820px-Sweep misst den DOKUMENTRAND, und
+ * der ueberbuchte Tag der Demodaten ist der MONTAG — die Zeile lief in die Nachbarspalte, nie ueber
+ * den rechten Dokumentrand hinaus. Waere derselbe Tag der Freitag, haette derselbe Sweep denselben
+ * Defekt gemeldet. Gefunden per Bildschirmabzug bei 1280px, nachgerechnet ueber die
+ * `min-content`-Breite der Zeichenkette.
+ *
+ * DAS FUEHRENDE LEERZEICHEN GEHOERT IN DIESE SPANNE (`Wochenplan.tsx`s `BudgetZeile`): die
+ * Umbruchgelegenheit liegt AN DEM LEERZEICHEN, und ob sie gilt, entscheidet das `white-space` des
+ * Elements, das das Leerzeichen enthaelt. Bliebe es beim Elternteil, wuerde `nowrap` dort sie
+ * weiterhin verbieten, und diese Regel waere eine wirkungslose Attrappe.
+ */
+.budgetHinweis {
+  white-space: normal;
+}
+
+/*
+ * TAGESORDNUNG. `.ankerSpur` fuehrt die Zeitanker-Spur einer Tagesspalte,
+ * `.ohneAnker` markiert Aufgaben ohne Zeitanker (gestrichelt statt farbig —
+ * das Fehlen eines Ankers ist kein Fehlerzustand).
+ */
+.ankerSpur {
+  border-inline-start: 2px solid var(--auf-linie);
+  padding-inline-start: 12px;
+}
+.ohneAnker {
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed var(--auf-linie);
+  border-radius: 4px;
+  /* Abstands-Ausnahme von der SPACE-Leiter, s. Kommentar bei `.chip` oben. */
+  padding: 1px 6px;
+  color: var(--auf-stahl);
+  font-size: 12px;
+}
+
+/*
+ * SONSTIGES. `.knopfzeile` steht ausserhalb jeder Medienabfrage in der
+ * Desktop-Form (Reihe); die Mobil-Form (Spalte, voller Breite) steht unten im
+ * einzigen 767.98px-Block.
+ */
+.routineZeile {
+  display: flex;
+  align-items: center;
+  /*
+   * `flex-wrap: wrap` FEHLTE HIER (Aufgabe 21, e2e-Fund per Ueberlauf-Sweep bei 820px): die
+   * Aufgaben-Zeile (`Wochenplan.tsx`s `EintragZeile`, nicht-Routine-Zweig) traegt `flexWrap: "wrap"`
+   * bereits INLINE, dieser Zweig (Routine) nicht — bei fuenf schmalen Spalten (820px, Spec §9.6)
+   * ueberlief ein langer, unteilbarer Routinename (z. B. "Frühbesprechung") die Tagesspalte UND das
+   * Dokument nach rechts, weil `minmax(0, 1fr)` zwar die GRID-Spur auf 0 schrumpfen laesst, aber
+   * nichts an der Flex-Zeile DARIN ohne diese Deklaration daran hinderte, ueber ihre eigene Breite
+   * hinauszuwachsen. Kein Gate vor Aufgabe 21 sah das: die Suite testete `.wochenGitter` bisher nur
+   * bei 1280px (breite Spalten) und 390px (`.tagesListe`, gar keine Spalten) — 820px ist genau der
+   * Fall dazwischen, den Spec §10 deshalb ausdruecklich verlangt.
+   */
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.knopfzeile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.journal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jts {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--auf-stahl);
+  white-space: nowrap;
+}
+.backlink {
+  display: inline-flex;
+  align-items: center;
+  /* Abstands-Ausnahme von der SPACE-Leiter, s. Kommentar bei `.chip` oben. */
+  gap: 6px;
+  min-height: 44px;
+  color: var(--auf-stahl);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.backlink:hover {
+  color: var(--auf-tinte);
+}
+
+/*
+ * DIE EINE MEDIENABFRAGE DER GANZEN DATEI. 767.98px statt 768px, sonst
+ * gaelten bei exakt 768px beide Seiten und die Reihenfolge im Stylesheet
+ * entschiede (Spec §9.6).
+ */
+@media (max-width: 767.98px) {
+  .wochenGitter {
+    display: none;
+  }
+  .tagesListe {
+    display: flex;
+  }
+  .tagesWaehler {
+    display: flex;
+  }
+  .knopfzeile {
+    flex-direction: column;
+  }
+  /*
+   * SPEZIFITAETSERHOEHUNG: `.knopfzeile > *` allein ist (0,1,0) — genauso viel
+   * wie antds `.ant-btn` — und verliert gegen antd durch Dokumentreihenfolge
+   * (antds Stylesheet wird nach diesem hier eingebunden, Falle 5). `.modul
+   * .knopfzeile > *` ist (0,2,0) und gewinnt unabhaengig von der Reihenfolge.
+   * Eine Klasse mehr, nie `!important`, nie mehr als noetig — und deshalb hier
+   * kommentiert, sonst entfernt die naechste Aufraeumrunde den Praefix als
+   * vermeintlichen Ballast.
+   */
+  .modul .knopfzeile > * {
+    width: 100%;
+  }
+}

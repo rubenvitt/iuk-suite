@@ -1,0 +1,434 @@
+import { describe, expect, it } from "vitest";
+import {
+  EREIGNISSE,
+  PRIORITAETEN,
+  ROLLEN,
+  STATUS_WERTE,
+  type AufgabeRow,
+  type PersonRow,
+  type RoutineRow,
+} from "../_db/schema";
+import {
+  EREIGNIS_TEXT,
+  PRIORITAET_FORM,
+  PRIORITAET_TEXT,
+  ROLLE_TEXT,
+  STATUS_TEXT,
+  STATUS_TON,
+  WOCHENTAG_BIT,
+  aufgabenInWoche,
+  fmtDauer,
+  fmtStunden,
+  fmtWochentage,
+  heuteOffen,
+  istUeberfaellig,
+  namenMap,
+  routineAmTag,
+  tagesBudget,
+  vorschlagOffen,
+  wartetAufEinplanung,
+} from "./anzeige";
+
+const AUFGABE: AufgabeRow = {
+  id: "x", titel: "T", beschreibung: "B", prioritaet: "mittel",
+  erstellerId: "malte", zugewiesenAn: "alina", status: "verteilt",
+  faelligAm: "2026-08-14", faelligUhrzeit: null, dauerMinuten: 60,
+  nachweisPflicht: false, nachweisArt: "text", prueferId: "malte",
+  istSelbst: false, planDatum: null, planUhrzeit: null, planRang: 0,
+  vorschlagDatum: null, vorschlagUhrzeit: null,
+  erstelltAm: new Date(0), aktualisiertAm: new Date(0),
+};
+
+const ALINA: PersonRow = {
+  id: "alina", sub: "dev:alina@localtest.me", name: "Alina", initialen: "AL",
+  rolle: "bufdi", sollMinutenTag: 468, aktivVon: "2026-08-01", aktivBis: null,
+  erstelltAm: new Date(0),
+};
+
+const routine = (over: Partial<RoutineRow>): RoutineRow => ({
+  id: "r", personId: "alina", titel: "R", wochentage: 0b11111,
+  uhrzeit: "08:00", dauerMinuten: 45, aktiv: true, erstelltAm: new Date(0),
+  ...over,
+});
+
+describe("Beschriftungen sind vollstaendig", () => {
+  /*
+   * ERSCHOEPFEND, NICHT STICHPROBENWEISE: ein fehlender Eintrag ergaebe
+   * `undefined` als Beschriftung (im Browser eine leere Stelle) und `undefined`
+   * als CSS-Klasse — der Chip bekaeme Polster und Rundung, aber KEINE FARBE.
+   */
+  it("hat fuer jeden Status Text und Ton", () => {
+    for (const s of STATUS_WERTE) {
+      expect(STATUS_TEXT[s], `Text ${s}`).toBeTruthy();
+      expect(STATUS_TON[s], `Ton ${s}`).toBeTruthy();
+    }
+  });
+
+  it("hat fuer jede Prioritaet Text und Form", () => {
+    for (const p of PRIORITAETEN) {
+      expect(PRIORITAET_TEXT[p], `Text ${p}`).toBeTruthy();
+      expect(PRIORITAET_FORM[p], `Form ${p}`).toBeTruthy();
+    }
+  });
+
+  /*
+   * `achtung` loest sich in die GETRENNTE Ampel-Rot-Textfarbe auf, nicht in
+   * Markenrot — `colorError === colorPrimary === #c8000f`, und ein rotes Chip
+   * auf einer Datenflaeche liest sich als Primaeraktion.
+   */
+  it("gibt genau „zurueckgewiesen“ den Ton achtung", () => {
+    expect(STATUS_WERTE.filter((s) => STATUS_TON[s] === "achtung")).toEqual(["zurueckgewiesen"]);
+  });
+
+  it("gibt genau „abgeschlossen“ den Ton ok", () => {
+    expect(STATUS_WERTE.filter((s) => STATUS_TON[s] === "ok")).toEqual(["abgeschlossen"]);
+  });
+
+  /*
+   * Die Prioritaetsskala traegt ihre Rangfolge in der FORM, absteigend gefuellt →
+   * Kontur → nur Text. Waere „hoch" nicht die einzige gefuellte Stufe, verschwaende
+   * die Rangfolge in Graustufen.
+   */
+  it("gibt genau „hoch“ die gefuellte Form", () => {
+    expect(PRIORITAETEN.filter((p) => PRIORITAET_FORM[p] === "gefuellt")).toEqual(["hoch"]);
+  });
+
+  it("hat fuer jede Rolle eine Beschriftung (Aufgabe 14)", () => {
+    for (const r of ROLLEN) {
+      expect(ROLLE_TEXT[r], `Text ${r}`).toBeTruthy();
+    }
+  });
+
+  /**
+   * ERSCHOEPFEND WIE OBEN (Aufgabe 16, Spec §6 `verlauf`): ein fehlendes Ereignis waere im Journal
+   * eine leere Zeile — genau die Stelle, an der die Leistungsdokumentation aussagekraeftig sein
+   * soll (Spec §6). Jeder der zehn Werte aus `EREIGNISSE` braucht deshalb eine eigene, nicht-leere
+   * Beschriftung, und die Zahl der Schluessel muss exakt uebereinstimmen — kein zusaetzlicher, aus
+   * einem Tippfehler entstandener Eintrag bleibt sonst unbemerkt stehen.
+   */
+  it("hat fuer jedes Verlaufs-Ereignis eine eigene Beschriftung (Aufgabe 16)", () => {
+    for (const e of EREIGNISSE) {
+      expect(EREIGNIS_TEXT[e], `Text ${e}`).toBeTruthy();
+    }
+    expect(Object.keys(EREIGNIS_TEXT).sort()).toEqual([...EREIGNISSE].sort());
+  });
+
+  it("traegt fuer jedes Ereignis eine VERSCHIEDENE Beschriftung — keine zwei Werte mit demselben Text", () => {
+    const texte = EREIGNISSE.map((e) => EREIGNIS_TEXT[e]);
+    expect(new Set(texte).size).toBe(EREIGNISSE.length);
+  });
+});
+
+describe("namenMap — Aufgabe 14", () => {
+  it("bildet id auf name ab", () => {
+    const malte: PersonRow = { ...ALINA, id: "malte", name: "Malte" };
+    expect(namenMap([ALINA, malte])).toEqual({ alina: "Alina", malte: "Malte" });
+  });
+
+  it("liefert ein leeres Objekt fuer eine leere Liste", () => {
+    expect(namenMap([])).toEqual({});
+  });
+});
+
+describe("vorschlagOffen", () => {
+  it("ist wahr, wenn verteilt, ungeplant und ein Vorschlag anhaengt", () => {
+    expect(vorschlagOffen({ ...AUFGABE, vorschlagDatum: "2026-08-13" })).toBe(true);
+  });
+
+  it("ist falsch ohne Vorschlag", () => {
+    expect(vorschlagOffen(AUFGABE)).toBe(false);
+  });
+
+  /*
+   * DER FALL, DER DIE ABLEITUNG RECHTFERTIGT: die Vorschlagsfelder BLEIBEN nach
+   * dem Einplanen stehen (der Verlauf soll belegen koennen, ob angenommen oder
+   * abgewichen wurde). Ohne `planDatum === null` stuende „Vorschlag offen" fuer
+   * immer an jeder Aufgabe, die je einen hatte.
+   */
+  it("ist falsch, sobald die Aufgabe eingeplant ist", () => {
+    expect(
+      vorschlagOffen({ ...AUFGABE, vorschlagDatum: "2026-08-13", planDatum: "2026-08-14" }),
+    ).toBe(false);
+  });
+
+  it("ist in jedem anderen Zustand als verteilt falsch", () => {
+    for (const s of STATUS_WERTE.filter((x) => x !== "verteilt")) {
+      expect(vorschlagOffen({ ...AUFGABE, status: s, vorschlagDatum: "2026-08-13" }), s).toBe(false);
+    }
+  });
+});
+
+describe("istUeberfaellig", () => {
+  it("zaehlt die Frist, nicht den Zeitplan", () => {
+    expect(
+      istUeberfaellig({ ...AUFGABE, faelligAm: "2026-08-12", planDatum: "2026-08-14" }, "2026-08-13"),
+    ).toBe(true);
+    expect(istUeberfaellig({ ...AUFGABE, faelligAm: "2026-08-14" }, "2026-08-13")).toBe(false);
+  });
+
+  it("ist am Fristtag selbst noch nicht ueberfaellig", () => {
+    expect(istUeberfaellig({ ...AUFGABE, faelligAm: "2026-08-13" }, "2026-08-13")).toBe(false);
+  });
+
+  it("ist fuer abgeschlossene Aufgaben nie wahr", () => {
+    expect(
+      istUeberfaellig({ ...AUFGABE, faelligAm: "2026-08-01", status: "abgeschlossen" }, "2026-08-13"),
+    ).toBe(false);
+  });
+
+  it("ist fuer jeden unerledigten Zustand wahr", () => {
+    for (const s of STATUS_WERTE.filter((x) => x !== "abgeschlossen")) {
+      expect(istUeberfaellig({ ...AUFGABE, faelligAm: "2026-08-01", status: s }, "2026-08-13"), s).toBe(true);
+    }
+  });
+});
+
+describe("wartetAufEinplanung — der Posteingang-Streifen der BuFDi-Woche", () => {
+  it("verteilt, ohne planDatum: wahr, auch OHNE Zeitvorschlag", () => {
+    expect(
+      wartetAufEinplanung({ ...AUFGABE, status: "verteilt", planDatum: null, vorschlagDatum: null }),
+    ).toBe(true);
+  });
+
+  it("verteilt, ohne planDatum, MIT Zeitvorschlag: ebenfalls wahr — dieselbe Bedingung wie ohne Vorschlag", () => {
+    expect(
+      wartetAufEinplanung({
+        ...AUFGABE,
+        status: "verteilt",
+        planDatum: null,
+        vorschlagDatum: "2026-08-14",
+      }),
+    ).toBe(true);
+  });
+
+  it("sobald planDatum gesetzt ist: falsch, auch wenn der Vorschlag stehen bleibt", () => {
+    expect(
+      wartetAufEinplanung({
+        ...AUFGABE,
+        status: "verteilt",
+        planDatum: "2026-08-14",
+        vorschlagDatum: "2026-08-10",
+      }),
+    ).toBe(false);
+  });
+
+  it("ist fuer jeden anderen Zustand falsch, auch ohne planDatum", () => {
+    for (const s of STATUS_WERTE.filter((x) => x !== "verteilt")) {
+      expect(wartetAufEinplanung({ ...AUFGABE, status: s, planDatum: null }), s).toBe(false);
+    }
+  });
+});
+
+describe("heuteOffen", () => {
+  it("auf heute eingeplant und nicht abgeschlossen: wahr", () => {
+    expect(heuteOffen({ ...AUFGABE, planDatum: "2026-08-13", status: "in_arbeit" }, "2026-08-13")).toBe(
+      true,
+    );
+  });
+
+  it("auf einen anderen Tag eingeplant: falsch", () => {
+    expect(heuteOffen({ ...AUFGABE, planDatum: "2026-08-14", status: "in_arbeit" }, "2026-08-13")).toBe(
+      false,
+    );
+  });
+
+  it("ohne planDatum: falsch", () => {
+    expect(heuteOffen({ ...AUFGABE, planDatum: null, status: "verteilt" }, "2026-08-13")).toBe(false);
+  });
+
+  it("auf heute eingeplant, aber abgeschlossen: falsch", () => {
+    expect(heuteOffen({ ...AUFGABE, planDatum: "2026-08-13", status: "abgeschlossen" }, "2026-08-13")).toBe(
+      false,
+    );
+  });
+});
+
+describe("aufgabenInWoche", () => {
+  const TAGE = ["2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14"] as const;
+
+  it("zaehlt nur Aufgaben mit planDatum in der uebergebenen Wochenliste", () => {
+    const aufgaben = [
+      { ...AUFGABE, planDatum: "2026-08-11" },
+      { ...AUFGABE, planDatum: "2026-08-24" }, // andere Woche
+      { ...AUFGABE, planDatum: null },
+    ];
+    expect(aufgabenInWoche(aufgaben, TAGE)).toBe(1);
+  });
+
+  it("zaehlt UNABHAENGIG vom Status — dieselbe Zusage wie tagesOrdnung/tagesBudget", () => {
+    const aufgaben = [
+      { ...AUFGABE, planDatum: "2026-08-10", status: "abgeschlossen" as const },
+      { ...AUFGABE, planDatum: "2026-08-14", status: "zurueckgewiesen" as const },
+    ];
+    expect(aufgabenInWoche(aufgaben, TAGE)).toBe(2);
+  });
+
+  it("leere Liste: 0", () => {
+    expect(aufgabenInWoche([], TAGE)).toBe(0);
+  });
+});
+
+describe("routineAmTag", () => {
+  it("liest die Bitmaske", () => {
+    // Mo, Mi, Fr = Bits 0, 2, 4
+    const r = routine({ wochentage: 0b10101 });
+    expect(routineAmTag(r, 0)).toBe(true);
+    expect(routineAmTag(r, 1)).toBe(false);
+    expect(routineAmTag(r, 2)).toBe(true);
+    expect(routineAmTag(r, 4)).toBe(true);
+  });
+
+  it("gilt nie, wenn die Routine ruht", () => {
+    expect(routineAmTag(routine({ wochentage: 0b11111, aktiv: false }), 0)).toBe(false);
+  });
+
+  it("bildet die fuenf Wochentage auf Bits ab", () => {
+    expect([...WOCHENTAG_BIT]).toEqual([1, 2, 4, 8, 16]);
+  });
+
+  /*
+   * Ein Index ausserhalb Mo–Fr darf nicht still `true` ergeben. Ohne die
+   * Undefined-Pruefung waere `r.wochentage & undefined` = 0 — hier zufaellig
+   * richtig, aber `NaN`-Arithmetik ist keine Zusicherung.
+   */
+  it("gilt an einem Index ausserhalb der Woche nicht", () => {
+    expect(routineAmTag(routine({ wochentage: 0b11111 }), 5)).toBe(false);
+  });
+});
+
+describe("fmtWochentage", () => {
+  /*
+   * DIE BITMASKE GEHT IN BEIDE RICHTUNGEN RICHTIG (Brief) — GENAU DIE STELLE, AN DER EIN OFF-BY-ONE
+   * STILL FALSCH WAERE: eine Routine erschiene dann am falschen Tag im Wochenplan, und niemand saehe
+   * es auszer der betroffenen Person. Diese Tests pruefen jedes Bit EINZELN gegen seinen erwarteten
+   * Wochentag, nicht nur eine Gesamtmaske gegen eine Gesamtzeichenkette — sonst koennten sich zwei
+   * vertauschte Bits gegenseitig aufheben und der Test bliebe gruen.
+   */
+  it("liest Bit 0 als Montag", () => {
+    expect(fmtWochentage(0b00001)).toBe("Mo");
+  });
+
+  it("liest Bit 1 als Dienstag", () => {
+    expect(fmtWochentage(0b00010)).toBe("Di");
+  });
+
+  it("liest Bit 2 als Mittwoch", () => {
+    expect(fmtWochentage(0b00100)).toBe("Mi");
+  });
+
+  it("liest Bit 3 als Donnerstag", () => {
+    expect(fmtWochentage(0b01000)).toBe("Do");
+  });
+
+  it("liest Bit 4 als Freitag", () => {
+    expect(fmtWochentage(0b10000)).toBe("Fr");
+  });
+
+  it("reiht mehrere Tage aufsteigend, nicht in Setzreihenfolge", () => {
+    expect(fmtWochentage(0b10101)).toBe("Mo, Mi, Fr");
+  });
+
+  it("nennt alle fuenf Tage bei voller Maske", () => {
+    expect(fmtWochentage(0b11111)).toBe("Mo, Di, Mi, Do, Fr");
+  });
+
+  it("ergibt einen leeren Text ohne gesetztes Bit", () => {
+    expect(fmtWochentage(0)).toBe("");
+  });
+});
+
+describe("tagesBudget", () => {
+  const MO = "2026-08-10";
+
+  it("summiert eingeplante Aufgaben des Tages", () => {
+    const b = tagesBudget(
+      [
+        { ...AUFGABE, id: "a", planDatum: MO, dauerMinuten: 120 },
+        { ...AUFGABE, id: "b", planDatum: MO, dauerMinuten: 60 },
+      ],
+      [], ALINA, MO,
+    );
+    expect(b.verplantMinuten).toBe(180);
+    expect(b.sollMinuten).toBe(468);
+    expect(b.ueberbucht).toBe(false);
+  });
+
+  it("zaehlt Aufgaben anderer Tage und anderer Personen nicht mit", () => {
+    const b = tagesBudget(
+      [
+        { ...AUFGABE, id: "a", planDatum: MO, dauerMinuten: 120 },
+        { ...AUFGABE, id: "b", planDatum: "2026-08-11", dauerMinuten: 999 },
+        { ...AUFGABE, id: "c", planDatum: MO, zugewiesenAn: "bendix", dauerMinuten: 999 },
+        { ...AUFGABE, id: "d", planDatum: null, dauerMinuten: 999 },
+      ],
+      [], ALINA, MO,
+    );
+    expect(b.verplantMinuten).toBe(120);
+  });
+
+  /*
+   * ROUTINEN BELEGEN BUDGET, ERZEUGEN ABER KEINE AUFGABEN. Genau deshalb muessen
+   * sie HIER mitgerechnet werden — sonst zeigte der Tag Luft, die es nicht gibt,
+   * und der Zeitvorschlag der Koordination liefe genau dorthin.
+   */
+  it("rechnet aktive Routinen des Wochentags mit ein", () => {
+    const b = tagesBudget(
+      [{ ...AUFGABE, planDatum: MO, dauerMinuten: 60 }],
+      [
+        routine({ id: "r1", wochentage: 0b00001, dauerMinuten: 45 }),
+        routine({ id: "r2", wochentage: 0b00001, dauerMinuten: 300, aktiv: false }),
+        routine({ id: "r3", wochentage: 0b00010, dauerMinuten: 300 }),
+        routine({ id: "r4", wochentage: 0b00001, dauerMinuten: 300, personId: "bendix" }),
+      ],
+      ALINA, MO,
+    );
+    expect(b.verplantMinuten).toBe(105);
+  });
+
+  it("meldet Ueberbuchung erst oberhalb des Solls", () => {
+    expect(tagesBudget([{ ...AUFGABE, planDatum: MO, dauerMinuten: 468 }], [], ALINA, MO).ueberbucht).toBe(false);
+    expect(tagesBudget([{ ...AUFGABE, planDatum: MO, dauerMinuten: 469 }], [], ALINA, MO).ueberbucht).toBe(true);
+  });
+
+  it("nimmt am Wochenende die Aufgaben, aber keine Routinen", () => {
+    const b = tagesBudget(
+      [{ ...AUFGABE, planDatum: "2026-08-15", dauerMinuten: 60 }],
+      [routine({ wochentage: 0b11111, dauerMinuten: 60 })],
+      ALINA, "2026-08-15",
+    );
+    expect(b.verplantMinuten).toBe(60);
+  });
+});
+
+describe("Formatierung", () => {
+  it("schreibt Dauern unter einer Stunde in Minuten", () => {
+    expect(fmtDauer(45)).toBe("45 Min.");
+  });
+
+  it("schreibt ganze Stunden ohne Komma", () => {
+    expect(fmtDauer(60)).toBe("1 Std.");
+    expect(fmtDauer(120)).toBe("2 Std.");
+  });
+
+  it("schreibt Bruchteile mit deutschem Komma", () => {
+    expect(fmtDauer(90)).toBe("1,5 Std.");
+    expect(fmtDauer(105)).toBe("1,75 Std.");
+  });
+
+  it("schreibt Stundenzahlen ohne Nullen am Ende", () => {
+    expect(fmtStunden(468)).toBe("7,8");
+    expect(fmtStunden(120)).toBe("2");
+    expect(fmtStunden(165)).toBe("2,75");
+    expect(fmtStunden(0)).toBe("0");
+  });
+
+  /** Runde Zehnerwerte verlieren den gesamten Nachkommaanteil samt Komma, nicht nur Nullen. */
+  it("schreibt runde Zehnerwerte ohne Komma", () => {
+    expect(fmtStunden(600)).toBe("10");
+  });
+
+  /** Eine halbe Stunde behaelt genau eine Nachkommastelle. */
+  it("schreibt eine halbe Stunde als 0,5", () => {
+    expect(fmtStunden(30)).toBe("0,5");
+  });
+});

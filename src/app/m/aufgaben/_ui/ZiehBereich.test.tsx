@@ -1,0 +1,460 @@
+// @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { act, Component, type ReactNode } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
+
+/*
+ * DIE GRENZE DIESES TESTS (Brief, Aufgabe 20): „Ziehen ist die eine Bedienart, die ein jsdom-Test
+ * strukturell nicht beweisen kann“ — hier gibt es kein echtes Zeigergeraet und keine echte
+ * Ereigniskette. Was HIER geprueft wird, ist deshalb zweigeteilt:
+ *
+ *  1. `zielAusAblage` — eine REINE Funktion ohne DOM, vollstaendig pruefbar.
+ *  2. Die DOM-Verdrahtung (`onDragStart`/`onDragOver`/`onDrop`/`onDragEnd`) mit HANDGEBAUTEN
+ *     `dragstart`/`dragover`/`drop`-Ereignissen (ein `Event` mit einer angehefteten `dataTransfer`-
+ *     Attrappe) — das beweist, dass die Verdrahtung bei einer Ereigniskette die RICHTIGE Action mit
+ *     den richtigen Feldern ruft, NICHT, dass ein echtes Zeigergeraet in jedem Browser genau diese
+ *     Kette ausloest. LETZTERES ist ausschliesslich `e2e/aufgaben.spec.ts`s Sache (`dragTo()`,
+ *     Viewport > 768px) — der eigentliche Nachweis, kein Zusatz (Brief).
+ */
+
+const { einplanenActionMock, rangVerschiebenActionMock } = vi.hoisted(() => ({
+  // AUFRUFSIGNATUR UEBER DEN GENERIC-PARAMETER VON `vi.fn`, NICHT UEBER BENANNTE PARAMETER DER
+  // IMPLEMENTIERUNG (Review-Fund, Fix-Runde 2 — drei ungenutzte, aber getippte Parameter erhoehten
+  // sonst die Lint-Warnzahl): ohne eine explizite Signatur leitet Vitest die Aufrufsignatur aus der
+  // Implementierung ab (nullstellig), und `mock.calls[0]` traegt dann ein leeres Tupel ohne Indizes
+  // — `pnpm typecheck` lehnt den Zugriff auf `calls[0]![0]`/`[1]` weiter unten dann ab. Eine
+  // nullstellige Implementierung ist einem mehrstelligen Funktionstyp zuweisbar (JS ignoriert
+  // ueberzaehlige Argumente), der Generic-Parameter allein legt deshalb die Signatur fest, ohne
+  // dass die Implementierung selbst ungenutzte Parameternamen tragen muesste.
+  einplanenActionMock: vi.fn<(prev: unknown, formData: FormData) => Promise<{ ok: true }>>(
+    async () => ({ ok: true }) as const,
+  ),
+  rangVerschiebenActionMock: vi.fn<(formData: FormData) => Promise<undefined>>(async () => undefined),
+}));
+
+vi.mock("../actions", () => ({
+  einplanenAction: einplanenActionMock,
+  rangVerschiebenAction: rangVerschiebenActionMock,
+}));
+
+const { ZiehBereich, zielAusAblage } = await import("./ZiehBereich");
+
+afterEach(async () => {
+  await unmount();
+  einplanenActionMock.mockClear();
+  rangVerschiebenActionMock.mockClear();
+});
+
+describe("ZiehBereich — Zeile 1", () => {
+  it("„use client“ steht als allererste Zeile der Datei, vor jedem Kommentar", () => {
+    const quelle = readFileSync("src/app/m/aufgaben/_ui/ZiehBereich.tsx", "utf8");
+    expect(quelle.split("\n")[0]).toBe('"use client";');
+  });
+
+  it("importiert kein @ant-design/icons", () => {
+    // Nur die IMPORT-ZEILEN, nicht die Rohdatei: der Kopfkommentar nennt die verbotene
+    // Spezifiziererzeichenfolge ausdruecklich als Begruendung (dieselbe Falle wie bei
+    // `aufgaben-css.test.ts`s Verbotsliste — ein Scan der Rohdatei schluege am eigenen Kommentar an).
+    const quelle = readFileSync("src/app/m/aufgaben/_ui/ZiehBereich.tsx", "utf8");
+    const spezifizierer = [...quelle.matchAll(/\bimport\b[\s\S]*?\bfrom\s*["']([^"']+)["']/g)].map(
+      (m) => m[1],
+    );
+    expect(spezifizierer).not.toContain("@ant-design/icons");
+  });
+});
+
+/*
+ * DIE REINE ABBILDUNG — KEIN DOM, KEIN NETZWERK. Der Brief verlangt „benutz die Rang-Action aus
+ * Aufgabe 12, statt eine zweite Rangberechnung im Browser aufzumachen“: diese Funktion IST diese
+ * eine erlaubte Abbildung, nicht eine Rangberechnung — sie liefert ausschliesslich „wie viele
+ * hoch/runter-Schritte“, nie einen neuen `planRang`-Wert.
+ */
+describe("zielAusAblage — reine Abbildung Ablageort → Wirkung", () => {
+  it("ein anderer Zieltag ist immer ein Tageswechsel, unabhaengig von den Indizes", () => {
+    expect(
+      zielAusAblage({ quellTag: "a", zielTag: "b", quellIndex: 3, zielIndex: 0, anzahlZielTag: 5 }),
+    ).toEqual({ art: "tag", planDatum: "b" });
+    expect(
+      zielAusAblage({ quellTag: "a", zielTag: "b", quellIndex: 0, zielIndex: null, anzahlZielTag: 1 }),
+    ).toEqual({ art: "tag", planDatum: "b" });
+  });
+
+  it("derselbe Tag, Ziel weiter hinten: richtung runter, schritte = Differenz", () => {
+    expect(
+      zielAusAblage({ quellTag: "a", zielTag: "a", quellIndex: 0, zielIndex: 3, anzahlZielTag: 5 }),
+    ).toEqual({ art: "rang", richtung: "runter", schritte: 3 });
+  });
+
+  it("derselbe Tag, Ziel weiter vorne: richtung hoch, schritte = Differenz", () => {
+    expect(
+      zielAusAblage({ quellTag: "a", zielTag: "a", quellIndex: 4, zielIndex: 1, anzahlZielTag: 5 }),
+    ).toEqual({ art: "rang", richtung: "hoch", schritte: 3 });
+  });
+
+  it("derselbe Tag, keine getroffene Zeile (leere Flaeche): ans Ende des Tages", () => {
+    expect(
+      zielAusAblage({ quellTag: "a", zielTag: "a", quellIndex: 0, zielIndex: null, anzahlZielTag: 4 }),
+    ).toEqual({ art: "rang", richtung: "runter", schritte: 3 });
+  });
+
+  it("derselbe Tag, dieselbe Position: kein Zug (null)", () => {
+    expect(
+      zielAusAblage({ quellTag: "a", zielTag: "a", quellIndex: 2, zielIndex: 2, anzahlZielTag: 5 }),
+    ).toBeNull();
+  });
+
+  it("derselbe Tag, leere Flaeche, Quelle ist bereits die letzte Position: kein Zug (null)", () => {
+    expect(
+      zielAusAblage({ quellTag: "a", zielTag: "a", quellIndex: 4, zielIndex: null, anzahlZielTag: 5 }),
+    ).toBeNull();
+  });
+});
+
+/**
+ * Ein `dragstart`/`dragover`/`drop`-Ereignis mit einer `dataTransfer`-Attrappe (jsdom kennt
+ * `DataTransfer` nicht vollstaendig) — das Muster, mit dem HTML5-Drag-and-Drop in jsdom ueberhaupt
+ * simulierbar ist. React liest `nativeEvent.target`/`.dataTransfer` beim Aufbau des
+ * SyntheticEvent, `dispatchEvent` setzt `target` selbst korrekt.
+ */
+function zugEreignis(typ: string): Event {
+  const ereignis = new Event(typ, { bubbles: true, cancelable: true });
+  Object.defineProperty(ereignis, "dataTransfer", {
+    configurable: true,
+    value: { setData: vi.fn(), effectAllowed: "", dropEffect: "" },
+  });
+  return ereignis;
+}
+
+const KINDER = (
+  <>
+    <div data-tag="2026-08-17">
+      <span data-aufgabe-id="a1" data-plan-index="0" data-plan-uhrzeit="" draggable>
+        a1
+      </span>
+      <span data-aufgabe-id="a2" data-plan-index="1" data-plan-uhrzeit="" draggable>
+        a2
+      </span>
+    </div>
+    <div data-tag="2026-08-18">
+      <span data-aufgabe-id="b1" data-plan-index="0" data-plan-uhrzeit="09:00" draggable>
+        b1
+      </span>
+    </div>
+  </>
+);
+
+/*
+ * EIN ZWEITER, WIRKLICHKEITSNAHER AUFBAU — NUR DER ZIEHGRIFF TRAEGT `data-aufgabe-id`
+ * (Abschlussreview W6). `KINDER` oben legt das Attribut auf die ganze Zeile; im Betrieb sitzt es
+ * ausschliesslich auf dem `⠿`-Zeichen (`_ui/Wochenplan.tsx`), und die Zeile daneben (Uhrzeit,
+ * Titel-Link, Rangknoepfe, Polster) ist ein Vielfaches davon. Mit `KINDER` ist der Zweig
+ * `quellTag === zielTag && zielIndex === null` deshalb GAR NICHT ERREICHBAR — jedes Loslassen
+ * trifft dort eine Zeile mit Index.
+ *
+ * Genau dieser Zweig ist aber der praktisch haeufigste Bediengang: wer am selben Tag loslaesst und
+ * das eine Zeichen verfehlt (auf dem Titel, der Uhrzeit, den Knoepfen, dem Polster oder unter der
+ * letzten Zeile), nimmt ihn. Er ist der einzige, in dem `anzahlZielTag` (`ZiehBereich.tsx:211`,
+ * `spalte.querySelectorAll("[data-aufgabe-id]").length`) das Ergebnis bestimmt.
+ */
+const ZEILEN_KINDER = (
+  <>
+    <div data-tag="2026-08-17">
+      <div data-rolle="zeile-a1">
+        <span data-aufgabe-id="a1" data-plan-index="0" data-plan-uhrzeit="" draggable>
+          ⠿
+        </span>
+        <a href="/a/a1" data-rolle="titel-a1">
+          Aufgabe a1
+        </a>
+      </div>
+      <div data-rolle="zeile-a2">
+        <span data-aufgabe-id="a2" data-plan-index="1" data-plan-uhrzeit="" draggable>
+          ⠿
+        </span>
+        <a href="/a/a2" data-rolle="titel-a2">
+          Aufgabe a2
+        </a>
+      </div>
+      <div data-rolle="polster" style={{ minHeight: 40 }} />
+    </div>
+  </>
+);
+
+/*
+ * DIE MUTATION, DIE BIS ZUM ABSCHLUSSREVIEW GRUEN GEBLIEBEN WAERE:
+ *   const anzahlZielTag = spalte.querySelectorAll("[data-aufgabe-id]").length - 1;
+ * Der Aufbau ist absichtlich so gewaehlt, dass sie nicht "eine Position zu frueh" ergibt, sondern
+ * GAR KEINE Aktion: zwei Eintraege, Quelle auf Index 0 — unmutiert `ziel = 1` (ein Schritt
+ * runter), mutiert `ziel = 0 === quellIndex` → `null`, also das stille Nichts ohne Meldung, das
+ * dieses Modul in Aufgabe 13 schon einmal bekaempft hat. Ein "kein Aufruf" ist das schaerfere Rot
+ * als ein "ein Aufruf weniger".
+ */
+describe("ZiehBereich — Loslassen NEBEN dem Ziehgriff (anzahlZielTag)", () => {
+  it("Loslassen auf der Zeilenflaeche (Titel, nicht Griff) desselben Tages schiebt ans Ende", async () => {
+    await mount(<ZiehBereich interaktiv>{ZEILEN_KINDER}</ZiehBereich>);
+    const griffA1 = query('[data-aufgabe-id="a1"]');
+    const titelA2 = query('[data-rolle="titel-a2"]');
+    griffA1.dispatchEvent(zugEreignis("dragstart"));
+    titelA2.dispatchEvent(zugEreignis("dragover"));
+    await act(async () => {
+      titelA2.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).toHaveBeenCalledTimes(1);
+    const formData = rangVerschiebenActionMock.mock.calls[0]![0] as FormData;
+    expect(formData.get("aufgabeId")).toBe("a1");
+    expect(formData.get("richtung")).toBe("runter");
+  });
+
+  it("Loslassen auf der leeren Spaltenflaeche unter der letzten Zeile schiebt ans Ende", async () => {
+    await mount(<ZiehBereich interaktiv>{ZEILEN_KINDER}</ZiehBereich>);
+    const griffA1 = query('[data-aufgabe-id="a1"]');
+    const polster = query('[data-rolle="polster"]');
+    griffA1.dispatchEvent(zugEreignis("dragstart"));
+    polster.dispatchEvent(zugEreignis("dragover"));
+    await act(async () => {
+      polster.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).toHaveBeenCalledTimes(1);
+    const formData = rangVerschiebenActionMock.mock.calls[0]![0] as FormData;
+    expect(formData.get("aufgabeId")).toBe("a1");
+    expect(formData.get("richtung")).toBe("runter");
+  });
+
+  /*
+   * DIE GEGENPROBE ZUR GEGENPROBE: steht die Quelle bereits an letzter Stelle, ist dasselbe
+   * Loslassen ein echtes Nichts — sonst waere oben nicht belegt, dass die Zahl aus dem DOM
+   * ueberhaupt gelesen wird, sondern nur, dass irgendein Schritt ausgeloest wird.
+   */
+  it("dieselbe Flaeche, aber die Quelle steht schon hinten: keine Aktion", async () => {
+    await mount(<ZiehBereich interaktiv>{ZEILEN_KINDER}</ZiehBereich>);
+    const griffA2 = query('[data-aufgabe-id="a2"]');
+    const polster = query('[data-rolle="polster"]');
+    griffA2.dispatchEvent(zugEreignis("dragstart"));
+    await act(async () => {
+      polster.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("ZiehBereich — DOM-Verdrahtung", () => {
+  it("ein Zug innerhalb eines Tages ruft rangVerschiebenAction genau schritte-mal, mit der richtigen richtung", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const a2 = query('[data-aufgabe-id="a2"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    a2.dispatchEvent(zugEreignis("dragover"));
+    await act(async () => {
+      a2.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).toHaveBeenCalledTimes(1);
+    const formData = rangVerschiebenActionMock.mock.calls[0]![0] as FormData;
+    expect(formData.get("aufgabeId")).toBe("a1");
+    expect(formData.get("richtung")).toBe("runter");
+  });
+
+  it("ein Zug zwischen zwei Tagen ruft einplanenAction mit dem Zieltag und der bisherigen Uhrzeit", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const b1 = query('[data-aufgabe-id="b1"]');
+    const zielSpalte = query('[data-tag="2026-08-17"]');
+    b1.dispatchEvent(zugEreignis("dragstart"));
+    zielSpalte.dispatchEvent(zugEreignis("dragover"));
+    await act(async () => {
+      zielSpalte.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(rangVerschiebenActionMock).not.toHaveBeenCalled();
+    expect(einplanenActionMock).toHaveBeenCalledTimes(1);
+    const formData = einplanenActionMock.mock.calls[0]![1] as FormData;
+    expect(formData.get("aufgabeId")).toBe("b1");
+    expect(formData.get("planDatum")).toBe("2026-08-17");
+    expect(formData.get("planUhrzeit")).toBe("09:00");
+    expect(formData.get("dauerMinuten")).toBe("");
+  });
+
+  it("auf sich selbst fallengelassen: kein Zug", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const a1 = query('[data-aufgabe-id="a1"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    a1.dispatchEvent(zugEreignis("dragover"));
+    await act(async () => {
+      a1.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).not.toHaveBeenCalled();
+  });
+
+  /*
+   * ABGEBROCHENER ZUG (Brief: „Escape, Loslassen außerhalb ändert nichts“). Escape selbst feuert im
+   * Browser kein `drop`, nur `dragend` — ein `dragstart` OHNE nachfolgendes `drop` ist deshalb die
+   * jsdom-Nachbildung dieses Falls.
+   */
+  it("dragstart ohne drop (Escape/Abbruch): keine Action wird gerufen", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const a1 = query('[data-aufgabe-id="a1"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    await act(async () => {
+      a1.dispatchEvent(zugEreignis("dragend"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).not.toHaveBeenCalled();
+  });
+
+  it("Loslassen außerhalb jeder Tagesspalte ändert nichts", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const a1 = query('[data-aufgabe-id="a1"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    // Der Wurzel-Container von `ZiehBereich` selbst traegt kein `data-tag` — ein Drop direkt darauf
+    // (statt auf eine Tagesspalte) landet ausserhalb jeder Flaeche.
+    const wurzel = query('[data-rolle="wochengitter"]');
+    await act(async () => {
+      wurzel.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).not.toHaveBeenCalled();
+  });
+
+  /*
+   * FREMDER PLAN NICHT ZIEHBAR — DASSELBE PRAEDIKAT WIE DIE KNOEPFE (Brief): `interaktiv={false}`
+   * ist exakt der Wert, den `Wochenplan.tsx` aus `darfPlanAendern` durchreicht (`zeigeAktionen ===
+   * true`), keine zweite Pruefung hier. GEGENPROBE (im Bericht dokumentiert, nicht dauerhaft im
+   * Code): entfernt man das `if (!interaktiv) return` in `onDragStart`, wird GENAU DIESER Test rot
+   * (`rangVerschiebenActionMock` waere dann doch gerufen).
+   */
+  it("interaktiv=false: kein dragstart merkt sich etwas, keine Action wird je gerufen", async () => {
+    await mount(<ZiehBereich interaktiv={false}>{KINDER}</ZiehBereich>);
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const a2 = query('[data-aufgabe-id="a2"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    a2.dispatchEvent(zugEreignis("dragover"));
+    await act(async () => {
+      a2.dispatchEvent(zugEreignis("drop"));
+      await Promise.resolve();
+    });
+    expect(einplanenActionMock).not.toHaveBeenCalled();
+    expect(rangVerschiebenActionMock).not.toHaveBeenCalled();
+  });
+
+  it("rendert `.wochenGitter`/`data-rolle=\"wochengitter\"` selbst, keinen zusaetzlichen Wrapper darin", async () => {
+    await mount(
+      <ZiehBereich interaktiv>
+        <div data-tag="2026-08-17" />
+      </ZiehBereich>,
+    );
+    const wurzel = query('[data-rolle="wochengitter"]');
+    // Direktes Kind ist die Tagesspalte selbst — kein Zwischen-`<div>`, sonst braeche das
+    // CSS-Grid-Rastermass von `.wochenGitter` (Kopfkommentar `ZiehBereich.tsx`).
+    expect(wurzel.firstElementChild?.getAttribute("data-tag")).toBe("2026-08-17");
+  });
+});
+
+/*
+ * SICHTBARKEIT VOR DEM LOSLASSEN (Review-Fund: bislang nur behauptet, keine Zeile prueft es) —
+ * Brief-Pflicht („Ziel und Wirkung muessen sichtbar sein, bevor losgelassen wird, sonst ist es
+ * Raten“). `markiere()` setzt/entfernt einen `outline` PER INLINE-STYLE auf dem ueberfahrenen
+ * Element — diese Gruppe prueft genau diese beiden Seiten: gesetzt bei `dragover` ueber einem
+ * gueltigen Ziel, entfernt bei `dragend`, UND: nur das AKTUELLE Ziel traegt die Markierung, ein
+ * Wechsel raeumt das vorherige ab (sonst blieben zwei Markierungen gleichzeitig sichtbar stehen).
+ */
+describe("ZiehBereich — Sichtbarkeit vor dem Loslassen (markiere())", () => {
+  it("dragover ueber einem gueltigen Ziel setzt ein sichtbares outline", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const a2 = query('[data-aufgabe-id="a2"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    expect(a2.style.outline).toBe("");
+    a2.dispatchEvent(zugEreignis("dragover"));
+    expect(a2.style.outline).not.toBe("");
+  });
+
+  it("dragend entfernt die Markierung wieder — auch bei einem abgebrochenen Zug", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const a2 = query('[data-aufgabe-id="a2"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    a2.dispatchEvent(zugEreignis("dragover"));
+    expect(a2.style.outline).not.toBe("");
+    a1.dispatchEvent(zugEreignis("dragend"));
+    expect(a2.style.outline).toBe("");
+  });
+
+  it("wechselt das Ziel: nur das AKTUELLE Element traegt die Markierung, das vorherige wird zurueckgesetzt", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const b1 = query('[data-aufgabe-id="b1"]');
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const a2 = query('[data-aufgabe-id="a2"]');
+    b1.dispatchEvent(zugEreignis("dragstart"));
+    a1.dispatchEvent(zugEreignis("dragover"));
+    expect(a1.style.outline).not.toBe("");
+    a2.dispatchEvent(zugEreignis("dragover"));
+    expect(a1.style.outline).toBe(""); // abgeraeumt, nicht doppelt markiert
+    expect(a2.style.outline).not.toBe("");
+  });
+
+  it("dragover ausserhalb jeder Tagesspalte markiert nichts (und raeumt eine vorherige Markierung ab)", async () => {
+    await mount(<ZiehBereich interaktiv>{KINDER}</ZiehBereich>);
+    const b1 = query('[data-aufgabe-id="b1"]');
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const wurzel = query('[data-rolle="wochengitter"]');
+    b1.dispatchEvent(zugEreignis("dragstart"));
+    a1.dispatchEvent(zugEreignis("dragover"));
+    expect(a1.style.outline).not.toBe("");
+    wurzel.dispatchEvent(zugEreignis("dragover"));
+    expect(a1.style.outline).toBe("");
+  });
+});
+
+/*
+ * FEHLERBEHANDLUNG SYMMETRISCH ZUM TAG-ZWEIG (Review-Fund): `rangVerschiebenAction` liefert kein
+ * `FormState`, sondern wirft bei jeder Ablehnung — `onDrop`s Rang-Zweig faengt das jetzt (`try`/
+ * `catch`) und wirft mit demselben `"Verschieben fehlgeschlagen: …"`-Praefix wie der Tag-Zweig, statt
+ * die rohe Server-Fehlermeldung unformatiert durchzureichen. Eine Error Boundary macht den
+ * tatsaechlich geworfenen Fehler pruefbar, statt nur zu behaupten, dass „laut, nicht still“ gilt.
+ */
+class Fehlergrenze extends Component<{ children: ReactNode }, { fehler: string | null }> {
+  state = { fehler: null as string | null };
+  static getDerivedStateFromError(fehler: unknown) {
+    return { fehler: fehler instanceof Error ? fehler.message : String(fehler) };
+  }
+  render() {
+    if (this.state.fehler !== null) return <div data-testid="ziehfehler">{this.state.fehler}</div>;
+    return this.props.children;
+  }
+}
+
+describe("ZiehBereich — Fehlerbehandlung im Rang-Zweig", () => {
+  it("ein abgelehnter rangVerschiebenAction-Aufruf wirft mit demselben Praefix wie der Tag-Zweig", async () => {
+    rangVerschiebenActionMock.mockRejectedValueOnce(new Error("Kein Nachbar in dieser Richtung."));
+    await mount(
+      <Fehlergrenze>
+        <ZiehBereich interaktiv>{KINDER}</ZiehBereich>
+      </Fehlergrenze>,
+    );
+    const a1 = query('[data-aufgabe-id="a1"]');
+    const a2 = query('[data-aufgabe-id="a2"]');
+    a1.dispatchEvent(zugEreignis("dragstart"));
+    a2.dispatchEvent(zugEreignis("dragover"));
+    await act(async () => {
+      a2.dispatchEvent(zugEreignis("drop"));
+      // Mehrere Mikrotasks abwarten, bis der geworfene Fehler die Error Boundary erreicht hat.
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(query('[data-testid="ziehfehler"]').textContent).toBe(
+      "Verschieben fehlgeschlagen: Kein Nachbar in dieser Richtung.",
+    );
+  });
+});

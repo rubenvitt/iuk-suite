@@ -12,6 +12,7 @@ import * as feedbackSchema from "@/app/m/feedback/_db/schema";
 import { seedFeedback } from "@/app/m/feedback/_lib/seed";
 import { filesBootFehler, starteFilesHintergrund } from "@/app/m/files/_lib/boot";
 import { lagerbuchBootFehler } from "@/app/m/lagerbuch/_lib/boot";
+import { starteAufgabenScanArbeiter } from "@/app/m/aufgaben/_lib/scan";
 
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
 // Migrations-Pfad ist cwd-relativ: Dev = Repo-Root, Prod = /app (Dockerfile
@@ -33,6 +34,15 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   // Handlager-Zeile gehört ohnehin nicht hierher: sie ist eine Migrationszeile
   // (0003_handlager.sql), keine Testdatenzeile.
   { key: "lagerbuch", migrationsFolder: "src/app/m/lagerbuch/_db/migrations" },
+  // aufgaben: bewusst OHNE Schema-Import und OHNE Seed unten (Betreiberentscheidung vom
+  // 2026-08-13, weicht vom urspruenglichen Plan ab) — schaerfer als bei `files` und `lagerbuch`,
+  // aus einem eigenen Grund: `personen` IST die Autorisierungstabelle dieses Moduls.
+  // `personFuerSession()` loest die Rolle daraus auf, und `rolle: "koordination"` oeffnet die
+  // Personenverwaltung — ein Boot-Seed legte hier also keine Testdaten an, sondern benannte
+  // Rollentraeger. Und `shouldSeed()` ist bei `SUITE_SEED=1` auch in der GENERALPROBE wahr,
+  // dieselbe Linie, aus der `files` und `lagerbuch` ausgenommen sind. Das lokale Seed-Skript
+  // deckt den Entwicklungsbetrieb vollstaendig ab; ein Boot-Seed waere hier Risiko ohne Gegenwert.
+  { key: "aufgaben", migrationsFolder: "src/app/m/aufgaben/_db/migrations" },
 ];
 
 /**
@@ -107,6 +117,9 @@ export function shouldSeed(): boolean {
  */
 export function startBackgroundWork(): void {
   starteFilesHintergrund();
+  // Wiederaufnahme liegen gebliebener `offen`-Dateien nach einem Absturz
+  // (Aufgabe 18) — synchron und wirft nie, siehe `_lib/scan.ts`.
+  starteAufgabenScanArbeiter();
 }
 
 export async function seedAllModules(): Promise<void> {
