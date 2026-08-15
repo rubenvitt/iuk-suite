@@ -1,6 +1,6 @@
 # Modul `aufgaben` — Aufgabenverteilung und Zeitplanung für BuFDis
 
-**Stand:** 2026-08-13 · **Status:** Entwurf freigegeben, Umsetzung offen
+**Stand:** 2026-08-13, zuletzt nachgetragen 2026-08-15 · **Status:** Umsetzung abgeschlossen (Aufgabe 21)
 
 ## 1. Das Problem, in den Worten des Auftraggebers
 
@@ -18,9 +18,11 @@ Vier Anforderungen, die daraus folgen:
    **Dokumentation** der fertigen Arbeit zwingt, und ihre Erledigung muss vom Vorgesetzten
    **bestätigt** werden. Selbst gestellte Aufgaben nicht.
 
-Ein Klickdummy als eigenständige HTML-Datei liegt unter `bufdi-koordination-klickdummy.html`
-(Wurzel des Repositories). Er ist **Referenz für den Funktionsumfang, nicht für die Gestaltung** —
-sein Design gehört nicht zur Suite. Er wird am Ende der Umsetzung gelöscht.
+Ein Klickdummy als eigenständige HTML-Datei lag zu Beginn dieses Entwurfs unter
+`bufdi-koordination-klickdummy.html` (Wurzel des Repositories). Er war **Referenz für den
+Funktionsumfang, nicht für die Gestaltung** — sein Design gehörte nicht zur Suite. Er war planmäßig
+zum Abschluss der Umsetzung zu löschen; bei Aufgabe 21 (dem Abschluss) war er bereits fort — weder
+im Worktree noch im Haupt-Repository —, sodass dort nichts mehr zu löschen war.
 
 ## 2. Getroffene Entscheidungen
 
@@ -38,8 +40,9 @@ Dazu drei Entscheidungen zum Bauweg:
 
 - **Es entsteht die Anwendung, kein Klickdummy** (Betreiberentscheid 2026-08-13). Ein erster
   Bauabschnitt mit fest verdrahteten Daten und einem Demo-Rollenwechsler ist gestrichen: Rollen
-  kommen von Anfang an aus der Sitzung. Der vorhandene `bufdi-koordination-klickdummy.html` bleibt
-  Referenz für den **Funktionsumfang** und wird am Ende gelöscht.
+  kommen von Anfang an aus der Sitzung. Der zu Entwurfsbeginn vorhandene
+  `bufdi-koordination-klickdummy.html` blieb Referenz für den **Funktionsumfang**, bis er planmäßig
+  entfernt wurde (s. §1).
 - **Drag & Drop ist gewünscht und im Umfang** — aber es ist nie der einzige Weg. Mit der Tastatur ist
   Ziehen nicht bedienbar und auf dem Handy nicht zuverlässig, also ist die Knopf- und
   Formularstrecke ohnehin Pflicht; Ziehen ist eine Schicht darüber mit denselben Server-Actions und
@@ -77,7 +80,7 @@ ein Aufgabenwerkzeug.
 | `requiredGroups` | `["iuk-aufgaben-nutzer"]` |
 | `adminGroups` | `["iuk-aufgaben-koordination"]` |
 | `prodHosts` | `[]` (Domain kommt aus `SUITE_HOST_AUFGABEN`) |
-| `showInSwitcher` | `false`, bis Abschnitt E steht; dann `true` (ein halbfertiges Modul gehört nicht in die Navigation aller Nutzer) |
+| `showInSwitcher` | zunächst `false`, seit Aufgabe 16 (Abschnitt E) `true` (ein halbfertiges Modul gehört nicht in die Navigation aller Nutzer) |
 | `switcherGroupSources` | `["access"]` |
 
 **`requiresAuth: true` ist hier richtig**, obwohl vier bestehende Module ausdrücklich das Gegenteil
@@ -277,7 +280,16 @@ ist die Bedingung dafür, dass Oberfläche und Riegel nicht auseinanderlaufen.
 | `darfFreigeben(person, aufgabe)` | `person.id === aufgabe.pruefer_id` **oder** `rolle === "koordination"` |
 | `darfPlanAendern(person, zielPersonId)` | `person.id === zielPersonId` (BuFDis ändern nur den eigenen Plan) |
 | `darfPlanSehen(person, zielPersonId)` | jeder BuFDi sieht jeden BuFDi-Plan; `koordination` und `auftrag` alle |
-| `darfNachweisSehen(person, aufgabe)` | Verfasser, `koordination`, oder `person.id === aufgabe.ersteller_id` |
+| `darfNachweisSehen(person, aufgabe)` | Verfasser, `koordination`, `person.id === aufgabe.ersteller_id`, oder der eingetragene Prüfer (`person.id === aufgabe.pruefer_id`, Nachtrag unten) |
+
+**Nachtrag vom 2026-08-15 — `darfNachweisSehen` deckt auch den eingetragenen Prüfer ab.** Die Tabelle
+oben nannte ihn nicht, obwohl der Code es seit Aufgabe 16 längst tut. Der Grund: `freigabeDaten`
+filtert über `darfFreigeben` (das den Prüfer einschließt), ein Prüfer sah den Nachweis auf
+`/freigaben` also **schon vorher** — und hätte ihn auf `/a/<id>` verweigert bekommen, **während die
+Freigabe-Knöpfe für dieselbe Person sichtbar blieben**. Die Klausel trägt dabei **bewusst kein
+`istAktiv`** (Betreiberentscheidung 2026-08-14): Handlungsprädikate prüfen es, Sichtprädikate nicht,
+und eine benannte Prüferin gehört zur Geschichte dieser Aufgabe. Ohne diesen Satz wird die Kante beim
+nächsten Lesen erneut als Mangel gemeldet.
 
 Zwei Regeln, die dabei nicht verhandelbar sind:
 
@@ -638,9 +650,10 @@ wechselt man die Rolle, indem man sich mit einer anderen Adresse am Dev-Login an
 durch **dieselbe** Strecke wie in Produktion — ein Umschalter wäre eine zweite, und genau die hätte
 den Echtbetrieb erreichen können.
 
-**Muss vor dem Echtbetrieb verschwinden:** `bufdi-koordination-klickdummy.html` in der
-Repository-Wurzel — Referenz für den Funktionsumfang, nicht für die Gestaltung, gelöscht mit dem
-letzten Abschnitt.
+**Musste vor dem Echtbetrieb verschwinden, und ist es:** `bufdi-koordination-klickdummy.html` in der
+Repository-Wurzel — Referenz für den Funktionsumfang, nicht für die Gestaltung. Bei Aufgabe 21 (dem
+Abschluss der Umsetzung) war die Datei bereits weder im Worktree noch im Haupt-Repository vorhanden
+(s. §1).
 
 **Bewusst nicht in dieser Fassung:**
 
