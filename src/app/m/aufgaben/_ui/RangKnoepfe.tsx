@@ -22,10 +22,17 @@ import s from "./aufgaben.module.css";
  * `outline-offset` deckt `aufgaben.module.css` bereits fuer `button` pauschal ab (Kommentar dort),
  * diese Datei muss dafuer nichts Eigenes bauen.
  *
- * `size="small"` STEHT HIER BEWUSST NICHT (Globale Vorgabe: „kein `size` außer `size=\"small\"` in
- * Tabellenzeilen"): `RangKnoepfe` sitzt in der Tagesliste (`Wochenplan.tsx`, eine `<ul>`), nicht in
- * einer antd-`Table`-Zeile wie `RoutinenTabelle.tsx` — die Ausnahme greift dort, nicht hier. Der
- * Vorgabewert `controlHeight: 56` ist bereits das richtige Mass (`docs/design/README.md`, Falle 4).
+ * `size="small"` STEHT HIER BEWUSST NICHT: `RangKnoepfe` sitzt in der Tagesliste
+ * (`Wochenplan.tsx`, eine `<ul>`), nicht in einer antd-`Table`-Zeile wie `RoutinenTabelle.tsx`. Der
+ * Vorgabewert ist bereits das richtige Mass (`docs/design/README.md`, Falle 4).
+ *
+ * ⚠️ DER VORGABEWERT IST SEIT DEM SHELL-UMBAU 44, NICHT 56. `aufgaben` steht im Registry auf
+ * `shell: "full"`, und `FullShell` legt `ARBEITSDICHTE` (`core/theme/theme.ts`, `controlHeight: 44`)
+ * ueber den Inhalt; 56/72 gilt nur noch fuer `MinimalShell` und fuer Ansichten ganz ohne Shell. An
+ * DIESER Datei aendert das nichts — kein `size` ist weiterhin richtig. Wohl aber an der alten
+ * Ausnahme, auf die der erste Absatz sich berief: „`size=\"small\"` in Tabellenzeilen" ist mit den
+ * 56px gefallen (`docs/design/README.md`, Falle 4), und die sieben Stellen im Modul, die sie noch
+ * nutzen, sind offen — siehe Befund A2 in `rebase-report.md`.
  *
  * DIE KNOEPFE TRAGEN TEXT **UND** EIN `aria-label` (Brief verlangt nur eines von beiden): der
  * sichtbare Text „Auf"/„Ab" traegt die Bedeutung fuer sehende Personen, das Icon daneben ist
