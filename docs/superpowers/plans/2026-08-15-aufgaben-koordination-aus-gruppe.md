@@ -492,6 +492,10 @@ Rike bekommt `rolle: "auftrag"`. Das Protokoll von `pnpm seed:lokal aufgaben` mu
 welchen Gruppen man sich anmelden muss, um zu koordinieren — der bisherige Kommentar in
 `schema.ts:94` („genau darüber wechselt man lokal die Rolle") bekommt seine zweite Hälfte.
 
+**Der Seed bleibt optional und bleibt vom Boot-Pfad getrennt** (s. Abschnitt „Abnahme: der leere
+Start"). Er ist ab jetzt der Weg zu einem *gefüllten* Modul, nicht die Voraussetzung für den
+Erstzugang — sein Kopfkommentar sagt das heute noch anders und muss nachgezogen werden.
+
 - [ ] **Schritt 2: e2e**
 
 Jede Sitzung, die heute über Rikes `koordination`-Zeile auf eine Koordinationsfläche kommt,
@@ -554,6 +558,33 @@ rtk git add -A && rtk git commit -m "feat(aufgaben): Seed, e2e und Konfiguration
 ```
 
 ---
+
+## Abnahme: der leere Start — das eigentliche Kriterium
+
+**Der Seed ist für den Erstzugang nicht mehr nötig. Das ist die Zusage dieses Umbaus, nicht ein
+Nebeneffekt** (Betreiberentscheidung 2026-08-15, im Gespräch zum Entwurf).
+
+Abnahmepfad, von Hand gegen eine **leere** `.data/aufgaben.db` zu gehen, ohne `pnpm seed:lokal`:
+
+1. `.data/aufgaben.db` löschen (oder eine frische Umgebung nehmen). `pnpm dev`.
+2. Am Dev-Login die Koordinationsgruppe anhaken. Sie steht dort als Häkchen zur Auswahl, weil
+   `devGroupChoices` (`core/auth/devGroups.ts`) über `adminGroupsFor`/`requiredGroupsFor` liest —
+   also auch den per `SUITE_ADMIN_GROUP_AUFGABEN` gesetzten Namen, nicht nur das Registry-Literal.
+3. `/` **muss** die Verteilung zeigen, nicht die Erklärseite „noch nicht eingetragen". Die
+   Personenzeile ist zu diesem Zeitpunkt gerade erst von `akteurFuerSeite` angelegt worden
+   (Aufgabe 4).
+4. Über `/personen` einen BuFDi anlegen — dessen `sub` (`dev:<email>`) steht auf der Erklärseite,
+   die er selbst bei seinem ersten Anmeldeversuch sieht, oder er wird ab Aufgabe 5 im Verzeichnis
+   gesucht.
+5. Aufgabe einstellen, verteilen, freigeben — der volle Rundlauf, ohne dass je ein Seed lief.
+
+**Der Seed bleibt bestehen und bleibt optional** — er ist der Weg zu einem *gefüllten* Modul für
+Testfahrten, nicht die Voraussetzung für den Erstzugang. Er wird **nicht** an den Boot-Pfad
+gehängt: `scripts/seed-lokal.test.ts:56` verbietet die Namen `seedLokal`/`seed-lokal` in
+`bootstrap.ts` und `instrumentation.ts`, und der Grund steht in `CLAUDE.md` — `shouldSeed()` ist
+auch bei `SUITE_SEED=1` (Generalprobe) wahr, der Boot-Seed wäre also nicht lokal-only.
+
+Punkt 3 ist zusätzlich der e2e-Test aus Aufgabe 6, Schritt 2.
 
 ## Selbstprüfung gegen den Entwurf
 
