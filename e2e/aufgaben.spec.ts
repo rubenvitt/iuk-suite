@@ -1102,13 +1102,23 @@ async function ueberlauf(page: import("@playwright/test").Page) {
   }));
 }
 
-const UEBERLAUF_SEITEN: { pfad: string; email: string; titel: string }[] = [
-  { pfad: "/", email: "alina@localtest.me", titel: "Meine Woche" },
+const UEBERLAUF_SEITEN: { label: string; pfad: string; email: string; titel: string }[] = [
+  { label: "/ (Alina)", pfad: "/", email: "alina@localtest.me", titel: "Meine Woche" },
+  // BENDIX' UND CARLAS WOCHEN SIND DIE EIGENTLICHEN GEGENPROBEN (advisor-Hinweis nach dem ersten
+  // 820px-Fund): `flex-wrap: wrap` auf `.routineZeile` behebt den langen Routinennamen, aber NICHT
+  // notwendigerweise `.budget`/`.budgetUeberbucht` — beide tragen `white-space: nowrap`
+  // (`aufgaben.module.css`), und Bendix' Montag ist die EINE ueberbuchte Demo-Fixtur
+  // ("9,17 / 7,80 Std. — überbucht", laenger als jede Alina-Zeile). Carlas "Nachtbereitschaft-
+  // Übergabe" ist der laengste Routinenname im ganzen Seed. Ohne diese beiden Zeilen bewiese der
+  // Sweep nur "eine Person mit kurzen Texten laeuft nicht ueber" — nicht die Zusicherung, die der
+  // Brief verlangt.
+  { label: "/ (Bendix, ueberbuchter Montag)", pfad: "/", email: "bendix@localtest.me", titel: "Meine Woche" },
+  { label: "/ (Carla, laengster Routinenname)", pfad: "/", email: "carla@localtest.me", titel: "Meine Woche" },
   // `Table` mit `scroll={{x: "max-content"}}` — die eine Seite, fuer die diese Zusicherung
   // ueberhaupt etwas beweist (s. Kopfkommentar).
-  { pfad: "/verteilen", email: "rike@localtest.me", titel: "Verteilen" },
-  { pfad: "/personen", email: "rike@localtest.me", titel: "Personenverwaltung" },
-  { pfad: "/archiv", email: "rike@localtest.me", titel: "Archiv" },
+  { label: "/verteilen", pfad: "/verteilen", email: "rike@localtest.me", titel: "Verteilen" },
+  { label: "/personen", pfad: "/personen", email: "rike@localtest.me", titel: "Personenverwaltung" },
+  { label: "/archiv", pfad: "/archiv", email: "rike@localtest.me", titel: "Archiv" },
 ];
 
 for (const vp of [
@@ -1120,7 +1130,7 @@ for (const vp of [
     test.use({ viewport: { width: vp.breite, height: vp.hoehe } });
 
     for (const seite of UEBERLAUF_SEITEN) {
-      test(`${seite.pfad} laeuft nicht ueber`, async ({ page }) => {
+      test(`${seite.label} laeuft nicht ueber`, async ({ page }) => {
         await devLogin(page, {
           host: HOST,
           groups: GRUPPE,
