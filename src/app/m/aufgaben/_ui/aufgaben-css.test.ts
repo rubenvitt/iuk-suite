@@ -145,6 +145,60 @@ describe("aufgaben.module.css — Aussage 4: die Umschaltung sitzt richtig herum
     expect(inMedia![1]).toMatch(/display\s*:\s*none/);
   });
 
+  /**
+   * DIE SPALTENZAHL DARF NICHT WIEDER FEST WERDEN (Nach-Rebase-Runde, Befund B). `repeat(5, …)`
+   * stand hier, solange dem Modul die volle Fensterbreite gehörte; seit `main`s Seitenleiste sind
+   * es bei 820px Fenster nur noch 580px, und fünf Spalten ergaben 74px Innenbreite bei 138px
+   * längstem unteilbarem Titel — zwei Namen ragten über das Dokument hinaus.
+   *
+   * WAS DIESER TEST KANN UND WAS NICHT, ausdrücklich: er prüft, dass die Datei die Absicht noch
+   * TRÄGT — er kann nicht prüfen, dass ein Browser daraus die richtige Spaltenzahl rechnet (jsdom
+   * wertet weder `@media` noch Grid-Spuren aus). Das tut der 820px-Überlauf-Sweep in
+   * `e2e/aufgaben.spec.ts`, und nur beide zusammen sind die Zusicherung: der Sweep fällt, wenn die
+   * Rechnung nicht aufgeht, dieser hier, wenn eine Aufräumrunde die Regel „vereinfacht".
+   */
+  it("lässt `.wochenGitter` die Spaltenzahl aus der Fläche ableiten, statt sie festzuschreiben", () => {
+    const inBasis = /\.wochenGitter\s*\{([^}]*)\}/.exec(BASIS);
+    expect(inBasis, ".wochenGitter fehlt in der Basisregel").not.toBeNull();
+    expect(inBasis![1], "grid-template-columns fehlt").toMatch(/grid-template-columns\s*:/);
+    expect(inBasis![1], "auto-fit fehlt — die Spaltenzahl wäre wieder fest").toMatch(/auto-fit/);
+    expect(
+      inBasis![1],
+      "eine feste Spaltenzahl (`repeat(5, …)`) ist genau die Regression aus Befund B",
+    ).not.toMatch(/repeat\(\s*\d/);
+  });
+
+  /**
+   * DAS NETZ UNTER DER SPALTENZAHL: die `minmax`-Untergrenze oben ist gegen die HEUTIGEN
+   * Seed-Texte gerechnet. Ohne `overflow-wrap` hinge die Zusicherung „kein waagerechtes Scrollen"
+   * an der Länge einer Fixtur — ein längerer Routinenname morgen schöbe das Dokument wieder
+   * seitwärts.
+   *
+   * DIE BEIDEN REGELN DECKEN VERSCHIEDENE AUSFÄLLE, deshalb zwei Tests statt einem: `min(180px,
+   * 100%)` hält die SPALTE in ihrem Kasten, `overflow-wrap` hält das WORT in seiner Spalte.
+   * `anywhere` statt `break-word`, weil nur ersteres auch den `min-content`-Beitrag senkt — heute
+   * folgenlos (die Untergrenze der Spur ist eine feste Zahl), aber die Fassung, die auch dann noch
+   * richtig ist, wenn eine Größe hier je aus `min-content` abgeleitet wird.
+   */
+  it("gibt `.tagSpalte` `overflow-wrap: anywhere` — nicht `break-word`", () => {
+    const inBasis = /\.tagSpalte\s*\{([^}]*)\}/.exec(BASIS);
+    expect(inBasis, ".tagSpalte fehlt in der Basisregel").not.toBeNull();
+    expect(inBasis![1]).toMatch(/overflow-wrap\s*:\s*anywhere/);
+  });
+
+  /**
+   * DIE ANDERE HAELFTE DES BUDGETZEILEN-UMBRUCHS (Nach-Rebase-Runde, Befund B) — die erste steht
+   * in `Wochenplan.test.tsx` und bewacht das führende Leerzeichen IN der Spanne. Ohne
+   * `white-space: normal` hier erbt die Spanne das `nowrap` von `.budget`, und die
+   * Umbruchgelegenheit am Leerzeichen gilt trotz richtiger Markup-Struktur nicht. Beide Hälften
+   * einzeln sind wirkungslos; nur zusammen bricht die Zeile.
+   */
+  it("gibt `.budgetHinweis` `white-space: normal` — sonst erbt der Zusatz das `nowrap`", () => {
+    const inBasis = /\.budgetHinweis\s*\{([^}]*)\}/.exec(BASIS);
+    expect(inBasis, ".budgetHinweis fehlt in der Basisregel").not.toBeNull();
+    expect(inBasis![1]).toMatch(/white-space\s*:\s*normal/);
+  });
+
   it("zeigt `.tagesListe` NUR außerhalb des 767.98px-Blocks (die Basis versteckt sie)", () => {
     const inBasis = /\.tagesListe\s*\{([^}]*)\}/.exec(BASIS);
     expect(inBasis, ".tagesListe fehlt in der Basisregel").not.toBeNull();

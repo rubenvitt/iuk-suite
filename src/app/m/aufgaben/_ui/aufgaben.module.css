@@ -224,9 +224,43 @@
  * Server Components ohnehin verboten, und es zeigt beim ersten Render die
  * falsche Variante.
  */
+/*
+ * DIE SPALTENZAHL IST NICHT MEHR FEST FUENF (Nach-Rebase-Runde, Befund B). Hier stand
+ * `repeat(5, minmax(0, 1fr))` — fuenf Spalten, egal wie schmal die Flaeche ist. Das war gegen die
+ * VOLLE Fensterbreite austariert; seit `main`s Shell-Umbau bekommt jedes Modul mit Navigation eine
+ * 240px-Seitenleiste, und dem Inhalt bleiben bei 820px Fenster nur noch 580px. Gemessen: 100px
+ * Spaltenbreite, davon 74px innen — waehrend der laengste unteilbare Titel im Seed 138px braucht
+ * und Bendix' ueberbuchte Budgetzeile („9,17 / 7,80 Std. — überbucht", `white-space: nowrap`) 167px.
+ * Zwei Routinennamen ragten damit ueber das DOKUMENT hinaus (9px/18px, e2e-Sweep), die
+ * Budgetzeile ueber ihre SPALTE (~93px) — Letzteres sah kein Gate, weil der ueberbuchte Tag der
+ * MONTAG ist und der Ueberlauf in die Nachbarspalten lief statt an den Dokumentrand.
+ *
+ * `auto-fit` STATT EINER ZWEITEN MEDIENABFRAGE: die Datei hat genau eine (767.98px), der Plan
+ * schreibt „ein Breakpoint" fest, und `aufgaben-css.test.ts` nagelt beides fest. Eine
+ * Spaltenzahl nach Fensterbreite waere ausserdem wieder gegen die falsche Groesse austariert — die
+ * Seitenleiste, nicht das Fenster, hat den Platz genommen. `auto-fit` misst die TATSAECHLICHE
+ * Flaeche und kommt deshalb ohne jede Zahl ueber das Fenster aus.
+ *
+ * 180px IST AUS DEN MESSWERTEN GEWAEHLT, NICHT GERATEN: 180 abzueglich Rahmen und Polster
+ * (2 x 12px + 2 x 1px) ergibt 154px innen — mehr als die 138px des laengsten Titels. Gemessen,
+ * nicht gerechnet (darunter blendet die Medienabfrage das Gitter ohnehin aus): 768px → 2 Spalten,
+ * 820px → 2, 1024px → 3, 1170px → 4, **1280px → 5**, 1920px → 5, 2560px → 5. Die Schwelle zu fuenf
+ * Spalten liegt bei rund 1220px Fensterbreite (5 x 180 + 4 x 12 = 948px Gitterbreite noetig, und
+ * das Gitter ist rund 272px schmaler als das Fenster) — 1280px liegt sicher darueber, die
+ * gewohnte Wochenansicht bleibt dort also unveraendert.
+ *
+ * OBERHALB VON FUENF SPUREN KOLLABIEREN DIE LEEREN (`auto-fit`, nicht `auto-fill`): bei 1920px
+ * meldet `getComputedStyle` „320px 320px 320px 320px 320px 0px 0px 0px" — fuenf Tage ueber die
+ * volle Breite, drei Spuren auf null. Mit `auto-fill` stuenden dort acht Spuren und die fuenf Tage
+ * waeren schmal am linken Rand.
+ *
+ * `min(180px, 100%)` STATT NUR `180px`: wird die Flaeche je noch schmaler als eine Spalte (die
+ * naechste Aenderung an der Seitenleiste ist genau der Fall, der uns hierher gebracht hat), faellt
+ * das Gitter auf eine Spalte zurueck, statt mit einer 180px-Spur ueber seinen Kasten zu ragen.
+ */
 .wochenGitter {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 12px;
 }
 .tagesListe {
@@ -244,11 +278,39 @@
 .tagesWaehler {
   display: none;
 }
+/*
+ * `overflow-wrap: anywhere` IST DAS NETZ UNTER DER SPALTENZAHL, nicht ihr Ersatz. Die
+ * `auto-fit`-Regel oben ist gegen die HEUTIGEN Seed-Texte gerechnet (laengster unteilbarer Titel
+ * 138px); ein morgen eingetragener Routinenname kann laenger sein, und ohne diese Zeile schoebe er
+ * das Dokument wieder seitwaerts — genau der Befund, den diese Runde behebt, nur mit einer anderen
+ * Zeichenkette. Mit ihr bricht ein zu langes Einzelwort UMBRUCHFREI innerhalb der Spalte um, statt
+ * herauszuragen: die Zusicherung „kein waagerechtes Scrollen" haengt danach nicht mehr an der
+ * Laenge einer Fixtur.
+ *
+ * AM GEMEINSAMEN VORFAHREN, NICHT AN JEDER ZEILE EINZELN (Muster wie Falle 8 in `CLAUDE.md`):
+ * `overflow-wrap` vererbt sich, deckt also Routinenname, Aufgabentitel-Link, Budgetzeile und alles
+ * ab, was hier spaeter dazukommt — eine Deklaration je Kind liefe der naechsten Ergaenzung
+ * hinterher.
+ *
+ * ZWEI VERSCHIEDENE AUSFAELLE, ZWEI VERSCHIEDENE MITTEL — nicht verwechseln, sonst entfernt die
+ * naechste Runde das falsche:
+ *   - `overflow-wrap` haelt ein zu langes WORT innerhalb SEINER SPALTE.
+ *   - `min(180px, 100%)` oben haelt die SPALTE innerhalb ihres KASTENS. Die Untergrenze der Spur
+ *     ist eine feste Zahl; sie schrumpft nicht, weil der Inhalt schmaler wird.
+ * Beide werden gebraucht, keines ersetzt das andere.
+ *
+ * `anywhere` UND NICHT `break-word`: die beiden brechen die Zeile gleich, unterscheiden sich aber
+ * im `min-content`-Beitrag — nur `anywhere` senkt ihn. Das zaehlt ueberall dort, wo eine Groesse
+ * aus `min-content` abgeleitet wird statt aus einer festen Zahl (`fit-content`, `auto`-Spuren,
+ * Flex-Basis) — im heutigen Gitter ist die Untergrenze eine feste Zahl, aber `anywhere` ist die
+ * Fassung, die auch dann noch richtig ist, wenn sie es nicht mehr ist, und kostet nichts.
+ */
 .tagSpalte {
   border: 1px solid var(--auf-linie);
   border-radius: 8px;
   background: var(--auf-papier);
   padding: 12px;
+  overflow-wrap: anywhere;
 }
 .tagKopf {
   font-family: var(--font-display);
@@ -275,6 +337,27 @@
   padding-inline-start: 8px;
   font-weight: 700;
   color: var(--auf-tinte);
+}
+/*
+ * DER EINE ERLAUBTE UMBRUCH IN EINER BUDGETZEILE (Nach-Rebase-Runde, Befund B). `.budget` traegt
+ * `white-space: nowrap`, und das ist richtig: „9,17 / 7,80 Std." ist EIN Wert, ein Umbruch mitten
+ * im Zahlenpaar waere schlechter als jeder Ueberlauf. Der ueberbuchte Zusatz ist aber kein Teil
+ * dieses Werts — er ist ein Anhang, und die ganze Zeile war mit ihm gemessene 167px breit, mehr als
+ * eine Tagesspalte je hat (166px innen selbst bei 1280px, dem breitesten Fall mit fuenf Spalten).
+ *
+ * KEIN GATE HAT DAS JE GESEHEN, UND ZWAR STRUKTURELL: der 820px-Sweep misst den DOKUMENTRAND, und
+ * der ueberbuchte Tag der Demodaten ist der MONTAG — die Zeile lief in die Nachbarspalte, nie ueber
+ * den rechten Dokumentrand hinaus. Waere derselbe Tag der Freitag, haette derselbe Sweep denselben
+ * Defekt gemeldet. Gefunden per Bildschirmabzug bei 1280px, nachgerechnet ueber die
+ * `min-content`-Breite der Zeichenkette.
+ *
+ * DAS FUEHRENDE LEERZEICHEN GEHOERT IN DIESE SPANNE (`Wochenplan.tsx`s `BudgetZeile`): die
+ * Umbruchgelegenheit liegt AN DEM LEERZEICHEN, und ob sie gilt, entscheidet das `white-space` des
+ * Elements, das das Leerzeichen enthaelt. Bliebe es beim Elternteil, wuerde `nowrap` dort sie
+ * weiterhin verbieten, und diese Regel waere eine wirkungslose Attrappe.
+ */
+.budgetHinweis {
+  white-space: normal;
 }
 
 /*

@@ -147,6 +147,42 @@ describe("Wochenplan", () => {
     expect(ueberbucht.textContent).toContain("überbucht");
   });
 
+  /**
+   * DER ZUSATZ HAT EINE EIGENE SPANNE, UND DAS FUEHRENDE LEERZEICHEN STEHT DARIN (Nach-Rebase-
+   * Runde, Befund B). `.budget` traegt `white-space: nowrap`, damit „9,17 / 7,80 Std." als EIN
+   * Wert zusammenbleibt; mit dem Zusatz war die Zeile gemessene 167px breit und passte in keine
+   * Tagesspalte, auch nicht bei 1280px (166px innen).
+   *
+   * DAS LEERZEICHEN IST DIE GANZE POINTE, UND DESHALB STEHT ES HIER ALS EIGENE ZUSICHERUNG: die
+   * Umbruchgelegenheit LIEGT an ihm, und ob sie gilt, entscheidet das `white-space` des Elements,
+   * das es enthaelt. Rutscht es beim naechsten Aufraeumen vor die Spanne, verbietet `nowrap` des
+   * Elternteils den Umbruch weiterhin — die Zeile laeuft wieder ueber, und ZWEI Gates koennen das
+   * strukturell nicht sehen: `textContent` ist in beiden Fassungen zeichengleich (die bestehende
+   * `toContain`-Zusicherung oben bleibt also gruen), und der 820px-Sweep misst den DOKUMENTRAND,
+   * waehrend der ueberbuchte Tag der Demodaten der Montag ist — der Ueberlauf laeuft in die
+   * Nachbarspalte, nie ueber den rechten Rand.
+   */
+  it("gibt dem Zusatz „— überbucht“ eine eigene Spanne, mit dem Leerzeichen DARIN", async () => {
+    await mount(
+      <Wochenplan
+        aufgaben={[aufgabe({ planDatum: DIENSTAG, dauerMinuten: 500 })]}
+        routinen={[]}
+        person={ALINA}
+        montag={MONTAG}
+        heute={MONTAG}
+      />,
+    );
+    const hinweis = query(`.${s.budgetUeberbucht} .${s.budgetHinweis}`);
+    expect(
+      hinweis.textContent,
+      "ohne fuehrendes Leerzeichen IN der Spanne bleibt die Regel eine Attrappe",
+    ).toMatch(/^\s/);
+    expect(hinweis.textContent).toContain("überbucht");
+    // Und das Zahlenpaar bleibt DRAUSSEN — sonst haette die Spanne den Umbruch an der falschen
+    // Stelle erlaubt.
+    expect(hinweis.textContent).not.toContain("Std.");
+  });
+
   it("zeigt bei einem Anker die Uhrzeit, bei einem freien Eintrag keine", async () => {
     await mount(
       <Wochenplan

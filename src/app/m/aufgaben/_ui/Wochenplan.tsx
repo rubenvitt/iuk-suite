@@ -201,12 +201,22 @@ function TagSpalte({
  * Auslastung ist NEUTRAL/GRAPHIT, nie Statusfarbe (Spec §9.3) — ein
  * ueberbuchter Tag bekommt Kante PLUS Text, keinen roten Balken: Menge ist
  * keine Statusaussage.
+ *
+ * DER ZUSATZ „— überbucht" STEHT IN EINER EIGENEN SPANNE, DAS ZAHLENPAAR NICHT (Nach-Rebase-Runde,
+ * Befund B): `.budget` traegt `white-space: nowrap`, damit „9,17 / 7,80 Std." als EIN Wert
+ * zusammenbleibt — mit dem Zusatz war die Zeile gemessene 167px breit und damit breiter als jede
+ * Tagesspalte in jeder Fensterbreite. `.budgetHinweis` gibt genau dem Anhang seinen Umbruch zurueck,
+ * dem Zahlenpaar nicht. DAS FUEHRENDE LEERZEICHEN MUSS INNERHALB der Spanne stehen (Begruendung an
+ * `.budgetHinweis` in `aufgaben.module.css`); `textContent` bleibt dadurch unveraendert, die
+ * bestehenden `toContain`-Zusicherungen gelten weiter.
  */
 function BudgetZeile({ budget }: { budget: Budget }) {
-  const text = `${fmtStunden(budget.verplantMinuten)} / ${fmtStunden(budget.sollMinuten)} Std.${
-    budget.ueberbucht ? " — überbucht" : ""
-  }`;
-  return <div className={budget.ueberbucht ? `${s.budget} ${s.budgetUeberbucht}` : s.budget}>{text}</div>;
+  return (
+    <div className={budget.ueberbucht ? `${s.budget} ${s.budgetUeberbucht}` : s.budget}>
+      {`${fmtStunden(budget.verplantMinuten)} / ${fmtStunden(budget.sollMinuten)} Std.`}
+      {budget.ueberbucht ? <span className={s.budgetHinweis}>{" — überbucht"}</span> : null}
+    </div>
+  );
 }
 
 /**
