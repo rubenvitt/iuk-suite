@@ -4,6 +4,7 @@ import { defineConfig } from "@playwright/test";
 // nur den Serverprozess. Zwei Literale liefen auseinander, ohne dass ein Lauf
 // rot wuerde — er waere rennabhaengig gruen (Spec §6.8, Plan-Festlegung H).
 import { AV_MODUS_DATEI } from "./e2e/helpers/avModus";
+import { AUFGABEN_ENV } from "./e2e/helpers/aufgaben";
 import { LAGERBUCH_ENV } from "./e2e/helpers/lagerbuch";
 
 export default defineConfig({
@@ -224,6 +225,31 @@ export default defineConfig({
         AUFGABEN_AV_HOST: "127.0.0.1",
         AUFGABEN_AV_PORT: "3310",
         AUFGABEN_AV_TIMEOUT_MS: "2000",
+        /*
+         * DIE ZWEI GRUPPENNAMEN AUS EINER QUELLE (Quellenwechsel 2026-08-15) —
+         * dieselbe Bauform wie `...LAGERBUCH_ENV` weiter unten, aus demselben
+         * Grund: `e2e/aufgaben.spec.ts`s `devLogin(…, { groups })` liest
+         * DIESELBEN Konstanten wie diese beiden Zeilen.
+         *
+         * ⚠️ SIE STEHEN HIER, WEIL SIE SONST GAR NICHT GESETZT WAEREN — UND
+         * GENAU DAS WAR DIE LUECKE: ohne Eintrag griffe der Registry-Vorgabewert,
+         * es sei denn, `.env.local` setzt etwas anderes. `next dev` laeuft im
+         * Repo-Wurzelverzeichnis und liest `.env.local` mit; wer dort die
+         * produktiven Pocket-ID-Namen (`aufgaben_nutzer`/`aufgaben_koordination`)
+         * eintraegt — wovon `.env.example` inzwischen zwar abraet, was aber in
+         * jeder gitignorierten Arbeitskopie anders aussehen kann —, verschoebe
+         * damit still die Gruppen des E2E-Servers. Der Lauf waere danach nicht
+         * rot, sondern GEGENTEILIG
+         * gruen: die Koordinationsfaelle bezeugten die 404-Riegel, die die
+         * Gegenproben ohnehin behaupten. Ein gesetzter Wert in `webServer.env`
+         * hat Vorrang vor jeder `.env`-Datei (Next ueberschreibt nie, was schon
+         * in `process.env` steht).
+         *
+         * ⚠️ `SUITE_ACCESS_GROUP_AUFGABEN` DARF hier stehen, anders als sein
+         * lagerbuch-Gegenstueck: dessen Boot-Riegel haengt an
+         * `requiresAuth: false`, `aufgaben` traegt `true`.
+         */
+        ...AUFGABEN_ENV,
         /*
          * Die neun Lagerbuch-Zeilen kommen aus EINER Quelle (Festlegung H9,
          * Spec §12.6 Punkt 2): `devLogin(…, { groups })` in jedem

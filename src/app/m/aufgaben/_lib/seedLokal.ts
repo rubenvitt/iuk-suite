@@ -1,4 +1,6 @@
 import { and, eq } from "drizzle-orm";
+import { adminGroupsFor } from "@/core/groups";
+import { getModule, requiredGroupsFor } from "@/core/registry";
 import { schreibeVerlauf } from "../_db/queries";
 import type { DB } from "../_db/client";
 import {
@@ -21,11 +23,32 @@ import { isoTag, montagDerWoche, tagePlus, wochenTage } from "./datum";
  * GENERALPROBEN-Schalter — ein Boot-Seed wäre damit nicht lokal-only. Diese
  * Datei läuft ausschließlich über `scripts/seed-lokal.ts`.
  *
+ * DER SEED IST DER WEG ZU EINEM *GEFÜLLTEN* MODUL, NICHT DIE VORAUSSETZUNG FÜR
+ * DEN ERSTZUGANG (Quellenwechsel 2026-08-15, Abnahmekriterium „der leere
+ * Start"). Bis dahin stimmte beides zusammen: die einzige Stelle, die je eine
+ * `koordination`-Zeile schrieb, war diese Datei — ohne Seed durfte niemand die
+ * erste Person anlegen. Seit die Koordinationsrolle aus der Auth-Gruppe kommt
+ * und `akteurFuerSeite` (`_lib/zugang.ts`) ihre Personenzeile beim ersten
+ * Aufruf selbst anlegt, gilt das nicht mehr: gegen eine LEERE `aufgaben.db`
+ * reicht eine Anmeldung mit Zugangs- UND Koordinationsgruppe, und der volle
+ * Rundlauf (Person anlegen, Aufgabe einstellen, verteilen, freigeben) ist ohne
+ * eine einzige Seed-Zeile begehbar (`e2e/aufgaben.spec.ts`, die beiden
+ * „leerer Start"-Fälle am Dateiende). Dieser Seed spart die Handarbeit für eine
+ * Testfahrt — er entscheidet nichts mehr.
+ *
  * DIE ANMELDEADRESSE IST DER LOKALE ROLLENWECHSEL (Spec §13): es gibt bewusst
  * keinen Demo-Rollenwechsler im Modul selbst — man meldet sich am Dev-Login mit
  * einer anderen E-Mail an, und `sub` (`dev:<email>`, `core/auth/config.ts`)
  * macht daraus eine andere Person. Das Protokoll nennt deshalb für jede Person
  * die Adresse.
+ *
+ * FÜR DIE KOORDINATION REICHT DIE ADRESSE SEIT DEM 2026-08-15 NICHT MEHR: ihre
+ * Rolle steht nicht in `personen.rolle`, sondern in der Auth-Gruppe. Das
+ * Protokoll nennt am Ende deshalb die BEIDEN Gruppennamen, die das Feld
+ * „groups" des Dev-Logins tragen muss — aus `core/registry`/`core/groups`
+ * aufgelöst und nicht als drittes Literal hier abgeschrieben, damit ein per
+ * `SUITE_ACCESS_GROUP_AUFGABEN`/`SUITE_ADMIN_GROUP_AUFGABEN` umbenannter Wert
+ * im Protokoll auch wirklich ankommt.
  *
  * IDEMPOTENT PRO ENTITÄT (nicht ein gemeinsames Gate) und REIN ADDITIV: eine
  * schon vorhandene Person/Aufgabe/Routine wird übersprungen und im Protokoll
@@ -578,5 +601,39 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
     dauerMinuten: 20,
   });
 
+  zeilen.push(...anmeldeHinweis());
   return zeilen;
+}
+
+/**
+ * DIE ZWEI GRUPPENNAMEN FÜRS DEV-LOGIN — die zweite Hälfte des Rollenwechsels
+ * (s. Kopfkommentar). Ohne diese Zeilen nennt das Protokoll für jede Person
+ * ihre Anmeldeadresse und verschweigt ausgerechnet bei Rike, dass die Adresse
+ * allein sie seit dem 2026-08-15 nicht mehr koordinieren lässt — der Befund
+ * wäre „die Verteilung ist weg", nicht „eine Gruppe fehlt".
+ *
+ * DIE NAMEN KOMMEN AUS DEN AUFLÖSERN, NICHT AUS EINEM LITERAL HIER:
+ * `requiredGroupsFor`/`adminGroupsFor` lesen `SUITE_ACCESS_GROUP_AUFGABEN`
+ * bzw. `SUITE_ADMIN_GROUP_AUFGABEN` und fallen sonst auf die Registry-Vorgabe
+ * zurück. Ein drittes abgeschriebenes `iuk-aufgaben-koordination` liefe genau
+ * dann auseinander, wenn eine Instanz die Namen überschreibt — und dann still:
+ * das Protokoll nennt eine Gruppe, die niemanden hineinlässt.
+ *
+ * `dashboard-admins` (die Suite-Admin-Gruppe) steht bewusst NICHT hier, obwohl
+ * sie ebenfalls koordinieren lässt (`isModuleAdmin`, s. `_lib/zugang.ts`): sie
+ * ist der Rückweg bei fehlkonfigurierter Modulgruppe, nicht der vorgesehene
+ * lokale Weg.
+ */
+function anmeldeHinweis(): string[] {
+  const modul = getModule("aufgaben");
+  const zugang = requiredGroupsFor(modul).join(",");
+  const koordination = adminGroupsFor(modul).join(",");
+  return [
+    `aufgaben: Anmelden am Dev-Login — Feld „groups“ (kommagetrennt). Zugang zum Modul: ${zugang}.`,
+    `aufgaben: KOORDINIEREN geht nur MIT der Koordinationsgruppe: ${zugang},${koordination}. ` +
+      `Die Rolle steht seit dem 2026-08-15 in der Gruppe, nicht in personen.rolle — Rike ist ` +
+      `hier „auftrag“ und sieht ohne diese Gruppe „Meine Aufträge“ statt der Verteilung.`,
+    `aufgaben: Dieser Seed ist NICHT die Voraussetzung fuer den Erstzugang — gegen eine leere ` +
+      `Datenbank legt akteurFuerSeite die Koordinationszeile beim ersten Aufruf selbst an.`,
+  ];
 }
