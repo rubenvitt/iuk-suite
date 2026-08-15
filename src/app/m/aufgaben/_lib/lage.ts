@@ -10,6 +10,7 @@ import {
 } from "../_db/queries";
 import {
   KONTEXT_TEXT,
+  aufgabenInWoche,
   heuteOffen,
   istUeberfaellig,
   ohneAktivenTraeger,
@@ -341,7 +342,12 @@ function bufdi(db: DB, akteur: Akteur, heute: string, tage: readonly string[]): 
   const budgets = tage.map((tag) => tagesBudget(meine, routinenDerPerson, akteur.person, tag));
   const verplant = budgets.reduce((summe, b) => summe + b.verplantMinuten, 0);
   const soll = budgets.reduce((summe, b) => summe + b.sollMinuten, 0);
-  const eingeplant = meine.filter((a) => a.planDatum !== null && tage.includes(a.planDatum)).length;
+  // `aufgabenInWoche` STATT EINER VIERTEN INLINE-FASSUNG derselben Mitgliedschaft: genau diese
+  // Zeile stand schon einmal freihaendig in `_ui/EinstiegBufdi.tsx` und wurde deshalb nach
+  // `_lib/anzeige.ts` gehoben (s. Kopfkommentar dort). Eine Kontextzeile, die weniger Aufgaben
+  // zaehlt als die Tagesspalten darunter zeigen, waere sichtbar inkonsistent — und die zwei
+  // Fassungen liefen auseinander, ohne dass ein Test es saehe.
+  const eingeplant = aufgabenInWoche(meine, tage);
   const imPosteingang = meine.filter((a) => wartetAufEinplanung(a)).length;
   const ueberfaellig = meine.filter((a) => istUeberfaellig(a, heute)).length;
   // DIE WOCHE IST GANZ VERGANGEN — der Wochenendfall aus §5.4. `montagDerWoche` ordnet den Sonntag
