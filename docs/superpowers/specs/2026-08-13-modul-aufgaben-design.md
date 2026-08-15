@@ -309,8 +309,9 @@ sechs Häkchen und keine Geschichte.
 `_lib/zugang.ts` hält die Prädikate. **Alle Seiten und alle Server-Actions rufen dieselben** — das
 ist die Bedingung dafür, dass Oberfläche und Riegel nicht auseinanderlaufen.
 
-Die Tabelle ist **vollständig gegen `_lib/zugang.ts` gezogen** (Stand 2026-08-15) — sie führt alle
-sechzehn Exporte, nicht eine Auswahl. Alle Handlungsprädikate tragen `heute` als ISO-Tagesstring und
+Die Tabelle ist **vollständig gegen `_lib/zugang.ts` gezogen** (Stand 2026-08-15) — sie führt **alle**
+Exporte dieser Datei, nicht eine Auswahl (bewusst ohne Anzahl: eine gepflegte Zahl an dieser Stelle
+liefe beim nächsten Prädikat wieder auseinander). Alle Handlungsprädikate tragen `heute` als ISO-Tagesstring und
 prüfen `istAktiv` **jedes für sich**; die Sichtprädikate tragen es nicht und prüfen es nicht (eine
 ausgeschiedene Person liest ihre Geschichte weiter, s. u.).
 
