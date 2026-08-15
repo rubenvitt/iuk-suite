@@ -64,12 +64,11 @@ export function FreigabeAktionen({ aufgabe }: { aufgabe: FreigabeZeile["aufgabe"
       <div className={s.knopfzeile}>
         <form action={freigebenAction}>
           <input type="hidden" name="aufgabeId" value={aufgabe.id} />
-          <Button type="primary" size="small" htmlType="submit" data-testid={`freigeben-${aufgabe.id}`}>
+          <Button type="primary" htmlType="submit" data-testid={`freigeben-${aufgabe.id}`}>
             Freigeben
           </Button>
         </form>
         <Button
-          size="small"
           onClick={() => setZurueckweisenOffen(true)}
           data-testid={`zurueckweisen-${aufgabe.id}`}
         >

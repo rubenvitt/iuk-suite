@@ -81,12 +81,12 @@ export function RoutinenTabelle({ routinen }: { routinen: RoutineRow[] }) {
           key: "aktionen",
           render: (_: unknown, routine: RoutineRow) => (
             <div className={s.knopfzeile}>
-              <Button size="small" href={`/routinen?bearbeiten=${encodeURIComponent(routine.id)}`}>
+              <Button href={`/routinen?bearbeiten=${encodeURIComponent(routine.id)}`}>
                 Ändern
               </Button>
               <form action={routineRuhenAction}>
                 <input type="hidden" name="routineId" value={routine.id} />
-                <Button size="small" htmlType="submit">
+                <Button htmlType="submit">
                   {routine.aktiv ? "Ruhen lassen" : "Wieder aktivieren"}
                 </Button>
               </form>

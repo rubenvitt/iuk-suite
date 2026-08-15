@@ -128,7 +128,6 @@ export function VerteilenTabelle({
             render: (_: unknown, a: AufgabeRow) =>
               darfVerteilen ? (
                 <Button
-                  size="small"
                   onClick={() => setGewaehlteId(a.id)}
                   data-testid={`verteilen-${a.id}`}
                 >

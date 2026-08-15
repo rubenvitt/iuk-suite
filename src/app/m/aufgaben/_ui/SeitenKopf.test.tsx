@@ -131,9 +131,36 @@ function scanneDatei(datei: string, quelle: string): Befund[] {
     befunde.push({ datei, regel: `@ant-design/icons (${antdIcons.join(", ")})` });
   }
 
-  // 3. Kein `size="large"`.
-  if (/\bsize\s*=\s*(?:["']large["']|\{\s*["']large["']\s*\})/.test(roh)) {
-    befunde.push({ datei, regel: 'size="large"' });
+  // 3. Kein `size="large"` UND kein `size="small"`.
+  //
+  // BIS 2026-08-13 STAND HIER NUR `large`, und eine Gegenprobe daneben hielt
+  // `size="small"` AUSDRUECKLICH FUER ERLAUBT. Das war richtig, solange
+  // `controlHeight` 56 war: eine 56px-Zeilenaktion sprengte eine Tabellenzeile,
+  // und die Ausnahme kaufte das ab. `main` hat mit `ARBEITSDICHTE`
+  // (`core/theme/theme.ts`, `controlHeight: 44`) auf `FullShell`-Seiten — und
+  // `aufgaben` steht im Registry auf `shell: "full"` — den GRUND der Ausnahme
+  // entfernt; `docs/design/README.md`, Falle 4, hat sie daraufhin gestrichen.
+  // Was bliebe, waere nur der Schaden: `size="small"` ergibt an einer
+  // ikonischen Zeilenaktion 24px und unterbietet die Mindesttapflaeche
+  // (WCAG 2.5.5). Der Scan hat die Ausnahme damit nicht nur nicht mehr noetig,
+  // er MUSS sie melden — ein gruener Riegel, der genau das durchlaesst, was die
+  // Querschnittsregel verbietet, ist kein Riegel.
+  //
+  // `middle` STEHT BEWUSST NICHT IN DER LISTE: es ist der Vorgabewert selbst,
+  // also folgenlos, und ein Verbot darauf waere strenger als die Regel, die es
+  // durchsetzen soll — solche Riegel werden abgeschaltet statt befolgt (Plan).
+  // Verboten sind die beiden Werte, die die Groesse tatsaechlich VERSTELLEN.
+  //
+  // DER GEMELDETE WERT STEHT IM `regel`-TEXT VORNE (`size="large"` /
+  // `size="small"`), weil die Gegenproben unten ueber `startsWith` pruefen —
+  // was stattdessen gilt, haengt hinten dran und bleibt damit lesbar, ohne den
+  // Praefix zu zerstoeren.
+  const groesse = roh.match(/\bsize\s*=\s*(?:["'](large|small)["']|\{\s*["'](large|small)["']\s*\})/);
+  if (groesse) {
+    befunde.push({
+      datei,
+      regel: `size="${groesse[1] ?? groesse[2]}" (kein \`size\` setzen — der Vorgabewert ist auf FullShell-Seiten 44px)`,
+    });
   }
 
   // 4. Kein `Grid.useBreakpoint` — jedes Vorkommen des Worts, unabhaengig von
@@ -155,7 +182,7 @@ describe("Die vier modulweiten Quelltext-Verbote", () => {
     expect(dateien.length).toBeGreaterThan(5);
   });
 
-  it("kein `Typography`, kein `@ant-design/icons`, kein size=\"large\", kein Grid.useBreakpoint", () => {
+  it("kein `Typography`, kein `@ant-design/icons`, kein size=\"large\"/\"small\", kein Grid.useBreakpoint", () => {
     const befunde = dateien.flatMap((datei) => scanneDatei(datei, readFileSync(datei, "utf8")));
     expect(befunde.map((b) => `${b.datei} -> ${b.regel}`)).toEqual([]);
   });
@@ -168,9 +195,10 @@ describe("Die vier modulweiten Quelltext-Verbote", () => {
    * Die drei anderen Verbote sind auf dasselbe Muster (schliessende
    * Wortgrenze frisst einen laengeren antd-Exportnamen) durchgesehen, nicht
    * nur unerwaehnt gelassen:
-   *   - `size="large"`: der Wert liegt zwischen Anfuehrungszeichen — das
-   *     schliessende Zeichen ist bereits kein Wortzeichen, eine explizite
-   *     `\b` waere dort ueberfluessig, keine Luecke.
+   *   - `size="large"`/`size="small"`: der Wert liegt zwischen
+   *     Anfuehrungszeichen — das schliessende Zeichen ist bereits kein
+   *     Wortzeichen, eine explizite `\b` waere dort ueberfluessig, keine
+   *     Luecke.
    *   - `Grid.useBreakpoint` (`/\buseBreakpoint\b/`): `antd`s
    *     `grid/index.d.ts` exportiert genau `useBreakpoint`, keinen laengeren
    *     Namen, der damit beginnt (nachgesehen im installierten Paket) — die
@@ -194,7 +222,15 @@ describe("Die vier modulweiten Quelltext-Verbote", () => {
     { name: "Grid.useBreakpoint", quelle: "const bp = Grid.useBreakpoint();", regel: "Grid.useBreakpoint" },
     { name: "benannter Import useBreakpoint", quelle: 'import { useBreakpoint } from "antd/es/grid";', regel: "Grid.useBreakpoint" },
     { name: "kommentierter Scheinimport bleibt gruen", quelle: '// import { X } from "@ant-design/icons";', regel: "" },
-    { name: "size=\"small\" bleibt erlaubt", quelle: '<Button size="small" />;', regel: "" },
+    // UMGEDREHT (vorher: „size=\"small\" bleibt erlaubt", `regel: ""`): siehe die
+    // Begruendung an Regel 3 oben. Beide Schreibweisen, wie bei `large` — der
+    // Ausdrucksform-Fall ist keine Attrappe, JSX erlaubt sie tatsaechlich.
+    { name: "size literal small", quelle: '<Button size="small" />;', regel: 'size="small"' },
+    { name: "size expression small", quelle: '<Button size={"small"} />;', regel: 'size="small"' },
+    // DIE GEGENPROBE ZUR GEGENPROBE: `middle` ist der Vorgabewert und steht
+    // bewusst NICHT auf der Verbotsliste — ohne diesen Fall waere „wir verbieten
+    // genau zwei Werte" eine Behauptung, kein Befund.
+    { name: 'size="middle" bleibt erlaubt', quelle: '<Button size="middle" />;', regel: "" },
   ];
 
   for (const fall of faelle) {

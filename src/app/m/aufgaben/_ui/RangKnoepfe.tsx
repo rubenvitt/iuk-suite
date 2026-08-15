@@ -22,17 +22,25 @@ import s from "./aufgaben.module.css";
  * `outline-offset` deckt `aufgaben.module.css` bereits fuer `button` pauschal ab (Kommentar dort),
  * diese Datei muss dafuer nichts Eigenes bauen.
  *
- * `size="small"` STEHT HIER BEWUSST NICHT: `RangKnoepfe` sitzt in der Tagesliste
- * (`Wochenplan.tsx`, eine `<ul>`), nicht in einer antd-`Table`-Zeile wie `RoutinenTabelle.tsx`. Der
- * Vorgabewert ist bereits das richtige Mass (`docs/design/README.md`, Falle 4).
+ * HIER STEHT KEIN `size` — UND DIE BEGRUENDUNG DAFUER IST HEUTE EINE ANDERE ALS BEIM SCHREIBEN
+ * DIESER DATEI. Sie steht trotzdem noch da, weil sonst die naechste Aufraeumrunde hier „size=\"small\"
+ * wie in den Tabellen" nachtraegt.
  *
- * ⚠️ DER VORGABEWERT IST SEIT DEM SHELL-UMBAU 44, NICHT 56. `aufgaben` steht im Registry auf
- * `shell: "full"`, und `FullShell` legt `ARBEITSDICHTE` (`core/theme/theme.ts`, `controlHeight: 44`)
- * ueber den Inhalt; 56/72 gilt nur noch fuer `MinimalShell` und fuer Ansichten ganz ohne Shell. An
- * DIESER Datei aendert das nichts — kein `size` ist weiterhin richtig. Wohl aber an der alten
- * Ausnahme, auf die der erste Absatz sich berief: „`size=\"small\"` in Tabellenzeilen" ist mit den
- * 56px gefallen (`docs/design/README.md`, Falle 4), und die sieben Stellen im Modul, die sie noch
- * nutzen, sind offen — siehe Befund A2 in `rebase-report.md`.
+ * Urspruenglich: `RangKnoepfe` sitzt in der Tagesliste (`Wochenplan.tsx`, eine `<ul>`), nicht in
+ * einer antd-`Table`-Zeile wie `RoutinenTabelle.tsx` — die damalige Ausnahme „`size=\"small\"` in
+ * Tabellenzeilen" galt also gar nicht fuer diese Stelle.
+ *
+ * Seit dem Shell-Umbau traegt das nicht mehr, ist aber auch nicht mehr noetig: `aufgaben` steht im
+ * Registry auf `shell: "full"`, und `FullShell` legt `ARBEITSDICHTE` (`core/theme/theme.ts`,
+ * `controlHeight: 44`) ueber den Inhalt — 56/72 gilt nur noch fuer `MinimalShell` und fuer Ansichten
+ * ganz ohne Shell. Mit den 56px ist auch ihr Grund gefallen, und `docs/design/README.md`, Falle 4,
+ * hat die Ausnahme gestrichen: **`size` gehoert auf gar kein Bedienelement des Moduls**, in einer
+ * Tabellenzeile so wenig wie hier. Die sieben Stellen, die sie noch nutzten, sind entfernt; der
+ * Quelltextscan in `SeitenKopf.test.tsx` MELDET `size=\"small\"` jetzt, statt es zu erlauben.
+ *
+ * Fuer diese Datei aendert das im Ergebnis nichts — kein `size` war und bleibt richtig. Was sich
+ * geaendert hat, ist die Zahl dahinter: 44px statt 56px, und das ist WCAG 2.5.5 (AAA), nicht der
+ * kleinstmoegliche Wert.
  *
  * DIE KNOEPFE TRAGEN TEXT **UND** EIN `aria-label` (Brief verlangt nur eines von beiden): der
  * sichtbare Text „Auf"/„Ab" traegt die Bedeutung fuer sehende Personen, das Icon daneben ist

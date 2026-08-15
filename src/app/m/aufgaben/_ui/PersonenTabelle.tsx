@@ -97,10 +97,7 @@ function ZeilenAktionen({ zeile }: { zeile: PersonenZeile }) {
 
   return (
     <div className={s.knopfzeile}>
-      <Button
-        size="small"
-        href={`/personen?bearbeiten=${encodeURIComponent(zeile.person.id)}`}
-      >
+      <Button href={`/personen?bearbeiten=${encodeURIComponent(zeile.person.id)}`}>
         Ändern
       </Button>
       {zeile.istAktivHeute ? (
@@ -114,7 +111,7 @@ function ZeilenAktionen({ zeile }: { zeile: PersonenZeile }) {
             cancelText="Abbrechen"
             onConfirm={() => formular.current?.requestSubmit()}
           >
-            <Button size="small" danger>
+            <Button danger>
               Beenden
             </Button>
           </Popconfirm>

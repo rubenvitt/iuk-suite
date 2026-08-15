@@ -575,8 +575,13 @@ eine Familie direkt genannt — `core/theme/schriftstapel.test.ts` prüft Deklar
 aber **eine unaufgelöste CSS-Variable meldet sich nie**. Stundenzahlen und Budgets bekommen
 `font-variant-numeric: tabular-nums`.
 
-Bedienelemente setzen **kein `size`** — `controlHeight: 56` ist bereits das richtige Touchmaß,
-`size="large"` wäre 72px. Ausnahme: `size="small"` innerhalb von Tabellenzeilen.
+Bedienelemente setzen **kein `size`**, ohne Ausnahme. `aufgaben` steht im Registry auf
+`shell: "full"`, und `FullShell` legt `ARBEITSDICHTE` (`core/theme/theme.ts`, `controlHeight: 44`)
+über den Inhalt — 44px ist WCAG 2.5.5 (AAA) und bereits das richtige Touchmaß; `size="large"` wäre
+72px, `size="small"` 24px und damit unter der Mindesttapfläche. **Die frühere Ausnahme
+(„`size="small"` innerhalb von Tabellenzeilen") ist gefallen**: ihr Grund waren die 56px, und eine
+44px-Zeilenaktion sprengt keine Zeile mehr (`docs/design/README.md`, Falle 4). Wo eine Zeile mit
+44px-Aktionen zu voll wird, ist das ein Entwurfsproblem der Zeile.
 
 Spaltenköpfe einer antd-`Table` bekommen ihre Typo-Rolle über `columns[].title`, nie über eine
 CSS-Regel gegen `.ant-table-thead th` — das kostete sonst eine Spezifitätserhöhung *und* eine
