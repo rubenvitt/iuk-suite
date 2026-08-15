@@ -149,7 +149,22 @@ export function PersonenFormular({
           </label>
           {sucheAktiv ? (
             <Verzeichnisfeld
-              key={`suche-${absendeZaehler}`}
+              /*
+               * ZWEI TEILE, UND BEIDE WERDEN GEBRAUCHT (Vorbild `feedback/_ui/Zuordnung.tsx`).
+               * Das Suchfeld ist KONTROLLIERT (nur so kann eine Auswahl den `sub` setzen), und
+               * kontrollierte Felder setzt React nach einer Action nicht zurueck — also ein
+               * Remount ueber den `key`, und der muss BEIDE Wechsel sehen:
+               *
+               *   - Der ZAEHLER faengt den Erfolgsfall: `FORM_START` und ein erfolgreiches
+               *     Ergebnis sind beide `{ ok: true }` und liefern beide `""`. Ein `key` allein
+               *     aus dem Serverwert aenderte sich nicht, und die eben angelegte Kennung bliebe
+               *     im Feld stehen.
+               *   - Der SERVERWERT faengt den Feldfehlerfall: er trifft ERST ein, wenn die Action
+               *     zurueck ist, also NACH dem Zaehler. Ohne ihn im `key` bliebe das Feld auf dem
+               *     leeren Stand des Absendens stehen, und die getippte Kennung waere weg — genau
+               *     die Eingabe, die der Feldfehler zurueckbringen soll.
+               */
+              key={`${absendeZaehler}:${feldWert(state, "sub", "")}`}
               startWert={feldWert(state, "sub", "")}
               fehler={subFehler}
               sucheVerzoegerungMs={sucheVerzoegerungMs}

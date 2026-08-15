@@ -9,6 +9,7 @@ import {
   mount,
   query,
   queryAll,
+  rerender,
   submitForm,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
@@ -350,6 +351,35 @@ describe("PersonenFormular — Anlegen MIT Verzeichnis: Suche statt blindem Text
     await tippe("dev:trotzdem@localtest.me");
 
     expect(query<HTMLInputElement>("input[name='sub']").value).toBe("dev:trotzdem@localtest.me");
+  });
+
+  /**
+   * DER FELDFEHLER BRINGT DIE GETIPPTE KENNUNG ZURUECK — auch im Suchzweig.
+   *
+   * Im Rueckfallzweig erledigt das `defaultValue` von selbst; das Suchfeld ist KONTROLLIERT und
+   * wird ueber seinen `key` neu aufgesetzt. Bestuende der `key` nur aus dem Absendezaehler,
+   * bliebe das Feld auf dem leeren Stand des Absendens stehen: die Koordination bekaeme
+   * „Diese Kennung ist bereits vergeben." zu einem Feld, das nichts mehr enthaelt.
+   */
+  it("nach einem Feldfehler steht die gesendete Kennung wieder im Suchfeld", async () => {
+    await mitVerzeichnis();
+    await tippe("dev:doppelt@localtest.me");
+    await submitForm();
+
+    // Der Server antwortet mit einem Feldfehler und traegt die Eingabe zurueck (`values`).
+    stelleZustandEin({
+      ok: false,
+      fieldErrors: { sub: "Diese Kennung ist bereits vergeben." },
+      values: {
+        sub: "dev:doppelt@localtest.me", name: "Neu", initialen: "NE", rolle: "bufdi",
+        sollMinutenTag: "300", aktivVon: "2026-08-14", aktivBis: "",
+      },
+    });
+    await rerender(<PersonenFormular verzeichnisAktiv sucheVerzoegerungMs={0} />);
+
+    expect(query<HTMLInputElement>("#pf-sub").value).toBe("dev:doppelt@localtest.me");
+    expect(query<HTMLInputElement>("input[name='sub']").value).toBe("dev:doppelt@localtest.me");
+    expect(query("#pf-sub-err").textContent).toBe("Diese Kennung ist bereits vergeben.");
   });
 
   it("beim Aendern gibt es kein Suchfeld — der sub bleibt unveraenderlich", async () => {
