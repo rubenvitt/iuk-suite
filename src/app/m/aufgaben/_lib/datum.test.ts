@@ -5,10 +5,12 @@ import {
   fmtUhrzeit,
   fmtZeitpunkt,
   isoTag,
+  kalenderwoche,
   minutenVon,
   montagAusParam,
   montagDerWoche,
   tagePlus,
+  tageZwischen,
   wochenTage,
   wochentagVon,
 } from "./datum";
@@ -290,5 +292,74 @@ describe("ausgewaehlterTag", () => {
 
   it("ein Parameter, der ein Wochenende der angezeigten Woche waere, zaehlt nicht — Mo-Fr sind die einzigen fuenf", () => {
     expect(ausgewaehlterTag(TAGE, "2026-08-01", "2026-08-15")).toBe("2026-08-10");
+  });
+});
+
+/*
+ * DIE ZWEI NEUEN KALENDERFUNKTIONEN (Oberflaechen-Spec 2026-08-16, Schritt 1) — beide stehen HIER
+ * und nicht in `_lib/anzeige.ts`, weil sie Kalenderarithmetik sind und keine Beschriftung: dieselbe
+ * Trennung, die `tagePlus`/`wochentagVon` von `istUeberfaellig` trennt.
+ */
+describe("tageZwischen", () => {
+  /*
+   * DIE BEIDEN ZAHLEN AUS DER SPEC SELBST, nicht runde Eigenerfindungen: §5.4 rechnet Fr 14.08. bis
+   * So 23.08. als NEUN Tage vor, §5.2 dieselbe Frist bis Mo 17.08. als DREI. Wer hier einen
+   * Off-by-one baut, faellt genau an diesen beiden Stellen auf — und nur dort, weil jede andere
+   * Pruefung eine selbstgewaehlte Zahl gegen sich selbst haelt.
+   */
+  it("Fr 14.08. bis So 23.08. sind 9 Tage (Spec §5.4)", () => {
+    expect(tageZwischen("2026-08-14", "2026-08-23")).toBe(9);
+  });
+
+  it("Fr 14.08. bis Mo 17.08. sind 3 Tage (Spec §5.2)", () => {
+    expect(tageZwischen("2026-08-14", "2026-08-17")).toBe(3);
+  });
+
+  it("derselbe Tag ergibt 0", () => {
+    expect(tageZwischen("2026-08-17", "2026-08-17")).toBe(0);
+  });
+
+  it("ein einzelner Tag ergibt 1 — die Singulargrenze von `FRIST_TEXT`", () => {
+    expect(tageZwischen("2026-08-16", "2026-08-17")).toBe(1);
+  });
+
+  it("rueckwaerts ist negativ, nicht der Betrag", () => {
+    expect(tageZwischen("2026-08-17", "2026-08-14")).toBe(-3);
+  });
+
+  /*
+   * DIE SOMMERZEITGRENZE — der Grund, aus dem diese Funktion den 12:00-UTC-Anker benutzt statt
+   * `Date.parse` auf Mitternacht: in der Nacht zum 25.10.2026 hat der Tag in Ortszeit 25 Stunden.
+   * Eine Rechnung auf dem rohen Instant ergaebe hier 30,04 Tage und damit nach `Math.floor` 30.
+   */
+  it("rechnet ueber die Sommerzeitumstellung hinweg in ganzen Tagen", () => {
+    expect(tageZwischen("2026-10-01", "2026-11-01")).toBe(31);
+  });
+});
+
+describe("kalenderwoche", () => {
+  it("Mo 17.08.2026 liegt in KW 34 (Spec §5.1)", () => {
+    expect(kalenderwoche("2026-08-17")).toBe(34);
+  });
+
+  /*
+   * DER SONNTAG GEHOERT ZUR WOCHE DAVOR (ISO 8601) — dieselbe Zuordnung, die `montagDerWoche` ueber
+   * den `-6`-Zweig trifft. Ohne diese Zeile waere ein naives `getUTCDay()`-Verfahren am Sonntag um
+   * eine Woche daneben, und §5.4s Kontextzeile („KW 34 (abgeschlossen)") stimmte nicht.
+   */
+  it("So 23.08.2026 liegt ebenfalls in KW 34", () => {
+    expect(kalenderwoche("2026-08-23")).toBe(34);
+  });
+
+  it("Do 01.01.2026 liegt in KW 1 — der Donnerstag entscheidet ueber das Jahr", () => {
+    expect(kalenderwoche("2026-01-01")).toBe(1);
+  });
+
+  it("Mo 29.12.2025 gehoert bereits zu KW 1 des Jahres 2026", () => {
+    expect(kalenderwoche("2025-12-29")).toBe(1);
+  });
+
+  it("Fr 01.01.2027 gehoert noch zu KW 53 des Jahres 2026", () => {
+    expect(kalenderwoche("2027-01-01")).toBe(53);
   });
 });
