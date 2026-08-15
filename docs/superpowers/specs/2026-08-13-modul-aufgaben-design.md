@@ -5,14 +5,14 @@
 ## 1. Das Problem, in den Worten des Auftraggebers
 
 Der Ortsverein hat ab dem kommenden Dienstjahr **drei** BuFDis statt einer. Damit wird die
-Aufgabenverteilung unübersichtlich, und zwei Beteiligte (Jönne, Schulle) verteilen faktisch mit,
-ohne die Gesamtlage zu kennen — Aufgaben werden doppelt vergeben, andere fallen durch. Sarah
+Aufgabenverteilung unübersichtlich, und zwei Beteiligte (Tomke, Malte) verteilen faktisch mit,
+ohne die Gesamtlage zu kennen — Aufgaben werden doppelt vergeben, andere fallen durch. Rike
 koordiniert, hat aber keinen Ort, an dem die eingehenden Aufträge zusammenlaufen.
 
 Vier Anforderungen, die daraus folgen:
 
-1. Auftraggeber (Schulle, Jönne, Sarah) stellen Aufgaben **mit Erklärung und Priorität** ein.
-2. Sarah verteilt sie auf die drei BuFDis und bringt sie in deren Zeitplan.
+1. Auftraggeber (Malte, Tomke, Rike) stellen Aufgaben **mit Erklärung und Priorität** ein.
+2. Rike verteilt sie auf die drei BuFDis und bringt sie in deren Zeitplan.
 3. BuFDis gestalten ihren Zeitplan **vorab selbst**, um sich Zeit für Routinearbeiten freizuhalten.
 4. Fremd gestellte Aufgaben können mit einer Flagge versehen werden, die den BuFDi zur
    **Dokumentation** der fertigen Arbeit zwingt, und ihre Erledigung muss vom Vorgesetzten
@@ -30,11 +30,11 @@ Fünf Fragen waren fachlich offen; alle fünf sind entschieden.
 
 | Frage | Entscheidung | Begründung |
 |---|---|---|
-| Wer legt den Zeitpunkt fest? | Sarah **schlägt vor**, der BuFDi bestätigt oder plant anders | Anforderung 3 gibt dem BuFDi die Gestaltungshoheit; Sarah braucht trotzdem einen Weg, Dringlichkeit auszudrücken |
+| Wer legt den Zeitpunkt fest? | Rike **schlägt vor**, der BuFDi bestätigt oder plant anders | Anforderung 3 gibt dem BuFDi die Gestaltungshoheit; Rike braucht trotzdem einen Weg, Dringlichkeit auszudrücken |
 | Bauform des Zeitplans | **Tagesspalten** mit Reihenfolge, Dauer und Tagesbudget; einzelne Einträge dürfen eine **feste Uhrzeit** tragen | Robust gegen die Realität, mobil ohne zweiten Bildschirm; feste Uhrzeiten bleiben möglich, wo sie real sind (Routinen, Termine) |
-| Freigabebefugnis | Der **Ersteller**, plus **Sarah als Vertretung** | Zurechnung bleibt beim Auftraggeber, aber nichts bleibt liegen, wenn er zwei Wochen im Urlaub ist |
+| Freigabebefugnis | Der **Ersteller**, plus **Rike als Vertretung** | Zurechnung bleibt beim Auftraggeber, aber nichts bleibt liegen, wenn er zwei Wochen im Urlaub ist |
 | Nachweisformen v1 | **Text und Bild**. Video vertagt | Der große Sprung ist „überhaupt Dateien annehmen"; Video ist danach vor allem eine Speicher- und Backup-Frage, also eine Betriebsentscheidung |
-| Sichtbarkeit | BuFDis sehen die Zeitpläne der anderen **lesend**; Nachweise nur Verfasser, Sarah und der jeweilige Auftraggeber | Vertretungsabsprachen ohne Sarah als Nadelöhr, aber Leistungsnachweise sind kein Aushang |
+| Sichtbarkeit | BuFDis sehen die Zeitpläne der anderen **lesend**; Nachweise nur Verfasser, Rike und der jeweilige Auftraggeber | Vertretungsabsprachen ohne Rike als Nadelöhr, aber Leistungsnachweise sind kein Aushang |
 
 Dazu drei Entscheidungen zum Bauweg:
 
@@ -104,14 +104,14 @@ prüft die Map gegen die Registry und wird die fehlende Zeile melden.
 
 ## 4. Rollen — aus der Datenbank, nicht aus dem JWT
 
-Drei Rollen: `koordination` (Sarah), `auftrag` (Schulle, Jönne), `bufdi` (die drei BuFDis).
+Drei Rollen: `koordination` (Rike), `auftrag` (Malte, Tomke), `bufdi` (die drei BuFDis).
 
 Die Pocket-ID-Gruppe `iuk-aufgaben-nutzer` gatet **nur den Zugang zum Modul überhaupt**. Welche
 Rolle eine Person hat, steht in der Modultabelle `person` und wird bei jedem Zugriff serverseitig
 aus der Datenbank aufgelöst. Zwei Gründe, und beide sind zwingend:
 
 1. **BuFDis rotieren jährlich.** Eine Rolle in Pocket-ID-Gruppen muss dort jeden Sommer gepflegt
-   werden, von jemandem mit Pocket-ID-Zugang. Die Personenverwaltung im Modul kann Sarah selbst
+   werden, von jemandem mit Pocket-ID-Zugang. Die Personenverwaltung im Modul kann Rike selbst
    bedienen.
 2. **An der Rolle hängt die Freigabebefugnis.** Gruppen im JWT sind nur so frisch wie der letzte
    Token-Refresh — heute bis zu eine Stunde alt (Access-Token-Lebensdauer von Pocket ID). Für eine
@@ -165,7 +165,7 @@ in **einem** Modul ohne `"use client"` — sie wird von Server Components gelese
 
 ### 5.1 Der abgeleitete Zustand: „Zeitvorschlag offen"
 
-Sarah kann beim Verteilen Tag und optional Uhrzeit **vorschlagen**. Das sind zwei Felder auf der
+Rike kann beim Verteilen Tag und optional Uhrzeit **vorschlagen**. Das sind zwei Felder auf der
 Aufgabe (`vorschlag_datum`, `vorschlag_uhrzeit`), kein eigener Status. Die Anzeige leitet ab:
 
 ```
@@ -300,7 +300,7 @@ Index: `(aufgabe_id, ts)`.
 
 **Der Verlauf ist eine Tabelle, kein Textfeld auf der Aufgabe.** Jeder Übergang schreibt eine Zeile
 mit Akteur, Zeitstempel und Ereignis; eine Vertretungsfreigabe schreibt sie als solche
-(„Freigegeben von Sarah in Vertretung für Schulle"). Das ist die Leistungsdokumentation, die der
+(„Freigegeben von Rike in Vertretung für Malte"). Das ist die Leistungsdokumentation, die der
 gesamte Freigabemechanismus eigentlich herstellen soll — ohne sie hat man am Ende des Dienstjahres
 sechs Häkchen und keine Geschichte.
 
@@ -433,7 +433,7 @@ dahinter ein. Routineblöcke sind sichtbar als solche markiert und tragen keine 
 
 Fuß: „Routinen verwalten" und die Zeitpläne der beiden anderen BuFDis.
 
-### 8.2 Koordination (Sarah) — „Verteilung"
+### 8.2 Koordination (Rike) — „Verteilung"
 
 KPI-Zeile: *Zu verteilen · Freigabe offen · Überfällig · Zurückgewiesen*.
 
@@ -452,7 +452,7 @@ Darunter die **Freigabe-Warteschlange**, sichtbar getrennt in „meine" und „i
 
 Fuß: Personenverwaltung, Archiv, Überfälligkeitsliste.
 
-### 8.3 Auftraggeber (Schulle, Jönne) — „Meine Aufträge"
+### 8.3 Auftraggeber (Malte, Tomke) — „Meine Aufträge"
 
 Oben der Knopf, der der Grund für das ganze Modul ist: **„Aufgabe einstellen"**. Das Formular
 verlangt Titel, Erklärung, Priorität, Frist und Dauerschätzung; Nachweispflicht ist ein Schalter
@@ -460,7 +460,7 @@ mit Formwahl.
 
 Darunter die eigenen Aufträge mit Zustand und Empfänger, und die eigene Freigabe-Warteschlange.
 
-**Diese Ansicht enthält keine Verteil-Aktion.** Das ist die Antwort auf „Jönne und Schulle pfuschen
+**Diese Ansicht enthält keine Verteil-Aktion.** Das ist die Antwort auf „Tomke und Malte pfuschen
 immer wieder rein": der Weg zum Verteilen existiert in ihrer Oberfläche nicht, und `/verteilen`
 antwortet ihnen mit 404. Beides prüft dasselbe Prädikat aus derselben Quelle.
 
@@ -656,9 +656,9 @@ umschalten, und dass sie es auf dem Desktop *nicht* tun.
 - einen Abruf **jeder** neuen Route auf HTTP 200
 - die Umschaltung bei 390×844, 1280×720 **und 820px**. Die Mitte ist kein Luxus: die Suite hatte
   dort zweimal Defekte, die an beiden Enden unsichtbar waren
-- den vollen Durchlauf über drei Rollen: Schulle stellt ein → Sarah verteilt mit Zeitvorschlag →
-  Lea nimmt an, arbeitet, meldet mit Bildnachweis fertig → Schulle gibt frei
-- die Gegenprobe: Schulle ruft `/m/aufgaben/verteilen` direkt auf und bekommt **404**
+- den vollen Durchlauf über drei Rollen: Malte stellt ein → Rike verteilt mit Zeitvorschlag →
+  Alina nimmt an, arbeitet, meldet mit Bildnachweis fertig → Malte gibt frei
+- die Gegenprobe: Malte ruft `/m/aufgaben/verteilen` direkt auf und bekommt **404**
 - den Selbstaufgaben-Weg: keine Freigabe, direkt abgeschlossen
 
 **Jeder e2e-Test stellt seinen Zustand selbst her**, idempotent oder über eigens angelegte Daten.

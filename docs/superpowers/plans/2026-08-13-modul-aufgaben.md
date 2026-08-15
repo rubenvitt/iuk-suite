@@ -1158,7 +1158,7 @@ import {
 
 const AUFGABE: AufgabeRow = {
   id: "x", titel: "T", beschreibung: "B", prioritaet: "mittel",
-  erstellerId: "schulle", zugewiesenAn: "lea", status: "verteilt",
+  erstellerId: "schulle", zugewiesenAn: "alina", status: "verteilt",
   faelligAm: "2026-08-14", faelligUhrzeit: null, dauerMinuten: 60,
   nachweisPflicht: false, nachweisArt: "text", prueferId: "schulle",
   istSelbst: false, planDatum: null, planUhrzeit: null, planRang: 0,
@@ -1167,13 +1167,13 @@ const AUFGABE: AufgabeRow = {
 };
 
 const LEA: PersonRow = {
-  id: "lea", sub: "dev:lea@localtest.me", name: "Lea", initialen: "LE",
+  id: "alina", sub: "dev:alina@localtest.me", name: "Alina", initialen: "AL",
   rolle: "bufdi", sollMinutenTag: 468, aktivVon: "2026-08-01", aktivBis: null,
   erstelltAm: new Date(0),
 };
 
 const routine = (over: Partial<RoutineRow>): RoutineRow => ({
-  id: "r", personId: "lea", titel: "R", wochentage: 0b11111,
+  id: "r", personId: "alina", titel: "R", wochentage: 0b11111,
   uhrzeit: "08:00", dauerMinuten: 45, aktiv: true, erstelltAm: new Date(0),
   ...over,
 });
@@ -1590,8 +1590,8 @@ Implementierung.
 
 **Tragende Entscheidungen, die im Test stehen müssen:**
 - Handlungsprädikate prüfen `istAktiv` **selbst**, Sichtprädikate nicht — eine ausgeschiedene Person liest ihre Geschichte, bewegt aber nichts. Die Prüfung liegt in JEDEM Handlungsprädikat statt in einem vorgeschalteten Gate, weil ein Gate genau einmal vergessen wird.
-- `darfFreigeben` gibt für Selbstaufgaben **immer** `false` zurück, auch der Koordination: sie haben keinen Prüfer. Ohne die erste Zeile stimmten `prueferId === null` und `rolle === "koordination"` je für sich, und Sarah bekäme einen Freigabeknopf für Leas eigene Aufgabe.
-- `darfPlanAendern` erlaubt **auch der Koordination** keine fremden Pläne — Sarah *schlägt vor*, sie setzt nicht.
+- `darfFreigeben` gibt für Selbstaufgaben **immer** `false` zurück, auch der Koordination: sie haben keinen Prüfer. Ohne die erste Zeile stimmten `prueferId === null` und `rolle === "koordination"` je für sich, und Rike bekäme einen Freigabeknopf für Alinas eigene Aufgabe.
+- `darfPlanAendern` erlaubt **auch der Koordination** keine fremden Pläne — Rike *schlägt vor*, sie setzt nicht.
 - `aktivBis` ist ein **einschließendes** Ende: am Enddatum selbst ist die Person aktiv.
 - `seedLokal` legt für jede Demo-Person `sub: "dev:<name>@localtest.me"` an — **das ist der lokale Rollenwechsel** (Spec §13). Additiv und idempotent.
 - `bootstrap.ts` bekommt den Seed-Eintrag ohne Ausnahme (anders als `files` und `lagerbuch`): dieses Modul hat keinen anonymen Schreibzugang und keine registrierte SQLite-Funktion.
@@ -1682,5 +1682,5 @@ Ziehen zwischen Tagen und innerhalb eines Tages, ab 768px, auf denselben Actions
 
 ### Aufgabe 21 — e2e und Aufräumen
 
-`e2e/aufgaben.spec.ts` vollständig: Abruf **jeder** Route auf 200 · die drei Rollen sehen drei Einstiege · Schulle bekommt auf `/verteilen` **404** · der volle Durchlauf einstellen → verteilen → annehmen → arbeiten → fertig mit Nachweis → freigeben · Umschaltung bei **390, 820 und 1280px** · kein waagerechtes Scrollen · Dunkelmodus über `getComputedStyle` (eine unaufgelöste CSS-Variable meldet sich sonst nie). Dann `rm bufdi-koordination-klickdummy.html` (**`rm`, nicht `git rm`** — die Datei ist nicht versioniert) und der vollständige Gate-Lauf.
+`e2e/aufgaben.spec.ts` vollständig: Abruf **jeder** Route auf 200 · die drei Rollen sehen drei Einstiege · Malte bekommt auf `/verteilen` **404** · der volle Durchlauf einstellen → verteilen → annehmen → arbeiten → fertig mit Nachweis → freigeben · Umschaltung bei **390, 820 und 1280px** · kein waagerechtes Scrollen · Dunkelmodus über `getComputedStyle` (eine unaufgelöste CSS-Variable meldet sich sonst nie). Dann `rm bufdi-koordination-klickdummy.html` (**`rm`, nicht `git rm`** — die Datei ist nicht versioniert) und der vollständige Gate-Lauf.
 
