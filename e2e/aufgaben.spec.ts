@@ -1131,8 +1131,29 @@ const UEBERLAUF_SEITEN: { label: string; pfad: string; email: string; titel: str
   { label: "/archiv", pfad: "/archiv", email: "rike@localtest.me", titel: "Archiv" },
 ];
 
+/*
+ * 768PX IST DIE VIERTE BREITE, UND SIE IST DIE ENGSTE — NACHTRAEGLICH AUFGENOMMEN (Nach-Rebase-
+ * Runde, Befund B). Bis dahin fuhr dieser Sweep 390/820/1280 und liess damit ausgerechnet die
+ * KANTE aus, an der die Suite-Seitenleiste einschnappt: `src/core/shell/shell.module.css` zeigt
+ * `.sider` ab `@media (min-width: 768px)`. 768px ist also die erste Breite, an der dem Modul die
+ * 240px fehlen — und zugleich die kleinste, an der das Wochengitter ueberhaupt sichtbar ist
+ * (`aufgaben.module.css` blendet es bis 767.98px aus). Beides zusammen ergibt die schmalste
+ * Inhaltsflaeche, die dieses Modul je bekommt: gemessen 528px, gegenueber 580px bei 820px.
+ *
+ * WAS DAS GEKOSTET HAT, IST BELEGT UND NICHT HYPOTHETISCH: `/` lief bei 768px um 28px ueber
+ * (`scrollWidth` 796 bei `clientWidth` 768) — ein DRITTER roter Fall neben den zwei bei 820px, den
+ * nie jemand gesehen hat, weil keine Messung dort stand. Eine Viewport-Liste, die an einer Kante
+ * nicht misst, ist genau an der Stelle blind, an der sich das Layout aendert.
+ *
+ * DIE LISTE IST AUCH JETZT NICHT VOLLSTAENDIG, und das steht hier, damit es nicht als „geprueft"
+ * durchgeht: `/routinen` und `/freigaben` sind in `UEBERLAUF_SEITEN` NICHT enthalten, obwohl ihre
+ * Zeilenaktionen in derselben Runde von 24px auf 44px gewachsen sind. Beide wurden bei 820px von
+ * Hand nachgemessen und laufen nicht ueber; bewacht sind sie nicht. Bewusst so belassen — die
+ * Laufzeit dieses Sweeps waechst multiplikativ ueber Seiten x Breiten.
+ */
 for (const vp of [
   { breite: 390, hoehe: 844 },
+  { breite: 768, hoehe: 1180 },
   { breite: 820, hoehe: 1180 },
   { breite: 1280, hoehe: 720 },
 ]) {
