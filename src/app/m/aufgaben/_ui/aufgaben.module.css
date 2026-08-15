@@ -163,11 +163,13 @@
  * Stufe der Rangskala).
  *
  * `--auf-stahl` ist hier sichtbarer Text und deshalb in `aufgaben-css.test.ts`
- * (Aussage 5) gegen `--auf-papier` gemessen (hell 5.19, dunkel 7.47) — mit dem
- * Vorbehalt, dass diese Messung die dokumentierte ANNAHME ist, nicht ihr
- * Beweis: auf welchem Hintergrund `.prioKontur`/`.prioText` in Aufgabe 6/7
- * tatsaechlich landen, entscheidet sich dort (deren Brief legt `--auf-papier`
- * deshalb ausdruecklich fest).
+ * (Aussage 5) gegen `--auf-papier` gemessen (hell 5.19, dunkel 7.47). Das war
+ * bis Aufgabe 6/7 eine dokumentierte ANNAHME; seither ist sie BESTAETIGT (nach-
+ * gesehen im Abschlussreview, G5): die Chips sitzen auf der Inhaltsflaeche, und
+ * `Layout.bodyBg` ist im Hellen `FARBEN.papier` = `#eef0f1`, also genau
+ * `--auf-papier`. Die zwei abweichenden Traegerflaechen sind beide guenstiger
+ * (Kartenflaeche `#ffffff`: 5.93; dunkles `Layout.bodyBg` `#000000`: 8.29) —
+ * die Messung bleibt damit der unguenstigste Fall.
  */
 .prioGefuellt {
   color: var(--auf-rost-text);

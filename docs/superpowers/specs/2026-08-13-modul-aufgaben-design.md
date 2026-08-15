@@ -122,6 +122,25 @@ aus der Datenbank aufgelöst. Zwei Gründe, und beide sind zwingend:
 Die Tabelle `person` pflegt, wer in `iuk-aufgaben-koordination` ist — plus der Suite-Admin
 (`isModuleAdmin` aus `core/groups`, **nicht** `session.user.isAdmin`, das ist suiteweit).
 
+**Nachtrag vom 2026-08-15 — wo der Suite-Admin-Zugang sitzt, und warum dort** (Betreiberentscheidung
+2026-08-14). Der Zugang ist ein **Notausgang** und löst zwei benannte Lagen: in einer frischen
+Produktionsdatenbank gibt es sonst keinen Weg zur allerersten `person`-Zeile (das Modul wird nicht
+geseedet, und die Personenverwaltung setzt eine aktive Koordinationsperson voraus), und setzt die
+einzige Koordinationsperson versehentlich ihr eigenes `aktiv_bis`, sperrt sie damit auch den
+Betreiber aus.
+
+Der Riegel dafür sitzt **auf der Route und in den Actions, nicht im Prädikat**:
+`darfPersonenVerwalten` muss **synchron und rein** bleiben, weil `_lib/lebenszyklus.ts` und jeder
+bestehende Aufrufer diese Signatur teilen — eine `isModuleAdmin`-Klausel *dort* machte das Prädikat
+asynchron oder verlangte einen `groups`-Parameter, den keiner der Aufrufer mitführt. Wer den
+Suite-Admin-Fall später „aufräumend" ins Prädikat zieht, macht genau diesen Fehler.
+
+**Beide Seiten, nicht nur die Seite.** `/personen` prüft `canAdminModule("aufgaben")` vor jeder
+Personen-Zeilen-Frage; **dieselbe Oder-Klausel steht in den schreibenden Actions**
+(`personAnlegenAction`/`personAendernAction`/`personBeendenAction`, gebündelt an einer Stelle). Der
+Zwischenzustand — Formular sichtbar, Absenden abgewiesen — war bis zum Abschlussreview real und ist
+genau kein Zugang: er ließ beide oben benannten Lagen unverändert bestehen.
+
 **Personen tragen `aktiv_von` und `aktiv_bis`.** Ein ausgeschiedener BuFDi verschwindet aus
 Verteillisten und Zeitplan-Navigation; seine Aufgaben, Nachweise und Verlaufszeilen bleiben lesbar.
 Ohne dieses Feld ist der Jahreswechsel eine Löschaktion, und die Dokumentation des vergangenen
@@ -221,9 +240,14 @@ erlaubt zusätzlich eine Datei. Die Pflicht ist also eine Untergrenze, keine Bes
 Eine eigene SQLite unter `src/app/m/aufgaben/_db/`, wie bei jedem Modul. Sechs Tabellen.
 
 ### `person`
-`id` · `sub` (Pocket-ID-Subject, unique) · `name` · `initialen` · `farbe` ·
+`id` · `sub` (Pocket-ID-Subject, unique) · `name` · `initialen` ·
 `rolle` (`koordination` | `auftrag` | `bufdi`) · `soll_minuten_tag` (Vorgabe 468 = 7,8 Std.) ·
 `aktiv_von` · `aktiv_bis` (nullable) · `erstellt_am`
+
+**`farbe` gibt es nicht, und das ist entschieden, nicht vergessen** (Pre-Flight vor Aufgabe 2). Der
+Entwurf führte die Spalte; sie widerspricht §9.4 („Farbe gehört nicht zur Rolle") — eine Person
+bekommt im Modul keine eigene Farbe zugeteilt, sonst entsteht neben der Statusfarbigkeit eine zweite,
+konkurrierende Farbsprache.
 
 ### `aufgabe`
 `id` · `titel` · `beschreibung` · `prioritaet` (`hoch` | `mittel` | `niedrig`) ·
@@ -252,8 +276,22 @@ Datensätze, die niemand liest, und jede Liste im Modul braucht einen Filter dag
 `datei_id` → `datei` (nullable) · `erstellt_von` → `person` · `erstellt_am`
 
 ### `datei`
-`id` · `aufgabe_id` · `dateiname` · `mime` · `groesse` · `pfad` ·
-`scan_status` (`offen` | `sauber` | `befund`) · `erstellt_am`
+`id` · `aufgabe_id` · `dateiname` · `mime` · `groesse` ·
+`scan_status` (`offen` | `sauber` | `befund` | `fehler`) · `erstellt_am`
+
+**`scan_status` hat vier Werte, nicht drei, und der vierte ist der wichtigste** (Pre-Flight vor
+Aufgabe 2): `fehler` trennt „der Scan lief schief" von „der Scan hat etwas gefunden" — fachlich zwei
+verschiedene Lagen, die man in einer Oberfläche verschieden erklärt. Ausgeliefert wird in **beiden**
+nicht: `istFreigegeben` (`_lib/scan.ts`) ist die einzige Fassung dieser Bedingung und gibt
+ausschließlich für `"sauber"` wahr zurück. Genau daran hängt Fail-closed — ein `!== "befund"` an
+irgendeiner Stelle lieferte einen fehlgeschlagenen Scan aus.
+
+**`pfad` gibt es nicht, und das ist entschieden, nicht vergessen** (Pre-Flight vor Aufgabe 2, dort
+ausdrücklich mit der Auflage, es „nicht still" zu tun). Der Ablagepfad wird aus `id` **abgeleitet**
+(`_lib/ablage.ts`s `nachweisPfad`), statt gespeichert: ein absoluter Pfad in der Datenbank ist beim
+ersten Umzug des Datenverzeichnisses falsch, und zwar still — die Zeile stimmt noch, die Datei ist
+weg. Der `dateiname` bleibt als **Anzeigename** erhalten und geht bewusst in keinen Pfad und in
+keinen HTTP-Kopf ein.
 
 ### `verlauf`
 `id` · `aufgabe_id` → `aufgabe` · `ereignis` · `akteur_id` → `person` · `notiz` (nullable) · `ts`
@@ -271,16 +309,55 @@ sechs Häkchen und keine Geschichte.
 `_lib/zugang.ts` hält die Prädikate. **Alle Seiten und alle Server-Actions rufen dieselben** — das
 ist die Bedingung dafür, dass Oberfläche und Riegel nicht auseinanderlaufen.
 
+Die Tabelle ist **vollständig gegen `_lib/zugang.ts` gezogen** (Stand 2026-08-15) — sie führt alle
+sechzehn Exporte, nicht eine Auswahl. Alle Handlungsprädikate tragen `heute` als ISO-Tagesstring und
+prüfen `istAktiv` **jedes für sich**; die Sichtprädikate tragen es nicht und prüfen es nicht (eine
+ausgeschiedene Person liest ihre Geschichte weiter, s. u.).
+
 | Funktion | Aussage |
 |---|---|
-| `requireAufgabenAccess()` | Modulzugang über die Gruppe. Ruft das `layout.tsx` als Backstop |
-| `personFuerSession()` | löst die aufrufende Person aus `person` auf. Kein Eintrag → `notFound()` |
-| `istAktiv(person)` | `aktiv_bis` leer oder in der Zukunft |
-| `darfVerteilen(person)` | `rolle === "koordination"` |
-| `darfFreigeben(person, aufgabe)` | `person.id === aufgabe.pruefer_id` **oder** `rolle === "koordination"` |
-| `darfPlanAendern(person, zielPersonId)` | `person.id === zielPersonId` (BuFDis ändern nur den eigenen Plan) |
-| `darfPlanSehen(person, zielPersonId)` | jeder BuFDi sieht jeden BuFDi-Plan; `koordination` und `auftrag` alle |
-| `darfNachweisSehen(person, aufgabe)` | Verfasser, `koordination`, `person.id === aufgabe.ersteller_id`, oder der eingetragene Prüfer (`person.id === aufgabe.pruefer_id`, Nachtrag unten) |
+| `personFuerSeite(db)` | **für Seiten:** Sitzung → `person`-Zeile **oder `null`**. Ohne Sitzung → `notFound()`; ohne `person`-Zeile → `null`, damit die Seite die Erklärseite rendern kann (Nachtrag 2026-08-14 unten) |
+| `subFuerSitzung()` | der Pocket-ID-`sub` der Sitzung, isoliert — der Ausgang aus der Erklärseite: die Person kann ihn sonst nirgends nachschlagen |
+| `personFuerSession(db)` | **für Server-Actions:** wie oben, aber keine `person`-Zeile → `notFound()`. Eine Schreiboperation ohne zurechenbare Zeile darf nicht stattfinden |
+| `istAktiv(person, heute)` | `aktiv_von` erreicht **und** `aktiv_bis` leer oder **heute oder später** (`aktiv_bis` schließt ein) |
+| `darfVerteilen(person, heute)` | `rolle === "koordination"` und aktiv |
+| `darfEinstellenFuerAndere(person, heute)` | `rolle === "auftrag"` oder `"koordination"`, und aktiv. Für **sich selbst** darf jede Rolle einstellen — das ist kein Prädikat, sondern der Normalfall |
+| `darfPersonenVerwalten(person, heute)` | `rolle === "koordination"` und aktiv. **Der Suite-Admin kommt zusätzlich hinein — der Riegel dafür sitzt auf der Route und in den Actions, nicht in diesem Prädikat** (§4, Nachtrag dort) |
+| `darfRoutinenVerwalten(person, heute)` | `rolle === "bufdi"` und aktiv (§8 nennt `/routinen` rollengebunden) |
+| `darfPlanAendern(person, zielPersonId, heute)` | `person.id === zielPersonId` und aktiv. **Auch die Koordination ändert keine fremden Pläne** — sie schlägt vor (`vorschlag_datum`), sie setzt nicht |
+| `darfFreigeben(person, aufgabe, heute)` | **`false` bei `ist_selbst`**, **`false` bei `person.id === aufgabe.zugewiesen_an`**, sonst `person.id === aufgabe.pruefer_id` **oder** `rolle === "koordination"`, und aktiv (beide Ausschlüsse: Nachtrag unten) |
+| `darfPlanSehen(person, zielPersonId)` | **für alle wahr.** Jeder BuFDi sieht jeden BuFDi-Plan lesend, `koordination`/`auftrag` ohnehin alle. Kein `istAktiv` |
+| `darfNachweisSehen(person, aufgabe)` | Verfasser (= aktuell Zugewiesener), `koordination`, `person.id === aufgabe.ersteller_id`, oder der eingetragene Prüfer (`person.id === aufgabe.pruefer_id`, Nachtrag unten). Kein `istAktiv` |
+| `darfNachweisHochladen(person, aufgabe, heute)` | `person.id === aufgabe.zugewiesen_an` und aktiv. **Ohne die Zustandsbedingung `in_arbeit`** — die steht daneben (§5.2, `_lib/lebenszyklus.ts`), nicht in diesem Prädikat |
+| `darfAufgabeSehen(person, aufgabe)` | `koordination` **oder** `bufdi` (Spiegelbild zu `darfPlanSehen`), sonst Ersteller, Zugewiesener oder Prüfer. `auftrag` bleibt damit enger als `bufdi`. Kein `istAktiv` |
+| `darfFreigabenSehen(person, heute)` | `rolle === "auftrag"` oder `"koordination"`, und aktiv (Gate für `/freigaben`). Trifft heute denselben Ausdruck wie `darfEinstellenFuerAndere` und ist trotzdem **kein Alias** darauf — es sind zwei Fragen |
+| `istVertretungsfreigabe(person, aufgabe)` | `rolle === "koordination"`, **nicht** der eingetragene Prüfer, und `pruefer_id` gesetzt — die Bedingung für die Verlaufszeile „in Vertretung für …" |
+
+**Nachtrag vom 2026-08-15 — `darfFreigeben` trägt zwei Ausschlüsse, und beide sind sicherheits-
+tragend.** Die Tabelle nannte bis hierher nur den Rumpf („Prüfer oder Koordination") und
+dokumentierte damit **zwei Riegel weg**, die zwei Reviews eigens gefunden und geschlossen haben:
+
+1. **`ist_selbst` → `false`, auch für die Koordination.** Selbstaufgaben haben gar keine
+   Freigabestufe (§5.2: `in_arbeit` → `abgeschlossen`). Ohne die Klausel stimmten `pruefer_id === null`
+   und `rolle === "koordination"` je für sich, und die Koordination bekäme einen Freigabeknopf für
+   eine Aufgabe, die keine Freigabe kennt.
+2. **`person.id === aufgabe.zugewiesen_an` → `false` (Betreiberentscheidung 2026-08-13).** Die
+   Koordination verteilt, sie arbeitet nicht mit. Ohne diese Klausel gibt es einen **begehbaren
+   Selbstfreigabe-Pfad**: fremd eingestellte Aufgabe an sich selbst verteilen (`ist_selbst` bleibt
+   dabei `false`, weil `ersteller_id !== zugewiesen_an`) und am Ende die eigene Arbeit freigeben —
+   das Vier-Augen-Prinzip fiele für genau diesen Fall aus. Daran hängt auch, dass Verteillisten sich
+   aus den BuFDis speisen und nicht aus allen aktiven Personen.
+
+Wer `darfFreigeben` gegen die alte Tabellenzeile „vereinfacht", öffnet den Pfad wieder — deshalb
+steht die Klausel jetzt hier und nicht nur im Code-Kommentar.
+
+**Nachtrag vom 2026-08-15 — es gibt bewusst kein `requireAufgabenAccess()`.** Die Tabelle führte
+einen solchen Backstop, den `layout.tsx` rufen solle. Er wurde im Pre-Flight vor Aufgabe 4 geprüft
+und **absichtlich nicht gebaut**, aus drei Gründen: der Gruppenriegel gehört der Middleware
+(`core/routing.ts`, `src/proxy.ts`), ein Layout-Backstop deckte ausgerechnet den **Route-Handler**-Fall
+nicht ab (Layouts laufen dort nicht), und der modul-interne Riegel ist `personFuerSession()` bzw.
+`personFuerSeite()` an jeder einzelnen Stelle. Ohne diesen Absatz wird das Fehlen beim nächsten Lesen
+erneut als Mangel gemeldet — und der Backstop gebaut, den Aufgabe 4 begründet nicht gebaut hat.
 
 **Nachtrag vom 2026-08-15 — `darfNachweisSehen` deckt auch den eingetragenen Prüfer ab.** Die Tabelle
 oben nannte ihn nicht, obwohl der Code es seit Aufgabe 16 längst tut. Der Grund: `freigabeDaten`

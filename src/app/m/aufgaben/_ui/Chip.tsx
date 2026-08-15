@@ -38,10 +38,13 @@ import s from "./aufgaben.module.css";
  * `.prioText` BEKOMMT KEINE CHIP-FORM (Spec §9.1, „nur Text, gedaempft“ —
  * die schwaechste Stufe der Rangskala): die Basisklasse `.chip` (Polster,
  * Pillenform) entfaellt fuer diese eine Form, waehrend `.prioGefuellt` und
- * `.prioKontur` sie tragen. `.prioKontur`/`.prioText` liegen auf
- * `--auf-papier` (dem Kartenhintergrund) — dort ist ihr AA-Kontrast in
- * `aufgaben-css.test.ts` gemessen; eine andere Traegerflaeche braeuchte eine
- * neue Messung.
+ * `.prioKontur` sie tragen. `.prioKontur`/`.prioText` liegen auf der
+ * Inhaltsflaeche, und die IST im Hellen `--auf-papier` (`Layout.bodyBg` =
+ * `FARBEN.papier` = `#eef0f1`, `core/theme/theme.ts`) — dort ist ihr
+ * AA-Kontrast in `aufgaben-css.test.ts` gemessen. Die beiden abweichenden
+ * Flaechen sind guenstiger (Kartenflaeche/Tabelle `#ffffff`, dunkles
+ * `Layout.bodyBg` `#000000`); eine DRITTE Traegerflaeche braeuchte eine neue
+ * Messung.
  */
 
 const TON_KLASSE: Record<ChipTon, string> = {

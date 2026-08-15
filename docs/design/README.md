@@ -34,7 +34,14 @@ Modul in ein anderes importiert werden: Modul-Interna sind kein API.
 
 ## Fallen, die der Build nicht findet
 
-Diese acht kosten je einen halben Tag, wenn man sie nicht kennt. Keine davon fällt in `pnpm build` auf.
+Diese Fallen kosten je einen halben Tag, wenn man sie nicht kennt. Keine davon fällt in `pnpm build` auf.
+
+Die Aufzählung trägt bewusst **keine Zahl** („diese sechs", „diese acht"): eine gepflegte Anzahl an
+dieser Stelle ist ein Feld, das bei jeder Ergänzung an zwei Orten nachgezogen werden müsste — und
+genau das ist hier zweimal auseinandergelaufen. Sie stand auf sechs, während `CLAUDE.md` bereits zehn
+führte; nachgezogen auf acht, während `CLAUDE.md` inzwischen elf führt. Eine Aufzählung ohne Zahl kann
+nicht falsch zählen. Die vollständige, nummerierte Liste steht in `CLAUDE.md`; diese Datei nennt die
+Fallen, die die Querschnittsregeln unmittelbar betreffen.
 
 **1. Compound-Zugriff auf antd in einer Server Component → HTTP 500.**
 Verboten in RSC: `Typography.*`, `Form.Item`, `Descriptions.Item`, `List.Item`, `Card.Meta`,

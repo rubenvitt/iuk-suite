@@ -347,10 +347,22 @@ describe("aufgaben.module.css — Aussage 5: gemessener AA-Kontrast", () => {
   /**
    * `--auf-stahl` ist die Textfarbe von `.prioKontur`/`.prioText` (sichtbarer
    * Text), fällt aber als BASISvariable nicht unter das `-text`/`-flaeche`-
-   * Muster von `tonPaare()` und bliebe sonst ungemessen. Der Vorbehalt: diese
-   * Messung nimmt `--auf-papier` als Hintergrund an, weil das die einzige
-   * heute belegbare Annahme ist — den tatsächlichen Hintergrund legen erst
-   * Aufgabe 6/7 fest.
+   * Muster von `tonPaare()` und bliebe sonst ungemessen.
+   *
+   * DER VORBEHALT AUS AUFGABE 5 IST AUFGELÖST (Abschlussreview G5) — er stand
+   * hier sechzehn Aufgaben lang im Futur („den tatsächlichen Hintergrund legen
+   * erst Aufgabe 6/7 fest"), obwohl beide längst fertig waren. Nachgesehen:
+   * `.prioKontur`/`.prioText` sitzen über `_ui/Chip.tsx` in `AufgabenListe`,
+   * `FreigabeZone` und `a/[id]/page.tsx` auf der reinen Inhaltsfläche, also auf
+   * `Layout.bodyBg` (`core/theme/theme.ts`) — und die IST `FARBEN.papier`
+   * = `#eef0f1` im Hellen, numerisch genau `--auf-papier`. Die Annahme war
+   * richtig; die Messung bleibt, wo sie ist.
+   *
+   * DIE BEIDEN ABWEICHENDEN FLÄCHEN SIND BEIDE GÜNSTIGER, also bleibt diese
+   * Messung der ungünstigste Fall: auf der Kartenfläche `#ffffff` (die Chips in
+   * `VerteilenDialog`s Tabelle) steigt der Hellwert von 5.19 auf 5.93, und im
+   * Dunkeln ist `Layout.bodyBg` reines `#000000` gegenüber `--auf-papier`
+   * `#0f1113` — 8.29 statt 7.47.
    */
   it(`hält --auf-stahl auf --auf-papier ≥ ${SCHWELLE_AA} Kontrast — hell UND dunkel`, () => {
     const hellWert = kontrastverhaeltnis(hell.get("--auf-stahl") ?? "", hell.get("--auf-papier") ?? "");
