@@ -15,6 +15,7 @@ import {
 } from "../../_lib/zugang";
 import { AktionsZone } from "../../_ui/AktionsZone";
 import { PrioritaetChip, StatusChip } from "../../_ui/Chip";
+import { Frist } from "../../_ui/Frist";
 import { Ikone } from "../../_ui/ikonen";
 import { NachweisBild } from "../../_ui/NachweisBild";
 import { NichtEingetragenSeite } from "../../_ui/NichtEingetragenSeite";
@@ -73,6 +74,14 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
       >
         <StatusChip status={task.status} />
         <PrioritaetChip prioritaet={task.prioritaet} />
+        {/*
+         * DIE FRIST STEHT SEIT DER OBERFLAECHEN-SPEC (§7 Nr. 1) IN DER CHIP-ZEILE, in der festen
+         * Reihenfolge Zustand · Prioritaet · Frist · Nachweispflicht. Vorher stand sie
+         * AUSSCHLIESSLICH im Metablock darunter — die wichtigste Zahl der Seite also je nach
+         * Ansicht an unterschiedlichen Orten, und ueberfaellig sah dort aus wie jedes andere Datum.
+         * Der Metablock behaelt seinen Eintrag, weil er als einziger die Uhrzeit traegt.
+         */}
+        <Frist aufgabe={task} heute={heute} />
         <span style={SCHRIFT.neben}>
           Nachweispflicht: {task.nachweisPflicht ? `Ja (${NACHWEIS_ART_TEXT[task.nachweisArt]})` : "Nein"}
         </span>

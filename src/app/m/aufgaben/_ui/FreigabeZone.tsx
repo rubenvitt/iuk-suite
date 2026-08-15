@@ -5,11 +5,11 @@ import Link from "next/link";
 import { Button, Input, Modal } from "antd";
 import { freigebenAction, zurueckweisenAction } from "../actions";
 import type { FreigabeZeile } from "../_db/queries";
-import { NACHWEIS_ART_TEXT, fmtDauer, istUeberfaellig } from "../_lib/anzeige";
-import { fmtTagKurz } from "../_lib/datum";
+import { NACHWEIS_ART_TEXT, fmtDauer } from "../_lib/anzeige";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import { PrioritaetChip, StatusChip } from "./Chip";
+import { Frist } from "./Frist";
 import { Ikone } from "./ikonen";
 import { NachweisBild } from "./NachweisBild";
 import s from "./aufgaben.module.css";
@@ -147,16 +147,17 @@ function FreigabeKarte({ zeile, heute }: { zeile: FreigabeZeile; heute: string }
         <Link href={`/a/${aufgabe.id}`}>{aufgabe.titel}</Link>
         <StatusChip status={aufgabe.status} />
         <PrioritaetChip prioritaet={aufgabe.prioritaet} />
-        {istUeberfaellig(aufgabe, heute) ? (
-          <span>
-            <Ikone name="warnung" /> Überfällig
-          </span>
-        ) : null}
+        {/*
+         * DIE EINE FORM (Oberflaechen-Spec §6.2) — vorher stand hier ein nacktes `<span>` mit
+         * Warnzeichen und Wort OHNE ZAHL, waehrend die Posteingang-Tabelle „ · überfällig" klein
+         * hinter das Datum klebte. Dieselbe Bedingung, drei Bilder.
+         */}
+        <Frist aufgabe={aufgabe} heute={heute} />
       </div>
 
       <p style={{ margin: 0, fontSize: 12 }}>
-        Erstellt von {zeile.erstellerName} · Erledigt von {zeile.zugewiesenName} · Frist:{" "}
-        {fmtTagKurz(aufgabe.faelligAm)} · {fmtDauer(aufgabe.dauerMinuten)} · Nachweispflicht:{" "}
+        Erstellt von {zeile.erstellerName} · Erledigt von {zeile.zugewiesenName} ·{" "}
+        {fmtDauer(aufgabe.dauerMinuten)} · Nachweispflicht:{" "}
         {aufgabe.nachweisPflicht ? `Ja (${NACHWEIS_ART_TEXT[aufgabe.nachweisArt]})` : "Nein"}
       </p>
 

@@ -145,11 +145,14 @@ describe("VerteilenTabelle — Spalten, ZWEI Zeilen (Lehre 2 dieser Aufgabenreih
     expect(zeilen).toHaveLength(2);
     expect(zeilen[0]!.textContent).toContain("Erste");
     expect(zeilen[0]!.textContent).toContain("Malte");
-    expect(zeilen[0]!.textContent).toContain("überfällig");
+    // DIE VEREINHEITLICHTE FORM (Oberflaechen-Spec §6.2, §11.1): vorher klebte hier ein
+    // kleingeschriebenes „ · überfällig" hinter dem Datum. `_ui/Frist.tsx` schreibt das Wort gross
+    // UND MIT DER ZAHL — ein nacktes „überfällig" sagt nicht, ob es gestern oder im Mai war.
+    expect(zeilen[0]!.textContent).toContain("Überfällig seit 3 Tagen");
     expect(zeilen[0]!.textContent).not.toContain("Zweite");
     expect(zeilen[1]!.textContent).toContain("Zweite");
     expect(zeilen[1]!.textContent).toContain("Tomke");
-    expect(zeilen[1]!.textContent).not.toContain("überfällig");
+    expect(zeilen[1]!.textContent).not.toContain("Überfällig");
     expect(zeilen[1]!.textContent).toContain("Ja");
   });
 

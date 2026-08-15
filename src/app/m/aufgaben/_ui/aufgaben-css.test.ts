@@ -418,6 +418,50 @@ describe("aufgaben.module.css — Aussage 5: gemessener AA-Kontrast", () => {
    * Dunkeln ist `Layout.bodyBg` reines `#000000` gegenüber `--auf-papier`
    * `#0f1113` — 8.29 statt 7.47.
    */
+  /**
+   * `--auf-achtung-text` STEHT SEIT `_ui/Frist.tsx` ALS SICHTBARER TEXT AUF DER INHALTSFLÄCHE
+   * (Oberflächen-Spec §6.5) — auf der Kante UND auf dem Wort von `.fristUeberfaellig`. Bis dahin
+   * trat er ausschließlich als Chip-Textfarbe zu seiner `-flaeche`-Hälfte auf und war damit von
+   * `tonPaare()` gedeckt; ohne seine Hälfte findet ihn das Muster nicht, und die einzige
+   * farbtragende Stelle des neuen Entwurfs bliebe die einzige ungemessene.
+   *
+   * DIE ABWEICHENDEN TRÄGERFLÄCHEN SIND BEIDE GÜNSTIGER, also bleibt diese Messung der
+   * ungünstigste Fall — dieselbe Begründung, die der Kommentar bei `--auf-stahl` schon führt: auf
+   * der weißen Zellenfläche der `VerteilenTabelle` steigt der Hellwert, und im Dunkeln ist
+   * `Layout.bodyBg` reines `#000000` gegenüber `--auf-papier` `#0f1113`.
+   */
+  it(`hält --auf-achtung-text auf --auf-papier ≥ ${SCHWELLE_AA} Kontrast — hell UND dunkel`, () => {
+    const hellWert = kontrastverhaeltnis(
+      hell.get("--auf-achtung-text") ?? "",
+      hell.get("--auf-papier") ?? "",
+    );
+    const dunkelWert = kontrastverhaeltnis(
+      dunkel.get("--auf-achtung-text") ?? "",
+      dunkel.get("--auf-papier") ?? "",
+    );
+    expect(hellWert, `hell: ${hellWert.toFixed(2)} < ${SCHWELLE_AA}`).toBeGreaterThanOrEqual(
+      SCHWELLE_AA,
+    );
+    expect(dunkelWert, `dunkel: ${dunkelWert.toFixed(2)} < ${SCHWELLE_AA}`).toBeGreaterThanOrEqual(
+      SCHWELLE_AA,
+    );
+  });
+
+  /**
+   * DIE FORM IST TEIL DER ZUSAGE, NICHT NUR DIE FARBE (§6.3, Kanal 2; §9.2): `.fristUeberfaellig`
+   * darf NIE eine Fläche tragen — eine Pille wäre formgleich mit dem `zurueckgewiesen`-Chip, der
+   * in derselben Zeile steht, und ein überfälliges Etwas, das aussieht wie ein zurückgewiesenes,
+   * ist schlimmer als gar keine Farbe. Nachprüfbar an genau dieser einen Regel.
+   */
+  it("gibt `.fristUeberfaellig` eine 3px-Kante und keine `-flaeche`-Variable", () => {
+    const inBasis = /\.fristUeberfaellig\s*\{([^}]*)\}/.exec(BASIS);
+    expect(inBasis, ".fristUeberfaellig fehlt in der Basisregel").not.toBeNull();
+    expect(inBasis![1]).toMatch(/border-inline-start:\s*3px solid var\(--auf-achtung-text\)/);
+    expect(inBasis![1], "eine Fläche macht die Marke formgleich mit dem Chip").not.toMatch(
+      /-flaeche|background/,
+    );
+  });
+
   it(`hält --auf-stahl auf --auf-papier ≥ ${SCHWELLE_AA} Kontrast — hell UND dunkel`, () => {
     const hellWert = kontrastverhaeltnis(hell.get("--auf-stahl") ?? "", hell.get("--auf-papier") ?? "");
     const dunkelWert = kontrastverhaeltnis(

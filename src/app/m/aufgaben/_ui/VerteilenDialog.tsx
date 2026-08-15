@@ -5,11 +5,12 @@ import { Button, Input, Modal, Table } from "antd";
 import { verteilenAction } from "../actions";
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
-import { fmtDauer, fmtStunden, istUeberfaellig } from "../_lib/anzeige";
+import { fmtDauer, fmtStunden } from "../_lib/anzeige";
 import { fmtTagKurz } from "../_lib/datum";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import { PrioritaetChip } from "./Chip";
+import { Frist } from "./Frist";
 import s from "./aufgaben.module.css";
 
 /*
@@ -105,12 +106,11 @@ export function VerteilenTabelle({
           {
             title: "Frist",
             key: "frist",
-            render: (_: unknown, a: AufgabeRow) => (
-              <span>
-                {fmtTagKurz(a.faelligAm)}
-                {istUeberfaellig(a, heute) ? " · überfällig" : ""}
-              </span>
-            ),
+            // DIE EINE FORM (Oberflaechen-Spec §6.2) — vorher klebte hier ein kleingeschriebenes
+            // „ · überfällig" hinter dem Datum, waehrend `AufgabenListe`/`FreigabeZone` ein
+            // grossgeschriebenes Wort in einer eigenen Spanne zeigten. Dieselbe Bedingung, zwei
+            // Bilder; `Frist` traegt jetzt Datum UND Ueberfaelligkeit in einem Ausdruck.
+            render: (_: unknown, a: AufgabeRow) => <Frist aufgabe={a} heute={heute} />,
           },
           {
             title: "Dauerschätzung",

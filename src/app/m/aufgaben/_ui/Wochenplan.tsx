@@ -4,6 +4,7 @@ import { type Budget, fmtStunden, tagesBudget } from "../_lib/anzeige";
 import { fmtTagKurz, fmtUhrzeit, wochenTage } from "../_lib/datum";
 import { type TagesEintrag, tagesOrdnung } from "../_lib/tagesplan";
 import { SPACE } from "@/core/theme/tokens";
+import { Frist } from "./Frist";
 import { Ikone } from "./ikonen";
 import { RangKnoepfe } from "./RangKnoepfe";
 import { ZiehBereich } from "./ZiehBereich";
@@ -182,6 +183,7 @@ function TagSpalte({
             <li key={`${eintrag.art}-${eintrag.id}`}>
               <EintragZeile
                 eintrag={eintrag}
+                heute={heute}
                 aktionen={
                   zeigeAktionen && eintrag.art === "aufgabe"
                     ? (rang?.[eintrag.id] ?? { istErste: true, istLetzte: true, index: -1 })
@@ -257,10 +259,13 @@ function BudgetZeile({ budget }: { budget: Budget }) {
  */
 function EintragZeile({
   eintrag,
+  heute,
   aktionen,
   ziehbar,
 }: {
   eintrag: TagesEintrag;
+  /** ISO-Tagesstring — fuer `<Frist>`. Kommt als Argument, nie aus `new Date()` hier. */
+  heute: string;
   aktionen?: RangGrenze;
   ziehbar?: boolean;
 }) {
@@ -304,6 +309,19 @@ function EintragZeile({
       <Link href={`/a/${eintrag.id}`} draggable={false}>
         {eintrag.titel}
       </Link>
+      {/*
+       * DIE FRIST STAND HIER BIS ZUR OBERFLAECHEN-SPEC UEBERHAUPT NICHT (§6.2, Befund 2): der
+       * Wochenplan ist der Bildschirm fuer „was tue ich heute" und war die einzige Flaeche des
+       * Moduls, auf der eine ueberfaellige Aufgabe wie jede andere aussah. Nur bei
+       * `art === "aufgabe"` — eine Routine hat keine Frist, und die Verzweigung darueber hat
+       * `eintrag.aufgabe` bereits gesetzt.
+       *
+       * DIE TAGESSPALTE SORTIERT DABEI NICHT UM (§6.3, Kanal 3, die eine benannte Ausnahme): hier
+       * ordnet `plan_rang`, und das ist die Reihenfolge, die die Person selbst gewaehlt hat. Eine
+       * zweite, automatische Ordnung darueber waere ein Eingriff in ihre Planung — die Zeile traegt
+       * trotzdem die Kante.
+       */}
+      {eintrag.aufgabe ? <Frist aufgabe={eintrag.aufgabe} heute={heute} /> : null}
       {aktionen ? (
         <RangKnoepfe
           aufgabeId={eintrag.id}

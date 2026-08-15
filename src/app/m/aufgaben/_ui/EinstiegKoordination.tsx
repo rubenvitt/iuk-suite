@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Col, Row } from "antd";
 import { alleAufgaben, freigabeDaten, verteilDaten } from "../_db/queries";
 import type { DB } from "../_db/client";
-import { istUeberfaellig } from "../_lib/anzeige";
+import { UEBERGANG_KOORDINATION_TEXT, istUeberfaellig } from "../_lib/anzeige";
 import { darfVerteilen, type Akteur } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -44,6 +44,15 @@ import { VerteilenTabelle } from "./VerteilenDialog";
  * — dieselbe wie bei den beiden anderen Aufrufern, KEINE eigene, hier gehaltene Fassung von
  * `freigabenFuer`/`istVertretungsfreigabe` mehr (Vorbild `verteilDaten`s Fix-Runde-1-Lehre: zwei
  * separate Ladebloecke fuer dieselbe Sache laufen auseinander, ohne dass ein Test es sieht).
+ *
+ * DIE DREI „UEBERFAELLIG"-ZEICHENKETTEN KOMMEN SEIT DER OBERFLAECHEN-SPEC AUS `_lib/anzeige.ts`
+ * (`UEBERGANG_KOORDINATION_TEXT`) — der Quelltext-Scan in `_ui/Frist.test.tsx` laesst das Wort im
+ * ganzen Modul nur in `_ui/Frist.tsx` und `_lib/anzeige.ts` zu (§6.6). Die drei Stellen hier
+ * (KPI-Kachel, Abschnittsueberschrift, Leertext) STERBEN mit §11.4 Schritt 4/5, wenn die
+ * Fuehrungskarte die KPI-Zeile ersetzt und die Ueberfaelligkeitsliste in die beiden Zonen
+ * „Ueberfaellig, noch nicht begonnen" und „Ueberfaellig, in Bearbeitung" zerfaellt; bis dahin lesen
+ * sie ihren Wortlaut von dort. GENAU DESHALB legt §11.4 den Scan (Schritt 2) NACH die Beschriftung
+ * (Schritt 1) — ohne sie waere er hier am ersten Tag rot.
  *
  * `verteilDaten(db, heute)` (`_db/queries.ts`, Fix-Runde 1) IST DIE EINE LADEFUNKTION FUER DEN
  * POSTEINGANG — `verteilen/page.tsx` ruft SIE, NICHT eine zweite Fassung desselben Ladeblocks. Vor
@@ -103,7 +112,7 @@ export function EinstiegKoordination({
         <Col xs={12} md={6}>
           <Kachel
             zahl={ueberfaelligListe.length}
-            beschriftung="Überfällig"
+            beschriftung={UEBERGANG_KOORDINATION_TEXT.kachelUeberfaellig}
             ton="achtung"
             href={ueberfaelligListe.length > 0 ? "#ueberfaellig" : undefined}
           />
@@ -137,11 +146,13 @@ export function EinstiegKoordination({
       </section>
 
       <section id="ueberfaellig" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Überfällige Aufgaben</h2>
+        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>
+          {UEBERGANG_KOORDINATION_TEXT.abschnittUeberfaellig}
+        </h2>
         <AufgabenListe
           zeilen={ueberfaelligListe.map((a) => ({ aufgabe: a }))}
           heute={heute}
-          leerText="Keine überfälligen Aufgaben"
+          leerText={UEBERGANG_KOORDINATION_TEXT.leerUeberfaellig}
         />
       </section>
 

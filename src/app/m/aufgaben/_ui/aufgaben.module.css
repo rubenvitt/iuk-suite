@@ -339,6 +339,45 @@
   color: var(--auf-tinte);
 }
 /*
+ * DIE EINE DARSTELLUNG FUER DRINGLICHKEIT (Oberflaechen-Spec 2026-08-16 §6) — `_ui/Frist.tsx` ist
+ * ihr einziger Traeger, und diese drei Klassen sind ihre einzige Form.
+ *
+ * KANTE PLUS WORT, NIE EINE PILLE UND NIE EINE FLAECHE (§6.3, Kanal 2). Eine Pille waere formgleich
+ * mit dem Zustands-Chip, der in DERSELBEN Zeile steht — und genau die Verwechselbarkeit, gegen die
+ * die Prioritaetsskala formfarbig gebaut ist. `.fristUeberfaellig` beruehrt deshalb KEINE
+ * `-flaeche`-Variable; das ist an dieser einen Regel nachpruefbar.
+ *
+ * `--auf-achtung-text`, NIE `--auf-achtung-flaeche` UND NIE SUITE-ROT (§6.3, Kanal 4): die Flaeche
+ * ist die des `zurueckgewiesen`-Chips, und ein ueberfaelliges Etwas, das aussieht wie ein
+ * zurueckgewiesenes, ist schlimmer als gar keine Farbe. Der Wert steht ab hier als SICHTBARER TEXT
+ * auf `--auf-papier` und wird deshalb in `aufgaben-css.test.ts` eigens gemessen — `tonPaare()`
+ * findet ihn nicht, weil er hier ohne seine `-flaeche`-Haelfte auftritt.
+ *
+ * GEOMETRISCH GLEICH MIT `.budgetUeberbucht` DARUEBER, UND DAS IST ABSICHT (§6.4): die Form heisst
+ * „hier stimmt eine Zahl nicht", die Bedeutung kommt nie aus der Kante allein, sondern immer aus
+ * dem Wort daneben — „9,17 / 7,8 Std. — überbucht" gegen „Überfällig seit 3 Tagen". Zwei Formen
+ * fuer zwei Arten von „zu viel" waeren eine Formsprache zu viel, und beide koennen in derselben
+ * Tagesspalte stehen.
+ *
+ * 3px IST DIE KANTE EINES TEXTLAUFS, 4px waere die einer FLAECHE (§6.4, die Kantenleiter). Heute
+ * traegt kein Selektor die 4px-Stufe; die Regel bleibt trotzdem, damit eine kuenftige Flaeche nicht
+ * 3px nimmt.
+ */
+.frist {
+  white-space: nowrap;
+}
+.fristHeute {
+  font-weight: 600;
+  color: var(--auf-tinte);
+  white-space: nowrap;
+}
+.fristUeberfaellig {
+  border-inline-start: 3px solid var(--auf-achtung-text);
+  padding-inline-start: 8px;
+  color: var(--auf-achtung-text);
+  font-weight: 700;
+}
+/*
  * DER EINE ERLAUBTE UMBRUCH IN EINER BUDGETZEILE (Nach-Rebase-Runde, Befund B). `.budget` traegt
  * `white-space: nowrap`, und das ist richtig: „9,17 / 7,80 Std." ist EIN Wert, ein Umbruch mitten
  * im Zahlenpaar waere schlechter als jeder Ueberlauf. Der ueberbuchte Zusatz ist aber kein Teil

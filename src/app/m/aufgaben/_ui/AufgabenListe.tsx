@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { fmtDauer, istUeberfaellig, vorschlagOffen } from "../_lib/anzeige";
-import { fmtTagKurz } from "../_lib/datum";
+import { fmtDauer, vorschlagOffen } from "../_lib/anzeige";
 import type { AufgabeRow } from "../_db/schema";
 import { SPACE } from "@/core/theme/tokens";
+import { Frist } from "./Frist";
 import { Ikone } from "./ikonen";
 import { PrioritaetChip, StatusChip } from "./Chip";
 
@@ -25,11 +25,17 @@ import { PrioritaetChip, StatusChip } from "./Chip";
  * muesste. Das Paar `{ aufgabe, aktionen }` legt die Entscheidung vollstaendig
  * VOR dem Aufruf hin: fertig gerenderte Knoepfe, oder gar keine.
  *
- * `istUeberfaellig`/`vorschlagOffen` KOMMEN AUS `_lib/anzeige.ts` UND WERDEN
- * NICHT NEU GERECHNET — dieselbe Ableitung steht auch in der KPI-Kachel
- * (Aufgabe 13+). Zwei Fassungen derselben Bedingung laufen auseinander, und
- * der Fehler ist nicht sichtbar kaputt, sondern nur falsch: die Kachel zaehlt
- * drei, die Liste zeigt zwei.
+ * `vorschlagOffen` KOMMT AUS `_lib/anzeige.ts` UND WIRD NICHT NEU GERECHNET —
+ * dieselbe Ableitung steht auch in der KPI-Kachel (Aufgabe 13+). Zwei
+ * Fassungen derselben Bedingung laufen auseinander, und der Fehler ist nicht
+ * sichtbar kaputt, sondern nur falsch: die Kachel zaehlt drei, die Liste zeigt
+ * zwei.
+ *
+ * DIE FRIST STEHT SEIT DER OBERFLAECHEN-SPEC (§6.2) IN `_ui/Frist.tsx`, NICHT
+ * MEHR HIER: Datum und Ueberfaelligkeit waren zwei getrennte Spannen, und
+ * genau diese Zweiteilung hat drei Darstellungsformen im Modul erzeugt. `Frist`
+ * ruft `istUeberfaellig` selbst — diese Datei entscheidet ueber Dringlichkeit
+ * nichts mehr, sie ordnet die Zeile.
  */
 
 export interface AufgabenListeZeile {
@@ -71,7 +77,6 @@ export function AufgabenListe({
       }}
     >
       {zeilen.map(({ aufgabe, aktionen }) => {
-        const ueberfaellig = istUeberfaellig(aufgabe, heute);
         const vorschlag = vorschlagOffen(aufgabe);
         return (
           <li
@@ -81,13 +86,8 @@ export function AufgabenListe({
             <Link href={`/a/${aufgabe.id}`}>{aufgabe.titel}</Link>
             <StatusChip status={aufgabe.status} />
             <PrioritaetChip prioritaet={aufgabe.prioritaet} />
-            <span>Frist: {fmtTagKurz(aufgabe.faelligAm)}</span>
+            <Frist aufgabe={aufgabe} heute={heute} />
             <span>{fmtDauer(aufgabe.dauerMinuten)}</span>
-            {ueberfaellig ? (
-              <span>
-                <Ikone name="warnung" /> Überfällig
-              </span>
-            ) : null}
             {vorschlag ? (
               <span>
                 <Ikone name="uhr" /> Zeitvorschlag offen
