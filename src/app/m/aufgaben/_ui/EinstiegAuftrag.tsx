@@ -69,9 +69,17 @@ export function EinstiegAuftrag({ db, akteur, heute }: { db: DB; akteur: Akteur;
         titel="Meine Aufträge"
         kontext={kontext}
         aktionen={
-          <Button type="primary" href="/neu">
-            Aufgabe einstellen
-          </Button>
+          /*
+           * STANDARDKNOPF, KEIN `type="primary"` (Oberflaechen-Spec §11.4 Schritt 3, §9/S9) — und
+           * aus einem ANDEREN Grund als der „Annehmen"-Knopf in `EinstiegBufdi.tsx`. Dieser hier
+           * steht im `aktionen`-Prop des `SeitenKopf` und damit AUSSERHALB des Wrappers
+           * `data-testid="aufgaben-flaeche"`, den §3.3 ausdruecklich darunter legt: der Zaehlriegel
+           * faende ihn gar nicht. Er wird demotiert, weil „hoechstens ein Primaerknopf" fuer die
+           * GANZE Seite gilt und die Skizzen in §5.2/§5.3 „Aufgabe einstellen" bereits als
+           * Textknopf im Seitenkopf fuehren. Wer die beiden Begruendungen zusammenlegt, haelt beim
+           * naechsten Pruefen entweder den Riegel oder den Wrapper fuer falsch platziert.
+           */
+          <Button href="/neu">Aufgabe einstellen</Button>
         }
       />
 

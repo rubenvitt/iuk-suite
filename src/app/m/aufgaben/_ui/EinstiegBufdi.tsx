@@ -252,7 +252,15 @@ function posteingangAktionen(a: AufgabeRow, person: PersonRow): ReactNode {
           <input type="hidden" name="aufgabeId" value={a.id} />
           <input type="hidden" name="planDatum" value={a.vorschlagDatum ?? ""} />
           <input type="hidden" name="planUhrzeit" value={a.vorschlagUhrzeit ?? ""} />
-          <Button type="primary" htmlType="submit">
+          {/*
+           * STANDARDKNOPF, KEIN `type="primary"` (Oberflaechen-Spec §11.4 Schritt 3, §9/S9) —
+           * demotiert VOR dem Zaehlriegel, sonst waere der am ersten Tag rot: dieser Knopf steht
+           * in der Posteingang-Zone und damit INNERHALB von `data-testid="aufgaben-flaeche"`, wo
+           * kuenftig hoechstens EIN `.ant-btn-primary` stehen darf — und der gehoert der
+           * Fuehrungskarte. Kein bestehendes Tor haette gesagt warum: e2e-Test 61 klickt
+           * „Annehmen" ueber seinen TEXT, Test 13 prueft ein `href`, keiner den Knopftyp.
+           */}
+          <Button htmlType="submit">
             Annehmen: {fmtTagKurz(a.vorschlagDatum!)}
             {a.vorschlagUhrzeit ? `, ${a.vorschlagUhrzeit}` : ""}
           </Button>
