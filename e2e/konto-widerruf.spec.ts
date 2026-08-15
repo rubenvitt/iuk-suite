@@ -69,6 +69,24 @@ test("der Widerruf sperrt eine zweite, unabhaengige Sitzung aus", async ({ brows
   await seiteB.goto("http://portal.localtest.me:3100/");
   await expect(seiteB).toHaveURL(/\/login/);
 
+  /*
+   * UND DAS COOKIE IST WEG, nicht nur abgewiesen. Das ist kein Feinschliff,
+   * sondern die Aussage, an der ein ROLLBACK haengt: rollt man auf ein Image
+   * ohne Epochen-Pruefung zurueck, lebt ein Cookie wieder auf, das noch da ist.
+   * Geraete, die nach dem Widerruf einmal angefragt haben, sind dauerhaft
+   * drauszen — die anderen nicht.
+   *
+   * Der Mechanismus dahinter ist `sessionStore.clean()` in
+   * `@auth/core/lib/actions/session.js:51`; dass die `Set-Cookie`-Header auf
+   * DIESEM Weg auch ankommen, leistet der Wrapper-Zweig von next-auth
+   * (`lib/index.js:166-170`, siehe `src/proxy.ts`). Hergeleitet war das schon;
+   * hier wird es gemessen.
+   */
+  const kekse = await geraetB.cookies();
+  const sitzungsKeks = kekse.find((k) => k.name.includes("authjs.session-token"));
+  expect(sitzungsKeks, `Sitzungs-Cookie lebt noch: ${kekse.map((k) => k.name).join(", ")}`)
+    .toBeUndefined();
+
   await geraetA.close();
   await geraetB.close();
 });
