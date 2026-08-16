@@ -464,7 +464,7 @@
   color: var(--auf-stahl);
 }
 /*
- * „DIE WOCHE DER DREI" (§5.2) — eine Spalte je Person, OHNE eigene Medienabfrage: `auto-fit`
+ * „AUSLASTUNG DIESE WOCHE" (§5.2) — eine Spalte je Person, OHNE eigene Medienabfrage: `auto-fit`
  * liefert bei 360px eine Spalte, dieselbe Formel, die `.wochenGitter` schon benutzt. Wer unterwegs
  * zuweisen soll, braucht die Wochenlast; eine Ansicht, die auf dem Telefon nur einen Tag zeigt,
  * waere bei „gleichrangigem Telefon und Rechner" ein Rollenausfall, kein Komfortverlust.
@@ -476,7 +476,7 @@
 }
 /*
  * DIE DREI PERSONENKACHELN — EIGENE KLASSE, NICHT `.tagSpalte` (Oberflaechen-Runde 2026-08-16).
- * Bis hierhin lieh sich „Die Woche der drei" die Tagesspalte des Wochenplans; die beiden gehoeren
+ * Bis hierhin lieh sich „Auslastung diese Woche" die Tagesspalte des Wochenplans; die beiden gehoeren
  * aber verschiedenen Flaechen, und jede Aenderung an der einen traf still die andere. Der
  * Unterschied ist heute genau die Fuellung (`--auf-karte` statt `--auf-papier`, s. Befund 2 — auf
  * dem Seitengrund war die Kachel unsichtbar bis auf ihre Linie); dass es EINE Aenderung ist,
@@ -499,6 +499,93 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--auf-tinte);
+}
+
+/*
+ * ══ DIE AUSLASTUNG ALS BALKEN (Nachtrag „mehr Diversitaet im UI/UX", 2026-08-16).
+ *
+ * DER BEFUND: die Zone zeigte eine Menge im Verhaeltnis zu einer Kapazitaet als vier Textzeilen
+ * („6 / 39 Std.", „2 Aufgaben", „kein Tag ueberbucht", „Mo, 10.08. ueberbucht: 9,17 / 7,8 Std.").
+ * Ein Verhaeltnis liest man aus einer Laenge schneller als aus zwei Zahlen — und die
+ * Ueberbuchungszeile stand als Fliesstext zwischen anderen Fliesstexten, obwohl sie die einzige
+ * Auffaelligkeit der ganzen Kachel ist.
+ *
+ * ══ EIGENES MARKUP STATT antds `Progress` — UND DAS IST EINE ABWAEGUNG GEGEN DIE EMPFEHLUNG IM
+ *    AUFTRAG, ausgeschrieben, weil sie sonst wie ein Versehen aussieht:
+ *
+ *      1. `Progress` faerbt per Vorgabe mit `colorPrimary`, und das IST Suite-Rot (`#c8000f`) —
+ *         ein roter Auslastungsbalken liest sich als Alarm (Falle 3). Man kann das per
+ *         `strokeColor`/`trailColor` ueberschreiben, aber dann traegt jede Aufrufstelle zwei
+ *         Farbwerte, die nirgends gemessen sind.
+ *      2. Die Farben MUESSEN aus `--auf-*` kommen, damit die Hell/Dunkel-Paarigkeit und der
+ *         AA-Riegel in `aufgaben-css.test.ts` sie sehen. Ein `strokeColor="#…"` im TSX faellt durch
+ *         jedes Raster dieser Datei.
+ *      3. Ein Balken ist eine Spur und eine Fuellung. Der ganze Baustein ist kuerzer als die
+ *         Prop-Liste, mit der man `Progress` zaehmen muesste — und er hat keinen Gegenspieler im
+ *         Stylesheet (Falle 5).
+ *
+ * ══ FARBE IST HIER DIE ZWEITE SCHICHT, NIE DIE ERSTE (Modulspec §9.3, „Auslastung ist neutral"):
+ *    der Balken ist stahlgrau, SOLANGE die Kapazitaet reicht. Erst eine echte Ueberbuchung faerbt
+ *    — und auch dann steht das WORT „ueberbucht" daneben, wie bisher. Ein farbloser Screenshot
+ *    verliert nichts.
+ *
+ * ══ DIE LAENGE IST DER KANAL, ALSO MUSS DIE SKALA STIMMEN: `.lastFuellung` bekommt ihre Breite
+ *    inline (ein Datenwert, kein Layout — das ist der eine Fall, in dem ein Inline-`style` richtig
+ *    ist). Die Spur steht fuer `max(soll, verplant)`, damit eine Ueberbuchung ueberhaupt DARSTELLBAR
+ *    ist: bei einer 100%-Spur waeren 9,17/7,8 Std. und 7,8/7,8 Std. beide „voll".
+ */
+/*
+ * `display: block` IST NICHT KOSMETIK, SONDERN DER GRUND, WARUM DER BALKEN UEBERHAUPT ZU SEHEN IST.
+ * Der Traeger ist ein `<span>` (er steht in Fliesstext-Naehe und ist `aria-hidden`), und auf einer
+ * INLINE-Box wirkt `height` nicht — die Spur hatte null Hoehe und war unsichtbar. DIE TAGESSTREIFEN
+ * WAREN TROTZDEM DA und haben den Fehler damit verdeckt: sie sind Kinder von `.lastWoche`, einem
+ * Grid, und ein Grid-Item ist blockifiziert. Genau EIN Balken fehlte also, und kein Tor haette das
+ * je gesehen — jsdom rechnet keine Zeilenboxen, und die Zahl daneben stand richtig da. Gefunden im
+ * Bildschirmabzug.
+ */
+.lastBalken {
+  display: block;
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--auf-linie);
+  overflow: hidden;
+}
+.lastFuellung {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--auf-stahl);
+}
+.lastFuellungUeber {
+  background: var(--auf-achtung-text);
+}
+/*
+ * DIE KAPAZITAETSMARKE — die senkrechte Linie, an der „voll" liegt. Ohne sie sagt eine Fuellung von
+ * 80% der Spur nichts, sobald die Spur nicht mehr die Kapazitaet ist (s. oben): der Betrachter
+ * saehe einen fast vollen Balken und wuesste nicht, ob das gut oder zu viel ist.
+ */
+.lastMarke {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  background: var(--auf-tinte);
+}
+/*
+ * DIE WOCHE ALS FUENF TAGESSTREIFEN — hier wird die Ueberbuchungszeile SICHTBAR statt gelesen. Sie
+ * beantwortet die Frage, die die Wochensumme nicht beantworten kann: eine Person kann auf 6 von 39
+ * Wochenstunden stehen und trotzdem am Montag doppelt verplant sein. Genau dieser Fall steht im
+ * lokalen Seed (Bendix, Mo 9,17 / 7,8 Std.) und stand bisher als Satz zwischen Saetzen.
+ *
+ * `gap: 4px` UND KEINE BESCHRIFTUNG JE STREIFEN: fuenf Tageskuerzel unter fuenf 8px-Streifen waeren
+ * mehr Schrift als Grafik. Der ueberbuchte Tag wird BENANNT — in der Zeile darunter, mit Datum und
+ * Zahlen, also weiterhin im Wort-Kanal.
+ */
+.lastWoche {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
 }
 /*
  * DIE ZONENUEBERSCHRIFT ALS KICKER MIT HAARLINIE (Befunde 4 und 5). Sie stand in
@@ -636,6 +723,45 @@
 }
 .zeilenListe > li:last-child {
   border-block-end: none;
+}
+/*
+ * ══ DIE KNAPPE FORM (Nachtrag „mehr Diversitaet im UI/UX", 2026-08-16).
+ *
+ * DER BEFUND WAR NICHT NUR DAS FEHLENDE RASTER: auf der Flaeche war JEDE Zone eine linksbuendige
+ * Liste, nur mit anderer Ueberschrift. Fuenf gestapelte Listen sind derselbe monotone Eindruck wie
+ * fuenf verrutschte Knoepfe — die Form sagte nichts darueber, WOFUER die Zone da ist.
+ *
+ * ZWEI FORMEN, UND DIE ZUORDNUNG IST EINE ENTSCHEIDUNG, KEINE ABWECHSLUNG:
+ *   - DAS RASTER, wo man VERGLEICHT. „Überfällig" ist die Zone, in der man vier Zeilen
+ *     nebeneinanderhaelt und fragt „welche zuerst, und wer traegt sie" — dafuer braucht es
+ *     ausgerichtete Spalten und eine Aktionsspalte.
+ *   - DIE KNAPPE ZEILE, wo man nur wissen will, DASS es sie gibt. „Zurückgewiesen (1)" hat keine
+ *     Zeilenaktion und keine Vergleichsfrage; eine reservierte 150px-Aktionsspur fuer eine Zeile,
+ *     die keine Aktion traegt, ist eine Spalte, die etwas verspricht, was nicht kommt.
+ *
+ * DIE ANGABEN BLEIBEN DIESELBEN, IN DERSELBEN REIHENFOLGE (§10 Prueffrage 7) — es aendert sich die
+ * SETZUNG, nicht die Informationsarchitektur. Der Auftrag lautete ausdruecklich „die Gestalt, nicht
+ * die Informationsarchitektur".
+ *
+ * `.modul` ALS PRAEFIX, OBWOHL HIER KEIN antd-SELEKTOR GEGENSTEHT: `.zeilenListeKnapp > li` waere
+ * (0,1,1) — genau so viel wie `.zeilenListe > li` darueber, und bei Gleichstand entschiede die
+ * Reihenfolge im Stylesheet. Das FUNKTIONIERT hier (diese Regel steht spaeter), aber es ist die
+ * Bauart, die beim naechsten Umsortieren still kippt. (0,2,1) gewinnt unabhaengig davon.
+ */
+.modul .zeilenListeKnapp > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 4px 8px;
+}
+/*
+ * IN DER KNAPPEN FORM GIBT ES KEINE SPALTEN, ALSO AUCH KEINE LEEREN ZELLEN ZU HALTEN — dieselbe
+ * Ueberlegung wie im 767.98px-Block, nur aus dem anderen Grund: dort faellt die Ausrichtung weg,
+ * weil eine Spalte bleibt; hier, weil gar keine da ist.
+ */
+.modul .zeilenListeKnapp > li > *:empty {
+  display: none;
 }
 /*
  * `:focus-within` STEHT GLEICHBERECHTIGT NEBEN `:hover` UND IST KEINE ZUGABE: die Aktionsspalte
@@ -1026,4 +1152,14 @@
     justify-self: start;
     justify-content: flex-start;
   }
+}
+
+/*
+ * DIE KUERZEL UNTER DEN TAGESSTREIFEN. Mittig, damit jedes ueber SEINEM Streifen steht — bei
+ * linksbuendiger Setzung wandert das Kuerzel bei breiteren Spuren sichtbar vom Streifen weg.
+ * Farbe und Groesse kommen von `SCHRIFT.neben` an der Aufrufstelle; hier steht nur die Ausrichtung.
+ */
+.lastTage {
+  text-align: center;
+  color: var(--auf-stahl);
 }

@@ -181,7 +181,7 @@ function ohneBestand(art: AnlassArt): Anlass {
  *  - BUFDI: Rang 3 und 5 stehen vollstaendig in der Wochenachse, Rang 4 ist ueberhaupt kein
  *    Bestand. Die Aussage ueber Rang 3 HAENGT AN REGEL V: eine `in_arbeit`-Aufgabe ohne Platz in
  *    der Achse faengt die Achsen-Fusszeile ueber `ohnePlatzInDerAchse`.
- *  - KOORDINATION: KEINE Ausnahme — „Die Woche der drei" zeigt Zahlen je Person, keine
+ *  - KOORDINATION: KEINE Ausnahme — „Auslastung diese Woche" zeigt Zahlen je Person, keine
  *    Aufgabenzeilen. Es gibt dort nichts, was eine Zone wiederholen koennte.
  *  - AUFTRAG: ALLE — „Eigene Auftraege" zeigt jede eigene Zeile ungedeckelt. Ebene 4 des Aufbaus
  *    existiert fuer diese Rolle nicht.

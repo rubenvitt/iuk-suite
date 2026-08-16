@@ -6,6 +6,7 @@ import { personen, aufgaben, type PersonRow, type Rolle } from "../_db/schema";
 import { montagDerWoche, wochenTage } from "../_lib/datum";
 import { lage } from "../_lib/lage";
 import type { Akteur } from "../_lib/zugang";
+import s from "./aufgaben.module.css";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -13,7 +14,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-const { EinstiegKoordination } = await import("./EinstiegKoordination");
+const { EinstiegKoordination, balkenMasse } = await import("./EinstiegKoordination");
 
 /*
  * „VERTEILUNG" NACH DER OBERFLAECHEN-SPEC (2026-08-16 §3.4, §5.2).
@@ -258,7 +259,7 @@ describe("EinstiegKoordination — der Aufbau aus §3.4", () => {
   });
 });
 
-describe("EinstiegKoordination — „Die Woche der drei“ (Flaeche der Rolle, §5.2)", () => {
+describe("EinstiegKoordination — „Auslastung diese Woche“ (Flaeche der Rolle, §5.2)", () => {
   /**
    * DIE ZAHL MUSS VOR DER ENTSCHEIDUNG SICHTBAR SEIN, ein Modal ueberhaupt zu oeffnen (§5.2/S10) —
    * bis hierhin existierte die Auslastung nur INNERHALB des Verteilen-Dialogs.
@@ -389,5 +390,95 @@ describe("EinstiegKoordination — der Fuss", () => {
     const ziele = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
     expect(ziele).toContain("/personen");
     expect(ziele).toContain("/archiv");
+  });
+});
+
+/*
+ * ══ DIE AUSLASTUNGSGRAFIK (Nachtrag „mehr Diversitaet im UI/UX", 2026-08-16).
+ *
+ * DIE MASSE STEHEN ALS REINE FUNKTION DA, WEIL EIN BILDSCHIRMABZUG EINEN FALSCH SKALIERTEN BALKEN
+ * NICHT ALS FEHLER ZEIGT — er zeigt einen Balken. Die Skalenwahl ist die eine Stelle, an der diese
+ * Grafik still unwahr wird, und genau die wird hier nachgerechnet statt angesehen.
+ */
+describe("balkenMasse — die Skala ist `max(soll, verplant)`, nicht `soll`", () => {
+  it("fuellt unterhalb der Kapazitaet anteilig und setzt keine Marke", () => {
+    const { ueber, anteil } = balkenMasse(360, 2340);
+    expect(ueber).toBe(false);
+    expect(anteil).toBeCloseTo((360 / 2340) * 100, 5);
+  });
+
+  /**
+   * DER FALL, GEGEN DEN DIE SKALA GEWAEHLT IST: mit einer 100%-Spur waeren „genau voll" und
+   * „ueberbucht" BEIDE ein voller Balken — die Ueberbuchung waere die einzige Aussage, die die
+   * Grafik nicht treffen koennte. Beide Faelle stehen deshalb nebeneinander im selben Test: erst
+   * der Gleichstand, dann die Ueberschreitung, und der Unterschied MUSS sichtbar sein.
+   */
+  it("unterscheidet „genau voll“ von „ueberbucht“ — beides waere sonst ein voller Balken", () => {
+    const voll = balkenMasse(468, 468);
+    expect(voll.ueber).toBe(false);
+    expect(voll.anteil).toBe(100);
+    expect(voll.markeBei).toBe(100);
+
+    const drueber = balkenMasse(550, 468);
+    expect(drueber.ueber).toBe(true);
+    expect(drueber.anteil).toBe(100);
+    // DIE MARKE RUECKT NACH LINKS — das ist der ganze sichtbare Unterschied zum Fall darueber.
+    expect(drueber.markeBei).toBeCloseTo((468 / 550) * 100, 5);
+    expect(drueber.markeBei).toBeLessThan(100);
+  });
+
+  /**
+   * `soll === 0` IST KEIN GEDACHTER FALL: `arbeitstage` kann einen Tag ausschliessen. Ohne den
+   * Sonderzweig waere die Breite `NaN%`, CSS verwuerfe sie STILL, und der Streifen saehe aus wie
+   * ein freier Tag — das Gegenteil dessen, was Verplantes an einem Nicht-Arbeitstag bedeutet.
+   */
+  it("laesst bei Soll 0 keinen NaN entstehen — leerer Tag leer, belegter Tag voll und ueber", () => {
+    const leer = balkenMasse(0, 0);
+    expect(Number.isNaN(leer.anteil)).toBe(false);
+    expect(leer.anteil).toBe(0);
+    expect(leer.ueber).toBe(false);
+
+    const belegt = balkenMasse(60, 0);
+    expect(Number.isNaN(belegt.anteil)).toBe(false);
+    expect(belegt.anteil).toBe(100);
+    expect(belegt.ueber).toBe(true);
+  });
+});
+
+describe("EinstiegKoordination — die Form folgt dem Zweck (Nachtrag „mehr Diversitaet“)", () => {
+  /**
+   * ZWEI SETZUNGEN AUF EINER FLAECHE, UND DIE ZUORDNUNG IST DIE AUSSAGE: „Überfällig" ist die Zone,
+   * in der man VERGLEICHT (Raster mit ausgerichteten Spalten und Aktionsspalte); „Zurückgewiesen"
+   * die, in der man nur wissen will, DASS es sie gibt (knappe Zeile ohne reservierte Spuren).
+   *
+   * DER TEST PRUEFT BEIDE SEITEN. Nur „die zurueckgewiesene Zone ist knapp" waere auch von einer
+   * Fassung erfuellt, die ALLE Zonen knapp setzt — und damit waere die Diversitaet wieder fort,
+   * nur in die andere Richtung.
+   */
+  it("setzt „Zurückgewiesen“ knapp und „Überfällig“ als Raster", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    for (const titel of ["Ueberfaellig A", "Ueberfaellig B"]) {
+      legeAufgabe({
+        erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+        titel, status: "verteilt", faelligAm: "2026-08-01",
+      });
+    }
+    for (const titel of ["Zurueck A", "Zurueck B"]) {
+      legeAufgabe({
+        erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+        titel, status: "zurueckgewiesen",
+      });
+    }
+    await zeige(rike);
+
+    const knapp = query("[data-anlass='koordZurueckgewiesen'] ul");
+    const raster = query("[data-anlass='koordUeberfaelligVerteilt'] ul");
+    expect(knapp.className).toContain(s.zeilenListeKnapp);
+    expect(raster.className).not.toContain(s.zeilenListeKnapp);
+    // BEIDE tragen die Basisklasse — `knapp` ist eine Ergaenzung, keine zweite Liste.
+    expect(knapp.className).toContain(s.zeilenListe);
+    expect(raster.className).toContain(s.zeilenListe);
   });
 });

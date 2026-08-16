@@ -46,12 +46,28 @@ export interface AufgabenListeZeile {
   rollenZusatz?: string | null;
 }
 
+/**
+ * DIE ZWEI SETZUNGEN EINER LISTE (Nachtrag „mehr Diversitaet im UI/UX", 2026-08-16).
+ *
+ * `raster` ist die Vorgabe und die Form, in der man VERGLEICHT: ausgerichtete Spalten plus
+ * Aktionsspalte. `knapp` ist die Form fuer Zonen, in denen man nur wissen will, DASS es sie gibt —
+ * eine fliessende Zeile ohne reservierte Spuren.
+ *
+ * ES IST EINE SETZUNG, KEINE INHALTSFRAGE: beide zeigen DIESELBEN Angaben in DERSELBEN Reihenfolge
+ * (§10 Prueffrage 7). Wer hier je Felder weglaesst, aendert die Informationsarchitektur und braucht
+ * dafuer eine eigene Begruendung, nicht diesen Schalter.
+ */
+export type ListenForm = "raster" | "knapp";
+
 export function AufgabenListe({
   zeilen,
   heute,
   leerText,
+  form = "raster",
 }: {
   zeilen: AufgabenListeZeile[];
+  /** s. `ListenForm` — die Wahl trifft der Aufrufer, weil nur er den Zweck der Zone kennt. */
+  form?: ListenForm;
   /** ISO-Tagesstring — fuer `istUeberfaellig`. Kommt als Argument, nie aus `new Date()` hier. */
   heute: string;
   /**
@@ -78,7 +94,7 @@ export function AufgabenListe({
      * prueft die Inline-Freiheit des `<li>`, nicht die des `<ul>`, und jsdom rechnet keine
      * Rasterspuren. Alle sechs Deklarationen stehen jetzt in `aufgaben.module.css`.
      */
-    <ul className={s.zeilenListe}>
+    <ul className={form === "knapp" ? `${s.zeilenListe} ${s.zeilenListeKnapp}` : s.zeilenListe}>
       {zeilen.map(({ aufgabe, aktionen, rollenZusatz }) => (
         <AufgabenZeile
           key={aufgabe.id}

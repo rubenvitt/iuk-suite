@@ -4,7 +4,7 @@ import { ANLASS_TEXT } from "../_lib/anzeige";
 import type { Anlass } from "../_lib/lage";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
-import { AufgabenListe, type AufgabenListeZeile } from "./AufgabenListe";
+import { AufgabenListe, type AufgabenListeZeile, type ListenForm } from "./AufgabenListe";
 import s from "./aufgaben.module.css";
 
 /*
@@ -46,6 +46,7 @@ export function AnlassZone({
   zusaetze = {},
   aktionen = {},
   deckelErlaubt = true,
+  form = "raster",
 }: {
   anlass: Anlass;
   heute: string;
@@ -62,6 +63,14 @@ export function AnlassZone({
    * steht beim Aufrufer, weil sie den AKTEUR betrifft und nicht die Beschriftung.
    */
   deckelErlaubt?: boolean;
+  /**
+   * DIE SETZUNG DER LISTE (Nachtrag „mehr Diversitaet", 2026-08-16) — `raster`, wo man VERGLEICHT,
+   * `knapp`, wo man nur wissen will, DASS es die Zeilen gibt. Die Wahl trifft der AUFRUFER, nicht
+   * `ANLASS_TEXT`: sie haengt am Zweck der Flaeche, nicht am Anlass — derselbe `koordZurueckgewiesen`
+   * kann auf `/archiv` sehr wohl eine Vergleichsfrage sein. Vorgabe ist `raster`, damit eine neue
+   * Zone nie versehentlich in der duennsten Form landet.
+   */
+  form?: ListenForm;
 }) {
   const text = ANLASS_TEXT[anlass.art];
   const ziel = deckelErlaubt ? (text.deckelziel?.(eigenePersonId) ?? null) : null;
@@ -97,7 +106,7 @@ export function AnlassZone({
        * Platzhalter — wer diese Komponente je fuer eine andere Quelle benutzt, bekommt keinen
        * leeren Kasten, der wie ein Ladefehler aussieht.
        */}
-      <AufgabenListe zeilen={zeilen} heute={heute} leerText="Nichts in dieser Zone." />
+      <AufgabenListe zeilen={zeilen} heute={heute} form={form} leerText="Nichts in dieser Zone." />
       {gedeckelt && ziel !== null ? (
         <p style={{ ...SCHRIFT.neben, margin: `${SPACE.sm}px 0 0` }}>
           <Link href={ziel}>… und {rest} weitere →</Link>

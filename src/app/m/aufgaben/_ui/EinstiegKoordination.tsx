@@ -16,7 +16,7 @@ import {
   tagesBudget,
   type AnlassArt,
 } from "../_lib/anzeige";
-import { fmtTagKurz } from "../_lib/datum";
+import { fmtTagKurz, fmtWochentagKurz } from "../_lib/datum";
 import { aktionsOptionen } from "../_lib/aktionsOptionen";
 import { kartenGrunddaten } from "../_lib/kartendaten";
 import type { Anlass, Lage } from "../_lib/lage";
@@ -48,7 +48,7 @@ import s from "./aufgaben.module.css";
  * Fassungen, sondern EINE an zwei Orten. Was entfaellt, ist die Kopie im Einstieg, nicht die Route.
  * Beide tragen ausserdem 404-Gegenproben, die es ohne sie nicht mehr gaebe.
  *
- * DIE FLAECHE DER ROLLE IST NICHT DER POSTEINGANG, SONDERN „DIE WOCHE DER DREI" (§5.2). Der Grund
+ * DIE FLAECHE DER ROLLE IST NICHT DER POSTEINGANG, SONDERN „AUSLASTUNG DIESE WOCHE" (§5.2). Der Grund
  * ist genau einer: die Auslastungszahlen existieren heute nur INNERHALB des Verteilen-Dialogs —
  * also erst, nachdem man sich entschieden hat, ihn zu oeffnen. Vor dieser Entscheidung steht die
  * Zahl nirgends. Es entsteht dabei KEINE zweite Rechnung: `wochenAuslastungFuerBufdis` summiert
@@ -109,8 +109,8 @@ export function EinstiegKoordination({
           {...grund}
         />
 
-        {/* ── 3 · DIE FLAECHE DER ROLLE: „Die Woche der drei" — immer da, auch leer (R2) ── */}
-        <WocheDerDrei db={db} auslastung={auslastung} tage={tage} />
+        {/* ── 3 · DIE FLAECHE DER ROLLE: „Auslastung diese Woche" — immer da, auch leer (R2) ── */}
+        <AuslastungDieseWoche db={db} auslastung={auslastung} tage={tage} />
 
         {/* ── 4 · DIE UEBRIGEN ANLAESSE ALS ZONEN, IN RANGFOLGE (Regel R3) ── */}
         {lage.zonen.map((zone) => (
@@ -139,6 +139,7 @@ export function EinstiegKoordination({
             // Auftraggeber ohne Koordination bekommt auf `/freigaben` 404 — ein Deckel dorthin
             // waere ein Knopf auf eine 404-Seite.
             deckelErlaubt={zone.art !== "koordFreigabeOffen" || grund.darfFreigabenSehen}
+            form={ZONEN_KNAPP.has(zone.art) ? "knapp" : "raster"}
           />
         ))}
 
@@ -213,6 +214,34 @@ function umverteilAktionen(
   );
 }
 
+/**
+ * WELCHE ZONE WELCHE FORM BEKOMMT (Nachtrag „mehr Diversitaet im UI/UX", 2026-08-16).
+ *
+ * DER BEFUND WAR NICHT NUR DAS FEHLENDE RASTER: auf dieser Flaeche war JEDE Zone eine
+ * linksbuendige Liste, nur mit anderer Ueberschrift. Fuenf gestapelte Listen sind derselbe monotone
+ * Eindruck wie fuenf verrutschte Knoepfe — die Form sagte nichts darueber, WOFUER die Zone da ist.
+ *
+ * DER MASSSTAB IST DIE FRAGE, DIE MAN AN DIE ZONE STELLT, NICHT DIE ABWECHSLUNG:
+ *
+ *  - RASTER, wo man VERGLEICHT. Die zwei „Überfällig"-Zonen sind genau das: vier Zeilen
+ *    nebeneinandergehalten, mit der Frage „welche zuerst, und wer traegt sie". Dafuer braucht es
+ *    ausgerichtete Spalten UND eine Aktionsspalte — sie sind die einzigen Zonen mit einem
+ *    Zeilenweg. „Freigabe offen" bleibt ebenfalls Raster: die Zone ist der Vorlauf zu `/freigaben`,
+ *    und die Vertretungsangabe je Zeile ist eine Vergleichsangabe.
+ *
+ *  - KNAPP, wo man nur wissen will, DASS es sie gibt. `koordZurueckgewiesen` traegt keinen
+ *    Zeilenweg (die Koordination hat fuer eine zurueckgewiesene Aufgabe keine Zustandsaktion,
+ *    §4.2 Rang 6) und keine Vergleichsfrage. Eine reservierte 150px-Aktionsspur fuer eine Zeile,
+ *    die keine Aktion traegt, ist eine Spalte, die etwas verspricht, was nicht kommt.
+ *
+ * DIE ANGABEN BLEIBEN DIESELBEN, IN DERSELBEN REIHENFOLGE (§10 Prueffrage 7) — es aendert sich die
+ * SETZUNG, nicht die Informationsarchitektur.
+ *
+ * DIE MENGE STEHT HIER UND NICHT IN `ANLASS_TEXT`: die Wahl haengt am Zweck DIESER Flaeche, nicht
+ * am Anlass. Derselbe `koordZurueckgewiesen` ist auf `/archiv` sehr wohl eine Vergleichsfrage.
+ */
+const ZONEN_KNAPP: ReadonlySet<AnlassArt> = new Set<AnlassArt>(["koordZurueckgewiesen"]);
+
 /** Die drei Zonen, deren Zeilen ueberhaupt in `verteilt` stehen koennen (§4.2, Raenge 1, 5a, 5b). */
 const ZONEN_MIT_UMVERTEILEN: ReadonlySet<AnlassArt> = new Set<AnlassArt>([
   "koordOhneTraeger",
@@ -221,7 +250,7 @@ const ZONEN_MIT_UMVERTEILEN: ReadonlySet<AnlassArt> = new Set<AnlassArt>([
 ]);
 
 /**
- * „DIE WOCHE DER DREI" (§5.2) — EINE ZEILE JE PERSON MIT DEM WOCHENWERT, auch auf 360px
+ * „AUSLASTUNG DIESE WOCHE" (§5.2) — EINE ZEILE JE PERSON MIT DEM WOCHENWERT, auch auf 360px
  * vollstaendig. Das kostet KEINE Medienabfrage: `.lageGitter` benutzt dieselbe
  * `auto-fit`-Formel wie `.wochenGitter` und liefert bei 360px eine Spalte. Wer unterwegs zuweisen
  * soll, braucht die Wochenlast; eine Ansicht, die auf dem Telefon nur einen Tag zeigt, waere bei
@@ -235,7 +264,7 @@ const ZONEN_MIT_UMVERTEILEN: ReadonlySet<AnlassArt> = new Set<AnlassArt>([
  * (ueber `verteilDaten`), der ueberbuchte Tag aus demselben `tagesBudget`, das auch die
  * Tagesspalten der BuFDi-Achse fuellt.
  */
-function WocheDerDrei({
+function AuslastungDieseWoche({
   db,
   auslastung,
   tage,
@@ -246,9 +275,21 @@ function WocheDerDrei({
 }) {
   return (
     <section style={{ marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.xl }}>
-      {/* Dieselbe Kopfform wie jede Zone (`AnlassZone`): Kicker plus Haarlinie, s. dort. */}
+      {/*
+       * „AUSLASTUNG DIESE WOCHE", NICHT MEHR „DIE WOCHE DER DREI" (Nachtrag 2026-08-16).
+       *
+       * DIE ALTE UEBERSCHRIFT WAR AN EINE STAMMDATENZAHL GEBUNDEN und beim vierten BuFDi schlicht
+       * falsch — die Spec hatte das selbst als bewusste Grenze notiert (§8). Eine Ueberschrift, die
+       * von einem Datenbestand abhaengt, ist keine: sie wird nicht rot, sie wird nur unwahr, und
+       * zwar an dem Tag, an dem jemand eine Person anlegt. Kein Tor der Suite kann das sehen.
+       *
+       * DER NEUE NAME SAGT AUSSERDEM, WAS DIE ZONE ZEIGT: eine Menge im Verhaeltnis zu einer
+       * Kapazitaet, ueber einen Zeitraum. Das passt zur Balkendarstellung darunter — die bildhaften
+       * Namen dieses Repos („Die Lagekarte", „Der Abendzettel") sind Namen von ENTWUERFEN, nicht
+       * Ueberschriften auf der Flaeche.
+       */}
       <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.sm}px` }}>
-        Die Woche der drei
+        Auslastung diese Woche
       </h2>
       {auslastung.length === 0 ? (
         <p>
@@ -268,6 +309,86 @@ function WocheDerDrei({
   );
 }
 
+/**
+ * DIE MASSE EINES AUSLASTUNGSBALKENS — als reine Funktion, damit sie pruefbar ist.
+ *
+ * EXPORTIERT AUS GENAU EINEM GRUND: die Skalenwahl unten ist die Stelle, an der diese Grafik STILL
+ * falsch wird, und ein Bildschirmabzug zeigt einen falsch skalierten Balken nicht als Fehler — er
+ * zeigt einen Balken. `EinstiegKoordination.test.tsx` rechnet die drei Faelle deshalb nach.
+ *
+ * ══ DIE SKALA IST `max(soll, verplant)`, NICHT `soll`. Mit einer 100%-Spur sind 7,8/7,8 Std. und
+ *    9,17/7,8 Std. BEIDE ein voller Balken — die Ueberbuchung, also die einzige Auffaelligkeit der
+ *    ganzen Zone, waere die einzige Aussage, die der Balken nicht treffen kann. Mit dieser Skala
+ *    ragt sie ueber die Kapazitaetsmarke hinaus, und die Marke sagt, wo „voll" liegt.
+ */
+
+export function balkenMasse(
+  verplant: number,
+  soll: number,
+): { ueber: boolean; anteil: number; markeBei: number } {
+  const ueber = verplant > soll;
+  const skala = Math.max(soll, verplant);
+  // `skala <= 0` DECKT BEIDE UNBRAUCHBAREN NENNER IN EINEM: kein Soll UND kein Verplantes (leerer
+  // Tag -> leerer Balken), sowie Verplantes ohne Soll (Nicht-Arbeitstag -> voller Achtungsbalken).
+  // Ohne den Zweig waere `anteil` `NaN`, CSS verwuerfe die Breite still, und der Streifen saehe aus
+  // wie ein freier Tag — also das Gegenteil dessen, was er meint.
+  const anteil = skala <= 0 ? (verplant > 0 ? 100 : 0) : (verplant / skala) * 100;
+  const markeBei = skala <= 0 ? 100 : (soll / skala) * 100;
+  return { ueber, anteil, markeBei };
+}
+
+/**
+ * EIN AUSLASTUNGSBALKEN — VERPLANTE MENGE GEGEN KAPAZITAET (Nachtrag „mehr Diversitaet", §9.3).
+ *
+ * ══ DIE SKALA IST `max(soll, verplant)`, NICHT `soll`. Das ist der Punkt, an dem eine naive
+ *    Fassung still falsch wird: mit einer 100%-Spur sind 7,8/7,8 Std. und 9,17/7,8 Std. BEIDE ein
+ *    voller Balken — die Ueberbuchung, also die einzige Auffaelligkeit, waere die einzige Aussage,
+ *    die der Balken nicht treffen kann. Mit dieser Skala ragt sie ueber die Kapazitaetsmarke
+ *    hinaus, und die Marke sagt, wo „voll" liegt.
+ *
+ * ══ FARBE IST DIE ZWEITE SCHICHT (Modulspec §9.3): stahlgrau, solange die Kapazitaet reicht.
+ *    `--auf-achtung-text` NUR bei echter Ueberbuchung, und auch dann steht das Wort daneben (die
+ *    Zeile „<Tag> ueberbucht: …" bzw. „kein Tag ueberbucht"). Ein Ausdruck in Graustufen verliert
+ *    nichts — deshalb bekommt der Balken auch KEINE eigene Textalternative: er wiederholt, was
+ *    im Wort-Kanal ohnehin vollstaendig dasteht, und ein zweiter `aria-label` daneben laese eine
+ *    Screenreader-Ausgabe jede Zahl doppelt vor. `aria-hidden` sagt das ausdruecklich, statt es
+ *    dem Zufall zu ueberlassen.
+ *
+ * ══ DIE BREITE STEHT INLINE, UND DAS IST HIER RICHTIG: sie ist ein DATENWERT, keine Layoutregel.
+ *    Der Kopfkommentar von `AufgabenZeile` verbietet Inline-`style` fuer die ZEILENFORM, weil ein
+ *    Inline-Wert jede Medienabfrage schlaegt — eine Prozentzahl aus der Datenbank hat dagegen in
+ *    keinem Stylesheet etwas zu suchen.
+ *
+ * ══ `soll <= 0` IST KEIN GEDACHTER FALL: `arbeitstage` kann einen Tag ausschliessen, und dann ist
+ *    das Tagesbudget null. Ohne den Zweig waere die Breite `NaN%` — CSS ignoriert das still, der
+ *    Streifen bliebe leer und saehe aus wie ein freier Tag. Verplantes an einem Nicht-Arbeitstag
+ *    ist aber das Gegenteil davon, also: volle Fuellung in Achtung.
+ */
+function Balken({
+  verplant,
+  soll,
+  ohneMarke = false,
+}: {
+  verplant: number;
+  soll: number;
+  /** Die Tagesstreifen tragen keine Marke — bei 8px Breite waere sie die halbe Grafik. */
+  ohneMarke?: boolean;
+}) {
+  const { ueber, anteil, markeBei } = balkenMasse(verplant, soll);
+
+  return (
+    <span className={s.lastBalken} aria-hidden>
+      <span
+        className={`${s.lastFuellung} ${ueber ? s.lastFuellungUeber : ""}`}
+        style={{ width: `${anteil}%` }}
+      />
+      {!ohneMarke && ueber ? (
+        <span className={s.lastMarke} style={{ insetInlineStart: `${markeBei}%` }} />
+      ) : null}
+    </span>
+  );
+}
+
 function PersonenLage({
   db,
   zeile,
@@ -280,9 +401,13 @@ function PersonenLage({
   const person = zeile.person;
   const aufgabenDerPerson = aufgabenFuerPerson(db, person.id);
   const routinenDerPerson = routinenFuer(db, person.id);
-  const ueberbucht = tage
-    .map((tag) => ({ tag, budget: tagesBudget(aufgabenDerPerson, routinenDerPerson, person, tag) }))
-    .filter((t) => t.budget.ueberbucht);
+  // EINMAL GERECHNET, ZWEIMAL GEBRAUCHT — die Tagesstreifen und die Ueberbuchungszeile lesen
+  // dieselben Budgets. Zwei Aufrufe von `tagesBudget` je Tag waeren zwei Fassungen derselben Zahl.
+  const tagesBudgets = tage.map((tag) => ({
+    tag,
+    budget: tagesBudget(aufgabenDerPerson, routinenDerPerson, person, tag),
+  }));
+  const ueberbucht = tagesBudgets.filter((t) => t.budget.ueberbucht);
   const ausserhalb = aufgabenDerPerson.filter((a) => ohnePlatzInDerAchse(a, tage));
 
   return (
@@ -308,7 +433,49 @@ function PersonenLage({
       <p className={`${s.budget} ${s.lageWert}`} style={{ margin: `${SPACE.xs}px 0 0` }}>
         {fmtStunden(zeile.verplantMinuten)} / {fmtStunden(zeile.sollMinuten)} Std.
       </p>
-      <p style={{ ...SCHRIFT.neben, margin: `${SPACE.xs}px 0 0` }}>
+      {/*
+       * DER WOCHENBALKEN — die Zahl daneben bleibt stehen, der Balken ergaenzt sie. Beides, weil
+       * eine Laenge das VERHAELTNIS schneller zeigt und die Zahl den WERT genauer nennt; wer den
+       * Balken nicht sieht (Screenreader, Ausdruck in Graustufen), verliert nichts.
+       */}
+      <div style={{ marginBlockStart: SPACE.sm }}>
+        <Balken verplant={zeile.verplantMinuten} soll={zeile.sollMinuten} />
+      </div>
+      {/*
+       * DIE FUENF TAGE ALS STREIFEN — hier wird sichtbar, was bisher nur dastand: eine Person kann
+       * auf 6 von 39 Wochenstunden stehen und am Montag trotzdem doppelt verplant sein. Die
+       * Wochensumme kann das strukturell nicht zeigen.
+       */}
+      <div className={s.lastWoche} style={{ marginBlockStart: SPACE.xs }}>
+        {tagesBudgets.map(({ tag, budget }) => (
+          <Balken
+            key={tag}
+            verplant={budget.verplantMinuten}
+            soll={budget.sollMinuten}
+            ohneMarke
+          />
+        ))}
+      </div>
+      {/*
+       * DIE FUENF KUERZEL — nachgetragen, weil die Streifen ohne sie nicht lesbar waren (im
+       * Bildschirmabzug gesehen, nicht vermutet): fuenf graue Balken ohne Beschriftung sind fuer
+       * jeden, der die Zone nicht gebaut hat, Zierrat. Erst „Mo Di Mi Do Fr" darunter macht aus der
+       * Grafik eine Aussage ueber die WOCHE — dass Alina montags und mittwochs arbeitet und
+       * dienstags nicht, steht in keiner der Textzeilen.
+       *
+       * DASSELBE GITTER WIE DIE STREIFEN (`.lastWoche`), damit Kuerzel und Streifen dieselben fuenf
+       * Spuren teilen. Eine zweite Aufteilung (fuenf `flex: 1`-Spannen) saehe bei gleichen Breiten
+       * gleich aus und liefe beim ersten abweichenden Abstand auseinander.
+       */}
+      <div
+        className={`${s.lastWoche} ${s.lastTage}`}
+        style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}
+      >
+        {tagesBudgets.map(({ tag }) => (
+          <span key={tag}>{fmtWochentagKurz(tag)}</span>
+        ))}
+      </div>
+      <p style={{ ...SCHRIFT.neben, margin: `${SPACE.sm}px 0 0` }}>
         {aufgabenInWoche(aufgabenDerPerson, tage)} Aufgaben
       </p>
       {/*

@@ -143,6 +143,19 @@ export function fmtTagKurz(iso: string): string {
 }
 
 /**
+ * NUR DER WOCHENTAG, OHNE DATUM — „Do".
+ *
+ * Gebraucht seit der Auslastungsgrafik (Nachtrag 2026-08-16): unter den fuenf Tagesstreifen steht
+ * je ein Kuerzel, und `fmtTagKurz` waere dort dreimal zu breit („Do, 13.08." unter einem 55px
+ * schmalen Streifen). Kein zweites Vokabular: dieselbe `WOCHENTAGE_KURZ`-Tabelle, aus demselben
+ * Grund wie dort keine `Intl`-Kurzform — deren Abkuerzungen sind zwischen ICU-Fassungen nicht
+ * stabil, und ein Linux-Runner haette damit andere Beschriftungen als die Entwicklermaschine.
+ */
+export function fmtWochentagKurz(iso: string): string {
+  return WOCHENTAGE_KURZ[anker(iso).getUTCDay()];
+}
+
+/**
  * "HH:MM" seit Mitternacht in Minuten — GEPRUEFT, nicht bloss geparst.
  *
  * BIS AUFGABE 7 HATTE DIESE FUNKTION KEINEN AUFRUFER MIT UNVALIDIERTEN WERTEN.
