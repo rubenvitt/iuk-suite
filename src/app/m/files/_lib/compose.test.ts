@@ -160,6 +160,31 @@ describe("compose.yaml — der clamav-Sidecar sitzt abgeschottet (Spec §6.5)", 
     expect(text).toContain("${SUITE_CLAMAV_START_PERIOD:-120s}");
   });
 
+  it("Punkt 6b: die gemeinsame gid ist eine Variable MIT Vorbelegung (`:-`)", () => {
+    /*
+     * `storage.ts` schreibt Blobs 0o640 und Ablagen 0o750 und beruft sich auf „gemeinsame
+     * gid" als die geltende der zwei zugelassenen Varianten — hergestellt wird sie aber
+     * erst hier. Fehlt die Zeile, betritt clamd die 0750-Verzeichnisse nicht („File path
+     * check failure: Permission denied"), und nach FILES_AV_VERSUCHE steht
+     * `av_status = 'error'`: fail-closed, Download dauerhaft gesperrt, Anblick eines
+     * kaputten Moduls. Kein anderes Gate beruehrt das — E2E benutzt kein Compose, und in
+     * einem Container laeuft der Testlauf ohnehin nicht.
+     *
+     * `:-` woertlich samt Doppelpunkt, aus demselben Grund wie in Punkt 6: eine nicht
+     * gesetzte Variable macht Compose zum LEEREN String, und ein leerer `user:`-Wert
+     * laesst `docker compose config` scheitern.
+     *
+     * Und die Vorbelegung ist NICHT frei waehlbar: die uid MUSS 1001 sein (nextjs, der
+     * Eigentuemer von /data und /data/files im Image), sonst nimmt das blosse Einfuehren
+     * dieser Zeile jedem Host, der die Variable nicht setzt, den Zugriff auf seine eigenen
+     * Daten. Die gid 1001 (nodejs) ist dagegen bewusst NICHT die des Images: `USER nextjs`
+     * laeuft als 1001:65533(nogroup), weil das Dockerfile kein `-G nodejs` setzt. 1001 ist
+     * die Gruppe, der /data ohnehin gehoert — die Zeile korrigiert das mit, statt `nogroup`
+     * einzufrieren.
+     */
+    expect(suite.join("\n")).toContain("${SUITE_USER:-1001:1001}");
+  });
+
   it("Punkt 8: suite haengt an `proxy` UND `av` — sonst erreicht sie clamd nicht", () => {
     // Fehlt `av`, laeuft jeder Scan in ECONNREFUSED und nach
     // FILES_AV_VERSUCHE in `av_status = 'error'`. Fail-closed, in Produktion,

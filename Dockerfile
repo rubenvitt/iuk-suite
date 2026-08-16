@@ -71,6 +71,20 @@ COPY --from=builder --chown=nextjs:nodejs /app/src/core/konto/_db/migrations ./s
 RUN mkdir -p /data/files && chown nextjs:nodejs /data /data/files
 VOLUME /data
 
+# Der Commit, aus dem dieses Image gebaut wurde — von `/api/health/<modul>` ausgegeben
+# (`src/core/version.ts`) und damit der einzige Beleg, den der automatische Rollout von
+# AUSSEN prüfen kann. Das OCI-Label `image.revision` (docker/metadata-action) reicht
+# dafür nicht: ein Prozess im Container liest seine eigenen Labels nicht.
+#
+# ⚠️ DIE STELLE IST NICHT BELIEBIG, UND DIE STAGE AUCH NICHT.
+#   * In der BUILDER-Stage gesetzt, änderte der Wert bei jedem Commit den Kontext von
+#     `pnpm build` — der teuerste Layer des Bilds wäre bei jedem Lauf kalt.
+#   * Hier, hinter allen COPY-Zeilen, kostet ein neuer Wert genau eine Metadaten-Schicht.
+# Die Vorbelegung `unbekannt` hält einen lokalen `docker build` ohne `--build-arg`
+# lauffähig; `laufendeRevision()` liefert dasselbe Wort, wenn die Variable ganz fehlt.
+ARG SUITE_REVISION=unbekannt
+ENV SUITE_REVISION=${SUITE_REVISION}
+
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]

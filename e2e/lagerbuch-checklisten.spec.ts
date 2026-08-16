@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, klickeWennRuhig } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -234,7 +234,13 @@ test.describe("Fahrzeug-Checklisten", () => {
 
   test("die Fahrzeugliste fuehrt auf den Bogen", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge"));
-    await page.getByRole("link", { name: "Checklisten drucken" }).click();
+    // `klickeWennRuhig` und NICHT `.click()`: genau dieser Fall ist am
+    // 2026-08-16 auf `main` dreimal hintereinander gefallen, und die Ursache
+    // stand erstmals in der Ablaufverfolgung — ein Umbruch der Huelle zwischen
+    // `mousedown` und `mouseup`, sobald `SessionProvider` seine Sitzung
+    // nachgeholt hat. Die volle Messung steht bei `klickeWennRuhig` in
+    // `e2e/fixtures.ts`; hier steht nur, dass sie DIESEN Fall betraf.
+    await klickeWennRuhig(page.getByRole("link", { name: "Checklisten drucken" }));
     await page.waitForURL(/\/verwaltung\/checklisten$/, NAVIGATION);
     await expect(page.locator(".lb-cl-blatt").nth(0)).toBeVisible();
   });
@@ -257,17 +263,36 @@ test.describe("Fahrzeug-Checklisten", () => {
    *   - Die Zielseite selbst pruefen die Faelle weiter oben, die sie direkt
    *     anlaufen.
    *
-   * DIE URSACHE DES CI-VERHALTENS IST NICHT GEKLAERT. Sie liess sich lokal
-   * nicht nachstellen, und die Ablaufverfolgung des Laufs ist mit dem
-   * vorhandenen Token nicht abrufbar. Was hier bleibt, ist deshalb die
-   * PRODUKTAUSSAGE ohne den Klick-Versand: der Knopf steht auf dem
-   * Fahrzeugblatt, er zeigt auf GENAU dieses Fahrzeug, und diese Adresse
-   * liefert genau ein Blatt. Ein fehlender Knopf, ein falsches `?fz=` und eine
-   * kaputte Zielseite fallen damit weiterhin auf — nur „der Browser folgt
-   * einem Anker" wird nicht mehr in der CI nachgestellt.
+   * ⚠️ NACHTRAG 2026-08-16 — DIE URSACHE IST GEKLAERT, DIESER ABSATZ STAND
+   * VORHER AUF „NICHT GEKLAERT". Der Geschwisterfall darueber ist am
+   * 2026-08-16 auf `main` ebenfalls gefallen (Lauf 31951787232, Shard 2, alle
+   * drei Versuche) — genau der Befund, den der letzte Absatz hier angekuendigt
+   * hat —, und diesmal LAG die Ablaufverfolgung vor: der Schritt
+   * „Playwright-Artefakte sichern" aus `.github/workflows/ci.yml` hat sie
+   * herausgerettet, wofuer er am 2026-08-14 eingebaut worden war.
    *
-   * ⚠️ NICHT STILL AUSWEITEN: der Geschwisterfall darueber KLICKT weiterhin
-   * echt. Faellt auch er, ist das ein Befund und keine Umgebungsfrage.
+   * Was darin steht: der Klick trifft den Anker (er traegt danach den Fokus),
+   * aber die Huelle bricht ZWISCHEN `mousedown` und `mouseup` um — die Seite
+   * springt rund 240 px nach oben, sobald `SessionProvider` seine zunaechst
+   * gescheiterte `/api/auth/session` nachgeholt hat. `mouseup` faellt damit
+   * neben den Anker, das `click`-Ereignis feuert auf dem gemeinsamen Vorfahren,
+   * und ein `<div>` navigiert nicht. Die volle Messung (Bildzeiten,
+   * Netzwerkzeilen) steht bei `klickeWennRuhig` in `e2e/fixtures.ts`.
+   *
+   * Es war also weder ein kaputter Knopf noch eine Umgebungsfrage, sondern eine
+   * TESTFALLE derselben Familie wie die Fallen 10 und 11 aus `CLAUDE.md`: ein
+   * Fall, der etwas anderes misst, als sein Name sagt.
+   *
+   * ⚠️ DIESER FALL BLEIBT VORERST OHNE KLICK — bewusst, und nicht aus
+   * Traegheit: der Geschwisterfall darueber traegt die Abhilfe jetzt echt und
+   * muss sie erst ueber ein paar CI-Laeufe belegen. Danach ist das Hochholen
+   * eine Zeile (`klickeWennRuhig` statt `page.goto` auf das `href`), und die
+   * Begruendung unten faellt damit weg.
+   *
+   * Was hier bis dahin bleibt, ist die PRODUKTAUSSAGE ohne den Klick-Versand:
+   * der Knopf steht auf dem Fahrzeugblatt, er zeigt auf GENAU dieses Fahrzeug,
+   * und diese Adresse liefert genau ein Blatt. Ein fehlender Knopf, ein
+   * falsches `?fz=` und eine kaputte Zielseite fallen damit weiterhin auf.
    */
   test("das Fahrzeugblatt zeigt auf genau sein eigenes Blatt", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge/e2e-fahrzeug"));

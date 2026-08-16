@@ -187,6 +187,11 @@ jobs:
           load: true
           tags: iuk-suite:ci
           labels: ${{ steps.meta.outputs.labels }}
+          # Muss in BEIDEN build-push-Schritten stehen, nicht nur im pushenden: der
+          # image-smoke unten prueft sonst ein Image, das sich vom veroeffentlichten in
+          # genau der Eigenschaft unterscheidet, an der der Rollout haengt.
+          build-args: |
+            SUITE_REVISION=${{ github.sha }}
           # Cache pro Plattform trennen, sonst überschreiben sich die beiden
           # Matrix-Jobs gegenseitig und jeder Lauf startet kalt.
           cache-from: type=gha,scope=${{ matrix.platform }}
@@ -210,6 +215,12 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Der Commit wandert ein zweites Mal ins Image — als ENV, nicht als Label.
+          # Grund: ein Prozess IM Container liest seine eigenen Labels nicht, und
+          # `scripts/deploy.sh` prueft nach dem Austausch genau diese Zahl ueber
+          # `/api/health/portal` (src/core/version.ts).
+          build-args: |
+            SUITE_REVISION=${{ github.sha }}
           # Ohne Tag hochladen — die Tags vergibt der merge-Job auf der
           # Manifest-Liste, sonst würde jede Plattform :latest überschreiben.
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
@@ -272,3 +283,76 @@ jobs:
             --format '{{ json .Manifest }}' | jq -r '.manifests[].platform | "\(.os)/\(.architecture)"' | sort -u | tee /tmp/platforms
           grep -q '^linux/amd64$' /tmp/platforms
           grep -q '^linux/arm64$' /tmp/platforms
+
+  # ══ Automatischer Rollout auf den Server ═══════════════════════════════════════════
+  # Einrichtung, Freigabe, Fehlerbilder und Rollback: docs/runbooks/auto-rollout.md
+  #
+  # ⚠️ DER EINZIGE JOB AUF EINEM SELBST GEHOSTETEN RUNNER — und das ist eine
+  # Sicherheitsaussage, keine Randnotiz: ein selbst gehosteter Runner fuehrt den Code
+  # aus, der ihm zugewiesen wird, auf einer Maschine mit Docker-Socket. Drei Riegel
+  # halten DIESEN Job von fremdem Code fern, und keiner davon ist entbehrlich:
+  #   1. `if` unten: nur `refs/heads/main` — ein PR-Zweig erreicht diesen Job nie.
+  #   2. `environment: produktion` mit Reviewer: der Job wartet auf einen Klick, und
+  #      die Environment-Regel „Deployment branches: main" ist ein zweites Schloss.
+  #   3. `needs: merge`: der Rollout laeuft erst, wenn Tests, E2E und beide Images
+  #      durch sind.
+  # Alle uebrigen Jobs bleiben auf GitHub-Runnern.
+  #
+  # ⚠️ WAS DIESE DREI RIEGEL NICHT LEISTEN, und der Unterschied ist der ganze Punkt:
+  # sie schuetzen diesen JOB, nicht den RUNNER. Bei einem `pull_request` aus einem Fork
+  # benutzt GitHub die Workflow-Datei aus dem MERGE-Stand — wer forkt, kann sich einen
+  # eigenen Job mit `runs-on: [self-hosted, iuk-suite-prod]` schreiben und laeuft an
+  # allem hier vorbei. Das Repo ist oeffentlich, also ist der einzige wirksame Riegel
+  # eine EINSTELLUNG ausserhalb dieser Datei: Settings → Actions → General → Fork pull
+  # request workflows → „Require approval for all external contributors".
+  # Vollstaendig: docs/runbooks/auto-rollout.md, Teil A0.
+  deploy:
+    needs: merge
+    # `vars.SUITE_STACK_DIR` ist zugleich der EIN-/AUSSCHALTER: solange die Variable im
+    # Repo nicht existiert, wird dieser Job uebersprungen — also auch jetzt, bevor der
+    # Runner am Server steht. Ohne diese Bedingung haenge jeder main-Lauf am nicht
+    # vorhandenen Runner, bis GitHub ihn nach Stunden rot faerbt. Auto-Rollout wieder
+    # abschalten heisst: die Variable loeschen, kein Eingriff in diese Datei.
+    if: github.ref == 'refs/heads/main' && vars.SUITE_STACK_DIR != ''
+    runs-on: [self-hosted, iuk-suite-prod]
+    environment:
+      name: produktion
+      url: https://iuk-ue.de
+    # Zwei Rollouts duerfen sich nicht ueberholen. `cancel-in-progress: false`, weil ein
+    # ABGEBROCHENER Rollout schlimmer ist als ein spaeter: er kann zwischen Pin und
+    # `up -d` stehen. Ein ueberholter Lauf bricht ohnehin folgenlos ab — sein Commit
+    # steht dann nicht mehr auf :latest (Schritt 2 in scripts/deploy.sh).
+    concurrency:
+      group: deploy-produktion
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      # Nur lesend: der Server zieht das Image, er baut keines.
+      packages: read
+    steps:
+      # `persist-credentials: false`: ohne das bliebe ein GitHub-Token in der
+      # `.git/config` im Arbeitsverzeichnis des Runners liegen — auf einem GitHub-Runner
+      # verschwindet der mit der Maschine, auf diesem hier nicht.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Kein dauerhaftes Zugangsdaten-Depot auf dem Server: der GITHUB_TOKEN dieses
+      # Laufs reicht zum Ziehen und wird im letzten Schritt wieder entwertet.
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Rollout
+        env:
+          SUITE_STACK_DIR: ${{ vars.SUITE_STACK_DIR }}
+          SUITE_REVISION_ERWARTET: ${{ github.sha }}
+          SUITE_IMAGE_BASIS: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Beide optional; die Vorbelegungen stehen in scripts/deploy.sh.
+          SUITE_HEALTH_URL: ${{ vars.SUITE_HEALTH_URL }}
+          SUITE_BACKUP_CMD: ${{ vars.SUITE_BACKUP_CMD }}
+        run: ./scripts/deploy.sh
+      - name: ghcr-Zugangsdaten wieder entfernen
+        if: always()
+        run: docker logout ${{ env.REGISTRY }}

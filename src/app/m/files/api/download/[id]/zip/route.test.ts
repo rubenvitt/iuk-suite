@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdirSync, rmSync, readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, rmSync, readdirSync, readlinkSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { inflateRawSync } from "node:zlib";
 import type { Readable } from "node:stream";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -342,10 +343,79 @@ function hinweisAus(eintraege: { name: string; inhalt: Buffer }[]): string {
   return eintrag.inhalt.toString("utf8");
 }
 
-/** Offene Descriptoren des Prozesses. Beide Messungen laufen ueber denselben
- *  Weg, damit der Descriptor des Listings selbst sich heraushebt. */
+/**
+ * Offene Descriptoren AUF DIESEN TESTBESTAND — bewusst nicht die des ganzen
+ * Prozesses.
+ *
+ * ⚠️ `readdirSync("/dev/fd").length` WAR DIE ERSTE FASSUNG, UND SIE WAR
+ * RENNABHAENGIG. Unter `/dev/fd` stehen nicht nur Dateien: libuv fuehrt dort
+ * `anon_inode:[eventpoll]`, `[io_uring]`, `[eventfd]` und `pipe:[…]`, und in
+ * demselben Vitest-Prozess laufen vor und nach dieser Datei ANDERE Testdateien
+ * mit eigenen Descriptoren. Das alles kommt und geht, ohne dass dieser Handler
+ * irgendetwas tut.
+ *
+ * ⚠️ DIE MESSUNG WAR DAMIT NICHT NUR VERRAUSCHT, SIE ZEIGTE IN DIE FALSCHE
+ * RICHTUNG. Gemessen in der CI auf `main` (Lauf 31887235833, Zeile 651):
+ *
+ *     AssertionError: expected 28 to be 79
+ *
+ * Am Ende standen 51 Descriptoren WENIGER offen als zu Beginn. Ein Leck zaehlt
+ * nach oben; nach unten zaehlt ausschliesslich Fremdverkehr. Der Fehlschlag war
+ * also kein Befund ueber den Handler, sondern ueber den Prozess, in dem er
+ * gemessen wurde — und dieselbe Bauform kann in der Gegenrichtung ein echtes
+ * Leck ZUDECKEN, indem fremde Descriptoren gleichzeitig zugehen.
+ *
+ * ⚠️ AUF `DIR` EINZUSCHRAENKEN REICHTE NICHT — DER GROESSTE STOERER LIEGT DARIN.
+ * Der erste Anlauf zaehlte alles unter `DIR` und fiel in der CI erneut, mit
+ * derselben Handschrift: `expected 3 to be 54`, also wieder 51 Descriptoren
+ * WENIGER am Ende. Nachgemessen an der Basismessung dieses Tests (Ziel je
+ * Descriptor ueber `readlink` protokolliert), lokal 19 Stueck:
+ *
+ *     files.db     (deleted)  ×8     files.db      ×1
+ *     files.db-wal (deleted)  ×4     files.db-wal  ×1
+ *     files.db-shm (deleted)  ×4     files.db-shm  ×1
+ *
+ * Es sind SQLite-Verbindungen aus den FRUEHEREN Tests derselben Datei:
+ * `beforeEach` loest die Verbindung mit `delete globalThis.__suiteDb` nur von
+ * ihrer Referenz, ohne sie zu schliessen, und `rmSync(DIR)` haengt die Dateien
+ * aus — offen bleiben sie trotzdem, bis der Garbage Collector sie einsammelt.
+ * WANN er das tut, entscheidet niemand hier: raeumt er mitten in diesem Test
+ * auf, sackt die Zahl um genau die angesammelten Handles ab.
+ *
+ * Gezaehlt wird deshalb, worueber die Zusage wirklich etwas sagt: die
+ * Descriptoren auf die QUELLDATEIEN unter `DIR`, ohne die Datenbankdateien.
+ * Damit steht die Basis bei 0 (nachgemessen), waehrend des Streamens bei 1 und
+ * danach wieder bei 0 — eine Messung ueber genau die Dateien, die dieser
+ * Handler oeffnet und schliessen muss. Das ist zugleich die SCHAERFERE
+ * Zusicherung: der urspruengliche Zaehler haette ein Leck an einer voellig
+ * fremden Stelle des Prozesses mitgefaerbt und war von einem Leck hier nicht zu
+ * unterscheiden.
+ *
+ * ⚠️ DAS LECK DER TESTVORRICHTUNG BLEIBT ABSICHTLICH STEHEN: es kostet nichts
+ * (der Prozess endet mit der Datei), und es zu schliessen hiesse, an einem
+ * `beforeEach` zu ruehren, das 32 Tests tragen. Es darf die MESSUNG nur nicht
+ * mehr faelschen — und das tut es jetzt nicht mehr.
+ */
 function offeneDescriptoren(): number {
-  return readdirSync("/dev/fd").length;
+  const wurzel = resolve(DIR);
+  let offen = 0;
+  for (const eintrag of readdirSync("/dev/fd")) {
+    let ziel: string;
+    try {
+      ziel = readlinkSync(`/dev/fd/${eintrag}`);
+    } catch {
+      // Der Descriptor des Listings selbst ist beim `readlink` schon wieder zu.
+      continue;
+    }
+    if (!ziel.startsWith(`${wurzel}/`)) continue;
+    // Die Datenbank samt WAL und SHM zaehlt NICHT mit — auch nicht als
+    // ausgehaengte Altlast, die `readlink` mit " (deleted)" meldet. Genau diese
+    // Zeile ist der Unterschied zwischen einer Messung ueber den Handler und
+    // einer Messung ueber den Garbage Collector.
+    if (/\/files\.db(-wal|-shm)?( \(deleted\))?$/.test(ziel)) continue;
+    offen += 1;
+  }
+  return offen;
 }
 
 /** Ein paar Makrotasks, damit `destroy()` und `close()` durch sind. */
