@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button, Input, Modal, Table } from "antd";
-import { verteilenAction } from "../actions";
+import { umverteilenAction, verteilenAction } from "../actions";
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
 import { fmtDauer, fmtStunden } from "../_lib/anzeige";
@@ -175,22 +175,85 @@ export function VerteilenTabelle({
  * Abbrechen-Knopf des Modals — der Modal ist eine eigene Ebene und liegt im Portal, also
  * ausserhalb von `data-testid="aufgaben-flaeche"`, wo der Zaehlriegel misst.
  */
-export function VerteilenKnopf({
-  aufgabe,
-  bufdis,
-  auslastung,
-  tage,
-}: {
+export function VerteilenKnopf(props: ZuweisenKnopfProps) {
+  return <ZuweisenKnopf {...props} art="verteilen" />;
+}
+
+/**
+ * „ANDERS ZUWEISEN (DER ZEITPLAN WIRD DABEI GELEERT)" — DER BIS SCHRITT 6 FEHLENDE AUFRUFER VON
+ * `umverteilenAction` (Oberflaechen-Spec 2026-08-16 §7 Nr. 3, §11.4 Schritt 6).
+ *
+ * DERSELBE MODAL WIE „VERTEILEN", UND ZWAR AUS EINEM NACHGELESENEN GRUND: `actions.ts`s
+ * `verteilenGemeinsam` bedient beide Aktionen mit EINEM Rumpf, weil beide Formulare identisch sind
+ * (Zielperson, optionaler Zeitvorschlag) — der einzige fachliche Unterschied (`nach`,
+ * `planLoeschen`) kommt bereits aus `uebergang()`. Ein zweiter, fast gleicher Dialog waere hier
+ * derselbe Fehler eine Ebene hoeher.
+ *
+ * DER KNOPFTEXT NENNT DIE FOLGE, UND DAS IST KEINE HOEFLICHKEIT: `_lib/lebenszyklus.ts` fuehrt die
+ * Zeile mit `planLoeschen: true` — wer „anders zuweisen" drueckt, verliert die bestehende
+ * Tagesplanung der Aufgabe. Ein Knopf, der nur „Umverteilen" hiesse, verschwiege genau die
+ * Wirkung, die man hinterher nicht zurueckholen kann.
+ *
+ * `primaer` IST DER GRUND, WARUM DIESE INSEL EINEN SCHALTER HAT UND NICHT ZWEI KOMPONENTEN:
+ * dieselbe Aktion steht an ZWEI Orten derselben Flaeche — in der Fuehrungskarte (Rang 1 und 5a,
+ * dort die Zustandsaktion des genannten Anlasses, also PRIMAER) und als Zeilenaktion in den zwei
+ * „Überfällig"-Zonen (dort einer von vielen, also STANDARD). Waere `type="primary"` fest verdrahtet
+ * wie in `VerteilenKnopf`, stuenden bei einer fuehrenden Karte PLUS einer Ueberfaellig-Zone ZWEI
+ * `.ant-btn-primary` in `data-testid="aufgaben-flaeche"` — und das saehe kein Tor ausser dem
+ * Zaehlriegel in Playwright (`typecheck`, `lint`, `build` und Vitest blieben gruen).
+ */
+export function UmverteilenKnopf(props: ZuweisenKnopfProps) {
+  return <ZuweisenKnopf {...props} art="umverteilen" />;
+}
+
+interface ZuweisenKnopfProps {
   aufgabe: AufgabeRow;
   bufdis: PersonRow[];
   auslastung: AuslastungZeile[];
   tage: readonly string[];
-}) {
+  /** Nur `UmverteilenKnopf` reicht das durch; „Verteilen" ist immer die Primaeraktion seiner Karte. */
+  primaer?: boolean;
+}
+
+/**
+ * DIE BESCHRIFTUNGEN JE ZUWEISUNGSART — EIN `Record`, DAMIT EINE DRITTE ART NICHT VERGESSEN WERDEN
+ * KANN. Die Server-Action steht mit darin und wird VOR `useActionState` ausgewaehlt: ein bedingter
+ * Hook-Aufruf waere ein Regelbruch von React, ein bedingt gewaehlter WERT ist keiner.
+ */
+const ZUWEISUNG = {
+  verteilen: {
+    aktion: verteilenAction,
+    knopf: "Verteilen",
+    absenden: "Verteilen",
+    titel: (titel: string): string => `„${titel}“ verteilen`,
+  },
+  umverteilen: {
+    aktion: umverteilenAction,
+    knopf: "Anders zuweisen (der Zeitplan wird dabei geleert)",
+    absenden: "Anders zuweisen",
+    titel: (titel: string): string => `„${titel}“ anders zuweisen`,
+  },
+} as const;
+
+type Zuweisungsart = keyof typeof ZUWEISUNG;
+
+function ZuweisenKnopf({
+  aufgabe,
+  bufdis,
+  auslastung,
+  tage,
+  art,
+  primaer = true,
+}: ZuweisenKnopfProps & { art: Zuweisungsart }) {
   const [offen, setOffen] = useState(false);
   return (
     <>
-      <Button type="primary" onClick={() => setOffen(true)} data-testid={`verteilen-${aufgabe.id}`}>
-        Verteilen
+      <Button
+        type={primaer ? "primary" : undefined}
+        onClick={() => setOffen(true)}
+        data-testid={`${art}-${aufgabe.id}`}
+      >
+        {ZUWEISUNG[art].knopf}
       </Button>
       {offen ? (
         <VerteilenModal
@@ -198,6 +261,7 @@ export function VerteilenKnopf({
           bufdis={bufdis}
           auslastung={auslastung}
           tage={tage}
+          art={art}
           onClose={() => setOffen(false)}
         />
       ) : null}
@@ -210,15 +274,17 @@ function VerteilenModal({
   bufdis,
   auslastung,
   tage,
+  art = "verteilen",
   onClose,
 }: {
   aufgabe: AufgabeRow;
   bufdis: PersonRow[];
   auslastung: AuslastungZeile[];
   tage: readonly string[];
+  art?: Zuweisungsart;
   onClose: () => void;
 }) {
-  const [state, formAction, isPending] = useActionState(verteilenAction, FORM_START);
+  const [state, formAction, isPending] = useActionState(ZUWEISUNG[art].aktion, FORM_START);
 
   const zielFehler = feldFehler(state, "zielId");
   const vorschlagDatumFehler = feldFehler(state, "vorschlagDatum");
@@ -233,7 +299,7 @@ function VerteilenModal({
   const letzterTag = tage[tage.length - 1];
 
   return (
-    <Modal open onCancel={onClose} footer={null} title={`„${aufgabe.titel}“ verteilen`}>
+    <Modal open onCancel={onClose} footer={null} title={ZUWEISUNG[art].titel(aufgabe.titel)}>
       <form
         action={formAction}
         style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}
@@ -344,7 +410,7 @@ function VerteilenModal({
             disabled={isPending}
             style={{ alignSelf: "flex-start" }}
           >
-            Verteilen
+            {ZUWEISUNG[art].absenden}
           </Button>
           <Button
             onClick={onClose}

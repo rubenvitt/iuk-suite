@@ -22,9 +22,10 @@ import s from "./aufgaben.module.css";
  * ohne eine echte Server-Action-Transition zu simulieren. `verteilenAction` ist nur ein SENTINEL:
  * dieser Test ruft sie nie auf, die eigentliche Logik ist in `actions.test.ts` bewacht.
  */
-const { useActionStateMock, VERTEILEN_MARKER } = vi.hoisted(() => ({
+const { useActionStateMock, VERTEILEN_MARKER, UMVERTEILEN_MARKER } = vi.hoisted(() => ({
   useActionStateMock: vi.fn(),
   VERTEILEN_MARKER: Symbol("verteilenAction"),
+  UMVERTEILEN_MARKER: Symbol("umverteilenAction"),
 }));
 
 vi.mock("react", async (echt) => {
@@ -32,7 +33,12 @@ vi.mock("react", async (echt) => {
   return { ...react, useActionState: useActionStateMock };
 });
 
-vi.mock("../actions", () => ({ verteilenAction: VERTEILEN_MARKER }));
+vi.mock("../actions", () => ({
+  verteilenAction: VERTEILEN_MARKER,
+  // Seit Schritt 6 waehlt `ZUWEISUNG` die Action VOR `useActionState` — beide Schluessel werden
+  // damit BEIM IMPORT gelesen, auch wenn dieser Test nur „verteilen" fuehrt.
+  umverteilenAction: UMVERTEILEN_MARKER,
+}));
 
 import { VerteilenTabelle } from "./VerteilenDialog";
 

@@ -56,7 +56,20 @@ import s from "./aufgaben.module.css";
  * steht. `FreigabeKarte` unten ruft `FreigabeAktionen` fuer genau dieselbe Logik — KEINE zweite
  * Fassung von „Freigeben"/„Zurückweisen bestaetigungspflichtig", nur ein zweiter Aufrufer.
  */
-export function FreigabeAktionen({ aufgabe }: { aufgabe: FreigabeZeile["aufgabe"] }) {
+export function FreigabeAktionen({
+  aufgabe,
+  primaer = true,
+}: {
+  aufgabe: FreigabeZeile["aufgabe"];
+  /**
+   * OB „FREIGEBEN" DER PRIMAERKNOPF IST (Oberflaechen-Spec 2026-08-16 §7 Nr. 2) — VORGABE `true`,
+   * und die Vorgabe ist die tragende Haelfte: `/freigaben`, die Freigabe-Zone und die
+   * Fuehrungskarte behalten damit ihre heutige Form, ohne dass eine von ihnen den Schalter kennen
+   * muss. Nur `_ui/AktionsZone.tsx` setzt ihn auf `false`, naemlich dann, wenn auf `/a/<id>` schon
+   * ein hoeher stehender Eintrag der Vorrangliste den einen Primaerknopf besetzt.
+   */
+  primaer?: boolean;
+}) {
   const [zurueckweisenOffen, setZurueckweisenOffen] = useState(false);
 
   return (
@@ -64,7 +77,11 @@ export function FreigabeAktionen({ aufgabe }: { aufgabe: FreigabeZeile["aufgabe"
       <div className={s.knopfzeile}>
         <form action={freigebenAction}>
           <input type="hidden" name="aufgabeId" value={aufgabe.id} />
-          <Button type="primary" htmlType="submit" data-testid={`freigeben-${aufgabe.id}`}>
+          <Button
+            type={primaer ? "primary" : undefined}
+            htmlType="submit"
+            data-testid={`freigeben-${aufgabe.id}`}
+          >
             Freigeben
           </Button>
         </form>

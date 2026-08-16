@@ -127,6 +127,37 @@ describe("EinstiegKoordination — der Aufbau aus §3.4", () => {
   });
 
   /**
+   * DERSELBE RIEGEL FUER DIE EINE LAGE, IN DER ER SEIT SCHRITT 6 UEBERHAUPT REISSEN KANN: eine
+   * fuehrende Karte UND eine Zone, die DIESELBE Aktion als Zeilenweg traegt.
+   *
+   * DIE FIXTUR IST GENAU DAFUER GEBAUT — DREI ueberfaellige, `verteilt`e Aufgaben. Damit fuehrt
+   * `koordUeberfaelligVerteilt` mit n = 3, wird nach R3 zugleich Zone (Position 1 mit mehr als
+   * einer Aufgabe), und jede der drei Zeilen bekommt „Anders zuweisen" (§3.2). Die Karte selbst
+   * traegt bei n > 1 keinen Primaerknopf; waere `UmverteilenKnopf` wie `VerteilenKnopf` fest auf
+   * `type="primary"` verdrahtet, stuenden hier DREI. Der e2e-Zaehlriegel faende das erst nach
+   * einem vollen Playwright-Lauf, und `typecheck`/`lint`/`build` fielen gar nicht darauf.
+   */
+  it("zaehlt auch dann hoechstens einen Primaerknopf, wenn Karte UND Zone „Anders zuweisen“ tragen", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    for (const titel of ["Ueberfaellig A", "Ueberfaellig B", "Ueberfaellig C"]) {
+      legeAufgabe({
+        erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+        titel, status: "verteilt", faelligAm: "2026-08-01",
+      });
+    }
+    await zeige(rike);
+
+    // Die Vorbedingung wird MITGEPRUEFT: ohne die drei Zeilenknoepfe bewiese die Zaehlung nichts.
+    const zuweisen = queryAll("button").filter((b) =>
+      (b.textContent ?? "").includes("Anders zuweisen"),
+    );
+    expect(zuweisen).toHaveLength(3);
+    expect(flaeche().querySelectorAll(".ant-btn-primary").length).toBeLessThanOrEqual(1);
+  });
+
+  /**
    * DER TEXTKNOPF DES SEITENKOPFS STEHT AUSSERHALB DES WRAPPERS (§3.3, §9/S9) — der Zaehlriegel
    * faende ihn gar nicht, und genau deshalb ist seine Demotion mit einer ANDEREN Begruendung
    * belegt als die des „Annehmen"-Knopfs: „hoechstens ein Primaerknopf" gilt fuer die GANZE Seite.

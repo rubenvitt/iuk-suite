@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   aufgabenFuerPerson,
   freigabeDaten,
@@ -6,7 +7,7 @@ import {
   verteilDaten,
   type AuslastungZeile,
 } from "../_db/queries";
-import type { AufgabeRow } from "../_db/schema";
+import type { AufgabeRow, PersonRow } from "../_db/schema";
 import type { DB } from "../_db/client";
 import {
   aufgabenInWoche,
@@ -16,14 +17,16 @@ import {
   type AnlassArt,
 } from "../_lib/anzeige";
 import { fmtTagKurz } from "../_lib/datum";
+import { aktionsOptionen } from "../_lib/aktionsOptionen";
 import { kartenGrunddaten } from "../_lib/kartendaten";
-import type { Lage } from "../_lib/lage";
+import type { Anlass, Lage } from "../_lib/lage";
 import { darfVerteilen, type Akteur } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { AnlassZone } from "./AnlassZone";
 import { Fuehrungskarte } from "./Fuehrungskarte";
 import { SeitenKopf } from "./SeitenKopf";
+import { UmverteilenKnopf } from "./VerteilenDialog";
 import s from "./aufgaben.module.css";
 
 /*
@@ -121,6 +124,17 @@ export function EinstiegKoordination({
                 (a) => [a.id, koordZusatz(zone.art, a, grund.namen, vertretungIds)] as const,
               ),
             )}
+            // DER ZEILENWEG FUER `umverteilenAction` (§3.2, §11.4 Schritt 6) — DER GRUND, AUS DEM
+            // DIE ZWEI „Überfällig"-ZONEN UEBERHAUPT ZONEN SIND: §3.2 nennt sie woertlich „der
+            // einzige Ort, an dem `umverteilenAction` einen Zeilenweg bekommt". Die Karte nennt bei
+            // n = 1 genau eine Aufgabe; alles darueber hinaus braucht eine Zeile mit eigenem Knopf,
+            // sonst waere „anders zuweisen" ab der zweiten ueberfaelligen Aufgabe nur noch ueber
+            // `/a/<id>` erreichbar, das man erst kennen muss.
+            aktionen={umverteilAktionen(zone, akteur, heute, darfVert, {
+              bufdis: bufdisListe,
+              auslastung,
+              tage,
+            })}
             // DAS DECKELZIEL VON `koordFreigabeOffen` HAENGT AN `darfFreigabenSehen` (§3.5): ein
             // Auftraggeber ohne Koordination bekommt auf `/freigaben` 404 — ein Deckel dorthin
             // waere ein Knopf auf eine 404-Seite.
@@ -137,6 +151,57 @@ export function EinstiegKoordination({
     </>
   );
 }
+
+/**
+ * „ANDERS ZUWEISEN" ALS ZEILENAKTION DER BEIDEN „Überfällig"-ZONEN (§3.2, §7 Nr. 3).
+ *
+ * DIE BEDINGUNG JE ZEILE IST `uebergang(a, "umverteilen", akteur, heute).erlaubt` UND NICHTS
+ * SONST — ueber `aktionsOptionen`, dieselbe Funktion, die `/a/<id>` benutzt. Ein hier
+ * geschriebenes `a.status === "verteilt" && darfVert` waere die zweite Fassung derselben
+ * Bedingung an einem dritten Ort (§11.3), und sie driftete beim naechsten Tabellenwechsel weg,
+ * ohne dass ein Tor es saehe.
+ *
+ * DIE FILTERUNG AUF DIE ZWEI ZONEN IST TROTZDEM RICHTIG UND KEINE ZWEITE BEDINGUNG: `umverteilen`
+ * waere auch fuer eine nicht ueberfaellige `verteilt`-Aufgabe erlaubt, aber eine solche steht in
+ * keiner dieser Zonen (Rang 5a/5b tragen nur ueberfaellige Zeilen, Rang 1 die ohne aktiven
+ * Traeger). Die Aufzaehlung sagt also, WELCHE ZONEN einen Zeilenweg bekommen, nicht, WER darf.
+ *
+ * `primaer={false}` IST DER GANZE PUNKT DES SCHALTERS: dieselbe Aktion steht bei n = 1 in der
+ * Fuehrungskarte als Primaerknopf. Stuenden beide auf `type="primary"`, traege
+ * `data-testid="aufgaben-flaeche"` bei einer fuehrenden Karte PLUS einer Ueberfaellig-Zone zwei
+ * `.ant-btn-primary` — und das saehe kein Tor ausser dem Zaehlriegel in Playwright.
+ */
+function umverteilAktionen(
+  zone: Anlass,
+  akteur: Akteur,
+  heute: string,
+  darfVert: boolean,
+  ziele: { bufdis: PersonRow[]; auslastung: AuslastungZeile[]; tage: string[] },
+): Record<string, ReactNode> {
+  if (!darfVert || !ZONEN_MIT_UMVERTEILEN.has(zone.art)) return {};
+  return Object.fromEntries(
+    zone.zeilen
+      .filter((a) => aktionsOptionen(a, akteur, heute).umverteilen)
+      .map((a) => [
+        a.id,
+        <UmverteilenKnopf
+          key={a.id}
+          aufgabe={a}
+          bufdis={ziele.bufdis}
+          auslastung={ziele.auslastung}
+          tage={ziele.tage}
+          primaer={false}
+        />,
+      ]),
+  );
+}
+
+/** Die drei Zonen, deren Zeilen ueberhaupt in `verteilt` stehen koennen (§4.2, Raenge 1, 5a, 5b). */
+const ZONEN_MIT_UMVERTEILEN: ReadonlySet<AnlassArt> = new Set<AnlassArt>([
+  "koordOhneTraeger",
+  "koordUeberfaelligVerteilt",
+  "koordUeberfaelligInArbeit",
+]);
 
 /**
  * „DIE WOCHE DER DREI" (§5.2) — EINE ZEILE JE PERSON MIT DEM WOCHENWERT, auch auf 360px

@@ -48,6 +48,8 @@ vi.mock("../actions", () => ({
   freigebenAction: vi.fn(),
   zurueckweisenAction: MARKER,
   verteilenAction: MARKER,
+  // Schritt 6: die Karte importiert `UmverteilenKnopf`, der beide Actions beim Import liest.
+  umverteilenAction: MARKER,
 }));
 
 const { Fuehrungskarte } = await import("./Fuehrungskarte");
@@ -72,7 +74,8 @@ function aufgabe(over: Partial<AufgabeRow> = {}): AufgabeRow {
 
 const ALLE_AUS: AktionsOptionen = {
   starten: false, zuruecksetzen: false, fertig: false, freigeben: false,
-  zurueckweisen: false, wiederaufnehmen: false, zurueckziehen: false, nachweisHochladen: false,
+  zurueckweisen: false, wiederaufnehmen: false, zurueckziehen: false, umverteilen: false,
+  nachweisHochladen: false,
 };
 
 function anlass(art: AnlassArt, zeilen: AufgabeRow[]): Anlass {
@@ -219,10 +222,82 @@ describe("Fuehrungskarte — hoechstens ein Primaerknopf (Regel P)", () => {
     ["koordZurueckgewiesen"],
     ["auftragUeberfaellig"],
     ["auftragUnverteilt"],
-    ["koordOhneTraeger"],
-    ["koordUeberfaelligVerteilt"],
   ] as const)("%s traegt gar keinen Primaerknopf", async (art) => {
     await mount(karte(anlass(art as AnlassArt, [aufgabe()]), { optionen: ALLE_AUS }));
+    expect(primaerKnoepfe()).toHaveLength(0);
+  });
+
+  /*
+   * DIE RAENGE 1 UND 5a — „ANDERS ZUWEISEN (DER ZEITPLAN WIRD DABEI GELEERT)" (§4.2, §7 Nr. 3).
+   *
+   * SIE STEHEN SEIT SCHRITT 6 NICHT MEHR IN DER LISTE DARUEBER, UND DAS IST DER GANZE UNTERSCHIED
+   * ZWISCHEN „hat keine Zustandsaktion" UND „hat eine, die hier nicht gilt": beide Belegungen
+   * tragen einen Primaerknopf GENAU DANN, wenn `optionen.umverteilen` gilt — also wenn
+   * `uebergang()` es erlaubt, und das ist ausschliesslich aus `verteilt` der Fall. Die drei
+   * Gegenproben unten decken die drei Wege, auf denen er ausbleibt.
+   */
+  it.each([["koordOhneTraeger"], ["koordUeberfaelligVerteilt"]] as const)(
+    "%s traegt „Anders zuweisen“ als Primaerknopf, sobald optionen.umverteilen gilt",
+    async (art) => {
+      await mount(
+        karte(anlass(art as AnlassArt, [aufgabe()]), {
+          optionen: { ...ALLE_AUS, umverteilen: true },
+        }),
+      );
+      expect(primaerKnoepfe()).toHaveLength(1);
+      expect(primaerKnoepfe()[0]!.textContent).toContain(
+        "Anders zuweisen (der Zeitplan wird dabei geleert)",
+      );
+    },
+  );
+
+  it.each([["koordOhneTraeger"], ["koordUeberfaelligVerteilt"]] as const)(
+    "%s bleibt ohne Primaerknopf, wenn optionen.umverteilen falsch ist",
+    async (art) => {
+      await mount(karte(anlass(art as AnlassArt, [aufgabe()]), { optionen: ALLE_AUS }));
+      expect(primaerKnoepfe()).toHaveLength(0);
+    },
+  );
+
+  /**
+   * BEI n > 1 KEIN „ANDERS ZUWEISEN" — dieselbe Regel wie bei bufdi Rang 1 darueber, und hier
+   * traegt sie doppelt: §3.5 gibt beiden „Überfällig"-Zonen ausdruecklich KEIN Deckelziel, und
+   * §3.1 verbietet, fuer „ueberfaellig" eine Route zu erfinden. Es gibt also keine Flaeche, die n
+   * verarbeitet — ein Modal auf die erste von neun waere der Griff ins Beliebige, den §4.3
+   * verbietet. Die Zone darunter fuehrt stattdessen jede Zeile einzeln (§3.2).
+   */
+  it("koordUeberfaelligVerteilt mit n > 1 traegt keinen Primaerknopf", async () => {
+    await mount(
+      karte(anlass("koordUeberfaelligVerteilt", [aufgabe(), aufgabe({ id: "a2" })]), {
+        optionen: { ...ALLE_AUS, umverteilen: true },
+      }),
+    );
+    expect(primaerKnoepfe()).toHaveLength(0);
+  });
+
+  /** Ohne Zielliste kein Modal — und damit kein Knopf, der in eine leere Auswahl fuehrte. */
+  it("koordOhneTraeger bleibt ohne Primaerknopf, wenn keine Verteilziele durchgereicht sind", async () => {
+    await mount(
+      karte(anlass("koordOhneTraeger", [aufgabe()]), {
+        optionen: { ...ALLE_AUS, umverteilen: true },
+        verteilen: null,
+      }),
+    );
+    expect(primaerKnoepfe()).toHaveLength(0);
+  });
+
+  /**
+   * RANG 5b BLEIBT OHNE PRIMAERKNOPF, AUCH WENN MAN IHM `umverteilen: true` REICHT — die Belegung
+   * fragt gar nicht danach. Das ist der Riegel gegen die naheliegende „Vereinfachung", 5a und 5b
+   * wieder zusammenzulegen: `_lib/lebenszyklus.ts` kennt `umverteilen` ausschliesslich aus
+   * `verteilt`, und die Aufspaltung von Rang 5 existiert nur deswegen (§9/S6).
+   */
+  it("koordUeberfaelligInArbeit bleibt ohne Primaerknopf, selbst mit umverteilen: true", async () => {
+    await mount(
+      karte(anlass("koordUeberfaelligInArbeit", [aufgabe({ status: "in_arbeit" })]), {
+        optionen: { ...ALLE_AUS, umverteilen: true },
+      }),
+    );
     expect(primaerKnoepfe()).toHaveLength(0);
   });
 

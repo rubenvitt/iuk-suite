@@ -39,6 +39,8 @@ const {
   FERTIG_MARKER,
   FREIGEBEN_MARKER,
   ZURUECKWEISEN_MARKER,
+  VERTEILEN_MARKER,
+  UMVERTEILEN_MARKER,
 } = vi.hoisted(() => ({
   useActionStateMock: vi.fn(),
   startenMock: vi.fn(),
@@ -48,6 +50,8 @@ const {
   FERTIG_MARKER: Symbol("fertigMeldenAction"),
   FREIGEBEN_MARKER: Symbol("freigebenAction"),
   ZURUECKWEISEN_MARKER: Symbol("zurueckweisenAction"),
+  VERTEILEN_MARKER: Symbol("verteilenAction"),
+  UMVERTEILEN_MARKER: Symbol("umverteilenAction"),
 }));
 
 vi.mock("react", async (echt) => {
@@ -67,6 +71,10 @@ vi.mock("../actions", () => ({
   fertigMeldenAction: FERTIG_MARKER,
   freigebenAction: FREIGEBEN_MARKER,
   zurueckweisenAction: ZURUECKWEISEN_MARKER,
+  // `UmverteilenKnopf` (Schritt 6) kommt aus `VerteilenDialog`, und dessen `ZUWEISUNG`-Tabelle
+  // liest BEIDE Actions beim Import — auch die, die diese Zone selbst nie rendert.
+  verteilenAction: VERTEILEN_MARKER,
+  umverteilenAction: UMVERTEILEN_MARKER,
 }));
 
 import { AktionsZone } from "./AktionsZone";
@@ -105,6 +113,7 @@ const ALLE_AUS: AktionsOptionen = {
   zurueckweisen: false,
   wiederaufnehmen: false,
   zurueckziehen: false,
+  umverteilen: false,
   nachweisHochladen: false,
 };
 
@@ -325,5 +334,114 @@ describe("AktionsZone — Zurückziehen ist bestätigungspflichtig (Spec §9.9)"
     await clickElement(abbrechen);
 
     expect(zurueckziehenMock).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * DIE FESTE VORRANGLISTE (Oberflaechen-Spec 2026-08-16 §7 Nr. 2, §11.1) — HOECHSTENS EIN
+ * `type="primary"`, UND ZWAR DER ERSTE ERLAUBTE EINTRAG.
+ *
+ * DER ZAEHLRIEGEL AUS §11.2 MISST `data-testid="aufgaben-flaeche"` UND ERREICHT `/a/<id>` DAMIT
+ * NIE — diese Datei ist der einzige Ort, an dem die Zusage fuer die Detailseite rot werden kann.
+ * Gezaehlt wird `.ant-btn-primary`, dieselbe Klasse wie dort: antd setzt sie fuer `type="primary"`,
+ * und ein `undefined` erzeugt sie nicht.
+ */
+describe("AktionsZone — genau ein Primaerknopf (§7 Nr. 2)", () => {
+  function primaere(): HTMLElement[] {
+    return queryAll(".ant-btn-primary");
+  }
+
+  it("zeigt bei drei gleichzeitig erlaubten Aktionen genau EINEN Primaerknopf", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "in_arbeit", nachweisPflicht: true, nachweisArt: "bild" })}
+        optionen={{ ...ALLE_AUS, fertig: true, zuruecksetzen: true, nachweisHochladen: true }}
+      />,
+    );
+    expect(primaere()).toHaveLength(1);
+  });
+
+  /**
+   * `nachweisHochladen` VOR `fertig` — DIE UMSORTIERUNG MIT NACHGELESENEM GRUND (§7 Nr. 2):
+   * `uebergang()` erlaubt `in_arbeit`x`fertig` UNABHAENGIG von der Nachweispflicht, die Ablehnung
+   * entsteht erst in `fertigMeldenAction` als Feldfehler. Ohne diese Reihenfolge waere „Fertig
+   * melden" der Primaerknopf, waehrend der tatsaechlich noetige erste Schritt daneben stuende.
+   */
+  it("macht bei nachweispflichtiger in_arbeit-Aufgabe „Nachweis speichern“ primaer, nicht „Fertig melden“", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "in_arbeit", nachweisPflicht: true, nachweisArt: "bild" })}
+        optionen={{ ...ALLE_AUS, fertig: true, nachweisHochladen: true }}
+      />,
+    );
+    expect(primaere()).toHaveLength(1);
+    expect(primaere()[0]!.textContent).toContain("Nachweis speichern");
+  });
+
+  it("macht bei `freigabe_offen` „Freigeben“ primaer und laesst „Zurückweisen“ Standard", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "freigabe_offen" })}
+        optionen={{ ...ALLE_AUS, freigeben: true }}
+      />,
+    );
+    expect(primaere()).toHaveLength(1);
+    expect(primaere()[0]!.textContent).toContain("Freigeben");
+  });
+
+  /**
+   * EINE `eingegangen`-AUFGABE TRAEGT KEINEN PRIMAERKNOPF, UND DAS IST DIE POINTE DER LISTE (§7
+   * Nr. 2): `zurueckziehen` steht ABSICHTLICH NICHT in `VORRANG`. Stuende es darin, waere es fuer
+   * diesen Zustand der EINZIGE erlaubte Eintrag — keine andere Aktion hat in `TABELLE` eine Zeile
+   * aus `eingegangen` — und damit ausgerechnet die LOESCHENDE Aktion der Primaerknopf.
+   */
+  it("zeigt bei `eingegangen` KEINEN Primaerknopf; „Zurückziehen“ bleibt sekundaer mit Popconfirm", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "eingegangen" })}
+        optionen={{ ...ALLE_AUS, zurueckziehen: true }}
+      />,
+    );
+    expect(primaere()).toHaveLength(0);
+    expect(queryAll("[data-testid='zurueckziehen']")).toHaveLength(1);
+  });
+
+  /**
+   * „ANDERS ZUWEISEN" (§7 Nr. 3) — DER BIS SCHRITT 6 FEHLENDE AUFRUFER VON `umverteilenAction`.
+   * ZWEI ZUSAGEN IN EINEM: der Knopf erscheint bei `optionen.umverteilen`, UND sein Text nennt die
+   * Folge (`planLoeschen: true` aus `_lib/lebenszyklus.ts`) — ein Knopf, der nur „Umverteilen"
+   * hiesse, verschwiege genau die Wirkung, die man hinterher nicht zurueckholen kann.
+   */
+  it("zeigt „Anders zuweisen (der Zeitplan wird dabei geleert)“, sobald optionen.umverteilen gilt", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "verteilt" })}
+        optionen={{ ...ALLE_AUS, umverteilen: true }}
+        verteilen={{ bufdis: [], auslastung: [], tage: ["2026-08-17"] }}
+      />,
+    );
+    expect(primaere()).toHaveLength(1);
+    expect(primaere()[0]!.textContent).toContain("Anders zuweisen (der Zeitplan wird dabei geleert)");
+  });
+
+  /**
+   * OHNE ZIELLISTE KEIN KNOPF — und der Fall ist nicht konstruiert: `a/[id]/page.tsx` laedt
+   * `verteilDaten` NUR, wenn `optionen.umverteilen` gilt, reicht also fuer jede andere Person
+   * `null` durch. Ein Modal ohne eine einzige waehlbare Zielperson waere eine Sackgasse.
+   */
+  it("laesst „Anders zuweisen“ weg, wenn keine Zielliste durchgereicht wurde", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "verteilt" })}
+        optionen={{ ...ALLE_AUS, umverteilen: true }}
+      />,
+    );
+    expect(document.body.textContent).not.toContain("Anders zuweisen");
   });
 });

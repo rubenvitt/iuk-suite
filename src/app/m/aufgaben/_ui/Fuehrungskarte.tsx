@@ -26,7 +26,7 @@ import { PrioritaetChip, StatusChip } from "./Chip";
 import { FreigabeAktionen } from "./FreigabeZone";
 import { Frist, fristLage } from "./Frist";
 import { FertigMeldenKnopf } from "./KartenAktion";
-import { VerteilenKnopf } from "./VerteilenDialog";
+import { UmverteilenKnopf, VerteilenKnopf } from "./VerteilenDialog";
 import { ZurueckziehenKnopf } from "./ZurueckziehenKnopf";
 import s from "./aufgaben.module.css";
 
@@ -66,11 +66,13 @@ import s from "./aufgaben.module.css";
  *    Primaerknopf pro Seite" ist damit als HOECHSTENS EINER gelesen — ein roter Knopf ohne
  *    Zustandswechsel waere eine Behauptung.
  *
- * ══ WAS SCHRITT 6 (§11.4) HIER NOCH EINHAENGT: `umverteilenAction` („Anders zuweisen (der
- *    Zeitplan wird dabei geleert)") fuer `koordOhneTraeger` (Rang 1) und `koordUeberfaelligVerteilt`
- *    (Rang 5a), jeweils nur bei `status === "verteilt"`. Beide Belegungen tragen HEUTE bewusst
- *    KEINEN Primaerknopf — die Stellen sind unten namentlich markiert, damit Schritt 6 die Naht
- *    nicht neu suchen muss. Ein Knopf ohne verdrahtete Action waere schlechter als keiner.
+ * ══ SCHRITT 6 (§11.4) HAT `umverteilenAction` EINGEHAENGT: „Anders zuweisen (der Zeitplan wird
+ *    dabei geleert)" traegt jetzt `koordOhneTraeger` (Rang 1) und `koordUeberfaelligVerteilt`
+ *    (Rang 5a). Die Bedingung steht an EINER Stelle (`umverteilenKnopf()` unten) und liest
+ *    `optionen.umverteilen` — also `uebergang()` —, nie einen handgeschriebenen Zustandsvergleich.
+ *    `koordUeberfaelligInArbeit` (Rang 5b) bleibt OHNE Primaerknopf, und genau das ist der Zweck
+ *    der Aufspaltung von Rang 5: `_lib/lebenszyklus.ts` kennt `umverteilen` ausschliesslich aus
+ *    `verteilt`, ein Knopf daneben waere einer, den der Server danach ablehnt.
  *
  * ══ DER SELEKTOR LIEFERT DATEN, DIESE DATEI STELLT DAR (§4.1). Jeder Satz kommt aus
  *    `_lib/anzeige.ts` (`ANLASS_TEXT`, `KARTEN_TEXT`, `FRIST_TEXT`) — fuenf davon tragen das Wort
@@ -364,6 +366,49 @@ function tagFuer(art: AnlassArt, erste: AufgabeRow | null, props: Fuehrungskarte
  * (`/verteilen`, `/freigaben`, `/plan/<eigene>`) — eine Zustandsaktion wirkte sonst auf eine von
  * vielen, und die Karte hat gerade gesagt, dass keine bevorzugt ist (§4.3).
  */
+/**
+ * „ANDERS ZUWEISEN (DER ZEITPLAN WIRD DABEI GELEERT)" — DIE PRIMAERAKTION DER RAENGE 1 UND 5a
+ * (§4.2, §7 Nr. 3). Eine Stelle fuer beide, weil die Bedingung an beiden dieselbe ist.
+ *
+ * DREI BEDINGUNGEN, UND JEDE HAT IHREN EIGENEN GRUND:
+ *
+ *  - `einzeln`: NUR BEI n = 1. §4.2 fuehrt den Knopf in der Zeile von Rang 5a ohne Angabe zu `n`;
+ *    das ist die eine Stelle, an der die Spec sich selbst gegenuebersteht, und sie loest sich nur
+ *    in eine Richtung. §4.3 sagt fuer n > 1: „keine Aufgabe ist bevorzugt", und der Kopfkommentar
+ *    von `aktionen()` schreibt aus, dass es bei n > 1 nur dort einen Primaerknopf gibt, wo eine
+ *    FLAECHE existiert, die n verarbeitet. Fuer Rang 5a gibt es keine: §3.5 gibt beiden
+ *    „Überfällig"-Zonen ausdruecklich KEIN Deckelziel, und §3.1 verbietet, fuer „ueberfaellig"
+ *    eine Route zu erfinden. Ein Modal auf die erste von neun ueberfaelligen Aufgaben waere genau
+ *    der Griff ins Beliebige, den §4.3 verbietet — die Zone darunter fuehrt jede Zeile einzeln.
+ *  - `optionen.umverteilen`: die Zustandsaktion, aus `uebergang()` (s. die zwei Aufrufstellen).
+ *  - `props.verteilen !== null`: ohne Zielliste kann der Modal keine Person anbieten. Das ist
+ *    DASSELBE Praedikat, das die Karte fuer „Verteilen" schon benutzt (`darfVerteilen` beim
+ *    Aufrufer) — kein zweites.
+ *
+ * `primaer` STEHT AUSDRUECKLICH DA, obwohl `true` die Vorgabe ist: derselbe Knopf steht als
+ * ZEILENAKTION in den zwei „Überfällig"-Zonen mit `primaer={false}`, und die Sichtbarkeit dieses
+ * Unterschieds an BEIDEN Aufrufstellen ist billiger als ein zweiter Primaerknopf in
+ * `data-testid="aufgaben-flaeche"`, den ausser Playwright kein Tor sieht.
+ */
+function umverteilenKnopf(
+  props: FuehrungskarteProps,
+  erste: AufgabeRow | null,
+  einzeln: boolean,
+): ReactNode {
+  if (!einzeln || erste === null) return null;
+  if (props.optionen?.umverteilen !== true) return null;
+  if (props.verteilen === null) return null;
+  return (
+    <UmverteilenKnopf
+      aufgabe={erste}
+      bufdis={props.verteilen.bufdis}
+      auslastung={props.verteilen.auslastung}
+      tage={props.verteilen.tage}
+      primaer
+    />
+  );
+}
+
 function aktionen(
   props: FuehrungskarteProps,
   anlass: Anlass,
@@ -387,12 +432,14 @@ function aktionen(
   switch (anlass.art) {
     // ── Koordination ────────────────────────────────────────────────────────────────────────────
     case "koordOhneTraeger":
-      // SCHRITT 6 HAENGT HIER EIN: `umverteilenAction` („Anders zuweisen (der Zeitplan wird dabei
-      // geleert)"), sichtbar nur bei `status === "verteilt"` — `_lib/lebenszyklus.ts` kennt
-      // `umverteilen` ausschliesslich aus diesem Zustand. Bis dahin KEIN Primaerknopf: ein Knopf,
-      // den der Server ablehnte, waere ein Verstoss gegen §10 Prueffrage 2.
+      // „ANDERS ZUWEISEN (DER ZEITPLAN WIRD DABEI GELEERT)" (§4.2, Rang 1) — DIE BEDINGUNG IST
+      // `optionen.umverteilen`, NICHT EIN HANDGESCHRIEBENES `status === "verteilt"`: das Feld IST
+      // `uebergang(a, "umverteilen", akteur, heute).erlaubt` und traegt damit den Zustand UND
+      // `darfVerteilen` in EINEM Ausdruck (§11.3 verbietet einen zweiten Aufrufer mit anderer
+      // Quelle). Steht die Aufgabe in `in_arbeit` oder `freigabe_offen`, ist das Feld falsch, und
+      // die Karte bleibt OHNE Primaerknopf — die ehrliche Auskunft aus §9/S1.
       return {
-        primaer: null,
+        primaer: umverteilenKnopf(props, erste, einzeln),
         sekundaer: [
           einzeln ? ansehen(erste) : null,
           <Button key="personen" href="/personen">
@@ -445,10 +492,12 @@ function aktionen(
       };
 
     case "koordUeberfaelligVerteilt":
-      // SCHRITT 6 HAENGT HIER EIN — dieselbe Aktion und dieselbe Bedingung wie bei
-      // `koordOhneTraeger` oben (§4.2, Rang 5a: „Anders zuweisen", Modal aus der Karte).
+      // DIESELBE AKTION UND DIESELBE BEDINGUNG WIE BEI `koordOhneTraeger` OBEN (§4.2, Rang 5a:
+      // „Anders zuweisen", Modal aus der Karte). Der Unterschied zu Rang 5b (`koordUeberfaellig-
+      // InArbeit`, direkt darunter) ist genau dieser Knopf, und die Aufspaltung existiert nur
+      // seinetwegen: `umverteilen` gibt es ausschliesslich aus `verteilt`.
       return {
-        primaer: null,
+        primaer: umverteilenKnopf(props, erste, einzeln),
         sekundaer: einzeln ? ([ansehen(erste), zeitplan(erste)].filter(Boolean) as ReactNode[]) : [],
       };
 

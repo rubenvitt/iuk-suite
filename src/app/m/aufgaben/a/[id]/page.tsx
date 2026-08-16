@@ -1,6 +1,13 @@
 import { notFound } from "next/navigation";
 import { getDb, type DB } from "../../_db/client";
-import { allePersonen, aufgabe, mitDatei, nachweiseFuer, verlaufFuer } from "../../_db/queries";
+import {
+  allePersonen,
+  aufgabe,
+  mitDatei,
+  nachweiseFuer,
+  verlaufFuer,
+  verteilDaten,
+} from "../../_db/queries";
 import type { AufgabeRow } from "../../_db/schema";
 import { NACHWEIS_MAX_BYTES } from "../../_lib/ablage";
 import { aktionsOptionen } from "../../_lib/aktionsOptionen";
@@ -60,6 +67,19 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
   const nachweisListe = nachweisSichtbar ? mitDatei(db, nachweiseFuer(db, task.id)) : [];
   const verlaufListe = verlaufFuer(db, task.id);
   const optionen = aktionsOptionen(task, akteur, heute);
+  /*
+   * DIE ZIELE FUER „ANDERS ZUWEISEN" (Oberflaechen-Spec 2026-08-16 §7 Nr. 3, Schritt 6) — GELADEN
+   * NUR, WENN DIE AKTION UEBERHAUPT ERLAUBT IST. `optionen.umverteilen` ist
+   * `uebergang(task, "umverteilen", akteur, heute).erlaubt` und traegt damit BEIDES: den Zustand
+   * (`verteilt`) und `darfVerteilen`. Ein zweites, hier geschriebenes `akteur.istKoordination`
+   * waere genau der Nachbau, den §11.3 verbietet — und die Abfrage liefe fuer jede BuFDi auf jeder
+   * Detailseite mit, ohne je gebraucht zu werden.
+   *
+   * `verteilDaten` IST DIESELBE LADEFUNKTION WIE AUF `/verteilen` UND IM EINSTIEG — die Zielliste
+   * kommt daraus aus `bufdis()`, nicht aus `aktivePersonen()`. Eine ausgeschiedene Person ist kein
+   * Verteilziel, und dieser Riegel bleibt woertlich (§11.3).
+   */
+  const verteilZiele = optionen.umverteilen ? verteilDaten(db, heute) : null;
 
   return (
     <>
@@ -140,7 +160,20 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
 
       <section id="aktion" style={{ marginBlockEnd: SPACE.xl }}>
         <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Aktion</h2>
-        <AktionsZone aufgabe={task} optionen={optionen} nachweisMaxBytes={NACHWEIS_MAX_BYTES} />
+        <AktionsZone
+          aufgabe={task}
+          optionen={optionen}
+          nachweisMaxBytes={NACHWEIS_MAX_BYTES}
+          verteilen={
+            verteilZiele === null
+              ? null
+              : {
+                  bufdis: verteilZiele.bufdis,
+                  auslastung: verteilZiele.auslastung,
+                  tage: verteilZiele.tage,
+                }
+          }
+        />
       </section>
 
       <section id="verlauf">
