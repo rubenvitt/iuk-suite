@@ -187,9 +187,14 @@ function enthaelt(node: ReactNode, typ: unknown): boolean {
  * Sichtbarer Text ohne Markup — fuer Wortlaut-Zusicherungen.
  *
  * Entitaeten werden aufgeloest, weil hier auf String-Markup gemessen wird und
- * nicht auf einem DOM-Knoten: das Wortzeichen „I&K" steht im Markup als
- * `I&amp;K`, im Browser aber als `I&K`. Ohne die Aufloesung pruefte die
- * Zusicherung die Serialisierung statt des Wortlauts.
+ * nicht auf einem DOM-Knoten: React escapt in Textknoten `&`, `<`, `>`, `"` und
+ * `'`, sodass eine Zusicherung sonst die Serialisierung statt des Wortlauts
+ * pruefte — ein Apostroph in einem Fragetext reicht dafuer aus.
+ *
+ * NICHT ALS UNMOTIVIERT LOESCHEN: der konkrete Anlass war das damalige
+ * Wortzeichen „I&K", das als `I&amp;K` im Markup stand. Es heisst seit der
+ * Umbenennung „Sammelhaus" und traegt kein Ampersand mehr — die Regel bleibt
+ * trotzdem richtig, sie hat nur gerade keinen so sichtbaren Zeugen.
  */
 function text(markup: string): string {
   return (
@@ -681,7 +686,7 @@ describe("Gemeinsame Huelle aller Zustaende", () => {
       expect(markup.match(new RegExp(`class="[^"]*${s.fahne}[^"]*"`, "g"))?.length).toBe(1);
       expect(markup.match(new RegExp(s.wortzeichen, "g"))?.length).toBe(1);
       expect(text(markup)).toContain("Rückmeldung zum Dienstabend");
-      expect(text(markup)).toContain("I&K");
+      expect(text(markup)).toContain("Sammelhaus");
     }
   });
 

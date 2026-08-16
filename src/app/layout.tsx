@@ -89,8 +89,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "IuK-Suite",
-  description: "Internes Service-Dashboard für I&K",
+  title: "Sammelhaus",
+  description: "Interne Dienste unter einem Dach",
 };
 
 /**

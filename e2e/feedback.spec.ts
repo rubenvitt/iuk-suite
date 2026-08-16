@@ -727,7 +727,7 @@ test("Aushang: die Druckansicht rendert Frage, Gruppenname, QR und Adresse — u
     "Anonym · 8 Noten, 6 freie Zeilen · etwa 2 Minuten",
   );
   // Traeger 2 von zwei fuer Suite-Rot auf diesem Blatt: das Wortzeichen.
-  await expect(page.locator(".fb-aushang-wortzeichen")).toHaveText("I&K");
+  await expect(page.locator(".fb-aushang-wortzeichen")).toHaveText("Sammelhaus");
   await expect.poll(() => page.evaluate(() => (window as unknown as { __gedruckt: number }).__gedruckt))
     .toBeGreaterThan(0);
 });
