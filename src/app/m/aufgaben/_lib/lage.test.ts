@@ -265,8 +265,22 @@ describe("lage — der Wochenendfall (§4.2, §5.4, §11.1)", () => {
    * `kein_arbeitstag` VERDRAENGT RANG 5 UND 6, NICHT RANG 1–3. Eine legitime Zustandsaktion zu
    * verstecken, weil Sonntag ist, waere eine Behauptung ueber die Arbeitszeit dieser Person, die
    * das Modul nicht kennt. Was das Wochenende aendert, ist die Aussage ueber den PLAN.
+   *
+   * „VERDRAENGT" HEISST DABEI: AUS DER FUEHRUNG, NICHT AUS `anlaesse` — nachgeschaerft in §11.4
+   * Schritt 4, mit einem e2e-Beleg. Die erste Fassung dieses Falls verlangte
+   * `arten(l.anlaesse) === ["bufdiKeinArbeitstag"]`, las §4.2 also so, dass die Raenge 5 und 6 am
+   * Wochenende GANZ wegfallen. Das widersprach drei anderen Stellen derselben Spec (§3.4s
+   * R3-Ausnahmetabelle fuehrt Rang 6 als BuFDi-Zone OHNE Wochentagsbedingung, §4.1s
+   * Restmengentabelle fuehrt `wartetAufEinplanung` NICHT als Restmenge, §11.1 verlangt, dass jede
+   * nicht eingeordnete Zeile auf der Flaeche der Rolle sichtbar ist) — und der Widerspruch war
+   * nicht theoretisch: samstags und sonntags stand eine verteilte, noch nicht eingeplante Aufgabe
+   * auf `/` NIRGENDS, waehrend die Kontextzeile sie weiterhin zaehlte. Die Begruendung im Ganzen
+   * steht im Kopfkommentar von `_lib/lage.ts` an der betroffenen Zeile.
+   *
+   * WAS DIESER FALL WEITERHIN PRUEFT — und es ist das, was §4.2 tatsaechlich zusagt: die FUEHRUNG
+   * ist `bufdiKeinArbeitstag` und nicht Rang 5 oder 6, und sie traegt keinen Bestand.
    */
-  it("am Sonntag verdraengt `kein_arbeitstag` die Raenge 5 und 6", () => {
+  it("am Sonntag verdraengt `kein_arbeitstag` die Raenge 5 und 6 aus der FUEHRUNG", () => {
     const { malte, alina } = besetzung();
     legeAufgabe({ erstellerId: malte.id, zugewiesenAn: alina.id, status: "verteilt" });
     legeAufgabe({
@@ -276,9 +290,37 @@ describe("lage — der Wochenendfall (§4.2, §5.4, §11.1)", () => {
       planDatum: SONNTAG,
     });
     const l = lage(t.db, akteur(alina), SONNTAG, TAGE);
-    expect(arten(l.anlaesse)).toEqual(["bufdiKeinArbeitstag"]);
     expect(l.fuehrung.art).toBe("bufdiKeinArbeitstag");
     expect(l.fuehrung.zeilen).toEqual([]);
+    // Rang 4 steht VOR den verdraengten beiden, nicht an ihrer Stelle.
+    expect(arten(l.anlaesse)).toEqual([
+      "bufdiKeinArbeitstag",
+      "bufdiHeuteOffen",
+      "bufdiWartetAufEinplanung",
+    ]);
+  });
+
+  /**
+   * DIE ZONE „EINZUPLANEN" UEBERLEBT DAS WOCHENENDE (§3.4, R3-Ausnahmetabelle) — der Riegel unter
+   * der Korrektur oben. Ohne ihn faellt die naechste Vereinfachung („am Wochenende braucht es die
+   * Raenge 5/6 doch gar nicht") genau in dasselbe Loch zurueck, und nur ein e2e-Lauf an einem
+   * Samstag saehe es.
+   *
+   * `bufdiHeuteOffen` BILDET DABEI KEINE ZONE: es ist R3-Ausnahme und steht vollstaendig in der
+   * Wochenachse. Beide Zusagen zusammen in EINEM Fall, weil sie sich gegenseitig bedingen — eine
+   * Fassung, die beide Sprossen zur Zone machte, waere genauso falsch wie eine, die beide streicht.
+   */
+  it("am Sonntag bleibt „Einzuplanen“ eine Zone, „Heute“ dagegen nicht", () => {
+    const { malte, alina } = besetzung();
+    legeAufgabe({ erstellerId: malte.id, zugewiesenAn: alina.id, status: "verteilt" });
+    legeAufgabe({
+      erstellerId: malte.id,
+      zugewiesenAn: alina.id,
+      status: "verteilt",
+      planDatum: SONNTAG,
+    });
+    const l = lage(t.db, akteur(alina), SONNTAG, TAGE);
+    expect(arten(l.zonen)).toEqual(["bufdiWartetAufEinplanung"]);
   });
 
   it("am Sonntag behaelt Rang 1 die Fuehrung, `kein_arbeitstag` wird der zweite Anlass (§5.4)", () => {

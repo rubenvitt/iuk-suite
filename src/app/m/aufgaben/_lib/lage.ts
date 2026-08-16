@@ -334,9 +334,38 @@ function bufdi(db: DB, akteur: Akteur, heute: string, tage: readonly string[]): 
     { art: "bufdiWartetAufEinplanung", trifft: (a) => wartetAufEinplanung(a) },
   ];
 
+  /*
+   * „VERDRAENGT" HEISST: AUS DER FUEHRUNG, NICHT AUS `anlaesse` (Korrektur in §11.4 Schritt 4, mit
+   * einem e2e-Beleg). Die erste Fassung liess die Raenge 5 und 6 am Wochenende ganz WEGFALLEN. Das
+   * las §4.2 woertlich („verdraengt genau diese drei"), widersprach aber drei anderen Stellen
+   * derselben Spec — und der Widerspruch war nicht theoretisch:
+   *
+   *  - §3.4, R3-Ausnahmetabelle, Zeile BuFDi: „Zonen bekommen also: Rang 1 (ueberfaellig), Rang 2
+   *    (zurueckgewiesen), RANG 6 (`wartetAufEinplanung` → `#posteingang`)" — ohne jede Bedingung
+   *    ueber den Wochentag.
+   *  - §4.1, Restmengentabelle: `wartetAufEinplanung` steht dort NICHT (es ist eine Sprosse). Fiel
+   *    die Sprosse weg, war die Zeile weder eingeordnet noch Restmenge.
+   *  - §11.1, Partitionszusage: „jede nicht eingeordnete Zeile ist auf der Flaeche der Rolle
+   *    sichtbar." Am Wochenende war sie das nicht.
+   *
+   * DIE FOLGE WAR EIN LOCH, KEIN SCHOENHEITSFEHLER: samstags und sonntags stand eine verteilte,
+   * noch nicht eingeplante Aufgabe auf `/` NIRGENDS — nicht in der Karte, nicht in einer Zone,
+   * nicht in der Achse (sie hat kein `planDatum`) und nicht in der Achsen-Fusszeile (§4.5 nimmt
+   * `verteilt` ohne `planDatum` ausdruecklich aus, weil es „ein eigener Anlass" sei). Die
+   * Kontextzeile zaehlte sie trotzdem („1 im Posteingang") und zeigte damit auf nichts. Erreichbar
+   * blieb sie nur ueber `/a/<id>`, das man erst kennen muss — WOERTLICH der Defekt, den §9/S1
+   * schliesst. VIER e2e-Faelle waren an einem Sonntag rot und an einem Dienstag gruen.
+   *
+   * `kein_arbeitstag` STEHT DESHALB VOR `unten` STATT AN SEINER STELLE. Damit bleibt alles, was
+   * §4.2 tatsaechlich zusagt: die Raenge 1 bis 3 behalten die Fuehrung auch am Sonntag, und wo sie
+   * leer sind, fuehrt `kein_arbeitstag` — nicht Rang 5 oder 6. Die Zeile „ALS NAECHSTES" des
+   * Sonntagsbilds aus §5.4 bleibt ebenfalls `bufdiKeinArbeitstag`, weil `oben` hoechstens die
+   * Raenge 1–3 liefert und Rang 4 unmittelbar folgt. `bufdiHeuteOffen` bildet dabei KEINE Zone
+   * (R3-Ausnahme, es steht vollstaendig in der Achse) — es kehrt nur in die Ordnung zurueck.
+   */
   const anlaesse = istArbeitstag
     ? leiter(meine, [...oben, ...unten])
-    : [...leiter(meine, oben), ohneBestand("bufdiKeinArbeitstag")];
+    : [...leiter(meine, oben), ohneBestand("bufdiKeinArbeitstag"), ...leiter(meine, unten)];
 
   const routinenDerPerson = routinenFuer(db, akteur.person.id);
   const budgets = tage.map((tag) => tagesBudget(meine, routinenDerPerson, akteur.person, tag));
