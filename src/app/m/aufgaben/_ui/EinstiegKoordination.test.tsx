@@ -158,6 +158,61 @@ describe("EinstiegKoordination — der Aufbau aus §3.4", () => {
   });
 
   /**
+   * DAS SPIEGELBILD DES RIEGELS DARUEBER — UND DER EINZIGE TEST, DER DEN KARTENWEG VON
+   * `umverteilenAction` UEBERHAUPT DURCHLAEUFT.
+   *
+   * WARUM ER GEBRAUCHT WIRD, obwohl `Fuehrungskarte.test.tsx` beide Raenge schon prueft: dort wird
+   * `optionen` als Prop GEREICHT, der Test mockt also genau die Verdrahtung weg, um die es hier
+   * geht. In Wirklichkeit kommt das Feld aus `kartenGrunddaten(db, akteur, heute, lage)`, das
+   * `aktionsOptionen` NUR fuer die fuehrende Zeile und NUR bei `lage.fuehrung.einzeln` rechnet.
+   * Vor Schritt 6 las KEINE Koordinations-Sprosse `props.optionen` — waere das Feld dort
+   * rollenabhaengig gefuellt, bliebe der Knopf auf der Karte still aus, und alle vier anderen
+   * Tore blieben gruen: der Riegel oben faehrt n = 3 (die Karte traegt dann ohnehin keinen
+   * Primaerknopf), und der e2e-Fall fuer Rike fuehrt am Seed-Tag mit `koordPosteingang`.
+   *
+   * GENAU EINE ueberfaellige, `verteilt`e Aufgabe — damit fuehrt `koordUeberfaelligVerteilt` mit
+   * n = 1, R3 loescht die Zone, und der Knopf kann nur aus der KARTE kommen.
+   */
+  it("die Karte traegt bei genau einer ueberfaelligen `verteilt`-Aufgabe „Anders zuweisen“ als Primaerknopf", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Materialtransport", status: "verteilt", faelligAm: "2026-08-01",
+    });
+    await zeige(rike);
+
+    const primaer = flaeche().querySelectorAll(".ant-btn-primary");
+    expect(primaer).toHaveLength(1);
+    expect(primaer[0]!.textContent).toContain("Anders zuweisen (der Zeitplan wird dabei geleert)");
+    // Der Knopf steht IN der Karte, nicht in einer Zone darunter — R3 laesst bei n = 1 keine
+    // entstehen, und ohne diese Zeile bewiese die Zaehlung nur „irgendwo auf der Flaeche".
+    expect(query("[data-rolle='fuehrung']").contains(primaer[0]!)).toBe(true);
+  });
+
+  /**
+   * DIE GEGENPROBE MIT DEMSELBEN BESTAND, NUR IN `in_arbeit` (Rang 5b) — KEIN Knopf. Sie ist der
+   * Beleg, dass der Test darueber tatsaechlich am ZUSTAND haengt und nicht daran, dass die Karte
+   * ohnehin irgendetwas Rotes zeigt: `_lib/lebenszyklus.ts` kennt `umverteilen` ausschliesslich
+   * aus `verteilt`, und ein Knopf neben einer angefangenen Aufgabe waere einer, den der Server
+   * danach ablehnt (§10 Prueffrage 2).
+   */
+  it("dieselbe Aufgabe in `in_arbeit` (Rang 5b) traegt gar keinen Primaerknopf", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Materialtransport", status: "in_arbeit", faelligAm: "2026-08-01",
+    });
+    await zeige(rike);
+
+    expect(flaeche().querySelectorAll(".ant-btn-primary")).toHaveLength(0);
+    expect(document.body.textContent).not.toContain("Anders zuweisen");
+  });
+
+  /**
    * DER TEXTKNOPF DES SEITENKOPFS STEHT AUSSERHALB DES WRAPPERS (§3.3, §9/S9) — der Zaehlriegel
    * faende ihn gar nicht, und genau deshalb ist seine Demotion mit einer ANDEREN Begruendung
    * belegt als die des „Annehmen"-Knopfs: „hoechstens ein Primaerknopf" gilt fuer die GANZE Seite.
