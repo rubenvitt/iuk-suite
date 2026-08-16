@@ -95,6 +95,7 @@ export function personenInhalt(
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben", href: "/" }, { label: "Personenverwaltung" }]}
         titel="Personenverwaltung"
+        hilfe="personen"
         kontext={kontext}
       />
 

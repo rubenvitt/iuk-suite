@@ -60,5 +60,19 @@ export function aufgabenNav(akteur: Akteur, heute: string): SuiteNavItem[] {
 
   eintraege.push({ key: "archiv", title: "Archiv", href: "/archiv" });
 
+  /*
+   * `/hilfe` STEHT ZULETZT UND BEDINGUNGSLOS — die Bedienungsanleitung (`_lib/hilfe.ts`).
+   *
+   * KEIN PRAEDIKAT: die Route gatet selbst keines (sie liest keine Aufgabe, keine Person, keinen
+   * Nachweis, sondern zeigt Text ueber Flaechen), und die Auswahl der KAPITEL geschieht IN der
+   * Seite — `hilfeSichten` filtert ueber dieselben Praedikate wie diese Datei. Ein Gate hier waere
+   * also nicht strenger, nur an der falschen Stelle: es naehme die Anleitung genau der Person weg,
+   * die am wenigsten Kapitel hat und die Erklaerung am ehesten braucht.
+   *
+   * ZULETZT UND NICHT ZUERST, weil die Navigation nach Arbeitshaeufigkeit sortiert ist: eine
+   * Anleitung wird einmal gelesen und danach gesucht, nicht taeglich geklickt.
+   */
+  eintraege.push({ key: "hilfe", title: "Anleitung", href: "/hilfe" });
+
   return eintraege;
 }

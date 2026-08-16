@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Breadcrumb } from "antd";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
+import s from "./aufgaben.module.css";
 
 /*
  * DER KOPF JEDER SEITE DES MODULS (Spec §9.4, Muster `docs/design/
@@ -49,11 +50,31 @@ export function SeitenKopf({
   titel,
   aktionen,
   kontext,
+  hilfe,
 }: {
   brotkrume: { label: string; href?: string }[];
   titel: string;
   aktionen?: ReactNode;
   kontext: string;
+  /**
+   * DER SCHLUESSEL DES ANLEITUNGSKAPITELS ZU DIESER SICHT (`_lib/hilfe.ts`s `SichtSchluessel`).
+   *
+   * ER STEHT IN DER BROTKRUMENZEILE UND NICHT IM `aktionen`-SLOT, UND ZWAR AUF JEDER SEITE AN
+   * DERSELBEN STELLE: eine Hilfe, die mal neben „Aufgabe einstellen" und mal neben dem
+   * Wochenwaehler auftaucht, wird auf der dritten Seite gesucht statt gesehen. Der `aktionen`-Slot
+   * gehoert ausserdem den Handlungen DIESER Seite — ein Verweis auf eine Textseite ist keine.
+   *
+   * `optional`, WEIL NICHT JEDE SEITE EIN KAPITEL HAT: die Anleitungsseiten selbst tragen keines
+   * (sie waeren ihr eigener Verweis), und `NichtEingetragenSeite` erklaert sich selbst.
+   *
+   * KEIN `SichtSchluessel`-TYP IN DIESER SIGNATUR, SONDERN `string`: `_lib/hilfe.ts` importiert
+   * `_lib/zugang.ts` und damit `@/core/auth`; `SeitenKopf` wird von zwei Client-Inseln her
+   * mitgezogen, und ein `import type` ist genau der Import, den eine spaetere Aufraeumrunde zu
+   * einem Wertimport macht. Die Zusicherung „der Schluessel existiert wirklich" traegt dafuer
+   * `hilfe.test.ts`, das jeden im Modul gesetzten `hilfe`-Wert gegen `SICHT_SCHLUESSEL` prueft —
+   * ein Riegel am Quelltext statt einer Typkopplung ueber eine Modulgrenze, die man nicht will.
+   */
+  hilfe?: string;
 }) {
   if (!kontext) {
     throw new Error(
@@ -64,12 +85,38 @@ export function SeitenKopf({
 
   return (
     <div style={{ marginBlockEnd: SPACE.xl }}>
-      <Breadcrumb
-        style={{ ...SCHRIFT.neben, marginBlockEnd: SPACE.xs }}
-        items={brotkrume.map((eintrag) => ({
-          title: eintrag.href ? <Link href={eintrag.href}>{eintrag.label}</Link> : eintrag.label,
-        }))}
-      />
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          gap: SPACE.sm,
+          flexWrap: "wrap",
+        }}
+      >
+        <Breadcrumb
+          style={{ ...SCHRIFT.neben, marginBlockEnd: SPACE.xs }}
+          items={brotkrume.map((eintrag) => ({
+            title: eintrag.href ? <Link href={eintrag.href}>{eintrag.label}</Link> : eintrag.label,
+          }))}
+        />
+        {hilfe ? (
+          /*
+           * DIE AUFSCHRIFT IST AUF JEDER SEITE DIESELBE, DAS ZIEL NICHT — und dazu kommt der
+           * gleichnamige Navigationseintrag der Shell (`_lib/nav.ts`, Ziel `/hilfe`). Wer sich
+           * eine Linkliste vorlesen laesst, hoerte also zweimal „Anleitung" ohne Unterschied.
+           * `aria-label` traegt deshalb die Sicht mit; sichtbar bleibt das kurze Wort.
+           */
+          <Link
+            href={`/hilfe/${hilfe}`}
+            className={s.leiseLink}
+            style={SCHRIFT.neben}
+            aria-label={`Anleitung zu „${titel}“`}
+          >
+            Anleitung
+          </Link>
+        ) : null}
+      </div>
       <div
         style={{
           display: "flex",

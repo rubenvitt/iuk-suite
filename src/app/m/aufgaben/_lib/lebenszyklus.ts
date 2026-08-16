@@ -162,6 +162,26 @@ const TABELLE: Regel[] = [
 ];
 
 /**
+ * DIE ELF TABELLENZEILEN OHNE IHRE BERECHTIGUNGSFUNKTIONEN — die Form, in der eine ANDERE Datei
+ * ueber die Tabelle reden darf.
+ *
+ * WOFUER: `_lib/hilfe.ts` zeichnet daraus das Lebenszyklus-Bild der Bedienungsanleitung. Eine
+ * Zustandsgrafik ist die Angabe, die am leisesten falsch wird — sie wird nicht rot, sie wird nur
+ * unwahr, sobald hier eine Zeile dazukommt oder verschwindet. `hilfe.test.ts` vergleicht deshalb
+ * die Kantenmenge des Bildes in BEIDE Richtungen gegen diese Liste.
+ *
+ * WARUM NICHT `TABELLE` SELBST EXPORTIEREN: ihre `wer`/`gilt`-Felder sind Funktionen ueber einem
+ * `Akteur`, und ein Export davon luede jeden Leser dazu ein, die Berechtigungsfrage anderswo als
+ * ueber `uebergang()` zu beantworten — genau die zweite Fassung, gegen die der Kopfkommentar
+ * dieser Datei steht. Diese Projektion traegt nur die drei Felder, die eine Beschreibung braucht.
+ *
+ * KEIN ZWEITER PFLEGEORT: sie wird AUS `TABELLE` gerechnet, nicht daneben geschrieben.
+ */
+export const UEBERGAENGE: readonly { von: Status; aktion: Aktion; nach: Status }[] = TABELLE.map(
+  ({ von, aktion, nach }) => ({ von, aktion, nach }),
+);
+
+/**
  * DIE EINE STELLE, AN DER SPEC §5.2 GEPRUEFT WIRD. Jedes Paar (Status, Aktion), das nicht in
  * `TABELLE` steht (oder dessen `gilt`-Bedingung nicht zutrifft), wird abgelehnt — nicht als
  * Sonderfall, sondern weil `TABELLE.find` nichts findet.

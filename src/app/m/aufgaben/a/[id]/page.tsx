@@ -86,6 +86,7 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben", href: "/" }, { label: task.titel }]}
         titel={task.titel}
+        hilfe="aufgabe"
         kontext={`Erstellt von ${erstellerName} · Frist ${fmtTagKurz(task.faelligAm)}`}
       />
 

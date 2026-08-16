@@ -38,6 +38,7 @@ import FreigabenPage from "../freigaben/page";
 import RoutinenPage from "../routinen/page";
 import PersonenPage from "../personen/page";
 import ArchivPage from "../archiv/page";
+import HilfePage from "../hilfe/page";
 
 const HEUTE = "2026-08-13";
 
@@ -93,6 +94,7 @@ const ROUTEN: Record<string, () => Promise<unknown>> = {
   "/routinen": () => RoutinenPage({ searchParams: Promise.resolve({}) }),
   "/personen": () => PersonenPage({ searchParams: Promise.resolve({}) }),
   "/archiv": () => ArchivPage({ searchParams: Promise.resolve({}) }),
+  "/hilfe": () => HilfePage(),
 };
 
 /**
@@ -143,17 +145,30 @@ describe("aufgabenNav — genau die erwartete Eintragsmenge je Rolle (echte, unt
       "freigaben",
       "personen",
       "archiv",
+      "hilfe",
     ]);
   });
 
   it("auftrag: start, neu, freigaben, archiv — NICHT verteilen, routinen, personen", () => {
     const malte = legePerson("dev:malte@test", "auftrag");
-    expect(aufgabenNav(akteur(malte), HEUTE).map((e) => e.key)).toEqual(["start", "neu", "freigaben", "archiv"]);
+    expect(aufgabenNav(akteur(malte), HEUTE).map((e) => e.key)).toEqual([
+      "start",
+      "neu",
+      "freigaben",
+      "archiv",
+      "hilfe",
+    ]);
   });
 
   it("bufdi: start, neu, routinen, archiv — NICHT verteilen, freigaben, personen", () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    expect(aufgabenNav(akteur(alina), HEUTE).map((e) => e.key)).toEqual(["start", "neu", "routinen", "archiv"]);
+    expect(aufgabenNav(akteur(alina), HEUTE).map((e) => e.key)).toEqual([
+      "start",
+      "neu",
+      "routinen",
+      "archiv",
+      "hilfe",
+    ]);
   });
 
   /*
@@ -173,16 +188,22 @@ describe("aufgabenNav — genau die erwartete Eintragsmenge je Rolle (echte, unt
       "freigaben",
       "personen",
       "archiv",
+      "hilfe",
     ]);
   });
 
   it("ein ausgeschiedener auftrag OHNE Gruppe verliert dagegen jeden rollengebundenen Eintrag", () => {
     const exMalte = legePerson("dev:ex-malte@test", "auftrag", { aktivBis: "2020-01-01" });
-    expect(aufgabenNav(akteur(exMalte), HEUTE).map((e) => e.key)).toEqual(["start", "neu", "archiv"]);
+    expect(aufgabenNav(akteur(exMalte), HEUTE).map((e) => e.key)).toEqual([
+      "start",
+      "neu",
+      "archiv",
+      "hilfe",
+    ]);
   });
 
   /*
-   * DIE EINZIGE PERSON, DIE ALLE SIEBEN EINTRAEGE SIEHT — und die es vor dem Quellenwechsel
+   * DIE EINZIGE PERSON, DIE ALLE ACHT EINTRAEGE SIEHT — und die es vor dem Quellenwechsel
    * (2026-08-15) nicht geben konnte: eine `bufdi`-ZEILE mit Koordinationsgruppe. `routinen` kommt
    * aus der Zeile (`darfRoutinenVerwalten`), `verteilen`/`freigaben`/`personen` aus der Gruppe.
    *
@@ -192,7 +213,7 @@ describe("aufgabenNav — genau die erwartete Eintragsmenge je Rolle (echte, unt
    * `akteur.istKoordination` aus einem der drei Praedikate, verschwaende der Eintrag samt seiner
    * Pruefung, und nichts wuerde rot.
    */
-  it("bufdi MIT Koordinationsgruppe: alle sieben Eintraege — routinen aus der Zeile, der Rest aus der Gruppe", () => {
+  it("bufdi MIT Koordinationsgruppe: alle acht Eintraege — routinen aus der Zeile, der Rest aus der Gruppe", () => {
     const alina = legePerson("dev:alina-koord@test", "bufdi");
     expect(aufgabenNav(akteur(alina, true), HEUTE).map((e) => e.key)).toEqual([
       "start",
@@ -202,6 +223,7 @@ describe("aufgabenNav — genau die erwartete Eintragsmenge je Rolle (echte, unt
       "routinen",
       "personen",
       "archiv",
+      "hilfe",
     ]);
   });
 });
