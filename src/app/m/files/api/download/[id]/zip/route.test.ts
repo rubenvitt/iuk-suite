@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdirSync, rmSync, readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, rmSync, readdirSync, readlinkSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { inflateRawSync } from "node:zlib";
 import type { Readable } from "node:stream";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -342,10 +343,53 @@ function hinweisAus(eintraege: { name: string; inhalt: Buffer }[]): string {
   return eintrag.inhalt.toString("utf8");
 }
 
-/** Offene Descriptoren des Prozesses. Beide Messungen laufen ueber denselben
- *  Weg, damit der Descriptor des Listings selbst sich heraushebt. */
+/**
+ * Offene Descriptoren AUF DIESEN TESTBESTAND — bewusst nicht die des ganzen
+ * Prozesses.
+ *
+ * ⚠️ `readdirSync("/dev/fd").length` WAR DIE ERSTE FASSUNG, UND SIE WAR
+ * RENNABHAENGIG. Unter `/dev/fd` stehen nicht nur Dateien: libuv fuehrt dort
+ * `anon_inode:[eventpoll]`, `[io_uring]`, `[eventfd]` und `pipe:[…]`, und in
+ * demselben Vitest-Prozess laufen vor und nach dieser Datei ANDERE Testdateien
+ * mit eigenen Descriptoren. Das alles kommt und geht, ohne dass dieser Handler
+ * irgendetwas tut.
+ *
+ * ⚠️ DIE MESSUNG WAR DAMIT NICHT NUR VERRAUSCHT, SIE ZEIGTE IN DIE FALSCHE
+ * RICHTUNG. Gemessen in der CI auf `main` (Lauf 31887235833, Zeile 651):
+ *
+ *     AssertionError: expected 28 to be 79
+ *
+ * Am Ende standen 51 Descriptoren WENIGER offen als zu Beginn. Ein Leck zaehlt
+ * nach oben; nach unten zaehlt ausschliesslich Fremdverkehr. Der Fehlschlag war
+ * also kein Befund ueber den Handler, sondern ueber den Prozess, in dem er
+ * gemessen wurde — und dieselbe Bauform kann in der Gegenrichtung ein echtes
+ * Leck ZUDECKEN, indem fremde Descriptoren gleichzeitig zugehen.
+ *
+ * Gezaehlt wird deshalb nur, worueber die Zusage ueberhaupt etwas sagt: die
+ * Descriptoren auf `DIR`. Das sind die Quelldateien, die der Handler oeffnet,
+ * plus die SQLite-Datei, die ueber BEIDE Messungen hinweg konstant offen ist
+ * (`legeShare`/`legeDatei` oeffnen sie vor der Basismessung) und sich damit
+ * heraushebt. Das ist zugleich die SCHAERFERE Messung: der alte Zaehler haette
+ * ein Leck an einer voellig fremden Stelle des Prozesses mitgefaerbt und war
+ * von einem Leck hier nicht zu unterscheiden.
+ */
 function offeneDescriptoren(): number {
-  return readdirSync("/dev/fd").length;
+  const wurzel = resolve(DIR);
+  let offen = 0;
+  for (const eintrag of readdirSync("/dev/fd")) {
+    let ziel: string;
+    try {
+      ziel = readlinkSync(`/dev/fd/${eintrag}`);
+    } catch {
+      // Der Descriptor des Listings selbst ist beim `readlink` schon wieder zu.
+      continue;
+    }
+    // `readlink` haengt an einer geloeschten Datei " (deleted)" an — der
+    // Praefixvergleich traegt das mit, und ein geloeschter, aber noch offener
+    // Descriptor ist genau der Fall, den dieser Test sucht.
+    if (ziel === wurzel || ziel.startsWith(`${wurzel}/`)) offen += 1;
+  }
+  return offen;
 }
 
 /** Ein paar Makrotasks, damit `destroy()` und `close()` durch sind. */
