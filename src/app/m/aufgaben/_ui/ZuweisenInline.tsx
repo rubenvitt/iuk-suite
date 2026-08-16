@@ -68,7 +68,27 @@ export function ZuweisenInline({
   /** Wochenauslastung je BuFDi, aus `wochenAuslastungFuerBufdis` — nie hier gerechnet. */
   auslastung: AuslastungZeile[];
 }) {
-  const [offen, setOffen] = useState(false);
+  /*
+   * SICHTBARKEIT IST ABGELEITET, KEIN ZWEITER ZUSTAND — dasselbe Muster, das `VerteilenTabelle`
+   * schon fuehrt, nur an einem anderen Merkmal. Dort folgt „offen" daraus, ob die Zeile noch im
+   * `posteingang`-Prop steht: die verteilte Aufgabe verlaesst `eingegangen`, der Prop schrumpft,
+   * der Dialog schliesst sich von selbst.
+   *
+   * HIER GEHT DAS NICHT, UND DAS IST DER FEHLER, DEN EIN NAIVES `useState(false)` MACHT: eine
+   * umverteilte Aufgabe bleibt `verteilt` und bleibt ueberfaellig — sie steht nach der
+   * Revalidierung WEITER in derselben Zone, mit demselben `key={a.id}`. Der lokale Schalter
+   * ueberlebt also, das Feld bliebe offen stehen, und der einzige sichtbare Unterschied waere,
+   * dass die gesperrte Zeile still auf die neue Person springt. Nur ein vollstaendig
+   * durchgefuehrter Klick zeigt das — kein Bildschirmabzug des offenen Feldes und kein Vitest,
+   * der `useActionState` mockt.
+   *
+   * GEMERKT WIRD DESHALB NICHT „offen", SONDERN „offen, SOLANGE X SIE TRAEGT". Wechselt der
+   * Traeger, stimmt die Bedingung nicht mehr und das Feld schliesst — ohne `useEffect`, der
+   * zwischen „frisch gemountet" und „gerade erfolgreich abgeschickt" unterscheiden muesste.
+   */
+  const [offenFuer, setOffenFuer] = useState<string | null>(null);
+  const traeger = aufgabe.zugewiesenAn ?? "";
+  const offen = offenFuer !== null && offenFuer === traeger;
   const [state, formAction, isPending] = useActionState(umverteilenAction, FORM_START);
   const zielFehler = feldFehler(state, "zielId");
 
@@ -135,7 +155,7 @@ export function ZuweisenInline({
     <span className={s.zuweisenHuelle} data-offen={offen ? "true" : undefined}>
       <Popover
         open={offen}
-        onOpenChange={setOffen}
+        onOpenChange={(auf) => setOffenFuer(auf ? traeger : null)}
         trigger="click"
         placement="bottomRight"
         content={inhalt}

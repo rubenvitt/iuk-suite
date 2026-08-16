@@ -6,6 +6,7 @@ import {
   mount,
   queryAll,
   queryPortal,
+  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import type { AuslastungZeile } from "../_db/queries";
@@ -224,5 +225,53 @@ describe("ZuweisenInline — die Zuweisung in der Zeile", () => {
     expect(huelle().getAttribute("data-offen")).toBeNull();
     await click(`[data-testid="zuweisen-${AUFGABE.id}"]`);
     expect(huelle().getAttribute("data-offen")).toBe("true");
+  });
+
+  /**
+   * ══ DAS FELD SCHLIESST SICH, SOBALD DIE ZUWEISUNG GELANDET IST — UND ES IST DERSELBE FALL, DEN
+   *    `VerteilenTabelle` ueber ihren `posteingang`-Prop loest, nur mit einem anderen Merkmal.
+   *
+   *    DER FEHLER, DEN EIN NAIVES `useState(false)` HIER MACHT: eine umverteilte Aufgabe bleibt
+   *    `verteilt` und bleibt ueberfaellig, steht nach der Revalidierung also WEITER in derselben
+   *    Zone, mit demselben `key`. Der lokale Schalter ueberlebte und das Feld bliebe offen stehen
+   *    — mit einer gesperrten Zeile, die still auf die neue Person springt.
+   *
+   *    NUR EIN VOLLSTAENDIG DURCHGEFUEHRTER KLICK ZEIGT DAS. Kein Bildschirmabzug des OFFENEN
+   *    Feldes sieht es, und jeder Test, der `useActionState` mockt, sieht die Revalidierung nie —
+   *    dieser hier stellt sie deshalb als Prop-Wechsel her, was genau das ist, was React nach
+   *    einer erfolgreichen Server-Action tut.
+   */
+  it("schliesst sich, sobald die Aufgabe eine andere Person traegt", async () => {
+    await mount(<ZuweisenInline aufgabe={AUFGABE} bufdis={BUFDIS} auslastung={AUSLASTUNG} />);
+    await click(`[data-testid="zuweisen-${AUFGABE.id}"]`);
+    expect(existsPortal("form")).toBe(true);
+
+    await rerender(
+      <ZuweisenInline
+        aufgabe={{ ...AUFGABE, zugewiesenAn: "bendix" }}
+        bufdis={BUFDIS}
+        auslastung={AUSLASTUNG}
+      />,
+    );
+    expect(queryAll(`.${s.zuweisenHuelle}`)[0]!.getAttribute("data-offen")).toBeNull();
+  });
+
+  /**
+   * DIE GEGENPROBE ZUM TEST DARUEBER: ein Neurendern OHNE Traegerwechsel darf das Feld NICHT
+   * schliessen. Ohne sie waere „schliesst bei Wechsel" auch von der Fassung erfuellt, die bei
+   * jedem beliebigen Neurendern zuklappt — und die waere unbedienbar, denn eine Zone rendert
+   * neu, sobald irgendeine andere Zeile sich aendert.
+   */
+  it("bleibt bei einem Neurendern ohne Traegerwechsel offen", async () => {
+    await mount(<ZuweisenInline aufgabe={AUFGABE} bufdis={BUFDIS} auslastung={AUSLASTUNG} />);
+    await click(`[data-testid="zuweisen-${AUFGABE.id}"]`);
+    await rerender(
+      <ZuweisenInline
+        aufgabe={{ ...AUFGABE, titel: "Anderer Titel" }}
+        bufdis={BUFDIS}
+        auslastung={AUSLASTUNG}
+      />,
+    );
+    expect(queryAll(`.${s.zuweisenHuelle}`)[0]!.getAttribute("data-offen")).toBe("true");
   });
 });
