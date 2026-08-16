@@ -1,5 +1,6 @@
 import { getDb, type DB } from "./_db/client";
-import { isoTag } from "./_lib/datum";
+import { isoTag, montagAusParam, wochenTage } from "./_lib/datum";
+import { lage } from "./_lib/lage";
 import { akteurFuerSeite, subFuerSitzung, type Akteur } from "./_lib/zugang";
 import { EinstiegAuftrag } from "./_ui/EinstiegAuftrag";
 import { EinstiegBufdi } from "./_ui/EinstiegBufdi";
@@ -35,7 +36,30 @@ export function aufgabenInhalt(
   heute: string,
   searchParams: { woche?: string; tag?: string },
 ) {
-  if (akteur.istKoordination) return <EinstiegKoordination db={db} akteur={akteur} heute={heute} />;
+  /*
+   * DER ZUSTANDS-SELEKTOR LAEUFT GENAU EINMAL, UND ZWAR HIER (Oberflaechen-Spec 2026-08-16 §4.1:
+   * „`lage()` laeuft in `page.tsx`"). Nicht in den drei Einstiegen: dort waeren es drei Stellen,
+   * an denen `tage` verschieden gerechnet werden koennte, und die Karte, die Kontextzeile und die
+   * Achse liefen auseinander, ohne dass ein Test es saehe.
+   *
+   * `tage` IST DIE ANGEZEIGTE WOCHE, NICHT DIE LAUFENDE — EINE BENANNTE ABWEICHUNG VON §4.5. Die
+   * Spec schreibt fuer `ohnePlatzInDerAchse` „immer die laufende Woche, nie die geblaetterte" vor,
+   * mit der Begruendung, die Zahl duerfe sich beim Blaettern nicht aendern. Dieselben `tage` tragen
+   * aber auch die KW-Marke, die Stundensumme und die Zahl der eingeplanten Aufgaben in der
+   * Kontextzeile (`KONTEXT_TEXT.bufdi`) sowie den Vorbehalt „Abgeschlossene Woche" — mit der
+   * laufenden Woche staende ueber einer geblaetterten Achse eine Kontextzeile, die eine ANDERE
+   * Woche beschreibt. Der Preis der hier gewaehlten Fassung ist ausgeschrieben und nicht
+   * verschwiegen: die Fusszeile „N Aufgaben liegen ausserhalb dieser Woche" aendert ihre Zahl beim
+   * Blaettern. Sie sagt dann aber weiterhin die Wahrheit ueber die GEZEIGTE Woche — und genau das
+   * ist die Aussage, die neben der Achse steht.
+   */
+  const montag = montagAusParam(searchParams.woche, heute);
+  const tage = wochenTage(montag);
+  const lageDerSeite = lage(db, akteur, heute, tage);
+
+  if (akteur.istKoordination) {
+    return <EinstiegKoordination db={db} akteur={akteur} heute={heute} lage={lageDerSeite} />;
+  }
   switch (akteur.person.rolle) {
     case "bufdi":
       return (
@@ -43,12 +67,13 @@ export function aufgabenInhalt(
           db={db}
           akteur={akteur}
           heute={heute}
+          lage={lageDerSeite}
           wocheParam={searchParams.woche}
           tagParam={searchParams.tag}
         />
       );
     case "auftrag":
-      return <EinstiegAuftrag db={db} akteur={akteur} heute={heute} />;
+      return <EinstiegAuftrag db={db} akteur={akteur} heute={heute} lage={lageDerSeite} />;
     default: {
       // Unerreichbar nach heutigem `Rolle`-Typ (`ROLLEN` in `_db/schema.ts` kennt nur noch ZWEI
       // Werte, seit die Koordination aus der Gruppe kommt) — ein Wurf statt eines stillen

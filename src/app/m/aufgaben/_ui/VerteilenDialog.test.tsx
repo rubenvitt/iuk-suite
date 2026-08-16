@@ -8,7 +8,6 @@ import {
   mount,
   queryAll,
   queryPortal,
-  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import type { AuslastungZeile } from "../_db/queries";
@@ -22,9 +21,10 @@ import s from "./aufgaben.module.css";
  * ohne eine echte Server-Action-Transition zu simulieren. `verteilenAction` ist nur ein SENTINEL:
  * dieser Test ruft sie nie auf, die eigentliche Logik ist in `actions.test.ts` bewacht.
  */
-const { useActionStateMock, VERTEILEN_MARKER } = vi.hoisted(() => ({
+const { useActionStateMock, VERTEILEN_MARKER, UMVERTEILEN_MARKER } = vi.hoisted(() => ({
   useActionStateMock: vi.fn(),
   VERTEILEN_MARKER: Symbol("verteilenAction"),
+  UMVERTEILEN_MARKER: Symbol("umverteilenAction"),
 }));
 
 vi.mock("react", async (echt) => {
@@ -32,9 +32,14 @@ vi.mock("react", async (echt) => {
   return { ...react, useActionState: useActionStateMock };
 });
 
-vi.mock("../actions", () => ({ verteilenAction: VERTEILEN_MARKER }));
+vi.mock("../actions", () => ({
+  verteilenAction: VERTEILEN_MARKER,
+  // Seit Schritt 6 waehlt `ZUWEISUNG` die Action VOR `useActionState` — beide Schluessel werden
+  // damit BEIM IMPORT gelesen, auch wenn dieser Test nur „verteilen" fuehrt.
+  umverteilenAction: UMVERTEILEN_MARKER,
+}));
 
-import { VerteilenTabelle } from "./VerteilenDialog";
+import { UmverteilenKnopf, VerteilenKnopf } from "./VerteilenDialog";
 
 function aufgabe(over: Partial<AufgabeRow> & Pick<AufgabeRow, "id">): AufgabeRow {
   return {
@@ -95,117 +100,66 @@ afterEach(async () => {
   await unmount();
 });
 
-describe("VerteilenTabelle — Zeile 1 und Leerzustand", () => {
+/*
+ * ══ DIE TABELLENFAELLE SIND MIT DER TABELLE ENTFALLEN (Oberflaechen-Runde 2026-08-16, zweite
+ *    Haelfte). Was hier stand, prueft eine Bauform, die es nicht mehr gibt:
+ *
+ *      · „leerer Posteingang zeigt den ausgeschriebenen Leerzustand, keine Tabelle"
+ *      · „zeigt Titel, Auftraggeber, Frist, Dauer und Nachweispflicht je Zeile"
+ *      · „jede Zeile oeffnet den Dialog fuer die EIGENE Aufgabe"
+ *      · „darfVerteilen=false: keine Verteilen-Aktion erscheint"
+ *
+ *    WOHIN JEDE EINZELNE ZUSAGE GEWANDERT IST — ausgeschrieben, damit der Wegfall nicht als
+ *    Deckungsluecke durchgeht:
+ *
+ *      · LEERZUSTAND: `AufgabenListe`s `leerText` ist eine PFLICHT-Prop (kein `?`), und
+ *        `AufgabenListe.test.tsx` prueft, dass sie bei null Zeilen als Satz erscheint;
+ *        `verteilen/page.test.tsx` prueft den Satz an dieser Route.
+ *      · DIE ANGABEN JE ZEILE: `AufgabenZeile.test.tsx` misst die feste Reihenfolge aus §10
+ *        Prueffrage 7 fuer JEDE Flaeche des Moduls auf einmal — eine staerkere Zusage als eine
+ *        Spaltenliste, die nur fuer diese eine Tabelle galt. Die Spalte „Nachweispflicht" faellt
+ *        dabei bewusst fort; die Begruendung steht im Kopfkommentar von `verteilen/page.tsx`.
+ *      · JE ZEILE DIE EIGENE AUFGABE: `ZuweisenInline` bekommt `aufgabe` als Prop und bildet
+ *        `data-testid` und das versteckte `aufgabeId`-Feld daraus — es gibt keinen gemeinsamen
+ *        Zustand mehr, in dem sich zwei Zeilen verwechseln koennten.
+ *      · `darfVerteilen=false`: DER SCHALTER EXISTIERT NICHT MEHR, und das ist die staerkere
+ *        Fassung. Der Riegel steht nur noch an einer Stelle — `notFound()` im Default-Export von
+ *        `verteilen/page.tsx`, geprueft dort und in `e2e/aufgaben.spec.ts`s 404-Gegenprobe. Zwei
+ *        Orte fuer dieselbe Frage koennen auseinanderlaufen, einer nicht.
+ */
+describe("VerteilenDialog — die Datei selbst", () => {
   it("„use client“ steht als allererste Zeile der Datei, vor jedem Kommentar", () => {
     const quelle = readFileSync("src/app/m/aufgaben/_ui/VerteilenDialog.tsx", "utf8");
     expect(quelle.split("\n")[0]).toBe('"use client";');
   });
 
-  it("leerer Posteingang zeigt den ausgeschriebenen Leerzustand, keine Tabelle", async () => {
-    await mount(
-      <VerteilenTabelle
-        posteingang={[]}
-        erstellerNamen={{}}
-        bufdis={[]}
-        auslastung={[]}
-        tage={TAGE}
-        heute="2026-08-13"
-        darfVerteilen
-      />,
-    );
-    expect(document.body.textContent).toContain("Posteingang leer — alles verteilt");
-    expect(queryAll("table")).toHaveLength(0);
+  /**
+   * DIE GEGENPROBE ZUM AUSBAU: die Posteingangs-Tabelle ist fort, und zwar samt `Table`-Import.
+   * Ohne diesen Riegel koennte eine spaetere Runde sie stillschweigend zurueckholen — und der
+   * einzige sichtbare Unterschied waere eine Flaeche, die wieder aus der Formsprache des Moduls
+   * faellt. Ein Quelltext-Scan, weil genau das kein gerendertes DOM zeigt.
+   */
+  it("fuehrt keine antd-`Table` mehr — der Posteingang ist eine Zeilenliste", () => {
+    const quelle = readFileSync("src/app/m/aufgaben/_ui/VerteilenDialog.tsx", "utf8");
+    expect(quelle).not.toMatch(/<Table\b/);
+    expect(quelle).not.toMatch(/\bTable,|, Table\b/);
   });
 });
 
-describe("VerteilenTabelle — Spalten, ZWEI Zeilen (Lehre 2 dieser Aufgabenreihe)", () => {
-  it("zeigt Titel, Auftraggeber, Frist (mit Ueberfaellig-Markierung), Dauer und Nachweispflicht je Zeile", async () => {
-    const posteingang = [
-      aufgabe({
-        id: "a1", titel: "Erste", erstellerId: "malte", faelligAm: "2026-08-10",
-        dauerMinuten: 30, nachweisPflicht: false,
-      }),
-      aufgabe({
-        id: "a2", titel: "Zweite", erstellerId: "tomke", faelligAm: "2026-08-20",
-        dauerMinuten: 90, nachweisPflicht: true,
-      }),
-    ];
-    await mount(
-      <VerteilenTabelle
-        posteingang={posteingang}
-        erstellerNamen={{ malte: "Malte", tomke: "Tomke" }}
-        bufdis={[]}
-        auslastung={[]}
-        tage={TAGE}
-        heute="2026-08-13"
-        darfVerteilen
-      />,
-    );
-    const zeilen = queryAll("tbody tr[data-row-key]");
-    expect(zeilen).toHaveLength(2);
-    expect(zeilen[0]!.textContent).toContain("Erste");
-    expect(zeilen[0]!.textContent).toContain("Malte");
-    expect(zeilen[0]!.textContent).toContain("überfällig");
-    expect(zeilen[0]!.textContent).not.toContain("Zweite");
-    expect(zeilen[1]!.textContent).toContain("Zweite");
-    expect(zeilen[1]!.textContent).toContain("Tomke");
-    expect(zeilen[1]!.textContent).not.toContain("überfällig");
-    expect(zeilen[1]!.textContent).toContain("Ja");
-  });
-
-  it("jede Zeile oeffnet den Dialog fuer die EIGENE Aufgabe, nicht die einer anderen Zeile", async () => {
-    const posteingang = [
-      aufgabe({ id: "a1", titel: "Erste", erstellerId: "malte" }),
-      aufgabe({ id: "a2", titel: "Zweite", erstellerId: "malte" }),
-    ];
-    await mount(
-      <VerteilenTabelle
-        posteingang={posteingang}
-        erstellerNamen={{ malte: "Malte" }}
-        bufdis={[person({ id: "alina", name: "Alina" })]}
-        auslastung={[]}
-        tage={TAGE}
-        heute="2026-08-13"
-        darfVerteilen
-      />,
-    );
-    expect(queryAll("[data-testid^='verteilen-a']")).toHaveLength(2);
-
-    await click("[data-testid='verteilen-a2']");
-
-    expect(existsPortal(".ant-modal")).toBe(true);
-    const versteckteId = queryPortal<HTMLInputElement>("input[name='aufgabeId']");
-    expect(versteckteId.value).toBe("a2");
-  });
-
-  it("darfVerteilen=false: keine „Verteilen“-Aktion erscheint", async () => {
-    const posteingang = [aufgabe({ id: "a1", titel: "Erste", erstellerId: "malte" })];
-    await mount(
-      <VerteilenTabelle
-        posteingang={posteingang}
-        erstellerNamen={{ malte: "Malte" }}
-        bufdis={[]}
-        auslastung={[]}
-        tage={TAGE}
-        heute="2026-08-13"
-        darfVerteilen={false}
-      />,
-    );
-    expect(queryAll("[data-testid='verteilen-a1']")).toHaveLength(0);
-  });
-});
-
-describe("VerteilenTabelle — der Dialog: Zielliste, Auslastung, Schliessen", () => {
+/*
+ * DER DIALOG WIRD JETZT UEBER `VerteilenKnopf` GEOEFFNET STATT UEBER EINE TABELLENZEILE — DIESELBE
+ * `VerteilenModal`-INSTANZ, DERSELBE AUSLOESER-`data-testid` (`verteilen-<id>`), DIESELBEN PROPS.
+ * `VerteilenKnopf` ist der Weg der FUEHRUNGSKARTE und damit heute der einzige verbliebene Aufrufer
+ * des Modals fuer „verteilen"; die Faelle unten pruefen unveraendert das MODAL, nicht den Ausloeser.
+ */
+describe("VerteilenModal — Zielliste, Auslastung, Schliessen", () => {
   function mountMitEinerAufgabe(bufdisListe: PersonRow[], auslastungListe: AuslastungZeile[]) {
     return mount(
-      <VerteilenTabelle
-        posteingang={[aufgabe({ id: "a1", titel: "Nur eine", erstellerId: "malte" })]}
-        erstellerNamen={{ malte: "Malte" }}
+      <VerteilenKnopf
+        aufgabe={aufgabe({ id: "a1", titel: "Nur eine", erstellerId: "malte" })}
         bufdis={bufdisListe}
         auslastung={auslastungListe}
         tage={TAGE}
-        heute="2026-08-13"
-        darfVerteilen
       />,
     );
   }
@@ -260,42 +214,83 @@ describe("VerteilenTabelle — der Dialog: Zielliste, Auslastung, Schliessen", (
     expect(existsPortal(".ant-modal")).toBe(false);
   });
 
-  /**
-   * DIE ABGELEITETE SICHTBARKEIT (Bericht: „kein Effekt, kein Zeitpunkt-Tracking noetig"):
-   * verlaesst die gewaehlte Aufgabe den `posteingang`-Prop (so wie nach einer erfolgreichen
-   * `verteilenAction`, die revalidiert), schliesst sich der Dialog von selbst — ohne einen Klick auf
-   * „Abbrechen" und ohne dass `useActionState`s Zustand sich je aendert (er bleibt in diesem Test
-   * durchgehend `FORM_START`).
+  /*
+   * ══ DIE ABGELEITETE SICHTBARKEIT WIRD HIER NICHT MEHR GEPRUEFT, WEIL SIE HIER NICHT MEHR
+   *    WOHNT — und das ist kein Deckungsverlust, sondern ein Umzug (Oberflaechen-Runde
+   *    2026-08-16, zweite Haelfte).
+   *
+   *    Der Fall hiess „schliesst sich von selbst, wenn die gewaehlte Aufgabe den
+   *    `posteingang`-Prop verlaesst" und mass ein Merkmal von `VerteilenTabelle`: der Dialog war
+   *    offen, SOLANGE die Zeile in der Liste stand. Mit der Tabelle ist auch dieser Zustand fort —
+   *    `VerteilenKnopf` und `UmverteilenKnopf` haben keine Liste, aus der etwas verschwinden
+   *    koennte; ihr `offen` faellt auf `false`, weil die Karte nach dem Verteilen ohnehin neu
+   *    entsteht (s. Kopfkommentar von `VerteilenKnopf`).
+   *
+   *    DASSELBE MUSTER — „offen, SOLANGE X gilt", statt eines zweiten Zustands — traegt heute
+   *    `_ui/ZuweisenInline.tsx`, dort an `aufgabe.zugewiesenAn` statt an der Listenzugehoerigkeit.
+   *    `ZuweisenInline.test.tsx` prueft es, und zwar am schaerferen Fall: eine umverteilte Aufgabe
+   *    BLEIBT in ihrer Zone stehen, ein naives `useState(false)` liesse das Feld also offen.
    */
-  it("schliesst sich von selbst, wenn die gewaehlte Aufgabe den posteingang-Prop verlaesst", async () => {
+
+  /**
+   * DIE FOLGE STEHT IM DIALOG, NICHT AUF DEM KNOPF — und dieser Test ist der Riegel dafuer, dass
+   * sie nicht bei nachster Gelegenheit BEIDE Orte verlaesst.
+   *
+   * VORGESCHICHTE (Bildstrecken-Runde): Spec §1.3/§7 Nr. 3 legte die Beschriftung „Anders zuweisen
+   * (der Zeitplan wird dabei geleert)" fest, WEIL `_lib/lebenszyklus.ts` die Zeile mit
+   * `planLoeschen: true` fuehrt. Gemessen an echten Bildern war der Knopf der falsche Ort: in der
+   * Zone „Überfällig, noch nicht begonnen" steht er JE ZEILE, und vier 44-Zeichen-Knoepfe brachen
+   * bei 1280px unterschiedlich um. Der Dialog steht auf jedem der drei Wege (Karte, Zone,
+   * `/a/<id>`) davor — die Aktion ist ohne ihn nicht ausloesbar —, also traegt er den Satz.
+   *
+   * DREI ZUSAGEN, EINZELN GEPRUEFT, weil je zwei davon gruen bleiben koennten, waehrend die dritte
+   * bricht: kurzer Knopf · Folge im Dialog · „Verteilen" nennt KEINE Folge (dort gibt es keine —
+   * eine Aufgabe im Posteingang hat noch keinen Zeitplan, und ein geliehener Satz waere schlicht
+   * falsch).
+   */
+  it("beschriftet „Anders zuweisen“ kurz — die Folge steht NICHT mehr auf dem Knopf", async () => {
     const alina = person({ id: "alina", name: "Alina" });
-    const nurEine = aufgabe({ id: "a1", titel: "Nur eine", erstellerId: "malte" });
     await mount(
-      <VerteilenTabelle
-        posteingang={[nurEine]}
-        erstellerNamen={{ malte: "Malte" }}
+      <UmverteilenKnopf
+        aufgabe={aufgabe({ id: "a1", titel: "Nur eine", status: "verteilt" })}
         bufdis={[alina]}
         auslastung={[auslastung(alina)]}
         tage={TAGE}
-        heute="2026-08-13"
-        darfVerteilen
+      />,
+    );
+    const knopf = queryAll("[data-testid='umverteilen-a1']")[0]!;
+    expect(knopf.textContent).toBe("Anders zuweisen");
+    expect(knopf.textContent).not.toContain("Zeitplan");
+  });
+
+  it("nennt die Folge im geoeffneten Dialog", async () => {
+    const alina = person({ id: "alina", name: "Alina" });
+    await mount(
+      <UmverteilenKnopf
+        aufgabe={aufgabe({ id: "a1", titel: "Nur eine", status: "verteilt" })}
+        bufdis={[alina]}
+        auslastung={[auslastung(alina)]}
+        tage={TAGE}
+      />,
+    );
+    await click("[data-testid='umverteilen-a1']");
+    expect(queryPortal(".ant-modal").textContent).toContain(
+      "Der bisher eingeplante Tag dieser Aufgabe wird dabei geleert.",
+    );
+  });
+
+  it("„Verteilen“ nennt keine Folge — eine Aufgabe im Posteingang hat keinen Zeitplan", async () => {
+    const alina = person({ id: "alina", name: "Alina" });
+    await mount(
+      <VerteilenKnopf
+        aufgabe={aufgabe({ id: "a1", titel: "Nur eine", erstellerId: "malte" })}
+        bufdis={[alina]}
+        auslastung={[auslastung(alina)]}
+        tage={TAGE}
       />,
     );
     await click("[data-testid='verteilen-a1']");
-    expect(existsPortal(".ant-modal")).toBe(true);
-
-    await rerender(
-      <VerteilenTabelle
-        posteingang={[]}
-        erstellerNamen={{ malte: "Malte" }}
-        bufdis={[alina]}
-        auslastung={[auslastung(alina)]}
-        tage={TAGE}
-        heute="2026-08-13"
-        darfVerteilen
-      />,
-    );
-    expect(existsPortal(".ant-modal")).toBe(false);
+    expect(queryPortal(".ant-modal").textContent).not.toContain("geleert");
   });
 
   it("zeigt einen Feldfehler am Zielfeld, wenn useActionState ihn liefert", async () => {

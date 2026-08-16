@@ -3,19 +3,22 @@
 import { useActionState, useState } from "react";
 import { Button, Input } from "antd";
 import { aufgabeEinstellenAction } from "../actions";
-import { NACHWEIS_ART_TEXT, PRIORITAET_TEXT } from "../_lib/anzeige";
+import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
 import { NACHWEIS_ARTEN, PRIORITAETEN } from "../_db/schema";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
+import { PrioritaetChip } from "./Chip";
+import s from "./aufgaben.module.css";
 
 /*
  * „AUFGABE EINSTELLEN" (Aufgabe 15, Spec §8.3) — Vorbild `RoutineFormular.tsx`/`PersonenFormular.tsx`:
  *
  *  1. `"use client"` STEHT IN ZEILE 1, VOR JEDEM KOMMENTAR.
- *  2. KEIN antd-`Form`/`Form.Item` — Meldung von Hand am Feld, `useActionState`. Native `<select>`
- *     fuer Prioritaet UND Formwahl (dieselbe Ueberlegung wie `PersonenFormular.tsx`s `pf-rolle`:
- *     kein zweites Formular-Vokabular im Modul, obwohl ein antd-`Select` in einer Client-Insel
- *     erlaubt waere).
+ *  2. KEIN antd-`Form`/`Form.Item` — Meldung von Hand am Feld, `useActionState`. Natives `<select>`
+ *     fuer die NACHWEISART (dieselbe Ueberlegung wie `PersonenFormular.tsx`s `pf-rolle`: kein
+ *     zweites Formular-Vokabular im Modul, obwohl ein antd-`Select` in einer Client-Insel erlaubt
+ *     waere). DIE PRIORITAET HAT DIESE FORM SEIT DER DRITTEN OBERFLAECHEN-RUNDE VERLASSEN — sie ist
+ *     eine Chip-Wahl aus nativen Radios, begruendet an der Stelle selbst.
  *  3. `Input.TextArea` FUER DIE ERKLAERUNG — ein Compound-Zugriff (Falle 1), aber in einer
  *     Client-Insel ausdruecklich erlaubt (Brief). GEPRUEFT, WIE DAS MODUL MEHRZEILIGEN TEXT LOEST,
  *     BEVOR DIESE ENTSCHEIDUNG FIEL (Brief verlangt genau das): `RoutineFormular.tsx`,
@@ -114,18 +117,46 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
         ) : null}
       </div>
 
-      <div>
-        <label htmlFor="af-prioritaet" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Priorität
-        </label>
-        <select id="af-prioritaet" name="prioritaet" defaultValue={vorgabePrioritaet}>
+      {/*
+       * ══ DIE PRIORITAET WIRD GEWAEHLT, NICHT AUSGEKLAPPT (Oberflaechen-Runde 2026-08-16, dritte
+       *    Haelfte). Hier stand ein `<select>` mit drei Eintraegen — die Bauform, die das Urteil des
+       *    Betreibers meint („so wirkt es eher wie eine alte Formularanwendung"): drei sichtbare
+       *    Werte hinter zwei Klicks, und der gewaehlte steht in einer Systemschrift, die mit der
+       *    Rangskala des Moduls nichts zu tun hat.
+       *
+       *    DIE DREI STUFEN SIND IM MODUL BEREITS EINE FORMSPRACHE (`PRIORITAET_FORM`: gefuellt /
+       *    Kontur / nur Wort, `_lib/anzeige.ts`). Sie hier zu zeigen, macht aus der Auswahl eine
+       *    VORSCHAU: man waehlt das Aussehen, das die Aufgabe gleich in jeder Liste haben wird,
+       *    statt eines Wortes in einem Aufklapper. `PrioritaetChip` ist genau der Baustein, den die
+       *    Listen benutzen — es entsteht keine zweite Fassung.
+       *
+       *    NATIVE RADIOS, KEIN antd-`Radio.Group` UND KEIN `Segmented`: `Radio.Group` waere ein
+       *    Compound-Zugriff (Falle 1) und beide brauchten `onChange`, also einen Funktions-Prop.
+       *    Mit `<input type="radio">` bleibt das Feld ohne JavaScript bedienbar, traegt seinen Wert
+       *    unter demselben Namen `prioritaet` und geht durch dieselbe `aufgabeEinstellenAction` mit
+       *    demselben `istGueltigePrioritaet`-Riegel. Fachlich aendert sich nichts.
+       *
+       *    `<fieldset>`/`<legend>` STATT `<label htmlFor>`: drei Bedienelemente haben keine EINE
+       *    Beschriftung, auf die ein `for` zeigen koennte — die Gruppenbeschriftung ist genau das,
+       *    wofuer `legend` da ist, und Bildschirmleser sagen sie zu jeder der drei Stufen an.
+       */}
+      <fieldset className={s.prioWahl}>
+        <legend style={{ marginBlockEnd: SPACE.xs, padding: 0 }}>Priorität</legend>
+        <div className={s.prioWahlLeiste}>
           {PRIORITAETEN.map((p) => (
-            <option key={p} value={p}>
-              {PRIORITAET_TEXT[p]}
-            </option>
+            <label key={p} className={s.prioWahlOption}>
+              <input
+                type="radio"
+                name="prioritaet"
+                value={p}
+                defaultChecked={p === vorgabePrioritaet}
+                className={s.prioWahlFeld}
+              />
+              <PrioritaetChip prioritaet={p} />
+            </label>
           ))}
-        </select>
-      </div>
+        </div>
+      </fieldset>
 
       <div>
         <label htmlFor="af-faelligAm" style={{ display: "block", marginBlockEnd: SPACE.xs }}>

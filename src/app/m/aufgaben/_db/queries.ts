@@ -398,6 +398,30 @@ export function verlaufFuer(db: DB, aufgabeId: string): VerlaufRow[] {
     .all();
 }
 
+/**
+ * DIE LETZTE VERLAUFSZEILE EINES BESTIMMTEN EREIGNISSES (Oberflaechen-Spec 2026-08-16 §4.2).
+ *
+ * WARUM DIE FUEHRUNGSKARTE SIE BRAUCHT: §4.2 schreibt fuer Koordination Rang 6 und BuFDi Rang 2
+ * „die Begruendung WOERTLICH" vor — „das ist der ganze Wert einer Zurueckweisung" —, dazu Pruefer
+ * und Datum; und BuFDi Rang 3 nennt „seit <Tag> in Bearbeitung". Beides steht ausschliesslich im
+ * Verlauf, nicht auf der Aufgabenzeile. Ohne diese Funktion zeigte die Karte einen Zustand und
+ * verschwiege den einzigen Satz, der sagt, was zu tun ist.
+ *
+ * DIE LETZTE, NICHT DIE ERSTE — dieselbe Suchrichtung wie in `nachweiseSeitLetzterZurueckweisung`
+ * unten und aus demselben Grund: eine Aufgabe kann mehrfach zurueckgewiesen und mehrfach gestartet
+ * worden sein, und die aeltere Zeile ist dann genau die, die schon erledigt ist.
+ *
+ * `akteurId` KOMMT MIT, weil §3.5 den Kicker „ZURÜCKGEWIESEN VON <Prüfer>" ueber DEN verlangt, der
+ * tatsaechlich zurueckgewiesen hat — nicht ueber `prueferId`, das seither gewechselt haben kann.
+ */
+export function letztesEreignis(db: DB, aufgabeId: string, ereignis: Ereignis): VerlaufRow | null {
+  const historie = verlaufFuer(db, aufgabeId);
+  for (let i = historie.length - 1; i >= 0; i--) {
+    if (historie[i]!.ereignis === ereignis) return historie[i]!;
+  }
+  return null;
+}
+
 export function nachweiseFuer(db: DB, aufgabeId: string): NachweisRow[] {
   return db.select().from(nachweise).where(eq(nachweise.aufgabeId, aufgabeId)).all();
 }

@@ -58,13 +58,25 @@ export interface NachweisFormularProps {
   aufgabeId: string;
   nachweisArt: NachweisArt;
   maxBytes: number;
+  /**
+   * OB „NACHWEIS SPEICHERN" DER PRIMAERKNOPF IST (Oberflaechen-Spec 2026-08-16 §7 Nr. 2) — Vorgabe
+   * `true`, denselben Grund wie bei `FreigabeAktionen`: die Vorgabe ist die heutige Form, den
+   * Schalter setzt nur `_ui/AktionsZone.tsx` und nur, wenn ein hoeher stehender Eintrag der
+   * Vorrangliste den einen Primaerknopf schon besetzt.
+   */
+  primaer?: boolean;
 }
 
 function alsMiB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
-export function NachweisFormular({ aufgabeId, nachweisArt, maxBytes }: NachweisFormularProps) {
+export function NachweisFormular({
+  aufgabeId,
+  nachweisArt,
+  maxBytes,
+  primaer = true,
+}: NachweisFormularProps) {
   const router = useRouter();
   const formularRef = useRef<HTMLFormElement>(null);
   const [text, setText] = useState("");
@@ -191,7 +203,7 @@ export function NachweisFormular({ aufgabeId, nachweisArt, maxBytes }: NachweisF
       ) : null}
 
       <Button
-        type="primary"
+        type={primaer ? "primary" : undefined}
         htmlType="submit"
         loading={laeuft}
         disabled={laeuft}

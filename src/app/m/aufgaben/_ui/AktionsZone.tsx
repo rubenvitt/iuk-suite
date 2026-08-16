@@ -1,21 +1,23 @@
 "use client";
 
-import { useActionState, useRef } from "react";
-import { Button, Input, Popconfirm } from "antd";
+import { useActionState } from "react";
+import { Button, Input } from "antd";
 import {
   fertigMeldenAction,
   startenAction,
   wiederaufnehmenAction,
-  zurueckziehenAction,
   zuruecksetzenAction,
 } from "../actions";
-import type { AufgabeRow } from "../_db/schema";
+import type { AuslastungZeile } from "../_db/queries";
+import type { AufgabeRow, PersonRow } from "../_db/schema";
 import type { AktionsOptionen } from "../_lib/aktionsOptionen";
 import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import { FreigabeAktionen } from "./FreigabeZone";
 import { NachweisFormular } from "./NachweisFormular";
+import { UmverteilenKnopf } from "./VerteilenDialog";
+import { ZurueckziehenKnopf } from "./ZurueckziehenKnopf";
 
 /*
  * DIE AKTIONSZONE VON `/a/<id>` (Spec §8.4, Aufgabe 16) — trägt NUR, was diese Person mit dieser
@@ -38,19 +40,39 @@ import { NachweisFormular } from "./NachweisFormular";
  *
  * ZURUECKZIEHEN IST BESTAETIGUNGSPFLICHTIG (Spec §9.9) — Vorbild `_ui/PersonenTabelle.tsx`s
  * „Beenden": `Popconfirm` plus ein `ref` aufs Formular, `onConfirm` loest `requestSubmit()` aus.
+ * SEIT DER OBERFLAECHEN-SPEC (§6.7) STEHT DIESER KNOPF IN `_ui/ZurueckziehenKnopf.tsx`, weil ihn
+ * die Fuehrungskarte des Auftraggebers (Rang 3) ebenfalls braucht — und die ist eine SERVER
+ * COMPONENT, aus der ein `onConfirm` nicht ueber die RSC-Grenze darf (Falle 9). Eine zweite
+ * Fassung hier waere dieselbe Bestaetigungspflicht an zwei Orten.
  * `zurueckziehenAction` LOESCHT DIE AUFGABE — nach dem Absenden existiert `/a/<id>` fuer diese Id
  * nicht mehr, und die naechste Revalidierung dieser Route zeigt `notFound()`. Das ist keine
  * Regression dieser Aufgabe: `zurueckziehenAction` (Aufgabe 9) redirectet heute nirgendwohin, und
  * eine solche Aenderung an einer bereits getesteten, modulweiten Action ist NICHT Teil dieses
  * Auftrags — im Bericht als bekannte, kleine Rauheit vermerkt statt still mitgezogen.
+ *
+ * ══ GENAU EIN PRIMAERKNOPF (Oberflaechen-Spec 2026-08-16 §7 Nr. 2, Schritt 6). Bis dahin rendert
+ *    diese Zone JEDES erlaubte `optionen.*` als eigenes Formular, mehrere davon mit
+ *    `type="primary"` — auf einer `in_arbeit`-Aufgabe standen so drei rote Knoepfe nebeneinander,
+ *    und keiner sagte, welcher der naechste Schritt ist. Neu: `VORRANG` unten ist eine feste
+ *    Liste, der ERSTE erlaubte Eintrag wird `type="primary"`, alle uebrigen sind Standardknoepfe.
+ *    Eine Sortierung plus ein Flag, kein Umbau — die Bedingungen bleiben `optionen.*`, also
+ *    unveraendert `uebergang()`.
  */
 export function AktionsZone({
   aufgabe,
   optionen,
   nachweisMaxBytes,
+  verteilen = null,
 }: {
   aufgabe: AufgabeRow;
   optionen: AktionsOptionen;
+  /**
+   * DIE ZIELE FUER „ANDERS ZUWEISEN" (§7 Nr. 3) — `null` fuer jede Person, die nicht verteilen
+   * darf, und dann erscheint der Knopf gar nicht. Die Liste kommt aus `verteilDaten(db, heute)`
+   * und damit aus `bufdis()`: eine ausgeschiedene Person ist kein Verteilziel, und dieser Riegel
+   * bleibt woertlich (§11.3). Diese Insel baut sie NICHT selbst nach — sie nimmt nur entgegen.
+   */
+  verteilen?: { bufdis: PersonRow[]; auslastung: AuslastungZeile[]; tage: readonly string[] } | null;
   /**
    * `NACHWEIS_MAX_BYTES` (`_lib/ablage.ts`), ALS PROP AUS `a/[id]/page.tsx` — diese Datei darf
    * `_lib/ablage.ts` nicht importieren (`node:fs/promises` auf Modulebene buendelte das in den
@@ -70,38 +92,102 @@ export function AktionsZone({
     return <p>Für diese Aufgabe ist derzeit keine Aktion möglich.</p>;
   }
 
+  // DER ERSTE ERLAUBTE EINTRAG DER VORRANGLISTE IST DER EINE PRIMAERKNOPF — `undefined`, wenn
+  // keiner erlaubt ist (dann traegt die Zone nur Standardknoepfe, und die Abwesenheit ist die
+  // Auskunft; §3.4, Regel P liest „genau einer" als „hoechstens einer").
+  const primaerAktion = VORRANG.find((eintrag) => optionen[eintrag]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
-      {optionen.starten ? (
-        <EinfacheAktion aufgabeId={aufgabe.id} aktion={startenAction} beschriftung="Bearbeitung starten" />
-      ) : null}
-      {optionen.zuruecksetzen ? (
-        <EinfacheAktion
-          aufgabeId={aufgabe.id}
-          aktion={zuruecksetzenAction}
-          beschriftung="Bearbeitung zurücksetzen"
-        />
+      {optionen.freigeben ? (
+        <FreigabeAktionen aufgabe={aufgabe} primaer={primaerAktion === "freigeben"} />
       ) : null}
       {optionen.nachweisHochladen ? (
         <NachweisFormular
           aufgabeId={aufgabe.id}
           nachweisArt={aufgabe.nachweisArt}
           maxBytes={nachweisMaxBytes}
+          primaer={primaerAktion === "nachweisHochladen"}
         />
       ) : null}
-      {optionen.fertig ? <FertigMeldenFormular aufgabe={aufgabe} /> : null}
-      {optionen.freigeben ? <FreigabeAktionen aufgabe={aufgabe} /> : null}
+      {optionen.fertig ? (
+        <FertigMeldenFormular aufgabe={aufgabe} primaer={primaerAktion === "fertig"} />
+      ) : null}
+      {optionen.starten ? (
+        <EinfacheAktion
+          aufgabeId={aufgabe.id}
+          aktion={startenAction}
+          beschriftung="Bearbeitung starten"
+          primaer={primaerAktion === "starten"}
+        />
+      ) : null}
       {optionen.wiederaufnehmen ? (
         <EinfacheAktion
           aufgabeId={aufgabe.id}
           aktion={wiederaufnehmenAction}
           beschriftung="Bearbeitung wieder aufnehmen"
+          primaer={primaerAktion === "wiederaufnehmen"}
         />
       ) : null}
+      {optionen.zuruecksetzen ? (
+        <EinfacheAktion
+          aufgabeId={aufgabe.id}
+          aktion={zuruecksetzenAction}
+          beschriftung="Bearbeitung zurücksetzen"
+          primaer={primaerAktion === "zuruecksetzen"}
+        />
+      ) : null}
+      {optionen.umverteilen && verteilen !== null ? (
+        <UmverteilenKnopf
+          aufgabe={aufgabe}
+          bufdis={verteilen.bufdis}
+          auslastung={verteilen.auslastung}
+          tage={verteilen.tage}
+          primaer={primaerAktion === "umverteilen"}
+        />
+      ) : null}
+      {/*
+       * ZURUECKZIEHEN STEHT NICHT IN `VORRANG` UND IMMER GANZ UNTEN (§7 Nr. 2) — s. den Kommentar
+       * an der Liste. Es bleibt sekundaer mit `Popconfirm`, unabhaengig davon, was ueber ihm steht.
+       */}
       {optionen.zurueckziehen ? <ZurueckziehenKnopf aufgabeId={aufgabe.id} /> : null}
     </div>
   );
 }
+
+/**
+ * DIE FESTE VORRANGLISTE (§7 Nr. 2) — der erste erlaubte Eintrag ist der Primaerknopf.
+ *
+ * ZWEI EINTRAEGE STEHEN ANDERS, ALS MAN SIE ZUERST SCHREIBEN WUERDE, UND BEIDE GRUENDE SIND
+ * NACHGELESEN:
+ *
+ *  1. `nachweisHochladen` STEHT VOR `fertig`. `uebergang()` erlaubt `in_arbeit`x`fertig`
+ *     UNABHAENGIG von der Nachweispflicht (`_lib/lebenszyklus.ts`); die Ablehnung entsteht erst in
+ *     `fertigMeldenAction` als FELDFEHLER (`actions.ts`). Ohne diese Reihenfolge waere fuer eine
+ *     nachweispflichtige `in_arbeit`-Aufgabe „Fertig melden" der Primaerknopf, waehrend der
+ *     tatsaechlich noetige erste Schritt daneben als Standardknopf staende — die Seite riete dann
+ *     falsch, und der Server korrigierte sie erst nach dem Klick.
+ *  2. `zurueckziehen` IST GAR NICHT IN DER LISTE. Es ist grundsaetzlich sekundaer mit
+ *     `Popconfirm` — dieselbe Begruendung, die §4.2 fuer den Auftraggeber Rang 3 fuehrt („ein
+ *     destruktiver Knopf als Primaeraktion laedt zum Wegdruecken einer Aufgabe ein, die nur auf
+ *     Verteilung wartet"). STUENDE ES IN DER LISTE, WAERE ES FUER EINE `eingegangen`-AUFGABE DER
+ *     EINZIGE ERLAUBTE EINTRAG — keine der uebrigen Aktionen hat in `TABELLE` eine Zeile aus
+ *     `eingegangen` — und damit ausgerechnet die LOESCHENDE Aktion der Primaerknopf. So traegt eine
+ *     `eingegangen`-Aufgabe auf `/a/<id>` KEINEN Primaerknopf, was Regel P ausdruecklich zulaesst.
+ *
+ * DIE RENDERREIHENFOLGE OBEN FOLGT DIESER LISTE. Das ist keine Kosmetik: stuende der Primaerknopf
+ * unter zwei Standardknoepfen, waere „der erste erlaubte Eintrag" eine Behauptung ueber eine
+ * Rangfolge, die man auf der Seite nicht sieht.
+ */
+const VORRANG: readonly (keyof AktionsOptionen)[] = [
+  "freigeben",
+  "nachweisHochladen",
+  "fertig",
+  "starten",
+  "wiederaufnehmen",
+  "zuruecksetzen",
+  "umverteilen",
+];
 
 /**
  * DIE VIER STATUSWECHSEL OHNE EIGENES FORMULARFELD (starten, zuruecksetzen, wiederaufnehmen —
@@ -113,15 +199,18 @@ function EinfacheAktion({
   aufgabeId,
   aktion,
   beschriftung,
+  primaer = true,
 }: {
   aufgabeId: string;
   aktion: (formData: FormData) => Promise<void>;
   beschriftung: string;
+  /** Vorgabe `true` — die Fuehrungskarte hat ihre eigene Fassung, hier setzt nur `VORRANG`. */
+  primaer?: boolean;
 }) {
   return (
     <form action={aktion}>
       <input type="hidden" name="aufgabeId" value={aufgabeId} />
-      <Button type="primary" htmlType="submit">
+      <Button type={primaer ? "primary" : undefined} htmlType="submit">
         {beschriftung}
       </Button>
     </form>
@@ -142,7 +231,13 @@ function EinfacheAktion({
  * melden" klickt, sieht `scan_status: "offen"` — der Feldfehler sagt dann „wird noch geprueft",
  * nicht „fehlt" (Brief, wortgleich verlangt).
  */
-function FertigMeldenFormular({ aufgabe }: { aufgabe: AufgabeRow }) {
+function FertigMeldenFormular({
+  aufgabe,
+  primaer = true,
+}: {
+  aufgabe: AufgabeRow;
+  primaer?: boolean;
+}) {
   const [state, formAction, isPending] = useActionState(fertigMeldenAction, FORM_START);
   const nachweisTextFehler = feldFehler(state, "nachweisText");
   const nachweisFehler = feldFehler(state, "nachweis");
@@ -186,7 +281,7 @@ function FertigMeldenFormular({ aufgabe }: { aufgabe: AufgabeRow }) {
       {nachweisFehler ? <p style={{ margin: 0 }}>{nachweisFehler}</p> : null}
 
       <Button
-        type="primary"
+        type={primaer ? "primary" : undefined}
         htmlType="submit"
         loading={isPending}
         disabled={isPending}
@@ -194,26 +289,6 @@ function FertigMeldenFormular({ aufgabe }: { aufgabe: AufgabeRow }) {
       >
         Fertig melden
       </Button>
-    </form>
-  );
-}
-
-function ZurueckziehenKnopf({ aufgabeId }: { aufgabeId: string }) {
-  const formular = useRef<HTMLFormElement>(null);
-  return (
-    <form action={zurueckziehenAction} ref={formular}>
-      <input type="hidden" name="aufgabeId" value={aufgabeId} />
-      <Popconfirm
-        title="Aufgabe zurückziehen?"
-        description="Die Aufgabe wird samt ihrem gesamten Verlauf gelöscht. Das lässt sich nicht rückgängig machen."
-        okText="Zurückziehen"
-        cancelText="Abbrechen"
-        onConfirm={() => formular.current?.requestSubmit()}
-      >
-        <Button danger data-testid="zurueckziehen">
-          Zurückziehen
-        </Button>
-      </Popconfirm>
     </form>
   );
 }

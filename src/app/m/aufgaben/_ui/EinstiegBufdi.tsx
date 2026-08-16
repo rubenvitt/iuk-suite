@@ -1,80 +1,76 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Button, Col, Row } from "antd";
 import { einplanenAnnehmenAction } from "../actions";
 import { aufgabenFuerPerson, bufdis, rangGrenzen, routinenFuer } from "../_db/queries";
-import type { AufgabeRow, PersonRow } from "../_db/schema";
+import type { AufgabeRow } from "../_db/schema";
 import type { DB } from "../_db/client";
-import {
-  aufgabenInWoche,
-  fmtStunden,
-  heuteOffen,
-  tagesBudget,
-  vorschlagOffen,
-  wartetAufEinplanung,
-} from "../_lib/anzeige";
+import { vorschlagOffen } from "../_lib/anzeige";
 import {
   ausgewaehlterTag,
   fmtTagKurz,
   montagAusParam,
-  montagDerWoche,
   wochenTage,
 } from "../_lib/datum";
-import { darfPlanAendern, darfRoutinenVerwalten, type Akteur } from "../_lib/zugang";
+import { kartenGrunddaten } from "../_lib/kartendaten";
+import type { Lage } from "../_lib/lage";
+import { darfPlanAendern, type Akteur } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
-import { AufgabenListe } from "./AufgabenListe";
-import { Kachel } from "./Kachel";
+import { AnlassZone } from "./AnlassZone";
+import { EinplanenInline } from "./EinplanenInline";
+import { Fuehrungskarte } from "./Fuehrungskarte";
 import { SeitenKopf } from "./SeitenKopf";
 import { TagesWaehler } from "./TagesWaehler";
 import { WochenWaehler } from "./WochenWaehler";
 import { Wochenplan } from "./Wochenplan";
+import s from "./aufgaben.module.css";
 
 /*
- * „MEINE WOCHE" — DER BUFDI-EINSTIEG (Spec §8.1, Aufgabe 13). Vier Teile in der vorgeschriebenen
- * Reihenfolge: Kopf mit Wochenwaehler, KPI-Zeile, Posteingang-Streifen, die fuenf Tagesspalten.
- * Server Component (kein "use client") — sie liest `db` direkt, wie `routinenInhalt` in
- * `routinen/page.tsx`; `page.tsx` bleibt dünn und reicht nur die aufgeloeste Person und die rohen
- * Suchparameter durch.
+ * „MEINE WOCHE" — DER BUFDI-EINSTIEG, NEU GEBAUT NACH DER OBERFLAECHEN-SPEC (2026-08-16 §3.4,
+ * §5.1). Server Component (kein "use client") — sie liest `db` direkt, wie zuvor.
  *
- * `Button`/`Row`/`Col` DIREKT IN DIESER SERVER COMPONENT: kein Compound-Zugriff (Falle 1), Vorbild
- * `files/_ui/AblageKachel.tsx` (`async function AblageKachel()`, kein "use client", `<form
- * action={aufraeumenAction}><Button htmlType="submit">…`) — dieselbe Form wird hier fuer
- * "Annehmen" benutzt.
+ * DER AUFBAU IST FUER ALLE DREI EINSTIEGE DERSELBE (§3.4):
  *
- * DIE ZAHLEN DER KACHELN UND DIE LISTE DARUNTER TEILEN SICH DIESELBE ABLEITUNG
- * (`wartetAufEinplanung`/`heuteOffen` aus `_lib/anzeige.ts`) UND DENSELBEN LESEPFAD
- * (`aufgabenFuerPerson`) — keine zweite Zaehlung.
+ *   1 Seitenkopf              Brotkrume · <h1> · Wochenwaehler · Kontextzeile
+ *   ─ data-testid="aufgaben-flaeche" ───────────────────────────────────────
+ *   2 FUEHRUNGSKARTE          genau eine, immer da, der einzige Primaerknopf
+ *   3 Die Flaeche der Rolle   hier: die Wochenachse — immer da, auch leer
+ *   4 Die uebrigen Anlaesse   als Zonen, in Rangfolge, je mit Zahl, gedeckelt
+ *   5 Fuss                    Querverweise als Textlinks
  *
- * DIE ZWEI VERTAGTEN KPI-VERWEISE (Aufgabe 16) — „Freigabe offen" und „Zurückgewiesen" trugen bis
- * hierhin bewusst KEIN `href` (Aufgabe 13: „ein Knopf auf eine 404-Seite wäre schlechter als
- * keiner" — `/freigaben` existierte noch nicht, UND ist ohnehin fuer `bufdi` KEIN Ziel: die Route
- * ist auf `auftrag` und die Koordination gegatet, `darfFreigabenSehen`, weil sie die Warteschlange DERER
- * zeigt, die freigeben, nicht der Zugewiesenen). Beide Kacheln verlinken deshalb NICHT auf
- * `/freigaben`, sondern auf zwei neue, schreibgeschuetzte Abschnitte AUF DIESER Seite
- * (`#freigabe-offen`, `#zurueckgewiesen`) — dieselbe Form wie die bereits bestehenden Anker
- * `#posteingang` hier bzw. `#freigabe`/`#ueberfaellig` in `EinstiegKoordination.tsx`. SCHREIBGESCHUETZT,
- * NICHT WEIL ES NICHTS ZU TUN GAEBE (`zurueckgewiesen` erlaubt der zugewiesenen Person durchaus
- * „Wiederaufnehmen"), SONDERN WEIL DIE AKTION BEREITS EINEN ORT HAT: `/a/<id>`s Aktionszone (Aufgabe
- * 16). Ein zweiter, hier eingebauter Knopf waere dieselbe Aktion an zwei Stellen gehalten — die
- * Person klickt stattdessen auf den Titel und landet auf der Seite, die ohnehin alles zeigt
- * (Verlauf, Zurückweisungsgrund, Aktion).
+ * WAS HIER VERSCHWUNDEN IST: die vier KPI-Kacheln (§1.4 — sie beantworteten „was gibt es", nicht
+ * „was ist jetzt dran"; ihre Zahlen stehen jetzt in der Kontextzeile, EINSCHLIESSLICH der Nullen,
+ * die dort als WORT geschrieben werden) und die beiden schreibgeschuetzten Sektionen
+ * „Freigabe offen" / „Zurückgewiesen" mit ihren Ankern. Zurueckgewiesenes ist jetzt Rang 2 der
+ * Leiter und damit entweder die Karte oder eine Zone; `freigabe_offen` faellt in keine Sprosse und
+ * steht in seiner Tagesspalte bzw. in der Achsen-Fusszeile (§4.1, Restmenge).
+ *
+ * DER WOCHENWAEHLER STEHT IM `aktionen`-SLOT DES `SeitenKopf` UND DAMIT AUSSERHALB DES WRAPPERS
+ * (§3.3, §5.1): der Zaehlriegel „hoechstens ein Primaerknopf" misst `aufgaben-flaeche`, und die
+ * drei Wochenknoepfe sind Navigation, keine Handlung an einer Aufgabe.
+ *
+ * `tage` FUER DEN SELEKTOR IST DIE ANGEZEIGTE WOCHE, NICHT DIE LAUFENDE — eine bewusste Abweichung
+ * von §4.5, ausgeschrieben in `page.tsx`. Sie haelt Kontextzeile, Achse und Achsen-Fusszeile
+ * konsistent; der Preis steht dort.
  */
 export function EinstiegBufdi({
   db,
   akteur,
   heute,
+  lage,
   wocheParam,
   tagParam,
 }: {
   db: DB;
   akteur: Akteur;
   heute: string;
+  /** Der Zustands-Selektor, EINMAL in `page.tsx` gerufen (§4.1) — nie ein zweites Mal hier. */
+  lage: Lage;
   wocheParam?: string;
   tagParam?: string;
 }) {
   // Die Zeile eigens benannt: sie speist die reinen Anzeige- und Ladepfade (`aufgabenFuerPerson`,
-  // `tagesBudget`, `Wochenplan person=`). Die beiden Rechtefragen unten stellen den `Akteur`.
+  // `Wochenplan person=`). Die Rechtefragen unten stellen den `Akteur`.
   const person = akteur.person;
   const montag = montagAusParam(wocheParam, heute);
   const tage = wochenTage(montag);
@@ -88,177 +84,250 @@ export function EinstiegBufdi({
   // Woche gilt: eine ausgeschiedene Person plant nichts mehr, auch nicht sich selbst.
   const zeigeAktionen = darfPlanAendern(akteur, person.id, heute);
   const rang = zeigeAktionen ? rangGrenzen(db, person.id, tage) : undefined;
-  // DASSELBE PRAEDIKAT WIE `/routinen` SELBST (`darfRoutinenVerwalten`, Aufgabe 13) — nicht
-  // `darfPlanAendern`, obwohl beide fuer eine aktive BuFDi heute denselben Wert liefern: der
-  // Fussverweis muss dem Riegel der ZIELSEITE folgen, nicht einer zufaellig gleichwertigen
-  // Bedingung (Spec §7: dasselbe Praedikat in Navigation und Riegel).
-  const darfRoutinen = darfRoutinenVerwalten(akteur, heute);
 
-  const einzuplanen = meineAufgaben.filter(wartetAufEinplanung);
-  const heuteOffenListe = meineAufgaben.filter((a) => heuteOffen(a, heute));
-  const freigabeOffenListe = meineAufgaben.filter((a) => a.status === "freigabe_offen");
-  const zurueckgewiesenListe = meineAufgaben.filter((a) => a.status === "zurueckgewiesen");
-
-  const budgets = tage.map((tag) => tagesBudget(meineAufgaben, meineRoutinen, person, tag));
-  const verplantMinuten = budgets.reduce((summe, b) => summe + b.verplantMinuten, 0);
-  const sollMinuten = budgets.reduce((summe, b) => summe + b.sollMinuten, 0);
-  // `aufgabenInWoche` (`_lib/anzeige.ts`, Review Fix-Runde 1): vorher eine dritte, ungetestete
-  // Fassung dieser Mitgliedschaft inline hier — jetzt dieselbe Ableitung wie ueberall sonst.
-  const aufgabenDieseWoche = aufgabenInWoche(meineAufgaben, tage);
-  const kontext =
-    `Diese Woche: ${aufgabenDieseWoche} Aufgabe${aufgabenDieseWoche === 1 ? "" : "n"}, ` +
-    `${fmtStunden(verplantMinuten)} von ${fmtStunden(sollMinuten)} Std. verplant.`;
+  const grund = kartenGrunddaten(db, akteur, heute, lage);
+  // WAS AM NAECHSTEN ARBEITSTAG LIEGT — der Zusatz der Ruhekarte (§4.2, Ruhe-Zeile). Er entsteht
+  // hier und nicht im Selektor, weil er DARSTELLUNG ist: `lage()` liefert Daten, keine Saetze.
+  const morgen =
+    meineAufgaben.find(
+      (a) => a.planDatum === grund.naechsterArbeitstag && a.status !== "abgeschlossen",
+    ) ?? null;
 
   return (
     <>
-      <SeitenKopf brotkrume={[{ label: "Aufgaben" }]} titel="Meine Woche" kontext={kontext} />
-
-      <div style={{ marginBlockEnd: SPACE.lg }}>
-        <WochenWaehler montag={montag} heute={heute} />
-      </div>
-
-      <Row gutter={[SPACE.sm, SPACE.sm]} style={{ marginBlockEnd: SPACE.xl }}>
-        <Col xs={12} md={6}>
-          <Kachel
-            zahl={einzuplanen.length}
-            beschriftung="Einzuplanen"
-            href={einzuplanen.length > 0 ? "#posteingang" : undefined}
-          />
-        </Col>
-        <Col xs={12} md={6}>
-          <Kachel
-            zahl={heuteOffenListe.length}
-            beschriftung="Heute offen"
-            // ZUR WOCHE VON HEUTE, NICHT ZUR ANGEZEIGTEN WOCHE (advisor-Fund): `heuteOffen` zaehlt
-            // ueber `heute`, unabhaengig davon, welche Woche `WochenWaehler` gerade anzeigt. Wer
-            // zwei Wochen vor- oder zurueckblaettert, saehe sonst eine korrekte Zahl, die auf eine
-            // Woche verlinkt, in der "heute" gar nicht liegt.
-            href={
-              heuteOffenListe.length > 0
-                ? `/plan/${person.id}?woche=${montagDerWoche(heute)}`
-                : undefined
-            }
-          />
-        </Col>
-        <Col xs={12} md={6}>
-          <Kachel
-            zahl={freigabeOffenListe.length}
-            beschriftung="Freigabe offen"
-            ton="ocker"
-            href={freigabeOffenListe.length > 0 ? "#freigabe-offen" : undefined}
-          />
-        </Col>
-        <Col xs={12} md={6}>
-          <Kachel
-            zahl={zurueckgewiesenListe.length}
-            beschriftung="Zurückgewiesen"
-            ton="achtung"
-            href={zurueckgewiesenListe.length > 0 ? "#zurueckgewiesen" : undefined}
-          />
-        </Col>
-      </Row>
-
-      <section id="posteingang" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Posteingang</h2>
-        <AufgabenListe
-          zeilen={einzuplanen.map((a) => ({
-            aufgabe: a,
-            aktionen: zeigeAktionen ? posteingangAktionen(a, person) : undefined,
-          }))}
-          heute={heute}
-          leerText="Posteingang leer — alles verteilt"
-        />
-      </section>
-
-      <TagesWaehler tage={tage} ausgewaehlterTag={mobilTag} />
-
-      <Wochenplan
-        aufgaben={meineAufgaben}
-        routinen={meineRoutinen}
-        person={person}
-        montag={montag}
-        heute={heute}
-        mobilTag={mobilTag}
-        zeigeAktionen={zeigeAktionen}
-        rang={rang}
+      <SeitenKopf
+        brotkrume={[{ label: "Aufgaben" }]}
+        titel="Meine Woche"
+        kontext={lage.kontext}
+        aktionen={<WochenWaehler montag={montag} heute={heute} />}
       />
 
-      <section id="freigabe-offen" style={{ marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Freigabe offen</h2>
-        <AufgabenListe
-          zeilen={freigabeOffenListe.map((a) => ({ aufgabe: a }))}
+      <div data-testid="aufgaben-flaeche">
+        <Fuehrungskarte
+          lage={lage}
           heute={heute}
-          leerText="Keine Aufgabe wartet auf Freigabe."
+          eigenePersonId={person.id}
+          verteilen={null}
+          vertretungAnzahl={0}
+          morgen={morgen}
+          {...grund}
         />
-      </section>
 
-      <section id="zurueckgewiesen" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Zurückgewiesen</h2>
-        <AufgabenListe
-          zeilen={zurueckgewiesenListe.map((a) => ({ aufgabe: a }))}
-          heute={heute}
-          leerText="Keine zurückgewiesene Aufgabe."
-        />
-      </section>
+        {/* ── 3 · DIE FLAECHE DER ROLLE: die Wochenachse, immer da, auch leer (Regel R2) ── */}
+        <section style={{ marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.xl }}>
+          {/*
+           * REGEL V, ERSTER TEIL (§3.4): liegt die gezeigte Woche ganz in der Vergangenheit, sagt
+           * die Achse das — sonst sieht man Sonntagabend eine volle, gruene Woche und glaubt, man
+           * sei durch. Das ist KEINE Zone: es ist ein Vorbehalt AUF der Achse, und deshalb faellt
+           * es weder unter R3 noch unter „Leerzustand = die Zone weglassen".
+           */}
+          {lage.achsenVorbehalt?.abgeschlosseneWoche ? (
+            <p style={{ ...SCHRIFT.neben, margin: `0 0 ${SPACE.xs}px` }}>
+              Abgeschlossene Woche
+            </p>
+          ) : null}
+          {/*
+           * DIE UEBERSCHRIFT DER ROLLENFLAECHE TRITT ZURUECK — DIESELBE AENDERUNG, DIE `AnlassZone`
+           * mit Befund 4 schon bekam, hier nachgezogen (Oberflaechen-Runde 2026-08-16, zweite
+           * Haelfte). „Diese Woche" stand in `SCHRIFT.unterTitel` (20/600) ueber Tagesspalten mit
+           * 14px-Titeln, waehrend die vier Zonen DARUNTER bereits Kicker trugen: auf einem
+           * Bildschirm standen damit zwei verschiedene Ueberschriftenstufen fuer dieselbe
+           * Gliederungsebene. Die STRUKTUR war lauter als der INHALT, und sie war ausserdem
+           * uneinheitlich.
+           *
+           * `SCHRIFT.kicker` ist eine Rolle der Leiter (12/600 versal), keine erfundene Groesse;
+           * Farbe und Haarlinie kommen aus `.zonenKopf`, derselben Klasse wie bei den Zonen.
+           */}
+          <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.sm}px` }}>
+            Diese Woche
+          </h2>
 
-      <div
-        style={{
-          marginBlockStart: SPACE.xl,
-          display: "flex",
-          flexDirection: "column",
-          gap: SPACE.sm,
-        }}
-      >
-        {darfRoutinen ? <Link href="/routinen">Routinen verwalten</Link> : null}
-        {andereBufdis.map((b) => (
-          <Link key={b.id} href={`/plan/${b.id}`}>
-            Zeitplan von {b.name}
-          </Link>
+          <TagesWaehler tage={tage} ausgewaehlterTag={mobilTag} />
+
+          <Wochenplan
+            aufgaben={meineAufgaben}
+            routinen={meineRoutinen}
+            person={person}
+            montag={montag}
+            heute={heute}
+            mobilTag={mobilTag}
+            zeigeAktionen={zeigeAktionen}
+            rang={rang}
+          />
+
+          {/*
+           * REGEL V, ZWEITER TEIL (§3.4, §4.5): was in KEINER der fuenf Tagesspalten stehen kann,
+           * steht hier. Die Fusszeile ist nicht Kosmetik, sondern der BELEG fuer die
+           * Partitionszusage aus §4.1 — sie ist der Ort, an dem die Restmenge der BuFDi-Leiter
+           * sichtbar wird. Wer sie schmaler fasst, muss die R3-Ausnahme fuer Rang 3 mit
+           * zuruecknehmen, sonst entsteht genau das Loch, das §4.1 zu schliessen hat.
+           */}
+          {lage.achsenVorbehalt !== null && lage.achsenVorbehalt.ohnePlatz.length > 0 ? (
+            <p style={{ ...SCHRIFT.neben, margin: `${SPACE.md}px 0 0` }}>
+              {lage.achsenVorbehalt.ohnePlatz.length}{" "}
+              {lage.achsenVorbehalt.ohnePlatz.length === 1 ? "Aufgabe liegt" : "Aufgaben liegen"}{" "}
+              außerhalb dieser Woche:{" "}
+              {lage.achsenVorbehalt.ohnePlatz.map((a, i) => (
+                <span key={a.id}>
+                  {i > 0 ? " · " : ""}
+                  <Link href={`/a/${a.id}`}>{a.titel}</Link>
+                  {" · "}
+                  {/* „ohne Termin" STATT EINES DATUMS (§4.5): ueber eine Zeile ohne `planDatum`
+                      waere „ausserhalb der Woche" eine Falschaussage — sie hat keine Woche. */}
+                  {a.planDatum === null ? "ohne Termin" : fmtTagKurz(a.planDatum)}
+                </span>
+              ))}
+            </p>
+          ) : null}
+        </section>
+
+        {/* ── 4 · DIE UEBRIGEN ANLAESSE ALS ZONEN, IN RANGFOLGE (Regel R3) ── */}
+        {lage.zonen.map((zone) => (
+          <AnlassZone
+            key={zone.art}
+            anlass={zone}
+            heute={heute}
+            eigenePersonId={person.id}
+            zusaetze={Object.fromEntries(
+              zone.zeilen.map((a) => [a.id, planZusatz(a)] as const),
+            )}
+            aktionen={
+              zeigeAktionen && zone.art === "bufdiWartetAufEinplanung"
+                ? Object.fromEntries(
+                    zone.zeilen.map((a) => [a.id, posteingangAktionen(a)] as const),
+                  )
+                : {}
+            }
+          />
         ))}
+
+        {/* ── 5 · FUSS ── */}
+        <div
+          style={{
+            marginBlockStart: SPACE.xl,
+            display: "flex",
+            flexDirection: "column",
+            gap: SPACE.sm,
+          }}
+        >
+          {/*
+           * DASSELBE PRAEDIKAT WIE `/routinen` SELBST (`darfRoutinenVerwalten`) — nicht
+           * `darfPlanAendern`, obwohl beide fuer eine aktive BuFDi heute denselben Wert liefern:
+           * der Fussverweis muss dem Riegel der ZIELSEITE folgen, nicht einer zufaellig
+           * gleichwertigen Bedingung. `/routinen` wirft sonst `notFound()`.
+           */}
+          {/*
+           * NEBENWEGE IN TINTE STATT IN ROT (Befund 3, hier nachgezogen): „Routinen verwalten" und
+           * die Zeitplaene der anderen BuFDis sind Navigation, kein Signal. Als rote Links waren
+           * sie bis zu drei weitere Rotstellen auf einer Flaeche, auf der Rot fachliche Bedeutung
+           * tragen soll — dieselbe Aenderung, die `EinstiegKoordination` fuer „Personenverwaltung"
+           * und „Archiv" schon hat, mit derselben Klasse.
+           */}
+          {grund.darfRoutinenVerwalten ? (
+            <Link href="/routinen" className={s.leiseLink}>
+              Routinen verwalten
+            </Link>
+          ) : null}
+          {andereBufdis.map((b) => (
+            <Link key={b.id} href={`/plan/${b.id}`} className={s.leiseLink}>
+              Zeitplan von {b.name}
+            </Link>
+          ))}
+        </div>
       </div>
     </>
   );
 }
 
 /**
- * „ANNEHMEN" IST KEIN NEUER UEBERGANG — es ist `einplanenAction` mit dem vorgeschlagenen Tag und
- * der vorgeschlagenen Uhrzeit (Brief), aufgerufen ueber `einplanenAnnehmenAction`
- * (`actions.ts`) — die duenne Form-Bruecke, weil `einplanenAction`s `useActionState`-Signatur
- * `(prev, formData) => Promise<FormState>` nicht direkt als `action`-Prop eines zustandslosen
- * Formulars taugt (`pnpm typecheck` lehnt das ab). Der Verlauf haelt darueber fest, ob angenommen
- * oder abgewichen wurde (`einplanenNotiz` in `actions.ts` vergleicht `vorschlagDatum`/
- * `vorschlagUhrzeit` gegen die tatsaechlich eingeplanten Werte) — „Annehmen" laeuft also durch
- * DENSELBEN Weg wie ein manuelles Einplanen, nur mit vorausgefuellten, versteckten Feldern statt
- * eines sichtbaren Formulars. Nur gerendert, wenn `vorschlagOffen` — ohne Vorschlag gibt es nichts
- * anzunehmen, nur „Anders einplanen" bleibt.
- *
- * DER VORSCHLAG STEHT IM KNOPFTEXT (Spec §8.1, Review Fix-Runde 1 — vorher stand nur "Annehmen",
- * ohne dass irgendwo auf der Seite stand, WAS angenommen wird): „Annehmen: Do, 13.08." bzw. mit
- * Uhrzeit „Annehmen: Do, 13.08., 09:00" — `vorschlagUhrzeit` ist entweder `null` (keine Uhrzeit im
- * Vorschlag, ein Anker wie bei jedem anderen Eintrag) oder eine bereits validierte "HH:MM"-Zeichenkette
- * (`istGueltigeUhrzeit` in `actions.ts`), deshalb ohne weitere Formatierung eingesetzt.
- *
- * „ANDERS EINPLANEN" OEFFNET `EinplanenFormular` — NICHT HIER, SONDERN AUF `/plan/<eigene id>`
- * (Aufgabe 13 baut auch diese Route): der Anker `#einplanen-<id>` springt dort zu genau dem
- * Formular dieser Aufgabe, vorbelegt mit `task.planDatum` (leer) bzw. einer manuell gewaehlten
- * Uhrzeit. Der Streifen hier bleibt dadurch schlank; die volle Bedienung (inklusive Dauerkorrektur)
- * lebt an der einen Stelle, die ohnehin fuer den eigenen Zeitplan zustaendig ist.
+ * DER ROLLENZUSATZ EINER BUFDI-ZEILE (§3.6, §10 Prueffrage 7) — GENAU EINE Angabe: der
+ * Zeitvorschlag, wo einer offen ist, sonst der Plantag, sonst nichts. Ein STRING, keine Funktion
+ * (Falle 9), in dieser Server Component fertig formatiert.
  */
-function posteingangAktionen(a: AufgabeRow, person: PersonRow): ReactNode {
+function planZusatz(a: AufgabeRow): string | null {
+  if (vorschlagOffen(a) && a.vorschlagDatum !== null) {
+    return `Vorschlag: ${fmtTagKurz(a.vorschlagDatum)}${a.vorschlagUhrzeit ? `, ${a.vorschlagUhrzeit}` : ""}`;
+  }
+  if (a.planDatum !== null) return `Eingeplant: ${fmtTagKurz(a.planDatum)}`;
+  return null;
+}
+
+/**
+ * „ANNEHMEN" IST KEIN NEUER UEBERGANG — es ist `einplanenAction` mit dem vorgeschlagenen Tag und
+ * der vorgeschlagenen Uhrzeit, aufgerufen ueber `einplanenAnnehmenAction` (`actions.ts`): die
+ * duenne Form-Bruecke, weil `einplanenAction`s `useActionState`-Signatur nicht direkt als
+ * `action`-Prop eines zustandslosen Formulars taugt. Der Verlauf haelt darueber fest, ob angenommen
+ * oder abgewichen wurde — „Annehmen" laeuft also durch DENSELBEN Weg wie ein manuelles Einplanen,
+ * nur mit vorausgefuellten, versteckten Feldern.
+ *
+ * DER VORSCHLAG STEHT IM KNOPFTEXT („Annehmen: Do, 13.08., 09:00") — ohne ihn stuende nirgends auf
+ * der Seite, WAS angenommen wird. Nur gerendert, wenn `vorschlagOffen`.
+ *
+ * STANDARDKNOPF, KEIN `type="primary"` (§11.4 Schritt 3, §9/S9): dieser Knopf steht in der Zone und
+ * damit INNERHALB von `data-testid="aufgaben-flaeche"`, wo hoechstens EIN `.ant-btn-primary` stehen
+ * darf — und der gehoert der Fuehrungskarte.
+ */
+function posteingangAktionen(a: AufgabeRow): ReactNode {
   return (
+    /*
+     * ══ STILLE ZEILENKNOEPFE STATT antd-`Button` (Oberflaechen-Runde 2026-08-16, zweite Haelfte).
+     *
+     *    DIE SICHTBARKEIT WAR NIE DAS PROBLEM UND IST ES AUCH JETZT NICHT: diese Knoepfe stehen
+     *    ueber `AnlassZone` → `AufgabenListe` → `AufgabenZeile` bereits in `.zeilenAktion`, also in
+     *    der Aktionsspur, die ohne Zuwendung durchsichtig ist. DIE FORM war es. Zwei
+     *    vollflaechige antd-Knoepfe — einer davon mit einer 24-Zeichen-Beschriftung („Annehmen:
+     *    Do, 13.08., 09:00") — sind eine Knopfleiste, und die Aktionsspur einer Notion-artigen
+     *    Liste soll bei Zuwendung einen WEG anzeigen, keine Schaltflaeche. Dieselbe Entscheidung
+     *    und dieselbe Klasse wie beim Zuweisen-Ausloeser der Koordinationsflaeche.
+     *
+     *    „ANDERS EINPLANEN" IST EIN `<a>`, KEIN KNOPF, UND WAR ES INHALTLICH IMMER: antds
+     *    `Button href=` rendert ohnehin ein `<a class="ant-btn">` — es sah nur aus wie ein Knopf
+     *    und war eine Navigation. Jetzt sagt das Markup dasselbe wie die Handlung. `.zeilenKnopf`
+     *    traegt deshalb `text-decoration: none`, und der modulweite `:focus-visible`-Block deckt
+     *    `a` wie `button`.
+     *
+     *    FACHLICH AENDERT SICH NICHTS: dieselbe `einplanenAnnehmenAction`, dieselben drei
+     *    versteckten Felder, dieselbe Bedingung `vorschlagOffen(a)`, dasselbe Ziel
+     *    `/plan/<person>#einplanen-<id>`. Der Knopftext nennt weiterhin den Vorschlag — ohne ihn
+     *    stuende nirgends auf der Seite, WAS angenommen wird —, und `getByRole("button", { name:
+     *    /^Annehmen:/ })` findet ihn unveraendert.
+     *
+     *    KEIN `type="primary"` war hier und bleibt hier: diese Knoepfe stehen innerhalb von
+     *    `data-testid="aufgaben-flaeche"`, wo hoechstens EIN `.ant-btn-primary` stehen darf. Ohne
+     *    antd-`Button` ist das jetzt strukturell erfuellt statt durch das Weglassen einer
+     *    Eigenschaft, die man vergessen kann.
+     */
     <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
       {vorschlagOffen(a) ? (
         <form action={einplanenAnnehmenAction}>
           <input type="hidden" name="aufgabeId" value={a.id} />
           <input type="hidden" name="planDatum" value={a.vorschlagDatum ?? ""} />
           <input type="hidden" name="planUhrzeit" value={a.vorschlagUhrzeit ?? ""} />
-          <Button type="primary" htmlType="submit">
+          <button type="submit" className={s.zeilenKnopf}>
             Annehmen: {fmtTagKurz(a.vorschlagDatum!)}
             {a.vorschlagUhrzeit ? `, ${a.vorschlagUhrzeit}` : ""}
-          </Button>
+          </button>
         </form>
       ) : null}
-      <Button href={`/plan/${person.id}#einplanen-${a.id}`}>Anders einplanen</Button>
+      {/*
+       * ══ „ANDERS EINPLANEN" IST KEIN WEG MEHR, SONDERN EIN FELD (Oberflaechen-Runde 2026-08-16,
+       *    dritte Haelfte). Der Verweis fuehrte auf `/plan/<person>#einplanen-<id>`, also FORT von
+       *    der Liste, in der man gerade liest, zu einem Formular, das dieselbe Aufgabe noch einmal
+       *    nennt — und wer danach die naechste umplanen wollte, ging zurueck und wieder hin. Der
+       *    Kommentar darueber hat den Verweis eine Runde frueher vom antd-`Button` zum `<a>`
+       *    gemacht, „damit das Markup dasselbe sagt wie die Handlung"; diese Runde geht den Schritt
+       *    zu Ende und macht die HANDLUNG zu dem, was sie inhaltlich ist — eine Aenderung an dieser
+       *    Zeile, nicht ein Ortswechsel.
+       *
+       *    FACHLICH AENDERT SICH NICHTS: dieselbe `einplanenAction`, dieselben Feldnamen, dasselbe
+       *    `zeigeAktionen = darfPlanAendern(...)`, das schon den Verweis gatete. Die Zielseite
+       *    `/plan/<person>` bleibt vollstaendig erreichbar (Fusszeile, Fuehrungskarte, Zeitplaene
+       *    der anderen) und behaelt als einzige das Dauerfeld.
+       *
+       *    DER WORTLAUT BLEIBT, DAMIT DER GRIFF BLEIBT: `name: "Anders einplanen"` findet jetzt
+       *    einen Knopf statt eines Verweises — die Rolle wechselt, die Aufschrift nicht.
+       */}
+      <EinplanenInline aufgabe={a} />
     </div>
   );
 }

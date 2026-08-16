@@ -225,6 +225,58 @@ describe("aufgaben.module.css — Aussage 4: die Umschaltung sitzt richtig herum
     expect(inMedia![1]).not.toMatch(/display\s*:\s*none/);
   });
 
+  /**
+   * DAS BRETT (`?ansicht=brett` auf `/verteilen`, vierte Oberflächen-Runde 2026-08-16) — DIE
+   * SPALTENZAHL DARF NICHT FEST WERDEN, aus demselben Grund wie beim Wochengitter und einem
+   * zusätzlichen: sie ist die Zahl der aktiven BuFDis plus eins, also ein DATENBESTAND. Eine
+   * `repeat(4, …)` wäre eine Behauptung über die Personenverwaltung — genau der Fehler, den die
+   * Überschrift „Die Woche der drei" schon einmal gemacht hat (sie wurde nicht rot, nur unwahr).
+   */
+  it("lässt `.brettGitter` die Spaltenzahl aus der Fläche ableiten, statt sie festzuschreiben", () => {
+    const inBasis = /\.brettGitter\s*\{([^}]*)\}/.exec(BASIS);
+    expect(inBasis, ".brettGitter fehlt in der Basisregel").not.toBeNull();
+    expect(inBasis![1], "grid-template-columns fehlt").toMatch(/grid-template-columns\s*:/);
+    expect(inBasis![1], "auto-fit fehlt — die Spaltenzahl wäre wieder fest").toMatch(/auto-fit/);
+    expect(inBasis![1], "eine feste Spaltenzahl ist genau die Regression").not.toMatch(/repeat\(\s*\d/);
+  });
+
+  /**
+   * UNTER 768PX IST DAS BRETT KEINE SPALTENLANDSCHAFT (Auftrag, wörtlich: „Was **nicht** geht: drei
+   * Spalten in 360px quetschen"). Die gewählte Form ist der STAPEL — eine Spur, Spalten
+   * untereinander.
+   *
+   * WAS DIESER TEST KANN UND WAS NICHT: er prüft, dass die Datei die Absicht noch TRÄGT. Ob ein
+   * Browser daraus eine Spur rechnet, sieht nur der 360px-Überlauf-Sweep in `e2e/aufgaben.spec.ts`
+   * — jsdom wertet weder `@media` noch Grid-Spuren aus. Erst beide zusammen sind die Zusicherung.
+   */
+  it("stapelt `.brettGitter` innerhalb des 767.98px-Blocks auf EINE Spur", () => {
+    const inMedia = MEDIA_767_BLOECKE.map((b) => /\.brettGitter\s*\{([^}]*)\}/.exec(b)).find(Boolean);
+    expect(inMedia, ".brettGitter fehlt in einem 767.98px-Block").not.toBeUndefined();
+    expect(inMedia![1], "die Spalten stapeln nicht — `grid-template-columns` fehlt").toMatch(
+      /grid-template-columns\s*:\s*minmax\(\s*0\s*,\s*1fr\s*\)/,
+    );
+    // KEIN `display: none`: das Brett ENTFAELLT unter 768px nicht, es wechselt die Achse. Ein
+    // versteckter Brett-Container waere eine Sicht, die auf dem Telefon nicht existiert — und
+    // „Telefon und Rechner sind gleich wichtig" ist der ausdrueckliche Auftrag.
+    expect(inMedia![1]).not.toMatch(/display\s*:\s*none/);
+  });
+
+  /**
+   * DIE ANSICHTSWAHL IST EIN BEDIENELEMENT UND BRAUCHT IHRE 44PX SELBST (Falle 4, WCAG 2.5.5 AAA).
+   *
+   * `ARBEITSDICHTE` (`core/theme/theme.ts`, `controlHeight: 44`) ist ein antd-Token und erreicht
+   * ausschließlich antd-Bedienelemente; ein selbstgebautes `<a>` erbt davon NICHTS. Ohne die
+   * Deklaration wäre die Leiste rund 21px hoch — und `typecheck`, `lint`, `build` und Vitest
+   * blieben still. Deshalb wird die ZAHL hier gemessen, nicht ihre Anwesenheit.
+   */
+  it("gibt `.ansichtWahlOption` mindestens 44px Höhe — der Token erreicht kein eigenes `<a>`", () => {
+    const inBasis = /\.ansichtWahlOption\s*\{([^}]*)\}/.exec(BASIS);
+    expect(inBasis, ".ansichtWahlOption fehlt in der Basisregel").not.toBeNull();
+    const treffer = /min-height\s*:\s*([\d.]+)px/.exec(inBasis![1]);
+    expect(treffer, "`min-height` fehlt — die Leiste wäre rund 21px hoch").not.toBeNull();
+    expect(Number(treffer![1])).toBeGreaterThanOrEqual(44);
+  });
+
   it("stellt der antd-Spezifität in `.knopfzeile > *` eine eigene Klasse voran", () => {
     const inMedia = MEDIA_767_BLOECKE.map((b) => /\.modul \.knopfzeile > \*\s*\{([^}]*)\}/.exec(b)).find(
       Boolean,
@@ -326,6 +378,18 @@ function kontrastverhaeltnis(hexA: string, hexB: string): number {
 const SCHWELLE_AA = 4.5;
 
 /**
+ * WCAG 2.1 SC 1.4.11 „Non-text Contrast" — 3:1, und die Zahl steht ABSICHTLICH getrennt von
+ * `SCHWELLE_AA`.
+ *
+ * EIN BALKEN IST KEIN TEXT. Die 4,5:1 der Aussage 5 gelten für Buchstaben; sie an eine Grafik zu
+ * legen wäre nicht „strenger", sondern falsch begründet — und ein Riegel mit falscher Begründung
+ * wird bei der ersten Farbänderung abgeschaltet statt befolgt. Umgekehrt wäre es schlimmer: ohne
+ * eigene Schwelle bliebe die Beziehung Füllung-gegen-Spur **ungemessen**, und sie ist seit der
+ * Auslastungsgrafik der alleinige Träger einer Menge.
+ */
+const SCHWELLE_GRAFIK = 3;
+
+/**
  * Jedes Chip-Ton-Paar `--auf-<ton>-text` / `--auf-<ton>-flaeche` aus einem
  * Variablenblock — generisch über die Namenskonvention gefunden, nicht über
  * eine fest verdrahtete Liste von Tönen. Wächst das Vokabular um einen
@@ -418,6 +482,50 @@ describe("aufgaben.module.css — Aussage 5: gemessener AA-Kontrast", () => {
    * Dunkeln ist `Layout.bodyBg` reines `#000000` gegenüber `--auf-papier`
    * `#0f1113` — 8.29 statt 7.47.
    */
+  /**
+   * `--auf-achtung-text` STEHT SEIT `_ui/Frist.tsx` ALS SICHTBARER TEXT AUF DER INHALTSFLÄCHE
+   * (Oberflächen-Spec §6.5) — auf der Kante UND auf dem Wort von `.fristUeberfaellig`. Bis dahin
+   * trat er ausschließlich als Chip-Textfarbe zu seiner `-flaeche`-Hälfte auf und war damit von
+   * `tonPaare()` gedeckt; ohne seine Hälfte findet ihn das Muster nicht, und die einzige
+   * farbtragende Stelle des neuen Entwurfs bliebe die einzige ungemessene.
+   *
+   * DIE ABWEICHENDEN TRÄGERFLÄCHEN SIND BEIDE GÜNSTIGER, also bleibt diese Messung der
+   * ungünstigste Fall — dieselbe Begründung, die der Kommentar bei `--auf-stahl` schon führt: auf
+   * der weißen Zellenfläche der `VerteilenTabelle` steigt der Hellwert, und im Dunkeln ist
+   * `Layout.bodyBg` reines `#000000` gegenüber `--auf-papier` `#0f1113`.
+   */
+  it(`hält --auf-achtung-text auf --auf-papier ≥ ${SCHWELLE_AA} Kontrast — hell UND dunkel`, () => {
+    const hellWert = kontrastverhaeltnis(
+      hell.get("--auf-achtung-text") ?? "",
+      hell.get("--auf-papier") ?? "",
+    );
+    const dunkelWert = kontrastverhaeltnis(
+      dunkel.get("--auf-achtung-text") ?? "",
+      dunkel.get("--auf-papier") ?? "",
+    );
+    expect(hellWert, `hell: ${hellWert.toFixed(2)} < ${SCHWELLE_AA}`).toBeGreaterThanOrEqual(
+      SCHWELLE_AA,
+    );
+    expect(dunkelWert, `dunkel: ${dunkelWert.toFixed(2)} < ${SCHWELLE_AA}`).toBeGreaterThanOrEqual(
+      SCHWELLE_AA,
+    );
+  });
+
+  /**
+   * DIE FORM IST TEIL DER ZUSAGE, NICHT NUR DIE FARBE (§6.3, Kanal 2; §9.2): `.fristUeberfaellig`
+   * darf NIE eine Fläche tragen — eine Pille wäre formgleich mit dem `zurueckgewiesen`-Chip, der
+   * in derselben Zeile steht, und ein überfälliges Etwas, das aussieht wie ein zurückgewiesenes,
+   * ist schlimmer als gar keine Farbe. Nachprüfbar an genau dieser einen Regel.
+   */
+  it("gibt `.fristUeberfaellig` eine 3px-Kante und keine `-flaeche`-Variable", () => {
+    const inBasis = /\.fristUeberfaellig\s*\{([^}]*)\}/.exec(BASIS);
+    expect(inBasis, ".fristUeberfaellig fehlt in der Basisregel").not.toBeNull();
+    expect(inBasis![1]).toMatch(/border-inline-start:\s*3px solid var\(--auf-achtung-text\)/);
+    expect(inBasis![1], "eine Fläche macht die Marke formgleich mit dem Chip").not.toMatch(
+      /-flaeche|background/,
+    );
+  });
+
   it(`hält --auf-stahl auf --auf-papier ≥ ${SCHWELLE_AA} Kontrast — hell UND dunkel`, () => {
     const hellWert = kontrastverhaeltnis(hell.get("--auf-stahl") ?? "", hell.get("--auf-papier") ?? "");
     const dunkelWert = kontrastverhaeltnis(
@@ -430,6 +538,179 @@ describe("aufgaben.module.css — Aussage 5: gemessener AA-Kontrast", () => {
     expect(dunkelWert, `dunkel: ${dunkelWert.toFixed(2)} < ${SCHWELLE_AA}`).toBeGreaterThanOrEqual(
       SCHWELLE_AA,
     );
+  });
+
+  /**
+   * `--auf-karte` IST SEIT DER OBERFLÄCHEN-RUNDE 2026-08-16 DIE DRITTE TRÄGERFLÄCHE, UND DAMIT
+   * LÄUFT DIE ALTE „UNGÜNSTIGSTER FALL"-BEGRÜNDUNG AB. Die Kommentare bei `--auf-stahl` und
+   * `--auf-achtung-text` oben wiesen `--auf-papier` als schlechtesten Fall aus und zählten die
+   * beiden Abweichungen (weiße Zellenfläche, schwarzes `Layout.bodyBg`) als **günstiger** ab. Im
+   * Hellen stimmt das für `--auf-karte` (`#ffffff` ist heller als `#eef0f1`) — **im Dunkeln nicht**:
+   * die Kartenfläche ist dort mit Absicht HELLER als der Grund (sie soll sich abheben), und jeder
+   * Text auf ihr hat damit WENIGER Kontrast als auf `--auf-papier`.
+   *
+   * DREI WERTE, WEIL DREI DORT WIRKLICH STEHEN: `--auf-tinte` trägt den Zeilentitel und die
+   * Kartenüberschrift, `--auf-stahl` die Metazellen und `.prioKontur`/`.prioText`,
+   * `--auf-achtung-text` die Überfälligkeitsmarke — alle drei sitzen auf der Führungskarte, auf den
+   * Personenkacheln und (beim Überfahren) auf der Zeilenfläche.
+   *
+   * OHNE DIESEN TEST WÄRE DIE NEUE FLÄCHE DIE EINZIGE UNGEMESSENE — und der stehen gebliebene
+   * Kommentar oben behauptete weiterhin etwas, das nicht mehr gilt.
+   */
+  /**
+   * ══ DIE AUSLASTUNGSBALKEN — EINE NEUE FARBBEZIEHUNG, ALSO EINE NEUE MESSUNG (Nachtrag
+   *    2026-08-16). `.lastFuellung` liegt auf `.lastBalken`, also **Füllung gegen Spur** —
+   *    weder ein `-text`/`-flaeche`-Paar (das `tonPaare()` fände) noch Text auf einer Fläche
+   *    (was die Messungen darüber decken). Ohne diesen Test wäre ausgerechnet der Balken
+   *    ungemessen, und der ist seit dieser Runde der **alleinige Träger einer Menge**: sagt der
+   *    Kontrast nichts, sagt die Grafik nichts.
+   *
+   *    DIESELBE LÜCKE HATTE `--auf-karte` eine Runde vorher, und sie ist auf demselben Weg
+   *    entstanden: eine Farbe wird eingeführt, die alten Messungen greifen sie nicht, und der
+   *    Kommentar daneben behauptet weiter, alles sei gemessen.
+   *
+   *    BEIDE FÜLLFARBEN, WEIL BEIDE VORKOMMEN: `--auf-stahl` trägt den Normalfall,
+   *    `--auf-achtung-text` den überbuchten (`.lastFuellungUeber`). Gegen `--auf-linie`, denn das
+   *    ist die Spur (`.lastBalken`s `background`) — nicht gegen `--auf-papier` oder `--auf-karte`,
+   *    die hinter der Spur liegen und den Balken gar nicht berühren.
+   */
+  it.each(["--auf-stahl", "--auf-achtung-text"])(
+    `hält %s als Balkenfüllung auf --auf-linie ≥ ${SCHWELLE_GRAFIK} Kontrast — hell UND dunkel`,
+    (name) => {
+      const hellWert = kontrastverhaeltnis(hell.get(name) ?? "", hell.get("--auf-linie") ?? "");
+      const dunkelWert = kontrastverhaeltnis(dunkel.get(name) ?? "", dunkel.get("--auf-linie") ?? "");
+      expect(
+        hellWert,
+        `hell/${name} auf --auf-linie: ${hellWert.toFixed(2)} < ${SCHWELLE_GRAFIK}`,
+      ).toBeGreaterThanOrEqual(SCHWELLE_GRAFIK);
+      expect(
+        dunkelWert,
+        `dunkel/${name} auf --auf-linie: ${dunkelWert.toFixed(2)} < ${SCHWELLE_GRAFIK}`,
+      ).toBeGreaterThanOrEqual(SCHWELLE_GRAFIK);
+    },
+  );
+
+  /**
+   * DIE GEGENPROBE ZUR SCHWELLE SELBST: `SCHWELLE_GRAFIK` muss NIEDRIGER sein als `SCHWELLE_AA`.
+   * Ohne diese Zeile könnte eine spätere Aufräumrunde die beiden Konstanten „vereinheitlichen" —
+   * und dann prüfte der Balkentest stillschweigend die Textschwelle, was er ausdrücklich nicht
+   * soll (ein Balken ist kein Text, s. den Kommentar an der Konstante).
+   */
+  it("hält die Grafik-Schwelle getrennt von der Textschwelle", () => {
+    expect(SCHWELLE_GRAFIK).toBeLessThan(SCHWELLE_AA);
+  });
+
+  it.each(["--auf-tinte", "--auf-stahl", "--auf-achtung-text"])(
+    `hält %s auf --auf-karte ≥ ${SCHWELLE_AA} Kontrast — hell UND dunkel`,
+    (name) => {
+      const hellWert = kontrastverhaeltnis(hell.get(name) ?? "", hell.get("--auf-karte") ?? "");
+      const dunkelWert = kontrastverhaeltnis(dunkel.get(name) ?? "", dunkel.get("--auf-karte") ?? "");
+      expect(hellWert, `hell/${name}: ${hellWert.toFixed(2)} < ${SCHWELLE_AA}`).toBeGreaterThanOrEqual(
+        SCHWELLE_AA,
+      );
+      expect(
+        dunkelWert,
+        `dunkel/${name}: ${dunkelWert.toFixed(2)} < ${SCHWELLE_AA}`,
+      ).toBeGreaterThanOrEqual(SCHWELLE_AA);
+    },
+  );
+
+  /**
+   * `--auf-fuehrung` IST DIE VIERTE TRÄGERFLÄCHE (Oberflächen-Runde 2026-08-16, dritte Hälfte) —
+   * und sie ist die einzige, die ihren Zweck NUR erfüllt, solange sie dunkler ist als der Grund.
+   * Genau deshalb ist sie die knappste: `--auf-stahl` hält auf ihr im Hellen 4.64, also 0.14 über
+   * der Schwelle. Ein einziger weiterer Schritt ins Dunkle — der optisch verlockend wäre, weil die
+   * Tönung dann deutlicher spräche — nimmt den Chips ihre Lesbarkeit. Dieser Test ist der Ort, an
+   * dem das auffällt, bevor es ausgeliefert wird.
+   *
+   * DIESELBE LÜCKE, DAS DRITTE MAL: `--auf-karte` und die Balkenfüllungen sind auf demselben Weg
+   * entstanden (eine Farbe kommt dazu, die alten Messungen greifen sie nicht). Die Kommentare
+   * darüber sagen es beide; hier steht es zum dritten Mal, weil die Wiederholung selbst der Befund
+   * ist — jede neue `--auf-*`-Fläche schuldet ihre Messung in derselben Änderung.
+   *
+   * DREI WERTE, WEIL DREI DORT WIRKLICH STEHEN: `--auf-tinte` trägt Kicker und Überschrift
+   * (`.fuehrungKicker` seit dieser Runde), `--auf-stahl` die Prioritäts-Chips und die Metazellen,
+   * `--auf-achtung-text` die Überfälligkeitsmarke der Einzelaufgabe.
+   */
+  it.each(["--auf-tinte", "--auf-stahl", "--auf-achtung-text"])(
+    `hält %s auf --auf-fuehrung ≥ ${SCHWELLE_AA} Kontrast — hell UND dunkel`,
+    (name) => {
+      const hellWert = kontrastverhaeltnis(hell.get(name) ?? "", hell.get("--auf-fuehrung") ?? "");
+      const dunkelWert = kontrastverhaeltnis(
+        dunkel.get(name) ?? "",
+        dunkel.get("--auf-fuehrung") ?? "",
+      );
+      expect(hellWert, `hell/${name}: ${hellWert.toFixed(2)} < ${SCHWELLE_AA}`).toBeGreaterThanOrEqual(
+        SCHWELLE_AA,
+      );
+      expect(
+        dunkelWert,
+        `dunkel/${name}: ${dunkelWert.toFixed(2)} < ${SCHWELLE_AA}`,
+      ).toBeGreaterThanOrEqual(SCHWELLE_AA);
+    },
+  );
+
+  /**
+   * DIE TÖNUNG MUSS EIN SICHTBARER SCHRITT SEIN, NICHT NUR EIN ANDERER HEXWERT. Zweimal ist an
+   * dieser Karte genau das schiefgegangen: erst lag sie numerisch auf `Layout.bodyBg`, dann auf
+   * jeder anderen Karte. Beide Male stand die richtige Absicht im Quelltext und war auf dem
+   * Bildschirm nicht zu sehen — ein Fehler, den keine Paarigkeits- und keine Kontrastprüfung
+   * findet, weil beide nur Text gegen Fläche messen.
+   *
+   * DER MASSSTAB IST DER ABSTAND ZU DEN NACHBARN, NICHT DER ZUM GRUND — und diese Unterscheidung
+   * IST der Befund. Die Karte lag zuletzt auf `--auf-karte`, also exakt auf jeder anderen Karte
+   * der Seite; ihr Abstand zum Grund war dabei tadellos. Ein Test, der nur gegen `--auf-papier`
+   * misst, wäre also genau bei dem Fehler grün gewesen, den diese Runde behebt.
+   *
+   * DIE ZUSAGE LAUTET DESHALB: die Führungskarte steht WEITER von einer gewöhnlichen Karte ab, als
+   * eine gewöhnliche Karte vom Seitengrund absteht. Gemessen 1.29 gegen 1.14 (hell) und 1.18 gegen
+   * 1.11 (dunkel).
+   *
+   * DER ABSTAND ZUM GRUND WIRD ZUSÄTZLICH GEPRÜFT, ABER MIT EINER FESTEN UNTERGRENZE STATT MIT DEM
+   * KARTENSCHRITT: im Hellen liegt er bei 1.13 und damit knapp UNTER den 1.14 der gewöhnlichen
+   * Karte. Das ist keine Nachlässigkeit, sondern eine gemessene Decke — `--auf-stahl` hält auf
+   * `--auf-fuehrung` noch 4.60, und der nächste sichtbare Schritt ins Dunkle nähme den
+   * Prioritäts-Chips auf dieser Karte ihre Lesbarkeit (die Messung darüber schlägt dann zu). Die
+   * Untergrenze 1.10 hält fest, dass die Tönung überhaupt eine ist.
+   */
+  it("setzt --auf-fuehrung weiter von --auf-karte ab als --auf-karte vom Grund", () => {
+    for (const [name, block] of [
+      ["hell", hell],
+      ["dunkel", dunkel],
+    ] as const) {
+      const fuehrung = block.get("--auf-fuehrung") ?? "";
+      const papier = block.get("--auf-papier") ?? "";
+      const karte = block.get("--auf-karte") ?? "";
+      const kartenschritt = kontrastverhaeltnis(karte, papier);
+      const nachbarabstand = kontrastverhaeltnis(fuehrung, karte);
+      expect(
+        nachbarabstand,
+        `${name}: --auf-fuehrung (${fuehrung}) steht ${nachbarabstand.toFixed(3)} von --auf-karte (${karte}) ab, die gewöhnliche Karte ${kartenschritt.toFixed(3)} vom Grund — die Führungskarte ist eine Karte unter Karten`,
+      ).toBeGreaterThan(kartenschritt);
+      const grundabstand = kontrastverhaeltnis(fuehrung, papier);
+      expect(
+        grundabstand,
+        `${name}: --auf-fuehrung steht nur ${grundabstand.toFixed(3)} vom Seitengrund ab — das ist keine Tönung mehr`,
+      ).toBeGreaterThanOrEqual(1.1);
+    }
+  });
+
+  /**
+   * KEIN SCHATTEN IM GANZEN MODUL — „Schatten hat nur, was schwebt (Dropdown, Modal, Popconfirm)"
+   * (`docs/design/feedback-admin.md:191`). Diese Datei stylt ausschließlich Flächen IM Fluss der
+   * Seite; das Schwebende kommt von antd und bringt seinen Schatten selbst mit.
+   *
+   * DER RIEGEL STEHT HIER, WEIL DIE REGEL SCHON EINMAL GEBROCHEN WURDE, und zwar mit einer
+   * Begründung, die die falsche Frage beantwortete: `.fuehrung` trug einen `box-shadow`, verteidigt
+   * mit „ein statischer Schatten bewegt sich nicht". Das stimmt und ist unerheblich — die Hausregel
+   * fragt nach der Höhe, nicht nach der Bewegung. Ohne diesen Test kommt derselbe Schatten auf
+   * demselben Weg wieder, sobald eine Fläche sich „nicht genug abhebt".
+   */
+  it("kennt keinen `box-shadow` — Schatten hat nur, was schwebt", () => {
+    expect(
+      OHNE_KOMMENTARE,
+      "ein `box-shadow` im Modul-CSS: Schatten hat nur, was schwebt",
+    ).not.toMatch(/box-shadow/i);
   });
 });
 

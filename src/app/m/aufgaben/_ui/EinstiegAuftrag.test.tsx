@@ -1,11 +1,28 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, aufgaben, type PersonRow, type Rolle } from "../_db/schema";
+import { montagDerWoche, wochenTage } from "../_lib/datum";
+import { lage } from "../_lib/lage";
 import type { Akteur } from "../_lib/zugang";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const { EinstiegAuftrag } = await import("./EinstiegAuftrag");
+
+/*
+ * „MEINE AUFTRAEGE" NACH DER OBERFLAECHEN-SPEC (2026-08-16 §3.4, §5.3).
+ *
+ * FUER DIESE ROLLE EXISTIERT EBENE 4 DES AUFBAUS NICHT (§3.4, R3-Ausnahmetabelle): „Eigene
+ * Auftraege" zeigt JEDE eigene Zeile ungedeckelt, jede Zone waere eine wortwoertliche
+ * Wiederholung. Die Tests unten pruefen deshalb ausdruecklich die ABWESENHEIT von Zonen — eine
+ * Abwesenheit, die man behaupten und nicht messen wuerde, ist keine Zusage.
+ */
 
 let t: TestDb;
 beforeEach(() => {
@@ -17,6 +34,7 @@ afterEach(async () => {
 });
 
 const HEUTE = "2026-08-13";
+const TAGE = wochenTage(montagDerWoche(HEUTE));
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -28,6 +46,7 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
       rolle,
       aktivVon: extra.aktivVon ?? "2026-01-01",
       aktivBis: extra.aktivBis ?? null,
+      sollMinutenTag: extra.sollMinutenTag ?? 468,
     })
     .returning()
     .get();
@@ -49,149 +68,157 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
     .get();
 }
 
-/**
- * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
- * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
- * damit auf einer ANDEREN Achse als `rolle` — eine Ableitung aus der Zeile ginge gar nicht mehr,
- * `ROLLEN` kennt `koordination` nicht mehr. Malte bleibt hier ueberall bei der Vorgabe `false`:
- * diese Datei prueft den `auftrag` OHNE Koordinationsgruppe, und das ist keine Nachlaessigkeit,
- * sondern die Voraussetzung mehrerer Zusagen unten (mit Gruppe liesse `darfFreigeben` die fremde
- * Freigabe durch, s. den Kommentar bei „Anderer Pruefer").
- */
 function akteur(p: PersonRow, istKoordination = false): Akteur {
   return { person: p, istKoordination };
 }
 
-describe("EinstiegAuftrag — der Knopf, eigene Auftraege, Freigabe-Warteschlange (Spec §8.3)", () => {
-  it("traegt den Knopf „Aufgabe einstellen“, der auf /neu fuehrt", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
-    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
-    const knopf = queryAll<HTMLAnchorElement>("a").find((a) => a.textContent === "Aufgabe einstellen");
-    expect(knopf?.getAttribute("href")).toBe("/neu");
+async function zeige(p: PersonRow): Promise<void> {
+  const a = akteur(p);
+  await mount(<EinstiegAuftrag db={t.db} akteur={a} heute={HEUTE} lage={lage(t.db, a, HEUTE, TAGE)} />);
+}
+
+function flaeche(): HTMLElement {
+  return query("[data-testid='aufgaben-flaeche']");
+}
+
+describe("EinstiegAuftrag — der Aufbau aus §3.4", () => {
+  it("die Fuehrungskarte ist das ERSTE Kind von `aufgaben-flaeche`", async () => {
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Verbandskästen" });
+    await zeige(malte);
+    expect(flaeche().firstElementChild?.getAttribute("data-rolle")).toBe("fuehrung");
   });
 
-  it("zeigt NUR die eigenen Auftraege — ein fremder Ersteller erscheint nicht", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
-    const tomke = legePerson("dev:tomke@test", "auftrag", { name: "Tomke" });
-    legeAufgabe({ titel: "Meine Aufgabe", erstellerId: malte.id });
-    legeAufgabe({ titel: "Fremde Aufgabe", erstellerId: tomke.id });
-
-    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
-
-    const abschnitt = query("#auftraege");
-    expect(abschnitt.textContent).toContain("Meine Aufgabe");
-    expect(abschnitt.textContent).not.toContain("Fremde Aufgabe");
-  });
-
-  /*
-   * ZUSTAND UND EMPFAENGER, MIT VONEINANDER VERSCHIEDENEN WERTEN (Lehre 2/3 dieser Aufgabenreihe):
-   * eine noch nicht verteilte Aufgabe traegt „Noch nicht verteilt", eine verteilte den NAMEN der
-   * Empfaengerin — zwei unterscheidbare Saetze, kein einziger Platzhalter fuer beide Faelle.
+  /**
+   * DIE KERNZUSAGE DER MODULSPEC §8.3 IN BILDFORM (§4.2, §5.3): Rang 2 und Rang 3 tragen KEINEN
+   * Primaerknopf. Malte darf mit einem ueberfaelligen Auftrag bei einer BuFDi nichts tun — die
+   * Uebergangstabelle kennt fuer ihn dort keine Aktion, und die Abwesenheit IST die Auskunft.
    */
-  it("zeigt je Zeile Zustand UND Empfaenger — „noch nicht verteilt“ unterscheidet sich vom Namen", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
-    const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
-    legeAufgabe({ titel: "Unverteilt", erstellerId: malte.id, status: "eingegangen", zugewiesenAn: null });
+  it("traegt bei einem unverteilten Auftrag GAR keinen Primaerknopf", async () => {
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Verbandskästen" });
+    await zeige(malte);
+    expect(flaeche().querySelectorAll(".ant-btn-primary")).toHaveLength(0);
+  });
+
+  it("traegt auch bei voller Lage hoechstens einen `.ant-btn-primary`", async () => {
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Unverteilt" });
     legeAufgabe({
-      titel: "Verteilt an Alina", erstellerId: malte.id, zugewiesenAn: alina.id,
-      prueferId: malte.id, status: "verteilt",
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Freigabe", status: "freigabe_offen",
     });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Überfällig", status: "verteilt", faelligAm: "2026-08-01",
+    });
+    await zeige(malte);
+    expect(flaeche().querySelectorAll(".ant-btn-primary").length).toBeLessThanOrEqual(1);
+  });
 
-    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
+  /**
+   * EBENE 4 EXISTIERT FUER DIESE ROLLE NICHT (§3.4). Gemessen ueber `data-anlass`, das jede Zone
+   * traegt — sonst waere „keine Zonen" eine Behauptung ueber etwas, das der Test gar nicht sucht.
+   */
+  it("bildet KEINE Zone, auch wenn mehrere Sprossen belegt sind", async () => {
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Unverteilt A" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Unverteilt B" });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Überfällig", status: "verteilt", faelligAm: "2026-08-01",
+    });
+    await zeige(malte);
+    expect(queryAll("[data-anlass]")).toHaveLength(0);
+  });
 
-    const zeilen = queryAll("#auftraege li");
-    expect(zeilen).toHaveLength(2);
-    const unverteilteZeile = zeilen.find((z) => z.textContent?.includes("Unverteilt"))!;
-    const verteilteZeile = zeilen.find((z) => z.textContent?.includes("Verteilt an Alina"))!;
-    expect(unverteilteZeile.textContent).toContain("Noch nicht verteilt");
-    expect(unverteilteZeile.textContent).toContain("Zu verteilen");
-    expect(verteilteZeile.textContent).toContain("Empfänger: Alina");
-    expect(verteilteZeile.textContent).toContain("Verteilt");
+  it("die Kontextzeile nennt alle vier Kennzahlen und schreibt die Null als Wort", async () => {
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({ erstellerId: malte.id });
+    await zeige(malte);
+    const zeile = queryAll("p")
+      .map((p) => p.textContent ?? "")
+      .find((z) => z.includes("Auftrag"));
+    expect(zeile).toBe("1 Auftrag · 1 offen · 1 unverteilt · nichts wartet auf deine Freigabe");
+  });
+});
+
+describe("EinstiegAuftrag — „Eigene Auftraege“ (Flaeche der Rolle, ungedeckelt)", () => {
+  it("zeigt NUR die eigenen Auftraege — ein fremder Ersteller erscheint nicht", async () => {
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Meiner" });
+    legeAufgabe({ erstellerId: rike.id, titel: "Fremder" });
+    await zeige(malte);
+    const liste = query("#auftraege");
+    expect(liste.textContent).toContain("Meiner");
+    expect(liste.textContent).not.toContain("Fremder");
+  });
+
+  /**
+   * REGEL D NIMMT DIE FLAECHE DER ROLLE AUS (§3.4): „Eigene Auftraege" ist kein VORRAT, aus dem
+   * heraus man an einen anderen Ort geht, sondern die Flaeche selbst — `/archiv` zeigt nur die
+   * abgeschlossenen und waere fuer die offenen ein Deckel ins Leere.
+   */
+  it("zeigt alle acht Auftraege ohne Deckel", async () => {
+    const malte = legePerson("malte", "auftrag");
+    for (let i = 0; i < 8; i++) legeAufgabe({ erstellerId: malte.id, titel: `A${i}` });
+    await zeige(malte);
+    expect(query("#auftraege h2").textContent).toBe("Eigene Aufträge (8)");
+    expect(query("#auftraege").querySelectorAll("li")).toHaveLength(8);
+    const deckel = Array.from(query("#auftraege").querySelectorAll("a")).filter((a) =>
+      (a.textContent ?? "").includes("weitere"),
+    );
+    expect(deckel).toEqual([]);
+  });
+
+  /** GENAU EINE Angabe je Zeile (§3.6): „Empfänger: X" bzw. „Noch nicht verteilt". */
+  it("zeigt je Zeile genau einen Rollenzusatz — Empfaenger oder „Noch nicht verteilt“", async () => {
+    const malte = legePerson("malte", "auftrag");
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Offen" });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Zugewiesen", status: "verteilt",
+    });
+    await zeige(malte);
+    const zusaetze = queryAll("#auftraege [data-rollen-zusatz]").map((s) => s.textContent);
+    expect(zusaetze).toEqual(["Noch nicht verteilt", "Empfänger: Alina"]);
   });
 
   it("Leerzustand: „Noch keine eigenen Aufträge.“", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
+    const malte = legePerson("malte", "auftrag");
+    await zeige(malte);
     expect(query("#auftraege").textContent).toContain("Noch keine eigenen Aufträge.");
   });
+});
 
-  /*
-   * FUER EINEN `auftrag` OHNE KOORDINATIONSGRUPPE BLEIBT „IN VERTRETUNG" IMMER LEER
-   * (`istVertretungsfreigabe` verlangt `istKoordination`, `_lib/zugang.ts`) — die Trennung
-   * „meine"/„in Vertretung" MIT je einem Fall auf BEIDEN Seiten ist deshalb keine Aussage, die
-   * dieser Einstieg fuer DIESEN Akteur je selbst zeigen kann; sie gehoert dorthin, wo Vertretung
-   * ueberhaupt vorkommt (`freigaben/page.test.tsx` und `EinstiegKoordination.test.tsx`, beide mit
-   * einem koordinierenden Akteur). Hier wird geprueft, dass „meine" korrekt fuellt UND „in
-   * Vertretung" nicht faelschlich mitzieht, was eine fremde Freigabe (mit einem ANDEREN Pruefer)
-   * waere.
-   *
-   * DIESE BEGRUENDUNG STAND BIS ZUM 2026-08-15 SCHAERFER DA („fuer `auftrag` STRUKTURELL immer
-   * leer", weil `istVertretungsfreigabe` `rolle === "koordination"` verlangte) — seit dem
-   * Quellenwechsel liegen Rolle und Koordination auf zwei unabhaengigen Achsen: eine Zeile mit
-   * `rolle: "auftrag"` UND Koordinationsgruppe SIEHT Vertretungsfaelle. Die Leere haengt hier also
-   * am zweiten Argument von `akteur(malte)` (Vorgabe `false`), nicht mehr an der Rolle allein —
-   * deshalb steht die Begruendung jetzt in der schwaecheren, wahren Fassung.
+describe("EinstiegAuftrag — kein Weg zum Verteilen (Modulspec §8.3)", () => {
+  /**
+   * SUCHT AKTIV DANACH, STATT ES ZU BEHAUPTEN. Das ist die andere Haelfte der Kernzusage: nicht
+   * nur die 404-Gegenprobe auf `/verteilen`, sondern die Abwesenheit des Verweises AUF DIESER
+   * SEITE. „Noch nicht verteilt" bleibt Text, nie Link.
    */
-  it("„meine“ zeigt die eigene Freigabe; eine fremde (anderer Pruefer) erscheint in KEINER Liste", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
-    // Rike koordiniert — hier aber nur als FREMDE Pruefer-/Erstellerzeile im Bild; welcher Akteur
-    // gerendert wird, entscheidet allein `akteur(malte)` weiter unten.
-    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
-    const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
-    // MEINE: Malte ist der eingetragene Pruefer.
+  it("kein `href` und kein Knopf traegt den Teilstring `verteilen`", async () => {
+    const malte = legePerson("malte", "auftrag");
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Unverteilt" });
     legeAufgabe({
-      titel: "Meine Freigabe", erstellerId: rike.id, zugewiesenAn: alina.id,
-      prueferId: malte.id, status: "freigabe_offen",
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Zugewiesen", status: "verteilt",
     });
-    // EIN ANDERER PRUEFER (Rike) — `darfFreigeben` lehnt das fuer Malte rundweg ab (er ist weder
-    // der Pruefer noch koordiniert er); die Aufgabe darf in KEINER seiner beiden Listen auftauchen.
-    legeAufgabe({
-      titel: "Anderer Pruefer", erstellerId: rike.id, zugewiesenAn: alina.id,
-      prueferId: rike.id, status: "freigabe_offen",
-    });
-
-    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
-
-    const abschnitt = query("#freigabe");
-    expect(abschnitt.textContent).toContain("Meine Freigabe");
-    expect(abschnitt.textContent).not.toContain("Anderer Pruefer");
-    expect(abschnitt.textContent).toContain("Keine Freigabe in Vertretung offen");
+    await zeige(malte);
+    const ziele = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href") ?? "");
+    expect(ziele.filter((z) => z.includes("verteilen"))).toEqual([]);
+    expect(queryAll("button").map((b) => b.textContent)).not.toContain("Verteilen");
   });
 
-  it("Leerzustaende der Freigabe-Warteschlange, ausgeschrieben", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
-    const abschnitt = query("#freigabe");
-    expect(abschnitt.textContent).toContain("Keine Freigabe offen");
-    expect(abschnitt.textContent).toContain("Keine Freigabe in Vertretung offen");
-  });
-
-  /*
-   * DIE KERNZUSAGE DER GANZEN AUFGABE (Spec §8.3, Brief woertlich): kein Weg zum Verteilen. Sucht
-   * aktiv nach einem Verweis/Knopf, statt die Abwesenheit nur zu behaupten — dieselbe Disziplin wie
-   * die e2e-Gegenprobe auf `/verteilen` (404 fuer `auftrag`).
-   */
-  it("enthaelt keinen Weg zum Verteilen — kein Verweis auf /verteilen, kein „Verteilen“-Knopf", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    legeAufgabe({ titel: "Im Posteingang", erstellerId: malte.id, status: "eingegangen" });
-
-    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
-
-    const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
-    expect(hrefs.some((h) => h?.includes("verteilen"))).toBe(false);
-    const beschriftungen = [
-      ...queryAll("a").map((a) => a.textContent),
-      ...queryAll("button").map((b) => b.textContent),
-    ];
-    expect(beschriftungen).not.toContain("Verteilen");
-  });
-
-  it("die Kontextzeile nennt Anzahl, offen und Freigabe (Spec §9.4-Beispiel)", async () => {
-    const malte = legePerson("dev:malte@test", "auftrag");
-    legeAufgabe({ titel: "A", erstellerId: malte.id, status: "eingegangen" });
-    legeAufgabe({ titel: "B", erstellerId: malte.id, status: "abgeschlossen" });
-    await mount(<EinstiegAuftrag db={t.db} akteur={akteur(malte)} heute={HEUTE} />);
-    expect(document.body.textContent).toContain("2 Aufträge insgesamt");
-    expect(document.body.textContent).toContain("1 offen");
+  it("die Fuehrungskarte des Auftraggebers oeffnet keinen Verteil-Dialog", async () => {
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({ erstellerId: malte.id, titel: "Unverteilt" });
+    await zeige(malte);
+    expect(queryAll("[data-testid^='verteilen-']")).toHaveLength(0);
   });
 });

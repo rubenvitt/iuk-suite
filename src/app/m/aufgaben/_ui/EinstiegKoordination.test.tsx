@@ -1,12 +1,36 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, aufgaben, type PersonRow, type Rolle } from "../_db/schema";
+import { montagDerWoche, wochenTage } from "../_lib/datum";
+import { lage } from "../_lib/lage";
 import type { Akteur } from "../_lib/zugang";
 import s from "./aufgaben.module.css";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const { EinstiegKoordination } = await import("./EinstiegKoordination");
+// `balkenMasse` IST SEIT DER ZWEITEN OBERFLAECHEN-RUNDE EIGENSTAENDIG (`./Balken.tsx`) — der
+// Wochenplan ist ihr zweiter Aufrufer. Die Faelle unten bleiben, wo sie stehen: sie pruefen die
+// SKALENWAHL, und die entstand hier.
+const { balkenMasse } = await import("./Balken");
+
+/*
+ * „VERTEILUNG" NACH DER OBERFLAECHEN-SPEC (2026-08-16 §3.4, §5.2).
+ *
+ * DIE KACHEL-FAELLE SIND MIT DEN KACHELN ENTFALLEN (§11.1) — „0-Kacheln bleiben stehen" und „jede
+ * Kachel mit Zahl > 0 traegt ein Ziel" pruefen eine Bauform, die §1.4 aufhebt. An ihre Stelle
+ * tritt die staerkere Zusage aus `lage.test.ts`; hier bleibt, was nur ueber das gerenderte DOM
+ * pruefbar ist.
+ *
+ * `lage()` WIRD ECHT GERUFEN, wie `page.tsx` es tut — ein Test gegen ein handgereichtes
+ * `Lage`-Objekt pruefte die Verdrahtung nicht, sondern setzte sie voraus.
+ */
 
 let t: TestDb;
 beforeEach(() => {
@@ -18,6 +42,7 @@ afterEach(async () => {
 });
 
 const HEUTE = "2026-08-13";
+const TAGE = wochenTage(montagDerWoche(HEUTE));
 
 function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): PersonRow {
   return t.db
@@ -51,277 +76,413 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
     .get();
 }
 
-function kpiZahlen(): (string | null | undefined)[] {
-  return queryAll(`.${s.kpi}`).map((k) => k.querySelector("span")?.textContent);
-}
-
 /**
- * DIE FIXTUR-ZEILE ALS `Akteur`. `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF, NICHT ABGELEITET
- * AUS DER ZEILE (Quellenwechsel 2026-08-15): die Koordination kommt aus der Auth-Gruppe und liegt
- * damit auf einer ANDEREN Achse als `rolle` — eine Ableitung aus der Zeile ginge gar nicht mehr,
- * `ROLLEN` kennt `koordination` nicht mehr. Rike traegt deshalb `auftrag` in der Tabelle und wird
- * hier durchgehend als `akteur(rike, true)` gereicht — DIESE Seite IST der Koordinationseinstieg,
- * und die Sitzungsperson koordiniert darauf immer. Nicht jede einzelne Zusage unten HAENGT an dem
- * `true` (die Leerzustands- und Verweistests kaemen auch ohne Gruppe zum selben Ergebnis); die
- * tragenden tun es: `freigabeDaten` liest `istKoordination` fuer die Vertretungsliste, und
- * `darfVerteilen` gibt die Posteingang-Tabelle nur damit frei (`EinstiegKoordination.tsx`).
+ * `istKoordination` STEHT AUSDRUECKLICH AM AUFRUF (Quellenwechsel 2026-08-15): die Koordination
+ * kommt aus der Auth-Gruppe und liegt auf einer ANDEREN Achse als `rolle`. Rike traegt deshalb
+ * `auftrag` in der Tabelle und wird hier durchgehend als koordinierend gereicht — DIESE Seite IST
+ * der Koordinationseinstieg.
  */
-function akteur(p: PersonRow, istKoordination = false): Akteur {
+function akteur(p: PersonRow, istKoordination = true): Akteur {
   return { person: p, istKoordination };
 }
 
-describe("EinstiegKoordination — KPI-Zeile, Posteingang, Freigabe-Warteschlange, Ueberfaelligkeit", () => {
+async function zeige(p: PersonRow, istKoordination = true): Promise<void> {
+  const a = akteur(p, istKoordination);
+  await mount(
+    <EinstiegKoordination db={t.db} akteur={a} heute={HEUTE} lage={lage(t.db, a, HEUTE, TAGE)} />,
+  );
+}
+
+function flaeche(): HTMLElement {
+  return query("[data-testid='aufgaben-flaeche']");
+}
+
+describe("EinstiegKoordination — der Aufbau aus §3.4", () => {
+  it("die Fuehrungskarte ist das ERSTE Kind von `aufgaben-flaeche`", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    legeAufgabe({ erstellerId: rike.id, titel: "Posteingang" });
+    await zeige(rike);
+    expect(flaeche().firstElementChild?.getAttribute("data-rolle")).toBe("fuehrung");
+  });
+
   /**
-   * FIX-RUNDE 1, IMPORTANT 3: die vier Fixturzahlen sind ABSICHTLICH VERSCHIEDEN (2/3/1/4), nicht
-   * mehr drei gleiche Werte — sonst kann eine Vertauschung zwischen „Freigabe offen", „Überfällig"
-   * und „Zurückgewiesen" nicht rot werden. Zusaetzlich werden jetzt ALLE Listen, die eine Kachel
-   * traegt, im SELBEN Mount gegen ihre Kachelzahl gehalten (Posteingang-Tabelle, beide
-   * Freigabe-Listen, Ueberfaelligkeitsliste) — nicht nur die Ueberfaelligkeitsliste wie zuvor.
+   * DER ZAEHLRIEGEL — gemessen im Wrapper und nicht in `main`. Die Lage unten ist bewusst voll:
+   * Posteingang, Freigabe, Ueberfaelliges und Zurueckgewiesenes gleichzeitig. Genau eine Sprosse
+   * fuehrt, die uebrigen werden Zonen — und Zonen tragen keine Primaerknoepfe.
    */
-  it("die KPI-Zahlen stimmen mit den Listen darunter ueberein — Frist zaehlt, nicht der Zeitplan", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
+  it("traegt in der ganzen Flaeche hoechstens einen `.ant-btn-primary`", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Posteingang" });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: rike.id,
+      titel: "Freigabe", status: "freigabe_offen",
+    });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Überfällig", status: "verteilt", faelligAm: "2026-08-01",
+    });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Zurück", status: "zurueckgewiesen",
+    });
+    await zeige(rike);
+    expect(flaeche().querySelectorAll(".ant-btn-primary").length).toBeLessThanOrEqual(1);
+  });
 
-    // Zu verteilen: ZWEI Aufgaben im Posteingang.
-    legeAufgabe({ titel: "Posteingang 1", erstellerId: malte.id, status: "eingegangen" });
-    legeAufgabe({ titel: "Posteingang 2", erstellerId: malte.id, status: "eingegangen" });
-
-    // UEBERFAELLIG, TROTZ PLANDATUM IN DER ZUKUNFT: die Frist zaehlt, nicht der Zeitplan (Spec
-    // §8.2, Brief). faelligAm liegt VOR heute, planDatum NACH heute. EINE Aufgabe.
-    legeAufgabe({
-      titel: "Ueberfaellig trotz Planung",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      faelligAm: "2026-08-12",
-      planDatum: "2026-08-14",
-    });
-    // NICHT UEBERFAELLIG: ungeplant, aber Frist liegt in der Zukunft.
-    legeAufgabe({
-      titel: "Ungeplant, aber nicht ueberfaellig",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "verteilt",
-      faelligAm: "2026-08-20",
-      planDatum: null,
-    });
-
-    // Freigabe offen: DREI Aufgaben — zwei "meine" (Rike ist Pruefer), eine "in Vertretung"
-    // (Malte ist Pruefer, Rike sieht sie trotzdem, weil sie koordiniert).
-    legeAufgabe({
-      titel: "Meine Freigabe 1",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: rike.id,
-      status: "freigabe_offen",
-    });
-    legeAufgabe({
-      titel: "Meine Freigabe 2",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: rike.id,
-      status: "freigabe_offen",
-    });
-    legeAufgabe({
-      titel: "Vertretungsfall",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "freigabe_offen",
-    });
-
-    // Zurueckgewiesen: VIER Aufgaben.
-    for (let i = 1; i <= 4; i++) {
+  /**
+   * DERSELBE RIEGEL FUER DIE EINE LAGE, IN DER ER SEIT SCHRITT 6 UEBERHAUPT REISSEN KANN: eine
+   * fuehrende Karte UND eine Zone, die DIESELBE Aktion als Zeilenweg traegt.
+   *
+   * DIE FIXTUR IST GENAU DAFUER GEBAUT — DREI ueberfaellige, `verteilt`e Aufgaben. Damit fuehrt
+   * `koordUeberfaelligVerteilt` mit n = 3, wird nach R3 zugleich Zone (Position 1 mit mehr als
+   * einer Aufgabe), und jede der drei Zeilen bekommt ihren Zuweisungsweg (§3.2). Die Karte selbst
+   * traegt bei n > 1 keinen Primaerknopf.
+   *
+   * DER GEGENSTAND DER VORBEDINGUNG HAT SICH MIT DER OBERFLAECHEN-RUNDE 2026-08-16 GEAENDERT, DIE
+   * ZUSAGE NICHT: der Zeilenweg ist von `UmverteilenKnopf` (antd-Knopf, Modal) auf
+   * `_ui/ZuweisenInline.tsx` umgestellt, dessen Ausloeser „Zuweisen" heisst und KEIN antd-`Button`
+   * ist. Damit kann der Riegel an dieser Stelle strukturell nicht mehr reissen — vorher hing er an
+   * einem `primaer={false}` an der Aufrufstelle, also an einem Schalter, den man vergessen kann.
+   * DER TEST BLEIBT TROTZDEM: er bewacht jetzt, dass die Zeilen ueberhaupt einen Zuweisungsweg
+   * tragen UND dass die Flaeche dabei bei hoechstens einem Primaerknopf bleibt — die zweite Haelfte
+   * risse sofort, wenn jemand den Zeilenweg auf einen `type="primary"`-Knopf zuruecksetzte.
+   */
+  it("zaehlt auch dann hoechstens einen Primaerknopf, wenn Karte UND Zone die Zuweisung tragen", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    for (const titel of ["Ueberfaellig A", "Ueberfaellig B", "Ueberfaellig C"]) {
       legeAufgabe({
-        titel: `Zurueckgewiesen ${i}`,
-        erstellerId: malte.id,
-        zugewiesenAn: alina.id,
-        prueferId: malte.id,
-        status: "zurueckgewiesen",
+        erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+        titel, status: "verteilt", faelligAm: "2026-08-01",
       });
     }
+    await zeige(rike);
 
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-
-    expect(kpiZahlen()).toEqual(["2", "3", "1", "4"]);
-
-    // Posteingang-Tabelle: GENAU die zwei Zeilen der Kachel "Zu verteilen".
-    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
-
-    // Freigabe-Listen: zwei "meine" plus eine "in Vertretung" — zusammen die DREI der Kachel.
-    const freigabeListen = query("#freigabe").querySelectorAll("ul");
-    expect(freigabeListen[0]!.querySelectorAll("li")).toHaveLength(2);
-    expect(freigabeListen[1]!.querySelectorAll("li")).toHaveLength(1);
-
-    // DIESELBE ZAHL, DIESELBE LISTE, IM SELBEN RENDER: die Ueberfaelligkeitsliste enthaelt GENAU
-    // die eine Aufgabe mit verstrichener Frist, nicht die ungeplante mit Frist in der Zukunft.
-    const ueberfaelligZeilen = queryAll("#ueberfaellig li");
-    expect(ueberfaelligZeilen).toHaveLength(1);
-    expect(ueberfaelligZeilen[0]!.textContent).toContain("Ueberfaellig trotz Planung");
-    expect(ueberfaelligZeilen[0]!.textContent).not.toContain("Ungeplant, aber nicht ueberfaellig");
-
-    // DIE VIERTE LISTE, SEIT W4 VORHANDEN — dieselbe Regel wie fuer die drei darueber: die Zahl
-    // der Kachel und die Liste darunter kommen aus derselben Ableitung, im selben Render.
-    expect(queryAll("#zurueckgewiesen li")).toHaveLength(4);
+    // Die Vorbedingung wird MITGEPRUEFT: ohne die drei Zeilenwege bewiese die Zaehlung nichts.
+    const zuweisen = queryAll("button").filter((b) =>
+      (b.textContent ?? "").includes("Zuweisen"),
+    );
+    expect(zuweisen).toHaveLength(3);
+    // KEINER DAVON IST EIN antd-KNOPF — das ist der Grund, aus dem der Riegel jetzt strukturell
+    // haelt, und ohne diese Zeile bliebe er eine Behauptung ueber `ZuweisenInline`.
+    expect(zuweisen.filter((b) => b.classList.contains("ant-btn"))).toHaveLength(0);
+    expect(flaeche().querySelectorAll(".ant-btn-primary").length).toBeLessThanOrEqual(1);
   });
 
   /**
-   * FIX-RUNDE 1, MINOR 1: „Meine Freigabe" traegt jetzt `erstellerId: malte`, NICHT mehr
-   * `erstellerId: rike` — vorher koppelten beide Fixturzeilen `erstellerId` an `prueferId`
-   * (`erstellerId === prueferId` fuer „meine", `erstellerId === prueferId` fuer „Vertretung"), und
-   * eine falsche Implementierung ueber `a.erstellerId !== person.id` statt
-   * `istVertretungsfreigabe` haette den Test unveraendert bestanden. Jetzt bindet nur noch
-   * `prueferId`.
+   * DAS SPIEGELBILD DES RIEGELS DARUEBER — UND DER EINZIGE TEST, DER DEN KARTENWEG VON
+   * `umverteilenAction` UEBERHAUPT DURCHLAEUFT.
+   *
+   * WARUM ER GEBRAUCHT WIRD, obwohl `Fuehrungskarte.test.tsx` beide Raenge schon prueft: dort wird
+   * `optionen` als Prop GEREICHT, der Test mockt also genau die Verdrahtung weg, um die es hier
+   * geht. In Wirklichkeit kommt das Feld aus `kartenGrunddaten(db, akteur, heute, lage)`, das
+   * `aktionsOptionen` NUR fuer die fuehrende Zeile und NUR bei `lage.fuehrung.einzeln` rechnet.
+   * Vor Schritt 6 las KEINE Koordinations-Sprosse `props.optionen` — waere das Feld dort
+   * rollenabhaengig gefuellt, bliebe der Knopf auf der Karte still aus, und alle vier anderen
+   * Tore blieben gruen: der Riegel oben faehrt n = 3 (die Karte traegt dann ohnehin keinen
+   * Primaerknopf), und der e2e-Fall fuer Rike fuehrt am Seed-Tag mit `koordPosteingang`.
+   *
+   * GENAU EINE ueberfaellige, `verteilt`e Aufgabe — damit fuehrt `koordUeberfaelligVerteilt` mit
+   * n = 1, R3 loescht die Zone, und der Knopf kann nur aus der KARTE kommen.
    */
-  it("die Freigabe-Warteschlange trennt „meine“ von „in Vertretung“", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
-
-    // MEINE: Rike ist die eingetragene Pruefer — ABER NICHT die Erstellerin (entkoppelt von
-    // `erstellerId`, s. Kopfkommentar).
+  it("die Karte traegt bei genau einer ueberfaelligen `verteilt`-Aufgabe „Anders zuweisen“ als Primaerknopf", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
     legeAufgabe({
-      titel: "Meine Freigabe",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: rike.id,
-      status: "freigabe_offen",
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Materialtransport", status: "verteilt", faelligAm: "2026-08-01",
     });
-    // IN VERTRETUNG: Malte ist der eingetragene Pruefer, Rike sieht sie trotzdem (Vertretung).
-    legeAufgabe({
-      titel: "Vertretungsfall",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: malte.id,
-      status: "freigabe_offen",
-    });
+    await zeige(rike);
 
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-
-    const abschnitt = query("#freigabe");
-    const ueberschriften = Array.from(abschnitt.querySelectorAll("h3")).map((h) => h.textContent);
-    expect(ueberschriften).toEqual(["Meine", "In Vertretung"]);
-
-    const listen = abschnitt.querySelectorAll("ul");
-    expect(listen[0]!.textContent).toContain("Meine Freigabe");
-    expect(listen[0]!.textContent).not.toContain("Vertretungsfall");
-    expect(listen[1]!.textContent).toContain("Vertretungsfall");
-    expect(listen[1]!.textContent).not.toContain("Meine Freigabe");
+    const primaer = flaeche().querySelectorAll(".ant-btn-primary");
+    expect(primaer).toHaveLength(1);
+    // Die Beschriftung ist kurz; die Folge (`planLoeschen: true`) nennt der Dialog davor
+    // (`VerteilenDialog.test.tsx`) — bis zur Bildstrecken-Runde stand sie auf dem Knopf.
+    expect(primaer[0]!.textContent).toContain("Anders zuweisen");
+    // Der Knopf steht IN der Karte, nicht in einer Zone darunter — R3 laesst bei n = 1 keine
+    // entstehen, und ohne diese Zeile bewiese die Zaehlung nur „irgendwo auf der Flaeche".
+    expect(query("[data-rolle='fuehrung']").contains(primaer[0]!)).toBe(true);
   });
 
-  it("Leerzustaende: jede der vier Listen traegt ihren eigenen ausgeschriebenen Satz", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-    expect(document.body.textContent).toContain("Posteingang leer — alles verteilt");
-    expect(document.body.textContent).toContain("Keine Freigabe offen");
-    expect(document.body.textContent).toContain("Keine Freigabe in Vertretung offen");
-    expect(document.body.textContent).toContain("Keine überfälligen Aufgaben");
-    expect(document.body.textContent).toContain("Keine zurückgewiesene Aufgabe.");
+  /**
+   * DIE GEGENPROBE MIT DEMSELBEN BESTAND, NUR IN `in_arbeit` (Rang 5b) — KEIN Knopf. Sie ist der
+   * Beleg, dass der Test darueber tatsaechlich am ZUSTAND haengt und nicht daran, dass die Karte
+   * ohnehin irgendetwas Rotes zeigt: `_lib/lebenszyklus.ts` kennt `umverteilen` ausschliesslich
+   * aus `verteilt`, und ein Knopf neben einer angefangenen Aufgabe waere einer, den der Server
+   * danach ablehnt (§10 Prueffrage 2).
+   */
+  it("dieselbe Aufgabe in `in_arbeit` (Rang 5b) traegt gar keinen Primaerknopf", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Materialtransport", status: "in_arbeit", faelligAm: "2026-08-01",
+    });
+    await zeige(rike);
+
+    expect(flaeche().querySelectorAll(".ant-btn-primary")).toHaveLength(0);
+    expect(document.body.textContent).not.toContain("Anders zuweisen");
   });
 
-  it("0-Kacheln bleiben stehen und sind nicht verlinkt (kein <a>)", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-    const kacheln = queryAll(`.${s.kpi}`);
-    expect(kacheln).toHaveLength(4);
-    for (const kachel of kacheln) {
-      expect(kachel.closest("a"), kachel.textContent ?? "").toBeNull();
+  /**
+   * DER TEXTKNOPF DES SEITENKOPFS STEHT AUSSERHALB DES WRAPPERS (§3.3, §9/S9) — der Zaehlriegel
+   * faende ihn gar nicht, und genau deshalb ist seine Demotion mit einer ANDEREN Begruendung
+   * belegt als die des „Annehmen"-Knopfs: „hoechstens ein Primaerknopf" gilt fuer die GANZE Seite.
+   *
+   * DER RUHEFALL IST BEWUSST AUSGESCHLOSSEN: dort traegt die Karte SELBST „Aufgabe einstellen" als
+   * ihren Primaerknopf (§4.3) — mit einer leeren Datenbank pruefte dieser Test also das Gegenteil
+   * dessen, was sein Name sagt.
+   */
+  it("„Aufgabe einstellen“ steht im Seitenkopf und dort als Textknopf, nicht als Primaerknopf", async () => {
+    const rike = legePerson("rike", "auftrag");
+    legeAufgabe({ erstellerId: rike.id });
+    await zeige(rike);
+    const neu = queryAll<HTMLAnchorElement>("a").filter((a) => a.getAttribute("href") === "/neu");
+    expect(neu).toHaveLength(1);
+    expect(neu[0]!.className).not.toContain("ant-btn-primary");
+    expect(flaeche().contains(neu[0]!)).toBe(false);
+  });
+
+  /** Die Kontextzeile traegt die Zahlen der gestrichenen Kacheln — die Null als WORT (§3.5). */
+  it("die Kontextzeile nennt alle vier Kennzahlen und schreibt die Null als Wort", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({ erstellerId: malte.id });
+    await zeige(rike);
+    const zeile = queryAll("p")
+      .map((p) => p.textContent ?? "")
+      .find((z) => z.includes("zu verteilen"));
+    expect(zeile).toBe(
+      "1 zu verteilen · nichts wartet auf Freigabe · nichts überfällig · nichts zurückgewiesen",
+    );
+  });
+});
+
+describe("EinstiegKoordination — „Auslastung diese Woche“ (Flaeche der Rolle, §5.2)", () => {
+  /**
+   * DIE ZAHL MUSS VOR DER ENTSCHEIDUNG SICHTBAR SEIN, ein Modal ueberhaupt zu oeffnen (§5.2/S10) —
+   * bis hierhin existierte die Auslastung nur INNERHALB des Verteilen-Dialogs.
+   */
+  it("zeigt je aktiver BuFDi eine adressierbare Zeile mit Wochenwert und Zeitplan-Verweis", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    const bendix = legePerson("bendix", "bufdi", { name: "Bendix" });
+    legePerson("doerte", "bufdi", { name: "Dörte", aktivBis: "2026-01-31" });
+    await zeige(rike);
+
+    const personen = queryAll("[data-person]");
+    expect(personen.map((p) => p.getAttribute("data-person")).sort()).toEqual(
+      [alina.id, bendix.id].sort(),
+    );
+    for (const abschnitt of personen) {
+      expect(abschnitt.getAttribute("aria-labelledby")).toBe(
+        `lage-${abschnitt.getAttribute("data-person")}`,
+      );
+      expect(abschnitt.textContent).toContain("/ 39 Std.");
+      expect(abschnitt.querySelector("a[href^='/plan/']")).toBeTruthy();
     }
   });
 
   /**
-   * DIE NAHT KACHEL → ZIEL, UEBER ALLE VIER KACHELN HINWEG (Abschlussreview W4) — kein Test je
-   * Kachel: genau diese Naht ist zweimal durchgerutscht (Aufgabe 13 vertagte zwei Kacheln ohne
-   * `href`, Aufgabe 16 loeste es nur fuer `EinstiegBufdi.tsx` auf, und „Zurückgewiesen" blieb hier
-   * ohne Ziel UND ohne Abschnitt). Vier Einzeltests haetten dieselbe Luecke ein drittes Mal offen
-   * gelassen — dieser hier zaehlt die Kacheln selbst ab und verlangt von JEDER mit Zahl > 0 ein
-   * Ziel, das es auf der Seite auch WIRKLICH GIBT (`getElementById`, nicht nur ein `href`, das
-   * plausibel aussieht).
+   * DER LEERFALL DER FLAECHE (§10 Prueffrage 6) — ein ausgeschriebener Satz mit dem Weg, ihn zu
+   * beheben, kein leerer Kasten, der wie ein Ladefehler aussieht.
    */
-  it("jede Kachel mit Zahl > 0 traegt ein Ziel, das auf dieser Seite existiert — alle vier", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
-    legeAufgabe({ titel: "P", erstellerId: malte.id, status: "eingegangen" });
-    legeAufgabe({
-      titel: "F", erstellerId: rike.id, zugewiesenAn: alina.id, prueferId: rike.id,
-      status: "freigabe_offen",
-    });
-    legeAufgabe({
-      titel: "U", erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
-      status: "verteilt", faelligAm: "2026-08-01",
-    });
-    legeAufgabe({
-      titel: "Z", erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
-      status: "zurueckgewiesen",
-    });
-
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-
-    const kacheln = queryAll(`.${s.kpi}`);
-    expect(kacheln).toHaveLength(4);
-    for (const kachel of kacheln) {
-      const beschriftung = kachel.textContent ?? "";
-      // Jede Kachel dieses Aufbaus traegt eine 1 — keine darf ohne Ziel bleiben.
-      const verweis = kachel.closest("a");
-      expect(verweis, `Kachel ohne Verweis: ${beschriftung}`).not.toBeNull();
-      const ziel = verweis!.getAttribute("href") ?? "";
-      expect(ziel, `Kachel mit leerem Verweis: ${beschriftung}`).not.toBe("");
-      // ERREICHBAR, NICHT NUR VORHANDEN: ein Anker ohne Abschnitt ist genau der Zustand vor W4.
-      if (ziel.startsWith("#")) {
-        expect(
-          document.getElementById(ziel.slice(1)),
-          `Anker ${ziel} hat keinen Abschnitt (Kachel: ${beschriftung})`,
-        ).not.toBeNull();
-      }
-    }
-
-    const hrefs = kacheln.map((k) => k.closest("a")!.getAttribute("href"));
-    expect(hrefs).toEqual(["#posteingang", "#freigabe", "#ueberfaellig", "#zurueckgewiesen"]);
-  });
-
-  it("verlinkt die Personenverwaltung UND das Archiv (Aufgabe 16)", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-    const hrefs = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
-    expect(hrefs).toContain("/personen");
-    expect(hrefs).toContain("/archiv");
+  it("ohne aktive BuFDi steht der ausgeschriebene Satz samt Weg", async () => {
+    const rike = legePerson("rike", "auftrag");
+    await zeige(rike);
+    expect(flaeche().textContent).toContain("Es ist noch keine BuFDi eingetragen.");
   });
 
   /**
-   * DIE FREIGABE-SEKTION IST SEIT AUFGABE 16 SCHREIBFAEHIG (vorher schreibgeschuetzt, Aufgabe
-   * 15s offen gelassene Beobachtung) — sie zeigt jetzt dieselben Freigeben-/Zurueckweisen-Knoepfe
-   * wie `/freigaben`/`EinstiegAuftrag.tsx` (`FreigabeAktionen` aus `FreigabeZone.tsx`), statt einer
-   * schreibgeschuetzten Liste.
+   * AUSLASTUNG IST NEUTRAL, NIE STATUSFARBE (Modulspec §9.3): der ueberbuchte Tag bekommt Kante
+   * PLUS Wort. Das Wort ist die Zusage, die ein Test treffen kann — die Kante steht im CSS und
+   * wird dort geprueft.
    */
-  it("die Freigabe-Sektion traegt jetzt Freigeben-/Zurueckweisen-Knoepfe (FreigabeZone, nicht mehr schreibgeschuetzt)", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    const malte = legePerson("dev:malte@test", "auftrag");
-    const alina = legePerson("dev:alina@test", "bufdi");
-    const meineFreigabe = legeAufgabe({
-      titel: "Meine Freigabe",
-      erstellerId: malte.id,
-      zugewiesenAn: alina.id,
-      prueferId: rike.id,
-      status: "freigabe_offen",
+  it("nennt einen ueberbuchten Tag beim Namen, statt ihn nur einzufaerben", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const alina = legePerson("alina", "bufdi", { name: "Alina", sollMinutenTag: 60 });
+    legeAufgabe({
+      erstellerId: rike.id, zugewiesenAn: alina.id, prueferId: rike.id,
+      status: "verteilt", planDatum: TAGE[0]!, dauerMinuten: 600,
     });
+    await zeige(rike);
+    const abschnitt = query(`[data-person='${alina.id}']`);
+    expect(abschnitt.textContent).toContain("überbucht");
+    expect(abschnitt.textContent).not.toContain("kein Tag überbucht");
+  });
+});
 
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-
-    expect(queryAll(`[data-testid='freigeben-${meineFreigabe.id}']`)).toHaveLength(1);
-    expect(queryAll(`[data-testid='zurueckweisen-${meineFreigabe.id}']`)).toHaveLength(1);
+describe("EinstiegKoordination — die Zonen (Regel R3, Regel D)", () => {
+  it("bei genau einer Aufgabe im Posteingang entsteht KEINE Zone — die Karte nennt sie", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Verbandskästen" });
+    await zeige(rike);
+    expect(queryAll("#posteingang")).toHaveLength(0);
+    expect(query("[data-rolle='fuehrung']").textContent).toContain("Verbandskästen");
   });
 
-  it("die Kontextzeile nennt beide Zahlen (Spec §9.4-Beispiel)", async () => {
-    const rike = legePerson("dev:rike@test", "auftrag");
-    const malte = legePerson("dev:malte@test", "auftrag");
-    legeAufgabe({ titel: "P1", erstellerId: malte.id, status: "eingegangen" });
-    legeAufgabe({ titel: "P2", erstellerId: malte.id, status: "eingegangen" });
-    await mount(<EinstiegKoordination db={t.db} akteur={akteur(rike, true)} heute={HEUTE} />);
-    expect(document.body.textContent).toContain("2 zu verteilen");
-    expect(document.body.textContent).toContain("0 warten auf Freigabe");
+  it("ab zwei Aufgaben traegt die Zone die Zahl in ihrer Ueberschrift", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag");
+    legeAufgabe({ erstellerId: malte.id, titel: "A" });
+    legeAufgabe({ erstellerId: malte.id, titel: "B" });
+    await zeige(rike);
+    expect(query("#posteingang h2").textContent).toBe("Zu verteilen (2)");
+  });
+
+  it("deckelt den Posteingang bei fuenf Zeilen und nennt `/verteilen` als Ausgang", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag");
+    for (let i = 0; i < 8; i++) legeAufgabe({ erstellerId: malte.id, titel: `A${i}`, faelligAm: `2026-08-2${i}` });
+    await zeige(rike);
+    const zone = query("#posteingang");
+    expect(zone.querySelectorAll("li")).toHaveLength(5);
+    const deckel = Array.from(zone.querySelectorAll("a")).find((a) =>
+      (a.textContent ?? "").includes("weitere"),
+    );
+    expect(deckel?.getAttribute("href")).toBe("/verteilen");
+    expect(deckel?.textContent).toContain("und 3 weitere");
+  });
+
+  /**
+   * ZWEI GETRENNTE UEBERSCHRIFTEN FUER 5a UND 5b (§3.5): sie koennen GLEICHZEITIG Zonen sein, und
+   * zwei Zonen mit derselben Ueberschrift waeren ein Anzeigefehler, den kein Riegel faende.
+   */
+  it("trennt „Ueberfaellig, noch nicht begonnen“ von „Ueberfaellig, in Bearbeitung“", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag");
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, titel: "Posteingang" });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "Nicht begonnen", status: "verteilt", faelligAm: "2026-08-01",
+    });
+    legeAufgabe({
+      erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+      titel: "In Arbeit", status: "in_arbeit", faelligAm: "2026-08-02",
+    });
+    await zeige(rike);
+    const ueberschriften = queryAll("h2").map((h) => h.textContent);
+    expect(ueberschriften).toContain("Überfällig, noch nicht begonnen (1)");
+    expect(ueberschriften).toContain("Überfällig, in Bearbeitung (1)");
+  });
+
+  /** GENAU EINE Angabe je Zeile (§3.6) — hier der Zugewiesene bzw. der Auftraggeber. */
+  it("jede Zonenzeile traegt genau einen Rollenzusatz", async () => {
+    const rike = legePerson("rike", "auftrag");
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    legeAufgabe({ erstellerId: malte.id, titel: "A" });
+    legeAufgabe({ erstellerId: malte.id, titel: "B" });
+    await zeige(rike);
+    for (const li of queryAll("#posteingang li")) {
+      expect(li.querySelectorAll("[data-rollen-zusatz]")).toHaveLength(1);
+      expect(li.querySelector("[data-rollen-zusatz]")?.textContent).toBe("Von Malte");
+    }
+  });
+});
+
+describe("EinstiegKoordination — der Fuss", () => {
+  it("verlinkt Personenverwaltung und Archiv", async () => {
+    const rike = legePerson("rike", "auftrag");
+    await zeige(rike);
+    const ziele = queryAll<HTMLAnchorElement>("a").map((a) => a.getAttribute("href"));
+    expect(ziele).toContain("/personen");
+    expect(ziele).toContain("/archiv");
+  });
+});
+
+/*
+ * ══ DIE AUSLASTUNGSGRAFIK (Nachtrag „mehr Diversitaet im UI/UX", 2026-08-16).
+ *
+ * DIE MASSE STEHEN ALS REINE FUNKTION DA, WEIL EIN BILDSCHIRMABZUG EINEN FALSCH SKALIERTEN BALKEN
+ * NICHT ALS FEHLER ZEIGT — er zeigt einen Balken. Die Skalenwahl ist die eine Stelle, an der diese
+ * Grafik still unwahr wird, und genau die wird hier nachgerechnet statt angesehen.
+ */
+describe("balkenMasse — die Skala ist `max(soll, verplant)`, nicht `soll`", () => {
+  it("fuellt unterhalb der Kapazitaet anteilig und setzt keine Marke", () => {
+    const { ueber, anteil } = balkenMasse(360, 2340);
+    expect(ueber).toBe(false);
+    expect(anteil).toBeCloseTo((360 / 2340) * 100, 5);
+  });
+
+  /**
+   * DER FALL, GEGEN DEN DIE SKALA GEWAEHLT IST: mit einer 100%-Spur waeren „genau voll" und
+   * „ueberbucht" BEIDE ein voller Balken — die Ueberbuchung waere die einzige Aussage, die die
+   * Grafik nicht treffen koennte. Beide Faelle stehen deshalb nebeneinander im selben Test: erst
+   * der Gleichstand, dann die Ueberschreitung, und der Unterschied MUSS sichtbar sein.
+   */
+  it("unterscheidet „genau voll“ von „ueberbucht“ — beides waere sonst ein voller Balken", () => {
+    const voll = balkenMasse(468, 468);
+    expect(voll.ueber).toBe(false);
+    expect(voll.anteil).toBe(100);
+    expect(voll.markeBei).toBe(100);
+
+    const drueber = balkenMasse(550, 468);
+    expect(drueber.ueber).toBe(true);
+    expect(drueber.anteil).toBe(100);
+    // DIE MARKE RUECKT NACH LINKS — das ist der ganze sichtbare Unterschied zum Fall darueber.
+    expect(drueber.markeBei).toBeCloseTo((468 / 550) * 100, 5);
+    expect(drueber.markeBei).toBeLessThan(100);
+  });
+
+  /**
+   * `soll === 0` IST KEIN GEDACHTER FALL: `arbeitstage` kann einen Tag ausschliessen. Ohne den
+   * Sonderzweig waere die Breite `NaN%`, CSS verwuerfe sie STILL, und der Streifen saehe aus wie
+   * ein freier Tag — das Gegenteil dessen, was Verplantes an einem Nicht-Arbeitstag bedeutet.
+   */
+  it("laesst bei Soll 0 keinen NaN entstehen — leerer Tag leer, belegter Tag voll und ueber", () => {
+    const leer = balkenMasse(0, 0);
+    expect(Number.isNaN(leer.anteil)).toBe(false);
+    expect(leer.anteil).toBe(0);
+    expect(leer.ueber).toBe(false);
+
+    const belegt = balkenMasse(60, 0);
+    expect(Number.isNaN(belegt.anteil)).toBe(false);
+    expect(belegt.anteil).toBe(100);
+    expect(belegt.ueber).toBe(true);
+  });
+});
+
+describe("EinstiegKoordination — die Form folgt dem Zweck (Nachtrag „mehr Diversitaet“)", () => {
+  /**
+   * ZWEI SETZUNGEN AUF EINER FLAECHE, UND DIE ZUORDNUNG IST DIE AUSSAGE: „Überfällig" ist die Zone,
+   * in der man VERGLEICHT (Raster mit ausgerichteten Spalten und Aktionsspalte); „Zurückgewiesen"
+   * die, in der man nur wissen will, DASS es sie gibt (knappe Zeile ohne reservierte Spuren).
+   *
+   * DER TEST PRUEFT BEIDE SEITEN. Nur „die zurueckgewiesene Zone ist knapp" waere auch von einer
+   * Fassung erfuellt, die ALLE Zonen knapp setzt — und damit waere die Diversitaet wieder fort,
+   * nur in die andere Richtung.
+   */
+  it("setzt „Zurückgewiesen“ knapp und „Überfällig“ als Raster", async () => {
+    const rike = legePerson("rike", "auftrag", { name: "Rike" });
+    const malte = legePerson("malte", "auftrag", { name: "Malte" });
+    const alina = legePerson("alina", "bufdi", { name: "Alina" });
+    for (const titel of ["Ueberfaellig A", "Ueberfaellig B"]) {
+      legeAufgabe({
+        erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+        titel, status: "verteilt", faelligAm: "2026-08-01",
+      });
+    }
+    for (const titel of ["Zurueck A", "Zurueck B"]) {
+      legeAufgabe({
+        erstellerId: malte.id, zugewiesenAn: alina.id, prueferId: malte.id,
+        titel, status: "zurueckgewiesen",
+      });
+    }
+    await zeige(rike);
+
+    const knapp = query("[data-anlass='koordZurueckgewiesen'] ul");
+    const raster = query("[data-anlass='koordUeberfaelligVerteilt'] ul");
+    expect(knapp.className).toContain(s.zeilenListeKnapp);
+    expect(raster.className).not.toContain(s.zeilenListeKnapp);
+    // BEIDE tragen die Basisklasse — `knapp` ist eine Ergaenzung, keine zweite Liste.
+    expect(knapp.className).toContain(s.zeilenListe);
+    expect(raster.className).toContain(s.zeilenListe);
   });
 });

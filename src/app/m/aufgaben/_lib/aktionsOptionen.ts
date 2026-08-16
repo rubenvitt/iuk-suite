@@ -31,6 +31,22 @@ export interface AktionsOptionen {
   wiederaufnehmen: boolean;
   zurueckziehen: boolean;
   /**
+   * ANDERS ZUWEISEN (Oberflaechen-Spec 2026-08-16 §7 Nr. 3, Schritt 6) — der bis dahin fehlende
+   * Aufrufer von `umverteilenAction`. Ueber DIESELBE `uebergang()`-Schleife wie die sieben Felder
+   * darueber, also ohne eine einzige nachgebaute Bedingung: `_lib/lebenszyklus.ts` fuehrt
+   * `{ von: "verteilt", aktion: "umverteilen", nach: "verteilt", wer: darfVerteilen,
+   * planLoeschen: true }` — erlaubt damit GENAU aus `verteilt` und GENAU fuer `darfVerteilen`.
+   *
+   * WARUM DAS FELD UND NICHT EIN HANDGESCHRIEBENES `status === "verteilt" && istKoordination` AN
+   * DEN DREI ANZEIGESTELLEN (Fuehrungskarte Rang 1 und 5a, Zone „Überfällig", `AktionsZone`):
+   * §11.3 sagt zu, dass kein Zugriffspraedikat einen zweiten Aufrufer mit ANDERER Quelle bekommt.
+   * Drei Nachbauten waeren drei Orte, an denen die Bedingung von der Tabelle wegdriften kann — und
+   * die Drift waere nicht sichtbar kaputt, sondern nur falsch: ein Knopf, den der Server danach
+   * ablehnt (§10 Prueffrage 2: „ein Knopf, den die Action ablehnen wuerde, kann gar nicht
+   * entstehen").
+   */
+  umverteilen: boolean;
+  /**
    * NACHWEIS HOCHLADEN (Aufgabe 19) — KEIN Uebergang der Tabelle, deshalb NICHT ueber `uebergang()`
    * ermittelt wie die sieben Felder oben, sondern direkt unten. Erlaubt bei genau der Bedingung, die
    * `_lib/lebenszyklus.ts`s `in_arbeit`×`fertig`-Zeile fuer "wer" traegt (`darfNachweisHochladen`,
@@ -48,6 +64,7 @@ const GEPRUEFTE_AKTIONEN: readonly (keyof AktionsOptionen)[] = [
   "zurueckweisen",
   "wiederaufnehmen",
   "zurueckziehen",
+  "umverteilen",
 ];
 
 export function aktionsOptionen(a: AufgabeRow, akteur: Akteur, heute: string): AktionsOptionen {

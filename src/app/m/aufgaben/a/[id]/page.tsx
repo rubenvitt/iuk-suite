@@ -1,6 +1,13 @@
 import { notFound } from "next/navigation";
 import { getDb, type DB } from "../../_db/client";
-import { allePersonen, aufgabe, mitDatei, nachweiseFuer, verlaufFuer } from "../../_db/queries";
+import {
+  allePersonen,
+  aufgabe,
+  mitDatei,
+  nachweiseFuer,
+  verlaufFuer,
+  verteilDaten,
+} from "../../_db/queries";
 import type { AufgabeRow } from "../../_db/schema";
 import { NACHWEIS_MAX_BYTES } from "../../_lib/ablage";
 import { aktionsOptionen } from "../../_lib/aktionsOptionen";
@@ -15,6 +22,7 @@ import {
 } from "../../_lib/zugang";
 import { AktionsZone } from "../../_ui/AktionsZone";
 import { PrioritaetChip, StatusChip } from "../../_ui/Chip";
+import { Frist } from "../../_ui/Frist";
 import { Ikone } from "../../_ui/ikonen";
 import { NachweisBild } from "../../_ui/NachweisBild";
 import { NichtEingetragenSeite } from "../../_ui/NichtEingetragenSeite";
@@ -59,6 +67,19 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
   const nachweisListe = nachweisSichtbar ? mitDatei(db, nachweiseFuer(db, task.id)) : [];
   const verlaufListe = verlaufFuer(db, task.id);
   const optionen = aktionsOptionen(task, akteur, heute);
+  /*
+   * DIE ZIELE FUER „ANDERS ZUWEISEN" (Oberflaechen-Spec 2026-08-16 §7 Nr. 3, Schritt 6) — GELADEN
+   * NUR, WENN DIE AKTION UEBERHAUPT ERLAUBT IST. `optionen.umverteilen` ist
+   * `uebergang(task, "umverteilen", akteur, heute).erlaubt` und traegt damit BEIDES: den Zustand
+   * (`verteilt`) und `darfVerteilen`. Ein zweites, hier geschriebenes `akteur.istKoordination`
+   * waere genau der Nachbau, den §11.3 verbietet — und die Abfrage liefe fuer jede BuFDi auf jeder
+   * Detailseite mit, ohne je gebraucht zu werden.
+   *
+   * `verteilDaten` IST DIESELBE LADEFUNKTION WIE AUF `/verteilen` UND IM EINSTIEG — die Zielliste
+   * kommt daraus aus `bufdis()`, nicht aus `aktivePersonen()`. Eine ausgeschiedene Person ist kein
+   * Verteilziel, und dieser Riegel bleibt woertlich (§11.3).
+   */
+  const verteilZiele = optionen.umverteilen ? verteilDaten(db, heute) : null;
 
   return (
     <>
@@ -73,6 +94,14 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
       >
         <StatusChip status={task.status} />
         <PrioritaetChip prioritaet={task.prioritaet} />
+        {/*
+         * DIE FRIST STEHT SEIT DER OBERFLAECHEN-SPEC (§7 Nr. 1) IN DER CHIP-ZEILE, in der festen
+         * Reihenfolge Zustand · Prioritaet · Frist · Nachweispflicht. Vorher stand sie
+         * AUSSCHLIESSLICH im Metablock darunter — die wichtigste Zahl der Seite also je nach
+         * Ansicht an unterschiedlichen Orten, und ueberfaellig sah dort aus wie jedes andere Datum.
+         * Der Metablock behaelt seinen Eintrag, weil er als einziger die Uhrzeit traegt.
+         */}
+        <Frist aufgabe={task} heute={heute} />
         <span style={SCHRIFT.neben}>
           Nachweispflicht: {task.nachweisPflicht ? `Ja (${NACHWEIS_ART_TEXT[task.nachweisArt]})` : "Nein"}
         </span>
@@ -131,7 +160,20 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
 
       <section id="aktion" style={{ marginBlockEnd: SPACE.xl }}>
         <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Aktion</h2>
-        <AktionsZone aufgabe={task} optionen={optionen} nachweisMaxBytes={NACHWEIS_MAX_BYTES} />
+        <AktionsZone
+          aufgabe={task}
+          optionen={optionen}
+          nachweisMaxBytes={NACHWEIS_MAX_BYTES}
+          verteilen={
+            verteilZiele === null
+              ? null
+              : {
+                  bufdis: verteilZiele.bufdis,
+                  auslastung: verteilZiele.auslastung,
+                  tage: verteilZiele.tage,
+                }
+          }
+        />
       </section>
 
       <section id="verlauf">

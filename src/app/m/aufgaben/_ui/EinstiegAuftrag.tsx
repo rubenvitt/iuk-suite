@@ -1,65 +1,62 @@
-import { Button } from "antd";
-import { allePersonen, aufgabenVonErsteller, freigabeDaten } from "../_db/queries";
+import Link from "next/link";
+import { aufgabenVonErsteller } from "../_db/queries";
 import type { DB } from "../_db/client";
 import type { AufgabeRow } from "../_db/schema";
-import { namenMap } from "../_lib/anzeige";
+import { kartenGrunddaten } from "../_lib/kartendaten";
+import type { Lage } from "../_lib/lage";
 import type { Akteur } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { AufgabenListe, type AufgabenListeZeile } from "./AufgabenListe";
-import { FreigabeZone } from "./FreigabeZone";
+import { Fuehrungskarte } from "./Fuehrungskarte";
 import { SeitenKopf } from "./SeitenKopf";
+import s from "./aufgaben.module.css";
 
 /*
- * „MEINE AUFTRAEGE" — DER AUFTRAGGEBER-EINSTIEG (Spec §8.3, Aufgabe 15). Server Component (kein
- * "use client") — sie liest `db` direkt, wie `EinstiegBufdi.tsx`/`EinstiegKoordination.tsx`;
- * `page.tsx` bleibt duenn.
+ * „MEINE AUFTRAEGE" — DER AUFTRAGGEBER-EINSTIEG, NEU GEBAUT NACH DER OBERFLAECHEN-SPEC (2026-08-16
+ * §3.4, §5.3). Server Component (kein "use client").
  *
- * OBEN DER KNOPF, DER DER GRUND FUER DAS GANZE MODUL IST (Brief, woertlich): „Aufgabe einstellen"
- * steht in `SeitenKopf`s `aktionen`-Slot, rechts neben der Ueberschrift — dieselbe Position, an der
- * `routinen/page.tsx`/`personen/page.tsx` ihr Formular UNTER dem Kopf zeigen, aber hier ist der
- * Knopf selbst die Handlung: er fuehrt zu `/neu`, nicht zu einem eingebetteten Formular auf dieser
- * Seite (Spec §8.3 beschreibt „Aufgabe einstellen" als Knopf, nicht als Inline-Formular — anders
- * als `RoutineFormular`/`PersonenFormular`, die IMMER sichtbar auf ihrer eigenen Seite stehen).
+ * FUER DIESE ROLLE EXISTIERT EBENE 4 DES AUFBAUS NICHT (§3.4, R3-Ausnahmetabelle) — und das ist
+ * kein toter Zweig, sondern die richtige Antwort auf eine Flaeche, die ihren Bestand ohnehin ganz
+ * zeigt: „Eigene Auftraege" listet JEDE eigene Zeile, UNGEDECKELT (Regel D nimmt die Flaeche der
+ * Rolle aus). Jede Zone waere eine wortwoertliche Wiederholung zwei Bildschirmzentimeter tiefer.
+ * `lage()` liefert fuer diese Ansicht deshalb auch keine Zonen — `R3_AUSNAHMEN.auftrag` enthaelt
+ * alle drei Sprossen.
  *
- * DIESE ANSICHT ENTHAELT KEINE VERTEIL-AKTION (Brief, Spec §8.3, woertlich): „der Weg zum Verteilen
+ * DIESE ANSICHT ENTHAELT KEINE VERTEIL-AKTION (Modulspec §8.3, woertlich): „der Weg zum Verteilen
  * existiert in ihrer Oberflaeche nicht, und /verteilen antwortet ihnen mit 404. Beides prueft
- * dasselbe Praedikat aus derselben Quelle." Aufgabe 14 hat den Riegel gebaut (`verteilen/page.tsx`
- * ruft `darfVerteilen`) — DIESE Datei baut die andere Haelfte, indem sie schlicht KEINEN Verweis auf
- * `/verteilen` und KEINE `VerteilenTabelle`/`VerteilenDialog`-Komponente einbindet. Kein Praedikat
- * noetig, wo kein Pfad existiert — `EinstiegAuftrag.test.tsx` haelt das als Gegenprobe fest (sucht
- * aktiv nach einem Verweis, statt die Abwesenheit nur zu behaupten).
+ * dasselbe Praedikat aus derselben Quelle." KEIN WORT UND KEIN `href` MIT DEM TEILSTRING
+ * `verteilen` als Weg — „Noch nicht verteilt" ist TEXT, nie Link; e2e scannt aktiv jedes `href`
+ * dieser Seite danach. Deshalb bekommt die Fuehrungskarte hier `verteilen={null}`: ohne
+ * Verteil-Ziele kann der Modal gar nicht entstehen.
  *
- * `aufgabenVonErsteller(db, person.id)` (Aufgabe 4) ZEIGT NUR DIE EIGENEN AUFTRAEGE — fremde
- * erscheinen strukturell nicht, weil die Abfrage selbst auf `erstellerId` filtert (keine
- * Server-seitige UND client-seitige Kopie derselben Filterung, die auseinanderlaufen koennte).
- *
- * DIE FREIGABE-WARTESCHLANGE IST DIESELBE `FreigabeZone`-KOMPONENTE WIE `/freigaben` (Aufgabe 15,
- * Vorbild `VerteilenTabelle`s geteilte Verwendung durch `EinstiegKoordination.tsx` UND
- * `verteilen/page.tsx`) — `_db/queries.ts`s `freigabeDaten(db, akteur, heute)` ist die EINE
- * Ladefunktion fuer beide Aufrufer, s. deren Kopfkommentar. `EinstiegKoordination.tsx` bleibt
- * bewusst UNVERAENDERT (nicht Teil dieser Aufgabe): ihre eigene Freigabe-Sektion zeigt weiterhin nur
- * eine schreibgeschuetzte `AufgabenListe` ohne Aktionsknoepfe — ein bekannter, kleiner Nachzug, im
- * Bericht als Beobachtung festgehalten, keine stillschweigende Aenderung an einer Datei ausserhalb
- * des Auftrags dieser Aufgabe.
+ * DIE FREIGABE-WARTESCHLANGE IST KEINE EIGENE SEKTION MEHR: sie ist Rang 1 der Leiter und damit
+ * entweder die Karte (n = 1, mit `FreigabeAktionen`) oder ein Primaerknopf auf `/freigaben`
+ * (n > 1, nur bei `darfFreigabenSehen`). Die Route bleibt und ist der einzige Ort, der „meine" von
+ * „in Vertretung" trennt (§3.1).
  */
-export function EinstiegAuftrag({ db, akteur, heute }: { db: DB; akteur: Akteur; heute: string }) {
-  // Die Zeile eigens benannt, weil sie hier fast ueberall gebraucht wird (`id` fuer die eigenen
-  // Auftraege) — die Rechtefrage stellt allein `freigabeDaten` ueber den `Akteur`.
+export function EinstiegAuftrag({
+  db,
+  akteur,
+  heute,
+  lage,
+}: {
+  db: DB;
+  akteur: Akteur;
+  heute: string;
+  /** Der Zustands-Selektor, EINMAL in `page.tsx` gerufen (§4.1). */
+  lage: Lage;
+}) {
   const person = akteur.person;
+  // `aufgabenVonErsteller` ZEIGT NUR DIE EIGENEN AUFTRAEGE — fremde erscheinen strukturell nicht,
+  // weil die Abfrage selbst auf `erstellerId` filtert (keine server- UND clientseitige Kopie
+  // derselben Filterung, die auseinanderlaufen koennte).
   const meineAuftraege = aufgabenVonErsteller(db, person.id);
-  const namen = namenMap(allePersonen(db));
-  const { meine: meineFreigabe, vertretung: vertretungFreigabe } = freigabeDaten(db, akteur, heute);
-
-  const offenAnzahl = meineAuftraege.filter((a) => a.status !== "abgeschlossen").length;
-  const freigabeAnzahl = meineFreigabe.length + vertretungFreigabe.length;
-  const kontext =
-    `${meineAuftraege.length} Auftr${meineAuftraege.length === 1 ? "ag" : "äge"} insgesamt, ` +
-    `${offenAnzahl} offen, ${freigabeAnzahl} wartet${freigabeAnzahl === 1 ? "" : "en"} auf Freigabe.`;
+  const grund = kartenGrunddaten(db, akteur, heute, lage);
 
   const zeilen: AufgabenListeZeile[] = meineAuftraege.map((a) => ({
     aufgabe: a,
-    aktionen: <span style={{ fontSize: 12 }}>{empfaengerText(a, namen)}</span>,
+    rollenZusatz: empfaengerText(a, grund.namen),
   }));
 
   return (
@@ -67,34 +64,67 @@ export function EinstiegAuftrag({ db, akteur, heute }: { db: DB; akteur: Akteur;
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben" }]}
         titel="Meine Aufträge"
-        kontext={kontext}
+        kontext={lage.kontext}
         aktionen={
-          <Button type="primary" href="/neu">
-            Aufgabe einstellen
-          </Button>
+          // TEXTKNOPF IM SEITENKOPF, ALSO AUSSERHALB DES WRAPPERS (§3.3, §9/S9): der Zaehlriegel
+          // faende ihn gar nicht — demotiert wurde er trotzdem, weil „hoechstens ein Primaerknopf"
+          // fuer die GANZE Seite gilt und die Skizze in §5.3 ihn als Textknopf fuehrt.
+          <Link href="/neu">Aufgabe einstellen</Link>
         }
       />
 
-      <section id="auftraege" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Eigene Aufträge</h2>
-        <AufgabenListe zeilen={zeilen} heute={heute} leerText="Noch keine eigenen Aufträge." />
-      </section>
+      <div data-testid="aufgaben-flaeche">
+        <Fuehrungskarte
+          lage={lage}
+          heute={heute}
+          eigenePersonId={person.id}
+          verteilen={null}
+          vertretungAnzahl={0}
+          morgen={null}
+          {...grund}
+        />
 
-      <section id="freigabe" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>
-          Freigabe-Warteschlange
-        </h2>
-        <FreigabeZone meine={meineFreigabe} vertretung={vertretungFreigabe} heute={heute} />
-      </section>
+        {/* ── 3 · DIE FLAECHE DER ROLLE: alle eigenen Auftraege, ungedeckelt (Regel D) ── */}
+        <section id="auftraege" style={{ marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.xl }}>
+          {/*
+           * DIE UEBERSCHRIFT DER ROLLENFLAECHE TRITT ZURUECK (Oberflaechen-Runde 2026-08-16, zweite
+           * Haelfte) — dieselbe Aenderung wie bei `AnlassZone` (Befund 4) und bei „Diese Woche" auf
+           * der BuFDi-Flaeche, mit derselben Klasse und derselben Rolle aus der Leiter.
+           *
+           * HIER WIEGT SIE AM SCHWERSTEN, WEIL DIESE FLAECHE NUR EINE UEBERSCHRIFT HAT: fuer die
+           * Auftraggeber-Rolle gibt es Ebene 4 des Aufbaus gar nicht (s. Kopfkommentar), es steht
+           * also EIN Abschnitt unter der Fuehrungskarte. Ein 20/600-Titel ueber acht Zeilen mit
+           * 14px-Titeln war damit die groesste Schrift der halben Seite — fuer die Aussage
+           * „hier kommt eine Liste".
+           */}
+          <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.sm}px` }}>
+            Eigene Aufträge ({meineAuftraege.length})
+          </h2>
+          <AufgabenListe zeilen={zeilen} heute={heute} leerText="Noch keine eigenen Aufträge." />
+        </section>
+
+        {/* ── 5 · FUSS (Ebene 4 gibt es fuer diese Rolle nicht, s. Kopfkommentar) ── */}
+        {/*
+         * DER NEBENWEG IN TINTE STATT IN ROT (Befund 3, hier nachgezogen): „Archiv" ist Navigation,
+         * kein Signal — dieselbe Klasse, die `EinstiegKoordination` fuer seine zwei Fusslinks
+         * bereits traegt.
+         */}
+        <div style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
+          <Link href="/archiv" className={s.leiseLink}>
+            Archiv
+          </Link>
+        </div>
+      </div>
     </>
   );
 }
 
 /**
- * DER EMPFAENGER EINER EIGENEN AUFGABE (Spec §8.3: „die eigenen Auftraege mit Zustand und
- * Empfaenger"). `zugewiesenAn === null` heisst „noch nicht verteilt" (Status `eingegangen`, im
- * Posteingang der Koordination) — das ist kein Fehlerfall, sondern der Normalzustand einer frisch
- * fremd eingestellten Aufgabe, deshalb ein eigener Satz statt eines Gedankenstrichs.
+ * DER ROLLENZUSATZ EINER AUFTRAGGEBER-ZEILE (§3.6, §10 Prueffrage 7) — GENAU EINE Angabe:
+ * „Empfänger: X" bzw. „Noch nicht verteilt". `zugewiesenAn === null` heisst „noch nicht verteilt"
+ * (Status `eingegangen`, im Posteingang der Koordination) — das ist kein Fehlerfall, sondern der
+ * Normalzustand einer frisch fremd eingestellten Aufgabe, deshalb ein eigener Satz statt eines
+ * Gedankenstrichs. Ein STRING, keine Funktion (Falle 9).
  */
 function empfaengerText(a: AufgabeRow, namen: Record<string, string>): string {
   if (a.zugewiesenAn === null) return "Noch nicht verteilt";

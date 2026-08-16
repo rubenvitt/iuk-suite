@@ -82,6 +82,49 @@ export function tagePlus(iso: string, n: number): string {
   return ausAnker(d);
 }
 
+/** Ein Kalendertag in Millisekunden — nur fuer die Differenz zweier 12:00-UTC-Anker. */
+const TAG_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * VOLLE KALENDERTAGE VON `von` BIS `bis` (Oberflaechen-Spec 2026-08-16 §6.2) — positiv, wenn `bis`
+ * spaeter liegt, negativ sonst. DIE EINE STELLE, DIE „seit N Tagen" RECHNET: `_ui/Frist.tsx` und
+ * die Liegezeiten der Fuehrungskarte lesen dieselbe Zahl, und zwei Fassungen liefen an genau der
+ * Angabe auseinander, die die Schwere einer Ueberfaelligkeit traegt.
+ *
+ * UEBER DENSELBEN 12:00-UTC-ANKER WIE `tagePlus`, und das ist keine Formsache: eine Differenz auf
+ * dem rohen Instant zweier MITTERNACHTS-Zeitpunkte in Ortszeit ergibt ueber eine
+ * Sommerzeitumstellung hinweg 30,96 statt 31 Tage — `Math.floor` machte daraus 30, und die
+ * Ueberfaelligkeit waere fuer einen halben Herbst um einen Tag zu klein. Um 12:00 UTC kreuzt keine
+ * Verschiebung eine Umstellungsgrenze, die Differenz ist damit exakt ein Vielfaches von 24 Stunden;
+ * `Math.round` ist die Absicherung gegen eine kuenftige Schaltsekunde, keine Korrektur.
+ */
+export function tageZwischen(von: string, bis: string): number {
+  return Math.round((anker(bis).getTime() - anker(von).getTime()) / TAG_MS);
+}
+
+/**
+ * DIE ISO-8601-KALENDERWOCHE eines Tages (Oberflaechen-Spec 2026-08-16 §3.5) — die Kontextzeile der
+ * BuFDi beginnt mit „KW <n>", und ohne diese Funktion entstuende die Zahl in der Oberflaeche als
+ * zweite, ungeteste Fassung.
+ *
+ * ISO 8601 RECHNET UEBER DEN DONNERSTAG: die Woche gehoert dem Jahr, in dem ihr Donnerstag liegt.
+ * Deshalb wird der Tag zuerst auf den Donnerstag SEINER Woche geschoben und erst dann gegen den
+ * 1. Januar DIESES Jahres gezaehlt. Ein naives „Tag des Jahres durch sieben" laege am Jahreswechsel
+ * regelmaessig daneben: Fr 01.01.2027 gehoert zu KW 53 des Jahres 2026, nicht zu KW 1 von 2027.
+ *
+ * `getUTCDay() || 7` macht den Sonntag zur SIEBEN statt zur Null — dieselbe fachliche Zuordnung,
+ * die `montagDerWoche` ueber ihren `-6`-Zweig trifft: der Sonntag gehoert zur Woche davor. Ohne
+ * diese Zeile stuende am Sonntag die naechste Kalenderwoche in der Kontextzeile, waehrend die Achse
+ * darunter die abgelaufene zeigt.
+ */
+export function kalenderwoche(iso: string): number {
+  const d = anker(iso);
+  const tag = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - tag);
+  const jahresBeginn = new Date(Date.UTC(d.getUTCFullYear(), 0, 1, 12));
+  return Math.round((d.getTime() - jahresBeginn.getTime()) / TAG_MS / 7) + 1;
+}
+
 const WOCHENTAGE_KURZ = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"] as const;
 
 /**
@@ -97,6 +140,19 @@ export function fmtTagKurz(iso: string): string {
   const tag = String(d.getUTCDate()).padStart(2, "0");
   const monat = String(d.getUTCMonth() + 1).padStart(2, "0");
   return `${WOCHENTAGE_KURZ[d.getUTCDay()]}, ${tag}.${monat}.`;
+}
+
+/**
+ * NUR DER WOCHENTAG, OHNE DATUM — „Do".
+ *
+ * Gebraucht seit der Auslastungsgrafik (Nachtrag 2026-08-16): unter den fuenf Tagesstreifen steht
+ * je ein Kuerzel, und `fmtTagKurz` waere dort dreimal zu breit („Do, 13.08." unter einem 55px
+ * schmalen Streifen). Kein zweites Vokabular: dieselbe `WOCHENTAGE_KURZ`-Tabelle, aus demselben
+ * Grund wie dort keine `Intl`-Kurzform — deren Abkuerzungen sind zwischen ICU-Fassungen nicht
+ * stabil, und ein Linux-Runner haette damit andere Beschriftungen als die Entwicklermaschine.
+ */
+export function fmtWochentagKurz(iso: string): string {
+  return WOCHENTAGE_KURZ[anker(iso).getUTCDay()];
 }
 
 /**

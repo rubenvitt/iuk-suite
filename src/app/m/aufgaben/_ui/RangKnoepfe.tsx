@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "antd";
 import { rangVerschiebenAction } from "../actions";
 import { Ikone } from "./ikonen";
 import s from "./aufgaben.module.css";
@@ -75,20 +74,56 @@ export function RangKnoepfe({
   istLetzte: boolean;
 }) {
   return (
-    <div className={s.knopfzeile}>
+    /*
+     * ══ STILLE KNOEPFE STATT antd-`Button` (Oberflaechen-Runde 2026-08-16, zweite Haelfte) —
+     *    DIESELBE ENTSCHEIDUNG UND DIESELBE KLASSE WIE DER ZUWEISEN-AUSLOESER (`.zeilenKnopf`,
+     *    s. dort im Stylesheet).
+     *
+     *    DER BEFUND WAR DIE TAGESSPALTE: bei drei Eintraegen standen sechs vollflaechige
+     *    Schaltflaechen in einer 166px breiten Spalte, dauerhaft sichtbar, und sie waren das
+     *    Auffaelligste an der ganzen Woche — lauter als die Aufgabentitel, die sie ordnen.
+     *    `.planAktion` blendet sie jetzt erst bei Zuwendung ein; damit sie in dieser Rolle nicht
+     *    trotzdem wie eine Knopfleiste aussehen, tragen sie die stille Form.
+     *
+     *    WAS UNVERAENDERT BLEIBT, UND ZWAR VOLLSTAENDIG: zwei `<button type="submit">` in eigenen
+     *    `<form>`s (keine Maus-only-Geste), der sichtbare Text „Auf"/„Ab", das `aria-label` mit dem
+     *    Aufgabentitel, `disabled` als AFFORDANZ (deaktiviert vorhanden, nicht weg — die
+     *    Tabreihenfolge traegt je Zeile gleich viele Stopps), und die 44px Mindesthoehe aus
+     *    ARBEITSDICHTE. `getByRole("button", { name: … })` findet sie unveraendert; der Wegfall von
+     *    antds `Button` aendert die Rolle nicht, nur die Farbe.
+     *
+     *    KEIN `size` — die Begruendung dafuer steht ausfuehrlich im Kopfkommentar und gilt
+     *    unveraendert; ein `<button>` ohne antd kennt die Eigenschaft ohnehin nicht.
+     *
+     * ══ `.rangZeile` STATT `.knopfzeile`: unterhalb von 768px macht `.modul .knopfzeile > *` jedes
+     *    Kind vollbreit. Das ist fuer die Knopfzeile einer Fuehrungskarte richtig und fuer zwei
+     *    Rangknoepfe in einer Tageskarte falsch — dort waeren es zwei gestapelte Balken ueber die
+     *    ganze Kartenbreite. Zwei 44px-Knoepfe nebeneinander passen auch in 328px.
+     */
+    <div className={s.rangZeile}>
       <form action={rangVerschiebenAction}>
         <input type="hidden" name="aufgabeId" value={aufgabeId} />
         <input type="hidden" name="richtung" value="hoch" />
-        <Button htmlType="submit" disabled={istErste} aria-label={`„${titel}“ einen Rang nach oben verschieben`}>
+        <button
+          type="submit"
+          className={s.zeilenKnopf}
+          disabled={istErste}
+          aria-label={`„${titel}“ einen Rang nach oben verschieben`}
+        >
           <Ikone name="rang-hoch" /> Auf
-        </Button>
+        </button>
       </form>
       <form action={rangVerschiebenAction}>
         <input type="hidden" name="aufgabeId" value={aufgabeId} />
         <input type="hidden" name="richtung" value="runter" />
-        <Button htmlType="submit" disabled={istLetzte} aria-label={`„${titel}“ einen Rang nach unten verschieben`}>
+        <button
+          type="submit"
+          className={s.zeilenKnopf}
+          disabled={istLetzte}
+          aria-label={`„${titel}“ einen Rang nach unten verschieben`}
+        >
           <Ikone name="rang-runter" /> Ab
-        </Button>
+        </button>
       </form>
     </div>
   );

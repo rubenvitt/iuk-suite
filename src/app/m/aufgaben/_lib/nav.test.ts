@@ -88,7 +88,7 @@ function akteur(p: PersonRow, istKoordination = false): Akteur {
 const ROUTEN: Record<string, () => Promise<unknown>> = {
   "/": () => AufgabenPage({ searchParams: Promise.resolve({}) }),
   "/neu": () => NeuPage(),
-  "/verteilen": () => VerteilenPage(),
+  "/verteilen": () => VerteilenPage({ searchParams: Promise.resolve({}) }),
   "/freigaben": () => FreigabenPage(),
   "/routinen": () => RoutinenPage({ searchParams: Promise.resolve({}) }),
   "/personen": () => PersonenPage({ searchParams: Promise.resolve({}) }),
@@ -289,7 +289,7 @@ describe("DIE KERNZUSAGE: jeder Navigationseintrag ist fuer die jeweilige Rolle 
   it("die drei rollengebundenen Routen lehnen eine BuFDi tatsaechlich mit notFound() ab", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
     anmelden(alina);
-    await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(VerteilenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
     await expect(FreigabenPage()).rejects.toThrow("NEXT_NOT_FOUND");
     await expect(PersonenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });

@@ -233,7 +233,20 @@ test("Verteilung: die Koordination meldet sich an, die Modulwurzel zeigt „Vert
   // Minor 4 (Fix-Runde 1): dieser h1-Abruf allein waere auch vor Aufgabe 14 gruen gewesen (der
   // Platzhalter aus Aufgabe 13 trug denselben Titel) — die Posteingang-Zeile bindet den ECHTEN
   // Inhalt, wie es der `/verteilen`-Abruf unten schon tut.
+  /*
+   * DIE ZEILE BLEIBT GRUEN UND WIRD FRAGIL — beides benannt (Oberflaechen-Spec §3.3, §11.2): im
+   * Seed ist genau EINE Aufgabe `eingegangen`, also n = 1, und die Fuehrungskarte nennt bei n = 1
+   * den Titel. Eine zweite `eingegangene` Aufgabe im Seed liesse die Karte eine ZAHL zeigen, und
+   * dieser Abruf waere rot, ohne dass sich an der Oberflaeche etwas geaendert haette.
+   *
+   * DIE ZUSICHERUNG AUF DIE KARTE STEHT DESHALB DANEBEN: sie bindet, WO der Titel steht, statt nur
+   * DASS er irgendwo steht — und sie ist zugleich der Beleg, dass die Fuehrungskarte an erster
+   * Stelle der Flaeche gerendert wird.
+   */
   await expect(page.getByText("Verbandskästen im Fahrzeugpark prüfen")).toBeVisible();
+  const fuehrung = page.getByTestId("aufgaben-flaeche").locator("[data-rolle='fuehrung']");
+  await expect(fuehrung).toHaveCount(1);
+  await expect(fuehrung).toContainText("Verbandskästen im Fahrzeugpark prüfen");
   expect(konsolenFehler).toEqual([]);
 });
 
@@ -260,6 +273,117 @@ test("Verteilen: /verteilen antwortet der Koordination mit 200 und zeigt den Pos
   await expect(page.getByText("Verbandskästen im Fahrzeugpark prüfen")).toBeVisible();
   expect(konsolenFehler).toEqual([]);
 });
+
+/*
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * DIE ZWEITE SICHT AUF `/verteilen` (Nachtrag „mehr Diversitaet im UI/UX", vierte
+ * Oberflaechen-Runde 2026-08-16) — `?ansicht=liste` (Vorgabe) und `?ansicht=brett`.
+ *
+ * WARUM DIESE ZWEI FAELLE HIER STEHEN UND NICHT IN VITEST: `verteilen/page.test.tsx` prueft
+ * erschoepfend, WELCHE SICHT AUS WELCHEM PARAMETER FOLGT — das ist eine Frage an eine Funktion.
+ * Die zwei Zusagen unten sind Fragen an den BROWSER und strukturell nicht in jsdom beantwortbar:
+ * ob die Wahl einen echten Neuladen ueberlebt (eine Frage an die ADRESSE), und ob die eine
+ * Medienabfrage aus vier Spalten eine Spur macht (jsdom rechnet weder `@media` noch Grid-Spuren).
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * DIE ANSICHTSWAHL UEBERLEBT DEN NEULADEN — die Zusage, an der die ganze Bauform haengt.
+ *
+ * SIE IST DER GRUND, WARUM DIE WAHL IN DER ADRESSE LEBT und nicht in einem `useState`: ein
+ * Client-Zustand waere beim ersten `F5` fort, und kein Vitest saehe das je (dort gibt es kein
+ * Neuladen). Der Fall geht deshalb den vollen Weg — KLICKEN statt die Adresse direkt anzusteuern,
+ * damit auch die Leiste selbst mitgeprueft ist, dann `reload()`.
+ *
+ * DER FALL IST LESEND UND AENDERT KEINEN ZUSTAND: er darf an jeder Stelle der Datei stehen und
+ * stoert die Zieh-Tests und die zwei Rundlaeufe weiter unten nicht.
+ */
+test("Ansichtswahl: der Wechsel auf das Brett steht in der Adresse und ueberlebt den Neuladen", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: KOORDINATION,
+    email: "rike@localtest.me",
+    callbackPath: "/verteilen",
+  });
+  await page.goto(`http://${HOST}:3100/verteilen`);
+
+  // VORHER: die Liste, ohne Parameter — `/verteilen` ist per Vorgabe die Seite, die sie vor dieser
+  // Runde war (`alsAnsicht(undefined) === "liste"`).
+  await expect(page.locator("[data-rolle='brett']")).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Brett", exact: true }).click();
+  await expect(page).toHaveURL(/\/verteilen\?ansicht=brett$/);
+  await expect(page.locator("[data-rolle='brett']")).toBeVisible();
+
+  // DER EIGENTLICHE BEWEIS: ein echter Neuladen. Ein Client-Zustand waere hier fort.
+  await page.reload();
+  await expect(page).toHaveURL(/\/verteilen\?ansicht=brett$/);
+  await expect(page.locator("[data-rolle='brett']")).toBeVisible();
+  await expect(
+    page.locator("[data-rolle='ansichtwahl'] a[aria-current='page']"),
+    "nach dem Neuladen ist die gewaehlte Sicht nicht mehr ausgezeichnet",
+  ).toHaveAttribute("data-ansicht", "brett");
+
+  // UND ZURUECK — die Umschaltung geht in BEIDE Richtungen, und nur beide zusammen sind eine
+  // Umschaltung. Ein Test, der nur hin schaltet, bliebe auch dann gruen, wenn die Liste fort waere.
+  await page.getByRole("link", { name: "Liste", exact: true }).click();
+  await expect(page).toHaveURL(/\/verteilen\?ansicht=liste$/);
+  await expect(page.locator("[data-rolle='brett']")).toHaveCount(0);
+});
+
+/**
+ * AUF 360PX IST DAS BRETT KEINE SPALTENLANDSCHAFT, SONDERN EIN STAPEL — und das wird an den
+ * TATSAECHLICHEN KOORDINATEN gemessen, nicht am Stylesheet.
+ *
+ * `aufgaben-css.test.ts` prueft, dass die Datei die Absicht TRAEGT (`grid-template-columns:
+ * minmax(0, 1fr)` im 767.98px-Block). Ob ein Browser daraus eine Spur rechnet, sieht nur dieser
+ * Fall: bei 1280px muessen die Personenspalten VERSCHIEDENE x-Werte haben, bei 360px DENSELBEN.
+ * Beide Breiten in EINEM Fallpaar, damit ein Fehler in beide Richtungen sichtbar wuerde — eine
+ * Messung nur bei 360px bliebe auch dann gruen, wenn das Brett auf JEDER Breite stapelte, und das
+ * waere der Verlust der ganzen Sicht.
+ */
+for (const vp of [
+  { breite: 1280, hoehe: 900, erwartung: "nebeneinander" as const },
+  { breite: 360, hoehe: 800, erwartung: "gestapelt" as const },
+]) {
+  test.describe(`Brett bei ${vp.breite}px`, () => {
+    test.use({ viewport: { width: vp.breite, height: vp.hoehe } });
+
+    test(`steht ${vp.erwartung}`, async ({ page }) => {
+      await devLogin(page, {
+        host: HOST,
+        groups: KOORDINATION,
+        email: "rike@localtest.me",
+        callbackPath: "/verteilen",
+      });
+      const res = await page.goto(`http://${HOST}:3100/verteilen?ansicht=brett`);
+      expect(res?.status()).toBe(200);
+      await expect(page.locator("[data-rolle='brett']")).toBeVisible();
+
+      const spalten = page.locator("[data-rolle='brett'] [data-person]");
+      const anzahl = await spalten.count();
+      expect(anzahl, "der Seed traegt drei aktive BuFDis — ohne mehrere Spalten misst dieser Fall nichts").toBeGreaterThanOrEqual(2);
+
+      const xWerte: number[] = [];
+      for (let i = 0; i < anzahl; i++) {
+        const kasten = await spalten.nth(i).boundingBox();
+        expect(kasten, `Spalte ${i} hat keinen Kasten`).not.toBeNull();
+        xWerte.push(Math.round(kasten!.x));
+      }
+
+      if (vp.erwartung === "gestapelt") {
+        expect(new Set(xWerte).size, `gestapelt erwartet, gemessen x = ${xWerte.join(", ")}`).toBe(1);
+      } else {
+        expect(
+          new Set(xWerte).size,
+          `nebeneinander erwartet, gemessen x = ${xWerte.join(", ")}`,
+        ).toBe(anzahl);
+      }
+    });
+  });
+}
 
 /**
  * DIE KERNZUSAGE DER GESAMTEN AUFGABE (Spec §8.3, Brief woertlich): „/verteilen antwortet einer
@@ -878,6 +1002,23 @@ async function zieheZu(
   quelle: import("@playwright/test").Locator,
   ziel: import("@playwright/test").Locator,
 ): Promise<void> {
+  /*
+   * ERST IN DEN SICHTBAREN BEREICH ROLLEN, DANN MESSEN (Oberflaechen-Spec 2026-08-16, Schritt 4).
+   * `boundingBox()` liefert VIEWPORT-Koordinaten und rollt NICHT von selbst; `page.mouse.move()`
+   * nimmt ebenfalls Viewport-Koordinaten. Solange die Wochenachse das erste Element unter dem
+   * Seitenkopf war, lagen beide Griffe ohnehin im Bild. Seit die FUEHRUNGSKARTE darueber steht,
+   * rutscht die Achse bei einer langen Karte (Rang 1/3 mit Zustandsaktion, Sekundaerknoepfen und
+   * der Zeile „ALS NAECHSTES") unter die Falzkante — die Maus faehrt dann an Koordinaten unterhalb
+   * des Fensters, es feuert kein `dragstart`, und der Test laeuft in sein volles Zeitbudget mit
+   * einer Meldung, die nach einem abgelehnten POST klingt (Falle 11s Familie: ein Test, der etwas
+   * anderes misst, als sein Name sagt). GEMESSEN, NICHT VERMUTET: dieselben zwei Zuege scheiterten
+   * reproduzierbar bei Bendix und Carla — beide mit langer Karte — waehrend Alinas kuerzere Karte
+   * gruen blieb.
+   *
+   * DAS ZIEL ZUERST, DIE QUELLE ZULETZT: unter der Maus muss beim `mousedown` die QUELLE liegen.
+   */
+  await ziel.scrollIntoViewIfNeeded();
+  await quelle.scrollIntoViewIfNeeded();
   const quellBox = await quelle.boundingBox();
   const zielBox = await ziel.boundingBox();
   expect(quellBox, "Quelle des Zugs hat keine sichtbare Bounding Box").not.toBeNull();
@@ -1165,9 +1306,46 @@ const UEBERLAUF_SEITEN: { label: string; pfad: string; email: string; groups: st
   // Brief verlangt.
   { label: "/ (Bendix, ueberbuchter Montag)", pfad: "/", email: "bendix@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
   { label: "/ (Carla, laengster Routinenname)", pfad: "/", email: "carla@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
+  /*
+   * DIE ZWEI EINSTIEGE, DIE DIE OBERFLAECHEN-SPEC NEU BAUT (§3.3, §11.2) — NACHTRAEGLICH
+   * AUFGENOMMEN, WEIL DIE DECKUNG SONST GENAU DORT ZU KLEIN WAERE, WO SICH ETWAS AENDERT. Die
+   * Liste fuehrte bis hierher `/` fuer die DREI BuFDis, `/verteilen`, `/personen` und `/archiv` —
+   * also drei Fassungen derselben Rolle und keine einzige der beiden anderen. Rikes und Maltes
+   * Einstieg sind seit Schritt 4 neu gebaut (Fuehrungskarte, Zonen mit Deckel, „Die Woche der
+   * drei"), und beide bringen Zeilen mit, die auf 390px zuerst brechen: Rikes Zonenueberschriften
+   * tragen eine Zahl in Klammern, Maltes „Eigene Auftraege" ist ungedeckelt und damit die
+   * laengste Liste des Moduls.
+   *
+   * 6 → 8 Zeilen, 24 → 32 Faelle. Zur fuenften Breite (360px) siehe den eigenen Block unter dieser
+   * Schleife — sie wird GEZIELT gefahren, nicht global.
+   */
+  { label: "/ (Rike, Koordination)", pfad: "/", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilung" },
+  { label: "/ (Malte, Auftraggeber)", pfad: "/", email: "malte@localtest.me", groups: GRUPPE, titel: "Meine Aufträge" },
   // `Table` mit `scroll={{x: "max-content"}}` — die eine Seite, fuer die diese Zusicherung
   // ueberhaupt etwas beweist (s. Kopfkommentar).
   { label: "/verteilen", pfad: "/verteilen", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilen" },
+  /*
+   * ══ DIE BRETT-SICHT IST EINE EIGENE ZEILE, UND OHNE SIE WAERE DIESER SWEEP AN DER NEUEN
+   *    RISIKOFLAECHE BLIND (vierte Oberflaechen-Runde 2026-08-16).
+   *
+   *    Die Zeile darueber ruft `/verteilen` OHNE Suchparameter, und das ist per Vorgabe die
+   *    LISTE (`alsAnsicht(undefined) === "liste"`). Sie wuerde also fuer immer die Zeilenliste
+   *    messen und gruen melden, waehrend das Brett bei 390px oder 768px ueber den Rand laeuft —
+   *    ein Sweep, der etwas anderes misst, als sein Name sagt.
+   *
+   *    UND DAS BRETT IST GENAU DIE BREITESTE NEUE SACHE DER SEITE: N+1 Spalten mit einer
+   *    220px-Untergrenze je Spur. Bei 390px muss die Medienabfrage sie auf EINE Spur stapeln, bei
+   *    768px auf so viele, wie in 528px Inhaltsflaeche passen (die engste Breite des Moduls
+   *    ueberhaupt, s. Kopfkommentar der Breitenliste unten). Beides ist eine Rechnung, kein
+   *    Versprechen — und nur ein echter Browser rechnet sie.
+   */
+  {
+    label: "/verteilen?ansicht=brett",
+    pfad: "/verteilen?ansicht=brett",
+    email: "rike@localtest.me",
+    groups: KOORDINATION,
+    titel: "Verteilen",
+  },
   { label: "/personen", pfad: "/personen", email: "rike@localtest.me", groups: KOORDINATION, titel: "Personenverwaltung" },
   { label: "/archiv", pfad: "/archiv", email: "rike@localtest.me", groups: KOORDINATION, titel: "Archiv" },
 ];
@@ -1225,6 +1403,124 @@ for (const vp of [
         ).toBeLessThanOrEqual(mass.vwBody);
       });
     }
+  });
+}
+
+/**
+ * 360PX — DIE FUENFTE BREITE, UND SIE WIRD GEZIELT GEFAHREN STATT GLOBAL (Oberflaechen-Spec
+ * 2026-08-16 §9/S4, §11.2).
+ *
+ * WARUM UEBERHAUPT: 360px ist die Messbreite, an der die Spec ihre Skizzen bemisst und an der der
+ * Deckel von FUENF Zeilen je Zone begruendet ist („die Zeilenzahl, die auf 360px noch ueber der
+ * Falzkante einer Zone steht"). Die drei Einstiege sind die einzigen Flaechen, fuer die diese Zahl
+ * eine Aussage traegt — sie tragen die Fuehrungskarte mit ihren 16px Innenpolster (die eine
+ * Medienabfrage) und die Kartenform der Zeilen (`.zeilenListe > li { flex-direction: column }`).
+ *
+ * WARUM NICHT ALS FUENFTER EINTRAG IN DER BREITENLISTE OBEN: dieselbe Abwaegung, die der
+ * Kopfkommentar dort fuer `/routinen` und `/freigaben` schon ausschreibt — die Laufzeit dieses
+ * Sweeps waechst MULTIPLIKATIV ueber Seiten × Breiten, und 360px belegte fuer `/verteilen`,
+ * `/personen` und `/archiv` nichts, was 390px nicht schon belegt (keine dieser Seiten hat eine
+ * Schaltschwelle dazwischen; es gibt im ganzen Modul genau EINE Medienabfrage bei 767.98px).
+ * 9 × 4 + 4 = 40 Faelle statt 9 × 5 = 45.
+ *
+ * ⚠️ DIE BRETT-SICHT IST SEIT DER VIERTEN OBERFLAECHEN-RUNDE (2026-08-16) DIE EINE AUSNAHME VON DER
+ * ABWAEGUNG IM ABSATZ DARUEBER, und die Ausnahme ist begruendet, nicht bequem: `/verteilen?ansicht=
+ * brett` ist die EINZIGE Flaeche des Moduls, deren Spurenzahl aus einer 220px-Untergrenze folgt —
+ * 360px ist damit die Breite, an der eine Spur ueberhaupt noch passen MUSS, und 390px belegt das
+ * nicht (30px sind genau die Reserve, um die es geht). Es bleibt bei DREI Zeilen fuer `/`.
+ */
+test.describe("Kein waagerechtes Scrollen bei 360px — die drei Einstiege und das Brett", () => {
+  test.use({ viewport: { width: 360, height: 740 } });
+
+  // AUSGESCHRIEBEN STATT AUS `UEBERLAUF_SEITEN` GEFILTERT: ein Filter ueber `label` haenge an einer
+  // Zeichenkette, die niemand als Schnittstelle liest — waechst die Liste oben um eine vierte
+  // BuFDi, fuehre er sie hier still mit, und die Zahl im Kopfkommentar stimmte nicht mehr.
+  for (const seite of [
+    { label: "/ (Alina)", pfad: "/", email: "alina@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
+    { label: "/ (Rike, Koordination)", pfad: "/", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilung" },
+    { label: "/ (Malte, Auftraggeber)", pfad: "/", email: "malte@localtest.me", groups: GRUPPE, titel: "Meine Aufträge" },
+    {
+      label: "/verteilen?ansicht=brett",
+      pfad: "/verteilen?ansicht=brett",
+      email: "rike@localtest.me",
+      groups: KOORDINATION,
+      titel: "Verteilen",
+    },
+  ]) {
+    test(`${seite.label} laeuft bei 360px nicht ueber`, async ({ page }) => {
+      await devLogin(page, {
+        host: HOST,
+        groups: seite.groups,
+        email: seite.email,
+        callbackPath: seite.pfad,
+      });
+      const antwort = await page.goto(`http://${HOST}:3100${seite.pfad}`);
+      expect(antwort?.status(), `${seite.pfad}: HTTP`).toBe(200);
+      await expect(page.getByRole("heading", { name: seite.titel, level: 1 })).toBeVisible();
+      await page.waitForLoadState("networkidle");
+
+      const mass = await ueberlauf(page);
+      expect(
+        mass.scrollDoc,
+        `${seite.label} bei 360px (documentElement): ${mass.schuldige.join(" | ")}`,
+      ).toBeLessThanOrEqual(mass.vwDoc);
+      expect(
+        mass.scrollBody,
+        `${seite.label} bei 360px (body): ${mass.schuldige.join(" | ")}`,
+      ).toBeLessThanOrEqual(mass.vwBody);
+    });
+  }
+});
+
+/*
+ * DIE DREI ZUSAGEN DER FUEHRUNGSKARTE, DIE KEIN ANDERES TOR TREFFEN KANN (§3.3, §11.2) — je Rolle
+ * einmal: die Karte IST DA, sie steht AN ERSTER STELLE, und darin steht HOECHSTENS EIN
+ * `.ant-btn-primary`.
+ *
+ * WARUM `aufgaben-flaeche` UND NICHT `aufgaben-content`: `page.tsx` legt `aufgaben-content` um den
+ * GANZEN Einstieg, der `SeitenKopf` steht darin — „die Karte ist das erste Element" waere dort
+ * schlicht falsch und der Test einer, der etwas anderes misst, als sein Name sagt (dieselbe
+ * Familie wie die Fallen 10 und 11). Und der Zaehler misst denselben Wrapper, damit ein
+ * Primaerknopf der SUITE-SHELL die Zusage weder falsch-rot machen noch auf „hoechstens zwei"
+ * abschwaechen kann.
+ *
+ * WAS HIER BEWUSST NICHT STEHT: die BELEGUNGEN der Karte. Sie sind ein reiner Selektor ueber
+ * Datenzeilen und werden in `_lib/lage.test.ts` erschoepfend geprueft — samt dem Wochenendfall,
+ * dessen e2e-Fassung zwischen zwei Laeufen kippte, ohne dass sich Daten geaendert haetten.
+ */
+for (const rolle of [
+  { label: "Alina (BuFDi)", email: "alina@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
+  { label: "Rike (Koordination)", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilung" },
+  { label: "Malte (Auftraggeber)", email: "malte@localtest.me", groups: GRUPPE, titel: "Meine Aufträge" },
+]) {
+  test(`Fuehrungskarte: ${rolle.label} sieht sie an erster Stelle, mit hoechstens einem Primaerknopf`, async ({
+    page,
+  }) => {
+    await devLogin(page, {
+      host: HOST,
+      groups: rolle.groups,
+      email: rolle.email,
+      callbackPath: "/",
+    });
+    const antwort = await page.goto(`http://${HOST}:3100/`);
+    expect(antwort?.status(), "die Karte darf die Seite nicht auf 500 werfen").toBe(200);
+    await expect(page.getByRole("heading", { name: rolle.titel, level: 1 })).toBeVisible();
+
+    const flaeche = page.getByTestId("aufgaben-flaeche");
+    await expect(flaeche, "der Wrapper unter dem Seitenkopf fehlt").toHaveCount(1);
+
+    // ERSTES KIND UEBER EINEN CSS-SELEKTOR, NICHT UEBER `evaluate`: `> :first-child` bindet die
+    // POSITION, nicht nur die Anwesenheit — eine Karte irgendwo in der Flaeche erfuellt das nicht.
+    await expect(
+      page.locator("[data-testid='aufgaben-flaeche'] > :first-child[data-rolle='fuehrung']"),
+      "die Fuehrungskarte ist nicht das erste Kind von `aufgaben-flaeche`",
+    ).toHaveCount(1);
+
+    // „GENAU EIN PRIMAERKNOPF" IST ALS HOECHSTENS EINER GELESEN (§3.4, Regel P): gibt es fuer diese
+    // Person mit dieser Aufgabe in diesem Zustand keine Zustandsaktion, gibt es KEINEN — ein roter
+    // Knopf ohne Zustandswechsel waere eine Behauptung.
+    const primaer = await flaeche.locator(".ant-btn-primary").count();
+    expect(primaer, `${rolle.label}: ${primaer} Primaerknoepfe in \`aufgaben-flaeche\``).toBeLessThanOrEqual(1);
   });
 }
 
@@ -1459,18 +1755,33 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
     callbackPath: "/verteilen",
   });
   await page.goto(`http://${HOST}:3100/verteilen`);
+  /*
+   * ══ `/verteilen` VERTEILT SEIT DER ZWEITEN OBERFLAECHEN-RUNDE (2026-08-16) IN DER ZEILE, NICHT
+   *    IM MODAL — dieselbe Action, dieselben Formularschluessel, derselbe `data-testid` am
+   *    Ausloeser, nur ohne die Ebene dazwischen (`_ui/ZuweisenInline.tsx`, art `verteilen`).
+   *
+   *    DIE REIHENFOLGE IST JETZT TRAGEND UND WAR ES VORHER NICHT: der Klick auf den NAMEN IST das
+   *    Absenden. Was mitgeschickt werden soll, muss also VORHER im Feld stehen — erst die zwei
+   *    Zeitvorschlagsfelder, dann der Name. Ein Test, der zuerst den Namen klickt, sendet ohne
+   *    Vorschlag ab und laeuft danach in Schritt 3 auf einen fehlenden „Annehmen"-Knopf, mit einer
+   *    Meldung, die nach etwas ganz anderem klingt.
+   *
+   *    DAS FELD WIRD UEBER SEIN ERSTES EINGABEFELD ABGEWARTET, nicht ueber eine ARIA-Rolle: antds
+   *    `Popover` traegt `role="tooltip"`, was hier weder aussagekraeftig noch zugesichert ist. Ein
+   *    sichtbares `#zi-<id>-datum` beweist dasselbe und haengt an unserem eigenen Markup.
+   */
   await page.getByTestId(`verteilen-${aufgabeId}`).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByLabel("Carla").check();
-  await page.locator("#vd-vorschlag-datum").fill(vorschlagDatum);
-  await page.locator("#vd-vorschlag-uhrzeit").fill("09:00");
+  const vorschlagFeld = page.locator(`#zi-${aufgabeId}-datum`);
+  await expect(vorschlagFeld).toBeVisible();
+  await vorschlagFeld.fill(vorschlagDatum);
+  await page.locator(`#zi-${aufgabeId}-zeit`).fill("09:00");
   await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("dialog").getByRole("button", { name: "Verteilen" }).click(),
+    page.getByRole("button", { name: /^Carla/ }).click(),
   );
-  // DER DIALOG SCHLIESST SICH VON SELBST (`VerteilenDialog.tsx`s Kopfkommentar): das ist der
-  // eigentliche Beleg, dass die Aufgabe `status: "eingegangen"` verlassen hat — kein zweiter,
-  // separat gepflegter Zustand, der auseinanderlaufen koennte.
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  // DIE ZEILE VERLAESST DEN POSTEINGANG: das ist der eigentliche Beleg, dass die Aufgabe
+  // `status: "eingegangen"` verlassen hat — ein Zustand aus der Datenbank, kein Knopftext. Mit dem
+  // Wegfall des Modals faellt auch dessen Selbstschliessen als Zwischenbeleg fort; die staerkere
+  // Zusicherung stand ohnehin schon immer in der Zeile darunter.
   await expect(page.getByTestId(`verteilen-${aufgabeId}`)).toHaveCount(0);
 
   // 3. ANNEHMEN — Carla, BuFDi, uebernimmt den Zeitvorschlag unveraendert.
@@ -1480,14 +1791,29 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
     email: "carla@localtest.me",
     callbackPath: "/",
   });
-  const posteingangZeile = page.locator("#posteingang li").filter({ hasText: titel });
-  await expect(posteingangZeile).toHaveCount(1);
-  const annehmenKnopf = posteingangZeile.getByRole("button", { name: /^Annehmen:/ });
+  /*
+   * DER ZUGRIFF GEHT UEBER DAS BEDIENELEMENT, NICHT UEBER DEN ZONENCONTAINER (Oberflaechen-Spec
+   * 2026-08-16 §3.2, §3.3, §11.2) — EIN FIX FUER ZWEI UNABHAENGIGE BRUCHURSACHEN:
+   *
+   *  (a) REGEL R3: eine Zone mit n = 1 ENTSTEHT GAR NICHT, weil die Fuehrungskarte die Aufgabe
+   *      schon nennt. `#posteingang` ist damit DATENABHAENGIG und darf von keinem Test
+   *      vorausgesetzt werden. Die Ids behalten ihre Schreibweise, nicht ihre Anwesenheit.
+   *  (b) REGEL D: die Zone ist auf fuenf Zeilen gedeckelt und nach Frist sortiert — die frisch
+   *      erzeugte Aufgabe liegt 14–21 Tage in der Zukunft und rutscht ans Ende.
+   *
+   * Der Test verliert damit eine Positionsannahme, die er nie begruendet hat: „Annehmen: <Tag>"
+   * traegt den Vorschlag im Knopftext und ist ueber ihn eindeutig. DIESELBE BEGRUENDUNG GILT FUER
+   * DIE ZWEITE FUNDSTELLE in „Leerer Start" weiter unten; sie steht nur hier.
+   */
+  const annehmenKnopf = page.getByRole("button", { name: /^Annehmen:/ });
   await expect(annehmenKnopf).toBeVisible();
   await klickeUndWarteAufSeite(page, () => annehmenKnopf.click());
   // DIE AUFGABE VERLAESST DEN POSTEINGANG: `wartetAufEinplanung` verlangt `planDatum === null`,
-  // und das ist nach „Annehmen" nicht mehr wahr — der eigentliche Beleg, kein Knopftext.
-  await expect(page.locator("#posteingang").getByText(titel)).toHaveCount(0);
+  // und das ist nach „Annehmen" nicht mehr wahr — der eigentliche Beleg, kein Knopftext. Gemessen
+  // an der ganzen Flaeche statt an der Zone, aus Grund (a) oben.
+  await expect(
+    page.getByTestId("aufgaben-flaeche").getByRole("button", { name: /^Annehmen:/ }),
+  ).toHaveCount(0);
 
   // 4. BEARBEITUNG STARTEN — Carla, auf der Detailseite.
   await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
@@ -1760,23 +2086,27 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   // fest verdrahtet: es ist eine `nanoid`, wie ueberall in dieser Datei.
   const verteilenSeite = await page.goto(`http://${HOST}:3100/verteilen`);
   expect(verteilenSeite?.status()).toBe(200);
-  const zeile = page.getByRole("row").filter({ hasText: titel });
+  // `getByRole("listitem")` STATT `getByRole("row")`: der Posteingang ist seit der zweiten
+  // Oberflaechen-Runde die Zeilenliste des Moduls (`<ul>`/`<li>`), keine antd-`Table` mehr — die
+  // Begruendung steht im Kopfkommentar von `verteilen/page.tsx`.
+  const zeile = page.getByRole("listitem").filter({ hasText: titel });
   await expect(zeile).toHaveCount(1);
   const verteilenKnopf = zeile.getByRole("button", { name: "Verteilen" });
   const testId = await verteilenKnopf.getAttribute("data-testid");
   expect(testId, "kein Verteilen-Knopf zur frisch eingestellten Aufgabe").toBeTruthy();
   const aufgabeId = testId!.replace("verteilen-", "");
 
+  // ERST DER VORSCHLAG, DANN DER NAME — der Klick auf den Namen IST das Absenden (s. die
+  // ausfuehrliche Begruendung im vollen Durchlauf oben; sie steht nur dort).
   await verteilenKnopf.click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByLabel(bufdiName).check();
+  const vorschlagFeld = page.locator(`#zi-${aufgabeId}-datum`);
+  await expect(vorschlagFeld).toBeVisible();
   // ZWEI WOCHEN VORAUS — haelt die Aufgabe aus der aktuellen Woche heraus (s. Blockkommentar).
-  await page.locator("#vd-vorschlag-datum").fill(inTagen(14));
-  await page.locator("#vd-vorschlag-uhrzeit").fill("10:00");
+  await vorschlagFeld.fill(inTagen(14));
+  await page.locator(`#zi-${aufgabeId}-zeit`).fill("10:00");
   await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("dialog").getByRole("button", { name: "Verteilen" }).click(),
+    page.getByRole("button", { name: new RegExp(`^${bufdiName}`) }).click(),
   );
-  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByTestId(`verteilen-${aufgabeId}`)).toHaveCount(0);
 
   // 5. ANNEHMEN, STARTEN, FERTIG MELDEN — der frisch angelegte BuFDi, mit der ZUGANGSGRUPPE ALLEIN.
@@ -1787,12 +2117,16 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
     callbackPath: "/",
   });
   await expect(page.getByRole("heading", { name: "Meine Woche", level: 1 })).toBeVisible();
-  const posteingangZeile = page.locator("#posteingang li").filter({ hasText: titel });
-  await expect(posteingangZeile).toHaveCount(1);
-  await klickeUndWarteAufSeite(page, () =>
-    posteingangZeile.getByRole("button", { name: /^Annehmen:/ }).click(),
-  );
-  await expect(page.locator("#posteingang").getByText(titel)).toHaveCount(0);
+  // DERSELBE FIX WIE IN „der volle Durchlauf", Schritt 3 — die Begruendung steht dort und wird
+  // hier nicht wiederholt. HIER TRAEGT SCHON (a) ALLEIN: die frisch angelegte Person hat nach
+  // Schritt 4 GENAU EINE wartende Aufgabe, also n = 1, also nennt die Fuehrungskarte sie und die
+  // Zone entfaellt — `expect(posteingangZeile).toHaveCount(1)` haette 0 gemessen.
+  const annehmen = page.getByRole("button", { name: /^Annehmen:/ });
+  await expect(annehmen).toBeVisible();
+  await klickeUndWarteAufSeite(page, () => annehmen.click());
+  await expect(
+    page.getByTestId("aufgaben-flaeche").getByRole("button", { name: /^Annehmen:/ }),
+  ).toHaveCount(0);
 
   await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
   await klickeUndWarteAufSeite(page, () =>
@@ -1819,4 +2153,105 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
   await klickeUndWarteAufSeite(page, () => page.getByTestId(`freigeben-${aufgabeId}`).click());
   await expect(page.getByText("Abgeschlossen", { exact: true })).toBeVisible();
+});
+
+/**
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * VERTEILEN AUF DEM BRETT — OHNE ZIEHEN (Nachtrag „mehr Diversitaet im UI/UX", vierte
+ * Oberflaechen-Runde 2026-08-16).
+ *
+ * DIE ZUSAGE, DIE DIESER FALL TRAEGT: das Brett ist VOLLSTAENDIG ohne Zeigergeste bedienbar. Es
+ * gibt auf ihm gar kein Ziehen — Spec §8 fuehrt „Ziehen ueber Personengrenzen" ausdruecklich unter
+ * „Was bewusst NICHT gebaut wird", und alle drei Gruende gelten weiter (Falle 11 macht die Deckung
+ * teuer, die Geste gaebe es erst ab 768px und waere damit kein gleichrangiger Weg auf dem Telefon,
+ * und sie ist fuer eine Hilfstechnik ueberhaupt kein Bedienweg). Eine Karte wandert deshalb ueber
+ * genau denselben Weg wie in der Zeilensicht: Ausloeser auf, Name klicken, fertig.
+ *
+ * ══ DER FALL STELLT SEINEN ZUSTAND SELBST HER (Spec §10) — er verteilt NICHT die geseedete
+ *    „Verbandskästen"-Aufgabe. Die ist die Fixtur, an der drei andere Faelle dieser Datei haengen
+ *    („zeigt den Posteingang", die Fuehrungskarte der Koordination, das Aufgabendetail); waere sie
+ *    hier verteilt, haette der Lauf drei rote Faelle mit Meldungen, die nach etwas ganz anderem
+ *    klingen — und ob sie rot wuerden, haenge an der Dateireihenfolge.
+ *
+ * ══ ER STEHT GANZ AM ENDE DER DATEI, hinter den zwei Rundlaeufen, aus derselben Ueberlegung wie
+ *    diese: er AENDERT Zustand (eine neue Aufgabe, eine neue Zuweisung an Carla), und alles, was
+ *    davor steht, soll das nicht sehen.
+ *
+ * ══ ER PRUEFT DIE ANTWORT, NICHT NUR DIE SPAETERE ZUSTANDSAENDERUNG (Falle 10, zweite Testregel):
+ *    `klickeUndWarteAufSeite` wartet auf die POST-Antwort GENAU DIESER Adresse. Ohne das liefe eine
+ *    abgelehnte Antwort still ins Zeitbudget und meldete sich als „Element nicht gefunden". Der
+ *    vorangehende GET auf dieselbe Adresse ist zugleich der Warmlauf, den Falle 10 verlangt.
+ *
+ * ══ DER BELEG IST DIE WANDERUNG DER KARTE, nicht ein Knopftext: sie verlaesst die
+ *    Posteingang-Spalte UND steht danach in Carlas Spalte. Nur beides zusammen zeigt, dass die
+ *    Aufgabe `eingegangen` verlassen hat UND bei der richtigen Person gelandet ist — ein
+ *    verschwundener Ausloeser allein bewiese das erste, nicht das zweite.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+test("Brett: eine Karte wandert ohne Ziehen aus dem Posteingang in die Spalte ihrer Person", async ({
+  page,
+}) => {
+  const titel = `E2E-Brett ${Date.now()}: Funkgeraete inventarisieren`;
+
+  // 1. EINSTELLEN — Malte, Auftraggeber. Frist weit in der Zukunft, damit die Aufgabe die
+  // aktuelle Woche der drei BuFDis nicht beruehrt (dieselbe Vorkehrung wie im vollen Durchlauf).
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "malte@localtest.me",
+    callbackPath: "/neu",
+  });
+  await page.goto(`http://${HOST}:3100/neu`);
+  await page.locator("#af-titel").fill(titel);
+  await page.locator("#af-beschreibung").fill("Vom Brett-Fall der vierten Oberflaechen-Runde angelegt.");
+  await page.locator("#af-faelligAm").fill(inTagen(28));
+  await page.locator("#af-dauerMinuten").fill("45");
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: "Aufgabe einstellen" }).click(),
+  );
+
+  await page.goto(`http://${HOST}:3100/`);
+  const href = await page.getByRole("link", { name: titel }).getAttribute("href");
+  expect(href, "Aufgabe wurde nicht angelegt").toBeTruthy();
+  const aufgabeId = href!.replace("/a/", "");
+
+  // 2. AUF DAS BRETT — Rike, Koordination. Der GET ist zugleich der Warmlauf fuer den POST der
+  // Server Action, die gleich auf DIESELBE Adresse geht (Falle 10).
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: KOORDINATION,
+    email: "rike@localtest.me",
+    callbackPath: "/verteilen",
+  });
+  const res = await page.goto(`http://${HOST}:3100/verteilen?ansicht=brett`);
+  expect(res?.status()).toBe(200);
+
+  const stapel = page.locator("[data-brett-spalte='posteingang']");
+  await expect(stapel, "die neue Aufgabe steht nicht im Stapel").toContainText(titel);
+
+  // 3. VERTEILEN OHNE ZIEHEN: Ausloeser auf, Zeitvorschlag setzen, Namen klicken. Die REIHENFOLGE
+  // ist tragend — der Klick auf den Namen IST das Absenden, alles Mitzusendende muss vorher im
+  // Feld stehen (s. `_ui/ZuweisenInline.tsx`).
+  await page.getByTestId(`verteilen-${aufgabeId}`).click();
+  const vorschlagFeld = page.locator(`#zi-${aufgabeId}-datum`);
+  await expect(vorschlagFeld, "das Zielfeld ist nicht aufgegangen").toBeVisible();
+  await vorschlagFeld.fill(inTagen(21));
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: /^Carla/ }).click(),
+  );
+
+  // 4. DIE KARTE IST GEWANDERT — aus dem Stapel heraus UND in Carlas Spalte hinein.
+  await expect(stapel, "die Karte steht noch im Stapel").not.toContainText(titel);
+  const carla = page.locator("[data-rolle='brett'] [data-person]").filter({ hasText: "Carla" });
+  await expect(carla, "Carlas Spalte fehlt auf dem Brett").toHaveCount(1);
+  await expect(carla, "die Karte ist nicht in Carlas Spalte angekommen").toContainText(titel);
+
+  // 5. DER ZEITVORSCHLAG BLEIBT EIN VORSCHLAG. `verteilenAction` setzt `vorschlagDatum`, NIE
+  // `planDatum` — die Koordination schlaegt vor, die BuFDi plant. Ein Brett darf diese Grenze
+  // nicht verwischen, und die Karte sagt es: sie traegt die Marke „Zeitvorschlag offen"
+  // (`vorschlagOffen` = `verteilt` && `planDatum === null` && `vorschlagDatum !== null`).
+  await expect(
+    carla.locator("li").filter({ hasText: titel }),
+    "die Grenze zwischen Vorschlag und Plan ist verwischt — die Marke fehlt",
+  ).toContainText("Zeitvorschlag offen");
 });

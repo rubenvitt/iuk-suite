@@ -68,6 +68,7 @@ const ALLE_AUS: Record<string, boolean> = {
   zurueckweisen: false,
   wiederaufnehmen: false,
   zurueckziehen: false,
+  umverteilen: false,
   nachweisHochladen: false,
 };
 
@@ -78,7 +79,7 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
    * wuerde `aktionsOptionen` die Tabelle nachbauen statt `uebergang()` zu rufen, koennte dieser
    * Vergleich divergieren, sobald sich die Tabelle (`_lib/lebenszyklus.ts`) je aendert.
    */
-  it("stimmt fuer eine zugewiesene, aktive BuFDi bei „verteilt“ mit sieben direkten uebergang()-Aufrufen ueberein", () => {
+  it("stimmt fuer eine zugewiesene, aktive BuFDi bei „verteilt“ mit acht direkten uebergang()-Aufrufen ueberein", () => {
     const bufdi = person("bufdi", { id: "bufdi-x" });
     const a = aufgabe({ status: "verteilt", zugewiesenAn: bufdi.id });
 
@@ -90,6 +91,7 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
       zurueckweisen: uebergang(a, "zurueckweisen", akteur(bufdi), HEUTE).erlaubt,
       wiederaufnehmen: uebergang(a, "wiederaufnehmen", akteur(bufdi), HEUTE).erlaubt,
       zurueckziehen: uebergang(a, "zurueckziehen", akteur(bufdi), HEUTE).erlaubt,
+      umverteilen: uebergang(a, "umverteilen", akteur(bufdi), HEUTE).erlaubt,
       // KEIN `uebergang()`-Aufruf hier (Aufgabe 19, Kopfkommentar von `aktionsOptionen`): Nachweis
       // hochladen ist kein Uebergang der Tabelle. `a.status === "verteilt"` in dieser Fixtur macht
       // das Ergebnis ohnehin `false`, unabhaengig von `darfNachweisHochladen`.
@@ -194,6 +196,68 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
     const bufdi = person("bufdi", { id: "bufdi-f" });
     const a = aufgabe({ status: "abgeschlossen", zugewiesenAn: bufdi.id });
     expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual(ALLE_AUS);
+  });
+
+  /*
+   * ANDERS ZUWEISEN (Oberflaechen-Spec 2026-08-16 §7 Nr. 3, §11.1) — DIE VIER FAELLE, DIE DIE
+   * ZEILE `{ von: "verteilt", aktion: "umverteilen", wer: darfVerteilen }` VOLLSTAENDIG EINRAHMEN:
+   * der Zustand stimmt UND die Rolle (erlaubt), nur der Zustand (verboten), nur die Rolle
+   * (verboten), und die zugewiesene Person selbst (verboten — sie darf nicht verteilen).
+   *
+   * WARUM DIE ZUSTANDS-GEGENPROBE `in_arbeit` NIMMT UND NICHT IRGENDEINEN ZUSTAND: genau dieses
+   * Paar traegt die Aufspaltung von Rang 5 in der Fuehrungskarte (§4.2, 5a gegen 5b). Waere
+   * `umverteilen` hier wahr, truege die Karte einen Knopf, den `verteilenGemeinsam` danach mit
+   * einem Wurf ablehnt.
+   */
+  it("„verteilt“, Koordination: umverteilen ist erlaubt — die Zustandsaktion von Rang 5a", () => {
+    const koordination = person("auftrag", { id: "koord-um-1" });
+    const a = aufgabe({ status: "verteilt", zugewiesenAn: "bufdi-irgendwer" });
+    expect(aktionsOptionen(a, akteur(koordination, true), HEUTE)).toEqual({
+      ...ALLE_AUS,
+      umverteilen: true,
+    });
+  });
+
+  it("„in_arbeit“, Koordination: KEIN umverteilen — die Tabelle kennt es nur aus „verteilt“", () => {
+    const koordination = person("auftrag", { id: "koord-um-2" });
+    const a = aufgabe({ status: "in_arbeit", zugewiesenAn: "bufdi-irgendwer" });
+    expect(aktionsOptionen(a, akteur(koordination, true), HEUTE)).toEqual(ALLE_AUS);
+  });
+
+  it("„verteilt“, Auftraggeber ohne Koordination: KEIN umverteilen — `darfVerteilen` ist falsch", () => {
+    const auftrag = person("auftrag", { id: "auftrag-um-3" });
+    const a = aufgabe({ status: "verteilt", zugewiesenAn: "bufdi-irgendwer" });
+    expect(aktionsOptionen(a, akteur(auftrag), HEUTE)).toEqual(ALLE_AUS);
+  });
+
+  it("„verteilt“, die zugewiesene BuFDi selbst: starten ja, umverteilen nein", () => {
+    const bufdi = person("bufdi", { id: "bufdi-um-4" });
+    const a = aufgabe({ status: "verteilt", zugewiesenAn: bufdi.id });
+    expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual({ ...ALLE_AUS, starten: true });
+  });
+
+  /**
+   * EINE KOORDINATION MIT ABGELAUFENEM `aktivBis` BEHAELT `umverteilen` — UND DAS IST DIE ZUSAGE
+   * VON `darfVerteilen`, NICHT IHR BRUCH. Diese Zeile stand hier zunaechst mit der umgekehrten
+   * Erwartung und war rot; nachgelesen (`_lib/zugang.ts`, Kopfkommentar von `darfVerteilen`) traegt
+   * das Praedikat ABSICHTLICH KEIN `istAktiv`: die GRUPPENMITGLIEDSCHAFT traegt diese Rolle, nicht
+   * die Personenzeile — sonst machten Pocket ID und ein Feld des Personenformulars, das die
+   * Koordination sich selbst schreibt, zwei widersprechende Aussagen ueber dieselbe Person. Der
+   * Entzug laeuft ueber die Gruppe, mit dem bekannten Verzugsfenster von bis zu einer Stunde.
+   *
+   * DIE ZEILE BLEIBT ALSO STEHEN, ABER MIT DER RICHTIGEN ERWARTUNG: sie ist die Gegenprobe, dass
+   * niemand `istAktiv` beilaeufig in diesen Pfad hineinzieht, weil es „sicherer aussieht". Der
+   * Unterschied zu `zurueckziehen` in derselben Fixtur ist der Beleg, dass hier zwei verschiedene
+   * Zeitregeln bewusst nebeneinander stehen (`uebergang()`s `zurueckziehen`-Zweig prueft
+   * `ersteller && istAktiv` ODER `darfVerteilen` — die zweite Klausel traegt hier).
+   */
+  it("eine Koordination mit abgelaufenem `aktivBis` behaelt umverteilen — die Gruppe traegt die Rolle", () => {
+    const exKoordination = person("auftrag", { id: "koord-um-5", aktivBis: "2020-01-01" });
+    const a = aufgabe({ status: "verteilt", zugewiesenAn: "bufdi-irgendwer" });
+    expect(aktionsOptionen(a, akteur(exKoordination, true), HEUTE)).toEqual({
+      ...ALLE_AUS,
+      umverteilen: true,
+    });
   });
 
   it("eine ausgeschiedene, zugewiesene BuFDi bekommt keine einzige Aktion mehr", () => {

@@ -1,15 +1,14 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Link from "next/link";
 import { Button, Input, Modal } from "antd";
 import { freigebenAction, zurueckweisenAction } from "../actions";
 import type { FreigabeZeile } from "../_db/queries";
-import { NACHWEIS_ART_TEXT, fmtDauer, istUeberfaellig } from "../_lib/anzeige";
-import { fmtTagKurz } from "../_lib/datum";
+import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
+import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
-import { PrioritaetChip, StatusChip } from "./Chip";
+import { AufgabenZeile } from "./AufgabenZeile";
 import { Ikone } from "./ikonen";
 import { NachweisBild } from "./NachweisBild";
 import s from "./aufgaben.module.css";
@@ -56,7 +55,20 @@ import s from "./aufgaben.module.css";
  * steht. `FreigabeKarte` unten ruft `FreigabeAktionen` fuer genau dieselbe Logik — KEINE zweite
  * Fassung von „Freigeben"/„Zurückweisen bestaetigungspflichtig", nur ein zweiter Aufrufer.
  */
-export function FreigabeAktionen({ aufgabe }: { aufgabe: FreigabeZeile["aufgabe"] }) {
+export function FreigabeAktionen({
+  aufgabe,
+  primaer = true,
+}: {
+  aufgabe: FreigabeZeile["aufgabe"];
+  /**
+   * OB „FREIGEBEN" DER PRIMAERKNOPF IST (Oberflaechen-Spec 2026-08-16 §7 Nr. 2) — VORGABE `true`,
+   * und die Vorgabe ist die tragende Haelfte: `/freigaben`, die Freigabe-Zone und die
+   * Fuehrungskarte behalten damit ihre heutige Form, ohne dass eine von ihnen den Schalter kennen
+   * muss. Nur `_ui/AktionsZone.tsx` setzt ihn auf `false`, naemlich dann, wenn auf `/a/<id>` schon
+   * ein hoeher stehender Eintrag der Vorrangliste den einen Primaerknopf besetzt.
+   */
+  primaer?: boolean;
+}) {
   const [zurueckweisenOffen, setZurueckweisenOffen] = useState(false);
 
   return (
@@ -64,7 +76,11 @@ export function FreigabeAktionen({ aufgabe }: { aufgabe: FreigabeZeile["aufgabe"
       <div className={s.knopfzeile}>
         <form action={freigebenAction}>
           <input type="hidden" name="aufgabeId" value={aufgabe.id} />
-          <Button type="primary" htmlType="submit" data-testid={`freigeben-${aufgabe.id}`}>
+          <Button
+            type={primaer ? "primary" : undefined}
+            htmlType="submit"
+            data-testid={`freigeben-${aufgabe.id}`}
+          >
             Freigeben
           </Button>
         </form>
@@ -89,81 +105,149 @@ export interface FreigabeZoneProps {
   heute: string;
 }
 
+/*
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ══ DIE ZONE FOLGT SEIT DER ZWEITEN OBERFLAECHEN-RUNDE (2026-08-16) DEM ZEILENRASTER DES MODULS
+ *    — UND SIE IST DIE ZWEITE FLAECHE, AUF DER ES SICH ANDERS AUSPRAEGT.
+ *
+ *    WAS HIER STAND: zwei fette `<h3>` („Meine" / „In Vertretung", 14/600 gerade), darunter eine
+ *    Kartenliste aus verschachtelten Flex-Spalten mit Inline-`style`. Der Titel war ein roter
+ *    Link, die Metazeile ein Fliesstext mit vier durch `·` getrennten Angaben, und darunter zwei
+ *    dauerhaft sichtbare Knoepfe. Nichts fluchtete mit irgendetwas, und keine der vier anderen
+ *    Flaechen sah so aus.
+ *
+ *    WARUM NICHT EINFACH `AufgabenListe` MIT `aktionen`: der Nachweis. Er ist mehrzeiliger Text
+ *    (kuenftig ein Bild) und passt in keine Rasterzelle — der Kopfkommentar oben sagt dasselbe
+ *    schon ueber die Tabellenzelle. Ein Absatz in der Meta-Spur zoege die Zeile auf und riss die
+ *    Ausrichtung aller anderen Zeilen mit.
+ *
+ *    DIE AUSPRAEGUNG IST DESHALB „KOPFZEILE IM RASTER, NACHWEIS ALS BAND": die Kopfzeile (Titel ·
+ *    Zustand · Prioritaet · Frist · Dauer · „Erledigt von X") steht in den drei Spuren von
+ *    `.zeilenListe` und fluchtet mit jeder anderen Zeile des Moduls; Nachweis und Entscheidung
+ *    stehen als volle Breite DARUNTER, eingerueckt an einer Haarlinie (`AufgabenZeile`s neue
+ *    `band`-Prop, `.zeilenBand` im Stylesheet).
+ *
+ *    DIE LESERICHTUNG IST DAMIT DIE DER ENTSCHEIDUNG: WAS (Kopfzeile) → WOMIT BELEGT (Nachweis) →
+ *    WAS TUE ICH (die zwei Knoepfe). Genau die Reihenfolge, die Spec §8.4 verlangt („wer freigibt,
+ *    muss sehen, was er freigibt").
+ *
+ * ══ „FREIGEBEN"/„ZURUECKWEISEN" BLEIBEN ECHTE KNOEPFE UND STEHEN DAUERHAFT — SIE WANDERN
+ *    AUSDRUECKLICH NICHT IN DIE HOVER-AKTIONSSPUR. Zwei Gruende, beide fachlich:
+ *
+ *      1. Sie sind der ZWECK dieser Seite, nicht eine Nebenhandlung an einer Zeile. Eine Aktion,
+ *         die man erst durch Zuwendung findet, ist richtig fuer „anders zuweisen" in einer
+ *         Uebersicht und falsch fuer die einzige Handlung, derentwegen die Seite aufgerufen wird.
+ *      2. Bestaetigung skaliert mit dem Schaden (Spec §9.9): „Zurueckweisen" ist
+ *         bestaetigungspflichtig UND verlangt eine Begruendung — es traegt deshalb weiterhin den
+ *         `Modal`, den ein `Popconfirm` nicht ersetzen kann (kein Feld). Ein stiller Zeilenknopf
+ *         waere fuer eine Aktion mit dieser Folge die falsche Lautstaerke.
+ *
+ *    SIE STEHEN IM BAND UND NICHT IN DER 150px-AKTIONSSPUR, weil sie dort nicht hineinpassen
+ *    (zwei Knoepfe mit 44px Hoehe brauchen rund 250px) und weil sie erst NACH dem Nachweis gelesen
+ *    werden sollen. Die Aktionsspur bleibt fuer diese Zeilen leer — die Spur selbst bleibt
+ *    reserviert und haelt damit die Kopfzeilen aller Zeilen in Flucht.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
 export function FreigabeZone({ meine, vertretung, heute }: FreigabeZoneProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
-      <div>
-        <h3 style={{ margin: `0 0 ${SPACE.xs}px`, fontSize: 14, fontWeight: 600 }}>Meine</h3>
-        {meine.length === 0 ? (
-          <p>Keine Freigabe offen</p>
-        ) : (
-          <FreigabeListe zeilen={meine} heute={heute} />
-        )}
-      </div>
-      <div>
-        <h3 style={{ margin: `0 0 ${SPACE.xs}px`, fontSize: 14, fontWeight: 600 }}>
-          In Vertretung
-        </h3>
-        {vertretung.length === 0 ? (
-          <p>Keine Freigabe in Vertretung offen</p>
-        ) : (
-          <FreigabeListe zeilen={vertretung} heute={heute} />
-        )}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xl }}>
+      <FreigabeAbschnitt
+        titel="Meine"
+        zeilen={meine}
+        heute={heute}
+        leerText="Keine Freigabe offen"
+      />
+      <FreigabeAbschnitt
+        titel="In Vertretung"
+        zeilen={vertretung}
+        heute={heute}
+        leerText="Keine Freigabe in Vertretung offen"
+      />
     </div>
   );
 }
 
-function FreigabeListe({ zeilen, heute }: { zeilen: FreigabeZeile[]; heute: string }) {
+/**
+ * EIN ABSCHNITT DER ZONE — MIT ZURUECKGENOMMENEM VERSALIEN-KICKER STATT EINER FETTEN UEBERSCHRIFT
+ * (Oberflaechen-Runde 2026-08-16, Befund 4, hier nachgezogen): „Meine" stand in 14/600 gerade ueber
+ * Zeilen, deren Titel ebenfalls 14/600 tragen — die Gliederung war damit genauso laut wie ihr
+ * Inhalt und von ihm nicht zu unterscheiden. `SCHRIFT.kicker` ist eine Rolle der Leiter (12/600
+ * versal), keine erfundene Groesse; Farbe und Haarlinie kommen aus `.zonenKopf`, derselben Klasse
+ * wie auf allen vier anderen Flaechen.
+ *
+ * DIE ZAHL STEHT IM KOPF, WIE BEI JEDER ZONE DES MODULS: sie ist die Antwort auf „wie viel liegt
+ * hier" und stand auf dieser Seite bisher nur summiert in der Kontextzeile.
+ *
+ * `<h2>` STATT `<h3>`: der `SeitenKopf` traegt das einzige `<h1>`, und zwischen ihm und diesen
+ * Abschnitten liegt keine Ebene — ein `<h3>` liesse eine Stufe der Gliederung aus.
+ */
+function FreigabeAbschnitt({
+  titel,
+  zeilen,
+  heute,
+  leerText,
+}: {
+  titel: string;
+  zeilen: FreigabeZeile[];
+  heute: string;
+  leerText: string;
+}) {
   return (
-    <ul
-      style={{
-        listStyle: "none",
-        margin: 0,
-        padding: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: SPACE.md,
-      }}
-    >
-      {zeilen.map((zeile) => (
-        <li
-          key={zeile.aufgabe.id}
-          style={{ borderBlockStart: "1px solid var(--auf-linie)", paddingBlockStart: SPACE.sm }}
-        >
-          <FreigabeKarte zeile={zeile} heute={heute} />
-        </li>
-      ))}
-    </ul>
+    <section>
+      <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.sm}px` }}>
+        {titel} ({zeilen.length})
+      </h2>
+      {zeilen.length === 0 ? (
+        <p>{leerText}</p>
+      ) : (
+        <ul className={s.zeilenListe}>
+          {zeilen.map((zeile) => (
+            <AufgabenZeile
+              key={zeile.aufgabe.id}
+              aufgabe={zeile.aufgabe}
+              heute={heute}
+              /*
+               * GENAU EINE ZUSATZANGABE (§3.6) — UND ES IST DIE, DIE DIE ENTSCHEIDUNG BETRIFFT:
+               * WER die Aufgabe erledigt hat. Der Ersteller und die Nachweispflicht standen
+               * bisher in derselben Fliesstextzeile; sie stehen jetzt im Band, wo sie zum
+               * Nachweis gehoeren. Die Dauer nennt `AufgabenZeile` ohnehin.
+               */
+              rollenZusatz={`Erledigt von ${zeile.zugewiesenName}`}
+              band={<FreigabeBand zeile={zeile} />}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
-function FreigabeKarte({ zeile, heute }: { zeile: FreigabeZeile; heute: string }) {
+/**
+ * DAS BAND UNTER DER KOPFZEILE — Herkunft, Nachweis, Entscheidung, in dieser Reihenfolge.
+ *
+ * DIE HERKUNFTSZEILE IST KUERZER ALS DER FRUEHERE FLIESSTEXT, WEIL DIE KOPFZEILE ZWEI IHRER VIER
+ * ANGABEN SCHON TRAEGT: „Erledigt von X" ist der Rollenzusatz, die Dauer eine Metazelle. Uebrig
+ * bleiben Ersteller und Nachweispflicht — und die gehoeren an den Nachweis, nicht an den Titel.
+ */
+function FreigabeBand({ zeile }: { zeile: FreigabeZeile }) {
   const { aufgabe } = zeile;
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
-      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: SPACE.sm }}>
-        <Link href={`/a/${aufgabe.id}`}>{aufgabe.titel}</Link>
-        <StatusChip status={aufgabe.status} />
-        <PrioritaetChip prioritaet={aufgabe.prioritaet} />
-        {istUeberfaellig(aufgabe, heute) ? (
-          <span>
-            <Ikone name="warnung" /> Überfällig
-          </span>
-        ) : null}
+    <>
+      <div>
+        {/*
+         * KEINE EIGENE UEBERSCHRIFT UEBER DIESER ZEILE — im Bildschirmabzug stand „Nachweis"
+         * ZWEIMAL untereinander: einmal hier und einmal aus `NachweisBlock`, der seine eigene
+         * fuehrt. Die Herkunftszeile ist kein Nachweis, sie ist der Rahmen darum; sie steht
+         * deshalb ohne Kicker davor, und `NachweisBlock` behaelt seinen.
+         */}
+        <p style={{ ...SCHRIFT.neben, margin: `0 0 ${SPACE.sm}px` }}>
+          Erstellt von {zeile.erstellerName} · Nachweispflicht:{" "}
+          {aufgabe.nachweisPflicht ? `Ja (${NACHWEIS_ART_TEXT[aufgabe.nachweisArt]})` : "Nein"}
+        </p>
+        <NachweisBlock aufgabeId={aufgabe.id} nachweise={zeile.nachweise} />
       </div>
-
-      <p style={{ margin: 0, fontSize: 12 }}>
-        Erstellt von {zeile.erstellerName} · Erledigt von {zeile.zugewiesenName} · Frist:{" "}
-        {fmtTagKurz(aufgabe.faelligAm)} · {fmtDauer(aufgabe.dauerMinuten)} · Nachweispflicht:{" "}
-        {aufgabe.nachweisPflicht ? `Ja (${NACHWEIS_ART_TEXT[aufgabe.nachweisArt]})` : "Nein"}
-      </p>
-
-      <NachweisBlock aufgabeId={aufgabe.id} nachweise={zeile.nachweise} />
-
       <FreigabeAktionen aufgabe={aufgabe} />
-    </div>
+    </>
   );
 }
 
@@ -182,7 +266,15 @@ function NachweisBlock({
 }) {
   return (
     <div>
-      <p style={{ margin: `0 0 ${SPACE.xs}px`, fontSize: 12, fontWeight: 600 }}>Nachweis</p>
+      {/*
+       * `.zeilenBandKopf` STATT DER DREI INLINE-WERTE (Oberflaechen-Runde 2026-08-16, zweite
+       * Haelfte): dieselbe Groesse und dasselbe Gewicht wie vorher, aber gedaempft in `--auf-stahl`
+       * und aus dem Stylesheet — der Kicker eines Bandes ist eine Rolle, die es jetzt mehr als
+       * einmal geben kann, und ein Inline-Wert schluege jede Regel, die spaeter dazukommt.
+       */}
+      <p className={s.zeilenBandKopf} style={{ marginBlockEnd: SPACE.xs }}>
+        Nachweis
+      </p>
       {nachweise.length === 0 ? (
         <p style={{ margin: 0, fontSize: 12 }}>Kein Nachweis hinterlegt.</p>
       ) : (

@@ -317,3 +317,63 @@ describe("Journal und Dateien passen zusammen", () => {
     }
   });
 });
+
+/*
+ * `faellig_am` IST `NOT NULL` — DER RIEGEL, DEN DIE OBERFLAECHEN-SPEC (2026-08-16 §11.1, §9/S4)
+ * BESTELLT, WEIL ZWEI IHRER ZUSAGEN DARAUF RUHEN:
+ *
+ *  - DIE TOTALE ORDNUNG (§4.1): `_lib/lage.ts` sortiert jede Sprosse nach `faelligAm` aufsteigend,
+ *    dann `prioritaet`, `erstelltAm`, `id`. Eine Zeile ohne Frist haette in dieser Kette keinen
+ *    Platz — SQLite ordnet `NULL` vor jedem Wert, die Karte naehme also ausgerechnet die Aufgabe
+ *    OHNE Frist als „die dringendste" und nennte sie als Extrem.
+ *  - `<Frist>` (§6.2): die Komponente hat DREI Auspraegungen und keinen vierten Zweig fuer
+ *    „keine Frist". `istUeberfaellig(a, heute)` vergleicht `a.faelligAm < heute` — mit `NULL`
+ *    waere der Vergleich weder wahr noch falsch, und die Zeile fiele lautlos in den Sonst-Zweig
+ *    („Frist: null").
+ *
+ * WARUM DAS EINEN EIGENEN TEST BRAUCHT: `_db/schema.ts` sagt `.notNull()`, aber das ist eine
+ * Drizzle-Aussage — WIRKSAM ist allein, was in der Migration steht. Faellt die Spalte je in einer
+ * neuen Migration auf nullable zurueck, bleiben `typecheck`, `lint` und `build` gruen, und der
+ * Fehler zeigte sich erst als falsch sortierte Fuehrungskarte in Produktion.
+ *
+ * GEPRUEFT WIRD GEGEN DIE MIGRIERTE DATENBANK, NICHT GEGEN DEN SCHEMA-QUELLTEXT — ein Scan ueber
+ * `schema.ts` bewiese nur, dass jemand `.notNull()` getippt hat.
+ */
+describe("Die Frist ist Pflicht", () => {
+  it("weist eine Aufgabe ohne `faellig_am` ab — `NOT NULL` steht in der Migration, nicht nur im Schema", () => {
+    const sqlite = frisch();
+    sqlite
+      .prepare(
+        `INSERT INTO personen (id, sub, name, initialen, rolle, soll_minuten_tag, aktiv_von, erstellt_am)
+         VALUES ('p1','dev:a@b','X','XX','bufdi',468,'2026-08-01',1)`,
+      )
+      .run();
+
+    const ohneFrist = () =>
+      sqlite
+        .prepare(
+          `INSERT INTO aufgaben (id, titel, beschreibung, prioritaet, ersteller_id, status,
+             faellig_am, dauer_minuten, nachweis_pflicht, nachweis_art, ist_selbst, plan_rang,
+             erstellt_am, aktualisiert_am)
+           VALUES ('a1','T','B','mittel','p1','eingegangen',NULL,60,0,'text',0,0,1,1)`,
+        )
+        .run();
+    expect(ohneFrist).toThrow(/NOT NULL/i);
+
+    // GEGENPROBE: DIESELBE ZEILE MIT FRIST GEHT DURCH. Ohne sie koennte der Wurf oben auch von
+    // einer ganz anderen Spalte kommen, und der Test hiesse etwas anderes, als sein Name sagt.
+    sqlite
+      .prepare(
+        `INSERT INTO aufgaben (id, titel, beschreibung, prioritaet, ersteller_id, status,
+           faellig_am, dauer_minuten, nachweis_pflicht, nachweis_art, ist_selbst, plan_rang,
+           erstellt_am, aktualisiert_am)
+         VALUES ('a1','T','B','mittel','p1','eingegangen','2026-08-20',60,0,'text',0,0,1,1)`,
+      )
+      .run();
+    const zeile = sqlite.prepare("SELECT faellig_am FROM aufgaben WHERE id='a1'").get() as {
+      faellig_am: string;
+    };
+    expect(zeile.faellig_am).toBe("2026-08-20");
+    sqlite.close();
+  });
+});
