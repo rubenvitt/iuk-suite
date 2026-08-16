@@ -228,7 +228,9 @@ describe("Fuehrungskarte — hoechstens ein Primaerknopf (Regel P)", () => {
   });
 
   /*
-   * DIE RAENGE 1 UND 5a — „ANDERS ZUWEISEN (DER ZEITPLAN WIRD DABEI GELEERT)" (§4.2, §7 Nr. 3).
+   * DIE RAENGE 1 UND 5a — „ANDERS ZUWEISEN" (§4.2, §7 Nr. 3). Die Beschriftung nannte bis zur
+   * Bildstrecken-Runde die Folge selbst („… (der Zeitplan wird dabei geleert)"); sie steht jetzt im
+   * Bestaetigungsdialog und ist dort bewacht (`VerteilenDialog.test.tsx`).
    *
    * SIE STEHEN SEIT SCHRITT 6 NICHT MEHR IN DER LISTE DARUEBER, UND DAS IST DER GANZE UNTERSCHIED
    * ZWISCHEN „hat keine Zustandsaktion" UND „hat eine, die hier nicht gilt": beide Belegungen
@@ -245,9 +247,7 @@ describe("Fuehrungskarte — hoechstens ein Primaerknopf (Regel P)", () => {
         }),
       );
       expect(primaerKnoepfe()).toHaveLength(1);
-      expect(primaerKnoepfe()[0]!.textContent).toContain(
-        "Anders zuweisen (der Zeitplan wird dabei geleert)",
-      );
+      expect(primaerKnoepfe()[0]!.textContent).toContain("Anders zuweisen");
     },
   );
 

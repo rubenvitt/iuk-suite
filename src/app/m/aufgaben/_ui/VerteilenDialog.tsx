@@ -189,10 +189,23 @@ export function VerteilenKnopf(props: ZuweisenKnopfProps) {
  * `planLoeschen`) kommt bereits aus `uebergang()`. Ein zweiter, fast gleicher Dialog waere hier
  * derselbe Fehler eine Ebene hoeher.
  *
- * DER KNOPFTEXT NENNT DIE FOLGE, UND DAS IST KEINE HOEFLICHKEIT: `_lib/lebenszyklus.ts` fuehrt die
- * Zeile mit `planLoeschen: true` — wer „anders zuweisen" drueckt, verliert die bestehende
- * Tagesplanung der Aufgabe. Ein Knopf, der nur „Umverteilen" hiesse, verschwiege genau die
- * Wirkung, die man hinterher nicht zurueckholen kann.
+ * DIE FOLGE WIRD GENANNT — ABER IM DIALOG, NICHT AUF DEM KNOPF (Abweichung von Spec §1.3/§7 Nr. 3,
+ * s. Bericht). `_lib/lebenszyklus.ts` fuehrt die Zeile mit `planLoeschen: true`: wer „Anders
+ * zuweisen" drueckt, verliert die bestehende Tagesplanung der Aufgabe, und das darf nicht
+ * verschwiegen werden. Die Spec loeste das ueber den KNOPFTEXT („Anders zuweisen (der Zeitplan wird
+ * dabei geleert)"); gemessen an der Bildstrecke ist das der falsche Ort:
+ *
+ *   - Die Zone „Überfällig, noch nicht begonnen" traegt den Knopf JE ZEILE. Vier Knoepfe mit
+ *     44-Zeichen-Beschriftung brachen bei 1280px unterschiedlich um, einer rutschte in eine eigene
+ *     Zeile — die Zone sah ungeordnet aus, obwohl ihr Inhalt geordnet ist.
+ *   - Auf 360px brauchte es dafuer eine eigene CSS-Regel (`.knopfUmbruch`, jetzt fort), weil die
+ *     Beschriftung mit 344px `min-content` breiter war als die Flaeche.
+ *
+ * DER DIALOG IST DIE BESTAETIGUNG, und er steht auf JEDEM der drei Wege davor (Karte, Zone,
+ * `/a/<id>`) — die Aktion ist ohne ihn nicht ausloesbar. Der Satz steht deshalb dort, ueber der
+ * Zielliste, wo er zwischen Absicht und Absenden gelesen wird; der Knopf davor benennt nur, wohin
+ * er fuehrt. `VerteilenDialog.test.tsx` haelt beides fest (kurzer Knopf, Folge im Dialog), damit
+ * die Zusage aus §7 Nr. 3 einen Riegel behaelt statt nur den Ort zu wechseln.
  *
  * `primaer` IST DER GRUND, WARUM DIESE INSEL EINEN SCHALTER HAT UND NICHT ZWEI KOMPONENTEN:
  * dieselbe Aktion steht an ZWEI Orten derselben Flaeche — in der Fuehrungskarte (Rang 1 und 5a,
@@ -226,12 +239,18 @@ const ZUWEISUNG = {
     knopf: "Verteilen",
     absenden: "Verteilen",
     titel: (titel: string): string => `„${titel}“ verteilen`,
+    folge: null,
   },
   umverteilen: {
     aktion: umverteilenAction,
-    knopf: "Anders zuweisen (der Zeitplan wird dabei geleert)",
+    knopf: "Anders zuweisen",
     absenden: "Anders zuweisen",
     titel: (titel: string): string => `„${titel}“ anders zuweisen`,
+    /*
+     * DIE FOLGE, IM DIALOG STATT AUF DEM KNOPF (s. Kopfkommentar von `UmverteilenKnopf`). `null`
+     * bei „verteilen": dort gibt es keine — die Aufgabe hat noch gar keinen Zeitplan.
+     */
+    folge: "Der bisher eingeplante Tag dieser Aufgabe wird dabei geleert.",
   },
 } as const;
 
@@ -252,12 +271,6 @@ function ZuweisenKnopf({
         type={primaer ? "primary" : undefined}
         onClick={() => setOffen(true)}
         data-testid={`${art}-${aufgabe.id}`}
-        /*
-         * NUR „ANDERS ZUWEISEN" BEKOMMT DEN UMBRUCH — „Verteilen" ist ein Wort und braucht ihn
-         * nicht. Die Begruendung (gemessene 344px `min-content` gegen 296px in der Karte bei
-         * 360px) steht bei `.knopfUmbruch` in `aufgaben.module.css`.
-         */
-        className={art === "umverteilen" ? s.knopfUmbruch : undefined}
       >
         {ZUWEISUNG[art].knopf}
       </Button>
@@ -311,6 +324,16 @@ function VerteilenModal({
         style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}
       >
         <input type="hidden" name="aufgabeId" value={feldWert(state, "aufgabeId", aufgabe.id)} />
+
+        {/*
+         * DIE FOLGE STEHT ALS ERSTES IM DIALOG — vor der Zielliste, weil sie die ENTSCHEIDUNG
+         * betrifft und nicht die Eingabe. Kein `Alert type="error"` und keine rote Flaeche
+         * (CLAUDE.md Falle 3: `colorError === colorPrimary === #c8000f`, ein roter Kasten hier
+         * laese sich als Primaeraktion) — ein Satz reicht, weil der Dialog nur einen Zweck hat.
+         * Kein `Typography.Text`: Compound-Zugriff waere hier zwar erlaubt (`"use client"`), aber
+         * das Modul schreibt Prosa durchgehend als nacktes Markup.
+         */}
+        {ZUWEISUNG[art].folge !== null ? <p style={{ margin: 0 }}>{ZUWEISUNG[art].folge}</p> : null}
 
         <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
           <legend style={{ padding: 0, marginBlockEnd: SPACE.xs }}>Zuweisen an</legend>

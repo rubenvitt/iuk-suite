@@ -503,43 +503,26 @@
 }
 
 /*
- * EIN KNOPF, DESSEN BESCHRIFTUNG UMBRECHEN DARF — HEUTE GENAU EINER: „Anders zuweisen (der
- * Zeitplan wird dabei geleert)" (`_ui/VerteilenDialog.tsx`s `UmverteilenKnopf`,
- * Oberflaechen-Spec 2026-08-16 §1.3, §7 Nr. 3).
+ * `.modul .knopfUmbruch` IST FORT — UND ZWAR MIT SEINEM EINZIGEN TRAEGER, NICHT VOR IHM.
  *
- * GEMESSEN, NICHT GESCHAETZT (e2e-Ueberlauf-Sweep, Schritt 7): antds `.ant-btn` traegt
- * `white-space: nowrap`, die Beschriftung hat eine `min-content`-Breite von 344px, und die
- * Zeilenliste einer Zone hat bei 360px 328px Innenbreite — 2px Ueberlauf am DOKUMENTRAND. In der
- * FUEHRUNGSKARTE ist es schlimmer und wurde nur nicht gemessen: `.fuehrung { padding: 16px }`
- * laesst dort 296px, und ob die Karte diesen Knopf traegt, haengt an der Seed-Lage (am Messtag
- * fuehrte `koordPosteingang` mit „Verteilen"). DIE REGEL HAENGT DESHALB AM KNOPF SELBST UND NICHT
- * AN EINEM BEHAELTER: Karte, Zone und `/a/<id>` tragen dieselbe Beschriftung, und eine auf die
- * Zone verengte Fassung liesse die Karte still kaputt.
+ * Was hier stand, war die Regel, die „Anders zuweisen (der Zeitplan wird dabei geleert)" umbrechen
+ * liess (`height: auto`, `min-height: 44px`, `white-space: normal`, `padding-block: 8px`,
+ * `text-align: start`) — gemessen gegen antds `white-space: nowrap` bei 344px `min-content` und
+ * 328px Innenbreite auf 360px.
  *
- * DIE BESCHRIFTUNG WIRD NICHT GEKUERZT, UND DAS IST DER GANZE GRUND FUER DIESE REGEL: §1.3
- * uebernimmt sie woertlich, WEIL sie die Folge nennt (`planLoeschen: true` in
- * `_lib/lebenszyklus.ts`). Ein Knopf, der nur „Umverteilen" hiesse, verschwiege die Wirkung, die
- * man hinterher nicht zurueckholen kann — die Zeile umbrechen zu lassen ist der billigere Preis.
+ * DER UMBRUCH WAR DIE ANTWORT AUF EINE ZU LANGE BESCHRIFTUNG, UND DIE BESCHRIFTUNG IST JETZT KURZ:
+ * der Knopf heisst „Anders zuweisen", die Folge (`planLoeschen: true` in `_lib/lebenszyklus.ts`)
+ * nennt der Bestaetigungsdialog, der ohnehin davorsteht (`_ui/VerteilenDialog.tsx`s
+ * `VerteilenModal`). Damit hat die Regel keinen Aufrufer mehr, und eine Regel ohne Traeger, deren
+ * Kommentar „HEUTE GENAU EINER" behauptet und dabei einen Text nennt, den es nicht mehr gibt, ist
+ * schlechter als keine.
  *
- * `height: auto` PLUS `min-height: 44px`, NICHT `height: auto` ALLEIN: eine einzeilige Auspraegung
- * fiele sonst auf Polster plus Zeilenhoehe zusammen (~38px) und unterschritte die Bediendichte
- * ARBEITSDICHTE (`controlHeight: 44`, `core/theme/theme.ts`) — WCAG 2.5.5 Stufe AAA, und die gilt
- * laut CLAUDE.md Falle 4 UEBERALL, weil `FullShell` auch auf dem Telefon rendert. Die 44 ist
- * ausgeschrieben und kommt NICHT aus `var(--ant-control-height)`: `--ant-*` steht auf antds
- * Scope-Klasse und ist von eigenem Markup aus unsichtbar (Falle 2) — der Fehler waere still.
- *
- * `.modul` DAVOR IST PFLICHT (Falle 5): die Klasse allein ist (0,1,0), genauso viel wie `.ant-btn`,
- * und verloere durch Dokumentreihenfolge — antds Stylesheet wird nach diesem eingebunden. Mit
- * `.modul` ist es (0,2,0) und gewinnt unabhaengig von der Reihenfolge. Dieselbe, dort bereits
- * kommentierte Ueberlegung wie bei `.modul .knopfzeile > *` unten; nie `!important`.
+ * WER SIE WIEDER BRAUCHT, braucht sie fuer eine Beschriftung, die auf 360px nicht in eine Zeile
+ * passt — und schuldet dann dieselbe Messung und den `.modul`-Praefix (Falle 5: `.knopfUmbruch`
+ * allein ist (0,1,0) wie `.ant-btn` und verloere durch Dokumentreihenfolge). Die 44px kamen aus
+ * ARBEITSDICHTE (`controlHeight: 44`, `core/theme/theme.ts`), nie aus `var(--ant-control-height)`
+ * (Falle 2).
  */
-.modul .knopfUmbruch {
-  height: auto;
-  min-height: 44px;
-  white-space: normal;
-  padding-block: 8px;
-  text-align: start;
-}
 .journal {
   display: flex;
   flex-direction: column;
@@ -609,7 +592,25 @@
   .fuehrung {
     padding: 16px;
   }
+  /*
+   * `align-items: flex-start` GEHOERT ZUR KARTENFORM DAZU UND IST KEINE DRITTE REGEL: die Liste aus
+   * §6.5 („genau zwei") zaehlt REGELN, und es bleiben zwei — `.fuehrung` und `.zeilenListe > li`.
+   *
+   * WARUM SIE NOETIG IST (Bildstrecke 360px, `m2-bufdi.png`): eine Flex-Spalte richtet ihre Kinder
+   * in der Querachse per Vorgabe `stretch` aus, und die Querachse IST hier die Breite. Jedes Kind
+   * der Zeile wird damit BLOCKIFIZIERT — auch `.chip` und `.prioKontur`, die `display: inline-flex`
+   * tragen. Ein Konturchip ueber die volle Zeilenbreite liest sich als EINGABEFELD, nicht als
+   * Etikett; der Zustandschip daneben bekommt eine Farbflaeche ueber die ganze Breite, die er nie
+   * meinte. Auf dem Desktop (Reihe) tritt das nicht auf, weil `stretch` dort die HOEHE angleicht.
+   *
+   * AN DER ZEILE, NICHT AM CHIP: die Ursache ist die Ausrichtung des Behaelters, nicht die
+   * Anzeigeart des Chips. Ein `align-self` an `.chip` traefe ausserdem `.prioText` nicht (das
+   * bewusst OHNE `.chip` rendert, §9.1) und liesse `<Link>`, `<Frist>` und den Rollenzusatz weiter
+   * ueber die volle Breite gedehnt. Keine Spezifitaetserhoehung noetig: die Regel steht gegen
+   * niemanden, sie ergaenzt die eigene Basisregel.
+   */
   .zeilenListe > li {
     flex-direction: column;
+    align-items: flex-start;
   }
 }

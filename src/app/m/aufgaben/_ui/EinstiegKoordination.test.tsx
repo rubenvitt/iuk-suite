@@ -185,7 +185,9 @@ describe("EinstiegKoordination — der Aufbau aus §3.4", () => {
 
     const primaer = flaeche().querySelectorAll(".ant-btn-primary");
     expect(primaer).toHaveLength(1);
-    expect(primaer[0]!.textContent).toContain("Anders zuweisen (der Zeitplan wird dabei geleert)");
+    // Die Beschriftung ist kurz; die Folge (`planLoeschen: true`) nennt der Dialog davor
+    // (`VerteilenDialog.test.tsx`) — bis zur Bildstrecken-Runde stand sie auf dem Knopf.
+    expect(primaer[0]!.textContent).toContain("Anders zuweisen");
     // Der Knopf steht IN der Karte, nicht in einer Zone darunter — R3 laesst bei n = 1 keine
     // entstehen, und ohne diese Zeile bewiese die Zaehlung nur „irgendwo auf der Flaeche".
     expect(query("[data-rolle='fuehrung']").contains(primaer[0]!)).toBe(true);

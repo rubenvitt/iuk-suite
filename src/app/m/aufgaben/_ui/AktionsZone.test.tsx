@@ -412,11 +412,15 @@ describe("AktionsZone — genau ein Primaerknopf (§7 Nr. 2)", () => {
 
   /**
    * „ANDERS ZUWEISEN" (§7 Nr. 3) — DER BIS SCHRITT 6 FEHLENDE AUFRUFER VON `umverteilenAction`.
-   * ZWEI ZUSAGEN IN EINEM: der Knopf erscheint bei `optionen.umverteilen`, UND sein Text nennt die
-   * Folge (`planLoeschen: true` aus `_lib/lebenszyklus.ts`) — ein Knopf, der nur „Umverteilen"
-   * hiesse, verschwiege genau die Wirkung, die man hinterher nicht zurueckholen kann.
+   *
+   * DER KNOPF NENNT DIE FOLGE NICHT MEHR SELBST, UND DAS IST ABSICHT: die Beschriftung hiess bis
+   * zur Bildstrecken-Runde „Anders zuweisen (der Zeitplan wird dabei geleert)" und brach in der
+   * Zone „Überfällig" ueber vier Zeilen unterschiedlich um. Die Folge (`planLoeschen: true` aus
+   * `_lib/lebenszyklus.ts`) steht jetzt im Bestaetigungsdialog, der auf jedem Weg davorsteht;
+   * bewacht wird sie in `VerteilenDialog.test.tsx`. Hier bleibt die Zusage „der Knopf erscheint bei
+   * `optionen.umverteilen` und ist der Primaerknopf".
    */
-  it("zeigt „Anders zuweisen (der Zeitplan wird dabei geleert)“, sobald optionen.umverteilen gilt", async () => {
+  it("zeigt „Anders zuweisen“, sobald optionen.umverteilen gilt", async () => {
     await mount(
       <AktionsZone
         nachweisMaxBytes={MAX_BYTES}
@@ -426,7 +430,7 @@ describe("AktionsZone — genau ein Primaerknopf (§7 Nr. 2)", () => {
       />,
     );
     expect(primaere()).toHaveLength(1);
-    expect(primaere()[0]!.textContent).toContain("Anders zuweisen (der Zeitplan wird dabei geleert)");
+    expect(primaere()[0]!.textContent).toContain("Anders zuweisen");
   });
 
   /**

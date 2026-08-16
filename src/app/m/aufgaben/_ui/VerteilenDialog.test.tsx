@@ -40,7 +40,7 @@ vi.mock("../actions", () => ({
   umverteilenAction: UMVERTEILEN_MARKER,
 }));
 
-import { VerteilenTabelle } from "./VerteilenDialog";
+import { UmverteilenKnopf, VerteilenTabelle } from "./VerteilenDialog";
 
 function aufgabe(over: Partial<AufgabeRow> & Pick<AufgabeRow, "id">): AufgabeRow {
   return {
@@ -305,6 +305,70 @@ describe("VerteilenTabelle — der Dialog: Zielliste, Auslastung, Schliessen", (
       />,
     );
     expect(existsPortal(".ant-modal")).toBe(false);
+  });
+
+  /**
+   * DIE FOLGE STEHT IM DIALOG, NICHT AUF DEM KNOPF — und dieser Test ist der Riegel dafuer, dass
+   * sie nicht bei nachster Gelegenheit BEIDE Orte verlaesst.
+   *
+   * VORGESCHICHTE (Bildstrecken-Runde): Spec §1.3/§7 Nr. 3 legte die Beschriftung „Anders zuweisen
+   * (der Zeitplan wird dabei geleert)" fest, WEIL `_lib/lebenszyklus.ts` die Zeile mit
+   * `planLoeschen: true` fuehrt. Gemessen an echten Bildern war der Knopf der falsche Ort: in der
+   * Zone „Überfällig, noch nicht begonnen" steht er JE ZEILE, und vier 44-Zeichen-Knoepfe brachen
+   * bei 1280px unterschiedlich um. Der Dialog steht auf jedem der drei Wege (Karte, Zone,
+   * `/a/<id>`) davor — die Aktion ist ohne ihn nicht ausloesbar —, also traegt er den Satz.
+   *
+   * DREI ZUSAGEN, EINZELN GEPRUEFT, weil je zwei davon gruen bleiben koennten, waehrend die dritte
+   * bricht: kurzer Knopf · Folge im Dialog · „Verteilen" nennt KEINE Folge (dort gibt es keine —
+   * eine Aufgabe im Posteingang hat noch keinen Zeitplan, und ein geliehener Satz waere schlicht
+   * falsch).
+   */
+  it("beschriftet „Anders zuweisen“ kurz — die Folge steht NICHT mehr auf dem Knopf", async () => {
+    const alina = person({ id: "alina", name: "Alina" });
+    await mount(
+      <UmverteilenKnopf
+        aufgabe={aufgabe({ id: "a1", titel: "Nur eine", status: "verteilt" })}
+        bufdis={[alina]}
+        auslastung={[auslastung(alina)]}
+        tage={TAGE}
+      />,
+    );
+    const knopf = queryAll("[data-testid='umverteilen-a1']")[0]!;
+    expect(knopf.textContent).toBe("Anders zuweisen");
+    expect(knopf.textContent).not.toContain("Zeitplan");
+  });
+
+  it("nennt die Folge im geoeffneten Dialog", async () => {
+    const alina = person({ id: "alina", name: "Alina" });
+    await mount(
+      <UmverteilenKnopf
+        aufgabe={aufgabe({ id: "a1", titel: "Nur eine", status: "verteilt" })}
+        bufdis={[alina]}
+        auslastung={[auslastung(alina)]}
+        tage={TAGE}
+      />,
+    );
+    await click("[data-testid='umverteilen-a1']");
+    expect(queryPortal(".ant-modal").textContent).toContain(
+      "Der bisher eingeplante Tag dieser Aufgabe wird dabei geleert.",
+    );
+  });
+
+  it("„Verteilen“ nennt keine Folge — eine Aufgabe im Posteingang hat keinen Zeitplan", async () => {
+    const alina = person({ id: "alina", name: "Alina" });
+    await mount(
+      <VerteilenTabelle
+        posteingang={[aufgabe({ id: "a1", titel: "Nur eine", erstellerId: "malte" })]}
+        erstellerNamen={{ malte: "Malte" }}
+        bufdis={[alina]}
+        auslastung={[auslastung(alina)]}
+        tage={TAGE}
+        heute="2026-08-13"
+        darfVerteilen
+      />,
+    );
+    await click("[data-testid='verteilen-a1']");
+    expect(queryPortal(".ant-modal").textContent).not.toContain("geleert");
   });
 
   it("zeigt einen Feldfehler am Zielfeld, wenn useActionState ihn liefert", async () => {
