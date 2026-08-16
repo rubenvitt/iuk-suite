@@ -39,12 +39,20 @@ const TEIL_SUFFIX = ".part";
  *
  * Ohne die Angabe gilt `0o666 & ~umask`, und der Fall „clamd darf nicht lesen" faellt
  * erst am Zielhost auf — als `error` auf JEDER Datei, also fail-closed in Produktion.
- * clamd laeuft im Image als uid 100/gid 101, der Suite-Prozess als uid 1001/gid 1001.
  *
  * Die Spec laesst genau ZWEI Varianten zu, und nur diese eine gilt: `0o640` **plus
  * gemeinsame gid**. Die andere waere ein `user:` am clamav-Service. Welche am laufenden
  * Host traegt, ist **§13.3 Frage 16** (`zSCAN` im Sidecar auf eine frisch geschriebene
  * Datei) — die zweite Variante gehoert also nicht ZUSAETZLICH eingebaut.
+ *
+ * ⚠️ HIER STAND „clamd laeuft im Image als uid 100/gid 101, der Suite-Prozess als uid
+ * 1001/gid 1001" — als Feststellung, nicht als Annahme, und am Zielhost stimmte sie
+ * nicht: gemessen am 2026-08-02 (arm64, `clamav/clamav-debian`) laeuft clamd als
+ * 1000:1000 und der Suite-Prozess als 1001:65533(nogroup). Die gemeinsame gid, auf der
+ * dieser Modus beruht, war also nirgends hergestellt, und der Modus allein stellt sie
+ * nicht her. Sie kommt aus `SUITE_USER` in der `compose.yaml` (Vorbelegung 1001:1001,
+ * am Host in die `.env`) — die Zahlen haengen am gewaehlten clamav-Image und gehoeren
+ * deshalb dorthin und nicht hierher.
  */
 const BLOB_MODUS = 0o640;
 const ABLAGE_MODUS = 0o750;
