@@ -20,6 +20,48 @@ import {
  * Nicht-Vakuitäts-Reparatur.
  */
 test.describe("lagerbuch — Modulnavigation", () => {
+  /*
+   * AUFZEICHNUNG AUCH BEIM ERSTEN VERSUCH — NUR HIER, UND AUS EINEM GEMESSENEN
+   * GRUND.
+   *
+   * `main`, Lauf 31960413191, Shard 3: „markiert auf einer Detailseite gar
+   * nichts" lief in den vollen 30-s-Riegel (63 Pollversuche auf
+   * `/verwaltung/geraete`) und war im zweiten Versuch gruen — im Bericht also
+   * `flaky`, nicht rot. Es ist das ZWEITE Mal fuer genau diese Zeile; am
+   * 12.08.2026 waren es 13 Pollversuche.
+   *
+   * ⚠️ UND GENAU DESHALB LIESS SICH DIE URSACHE NICHT ENTSCHEIDEN.
+   * `playwright.config.ts` steht auf `trace: "on-first-retry"` — der
+   * FEHLGESCHLAGENE erste Versuch bekommt damit gar keine Ablaufverfolgung,
+   * aufgezeichnet wird erst der (hier gruene) zweite. Uebrig blieb ein
+   * `error-context.md` ohne Netzwerkteil, und damit sind zwei voellig
+   * verschiedene Ursachen nicht auseinanderzuhalten:
+   *
+   *   a) Uebersetzungslatenz — `next dev` uebersetzt `/verwaltung/geraete/[id]`
+   *      beim ersten Treffer; die Adresse wechselt bei einem `next/link` erst,
+   *      wenn die RSC-Antwort da ist. Dann waere 30 s schlicht zu knapp.
+   *   b) Falle 12 (CLAUDE.md) — der Klick trifft, aber die Huelle bricht
+   *      zwischen `mousedown` und `mouseup` um, und es geht NIE eine Anfrage
+   *      hinaus.
+   *
+   * Die beiden trennt genau eine Beobachtung: ob fuer das Ziel ein Aufruf im
+   * Netzwerkteil steht. Der steht nur in der Ablaufverfolgung.
+   *
+   * ⚠️ BEWUSST NICHT SCHON JETZT AUF `klickeWennRuhig` UMGESTELLT. Der
+   * ariaSnapshot des roten Versuchs spricht sogar GEGEN (b): bei der belegten
+   * Falle 12 trug der geklickte Anker danach den Fokus (`[active]`), weil der
+   * `mousedown` ihn getroffen hatte — hier traegt ihn NICHTS. Eine Abhilfe
+   * einzubauen, deren Ursache nicht belegt ist, hiesse den naechsten Leser
+   * glauben zu machen, der Fall sei verstanden. Erst messen, dann beheben.
+   *
+   * Kosten: `retain-on-failure` zeichnet in DIESER Datei jeden Lauf auf und
+   * verwirft ihn bei Erfolg. `playwright.config.ts` begruendet, warum das nicht
+   * suiteweit steht (Zeit und Platz in JEDEM Test) — hier traegt es ein
+   * einzelner `describe` mit sechs Faellen, und es faellt beim naechsten
+   * Vorkommen die Entscheidung, die diesmal fehlte.
+   */
+  test.use({ trace: "retain-on-failure" });
+
   test.beforeEach(async ({ page }) => {
     await devLogin(page, {
       host: LAGERBUCH_HOST,

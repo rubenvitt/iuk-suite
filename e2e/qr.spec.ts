@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type TestInfo } from "@playwright/test";
 import { devLogin } from "./fixtures";
 import { decodeQr, decodeQrPng } from "./helpers/decode-qr";
 import { TAP, TAP_XL } from "@/core/theme/tokens";
@@ -20,8 +20,65 @@ const QR = "http://qr.localtest.me:3100";
  */
 async function readQrSvg(page: Page): Promise<string> {
   const box = page.getByTestId("qr-display");
-  await expect(box.locator("svg")).toBeVisible();
+  /*
+   * EIGENES ZEITBUDGET, UND ES IST DIE URSACHE EINES ECHTEN ROTEN LAUFS —
+   * nicht Vorsorge.
+   *
+   * `main`, Lauf 31960413191, Shard 3, ERSTER Versuch von „iuk-qr-admin kann
+   * ein Preset anlegen" (aus `error-context.md` gelesen):
+   *
+   *     expect(locator).toBeVisible() failed
+   *     Locator: getByTestId('qr-display').locator('svg')
+   *     Timeout:  5000ms — element(s) not found
+   *
+   * Das ist Playwrights Vorgabe von 5 s, und die reicht hier nicht: die Zeile
+   * laeuft nach einem `page.goto` auf eine unter `next dev` noch nicht
+   * uebersetzte Route, und der Code wird erst danach gerendert. Derselbe Fall,
+   * den `playwright.config.ts` an `retries` ausschreibt — der Test hat 90 s,
+   * die EINZELNE Zusicherung aber nur 5.
+   *
+   * 30 s wie die Navigationszusicherung in `lagerbuch-verwaltung.spec.ts`:
+   * deckt die Uebersetzung ab und bleibt deutlich unter dem Test-Timeout, ein
+   * echter Renderfehler faellt also weiterhin auf — nur nach 30 s statt nach 5.
+   */
+  await expect(box.locator("svg")).toBeVisible({ timeout: 30_000 });
   return box.innerHTML();
+}
+
+/**
+ * EIN PRESET-NAME JE VERSUCH — und das ist die Abhilfe zu einem Fehlschlag, der
+ * sich SELBST VERSTETIGT hat.
+ *
+ * ⚠️ DIE WIEDERHOLUNG MACHTE AUS EINEM WACKLER EINEN SICHEREN ROTEN LAUF.
+ * `main`, Lauf 31960413191, Shard 3:
+ *
+ *     Expected: 1
+ *     Received: 3
+ *       3 × locator resolved to 2 elements
+ *      11 × locator resolved to 3 elements
+ *
+ * Die drei Anlege-Tests dieser Datei legten ihre Zeile unter einem FESTEN Namen
+ * an und pruefen dann `toHaveCount(1)` — eine Aussage ueber den GESAMTBESTAND.
+ * Die e2e-SQLite wird aber nur beim Serverstart gewischt (`rm -rf ./.data/e2e`
+ * in `playwright.config.ts`), nicht je Versuch. Scheitert ein Versuch NACH dem
+ * Anlegen, findet der naechste die alte Zeile vor und legt eine zweite dazu:
+ * die Zaehlung kann danach gar nicht mehr aufgehen, und zwar in JEDEM weiteren
+ * Versuch. Aus „einmal wacklig" wird „dreimal rot".
+ *
+ * ⚠️ SCHLIMMER ALS NUR ROT: die Zaehlmeldung VERDECKT die eigentliche Ursache.
+ * Der erste Versuch oben scheiterte an etwas ganz anderem (dem 5-s-Budget in
+ * `readQrSvg`, s. o.); im Protokoll steht davon nichts mehr — sichtbar ist nur
+ * noch „erwartet 1, bekommen 3". Wer das liest, sucht an der falschen Stelle.
+ *
+ * Der Name traegt deshalb den Versuch. Der erste behaelt den bisherigen Namen,
+ * damit ein gruener Lauf liest wie zuvor; jeder weitere bekommt seinen eigenen
+ * und zaehlt damit nur seine eigene Zeile. Nebenbei fallen auch die aus dem
+ * Namen abgeleiteten ids auseinander (`preset-vor-rotation` im Bearbeiten-Test
+ * zeigt die Ableitung) — zwei Zeilen gleichen Namens waren also auch dort eine
+ * Kollision, die niemand gewaehlt hat.
+ */
+function jeVersuch(basis: string, testInfo: TestInfo): string {
+  return testInfo.retry === 0 ? basis : `${basis} (Versuch ${testInfo.retry + 1})`;
 }
 
 test("anonym: URL eingeben erzeugt einen lesbaren QR-Code", async ({ page }) => {
@@ -219,14 +276,15 @@ test("Admin-Route ist ohne die Gruppe nicht vorhanden (404, nicht 403)", async (
   expect(res?.status()).toBe(404);
 });
 
-test("iuk-qr-admin kann ein Preset anlegen", async ({ page }) => {
+test("iuk-qr-admin kann ein Preset anlegen", async ({ page }, testInfo) => {
+  const bezeichnung = jeVersuch("Neues Preset", testInfo);
   await devLogin(page, {
     host: "qr.localtest.me",
     groups: "iuk-qr-admin",
     callbackPath: "/admin",
   });
   await expect(page.getByTestId("qr-admin")).toBeVisible();
-  await page.getByLabel("Bezeichnung").fill("Neues Preset");
+  await page.getByLabel("Bezeichnung").fill(bezeichnung);
   // Die Art steht per Vorgabe auf "Web-Adresse"; das Wertfeld traegt dessen
   // Namen. Ueber die Rolle adressiert, weil `getByLabel` zusaetzlich die
   // Art-Auswahl traefe — deren Label schliesst die Optionstexte mit ein.
@@ -235,7 +293,7 @@ test("iuk-qr-admin kann ein Preset anlegen", async ({ page }) => {
   // Auf die Liste eingegrenzt, nicht per getByText: die Ueberschrift "Neues
   // Preset anlegen" enthaelt denselben Text und machte die Zusicherung
   // mehrdeutig — sie wuerde auch dann gruen, wenn nichts angelegt wurde.
-  await expect(page.getByTestId("preset-row").filter({ hasText: "Neues Preset" })).toHaveCount(1);
+  await expect(page.getByTestId("preset-row").filter({ hasText: bezeichnung })).toHaveCount(1);
 
   // Bis hierher ist nur die BEZEICHNUNG belegt. Die Preset-Zeile rendert den
   // gespeicherten Wert nirgends — verwirft oder vertauscht die Server-Action
@@ -243,7 +301,7 @@ test("iuk-qr-admin kann ein Preset anlegen", async ({ page }) => {
   // der ins Leere fuehrt. Deshalb dem Preset bis zum fertigen Code folgen:
   // Formular -> DB -> Kachel -> QR-Code.
   await page.goto(`${QR}/`);
-  await page.getByTestId("preset-tile").filter({ hasText: "Neues Preset" }).click();
+  await page.getByTestId("preset-tile").filter({ hasText: bezeichnung }).click();
   expect(await decodeQr(await readQrSvg(page))).toBe("https://neu.example");
 });
 
@@ -259,17 +317,18 @@ test("iuk-qr-admin kann ein Preset anlegen", async ({ page }) => {
  * E2E laeuft mit `workers:1` gegen eine einmal gewischte DB, alle Tests dieser
  * Datei teilen seriell denselben Stand.
  */
-test("iuk-qr-admin kann ein Preset loeschen", async ({ page }) => {
+test("iuk-qr-admin kann ein Preset loeschen", async ({ page }, testInfo) => {
+  const bezeichnung = jeVersuch("Preset zum Loeschen", testInfo);
   await devLogin(page, {
     host: "qr.localtest.me",
     groups: "iuk-qr-admin",
     callbackPath: "/admin",
   });
-  await page.getByLabel("Bezeichnung").fill("Preset zum Loeschen");
+  await page.getByLabel("Bezeichnung").fill(bezeichnung);
   await page.getByRole("textbox", { name: "Web-Adresse" }).fill("https://weg.example");
   await page.getByRole("button", { name: /anlegen/i }).click();
 
-  const row = page.getByTestId("preset-row").filter({ hasText: "Preset zum Loeschen" });
+  const row = page.getByTestId("preset-row").filter({ hasText: bezeichnung });
   await expect(row).toHaveCount(1);
   // Auf die Zielzeile gescopt: "Loeschen" gibt es pro Zeile einmal.
   await row.getByRole("button", { name: "Löschen" }).click();
@@ -288,41 +347,54 @@ test("iuk-qr-admin kann ein Preset loeschen", async ({ page }) => {
  * QR-Code): die Preset-Zeile rendert den gespeicherten Wert nirgends, ein Test
  * bis zur Liste bliebe also auch dann gruen, wenn die Action den Wert verwirft.
  */
-test("iuk-qr-admin kann ein Preset bearbeiten, ohne es neu anzulegen", async ({ page }) => {
+test("iuk-qr-admin kann ein Preset bearbeiten, ohne es neu anzulegen", async ({ page }, testInfo) => {
+  const vorher = jeVersuch("Preset vor Rotation", testInfo);
+  const nachher = jeVersuch("Preset nach Rotation", testInfo);
   await devLogin(page, {
     host: "qr.localtest.me",
     groups: "iuk-qr-admin",
     callbackPath: "/admin",
   });
-  await page.getByLabel("Bezeichnung").fill("Preset vor Rotation");
+  await page.getByLabel("Bezeichnung").fill(vorher);
   await page.getByRole("textbox", { name: "Web-Adresse" }).fill("https://alt.example");
   await page.getByRole("button", { name: /anlegen/i }).click();
 
-  const row = page.getByTestId("preset-row").filter({ hasText: "Preset vor Rotation" });
+  const row = page.getByTestId("preset-row").filter({ hasText: vorher });
   await expect(row).toHaveCount(1);
+  /*
+   * DIE ID WIRD ABGELESEN, NICHT MEHR AUSGESCHRIEBEN — vorher stand hier
+   * `toHaveText("preset-vor-rotation")`.
+   *
+   * Der Grund ist `jeVersuch` (s. o.): traegt die Bezeichnung den Versuch, dann
+   * traegt ihn auch die daraus abgeleitete id, und ein festes Literal waere ab
+   * dem zweiten Versuch falsch. Wichtiger ist aber, dass die eigentliche Zusage
+   * dieser Zeile GAR NICHT am Wortlaut des Slugs haengt: behauptet wird
+   * „bearbeitet, nicht geloescht und neu angelegt" — also DIESELBE id vor und
+   * nach dem Speichern. Genau das prueft der Vergleich, und er prueft es
+   * unabhaengig davon, wie der Slug gebildet wird.
+   */
+  const idVorDerBearbeitung = (await row.locator("code").innerText()).trim();
   await row.getByTestId("preset-edit").click();
 
   // Die Art bleibt beim Bearbeiten gesperrt — ein Wechsel machte den
   // gespeicherten Wert bedeutungslos.
   await expect(page.getByLabel("Art")).toBeDisabled();
-  await page.getByLabel("Bezeichnung").fill("Preset nach Rotation");
+  await page.getByLabel("Bezeichnung").fill(nachher);
   await page.getByRole("textbox", { name: "Web-Adresse" }).fill("https://neu.example");
   await page.getByRole("button", { name: "Speichern" }).click();
 
   // Auch die Bezeichnung wird geaendert, damit hier auf etwas SICHTBAR Neues
   // gewartet werden kann. Auf die unveraenderte Zeile zu pruefen waere sofort
   // gruen — und das anschliessende page.goto brach die noch laufende Action ab.
-  const updated = page.getByTestId("preset-row").filter({ hasText: "Preset nach Rotation" });
+  const updated = page.getByTestId("preset-row").filter({ hasText: nachher });
   await expect(updated).toHaveCount(1);
   // Dieselbe id wie beim Anlegen: bearbeitet, nicht geloescht und neu angelegt.
   // An der id haengen sortOrder (die Kachelposition) und die Audit-Felder.
-  await expect(updated.locator("code")).toHaveText("preset-vor-rotation");
-  await expect(page.getByTestId("preset-row").filter({ hasText: "Preset vor Rotation" })).toHaveCount(
-    0,
-  );
+  await expect(updated.locator("code")).toHaveText(idVorDerBearbeitung);
+  await expect(page.getByTestId("preset-row").filter({ hasText: vorher })).toHaveCount(0);
 
   await page.goto(`${QR}/`);
-  await page.getByTestId("preset-tile").filter({ hasText: "Preset nach Rotation" }).click();
+  await page.getByTestId("preset-tile").filter({ hasText: nachher }).click();
   expect(await decodeQr(await readQrSvg(page))).toBe("https://neu.example");
 });
 
