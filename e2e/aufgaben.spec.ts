@@ -1195,6 +1195,21 @@ const UEBERLAUF_SEITEN: { label: string; pfad: string; email: string; groups: st
   // Brief verlangt.
   { label: "/ (Bendix, ueberbuchter Montag)", pfad: "/", email: "bendix@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
   { label: "/ (Carla, laengster Routinenname)", pfad: "/", email: "carla@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
+  /*
+   * DIE ZWEI EINSTIEGE, DIE DIE OBERFLAECHEN-SPEC NEU BAUT (§3.3, §11.2) — NACHTRAEGLICH
+   * AUFGENOMMEN, WEIL DIE DECKUNG SONST GENAU DORT ZU KLEIN WAERE, WO SICH ETWAS AENDERT. Die
+   * Liste fuehrte bis hierher `/` fuer die DREI BuFDis, `/verteilen`, `/personen` und `/archiv` —
+   * also drei Fassungen derselben Rolle und keine einzige der beiden anderen. Rikes und Maltes
+   * Einstieg sind seit Schritt 4 neu gebaut (Fuehrungskarte, Zonen mit Deckel, „Die Woche der
+   * drei"), und beide bringen Zeilen mit, die auf 390px zuerst brechen: Rikes Zonenueberschriften
+   * tragen eine Zahl in Klammern, Maltes „Eigene Auftraege" ist ungedeckelt und damit die
+   * laengste Liste des Moduls.
+   *
+   * 6 → 8 Zeilen, 24 → 32 Faelle. Zur fuenften Breite (360px) siehe den eigenen Block unter dieser
+   * Schleife — sie wird GEZIELT gefahren, nicht global.
+   */
+  { label: "/ (Rike, Koordination)", pfad: "/", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilung" },
+  { label: "/ (Malte, Auftraggeber)", pfad: "/", email: "malte@localtest.me", groups: GRUPPE, titel: "Meine Aufträge" },
   // `Table` mit `scroll={{x: "max-content"}}` — die eine Seite, fuer die diese Zusicherung
   // ueberhaupt etwas beweist (s. Kopfkommentar).
   { label: "/verteilen", pfad: "/verteilen", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilen" },
@@ -1255,6 +1270,111 @@ for (const vp of [
         ).toBeLessThanOrEqual(mass.vwBody);
       });
     }
+  });
+}
+
+/**
+ * 360PX — DIE FUENFTE BREITE, UND SIE WIRD GEZIELT GEFAHREN STATT GLOBAL (Oberflaechen-Spec
+ * 2026-08-16 §9/S4, §11.2).
+ *
+ * WARUM UEBERHAUPT: 360px ist die Messbreite, an der die Spec ihre Skizzen bemisst und an der der
+ * Deckel von FUENF Zeilen je Zone begruendet ist („die Zeilenzahl, die auf 360px noch ueber der
+ * Falzkante einer Zone steht"). Die drei Einstiege sind die einzigen Flaechen, fuer die diese Zahl
+ * eine Aussage traegt — sie tragen die Fuehrungskarte mit ihren 16px Innenpolster (die eine
+ * Medienabfrage) und die Kartenform der Zeilen (`.zeilenListe > li { flex-direction: column }`).
+ *
+ * WARUM NICHT ALS FUENFTER EINTRAG IN DER BREITENLISTE OBEN: dieselbe Abwaegung, die der
+ * Kopfkommentar dort fuer `/routinen` und `/freigaben` schon ausschreibt — die Laufzeit dieses
+ * Sweeps waechst MULTIPLIKATIV ueber Seiten × Breiten, und 360px belegte fuer `/verteilen`,
+ * `/personen` und `/archiv` nichts, was 390px nicht schon belegt (keine dieser Seiten hat eine
+ * Schaltschwelle dazwischen; es gibt im ganzen Modul genau EINE Medienabfrage bei 767.98px).
+ * 8 × 4 + 3 = 35 Faelle statt 8 × 5 = 40.
+ */
+test.describe("Kein waagerechtes Scrollen bei 360px — die drei Einstiege", () => {
+  test.use({ viewport: { width: 360, height: 740 } });
+
+  // AUSGESCHRIEBEN STATT AUS `UEBERLAUF_SEITEN` GEFILTERT: ein Filter ueber `label` haenge an einer
+  // Zeichenkette, die niemand als Schnittstelle liest — waechst die Liste oben um eine vierte
+  // BuFDi, fuehre er sie hier still mit, und die Zahl im Kopfkommentar stimmte nicht mehr.
+  for (const seite of [
+    { label: "/ (Alina)", email: "alina@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
+    { label: "/ (Rike, Koordination)", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilung" },
+    { label: "/ (Malte, Auftraggeber)", email: "malte@localtest.me", groups: GRUPPE, titel: "Meine Aufträge" },
+  ].map((s) => ({ ...s, pfad: "/" }))) {
+    test(`${seite.label} laeuft bei 360px nicht ueber`, async ({ page }) => {
+      await devLogin(page, {
+        host: HOST,
+        groups: seite.groups,
+        email: seite.email,
+        callbackPath: seite.pfad,
+      });
+      const antwort = await page.goto(`http://${HOST}:3100${seite.pfad}`);
+      expect(antwort?.status(), `${seite.pfad}: HTTP`).toBe(200);
+      await expect(page.getByRole("heading", { name: seite.titel, level: 1 })).toBeVisible();
+      await page.waitForLoadState("networkidle");
+
+      const mass = await ueberlauf(page);
+      expect(
+        mass.scrollDoc,
+        `${seite.label} bei 360px (documentElement): ${mass.schuldige.join(" | ")}`,
+      ).toBeLessThanOrEqual(mass.vwDoc);
+      expect(
+        mass.scrollBody,
+        `${seite.label} bei 360px (body): ${mass.schuldige.join(" | ")}`,
+      ).toBeLessThanOrEqual(mass.vwBody);
+    });
+  }
+});
+
+/*
+ * DIE DREI ZUSAGEN DER FUEHRUNGSKARTE, DIE KEIN ANDERES TOR TREFFEN KANN (§3.3, §11.2) — je Rolle
+ * einmal: die Karte IST DA, sie steht AN ERSTER STELLE, und darin steht HOECHSTENS EIN
+ * `.ant-btn-primary`.
+ *
+ * WARUM `aufgaben-flaeche` UND NICHT `aufgaben-content`: `page.tsx` legt `aufgaben-content` um den
+ * GANZEN Einstieg, der `SeitenKopf` steht darin — „die Karte ist das erste Element" waere dort
+ * schlicht falsch und der Test einer, der etwas anderes misst, als sein Name sagt (dieselbe
+ * Familie wie die Fallen 10 und 11). Und der Zaehler misst denselben Wrapper, damit ein
+ * Primaerknopf der SUITE-SHELL die Zusage weder falsch-rot machen noch auf „hoechstens zwei"
+ * abschwaechen kann.
+ *
+ * WAS HIER BEWUSST NICHT STEHT: die BELEGUNGEN der Karte. Sie sind ein reiner Selektor ueber
+ * Datenzeilen und werden in `_lib/lage.test.ts` erschoepfend geprueft — samt dem Wochenendfall,
+ * dessen e2e-Fassung zwischen zwei Laeufen kippte, ohne dass sich Daten geaendert haetten.
+ */
+for (const rolle of [
+  { label: "Alina (BuFDi)", email: "alina@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
+  { label: "Rike (Koordination)", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilung" },
+  { label: "Malte (Auftraggeber)", email: "malte@localtest.me", groups: GRUPPE, titel: "Meine Aufträge" },
+]) {
+  test(`Fuehrungskarte: ${rolle.label} sieht sie an erster Stelle, mit hoechstens einem Primaerknopf`, async ({
+    page,
+  }) => {
+    await devLogin(page, {
+      host: HOST,
+      groups: rolle.groups,
+      email: rolle.email,
+      callbackPath: "/",
+    });
+    const antwort = await page.goto(`http://${HOST}:3100/`);
+    expect(antwort?.status(), "die Karte darf die Seite nicht auf 500 werfen").toBe(200);
+    await expect(page.getByRole("heading", { name: rolle.titel, level: 1 })).toBeVisible();
+
+    const flaeche = page.getByTestId("aufgaben-flaeche");
+    await expect(flaeche, "der Wrapper unter dem Seitenkopf fehlt").toHaveCount(1);
+
+    // ERSTES KIND UEBER EINEN CSS-SELEKTOR, NICHT UEBER `evaluate`: `> :first-child` bindet die
+    // POSITION, nicht nur die Anwesenheit — eine Karte irgendwo in der Flaeche erfuellt das nicht.
+    await expect(
+      page.locator("[data-testid='aufgaben-flaeche'] > :first-child[data-rolle='fuehrung']"),
+      "die Fuehrungskarte ist nicht das erste Kind von `aufgaben-flaeche`",
+    ).toHaveCount(1);
+
+    // „GENAU EIN PRIMAERKNOPF" IST ALS HOECHSTENS EINER GELESEN (§3.4, Regel P): gibt es fuer diese
+    // Person mit dieser Aufgabe in diesem Zustand keine Zustandsaktion, gibt es KEINEN — ein roter
+    // Knopf ohne Zustandswechsel waere eine Behauptung.
+    const primaer = await flaeche.locator(".ant-btn-primary").count();
+    expect(primaer, `${rolle.label}: ${primaer} Primaerknoepfe in \`aufgaben-flaeche\``).toBeLessThanOrEqual(1);
   });
 }
 

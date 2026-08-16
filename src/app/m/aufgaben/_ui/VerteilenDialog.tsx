@@ -252,6 +252,12 @@ function ZuweisenKnopf({
         type={primaer ? "primary" : undefined}
         onClick={() => setOffen(true)}
         data-testid={`${art}-${aufgabe.id}`}
+        /*
+         * NUR „ANDERS ZUWEISEN" BEKOMMT DEN UMBRUCH — „Verteilen" ist ein Wort und braucht ihn
+         * nicht. Die Begruendung (gemessene 344px `min-content` gegen 296px in der Karte bei
+         * 360px) steht bei `.knopfUmbruch` in `aufgaben.module.css`.
+         */
+        className={art === "umverteilen" ? s.knopfUmbruch : undefined}
       >
         {ZUWEISUNG[art].knopf}
       </Button>

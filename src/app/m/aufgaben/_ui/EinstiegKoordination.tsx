@@ -290,8 +290,25 @@ function PersonenLage({
             className={`${s.budget} ${s.budgetUeberbucht}`}
             style={{ margin: `${SPACE.xs}px 0 0` }}
           >
-            {fmtTagKurz(tag)} überbucht: {fmtStunden(budget.verplantMinuten)} /{" "}
-            {fmtStunden(budget.sollMinuten)} Std.
+            {/*
+             * `.budgetHinweis` UM DEN TEXTTEIL — SAMT DEM LEERZEICHEN DAHINTER (e2e-Fund des
+             * 768/820px-Sweeps, nachgemessen: `scrollWidth` 274 in einer 213px breiten Zelle).
+             * `.budget` traegt `white-space: nowrap`, damit „9,17 / 7,8 Std." nie mitten in der
+             * Zahl bricht; in einer Tagesspalte der BuFDi-Achse reicht die Zeile dafuer, in einer
+             * `.lageGitter`-Zelle NICHT MEHR — dort steht zusaetzlich der Tag und das Wort davor.
+             *
+             * DAS FUEHRENDE/NACHFOLGENDE LEERZEICHEN GEHOERT IN DIE SPANNE, nicht davor: die
+             * Umbruchgelegenheit LIEGT an dem Leerzeichen, und ob sie gilt, entscheidet das
+             * `white-space` des Elements, das es ENTHAELT (dieselbe Ueberlegung, die
+             * `Wochenplan.tsx`s `BudgetZeile` und der Kommentar an `.budgetHinweis` schon fuehren).
+             * Bliebe es beim `<p>`, verboete `nowrap` dort die Gelegenheit weiterhin, und die
+             * Klasse waere eine wirkungslose Attrappe.
+             *
+             * KEINE NEUE CSS-REGEL: `.budgetHinweis` existiert seit Aufgabe 21 fuer genau diesen
+             * Defekt. Die Zahlen bleiben zusammen, nur der Text davor darf umbrechen.
+             */}
+            <span className={s.budgetHinweis}>{`${fmtTagKurz(tag)} überbucht: `}</span>
+            {fmtStunden(budget.verplantMinuten)} / {fmtStunden(budget.sollMinuten)} Std.
           </p>
         ))
       )}
