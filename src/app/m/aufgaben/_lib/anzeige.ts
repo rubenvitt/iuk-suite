@@ -394,11 +394,17 @@ export const FRIST_TEXT = {
 /**
  * ÜBERGANGSTEXTE DER HEUTIGEN KPI-ZEILE — SIE STERBEN MIT §11.4 SCHRITT 4/5.
  *
- * WARUM SIE UEBERHAUPT HIER STEHEN: der Quelltext-Scan aus §6.6 laesst das Wort „ueberfaellig" nur
- * in `_ui/Frist.tsx` und in DIESER Datei zu. `_ui/EinstiegKoordination.tsx` traegt es heute an drei
- * Stellen (KPI-Kachel, Abschnittsueberschrift, Leertext), und der Einstieg wird erst in Schritt 4
- * umgebaut — genau das ist der Grund, aus dem §11.4 den Scan (Schritt 2) NACH die Beschriftung
- * (Schritt 1) legt. Bis dahin liest der Einstieg seine drei Zeichenketten von hier.
+ * WARUM SIE UEBERHAUPT HIER STANDEN: der Quelltext-Scan aus §6.6 laesst das Wort „ueberfaellig" nur
+ * in `_ui/Frist.tsx` und in DIESER Datei zu. `_ui/EinstiegKoordination.tsx` trug es zwischen
+ * Schritt 2 und Schritt 4 an drei Stellen (KPI-Kachel, Abschnittsueberschrift, Leertext) — genau
+ * das ist der Grund, aus dem §11.4 den Scan (Schritt 2) NACH die Beschriftung (Schritt 1) legt.
+ *
+ * SEIT SCHRITT 4 HAT DIESER EXPORT KEINEN AUFRUFER MEHR (nachgezaehlt): die KPI-Zeile ist mit dem
+ * Umbau des Einstiegs entfallen, die Ueberfaelligkeitsliste in die zwei Zonen „Überfällig, noch
+ * nicht begonnen" und „Überfällig, in Bearbeitung" zerfallen (§3.5). ER WIRD TROTZDEM NICHT HIER
+ * GELOESCHT, sondern in SCHRITT 5, zusammen mit `_ui/Kachel.tsx` und den `.kpi*`-Klassen (§1.4):
+ * eine Entfernung ausserhalb ihres Schritts liesse den naechsten Leser suchen, warum sie
+ * vorgezogen wurde.
  *
  * BEWUSST EIN EIGENER EXPORT UND NICHT DREI FELDER IN `FRIST_TEXT`: `FRIST_TEXT` ist eine
  * dauerhafte Zusage, an der die Fuehrungskarte und fuenf weitere Aufrufstellen haengen. Drei
