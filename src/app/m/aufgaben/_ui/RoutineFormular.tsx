@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Button, Checkbox, Input } from "antd";
+import { Button, Input } from "antd";
 import { routineAendernAction, routineAnlegenAction } from "../actions";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import type { RoutineRow } from "../_db/schema";
@@ -19,19 +19,24 @@ import { SPACE } from "@/core/theme/tokens";
  *     genau dem, statt ein zweites Formular-Muster im Modul aufzumachen. `Input` selbst ist KEIN
  *     Compound-Zugriff und waere ohnehin in einer Client-Insel erlaubt.
  *
- *     HIER STAND: „die Wochentage sind eine Checkbox-GRUPPE aus nativen `<input type=\"checkbox\">`,
- *     kein `Checkbox`/`Checkbox.Group` aus antd — fuenf native Kontrollkaestchen erreichen dieselbe
- *     Funktion ohne ein weiteres Antd-Muster einzufuehren." DER SATZ IST MIT DER FUENFTEN
- *     OBERFLAECHEN-RUNDE (2026-08-16) HINFAELLIG, und zwar nicht, weil er falsch war, sondern weil
- *     seine Voraussetzung entfallen ist: mit `_ui/Felder.tsx` IST antd das Formular-Vokabular des
- *     Moduls, und ein natives Kaestchen daneben waere jetzt das zweite Muster. Die Wochentage sind
- *     deshalb `Checkbox` — EINZELN und mit gemeinsamem `name`, KEIN `Checkbox.Group`: die Gruppe
- *     braeuchte `value`/`onChange` und damit einen kontrollierten Zustand fuer eine Mehrfachauswahl,
- *     die das Formular selbst schon traegt (`routineFormularGemeinsam` liest `getAll("wochentage")`).
- *     antd rendert unter jedem `Checkbox` ein echtes `<input type="checkbox">` und reicht `id`,
- *     `name` und `value` daran durch — am Formularvertrag aendert sich nichts. Und weil es ein
- *     echtes `<input>` ist, greift `.modul input:focus-visible` (`aufgaben.module.css`) weiterhin;
- *     der Fokusring, den der alte Satz als Grund nannte, geht nicht verloren.
+ *     DIE WOCHENTAGE SIND EINE CHECKBOX-GRUPPE AUS NATIVEN `<input type="checkbox">`, kein
+ *     `Checkbox`/`Checkbox.Group` aus antd — und das ist seit dem 2026-08-16 GEMESSEN, nicht mehr
+ *     nur Konvention.
+ *
+ *     Die Auswahlfelder dieses Moduls sind in derselben Runde auf antd gewechselt
+ *     (`_ui/Felder.tsx`), und der naheliegende naechste Schritt waere gewesen, diese fuenf
+ *     Kaestchen mitzunehmen. DER VERSUCH IST IN DER CI GESCHEITERT: antd v6 meldet
+ *     `Warning: [antd: Checkbox] \`value\` is not a valid prop, do you mean \`checked\`?`, und
+ *     `e2e/aufgaben.spec.ts` sammelt Konsolenmeldungen und verlangt eine LEERE Liste.
+ *
+ *     UND HIER IST `value` NICHT VERZICHTBAR, anders als bei einem reinen Ja/Nein-Kaestchen: der
+ *     Wert IST der Wochentags-Index, den `wochentageAusFormData` (`actions.ts`) aus
+ *     `getAll("wochentage")` liest. Ein Kaestchen ohne `value` sendet `"on"` — fuenfmal derselbe
+ *     String, aus dem sich kein Tag mehr ableiten laesst. Es gibt hier also keinen Ausweg ueber
+ *     einen anderen Prop, und sich auf einen zu stuetzen, von dem die Bibliothek ausdruecklich
+ *     abraet, ist genau der stille Vertrag, den dieses Projekt nicht will.
+ *
+ *     `.modul input:focus-visible` (`aufgaben.module.css`) deckt ihren Fokusring ab.
  *  3. KEIN `@ant-design/icons` — auch hier nicht. Diese Datei braucht ohnehin keine Zeichen.
  *  4. `values` TRAEGT JEDE GESENDETE WOCHENTAGSAUSWAHL ZURUECK: `routineFormularGemeinsam`
  *     (`actions.ts`) legt die gewaehlten Indizes kommagetrennt in `state.values.wochentage` ab, und
@@ -116,17 +121,22 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
         <legend style={{ padding: 0, marginBlockEnd: SPACE.xs }}>Wochentage</legend>
         <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
           {WOCHENTAG_LABEL.map((label, i) => (
-            <Checkbox
+            <label
               key={label}
-              id={`rt-wochentag-${i}`}
-              name="wochentage"
-              value={i}
-              defaultChecked={indizes.includes(i)}
-              aria-invalid={wochentageFehler ? true : undefined}
-              aria-describedby={wochentageFehler ? "rt-wochentage-err" : undefined}
+              htmlFor={`rt-wochentag-${i}`}
+              style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}
             >
+              <input
+                id={`rt-wochentag-${i}`}
+                type="checkbox"
+                name="wochentage"
+                value={i}
+                defaultChecked={indizes.includes(i)}
+                aria-invalid={wochentageFehler ? true : undefined}
+                aria-describedby={wochentageFehler ? "rt-wochentage-err" : undefined}
+              />
               {label}
-            </Checkbox>
+            </label>
           ))}
         </div>
         {wochentageFehler ? (

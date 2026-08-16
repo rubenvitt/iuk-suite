@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Button, Checkbox, Input } from "antd";
+import { Button, Input } from "antd";
 import { aufgabeEinstellenAction } from "../actions";
 import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
 import { NACHWEIS_ARTEN, PRIORITAETEN } from "../_db/schema";
@@ -242,22 +242,39 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
 
       <div>
         {/*
-         * antds `Checkbox` UND NICHT MEHR EIN NACKTES `<input type="checkbox">` — dieselbe Runde
-         * und dieselbe Begruendung wie bei den Auswahlfeldern. WICHTIG UND GEPRUEFT: antd rendert
-         * darunter ein ECHTES `<input type="checkbox">` und reicht `id`, `name` und `value` daran
-         * durch (`@rc-component/checkbox` spreizt seine restlichen Props auf das Element). Am
-         * Formularvertrag aendert sich also nichts — ein nicht angehaktes Feld sendet weiterhin
-         * GAR NICHTS, worauf sich `aufgabeEinstellenAction`s `istGesetzt` stuetzt.
+         * NATIVES `<input type="checkbox">` UND NICHT antds `Checkbox` — und das ist seit dem
+         * 2026-08-16 GEMESSEN, nicht mehr nur Konvention.
+         *
+         * Die Auswahlfelder dieses Formulars sind in derselben Runde auf antd gewechselt
+         * (`_ui/Felder.tsx`), und der naheliegende naechste Schritt waere gewesen, die zwei
+         * Kontrollkaestchen mitzunehmen. DER VERSUCH IST IN DER CI GESCHEITERT: antd v6 meldet
+         * `Warning: [antd: Checkbox] \`value\` is not a valid prop, do you mean \`checked\`?`, und
+         * `e2e/aufgaben.spec.ts` sammelt Konsolenmeldungen und verlangt eine LEERE Liste. Der Wert
+         * kommt zwar trotzdem im Formular an (Vitest belegt `nachweisPflicht=true`) — aber sich auf
+         * einen Prop zu stuetzen, von dem die Bibliothek ausdruecklich abraet, ist genau der stille
+         * Vertrag, den dieses Projekt nicht will.
+         *
+         * `value="true"` IST HIER NICHT VERZICHTBAR: ohne es sendet der Browser `"on"`. Das
+         * bestuende `istGesetzt` (`KAESTCHEN_AN` kennt `"on"`), waere aber eine zweite Schreibweise
+         * fuer dieselbe Zusage — und `RoutineFormular`s Wochentage brauchen ihren `value` ohnehin
+         * als ECHTEN Wert (den Index), dort gibt es den Ausweg gar nicht.
+         *
+         * `.modul input:focus-visible` (`aufgaben.module.css`) deckt den Fokusring ab.
          */}
-        <Checkbox
-          id="af-nachweispflicht"
-          name="nachweisPflicht"
-          value="true"
-          checked={nachweisPflicht}
-          onChange={(e) => setNachweisPflicht(e.target.checked)}
+        <label
+          htmlFor="af-nachweispflicht"
+          style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}
         >
+          <input
+            id="af-nachweispflicht"
+            type="checkbox"
+            name="nachweisPflicht"
+            value="true"
+            checked={nachweisPflicht}
+            onChange={(e) => setNachweisPflicht(e.target.checked)}
+          />
           Nachweispflicht
-        </Checkbox>
+        </label>
       </div>
 
       {nachweisPflicht ? (
@@ -282,14 +299,20 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
 
       {darfFuerAndere ? (
         <div>
-          <Checkbox
-            id="af-fuerSichSelbst"
-            name="fuerSichSelbst"
-            value="true"
-            defaultChecked={fuerSichSelbstVorbelegt}
+          {/* NATIV, s. die Begruendung am Kontrollkaestchen „Nachweispflicht" oben. */}
+          <label
+            htmlFor="af-fuerSichSelbst"
+            style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}
           >
+            <input
+              id="af-fuerSichSelbst"
+              type="checkbox"
+              name="fuerSichSelbst"
+              value="true"
+              defaultChecked={fuerSichSelbstVorbelegt}
+            />
             Für mich selbst einstellen
-          </Checkbox>
+          </label>
           <p style={{ margin: `${SPACE.xs}px 0 0` }}>
             Ohne Haken geht die Aufgabe an den Posteingang der Koordination.
           </p>

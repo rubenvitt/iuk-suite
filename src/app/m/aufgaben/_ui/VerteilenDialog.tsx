@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Button, Modal, Radio } from "antd";
+import { Button, Modal } from "antd";
 import { umverteilenAction, verteilenAction } from "../actions";
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
@@ -252,31 +252,35 @@ function VerteilenModal({
           <legend style={{ padding: 0, marginBlockEnd: SPACE.xs }}>Zuweisen an</legend>
           <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
             {/*
-             * antds `Radio` UND NICHT MEHR EIN NACKTES `<input type="radio">` — dieselbe Runde und
-             * dieselbe Begruendung wie bei den zwei Auswahlfeldern darunter. GEPRUEFT, BEVOR DIESE
-             * ENTSCHEIDUNG FIEL: antd rendert darunter ein ECHTES `<input type="radio">` und reicht
-             * `id`, `name`, `value` und `required` daran durch (`@rc-component/checkbox` spreizt
-             * seine restlichen Props auf das Element). Der Formularvertrag bleibt damit unberuehrt —
-             * abgesendet wird weiterhin `zielId=<Personen-Id>`, und `VerteilenDialog.test.tsx`s
-             * Zaehlung ueber `input[type='radio']` misst weiterhin dasselbe.
+             * NATIVE `<input type="radio">` UND NICHT antds `Radio` — dieselbe Lehre wie bei den
+             * Kontrollkaestchen in `AufgabeFormular`/`RoutineFormular` (2026-08-16, in der CI
+             * gemessen): die Auswahlfelder dieses Moduls sind auf antd gewechselt
+             * (`_ui/Felder.tsx`), die WAHL-Elemente eines Formulars bleiben nativ.
              *
-             * KEIN `Radio.Group`: das waere ein Compound-Zugriff (in einer Client-Insel zwar
-             * erlaubt) UND brauchte `value`/`onChange`, also einen kontrollierten Zustand fuer eine
-             * Auswahl, die das Formular selbst schon traegt. Einzelne `Radio` mit gemeinsamem
-             * `name` bleiben unkontrolliert und werden von React nach der Action mit zurueckgesetzt.
+             * Der Grund ist bei `Radio` nicht dieselbe Warnung wie bei `Checkbox` (`value` IST hier
+             * ein gueltiger Prop), sondern die Reichweite der Umstellung: `value` traegt am
+             * Radiofeld die PERSONEN-ID, also den abgesendeten Wert selbst, und ob antd ihn
+             * ausserhalb einer `Radio.Group` unveraendert ans `<input>` durchreicht, entscheiden
+             * Bibliotheks-Interna. Ein nativer Knopf entscheidet das gar nicht erst — und die
+             * Aufgabe dieser Runde waren Datum, Uhrzeit und Listenwahl, nicht die Radiogruppe.
              */}
             {bufdis.map((b) => (
-              <Radio
+              <label
                 key={b.id}
-                id={`vd-ziel-${b.id}`}
-                name="zielId"
-                value={b.id}
-                required
-                defaultChecked={gewaehltesZiel === b.id}
-                aria-describedby={zielFehler ? "vd-ziel-err" : undefined}
+                htmlFor={`vd-ziel-${b.id}`}
+                style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}
               >
+                <input
+                  id={`vd-ziel-${b.id}`}
+                  type="radio"
+                  name="zielId"
+                  value={b.id}
+                  required
+                  defaultChecked={gewaehltesZiel === b.id}
+                  aria-describedby={zielFehler ? "vd-ziel-err" : undefined}
+                />
                 {b.name}
-              </Radio>
+              </label>
             ))}
           </div>
           {zielFehler ? (
