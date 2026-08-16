@@ -516,7 +516,7 @@ Verteidigungslinie.
 
 **Aufbau (A4 Hochformat):** 3px Suite-Rot-Fahne am Oberrand · „Wie war der Dienstabend?" 40pt ·
 Gruppenname 16pt gedämpft · QR **90mm** zentriert · URL 12pt mono · eine Zeile „Anonym · 8 Noten,
-6 freie Zeilen · etwa 2 Minuten" · Fußzeile „Der Code gilt für alle Dienstabende." + Wortzeichen I&K.
+6 freie Zeilen · etwa 2 Minuten" · Fußzeile „Der Code gilt für alle Dienstabende." + Wortzeichen Sammelhaus.
 
 ```css
 @page { size: A4; margin: 18mm }

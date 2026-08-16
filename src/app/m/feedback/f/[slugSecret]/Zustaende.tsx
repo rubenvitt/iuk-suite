@@ -66,7 +66,7 @@ export function Huelle({
         <header className={`${s.kopf} ${s.aufbau}`}>
           <p className={s.kicker}>
             {KICKER}
-            <span className={s.wortzeichen}>I&amp;K</span>
+            <span className={s.wortzeichen}>Sammelhaus</span>
           </p>
           <h1 className={gross ? `${s.titel} ${s.gross}` : s.titel}>{titel}</h1>
           {kopf}

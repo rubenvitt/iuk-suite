@@ -86,6 +86,30 @@ async function freierPort(): Promise<number> {
   return port;
 }
 
+/**
+ * Mehrere freie Ports auf einmal — und der Plural ist der ganze Punkt.
+ *
+ * `freierPort()` GIBT SEINEN PORT FREI, BEVOR ES IHN ZURUECKGIBT. Zweimal
+ * nacheinander gerufen darf das Betriebssystem deshalb zweimal dieselbe Nummer
+ * aus dem ephemeren Bereich vergeben — nichts verbietet es, und genau das
+ * passierte am 16.08.2026 in der CI: `expected 45031 not to be 45031`. Die
+ * Zusicherung `portA !== portB` sicherte damit eine Eigenschaft zu, die keine
+ * Stelle herstellte; der Test war latent zufallsabhaengig, nicht der Ausfall.
+ *
+ * Hier lauschen erst ALLE gleichzeitig — solange sie offen sind, kann das
+ * Betriebssystem keine Nummer zweimal vergeben, die Ports sind also paarweise
+ * verschieden — und werden erst danach geschlossen. Nach der Rueckgabe ist
+ * wieder keiner belegt, der ECONNREFUSED-Ausgang bleibt also unveraendert.
+ */
+async function freiePorts(anzahl: number): Promise<number[]> {
+  const lauscher = await Promise.all(
+    Array.from({ length: anzahl }, () => lausche(() => "")),
+  );
+  const ports = lauscher.map((l) => l.port);
+  await Promise.all(lauscher.map((l) => l.stoppe()));
+  return ports;
+}
+
 function pfadAusBefehl(befehl: string): string {
   // Transport ist `zSCAN <pfad>` (core/av/scanner.ts).
   return befehl.replace(/^zSCAN /, "");
@@ -307,11 +331,13 @@ describe("Konfiguration kommt von außen — zwei verschiedene Konfigurationen e
     const person = legePerson("dev:a@b");
     const aufgabeId = legeAufgabeFuer(person.id);
 
-    const portA = await freierPort();
+    // Beide Nummern in EINEM Zug, sonst duerfen sie gleich sein — Begruendung
+    // steht an `freiePorts`.
+    const [portA, portB] = await freiePorts(2);
+
     const dateiA = legeDatei(aufgabeId, "offen");
     const [befundA] = await bearbeiteOffeneDateien(t.db, konfigFuer(portA));
 
-    const portB = await freierPort();
     const dateiB = legeDatei(aufgabeId, "offen");
     const [befundB] = await bearbeiteOffeneDateien(t.db, konfigFuer(portB));
 
