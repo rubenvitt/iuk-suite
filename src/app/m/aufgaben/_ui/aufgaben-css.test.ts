@@ -326,6 +326,18 @@ function kontrastverhaeltnis(hexA: string, hexB: string): number {
 const SCHWELLE_AA = 4.5;
 
 /**
+ * WCAG 2.1 SC 1.4.11 „Non-text Contrast" — 3:1, und die Zahl steht ABSICHTLICH getrennt von
+ * `SCHWELLE_AA`.
+ *
+ * EIN BALKEN IST KEIN TEXT. Die 4,5:1 der Aussage 5 gelten für Buchstaben; sie an eine Grafik zu
+ * legen wäre nicht „strenger", sondern falsch begründet — und ein Riegel mit falscher Begründung
+ * wird bei der ersten Farbänderung abgeschaltet statt befolgt. Umgekehrt wäre es schlimmer: ohne
+ * eigene Schwelle bliebe die Beziehung Füllung-gegen-Spur **ungemessen**, und sie ist seit der
+ * Auslastungsgrafik der alleinige Träger einer Menge.
+ */
+const SCHWELLE_GRAFIK = 3;
+
+/**
  * Jedes Chip-Ton-Paar `--auf-<ton>-text` / `--auf-<ton>-flaeche` aus einem
  * Variablenblock — generisch über die Namenskonvention gefunden, nicht über
  * eine fest verdrahtete Liste von Tönen. Wächst das Vokabular um einen
@@ -493,6 +505,49 @@ describe("aufgaben.module.css — Aussage 5: gemessener AA-Kontrast", () => {
    * OHNE DIESEN TEST WÄRE DIE NEUE FLÄCHE DIE EINZIGE UNGEMESSENE — und der stehen gebliebene
    * Kommentar oben behauptete weiterhin etwas, das nicht mehr gilt.
    */
+  /**
+   * ══ DIE AUSLASTUNGSBALKEN — EINE NEUE FARBBEZIEHUNG, ALSO EINE NEUE MESSUNG (Nachtrag
+   *    2026-08-16). `.lastFuellung` liegt auf `.lastBalken`, also **Füllung gegen Spur** —
+   *    weder ein `-text`/`-flaeche`-Paar (das `tonPaare()` fände) noch Text auf einer Fläche
+   *    (was die Messungen darüber decken). Ohne diesen Test wäre ausgerechnet der Balken
+   *    ungemessen, und der ist seit dieser Runde der **alleinige Träger einer Menge**: sagt der
+   *    Kontrast nichts, sagt die Grafik nichts.
+   *
+   *    DIESELBE LÜCKE HATTE `--auf-karte` eine Runde vorher, und sie ist auf demselben Weg
+   *    entstanden: eine Farbe wird eingeführt, die alten Messungen greifen sie nicht, und der
+   *    Kommentar daneben behauptet weiter, alles sei gemessen.
+   *
+   *    BEIDE FÜLLFARBEN, WEIL BEIDE VORKOMMEN: `--auf-stahl` trägt den Normalfall,
+   *    `--auf-achtung-text` den überbuchten (`.lastFuellungUeber`). Gegen `--auf-linie`, denn das
+   *    ist die Spur (`.lastBalken`s `background`) — nicht gegen `--auf-papier` oder `--auf-karte`,
+   *    die hinter der Spur liegen und den Balken gar nicht berühren.
+   */
+  it.each(["--auf-stahl", "--auf-achtung-text"])(
+    `hält %s als Balkenfüllung auf --auf-linie ≥ ${SCHWELLE_GRAFIK} Kontrast — hell UND dunkel`,
+    (name) => {
+      const hellWert = kontrastverhaeltnis(hell.get(name) ?? "", hell.get("--auf-linie") ?? "");
+      const dunkelWert = kontrastverhaeltnis(dunkel.get(name) ?? "", dunkel.get("--auf-linie") ?? "");
+      expect(
+        hellWert,
+        `hell/${name} auf --auf-linie: ${hellWert.toFixed(2)} < ${SCHWELLE_GRAFIK}`,
+      ).toBeGreaterThanOrEqual(SCHWELLE_GRAFIK);
+      expect(
+        dunkelWert,
+        `dunkel/${name} auf --auf-linie: ${dunkelWert.toFixed(2)} < ${SCHWELLE_GRAFIK}`,
+      ).toBeGreaterThanOrEqual(SCHWELLE_GRAFIK);
+    },
+  );
+
+  /**
+   * DIE GEGENPROBE ZUR SCHWELLE SELBST: `SCHWELLE_GRAFIK` muss NIEDRIGER sein als `SCHWELLE_AA`.
+   * Ohne diese Zeile könnte eine spätere Aufräumrunde die beiden Konstanten „vereinheitlichen" —
+   * und dann prüfte der Balkentest stillschweigend die Textschwelle, was er ausdrücklich nicht
+   * soll (ein Balken ist kein Text, s. den Kommentar an der Konstante).
+   */
+  it("hält die Grafik-Schwelle getrennt von der Textschwelle", () => {
+    expect(SCHWELLE_GRAFIK).toBeLessThan(SCHWELLE_AA);
+  });
+
   it.each(["--auf-tinte", "--auf-stahl", "--auf-achtung-text"])(
     `hält %s auf --auf-karte ≥ ${SCHWELLE_AA} Kontrast — hell UND dunkel`,
     (name) => {
