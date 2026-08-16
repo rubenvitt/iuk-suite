@@ -141,7 +141,7 @@ function pruefeSvg(svg: Element): Befund[] {
   return befunde;
 }
 
-describe("Die sechs Mechanikbilder", () => {
+describe("Die Mechanikbilder", () => {
   for (const name of BILD_NAMEN) {
     describe(name, () => {
       it("bleibt vollstaendig innerhalb seines viewBox", async () => {

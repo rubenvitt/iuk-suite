@@ -21,6 +21,27 @@ import {
  * Client-Referenz statt des Objekts — HTTP 500 fuer die ganze Seite, und Vitest saehe es
  * strukturell nicht.
  *
+ * ══ DREI ROLLEN, EIN DURCHGEHENDER FALL — DIE ERZAEHLFORM DIESER ANLEITUNG (Auftrag des
+ *    Betreibers, 2026-08-16).
+ *
+ *    ROLLEN STATT DATENBANKWERTE: die Anleitung spricht von `Koordinatorin`, `Auftraggeber` und
+ *    `Auftragnehmer` (`ROLLEN` unten). Das Modul selbst kennt an dieser Stelle drei verschiedene
+ *    Vokabulare — die Datenbank sagt `auftrag`/`bufdi`, die Auth-Gruppe traegt die Koordination,
+ *    und die Oberflaeche schreibt „BuFDi" —, und eine Anleitung, die zwischen diesen dreien hin
+ *    und her springt, zwingt jeder Leserin eine Uebersetzungsarbeit auf, die das Modul selbst ihr
+ *    abnimmt. `ROLLEN[].imModul` haelt die Bruecke an EINER Stelle fest, statt sie in jedem
+ *    zweiten Satz mitzuschleppen.
+ *
+ *    JEDES KAPITEL BEGINNT MIT EINER SZENE, NICHT MIT EINER DEFINITION (`szene`). Eine Anleitung
+ *    wird nicht am Schreibtisch gelesen, sondern im Stehen, mit einer offenen Frage — und die
+ *    Frage ist nie „was ist die Verteilung", sondern „vor mir liegen zehn Auftraege, was jetzt".
+ *    Wer sich in der ersten Zeile wiedererkennt, liest die zweite.
+ *
+ *    EIN FALL LAEUFT DURCH ALLE KAPITEL (`FADEN`): derselbe Beamer im Schulungsraum, vom
+ *    Einstellen bis ins Archiv. Ein Beispiel, das mitwandert, kostet nichts und ersetzt drei
+ *    abstrakte Saetze — und es benutzt DIE NAMEN AUS DEM SEED (Malte, Rike, Alina), damit wer im
+ *    Testsystem uebt, dieselben Zeilen vor sich hat wie im Text.
+ *
  * DIE SICHTBARKEIT KOMMT AUS DENSELBEN PRAEDIKATEN WIE DIE NAVIGATION (`_lib/nav.ts`, Spec §7):
  * `darfVerteilen`, `darfFreigabenSehen`, `darfRoutinenVerwalten`, `darfPersonenVerwalten` —
  * NICHT aus einer zweiten, hier nachgebauten Rollenabfrage. Der Grund ist derselbe wie dort und
@@ -54,6 +75,70 @@ export const SICHT_SCHLUESSEL = [
 ] as const;
 
 export type SichtSchluessel = (typeof SICHT_SCHLUESSEL)[number];
+
+/* ─── DIE DREI ROLLEN ─────────────────────────────────────────────────────────────────────────── */
+
+export interface RollenBild {
+  /** Der Name, unter dem die Anleitung diese Rolle durchgehend fuehrt. */
+  name: string;
+  /** Was diese Rolle im Ablauf tut — ein Satz, aktiv, ohne Nebensatz. */
+  satz: string;
+  /**
+   * WIE DIE ROLLE IM MODUL HEISST UND WORAN SIE HAENGT. Die Bruecke zwischen der Sprache der
+   * Anleitung und der Sprache der Oberflaeche — an EINER Stelle, damit sie nicht in jedem zweiten
+   * Satz mitlaeuft.
+   */
+  imModul: string;
+  /** Der Einstieg dieser Rolle: die Sicht, die sie unter `/` bekommt. */
+  einstieg: SichtSchluessel;
+}
+
+export const ROLLEN: readonly RollenBild[] = [
+  {
+    name: "Auftraggeber",
+    satz: "Stellt Aufgaben für andere ein und prüft am Ende, ob sie erledigt sind.",
+    imModul: "Rolle „auftrag“ in der Personenverwaltung. Startseite: „Meine Aufträge“.",
+    einstieg: "meine-auftraege",
+  },
+  {
+    name: "Koordinatorin",
+    satz: "Verteilt, was hereinkommt, behält die Auslastung im Blick und springt bei Freigaben ein.",
+    imModul:
+      "Hängt an der Gruppe in Pocket ID, nicht an der Personenzeile. Startseite: „Verteilung“.",
+    einstieg: "verteilung",
+  },
+  {
+    name: "Auftragnehmer",
+    satz: "Plant die zugewiesene Arbeit in die eigene Woche, erledigt sie und meldet sie fertig.",
+    imModul: "Rolle „bufdi“ — die Oberfläche schreibt „BuFDi“. Startseite: „Meine Woche“.",
+    einstieg: "meine-woche",
+  },
+];
+
+/**
+ * DER DURCHGEHENDE FALL. Er steht auf `/hilfe` als vier Schritte und taucht in den Szenen der
+ * Kapitel wieder auf — dieselbe Aufgabe, dieselben Namen (die des Seeds).
+ */
+export const FADEN: readonly { rolle: string; tut: string }[] = [
+  {
+    rolle: "Malte, Auftraggeber",
+    tut: "stellt „Beamer im Schulungsraum prüfen“ ein: Frist Donnerstag, 45 Minuten, Foto als Nachweis.",
+  },
+  {
+    rolle: "Rike, Koordinatorin",
+    tut: "sieht den Auftrag im Posteingang, schaut auf die Auslastung und gibt ihn Alina — mit dem Vorschlag „Do, 09:00“.",
+  },
+  {
+    rolle: "Alina, Auftragnehmerin",
+    tut: "nimmt den Vorschlag an, arbeitet den Donnerstagvormittag ab und meldet fertig, mit Foto.",
+  },
+  {
+    rolle: "Malte prüft",
+    tut: "gibt frei — die Aufgabe ist abgeschlossen und steht ab jetzt im Archiv.",
+  },
+];
+
+/* ─── DAS KAPITEL ─────────────────────────────────────────────────────────────────────────────── */
 
 /**
  * WOHIN DAS KAPITEL VERWEIST — die Sicht selbst, nicht ein weiteres Kapitel.
@@ -96,6 +181,7 @@ export interface SkizzenBlock {
 
 /** Die Mechanikbilder (`_ui/hilfe/Bilder.tsx`) — je eines je Frage, die eine Skizze nicht beantwortet. */
 export const BILD_NAMEN = [
+  "rollen",
   "lebenszyklus",
   "tagesbudget",
   "wochenachse",
@@ -116,10 +202,16 @@ export interface HilfeSicht {
   schluessel: SichtSchluessel;
   /** Der Titel der SICHT, wortgleich mit ihrer `<h1>` — daran erkennt man sie wieder. */
   titel: string;
-  /** Fuer wen diese Sicht gebaut ist. Steht als Marke ueber dem Kapitel. */
+  /** Fuer wen diese Sicht gebaut ist, in den Namen aus `ROLLEN`. */
   fuer: string;
-  /** Die eine Frage, die diese Sicht beantwortet (§ der Oberflaechen-Spec: „was ist jetzt dran?"). */
+  /** Die eine Frage, die diese Sicht beantwortet — eine Zeile, aktiv. */
   wofuer: string;
+  /**
+   * DIE LAGE, IN DER MAN DIESE SEITE AUFMACHT — zwei, drei Saetze, Gegenwart, „du". Sie steht vor
+   * allem anderen im Kapitel (s. Kopfkommentar: wer sich in der ersten Zeile wiedererkennt, liest
+   * die zweite).
+   */
+  szene: string;
   ziel: Ziel;
   /** Die Layoutskizze: welche Bereiche die Sicht hat und wofuer jeder da ist. */
   skizze: readonly SkizzenBlock[];
@@ -166,101 +258,107 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
   "meine-woche": {
     schluessel: "meine-woche",
     titel: "Meine Woche",
-    fuer: "BuFDi",
-    wofuer:
-      "Was ist jetzt dran, was liegt diese Woche an, und ist ein Tag schon zu voll? Der Einstieg " +
-      "beantwortet die Frage „was tue ich als Nächstes“ — nicht „was gibt es alles“.",
+    fuer: "Auftragnehmer",
+    wofuer: "Was ist jetzt dran — und passt das überhaupt noch in den Tag?",
+    szene:
+      "Dienstag, kurz nach acht. Du machst das Modul auf und willst eine Antwort, keine Übersicht: " +
+      "womit fange ich an? Genau darauf ist diese Seite gebaut. Ganz oben steht die eine Sache, die " +
+      "als Nächstes zählt, darunter deine Woche — und was heute noch nicht drankommt, steht bewusst " +
+      "weiter unten.",
     ziel: { art: "fest", href: "/" },
     skizze: [
       {
         form: "kopf",
         titel: "Meine Woche · KW · ‹ Diese Woche ›",
         erklaerung:
-          "Titel, darunter die Kontextzeile mit den Zahlen der gezeigten Woche (verplante Stunden, " +
-          "Zahl der eingeplanten Aufgaben). Rechts blätterst du eine Woche vor oder zurück.",
+          "Titel, darunter die Kontextzeile mit den Zahlen der gezeigten Woche — verplante Stunden " +
+          "und wie viele Aufgaben eingeplant sind. Rechts blätterst du eine Woche vor oder zurück.",
       },
       {
         form: "karte",
         titel: "Führungskarte — die eine Sache, die jetzt dran ist",
         erklaerung:
-          "Immer vorhanden, auch wenn nichts drängt (dann steht dort die Ruhe-Zeile mit dem nächsten " +
-          "Arbeitstag). Sie trägt den einzigen roten Knopf der Seite, und der gehört immer zu dem, was " +
-          "über ihm steht.",
+          "Sie ist immer da. Drängt gerade nichts, sagt sie dir stattdessen, was am nächsten " +
+          "Arbeitstag liegt. Der rote Knopf darauf ist der einzige der Seite, und er gehört immer " +
+          "zu dem, was über ihm steht.",
       },
       {
         form: "spalten",
         titel: "Diese Woche",
         spalten: ["Mo", "Di", "Mi", "Do", "Fr"],
         erklaerung:
-          "Deine fünf Arbeitstage mit Aufgaben und Routinen in der Reihenfolge, in der du sie abarbeiten " +
-          "willst. Unter jedem Tag steht sein Budget (verplant / Soll). Auf dem Telefon zeigt die Achse " +
-          "einen Tag; die Leiste darüber wechselt ihn.",
+          "Deine fünf Arbeitstage mit Aufgaben und Routinen, in der Reihenfolge, die du selbst " +
+          "festlegst. Unter jedem Tag steht sein Budget: verplant von Soll. Auf dem Telefon zeigt " +
+          "die Achse einen Tag, und die Leiste darüber wechselt ihn.",
       },
       {
         form: "band",
         titel: "„N Aufgaben liegen außerhalb dieser Woche“",
         erklaerung:
-          "Alles, was in keiner der fünf Spalten stehen kann — ohne Termin oder in einer anderen Woche. " +
-          "Ohne diese Zeile wäre es unsichtbar, und die Woche sähe leerer aus, als sie ist.",
+          "Alles, was in keine der fünf Spalten passt: ohne Termin oder in einer anderen Woche. " +
+          "Ohne diese Zeile wäre es unsichtbar — und deine Woche sähe leerer aus, als sie ist.",
       },
       {
         form: "liste",
         titel: "Zonen: Zurückgewiesen · Wartet auf Einplanung · …",
         erklaerung:
-          "Was die Karte nicht nennt, steht darunter als Zone — in Rangfolge, jede mit ihrer Zahl. " +
-          "Eine Zone ohne Inhalt entfällt ganz, statt leer dazustehen.",
+          "Was die Karte nicht nennt, steht hier — nach Dringlichkeit sortiert, jede Zone mit ihrer " +
+          "Zahl. Ist eine Zone leer, fällt sie ganz weg, statt leer herumzustehen.",
       },
       {
         form: "fuss",
         titel: "Routinen verwalten · Zeitplan von …",
         erklaerung:
-          "Nebenwege in Tinte statt in Rot: deine Routinen und die Zeitpläne der anderen BuFDis " +
-          "(lesend — für Absprachen ohne Umweg über die Koordination).",
+          "Die leisen Nebenwege: deine Routinen, und die Wochenpläne der anderen zum Mitlesen — " +
+          "für Absprachen, ohne dass die Koordinatorin dazwischenstehen muss.",
       },
     ],
-    bilder: ["wochenachse", "tagesbudget"],
+    bilder: ["rollen", "wochenachse", "tagesbudget"],
     schritte: [
       {
         titel: "Oben anfangen",
         text:
-          "Die Führungskarte nennt genau einen Anlass und die Aktion dazu. Ist sie eine Ruhe-Zeile, " +
-          "ist gerade nichts überfällig — dann sagt sie dir, was am nächsten Arbeitstag liegt.",
+          "Die Führungskarte nennt genau einen Anlass und die Aktion dazu. Steht dort eine " +
+          "Ruhe-Zeile, ist gerade nichts überfällig — dann ist der nächste Arbeitstag dein Thema, " +
+          "und die Karte sagt dir, was dort wartet.",
       },
       {
-        titel: "Neue Aufgaben einplanen",
+        titel: "Neues einplanen",
         text:
-          "Eine verteilte Aufgabe ohne Termin steht in der Zone „Wartet auf Einplanung“. Hat die " +
-          "Koordination einen Zeitvorschlag mitgeschickt, steht er auf dem Knopf — „Annehmen: Do, " +
-          "13.08., 09:00“. Passt er nicht, klappt „Anders einplanen“ direkt in der Zeile Tag und " +
-          "Uhrzeit auf.",
+          "Frisch zugewiesene Aufgaben warten in der Zone „Wartet auf Einplanung“. Hat die " +
+          "Koordinatorin einen Termin vorgeschlagen, steht er direkt auf dem Knopf: „Annehmen: Do, " +
+          "13.08., 09:00“. Passt er nicht, klappt „Anders einplanen“ in derselben Zeile Tag und " +
+          "Uhrzeit auf — du musst die Seite dafür nicht verlassen.",
       },
       {
         titel: "Den Tag ordnen",
         text:
-          "Innerhalb einer Tagesspalte verschiebst du Einträge mit den Pfeilknöpfen oder per Zug an " +
-          "eine andere Stelle; ein Zug in eine andere Spalte plant die Aufgabe auf diesen Tag um. " +
-          "Beides geht auch ohne Maus: Tab bis zum Eintrag, Enter, dann die Pfeiltasten.",
+          "Innerhalb eines Tages schiebst du Einträge mit den Pfeilknöpfen oder per Zug an die " +
+          "richtige Stelle; ziehst du eine Aufgabe in eine andere Spalte, ist sie auf diesen Tag " +
+          "umgeplant. Ohne Maus geht dasselbe: Tab bis zum Eintrag, Enter, Pfeiltasten, Enter.",
       },
       {
         titel: "Arbeiten und fertig melden",
         text:
-          "„Starten“ setzt die Aufgabe auf „in Arbeit“ — daran sehen Koordination und Auftraggeber, " +
-          "dass sie läuft. „Fertig melden“ verlangt bei Nachweispflicht erst den Nachweis (Text oder " +
-          "Bild) und geht danach zur Freigabe, bei einer Selbstaufgabe direkt auf abgeschlossen.",
+          "„Starten“ setzt die Aufgabe auf „in Arbeit“ — daran sehen Koordinatorin und Auftraggeber, " +
+          "dass sie läuft. Beim Fertigmelden fragt das Modul den Nachweis ab, falls einer gefordert " +
+          "ist. Danach geht die Aufgabe zur Freigabe; hast du sie dir selbst gestellt, ist sie " +
+          "sofort abgeschlossen.",
       },
       {
-        titel: "Voraus- und zurückblättern",
+        titel: "Vor- und zurückblättern",
         text:
           "‹ und › zeigen andere Wochen. Kontextzeile, Achse und die Zeile „außerhalb dieser Woche“ " +
-          "beziehen sich immer auf die GEZEIGTE Woche — liegt sie ganz in der Vergangenheit, steht " +
-          "„Abgeschlossene Woche“ über der Achse.",
+          "sprechen dabei immer über die Woche, die du gerade siehst. Liegt sie ganz in der " +
+          "Vergangenheit, steht „Abgeschlossene Woche“ darüber — damit du am Sonntagabend keine " +
+          "volle grüne Woche für die kommende hältst.",
       },
     ],
     grenzen: [
-      "Fremde Zeitpläne siehst du, aber du änderst sie nicht — auch nicht in Vertretung.",
-      "Die Koordination schlägt einen Termin vor, sie setzt ihn nicht: über deinen Tag entscheidest du.",
-      "Eine Aufgabe, die du selbst eingestellt hast, hat keine Freigabestufe — sie geht von „in Arbeit“ direkt auf abgeschlossen.",
-      "Nach deinem letzten Diensttag bleibt alles lesbar, aber keine Aktion mehr bedienbar.",
+      "Fremde Wochenpläne liest du, aber du änderst sie nicht — auch nicht in Vertretung.",
+      "Die Koordinatorin schlägt einen Termin vor, sie setzt ihn nicht: über deinen Tag entscheidest du.",
+      "Eine Aufgabe, die du dir selbst gestellt hast, hat keine Freigabestufe — sie geht von „in Arbeit“ direkt auf abgeschlossen.",
+      "Nach deinem letzten Diensttag bleibt alles lesbar, aber keine Aktion mehr bedienbar. Der letzte Tag zählt noch ganz dazu.",
     ],
     verweise: ["zeitplan", "routinen", "aufgabe", "einstellen"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "meine-woche",
@@ -269,92 +367,94 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
   verteilung: {
     schluessel: "verteilung",
     titel: "Verteilung",
-    fuer: "Koordination",
-    wofuer:
-      "Was muss ich jetzt verteilen, freigeben oder umhängen — und wer hat noch Luft? Der Einstieg " +
-      "zeigt die Lage, nicht den vollständigen Bestand.",
+    fuer: "Koordinatorin",
+    wofuer: "Was brennt gerade — und wer hat noch Luft?",
+    szene:
+      "Über Nacht sind drei Aufträge hereingekommen, einer davon mit Frist heute. Du hast eine " +
+      "halbe Minute, bevor das Telefon klingelt. Diese Seite ist auf diese halbe Minute hin " +
+      "gebaut: sie zeigt die Lage, nicht den Bestand — und sagt dir mit einer Karte, was zuerst " +
+      "dran ist.",
     ziel: { art: "fest", href: "/" },
     skizze: [
       {
         form: "kopf",
         titel: "Verteilung · Aufgabe einstellen",
         erklaerung:
-          "Die Kontextzeile nennt die Zahlen des Tages — auch die Nullen, und zwar als Wort. Rechts " +
-          "der Textweg zum Einstellformular.",
+          "Die Kontextzeile nennt die Zahlen des Tages — auch die Nullen, und die stehen " +
+          "ausgeschrieben da. Rechts geht es zum Einstellformular.",
       },
       {
         form: "karte",
         titel: "Führungskarte — der dringendste Anlass",
         erklaerung:
           "Eine Aufgabe ohne aktiven Träger, ein überfälliger Posteingang, eine wartende Freigabe: " +
-          "die Karte nennt den obersten Rang und die Aktion dazu (verteilen, anders zuweisen, freigeben).",
+          "die Karte nennt den obersten Rang und bringt die passende Aktion gleich mit.",
       },
       {
         form: "spalten",
         titel: "Auslastung diese Woche",
         spalten: ["Alina", "Bo", "Cem"],
         erklaerung:
-          "Je BuFDi der Wochenwert (verplant / Soll), ein Balken, die fünf Tagesstreifen und die " +
-          "Warnung „Mo überbucht“. Das ist die Zahl, die du VOR der Zuweisung brauchst — im " +
-          "Zuweisen-Feld steht sie noch einmal, aber dann hast du dich schon entschieden.",
+          "Je Person der Wochenwert, ein Balken, die fünf Tagesstreifen und die Warnung „Mo " +
+          "überbucht“. Das ist die Zahl, die du vor der Zuweisung brauchst — im Zuweisen-Feld steht " +
+          "sie zwar noch einmal, aber da hast du dich schon entschieden.",
       },
       {
         form: "liste",
         titel: "Zonen: Zu verteilen · Freigabe offen · …",
         erklaerung:
-          "Die übrigen Anlässe in Rangfolge, je mit Zahl und Deckel („alle N zeigen“ führt auf " +
-          "/verteilen bzw. /freigaben). Die beiden Überfällig-Zonen tragen den Zeilenweg „Anders " +
-          "zuweisen“.",
+          "Die übrigen Anlässe nach Rang, je mit Zahl und einem Deckel („alle N zeigen“) auf die " +
+          "große Liste. Die beiden Überfällig-Zonen tragen den Zeilenweg „Anders zuweisen“.",
       },
       {
         form: "fuss",
         titel: "Personenverwaltung · Archiv",
-        erklaerung: "Die beiden Nebenwege, die keine Tagesarbeit sind.",
+        erklaerung: "Die zwei Wege, die keine Tagesarbeit sind.",
       },
     ],
-    bilder: ["verteilweg", "tagesbudget"],
+    bilder: ["rollen", "verteilweg", "tagesbudget"],
     schritte: [
       {
         titel: "Mit der Karte anfangen",
         text:
-          "Sie nennt den obersten Rang: eine Aufgabe ohne aktiven Träger steht über einem überfälligen " +
-          "Posteingang, dieser über einer wartenden Freigabe. Die Aktion daneben ist immer die zu dem, " +
-          "was oben steht.",
+          "Sie nennt den obersten Rang, und die Reihenfolge ist nicht willkürlich: eine Aufgabe " +
+          "ohne aktiven Träger steht über einem überfälligen Posteingang, dieser über einer " +
+          "wartenden Freigabe. Was dort steht, ist deine nächste Handlung.",
       },
       {
         titel: "Auslastung lesen, dann zuweisen",
         text:
           "Der Wochenwert sagt, wie voll jemand insgesamt ist; die fünf Tagesstreifen sagen, ob ein " +
-          "einzelner Tag trotzdem überbucht ist. Eine Person kann bei 6 von 39 Wochenstunden stehen und " +
-          "montags doppelt verplant sein.",
+          "einzelner Tag trotzdem überläuft. Beides zusammen verhindert den häufigsten Fehlgriff: " +
+          "jemand steht bei 6 von 39 Wochenstunden und ist montags doppelt verplant.",
       },
       {
-        titel: "Verteilen",
+        titel: "Zuweisen",
         text:
-          "Der Zeilenweg klappt die Namensliste mit der Wochenauslastung auf — der Klick auf den Namen " +
-          "IST das Absenden. Über die Führungskarte kannst du zusätzlich einen Zeitvorschlag mitgeben; " +
-          "verbindlich ist er nicht, die BuFDi kann ihn annehmen oder anders einplanen.",
+          "Der Zeilenweg klappt die Namen samt Wochenauslastung auf, und der Klick auf den Namen " +
+          "ist schon das Absenden. Über die Führungskarte kannst du zusätzlich einen Termin " +
+          "vorschlagen — ein Angebot, keine Ansage: die Person nimmt es an oder plant anders.",
       },
       {
         titel: "Umhängen statt nachfragen",
         text:
-          "„Anders zuweisen“ gibt es für zugewiesene, aber noch nicht begonnene Aufgaben. Die Planung " +
-          "der bisherigen Person wird dabei geleert — sonst bliebe ein Termin in einem Zeitplan stehen, " +
-          "der nicht mehr gilt. Der Satz dazu steht im Feld, bevor du absendest.",
+          "„Anders zuweisen“ gibt es, solange niemand die Aufgabe begonnen hat. Die bisherige " +
+          "Planung wird dabei geleert — sonst bliebe ein Termin in einem Wochenplan stehen, der " +
+          "nicht mehr gilt. Der Satz dazu steht im Feld, bevor du absendest.",
       },
       {
         titel: "Freigeben oder zurückweisen",
         text:
-          "Du siehst jede offene Freigabe — deine eigenen und die, bei denen du in Vertretung für den " +
-          "eingetragenen Prüfer handelst. Zurückweisen verlangt eine Begründung; sie landet im Verlauf " +
-          "und in der Zone „Zurückgewiesen“ der BuFDi.",
+          "Du siehst jede offene Freigabe: deine eigenen und die, bei denen du für den " +
+          "eingetragenen Prüfer einspringst. Zurückweisen verlangt eine Begründung — sie ist das " +
+          "Einzige, woran die andere Seite erkennt, was zu tun ist, und sie bleibt im Verlauf stehen.",
       },
     ],
     grenzen: [
-      "Du arbeitest nicht mit: du stehst in keiner Verteilliste, und du gibst deine eigene Aufgabe nie frei — das Vier-Augen-Prinzip fiele sonst für genau diesen Fall aus.",
-      "Du änderst keinen fremden Zeitplan. Du schlägst einen Termin vor; gesetzt wird er von der Person selbst.",
-      "Eine Aufgabe, die schon „in Arbeit“ ist, lässt sich nicht mehr umhängen — erst muss sie zurückgesetzt werden.",
-      "Rollen und Gruppen kommen aus Pocket ID; ein Gruppenentzug wirkt mit bis zu einer Stunde Verzug.",
+      "Du arbeitest nicht mit: du stehst in keiner Verteilliste, und deine eigene Aufgabe gibst du nie frei — sonst fiele das Vier-Augen-Prinzip für genau den Fall aus, für den es da ist.",
+      "Du änderst keinen fremden Wochenplan. Du schlägst einen Termin vor; gesetzt wird er von der Person selbst.",
+      "Eine Aufgabe, die schon „in Arbeit“ ist, lässt sich nicht umhängen — erst muss sie zurückgesetzt werden.",
+      "Wer koordiniert, entscheidet die Gruppe in Pocket ID, nicht die Personenzeile. Ein Entzug wirkt mit bis zu einer Stunde Verzug.",
     ],
     verweise: ["verteilen", "freigaben", "personen", "aufgabe"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "verteilung",
@@ -364,8 +464,11 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     schluessel: "meine-auftraege",
     titel: "Meine Aufträge",
     fuer: "Auftraggeber",
-    wofuer:
-      "Was ist aus dem geworden, was ich eingestellt habe — und wartet etwas auf meine Freigabe?",
+    wofuer: "Was ist aus dem geworden, was ich eingestellt habe?",
+    szene:
+      "Du hast letzte Woche vier Dinge eingestellt und weißt nicht mehr, was daraus geworden ist. " +
+      "Diese Seite beantwortet das in einer Liste — und stellt oben das voran, was auf dich " +
+      "wartet, statt es dich suchen zu lassen.",
     ziel: { art: "fest", href: "/" },
     skizze: [
       {
@@ -377,15 +480,15 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         form: "karte",
         titel: "Führungskarte — wartet auf dich",
         erklaerung:
-          "Eine fertig gemeldete Aufgabe, die du freigeben sollst; ein überfälliger Auftrag; ein " +
-          "Auftrag, den noch niemand bearbeitet. Steht nichts an, sagt die Karte das ausdrücklich.",
+          "Eine fertig gemeldete Aufgabe, die du freigeben sollst; ein überfälliger Auftrag; einer, " +
+          "den noch niemand angefasst hat. Steht nichts an, sagt die Karte auch das ausdrücklich.",
       },
       {
         form: "liste",
         titel: "Eigene Aufträge (N)",
         erklaerung:
-          "Alle deine Aufträge, ungedeckelt, mit Zustand, Priorität, Frist, Dauer und Empfänger — " +
-          "oder „Noch nicht verteilt“, solange die Koordination sie noch nicht zugewiesen hat.",
+          "Alle deine Aufträge, vollständig und ungekürzt: Zustand, Priorität, Frist, Dauer und wer " +
+          "sie bekommen hat — oder „Noch nicht verteilt“, solange sie im Posteingang liegen.",
       },
       {
         form: "fuss",
@@ -393,38 +496,41 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         erklaerung: "Der Weg zu allem, was schon abgeschlossen ist.",
       },
     ],
-    bilder: ["lebenszyklus", "freigabe"],
+    bilder: ["rollen", "lebenszyklus", "freigabe"],
     schritte: [
       {
         titel: "Auftrag einstellen",
         text:
-          "„Aufgabe einstellen“ oben rechts. Für andere eingestellt, landet der Auftrag im Posteingang " +
-          "der Koordination und wird von dort zugewiesen — du wählst die Person nicht selbst.",
+          "Oben rechts, „Aufgabe einstellen“. Für jemand anderen eingestellt, geht der Auftrag in " +
+          "den Posteingang der Koordinatorin — die Person wählst du nicht selbst aus, und das ist " +
+          "Absicht: wer die Auslastung aller kennt, verteilt besser.",
       },
       {
         titel: "Zustand ablesen",
         text:
-          "Die Zeile sagt ohne Klick, wo der Auftrag steht: eingegangen, verteilt, in Arbeit, Freigabe " +
-          "offen, zurückgewiesen, abgeschlossen. Der Titel führt auf die Aufgabe mit Nachweis und Verlauf.",
+          "Die Zeile sagt ohne Klick, wo dein Auftrag steht: eingegangen, verteilt, in Arbeit, " +
+          "Freigabe offen, zurückgewiesen, abgeschlossen. Der Titel führt in die Aufgabe, mit " +
+          "Nachweis und vollständigem Verlauf.",
       },
       {
         titel: "Freigeben",
         text:
-          "Als Ersteller bist du zugleich der eingetragene Prüfer. Fertig gemeldete Aufgaben stehen auf " +
-          "/freigaben — mit dem Nachweis daneben, denn wer freigibt, muss sehen, was er freigibt.",
+          "Weil du eingestellt hast, bist du auch der Prüfer. Fertig gemeldete Aufgaben findest du " +
+          "unter „Freigaben“ — mit dem Nachweis direkt daneben, denn wer freigibt, muss sehen, was " +
+          "er freigibt.",
       },
       {
         titel: "Zurückziehen",
         text:
-          "Solange ein Auftrag noch im Posteingang liegt (Zustand „eingegangen“), kannst du ihn " +
-          "zurückziehen; er wird dabei samt Verlauf gelöscht. Danach nicht mehr — dann hat er eine " +
-          "Geschichte mit Dokumentationswert.",
+          "Solange der Auftrag noch im Posteingang liegt, kannst du ihn zurückziehen; er " +
+          "verschwindet dann samt Verlauf. Danach nicht mehr — ab da hat er eine Geschichte, und " +
+          "die gehört zur Leistungsdokumentation.",
       },
     ],
     grenzen: [
-      "Du verteilst nicht: den Empfänger bestimmt die Koordination. Der Weg dorthin existiert in dieser Sicht nicht, und /verteilen antwortet dir mit 404.",
+      "Du verteilst nicht: den Empfänger bestimmt die Koordinatorin. Der Weg dorthin existiert in dieser Sicht nicht, und /verteilen antwortet dir mit 404.",
       "Fremde Aufträge siehst du nicht — nur deine eigenen und die, in denen du Prüfer bist.",
-      "Ist eine Aufgabe erst verteilt, ist Zurückziehen nicht mehr möglich; die Koordination kann sie aber umhängen.",
+      "Ist eine Aufgabe erst verteilt, ist Zurückziehen vorbei; umhängen kann sie aber die Koordinatorin.",
     ],
     verweise: ["einstellen", "freigaben", "aufgabe", "archiv"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "meine-auftraege",
@@ -434,8 +540,12 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
   einstellen: {
     schluessel: "einstellen",
     titel: "Aufgabe einstellen",
-    fuer: "alle Rollen",
-    wofuer: "Eine neue Aufgabe anlegen — für dich selbst oder, wenn du darfst, für jemand anderen.",
+    fuer: "alle drei Rollen",
+    wofuer: "Aus „das müsste mal jemand machen“ wird ein Auftrag mit Frist.",
+    szene:
+      "Dir fällt auf, dass den Beamer im Schulungsraum seit Wochen niemand geprüft hat. Zwei " +
+      "Minuten später ist daraus ein Auftrag: mit Frist, mit geschätzter Dauer, und mit einem " +
+      "Foto als Nachweis. Wohin er geht, entscheidet ein einziges Feld weiter unten.",
     ziel: { art: "fest", href: "/neu" },
     skizze: [
       {
@@ -449,24 +559,24 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         form: "formular",
         titel: "Titel · Erklärung · Priorität · Frist · Dauer",
         erklaerung:
-          "Die Erklärung ist Pflicht, weil die ausführende Person die Aufgabe sonst nicht ohne " +
-          "Rückfrage versteht. Die Dauerschätzung ist keine Formalie — sie füllt das Tagesbudget und " +
-          "entscheidet mit, ob ein Tag als überbucht gilt.",
+          "Die Erklärung ist Pflicht, weil sonst die Rückfrage kommt, die sie ersetzen soll. Und " +
+          "die Dauerschätzung ist keine Formalie: sie füllt das Tagesbudget und entscheidet mit, " +
+          "ob ein Tag als überbucht gilt.",
       },
       {
         form: "band",
         titel: "Nachweispflicht: Text oder Bild",
         erklaerung:
-          "Ist sie gesetzt, kann die Aufgabe erst fertig gemeldet werden, wenn ein Nachweis der " +
+          "Ist sie gesetzt, lässt sich die Aufgabe erst fertig melden, wenn ein Nachweis der " +
           "gewählten Art vorliegt.",
       },
       {
         form: "band",
         titel: "Für mich selbst / für jemand anderen",
         erklaerung:
-          "Diese Wahl erscheint nur, wenn du für andere einstellen darfst (Auftraggeber und " +
-          "Koordination). Sie entscheidet über den Anfangszustand — und darüber, ob es eine " +
-          "Freigabestufe gibt.",
+          "Diese Wahl erscheint nur, wenn du für andere einstellen darfst. Sie entscheidet über " +
+          "alles Weitere: den Anfangszustand, den Weg über den Posteingang — und ob es am Ende " +
+          "eine Freigabe gibt.",
       },
     ],
     bilder: ["lebenszyklus"],
@@ -474,35 +584,37 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       {
         titel: "Titel und Erklärung",
         text:
-          "Der Titel steht später in jeder Liste und in jeder Tagesspalte — kurz und eindeutig. Die " +
-          "Erklärung beantwortet die Frage, die sonst als Rückfrage käme.",
+          "Der Titel steht später in jeder Liste und in jeder Tagesspalte — kurz und eindeutig, " +
+          "damit man ihn dort wiedererkennt. Die Erklärung beantwortet die Frage, die sonst als " +
+          "Rückfrage zurückkommt.",
       },
       {
         titel: "Priorität und Frist",
         text:
-          "Die Priorität ordnet die Reihenfolge innerhalb eines Tages vor; die Frist entscheidet über " +
-          "„überfällig“ und damit darüber, ob die Aufgabe auf einer Führungskarte landet. Eine Uhrzeit " +
-          "zur Frist ist optional.",
+          "Die Priorität ordnet die Reihenfolge innerhalb eines Tages vor. Die Frist entscheidet " +
+          "darüber, ab wann eine Aufgabe als überfällig gilt — und damit, ob sie auf einer " +
+          "Führungskarte landet. Eine Uhrzeit dazu ist möglich, aber keine Pflicht.",
       },
       {
         titel: "Dauer schätzen",
         text:
-          "In Minuten. Zu knapp geschätzt sieht die Woche leerer aus, als sie ist — das Budget rechnet " +
-          "mit dieser Zahl, nicht mit der tatsächlichen Arbeitszeit.",
+          "In Minuten, und lieber ehrlich als sportlich: mit dieser Zahl rechnet das Budget, nicht " +
+          "mit der tatsächlichen Arbeitszeit. Zu knapp geschätzt wirkt die Woche freier, als sie " +
+          "ist — und der nächste Auftrag kommt trotzdem.",
       },
       {
         titel: "Für wen?",
         text:
-          "Für dich selbst: die Aufgabe ist sofort dir zugewiesen, du planst sie ein, und sie hat keine " +
-          "Freigabestufe. Für jemand anderen: sie geht in den Posteingang der Koordination, du wirst " +
-          "ihr Prüfer.",
+          "Für dich selbst: die Aufgabe gehört sofort dir, du planst sie ein, und es gibt keine " +
+          "Freigabestufe. Für jemand anderen: sie geht in den Posteingang der Koordinatorin, und du " +
+          "bist automatisch die Person, die am Ende prüft.",
       },
     ],
     grenzen: [
-      "Wer für andere einstellt, wählt die Person nicht — das tut die Koordination beim Verteilen.",
-      "BuFDis stellen nur für sich selbst ein; die Wahl erscheint ihnen gar nicht erst.",
-      "Eine ausgeschiedene Person kann sich auch selbst keine Aufgabe mehr einstellen.",
-      "Fehler kommen am Feld an, nicht auf einer technischen Fehlerseite — Eingaben gehen dabei nicht verloren.",
+      "Wer für andere einstellt, wählt die Person nicht aus — das tut die Koordinatorin beim Verteilen.",
+      "Auftragnehmer stellen nur für sich selbst ein; die Wahl erscheint ihnen gar nicht erst.",
+      "Wer ausgeschieden ist, kann sich auch selbst nichts mehr einstellen.",
+      "Fehler kommen am Feld an, nicht auf einer Fehlerseite — deine Eingaben bleiben dabei stehen.",
     ],
     verweise: ["verteilen", "aufgabe", "meine-auftraege"],
     sichtbar: fuerAlle,
@@ -511,8 +623,12 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
   verteilen: {
     schluessel: "verteilen",
     titel: "Verteilen",
-    fuer: "Koordination",
-    wofuer: "Den ganzen Posteingang abarbeiten — mehrere Aufgaben hintereinander zuweisen.",
+    fuer: "Koordinatorin",
+    wofuer: "Den Posteingang am Stück abarbeiten.",
+    szene:
+      "Zehn Aufgaben liegen im Posteingang, und du willst sie loswerden — nicht zehnmal denselben " +
+      "Dialog öffnen. Diese Seite ist die lange Fassung der Zone auf deiner Startseite: dieselben " +
+      "Daten, aber vollständig und mit zwei Ansichten zur Wahl.",
     ziel: { art: "fest", href: "/verteilen" },
     skizze: [
       {
@@ -524,56 +640,59 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         form: "band",
         titel: "Ansicht: Liste · Brett",
         erklaerung:
-          "Zwei Formen derselben Daten. Die Wahl steht in der Adresse (?ansicht=brett) und übersteht " +
-          "das Neuladen.",
+          "Zwei Formen derselben Daten. Deine Wahl steht in der Adresse und übersteht das " +
+          "Neuladen — und lässt sich verschicken.",
       },
       {
         form: "liste",
         titel: "Posteingang (N)",
         erklaerung:
-          "Je Zeile: Titel, Zustand, Priorität, Frist, Dauer und „Von <Auftraggeber>“. Rechts der " +
-          "Zuweisen-Weg, der die Namensliste mit Auslastung aufklappt.",
+          "Je Zeile: Titel, Zustand, Priorität, Frist, Dauer und von wem der Auftrag kommt. Rechts " +
+          "der Zuweisen-Weg, der die Namen samt Auslastung aufklappt.",
       },
       {
         form: "spalten",
         titel: "Brett (?ansicht=brett)",
         spalten: ["Posteingang", "Alina", "Bo"],
         erklaerung:
-          "Dieselben Aufgaben als Karten: links der Posteingang, daneben je BuFDi eine Spalte. Auf dem " +
-          "Telefon stapeln sich die Spalten untereinander, statt sich in die Breite zu quetschen.",
+          "Dieselben Aufgaben als Karten: links der Posteingang, daneben je Person eine Spalte. Auf " +
+          "dem Telefon stapeln sich die Spalten untereinander, statt sich in die Breite zu quetschen.",
       },
     ],
     bilder: ["verteilweg"],
     schritte: [
       {
-        titel: "Reihenfolge festlegen",
+        titel: "Von oben nach unten",
         text:
-          "Der Posteingang steht nach Dringlichkeit: überfällige Aufgaben zuerst, dann nach Priorität " +
-          "und Frist. Von oben nach unten abarbeiten ist die richtige Reihenfolge.",
+          "Der Posteingang steht schon nach Dringlichkeit: Überfälliges zuerst, dann nach Priorität " +
+          "und Frist. Du musst also nicht sortieren, sondern nur anfangen.",
       },
       {
-        titel: "Zuweisen",
+        titel: "Zuweisen ohne Umweg",
         text:
-          "Der Zeilenweg klappt die Namen mit ihrer Wochenauslastung auf; ein Klick auf den Namen weist " +
-          "zu. Kein Dialog, kein zweites Absenden — bei zehn Aufgaben spart das dreißig Schritte.",
+          "Der Zeilenweg klappt die Namen mit ihrer Wochenauslastung auf; ein Klick auf den Namen " +
+          "weist zu. Kein Dialog, kein zweites Absenden — bei zehn Aufgaben spart das dreißig " +
+          "Handgriffe.",
       },
       {
-        titel: "Brett benutzen, wenn du umschichtest",
+        titel: "Brett, wenn du umschichtest",
         text:
-          "Das Brett zeigt nebeneinander, wer schon wie viel bekommen hat. Eine Karte wandert per Zug " +
-          "oder über ihren Knopf in eine Personenspalte.",
+          "Das Brett zeigt nebeneinander, wer schon wie viel bekommen hat. Eine Karte wandert per " +
+          "Zug oder über ihren Knopf in eine Personenspalte — das ist derselbe Vorgang, nur anders " +
+          "angefasst.",
       },
       {
-        titel: "Zeitvorschlag mitgeben",
+        titel: "Termin vorschlagen",
         text:
-          "Über die Aufgabe selbst (/a/<id>) oder die Führungskarte kannst du Tag und Uhrzeit " +
-          "vorschlagen. Die BuFDi sieht den Vorschlag als Knopf „Annehmen: …“ — verbindlich ist er nicht.",
+          "Über die Aufgabe selbst oder die Führungskarte kannst du Tag und Uhrzeit vorschlagen. " +
+          "Die andere Seite sieht daraus einen Knopf „Annehmen: …“ — verbindlich ist der Vorschlag " +
+          "nicht, und das ist der Punkt.",
       },
     ],
     grenzen: [
-      "Verteilziel ist nur, wer heute aktiv ist — ausgeschiedene Personen stehen in keiner Liste, du selbst auch nicht.",
-      "Verteilen setzt keinen Termin. Der Zeitplan gehört der ausführenden Person.",
-      "Ein Auftraggeber ohne Koordinationsrolle bekommt auf dieser Seite 404 — und in seiner Oberfläche gibt es keinen Weg hierher.",
+      "Verteilziel ist nur, wer heute aktiv ist. Ausgeschiedene stehen in keiner Liste — und du selbst auch nicht.",
+      "Verteilen setzt keinen Termin. Der Wochenplan gehört der Person, die die Arbeit macht.",
+      "Ein Auftraggeber ohne Koordinationsrolle bekommt hier 404 — in seiner Oberfläche führt deshalb auch kein Weg hierher.",
     ],
     verweise: ["verteilung", "aufgabe", "personen"],
     sichtbar: darfVerteilen,
@@ -582,8 +701,12 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
   freigaben: {
     schluessel: "freigaben",
     titel: "Freigaben",
-    fuer: "Auftraggeber und Koordination",
-    wofuer: "Fertig gemeldete Arbeit prüfen: freigeben oder mit Begründung zurückweisen.",
+    fuer: "Auftraggeber und Koordinatorin",
+    wofuer: "Fertig gemeldete Arbeit prüfen: freigeben oder mit Begründung zurück.",
+    szene:
+      "Alina hat fertig gemeldet und ein Foto angehängt. Jetzt liegt es bei dir — und zwar " +
+      "wirklich bei dir: ohne deine Freigabe ist die Aufgabe nicht erledigt. Der Nachweis steht " +
+      "gleich daneben, damit du nicht erst suchen musst, was du da abnickst.",
     ziel: { art: "fest", href: "/freigaben" },
     skizze: [
       {
@@ -602,15 +725,15 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         form: "liste",
         titel: "In Vertretung",
         erklaerung:
-          "Nur für die Koordination: Freigaben, deren Prüfer jemand anderes ist. Der Verlauf hält " +
-          "später fest „Freigegeben von X in Vertretung für Y“.",
+          "Nur für die Koordinatorin: Freigaben, deren Prüfer jemand anderes ist. Der Verlauf hält " +
+          "danach fest „Freigegeben von X in Vertretung für Y“.",
       },
       {
         form: "band",
         titel: "Freigeben · Zurückweisen",
         erklaerung:
-          "Freigeben ist ein Klick. Zurückweisen öffnet ein Feld und verlangt eine Begründung — ohne " +
-          "sie geht es nicht weiter.",
+          "Freigeben ist ein Klick. Zurückweisen öffnet ein Feld und verlangt eine Begründung — " +
+          "ohne sie geht es nicht weiter.",
       },
     ],
     bilder: ["freigabe", "nachweisweg"],
@@ -618,8 +741,9 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       {
         titel: "Nachweis ansehen",
         text:
-          "Er steht in der Zeile, nicht hinter einem Klick. Ein Bildnachweis wird erst ausgeliefert, " +
-          "wenn die Virenprüfung ihn freigegeben hat.",
+          "Er steht in der Zeile, nicht hinter einem Klick. Ein Bild wird allerdings erst " +
+          "ausgeliefert, wenn die Virenprüfung es freigegeben hat — bis dahin ist es hinterlegt, " +
+          "aber nicht sichtbar.",
       },
       {
         titel: "Freigeben",
@@ -630,16 +754,16 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       {
         titel: "Zurückweisen",
         text:
-          "Die Begründung ist Pflicht: sie ist das Einzige, woran die ausführende Person erkennt, was zu " +
-          "tun ist. Die Aufgabe erscheint bei ihr in der Zone „Zurückgewiesen“ und kann von dort " +
-          "wieder aufgenommen werden.",
+          "Die Begründung ist Pflicht, weil sie die eigentliche Arbeit ist: sie ist das Einzige, " +
+          "woran die andere Seite erkennt, was fehlt. Die Aufgabe erscheint dort in der Zone " +
+          "„Zurückgewiesen“ und kann von da aus wieder aufgenommen werden.",
       },
     ],
     grenzen: [
-      "Selbstaufgaben haben keine Freigabestufe und erscheinen hier nie.",
-      "Niemand gibt seine eigene Arbeit frei — auch die Koordination nicht, wenn die Aufgabe ihr zugewiesen ist.",
+      "Selbstgestellte Aufgaben haben keine Freigabestufe und erscheinen hier nie.",
+      "Niemand gibt die eigene Arbeit frei — auch die Koordinatorin nicht, wenn die Aufgabe ihr zugewiesen ist.",
       "Nach dem Ausscheiden bleibt die eigene Prüfgeschichte lesbar, aber die Freigabeaktion wird nicht mehr angeboten.",
-      "BuFDis ohne Koordinationsrolle bekommen auf dieser Seite 404.",
+      "Auftragnehmer ohne Koordinationsrolle bekommen hier 404.",
     ],
     verweise: ["aufgabe", "verteilung", "meine-auftraege"],
     sichtbar: darfFreigabenSehen,
@@ -648,57 +772,59 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
   routinen: {
     schluessel: "routinen",
     titel: "Routinen",
-    fuer: "BuFDi",
-    wofuer:
-      "Wiederkehrende Arbeit hinterlegen, die keine Aufgabe ist — damit sie im Tagesbudget mitzählt, " +
-      "statt es still zu sprengen.",
+    fuer: "Auftragnehmer",
+    wofuer: "Wiederkehrende Arbeit sichtbar machen, die sonst still das Budget frisst.",
+    szene:
+      "Jeden Montag räumst du eine Stunde das Lager auf. Das stellt dir niemand als Aufgabe ein — " +
+      "aber die Stunde ist weg, und dein Montag soll das wissen. Genau dafür sind Routinen da: " +
+      "einmal hinterlegt, zählen sie ab sofort in jeder Woche mit.",
     ziel: { art: "fest", href: "/routinen" },
     skizze: [
       {
         form: "kopf",
         titel: "Aufgaben › Routinen",
-        erklaerung: "Die Kontextzeile zählt deine Routinen und sagt, wie viele davon ruhen.",
+        erklaerung: "Die Kontextzeile zählt deine Routinen und sagt, wie viele davon gerade ruhen.",
       },
       {
         form: "formular",
         titel: "Neue Routine anlegen",
         erklaerung:
-          "Titel, Wochentage, optionale Uhrzeit und Dauer in Minuten. Dieselbe Maske ändert eine " +
-          "bestehende Routine.",
+          "Titel, Wochentage, optionale Uhrzeit und Dauer in Minuten. Dieselbe Maske ändert später " +
+          "eine bestehende Routine.",
       },
       {
         form: "liste",
         titel: "Deine Routinen",
         erklaerung:
-          "Je Zeile die Wochentage, die Dauer und der Schalter „ruhen lassen“ — für Zeiten, in denen " +
-          "eine Routine nicht anfällt, ohne sie zu verlieren.",
+          "Je Zeile die Wochentage, die Dauer und der Schalter „ruhen lassen“ — für Zeiten, in " +
+          "denen eine Routine nicht anfällt, ohne dass du sie verlierst.",
       },
     ],
     bilder: ["tagesbudget", "wochenachse"],
     schritte: [
       {
-        titel: "Routine anlegen",
+        titel: "Anlegen",
         text:
-          "Wochentage ankreuzen, Dauer schätzen, fertig. Sie erscheint ab sofort in jeder Woche an " +
-          "diesen Tagen — in deiner Achse und in der Auslastung, die die Koordination sieht.",
+          "Wochentage ankreuzen, Dauer schätzen, fertig. Ab sofort steht die Routine in jeder Woche " +
+          "an diesen Tagen — in deiner Achse und in der Auslastung, die die Koordinatorin sieht.",
       },
       {
         titel: "Ruhen lassen statt löschen",
         text:
-          "Fällt eine Routine für eine Weile weg, stell sie auf ruhend: sie zählt dann nicht mehr ins " +
+          "Fällt eine Routine eine Weile weg, stell sie auf ruhend: sie zählt dann nicht mehr ins " +
           "Budget, bleibt aber erhalten und ist mit einem Klick wieder da.",
       },
       {
-        titel: "Dauer realistisch halten",
+        titel: "Ehrlich schätzen",
         text:
-          "Routinen essen Budget, bevor eine Aufgabe eingeplant wird. Zu niedrig angesetzt, wirkt dein " +
-          "Tag freier, als er ist, und die Koordination weist dir zu viel zu.",
+          "Routinen essen Budget, bevor die erste Aufgabe eingeplant ist. Zu niedrig angesetzt, " +
+          "wirkt dein Tag freier, als er ist — und genau so viel Arbeit bekommst du dann auch.",
       },
     ],
     grenzen: [
-      "Routinen gehören dir: fremde Routinen kannst du weder anlegen noch ändern.",
-      "Eine Routine ist keine Aufgabe — sie hat keinen Zustand, keinen Nachweis und keine Freigabe, und sie lässt sich in der Achse nicht verschieben.",
-      "Auftraggeber und Koordination haben keine Routinen; die Seite antwortet ihnen mit 404.",
+      "Routinen gehören dir: fremde kannst du weder anlegen noch ändern.",
+      "Eine Routine ist keine Aufgabe — kein Zustand, kein Nachweis, keine Freigabe, und in der Achse nicht verschiebbar.",
+      "Auftraggeber und Koordinatorin haben keine Routinen; die Seite antwortet ihnen mit 404.",
     ],
     verweise: ["meine-woche", "zeitplan"],
     sichtbar: darfRoutinenVerwalten,
@@ -707,9 +833,12 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
   personen: {
     schluessel: "personen",
     titel: "Personenverwaltung",
-    fuer: "Koordination",
-    wofuer:
-      "Wer arbeitet hier mit, in welcher Rolle, ab wann und wie lange — und mit wie viel Zeit am Tag?",
+    fuer: "Koordinatorin",
+    wofuer: "Wer macht mit, in welcher Rolle, ab wann — und mit wie viel Zeit am Tag?",
+    szene:
+      "Ein neuer Jahrgang fängt an, zwei Leute hören auf. Zehn Minuten Arbeit — wenn man weiß, " +
+      "welches Feld was auslöst. Drei davon sind es, die zählen: die Kennung, die Rolle und das " +
+      "Tagessoll.",
     ziel: { art: "fest", href: "/personen" },
     skizze: [
       {
@@ -721,51 +850,52 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         form: "formular",
         titel: "Neue Person anlegen",
         erklaerung:
-          "Name, Initialen, Kennung aus Pocket ID, Rolle, Tagessoll in Minuten sowie aktiv von / bis. " +
-          "Ist das Verzeichnis angebunden, füllt die Suche die Felder aus.",
+          "Name, Initialen, Kennung aus Pocket ID, Rolle, Tagessoll in Minuten sowie aktiv von und " +
+          "bis. Hängt das Verzeichnis dran, füllt die Suche die Felder für dich.",
       },
       {
         form: "liste",
         titel: "Personen",
         erklaerung:
-          "Je Zeile Rolle, Zeitraum, Tagessoll und ob die Person heute aktiv ist — plus „Beenden“ mit " +
-          "Rückfrage.",
+          "Je Zeile Rolle, Zeitraum, Tagessoll und ob die Person heute aktiv ist — dazu „Beenden“ " +
+          "mit Rückfrage.",
       },
     ],
-    bilder: [],
+    bilder: ["rollen"],
     schritte: [
       {
         titel: "Zuerst die Kennung",
         text:
-          "Die Kennung (der „sub“ aus Pocket ID) verbindet die Anmeldung mit dieser Zeile. Ohne sie " +
-          "sieht die Person zwar das Modul, findet sich aber nicht darin wieder — sie bekommt die " +
-          "Erklärseite „noch nicht eingetragen“.",
+          "Die Kennung aus Pocket ID verbindet die Anmeldung mit dieser Zeile. Ohne sie sieht die " +
+          "Person zwar das Modul, findet sich aber nicht darin wieder — sie landet auf der " +
+          "Hinweisseite „noch nicht eingetragen“. Genau dort steht ihre Kennung; sie kann sie dir " +
+          "einfach durchgeben.",
       },
       {
         titel: "Rolle wählen",
         text:
-          "„bufdi“ arbeitet Aufgaben ab und führt einen Zeitplan; „auftrag“ stellt Aufgaben für andere " +
-          "ein und prüft sie. Die Koordinationsrolle wird NICHT hier vergeben, sondern über die Gruppe " +
-          "in Pocket ID.",
+          "„bufdi“ arbeitet Aufgaben ab und führt einen Wochenplan; „auftrag“ stellt für andere ein " +
+          "und prüft. Die Koordinationsrolle vergibst du nicht hier, sondern über die Gruppe in " +
+          "Pocket ID — sonst gäbe es zwei Register für dieselbe Frage, und die laufen auseinander.",
       },
       {
         titel: "Tagessoll setzen",
         text:
-          "Die Minuten pro Arbeitstag sind die Bezugsgröße jedes Budgetbalkens. Steht hier eine falsche " +
-          "Zahl, ist jede Auslastungsangabe falsch — für die Person und für dich.",
+          "Die Minuten pro Arbeitstag sind die Bezugsgröße jedes Budgetbalkens. Steht hier eine " +
+          "falsche Zahl, ist jede Auslastungsangabe falsch — für die Person und für dich.",
       },
       {
         titel: "Beenden statt löschen",
         text:
-          "Ein Ende („aktiv bis“) ist einschließend: am letzten Tag kann die Person noch abgeben. " +
-          "Danach bleibt alles lesbar, aber nichts mehr bedienbar, und ihre Aufgaben erscheinen bei dir " +
-          "als „ohne aktiven Träger“.",
+          "Ein „aktiv bis“ zählt den letzten Tag noch mit, damit niemand an seinem letzten " +
+          "Diensttag nichts mehr abgeben kann. Danach bleibt alles lesbar, aber nichts mehr " +
+          "bedienbar, und offene Aufgaben tauchen bei dir als „ohne aktiven Träger“ auf.",
       },
     ],
     grenzen: [
-      "Es gibt keine Löschaktion: Personen tragen Verlauf und Nachweise, und eine gelöschte Zeile risse die Dokumentation auf.",
+      "Es gibt keine Löschaktion: an Personen hängen Verlauf und Nachweise, und eine gelöschte Zeile risse die Dokumentation auf.",
       "Die Koordinationsrolle kommt aus der Pocket-ID-Gruppe, nicht aus dieser Tabelle — ein Entzug wirkt mit bis zu einer Stunde Verzug.",
-      "Ein „aktiv bis“ in der Vergangenheit sperrt dich nicht aus der Koordination aus, wohl aber aus jeder Rolle, die an der Zeile hängt.",
+      "Ein „aktiv bis“ in der Vergangenheit sperrt dich nicht aus der Koordination aus, wohl aber aus jeder Rolle, die an der Personenzeile hängt.",
     ],
     verweise: ["verteilung", "verteilen"],
     sichtbar: darfPersonenVerwalten,
@@ -774,10 +904,12 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
   zeitplan: {
     schluessel: "zeitplan",
     titel: "Zeitplan",
-    fuer: "alle Rollen (ändern nur die Person selbst)",
-    wofuer:
-      "Eine ganze Woche einer Person am Stück: was liegt an welchem Tag, in welcher Reihenfolge, und " +
-      "wie voll ist der Tag damit?",
+    fuer: "alle drei Rollen — ändern nur die Person selbst",
+    wofuer: "Eine ganze Woche am Stück: was liegt wann, in welcher Reihenfolge, und passt es?",
+    szene:
+      "Drei neue Aufgaben, keine hat einen Termin. Hier legst du fest, wann du was machst — und " +
+      "siehst in derselben Ansicht, ob der Tag das noch hergibt. Fremde Wochen kannst du " +
+      "aufschlagen und mitlesen; ändern kann sie nur, wem sie gehört.",
     ziel: { art: "eigenerPlan" },
     skizze: [
       {
@@ -791,16 +923,16 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         form: "liste",
         titel: "Einzuplanen",
         erklaerung:
-          "Nur im eigenen Plan: die verteilten Aufgaben ohne Termin, je mit einem Formular für Tag, " +
-          "Uhrzeit und Reihenfolge.",
+          "Nur im eigenen Plan: alles, was dir zugewiesen ist und noch keinen Termin hat, je mit " +
+          "einem Formular für Tag, Uhrzeit und Reihenfolge.",
       },
       {
         form: "spalten",
         titel: "Die Woche",
         spalten: ["Mo", "Di", "Mi", "Do", "Fr"],
         erklaerung:
-          "Aufgaben und Routinen je Tag, mit Budgetzeile darunter. Im eigenen Plan trägt jeder Eintrag " +
-          "Rangknöpfe und ist ziehbar; im fremden Plan ist die Woche reine Lektüre.",
+          "Aufgaben und Routinen je Tag, mit Budgetzeile darunter. Im eigenen Plan trägt jeder " +
+          "Eintrag Rangknöpfe und lässt sich ziehen; im fremden Plan ist die Woche reine Lektüre.",
       },
     ],
     bilder: ["wochenachse", "tagesbudget"],
@@ -809,31 +941,33 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         titel: "Einplanen",
         text:
           "Im Block „Einzuplanen“ Tag und optional Uhrzeit setzen. Danach steht die Aufgabe in der " +
-          "Tagesspalte und zählt in dessen Budget.",
+          "Tagesspalte und zählt in dessen Budget mit.",
       },
       {
         titel: "Reihenfolge ändern",
         text:
-          "Die Pfeilknöpfe verschieben einen Eintrag innerhalb des Tages; ein Zug in eine andere Spalte " +
-          "plant ihn um. Mit der Tastatur: Tab bis zum Eintrag, Enter, Pfeiltasten, Enter zum Ablegen.",
+          "Die Pfeilknöpfe verschieben einen Eintrag innerhalb des Tages, ein Zug in eine andere " +
+          "Spalte plant ihn um. Mit der Tastatur: Tab bis zum Eintrag, Enter, Pfeiltasten, Enter " +
+          "zum Ablegen.",
       },
       {
         titel: "Überbuchung ernst nehmen",
         text:
-          "Steht unter einem Tag „überbucht“, ist mehr verplant als Tagessoll — Routinen eingerechnet. " +
-          "Das ist kein Fehler, den das Modul verhindert, sondern eine Ansage an dich.",
+          "Steht unter einem Tag „überbucht“, ist mehr verplant als dein Tagessoll — Routinen " +
+          "eingerechnet. Das Modul hindert dich nicht daran; es sagt dir nur früh genug, dass der " +
+          "Tag nicht aufgeht.",
       },
       {
-        titel: "Fremde Pläne lesen",
+        titel: "Fremde Wochen lesen",
         text:
-          "Über die Fußzeile deines Einstiegs kommst du auf den Plan der anderen BuFDis. Das ist " +
-          "gedacht für Absprachen und Vertretungen — ohne die Koordination als Nadelöhr.",
+          "Über die Fußzeile deiner Startseite kommst du in die Pläne der anderen. Das ist für " +
+          "Absprachen und Vertretungen gedacht — ohne dass jemand dazwischenstehen muss.",
       },
     ],
     grenzen: [
-      "Ändern darf nur die Person selbst — die Koordination sieht den Plan, aber sie greift nicht hinein.",
-      "Routinen sind nicht ziehbar: sie stehen an ihren Wochentagen, nicht an einem verschobenen Termin.",
-      "Ein Zug in eine Spalte plant um, er startet nichts: der Zustand der Aufgabe bleibt, wie er war.",
+      "Ändern darf nur die Person selbst — auch die Koordinatorin sieht den Plan, greift aber nicht hinein.",
+      "Routinen sind nicht ziehbar: sie hängen an ihren Wochentagen, nicht an einem verschobenen Termin.",
+      "Ein Zug plant um, er startet nichts: der Zustand der Aufgabe bleibt, wie er war.",
       "Nach dem Ausscheiden bleibt der Plan lesbar, aber unveränderlich.",
     ],
     verweise: ["meine-woche", "routinen", "aufgabe"],
@@ -843,10 +977,12 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
   aufgabe: {
     schluessel: "aufgabe",
     titel: "Die einzelne Aufgabe",
-    fuer: "alle Rollen",
-    wofuer:
-      "Alles zu einer Aufgabe an einem Ort: Auftrag, Zustand, Nachweis, jede erlaubte Aktion und die " +
-      "vollständige Geschichte.",
+    fuer: "alle drei Rollen",
+    wofuer: "Alles zu einer Aufgabe an einem Ort — samt ihrer ganzen Geschichte.",
+    szene:
+      "Irgendwo in einer Liste steht ein Titel, der dich angeht. Ein Klick, und hier steht alles: " +
+      "der Auftrag, der Zustand, der Nachweis, jede Aktion, die dir gerade offensteht — und " +
+      "darunter, wer wann was getan hat. Diese Seite ist der Ort, an dem Rückfragen enden.",
     ziel: {
       art: "kein",
       hinweis:
@@ -863,36 +999,38 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         form: "band",
         titel: "Zustand · Priorität · Frist · Nachweispflicht",
         erklaerung:
-          "Die Chipzeile beantwortet ohne Klick, wo die Aufgabe steht. Farbe ist dabei nie der einzige " +
-          "Träger der Bedeutung — es steht immer auch das Wort da.",
+          "Die Chipzeile beantwortet ohne Klick, wo die Aufgabe steht. Farbe ist dabei nie der " +
+          "einzige Träger der Bedeutung — das Wort steht immer daneben.",
       },
       {
         form: "formular",
         titel: "Erklärung und Metablock",
         erklaerung:
-          "Auftraggeber, zugewiesene Person, Frist, Dauerschätzung und Prüfer. Bei einer Selbstaufgabe " +
-          "steht dort ausdrücklich „— (Selbstaufgabe)“, denn sie hat keinen Prüfer.",
+          "Auftraggeber, zugewiesene Person, Frist, Dauerschätzung und Prüfer. Bei einer " +
+          "selbstgestellten Aufgabe steht dort ausdrücklich „— (Selbstaufgabe)“: sie hat keinen " +
+          "Prüfer.",
       },
       {
         form: "liste",
         titel: "Nachweis",
         erklaerung:
-          "Text- und Bildnachweise, sichtbar nur für Koordination, Ersteller, Zugewiesene und den " +
-          "eingetragenen Prüfer. Leistungsnachweise sind kein Aushang.",
+          "Text- und Bildnachweise, sichtbar nur für Koordinatorin, Auftraggeber, die zugewiesene " +
+          "Person und den eingetragenen Prüfer. Leistungsnachweise sind kein Aushang.",
       },
       {
         form: "band",
         titel: "Aktion",
         erklaerung:
-          "Genau die Aktionen, die diese Person mit dieser Aufgabe in DIESEM Zustand ausführen darf — " +
-          "höchstens eine davon ist die rote Hauptaktion. Steht dort nichts, ist gerade nichts zu tun.",
+          "Genau die Aktionen, die du mit dieser Aufgabe in diesem Zustand ausführen darfst — " +
+          "höchstens eine davon ist die rote Hauptaktion. Steht dort nichts, ist für dich gerade " +
+          "nichts zu tun.",
       },
       {
         form: "liste",
         titel: "Verlauf",
         erklaerung:
-          "Jeder Schritt mit Zeitpunkt, Person und Notiz — einschließlich Zurückweisungsgründen und " +
-          "Vertretungsfreigaben. Das ist die Leistungsdokumentation.",
+          "Jeder Schritt mit Zeitpunkt, Person und Notiz — einschließlich Zurückweisungsgründen " +
+          "und Vertretungsfreigaben. Das ist die Leistungsdokumentation.",
       },
     ],
     bilder: ["lebenszyklus", "nachweisweg"],
@@ -900,31 +1038,31 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       {
         titel: "Zustand lesen",
         text:
-          "Die Chipzeile oben sagt, wo die Aufgabe steht; das Lebenszyklus-Bild in diesem Kapitel sagt, " +
-          "was von dort aus möglich ist und wer es tun darf.",
+          "Die Chipzeile oben sagt, wo die Aufgabe steht. Das Lebenszyklus-Bild in diesem Kapitel " +
+          "sagt, was von dort aus möglich ist — und wer es tun darf.",
       },
       {
         titel: "Handeln",
         text:
-          "Im Abschnitt „Aktion“ steht nur, was erlaubt ist. Was dir dort fehlt, fehlt aus einem Grund: " +
-          "entweder passt der Zustand nicht oder die Rolle.",
+          "Unter „Aktion“ steht nur, was erlaubt ist. Was dir dort fehlt, fehlt aus genau einem von " +
+          "zwei Gründen: der Zustand passt nicht, oder die Rolle.",
       },
       {
         titel: "Nachweis anlegen",
         text:
-          "Beim Fertigmelden: Text schreiben oder Bild hochladen. Bilder werden vor der Auslieferung " +
-          "geprüft; bis dahin sind sie hinterlegt, aber nicht sichtbar.",
+          "Beim Fertigmelden: Text schreiben oder Bild hochladen. Bilder gehen vor der Auslieferung " +
+          "durch die Virenprüfung; bis die durch ist, sind sie hinterlegt, aber nicht sichtbar.",
       },
       {
         titel: "Verlauf als Beleg",
         text:
-          "Wer wann was getan hat, steht unten — auch, wenn die Koordination in Vertretung freigegeben " +
-          "hat. Für Beurteilungen und Rückfragen ist das die belastbare Quelle.",
+          "Wer wann was getan hat, steht unten — auch, wenn die Koordinatorin in Vertretung " +
+          "freigegeben hat. Für Beurteilungen und Rückfragen ist das die belastbare Quelle.",
       },
     ],
     grenzen: [
-      "Zurückziehen geht nur aus dem Zustand „eingegangen“ — danach hat die Aufgabe eine Geschichte, die nicht verschwinden soll.",
-      "Nachweise sieht nicht jeder BuFDi, sondern nur die vier genannten Rollen zu dieser Aufgabe.",
+      "Zurückziehen geht nur, solange die Aufgabe noch im Posteingang liegt — danach hat sie eine Geschichte, die nicht verschwinden soll.",
+      "Nachweise sieht nicht jeder, sondern nur die vier Rollen zu dieser Aufgabe.",
       "Der Verlauf lässt sich nicht bearbeiten. Eine falsche Angabe wird durch einen neuen Schritt korrigiert, nicht durch Überschreiben.",
     ],
     verweise: ["freigaben", "zeitplan", "archiv"],
@@ -934,8 +1072,11 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
   archiv: {
     schluessel: "archiv",
     titel: "Archiv",
-    fuer: "alle Rollen",
-    wofuer: "Nachschlagen, was abgeschlossen ist — gefiltert auf das, was du sehen darfst.",
+    fuer: "alle drei Rollen",
+    wofuer: "Nachschlagen, was erledigt ist — gefiltert auf das, was du sehen darfst.",
+    szene:
+      "„Der Beamer wurde doch schon mal geprüft — wann war das, und was stand im Nachweis?“ Für " +
+      "solche Fragen gibt es das Archiv: alles Abgeschlossene, vollständig, auch Jahre später.",
     ziel: { art: "fest", href: "/archiv" },
     skizze: [
       {
@@ -951,14 +1092,16 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       {
         form: "liste",
         titel: "Abgeschlossene Aufgaben",
-        erklaerung: "Dieselbe Zeilenform wie überall sonst. Der Titel führt auf Nachweis und Verlauf.",
+        erklaerung: "Dieselbe Zeilenform wie überall sonst. Der Titel führt zu Nachweis und Verlauf.",
       },
     ],
     bilder: [],
     schritte: [
       {
-        titel: "Suchen über den Filter",
-        text: "Priorität wählen — die Liste bleibt vollständig, sie wird nur enger.",
+        titel: "Über den Filter suchen",
+        text:
+          "Priorität wählen — die Liste bleibt vollständig, sie wird nur enger. Die Auswahl steht " +
+          "in der Adresse, du kannst sie also weitergeben.",
       },
       {
         titel: "In die Aufgabe gehen",
@@ -966,9 +1109,9 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       },
     ],
     grenzen: [
-      "Das Archiv zeigt nur abgeschlossene Aufgaben — zurückgewiesene stehen bei der ausführenden Person, nicht hier.",
-      "Was du nicht sehen darfst, erscheint auch hier nicht: BuFDis sehen alle Aufgaben, ein Auftraggeber nur seine eigenen.",
-      "Es gibt keinen Weg, eine abgeschlossene Aufgabe wieder zu öffnen — eine neue Aufgabe ist der richtige Weg.",
+      "Das Archiv zeigt nur Abgeschlossenes — Zurückgewiesenes steht bei der Person, die es bearbeitet, nicht hier.",
+      "Was du nicht sehen darfst, erscheint auch hier nicht: Auftragnehmer sehen alle Aufgaben, ein Auftraggeber nur seine eigenen.",
+      "Eine abgeschlossene Aufgabe lässt sich nicht wieder öffnen — der richtige Weg ist eine neue Aufgabe.",
     ],
     verweise: ["aufgabe"],
     sichtbar: fuerAlle,
@@ -1023,9 +1166,9 @@ export function zielHref(sicht: HilfeSicht, akteur: Akteur): string | null {
  *
  * ZWEI KANTEN HABEN BEWUSST KEINEN TABELLENEINTRAG, und beide sind als solche markiert:
  * `einstellen` (kein Uebergang — es gibt keinen Ausgangszustand, s. `anfangsZustand`) und
- * `zurueckziehen` (kein Zielzustand — es LOESCHT die Aufgabe). Sie tragen `sonderfall: true`;
- * der Test nimmt genau diese beiden aus dem Mengenvergleich heraus und prueft dafuer, dass es
- * nicht mehr als diese zwei sind.
+ * `zurueckziehen` (kein Zielzustand — es LOESCHT die Aufgabe). Sie tragen `schluessel: null`;
+ * der Test nimmt genau diese aus dem Mengenvergleich heraus und prueft dafuer, dass es nicht mehr
+ * werden.
  */
 export interface ZyklusKante {
   von: Status | "start";
@@ -1043,7 +1186,7 @@ export const ZYKLUS_KANTEN: readonly ZyklusKante[] = [
     von: "start",
     nach: "eingegangen",
     aktion: "einstellen (für andere)",
-    wer: "Auftraggeber · Koordination",
+    wer: "Auftraggeber · Koordinatorin",
     schluessel: null,
   },
   {
@@ -1057,84 +1200,84 @@ export const ZYKLUS_KANTEN: readonly ZyklusKante[] = [
     von: "eingegangen",
     nach: "verteilt",
     aktion: "verteilen",
-    wer: "Koordination",
+    wer: "Koordinatorin",
     schluessel: "verteilen",
   },
   {
     von: "eingegangen",
     nach: "geloescht",
     aktion: "zurückziehen (löscht die Aufgabe)",
-    wer: "Ersteller · Koordination",
+    wer: "Auftraggeber · Koordinatorin",
     schluessel: null,
   },
   {
     von: "verteilt",
     nach: "verteilt",
     aktion: "einplanen",
-    wer: "zugewiesene Person",
+    wer: "Auftragnehmer",
     schluessel: "einplanen",
   },
   {
     von: "verteilt",
     nach: "verteilt",
     aktion: "anders zuweisen (leert die Planung)",
-    wer: "Koordination",
+    wer: "Koordinatorin",
     schluessel: "umverteilen",
   },
   {
     von: "verteilt",
     nach: "in_arbeit",
     aktion: "starten",
-    wer: "zugewiesene Person",
+    wer: "Auftragnehmer",
     schluessel: "starten",
   },
   {
     von: "in_arbeit",
     nach: "in_arbeit",
     aktion: "umplanen",
-    wer: "zugewiesene Person",
+    wer: "Auftragnehmer",
     schluessel: "einplanen",
   },
   {
     von: "in_arbeit",
     nach: "verteilt",
     aktion: "zurücksetzen",
-    wer: "zugewiesene Person",
+    wer: "Auftragnehmer",
     schluessel: "zuruecksetzen",
   },
   {
     von: "in_arbeit",
     nach: "freigabe_offen",
     aktion: "fertig melden (Fremdaufgabe)",
-    wer: "zugewiesene Person",
+    wer: "Auftragnehmer",
     schluessel: "fertig",
   },
   {
     von: "in_arbeit",
     nach: "abgeschlossen",
     aktion: "fertig melden (Selbstaufgabe)",
-    wer: "zugewiesene Person",
+    wer: "Auftragnehmer",
     schluessel: "fertig",
   },
   {
     von: "freigabe_offen",
     nach: "abgeschlossen",
     aktion: "freigeben",
-    wer: "Prüfer · Koordination",
+    wer: "Auftraggeber · Koordinatorin",
     schluessel: "freigeben",
   },
   {
     von: "freigabe_offen",
     nach: "zurueckgewiesen",
     aktion: "zurückweisen (mit Begründung)",
-    wer: "Prüfer · Koordination",
+    wer: "Auftraggeber · Koordinatorin",
     schluessel: "zurueckweisen",
   },
   {
     von: "zurueckgewiesen",
     nach: "in_arbeit",
     aktion: "wieder aufnehmen",
-    wer: "zugewiesene Person",
+    wer: "Auftragnehmer",
     schluessel: "wiederaufnehmen",
   },
 ];

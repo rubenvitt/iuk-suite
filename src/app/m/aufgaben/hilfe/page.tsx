@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getDb } from "../_db/client";
 import { isoTag } from "../_lib/datum";
-import { hilfeSichten, zielHref, type HilfeSicht } from "../_lib/hilfe";
+import { FADEN, ROLLEN, hilfeSichten, zielHref, type HilfeSicht } from "../_lib/hilfe";
 import { akteurFuerSeite, subFuerSitzung, type Akteur } from "../_lib/zugang";
 import { NichtEingetragenSeite } from "../_ui/NichtEingetragenSeite";
 import { SeitenKopf } from "../_ui/SeitenKopf";
@@ -47,6 +47,49 @@ export function hilfeInhalt(akteur: Akteur, heute: string) {
         der Verweis <em>Anleitung</em> oben direkt in das passende Kapitel.
       </p>
 
+      {/*
+       * DIE ROLLEN UND DER DURCHGEHENDE FALL STEHEN VOR DEM INHALTSVERZEICHNIS, und das ist die
+       * Reihenfolge der Fragen: „wer bin ich hier und wer sind die anderen" kommt vor „welche
+       * Seiten gibt es". Wer den Ablauf einmal als Ganzes gesehen hat, versteht danach jede
+       * einzelne Flaeche schneller — und wer nur eine bestimmte Sicht sucht, scrollt daran vorbei.
+       */}
+      <section style={{ marginBlockEnd: SPACE.xxl }}>
+        <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.md}px` }}>
+          Drei Rollen, ein Ablauf
+        </h2>
+        <div className={s.hilfeGitter} style={{ marginBlockEnd: SPACE.xl }}>
+          {ROLLEN.map((rolle) => (
+            <article key={rolle.name} className={s.hilfeKarte}>
+              <h3 style={{ ...SCHRIFT.unterTitel, margin: 0 }}>{rolle.name}</h3>
+              <p style={{ ...SCHRIFT.text, margin: `${SPACE.sm}px 0 0` }}>{rolle.satz}</p>
+              <p style={{ ...SCHRIFT.neben, margin: `${SPACE.sm}px 0 0`, color: "var(--auf-stahl)" }}>
+                {rolle.imModul}
+              </p>
+            </article>
+          ))}
+        </div>
+
+        <div className={s.hilfeBilder}>
+          <Mechanikbild name="rollen" />
+          <div>
+            <h3 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>
+              Ein Auftrag, vier Schritte
+            </h3>
+            <p style={{ ...SCHRIFT.text, margin: `0 0 ${SPACE.md}px` }}>
+              Derselbe Fall taucht in den Kapiteln wieder auf — der Beamer im Schulungsraum:
+            </p>
+            <ol className={s.hilfeSchritte}>
+              {FADEN.map((schritt) => (
+                <li key={schritt.rolle}>
+                  <strong>{schritt.rolle}</strong>
+                  <span>{schritt.tut}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </section>
+
       <section style={{ marginBlockEnd: SPACE.xxl }}>
         <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.md}px` }}>
           Deine Kapitel
@@ -60,12 +103,12 @@ export function hilfeInhalt(akteur: Akteur, heute: string) {
 
       <section>
         <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.md}px` }}>
-          Die Begriffe, die überall vorkommen
+          Die Wörter, die überall stehen
         </h2>
         <p style={{ ...SCHRIFT.text, maxWidth: 640, marginBlockEnd: SPACE.lg }}>
-          Jede Aufgabe durchläuft dieselben Zustände — sie stehen als Marke in jeder Liste, in jeder
-          Tagesspalte und auf jeder Karte. Wer sie einmal im Zusammenhang gesehen hat, liest sie
-          danach überall.
+          „Verteilt“, „in Arbeit“, „Freigabe offen“ — jede Aufgabe durchläuft dieselben Zustände,
+          und sie stehen als Marke in jeder Liste, jeder Tagesspalte und auf jeder Karte. Einmal im
+          Zusammenhang gesehen, liest man sie danach überall.
         </p>
         <Mechanikbild name="lebenszyklus" />
       </section>

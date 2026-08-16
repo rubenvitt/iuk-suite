@@ -46,6 +46,15 @@ export function HilfeKapitel({
 
       <p className={s.hilfeMarke}>Für {sicht.fuer}</p>
 
+      {/*
+       * DIE SZENE STEHT VOR ALLEM ANDEREN UND IST GROESZER GESETZT ALS DER REST — sie ist die
+       * einzige Stelle des Kapitels, die nicht erklaert, sondern ANKNUEPFT. Wer sich in diesen
+       * zwei Saetzen wiedererkennt, liest weiter; wer hier schon merkt, dass er im falschen
+       * Kapitel ist, spart sich den Rest. Beides ist besser als ein Kapitel, das mit einer
+       * Definition anfaengt.
+       */}
+      <p className={s.hilfeSzene}>{sicht.szene}</p>
+
       {zielHref === null && sicht.ziel.art === "kein" ? (
         <p style={{ ...SCHRIFT.text, marginBlockEnd: SPACE.xl, maxWidth: 640 }}>
           <strong>So kommst du hin:</strong> {sicht.ziel.hinweis}

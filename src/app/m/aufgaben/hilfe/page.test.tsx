@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, type PersonRow, type Rolle } from "../_db/schema";
+import { FADEN, ROLLEN } from "../_lib/hilfe";
 import type { Akteur } from "../_lib/zugang";
 
 /*
@@ -57,10 +58,18 @@ describe("hilfeInhalt", () => {
     expect(query("p").textContent).toMatch(/^6 Kapitel/);
   });
 
+  /*
+   * DIE KAPITELTITEL SIND DIE VERLINKTEN `<h3>` — seit der Rollenabschnitt darueber ebenfalls
+   * `<h3>` traegt (die drei Rollenkarten und „Ein Auftrag, vier Schritte"), waere ein
+   * ungezieltes `queryAll("h3")` eine Mischung aus beidem. Der Verweis IST hier das
+   * Unterscheidungsmerkmal: eine Kapitelkarte fuehrt in ihr Kapitel, eine Rollenkarte nirgendwohin.
+   */
+  const kapitelTitel = () => queryAll("h3 a").map((h) => h.textContent);
+
   it("zeigt einer BuFDi ihre sechs Kapitel — und keines der Koordinationskapitel", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
     await mount(hilfeInhalt(akteur(alina), HEUTE));
-    const titel = queryAll("h3").map((h) => h.textContent);
+    const titel = kapitelTitel();
     expect(titel).toEqual([
       "Meine Woche",
       "Aufgabe einstellen",
@@ -74,7 +83,7 @@ describe("hilfeInhalt", () => {
   it("zeigt der Koordination ihre Kapitel, einschliesslich Verteilen und Personenverwaltung", async () => {
     const rike = legePerson("dev:rike@test", "auftrag");
     await mount(hilfeInhalt(akteur(rike, true), HEUTE));
-    const titel = queryAll("h3").map((h) => h.textContent);
+    const titel = kapitelTitel();
     expect(titel).toContain("Verteilung");
     expect(titel).toContain("Verteilen");
     expect(titel).toContain("Personenverwaltung");
@@ -106,6 +115,24 @@ describe("hilfeInhalt", () => {
     expect(ziele.filter((z) => z.startsWith("/a/"))).toEqual([]);
   });
 
+  /*
+   * DER ROLLENABSCHNITT STEHT VOR DEM VERZEICHNIS — er beantwortet „wer bin ich hier", und diese
+   * Frage kommt vor „welche Seiten gibt es" (s. Kommentar in `page.tsx`).
+   */
+  it("stellt die drei Rollen und den durchgehenden Fall voran", async () => {
+    const alina = legePerson("dev:alina@test", "bufdi");
+    await mount(hilfeInhalt(akteur(alina), HEUTE));
+    const ueberschriften = queryAll("h3").map((h) => h.textContent);
+    for (const rolle of ROLLEN) expect(ueberschriften).toContain(rolle.name);
+    // Der Fall nennt Namen und Handlung je Schritt.
+    expect(document.body.textContent).toContain(FADEN[0].rolle);
+    expect(document.body.textContent).toContain("Beamer im Schulungsraum");
+    // Das Rollenbild steht daneben, nicht nur der Text.
+    expect(
+      queryAll("svg[role='img']").map((svg) => svg.getAttribute("aria-label") ?? ""),
+    ).toContainEqual(expect.stringContaining("Vier Stationen"));
+  });
+
   it("zeigt das Lebenszyklusbild samt vollstaendiger Uebergangstabelle", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
     await mount(hilfeInhalt(akteur(alina), HEUTE));
@@ -128,6 +155,6 @@ describe("HilfePage — der Default-Export", () => {
     sitzung = { user: { id: "dev:neu@test", groups: [] } };
     await mount((await HilfePage()) as React.ReactElement);
     expect(query("h1").textContent).toBe("Aufgaben");
-    expect(queryAll("h3").map((h) => h.textContent)).not.toContain("Archiv");
+    expect(queryAll("h3 a").map((h) => h.textContent)).not.toContain("Archiv");
   });
 });

@@ -41,7 +41,9 @@ vi.mock("../_db/client", () => ({ getDb: () => mockDb.db }));
 import { UEBERGAENGE } from "./lebenszyklus";
 import {
   BILD_NAMEN,
+  FADEN,
   HILFE_SICHTEN,
+  ROLLEN,
   SICHT_SCHLUESSEL,
   ZUSTAND_TEXT,
   ZYKLUS_KANTEN,
@@ -119,6 +121,33 @@ describe("HILFE_SICHTEN — jedes Kapitel traegt, was ein Kapitel braucht", () =
       });
 
       /*
+       * DIE SZENE IST DER EINSTIEG, UND EIN EINSTIEG MIT EINEM HALBEN SATZ IST KEINER: die
+       * Untergrenze haelt fest, dass hier eine LAGE steht und nicht die Ueberschrift noch einmal.
+       * Die Obergrenze ist genauso wichtig — wer drei Absaetze schreibt, hat den Abschnitt
+       * „Schritt fuer Schritt" vorweggenommen, und die Szene wird ueberblaettert.
+       */
+      it("beginnt mit einer Szene, die die Lage beschreibt — nicht zu knapp, nicht zu lang", () => {
+        expect(sicht.szene.length, `${schluessel}: Szene zu knapp`).toBeGreaterThan(120);
+        expect(sicht.szene.length, `${schluessel}: Szene zu lang`).toBeLessThan(420);
+        expect(sicht.szene, `${schluessel}: die Szene wiederholt nur den Titel`).not.toBe(
+          sicht.wofuer,
+        );
+      });
+
+      /*
+       * DIE ROLLENMARKE BENUTZT DIE DREI NAMEN AUS `ROLLEN` — sonst stuenden auf den Karten des
+       * Verzeichnisses drei Vokabulare nebeneinander („BuFDi", „Koordination", „Auftraggeber"),
+       * und genau das nimmt die Anleitung der Leserin ab (s. Kopfkommentar von `_lib/hilfe.ts`).
+       */
+      it("nennt in der Rollenmarke nur Namen aus ROLLEN", () => {
+        const genannt = ROLLEN.filter((r) => sicht.fuer.includes(r.name));
+        expect(
+          genannt.length > 0 || sicht.fuer.startsWith("alle"),
+          `${schluessel}: „${sicht.fuer}" ist keiner der drei Rollennamen`,
+        ).toBe(true);
+      });
+
+      /*
        * ZWEI BLOECKE SIND DIE UNTERGRENZE, UNTER DER EINE SKIZZE NICHTS MEHR ZEIGT: sie erklaert
        * die ANORDNUNG, und eine Anordnung braucht mindestens zwei Dinge, die uebereinander liegen.
        */
@@ -190,6 +219,65 @@ describe("HILFE_SICHTEN — jedes Kapitel traegt, was ein Kapitel braucht", () =
     expect(zielHref(HILFE_SICHTEN.zeitplan, akteur(alina))).toBe(`/plan/${alina.id}`);
     expect(zielHref(HILFE_SICHTEN.aufgabe, akteur(alina))).toBeNull();
     expect(zielHref(HILFE_SICHTEN.archiv, akteur(alina))).toBe("/archiv");
+  });
+});
+
+describe("ROLLEN und FADEN — die Erzaehlform traegt, was die Oberflaeche wirklich tut", () => {
+  it("fuehrt genau drei Rollen mit eindeutigen Namen", () => {
+    expect(ROLLEN).toHaveLength(3);
+    expect(new Set(ROLLEN.map((r) => r.name)).size).toBe(3);
+    for (const rolle of ROLLEN) {
+      expect(rolle.satz.length, rolle.name).toBeGreaterThan(40);
+      expect(rolle.imModul.length, rolle.name).toBeGreaterThan(20);
+    }
+  });
+
+  /*
+   * DIE DREI ROLLEN UND DIE DREI EINSTIEGE SIND DIESELBE MENGE, und das ist keine Redundanz,
+   * sondern die Zusage: es gibt keine vierte Rolle ohne Startseite und keine Startseite ohne
+   * Rolle. Ein Rollenbild, das eine Rolle nennt, die unter `/` nirgends ankommt, waere eine
+   * Behauptung ueber ein Modul, das es nicht gibt.
+   */
+  it("gibt jeder Rolle genau einen Einstieg, und die drei Einstiege sind vergeben", () => {
+    const einstiege = ROLLEN.map((r) => r.einstieg);
+    expect(new Set(einstiege).size).toBe(3);
+    for (const einstieg of einstiege) {
+      expect(SICHT_SCHLUESSEL).toContain(einstieg);
+      expect(HILFE_SICHTEN[einstieg].ziel).toEqual({ art: "fest", href: "/" });
+    }
+    expect([...einstiege].sort()).toEqual(["meine-auftraege", "meine-woche", "verteilung"]);
+  });
+
+  /*
+   * JEDE ROLLE BEKOMMT WIRKLICH IHREN EINSTIEG: die Behauptung der Rollenkarte wird gegen
+   * `einstiegsSicht` gehalten, also gegen die Verzweigung, die `page.tsx` nachbildet — und die
+   * ihrerseits gegen die echte Seite geprueft wird (weiter unten in dieser Datei).
+   */
+  it("stimmt mit der tatsaechlichen Verzweigung ueberein", () => {
+    const alina = legePerson("dev:alina@test", "bufdi");
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const rike = legePerson("dev:rike@test", "auftrag");
+    const zuordnung: Record<string, SichtSchluessel> = {
+      Auftragnehmer: einstiegsSicht(akteur(alina)),
+      Auftraggeber: einstiegsSicht(akteur(malte)),
+      Koordinatorin: einstiegsSicht(akteur(rike, true)),
+    };
+    for (const rolle of ROLLEN) {
+      expect(zuordnung[rolle.name], rolle.name).toBe(rolle.einstieg);
+    }
+  });
+
+  it("erzaehlt den durchgehenden Fall in mindestens vier Schritten, jeder mit Rolle und Handlung", () => {
+    expect(FADEN.length).toBeGreaterThanOrEqual(4);
+    for (const schritt of FADEN) {
+      expect(schritt.rolle.length).toBeGreaterThan(3);
+      expect(schritt.tut.length).toBeGreaterThan(30);
+    }
+    // Der Fall laeuft ueber alle drei Rollen — sonst waere er die Geschichte einer einzigen.
+    const text = FADEN.map((f) => `${f.rolle} ${f.tut}`).join(" ");
+    for (const rolle of ["Auftraggeber", "Koordinatorin", "Auftragnehmerin"]) {
+      expect(text, rolle).toContain(rolle);
+    }
   });
 });
 

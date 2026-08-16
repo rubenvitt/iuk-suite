@@ -1995,3 +1995,17 @@
 .hilfeTabelle td {
   color: var(--auf-tinte);
 }
+
+/*
+ * DIE SZENE AM KAPITELANFANG — die einzige Stelle der Anleitung, die groesser ist als der
+ * Fliesztext. 16px steht auf antds Leiter (12/14/16/20/24/30), es ist also keine erfundene
+ * Groesse; die linke Kante ist dieselbe Form wie bei `.hilfeGrenzen`, nur in Tinte statt in
+ * Linie — beides sind Bloecke, die aus dem Text heraustreten, ohne eine Farbflaeche zu brauchen.
+ */
+.hilfeSzene {
+  margin: 0 0 24px;
+  padding: 0 0 0 16px;
+  border-inline-start: 3px solid var(--auf-tinte);
+  font-size: 16px;
+  line-height: 1.55;
+}

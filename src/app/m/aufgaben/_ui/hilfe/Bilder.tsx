@@ -4,15 +4,18 @@ import { BILD_SCHRIFT, Bildrahmen, Kantentext, Kasten, LINIE, Pfeil, STAHL, TINT
 import s from "../aufgaben.module.css";
 
 /*
- * DIE SECHS MECHANIKBILDER — je eines fuer eine Frage, die eine Layoutskizze nicht beantworten
- * kann.
+ * DIE MECHANIKBILDER — je eines fuer eine Frage, die eine Layoutskizze nicht beantworten kann.
+ *
+ * OHNE ZAHL IM SATZ, UND DAS IST DIESELBE LEHRE WIE IN `docs/design/README.md` („eine Aufzaehlung
+ * ohne Zahl kann nicht falsch zaehlen"): hier stand „die sechs", bis das Rollenbild dazukam. Die
+ * verbindliche Menge ist `BILD_NAMEN` in `_lib/hilfe.ts` — sie zaehlt sich selbst.
  *
  * ══ DER MASSSTAB FUER „SINNVOLLES BILD": es zeigt eine BEZIEHUNG, die im Text nur als Aufzaehlung
  *    stuende. Das Lebenszyklusbild zeigt, dass „fertig melden" bei einer Selbstaufgabe woanders
  *    hinfuehrt als bei einer Fremdaufgabe; das Budgetbild zeigt, dass eine Woche im Rahmen liegen
  *    und ein einzelner Tag trotzdem ueberbucht sein kann. Beides sind Saetze, die man dreimal
  *    liest und einmal sieht. Ein Bild, das nur die Ueberschrift daneben wiederholt, ist hier
- *    keines — deshalb sind es sechs und nicht zwanzig, und zwei Kapitel haben gar keines
+ *    keines — deshalb sind es eine Handvoll und nicht zwanzig, und zwei Kapitel haben gar keines
  *    (`personen`, `archiv`): dort gibt es nichts zu sehen, was nicht im Satz steht.
  *
  * ══ JEDES BILD IST DOPPELT LESBAR. Das Lebenszyklusbild traegt UNTER sich die vollstaendige
@@ -28,6 +31,8 @@ import s from "../aufgaben.module.css";
 
 export function Mechanikbild({ name }: { name: BildName }) {
   switch (name) {
+    case "rollen":
+      return <Rollen />;
     case "lebenszyklus":
       return <Lebenszyklus />;
     case "tagesbudget":
@@ -41,6 +46,78 @@ export function Mechanikbild({ name }: { name: BildName }) {
     case "nachweisweg":
       return <Nachweisweg />;
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────────────────────
+ * 0 · DIE STAFFELUEBERGABE ZWISCHEN DEN DREI ROLLEN
+ *
+ * DAS BILD, DAS AM ANFANG STEHT — und das einzige, das die Frage beantwortet, die vor allen
+ * anderen kommt: „wer macht hier eigentlich was, und wann bin ich dran?". Es zeigt keinen
+ * Zustand und keine Flaeche, sondern eine UEBERGABE: vier Stationen, drei Rollen, und der
+ * Auftraggeber steht zweimal darin — einmal am Anfang, einmal als Pruefer. Genau diese Wiederkehr
+ * ist das Vier-Augen-Prinzip, und sie laesst sich in einem Satz behaupten oder in einem Bild
+ * zeigen.
+ * ────────────────────────────────────────────────────────────────────────────────────────────── */
+function Rollen() {
+  const stationen = [
+    { rolle: "Auftraggeber", tut: "stellt die Aufgabe ein", ton: "karte" as const },
+    { rolle: "Koordinatorin", tut: "weist zu — nach Auslastung", ton: "karte" as const },
+    { rolle: "Auftragnehmer", tut: "plant ein, erledigt, meldet fertig", ton: "karte" as const },
+    { rolle: "Auftraggeber prüft", tut: "gibt frei — oder weist zurück", ton: "ok" as const },
+  ];
+  const uebergaenge = ["geht in den Posteingang", "landet in der Wochenplanung", "mit Nachweis, wenn gefordert"];
+  return (
+    <Bildrahmen
+      titel="Die Staffelübergabe zwischen den drei Rollen"
+      beschreibung={
+        "Vier Stationen untereinander. Erstens: der Auftraggeber stellt die Aufgabe ein, sie geht " +
+        "in den Posteingang. Zweitens: die Koordinatorin weist sie nach Auslastung zu, sie landet " +
+        "in der Wochenplanung. Drittens: der Auftragnehmer plant sie ein, erledigt sie und meldet " +
+        "fertig, mit Nachweis, wenn einer gefordert ist. Viertens: der Auftraggeber prüft und gibt " +
+        "frei — oder weist mit Begründung zurück, dann geht die Aufgabe an Station drei zurück. " +
+        "Ist sie freigegeben, ist sie abgeschlossen und steht im Archiv."
+      }
+      hoehe={330}
+      unterschrift="Der Auftraggeber steht zweimal darin — am Anfang und als Prüfer. Diese Wiederkehr ist das Vier-Augen-Prinzip: wer eine Aufgabe stellt, nimmt sie auch ab, und wer sie erledigt, gibt sie nie selbst frei."
+    >
+      {stationen.map((station, i) => {
+        const oben = 8 + i * 72;
+        return (
+          <g key={station.rolle}>
+            <Kasten
+              x={24}
+              y={oben}
+              breite={312}
+              hoehe={46}
+              zeilen={[station.rolle, station.tut]}
+              ton={station.ton}
+              fett
+            />
+            {i < uebergaenge.length ? (
+              <>
+                <Pfeil punkte={[[90, oben + 46], [90, oben + 72]]} />
+                <Kantentext x={102} y={oben + 63} zeilen={[uebergaenge[i]]} gedaempft />
+              </>
+            ) : null}
+          </g>
+        );
+      })}
+
+      {/*
+        * DER LETZTE PFEIL STEHT IN DERSELBEN SPUR WIE DIE DREI DARUEBER (x = 90). Er lief eine
+        * Runde lang aussen rechts herum, mit der Beschriftung links davon — im Abzug gesehen: der
+        * Pfeil und sein Text gehoerten sichtbar nicht mehr zusammen, und die Kette brach genau an
+        * der Stelle ab, an der sie zu Ende erzaehlt.
+        */}
+      <Pfeil punkte={[[90, 270], [90, 294]]} />
+      <Kantentext x={102} y={287} zeilen={["abgeschlossen"]} gedaempft />
+      <Kasten x={24} y={294} breite={312} hoehe={30} zeilen={["Archiv"]} ton="ok" />
+
+      {/* Der Rueckweg: zurueckgewiesen fuehrt an Station 3 zurueck. */}
+      <Pfeil punkte={[[24, 246], [16, 246], [16, 175], [24, 175]]} farbe={STAHL} />
+      <Kantentext x={5} y={180} zeilen={["zurückgewiesen"]} anker="end" gedaempft gedreht />
+    </Bildrahmen>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -118,16 +195,16 @@ function Lebenszyklus() {
         * vermutet). Der Ueberlauf-Riegel in `Bilder.test.tsx` faengt das NICHT — er misst die
         * Grenzen des `viewBox`, keine Ueberdeckung zweier Elemente darin.
         */}
-      <Kantentext x={MITTE + 8} y={106} zeilen={["verteilen", "Koordination"]} />
+      <Kantentext x={MITTE + 8} y={106} zeilen={["verteilen", "Koordinatorin"]} />
 
       <Pfeil punkte={[[MITTE, 152], [MITTE, 184]]} />
-      <Kantentext x={MITTE + 8} y={172} zeilen={["starten · zugewiesene Person"]} />
+      <Kantentext x={MITTE + 8} y={172} zeilen={["starten · Auftragnehmer"]} />
 
       <Pfeil punkte={[[MITTE, 212], [MITTE, 268]]} />
       <Kantentext x={MITTE + 8} y={234} zeilen={["fertig melden", "(Fremdaufgabe)"]} />
 
       <Pfeil punkte={[[MITTE, 296], [MITTE, 396]]} />
-      <Kantentext x={MITTE + 8} y={308} zeilen={["freigeben", "Prüfer · Koordination"]} />
+      <Kantentext x={MITTE + 8} y={308} zeilen={["freigeben", "Prüfer · Koordin."]} />
 
       {/* Selbstaufgabe: am linken Rand an eingegangen vorbei */}
       <Pfeil punkte={[[SPALTE_X, 18], [22, 18], [22, 138], [SPALTE_X, 138]]} farbe={STAHL} />
@@ -139,13 +216,13 @@ function Lebenszyklus() {
 
       {/* Die zwei Schleifen an „verteilt“ */}
       <Pfeil punkte={[[180, 129], [192, 129], [192, 137], [182, 137]]} farbe={STAHL} />
-      <Kantentext x={198} y={132} zeilen={["einplanen · zugewiesene Person"]} gedaempft />
+      <Kantentext x={198} y={132} zeilen={["einplanen · Auftragnehmer"]} gedaempft />
       <Pfeil punkte={[[180, 143], [192, 143], [192, 151], [182, 151]]} farbe={STAHL} />
-      <Kantentext x={198} y={150} zeilen={["anders zuweisen · Koordination"]} gedaempft />
+      <Kantentext x={198} y={150} zeilen={["anders zuweisen · Koordin."]} gedaempft />
 
       {/* Die Schleife an „in Arbeit“ */}
       <Pfeil punkte={[[180, 189], [192, 189], [192, 197], [182, 197]]} farbe={STAHL} />
-      <Kantentext x={198} y={196} zeilen={["umplanen · zugewiesene Person"]} gedaempft />
+      <Kantentext x={198} y={196} zeilen={["umplanen · Auftragnehmer"]} gedaempft />
 
       {/* Zuruecksetzen: linke Schiene zurueck nach „verteilt“ */}
       <Pfeil punkte={[[SPALTE_X, 204], [30, 204], [30, 146], [SPALTE_X, 146]]} farbe={STAHL} />
@@ -484,8 +561,8 @@ function Verteilweg() {
         "Oben der Posteingang mit drei noch nicht zugewiesenen Aufgaben. Ein Pfeil führt nach " +
         "unten auf drei Personenspalten mit ihrer Wochenauslastung: Alina 4,0 von 7,8 Stunden, Bo " +
         "7,4 von 7,8, Cem 1,4 von 7,8. Der Klick auf einen Namen weist zu. Ein Zeitvorschlag kann " +
-        "mitgegeben werden, verbindlich ist er nicht — die zugewiesene Person nimmt ihn an oder " +
-        "plant anders ein."
+        "mitgegeben werden, verbindlich ist er nicht — der Auftragnehmer nimmt ihn an oder plant " +
+        "anders ein."
       }
       hoehe={286}
       unterschrift="Die Auslastung steht schon vor der Entscheidung da — im Zuweisen-Feld noch einmal, aber dann hat man sich bereits entschieden."
@@ -537,11 +614,11 @@ function Verteilweg() {
         y={206}
         breite={336}
         hoehe={44}
-        zeilen={["Zeitvorschlag (optional): „Do, 09:00“", "— die zugewiesene Person nimmt an oder plant anders"]}
+        zeilen={["Zeitvorschlag (optional): „Do, 09:00“", "— angenommen oder anders eingeplant"]}
         ton="papier"
       />
       <text x={180} y={268} textAnchor="middle" fontSize={9.5} fill={STAHL}>
-        Der Zeitplan gehört der ausführenden Person, nicht der Verteilung.
+        Der Wochenplan gehört dem Auftragnehmer, nicht der Verteilung.
       </text>
     </Bildrahmen>
   );
@@ -555,19 +632,19 @@ function Freigabe() {
     <Bildrahmen
       titel="Wer freigibt — und wer nie"
       beschreibung={
-        "Drei Fälle untereinander. Fremdaufgabe: der Auftraggeber stellt ein, die zugewiesene " +
-        "Person arbeitet und meldet fertig, der eingetragene Prüfer gibt frei — nie dieselbe " +
+        "Drei Fälle untereinander. Fremdaufgabe: der Auftraggeber stellt ein, der Auftragnehmer " +
+        "arbeitet und meldet fertig, der eingetragene Prüfer gibt frei — nie dieselbe " +
         "Person. Selbstaufgabe: wer sie sich selbst einstellt, schließt sie mit dem Fertigmelden " +
         "ab; es gibt keine Freigabestufe. Vertretung: ist der Prüfer nicht verfügbar, gibt die " +
-        "Koordination frei, und der Verlauf hält „in Vertretung für“ fest."
+        "Koordinatorin frei, und der Verlauf hält „in Vertretung für“ fest."
       }
       hoehe={280}
-      unterschrift="Die Koordination gibt ihre eigene Arbeit nicht frei — sonst fiele das Vier-Augen-Prinzip für genau den Fall aus, für den es da ist."
+      unterschrift="Die Koordinatorin gibt ihre eigene Arbeit nicht frei — sonst fiele das Vier-Augen-Prinzip für genau den Fall aus, für den es da ist."
     >
       <Spur y={0} titel="Fremdaufgabe" />
       <Kasten x={8} y={16} breite={104} hoehe={38} zeilen={["Auftraggeber", "stellt ein"]} />
       <Pfeil punkte={[[112, 35], [128, 35]]} />
-      <Kasten x={128} y={16} breite={104} hoehe={38} zeilen={["zugewiesene Person", "meldet fertig"]} />
+      <Kasten x={128} y={16} breite={104} hoehe={38} zeilen={["Auftragnehmer", "meldet fertig"]} />
       <Pfeil punkte={[[232, 35], [248, 35]]} />
       <Kasten x={248} y={16} breite={104} hoehe={38} zeilen={["Prüfer", "gibt frei"]} ton="ok" />
       <line x1={180} y1={62} x2={300} y2={62} stroke={STAHL} strokeDasharray="3 3" />
@@ -576,7 +653,7 @@ function Freigabe() {
       </text>
 
       <Spur y={94} titel="Selbstaufgabe" />
-      <Kasten x={8} y={110} breite={104} hoehe={38} zeilen={["BuFDi stellt", "sich selbst ein"]} />
+      <Kasten x={8} y={110} breite={104} hoehe={38} zeilen={["stellt sich selbst", "eine Aufgabe"]} />
       <Pfeil punkte={[[112, 129], [128, 129]]} />
       <Kasten x={128} y={110} breite={104} hoehe={38} zeilen={["arbeitet und", "meldet fertig"]} />
       <Pfeil punkte={[[232, 129], [248, 129]]} />
@@ -588,7 +665,7 @@ function Freigabe() {
       <Spur y={188} titel="Vertretung" />
       <Kasten x={8} y={204} breite={104} hoehe={38} zeilen={["Prüfer", "nicht verfügbar"]} ton="grau" />
       <Pfeil punkte={[[112, 223], [128, 223]]} />
-      <Kasten x={128} y={204} breite={104} hoehe={38} zeilen={["Koordination", "gibt frei"]} ton="ok" />
+      <Kasten x={128} y={204} breite={104} hoehe={38} zeilen={["Koordinatorin", "gibt frei"]} ton="ok" />
       <Pfeil punkte={[[232, 223], [248, 223]]} />
       <Kasten x={248} y={204} breite={104} hoehe={38} zeilen={["Verlauf:", "„in Vertretung für“"]} ton="papier" />
     </Bildrahmen>
@@ -621,7 +698,7 @@ function Nachweisweg() {
         "Danach steht die Aufgabe auf „Freigabe offen“, und der Prüfer sieht den Nachweis."
       }
       hoehe={266}
-      unterschrift="Nachweise sehen nur Koordination, Ersteller, zugewiesene Person und der eingetragene Prüfer — Leistungsnachweise sind kein Aushang."
+      unterschrift="Nachweise sehen nur Koordinatorin, Auftraggeber, Auftragnehmer und der eingetragene Prüfer — Leistungsnachweise sind kein Aushang."
     >
       <Kasten x={90} y={6} breite={180} hoehe={28} zeilen={["„Fertig melden“"]} fett />
 
