@@ -23,6 +23,17 @@ import { formatZeitpunkt, tagAusEingabe } from "./datum";
  * `DatePicker` kommt bewusst nicht vor: `<Input type="date">` ist
  * server-render-fest, öffnet am Handy die native Tastatur, braucht kein
  * Locale-Bündel und ist ohne Client-JS vorbelegbar.
+ *
+ * ⚠️ DAS IST EINE ENTSCHEIDUNG DIESES FORMULARS, KEINE SUITE-REGEL — und seit
+ * dem 2026-08-16 gibt es die Gegenprobe: `app/m/aufgaben/_ui/Felder.tsx` führt
+ * `DatePicker`/`TimePicker`/`Select` für das ganze Modul `aufgaben` ein, auf
+ * ausdrückliche Ansage des Betreibers („selects werden nicht von ant
+ * verwendet; date picker auch nicht"). Dort trägt keiner der drei Gründe
+ * oben: jede Aufrufstelle ist ohnehin schon eine Client-Insel, und das
+ * Locale-Bündel kommt genau einmal herein. Wer hier je auf `DatePicker`
+ * wechseln will, prüft die drei Gründe gegen DIESE Datei — nicht gegen
+ * `aufgaben`, und nicht andersherum. Der Verweis steht hier, damit die zwei
+ * Module nicht still gegeneinander stehen.
  */
 
 export type StartVariante = "primaer" | "naechster";

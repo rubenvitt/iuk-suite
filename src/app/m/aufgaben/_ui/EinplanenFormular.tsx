@@ -5,6 +5,7 @@ import { Button, Input } from "antd";
 import { einplanenAction } from "../actions";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import type { AufgabeRow } from "../_db/schema";
+import { DatumFeld, ZeitFeld } from "./Felder";
 import { SPACE } from "@/core/theme/tokens";
 
 /*
@@ -14,7 +15,12 @@ import { SPACE } from "@/core/theme/tokens";
  *
  *  1. `"use client"` STEHT IN ZEILE 1, VOR JEDEM KOMMENTAR.
  *  2. KEIN antd-`Form`, KEIN `Form.Item` — die Meldung steht von Hand am Feld (`useActionState`).
- *     `Input` ist selbst KEIN Compound-Zugriff und in einer Client-Insel ohnehin erlaubt.
+ *     `Input` ist selbst KEIN Compound-Zugriff und in einer Client-Insel ohnehin erlaubt. Tag und
+ *     Uhrzeit sind seit der fuenften Oberflaechen-Runde (2026-08-16) antds `DatePicker`/
+ *     `TimePicker` aus `_ui/Felder.tsx` statt `<Input type="date">`/`<Input type="time">`; KEIN
+ *     `stand` an den beiden Feldern, und das ist der Unterschied zu `AufgabeFormular`: dort leert
+ *     ein erfolgreiches Absenden das Formular fuer die naechste Anlage, hier ist der eben
+ *     gewaehlte Tag DAS ERGEBNIS und soll stehen bleiben.
  *  3. KEIN `@ant-design/icons`. Diese Datei braucht ohnehin keine Zeichen.
  *  4. `values` TRAEGT JEDES GESENDETE FELD ZURUECK — `einplanenAction` (Aufgabe 10) tut das bereits
  *     fuer `planDatum`/`planUhrzeit`, diese Datei baut das nicht nach, sie liest nur `feldWert`.
@@ -76,14 +82,12 @@ export function EinplanenFormular({
         <label htmlFor={idPlanDatum} style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Tag
         </label>
-        <Input
+        <DatumFeld
           id={idPlanDatum}
           name="planDatum"
-          type="date"
-          defaultValue={feldWert(state, "planDatum", task.planDatum ?? "")}
-          status={planDatumFehler ? "error" : undefined}
-          aria-invalid={planDatumFehler ? true : undefined}
-          aria-describedby={planDatumFehler ? `${idPlanDatum}-err` : undefined}
+          wert={feldWert(state, "planDatum", task.planDatum ?? "")}
+          fehler={planDatumFehler}
+          beschriebenVon={planDatumFehler ? `${idPlanDatum}-err` : undefined}
         />
         {planDatumFehler ? (
           <p id={`${idPlanDatum}-err`} style={{ margin: `${SPACE.xs}px 0 0` }}>
@@ -96,14 +100,12 @@ export function EinplanenFormular({
         <label htmlFor={idPlanUhrzeit} style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Uhrzeit (optional)
         </label>
-        <Input
+        <ZeitFeld
           id={idPlanUhrzeit}
           name="planUhrzeit"
-          type="time"
-          defaultValue={feldWert(state, "planUhrzeit", task.planUhrzeit ?? "")}
-          status={planUhrzeitFehler ? "error" : undefined}
-          aria-invalid={planUhrzeitFehler ? true : undefined}
-          aria-describedby={planUhrzeitFehler ? `${idPlanUhrzeit}-err` : undefined}
+          wert={feldWert(state, "planUhrzeit", task.planUhrzeit ?? "")}
+          fehler={planUhrzeitFehler}
+          beschriebenVon={planUhrzeitFehler ? `${idPlanUhrzeit}-err` : undefined}
         />
         {planUhrzeitFehler ? (
           <p id={`${idPlanUhrzeit}-err`} style={{ margin: `${SPACE.xs}px 0 0` }}>

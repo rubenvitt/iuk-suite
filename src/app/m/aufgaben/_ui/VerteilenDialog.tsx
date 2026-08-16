@@ -1,13 +1,14 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Button, Input, Modal } from "antd";
+import { Button, Modal } from "antd";
 import { umverteilenAction, verteilenAction } from "../actions";
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
 import { fmtStunden } from "../_lib/anzeige";
 import { fmtTagKurz } from "../_lib/datum";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
+import { DatumFeld, ZeitFeld } from "./Felder";
 import { SPACE } from "@/core/theme/tokens";
 import s from "./aufgaben.module.css";
 
@@ -250,6 +251,19 @@ function VerteilenModal({
         <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
           <legend style={{ padding: 0, marginBlockEnd: SPACE.xs }}>Zuweisen an</legend>
           <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+            {/*
+             * NATIVE `<input type="radio">` UND NICHT antds `Radio` — dieselbe Lehre wie bei den
+             * Kontrollkaestchen in `AufgabeFormular`/`RoutineFormular` (2026-08-16, in der CI
+             * gemessen): die Auswahlfelder dieses Moduls sind auf antd gewechselt
+             * (`_ui/Felder.tsx`), die WAHL-Elemente eines Formulars bleiben nativ.
+             *
+             * Der Grund ist bei `Radio` nicht dieselbe Warnung wie bei `Checkbox` (`value` IST hier
+             * ein gueltiger Prop), sondern die Reichweite der Umstellung: `value` traegt am
+             * Radiofeld die PERSONEN-ID, also den abgesendeten Wert selbst, und ob antd ihn
+             * ausserhalb einer `Radio.Group` unveraendert ans `<input>` durchreicht, entscheiden
+             * Bibliotheks-Interna. Ein nativer Knopf entscheidet das gar nicht erst — und die
+             * Aufgabe dieser Runde waren Datum, Uhrzeit und Listenwahl, nicht die Radiogruppe.
+             */}
             {bufdis.map((b) => (
               <label
                 key={b.id}
@@ -280,14 +294,12 @@ function VerteilenModal({
           <label htmlFor="vd-vorschlag-datum" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
             Zeitvorschlag: Tag (optional)
           </label>
-          <Input
+          <DatumFeld
             id="vd-vorschlag-datum"
             name="vorschlagDatum"
-            type="date"
-            defaultValue={feldWert(state, "vorschlagDatum", "")}
-            status={vorschlagDatumFehler ? "error" : undefined}
-            aria-invalid={vorschlagDatumFehler ? true : undefined}
-            aria-describedby={vorschlagDatumFehler ? "vd-vorschlag-datum-err" : undefined}
+            wert={feldWert(state, "vorschlagDatum", "")}
+            fehler={vorschlagDatumFehler}
+            beschriebenVon={vorschlagDatumFehler ? "vd-vorschlag-datum-err" : undefined}
           />
           {vorschlagDatumFehler ? (
             <p id="vd-vorschlag-datum-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
@@ -303,14 +315,12 @@ function VerteilenModal({
           >
             Zeitvorschlag: Uhrzeit (optional)
           </label>
-          <Input
+          <ZeitFeld
             id="vd-vorschlag-uhrzeit"
             name="vorschlagUhrzeit"
-            type="time"
-            defaultValue={feldWert(state, "vorschlagUhrzeit", "")}
-            status={vorschlagUhrzeitFehler ? "error" : undefined}
-            aria-invalid={vorschlagUhrzeitFehler ? true : undefined}
-            aria-describedby={vorschlagUhrzeitFehler ? "vd-vorschlag-uhrzeit-err" : undefined}
+            wert={feldWert(state, "vorschlagUhrzeit", "")}
+            fehler={vorschlagUhrzeitFehler}
+            beschriebenVon={vorschlagUhrzeitFehler ? "vd-vorschlag-uhrzeit-err" : undefined}
           />
           {vorschlagUhrzeitFehler ? (
             <p id="vd-vorschlag-uhrzeit-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
