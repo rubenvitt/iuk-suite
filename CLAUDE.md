@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **elf Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **zwölf Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -91,9 +91,27 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     Chromiums native Drag-Erkennung braucht offenbar eine kontinuierliche Bewegung über eine
     Mindestdistanz, die ein einzelner `dragTo()`-Sprung nicht liefert.
 
-    **Fallen 10 und 11 sind Testfallen, keine Produktionsfallen** — beide gehören zur selben Familie
-    wie die zweite Testregel aus Falle 10: Fälle, in denen ein e2e-Test **etwas anderes misst, als
-    sein Name sagt**.
+12. **Ein `.click()` auf einen echten Anker navigiert nicht, wenn die Hülle zwischen `mousedown` und
+    `mouseup` umbricht** (gemessen im Modul `lagerbuch`, CI-Lauf 31951787232 auf `main`, aus der
+    Playwright-Ablaufverfolgung gelesen — nicht vermutet). Playwright meldet den Klick als gelungen,
+    der Knoten ist ein `<a href>`, er trägt danach sogar den Fokus — und im Netzwerkteil steht für
+    das Ziel **kein einziger Aufruf**. Ursache: Playwright legt beide Mausereignisse auf den Punkt,
+    den es **vor** dem Klick berechnet hat; springt die Seite in den ~200 ms dazwischen, trifft
+    `mouseup` etwas anderes, und das `click`-Ereignis feuert auf dem gemeinsamen **Vorfahren** —
+    einem `<div>`, das nicht navigiert. **Der Auslöser sitzt in der Hülle:** `SessionProvider` holt
+    `/api/auth/session` nach, deren erste Aufrufe unter `next dev` noch in die Erstübersetzung
+    fallen (`ClientFetchError: Failed to fetch`); mit der Sitzung wechselt die Navigation von der
+    schmalen Platzhalter- auf die volle Spalte und der Inhalt rutscht ~240 px hoch. Das passiert
+    **nach** `load`, also hinter `page.goto(..., waitUntil: "load")` **und** hinter Playwrights
+    eigener Stabilitätsprobe, die vor dem Klick misst. **Kein größeres Zeitbudget und keine
+    Wiederholung heilt das** — gewartet wird auf eine Navigation, die nie angestoßen wurde, und die
+    Lage hält über alle drei Versuche an. Lokal unsichtbar (warmes `.next`, 20 von 20 Mal grün).
+    Abhilfe: `klickeWennRuhig` aus `e2e/fixtures.ts` klickt erst, wenn der Kasten des Elements
+    dreimal in Folge stillsteht; dort steht auch die volle Messung mit Bildzeiten.
+
+    **Fallen 10, 11 und 12 sind Testfallen, keine Produktionsfallen** — alle drei gehören zur selben
+    Familie wie die zweite Testregel aus Falle 10: Fälle, in denen ein e2e-Test **etwas anderes
+    misst, als sein Name sagt**.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb
