@@ -37,6 +37,7 @@ export function freigabenInhalt(db: DB, akteur: Akteur, heute: string) {
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben", href: "/" }, { label: "Freigaben" }]}
         titel="Freigaben"
+        hilfe="freigaben"
         kontext={kontext}
       />
       <FreigabeZone meine={meine} vertretung={vertretung} heute={heute} />

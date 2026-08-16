@@ -88,6 +88,7 @@ export function EinstiegKoordination({
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben" }]}
         titel="Verteilung"
+        hilfe="verteilung"
         kontext={lage.kontext}
         aktionen={
           // TEXTKNOPF IM SEITENKOPF, ALSO AUSSERHALB DES WRAPPERS (§3.3, §5.2) — der Zaehlriegel

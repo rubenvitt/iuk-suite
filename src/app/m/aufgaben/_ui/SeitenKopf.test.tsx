@@ -68,6 +68,28 @@ describe("SeitenKopf — die drei Zeilen", () => {
     expect(queryAll("button")).toHaveLength(0);
     expect(query("p").textContent).toBe("Kontext");
   });
+
+  /*
+   * DER ANLEITUNGSVERWEIS (`hilfe`) — er steht in der BROTKRUMENZEILE, nicht im `aktionen`-Slot,
+   * und damit auf jeder Seite an derselben Stelle (Begruendung an der Prop). Zwei Aussagen, die
+   * auseinanderfallen koennten: dass er da ist, und dass er die Aktionszeile nicht betritt.
+   */
+  it("Zeile 1: `hilfe` ergibt einen Verweis auf das Kapitel, in der Brotkrumenzeile", async () => {
+    await mount(
+      <SeitenKopf brotkrume={[{ label: "Aufgaben", href: "/" }]} titel="Freigaben" kontext="x" hilfe="freigaben" />,
+    );
+    const verweis = queryAll<HTMLAnchorElement>("a").find((a) => a.textContent === "Anleitung");
+    expect(verweis?.getAttribute("href")).toBe("/hilfe/freigaben");
+    // Die Aufschrift ist auf jeder Seite dieselbe — der zugaengliche Name nennt die Sicht.
+    expect(verweis?.getAttribute("aria-label")).toBe("Anleitung zu „Freigaben“");
+    // Nicht in der Aktionsleiste: der Verweis steht im DOM VOR der <h1>.
+    expect(verweis!.compareDocumentPosition(query("h1")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("ohne `hilfe` gibt es den Verweis nicht — Anleitungsseiten sind nicht ihr eigener Verweis", async () => {
+    await mount(<SeitenKopf brotkrume={[]} titel="T" kontext="x" />);
+    expect(queryAll("a").map((a) => a.textContent)).not.toContain("Anleitung");
+  });
 });
 
 describe("SeitenKopf — die Kontextzeile ist nie leer", () => {

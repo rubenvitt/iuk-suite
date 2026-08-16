@@ -51,6 +51,7 @@ export function routinenInhalt(db: DB, person: PersonRow, bearbeitenId?: string)
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben", href: "/" }, { label: "Routinen" }]}
         titel="Routinen"
+        hilfe="routinen"
         kontext={kontext}
       />
 

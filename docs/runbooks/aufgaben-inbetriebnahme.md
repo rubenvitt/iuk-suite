@@ -80,6 +80,26 @@ Drei Folgen für den Betrieb:
    4. Gegenprobe: ein Konto **ohne** Koordinationsgruppe bekommt auf `/verteilen` und `/personen`
       eine 404 und findet in seiner Oberfläche keinen Weg dorthin.
 
+## Was den Leuten sagen — die Anleitung liegt im Modul
+
+Es gibt **keine** externe Bedienungsanleitung, die man verteilen, pflegen und wiederfinden müsste:
+sie steht in der Anwendung selbst, ein Kapitel je Sicht, und jede Person sieht genau die Kapitel
+ihrer eigenen Rolle.
+
+- **Einstieg:** Navigationseintrag „Anleitung" (`/hilfe`) — ganz unten, weil sie einmal gelesen und
+  danach gesucht wird.
+- **Aus der Arbeit heraus:** auf jeder Seite steht rechts neben der Brotkrume der Verweis
+  „Anleitung"; er führt in das Kapitel **dieser** Sicht, nicht ins Inhaltsverzeichnis.
+- **Für die Einweisung** reicht damit ein Satz: „Wenn du nicht weiterkommst, klick oben rechts auf
+  Anleitung." Ein Kapitel beantwortet in dieser Reihenfolge: wo bin ich hier (beschriftete
+  Layoutskizze), was tue ich (Schritte), wie hängt das zusammen (Schaubilder, u. a. der vollständige
+  Lebenszyklus einer Aufgabe), und **was hier bewusst nicht geht** — einschließlich der 404-Riegel
+  aus Schritt 5.4 oben, damit niemand sie für einen Fehler hält.
+
+Die Inhalte liegen in `src/app/m/aufgaben/_lib/hilfe.ts`; `_lib/hilfe.test.ts` hält sie gegen die
+Oberfläche (u. a. deckt sich das Lebenszyklus-Schaubild mit der Übergangstabelle des Moduls, und
+jedes angebotene Kapitel führt auf eine Sicht, die der lesenden Rolle wirklich offensteht).
+
 ## Rollback
 
 `SUITE_TRAEFIK_RULE` zurücksetzen und `docker compose up -d`. Sekunden, und ohne Datenverlust — das

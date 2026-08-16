@@ -98,6 +98,7 @@ export function EinstiegBufdi({
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben" }]}
         titel="Meine Woche"
+        hilfe="meine-woche"
         kontext={lage.kontext}
         aktionen={<WochenWaehler montag={montag} heute={heute} />}
       />

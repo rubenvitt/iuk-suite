@@ -1844,3 +1844,168 @@
   text-align: center;
   color: var(--auf-stahl);
 }
+
+/*
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * DIE BEDIENUNGSANLEITUNG (`/hilfe`, `_ui/hilfe/*`).
+ *
+ * KEINE ZWEITE MEDIENABFRAGE, UND ZWAR NICHT AUS SPARSAMKEIT: `aufgaben-css.test.ts` haelt
+ * „genau eine `@media`-Regel in dieser Datei" fest (Aussage 1). Jede Flaeche hier wird deshalb
+ * ueber `auto-fit`/`minmax(min(…, 100%), 1fr)` schmal — dieselbe Formel wie `.lageGitter` und
+ * `.wochenGitter`, aus demselben Grund: die Spaltenzahl gehoert der Flaeche, nicht einer
+ * geratenen Geraetebreite.
+ *
+ * KEINE NEUEN `--auf-*`-VARIABLEN: die Anleitung erklaert Flaechen, die es schon gibt, und sie
+ * benutzt dafuer deren Farben. Jede neue Variable muesste in BEIDEN Bloecken stehen (Aussage 2)
+ * und bei einem Ton-Paar zusaetzlich den AA-Kontrast belegen (Aussage 5) — beides waere hier
+ * Aufwand fuer eine Farbe, die schon da ist.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+/* Das Inhaltsverzeichnis: eine Karte je Kapitel. */
+.hilfeGitter {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+}
+.hilfeKarte {
+  border: 1px solid var(--auf-linie);
+  border-radius: 8px;
+  background: var(--auf-karte);
+  padding: 16px;
+  overflow-wrap: anywhere;
+}
+
+/* „Für BuFDi“ — die Rollenmarke ueber einem Kapitel, in der Kicker-Rolle der Leiter. */
+.hilfeMarke {
+  margin: 4px 0 0;
+  color: var(--auf-stahl);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/*
+ * DER BILDRAHMEN.
+ *
+ * DIE BREITENDECKELUNG STEHT NICHT HIER, SONDERN INLINE AN `Bildrahmen` (`_ui/hilfe/svg.tsx`) —
+ * und das ist kein Stilbruch, sondern die Regel dieser Datei: `aufgaben-css.test.ts` (Aussage 1)
+ * laesst in diesem Stylesheet GENAU EINEN `max-width`-Wert zu, den Suite-Breakpoint 767.98px.
+ * Jede weitere Zahl in dieser Eigenschaft waere von einem Scan nicht mehr von einem zweiten,
+ * selbst erfundenen Breakpoint zu unterscheiden. Dimensionale Deckel gehen deshalb im ganzen
+ * Modul inline (Vorbild: `maxWidth: 640` in `a/[id]/page.tsx`).
+ */
+.hilfeBild {
+  margin: 0;
+}
+.hilfeBilder {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  align-items: start;
+}
+
+/*
+ * DIE LEGENDE ZUR SKIZZE. Die Nummern sind die Listennummern des `<ol>` — es gibt keine zweite
+ * Zaehlung, die von den Scheiben im Bild abweichen koennte.
+ */
+.hilfeLegende {
+  margin: 0;
+  padding-inline-start: 16px;
+  color: var(--auf-stahl);
+}
+.hilfeLegende > li {
+  margin-block-end: 8px;
+}
+.hilfeLegende strong {
+  color: var(--auf-tinte);
+  font-weight: 600;
+}
+
+/* Die Handlungsanweisung: Nummer, fette Kurzform, Erklaerung darunter. */
+.hilfeSchritte {
+  margin: 0;
+  padding-inline-start: 16px;
+  font-size: 14px;
+}
+.hilfeSchritte > li {
+  margin-block-end: 12px;
+}
+.hilfeSchritte strong {
+  display: block;
+  font-weight: 600;
+}
+.hilfeSchritte span {
+  color: var(--auf-stahl);
+}
+
+/*
+ * „Was hier nicht geht" — 3px linke Kante statt einer Farbflaeche. Rot faellt hier aus zwei
+ * Gruenden aus: `colorError === colorPrimary` (Falle 3), und eine Grenze ist keine Warnung.
+ */
+.hilfeGrenzen {
+  margin: 0;
+  padding: 0 0 0 16px;
+  list-style: none;
+  border-inline-start: 3px solid var(--auf-linie);
+  font-size: 14px;
+}
+.hilfeGrenzen > li {
+  margin-block-end: 8px;
+}
+
+/*
+ * DIE UEBERGANGSTABELLE UNTER DEM LEBENSZYKLUSBILD.
+ *
+ * `table-layout: fixed` PLUS `overflow-wrap: anywhere` STATT EINES SCROLLKASTENS: vier Spalten
+ * mit deutschen Woertern laufen bei 360px sonst ueber die Dokumentbreite hinaus, und der
+ * 360px-Ueberlauf-Sweep in `e2e/aufgaben.spec.ts` misst genau das. Eine Tabelle, die ihre
+ * Spalten aus dem Inhalt rechnet, kann diese Zusage strukturell nicht halten.
+ */
+.hilfeTabelle {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.hilfeTabelle caption {
+  padding-block-end: 8px;
+  color: var(--auf-stahl);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-align: start;
+  text-transform: uppercase;
+}
+.hilfeTabelle th,
+.hilfeTabelle td {
+  padding: 4px 8px;
+  border-block-end: 1px solid var(--auf-linie);
+  text-align: start;
+  vertical-align: top;
+}
+.hilfeTabelle th {
+  color: var(--auf-stahl);
+  font-weight: 600;
+}
+.hilfeTabelle td {
+  color: var(--auf-tinte);
+}
+
+/*
+ * DIE SZENE AM KAPITELANFANG — die einzige Stelle der Anleitung, die groesser ist als der
+ * Fliesztext. 16px steht auf antds Leiter (12/14/16/20/24/30), es ist also keine erfundene
+ * Groesse; die linke Kante ist dieselbe Form wie bei `.hilfeGrenzen`, nur in Tinte statt in
+ * Linie — beides sind Bloecke, die aus dem Text heraustreten, ohne eine Farbflaeche zu brauchen.
+ */
+.hilfeSzene {
+  margin: 0 0 24px;
+  padding: 0 0 0 16px;
+  border-inline-start: 3px solid var(--auf-tinte);
+  font-size: 16px;
+  line-height: 1.55;
+}

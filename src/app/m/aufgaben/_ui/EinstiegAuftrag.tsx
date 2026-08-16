@@ -64,6 +64,7 @@ export function EinstiegAuftrag({
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben" }]}
         titel="Meine Aufträge"
+        hilfe="meine-auftraege"
         kontext={lage.kontext}
         aktionen={
           // TEXTKNOPF IM SEITENKOPF, ALSO AUSSERHALB DES WRAPPERS (§3.3, §9/S9): der Zaehlriegel

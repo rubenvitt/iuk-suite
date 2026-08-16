@@ -164,6 +164,7 @@ export function verteilenInhalt(db: DB, heute: string, akteur: Akteur, ansichtPa
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben", href: "/" }, { label: "Verteilen" }]}
         titel="Verteilen"
+        hilfe="verteilen"
         kontext={kontext}
       />
       {/*

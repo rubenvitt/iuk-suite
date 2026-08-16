@@ -82,6 +82,7 @@ export function planInhalt(
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben", href: "/" }]}
         titel={eigenerPlan ? "Mein Zeitplan" : `Zeitplan von ${ziel.name}`}
+        hilfe="zeitplan"
         kontext={kontext}
       />
 

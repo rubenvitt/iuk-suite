@@ -53,7 +53,12 @@ export function archivInhalt(db: DB, akteur: Akteur, heute: string, prioritaetPa
 
   return (
     <>
-      <SeitenKopf brotkrume={[{ label: "Aufgaben", href: "/" }, { label: "Archiv" }]} titel="Archiv" kontext={kontext} />
+      <SeitenKopf
+        brotkrume={[{ label: "Aufgaben", href: "/" }, { label: "Archiv" }]}
+        titel="Archiv"
+        kontext={kontext}
+        hilfe="archiv"
+      />
       <ArchivFilter prioritaet={prioritaet} />
       <AufgabenListe zeilen={gefiltert.map((a) => ({ aufgabe: a }))} heute={heute} leerText={leerText} />
     </>

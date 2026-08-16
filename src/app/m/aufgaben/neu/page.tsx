@@ -34,6 +34,7 @@ export function neuInhalt(akteur: Akteur, heute: string) {
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben", href: "/" }, { label: "Aufgabe einstellen" }]}
         titel="Aufgabe einstellen"
+        hilfe="einstellen"
         kontext="Titel, Erklärung, Priorität, Frist und Dauerschätzung sind Pflichtfelder."
       />
       <AufgabeFormular darfFuerAndere={darfFuerAndere} />

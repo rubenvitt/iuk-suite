@@ -116,7 +116,29 @@ describe("Frist — die drei Auspraegungen (§6.2)", () => {
  * verschwiegen — die Faelle „jede Auspraegung traegt ihr Wort" oben sind die Gegenmassnahme.
  */
 const WURZEL = "src/app/m/aufgaben";
-const ERLAUBT = ["src/app/m/aufgaben/_ui/Frist.tsx", "src/app/m/aufgaben/_lib/anzeige.ts"];
+/*
+ * DRITTER ORT SEIT DER BEDIENUNGSANLEITUNG: `_lib/hilfe.ts` — UND ES IST EINE ROLLE, KEINE
+ * DATEI-AUSNAHME (die Warnung im Kopfkommentar oben gilt weiter).
+ *
+ * §6.6 nennt zwei Rollen: „`Frist.tsx` rendert die Form, `anzeige.ts` haelt die Texte." Die
+ * Anleitung ist eine dritte: sie ERKLAERT den Begriff, den die Flaeche zeigt. Und sie kann ihn
+ * strukturell nicht falsch verwenden — sie liest keine `AufgabeRow`, kennt keinen Zustand und
+ * kein Datum, sondern beschreibt in Prosa, was „überfällig" heisst. Genau davor steht der Riegel
+ * ja auch nicht: er verhindert, dass eine ZWEITE Fassung der Dringlichkeitsansage neben
+ * `FRIST_TEXT` entsteht und mit ihr auseinanderlaeuft.
+ *
+ * DER PREIS, AUSGESCHRIEBEN: der Scan sieht in `hilfe.ts` nicht mehr hin. Wer dort je eine
+ * Aufgabenzeile darstellen wollte, muesste sie ohnehin erst importieren — und das faellt in der
+ * Prosa-Datei sofort auf.
+ *
+ * DAS WORT WEGZULASSEN WAERE DIE SCHLECHTERE ANTWORT GEWESEN: die Anleitung muss dasselbe Wort
+ * benutzen wie die Flaeche, sonst erklaert sie eine Marke, die niemand wiedererkennt.
+ */
+const ERLAUBT = [
+  "src/app/m/aufgaben/_ui/Frist.tsx",
+  "src/app/m/aufgaben/_lib/anzeige.ts",
+  "src/app/m/aufgaben/_lib/hilfe.ts",
+];
 const WORT = /überfällig/i;
 
 function scanneDatei(datei: string, quelle: string): string[] {
