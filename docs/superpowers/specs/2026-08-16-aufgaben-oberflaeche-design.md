@@ -2098,9 +2098,21 @@ und der Überlauf-Sweep misst waagerechtes Scrollen, nicht Ausrichtung.
 
 ### F · Die Grenzen sind eingehalten
 
-Genau **eine** Medienabfrage (767.98px, unverändert), **keine neue `--auf-*`-Variable** (das Brett
-kommt mit `--auf-tinte`, `--auf-stahl`, `--auf-linie`, `--auf-papier`, `--auf-karte`,
-`--auf-fuehrung` aus, alle sechs in beiden Themes gemessen), alle Abstände auf der `SPACE`-Leiter,
+Genau **eine** Medienabfrage (767.98px, unverändert) und **keine neue `--auf-*`-Variable**: das
+Brett kommt mit `--auf-tinte`, `--auf-stahl`, `--auf-linie`, `--auf-papier`, `--auf-karte` und
+`--auf-fuehrung` aus. **Nachgesehen statt behauptet, weil eine ungemessene Paarung sich nie von
+selbst meldet** — jede Text-auf-Fläche-Paarung, die neu gerendert wird, steht bereits in Aussage 5
+(`aufgaben-css.test.ts`), hell **und** dunkel:
+
+| Paarung | Wo sie neu auftritt | Gemessen in |
+|---|---|---|
+| `--auf-tinte`, `--auf-stahl`, `--auf-achtung-text` auf `--auf-papier` | die Brettkarte | `it("hält … auf --auf-papier …")` (drei Fälle) |
+| dieselben drei auf `--auf-karte` | die Brettspalte, die inaktive Option der Leiste | `it.each([…])("hält %s auf --auf-karte …")` |
+| dieselben drei auf `--auf-fuehrung` | die **gewählte** Option der Leiste | `it.each([…])("hält %s auf --auf-fuehrung …")` |
+
+`--auf-linie` trägt nirgends Text (Kante und Balkenspur) und fällt deshalb unter die
+Grafik-Schwelle bzw. unter die Paarigkeitsprüfung aus Aussage 2, nicht unter die AA-Textschwelle —
+ausgeschrieben, damit die Zeile darüber nicht mehr verspricht, als sie hält. Alle Abstände auf der `SPACE`-Leiter,
 kein `!important`, kein `#c8000f`, kein `size`, kein `box-shadow`. **44px Mindesthöhe für die
 Ansichtswahl steht ausgeschrieben im Stylesheet und wird als Zahl gemessen** — `ARBEITSDICHTE`
 (`controlHeight: 44`) ist ein antd-Token und erreicht ein selbstgebautes `<a>` **nicht**; ohne die
