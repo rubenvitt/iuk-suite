@@ -5,7 +5,7 @@ import {
   o2Flaschen, o2Messungen, sollPositionen, newId,
 } from "../../_db/schema";
 import {
-  checklisteFuerFahrzeug, checklistenDaten, nachFaechern, standDatum,
+  checklisteFuerFahrzeug, checklistenDaten, gewaehlteFahrzeuge, nachFaechern, standDatum,
 } from "./checkliste";
 import { HANDLAGER_ID } from "../konstanten";
 
@@ -258,5 +258,38 @@ describe("standDatum", () => {
     // gestern — und ein Stand-Vermerk, dem man nicht trauen kann, ist
     // schlimmer als keiner.
     expect(standDatum(new Date("2026-06-14T23:30:00Z"))).toBe("15.06.2026");
+  });
+});
+
+/**
+ * ⚠️ DIESE NORMALISIERUNG HAT ZWEI AUFRUFER, UND DAS IST IHR DASEINSGRUND: die
+ * Seite (`(druck)/checklisten/page.tsx`) und der PDF-Handler
+ * (`(druck)/checklisten/pdf/route.ts`) muessen dieselbe Auswahl treffen. Liefe
+ * sie auseinander, zeigte das Blatt zwei Fahrzeuge und die Datei daneben drei,
+ * und der Unterschied faellt erst auf, wenn jemand vor der Flotte steht.
+ */
+describe("gewaehlteFahrzeuge", () => {
+  it("macht aus `keine Angabe` die leere Auswahl — also `alle aktiven`", () => {
+    expect(gewaehlteFahrzeuge(undefined)).toEqual([]);
+  });
+
+  it("nimmt einen einzelnen Wert wie eine Liste", () => {
+    expect(gewaehlteFahrzeuge("fz-a")).toEqual(["fz-a"]);
+    expect(gewaehlteFahrzeuge(["fz-a", "fz-b"])).toEqual(["fz-a", "fz-b"]);
+  });
+
+  /**
+   * ⚠️ EIN LEERES `?fz=` IST DASSELBE WIE GAR KEINS. Ohne diese Zeile suchte
+   * `checklistenDaten` nach einem Fahrzeug mit der ID `""`, faende keins und
+   * lieferte einen leeren Bogen — eine leere Seite, die wie ein Datenverlust
+   * aussieht und keiner ist.
+   */
+  it("wirft leere und nur aus Leerraum bestehende Werte weg", () => {
+    expect(gewaehlteFahrzeuge("")).toEqual([]);
+    expect(gewaehlteFahrzeuge(["", "  ", "fz-a"])).toEqual(["fz-a"]);
+  });
+
+  it("schneidet Leerraum um eine ID ab", () => {
+    expect(gewaehlteFahrzeuge([" fz-a "])).toEqual(["fz-a"]);
   });
 });

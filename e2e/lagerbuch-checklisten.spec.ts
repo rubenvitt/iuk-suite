@@ -188,6 +188,57 @@ test.describe("Fahrzeug-Checklisten", () => {
       .toHaveText("Einheit");
   });
 
+  /**
+   * DER PDF-WEG (`/verwaltung/checklisten/pdf`).
+   *
+   * ⚠️ WARUM DAS HIER GEPRUEFT WIRD UND NICHT NUR IN VITEST. Der Bauteil-Test
+   * belegt, dass der ANKER richtig zusammengesetzt ist, und
+   * `_lib/checklistePdf.test.ts` belegt, was IM Dokument steht. Was beide
+   * strukturell nicht sehen koennen, ist die Naht dazwischen: dass unter
+   * dieser Adresse ueberhaupt ein Route Handler liegt (die Route-Gruppe
+   * `(druck)` erscheint in der URL NICHT — ein Pfad, den man leicht als
+   * `/verwaltung/checklisten/pdf` schreibt und als
+   * `/verwaltung/(druck)/checklisten/pdf` meint), dass er die Riegel selbst
+   * traegt (ein Route Handler hat KEIN Layout ueber sich) und dass die Antwort
+   * als Datei ankommt statt als HTML.
+   */
+  test("liefert unter demselben Weg ein PDF zum Herunterladen", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/checklisten?fz=e2e-fahrzeug"));
+
+    const knopf = page.getByTestId("lb-cl-pdf");
+    await expect(knopf).toBeVisible();
+    await expect(knopf).toHaveAttribute(
+      "href",
+      "/verwaltung/checklisten/pdf?fz=e2e-fahrzeug",
+    );
+
+    // ⚠️ DIE ANTWORT WIRD GEPRUEFT, NICHT EINE SPAETERE ZUSTANDSAENDERUNG
+    // (zweite Testregel aus Falle 10). `page.request` faehrt mit den Cookies
+    // dieses Kontexts, der Abruf steht also unter derselben Sitzung.
+    const antwort = await page.request.get(
+      lagerbuchUrl((await knopf.getAttribute("href"))!),
+    );
+    expect(antwort.status()).toBe(200);
+    expect(antwort.headers()["content-type"]).toContain("application/pdf");
+    expect(antwort.headers()["content-disposition"]).toContain("attachment");
+    expect(antwort.headers()["content-disposition"]).toMatch(/filename="checkliste-.*\.pdf"/);
+
+    const koerper = await antwort.body();
+    expect(koerper.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+    expect(koerper.byteLength).toBeGreaterThan(1000);
+  });
+
+  /** Der Schalter am Bildschirm und die Datei muessen dasselbe zeigen — sonst
+   *  bringt der Knopf still eine andere Liste hervor als das Blatt darunter. */
+  test("nimmt Blindzaehlung und Kompakt in die PDF-Adresse mit", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/checklisten?fz=e2e-fahrzeug"));
+    await page.getByTestId("lb-cl-blind").locator("input").check();
+    await expect(page.getByTestId("lb-cl-pdf")).toHaveAttribute(
+      "href",
+      "/verwaltung/checklisten/pdf?fz=e2e-fahrzeug&blind=1",
+    );
+  });
+
   test("verdichtet die Blaetter ueber den Kompakt-Schalter", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/checklisten?fz=e2e-fahrzeug"));
     const bogen = page.locator(".lb-cl-bogen");
@@ -335,6 +386,39 @@ test.describe("Fahrzeug-Checklisten", () => {
     await page.goto(lagerbuchUrl("/verwaltung/checklisten"));
     await expect(page.locator(".lb-cl-blatt")).toHaveCount(0);
     await expect(page.getByText(/Diese Seite gibt es hier nicht/)).toBeVisible();
+  });
+
+  /**
+   * ⚠️ DER EIGENE RIEGEL DES PDF-HANDLERS — UND ER HAT KEINEN ZWEITEN. Ein
+   * Route Handler hat KEIN Layout ueber sich; `(druck)/layout.tsx` riegelt
+   * diese Adresse nicht. Faellt eine der zwei Zeilen im Handler weg, liegt die
+   * komplette Soll-Bestueckung jeder Flotte als Download offen, waehrend die
+   * Seite daneben weiter richtig riegelt — der Quelltext-Scan in
+   * `ChecklistenBogen.test.tsx` sieht, dass die Zeilen dastehen, aber nur
+   * dieser Abruf sieht, dass sie WIRKEN.
+   */
+  test("gibt das PDF ohne Lagerbuch-Gruppe nicht heraus", async ({ page }) => {
+    await page.context().clearCookies();
+    await devLogin(page, { host: LAGERBUCH_HOST, groups: "" });
+
+    const antwort = await page.request.get(
+      lagerbuchUrl("/verwaltung/checklisten/pdf?fz=e2e-fahrzeug"),
+    );
+    expect(antwort.status()).toBe(404);
+    // Die Kontrolle zur Zeile darueber: ein 404 aus einem Tippfehler im Pfad
+    // saehe genauso aus. Mit Gruppe muss dieselbe Adresse 200 liefern — das
+    // belegt der Fall „liefert unter demselben Weg ein PDF" weiter oben.
+    expect((await antwort.body()).subarray(0, 5).toString("latin1")).not.toBe("%PDF-");
+  });
+
+  test("gibt das PDF auch ohne jede Sitzung nicht heraus", async ({ browser }) => {
+    const anonym = await browser.newContext();
+    const antwort = await anonym.request.get(
+      lagerbuchUrl("/verwaltung/checklisten/pdf?fz=e2e-fahrzeug"),
+    );
+    expect(antwort.status()).toBe(404);
+    expect((await antwort.body()).subarray(0, 5).toString("latin1")).not.toBe("%PDF-");
+    await anonym.close();
   });
 
   test("antwortet auch ohne jede Sitzung nicht mit dem Bogen", async ({ browser }) => {
