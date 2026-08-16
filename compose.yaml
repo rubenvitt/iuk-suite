@@ -1,6 +1,19 @@
 services:
   suite:
-    image: ghcr.io/rubenvitt/iuk-suite:latest
+    # ALS VARIABLE MIT VORBELEGUNG, und der Doppelpunkt in `:-` ist tragend — dieselbe
+    # Falle wie beim clamav-Image weiter unten: ohne ihn setzt Compose eine nicht
+    # gesetzte Variable auf den LEEREN String, und ein leerer `image:`-Wert lässt
+    # `docker compose config` scheitern.
+    #
+    # WOZU DIE VARIABLE: `scripts/deploy.sh` trägt in die `.env` des Servers den DIGEST
+    # des ausgerollten Standes ein, statt sich auf `:latest` zu verlassen. Zwei Dinge
+    # hängen daran, die ein wanderndes Tag nicht kann:
+    #   * Ein späteres `docker compose up -d` von Hand zieht denselben Stand — nicht
+    #     still den nächsten, der inzwischen nach `:latest` gebaut wurde.
+    #   * Der Rollback ist derselbe Handgriff mit dem vorherigen Digest, kein zweiter
+    #     Mechanismus (`docs/runbooks/auto-rollout.md`, Teil D).
+    # Ohne gesetzte Variable bleibt alles wie zuvor: `:latest`.
+    image: ${SUITE_IMAGE:-ghcr.io/rubenvitt/iuk-suite:latest}
     restart: unless-stopped
     # Reicht die .env vollständig durch — damit ist ein neuer Modul-Host
     # (SUITE_HOST_QR=…) eine Zeile in der .env und sonst nichts: kein Eingriff
