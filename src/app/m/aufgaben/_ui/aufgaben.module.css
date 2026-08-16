@@ -1551,6 +1551,38 @@
     width: 100%;
   }
   /*
+   * DIE ZWEITE HALBE ZUSAGE, UND SIE IST GENAU DIESELBE LUECKE EINE BAUFORM SPAETER
+   * (Oberflaechen-Runde 2026-08-16, dritte Haelfte). `EinplanenInline` steht seit dieser Runde als
+   * `sekundaer` in der `.knopfzeile` der Fuehrungskarte, und seine aeussere Huelle ist ein
+   * `<span class="zuweisenHuelle">` (der Popover braucht einen Traeger fuer `data-offen`). Das
+   * SPAN ist damit das Kind von `.knopfzeile`, nicht der Knopf — dasselbe Muster wie beim `<form>`
+   * darueber, nur mit einem anderen Zwischenelement, und dasselbe Bild: ein schmaler „Anders
+   * einplanen" unter einem vollbreiten Nachbarn.
+   *
+   * WARUM ES DER VORGAENGERBAUSTEIN NIE ZEIGTE: `ZuweisenInline` benutzt dieselbe Huelle, steht
+   * aber ausschliesslich in der Aktionsspur einer ZEILE — dort gibt es diese Regel nicht. Erst der
+   * Umzug derselben Bauform in die Knopfzeile bringt sie in ihren Geltungsbereich.
+   *
+   * KEIN TOR SIEHT DAS, UND ZWAR DREIFACH: Vitest rechnet keine Zeilenboxen, der 360/390/820er
+   * Sweep in `e2e/aufgaben.spec.ts` misst UEBERLAUF (ein zu SCHMALER Knopf laeuft nirgends ueber),
+   * und ein Bildschirmabzug zeigt es nur in einer Belegung, in der die Karte diesen Knopf ueberhaupt
+   * traegt (`bufdiHeuteOffen`/`bufdiWartetAufEinplanung` mit genau einer Aufgabe) — UND GENAU DIE
+   * ERREICHEN DIE HEUTIGEN DEMODATEN NICHT: bei allen drei BuFDis gewinnt eine hoehere Sprosse
+   * (ueberfaellig bzw. in Arbeit). Der Defekt war also mit KEINEM Bildschirmabzug dieser Runde zu
+   * sehen.
+   *
+   * DESHALB IST ER GEMESSEN STATT VERMUTET, mit einer Sonde bei 360px, die dieselbe Struktur in
+   * eine echte `.knopfzeile` haengt: OHNE diese Regel ist die Huelle 294px breit und der Knopf
+   * darin 119.77px; MIT ihr sind beide 294px. Wer sie fuer ueberfluessig haelt, kann das auf
+   * demselben Weg nachrechnen.
+   *
+   * EIGENER BLOCK STATT KOMMA-LISTE, aus demselben Grund wie beim `<form>`: der Riegel in
+   * `aufgaben-css.test.ts` sucht `.modul .knopfzeile > *\s*\{` woertlich.
+   */
+  .modul .knopfzeile > span > * {
+    width: 100%;
+  }
+  /*
    * 32PX RAND SIND AUF 360PX ZU VIEL (§6.5; die Zahl stand hier als 24, solange die Karte 24 trug).
    * Der Sprung von 32 auf 16 ist groesser als der frueher von 24 auf 16, und das ist richtig: der
    * Raum ist auf dem Rechner ein Erkennungsmerkmal (Kanal 3), auf 360px waere er Platzverschwendung
