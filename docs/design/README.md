@@ -39,7 +39,7 @@ Diese Fallen kosten je einen halben Tag, wenn man sie nicht kennt. Keine davon f
 Die Aufzählung trägt bewusst **keine Zahl** („diese sechs", „diese acht"): eine gepflegte Anzahl an
 dieser Stelle ist ein Feld, das bei jeder Ergänzung an zwei Orten nachgezogen werden müsste — und
 genau das ist hier zweimal auseinandergelaufen. Sie stand auf sechs, während `CLAUDE.md` bereits zehn
-führte; nachgezogen auf acht, während `CLAUDE.md` inzwischen elf führt. Eine Aufzählung ohne Zahl kann
+führte; nachgezogen auf acht, während `CLAUDE.md` inzwischen zwölf führt. Eine Aufzählung ohne Zahl kann
 nicht falsch zählen. **Die vollständige, nummerierte Liste steht in `CLAUDE.md`**; diese Datei nennt
 die Fallen, die die Querschnittsregeln unmittelbar betreffen.
 
