@@ -365,13 +365,36 @@ function hinweisAus(eintraege: { name: string; inhalt: Buffer }[]): string {
  * gemessen wurde — und dieselbe Bauform kann in der Gegenrichtung ein echtes
  * Leck ZUDECKEN, indem fremde Descriptoren gleichzeitig zugehen.
  *
- * Gezaehlt wird deshalb nur, worueber die Zusage ueberhaupt etwas sagt: die
- * Descriptoren auf `DIR`. Das sind die Quelldateien, die der Handler oeffnet,
- * plus die SQLite-Datei, die ueber BEIDE Messungen hinweg konstant offen ist
- * (`legeShare`/`legeDatei` oeffnen sie vor der Basismessung) und sich damit
- * heraushebt. Das ist zugleich die SCHAERFERE Messung: der alte Zaehler haette
- * ein Leck an einer voellig fremden Stelle des Prozesses mitgefaerbt und war
- * von einem Leck hier nicht zu unterscheiden.
+ * ⚠️ AUF `DIR` EINZUSCHRAENKEN REICHTE NICHT — DER GROESSTE STOERER LIEGT DARIN.
+ * Der erste Anlauf zaehlte alles unter `DIR` und fiel in der CI erneut, mit
+ * derselben Handschrift: `expected 3 to be 54`, also wieder 51 Descriptoren
+ * WENIGER am Ende. Nachgemessen an der Basismessung dieses Tests (Ziel je
+ * Descriptor ueber `readlink` protokolliert), lokal 19 Stueck:
+ *
+ *     files.db     (deleted)  ×8     files.db      ×1
+ *     files.db-wal (deleted)  ×4     files.db-wal  ×1
+ *     files.db-shm (deleted)  ×4     files.db-shm  ×1
+ *
+ * Es sind SQLite-Verbindungen aus den FRUEHEREN Tests derselben Datei:
+ * `beforeEach` loest die Verbindung mit `delete globalThis.__suiteDb` nur von
+ * ihrer Referenz, ohne sie zu schliessen, und `rmSync(DIR)` haengt die Dateien
+ * aus — offen bleiben sie trotzdem, bis der Garbage Collector sie einsammelt.
+ * WANN er das tut, entscheidet niemand hier: raeumt er mitten in diesem Test
+ * auf, sackt die Zahl um genau die angesammelten Handles ab.
+ *
+ * Gezaehlt wird deshalb, worueber die Zusage wirklich etwas sagt: die
+ * Descriptoren auf die QUELLDATEIEN unter `DIR`, ohne die Datenbankdateien.
+ * Damit steht die Basis bei 0 (nachgemessen), waehrend des Streamens bei 1 und
+ * danach wieder bei 0 — eine Messung ueber genau die Dateien, die dieser
+ * Handler oeffnet und schliessen muss. Das ist zugleich die SCHAERFERE
+ * Zusicherung: der urspruengliche Zaehler haette ein Leck an einer voellig
+ * fremden Stelle des Prozesses mitgefaerbt und war von einem Leck hier nicht zu
+ * unterscheiden.
+ *
+ * ⚠️ DAS LECK DER TESTVORRICHTUNG BLEIBT ABSICHTLICH STEHEN: es kostet nichts
+ * (der Prozess endet mit der Datei), und es zu schliessen hiesse, an einem
+ * `beforeEach` zu ruehren, das 32 Tests tragen. Es darf die MESSUNG nur nicht
+ * mehr faelschen — und das tut es jetzt nicht mehr.
  */
 function offeneDescriptoren(): number {
   const wurzel = resolve(DIR);
@@ -384,10 +407,13 @@ function offeneDescriptoren(): number {
       // Der Descriptor des Listings selbst ist beim `readlink` schon wieder zu.
       continue;
     }
-    // `readlink` haengt an einer geloeschten Datei " (deleted)" an — der
-    // Praefixvergleich traegt das mit, und ein geloeschter, aber noch offener
-    // Descriptor ist genau der Fall, den dieser Test sucht.
-    if (ziel === wurzel || ziel.startsWith(`${wurzel}/`)) offen += 1;
+    if (!ziel.startsWith(`${wurzel}/`)) continue;
+    // Die Datenbank samt WAL und SHM zaehlt NICHT mit — auch nicht als
+    // ausgehaengte Altlast, die `readlink` mit " (deleted)" meldet. Genau diese
+    // Zeile ist der Unterschied zwischen einer Messung ueber den Handler und
+    // einer Messung ueber den Garbage Collector.
+    if (/\/files\.db(-wal|-shm)?( \(deleted\))?$/.test(ziel)) continue;
+    offen += 1;
   }
   return offen;
 }
