@@ -75,6 +75,9 @@ export function EinstiegKoordination({
   const grund = kartenGrunddaten(db, akteur, heute, lage);
 
   const darfVert = darfVerteilen(akteur, heute);
+  // EINMAL GEBILDET, NICHT JE ZEILE: `koordZusatz` fragt fuer jede Zeile der Freigabe-Zone, ob sie
+  // in Vertretung geprueft wird — die Menge dafuer steht fest, sobald `freigabeDaten` gelesen ist.
+  const vertretungIds = vertretungFreigabe.map((z) => z.aufgabe.id);
 
   return (
     <>
@@ -115,8 +118,7 @@ export function EinstiegKoordination({
             eigenePersonId={akteur.person.id}
             zusaetze={Object.fromEntries(
               zone.zeilen.map(
-                (a) =>
-                  [a.id, koordZusatz(zone.art, a, grund.namen, vertretungFreigabe.map((z) => z.aufgabe.id))] as const,
+                (a) => [a.id, koordZusatz(zone.art, a, grund.namen, vertretungIds)] as const,
               ),
             )}
             // DAS DECKELZIEL VON `koordFreigabeOffen` HAENGT AN `darfFreigabenSehen` (§3.5): ein
