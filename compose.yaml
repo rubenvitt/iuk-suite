@@ -1,7 +1,65 @@
 services:
   suite:
-    image: ghcr.io/rubenvitt/iuk-suite:latest
+    # ALS VARIABLE MIT VORBELEGUNG, und der Doppelpunkt in `:-` ist tragend — dieselbe
+    # Falle wie beim clamav-Image weiter unten: ohne ihn setzt Compose eine nicht
+    # gesetzte Variable auf den LEEREN String, und ein leerer `image:`-Wert lässt
+    # `docker compose config` scheitern.
+    #
+    # WOZU DIE VARIABLE: `scripts/deploy.sh` trägt in die `.env` des Servers den DIGEST
+    # des ausgerollten Standes ein, statt sich auf `:latest` zu verlassen. Zwei Dinge
+    # hängen daran, die ein wanderndes Tag nicht kann:
+    #   * Ein späteres `docker compose up -d` von Hand zieht denselben Stand — nicht
+    #     still den nächsten, der inzwischen nach `:latest` gebaut wurde.
+    #   * Der Rollback ist derselbe Handgriff mit dem vorherigen Digest, kein zweiter
+    #     Mechanismus (`docs/runbooks/auto-rollout.md`, Teil D).
+    # Ohne gesetzte Variable bleibt alles wie zuvor: `:latest`.
+    image: ${SUITE_IMAGE:-ghcr.io/rubenvitt/iuk-suite:latest}
     restart: unless-stopped
+    # Die GEMEINSAME GID von Suite-Prozess und clamd — als Variable, weil der richtige
+    # Wert am clamav-IMAGE haengt, und das ist weiter unten aus genau demselben Grund
+    # bereits eine Variable (`SUITE_CLAMAV_IMAGE`). Die beiden Zeilen gehoeren zusammen.
+    #
+    # `_lib/storage.ts` schreibt Blobs 0o640 und Ablagen 0o750 und setzt darauf, dass
+    # Suite-Prozess und clamd eine gemeinsame gid haben — die Datei nennt das ausdruecklich
+    # als die geltende der beiden zugelassenen Varianten ("0o640 plus gemeinsame gid").
+    # Nur stellte diese Vorlage sie bisher NIRGENDS her, und ihre Annahme trifft auf einem
+    # arm64-Host nicht zu (gemessen am 2026-08-02 beim files-Cutover):
+    #   angenommen: Suite 1001:1001,          clamd 100:101   (clamav/clamav, alpine)
+    #   gemessen  : Suite 1001:65533(nogroup), clamd 1000:1000 (clamav/clamav-debian)
+    # Im Suite-Image ist `nodejs` gid 1001 und `nogroup` gid 65533 — mit clamds gid 1000
+    # deckt sich keine davon. Auf so einem Host gehoert `SUITE_USER=1001:1000` in die
+    # `.env`: die uid bleibt 1001(nextjs), fuer vorhandene Daten greifen also weiter die
+    # Owner-Rechte; neu geschriebene Blobs bekommen Gruppe 1000 und werden damit fuer
+    # clamd ueber das Gruppenbit lesbar.
+    #
+    # WAS OHNE DEN PASSENDEN WERT PASSIERT, und es sieht nicht nach einem Fehler aus:
+    # clamd betritt die 0750-Verzeichnisse nicht, das clamav-Log meldet "File path check
+    # failure: Permission denied", die App wiederholt FILES_AV_VERSUCHE-mal und setzt
+    # av_status='error' — fail-closed, der Download bleibt also DAUERHAFT gesperrt.
+    # `group_add` am clamav-Service loest es NICHT: clamd wechselt per `User clamav` aus
+    # clamd.files.conf und verliert dabei die Zusatzgruppen.
+    #
+    # WARUM UEBERHAUPT EINE VARIABLE UND NICHT DER WERT: seit dem automatischen Rollout
+    # vergleicht `scripts/deploy.sh` (Schritt 1) diese Datei BYTEWEISE mit der des Servers
+    # und bricht bei Abweichung ab. Ein Host, der die gid anpassen muss, haette damit eine
+    # dauerhaft abweichende compose.yaml — also entweder nie einen gruenen Rollout oder,
+    # schlimmer, eine Angleichung an die Vorlage, die die Korrektur still herausreisst.
+    # Der Ausweg aus Runbook E2 ("Zeile in die .env retten") traegt hier nicht: `user:`
+    # ist ein Service-Schluessel, keine Umgebungsvariable.
+    #
+    # ⚠️ DIE VORBELEGUNG IST NICHT GANZ DER `USER` DES IMAGES, und der Unterschied gehoert
+    # benannt statt geglaettet: `adduser --system --uid 1001 nextjs` im Dockerfile setzt
+    # KEIN `-G nodejs`, `USER nextjs` laeuft also als 1001:65533(nogroup) — genau die Zahl,
+    # die die Messung oben am Host zeigt. `1001:1001` aendert die Primaergruppe damit von
+    # `nogroup` auf `nodejs`. Das ist unschaedlich und die bessere der beiden Zahlen: die
+    # uid bleibt 1001, und `/data` samt `/data/files` gehoert im Image ohnehin
+    # `nextjs:nodejs` — vorhandene Blobs traegt weiterhin das Owner-Bit. Wer den blossen
+    # Ist-Zustand einfrieren will, setzt `SUITE_USER=1001:65533`; empfohlen ist das nicht,
+    # denn `nogroup` als Primaergruppe ist genau der Zustand, der die gemeinsame gid
+    # ueberhaupt erst verhindert hat.
+    #
+    # `:-` und nicht `-`, aus dem Grund, der beim Image direkt darueber steht.
+    user: ${SUITE_USER:-1001:1001}
     # Reicht die .env vollständig durch — damit ist ein neuer Modul-Host
     # (SUITE_HOST_QR=…) eine Zeile in der .env und sonst nichts: kein Eingriff
     # in diese Datei, kein Commit, kein CI-Lauf.
