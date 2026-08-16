@@ -32,6 +32,28 @@
   --auf-stahl: #5b6570;
   --auf-linie: #d9dde1;
   --auf-papier: #eef0f1;
+  /*
+   * DIE DRITTE TRAEGERFLAECHE, UND SIE IST BENANNT STATT ANGENOMMEN (Oberflaechen-Runde
+   * 2026-08-16). Befund (2) des Betreibers lautete „die Fuehrungskarte hebt sich nicht ab" — der
+   * Grund ist nachrechenbar und keine Geschmacksfrage: `.fuehrung` trug `--auf-papier` `#eef0f1`,
+   * und `Layout.bodyBg` IST `FARBEN.papier` = `#eef0f1` (`core/theme/theme.ts`). Die Karte lag
+   * also numerisch exakt auf dem Seitengrund; sichtbar blieb nur ihre 1px-Linie.
+   *
+   * KEIN SIEBTER BEDEUTUNGSTON (§3.4, §6.4): `--auf-karte` traegt KEINE Aussage. Es ist eine
+   * HOEHE, kein Zustand — dieselbe Rolle, die `--auf-papier` fuer den Grund hat. Der volle
+   * Farbkanal des Moduls (sechs Zustandstoene, drei Prioritaetsgewichte) bleibt unberuehrt.
+   *
+   * KEIN `-flaeche`-SUFFIX, UND DAS IST KEINE LAUNE: `aufgaben-css.test.ts`s `tonPaare()` findet
+   * Chip-Toene ueber die Endungen `-text`/`-flaeche` und verlangt fuer jede gefundene Haelfte die
+   * andere. Ein `--auf-karte-flaeche` ohne `--auf-karte-text` liesse den Test rot laufen — und der
+   * naheliegende „Fix" waere eine Textfarbe zu erfinden, die niemand benutzt.
+   *
+   * DIE MESSUNG WANDERT MIT (Aussage 5 unten): `--auf-stahl`, `--auf-tinte` und
+   * `--auf-achtung-text` stehen ab hier auch AUF dieser Flaeche und werden dort eigens gemessen.
+   * Der Kommentar bei `.prioKontur`, der `--auf-papier` als unguenstigsten Fall auswies, gilt
+   * damit nicht mehr unbesehen — im Dunkeln ist `--auf-karte` heller als `--auf-papier`.
+   */
+  --auf-karte: #ffffff;
 
   /*
    * Zustands- UND Prioritaets-Chip-Paare, je `--auf-<ton>-text` /
@@ -70,6 +92,7 @@
   --auf-stahl: #9aa4ad;
   --auf-linie: #2a2f34;
   --auf-papier: #0f1113;
+  --auf-karte: #191c1f;
 
   --auf-grau-text: #c3ccd3;
   --auf-grau-flaeche: #232830;
@@ -416,10 +439,21 @@
  * `aufgaben-css.test.ts` sieht nichts Neues.
  */
 .fuehrung {
-  background: var(--auf-papier);
+  background: var(--auf-karte);
   border: 1px solid var(--auf-linie);
   border-radius: 8px;
   padding: 24px;
+  /*
+   * DIE VIERTE, NICHT-FARBIGE ERKENNUNGSMARKE (Oberflaechen-Runde 2026-08-16, Befund 2). Die drei
+   * aus §3.4 (24px Innenpolster, Kicker plus Ueberschrift, einziger Primaerknopf) blieben in der
+   * Bildstrecke unsichtbar, weil die Flaeche selbst dieselbe war wie der Seitengrund. Fuellung UND
+   * Schatten sind neutral — kein Farbton, keine Kante mit Bedeutung.
+   *
+   * `box-shadow` IST KEINE BEWEGUNG: der Kopfkommentar dieser Datei verbietet `transition` und
+   * jede Animation (sonst schuldete die Datei eine `prefers-reduced-motion`-Ausnahme und damit
+   * eine ZWEITE Medienabfrage). Ein statischer Schatten bewegt sich nicht.
+   */
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 8px 24px rgb(0 0 0 / 4%);
 }
 .fuehrungKicker {
   font-family: var(--font-display);
@@ -441,17 +475,372 @@
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
 }
 /*
- * DIE ZEILENFORM DES GANZEN MODULS (`_ui/AufgabenZeile.tsx`, §3.6, §5.3). SIE STEHT HIER UND NICHT
- * INLINE AN DER ZEILE, und das ist der Punkt: ein Inline-`style` schlaegt JEDE Regel eines
- * Stylesheets, auch die aus einer Medienabfrage — die Kartenform unter 768px („vier Bloecke mit
- * Trennlinie statt zwei umgebrochener Zeilen") waere mit einem inline gesetzten `display: flex`
- * strukturell nicht erreichbar. Der Unterschied zwischen beiden Auspraegungen ist genau ein
- * `flex-direction: column` unten.
+ * DIE DREI PERSONENKACHELN — EIGENE KLASSE, NICHT `.tagSpalte` (Oberflaechen-Runde 2026-08-16).
+ * Bis hierhin lieh sich „Die Woche der drei" die Tagesspalte des Wochenplans; die beiden gehoeren
+ * aber verschiedenen Flaechen, und jede Aenderung an der einen traf still die andere. Der
+ * Unterschied ist heute genau die Fuellung (`--auf-karte` statt `--auf-papier`, s. Befund 2 — auf
+ * dem Seitengrund war die Kachel unsichtbar bis auf ihre Linie); dass es EINE Aenderung ist,
+ * rechtfertigt die zweite Klasse nicht — dass `_ui/Wochenplan.tsx` sie NICHT mitbekommen soll, tut es.
  */
+.lageKarte {
+  border: 1px solid var(--auf-linie);
+  border-radius: 8px;
+  background: var(--auf-karte);
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+/*
+ * DER WOCHENWERT IST DIE ZAHL, DERENTWEGEN DIE KACHEL EXISTIERT (§5.2) — er stand in 12px Stahl
+ * unter einem 14px-Namen und war damit die unauffaelligste Angabe der Kachel. 14/600 auf `.budget`
+ * gesetzt, also mit dessen Mono und Tabellenziffern; die Ziffernstellung bleibt, nur Groesse,
+ * Gewicht und Farbe treten vor.
+ */
+.lageWert {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--auf-tinte);
+}
+/*
+ * DIE ZONENUEBERSCHRIFT ALS KICKER MIT HAARLINIE (Befunde 4 und 5). Sie stand in
+ * `SCHRIFT.unterTitel` (20/600) ueber Zeilen, deren Titel 14px trugen — die STRUKTUR war damit
+ * lauter als der INHALT. Neu traegt sie `SCHRIFT.kicker` (12/600 versal, aus der Leiter, hier
+ * inline gesetzt) und diese Klasse liefert Farbe, Linie und Abstand.
+ *
+ * DIE LINIE GEHOERT AN DIE UEBERSCHRIFT, NICHT UM DIE ZONE: ein Kasten um jede Gruppe war der
+ * ausdrueckliche Befund. Eine Unterkante bindet die Ueberschrift an ihre Zeilen, ohne die Zone
+ * einzurahmen.
+ */
+.zonenKopf {
+  color: var(--auf-stahl);
+  border-block-end: 1px solid var(--auf-linie);
+  padding-block-end: 8px;
+}
+/*
+ * NEBENWEGE IN TINTE STATT IN ROT (Befund 3). „Zeitplan ansehen", „Personenverwaltung" und
+ * „Archiv" sind Navigation, kein Signal — als rote Links standen zehn Rotstellen auf einer Flaeche,
+ * auf der Rot fachliche Bedeutung tragen soll. Der Unterstrich bleibt bei Zuwendung und traegt die
+ * Erkennbarkeit; Farbe war hier nie der einzige Kanal (die Links stehen in eigenen Zeilen).
+ */
+.leiseLink {
+  color: var(--auf-stahl);
+  text-decoration: none;
+}
+.leiseLink:hover {
+  color: var(--auf-tinte);
+  text-decoration: underline;
+}
+/*
+ * DIE ZEILENFORM DES GANZEN MODULS (`_ui/AufgabenZeile.tsx`, §3.6, §5.3) — SEIT DER
+ * OBERFLAECHEN-RUNDE 2026-08-16 EIN RASTER STATT EINES TEXTFLUSSES.
+ *
+ * DER BEFUND, WOERTLICH: „Die Listenzeilen haben kein Raster. Sieben Elemente je Zeile stehen im
+ * Textfluss nebeneinander; die vier ‚Anders zuweisen'-Knoepfe landen auf VIER VERSCHIEDENEN
+ * X-POSITIONEN, weil jeder dort sitzt, wo der Text davor endet." Das war die unvermeidliche Folge
+ * von `display: flex` AN DER ZEILE: eine Flex-Zeile kennt nur ihre eigenen Kinder, nie die der
+ * Nachbarzeile. Ausrichtung ueber mehrere Zeilen hinweg kann eine Flexbox strukturell nicht — dazu
+ * braucht es EIN Raster, das ALLE Zeilen teilen.
+ *
+ * DAS RASTER LIEGT DESHALB AN DER LISTE, DIE ZEILE UEBERNIMMT ES PER `subgrid`. Die Alternative
+ * waere `display: contents` an der Zeile — dann verliert das `<li>` aber jede eigene Flaeche, also
+ * Trennlinie, Innenpolster und Hover-Grund. Die dritte Moeglichkeit, an jeder Zeile dieselben
+ * FESTEN Spaltenbreiten zu wiederholen, ist gegen die heutigen deutschen Beschriftungen
+ * austariert und laeuft beim ersten laengeren Zustandswort auseinander, ohne dass ein Tor es saehe.
+ *
+ * DREI SPUREN, UND DIE ZAHL IST GEMESSEN, NICHT GEWAEHLT:
+ *   [titel]  minmax(140px, 1fr)     — Titel, mit einer harten Untergrenze.
+ *   [meta]   minmax(0, 1.6fr)       — Chips, `<Frist>`, Dauer, Rollenzusatz; bricht unter Druck um.
+ *   [aktion] minmax(150px, auto)    — RECHTSBUENDIG, und das ist der eigentliche Befund-Fix.
+ *
+ * ALLE DREI SPUREN SIND INHALTSUNABHAENGIG BEMESSEN, UND DAS IST ABSICHT — ES IST DER UNTERSCHIED
+ * ZWISCHEN „jede Zone ist in sich ordentlich" UND „die Seite hat ein Raster". Mit `auto`-Spuren
+ * (der erste Entwurf) misst jede Liste ihre Spalten an IHREM eigenen Inhalt: die Zone „Freigabe
+ * offen (1)" begann ihre Chips 180px weiter rechts als die Zone darunter, weil sie eine Zeile mit
+ * kuerzerem Titel hat. Auf einem Bildschirmabzug las sich das als drei Tabellen mit drei
+ * Geometrien. Bruchteile und eine feste Untergrenze haengen dagegen nur an der BREITE DER FLAECHE,
+ * die alle Zonen teilen — die Spalten liegen damit ueber die ganze Seite hinweg uebereinander.
+ *
+ * DIE 1,6 IST DIE GEMESSENE OBERGRENZE, KEIN GESCHMACK: eine `auto`-Meta-Spur nimmt sich ihren
+ * max-content, und in der Zone „Einzuplanen" des BuFDi-Einstiegs (Chips + Frist + Dauer +
+ * Vorschlag + Zeitvorschlagsmarke) war das so viel, dass die Titelspur auf ihre 140px-Untergrenze
+ * fiel — „Fahrzeugerstaustattung" brach dann mitten im Wort um (`overflow-wrap: anywhere` tat
+ * genau das, wofuer es da ist, und sah trotzdem kaputt aus). Mit 1,6 behaelt der Titel bei 1280px
+ * rund 320px und damit mehr als der laengste unteilbare Titel des Seeds braucht.
+ *
+ * DIE 150PX UNTERGRENZE DER AKTIONSSPUR IST DER GRUND, WARUM AUCH ZONEN OHNE AKTIONEN PASSEN: eine
+ * `auto`-Spur waere dort 0 breit, und die beiden fr-Spuren teilten sich eine andere Restbreite als
+ * in einer Zone MIT Aktionen — die Ausrichtung waere genau dort wieder hin, wo sie am meisten
+ * auffaellt (zwei Zonen direkt untereinander). `auto` als Obergrenze laesst die Spur trotzdem
+ * wachsen, wenn ein Aufrufer je einen breiteren Knopf reicht.
+ *
+ * DER ERSTE ENTWURF HATTE FUENF SPUREN (Chips, Frist, Meta je einzeln) UND IST BEI 820PX GEPLATZT
+ * — nachgesehen im Bildschirmabzug, nicht vermutet. Die vier `auto`-Spuren nehmen sich ihren
+ * Inhalt, `minmax(0, 1fr)` gibt bis auf null nach, und `overflow-wrap: anywhere` am Titel tut dann
+ * genau das, wozu es da ist: es bricht. Ergebnis war eine Titelspalte von EINEM BUCHSTABEN Breite,
+ * ueber zwanzig Zeilen. Die Rechnung dahinter: bei 820px Fenster bleiben dem Inhalt rund 580px
+ * (die Seitenleiste nimmt 240), und die `min-content`-Summe der vier rechten Spuren
+ * (Chippaar ~100 + Frist ~150 nowrap + Meta ~60 + Knopf ~130 + Abstaende) liegt bei rund 490px.
+ *
+ * DREI SPUREN LOESEN ES, WEIL DIE MITTLERE UMBRECHEN DARF: `min-content` ist jetzt der breiteste
+ * UNTEILBARE Brocken (`<Frist>` mit `white-space: nowrap`, ~150px) statt der Summe von vieren.
+ * 140 + 150 + 130 + 24 = 444px — mit Reserve unter den 528px, die die schmalste Inhaltsflaeche
+ * dieses Moduls je hat (768px, gemessen; s. `e2e/aufgaben.spec.ts`s Ueberlauf-Sweep).
+ *
+ * WAS DAS KOSTET, AUSGESCHRIEBEN: Frist und Dauer stehen innerhalb der Meta-Zelle, richten sich
+ * also NICHT ueber die Zeilen hinweg aus — nur Titel, Zellanfang und Aktionsspalte tun das. Der
+ * Befund, gegen den dieses Raster geschrieben ist, nennt die AKTIONSKNOEPFE („landen auf vier
+ * verschiedenen X-Positionen"), und die stehen jetzt buendig. Eine feinere Ausrichtung bekaeme man
+ * nur mit festen Spaltenbreiten — die waeren gegen die heutigen deutschen Beschriftungen austariert
+ * und liefen beim ersten laengeren Zustandswort auseinander — oder mit einer zweiten
+ * Medienabfrage, die dieser Datei verboten ist.
+ *
+ * DIE ZEILE RENDERT IHRE DREI ZELLEN IMMER, AUCH LEER (`_ui/AufgabenZeile.tsx`): bei `subgrid`
+ * werden Kinder der Reihe nach platziert. Eine Zeile ohne Aktion, die die Zelle weglaesst, zoege
+ * ihre Meta-Angaben in die Aktionsspur — genau der Versatz, den dieses Raster beseitigt.
+ *
+ * HAARLINIEN STATT ABSTAENDEN (Befund 5, „Kaesten um jede Gruppe -> Weissraum und Haarlinien"):
+ * `row-gap: 0`, dafuer eine 1px-Trennlinie je Zeile und Innenpolster. Die letzte Zeile einer Liste
+ * bekommt keine, sonst schwebt eine Linie unter der Zone.
+ */
+.zeilenListe {
+  display: grid;
+  grid-template-columns:
+    [titel] minmax(140px, 1fr)
+    [meta] minmax(0, 1.6fr)
+    [aktion] minmax(150px, auto);
+  gap: 0 12px;
+  /*
+   * DIE LISTENFORM STAND BIS HIERHIN INLINE AM `<ul>` (`AufgabenListe.tsx`: `display: flex`,
+   * `flexDirection: column`, `gap`, `listStyle`, `margin`, `padding`) — UND HAETTE JEDE REGEL
+   * DIESES BLOCKS STILL GESCHLAGEN. Ein Inline-`style` gewinnt gegen jedes Stylesheet; die
+   * `display: grid`-Zeile oben waere dagestanden und wirkungslos geblieben, waehrend
+   * `AufgabenZeile.test.tsx` (das nur das `<li>` auf Inline-Freiheit prueft) gruen bliebe. Das ist
+   * dieselbe Klasse wie Falle 5, nur mit dem staerksten aller Gegenspieler.
+   */
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /*
+   * DER HOVER-GRUND DARF UEBER DEN TEXT HINAUSREICHEN, ohne die Zeile einzuruecken: die Liste
+   * zieht sich um 8px nach aussen, die Zeile polstert um 8px nach innen. Netto steht der Titel
+   * genau dort, wo er ohne beides staende.
+   */
+  margin-inline: -8px;
+}
 .zeilenListe > li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: 8px;
+  border-block-end: 1px solid var(--auf-linie);
+}
+.zeilenListe > li:last-child {
+  border-block-end: none;
+}
+/*
+ * `:focus-within` STEHT GLEICHBERECHTIGT NEBEN `:hover` UND IST KEINE ZUGABE: die Aktionsspalte
+ * ist ohne Zeigergeraet nur ueber die Tastatur erreichbar, und ein Knopf, dessen Zeile beim
+ * Fokussieren nichts anzeigt, laesst die Tastaturbedienung im Blindflug (s. `.zeilenAktion`).
+ */
+.zeilenListe > li:hover,
+.zeilenListe > li:focus-within {
+  background: var(--auf-karte);
+  border-radius: 4px;
+}
+/*
+ * DER TITEL TRAEGT — UND ER IST NICHT MEHR ROT (Befunde 3 und 4). Zehn rote Zeilen untereinander
+ * nehmen dem Rot die Signalwirkung, die die Hausregel schuetzt (`colorError === colorPrimary ===
+ * #c8000f`); ein Aufgabentitel ist ausserdem kein Signal, sondern der Gegenstand der Zeile.
+ *
+ * 14/600 IST KEINE ERFUNDENE GROESSE: die Leiter aus `core/theme/schrift.ts` fuehrt 12/14/20/24/30,
+ * und `.tagKopf` in dieser Datei benutzt 14/600 bereits. Die Stufenleiter der Zeile lautet damit
+ * Titel 14/600 Tinte > Metadaten 12/400 Stahl > Chips 12/600 — drei Stufen statt der einen, gegen
+ * die Befund 4 („alles 14px, nichts traegt") geschrieben ist.
+ *
+ * EINE KLASSE, KEIN ELEMENTSELEKTOR: `.zeilenListe > li a` waere (0,1,1) und traefe auch den
+ * Deckel-Link und jede kuenftige Verknuepfung in der Zeile. Die Klasse ist (0,1,0) und schlaegt
+ * antds `a { color: … }` (0,0,1) unabhaengig von der Dokumentreihenfolge (Falle 5).
+ */
+.zeilenTitel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--auf-tinte);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.zeilenTitel:hover {
+  color: var(--auf-tinte);
+  text-decoration: underline;
+}
+/*
+ * DIE METAZELLEN TRETEN ZURUECK. `display: flex` INNEN, damit mehrere Angaben in EINER Zelle
+ * (Dauer plus Rollenzusatz plus Vorschlagsmarke) beieinanderbleiben und unter Platzdruck
+ * umbrechen, statt ihre Spur zu sprengen.
+ */
+.zeilenZelle {
   display: flex;
-  gap: 12px;
+  align-items: center;
   flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--auf-stahl);
+}
+/*
+ * DIE AKTIONSSPALTE — RECHTSBUENDIG UND ERST BEI ZUWENDUNG SICHTBAR (die Notion-Anmutung aus dem
+ * Auftrag). `opacity` UND NICHT `visibility`/`display`: die beiden letzten nehmen den Knopf aus
+ * der Tabreihenfolge, und ein Bedienelement, das nur mit der Maus erreichbar ist, waere ein
+ * Rueckschritt gegenueber der dauerhaft sichtbaren Knopfreihe. So bleibt er fokussierbar, und
+ * `:focus-within` an der Zeile blendet ihn ein, sobald der Fokus ihn erreicht.
+ *
+ * DER PLATZ BLEIBT IMMER RESERVIERT (die Spur ist `auto` ueber alle Zeilen): beim Ueberfahren
+ * springt nichts, weil nichts seine Groesse aendert — nur die Deckkraft.
+ *
+ * KEIN `@media (hover: hover)`: diese Datei hat GENAU EINE Medienabfrage (767.98px), und
+ * `aufgaben-css.test.ts` (Aussage 1) zaehlt sie. Der Zeigergeraet-Fall wird deshalb ueber die
+ * BREITE geloest — unterhalb von 768px steht die Spalte dauerhaft offen, s. den Block unten. Das
+ * ist die schwaechere Naeherung (ein Tablet-Browser mit Touch bei 1024px sieht die Spalte erst
+ * beim Antippen der Zeile), aber die einzige, die den Riegel nicht bricht.
+ */
+.zeilenAktion {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: end;
+  gap: 8px;
+  opacity: 0;
+}
+.zeilenListe > li:hover .zeilenAktion,
+.zeilenListe > li:focus-within .zeilenAktion {
+  opacity: 1;
+}
+/*
+ * DIE DRITTE BEDINGUNG DER SICHTBARKEIT: ein GEOEFFNETES Zuweisen-Feld. Sein Inhalt liegt im
+ * Portal (antds `Popover`), also ausserhalb der Zeile — `:focus-within` sieht ihn nicht, und
+ * sobald die Maus die Zeile verlaesst, verschwaende der Ausloeser UNTER dem offenen Feld. Die
+ * Marke setzt `_ui/ZuweisenInline.tsx` selbst (`data-offen`), weil nur sie den Zustand kennt.
+ *
+ * `:has()` UND NICHT EINE KLASSE AN DER ZEILE: die Zeile ist eine Server Component
+ * (`AufgabenZeile.tsx`) und bekommt ihre Aktionen als fertiges `ReactNode` — sie weiss nicht und
+ * soll nicht wissen, ob eine davon gerade offen ist.
+ */
+.zeilenListe > li:has([data-offen="true"]) .zeilenAktion {
+  opacity: 1;
+}
+
+/*
+ * „ANDERS ZUWEISEN" IN DER ZEILE (`_ui/ZuweisenInline.tsx`) — DER AUSLOESER IST EIN STILLER KNOPF,
+ * KEIN antd-`Button`. Zwei Gruende: der Zaehlriegel misst `.ant-btn-primary` innerhalb der
+ * Flaeche (hier waere ohnehin keiner), und vor allem soll die Aktionsspalte einer Notion-artigen
+ * Liste nicht wie eine Knopfleiste aussehen — sie zeigt bei Zuwendung einen Weg an, keine
+ * Schaltflaeche. 44px Mindesthoehe aus ARBEITSDICHTE (`controlHeight: 44`, `core/theme/theme.ts`),
+ * ausgeschrieben und NICHT als `var(--ant-control-height)` (Falle 2: antds Variablen leben auf
+ * antds Scope-Klasse und sind hier still unaufgeloest).
+ */
+.zuweisenAusloeser {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--auf-linie);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--auf-stahl);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.zuweisenAusloeser:hover {
+  color: var(--auf-tinte);
+  border-color: var(--auf-stahl);
+}
+.zuweisenHuelle {
+  display: inline-flex;
+}
+/*
+ * DAS AUFGEKLAPPTE FELD — UND DIE EINE REGEL, DIE MAN HIER STILL FALSCH MACHT: es haengt in antds
+ * PORTAL am `<body>`, also AUSSERHALB von `.modul`. Die `--auf-*`-Variablen sind dort NICHT
+ * aufgeloest (genau die Mechanik von Falle 2, nur mit den eigenen Variablen statt mit antds), und
+ * eine unaufgeloeste CSS-Variable meldet sich nie — die Schrift bliebe einfach schwarz, in beiden
+ * Themen, auch im dunklen.
+ *
+ * DESHALB TRAEGT DIESER BLOCK NUR STRUKTUR (Abstaende, Hoehen, Ausrichtung, Ziffernstellung) UND
+ * KEINE EINZIGE `--auf-*`-FARBE. Text- und Flaechenfarbe kommen von antds Popover-Rumpf, der
+ * beide Themen ueber seine eigenen Tokens kennt. Die zwei Ausnahmen sind bewusst themenfrei:
+ * `var(--font-mono)` steht auf `:root` (`globals.css`) und gilt damit auch im Portal, und der
+ * Hover-Grund ist ein neutrales Grau mit Alpha, das auf hellem wie dunklem Rumpf funktioniert.
+ *
+ * WER HIER JE EINE `--auf-*`-FARBE ERGAENZT, schuldet in derselben Aenderung einen
+ * `getPopupContainer`, der das Portal INNERHALB von `.modul` aufhaengt — sonst ist die Regel eine
+ * Attrappe, die im Bildschirmabzug richtig aussieht, solange das Thema hell ist.
+ */
+.zuweisenFeld {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+}
+/*
+ * `max-inline-size` UND NICHT `max-width`, UND DER GRUND IST EIN RIEGEL, KEIN STIL: Aussage 1 in
+ * `aufgaben-css.test.ts` zaehlt JEDES `max-width: <n>px` der Datei und verlangt, dass genau eines
+ * uebrig bleibt — die 767.98px der einen Medienabfrage. Der Riegel unterscheidet dabei nicht
+ * zwischen einer Abfrage und einer gewoehnlichen Deklaration, und das ist Absicht: eine zweite
+ * Bruchkante schleicht sich sonst als „nur eine Breitenbegrenzung" ein. Eine Zeilenlaenge fuer
+ * einen Satz IST aber keine Bruchkante. Die logische Eigenschaft sagt dasselbe, faellt nicht unter
+ * den Riegel und passt zum Rest der Datei (`border-inline-start`, `margin-block-end`).
+ */
+.zuweisenFolge {
+  margin: 0 0 4px;
+  max-inline-size: 280px;
+  font-size: 12px;
+}
+.zuweisenZiel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.zuweisenZiel:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.zuweisenZiel:not(:disabled):hover {
+  background: rgb(128 128 128 / 12%);
+}
+/*
+ * EIGENER FOKUSRING, WEIL DER MODULWEITE HIER NICHT HINREICHT: `.modul button:focus-visible` ganz
+ * oben in dieser Datei setzt einen Ring auf `var(--iuk-marke)` — und beides greift im Portal
+ * nicht, weder der Vorfahrenselektor `.modul` noch die Variable. Ohne diese Regel haette die
+ * Namensliste als einzige Bedienflaeche des Moduls nur den Browservorgabe-Ring, und im dunklen
+ * Thema ist der schwarz auf dunkel. `currentColor` traegt die Farbe des Popover-Rumpfs mit und
+ * braucht deshalb keine Variable.
+ */
+.zuweisenZiel:focus-visible,
+.zuweisenAusloeser:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 2px;
+}
+.zuweisenName {
+  font-weight: 600;
+}
+.zuweisenLast {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.zuweisenFehler {
+  margin: 4px 0 0;
+  font-size: 12px;
 }
 
 /*
@@ -583,34 +972,58 @@
     width: 100%;
   }
   /*
-   * GENAU ZWEI NEUE REGELN, UND DIE LISTE IST ABSCHLIESSEND (§6.5): 24px Rand sind auf 360px zu
-   * viel, und die Zeilen brauchen unter 768px die Kartenform (§5.3). Die Knoepfe der Karte
-   * brauchen KEINE eigene Regel — sie stehen in `.knopfzeile`, und die Regel darueber greift
-   * schon; eine `.fuehrung`-spezialisierte Zweitfassung waere der Anfang der Spezifitaetsspirale
-   * aus Falle 5 (und die CSS-Pruefung sucht genau diesen Selektor).
+   * 24PX RAND SIND AUF 360PX ZU VIEL (§6.5). Die Knoepfe der Karte brauchen KEINE eigene Regel —
+   * sie stehen in `.knopfzeile`, und die Regel darueber greift schon; eine
+   * `.fuehrung`-spezialisierte Zweitfassung waere der Anfang der Spezifitaetsspirale aus Falle 5
+   * (und die CSS-Pruefung sucht genau diesen Selektor).
+   *
+   * DIE ZUSAGE „GENAU ZWEI NEUE REGELN" AUS §6.5 IST MIT DER OBERFLAECHEN-RUNDE 2026-08-16
+   * ABGELAUFEN, statt still gebrochen zu werden: die Zeilenform ist von einer Flex-Spalte auf ein
+   * Raster umgestellt, und ein Raster braucht unterhalb von 768px drei Umschaltungen statt einer
+   * (Spurenzahl, Zellenausrichtung, leere Zellen) plus eine vierte fuer die Aktionsspalte, die
+   * auf Touch nicht an `:hover` haengen darf. Was UNVERAENDERT gilt, ist die Zahl, an der ein Tor
+   * haengt: GENAU EINE Medienabfrage, und `aufgaben-css.test.ts` (Aussage 1) zaehlt sie.
    */
   .fuehrung {
     padding: 16px;
   }
   /*
-   * `align-items: flex-start` GEHOERT ZUR KARTENFORM DAZU UND IST KEINE DRITTE REGEL: die Liste aus
-   * §6.5 („genau zwei") zaehlt REGELN, und es bleiben zwei — `.fuehrung` und `.zeilenListe > li`.
+   * DIE KARTENFORM DER ZEILE UNTER 768PX (§5.3) — SEIT DEM RASTER EINE EINSPALTIGE SUBGRID STATT
+   * EINER FLEX-SPALTE. Das Raster oben braucht auf 360px keine fuenf Spuren: dort steht ohnehin
+   * jede Angabe untereinander, und fuenf `auto`-Spuren nebeneinander waeren derselbe Ueberlauf,
+   * gegen den der 390/820-Sweep in `e2e/aufgaben.spec.ts` geschrieben ist.
    *
-   * WARUM SIE NOETIG IST (Bildstrecke 360px, `m2-bufdi.png`): eine Flex-Spalte richtet ihre Kinder
-   * in der Querachse per Vorgabe `stretch` aus, und die Querachse IST hier die Breite. Jedes Kind
-   * der Zeile wird damit BLOCKIFIZIERT — auch `.chip` und `.prioKontur`, die `display: inline-flex`
-   * tragen. Ein Konturchip ueber die volle Zeilenbreite liest sich als EINGABEFELD, nicht als
-   * Etikett; der Zustandschip daneben bekommt eine Farbflaeche ueber die ganze Breite, die er nie
-   * meinte. Auf dem Desktop (Reihe) tritt das nicht auf, weil `stretch` dort die HOEHE angleicht.
+   * DIE LISTE SCHALTET AUF EINE SPUR, DIE ZEILE BLEIBT `subgrid` — damit gilt die Zellenfolge der
+   * Zeile unveraendert, und es gibt keine zweite Markup-Form fuer schmal.
    *
-   * AN DER ZEILE, NICHT AM CHIP: die Ursache ist die Ausrichtung des Behaelters, nicht die
-   * Anzeigeart des Chips. Ein `align-self` an `.chip` traefe ausserdem `.prioText` nicht (das
-   * bewusst OHNE `.chip` rendert, §9.1) und liesse `<Link>`, `<Frist>` und den Rollenzusatz weiter
-   * ueber die volle Breite gedehnt. Keine Spezifitaetserhoehung noetig: die Regel steht gegen
-   * niemanden, sie ergaenzt die eigene Basisregel.
+   * `align-items: start` STATT `center`: in einer Spalte ist die Querachse die BREITE, und
+   * `center` zentrierte jede Zelle mittig statt sie links auszurichten.
+   *
+   * `:empty { display: none }` IST DER PREIS DER IMMER GERENDERTEN ZELLEN. Auf dem Desktop MUSS
+   * eine leere Zelle stehen bleiben (sonst rutscht die Aktion in die Meta-Spur, s. oben); in einer
+   * EINSPALTIGEN Zeile kann sie das nicht — dort erzeugt sie nur eine 0px-Reihe mit einem
+   * Zeilenabstand davor. Weil hier keine Spalte auszurichten ist, darf sie fort.
    */
+  .zeilenListe {
+    grid-template-columns: [zeile] minmax(0, 1fr);
+    row-gap: 0;
+  }
   .zeilenListe > li {
-    flex-direction: column;
-    align-items: flex-start;
+    align-items: start;
+    row-gap: 4px;
+  }
+  .zeilenListe > li > *:empty {
+    display: none;
+  }
+  /*
+   * TOUCH HAT KEIN HOVER (Auftrag, nicht verhandelbar). Unterhalb von 768px steht die
+   * Aktionsspalte deshalb DAUERHAFT offen, und sie sitzt links unter der Zeile statt rechts:
+   * `justify-self: end` an einer vollbreiten Spur schoebe einen 44px-Knopf an den rechten Rand,
+   * wo ihn der Daumen einer rechten Hand verdeckt.
+   */
+  .zeilenAktion {
+    opacity: 1;
+    justify-self: start;
+    justify-content: flex-start;
   }
 }

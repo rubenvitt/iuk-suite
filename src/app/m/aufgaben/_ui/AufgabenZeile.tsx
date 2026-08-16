@@ -5,6 +5,7 @@ import type { AufgabeRow } from "../_db/schema";
 import { Frist } from "./Frist";
 import { Ikone } from "./ikonen";
 import { PrioritaetChip, StatusChip } from "./Chip";
+import s from "./aufgaben.module.css";
 
 /*
  * DIE EINE ZEILENFORM DES MODULS (Oberflaechen-Spec 2026-08-16 §3.6, §10 Prueffrage 7).
@@ -62,25 +63,55 @@ export function AufgabenZeile({
 }) {
   return (
     <li>
-      <Link href={href ?? `/a/${aufgabe.id}`}>{aufgabe.titel}</Link>
-      <StatusChip status={aufgabe.status} />
-      <PrioritaetChip prioritaet={aufgabe.prioritaet} />
-      <Frist aufgabe={aufgabe} heute={heute} />
-      <span>{fmtDauer(aufgabe.dauerMinuten)}</span>
-      {rollenZusatz !== null ? <span data-rollen-zusatz>{rollenZusatz}</span> : null}
       {/*
-       * `vorschlagOffen` KOMMT AUS `_lib/anzeige.ts` UND WIRD NICHT NEU GERECHNET — dieselbe
-       * Ableitung traegt die Sprosse `bufdiWartetAufEinplanung` des Selektors. Zwei Fassungen
-       * derselben Bedingung laufen auseinander, und der Fehler ist nicht sichtbar kaputt, sondern
-       * nur falsch. Die Marke steht NACH dem Rollenzusatz und ist keiner: sie ist abgeleitet, nicht
-       * uebergeben, und deshalb zaehlt sie nicht gegen „genau eine Angabe".
+       * DREI ZELLEN, IMMER ALLE DREI — AUCH LEER. Das ist die Bedingung, unter der das Raster
+       * ueberhaupt eines ist: `.zeilenListe > li` traegt `grid-template-columns: subgrid`, und
+       * `subgrid` platziert Kinder DER REIHE NACH in die Spuren der Liste. Eine Zeile ohne
+       * Aktionen, die die dritte Zelle weglaesst, zoege ihre Meta-Angaben in die Aktionsspur —
+       * genau der Versatz, gegen den dieses Raster geschrieben ist („die vier Knoepfe landen auf
+       * vier verschiedenen X-Positionen"). Die leere Zelle kostet nichts: sie hat keinen Inhalt,
+       * keinen Rahmen und keine Flaeche, und unter 768px blendet `.zeilenListe > li > *:empty` sie
+       * aus, weil dort keine Spalte auszurichten ist.
+       *
+       * WARUM DREI UND NICHT FUENF (Chips/Frist/Meta je eigene Spur): die Fuenfer-Fassung ist bei
+       * 820px geplatzt — die Titelspalte fiel auf einen Buchstaben Breite. Die volle Rechnung steht
+       * an `.zeilenListe` in `aufgaben.module.css`.
+       *
+       * DIE REIHENFOLGE AUS §10 PRUEFFRAGE 7 IST UNVERAENDERT — Titel · Zustand · Prioritaet ·
+       * Frist · Dauer · Rollenzusatz —, sie ist nur in Gruppen gefasst statt in sieben
+       * Geschwistern. `AufgabenZeile.test.tsx` misst sie am Text der Zeile und deckt beides.
        */}
-      {vorschlagOffen(aufgabe) ? (
-        <span>
-          <Ikone name="uhr" /> Zeitvorschlag offen
-        </span>
-      ) : null}
-      {aktionen}
+      <span className={s.zeilenZelle}>
+        <Link href={href ?? `/a/${aufgabe.id}`} className={s.zeilenTitel}>
+          {aufgabe.titel}
+        </Link>
+      </span>
+      <span className={s.zeilenZelle}>
+        <StatusChip status={aufgabe.status} />
+        <PrioritaetChip prioritaet={aufgabe.prioritaet} />
+        <Frist aufgabe={aufgabe} heute={heute} />
+        <span>{fmtDauer(aufgabe.dauerMinuten)}</span>
+        {rollenZusatz !== null ? <span data-rollen-zusatz>{rollenZusatz}</span> : null}
+        {/*
+         * `vorschlagOffen` KOMMT AUS `_lib/anzeige.ts` UND WIRD NICHT NEU GERECHNET — dieselbe
+         * Ableitung traegt die Sprosse `bufdiWartetAufEinplanung` des Selektors. Zwei Fassungen
+         * derselben Bedingung laufen auseinander, und der Fehler ist nicht sichtbar kaputt,
+         * sondern nur falsch. Die Marke steht NACH dem Rollenzusatz und ist keiner: sie ist
+         * abgeleitet, nicht uebergeben, und deshalb zaehlt sie nicht gegen „genau eine Angabe".
+         */}
+        {vorschlagOffen(aufgabe) ? (
+          <span>
+            <Ikone name="uhr" /> Zeitvorschlag offen
+          </span>
+        ) : null}
+      </span>
+      {/*
+       * DIE AKTIONSSPALTE STEHT AUCH DANN DA, WENN SIE LEER IST — sie ist die rechte Spur, an der
+       * sich alle Zeilen ausrichten. Sichtbar wird sie erst bei Zuwendung (`:hover`/`:focus-within`
+       * an der Zeile, s. `.zeilenAktion`); unterhalb von 768px bleibt sie dauerhaft offen, weil
+       * Touch kein Hover kennt.
+       */}
+      <span className={s.zeilenAktion}>{aktionen}</span>
     </li>
   );
 }

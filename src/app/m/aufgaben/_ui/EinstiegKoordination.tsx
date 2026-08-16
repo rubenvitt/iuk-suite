@@ -26,7 +26,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { AnlassZone } from "./AnlassZone";
 import { Fuehrungskarte } from "./Fuehrungskarte";
 import { SeitenKopf } from "./SeitenKopf";
-import { UmverteilenKnopf } from "./VerteilenDialog";
+import { ZuweisenInline } from "./ZuweisenInline";
 import s from "./aufgaben.module.css";
 
 /*
@@ -142,10 +142,18 @@ export function EinstiegKoordination({
           />
         ))}
 
-        {/* ── 5 · FUSS ── */}
+        {/*
+         * ── 5 · FUSS ── ZWEI NEBENWEGE, IN TINTE STATT IN ROT (Oberflaechen-Runde 2026-08-16,
+         * Befund 3): sie sind Navigation, kein Signal. Als rote Links waren sie zwei von zehn
+         * Rotstellen auf einer Flaeche, auf der Rot fachliche Bedeutung tragen soll.
+         */}
         <div style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
-          <Link href="/personen">Personenverwaltung</Link>
-          <Link href="/archiv">Archiv</Link>
+          <Link href="/personen" className={s.leiseLink}>
+            Personenverwaltung
+          </Link>
+          <Link href="/archiv" className={s.leiseLink}>
+            Archiv
+          </Link>
         </div>
       </div>
     </>
@@ -154,6 +162,21 @@ export function EinstiegKoordination({
 
 /**
  * „ANDERS ZUWEISEN" ALS ZEILENAKTION DER BEIDEN „Überfällig"-ZONEN (§3.2, §7 Nr. 3).
+ *
+ * ══ SEIT DER OBERFLAECHEN-RUNDE 2026-08-16 INLINE STATT ALS MODAL (`_ui/ZuweisenInline.tsx`).
+ *    Das Urteil lautete „so wirkt es eher wie eine alte Formularanwendung"; fuer eine Zuweisung
+ *    besteht die Entscheidung aus GENAU EINER Angabe, und Knopf → Modal → Formular → Absenden sind
+ *    vier Schritte fuer einen. Der Zeilenweg klappt jetzt eine Namensliste MIT der Wochenauslastung
+ *    auf, und der Klick auf den Namen IST das Absenden.
+ *
+ *    FACHLICH AENDERT SICH NICHTS: dieselbe `umverteilenAction`, derselbe Formularschluessel
+ *    `zielId`, dieselbe Bedingung `aktionsOptionen(...).umverteilen`, dieselbe Zielliste aus
+ *    `bufdis()`. Und die Bestaetigung bleibt — der Satz ueber den geleerten Zeitplan steht als
+ *    erste Zeile im aufgeklappten Feld, also weiterhin zwischen Absicht und Absenden.
+ *
+ *    DER MODALWEG BLEIBT, WO ER MEHR KANN: die Fuehrungskarte und `/a/<id>` benutzen weiter
+ *    `UmverteilenKnopf` — dort ist es die Primaeraktion EINER benannten Aufgabe und traegt
+ *    zusaetzlich den optionalen Zeitvorschlag.
  *
  * DIE BEDINGUNG JE ZEILE IST `uebergang(a, "umverteilen", akteur, heute).erlaubt` UND NICHTS
  * SONST — ueber `aktionsOptionen`, dieselbe Funktion, die `/a/<id>` benutzt. Ein hier
@@ -166,10 +189,11 @@ export function EinstiegKoordination({
  * keiner dieser Zonen (Rang 5a/5b tragen nur ueberfaellige Zeilen, Rang 1 die ohne aktiven
  * Traeger). Die Aufzaehlung sagt also, WELCHE ZONEN einen Zeilenweg bekommen, nicht, WER darf.
  *
- * `primaer={false}` IST DER GANZE PUNKT DES SCHALTERS: dieselbe Aktion steht bei n = 1 in der
- * Fuehrungskarte als Primaerknopf. Stuenden beide auf `type="primary"`, traege
- * `data-testid="aufgaben-flaeche"` bei einer fuehrenden Karte PLUS einer Ueberfaellig-Zone zwei
- * `.ant-btn-primary` — und das saehe kein Tor ausser dem Zaehlriegel in Playwright.
+ * DER ZAEHLRIEGEL BLEIBT UNBERUEHRT, UND ZWAR JETZT STRUKTURELL: `ZuweisenInline` rendert gar
+ * keinen antd-`Button`, also kann in `data-testid="aufgaben-flaeche"` neben der Fuehrungskarte kein
+ * zweiter `.ant-btn-primary` entstehen. Vorher hing das an einem `primaer={false}` an der
+ * Aufrufstelle — einem Schalter, den man vergessen kann und dessen Vergessen ausser dem
+ * Playwright-Zaehlriegel kein Tor gesehen haette.
  */
 function umverteilAktionen(
   zone: Anlass,
@@ -184,14 +208,7 @@ function umverteilAktionen(
       .filter((a) => aktionsOptionen(a, akteur, heute).umverteilen)
       .map((a) => [
         a.id,
-        <UmverteilenKnopf
-          key={a.id}
-          aufgabe={a}
-          bufdis={ziele.bufdis}
-          auslastung={ziele.auslastung}
-          tage={ziele.tage}
-          primaer={false}
-        />,
+        <ZuweisenInline key={a.id} aufgabe={a} bufdis={ziele.bufdis} auslastung={ziele.auslastung} />,
       ]),
   );
 }
@@ -229,10 +246,16 @@ function WocheDerDrei({
 }) {
   return (
     <section style={{ marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.xl }}>
-      <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Die Woche der drei</h2>
+      {/* Dieselbe Kopfform wie jede Zone (`AnlassZone`): Kicker plus Haarlinie, s. dort. */}
+      <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.sm}px` }}>
+        Die Woche der drei
+      </h2>
       {auslastung.length === 0 ? (
         <p>
-          Es ist noch keine BuFDi eingetragen. <Link href="/personen">Personenverwaltung</Link>
+          Es ist noch keine BuFDi eingetragen.{" "}
+          <Link href="/personen" className={s.leiseLink}>
+            Personenverwaltung
+          </Link>
         </p>
       ) : (
         <div className={s.lageGitter}>
@@ -266,12 +289,23 @@ function PersonenLage({
     <section
       aria-labelledby={`lage-${person.id}`}
       data-person={person.id}
-      className={s.tagSpalte}
+      /*
+       * `.lageKarte`, NICHT `.tagSpalte` (Oberflaechen-Runde 2026-08-16): die Kachel brauchte eine
+       * eigene Fuellung (`--auf-karte`), weil sie auf dem Seitengrund bis auf ihre Linie unsichtbar
+       * war — und `.tagSpalte` gehoert dem Wochenplan, den diese Aenderung nicht treffen soll.
+       */
+      className={s.lageKarte}
     >
       <h3 id={`lage-${person.id}`} className={s.tagKopf} style={{ margin: 0 }}>
         {person.name}
       </h3>
-      <p className={s.budget} style={{ margin: `${SPACE.xs}px 0 0` }}>
+      {/*
+       * DER WOCHENWERT IST DIE ZAHL, DERENTWEGEN DIE KACHEL EXISTIERT (§5.2) — er stand in 12px
+       * Stahl unter einem 14px-Namen und war damit die unauffaelligste Angabe der Kachel.
+       * `.lageWert` hebt Groesse, Gewicht und Farbe; Mono und Tabellenziffern kommen weiter aus
+       * `.budget`, damit die Zahlen der drei Kacheln untereinander stehen.
+       */}
+      <p className={`${s.budget} ${s.lageWert}`} style={{ margin: `${SPACE.xs}px 0 0` }}>
         {fmtStunden(zeile.verplantMinuten)} / {fmtStunden(zeile.sollMinuten)} Std.
       </p>
       <p style={{ ...SCHRIFT.neben, margin: `${SPACE.xs}px 0 0` }}>
@@ -318,7 +352,9 @@ function PersonenLage({
         </p>
       ) : null}
       <p style={{ margin: `${SPACE.sm}px 0 0` }}>
-        <Link href={`/plan/${person.id}`}>Zeitplan ansehen</Link>
+        <Link href={`/plan/${person.id}`} className={s.leiseLink}>
+          Zeitplan ansehen
+        </Link>
       </p>
     </section>
   );

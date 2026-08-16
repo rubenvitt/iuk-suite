@@ -132,12 +132,19 @@ describe("EinstiegKoordination — der Aufbau aus §3.4", () => {
    *
    * DIE FIXTUR IST GENAU DAFUER GEBAUT — DREI ueberfaellige, `verteilt`e Aufgaben. Damit fuehrt
    * `koordUeberfaelligVerteilt` mit n = 3, wird nach R3 zugleich Zone (Position 1 mit mehr als
-   * einer Aufgabe), und jede der drei Zeilen bekommt „Anders zuweisen" (§3.2). Die Karte selbst
-   * traegt bei n > 1 keinen Primaerknopf; waere `UmverteilenKnopf` wie `VerteilenKnopf` fest auf
-   * `type="primary"` verdrahtet, stuenden hier DREI. Der e2e-Zaehlriegel faende das erst nach
-   * einem vollen Playwright-Lauf, und `typecheck`/`lint`/`build` fielen gar nicht darauf.
+   * einer Aufgabe), und jede der drei Zeilen bekommt ihren Zuweisungsweg (§3.2). Die Karte selbst
+   * traegt bei n > 1 keinen Primaerknopf.
+   *
+   * DER GEGENSTAND DER VORBEDINGUNG HAT SICH MIT DER OBERFLAECHEN-RUNDE 2026-08-16 GEAENDERT, DIE
+   * ZUSAGE NICHT: der Zeilenweg ist von `UmverteilenKnopf` (antd-Knopf, Modal) auf
+   * `_ui/ZuweisenInline.tsx` umgestellt, dessen Ausloeser „Zuweisen" heisst und KEIN antd-`Button`
+   * ist. Damit kann der Riegel an dieser Stelle strukturell nicht mehr reissen — vorher hing er an
+   * einem `primaer={false}` an der Aufrufstelle, also an einem Schalter, den man vergessen kann.
+   * DER TEST BLEIBT TROTZDEM: er bewacht jetzt, dass die Zeilen ueberhaupt einen Zuweisungsweg
+   * tragen UND dass die Flaeche dabei bei hoechstens einem Primaerknopf bleibt — die zweite Haelfte
+   * risse sofort, wenn jemand den Zeilenweg auf einen `type="primary"`-Knopf zuruecksetzte.
    */
-  it("zaehlt auch dann hoechstens einen Primaerknopf, wenn Karte UND Zone „Anders zuweisen“ tragen", async () => {
+  it("zaehlt auch dann hoechstens einen Primaerknopf, wenn Karte UND Zone die Zuweisung tragen", async () => {
     const rike = legePerson("rike", "auftrag", { name: "Rike" });
     const malte = legePerson("malte", "auftrag", { name: "Malte" });
     const alina = legePerson("alina", "bufdi", { name: "Alina" });
@@ -149,11 +156,14 @@ describe("EinstiegKoordination — der Aufbau aus §3.4", () => {
     }
     await zeige(rike);
 
-    // Die Vorbedingung wird MITGEPRUEFT: ohne die drei Zeilenknoepfe bewiese die Zaehlung nichts.
+    // Die Vorbedingung wird MITGEPRUEFT: ohne die drei Zeilenwege bewiese die Zaehlung nichts.
     const zuweisen = queryAll("button").filter((b) =>
-      (b.textContent ?? "").includes("Anders zuweisen"),
+      (b.textContent ?? "").includes("Zuweisen"),
     );
     expect(zuweisen).toHaveLength(3);
+    // KEINER DAVON IST EIN antd-KNOPF — das ist der Grund, aus dem der Riegel jetzt strukturell
+    // haelt, und ohne diese Zeile bliebe er eine Behauptung ueber `ZuweisenInline`.
+    expect(zuweisen.filter((b) => b.classList.contains("ant-btn"))).toHaveLength(0);
     expect(flaeche().querySelectorAll(".ant-btn-primary").length).toBeLessThanOrEqual(1);
   });
 

@@ -475,6 +475,38 @@ describe("aufgaben.module.css — Aussage 5: gemessener AA-Kontrast", () => {
       SCHWELLE_AA,
     );
   });
+
+  /**
+   * `--auf-karte` IST SEIT DER OBERFLÄCHEN-RUNDE 2026-08-16 DIE DRITTE TRÄGERFLÄCHE, UND DAMIT
+   * LÄUFT DIE ALTE „UNGÜNSTIGSTER FALL"-BEGRÜNDUNG AB. Die Kommentare bei `--auf-stahl` und
+   * `--auf-achtung-text` oben wiesen `--auf-papier` als schlechtesten Fall aus und zählten die
+   * beiden Abweichungen (weiße Zellenfläche, schwarzes `Layout.bodyBg`) als **günstiger** ab. Im
+   * Hellen stimmt das für `--auf-karte` (`#ffffff` ist heller als `#eef0f1`) — **im Dunkeln nicht**:
+   * die Kartenfläche ist dort mit Absicht HELLER als der Grund (sie soll sich abheben), und jeder
+   * Text auf ihr hat damit WENIGER Kontrast als auf `--auf-papier`.
+   *
+   * DREI WERTE, WEIL DREI DORT WIRKLICH STEHEN: `--auf-tinte` trägt den Zeilentitel und die
+   * Kartenüberschrift, `--auf-stahl` die Metazellen und `.prioKontur`/`.prioText`,
+   * `--auf-achtung-text` die Überfälligkeitsmarke — alle drei sitzen auf der Führungskarte, auf den
+   * Personenkacheln und (beim Überfahren) auf der Zeilenfläche.
+   *
+   * OHNE DIESEN TEST WÄRE DIE NEUE FLÄCHE DIE EINZIGE UNGEMESSENE — und der stehen gebliebene
+   * Kommentar oben behauptete weiterhin etwas, das nicht mehr gilt.
+   */
+  it.each(["--auf-tinte", "--auf-stahl", "--auf-achtung-text"])(
+    `hält %s auf --auf-karte ≥ ${SCHWELLE_AA} Kontrast — hell UND dunkel`,
+    (name) => {
+      const hellWert = kontrastverhaeltnis(hell.get(name) ?? "", hell.get("--auf-karte") ?? "");
+      const dunkelWert = kontrastverhaeltnis(dunkel.get(name) ?? "", dunkel.get("--auf-karte") ?? "");
+      expect(hellWert, `hell/${name}: ${hellWert.toFixed(2)} < ${SCHWELLE_AA}`).toBeGreaterThanOrEqual(
+        SCHWELLE_AA,
+      );
+      expect(
+        dunkelWert,
+        `dunkel/${name}: ${dunkelWert.toFixed(2)} < ${SCHWELLE_AA}`,
+      ).toBeGreaterThanOrEqual(SCHWELLE_AA);
+    },
+  );
 });
 
 /**

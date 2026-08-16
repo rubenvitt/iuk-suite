@@ -5,6 +5,7 @@ import type { Anlass } from "../_lib/lage";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { AufgabenListe, type AufgabenListeZeile } from "./AufgabenListe";
+import s from "./aufgaben.module.css";
 
 /*
  * EBENE 4 DES AUFBAUS: EIN ANLASS ALS ZONE (Oberflaechen-Spec 2026-08-16 §3.4, Regeln R3 und D).
@@ -80,7 +81,14 @@ export function AnlassZone({
       data-anlass={anlass.art}
       style={{ marginBlockEnd: SPACE.xl }}
     >
-      <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>
+      {/*
+       * DIE ZONENUEBERSCHRIFT TRITT ZURUECK (Oberflaechen-Runde 2026-08-16, Befund 4). Sie stand
+       * in `SCHRIFT.unterTitel` (20/600) ueber Zeilen mit 14px-Titeln — die STRUKTUR war lauter
+       * als der INHALT, und das ist genau verkehrt herum: die Zone sagt, WORUM es geht, die Zeile
+       * ist die Sache selbst. `SCHRIFT.kicker` ist eine Rolle der Leiter (12/600 versal), keine
+       * erfundene Groesse; Farbe und Haarlinie kommen aus `.zonenKopf`.
+       */}
+      <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.sm}px` }}>
         {text.zone?.(anlass.zeilen.length) ?? ""}
       </h2>
       {/*

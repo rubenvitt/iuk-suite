@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import type { AufgabeRow } from "../_db/schema";
-import { SPACE } from "@/core/theme/tokens";
 import { AufgabenZeile } from "./AufgabenZeile";
 import s from "./aufgaben.module.css";
 
@@ -69,17 +68,17 @@ export function AufgabenListe({
   }
 
   return (
-    <ul
-      className={s.zeilenListe}
-      style={{
-        listStyle: "none",
-        margin: 0,
-        padding: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: SPACE.sm,
-      }}
-    >
+    /*
+     * KEIN `style`-PROP MEHR AM `<ul>` — UND DAS IST DIE VORAUSSETZUNG DES RASTERS, NICHT
+     * KOSMETIK (Oberflaechen-Runde 2026-08-16). Hier standen `display: flex`,
+     * `flexDirection: "column"`, `gap`, `listStyle`, `margin` und `padding` inline. Ein
+     * Inline-`style` schlaegt JEDE Stylesheet-Regel; `.zeilenListe { display: grid }` waere
+     * richtig dagestanden und still wirkungslos geblieben — dieselbe Klasse wie Falle 5, nur mit
+     * dem staerksten aller Gegenspieler. UND KEIN TOR HAETTE ES GESEHEN: `AufgabenZeile.test.tsx`
+     * prueft die Inline-Freiheit des `<li>`, nicht die des `<ul>`, und jsdom rechnet keine
+     * Rasterspuren. Alle sechs Deklarationen stehen jetzt in `aufgaben.module.css`.
+     */
+    <ul className={s.zeilenListe}>
       {zeilen.map(({ aufgabe, aktionen, rollenZusatz }) => (
         <AufgabenZeile
           key={aufgabe.id}
