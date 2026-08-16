@@ -8,16 +8,21 @@ import { NACHWEIS_ARTEN, PRIORITAETEN } from "../_db/schema";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import { PrioritaetChip } from "./Chip";
+import { DatumFeld, WahlFeld, ZeitFeld } from "./Felder";
 import s from "./aufgaben.module.css";
 
 /*
  * „AUFGABE EINSTELLEN" (Aufgabe 15, Spec §8.3) — Vorbild `RoutineFormular.tsx`/`PersonenFormular.tsx`:
  *
  *  1. `"use client"` STEHT IN ZEILE 1, VOR JEDEM KOMMENTAR.
- *  2. KEIN antd-`Form`/`Form.Item` — Meldung von Hand am Feld, `useActionState`. Natives `<select>`
- *     fuer die NACHWEISART (dieselbe Ueberlegung wie `PersonenFormular.tsx`s `pf-rolle`: kein
- *     zweites Formular-Vokabular im Modul, obwohl ein antd-`Select` in einer Client-Insel erlaubt
- *     waere). DIE PRIORITAET HAT DIESE FORM SEIT DER DRITTEN OBERFLAECHEN-RUNDE VERLASSEN — sie ist
+ *  2. KEIN antd-`Form`/`Form.Item` — Meldung von Hand am Feld, `useActionState`. DIE AUSWAHLFELDER
+ *     SIND SEIT DER FUENFTEN OBERFLAECHEN-RUNDE (2026-08-16) antds `Select`/`DatePicker`/
+ *     `TimePicker`, gebuendelt in `_ui/Felder.tsx` — hier stand ein natives `<select>` fuer die
+ *     NACHWEISART und je ein `<Input type="date">`/`<Input type="time">` fuer Frist und Uhrzeit.
+ *     Die Begruendung, die dafuer stand („kein zweites Formular-Vokabular im Modul"), hat sich mit
+ *     dem Betreiberurteil umgedreht: antd IST jetzt das Vokabular, und ein natives Feld daneben
+ *     waere das zweite. Die volle Herleitung steht im Kopf von `Felder.tsx`.
+ *     DIE PRIORITAET HAT DIESE FORM SEIT DER DRITTEN OBERFLAECHEN-RUNDE VERLASSEN — sie ist
  *     eine Chip-Wahl aus nativen Radios, begruendet an der Stelle selbst.
  *  3. `Input.TextArea` FUER DIE ERKLAERUNG — ein Compound-Zugriff (Falle 1), aber in einer
  *     Client-Insel ausdruecklich erlaubt (Brief). GEPRUEFT, WIE DAS MODUL MEHRZEILIGEN TEXT LOEST,
@@ -62,6 +67,24 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
   const [nachweisPflicht, setNachweisPflicht] = useState(() =>
     checkboxVorbelegt(state, "nachweisPflicht", false),
   );
+  /*
+   * DER ABSENDEZAEHLER LEERT DIE AUSWAHLFELDER NACH EINER ERFOLGREICHEN ANLAGE — dieselbe Bauart
+   * und derselbe Grund wie in `PersonenFormular.tsx`: die `Input`-Felder daneben sind
+   * unkontrolliert und werden von React nach einer abgeschlossenen Action selbst zurueckgesetzt,
+   * ein kontrolliertes antd-Auswahlfeld nicht. Ohne ihn stuende die Frist der eben eingestellten
+   * Aufgabe noch im Formular fuer die naechste, waehrend Titel und Erklaerung schon leer sind —
+   * und genau diese Mischung liest sich als „die Eingabe ist noch da", nicht als „das war's".
+   *
+   * ER STEIGT BEIM ABSENDEN, NICHT BEIM ERGEBNIS: `state` traegt in diesem Moment noch die alte
+   * Antwort. Kommt danach ein FELDFEHLER zurueck, wechselt `feldWert(state, …)` und damit der
+   * zweite Teil des Schluessels — das Feld montiert ein zweites Mal, jetzt mit der
+   * zurueckgetragenen Eingabe (s. Kopfkommentar von `Felder.tsx`).
+   */
+  const [absendeZaehler, setAbsendeZaehler] = useState(0);
+  const absenden = (daten: FormData): void => {
+    setAbsendeZaehler((n) => n + 1);
+    formAction(daten);
+  };
 
   const titelFehler = feldFehler(state, "titel");
   const beschreibungFehler = feldFehler(state, "beschreibung");
@@ -75,7 +98,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
 
   return (
     <form
-      action={formAction}
+      action={absenden}
       style={{ display: "flex", flexDirection: "column", gap: SPACE.md, maxWidth: 480 }}
     >
       <div>
@@ -162,14 +185,13 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
         <label htmlFor="af-faelligAm" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Frist
         </label>
-        <Input
+        <DatumFeld
           id="af-faelligAm"
           name="faelligAm"
-          type="date"
-          defaultValue={feldWert(state, "faelligAm", "")}
-          status={faelligAmFehler ? "error" : undefined}
-          aria-invalid={faelligAmFehler ? true : undefined}
-          aria-describedby={faelligAmFehler ? "af-faelligAm-err" : undefined}
+          wert={feldWert(state, "faelligAm", "")}
+          stand={absendeZaehler}
+          fehler={faelligAmFehler}
+          beschriebenVon={faelligAmFehler ? "af-faelligAm-err" : undefined}
         />
         {faelligAmFehler ? (
           <p id="af-faelligAm-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
@@ -182,14 +204,13 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
         <label htmlFor="af-faelligUhrzeit" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Frist-Uhrzeit (optional)
         </label>
-        <Input
+        <ZeitFeld
           id="af-faelligUhrzeit"
           name="faelligUhrzeit"
-          type="time"
-          defaultValue={feldWert(state, "faelligUhrzeit", "")}
-          status={faelligUhrzeitFehler ? "error" : undefined}
-          aria-invalid={faelligUhrzeitFehler ? true : undefined}
-          aria-describedby={faelligUhrzeitFehler ? "af-faelligUhrzeit-err" : undefined}
+          wert={feldWert(state, "faelligUhrzeit", "")}
+          stand={absendeZaehler}
+          fehler={faelligUhrzeitFehler}
+          beschriebenVon={faelligUhrzeitFehler ? "af-faelligUhrzeit-err" : undefined}
         />
         {faelligUhrzeitFehler ? (
           <p id="af-faelligUhrzeit-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
@@ -220,6 +241,26 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
       </div>
 
       <div>
+        {/*
+         * NATIVES `<input type="checkbox">` UND NICHT antds `Checkbox` — und das ist seit dem
+         * 2026-08-16 GEMESSEN, nicht mehr nur Konvention.
+         *
+         * Die Auswahlfelder dieses Formulars sind in derselben Runde auf antd gewechselt
+         * (`_ui/Felder.tsx`), und der naheliegende naechste Schritt waere gewesen, die zwei
+         * Kontrollkaestchen mitzunehmen. DER VERSUCH IST IN DER CI GESCHEITERT: antd v6 meldet
+         * `Warning: [antd: Checkbox] \`value\` is not a valid prop, do you mean \`checked\`?`, und
+         * `e2e/aufgaben.spec.ts` sammelt Konsolenmeldungen und verlangt eine LEERE Liste. Der Wert
+         * kommt zwar trotzdem im Formular an (Vitest belegt `nachweisPflicht=true`) — aber sich auf
+         * einen Prop zu stuetzen, von dem die Bibliothek ausdruecklich abraet, ist genau der stille
+         * Vertrag, den dieses Projekt nicht will.
+         *
+         * `value="true"` IST HIER NICHT VERZICHTBAR: ohne es sendet der Browser `"on"`. Das
+         * bestuende `istGesetzt` (`KAESTCHEN_AN` kennt `"on"`), waere aber eine zweite Schreibweise
+         * fuer dieselbe Zusage — und `RoutineFormular`s Wochentage brauchen ihren `value` ohnehin
+         * als ECHTEN Wert (den Index), dort gibt es den Ausweg gar nicht.
+         *
+         * `.modul input:focus-visible` (`aufgaben.module.css`) deckt den Fokusring ab.
+         */}
         <label
           htmlFor="af-nachweispflicht"
           style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}
@@ -241,13 +282,16 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
           <label htmlFor="af-nachweisart" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
             Nachweisform
           </label>
-          <select id="af-nachweisart" name="nachweisArt" defaultValue={vorgabeNachweisArt}>
-            {NACHWEIS_ARTEN.map((art) => (
-              <option key={art} value={art}>
-                {NACHWEIS_ART_TEXT[art]}
-              </option>
-            ))}
-          </select>
+          <WahlFeld
+            id="af-nachweisart"
+            name="nachweisArt"
+            wert={vorgabeNachweisArt}
+            stand={absendeZaehler}
+            optionen={NACHWEIS_ARTEN.map((art) => ({
+              wert: art,
+              text: NACHWEIS_ART_TEXT[art],
+            }))}
+          />
         </div>
       ) : (
         <input type="hidden" name="nachweisArt" value={vorgabeNachweisArt} />
@@ -255,6 +299,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
 
       {darfFuerAndere ? (
         <div>
+          {/* NATIV, s. die Begruendung am Kontrollkaestchen „Nachweispflicht" oben. */}
           <label
             htmlFor="af-fuerSichSelbst"
             style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}

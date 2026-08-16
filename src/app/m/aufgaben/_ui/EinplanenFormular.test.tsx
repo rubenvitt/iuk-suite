@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fill, mount, query, queryAll, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { feldWertImDom, waehleDatum, waehleZeit } from "./testFelder";
 import type { AufgabeRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
 
@@ -89,8 +90,17 @@ describe("EinplanenFormular — Vorbelegung", () => {
         task={task({ id: "a1", planDatum: "2026-08-17", planUhrzeit: "09:00" })}
       />,
     );
-    expect(query<HTMLInputElement>("#ep-planDatum").value).toBe("2026-08-17");
+    /*
+     * ZWEI ABLESESTELLEN SEIT DER FUENFTEN OBERFLAECHEN-RUNDE (2026-08-16), UND BEIDE WERDEN
+     * GEBRAUCHT: das SICHTBARE Feld traegt seit dem Wechsel auf antds `DatePicker` den deutschen
+     * Anzeigetext, das VERSTECKTE daneben den ISO-Wert, den die Action liest. Nur die zweite Zeile
+     * zu pruefen liesse ein Feld durchgehen, das dem Menschen nichts zeigt; nur die erste liesse
+     * eines durchgehen, das dem Server nichts schickt.
+     */
+    expect(query<HTMLInputElement>("#ep-planDatum").value).toBe("17.08.2026");
+    expect(feldWertImDom("planDatum")).toBe("2026-08-17");
     expect(query<HTMLInputElement>("#ep-planUhrzeit").value).toBe("09:00");
+    expect(feldWertImDom("planUhrzeit")).toBe("09:00");
     expect(query<HTMLInputElement>("input[name='aufgabeId']").value).toBe("a1");
   });
 
@@ -161,8 +171,8 @@ describe("EinplanenFormular — kein Sonderfall fuer in_arbeit", () => {
 describe("EinplanenFormular — Absenden", () => {
   it("sendet aufgabeId, Tag, Uhrzeit und die (vorbelegte) Dauerschaetzung", async () => {
     await mount(<EinplanenFormular task={task({ id: "a1", dauerMinuten: 60 })} />);
-    await fill("#ep-planDatum", "2026-08-18");
-    await fill("#ep-planUhrzeit", "10:15");
+    await waehleDatum("#ep-planDatum", "2026-08-18");
+    await waehleZeit("#ep-planUhrzeit", "10:15");
     await submitForm();
 
     expect(absendenMock).toHaveBeenCalledTimes(1);
@@ -177,7 +187,7 @@ describe("EinplanenFormular — Absenden", () => {
 
   it("ein leeres Uhrzeitfeld wird mitgesendet, nicht als Fehler behandelt", async () => {
     await mount(<EinplanenFormular task={task({ id: "a1" })} />);
-    await fill("#ep-planDatum", "2026-08-18");
+    await waehleDatum("#ep-planDatum", "2026-08-18");
     await submitForm();
 
     const formData = absendenMock.mock.calls[0]![0] as FormData;
@@ -186,7 +196,7 @@ describe("EinplanenFormular — Absenden", () => {
 
   it("eine geaenderte Dauerschaetzung wird mit dem NEUEN Wert gesendet", async () => {
     await mount(<EinplanenFormular task={task({ id: "a1", dauerMinuten: 60 })} />);
-    await fill("#ep-planDatum", "2026-08-18");
+    await waehleDatum("#ep-planDatum", "2026-08-18");
     await fill("#ep-dauerMinuten", "90");
     await submitForm();
 

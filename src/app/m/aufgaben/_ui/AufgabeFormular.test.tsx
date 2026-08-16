@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { click, fill, mount, query, queryAll, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { feldWertImDom, listenOptionen, oeffneListe, waehleDatum } from "./testFelder";
 import { FORM_START, type FormState } from "../_lib/formState";
 
 /*
@@ -74,11 +75,16 @@ describe("AufgabeFormular — Nachweispflicht schaltet die Formwahl sichtbar fre
     expect(versteckt.value).toBe("text");
   });
 
+  /*
+   * DIE FORMWAHL IST SEIT DER FUENFTEN OBERFLAECHEN-RUNDE (2026-08-16) antds `Select`, kein
+   * `<select>` — die Zusage („nach dem Anhaken stehen genau Text und Bild zur Wahl") ist woertlich
+   * dieselbe geblieben, nur liegen die Optionen jetzt im Portal statt als `<option>` im Feld.
+   */
   it("nach dem Anhaken erscheint die Formwahl mit „Text“ und „Bild“", async () => {
     await mount(<AufgabeFormular darfFuerAndere={false} />);
     await click("#af-nachweispflicht");
-    const optionen = queryAll<HTMLOptionElement>("#af-nachweisart option").map((o) => o.textContent);
-    expect(optionen).toEqual(["Text", "Bild"]);
+    await oeffneListe("#af-nachweisart");
+    expect(listenOptionen().map((o) => o.textContent)).toEqual(["Text", "Bild"]);
   });
 });
 
@@ -87,7 +93,7 @@ describe("AufgabeFormular — sendet alle Felder, auch Schalter und Formwahl (Le
     await mount(<AufgabeFormular darfFuerAndere />);
     await fill("#af-titel", "Verbandskästen prüfen");
     await fill("#af-beschreibung", "Bestand kontrollieren.");
-    await fill("#af-faelligAm", "2026-09-01");
+    await waehleDatum("#af-faelligAm", "2026-09-01");
     await fill("#af-dauerMinuten", "45");
     await click("#af-fuerSichSelbst");
     await click("#af-nachweispflicht");
@@ -115,7 +121,7 @@ describe("AufgabeFormular — sendet alle Felder, auch Schalter und Formwahl (Le
     await mount(<AufgabeFormular darfFuerAndere />);
     await fill("#af-titel", "T");
     await fill("#af-beschreibung", "B");
-    await fill("#af-faelligAm", "2026-09-01");
+    await waehleDatum("#af-faelligAm", "2026-09-01");
     await fill("#af-dauerMinuten", "30");
     await submitForm();
 
@@ -135,7 +141,7 @@ describe("AufgabeFormular — sendet alle Felder, auch Schalter und Formwahl (Le
     await mount(<AufgabeFormular darfFuerAndere={false} />);
     await fill("#af-titel", "T");
     await fill("#af-beschreibung", "B");
-    await fill("#af-faelligAm", "2026-09-01");
+    await waehleDatum("#af-faelligAm", "2026-09-01");
     await fill("#af-dauerMinuten", "30");
     await submitForm();
 
@@ -179,7 +185,7 @@ describe("AufgabeFormular — Feldfehler tragen die Eingaben mit, einschliesslic
     expect(query<HTMLInputElement>("#af-fuerSichSelbst").checked).toBe(true);
     // `nachweisPflicht` steuert `useState`s Initialwert — mit gesetztem Haken erscheint die
     // Formwahl direkt, vorbelegt mit dem zurueckgemeldenen Wert "bild", nicht dem Vorgabewert "text".
-    expect(query<HTMLSelectElement>("#af-nachweisart").value).toBe("bild");
+    expect(feldWertImDom("nachweisArt")).toBe("bild");
   });
 
   it("die Prioritaet aus dem Feldfehler-Zustand gewinnt, nicht der Vorgabewert „mittel“", async () => {

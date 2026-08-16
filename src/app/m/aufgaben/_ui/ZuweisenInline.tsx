@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Input, Popover } from "antd";
+import { Popover } from "antd";
 import { umverteilenAction, verteilenAction } from "../actions";
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
 import { fmtStunden } from "../_lib/anzeige";
 import { FORM_START, feldFehler } from "../_lib/formState";
+import { DatumFeld, ZeitFeld } from "./Felder";
 import { Ikone } from "./ikonen";
 import s from "./aufgaben.module.css";
 
@@ -86,7 +87,18 @@ import s from "./aufgaben.module.css";
  *    also Ziel UND Vorschlag, in EINEM Schritt. Wer keinen Vorschlag braucht, klickt nur den
  *    Namen — aus vier Schritten wird einer, aus fuenf mit Vorschlag werden drei.
  *
- * ══ antds `Input` UND NICHT EIN NACKTES `<input>` FUER DIE ZWEI FELDER: der Feldinhalt liegt im
+ * ══ SEIT DER FUENFTEN OBERFLAECHEN-RUNDE (2026-08-16) SIND DIE ZWEI FELDER `DatePicker` UND
+ *    `TimePicker` AUS `_ui/Felder.tsx`, NICHT MEHR `<Input type="date">`/`<Input type="time">`.
+ *    Der Absatz darunter gilt unveraendert — er trifft jetzt nur eine andere antd-Komponente.
+ *
+ *    NEU IST `imPortal`, UND ES IST PFLICHT, KEINE ZIERDE: das Panel eines Auswahlfeldes haengt
+ *    per Vorgabe am `<body>` und damit NEBEN diesem Popover-Inhalt, nicht darin. Ein Klick auf
+ *    einen Kalendertag zaehlte fuer rc-trigger dann als Klick nach AUSSEN und schloesse das
+ *    Zeilenfeld mitten in der Auswahl. `imPortal` haengt das Panel in den Elternknoten des
+ *    Ausloesers und damit hinein. Nur ein echter Browser zeigt den Unterschied — in jsdom gibt es
+ *    keine Trefferpruefung gegen einen Portalknoten, dort waeren beide Fassungen gruen.
+ *
+ * ══ antd UND NICHT EIN NACKTES `<input>` FUER DIE ZWEI FELDER: der Feldinhalt liegt im
  *    PORTAL, also ausserhalb von `.modul` (s. den Kommentar an `.zuweisenFeld` im Stylesheet) —
  *    dort sind die `--auf-*`-Variablen nicht aufgeloest, und eine unaufgeloeste Variable meldet
  *    sich nie. antds `Input` bringt seine Farben aus seinen EIGENEN Tokens mit und kennt damit
@@ -210,13 +222,12 @@ export function ZuweisenInline({
       {setzung.zeitvorschlag ? (
         <div className={s.zuweisenVorschlag}>
           <label htmlFor={`zi-${aufgabe.id}-datum`}>Zeitvorschlag: Tag (optional)</label>
-          <Input
+          <DatumFeld
             id={`zi-${aufgabe.id}-datum`}
             name="vorschlagDatum"
-            type="date"
-            status={vorschlagDatumFehler ? "error" : undefined}
-            aria-invalid={vorschlagDatumFehler ? true : undefined}
-            aria-describedby={vorschlagDatumFehler ? `zi-${aufgabe.id}-datum-err` : undefined}
+            fehler={vorschlagDatumFehler}
+            beschriebenVon={vorschlagDatumFehler ? `zi-${aufgabe.id}-datum-err` : undefined}
+            imPortal
           />
           {vorschlagDatumFehler ? (
             <p id={`zi-${aufgabe.id}-datum-err`} className={s.zuweisenFehler}>
@@ -224,13 +235,12 @@ export function ZuweisenInline({
             </p>
           ) : null}
           <label htmlFor={`zi-${aufgabe.id}-zeit`}>Zeitvorschlag: Uhrzeit (optional)</label>
-          <Input
+          <ZeitFeld
             id={`zi-${aufgabe.id}-zeit`}
             name="vorschlagUhrzeit"
-            type="time"
-            status={vorschlagUhrzeitFehler ? "error" : undefined}
-            aria-invalid={vorschlagUhrzeitFehler ? true : undefined}
-            aria-describedby={vorschlagUhrzeitFehler ? `zi-${aufgabe.id}-zeit-err` : undefined}
+            fehler={vorschlagUhrzeitFehler}
+            beschriebenVon={vorschlagUhrzeitFehler ? `zi-${aufgabe.id}-zeit-err` : undefined}
+            imPortal
           />
           {vorschlagUhrzeitFehler ? (
             <p id={`zi-${aufgabe.id}-zeit-err`} className={s.zuweisenFehler}>

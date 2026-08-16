@@ -1,7 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { devLogin } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
-import { AUFGABEN_KOORDINATION_GRUPPE, AUFGABEN_ZUGANG_GRUPPE } from "./helpers/aufgaben";
+import {
+  AUFGABEN_KOORDINATION_GRUPPE,
+  AUFGABEN_ZUGANG_GRUPPE,
+  waehleAusListe,
+  waehleDatum,
+  waehleZeit,
+} from "./helpers/aufgaben";
 
 const HOST = "aufgaben.localtest.me";
 
@@ -711,7 +717,7 @@ test("Archiv: der Prioritätsfilter (Client-Insel) filtert serverseitig, ohne Ko
   // „niedrig" — VOR dem Filtern sichtbar (Gegenprobe, dass sie ueberhaupt existiert).
   await expect(page.getByText("Eigene Fortbildung: Reanimation auffrischen")).toBeVisible();
 
-  await page.getByLabel("Priorität").selectOption("hoch");
+  await waehleAusListe(page, "#archiv-prioritaet", "Hoch");
   await page.waitForURL((url) => url.search.includes("prioritaet=hoch"));
   // `networkidle` VOR der naechsten Navigation (Vorbild `fixtures.ts`s `devLogin`, dieselbe
   // Begruendung): das native GET-Formular loest eine ECHTE Seitennavigation aus, und eine zweite
@@ -725,7 +731,7 @@ test("Archiv: der Prioritätsfilter (Client-Insel) filtert serverseitig, ohne Ko
   // eine leere oder kaputt gerenderte Seite durchgehen. Auf „niedrig" zurueckgefiltert MUSS die
   // Aufgabe wieder erscheinen — nur das beweist, dass der Filter tatsaechlich filtert, statt bloss
   // alles auszublenden.
-  await page.getByLabel("Priorität").selectOption("niedrig");
+  await waehleAusListe(page, "#archiv-prioritaet", "Niedrig");
   await page.waitForURL((url) => url.search.includes("prioritaet=niedrig"));
   await page.waitForLoadState("networkidle");
   await expect(page.getByText("Eigene Fortbildung: Reanimation auffrischen")).toBeVisible();
@@ -1728,12 +1734,12 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   await page
     .locator("#af-beschreibung")
     .fill("Vom vollen e2e-Durchlauf (Aufgabe 21) angelegte Testaufgabe.");
-  await page.locator("#af-faelligAm").fill(faelligAm);
+  await waehleDatum(page, "#af-faelligAm", faelligAm);
   await page.locator("#af-dauerMinuten").fill("30");
   // Checkbox ZUERST, dann erst erscheint #af-nachweisart ueberhaupt (AufgabeFormular.tsx rendert
   // das Auswahlfeld nur bei angehaktem Schalter) — die umgekehrte Reihenfolge schluege still fehl.
   await page.locator("#af-nachweispflicht").check();
-  await page.locator("#af-nachweisart").selectOption("bild");
+  await waehleAusListe(page, "#af-nachweisart", "Bild");
   await klickeUndWarteAufSeite(page, () =>
     page.getByRole("button", { name: "Aufgabe einstellen" }).click(),
   );
@@ -1773,8 +1779,8 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   await page.getByTestId(`verteilen-${aufgabeId}`).click();
   const vorschlagFeld = page.locator(`#zi-${aufgabeId}-datum`);
   await expect(vorschlagFeld).toBeVisible();
-  await vorschlagFeld.fill(vorschlagDatum);
-  await page.locator(`#zi-${aufgabeId}-zeit`).fill("09:00");
+  await waehleDatum(page, `#zi-${aufgabeId}-datum`, vorschlagDatum);
+  await waehleZeit(page, `#zi-${aufgabeId}-zeit`, "09:00");
   await klickeUndWarteAufSeite(page, () =>
     page.getByRole("button", { name: /^Carla/ }).click(),
   );
@@ -2059,11 +2065,11 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   await page.locator("#pf-sub").fill(`dev:${bufdiAdresse}`);
   await page.locator("#pf-name").fill(bufdiName);
   await page.locator("#pf-initialen").fill("RB");
-  await page.locator("#pf-rolle").selectOption("bufdi");
+  await waehleAusListe(page, "#pf-rolle", "BuFDi");
   // AKTIV AB HEUTE, NICHT MORGEN: `istAktiv` misst `aktivVon > heute` — ein Datum in der Zukunft
   // liesse jede spaetere Handlung dieses BuFDi scheitern, und zwar mit einem Befund, der nach
   // einem Rechteproblem aussieht statt nach einem Datum.
-  await page.locator("#pf-aktiv-von").fill(inTagen(0));
+  await waehleDatum(page, "#pf-aktiv-von", inTagen(0));
   await klickeUndWarteAufSeite(page, () =>
     page.getByRole("button", { name: "Person anlegen" }).click(),
   );
@@ -2076,7 +2082,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   await page.goto(`http://${HOST}:3100/neu`);
   await page.locator("#af-titel").fill(titel);
   await page.locator("#af-beschreibung").fill("Vom Leerstart-Rundlauf angelegte Testaufgabe.");
-  await page.locator("#af-faelligAm").fill(inTagen(21));
+  await waehleDatum(page, "#af-faelligAm", inTagen(21));
   await page.locator("#af-dauerMinuten").fill("45");
   await klickeUndWarteAufSeite(page, () =>
     page.getByRole("button", { name: "Aufgabe einstellen" }).click(),
@@ -2102,8 +2108,8 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   const vorschlagFeld = page.locator(`#zi-${aufgabeId}-datum`);
   await expect(vorschlagFeld).toBeVisible();
   // ZWEI WOCHEN VORAUS — haelt die Aufgabe aus der aktuellen Woche heraus (s. Blockkommentar).
-  await vorschlagFeld.fill(inTagen(14));
-  await page.locator(`#zi-${aufgabeId}-zeit`).fill("10:00");
+  await waehleDatum(page, `#zi-${aufgabeId}-datum`, inTagen(14));
+  await waehleZeit(page, `#zi-${aufgabeId}-zeit`, "10:00");
   await klickeUndWarteAufSeite(page, () =>
     page.getByRole("button", { name: new RegExp(`^${bufdiName}`) }).click(),
   );
@@ -2204,7 +2210,7 @@ test("Brett: eine Karte wandert ohne Ziehen aus dem Posteingang in die Spalte ih
   await page.goto(`http://${HOST}:3100/neu`);
   await page.locator("#af-titel").fill(titel);
   await page.locator("#af-beschreibung").fill("Vom Brett-Fall der vierten Oberflaechen-Runde angelegt.");
-  await page.locator("#af-faelligAm").fill(inTagen(28));
+  await waehleDatum(page, "#af-faelligAm", inTagen(28));
   await page.locator("#af-dauerMinuten").fill("45");
   await klickeUndWarteAufSeite(page, () =>
     page.getByRole("button", { name: "Aufgabe einstellen" }).click(),
@@ -2235,7 +2241,7 @@ test("Brett: eine Karte wandert ohne Ziehen aus dem Posteingang in die Spalte ih
   await page.getByTestId(`verteilen-${aufgabeId}`).click();
   const vorschlagFeld = page.locator(`#zi-${aufgabeId}-datum`);
   await expect(vorschlagFeld, "das Zielfeld ist nicht aufgegangen").toBeVisible();
-  await vorschlagFeld.fill(inTagen(21));
+  await waehleDatum(page, `#zi-${aufgabeId}-datum`, inTagen(21));
   await klickeUndWarteAufSeite(page, () =>
     page.getByRole("button", { name: /^Carla/ }).click(),
   );

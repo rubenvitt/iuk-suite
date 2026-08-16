@@ -24,8 +24,10 @@ import s from "./aufgaben.module.css";
  *         Auftrag ausdruecklich): die Breite entscheidet die Medienabfrage im Stylesheet, die WAHL
  *         entscheidet die Person. Zwei verschiedene Fragen, zwei verschiedene Mittel.
  *
- * ══ ZWEI VERWEISE UND KEIN `<select>`: `_ui/ArchivFilter.tsx` (der andere URL-Zustand des Moduls)
- *    ist ein `<select>` in einem GET-Formular und braucht dafuer `"use client"` samt `onChange`.
+ * ══ ZWEI VERWEISE UND KEIN AUSWAHLFELD: `_ui/ArchivFilter.tsx` (der andere URL-Zustand des Moduls)
+ *    ist ein Auswahlfeld in einem GET-Formular und braucht dafuer `"use client"` samt `onChange`.
+ *    (Seit der fuenften Oberflaechen-Runde am 2026-08-16 ist es antds `Select` statt eines nativen
+ *    `<select>` — am Punkt hier aendert das nichts, es bleibt eine Client-Insel mit `onChange`.)
  *    Das ist dort richtig — die Prioritaetsliste waechst mit `PRIORITAETEN`. Hier gibt es GENAU
  *    ZWEI Werte, und zwei Verweise brauchen kein JavaScript, kein Formular und keine Insel: sie
  *    funktionieren auch dann, wenn nichts geladen hat. `_ui/WochenWaehler.tsx`/`_ui/TagesWaehler.tsx`
