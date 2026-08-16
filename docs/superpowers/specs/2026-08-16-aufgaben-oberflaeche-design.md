@@ -1881,6 +1881,18 @@ bezieht, trägt der **Auslastungsbalken** unter jedem Tageskopf: fünf Balken au
 beantworten „welcher Tag ist voll" so, wie ausgerichtete Spalten „welche Aufgabe zuerst"
 beantworten. `Balken`/`balkenMasse` wandern dafür nach `_ui/Balken.tsx` (zweiter Nutznießer).
 
+**Die Änderung erreicht `/plan/<personId>` mit** — die Routentabelle in §3.1 führt die Route als
+„unverändert", und das gilt für ihre *Anordnung* weiter, nicht mehr für ihre Gestalt: sie ist der
+fünfte Aufrufer von `Wochenplan` und der einzige mit `zeigeAktionen=false`, zeigt also die
+Tageskarten samt Balken, aber ohne Ziehgriff und ohne Aktionszeile. Nachgesehen im
+Bildschirmabzug (1280px und 360px), nicht angenommen. Der fremde Plan bleibt völlig aktionsfrei.
+
+**Das aufgeklappte Zuweisen-Feld bekommt eine Überschrift** („ZUWEISEN AN", `.zuweisenListenKopf`)
+— die einzige Änderung dieser Runde an der bereits bestätigten Koordinationsfläche. Ohne sie lief
+der Folgesatz („Der bisher eingeplante Tag … wird geleert") unmittelbar in die Namensliste; mit dem
+Zeitvorschlag auf `/verteilen` stünden dort außerdem Eingabefelder davor, und ohne ein Wort
+dazwischen ist nicht zu sehen, wo die Entscheidung liegt.
+
 > **ABWEICHUNG 2 — `.tagSpalte` bekommt `--auf-karte`.** §6.5 sagte zu, dass keine `--auf-*`-Variable
 > ihren Wert ändert und keine dazukommt; das gilt weiter (`--auf-karte` existiert seit der ersten
 > Runde). Was sich ändert, ist die **Verwendung**: die Tagesspalten trugen `--auf-papier`, und das
