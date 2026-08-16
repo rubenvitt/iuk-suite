@@ -1,13 +1,14 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Button, Input, Modal } from "antd";
+import { Button, Modal, Radio } from "antd";
 import { umverteilenAction, verteilenAction } from "../actions";
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
 import { fmtStunden } from "../_lib/anzeige";
 import { fmtTagKurz } from "../_lib/datum";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
+import { DatumFeld, ZeitFeld } from "./Felder";
 import { SPACE } from "@/core/theme/tokens";
 import s from "./aufgaben.module.css";
 
@@ -250,23 +251,32 @@ function VerteilenModal({
         <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
           <legend style={{ padding: 0, marginBlockEnd: SPACE.xs }}>Zuweisen an</legend>
           <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+            {/*
+             * antds `Radio` UND NICHT MEHR EIN NACKTES `<input type="radio">` — dieselbe Runde und
+             * dieselbe Begruendung wie bei den zwei Auswahlfeldern darunter. GEPRUEFT, BEVOR DIESE
+             * ENTSCHEIDUNG FIEL: antd rendert darunter ein ECHTES `<input type="radio">` und reicht
+             * `id`, `name`, `value` und `required` daran durch (`@rc-component/checkbox` spreizt
+             * seine restlichen Props auf das Element). Der Formularvertrag bleibt damit unberuehrt —
+             * abgesendet wird weiterhin `zielId=<Personen-Id>`, und `VerteilenDialog.test.tsx`s
+             * Zaehlung ueber `input[type='radio']` misst weiterhin dasselbe.
+             *
+             * KEIN `Radio.Group`: das waere ein Compound-Zugriff (in einer Client-Insel zwar
+             * erlaubt) UND brauchte `value`/`onChange`, also einen kontrollierten Zustand fuer eine
+             * Auswahl, die das Formular selbst schon traegt. Einzelne `Radio` mit gemeinsamem
+             * `name` bleiben unkontrolliert und werden von React nach der Action mit zurueckgesetzt.
+             */}
             {bufdis.map((b) => (
-              <label
+              <Radio
                 key={b.id}
-                htmlFor={`vd-ziel-${b.id}`}
-                style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}
+                id={`vd-ziel-${b.id}`}
+                name="zielId"
+                value={b.id}
+                required
+                defaultChecked={gewaehltesZiel === b.id}
+                aria-describedby={zielFehler ? "vd-ziel-err" : undefined}
               >
-                <input
-                  id={`vd-ziel-${b.id}`}
-                  type="radio"
-                  name="zielId"
-                  value={b.id}
-                  required
-                  defaultChecked={gewaehltesZiel === b.id}
-                  aria-describedby={zielFehler ? "vd-ziel-err" : undefined}
-                />
                 {b.name}
-              </label>
+              </Radio>
             ))}
           </div>
           {zielFehler ? (
@@ -280,14 +290,12 @@ function VerteilenModal({
           <label htmlFor="vd-vorschlag-datum" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
             Zeitvorschlag: Tag (optional)
           </label>
-          <Input
+          <DatumFeld
             id="vd-vorschlag-datum"
             name="vorschlagDatum"
-            type="date"
-            defaultValue={feldWert(state, "vorschlagDatum", "")}
-            status={vorschlagDatumFehler ? "error" : undefined}
-            aria-invalid={vorschlagDatumFehler ? true : undefined}
-            aria-describedby={vorschlagDatumFehler ? "vd-vorschlag-datum-err" : undefined}
+            wert={feldWert(state, "vorschlagDatum", "")}
+            fehler={vorschlagDatumFehler}
+            beschriebenVon={vorschlagDatumFehler ? "vd-vorschlag-datum-err" : undefined}
           />
           {vorschlagDatumFehler ? (
             <p id="vd-vorschlag-datum-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
@@ -303,14 +311,12 @@ function VerteilenModal({
           >
             Zeitvorschlag: Uhrzeit (optional)
           </label>
-          <Input
+          <ZeitFeld
             id="vd-vorschlag-uhrzeit"
             name="vorschlagUhrzeit"
-            type="time"
-            defaultValue={feldWert(state, "vorschlagUhrzeit", "")}
-            status={vorschlagUhrzeitFehler ? "error" : undefined}
-            aria-invalid={vorschlagUhrzeitFehler ? true : undefined}
-            aria-describedby={vorschlagUhrzeitFehler ? "vd-vorschlag-uhrzeit-err" : undefined}
+            wert={feldWert(state, "vorschlagUhrzeit", "")}
+            fehler={vorschlagUhrzeitFehler}
+            beschriebenVon={vorschlagUhrzeitFehler ? "vd-vorschlag-uhrzeit-err" : undefined}
           />
           {vorschlagUhrzeitFehler ? (
             <p id="vd-vorschlag-uhrzeit-err" style={{ margin: `${SPACE.xs}px 0 0` }}>

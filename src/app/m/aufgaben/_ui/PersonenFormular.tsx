@@ -7,6 +7,7 @@ import type { PersonRow } from "../_db/schema";
 import { ROLLE_TEXT, initialenAus } from "../_lib/anzeige";
 import { ROLLEN } from "../_db/schema";
 import { PERSONEN_SUCHE_MIN_ZEICHEN } from "../_lib/eingabe";
+import { DatumFeld, WahlFeld } from "./Felder";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import type { DirectoryPerson, DirectoryStatus } from "@/core/directory";
@@ -15,10 +16,15 @@ import type { DirectoryPerson, DirectoryStatus } from "@/core/directory";
  * DIE PERSONENVERWALTUNG — ANLEGEN UND AENDERN (Aufgabe 14, Spec §4). Vorbild `RoutineFormular.tsx`:
  *
  *  1. `"use client"` STEHT IN ZEILE 1, VOR JEDEM KOMMENTAR.
- *  2. KEIN antd-`Form`/`Form.Item`, KEIN antd-`Select` (Falle 1 gilt hier zwar nicht — eine
- *     Client-Insel darf Compounds nutzen —, aber ein natives `<select>` bleibt im Vokabular dieser
- *     Datei: dieselbe "kein zweites Formular-Muster im Modul"-Ueberlegung wie bei den nativen
- *     Kontrollkaestchen in `RoutineFormular.tsx`).
+ *  2. KEIN antd-`Form`/`Form.Item`. HIER STAND ZUSAETZLICH "KEIN antd-`Select`", begruendet mit
+ *     "ein natives `<select>` bleibt im Vokabular dieser Datei: dieselbe \'kein zweites
+ *     Formular-Muster im Modul\'-Ueberlegung wie bei den nativen Kontrollkaestchen in
+ *     `RoutineFormular.tsx`". MIT DER FUENFTEN OBERFLAECHEN-RUNDE (2026-08-16) HAT SICH DIESE
+ *     UEBERLEGUNG UMGEDREHT: seit `_ui/Felder.tsx` IST antd das Auswahl-Vokabular des Moduls, und
+ *     ein natives `<select>` daneben waere jetzt das zweite Muster. Rolle und die zwei Datumsfelder
+ *     laufen deshalb ueber `WahlFeld`/`DatumFeld`. Der Satz war nie falsch — nur seine
+ *     Voraussetzung ist entfallen, und genau deshalb steht er hier weiter, statt still ersetzt zu
+ *     werden.
  *  3. KEIN `@ant-design/icons`.
  *  4. `values` TRAEGT JEDES GESENDETE FELD ZURUECK (`personFormularGemeinsam` in `actions.ts`).
  *
@@ -288,19 +294,15 @@ export function PersonenFormular({
         <label htmlFor="pf-rolle" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Rolle
         </label>
-        <select
+        <WahlFeld
           id="pf-rolle"
           name="rolle"
-          defaultValue={feldWert(state, "rolle", person?.rolle ?? ROLLEN[0])}
-          aria-invalid={rolleFehler ? true : undefined}
-          aria-describedby={rolleFehler ? "pf-rolle-err" : undefined}
-        >
-          {ROLLEN.map((rolle) => (
-            <option key={rolle} value={rolle}>
-              {ROLLE_TEXT[rolle]}
-            </option>
-          ))}
-        </select>
+          wert={feldWert(state, "rolle", person?.rolle ?? ROLLEN[0])}
+          stand={absendeZaehler}
+          optionen={ROLLEN.map((rolle) => ({ wert: rolle, text: ROLLE_TEXT[rolle] }))}
+          fehler={rolleFehler}
+          beschriebenVon={rolleFehler ? "pf-rolle-err" : undefined}
+        />
         {rolleFehler ? (
           <p id="pf-rolle-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
             {rolleFehler}
@@ -333,14 +335,13 @@ export function PersonenFormular({
         <label htmlFor="pf-aktiv-von" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Aktiv von
         </label>
-        <Input
+        <DatumFeld
           id="pf-aktiv-von"
           name="aktivVon"
-          type="date"
-          defaultValue={feldWert(state, "aktivVon", person?.aktivVon ?? "")}
-          status={aktivVonFehler ? "error" : undefined}
-          aria-invalid={aktivVonFehler ? true : undefined}
-          aria-describedby={aktivVonFehler ? "pf-aktiv-von-err" : undefined}
+          wert={feldWert(state, "aktivVon", person?.aktivVon ?? "")}
+          stand={absendeZaehler}
+          fehler={aktivVonFehler}
+          beschriebenVon={aktivVonFehler ? "pf-aktiv-von-err" : undefined}
         />
         {aktivVonFehler ? (
           <p id="pf-aktiv-von-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
@@ -353,14 +354,13 @@ export function PersonenFormular({
         <label htmlFor="pf-aktiv-bis" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Aktiv bis (leer = unbefristet)
         </label>
-        <Input
+        <DatumFeld
           id="pf-aktiv-bis"
           name="aktivBis"
-          type="date"
-          defaultValue={feldWert(state, "aktivBis", person?.aktivBis ?? "")}
-          status={aktivBisFehler ? "error" : undefined}
-          aria-invalid={aktivBisFehler ? true : undefined}
-          aria-describedby={aktivBisFehler ? "pf-aktiv-bis-err" : undefined}
+          wert={feldWert(state, "aktivBis", person?.aktivBis ?? "")}
+          stand={absendeZaehler}
+          fehler={aktivBisFehler}
+          beschriebenVon={aktivBisFehler ? "pf-aktiv-bis-err" : undefined}
         />
         {aktivBisFehler ? (
           <p id="pf-aktiv-bis-err" style={{ margin: `${SPACE.xs}px 0 0` }}>

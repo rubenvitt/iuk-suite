@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { click, fill, mount, query, queryAll, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { waehleZeit } from "./testFelder";
 import type { RoutineRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
 
@@ -111,7 +112,7 @@ describe("RoutineFormular — Anlegen", () => {
     await click("#rt-wochentag-0");
     await click("#rt-wochentag-2");
     await fill("#rt-titel", "Joggen");
-    await fill("#rt-uhrzeit", "06:30");
+    await waehleZeit("#rt-uhrzeit", "06:30");
     await fill("#rt-dauer", "40");
     await submitForm();
 

@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Input, Popover } from "antd";
+import { Popover } from "antd";
 import { einplanenAction } from "../actions";
 import type { AufgabeRow } from "../_db/schema";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
+import { DatumFeld, ZeitFeld } from "./Felder";
 import { Ikone } from "./ikonen";
 import s from "./aufgaben.module.css";
 
@@ -48,6 +49,14 @@ import s from "./aufgaben.module.css";
  *    importiert `einplanenAction` DIREKT; hinein gehen nur serialisierbare Daten.
  *    `Fuehrungskarte.tsx` bleibt damit Server Component — ihr eigener Quelltext-Scan besteht
  *    darauf.
+ *
+ * ══ `imPortal` AN BEIDEN FELDERN, UND ES IST KEINE STILFRAGE: das Panel eines Auswahlfeldes
+ *    haengt per Vorgabe am `<body>` — also NEBEN diesem Popover-Inhalt, nicht darin. Fuer
+ *    rc-trigger waere ein Klick auf einen Kalendertag damit ein Klick nach AUSSEN, und das
+ *    Zeilenfeld schloesse sich genau in dem Moment, in dem man den Tag waehlt. `imPortal` haengt
+ *    das Panel in den Elternknoten des Ausloesers und damit INNERHALB des Popovers (die Mechanik
+ *    steht im Kopf von `Felder.tsx`). Nur ein echter Browser zeigt das: in jsdom gibt es keine
+ *    Trefferpruefung gegen einen Portalknoten, dort waere beides gruen.
  *
  * ══ KEIN `type="primary"` UND KEIN antd-`Button` AM AUSLOESER: der Zaehlriegel in
  *    `e2e/aufgaben.spec.ts` laesst innerhalb von `data-testid="aufgaben-flaeche"` hoechstens einen
@@ -118,14 +127,13 @@ export function EinplanenInline({
       <input type="hidden" name="aufgabeId" value={aufgabe.id} />
       <div className={s.zuweisenVorschlag}>
         <label htmlFor={`ei-${aufgabe.id}-datum`}>Tag</label>
-        <Input
+        <DatumFeld
           id={`ei-${aufgabe.id}-datum`}
           name="planDatum"
-          type="date"
-          defaultValue={datumVorgabe}
-          status={datumFehler ? "error" : undefined}
-          aria-invalid={datumFehler ? true : undefined}
-          aria-describedby={datumFehler ? `ei-${aufgabe.id}-datum-err` : undefined}
+          wert={datumVorgabe}
+          fehler={datumFehler}
+          beschriebenVon={datumFehler ? `ei-${aufgabe.id}-datum-err` : undefined}
+          imPortal
         />
         {datumFehler ? (
           <p id={`ei-${aufgabe.id}-datum-err`} className={s.zuweisenFehler}>
@@ -133,14 +141,13 @@ export function EinplanenInline({
           </p>
         ) : null}
         <label htmlFor={`ei-${aufgabe.id}-zeit`}>Uhrzeit (optional)</label>
-        <Input
+        <ZeitFeld
           id={`ei-${aufgabe.id}-zeit`}
           name="planUhrzeit"
-          type="time"
-          defaultValue={uhrzeitVorgabe}
-          status={uhrzeitFehler ? "error" : undefined}
-          aria-invalid={uhrzeitFehler ? true : undefined}
-          aria-describedby={uhrzeitFehler ? `ei-${aufgabe.id}-zeit-err` : undefined}
+          wert={uhrzeitVorgabe}
+          fehler={uhrzeitFehler}
+          beschriebenVon={uhrzeitFehler ? `ei-${aufgabe.id}-zeit-err` : undefined}
+          imPortal
         />
         {uhrzeitFehler ? (
           <p id={`ei-${aufgabe.id}-zeit-err`} className={s.zuweisenFehler}>

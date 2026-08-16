@@ -13,6 +13,13 @@ import {
   submitForm,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
+import {
+  feldWertImDom,
+  listenOptionen,
+  oeffneListe,
+  waehleAusListe,
+  waehleDatum,
+} from "./testFelder";
 import type { PersonRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
 
@@ -110,7 +117,7 @@ describe("PersonenFormular — Anlegen: der sub ist ein echtes Feld, mit Erklaer
     await fill("#pf-name", "Neu");
     await fill("#pf-initialen", "NE");
     await fill("#pf-soll", "400");
-    await fill("#pf-aktiv-von", "2026-08-14");
+    await waehleDatum("#pf-aktiv-von", "2026-08-14");
     await submitForm();
 
     expect(absendenMock).toHaveBeenCalledTimes(1);
@@ -132,11 +139,24 @@ describe("PersonenFormular — Anlegen: der sub ist ein echtes Feld, mit Erklaer
  * das ANGEBOT an die eine Quelle, statt es nur zu behaupten.
  */
 describe("PersonenFormular — die Rollenauswahl kennt nur noch die zwei Tabellenrollen", () => {
+  /*
+   * DIE AUSWAHL IST SEIT DER FUENFTEN OBERFLAECHEN-RUNDE (2026-08-16) antds `Select` — die Zusage
+   * bleibt woertlich dieselbe, ihre Ablesestelle wechselt. UND SIE WIRD DABEI STAERKER: ein
+   * `<option>` trug Beschriftung und Wert im selben Knoten, ein antd-Eintrag traegt im DOM nur die
+   * Beschriftung. Der Wert ist deshalb nicht mehr abzulesen, sondern zu ERPROBEN — jede
+   * Beschriftung wird gewaehlt und der abgesendete Schluessel geprueft. Ein vertauschtes Paar
+   * („Auftraggeber" auf `bufdi`) kaeme durch die alte Fassung durch, solange nur die zwei Listen
+   * fuer sich stimmten; durch diese kommt es nicht.
+   */
   it("bietet genau `auftrag` und `bufdi` an, nicht die Koordination", async () => {
     await mount(<PersonenFormular />);
-    const optionen = queryAll<HTMLOptionElement>("#pf-rolle option");
-    expect(optionen.map((o) => o.value)).toEqual(["auftrag", "bufdi"]);
-    expect(optionen.map((o) => o.textContent)).toEqual(["Auftraggeber", "BuFDi"]);
+    await oeffneListe("#pf-rolle");
+    expect(listenOptionen().map((o) => o.textContent)).toEqual(["Auftraggeber", "BuFDi"]);
+
+    await waehleAusListe("#pf-rolle", "BuFDi");
+    expect(feldWertImDom("rolle")).toBe("bufdi");
+    await waehleAusListe("#pf-rolle", "Auftraggeber");
+    expect(feldWertImDom("rolle")).toBe("auftrag");
   });
 });
 
@@ -145,9 +165,11 @@ describe("PersonenFormular — Aendern: der sub ist NICHT mehr editierbar", () =
     await mount(<PersonenFormular person={PERSON} />);
     expect(query<HTMLInputElement>("#pf-name").value).toBe("Alina");
     expect(query<HTMLInputElement>("#pf-initialen").value).toBe("AL");
-    expect(query<HTMLSelectElement>("#pf-rolle").value).toBe("bufdi");
+    expect(feldWertImDom("rolle")).toBe("bufdi");
     expect(query<HTMLInputElement>("#pf-soll").value).toBe("468");
-    expect(query<HTMLInputElement>("#pf-aktiv-von").value).toBe("2026-08-01");
+    // SICHTBAR deutsch, ABGESENDET in ISO — s. den Kommentar in `EinplanenFormular.test.tsx`.
+    expect(query<HTMLInputElement>("#pf-aktiv-von").value).toBe("01.08.2026");
+    expect(feldWertImDom("aktivVon")).toBe("2026-08-01");
     expect(query<HTMLInputElement>("input[name='personId']").value).toBe("p1");
     expect(query("button[type='submit']").textContent).toBe("Speichern");
   });
@@ -324,10 +346,10 @@ describe("PersonenFormular — Anlegen MIT Verzeichnis: Suche statt blindem Text
     if (!alina) throw new Error("Vorschlag 'PID-Alina' nicht gefunden");
     await clickElement(alina);
 
-    expect(query<HTMLSelectElement>("#pf-rolle").value).toBe("auftrag");
+    expect(feldWertImDom("rolle")).toBe("auftrag");
     expect(query<HTMLInputElement>("#pf-soll").value).toBe("468");
-    expect(query<HTMLInputElement>("#pf-aktiv-von").value).toBe("");
-    expect(query<HTMLInputElement>("#pf-aktiv-bis").value).toBe("");
+    expect(feldWertImDom("aktivVon")).toBe("");
+    expect(feldWertImDom("aktivBis")).toBe("");
   });
 
   /**

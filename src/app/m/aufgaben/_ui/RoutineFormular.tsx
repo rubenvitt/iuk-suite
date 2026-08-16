@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
-import { Button, Input } from "antd";
+import { useActionState, useState } from "react";
+import { Button, Checkbox, Input } from "antd";
 import { routineAendernAction, routineAnlegenAction } from "../actions";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import type { RoutineRow } from "../_db/schema";
 import { WOCHENTAG_BIT } from "../_lib/anzeige";
+import { ZeitFeld } from "./Felder";
 import { SPACE } from "@/core/theme/tokens";
 
 /*
@@ -16,11 +17,21 @@ import { SPACE } from "@/core/theme/tokens";
  *  2. KEIN antd-`Form`, KEIN `Form.Item`: `feedback/_ui/StartFormular.tsx` verzichtet bewusst ganz
  *     darauf und rendert die Meldung von Hand am Feld (`useActionState`-Muster) — DIESE Datei folgt
  *     genau dem, statt ein zweites Formular-Muster im Modul aufzumachen. `Input` selbst ist KEIN
- *     Compound-Zugriff und waere ohnehin in einer Client-Insel erlaubt; die Wochentage sind eine
- *     Checkbox-GRUPPE aus nativen `<input type="checkbox">`, kein `Checkbox`/`Checkbox.Group` aus
- *     antd — fuenf native Kontrollkaestchen erreichen dieselbe Funktion ohne ein weiteres
- *     Antd-Muster einzufuehren, und `.modul input:focus-visible` (`aufgaben.module.css`) deckt ihren
- *     Fokusring bereits ab.
+ *     Compound-Zugriff und waere ohnehin in einer Client-Insel erlaubt.
+ *
+ *     HIER STAND: „die Wochentage sind eine Checkbox-GRUPPE aus nativen `<input type=\"checkbox\">`,
+ *     kein `Checkbox`/`Checkbox.Group` aus antd — fuenf native Kontrollkaestchen erreichen dieselbe
+ *     Funktion ohne ein weiteres Antd-Muster einzufuehren." DER SATZ IST MIT DER FUENFTEN
+ *     OBERFLAECHEN-RUNDE (2026-08-16) HINFAELLIG, und zwar nicht, weil er falsch war, sondern weil
+ *     seine Voraussetzung entfallen ist: mit `_ui/Felder.tsx` IST antd das Formular-Vokabular des
+ *     Moduls, und ein natives Kaestchen daneben waere jetzt das zweite Muster. Die Wochentage sind
+ *     deshalb `Checkbox` — EINZELN und mit gemeinsamem `name`, KEIN `Checkbox.Group`: die Gruppe
+ *     braeuchte `value`/`onChange` und damit einen kontrollierten Zustand fuer eine Mehrfachauswahl,
+ *     die das Formular selbst schon traegt (`routineFormularGemeinsam` liest `getAll("wochentage")`).
+ *     antd rendert unter jedem `Checkbox` ein echtes `<input type="checkbox">` und reicht `id`,
+ *     `name` und `value` daran durch — am Formularvertrag aendert sich nichts. Und weil es ein
+ *     echtes `<input>` ist, greift `.modul input:focus-visible` (`aufgaben.module.css`) weiterhin;
+ *     der Fokusring, den der alte Satz als Grund nannte, geht nicht verloren.
  *  3. KEIN `@ant-design/icons` — auch hier nicht. Diese Datei braucht ohnehin keine Zeichen.
  *  4. `values` TRAEGT JEDE GESENDETE WOCHENTAGSAUSWAHL ZURUECK: `routineFormularGemeinsam`
  *     (`actions.ts`) legt die gewaehlten Indizes kommagetrennt in `state.values.wochentage` ab, und
@@ -55,6 +66,18 @@ function gewaehlteIndizes(state: FormState, vorbelegung: number[]): number[] {
 export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
   const action = routine ? routineAendernAction : routineAnlegenAction;
   const [state, formAction, isPending] = useActionState(action, FORM_START);
+  /*
+   * DER ABSENDEZAEHLER LEERT DAS UHRZEITFELD NACH EINEM ERFOLGREICHEN ANLEGEN — die `Input`-Felder
+   * daneben sind unkontrolliert und setzt React nach einer abgeschlossenen Action selbst zurueck,
+   * ein kontrolliertes antd-Auswahlfeld nicht. Dieselbe Bauart und derselbe Grund wie in
+   * `PersonenFormular.tsx` und `AufgabeFormular.tsx`; die volle Herleitung des Remount-Schluessels
+   * steht im Kopf von `_ui/Felder.tsx`.
+   */
+  const [absendeZaehler, setAbsendeZaehler] = useState(0);
+  const absenden = (daten: FormData): void => {
+    setAbsendeZaehler((n) => n + 1);
+    formAction(daten);
+  };
 
   const indizes = gewaehlteIndizes(state, routine ? indizesAusMaske(routine.wochentage) : []);
 
@@ -65,7 +88,7 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
 
   return (
     <form
-      action={formAction}
+      action={absenden}
       style={{ display: "flex", flexDirection: "column", gap: SPACE.md, maxWidth: 480 }}
     >
       {routine ? <input type="hidden" name="routineId" value={routine.id} /> : null}
@@ -93,22 +116,17 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
         <legend style={{ padding: 0, marginBlockEnd: SPACE.xs }}>Wochentage</legend>
         <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
           {WOCHENTAG_LABEL.map((label, i) => (
-            <label
+            <Checkbox
               key={label}
-              htmlFor={`rt-wochentag-${i}`}
-              style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}
+              id={`rt-wochentag-${i}`}
+              name="wochentage"
+              value={i}
+              defaultChecked={indizes.includes(i)}
+              aria-invalid={wochentageFehler ? true : undefined}
+              aria-describedby={wochentageFehler ? "rt-wochentage-err" : undefined}
             >
-              <input
-                id={`rt-wochentag-${i}`}
-                type="checkbox"
-                name="wochentage"
-                value={i}
-                defaultChecked={indizes.includes(i)}
-                aria-invalid={wochentageFehler ? true : undefined}
-                aria-describedby={wochentageFehler ? "rt-wochentage-err" : undefined}
-              />
               {label}
-            </label>
+            </Checkbox>
           ))}
         </div>
         {wochentageFehler ? (
@@ -122,14 +140,13 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
         <label htmlFor="rt-uhrzeit" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Uhrzeit (optional)
         </label>
-        <Input
+        <ZeitFeld
           id="rt-uhrzeit"
           name="uhrzeit"
-          type="time"
-          defaultValue={feldWert(state, "uhrzeit", routine?.uhrzeit ?? "")}
-          status={uhrzeitFehler ? "error" : undefined}
-          aria-invalid={uhrzeitFehler ? true : undefined}
-          aria-describedby={uhrzeitFehler ? "rt-uhrzeit-err" : undefined}
+          wert={feldWert(state, "uhrzeit", routine?.uhrzeit ?? "")}
+          stand={absendeZaehler}
+          fehler={uhrzeitFehler}
+          beschriebenVon={uhrzeitFehler ? "rt-uhrzeit-err" : undefined}
         />
         {uhrzeitFehler ? (
           <p id="rt-uhrzeit-err" style={{ margin: `${SPACE.xs}px 0 0` }}>

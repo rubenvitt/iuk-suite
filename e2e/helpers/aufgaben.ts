@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 /**
  * DIE EINE QUELLE fuer die beiden Gruppennamen des Moduls `aufgaben` — Vorbild
  * `e2e/helpers/lagerbuch.ts`, woertlich dieselbe Begruendung.
@@ -48,3 +50,60 @@ export const AUFGABEN_ENV: Record<string, string> = {
   SUITE_ACCESS_GROUP_AUFGABEN: AUFGABEN_ZUGANG_GRUPPE,
   SUITE_ADMIN_GROUP_AUFGABEN: AUFGABEN_KOORDINATION_GRUPPE,
 };
+
+/* ── BEDIENHILFEN FUER DIE antd-AUSWAHLFELDER (`_ui/Felder.tsx`) ─────────────────────────────── */
+
+/**
+ * SEIT DER FUENFTEN OBERFLAECHEN-RUNDE (2026-08-16) SIND DATUM, UHRZEIT UND JEDE LISTENWAHL DES
+ * MODULS antd-KOMPONENTEN, NICHT MEHR `<input type="date">`/`<select>`. Fuer Playwright aendert das
+ * genau zwei Dinge, und beide sind hier gebuendelt, statt an jeder der acht Aufrufstellen einzeln:
+ *
+ *  1. EIN GETIPPTES DATUM GILT ERST MIT `Enter`. `@rc-component/picker` uebernimmt eine Eingabe
+ *     nicht bei jedem Anschlag (sonst meldete das Feld schon bei „01.0" ein Datum). Ohne die
+ *     Bestaetigung bliebe das versteckte Feld leer und das Formular ginge OHNE Datum los — die
+ *     Action antwortete mit einem Feldfehler, und der Test scheiterte drei Schritte spaeter an
+ *     etwas, das nach einem ganz anderen Fehler aussieht.
+ *
+ *  2. DAS PANEL BLEIBT NACH DER EINGABE OFFEN und liegt ueber dem, was darunter steht. Das naechste
+ *     `fill()` traefe dann auf ein Element, das Playwright als verdeckt meldet — `Escape` schliesst
+ *     es. Das ist dieselbe Klasse Fehler wie Falle 10/11 in `CLAUDE.md`: ein e2e-Test, der etwas
+ *     anderes misst, als sein Name sagt.
+ *
+ * DIE ISO-FORM BLEIBT DER UEBERGABEWERT, auch wenn das Feld deutsch ANZEIGT: `DatumFeld` liest
+ * beide Formate (s. `_ui/Felder.tsx`). Die Tests dieser Suite rechnen durchgehend in ISO
+ * (`inTagen()`), und das soll so bleiben.
+ */
+export async function waehleDatum(page: Page, selektor: string, iso: string): Promise<void> {
+  const feld = page.locator(selektor);
+  await feld.fill(iso);
+  await feld.press("Enter");
+  await feld.press("Escape");
+}
+
+/** Wie `waehleDatum`, fuer eine Uhrzeit `HH:MM`. */
+export async function waehleZeit(page: Page, selektor: string, hhmm: string): Promise<void> {
+  const feld = page.locator(selektor);
+  await feld.fill(hhmm);
+  await feld.press("Enter");
+  await feld.press("Escape");
+}
+
+/**
+ * Eine Option eines antd-`Select` nach ihrem ANZEIGETEXT waehlen — der Ersatz fuer
+ * `selectOption(<wert>)`, das nur an einem nativen `<select>` geht.
+ *
+ * NACH DEM TEXT UND NICHT NACH DEM SCHLUESSEL, und das ist kein Notbehelf: der Schluessel steht im
+ * DOM einer antd-Liste gar nicht mehr: was dort steht, ist die Beschriftung — also genau das, was
+ * eine bedienende Person sieht. Ein Test, der sie anklickt, bezeugt zusaetzlich, dass die richtige
+ * Beschriftung am richtigen Schluessel haengt.
+ *
+ * `.ant-select-dropdown` GRENZT DIE SUCHE EIN: die Option haengt in einem Portal am `<body>`, und
+ * eine unbegrenzte Textsuche faende dieselbe Zeichenkette auch in der Liste darunter.
+ */
+export async function waehleAusListe(page: Page, selektor: string, text: string): Promise<void> {
+  await page.locator(selektor).click();
+  await page
+    .locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)")
+    .getByTitle(text, { exact: true })
+    .click();
+}
