@@ -4,6 +4,7 @@ import { type Budget, fmtStunden, tagesBudget } from "../_lib/anzeige";
 import { fmtTagKurz, fmtUhrzeit, wochenTage } from "../_lib/datum";
 import { type TagesEintrag, tagesOrdnung } from "../_lib/tagesplan";
 import { SPACE } from "@/core/theme/tokens";
+import { Balken } from "./Balken";
 import { Frist } from "./Frist";
 import { Ikone } from "./ikonen";
 import { RangKnoepfe } from "./RangKnoepfe";
@@ -178,7 +179,13 @@ function TagSpalte({
       {ordnung.length === 0 ? (
         <p>Nichts eingeplant.</p>
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        /*
+         * `.planListe` STATT DER INLINE-LISTENFORM — DIESELBE LEHRE WIE BEI `.zeilenListe`
+         * (`AufgabenListe.tsx`): ein Inline-`style` schlaegt JEDE Stylesheet-Regel, auch die aus der
+         * Medienabfrage. Solange `listStyle`/`margin`/`padding` hier standen, war jede kuenftige
+         * Regel an dieser Liste eine Attrappe, und kein Tor haette es gesehen.
+         */
+        <ul className={s.planListe}>
           {ordnung.map((eintrag) => (
             <li key={`${eintrag.art}-${eintrag.id}`}>
               <EintragZeile
@@ -214,10 +221,36 @@ function TagSpalte({
  */
 function BudgetZeile({ budget }: { budget: Budget }) {
   return (
-    <div className={budget.ueberbucht ? `${s.budget} ${s.budgetUeberbucht}` : s.budget}>
-      {`${fmtStunden(budget.verplantMinuten)} / ${fmtStunden(budget.sollMinuten)} Std.`}
-      {budget.ueberbucht ? <span className={s.budgetHinweis}>{" — überbucht"}</span> : null}
-    </div>
+    <>
+      <div className={budget.ueberbucht ? `${s.budget} ${s.budgetUeberbucht}` : s.budget}>
+        {`${fmtStunden(budget.verplantMinuten)} / ${fmtStunden(budget.sollMinuten)} Std.`}
+        {budget.ueberbucht ? <span className={s.budgetHinweis}>{" — überbucht"}</span> : null}
+      </div>
+      {/*
+       * ══ DER TAGESBALKEN (Oberflaechen-Runde 2026-08-16, zweite Haelfte) — UND ER IST HIER MEHR
+       *    ALS EINE ANGLEICHUNG AN DIE KOORDINATIONSFLAECHE.
+       *
+       *    „Wo eine Menge im Verhaeltnis zu einer Kapazitaet steht, eine Grafik" — das ist genau
+       *    diese Zeile, und sie stand als zwei Zahlen da. Vor allem aber ist der Balken DIE
+       *    ANTWORT AUF DIE FRAGE, DIE DAS ZEILENRASTER IN EINER TAGESSPALTE NICHT BEANTWORTEN
+       *    KANN: der Vergleich ZWISCHEN den fuenf Tagen. Ausgerichtete Spalten beantworten in einer
+       *    flachen Liste „welche Aufgabe zuerst"; fuenf Balken auf einer gemeinsamen Skala
+       *    beantworten hier „welcher Tag ist voll". Ein Blick ueber die Woche, ohne fuenfmal zwei
+       *    Zahlen zu vergleichen.
+       *
+       *    DIESELBE KOMPONENTE UND DIESELBE SKALENWAHL WIE IN „Auslastung diese Woche"
+       *    (`_ui/Balken.tsx`) — keine zweite Fassung: `max(soll, verplant)`, damit eine
+       *    Ueberbuchung ueberhaupt darstellbar ist, plus die Kapazitaetsmarke, die sagt, wo „voll"
+       *    liegt. Die Zahlen daneben bleiben stehen; wer den Balken nicht sieht (Screenreader,
+       *    Ausdruck in Graustufen), verliert nichts — er ist `aria-hidden`.
+       *
+       *    ES ENTSTEHT KEINE ZWEITE RECHNUNG: `budget` kommt aus demselben `tagesBudget`, das die
+       *    Zahlen darueber schreibt, EINMAL je Tag in `Wochenplan` gerufen.
+       */}
+      <div style={{ marginBlockStart: SPACE.xs, marginBlockEnd: SPACE.sm }}>
+        <Balken verplant={budget.verplantMinuten} soll={budget.sollMinuten} />
+      </div>
+    </>
   );
 }
 
@@ -276,11 +309,19 @@ function EintragZeile({
   );
 
   if (eintrag.art === "routine") {
+    /*
+     * DIE ROUTINE TRAEGT DIESELBE INNERE ZEILENFOLGE WIE EINE AUFGABE (Zeitangabe oben, Sache
+     * darunter) — nur ohne Marken und ohne Aktionen, die sie strukturell nie hat (Spec §8.1).
+     * `.routineZeile` bleibt fuer die Zeile aus Zeichen und Name, damit die Markierung „das ist
+     * eine Routine" weiterhin genau eine Bedeutung traegt.
+     */
     return (
-      <div className={s.routineZeile}>
+      <div className={s.planEintrag}>
         {zeit}
-        <Ikone name="routine" />
-        <span>{eintrag.titel}</span>
+        <div className={s.routineZeile}>
+          <Ikone name="routine" />
+          <span>{eintrag.titel}</span>
+        </div>
       </div>
     );
   }
@@ -292,23 +333,52 @@ function EintragZeile({
   const zeigeZiehgriff = ziehbar === true && aktionen !== undefined && aktionen.index >= 0;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: SPACE.sm }}>
+    /*
+     * ══ DER EINTRAG IST EINE SENKRECHTE FOLGE, KEINE UMBRECHENDE FLEX-ZEILE (Oberflaechen-Runde
+     *    2026-08-16, zweite Haelfte). Hier stand `display: flex; flex-wrap: wrap` INLINE — der
+     *    Defekt der flachen Zeile in klein: fuenf Elemente, die dort umbrechen, wo der Text davor
+     *    endet, und in fuenf Nachbarspalten fuenfmal woanders.
+     *
+     *    WARUM NICHT DAS RASTER AUS `.zeilenListe`: eine Tagesspalte hat bei 1280px rund 166px
+     *    innen, und die fuenfspurige Fassung der flachen Zeile ist bei 490px `min-content` schon
+     *    geplatzt (die Rechnung steht an `.zeilenListe` in `aufgaben.module.css`). Die Achse der
+     *    Ausrichtung dreht sich deshalb: SENKRECHT innerhalb der Spalte, ueber die identische
+     *    innere Zeilenfolge jedes Eintrags — Zeitangabe, Titel mit Marken, Aktionen. Die volle
+     *    Begruendung steht bei `.planListe` im Stylesheet.
+     *
+     *    KEIN INLINE-`style` MEHR: er schluege jede Regel aus der Medienabfrage, und genau eine
+     *    davon braucht diese Form (die Aktionen bleiben unter 768px sichtbar, Touch hat kein
+     *    Hover).
+     */
+    <div className={s.planEintrag}>
       {zeit}
-      {zeigeZiehgriff ? (
-        <span
-          draggable
-          data-aufgabe-id={eintrag.id}
-          data-plan-index={aktionen!.index}
-          data-plan-uhrzeit={eintrag.aufgabe?.planUhrzeit ?? ""}
-          aria-hidden="true"
-          style={{ cursor: "grab" }}
-        >
-          ⠿
-        </span>
-      ) : null}
-      <Link href={`/a/${eintrag.id}`} draggable={false}>
-        {eintrag.titel}
-      </Link>
+      <div className={s.planKopf}>
+        {zeigeZiehgriff ? (
+          <span
+            draggable
+            data-aufgabe-id={eintrag.id}
+            data-plan-index={aktionen!.index}
+            data-plan-uhrzeit={eintrag.aufgabe?.planUhrzeit ?? ""}
+            aria-hidden="true"
+            // `marginInlineEnd` AUF DER SPACE-LEITER, weiterhin inline: der Griff traegt seit
+            // Aufgabe 20 bewusst keine Stylesheet-Klasse, damit diese Stelle keine neue Regel
+            // schuldet. Ohne den Abstand klebte das Zeichen am Titel — JSX verwirft den Umbruch
+            // zwischen zwei Elementen, es steht also kein Leerzeichen dazwischen.
+            style={{ cursor: "grab", marginInlineEnd: SPACE.xs }}
+          >
+            ⠿
+          </span>
+        ) : null}
+        {/*
+         * DER TITEL IN TINTE, NICHT IN ROT (Befunde 3 und 4 der Oberflaechen-Runde, hier
+         * nachgezogen): der Wochenplan war die letzte Flaeche des Moduls mit rotem Titel-Link, und
+         * bei fuenf Spalten sind das bis zu fuenfzehn Rotstellen auf einem Bildschirm. Rot bleibt
+         * echten Signalen — der Ueberfaelligkeitsmarke darunter.
+         */}
+        <Link href={`/a/${eintrag.id}`} draggable={false} className={s.planTitel}>
+          {eintrag.titel}
+        </Link>
+      </div>
       {/*
        * DIE FRIST STAND HIER BIS ZUR OBERFLAECHEN-SPEC UEBERHAUPT NICHT (§6.2, Befund 2): der
        * Wochenplan ist der Bildschirm fuer „was tue ich heute" und war die einzige Flaeche des
@@ -322,13 +392,26 @@ function EintragZeile({
        * trotzdem die Kante.
        */}
       {eintrag.aufgabe ? <Frist aufgabe={eintrag.aufgabe} heute={heute} /> : null}
+      {/*
+       * DIE AKTIONEN IN EINER EIGENEN, RECHTSBUENDIGEN ZEILE DES EINTRAGS UND ERST BEI ZUWENDUNG
+       * SICHTBAR (`.planAktion`) — dieselbe Setzung wie die Aktionsspalte der flachen Zeile, aus
+       * demselben Befund: dauerhaft sichtbare Knopfreihen, die im Textfluss herumstehen. Zwei
+       * antd-Knoepfe „Auf"/„Ab" je Eintrag waren bei drei Eintraegen sechs Schaltflaechen in einer
+       * 166px-Spalte.
+       *
+       * `opacity` UND NICHT `display`: die Knoepfe bleiben in der Tabreihenfolge, und
+       * `:focus-within` an `.planEintrag` blendet sie ein, sobald der Fokus sie erreicht. Unter
+       * 768px stehen sie dauerhaft offen — Touch hat kein Hover.
+       */}
       {aktionen ? (
-        <RangKnoepfe
-          aufgabeId={eintrag.id}
-          titel={eintrag.titel}
-          istErste={aktionen.istErste}
-          istLetzte={aktionen.istLetzte}
-        />
+        <div className={s.planAktion}>
+          <RangKnoepfe
+            aufgabeId={eintrag.id}
+            titel={eintrag.titel}
+            istErste={aktionen.istErste}
+            istLetzte={aktionen.istLetzte}
+          />
+        </div>
       ) : null}
     </div>
   );

@@ -1609,18 +1609,33 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
     callbackPath: "/verteilen",
   });
   await page.goto(`http://${HOST}:3100/verteilen`);
+  /*
+   * ══ `/verteilen` VERTEILT SEIT DER ZWEITEN OBERFLAECHEN-RUNDE (2026-08-16) IN DER ZEILE, NICHT
+   *    IM MODAL — dieselbe Action, dieselben Formularschluessel, derselbe `data-testid` am
+   *    Ausloeser, nur ohne die Ebene dazwischen (`_ui/ZuweisenInline.tsx`, art `verteilen`).
+   *
+   *    DIE REIHENFOLGE IST JETZT TRAGEND UND WAR ES VORHER NICHT: der Klick auf den NAMEN IST das
+   *    Absenden. Was mitgeschickt werden soll, muss also VORHER im Feld stehen — erst die zwei
+   *    Zeitvorschlagsfelder, dann der Name. Ein Test, der zuerst den Namen klickt, sendet ohne
+   *    Vorschlag ab und laeuft danach in Schritt 3 auf einen fehlenden „Annehmen"-Knopf, mit einer
+   *    Meldung, die nach etwas ganz anderem klingt.
+   *
+   *    DAS FELD WIRD UEBER SEIN ERSTES EINGABEFELD ABGEWARTET, nicht ueber eine ARIA-Rolle: antds
+   *    `Popover` traegt `role="tooltip"`, was hier weder aussagekraeftig noch zugesichert ist. Ein
+   *    sichtbares `#zi-<id>-datum` beweist dasselbe und haengt an unserem eigenen Markup.
+   */
   await page.getByTestId(`verteilen-${aufgabeId}`).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByLabel("Carla").check();
-  await page.locator("#vd-vorschlag-datum").fill(vorschlagDatum);
-  await page.locator("#vd-vorschlag-uhrzeit").fill("09:00");
+  const vorschlagFeld = page.locator(`#zi-${aufgabeId}-datum`);
+  await expect(vorschlagFeld).toBeVisible();
+  await vorschlagFeld.fill(vorschlagDatum);
+  await page.locator(`#zi-${aufgabeId}-zeit`).fill("09:00");
   await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("dialog").getByRole("button", { name: "Verteilen" }).click(),
+    page.getByRole("button", { name: /^Carla/ }).click(),
   );
-  // DER DIALOG SCHLIESST SICH VON SELBST (`VerteilenDialog.tsx`s Kopfkommentar): das ist der
-  // eigentliche Beleg, dass die Aufgabe `status: "eingegangen"` verlassen hat — kein zweiter,
-  // separat gepflegter Zustand, der auseinanderlaufen koennte.
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  // DIE ZEILE VERLAESST DEN POSTEINGANG: das ist der eigentliche Beleg, dass die Aufgabe
+  // `status: "eingegangen"` verlassen hat — ein Zustand aus der Datenbank, kein Knopftext. Mit dem
+  // Wegfall des Modals faellt auch dessen Selbstschliessen als Zwischenbeleg fort; die staerkere
+  // Zusicherung stand ohnehin schon immer in der Zeile darunter.
   await expect(page.getByTestId(`verteilen-${aufgabeId}`)).toHaveCount(0);
 
   // 3. ANNEHMEN — Carla, BuFDi, uebernimmt den Zeitvorschlag unveraendert.
@@ -1925,23 +1940,27 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   // fest verdrahtet: es ist eine `nanoid`, wie ueberall in dieser Datei.
   const verteilenSeite = await page.goto(`http://${HOST}:3100/verteilen`);
   expect(verteilenSeite?.status()).toBe(200);
-  const zeile = page.getByRole("row").filter({ hasText: titel });
+  // `getByRole("listitem")` STATT `getByRole("row")`: der Posteingang ist seit der zweiten
+  // Oberflaechen-Runde die Zeilenliste des Moduls (`<ul>`/`<li>`), keine antd-`Table` mehr — die
+  // Begruendung steht im Kopfkommentar von `verteilen/page.tsx`.
+  const zeile = page.getByRole("listitem").filter({ hasText: titel });
   await expect(zeile).toHaveCount(1);
   const verteilenKnopf = zeile.getByRole("button", { name: "Verteilen" });
   const testId = await verteilenKnopf.getAttribute("data-testid");
   expect(testId, "kein Verteilen-Knopf zur frisch eingestellten Aufgabe").toBeTruthy();
   const aufgabeId = testId!.replace("verteilen-", "");
 
+  // ERST DER VORSCHLAG, DANN DER NAME — der Klick auf den Namen IST das Absenden (s. die
+  // ausfuehrliche Begruendung im vollen Durchlauf oben; sie steht nur dort).
   await verteilenKnopf.click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByLabel(bufdiName).check();
+  const vorschlagFeld = page.locator(`#zi-${aufgabeId}-datum`);
+  await expect(vorschlagFeld).toBeVisible();
   // ZWEI WOCHEN VORAUS — haelt die Aufgabe aus der aktuellen Woche heraus (s. Blockkommentar).
-  await page.locator("#vd-vorschlag-datum").fill(inTagen(14));
-  await page.locator("#vd-vorschlag-uhrzeit").fill("10:00");
+  await vorschlagFeld.fill(inTagen(14));
+  await page.locator(`#zi-${aufgabeId}-zeit`).fill("10:00");
   await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("dialog").getByRole("button", { name: "Verteilen" }).click(),
+    page.getByRole("button", { name: new RegExp(`^${bufdiName}`) }).click(),
   );
-  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByTestId(`verteilen-${aufgabeId}`)).toHaveCount(0);
 
   // 5. ANNEHMEN, STARTEN, FERTIG MELDEN — der frisch angelegte BuFDi, mit der ZUGANGSGRUPPE ALLEIN.

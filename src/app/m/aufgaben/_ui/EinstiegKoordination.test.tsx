@@ -14,7 +14,11 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-const { EinstiegKoordination, balkenMasse } = await import("./EinstiegKoordination");
+const { EinstiegKoordination } = await import("./EinstiegKoordination");
+// `balkenMasse` IST SEIT DER ZWEITEN OBERFLAECHEN-RUNDE EIGENSTAENDIG (`./Balken.tsx`) — der
+// Wochenplan ist ihr zweiter Aufrufer. Die Faelle unten bleiben, wo sie stehen: sie pruefen die
+// SKALENWAHL, und die entstand hier.
+const { balkenMasse } = await import("./Balken");
 
 /*
  * „VERTEILUNG" NACH DER OBERFLAECHEN-SPEC (2026-08-16 §3.4, §5.2).

@@ -116,9 +116,10 @@ describe("freigabenInhalt", () => {
 
     await mount(freigabenInhalt(t.db, akteur(rike, true), HEUTE));
 
-    const ueberschriften = queryAll("h3").map((h) => h.textContent);
-    expect(ueberschriften).toEqual(["Meine", "In Vertretung"]);
-    const listen = queryAll("h3").map((h) => h.parentElement!);
+    // `h2` MIT ZAHL statt `h3` — s. die Begruendung in `_ui/FreigabeZone.test.tsx`.
+    const ueberschriften = queryAll("h2").map((h) => h.textContent);
+    expect(ueberschriften).toEqual(["Meine (1)", "In Vertretung (1)"]);
+    const listen = queryAll("h2").map((h) => h.closest("section")!);
     expect(listen[0]!.textContent).toContain("Meine Freigabe");
     expect(listen[0]!.textContent).not.toContain("Vertretungsfall");
     expect(listen[1]!.textContent).toContain("Vertretungsfall");

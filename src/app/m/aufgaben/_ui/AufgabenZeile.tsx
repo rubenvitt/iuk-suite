@@ -44,6 +44,7 @@ export function AufgabenZeile({
   rollenZusatz = null,
   href,
   aktionen,
+  band,
 }: {
   aufgabe: AufgabeRow;
   /** ISO-Tagesstring — fuer `<Frist>`. Kommt als Argument, nie aus `new Date()` hier. */
@@ -60,6 +61,27 @@ export function AufgabenZeile({
    * die Praedikate an der aufrufenden Seite, nie diese Komponente.
    */
   aktionen?: ReactNode;
+  /**
+   * ══ DAS BAND UNTER DER ZEILE (Oberflaechen-Runde 2026-08-16, zweite Haelfte) — HEUTE GENAU EIN
+   *    AUFRUFER, UND ER IST DER GRUND, AUS DEM ES DIESE PROP GIBT: `_ui/FreigabeZone.tsx`.
+   *
+   *    Eine Freigabezeile traegt einen NACHWEIS: mehrzeiligen Text, kuenftig ein Bild. Der
+   *    Kopfkommentar von `FreigabeZone` sagt seit jeher, warum das keine Tabellenzelle sein kann —
+   *    „eine Tabellenzeile ist fuer Spaltenwerte gebaut, nicht fuer einen mehrzeiligen
+   *    Nachweistext" —, und fuer eine RASTERZELLE gilt dasselbe: ein Absatz in der Meta-Spur zoege
+   *    die Zeile auf und riss die Ausrichtung aller anderen mit.
+   *
+   *    DIE PROP BRICHT DAS RASTER NICHT, SIE BENUTZT ES: die Kopfzeile bleibt in den drei Spuren
+   *    und fluchtet mit jeder anderen Zeile des Moduls; das Band ist die VIERTE Zelle und nimmt
+   *    ueber `grid-column: 1 / -1` die volle Breite. `subgrid` platziert Kinder der Reihe nach, die
+   *    vierte landet damit in Reihe 2 — ohne dass die Zeile ihre Spurendefinition aendern muesste.
+   *
+   *    OHNE AUFRUFER WIRD NICHTS GERENDERT, ALSO AENDERT SICH FUER DIE VIER ANDEREN FLAECHEN
+   *    NICHTS: `undefined` heisst kein viertes Kind, und die Zeile bleibt exakt die dreizellige,
+   *    die sie war. Ein LEERES viertes Kind waere hier anders als bei den drei Spuren KEIN
+   *    Platzhalter, den man halten muesste — es gibt keine Reihe auszurichten.
+   */
+  band?: ReactNode;
 }) {
   return (
     <li>
@@ -112,6 +134,8 @@ export function AufgabenZeile({
        * Touch kein Hover kennt.
        */}
       <span className={s.zeilenAktion}>{aktionen}</span>
+      {/* s. die Prop `band` oben — nur gerendert, wenn ein Aufrufer eines reicht. */}
+      {band !== undefined ? <div className={s.zeilenBand}>{band}</div> : null}
     </li>
   );
 }

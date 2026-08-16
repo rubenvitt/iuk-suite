@@ -28,9 +28,10 @@ import s from "./aufgaben.module.css";
  * Server-Action-Transition. `umverteilenAction` ist nur ein SENTINEL; ihre Logik bewacht
  * `actions.test.ts`.
  */
-const { useActionStateMock, UMVERTEILEN_MARKER } = vi.hoisted(() => ({
+const { useActionStateMock, UMVERTEILEN_MARKER, VERTEILEN_MARKER } = vi.hoisted(() => ({
   useActionStateMock: vi.fn(),
   UMVERTEILEN_MARKER: Symbol("umverteilenAction"),
+  VERTEILEN_MARKER: Symbol("verteilenAction"),
 }));
 
 vi.mock("react", async (echt) => {
@@ -38,7 +39,13 @@ vi.mock("react", async (echt) => {
   return { ...react, useActionState: useActionStateMock };
 });
 
-vi.mock("../actions", () => ({ umverteilenAction: UMVERTEILEN_MARKER }));
+// BEIDE SCHLUESSEL, AUCH WENN EIN EINZELNER FALL NUR EINEN BRAUCHT: `INLINE_ART` waehlt die Action
+// VOR `useActionState` und liest damit BEIM IMPORT beide Eintraege (dieselbe Bauart und derselbe
+// Grund wie in `VerteilenDialog.test.tsx`s `ZUWEISUNG`-Mock). Fehlt einer, wirft schon der Import.
+vi.mock("../actions", () => ({
+  umverteilenAction: UMVERTEILEN_MARKER,
+  verteilenAction: VERTEILEN_MARKER,
+}));
 
 import { ZuweisenInline } from "./ZuweisenInline";
 

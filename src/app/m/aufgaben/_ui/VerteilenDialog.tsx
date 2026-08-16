@@ -1,159 +1,71 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Button, Input, Modal, Table } from "antd";
+import { Button, Input, Modal } from "antd";
 import { umverteilenAction, verteilenAction } from "../actions";
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
-import { fmtDauer, fmtStunden } from "../_lib/anzeige";
+import { fmtStunden } from "../_lib/anzeige";
 import { fmtTagKurz } from "../_lib/datum";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
-import { PrioritaetChip } from "./Chip";
-import { Frist } from "./Frist";
 import s from "./aufgaben.module.css";
 
 /*
- * DER POSTEINGANG ALS TABELLE, PLUS DER VERTEIL-DIALOG (Aufgabe 14, Spec §8.2) — EINE
- * Client-Insel für BEIDE Aufrufer (`_ui/EinstiegKoordination.tsx` UND `verteilen/page.tsx`):
- * Spec §8.2 beschreibt den Posteingang als Teil des Einstiegs ("Verteilung" IST für die
- * Koordination der Einstieg selbst), die Routentabelle in Spec §8 führt `/verteilen` daneben als
- * eigene, adressierbare Route. Statt der Tabelle+dem Dialog ein zweites Mal zu bauen (die
- * Verdopplung, gegen die die `core`-Regel steht), bekommen BEIDE Seiten diese eine Komponente —
- * `/verteilen` bleibt trotzdem die Route, auf die Spec §8's Tabelle und der 404-Riegel (Spec §8.3)
- * zeigen, s. Bericht.
+ * DER VERTEIL-DIALOG (Aufgabe 14, Spec §8.2) — DIE MODALFASSUNG VON „verteilen"/„umverteilen",
+ * fuer die Faelle, in denen es um EINE benannte Aufgabe als Primaeraktion geht: die
+ * Fuehrungskarte (`VerteilenKnopf`) und `/a/<id>` (`UmverteilenKnopf`).
  *
- * `<Table columns={[{render: fn}]}>` GEHT NICHT AUS EINER SERVER COMPONENT (Brief, Falle 3) —
- * Vorbild `_ui/RoutinenTabelle.tsx`: eigene `"use client"`-Komponente, nur serialisierbare Daten als
- * Prop, Server Actions direkt importiert (`verteilenAction`).
+ * ══ DIESE DATEI HIESS EINMAL „DER POSTEINGANG ALS TABELLE, PLUS DER VERTEIL-DIALOG" und trug
+ *    beides. Die Tabelle ist mit der zweiten Oberflaechen-Runde fort (2026-08-16) — die
+ *    Begruendung steht gleich unten, wo sie stand. Was bleibt, ist der Dialog.
  *
- * DIE ZIELLISTE (`bufdis`-Prop) KOMMT VOM AUFRUFER AUS `_db/queries.ts`s `bufdis()`, NICHT AUS
- * `aktivePersonen()` — diese Komponente nimmt nur entgegen, was die Server Component ihr reicht,
- * und baut die Liste nicht selbst nach (Brief: „die dritte Linie eines Riegels, nicht die erste").
+ * ══ DIE ZWEITE FASSUNG DERSELBEN AKTION IST DER ZEILENWEG (`_ui/ZuweisenInline.tsx`), und dass es
+ *    ZWEI Wege gibt, ist eine Abwaegung, keine Unentschlossenheit:
  *
- * MODAL-SICHTBARKEIT IST ABGELEITET, KEIN ZWEITER ZUSTAND: `gewaehlteId` haelt nur, WELCHE Zeile
- * geklickt wurde; ob der Dialog offen ist, folgt daraus, ob diese Aufgabe noch im `posteingang`-Prop
- * steht. Verteilt `verteilenAction` erfolgreich, revalidiert die Seite, die Aufgabe verlaesst
- * `status = "eingegangen"` und damit den `posteingang`-Prop — der Dialog schliesst sich damit von
- * selbst, ohne einen `useEffect`, der zwischen „frisch gemountet" und „gerade erfolgreich
- * abgeschickt" unterscheiden muesste (beide Zustaende sind `{ ok: true }`, ununterscheidbar ueber
- * den Wert allein). Ein Feldfehler aendert `posteingang` nicht — die Zeile bleibt, der Dialog auch.
+ *      · DER ZEILENWEG ist die Antwort auf „zehn am Stueck" — eine Entscheidung aus EINER Angabe,
+ *        der Klick auf den Namen IST das Absenden, und der Stapel bleibt dabei sichtbar. Er traegt
+ *        `/verteilen` und die zwei „Überfällig"-Zonen der Koordinationsflaeche.
+ *      · DER DIALOG ist die Antwort auf „diese eine Aufgabe, jetzt" — er hat eine eigene Ebene,
+ *        weil er die Primaeraktion einer genannten Aufgabe ist, und er traegt zusaetzlich den
+ *        Auslastungsblock ueber alle BuFDis.
+ *
+ *    BEIDE RUFEN DIESELBE ACTION MIT DENSELBEN FORMULARSCHLUESSELN (`aufgabeId`, `zielId`,
+ *    `vorschlagDatum`, `vorschlagUhrzeit`) — `actions.ts`s `verteilenGemeinsam` bedient sie mit
+ *    EINEM Rumpf. Es gibt keine zweite Fachlogik, nur eine zweite Setzung.
+ *
+ * ══ DIE ZIELLISTE (`bufdis`-Prop) KOMMT VOM AUFRUFER AUS `_db/queries.ts`s `bufdis()`, NICHT AUS
+ *    `aktivePersonen()` — diese Komponente nimmt nur entgegen, was die Server Component ihr
+ *    reicht, und baut die Liste nicht selbst nach (Brief: „die dritte Linie eines Riegels, nicht
+ *    die erste").
+ *
+ * ══ `"use client"` STEHT ALS ALLERERSTE ZEILE, VOR JEDEM KOMMENTAR (von `VerteilenDialog.test.tsx`
+ *    bewacht): die Direktive gilt nur dort, und ein davor gerutschter Kommentar macht sie still
+ *    wirkungslos — Hooks und Funktions-Props in einer RSC-Datei, also Falle 9 bzw. HTTP 500.
  */
 
-export interface VerteilenTabelleProps {
-  /** `status === "eingegangen"` — der Posteingang. */
-  posteingang: AufgabeRow[];
-  /** `person.id -> person.name`, fuer die Spalte „Auftraggeber" (`_lib/anzeige.ts`s `namenMap`). */
-  erstellerNamen: Record<string, string>;
-  /** Die Zielliste — aus `bufdis()`, s. Kopfkommentar. */
-  bufdis: PersonRow[];
-  /** Wochenauslastung je BuFDi (`_db/queries.ts`s `wochenAuslastungFuerBufdis`). */
-  auslastung: AuslastungZeile[];
-  /** Die fuenf Tage der aktuellen Woche — fuer die Ueberschrift des Auslastungs-Panels. */
-  tage: readonly string[];
-  heute: string;
-  /**
-   * OB DIE „VERTEILEN"-AKTION UEBERHAUPT ERSCHEINT — dasselbe Praedikat, das `verteilenAction`
-   * ohnehin durchsetzt (`darfVerteilen`, ueber `uebergang()`), hier zusaetzlich an der Oberflaeche:
-   * eine ausgeschiedene Koordinationsperson (theoretisch moeglich, s. Bericht) sieht sonst einen
-   * Knopf, der serverseitig ohnehin ablehnt.
-   */
-  darfVerteilen: boolean;
-}
-
-export function VerteilenTabelle({
-  posteingang,
-  erstellerNamen,
-  bufdis,
-  auslastung,
-  tage,
-  heute,
-  darfVerteilen,
-}: VerteilenTabelleProps) {
-  const [gewaehlteId, setGewaehlteId] = useState<string | null>(null);
-  const gewaehlteAufgabe = posteingang.find((a) => a.id === gewaehlteId) ?? null;
-
-  // LEERZUSTAND AUSGESCHRIEBEN (Spec §9.8), WORTGLEICH aus dem Brief — eine leere Tabelle sonst
-  // sieht aus wie ein Ladefehler.
-  if (posteingang.length === 0) {
-    return <p data-testid="posteingang-leer">Posteingang leer — alles verteilt</p>;
-  }
-
-  return (
-    <>
-      <Table<AufgabeRow>
-        rowKey="id"
-        dataSource={posteingang}
-        pagination={false}
-        // OHNE `scroll`, BRICHT DIE TABELLE AUF 390PX (Brief, Spec §9.5).
-        scroll={{ x: "max-content" }}
-        columns={[
-          {
-            title: "Titel",
-            key: "titel",
-            render: (_: unknown, a: AufgabeRow) => a.titel,
-          },
-          {
-            title: "Auftraggeber",
-            key: "auftraggeber",
-            render: (_: unknown, a: AufgabeRow) => erstellerNamen[a.erstellerId] ?? "—",
-          },
-          {
-            title: "Priorität",
-            key: "prioritaet",
-            render: (_: unknown, a: AufgabeRow) => <PrioritaetChip prioritaet={a.prioritaet} />,
-          },
-          {
-            title: "Frist",
-            key: "frist",
-            // DIE EINE FORM (Oberflaechen-Spec §6.2) — vorher klebte hier ein kleingeschriebenes
-            // „ · überfällig" hinter dem Datum, waehrend `AufgabenListe`/`FreigabeZone` ein
-            // grossgeschriebenes Wort in einer eigenen Spanne zeigten. Dieselbe Bedingung, zwei
-            // Bilder; `Frist` traegt jetzt Datum UND Ueberfaelligkeit in einem Ausdruck.
-            render: (_: unknown, a: AufgabeRow) => <Frist aufgabe={a} heute={heute} />,
-          },
-          {
-            title: "Dauerschätzung",
-            key: "dauer",
-            render: (_: unknown, a: AufgabeRow) => fmtDauer(a.dauerMinuten),
-          },
-          {
-            title: "Nachweispflicht",
-            key: "nachweispflicht",
-            render: (_: unknown, a: AufgabeRow) => (a.nachweisPflicht ? "Ja" : "Nein"),
-          },
-          {
-            title: "Aktionen",
-            key: "aktionen",
-            render: (_: unknown, a: AufgabeRow) =>
-              darfVerteilen ? (
-                <Button
-                  onClick={() => setGewaehlteId(a.id)}
-                  data-testid={`verteilen-${a.id}`}
-                >
-                  Verteilen
-                </Button>
-              ) : null,
-          },
-        ]}
-      />
-      {gewaehlteAufgabe ? (
-        <VerteilenModal
-          // NEUER `key` JE AUFGABE (Vorbild `routinenInhalt`s `key={bearbeiten?.id ?? "neu"}"): ein
-          // Wechsel der Zielaufgabe (zwei Klicks auf „Verteilen" hintereinander, ohne den Dialog
-          // dazwischen zu schliessen) soll `useActionState` mit einem frischen Startwert beginnen,
-          // nicht den Fehlerzustand der vorherigen Aufgabe stehen lassen.
-          key={gewaehlteAufgabe.id}
-          aufgabe={gewaehlteAufgabe}
-          bufdis={bufdis}
-          auslastung={auslastung}
-          tage={tage}
-          onClose={() => setGewaehlteId(null)}
-        />
-      ) : null}
-    </>
-  );
-}
+/*
+ * ══ `VerteilenTabelle` IST FORT (Oberflaechen-Runde 2026-08-16, zweite Haelfte) — MIT IHREM
+ *    EINZIGEN AUFRUFER, NICHT VOR IHM.
+ *
+ *    Was hier stand, war eine antd-`Table` mit sieben Spalten und `scroll={{ x: "max-content" }}`,
+ *    gerendert ausschliesslich von `verteilen/page.tsx`. Der Kopfkommentar oben fuehrte sie als
+ *    „EINE Client-Insel fuer BEIDE Aufrufer" — die zweite Haelfte dieser Begruendung ist mit der
+ *    ersten Oberflaechen-Runde entfallen: `EinstiegKoordination.tsx` zeigt den Posteingang seit
+ *    §3.2 als Karte bzw. als Zone, nicht mehr als Tabelle. Uebrig blieb eine geteilte Komponente
+ *    mit einem Teilhaber.
+ *
+ *    DIE ROUTE BLEIBT, DIE LADEFUNKTION BLEIBT, DER RIEGEL BLEIBT — nur die Form wechselt auf die
+ *    Zeilenliste des Moduls samt Zeilenweg (`_ui/ZuweisenInline.tsx`, art `verteilen`). Die
+ *    ausfuehrliche Begruendung samt der einen benannten Abweichung (die Spalte „Nachweispflicht")
+ *    steht im Kopfkommentar von `verteilen/page.tsx`, wo sie beim Lesen der Seite gefunden wird.
+ *
+ *    WAS IN DIESER DATEI BLEIBT UND WARUM: `VerteilenModal` und seine zwei Ausloeser
+ *    `VerteilenKnopf`/`UmverteilenKnopf`. Sie sind der Weg der FUEHRUNGSKARTE und von `/a/<id>` —
+ *    dort geht es um EINE benannte Aufgabe als Primaeraktion, mit Zeitvorschlag und
+ *    Auslastungsblock. Das ist eine andere Frage als „zehn am Stueck verteilen", und sie bekommt
+ *    weiterhin die Ebene, die zu ihr passt.
+ */
 
 /**
  * DER VERTEIL-KNOPF DER FUEHRUNGSKARTE (Oberflaechen-Spec 2026-08-16 §4.2 Koordination Rang 2/3,

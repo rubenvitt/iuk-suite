@@ -15,6 +15,7 @@ let mockDb: TestDb;
 vi.mock("../_db/client", () => ({ getDb: () => mockDb.db }));
 
 import VerteilenPage, { verteilenInhalt } from "./page";
+import s from "../_ui/aufgaben.module.css";
 
 let t: TestDb;
 beforeEach(() => {
@@ -103,7 +104,27 @@ describe("verteilenInhalt — Kopf und Leerzustand", () => {
  * es den frueher denkbaren schwaecheren Filter `rolle !== "koordination"` ohnehin nicht mehr: die
  * Koordination ist der Zeile nicht anzusehen, `bufdis()` ist der einzige Weg, sie herauszuhalten.
  */
-describe("verteilenInhalt — die Zielliste des Verteil-Dialogs", () => {
+describe("verteilenInhalt — die Zielliste des Zeilenwegs", () => {
+  /*
+   * DIE ZIELE SIND SEIT DER ZWEITEN OBERFLAECHEN-RUNDE KNOEPFE, KEINE RADIOFELDER (2026-08-16):
+   * `/verteilen` fuehrt die Zuweisung als Zeilenweg (`_ui/ZuweisenInline.tsx`, art `verteilen`),
+   * und dort IST der Klick auf den Namen das Absenden — ein `<button type="submit" name="zielId">`
+   * statt eines Radiofelds plus Absendeknopf. Der Inhalt haengt im Portal (antds `Popover`), wie
+   * der Modalinhalt vorher auch.
+   *
+   * DIE ZUSAGE DIESES BLOCKS IST UNVERAENDERT UND SIE IST DIE WICHTIGE: die Zielliste kommt aus
+   * `bufdis()`, nicht aus `aktivePersonen()` (§11.3). Nur der Griff, mit dem der Test sie liest,
+   * folgt der neuen Bauform.
+   *
+   * `.zuweisenName` UND NICHT `button.textContent`: der Knopf traegt NAME UND AUSLASTUNG
+   * („Alina" + „6 / 39 Std."). Ein Vergleich gegen den ganzen Textinhalt wuerde bei jeder
+   * Aenderung der Auslastungszahlen rot, ohne dass sich an der Zielliste etwas geaendert haette.
+   */
+  const zielNamen = (): string[] =>
+    [...queryPortal("form").querySelectorAll(`.${s.zuweisenName}`)].map(
+      (el) => el.textContent ?? "",
+    );
+
   it("enthaelt genau die aktiven BuFDis — nicht die Koordination, nicht auftrag", async () => {
     legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
@@ -114,8 +135,7 @@ describe("verteilenInhalt — die Zielliste des Verteil-Dialogs", () => {
     await mount(verteilenInhalt(t.db, HEUTE));
     await click("[data-testid^='verteilen-']");
 
-    const radios = queryPortal(".ant-modal").querySelectorAll("input[type='radio']");
-    const namen = Array.from(radios).map((r) => r.closest("label")?.textContent);
+    const namen = zielNamen();
     expect(namen.sort()).toEqual(["Alina", "Bendix"].sort());
     expect(namen).not.toContain("Rike");
     expect(namen).not.toContain("Malte");
@@ -137,8 +157,7 @@ describe("verteilenInhalt — die Zielliste des Verteil-Dialogs", () => {
     await mount(verteilenInhalt(t.db, HEUTE));
     await click("[data-testid^='verteilen-']");
 
-    const radios = queryPortal(".ant-modal").querySelectorAll("input[type='radio']");
-    const namen = Array.from(radios).map((r) => r.closest("label")?.textContent);
+    const namen = zielNamen();
     expect(namen).toContain("Carla");
     expect(namen).not.toContain("Dörte");
   });

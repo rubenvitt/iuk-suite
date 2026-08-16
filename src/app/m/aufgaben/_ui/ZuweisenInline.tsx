@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Popover } from "antd";
-import { umverteilenAction } from "../actions";
+import { Input, Popover } from "antd";
+import { umverteilenAction, verteilenAction } from "../actions";
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
 import { fmtStunden } from "../_lib/anzeige";
@@ -52,22 +52,100 @@ import s from "./aufgaben.module.css";
  *
  * ══ DER MODALWEG BLEIBT BESTEHEN, UND DAS IST EINE ABWAEGUNG, KEINE UNENTSCHLOSSENHEIT: die
  *    Fuehrungskarte und `/a/<id>` fuehren „Anders zuweisen" weiter ueber `UmverteilenKnopf`. Dort
- *    ist es die PRIMAERAKTION einer einzelnen, benannten Aufgabe und traegt zusaetzlich den
- *    optionalen Zeitvorschlag (zwei Felder, die in ein Zeilenfeld nicht gehoeren). Beide Wege
- *    rufen dieselbe Action mit demselben Formularschluessel `zielId`.
+ *    ist es die PRIMAERAKTION einer einzelnen, benannten Aufgabe. Beide Wege rufen dieselbe Action
+ *    mit demselben Formularschluessel `zielId`.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ══ ZWEI ARTEN SEIT DER ZWEITEN OBERFLAECHEN-RUNDE (2026-08-16): `umverteilen` (wie bisher, die
+ *    Zeilenaktion der zwei „Überfällig"-Zonen) UND `verteilen` (neu, der Stapelplatz
+ *    `/verteilen`, wo „zehn am Stueck verteilen" zaehlt).
+ *
+ *    DASS ES EIN SCHALTER IST UND NICHT EINE ZWEITE KOMPONENTE, hat denselben Grund wie bei
+ *    `VerteilenDialog.tsx`s `ZUWEISUNG`: `actions.ts`s `verteilenGemeinsam` bedient beide Aktionen
+ *    mit EINEM Rumpf, weil beide Formulare identisch sind (Zielperson, optionaler Zeitvorschlag) —
+ *    der einzige fachliche Unterschied (`nach`, `planLoeschen`) kommt bereits aus `uebergang()`.
+ *    Eine zweite, fast gleiche Insel waere derselbe Fehler eine Ebene hoeher.
+ *
+ * ══ DER ZEITVORSCHLAG STEHT NUR BEI `verteilen` IM FELD, UND DAS IST BEGRUENDET, NICHT BELIEBIG.
+ *    Der Kopfkommentar von `UmverteilenKnopf` fuehrt die zwei Felder bis hierhin als „Felder, die
+ *    in ein Zeilenfeld nicht gehoeren" — das galt fuer `umverteilen` und gilt dort weiter:
+ *
+ *      - Bei `umverteilen` wird ein BESTEHENDER Plan geleert, und die Frage der Zeile ist „wer
+ *        traegt das jetzt". Der volle Weg mit Zeitvorschlag bleibt ueber `UmverteilenKnopf` auf der
+ *        Fuehrungskarte und auf `/a/<id>` erreichbar — er ist nicht fort, nur nicht in der Zeile.
+ *      - Bei `verteilen` hat die Aufgabe NOCH KEINEN Plan. Der Vorschlag ist die einzige
+ *        Moeglichkeit, „wann" mitzugeben — und er ist die Voraussetzung dafuer, dass die BuFDi auf
+ *        ihrer Flaeche ueberhaupt einen „Annehmen: <Tag>, <Uhrzeit>"-Weg bekommt
+ *        (`EinstiegBufdi.tsx`s `posteingangAktionen`, Bedingung `vorschlagOffen`). Ohne die zwei
+ *        Felder verloere der Stapelplatz eine FACHLICHE ZUSAGE, nicht eine Bequemlichkeit — genau
+ *        die, die der volle Rundlauf in `e2e/aufgaben.spec.ts` in seinen Schritten 2 und 3
+ *        durchspielt.
+ *
+ *    DIE FELDER SIND OPTIONAL UND STEHEN IM SELBEN `<form>` WIE DIE NAMENSKNOEPFE. Damit bleibt
+ *    der Klick auf einen Namen DAS ABSENDEN: ein abgesendetes Formular traegt alle seine Felder,
+ *    also Ziel UND Vorschlag, in EINEM Schritt. Wer keinen Vorschlag braucht, klickt nur den
+ *    Namen — aus vier Schritten wird einer, aus fuenf mit Vorschlag werden drei.
+ *
+ * ══ antds `Input` UND NICHT EIN NACKTES `<input>` FUER DIE ZWEI FELDER: der Feldinhalt liegt im
+ *    PORTAL, also ausserhalb von `.modul` (s. den Kommentar an `.zuweisenFeld` im Stylesheet) —
+ *    dort sind die `--auf-*`-Variablen nicht aufgeloest, und eine unaufgeloeste Variable meldet
+ *    sich nie. antds `Input` bringt seine Farben aus seinen EIGENEN Tokens mit und kennt damit
+ *    beide Themen; ein selbstgefaerbtes Feld waere im Dunkeln still schwarz auf dunkel. KEIN
+ *    `size` (Falle 4) — `ARBEITSDICHTE` gibt die 44px, und `inputFontSize` aus `core/theme.ts`
+ *    haelt die 16px-Zusage fuer Eingabefelder.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
+
+/**
+ * DIE BESCHRIFTUNGEN UND DIE ACTION JE ZUWEISUNGSART — ein `Record`, damit eine dritte Art nicht
+ * vergessen werden kann. Die Server-Action steht mit darin und wird VOR `useActionState`
+ * ausgewaehlt: ein bedingter Hook-AUFRUF waere ein Regelbruch von React, ein bedingt gewaehlter
+ * WERT ist keiner. Dieselbe Bauart wie `VerteilenDialog.tsx`s `ZUWEISUNG`, absichtlich — die
+ * beiden Dateien sind die Zeilen- und die Dialogfassung derselben Sache.
+ */
+const INLINE_ART = {
+  umverteilen: {
+    aktion: umverteilenAction,
+    knopf: "Zuweisen",
+    /*
+     * DIE FOLGE — `_lib/lebenszyklus.ts` fuehrt `umverteilen` mit `planLoeschen: true`. Sie MUSS
+     * zwischen Absicht und Absenden gelesen werden und steht deshalb als erste Zeile im
+     * aufgeklappten Feld. `null` bei „verteilen": dort gibt es keine — eine Aufgabe im Posteingang
+     * hat noch gar keinen Zeitplan, der geleert werden koennte.
+     */
+    folge: "Der bisher eingeplante Tag dieser Aufgabe wird dabei geleert.",
+    zeitvorschlag: false,
+  },
+  verteilen: {
+    aktion: verteilenAction,
+    knopf: "Verteilen",
+    folge: null,
+    zeitvorschlag: true,
+  },
+} as const;
+
+/** Die zwei Zuweisungsarten, die als ZEILENWEG existieren (s. Kopfkommentar). */
+export type ZuweisenArt = keyof typeof INLINE_ART;
 
 export function ZuweisenInline({
   aufgabe,
   bufdis,
   auslastung,
+  art = "umverteilen",
 }: {
   aufgabe: AufgabeRow;
   /** Aus `bufdis()` — eine ausgeschiedene Person ist kein Verteilziel (§11.3). */
   bufdis: PersonRow[];
   /** Wochenauslastung je BuFDi, aus `wochenAuslastungFuerBufdis` — nie hier gerechnet. */
   auslastung: AuslastungZeile[];
+  /**
+   * `umverteilen` ist die Vorgabe, und das ist die tragende Haelfte: die zwei „Überfällig"-Zonen
+   * der Koordinationsflaeche behalten damit ihre heutige Form, ohne den Schalter zu kennen. Nur
+   * `/verteilen` setzt ihn auf `verteilen` (s. Kopfkommentar).
+   */
+  art?: ZuweisenArt;
 }) {
+  const setzung = INLINE_ART[art];
   /*
    * SICHTBARKEIT IST ABGELEITET, KEIN ZWEITER ZUSTAND — dasselbe Muster, das `VerteilenTabelle`
    * schon fuehrt, nur an einem anderen Merkmal. Dort folgt „offen" daraus, ob die Zeile noch im
@@ -89,8 +167,10 @@ export function ZuweisenInline({
   const [offenFuer, setOffenFuer] = useState<string | null>(null);
   const traeger = aufgabe.zugewiesenAn ?? "";
   const offen = offenFuer !== null && offenFuer === traeger;
-  const [state, formAction, isPending] = useActionState(umverteilenAction, FORM_START);
+  const [state, formAction, isPending] = useActionState(setzung.aktion, FORM_START);
   const zielFehler = feldFehler(state, "zielId");
+  const vorschlagDatumFehler = feldFehler(state, "vorschlagDatum");
+  const vorschlagUhrzeitFehler = feldFehler(state, "vorschlagUhrzeit");
 
   const lastFuer = (personId: string): string => {
     const zeile = auslastung.find((z) => z.person.id === personId);
@@ -113,7 +193,58 @@ export function ZuweisenInline({
        * keine rote Flaeche: `colorError === colorPrimary === #c8000f`, ein roter Kasten hier laese
        * sich als Primaeraktion (Falle 3).
        */}
-      <p className={s.zuweisenFolge}>Der bisher eingeplante Tag dieser Aufgabe wird dabei geleert.</p>
+      {setzung.folge !== null ? <p className={s.zuweisenFolge}>{setzung.folge}</p> : null}
+      {/*
+       * DER OPTIONALE ZEITVORSCHLAG — NUR BEI `verteilen`, UND ER STEHT VOR DER NAMENSLISTE.
+       *
+       * DIE REIHENFOLGE IST DIE GANZE MECHANIK: der Klick auf einen Namen IST das Absenden, also
+       * muss alles, was mitgeschickt werden soll, VORHER ausgefuellt sein. Stuenden die Felder
+       * unter der Liste, waeren sie hinter dem Klick, den sie beeinflussen — dieselbe Ueberlegung,
+       * die die Folge-Zeile oben ueber die Liste stellt.
+       *
+       * DIE ZWEI FELDER SIND EXAKT DIE DES MODALS (`VerteilenDialog.tsx`s `VerteilenModal`):
+       * dieselben Namen `vorschlagDatum`/`vorschlagUhrzeit`, dieselben Typen, dieselbe
+       * Optionalitaet, dieselbe Fehlerbehandlung ueber `feldFehler`. Keine zweite Fassung — nur
+       * ein zweiter Ort.
+       */}
+      {setzung.zeitvorschlag ? (
+        <div className={s.zuweisenVorschlag}>
+          <label htmlFor={`zi-${aufgabe.id}-datum`}>Zeitvorschlag: Tag (optional)</label>
+          <Input
+            id={`zi-${aufgabe.id}-datum`}
+            name="vorschlagDatum"
+            type="date"
+            status={vorschlagDatumFehler ? "error" : undefined}
+            aria-invalid={vorschlagDatumFehler ? true : undefined}
+            aria-describedby={vorschlagDatumFehler ? `zi-${aufgabe.id}-datum-err` : undefined}
+          />
+          {vorschlagDatumFehler ? (
+            <p id={`zi-${aufgabe.id}-datum-err`} className={s.zuweisenFehler}>
+              {vorschlagDatumFehler}
+            </p>
+          ) : null}
+          <label htmlFor={`zi-${aufgabe.id}-zeit`}>Zeitvorschlag: Uhrzeit (optional)</label>
+          <Input
+            id={`zi-${aufgabe.id}-zeit`}
+            name="vorschlagUhrzeit"
+            type="time"
+            status={vorschlagUhrzeitFehler ? "error" : undefined}
+            aria-invalid={vorschlagUhrzeitFehler ? true : undefined}
+            aria-describedby={vorschlagUhrzeitFehler ? `zi-${aufgabe.id}-zeit-err` : undefined}
+          />
+          {vorschlagUhrzeitFehler ? (
+            <p id={`zi-${aufgabe.id}-zeit-err`} className={s.zuweisenFehler}>
+              {vorschlagUhrzeitFehler}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {/*
+       * DIE UEBERSCHRIFT DER LISTE, seit der zweiten Runde ausgeschrieben: mit den zwei Feldern
+       * darueber stuenden sonst drei Eingabemoeglichkeiten untereinander, von denen nur die
+       * letzte absendet — ohne ein Wort dazwischen ist nicht zu sehen, wo die Entscheidung liegt.
+       */}
+      <p className={s.zuweisenListenKopf}>Zuweisen an</p>
       {bufdis.map((b) => (
         <button
           key={b.id}
@@ -160,8 +291,18 @@ export function ZuweisenInline({
         placement="bottomRight"
         content={inhalt}
       >
-        <button type="button" className={s.zuweisenAusloeser} data-testid={`zuweisen-${aufgabe.id}`}>
-          <Ikone name="person" /> Zuweisen
+        {/*
+         * DIE TESTMARKE HEISST NACH DER ART, NICHT NACH DER KOMPONENTE — `verteilen-<id>` auf dem
+         * Stapelplatz, `zuweisen-<id>` in der Zeile der Koordinationsflaeche. Damit behaelt der
+         * volle Rundlauf in `e2e/aufgaben.spec.ts` seinen Griff auf den Verteil-Weg, obwohl die
+         * Bauform darunter vom Modal auf das Zeilenfeld gewechselt ist.
+         */}
+        <button
+          type="button"
+          className={s.zuweisenAusloeser}
+          data-testid={`${art === "verteilen" ? "verteilen" : "zuweisen"}-${aufgabe.id}`}
+        >
+          <Ikone name="person" /> {setzung.knopf}
         </button>
       </Popover>
     </span>

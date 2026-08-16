@@ -325,10 +325,30 @@
  * Flex-Basis) — im heutigen Gitter ist die Untergrenze eine feste Zahl, aber `anywhere` ist die
  * Fassung, die auch dann noch richtig ist, wenn sie es nicht mehr ist, und kostet nichts.
  */
+/*
+ * `--auf-karte` STATT `--auf-papier` (Oberflaechen-Runde 2026-08-16, zweite Haelfte) — DERSELBE
+ * BEFUND, DEN `.lageKarte` EINE RUNDE FRUEHER BEKAM, nur an der Flaeche, die damals ausdruecklich
+ * ausgenommen war.
+ *
+ * DIE RECHNUNG IST DIESELBE UND SIE IST NACHPRUEFBAR: `--auf-papier` ist `#eef0f1`, und
+ * `Layout.bodyBg` IST `FARBEN.papier` = `#eef0f1` (`core/theme/theme.ts`). Die fuenf Tagesspalten
+ * lagen also numerisch exakt auf dem Seitengrund; sichtbar blieb nur ihre 1px-Linie. Im
+ * Bildschirmabzug der BuFDi-Flaeche waren fuenf Kaesten zu ahnen, keine fuenf Karten.
+ *
+ * WARUM ES DAMALS ANDERS STAND: der Kommentar bei `.lageKarte` haelt fest, dass die zweite Klasse
+ * gerade DESHALB entstand, damit `_ui/Wochenplan.tsx` die Aenderung NICHT mitbekommt — die Runde
+ * behandelte die Koordinationsflaeche allein. Diese Runde zieht die uebrigen vier Flaechen nach,
+ * also faellt der Vorbehalt. DIE ZWEI KLASSEN BLEIBEN TROTZDEM GETRENNT: sie gehoeren zwei
+ * Flaechen, und die naechste Aenderung an einer soll die andere weiterhin nicht treffen.
+ *
+ * ES KOMMT KEINE MESSUNG DAZU: `--auf-tinte`, `--auf-stahl` und `--auf-achtung-text` auf
+ * `--auf-karte` sind in `aufgaben-css.test.ts` bereits gemessen (hell UND dunkel) — genau die drei
+ * Farben, die in einer Tagesspalte als Text stehen.
+ */
 .tagSpalte {
   border: 1px solid var(--auf-linie);
   border-radius: 8px;
-  background: var(--auf-papier);
+  background: var(--auf-karte);
   padding: 12px;
   overflow-wrap: anywhere;
 }
@@ -854,6 +874,47 @@
 }
 
 /*
+ * ══ DAS BAND UNTER EINER ZEILE (Oberflaechen-Runde 2026-08-16, zweite Haelfte) — DIE ZWEITE
+ *    FLAECHE, AUF DER DAS ZEILENRASTER NICHT SCHEMATISCH GILT.
+ *
+ * `/freigaben` traegt je Zeile einen NACHWEIS: mehrzeiligen Text, kuenftig ein Bild. Der
+ * Kopfkommentar von `_ui/FreigabeZone.tsx` sagt seit jeher, warum das keine Tabellenzelle sein
+ * kann — „eine Tabellenzeile ist fuer Spaltenwerte gebaut, nicht fuer einen mehrzeiligen
+ * Nachweistext". Genau dasselbe gilt fuer eine Rasterzelle: ein Absatz in der Meta-Spur zoege die
+ * Zeile auf und riss die Ausrichtung aller anderen mit.
+ *
+ * DIE LOESUNG BRICHT DAS RASTER NICHT, SIE BENUTZT ES: die Kopfzeile (Titel · Chips · Frist ·
+ * Dauer · „Erledigt von X") bleibt in den drei Spuren und fluchtet mit jeder anderen Zeile des
+ * Moduls; der Nachweis steht als vierte Zelle DARUNTER und nimmt mit `grid-column: 1 / -1` die
+ * volle Breite. `subgrid` platziert Kinder der Reihe nach — die vierte landet damit in Reihe 2,
+ * ohne dass die Zeile ihre Spurendefinition aendern muesste.
+ *
+ * DIE EINRUECKUNG IST DIE VERBINDUNG: das Band beginnt nicht am linken Rand, sondern eingerueckt
+ * mit einer Haarlinie — es gehoert erkennbar zur Zeile darueber und ist nicht die naechste.
+ */
+.zeilenBand {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-block-start: 8px;
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--auf-linie);
+}
+/*
+ * 2px UND NICHT 3px: die Kantenleiter aus §6.4 vergibt 3px an einen TEXTLAUF MIT BEDEUTUNG
+ * (`.fristUeberfaellig`, `.budgetUeberbucht` — „hier stimmt eine Zahl nicht") und 4px an die
+ * Startkante einer FLAECHE. Dieses Band traegt keine Bedeutung, nur Zugehoerigkeit; es nimmt
+ * deshalb dieselbe 2px-Spur wie `.ankerSpur`, die dasselbe tut.
+ */
+.zeilenBandKopf {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--auf-stahl);
+}
+
+/*
  * „ANDERS ZUWEISEN" IN DER ZEILE (`_ui/ZuweisenInline.tsx`) — DER AUSLOESER IST EIN STILLER KNOPF,
  * KEIN antd-`Button`. Zwei Gruende: der Zaehlriegel misst `.ant-btn-primary` innerhalb der
  * Flaeche (hier waere ohnehin keiner), und vor allem soll die Aktionsspalte einer Notion-artigen
@@ -862,7 +923,25 @@
  * ausgeschrieben und NICHT als `var(--ant-control-height)` (Falle 2: antds Variablen leben auf
  * antds Scope-Klasse und sind hier still unaufgeloest).
  */
-.zuweisenAusloeser {
+/*
+ * ══ `.zeilenKnopf` IST DIESELBE REGEL, NICHT EINE ZWEITE (Oberflaechen-Runde 2026-08-16, zweite
+ *    Haelfte). Der stille Ausloeser war bis hierhin der einzige seiner Art und hiess nach seinem
+ *    einzigen Aufrufer. Mit den vier uebrigen Flaechen bekommt die Aktionsspalte noch drei weitere
+ *    Wege („Annehmen: …", „Anders einplanen", „Auf"/„Ab") — und die standen alle als antd-`Button`
+ *    da, also als Knopfleiste in einer Liste, die bei Zuwendung einen WEG anzeigen soll.
+ *
+ *    EIN SELEKTORPAAR STATT EINER KOPIE: zwei Regelbloecke mit denselben acht Deklarationen liefen
+ *    beim ersten Nachjustieren auseinander, und der Unterschied waere ein halber Pixel Polster in
+ *    einer von zwei Spalten — nichts, was ein Tor findet. `composes:` waere die andere Fassung,
+ *    bindet aber die Klassenreihenfolge an die Importreihenfolge; ein Selektorpaar tut das nicht.
+ *
+ *    44px MINDESTHOEHE AUS ARBEITSDICHTE (`controlHeight: 44`, `core/theme/theme.ts`),
+ *    ausgeschrieben und NICHT als `var(--ant-control-height)` (Falle 2). Ein `<a>` traegt die
+ *    Klasse ebenso wie ein `<button>` — „Anders einplanen" ist eine Navigation, kein Absenden, und
+ *    beide Elementarten deckt der modulweite `:focus-visible`-Block ganz oben ab.
+ */
+.zuweisenAusloeser,
+.zeilenKnopf {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -876,10 +955,26 @@
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
 }
-.zuweisenAusloeser:hover {
+.zuweisenAusloeser:hover,
+.zeilenKnopf:hover {
   color: var(--auf-tinte);
   border-color: var(--auf-stahl);
+}
+/*
+ * DEAKTIVIERT VORHANDEN, NICHT WEG (`RangKnoepfe.tsx`s Kopfkommentar, woertlich): die Tabreihenfolge
+ * soll je Zeile gleich viele Stopps tragen, damit die Position ablesbar bleibt. `opacity` statt
+ * einer eigenen Graufarbe — ein siebter Bedeutungston waere eine Farbe zu viel auf einem vollen
+ * Kanal, und die Deckkraft traegt hier keine Bedeutung, sondern nur die Nicht-Verfuegbarkeit.
+ */
+.zeilenKnopf:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.zeilenKnopf:disabled:hover {
+  color: var(--auf-stahl);
+  border-color: var(--auf-linie);
 }
 .zuweisenHuelle {
   display: inline-flex;
@@ -968,6 +1063,63 @@
   margin: 4px 0 0;
   font-size: 12px;
 }
+/*
+ * DER OPTIONALE ZEITVORSCHLAG IM ZEILENFELD (`ZuweisenInline.tsx`, art `verteilen`) — WIE DER
+ * GANZE BLOCK HIER NUR STRUKTUR, KEINE EINZIGE `--auf-*`-FARBE: der Inhalt haengt in antds Portal
+ * am `<body>`, also ausserhalb von `.modul`, und eine unaufgeloeste CSS-Variable meldet sich nie
+ * (die volle Begruendung steht bei `.zuweisenFeld` oben). Farben bringen antds `Input` und der
+ * Popover-Rumpf aus ihren eigenen Tokens mit.
+ *
+ * DIE BESCHRIFTUNGEN SIND ECHTE `<label for>` UND KEINE PLATZHALTER: ein `type="date"` ohne Label
+ * sagt einem Screenreader nur „Datum", nicht WOFUER — und zwei davon uebereinander waeren
+ * ununterscheidbar.
+ */
+.zuweisenVorschlag {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /*
+   * DIE TRENNLINIE ZWISCHEN „EINGEBEN" UND „ENTSCHEIDEN" (im Bildschirmabzug gesehen, nicht
+   * vermutet): ohne sie standen drei gleich aussehende Beschriftungen untereinander — „Zeitvorschlag:
+   * Tag", „Zeitvorschlag: Uhrzeit", „Zuweisen an" —, von denen nur die dritte ueber einer Liste
+   * steht, die ABSENDET. Die Linie sagt, wo das Formular endet und die Entscheidung beginnt.
+   *
+   * SIE HAENGT AN `.zuweisenVorschlag` UND NICHT AN DER LISTE, und das ist Absicht: den
+   * Vorschlagsblock gibt es nur bei art `verteilen`. Das aufgeklappte Feld der Koordinationsflaeche
+   * (art `umverteilen`, vom Betreiber gesehen und bestaetigt) bekommt damit KEINE neue Linie.
+   *
+   * EIN NEUTRALES GRAU MIT ALPHA STATT `--auf-linie`: dieser Block haengt im Portal, wo die
+   * `--auf-*`-Variablen nicht aufgeloest sind (s. `.zuweisenFeld`). Derselbe Kunstgriff, den der
+   * Hover-Grund von `.zuweisenZiel` schon benutzt, und aus demselben Grund — er wirkt auf hellem
+   * wie auf dunklem Popover-Rumpf.
+   */
+  margin-block-end: 8px;
+  padding-block-end: 8px;
+  border-block-end: 1px solid rgb(128 128 128 / 25%);
+}
+.zuweisenVorschlag > label {
+  font-size: 12px;
+  font-weight: 600;
+}
+/*
+ * DIE UEBERSCHRIFT DER NAMENSLISTE. Sie stand bis zur zweiten Runde nicht da und musste es auch
+ * nicht — das Feld enthielt nur die Folge-Zeile und die Liste. Mit dem Zeitvorschlag darueber
+ * stehen jetzt Eingabefelder davor, und ohne ein Wort dazwischen ist nicht zu sehen, wo die
+ * Entscheidung liegt.
+ *
+ * ALS VERSALIEN-KICKER UND NICHT ALS DRITTE FELDBESCHRIFTUNG (im Abzug gesehen): 12/600 gerade
+ * gesetzt ist zeichengleich mit den zwei `<label>` darueber — die Ueberschrift der Liste sah aus
+ * wie das Label eines dritten Feldes. Versalien plus Laufweite sind die Rolle `SCHRIFT.kicker` aus
+ * der Leiter (12/600 versal, 0.09em); sie steht hier ausgeschrieben statt als Inline-Stil, weil
+ * dieser Block ohnehin sein eigenes Stylesheet-Kapitel hat. KEINE FARBE — Portal, s. oben.
+ */
+.zuweisenListenKopf {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
 
 /*
  * TAGESORDNUNG. `.ankerSpur` fuehrt die Zeitanker-Spur einer Tagesspalte,
@@ -987,6 +1139,140 @@
   padding: 1px 6px;
   color: var(--auf-stahl);
   font-size: 12px;
+}
+
+/*
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * DER EINTRAG EINER TAGESSPALTE — DAS RASTER, UM 90 GRAD GEDREHT (Oberflaechen-Runde 2026-08-16,
+ * zweite Haelfte). Das ist die eine Flaeche, auf der das Zeilenraster von `.zeilenListe` NICHT
+ * schematisch uebertragen werden darf, und der Grund ist gemessen, nicht gefuehlt:
+ *
+ *   `.zeilenListe` richtet ZELLEN UEBER GESCHWISTERZEILEN HINWEG aus, und ihr Ertrag ist die
+ *   rechtsbuendige Aktionsspur. Sie braucht dafuer Breite. Der Kommentar an `.zeilenListe` haelt
+ *   fest, dass schon die FUENFSPURIGE Fassung bei 820px platzte — `min-content` der vier rechten
+ *   Spuren lag bei rund 490px. Eine Tagesspalte hat bei 1280px rund 166px INNEN (192px Spur
+ *   abzueglich 2 x 12px Polster und 2 x 1px Rahmen, nachgerechnet an derselben `auto-fit`-Formel,
+ *   die `.wochenGitter` fuehrt). Sechs waagerechte Spuren in 166px sind kein knapper Fall.
+ *
+ * DIE ACHSE DER AUSRICHTUNG WIRD DESHALB SENKRECHT: jeder Eintrag traegt DIESELBE innere
+ * Zeilenfolge — Zeitangabe, Titel, Marken, Aktionen —, also stehen innerhalb einer Spalte Zeiten
+ * unter Zeiten und Titel unter Titeln. Das ist derselbe Grundsatz wie oben (EIN Raster fuer alle
+ * Eintraege statt einer Flexbox je Eintrag, die nur ihre eigenen Kinder kennt), nur an der anderen
+ * Achse. Was `_ui/Wochenplan.tsx`s `EintragZeile` bis hierhin hatte, war exakt der Defekt der
+ * flachen Zeile in klein: `display: flex; flex-wrap: wrap` an JEDEM Eintrag, also fuenf Elemente,
+ * die dort umbrechen, wo der Text davor endet.
+ *
+ * DEN VERGLEICH ZWISCHEN DEN SPALTEN — den die flache Liste aus ausgerichteten Spalten bezieht —
+ * traegt die Woche ueber die Auslastungsbalken unter jedem Tageskopf: fuenf Balken auf einer Skala
+ * beantworten „welcher Tag ist voll" so, wie ausgerichtete Spalten „welche Aufgabe zuerst"
+ * beantworten. Deshalb gehoert die Grafik zu dieser Aenderung und ist keine Zugabe.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+.planListe {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/*
+ * `align-items: flex-start` UND NICHT DIE VORGABE `stretch`, und das ist keine Feinheit: in einer
+ * Flex-SPALTE ist die Querachse die BREITE. Mit `stretch` zoege sich die Zeitangabe („ohne
+ * Uhrzeit", eine gestrichelte Marke in Textgroesse) ueber die ganze Spaltenbreite und saehe aus wie
+ * ein leeres Feld. Die Marken schrumpfen damit auf ihren Inhalt; ueber ihre Spalte hinaus koennen
+ * sie trotzdem nicht wachsen, weil `fit-content` durch die verfuegbare Breite gedeckelt ist.
+ */
+.planEintrag {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+/*
+ * ══ AUSDRUECKLICH KEIN FLEX — UND DAS IST DER EINE PUNKT, AN DEM DIE ERSTE FASSUNG DIESER RUNDE
+ *    IM BILDSCHIRMABZUG DURCHFIEL, nicht in einem Tor.
+ *
+ *    Mit `display: flex; flex-wrap: wrap` sind Ziehgriff („⠿") und Titel ZWEI Flex-Elemente. Der
+ *    Titel ist in einer 166px-Spalte breiter als die Restzeile, also bricht er auf eine eigene
+ *    Flex-Zeile um — und der Griff bleibt allein auf der ersten stehen. Gemessen im Abzug: ein
+ *    einzelnes Zeichen auf einer eigenen Zeile ueber dem Titel, in zwei von fuenf Spalten. Kein
+ *    Test sieht das (jsdom rechnet keine Zeilenboxen), und es sieht nicht nach einem Layoutfehler
+ *    aus, sondern nach Zierrat.
+ *
+ *    IM NORMALEN INLINE-FLUSS steht der Griff dort, wohin `Wochenplan.tsx`s Kopfkommentar ihn
+ *    stellt — „ein eigener Ziehgriff NEBEN dem Titel" —, und der Titel fliesst um ihn herum
+ *    weiter: erste Zeile „⠿ Standwache", zweite „Blutspendetermin". Genau eine Zeile gespart und
+ *    die Zusammengehoerigkeit sichtbar.
+ *
+ *    DIE FRIST STEHT BEWUSST NICHT IN DIESER GRUPPE, sondern als eigene Zeile des Eintrags: eine
+ *    Ueberfaelligkeitsmarke, die sich an die letzte Titelzeile klemmt, liest sich als Teil des
+ *    Titels statt als Marke — und sie traegt eine 3px-Kante, die nur an einem Zeilenanfang etwas
+ *    bedeutet.
+ */
+.planKopf {
+  display: block;
+}
+/*
+ * DER TITEL IST IN TINTE, NICHT IN ROT — dieselbe Regel und derselbe Grund wie bei `.zeilenTitel`
+ * (Befunde 3 und 4): `colorError === colorPrimary === #c8000f`, und ein Aufgabentitel ist kein
+ * Signal, sondern der Gegenstand der Zeile. Der Wochenplan war die letzte Flaeche des Moduls, auf
+ * der ein Titel als roter Link stand — bei fuenf Spalten waren das bis zu fuenfzehn Rotstellen auf
+ * einem Bildschirm.
+ *
+ * EIGENE KLASSE STATT `.zeilenTitel`: die beiden teilen heute ihre vier Deklarationen, gehoeren
+ * aber zwei Formen (Zeilenraster gegen Tagesspalte) — und die Tagesspalte ist die schmalere, in der
+ * eine kuenftige Groessenanpassung zuerst noetig wird. Dieselbe Ueberlegung, die `.lageKarte` von
+ * `.tagSpalte` trennt.
+ */
+.planTitel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--auf-tinte);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.planTitel:hover {
+  color: var(--auf-tinte);
+  text-decoration: underline;
+}
+/*
+ * DIE AKTIONEN DES EINTRAGS — RECHTSBUENDIG UND ERST BEI ZUWENDUNG SICHTBAR, dieselbe Mechanik und
+ * dieselbe Begruendung wie `.zeilenAktion`: `opacity` und NICHT `visibility`/`display`, damit der
+ * Knopf in der Tabreihenfolge bleibt, und `:focus-within` gleichberechtigt neben `:hover`, damit
+ * die Tastaturbedienung nicht im Blindflug laeuft.
+ *
+ * KEIN `transition`: diese Datei fuehrt keine Bewegung (Kopfkommentar) — eine Einblendung schuldete
+ * eine `prefers-reduced-motion`-Ausnahme und damit eine ZWEITE Medienabfrage.
+ */
+.planAktion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  opacity: 0;
+  /*
+   * DIE EINE AUSNAHME VOM `flex-start` DES EINTRAGS: rechtsbuendig kann nur werden, was die volle
+   * Breite hat. Ohne diese Zeile schruempfte die Aktionsgruppe auf ihren Inhalt und `justify-content`
+   * haette nichts zu verteilen — die Knoepfe stuenden links, und die Regel waere eine Attrappe.
+   */
+  align-self: stretch;
+}
+.planEintrag:hover .planAktion,
+.planEintrag:focus-within .planAktion {
+  opacity: 1;
+}
+/*
+ * DIE ZWEI RANGKNOEPFE ALS KOMPAKTE REIHE, NICHT ALS `.knopfzeile` (`RangKnoepfe.tsx`): unterhalb
+ * von 768px macht `.modul .knopfzeile > *` jedes Kind vollbreit — fuer zwei Knoepfe „Auf"/„Ab" in
+ * einer Tageskarte waeren das zwei gestapelte Balken ueber die ganze Kartenbreite. Zwei stille
+ * 44px-Knoepfe nebeneinander passen auch in 328px.
+ */
+.rangZeile {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /*
@@ -1098,6 +1384,22 @@
     width: 100%;
   }
   /*
+   * DIE HALBE ZUSAGE, DIE DIE REGEL DARUEBER LIESS (im Bildschirmabzug von `/freigaben` bei 360px
+   * gesehen): steht ein Knopf in einem eigenen `<form>` — und das tut jeder Knopf, der eine Server
+   * Action ausloest —, dann ist das FORMULAR das Kind von `.knopfzeile`, nicht der Knopf. Die Regel
+   * darueber machte also das Formular vollbreit und den Knopf darin nicht. Sichtbar war das als
+   * „Freigeben" schmal ueber einem vollbreiten „Zurueckweisen": zwei Knoepfe derselben Zeile in
+   * zwei Breiten.
+   *
+   * EIGENER BLOCK STATT EINER KOMMA-LISTE AM SELEKTOR DARUEBER: `aufgaben-css.test.ts` sucht die
+   * Regel als `.modul .knopfzeile > *\s*\{` — ein angehaengtes `,` dahinter liesse den Riegel ins
+   * Leere greifen, und er bewacht die Spezifitaetsentscheidung gegen `.ant-btn` (Falle 5). Der
+   * Praefix `.modul` steht hier aus genau demselben Grund.
+   */
+  .modul .knopfzeile > form > * {
+    width: 100%;
+  }
+  /*
    * 24PX RAND SIND AUF 360PX ZU VIEL (§6.5). Die Knoepfe der Karte brauchen KEINE eigene Regel —
    * sie stehen in `.knopfzeile`, und die Regel darueber greift schon; eine
    * `.fuehrung`-spezialisierte Zweitfassung waere der Anfang der Spezifitaetsspirale aus Falle 5
@@ -1150,6 +1452,16 @@
   .zeilenAktion {
     opacity: 1;
     justify-self: start;
+    justify-content: flex-start;
+  }
+  /*
+   * DIESELBE ZUSAGE FUER DIE TAGESSPALTE (Touch hat kein Hover) — und aus demselben Grund
+   * linksbuendig: `justify-content: flex-end` schoebe einen 44px-Knopf an den rechten Rand, wo ihn
+   * der Daumen einer rechten Hand verdeckt. Die mobile Ausprägung des Wochenplans (`.tagesListe`)
+   * zeigt ohnehin genau einen Tag ueber die volle Breite, dort ist rechtsbuendig nichts gewonnen.
+   */
+  .planAktion {
+    opacity: 1;
     justify-content: flex-start;
   }
 }

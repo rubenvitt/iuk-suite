@@ -293,9 +293,18 @@ describe("FreigabeZone — „meine“ und „in Vertretung“ bleiben getrennte
     const vertretung = [zeile({ aufgabe: aufgabe({ id: "a2", titel: "Vertretungsfall" }) })];
     await mount(<FreigabeZone meine={meine} vertretung={vertretung} heute="2026-08-13" />);
 
-    const ueberschriften = queryAll("h3").map((h) => h.textContent);
-    expect(ueberschriften).toEqual(["Meine", "In Vertretung"]);
-    const listen = queryAll("h3").map((h) => h.parentElement!.textContent ?? "");
+    /*
+     * `h2` STATT `h3` UND MIT ZAHL (Oberflaechen-Runde 2026-08-16, zweite Haelfte): die zwei
+     * Abschnittsueberschriften sind zurueckgenommene Versalien-Kicker geworden, wie auf allen
+     * anderen Flaechen des Moduls, und sie tragen die Anzahl — der `SeitenKopf` haelt das einzige
+     * `<h1>`, zwischen ihm und diesen Abschnitten liegt keine Ebene.
+     *
+     * DIE ZUSAGE DES TESTS IST UNVERAENDERT UND SIE IST DIE WICHTIGE: die zwei Mengen bleiben
+     * GETRENNT. Nur die Griffe folgen der neuen Form.
+     */
+    const ueberschriften = queryAll("h2").map((h) => h.textContent);
+    expect(ueberschriften).toEqual(["Meine (1)", "In Vertretung (1)"]);
+    const listen = queryAll("h2").map((h) => h.closest("section")!.textContent ?? "");
     expect(listen[0]).toContain("Meine Aufgabe");
     expect(listen[0]).not.toContain("Vertretungsfall");
     expect(listen[1]).toContain("Vertretungsfall");

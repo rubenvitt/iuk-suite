@@ -10,6 +10,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { AufgabenListe, type AufgabenListeZeile } from "./AufgabenListe";
 import { Fuehrungskarte } from "./Fuehrungskarte";
 import { SeitenKopf } from "./SeitenKopf";
+import s from "./aufgaben.module.css";
 
 /*
  * „MEINE AUFTRAEGE" — DER AUFTRAGGEBER-EINSTIEG, NEU GEBAUT NACH DER OBERFLAECHEN-SPEC (2026-08-16
@@ -85,15 +86,33 @@ export function EinstiegAuftrag({
 
         {/* ── 3 · DIE FLAECHE DER ROLLE: alle eigenen Auftraege, ungedeckelt (Regel D) ── */}
         <section id="auftraege" style={{ marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.xl }}>
-          <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>
+          {/*
+           * DIE UEBERSCHRIFT DER ROLLENFLAECHE TRITT ZURUECK (Oberflaechen-Runde 2026-08-16, zweite
+           * Haelfte) — dieselbe Aenderung wie bei `AnlassZone` (Befund 4) und bei „Diese Woche" auf
+           * der BuFDi-Flaeche, mit derselben Klasse und derselben Rolle aus der Leiter.
+           *
+           * HIER WIEGT SIE AM SCHWERSTEN, WEIL DIESE FLAECHE NUR EINE UEBERSCHRIFT HAT: fuer die
+           * Auftraggeber-Rolle gibt es Ebene 4 des Aufbaus gar nicht (s. Kopfkommentar), es steht
+           * also EIN Abschnitt unter der Fuehrungskarte. Ein 20/600-Titel ueber acht Zeilen mit
+           * 14px-Titeln war damit die groesste Schrift der halben Seite — fuer die Aussage
+           * „hier kommt eine Liste".
+           */}
+          <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.sm}px` }}>
             Eigene Aufträge ({meineAuftraege.length})
           </h2>
           <AufgabenListe zeilen={zeilen} heute={heute} leerText="Noch keine eigenen Aufträge." />
         </section>
 
         {/* ── 5 · FUSS (Ebene 4 gibt es fuer diese Rolle nicht, s. Kopfkommentar) ── */}
+        {/*
+         * DER NEBENWEG IN TINTE STATT IN ROT (Befund 3, hier nachgezogen): „Archiv" ist Navigation,
+         * kein Signal — dieselbe Klasse, die `EinstiegKoordination` fuer seine zwei Fusslinks
+         * bereits traegt.
+         */}
         <div style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
-          <Link href="/archiv">Archiv</Link>
+          <Link href="/archiv" className={s.leiseLink}>
+            Archiv
+          </Link>
         </div>
       </div>
     </>

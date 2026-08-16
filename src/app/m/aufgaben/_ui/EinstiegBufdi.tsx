@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Button } from "antd";
 import { einplanenAnnehmenAction } from "../actions";
 import { aufgabenFuerPerson, bufdis, rangGrenzen, routinenFuer } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
@@ -23,6 +22,7 @@ import { SeitenKopf } from "./SeitenKopf";
 import { TagesWaehler } from "./TagesWaehler";
 import { WochenWaehler } from "./WochenWaehler";
 import { Wochenplan } from "./Wochenplan";
+import s from "./aufgaben.module.css";
 
 /*
  * „MEINE WOCHE" — DER BUFDI-EINSTIEG, NEU GEBAUT NACH DER OBERFLAECHEN-SPEC (2026-08-16 §3.4,
@@ -125,7 +125,21 @@ export function EinstiegBufdi({
               Abgeschlossene Woche
             </p>
           ) : null}
-          <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Diese Woche</h2>
+          {/*
+           * DIE UEBERSCHRIFT DER ROLLENFLAECHE TRITT ZURUECK — DIESELBE AENDERUNG, DIE `AnlassZone`
+           * mit Befund 4 schon bekam, hier nachgezogen (Oberflaechen-Runde 2026-08-16, zweite
+           * Haelfte). „Diese Woche" stand in `SCHRIFT.unterTitel` (20/600) ueber Tagesspalten mit
+           * 14px-Titeln, waehrend die vier Zonen DARUNTER bereits Kicker trugen: auf einem
+           * Bildschirm standen damit zwei verschiedene Ueberschriftenstufen fuer dieselbe
+           * Gliederungsebene. Die STRUKTUR war lauter als der INHALT, und sie war ausserdem
+           * uneinheitlich.
+           *
+           * `SCHRIFT.kicker` ist eine Rolle der Leiter (12/600 versal), keine erfundene Groesse;
+           * Farbe und Haarlinie kommen aus `.zonenKopf`, derselben Klasse wie bei den Zonen.
+           */}
+          <h2 className={s.zonenKopf} style={{ ...SCHRIFT.kicker, margin: `0 0 ${SPACE.sm}px` }}>
+            Diese Woche
+          </h2>
 
           <TagesWaehler tage={tage} ausgewaehlterTag={mobilTag} />
 
@@ -201,9 +215,20 @@ export function EinstiegBufdi({
            * der Fussverweis muss dem Riegel der ZIELSEITE folgen, nicht einer zufaellig
            * gleichwertigen Bedingung. `/routinen` wirft sonst `notFound()`.
            */}
-          {grund.darfRoutinenVerwalten ? <Link href="/routinen">Routinen verwalten</Link> : null}
+          {/*
+           * NEBENWEGE IN TINTE STATT IN ROT (Befund 3, hier nachgezogen): „Routinen verwalten" und
+           * die Zeitplaene der anderen BuFDis sind Navigation, kein Signal. Als rote Links waren
+           * sie bis zu drei weitere Rotstellen auf einer Flaeche, auf der Rot fachliche Bedeutung
+           * tragen soll — dieselbe Aenderung, die `EinstiegKoordination` fuer „Personenverwaltung"
+           * und „Archiv" schon hat, mit derselben Klasse.
+           */}
+          {grund.darfRoutinenVerwalten ? (
+            <Link href="/routinen" className={s.leiseLink}>
+              Routinen verwalten
+            </Link>
+          ) : null}
           {andereBufdis.map((b) => (
-            <Link key={b.id} href={`/plan/${b.id}`}>
+            <Link key={b.id} href={`/plan/${b.id}`} className={s.leiseLink}>
               Zeitplan von {b.name}
             </Link>
           ))}
@@ -243,19 +268,49 @@ function planZusatz(a: AufgabeRow): string | null {
  */
 function posteingangAktionen(a: AufgabeRow, person: PersonRow): ReactNode {
   return (
+    /*
+     * ══ STILLE ZEILENKNOEPFE STATT antd-`Button` (Oberflaechen-Runde 2026-08-16, zweite Haelfte).
+     *
+     *    DIE SICHTBARKEIT WAR NIE DAS PROBLEM UND IST ES AUCH JETZT NICHT: diese Knoepfe stehen
+     *    ueber `AnlassZone` → `AufgabenListe` → `AufgabenZeile` bereits in `.zeilenAktion`, also in
+     *    der Aktionsspur, die ohne Zuwendung durchsichtig ist. DIE FORM war es. Zwei
+     *    vollflaechige antd-Knoepfe — einer davon mit einer 24-Zeichen-Beschriftung („Annehmen:
+     *    Do, 13.08., 09:00") — sind eine Knopfleiste, und die Aktionsspur einer Notion-artigen
+     *    Liste soll bei Zuwendung einen WEG anzeigen, keine Schaltflaeche. Dieselbe Entscheidung
+     *    und dieselbe Klasse wie beim Zuweisen-Ausloeser der Koordinationsflaeche.
+     *
+     *    „ANDERS EINPLANEN" IST EIN `<a>`, KEIN KNOPF, UND WAR ES INHALTLICH IMMER: antds
+     *    `Button href=` rendert ohnehin ein `<a class="ant-btn">` — es sah nur aus wie ein Knopf
+     *    und war eine Navigation. Jetzt sagt das Markup dasselbe wie die Handlung. `.zeilenKnopf`
+     *    traegt deshalb `text-decoration: none`, und der modulweite `:focus-visible`-Block deckt
+     *    `a` wie `button`.
+     *
+     *    FACHLICH AENDERT SICH NICHTS: dieselbe `einplanenAnnehmenAction`, dieselben drei
+     *    versteckten Felder, dieselbe Bedingung `vorschlagOffen(a)`, dasselbe Ziel
+     *    `/plan/<person>#einplanen-<id>`. Der Knopftext nennt weiterhin den Vorschlag — ohne ihn
+     *    stuende nirgends auf der Seite, WAS angenommen wird —, und `getByRole("button", { name:
+     *    /^Annehmen:/ })` findet ihn unveraendert.
+     *
+     *    KEIN `type="primary"` war hier und bleibt hier: diese Knoepfe stehen innerhalb von
+     *    `data-testid="aufgaben-flaeche"`, wo hoechstens EIN `.ant-btn-primary` stehen darf. Ohne
+     *    antd-`Button` ist das jetzt strukturell erfuellt statt durch das Weglassen einer
+     *    Eigenschaft, die man vergessen kann.
+     */
     <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
       {vorschlagOffen(a) ? (
         <form action={einplanenAnnehmenAction}>
           <input type="hidden" name="aufgabeId" value={a.id} />
           <input type="hidden" name="planDatum" value={a.vorschlagDatum ?? ""} />
           <input type="hidden" name="planUhrzeit" value={a.vorschlagUhrzeit ?? ""} />
-          <Button htmlType="submit">
+          <button type="submit" className={s.zeilenKnopf}>
             Annehmen: {fmtTagKurz(a.vorschlagDatum!)}
             {a.vorschlagUhrzeit ? `, ${a.vorschlagUhrzeit}` : ""}
-          </Button>
+          </button>
         </form>
       ) : null}
-      <Button href={`/plan/${person.id}#einplanen-${a.id}`}>Anders einplanen</Button>
+      <Link href={`/plan/${person.id}#einplanen-${a.id}`} className={s.zeilenKnopf}>
+        Anders einplanen
+      </Link>
     </div>
   );
 }
