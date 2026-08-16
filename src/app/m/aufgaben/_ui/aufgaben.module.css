@@ -87,17 +87,21 @@
 
 /*
  * Fokus fuer eigenes Interaktives. `a`/`button`/`input`/`select` decken die
- * gewoehnlichen Faelle; `.tagSpalte`/`.kpiLink`/`.backlink` kommen dazu, weil
- * sie eigene interaktive Flaechen sind, die kein natives Element sein muessen
- * (z. B. ein Tageskarten-Link ohne Wrapper-`<a>`). Nie `outline: none` ohne
- * Ersatz.
+ * gewoehnlichen Faelle; `.tagSpalte`/`.backlink` kommen dazu, weil sie eigene
+ * interaktive Flaechen sind, die kein natives Element sein muessen (z. B. ein
+ * Tageskarten-Link ohne Wrapper-`<a>`). Nie `outline: none` ohne Ersatz.
+ *
+ * `.kpiLink` STAND HIER MIT UND IST MIT DER KPI-ZEILE ENTFALLEN (Oberflaechen-
+ * Spec 2026-08-16 §1.4, Schritt 5). Die FUEHRUNGSKARTE braucht keinen Ersatz:
+ * sie ist selbst nicht fokussierbar und fuegt der Tab-Kette nur `a`/`button`
+ * hinzu, die die ersten beiden Zeilen ohnehin decken (§3.3, e2e-Test 60 misst
+ * genau diesen `outline` — NIE ein `box-shadow`).
  */
 .modul a:focus-visible,
 .modul button:focus-visible,
 .modul input:focus-visible,
 .modul select:focus-visible,
 .modul .tagSpalte:focus-visible,
-.modul .kpiLink:focus-visible,
 .modul .backlink:focus-visible {
   outline: 2px solid var(--iuk-marke);
   outline-offset: 2px;
@@ -187,35 +191,28 @@
 }
 
 /*
- * KPI-KACHEL. `.kpiKante*` hat ABSICHTLICH keinen Grauwert — eine Kachel ohne
- * Befund bekommt keine Kante (Spec-Vorgabe, s. Brief Aufgabe 5). Zahlen immer
- * `tabular-nums`, sonst springt die Kachelbreite mit jedem neuen Wert.
+ * DIE KPI-KACHEL IST FORT — UND MIT IHR DER EINZIGE TRAEGER DER 4PX-SPROSSE
+ * (Oberflaechen-Spec 2026-08-16 §1.4, §6.4, Schritt 5). Was hier stand:
+ * `.kpi`, `.kpiKanteAchtung`, `.kpiKanteOcker`, `.kpiKanteOk`, `.kpiLink`.
+ *
+ * WARUM DER GANZE BLOCK GEHT UND NICHT NUR DIE KOMPONENTE: Befund (1) der Spec
+ * nennt genau diese Bauform als den Defekt — vier gleich grosse Zahlen
+ * nebeneinander sagen nicht, welche gerade zaehlt. Die FUEHRUNGSKARTE
+ * beantwortet stattdessen „was ist jetzt dran"; die ZAHLEN selbst gehen nicht
+ * verloren, sie stehen in der Kontextzeile des `SeitenKopf` (§3.5, die Null
+ * dort als WORT). Die drei Kantenklassen wandern NICHT mit: die
+ * Fuehrungskarte traegt bewusst KEINE farbige Kante (§3.4, §8) — Farbe ist im
+ * Modul fuer sechs Zustandstoene und drei Prioritaetsgewichte vergeben, ein
+ * siebter Ton „hier ist die Fuehrung" waere eine Bedeutung zu viel auf einem
+ * vollen Kanal. Damit waeren sie tote Regeln.
+ *
+ * DIE KANTENLEITER AUS §6.4 BLEIBT TROTZDEM STEHEN, obwohl sie nach diesem
+ * Schnitt nur noch ihren 3PX-ZWEIG hat: 4px = Startkante einer FLAECHE,
+ * 3px = Startkante eines TEXTLAUFS (`.fristUeberfaellig`, `.budgetUeberbucht`).
+ * Die Regel ohne Traeger ist kein toter Kommentar, sondern die Zusage an die
+ * naechste Flaeche, dass sie nicht 3px nimmt und damit formgleich mit einem
+ * Textlauf wird.
  */
-.kpi {
-  height: 100%;
-  border-inline-start: 4px solid transparent;
-  border-radius: 8px;
-  padding-inline-start: 12px;
-  font-variant-numeric: tabular-nums;
-}
-.kpiKanteAchtung {
-  border-inline-start-color: var(--auf-achtung-text);
-}
-.kpiKanteOcker {
-  border-inline-start-color: var(--auf-ocker-text);
-}
-.kpiKanteOk {
-  border-inline-start-color: var(--auf-ok-text);
-}
-/* Kein `:hover`-`transition`: siehe Kopfkommentar zur Medienabfrage-Zahl. */
-.kpiLink {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-}
-.kpiLink:hover {
-  background: var(--auf-papier);
-}
 
 /*
  * WOCHE/TAG. `.wochenGitter` (Desktop, 5 Spalten Mo–Fr) und `.tagesListe`

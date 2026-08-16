@@ -391,34 +391,23 @@ export const FRIST_TEXT = {
   frist: (tagKurz: string): string => `Frist: ${tagKurz}`,
 } as const;
 
-/**
- * ÜBERGANGSTEXTE DER HEUTIGEN KPI-ZEILE — SIE STERBEN MIT §11.4 SCHRITT 4/5.
+/*
+ * HIER STAND `UEBERGANG_KOORDINATION_TEXT` — DREI UEBERGANGSTEXTE DER KPI-ZEILE, GELOESCHT IN
+ * SCHRITT 5 (§11.4), GENAU WIE SEIN EIGENER KOMMENTAR ES ANGEKUENDIGT HAT.
  *
- * WARUM SIE UEBERHAUPT HIER STANDEN: der Quelltext-Scan aus §6.6 laesst das Wort „ueberfaellig" nur
- * in `_ui/Frist.tsx` und in DIESER Datei zu. `_ui/EinstiegKoordination.tsx` trug es zwischen
- * Schritt 2 und Schritt 4 an drei Stellen (KPI-Kachel, Abschnittsueberschrift, Leertext) — genau
- * das ist der Grund, aus dem §11.4 den Scan (Schritt 2) NACH die Beschriftung (Schritt 1) legt.
+ * WARUM ER UEBERHAUPT EXISTIERT HAT: der Quelltext-Scan aus §6.6 laesst das Wort „ueberfaellig" im
+ * ganzen Modul nur in `_ui/Frist.tsx` und in DIESER Datei zu. `_ui/EinstiegKoordination.tsx` trug
+ * es zwischen Schritt 2 und Schritt 4 an drei Stellen (KPI-Kachel, Abschnittsueberschrift,
+ * Leertext) — genau das ist der Grund, aus dem §11.4 den Scan (Schritt 2) NACH die Beschriftung
+ * (Schritt 1) legt. Mit Schritt 4 verlor der Export seinen letzten Aufrufer: die KPI-Zeile ist
+ * entfallen (§1.4), die Ueberfaelligkeitsliste in die zwei Zonen „Überfällig, noch nicht begonnen"
+ * und „Überfällig, in Bearbeitung" zerfallen (§3.5).
  *
- * SEIT SCHRITT 4 HAT DIESER EXPORT KEINEN AUFRUFER MEHR (nachgezaehlt): die KPI-Zeile ist mit dem
- * Umbau des Einstiegs entfallen, die Ueberfaelligkeitsliste in die zwei Zonen „Überfällig, noch
- * nicht begonnen" und „Überfällig, in Bearbeitung" zerfallen (§3.5). ER WIRD TROTZDEM NICHT HIER
- * GELOESCHT, sondern in SCHRITT 5, zusammen mit `_ui/Kachel.tsx` und den `.kpi*`-Klassen (§1.4):
- * eine Entfernung ausserhalb ihres Schritts liesse den naechsten Leser suchen, warum sie
- * vorgezogen wurde.
- *
- * BEWUSST EIN EIGENER EXPORT UND NICHT DREI FELDER IN `FRIST_TEXT`: `FRIST_TEXT` ist eine
- * dauerhafte Zusage, an der die Fuehrungskarte und fuenf weitere Aufrufstellen haengen. Drei
- * Uebergangstexte darin waeren nach zwei Umbauten nicht mehr von ihr zu unterscheiden, und
- * niemand koennte sagen, welche Haelfte noch traegt.
- *
- * DIE MITTLERE UND DIE UNTERE ZEICHENKETTE SIND ZEICHENGLEICH ZU HEUTE —
- * `EinstiegKoordination.test.tsx:221` prueft den Leertext woertlich.
+ * DER PLATZHALTER BLEIBT ALS KOMMENTAR STEHEN, WEIL DIE LUECKE SONST WIE EIN VERSEHEN AUSSIEHT:
+ * wer `ANLASS_TEXT` sucht und zwischen `FRIST_TEXT` und den `ANLASS_ARTEN` eine Naht findet, soll
+ * lesen koennen, dass hier etwas ABSICHTLICH endete — und nicht die drei Zeichenketten als
+ * „vergessen" wieder einfuehren.
  */
-export const UEBERGANG_KOORDINATION_TEXT = {
-  kachelUeberfaellig: "Überfällig",
-  abschnittUeberfaellig: "Überfällige Aufgaben",
-  leerUeberfaellig: "Keine überfälligen Aufgaben",
-} as const;
 
 /**
  * DIE ANLAESSE DER DREI RANGLEITERN (§3.5, §4.2) — die Schluesselmenge der Beschriftungstabelle.
