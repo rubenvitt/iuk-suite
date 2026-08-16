@@ -323,6 +323,19 @@ dabei **jede `environment:`-Zeile, die nur die Server-Datei hatte, in die `.env`
 retten** (A1), dann den `deploy`-Job des Laufs neu starten (**Re-run failed jobs** —
 er fordert die Freigabe erneut an).
 
+> **Was NICHT der Ausweg ist: eine dauerhaft abweichende `compose.yaml` auf dem Server.**
+> Der Vergleich ist byteweise — ein Host, der einen Wert anders braucht als die Vorlage,
+> hätte damit entweder nie einen grünen Rollout oder, schlimmer, eine spätere Angleichung
+> an die Vorlage, die seine Korrektur still herausreißt. Solche Werte gehören als
+> **Variable mit Vorbelegung** in die `compose.yaml` und mit ihrem Wert in die `.env`;
+> die Vorlage bleibt dann für alle gleich. Heute sind das `SUITE_CLAMAV_IMAGE`,
+> `SUITE_CLAMAV_START_PERIOD`, `SUITE_IMAGE` und `SUITE_USER` (die gemeinsame gid von
+> Suite und clamd — auf `clamav/clamav-debian` gehört dort `1001:1000` hin, sonst
+> scheitert jeder Virenscan mit „Permission denied" und `av_status='error'`).
+> **Wer einen neuen solchen Wert braucht, macht ihn zur Variablen — er trägt ihn nicht
+> von Hand nach.** Der Satz „Zeile in die `.env` retten" weiter oben gilt nur für
+> `environment:`-Einträge; ein Service-Schlüssel wie `user:` lässt sich so nicht retten.
+>
 > Warum hier nicht automatisch überschrieben wird: ein Image gegen eine alte
 > `compose.yaml` ausgerollt gibt **keine klare Fehlermeldung**. Fehlt etwa der Mount
 > `aufgaben_data`, schreibt das Modul seine Bildnachweise in das Container-Dateisystem,
