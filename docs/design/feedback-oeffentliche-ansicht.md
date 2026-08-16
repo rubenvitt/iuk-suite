@@ -8,7 +8,7 @@ enthält die Rangfolge, die Auflösung der Jury-Widersprüche und die umsetzungs
 
 **Die beiden in Abschnitt 4 offen gestellten Fragen sind entschieden — jeweils Option A:**
 
-1. **Suite-Rot:** nur 3px-Fahne am Oberrand plus Wortzeichen „I&K". Kein roter Absenden-Knopf, kein
+1. **Suite-Rot:** nur 3px-Fahne am Oberrand plus Wortzeichen „Sammelhaus". Kein roter Absenden-Knopf, kein
    roter Fokusring. Begründung: auf dieser Seite bedeutet Rot „Note 6 – ungenügend"; Marke am Rand und
    Bedeutung in der Mitte dürfen nie in vergleichbarer Fläche nebeneinander stehen.
 2. **Anrede:** durchgehend „Du". Die acht Bewertungsfragen sind im Altbestand im Du formuliert und
@@ -19,6 +19,12 @@ enthält die Rangfolge, die Auflösung der Jury-Widersprüche und die umsetzungs
 kein Gerät, keine Uhrzeit." Das dreisätzige Siegel (vormals Fassung A) ist entfallen, siehe §3.9. Die
 beiden Code-Änderungen aus Abschnitt 3.9 sind umgesetzt und bleiben **verbindlich**, auch für den Teil,
 den der kurze Satz nicht mehr behauptet.
+
+**Wortzeichen (umbenannt 16.08.2026):** Das Wortzeichen lautet **„Sammelhaus"**. Bis dahin stand dort
+„I&K" — die ältere Schreibweise findet sich noch in den datierten Berichten und Plänen unter
+`docs/superpowers/`, die als Protokoll ihres Tages unverändert bleiben. Alles in DIESEM Dokument meint
+das heutige Wortzeichen. Die Regel darüber ist von der Umbenennung unberührt: es bleibt Träger 2 von
+genau zwei Stellen mit Suite-Rot, 13px in Gewicht 700, Text und niemals Fläche.
 
 **Zielgruppe dieses Dokuments:** wer die Route `/f/**` baut oder ändert. Was daran modulübergreifend
 gilt, steht in `docs/design/README.md`.
@@ -121,7 +127,7 @@ Kein antd-Import auf dieser Route (auch nicht in der Client Component) — damit
 
 1. **Fahne**: 3px Suite-Rot `#c8000f`, full bleed am Viewport-Oberrand.
 2. **Kopf** (linksbündig):
-   - Kicker `t0`: „RÜCKMELDUNG ZUM DIENSTABEND", rechts das Wortzeichen „I&K" (`t1`/700, Rot).
+   - Kicker `t0`: „RÜCKMELDUNG ZUM DIENSTABEND", rechts das Wortzeichen „Sammelhaus" (`t1`/700, Rot).
    - H1 `t5`/`t6` Serif: das Thema („Funk-Übung: Sprechgruppen"). Ohne Thema: „Dienstabend am 22. Juli".
    - Metazeile `t1`: „Bereitschaft Musterstadt · Mittwoch, 22. Juli 2026 · 19:30". Datum in `--tinte`/600, Rest `--gedaempft`.
    - Vertragszeile `t1` mit Haarlinie darüber: „Anonym · 8 Noten, 6 freie Zeilen · etwa 2 Minuten".
@@ -180,7 +186,7 @@ Schriften: **Geist Sans** (global vorhanden, 0 zusätzliche Requests) für alles
 **Hell:** `--papier #F4F1EA` · `--blatt #FBFAF7` · `--tinte #16181A` (15,8:1) · `--graphit #3A3F44` · `--gedaempft #5E625F` (5,5:1) · `--linie #DDD8CE` · `--linie-stark #C9C3B7` · `--tint #EDE9DF`
 **Dunkel:** `--papier #101214` · `--blatt #1B1E22` · `--tinte #ECE9E2` (14,5:1) · `--graphit #C3C8CD` · `--gedaempft #9AA0A6` (6,6:1) · `--linie #2C3035` · `--linie-stark #3A3F45` · `--tint #23272C`
 
-**Suite-Rot `#c8000f`** (echter Token aus `core/theme/tokens.ts`) an genau **zwei** Stellen, nie als Fläche >100px², nie als Knopffüllung, nie als Fehlerfarbe: die 3px-Fahne und das Wortzeichen „I&K" im Kopf. Primäraktion ist `--graphit`-Tinte: hell `#24282C` auf `#FFFFFF` (14,8:1), dunkel `#ECE9E2` auf `#101214`. Fokusring ausschließlich Tinte.
+**Suite-Rot `#c8000f`** (echter Token aus `core/theme/tokens.ts`) an genau **zwei** Stellen, nie als Fläche >100px², nie als Knopffüllung, nie als Fehlerfarbe: die 3px-Fahne und das Wortzeichen „Sammelhaus" im Kopf. Primäraktion ist `--graphit`-Tinte: hell `#24282C` auf `#FFFFFF` (14,8:1), dunkel `#ECE9E2` auf `#101214`. Fokusring ausschließlich Tinte.
 
 **Notenfarben hell** (Chipfüllung, Ziffer `#FFFFFF`), Luminanz monoton fallend:
 `1 #2F7F59` (4,88:1 · L .165) · `2 #54782A` (5,13 · .155) · `3 #7E6103` (5,84 · .130) · `4 #904708` (6,79 · .105) · `5 #912E10` (8,07 · .080) · `6 #811221` (10,28 · .052)
@@ -339,7 +345,7 @@ Auf dieser Seite bedeutet Rot „Note 6 – ungenügend". Das ist ausgerechnet d
 
 | Option | Konsequenz in einem Satz |
 |---|---|
-| **A — Rot nur als dünner Streifen oben plus „I&K"-Schriftzug** (Empfehlung) | Man erkennt die Seite sofort als Suite-Seite, und trotzdem ist keine Fläche rot, mit der die schlechteste Note verwechselt werden könnte. |
+| **A — Rot nur als dünner Streifen oben plus Wortzeichen-Schriftzug** (Empfehlung) | Man erkennt die Seite sofort als Suite-Seite, und trotzdem ist keine Fläche rot, mit der die schlechteste Note verwechselt werden könnte. |
 | B — gar kein Rot | Am klarsten für die Noten, aber die Seite verliert jeden Wiedererkennungswert gegenüber der übrigen Suite. |
 | C — roter Absenden-Knopf wie in der übrigen Suite | Der auffälligste Knopf der Seite trägt dann dieselbe Farbe wie die schlechteste Note — die Ampel wird zur Dekoration, und der ganze Entwurf bricht an der Wurzel. |
 

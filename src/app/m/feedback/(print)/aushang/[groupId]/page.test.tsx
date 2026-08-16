@@ -88,7 +88,7 @@ describe("Aushang — Inhalt (§3.5)", () => {
     expect(t).toContain(URL_VOLL);
     expect(t).toContain("Anonym · 8 Noten, 6 freie Zeilen · etwa 2 Minuten");
     expect(t).toContain("Der Code gilt für alle Dienstabende.");
-    expect(t).toContain("I&K");
+    expect(t).toContain("Sammelhaus");
   });
 
   it("zeigt den QR in Druckauflösung (`?w=1024`), nicht die 512px der Vorschau", async () => {

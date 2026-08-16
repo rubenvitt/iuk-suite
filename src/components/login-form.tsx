@@ -151,7 +151,13 @@ export function LoginForm({
                   color: "#ffffff",
                 }}
               >
-                I&K
+                {/* Kuerzel, NICHT das ausgeschriebene Wortzeichen: das Feld ist
+                    64px breit und die Schrift 24px/900 — „Sammelhaus" braeuchte
+                    dort rund 130px und liefe heraus. Die drei uebrigen
+                    Wortzeichen (files/feedback, je 13px Text im Kopf) schreiben
+                    das Wort aus; hier traegt es die `<h1>` unmittelbar
+                    darunter, die das Kuerzel aufloest. */}
+                SH
               </span>
             </div>
             <h1
@@ -162,10 +168,10 @@ export function LoginForm({
                 color: FARBEN.tinte,
               }}
             >
-              IuK-Suite
+              Sammelhaus
             </h1>
             <p style={{ marginTop: SPACE.sm, fontSize: 14, color: FARBEN.stahl }}>
-              Internes Service-Dashboard für Information &amp; Kommunikation
+              Interne Dienste unter einem Dach
             </p>
           </div>
 
@@ -344,7 +350,7 @@ export function LoginForm({
             color: rgba(FARBEN.stahl, 0.8),
           }}
         >
-          IuK-Suite · Interner Bereich · Zugriff nur für Berechtigte
+          Sammelhaus · Interner Bereich · Zugriff nur für Berechtigte
         </p>
       </div>
     </main>

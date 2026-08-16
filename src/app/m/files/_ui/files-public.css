@@ -80,7 +80,7 @@
   --fp-ok: #1e7a3c;
   --fp-hinweis: #9a5c00;
 
-  /* Das Wortzeichen „I&K" ist TEXT, nicht Flaeche — deshalb eine eigene
+  /* Das Wortzeichen „Sammelhaus" ist TEXT, nicht Flaeche — deshalb eine eigene
      Variable statt des Literals: hell bleibt es Suite-Rot (5,81:1 auf Blatt),
      dunkel braucht es eine aufgehellte Ableitung. #c8000f erreicht auf dunklem
      Blatt (#1b1e22) nur 2,76:1, und 13px in Gewicht 700 ist nach WCAG 1.4.3
