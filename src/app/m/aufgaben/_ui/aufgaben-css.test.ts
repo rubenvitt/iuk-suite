@@ -225,6 +225,58 @@ describe("aufgaben.module.css — Aussage 4: die Umschaltung sitzt richtig herum
     expect(inMedia![1]).not.toMatch(/display\s*:\s*none/);
   });
 
+  /**
+   * DAS BRETT (`?ansicht=brett` auf `/verteilen`, vierte Oberflächen-Runde 2026-08-16) — DIE
+   * SPALTENZAHL DARF NICHT FEST WERDEN, aus demselben Grund wie beim Wochengitter und einem
+   * zusätzlichen: sie ist die Zahl der aktiven BuFDis plus eins, also ein DATENBESTAND. Eine
+   * `repeat(4, …)` wäre eine Behauptung über die Personenverwaltung — genau der Fehler, den die
+   * Überschrift „Die Woche der drei" schon einmal gemacht hat (sie wurde nicht rot, nur unwahr).
+   */
+  it("lässt `.brettGitter` die Spaltenzahl aus der Fläche ableiten, statt sie festzuschreiben", () => {
+    const inBasis = /\.brettGitter\s*\{([^}]*)\}/.exec(BASIS);
+    expect(inBasis, ".brettGitter fehlt in der Basisregel").not.toBeNull();
+    expect(inBasis![1], "grid-template-columns fehlt").toMatch(/grid-template-columns\s*:/);
+    expect(inBasis![1], "auto-fit fehlt — die Spaltenzahl wäre wieder fest").toMatch(/auto-fit/);
+    expect(inBasis![1], "eine feste Spaltenzahl ist genau die Regression").not.toMatch(/repeat\(\s*\d/);
+  });
+
+  /**
+   * UNTER 768PX IST DAS BRETT KEINE SPALTENLANDSCHAFT (Auftrag, wörtlich: „Was **nicht** geht: drei
+   * Spalten in 360px quetschen"). Die gewählte Form ist der STAPEL — eine Spur, Spalten
+   * untereinander.
+   *
+   * WAS DIESER TEST KANN UND WAS NICHT: er prüft, dass die Datei die Absicht noch TRÄGT. Ob ein
+   * Browser daraus eine Spur rechnet, sieht nur der 360px-Überlauf-Sweep in `e2e/aufgaben.spec.ts`
+   * — jsdom wertet weder `@media` noch Grid-Spuren aus. Erst beide zusammen sind die Zusicherung.
+   */
+  it("stapelt `.brettGitter` innerhalb des 767.98px-Blocks auf EINE Spur", () => {
+    const inMedia = MEDIA_767_BLOECKE.map((b) => /\.brettGitter\s*\{([^}]*)\}/.exec(b)).find(Boolean);
+    expect(inMedia, ".brettGitter fehlt in einem 767.98px-Block").not.toBeUndefined();
+    expect(inMedia![1], "die Spalten stapeln nicht — `grid-template-columns` fehlt").toMatch(
+      /grid-template-columns\s*:\s*minmax\(\s*0\s*,\s*1fr\s*\)/,
+    );
+    // KEIN `display: none`: das Brett ENTFAELLT unter 768px nicht, es wechselt die Achse. Ein
+    // versteckter Brett-Container waere eine Sicht, die auf dem Telefon nicht existiert — und
+    // „Telefon und Rechner sind gleich wichtig" ist der ausdrueckliche Auftrag.
+    expect(inMedia![1]).not.toMatch(/display\s*:\s*none/);
+  });
+
+  /**
+   * DIE ANSICHTSWAHL IST EIN BEDIENELEMENT UND BRAUCHT IHRE 44PX SELBST (Falle 4, WCAG 2.5.5 AAA).
+   *
+   * `ARBEITSDICHTE` (`core/theme/theme.ts`, `controlHeight: 44`) ist ein antd-Token und erreicht
+   * ausschließlich antd-Bedienelemente; ein selbstgebautes `<a>` erbt davon NICHTS. Ohne die
+   * Deklaration wäre die Leiste rund 21px hoch — und `typecheck`, `lint`, `build` und Vitest
+   * blieben still. Deshalb wird die ZAHL hier gemessen, nicht ihre Anwesenheit.
+   */
+  it("gibt `.ansichtWahlOption` mindestens 44px Höhe — der Token erreicht kein eigenes `<a>`", () => {
+    const inBasis = /\.ansichtWahlOption\s*\{([^}]*)\}/.exec(BASIS);
+    expect(inBasis, ".ansichtWahlOption fehlt in der Basisregel").not.toBeNull();
+    const treffer = /min-height\s*:\s*([\d.]+)px/.exec(inBasis![1]);
+    expect(treffer, "`min-height` fehlt — die Leiste wäre rund 21px hoch").not.toBeNull();
+    expect(Number(treffer![1])).toBeGreaterThanOrEqual(44);
+  });
+
   it("stellt der antd-Spezifität in `.knopfzeile > *` eine eigene Klasse voran", () => {
     const inMedia = MEDIA_767_BLOECKE.map((b) => /\.modul \.knopfzeile > \*\s*\{([^}]*)\}/.exec(b)).find(
       Boolean,

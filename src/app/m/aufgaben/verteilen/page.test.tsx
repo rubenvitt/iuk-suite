@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { click, mount, query, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { aufgaben, personen, type PersonRow, type Rolle } from "../_db/schema";
+import type { Akteur } from "../_lib/zugang";
 
 let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
@@ -78,9 +79,30 @@ function anmelden(p: PersonRow, koordiniert = false): void {
   };
 }
 
+/**
+ * DER AKTEUR IST SEIT DER VIERTEN OBERFLAECHEN-RUNDE (2026-08-16) EIN PARAMETER VON
+ * `verteilenInhalt` — er beantwortet dort GENAU EINE Frage: darf eine Karte des Bretts in eine
+ * andere Personenspalte wandern (`aktionsOptionen(...).umverteilen`)? Er ist NICHT der Riegel; der
+ * steht unveraendert im Default-Export und wird in dieser Datei weiter ueber `VerteilenPage`
+ * geprueft.
+ *
+ * DIE FIXTUR BAUT IHN DIREKT, statt `akteurFuer` zu bemuehen: `Akteur` ist ein reines Datenpaar
+ * (`{ person, istKoordination }`), und die Inhaltsfunktion loest keine Sitzung auf. `verteilenInhalt`
+ * darf ohne Sitzung aufrufbar bleiben — das ist die Eigenschaft, derentwegen es sie gibt.
+ */
+function alsKoordination(p: PersonRow): Akteur {
+  return { person: p, istKoordination: true };
+}
+
+/** Die drei Argumente, die jeder Aufruf in dieser Datei teilt — die Ansicht kommt je Test dazu. */
+function inhalt(akteur: Akteur, ansicht?: string) {
+  return verteilenInhalt(t.db, HEUTE, akteur, ansicht);
+}
+
 describe("verteilenInhalt — Kopf und Leerzustand", () => {
   it("zeigt den Titel „Verteilen“ und den Leerzustand ohne Posteingang", async () => {
-    await mount(verteilenInhalt(t.db, HEUTE));
+    const rike = legePerson("dev:rike@test", "auftrag");
+    await mount(inhalt(alsKoordination(rike)));
     expect(query("h1").textContent).toBe("Verteilen");
     expect(document.body.textContent).toContain("Posteingang leer — alles verteilt");
   });
@@ -89,8 +111,232 @@ describe("verteilenInhalt — Kopf und Leerzustand", () => {
     const malte = legePerson("dev:malte@test", "auftrag");
     legeAufgabe({ erstellerId: malte.id, status: "eingegangen" });
     legeAufgabe({ erstellerId: malte.id, status: "eingegangen" });
-    await mount(verteilenInhalt(t.db, HEUTE));
+    await mount(inhalt(alsKoordination(malte)));
     expect(document.body.textContent).toContain("2 Aufgaben zu verteilen");
+  });
+});
+
+/**
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * DIE ZWEITE SICHT (Nachtrag „mehr Diversitaet im UI/UX", vierte Oberflaechen-Runde 2026-08-16).
+ *
+ * WAS DIESE DATEI PRUEFEN KANN UND WAS NICHT, ausdruecklich: sie prueft, WELCHE SICHT AUS WELCHEM
+ * PARAMETER FOLGT und dass die Brett-Spalten aus derselben Quelle kommen wie die Zielliste. Sie
+ * kann NICHT pruefen, dass die Wahl einen Neuladen ueberlebt (das ist eine Frage an die Adresse und
+ * den Browser, nicht an eine Funktion) und nicht, dass das Brett auf 360px stapelt (jsdom wertet
+ * keine Medienabfrage aus). Beides steht in `e2e/aufgaben.spec.ts`, und nur zusammen sind die zwei
+ * die Zusicherung.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+describe("verteilenInhalt — die Ansichtswahl (`?ansicht=`)", () => {
+  const brettDa = (): boolean => document.querySelector("[data-rolle='brett']") !== null;
+  const listeDa = (): boolean => document.querySelector(`.${s.zeilenListe}`) !== null;
+
+  it("ohne Parameter: die Liste — `/verteilen` ist woertlich die Seite, die sie vorher war", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    legePerson("dev:alina@test", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, status: "eingegangen" });
+    await mount(inhalt(alsKoordination(malte)));
+    expect(listeDa()).toBe(true);
+    expect(brettDa()).toBe(false);
+  });
+
+  it("`?ansicht=brett`: das Brett, und NUR das Brett — es rendert immer genau eine Sicht", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    legePerson("dev:alina@test", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, status: "eingegangen" });
+    await mount(inhalt(alsKoordination(malte), "brett"));
+    expect(brettDa()).toBe(true);
+    expect(listeDa()).toBe(false);
+  });
+
+  /**
+   * EIN UNBEKANNTER WERT FAELLT STILL AUF DIE LISTE ZURUECK — kein Wurf, keine Meldung. Dieselbe
+   * Lehre wie `/archiv`s `alsPrioritaetsFilter` und `_lib/datum.ts`s `montagAusParam`: „ein
+   * URL-Parameter ist kein Formularfeld, das eine Ablehnung verdient". Eine 404 fuer
+   * `?ansicht=kalender` machte aus einem Tippfehler in der Adresszeile eine kaputte Seite.
+   */
+  it("`?ansicht=kalender` ist kein Fehler, sondern die Liste", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    legeAufgabe({ erstellerId: malte.id, status: "eingegangen" });
+    await mount(inhalt(alsKoordination(malte), "kalender"));
+    expect(listeDa()).toBe(true);
+    expect(brettDa()).toBe(false);
+  });
+
+  it("die Leiste zeigt beide Sichten und zeichnet genau die gewaehlte mit `aria-current` aus", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    await mount(inhalt(alsKoordination(malte), "brett"));
+    const optionen = [...document.querySelectorAll("[data-rolle='ansichtwahl'] a")];
+    expect(optionen.map((el) => el.textContent)).toEqual(["Liste", "Brett"]);
+    expect(optionen.filter((el) => el.getAttribute("aria-current") === "page")).toHaveLength(1);
+    expect(
+      optionen.find((el) => el.getAttribute("aria-current") === "page")?.getAttribute("data-ansicht"),
+    ).toBe("brett");
+  });
+
+  /**
+   * DER LEERZUSTAND IST IN BEIDEN SICHTEN WORTGLEICH (Spec §9.8) — zwei Sichten auf dieselben Daten
+   * duerfen fuer denselben Bestand nicht zwei verschiedene Saetze sagen. Sonst waere „leer" je nach
+   * Sicht eine andere Auskunft, und niemand saehe es: der Satz steht in zwei verschiedenen Dateien.
+   */
+  it("sagt den Leersatz des Posteingangs in BEIDEN Sichten woertlich gleich", async () => {
+    const rike = legePerson("dev:rike@test", "auftrag");
+    await mount(inhalt(alsKoordination(rike), "brett"));
+    expect(document.body.textContent).toContain("Posteingang leer — alles verteilt");
+  });
+});
+
+/**
+ * DIE SPALTEN DES BRETTS SIND DIE ZIELLISTE — UND DAS IST HIER SCHAERFER ALS IN DER LISTENSICHT
+ * (§11.3, `bufdis()`-Riegel).
+ *
+ * IN DER LISTE waere eine falsche Quelle ein falscher Name im aufgeklappten Zielfeld. AUF DEM BRETT
+ * ist sie eine SICHTBARE SPALTE — die Koordination stuende in ihrer eigenen, und eine ausgeschiedene
+ * BuFDi bekaeme eine, obwohl sie kein Verteilziel mehr ist. Die Fixtur traegt deshalb bewusst zwei
+ * `auftrag`-Zeilen UND eine ausgeschiedene BuFDi: „Rike fehlt" allein bewiese wenig, erst „genau die
+ * aktiven BuFDi-Namen, nicht mehr" bindet die echte Quelle.
+ */
+describe("verteilenInhalt — das Brett: eine Spalte je Zielperson, keine mehr", () => {
+  const spaltenKoepfe = (): string[] =>
+    [...document.querySelectorAll("[data-rolle='brett'] [data-person] h3")].map(
+      (el) => el.textContent ?? "",
+    );
+
+  it("gibt genau den aktiven BuFDis eine Spalte — nicht der Koordination, nicht `auftrag`", async () => {
+    legePerson("dev:rike@test", "auftrag", { name: "Rike" });
+    const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
+    legePerson("dev:alina@test", "bufdi", { name: "Alina" });
+    legePerson("dev:bendix@test", "bufdi", { name: "Bendix" });
+    legePerson("dev:doerte@test", "bufdi", { name: "Dörte", aktivBis: "2026-08-12" });
+    legeAufgabe({ erstellerId: malte.id, status: "eingegangen" });
+
+    await mount(inhalt(alsKoordination(malte), "brett"));
+
+    expect(spaltenKoepfe().sort()).toEqual(["Alina", "Bendix"].sort());
+    expect(spaltenKoepfe()).not.toContain("Rike");
+    expect(spaltenKoepfe()).not.toContain("Malte");
+    expect(spaltenKoepfe()).not.toContain("Dörte");
+  });
+
+  /**
+   * DER STAPEL IST EINE EIGENE SPALTE UND KEINE PERSONENSPALTE — sonst zaehlte der Riegel darueber
+   * ihn mit, und eine vierte Spalte „Posteingang" saehe aus wie eine vierte Person.
+   */
+  it("fuehrt den Posteingang als eigene, nicht personengebundene Spalte", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    legePerson("dev:alina@test", "bufdi", { name: "Alina" });
+    legeAufgabe({ erstellerId: malte.id, status: "eingegangen", titel: "Kästen prüfen" });
+
+    await mount(inhalt(alsKoordination(malte), "brett"));
+
+    const stapel = document.querySelector("[data-brett-spalte='posteingang']");
+    expect(stapel).not.toBeNull();
+    expect(stapel!.getAttribute("data-person")).toBeNull();
+    expect(stapel!.textContent).toContain("Kästen prüfen");
+    expect(stapel!.textContent).toContain("1 zu verteilen");
+  });
+
+  /**
+   * DIE KARTE TRAEGT DIESELBEN ANGABEN IN DERSELBEN REIHENFOLGE WIE DIE ZEILE (§10 Prueffrage 7).
+   * Waeren es andere Felder oder eine andere Folge, waeren es zwei Sichten auf VERSCHIEDENE Daten,
+   * und die Umschaltung waere eine Behauptung.
+   */
+  it("zeigt auf der Karte Titel · Zustand · Prioritaet · Frist · Dauer · Auftraggeber, in dieser Folge", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });
+    legePerson("dev:alina@test", "bufdi", { name: "Alina" });
+    legeAufgabe({
+      erstellerId: malte.id,
+      status: "eingegangen",
+      titel: "Kästen prüfen",
+      prioritaet: "hoch",
+      faelligAm: "2026-08-20",
+      dauerMinuten: 90,
+    });
+
+    await mount(inhalt(alsKoordination(malte), "brett"));
+
+    const text = document.querySelector("[data-brett-spalte='posteingang'] li")!.textContent ?? "";
+    const folge = ["Kästen prüfen", "Zu verteilen", "Hoch", "Frist", "1,5 Std.", "Von Malte"];
+    let letzte = -1;
+    for (const teil of folge) {
+      const gefunden = text.indexOf(teil);
+      expect(gefunden, `„${teil}“ fehlt in der Karte: „${text}“`).toBeGreaterThanOrEqual(0);
+      expect(gefunden, `„${teil}“ steht nicht nach „${folge[folge.indexOf(teil) - 1]}“`).toBeGreaterThan(letzte);
+      letzte = gefunden;
+    }
+  });
+
+  /**
+   * EINE PERSONENSPALTE ZEIGT DIE NOCH OFFENEN AUFGABEN IHRER PERSON — und NICHT die
+   * abgeschlossenen. `nochOffen` (`_lib/anzeige.ts`) ist die eine Stelle, die das entscheidet; hier
+   * steht die Gegenprobe, dass die Spalte sie tatsaechlich benutzt.
+   */
+  it("zeigt in der Personenspalte offene Aufgaben und laesst abgeschlossene weg", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
+    legeAufgabe({
+      erstellerId: malte.id,
+      status: "verteilt",
+      zugewiesenAn: alina.id,
+      titel: "Läuft noch",
+    });
+    legeAufgabe({
+      erstellerId: malte.id,
+      status: "abgeschlossen",
+      zugewiesenAn: alina.id,
+      titel: "Längst erledigt",
+    });
+
+    await mount(inhalt(alsKoordination(malte), "brett"));
+
+    const spalte = document.querySelector(`[data-person="${alina.id}"]`)!;
+    expect(spalte.textContent).toContain("Läuft noch");
+    expect(spalte.textContent).not.toContain("Längst erledigt");
+    expect(spalte.textContent).toContain("1 offen");
+  });
+
+  /**
+   * DER KOPF NENNT SEINEN ZEITRAUM. Die Stunden sind die der WOCHE, die Karten sind die OFFENEN —
+   * ohne die zwei Woerter behauptete der Kopf zweimal dasselbe mit zwei verschiedenen Zahlen, und
+   * wer nachzaehlt, faende einen Fehler, der keiner ist.
+   */
+  it("beschriftet die Wochenstunden mit „diese Woche“ und die Kartenzahl mit „offen“", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    legePerson("dev:alina@test", "bufdi", { name: "Alina" });
+    await mount(inhalt(alsKoordination(malte), "brett"));
+    const spalte = document.querySelector("[data-rolle='brett'] [data-person]")!;
+    expect(spalte.textContent).toContain("Std.");
+    expect(spalte.textContent).toContain("diese Woche");
+    expect(spalte.textContent).toContain("0 offen");
+  });
+
+  /**
+   * DIE KARTE EINER `verteilt`-AUFGABE TRAEGT DEN WEG IN EINE ANDERE SPALTE, die einer
+   * `in_arbeit`-Aufgabe NICHT — die Bedingung ist `aktionsOptionen(...).umverteilen`, also die
+   * Uebergangstabelle, nicht eine zweite Statusabfrage im Brett. BEIDE FAELLE IN EINEM TEST, damit
+   * ein Fehler in beide Richtungen sichtbar wuerde.
+   */
+  it("bietet „Zuweisen“ nur, wo die Uebergangstabelle `umverteilen` erlaubt", async () => {
+    const rike = legePerson("dev:rike@test", "auftrag", { name: "Rike" });
+    const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
+    const verteilt = legeAufgabe({
+      erstellerId: rike.id,
+      status: "verteilt",
+      zugewiesenAn: alina.id,
+      titel: "Verteilt",
+    });
+    const inArbeit = legeAufgabe({
+      erstellerId: rike.id,
+      status: "in_arbeit",
+      zugewiesenAn: alina.id,
+      titel: "In Arbeit",
+    });
+
+    await mount(inhalt(alsKoordination(rike), "brett"));
+
+    expect(document.querySelector(`[data-testid="zuweisen-${verteilt.id}"]`)).not.toBeNull();
+    expect(document.querySelector(`[data-testid="zuweisen-${inArbeit.id}"]`)).toBeNull();
   });
 });
 
@@ -132,7 +378,7 @@ describe("verteilenInhalt — die Zielliste des Zeilenwegs", () => {
     const bendix = legePerson("dev:bendix@test", "bufdi", { name: "Bendix" });
     legeAufgabe({ erstellerId: malte.id, status: "eingegangen" });
 
-    await mount(verteilenInhalt(t.db, HEUTE));
+    await mount(inhalt(alsKoordination(malte)));
     await click("[data-testid^='verteilen-']");
 
     const namen = zielNamen();
@@ -154,7 +400,7 @@ describe("verteilenInhalt — die Zielliste des Zeilenwegs", () => {
     legePerson("dev:doerte@test", "bufdi", { name: "Dörte", aktivBis: "2026-08-12" });
     legeAufgabe({ erstellerId: malte.id, status: "eingegangen" });
 
-    await mount(verteilenInhalt(t.db, HEUTE));
+    await mount(inhalt(alsKoordination(malte)));
     await click("[data-testid^='verteilen-']");
 
     const namen = zielNamen();
@@ -172,20 +418,20 @@ describe("VerteilenPage — Rollen-Gate (Spec §8.3: '/verteilen' nur fuer die K
   it("die Koordination: die Seite antwortet normal", async () => {
     const rike = legePerson("dev:rike@test", "auftrag");
     anmelden(rike, true);
-    await mount(await VerteilenPage());
+    await mount(await VerteilenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Verteilen");
   });
 
   it("auftrag: notFound() — die Antwort auf 'Jönne und Schulle pfuschen immer wieder rein'", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
     anmelden(malte);
-    await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(VerteilenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("bufdi: ebenfalls notFound()", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
     anmelden(alina);
-    await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(VerteilenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   /*
@@ -197,19 +443,19 @@ describe("VerteilenPage — Rollen-Gate (Spec §8.3: '/verteilen' nur fuer die K
   it("eine ausgeschiedene Koordination kommt weiterhin hinein — die Gruppe traegt die Rolle", async () => {
     const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2020-01-01" });
     anmelden(exRike, true);
-    await mount(await VerteilenPage());
+    await mount(await VerteilenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Verteilen");
   });
 
   it("dieselbe ausgeschiedene Zeile OHNE Gruppe bekommt notFound()", async () => {
     const exMalte = legePerson("dev:ex-malte@test", "auftrag", { aktivBis: "2020-01-01" });
     anmelden(exMalte);
-    await expect(VerteilenPage()).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(VerteilenPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("Sitzung ohne personen-Zeile: die Erklaerseite (200), kein notFound()", async () => {
     sitzung = { user: { id: "dev:unbekannt@test" } };
-    const element = await VerteilenPage();
+    const element = await VerteilenPage({ searchParams: Promise.resolve({}) });
     await mount(element);
     expect(document.body.textContent).toContain("Du bist noch nicht im Modul eingetragen.");
   });

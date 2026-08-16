@@ -28,6 +28,7 @@ import {
   istUeberfaellig,
   naechsterArbeitstag,
   namenMap,
+  nochOffen,
   ohneAktivenTraeger,
   ohnePlatzInDerAchse,
   routineAmTag,
@@ -272,6 +273,34 @@ describe("aufgabenInWoche", () => {
 
   it("leere Liste: 0", () => {
     expect(aufgabenInWoche([], TAGE)).toBe(0);
+  });
+});
+
+/**
+ * `nochOffen` (Nachtrag „mehr Diversitaet im UI/UX", vierte Oberflaechen-Runde 2026-08-16) — die
+ * Bedingung, nach der eine Personenspalte des Bretts ihre Karten waehlt.
+ *
+ * ERSCHOEPFEND UEBER `STATUS_WERTE`, NICHT UEBER EINE HANDLISTE: ein siebter Status waere sonst
+ * still „offen", ohne dass jemand die Frage gestellt haette. Der Test zaehlt die Werte selbst auf
+ * und benennt nur den EINEN Ausschluss.
+ */
+describe("nochOffen", () => {
+  it("ist fuer jeden Status wahr ausser `abgeschlossen`", () => {
+    const wahr = STATUS_WERTE.filter((status) => nochOffen({ ...AUFGABE, status }));
+    expect(wahr).toEqual(STATUS_WERTE.filter((status) => status !== "abgeschlossen"));
+  });
+
+  /**
+   * DIE ZWEI ENGEREN FASSUNGEN DES WORTES „OFFEN" IM MODUL SIND NICHT DASSELBE, und der Unterschied
+   * ist genau ein Status: `ohneAktivenTraeger` liest `verteilt | in_arbeit | freigabe_offen` und
+   * laesst `zurueckgewiesen` ABSICHTLICH heraus (eigene Sprosse der Rangleiter). Fuer eine
+   * Brettspalte waere das falsch — eine zurueckgewiesene Aufgabe liegt weiterhin bei ihrer BuFDi.
+   * Dieser Fall haelt den Unterschied fest, damit ihn niemand als Versehen „aufraeumt".
+   */
+  it("nimmt `zurueckgewiesen` mit — anders als das engere „offen“ in `ohneAktivenTraeger`", () => {
+    const zurueckgewiesen = { ...AUFGABE, status: "zurueckgewiesen" as const, zugewiesenAn: "p1" };
+    expect(nochOffen(zurueckgewiesen)).toBe(true);
+    expect(ohneAktivenTraeger(zurueckgewiesen, new Set())).toBe(false);
   });
 });
 

@@ -2004,3 +2004,124 @@ Auswahl. Ein Vitest hält beides fest.
 `!important`, kein `#c8000f`, kein `size`, kein `box-shadow`, 44px Mindesthöhe für jedes neue
 Bedienelement, und unterhalb von 768px steht die Aktionsspur mit dem neuen Auslöser dauerhaft offen
 — Touch hat kein Hover.
+
+---
+
+## 11.7 Nachtrag 2026-08-16 — die vierte Oberflächen-Runde (der dritte offene Punkt)
+
+**Der Auftrag, wörtlich:** „mehr Diversität im UI/UX", Vorbild **Notion**. Und das eigentliche
+Merkmal von Notion sind **umschaltbare Ansichten auf denselben Daten** — Liste, Board, Kalender. Das
+Modul hatte davon **keine einzige**: jede Fläche zeigte genau eine Form, und welche das war,
+entschied die Datei, nicht die Person davor.
+
+**Der Ort ist `/verteilen`.** Dort zählt „zehn Aufgaben am Stück verteilen" (§4.4), und ein Brett mit
+**Personenspalten** beantwortet genau die Frage, die dabei gestellt wird und die eine flache Liste
+strukturell nicht beantworten kann: *wer trägt schon wie viel*. Die Liste ordnet nach Frist, nicht
+nach Person, und die Auslastung erscheint in ihr erst im aufgeklappten Zielfeld — also **nach** der
+Entscheidung, zu wem man schaut.
+
+### A · Was gebaut ist
+
+| Sache | Form |
+|---|---|
+| **Die Wahl** | `?ansicht=liste` (**Vorgabe**) und `?ansicht=brett`, **serverseitig gelesen**. `_ui/AnsichtWahl.tsx` ist eine **Server Component** aus zwei `<Link>` — kein `useState`, kein `localStorage`, kein Router-Hook, kein JavaScript. `aria-current="page"` zeichnet die gewählte aus. Ein unbekannter Wert fällt **still** auf `liste` zurück (dieselbe Lehre wie `alsPrioritaetsFilter` auf `/archiv`: „ein URL-Parameter ist kein Formularfeld, das eine Ablehnung verdient"). |
+| **Das Brett** | `_ui/VerteilBoard.tsx`, **Server Component**. Eine **Stapelspalte** (Posteingang) plus **eine Spalte je Zielperson aus `bufdis()`**. Spaltenkopf: Name · `X / Y Std.` · `diese Woche` · **Auslastungsbalken** (`_ui/Balken.tsx`, das vorhandene Bauteil, dritter Nutznießer) · `N offen`. |
+| **Die Karte** | Dieselben Angaben in **derselben Reihenfolge** wie die Zeile (§10 Prüffrage 7): Titel · Zustand · Priorität · Frist · Dauer · Rollenzusatz, plus die abgeleitete Marke „Zeitvorschlag offen". Nur die **Geometrie** unterscheidet sich — genau das ist der Sinn zweier Sichten auf dieselben Daten. |
+| **Die Bedienung** | Dieselbe Insel `_ui/ZuweisenInline.tsx`: im Stapel mit `art="verteilen"` (samt optionalem Zeitvorschlag), in einer Personenspalte mit `art="umverteilen"`, sobald `aktionsOptionen(a, akteur, heute).umverteilen` es erlaubt. Eine Karte wandert damit **in beide Richtungen** — aus dem Stapel in eine Spalte und zwischen Spalten. |
+| **`nochOffen`** | Neue reine Funktion in `_lib/anzeige.ts` (`status !== "abgeschlossen"`), die eine Stelle, die entscheidet, was eine Personenspalte zeigt. Sie ist **weiter** als das „offen" in `ohneAktivenTraeger` — eine zurückgewiesene Aufgabe liegt weiterhin bei ihrer BuFDi, und sie aus der Spalte zu nehmen hieße, beim Verteilen eine Last zu übersehen, die es gibt. |
+
+### B · Drei Abweichungen von der Spec — benannt statt still genommen
+
+1. **§4.4: „`/verteilen` bleibt eine reine Tabelle — keine Führungskarte, keine Achse, keine
+   Zonen."** Der *Tabellen*-Halbsatz ist bereits mit Nachtrag A (zweite Runde) abgelaufen. Der
+   *Achsen*-Halbsatz fällt hier — **aber nur für die Sicht, die man ausdrücklich wählt**. Ohne
+   Parameter ist die Seite wörtlich die, die sie vorher war. Das ist der Grund, warum `liste` die
+   Vorgabe ist und nicht `brett`, und die Vorgabe ist eine **fachliche** Setzung, keine
+   alphabetische.
+2. **§1.3 verwirft „Die Tafel (dreimal `Wochenplan`) — auf `/verteilen`"**, weil der Stapelplatz
+   „die leichteste Seite des Moduls bleiben" muss. **Das Brett ist nicht diese Tafel**, und der
+   Unterschied ist genau der Grund der Ablehnung: eine Personenspalte trägt **eine** Zahl, **einen**
+   Balken und ihre offenen Karten — keine fünf Tagesspalten mit Routinenblöcken, und `data-rolle`
+   bleibt eine Identität statt eine Klasse zu werden (der Preis, den Entwurf B selbst ausschrieb).
+   Und sie ist ein Zusatz hinter einem Parameter, kein Gewicht, das die Vorgabesicht mitschleppt.
+3. **§8 verwirft „Ziehen über Personengrenzen" — diese Runde hält sich daran.** Alle drei Gründe
+   gelten weiter: Falle 11 (in **diesem** Modul gemessen: `locator.dragTo()` löst kein zuverlässiges
+   `dragstart` aus, ein Zug lief reproduzierbar in den 90-Sekunden-Timeout), die Geste gäbe es erst
+   ab 768px und wäre damit **kein gleichrangiger Weg auf dem Telefon**, und sie ist für eine
+   Hilfstechnik überhaupt kein Bedienweg. Das Brett ist deshalb **vollständig ohne Zeigergeste**
+   bedienbar: Auslöser auf, Name klicken — Tab, Enter, fertig, und auf 360px ein 44px-Ziel.
+
+### C · Unter 768px ist das Brett ein **Stapel**, keine Spaltenlandschaft
+
+Zwei Kandidaten, der unterlegene wird benannt:
+
+- **(a) Das Brett entfällt, und die Umschaltung sagt es.** Verworfen: die Adresse `?ansicht=brett`
+  zeigte dann auf dem Telefon etwas anderes als auf dem Rechner (ein geteilter Link wäre je nach
+  Gerät eine andere Seite), und `/verteilen` verlöre auf dem Telefon genau die Angabe, derentwegen
+  das Brett gebaut ist. „Telefon und Rechner sind gleich wichtig" ist der ausdrückliche Auftrag.
+- **(b) Die Spalten stapeln.** Gewählt. Der Stapel zuerst — dort wird gehandelt —, dann je eine
+  Personenspalte mit Kopf, Balken und Karten. Das Brett behält auf 360px **genau die** Aussage, die
+  es von der Liste unterscheidet (Gruppierung nach Person plus Auslastung); nur die Achse dreht
+  sich. **Eine Deklaration** in der einen bestehenden Medienabfrage, kein zweites Markup, keine
+  zweite Renderkopie.
+
+**Der Unterschied zur `.wochenGitter`/`.tagesListe`-Umschaltung ist begründet:** dort rendern
+**beide** Ausprägungen ins HTML und CSS blendet eine aus, weil die Frage die **Breite** ist und der
+Server sie nicht kennt. Hier ist die Frage die **Wahl**, und die kennt der Server — zwei gerenderte
+Sichten wären doppelte Arbeit, doppelte `data-testid`-Marken (`verteilen-<id>` gäbe es zweimal) und
+ein zweiter Ort, an dem dieselbe Aufgabe steht.
+
+### D · Was fachlich unberührt bleibt (§11.3)
+
+Dieselbe Ladefunktion `verteilDaten(db, heute)`, dieselbe Zielliste aus **`bufdis()`** — bei einem
+Brett mit Personenspalten **besonders scharf**: eine falsche Quelle wäre nicht nur ein falscher Name
+in einer Liste, sondern eine **sichtbare Spalte** für die Koordination selbst; `verteilen/page.test.tsx`
+bindet das mit einer Fixtur aus zwei `auftrag`-Zeilen **und** einer ausgeschiedenen BuFDi. Dieselben
+Actions mit denselben Formularschlüsseln, derselbe 404-Riegel über `darfVerteilen` (er steht **vor**
+dem Auslesen des Suchparameters — `?ansicht=` darf an keiner Entscheidung über Zugang beteiligt
+sein), dieselbe Testmarke `verteilen-<id>`, das Vier-Augen-Prinzip, die Übergangstabelle. Der
+Zeitvorschlag bleibt ein **Vorschlag** (`vorschlagDatum`, nie `planDatum`), und das Brett verwischt
+die Grenze strukturell nicht: **die Spalten sind Personen, nicht Tage**. Wären sie Tage, wäre die
+Grenze schon durch die Bauform verwischt — genau der Grund, warum §8 das Ziehen über Personengrenzen
+verwirft.
+
+### E · Ein im Bildschirmabzug gemessener Befund
+
+Der Zeitraum-Zusatz stand zuerst als `.budgetHinweis`-Spanne **hinter** dem Zahlenpaar (dasselbe
+Muster wie die Überbuchungszeile auf `/`). Bei 1280px ist eine Brettspalte 231px breit, und
+„14,67 / 39 Std. diese Woche" passt darin **nicht** in eine Zeile: Bendix' Kopf wurde zweizeilig,
+Alinas und Carlas blieben einzeilig, und damit standen die drei **Auslastungsbalken auf drei
+verschiedenen Höhen** — ein Balken, dessen Sinn der Vergleich über die Spalten hinweg ist, darf
+nicht je Spalte woanders anfangen. „diese Woche" steht jetzt in einer eigenen Zeile; der Kopf ist
+damit in jeder Spalte gleich hoch. **Kein Tor hätte das gefunden:** jsdom rechnet keine Zeilenboxen,
+und der Überlauf-Sweep misst waagerechtes Scrollen, nicht Ausrichtung.
+
+### F · Die Grenzen sind eingehalten
+
+Genau **eine** Medienabfrage (767.98px, unverändert), **keine neue `--auf-*`-Variable** (das Brett
+kommt mit `--auf-tinte`, `--auf-stahl`, `--auf-linie`, `--auf-papier`, `--auf-karte`,
+`--auf-fuehrung` aus, alle sechs in beiden Themes gemessen), alle Abstände auf der `SPACE`-Leiter,
+kein `!important`, kein `#c8000f`, kein `size`, kein `box-shadow`. **44px Mindesthöhe für die
+Ansichtswahl steht ausgeschrieben im Stylesheet und wird als Zahl gemessen** — `ARBEITSDICHTE`
+(`controlHeight: 44`) ist ein antd-Token und erreicht ein selbstgebautes `<a>` **nicht**; ohne die
+Deklaration wäre die Leiste rund 21px hoch, und `typecheck`, `lint`, `build` und Vitest blieben
+still.
+
+### G · Testfolgen
+
+- **Vitest:** `verteilen/page.test.tsx` (welche Sicht aus welchem Parameter folgt · der Leersatz ist
+  in beiden Sichten wörtlich gleich · genau eine Spalte je `bufdis()`-Eintrag, keine für
+  Koordination/`auftrag`/ausgeschieden · der Stapel ist keine Personenspalte · die Feldreihenfolge
+  der Karte · `nochOffen` in der Spalte · „Zuweisen" nur, wo `aktionsOptionen` es erlaubt),
+  `_ui/AnsichtWahl.test.tsx` (Weißliste erschöpfend über `ANSICHTEN` · `liste` als Vorgabe · keine
+  Registerkarten-Auszeichnung · **kein `"use client"`**, Falle 6), `_lib/anzeige.test.ts`
+  (`nochOffen` erschöpfend über `STATUS_WERTE`, plus die Abgrenzung gegen `ohneAktivenTraeger`),
+  `_ui/aufgaben-css.test.ts` (`.brettGitter` leitet die Spurenzahl ab · stapelt im 767.98px-Block
+  auf `minmax(0, 1fr)` und wird dort **nicht** versteckt · `.ansichtWahlOption` ≥ 44px).
+- **e2e:** die Ansichtswahl steht in der Adresse und **überlebt den Neuladen** (in beide Richtungen
+  geschaltet — ein Test, der nur hin schaltet, bliebe auch dann grün, wenn die Liste fort wäre) ·
+  das Brett steht bei 1280px **nebeneinander** und bei 360px **gestapelt**, an den tatsächlichen
+  x-Koordinaten gemessen · eine Karte wandert **ohne Ziehen** aus dem Stapel in Carlas Spalte, mit
+  Antwortprüfung (Falle 10, zweite Testregel) und mit dem Beleg, dass der Vorschlag ein Vorschlag
+  geblieben ist · `?ansicht=brett` steht im Überlauf-Sweep bei 390/768/820/1280 **und** bei 360px —
+  ohne diese Zeile misst der Sweep für immer die Liste und meldet grün, während das Brett überläuft.

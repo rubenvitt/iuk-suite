@@ -274,6 +274,117 @@ test("Verteilen: /verteilen antwortet der Koordination mit 200 und zeigt den Pos
   expect(konsolenFehler).toEqual([]);
 });
 
+/*
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * DIE ZWEITE SICHT AUF `/verteilen` (Nachtrag „mehr Diversitaet im UI/UX", vierte
+ * Oberflaechen-Runde 2026-08-16) — `?ansicht=liste` (Vorgabe) und `?ansicht=brett`.
+ *
+ * WARUM DIESE ZWEI FAELLE HIER STEHEN UND NICHT IN VITEST: `verteilen/page.test.tsx` prueft
+ * erschoepfend, WELCHE SICHT AUS WELCHEM PARAMETER FOLGT — das ist eine Frage an eine Funktion.
+ * Die zwei Zusagen unten sind Fragen an den BROWSER und strukturell nicht in jsdom beantwortbar:
+ * ob die Wahl einen echten Neuladen ueberlebt (eine Frage an die ADRESSE), und ob die eine
+ * Medienabfrage aus vier Spalten eine Spur macht (jsdom rechnet weder `@media` noch Grid-Spuren).
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * DIE ANSICHTSWAHL UEBERLEBT DEN NEULADEN — die Zusage, an der die ganze Bauform haengt.
+ *
+ * SIE IST DER GRUND, WARUM DIE WAHL IN DER ADRESSE LEBT und nicht in einem `useState`: ein
+ * Client-Zustand waere beim ersten `F5` fort, und kein Vitest saehe das je (dort gibt es kein
+ * Neuladen). Der Fall geht deshalb den vollen Weg — KLICKEN statt die Adresse direkt anzusteuern,
+ * damit auch die Leiste selbst mitgeprueft ist, dann `reload()`.
+ *
+ * DER FALL IST LESEND UND AENDERT KEINEN ZUSTAND: er darf an jeder Stelle der Datei stehen und
+ * stoert die Zieh-Tests und die zwei Rundlaeufe weiter unten nicht.
+ */
+test("Ansichtswahl: der Wechsel auf das Brett steht in der Adresse und ueberlebt den Neuladen", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: KOORDINATION,
+    email: "rike@localtest.me",
+    callbackPath: "/verteilen",
+  });
+  await page.goto(`http://${HOST}:3100/verteilen`);
+
+  // VORHER: die Liste, ohne Parameter — `/verteilen` ist per Vorgabe die Seite, die sie vor dieser
+  // Runde war (`alsAnsicht(undefined) === "liste"`).
+  await expect(page.locator("[data-rolle='brett']")).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Brett", exact: true }).click();
+  await expect(page).toHaveURL(/\/verteilen\?ansicht=brett$/);
+  await expect(page.locator("[data-rolle='brett']")).toBeVisible();
+
+  // DER EIGENTLICHE BEWEIS: ein echter Neuladen. Ein Client-Zustand waere hier fort.
+  await page.reload();
+  await expect(page).toHaveURL(/\/verteilen\?ansicht=brett$/);
+  await expect(page.locator("[data-rolle='brett']")).toBeVisible();
+  await expect(
+    page.locator("[data-rolle='ansichtwahl'] a[aria-current='page']"),
+    "nach dem Neuladen ist die gewaehlte Sicht nicht mehr ausgezeichnet",
+  ).toHaveAttribute("data-ansicht", "brett");
+
+  // UND ZURUECK — die Umschaltung geht in BEIDE Richtungen, und nur beide zusammen sind eine
+  // Umschaltung. Ein Test, der nur hin schaltet, bliebe auch dann gruen, wenn die Liste fort waere.
+  await page.getByRole("link", { name: "Liste", exact: true }).click();
+  await expect(page).toHaveURL(/\/verteilen\?ansicht=liste$/);
+  await expect(page.locator("[data-rolle='brett']")).toHaveCount(0);
+});
+
+/**
+ * AUF 360PX IST DAS BRETT KEINE SPALTENLANDSCHAFT, SONDERN EIN STAPEL — und das wird an den
+ * TATSAECHLICHEN KOORDINATEN gemessen, nicht am Stylesheet.
+ *
+ * `aufgaben-css.test.ts` prueft, dass die Datei die Absicht TRAEGT (`grid-template-columns:
+ * minmax(0, 1fr)` im 767.98px-Block). Ob ein Browser daraus eine Spur rechnet, sieht nur dieser
+ * Fall: bei 1280px muessen die Personenspalten VERSCHIEDENE x-Werte haben, bei 360px DENSELBEN.
+ * Beide Breiten in EINEM Fallpaar, damit ein Fehler in beide Richtungen sichtbar wuerde — eine
+ * Messung nur bei 360px bliebe auch dann gruen, wenn das Brett auf JEDER Breite stapelte, und das
+ * waere der Verlust der ganzen Sicht.
+ */
+for (const vp of [
+  { breite: 1280, hoehe: 900, erwartung: "nebeneinander" as const },
+  { breite: 360, hoehe: 800, erwartung: "gestapelt" as const },
+]) {
+  test.describe(`Brett bei ${vp.breite}px`, () => {
+    test.use({ viewport: { width: vp.breite, height: vp.hoehe } });
+
+    test(`steht ${vp.erwartung}`, async ({ page }) => {
+      await devLogin(page, {
+        host: HOST,
+        groups: KOORDINATION,
+        email: "rike@localtest.me",
+        callbackPath: "/verteilen",
+      });
+      const res = await page.goto(`http://${HOST}:3100/verteilen?ansicht=brett`);
+      expect(res?.status()).toBe(200);
+      await expect(page.locator("[data-rolle='brett']")).toBeVisible();
+
+      const spalten = page.locator("[data-rolle='brett'] [data-person]");
+      const anzahl = await spalten.count();
+      expect(anzahl, "der Seed traegt drei aktive BuFDis — ohne mehrere Spalten misst dieser Fall nichts").toBeGreaterThanOrEqual(2);
+
+      const xWerte: number[] = [];
+      for (let i = 0; i < anzahl; i++) {
+        const kasten = await spalten.nth(i).boundingBox();
+        expect(kasten, `Spalte ${i} hat keinen Kasten`).not.toBeNull();
+        xWerte.push(Math.round(kasten!.x));
+      }
+
+      if (vp.erwartung === "gestapelt") {
+        expect(new Set(xWerte).size, `gestapelt erwartet, gemessen x = ${xWerte.join(", ")}`).toBe(1);
+      } else {
+        expect(
+          new Set(xWerte).size,
+          `nebeneinander erwartet, gemessen x = ${xWerte.join(", ")}`,
+        ).toBe(anzahl);
+      }
+    });
+  });
+}
+
 /**
  * DIE KERNZUSAGE DER GESAMTEN AUFGABE (Spec §8.3, Brief woertlich): „/verteilen antwortet einer
  * auftrag-Person mit 404, und der Weg dorthin existiert in ihrer Oberflaeche nicht. Beides prueft
@@ -1213,6 +1324,28 @@ const UEBERLAUF_SEITEN: { label: string; pfad: string; email: string; groups: st
   // `Table` mit `scroll={{x: "max-content"}}` — die eine Seite, fuer die diese Zusicherung
   // ueberhaupt etwas beweist (s. Kopfkommentar).
   { label: "/verteilen", pfad: "/verteilen", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilen" },
+  /*
+   * ══ DIE BRETT-SICHT IST EINE EIGENE ZEILE, UND OHNE SIE WAERE DIESER SWEEP AN DER NEUEN
+   *    RISIKOFLAECHE BLIND (vierte Oberflaechen-Runde 2026-08-16).
+   *
+   *    Die Zeile darueber ruft `/verteilen` OHNE Suchparameter, und das ist per Vorgabe die
+   *    LISTE (`alsAnsicht(undefined) === "liste"`). Sie wuerde also fuer immer die Zeilenliste
+   *    messen und gruen melden, waehrend das Brett bei 390px oder 768px ueber den Rand laeuft —
+   *    ein Sweep, der etwas anderes misst, als sein Name sagt.
+   *
+   *    UND DAS BRETT IST GENAU DIE BREITESTE NEUE SACHE DER SEITE: N+1 Spalten mit einer
+   *    220px-Untergrenze je Spur. Bei 390px muss die Medienabfrage sie auf EINE Spur stapeln, bei
+   *    768px auf so viele, wie in 528px Inhaltsflaeche passen (die engste Breite des Moduls
+   *    ueberhaupt, s. Kopfkommentar der Breitenliste unten). Beides ist eine Rechnung, kein
+   *    Versprechen — und nur ein echter Browser rechnet sie.
+   */
+  {
+    label: "/verteilen?ansicht=brett",
+    pfad: "/verteilen?ansicht=brett",
+    email: "rike@localtest.me",
+    groups: KOORDINATION,
+    titel: "Verteilen",
+  },
   { label: "/personen", pfad: "/personen", email: "rike@localtest.me", groups: KOORDINATION, titel: "Personenverwaltung" },
   { label: "/archiv", pfad: "/archiv", email: "rike@localtest.me", groups: KOORDINATION, titel: "Archiv" },
 ];
@@ -1288,19 +1421,32 @@ for (const vp of [
  * Sweeps waechst MULTIPLIKATIV ueber Seiten × Breiten, und 360px belegte fuer `/verteilen`,
  * `/personen` und `/archiv` nichts, was 390px nicht schon belegt (keine dieser Seiten hat eine
  * Schaltschwelle dazwischen; es gibt im ganzen Modul genau EINE Medienabfrage bei 767.98px).
- * 8 × 4 + 3 = 35 Faelle statt 8 × 5 = 40.
+ * 9 × 4 + 4 = 40 Faelle statt 9 × 5 = 45.
+ *
+ * ⚠️ DIE BRETT-SICHT IST SEIT DER VIERTEN OBERFLAECHEN-RUNDE (2026-08-16) DIE EINE AUSNAHME VON DER
+ * ABWAEGUNG IM ABSATZ DARUEBER, und die Ausnahme ist begruendet, nicht bequem: `/verteilen?ansicht=
+ * brett` ist die EINZIGE Flaeche des Moduls, deren Spurenzahl aus einer 220px-Untergrenze folgt —
+ * 360px ist damit die Breite, an der eine Spur ueberhaupt noch passen MUSS, und 390px belegt das
+ * nicht (30px sind genau die Reserve, um die es geht). Es bleibt bei DREI Zeilen fuer `/`.
  */
-test.describe("Kein waagerechtes Scrollen bei 360px — die drei Einstiege", () => {
+test.describe("Kein waagerechtes Scrollen bei 360px — die drei Einstiege und das Brett", () => {
   test.use({ viewport: { width: 360, height: 740 } });
 
   // AUSGESCHRIEBEN STATT AUS `UEBERLAUF_SEITEN` GEFILTERT: ein Filter ueber `label` haenge an einer
   // Zeichenkette, die niemand als Schnittstelle liest — waechst die Liste oben um eine vierte
   // BuFDi, fuehre er sie hier still mit, und die Zahl im Kopfkommentar stimmte nicht mehr.
   for (const seite of [
-    { label: "/ (Alina)", email: "alina@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
-    { label: "/ (Rike, Koordination)", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilung" },
-    { label: "/ (Malte, Auftraggeber)", email: "malte@localtest.me", groups: GRUPPE, titel: "Meine Aufträge" },
-  ].map((s) => ({ ...s, pfad: "/" }))) {
+    { label: "/ (Alina)", pfad: "/", email: "alina@localtest.me", groups: GRUPPE, titel: "Meine Woche" },
+    { label: "/ (Rike, Koordination)", pfad: "/", email: "rike@localtest.me", groups: KOORDINATION, titel: "Verteilung" },
+    { label: "/ (Malte, Auftraggeber)", pfad: "/", email: "malte@localtest.me", groups: GRUPPE, titel: "Meine Aufträge" },
+    {
+      label: "/verteilen?ansicht=brett",
+      pfad: "/verteilen?ansicht=brett",
+      email: "rike@localtest.me",
+      groups: KOORDINATION,
+      titel: "Verteilen",
+    },
+  ]) {
     test(`${seite.label} laeuft bei 360px nicht ueber`, async ({ page }) => {
       await devLogin(page, {
         host: HOST,
@@ -2007,4 +2153,105 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
   await klickeUndWarteAufSeite(page, () => page.getByTestId(`freigeben-${aufgabeId}`).click());
   await expect(page.getByText("Abgeschlossen", { exact: true })).toBeVisible();
+});
+
+/**
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * VERTEILEN AUF DEM BRETT — OHNE ZIEHEN (Nachtrag „mehr Diversitaet im UI/UX", vierte
+ * Oberflaechen-Runde 2026-08-16).
+ *
+ * DIE ZUSAGE, DIE DIESER FALL TRAEGT: das Brett ist VOLLSTAENDIG ohne Zeigergeste bedienbar. Es
+ * gibt auf ihm gar kein Ziehen — Spec §8 fuehrt „Ziehen ueber Personengrenzen" ausdruecklich unter
+ * „Was bewusst NICHT gebaut wird", und alle drei Gruende gelten weiter (Falle 11 macht die Deckung
+ * teuer, die Geste gaebe es erst ab 768px und waere damit kein gleichrangiger Weg auf dem Telefon,
+ * und sie ist fuer eine Hilfstechnik ueberhaupt kein Bedienweg). Eine Karte wandert deshalb ueber
+ * genau denselben Weg wie in der Zeilensicht: Ausloeser auf, Name klicken, fertig.
+ *
+ * ══ DER FALL STELLT SEINEN ZUSTAND SELBST HER (Spec §10) — er verteilt NICHT die geseedete
+ *    „Verbandskästen"-Aufgabe. Die ist die Fixtur, an der drei andere Faelle dieser Datei haengen
+ *    („zeigt den Posteingang", die Fuehrungskarte der Koordination, das Aufgabendetail); waere sie
+ *    hier verteilt, haette der Lauf drei rote Faelle mit Meldungen, die nach etwas ganz anderem
+ *    klingen — und ob sie rot wuerden, haenge an der Dateireihenfolge.
+ *
+ * ══ ER STEHT GANZ AM ENDE DER DATEI, hinter den zwei Rundlaeufen, aus derselben Ueberlegung wie
+ *    diese: er AENDERT Zustand (eine neue Aufgabe, eine neue Zuweisung an Carla), und alles, was
+ *    davor steht, soll das nicht sehen.
+ *
+ * ══ ER PRUEFT DIE ANTWORT, NICHT NUR DIE SPAETERE ZUSTANDSAENDERUNG (Falle 10, zweite Testregel):
+ *    `klickeUndWarteAufSeite` wartet auf die POST-Antwort GENAU DIESER Adresse. Ohne das liefe eine
+ *    abgelehnte Antwort still ins Zeitbudget und meldete sich als „Element nicht gefunden". Der
+ *    vorangehende GET auf dieselbe Adresse ist zugleich der Warmlauf, den Falle 10 verlangt.
+ *
+ * ══ DER BELEG IST DIE WANDERUNG DER KARTE, nicht ein Knopftext: sie verlaesst die
+ *    Posteingang-Spalte UND steht danach in Carlas Spalte. Nur beides zusammen zeigt, dass die
+ *    Aufgabe `eingegangen` verlassen hat UND bei der richtigen Person gelandet ist — ein
+ *    verschwundener Ausloeser allein bewiese das erste, nicht das zweite.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+test("Brett: eine Karte wandert ohne Ziehen aus dem Posteingang in die Spalte ihrer Person", async ({
+  page,
+}) => {
+  const titel = `E2E-Brett ${Date.now()}: Funkgeraete inventarisieren`;
+
+  // 1. EINSTELLEN — Malte, Auftraggeber. Frist weit in der Zukunft, damit die Aufgabe die
+  // aktuelle Woche der drei BuFDis nicht beruehrt (dieselbe Vorkehrung wie im vollen Durchlauf).
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: GRUPPE,
+    email: "malte@localtest.me",
+    callbackPath: "/neu",
+  });
+  await page.goto(`http://${HOST}:3100/neu`);
+  await page.locator("#af-titel").fill(titel);
+  await page.locator("#af-beschreibung").fill("Vom Brett-Fall der vierten Oberflaechen-Runde angelegt.");
+  await page.locator("#af-faelligAm").fill(inTagen(28));
+  await page.locator("#af-dauerMinuten").fill("45");
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: "Aufgabe einstellen" }).click(),
+  );
+
+  await page.goto(`http://${HOST}:3100/`);
+  const href = await page.getByRole("link", { name: titel }).getAttribute("href");
+  expect(href, "Aufgabe wurde nicht angelegt").toBeTruthy();
+  const aufgabeId = href!.replace("/a/", "");
+
+  // 2. AUF DAS BRETT — Rike, Koordination. Der GET ist zugleich der Warmlauf fuer den POST der
+  // Server Action, die gleich auf DIESELBE Adresse geht (Falle 10).
+  await wechsleRolle(page, {
+    host: HOST,
+    groups: KOORDINATION,
+    email: "rike@localtest.me",
+    callbackPath: "/verteilen",
+  });
+  const res = await page.goto(`http://${HOST}:3100/verteilen?ansicht=brett`);
+  expect(res?.status()).toBe(200);
+
+  const stapel = page.locator("[data-brett-spalte='posteingang']");
+  await expect(stapel, "die neue Aufgabe steht nicht im Stapel").toContainText(titel);
+
+  // 3. VERTEILEN OHNE ZIEHEN: Ausloeser auf, Zeitvorschlag setzen, Namen klicken. Die REIHENFOLGE
+  // ist tragend — der Klick auf den Namen IST das Absenden, alles Mitzusendende muss vorher im
+  // Feld stehen (s. `_ui/ZuweisenInline.tsx`).
+  await page.getByTestId(`verteilen-${aufgabeId}`).click();
+  const vorschlagFeld = page.locator(`#zi-${aufgabeId}-datum`);
+  await expect(vorschlagFeld, "das Zielfeld ist nicht aufgegangen").toBeVisible();
+  await vorschlagFeld.fill(inTagen(21));
+  await klickeUndWarteAufSeite(page, () =>
+    page.getByRole("button", { name: /^Carla/ }).click(),
+  );
+
+  // 4. DIE KARTE IST GEWANDERT — aus dem Stapel heraus UND in Carlas Spalte hinein.
+  await expect(stapel, "die Karte steht noch im Stapel").not.toContainText(titel);
+  const carla = page.locator("[data-rolle='brett'] [data-person]").filter({ hasText: "Carla" });
+  await expect(carla, "Carlas Spalte fehlt auf dem Brett").toHaveCount(1);
+  await expect(carla, "die Karte ist nicht in Carlas Spalte angekommen").toContainText(titel);
+
+  // 5. DER ZEITVORSCHLAG BLEIBT EIN VORSCHLAG. `verteilenAction` setzt `vorschlagDatum`, NIE
+  // `planDatum` — die Koordination schlaegt vor, die BuFDi plant. Ein Brett darf diese Grenze
+  // nicht verwischen, und die Karte sagt es: sie traegt die Marke „Zeitvorschlag offen"
+  // (`vorschlagOffen` = `verteilt` && `planDatum === null` && `vorschlagDatum !== null`).
+  await expect(
+    carla.locator("li").filter({ hasText: titel }),
+    "die Grenze zwischen Vorschlag und Plan ist verwischt — die Marke fehlt",
+  ).toContainText("Zeitvorschlag offen");
 });

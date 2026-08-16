@@ -762,6 +762,154 @@
   color: var(--auf-tinte);
   text-decoration: underline;
 }
+
+/*
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * DIE ANSICHTSWAHL UND DAS BRETT (Nachtrag „mehr Diversitaet im UI/UX", vierte Oberflaechen-Runde
+ * 2026-08-16) — ZWEI SICHTEN AUF DIESELBEN DATEN AUF `/verteilen`.
+ *
+ * ══ DIE WAHL IST EINE LEISTE AUS ZWEI VERWEISEN, KEIN BEDIENELEMENT MIT ZUSTAND. Sie schreibt
+ *    ausschliesslich `?ansicht=` in die Adresse; welche Sicht daraus wird, entscheidet die Server
+ *    Component. Deshalb steht hier auch KEIN `display: none`-Paar wie bei `.wochenGitter`/
+ *    `.tagesListe` — es rendert immer nur EINE Sicht ins HTML, und zwar die, die in der Adresse
+ *    steht (die Begruendung steht ausfuehrlich im Kopfkommentar von `verteilen/page.tsx`).
+ *
+ * ══ `min-height: 44px` STEHT HIER UND MUSS HIER STEHEN. `ARBEITSDICHTE` (`core/theme/theme.ts`,
+ *    `controlHeight: 44`) ist ein antd-Token und erreicht ausschliesslich antd-Bedienelemente; ein
+ *    selbstgebautes `<a>` erbt davon NICHTS. Ohne diese Zeile waere die Leiste rund 21px hoch —
+ *    `typecheck`, `lint`, `build`, Vitest und jeder Bildschirmabzug blieben still, und die Zusage
+ *    aus Falle 4 (44px fuer alles Bedienbare, WCAG 2.5.5 AAA) waere gebrochen, ohne dass ein Tor
+ *    es sagt. `aufgaben-css.test.ts` misst die Zahl deshalb ausdruecklich.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+.ansichtWahl {
+  display: inline-flex;
+  border: 1px solid var(--auf-linie);
+  border-radius: 8px;
+  background: var(--auf-karte);
+  overflow: hidden;
+}
+.ansichtWahlOption {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 88px;
+  padding-inline: 16px;
+  color: var(--auf-stahl);
+  text-decoration: none;
+}
+/*
+ * DIE GEWAEHLTE SICHT TRAEGT `--auf-fuehrung` UND `--auf-tinte` — dasselbe Paar, das die
+ * Fuehrungskarte traegt und das in `aufgaben-css.test.ts` bereits hell UND dunkel gemessen ist
+ * (13.24 / 11.97). Es kommt also KEINE Variable und KEINE Messung dazu.
+ *
+ * DIE FARBE IST NICHT DER EINZIGE KANAL: das aktive Element traegt `aria-current="page"` (die
+ * Auszeichnung, an der diese Regel haengt), und der GEWAEHLTE Verweis ist ausserdem der einzige,
+ * der auf die Seite zeigt, auf der man schon steht. Wer nur Graustufen sieht, liest den Wechsel
+ * am Gewicht.
+ */
+.ansichtWahlOption[aria-current="page"] {
+  background: var(--auf-fuehrung);
+  color: var(--auf-tinte);
+  font-weight: 600;
+}
+.ansichtWahlOption:hover {
+  color: var(--auf-tinte);
+}
+/*
+ * DAS BRETT — EINE SPALTE JE ZIELPERSON, PLUS DER STAPEL LINKS.
+ *
+ * DIESELBE SPURENFORMEL WIE `.wochenGitter` UND AUS DEMSELBEN GRUND: `auto-fit` mit `minmax(min(…),
+ * 1fr)` laesst die Spaltenzahl aus der FLAECHE folgen statt sie festzuschreiben. Eine feste
+ * `repeat(4, …)` waere hier zusaetzlich eine Behauptung ueber den Datenbestand — die Zahl der
+ * Spalten ist die Zahl der aktiven BuFDis plus eins, und die aendert sich in der
+ * Personenverwaltung, nicht im Stylesheet (derselbe Fehler, den die Ueberschrift „Die Woche der
+ * drei" schon einmal gemacht hat).
+ *
+ * 220px STATT DER 180px DES WOCHENGITTERS: eine Brettspalte traegt Karten mit Titel, Chips, Frist
+ * und — im Stapel — einen 44px-Ausloeser, die Tagesspalte nur Zeilen. Gerechnet auf die rund
+ * 1008px Inhaltsbreite bei 1280px Fenster: 4 Spalten a 231px. Bei drei BuFDis (dem heutigen
+ * Bestand) passt das Brett damit in EINE Reihe, ohne dass die Zahl irgendwo steht.
+ *
+ * `align-items: start` IST NICHT KOSMETIK: ohne sie zoegen alle Spalten auf die Hoehe der
+ * laengsten, und eine Spalte mit einer Karte haette einen halben Bildschirm leere Fuellflaeche
+ * unter sich — sichtbar als vier verschieden volle, aber gleich hohe Kaesten.
+ */
+.brettGitter {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+/*
+ * `overflow-wrap: anywhere` AM GEMEINSAMEN VORFAHREN, nicht an jeder Karte einzeln — dieselbe
+ * Ueberlegung wie bei `.tagSpalte` (und dasselbe Muster wie Falle 8): die Eigenschaft vererbt
+ * sich, deckt also Titel, Namen und alles ab, was hier spaeter dazukommt. Sie ist das Netz unter
+ * der 220px-Untergrenze oben: die ist gegen die HEUTIGEN Titel gerechnet, ein laengeres Einzelwort
+ * schoebe das Dokument sonst seitwaerts.
+ */
+.brettSpalte {
+  border: 1px solid var(--auf-linie);
+  border-radius: 8px;
+  background: var(--auf-karte);
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+/*
+ * DER STAPEL IST DIE SPALTE, DERENTWEGEN DIE SEITE EXISTIERT — und er bekommt dafuer die KANTE der
+ * Fuehrungskarte (`--auf-stahl` statt `--auf-linie`), NICHT ihre Fuellung. Zwei getoente Flaechen
+ * auf einer Seite waeren zwei Fuehrungen; die staerkere Kante sagt dasselbe eine Stufe leiser und
+ * kostet weder eine Variable noch eine Messung.
+ */
+.brettSpalteStapel {
+  border-color: var(--auf-stahl);
+}
+.brettKarten {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+/*
+ * DIE KARTE STEHT AUF `--auf-papier` IN EINER SPALTE AUF `--auf-karte` — eine Stufe Hoehe nach
+ * unten, in BEIDEN Themen (hell `#eef0f1` auf `#ffffff`, dunkel `#0f1113` auf `#191c1f`). Die drei
+ * Textfarben darauf (`--auf-tinte`, `--auf-stahl`, `--auf-achtung-text`) sind in
+ * `aufgaben-css.test.ts` gegen `--auf-papier` bereits hell UND dunkel gemessen; es kommt also
+ * keine Messung dazu.
+ */
+.brettKarte {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--auf-linie);
+  border-radius: 8px;
+  background: var(--auf-papier);
+  padding: 8px;
+}
+/*
+ * DIE MARKENZEILE DER KARTE — Chips, Frist, Dauer und (im Stapel) der Auftraggeber. Sie umbricht
+ * frei: eine 231px breite Spalte kann keine ausgerichteten Spuren tragen, und der Versuch waere
+ * genau der Fehler, den das Zeilenraster in der Tagesspalte schon einmal gemacht hat (die
+ * fuenfspurige Fassung platzte bei 490px `min-content`).
+ */
+.brettKarteMarken {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/*
+ * DIE AKTION SITZT DAUERHAFT SICHTBAR IN DER KARTE, nicht wie in der Zeilenliste erst bei
+ * Zuwendung (`.zeilenAktion { opacity: 0 }`): auf einem Brett IST das Verteilen der Zweck der
+ * Karte, nicht eine Nebenaktion an einer Datenzeile. Der 12px-Abstand nach oben trennt sie von den
+ * Marken, damit der Ausloeser nicht als weitere Marke gelesen wird.
+ */
+.brettKarteAktion {
+  margin-block-start: 12px;
+}
 /*
  * DIE ZEILENFORM DES GANZEN MODULS (`_ui/AufgabenZeile.tsx`, §3.6, §5.3) — SEIT DER
  * OBERFLAECHEN-RUNDE 2026-08-16 EIN RASTER STATT EINES TEXTFLUSSES.
@@ -1650,6 +1798,40 @@
   .planAktion {
     opacity: 1;
     justify-content: flex-start;
+  }
+  /*
+   * ══ DAS BRETT IST UNTER 768PX KEINE SPALTENLANDSCHAFT, SONDERN EIN STAPEL VON SPALTEN
+   *    (Nachtrag „mehr Diversitaet im UI/UX", vierte Oberflaechen-Runde 2026-08-16).
+   *
+   *    DIE ENTSCHEIDUNG WAR BEWUSST UND HATTE ZWEI KANDIDATEN, und der unterlegene wird benannt,
+   *    damit er nicht als uebersehen gilt:
+   *
+   *      (a) DAS BRETT ENTFAELLT und die Umschaltung sagt das. Verworfen, weil dann zwei Dinge
+   *          nicht mehr stimmen: die Adresse `?ansicht=brett` zeigte auf dem Telefon etwas
+   *          anderes als auf dem Rechner (ein geteilter Link waere je nach Geraet eine andere
+   *          Seite), und `/verteilen` verloere auf dem Telefon genau die Angabe, derentwegen das
+   *          Brett gebaut ist — wer wie voll ist. „Telefon und Rechner sind gleich wichtig" ist
+   *          der ausdrueckliche Auftrag; eine Sicht, die auf dem Telefon nicht existiert, ist
+   *          dort ein Rollenausfall, kein Komfortverlust (dieselbe Ueberlegung, die `.lageGitter`
+   *          schon fuehrt).
+   *
+   *      (b) DIE SPALTEN STAPELN. Gewaehlt. Aus vier Spalten nebeneinander werden vier Spalten
+   *          untereinander — der Stapel zuerst, weil dort gehandelt wird, dann je eine
+   *          Personenspalte mit Kopf, Auslastungsbalken und ihren Karten. Das Brett behaelt
+   *          damit auf 360px GENAU DIE Aussage, die es von der Liste unterscheidet (Gruppierung
+   *          nach Person plus Auslastung); nur die Achse dreht sich. Es ist EINE Deklaration,
+   *          KEIN zweites Markup und KEINE zweite Renderkopie — anders als bei
+   *          `.wochenGitter`/`.tagesListe`, wo die mobile Ausprägung eine ANDERE Auswahl zeigt
+   *          (genau ein Tag) und deshalb ein eigenes Element braucht.
+   *
+   *    WAS AUSDRUECKLICH NICHT GEHT UND HIER STRUKTURELL AUSGESCHLOSSEN IST: vier Spalten in
+   *    360px quetschen. `minmax(min(220px, 100%), 1fr)` faellt bei 328px Inhaltsbreite ohnehin
+   *    auf eine Spur zurueck (`min()` senkt die Untergrenze auf 100%) — diese Regel schreibt das
+   *    Ergebnis nur AUS, statt es aus einer Formel zu erhoffen, und sie ist die Stelle, an der
+   *    `aufgaben-css.test.ts` es festhalten kann.
+   */
+  .brettGitter {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

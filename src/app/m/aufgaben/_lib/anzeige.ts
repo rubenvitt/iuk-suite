@@ -205,6 +205,34 @@ export function aufgabenInWoche(aufgaben: readonly AufgabeRow[], tage: readonly 
 }
 
 /**
+ * NOCH OFFEN (Nachtrag „mehr Diversitaet im UI/UX", vierte Oberflaechen-Runde 2026-08-16) — eine
+ * Aufgabe, die noch Arbeit ist. Traeger: die Personenspalten des Bretts auf `/verteilen`
+ * (`_ui/VerteilBoard.tsx`).
+ *
+ * `status !== "abgeschlossen"` UND SONST NICHTS, UND DAS IST DIE GANZE DEFINITION. Sie steht hier
+ * als eigene Funktion, DAMIT DIE FRAGE „was heisst offen" EINE Antwort hat statt drei — im Modul
+ * gibt es dafuer sonst noch zwei ENGERE Fassungen, und sie sind nicht dasselbe:
+ *
+ *   · `ohneAktivenTraeger` unten liest „offen" als `verteilt | in_arbeit | freigabe_offen`.
+ *     `zurueckgewiesen` faellt dort ABSICHTLICH heraus (es ist eine eigene Sprosse der Rangleiter),
+ *     `abgeschlossen` ebenfalls. Fuer die Frage jener Funktion ist das richtig.
+ *   · `ohnePlatzInDerAchse` schliesst nur `abgeschlossen` aus, verlangt aber zusaetzlich eine
+ *     Aussage ueber `planDatum`.
+ *
+ * FUER EINE BRETTSPALTE WAERE DIE ENGE FASSUNG FALSCH, und zwar sichtbar: eine zurueckgewiesene
+ * Aufgabe liegt weiterhin bei ihrer BuFDi und ist weiterhin ihre Arbeit — sie aus der Spalte zu
+ * nehmen hiesse, beim Verteilen eine Last zu uebersehen, die es gibt. `eingegangen` kann in einer
+ * Personenspalte strukturell nicht auftreten (`zugewiesenAn` ist dort `null`, und der Aufrufer
+ * filtert auf die Person), steht der Vollstaendigkeit halber aber ebenfalls unter „offen".
+ *
+ * KEIN `heute`-ARGUMENT: das ist eine Zustandsfrage, keine Datumsfrage — die einzige Ableitung
+ * dieser Datei, die keine Uhr braucht.
+ */
+export function nochOffen(a: AufgabeRow): boolean {
+  return a.status !== "abgeschlossen";
+}
+
+/**
  * OHNE AKTIVEN TRAEGER (Oberflaechen-Spec 2026-08-16 §4.5, §9/S1) — eine offene Aufgabe, die bei
  * einer Person liegt, die nicht mehr aktiv ist.
  *
