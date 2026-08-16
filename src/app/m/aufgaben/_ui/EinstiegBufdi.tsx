@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { einplanenAnnehmenAction } from "../actions";
 import { aufgabenFuerPerson, bufdis, rangGrenzen, routinenFuer } from "../_db/queries";
-import type { AufgabeRow, PersonRow } from "../_db/schema";
+import type { AufgabeRow } from "../_db/schema";
 import type { DB } from "../_db/client";
 import { vorschlagOffen } from "../_lib/anzeige";
 import {
@@ -17,6 +17,7 @@ import { darfPlanAendern, type Akteur } from "../_lib/zugang";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { AnlassZone } from "./AnlassZone";
+import { EinplanenInline } from "./EinplanenInline";
 import { Fuehrungskarte } from "./Fuehrungskarte";
 import { SeitenKopf } from "./SeitenKopf";
 import { TagesWaehler } from "./TagesWaehler";
@@ -193,7 +194,7 @@ export function EinstiegBufdi({
             aktionen={
               zeigeAktionen && zone.art === "bufdiWartetAufEinplanung"
                 ? Object.fromEntries(
-                    zone.zeilen.map((a) => [a.id, posteingangAktionen(a, person)] as const),
+                    zone.zeilen.map((a) => [a.id, posteingangAktionen(a)] as const),
                   )
                 : {}
             }
@@ -266,7 +267,7 @@ function planZusatz(a: AufgabeRow): string | null {
  * damit INNERHALB von `data-testid="aufgaben-flaeche"`, wo hoechstens EIN `.ant-btn-primary` stehen
  * darf — und der gehoert der Fuehrungskarte.
  */
-function posteingangAktionen(a: AufgabeRow, person: PersonRow): ReactNode {
+function posteingangAktionen(a: AufgabeRow): ReactNode {
   return (
     /*
      * ══ STILLE ZEILENKNOEPFE STATT antd-`Button` (Oberflaechen-Runde 2026-08-16, zweite Haelfte).
@@ -308,9 +309,25 @@ function posteingangAktionen(a: AufgabeRow, person: PersonRow): ReactNode {
           </button>
         </form>
       ) : null}
-      <Link href={`/plan/${person.id}#einplanen-${a.id}`} className={s.zeilenKnopf}>
-        Anders einplanen
-      </Link>
+      {/*
+       * ══ „ANDERS EINPLANEN" IST KEIN WEG MEHR, SONDERN EIN FELD (Oberflaechen-Runde 2026-08-16,
+       *    dritte Haelfte). Der Verweis fuehrte auf `/plan/<person>#einplanen-<id>`, also FORT von
+       *    der Liste, in der man gerade liest, zu einem Formular, das dieselbe Aufgabe noch einmal
+       *    nennt — und wer danach die naechste umplanen wollte, ging zurueck und wieder hin. Der
+       *    Kommentar darueber hat den Verweis eine Runde frueher vom antd-`Button` zum `<a>`
+       *    gemacht, „damit das Markup dasselbe sagt wie die Handlung"; diese Runde geht den Schritt
+       *    zu Ende und macht die HANDLUNG zu dem, was sie inhaltlich ist — eine Aenderung an dieser
+       *    Zeile, nicht ein Ortswechsel.
+       *
+       *    FACHLICH AENDERT SICH NICHTS: dieselbe `einplanenAction`, dieselben Feldnamen, dasselbe
+       *    `zeigeAktionen = darfPlanAendern(...)`, das schon den Verweis gatete. Die Zielseite
+       *    `/plan/<person>` bleibt vollstaendig erreichbar (Fusszeile, Fuehrungskarte, Zeitplaene
+       *    der anderen) und behaelt als einzige das Dauerfeld.
+       *
+       *    DER WORTLAUT BLEIBT, DAMIT DER GRIFF BLEIBT: `name: "Anders einplanen"` findet jetzt
+       *    einen Knopf statt eines Verweises — die Rolle wechselt, die Aufschrift nicht.
+       */}
+      <EinplanenInline aufgabe={a} />
     </div>
   );
 }

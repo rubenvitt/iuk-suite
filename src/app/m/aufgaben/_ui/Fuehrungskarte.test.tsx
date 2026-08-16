@@ -44,6 +44,9 @@ vi.mock("../actions", () => ({
   wiederaufnehmenAction: vi.fn(),
   zurueckziehenAction: vi.fn(),
   einplanenAnnehmenAction: vi.fn(),
+  // Seit der dritten Oberflaechen-Runde importiert die Karte `EinplanenInline`, und die liest
+  // `einplanenAction` beim Import — dieselbe Mechanik wie bei `UmverteilenKnopf` zwei Zeilen tiefer.
+  einplanenAction: MARKER,
   fertigMeldenAction: MARKER,
   freigebenAction: vi.fn(),
   zurueckweisenAction: MARKER,

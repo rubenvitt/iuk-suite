@@ -23,6 +23,7 @@ import type { Anlass, Lage } from "../_lib/lage";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { PrioritaetChip, StatusChip } from "./Chip";
+import { EinplanenInline } from "./EinplanenInline";
 import { FreigabeAktionen } from "./FreigabeZone";
 import { Frist, fristLage } from "./Frist";
 import { FertigMeldenKnopf } from "./KartenAktion";
@@ -267,7 +268,13 @@ function AlsNaechstes({ anlass, props }: { anlass: Anlass; props: Fuehrungskarte
   return (
     <div
       style={{
-        borderBlockStart: "1px solid var(--auf-linie)",
+        /*
+         * `--auf-stahl`, NICHT `--auf-linie`: diese Haarlinie steht als einzige des Moduls auf
+         * `--auf-fuehrung`, und `--auf-linie` (`#d9dde1`) ist HELLER als die Toenung (`#e0e4e7`) —
+         * die Trennung waere unsichtbar bis invertiert. Dieselbe Ueberlegung wie bei der Kante der
+         * Karte selbst (s. den Kommentar bei `.fuehrung`).
+         */
+        borderBlockStart: "1px solid var(--auf-stahl)",
         marginBlockStart: SPACE.lg,
         paddingBlockStart: SPACE.md,
       }}
@@ -590,13 +597,22 @@ function aktionen(
     case "bufdiHeuteOffen":
       return {
         primaer: einzeln ? zustandsaktion(erste, optionen) : null,
-        sekundaer: einzeln
-          ? [
-              <Button key="anders" href={`/plan/${eigen}#einplanen-${erste.id}`}>
-                Anders einplanen
-              </Button>,
-            ]
-          : [],
+        /*
+         * „ANDERS EINPLANEN" IST HIER EIN FELD GEWORDEN, KEIN VERWEIS MEHR (Oberflaechen-Runde
+         * 2026-08-16, dritte Haelfte) — dieselbe Aenderung wie in `EinstiegBufdi.tsx`s
+         * `posteingangAktionen`, mit derselben Insel und derselben Action.
+         *
+         * DAS PRAEDIKAT KOMMT NEU DAZU, UND ZWAR NOTWENDIG: als Verweis brauchte der Knopf keines
+         * — die Zielseite `/plan/<person>` fuehrt ihren Riegel selbst und antwortet sonst mit 404.
+         * Ein Feld, das `einplanenAction` ruft, muss dagegen an DERSELBEN Bedingung haengen, die
+         * `uebergang()` prueft; `props.darfPlanAendern` ist genau die (`_lib/zugang.ts`), und die
+         * Karte fuehrt sie fuer `PlanKnopf` bereits mit. Ohne diese Zeile boete die Oberflaeche
+         * etwas an, das die Action ablehnt — genau der Fall, den §11.3 ausschliesst.
+         */
+        sekundaer:
+          einzeln && props.darfPlanAendern
+            ? [<EinplanenInline key="anders" aufgabe={erste} />]
+            : [],
       };
 
     case "bufdiWartetAufEinplanung": {
@@ -617,10 +633,24 @@ function aktionen(
             Einplanen
           </Button>
         ),
+        /*
+         * ZWEI FASSUNGEN, UND DIE FALLUNTERSCHEIDUNG IST DIE GANZE BEGRUENDUNG: bei n = 1 nennt die
+         * Karte EINE Aufgabe, und ein Feld kann genau die umplanen — das ist der Fall, den diese
+         * Runde vom Verweis auf die Insel umstellt. Bei n > 1 nennt die Karte eine ZAHL; ein
+         * Datumsfeld muesste dann fuer „welche?" eine Antwort erfinden, die die Karte bewusst nicht
+         * gibt (§4.3). Dort bleibt der Verweis auf `/plan/<person>`, wo alle Zeilen stehen.
+         *
+         * `props.darfPlanAendern` gatet nur die INSEL, nicht den Verweis — Navigation braucht kein
+         * Praedikat, eine Action schon (s. `bufdiHeuteOffen` oben).
+         */
         sekundaer: [
-          <Button key="anders" href={`/plan/${eigen}${einzeln ? `#einplanen-${erste.id}` : ""}`}>
-            Anders einplanen
-          </Button>,
+          einzeln && props.darfPlanAendern ? (
+            <EinplanenInline key="anders" aufgabe={erste} />
+          ) : (
+            <Button key="anders" href={`/plan/${eigen}`}>
+              Anders einplanen
+            </Button>
+          ),
         ],
       };
     }

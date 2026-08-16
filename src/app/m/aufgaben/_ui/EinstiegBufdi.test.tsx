@@ -305,8 +305,20 @@ describe("EinstiegBufdi — die Zone „Einzuplanen“ (Regel R3, Regel D)", () 
     expect(felder).toContainEqual(["planDatum", "2026-08-13"]);
     expect(felder).toContainEqual(["planUhrzeit", "09:00"]);
 
-    expect(zeilen[1]!.querySelectorAll("button")).toHaveLength(0);
-    expect(zeilen[1]!.querySelector("a[href*='#einplanen-']")).toBeTruthy();
+    /*
+     * DIE ZEILE OHNE VORSCHLAG HAT SEIT DER DRITTEN OBERFLAECHEN-RUNDE EINEN KNOPF STATT EINES
+     * VERWEISES: „Anders einplanen" fuehrte auf `/plan/<person>#einplanen-<id>` und oeffnet jetzt
+     * `EinplanenInline` an Ort und Stelle. Die Zusage bleibt dieselbe — „ohne Vorschlag kein
+     * Annehmen-Weg" —, also wird weiterhin geprueft, dass GENAU EIN Bedienelement dasteht und dass
+     * es nicht der Annehmen-Knopf ist. Der Anker-Verweis darf es nicht mehr geben; ohne diese
+     * Zeile bliebe der Test gruen, wenn beide Wege nebeneinander stehen blieben.
+     */
+    const ohne = zeilen[1]!;
+    const knoepfeOhne = Array.from(ohne.querySelectorAll("button"));
+    expect(knoepfeOhne).toHaveLength(1);
+    expect(knoepfeOhne[0]!.getAttribute("data-testid")).toMatch(/^einplanen-/);
+    expect(knoepfeOhne[0]!.textContent).toContain("Anders einplanen");
+    expect(ohne.querySelector("a[href*='#einplanen-']")).toBeNull();
   });
 
   /**

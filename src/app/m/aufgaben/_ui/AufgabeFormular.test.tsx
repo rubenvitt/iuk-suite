@@ -193,7 +193,22 @@ describe("AufgabeFormular — Feldfehler tragen die Eingaben mit, einschliesslic
       },
     });
     await mount(<AufgabeFormular darfFuerAndere={false} />);
-    expect(query<HTMLSelectElement>("#af-prioritaet").value).toBe("niedrig");
+    /*
+     * DIE PRIORITAET IST SEIT DER DRITTEN OBERFLAECHEN-RUNDE EINE RADIOGRUPPE, KEIN `<select>` —
+     * die Zusage bleibt woertlich dieselbe („der zurueckgemeldete Wert gewinnt gegen die
+     * Vorgabe"), nur ihre Ablesestelle wechselt vom `value` des Feldes zum `checked` der Stufe.
+     *
+     * ALLE DREI WERDEN GEPRUEFT, NICHT NUR DIE ERWARTETE: eine Radiogruppe kann auch ZWEI gesetzte
+     * Felder haben, wenn `defaultChecked` falsch abgeleitet wird — der Browser zeigt dann eine
+     * Stufe, sendet aber die andere. Ein `expect(niedrig.checked).toBe(true)` allein bliebe dabei
+     * gruen.
+     */
+    const stufen = queryAll<HTMLInputElement>("input[name=prioritaet]");
+    expect(stufen.map((f) => [f.value, f.checked] as const)).toEqual([
+      ["hoch", false],
+      ["mittel", false],
+      ["niedrig", true],
+    ]);
     expect(query("#af-dauerMinuten-err").textContent).toBe(
       "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.",
     );

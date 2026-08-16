@@ -1436,7 +1436,7 @@ Der fremde Plan bleibt völlig aktionsfrei.
 | **Ziehen über Personengrenzen** (Posteingangszeile → Tagesspalte einer anderen Person) | Falle 11 macht die e2e-Deckung teuer (schrittweise Maus statt `dragTo()`), die Geste gilt erst ab 768px und wäre damit kein gleichrangiger Weg auf dem Telefon, und sie umgeht das Modal, das die Auslastung neu rechnet. Der tastaturbedienbare Zwilling („Anders zuweisen" auf `/a/<id>`) existiert und bleibt der Weg. |
 | **Uhrzeitabhängige Inhalte** (Vormittag/Nachmittag, „STAND 09:14", eine Jetzt-Linie) | Die Seite rendert serverseitig in einem Zug und hat keinen Aktualisierungstakt; eine Karte, die sich nach der Uhr ändert, wäre nach fünf Minuten Standzeit falsch, ohne dass etwas geschehen wäre. **Fortschritt ist die ehrlichere Kopplung:** die Karte rückt vor, weil die Person arbeitet. Dazu: keine Seed-Aufgabe trägt eine `planUhrzeit`, und eine uhrzeitabhängige Kontextzeile wäre ein Test, der zwischen zwei Läufen kippt. |
 | **KPI-Kacheln** (`Kachel.tsx`, `.kpi*`) | Befund (1) nennt genau diese Bauform als den Defekt. Aufhebung von Modulspec §8.1/§8.2 begründet in §1.4. |
-| **Tönung oder farbige Kante der Führungskarte** | Farbe ist im Modul für sechs Zustandstöne und drei Prioritätsstufen vergeben. Ein siebter Ton „das ist die Führung" wäre eine Bedeutung zu viel auf einem vollen Kanal. Raum (24px), Typografie (Kicker + 20/600) und Position tun es. |
+| ~~**Tönung** oder farbige Kante der Führungskarte~~ — **die Tönung ist überholt, siehe §11.6; die farbige Kante gilt weiter** | Die Begründung lautete: „Farbe ist im Modul für sechs Zustandstöne und drei Prioritätsstufen vergeben. Ein siebter Ton „das ist die Führung" wäre eine Bedeutung zu viel auf einem vollen Kanal. Raum (24px), Typografie (Kicker + 20/600) und Position tun es." **Der letzte Satz war zum zweiten Mal falsch, und zwar messbar:** nachdem `--auf-karte` die Karte vom Seitengrund gelöst hatte, bekamen `.tagSpalte` und `.lageKarte` in derselben Runde dieselbe Füllung — die Führungskarte war damit eine Karte unter Karten, und Raum und Typografie haben den Effekt wieder nicht geliefert. **Der erste Satz gilt unverändert und ist der Grund für die Bauform:** `--auf-fuehrung` ist ein **neutrales Grau** (gleicher Kanalabstand in R/G/B wie `--auf-papier`, nur dunkler), also eine Höhe wie `--auf-papier`/`--auf-karte` und kein siebter Bedeutungston. Eine **farbige** Kante bleibt ausgeschlossen; die Karte trägt `--auf-stahl`, dieselbe neutrale Farbe wie ihre Chips. |
 | ~~**Ein zweiter Kartenhintergrund (`--auf-karte`)**~~ — **überholt, siehe §11.5** | Die Begründung lautete: „eine Variable, die gemessen, aber nicht dort gerendert wird, wo gemessen wurde, ist die stille Bauart von Falle 2; und eine, die beides tut, kostet drei zusätzliche Messungen für einen Effekt, den Raum und Typografie schon liefern." **Die Annahme im letzten Halbsatz war falsch, und zwar messbar:** `.fuehrung` trug `--auf-papier` `#eef0f1`, und `Layout.bodyBg` **ist** `FARBEN.papier` `#eef0f1` — die Karte lag numerisch exakt auf dem Seitengrund, und Raum und Typografie haben den Effekt eben **nicht** geliefert (Befund 2 des Betreibers, 2026-08-16). Die drei zusätzlichen Messungen sind bezahlt (`aufgaben-css.test.ts`, Aussage 5, gegen `--auf-karte` statt nur gegen `--auf-papier`). |
 | **Jede Bewegung** — Aufbau der Tagesspalten, Zählanimation, Übergänge | Modulspec §9.4 verbietet die ersten beiden ausdrücklich, und der CSS-Test verbietet den Rest indirekt: eine `prefers-reduced-motion`-Ausnahme wäre eine zweite Medienabfrage. |
 | **Ein Zähler-Abzeichen in der Suite-Navigation** („Freigaben ⑵") | Es müsste bei jedem Seitenaufruf jedes Moduls gezählt werden, in der Shell, quer zur Modulgrenze. Der `core`-Maßstab ist ein zweiter, heute belegbarer Nutznießer — es gibt keinen. |
@@ -1920,3 +1920,87 @@ dazwischen ist nicht zu sehen, wo die Entscheidung liegt.
 gemessener Kontrast, alle Abstände auf der `SPACE`-Leiter, kein `!important`, kein `#c8000f`, kein
 `size`, 44px Mindesthöhe, und unterhalb von 768px stehen alle Aktionsspuren (`.zeilenAktion` **und**
 neu `.planAktion`) dauerhaft offen — Touch hat kein Hover.
+
+---
+
+## 11.6 Nachtrag 2026-08-16 — die dritte Oberflächen-Runde (zwei offene Punkte)
+
+Der Betreiber hat die zweite Runde gesehen und **zwei** Punkte offengelassen. Sie stehen hier mit
+ihren Abweichungen, statt still zu bleiben.
+
+### A · Die Führungskarte bekommt eine Tönung — §8 ist an dieser Zeile durchgestrichen
+
+**Der Befund:** „sie hebt sich zu wenig ab". Nachrechenbar, keine Geschmacksfrage: `.fuehrung`,
+`.tagSpalte` und `.lageKarte` trugen nach der zweiten Runde alle drei `--auf-karte` `#ffffff`. Die
+Karte, die „genau eine getönte Fläche" sein sollte (`docs/design/feedback-admin.md:277`), war die
+vierte gleich aussehende Fläche der Seite.
+
+**Was jetzt gilt — vier Kanäle, weil einer nachweislich nicht reicht:**
+
+| Kanal | Vorher | Jetzt |
+|---|---|---|
+| Fläche | `--auf-karte` (wie jede Karte) | **`--auf-fuehrung`** `#dfe3e7` / `#2a323a` — die einzige getönte Fläche |
+| Kante | 1px `--auf-linie` | 1px **`--auf-stahl`** (`--auf-linie` `#d9dde1` liegt auf der Tönung praktisch auf: Kontrast 1.07) |
+| Raum | 24px | **32px** (unter 768px unverändert 16px) |
+| Typografie | Kicker in `--auf-stahl` | Kicker in **`--auf-tinte`** — die erste Zeile der Karte ist die erste voll ausgezeichnete Zeile der Seite |
+
+**Zwei Abweichungen von §6.5, beide bezahlt:**
+
+1. **Eine neue `--auf-*`-Variable** (die zweite nach `--auf-karte`). Sie trägt **keine Aussage**:
+   ein neutrales Grau mit demselben Kanalabstand in R/G/B wie `--auf-papier`. Der volle Farbkanal
+   des Moduls (sechs Zustandstöne, drei Prioritätsgewichte) bleibt unberührt, und Rot ist auf dieser
+   Fläche ausgeschlossen — die Karte sagt oft etwas völlig Normales („1 Aufgabe wartet auf
+   Freigabe"), eine Warnfarbe wäre dort eine **Falschaussage**, nicht nur ein Regelbruch (Falle 3).
+2. **Die drei Messungen sind bezahlt**: `--auf-tinte`, `--auf-stahl` und `--auf-achtung-text` auf
+   `--auf-fuehrung`, hell **und** dunkel (`aufgaben-css.test.ts`, Aussage 5).
+
+**Der `box-shadow` ist entfallen — er war ein Verstoß.** Die zweite Runde hatte `.fuehrung` einen
+Schatten gegeben, verteidigt mit „ein statischer Schatten bewegt sich nicht". Das stimmt und ist
+unerheblich: die Hausregel lautet „Schatten hat nur, was schwebt (Dropdown, Modal, Popconfirm)"
+(`docs/design/feedback-admin.md:191`) und fragt nach der **Höhe**, nicht nach der Bewegung. Ein
+Quelltext-Riegel im CSS-Test verbietet `box-shadow` ab jetzt modulweit.
+
+**Was die Tönung NICHT konnte, und warum es dokumentiert ist:** im Hellen steht sie 1.12 vom
+Seitengrund ab, eine gewöhnliche Karte 1.14 — der Tönungsschritt ist also *knapp schwächer* als der
+Kartenschritt. Das ist eine **gemessene Decke**: `--auf-stahl` hält auf `#dfe3e7` noch 4.60, ein
+weiterer sichtbarer Schritt ins Dunkle nähme den Prioritäts-Chips auf dieser Karte ihre Lesbarkeit.
+Die tragende Zusage ist deshalb eine andere und die richtige: **die Führungskarte steht weiter von
+einer gewöhnlichen Karte ab (1.29 hell / 1.18 dunkel), als eine gewöhnliche Karte vom Seitengrund
+absteht (1.14 / 1.11)** — der Abstand zu den **Nachbarn** ist der Befund, nicht der zum Grund. Ein
+Test prüft genau diesen Satz.
+
+### B · Zwei weitere Dialoge lösen sich in direkte Manipulation auf
+
+| Was die Spec sagte | Was jetzt gilt | Warum |
+|---|---|---|
+| §4.2/§8: „Anders einplanen" führt auf `/plan/<person>#einplanen-<id>` | **Inline** (`_ui/EinplanenInline.tsx`): ein aufklappendes Feld mit Tag und optionaler Uhrzeit, direkt in der Zeile bzw. auf der Führungskarte | Es war nicht einmal ein Modal, sondern ein **Seitenwechsel** — fort von der Liste, in der man liest, zu einem Formular, das dieselbe Aufgabe noch einmal nennt. Wer danach die nächste umplant, geht zurück und wieder hin. **Fachlich identisch:** dieselbe `einplanenAction`, dieselben Feldnamen, dasselbe `darfPlanAendern`. `/plan/<person>` bleibt vollständig erreichbar und behält als einzige Fläche das **Dauerfeld** — die Zeilenfrage ist *wann*, nicht *wie lange*. |
+| §8.3: die Priorität ist ein natives `<select>` im Einstellformular | **Chip-Wahl** aus drei nativen Radios, jede Stufe als ihr eigener `PrioritaetChip` | Drei sichtbare Werte hinter zwei Klicks, und der gewählte stand in einer Systemschrift, die mit der Rangskala des Moduls nichts zu tun hat. Die drei Stufen **sind** im Modul bereits eine Formsprache (`PRIORITAET_FORM`); sie zu zeigen macht aus der Auswahl eine **Vorschau** auf das, was die Aufgabe in jeder Liste sein wird. **Fachlich identisch:** derselbe Feldname `prioritaet`, dieselbe Action, derselbe `istGueltigePrioritaet`-Riegel, ohne JavaScript bedienbar. |
+
+**Bei `einplanen` bleibt es ohne Bestätigung, und das ist geprüft statt übersehen:**
+`_lib/lebenszyklus.ts` führt den Übergang mit `planLoeschen: false` — es *setzt* einen Tag, es leert
+nichts. Es gibt also keine Folge zu nennen, und ein „Sind Sie sicher?" wäre genau die leere
+Rückfrage, die die Hausregel verbietet. Die Gegenprobe steht eine Datei weiter: `ZuweisenInline`s
+`umverteilen`-Zweig trägt `planLoeschen: true` und deshalb sehr wohl einen Folgesatz über der
+Auswahl. Ein Vitest hält beides fest.
+
+**Was ausdrücklich NICHT aufgelöst wurde, und warum:**
+
+- **`ZurueckweisenModal`** — es erfragt eine **Pflicht-Begründung** im Freitext, kein einzelnes
+  auswählbares Feld. Der Kopfkommentar von `_ui/FreigabeZone.tsx` schreibt außerdem aus, warum die
+  Freigabeknöpfe nicht in die Hover-Aktionsspur gehören.
+- **Die beiden `Popconfirm`** (`zurueckziehen`, `personBeenden`) — sie sind die Bestätigung, nicht
+  der Dialog. Beide haben eine Folge (Löschen bzw. Ausscheiden), und ihr Wortlaut nennt sie.
+- **`VerteilenModal` auf der Führungskarte und `/a/<id>`** — dort ist die Zuweisung die
+  **Primäraktion einer einzelnen, benannten Aufgabe**, nicht eine Zeilenaktion unter vielen; der
+  Modalweg trägt zusätzlich den optionalen Zeitvorschlag. Die Abwägung steht seit der zweiten Runde
+  im Kopfkommentar von `_ui/ZuweisenInline.tsx` und ist unverändert.
+- **Ein Inline-Steller für die Priorität einer BESTEHENDEN Aufgabe** — er ist nicht gebaut, weil er
+  **fachlich neu** wäre: es gibt keine Server Action, die `prioritaet` nachträglich ändert, und
+  `uebergang()` kennt keine Zeile dafür. Wer sie einführt, muss zuerst beantworten, *wer* eine
+  Priorität ändern darf — eine Zusage, die diese Spec nicht trifft (§11.3 ist tabu).
+
+**Die Grenzen sind eingehalten:** genau eine Medienabfrage (767.98px), Hell/Dunkel-Paarigkeit jeder
+`--auf-*`, gemessener AA-Kontrast in beiden Themes, alle Abstände auf der `SPACE`-Leiter, kein
+`!important`, kein `#c8000f`, kein `size`, kein `box-shadow`, 44px Mindesthöhe für jedes neue
+Bedienelement, und unterhalb von 768px steht die Aktionsspur mit dem neuen Auslöser dauerhaft offen
+— Touch hat kein Hover.

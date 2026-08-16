@@ -56,6 +56,54 @@
   --auf-karte: #ffffff;
 
   /*
+   * DIE VIERTE TRAEGERFLAECHE — DIE EINE GETOENTE (Oberflaechen-Runde 2026-08-16, dritte Haelfte).
+   *
+   * DER BEFUND, ZUM ZWEITEN MAL AN DERSELBEN KARTE: `--auf-karte` hat die Fuehrungskarte vom
+   * Seitengrund geloest, aber `.tagSpalte` und `.lageKarte` haben DIESELBE Fuellung in derselben
+   * Runde bekommen. Damit war die Fuehrungskarte wieder eine Karte unter Karten — sie fuehrt
+   * inhaltlich, nicht sichtbar. Der Referenzentwurf nennt die Loesung beim Namen: „die einzige
+   * getoente Flaeche der Seite, dadurch ist ‚hier passiert gerade etwas‘ eine Flaechenaussage vor
+   * dem ersten Wort" (`docs/design/feedback-admin.md:277`).
+   *
+   * IMMER NOCH KEIN SIEBTER BEDEUTUNGSTON (§3.4, §6.4): `--auf-fuehrung` ist wie `--auf-papier`
+   * und `--auf-karte` eine HOEHE, kein Zustand. Der Wert ist ein NEUTRALES Grau — dieselben
+   * Kanalabstaende in R/G/B wie `--auf-papier`, nur dunkler (238/240/241 → 224/228/231). Er
+   * behauptet keine Farbe und kann deshalb mit keinem der sechs Zustandstoene verwechselt werden.
+   * (238/240/241 → 223/227/231 im Hellen; der Blaukanal faellt um 10 statt um 15, weil ein exakt
+   * gleicher Abfall in allen drei Kanaelen bei dieser Helligkeit gelblich kippt.)
+   * ROT IST AUSGESCHLOSSEN, und zwar begruendet, nicht nur regelkonform: die Karte sagt oft etwas
+   * voellig Normales („1 Aufgabe wartet auf Freigabe"). Eine Warnfarbe waere dort eine
+   * Falschaussage — und `#c8000f` zusaetzlich Falle 3.
+   *
+   * DIE RICHTUNG IST DIE DES REFERENZENTWURFS, NICHT ihre Umkehrung: getoent heisst „vom Grund
+   * WEG, zur Mitte hin". Im Hellen liegt der Grund bei `#eef0f1` und die uebrigen Karten gehen
+   * nach Weiss — die Fuehrungskarte geht in die Gegenrichtung und ist damit die einzige Flaeche
+   * der Seite, die nicht heller ist als der Grund. Im Dunkeln ist die Mitte oben: `#232a31` liegt
+   * eine Stufe ueber `--auf-karte` `#191c1f`.
+   *
+   * DER MASSGEBLICHE ABSTAND IST DER ZU DEN NACHBARN, NICHT DER ZUM GRUND, und das ist keine
+   * nachtraegliche Umdeutung, sondern der Befund dieser Runde: die Karte lag zuletzt auf
+   * `--auf-karte` und war damit von jeder anderen Karte der Seite ununterscheidbar. Gemessen steht
+   * `--auf-fuehrung` gegen `--auf-karte` bei 1.29 (hell) und 1.18 (dunkel), waehrend eine
+   * gewoehnliche Karte gegen den Grund nur 1.14 und 1.11 erreicht. Die Fuehrungskarte hebt sich
+   * also STAERKER von ihren Nachbarn ab, als diese sich vom Seitengrund abheben — das ist der
+   * Satz, den `aufgaben-css.test.ts` prueft.
+   *
+   * DER ABSTAND ZUM GRUND BLEIBT DABEI KNAPP UNTER DEM KARTENSCHRITT (1.13 gegen 1.14 im Hellen),
+   * UND DAS IST EINE DECKE, KEINE NACHLAESSIGKEIT: `--auf-stahl` (`#5b6570`, Textfarbe von
+   * `.prioText`/`.prioKontur`, die auf DIESER Karte stehen) haelt auf `#dfe3e7` noch 4.60. Der
+   * naechste sichtbare Schritt ins Dunkle nimmt den Prioritaets-Chips ihre Lesbarkeit. Der
+   * Spielraum der Toenung ist damit nach unten zu — deshalb sind die uebrigen drei Kanaele (32px
+   * Innenpolster, Kante in `--auf-stahl` statt `--auf-linie`, Kicker in `--auf-tinte`) nicht
+   * Zierrat, sondern der Rest der Aussage. Wer die Toenung „endlich deutlich genug" machen will,
+   * faellt durch die Kontrastmessung, nicht durch den Geschmack einer spaeteren Runde.
+   *
+   * KEIN `-flaeche`-SUFFIX, aus demselben Grund wie bei `--auf-karte`: `tonPaare()` in
+   * `aufgaben-css.test.ts` verlangt zu jeder `-flaeche` eine `-text`-Haelfte.
+   */
+  --auf-fuehrung: #dfe3e7;
+
+  /*
    * Zustands- UND Prioritaets-Chip-Paare, je `--auf-<ton>-text` /
    * `--auf-<ton>-flaeche`. Alle sechs Werte sind mit gemessenem AA-Kontrast
    * (>= 4.5, siehe aufgaben-css.test.ts) gewaehlt, nicht geschaetzt — Spec
@@ -93,6 +141,7 @@
   --auf-linie: #2a2f34;
   --auf-papier: #0f1113;
   --auf-karte: #191c1f;
+  --auf-fuehrung: #2a323a;
 
   --auf-grau-text: #c3ccd3;
   --auf-grau-flaeche: #232830;
@@ -211,6 +260,71 @@
   color: var(--auf-stahl);
   font-size: 12px;
   font-weight: 600;
+}
+
+/*
+ * ══ DIE PRIORITAETSWAHL ALS CHIP-LEISTE (Oberflaechen-Runde 2026-08-16, dritte Haelfte) —
+ *    `_ui/AufgabeFormular.tsx`s drei Radios, die je einen `PrioritaetChip` tragen. Die Begruendung,
+ *    warum die Wahl kein `<select>` mehr ist, steht an der Aufrufstelle; hier steht nur, wie sie
+ *    aussieht und warum.
+ *
+ * ══ DAS RADIO IST DA, NUR NICHT ZU SEHEN — `opacity: 0` UND `position: absolute`, NIE
+ *    `display: none` und nie `visibility: hidden`. Die beiden letzten nehmen das Feld aus der
+ *    Tab-Kette UND aus der Formularwertung mancher Browser; die Leiste waere dann mit der Maus
+ *    bedienbar und mit der Tastatur nicht. So bleibt sie eine echte Radiogruppe: Pfeiltasten
+ *    wechseln die Stufe, `:checked` und `:focus-visible` sind am Feld ablesbar.
+ *
+ * ══ DIE GEWAEHLTE STUFE TRAEGT EINE KANTE, KEINE ZWEITE FARBE (§9.2, „Bedeutung nie allein ueber
+ *    Farbe"): die drei Chips SIND schon die Farb- und Formaussage („welche Stufe"), und ein
+ *    Auswahlzustand daraufgelegt waere eine zweite Bedeutung auf demselben Kanal. `outline` statt
+ *    `border`, weil eine Kante die Chipbreite aendern und die Leiste beim Waehlen springen liesse.
+ *    KEIN `box-shadow` — Schatten hat nur, was schwebt, und `aufgaben-css.test.ts` prueft das
+ *    modulweit.
+ *
+ * ══ 44PX AN DER `<label>`, NICHT AM CHIP: die Chips sind bewusst verschieden gross (`.prioText`
+ *    hat gar keine Chip-Form), und eine Trefferflaeche, die der Aufschrift folgt, waere fuer die
+ *    schwaechste Stufe die kleinste. Die 44px stehen ausgeschrieben, nie als
+ *    `var(--ant-control-height)` (Falle 2).
+ */
+.prioWahl {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.prioWahlLeiste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.prioWahlOption {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.prioWahlFeld {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.prioWahlOption:has(.prioWahlFeld:checked) {
+  outline: 2px solid var(--auf-tinte);
+  outline-offset: -2px;
+}
+/*
+ * DER FOKUSRING STEHT NACH DEM AUSWAHLRING UND GEWINNT DAMIT BEI GLEICHSTAND — beide Regeln sind
+ * (0,2,0), und ein fokussiertes, gewaehltes Feld soll den Fokus zeigen, nicht die Auswahl (die
+ * steht dann ohnehin am Chip). Dieselbe Marke wie im modulweiten Fokusblock ganz oben; er greift
+ * hier nicht, weil er auf `input:focus-visible` zielt und der Ring an der `<label>` sichtbar sein
+ * muss — am durchsichtigen Feld saehe man ihn nicht.
+ */
+.prioWahlOption:has(.prioWahlFeld:focus-visible) {
+  outline: 2px solid var(--iuk-marke);
+  outline-offset: 2px;
 }
 
 /*
@@ -447,41 +561,53 @@
  * Ohne antd-Komponente gibt es keinen Gegenspieler. Ein `Alert type="error"` waere zusaetzlich
  * Suite-Rot auf einer Datenflaeche (Falle 3). `_ui/Fuehrungskarte.test.tsx` scannt genau darauf.
  *
- * KEINE TOENUNG, KEINE FARBIGE KANTE (§3.4, §6.4): das Modul gibt Farbe bereits fuer sechs
- * Zustandstoene und drei Prioritaetsgewichte aus; ein siebter Ton „hier ist die Fuehrung" waere
- * eine Bedeutung zu viel auf einem vollen Kanal. Die Karte ist an DREI NICHT-FARBIGEN Merkmalen
- * erkennbar: 24px Innenpolster (die Tagesspalten haben 12), Kicker in Versalien plus Ueberschrift
- * in `SCHRIFT.unterTitel`, und als einzige Flaeche ein Primaerknopf.
+ * KEINE FARBIGE KANTE (§3.4, §6.4): das Modul gibt Farbe bereits fuer sechs Zustandstoene und drei
+ * Prioritaetsgewichte aus; ein siebter Ton „hier ist die Fuehrung" waere eine Bedeutung zu viel auf
+ * einem vollen Kanal. DIE TOENUNG WIDERSPRICHT DEM NICHT — `--auf-fuehrung` ist ein neutrales Grau
+ * ohne Farbaussage, also eine HOEHE wie `--auf-papier` und `--auf-karte`, kein Zustand. Die
+ * Begruendung steht vollstaendig an der Variablen selbst; §8 der Spec ist entsprechend
+ * durchgestrichen und §11.6 traegt die Abweichung aus.
  *
- * DIE FLAECHE IST DIESELBE WIE DIE DER TAGESSPALTE (`--auf-papier`/`--auf-linie`/8px) — es kommt
- * KEINE neue `--auf-*`-Variable dazu und kein Wert aendert sich (§6.5). Damit bleibt e2e-Test 59
- * (exakter `--auf-tinte`-Hexwert im Dunkelmodus) unberuehrt, und die Paaritaetspruefung in
- * `aufgaben-css.test.ts` sieht nichts Neues.
+ * VIER KANAELE, WEIL EINER NACHWEISLICH NICHT REICHT. §3.4 zaehlte drei nicht-farbige Merkmale auf
+ * (Innenpolster, Kicker plus Ueberschrift, einziger Primaerknopf) und schloss daraus, die Flaeche
+ * duerfe dieselbe bleiben. Das ist zweimal widerlegt worden: erst lag die Karte auf `--auf-papier`
+ * und damit numerisch exakt auf dem Seitengrund, dann auf `--auf-karte` und damit exakt auf jeder
+ * anderen Karte der Seite. Die heutigen vier:
+ *
+ *   1. FLAECHE   — `--auf-fuehrung`, die einzige getoente Flaeche der Seite.
+ *   2. KANTE     — 1px `--auf-stahl` statt `--auf-linie`. `#d9dde1` LIEGT AUF DER TOENUNG
+ *                  `#e0e4e7` fast auf (Kontrast 1.07) und waere eine Kante, die es nur im
+ *                  Quelltext gibt — genau die stille Bauart, gegen die Falle 2 steht.
+ *   3. RAUM      — 32px Innenpolster (Tagesspalte und Personenkachel haben 12), unter 768px 16.
+ *   4. TYPOGRAFIE— der Kicker steht in `--auf-tinte` statt `--auf-stahl`: die erste Zeile der
+ *                  Karte ist damit die erste Zeile der Seite, die voll ausgezeichnet ist.
+ *
+ * KEIN SCHATTEN — DIE VORHERIGE RUNDE HATTE HIER EINEN, UND ER WAR EIN VERSTOSS: „Schatten hat nur,
+ * was schwebt (Dropdown, Modal, Popconfirm)" (`docs/design/feedback-admin.md:191`). Der Kommentar,
+ * der ihn verteidigte, beantwortete die Bewegungsfrage („ein statischer Schatten bewegt sich
+ * nicht") — die Hausregel stellt aber die Hoehenfrage, und eine Karte, die im Fluss der Seite
+ * steht, schwebt nicht. Der Schatten tat ausserdem genau die Arbeit, die jetzt die Toenung tut;
+ * beides zusammen waere doppelt gemoppelt.
  */
 .fuehrung {
-  background: var(--auf-karte);
-  border: 1px solid var(--auf-linie);
+  background: var(--auf-fuehrung);
+  border: 1px solid var(--auf-stahl);
   border-radius: 8px;
-  padding: 24px;
-  /*
-   * DIE VIERTE, NICHT-FARBIGE ERKENNUNGSMARKE (Oberflaechen-Runde 2026-08-16, Befund 2). Die drei
-   * aus §3.4 (24px Innenpolster, Kicker plus Ueberschrift, einziger Primaerknopf) blieben in der
-   * Bildstrecke unsichtbar, weil die Flaeche selbst dieselbe war wie der Seitengrund. Fuellung UND
-   * Schatten sind neutral — kein Farbton, keine Kante mit Bedeutung.
-   *
-   * `box-shadow` IST KEINE BEWEGUNG: der Kopfkommentar dieser Datei verbietet `transition` und
-   * jede Animation (sonst schuldete die Datei eine `prefers-reduced-motion`-Ausnahme und damit
-   * eine ZWEITE Medienabfrage). Ein statischer Schatten bewegt sich nicht.
-   */
-  box-shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 8px 24px rgb(0 0 0 / 4%);
+  padding: 32px;
 }
+/*
+ * DER KICKER TRAEGT `--auf-tinte`, NICHT `--auf-stahl` — Kanal 4 oben. Er ist der einzige Kicker
+ * des Moduls, der auf `--auf-fuehrung` steht; alle uebrigen Versalzeilen der Seite
+ * (`.zonenKopf` & Co.) bleiben gedaempft, und genau dieser Unterschied macht die erste Zeile der
+ * Karte zur ersten Zeile der Seite. Gemessen: 13.24 hell, 11.97 dunkel.
+ */
 .fuehrungKicker {
   font-family: var(--font-display);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--auf-stahl);
+  color: var(--auf-tinte);
 }
 /*
  * „AUSLASTUNG DIESE WOCHE" (§5.2) — eine Spalte je Person, OHNE eigene Medienabfrage: `auto-fit`
@@ -1050,6 +1176,31 @@
   outline: 2px solid currentcolor;
   outline-offset: 2px;
 }
+/*
+ * DER ABSENDEKNOPF EINER ZEILENINSEL — `.zuweisenZiel` PLUS DIESE REGEL (Oberflaechen-Runde
+ * 2026-08-16, dritte Haelfte, nach dem Bildschirmabzug).
+ *
+ * DER BEFUND WAR NUR IM BILD ZU SEHEN: `EinplanenInline` lieh sich `.zuweisenZiel` fuer sein
+ * „Einplanen", und das ist dort richtig — 44px, eigener Fokusring im Portal, neutrale
+ * Hoverflaeche. `.zuweisenZiel` traegt aber `border: none` und `background: transparent`, weil es
+ * fuer eine LISTE gebaut ist: unter fuenf gleich aussehenden Namenszeilen ist „anklickbar" aus der
+ * Wiederholung ablesbar. Als EINZELNE Zeile unter zwei Eingabefeldern sah dasselbe Element aus wie
+ * eine Beschriftung — die einzige Handlung des Feldes war das unauffaelligste Element darin.
+ *
+ * KEIN TOR HAETTE DAS GEFUNDEN: die Klasse stand richtig da, die 44px stimmten, der Test prueft
+ * `type=submit` und die Klasse. Nur der Bildschirmabzug zeigt, dass „bedienbar" nicht „als
+ * bedienbar erkennbar" heisst.
+ *
+ * NEUTRALES GRAU MIT ALPHA, KEINE `--auf-*`-FARBE: der Rumpf liegt im Portal, ausserhalb von
+ * `.modul` (s. den Kopfkommentar bei `.zuweisenFeld`). Dieselbe Konvention wie beim Hover-Grund
+ * daneben — sie funktioniert auf hellem wie dunklem Popover-Rumpf, ohne ein Thema zu kennen.
+ */
+.absendenKnopf {
+  justify-content: center;
+  margin-block-start: 4px;
+  border: 1px solid rgb(128 128 128 / 45%);
+  font-weight: 600;
+}
 .zuweisenName {
   font-weight: 600;
 }
@@ -1400,7 +1551,11 @@
     width: 100%;
   }
   /*
-   * 24PX RAND SIND AUF 360PX ZU VIEL (§6.5). Die Knoepfe der Karte brauchen KEINE eigene Regel —
+   * 32PX RAND SIND AUF 360PX ZU VIEL (§6.5; die Zahl stand hier als 24, solange die Karte 24 trug).
+   * Der Sprung von 32 auf 16 ist groesser als der frueher von 24 auf 16, und das ist richtig: der
+   * Raum ist auf dem Rechner ein Erkennungsmerkmal (Kanal 3), auf 360px waere er Platzverschwendung
+   * — dort traegt die Toenung allein, und sie braucht keinen Rand. Die Knoepfe der Karte brauchen
+   * KEINE eigene Regel —
    * sie stehen in `.knopfzeile`, und die Regel darueber greift schon; eine
    * `.fuehrung`-spezialisierte Zweitfassung waere der Anfang der Spezifitaetsspirale aus Falle 5
    * (und die CSS-Pruefung sucht genau diesen Selektor).
