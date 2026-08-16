@@ -131,7 +131,7 @@ Route.
 | `/plan/<personId>` | Wochenplan, eigener änderbar | **unverändert**, plus `<Frist>` je Eintrag | Der fremde Plan bleibt völlig aktionsfrei. |
 | `/routinen` | Routinenverwaltung | **unverändert** | |
 | `/freigaben` | Warteschlange, „meine" / „in Vertretung" getrennt | **bleibt**, wird das Ziel der Führungskarte bei n > 1 | Die Route trägt die 404-Gegenprobe für BuFDi und ist der einzige Ort, der „meine" von „in Vertretung" trennt. Ohne Route gäbe es die Prüfung nicht mehr — eine Abwesenheit kann man nicht auf 404 prüfen. |
-| `/verteilen` | Posteingang-Tabelle | **bleibt**, wird der benannte **Stapelplatz** (§4.4) | Trägt die im Quelltext als „DIE KERNZUSAGE DER GESAMTEN AUFGABE" ausgewiesene 404-Gegenprobe (`e2e/aufgaben.spec.ts:273`). Und sie ist die einzige Seite mit echter `Table` im Überlauf-Sweep. |
+| `/verteilen` | Posteingang-Tabelle | **bleibt**, wird der benannte **Stapelplatz** (§4.4) | Trägt die im Quelltext als „DIE KERNZUSAGE DER GESAMTEN AUFGABE" ausgewiesene 404-Gegenprobe (`e2e/aufgaben.spec.ts:273`). ~~Und sie ist die einzige Seite mit echter `Table` im Überlauf-Sweep.~~ — **nachgezogen 2026-08-16 (zweite Oberflächen-Runde):** die `Table` ist fort, s. den Nachtrag unten. |
 | `/personen` | Tabelle, Verzeichnissuche | **unverändert** | Die sauberste Fläche des Moduls. Kontextzeile behält ihr Format wörtlich (e2e prüft per Regex). |
 | `/archiv` | Liste mit Prioritätsfilter | **unveränderte Anordnung, neue Zeilenkomponente** | Benutzt künftig `AufgabenZeile` (**neu**, §3.6) und damit `<Frist>` — dort immer neutral, weil `istUeberfaellig` `abgeschlossen` ausschließt. |
 | — | — | **keine neue Route** | Insbesondere keine `/heute` und keine `/ueberfaellig`: „überfällig" ist keine Sammlung, sondern eine Eigenschaft. |
@@ -145,7 +145,7 @@ von `e2e/aufgaben.spec.ts` (1822 Zeilen) bleibt unangetastet.
 |---|---|
 | vier `Kachel`n mit Ankerzielen derselben Seite | Kontextzeile des `SeitenKopf` (die Zahlen, inkl. der Nullen) + Führungskarte (die Rangfolge) |
 | `FreigabeZone` als volle Zone (Koordination und Auftraggeber) | Karte bei n = 1 · Zone „Freigabe offen (N)" mit Deckel bei n > 1 · `/freigaben` als vollständige Fläche |
-| `VerteilenTabelle` als volle Zone (Koordination) | Karte bei n = 1 (Modal direkt in der Karte) · Zone „Zu verteilen (N)" mit Deckel bei n > 1 · `/verteilen` als Stapelplatz |
+| `VerteilenTabelle` als volle Zone (Koordination) | Karte bei n = 1 (Modal direkt in der Karte) · Zone „Zu verteilen (N)" mit Deckel bei n > 1 · `/verteilen` als Stapelplatz (die Komponente selbst ist seit dem Nachtrag unten fort) |
 | Sektion „Überfällige Aufgaben" (Koordination) | Sprosse der Leiter (Rang 5a/5b) **und** zwei Zonen — „Überfällig, noch nicht begonnen (N)" und „Überfällig, in Bearbeitung (N)" (§3.5; getrennte Überschriften, weil beide gleichzeitig stehen können). Sie bleiben, weil sie der einzige Ort sind, an dem `umverteilenAction` einen Zeilenweg bekommt |
 | Sektion „Zurückgewiesen" (Koordination) | Sprosse (Rang 6) und Zone „Zurückgewiesen (N)", nach derselben Regel |
 
@@ -1814,3 +1814,97 @@ beschreibt als die Fläche, schlimmer ist als keine.
 **Was ausdrücklich NICHT geändert wurde:** jede fachliche Zusage aus §11.3, jedes Prädikat, jede
 Server Action, die Rangleitern, die Beschriftungstabelle, die Zonenzuschnitte. Und die Grenzen aus
 §8 gelten weiter, mit der einen durchgestrichenen Ausnahme.
+
+---
+
+## Nachtrag, 2026-08-16 — die zweite Oberflächen-Runde (vier Flächen)
+
+Die erste Runde hat die **Koordinationsfläche** neu gesetzt; der Betreiber hat sie gesehen und
+bestätigt. Diese Runde zieht die vier übrigen Flächen nach. **Die Informationsarchitektur dieser
+Spec gilt unverändert weiter — es ändert sich die Gestalt.** Zwei Stellen weichen ab, und beide
+stehen hier, statt still zu bleiben.
+
+### A · `/verteilen` ist keine Tabelle mehr
+
+`_ui/VerteilenDialog.tsx`s `VerteilenTabelle` ist **entfallen, samt ihrem einzigen Aufrufer**. Der
+Posteingang ist jetzt die Zeilenliste des Moduls (`AufgabenListe`/`AufgabenZeile`), die Zuweisung
+ein Zeilenweg (`_ui/ZuweisenInline.tsx`, art `verteilen`) statt Knopf → Modal → Formular →
+Absenden.
+
+Drei gemessene Gründe: die Aktionsspalte lief bei 1280px wegen `scroll={{ x: "max-content" }}
+` **aus dem Fenster**; die Seite war die einzige des Moduls in einer anderen Formsprache; und
+„zehn am Stück verteilen" (§4.4, der Zweck dieser Route) waren zehnmal vier Schritte.
+
+**Was sich fachlich nicht ändert:** dieselbe Ladefunktion `verteilDaten`, dieselbe Zielliste aus
+`bufdis()` (§11.3), dieselbe `verteilenAction` mit denselben Formularschlüsseln, derselbe
+404-Riegel, derselbe `data-testid="verteilen-<id>"`.
+
+**Der optionale Zeitvorschlag steht im Zeilenfeld** — anders als beim Zeilenweg für `umverteilen`,
+wo §7 Nr. 3 ihn dem Modal vorbehält. Der Grund ist kein Geschmack: eine Aufgabe im Posteingang hat
+noch keinen Plan, und der Vorschlag ist die Voraussetzung dafür, dass die BuFDi überhaupt einen
+„Annehmen: &lt;Tag&gt;, &lt;Uhrzeit&gt;"-Weg bekommt (Bedingung `vorschlagOffen`). Ohne die zwei
+Felder verlöre der Stapelplatz eine fachliche Zusage.
+
+> **ABWEICHUNG 1 — die Spalte „Nachweispflicht" entfällt auf `/verteilen`.** Die Zeilenform des
+> Moduls führt **genau eine** Zusatzangabe je Zeile (§3.6), und die ist hier der Auftraggeber —
+> dieselbe Wahl, die die Zone `koordPosteingang` (§4.2 Rang 3) trifft und die der Betreiber in der
+> bestätigten Fassung gesehen hat. Die Angabe ist nicht verloren: die Führungskarte nennt sie für
+> die benannte Aufgabe („Nachweis: Text" / „ohne Nachweis", §4.2), `/a/<id>` führt sie im
+> Metablock. Eine achte Angabe in der Zeile wäre die Informationsarchitektur, nicht die Gestalt.
+> Damit entfällt außerdem der Schalter `darfVerteilen` als Prop — der Riegel steht nur noch an
+> einer Stelle (`notFound()` im Default-Export), was die stärkere Fassung ist.
+
+### B · `/freigaben` — Kopfzeile im Raster, Nachweis als Band
+
+Die Zone folgt dem Zeilenraster, **aber nicht schematisch**: ein Nachweis ist mehrzeiliger Text
+(künftig ein Bild) und passt in keine Rasterzelle — derselbe Grund, aus dem `FreigabeZone` nie eine
+`Table` war. Die Kopfzeile steht in den drei Spuren und fluchtet mit jeder anderen Zeile des
+Moduls; Nachweis und Entscheidung stehen als volle Breite darunter (`AufgabenZeile`s neue
+`band`-Prop). Die Lesefolge ist damit die der Entscheidung: **was → womit belegt → was tue ich**
+(§8.4, „wer freigibt, muss sehen, was er freigibt").
+
+„Freigeben"/„Zurückweisen" bleiben **echte, dauerhaft sichtbare Knöpfe** und wandern ausdrücklich
+**nicht** in die Hover-Aktionsspur: sie sind der Zweck der Seite, und „Zurückweisen" ist
+bestätigungspflichtig mit Pflichtfeld (§9.9) — Bestätigung skaliert mit dem Schaden.
+
+### C · Der Wochenplan — das Raster um 90 Grad gedreht
+
+Dies ist die Stelle, an der ein schematisches Übertragen falsch gewesen wäre. `.zeilenListe`
+richtet **Zellen über Geschwisterzeilen hinweg** aus und braucht dafür Breite; schon die
+fünfspurige Fassung platzte bei 820px (`min-content` rund 490px). Eine Tagesspalte hat bei 1280px
+rund **166px innen**.
+
+Die Achse der Ausrichtung wird deshalb **senkrecht**: jeder Eintrag trägt dieselbe innere
+Zeilenfolge (Zeitangabe · Titel · Marken · Aktionen), also stehen Zeiten unter Zeiten und Titel
+unter Titeln. Den Vergleich **zwischen** den Tagen, den die flache Liste aus ausgerichteten Spalten
+bezieht, trägt der **Auslastungsbalken** unter jedem Tageskopf: fünf Balken auf einer Skala
+beantworten „welcher Tag ist voll" so, wie ausgerichtete Spalten „welche Aufgabe zuerst"
+beantworten. `Balken`/`balkenMasse` wandern dafür nach `_ui/Balken.tsx` (zweiter Nutznießer).
+
+> **ABWEICHUNG 2 — `.tagSpalte` bekommt `--auf-karte`.** §6.5 sagte zu, dass keine `--auf-*`-Variable
+> ihren Wert ändert und keine dazukommt; das gilt weiter (`--auf-karte` existiert seit der ersten
+> Runde). Was sich ändert, ist die **Verwendung**: die Tagesspalten trugen `--auf-papier`, und das
+> **ist** `Layout.bodyBg` — sie lagen numerisch exakt auf dem Seitengrund und waren bis auf ihre
+> Linie unsichtbar. Der Kommentar bei `.lageKarte` nahm den Wochenplan damals ausdrücklich aus,
+> weil jene Runde nur die Koordinationsfläche behandelte; dieser Vorbehalt fällt hier. Es kommt
+> **keine Messung** dazu: `--auf-tinte`, `--auf-stahl` und `--auf-achtung-text` auf `--auf-karte`
+> sind in `aufgaben-css.test.ts` bereits hell und dunkel gemessen.
+
+### D · Durchgängig auf allen vier Flächen
+
+- **Zonentitel als zurückgenommene Versalien-Kicker** (`.zonenKopf` + `SCHRIFT.kicker`): „Diese
+  Woche", „Eigene Aufträge (N)", „Posteingang (N)", „Meine (N)" / „In Vertretung (N)". Vorher
+  standen 20/600- bzw. 14/600-Überschriften über 14px-Zeilen — die Struktur war lauter als der
+  Inhalt, und auf der BuFDi-Fläche standen zwei Überschriftenstufen für dieselbe Gliederungsebene.
+- **Titel in Tinte, nie in Rot.** Der Wochenplan war die letzte Fläche mit rotem Titel-Link; bei
+  fünf Spalten waren das bis zu fünfzehn Rotstellen auf einem Bildschirm.
+- **Nebenwege in Tinte** (`.leiseLink`): „Routinen verwalten", „Zeitplan von …", „Archiv".
+- **Der stille Zeilenknopf `.zeilenKnopf`** — dieselbe Regel wie `.zuweisenAusloeser`, als
+  Selektorpaar statt als Kopie. Er trägt „Annehmen: …", „Anders einplanen" und „Auf"/„Ab". Die
+  Sichtbarkeit war dabei nie das Problem (diese Knöpfe standen längst in `.zeilenAktion`), die
+  **Form** war es: eine Knopfleiste dort, wo die Liste bei Zuwendung einen Weg anzeigen soll.
+
+**Die Grenzen sind eingehalten:** genau eine Medienabfrage (767.98px), Hell/Dunkel-Paarigkeit,
+gemessener Kontrast, alle Abstände auf der `SPACE`-Leiter, kein `!important`, kein `#c8000f`, kein
+`size`, 44px Mindesthöhe, und unterhalb von 768px stehen alle Aktionsspuren (`.zeilenAktion` **und**
+neu `.planAktion`) dauerhaft offen — Touch hat kein Hover.
