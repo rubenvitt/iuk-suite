@@ -37,12 +37,17 @@ function sessionFor(groups: string[]) {
  * Pruefrage „Hat jede Action einen Weg in der Oberflaeche?" aus
  * docs/design/README.md.
  *
- * WARUM DER NICHT-ADMIN GAR KEINE NAVIGATION BEKOMMT: sie haette genau einen
- * Eintrag („Uebersicht"), der auf die Seite zeigt, auf der man steht. Das ist
- * keine Navigation, das ist eine Beschriftung — und seit dem Kopfzeilen-Befund
- * (Spec §5.4) kostet jeder Eintrag zusaetzlich Breite in einem Band, in dem
- * sie ohnehin nicht reicht. Der Slot ist optional, wer nichts
- * uebergibt, bekommt exakt das bisherige Bild.
+ * WARUM DER NICHT-ADMIN INZWISCHEN DOCH EINE NAVIGATION BEKOMMT: hier stand
+ * bis zu den Release Notes das Gegenteil, und die Begruendung war „sie haette
+ * genau einen Eintrag (Uebersicht), der auf die Seite zeigt, auf der man
+ * steht". Mit `/neuigkeiten` gibt es eine zweite Seite fuer JEDE angemeldete
+ * Person; ohne Leiste bliebe sie nur ueber die Adresszeile erreichbar. Die
+ * Verwaltung haengt weiter am Recht — der Grund dafuer („ein Eintrag, der auf
+ * 404 fuehrt") ist unveraendert.
+ *
+ * Der Slot bleibt optional; Module ohne Navigation (`gamma`) bekommen weiter
+ * gar keine Leiste, und `e2e/modulnavigation.spec.ts` weist genau das dort
+ * nach — bis zu dieser Aenderung tat es das am Portal.
  *
  * `navFuerPortal` selbst ist reine Ableitungslogik, deshalb hier ein Unit-Test
  * und kein DOM-Test. Das prueft aber nur die Ableitung, nicht die Verdrahtung:
@@ -51,15 +56,19 @@ function sessionFor(groups: string[]) {
  * Media Query, jsdom kann sie ehrlich pruefen.
  */
 describe("Portal — Navigationseintraege", () => {
-  it("gibt Modul-Admins Uebersicht und Verwaltung", () => {
+  it("gibt Modul-Admins Uebersicht, Neuigkeiten und Verwaltung", () => {
     expect(navFuerPortal(true)).toEqual([
       { key: "start", title: "Übersicht", href: "/" },
+      { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
       { key: "admin", title: "Verwaltung", href: "/admin" },
     ]);
   });
 
-  it("gibt allen anderen gar keine Navigation statt einer Ein-Punkt-Zeile", () => {
-    expect(navFuerPortal(false)).toEqual([]);
+  it("gibt allen anderen Uebersicht und Neuigkeiten, aber nicht die Verwaltung", () => {
+    expect(navFuerPortal(false)).toEqual([
+      { key: "start", title: "Übersicht", href: "/" },
+      { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
+    ]);
   });
 });
 

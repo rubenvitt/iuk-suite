@@ -93,9 +93,19 @@ test("ein Modul ohne Navigation bekommt keine Leiste", async ({ page }) => {
   // Muster wie lagerbuch-etiketten.spec.ts:152, feedback.spec.ts:524/749 und
   // files-fileshare.spec.ts:499.
   await page.context().clearCookies();
-  // Portal: ohne Verwaltungsrecht liefert `navFuerPortal` eine leere Liste
-  // (`layout.tsx`) — die Leiste haengt an `nav.length > 0` (`SuiteRahmen.tsx`),
-  // ein Modul ohne Navigation bekommt also gar keine Leiste.
-  await devLogin(page, { host: "portal.localtest.me", groups: "", callbackPath: "/" });
+  /*
+   * `gamma` und nicht mehr `portal`. Hier stand bis zu den Release Notes das
+   * Portal ohne Verwaltungsrecht — `navFuerPortal` lieferte dann eine leere
+   * Liste, und die Leiste haengt an `nav.length > 0` (`SuiteRahmen.tsx`). Seit
+   * `/neuigkeiten` bekommt dort JEDE angemeldete Person zwei Eintraege; das
+   * Portal ist damit kein Modul ohne Navigation mehr.
+   *
+   * Die Zusage dieses Tests gilt unveraendert weiter — sie braucht nur einen
+   * Traeger, der sie noch erfuellt. `gamma` uebergibt `<Shell>` gar kein
+   * `nav`-Prop (`m/gamma/layout.tsx`), ist angemeldet erreichbar und verlangt
+   * keine Gruppe: derselbe Fall, eine Ebene sauberer als vorher (dort war die
+   * leere Liste erst abgeleitet).
+   */
+  await devLogin(page, { host: "gamma.localtest.me", groups: "", callbackPath: "/" });
   await expect(page.getByTestId("modulleiste")).toHaveCount(0);
 });
