@@ -8,17 +8,26 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * Die Navigationseintraege des Moduls — als benannte Funktion, damit die
  * Ableitung ohne Rendering pruefbar ist (`layout.test.tsx`).
  *
- * OHNE VERWALTUNGSRECHT GAR KEINE NAVIGATION, statt einer Zeile mit dem einen
- * Eintrag „Uebersicht", der auf die Seite zeigt, auf der man steht. Der Slot
- * ist optional (siehe 2026-07-27-suite-chrome-design.md §5); wer nichts
- * uebergibt, bekommt exakt das bisherige Bild.
+ * BIS ZU DEN RELEASE NOTES STAND HIER: „ohne Verwaltungsrecht gar keine
+ * Navigation" — mit der Begruendung, die Leiste haette dann genau einen
+ * Eintrag („Uebersicht") gehabt, der auf die Seite zeigt, auf der man steht.
+ * Das war keine Navigation, sondern eine Beschriftung. Die Begruendung ist mit
+ * `/neuigkeiten` entfallen, nicht die Regel dahinter: es gibt jetzt eine ZWEITE
+ * Seite, die jede angemeldete Person erreichen darf, und ohne Leiste waere sie
+ * nur ueber die Adresszeile zu haben — auf dem Telefon das schlechteste
+ * Eingabegeraet, das es gibt (Pruefrage „Hat jede Action einen Weg in der
+ * Oberflaeche?", `docs/design/README.md`).
+ *
+ * Die Verwaltung bleibt an `darfVerwalten`: ein Eintrag, der auf 404 fuehrt,
+ * ist schlimmer als kein Eintrag.
  */
 export function navFuerPortal(darfVerwalten: boolean): SuiteNavItem[] {
-  if (!darfVerwalten) return [];
-  return [
+  const jeder: SuiteNavItem[] = [
     { key: "start", title: "Übersicht", href: "/" },
-    { key: "admin", title: "Verwaltung", href: "/admin" },
+    { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
   ];
+  if (!darfVerwalten) return jeder;
+  return [...jeder, { key: "admin", title: "Verwaltung", href: "/admin" }];
 }
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {

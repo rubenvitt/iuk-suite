@@ -187,6 +187,51 @@ braucht einen Seed, und ein Quelltext-Scan verbietet die Namen `seedLokal`/`seed
 `bootstrap.ts` und `instrumentation.ts` — er fängt die naheliegende Verdrahtung, nicht jede
 denkbare (ein umbenanntes Re-Export käme durch).
 
+## Release Notes — für Anwender, nur im Portal
+
+**Wer eine Änderung ausliefert, die jemand bemerkt, schreibt eine Notiz dazu.** Bemerkbar heißt: eine
+neue Fläche, ein neuer Knopf, ein anderer Weg, ein anderes Wort auf dem Bildschirm, ein Ergebnis, das
+anders aussieht als gestern. Umbauten unter der Haube, Tests, CI, Abhängigkeiten bekommen keine —
+eine Notiz über etwas, das niemand sehen kann, macht die Liste unglaubwürdig, nicht vollständig.
+
+**Eine Datei je Notiz**, `src/app/m/portal/_lib/neuigkeiten/notizen/<modul>/<YYYY-MM-DD>-<slug>.ts`,
+plus **eine Zeile in `register.ts`**. Das Dreieck ist Dateiname ↔ Felder (`modul`, `datum`, `slug`) ↔
+Registerzeile; `register.test.ts` liest das Verzeichnis und hält alle drei zusammen — eine nicht
+eingetragene Notiz ist ein roter Test und keine stille Auslassung. Kein Markdown, kein `fs`, keine
+Datenbank: die Notiz ist ein importiertes Modul und liegt im Bundle (Begründung im Kopf von
+`typen.ts`, kurz: alles andere kostet eine `COPY`-Zeile im `Dockerfile`, die zu vergessen still ist).
+`datum` ist der Tag des **Rollouts**, nicht des Commits.
+
+**Sichtbar ausschließlich im Portal**, unter `/neuigkeiten`. Kein Modul importiert
+`portal/_lib/neuigkeiten` — auch dafür gibt es einen Quelltext-Scan in `register.test.ts`, weil ein
+`import` diese Regel bricht, ohne dass ein Tor rot wird. **Wer eine Notiz sieht, entscheidet die
+Kachelliste**: sichtbar sind die Apps aus `visibleSwitcherModules`, keine zweite Rechteprüfung
+daneben. Modultitel und Zeichen stehen in `core/registry.ts` und werden in der Notiz **nicht**
+wiederholt.
+
+**Der Stil ist verbindlich, nicht empfohlen** — die Notizen sind das einzige, was die Suite von sich
+aus an ihre Anwender schreibt:
+
+* **Für Anwender.** Kein Dateiname, kein Funktionsname, keine Versionsnummer, kein Commit, kein
+  Ticket, kein Framework. Wenn ein Satz nur mit Kenntnis des Quelltextes verständlich ist, gehört er
+  nicht hinein.
+* **Du-Form, Präsens, aktiv** — wie der Rest der Oberfläche.
+* **Der erste Absatz sagt, was jetzt anders ist.** Er ist zugleich die Zusammenfassung; ein
+  Teaser-Feld gibt es deshalb nicht. Kein „In diesem Release", kein „Wir freuen uns".
+* **Nenne den Weg mit den Wörtern, die auf dem Bildschirm stehen** („Verwaltung → Checklisten",
+  „Von allen Geräten abmelden"). Eine Notiz, nach der man suchen muss, hat ihre Aufgabe verfehlt.
+* **Schreib die Begründung dazu, nicht ein Adjektiv davor.** „Der Druckdialog liefert je nach Browser
+  ein anderes Blatt" trägt; „deutlich verbessert" trägt nichts. Verboten sind Werbewörter
+  (nahtlos, intuitiv, leistungsstark, ab sofort noch besser), Ausrufezeichen und Emoji.
+* **Höchstens ein `hinweis` je Notiz, und nur wenn wirklich etwas zu tun ist.** Zwei Aufforderungen
+  heißen: es sind zwei Änderungen, also zwei Notizen. `register.test.ts` erzwingt beides.
+* **Sag auch, was gleich bleibt**, wenn die Frage naheliegt („Adressen und Lesezeichen bleiben") —
+  die häufigste stille Sorge nach einer Änderung.
+* **Drei bis fünf Absätze.** Der Titel ist eine Aussage („Fahrzeug-Checklisten als PDF"), kein Etikett
+  („Neues Feature: PDF-Export"), und wiederholt den App-Namen nicht.
+* **Kein Markdown im Text.** Er wird als Textknoten gerendert; `**fett**` käme mit Sternchen auf dem
+  Bildschirm an. Auch das prüft `register.test.ts`.
+
 ## Cutover einer Alt-Anwendung
 
 Runbooks liegen in `docs/runbooks/`. Muster: Generalprobe mit Snapshot-Kopie → Freeze → echter Snapshot
