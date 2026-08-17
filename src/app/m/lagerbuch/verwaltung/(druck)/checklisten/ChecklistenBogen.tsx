@@ -277,10 +277,22 @@ function Blatt({
         </>
       )}
 
+      {/*
+        ⚠️ HIER STAND EINE ANWEISUNG, WAS MIT DEM AUSGEFUELLTEN BLATT ZU TUN
+        SEI („Ergebnis anschließend im Lagerbuch erfassen – Helfer-Zugang,
+        ‚Check'"). Sie ist ERSATZLOS entfallen, und das ist eine fachliche
+        Entscheidung, keine Aufraeumaktion: das gedruckte Blatt und der
+        Bildschirm-Check unter `helfer/check` sind ZWEI Anwendungsfaelle, nicht
+        zwei Schritte EINES Ablaufs. Wer das Blatt in die Hand nimmt, arbeitet
+        genau damit — die Uebertragung in den Helfer-Zugang ist nicht
+        vorausgesetzt, und ein Blatt, das sie verlangt, behauptet einen
+        Arbeitsablauf, den es so nicht gibt. Wer den Bildschirmweg gehen will,
+        findet ihn ohnehin, und zwar dort, wo er beginnt.
+
+        Die Identitaetszeile BLEIBT: ein loses Blatt auf einem Stapel muss sein
+        Fahrzeug und seinen Stand nennen koennen.
+      */}
       <footer className="lb-cl-fuss">
-        <span>
-          Ergebnis anschließend im Lagerbuch erfassen – Helfer-Zugang, „Check“.
-        </span>
         <span>
           {blatt.name}
           {blatt.kennung ? ` · ${blatt.kennung}` : ""} · Stand {stand}
@@ -290,12 +302,45 @@ function Blatt({
   );
 }
 
+/**
+ * Die Adresse des PDF-Handlers, mit GENAU der Lage, die gerade auf dem
+ * Bildschirm steht.
+ *
+ * ⚠️ DIE ZWEI SCHALTER GEHEN MIT, UND DAS IST KEINE ZUGABE. Die Blindzaehlung
+ * entscheidet, ob die Sollmenge ueberhaupt entsteht — ein PDF, das sie trotz
+ * gesetztem Schalter mitdruckt, entwertet die Inventur, und zwar unbemerkt:
+ * man sieht dem Knopf nicht an, dass die Datei etwas anderes enthaelt als das
+ * Blatt darunter.
+ *
+ * ⚠️ `auswahl` STATT `blaetter.map(b => b.id)`. Beide ergaeben heute dieselbe
+ * Liste, aber nicht dieselbe AUSSAGE: „keine Angabe" heisst „alle AKTIVEN
+ * Fahrzeuge", eine ausdrueckliche Liste heisst „diese, auch stillgelegte".
+ * Rekonstruiert man die Auswahl aus den gezeigten Blaettern, wird aus der
+ * ersten Aussage still die zweite.
+ *
+ * Exportiert, damit die Zusammensetzung ohne einen Klick pruefbar ist.
+ */
+export function pdfAdresse(
+  auswahl: string[],
+  schalter: { blind: boolean; kompakt: boolean },
+): string {
+  const parameter = new URLSearchParams();
+  for (const id of auswahl) parameter.append("fz", id);
+  if (schalter.blind) parameter.set("blind", "1");
+  if (schalter.kompakt) parameter.set("kompakt", "1");
+  const anhang = parameter.toString();
+  return `/verwaltung/checklisten/pdf${anhang ? `?${anhang}` : ""}`;
+}
+
 export function ChecklistenBogen({
   blaetter,
   stand,
+  auswahl = [],
 }: {
   blaetter: ChecklisteBlatt[];
   stand: string;
+  /** Die `?fz=`-Angabe der Seite; leer = „alle aktiven Fahrzeuge". */
+  auswahl?: string[];
 }) {
   const [kompakt, setKompakt] = useState(false);
   const [blind, setBlind] = useState(false);
@@ -359,6 +404,35 @@ export function ChecklistenBogen({
                 Blindzählung
               </Checkbox>
             </span>
+            {/*
+              PDF NEBEN DRUCKEN, NICHT STATT DRUCKEN. Es sind zwei Wege mit
+              zwei Anlaessen: „Drucken" ist der Griff zum Papier hier und
+              jetzt, das PDF ist die Datei zum Ablegen und Weiterschicken —
+              und auf dem Telefon der einzige Weg, der ueberhaupt etwas
+              hervorbringt.
+
+              ⚠️ `Button href`, NIEMALS `<Link><Button/></Link>`. Ein
+              `<button>` in einem `<a>` ist verbotener Inhalt: der Knopf
+              schluckt den Klick, der Anker navigiert nie — und am Bildschirm
+              ist das von der richtigen Fassung nicht zu unterscheiden. Die
+              volle Messung steht im Kopf von
+              `verwaltung/(arbeit)/fahrzeuge/ChecklisteKnopf.tsx`; dort war es
+              ein echter, im e2e-Lauf gefundener Fehler.
+
+              ⚠️ KEIN `download`-Attribut. Der Handler setzt
+              `Content-Disposition: attachment` samt Dateinamen; ein zweites,
+              leeres `download` am Anker ueberschriebe den servergesetzten
+              Namen in manchen Browsern mit dem letzten Pfadsegment — die
+              Datei hiesse dann „pdf".
+            */}
+            <Button
+              href={pdfAdresse(auswahl, { blind, kompakt })}
+              icon={<Ikone name="herunterladen" groesse={16} />}
+              data-testid="lb-cl-pdf"
+              disabled={blaetter.length === 0}
+            >
+              PDF
+            </Button>
             {/* Primaeraktion — zulaessig, weil der Knopf eine HANDLUNG ist und
                 keine Datenflaeche. Rot traegt auf dieser Seite an keiner
                 Stelle fachliche Bedeutung (Falle 3). */}

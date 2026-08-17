@@ -1,7 +1,11 @@
 import { headers } from "next/headers";
 import { getDb } from "../../../_db/client";
 import { requireLagerbuchHost } from "../../../_lib/host";
-import { checklistenDaten, standDatum } from "../../../_lib/lesepfade/checkliste";
+import {
+  checklistenDaten,
+  gewaehlteFahrzeuge,
+  standDatum,
+} from "../../../_lib/lesepfade/checkliste";
 import { requireLagerbuchAdmin } from "../../../_lib/zugang";
 import { ChecklistenBogen } from "./ChecklistenBogen";
 
@@ -52,14 +56,10 @@ export default async function ChecklistenSeite({
    * Blaetter fuer den Samstag". Mit Angabe: genau diese, auch stillgelegte —
    * wer den Weg von der Fahrzeugseite aus geht, meint dieses eine.
    *
-   * ⚠️ LEERE WERTE FALLEN HERAUS, und ein `?fz=` ohne Wert ist damit dasselbe
-   * wie gar kein Parameter. Ohne diese Zeile suchte `checklistenDaten` nach
-   * einem Fahrzeug mit der ID `""`, faende keins und lieferte einen leeren
-   * Bogen — eine leere Seite, die wie ein Datenverlust aussieht und keiner ist.
+   * Die Normalisierung steht in `gewaehlteFahrzeuge` und nicht hier: der
+   * PDF-Handler nebenan muss dieselbe Auswahl treffen wie diese Seite.
    */
-  const gewaehlt = (fz === undefined ? [] : Array.isArray(fz) ? fz : [fz])
-    .map((wert) => wert.trim())
-    .filter((wert) => wert !== "");
+  const gewaehlt = gewaehlteFahrzeuge(fz);
 
   const blaetter = checklistenDaten(
     getDb(),
@@ -91,5 +91,19 @@ export default async function ChecklistenSeite({
     );
   }
 
-  return <ChecklistenBogen blaetter={blaetter} stand={standDatum(new Date())} />;
+  /**
+   * `auswahl` geht MIT in die Insel, obwohl `blaetter` die IDs schon traegt.
+   * Der PDF-Knopf muss dieselbe Adresse bauen, die diese Seite bekommen hat —
+   * und „keine Angabe" heisst dort „alle AKTIVEN", nicht „diese N". Die
+   * Unterscheidung faellt weg, sobald man sie aus `blaetter` rekonstruiert:
+   * ein Fahrzeug, das zwischen Seitenaufruf und Klick stillgelegt oder
+   * angelegt wird, stuende dann in der Datei anders als auf dem Blatt.
+   */
+  return (
+    <ChecklistenBogen
+      blaetter={blaetter}
+      stand={standDatum(new Date())}
+      auswahl={gewaehlt}
+    />
+  );
 }

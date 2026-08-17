@@ -216,6 +216,26 @@ export function checklistenDaten(
 }
 
 /**
+ * `?fz=` → die Auswahl, mit der `checklistenDaten` etwas anfangen kann.
+ *
+ * ⚠️ SIE STEHT HIER UND NICHT ZWEIMAL IN DEN AUFRUFERN. Die Seite
+ * (`(druck)/checklisten/page.tsx`) und der PDF-Handler
+ * (`(druck)/checklisten/pdf/route.ts`) muessen dieselbe Auswahl treffen —
+ * sonst zeigte das Blatt zwei Fahrzeuge und die Datei daneben drei, und der
+ * Unterschied faellt erst auf, wenn jemand vor der Flotte steht.
+ *
+ * ⚠️ LEERE WERTE FALLEN HERAUS, und ein `?fz=` ohne Wert ist damit dasselbe wie
+ * gar kein Parameter. Ohne diese Zeile suchte `checklistenDaten` nach einem
+ * Fahrzeug mit der ID `""`, faende keins und lieferte einen leeren Bogen — eine
+ * leere Seite, die wie ein Datenverlust aussieht und keiner ist.
+ */
+export function gewaehlteFahrzeuge(fz: string | string[] | undefined): string[] {
+  return (fz === undefined ? [] : Array.isArray(fz) ? fz : [fz])
+    .map((wert) => wert.trim())
+    .filter((wert) => wert !== "");
+}
+
+/**
  * "TT.MM.JJJJ" in der Modulzone — der Stand-Vermerk auf dem Blatt.
  *
  * ⚠️ UEBER `heuteIso()`, NICHT UEBER `getDate()`/`getMonth()`. Die Regel steht
