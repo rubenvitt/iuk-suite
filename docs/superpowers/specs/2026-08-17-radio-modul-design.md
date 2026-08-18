@@ -10,7 +10,19 @@ verbindliche Übergabeliste dorthin.
 
 ---
 
-## ⚠️ Zum Zustand dieses Dokuments — bitte zuerst lesen
+## Zum Zustand dieses Dokuments — bitte zuerst lesen
+
+**Nachtrag 18.08.2026: der fehlende Kritikdurchgang ist nachgeholt.** Vier querschnittliche Prüfer
+über das ganze Dokument (Belege · Kohärenz · Bauform · Umsetzbarkeit), dann Nacharbeit mit
+Ablehnungsrecht, dann Re-Kritik. **27 Funde, davon 14 blockierend** — alle vierzehn waren
+Widersprüche *zwischen* Kapiteln, also genau die Klasse, die neun Reviewer je Kapitel nicht
+gesehen hätten. Kapitel B ist dadurch von 4 auf **19 Einträge** gewachsen.
+**Urteil der Re-Kritik: `plan_kann_beginnen`, keine der 15 gesetzten Entscheidungen ist gekippt.**
+Abgelehnte Beanstandungen mit Gegenbeleg stehen in Anhang B.
+
+Der Absatz darunter beschreibt den Zustand *vor* diesem Durchgang und bleibt als Protokoll stehen.
+
+### Der Zustand vor dem 18.08.2026 (Protokoll)
 
 Die neun Kapitel sind vollständig geschrieben (7428 Zeilen, je ein eigener Autor mit Belegpflicht).
 **Nicht gelaufen sind: die neun Kapitel-Reviews, die maschinelle Zusammenführung und die
@@ -19,13 +31,20 @@ Vollständigkeitskritik** — sie wurden von einer Ausgabengrenze abgewiesen
 
 Konkret heißt das:
 
-* Jedes Kapitel ist **einmal geschrieben und nicht gegengelesen**. Bei der `lagerbuch`-Spec fand die
-  erste Kritik elf Punkte, die zweite noch zehn Einzeiler — mit dieser Größenordnung ist auch hier
-  zu rechnen.
+* Jedes Kapitel ist **einmal geschrieben**; die neun **Kapitel**-Reviews sind weiterhin nicht
+  gelaufen.
 * Die Zusammenführung unten ist **von Hand** gemacht: die kapitelübergreifenden Zusagen wurden
-  mechanisch extrahiert und gegeneinander geprüft (Kapitel B), die Kapiteltexte selbst sind
-  **unverändert** übernommen.
-* **Vor dem Bau fehlt ein Kritikdurchgang.** Er ist nachzuholen, sobald wieder Budget da ist.
+  mechanisch extrahiert und gegeneinander geprüft (Abschnitt B, B1–B4).
+* ✅ **Der kapitelübergreifende Kritikdurchgang ist am 18.08.2026 nachgeholt.** Er hat zwölf weitere
+  Divergenzen gefunden (**B5–B16**, darunter sechs blockierende: der doppelt gebaute
+  Retention-Arbeiter, die Codetabelle mit zwei Namen, die vier Namen des Ausleih-Riegels, die
+  `/admin`-Routenkarte samt Druckblatt, der zweimal ausgeschriebene Importer und der
+  `requireRadioAdmin`-Aufruf in Route Handlern). **Alle sind entschieden und die Kapiteltexte sind
+  nachgezogen** — die Korrekturen stehen im Text mit „⚠️ korrigiert (B*)". Was geprüft und
+  **nicht** übernommen wurde, steht mit Gegenbeleg in **Anhang B: Abgelehnte Beanstandungen** am
+  Dokumentende.
+* **Offen bleibt allein C.6 / B4** (die Updater-Rechtestufe) — sie wartet auf den Betreiber und ist
+  im Kritikdurchgang bewusst unangetastet geblieben.
 
 ---
 
@@ -60,9 +79,11 @@ Entfernen des Suite-Admin-Kurzschlusses in `core/groups.ts` · das suiteweite Ga
 ## B. Widersprüche zwischen den Kapiteln
 
 Gefunden beim Abgleich der Variablennamen und der „Zusage an Kapitel N"-Stellen über alle neun
-Teile. **Vier Divergenzen; drei sind redaktionell und hier entschieden, eine ist fachlich und wird
-geparkt.** Die Kapiteltexte tragen teilweise noch die alte Schreibweise — verbindlich ist diese
-Tabelle.
+Teile (B1–B4) und beim **Kritikdurchgang vom 18.08.2026**, der die Kapitel gegeneinander gelesen hat
+(B5–B16). **Sechzehn Divergenzen; fünfzehn sind hier entschieden, eine (B4) ist fachlich und wird
+geparkt.** Verbindlich ist diese Tabelle. Die Kapiteltexte sind auf B1–B3 und B5–B16 **nachgezogen**;
+wo eine Entscheidung einen früheren Kapitelsatz umstößt, steht sie dort mit „⚠️ korrigiert (B*)" im
+Text, damit ein späterer Durchgang sie nicht erneut als Widerspruch findet.
 
 | # | Divergenz | Entscheidung |
 |---|---|---|
@@ -70,11 +91,32 @@ Tabelle.
 | B2 | **Sitzungsgeheimnis:** Kapitel 3 `RADIO_AUSLEIH_SITZUNG_GEHEIMNIS`, Kapitel 7 und 9 `RADIO_ZUGANG_SITZUNG_SECRET` | **`RADIO_AUSLEIH_SITZUNG_SECRET`** — Stamm aus B1, Endung nach dem Präzedenzfall `LAGERBUCH_HELFER_SITZUNG_SECRET`. Das Projekt schreibt `SECRET` englisch, auch in sonst deutschen Namen |
 | B3 | **radio-admin-Adresse:** Kapitel 6 `RADIO_ADMIN_URL`, Kapitel 7 `RADIO_ADMIN_API_URL` | **`RADIO_ADMIN_URL`** — so heißt sie wirklich (`radio-inventar/apps/backend/src/config/env.config.ts:22`). Kapitel 7 hat sie erfunden. ⚠️ Die Variable stirbt ohnehin mit der HTTP-Grenze; sie zählt nur im Übergangsfenster |
 | B4 | **Zwei Rollen oder eine:** Kapitel 5 führt `SUITE_UPDATER_GROUP_RADIO` und eine Updater-Stufe ein, kein anderes Kapitel kennt sie | ⛔ **Nicht entschieden — fachlich, geparkt.** Die Trennung ist im Bestand echt (`radio-admin/shared/src/role.test.ts:4`: `adminGroup`/`updaterGroup`, `mapGroupsToRole`), hat im Ziel aber keinen Träger. Das ist Entscheidung 14 der Analyse und war dort schon blockierend. Siehe Kapitel C.6 |
+| B5 | **Der Retention-Arbeiter ist zweimal gebaut:** Kapitel 2 §2.7.1 (`starteRadioRetentionTakt`, zwei Monate fest verdrahtet, kein Abschalter, erster Lauf nach einem vollen Takt, **kein** Host-Riegel — „ein Riegel auf `SUITE_HOST_RADIO` wäre hier sogar schädlich") gegen Kapitel 7 §7.3.5 (`starteRadioHintergrund`, `RADIO_HISTORIE_MONATE`/`_PURGE`/`_ERSTLAUF_MINUTEN`, erster Lauf nach 60 min, **mit** `prodHostsFor(...).length === 0`-Schalter). Beide schreiben denselben `startBackgroundWork()`-Rumpf aus — gebaut wären zwei Timer in einer Datei. Kapitel 8 §8.2.5 prüfte dazu eine dritte Bauform (`_lib/retention.test.ts`, `retentionGrenze(): number`) | **Ein Rumpf, ein Name: `starteRadioHintergrund()` in `_lib/boot.ts`** (Kapitel 7 hängt dort auch die Bestandswarnung ein). **Registrierung, Verzögerung, Abschalter, Takt** gehören Kapitel 7 §7.3.5; **`retentionGrenze` und `raeumeLeihhistorie`** gehören Kapitel 2 §2.7.1, in Kapitel 2s Formen (`Date`, nicht `number` — nur die passt zu `mode: "timestamp"`). Die drei `RADIO_HISTORIE_*` kommen mit. ⛔ **Kein Host-Schalter vor dem Retention-Timer** — Kapitel 2 hat recht, eine vergessene `SUITE_HOST_RADIO` schaltete sonst still die Löschrichtlinie ab, die der DSGVO-Grund für `borrower_name` ist; der Schalter gilt **nur** für die Bestandswarnung. Der Abschalter ist `RADIO_HISTORIE_PURGE=0`, laut bei jedem Start. **Erstlauf: Vorbelegung 1440 Minuten** — Kapitel 2s Begründung (das Fenster für Verifikation, Stichprobe und „Router zurück") trägt, Kapitel 7s Regler bleibt |
+| B6 | **Die neue Codetabelle hat zwei Namen, zwei Spaltensätze, zwei Anzeigespalten:** Kapitel 2 §2.5.6 `zugangscodes` (9 Spalten, `label`, mit `gesperrtAm`/`gesperrtVon`) gegen Kapitel 3 §3.2.2 `ausleih_codes` (7 Spalten, `bezeichnung`, ohne Auditfelder). Dazu: Kapitel 3 sagt `loans.ausleih_code_id` **zweimal verbindlich** zu, Kapitel 2 §2.5.5 führt sie nicht und §2.11 Nr. 7 verneint sie ausdrücklich | **`zugangscodes`, neun Spalten, Anzeigespalte `bezeichnung`.** Der Tabellenname trägt in Kapitel 2 Schema, Index, Seed, `bootstrap.ts`-Kommentar **und** den Quelltext-Scan `delete(zugangscodes)` aus §2.4 — bei abweichendem Namen wäre der Scan still grün. Die Anzeigespalte trägt in Kapitel 3 Schema, Action-Signatur, Laufzeittyp und die Zusage an Kapitel 5; `label` stand an einer Stelle. `gesperrtAm`/`gesperrtVon` bleiben, Kapitel 3 §3.2.4 schreibt sie jetzt mit. **`loans.zugangscode_id` kommt** (nullable, `REFERENCES zugangscodes(id)`, ohne `ON DELETE`, ohne Index): sie ist die zweite Hälfte des Löschverbots — „beides oder nichts" (§3.2.4 Punkt 3) —, und §2.10 Punkt 6 nennt sie als Ausnahme der FK-Regel, weil aus `zugangscodes` nie gelöscht wird |
+| B7 | **Der Ausleih-Riegel trägt vier Namen:** Kapitel 3 `ausleihZugangOderNull`/`requireAusleihZugang`/`requireAusleihSchreibend` (§3.5.1), Kapitel 4 und 6 `requireRadioZugang`, Kapitel 8 `kioskZugangOderNull`/`requireKioskZugang`/`requireKioskSchreibend`. Das ist **nicht** redaktionell wie B1/B2: der Guard-Scan aus §8.3 sucht den Namen als **Zeichenkette** und wäre gegen die Bauform, die Kapitel 3 verbindlich macht, rot-by-construction | **Kapitel 3s Satz gilt**, in `_lib/ausleihZugang.ts`; `requireRadioAdmin` bleibt in `_lib/zugang.ts`. Das Präfix `Ausleih` ist die **Rolle** (`radio` steht schon im Pfad) und zeichengleich zu der in B1/B2 gefällten Entscheidung `RADIO_AUSLEIH_SITZUNG_*`. Kapitel 4, 6 und 8 sind nachgezogen; §8.3 nennt die Ausnahmeliste jetzt namentlich (`gate.ts#einloesenAmGate`, `sitzung.ts#beenden`) |
+| B8 | **Boot-Prüfung:** Kapitel 2 §2.9.3 schrieb „kein Eintrag in `assertHostConfig()`: `radio` hat keine modul-eigene Boot-Prüfung", Kapitel 7 §7.3 baut `radioBootFehler()` mit fünf Abbruchgründen und nennt die Einhängung ausdrücklich verbindlich | **Kapitel 7 hat recht**, Kapitel 2 ist korrigiert. Die Naht existiert real (`src/core/bootstrap.ts:82`, `:87`, `:90`, Import `:14`). Ohne die Zeile laufen alle Prüfungen **nie**, die Tests dazu sind grün und `pnpm build` auch — „für die Boot-Haken gibt es kein Netz". `_lib/boot.ts` trägt damit **zwei** Exporte in dieser Reihenfolge: `radioBootFehler()` **vor** den Migrationen (liest keine Tabelle), `starteRadioHintergrund()` **danach** |
+| B9 | **Die `/admin`-Routenkarte läuft dreifach auseinander:** `/admin/software` (Kapitel 1) gegen `/admin/update` (Kapitel 5) · `/admin/zugaenge` gegen `/admin/codes` · `/admin/einstellungen` gegen `/admin/versionen`. Schwerer: Kapitel 1 §1.2.2 schreibt **zwei Route-Groups** (`(arbeit)`/`(druck)`) mit ausgeschriebener Begründung vor, Kapitel 5 §5.3 baut **ein** `admin/layout.tsx` mit `VerwaltungsRahmen` über allem und kennt `zugaenge/blatt` nicht. Kapitel 5s Überschrift zählte außerdem „acht Suite-Routen" über einer Tabelle mit neun | **Kapitel 1 §1.2.2 ist die Routenkarte und gewinnt bei den Pfadnamen und den Groups**: `/admin/software`, `/admin/zugaenge`, zwei Route-Groups, `admin/(druck)/zugaenge/blatt/page.tsx`. Ohne die Groups erbte das Druckblatt Kopfzeile, Navigation und `controlHeight: 44` **auf Papier** (Falle 4) — still, der Build ist grün. **Kapitel 5 gewinnt bei `/admin/einstellungen` → `/admin/versionen`**: es hat das Argument (der zweite Reiter entfällt mit Entscheidung 13), Kapitel 1 hatte nur den Alt-Namen. `/admin/geraete/<id>/ereignisse` ist in Kapitel 1 nachgetragen. Gezählt wird jetzt einheitlich: **zehn** Seiten-Pfade plus **ein** Route Handler |
+| B10 | **Der CSV-Export-Handler antwortete 403** (Kapitel 5 §5.4), während §1.5 für dieses Modul `notFound()` statt 403 festlegt und §3.8 einen benannten e2e-Test darauf setzt („404, nicht ein 403") | **404.** Der 403 war keine Zwangslage der Bauform — die Zeile darüber gibt bereits eine 404 direkt zurück. Der Preis der Abweichung wäre, dass `GET /admin/geraete/export` den Bestand an Verwaltungspfaden aufzählbar macht, während die Seiten daneben schweigen; kein Tor sieht es, beide Zweige sind gültiges HTTP |
+| B11 | **Kapitel 3 §3.10 Nr. 10 verlangte `requireRadioAdmin()` als erste Anweisung auch in jedem Verwaltungs-Route-Handler,** obwohl §1.4.2 genau diese Form im Antwortweg eines Handlers für unbrauchbar erklärt und Kapitel 5 §5.4 sie folgerichtig anders baut | **Aufgeteilt:** Seiten und Actions rufen `requireRadioAdmin()`; **Route Handler unter `admin/` rufen `radioHostOderNull` + `istRadioAdmin(await viewerOderNull())`** und bauen ihre Antwort selbst. `requireRadioAdmin` endet in `redirect('/login?…')` bzw. `notFound()`; wörtlich umgesetzt landete ein anonymer `GET` auf `/admin/geraete/export` in einem Login-Umweg — genau das, was §5.4 fernhalten will, typkorrekt und lint-sauber |
+| B12 | **`entleiherVorschlaege` bezeichnet in Kapitel 4 zugleich die Server Action und die Datenfunktion;** Kapitel 6 §6.1 hat den Kollisionsgrund schon aufgeschrieben und vergibt `sucheEntleiher` | **Kapitel 6 hat recht:** Datenfunktion `sucheEntleiher(db, suchtext, deckel = 10)`, Server Action `entleiherVorschlaege`. `_actions/ausleihe.ts` **importiert** die eine und **exportiert** die andere — gleiche Namen kollidieren in derselben Datei. Kapitel 4 §4.11 (Lesepfade) und §4.12 Nr. 6 sind nachgezogen; die Dateiliste dort meint die Actions und bleibt |
+| B13 | **Das Host-Riegel-Inventar aus Kapitel 1 ist unvollständig:** „drei Signaturen, eine Datei, genau zwei Route Handler" — die Spec legt **vier** Handler an (`t/[code]`, `abmelden`, `admin/.../export`, `sw.js`), und der vierte benutzt eine **vierte** Riegelform in einer zweiten Datei (`hostAbweisung`, `Response \| null`, `_lib/hostRiegel.ts`) | **Vier Formen, zwei Dateien, vier Handler in der Tabelle.** Die Bauform ist im Repo echt (`src/app/m/lagerbuch/_lib/hostRiegel.ts`, `pwa-icon.svg/route.ts:1`, `pwa.route.test.ts:278`); falsch war die Bestandsaufnahme. `riegel.test.ts` (c) prüft jetzt „`radioHostOderNull` **oder** `hostAbweisung`" — in der alten Fassung war der Test gegen `sw.js/route.ts` rot, obwohl die Datei korrekt geriegelt ist, und der Reflex hätte `/sw.js` auf eine HTML-404 umgebaut. `/sw.js` fährt in `routen.test.ts` mit |
+| B14 | **Zwei überlappende Quelltext-Scans über `_actions/`:** §1.6 Prüfung (b) **ohne** Ausnahmeliste und §3.8 `_actions/guards.test.ts` **mit** (`gate.ts#einloesenAmGate`). Kapitel 1s Fassung ist am ersten Tag rot auf `gate.ts` und `sitzung.ts` | **§3.8 bleibt, §1.6 (b) entfällt** mit Querverweis. §3.3.3 schreibt die Folge selbst aus: wer den roten Scan „vervollständigt", setzt in `einloesenAmGate` einen Sitzungsriegel und macht das Gate unbenutzbar — „und der Fehler sieht wie eine Verbesserung aus". Die Ausnahmeliste ist eine benannte Konstante im Test, damit ein späterer Eintrag ein bewusster Akt bleibt |
+| B15 | **Der Ausfall-Puffer `STALE_GRACE_MS`:** Kapitel 2 §2.1 und Kapitel 8 §8.2.6/§8.7 Nr. 9 reichen ihn als Pflicht weiter und berufen sich dafür wörtlich auf Entscheidung 15; Kapitel 4 §4.7/§4.13 und Kapitel 6 §6.6 haben ihn geprüft und **verworfen** | **Kapitel 4 und 6 tragen; Entscheidung 15 sagt zum Puffer nichts** — sie sagt nur, wann die HTTP-Grenze fällt. §4.7 hat nachgeschlagen: im Bestand schützt der Puffer **genau einen** Lesepfad, die Zusage „Ausleihe, Rückgabe und Historie bleiben bedienbar" ist dort gar nicht eingelöst. Ersatz sind WAL und `busy_timeout`. §8.2.6 (`_lib/stand.test.ts`, `standNochBedienbar`) ist **gestrichen** — die Signatur ist nach §4.7/§6.6 nicht erfüllbar und `_lib/stand.ts` steht in keiner Dateiliste; an seine Stelle tritt die **DB-Integrationsebene** `_db/leihen.test.ts`, die Kapitel 6 an vier Stellen verbindlich festlegt und die Kapitel 8 bisher in keiner seiner vier Ebenen führte |
+| B16 | **`scripts/import/radio.ts` ist zweimal ausgeschrieben:** Kapitel 2 §2.2.4 (`msZuDatum(feld, ms): Date`, `msZuDatumOptional`, `tagInBerlin`, fünf `toNeues*`) gegen Kapitel 8 §8.2.1 (`sekundenAusMs`, `pruefeMs`, sechs `mappe*`). Kein Name kommt in beiden vor, zwei haben vertauschte Parameter. Dazu zählte §8.2.1 **dreizehn** Zeitstempel-Spalten — inklusive dreier `api_tokens`-Spalten und `devices.last_updated_at` — und §8.2.5 behauptete eine Kopplung zwischen zwei Tests, die es nicht gibt | **Kapitel 2s Fassung gilt.** Entscheidend ist der Typ, nicht die Namenszahl: `sekundenAusMs` liefert eine **Zahl**, und eine Zahl ist in eine `mode: "timestamp"`-Spalte nicht einfügbar — das hätte erst der erste echte Insert gezeigt, nie der Mapper-Test. `mappeApiToken` **entfällt** (Entscheidung 13: die Tabelle existiert im Ziel nicht), ebenso die drei `api_tokens`-Fixture-Spalten; `devices.last_updated_at` bekommt eine **eigene** Zeile (TEXT `YYYY-MM-DD` über `tagInBerlin`, §2.2.3). Es bleiben **neun** Zeitstempel-Spalten, und die Fixture-Regel ist als **Code** in §2.2.5 zu führen, nicht als Prosa in §8.2.1. Die Kopplungsbehauptung in §8.2.5 ist gestrichen: `waehleAbgelaufeneLeihen` arbeitete auf einer Fixture, die Importer-Mutation erreichte sie auf keinem Weg — die NULL→0-Aussage wirkt allein in §8.2.1, das deshalb als **nicht kürzbar** markiert ist |
 
 ⚠️ **Die Kapitel 3 und 7 widersprechen sich außerdem im Zuschnitt der Gate-Schranke** (Kapitel 3
 führt drei `RADIO_GATE_*`-Variablen nach `lagerbuch`-Vorbild, Kapitel 7 nennt nur ein Präfix
 `RADIO_GATE_`). Das ist keine Divergenz, sondern eine Auslassung in Kapitel 7 — verbindlich sind die
 drei Namen aus Kapitel 3, sie sind zeichengleich zum Präzedenzfall in `.env.example`.
+
+**Nachtrag aus der Re-Kritik vom 18.08.2026.** Drei Entscheidungen aus B5–B16 sind im Kapiteltext
+nicht überall nachgezogen. **Verbindlich ist diese Tabelle, nicht die Kapitelstelle.**
+
+| # | Wo der Text noch abweicht | Was gilt |
+|---|---|---|
+| B17 | §5.9 beschreibt denselben CSV-Export-Handler wie §5.4 und trägt dort noch die Fassung vor B10 | **B10 gilt:** der Handler antwortet `notFound()`/404, nie 403 — auch in §5.9. Der Riegel bleibt das **Prädikat** `istRadioAdmin(await viewerOderNull())`, nicht `requireRadioAdmin()`: ein werfender Riegel in einem Route Handler erzeugt die 403-Aufzählbarkeit, die B10 gerade abschafft |
+| B18 | Kapitel 7 nennt an einer Stelle nur das Präfix `RADIO_GATE_*`, statt die drei Namen zu führen | **Verbindlich sind die drei Namen aus Kapitel 3 §3.7** (`RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN`, `RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN`, `RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE`) — zeichengleich zum Präzedenzfall `LAGERBUCH_GATE_*` in `.env.example`. Der Boot-Helfer aus Kapitel 7 prüft **genau diese drei** |
+| B19 | §1.6 streicht Prüfung (b) mit Vermerk auf B14, §1.7 führt den `_actions/`-Scan noch als eigene Prüfung | **B14 gilt:** es gibt **einen** Quelltext-Scan über `_actions/`, nicht zwei überlappende. Er lebt an der Stelle, die §1.6 nennt; §1.7 hat keinen zweiten |
 
 ---
 
@@ -85,7 +127,7 @@ Die Liste für den Betreiber. **C.1 und C.6 sind die, bei denen ohne Antwort geb
 | # | Frage | Stand |
 |---|---|---|
 | **C.1** | **Bauform des Ausleih-Codes:** dauerhaft und sperrbar (Vorschlag) — oder rotierend, oder Sitzung je Scan? | ⚠️ **Von mir vorentschieden**, nicht vom Betreiber. Begründung: dauerhaft + sperrbar ist die am wenigsten festlegende Wahl — gedruckte Codes überleben, Kompromittierung bleibt behebbar. Ein Wechsel auf „Sitzung je Scan" ändert eine Stelle im Schema und eine im Gate, nicht das Modul |
-| **C.2** | **Sitzungsdauer:** 12 h wie `lagerbuch`? | Vorschlag 12 h (`helferSitzung.ts:50-57`). Betriebsentscheidung, keine Rechnung; kein Test wartet 12 Stunden |
+| **C.2** | **Sitzungsdauer:** 12 h wie `lagerbuch`? | Vorschlag 12 h (`src/app/m/lagerbuch/_lib/grenzen.ts:73` — `vorgabe: 12`; in `.env.example:265` als `LAGERBUCH_HELFER_SITZUNG_STUNDEN=12`). Betriebsentscheidung, keine Rechnung; kein Test wartet 12 Stunden |
 | **C.3** | **Sind gedruckte Aufsteller im Umlauf, und wo?** | Falls ja: Bestandscodes zeichengleich übernehmen, und die Ausgabe des ersten Satzes ist ein **Druck**vorgang. Falls nein: alle Codes entstehen in der Suite. Papier ist für jedes Tor unsichtbar |
 | **C.4** | **Benutzername beim Ausleihen vorausfüllen — überhaupt?** | Entscheidung 7 lässt es offen. Die Ausleihe bleibt in der Sache anonym; der Vorschlag ist „vorbelegt, überschreibbar" |
 | **C.5** | **Wie wird das radio-inventar-Frontend heute ausgeliefert?** | `radio-inventar/docker-compose.yml` führt nur `postgres` und `backend` (letzteres hinter einem Profil) — wer liefert das Frontend aus? Betrifft den Abbau |
@@ -262,10 +304,11 @@ QR-Aussteller wandert in die Verwaltung (`/admin/zugaenge`), weil nur radio-admi
 | `admin/(arbeit)/page.tsx` | `/admin` | radio-admin `/` (`radio-admin/client/src/routes/router.tsx:24`) | erbt + eigener Aufruf in jeder Action |
 | `admin/(arbeit)/geraete/page.tsx` | `/admin/geraete` | radio-admin `/devices` (`router.tsx:25`) | dito |
 | `admin/(arbeit)/geraete/[id]/page.tsx` | `/admin/geraete/<id>` | radio-admin `/devices/:id` (`router.tsx:26`) | dito |
+| `admin/(arbeit)/geraete/[id]/ereignisse/page.tsx` | `/admin/geraete/<id>/ereignisse` | neu — der Endpunkt ohne Oberfläche (`server/src/routes/devices.ts:66`), Begründung §5.10 | dito |
 | `admin/(arbeit)/ausleihen/page.tsx` | `/admin/ausleihen` | radio-admin `/ausleihen` (`router.tsx:27`) **und** Alt-Kiosk `/admin/history` (`routes/admin/history.tsx:37`) — die zweite Verwaltung des Kiosk verschwindet, ihre Ansicht landet hier | dito |
 | `admin/(arbeit)/import/page.tsx` | `/admin/import` | radio-admin `/import` (`router.tsx:29`); bleibt **zweiphasig** | dito |
 | `admin/(arbeit)/software/page.tsx` | `/admin/software` | radio-admin `/update` (`router.tsx:28`) | dito |
-| `admin/(arbeit)/einstellungen/page.tsx` | `/admin/einstellungen` | radio-admin `/einstellungen` (`router.tsx:30`) **und** Alt-Kiosk `/admin/settings` (`routes/admin/settings.tsx:12`) | dito |
+| `admin/(arbeit)/versionen/page.tsx` | `/admin/versionen` | radio-admin `/einstellungen` Reiter 1 (`router.tsx:30`, `pages/SettingsPage.tsx:11-15`) | dito |
 | `admin/(arbeit)/zugaenge/page.tsx` | `/admin/zugaenge` | neu: Codes ausstellen und sperren; ersetzt Alt-Kiosk `/qr-code` und die Token-Verwaltung von radio-admin | dito |
 | `admin/(druck)/layout.tsx` | — | neu: Riegel, **kein** Rahmen | `requireRadioHost`, dann `requireRadioAdmin` |
 | `admin/(druck)/zugaenge/blatt/page.tsx` | `/admin/zugaenge/blatt` | neu: das druckbare Blatt mit den QR-Codes der ausgestellten Zugänge | dito |
@@ -279,6 +322,13 @@ unsichtbar: die `PASSTHROUGH`-Prüfung aus 1.2.3 ist davon unberührt, und der R
 Layouts (1.4.3). Wie das Blatt aussieht und welche Codes es zeigt, gehört in das Kapitel Zugang — die
 zwei Groups entstehen aber **hier**, damit jenes Kapitel eine Seite hinzufügen kann, ohne dieses
 Layout zu brechen.
+
+⚠️ **`/admin/einstellungen` entfällt — entschieden in B9, zugunsten von Kapitel 5 §5.2.** Die
+Alt-Seite ist eine Tab-Leiste mit genau zwei Reitern (`pages/SettingsPage.tsx:11-15`); der zweite
+(„API-Zugriff") fällt mit Entscheidung 13, und ein Reiterpaar mit einer Hälfte ist keine
+Reiterleiste. Der verbleibende Reiter wird die eigene Route `/admin/versionen` — als Server Component
+mit **einer** Insel statt eines Client-`Tabs`. Der Alt-Kiosk-Pfad `/admin/settings`
+(`routes/admin/settings.tsx:12`) fällt mit dem Kiosk-Admin-Weg ohnehin weg und wird nicht geerbt.
 
 **Nicht übernommen:** `/login` und `/403` aus `radio-admin/client/src/routes/router.tsx:15-16`.
 `/login` **kann** es im Modul nicht geben (1.2.3), und `/403` gibt es in dieser Suite als Muster
@@ -434,7 +484,7 @@ als Zusage in 1.7.
 fest, und Playwright fährt gegen genau **einen** `baseURL`. Eine vergessene Stelle ist typkorrekt
 und lint-sauber.
 
-### 1.4.2 Die drei Signaturen
+### 1.4.2 Die vier Riegelformen
 
 ```ts
 /** Ist das der Radio-Host? */
@@ -477,6 +527,25 @@ keine brauchbare Antwort auf einen gescannten QR-Code (`m/files/_lib/hostRolle.t
 `lagerbuch/abmelden/route.ts:45-50`). Der Handler antwortet
 `new Response("Not found", { status: 404 })`.
 
+⚠️ **Es sind vier Formen, nicht drei — nachgetragen in B13.** Die vierte liegt in einer **zweiten**
+Datei und wird von Kapitel 7 §7.1.3 gebraucht:
+
+```ts
+// src/app/m/radio/_lib/hostRiegel.ts — ruft istRadioHost aus host.ts, wirft nie
+export function hostAbweisung(req: Request): Response | null;
+```
+
+Sie liefert **die fertige Fehlantwort oder `null`** und wird mit `??` kurzgeschlossen
+(`return hostAbweisung(req) ?? …`) — dadurch steht der Riegel **strukturell** als erste Anweisung und
+nicht nur konventionell. Die Bauform ist im Repo echt und geprüft
+(`src/app/m/lagerbuch/_lib/hostRiegel.ts`, `src/app/m/lagerbuch/pwa-icon.svg/route.ts:1`,
+`src/app/m/lagerbuch/pwa.route.test.ts:278`). **Wann welche Form gilt:** werfend in Layouts, Seiten
+und Prädikaten (`requireRadioHost`) · `null` in Handlern, die ihre Antwort selbst bauen
+(`radioHostOderNull`) · `Response | null` in Handlern, deren **Fehl**antwort einen bestimmten
+`Content-Type` braucht (`hostAbweisung`) — eine HTML-404 auf `/sw.js` meldet dem Browser
+„manifest fetch failed" statt einer sauberen Abweisung (§7.1.3). Dieses Kapitel legt `host.ts` an;
+`hostRiegel.ts` legt Kapitel 7 an und benutzt `istRadioHost` von hier.
+
 ### 1.4.3 Die drei Verankerungsstellen — und warum die dritte trägt
 
 Die Aufruftabelle gehört als Kommentarblock **in `host.ts`**, nach dem Vorbild
@@ -491,6 +560,8 @@ Die Aufruftabelle gehört als Kommentarblock **in `host.ts`**, nach dem Vorbild
 | `admin/(druck)/layout.tsx` | `requireRadioHost`, dann `requireRadioAdmin` | (i) + (iii) |
 | `t/[code]/route.ts` | `radioHostOderNull` | (ii) **Tür mit Datenwirkung** |
 | `abmelden/route.ts` | `radioHostOderNull` | (ii) |
+| `admin/(arbeit)/geraete/export/route.ts` (Kapitel 5 §5.4) | `radioHostOderNull` | (ii) |
+| `sw.js/route.ts` (Kapitel 7 §7.1.3) | `hostAbweisung` (`Response \| null`) | (ii) |
 | `requireRadioAdmin` | `requireRadioHost` als **erste Anweisung** | (iii) |
 | Zugangsprädikat der Ausleihe (lesend **und** schreibend) | `requireRadioHost` als **erste Anweisung** | (iii) |
 | `viewerOderNull` | **absichtlich keiner** — Gegenregel, 1.4.4 | — |
@@ -500,8 +571,12 @@ keine Grenzen; eine Seite kann jederzeit aus einer Group herauswachsen, und ein 
 was es nicht umschließt.
 
 **(ii) Jeder Route Handler braucht seine eigene Zeile, weil Handler kein Layout über sich haben.**
-Bei `radio` sind das genau zwei — `t/[code]` und `abmelden` — und der erste ist die Tür mit
-Datenwirkung.
+Bei `radio` sind das **vier** (korrigiert, B13): `t/[code]` und `abmelden` in diesem Kapitel, dazu
+`admin/(arbeit)/geraete/export` (Kapitel 5) und `sw.js` (Kapitel 7). Der erste ist die Tür mit
+Datenwirkung; der letzte ist der einzige, der `hostAbweisung` statt `radioHostOderNull` nimmt, und
+zwar wegen des `Content-Type`. Eine Aufruftabelle, die zwei von vier Handlern nicht führt, ist die
+Liste, die die nächste Datei vergisst — und bei `requiresAuth: false` ist eine vergessene Zeile ein
+offener Endpunkt auf **jedem** Suite-Host, typkorrekt und lint-sauber.
 
 **(iii) Innen, im Zugangsprädikat selbst, ist die tragende Stelle.** Der Grund ist nicht
 Redundanz-Liebe, sondern eine Konstruktion: **eine Server Action hat kein Layout über sich.** Ein
@@ -636,8 +711,8 @@ zitiert in `core/registry.ts:164`); `host.test.ts` ebenfalls
 | `src/app/m/radio/registry.test.ts` | Die Feldwerte der Zeile aus 1.1.1 einzeln: `requiresAuth === false`, `requiredGroups` leer, `prodHosts` leer, `switcherGroupSources` leer, `shell === "full"`, `showInSwitcher === true` — **und** `ICONS[mod.icon]` ist definiert (der stille Rückfall aus 1.1.3). Je Feld eine Behauptung mit der Begründung im Testnamen, damit ein späteres Umsetzen ein bewusster Akt ist. |
 | `src/app/m/radio/_lib/host.test.ts` | `istRadioHost` trifft `radio.localtest.me` **ohne** gesetzte Env · `x-forwarded-host` gewinnt über `host` · Kommaliste → erster Wert · fremder Suite-Host → `requireRadioHost` wirft `notFound()`, `radioHostOderNull` liefert `null` · **Quelltext-Zusicherung**: `host.ts` enthält keinen Zweig, der bei leerem `prodHostsFor` durchlässt. |
 | `src/app/m/radio/_lib/zugang.test.ts` | `istRadioAdmin` mit **leerer** Admin-Liste → `false` (das `.some()`-Argument) · `SUITE_ADMIN_GROUP_RADIO` greift, das Registry-Feld allein entscheidet nicht · Viewer nur mit `dashboard-admins` → `false` (Entscheidung 9) · `verwaltungsZiel` baut `<proto>://<host>/admin` und fällt ohne Host auf `/m/radio/admin` zurück. |
-| `src/app/m/radio/riegel.test.ts` | **Der Test, der die `requiresAuth: false`-Lücke hält, und der einzige, der nicht Datei für Datei zählt.** Ein Quelltext-Scan über das Modulverzeichnis: (a) jede `admin/**/layout.tsx` nennt `requireRadioHost` **und** `requireRadioAdmin`; (b) jede Datei unter `_actions/` nennt `requireRadioAdmin` oder das Ausleih-Prädikat; (c) jede `route.ts` nennt `radioHostOderNull` und **nicht** `requireRadioHost` (`not.toMatch`); (d) `viewerOderNull` ruft `requireRadioHost` **nicht** (`not.toMatch`, Gegenregel 1.4.4). Die Form ist die von `lagerbuch`s T75-Zusicherungen. |
-| `src/app/m/radio/_lib/routen.test.ts` | **Die `PASSTHROUGH`-Prüfung als Test, nicht als Absatz.** Eine Liste aller äußeren Pfade aus 1.2.1/1.2.2 wird durch `decideRoute({ host: "radio.localtest.me", pathname, groups: null })` gefahren und muss je `{ action: "rewrite", target: "/m/radio…" }` liefern; `/login` und `/api/health/radio` müssen `{ action: "next" }` liefern. Ohne Vorbild im Repo — neu, und die Stelle, an der eine spätere Pfad-Umbenennung in die Passthrough-Liste auffällt. |
+| `src/app/m/radio/riegel.test.ts` | **Der Test, der die `requiresAuth: false`-Lücke hält, und der einzige, der nicht Datei für Datei zählt.** Ein Quelltext-Scan über das Modulverzeichnis: (a) jede `admin/**/layout.tsx` nennt `requireRadioHost` **und** `requireRadioAdmin` bzw. `requireRadioVerwaltung`; (b) ⛔ **entfällt hier** (korrigiert, B14) — der `_actions/`-Scan liegt in `src/app/m/radio/_actions/guards.test.ts`, Kapitel 3 §3.8. Jene Fassung ist die vollständigere (sie prüft **jede exportierte Action**, nicht nur die Datei) und sie führt die **Ausnahmeliste**, ohne die der Scan auf `gate.ts#einloesenAmGate` und `sitzung.ts#beenden` am ersten Tag rot wäre; der naheliegende Grün-Fix — dort einen Sitzungsriegel einsetzen — macht das Gate unbenutzbar und sieht wie eine Verbesserung aus (§3.3.3). Zwei Scans über dieselbe Fläche, von denen einer die Ausnahmen nicht kennt, sind ein Scan zu viel; (c) jede `route.ts` nennt `radioHostOderNull` **oder** `hostAbweisung` und **nicht** `requireRadioHost` (`not.toMatch`) — die zweite Alternative ist `sw.js/route.ts` (1.4.2), gegen den (c) in der alten Fassung rot war, obwohl die Datei korrekt geriegelt ist; (d) `viewerOderNull` ruft `requireRadioHost` **nicht** (`not.toMatch`, Gegenregel 1.4.4). Die Form ist die von `lagerbuch`s T75-Zusicherungen. |
+| `src/app/m/radio/_lib/routen.test.ts` | **Die `PASSTHROUGH`-Prüfung als Test, nicht als Absatz.** Eine Liste aller äußeren Pfade aus 1.2.1/1.2.2 — **einschließlich `/sw.js`** (Kapitel 7 §7.1.4: Root-Scope trotz Modulpfad) — wird durch `decideRoute({ host: "radio.localtest.me", pathname, groups: null })` gefahren und muss je `{ action: "rewrite", target: "/m/radio…" }` liefern; `/login` und `/api/health/radio` müssen `{ action: "next" }` liefern. Ohne Vorbild im Repo — neu, und die Stelle, an der eine spätere Pfad-Umbenennung in die Passthrough-Liste auffällt. |
 | `src/core/shell/AppUmschalter.test.tsx` (bestehend) | Fängt die fehlende `ICONS`-Zeile aus 1.1.3, sobald die Registry-Zeile steht — keine Änderung nötig, nur zu kennen. |
 | `e2e` | ⚠️ **Kann den Host-Riegel nicht halten.** Playwright fährt gegen genau einen `baseURL`; ein zweiter Host existiert im Lauf nicht. Deshalb steht die Absicherung in `host.test.ts` und `riegel.test.ts` und nicht in einem e2e-Fall. |
 
@@ -652,7 +727,8 @@ zitiert in `core/registry.ts:164`); `host.test.ts` ebenfalls
   umbenennbar. `/abmelden` ist ein **Route Handler**, kein Server-Component-Weg.
 * **An das Kapitel Verwaltung:** `requireRadioAdmin` aus `_lib/zugang.ts` ist der einzige
   Verwaltungsriegel; jede Server Action ruft ihn als erste Anweisung, und `riegel.test.ts` prüft das
-  als Quelltext-Scan. Die neun Verwaltungspfade aus 1.2.2 sind vergeben, verteilt auf die zwei Route-Groups `admin/(arbeit)` (mit Rahmen) und `admin/(druck)` (ohne); `admin/zugaenge` ist der
+  als Quelltext-Scan. Die **zehn** Verwaltungspfade aus 1.2.2 sind vergeben (acht Arbeitsseiten, das Druckblatt und die
+  Ereignisseite), verteilt auf die zwei Route-Groups `admin/(arbeit)` (mit Rahmen) und `admin/(druck)` (ohne); `admin/zugaenge` ist der
   Ort, an dem Codes ausgestellt und gesperrt werden. Die Verwaltungsnavigation liegt in
   `_lib/nav.ts` und darf `abschnitt:` vergeben, weil `shell: "full"` gilt (1.1.4).
 * **An das Kapitel Kiosk-Oberfläche:** Der Ausleih-Zweig rendert **keine** Shell; 56/72 wird geerbt,
@@ -715,11 +791,16 @@ Datenbanken hätten die Grenze nur verschoben (Postgres → zweite SQLite).
 
 **Zum Ausfall-Puffer `STALE_GRACE_MS = 5 * 60_000`**
 (`radio-inventar/apps/backend/src/modules/radio-admin/radio-admin.service.ts:48`): er wird nach
-Entscheidung 15 als **Fachlichkeit** mitgenommen — die Datenseite sagt dazu nur, dass er **keine Spalte,
-keine Tabelle und kein Zwischenspeicher-Artefakt** in `radio.db` braucht. Das ist keine Absage: der
-Puffer hält Ausleihe, Rückgabe und Historie bei kurzer Störung bedienbar, und beim naiven Port fiele er
-weg. *Zusage an das Kapitel, das Ausleihe, Rückgabe und Historie entwirft: das Verhalten gehört dorthin,
-das Schema stellt ihm nichts bereit und nimmt ihm nichts.*
+Entscheidung 15 **nicht** ersetzt (⚠️ korrigiert, B15 — dieser Absatz las Entscheidung 15 als Auftrag,
+den Puffer als Fachlichkeit mitzunehmen; sie sagt dazu kein Wort, sie sagt nur, dass die HTTP-Grenze
+fällt, wenn die sechs `/v1`-Routen Drizzle-Aufrufe im selben Prozess sind). Die Datenseite bleibt
+unberührt: er braucht **keine Spalte, keine Tabelle und kein Zwischenspeicher-Artefakt** in `radio.db`.
+Die Kapitel, die den Gegenstand besitzen, haben ihn geprüft und **verworfen**: die Störungsklasse — ein
+Netzweg zwischen zwei Containern — existiert im Monolithen nicht mehr (§4.7), der Ersatz sind WAL und
+`busy_timeout` (§6.6), und §4.13 führt einen Nachbau unter den verworfenen Alternativen.
+*Zusage an das Kapitel, das Ausleihe, Rückgabe und Historie entwirft: das Schema stellt ihm nichts
+bereit und nimmt ihm nichts; der Puffer wird als Zeile im Kommentarkopf von `_db/leihen.ts`
+festgehalten, damit die Streichung dokumentiert bleibt.*
 
 Die Verbindung kommt aus dem gewöhnlichen `getModuleDb` — **kein** eigener Opener:
 
@@ -990,7 +1071,8 @@ Vier gemessene Eigenschaften der Quelle, die das Zielschema bindend prägen:
    **in der Anwendung** (`radio-admin/server/src/db/schema.ts:5`, `:44`, `:60`, `:87`, `:120`);
    `created_at`/`updated_at` haben nirgends `CURRENT_TIMESTAMP`. **Folge für den Import: jede Zeile
    muss `id` UND Zeitstempel selbst mitbringen.**
-2. **Genau EIN Fremdschlüssel:** `device_events.device_id → devices.id ON DELETE CASCADE`
+2. **ZWEI Fremdschlüssel** (korrigiert, B6): `device_events.device_id → devices.id ON DELETE CASCADE`
+   und `loans.zugangscode_id → zugangscodes(id)` (nullable, ohne `ON DELETE`, ohne Index)
    (`radio-admin/server/src/db/schema.ts:88-90`; in `0000` die einzige `FOREIGN KEY`-Zeile aller fünf
    Migrationen).
 3. **Null Trigger, null CHECK-Constraints.** `rg -rn "CREATE TRIGGER|CHECK *\("` über
@@ -1085,8 +1167,10 @@ Vorbelegung ist eine Frage des Formulars, keine des Schemas — es entsteht daf�
 eine Verbindung zur Auth.js-Identität.*
 
 ⚠️ **Zwei Punkte bleiben zu bestätigen** (nur der Betreiber weiß sie):
-* **Sitzungsdauer.** Vorschlag **12 h**, wie `lagerbuch` (`helferGueltigkeitSekunden()`,
-  `src/app/m/lagerbuch/_lib/helferSitzung.ts:50-57`). Sie hat **keine** Spalte in diesem Schema — der
+* **Sitzungsdauer.** Vorschlag **12 h**, wie `lagerbuch` — die Zahl steht in
+  `src/app/m/lagerbuch/_lib/grenzen.ts:73` (`vorgabe: 12`) und in `.env.example:265`.
+  `helferSitzung.ts:50-57` (`helferGueltigkeitSekunden()`) ist der Beleg für die **Doppelführung**
+  von `exp` und `maxAge`, **nicht** für den Wert — dort steht keine Zahl. Sie hat **keine** Spalte in diesem Schema — der
   Ablauf steht im Cookie, die Sperrung in der Datenbank; das ist die Bauform, nicht der Wert.
 * **Sind gedruckte Aufsteller im Umlauf?** Falls ja, ist der `code`-Wert der Bestandscodes beim
   Ausstellen zeichengleich zu übernehmen und die Ausgabe des ersten Satzes ist ein Druckvorgang, kein
@@ -1221,7 +1305,7 @@ export const users = sqliteTable("users", {
 ⚠️ `select count(*) from users` ist **keine** Personenzahl und gehört in keine Oberfläche, die eine
 Personenzahl anzeigen will.
 
-### 2.5.4 `device_events` (8 Spalten) — der einzige Fremdschlüssel
+### 2.5.4 `device_events` (8 Spalten) — der erste der zwei Fremdschlüssel
 
 ```ts
 export const deviceEvents = sqliteTable(
@@ -1249,7 +1333,7 @@ export const deviceEvents = sqliteTable(
 );
 ```
 
-### 2.5.5 `loans` (11 Spalten) — FK-frei mit Absicht
+### 2.5.5 `loans` (12 Spalten) — ohne Fremdschlüssel auf `devices`, mit einem auf `zugangscodes`
 
 ```ts
 /**
@@ -1274,6 +1358,15 @@ export const loans = sqliteTable(
     borrowedAt: integer("borrowed_at", { mode: "timestamp" }).notNull(),
     returnedAt: integer("returned_at", { mode: "timestamp" }),
     returnNote: text("return_note"),
+    // Die HERKUNFT des Zugangs, nicht die Identitaet der Person (der Vorgang bleibt anonym,
+    // §3.5.4): „diese Leihe entstand ueber den Aufsteller im Funkraum". NULL fuer jede
+    // importierte Alt-Leihe und fuer jede Leihe ueber den Suite-Weg.
+    // ⚠️ Der EINZIGE Fremdschluessel dieser Tabelle, und er ist KEIN Gegenbeispiel zu
+    // `device_id`: dort zeigte er auf eine Tabelle, aus der AUSGEMUSTERT wird; aus
+    // `zugangscodes` wird NIE geloescht (§3.2.4), der Zeiger kann konstruktiv nicht ins
+    // Leere fallen. Ohne ihn ist das Loeschverbot eine Regel ohne Schaden — „beides oder
+    // nichts" (§3.2.4 Punkt 3). Nachgetragen in B6.
+    zugangscodeId: text("zugangscode_id").references(() => zugangscodes.id),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   },
@@ -1309,7 +1402,10 @@ export const zugangscodes = sqliteTable("zugangscodes", {
   // Laenge und Alphabet: Kapitel 3.
   code: text("code").notNull().unique(),
   // Der Anzeigename in der Verwaltung — der Code allein sagt niemandem etwas.
-  label: text("label").notNull(),
+  // Heisst `bezeichnung`, nicht `label` (B6): Kapitel 3 traegt den Namen im Schema, in der
+  // Action-Signatur `erstelleCode(bezeichnung)`, im Laufzeittyp `AusleihZugang` und in der
+  // Zusage an Kapitel 5. `label` stand nur an dieser einen Stelle.
+  bezeichnung: text("bezeichnung").notNull(),
   // DER EINZIGE WIDERRUF, DEN ES GIBT. Ein Import oder ein Seed, der alles als aktiv
   // anlegt, reaktiviert still jeden gesperrten Code — und zwar genau die, die gesperrt
   // wurden, weil ein Kaertchen verschwunden ist.
@@ -1333,6 +1429,10 @@ als er an Lesezeit einspart. Der Riegel selbst liest über den Primärschlüssel
 ## 2.6 Indizes — und der eine, den `drizzle-kit` nicht erzeugen kann
 
 Acht Indizes im Ziel: die sieben der Quelle plus `zugangscodes_code_unique`.
+**Kein Index auf `loans.zugangscode_id`**, und der Verzicht ist gerechnet, nicht vergessen: die
+einzige Leserichtung ist „zeige zu **dieser** Leihe die Bezeichnung", also ein Lookup über den
+**Primärschlüssel der Codetabelle**, nicht über die Leihspalte. Ein Index auf ihr trüge nur eine
+Abfrage „alle Leihen zu diesem Code", die keine Fläche stellt.
 
 | Index | Herkunft | erzeugt durch |
 |---|---|---|
@@ -1416,25 +1516,35 @@ Schätzung des Betreibers, **keine Zählung** (die Zahl fällt beim Cutover an, 
 
 ### 2.7.1 Wo sie läuft
 
-Ein modul-eigener Hintergrund-Takt, `starteRadioRetentionTakt()` in `src/app/m/radio/_lib/boot.ts`,
+Ein modul-eigener Hintergrund-Takt, `starteRadioHintergrund()` in `src/app/m/radio/_lib/boot.ts`,
 gerufen aus `startBackgroundWork()` (`src/core/bootstrap.ts`, §2.9.3). Vorbild in Bauform und
-Begründung ist der Aufräum-Takt von `files` (`src/app/m/files/_lib/boot.ts:113-180`):
+Begründung ist der Aufräum-Takt von `files` (`src/app/m/files/_lib/boot.ts:113-180`).
+
+⚠️ **Eigentumsgrenze, entschieden in B5 — dieser Abschnitt schreibt den Takt NICHT aus.** Kapitel 2
+besitzt die **Purge-Abfrage** (`retentionGrenze`, `raeumeLeihhistorie`); **Registrierung, Verzögerung,
+Abschalter und Takt** besitzt Kapitel 7 §7.3.5, das denselben `startBackgroundWork()`-Rumpf
+ausschreibt. Zwei Rümpfe in einer Datei wären zwei Timer und zwei Läufe je Takt. Was hier steht:
 
 ```ts
 // src/app/m/radio/_lib/boot.ts   — KEIN "use client" (Falle 6)
-const MS_PRO_TAG = 86_400_000;
-let uhr: ReturnType<typeof setInterval> | undefined;
+/** Vorbelegung von `RADIO_HISTORIE_MONATE` (§7.4.1). Der Takt und die Umgebungsvariable
+ *  liegen in §7.3.5 — dieselbe Datei, aber nicht dieser Abschnitt. */
+export const RETENTION_MONATE_VORGABE = 2;
 
-/** Der Cutoff als DATE, nicht als Millisekundenzahl (§2.7.4). Rein und testbar. */
-export function retentionGrenze(jetzt: Date = new Date()): Date {
+/**
+ * Der Cutoff als DATE, nicht als Millisekundenzahl (§2.7.4). Rein und testbar.
+ * `monate` kommt aus `RADIO_HISTORIE_MONATE` (Vorbelegung 2, `0` ist ein Startabbruch,
+ * §7.3.3 Nr. 4) — der Aufrufer reicht ihn durch, die Funktion liest keine Umgebung.
+ */
+export function retentionGrenze(jetzt: Date = new Date(), monate = RETENTION_MONATE_VORGABE): Date {
   const d = new Date(jetzt.getTime());
-  d.setUTCMonth(d.getUTCMonth() - 2);
+  d.setUTCMonth(d.getUTCMonth() - monate);
   return d;
 }
 
 /** Ein Lauf. Gibt die Zahl geloeschter Zeilen zurueck. Wirft nicht. */
-export function raeumeLeihhistorie(db: DB, jetzt?: Date): number {
-  const grenze = retentionGrenze(jetzt);
+export function raeumeLeihhistorie(db: DB, jetzt?: Date, monate?: number): number {
+  const grenze = retentionGrenze(jetzt, monate);
   const ergebnis = db
     .delete(loans)
     .where(and(isNotNull(loans.returnedAt), lt(loans.returnedAt, grenze)))
@@ -1442,36 +1552,20 @@ export function raeumeLeihhistorie(db: DB, jetzt?: Date): number {
   return ergebnis.changes;
 }
 
-export function starteRadioRetentionTakt(): void {
-  // Idempotent, weil `register()` unter HMR mehr als einmal laeuft: zwei Timer waeren
-  // zwei Laeufe je Takt. Ein Container, ein Timer — `compose.yaml` hat kein `replicas:`.
-  if (uhr !== undefined) return;
-  // `setInterval` und NICHT `setTimeout`: der erste Lauf ist damit um einen VOLLEN Takt
-  // VERZOEGERT. Das ist der Kern dieser Entscheidung, siehe §2.7.2.
-  uhr = setInterval(() => {
-    try {
-      const geloescht = raeumeLeihhistorie(getDb());
-      if (geloescht > 0) console.info(`[radio] Retention: ${geloescht} Leihe(n) geloescht`);
-    } catch (grund) {
-      console.error("[radio] Retention fehlgeschlagen:", grund);
-    }
-  }, MS_PRO_TAG);
-  // `unref`, damit ein Skript, das die Suite nur laedt, nicht am Timer haengt.
-  uhr.unref?.();
-}
-
-/** Haelt den Takt an. Exportiert, weil ein Modulzustand sonst den Test ueberlebt. */
-export function stoppeRadioRetentionTakt(): void {
-  if (uhr !== undefined) clearInterval(uhr);
-  uhr = undefined;
-}
+// `starteRadioHintergrund()` / `stoppeRadioHintergrund()` stehen NICHT hier, sondern in
+// §7.3.5 — dieselbe Datei, ein Rumpf. Sie importieren `raeumeLeihhistorie` von oben.
 ```
 
-**Kein Host-Riegel davor.** `files` prüft vor dem Start, ob das Modul konfiguriert ist, weil sein
+**Kein Host-Riegel vor dem Retention-Takt — entschieden in B5, und die Entscheidung gilt für
+Kapitel 7 mit.** `files` prüft vor dem Start, ob das Modul konfiguriert ist, weil sein
 Arbeiter sonst in eine unbegrenzte Fehlerschleife läuft (`src/app/m/files/_lib/boot.ts:114-129`, an
 einem 75-Sekunden-Lauf gemessen). Dieser Takt braucht keine Konfiguration — er braucht nur die Tabelle,
 und die existiert nach der Migration immer. Ein Riegel auf `SUITE_HOST_RADIO` wäre hier sogar
-**schädlich**: eine vergessene Variable schaltete die Löschrichtlinie still ab. Statt eines Riegels
+**schädlich**: eine vergessene Variable schaltete die Löschrichtlinie still ab. ⚠️ Der
+`prodHostsFor(...).length === 0`-Schalter aus §7.3.5 gilt deshalb **nur für die Bestandswarnung**,
+nicht für den Retention-Timer; der bewusste Abschalter heißt `RADIO_HISTORIE_PURGE=0` und schreibt
+bei **jedem** Start eine `console.info`-Zeile — ein vergessenes `0` ist damit laut, eine vergessene
+`SUITE_HOST_RADIO` wäre still. Statt eines Riegels
 steht ein `try`/`catch` um den Lauf — **er darf nie werfen**, sonst nimmt er `portal`, `qr`, `feedback`,
 `files` und `aufgaben` mit (dieselbe Zusage, die `lagerbuchBootFehler()` in
 `src/core/bootstrap.ts` trägt).
@@ -1487,18 +1581,24 @@ löscht die vollständige abgeschlossene Leihhistorie **im selben Moment, in dem
 Mal hochkommt**, also vor jeder menschlichen Sichtprüfung und vor jeder feldweisen Stichprobe des
 Runbooks.
 
-**Die Taktverzögerung IST das Rücknahmefenster.** Ein voller Tag zwischen Deploy und erstem Löschlauf
+**Die Verzögerung des ersten Laufs IST das Rücknahmefenster.** Sie steht in
+`RADIO_HISTORIE_ERSTLAUF_MINUTEN`, **Vorbelegung 1440 (ein voller Tag)** — so entschieden in B5:
+Kapitel 7 hatte 60 Minuten vorgeschlagen, die Begründung dieses Abschnitts trägt aber den vollen Tag,
+und der Regler bleibt, weil ein Betrieb ohne Cutover ihn kürzen darf. Ein voller Tag zwischen Deploy und erstem Löschlauf
 ist genau die Zeit, in der die Verifikation gegen den ephemeren Container und die Stichproben laufen —
 und in der der Rückweg „Router zurück" noch einen intakten Bestand vorfindet. Der Preis ist ein
 Rückstand von bis zu 24 Stunden bei den ohnehin gelöschten Zeilen; das ist gegen die DSGVO-Frist von
 zwei Monaten kein Betrag.
 
-**Der Test dazu** — `src/app/m/radio/_lib/boot.test.ts`, mit `vi.useFakeTimers()`:
+**Der Test dazu** — `src/app/m/radio/_lib/boot.test.ts`, mit `vi.useFakeTimers()`. ⚠️ Dieser
+Abschnitt besitzt die **Takt**-Fälle; die reinen Fälle über `retentionGrenze` besitzt §8.2.5, die
+Boot-Prüfungen §7.3.7 — eine Datei, drei Beschreibungsorte, keine Zeile doppelt (B5):
 
 | Test | prüft |
 |---|---|
-| `starteRadioRetentionTakt loescht beim Start NICHTS` | eine überfällige Leihe steht nach `starteRadioRetentionTakt()` und `vi.advanceTimersByTime(0)` **noch da** — das ist die Regressionssperre gegen den zurückgebauten Sofort-Purge |
-| `nach 24 h laeuft der erste Lauf` | dieselbe Leihe ist nach `advanceTimersByTime(MS_PRO_TAG)` weg |
+| `starteRadioHintergrund loescht beim Start NICHTS` | eine überfällige Leihe steht nach `starteRadioHintergrund()` und `vi.advanceTimersByTime(0)` **noch da** — das ist die Regressionssperre gegen den zurückgebauten Sofort-Purge |
+| `nach RADIO_HISTORIE_ERSTLAUF_MINUTEN laeuft der erste Lauf` | dieselbe Leihe ist nach `advanceTimersByTime(1440 * 60_000)` weg |
+| `RADIO_HISTORIE_PURGE=0 registriert gar keinen Timer` | nach beliebig langem Vorspulen ist die überfällige Leihe **noch da**, und im Log steht die `console.info`-Zeile (§7.3.5) |
 | `zweimaliger Aufruf startet nur einen Timer` | HMR-Idempotenz: nach zwei Aufrufen und einem Takt genau **ein** Lauf |
 | `ein Fehler im Lauf wirft nicht aus dem Takt heraus` | eine geschlossene Verbindung erzeugt eine Protokollzeile, keinen `unhandledRejection` |
 
@@ -1518,7 +1618,8 @@ zwei Monaten kein Betrag.
 * **Die eigentliche Gefahr ist ein falscher Cutoff**, und sie hat zwei Gestalten: die Einheit (deshalb
   rechnet `retentionGrenze` mit `Date` und nie mit Millisekunden — eine `Date`-Grenze kann keinen
   Faktor 1000 tragen, weil Drizzle die Umrechnung selbst besorgt) und das Vorzeichen. `retentionGrenze`
-  ist deshalb **rein und einzeln getestet** (`retention.test.ts`):
+  ist deshalb **rein und einzeln getestet** (`_lib/boot.test.ts`, die Fälle aus §8.2.5 — es gibt
+  **kein** `retention.test.ts`, B5):
   `retentionGrenze auf 2026-08-17 ergibt 2026-06-17` · `eine am Cutoff-Tag zurueckgegebene Leihe
   bleibt` · `eine einen Tag vor dem Cutoff zurueckgegebene Leihe geht` · `eine AKTIVE Leihe bleibt,
   egal wie alt ihr borrowed_at ist`.
@@ -1721,12 +1822,21 @@ export function startBackgroundWork(): void {
   starteAufgabenScanArbeiter();
   // Taegliche Retention der Leihhistorie. Erster Lauf um einen VOLLEN Takt verzoegert
   // (§2.7.2) und wirft nie — ein Wurf hier naehme alle anderen Module mit.
-  starteRadioRetentionTakt();
+  starteRadioHintergrund();
 }
 ```
 
-Kein Eintrag in `assertHostConfig()`: `radio` hat keine modul-eigene Boot-Prüfung. Die Host-Prüfung
-leistet `validateHostConfig`/`validateGroupConfig` über die Registry.
+⚠️ **Korrigiert (B8): `radio` hat sehr wohl eine modul-eigene Boot-Prüfung, und sie gehört Kapitel 7.**
+`assertHostConfig()` bekommt eine Zeile `...(await radioBootFehler()),` neben
+`src/core/bootstrap.ts:87`/`:90` (dort stehen `filesBootFehler()` und `lagerbuchBootFehler()`), plus
+den Import neben `:14`. Datei, Signatur, Schalter und die Abbruchgründe stehen in §7.3.1–§7.3.4;
+dieses Kapitel trägt nur das Migrations-Dreieck und `startBackgroundWork()`. Die Host-Prüfung als
+solche leistet weiterhin `validateHostConfig`/`validateGroupConfig` über die Registry.
+
+⚠️ **`_lib/boot.ts` trägt damit zwei Exporte, und ihre Reihenfolge ist Pflicht:** `radioBootFehler()`
+läuft **vor** den Migrationen und liest **keine** Tabelle; `starteRadioHintergrund()` läuft **nach**
+ihnen und braucht sie. §7.3.1 schreibt diese Reihenfolge aus — sie ist der Grund, warum die zwei
+Exporte getrennt bleiben.
 
 ### 2.9.4 Der lokale Seed — Pflicht, nicht Kür
 
@@ -1809,9 +1919,13 @@ unwiederbringlich. `api_tokens.created_by` wandert nicht, weil die ganze Tabelle
 Unterscheidungskriterium ist **„wird sie geschrieben?"**, nicht „wird sie gelesen?" — ein Leser lässt
 sich nachbauen, ein verlorener Wert nicht.
 
-**6. Kein Fremdschlüssel wird nachgezogen.** Weder auf `loans.device_id` noch von einer Auditspalte auf
-`users.sub` (§2.3). Ein zusätzlicher FK ist gültiges Drizzle, gültiges SQL und **paritätsgrün**; der
-Schaden entsteht Monate später, bei der ersten Geräteausmusterung.
+**6. Kein Fremdschlüssel auf ein ausmusterbares Ziel wird nachgezogen.** Weder auf `loans.device_id`
+noch von einer Auditspalte auf `users.sub` (§2.3). Ein zusätzlicher FK ist gültiges Drizzle, gültiges
+SQL und **paritätsgrün**; der Schaden entsteht Monate später, bei der ersten Geräteausmusterung.
+⚠️ **Präzisiert (B6):** `loans.zugangscode_id → zugangscodes.id` ist die eine Ausnahme und
+widerspricht dem nicht — das Ziel dieser Kante wird **nie** gelöscht (§3.2.4), es gibt keinen
+Löschweg, und ein Quelltext-Scan hält das fest (§2.4). Die Regel oben verbietet Kanten auf Tabellen,
+aus denen ausgemustert wird, nicht Kanten überhaupt.
 
 ## 2.11 Zusagen und Tests dieses Kapitels
 
@@ -1825,7 +1939,7 @@ Schaden entsteht Monate später, bei der ersten Geräteausmusterung.
 | 4 | Die Sitzungsdauer hat **keine** Spalte — Ablauf im Cookie, Sperrung in `zugangscodes.aktiv`. Der Riegel schlägt über `zugangscodes.id` nach. | Kapitel 3 |
 | 5 | Es gibt **keinen** Löschweg auf `zugangscodes`; Kapitel 3 baut die Sperrung (`aktiv`, `gesperrtAm`, `gesperrtVon`). | Kapitel 3 |
 | 6 | `devices.last_updated_at` ist `string \| null` im Format `YYYY-MM-DD`. Formular und CSV-Export arbeiten mit der Zeichenkette, nie mit einem Zeitstempel. | das Kapitel der Geräteverwaltung an `/admin` |
-| 7 | `loans` bekommt **keine** Spalte für den Zugangsweg. Wird sie gebraucht, ist das eine additive Migration `0002`. | das Kapitel der Ausleihliste an `/admin` |
+| 7 | ⚠️ **Korrigiert (B6):** `loans` bekommt die Spalte `zugangscode_id` (nullable, `REFERENCES zugangscodes(id)`, ohne `ON DELETE`) — sie ist die zweite Hälfte des Löschverbots aus §3.2.4 und keine Kür. Beim Import bleibt sie für **alle** Alt-Leihen `NULL`, ebenso für jede Leihe über den Suite-Weg. | Kapitel 3 · das Kapitel der Ausleihliste an `/admin` |
 | 8 | Die sechs Vorab-Abfragen aus §2.8.3 (Nr. 2, 4 und 6 blockierend), die Zählung der Retention-Kandidaten und der `api_tokens`-Auszug gehören ins Runbook. | Spec 2 |
 | 9 | Der erste Satz `zugangscodes` entsteht in der Suite und wird nicht importiert — Verhaltensänderung mit Ankündigungspflicht. | Kapitel 3 · Spec 2 |
 | 10 | `STALE_GRACE_MS` braucht in `radio.db` keine Spalte, keine Tabelle und kein Zwischenspeicher-Artefakt; das Verhalten selbst gehört ins Fachkapitel. | das Kapitel für Ausleihe, Rückgabe, Historie |
@@ -1841,7 +1955,7 @@ Ratenbegrenzung ist ein sechsstelliger Code ratbar.
 src/app/m/radio/_db/schema.ts · client.ts · drizzle.config.ts
 src/app/m/radio/_db/migrations/0000_<generiert>.sql · 0001_loans_aktiv_uidx.sql · meta/
 src/app/m/radio/_db/migrations.test.ts · append.test.ts
-src/app/m/radio/_lib/boot.ts · boot.test.ts · retention.test.ts
+src/app/m/radio/_lib/boot.ts · boot.test.ts        (kein retention.test.ts — B5/§8.2.5)
 src/app/m/radio/_lib/seedLokal.ts
 scripts/import/radio.ts · scripts/import/radio.test.ts · scripts/import/fixtures/radio-*.json
 ```
@@ -1851,11 +1965,14 @@ scripts/import/radio.ts · scripts/import/radio.test.ts · scripts/import/fixtur
 
 **Die Tests dieses Kapitels, gesammelt:** `scripts/import/radio.test.ts` (11 Tests, §2.2.5) ·
 `_db/migrations.test.ts` (4 Tests, §2.6) · `_db/append.test.ts` (1 Quelltext-Scan, §2.4) ·
-`_lib/boot.test.ts` (4 Tests mit Fake-Timern, §2.7.2) · `_lib/retention.test.ts` (5 Tests, §2.7.3).
+`_lib/boot.test.ts` — **eine** Datei mit drei beschreibenden Orten (⚠️ korrigiert, B5: es gibt
+**kein** `_lib/retention.test.ts`): 5 Fälle mit Fake-Timern aus §2.7.2 (Takt, Erstlauf,
+HMR-Idempotenz, kein Wurf, `RADIO_HISTORIE_PURGE=0`), die reinen Fälle über `retentionGrenze` und
+`isNotNull` aus §8.2.5, und die Boot-Prüfungen aus §7.3.7. Keine Zeile doppelt.
 Die drei, ohne die dieses Kapitel keinen Schutz hat, sind
 `toNeuesGeraet: jedes Zeitfeld behaelt SEINEN Wert in Millisekunden`,
 `zwei aktive Leihen auf dasselbe Geraet werden abgewiesen` und
-`starteRadioRetentionTakt loescht beim Start NICHTS`.
+`starteRadioHintergrund loescht beim Start NICHTS`.
 
 ---
 
@@ -1987,7 +2104,7 @@ export function istCodeForm(wert: string): boolean;
 
 **Die Normalisierung darf nur Treffer hinzufügen, nie einen bestehenden verlieren** — genau deshalb
 ist sie sicher (`src/app/m/lagerbuch/_lib/code.ts:4-8`). Die Suche läuft auf **Gleichheit** gegen
-`ausleih_codes.code`; die Spalte wird nicht aufgeweicht.
+`zugangscodes.code`; die Spalte wird nicht aufgeweicht.
 
 **`erzeugeCode` benutzt `crypto.randomUUID`/`crypto.getRandomValues`, nie `Math.random`.** Kein Gate
 sieht den Unterschied: `Math.random()` ist typkorrekt, liefert 16 plausible Zeichen und besteht jeden
@@ -2005,7 +2122,7 @@ hat zwei nachprüfbare Vorteile: es steht nicht im `Referer` einer weiterführen
 Wert wird nach der Einlösung durch den 303 aus der Adresszeile **entfernt** — nach dem Redirect steht
 dort `/`, nicht mehr der Code.
 
-### 3.2.2 Die Tabelle `ausleih_codes` — Vorgabe an das Datenmodell
+### 3.2.2 Die Tabelle `zugangscodes` — Vorgabe an das Datenmodell
 
 **Zusage an Kapitel 2 (Datenmodell, Schema, Migration, Import) — Teil 1 von 2.** Dieses Kapitel
 verlangt genau eine neue Tabelle. Sie hat **kein** Gegenstück im Altbestand (`radio-inventar` führt
@@ -2021,6 +2138,16 @@ Analyse `docs/radio-portierung-analyse.md:230-233`), wird also **nicht importier
 | `created_at` | `integer` (`mode: "timestamp"`) NOT NULL | Sekunden, wie jedes Suite-Modul |
 | `created_by` | `text` NOT NULL | **roher** OIDC-`sub`, **ohne** `pocketid:`-Präfix (gesetzte Entscheidung 14) |
 | `last_used_at` | `integer` (`mode: "timestamp"`) NULL | NULL = „nie eingelöst". Reines Anzeigefeld, ohne Einfluss auf Gültigkeit. |
+| `gesperrt_am` | `integer` (`mode: "timestamp"`) NULL | ⚠️ **nachgetragen (B6)** — nur von `setzeCodeAktiv` beim Sperren geschrieben |
+| `gesperrt_von` | `text` NULL | ⚠️ **nachgetragen (B6)** — roher `sub` der sperrenden Person. Beide existieren, **weil** die Zeile dauerhaft in der Liste steht und erklären muss, warum sie tot ist (§2.5.6) |
+
+⚠️ **Name und Spaltenzahl sind entschieden (B6): die Tabelle heißt `zugangscodes` und hat neun
+Spalten.** Der erste Entwurf dieses Kapitels nannte sie `ausleih_codes` mit sieben; Kapitel 2 §2.5.6
+trägt den Namen `zugangscodes` in Schema, Index, Seed, `bootstrap.ts`-Kommentar und im
+Quelltext-Scan `delete(zugangscodes)` aus §2.4 — ein Scan, der bei abweichendem Namen **still grün**
+wäre. Die Anzeigespalte heißt umgekehrt `bezeichnung` und nicht `label`, weil dieses Kapitel den
+Namen im Schema, in `erstelleCode(bezeichnung)`, im Laufzeittyp `AusleihZugang` und in der Zusage an
+Kapitel 5 führt.
 
 **Ausdrücklich NICHT übernommen: `zielTyp`/`zielId`.** `lagerbuch`s Token trägt ein hinterlegtes Ziel
 und ist dafür „BEWUSST POLYMORPH, OHNE FK" (`src/app/m/lagerbuch/_db/schema.ts:397-401`, samt
@@ -2030,14 +2157,14 @@ Ebenfalls nicht übernommen: `scope_lagerort_id` (in `lagerbuch` eine tote Spalt
 Import-Gründen erhalten — `schema.ts:386-395`).
 
 **Zusage an Kapitel 2 — Teil 2 von 2, und sie ist die Hälfte der Begründung aus 3.2.4:** `loans`
-bekommt eine Spalte `ausleih_code_id text NULL REFERENCES ausleih_codes(id)` — **ohne** `ON DELETE
+bekommt eine Spalte `zugangscode_id text NULL REFERENCES zugangscodes(id)` — **ohne** `ON DELETE
 CASCADE` und ohne `ON DELETE SET NULL`. Sie ist NULL für alle importierten Alt-Leihen und für jede
 Leihe über den Suite-Weg (3.5). Sie ist **nicht** die Identität des Ausleihenden (der Vorgang bleibt
 anonym, 3.5.4), sondern die Herkunft des Zugangs: „diese Leihe entstand über den Aufsteller im
 Funkraum". Über sie löst die Anzeige `bezeichnung` auf.
 ⚠️ Das ist **nicht** derselbe Fall wie der Fremdschlüssel auf `loans.device_id`, der nach Eintrag 3
 aus Kapitel 5 der Analyse die Ausleih-Historie zerstört: dort zeigt der FK auf eine Tabelle, aus der
-**ausgemustert** wird. Aus `ausleih_codes` wird nach 3.2.4 **niemals gelöscht** — der Zeiger kann
+**ausgemustert** wird. Aus `zugangscodes` wird nach 3.2.4 **niemals gelöscht** — der Zeiger kann
 konstruktiv nicht ins Leere fallen. Wer 3.2.4 aufweicht, holt Eintrag 3 zurück.
 
 ### 3.2.3 Ausstellung
@@ -2070,7 +2197,11 @@ Berechtigung (Vorbild `src/app/m/lagerbuch/_lib/zugang.ts:82-86`).
 export async function setzeCodeAktiv(codeId: string, aktiv: boolean): Promise<void>;
 ```
 
-Erste Anweisung: `await requireRadioAdmin();`. Ein `UPDATE` auf `aktiv`. **Es gibt keine
+Erste Anweisung: `await requireRadioAdmin();`. Ein `UPDATE` auf `aktiv` — beim **Sperren**
+zusätzlich `gesperrt_am = new Date()` und `gesperrt_von = viewer.sub`, beim Entsperren werden beide
+auf `NULL` zurückgesetzt (⚠️ nachgetragen, B6: Kapitel 2 §2.11 Zusage 5 verlangt genau das, der
+erste Entwurf dieses Kapitels schrieb nur `aktiv` und ließ die Zusage ins Leere laufen; der lokale
+Seed aus §2.9.4 legt bereits eine gesperrte Zeile **mit** beiden Feldern an). **Es gibt keine
 Löschfunktion — nicht in der Action-Datei, nicht in der Oberfläche, nicht als „Aufräumen" im
 Betrieb.** Die Begründung steht hier ausgeschrieben, weil sie sonst beim ersten Aufräum-Ticket
 verlorengeht:
@@ -2079,7 +2210,7 @@ verlorengeht:
    *gleichzeitige* Doppelvergabe. Nach einer Löschung kann `erzeugeCode()` denselben Wert
    theoretisch erneut ziehen, und — praktisch viel wichtiger — eine Adminin kann ihn bei einer
    Wiederherstellung von Hand erneut eintragen.
-2. **Der Code ist der Anzeigeschlüssel der Leihhistorie.** Über `loans.ausleih_code_id` löst die
+2. **Der Code ist der Anzeigeschlüssel der Leihhistorie.** Über `loans.zugangscode_id` löst die
    Anzeige `bezeichnung` auf (3.2.2). Fällt die Zeile weg und kommt der Wert an einem später
    ausgestellten Kärtchen zurück, **erscheinen historische Journalzeilen unter dem neuen Label** —
    „Aufsteller MTW 1" für Leihen, die im Funkraum entstanden sind. Das ist keine Anzeige-Kosmetik,
@@ -2272,7 +2403,8 @@ schiefgelaufen ist, ist schlechter als Schweigen.
 |---|---|---|
 | **unbekannt** | `loeseCodeEin` → `{ ok: false }` | Fehlversuch buchen, `303 → /?grund=code` (bzw. `{ fehler }` am Formular) |
 | **gesperrt, beim Einlösen** | derselbe Doppeltest `!zeile \|\| !zeile.aktiv` | identisch zu „unbekannt" — von außen nicht unterscheidbar |
-| **gesperrt, während laufender Sitzung** | DB-Recheck in `ausleihZugangOderNull` | `redirect("/abmelden?grund=gesperrt")`, Cookie wird dort geräumt |
+| **gesperrt, während laufender Sitzung** | Schritt 5 des gemeinsamen Rumpfs `befund(db)` (3.5.1) — er führt den DB-Recheck für **alle drei** Formen | in `requireAusleihZugang` (Layout und Seiten unter `(ausleihe)/`): `redirect("/abmelden?grund=gesperrt")`, Cookie wird dort geräumt · in `requireAusleihSchreibend` (Actions): `{ ok: false, grund: "gesperrt" }`, **kein** Redirect |
+| **gesperrt, auf der Gate-Weiche `page.tsx`** | dasselbe `befund(db)`, aufgerufen über das **Prädikat** `ausleihZugangOderNull` | `null` — das Gate rendert das Codefeld. ⚠️ **Das Prädikat leitet NICHT um und löscht NICHTS** (3.5.1); ein `redirect()` an dieser Stelle machte aus der Weiche einen Werfer, und ein gesperrter Code liefe in eine 303-Runde statt ins Codefeld. Das tote Cookie räumt der nächste `/abmelden`-Weg oder sein eigenes `maxAge` |
 | **abgelaufen / ungültig signiert** | `verifyAusleihSitzung` → `null` | `redirect("/abmelden?grund=abgelaufen")` |
 | **Cookie fehlt ganz** | `befund` → `hatteCookie: false` | `redirect("/")` **unmittelbar** — es gibt nichts zu räumen, und auf einem Telefon ist das eine Runde statt zwei |
 | **zu viele Fehlversuche** | `gateGesperrt` ≠ `null`, **vor** dem DB-Zugriff | `303 → /?grund=zuviele`, **kein** weiterer Fehlversuch gebucht (sonst verlängerte jeder Versuch die Sperre) |
@@ -2547,7 +2679,7 @@ Härtung, sondern die Behauptung, der Riegel sei host-blind
    → wenn Viewer: { ok: true, zugang: { weg: "suite", sub, name } }   FERTIG
 3. cookies().get(AUSLEIH_COOKIE)  → fehlt?                — { ok:false, "sitzung", hatteCookie:false }
 4. verifyAusleihSitzung(roh)      → null?                 — { ok:false, "sitzung", hatteCookie:true }
-5. SELECT … FROM ausleih_codes WHERE id = codeId          — DER RECHECK
+5. SELECT … FROM zugangscodes WHERE id = codeId          — DER RECHECK
    → !zeile || !zeile.aktiv                               — { ok:false, "gesperrt", hatteCookie:true }
 6. { ok: true, zugang: { weg: "code", codeId, bezeichnung, laeuftAb } }
 ```
@@ -2642,7 +2774,8 @@ Layout darüber ihn schon gerufen hat.
 | `_actions/sitzung.ts#beenden` | `requireRadioHost` | werfend |
 | `admin/layout.tsx`, jede Admin-Seite | `requireRadioAdmin()` | werfend |
 | **jede** Verwaltungs-Action | `requireRadioAdmin()` | werfend, **erste Anweisung** |
-| Manifest- und Icon-Handler | `radioHostOderNull` | nicht-werfend (Kapitel 4) |
+| `sw.js/route.ts` (der Abräum-Worker, Kapitel 7 §7.1.3) | `hostAbweisung` aus `_lib/hostRiegel.ts` | nicht-werfend, `Response \| null`, mit `??` kurzgeschlossen |
+| `admin/(arbeit)/geraete/export/route.ts` (Kapitel 5 §5.4) | `radioHostOderNull` + `istRadioAdmin(await viewerOderNull())` | **beide nicht-werfend**, der Handler baut seine 404 selbst |
 
 ⚠️ **`requireAusleihSchreibend` WIRFT NICHT, und das ist die gefährlichste Eigenschaft dieses
 Kapitels.** `await requireAusleihSchreibend(db)` **ohne** Prüfung des Ergebnisses ist typkorrekt,
@@ -2923,7 +3056,7 @@ richtigen Scan.
 ### 3.7.4 Die CWE-348-Umstellung: Voraussetzung, aber keine Abhängigkeit
 
 **Benannt als Voraussetzung, wie im Auftrag verlangt, und ausdrücklich NICHT Teil dieser Spec:** die
-Umstellung von `clientIpAus` (`src/core/ratelimit.ts:58-64`) auf eine
+Umstellung von `clientIpAus` (`src/core/ratelimit.ts:57-62`) auf eine
 rechteste-vertrauenswürdige-Auswahl ist ein eigener Suite-Posten. Sie betrifft `feedback`, `files`
 und `lagerbuch` gleichermaßen und gehört nicht in ein Modulkapitel.
 
@@ -3079,11 +3212,14 @@ nicht.
 Die Kapitelnummern sind eine Annahme; **der in Klammern genannte Gegenstand ist verbindlich** und
 entscheidet bei einer Abweichung, an welches Kapitel die Zusage geht.
 
-1. **Kapitel 2 (Datenmodell, Schema, Migration, Import):** die Tabelle `ausleih_codes` mit den sieben
-   Spalten aus 3.2.2, **ohne** `zielTyp`/`zielId`/`scope_lagerort_id`; `code` mit `UNIQUE`;
-   `created_by` als **roher** `sub`. **Keine** Löschmigration, **keine** Löschfunktion.
-2. **Kapitel 2:** `loans.ausleih_code_id text NULL REFERENCES ausleih_codes(id)`, ohne `ON DELETE`.
-   Nullable für alle importierten Leihen und für jede Leihe über den Suite-Weg.
+1. **Kapitel 2 (Datenmodell, Schema, Migration, Import):** die Tabelle `zugangscodes` mit den **neun**
+   Spalten aus 3.2.2 (die Anzeigespalte heißt `bezeichnung`), **ohne**
+   `zielTyp`/`zielId`/`scope_lagerort_id`; `code` mit `UNIQUE`; `created_by` als **roher** `sub`.
+   **Keine** Löschmigration, **keine** Löschfunktion.
+2. **Kapitel 2:** `loans.zugangscode_id text NULL REFERENCES zugangscodes(id)`, ohne `ON DELETE`.
+   Nullable für alle importierten Leihen und für jede Leihe über den Suite-Weg. ✔ **Eingelöst** in
+   §2.5.5; §2.6 begründet, warum sie keinen Index bekommt, und §2.10 Punkt 6 nennt sie als
+   ausdrückliche Ausnahme der FK-Regel.
 3. **Kapitel 2:** `loans` bekommt **keine** Spalte, die den Suite-`sub` des Ausleihenden führt
    (3.5.4).
 4. **Kapitel 1 (Zuschnitt, Registry, Hosts):** `SUITE_ADMIN_GROUP_RADIO` mit nicht-leerer Vorgabe im
@@ -3100,9 +3236,14 @@ entscheidet bei einer Abweichung, an welches Kapitel die Zusage geht.
    nie bei `"gesperrt"` (3.4.4).
 9. **Kapitel 4:** der Benutzername wird bei `weg: "suite"` nur **vorausgefüllt** (`defaultValue`,
    überschreibbar) — ⚠️ **zu bestätigen**, ob überhaupt (3.5.4).
-10. **Kapitel 5 (Verwaltung `/admin`):** jede Verwaltungsseite, jede Verwaltungs-Action und jeder
-    Verwaltungs-Route-Handler ruft `requireRadioAdmin()` als **erste Anweisung**, weil
-    `requiresAuth: false` kein Middleware-Gating vererbt (3.5.5, 3.6.1).
+10. **Kapitel 5 (Verwaltung `/admin`):** jede Verwaltungs**seite** und jede Verwaltungs-**Action**
+    ruft `requireRadioAdmin()` als **erste Anweisung**, weil `requiresAuth: false` kein
+    Middleware-Gating vererbt (3.5.5, 3.6.1). ⚠️ **Route Handler unter `admin/` NICHT** (korrigiert,
+    B11): `requireRadioAdmin` endet in `redirect()` bzw. `notFound()`, und beides ist im Antwortweg
+    eines Handlers keine brauchbare Antwort (§1.4.2). Sie rufen `radioHostOderNull` **und**
+    `istRadioAdmin(await viewerOderNull())` — beide nicht-werfend — und bauen ihre Antwort selbst,
+    in beiden Fällen `404` (§1.5, §5.4). Diese Begründung steht in §5.4 direkt neben dem Code, damit
+    die nächste Person sie nicht „vervollständigt".
 11. **Kapitel 5:** die Codeliste zeigt `code` im Klartext, `bezeichnung`, `aktiv`, `created_at`,
     `last_used_at` und einen Umschalter auf `setzeCodeAktiv` — **keinen Löschknopf** (3.2.4). Der
     QR-Druck erzeugt die URL `https://<SUITE_HOST_RADIO>/t/<code>`, ohne Parameter (3.2.1).
@@ -3238,7 +3379,7 @@ Drei Gründe, jeder belegt:
 
 **Was der Rahmen trägt** (alles Server, keine Ausnahme außer der Restzeit):
 
-* Wortmarke „Funkgeräte" und darunter das Sitzungsetikett — bei Code-Zugang „Zugang: Code `<label>`",
+* Wortmarke „Funkgeräte" und darunter das Sitzungsetikett — bei Code-Zugang „Zugang: Code `<bezeichnung>`",
   bei angemeldeter Sitzung der Anzeigename. Die Zeichenkette kommt vom Riegel, wie
   `lagerbuch/helfer/page.tsx:53` sie sich holt.
 * **Die Restzeit der Sitzung** als Client-Insel `_ui/Restzeit.tsx` (Vorbild
@@ -3257,14 +3398,14 @@ Drei Gründe, jeder belegt:
 
 ### 4.2.1 Wo der Riegel gerufen wird
 
-`(ausleihe)/layout.tsx` ruft `requireRadioZugang(...)` als **erste Anweisung** und trägt sonst nichts
+`(ausleihe)/layout.tsx` ruft `requireAusleihZugang(...)` als **erste Anweisung** und trägt sonst nichts
 (Vorbild `lagerbuch/helfer/layout.tsx:41-45`). **Das ist eine Bequemlichkeit, keine
 Sicherheitsgrenze:** Route-Group-Grenzen sind keine, und ein Layout kann einer Seite keine Props
 reichen. Deshalb ruft **jede** der drei Seiten den Riegel selbst noch einmal — sie braucht
 Sitzungsetikett und Ablaufzeitpunkt für den Rahmen. Ebenso **jede** Server Action in
 `_actions/ausleihe.ts`, als erste Anweisung, vor jedem Lesen von `formData`.
 
-Der Host-Riegel wird hier **nicht** zusätzlich gerufen: `requireRadioZugang` ruft ihn intern als
+Der Host-Riegel wird hier **nicht** zusätzlich gerufen: `requireAusleihZugang` ruft ihn intern als
 erste Anweisung, in der `lagerbuch`-Form (`src/app/m/lagerbuch/_lib/host.ts:42-56`, `notFound()`
 statt 403). Ein zweiter Aufruf wäre die Behauptung, der Riegel sei hostblind — genau die Behauptung,
 die die Zusage „hostgebunden durch Konstruktion" wieder zu einer Liste macht, die die nächste Datei
@@ -3279,7 +3420,7 @@ Middleware-Gating.
 
 | Schritt | Was der Mensch sieht | Was serverseitig passiert |
 |---|---|---|
-| 1 | Er scannt den QR-Code oder öffnet die Kachel. Es erscheint die Geräteübersicht mit Kopf „Funkgeräte", der Suchzeile, vier Statuschips und den Geräten, gruppiert nach Standort | Gate löst den Code ein und prägt die Sitzung (Zugangs-Kapitel), dann `/` als RSC: `requireRadioZugang` → Lesepfad `geraeteMitLeihstand(db)` → fertige Zeilen |
+| 1 | Er scannt den QR-Code oder öffnet die Kachel. Es erscheint die Geräteübersicht mit Kopf „Funkgeräte", der Suchzeile, vier Statuschips und den Geräten, gruppiert nach Standort | Gate löst den Code ein und prägt die Sitzung (Zugangs-Kapitel), dann `/` als RSC: `requireAusleihZugang` → Lesepfad `geraeteMitLeihstand(db)` → fertige Zeilen |
 | 2 | Er tippt ein Gerät mit grünem Punkt an. Ein Gerät mit anderem Status reagiert nicht (60 % Deckkraft, `aria-disabled`) | Navigation nach `/ausleihen?geraete=<id>` (`<Link>`, kein Client-Handler) |
 | 3 | Seite „Gerät ausleihen": Schritt 1 „Gerät(e) wählen" mit der Auswahlliste (das Gerät aus Schritt 2 ist bereits markiert), Schritt 2 „Empfänger angeben" | RSC liest `?geraete=`, prüft **serverseitig**, dass jede ID existiert und frei ist, und wirft ungültige IDs mit einem sichtbaren Hinweis heraus (§4.3.3) |
 | 4 | Er tippt weitere Geräte an oder wieder ab; die Zahl im Knopf ändert sich („2 Geräte ausleihen") | Die Insel schreibt die Auswahl mit `router.replace` in `?geraete=` zurück — reload- und zurück-fest |
@@ -3414,7 +3555,7 @@ Schlüssel, nie Bildschirmtext.
 
 | Schritt | Was der Mensch sieht | Was serverseitig passiert |
 |---|---|---|
-| 1 | „Zurückgeben" in der Fußnavigation. Es erscheint „Geräte zurückgeben" und die Liste der offenen Ausleihen als Karten: Rufname fett, darunter „Ausgeliehen am 14.06.2026, 09:12 Uhr" | RSC: `requireRadioZugang` → `offeneAusleihen(db)` → fertige Zeichenketten |
+| 1 | „Zurückgeben" in der Fußnavigation. Es erscheint „Geräte zurückgeben" und die Liste der offenen Ausleihen als Karten: Rufname fett, darunter „Ausgeliehen am 14.06.2026, 09:12 Uhr" | RSC: `requireAusleihZugang` → `offeneAusleihen(db)` → fertige Zeichenketten |
 | 2 | Bei mehr als einer Ausleihe steht darüber eine Suchzeile „Rufname oder Name…" | Die Suchzeile erscheint heute nur bei `loans.length > 0` (`routes/return.tsx:60`); das bleibt |
 | 3 | Er tippt eine Karte an. Ein Dialog öffnet: „41/12 zurückgeben", darunter ein Notizfeld „Optional: Zustandsnotiz hinterlassen", Zähler „0 / 500", zwei Knöpfe „Abbrechen" und „Zurückgeben" | antd `Modal` in der Insel; Zeichengrenze aus `_lib/grenzen.ts` (heute `LOAN_FIELD_LIMITS.RETURN_NOTE_MAX`, `ReturnDialog.tsx:76`, `:93`) |
 | 4 | Er drückt „Zurückgeben". Der Knopf zeigt „Wird zurückgegeben …" | Server Action `rueckgabeBuchen` — ein `UPDATE` mit `returned_at`, atomar |
@@ -3869,7 +4010,7 @@ src/app/m/radio/
 ```
 
 Nicht in diesem Kapitel, aber von ihm benutzt: `_lib/zugang.ts` (Riegel), `_lib/host.ts` (Falle 61),
-`_db/` und die Lesepfade (`geraeteMitLeihstand`, `offeneAusleihen`, `entleiherVorschlaege`).
+`_db/` und die Lesepfade (`geraeteMitLeihstand`, `offeneAusleihen`, `sucheEntleiher`).
 
 ### 4.11.1 Die Tests, mit Namen
 
@@ -3919,10 +4060,13 @@ Fläche wechselt beim Eintreffen der Sitzung genau die Kopfzeile, die den Umbruc
 Nach Gegenstand benannt (siehe Kasten am Kapitelanfang); die Zusammenführung prüft sie gegeneinander.
 
 **An das Zugangs-Kapitel:**
-1. Der Riegel heißt `requireRadioZugang` und liefert **drei** Dinge zurück, weil der Rahmen sie
-   braucht: ein anzeigbares Sitzungsetikett, den Ablaufzeitpunkt der Sitzung und ein Kennzeichen
-   „über Code" / „angemeldet" (§4.2, §4.8). Ohne diese drei Felder kann diese Fläche ihren Kopf nicht
-   bauen.
+1. Der Riegel heißt `requireAusleihZugang` (⚠️ **so entschieden in B7**; dieses Kapitel schrieb ihn
+   im ersten Entwurf durchgängig `requireRadioZugang`, und Quelltext-Scans suchen den Namen als
+   Zeichenkette). Er liefert den Typ `AusleihZugang` aus §3.5.1 zurück, und diese Fläche braucht
+   daraus **drei** Angaben: ein anzeigbares Sitzungsetikett (`bezeichnung` bzw. `name`), den
+   Ablaufzeitpunkt (`laeuftAb` — bei `weg: "suite"` gibt es keinen, der Kopf zeigt dann keine
+   Restzeit) und das Kennzeichen `weg: "code" | "suite"` (§4.2, §4.8). ⚠️ **Das ist keine dritte
+   Signatur:** §3.5.1 gibt den Vertrag, dieses Kapitel nennt nur die drei Felder, die es liest.
 2. Er ruft den Host-Riegel **intern als erste Anweisung**; diese Fläche ruft ihn nirgends zusätzlich
    (§4.2.1).
 3. Ablauf und Sperre führen auf den Route Handler `/abmelden`, als **String**, nicht als Import
@@ -3937,8 +4081,11 @@ Nach Gegenstand benannt (siehe Kasten am Kapitelanfang); die Zusammenführung pr
 6. Die Lesepfade, die diese Fläche braucht, mit ihren Feldern: `geraeteMitLeihstand(db)` →
    `{ id, rufname, geraetetyp, standort, status, suchschluessel, entleiher?, seit? }` (fertige
    Zeichenketten, **kein** `Date`, **keine** Seriennummer); `offeneAusleihen(db)` →
-   `{ id, rufname, entleiher, seitText }`; `entleiherVorschlaege(db, suchtext, 10)` →
-   `{ name, zuletztText }`.
+   `{ id, rufname, entleiher, seitText }`; `sucheEntleiher(db, suchtext, deckel = 10)` →
+   `{ name, zuletztText }`. ⚠️ **Die Datenfunktion heißt `sucheEntleiher`, die Server Action
+   `entleiherVorschlaege`** (korrigiert, B12): `_actions/ausleihe.ts` **importiert** die eine und
+   **exportiert** die andere — gleiche Namen kollidieren in derselben Datei (§6.1). Die Dateiliste
+   in §4.11 meint die Actions und bleibt unverändert.
 7. Der Riegel gegen zwei aktive Ausleihen auf einem Gerät ist der **partielle Unique-Index**, nicht
    eine Prüfung in der Aktion (§4.3.2).
 8. Die Uhrzeit-Anzeige dieser Fläche liest `mode: "timestamp"` (Sekunden). Läuft der Import mit dem
@@ -4000,24 +4147,31 @@ Nicht in diesem Kapitel: die Spalten selbst und ihre Einheiten (Kapitel 4), der 
 Ausleih-Codes (Kapitel 3), der Ausleih-Zweig an `/` und der Ausfall-Puffer `STALE_GRACE_MS`
 (Kiosk-Kapitel), das Runbook (Spec 2).
 
-## 5.2 Die Flächen: sechs Alt-Menüpunkte, acht Suite-Routen
+## 5.2 Die Flächen: sechs Alt-Menüpunkte, zehn Suite-Routen und ein Route Handler
 
 Der Bestand führt genau sechs Menüpunkte (`radio-admin/client/src/layout/AppLayout.tsx:31-36`) und
-neun Routen (`radio-admin/client/src/routes/router.tsx:14-33`):
+neun Routen (`radio-admin/client/src/routes/router.tsx:14-33`).
+
+**Wie hier gezählt wird** (⚠️ die Überschrift trug im ersten Entwurf „acht" und widersprach der
+eigenen Tabelle — korrigiert in B9): gezählt sind **Seiten-Pfade**, die `[id]`-Seiten einzeln, das
+Druckblatt eingeschlossen; der CSV-Export ist ein **Route Handler** und steht daneben, nicht mit
+darin. Die Pfadnamen und die zwei Route-Groups sind die aus Kapitel 1 §1.2.2 — jene Tabelle ist die
+Routenkarte, dieser Abschnitt die Herkunftszuordnung.
 
 | Alt-Route | Alt-Datei | Suite-Pfad unter `radio.iuk-ue.de` | Suite-Datei unter `src/app/m/radio/admin/` |
 |---|---|---|---|
-| `/` Dashboard | `pages/DashboardPage.tsx` → `features/dashboard/Dashboard.tsx` | `/admin` | `page.tsx` |
-| `/devices` Geräte | `features/devices/DeviceList.tsx` + `deviceColumns.tsx` | `/admin/geraete` | `geraete/page.tsx` + `geraete/GeraeteTabelle.tsx` |
-| `/devices/:id` (Drawer) | `features/devices/DeviceDetailDrawer.tsx` | `/admin/geraete/[id]` | `geraete/[id]/page.tsx` |
-| — (Endpunkt ohne Oberfläche, §5.10) | `server/src/routes/devices.ts:66` | `/admin/geraete/[id]/ereignisse` | `geraete/[id]/ereignisse/page.tsx` |
-| `/ausleihen` | `features/loans/LoanList.tsx` | `/admin/ausleihen` | `ausleihen/page.tsx` |
-| `/update` Update-Modus | `features/update/UpdateMode.tsx` | `/admin/update` | `update/page.tsx` |
-| `/import` | `features/import/ImportWizard.tsx` | `/admin/import` | `import/page.tsx` |
-| `/einstellungen` Tab 1 | `features/settings/SoftwareVersionsPage.tsx` | `/admin/versionen` | `versionen/page.tsx` |
+| `/` Dashboard | `pages/DashboardPage.tsx` → `features/dashboard/Dashboard.tsx` | `/admin` | `(arbeit)/page.tsx` |
+| `/devices` Geräte | `features/devices/DeviceList.tsx` + `deviceColumns.tsx` | `/admin/geraete` | `(arbeit)/geraete/page.tsx` + `.../GeraeteTabelle.tsx` |
+| `/devices/:id` (Drawer) | `features/devices/DeviceDetailDrawer.tsx` | `/admin/geraete/[id]` | `(arbeit)/geraete/[id]/page.tsx` |
+| — (Endpunkt ohne Oberfläche, §5.10) | `server/src/routes/devices.ts:66` | `/admin/geraete/[id]/ereignisse` | `(arbeit)/geraete/[id]/ereignisse/page.tsx` |
+| `/ausleihen` | `features/loans/LoanList.tsx` | `/admin/ausleihen` | `(arbeit)/ausleihen/page.tsx` |
+| `/update` Update-Modus | `features/update/UpdateMode.tsx` | `/admin/software` | `(arbeit)/software/page.tsx` |
+| `/import` | `features/import/ImportWizard.tsx` | `/admin/import` | `(arbeit)/import/page.tsx` |
+| `/einstellungen` Tab 1 | `features/settings/SoftwareVersionsPage.tsx` | `/admin/versionen` | `(arbeit)/versionen/page.tsx` |
 | `/einstellungen` Tab 2 „API-Zugriff" | `features/settings/ApiTokensPage.tsx` | **entfällt** | — |
-| — (neu, Kapitel 3) | — | `/admin/codes` | `codes/page.tsx` |
-| CSV-Export (Anker, kein Menüpunkt) | `DeviceList.tsx:104-111` → `server/src/routes/export.ts:71` | `/m/radio/admin/geraete/export` | `geraete/export/route.ts` |
+| — (neu, Kapitel 3) | — | `/admin/zugaenge` | `(arbeit)/zugaenge/page.tsx` |
+| — (neu, Kapitel 3 — das druckbare Blatt) | — | `/admin/zugaenge/blatt` | `(druck)/zugaenge/blatt/page.tsx` |
+| CSV-Export (Anker, kein Menüpunkt) | `DeviceList.tsx:104-111` → `server/src/routes/export.ts:71` | `/m/radio/admin/geraete/export` | `(arbeit)/geraete/export/route.ts` |
 | `/login`, `/403`, `*` | `pages/LoginPage.tsx`, `ForbiddenPage.tsx`, `NotFoundPage.tsx` | **entfallen** | — |
 
 **Vier Entscheidungen stecken in dieser Tabelle.**
@@ -4045,8 +4199,8 @@ neun Routen (`radio-admin/client/src/routes/router.tsx:14-33`):
 Der Navigationsslot der Verwaltung trägt damit **sieben** Einträge (`_lib/nav.ts`, Vorbild
 `src/app/m/lagerbuch/_lib/nav.ts`, gerendert über `VerwaltungsRahmen`, vgl.
 `src/app/m/lagerbuch/_ui/VerwaltungsRahmen.tsx:6-17`): Übersicht · Geräte · Ausleihen ·
-Update-Modus · Import · Softwareversionen · Codes. **Drei davon sind nur für die Admin-Stufe
-sichtbar: Import, Softwareversionen und Codes** (§5.5) — `radioNav(stufe: RadioRolle)` nimmt die
+Update-Modus · Import · Softwareversionen · Zugänge. **Drei davon sind nur für die Admin-Stufe
+sichtbar: Import, Softwareversionen und Zugänge** (§5.5) — `radioNav(stufe: RadioRolle)` nimmt die
 Stufe als Parameter, statt eine feste Liste zu liefern. Das ist keine Erfindung, sondern
 Wiederherstellung: der Bestand markiert `/einstellungen` schon heute mit `adminOnly: true`
 (`radio-admin/client/src/layout/AppLayout.tsx:36`). Ohne diesen Parameter sieht eine Person der
@@ -4079,43 +4233,54 @@ trägt die Kachel **still** das Portal-Icon; genau das ist `files` am 30.07.2026
 
 ## 5.3 Der Verzeichnisbaum
 
+⚠️ **Zwei Route-Groups, nicht eine — nachgezogen auf Kapitel 1 §1.2.2 (B9).** Der erste Entwurf
+dieses Kapitels hatte **ein** `admin/layout.tsx` mit `VerwaltungsRahmen` über allem und kein
+Druckblatt. Läge `zugaenge/blatt` darunter, erbte es Kopfzeile, Navigationsleiste und
+`controlHeight: 44` **auf Papier** — Falle 4 aus `CLAUDE.md` auf einem gedruckten Kärtchen, und kein
+Tor sieht es. Die Groups sind in der URL unsichtbar; der Riegel steht in **beiden** Layouts.
+
 ```
 src/app/m/radio/admin/
-  layout.tsx                          Host- + Personen-Riegel, VerwaltungsRahmen
-  page.tsx                            Übersicht (Kennzahlen + veraltete Geräte)   §5.11
   actions.ts                          alle Verwaltungs-Server-Actions             §5.8
-  geraete/
-    page.tsx                          Lesepfad + Suchparameter-Vertrag
-    GeraeteTabelle.tsx                "use client" — Insel 1 (die grosse)         §5.6
-    GeraeteWerkzeugleiste.tsx         "use client" — Teil derselben Insel
-    SpaltenWahl.tsx                   "use client" — Spalten-/Suchfeldauswahl
-    FilterSchublade.tsx               "use client" — Drawer mit 10 Filtern
-    NeuGeraetModal.tsx                "use client" — Anlegen (Formular)
-    export/route.ts                   CSV-Export, Route Handler                   §5.9
-    [id]/
-      page.tsx                        Kopfdaten + Formular + Notiz + Löschen
-      GeraetFormular.tsx              "use client" — Insel 6 (Falle 1)            §5.6
-      NotizFeld.tsx                   "use client" — append-only Notiz
-      GeraetLoeschen.tsx              "use client" — Popconfirm
-      ereignisse/
-        page.tsx                      Ereignisliste eines Geräts                  §5.10
-        EreignisTabelle.tsx           "use client" — Insel 5
-  ausleihen/
-    page.tsx
-    AusleihenTabelle.tsx              "use client" — Insel 2
-  update/
-    page.tsx
-    UpdateSuche.tsx                   "use client" — Insel 7 (Suche + Karten)
-  import/
-    page.tsx
-    ImportAssistent.tsx               "use client" — Insel 4 (vier Schritte)
-  versionen/
-    page.tsx
-    VersionenTabelle.tsx              "use client" — Insel 3
-    NeuVersion.tsx                    "use client" — Eingabe + Anlegen
-  codes/                              Kapitel 3 (Fläche hier, Mechanik dort)
-    page.tsx
-    CodeTabelle.tsx                   "use client" — Insel 8
+  (arbeit)/
+    layout.tsx                        Host- + Personen-Riegel, VerwaltungsRahmen
+    page.tsx                          Übersicht (Kennzahlen + veraltete Geräte)   §5.11
+    geraete/
+      page.tsx                        Lesepfad + Suchparameter-Vertrag
+      GeraeteTabelle.tsx              "use client" — Insel 1 (die grosse)         §5.6
+      GeraeteWerkzeugleiste.tsx       "use client" — Teil derselben Insel
+      SpaltenWahl.tsx                 "use client" — Spalten-/Suchfeldauswahl
+      FilterSchublade.tsx             "use client" — Drawer mit 10 Filtern
+      NeuGeraetModal.tsx              "use client" — Anlegen (Formular)
+      export/route.ts                 CSV-Export, Route Handler                   §5.9
+      [id]/
+        page.tsx                      Kopfdaten + Formular + Notiz + Löschen
+        GeraetFormular.tsx            "use client" — Insel 6 (Falle 1)            §5.6
+        NotizFeld.tsx                 "use client" — append-only Notiz
+        GeraetLoeschen.tsx            "use client" — Popconfirm
+        ereignisse/
+          page.tsx                    Ereignisliste eines Geräts                  §5.10
+          EreignisTabelle.tsx         "use client" — Insel 5
+    ausleihen/
+      page.tsx
+      AusleihenTabelle.tsx            "use client" — Insel 2
+    software/                         Alt-Route /update (§5.2)
+      page.tsx
+      UpdateSuche.tsx                 "use client" — Insel 7 (Suche + Karten)
+    import/
+      page.tsx
+      ImportAssistent.tsx             "use client" — Insel 4 (vier Schritte)
+    versionen/
+      page.tsx
+      VersionenTabelle.tsx            "use client" — Insel 3
+      NeuVersion.tsx                  "use client" — Eingabe + Anlegen
+    zugaenge/                         Kapitel 3 (Fläche hier, Mechanik dort)
+      page.tsx
+      CodeTabelle.tsx                 "use client" — Insel 8
+  (druck)/
+    layout.tsx                        Host- + Personen-Riegel, KEIN Rahmen        §1.2.2
+    zugaenge/
+      blatt/page.tsx                  das druckbare Blatt mit den QR-Codes        Kapitel 3
 
 src/app/m/radio/_lib/
   host.ts                             istRadioHost / requireRadioHost / radioHostOderNull
@@ -4199,17 +4364,19 @@ keines über sich. Deshalb ruft jede Datei ihren Riegel selbst (Entscheidung 10)
 
 | Datei | erste Anweisung |
 |---|---|
-| `admin/layout.tsx` | `requireRadioHost(await headers())`, danach `await requireRadioVerwaltung()` |
-| `admin/page.tsx` | `await requireRadioVerwaltung()` |
-| `admin/geraete/page.tsx` | `await requireRadioVerwaltung()` |
-| `admin/geraete/[id]/page.tsx` | `await requireRadioVerwaltung()` |
-| `admin/geraete/[id]/ereignisse/page.tsx` | `await requireRadioVerwaltung()` |
-| `admin/ausleihen/page.tsx` | `await requireRadioVerwaltung()` |
-| `admin/update/page.tsx` | `await requireRadioVerwaltung()` |
-| `admin/import/page.tsx` | `await requireRadioVerwaltung()` |
-| `admin/versionen/page.tsx` | `await requireRadioAdmin()` |
-| `admin/codes/page.tsx` | `await requireRadioAdmin()` |
-| `admin/geraete/export/route.ts` | `if (radioHostOderNull(request.headers) === null) return new Response(null, { status: 404 })`, danach `if (!istRadioAdmin(await viewerOderNull())) return new Response(null, { status: 403 })` — **beide nicht-werfend**, der Handler baut seine Antwort selbst |
+| `admin/(arbeit)/layout.tsx` | `requireRadioHost(await headers())`, danach `await requireRadioVerwaltung()` |
+| `admin/(druck)/layout.tsx` | `requireRadioHost(await headers())`, danach `await requireRadioAdmin()` — **kein** `VerwaltungsRahmen` (§1.2.2) |
+| `admin/(arbeit)/page.tsx` | `await requireRadioVerwaltung()` |
+| `admin/(arbeit)/geraete/page.tsx` | `await requireRadioVerwaltung()` |
+| `admin/(arbeit)/geraete/[id]/page.tsx` | `await requireRadioVerwaltung()` |
+| `admin/(arbeit)/geraete/[id]/ereignisse/page.tsx` | `await requireRadioVerwaltung()` |
+| `admin/(arbeit)/ausleihen/page.tsx` | `await requireRadioVerwaltung()` |
+| `admin/(arbeit)/software/page.tsx` | `await requireRadioVerwaltung()` |
+| `admin/(arbeit)/import/page.tsx` | `await requireRadioVerwaltung()` |
+| `admin/(arbeit)/versionen/page.tsx` | `await requireRadioAdmin()` |
+| `admin/(arbeit)/zugaenge/page.tsx` | `await requireRadioAdmin()` |
+| `admin/(druck)/zugaenge/blatt/page.tsx` | `await requireRadioAdmin()` |
+| `admin/(arbeit)/geraete/export/route.ts` | `if (radioHostOderNull(request.headers) === null) return new Response(null, { status: 404 })`, danach `if (!istRadioAdmin(await viewerOderNull())) return new Response(null, { status: 404 })` — **beide nicht-werfend**, der Handler baut seine Antwort selbst. ⚠️ **404, nicht 403** (korrigiert, B10): §1.5 legt für dieses Modul `notFound()` statt 403 fest, und §3.8 setzt darauf einen benannten e2e-Test („404, nicht ein 403"). Ein 403 hier machte den Bestand an Verwaltungspfaden aufzählbar, während die Seiten daneben schweigen — und die 404 ist hier keine Zwangslage, sondern eine Zeile, die darüber schon steht |
 | jede Action in `admin/actions.ts` | `await requireRadioVerwaltung()` bzw. `await requireRadioAdmin()` (Liste in §5.8) |
 
 Die Zeile im Layout ist **keine** Redundanz zu den Seiten: sie hält den Aufruf auf einem fremden
@@ -4711,8 +4878,11 @@ nur ein echter Abruf zeigt Falle 9 und Falle 1. `e2e/radio-verwaltung.spec.ts`:
 2. `/admin/geraete` → 200, Tabelle mit Kopfzeile, ein Filter gesetzt ⇒ die URL trägt ihn.
 3. `/admin/geraete/<id>` → 200, Formular sichtbar (Falle 1).
 4. `/admin/geraete/<id>/ereignisse` → 200.
-5. `/admin/ausleihen`, `/admin/versionen`, `/admin/import`, `/admin/update`, `/admin/codes` → je 200
-   mit sichtbarer Tabelle bzw. Assistent.
+5. `/admin/ausleihen`, `/admin/versionen`, `/admin/import`, `/admin/software`, `/admin/zugaenge` → je
+   200 mit sichtbarer Tabelle bzw. Assistent.
+5a. `/admin/zugaenge/blatt` → 200, **ohne** Kopfzeile und **ohne** Navigationsleiste im Rumpf — das
+   ist die einzige Prüfung, die die Route-Group `(druck)` von `(arbeit)` unterscheidet (§1.2.2, B9),
+   und ohne sie druckt das Blatt still mit Suite-Kopfzeile und `controlHeight: 44`.
 6. `/admin/geraete/export` → 200, `text/csv`, Antwort beginnt mit dem BOM.
 7. Ein Schreibvorgang je Action-Familie: Version anlegen · Gerät ändern · Notiz anfügen · Import
    schreiben.
@@ -4729,8 +4899,8 @@ eine spätere Zustandsänderung zu warten. Für Klicks auf Links in der Navigati
 
 ## 5.14 Zusagen an andere Kapitel
 
-* **An Kapitel 3 (Zugang/Codes):** `/admin/codes` liegt in diesem Kapitel als Route, Riegel und
-  Insel 8; die Mechanik des Codes gehört Kapitel 3. Jede codebezogene Seite und Action ruft
+* **An Kapitel 3 (Zugang/Codes):** `/admin/zugaenge` liegt in diesem Kapitel als Route, Riegel und
+  Insel 8, ebenso das Druckblatt `/admin/zugaenge/blatt` unter der Route-Group `(druck)`; die Mechanik des Codes gehört Kapitel 3. Jede codebezogene Seite und Action ruft
   `requireRadioAdmin()`, **nie** `requireRadioVerwaltung()` — die Updater-Stufe erreicht die
   Code-Verwaltung nicht (Entscheidung 7).
 * **An Kapitel 4 (Datenmodell):** die vier `quelle`-Werte sind abschliessend, und §5.8 listet
@@ -4885,8 +5055,8 @@ Fläche meldet trotzdem einen Fehler. Ein Ersatz mit Einzelgeraet-Signatur zoege
 wieder ein und koennte die Zusage „es wurde nichts gebucht" nicht halten. Die drei Master-Pruefungen aus
 6.3 laufen deshalb **je Gerät innerhalb** der einen Transaktion.
 
-Jede der drei Actions ruft als **erste Anweisung** `requireRadioZugang` (Entscheidung 10). ⚠️ **Sie
-ruft den Host-Riegel NICHT zusaetzlich:** `requireRadioZugang` ruft ihn **intern** als erste Anweisung,
+Jede der drei Actions ruft als **erste Anweisung** `requireAusleihZugang` (Entscheidung 10). ⚠️ **Sie
+ruft den Host-Riegel NICHT zusaetzlich:** `requireAusleihZugang` ruft ihn **intern** als erste Anweisung,
 und das Ausleihe-Kapitel sagt dieselbe Zusage zu und prueft sie („liest die Kopfzeilen genau einmal").
 Genau so steht es im Vorbild: `requireLagerbuchHost` liegt **innerhalb** von
 `requireLagerbuchAdmin`/`requireHelferSitzung` und nicht in einer Liste, die die naechste Action
@@ -5771,9 +5941,9 @@ Die Grenze zwischen beiden Listen ist eine Regel, nicht ein Gefuehl:
 | --- | --- | --- | --- |
 | **1** | `SUITE_ADMIN_GROUP_RADIO` fehlt oder ist leer | Ohne sie greift der Entwicklungs-Vorgabewert aus der Registry; ist in Pocket ID niemand in dieser Gruppe, ist die Folge ein **stummes 404 fuer ALLE Verwaltenden** — fuer `radio` gibt es bewusst **keine** Suite-Admin-Rueckfallebene (gesetzte Entscheidung 9). ⚠️ **Gelesen wird die Variable direkt**, nicht ueber `adminGroupsFor`: das faellt bei fehlender Variable auf `mod.adminGroups` zurueck (`src/core/groups.ts:102-108`) und meldete nichts. Und `validateGroupConfig` meldet den **leeren** Admin-Wert bewusst nicht — „bei den Admin-Gruppen ist leer dagegen eine gueltige Aussage und wird nicht gemeldet" (`src/core/groups.ts`, Kopfkommentar von `validateGroupConfig`) | Analyse-Falle 23, `docs/radio-portierung-analyse.md:1570-1575`; Vorbild `src/app/m/lagerbuch/_lib/boot.ts:49-69` |
 | **2** | `SUITE_ACCESS_GROUP_RADIO !== undefined` | Ein gesetzter Wert waere **still wirkungslos**: `canAccess` steigt fuer `requiresAuth: false` sofort mit `true` aus (`src/core/registry.ts:239`) und liest `requiredGroups` nie. `validateGroupConfig` meldet nur den **leer** gesetzten Fall (`src/core/groups.ts:156`) — der Betreiber setzte also eine Zugangsgruppe, bekaeme keine Warnung, und das Modul blieb fuer jeden offen. Ausweg in der Meldung: **die Zeile ersatzlos entfernen**; wer den Verwaltungszugang steuern will, setzt `SUITE_ADMIN_GROUP_RADIO` | Vorbild `src/app/m/lagerbuch/_lib/boot.ts:71-86`; die dortige Zeilenangabe `registry.ts:155` ist **veraltet**, heute `:239` (nachgemessen) |
-| **3** | `RADIO_ZUGANG_SITZUNG_SECRET` fehlt oder ist kuerzer als 32 Zeichen | Ohne den Wert kann keine zeitlich begrenzte Sitzung ausgestellt oder geprueft werden; ein kurzer Wert ist eine Signatur, die aussieht wie eine. **Zusaetzlich:** Wert **gleich** `AUTH_SECRET` → eigene Meldung. Dieselbe Signatur fuer Suite- und Zugangs-Sitzung hebt die Domaenentrennung auf, die das eigene Geheimnis begruendet | Bauform woertlich lagerbuch (gesetzte Entscheidung 6); Vorbild `.env.example:250-258` |
+| **3** | `RADIO_AUSLEIH_SITZUNG_SECRET` fehlt oder ist kuerzer als 32 Zeichen | Ohne den Wert kann keine zeitlich begrenzte Sitzung ausgestellt oder geprueft werden; ein kurzer Wert ist eine Signatur, die aussieht wie eine. **Zusaetzlich:** Wert **gleich** `AUTH_SECRET` → eigene Meldung. Dieselbe Signatur fuer Suite- und Zugangs-Sitzung hebt die Domaenentrennung auf, die das eigene Geheimnis begruendet | Bauform woertlich lagerbuch (gesetzte Entscheidung 6); Vorbild `.env.example:250-258` |
 | **4** | `RADIO_HISTORIE_MONATE` ist gesetzt, aber keine ganze Zahl ≥ 1 | **`0` wird ausdruecklich abgewiesen** und nicht als „aus" gelesen: `0` Monate Retention loescht beim ersten Lauf die **gesamte** abgeschlossene Leihhistorie. Wer die Retention abschalten will, laesst die Variable weg — dann gilt die Vorbelegung 2 (gesetzte Entscheidung 12) — und schaltet den Arbeiter ueber `RADIO_HISTORIE_PURGE=0` ab (§7.3.5) | Alt-Wert `HISTORY_RETENTION_MONTHS = 2`, `radio-admin/server/src/services/retentionService.ts:9` |
-| **5** | `RADIO_ZUGANG_SITZUNG_STUNDEN` ist gesetzt, aber keine ganze Zahl in `1..168` | Eine Sitzungsdauer von `0` machte jeden gescannten Code sofort wertlos, eine von `100000` machte „zeitlich begrenzt" zur Behauptung. Obergrenze eine Woche | Vorbelegung 12 (lagerbuch: `LAGERBUCH_HELFER_SITZUNG_STUNDEN=12`, `.env.example:265`) — ⚠️ **zu bestaetigen**, §7.6 |
+| **5** | `RADIO_AUSLEIH_SITZUNG_STUNDEN` ist gesetzt, aber keine ganze Zahl in `1..168` | Eine Sitzungsdauer von `0` machte jeden gescannten Code sofort wertlos, eine von `100000` machte „zeitlich begrenzt" zur Behauptung. Obergrenze eine Woche | Vorbelegung 12 (lagerbuch: `LAGERBUCH_HELFER_SITZUNG_STUNDEN=12`, `.env.example:265`) — ⚠️ **zu bestaetigen**, §7.6 |
 
 Die Zahlenpruefungen 4 und 5 laufen ueber **einen** Helfer in derselben Datei, damit die naechste Zahl
 nicht als handgeschriebene Kopie dazukommt:
@@ -5844,12 +6014,18 @@ den Start der ganzen Suite mit, nachdem die Migrationen schon liefen. Vorbild fu
 
 Sie tut genau drei Dinge:
 
-1. **Aussteigen, wenn das Modul nicht eingeschaltet ist** — derselbe `prodHostsFor(...).length === 0`
-   -Schalter wie in §7.3.2. Kein Timer in einem Container, der `radio` gar nicht bedient.
-2. **Die Bestandswarnung aus §7.3.4** (`devices` leer, Datei neu) — hier, weil erst hier die Tabellen
-   existieren.
+1. **Die Bestandswarnung aus §7.3.4** (`devices` leer, Datei neu) — hier, weil erst hier die Tabellen
+   existieren. **Nur sie** steht hinter dem `prodHostsFor(...).length === 0`-Schalter aus §7.3.2: eine
+   Warnung über einen Bestand, den dieser Container gar nicht bedient, ist Lärm.
+2. ⛔ **Kein Host-Schalter vor dem Retention-Timer — entschieden in B5, gegen den ersten Entwurf
+   dieses Kapitels.** §2.7.1 hat den Grund: der Takt braucht keine Konfiguration, nur die Tabelle, und
+   eine vergessene `SUITE_HOST_RADIO` schaltete sonst **still** die Löschrichtlinie ab, die der
+   DSGVO-Grund für `borrower_name` ist. Der Abschalter ist `RADIO_HISTORIE_PURGE=0` — er ist bewusst
+   und bei jedem Start laut.
 3. **Den Retention-Timer registrieren.** `setInterval(purge, 24 * 60 * 60 * 1000)` mit `.unref()`,
-   **und der erste Lauf ist nicht t=0.**
+   **und der erste Lauf ist nicht t=0.** Idempotent gegen HMR: ist der Timer schon gesetzt, kehrt die
+   Funktion zurück (§2.7.1) — zwei Timer wären zwei Läufe je Takt. `purge` ist
+   `raeumeLeihhistorie(getDb(), undefined, RADIO_HISTORIE_MONATE)` aus §2.7.1, in `try`/`catch`.
 
 ⚠️ **Das ist der Kern und der Unterschied zur Alt-App.** `radio-admin/server/src/index.ts:35` ruft
 `startRetentionSchedule`, und `radio-admin/server/src/services/retentionService.ts:47` fuehrt
@@ -5863,10 +6039,12 @@ die Paritaetspruefung hat gelaechelt.
 
 Deshalb verbindlich:
 
-* **Kein Purge bei t=0.** Der erste Lauf ist um `RADIO_HISTORIE_ERSTLAUF_MINUTEN` (Vorbelegung **60**)
-  verzoegert. Eine Stunde ist lang genug, dass ein Import, eine Stichprobe und ein „Halt, das sieht
-  falsch aus" dazwischenpassen, und kurz genug, dass die Retention in jedem realistischen
-  Prozessleben ueberhaupt greift.
+* **Kein Purge bei t=0.** Der erste Lauf ist um `RADIO_HISTORIE_ERSTLAUF_MINUTEN` verzoegert,
+  **Vorbelegung 1440 — ein voller Tag, entschieden in B5.** Dieses Kapitel hatte 60 Minuten
+  vorgeschlagen; §2.7.2 begruendet den vollen Tag als das Fenster, in dem Verifikation gegen den
+  ephemeren Container, Stichproben und der Rueckweg „Router zurueck" liegen, und diese Begruendung
+  traegt weiter. Der Regler bleibt: ein Betrieb ohne Cutover darf ihn kuerzen, und in jedem
+  realistischen Prozessleben greift die Retention trotzdem.
 * **`RADIO_HISTORIE_PURGE=0` schaltet den Purge ganz ab** — der Timer wird dann nicht registriert und
   eine **`console.info`**-Zeile ins Log geschrieben, bei **jedem** Start neu (Begruendung am Ende von
   §7.3.4: als `warn` traete der vorgeschriebene Cutover-Zustand die eigene Stopp-Bedingung, und ohne
@@ -5920,7 +6098,7 @@ ueber die Verwaltungsflaeche aus — das ist derselbe Weg wie in Produktion und 
 | " | `"leere Admin-Gruppe ist derselbe Startabbruch"` | `SUITE_ADMIN_GROUP_RADIO=" , "` → Meldung. **Eigener Fall**, weil `validateGroupConfig` diesen Zustand bewusst nicht meldet |
 | " | `"eine gesetzte Zugangsgruppe ist ein Startabbruch"` | `SUITE_ACCESS_GROUP_RADIO=""` **und** `=irgendwas` → je eine Meldung; beide Faelle, weil `!== undefined` und nicht „leer" geprueft wird |
 | " | `"RADIO_HISTORIE_MONATE=0 wird abgewiesen"` | eigener Fall, nicht in einer Tabelle mit `-1` und `abc` versteckt — `0` ist der Wert, den jemand fuer „aus" haelt |
-| " | `"RADIO_ZUGANG_SITZUNG_SECRET gleich AUTH_SECRET ist ein Startabbruch"` | beide auf denselben 40-Zeichen-Wert → Meldung, die **beide** Namen nennt |
+| " | `"RADIO_AUSLEIH_SITZUNG_SECRET gleich AUTH_SECRET ist ein Startabbruch"` | beide auf denselben 40-Zeichen-Wert → Meldung, die **beide** Namen nennt |
 | " | `"radioBootFehler wirft nie"` | Env mit **allen** Fehlern gleichzeitig → die Funktion laeuft durch und liefert eine Liste mit mehr als einem Eintrag; `await expect(...).resolves` statt `rejects` |
 | `src/core/bootstrap.test.ts` (Ergaenzung) | `"jeder Modul-Boot-Haken ist in assertHostConfig eingehaengt"` | **Quelltext-Scan** ueber `src/app/m/*/_lib/boot.ts`: fuer jede gefundene exportierte `*BootFehler`-Funktion muss ihr Name in `src/core/bootstrap.ts` vorkommen. **Das ist das fehlende Netz aus §7.3.1** — und es faengt nicht nur `radio`, sondern jedes kuenftige Modul |
 | " | `"jeder Hintergrundstarter ist in startBackgroundWork eingehaengt"` | dasselbe fuer `starte*Hintergrund`/`starte*Arbeiter` |
@@ -5937,17 +6115,17 @@ den das naechste Modul wieder nicht hat.
 
 | Variable | Pflicht | Vorbelegung | Wirkung |
 | --- | --- | --- | --- |
-| `SUITE_HOST_RADIO` | **zum Cutover ja** | keine (`prodHosts: []`) | Setzt die Prod-Domain: `radio.iuk-ue.de`. Schaltet zugleich alle Boot-Pruefungen aus §7.3.3 und den Hintergrundarbeiter §7.3.5 ein |
+| `SUITE_HOST_RADIO` | **zum Cutover ja** | keine (`prodHosts: []`) | Setzt die Prod-Domain: `radio.iuk-ue.de`. Schaltet zugleich alle Boot-Pruefungen aus §7.3.3 und die Bestandswarnung aus §7.3.5 ein. ⛔ **Nicht** den Retention-Timer — der laeuft ohne Host-Schalter, B5 |
 | `SUITE_ADMIN_GROUP_RADIO` | **ja, nicht leer** | Registry-Vorgabe (Entwicklung) | Wer `/admin` bedienen darf. Leer = **stumme Aussperrung aller**, weil `radio` den Suite-Admin-Kurzschluss modulintern ignoriert (gesetzte Entscheidung 9) |
 | `SUITE_ACCESS_GROUP_RADIO` | **darf nicht gesetzt sein** | — | Waere still wirkungslos (`requiresAuth: false`). Gesetzt = Startabbruch, §7.3.3 Nr. 2 |
-| `RADIO_ZUGANG_SITZUNG_SECRET` | **ja**, ≥ 32 Zeichen | keine | Signiert die zeitlich begrenzte Sitzung, die ein eingeloester Code praegt. **Nicht** gleich `AUTH_SECRET` |
-| `RADIO_ZUGANG_SITZUNG_STUNDEN` | nein | **12** ⚠️ zu bestaetigen | Lebensdauer dieser Sitzung |
+| `RADIO_AUSLEIH_SITZUNG_SECRET` | **ja**, ≥ 32 Zeichen | keine | Signiert die zeitlich begrenzte Sitzung, die ein eingeloester Code praegt. **Nicht** gleich `AUTH_SECRET` |
+| `RADIO_AUSLEIH_SITZUNG_STUNDEN` | nein | **12** ⚠️ zu bestaetigen | Lebensdauer dieser Sitzung |
 | `RADIO_HISTORIE_MONATE` | nein | **2** | Retention der abgeschlossenen Leihen (Betreiberantwort 4). `0` ist verboten, §7.3.3 Nr. 4 |
 | `RADIO_HISTORIE_PURGE` | nein | **1** | `0` schaltet den Purge-Timer ab. Im Cutover-Fenster auf `0`, §7.3.5 |
-| `RADIO_HISTORIE_ERSTLAUF_MINUTEN` | nein | **60** | Verzoegerung des ersten Purge-Laufs. Nie `0` |
+| `RADIO_HISTORIE_ERSTLAUF_MINUTEN` | nein | **1440** (ein Tag, B5) | Verzoegerung des ersten Purge-Laufs. Nie `0` |
 | `SUITE_TRAEFIK_RULE` | **ja, erweitern** | `Host(\`iuk-ue.de\`)` | Um `Host(\`radio.iuk-ue.de\`)` erweitern — **ohne** `radio-admin.iuk-ue.de`, §7.4.3 |
 
-**Was ausdruecklich nicht entsteht:** kein `RADIO_ADMIN_API_TOKEN` und kein `RADIO_ADMIN_API_URL`.
+**Was ausdruecklich nicht entsteht:** kein `RADIO_ADMIN_API_TOKEN` und kein `RADIO_ADMIN_URL`.
 `api_tokens` traegt produktiv genau einen Konsumenten, den Alt-Kiosk (Betreiberantwort 3, gesetzte
 Entscheidung 13), und der verschwindet mit dem Port; die HTTP-Grenze zwischen Kiosk und Verwaltung
 faellt im selben Fenster (gesetzte Entscheidung 15). Eine Variable dafuer waere ein Angebot an einen
@@ -5979,7 +6157,7 @@ Neu entsteht ein Block **„── Modul radio ──"** nach dem lagerbuch-Bloc
   Hinweis, dass leer eine stumme Aussperrung ist.
 * Ein ⚠️-Absatz: **`SUITE_ACCESS_GROUP_RADIO` darf nicht gesetzt werden** (Boot-Abbruch, Grund in
   einem Satz).
-* `# RADIO_ZUGANG_SITZUNG_SECRET=<neu erzeugen, openssl rand -base64 32>` — **auskommentiert und ohne
+* `# RADIO_AUSLEIH_SITZUNG_SECRET=<neu erzeugen, openssl rand -base64 32>` — **auskommentiert und ohne
   Wert.** Ein aus der Vorlage mitgeschleppter Wert waere ein oeffentlich nachlesbares Geheimnis; bei
   lagerbuch steht die Begruendung woertlich (`.env.example:250-258`). **Anders als bei lagerbuch gibt
   es hier keinen Alt-Wert zu uebernehmen** — der Alt-Kiosk kannte keine solche Sitzung, sein
@@ -6140,7 +6318,7 @@ erst, wenn er einmal gelaufen ist.
    (`.env.example:265`, `LAGERBUCH_HELFER_SITZUNG_STUNDEN=12`). Der Nutzungsfall ist anders — ein
    Telefon, das einen QR-Code scannt und nach einer Ausleihe fertig ist —, was auch fuer **deutlich
    kuerzer** sprechen koennte. Umsetzung ist eine Zahl in der `.env`
-   (`RADIO_ZUGANG_SITZUNG_STUNDEN`), also billig zu aendern; die Vorbelegung 12 gilt, bis der Betreiber
+   (`RADIO_AUSLEIH_SITZUNG_STUNDEN`), also billig zu aendern; die Vorbelegung 12 gilt, bis der Betreiber
    widerspricht.
 2. **Sind gedruckte Aufsteller mit QR-Codes im Umlauf, und wo?** Entscheidet nichts am Code, aber
    alles am Cutover-Abend: ein dauerhafter, sperrbarer Code loest jedes gedruckte Kaertchen ein — ein
@@ -6168,8 +6346,8 @@ Die Kapitelnummern setzt die Zusammenfuehrung ein; die Sache ist eindeutig benan
 
 | An | Zusage |
 | --- | --- |
-| **Zugangs-Kapitel** (Host-Riegel, Codes, Sitzung) | Dieses Kapitel legt `_lib/host.ts` **nicht** an, sondern ruft `hostAbweisung` aus `_lib/hostRiegel.ts` (§7.1.3). Es setzt die Variablennamen `RADIO_ZUGANG_SITZUNG_SECRET` und `RADIO_ZUGANG_SITZUNG_STUNDEN` (§7.4.1) und prueft sie beim Boot (§7.3.3 Nr. 3, 5). ⚠️ **Der Name ist hier gesetzt, nicht das Verfahren:** waehlt das Zugangs-Kapitel ein anderes Signaturverfahren, wandert die Pruefung auf **dessen** Variable und behaelt die Form (vorhanden, ≥ 32 Zeichen, nicht gleich `AUTH_SECRET`). Was **nicht** verhandelbar ist: es gibt eine solche Pflichtvariable und sie wird beim Boot geprueft — eine werfende Pruefung auf einen Namen, den niemand setzt, waere ein Startabbruch am Cutover-Abend. Weitere `RADIO_GATE_*`-Zahlen werden vom Helfer `zahlFehler` geprueft und in `.env.example` geschrieben. `seedLokal` legt **keine** einloesbare Zugangszeile an (§7.3.6). Die Ankuendigung der Verhaltensaenderung braucht den Satz aus §7.1.3 („eine veraltete Seitenansicht je Geraet") |
-| **Daten-Kapitel** (Schema, Retention-Abfrage) | Dieses Kapitel traegt Registrierung, 60-Minuten-Verzoegerung, Abschalter und Takt des Retention-Arbeiters; die **Purge-Abfrage** und die 2-Monats-Regel gehoeren dorthin (§7.3.5). Migrationsordner: dieses Kapitel sagt `MODULE_MIGRATIONS`-Eintrag und `COPY`-Zeile zu (§7.4.5) |
+| **Zugangs-Kapitel** (Host-Riegel, Codes, Sitzung) | Dieses Kapitel legt `_lib/host.ts` **nicht** an, sondern ruft `hostAbweisung` aus `_lib/hostRiegel.ts` (§7.1.3). Es setzt die Variablennamen `RADIO_AUSLEIH_SITZUNG_SECRET` und `RADIO_AUSLEIH_SITZUNG_STUNDEN` (§7.4.1) und prueft sie beim Boot (§7.3.3 Nr. 3, 5). ⚠️ **Der Name ist hier gesetzt, nicht das Verfahren:** waehlt das Zugangs-Kapitel ein anderes Signaturverfahren, wandert die Pruefung auf **dessen** Variable und behaelt die Form (vorhanden, ≥ 32 Zeichen, nicht gleich `AUTH_SECRET`). Was **nicht** verhandelbar ist: es gibt eine solche Pflichtvariable und sie wird beim Boot geprueft — eine werfende Pruefung auf einen Namen, den niemand setzt, waere ein Startabbruch am Cutover-Abend. Weitere `RADIO_GATE_*`-Zahlen werden vom Helfer `zahlFehler` geprueft und in `.env.example` geschrieben. `seedLokal` legt **keine** einloesbare Zugangszeile an (§7.3.6). Die Ankuendigung der Verhaltensaenderung braucht den Satz aus §7.1.3 („eine veraltete Seitenansicht je Geraet") |
+| **Daten-Kapitel** (Schema, Retention-Abfrage) | Dieses Kapitel traegt Registrierung, Verzoegerung des ersten Laufs (`RADIO_HISTORIE_ERSTLAUF_MINUTEN`, Vorbelegung **1440**, B5), Abschalter und Takt des Retention-Arbeiters — **ohne** Host-Schalter davor (B5); die **Purge-Abfrage** und die 2-Monats-Regel gehoeren dorthin (§7.3.5). Migrationsordner: dieses Kapitel sagt `MODULE_MIGRATIONS`-Eintrag und `COPY`-Zeile zu (§7.4.5) |
 | **Import-Kapitel** | Die Freigabe nach dem Import laeuft ueber die Zaehl-Abfragen aus Pflicht 4, **nicht** ueber `/api/health/radio` (§7.2.3). Der Mapping-Unit-Test mit je Feld **unterschiedlichen** Fixture-Werten (gesetzte Entscheidung 11) ist dort zu fuehren; §7.3.5 begruendet, warum `RADIO_HISTORIE_PURGE=0` im Cutover-Fenster die zweite Halbe der Absicherung ist |
 | **Ausleih-Kapitel** | Dieses Kapitel baut **kein** Offline-Verhalten und keinen Ersatz fuer `STALE_GRACE_MS` (§7.1.6). Wenn ein Schalter fuer den vorausgefuellten Namen gewuenscht ist, kommt er als `RADIO_*`-Variable hierher (§7.6 Nr. 3) |
 | **Verwaltungs-Kapitel** | `/admin` erbt mit `requiresAuth: false` **kein** Middleware-Gating (gesetzte Entscheidung 10). Dieses Kapitel liefert nur den Boot-Riegel gegen die **leere** Admin-Gruppe (§7.3.3 Nr. 1) — er ersetzt keine einzige Pruefung in einer Seite, Action oder Route |
@@ -6180,7 +6358,7 @@ Die Kapitelnummern setzt die Zusammenfuehrung ein; die Sache ist eindeutig benan
 
 # 8. Testplan: was jedes Tor sieht und was keines sieht
 
-## 8.1 Warum dieses Kapitel vier Ebenen führt und nicht drei
+## 8.1 Warum dieses Kapitel fünf Ebenen führt und nicht drei
 
 Die Zusagen des Moduls `radio` liegen fast alle in genau dem Bereich, den die vorhandenen Tore
 **strukturell** nicht sehen können. Das ist keine Klage, sondern die Begründung für den Zuschnitt:
@@ -6205,7 +6383,7 @@ Die Zusagen des Moduls `radio` liegen fast alle in genau dem Bereich, den die vo
 * **Der Healthcheck ist selbst das Tor und ist grün**, auch gegen eine frisch angelegte, leere
   `radio.db` (§8.5).
 
-Daraus folgen vier Ebenen. Die vierte ist keine Verlegenheitslösung, sondern der Ort, an dem eine
+Daraus folgen fünf Ebenen (die fünfte nachgetragen in B15). Die vierte ist keine Verlegenheitslösung, sondern der Ort, an dem eine
 Zusage **ehrlich** landet, die kein Laufzeittest tragen kann:
 
 | Ebene | Besitzt | Ort |
@@ -6232,6 +6410,12 @@ lässt.
 
 ## 8.2 Vitest — welche Einheiten, mit welchen Namen
 
+⚠️ **Fünf Einheiten, nicht vier — nachgetragen in B15.** Zu den vier Ebenen aus §8.1 tritt die
+**DB-Integrationsebene** `src/app/m/radio/_db/leihen.test.ts` (§8.2.6): echte SQLite-Datei aus
+`os.tmpdir()`, zwei `openModuleDatabase`-Handles. Sie ist weder reine Vitest-Einheit noch Playwright
+und fiel deshalb bisher zwischen die Ebenen, obwohl Kapitel 6 sie an vier Stellen verbindlich
+festlegt.
+
 Vitest besitzt hier **reine Funktionen und Prädikate**, nichts Hostabhängiges am echten Server und
 keine RSC-Grenze. Wo eine Aussage nur über eine RSC-Grenze wahr oder falsch wird, steht sie in §8.4;
 wo sie eine Bauform ist, steht sie in §8.3. Diese Trennung ist der ganze Zweck der Aufteilung: ein
@@ -6246,54 +6430,81 @@ bringt seinen Test mit.
 
 **Die Signaturen, die dieser Test verlangt** (Zusage an Kapitel Datenmodell und Import):
 
+⚠️ **Die Signaturen sind die aus §2.2.4 — korrigiert in B16.** Der erste Entwurf dieses Kapitels
+schrieb einen zweiten, unvereinbaren Satz aus (`sekundenAusMs`, `pruefeMs`, sechs `mappe*`); kein
+einziger Name kam in beiden Listen vor, und `msZuDatum(feld, ms)` gegen `pruefeMs(wert, feld)` hatte
+sogar vertauschte Parameter. Ausschlaggebend ist nicht die Zahl der Namen, sondern der **Typ**:
+`sekundenAusMs` liefert eine **Zahl**, und eine Zahl ist in eine `mode: "timestamp"`-Spalte nicht
+einfügbar — das Zielschema aus §2.5.1–§2.5.6 nimmt `Date`. Ein Importer nach jener Fassung hätte eine
+Ausgabe erzeugt, die das Schema nicht annimmt, und das erst beim ersten echten Insert gezeigt, nie im
+Mapper-Test. Kapitel 2s Fassung bringt außerdem `tagInBerlin` mit, das dieses Kapitel gar nicht kannte.
+
 ```ts
-/** Epoch-MILLISEKUNDEN → Unix-SEKUNDEN. NULL bleibt NULL. */
-export function sekundenAusMs(wert: number | null): number | null;
+/** Epoch-MILLISEKUNDEN → Date. Wirft mit Feldnamen, wenn der Wert nicht plausibel
+ *  dreizehnstellig ist — die Plausibilitätsspanne steckt hier, es gibt kein `pruefeMs`. */
+export function msZuDatum(feld: string, ms: number): Date;
+export function msZuDatumOptional(feld: string, ms: number | null): Date | null;
 
-/** Wirft, wenn der Wert nicht plausibel dreizehnstellig ist. */
-export function pruefeMs(wert: number, feld: string): number;
+/** Epoch-MILLISEKUNDEN → Berliner Kalendertag `YYYY-MM-DD`. Für `devices.last_updated_at`
+ *  (§2.2.3) — eine TEXT-Spalte, kein Zeitstempel. */
+export function tagInBerlin(feld: string, ms: number | null): string | null;
 
-export function mappeGeraet(zeile: AltGeraet): NeuesGeraet;
-export function mappeGeraeteEreignis(zeile: AltEreignis): NeuesEreignis;
-export function mappeSoftwareVersion(zeile: AltVersion): NeueVersion;
-export function mappeApiToken(zeile: AltToken): NeuesToken;
-export function mappeNutzer(zeile: AltNutzer): NeuerNutzer;
-export function mappeLeihe(zeile: AltLeihe): NeueLeihe;
+export function toNeuesGeraet(zeile: AltGeraet): NeuesGeraet;
+export function toNeueSoftwareVersion(zeile: AltVersion): NeueSoftwareVersion;
+export function toNeuenBenutzer(zeile: AltNutzer): NeuerBenutzer;
+export function toNeuesGeraeteEreignis(zeile: AltEreignis): NeuesGeraeteEreignis;
+export function toNeueLeihe(zeile: AltLeihe): NeueLeihe;
 ```
+
+⛔ **Kein `mappeApiToken`, und keine sechste Abbildung.** Entscheidung 13, §2.10 Punkt 1 und §6.5 sind
+eindeutig: `api_tokens` wird **nicht angelegt und nicht gelesen**, sie erscheint weder im Suite-Schema
+noch im Import, und §6.5 streicht sie sogar aus den Paritäts-Sollwerten (sechs werden fünf). Ein
+Mapper auf eine Zieltabelle, die es nicht gibt, scheitert erst am Import.
 
 **Die Fixture-Regel ist die eigentliche Zusage, nicht der Test.** `scripts/import/portal.ts:72-75`
 schreibt sie wörtlich aus („keep its fixture values **distinct per field**"), und sie gilt hier für
-**dreizehn** Zeitstempel-Spalten: `devices.created_at`, `devices.updated_at`,
-`devices.last_updated_at`, `device_events.changed_at`, `software_versions.created_at`,
-`api_tokens.created_at`, `api_tokens.last_used_at`, `api_tokens.revoked_at`, `users.last_seen_at`,
-`loans.borrowed_at`, `loans.returned_at`, `loans.created_at`, `loans.updated_at`. Belegt sind alle
+**neun** Zeitstempel-Spalten: `devices.created_at`, `devices.updated_at`,
+`device_events.changed_at`, `software_versions.created_at`, `users.last_seen_at`,
+`loans.borrowed_at`, `loans.returned_at`, `loans.created_at`, `loans.updated_at`.
+⚠️ **Der erste Entwurf zählte dreizehn (korrigiert, B16).** Weggefallen sind die drei
+`api_tokens`-Spalten — die Tabelle existiert im Ziel nicht — und `devices.last_updated_at`: sie wird
+nach §2.2.3 eine **TEXT-Spalte** im Format `YYYY-MM-DD`, gefüllt über `tagInBerlin`, mit der Zusage
+`string | null` an die Verwaltungsoberfläche (§2.11 Nr. 6). Sie hat eine eigene Zeile unten und
+gehört nicht unter die `feldWert(n)`-Regel. Belegt sind alle
 als Millisekunden an ihrem jeweiligen Schreibpfad: `radio-admin/server/src/repos/deviceRepo.ts:13`,
 `:78`, `:230`; `radio-admin/server/src/repos/softwareVersionRepo.ts:36`, `:53`;
 `radio-admin/server/src/repos/apiTokenRepo.ts:49`, `:71`, `:72`, `:96`;
 `radio-admin/server/src/repos/userRepo.ts:12`; `radio-admin/server/src/repos/loanRepo.ts:75`, `:104`
 — im Schema steht es **nur** für `loans` (`radio-admin/server/src/db/schema.ts:103-104`: „epoch-ms").
 
-Die Fixture trägt **dreizehn verschiedene, per Auge unterscheidbare** Werte, in der Sekundenachse
+⚠️ **Die Fixture-Regel ist als CODE zu führen, nicht nur als Prosa hier** (B16): §2.2.5 zeigt heute
+einen `ALT_GERAET`-Block mit **drei** Zeitstempeln, und der Umsetzer kopiert die Fassung, die als Code
+dasteht. Der Block dort ist auf alle neun Felder zu erweitern oder durch `feldWert(n)` zu ersetzen;
+sonst bleiben sechs Spalten ohne unterscheidbaren Wert, und für die ist eine Feldvertauschung im
+Mapper paritätsgrün **und** testgrün.
+
+Die Fixture trägt **neun verschiedene, per Auge unterscheidbare** Werte, in der Sekundenachse
 mindestens einen Tag auseinander. Verbindlich als Konstruktion, damit niemand sie „aufräumt":
 
 ```ts
 // Basis 2025-01-01T00:00:00Z in ms; je Feld ein eigener Tagesoffset.
 const MS_BASIS = 1_735_689_600_000;
 const TAG_MS = 86_400_000;
-const feldWert = (n: number) => MS_BASIS + n * TAG_MS; // n = 1 … 13, je Feld genau ein n
+const feldWert = (n: number) => MS_BASIS + n * TAG_MS; // n = 1 … 9, je Feld genau ein n
 ```
 
 | Testname (`it`) | Besitzt die Aussage | Mutation, die ohne den Test grün bliebe |
 |---|---|---|
-| `sekundenAusMs teilt durch 1000 und rundet ab` | `1_735_689_600_000 → 1_735_689_600` | `* 1000` statt `/ 1000`; Durchleitung ohne Rechnung (**genau der Bestandsfehler**: `radio-admin/server/src/import/commit-service.ts:45-47` nimmt jede numerische Zeichenkette nur mit `Number.isFinite`, ohne Plausibilitätsspanne) |
-| `sekundenAusMs lässt NULL NULL und macht daraus NICHT 0` | `null → null` | `?? 0` als „Sicherheitsnetz". **Das ist die zweitschlimmste Mutation des ganzen Plans:** eine `loans.returned_at = 0` ist eine *abgeschlossene* Leihe im Jahr 1970, liegt unter jedem Retention-Cutoff und wird beim nächsten Lauf gelöscht — aus einer **aktiven** Leihe wird eine gelöschte |
-| `pruefeMs weist einen Sekundenwert ab` | `1_700_000_000` (zehnstellig) wirft mit Feldnamen | Plausibilitätsspanne entfernt; `Number.isFinite` als einzige Prüfung (= Bestandsverhalten) |
-| `mappeGeraet ordnet created_at, updated_at und last_updated_at NICHT gegeneinander um` | drei paarweise verschiedene Werte landen feldweise richtig | zwei der drei Felder vertauschen — **bei gleichen Fixture-Werten unsichtbar**, und die Parität hasht identisch |
-| `mappeLeihe hält borrowed_at und returned_at getrennt` | zwei verschiedene Werte, richtige Zuordnung | `returned_at: zeile.borrowed_at` — die Leihe sieht aus wie am Ausleihtag zurückgegeben |
-| `mappeLeihe schreibt snapshot_call_sign und borrower_name nicht ineinander` | zwei verschiedene Zeichenketten, richtige Zuordnung | Vertauschung. Das ist eines der vier verwechselbaren Paare aus Pflicht 4 der Analyse; `borrower_name` ist personenbezogen und der DSGVO-Grund der Retention |
-| `mappeGeraet hält alamos_integrated und loanable getrennt` | `1` / `0` unterschiedlich belegt | Vertauschung zweier 0/1-Integer, „die niemandem auffallen" (Pflicht 4). `loanable` ist Stammdatum (`radio-admin/server/src/db/schema.ts:30-32`) — vertauscht verschwinden Geräte aus der Ausleihe |
-| `mappeGeraeteEreignis weist ein unbekanntes source-Wort ab` | `source` außerhalb `manual\|csv-import\|create\|update-note` wirft | den Wert durchleiten. `radio-admin/server/src/db/schema.ts:96` ist ein Drizzle-Enum **ohne DB-CHECK**: die Altdaten dürfen fremde Werte tragen, das Ziel nicht (Pflicht 3) |
-| `keine Mapping-Funktion liefert für zwei Ausgabefelder dasselbe Quellfeld` | Schleife über alle sechs Mapper: die Werte-Multimenge der Ausgabe ist **duplikatfrei** — ⚠️ **`null` ausgenommen**, denn `loans.returned_at` ist rechtmäßig `null` und wäre sonst mit jedem zweiten Null-Feld ein roter Test gegen einen richtigen Mapper | genau das, was gleiche Fixture-Werte verbergen. Diese eine Zeile ist die maschinelle Fassung der Fixture-Regel und darf nicht entfallen, wenn jemand später ein Feld ergänzt |
+| `msZuDatum liefert ein Date mit genau diesem Zeitpunkt` | `msZuDatum("created_at", 1_735_689_600_000).getTime() === 1_735_689_600_000`; die Umrechnung in Sekunden macht Drizzle beim Insert, nicht der Importer | `* 1000` statt `/ 1000`; Durchleitung ohne Rechnung (**genau der Bestandsfehler**: `radio-admin/server/src/import/commit-service.ts:45-47` nimmt jede numerische Zeichenkette nur mit `Number.isFinite`, ohne Plausibilitätsspanne) |
+| `msZuDatumOptional lässt NULL NULL und macht daraus NICHT 0` (⚠️ **nicht kürzbar**, siehe §8.2.5) | `null → null` | `?? 0` als „Sicherheitsnetz". **Das ist die zweitschlimmste Mutation des ganzen Plans:** eine `loans.returned_at = 0` ist eine *abgeschlossene* Leihe im Jahr 1970, liegt unter jedem Retention-Cutoff und wird beim nächsten Lauf gelöscht — aus einer **aktiven** Leihe wird eine gelöschte |
+| `msZuDatum wirft bei einem Sekundenwert` | `1_700_000_000` (zehnstellig) wirft **mit Feldnamen** — der Test existiert in §2.2.5 bereits | Plausibilitätsspanne entfernt; `Number.isFinite` als einzige Prüfung (= Bestandsverhalten) |
+| `toNeuesGeraet ordnet created_at und updated_at NICHT gegeneinander um` | zwei paarweise verschiedene Werte landen feldweise richtig | die zwei Felder vertauschen — **bei gleichen Fixture-Werten unsichtbar**, und die Parität hasht identisch |
+| `toNeuesGeraet macht aus last_updated_at einen Berliner Kalendertag, keinen Zeitstempel` | die Ausgabe ist `"2025-01-04"`, eine Zeichenkette — **kein** `Date`, **kein** `getTime()` | die Spalte als Zeitstempel abbilden. §2.2.3 hat das entschieden; die drei `tagInBerlin`-Fälle aus §2.2.5 (Formular-Mitternacht, CSV-Weg, `Date.now()`-Weg) besitzen die Aussage bereits und gehören hierher |
+| `toNeueLeihe hält borrowed_at und returned_at getrennt` | zwei verschiedene Werte, richtige Zuordnung | `returned_at: zeile.borrowed_at` — die Leihe sieht aus wie am Ausleihtag zurückgegeben |
+| `toNeueLeihe schreibt snapshot_call_sign und borrower_name nicht ineinander` | zwei verschiedene Zeichenketten, richtige Zuordnung | Vertauschung. Das ist eines der vier verwechselbaren Paare aus Pflicht 4 der Analyse; `borrower_name` ist personenbezogen und der DSGVO-Grund der Retention |
+| `toNeuesGeraet hält alamos_integrated und loanable getrennt` | `1` / `0` unterschiedlich belegt | Vertauschung zweier 0/1-Integer, „die niemandem auffallen" (Pflicht 4). `loanable` ist Stammdatum (`radio-admin/server/src/db/schema.ts:30-32`) — vertauscht verschwinden Geräte aus der Ausleihe |
+| `toNeuesGeraeteEreignis weist ein unbekanntes source-Wort ab` | `source` außerhalb `manual\|csv-import\|create\|update-note` wirft | den Wert durchleiten. `radio-admin/server/src/db/schema.ts:96` ist ein Drizzle-Enum **ohne DB-CHECK**: die Altdaten dürfen fremde Werte tragen, das Ziel nicht (Pflicht 3) |
+| `keine Mapping-Funktion liefert für zwei Ausgabefelder dasselbe Quellfeld` | Schleife über alle fünf Mapper: die Werte-Multimenge der Ausgabe ist **duplikatfrei** — ⚠️ **`null` ausgenommen**, denn `loans.returned_at` ist rechtmäßig `null` und wäre sonst mit jedem zweiten Null-Feld ein roter Test gegen einen richtigen Mapper | genau das, was gleiche Fixture-Werte verbergen. Diese eine Zeile ist die maschinelle Fassung der Fixture-Regel und darf nicht entfallen, wenn jemand später ein Feld ergänzt |
 
 ⚠️ **Was dieser Test NICHT beweist**: dass der echte Dump dreizehnstellige Werte trägt. Das ist
 Abfrage 5 aus Pflicht 4 (`SELECT MIN(created_at), MAX(created_at) FROM devices;`) und gehört ins
@@ -6316,16 +6527,26 @@ warum es **eine** Union sein muss und nicht zwei: zwei getrennte Unions für die
 erst auf, wenn jemand eine davon erweitert (`:53-60`).
 
 ```ts
-// src/app/m/radio/_lib/zugang.ts
+// src/app/m/radio/_lib/code.ts — die Einlösung am Gate (§3.3.2/§3.3.3 nennt sie `loeseCodeEin`,
+// gerufen aus `_actions/gate.ts#einloesenAmGate`; die DATENseite liegt hier, nicht in der Action)
 export type ZugangGrund = "unbekannt" | "gesperrt" | "abgelaufen";
-export function einloesenAmGate(db: DB, roh: string):
+export function loeseCodeEin(db: DB, roh: string):
   | { ok: true; zielPfad: string }
   | { ok: false; grund: Extract<ZugangGrund, "unbekannt" | "gesperrt"> };
-export async function kioskZugangOderNull(db: DB): Promise<KioskZugang | null>;
-export async function requireKioskZugang(db: DB): Promise<KioskZugang>;
-export async function requireKioskSchreibend(db: DB):
-  Promise<{ ok: true; zugang: KioskZugang } | { ok: false; grund: ZugangGrund }>;
+
+// src/app/m/radio/_lib/ausleihZugang.ts — der Ausleih-Riegel (§3.5.1), NICHT in `_lib/zugang.ts`:
+// dort liegt `requireRadioAdmin` (§3.6.1). Namen entschieden in B7.
+export async function ausleihZugangOderNull(db: DB): Promise<AusleihZugang | null>;
+export async function requireAusleihZugang(db: DB): Promise<AusleihZugang>;
+export async function requireAusleihSchreibend(db: DB):
+  Promise<{ ok: true; zugang: AusleihZugang } | { ok: false; grund: SperrGrund }>;
 ```
+
+⚠️ **Zwei Unions, und sie sind es mit Absicht** — die Auflage dieses Abschnitts („eine benannte
+Literal-Union, kein `boolean`") gilt für **beide**: `ZugangGrund` beschreibt die Ablehnung **am Gate**
+(„unbekannt", „gesperrt", „abgelaufen"), `SperrGrund` aus §3.5.1 die Ablehnung einer **laufenden
+Sitzung** („sitzung", „gesperrt"). Sie tragen verschiedene Fälle, nicht dieselben Wörter zweimal; ein
+Zusammenlegen führte „abgelaufen" in eine schreibende Action, in der es „sitzung" heißt.
 
 ⚠️ **Die Unterscheidung ist nicht kosmetisch**, und das ist derselbe Grund wie bei `lagerbuch`
 (`helferZugang.ts:56-62`): bei `abgelaufen` hilft erneutes Einlösen, bei `gesperrt` **nicht** —
@@ -6339,9 +6560,9 @@ derselbe Code scheitert genauso. Nur daran hängt, ob die Oberfläche das Feld z
 |---|---|---|
 | `ein unbekannter Code ergibt grund "unbekannt"` | kein Treffer in der Codetabelle | `grund: "gesperrt"` für beides — die Oberfläche bietet dann Erneuerung an, wo keine hilft |
 | `ein gesperrter Code ergibt grund "gesperrt", nicht "unbekannt"` | Zeile existiert, `aktiv = 0` | `WHERE aktiv = 1` in der Suchabfrage: der gesperrte Code verhält sich wie ein Tippfehler, und niemand erfährt, dass eine **Sperre** gegriffen hat |
-| `ein gesperrter Code blockt auch den LESEPFAD, nicht nur den Schreibpfad` | `kioskZugangOderNull` liefert `null`, sobald `aktiv = 0` — **auch mit gültig signiertem Cookie** | den DB-Recheck aus dem Lesepfad entfernen. **Das ist der Bestandszustand von `lagerbuch` vor der Portierung** (`helferZugang.ts:22-27` schreibt es aus) und bleibt in jedem Test grün, der nur schreibt: ein gesperrter Code liest sonst bis zum Sitzungsende den gesamten Bestand samt Ausleihernamen weiter |
+| `ein gesperrter Code blockt auch den LESEPFAD, nicht nur den Schreibpfad` | `ausleihZugangOderNull` liefert `null`, sobald `aktiv = 0` — **auch mit gültig signiertem Cookie** | den DB-Recheck aus dem Lesepfad entfernen. **Das ist der Bestandszustand von `lagerbuch` vor der Portierung** (`helferZugang.ts:22-27` schreibt es aus) und bleibt in jedem Test grün, der nur schreibt: ein gesperrter Code liest sonst bis zum Sitzungsende den gesamten Bestand samt Ausleihernamen weiter |
 | `ein manipuliertes tokenId in einem gültig signierten Cookie verhält sich wie gesperrt` | kein Treffer auf dem Primärschlüssel → `gesperrt` | `!zeile` als „unbekannt" oder als `ok: true` behandeln — der Doppeltest `!zeile \|\| !zeile.aktiv` ist genau deshalb einer (`helferZugang.ts:83-85`) |
-| `eine abgelaufene Sitzung ergibt grund "abgelaufen" und KEINEN Wurf` | `requireKioskSchreibend` gibt zurück, wirft nicht | zum Wurf oder `redirect()` umbauen. Ein `redirect()` verwürfe die schon eingetragenen Felder — genau der Datenverlust, den `docs/design/README.md` unter „Kommen Fehler aus Server-Actions am Feld an?" ausschließt |
+| `eine abgelaufene Sitzung ergibt grund "abgelaufen" und KEINEN Wurf` | `requireAusleihSchreibend` gibt zurück, wirft nicht | zum Wurf oder `redirect()` umbauen. Ein `redirect()` verwürfe die schon eingetragenen Felder — genau der Datenverlust, den `docs/design/README.md` unter „Kommen Fehler aus Server-Actions am Feld an?" ausschließt |
 | `code, label und Ablauf kommen aus der DB-Zeile, der Ablauf aus dem Cookie` | Sperrung wirkt **sofort** (DB), Ablauf steht seit Ausstellung fest (Cookie) | `label` aus der JWT-Nutzlast lesen: ein umbenannter Code trägt dann bis zum Sitzungsende sein alten Namen in jede Journalzeile |
 | `einloesenAmGate verbraucht keinen Code` | die Zeile ist nach der Einlösung **weiter einlösbar**, nur ihr Nutzungsdatum wandert | den Code beim Einlösen entwerten oder löschen. **Entscheidung 6 verbietet das Löschen ausdrücklich**: ein gelöschter Code kann an ein später ausgestelltes Kärtchen zurückfallen, und historische Journalzeilen erschienen danach unter dem neuen Label |
 | `123456, 123-456 und " 123 - 456 " ergeben denselben kanonischen Wert` | Kanonisierung vor der Suche | die Bindestrich-Ergänzung entfernen — sie liefert `{ok:false}`, also genau das, was ein falscher Code liefern soll, und hat damit **keine Fehlerform** (übernommen aus `src/app/m/lagerbuch/_lib/code.test.ts`) |
@@ -6402,64 +6623,95 @@ Server Action und jeder Route Handler **selbst als erste Anweisung** ruft (Entsc
 | `der Riegel steht NICHT auf dem anonymen Ausleih-Ast` | `requireRadioAdmin` kommt in keiner Datei außerhalb von `admin/` und `_actions/` vor | den Riegel „aus Konsistenz" ins Modul-Layout heben. **Das schickt jeden anonymen Scan nach `/login`** — genau den Ausfall, gegen den `requiresAuth: false` gebaut ist. Typkorrekt, lint-sauber, und ein e2e fände es nur mit einem Abruf **ohne** Cookie |
 | `requireRadioAdmin ruft requireRadioHost als erste Anweisung` | Host-Riegel liegt **innen** | die Zeile als „doppelt zu den Layouts" entfernen. Eine Server Action hat **kein** Layout über sich; die Zusage „jede Verwaltungs-Action ist host-gebunden" ist nur **durch Konstruktion** wahr, nicht durch eine Liste, die die nächste Action vergisst (`src/app/m/lagerbuch/_lib/helferZugang.ts:13-15` schreibt genau das aus) |
 
-### 8.2.5 Die Retention-Auswahl (Entscheidung 12)
+### 8.2.5 Die Retention-Grenze (Entscheidung 12)
 
-**Datei: `src/app/m/radio/_lib/retention.test.ts`.** Die Auswahl ist eine **reine Funktion**, getrennt
-von der Ausführung — nur so ist sie ohne Datenbank prüfbar und nur so lässt sich der Boot-Pfad
+**Datei: `src/app/m/radio/_lib/boot.test.ts`** (⚠️ **korrigiert, B5**: der erste Entwurf dieses
+Kapitels schrieb eine Datei `_lib/retention.test.ts` gegen Signaturen, die es nach §2.7.1 nicht gibt
+— `retentionGrenze` liefert dort ein `Date`, kein `number`, und das ist die einzige Form, die zum
+`mode: "timestamp"`-Schema passt; eine reine `waehleAbgelaufeneLeihen`-Auswahl gibt es nicht, die
+Auswahl steckt im `where` der Drizzle-Abfrage). Die Grenze ist eine **reine Funktion**, getrennt von
+der Ausführung — nur so ist sie ohne Datenbank prüfbar und nur so lässt sich der Boot-Pfad
 ausschließen:
 
+⚠️ **Zwei Abschnitte schreiben `_lib/boot.test.ts`, und die Teilung ist verbindlich** (sonst wäre es
+B5 ein zweites Mal): **hierher** gehören die Fälle über die **reinen Formen** — `retentionGrenze` und
+das `isNotNull`-Verhalten der Purge-Abfrage, alle ohne Uhr und ohne Timer. **Nach §2.7.2** gehören
+die Fälle über den **Takt** — `vi.useFakeTimers()`, „löscht beim Start NICHTS", der erste Lauf nach
+`RADIO_HISTORIE_ERSTLAUF_MINUTEN`, HMR-Idempotenz, „ein Fehler wirft nicht aus dem Takt heraus" und
+`RADIO_HISTORIE_PURGE=0`. **Nach §7.3.7** gehören die Fälle über `radioBootFehler()`. Eine Datei,
+drei Beschreibungsorte, **keine** doppelte Zeile.
+
+⛔ **`starteRadioHintergrund()` steht in keinem der Blöcke unten** — Registrierung, Verzögerung und
+Abschalter gehören Kapitel 7 §7.3.5 (B5). Dieser Abschnitt prüft, was der Timer **ruft**, nicht den
+Timer selbst.
+
 ```ts
-export const RETENTION_MONATE = 2;
-export function retentionGrenze(jetzt: Date, monate?: number): number; // Unix-SEKUNDEN
-export function waehleAbgelaufeneLeihen(zeilen: LeiheZeile[], grenze: number): string[];
-export function purgeAbgelaufeneLeihen(db: DB, jetzt: Date): number; // ruft die beiden oben
+export const RETENTION_MONATE_VORGABE = 2;                                    // §2.7.1
+export function retentionGrenze(jetzt?: Date, monate?: number): Date;         // §2.7.1
+export function raeumeLeihhistorie(db: DB, jetzt?: Date, monate?: number): number;
 ```
 
 | Testname (`it`) | Besitzt die Aussage | Mutation, die ohne den Test grün bliebe |
 |---|---|---|
 | `eine aktive Leihe (returned_at NULL) wird NIE ausgewählt` | `null` fällt raus, egal wie alt `borrowed_at` ist | die `IS NOT NULL`-Bedingung streichen. Der Bestand hat sie (`radio-admin/server/src/repos/loanRepo.ts:191-196`: `WHERE returned_at IS NOT NULL AND returned_at < cutoffMs`), und ohne sie löscht der erste Lauf **jede laufende Ausleihe** |
-| `returned_at = 0 wird ausgewählt — und deshalb darf NULL nie zu 0 werden` | die Kopplung zu §8.2.1 ist ausgeschrieben und im Test **verlinkt** | keine. Diese Zeile ist absichtlich unangenehm: sie hält die beiden Pflichtstücke aneinander. Wer die `?? 0`-Mutation aus §8.2.1 einbaut, macht **diesen** Test rot |
-| `die Grenze rechnet in SEKUNDEN, nicht in Millisekunden` | `retentionGrenze` gegen einen festen Zeitpunkt, Erwartung zehnstellig | die Millisekunden-Rechnung des Bestands übernehmen (`radio-admin/server/src/services/retentionService.ts:9`, `:17-21`). In Sekunden verglichen liegt die Grenze im Jahr 1970 — es wird **nichts** gelöscht, und der Fehler ist stumm und harmlos, bis jemand die Einheit an einer Stelle korrigiert |
+| `returned_at = <Epoche 0> wird ausgewählt, returned_at = NULL nicht` | die `IS NOT NULL`-Bedingung ist **keine** Falsy-Prüfung — `0` und `null` sind unterscheidbar behandelt | `isNotNull(...)` durch eine Wahrheitsprüfung ersetzen: `0` und `null` fallen dann zusammen, und je nach Richtung überlebt eine 1970er-Leihe oder eine **aktive** Leihe wird gelöscht. ⚠️ **Korrigiert (B5):** der erste Entwurf trug hier „keine" **und zugleich** die Behauptung, die `?? 0`-Mutation aus §8.2.1 mache diesen Test rot. Beides zusammen ist falsch: die Auswahl arbeitet auf einer Fixture, nicht auf Importer-Ausgabe — die Mutation erreicht sie auf keinem Weg. Die NULL→0-Aussage wirkt allein in §8.2.1, und **§8.2.1 ist deshalb nicht kürzbar** |
+| `die Grenze zieht genau RADIO_HISTORIE_MONATE Monate ab` | `retentionGrenze(new Date("2026-08-17T00:00:00Z"))` ist `2026-06-17T00:00:00Z`; mit `monate = 1` ist es der 17.07. | die Monatsrechnung durch eine feste Tageszahl ersetzen (`d.getTime() - 60 * MS_PRO_TAG`) oder `monate` gegen die feste `- 2` aus dem ersten Entwurf tauschen. ⚠️ **Die Einheitenfrage ist hier NICHT der Gegner** (Korrektur, B5): `retentionGrenze` liefert ein `Date`, und die Umrechnung in Sekunden macht Drizzles `mode: "timestamp"` beim Vergleich. Der Faktor-1000-Gegner sitzt in §8.2.1, im Importer |
 | `genau auf der Grenze wird nicht gelöscht` | `<`, nicht `<=` | Vergleich kippen. Ein Tag Unterschied fällt niemandem auf |
-| `waehleAbgelaufeneLeihen greift ohne Datenbank und ohne Uhr` | reine Funktion, Zeit als Parameter | `Date.now()` in die Funktion ziehen; der Test wird dann unfälschbar grün |
+| `retentionGrenze greift ohne Datenbank und ohne Uhr` | reine Funktion, Zeit **und** Monatszahl als Parameter | `new Date()` bzw. `process.env` in die Funktion ziehen; der Test wird dann unfälschbar grün |
 
-⚠️ **Die Ausführung hängt NICHT am Boot**, und das ist der Kern von Entscheidung 12. Der Bestand
+⚠️ **Der Purge läuft NICHT bei t=0**, und das ist der Kern von Entscheidung 12. Der Bestand
 macht es anders: `radio-admin/server/src/index.ts:35` ruft `startRetentionSchedule`, und
 `radio-admin/server/src/services/retentionService.ts:47` führt `purge()` **sofort** aus, vor dem
 Tagestimer — der Quellkommentar auf `:29-30` nennt als Anlass wörtlich „straight after a data
 migration". Genau diese Reihenfolge macht einen Faktor-1000-Fehler im Import zur **Datenvernichtung**
-beim nächsten Start. Dass der Boot die Funktion nicht ruft, ist eine **Bauform** und steht als
-Quelltext-Scan in §8.3.
+beim nächsten Start. Dass der Boot **den Purge nicht bei t=0 ausführt** — er registriert nur den
+Timer, mit `RADIO_HISTORIE_ERSTLAUF_MINUTEN` Verzögerung (§7.3.5) — ist eine **Bauform** und steht
+als Quelltext-Scan in §8.3.
 
 ⚠️ **Zu bestätigen ist nicht die Retention, sondern ihr Umfang:** „betroffen < 100 Leihen" ist eine
 Schätzung des Betreibers, keine Zählung (Entscheidung 12). Die Zählung ist ein Runbook-Schritt
 (§8.5).
 
-### 8.2.6 Der Ausfall-Puffer — die Fachlichkeit, die beim naiven Port wegfällt
+### 8.2.6 Die Datenbank-Integrationsebene — `_db/leihen.test.ts`
 
-Entscheidung 15 verlangt, `STALE_GRACE_MS` als **Fachlichkeit** mitzunehmen. Der Beleg ist
-`radio-inventar/apps/backend/src/modules/radio-admin/radio-admin.service.ts:48`
-(`const STALE_GRACE_MS = 5 * 60_000;`), angewandt auf `:123`
-(`now - this.deviceCache.fetchedAt < ttl + STALE_GRACE_MS`). Fällt die HTTP-Grenze zwischen Kiosk und
-Verwaltung weg — und sie darf erst fallen, wenn die sechs `/v1`-Routen
-(`radio-admin/server/src/routes/loanApi.ts:126`, `:133`, `:140`, `:148`, `:158`, `:187`) Drizzle-Aufrufe
-im selben Prozess sind —, dann verschwindet der Puffer beim naiven Port lautlos: es gibt keinen
-`fetch` mehr, an dem er hängen könnte. Die **Aussage** bleibt aber: Ausleihe, Rückgabe und Historie
-bleiben bei einer kurzen Störung bedienbar, statt eine Fehlerseite zu zeigen.
+⛔ **Der frühere Inhalt dieses Abschnitts ist gestrichen (B15).** Er schrieb
+`src/app/m/radio/_lib/stand.test.ts` mit `AUSFALL_PUFFER_MS = 5 * 60_000` und
+`standNochBedienbar(alterMs, ttlMs)` vor und berief sich dafür auf Entscheidung 15. **Entscheidung 15
+sagt dazu nichts** — sie sagt nur, dass die HTTP-Grenze fällt, wenn die sechs `/v1`-Routen
+Drizzle-Aufrufe im selben Prozess sind. Die Kapitel, die den Gegenstand besitzen, haben ihn geprüft
+und verworfen: §4.7 hat die Alt-App nachgeschlagen und gezeigt, dass der Puffer dort **genau einen**
+Lesepfad schützt (`fetchLoanableDevices`), während `fetchActiveLoans`, `createLoan` und `returnLoan`
+ungeschützt sind — die Zusage „Ausleihe, Rückgabe und Historie bleiben bedienbar" ist im Bestand also
+gar nicht eingelöst, sie steht nur im Kommentar der Konstante. §4.13 führt „einen
+`STALE_GRACE_MS`-Ersatz in den Monolithen bauen" unter den **verworfenen Alternativen**, und §6.6
+benennt WAL plus `busy_timeout = 5000` als den ganzen Ersatz: „es entsteht **kein** modul-eigener
+Cache und **kein** modul-eigener Retry". Die Signatur `standNochBedienbar(alterMs, ttlMs)` ist danach
+gar nicht erfüllbar — sie braucht Alter und TTL eines Zwischenspeichers, den es nicht gibt —, und
+`_lib/stand.ts` steht in **keiner** Dateiliste der Spec. Übrig bliebe ein grüner Test über eine
+Funktion, die niemand aufruft: genau die „grüne Lüge", gegen die §8.2 seine Ebenentrennung setzt.
 
-**Datei: `src/app/m/radio/_lib/stand.test.ts`.**
+**Was an seine Stelle tritt, und warum es eine eigene Ebene ist.** §8.2 definiert die Vitest-Ebene
+als „reine Funktionen und Prädikate, nichts Hostabhängiges am echten Server und keine RSC-Grenze".
+`src/app/m/radio/_db/leihen.test.ts` ist die fünfte Ebene aus §8.1 (B15): er ist ein
+**Integrationstest gegen eine echte SQLite-Datei mit zwei Verbindungen**. Kapitel 6 hat ihn an vier
+Stellen verbindlich festgelegt (§6.3 mit vier benannten Riegel-Fällen und dem Lesemodell-Fall, §6.6
+mit den zwei WAL-Fällen und einer ausdrücklich verbindlichen dreipunktigen Bauform, §6.7 als
+Abnahmekriterium von Bauabschnitt B) und die Zuständigkeit ausdrücklich vom Datenmodell-Kapitel
+weggeschoben — dieser Testplan nahm sie bisher nicht auf. **Er ist damit die fünfte Einheit dieses
+Kapitels: die DB-Integrationsebene.**
 
-```ts
-export const AUSFALL_PUFFER_MS = 5 * 60_000;
-export function standNochBedienbar(alterMs: number, ttlMs: number): boolean;
-```
+| Zuschnitt | verbindlich in |
+|---|---|
+| Datei aus `os.tmpdir()`, im `afterEach` entfernt — **kein `:memory:`** (zwei `:memory:`-Handles sind zwei verschiedene Datenbanken, der Test liefe an der Frage vorbei) | §6.6 Punkt 2 |
+| **Zwei** `openModuleDatabase`-Handles, nicht eines: `BEGIN IMMEDIATE` plus `INSERT` auf dem Schreiber, `geraeteMitLeihstand(leser)` auf dem Leser. Ein Lesen auf demselben Handle **kann nicht rot werden** und prüft nichts | §6.6 Punkt 1 |
+| Der Test prüft seine eigene Voraussetzung (`pragma`-Zusicherung) | §6.6 Punkt 3 |
+| `liest die Geraeteliste waehrend eines offenen Schreibvorgangs` — der Fall, der den WAL-/`busy_timeout`-Ersatz für den gestrichenen Ausfall-Puffer **wirklich** belegt | §6.6 |
+| die vier Riegel-Fälle der sechs Ersatzfunktionen und der Lesemodell-Fall | §6.3 |
 
-| Testname (`it`) | Besitzt die Aussage | Mutation, die ohne den Test grün bliebe |
-|---|---|---|
-| `innerhalb der TTL ist der Stand frisch` | `alter < ttl` → `true` | keine — dieser Fall ist der harmlose und steht nur als Kontrast da |
-| `zwischen TTL und TTL plus Puffer ist der Stand NOCH bedienbar` | `ttl + 1` → `true` | den Puffer-Summanden entfernen (`< ttl` statt `< ttl + AUSFALL_PUFFER_MS`). **Das ist der naive Port**, und er ist grün in jedem Test, der nur den frischen und den ganz alten Fall kennt |
-| `jenseits von TTL plus Puffer ist der Stand NICHT mehr bedienbar` | `ttl + AUSFALL_PUFFER_MS + 1` → `false` | `return true` — der Kiosk zeigt dann beliebig alte Bestände als aktuell an, und **kein** Test und **kein** Blick auf den Bildschirm unterscheidet das vom Normalfall |
-| `AUSFALL_PUFFER_MS ist fünf Minuten` | die Konstante selbst | die Konstante auf `0` kippen. Ohne diese Zeile ist die Zusage „5 Minuten Störung sind gedeckt" nicht geprüft, sondern nur aufgeschrieben |
+Die Fälle werden hier **nicht neu geschrieben** — Kapitel 6 hat sie mit Namen und Bauform. Dieses
+Kapitel nimmt sie in seine Zählung und in die Mutationsprobe §8.6 auf; ohne das trüge der Testplan
+die Aussagen nicht, an denen §6.7 die Abnahme von Bauabschnitt B hängt, und die Lücke tauchte auch
+in §8.5 („was kein Test findet") nicht auf.
 
 ### 8.2.7 DOM-Verhalten — das Harness ist gesetzt
 
@@ -6507,11 +6759,11 @@ eine Absichtserklärung.
 | **Kein `isModuleAdmin`, `requireModuleAdmin`, `moduleAdminPageOrNotFound`, `canAdminModule` in `src/app/m/radio/`** | Die Funktionen sind fertig, gut und die falschen für dieses Modul: `radio` ignoriert den Suite-Admin-Kurzschluss modulintern (Entscheidung 9). Ein Import sieht wie Wiederverwendung aus |
 | **Kein `validateRadioHosts`, und in `_lib/host.ts` kein `prodHostsFor`-Vergleich** | Die `files`-Form (`SUITE_HOST_FILES`, Rolle über den Index) ist die naheliegende Vorlage und für `radio` falsch — beide Rollen liegen auf **einem** Host (Entscheidung 10). Ein Nachbau ist grün, solange genau ein Host konfiguriert ist, und kippt beim zweiten (Entscheidung 2 lässt zwei zu) |
 | **Jede `page.tsx`, `layout.tsx` und `route.ts` unter `src/app/m/radio/admin/` nennt `requireRadioAdmin` bzw. `radioHostOderNull`** — Zählung gegen die Seitenliste des Kapitels Verwaltungsoberfläche | Route Handler haben **kein** Layout; die Sperre erreicht sie über kein Group-Layout. Route-Group-Grenzen sind keine Sicherheitsgrenzen |
-| **Jede exportierte Funktion in `src/app/m/radio/_actions/*.ts` ruft `requireRadioAdmin` oder `requireKioskSchreibend` — oder steht auf einer Ausnahmeliste mit GENAU ZWEI Einträgen** | Der Scan zählt die Ausnahmen mit: wächst die Liste, ist das ein **roter Test** und keine Zeile im Diff. Auflagen zum Zählen, sonst liefert er falsche Zahlen: `export type` und `export interface` werden verworfen; gezählt wird **je Datei je Deklaration**, nie über ein `Set` der Namen; und die Datei überspringt **sich selbst** |
-| **Kein Aufruf der Retention aus `src/core/bootstrap.ts` und `src/instrumentation.ts`** — Textscan auf `retention`/`purge`, Vorbild `scripts/seed-lokal.test.ts:46-56` | Entscheidung 12. Die Verdrahtung am Boot ist genau das, was der Bestand tut (`radio-admin/server/src/index.ts:35` → `retentionService.ts:47`), sie sieht nach Sorgfalt aus, und ihr Schaden tritt **einmal** ein, bei einem Start nach einem Import |
+| **Jede exportierte Funktion in `src/app/m/radio/_actions/*.ts` ruft `requireRadioAdmin` oder `requireAusleihSchreibend` — oder steht auf einer Ausnahmeliste mit GENAU ZWEI namentlich benannten Einträgen: `_actions/gate.ts#einloesenAmGate` und `_actions/sitzung.ts#beenden` (§3.5.5, §3.3.3 — beide tragen `requireRadioHost` und ausdrücklich **keinen** Sitzungsriegel)** | Der Scan zählt die Ausnahmen mit: wächst die Liste, ist das ein **roter Test** und keine Zeile im Diff. Auflagen zum Zählen, sonst liefert er falsche Zahlen: `export type` und `export interface` werden verworfen; gezählt wird **je Datei je Deklaration**, nie über ein `Set` der Namen; und die Datei überspringt **sich selbst** |
+| **Kein sofortiger Purge am Boot** — Textscan auf `raeumeLeihhistorie`/`purge`/`retention` in `src/core/bootstrap.ts` und `src/instrumentation.ts`: dort darf **nur** `starteRadioHintergrund()` stehen, kein Purge-Aufruf; Vorbild `scripts/seed-lokal.test.ts:46-56` | Entscheidung 12. Die Verdrahtung am Boot ist genau das, was der Bestand tut (`radio-admin/server/src/index.ts:35` → `retentionService.ts:47`), sie sieht nach Sorgfalt aus, und ihr Schaden tritt **einmal** ein, bei einem Start nach einem Import |
 | **`seedLokal` legt keine einlösbare Zugangszeile an** — Textscan plus Laufzeitprüfung: nach `seedLokal` ist die Codetabelle **leer** | `shouldSeed()` ist `SUITE_SEED === "1" \|\| NODE_ENV === "development"` (`src/core/bootstrap.ts:108`), und `SUITE_SEED=1` ist der **Generalproben**-Schalter, nicht der Lokalschalter (`CLAUDE.md:180-183`). Ein geseedeter Code wäre in der Generalprobe ein **gültiger anonymer Zugang** zum gesamten Bestand samt Ausleihernamen. Typkorrekt und testgrün; nur das Datenleck ist real |
 | **Kein `AdminUser` und kein Literal `pocketid:` in `src/app/m/radio/` und `scripts/import/radio.ts`** | Entscheidung 14: die Suite führt den **rohen** `sub`, der Präfix verschwindet. Der Bestand baut die Kennung als `pocketid:${sub}` (`radio-inventar/apps/backend/src/modules/admin/auth/pocket-id.service.ts:134`). Ein mitkopierter Präfix ergibt Audit-Zeilen, die auf niemanden auflösen — HTTP 200, leerer Name |
-| **Kein Prüfpfad gegen `api_tokens` in `src/app/m/radio/`** — die Tabelle wird gelesen und geschrieben nur vom Importer und der Historienansicht | Entscheidung 13: produktiv trägt sie genau **einen** Konsumenten, den Alt-Kiosk (statischer `RADIO_ADMIN_API_TOKEN`), und der verschwindet mit dem Port. Ein neu gebauter Bearer-Pfad wäre ein zweiter, undokumentierter anonymer Zugang — und er funktionierte |
+| **Kein Prüfpfad gegen `api_tokens` in `src/app/m/radio/`** — ⚠️ **Begründung korrigiert (B16):** die Tabelle existiert im Ziel **gar nicht**, sie wird weder angelegt noch gelesen noch importiert (§2.10 Punkt 1, §6.5). Der frühere Halbsatz „wird gelesen und geschrieben nur vom Importer und der Historienansicht" setzte beides voraus und ist die Art Satz, aus der später ein „dann bauen wir die Tabelle eben doch" wird | Entscheidung 13: produktiv trägt sie genau **einen** Konsumenten, den Alt-Kiosk (statischer `RADIO_ADMIN_API_TOKEN`), und der verschwindet mit dem Port. Ein neu gebauter Bearer-Pfad wäre ein zweiter, undokumentierter anonymer Zugang — und er funktionierte |
 | **Kein base64-kodierter Zugang in einer URL** — kein `btoa`, kein `Buffer.from(…).toString("base64")` im QR-Erzeugungspfad | Entscheidung 8. Heute trägt der QR-Code den einen geteilten API-Token als URL-Parameter, base64-kodiert (`radio-inventar/apps/frontend/src/components/features/admin/AppQRCode.tsx:11-23`) — ohne Ablauf, ohne Widerruf. Ein 1:1-Port ist **funktionsfähig** und deshalb in keinem Test rot |
 | **Kein `localStorage` als Zugangsspeicher unter `src/app/m/radio/`** | Der Bestand legt das Geheimnis dort ab (`radio-inventar/apps/frontend/src/lib/tokenStorage.ts:5-13`). Ein mitportierter `localStorage`-Zugang ist origin-gebunden, umgeht jeden serverseitigen Riegel und ist mit entsperrtem Bildschirm auslesbar |
 | **Kein `domain` in den Cookie-Optionen der Kiosk-Sitzung** | Die naheliegende Vorlage `src/core/auth/cookies.ts` setzt es, und der Bestand setzt es sogar ausdrücklich subdomainweit (`radio-inventar/apps/backend/src/config/session.config.ts:16-28`: `domain: '.' + parts.slice(-2).join('.')`, dazu `sameSite: 'none'` auf `:39`). Playwright fährt gegen **einen** Host, wo ein domainweites Cookie sich exakt wie ein host-only verhält |
@@ -6809,7 +7061,7 @@ schlimmste Mutation oben ausgeschrieben:
 | Host-Riegel, drei Formen | §8.2.3 | der „kein Prod-Host → durchlassen"-Zweig — die Sperre schaltet sich vor dem Cutover selbst ab |
 | Pfad-Riegel `/admin` | §8.2.4 | `isModuleAdmin` — jeder Suite-Betreiber verwaltet mit, und die E2E bleibt grün |
 | Retention-Auswahl | §8.2.5 | `IS NOT NULL` streichen — jede laufende Ausleihe verschwindet |
-| Ausfall-Puffer | §8.2.6 | den Puffer-Summanden entfernen — der naive Port, grün in jedem Test |
+| Lesen während eines offenen Schreibvorgangs (`_db/leihen.test.ts`) | §8.2.6 | beide Handles zu **einem** zusammenziehen — der Test wird unfälschbar grün und prüft nichts (§6.6 Punkt 1) |
 | Guard-Scan der Actions | §8.3 | eine Action ohne Guard hinzufügen; der Scan muss rot werden, nicht die Ausnahmeliste wachsen |
 
 ## 8.7 Zusagen dieses Kapitels an andere Kapitel
@@ -6823,12 +7075,15 @@ eine geratene Nummer führte die Gegenprüfung aktiv in die Irre, ein Gegenstand
    keine Zeichenkette. Vorbild `src/app/m/lagerbuch/_lib/helferZugang.ts:63`. Ohne sie ist §8.2.2
    nicht durchführbar.
 2. **Zusage an Kapitel Zugang:** die Abmeldung ist ein **Route Handler**, und der Host-Riegel steht in
-   `requireKioskZugang`, `requireKioskSchreibend` und `requireRadioAdmin` **innen**, als erste
+   `requireAusleihZugang`, `requireAusleihSchreibend` und `requireRadioAdmin` **innen**, als erste
    Anweisung. §8.2.4 und §8.3 prüfen genau das.
-3. **Zusage an Kapitel Datenmodell und Import:** die sieben Signaturen aus §8.2.1 sind exportiert und
-   **rein** (Zeit als Parameter, keine Uhr, keine Datenbank), und `pruefeMs` wirft mit Feldnamen.
-4. **Zusage an Kapitel Datenmodell und Import:** die Retention-Auswahl ist eine reine Funktion,
-   getrennt von der Ausführung, und **nichts am Boot-Pfad** ruft sie (§8.2.5, Scan in §8.3).
+3. **Zusage an Kapitel Datenmodell und Import:** die **acht** Signaturen aus §8.2.1 sind exportiert
+   und **rein** (Zeit als Parameter, keine Uhr, keine Datenbank), und `msZuDatum` wirft **mit
+   Feldnamen** bei einem zehnstelligen Wert (Namen und Formen entschieden in B16 — sie sind die aus
+   §2.2.4, `Date` statt `number`).
+4. **Zusage an Kapitel Datenmodell und Import:** die Retention**grenze** ist eine reine Funktion
+   (`retentionGrenze(jetzt?, monate?): Date`, §2.7.1), getrennt von der Ausführung, und **nichts am
+   Boot-Pfad purgt bei t=0** — der Boot registriert nur den Timer (§7.3.5, Scan in §8.3).
 5. **Zusage an Kapitel Verwaltungsoberfläche:** `deviceColumns.tsx` und `DeviceList.tsx` werden zu
    **EINER** `"use client"`-Insel — sonst wandern die 15 `render`-Funktionen weiterhin als Prop über
    die RSC-Grenze (§8.4.2.1).
@@ -6842,8 +7097,12 @@ eine geratene Nummer führte die Gegenprüfung aktiv in die Irre, ein Gegenstand
 8. **Zusage an Kapitel Verwaltungsoberfläche und Kapitel Kiosk:** **jede** Seite schuldet einen echten
    Abruf mit `expect(antwort.status()).toBe(200)` (Fallen 1 und 7), jede Tabellenfläche zusätzlich eine
    Zelle aus einer `render`-Funktion (Falle 9) — §8.4.2 und §8.4.2.1.
-9. **Zusage an Kapitel Kiosk:** der Ausfall-Puffer von fünf Minuten ist eine **Konstante im
-   Modulcode** mit eigenem Test, keine Eigenschaft eines `fetch` (§8.2.6).
+9. **Zusage an Kapitel Kiosk und Kapitel Datengrenze — ⛔ zurückgezogen (B15).** Der frühere Wortlaut
+   („der Ausfall-Puffer von fünf Minuten ist eine Konstante im Modulcode mit eigenem Test") ging an ein
+   Kapitel, das ihn geprüft und verworfen hat (§4.7, §4.13, §6.6). Stattdessen gilt: der Ersatz für
+   `STALE_GRACE_MS` sind **WAL und `busy_timeout`**, sein Nachweis ist der WAL-Fall in
+   `src/app/m/radio/_db/leihen.test.ts`, und der Puffer selbst wird als Zeile im Kommentarkopf von
+   `_db/leihen.ts` festgehalten, damit die Streichung eine dokumentierte Entscheidung bleibt (§6.6).
 10. **Zusage an Kapitel Betrieb und Cutover / Spec 2:** die Tabelle aus §8.5 wandert vollständig ins
    Runbook, Zeile für Zeile, mit dem jeweils genannten Handgriff.
 11. **Zusage an alle Kapitel:** `e2e/helpers/radio.ts` ist die **eine** Quelle für Host, Fremdhost,
@@ -6898,8 +7157,8 @@ Heute enthaelt `scripts/import/` genau `feedback-time.ts`, `feedback.ts`, `parit
 
 **Zusage an das Zugangs-Kapitel:** die Env-Namen des Modulgeheimnisses und der Sitzungsdauer folgen
 dem lagerbuch-Muster (`.env.example:258`, `:265`) und lauten in dieser Uebergabe
-`RADIO_ZUGANG_SITZUNG_SECRET` (Pflicht, ohne Wert in `.env.example`, damit kein aus der Vorlage
-mitgeschleppter Wert entsteht) und `RADIO_ZUGANG_SITZUNG_STUNDEN` (optional, Vorbelegung im Code).
+`RADIO_AUSLEIH_SITZUNG_SECRET` (Pflicht, ohne Wert in `.env.example`, damit kein aus der Vorlage
+mitgeschleppter Wert entsteht) und `RADIO_AUSLEIH_SITZUNG_STUNDEN` (optional, Vorbelegung im Code).
 Legt das Zugangs-Kapitel andere Namen fest, gelten dessen Namen und diese Zeile wird nachgezogen —
 die **Anzahl** der Geheimnisse (genau eines, frisch erzeugt) ist dagegen hier gesetzt.
 
@@ -7542,7 +7801,7 @@ koennen.
 
 | # | Offen | Wer beantwortet | Blockiert |
 |---|---|---|---|
-| U1 | Sitzungsdauer des Zugangscodes (Vorschlag 12 h) | Betreiber | Notiz 1 (§9.6), `RADIO_ZUGANG_SITZUNG_STUNDEN` |
+| U1 | Sitzungsdauer des Zugangscodes (Vorschlag 12 h) | Betreiber | Notiz 1 (§9.6), `RADIO_AUSLEIH_SITZUNG_STUNDEN` |
 | U2 | Sind gedruckte Aufsteller/Kaertchen im Umlauf? | Betreiber | Zeitpunkt der Ankuendigung (§9.6) |
 | U3 | Benutzername bei Angemeldeten vorausfuellen? | Betreiber | ob es eine dritte Notiz gibt (§9.6) |
 | U4 | Wo laeuft das radio-inventar-Frontend produktiv, und woher kommt `API_TOKEN`? | Betreiber | Vollstaendigkeit der Abbau-Liste (§9.5.1) und der Loeschliste (§9.5.2) |
@@ -7557,7 +7816,8 @@ koennen.
 # Anhang: Abhängigkeiten und Baureihenfolge
 
 Abgeleitet aus den „Zusage an Kapitel N"-Stellen der Kapitel selbst (mechanisch extrahiert,
-35 Zusagen). **Nicht unabhängig geprüft** — der Review-Durchgang fiel aus, siehe Kopf.
+35 Zusagen). Der Kritikdurchgang vom 18.08.2026 hat die Zusagen gegengeprüft; die daraus entschiedenen
+Widersprüche stehen als B5–B16 in Kapitel B.
 
 | Stufe | Kapitel | Warum hier |
 |---|---|---|
@@ -7578,3 +7838,28 @@ Abgeleitet aus den „Zusage an Kapitel N"-Stellen der Kapitel selbst (mechanisc
 * **Der Abräum-Worker aus Kapitel 7 gehört zum ersten Deploy**, nicht zum Cutover. Weil der
   Alt-Kiosk denselben Origin hält, überlebt sein Service Worker den Umschwenk — ohne Abräumen
   liefert er gecachte Alt-Oberfläche an Geräte aus, die nie neu geladen haben.
+
+---
+
+# Anhang B: Abgelehnte Beanstandungen — Kritikdurchgang 18.08.2026
+
+Der Kritikdurchgang hat die neun Kapitel gegeneinander gelesen; das Ergebnis steht als B5–B16 in
+Abschnitt B und ist in den Kapiteltexten nachgezogen. **Diese Liste führt die Punkte, die
+nachgeschlagen und dann NICHT übernommen wurden — mit Gegenbeleg.** Sie steht hier, damit ein
+späterer Durchgang sie nicht erneut als Fund einträgt.
+
+| # | Beanstandung | Warum sie nicht übernommen wurde |
+|---|---|---|
+| **A1** | „In §2.7.1 den Absatz **‚Kein Host-Riegel davor'** streichen und Kapitel 7s `prodHostsFor(...).length === 0`-Schalter übernehmen — Kapitel 7 trägt fachlich, weil Abschalter und verzögerter Erstlauf die Cutover-Sicherung sind." | **Abgelehnt, halb.** Abschalter (`RADIO_HISTORIE_PURGE`) und Erstlauf-Verzögerung sind übernommen (B5) — der Host-Schalter **nicht**. Er ist von beiden Dingen unabhängig, und Kapitel 2 hat den Gegenbeleg ausgeschrieben (§2.7.1): `files` braucht seinen Riegel gegen eine unbegrenzte Fehlerschleife, dieser Takt braucht nur die Tabelle. `prodHostsFor` liest Env **vor** Registry (`src/core/registry.ts:207-208`), und `radio` hat `prodHosts: []` (Entscheidung 1) — es entscheidet also **allein** `SUITE_HOST_RADIO`. Eine vergessene Variable schaltete damit **still** die Löschrichtlinie ab, die der DSGVO-Grund für `borrower_name` ist. `RADIO_HISTORIE_PURGE=0` schreibt dagegen bei **jedem** Start eine `console.info`-Zeile. Laut schlägt still. Der Schalter bleibt für die Bestandswarnung, wo er hingehört |
+| **A2** | „Rücknahmefenster 24 h oder 60 min — das ist eine echte Entscheidung und **gehört in Kapitel C**." | **Abgelehnt als Verortung.** C ist die Liste für den **Betreiber** („nur der Betreiber weiß es"); die Frage ist keine, die er beantworten kann — sie ist eine Zusammenführungsentscheidung zwischen zwei Kapiteln, die dieselbe Begründung verschieden bewerten. Sie steht deshalb als **B5** entschieden da: Vorbelegung 1440 Minuten, Regler bleibt. C.1 bis C.7 sind unverändert |
+| **A3** | „Den Satz zu `STALE_GRACE_MS` in **Abschnitt A** ergänzen — ein Satz zu Entscheidung 15, was sie für den Puffer bedeutet." | **Abgelehnt als Verortung.** Abschnitt A trägt „aus der Analyse und den **Betreiberantworten vom 17.08.2026**". Ein Satz, den die Zusammenführung am 18.08. hinzufügt, wäre dort dem Betreiber zugeschrieben. Der Befund selbst ist übernommen — die Begründung war ja gerade, dass Entscheidung 15 zum Puffer **nichts** sagt und zwei Kapitel sich trotzdem wörtlich auf sie berufen. Genau das steht jetzt in **B15**, wo Zusammenführungsentscheidungen hingehören |
+| **A4** | „§8.2.1 auf **zwölf** Zeitstempel-Spalten kürzen (`devices.last_updated_at` heraus)." · „Von dreizehn bleiben **zehn** echte (`api_tokens` heraus)." | **Beide Zahlen abgelehnt, der Befund übernommen.** Die zwei Beanstandungen subtrahieren von **derselben** Liste, ohne voneinander zu wissen: 13 − 1 = 12 und 13 − 3 = 10 sind je für sich richtig gerechnet und zusammen falsch. Nachgezählt an der Liste in §8.2.1 bleiben **neun**: `devices.created_at`, `devices.updated_at`, `device_events.changed_at`, `software_versions.created_at`, `users.last_seen_at`, `loans.borrowed_at`, `loans.returned_at`, `loans.created_at`, `loans.updated_at`. So steht es dort (B16) |
+| **A5** | „§5.2 zählt acht, die Tabelle führt **neun** — Überschrift auf ‚neun Suite-Routen und ein Route Handler' ändern." | **Zahl abgelehnt, Befund übernommen.** Neun stimmte nur für Kapitel 5s **unvollständige** Tabelle: ihr fehlte das Druckblatt `/admin/zugaenge/blatt`, das Kapitel 1 §1.2.2 verbindlich vorschreibt (B9). Mit ihm sind es **zehn** Seiten-Pfade plus **ein** Route Handler — und dieselbe Zehn steht jetzt in §1.7. Eine Überschrift auf „neun" zu korrigieren hätte die Zählung ein zweites Mal falsch gemacht, diesmal mit dem Anschein geprüfter Vollständigkeit |
+| **A6** | „In Kapitel 5 `/admin/einstellungen` **wieder aufnehmen** — Kapitel 1 nennt dafür zwei Alt-Quellen (radio-admin `/einstellungen`, Alt-Kiosk `/admin/settings`), und ein weggefallener Alt-Bildschirm ist ein Verlust, den kein Tor meldet." | **Abgelehnt, mit Gegenbeleg aus dem Bestand.** Die Alt-Seite ist eine Tab-Leiste mit **genau zwei** Reitern (`radio-admin/client/src/pages/SettingsPage.tsx:11-15`): „Softwareversionen" und „API-Zugriff". Der zweite entfällt mit Entscheidung 13 zwingend — `api_tokens` hat produktiv einen Konsumenten, den Alt-Kiosk, und der verschwindet mit dem Port. Ein Reiterpaar, von dem eine Hälfte wegfällt, ist keine Reiterleiste; der Inhalt ist **nicht** verloren, er wird `/admin/versionen` (und dabei aus einem Client-`Tabs` eine Server Component mit einer Insel). Der Alt-Kiosk-Pfad `/admin/settings` fällt mit dem Kiosk-Admin-Anmeldeweg ohnehin. Kapitel 1 hatte an dieser Stelle nur den Alt-Namen, Kapitel 5 hat das Argument — deshalb gewinnt hier Kapitel 5, während Kapitel 1 bei allen anderen Pfadnamen und bei den Route-Groups gewinnt (B9) |
+| **A7** | „§3.5.5: die Zeile ‚Manifest- und Icon-Handler' **ersetzen** durch `sw.js/route.ts`." | **Übernommen und erweitert.** Ersetzt wurde die Zeile durch **zwei**: `sw.js/route.ts` mit `hostAbweisung` **und** `admin/(arbeit)/geraete/export/route.ts` mit `radioHostOderNull` + `istRadioAdmin`. Die Aufruftabelle führte den Export-Handler bisher gar nicht, und genau an ihm hängt B11 (Route Handler rufen `requireRadioAdmin` **nicht**). Eine Tabelle, die den einen vorhandenen Handler nachträgt und den anderen weiter vergisst, wäre die halbe Reparatur |
+| **A8** | „§8.2.5: den Test auf `waehleAbgelaufeneLeihen unterscheidet returned_at = <Epoche 0> von returned_at = NULL` zurückschneiden." | **Aussage übernommen, Träger nicht.** Die Beanstandung ist richtig — die behauptete Kopplung zu §8.2.1 existiert nicht, weil die Auswahl auf einer Fixture arbeitet. Aber `waehleAbgelaufeneLeihen` gibt es nach B16 nicht: die Auswahl steckt im `where` der Drizzle-Abfrage in `raeumeLeihhistorie` (§2.7.1), und §8.2.5 prüfte insgesamt eine Bauform, die Kapitel 2 nicht baut. Die Aussage steht jetzt als Fall in `_lib/boot.test.ts`, gegen die `isNotNull(...)`-Bedingung — dort besitzt sie wirklich eine Mutation. `waehleAbgelaufeneLeihen` als eigene reine Funktion ist **nicht** nachgetragen worden: sie hätte keinen Aufrufer, und „ohne Datenbank prüfbar" wäre eine Zusage ohne Träger |
+
+**Nicht angerührt:** C.6 / B4 — die Updater-Rechtestufe (`SUITE_UPDATER_GROUP_RADIO`,
+`requireRadioVerwaltung`, §5.5, `_lib/rollen.ts`, `radioNav(stufe)`). Sie wartet auf den Betreiber
+und ist in diesem Durchgang bewusst unverändert geblieben, auch dort, wo benachbarte Zeilen
+angefasst wurden.
