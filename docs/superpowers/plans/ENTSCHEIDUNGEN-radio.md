@@ -138,6 +138,31 @@ werden. Ist das im Funkraum real, sag es — dann gehört es in die Spec und nic
 
 ---
 
+## 8. Wie werden die beiden Alt-Stacks heute überhaupt veröffentlicht? ⛔ blockiert den Cutover
+
+**Frage:** Über welchen Weg erreichen `radio.iuk-ue.de` und `radio-admin.iuk-ue.de` heute die
+Alt-Container — ein serverseitiges Compose-Override, eine eigene Reverse-Proxy-Konfiguration, oder
+cloudflared-Ingress-Regeln?
+
+**Der Befund, unabhängig nachgeprüft:** In **beiden** eingecheckten Alt-Compose-Dateien kommt die
+Zeichenkette `traefik` **null Mal** vor; sie veröffentlichen nur Ports (`radio-admin` `3000:3000`,
+`radio-inventar` `5432:5432` plus Backend-Port). Die Suite-`compose.yaml` trägt dagegen sieben
+Traefik-Zeilen mit Labels. **Das Server-Deployment der Alt-Stacks steht in keinem Repo.**
+
+**Keine Empfehlung — eine Wissenslücke, und sie hat zwei Folgen:**
+
+1. Der **erste und nicht tauschbare Handgriff** des Umschwenks („Alt-Router zuerst weg") hat kein
+   ausführbares Ziel. Spec 2 macht daraus die Vorbedingung §4.2 Nr. 13: die heutige
+   Router-Konfiguration ist vor dem Fenster abzulesen und **wörtlich** zu protokollieren — sonst
+   fehlt auch dem Rückweg die Vorlage.
+2. Es ist **dieselbe Lücke wie Punkt 6** (wer liefert das radio-inventar-Frontend aus). Solange beide
+   offen sind, ist die Abbauliste unvollständig — und der Abbau ist die einzige unumkehrbare
+   Handlung.
+
+**Was es nicht blockiert:** den Bau. Die Umsetzungspläne können ohne diese Antwort entstehen.
+
+---
+
 ## Was ich NICHT entschieden habe und auch nicht entscheiden kann
 
 Sieben Zahlen und Werte, die nur der Server hergibt. Sie stehen in Spec 1 als Runbook-Schritte, nicht
