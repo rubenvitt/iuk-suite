@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { baueQuellDb } from "./fixtures/radio-quelle";
+import { baueQuellDb, ALLE_QUELLZEILEN, baueBespielteQuellDb } from "./fixtures/radio-quelle";
 
 describe("radio-quelle-ddl.sql — die kopierte Quell-DDL", () => {
   it("legt die SECHS Quelltabellen an — fuenf aus 0000, `loans` aus 0003", () => {
@@ -60,6 +60,88 @@ describe("radio-quelle-ddl.sql — die kopierte Quell-DDL", () => {
         )
         .all();
       expect(treffer).toEqual([{ name: "loans_device_active_uidx", partial: 1, unique: 1 }]);
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe("radio-quelle.ts — die Fixture-Werte", () => {
+  /**
+   * Spec 2 §1.3.4 setzt die Regel „je Feld ein anderer Wert" und zaehlt darunter die
+   * Konstanten von Hand auf. ⚠️ Eine Wortzahl neben einer Liste ist genau der Fehlertyp,
+   * den W8 zweimal als tragend einstuft — und sie wandert mit jeder neuen Fixture-Zeile.
+   * Deshalb steht hier die MECHANIK und nicht die Zahl.
+   *
+   * Was geprueft wird: kein Millisekunden-Wert steht unter ZWEI verschiedenen
+   * `tabelle.feld`-Beschriftungen. Dass ALT_GERAET und ALT_GERAET_OHNE_ANGABE denselben
+   * `created_at` tragen, ist erlaubt und gewollt — es ist DASSELBE Feld. Eine Vertauschung
+   * faengt nur, wer verschiedene FELDER verschieden belegt.
+   */
+  it("kein Millisekunden-Wert der Fixture steht unter zwei verschiedenen Feldern", () => {
+    const felderJeWert = new Map<number, Set<string>>();
+    for (const { tabelle, zeile } of ALLE_QUELLZEILEN) {
+      for (const [feld, wert] of Object.entries(zeile)) {
+        if (typeof wert !== "number" || wert < 1_000_000_000_000) continue;
+        const menge = felderJeWert.get(wert) ?? new Set<string>();
+        menge.add(`${tabelle}.${feld}`);
+        felderJeWert.set(wert, menge);
+      }
+    }
+    expect(felderJeWert.size).toBeGreaterThan(0);
+    const kollisionen = [...felderJeWert]
+      .filter(([, felder]) => felder.size > 1)
+      .map(([wert, felder]) => `${wert}: ${[...felder].sort().join(" / ")}`);
+    expect(kollisionen).toEqual([]);
+  });
+
+  it("spieleQuellFixtureEin fuellt fuenf Tabellen und laesst api_tokens leer", () => {
+    const db = baueBespielteQuellDb();
+    try {
+      const zaehle = (t: string) =>
+        (db.prepare(`select count(*) as n from ${t}`).get() as { n: number }).n;
+      expect(zaehle("users")).toBe(1);
+      expect(zaehle("software_versions")).toBe(2);
+      expect(zaehle("devices")).toBe(2);
+      expect(zaehle("device_events")).toBe(1);
+      expect(zaehle("loans")).toBe(2);
+      // Die Tabelle steht in der Quelle und wandert NICHT (B16, W4). Sie bleibt leer,
+      // damit kein Test sie versehentlich als Import-Sollwert liest.
+      expect(zaehle("api_tokens")).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  /**
+   * ⚠️ Diese Zeile ist kein Nebenschauplatz: sie belegt, dass die Fixture die
+   * Nebenbedingung der Quell-DDL EINHAELT, statt sie zu umgehen. `loans_device_active_uidx`
+   * laesst je `device_id` HOECHSTENS EINE Zeile mit `returned_at IS NULL` zu. ALT_LEIHE
+   * (zurueckgegeben) und ALT_LEIHE_AKTIV duerfen deshalb beide auf `g-1` zeigen — eine
+   * zweite AKTIVE nicht. Ohne diese Zusicherung merkt niemand, wenn eine spaeter
+   * nachgetragene Zeile das Einspielen selbst abweist und Fall B aus dem falschen Grund
+   * rot ist.
+   */
+  it("die Fixture haelt die Nebenbedingung des partiellen Index ein", () => {
+    const db = baueBespielteQuellDb();
+    try {
+      const aktive = db
+        .prepare(
+          `select device_id, count(*) as n from loans
+            where returned_at is null group by device_id having count(*) > 1`,
+        )
+        .all();
+      expect(aktive).toEqual([]);
+      expect(() =>
+        db
+          .prepare(
+            `insert into loans (id, device_id, snapshot_call_sign, borrower_name,
+                                borrowed_at, returned_at, created_at, updated_at)
+             values (?,?,?,?,?,?,?,?)`,
+          )
+          .run("l-drei", "g-1", "HRO 1/83-1", "Test", 1_742_500_000_000, null,
+               1_742_500_000_000, 1_742_500_000_000),
+      ).toThrow(/UNIQUE constraint failed: loans\.device_id/);
     } finally {
       db.close();
     }
