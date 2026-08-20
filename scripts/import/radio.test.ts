@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { baueQuellDb, ALLE_QUELLZEILEN, baueBespielteQuellDb } from "./fixtures/radio-quelle";
+import {
+  baueQuellDb,
+  ALLE_QUELLZEILEN,
+  baueBespielteQuellDb,
+  ALT_GERAET,
+} from "./fixtures/radio-quelle";
 import {
   msZuDatum,
   msZuDatumOptional,
@@ -49,6 +54,41 @@ describe("radio-quelle-ddl.sql — die kopierte Quell-DDL", () => {
       // Eine Zusicherung mit der falschen Basis waere gruen und pruefte nichts.
       expect(spalten[spalten.length - 2]).toEqual({ cid: 23, name: "update_note" });
       expect(spalten[spalten.length - 1]).toEqual({ cid: 24, name: "tei" });
+      // ⚠️ Die zwei Zeilen darüber tragen den SCHWANZ der Tabelle — und nur ihn. Gemessen:
+      // vertauscht man in der DDL `alamos_integrated` und `loanable`, bleiben sie GRÜN,
+      // obwohl der B4-Brief genau dieses Paar als den teuersten Einzelposten führt
+      // (Zielposition 20: `loanable` empfängt `created_at`, danach ist jedes Gerät
+      // ausleihbar). Deshalb steht hier zusätzlich die ganze Reihenfolge, Position für
+      // Position. Sie ist der einzige im Repo lebende Riegel dagegen, dass jemand die
+      // Fixture-DDL „glattzieht" (radio-quelle-ddl.sql:31-34) — nach Spec 2 Kapitel 5 ist
+      // diese Datei die letzte Kopie der Quell-DDL in einem lebenden Repo.
+      expect(spalten.map((s) => s.name)).toEqual([
+        "id",
+        "rufname",
+        "issi",
+        "serial_number",
+        "device_type",
+        "status",
+        "location",
+        "assigned_to",
+        "software_version",
+        "last_updated_at",
+        "notes",
+        "hiorg_id",
+        "opta",
+        "funktion",
+        "hersteller",
+        "bedieneinheit",
+        "device_modes",
+        "alamos_integrated",
+        "loanable",
+        "created_at",
+        "updated_at",
+        "created_by",
+        "updated_by",
+        "update_note",
+        "tei",
+      ]);
     } finally {
       db.close();
     }
@@ -194,6 +234,16 @@ describe("Die Zeitachse (Spec 2 §1.3.2)", () => {
     expect(tagInBerlin("t.x", undefined)).toBeNull();
     // ⚠️ Aber ein VORHANDENER, falscher Wert wirft auch auf dem optionalen Weg.
     expect(() => msZuDatumOptional("t.x", 1_735_689_600)).toThrow(/Millisekunden-Spanne/);
+    // ⚠️ Und dasselbe für tagInBerlin. Diese Zeile ist der einzige Beweis, dass tagInBerlin
+    // seinen Wert durch msZuDatum schickt, statt ihn selbst in ein `new Date` zu geben —
+    // gemessen: ohne sie überlebt genau diese Verkürzung vitest, `tsc --noEmit` UND eslint,
+    // und ein Sekundenwert landet still als "1970-01-21" in devices.last_updated_at, einem
+    // TEXT-Feld ohne Constraint, hinter dem kein Paritätssignal steht (Spec 1 §2.2.3).
+    // Der Faktor bleibt im Ausdruck sichtbar, wie der Plankopf es für jede Überschreitung
+    // der Einheitengrenze verlangt: der Divisor ist der Fehler, nicht die Zahl.
+    expect(() => tagInBerlin("t.x", ALT_GERAET.last_updated_at / 1000)).toThrow(
+      /Millisekunden-Spanne/,
+    );
   });
 
   /**
