@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { baueQuellDb, ALLE_QUELLZEILEN, baueBespielteQuellDb } from "./fixtures/radio-quelle";
+import {
+  msZuDatum,
+  msZuDatumOptional,
+  tagInBerlin,
+  zuBoolOptional,
+  pruefeQuelle,
+} from "./radio";
 
 describe("radio-quelle-ddl.sql — die kopierte Quell-DDL", () => {
   it("legt die SECHS Quelltabellen an — fuenf aus 0000, `loans` aus 0003", () => {
@@ -145,5 +152,69 @@ describe("radio-quelle.ts — die Fixture-Werte", () => {
     } finally {
       db.close();
     }
+  });
+});
+
+describe("Die Zeitachse (Spec 2 §1.3.2)", () => {
+  it("msZuDatum wirft bei einem Sekundenwert (1735689600)", () => {
+    expect(() => msZuDatum("t.x", 1_735_689_600)).toThrow(/Millisekunden-Spanne/);
+    // ⚠️ Die Meldung MUSS das Feld nennen. Ohne Ortsangabe ist sie um 23 Uhr im Fenster
+    // wertlos — das ist der ganze Zweck des `feld`-Parameters (§1.3.2).
+    expect(() => msZuDatum("t.x", 1_735_689_600)).toThrow(/t\.x/);
+  });
+
+  it("msZuDatum wirft bei 0 und bei null-artigen Werten in einer NOT-NULL-Spalte", () => {
+    expect(() => msZuDatum("t.x", 0)).toThrow(/t\.x/);
+    expect(() => msZuDatum("t.x", Number.NaN)).toThrow(/t\.x/);
+    expect(() => msZuDatum("t.x", 1.5)).toThrow(/t\.x/);
+    // Der Grenzfall nach oben gehoert dazu: 4e12 ist zulaessig, 4e12 + 1 nicht.
+    expect(msZuDatum("t.x", 4_000_000_000_000).getTime()).toBe(4_000_000_000_000);
+    expect(() => msZuDatum("t.x", 4_000_000_000_001)).toThrow(/Millisekunden-Spanne/);
+  });
+
+  it("tagInBerlin: 2026-08-16T22:00:00Z (Formular-Mitternacht) ergibt 2026-08-17", () => {
+    expect(tagInBerlin("t.x", Date.UTC(2026, 7, 16, 22, 0, 0))).toBe("2026-08-17");
+  });
+
+  it("tagInBerlin: 2026-08-17T00:00:00Z (CSV-Weg) ergibt 2026-08-17", () => {
+    expect(tagInBerlin("t.x", Date.UTC(2026, 7, 17, 0, 0, 0))).toBe("2026-08-17");
+  });
+
+  it("tagInBerlin: 2026-08-17T14:35:00Z (Date.now()-Weg) ergibt 2026-08-17", () => {
+    expect(tagInBerlin("t.x", Date.UTC(2026, 7, 17, 14, 35, 0))).toBe("2026-08-17");
+  });
+
+  // ⛛ Ergaenzung dieses Plans: die Nullbehandlung der zwei optionalen Wege.
+  it("msZuDatumOptional und tagInBerlin geben bei null und undefined null zurueck", () => {
+    expect(msZuDatumOptional("t.x", null)).toBeNull();
+    expect(msZuDatumOptional("t.x", undefined)).toBeNull();
+    expect(tagInBerlin("t.x", null)).toBeNull();
+    expect(tagInBerlin("t.x", undefined)).toBeNull();
+    // ⚠️ Aber ein VORHANDENER, falscher Wert wirft auch auf dem optionalen Weg.
+    expect(() => msZuDatumOptional("t.x", 1_735_689_600)).toThrow(/Millisekunden-Spanne/);
+  });
+
+  /**
+   * ⛛ Ergaenzung dieses Plans. Ohne sie haette die dritte Falle derselben Bauart
+   * (§1.3.5) bis ⬜ L1 keinen Test. `expect(zuBoolOptional(null)).toBeFalsy()` waere
+   * KEIN Test: `false` besteht ihn. Deshalb `toBeNull()` und `toBe(false)` getrennt.
+   */
+  it("zuBoolOptional: null bleibt null, 0 wird false, 1 wird true", () => {
+    expect(zuBoolOptional(null)).toBeNull();
+    expect(zuBoolOptional(0)).toBe(false);
+    expect(zuBoolOptional(1)).toBe(true);
+  });
+
+  /**
+   * ⛛ Ergaenzung dieses Plans, auf FUNKTIONSebene. Die Verdrahtung prueft Aufgabe 6a
+   * unter dem verbindlichen Namen `toNeuesGeraeteEreignis wirft bei source="importiert"`.
+   */
+  it("pruefeQuelle laesst die vier bekannten Werte durch und wirft bei jedem anderen", () => {
+    for (const wert of ["manual", "csv-import", "create", "update-note"]) {
+      expect(pruefeQuelle("e-1", wert)).toBe(wert);
+    }
+    expect(() => pruefeQuelle("e-2", "importiert")).toThrow(/source/);
+    // Die Meldung MUSS die Zeile nennen — sonst sucht jemand die eine Zeile unter 20 000.
+    expect(() => pruefeQuelle("e-2", "importiert")).toThrow(/e-2/);
   });
 });
