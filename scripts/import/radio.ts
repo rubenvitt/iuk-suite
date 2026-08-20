@@ -13,6 +13,8 @@
  * Aufruf: tsx scripts/import/radio.ts <radio-snapshot.db>   (DATA_DIR steuert das Ziel)
  */
 
+import type Database from "better-sqlite3";
+
 /**
  * Plausibilitaetsspanne fuer epoch-MILLISEKUNDEN. 1e12 = 2001-09-09, 4e12 = 2096-10-02.
  * Jeder echte radio-admin-Wert liegt in dieser Spanne; ein Sekundenwert (~1.7e9) liegt
@@ -75,4 +77,151 @@ export function pruefeQuelle(id: string, roh: string): (typeof EREIGNIS_QUELLEN)
     throw new Error(`device_events.source: unbekannter Wert "${roh}" (Zeile ${id})`);
   }
   return roh as (typeof EREIGNIS_QUELLEN)[number];
+}
+
+// ── Die Quellzeilen, wie better-sqlite3 sie liefert ───────────────────────────────────────
+//
+// ⚠️ Die Feldnamen sind die SQL-Spaltennamen der Quelle, zeichengleich — nicht die
+// camelCase-Namen des Ziels. Das ist Absicht: 61 zuzuordnende Spalten, und jede Umbenennung
+// waere eine Verwechslungsgelegenheit (Spec 1 §2.5, docs/radio-portierung-analyse.md:743-747).
+// Belegt gegen radio-admin@265abd5:server/drizzle/0000..0004.
+
+export interface AltNutzer {
+  sub: string;
+  name: string;
+  last_seen_at: number;
+}
+
+export interface AltVersion {
+  id: string;
+  value: string;
+  created_at: number;
+  created_by: string | null;
+  sort_order: number;
+  is_target: number; // in der Quelle NOT NULL (0002_numerous_mandroid.sql:2) — nie null
+}
+
+export interface AltGeraet {
+  id: string;
+  rufname: string | null;
+  issi: string;
+  tei: string | null;
+  serial_number: string | null;
+  device_type: string | null;
+  status: string | null;
+  location: string | null;
+  assigned_to: string | null;
+  software_version: string | null;
+  last_updated_at: number | null; // epoch-ms; wird im Ziel zu TEXT `YYYY-MM-DD`
+  notes: string | null;
+  hiorg_id: string | null;
+  opta: string | null;
+  funktion: string | null;
+  hersteller: string | null;
+  bedieneinheit: string | null;
+  device_modes: string | null;
+  // ⚠️ `0 | 1 | null`, nicht `number | null`: nur so faellt eine Fixture-Zeile ohne
+  // `as const` schon in der Typpruefung auf, statt spaeter am Mapper. Die Fixture-Zeilen
+  // in scripts/import/fixtures/radio-quelle.ts tragen deshalb `as const` (Aufgabe 2).
+  alamos_integrated: 0 | 1 | null;
+  loanable: 0 | 1 | null;
+  update_note: string | null;
+  created_at: number;
+  updated_at: number;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
+export interface AltEreignis {
+  id: string;
+  device_id: string;
+  field: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by: string | null;
+  changed_at: number;
+  source: string; // ⚠️ ABSICHTLICH `string`, nicht das Enum: die DB nimmt jeden Wert.
+}
+
+export interface AltLeihe {
+  id: string;
+  device_id: string;
+  snapshot_call_sign: string;
+  snapshot_serial_number: string | null;
+  snapshot_device_type: string | null;
+  borrower_name: string;
+  borrowed_at: number;
+  returned_at: number | null; // NULL heisst „aktive Leihe" und MUSS NULL bleiben
+  return_note: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+/** Feldnamen gesetzt durch Spec 2 §1.5.2 (`q.users`, `q.softwareVersions`, …). */
+export interface RadioQuelle {
+  users: AltNutzer[];
+  softwareVersions: AltVersion[];
+  devices: AltGeraet[];
+  deviceEvents: AltEreignis[];
+  loans: AltLeihe[];
+}
+
+/**
+ * Die fuenf Quellabfragen. ⚠️ JEDE nennt ihre Spalten. Das ist keine Ordnungsfrage:
+ *
+ * `devices` hat in der Quelle 25 Spalten in der Reihenfolge, die die MIGRATIONEN erzeugt
+ * haben — `update_note` an Position 24 (aus 0001), `tei` an Position 25 (aus 0004). Das
+ * Ziel entsteht in einem Rutsch aus der Deklarationsreihenfolge von Spec 1 §2.5.1, dort
+ * steht `tei` an Position 4 und `update_note` an 21. BEIDE Tabellen haben 25 Spalten, ein
+ * positionsweiser Import scheitert also nicht an der Stelligkeit — er laeuft durch. SQLite
+ * nimmt das an: die Tabellen sind nicht STRICT, Typaffinitaet konvertiert wo sie kann und
+ * speichert sonst den Wert im Originaltyp. Der teuerste Einzelposten ist Zielposition 20:
+ * `loanable` empfaengt `created_at`, eine 13-stellige Zahl in ein 0/1-Feld — danach ist
+ * JEDES Geraet ausleihbar. Dieselbe Falle, dort gemessen als `aktiv ← created_by`, steht in
+ * docs/runbooks/lagerbuch-cutover.md:33-34.
+ *
+ * Die Spaltenreihenfolge im `devices`-SELECT ist die des ZIELS (Spec 1 §2.5.1), nicht die
+ * physische der Quelle — zulaessig und erwuenscht, weil namentlich gelesen wird und die
+ * Liste so Feld fuer Feld gegen das Zielschema gegengelesen werden kann.
+ *
+ * ⚠️ Gegen das naechste Vorbild: scripts/import/feedback.ts:66-72 liest fuenfmal ohne
+ * Spaltenliste. Diesem Vorbild wird NICHT gefolgt.
+ */
+export function lieseQuelle(quellDb: Database.Database): RadioQuelle {
+  return {
+    users: quellDb
+      .prepare("SELECT sub, name, last_seen_at FROM users")
+      .all() as AltNutzer[],
+
+    softwareVersions: quellDb
+      .prepare(
+        "SELECT id, value, created_at, created_by, sort_order, is_target FROM software_versions",
+      )
+      .all() as AltVersion[],
+
+    devices: quellDb
+      .prepare(
+        `SELECT id, rufname, issi, tei, serial_number, device_type, status, location, assigned_to,
+                software_version, last_updated_at, notes, hiorg_id, opta, funktion, hersteller,
+                bedieneinheit, device_modes, alamos_integrated, loanable, update_note,
+                created_at, updated_at, created_by, updated_by
+           FROM devices`,
+      )
+      .all() as AltGeraet[],
+
+    deviceEvents: quellDb
+      .prepare(
+        `SELECT id, device_id, field, old_value, new_value, changed_by, changed_at, source
+           FROM device_events`,
+      )
+      .all() as AltEreignis[],
+
+    loans: quellDb
+      .prepare(
+        `SELECT id, device_id, snapshot_call_sign, snapshot_serial_number, snapshot_device_type,
+                borrower_name, borrowed_at, returned_at, return_note, created_at, updated_at
+           FROM loans`,
+      )
+      .all() as AltLeihe[],
+  };
 }

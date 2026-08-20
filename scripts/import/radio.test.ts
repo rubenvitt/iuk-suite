@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { baueQuellDb, ALLE_QUELLZEILEN, baueBespielteQuellDb } from "./fixtures/radio-quelle";
 import {
@@ -6,6 +7,7 @@ import {
   tagInBerlin,
   zuBoolOptional,
   pruefeQuelle,
+  lieseQuelle,
 } from "./radio";
 
 describe("radio-quelle-ddl.sql — die kopierte Quell-DDL", () => {
@@ -216,5 +218,61 @@ describe("Die Zeitachse (Spec 2 §1.3.2)", () => {
     expect(() => pruefeQuelle("e-2", "importiert")).toThrow(/source/);
     // Die Meldung MUSS die Zeile nennen — sonst sucht jemand die eine Zeile unter 20 000.
     expect(() => pruefeQuelle("e-2", "importiert")).toThrow(/e-2/);
+  });
+});
+
+describe("lieseQuelle (Spec 2 §1.4)", () => {
+  it("liest alle fuenf Tabellen im Import-Bereich", () => {
+    const quellDb = baueBespielteQuellDb();
+    try {
+      const q = lieseQuelle(quellDb);
+      expect(q.users).toHaveLength(1);
+      expect(q.softwareVersions).toHaveLength(2);
+      expect(q.devices).toHaveLength(2);
+      expect(q.deviceEvents).toHaveLength(1);
+      expect(q.loans).toHaveLength(2);
+    } finally {
+      quellDb.close();
+    }
+  });
+
+  /**
+   * Die Rohfassung der Zusicherung (b) des Reihenfolge-Tests aus Spec 2 §1.8. Sie steht
+   * hier, weil sie ohne das Zielschema auskommt: ein positionsweiser Lesevorgang liefert
+   * `tei === "SN-001"`, weil `tei` in der QUELLE an Position 25 steht und `serial_number`
+   * an Position 4. Der vollstaendige Test unter dem verbindlichen Namen folgt in Aufgabe 5.
+   */
+  it("lieseQuelle liest namentlich: die Rohzeile traegt tei=7654321 und serial_number=SN-001", () => {
+    const quellDb = baueBespielteQuellDb();
+    try {
+      const g = lieseQuelle(quellDb).devices.find((r) => r.id === "g-1");
+      expect(g).toBeDefined();
+      expect(g?.tei).toBe("7654321");
+      expect(g?.serial_number).toBe("SN-001");
+      // Die zwei 0/1-Integer kommen ROH an — die Faltung passiert erst im Mapper.
+      expect(g?.alamos_integrated).toBe(1);
+      expect(g?.loanable).toBe(0);
+      // Und die zweite Zeile traegt sie als NULL, nicht als 0.
+      const g2 = lieseQuelle(quellDb).devices.find((r) => r.id === "g-2");
+      expect(g2?.alamos_integrated).toBeNull();
+      expect(g2?.loanable).toBeNull();
+    } finally {
+      quellDb.close();
+    }
+  });
+
+  /**
+   * ⛛ Ergaenzung dieses Plans: ein QUELLTEXT-SCAN. Spec 1 §2.8.1 verbietet `SELECT *`
+   * (docs/runbooks/lagerbuch-cutover.md:30-31), und das naechste Vorbild im Repo BRICHT
+   * die Regel — scripts/import/feedback.ts:66-72 liest fuenfmal `SELECT * FROM …`. Ohne
+   * diesen Scan haelt die Regel nichts: ein spaeteres „der Einheitlichkeit wegen" ist ein
+   * Einzeiler, und alle anderen Tests bleiben gruen, weil die Fixture zufaellig dieselben
+   * Spalten in derselben Reihenfolge hat wie das Ziel.
+   * Hausform fuer Quelltext-Scans: scripts/seed-lokal.test.ts:47-59,
+   * src/app/m/portal/_lib/neuigkeiten/register.test.ts.
+   */
+  it("scripts/import/radio.ts enthaelt kein SELECT * — die Spalten stehen namentlich", () => {
+    const quelltext = readFileSync("./scripts/import/radio.ts", "utf8");
+    expect(quelltext).not.toMatch(/select\s+\*/i);
   });
 });
