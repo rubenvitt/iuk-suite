@@ -107,15 +107,56 @@ Die Messreihe, die es trennt — dieselbe Datei, dieselbe Sekunde:
 Warum die urspruengliche Diagnose plausibel aussah: der „funktionierende Einzeiler" lief, **nachdem**
 ein vorheriger schreibender Zugriff die `-shm` bereits angelegt hatte — nicht, weil er einzeilig war.
 
-✅ **Entwarnung fuer den Importer selbst.** Zwei Dinge sind gegengeprueft und **nicht** betroffen:
+✅ **Entwarnung fuer den Importer selbst — beides gesondet, mit Kommando und roher Ausgabe.**
 
-1. **`better-sqlite3` mit `readonly: true` oeffnet eine WAL-Datenbank ohne `-shm` anstandslos**
-   (eigene Sonde, Lesewert korrekt zurueckgegeben). Die Zeile `new Database(pfad, { readonly: true })`
-   in `scripts/import/radio.ts` ist also **nicht** gefaehrdet — der Befund trifft allein die
-   `sqlite3`-**Kommandozeile**.
-2. **Die Quellseite ist ohnehin nicht im WAL-Modus.** `pragma journal_mode` ergibt `delete` sowohl
-   fuer den `vacuum into`-Schnappschuss dieses Trockenlaufs als auch fuer die **echte**
-   `radio-admin/data/data.sqlite`.
+**(i) `better-sqlite3` mit `readonly: true` oeffnet eine WAL-Datenbank OHNE `-shm`.** Sonde: eine
+Wegwerf-DB im WAL-Modus anlegen, sauber schliessen, `-wal` und `-shm` entfernen, dann readonly
+oeffnen.
+
+```
+$ rtk pnpm exec tsx ./__ctrl-wal2.mts
+vor dem readonly-Oeffnen: /tmp/ctrl-wal2.sqlite
+readonly-Lesewert: 1
+waehrend offen:     /tmp/ctrl-wal2.sqlite /tmp/ctrl-wal2.sqlite-shm /tmp/ctrl-wal2.sqlite-wal
+nach close:         /tmp/ctrl-wal2.sqlite /tmp/ctrl-wal2.sqlite-shm /tmp/ctrl-wal2.sqlite-wal
+```
+
+Der Lesewert kommt korrekt zurueck — die Zeile `new Database(pfad, { readonly: true })` in
+`scripts/import/radio.ts` ist **ungefaehrdet**. Der Befund trifft allein die
+`sqlite3`-**Kommandozeile**.
+
+⚠️ **`readonly: true` ist dabei aber NICHT seiteneffektfrei** — die dritte und vierte Ausgabezeile
+zeigen es: better-sqlite3 **legt `-shm` und `-wal` selbst an**, und sie bleiben nach dem Schliessen
+liegen. Genau das darf die `sqlite3`-CLI nicht, und daher ruehrt der Unterschied. Fuer den Cutover
+heisst das: **faellt die Quelle je in den WAL-Modus, legt der Importer beim Lesen zwei Dateien neben
+dem Schnappschuss an.** Bei einem Schnappschuss ist das harmlos — er ist eine Kopie —, aber der Satz
+„readonly fasst nichts an" waere dann falsch.
+
+**(ii) Die Quellseite liegt im `delete`-Modus** — gemessen, nicht angenommen:
+
+```
+$ sqlite3 ../radio-admin/data/data.sqlite "pragma journal_mode;"
+delete
+$ sqlite3 /tmp/radio-quelle-probe.sqlite "pragma journal_mode;"
+delete
+```
+
+Sowohl die **echte** `radio-admin/data/data.sqlite` als auch der `vacuum into`-Schnappschuss dieses
+Trockenlaufs. Damit greift (i) heute nicht.
+
+⛔ **Diese Messung ist datiert und gehoert am Freeze-Abend WIEDERHOLT.** Sie stammt vom 2026-08-21
+aus der lokalen Arbeitskopie. Der Journal-Modus einer laufenden Anwendung kann sich aendern — ein
+Update von `radio-admin`, eine geaenderte Startkonfiguration, ein Migrationsschritt genuegt. **Wer
+sich beim echten Cutover auf (ii) verlaesst, ohne sie erneut zu fahren, verlaesst sich auf einen
+Wert von einer anderen Maschine zu einer anderen Zeit.** Der Handgriff ist einer, unmittelbar nach
+dem `.backup`:
+
+```
+sqlite3 <schnappschuss> "pragma journal_mode;"
+```
+
+Ergibt er `wal` statt `delete`, gilt der ⚠️-Absatz aus (i) — und die Gegenzaehlungen brauchen den
+Weg aus dem naechsten Absatz **auch fuer die Quelle**.
 
 ⛔ **Was daraus fuer das Runbook folgt — weiterzureichen an C15, C28, C33 und C34:**
 Jede Gegenzaehlung und jede Feldstichprobe, die mit `sqlite3 -readonly` gegen eine **frisch
@@ -126,6 +167,19 @@ muss den Weg vorschreiben, der traegt, und dazusagen, **warum**: entweder `sqlit
 vorgeschalteter Schreibzugriff, der die `-shm` erzeugt. ⚠️ **Fuer die QUELLE gilt das Gegenteil:**
 dort bleibt der lesende Zugriff Pflicht (W1) — was hier aber kein Problem ist, weil sie im
 `delete`-Modus liegt.
+
+**Der fertige Handgriff fuer das Runbook — so uebernehmbar, ohne noch einmal zu messen:**
+
+```bash
+# Gegenzaehlung im ZIEL. KEIN -readonly: radio.db liegt im WAL-Modus und traegt
+# nach dem Import noch keine -shm; ein Readonly-Handle koennte sie nicht anlegen
+# und braeche mit "unable to open database file (14)" ab. Die Datei gehoert uns,
+# das Anlegen der -shm ist harmlos.
+sqlite3 "$DATA_DIR/radio.db" "select 'devices', count(*) from devices union all select 'software_versions', count(*) from software_versions union all select 'users', count(*) from users union all select 'device_events', count(*) from device_events union all select 'loans', count(*) from loans;"
+```
+
+⚠️ **`api_tokens` steht in dieser Abfrage NICHT** — die Tabelle existiert im Ziel nicht (W4). Wer sie
+mitschreibt, bekommt `no such table: api_tokens` und haelt es fuer einen Fehler.
 
 ## 5. Was die Zählkette hier schließt — und was nicht
 
