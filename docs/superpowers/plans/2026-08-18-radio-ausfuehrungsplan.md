@@ -8,7 +8,7 @@
 > C1–C41 Cutover) und **6** aus Planteil 1 zum Bau von **Spec 1** (**M1–M6**), geschrieben seit dem
 > 2026-08-21 und **gebaut** — sie heben Zaesur 1 fuer B5–B17. Die M-Aufgaben stehen unten **an ihrem
 > Platz in der Reihenfolge** — zwischen B4 und B5, denn genau dort liegt die Naht.
-> **13 von 64 Aufgaben sind erledigt** (B1–B7, M1–M6).
+> **19 von 64 Aufgaben sind erledigt** (B1–B13, M1–M6).
 
 **Stand 2026-08-21.** Grundlage: `docs/superpowers/specs/2026-08-18-radio-cutover-design.md`
 (Spec 2 — Import · Paritaet · Generalprobe · Cutover · Abbau) und
@@ -30,7 +30,9 @@
    die erste Stelle, an der Quellseite und Zielschema sich beruehren (Commit `903ed0b`,
    **23 Tests gruen**); **B6** und **B7** die vier uebrigen Mapper, womit die ganze
    **Mapper-Schicht** steht (Commits `60cdfc3` · `1029ba3`, **35 Tests gruen**).
-   **B8 ist die naechste ausfuehrbare Aufgabe — und sie ist der Anfang des Blocks B8–B13.**
+   **B8–B13** der ganze Paritaetsblock in einem Commit (`dfbe5b3`, **22 + 38 Tests gruen**).
+   **B14 ist die naechste ausfuehrbare Aufgabe** — und sie beginnt eine andere Art Arbeit:
+   echte Inserts, Konfliktstrategien, Transaktionen.
 5. **Die eiserne Regel dieses Wegs:** wo ein Wert erst der Bau oder der Server hergibt, steht eine
    benannte Leerstelle (⬜ L…, E…, U…, C…, N…) — **niemals** eine plausibel aussehende Erfindung.
    Der Praezedenzfall ist vernarbt: die `lagerbuch`-Spec verlangte ein `cookies().delete()` in einer
@@ -199,18 +201,26 @@ kann.
       ausgelassen (**2 rot**), `created_at`/`updated_at` vertauscht (**2 rot**). Die erste ist die
       teuerste des ganzen Wegs — sie macht jede aktive Leihe zu einer 1970 zurueckgegebenen, und
       der naechste Retention-Lauf loescht sie. **Damit steht die ganze Mapper-Schicht**
-- [ ] **B8** Der Vollständigkeitstest der Paritätssichten — er kommt zuerst  
-      `2026-08-18-plan2-radio-paritaet.md:110` — Aufgabe 1
-- [ ] **B9** Die Sichtgrundlage: `sekunden`, `RadioDb`, `paritaetsSichtGeraet`, das getaggte Multiset, `checkRadioParitaet`  
-      `2026-08-18-plan1-radio-import.md:1822` — Aufgabe 7
-- [ ] **B10** `paritaetsSichtBenutzer` — `users`, 3 Spalten  
-      `2026-08-18-plan2-radio-paritaet.md:337` — Aufgabe 2
-- [ ] **B11** `paritaetsSichtSoftwareVersion` — `software_versions`, 6 Spalten  
-      `2026-08-18-plan2-radio-paritaet.md:408` — Aufgabe 3
-- [ ] **B12** `paritaetsSichtGeraeteEreignis` — `device_events`, 8 Spalten  
-      `2026-08-18-plan2-radio-paritaet.md:490` — Aufgabe 4
-- [ ] **B13** `paritaetsSichtLeihe` — `loans`, 12 Spalten (11 aus der Quelle, eine neu)  
-      `2026-08-18-plan2-radio-paritaet.md:572` — Aufgabe 5
+- [x] **B8** Der Vollständigkeitstest der Paritätssichten — er kommt zuerst  
+      `2026-08-18-plan2-radio-paritaet.md:110` — Aufgabe 1 · **fertig 2026-08-21**, Commit `dfbe5b3` (Block).
+      `scripts/import/radio-paritaet.test.ts`, **22 Faelle**. ⚠️ **NS3 Punkt 1 ist gemessen
+      widerlegt** (siehe unten NT6); Punkt 2 traegt die Blockregel allein
+- [x] **B9** Die Sichtgrundlage: `sekunden`, `RadioDb`, `paritaetsSichtGeraet`, das getaggte Multiset, `checkRadioParitaet`  
+      `2026-08-18-plan1-radio-import.md:1822` — Aufgabe 7 · **fertig 2026-08-21**, Commit `dfbe5b3` (Block).
+      Schritt 3 entfaellt (NS1), Schritt 6 ist zum Blocktor geworden (NS3). Keine `: Row`-Annotation
+      auf den Sichten (NS5)
+- [x] **B10** `paritaetsSichtBenutzer` — `users`, 3 Spalten  
+      `2026-08-18-plan2-radio-paritaet.md:337` — Aufgabe 2 · **fertig 2026-08-21**, Commit `dfbe5b3` (Block)
+- [x] **B11** `paritaetsSichtSoftwareVersion` — `software_versions`, 6 Spalten  
+      `2026-08-18-plan2-radio-paritaet.md:408` — Aufgabe 3 · **fertig 2026-08-21**, Commit `dfbe5b3` (Block). Insert-Defaults normalisiert (`?? 0`,
+      `?? false`), nicht weggelassen
+- [x] **B12** `paritaetsSichtGeraeteEreignis` — `device_events`, 8 Spalten  
+      `2026-08-18-plan2-radio-paritaet.md:490` — Aufgabe 4 · **fertig 2026-08-21**, Commit `dfbe5b3` (Block)
+- [x] **B13** `paritaetsSichtLeihe` — `loans`, 12 Spalten (11 aus der Quelle, eine neu)  
+      `2026-08-18-plan2-radio-paritaet.md:572` — Aufgabe 5 · **fertig 2026-08-21**, Commit `dfbe5b3` — **das Blocktor**. Fuenf Mutationssonden ueber den
+      ganzen Block: Spalte aus einer Sicht entfernt (**1 rot**), `sekunden` liefert Millisekunden
+      (**5 rot**), `null` wird `0` (**5 rot**), `timestamp_ms` im Schema (**1 rot**),
+      `lastUpdatedAt` durch `sekunden` (**1 rot**)
 - [ ] **B14** `importiereRadio` — Einfügereihenfolge, Konfliktstrategien, Paritäts-Rundlauf  
       `2026-08-18-plan1-radio-import.md:2066` — Aufgabe 8
 - [ ] **B15** Die vier asymmetrischen Idempotenzfälle A · B · C · D  
@@ -222,11 +232,12 @@ kann.
 
 ---
 
-## Nachtraege — was der Bau von B1–B4 an den Dokumenten gefunden hat
+## Nachtraege — was der Bau an den Dokumenten und am Werkzeug gefunden hat
 
-Fuenf Funde: drei vom 2026-08-20 (B1–B4) und zwei aus dem Abschluss-Review des M1–M6-Laufs
-(2026-08-21). Sie betreffen **die Plaene und das Repo**, nicht den gebauten Code — der ist gruen und
-gegengeprueft. Wer sie nicht eintraegt, laeuft beim naechsten Durchgang erneut hinein.
+Sieben Funde: drei vom 2026-08-20 (B1–B4), zwei aus dem Abschluss-Review des M1–M6-Laufs
+(2026-08-21) und **zwei aus dem Bau von B5–B13** (2026-08-21) — NT6 am Bau-Leitplan, NT7 am
+Werkzeug. Sie betreffen **die Plaene, das Repo und die Messkette**, nicht den gebauten Code — der ist
+gruen und gegengeprueft. Wer sie nicht eintraegt, laeuft beim naechsten Durchgang erneut hinein.
 
 | # | Fund | Wo er hingehoert |
 |---|---|---|
@@ -235,6 +246,9 @@ gegengeprueft. Wer sie nicht eintraegt, laeuft beim naechsten Durchgang erneut h
 | **NT3** | **Der `SELECT *`-Scan ist loechrig:** `/select\s+\*/i` laesst `SELECT d.*` und `select*from` durch (beides gueltiges SQLite, der Tokenizer braucht kein Trennzeichen) und schlaegt bei Prosa-Zitaten falsch an. Testzeile und Regex sind planvorgegeben | **Nachtrag am Plan**, Aufgabe 4 Schritt 1 |
 | **NT4** | **Die Zaehlprobe gegen den `zuBoolOptional`-Fund (NT2) gehoert ins Cutover-Runbook.** NT2 beschreibt, dass `zuBoolOptional(undefined)` `false` statt `null` liefert und ab B5 tragend wird. Das Abschluss-Review von M1–M6 hat ergaenzt, **warum das nach dem Import nicht mehr nachweisbar ist**: `devices.alamosIntegrated` und `devices.loanable` sind die zwei **nullable** `mode: "boolean"`-Spalten des neuen Schemas, und ein falsch gefaltetes `false` ist dort **nicht mehr von einem echten `false` zu unterscheiden** („Alamos nicht erfasst" wird „nicht integriert") und ist paritaetsgruen. Die **einzige** Probe, die es faengt: `select count(*) from devices where loanable is null` und dasselbe fuer `alamos_integrated`, **Quelle gegen Ziel** | **Nachtrag im Cutover-Runbook**, Plan 4 §C Schritt 4–5 (Import, Paritaet, Feldstichproben) — als Feldstichprobe Quelle gegen Ziel. Betrifft **C28** |
 | **NT5** | **Ein Reibungspunkt an der Naht zu B5, der eine Zeile Mapper kostet und keine Schemaaenderung:** `AltVersion.is_target` ist in `scripts/import/radio.ts` als `number` typisiert, `zuBoolOptional` nimmt aber `0 \| 1 \| null`. B5 (bzw. B6, wo `software_versions` gemappt wird) braucht dort ein `row.is_target === 1` inline oder einen zweiten Helfer. Das Abschluss-Review von M1–M6 hat die Naht **Feld fuer Feld** geprueft und sonst **keinen** Bruch gefunden: `AltGeraet` (25 Felder) → `NeuesGeraet` (25 Spalten) ist deckungsgleich in Name, Nullability und Reihenfolge, `last_updated_at: number\|null` → `lastUpdatedAt: string\|null` ist genau der Bruch, den `tagInBerlin` bedient, und `AltLeihe` (11) → `NeueLeihe` (12) traegt die zwoelfte nullable ohne Default, also im `$inferInsert` optional | **Auftrag an B5/B6** (Naht NS-M2/NS-M3) — eine Zeile Mapper (`row.is_target === 1` oder ein zweiter Helfer), keine Schemaaenderung |
+
+| **NT6** | **NS3 Punkt 1 ist gemessen widerlegt, seine Entscheidung nicht.** Der Bau-Leitplan begruendet „ein Block, ein Tor" doppelt. Punkt 1 sagt, `radio-paritaet.test.ts` lade „**gar nicht**", solange eine Sicht fehlt, und Teilgruen sei deshalb unmoeglich; T2s Erwartung „vier gruene Faelle fuer `users`" koenne nicht zutreffen. **Gemessen laedt sie doch:** nach B8 allein `16 failed | 6 passed (22)` — die fuenf Spaltenzahl- und die `timestamp_ms`-Zusicherung lesen nur das Schema. Nach B10 liefert `-t users` genau **4 passed | 18 skipped**, also **T2s Zahl**. Die Fehlerform ist auch nicht `No "…" export is defined`, sondern `TypeError: sicht is not a function` (Vite laesst den Named Import als `undefined` durch). ⛔ **Punkt 2 traegt die Blockregel allein und ist bestaetigt:** `tsc` sieht die Datei (`--listFilesOnly`) und meldet fuenf `TS2305` | **Nachtrag am Bau-Leitplan**, NS3 Punkt 1 und die Berichtigung der `-t`-Erwartung. Die **Entscheidung** bleibt unveraendert richtig |
+| **NT7** | ⛔ **`rtk` meldet falsches Gruen fuer `tsc` — siehe den eigenen Abschnitt unten.** Betrifft **jedes** typecheck-Tor dieses Wegs und jedes andere Projekt, das `CLAUDE.md`s Regel „immer `rtk`" folgt | **Eigener Auftrag an RTK.** Bis dahin: typecheck als `NO_COLOR=1 FORCE_COLOR=0 rtk pnpm typecheck` fahren |
 
 ### ⚠️ Und ein Fund am Repo, der jedes Tor dieses Wegs betrifft
 
@@ -257,6 +271,40 @@ gegen `4.1.5` gemessen.
   bleibt, kann **keine** radio-Aufgabe ihr Tor plankonform gruen melden. Die 170 zu richten ist ein
   **eigener Auftrag** an `m/feedback` und `m/files` plus die vitest-Frage — er ist **vor dem
   Cutover** faellig und steht in keinem der fuenf Plaene.
+
+### ⛔ Und ein zweiter Fund am Werkzeug, der jedes Tor UNSICHTBAR gruen macht (2026-08-21)
+
+**`rtk pnpm typecheck` meldet „No errors found", wo `tsc` fuenf Fehler hat.** Gemessen im Block
+B8–B13, an einem Stand, der rot sein **muss** (fuenf Importe auf noch nicht existierende Exporte):
+
+| Befehl | Meldung |
+|---|---|
+| `rtk pnpm typecheck` | **`TypeScript: No errors found`** ← **FALSCHES GRUEN** |
+| `pnpm typecheck` (roh) | `Found 5 errors in the same file`, Exit 1 |
+| `NO_COLOR=1 FORCE_COLOR=0 rtk pnpm typecheck` | **`TypeScript: 5 errors in 1 files`** ← korrekt |
+
+**Ursache, eingegrenzt:** in einer TTY schaltet `tsc` seine „pretty"-Form ein
+(`datei.ts:22:3 - error TS2305:` mit ANSI-Sequenzen zwischen den Feldern). RTKs tsc-Filter erkennt
+darin keinen Fehler. Der tee-Log enthaelt den vollstaendigen roten Output — **die Fehler kommen bei
+RTK an, der Parser sieht sie nicht.** Ohne Farbe liefert `tsc` die Kurzform
+`datei.ts(22,3): error TS2305:`, und derselbe Filter zaehlt richtig.
+
+**Warum das hier stehen muss:** `CLAUDE.md` schreibt `rtk` fuer jeden Befehl vor, und
+`rtk pnpm typecheck` ist das **erste** Tor jeder Aufgabe dieses Wegs. Ein Tor, das nicht rot werden
+kann, ist kein Tor.
+
+⚠️ **Nachgemessen und entlastet:** die vier Commits dieser Sitzung (`903ed0b`, `60cdfc3`, `1029ba3`,
+`dfbe5b3`) sind in einem eigenen Worktree einzeln mit `NO_COLOR=1` geprueft — **alle vier wirklich
+0 Fehler**. Die Tormeldungen waren inhaltlich richtig, nur unzuverlaessig belegt. Fuer aeltere
+Aufgaben (B1–B4, M1–M6) ist das **nicht** nachgemessen.
+
+**Zwei Folgen:**
+
+* **Bis RTK gerichtet ist, gilt fuer jedes typecheck-Tor dieses Wegs:**
+  `NO_COLOR=1 FORCE_COLOR=0 rtk pnpm typecheck` — rtk-konform und korrekt zaehlend.
+* **Der Fund gehoert RTK, nicht diesem Weg.** Er ist ein **eigener Auftrag** und steht in keinem der
+  fuenf Plaene. ⚠️ Wer ihn mit `grep -cE "error TS"` gegenpruefen will, muss die Farbe abschalten —
+  sonst zaehlt auch `grep` **0** und bestaetigt das falsche Gruen.
 
 ---
 
