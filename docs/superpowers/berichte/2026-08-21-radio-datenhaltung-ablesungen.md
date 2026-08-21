@@ -57,6 +57,10 @@ gegeneinander gehalten. In **jeder** Zeile aller vier Tabellen stimmten SQL-Spal
 TypeScript-Bezeichner, Nullability und `mode: "timestamp"`-Angabe überein. Keine Abweichung
 gefunden.
 
+Jede mit **ja** markierte Spalte der folgenden vier Tabellen läuft beim Import durch `sekunden()`:
+das Ziel führt Unix-**Sekunden**, die Quelle epoch-**Millisekunden** — und keine Spalte trägt
+`timestamp_ms` (geprüft: kein Treffer in `src/app/m/radio/`).
+
 ### `users` (3 Spalten, `schema.ts:113-117`)
 
 | # | SQL-Spalte | TS-Bezeichner | Typ (pragma) | timestamp-mode? |
@@ -106,7 +110,8 @@ gefunden.
 | 10 | `created_at` | `createdAt` | INTEGER, NOT NULL | **ja** (`schema.ts:231`) |
 | 11 | `updated_at` | `updatedAt` | INTEGER, NOT NULL | **ja** (`schema.ts:232`) |
 
-⚠️ **Spalte 9, `zugangscode_id`**, ist die zwölfte Spalte von `loans` und bleibt beim Import für
+⚠️ `loans` trägt **zwölf** Spalten, elf davon aus der Quelle und **eine neue**: **`zugangscode_id`**
+an cid 9 (die zehnte Spalte). Sie bleibt beim Import für
 **alle** Alt-Leihen `NULL` (`pragma_table_info` bestätigt `notnull = 0`; `schema.ts:230` trägt kein
 `.notNull()`). Der Kommentar `schema.ts:221-223` benennt das ausdrücklich: „NULL für jede
 importierte Alt-Leihe und für jede Leihe über den Suite-Weg." Aufgabe **B13**

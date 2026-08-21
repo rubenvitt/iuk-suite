@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as schema from "./schema";
@@ -106,5 +106,32 @@ describe("radio-Migrationen: der partielle Unique-Index auf loans", () => {
     const treffer = zeilen.find((z) => z.name === "loans_device_active_uidx");
     expect(treffer, "loans_device_active_uidx fehlt in pragma_index_list('loans')").toBeDefined();
     expect(treffer).toEqual({ name: "loans_device_active_uidx", unique: 1, partial: 1 });
+  });
+});
+
+describe("radio-Migrationen: das Journal, nicht die Migrationsprobe", () => {
+  it("die when-Werte im Journal steigen streng und liegen nicht in der Zukunft", () => {
+    /*
+     * DAS TOR DES MIGRATORS IST ALLEIN `when` — kein Hashvergleich: das Gate steht in
+     * node_modules/drizzle-orm/sqlite-core/dialect.js:660 als
+     * `Number(lastDbMigration[2]) < migration.folderMillis`, der Hash wird bei :667 nur
+     * GESCHRIEBEN, nie gelesen. Ein `when` in der Zukunft laesst jede kuenftige, VOR diesem
+     * Zeitpunkt generierte Migration (die `when: Date.now()` setzt) auf einer bereits
+     * migrierten Datenbank STILL ausfallen — kein Wurf, keine Fehlermeldung. Eine frische
+     * Test-Datenbank kann das nie zeigen: `lastDbMigration` ist dort `undefined`
+     * (src/app/m/radio/_lib/boot.test.ts:27-28 legt ebenfalls eine frische Datei an), also ist
+     * dies eine Journal-Pruefung und keine Migrationsprobe. Hausform (+1000 ms je Folgeeintrag):
+     * src/app/m/lagerbuch/_db/migrations/meta/_journal.json.
+     */
+    const journal = JSON.parse(
+      readFileSync(join(ORDNER, "meta", "_journal.json"), "utf8"),
+    ) as { entries: { when: number; tag: string }[] };
+    const werte = journal.entries.map((e) => e.when);
+    for (let i = 1; i < werte.length; i++) {
+      expect(werte[i], `when von Eintrag ${i} muss > Eintrag ${i - 1} sein`).toBeGreaterThan(
+        werte[i - 1],
+      );
+    }
+    expect(werte.at(-1), "letztes when liegt in der Zukunft").toBeLessThanOrEqual(Date.now());
   });
 });
