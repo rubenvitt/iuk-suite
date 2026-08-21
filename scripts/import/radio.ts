@@ -273,3 +273,48 @@ export function toNeuesGeraet(zeile: AltGeraet): schema.NeuesGeraet {
     updatedBy: zeile.updated_by ?? null,
   };
 }
+
+export function toNeuenBenutzer(zeile: AltNutzer): schema.NeuerBenutzer {
+  return {
+    // 1:1 und ROH. Keine Zuordnungstabelle alt_sub → neu_sub: die Pocket-ID-Instanz fuehrt
+    // `subject_types_supported: ["public"]`, der `sub` ist ueber beide OIDC-Clients identisch
+    // (Spec 1 §2.5.3).
+    sub: zeile.sub,
+    name: zeile.name,
+    lastSeenAt: msZuDatum("users.last_seen_at", zeile.last_seen_at),
+  };
+}
+
+export function toNeueSoftwareVersion(zeile: AltVersion): schema.NeueSoftwareVersion {
+  return {
+    id: zeile.id,
+    // KEINE Normalisierung: `software_versions_value_unique` besteht in beiden Datenbanken,
+    // ein Trimmen erzeugte einen Konflikt, den es in der Quelle nicht gab.
+    value: zeile.value,
+    createdAt: msZuDatum("software_versions.created_at", zeile.created_at),
+    // TOTE SPALTE, WANDERT TROTZDEM. Geschrieben (softwareVersionRepo.ts:39, :53), in keiner
+    // Projektion gelesen. Kriterium ist „wird sie GESCHRIEBEN?", nicht „wird sie gelesen?"
+    // (§1.7 Punkt 2): ein Leser laesst sich nachbauen, ein verlorener Wert nicht.
+    createdBy: zeile.created_by ?? null,
+    sortOrder: zeile.sort_order ?? 0,
+    // In der Quelle NOT NULL (0002_numerous_mandroid.sql:2) — also KEIN zuBoolOptional.
+    // ⚠️ Genau eine Zeile darf `is_target = 1` tragen, und keine Datenbank erzwingt das:
+    // getTargetVersion (softwareVersionRepo.ts:63-70) hat kein ORDER BY, bei zwei Marken
+    // entscheidet der Zufall ueber den Update-Stand JEDES Geraets. Der Importer wandert 1:1
+    // und kann das nicht retten — die Abwehr ist A2 (§2.4.2), blockierend, genau `1`.
+    isTarget: zeile.is_target === 1,
+  };
+}
+
+export function toNeuesGeraeteEreignis(zeile: AltEreignis): schema.NeuesGeraeteEreignis {
+  return {
+    id: zeile.id,
+    deviceId: zeile.device_id,
+    field: zeile.field,
+    oldValue: zeile.old_value ?? null,
+    newValue: zeile.new_value ?? null,
+    changedBy: zeile.changed_by ?? null,
+    changedAt: msZuDatum("device_events.changed_at", zeile.changed_at),
+    source: pruefeQuelle(zeile.id, zeile.source),
+  };
+}

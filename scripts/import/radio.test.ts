@@ -6,6 +6,11 @@ import {
   baueBespielteQuellDb,
   ALT_GERAET,
   ALT_GERAET_OHNE_ANGABE,
+  ALT_BENUTZER,
+  ALT_VERSION,
+  ALT_VERSION_ZWEIT,
+  ALT_EREIGNIS,
+  ALT_EREIGNIS_UNBEKANNT,
 } from "./fixtures/radio-quelle";
 import {
   msZuDatum,
@@ -15,6 +20,9 @@ import {
   pruefeQuelle,
   lieseQuelle,
   toNeuesGeraet,
+  toNeuenBenutzer,
+  toNeueSoftwareVersion,
+  toNeuesGeraeteEreignis,
 } from "./radio";
 
 describe("radio-quelle-ddl.sql — die kopierte Quell-DDL", () => {
@@ -435,6 +443,67 @@ describe("toNeuesGeraet (Spec 2 §1.4.3)", () => {
       updatedAt: new Date(1_738_368_000_000),
       createdBy: "sub-anna",
       updatedBy: "sub-bert",
+    });
+  });
+});
+
+describe("Die drei schmalen Mapper (Spec 2 §1.4.1, §1.4.2, §1.4.4)", () => {
+  // ⛛ Additive Zusicherung (§1.3.4). Ohne sie ist der Faktor-1000-Riegel fuer `users`
+  // eine Zusage, die kein Test haelt: ein Mapper mit `new Date(ms/1000)` fragt msZuDatum
+  // NIE, wirft NIE und landet still im Jahr 1970.
+  it("toNeuerBenutzer: last_seen_at behaelt SEINEN Wert", () => {
+    expect(toNeuenBenutzer(ALT_BENUTZER).lastSeenAt.getTime()).toBe(1_739_000_000_000);
+  });
+
+  it("toNeuenBenutzer: alle drei Zielfelder, Feld fuer Feld", () => {
+    expect(toNeuenBenutzer(ALT_BENUTZER)).toEqual({
+      // ROH, ohne `pocketid:`-Praefix — radio-admin schreibt den sub schon roh
+      // (radio-admin/server/src/db/schema.ts:79); der Praefix ist ein Artefakt des KIOSK.
+      sub: "sub-anna",
+      name: "Anna Reiter",
+      lastSeenAt: new Date(1_739_000_000_000),
+    });
+  });
+
+  // ⛛ Additive Zusicherung (§1.3.4).
+  it("toNeueSoftwareVersion: created_at behaelt SEINEN Wert", () => {
+    expect(toNeueSoftwareVersion(ALT_VERSION).createdAt.getTime()).toBe(1_736_000_000_000);
+  });
+
+  it("toNeueSoftwareVersion: alle sechs Zielfelder, und is_target bleibt EINE Marke", () => {
+    expect(toNeueSoftwareVersion(ALT_VERSION)).toEqual({
+      id: "v-1",
+      value: "10.5.1", // KEINE Normalisierung, kein Trim: `software_versions_value_unique`
+      createdAt: new Date(1_736_000_000_000),
+      createdBy: "sub-anna", // tote Spalte, wandert trotzdem (§1.7 Punkt 2)
+      sortOrder: 10,
+      isTarget: true,
+    });
+    expect(toNeueSoftwareVersion(ALT_VERSION_ZWEIT).isTarget).toBe(false);
+  });
+
+  // ⛛ Additive Zusicherung (§1.3.4) — DIE Zeile, die `new Date(ms/1000)` fuer
+  // `device_events` faengt. Der Enum-Test unten sagt ueber `changed_at` nichts.
+  it("toNeuesGeraeteEreignis: changed_at behaelt SEINEN Wert", () => {
+    expect(toNeuesGeraeteEreignis(ALT_EREIGNIS).changedAt.getTime()).toBe(1_737_000_000_000);
+  });
+
+  // Verbindlicher Name aus Spec 1 §2.2.5.
+  it('toNeuesGeraeteEreignis wirft bei source="importiert"', () => {
+    expect(() => toNeuesGeraeteEreignis(ALT_EREIGNIS_UNBEKANNT)).toThrow(/source/);
+    expect(() => toNeuesGeraeteEreignis(ALT_EREIGNIS_UNBEKANNT)).toThrow(/e-2/);
+  });
+
+  it("toNeuesGeraeteEreignis: alle acht Zielfelder, Feld fuer Feld", () => {
+    expect(toNeuesGeraeteEreignis(ALT_EREIGNIS)).toEqual({
+      id: "e-1",
+      deviceId: "g-1",
+      field: "status",
+      oldValue: "wartung",
+      newValue: "einsatzbereit",
+      changedBy: "sub-bert",
+      changedAt: new Date(1_737_000_000_000),
+      source: "manual",
     });
   });
 });
