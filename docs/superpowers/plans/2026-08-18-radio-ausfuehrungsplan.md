@@ -242,13 +242,13 @@ gruen und gegengeprueft. Wer sie nicht eintraegt, laeuft beim naechsten Durchgan
 | # | Fund | Wo er hingehoert |
 |---|---|---|
 | **NT1** | ⛔ **`2026-08-18-plan1-radio-import.md`, Aufgabe 4 widerspricht sich selbst.** Schritt 1 gibt den Quelltext-Scan wortwoertlich vor (`expect(quelltext).not.toMatch(/select\s+\*/i)`), Schritt 3 gibt einen Kopfkommentar fuer `lieseQuelle` vor, der die Zeichenkette `` `SELECT *` `` als **Zitat des Anti-Vorbilds** (`scripts/import/feedback.ts:66-72`) selbst enthaelt — und Schritt 4 sagt „17 passed" voraus. Der Scan unterscheidet nicht zwischen einem Statement und einem Prosa-Zitat. **Beide Wortlaute stammen aus dem Plan**, der Widerspruch liegt dort | **Nachtrag am Plan**, Aufgabe 4 Schritt 3. Gebaut wurde der Test **streng** und der Kommentar umformuliert („liest fuenfmal ohne Spaltenliste") — die Entscheidung steht, sie gehoert nur ins Dokument |
-| **NT2** | **`zuBoolOptional(undefined)` gibt `false` zurueck**, nicht `null` — genau die Faltung, die der Kommentar zwei Zeilen darueber namentlich verbietet, und asymmetrisch zu `msZuDatumOptional`, das `undefined` ausdruecklich behandelt. Signatur **und** Rumpf sind planvorgegeben, ebenso der blinde Cast `.all() as AltGeraet[]`, ueber den `undefined` ueberhaupt erst ankaeme. **Am 2026-08-21 mit dem Bau von B5 nachgemessen: NICHT tragend.** `AltGeraet.alamos_integrated` und `.loanable` sind `0 \| 1 \| null`, **nicht optional** (`scripts/import/radio.ts:126-127`) — der `undefined`-Zweig ist von `toNeuesGeraet` aus typseitig unerreichbar, und der `SELECT` nennt beide Spalten namentlich. Bleibt eine **Haertung gegen den blinden Cast**, kein Fehler im Datenweg | **Entscheidung an Ruben**, dann Nachtrag am Plan. Kleinste Behebung: `(v: 0 \| 1 \| null \| undefined) => (v === null \|\| v === undefined ? null : v === 1)`. ⚠️ **Nicht mehr blockierend fuer B5** (gebaut). Naechster moeglicher Verbraucher: **B6**, `software_versions.is_target` — dort aber ueber NT5 |
+| **NT2** | **`zuBoolOptional(undefined)` gibt `false` zurueck**, nicht `null` — genau die Faltung, die der Kommentar zwei Zeilen darueber namentlich verbietet, und asymmetrisch zu `msZuDatumOptional`, das `undefined` ausdruecklich behandelt. Signatur **und** Rumpf sind planvorgegeben, ebenso der blinde Cast `.all() as AltGeraet[]`, ueber den `undefined` ueberhaupt erst ankaeme. **Am 2026-08-21 mit dem Bau von B5 nachgemessen: NICHT tragend.** `AltGeraet.alamos_integrated` und `.loanable` sind `0 \| 1 \| null`, **nicht optional** (`scripts/import/radio.ts:126-127`) — der `undefined`-Zweig ist von `toNeuesGeraet` aus typseitig unerreichbar, und der `SELECT` nennt beide Spalten namentlich. Bleibt eine **Haertung gegen den blinden Cast**, kein Fehler im Datenweg | ✅ **ERLEDIGT 2026-08-21**, Commit `525cd70`. Entschieden im Automode nach Rubens Weisung: gehaertet auf `(v: 0 \| 1 \| null \| undefined) => (v === null \|\| v === undefined ? null : v === 1)`, mit **Test zuerst** (`expect(zuBoolOptional(undefined)).toBeNull()`) und Mutationssonde (Zweig entfernt → 1 rot). Der Kommentarblock nennt jetzt beide Gruende: der blinde Cast ist die eine Tuer, und zwei Nachbarfunktionen mit derselben Aufgabe duerfen sich in der Nullbehandlung nicht widersprechen. **NT4 bleibt unberuehrt gueltig** — die Zaehlprobe bei C28 faengt jede Faltung, gleich woher |
 | **NT3** | **Der `SELECT *`-Scan ist loechrig:** `/select\s+\*/i` laesst `SELECT d.*` und `select*from` durch (beides gueltiges SQLite, der Tokenizer braucht kein Trennzeichen) und schlaegt bei Prosa-Zitaten falsch an. Testzeile und Regex sind planvorgegeben | **Nachtrag am Plan**, Aufgabe 4 Schritt 1 |
 | **NT4** | **Die Zaehlprobe gegen den `zuBoolOptional`-Fund (NT2) gehoert ins Cutover-Runbook.** NT2 beschreibt, dass `zuBoolOptional(undefined)` `false` statt `null` liefert und ab B5 tragend wird. Das Abschluss-Review von M1–M6 hat ergaenzt, **warum das nach dem Import nicht mehr nachweisbar ist**: `devices.alamosIntegrated` und `devices.loanable` sind die zwei **nullable** `mode: "boolean"`-Spalten des neuen Schemas, und ein falsch gefaltetes `false` ist dort **nicht mehr von einem echten `false` zu unterscheiden** („Alamos nicht erfasst" wird „nicht integriert") und ist paritaetsgruen. Die **einzige** Probe, die es faengt: `select count(*) from devices where loanable is null` und dasselbe fuer `alamos_integrated`, **Quelle gegen Ziel** | **Nachtrag im Cutover-Runbook**, Plan 4 §C Schritt 4–5 (Import, Paritaet, Feldstichproben) — als Feldstichprobe Quelle gegen Ziel. Betrifft **C28** |
 | **NT5** | **Ein Reibungspunkt an der Naht zu B5, der eine Zeile Mapper kostet und keine Schemaaenderung:** `AltVersion.is_target` ist in `scripts/import/radio.ts` als `number` typisiert, `zuBoolOptional` nimmt aber `0 \| 1 \| null`. B5 (bzw. B6, wo `software_versions` gemappt wird) braucht dort ein `row.is_target === 1` inline oder einen zweiten Helfer. Das Abschluss-Review von M1–M6 hat die Naht **Feld fuer Feld** geprueft und sonst **keinen** Bruch gefunden: `AltGeraet` (25 Felder) → `NeuesGeraet` (25 Spalten) ist deckungsgleich in Name, Nullability und Reihenfolge, `last_updated_at: number\|null` → `lastUpdatedAt: string\|null` ist genau der Bruch, den `tagInBerlin` bedient, und `AltLeihe` (11) → `NeueLeihe` (12) traegt die zwoelfte nullable ohne Default, also im `$inferInsert` optional | **Auftrag an B5/B6** (Naht NS-M2/NS-M3) — eine Zeile Mapper (`row.is_target === 1` oder ein zweiter Helfer), keine Schemaaenderung |
 
 | **NT6** | **NS3 Punkt 1 ist gemessen widerlegt, seine Entscheidung nicht.** Der Bau-Leitplan begruendet „ein Block, ein Tor" doppelt. Punkt 1 sagt, `radio-paritaet.test.ts` lade „**gar nicht**", solange eine Sicht fehlt, und Teilgruen sei deshalb unmoeglich; T2s Erwartung „vier gruene Faelle fuer `users`" koenne nicht zutreffen. **Gemessen laedt sie doch:** nach B8 allein `16 failed | 6 passed (22)` — die fuenf Spaltenzahl- und die `timestamp_ms`-Zusicherung lesen nur das Schema. Nach B10 liefert `-t users` genau **4 passed | 18 skipped**, also **T2s Zahl**. Die Fehlerform ist auch nicht `No "…" export is defined`, sondern `TypeError: sicht is not a function` (Vite laesst den Named Import als `undefined` durch). ⛔ **Punkt 2 traegt die Blockregel allein und ist bestaetigt:** `tsc` sieht die Datei (`--listFilesOnly`) und meldet fuenf `TS2305` | **Nachtrag am Bau-Leitplan**, NS3 Punkt 1 und die Berichtigung der `-t`-Erwartung. Die **Entscheidung** bleibt unveraendert richtig |
-| **NT7** | ⛔ **`rtk` meldet falsches Gruen fuer `tsc` — siehe den eigenen Abschnitt unten.** Betrifft **jedes** typecheck-Tor dieses Wegs und jedes andere Projekt, das `CLAUDE.md`s Regel „immer `rtk`" folgt | **Eigener Auftrag an RTK.** Bis dahin: typecheck als `NO_COLOR=1 FORCE_COLOR=0 rtk pnpm typecheck` fahren |
+| **NT7** | ⛔ **`rtk` meldet falsches Gruen fuer `tsc` — siehe den eigenen Abschnitt unten.** Betrifft **jedes** typecheck-Tor dieses Wegs und jedes andere Projekt, das `CLAUDE.md`s Regel „immer `rtk`" folgt | ✅ **BEHOBEN 2026-08-21 an beiden Stolpersteinen**, Commit `1d96200` plus `NO_COLOR=1` in Claude Codes `env`. Das Tor ist in Rot **und** in Gruen gegengeprueft. ⚠️ **RTK selbst ist nicht gerichtet** — der Filter bleibt anfaellig, sobald irgendwo Farbe durchkommt. Ein Upstream-Bericht an `github.com/rtk-ai/rtk` steht aus |
 
 ### ⚠️ Und ein Fund am Repo, der jedes Tor dieses Wegs betrifft
 
@@ -283,11 +283,19 @@ B8–B13, an einem Stand, der rot sein **muss** (fuenf Importe auf noch nicht ex
 | `pnpm typecheck` (roh) | `Found 5 errors in the same file`, Exit 1 |
 | `NO_COLOR=1 FORCE_COLOR=0 rtk pnpm typecheck` | **`TypeScript: 5 errors in 1 files`** ← korrekt |
 
-**Ursache, eingegrenzt:** in einer TTY schaltet `tsc` seine „pretty"-Form ein
-(`datei.ts:22:3 - error TS2305:` mit ANSI-Sequenzen zwischen den Feldern). RTKs tsc-Filter erkennt
-darin keinen Fehler. Der tee-Log enthaelt den vollstaendigen roten Output — **die Fehler kommen bei
-RTK an, der Parser sieht sie nicht.** Ohne Farbe liefert `tsc` die Kurzform
-`datei.ts(22,3): error TS2305:`, und derselbe Filter zaehlt richtig.
+**Ursache — ZWEI Stolpersteine, beide gemessen.** Die erste Diagnose („es ist tscs Farbe") war
+unvollstaendig; erst ein provozierter `TS2339` an drei Aufrufwegen hat es getrennt:
+
+| Aufruf | Meldung |
+|---|---|
+| `rtk tsc --noEmit` | **falsches Gruen** ← Stolperstein 1: tscs **pretty**-Form (`datei.ts:22:3 - error TS…` mit ANSI-Sequenzen), die tsc in jeder TTY selbst waehlt |
+| `rtk tsc --noEmit --pretty false` | **korrekt** |
+| `rtk pnpm typecheck` **mit** `--pretty false` im Skript | **falsches Gruen** ← Stolperstein 2: pnpms eigene farbige Kopfzeile `\e[2m$ tsc --noEmit\e[22m`, obwohl tscs Ausgabe schon unfarbig ist |
+| `NO_COLOR=1 rtk pnpm typecheck` | **korrekt** |
+
+Der tee-Log enthaelt in allen Faellen den vollstaendigen roten Output — **die Fehler kommen bei RTK
+an, der Parser sieht sie nicht.** ⚠️ `pnpm --color=false` und ein `.npmrc` mit `color=false` helfen
+**nicht**: die dim-Sequenz der Kopfzeile bleibt. Nur `NO_COLOR=1` entfernt sie.
 
 **Warum das hier stehen muss:** `CLAUDE.md` schreibt `rtk` fuer jeden Befehl vor, und
 `rtk pnpm typecheck` ist das **erste** Tor jeder Aufgabe dieses Wegs. Ein Tor, das nicht rot werden
@@ -298,13 +306,31 @@ kann, ist kein Tor.
 0 Fehler**. Die Tormeldungen waren inhaltlich richtig, nur unzuverlaessig belegt. Fuer aeltere
 Aufgaben (B1–B4, M1–M6) ist das **nicht** nachgemessen.
 
-**Zwei Folgen:**
+### ✅ Behoben am 2026-08-21 — an beiden Stolpersteinen
 
-* **Bis RTK gerichtet ist, gilt fuer jedes typecheck-Tor dieses Wegs:**
-  `NO_COLOR=1 FORCE_COLOR=0 rtk pnpm typecheck` — rtk-konform und korrekt zaehlend.
-* **Der Fund gehoert RTK, nicht diesem Weg.** Er ist ein **eigener Auftrag** und steht in keinem der
-  fuenf Plaene. ⚠️ Wer ihn mit `grep -cE "error TS"` gegenpruefen will, muss die Farbe abschalten —
-  sonst zaehlt auch `grep` **0** und bestaetigt das falsche Gruen.
+1. **`package.json`: `"typecheck": "tsc --noEmit --pretty false"`** (Commit `1d96200`). Macht die
+   Ausgabe formatstabil, unabhaengig davon, ob am anderen Ende ein Terminal haengt — eine Zeile je
+   Fehler, alle Informationen erhalten, token-sparsamer als der fuenfzeilige pretty-Rahmen.
+2. **`NO_COLOR=1` in Claude Codes `env`** (`~/.claude/settings.json`, **ausserhalb dieses Repos** —
+   kein Commit dazu in dieser Historie). Nimmt pnpm die farbige Kopfzeile.
+
+**Gegengeprueft in beide Richtungen**, mit einem provozierten `TS2339` und nach seiner Ruecknahme:
+
+| Zustand | `NO_COLOR=1 rtk pnpm typecheck` | `rtk tsc --noEmit --pretty false` | roher Exit |
+|---|---|---|---|
+| **rot** (Tippfehler in `toNeuenBenutzer`) | `1 errors in 1 files` | `1 errors in 1 files` | 2 |
+| **gruen** (zurueckgenommen) | `No errors found` | `No errors found` | 0 |
+
+Der Nutzen war sofort ablesbar: der Test-zuerst-Schritt von **NT2** (`zuBoolOptional(undefined)`)
+erzeugte ein `TS2345`, und der reparierte Filter hat es **gemeldet** statt verschluckt.
+
+⚠️ **RTK selbst ist damit nicht gerichtet.** Der Filter bleibt anfaellig, sobald irgendwo Farbe
+durchkommt — bei einem anderen Skript, einem anderen Projekt, einer anderen Shell. RTK ist ein
+Fremdwerkzeug (`github.com/rtk-ai/rtk`, Apache-2.0, ueber homebrew-core installiert, hier 0.45.0),
+kein Bestandteil dieses Repos; **ein Upstream-Bericht steht aus** und ist Rubens Entscheidung.
+⚠️ Wer den Filter selbst gegenpruefen will, darf **nicht** `grep -cE "error TS"` auf farbigem Output
+benutzen — dort steht die ANSI-Sequenz zwischen `error` und `TS`, und `grep` zaehlt **0**. Genau
+dieser Messfehler hat mich in dieser Sitzung einmal auf die falsche Spur gesetzt.
 
 ---
 

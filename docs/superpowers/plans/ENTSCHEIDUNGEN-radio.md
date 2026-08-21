@@ -3,7 +3,7 @@
 **Stand 2026-08-18, vor dem Bau.** Grundlage: `docs/radio-portierung-analyse.md` @ `c47857a` und
 Spec 1 (`docs/superpowers/specs/2026-08-17-radio-modul-design.md`, `9440e23`).
 
-Sieben Punkte, plus **zwei Nachträge (9 und 10) aus dem Bau vom 2026-08-21**. Je Punkt: die Frage, meine Empfehlung, der Beleg — und **was die Alternative kostet**,
+Sieben Punkte, plus **zwei Nachträge (9 und 10) aus dem Bau vom 2026-08-21 — beide am selben Tag erledigt**, bei 10 bleibt nur der Upstream-Bericht offen. Je Punkt: die Frage, meine Empfehlung, der Beleg — und **was die Alternative kostet**,
 damit ein „nein" nicht teurer ist als ein „ja".
 
 > ⚠️ **Zwei Punkte haben Vorrang, aus verschiedenen Gründen.**
@@ -163,7 +163,7 @@ Traefik-Zeilen mit Labels. **Das Server-Deployment der Alt-Stacks steht in keine
 
 ---
 
-## 9. `zuBoolOptional` gegen den blinden Cast härten? ⚠️ nicht blockierend (NT2)
+## 9. `zuBoolOptional` gegen den blinden Cast härten? ✅ ENTSCHIEDEN 2026-08-21 — ja (NT2)
 
 **Nachtrag vom 2026-08-21, aus dem Bau von B5.** `zuBoolOptional` in `scripts/import/radio.ts:64`
 lautet `(v: 0 | 1 | null) => (v === null ? null : v === 1)` — bei `undefined` gibt es **`false`**
@@ -185,11 +185,18 @@ still, und `NT4` ist die **einzige** Probe, die es fängt (`select count(*) from
 loanable is null`, Quelle gegen Ziel, im Cutover-Runbook bei **C28**). Diese Probe steht unabhängig
 von dieser Entscheidung und bleibt fällig.
 
-**Warum es hier liegt und nicht gebaut ist:** Signatur **und** Rumpf sind planvorgegeben, ebenso der
-Cast. Das Ledger-Ruling vom 2026-08-20 nennt es „eine Planentscheidung, keine Umsetzungsfreiheit" —
-daran ändert die Nachmessung nichts, sie nimmt der Entscheidung nur die Dringlichkeit.
+**Warum es hier lag:** Signatur **und** Rumpf sind planvorgegeben, ebenso der Cast. Das
+Ledger-Ruling vom 2026-08-20 nennt es „eine Planentscheidung, keine Umsetzungsfreiheit".
 
-## 10. Der Auftrag an RTK: den tsc-Filter richten ⛔ betrifft jedes Tor, auch fremder Projekte (NT7)
+> ✅ **Entschieden am 2026-08-21: gehärtet.** Ruben hat die Entscheidung in den Automode gegeben,
+> also gilt die Empfehlung. Commit `525cd70`: die Signatur nimmt `undefined`, der Test steht
+> **zuerst** (`expect(zuBoolOptional(undefined)).toBeNull()`), und eine Mutationssonde belegt ihn —
+> Zweig entfernt → 1 rot, zurückgenommen → 38 grün. Der Kommentarblock nennt beide Gründe: der
+> blinde Cast ist die eine Tür, durch die ein `undefined` käme, und zwei Nachbarfunktionen mit
+> derselben Aufgabe dürfen sich in der Nullbehandlung nicht widersprechen.
+> **`NT4` bleibt unberührt fällig** — die Zählprobe bei **C28** fängt jede Faltung, gleich woher.
+
+## 10. Der Auftrag an RTK: den tsc-Filter richten ✅ lokal BEHOBEN 2026-08-21, Upstream offen (NT7)
 
 **Nachtrag vom 2026-08-21, aus dem Bau von B8.** `rtk pnpm typecheck` meldet
 `TypeScript: No errors found`, wo `tsc` **fünf** Fehler hat. Ursache eingegrenzt: in einer TTY
@@ -209,6 +216,21 @@ nachgemessen (alle wirklich 0 Fehler); **B1–B4 und M1–M6 sind es nicht.**
 **Geprüft und in Ordnung:** die Filter für `lint` (reicht eslints Text durch — ein absichtlicher
 `prefer-const`-Fehler kam als `1 error` durch, Exit 1) und für `vitest` (meldete mehrfach richtig
 rot). Der Fund ist auf `tsc` beschränkt.
+
+> ✅ **Lokal behoben am 2026-08-21, an beiden Stolpersteinen.** Die Ursache war doppelt, nicht
+> einfach: (1) tscs **pretty**-Form, die es in jeder TTY selbst wählt — behoben durch
+> `--pretty false` im `typecheck`-Skript (Commit `1d96200`); (2) **pnpms** eigene farbige
+> Kopfzeile, die den Filter auch bei unfarbigem tsc-Output stolpern lässt — behoben durch
+> `NO_COLOR=1` in `~/.claude/settings.json` (`env`, außerhalb dieses Repos). `pnpm --color=false`
+> und `.npmrc color=false` helfen **nicht**. Beide Wege sind mit einem provozierten `TS2339` in
+> Rot und nach dessen Rücknahme in Grün gegengeprüft.
+>
+> ⛔ **Was offen bleibt und deine Entscheidung ist: der Upstream-Bericht.** RTK ist ein
+> Fremdwerkzeug (`github.com/rtk-ai/rtk`, Apache-2.0, über homebrew-core, hier 0.45.0) — nicht
+> deines, wie ich zuerst angenommen hatte. Der Filter bleibt anfällig, sobald irgendwo Farbe
+> durchkommt: anderes Skript, anderes Projekt, andere Shell. Ein Issue dort ist eine Handlung nach
+> außen, die ich nicht ohne dein Wort tue — sag ein Wort, und ich schreibe den Bericht mit der
+> Messtabelle.
 
 ## Was ich NICHT entschieden habe und auch nicht entscheiden kann
 
