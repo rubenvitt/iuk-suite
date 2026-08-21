@@ -138,9 +138,20 @@ Journal (`src/app/m/radio/_db/migrations/meta/_journal.json`) trägt zwei Eintr�
 | idx | tag | when |
 |---|---|---|
 | 0 | `0000_melodic_eternals` | 1787305720971 |
-| 1 | `0001_loans_aktiv_uidx` | 1787400000000 |
+| 1 | `0001_loans_aktiv_uidx` | 1787305721971 |
 
 Beide Zahlen sind **gleich** (2 = 2). Keine Migration fehlt; nichts zu melden.
+
+⚠️ **Der `when`-Wert der `0001` ist am 2026-08-21 berichtigt worden** — er lautete bei der
+ersten Ablesung `1787400000000` (2026-08-22T12:00Z) und lag damit **in der Zukunft**. Der
+SQLite-Migrator entscheidet allein über den Zeitstempel, ob eine Migration läuft
+(`node_modules/drizzle-orm/sqlite-core/dialect.js:660` — ein Hashvergleich findet **nicht**
+statt), und jede später mit `drizzle-kit generate` erzeugte Migration wäre auf einer bereits
+migrierten Datenbank **stillschweigend übersprungen** worden. Der heutige Wert ist der der
+`0000` **+ 1000 ms**, die Hausform aus `src/app/m/lagerbuch/_db/migrations/meta/_journal.json`.
+Gründe und Herkunft des Fehlers: **NT-M4** und **NT-M5** in
+`../plans/2026-08-21-radio-modul-plan1-datenhaltung.md`.
+⛔ **Diesen Wert nicht auf `1787400000000` zurücksetzen** — das holte den Fehler zurück.
 
 ---
 
