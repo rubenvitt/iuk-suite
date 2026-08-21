@@ -8,7 +8,7 @@
 > C1–C41 Cutover) und **6** aus Planteil 1 zum Bau von **Spec 1** (**M1–M6**), geschrieben seit dem
 > 2026-08-21 und **gebaut** — sie heben Zaesur 1 fuer B5–B17. Die M-Aufgaben stehen unten **an ihrem
 > Platz in der Reihenfolge** — zwischen B4 und B5, denn genau dort liegt die Naht.
-> **11 von 64 Aufgaben sind erledigt** (B1–B5, M1–M6).
+> **13 von 64 Aufgaben sind erledigt** (B1–B7, M1–M6).
 
 **Stand 2026-08-21.** Grundlage: `docs/superpowers/specs/2026-08-18-radio-cutover-design.md`
 (Spec 2 — Import · Paritaet · Generalprobe · Cutover · Abbau) und
@@ -28,7 +28,9 @@
    (Planteil 1 von Spec 1, Kapitel 2) — `src/app/m/radio/_db/` und `_lib/` existieren jetzt
    (Commits `1ebb334` · `d3fc13c` · `36088e7` · `25c8c34` · `b96db98`); **B5** der erste Mapper und
    die erste Stelle, an der Quellseite und Zielschema sich beruehren (Commit `903ed0b`,
-   **23 Tests gruen**). **B6 ist die naechste ausfuehrbare Aufgabe.**
+   **23 Tests gruen**); **B6** und **B7** die vier uebrigen Mapper, womit die ganze
+   **Mapper-Schicht** steht (Commits `60cdfc3` · `1029ba3`, **35 Tests gruen**).
+   **B8 ist die naechste ausfuehrbare Aufgabe — und sie ist der Anfang des Blocks B8–B13.**
 5. **Die eiserne Regel dieses Wegs:** wo ein Wert erst der Bau oder der Server hergibt, steht eine
    benannte Leerstelle (⬜ L…, E…, U…, C…, N…) — **niemals** eine plausibel aussehende Erfindung.
    Der Praezedenzfall ist vernarbt: die `lagerbuch`-Spec verlangte ein `cookies().delete()` in einer
@@ -181,10 +183,22 @@ kann.
       ⚠️ **NT2 ist hier NICHT tragend und bleibt geparkt:** `AltGeraet.alamos_integrated` ist
       `0 | 1 | null`, nicht optional — der `undefined`-Zweig von `zuBoolOptional` ist von
       `toNeuesGeraet` aus typseitig unerreichbar. Die Haertung bleibt eine Planentscheidung
-- [ ] **B6** Die drei schmalen Mapper: `users`, `software_versions`, `device_events`  
-      `2026-08-18-plan1-radio-import.md:1536` — Aufgabe 6a
-- [ ] **B7** `toNeueLeihe` — 12 Zielfelder, vier Zeitstempel, `zugangscodeId` immer `null`  
-      `2026-08-18-plan1-radio-import.md:1692` — Aufgabe 6b
+- [x] **B6** Die drei schmalen Mapper: `users`, `software_versions`, `device_events`  
+      `2026-08-18-plan1-radio-import.md:1536` — Aufgabe 6a · **fertig 2026-08-21**, Commit
+      `60cdfc3`, **30 Tests gruen**. 3 + 6 + 8 Zielfelder, deckungsgleich mit dem Zielschema in
+      Name und Zahl. Vier Mutationssonden: `msZuDatum` bei `users` umgangen (**2 rot**), Enum-Riegel
+      durch ein `as` ersetzt (**1 rot**), `old_value`/`new_value` vertauscht (**1 rot**), `isTarget`
+      hart auf `true` (**1 rot**).
+      ⚠️ **NT5 war bereits im Plan geloest, nicht offen:** Aufgabe 6a Schritt 3 schreibt
+      `isTarget: zeile.is_target === 1` wortwoertlich vor — genau die eine Zeile, die NT5 als
+      Auftrag fuehrt. Es blieb nichts zu entscheiden
+- [x] **B7** `toNeueLeihe` — 12 Zielfelder, vier Zeitstempel, `zugangscodeId` immer `null`  
+      `2026-08-18-plan1-radio-import.md:1692` — Aufgabe 6b · **fertig 2026-08-21**, Commit
+      `1029ba3`, **35 Tests gruen**. Vier Mutationssonden: `?? new Date(0)` auf `returnedAt`
+      (**1 rot**), `snapshot_call_sign ← borrower_name` (**2 rot**), `zugangscodeId` implizit
+      ausgelassen (**2 rot**), `created_at`/`updated_at` vertauscht (**2 rot**). Die erste ist die
+      teuerste des ganzen Wegs — sie macht jede aktive Leihe zu einer 1970 zurueckgegebenen, und
+      der naechste Retention-Lauf loescht sie. **Damit steht die ganze Mapper-Schicht**
 - [ ] **B8** Der Vollständigkeitstest der Paritätssichten — er kommt zuerst  
       `2026-08-18-plan2-radio-paritaet.md:110` — Aufgabe 1
 - [ ] **B9** Die Sichtgrundlage: `sekunden`, `RadioDb`, `paritaetsSichtGeraet`, das getaggte Multiset, `checkRadioParitaet`  
