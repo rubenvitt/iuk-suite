@@ -234,7 +234,7 @@ async function ruf(shareId: string, opts: RufOptionen = {}): Promise<Response> {
   const host = opts.host ?? VERWALTUNG;
   const kopf: Record<string, string> = { host };
   if (opts.cookie) kopf.cookie = opts.cookie;
-  if (opts.ip) kopf["x-forwarded-for"] = opts.ip;
+  if (opts.ip) kopf["cf-connecting-ip"] = opts.ip;
   const anfrage = new Request(`http://${host}/api/download/${shareId}/zip`, {
     headers: kopf,
     signal: opts.signal,

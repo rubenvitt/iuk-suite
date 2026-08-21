@@ -145,10 +145,13 @@ export const downloadLogs = sqliteTable(
     // nicht zum FK machen und nicht auf NOT NULL setzen.
     fileId: text("file_id"),
     // Umbenannt aus `ip` UND gekürzt geschrieben (`ipKuerzen`, `_lib/ip.ts`):
-    // es ist der erste Eintrag aus X-Forwarded-For ohne Trusted-Proxy-Prüfung,
-    // also ein vom Client gesetzter Wert. Die Ansicht schreibt es dazu
-    // („IP (unbestätigt, gekürzt)"). Der Rate-Limiter arbeitet dagegen mit der
-    // VOLLEN Adresse im Prozessspeicher und schreibt sie nie.
+    // der Wert ist `cf-connecting-ip` (von Cloudflare gesetzt) oder — ohne
+    // diesen Kopf — der konstante Sammelwert "unknown" (`clientIpAus`,
+    // `core/ratelimit.ts`, seit der CWE-348-Umstellung wird `x-forwarded-for`
+    // nicht mehr gelesen). Die Ansicht schreibt den „unbestätigt"-Charakter
+    // dazu („IP (unbestätigt, gekürzt)") — der Direktzugriffs-Vorbehalt bleibt
+    // bestehen. Der Rate-Limiter arbeitet dagegen mit der VOLLEN Adresse im
+    // Prozessspeicher und schreibt sie nie.
     clientIpUnbestaetigt: text("client_ip_unbestaetigt"),
     userAgent: text("user_agent"),
     downloadedAt: integer("downloaded_at", { mode: "timestamp" }).notNull(),
