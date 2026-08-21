@@ -13,12 +13,14 @@
  * Aufruf: tsx scripts/import/radio.ts <radio-snapshot.db>   (DATA_DIR steuert das Ziel)
  */
 
-import type Database from "better-sqlite3";
+import Database from "better-sqlite3";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import type { SQLiteTransaction } from "drizzle-orm/sqlite-core";
 import type { ExtractTablesWithRelations } from "drizzle-orm";
 import * as schema from "@/app/m/radio/_db/schema";
-import { checkParity, type ParityReport, type Row } from "./parity";
+import { migrateAllModules } from "@/core/bootstrap";
+import { getModuleDb } from "@/core/db";
+import { checkParity, assertParity, type ParityReport, type Row } from "./parity";
 
 /**
  * Plausibilitaetsspanne fuer epoch-MILLISEKUNDEN. 1e12 = 2001-09-09, 4e12 = 2096-10-02.
@@ -606,4 +608,62 @@ export function getaggteZielzeilen(db: RadioDb): Row[] {
  */
 export function checkRadioParitaet(q: RadioQuelle, db: RadioDb): ParityReport {
   return checkParity(getaggteQuellzeilen(q), getaggteZielzeilen(db));
+}
+
+/**
+ * Die Klammer ueber den vier bereits getesteten Teilen: migrieren, lesen, EINE Transaktion
+ * schreiben, pruefen. Ungetestet per Vitest (Schritt 1, B16) — Begruendung dort: `getModuleDb()`
+ * cached per Modulschluessel, nicht per `DATA_DIR`, ein Test faehrt also ein stale Handle. Die
+ * Abnahme laeuft von Hand als Trockenlauf (Aufgabe 11).
+ */
+export function runRadioImport(quellPfad: string): void {
+  migrateAllModules(); // wie portal.ts:102, feedback.ts:265
+
+  const quellDb = new Database(quellPfad, { readonly: true });
+  let quelle: RadioQuelle;
+  try {
+    quelle = lieseQuelle(quellDb); // die fuenf SELECTs aus §1.4
+  } finally {
+    quellDb.close();
+  }
+
+  // Erste Ausgabezeile: die fuenf gelesenen Zaehlungen — damit das Runbook sie gegen die
+  // Vorabzaehlung stellen kann, OHNE eine zweite Abfrage zu fahren. Sie macht den
+  // `cp`-statt-`.backup`-Fehler aus §1.1 an genau EINER Stelle sichtbar.
+  console.log(
+    `Quelle: users=${quelle.users.length} software_versions=${quelle.softwareVersions.length} ` +
+      `devices=${quelle.devices.length} device_events=${quelle.deviceEvents.length} ` +
+      `loans=${quelle.loans.length}`,
+  );
+
+  const db = getModuleDb("radio", schema); // src/core/db/index.ts:27-36
+
+  // EINE Transaktion ueber alle fuenf Tabellen: ein FK-Abbruch bei device_events laesst
+  // sonst devices halb drin. Das macht einen ROTEN PARITAETSCHECK NICHT rueckgaengig — der
+  // laeuft danach (siehe unten). ⚠️ portal.ts und feedback.ts haben KEINE Transaktion; das
+  // ist die eine bewusste Abweichung vom Vorbild (§1.5.3).
+  db.transaction((tx) => importiereRadio(quelle, tx));
+
+  // NB (portal.ts:105-107, feedback.ts:274-276): Paritaet laeuft NACH diesem Schreiben.
+  // Ein geworfener Paritaetsfehler heisst, das Ziel wurde bereits beschrieben — nicht
+  // "nichts ist passiert". Der Rueckweg ist die GELOESCHTE, leere Ziel-DB und ein neuer
+  // Lauf, nicht ein zweiter Versuch auf denselben Bestand (§1.6.4).
+  const report = checkRadioParitaet(quelle, db);
+  assertParity(report); // parity.ts:58-65
+  console.log(`Radio-Import OK — ${report.sourceCount} Zeilen, Parität grün.`);
+}
+
+// CLI: tsx scripts/import/radio.ts <radio-snapshot.db>   (DATA_DIR steuert das Ziel)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const src = process.argv[2];
+  if (!src) {
+    console.error("usage: tsx scripts/import/radio.ts <radio-snapshot.db>");
+    process.exit(1);
+  }
+  try {
+    runRadioImport(src);
+  } catch (err: unknown) {
+    console.error(err);
+    process.exit(1);
+  }
 }
