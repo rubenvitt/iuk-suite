@@ -363,8 +363,12 @@ export type RadioDb = BetterSQLite3Database<typeof schema>;
 
 /**
  * ⚠️ Innerhalb von db.transaction() ist der Empfaenger NICHT die Datenbank, sondern der
- * Transaktionskontext. BEIDE muessen in die Signatur, sonst kompiliert der Aufruf nicht.
- * Verbindlich ist die UNION, nicht die Buchstabenzahl der Parameterliste (§1.5.3).
+ * Transaktionskontext. Die Union ist planverbindlich (§1.5.3) und wird deshalb geschrieben —
+ * sie ist aber NICHT uebersetzungserzwungen: `SQLiteTransaction` ist an `BetterSQLite3Database`
+ * zuweisbar, weil beide dasselbe `private resultKind` aus `BaseSQLiteDatabase` erben
+ * (node_modules/drizzle-orm/sqlite-core/db.d.ts:16-17 — die Deklaration existiert genau
+ * einmal). Nur `db.query.*` waere schema-empfindlich
+ * (node_modules/drizzle-orm/sqlite-core/db.d.ts:24-26); `insert`/`select`/`run` sind es nicht.
  * Gemessen gegen drizzle-orm 0.45.2: die Union traegt insert/onConflictDoUpdate/
  * onConflictDoNothing/select.
  */
