@@ -63,8 +63,17 @@ export function tagInBerlin(feld: string, ms: number | null | undefined): string
  * faltet `!!null` das `null` zu `false` — aus „Alamos nicht ERFASST" wird „nicht
  * integriert", aus „Ausleihbarkeit unbekannt" wird „nicht ausleihbar". Paritaetsgruen, aus
  * demselben strukturellen Grund wie der Faktor 1000.
+ *
+ * ⚠️ `undefined` faellt AUSDRUECKLICH auf `null`, nicht auf `false` (NT2, entschieden am
+ * 2026-08-21). Der Wert kann nur ueber den blinden Cast `.all() as AltGeraet[]` unten
+ * hereinkommen — `AltGeraet.alamos_integrated` ist `0 | 1 | null` und NICHT optional, der
+ * Zweig ist von `toNeuesGeraet` aus also unerreichbar. Er steht trotzdem hier, weil die
+ * Alternative eine stille Faltung waere, sobald jemand das Quellinterface lockert; und weil
+ * `msZuDatumOptional` zwei Bildschirme darueber `undefined` genauso ausdruecklich behandelt.
+ * Asymmetrie zwischen zwei Nachbarfunktionen mit derselben Aufgabe ist selbst ein Fehler.
  */
-export const zuBoolOptional = (v: 0 | 1 | null): boolean | null => (v === null ? null : v === 1);
+export const zuBoolOptional = (v: 0 | 1 | null | undefined): boolean | null =>
+  v === null || v === undefined ? null : v === 1;
 
 /**
  * `device_events.source` ist in Drizzle ein Enum, in SQL aber nur `` `source` text NOT NULL ``.

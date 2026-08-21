@@ -270,6 +270,12 @@ describe("Die Zeitachse (Spec 2 §1.3.2)", () => {
     expect(zuBoolOptional(null)).toBeNull();
     expect(zuBoolOptional(0)).toBe(false);
     expect(zuBoolOptional(1)).toBe(true);
+    // NT2, entschieden am 2026-08-21: `undefined` faellt auf `null`, nicht auf `false`.
+    // Der Wert kann nur ueber den blinden Cast `.all() as AltGeraet[]` (radio.ts:210)
+    // hereinkommen — typseitig ist er von toNeuesGeraet aus unerreichbar. Ohne DIESE
+    // Zeile ist die Haertung eine Zusage, die kein Test haelt: derselbe Fehlertyp, den
+    // die Schlusspruefung von B1-B4 an `tagInBerlin` per Mutationssonde entlarvt hat.
+    expect(zuBoolOptional(undefined)).toBeNull();
   });
 
   /**
