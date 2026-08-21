@@ -16,7 +16,8 @@
 //          mapToDriverValue(new Date(1_000_000_000_000)) === 1_000_000_000     bei "timestamp"
 //                                                        === 1_000_000_000_000 bei "timestamp_ms"
 import { describe, it, expect } from "vitest";
-import { getTableColumns } from "drizzle-orm";
+import { getTableColumns, getTableName, is } from "drizzle-orm";
+import { SQLiteTable } from "drizzle-orm/sqlite-core";
 import * as schema from "@/app/m/radio/_db/schema";
 import {
   paritaetsSichtGeraet,
@@ -114,14 +115,35 @@ describe("Die fuenf Paritaetssichten decken das Zielschema vollstaendig ab (Spec
 });
 
 describe("Das Zielschema haelt die Zeiteinheit der Suite ein", () => {
+  /**
+   * ⛛ Ergaenzung dieses Plans (Schlusspruefung, Fund 3). Der Testname sagt "KEINE
+   * radio-Zeitspalte", die Schleife lief vorher aber ueber `SICHTEN` — also ueber die
+   * FUENF Tabellen, fuer die es eine Paritaetssicht gibt. `zugangscodes` hat keine Sicht
+   * (Kapitel 3 baut sie erst) und blieb damit unbewacht: ein Copy-Paste aus
+   * `src/app/m/qr/_db/schema.ts:19-20` (den `src/app/m/lagerbuch/_db/schema.ts:11-16`
+   * als den wahrscheinlichsten Weg in den Fehler benennt) haette dort `timestamp_ms`
+   * gesetzt, und dieser Test — der sich zustaendig NENNT — waere gruen geblieben.
+   *
+   * Deshalb hier ueber die Tabellen des SCHEMA-MODULS selbst, nicht ueber `SICHTEN`:
+   * `Object.values(schema)` traegt zur Laufzeit nur die `sqliteTable(...)`-Objekte (die
+   * Typaliase am Fuss der Datei existieren nur in TypeScript, nicht im JS-Modul), und
+   * `is(t, SQLiteTable)` filtert sauber auf sie. Eine sechste Tabelle im Ziel bekommt die
+   * Probe damit automatisch, ohne dass jemand `SICHTEN` nachtraegt.
+   */
   it("KEINE radio-Zeitspalte ist mode:'timestamp_ms' — der Faktor-1000-Fehler waere paritaetsgruen", () => {
     // src/app/m/lagerbuch/_db/schema.ts:11-16 nennt den wahrscheinlichsten Weg dorthin:
     // ein Copy-Paste aus m/qr/_db/schema.ts:19-20.
     const probe = new Date(1_000_000_000_000); // 2001-09-09T01:46:40Z
-    for (const { name, tabelle } of SICHTEN) {
+    const tabellen = (Object.values(schema) as unknown[]).filter(
+      (t): t is SQLiteTable => is(t, SQLiteTable),
+    );
+    expect(tabellen.length).toBeGreaterThanOrEqual(SICHTEN.length);
+    for (const tabelle of tabellen) {
       for (const [feld, spalte] of Object.entries(spalten(tabelle))) {
         if (spalte.columnType !== "SQLiteTimestamp") continue;
-        expect(spalte.mapToDriverValue(probe), `${name}.${feld}`).toBe(1_000_000_000);
+        expect(spalte.mapToDriverValue(probe), `${getTableName(tabelle)}.${feld}`).toBe(
+          1_000_000_000,
+        );
       }
     }
   });

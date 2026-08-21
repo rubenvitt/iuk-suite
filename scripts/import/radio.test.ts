@@ -381,6 +381,75 @@ describe("lieseQuelle (Spec 2 §1.4)", () => {
     const quelltext = readFileSync("./scripts/import/radio.ts", "utf8");
     expect(quelltext).not.toMatch(/select\s+\*/i);
   });
+
+  /**
+   * ⛛ Ergaenzung dieses Plans (Schlusspruefung, Fund 2). Faellt eine NULLABLE Spalte aus
+   * einer der fuenf SELECT-Listen — Tippfehler, Merge, "Aufraeumen" —, dann liefert
+   * `lieseQuelle` eine Zeile OHNE diesen Schluessel, der blinde Cast `.all() as
+   * AltGeraet[]` schweigt, der Mapper faltet `zeile.feld ?? null` zu `null`, der Import
+   * schreibt `null`, und die Paritaet ist GRUEN — beide Arme stammen aus demselben
+   * `quelle`-Objekt. Keiner der `toEqual`-Mapper-Tests oben faengt das: sie rufen die
+   * Mapper mit dem FIXTURE-LITERAL auf, nie mit einer Zeile, die durch `lieseQuelle`
+   * zurueckkam.
+   *
+   * Je Tabelle die Fixture-Zeile, die am meisten Spalten belegt — namentlich aus der
+   * Rohzeile geholt, gegen das Fixture-LITERAL selbst geprueft. Das traegt MECHANISCH,
+   * ohne handgepflegte Zahl: `spieleQuellFixtureEin` leitet seine INSERT-Spaltenliste aus
+   * `Object.keys(zeile)` DESSELBEN Literals ab (fixtures/radio-quelle.ts:218) — das
+   * Literal IST die Wahrheit ueber den Inhalt der Quell-DB. `toEqual` (nicht
+   * `toMatchObject`) schlaegt sowohl bei einem fehlenden als auch bei einem
+   * ueberzaehligen Schluessel an.
+   */
+  it("lieseQuelle.devices liest ALLE 25 Spalten von g-1, keine fehlt und keine ist ueberzaehlig", () => {
+    const quellDb = baueBespielteQuellDb();
+    try {
+      expect(lieseQuelle(quellDb).devices.find((r) => r.id === "g-1")).toEqual(ALT_GERAET);
+    } finally {
+      quellDb.close();
+    }
+  });
+
+  it("lieseQuelle.softwareVersions liest ALLE 6 Spalten von v-1, keine fehlt und keine ist ueberzaehlig", () => {
+    const quellDb = baueBespielteQuellDb();
+    try {
+      expect(lieseQuelle(quellDb).softwareVersions.find((r) => r.id === "v-1")).toEqual(
+        ALT_VERSION,
+      );
+    } finally {
+      quellDb.close();
+    }
+  });
+
+  it("lieseQuelle.users liest ALLE 3 Spalten von sub-anna, keine fehlt und keine ist ueberzaehlig", () => {
+    const quellDb = baueBespielteQuellDb();
+    try {
+      expect(lieseQuelle(quellDb).users.find((r) => r.sub === "sub-anna")).toEqual(
+        ALT_BENUTZER,
+      );
+    } finally {
+      quellDb.close();
+    }
+  });
+
+  it("lieseQuelle.deviceEvents liest ALLE 8 Spalten von e-1, keine fehlt und keine ist ueberzaehlig", () => {
+    const quellDb = baueBespielteQuellDb();
+    try {
+      expect(lieseQuelle(quellDb).deviceEvents.find((r) => r.id === "e-1")).toEqual(
+        ALT_EREIGNIS,
+      );
+    } finally {
+      quellDb.close();
+    }
+  });
+
+  it("lieseQuelle.loans liest ALLE 11 Spalten von l-1, keine fehlt und keine ist ueberzaehlig", () => {
+    const quellDb = baueBespielteQuellDb();
+    try {
+      expect(lieseQuelle(quellDb).loans.find((r) => r.id === "l-1")).toEqual(ALT_LEIHE);
+    } finally {
+      quellDb.close();
+    }
+  });
 });
 
 describe("toNeuesGeraet (Spec 2 §1.4.3)", () => {
@@ -568,7 +637,7 @@ describe("toNeueLeihe (Spec 2 §1.4.5)", () => {
   it("toNeueLeihe: alle VIER Zeitfelder behalten SEINEN Wert in Millisekunden", () => {
     const l = toNeueLeihe(ALT_LEIHE);
     expect(l.borrowedAt.getTime()).toBe(1_741_000_000_000);
-    expect(l.returnedAt?.getTime()).toBe(1_741_100_000_000);
+    expect(l.returnedAt?.getTime()).toBe(1_741_100_000_567);
     expect(l.createdAt.getTime()).toBe(1_740_999_999_000);
     expect(l.updatedAt.getTime()).toBe(1_741_100_001_000);
   });
@@ -603,7 +672,7 @@ describe("toNeueLeihe (Spec 2 §1.4.5)", () => {
       snapshotDeviceType: "MTP6650",
       borrowerName: "Marek Sowa",
       borrowedAt: new Date(1_741_000_000_000),
-      returnedAt: new Date(1_741_100_000_000),
+      returnedAt: new Date(1_741_100_000_567),
       returnNote: "Akku leer",
       zugangscodeId: null,
       createdAt: new Date(1_740_999_999_000),

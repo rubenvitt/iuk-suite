@@ -152,7 +152,14 @@ export const ALT_LEIHE = {
   snapshot_device_type: "MTP6650",
   borrower_name: "Marek Sowa",         // ≠ snapshot_call_sign
   borrowed_at: 1_741_000_000_000,
-  returned_at: 1_741_100_000_000,      // ≠ borrowed_at, ≠ created_at, ≠ updated_at
+  // ⚠️ Rest 567 ms ist PFLICHT, nicht Zufall (Schlusspruefung, Fund 1): der Paritaetscheck
+  // traegt nur, solange Schreibweg (drizzles mapToDriverValue) und Vergleichsweg
+  // (`sekunden` in radio.ts:446) IDENTISCH kuerzen — und mit einem Rest von 0 ist diese
+  // Eigenschaft in JEDEM Test ein No-Op: `Math.floor` und `Math.round` liefern dasselbe
+  // Ergebnis fuer eine ganze Sekunde. Ein Rest ≥ 500 ist die Mindestschwelle, ab der ein
+  // `Math.round` an dieser Stelle sichtbar UM EINE SEKUNDE hoeher rundet als `Math.floor` —
+  // ein `_123` waere eine Sonde, die nicht beisst.
+  returned_at: 1_741_100_000_567,      // ≠ borrowed_at, ≠ created_at, ≠ updated_at
   return_note: "Akku leer",
   created_at: 1_740_999_999_000,
   updated_at: 1_741_100_001_000,
