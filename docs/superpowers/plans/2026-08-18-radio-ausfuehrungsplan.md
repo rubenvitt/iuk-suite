@@ -8,7 +8,7 @@
 > C1–C41 Cutover) und **6** aus Planteil 1 zum Bau von **Spec 1** (**M1–M6**), geschrieben seit dem
 > 2026-08-21 und **gebaut** — sie heben Zaesur 1 fuer B5–B17. Die M-Aufgaben stehen unten **an ihrem
 > Platz in der Reihenfolge** — zwischen B4 und B5, denn genau dort liegt die Naht.
-> **19 von 64 Aufgaben sind erledigt** (B1–B13, M1–M6).
+> **23 von 64 Aufgaben sind erledigt** (B1–B17, M1–M6) — **der ganze Bauweg steht, Plan 1 ist abgeschlossen und schlussgeprueft.**
 
 **Stand 2026-08-21.** Grundlage: `docs/superpowers/specs/2026-08-18-radio-cutover-design.md`
 (Spec 2 — Import · Paritaet · Generalprobe · Cutover · Abbau) und
@@ -22,17 +22,17 @@
    des Routers. Beide sind entschieden — was in ihren Kapiteln **A** und **B** steht, gilt.
 3. **Fuenf Umsetzungsplaene sind fertig und dreifach gegengeprueft.** Sie stehen unten als
    Checkliste. Keine Zeile darin enthaelt einen erfundenen Wert — das ist gemessen, dreimal.
-4. **B1–B5 und M1–M6 sind gebaut** (2026-08-20 und 2026-08-21): B1–B4 die ganze **Quellseite** des
-   Importers — die Fixture aus `radio-admin@265abd5`, die Rohzeilen, die Zeitachse, `lieseQuelle`
-   (fuenf signierte Commits `a309f12` → `07b5f41`, **17 Tests gruen**); M1–M6 die **Zielseite**
-   (Planteil 1 von Spec 1, Kapitel 2) — `src/app/m/radio/_db/` und `_lib/` existieren jetzt
-   (Commits `1ebb334` · `d3fc13c` · `36088e7` · `25c8c34` · `b96db98`); **B5** der erste Mapper und
-   die erste Stelle, an der Quellseite und Zielschema sich beruehren (Commit `903ed0b`,
-   **23 Tests gruen**); **B6** und **B7** die vier uebrigen Mapper, womit die ganze
-   **Mapper-Schicht** steht (Commits `60cdfc3` · `1029ba3`, **35 Tests gruen**).
-   **B8–B13** der ganze Paritaetsblock in einem Commit (`dfbe5b3`, **22 + 38 Tests gruen**).
-   **B14 ist die naechste ausfuehrbare Aufgabe** — und sie beginnt eine andere Art Arbeit:
-   echte Inserts, Konfliktstrategien, Transaktionen.
+4. **Der Bauweg ist fertig — B1–B17 und M1–M6 sind gebaut** (2026-08-20 und 2026-08-21).
+   B1–B4 die Quellseite des Importers, M1–M6 die Zielseite (Planteil 1 von Spec 1), B5–B7 die
+   Mapper-Schicht, B8–B13 der Paritaetsblock, **B14–B17 das Schreiben, die Idempotenz, die CLI und
+   die Abnahme von Hand**. Zuletzt eine **Schlusspruefung ueber die fertige Datei**: merge-reif,
+   **0 kritische Funde**, **118 Tests gruen** (`rtk pnpm vitest run scripts/import/
+   src/app/m/radio/`, Exit 0). ⬜ **L6 ist geschlossen**, byteweise abgelesen und in einem
+   **verfolgten** Artefakt festgehalten (`../berichte/2026-08-21-radio-import-abnahme.md`).
+   **Die naechste ausfuehrbare Aufgabe ist C1** — und sie beginnt eine andere Art Arbeit: ab hier
+   entsteht kein Code mehr, sondern **ein Dokument**, `docs/runbooks/radio-cutover.md`.
+   ⛔ **Vier Nachtraege (NT8–NT11) binden diesen Weg** — drei davon treffen Runbook-Schritte, die
+   sonst am Cutover-Abend scheitern wuerden.
 5. **Die eiserne Regel dieses Wegs:** wo ein Wert erst der Bau oder der Server hergibt, steht eine
    benannte Leerstelle (⬜ L…, E…, U…, C…, N…) — **niemals** eine plausibel aussehende Erfindung.
    Der Praezedenzfall ist vernarbt: die `lagerbuch`-Spec verlangte ein `cookies().delete()` in einer
@@ -221,22 +221,58 @@ kann.
       ganzen Block: Spalte aus einer Sicht entfernt (**1 rot**), `sekunden` liefert Millisekunden
       (**5 rot**), `null` wird `0` (**5 rot**), `timestamp_ms` im Schema (**1 rot**),
       `lastUpdatedAt` durch `sekunden` (**1 rot**)
-- [ ] **B14** `importiereRadio` — Einfügereihenfolge, Konfliktstrategien, Paritäts-Rundlauf  
-      `2026-08-18-plan1-radio-import.md:2066` — Aufgabe 8
-- [ ] **B15** Die vier asymmetrischen Idempotenzfälle A · B · C · D  
-      `2026-08-18-plan1-radio-import.md:2315` — Aufgabe 9
-- [ ] **B16** `runRadioImport`, die Zählzeile, die Transaktion, der CLI-Block  
-      `2026-08-18-plan1-radio-import.md:2570` — Aufgabe 10
-- [ ] **B17** Abnahme von Hand — der Trockenlauf über die Kommandozeile  
-      `2026-08-18-plan1-radio-import.md:2725` — Aufgabe 11
+- [x] **B14** `importiereRadio` — Einfügereihenfolge, Konfliktstrategien, Paritäts-Rundlauf  
+      `2026-08-18-plan1-radio-import.md:2066` — Aufgabe 8 · **fertig 2026-08-21**, Commits
+      `b70abab` · `6606246`, **108 Tests gruen**. Vier Mutationssonden trafen (Journal-Insert
+      stillgelegt, Einfuegereihenfolge verletzt, falsches Konfliktziel, `loans`-Insert stillgelegt).
+      ⚠️ Eine fuenfte fand **nichts** — und das war ein Fund ueber den Plan, nicht ueber den Code:
+      die `RadioDb | RadioTx`-Union ist fuer diesen Rumpf **redundant, nicht tragend**
+      (`SQLiteTransaction` ist an `BetterSQLite3Database` zuweisbar, beide erben dasselbe
+      `private resultKind`; nur `db.query.*` waere schema-empfindlich). Der Kommentar, der das
+      Gegenteil behauptete, ist berichtigt. Die Union bleibt planexakt gebaut
+- [x] **B15** Die vier asymmetrischen Idempotenzfälle A · B · C · D  
+      `2026-08-18-plan1-radio-import.md:2315` — Aufgabe 9 · **fertig 2026-08-21**, Commits
+      `21fb800` · `14cbf11`, **112 Tests gruen**. **Alle vier Faelle loesen einen echten Konflikt
+      aus** (zweiter Lauf gegen dieselbe Ziel-DB), und jeder haengt nachweislich an **seiner**
+      tragenden Zeile — vier Sonden, je genau ein roter Test.
+      ⚠️ **Fall B hat zunaechst den Rollback NICHT gemessen**, den er zu bewachen vorgab: er prueft
+      eine Zeile, die keine Importschleife anfasst, und war gruen ob zurueckgerollt wurde oder nicht.
+      Berichtigt auf `devices.g-1.updateNote` (Schleife 3 laeuft vor dem Wurf in Schleife 5), mit
+      Sondenbeleg
+- [x] **B16** `runRadioImport`, die Zählzeile, die Transaktion, der CLI-Block  
+      `2026-08-18-plan1-radio-import.md:2570` — Aufgabe 10 · **fertig 2026-08-21**, Commits
+      `7d64f30` · `e440f68`, **113 Tests gruen**. ⬜ **L6 ist damit geschlossen** — siehe unten.
+      ⛔ **Der teuerste Fund des ganzen Laufs steckte hier:** die Abschlusszeile traegt
+      `Parität grün` als **konstanten Text**, nicht aus `report.ok` abgeleitet — zwischen einem
+      roten Befund und dieser Zeile stand **allein** der Wurf aus `assertParity`. Faellt die eine
+      Zeile weg, meldet der Importer bei **roter** Paritaet Erfolg mit **Exit 0**, und der Betreiber
+      friert die Alt-Anwendung ein und schwenkt den Router. Drei Sonden zeigten **0 rot**.
+      Geschlossen durch die Naht `schreibeUndPruefe(quelle, db)`, die `db` als Parameter nimmt und
+      damit ohne `getModuleDb()` testbar ist; danach machen beide Sonden **je 1 rot**
+- [x] **B17** Abnahme von Hand — der Trockenlauf über die Kommandozeile  
+      `2026-08-18-plan1-radio-import.md:2725` — Aufgabe 11 · **fertig 2026-08-21**, Commits
+      `555a559` · `ada7b65`. Zaehlzeile, Abschlusszeile und beide Exit-Codes abgelesen, die fuenf
+      Gegenzaehlungen decken sich — **Glied (3)→(4) der Zaehlkette ist geschlossen**, (1)→(2) nicht
+      und kann es hier nicht.
+      ⚠️ **Entgegen dem „Files: keine" des Plans wurde eine Datei angelegt:**
+      `../berichte/2026-08-21-radio-import-abnahme.md`. Der SDD-Workspace ist git-ignoriert und wird
+      geloescht — die Messwerte haetten den Lauf nicht ueberlebt, obwohl zwei Runbook-Planteile
+      woertlich auf sie greppen.
+      ⛔ **Und der Trockenlauf hat einen fremden Befund gefunden — siehe NT8**
+
+- [x] **Schlusspruefung Plan 1** — **merge-reif**, 0 kritische Funde. Commit `0194010`,
+      **118 Tests gruen**. Sie fand **zwei fehlende Sonden an heute korrektem Code**, beide von der
+      Art, gegen die dieser ganze Plan gebaut ist — siehe **NT9** und **NT10**
 
 ---
 
 ## Nachtraege — was der Bau an den Dokumenten und am Werkzeug gefunden hat
 
-Sieben Funde: drei vom 2026-08-20 (B1–B4), zwei aus dem Abschluss-Review des M1–M6-Laufs
-(2026-08-21) und **zwei aus dem Bau von B5–B13** (2026-08-21) — NT6 am Bau-Leitplan, NT7 am
-Werkzeug. Sie betreffen **die Plaene, das Repo und die Messkette**, nicht den gebauten Code — der ist
+Elf Funde: drei vom 2026-08-20 (B1–B4), zwei aus dem Abschluss-Review des M1–M6-Laufs
+(2026-08-21), **zwei aus dem Bau von B5–B13** (NT6 am Bau-Leitplan, NT7 am Werkzeug) und **vier aus
+dem Bau von B14–B17 samt Schlusspruefung** (2026-08-21). ⛔ **NT8, NT9 und NT10 treffen
+Runbook-Schritte, die sonst am Cutover-Abend scheitern wuerden** — sie sind die wichtigsten Zeilen
+dieser Tafel fuer den Cutover-Weg. NT11 ist ein bewusst geparkter Waechter, faellig mit Kapitel 3. Sie betreffen **die Plaene, das Repo und die Messkette**, nicht den gebauten Code — der ist
 gruen und gegengeprueft. Wer sie nicht eintraegt, laeuft beim naechsten Durchgang erneut hinein.
 
 | # | Fund | Wo er hingehoert |
@@ -249,6 +285,10 @@ gruen und gegengeprueft. Wer sie nicht eintraegt, laeuft beim naechsten Durchgan
 
 | **NT6** | **NS3 Punkt 1 ist gemessen widerlegt, seine Entscheidung nicht.** Der Bau-Leitplan begruendet „ein Block, ein Tor" doppelt. Punkt 1 sagt, `radio-paritaet.test.ts` lade „**gar nicht**", solange eine Sicht fehlt, und Teilgruen sei deshalb unmoeglich; T2s Erwartung „vier gruene Faelle fuer `users`" koenne nicht zutreffen. **Gemessen laedt sie doch:** nach B8 allein `16 failed | 6 passed (22)` — die fuenf Spaltenzahl- und die `timestamp_ms`-Zusicherung lesen nur das Schema. Nach B10 liefert `-t users` genau **4 passed | 18 skipped**, also **T2s Zahl**. Die Fehlerform ist auch nicht `No "…" export is defined`, sondern `TypeError: sicht is not a function` (Vite laesst den Named Import als `undefined` durch). ⛔ **Punkt 2 traegt die Blockregel allein und ist bestaetigt:** `tsc` sieht die Datei (`--listFilesOnly`) und meldet fuenf `TS2305` | **Nachtrag am Bau-Leitplan**, NS3 Punkt 1 und die Berichtigung der `-t`-Erwartung. Die **Entscheidung** bleibt unveraendert richtig |
 | **NT7** | ⛔ **`rtk` meldet falsches Gruen fuer `tsc` — siehe den eigenen Abschnitt unten.** Betrifft **jedes** typecheck-Tor dieses Wegs und jedes andere Projekt, das `CLAUDE.md`s Regel „immer `rtk`" folgt | ✅ **BEHOBEN 2026-08-21 an beiden Stolpersteinen**, Commit `1d96200` plus `NO_COLOR=1` in Claude Codes `env`. Das Tor ist in Rot **und** in Gruen gegengeprueft. ⚠️ **RTK selbst ist nicht gerichtet** — der Filter bleibt anfaellig, sobald irgendwo Farbe durchkommt. Ein Upstream-Bericht an `github.com/rtk-ai/rtk` steht aus |
+| **NT8** | ⛔ **`sqlite3 -readonly` scheitert gegen eine frisch importierte `radio.db`** — sie liegt im **WAL-Modus** und traegt noch **kein `-shm`**, und ein Readonly-Handle darf das Shared-Memory-File nicht anlegen. Meldung: `Parse error in 3rd command line argument: unable to open database file (14)` — sie sieht wie ein **Importfehler** aus und ist keiner. ⚠️ Die naheliegende Erstdiagnose („das mehrzeilige SQL scheitert, einzeilig laeuft es") ist **gemessen widerlegt**: es scheitert auch einzeilig, auch mit absolutem Pfad, auch ueber `file:?mode=ro`. Der scheinbar funktionierende Einzeiler lief, **nachdem** ein vorheriger Schreibzugriff die `-shm` angelegt hatte. ✅ **Der Importer selbst ist nicht betroffen** (`better-sqlite3` mit `readonly: true` oeffnet eine WAL-DB ohne `-shm`; die Quellseite liegt ohnehin im `delete`-Modus — beides gesondet) | **Cutover-Runbook**: betrifft **C15, C28, C33, C34** — jede Gegenzaehlung und Feldstichprobe gegen das frische Ziel. Der tragende Weg **und seine Begruendung** stehen als fertiges Snippet in `../berichte/2026-08-21-radio-import-abnahme.md`. ⛔ **Dort steht auch die Auflage, `pragma journal_mode` der QUELLE am Freeze-Abend neu zu messen** — die heutige Ablesung (`delete`) ist datiert, und ein Update von `radio-admin` genuegt, um sie umzustossen |
+| **NT9** | ⛔ **Die Paritaet ist gegen einen VERALTETEN Schnappschuss strukturell blind.** Beide Arme von `checkRadioParitaet` stammen aus **demselben**, einmal gelesenen `quelle`-Objekt. Ein Schnappschuss, der zwei Stunden alt, aber in sich konsistent ist, ergibt plausible Zahlen, einen sauberen Import und **gruene** Paritaet. Die **Zaehlzeile** ist die einzige Verteidigung — und sie verteidigt nichts, solange das Runbook keine **Vorabzaehlung aus der laufenden Alt-Anwendung** mitfuehrt, gegen die der Betreiber sie stellt | **Cutover-Runbook**: **C13** (die dreizehn Abfragen vor dem Import) und **C28**. Der Codekommentar sagt es; das Runbook muss es **einloesen** |
+| **NT10** | **`DATA_DIR` vergessen → Import nach `./.data/radio.db`, Paritaet gruen.** Ein stiller Ast, den der Plan woertlich benennt und dem er einen **eigenen Runbook-Schritt** zuweist (Gegenzaehlung gegen die Zieldatei). Ausdruecklich **kein** Fund gegen `radio.ts` | **Cutover-Runbook**: der Gegenzaehlungs-Schritt muss in den Planteilen zu **Kapitel 3 und 4** wirklich stehen |
+| **NT11** | **Ein geparkter Waechter, faellig mit Kapitel 3:** `scripts/import/radio-paritaet.test.ts:140` prueft `toBeGreaterThanOrEqual(SICHTEN.length)` — also **≥ 5**, nicht **= 6**. Zoege jemand `zugangscodes` in eine eigene Schemadatei, fiele die Zahl auf 5, **der Waechter bliebe gruen, und die Tabelle waere wieder unbewacht** — dieselbe Fehlerklasse, die der Schlussfix gerade geschlossen hat. Abhilfe ist ein Einzeiler (`toBe(6)`) | **Bauweg Spec 1, Planteil zu Kapitel 3** — dort wird `zugangscodes` gebaut, das ist der natuerliche Ort. Kein Merge-Blocker |
 
 ### ⚠️ Und ein Fund am Repo, der jedes Tor dieses Wegs betrifft
 
