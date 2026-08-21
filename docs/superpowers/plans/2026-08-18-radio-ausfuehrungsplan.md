@@ -324,6 +324,21 @@ Aufgaben (B1–B4, M1–M6) ist das **nicht** nachgemessen.
 Der Nutzen war sofort ablesbar: der Test-zuerst-Schritt von **NT2** (`zuBoolOptional(undefined)`)
 erzeugte ein `TS2345`, und der reparierte Filter hat es **gemeldet** statt verschluckt.
 
+**Der Vollbeweis, ohne jede Praefixierung:** dass Claude Codes `env` bei Bash-Aufrufen ankommt, ist
+nicht angenommen, sondern gemessen (`$NO_COLOR` ist in der laufenden Sitzung `1`, ebenso die zwei
+schon vorher gesetzten Variablen) — die Aenderung wirkt **sofort**, nicht erst nach einem Neustart.
+Danach nochmals mit einem provozierten `TS2339` geprueft, diesmal mit dem nackten Kommando, das die
+Plaene vorschreiben:
+
+| Zustand | `rtk pnpm typecheck` (ohne Praefix) |
+|---|---|
+| **rot** | `scripts/import/radio.ts(293,16): error TS2339: …` · `TypeScript: 1 errors in 1 files` |
+| **gruen** | `TypeScript: No errors found` |
+
+✅ **Die CI ist unberuehrt.** `.github/workflows/ci.yml:52` fuehrt `pnpm typecheck` nackt aus; es gibt
+keinen Problem-Matcher, keine Annotation und kein Skript, das tscs Ausgabeformat parst — dort
+entscheidet allein der Exit-Code, und der war nie das Problem.
+
 ⚠️ **RTK selbst ist damit nicht gerichtet.** Der Filter bleibt anfaellig, sobald irgendwo Farbe
 durchkommt — bei einem anderen Skript, einem anderen Projekt, einer anderen Shell. RTK ist ein
 Fremdwerkzeug (`github.com/rtk-ai/rtk`, Apache-2.0, ueber homebrew-core installiert, hier 0.45.0),
