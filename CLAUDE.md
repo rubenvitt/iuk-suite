@@ -247,6 +247,15 @@ Alt-Anwendung.
 `pnpm typecheck` · `pnpm lint` (Fehler blockieren die CI, Warnungen nicht) · `pnpm vitest run` ·
 `pnpm build` · `pnpm exec playwright test`.
 
+⚠️ **`typecheck` läuft mit `--pretty false`, und das ist kein Geschmack.** RTKs tsc-Filter
+(gemessen an 0.45.0) meldet `TypeScript: No errors found`, wenn tsc seine pretty-Form ausgibt — und
+die wählt tsc in jeder TTY selbst. Das Flag macht die Ausgabe formatstabil. Der zweite Stolperstein
+ist pnpms eigene farbige Kopfzeile; dagegen steht `NO_COLOR=1` in Claude Codes `env`. **Wer das Tor
+außerhalb dieser Umgebung fährt, prüft den Exit-Code** — nicht die Meldung, und niemals mit
+`grep "error TS"` auf farbigem Output (dort steht eine ANSI-Sequenz zwischen `error` und `TS`, und
+`grep` zählt 0). Hintergrund: NT7 in
+`docs/superpowers/plans/2026-08-18-radio-ausfuehrungsplan.md`.
+
 Für DOM-Verhalten gibt es ein etabliertes Harness: `src/app/m/qr/_lib/test-dom.tsx`
 (`mount`/`fill`/`click`/`query`/`submitForm`) — kein zweites erfinden.
 

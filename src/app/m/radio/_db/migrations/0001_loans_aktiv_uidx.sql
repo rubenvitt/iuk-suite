@@ -1,0 +1,13 @@
+-- src/app/m/radio/_db/migrations/0001_loans_aktiv_uidx.sql
+-- Partieller Unique-Index: hoechstens EINE aktive Leihe (returned_at IS NULL) je Geraet.
+-- Von Hand, weil drizzle-kit partielle Indizes nicht emittieren kann. Er ist dem
+-- Drizzle-Schema UNSICHTBAR — kuenftige `drizzle-kit generate`-Laeufe sehen ihn nicht und
+-- entfernen ihn nicht. Diese Datei NICHT neu erzeugen: ihr Hash steht in
+-- `__drizzle_migrations`, und ein geaenderter Hash laesst bereits migrierte Datenbanken in
+-- eine Absturzschleife laufen.
+--
+-- Zeichengleich zur Quelle: radio-admin/server/drizzle/0003_kind_spot.sql, letzte Zeile.
+-- Die Backticks bleiben stehen — sie sind der Grund, warum eine Textsuche auf
+-- 'WHERE returned_at IS NULL' in sqlite_master.sql 0 ergibt (gemessen) und die Probe in
+-- migrations.test.ts ueber pragma_index_list geht.
+CREATE UNIQUE INDEX `loans_device_active_uidx` ON `loans` (`device_id`) WHERE `returned_at` IS NULL;

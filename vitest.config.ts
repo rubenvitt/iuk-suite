@@ -50,6 +50,41 @@ export default defineConfig({
      * und genau dort ist die Anwendung schon einmal komplett ausgefallen.
      */
     server: { deps: { inline: [/next-auth/] } },
+
+    /*
+     * NODE MUSS SEIN EIGENES `localStorage` ABSCHALTEN, sonst verdeckt es das
+     * von jsdom — und zwar STILL, mit einer Warnung, die nach einer Kleinigkeit
+     * aussieht:
+     *
+     *   ExperimentalWarning: localStorage is not available because
+     *   --localstorage-file was not provided.
+     *
+     * Node 26 deklariert `localStorage` selbst (experimentelle Web Storage
+     * API) als GETTER auf `globalThis`. In Vitests jsdom-Umgebung ist
+     * `globalThis === window`, und Nodes Getter gewinnt gegen jsdoms
+     * Implementierung: gemessen ist dort `typeof globalThis.localStorage` UND
+     * `typeof window.localStorage` gleich `"undefined"`, obwohl die jsdom-
+     * Umgebung nachweislich laeuft (`globalThis === window` ist `true`).
+     *
+     * Die Fehlerform verraet die Ursache nicht: jeder Test, der `localStorage`
+     * anfasst, stirbt mit `TypeError: Cannot read properties of undefined
+     * (reading 'clear')` — was wie ein Fehler im Test aussieht und keiner ist.
+     * Betroffen waren 169 Faelle in acht Dateien (`m/qr`, `m/feedback`,
+     * `components/providers`); die uebrigen ~160 jsdom-Dateien blieben gruen,
+     * weil sie `localStorage` schlicht nicht benutzen. Genau diese Verteilung
+     * legt die falsche Faehrte „die acht laufen in der node-Umgebung".
+     *
+     * `--no-experimental-webstorage` nimmt Node den Getter. Der Wert steht
+     * HIER und nicht in `NODE_OPTIONS`, damit er ohne Zutun gilt — lokal wie
+     * in der CI (`.github/workflows/ci.yml` faehrt `pnpm test` nackt).
+     *
+     * ⚠️ Die Zeile MUSS `test.execArgv` heissen, nicht
+     * `test.poolOptions.forks.execArgv` — gemessen: unter `poolOptions`
+     * verwirft Vitest 4.1.10 den Wert stillschweigend (`process.execArgv` im
+     * Worker enthaelt ihn dann nicht, und alle 169 Faelle bleiben rot). Unter
+     * `test` kommt er an.
+     */
+    execArgv: ["--no-experimental-webstorage"],
   },
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
 });

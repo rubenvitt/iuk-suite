@@ -46,6 +46,14 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   // dieselbe Linie, aus der `files` und `lagerbuch` ausgenommen sind. Das lokale Seed-Skript
   // deckt den Entwicklungsbetrieb vollstaendig ab; ein Boot-Seed waere hier Risiko ohne Gegenwert.
   { key: "aufgaben", migrationsFolder: "src/app/m/aufgaben/_db/migrations" },
+  // radio: bewusst OHNE Schema-Import und OHNE Seed in `seedAllModules()`. Der
+  // Schema-Import waere toter Code (`migrateAllModules()` migriert schema-frei), und der
+  // Seed-Ausschluss hat denselben harten Grund wie bei `files`: `shouldSeed()` ist bei
+  // `SUITE_SEED=1` auch in der GENERALPROBE wahr, und eine geseedete Zeile in
+  // `zugangscodes` ist ein gueltiger ANONYMER SCHREIBZUGANG — jemand kann damit ohne
+  // Anmeldung Geraete ausleihen und zurueckgeben. Das lokale Seed-Skript deckt den
+  // Entwicklungsbetrieb vollstaendig ab.
+  { key: "radio", migrationsFolder: "src/app/m/radio/_db/migrations" },
 ];
 
 /**

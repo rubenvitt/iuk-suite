@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdirSync, rmSync, readdirSync, readlinkSync, readFileSync } from "node:fs";
+import { mkdirSync, rmSync, readdirSync, readlinkSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { inflateRawSync } from "node:zlib";
 import type { Readable } from "node:stream";
@@ -396,22 +396,85 @@ function hinweisAus(eintraege: { name: string; inhalt: Buffer }[]): string {
  * `beforeEach` zu ruehren, das 32 Tests tragen. Es darf die MESSUNG nur nicht
  * mehr faelschen — und das tut es jetzt nicht mehr.
  */
+/**
+ * Rueckfallweg fuer macOS (siehe Kommentar im `catch` von `offeneDescriptoren`):
+ * dort meldet `readlink` fuer JEDEN `/dev/fd`-Eintrag `EINVAL`, also zaehlt
+ * `offeneDescriptoren` stattdessen ueber `statSync(...).ino` — gemessen auf
+ * derselben Maschine identisch zwischen `/dev/fd/N` und der Quelldatei, obwohl
+ * `readlink`/`realpath` dort scheitern bzw. nur den Basisnamen liefern.
+ *
+ * Sammelt dafuer die Inodes aller Dateien unterhalb von `wurzel`, rekursiv. Die
+ * Datenbank samt WAL und SHM bleibt aussen vor — aus demselben Grund wie beim
+ * `readlink`-Weg (siehe dort): sie ist der Unterschied zwischen einer Messung
+ * ueber den Handler und einer Messung ueber den Garbage Collector.
+ */
+function inodesUnterhalb(wurzel: string): Set<number> {
+  const inodes = new Set<number>();
+  const stapel = [wurzel];
+  while (stapel.length > 0) {
+    const verzeichnis = stapel.pop()!;
+    let eintraege: string[];
+    try {
+      eintraege = readdirSync(verzeichnis);
+    } catch {
+      continue;
+    }
+    for (const eintrag of eintraege) {
+      const voll = `${verzeichnis}/${eintrag}`;
+      let info: ReturnType<typeof statSync>;
+      try {
+        info = statSync(voll);
+      } catch {
+        continue;
+      }
+      if (info.isDirectory()) {
+        stapel.push(voll);
+        continue;
+      }
+      if (/^files\.db(-wal|-shm)?$/.test(eintrag)) continue;
+      inodes.add(info.ino);
+    }
+  }
+  return inodes;
+}
+
 function offeneDescriptoren(): number {
   const wurzel = resolve(DIR);
   let offen = 0;
+  // Nur bei Bedarf gebaut (EINVAL kommt erst im `catch`) und danach fuer den
+  // Rest DIESES Aufrufs wiederverwendet — ein `/dev/fd`-Listing ist eine
+  // Momentaufnahme, der Baum unter `wurzel` aendert sich waehrenddessen nicht.
+  let inodes: Set<number> | null = null;
   for (const eintrag of readdirSync("/dev/fd")) {
     let ziel: string;
     try {
       ziel = readlinkSync(`/dev/fd/${eintrag}`);
-    } catch {
-      // Der Descriptor des Listings selbst ist beim `readlink` schon wieder zu.
+    } catch (fehler) {
+      const code = (fehler as NodeJS.ErrnoException).code;
+      // ENOENT: der Descriptor des Listings selbst ist beim `readlink` schon
+      // wieder zu (so auf Linux). EINVAL: auf macOS ist `/dev/fd/N` kein
+      // Symlink, sondern ein Zeichengeraet — `readlink` scheitert dort fuer
+      // JEDEN Eintrag, nicht nur fuer den des Listings (gemessen: Node
+      // v26.7.0, darwin, 13 Eintraege, 0 gelungene `readlink`, 13× EINVAL).
+      // Dort zaehlt stattdessen `inodesUnterhalb` weiter unten.
+      if (code === "EINVAL") {
+        inodes ??= inodesUnterhalb(wurzel);
+        let info: ReturnType<typeof statSync>;
+        try {
+          info = statSync(`/dev/fd/${eintrag}`);
+        } catch {
+          continue;
+        }
+        if (inodes.has(info.ino)) offen += 1;
+      }
       continue;
     }
     if (!ziel.startsWith(`${wurzel}/`)) continue;
     // Die Datenbank samt WAL und SHM zaehlt NICHT mit — auch nicht als
     // ausgehaengte Altlast, die `readlink` mit " (deleted)" meldet. Genau diese
     // Zeile ist der Unterschied zwischen einer Messung ueber den Handler und
-    // einer Messung ueber den Garbage Collector.
+    // einer Messung ueber den Garbage Collector. Auf dem Inode-Weg (macOS)
+    // gilt dieselbe Ausnahme, dort in `inodesUnterhalb`.
     if (/\/files\.db(-wal|-shm)?( \(deleted\))?$/.test(ziel)) continue;
     offen += 1;
   }
