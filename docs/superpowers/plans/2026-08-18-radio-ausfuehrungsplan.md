@@ -140,7 +140,7 @@ die Datei ist neu, ihre Zeilennummern sind noch nicht nachgemessen, und die Haus
 den Wortlaut suchen, nicht ueber die Nummer.** Die Aufgabenueberschriften lauten dort
 `## Aufgabe M1:` bis `## Aufgabe M6:`.
 
-⚠️ **M1 bis M3 sind EIN Block mit EINEM Tor** und **einem** gemeinsamen Commit ueber neun Dateien.
+⚠️ **M1 bis M3 sind EIN Block mit EINEM Tor** und **einem** gemeinsamen Commit ueber neun Pfade — **zwoelf** Dateien, denn `migrations` ist ein Verzeichnis.
 Vier Tests des Bestands koppeln Schemaverzeichnis, `MODULE_MIGRATIONS`, die `COPY`-Zeile im
 `Dockerfile` und `SEED_MODULE` aneinander (`src/core/bootstrap.test.ts:90-113`,
 `scripts/seed-lokal.test.ts:38-45`) — zwischen „Schemadatei angelegt" und „Seed verdrahtet" **kann
