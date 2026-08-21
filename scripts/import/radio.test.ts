@@ -5,6 +5,7 @@ import {
   ALLE_QUELLZEILEN,
   baueBespielteQuellDb,
   ALT_GERAET,
+  ALT_GERAET_OHNE_ANGABE,
 } from "./fixtures/radio-quelle";
 import {
   msZuDatum,
@@ -13,6 +14,7 @@ import {
   zuBoolOptional,
   pruefeQuelle,
   lieseQuelle,
+  toNeuesGeraet,
 } from "./radio";
 
 describe("radio-quelle-ddl.sql — die kopierte Quell-DDL", () => {
@@ -324,5 +326,115 @@ describe("lieseQuelle (Spec 2 §1.4)", () => {
   it("scripts/import/radio.ts enthaelt kein SELECT * — die Spalten stehen namentlich", () => {
     const quelltext = readFileSync("./scripts/import/radio.ts", "utf8");
     expect(quelltext).not.toMatch(/select\s+\*/i);
+  });
+});
+
+describe("toNeuesGeraet (Spec 2 §1.4.3)", () => {
+  /**
+   * Der erste der drei Tests, ohne die dieses Kapitel keinen Schutz hat (§1.10).
+   * ⚠️ Die zwei Konstanten sind paarweise verschieden — deshalb faengt DERSELBE Test auch
+   * die Vertauschung von `created_at` und `updated_at`.
+   */
+  it("toNeuesGeraet: jedes Zeitfeld behaelt SEINEN Wert in Millisekunden", () => {
+    const g = toNeuesGeraet(ALT_GERAET);
+    expect(g.createdAt.getTime()).toBe(1_735_689_600_000);
+    expect(g.updatedAt.getTime()).toBe(1_738_368_000_000);
+    expect(g.createdAt.getUTCFullYear()).toBe(2025);
+    expect(g.updatedAt.getUTCFullYear()).toBe(2025);
+  });
+
+  it("toNeuesGeraet: alamos_integrated und loanable werden nicht vertauscht", () => {
+    const g = toNeuesGeraet(ALT_GERAET);
+    expect(g.alamosIntegrated).toBe(true);
+    expect(g.loanable).toBe(false);
+  });
+
+  /**
+   * Der zwoelfte Test aus Spec 2 §1.3.5, additiv zu Spec 1 §2.2.5.
+   * ⚠️ `expect(g.loanable).toBeFalsy()` waere KEIN Test: `false` besteht ihn.
+   */
+  it("toNeuesGeraet: alamos_integrated=null und loanable=null bleiben null", () => {
+    const g = toNeuesGeraet(ALT_GERAET_OHNE_ANGABE);
+    expect(g.alamosIntegrated).toBeNull();
+    expect(g.loanable).toBeNull();
+  });
+
+  /**
+   * ⛛ Additive Zusicherung (Spec 2 §1.3.4): die EINZIGE Spalte mit Typwechsel und die
+   * einzige, deren Richtigkeit an der ZONE haengt. Die drei tagInBerlin-Tests aus Aufgabe 3
+   * pruefen die FUNKTION; diese Zeile prueft die VERDRAHTUNG. Ein Mapper mit
+   * `new Date(ms).toISOString().slice(0,10)` liefert hier "2025-03-01".
+   *
+   * ⚠️ Der Sollwert ist der BERLINER Kalendertag, nicht „einer der beiden Kandidatentage".
+   * Die Alt-Anwendung ist fuer diese eine Spalte KEINE zulaessige zweite Meinung: ihr
+   * CSV-Export formatiert UTC (radio-admin@265abd5:server/src/routes/export.ts:49-51),
+   * ihre Detailansicht den lokalen Tag (client/src/utils/format.ts:4,
+   * client/src/features/devices/DeviceEditForm.tsx:41) — sie widersprechen sich bei genau
+   * den Zeilen, um die es geht.
+   */
+  it("toNeuesGeraet: last_updated_at wird zum BERLINER Kalendertag", () => {
+    expect(toNeuesGeraet(ALT_GERAET).lastUpdatedAt).toBe("2025-03-02");
+    // NULL bleibt NULL — kein "" und kein heutiges Datum.
+    expect(toNeuesGeraet(ALT_GERAET_OHNE_ANGABE).lastUpdatedAt).toBeNull();
+  });
+
+  /**
+   * Der verbindliche Name aus Spec 2 §1.8, jetzt mit BEIDEN Zusicherungen: (a) die Fixture
+   * traegt wirklich die produktive Spaltenreihenfolge (sie steht auch als eigener Test in
+   * Aufgabe 1), (b) der Weg Quelle → lieseQuelle → toNeuesGeraet liest namentlich.
+   * Ein positionsweiser Import liefert hier `tei === "SN-001"`.
+   */
+  it("lieseQuelle liest namentlich: devices.tei steht in der Quelle an Position 25", () => {
+    const quellDb = baueBespielteQuellDb();
+    try {
+      const spalten = quellDb
+        .prepare("select cid, name from pragma_table_info('devices') order by cid")
+        .all() as Array<{ cid: number; name: string }>;
+      expect(spalten[spalten.length - 2]?.name).toBe("update_note");
+      expect(spalten[spalten.length - 1]?.name).toBe("tei");
+
+      const roh = lieseQuelle(quellDb).devices.find((r) => r.id === "g-1");
+      const g = toNeuesGeraet(roh!);
+      expect(g.tei).toBe("7654321");
+      expect(g.serialNumber).toBe("SN-001");
+    } finally {
+      quellDb.close();
+    }
+  });
+
+  /**
+   * Hausregel: jeder Mapper-Test prueft ALLE Zielfelder gegen konkrete Werte per `toEqual`,
+   * nicht nur Typ- oder Null-Checks (scripts/import/feedback.test.ts:181-183). Ohne diese
+   * eine Zeile faengt keiner der Tests oben ein GEDROPPTES Feld — es fehlt dann einfach,
+   * und `toBe`-Zusicherungen auf andere Felder bleiben gruen.
+   */
+  it("toNeuesGeraet: alle 25 Zielfelder, Feld fuer Feld", () => {
+    expect(toNeuesGeraet(ALT_GERAET)).toEqual({
+      id: "g-1",
+      rufname: "HRO 1/83-1",
+      issi: "1234567",
+      tei: "7654321",
+      serialNumber: "SN-001",
+      deviceType: "MTP6650",
+      status: "einsatzbereit",
+      location: "Funkraum",
+      assignedTo: "GW-San",
+      softwareVersion: "10.5.1",
+      lastUpdatedAt: "2025-03-02",
+      notes: "Stammnotiz",
+      hiorgId: "HO-002",
+      opta: "OPTA-003",
+      funktion: "Fuehrung",
+      hersteller: "Motorola",
+      bedieneinheit: "TMR880i",
+      deviceModes: "TMO,DMO",
+      alamosIntegrated: true,
+      loanable: false,
+      updateNote: "ISSI abweichend",
+      createdAt: new Date(1_735_689_600_000),
+      updatedAt: new Date(1_738_368_000_000),
+      createdBy: "sub-anna",
+      updatedBy: "sub-bert",
+    });
   });
 });

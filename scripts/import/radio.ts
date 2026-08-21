@@ -14,6 +14,7 @@
  */
 
 import type Database from "better-sqlite3";
+import * as schema from "@/app/m/radio/_db/schema";
 
 /**
  * Plausibilitaetsspanne fuer epoch-MILLISEKUNDEN. 1e12 = 2001-09-09, 4e12 = 2096-10-02.
@@ -223,5 +224,52 @@ export function lieseQuelle(quellDb: Database.Database): RadioQuelle {
            FROM loans`,
       )
       .all() as AltLeihe[],
+  };
+}
+
+/**
+ * 25 Spalten, Feld fuer Feld gegen Spec 1 §2.5.1 gegengelesen. Die Reihenfolge hier ist die
+ * des ZIELSCHEMAS — nicht die physische der Quelle —, damit sie beim Gegenlesen Zeile fuer
+ * Zeile mit der Schemadatei fluchtet.
+ *
+ * ⚠️ Jeder Zugriff geht ueber den NAMEN. Kein Destructuring nach Position, kein Spread aus
+ * der Quellzeile: `{ ...zeile }` traegt `serial_number` statt `serialNumber` und `snake_case`
+ * statt `camelCase` — Drizzle nimmt die unbekannten Schluessel klaglos entgegen und schreibt
+ * die bekannten als `undefined`.
+ */
+export function toNeuesGeraet(zeile: AltGeraet): schema.NeuesGeraet {
+  return {
+    id: zeile.id,
+    rufname: zeile.rufname ?? null,
+    issi: zeile.issi, // NICHT `tei`
+    tei: zeile.tei ?? null, // NICHT `issi`
+    serialNumber: zeile.serial_number ?? null,
+    deviceType: zeile.device_type ?? null,
+    status: zeile.status ?? null,
+    location: zeile.location ?? null,
+    assignedTo: zeile.assigned_to ?? null,
+    softwareVersion: zeile.software_version ?? null,
+    // TYPWECHSEL integer(ms) -> text `YYYY-MM-DD` in Europe/Berlin (Spec 1 §2.2.3).
+    lastUpdatedAt: tagInBerlin("devices.last_updated_at", zeile.last_updated_at),
+    notes: zeile.notes ?? null,
+    hiorgId: zeile.hiorg_id ?? null,
+    opta: zeile.opta ?? null,
+    funktion: zeile.funktion ?? null,
+    hersteller: zeile.hersteller ?? null,
+    bedieneinheit: zeile.bedieneinheit ?? null,
+    // Klartext, komma-verbunden. KEINE Normalisierung, kein Trim, kein Sortieren:
+    // genau eine Stelle liest und splittet ihn.
+    deviceModes: zeile.device_modes ?? null,
+    alamosIntegrated: zuBoolOptional(zeile.alamos_integrated),
+    loanable: zuBoolOptional(zeile.loanable),
+    // APPEND-ONLY in der Quelle (radio-admin/server/src/db/schema.ts:33-36) — genau die
+    // Spalte, die ein Zweitimport plattwalzt (§1.6.3 Fall A).
+    updateNote: zeile.update_note ?? null,
+    createdAt: msZuDatum("devices.created_at", zeile.created_at),
+    updatedAt: msZuDatum("devices.updated_at", zeile.updated_at),
+    // OIDC-`sub`, OHNE FK auf users.sub: ein FK hier braeche jeden Kaltimport, dessen
+    // `sub`-Werte in der Suite noch nie eingeloggt waren — also jeden (Spec 1 §2.3).
+    createdBy: zeile.created_by ?? null,
+    updatedBy: zeile.updated_by ?? null,
   };
 }
