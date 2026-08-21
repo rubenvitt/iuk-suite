@@ -11,6 +11,8 @@ import {
   ALT_VERSION_ZWEIT,
   ALT_EREIGNIS,
   ALT_EREIGNIS_UNBEKANNT,
+  ALT_LEIHE,
+  ALT_LEIHE_AKTIV,
 } from "./fixtures/radio-quelle";
 import {
   msZuDatum,
@@ -23,6 +25,7 @@ import {
   toNeuenBenutzer,
   toNeueSoftwareVersion,
   toNeuesGeraeteEreignis,
+  toNeueLeihe,
 } from "./radio";
 
 describe("radio-quelle-ddl.sql — die kopierte Quell-DDL", () => {
@@ -504,6 +507,64 @@ describe("Die drei schmalen Mapper (Spec 2 §1.4.1, §1.4.2, §1.4.4)", () => {
       changedBy: "sub-bert",
       changedAt: new Date(1_737_000_000_000),
       source: "manual",
+    });
+  });
+});
+
+describe("toNeueLeihe (Spec 2 §1.4.5)", () => {
+  it("toNeueLeihe: snapshot_call_sign und borrower_name werden nicht vertauscht", () => {
+    const l = toNeueLeihe(ALT_LEIHE);
+    expect(l.snapshotCallSign).toBe("HRO 1/83-1");
+    expect(l.borrowerName).toBe("Marek Sowa");
+  });
+
+  /**
+   * ⛛ Additive Zusicherung (§1.3.4). Vier paarweise verschiedene Konstanten — dieselbe
+   * Zeile faengt damit auch jede Vertauschung unter den vier Zeitfeldern.
+   */
+  it("toNeueLeihe: alle VIER Zeitfelder behalten SEINEN Wert in Millisekunden", () => {
+    const l = toNeueLeihe(ALT_LEIHE);
+    expect(l.borrowedAt.getTime()).toBe(1_741_000_000_000);
+    expect(l.returnedAt?.getTime()).toBe(1_741_100_000_000);
+    expect(l.createdAt.getTime()).toBe(1_740_999_999_000);
+    expect(l.updatedAt.getTime()).toBe(1_741_100_001_000);
+  });
+
+  /**
+   * ⛛ Ergaenzung dieses Plans. `returned_at IS NULL` ist keine fehlende Angabe, sondern
+   * die Aussage „diese Leihe laeuft". Ein `?? new Date(0)` machte daraus eine 1970
+   * zurueckgegebene — und der naechste Retention-Lauf loeschte sie.
+   */
+  it("toNeueLeihe: returned_at NULL bleibt NULL (die aktive Leihe)", () => {
+    expect(toNeueLeihe(ALT_LEIHE_AKTIV).returnedAt).toBeNull();
+    expect(toNeueLeihe(ALT_LEIHE_AKTIV).returnNote).toBeNull();
+  });
+
+  /**
+   * ⛛ Ergaenzung dieses Plans. §1.4.5 verlangt die Spalte EXPLIZIT als `null` im Mapper,
+   * nicht implizit durch Auslassen — nur so ist sie auf BEIDEN Paritaetsarmen vorhanden,
+   * und nur dann faellt es auf, wenn irgendetwas dort einen Wert hineinschreibt.
+   */
+  it("toNeueLeihe: zugangscodeId steht explizit als null in der Zielzeile", () => {
+    const l = toNeueLeihe(ALT_LEIHE);
+    expect(l.zugangscodeId).toBeNull();
+    expect(Object.keys(l)).toContain("zugangscodeId");
+  });
+
+  it("toNeueLeihe: alle 12 Zielfelder, Feld fuer Feld", () => {
+    expect(toNeueLeihe(ALT_LEIHE)).toEqual({
+      id: "l-1",
+      deviceId: "g-1",
+      snapshotCallSign: "HRO 1/83-1",
+      snapshotSerialNumber: "SN-001",
+      snapshotDeviceType: "MTP6650",
+      borrowerName: "Marek Sowa",
+      borrowedAt: new Date(1_741_000_000_000),
+      returnedAt: new Date(1_741_100_000_000),
+      returnNote: "Akku leer",
+      zugangscodeId: null,
+      createdAt: new Date(1_740_999_999_000),
+      updatedAt: new Date(1_741_100_001_000),
     });
   });
 });

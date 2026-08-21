@@ -318,3 +318,30 @@ export function toNeuesGeraeteEreignis(zeile: AltEreignis): schema.NeuesGeraeteE
     source: pruefeQuelle(zeile.id, zeile.source),
   };
 }
+
+export function toNeueLeihe(zeile: AltLeihe): schema.NeueLeihe {
+  return {
+    id: zeile.id,
+    // ABSICHTLICH kein FK auf devices.id, und er wird auch nicht „der Ordnung wegen"
+    // nachgezogen: radio-admin/server/src/db/schema.ts:106-110 begruendet es im Quelltext —
+    // Cascade loescht Historie, Restrict blockiert das Ausmustern. Die historische
+    // Richtigkeit traegt der unveraenderliche snapshot_*-Dreisatz, nicht ein lebender Join.
+    deviceId: zeile.device_id,
+    snapshotCallSign: zeile.snapshot_call_sign, // NICHT `borrower_name`
+    snapshotSerialNumber: zeile.snapshot_serial_number ?? null,
+    snapshotDeviceType: zeile.snapshot_device_type ?? null,
+    // Personenbezogen — der DSGVO-Grund der Zwei-Monats-Retention (Spec 1 §2.7).
+    borrowerName: zeile.borrower_name,
+    borrowedAt: msZuDatum("loans.borrowed_at", zeile.borrowed_at),
+    // ⚠️ NULL heisst „aktive Leihe" und MUSS NULL bleiben.
+    returnedAt: msZuDatumOptional("loans.returned_at", zeile.returned_at),
+    returnNote: zeile.return_note ?? null,
+    // Die Spalte hat KEINE Quelle: sie traegt die HERKUNFT des Zugangs („diese Leihe
+    // entstand ueber den Aufsteller im Funkraum"), nicht die Identitaet der Person
+    // (Spec 1 §2.11 Zusage 7, B6). Sie steht EXPLIZIT hier und nicht implizit durch
+    // Auslassen — nur so ist sie in der Paritaetssicht auf beiden Armen vorhanden.
+    zugangscodeId: null,
+    createdAt: msZuDatum("loans.created_at", zeile.created_at),
+    updatedAt: msZuDatum("loans.updated_at", zeile.updated_at),
+  };
+}
