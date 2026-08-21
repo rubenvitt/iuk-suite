@@ -839,6 +839,18 @@ describe("Import ist asymmetrisch idempotent (Spec 2 §1.6.3)", () => {
       .run();
 
     /**
+     * FIX-RUNDE 1 (Task-Review von B15): eine Zielzeile setzen, die der zweite Import VOR
+     * dem Wurf anfassen wuerde. `devices` ist Schleife 3, `loans` ist Schleife 5 — der Wurf
+     * in Schleife 5 kommt NACH dem devices-Upsert. Nur eine so gewaehlte Zeile kann nachher
+     * zwischen "mit Rollback" und "ohne Rollback" unterscheiden; `l-neu-in-suite` (unten
+     * entfernt) konnte es nicht, weil keine der fuenf Import-Schleifen sie je anfasst.
+     */
+    db.update(radioSchema.devices)
+      .set({ updateNote: "Suite-Wert vor Fall B" })
+      .where(eq(radioSchema.devices.id, "g-1"))
+      .run();
+
+    /**
      * ⚠️ Der Aufruf steht IN einer Transaktion, und das ist keine Formsache: §1.6.3 misst,
      * dass der Verstoss beim STATEMENT auffaellt und `db.transaction()` daraufhin
      * zurueckrollt. Ein blanker `importiereRadio(quelle, db)` wuerfe auch — aber OHNE
@@ -855,10 +867,19 @@ describe("Import ist asymmetrisch idempotent (Spec 2 §1.6.3)", () => {
     );
     expect((gefangen as { code?: string } | undefined)?.code).toBe("SQLITE_CONSTRAINT_UNIQUE");
 
-    // Und die Transaktion hat zurueckgerollt: die in der Suite entstandene Leihe steht noch.
+    /**
+     * Und die Transaktion hat WIRKLICH zurueckgerollt — nicht nur "das Neue blieb
+     * unberuehrt" (das waere so oder so gruen: `l-neu-in-suite` steht in keiner
+     * Quelltabelle, keine der fuenf Import-Schleifen fasst sie je an). Beweiskraeftig ist
+     * stattdessen `devices.g-1.updateNote`: mit Rollback steht hier weiterhin der oben
+     * gesetzte SUITE-Wert (der devices-Upsert aus Schleife 3 ist mit zurueckgerollt); ohne
+     * Rollback staende der QUELLWERT "ISSI abweichend", weil Schleife 3 schon gelaufen war,
+     * bevor Schleife 5 auf `loans` warf.
+     */
     expect(
-      db.select().from(radioSchema.loans).where(eq(radioSchema.loans.id, "l-neu-in-suite")).get(),
-    ).toBeDefined();
+      db.select().from(radioSchema.devices).where(eq(radioSchema.devices.id, "g-1")).get()
+        ?.updateNote,
+    ).toBe("Suite-Wert vor Fall B");
   });
 
   /**
