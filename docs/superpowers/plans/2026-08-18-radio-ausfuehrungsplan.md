@@ -8,7 +8,7 @@
 > C1–C41 Cutover) und **6** aus Planteil 1 zum Bau von **Spec 1** (**M1–M6**), geschrieben seit dem
 > 2026-08-21 und **gebaut** — sie heben Zaesur 1 fuer B5–B17. Die M-Aufgaben stehen unten **an ihrem
 > Platz in der Reihenfolge** — zwischen B4 und B5, denn genau dort liegt die Naht.
-> **10 von 64 Aufgaben sind erledigt** (B1–B4, M1–M6).
+> **11 von 64 Aufgaben sind erledigt** (B1–B5, M1–M6).
 
 **Stand 2026-08-21.** Grundlage: `docs/superpowers/specs/2026-08-18-radio-cutover-design.md`
 (Spec 2 — Import · Paritaet · Generalprobe · Cutover · Abbau) und
@@ -22,12 +22,13 @@
    des Routers. Beide sind entschieden — was in ihren Kapiteln **A** und **B** steht, gilt.
 3. **Fuenf Umsetzungsplaene sind fertig und dreifach gegengeprueft.** Sie stehen unten als
    Checkliste. Keine Zeile darin enthaelt einen erfundenen Wert — das ist gemessen, dreimal.
-4. **B1–B4 und M1–M6 sind gebaut** (2026-08-20 und 2026-08-21): B1–B4 die ganze **Quellseite** des
+4. **B1–B5 und M1–M6 sind gebaut** (2026-08-20 und 2026-08-21): B1–B4 die ganze **Quellseite** des
    Importers — die Fixture aus `radio-admin@265abd5`, die Rohzeilen, die Zeitachse, `lieseQuelle`
    (fuenf signierte Commits `a309f12` → `07b5f41`, **17 Tests gruen**); M1–M6 die **Zielseite**
    (Planteil 1 von Spec 1, Kapitel 2) — `src/app/m/radio/_db/` und `_lib/` existieren jetzt
-   (Commits `1ebb334` · `d3fc13c` · `36088e7` · `25c8c34` · `b96db98`). **B5 ist die naechste
-   ausfuehrbare Aufgabe.**
+   (Commits `1ebb334` · `d3fc13c` · `36088e7` · `25c8c34` · `b96db98`); **B5** der erste Mapper und
+   die erste Stelle, an der Quellseite und Zielschema sich beruehren (Commit `903ed0b`,
+   **23 Tests gruen**). **B6 ist die naechste ausfuehrbare Aufgabe.**
 5. **Die eiserne Regel dieses Wegs:** wo ein Wert erst der Bau oder der Server hergibt, steht eine
    benannte Leerstelle (⬜ L…, E…, U…, C…, N…) — **niemals** eine plausibel aussehende Erfindung.
    Der Praezedenzfall ist vernarbt: die `lagerbuch`-Spec verlangte ein `cookies().delete()` in einer
@@ -170,8 +171,16 @@ kein Tor gruen sein**. M1 ist per Bauart rot, bis M3 steht; das ist ihr Zweck, n
 nicht aber B5–B17. Wer nach M6 glaubt, Spec 1 sei gebaut, plant eine Generalprobe, die nicht laufen
 kann.
 
-- [ ] **B5** `toNeuesGeraet` — 25 Felder, der Faktor 1000, die zwei 0/1-Integer, der Berliner Tag  
-      `2026-08-18-plan1-radio-import.md:1286` — Aufgabe 5
+- [x] **B5** `toNeuesGeraet` — 25 Felder, der Faktor 1000, die zwei 0/1-Integer, der Berliner Tag  
+      `2026-08-18-plan1-radio-import.md:1286` — Aufgabe 5 · **fertig 2026-08-21**, Commit `903ed0b`,
+      **23 Tests gruen**. Planexakt, ohne Abweichung: ⬜ **L1** abgelesen (Insert-Alias
+      `NeuesGeraet`, Select-Alias `Geraet`, `src/app/m/radio/_db/schema.ts:255-256`), kein `as` auf
+      dem Rueckgabewert. Drei Mutationssonden gesetzt und zurueckgenommen: die zwei 0/1-Integer
+      vertauscht (**2 rot**), UTC-Kuerzung statt `tagInBerlin` (**2 rot**, `"2025-03-01"`),
+      `updateNote` gedroppt (**1 rot** — nur der 25-Feld-`toEqual` faengt es).
+      ⚠️ **NT2 ist hier NICHT tragend und bleibt geparkt:** `AltGeraet.alamos_integrated` ist
+      `0 | 1 | null`, nicht optional — der `undefined`-Zweig von `zuBoolOptional` ist von
+      `toNeuesGeraet` aus typseitig unerreichbar. Die Haertung bleibt eine Planentscheidung
 - [ ] **B6** Die drei schmalen Mapper: `users`, `software_versions`, `device_events`  
       `2026-08-18-plan1-radio-import.md:1536` — Aufgabe 6a
 - [ ] **B7** `toNeueLeihe` — 12 Zielfelder, vier Zeitstempel, `zugangscodeId` immer `null`  
@@ -208,7 +217,7 @@ gegengeprueft. Wer sie nicht eintraegt, laeuft beim naechsten Durchgang erneut h
 | # | Fund | Wo er hingehoert |
 |---|---|---|
 | **NT1** | ⛔ **`2026-08-18-plan1-radio-import.md`, Aufgabe 4 widerspricht sich selbst.** Schritt 1 gibt den Quelltext-Scan wortwoertlich vor (`expect(quelltext).not.toMatch(/select\s+\*/i)`), Schritt 3 gibt einen Kopfkommentar fuer `lieseQuelle` vor, der die Zeichenkette `` `SELECT *` `` als **Zitat des Anti-Vorbilds** (`scripts/import/feedback.ts:66-72`) selbst enthaelt — und Schritt 4 sagt „17 passed" voraus. Der Scan unterscheidet nicht zwischen einem Statement und einem Prosa-Zitat. **Beide Wortlaute stammen aus dem Plan**, der Widerspruch liegt dort | **Nachtrag am Plan**, Aufgabe 4 Schritt 3. Gebaut wurde der Test **streng** und der Kommentar umformuliert („liest fuenfmal ohne Spaltenliste") — die Entscheidung steht, sie gehoert nur ins Dokument |
-| **NT2** | **`zuBoolOptional(undefined)` gibt `false` zurueck**, nicht `null` — genau die Faltung, die der Kommentar zwei Zeilen darueber namentlich verbietet, und asymmetrisch zu `msZuDatumOptional`, das `undefined` ausdruecklich behandelt. Signatur **und** Rumpf sind planvorgegeben, ebenso der blinde Cast `.all() as AltGeraet[]`, ueber den `undefined` ueberhaupt erst ankaeme. **Heute harmlos** (die Funktion hat keinen Aufrufer), **ab B5 tragend** (`toNeuesGeraet` ist ihr Verbraucher) | **Entscheidung an Ruben**, dann Nachtrag am Plan. Kleinste Behebung: `(v: 0 \| 1 \| null \| undefined) => (v === null \|\| v === undefined ? null : v === 1)`. ⚠️ **Gehoert in den Auftrag von B5** |
+| **NT2** | **`zuBoolOptional(undefined)` gibt `false` zurueck**, nicht `null` — genau die Faltung, die der Kommentar zwei Zeilen darueber namentlich verbietet, und asymmetrisch zu `msZuDatumOptional`, das `undefined` ausdruecklich behandelt. Signatur **und** Rumpf sind planvorgegeben, ebenso der blinde Cast `.all() as AltGeraet[]`, ueber den `undefined` ueberhaupt erst ankaeme. **Am 2026-08-21 mit dem Bau von B5 nachgemessen: NICHT tragend.** `AltGeraet.alamos_integrated` und `.loanable` sind `0 \| 1 \| null`, **nicht optional** (`scripts/import/radio.ts:126-127`) — der `undefined`-Zweig ist von `toNeuesGeraet` aus typseitig unerreichbar, und der `SELECT` nennt beide Spalten namentlich. Bleibt eine **Haertung gegen den blinden Cast**, kein Fehler im Datenweg | **Entscheidung an Ruben**, dann Nachtrag am Plan. Kleinste Behebung: `(v: 0 \| 1 \| null \| undefined) => (v === null \|\| v === undefined ? null : v === 1)`. ⚠️ **Nicht mehr blockierend fuer B5** (gebaut). Naechster moeglicher Verbraucher: **B6**, `software_versions.is_target` — dort aber ueber NT5 |
 | **NT3** | **Der `SELECT *`-Scan ist loechrig:** `/select\s+\*/i` laesst `SELECT d.*` und `select*from` durch (beides gueltiges SQLite, der Tokenizer braucht kein Trennzeichen) und schlaegt bei Prosa-Zitaten falsch an. Testzeile und Regex sind planvorgegeben | **Nachtrag am Plan**, Aufgabe 4 Schritt 1 |
 | **NT4** | **Die Zaehlprobe gegen den `zuBoolOptional`-Fund (NT2) gehoert ins Cutover-Runbook.** NT2 beschreibt, dass `zuBoolOptional(undefined)` `false` statt `null` liefert und ab B5 tragend wird. Das Abschluss-Review von M1–M6 hat ergaenzt, **warum das nach dem Import nicht mehr nachweisbar ist**: `devices.alamosIntegrated` und `devices.loanable` sind die zwei **nullable** `mode: "boolean"`-Spalten des neuen Schemas, und ein falsch gefaltetes `false` ist dort **nicht mehr von einem echten `false` zu unterscheiden** („Alamos nicht erfasst" wird „nicht integriert") und ist paritaetsgruen. Die **einzige** Probe, die es faengt: `select count(*) from devices where loanable is null` und dasselbe fuer `alamos_integrated`, **Quelle gegen Ziel** | **Nachtrag im Cutover-Runbook**, Plan 4 §C Schritt 4–5 (Import, Paritaet, Feldstichproben) — als Feldstichprobe Quelle gegen Ziel. Betrifft **C28** |
 | **NT5** | **Ein Reibungspunkt an der Naht zu B5, der eine Zeile Mapper kostet und keine Schemaaenderung:** `AltVersion.is_target` ist in `scripts/import/radio.ts` als `number` typisiert, `zuBoolOptional` nimmt aber `0 \| 1 \| null`. B5 (bzw. B6, wo `software_versions` gemappt wird) braucht dort ein `row.is_target === 1` inline oder einen zweiten Helfer. Das Abschluss-Review von M1–M6 hat die Naht **Feld fuer Feld** geprueft und sonst **keinen** Bruch gefunden: `AltGeraet` (25 Felder) → `NeuesGeraet` (25 Spalten) ist deckungsgleich in Name, Nullability und Reihenfolge, `last_updated_at: number\|null` → `lastUpdatedAt: string\|null` ist genau der Bruch, den `tagInBerlin` bedient, und `AltLeihe` (11) → `NeueLeihe` (12) traegt die zwoelfte nullable ohne Default, also im `$inferInsert` optional | **Auftrag an B5/B6** (Naht NS-M2/NS-M3) — eine Zeile Mapper (`row.is_target === 1` oder ein zweiter Helfer), keine Schemaaenderung |
