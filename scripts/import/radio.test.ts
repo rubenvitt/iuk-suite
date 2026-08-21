@@ -26,6 +26,8 @@ import {
   toNeueSoftwareVersion,
   toNeuesGeraeteEreignis,
   toNeueLeihe,
+  paritaetsSichtGeraet,
+  getaggteQuellzeilen,
 } from "./radio";
 
 describe("radio-quelle-ddl.sql — die kopierte Quell-DDL", () => {
@@ -566,5 +568,33 @@ describe("toNeueLeihe (Spec 2 §1.4.5)", () => {
       createdAt: new Date(1_740_999_999_000),
       updatedAt: new Date(1_741_100_001_000),
     });
+  });
+});
+
+describe("Paritaet (Spec 2 §1.5.2)", () => {
+  it("paritaetsSichtGeraet liefert Sekunden fuer beide Arme", () => {
+    const s = paritaetsSichtGeraet(toNeuesGeraet(ALT_GERAET));
+    expect(s.createdAt).toBe(1_735_689_600);
+    expect(s.updatedAt).toBe(1_738_368_000);
+  });
+
+  // Regel 3: die eine Spalte, die NICHT umgerechnet wird.
+  it("paritaetsSichtGeraet laesst lastUpdatedAt unumgerechnet als Text stehen", () => {
+    expect(paritaetsSichtGeraet(toNeuesGeraet(ALT_GERAET)).lastUpdatedAt).toBe("2025-03-02");
+    expect(paritaetsSichtGeraet(toNeuesGeraet(ALT_GERAET_OHNE_ANGABE)).lastUpdatedAt).toBeNull();
+  });
+
+  it("getaggteQuellzeilen traegt je Zeile ein __table-Tag", () => {
+    const quellDb = baueBespielteQuellDb();
+    try {
+      const zeilen = getaggteQuellzeilen(lieseQuelle(quellDb));
+      expect(zeilen).toHaveLength(8); // 1 + 2 + 2 + 1 + 2
+      const tags = [...new Set(zeilen.map((z) => z.__table))].sort();
+      expect(tags).toEqual([
+        "device_events", "devices", "loans", "software_versions", "users",
+      ]);
+    } finally {
+      quellDb.close();
+    }
   });
 });

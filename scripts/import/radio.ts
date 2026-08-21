@@ -14,7 +14,9 @@
  */
 
 import type Database from "better-sqlite3";
+import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/app/m/radio/_db/schema";
+import { checkParity, type ParityReport, type Row } from "./parity";
 
 /**
  * Plausibilitaetsspanne fuer epoch-MILLISEKUNDEN. 1e12 = 2001-09-09, 4e12 = 2096-10-02.
@@ -344,4 +346,178 @@ export function toNeueLeihe(zeile: AltLeihe): schema.NeueLeihe {
     createdAt: msZuDatum("loans.created_at", zeile.created_at),
     updatedAt: msZuDatum("loans.updated_at", zeile.updated_at),
   };
+}
+
+export type RadioDb = BetterSQLite3Database<typeof schema>;
+
+/**
+ * Zeichengleich `tsSeconds` aus scripts/import/portal.ts:66-71 bzw. feedback.ts:174-176,
+ * mit deutschem Namen (Spec 1 §2.2.4). Drizzle schreibt SEKUNDEN; ohne diese Normalisierung
+ * auf BEIDEN Armen scheitert ein zeichengleicher Import allein an Praezision.
+ */
+const sekunden = (d: Date | null) => (d ? Math.floor(d.getTime() / 1000) : null);
+
+export function paritaetsSichtGeraet(r: schema.NeuesGeraet | schema.Geraet) {
+  return {
+    id: r.id,
+    rufname: r.rufname ?? null,
+    issi: r.issi,
+    tei: r.tei ?? null,
+    serialNumber: r.serialNumber ?? null,
+    deviceType: r.deviceType ?? null,
+    status: r.status ?? null,
+    location: r.location ?? null,
+    assignedTo: r.assignedTo ?? null,
+    softwareVersion: r.softwareVersion ?? null,
+    // Regel 3: TEXT `YYYY-MM-DD`, NICHT durch sekunden().
+    lastUpdatedAt: r.lastUpdatedAt ?? null,
+    notes: r.notes ?? null,
+    hiorgId: r.hiorgId ?? null,
+    opta: r.opta ?? null,
+    funktion: r.funktion ?? null,
+    hersteller: r.hersteller ?? null,
+    bedieneinheit: r.bedieneinheit ?? null,
+    deviceModes: r.deviceModes ?? null,
+    alamosIntegrated: r.alamosIntegrated ?? null,
+    loanable: r.loanable ?? null,
+    updateNote: r.updateNote ?? null,
+    createdAt: sekunden(r.createdAt),
+    updatedAt: sekunden(r.updatedAt),
+    createdBy: r.createdBy ?? null,
+    updatedBy: r.updatedBy ?? null,
+  };
+}
+
+/**
+ * Paritaetssicht `users` — ALLE DREI Spalten namentlich, keine Auswahl.
+ * `portal.ts:78-81` ist das Vorbild: eine Sicht, die nur eine Teilmenge fuehrt,
+ * zertifiziert auch nur diese Teilmenge — und der Rest der Zeile ist paritaetsblind.
+ *
+ * `lastSeenAt` ist im Ziel `{ mode: "timestamp" }` (Spec 1 §2.5.3) und laeuft deshalb
+ * durch `sekunden()`; ohne diese Normalisierung scheitert ein zeichengleicher Import
+ * allein an Sub-Sekunden (portal.ts:66-71).
+ */
+export function paritaetsSichtBenutzer(r: schema.NeuerBenutzer | schema.Benutzer) {
+  return {
+    sub: r.sub,
+    name: r.name,
+    lastSeenAt: sekunden(r.lastSeenAt),
+  };
+}
+
+/**
+ * Paritaetssicht `software_versions` — alle SECHS Spalten.
+ *
+ * INSERT-DEFAULTS WERDEN NORMALISIERT, NICHT WEGGELASSEN. Auf dem Quellarm kommt die
+ * Zeile aus `toNeueSoftwareVersion(...)` und traegt fuer `sortOrder`/`isTarget`
+ * moeglicherweise `undefined`; auf dem Zielarm hat SQLite den DEFAULT eingesetzt und
+ * liefert `0` bzw. `false`. Ohne `??` haetten die zwei Arme verschiedene Hashes und
+ * die Paritaet waere ROT OHNE FEHLER. `portal.ts:79-80` macht es genauso.
+ *
+ * ⚠️ `canon()` in parity.ts:16-28 unterscheidet ein explizites `undefined`
+ * ({__undefined:true}) von einem fehlenden Feld — ein weggelassenes `?? 0` ist also
+ * kein harmloser Zufall, sondern ein garantierter Hash-Unterschied.
+ */
+export function paritaetsSichtSoftwareVersion(
+  r: schema.NeueSoftwareVersion | schema.SoftwareVersion,
+) {
+  return {
+    id: r.id,
+    value: r.value,
+    createdAt: sekunden(r.createdAt),
+    createdBy: r.createdBy ?? null,
+    sortOrder: r.sortOrder ?? 0,
+    isTarget: r.isTarget ?? false,
+  };
+}
+
+/**
+ * Paritaetssicht `device_events` — alle ACHT Spalten.
+ *
+ * `source` wird DURCHGEREICHT, nicht validiert: die Spalte ist in SQL
+ * `text NOT NULL` und die DB akzeptiert jeden String (radio-admin@265abd5
+ * server/src/db/schema.ts:96, das Enum steht nur im TS-Typ). Das Tor gegen einen
+ * fuenften Wert ist `toNeuesGeraeteEreignis` (es WIRFT) und die Vorabfrage A5,
+ * nicht diese Sicht.
+ *
+ * `device_events` ist ein JOURNAL. Der Importer schreibt sie mit
+ * `onConflictDoNothing` (Spec 1 §2.8.4, Beleg docs/runbooks/lagerbuch-cutover.md:409),
+ * nicht mit einem Upsert — die Sicht aendert daran nichts, aber wer sie liest,
+ * soll es wissen.
+ */
+export function paritaetsSichtGeraeteEreignis(
+  r: schema.NeuesGeraeteEreignis | schema.GeraeteEreignis,
+) {
+  return {
+    id: r.id,
+    deviceId: r.deviceId,
+    field: r.field,
+    oldValue: r.oldValue ?? null,
+    newValue: r.newValue ?? null,
+    changedBy: r.changedBy ?? null,
+    changedAt: sekunden(r.changedAt),
+    source: r.source,
+  };
+}
+
+/**
+ * Paritaetssicht `loans` — ZWOELF Felder: die elf Quellspalten plus `zugangscodeId`.
+ *
+ * `zugangscodeId` hat in der Quelle KEIN Gegenstueck (B6). Sie steht trotzdem in der
+ * Sicht, weil die Sicht die ZIELTABELLE zertifiziert, nicht die Quelle: auf dem
+ * Quellarm liefert der Mapper `null`, auf dem Zielarm steht `null`, solange niemand
+ * ueber die Suite ausgeliehen hat. Ein Wert != null zwischen Import und Pruefung ist
+ * im Fenster ein ALARM, kein Datenbefund (Spec 2 §2.2.3) — die dazugehoerige
+ * Gegenzaehlung steht in §Z.
+ *
+ * `returnedAt` ist die einzige nullable Zeitspalte dieser Tabelle. Sie ist zugleich
+ * die Spalte, die der Faktor-1000-Fehler zerstoert: Sekunden statt Millisekunden legt
+ * jedes `returned_at` ins Jahr 1970, und der Retention-Purge loescht die komplette
+ * abgeschlossene Leihhistorie (Spec 2, Randbedingung 3). Aktive Leihen
+ * (`returned_at IS NULL`) ueberleben — deshalb sieht der Kiosk danach "richtig" aus.
+ */
+export function paritaetsSichtLeihe(r: schema.NeueLeihe | schema.Leihe) {
+  return {
+    id: r.id,
+    deviceId: r.deviceId,
+    snapshotCallSign: r.snapshotCallSign,
+    snapshotSerialNumber: r.snapshotSerialNumber ?? null,
+    snapshotDeviceType: r.snapshotDeviceType ?? null,
+    borrowerName: r.borrowerName,
+    borrowedAt: sekunden(r.borrowedAt),
+    returnedAt: sekunden(r.returnedAt ?? null),
+    returnNote: r.returnNote ?? null,
+    zugangscodeId: r.zugangscodeId ?? null,
+    createdAt: sekunden(r.createdAt),
+    updatedAt: sekunden(r.updatedAt),
+  };
+}
+
+export function getaggteQuellzeilen(q: RadioQuelle): Row[] {
+  return [
+    ...q.users.map((r) => ({ __table: "users", ...paritaetsSichtBenutzer(toNeuenBenutzer(r)) })),
+    ...q.softwareVersions.map((r) => ({ __table: "software_versions", ...paritaetsSichtSoftwareVersion(toNeueSoftwareVersion(r)) })),
+    ...q.devices.map((r) => ({ __table: "devices", ...paritaetsSichtGeraet(toNeuesGeraet(r)) })),
+    ...q.deviceEvents.map((r) => ({ __table: "device_events", ...paritaetsSichtGeraeteEreignis(toNeuesGeraeteEreignis(r)) })),
+    ...q.loans.map((r) => ({ __table: "loans", ...paritaetsSichtLeihe(toNeueLeihe(r)) })),
+  ];
+}
+
+export function getaggteZielzeilen(db: RadioDb): Row[] {
+  return [
+    ...db.select().from(schema.users).all().map((r) => ({ __table: "users", ...paritaetsSichtBenutzer(r) })),
+    ...db.select().from(schema.softwareVersions).all().map((r) => ({ __table: "software_versions", ...paritaetsSichtSoftwareVersion(r) })),
+    ...db.select().from(schema.devices).all().map((r) => ({ __table: "devices", ...paritaetsSichtGeraet(r) })),
+    ...db.select().from(schema.deviceEvents).all().map((r) => ({ __table: "device_events", ...paritaetsSichtGeraeteEreignis(r) })),
+    ...db.select().from(schema.loans).all().map((r) => ({ __table: "loans", ...paritaetsSichtLeihe(r) })),
+  ];
+}
+
+/**
+ * ⚠️ Der Zielarm liest OHNE `WHERE` (feedback.ts:248-256). Laeuft der Import gegen eine
+ * Ziel-DB, in der schon Zeilen stehen, ist Paritaet ROT mit `missingInSource` — und das ist
+ * erwuenscht: der Paritaetscheck ist zugleich der Nachweis, dass die Ziel-DB leer war.
+ */
+export function checkRadioParitaet(q: RadioQuelle, db: RadioDb): ParityReport {
+  return checkParity(getaggteQuellzeilen(q), getaggteZielzeilen(db));
 }
