@@ -168,14 +168,30 @@ formuliert haben, gilt die **Vereinigung**.
   `src/app/m/feedback/f/[slugSecret]/Zettel.test.tsx` — diese Tests laufen in der `node`-Umgebung
   statt in jsdom. Ein Verdacht, **nicht** geprüft: `pnpm-lock.yaml` führt `vitest@4.1.10`, die
   radio-Pläne haben gegen `4.1.5` gemessen.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Die Suite ist vollstaendig gruen — `441 passed (441)`
+  > Testdateien, `7991 passed (7991)` Tests, Exit 0. Die Ursache der 170 war die, die der
+  > Absatz oben als Leitbild nennt: Node 26 bringt ein eigenes `localStorage` mit, das jsdoms
+  > verdeckt. Gerichtet auf `main` in `d085057` und `40981bc`. Messung und Randbedingungen:
+  > `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
+
   **Deshalb gilt als Tor je Aufgabe:** `rtk pnpm typecheck` **grün** (0 Fehler) ·
   `rtk pnpm lint` **0 Fehler** · **die eigenen Testdateien der Aufgabe grün** · und **kein neuer
   Fehlschlag** in einer Datei, die der Diff nicht anfasst. Wer behauptet, seine Änderung habe die
   Suite rot gemacht, entscheidet das mit der **Beiseitelege-Gegenprobe** (die eigenen Dateien
   temporär verschieben, voll laufen lassen, zurücklegen), nicht mit dem Zählwert allein.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Das Tor „voller `vitest run` gruen" ist wieder erreichbar. Die
+  > obige Ersatzformel bleibt gueltig und ist die schaerfere Lesart — sie ist ab jetzt nur nicht
+  > mehr die einzig moegliche. Beleg: `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
+
   ⚠️ Die 170 zu richten ist ein **eigener Auftrag** an `m/feedback` und `m/files` plus die
   vitest-Frage — und §3.6 Nr. 1 von Spec 2 verlangt drei grüne Tests vor der ersten Generalprobe,
   weshalb dieser Posten vor dem Cutover fällig ist, aber nicht hier.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Dieser Auftrag ist erledigt, und §3.6 Nr. 1 ist nicht mehr
+  > durch eine rote Suite blockiert. Beleg:
+  > `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
 
 * **`pnpm build` und Playwright** werden von Planteil 1 nicht berührt (er fasst kein `src/app/**`
   außer `src/app/m/radio/_db/` und `_lib/` an, und legt dort keine Route an). Von Planteil 2 an

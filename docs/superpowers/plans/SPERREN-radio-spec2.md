@@ -106,7 +106,8 @@ auch findet, wer nach der C-Nummer sucht.
 | Nummer | Die Frage, in einem Satz | Quelle | blockiert | Frist |
 |---|---|---|---|---|
 | **U4 / C.5** ⛔ | **Auf welchem Host und über welchen Weg — Container, statische Auslieferung, Reverse-Proxy-Eintrag — wird `radio.iuk-ue.de` heute ausgeliefert?** | Betreiber — ⚠️ **kein Befehl beantwortet ihn** | ⛔ **Cut 27** (Freeze) · ⛔ **Cut 29** (der Umschwenk hat ohne U4 kein ausführbares Ziel) · ⛔ **Cut 31** (Rückweg 3c/3d) · **Cut 36** (Vollständigkeit der Abbauliste) | **vor dem Fenster.** Nach dem Abbau nur noch durch Ausprobieren — und das Ausprobieren heißt dann „was ist kaputtgegangen?" |
-| **C.6 / B4** ⛔ | **Bekommt `radio` zwei Verwaltungsstufen (Admin und Updater) oder eine?** | Betreiber — in Spec 1 **bewusst geparkt**, fachlich blockierend | **Cut 3 · 26** — **genau eine `.env`-Zeile** | vor **Cut 3** und **Cut 26**. Der Cutover ist ohne Antwort **durchführbar** (eine Rolle ist der engere Zuschnitt); fällt sie auf „zwei Rollen", kommen eine sechste Boot-Prüfung und eine sechste Eingabe neben E1 hinzu |
+| **C.6 / B4** ✅ | ~~**Bekommt `radio` zwei Verwaltungsstufen (Admin und Updater) oder eine?**~~ ✅ **ENTSCHIEDEN 2026-08-21: ZWEI Stufen, wie im Bestand.** `SUITE_UPDATER_GROUP_RADIO` wird echt gebaut | Betreiber — **beantwortet** | ~~Cut 3 · 26~~ — **entsperrt.** Die eine `.env`-Zeile ist jetzt gesetzt | ⛔ **Der Preis ist fällig, nicht die Frage:** eine **sechste Boot-Prüfung** und eine **sechste Eingabe neben E1** (der Gruppenname für `SUITE_UPDATER_GROUP_RADIO`, zeichengleich wie im `groups`-Claim) — **beide vor Cut 26**. Und Spec-1-Kapitel 5 muss mit den Kapiteln 3 und 8 abgeglichen werden (Spec **B4**), Auflage an **Planteil 4** des Modulwegs. Siehe `ENTSCHEIDUNGEN-radio.md` Punkt 2 |
+| **E1b** ⬜ | **Wie heißt die Gruppe für `SUITE_UPDATER_GROUP_RADIO`, zeichengleich wie im `groups`-Claim?** — **neu, entstanden mit der Entscheidung zu C.6/B4** | Betreiber | **Cut 26** — jede Verwaltungsseite mit Updater-Stufe | vor **Cut 26**, also vor dem Fenster. ⚠️ **Nicht** vor der Generalprobe — dieselbe Lesart wie bei E1: die Probe setzt einen frei erfundenen Wert, und das ist richtig |
 | **E5 / C.3** ⛔ | **Sind gedruckte Aufsteller mit dem heutigen QR-Code im Umlauf — und wenn ja: wie viele, wo, und wer kann sie ersetzen?** | **Begehung, kein `SELECT`** | ⛔ **Cut 31** — die **Zweigwahl** in §F | **vor dem Fenster**, nicht am Fensterabend: „Beide Zweige stehen hier, weil die Entscheidung am Cutover-Abend zu spät kommt" (`2026-08-18-plan4-radio-cutover.md:2292-2293`) |
 | **E1** | **Wie heißt die Gruppe für `SUITE_ADMIN_GROUP_RADIO`, zeichengleich wie im `groups`-Claim?** | Betreiber | **Cut 26** — jede Verwaltungsseite | vor **Cut 26**, also vor dem Fenster. ⚠️ **Nicht** vor der Generalprobe: die setzt einen frei erfundenen Wert, und das ist richtig |
 | **E4 / C.2** | **Gilt für `RADIO_AUSLEIH_SITZUNG_STUNDEN` der Vorschlag 12, oder ein anderer Wert?** | Betreiber | **Cut 26 · 31** | vor **Cut 26**. Ohne Antwort gilt **12** — der Cutover läuft, aber die Neuigkeitennotiz führte sonst eine **unbestätigte** Zahl als bestätigt |
@@ -241,6 +242,11 @@ Beide sind hier durch `files-cutover.md:39-58` ersetzt.
   zusätzliche `.env`-Zeile; alles andere (Env-Block, Folgen-Tabelle, §B.1 Abbruch gegen still, §B.2
   Rollback als **leere** Zeile, §B.3 Redirect) entsteht heute, mit **drei** ⏸-Zeilen als benannten
   Lücken.
+
+  > ✅ **Nachtrag 2026-08-21.** C.6/B4 ist entschieden — **zwei Stufen**. Die eine zusätzliche
+  > `.env`-Zeile heißt `SUITE_UPDATER_GROUP_RADIO` und ist damit **gesetzt**; ihr **Wert** ist es
+  > nicht: er steht als neue Betreiberzeile **E1b** in Tabelle (c). Es bleiben also **drei**
+  > ⏸-Zeilen — nur eine andere Menge als vorher.
 * **Cut 20 in beiden Fassungen** — ⬜ L9 ist eine **Zweigwahl, keine Blockade**
   (`2026-08-18-plan3-radio-generalprobe.md:91`); Stufe 3 wird in beiden Fassungen beschrieben.
 * **Cut 31 in beiden Zweigen** und **Cut 27 mit den Zeilen 1 und 2 der Stopp-Tabelle** — Zeile 3
@@ -362,6 +368,13 @@ berühren Nummern dieser Tabellen und gehören in denselben Nachtrag (Cut 41):**
 ---
 
 ## Abgleich — steht jede Nummer hier, und hat jede Zeile ein Ziel?
+
+> ⚠️ **Nachtrag 2026-08-21 zu diesem Abgleich.** Mit der Entscheidung zu **C.6 / B4** (zwei Stufen)
+> ist eine Zeile hinzugekommen, die **kein Plan führt**: ⬜ **E1b**, der Gruppenname für
+> `SUITE_UPDATER_GROUP_RADIO`. Sie ist die Zwillingszeile zu **E1** und in der Hinrichtung unten
+> **noch nicht mitgezählt** — die Zählung `E1–E8 = 8` liest sich ab heute als **E1, E1b, E2–E8 = 9**.
+> Die Pläne nennen sie noch nicht; **Cut 26** muss sie aufnehmen. Das ist ein echter Nachtrag am
+> Plan, keine Buchhaltung: fehlt der Wert am Fensterabend, hat die Updater-Stufe keine Gruppe.
 
 **Hinrichtung (jede Nummer der Pläne steht in einer Tabelle):** L1–L14 = 14 · N1–N10 = 10 ·
 E1–E8 = 8 · U4, U4a, U4b, U6, U7, U9 = 6 · C.1, C.2, C.3, C.4, C.5, C.6, C.7 = 7. **U8** ist

@@ -301,16 +301,33 @@ Dateien**, also einer **mehr**. Die Fehlschlaege sind von dieser Arbeit unabhaen
 jsdom. Ein Verdacht, **nicht geprueft**: `pnpm-lock.yaml` fuehrt `vitest@4.1.10`, die Plaene haben
 gegen `4.1.5` gemessen.
 
+> ✅ **UEBERHOLT am 2026-08-21.** Die Suite ist vollstaendig gruen — `441 passed (441)`
+> Testdateien, `7991 passed (7991)` Tests, Exit 0. Die Ursache der 170 war die, die der
+> Absatz oben als Leitbild nennt: Node 26 bringt ein eigenes `localStorage` mit, das jsdoms
+> verdeckt. Gerichtet auf `main` in `d085057` und `40981bc`. Messung und Randbedingungen:
+> `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
+
 **Zwei Folgen:**
 
 * **Das Tor „voller `vitest run` gruen" ist heute nicht erreichbar.** Bis das gerichtet ist, gilt als
   Tor: `typecheck` **0 Fehler** · `lint` **0 Fehler** · **die eigenen Testdateien gruen** · **kein
   neuer Fehlschlag** in einer unberuehrten Datei. Der Streitfall wird mit der
   **Beiseitelege-Gegenprobe** entschieden, nicht mit dem Zaehlwert.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Das Tor „voller `vitest run` gruen" ist wieder erreichbar
+  > (441/441 Testdateien, 7991/7991 Tests, Exit 0). Die Ersatzformel (typecheck 0 · lint 0 ·
+  > eigene Dateien gruen · kein neuer Fremdfehlschlag) bleibt gueltig und ist die schaerfere
+  > Lesart — sie ist ab jetzt nur nicht mehr die einzig moegliche. Beleg:
+  > `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
+
 * ⛔ **§3.6 Nr. 1 verlangt drei gruene Tests vor der ersten Generalprobe.** Solange die Suite so
   bleibt, kann **keine** radio-Aufgabe ihr Tor plankonform gruen melden. Die 170 zu richten ist ein
   **eigener Auftrag** an `m/feedback` und `m/files` plus die vitest-Frage — er ist **vor dem
   Cutover** faellig und steht in keinem der fuenf Plaene.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Die Suite ist vollstaendig gruen, §3.6 Nr. 1 ist damit nicht
+  > mehr durch eine rote Suite blockiert, und der Auftrag „die 170 richten" ist erledigt. Beleg:
+  > `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
 
 ### ⛔ Und ein zweiter Fund am Werkzeug, der jedes Tor UNSICHTBAR gruen macht (2026-08-21)
 
@@ -535,6 +552,7 @@ Basisverzeichnis, wo nicht anders angegeben: `docs/superpowers/plans/`.
 | `berichte/2026-08-19-re-kritik-radio-spec2.md` | 34 Funde an Spec 2, vier blockierend — sie betreffen die Spec, nicht die Plaene |
 | `berichte/2026-08-19-gegenpruefung-radio-plaene.md` | 15 Funde an den Plaenen, alle eingearbeitet |
 | `berichte/2026-08-19-einarbeitung-radio-plaene.md` · `-restarbeiten-radio-plaene.md` | wie sie eingearbeitet und nachgemessen wurden |
+| `berichte/2026-08-21-vitest-basislinie.md` | die neu gemessene Grundlinie der vollen Testsuite (441/441 Testdateien, 7991/7991 Tests, Exit 0) — hebt die 170-Fehlschlaege-Randbedingung weiter unten in diesem Dokument auf |
 
 ## Ausfuehrungsart
 
