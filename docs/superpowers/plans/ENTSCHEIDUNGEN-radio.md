@@ -3,7 +3,7 @@
 **Stand 2026-08-18, vor dem Bau.** Grundlage: `docs/radio-portierung-analyse.md` @ `c47857a` und
 Spec 1 (`docs/superpowers/specs/2026-08-17-radio-modul-design.md`, `9440e23`).
 
-Sieben Punkte. Je Punkt: die Frage, meine Empfehlung, der Beleg — und **was die Alternative kostet**,
+Sieben Punkte, plus **zwei Nachträge (9 und 10) aus dem Bau vom 2026-08-21**. Je Punkt: die Frage, meine Empfehlung, der Beleg — und **was die Alternative kostet**,
 damit ein „nein" nicht teurer ist als ein „ja".
 
 > ⚠️ **Zwei Punkte haben Vorrang, aus verschiedenen Gründen.**
@@ -162,6 +162,53 @@ Traefik-Zeilen mit Labels. **Das Server-Deployment der Alt-Stacks steht in keine
 **Was es nicht blockiert:** den Bau. Die Umsetzungspläne können ohne diese Antwort entstehen.
 
 ---
+
+## 9. `zuBoolOptional` gegen den blinden Cast härten? ⚠️ nicht blockierend (NT2)
+
+**Nachtrag vom 2026-08-21, aus dem Bau von B5.** `zuBoolOptional` in `scripts/import/radio.ts:64`
+lautet `(v: 0 | 1 | null) => (v === null ? null : v === 1)` — bei `undefined` gibt es **`false`**
+zurück, genau die Faltung, die der Kommentar zwei Zeilen darüber namentlich verbietet, und
+asymmetrisch zu `msZuDatumOptional`, das `undefined` ausdrücklich behandelt.
+
+**Meine Empfehlung: ja, härten** — `(v: 0 | 1 | null | undefined) => (v === null || v === undefined
+? null : v === 1)`. Eine Zeile, ein Zeichenwechsel in der Signatur.
+
+**Was gemessen ist, und was es entschärft:** `AltGeraet.alamos_integrated` und `.loanable` sind
+`0 | 1 | null`, **nicht optional** — der `undefined`-Zweig ist von `toNeuesGeraet` aus typseitig
+**unerreichbar**, und der `devices`-`SELECT` nennt beide Spalten namentlich. Der Fund ist damit
+keine Lücke im Datenweg, sondern eine **Härtung gegen den blinden Cast** `.all() as AltGeraet[]`
+(`radio.ts:210`), über den ein `undefined` überhaupt erst ankäme.
+
+**Was ein „nein" kostet:** nichts Messbares heute. Der Schaden entstünde erst, wenn jemand später
+das Quellinterface auf `number | null` oder auf optionale Felder änderte — dann faltet die Funktion
+still, und `NT4` ist die **einzige** Probe, die es fängt (`select count(*) from devices where
+loanable is null`, Quelle gegen Ziel, im Cutover-Runbook bei **C28**). Diese Probe steht unabhängig
+von dieser Entscheidung und bleibt fällig.
+
+**Warum es hier liegt und nicht gebaut ist:** Signatur **und** Rumpf sind planvorgegeben, ebenso der
+Cast. Das Ledger-Ruling vom 2026-08-20 nennt es „eine Planentscheidung, keine Umsetzungsfreiheit" —
+daran ändert die Nachmessung nichts, sie nimmt der Entscheidung nur die Dringlichkeit.
+
+## 10. Der Auftrag an RTK: den tsc-Filter richten ⛔ betrifft jedes Tor, auch fremder Projekte (NT7)
+
+**Nachtrag vom 2026-08-21, aus dem Bau von B8.** `rtk pnpm typecheck` meldet
+`TypeScript: No errors found`, wo `tsc` **fünf** Fehler hat. Ursache eingegrenzt: in einer TTY
+schaltet `tsc` seine „pretty"-Form ein (`datei.ts:22:3 - error TS2305:` mit ANSI-Sequenzen zwischen
+den Feldern), und RTKs tsc-Filter erkennt darin keinen Fehler. Ohne Farbe zählt derselbe Filter
+richtig. Der vollständige Abschnitt mit der Messtabelle steht im Ausführungsplan.
+
+**Das ist keine Frage an dich, sondern ein Auftrag, den nur du terminieren kannst** — RTK ist dein
+Werkzeug, und `CLAUDE.md` schreibt es für jeden Befehl vor. **Meine Empfehlung: vor der
+Generalprobe richten**, zusammen mit dem anderen Werkzeug-Auftrag (die 170 vorbestehend roten
+Tests). Beide sind Voraussetzung dafür, dass §3.6 Nr. 1 überhaupt prüfbar ist.
+
+**Was ein „später" kostet:** jedes typecheck-Tor dieses Wegs bleibt unbelegt, solange nicht jemand
+daran denkt, `NO_COLOR=1 FORCE_COLOR=0` davorzusetzen. Die vier Commits vom 2026-08-21 sind
+nachgemessen (alle wirklich 0 Fehler); **B1–B4 und M1–M6 sind es nicht.**
+
+**Geprüft und in Ordnung:** die Filter für `lint` (reicht eslints Text durch — ein absichtlicher
+`prefer-const`-Fehler kam als `1 error` durch, Exit 1) und für `vitest` (meldete mehrfach richtig
+rot). Der Fund ist auf `tsc` beschränkt.
 
 ## Was ich NICHT entschieden habe und auch nicht entscheiden kann
 
