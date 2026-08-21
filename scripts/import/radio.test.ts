@@ -1,5 +1,11 @@
 import { readFileSync } from "node:fs";
-import { describe, it, expect } from "vitest";
+import { mkdirSync, rmSync } from "node:fs";
+import { describe, it, expect, afterEach } from "vitest";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { eq } from "drizzle-orm";
+import * as radioSchema from "@/app/m/radio/_db/schema";
 import {
   baueQuellDb,
   ALLE_QUELLZEILEN,
@@ -28,7 +34,36 @@ import {
   toNeueLeihe,
   paritaetsSichtGeraet,
   getaggteQuellzeilen,
+  importiereRadio,
+  checkRadioParitaet,
 } from "./radio";
+
+const DIR = "./.data/radio-import-test";
+
+/**
+ * Direkt gebaute, migrierte DB — NICHT getModuleDb(): dessen globaler Cache ist per
+ * Modulschluessel gekeyt, nicht per DATA_DIR (src/core/db/index.ts:31-35), und gaebe
+ * zwischen Tests ein stale Handle auf die alte Datei zurueck. Der Grund steht
+ * ausgeschrieben in scripts/import/portal.test.ts:23-25.
+ *
+ * ⚠️ `foreign_keys = ON` steht hier eigens: es ist eine VERBINDUNGS-Eigenschaft, keine der
+ * Datei (src/app/m/lagerbuch/_db/migrations.test.ts:33-35). Ohne die Zeile liefe der
+ * Waisen-Test unten gruen durch, und die Einfuegereihenfolge waere unbewiesen.
+ *
+ * N1 (Nachtrag des Controllers): Rueckgabetyp `ReturnType<typeof drizzle<typeof radioSchema>>`,
+ * NICHT `BetterSQLite3Database<typeof radioSchema>` — letzterer deklariert kein `$client`
+ * (node_modules/drizzle-orm/better-sqlite3/driver.d.ts:8-24). Hausform: migrations.test.ts:30.
+ */
+function frischeZielDb(): ReturnType<typeof drizzle<typeof radioSchema>> {
+  rmSync(DIR, { recursive: true, force: true });
+  mkdirSync(DIR, { recursive: true });
+  const sqlite = new Database(`${DIR}/radio.db`);
+  sqlite.pragma("foreign_keys = ON");
+  const db = drizzle(sqlite, { schema: radioSchema });
+  migrate(db, { migrationsFolder: "./src/app/m/radio/_db/migrations" });
+  return db;
+}
+afterEach(() => rmSync(DIR, { recursive: true, force: true }));
 
 describe("radio-quelle-ddl.sql — die kopierte Quell-DDL", () => {
   it("legt die SECHS Quelltabellen an — fuenf aus 0000, `loans` aus 0003", () => {
@@ -602,5 +637,94 @@ describe("Paritaet (Spec 2 §1.5.2)", () => {
     } finally {
       quellDb.close();
     }
+  });
+});
+
+describe("importiereRadio (Spec 2 §1.5.1)", () => {
+  it("schreibt alle fuenf Tabellen und die Paritaet ist gruen", () => {
+    const quellDb = baueBespielteQuellDb();
+    const quelle = lieseQuelle(quellDb);
+    quellDb.close();
+
+    const db = frischeZielDb();
+    db.transaction((tx) => importiereRadio(quelle, tx));
+
+    expect(db.select().from(radioSchema.users).all()).toHaveLength(1);
+    expect(db.select().from(radioSchema.softwareVersions).all()).toHaveLength(2);
+    expect(db.select().from(radioSchema.devices).all()).toHaveLength(2);
+    expect(db.select().from(radioSchema.deviceEvents).all()).toHaveLength(1);
+    expect(db.select().from(radioSchema.loans).all()).toHaveLength(2);
+
+    const report = checkRadioParitaet(quelle, db);
+    expect(report.ok).toBe(true);
+    expect(report.sourceCount).toBe(8);
+    expect(report.targetCount).toBe(8);
+  });
+
+  /**
+   * Verfaelschungstest — Hausform: scripts/import/portal.test.ts:90-92,
+   * feedback.test.ts:398-401. Ohne ihn koennte `checkRadioParitaet` konstant `ok: true`
+   * liefern und alle Tests oben blieben gruen.
+   */
+  it("Paritaet wird ROT, sobald eine Zielzeile verfaelscht wird", () => {
+    const quellDb = baueBespielteQuellDb();
+    const quelle = lieseQuelle(quellDb);
+    quellDb.close();
+
+    const db = frischeZielDb();
+    db.transaction((tx) => importiereRadio(quelle, tx));
+    expect(checkRadioParitaet(quelle, db).ok).toBe(true);
+
+    db.update(radioSchema.devices)
+      .set({ rufname: "VERFAELSCHT" })
+      .where(eq(radioSchema.devices.id, "g-1"))
+      .run();
+
+    expect(checkRadioParitaet(quelle, db).ok).toBe(false);
+  });
+
+  /**
+   * ⚠️ Der Paritaetscheck vergleicht gegen den GANZEN Zielbestand, ohne `WHERE`. Er ist
+   * damit zugleich der Nachweis, dass die Ziel-DB leer war (§1.5.2). Diese Zeile haelt
+   * genau das fest — sie ist die Testfassung des Runbook-Schritts
+   * „`radio.db` loeschen, DANN importieren" (§1.6.4).
+   */
+  it("Paritaet wird ROT, wenn im Ziel schon eine fremde Zeile steht", () => {
+    const quellDb = baueBespielteQuellDb();
+    const quelle = lieseQuelle(quellDb);
+    quellDb.close();
+
+    const db = frischeZielDb();
+    db.insert(radioSchema.users)
+      .values({ sub: "fremd", name: "Vorher da", lastSeenAt: new Date(1_739_500_000_000) })
+      .run();
+    db.transaction((tx) => importiereRadio(quelle, tx));
+
+    const report = checkRadioParitaet(quelle, db);
+    expect(report.ok).toBe(false);
+    expect(report.missingInSource.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * ⛛ Ergaenzung dieses Plans: der EINZIGE laute Fehlschlag dieses Kapitels (§1.5.1).
+   * Ein Waisen-Ereignis in der Quelle bricht den Import hart ab — dagegen steht A3
+   * (§2.4.3), blockierend, vor dem Import. Ohne diesen Test waere „die Reihenfolge ist
+   * Pflicht, nicht Stil" eine Prosa-Zeile: die gesunde Fixture haette sie auch bei
+   * vertauschter Reihenfolge bestanden, weil `devices` VOR `device_events` steht.
+   */
+  it("ein Waisen-Ereignis bricht den Import hart ab (SQLITE_CONSTRAINT_FOREIGNKEY)", () => {
+    const quellDb = baueBespielteQuellDb();
+    const quelle = lieseQuelle(quellDb);
+    quellDb.close();
+    quelle.deviceEvents.push({
+      ...quelle.deviceEvents[0]!,
+      id: "e-waise",
+      device_id: "g-gibt-es-nicht",
+    });
+
+    const db = frischeZielDb();
+    expect(() => db.transaction((tx) => importiereRadio(quelle, tx))).toThrow(/FOREIGN KEY/i);
+    // Und die Transaktion hat zurueckgerollt: nichts steht drin.
+    expect(db.select().from(radioSchema.devices).all()).toHaveLength(0);
   });
 });

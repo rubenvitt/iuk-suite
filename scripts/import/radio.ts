@@ -15,6 +15,8 @@
 
 import type Database from "better-sqlite3";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import type { SQLiteTransaction } from "drizzle-orm/sqlite-core";
+import type { ExtractTablesWithRelations } from "drizzle-orm";
 import * as schema from "@/app/m/radio/_db/schema";
 import { checkParity, type ParityReport, type Row } from "./parity";
 
@@ -358,6 +360,77 @@ export function toNeueLeihe(zeile: AltLeihe): schema.NeueLeihe {
 }
 
 export type RadioDb = BetterSQLite3Database<typeof schema>;
+
+/**
+ * ⚠️ Innerhalb von db.transaction() ist der Empfaenger NICHT die Datenbank, sondern der
+ * Transaktionskontext. BEIDE muessen in die Signatur, sonst kompiliert der Aufruf nicht.
+ * Verbindlich ist die UNION, nicht die Buchstabenzahl der Parameterliste (§1.5.3).
+ * Gemessen gegen drizzle-orm 0.45.2: die Union traegt insert/onConflictDoUpdate/
+ * onConflictDoNothing/select.
+ */
+export type RadioTx = SQLiteTransaction<
+  "sync",
+  Database.RunResult,
+  typeof schema,
+  ExtractTablesWithRelations<typeof schema>
+>;
+
+/**
+ * Einfuegereihenfolge — PFLICHT, nicht Stil. `foreign_keys = ON` ist in BEIDEN Datenbanken
+ * scharf (radio-admin/server/src/db/index.ts:28, src/core/db/index.ts:19), und die eine
+ * Kante `device_events.device_id → devices.id` bricht HART ab, wenn ein Ereignis vor seinem
+ * Geraet eingefuegt wird.
+ *
+ * Kein `PRAGMA defer_foreign_keys`: die Kantenmenge ist azyklisch und mit dieser Reihenfolge
+ * erfuellbar. `lagerbuch` brauchte es wegen `lagerorte.templateId`, hier gibt es kein
+ * Gegenstueck.
+ *
+ * `zugangscodes` fehlt in der Liste (§1.4.6) und braucht trotz FK-Elternschaft keine
+ * Position: `loans.zugangscode_id` ist fuer JEDE importierte Zeile NULL, und SQLite prueft
+ * eine Fremdschluesselkante bei einem NULL-Kindwert nicht. `api_tokens` fehlt ebenfalls —
+ * die Tabelle existiert im Ziel NICHT (B16, Entscheidung 13, ausgeschrieben in W4).
+ */
+export function importiereRadio(quelle: RadioQuelle, db: RadioDb | RadioTx): void {
+  // 1) users — frei
+  for (const zeile of quelle.users) {
+    const v = toNeuenBenutzer(zeile);
+    db.insert(schema.users).values(v).onConflictDoUpdate({ target: schema.users.sub, set: v }).run();
+  }
+
+  // 2) software_versions — frei
+  for (const zeile of quelle.softwareVersions) {
+    const v = toNeueSoftwareVersion(zeile);
+    db.insert(schema.softwareVersions).values(v)
+      .onConflictDoUpdate({ target: schema.softwareVersions.id, set: v }).run();
+  }
+
+  // 3) devices
+  for (const zeile of quelle.devices) {
+    const v = toNeuesGeraet(zeile);
+    db.insert(schema.devices).values(v)
+      .onConflictDoUpdate({ target: schema.devices.id, set: v }).run();
+  }
+
+  // 4) device_events — NACH devices, erzwungen durch die FK-Kante.
+  //    ⚠️ onConflictDoNothing, NICHT onConflictDoUpdate: die Tabelle ist ein JOURNAL, und
+  //    ein Upsert ist dort fachlich falsch (docs/runbooks/lagerbuch-cutover.md:409
+  //    unterscheidet genau das). Fall C in Aufgabe 9 verteidigt diese Zeile gegen ein
+  //    spaeteres „der Einheitlichkeit wegen".
+  for (const zeile of quelle.deviceEvents) {
+    db.insert(schema.deviceEvents).values(toNeuesGeraeteEreignis(zeile)).onConflictDoNothing().run();
+  }
+
+  // 5) loans — formal frei (kein FK auf devices), fachlich nach devices.
+  //    ⚠️ `onConflictDoUpdate({ target: loans.id })` — der PARTIELLE Index
+  //    `loans_device_active_uidx` kann NICHT Konfliktziel sein: SQLite verlangt dafuer
+  //    dieselbe WHERE-Klausel im Ziel (Spec 1 §2.6 (b)). Historie im Bulk ist gefahrlos,
+  //    zwei AKTIVE Leihen auf einem Geraet schlagen hart fehl — dagegen steht A4 (§2.4.4).
+  for (const zeile of quelle.loans) {
+    const v = toNeueLeihe(zeile);
+    db.insert(schema.loans).values(v)
+      .onConflictDoUpdate({ target: schema.loans.id, set: v }).run();
+  }
+}
 
 /**
  * Zeichengleich `tsSeconds` aus scripts/import/portal.ts:66-71 bzw. feedback.ts:174-176,
