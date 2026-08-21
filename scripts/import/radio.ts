@@ -611,10 +611,41 @@ export function checkRadioParitaet(q: RadioQuelle, db: RadioDb): ParityReport {
 }
 
 /**
- * Die Klammer ueber den vier bereits getesteten Teilen: migrieren, lesen, EINE Transaktion
- * schreiben, pruefen. Ungetestet per Vitest (Schritt 1, B16) — Begruendung dort: `getModuleDb()`
- * cached per Modulschluessel, nicht per `DATA_DIR`, ein Test faehrt also ein stale Handle. Die
- * Abnahme laeuft von Hand als Trockenlauf (Aufgabe 11).
+ * Fix-Runde 1 (B16): die einzigen drei Zeilen der Klammer, die NICHT an `getModuleDb()` oder
+ * `migrateAllModules()` haengen — sie brauchen nur IRGENDEIN `RadioDb`-Handle, nicht das
+ * gecachte. Deshalb aus `runRadioImport` herausgezogen und `db` als Parameter genommen: testbar
+ * mit `frischeZielDb()` (radio.test.ts:56-63), ohne den Global Constraint gegen `getModuleDb()`
+ * in Tests zu verletzen.
+ *
+ * ⚠️ `assertParity` war bis Fix-Runde 1 die teuerste ungedeckte Zeile der ganzen Aufgabe: die
+ * Abschlusszeile unten ist konstanter Text, an KEINER Stelle aus `report.ok` abgeleitet.
+ * Zwischen einem roten Paritaetsbericht und einem still geloggten "Parität grün" mit Exit 0
+ * steht ausschliesslich dieser Wurf. Verliert die Zeile sich spaeter durch Umbau oder ein
+ * missgluecktes Merge, sieht der Betreiber am Cutover-Abend eine falsche Erfolgsmeldung und
+ * schwenkt den Router auf Grundlage eines rot gewesenen Datenbestands.
+ */
+export function schreibeUndPruefe(quelle: RadioQuelle, db: RadioDb): ParityReport {
+  // EINE Transaktion ueber alle fuenf Tabellen: ein FK-Abbruch bei device_events laesst
+  // sonst devices halb drin. Das macht einen ROTEN PARITAETSCHECK NICHT rueckgaengig — der
+  // laeuft danach (siehe unten). ⚠️ portal.ts und feedback.ts haben KEINE Transaktion; das
+  // ist die eine bewusste Abweichung vom Vorbild (§1.5.3).
+  db.transaction((tx) => importiereRadio(quelle, tx));
+
+  // NB (portal.ts:105-107, feedback.ts:274-276): Paritaet laeuft NACH diesem Schreiben.
+  // Ein geworfener Paritaetsfehler heisst, das Ziel wurde bereits beschrieben — nicht
+  // "nichts ist passiert". Der Rueckweg ist die GELOESCHTE, leere Ziel-DB und ein neuer
+  // Lauf, nicht ein zweiter Versuch auf denselben Bestand (§1.6.4).
+  const report = checkRadioParitaet(quelle, db);
+  assertParity(report); // parity.ts:58-65
+  return report;
+}
+
+/**
+ * Die Klammer ueber den vier bereits getesteten Teilen plus `schreibeUndPruefe`: migrieren,
+ * lesen, schreiben-und-pruefen, melden. Der verbleibende Rest — `migrateAllModules()` und
+ * `getModuleDb()` selbst — ist ungetestet per Vitest (Schritt 1, B16): `getModuleDb()`s Cache
+ * ist per Modulschluessel gekeyt, nicht per `DATA_DIR`, ein Test faehrt also ein stale Handle.
+ * Die Abnahme dieses Rests laeuft von Hand als Trockenlauf (Aufgabe 11).
  */
 export function runRadioImport(quellPfad: string): void {
   migrateAllModules(); // wie portal.ts:102, feedback.ts:265
@@ -637,19 +668,7 @@ export function runRadioImport(quellPfad: string): void {
   );
 
   const db = getModuleDb("radio", schema); // src/core/db/index.ts:27-36
-
-  // EINE Transaktion ueber alle fuenf Tabellen: ein FK-Abbruch bei device_events laesst
-  // sonst devices halb drin. Das macht einen ROTEN PARITAETSCHECK NICHT rueckgaengig — der
-  // laeuft danach (siehe unten). ⚠️ portal.ts und feedback.ts haben KEINE Transaktion; das
-  // ist die eine bewusste Abweichung vom Vorbild (§1.5.3).
-  db.transaction((tx) => importiereRadio(quelle, tx));
-
-  // NB (portal.ts:105-107, feedback.ts:274-276): Paritaet laeuft NACH diesem Schreiben.
-  // Ein geworfener Paritaetsfehler heisst, das Ziel wurde bereits beschrieben — nicht
-  // "nichts ist passiert". Der Rueckweg ist die GELOESCHTE, leere Ziel-DB und ein neuer
-  // Lauf, nicht ein zweiter Versuch auf denselben Bestand (§1.6.4).
-  const report = checkRadioParitaet(quelle, db);
-  assertParity(report); // parity.ts:58-65
+  const report = schreibeUndPruefe(quelle, db);
   console.log(`Radio-Import OK — ${report.sourceCount} Zeilen, Parität grün.`);
 }
 

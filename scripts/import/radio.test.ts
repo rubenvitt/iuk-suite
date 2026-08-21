@@ -35,6 +35,7 @@ import {
   getaggteQuellzeilen,
   importiereRadio,
   checkRadioParitaet,
+  schreibeUndPruefe,
 } from "./radio";
 
 const DIR = "./.data/radio-import-test";
@@ -710,6 +711,10 @@ describe("importiereRadio (Spec 2 §1.5.1)", () => {
    * (§2.4.3), blockierend, vor dem Import. Ohne diesen Test waere „die Reihenfolge ist
    * Pflicht, nicht Stil" eine Prosa-Zeile: die gesunde Fixture haette sie auch bei
    * vertauschter Reihenfolge bestanden, weil `devices` VOR `device_events` steht.
+   *
+   * Fix-Runde 1 (B16): haengt jetzt an `schreibeUndPruefe`, nicht mehr an einer im
+   * Testkoerper selbst gestellten `db.transaction(...)`-Klammer — damit wird ROT, sobald
+   * die Transaktionsklammer aus der Naht verschwindet (Sonde 1 der Fix-Runde).
    */
   it("ein Waisen-Ereignis bricht den Import hart ab (SQLITE_CONSTRAINT_FOREIGNKEY)", () => {
     const quellDb = baueBespielteQuellDb();
@@ -722,9 +727,29 @@ describe("importiereRadio (Spec 2 §1.5.1)", () => {
     });
 
     const db = frischeZielDb();
-    expect(() => db.transaction((tx) => importiereRadio(quelle, tx))).toThrow(/FOREIGN KEY/i);
+    expect(() => schreibeUndPruefe(quelle, db)).toThrow(/FOREIGN KEY/i);
     // Und die Transaktion hat zurueckgerollt: nichts steht drin.
     expect(db.select().from(radioSchema.devices).all()).toHaveLength(0);
+  });
+
+  /**
+   * Fix-Runde 1 (B16): der bisher teuerste ungedeckte Fall — `assertParity` innerhalb von
+   * `schreibeUndPruefe` war KONSTANTER Text in der Abschlusszeile entkoppelt, kein Test
+   * zwang den Wurf. Ziel-DB traegt eine Zeile, die die Quelle nicht kennt (wie im Test
+   * "Paritaet wird ROT, wenn im Ziel schon eine fremde Zeile steht" oben) — diesmal aber
+   * durch `schreibeUndPruefe` gefahren, sodass der Wurf selbst die Zusicherung ist.
+   */
+  it("schreibeUndPruefe wirft, wenn die Paritaet nach dem Schreiben rot ist", () => {
+    const quellDb = baueBespielteQuellDb();
+    const quelle = lieseQuelle(quellDb);
+    quellDb.close();
+
+    const db = frischeZielDb();
+    db.insert(radioSchema.users)
+      .values({ sub: "fremd", name: "Vorher da", lastSeenAt: new Date(1_739_500_000_000) })
+      .run();
+
+    expect(() => schreibeUndPruefe(quelle, db)).toThrow(/Parity check FAILED/);
   });
 });
 
