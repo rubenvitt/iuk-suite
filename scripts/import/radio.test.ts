@@ -727,3 +727,205 @@ describe("importiereRadio (Spec 2 §1.5.1)", () => {
     expect(db.select().from(radioSchema.devices).all()).toHaveLength(0);
   });
 });
+
+describe("Import ist asymmetrisch idempotent (Spec 2 §1.6.3)", () => {
+  /**
+   * FALL A. `update_note` ist in der Quelle APPEND-ONLY („never overwritten by the update
+   * flow", radio-admin/server/src/db/schema.ts:33-36), und `onConflictDoUpdate` kennt kein
+   * Anhaengen. ⚠️ Die Zusicherung ist der VERLUST. Wie man es im Betrieb merkt: gar nicht.
+   * Deshalb der Freeze.
+   */
+  it("Import ist asymmetrisch idempotent: Zielzeile geaendert, erneut importiert — Fall A", () => {
+    const quellDb = baueBespielteQuellDb();
+    const quelle = lieseQuelle(quellDb);
+    quellDb.close();
+
+    const db = frischeZielDb();
+    db.transaction((tx) => importiereRadio(quelle, tx));
+    expect(
+      db.select().from(radioSchema.devices).where(eq(radioSchema.devices.id, "g-1")).get()?.updateNote,
+    ).toBe("ISSI abweichend");
+
+    // Der Weg, den die Suite baut: anhaengen, nie ueberschreiben.
+    db.update(radioSchema.devices)
+      .set({ updateNote: "ISSI abweichend\nAntenne getauscht" })
+      .where(eq(radioSchema.devices.id, "g-1"))
+      .run();
+
+    db.transaction((tx) => importiereRadio(quelle, tx));
+
+    expect(
+      db.select().from(radioSchema.devices).where(eq(radioSchema.devices.id, "g-1")).get()?.updateNote,
+    ).toBe("ISSI abweichend"); // ⚠️ Der angehaengte Satz ist WEG — ohne Fehler, ohne Warnung.
+  });
+
+  /**
+   * FALL B. Der Mechanismus: `onConflictDoUpdate` setzt `l-aktiv.returned_at` zurueck auf
+   * NULL, damit gibt es ZWEI aktive Leihen auf `g-1`, und der partielle Unique-Index
+   * `loans_device_active_uidx ON loans(device_id) WHERE returned_at IS NULL` weist die
+   * Schreibung ab. Der einzige der vier Faelle, den der Betrieb bemerkt — als Abbruch mitten
+   * im Fenster, bei bereits beschriebenem Ziel.
+   *
+   * ⚠️ Die Meldung nennt die SPALTE, nicht den Index: `UNIQUE constraint failed:
+   * loans.device_id`. Ein `toThrow(/loans_device_active_uidx/)` waere ein Test, der aus dem
+   * falschen Grund rot ist.
+   *
+   * ⬜ L2, gemessen und verengt: better-sqlite3 13.0.2 wirft eine `SqliteError` mit
+   * `code === "SQLITE_CONSTRAINT_UNIQUE"` und der Meldung ZEICHENGLEICH, ohne `cause`;
+   * drizzle-orm 0.45.2 reicht sie durch `db.transaction()` unveraendert durch. Die
+   * Zusicherung unten prueft die Meldung (haelt auch unter einer verpackenden Fassung, die
+   * `message` durchreicht) und den `code` (schlaegt LAUT fehl, wenn eine kuenftige Fassung
+   * doch verpackt) — nie still.
+   */
+  it("Import ist asymmetrisch idempotent: Zielzeile geaendert, erneut importiert — Fall B", () => {
+    const quellDb = baueBespielteQuellDb();
+    const quelle = lieseQuelle(quellDb);
+    quellDb.close();
+
+    const db = frischeZielDb();
+
+    /**
+     * SCHRITT 0 — ARRANGE-Riegel gegen das ZIEL, VOR allem anderen. Sonst tarnt sich eine
+     * fehlende Ziel-Migration als „expected throw, got none", und der Test meldet einen
+     * Importdefekt, wo ein Migrationsdefekt vorliegt.
+     *
+     * ⚠️ STRUKTUR statt Text. `sqlite_master.sql` speichert die CREATE-Anweisung
+     * ZEICHENGLEICH so, wie sie ausgefuehrt wurde — und Spec 1 §2.6 schreibt sie mit
+     * BACKTICKS: CREATE UNIQUE INDEX `loans_device_active_uidx` ON `loans` (`device_id`)
+     * WHERE `returned_at` IS NULL. Gemessen gegen genau diese DDL:
+     * instr(sql, 'WHERE returned_at IS NULL') = 0. Eine Textprobe waere hier ROT gegen eine
+     * vollkommen korrekte Migration.
+     *
+     * `db.$client` ist das rohe better-sqlite3-Handle hinter der Drizzle-Instanz
+     * (node_modules/drizzle-orm/better-sqlite3/driver.d.ts:23) — `pragma_index_list` ist
+     * eine Tabellenwertfunktion und laesst sich ueber den Query Builder nicht ausdruecken.
+     *
+     * N3 (Nachtrag des Controllers): dieselbe Probe steht bereits gegen das Zielschema in
+     * src/app/m/radio/_db/migrations.test.ts:92-108 — diese dritte Kopie ist bewusst und
+     * meldet innerhalb von Fall B, dass eine fehlende Migration und kein Importdefekt
+     * vorliegt, gegen dieselbe Verbindung, gegen die der Test danach faehrt.
+     */
+    const riegel = db.$client
+      .prepare(
+        `select name, partial, "unique" from pragma_index_list('loans')
+          where name = 'loans_device_active_uidx'`,
+      )
+      .all();
+    expect(riegel).toEqual([{ name: "loans_device_active_uidx", partial: 1, unique: 1 }]);
+
+    db.transaction((tx) => importiereRadio(quelle, tx));
+
+    // Im ZIEL zurueckgeben …
+    db.update(radioSchema.loans)
+      .set({ returnedAt: new Date(1_742_100_000_000) })
+      .where(eq(radioSchema.loans.id, "l-aktiv"))
+      .run();
+    // … und eine NEUE Leihe auf dasselbe Geraet anlegen — voellig legitim, es ist frei.
+    db.insert(radioSchema.loans)
+      .values({
+        id: "l-neu-in-suite",
+        deviceId: "g-1",
+        snapshotCallSign: "HRO 1/83-1",
+        snapshotSerialNumber: "SN-001",
+        snapshotDeviceType: "MTP6650",
+        borrowerName: "Suite-Weg",
+        borrowedAt: new Date(1_742_200_000_000),
+        returnedAt: null,
+        returnNote: null,
+        zugangscodeId: null,
+        createdAt: new Date(1_742_200_000_000),
+        updatedAt: new Date(1_742_200_000_000),
+      })
+      .run();
+
+    /**
+     * ⚠️ Der Aufruf steht IN einer Transaktion, und das ist keine Formsache: §1.6.3 misst,
+     * dass der Verstoss beim STATEMENT auffaellt und `db.transaction()` daraufhin
+     * zurueckrollt. Ein blanker `importiereRadio(quelle, db)` wuerfe auch — aber OHNE
+     * Ruecknahme, und der Test dokumentierte einen Mechanismus, der nicht gelaufen ist.
+     */
+    let gefangen: unknown;
+    try {
+      db.transaction((tx) => importiereRadio(quelle, tx));
+    } catch (err) {
+      gefangen = err;
+    }
+    expect((gefangen as Error | undefined)?.message).toMatch(
+      /UNIQUE constraint failed: loans\.device_id/,
+    );
+    expect((gefangen as { code?: string } | undefined)?.code).toBe("SQLITE_CONSTRAINT_UNIQUE");
+
+    // Und die Transaktion hat zurueckgerollt: die in der Suite entstandene Leihe steht noch.
+    expect(
+      db.select().from(radioSchema.loans).where(eq(radioSchema.loans.id, "l-neu-in-suite")).get(),
+    ).toBeDefined();
+  });
+
+  /**
+   * FALL C ist die Gegenprobe zu A: dieselbe Situation, andere Strategie, anderes Ergebnis.
+   * Er verteidigt `onConflictDoNothing` gegen ein spaeteres „der Einheitlichkeit wegen".
+   */
+  it("Import ist asymmetrisch idempotent: das Journal bleibt, wie es ist — Fall C", () => {
+    const quellDb = baueBespielteQuellDb();
+    const quelle = lieseQuelle(quellDb);
+    quellDb.close();
+
+    const db = frischeZielDb();
+    db.transaction((tx) => importiereRadio(quelle, tx));
+
+    db.update(radioSchema.deviceEvents)
+      .set({ newValue: "in der Suite geaendert" })
+      .where(eq(radioSchema.deviceEvents.id, "e-1"))
+      .run();
+
+    db.transaction((tx) => importiereRadio(quelle, tx));
+
+    expect(
+      db.select().from(radioSchema.deviceEvents).where(eq(radioSchema.deviceEvents.id, "e-1")).get()
+        ?.newValue,
+    ).toBe("in der Suite geaendert"); // INSERT OR IGNORE ueberschreibt NICHT
+    expect(db.select().from(radioSchema.deviceEvents).all()).toHaveLength(1); // und dupliziert nicht
+  });
+
+  /**
+   * ⛛ FALL D — von Spec 2 §1.6.3 nicht geführt, und die Lücke ist teuer.
+   *
+   * `software_versions.is_target` markiert GENAU EINE Zeile, und keine Datenbank erzwingt
+   * das: `getTargetVersion` (radio-admin/server/src/repos/softwareVersionRepo.ts:63-70)
+   * nimmt `.limit(1).get()` OHNE `ORDER BY`. §2.2.3 Regel 4 sagt ueber genau diese Zeile:
+   * „Kippt diese eine Zeile, kippt der Status JEDES Geraets." Fall A in gross — und ohne
+   * diesen Test haette die Tabelle mit der groessten Hebelwirkung weder einen
+   * Idempotenzfall noch eine Zusicherung.
+   *
+   * ⚠️ Die Ziel-Aenderung wird hier als schlichtes UPDATE geschrieben, NICHT ueber
+   * `setTargetVersion`: diese Funktion lebt in radio-admin, nicht in der Suite.
+   */
+  it("Import ist asymmetrisch idempotent: die Update-Marke faellt auf den Quellstand zurueck — Fall D", () => {
+    const quellDb = baueBespielteQuellDb();
+    const quelle = lieseQuelle(quellDb);
+    quellDb.close();
+
+    const db = frischeZielDb();
+    db.transaction((tx) => importiereRadio(quelle, tx));
+    const marke = () =>
+      db.select().from(radioSchema.softwareVersions).all().filter((r) => r.isTarget).map((r) => r.id);
+    expect(marke()).toEqual(["v-1"]);
+
+    // Im ZIEL umhaengen — der Weg, den die Verwaltungsflaeche baut.
+    db.update(radioSchema.softwareVersions).set({ isTarget: false }).run();
+    db.update(radioSchema.softwareVersions)
+      .set({ isTarget: true })
+      .where(eq(radioSchema.softwareVersions.id, "v-2"))
+      .run();
+    expect(marke()).toEqual(["v-2"]);
+
+    db.transaction((tx) => importiereRadio(quelle, tx));
+
+    // ⚠️ ZUSICHERUNG: der Quellstand gewinnt. Das ist ein FEHLSCHLAG, kein No-Op — die im
+    // Ziel getroffene Entscheidung ist still verloren, und danach zeigt jedes Geraet einen
+    // anderen Update-Stand als eine Minute zuvor.
+    expect(marke()).toEqual(["v-1"]);
+    // Genau EINE Marke bleibt es trotzdem — sonst waere zusaetzlich A2 (§2.4.2) verletzt.
+    expect(marke()).toHaveLength(1);
+  });
+});
