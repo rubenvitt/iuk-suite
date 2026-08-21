@@ -75,13 +75,57 @@ in jeder Textansicht fast identisch aus.
 
 Alle fünf Zahlen decken sich exakt mit der Zählzeile aus Schritt 2.
 
-**Befund (Werkzeug, kein Datenwert):** Das im Brief vorgeschriebene mehrzeilige `sqlite3`-Kommando
-scheiterte in der hier installierten Fassung (`sqlite3 3.54.0 2026-04-09`, `/usr/bin/sqlite3`) mit
-`Parse error in 3rd command line argument: unable to open database file (14)` — sowohl mit
-relativem als auch mit absolutem Pfad, reproduzierbar. Als **Einzeiler** (identisches SQL, ohne
-eingebettete Zeilenumbrüche im Argument) lief dieselbe Abfrage fehlerfrei und lieferte die oben
-stehenden fünf Werte. Ursache nicht weiter untersucht (nicht Gegenstand dieser Aufgabe); für
-künftige Läufe: Einzeiler verwenden.
+⛔ **Befund (Werkzeug, kein Datenwert) — und er betrifft das Cutover-Runbook.**
+
+Das im Brief vorgeschriebene `sqlite3 -readonly`-Kommando gegen die frisch importierte `radio.db`
+scheiterte mit
+
+```
+Parse error in 3rd command line argument: unable to open database file (14)
+```
+
+**Die Ursache ist nachgemessen** (Gegenprobe des Controllers am 2026-08-21, eigener Trockenlauf,
+`sqlite3 3.54.0 2026-04-09`, `/usr/bin/sqlite3`):
+
+⚠️ **Es liegt NICHT an der Mehrzeiligkeit des SQL** — diese erste Diagnose ist widerlegt. Es liegt
+auch nicht am relativen Pfad. **Eine WAL-Datenbank ohne `-shm`-Datei laesst sich ueberhaupt nicht
+readonly oeffnen**: SQLite muesste das Shared-Memory-File anlegen, und genau das darf ein
+Readonly-Handle nicht. Die Suite betreibt ihre Modul-Datenbanken im **WAL-Modus**
+(`pragma journal_mode` = `wal`), und ein frisch geschriebenes `radio.db` traegt **kein** `-shm`.
+
+Die Messreihe, die es trennt — dieselbe Datei, dieselbe Sekunde:
+
+| Aufruf | Ergebnis |
+|---|---|
+| `sqlite3 -readonly <db> "<mehrzeiliges SQL>"` | **Parse error (14)** |
+| `sqlite3 -readonly <db> "<dasselbe SQL einzeilig>"` | **Parse error (14)** ← widerlegt die Mehrzeiligkeits-These |
+| `sqlite3 -readonly "<absoluter Pfad>" "select count(*) from devices;"` | **Parse error (14)** ← widerlegt die Pfad-These |
+| `sqlite3 "file:<db>?mode=ro" "select count(*) from devices;"` | **Parse error (14)** ← auch der URI-Weg |
+| `sqlite3 <db> "select count(*) from devices;"` (**ohne** `-readonly`) | **2**, exit 0 — legt dabei `-shm` und `-wal` an |
+| `sqlite3 -readonly <db> …` **danach**, mit vorhandenem `-shm` | **2**, exit 0 |
+
+Warum die urspruengliche Diagnose plausibel aussah: der „funktionierende Einzeiler" lief, **nachdem**
+ein vorheriger schreibender Zugriff die `-shm` bereits angelegt hatte — nicht, weil er einzeilig war.
+
+✅ **Entwarnung fuer den Importer selbst.** Zwei Dinge sind gegengeprueft und **nicht** betroffen:
+
+1. **`better-sqlite3` mit `readonly: true` oeffnet eine WAL-Datenbank ohne `-shm` anstandslos**
+   (eigene Sonde, Lesewert korrekt zurueckgegeben). Die Zeile `new Database(pfad, { readonly: true })`
+   in `scripts/import/radio.ts` ist also **nicht** gefaehrdet — der Befund trifft allein die
+   `sqlite3`-**Kommandozeile**.
+2. **Die Quellseite ist ohnehin nicht im WAL-Modus.** `pragma journal_mode` ergibt `delete` sowohl
+   fuer den `vacuum into`-Schnappschuss dieses Trockenlaufs als auch fuer die **echte**
+   `radio-admin/data/data.sqlite`.
+
+⛔ **Was daraus fuer das Runbook folgt — weiterzureichen an C15, C28, C33 und C34:**
+Jede Gegenzaehlung und jede Feldstichprobe, die mit `sqlite3 -readonly` gegen eine **frisch
+importierte** `radio.db` faehrt, **scheitert** — am Cutover-Abend, mit einer Meldung
+(`unable to open database file`), die wie ein Importfehler aussieht und keiner ist. Das Runbook
+muss den Weg vorschreiben, der traegt, und dazusagen, **warum**: entweder `sqlite3` **ohne**
+`-readonly` gegen die **Ziel**-DB (sie gehoert uns, das Anlegen der `-shm` ist harmlos), oder ein
+vorgeschalteter Schreibzugriff, der die `-shm` erzeugt. ⚠️ **Fuer die QUELLE gilt das Gegenteil:**
+dort bleibt der lesende Zugriff Pflicht (W1) — was hier aber kein Problem ist, weil sie im
+`delete`-Modus liegt.
 
 ## 5. Was die Zählkette hier schließt — und was nicht
 
