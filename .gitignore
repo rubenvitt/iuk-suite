@@ -15,3 +15,8 @@ node_modules
 # Arbeitsverzeichnis der Subagenten-Ausfuehrung (Ledger, Briefs, Reviewpakete).
 # Reiner Kladdenraum je Plan — der Nachweis liegt in der Git-Historie.
 .superpowers/
+
+# IDE-Zustand, lokal. Konvention aus ../lagerbuch/.gitignore; in keinem der
+# Nachbarprojekte ist .idea/ eingecheckt.
+.idea/
+.vscode/
