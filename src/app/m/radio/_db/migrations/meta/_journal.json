@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1787305720971,
+      "tag": "0000_melodic_eternals",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787400000000,
+      "tag": "0001_loans_aktiv_uidx",
+      "breakpoints": true
+    }
+  ]
+}
