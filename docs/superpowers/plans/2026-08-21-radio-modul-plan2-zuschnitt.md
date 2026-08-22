@@ -2811,6 +2811,16 @@ describe("(d) die Gegenregel — viewerOderNull ruft den Host-Riegel NICHT", () 
      * der dieser Zustand ueberhaupt sichtbar wird"), und ohne `redirect(` landet eine
      * ANONYME Person im 404 statt in der Anmeldung — `viewerAusSession` gibt dort `null`,
      * und `istRadioAdmin(null)` ist `false`.
+     *
+     * ⛔ AUFLAGE AN PLANTEIL 4, DAMIT DIESE VIER NICHT ROT-BY-CONSTRUCTION WERDEN: Spec:4287-4288
+     * fuehrt `requireRadioAdmin` UND `requireRadioVerwaltung` in derselben Datei. Zwei werfende
+     * Riegel mit fast gleichem Koerper sind der Lehrbuchfall, in dem jemand den gemeinsamen Teil
+     * in einen Helfer zieht — und in dem Augenblick verlassen die vier Aufrufe den Koerper von
+     * `requireRadioAdmin`, und diese Klausel faellt ueber KORREKTEM Code. Dann gilt: die vier
+     * Zusicherungen WANDERN in den Koerper dieses Helfers (`funktionsKoerper(quelle, "<helfer>")`).
+     * Sie werden NICHT geloescht und NICHT zu einem dateiweiten Scan aufgeweicht — ein
+     * dateiweites `toMatch` waere ueber jeder Datei wahr, die die Namen irgendwo nennt, und das
+     * ist genau die NT11-Form. (Dieselbe Richtung wie die `||`-Auflage in `_lib/zugang.ts`.)
      */
     expect(koerper, "ohne istRadioAdmin( prueft der Riegel keine Gruppe")
       .toMatch(/\bistRadioAdmin\s*\(/);
