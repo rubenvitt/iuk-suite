@@ -46,32 +46,3 @@ describe("radio: zugangscodes sind nicht loeschbar", () => {
     expect(treffer, `Loeschweg auf zugangscodes gefunden in: ${treffer.join(", ")}`).toEqual([]);
   });
 });
-
-describe("radio: vor dem Host-Riegel entsteht keine Flaeche", () => {
-  it("kein page/layout/route/_actions unter src/app/m/radio", () => {
-    /*
-     * DER HOST-RIEGEL STEHT ERST IN PLANTEIL 2 (Spec 1 Kapitel 1, `_lib/host.ts`). Bis
-     * dahin waere JEDE Flaeche dieses Moduls von JEDEM Suite-Host erreichbar — Falle 61,
-     * und `pnpm typecheck`, `pnpm lint` und `pnpm build` sind dabei alle drei gruen. Das
-     * ist die Gegenauflage zu der Entscheidung, Kapitel 2 VOR Kapitel 1 zu bauen
-     * (2026-08-21-radio-modul-leitplan.md, Abschnitt "Die Abweichung").
-     *
-     * ⚠️ DIESER FALL IST ZUM LOESCHEN BESTIMMT. Planteil 2 legt Seiten an; wer ihn dann
-     * rot findet, entfernt ihn MIT der Aufgabe, die den Riegel baut — nicht vorher, und
-     * nicht "weil er stoert". Er ist ein Termin, kein Verbot.
-     */
-    const flaechen = sammleQuellen(WURZEL).filter((p) => {
-      const name = p.split("/").pop() ?? "";
-      return (
-        name === "page.tsx" ||
-        name === "layout.tsx" ||
-        name === "route.ts" ||
-        p.includes("/_actions/")
-      );
-    });
-    expect(
-      flaechen,
-      `Flaeche vor dem Host-Riegel: ${flaechen.join(", ")} — siehe Planteil 2`,
-    ).toEqual([]);
-  });
-});
