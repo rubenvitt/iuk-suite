@@ -803,6 +803,56 @@ const VERWALTUNG = [
 ];
 
 describe("radio: jeder aeussere Pfad wird ins Modul umgeschrieben", () => {
+  /*
+   * ⛔ DIE ZWEI VOLLZAEHLIGKEITS-FAELLE STEHEN AUSSERHALB DER `it.each`-KOERPER, UND
+   * DAS IST DER GANZE PUNKT. `it.each` bewacht nur, was in der Liste steht: wer einen
+   * Eintrag loescht, verliert seinen Prueffall LAUTLOS — die Datei bleibt gruen, nur
+   * die Fallzahl sinkt, und die liest niemand. Gemessen am 2026-08-22 an dieser Datei:
+   * `"/t/ABC123"` aus AUSLEIHE entfernt -> `Tests 24 passed (24)`, gruen (und das ist
+   * der Pfad, den ein GEDRUCKTER QR-Code traegt); `const VERWALTUNG: string[] = []`
+   * -> `Tests 14 passed (14)`, gruen und ohne jede Warnung, weil `it.each([])` in
+   * vitest 4.1.10 still NULL Faelle erzeugt.
+   *
+   * ⛔ Eine Zusicherung IM `it.each`-Koerper faenge den zweiten Fall nie: ueber der
+   * leeren Liste liefe sie kein einziges Mal. Wer diese zwei Faelle spaeter „hinein
+   * vereinfacht", stellt genau die Luecke wieder her.
+   *
+   * ⛔ Und sie stehen als ZWEI Faelle, nicht als zwei Zeilen in einem: ein geworfenes
+   * `expect` beendet seinen Fall, die zweite Zeile liefe nie — eine Sonde auf AUSLEIHE
+   * liesse die VERWALTUNG-Zusicherung unbewiesen (die „0 rot"-Form).
+   */
+  it("die Ausleihliste ist vollzaehlig — sechs aeussere Pfade", () => {
+    /*
+     * Sechs, Spec:275-284 (Tabelle 1.2.1): `/`, `/t/<code>`, `/abmelden`, `/geraete`,
+     * `/ausleihen`, `/rueckgabe`. Die zwei uebrigen Tabellenzeilen (`layout.tsx` und
+     * `(ausleihe)/layout.tsx`) tragen keinen aeusseren Pfad.
+     *
+     * ⛔ `toBe` und NICHT `toBeGreaterThanOrEqual`. Das Vorbild
+     * `src/app/m/lagerbuch/_lib/bauform.test.ts:1188` benutzt `>=`, weil seine Menge aus
+     * `readdirSync` entsteht und mit dem Baum WAECHST — die Untergrenze schuetzt dort nur
+     * gegen die leere Menge. Diese Liste ist dagegen vollstaendig und stabil; `>=` waere
+     * hier genau die NT11-Form („ein Waechter, der `>= 5` statt `= 6` prueft, bleibt
+     * gruen und bewacht nichts").
+     */
+    expect(AUSLEIHE.length, "geschrumpfte Liste — der Riegel waere leer-gruen").toBe(6);
+  });
+
+  it("die Verwaltungsliste ist vollzaehlig — zehn Seiten plus EIN Route Handler", () => {
+    /*
+     * Elf, gezaehlt nach B9 (Spec:98, woertlich: „Gezaehlt wird jetzt einheitlich: zehn
+     * Seiten-Pfade plus ein Route Handler"). Die zehn Seiten stehen in Tabelle 1.2.2
+     * (Spec:303-314; `:303` und `:313` sind die zwei Layouts ohne aeusseren Pfad), der
+     * Route Handler in Spec:563.
+     *
+     * ⛔ Die Zahl ist NICHT aus Spec:353 genommen. Dort steht „`/admin` und alle acht
+     * Unterpfade — frei.", und das ist einer zu wenig: Tabelle 1.2.2 fuehrt `/admin`
+     * plus NEUN Unterpfade (ausgezaehlt am 2026-08-22). Kapitel B sticht ueber jeden
+     * Kapiteltext, der ihm widerspricht — und hier ist der Kapiteltext nachweislich
+     * verzaehlt.
+     */
+    expect(VERWALTUNG.length, "geschrumpfte Liste — der Riegel waere leer-gruen").toBe(11);
+  });
+
   it.each(AUSLEIHE)("Ausleihe: %s", (pfad) => {
     expect(fahre(pfad)).toEqual({ action: "rewrite", target: ziel(pfad), moduleKey: "radio" });
   });
@@ -920,6 +970,13 @@ describe("radio: die Luecke, gegen die _lib/host.ts gebaut ist (Falle 61)", () =
      *
      * Mit `requiresAuth: false` hat `/admin` damit NULL Middleware-Gating. Der einzige
      * Traeger ist `requireRadioAdmin` (Z4) und der Scan in `riegel.test.ts` (Z5).
+     *
+     * ⚠️ IN DER ZUSICHERUNG SUBSUMIERT VON FALL 1 — gehalten wegen des HOSTUNTERSCHIEDS.
+     * Fall 1 prueft `/m/radio/admin` unter dem FREMDEN Host `iuk-ue.de`, dieser Fall
+     * denselben Pfadast unter dem RICHTIGEN (`HOST`). Jede Mutation, die diesen Fall rot
+     * macht, macht Fall 1 mit rot; eine Mutation, die nur diesen trifft, gibt es nicht.
+     * Das ist NICHT die NT11-Form (der Fall hat Mutationen, nur keine eigene) — wer ihn
+     * dennoch fuer einen eigenstaendigen Riegel haelt, liest ihn falsch.
      */
     const anonym = decideRoute({ host: HOST, pathname: "/m/radio/admin/zugaenge", groups: null });
     // EINE Behauptung, nicht zwei: `toEqual({ action: "next" })` schliesst
@@ -1007,6 +1064,18 @@ die Bauform ist im Repo echt (`src/app/m/lagerbuch/_lib/hostRiegel.ts`).
 ⛔ **Die Schritte dieser Aufgabe werden NICHT in der abgedruckten Nummernfolge gefahren.** Zuerst
 Schritt 3 (die Testdatei), dann Schritt 4 Teil A (der rote Importzustand), dann Schritt 1 und 2 (der
 Bau), dann Schritt 4 Teil B (die Sonde). Die Begründung steht bei Schritt 4.
+
+⚠️ **DIE TESTSUITE SIEHT DIE PROZESSUMGEBUNG, NICHT `.env.local` — gemessen, nicht angenommen.**
+(Fund W2 der Prüfung zu Z2, eingearbeitet am 2026-08-22.) In diesem Repo lädt vitest **keine**
+`.env`-Datei: `grep -rn "dotenv" vitest.config.ts vitest.setup.ts package.json` hat **keinen**
+Treffer, und eine Sonde las `SUITE_HOST_FILES`/`SUITE_HOST_LAGERBUCH` im Lauf als `undefined`,
+obwohl `.env.local:41` und `:58` beide setzen. **Folge für diese Aufgabe:** ein lokal in
+`.env.local` gesetztes `SUITE_HOST_RADIO` verfälscht **kein** Tor — ein in der Shell oder in der CI
+**exportierter** Wert dagegen schon (gemessen: `env SUITE_HOST_PORTAL=radio.localtest.me rtk pnpm
+vitest run src/app/m/radio/_lib/routen.test.ts` → `20 failed | 5 passed`; `moduleForHost` läuft
+`MODULES` der Reihe nach ab, `registry.ts:246-253`, und `portal` `:57` steht vor `radio` `:192`).
+⛔ Wo ein Prüffall die Umgebung braucht, gehört sie wie in `src/core/registry.test.ts` als
+**Parameter** hinein (`OHNE_ENV = {}`), **nicht** aus `process.env` gelesen.
 
 - [ ] **Schritt 1: `_lib/host.ts` schreiben — mit der Verankerungstabelle als Kommentarblock**
 
@@ -1490,6 +1559,18 @@ modulintern — **das ist nicht Sache dieses Kapitels**", und Spec:4421 legt sie
 `_lib/rollen.ts` mit eigenem Test. **Vorsehen heißt hier: die Naht offenhalten und den einen Weg
 verriegeln, auf dem Planteil 4 sie versehentlich in `istRadioAdmin` hineinbauen könnte.**
 Siehe Schritt 3.
+
+⚠️ **DIE TESTSUITE SIEHT DIE PROZESSUMGEBUNG, NICHT `.env.local` — gemessen, nicht angenommen.**
+(Fund W2 der Prüfung zu Z2, eingearbeitet am 2026-08-22.) In diesem Repo lädt vitest **keine**
+`.env`-Datei: `grep -rn "dotenv" vitest.config.ts vitest.setup.ts package.json` hat **keinen**
+Treffer, und eine Sonde las `SUITE_HOST_FILES`/`SUITE_HOST_LAGERBUCH` im Lauf als `undefined`,
+obwohl `.env.local:41` und `:58` beide setzen. **Folge für diese Aufgabe:** ein lokal in
+`.env.local` gesetztes `SUITE_ADMIN_GROUP_RADIO` verfälscht **kein** Tor — ein in der Shell oder in der CI
+**exportierter** Wert dagegen schon (gemessen: `env SUITE_HOST_PORTAL=radio.localtest.me rtk pnpm
+vitest run src/app/m/radio/_lib/routen.test.ts` → `20 failed | 5 passed`; `moduleForHost` läuft
+`MODULES` der Reihe nach ab, `registry.ts:246-253`, und `portal` `:57` steht vor `radio` `:192`).
+⛔ Wo ein Prüffall die Umgebung braucht, gehört sie wie in `src/core/registry.test.ts` als
+**Parameter** hinein (`OHNE_ENV = {}`), **nicht** aus `process.env` gelesen.
 
 - [ ] **Schritt 1: `_lib/zugang.ts` schreiben**
 
