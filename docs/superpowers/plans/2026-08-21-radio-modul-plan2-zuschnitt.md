@@ -364,7 +364,8 @@ describe("radio: der Registry-Eintrag", () => {
 
   it("heisst Funkgeraete — der Titel steht in der Registry, nicht in der Release-Notiz", () => {
     // Spec:772-774: eine andere Betreiber-Wortwahl kostet EINE Zeile hier und keinen Code.
-    // `CLAUDE.md` verbietet, den Modultitel in einer Neuigkeitennotiz zu wiederholen.
+    // `CLAUDE.md`, Abschnitt „Release Notes", verbietet, den Modultitel in einer
+    // Neuigkeitennotiz zu wiederholen — er steht hier und nur hier.
     expect(getModule("radio").title).toBe("Funkgeräte");
   });
 
@@ -2912,7 +2913,11 @@ Erwartet: **1 passed** (nur noch der Löschweg-Scan) und **0 Lint-Fehler** (kein
 - [ ] **Schritt 6: Grün sehen — der ganze Modulbaum plus die gekoppelten Nachbarn**
 
 ```
-rtk pnpm vitest run src/app/m/radio src/core/shell/AppUmschalter.test.tsx src/core/routing.test.ts src/core/auth/devGroups.test.ts src/core/shell/navAbschnitte.test.ts scripts/seed-lokal.test.ts src/core/bootstrap.test.ts
+rtk pnpm vitest run src/app/m/radio src/core/registry.test.ts \
+  src/core/shell/AppUmschalter.test.tsx src/core/shell/launcherEintraege.test.ts \
+  src/core/shell/SuiteHeader.test.tsx src/core/routing.test.ts \
+  src/core/auth/devGroups.test.ts src/core/shell/navAbschnitte.test.ts \
+  scripts/seed-lokal.test.ts src/core/bootstrap.test.ts
 ```
 
 Erwartet: **alle grün.** `riegel.test.ts` ist jetzt grün, weil die zwei Verwaltungs-Hüllen die
@@ -2972,6 +2977,35 @@ Leerzeile vor `EOF`; `pnpm lint` meldet das nicht, aber die Datei soll nach Zeil
 
 ⚠️ **Der Commit muss signiert sein** (main-Ruleset), sonst blockiert der Merge trotz grüner CI.
 
+- [ ] **Schritt 9: Das Vor-Merge-Tor — einmal, nach den Tests, nie davor**
+
+⛔ **Dieser Schritt ist nicht optional, und er ist der einzige, der die eine Datei dieses Planteils
+prüft, die kein anderes Tor sehen kann.** `_ui/RadioVerwaltungsRahmen.tsx` ist die **einzige
+antd-Berührung** von Planteil 2 (Global Constraints, `:154-156`), und `CLAUDE.md` sagt für genau
+diese Klasse, dass weder `typecheck` noch `lint` noch Vitest sie strukturell findet — Falle 1
+(Compound-Zugriff → HTTP 500), Falle 6 (Wert aus `"use client"` in RSC), Falle 7
+(`@ant-design/icons` in einer Server Component), Falle 9 (`render`-Funktion über die RSC-Grenze).
+Der Plan übernimmt diesen Satz selbst weiter oben; ein Planteil, der die eine Datei baut, die nur
+`build` und ein echter Abruf sehen, darf nicht ohne diesen Lauf enden.
+
+⚠️ **Planteil 1 durfte ihn auslassen und hat es begründet** (`2026-08-21-radio-modul-plan1-datenhaltung.md:104`:
+„`pnpm build` und Playwright werden von diesem Plan nicht berührt — er legt keine Route und …").
+Planteil 2 legt **drei `layout.tsx`** an. Die Begründung trägt hier nicht mehr.
+
+```
+rtk pnpm build
+rtk pnpm exec playwright test
+```
+
+⛔ **Danach entweder `rm -rf .next` ODER kein weiterer Vitest-Lauf.** `.next/standalone/src/` ist
+eine vollständige Kopie des Quellbaums **inklusive Testdateien** (52 Fehlschläge,
+`vitest.config.ts:21-34`). Deshalb steht dieser Schritt **hinter** Schritt 6, 7 und 8 und nirgends
+sonst.
+
+⚠️ **Playwright fährt gegen genau einen `baseURL`** — er kann den Host-Riegel nicht prüfen
+(Spec:717). Was er hier prüft, ist, dass die drei neuen Layouts die **bestehenden** e2e-Wege nicht
+gebrochen haben.
+
 ---
 
 ## Nachträge — was der Bau von Z1–Z6 an den Dokumenten gefunden hat
@@ -2984,8 +3018,10 @@ gefunden wurden:
 | # | Fund | Wo er hingehört |
 |---|---|---|
 | **NT-Z1** | **Spec:546-547 und Leitplan:88 widersprechen sich bei `_lib/hostRiegel.ts`** — die Spec schreibt die Datei Kapitel 7 zu, der Leitplan Planteil 2. Entschieden zugunsten des Leitplans (Warnung 4) | Nachtrag am **Spec-Text §1.4.2**, nicht am Plan. Der Bau ist richtig |
-| **NT-Z2** | **Spec:714 nennt in Klausel (a) `requireRadioAdmin` „bzw. `requireRadioVerwaltung`"** — der zweite Name kommt im Repo nirgends vor. Der Scan bindet an den **ersten**, weil eine offene Alternative die Tür wäre, durch die Planteil 4 eine schwächere, updater-freundliche Fassung einsetzen könnte (C.6/B4) | Nachtrag am **Spec-Text §1.6**. ⛔ Braucht Planteil 4 einen zweiten Namen, ist das eine bewusste Änderung an `riegel.test.ts` |
+| **NT-Z2** | **Spec:714 nennt in Klausel (a) `requireRadioAdmin` „bzw. `requireRadioVerwaltung`" — und das ist KEIN Redaktionsfehler, sondern die Vorwegnahme von Spec:4367.** Die Aufruftabelle in Kapitel 5 setzt `admin/(arbeit)/layout.tsx` auf `requireRadioVerwaltung()` (`Spec:4367`) und `admin/(druck)/layout.tsx` auf `requireRadioAdmin()` (`Spec:4368`); die zwei Hüllen tragen also **verschiedene** Riegel. Ein Scan, der nur den ersten Namen kennt, wäre gegen die verbindliche Bauform **rot-by-construction** — dieselbe Fehlerform, die **B7** (`Spec:96`) an einem anderen Namen schon abgeräumt hat | **Kein Nachtrag an der Spec — der Plan war falsch.** Klausel (a) in `riegel.test.ts` ist **pfadsensitiv** gebaut: `(druck)` verlangt `requireRadioAdmin(`, `(arbeit)` erlaubt `requireRadioAdmin(` **oder** `requireRadioVerwaltung(`, jede unbekannte Group fällt in den strengen Zweig. ⛔ Ein blankes „oder" über **alle** Admin-Layouts wäre die offene Tür — durch sie könnte das **Druckblatt mit den Zugangscodes im Klartext** auf die schwächere Stufe rutschen |
 | **NT-Z3** | **Der Typ heißt `RadioViewer` und hat drei Felder** (Spec:648), nicht `Viewer` mit vier (Spec:2794). Die Spec löst den Widerspruch nicht auf; entschieden anhand von `_db/schema.ts:113-117` — die `users`-Tabelle hat keine E-Mail-Spalte | Nachtrag am **Spec-Text §3.6.1**. ⬜ Braucht Planteil 4 eine E-Mail, ist das eine **Schema**-Änderung plus eine Erweiterung hier — nicht nur hier |
+| **NT-Z4** | **Spec:534 und Spec:547 nennen `istRadioHost` als Aufrufziel von `hostAbweisung`**; gebaut wird `radioHostOderNull`, zeichengleich zum Präzedenzfall `lagerbuch/_lib/hostRiegel.ts:33`. Die Prädikatsform gäbe kein `null`, das mit `??` kurzschließbar wäre — und genau das macht „als erste Anweisung" strukturell wahr statt konventionell (Spec:538-540) | Nachtrag am **Spec-Text §1.4.2**. **Der Bau ist richtig.** ⛔ `host.test.ts` und `riegel.test.ts` Klausel (c) binden beide an den gebauten Namen; wer später `Spec:534` wörtlich umsetzt, macht sie rot für eine Datei, die korrekt geriegelt ist |
+| **NT-Z5** | **`merkeNutzer` fehlt in Kapitel 1 und steht in Kapitel 5.** Spec:669-673 führt `requireRadioAdmin` in fünf Schritten **ohne**, Spec:4349 in sechs **mit** — und Spec:4358-4360 nennt die Zeile ausdrücklich „keine Kür": sechs Audit-Spalten speichern den `sub` und werden über `users` in einen Namen aufgelöst; ohne sie rendert jede Ereigniszeile eine **nackte UUID**. Kein A-/B-Punkt löst den Widerspruch auf | **Planteil 2 baut die Kapitel-1-Fassung**, weil es in diesem Planteil **keinen Leser von `users`** gibt — die Tabelle steht seit Planteil 1 (`_db/schema.ts:113-117`), die Ereignisflächen kommen mit Planteil 4. ⛔ **Auflage an Planteil 4:** `merkeNutzer(getDb(), viewer)` **nach** dem Riegel nachtragen. Als Nahtstelle **NS-Z7** geführt |
 
 ---
 
@@ -3005,7 +3041,7 @@ es „schnell mitnimmt", baut außerhalb der Reihenfolge, die die Spec mit ihren
 | **Die CWE-348-Umstellung in `src/core/ratelimit.ts`** | eigene kleine Vorarbeit **vor Planteil 3**, eigener Commit | `clientIpAus` (`ratelimit.ts:80-81`) übernimmt `cf-connecting-ip` ungeprüft. Betrifft heute schon `feedback` und `files` — deshalb eine eigene Arbeit, nicht ein Anhängsel an ein Modul |
 | **Das Entfernen des Suite-Admin-Kurzschlusses in `src/core/groups.ts:125`** | eigene kleine Vorarbeit **vor Planteil 4**, eigener Commit | Planteil 2 **umgeht** ihn modulintern (Pflicht 17) und hält das per Scan fest. Ihn zu entfernen ist eine Änderung an **allen** Modulen |
 | **`radioBootFehler()`, `/api/health/radio`, der Abräum-Worker, die PWA-Frage** | Planteil 5 | ⚠️ `/api/health/*` ist **Passthrough** und wird von `core` beantwortet; es entsteht **kein** `src/app/m/radio/api/health/…` (Spec:359-360). Der Abräum-Worker gehört zum **ersten Deploy**, nicht zum Cutover (Leitplan:107-109) |
-| **Eine Release-Notiz** | Planteil 5 / Cutover | `CLAUDE.md` verlangt eine Notiz für alles, was jemand **bemerkt**. Planteil 2 liefert nichts Bemerkbares: keine Fläche, kein Knopf, kein Wort auf dem Bildschirm. ⚠️ Die Kachel im App-Umschalter erscheint zwar (`showInSwitcher: true`) — sie führt aber auf 404, solange keine Seite steht. **Das ist der Grund, warum Planteil 2 nicht ausgeliefert wird, bevor Planteil 3 steht** |
+| **Eine Release-Notiz** | Planteil 5 / Cutover | `CLAUDE.md`, Abschnitt „Release Notes — für Anwender, nur im Portal", verlangt eine Notiz für alles, was jemand **bemerkt**. Planteil 2 liefert nichts Bemerkbares: keine Fläche, kein Knopf, kein Wort auf dem Bildschirm. ⚠️ Die Kachel im App-Umschalter erscheint zwar (`showInSwitcher: true`) — sie führt aber auf 404, solange keine Seite steht. **Das ist der Grund, warum Planteil 2 nicht ausgeliefert wird, bevor Planteil 3 steht** |
 | **Ein e2e-Fall für den Host-Riegel** | ⛔ **nirgends** | Spec:717: Playwright fährt gegen genau **einen** `baseURL`; ein zweiter Host existiert im Lauf nicht. Deshalb steht die Absicherung in `host.test.ts` und `riegel.test.ts` — und ein e2e-Fall, der so täte, als prüfte er den Riegel, wäre schlimmer als keiner |
 | **Ein Beweis, dass die Riegel bei einem echten Abruf GREIFEN** | ⬜ **Z-L1**, Planteil 4 | ⛔ **Der wichtigste Eintrag dieser Tabelle.** Unter beiden Verwaltungs-Hüllen liegt keine `page.tsx`; Next rendert sie nicht. Was Planteil 2 belegt, ist **„die Zeile steht da"** — nicht **„der Riegel greift"**. Kein Test dieses Planteils darf etwas anderes behaupten. Der Präzedenzfall ist vernarbt: die `lagerbuch`-Spec verlangte ein `cookies().delete()` in einer Server Component, wo es **wirft** |
 | **Die Werte von ⬜ L7 und ⬜ L8** | Cutover-Runbook, **C19/C29/C30** | „Entsperrt" heißt: der Code, den jene Aufrufe befragen, existiert. Abgelesen wird per echtem Abruf (`2026-08-18-plan4-radio-cutover.md:2091` und `:1910`). Ein hier vorweggenommener Statuscode wäre eine Erfindung |
@@ -3025,11 +3061,14 @@ benutzt, ruft den Host-Riegel **nicht noch einmal**. Ein zweiter Aufruf ist die 
 Prädikat sei host-blind — und die nächste Person entfernt dann den falschen der beiden. Vorbild für
 denselben Schluss: `lagerbuch/_lib/bauform.test.ts:1597-1614`.
 
-**NS-Z2 — die Untergrenze in `riegel.test.ts` steigt auf 2.**
+**NS-Z2 — die Handlerzahl in `riegel.test.ts` steigt auf 2.**
 Planteil 3 baut `t/[code]/route.ts` und `abmelden/route.ts`. ⛔ **Mit dem ersten Handler wird
-`HANDLER_ANZAHL` von `0` auf `2` gesetzt** — eine Zeile, ganz oben in `riegel.test.ts`. Wer den
-Handler baut und die Zahl stehen lässt, hinterlässt einen Scan, der weniger bewacht, als sein Name
-sagt (NT11). Beide Handler nehmen `radioHostOderNull`, **nie** die werfende Form.
+`HANDLER_ANZAHL` von `0` auf `2` gesetzt** — eine Zeile, ganz oben in `riegel.test.ts`. ⚠️ **Die
+Konstante heißt `HANDLER_ANZAHL`, nicht `HANDLER_MINDESTENS`, und Klausel (c) prüft sie mit `toBe`,
+nicht mit `toBeGreaterThanOrEqual`** — der Fall wird also **rot**, sobald der erste Handler steht.
+Das ist Absicht: mit `>=` bliebe der Scan grün und bewachte weniger, als sein Name sagt (NT11). Beide
+Handler nehmen `radioHostOderNull`, **nie** die werfende Form, **und nie `requireRadioAdmin`** (B11,
+dritte Prüfung der Klausel c).
 
 **NS-Z3 — `/t/<code>` ist nach dem ersten Druck nicht mehr umbenennbar.**
 Der Pfad ist gegen `PASSTHROUGH` geprüft und steht fest (`_lib/routen.test.ts`, Z2; Spec:367-374).
@@ -3067,19 +3106,61 @@ Ausweis**. Deshalb steht der Host-Riegel **innen**.
 
 ---
 
+## Nahtstellen zu Planteil 4 — was dort NACHGETRAGEN werden muss
+
+⛔ **Drei Zeilen dieses Planteils sind bewusst unfertig, und Planteil 4 ist der Termin.** Sie stehen
+hier zusammen, damit sie nicht einzeln in Kommentarköpfen verloren gehen.
+
+**NS-Z7 — `merkeNutzer(getDb(), viewer)` NACH dem Riegel in `requireRadioAdmin`.**
+Kapitel 1 §1.5 (Spec:669-673) führt fünf Schritte, Kapitel 5 (Spec:4349) sechs; Planteil 2 baut die
+Kapitel-1-Fassung, weil `users` hier keinen Leser hat (NT-Z5). ⛔ Ohne die Zeile rendert **jede
+Ereigniszeile eine nackte UUID** — sechs Audit-Spalten speichern nur den `sub` und werden über
+`users` in einen Namen aufgelöst (Spec:4358-4360). Der Termin ist die erste Fläche, die
+`geraete_ereignisse` liest. ⚠️ `riegel.test.ts` Klausel (d) liest denselben Funktionskörper mit —
+die neue Zeile steht **nach** `istRadioAdmin`, nicht davor.
+
+**NS-Z8 — `requireRadioVerwaltung` in `_lib/zugang.ts` und der Wechsel in `admin/(arbeit)/layout.tsx`.**
+Spec:4287-4288 legt `requireRadioVerwaltung` und `istRadioUpdater` in **diese** Datei, Spec:4420-4422
+legt die Gruppenquelle `SUITE_UPDATER_GROUP_RADIO` und die Feld-Allowlist in `_lib/rollen.ts` mit
+eigenem Test. Spec:4367 setzt `admin/(arbeit)/layout.tsx` auf `requireRadioVerwaltung()`, Spec:4368
+lässt `admin/(druck)/layout.tsx` bei `requireRadioAdmin()`, Spec:4369-4375 verteilt die zehn Seiten
+einzeln. ⛔ **Bis dahin sperrt das `(arbeit)`-Layout jede Updater-Person mit 404, bevor irgendeine
+Seite läuft** — und typecheck, lint und build bleiben grün. `riegel.test.ts` Klausel (a) ist bereits
+pfadsensitiv gebaut und lässt beide Namen im Arbeitszweig zu; der Wechsel macht den Scan **nicht**
+rot. ⛔ Die zweite Stufe kommt als **zweite Funktion**, nie als `||` in `istRadioAdmin` —
+`zugang.test.ts` hält diese eine Richtung fest. ⬜ **E1b** (der Gruppenname) ist vorher fällig,
+`docs/superpowers/plans/SPERREN-radio-spec2.md:110`.
+
+**NS-Z9 — `_lib/nav.ts` wird zu `radioNav(stufe: RadioRolle)`.**
+Spec:4289 und Spec:4203-4210: **sieben** Einträge, **drei davon nur für die Admin-Stufe** (Import,
+Softwareversionen, Zugänge). ⛔ Umzustellen sind **beide** Seiten — die Datei **und** die
+`nav`-Weitergabe in `admin/(arbeit)/layout.tsx`. Ohne den Parameter sieht eine Person der
+Updater-Stufe drei Menüpunkte, die sie in ein `notFound()` führen. ⚠️ Der Test, der `hrefs` gegen die
+Routenkarte koppelt, gehört ebenfalls dorthin — über einer leeren Liste wäre er leer-grün.
+
+**NS-Z10 — der Export-Handler riegelt nicht-werfend (B11).**
+`admin/(arbeit)/geraete/export/route.ts` nimmt `radioHostOderNull` **plus**
+`istRadioAdmin(await viewerOderNull())` und baut seine Antwort selbst — **404, nicht 403** (B10),
+Spec:100/2778/4379, bestätigt in B17 (Spec:120). ⛔ **Kein `requireRadioAdmin()` in diesem Handler**:
+es endet in `redirect('/login?…')` bzw. `notFound()`, und ein anonymer `GET` landete im Login-Umweg.
+`riegel.test.ts` Klausel (c) prüft alle drei Hälften — die geforderte Form, die verbotene werfende
+Host-Form und den verbotenen `requireRadioAdmin`.
+
+---
+
 ## Zusagen dieses Planteils an die anderen
 
 | # | Zusage | an |
 |---|---|---|
 | 1 | `getModule("radio")` ist auflösbar, `moduleForHost("radio.localtest.me")` liefert das Modul **ohne jede Env**, und `ICONS[mod.icon]` ist definiert | **alle** Planteile |
 | 2 | `requireRadioHost` (wirft) · `radioHostOderNull` (wirft nie) · `hostAbweisung` (`Response \| null`) stehen mit den Signaturen aus Spec §1.4.2, und die Verankerungstabelle steht als Kommentarblock **in `_lib/host.ts`** | **3, 4, 5** |
-| 3 | `requireRadioAdmin` aus `_lib/zugang.ts` ist der **einzige** Verwaltungsriegel. Jede Server Action ruft ihn als **erste** Anweisung; er ruft `requireRadioHost` **intern**, ebenfalls als erste | **4** |
+| 3 | `requireRadioAdmin` aus `_lib/zugang.ts` ist der einzige Verwaltungsriegel **für Seiten, Layouts und Server Actions**. Jede Server Action ruft ihn als **erste** Anweisung; er ruft `requireRadioHost` **intern**, ebenfalls als erste. ⛔ **Verwaltungs-Route-Handler unter `admin/` NICHT** — sie riegeln mit `radioHostOderNull` + `istRadioAdmin(await viewerOderNull())` und bauen ihre 404 selbst (**B11**, Spec:100/2778/4379, bestätigt B17 Spec:120); ein `requireRadioAdmin` dort erzeugt den Login-Umweg, den B11 abgeschafft hat. `riegel.test.ts` Klausel (c) prüft es | **4** |
 | 4 | `istRadioAdmin` bleibt die **Admin**-Stufe und wird durch die Updater-Stufe **nicht** aufgeweicht — `zugang.test.ts` hält die Richtung fest | **4** (C.6/B4) |
-| 5 | Die zehn Verwaltungspfade aus §1.2.2 sind **vergeben**, verteilt auf `admin/(arbeit)` (mit Rahmen) und `admin/(druck)` (ohne). Beide Hüllen stehen; Planteil 4 hängt nur noch Seiten hinein | **4** |
-| 6 | `_lib/nav.ts` existiert und ist der Ort der Verwaltungsnavigation. Sie darf `abschnitt:` vergeben (`shell: "full"`) | **4** |
+| 5 | Die zehn Verwaltungspfade aus §1.2.2 sind **vergeben**, verteilt auf `admin/(arbeit)` (mit Rahmen) und `admin/(druck)` (ohne). Beide Hüllen stehen. ⚠️ **Aber Planteil 4 hängt NICHT nur Seiten hinein:** `admin/(arbeit)/layout.tsx` wechselt seinen Personen-Riegel von `requireRadioAdmin()` auf `requireRadioVerwaltung()` (Spec:4367; `(druck)` bleibt, Spec:4368), und die `nav`-Weitergabe wird umgestellt. Siehe **NS-Z8** und **NS-Z9** | **4** |
+| 6 | `_lib/nav.ts` existiert und ist der Ort der Verwaltungsnavigation. Sie darf `abschnitt:` vergeben (`shell: "full"`). ⛔ **Die FORM ist nicht endgültig:** Spec:4289/4203-4210 verlangt `radioNav(stufe: RadioRolle)` mit **sieben** Einträgen, drei davon nur für die Admin-Stufe. Planteil 4 stellt **Datei UND Aufrufstelle** um (**NS-Z9**) — die Konstante hier ist der Zustand von Planteil 2, weil `RadioRolle` erst mit `_lib/rollen.ts` entsteht | **4** |
 | 7 | Jeder äußere Pfad aus §1.2.1/§1.2.2 **plus `/sw.js`** ist gegen `PASSTHROUGH` geprüft und als Test festgehalten. `/login` und `/api/health/radio` erreichen das Modul **nie** | **3, 4, 5** |
 | 8 | Kapitel 1 legt **keinen** Route Handler unter `api/` an. Erlaubt ist jeder Name unter `src/app/m/radio/api/` außer `auth/**` und `health/**` | **4, 5** |
-| 9 | `riegel.test.ts` führt einen **namentlichen Anhebe-Fahrplan** für `HANDLER_ANZAHL`: Planteil 3 → 2, Planteil 4 → 3, Planteil 5 → 4 | **3, 4, 5** |
+| 9 | `riegel.test.ts` führt einen **namentlichen Anhebe-Fahrplan** für `HANDLER_ANZAHL`: Planteil 3 → 2, Planteil 4 → 3, Planteil 5 → 4 — **und er hat einen Träger, nicht nur einen Kommentar**: Klausel (c) prüft `toBe(HANDLER_ANZAHL)`, nicht `toBeGreaterThanOrEqual`. Wer einen Handler baut und die Zahl stehen lässt, bekommt den Fall **rot** | **3, 4, 5** |
 | 10 | Vier Zeilen ans Runbook: (1) `SUITE_HOST_RADIO=radio.iuk-ue.de` **vor** dem Umschwenk setzen — vorher liefert Produktion 404, ein Parallelfenster gibt es nicht. (2) `SUITE_ADMIN_GROUP_RADIO` gesetzt **und nicht leer**, Gruppe in Pocket ID vorhanden. (3) Der pfaderhaltende `redirectRegex` von `radio-admin.iuk-ue.de` lebt auf dem Server; diese Domain darf **nicht** in `SUITE_TRAEFIK_RULE` stehen. (4) Nach dem Umschwenk gilt von den alten Kiosk-Pfaden nur `/` | **Spec 2 / Runbook** |
 | 11 | ⚠️ Die Doppelvergabe-Prüfung von `validateHostConfig` sieht **nur** Env-Hosts, **nicht** die `prodHosts` anderer Module im Registry-Code (heute `portal`s `iuk-ue.de`, `registry.ts:59`). Das ist **Handarbeit im Runbook** | **Spec 2 / Runbook** |
 | 12 | `showInSwitcher: true` entscheidet mit, **wer** die Release-Notizen zum Modul sieht (`portal/_lib/neuigkeiten/auswahl.ts:48`). Die Notiz braucht eine Zeile in `register.ts`, sonst ist der Cutover ein roter Test | **5 / Cutover** |
@@ -3094,9 +3175,10 @@ Ausweis**. Deshalb steht der Host-Riegel **innen**.
 | **Steht irgendwo ein erfundener Wert?** | Nein. Jede Zahl, jeder Pfad und jede Signatur ist aus der Spec zitiert (mit Zeile), aus dem Bestand gemessen (mit `datei:zeile`) oder eine ⬜. Der Statuscode der `/admin`-Weiterleitung ist ⬜ **L7** und wird **nicht** vorweggenommen; die Updater-Gruppe ist ⬜ **E1b** und steht in keinem Wert, nur in einem Verweis; `Z-L1` (Layout-Ausführung ohne Seite) ist als **unbekannt** ausgewiesen statt als „greift schon" |
 | **Passen Typen und Namen über die Aufgaben hinweg zusammen?** | `RadioViewer` (drei Felder, NT-Z3) wird in Z4 definiert und in Z5 nur per Quelltext gelesen. `requireRadioHost`/`radioHostOderNull` (Z3) werden in Z4 und Z6 aufgerufen, in Z5 gescannt. `RADIO_NAV` (Z6) und `RadioVerwaltungsRahmen` (Z6) liegen in derselben Aufgabe wie ihr Aufrufer — keine Aufgabe importiert etwas, das eine spätere baut |
 | **Hat jede Aufgabe einen eigenen Torlauf?** | Z1–Z4 ja. Z5 und Z6 teilen sich **ein** Tor und **einen** Commit — begründet: Z6 löscht den alten Wächter, Z5 stellt den neuen, und zwischen zwei Commits wäre der Baum unbewacht |
-| **Wird irgendwo eine Zusicherung gebaut, die die Bauform nicht halten kann?** | Geprüft und bewusst vermieden. Die drei Stellen, an denen es nahelag: (1) ein Test, der behauptet, der Layout-Riegel **greife** — steht nicht drin, es ist ⬜ Z-L1; (2) ein Test, der ⬜ L7/L8 vorwegnimmt — steht nicht drin, der Ablesepunkt ist das Cutover-Runbook; (3) ein Scan über eine leere Menge, der leer-grün wäre — abgewendet durch Untergrenzen in Klausel (a) und im `"use client"`-Block und durch den namentlichen Anhebe-Fahrplan in Klausel (c) |
+| **Läuft `build` und Playwright, und genau einmal?** | Ja — **Z6, Schritt 9**, nach den Tests und nach dem Commit. Das ist neu und nicht kosmetisch: `_ui/RadioVerwaltungsRahmen.tsx` ist die einzige antd-Berührung dieses Planteils, und `CLAUDE.md` sagt für die Fallen 1, 6, 7 und 9, dass weder `typecheck` noch `lint` noch Vitest sie strukturell sehen kann. Planteil 1 durfte das Tor auslassen und hat es begründet (`plan1-datenhaltung.md:104`: „legt keine Route"); Planteil 2 legt **drei `layout.tsx`** an, die Begründung trägt hier nicht mehr. ⛔ Danach `rm -rf .next` oder kein weiterer Vitest-Lauf |
+| **Wird irgendwo eine Zusicherung gebaut, die die Bauform nicht halten kann?** | Geprüft und bewusst vermieden. Die drei Stellen, an denen es nahelag: (1) ein Test, der behauptet, der Layout-Riegel **greife** — steht nicht drin, es ist ⬜ Z-L1; (2) ein Test, der ⬜ L7/L8 vorwegnimmt — steht nicht drin, der Ablesepunkt ist das Cutover-Runbook; (3) ein Scan über eine leere Menge, der leer-grün wäre — abgewendet durch Untergrenzen in Klausel (a) und im `"use client"`-Block und, in Klausel (c), durch die **exakte** Zählung `toBe(HANDLER_ANZAHL)`. ⚠️ Der Anhebe-Fahrplan allein reichte **nicht**: ein Fahrplan im Kommentar ist keine Mechanik, und `>= 0` ist über jeder Menge wahr — die erste Fassung dieses Plans hatte hier genau die NT11-Form, die ihr eigener Testkopf verurteilt |
 | **Wird der M4-Fall gelöscht oder aufgeweicht?** | **Gelöscht**, namentlich und wörtlich zitiert (Z6, Schritt 5: `_db/append.test.ts:50-77`). Die drei naheliegenden Aufweichungen sind einzeln benannt und verboten. Der erste `describe`-Block (`:23-48`) bleibt unverändert |
 | **Sieht der Plan den Host-Riegel VOR jeder Fläche vor?** | Ja, und schärfer als verlangt: Planteil 2 legt **null** `page.tsx` und **null** `route.ts` an. Die Riegel stehen ab Z3/Z4, die Hüllen ab Z6, und die erste Fläche entsteht in Planteil 3 |
-| **Ist die zweite Rechtestufe vorgesehen, ohne gebaut zu werden?** | Ja. `_lib/zugang.ts` benennt Datei (`_lib/rollen.ts`), Variable (`SUITE_UPDATER_GROUP_RADIO`), Leerstelle (⬜ E1b) und Bestandsform (`mapGroupsToRole`, „admin gewinnt"), und `zugang.test.ts` verriegelt die eine Richtung, in der Planteil 4 sie versehentlich zur **Aufweichung** machen würde — mit einer Gegenprobe, die den roten Zustand herstellt (Z4, Schritt 3) |
+| **Ist die zweite Rechtestufe vorgesehen, ohne gebaut zu werden?** | Ja, und die **Riegelform** sieht sie vor, nicht nur die Prosa — das ist die Auflage aus `KONTEXT-radio-planteil2.md:30-31`. **Vier Träger:** (1) `riegel.test.ts` Klausel (a) ist **pfadsensitiv** — `(arbeit)` lässt `requireRadioAdmin(` **oder** `requireRadioVerwaltung(` zu (Spec:4367), `(druck)` nur den ersten (Spec:4368); ohne das wäre der Scan gegen die verbindliche Bauform rot-by-construction. (2) `_lib/zugang.ts` benennt die Trennung, die die Spec macht: der **Riegel** beider Stufen gehört in **diese** Datei (Spec:4287-4288), die **Gruppenquelle** und die Feld-Allowlist in `_lib/rollen.ts` mit eigenem Test (Spec:4420-4422). (3) `zugang.test.ts` verriegelt die eine Richtung, in der Planteil 4 sie versehentlich zur **Aufweichung** machen würde — mit einer Gegenprobe, die den roten Zustand herstellt (Z4, Schritt 3). (4) **NS-Z8** nennt den Wechsel in `admin/(arbeit)/layout.tsx` als ⛔-Auflage samt Preis: bis dahin sperrt das Layout jede Updater-Person mit 404, still |
 | **Bleibt die HTTP-Grenze stehen?** | Ja. Planteil 2 berührt keine `/v1`-Route und legt keinen Handler unter `api/` an. Der Punkt steht in den Global Constraints, in „Was Planteil 2 NICHT liefert" und in der Abgrenzung der Dateiliste |
 | **Was ist nach diesem Planteil messbar besser?** | Vorher: `radio` war eine Datenbank ohne Modul — kein Registry-Eintrag, keine Route, kein Riegel, und der einzige Schutz war ein Verbot („keine Fläche"). Nachher: das Modul ist registriert und im Umschalter sichtbar, jeder seiner **achtzehn** äußeren Pfade ist gegen `PASSTHROUGH` geprüft, **vier** Riegelformen stehen mit Tests, der Verwaltungszugang löst seine Gruppe **ohne** den Suite-Admin-Kurzschluss auf, und aus dem Verbot ist eine **Bauform-Zusicherung** geworden, die mit jedem weiteren Planteil schärfer wird statt zu verfallen |
