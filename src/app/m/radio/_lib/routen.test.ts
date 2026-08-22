@@ -225,12 +225,22 @@ describe("radio: die Luecke, gegen die _lib/host.ts gebaut ist (Falle 61)", () =
      * Mit `requiresAuth: false` hat `/admin` damit NULL Middleware-Gating. Der einzige
      * Traeger ist `requireRadioAdmin` (Z4) und der Scan in `riegel.test.ts` (Z5).
      *
-     * ⚠️ IN DER ZUSICHERUNG SUBSUMIERT VON FALL 1 — gehalten wegen des HOSTUNTERSCHIEDS.
+     * ⚠️ IM ERWARTUNGSWERT SUBSUMIERT VON FALL 1 — gehalten wegen des HOSTUNTERSCHIEDS.
      * Fall 1 prueft `/m/radio/admin` unter dem FREMDEN Host `iuk-ue.de`, dieser Fall
-     * denselben Pfadast unter dem RICHTIGEN (`HOST`). Jede Mutation, die diesen Fall rot
-     * macht, macht Fall 1 mit rot; eine Mutation, die nur diesen trifft, gibt es nicht.
-     * Das ist NICHT die NT11-Form (der Fall hat Mutationen, nur keine eigene) — wer ihn
-     * dennoch fuer einen eigenstaendigen Riegel haelt, liest ihn falsch.
+     * denselben Pfadast unter dem RICHTIGEN (`HOST`); beide erwarten `{ action: "next" }`.
+     *
+     * ⛔ IN DER MUTATIONSDECKUNG IST ER NICHT SUBSUMIERT. Die erste Fassung dieses
+     * Kommentars behauptete das Gegenteil — „eine Mutation, die nur diesen trifft, gibt
+     * es nicht" —, und das ist GEMESSEN FALSCH (Sonde P13, 2026-08-22): eine
+     * host-abhaengige Sperre im internen Zweig von `core/routing.ts:58-66` — `host` steht
+     * dort ueber die Destrukturierung in `core/routing.ts:48` in Reichweite — faerbt
+     * GENAU diesen Fall rot (`1 failed | 26 passed (27)`, Fehlschlag auf seiner eigenen
+     * `expect`-Zeile), waehrend Fall 1 unter `iuk-ue.de` gruen bleibt. Ein Gegenbeispiel
+     * belegt nur die EXISTENZ einer solchen Mutation; es macht diesen Fall nicht zu einem
+     * eigenstaendigen Riegel. Die naheliegenden Mutationen — an `PASSTHROUGH` oder am
+     * Modul-Lookup — faerben weiterhin beide Faelle zugleich. Erst recht ist das NICHT
+     * die NT11-Form: der Fall hat eine eigene Mutation, sie ist nur nicht die naechste,
+     * die jemandem einfaellt.
      */
     const anonym = decideRoute({ host: HOST, pathname: "/m/radio/admin/zugaenge", groups: null });
     // EINE Behauptung, nicht zwei: `toEqual({ action: "next" })` schliesst

@@ -971,12 +971,22 @@ describe("radio: die Luecke, gegen die _lib/host.ts gebaut ist (Falle 61)", () =
      * Mit `requiresAuth: false` hat `/admin` damit NULL Middleware-Gating. Der einzige
      * Traeger ist `requireRadioAdmin` (Z4) und der Scan in `riegel.test.ts` (Z5).
      *
-     * ⚠️ IN DER ZUSICHERUNG SUBSUMIERT VON FALL 1 — gehalten wegen des HOSTUNTERSCHIEDS.
+     * ⚠️ IM ERWARTUNGSWERT SUBSUMIERT VON FALL 1 — gehalten wegen des HOSTUNTERSCHIEDS.
      * Fall 1 prueft `/m/radio/admin` unter dem FREMDEN Host `iuk-ue.de`, dieser Fall
-     * denselben Pfadast unter dem RICHTIGEN (`HOST`). Jede Mutation, die diesen Fall rot
-     * macht, macht Fall 1 mit rot; eine Mutation, die nur diesen trifft, gibt es nicht.
-     * Das ist NICHT die NT11-Form (der Fall hat Mutationen, nur keine eigene) — wer ihn
-     * dennoch fuer einen eigenstaendigen Riegel haelt, liest ihn falsch.
+     * denselben Pfadast unter dem RICHTIGEN (`HOST`); beide erwarten `{ action: "next" }`.
+     *
+     * ⛔ IN DER MUTATIONSDECKUNG IST ER NICHT SUBSUMIERT. Die erste Fassung dieses
+     * Kommentars behauptete das Gegenteil — „eine Mutation, die nur diesen trifft, gibt
+     * es nicht" —, und das ist GEMESSEN FALSCH (Sonde P13, 2026-08-22): eine
+     * host-abhaengige Sperre im internen Zweig von `core/routing.ts:58-66` — `host` steht
+     * dort ueber die Destrukturierung in `core/routing.ts:48` in Reichweite — faerbt
+     * GENAU diesen Fall rot (`1 failed | 26 passed (27)`, Fehlschlag auf seiner eigenen
+     * `expect`-Zeile), waehrend Fall 1 unter `iuk-ue.de` gruen bleibt. Ein Gegenbeispiel
+     * belegt nur die EXISTENZ einer solchen Mutation; es macht diesen Fall nicht zu einem
+     * eigenstaendigen Riegel. Die naheliegenden Mutationen — an `PASSTHROUGH` oder am
+     * Modul-Lookup — faerben weiterhin beide Faelle zugleich. Erst recht ist das NICHT
+     * die NT11-Form: der Fall hat eine eigene Mutation, sie ist nur nicht die naechste,
+     * die jemandem einfaellt.
      */
     const anonym = decideRoute({ host: HOST, pathname: "/m/radio/admin/zugaenge", groups: null });
     // EINE Behauptung, nicht zwei: `toEqual({ action: "next" })` schliesst
@@ -3109,6 +3119,7 @@ gefunden wurden:
 | **NT-Z3** | **Der Typ heißt `RadioViewer` und hat drei Felder** (Spec:648), nicht `Viewer` mit vier (Spec:2794). Die Spec löst den Widerspruch nicht auf; entschieden anhand von `_db/schema.ts:113-117` — die `users`-Tabelle hat keine E-Mail-Spalte | Nachtrag am **Spec-Text §3.6.1**. ⬜ Braucht Planteil 4 eine E-Mail, ist das eine **Schema**-Änderung plus eine Erweiterung hier — nicht nur hier |
 | **NT-Z4** | **Spec:534 und Spec:547 nennen `istRadioHost` als Aufrufziel von `hostAbweisung`**; gebaut wird `radioHostOderNull`, zeichengleich zum Präzedenzfall `lagerbuch/_lib/hostRiegel.ts:33`. Die Prädikatsform gäbe kein `null`, das mit `??` kurzschließbar wäre — und genau das macht „als erste Anweisung" strukturell wahr statt konventionell (Spec:538-540) | Nachtrag am **Spec-Text §1.4.2**. **Der Bau ist richtig.** ⛔ `host.test.ts` und `riegel.test.ts` Klausel (c) binden beide an den gebauten Namen; wer später `Spec:534` wörtlich umsetzt, macht sie rot für eine Datei, die korrekt geriegelt ist |
 | **NT-Z5** | **`merkeNutzer` fehlt in Kapitel 1 und steht in Kapitel 5.** Spec:669-673 führt `requireRadioAdmin` in fünf Schritten **ohne**, Spec:4349 in sechs **mit** — und Spec:4358-4360 nennt die Zeile ausdrücklich „keine Kür": sechs Audit-Spalten speichern den `sub` und werden über `users` in einen Namen aufgelöst; ohne sie rendert jede Ereigniszeile eine **nackte UUID**. Kein A-/B-Punkt löst den Widerspruch auf | **Planteil 2 baut die Kapitel-1-Fassung**, weil es in diesem Planteil **keinen Leser von `users`** gibt — die Tabelle steht seit Planteil 1 (`_db/schema.ts:113-117`), die Ereignisflächen kommen mit Planteil 4. ⛔ **Auflage an Planteil 4:** `merkeNutzer(getDb(), viewer)` **nach** dem Riegel nachtragen. Als Nahtstelle **NS-Z7** geführt |
+| **NT-Z6** | **`Spec:353` verzählt die Unterpfade von `/admin`.** Dort steht wörtlich „`/admin` und alle **acht** Unterpfade — frei."; Tabelle 1.2.2 (`Spec:303-314`) führt `/admin` plus **neun** (ausgezählt am 2026-08-22 in Aufgabe Z2, Fix-Runde 1, Fund K3). Gefunden beim Bau von `_lib/routen.test.ts` | Nachtrag am **Spec-Text §1.2.2**. **Der Bau ist richtig, und die Zahl stammt nicht von dort:** `VERWALTUNG` in `src/app/m/radio/_lib/routen.test.ts` zählt nach **B9** (`Spec:98`, „zehn Seiten-Pfade plus ein Route Handler"), und der ausgelieferte Kommentar über `expect(VERWALTUNG.length).toBe(11)` schließt den Weg, auf dem die Acht einwandern könnte, namentlich aus. ⛔ **Die Spec wird hier NICHT angefasst** — sie ist ein datiertes Belegdokument, ein Teildurchgang verstieße gegen R3; diese Zeile IST die Meldung an den Verfasser |
 
 ---
 
