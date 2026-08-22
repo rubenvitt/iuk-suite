@@ -94,7 +94,7 @@ describe("registry", () => {
   it("visibleSwitcherModules filters by access and showInSwitcher", () => {
     const anon = visibleSwitcherModules(null).map((m) => m.key);
     expect(anon).not.toContain("alpha");
-    expect(anon).toEqual(["qr"]);
+    expect(anon).toEqual(["qr", "radio"]);
     const withAlpha = visibleSwitcherModules(["alpha-users"]).map((m) => m.key);
     expect(withAlpha).toContain("alpha");
     expect(withAlpha).toContain("portal");

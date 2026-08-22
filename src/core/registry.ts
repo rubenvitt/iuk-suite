@@ -171,6 +171,27 @@ export const MODULES: ModuleDef[] = [
     requiresAuth: true, requiredGroups: ["iuk-aufgaben-nutzer"],
     adminGroups: ["iuk-aufgaben-koordination"], prodHosts: [],
     showInSwitcher: true, switcherGroupSources: ["access"] },
+  // radio: EIN Prod-Host (radio.iuk-ue.de), und er steht AUSSCHLIESSLICH in
+  // SUITE_HOST_RADIO — dieselbe Auflage wie bei lagerbuch (registry.ts:106-108).
+  // prodHosts bleibt deshalb leer, wie bei qr, feedback, files und lagerbuch.
+  //
+  // requiresAuth MUSS false bleiben: /t/<code> ist der Weg, den ein gescannter
+  // QR-Code nimmt, und das Gate auf / ist der Einstieg der anonymen Ausleihe.
+  // Mit requiresAuth: true schickte decideRoute (routing.ts:71-73) JEDEN anonymen
+  // Aufruf in den Login — und zwar sofort beim Umschwenk des Routers, ohne
+  // Parallelfenster.
+  // Dadurch liest canAccess() requiredGroups hier NIE (frueher Ausstieg,
+  // registry.ts:239), und /m/radio/admin/... erbt KEIN Middleware-Gating.
+  // Durchgesetzt wird der Verwaltungszugang modulintern in _lib/zugang.ts, der
+  // Host in _lib/host.ts.
+  //
+  // switcherGroupSources: [] und NICHT ["admin"] wie lagerbuch — die Kachel im
+  // App-Umschalter IST der zweite Zugangsweg zur Ausleihe (Betreiberentscheidung
+  // 5), auch fuer Personen ohne Verwaltungsgruppe. Ein ["admin"] hier verbaute
+  // genau diesen Weg (visibleSwitcherModules, registry.ts:250-258).
+  { key: "radio", title: "Funkgeräte", icon: "WifiOutlined", shell: "full",
+    requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-radio-admin"],
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
