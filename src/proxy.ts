@@ -110,7 +110,16 @@ export function rewriteZielAufAnfrageOrigin(antwort: Response, anfrageOrigin: st
 export async function proxy(request: NextRequest, event: NextFetchEvent) {
   // `event` mitgeben: `handleAuth` reicht `args[1]` an die Weiche durch, und
   // daran haengt `waitUntil`.
-  return (await weicheMitAuth)(request, event);
+  const antwort = await (await weicheMitAuth)(request, event);
+  // `NextMiddlewareResult` schliesst `null | undefined | void` ein
+  // (`next/dist/server/web/types.d.ts:44`); nur eine echte Antwort hat Koepfe.
+  if (!(antwort instanceof Response)) return antwort;
+
+  // `request`, NICHT `req` der Weiche: `request` ist die unverfaelschte Anfrage,
+  // die einzige Stelle, an der die von Next selbst gebaute Origin noch heil ist.
+  // `req` traegt bereits die gegen AUTH_URL getauschte Origin — wer sie hier
+  // nimmt, schreibt `iuk-ue.de` auf `iuk-ue.de` und hat nichts geaendert.
+  return rewriteZielAufAnfrageOrigin(antwort, request.nextUrl.origin);
 }
 
 export const config = {
