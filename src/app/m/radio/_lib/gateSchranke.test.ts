@@ -460,10 +460,32 @@ describe("radio-Gate-Schranke: die vier Eigenschaften aus Spec:3013-3031", () =>
     const roh = readFileSync(join(process.cwd(), "src/app/m/radio/_lib/gateSchranke.ts"), "utf8");
     const quelle = ohneKommentare(roh);
 
-    // Die QUELLE jedes Imports — `_db` deckt `_db/client`, `_db/schema` und jeden
-    // weiteren Pfad darunter mit ab.
+    /*
+     * Die QUELLE jedes Imports — `_db` deckt `_db/client`, `_db/schema` und jeden weiteren
+     * Pfad darunter mit ab.
+     *
+     * ⛔ DAS `\(?` IST KEIN SCHOENHEITSFEHLER, ES SCHLIESST EINE GEMESSENE LUECKE. Die
+     * Fassung davor verlangte vor der Zeichenkette ein `from`, ein `import(` oder ein
+     * `require(` — ein REINER NEBENWIRKUNGS-IMPORT (`import "@/core/db";`,
+     * `import "../_db/client";`) ging daran vorbei, weil er weder das eine noch das andere
+     * traegt. Gemessen als Sonde R9 der Fix-Runde 2 (`.superpowers/sdd/planteil3/
+     * BERICHT-A3.md`, Abschnitt „Fix-Runde 2"): dieselbe Kopie von `gateSchranke.ts` mit
+     * `import "@/core/db";` im Kopf blieb unter der alten Fassung `Tests 10 passed` und
+     * faerbt unter dieser `Tests 1 failed | 9 passed` an genau dieser Zusicherung.
+     *
+     * ⚠️ WIE GROSS DIE LUECKE WIRKLICH WAR, damit sie hier nicht groesser aussieht als sie
+     * ist: `import "drizzle-orm/better-sqlite3";` fiel schon vorher, aber an der ZWEITEN
+     * Zusicherung unten — `drizzle` ist dort ein benanntes Symbol. Offen waren nur die
+     * Formen ohne eines der Symbole im Pfad, also `@/core/db` und `_db/...`.
+     *
+     * ⚠️ UND WAS EIN SOLCHER IMPORT HEUTE TAETE: nichts. `src/core/db/index.ts:1-36` oeffnet
+     * auf Modulebene keine Datenbank, ein Nebenwirkungs-Import bindet kein Symbol und kann
+     * fuer sich keinen Lookup ausfuehren. Der Scan sichert aber die staerkere Zusage zu —
+     * diese Datei KENNT die Datenhaltung ueberhaupt nicht — und die haelt auch dann noch,
+     * wenn `core/db` eines Tages beim Laden etwas tut.
+     */
     expect(quelle, "kein Import aus der Datenhaltung — in keiner Form")
-      .not.toMatch(/(?:from|import\s*\(|require\s*\()\s*["'`][^"'`]*(?:_db|@\/core\/db|drizzle|better-sqlite3)/);
+      .not.toMatch(/(?:from|import|require)\s*\(?\s*["'`][^"'`]*(?:_db|@\/core\/db|drizzle|better-sqlite3)/);
     // Und die benannten Symbole, falls jemand sie ueber einen anderen Weg hereinholt.
     expect(quelle, "gateGesperrt schuetzt den DB-Zugriff, sie darf ihn nicht selbst tun")
       .not.toMatch(/\b(?:getDb|getModuleDb|openModuleDatabase|moduleDbPath|drizzle)\b/);

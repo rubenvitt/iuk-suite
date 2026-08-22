@@ -224,3 +224,27 @@ export function gateFehlversuchBuchen(absender: string): void {
   if (restMs(MODULWEIT_STD, jetzt) > 0) return;
   if (!gateStunde.check(MODULWEIT_STD)) { gesperrtBis.set(MODULWEIT_STD, jetzt + 3_600_000); }
 }
+
+/*
+ * ⬜ EIN OFFENER POSTEN, UND ER STEHT HIER, DAMIT MAN IHN WIEDERFINDET (Fund K3 aus
+ * `.superpowers/sdd/planteil3/REVIEW-A3.md`, in Fix-Runde 1 mit Begruendung verworfen).
+ *
+ * DIE SACHE: die drei Sperrdauern, die `gateFehlversuchBuchen` fortschreibt, wiederholen
+ * die `windowMs` der drei Zaehler als LITERALE ZAHL — `:219` gegen `:85`, `:222` gegen
+ * `:99`, `:225` gegen `:109`. Die Kopplung ist gewollt („jedes `false` schreibt die
+ * FENSTERLAENGE als Sperrzeit fort", `:212-213`), aber sie ist NIRGENDS erzwungen: wer
+ * eine Fensterlaenge aendert und die Sperrzeit stehen laesst, entkoppelt still die feste
+ * Deadline vom gleitenden Fenster — und genau dieser Gleichlauf ist Eigenschaft 3 der
+ * Spec (Spec:3022-3028, `docs/superpowers/specs/2026-08-17-radio-modul-design.md`). Kein
+ * Tor faerbt sich davon; die Faelle dieser Datei pruefen beide Zahlen nur gemeinsam.
+ *
+ * WARUM SIE TROTZDEM SO STEHT: das Vorbild macht es zeichengleich
+ * (`src/app/m/lagerbuch/_lib/gateSchranke.ts:151-157` gegen `:26`, `:42`, `:52`), und A3
+ * bindet auf „Bauform 1:1" mit diesem Vorbild. Eine benannte Konstante NUR hier liesse
+ * die beiden Dateien auseinanderdriften — genau das, wovor die Pruefung bei diesem Fund
+ * selbst gewarnt hat.
+ *
+ * ⛔ DER POSTEN IST DESHALB EIN GEMEINSAMER: `radio`s und `lagerbuch`s `gateSchranke.ts`
+ * zusammen ueberarbeiten, drei benannte Konstanten je Datei, oder die Sperrzeit aus dem
+ * `RateLimiter` selbst lesen. Nicht einzeln.
+ */
