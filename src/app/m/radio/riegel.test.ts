@@ -25,8 +25,11 @@ import { join, relative } from "node:path";
  *   (d) zwei Funktionskoerper in `_lib/zugang.ts`
  *
  * ⬜ Z-L3 — WAS AUCH DANACH UNBEWACHT BLEIBT, und es steht hier, statt verschwiegen zu
- * werden: `page.tsx` AUSSERHALB von `admin/`. Das sind das Gate und die Ausleihflaechen
- * (Planteil 3); sie tragen bewusst KEINEN Verwaltungsriegel, sondern das
+ * werden: `page.tsx` UND `layout.tsx` AUSSERHALB von `admin/`. Beide Filter unten sind auf
+ * `/admin/` verankert; `(ausleihe)/layout.tsx` (Planteil 3, Leitplan:89) faellt damit aus
+ * Klausel (a) heraus — gemessen (Fund N6 der ersten Pruefung, REVIEW-Z56 Messung 4e):
+ * ohne jeden Riegel `12 passed`. Das sind das Gate und die Ausleihflaechen (Planteil 3);
+ * sie tragen bewusst KEINEN Verwaltungsriegel, sondern das
  * Zugangspraedikat der Ausleihe (`_lib/ausleihZugang.ts`,
  * `docs/superpowers/plans/2026-08-21-radio-modul-leitplan.md:89`). Eine Klausel, die
  * beide Klassen in EINE Zahl zaehlte, maesse eine Zahl ohne Aussage. ⛔ PLANTEIL 3
@@ -409,17 +412,30 @@ describe("(c) jeder Route Handler nimmt die NICHT-werfende Form", () => {
      * eines sauberen 404. Route Handler haben ausserdem KEIN Layout ueber sich.
      *
      * ⛔ UND DIE DRITTE PRUEFUNG, SIE IST B11 (Spec:100, ausgeschrieben Spec:4379,
-     * bestaetigt B17 Spec:117): EIN ROUTE HANDLER RUFT AUCH `requireRadioAdmin` NICHT.
+     * bestaetigt B17 Spec:117): EIN ROUTE HANDLER RUFT KEINEN WERFENDEN PERSONEN-RIEGEL.
      * Der Verwaltungs-Handler `admin/(arbeit)/geraete/export/route.ts` (Planteil 4)
      * riegelt mit `radioHostOderNull` + `istRadioAdmin(await viewerOderNull())` und baut
-     * seine 404 selbst. `requireRadioAdmin` endet in `redirect('/login?…')` bzw.
+     * seine 404 selbst. Ein werfender Riegel endet in `redirect('/login?…')` bzw.
      * `notFound()`; woertlich umgesetzt landete ein anonymer GET auf
      * `/admin/geraete/export` in einem LOGIN-UMWEG — typkorrekt, lint-sauber, und genau
      * das, was B11 abgeschafft hat.
      *
-     * ⚠️ Ohne diese dritte Zeile bestuende ein Handler mit `radioHostOderNull(` UND
-     * `requireRadioAdmin()` den Scan GRUEN. Sie ist heute ueber null Handlern leer-gruen
-     * und laeuft im Anhebe-Fahrplan darueber mit.
+     * ⛔ UND SIE NENNT BEIDE WERFENDEN FORMEN, NICHT NUR EINE — Fund N3 der ersten
+     * Pruefung (REVIEW-Z56), und die Luecke stammt aus genau diesem Commit. `Spec:4287`
+     * fuehrt `requireRadioAdmin` UND `requireRadioVerwaltung` als die zwei werfenden
+     * Riegel derselben Datei; seit Z5 kennt diese Testdatei den zweiten Namen ueberall
+     * sonst (`personenRiegelFuer` in Klausel (a) und (e)), nur hier stand er nicht.
+     * Gemessen (Fix-Runde 1, Sonde S1): derselbe Handler mit `requireRadioVerwaltung()`
+     * statt `requireRadioAdmin()` lief `12 passed`. ⚠️ Und der falsche Griff ist der
+     * naheliegende: der Handler aus Spec:4379 liegt unter `admin/(arbeit)/`, wo
+     * Spec:4367/4369-4375 alles andere auf `requireRadioVerwaltung` setzt. Der Schaden
+     * haengt hier NICHT an einer Reihenfolge und NICHT an einem inneren Backstop: eine
+     * werfende Form ist im Antwortweg eines Route Handlers schlicht die falsche Gestalt.
+     *
+     * ⚠️ Ohne diese dritte Zeile bestuende ein Handler mit `radioHostOderNull(` UND einem
+     * werfenden Riegel den Scan GRUEN. Sie ist heute ueber null Handlern leer-gruen und
+     * laeuft im Anhebe-Fahrplan darueber mit — ab Planteil 3 (`t/[code]/route.ts`,
+     * `abmelden/route.ts`) ist sie scharf.
      */
     const verstoesse: string[] = [];
     for (const pfad of ROUTE_HANDLER()) {
@@ -431,8 +447,10 @@ describe("(c) jeder Route Handler nimmt die NICHT-werfende Form", () => {
       if (/\brequireRadioHost\s*\(/.test(q)) {
         verstoesse.push(`${kurz}: nennt die werfende Form (Spec §1.4.3, Schicht ii)`);
       }
-      if (/\brequireRadioAdmin\s*\(/.test(q)) {
-        verstoesse.push(`${kurz}: nennt requireRadioAdmin( — Login-Umweg (B11, Spec:100/4379)`);
+      if (/\brequireRadioAdmin\s*\(|\brequireRadioVerwaltung\s*\(/.test(q)) {
+        verstoesse.push(
+          `${kurz}: nennt einen werfenden Personen-Riegel — Login-Umweg (B11, Spec:100/4379; beide Formen Spec:4287)`,
+        );
       }
     }
     expect(verstoesse).toEqual([]);
@@ -472,16 +490,41 @@ describe("(e) jede Verwaltungsseite traegt den Personen-Riegel ihrer Stufe", () 
     /*
      * ⛔ KEIN `requireRadioHost` FUER SEITEN INNERHALB EINER ROUTE-GROUP, und das ist
      * keine Nachlaessigkeit: Spec:4369-4378 gibt jeder der zehn Seiten GENAU EINE erste
-     * Anweisung, den Personen-Riegel. Den Host haelt das Group-Layout darueber
-     * (Spec:4367-4368). Eine Klausel, die ihn auch von der Seite verlangte, waere gegen
-     * die verbindliche Bauform rot-by-construction — dieselbe Fehlerform wie bei B7.
+     * Anweisung, den Personen-Riegel. Eine Klausel, die ihn auch von der Seite
+     * verlangte, waere gegen die verbindliche Bauform rot-by-construction — dieselbe
+     * Fehlerform wie bei B7.
+     *
+     * ⚠️ UND WER DEN HOST DANN HAELT, IST EINE ODER-AUSSAGE, NICHT DAS GROUP-LAYOUT
+     * ALLEIN — Fund N2 der ersten Pruefung (REVIEW-Z56), und der Unterschied ist tragend.
+     * `inRouteGroup` entscheidet allein an der PFADFORM; ob die Group ein `layout.tsx` hat,
+     * prueft niemand (Klausel (a) fuehrt nur eine GLOBALE Untergrenze, keine je Group).
+     * Gemessen (REVIEW-Z56 Messung 4c): eine `admin/(neu)/page.tsx` OHNE
+     * `admin/(neu)/layout.tsx` lief `12 passed`. Dass daraus heute kein Loch wird, traegt
+     * der ZWEITE Halter: `requireRadioAdmin` ruft `requireRadioHost(kopf)` als ERSTE
+     * ANWEISUNG selbst (Spec:669-671), und Klausel (d) Fall 2 unten sichert genau das zu.
+     * Der Host wird also ENTWEDER vom Group-Layout (Spec:4367-4368) ODER vom werfenden
+     * Personen-Riegel selbst gehalten.
+     * ⛔ AUFLAGE AN PLANTEIL 4: fuer `requireRadioVerwaltung` (Spec:4287) gilt diese
+     * zweite Haelfte heute NICHT — Klausel (d) Fall 2 prueft ausschliesslich
+     * `requireRadioAdmin`. Wer den zweiten werfenden Riegel baut, schuldet ihm dieselben
+     * Koerper-Zusicherungen, sonst wird aus dieser ODER-Aussage ein echtes Loch.
      *
      * ⚠️ AUSSERHALB EINER ROUTE-GROUP KEHRT SICH DAS UM. Eine `admin/page.tsx` oder eine
      * `admin/irgendwas/page.tsx` hat KEIN Group-Layout ueber sich; sie muss den
-     * Host-Riegel selbst nennen. Das ist der Fall M12 des Vorabscans — der einzige der
-     * drei gemessenen, der ausnutzbar war.
+     * Host-Riegel selbst nennen — UND IN DER RICHTIGEN REIHENFOLGE. Das ist der Fall M12
+     * des Vorabscans — der einzige der drei gemessenen, der ausnutzbar war.
      *
-     * ⚠️ ZWEI LINIEN BLEIBEN PFLICHT (Spec:4358-4360): der Riegel im Layout UND der in
+     * ⛔ DIE REIHENFOLGEPRUEFUNG IST DIESELBE WIE IN KLAUSEL (a) — Fund N1 der ersten
+     * Pruefung (REVIEW-Z56). Ohne sie sicherte diese Datei DIESELBE Zusage an zwei Stellen
+     * UNGLEICH STRENG zu, und die schwaechere ist die, auf die sich ein Nachfolger beruft.
+     * Gemessen (Fix-Runde 1, Sonde S2): eine `admin/page.tsx` mit dem Personen-Riegel VOR
+     * `requireRadioHost` lief `12 passed`, waehrend derselbe Tausch in
+     * `(druck)/layout.tsx` Klausel (a) rot faerbt (REVIEW-Z56 Messung 5). ⚠️ Sie laeuft
+     * NUR im `!inRouteGroup`-Zweig: innerhalb einer Group gibt es keinen zweiten Aufruf,
+     * dessen Stelle man vergleichen koennte, und ein Vergleich dort waere derselbe
+     * rot-by-construction-Fehler wie oben.
+     *
+     * ⚠️ ZWEI LINIEN BLEIBEN PFLICHT (Spec:4382-4386): der Riegel im Layout UND der in
      * der Seite. Diese Klausel prueft die zweite Linie; Klausel (a) prueft die erste.
      * Route-Group-Grenzen sind KEINE Sicherheitsgrenzen (Spec:569-571).
      */
@@ -492,10 +535,18 @@ describe("(e) jede Verwaltungsseite traegt den Personen-Riegel ihrer Stufe", () 
       const person = personenRiegelFuer(kurz);
 
       if (!person.muster.test(q)) verstoesse.push(`${kurz}: ${person.meldung}`);
-      if (!inRouteGroup(kurz) && !/\brequireRadioHost\s*\(/.test(q)) {
-        verstoesse.push(
-          `${kurz}: ausserhalb jeder Route-Group und ohne requireRadioHost( — kein Layout haelt den Host`,
-        );
+      if (!inRouteGroup(kurz)) {
+        if (!/\brequireRadioHost\s*\(/.test(q)) {
+          verstoesse.push(
+            `${kurz}: ausserhalb jeder Route-Group und ohne requireRadioHost( — kein Layout haelt den Host`,
+          );
+        }
+        // ERST DER HOST, DANN DIE PERSON (Spec:429-437) — zeichengleich zu Klausel (a).
+        const host = q.search(/\brequireRadioHost\s*\(/);
+        const nachPerson = q.search(person.muster);
+        if (host !== -1 && nachPerson !== -1 && host > nachPerson) {
+          verstoesse.push(`${kurz}: der Personen-Riegel steht VOR requireRadioHost`);
+        }
       }
     }
     expect(verstoesse).toEqual([]);

@@ -15,7 +15,11 @@ import { requireRadioAdmin } from "../../_lib/zugang";
  * Datei: mit dem `(arbeit)`-Layout faellt auch dessen Zugriffsriegel weg, und die Seite
  * darunter zeigt die ZUGANGSCODES IM KLARTEXT. Deshalb ruft dieses Layout DIESELBEN zwei
  * Riegel in DERSELBEN Reihenfolge — dieselben Funktionen, nicht zwei Abschriften. Die
- * beiden Zeilen unten stehen ZEICHENGLEICH zu `(arbeit)/layout.tsx`.
+ * beiden ANWEISUNGEN unten sind zeichengleich zu denen in `(arbeit)/layout.tsx`; die
+ * ZEILEN sind es nicht (dort haengt am Personen-Riegel ein ⬜-Kommentar,
+ * `(arbeit)/layout.tsx:54`), und ab Planteil 4 wechselt dort ausserdem der Name auf
+ * `requireRadioVerwaltung()` (Spec:4367) — DIESER Zweig bleibt bei `requireRadioAdmin()`
+ * (Spec:4368).
  *
  * DER PRAEZEDENZFALL STEHT IM REPO UND WAR EIN ECHTER AUSFALL: „Der Praezedenzfall
  * `feedback` hat sie als eigene Route mit eigenem Layout — und genau dort fiel sie aus
