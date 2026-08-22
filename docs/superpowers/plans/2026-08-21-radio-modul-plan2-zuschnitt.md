@@ -1169,6 +1169,17 @@ export function radioHostOderNull(headers: Headers): "radio" | null {
  *   (ausleihe)/layout.tsx                  KEINER — das Zugangspraedikat ruft ihn intern
  *   (ausleihe)/geraete|ausleihen|rueckgabe KEINER — dito
  *   admin/(arbeit)/layout.tsx              requireRadioHost, dann requireRadioAdmin   Z6
+ *                                          ⬜ AB PLANTEIL 4 requireRadioVerwaltung STATT
+ *                                          requireRadioAdmin — Betreiberentscheidung C.6/B4,
+ *                                          zwei Rechtestufen wie im Bestand. Spec:4367
+ *                                          schreibt es fuer genau diese Zeile fest; Spec:4368
+ *                                          laesst (druck) auf requireRadioAdmin. Die Tabelle
+ *                                          hier gibt §1.4.3 wieder, also den Stand VOR B4.
+ *                                          ⛔ KEIN TOR FAENGT DIE UMSTELLUNG: riegel.test.ts
+ *                                          Klausel (a) nimmt im Arbeits-Zweig BEIDE Namen an,
+ *                                          ein ODER; typecheck, lint und build sehen nichts.
+ *                                          Bleibt die Zeile stehen, sperrt der Layout-Riegel
+ *                                          jede Updater-Person mit 404, bevor eine Seite laeuft
  *   admin/(druck)/layout.tsx               requireRadioHost, dann requireRadioAdmin   Z6
  *   t/[code]/route.ts                      radioHostOderNull     Planteil 3  <- Tuer mit Datenwirkung
  *   abmelden/route.ts                      radioHostOderNull     Planteil 3
@@ -1277,7 +1288,7 @@ Testdateien; B5s Regel „eine Datei, drei beschreibende Orte, keine Zeile doppe
 
 ```ts
 // src/app/m/radio/_lib/host.test.ts
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 
 // `notFound()` wirft in der echten Laufzeit einen Next-internen Fehler. Fuer die
@@ -1293,7 +1304,22 @@ import { hostAbweisung } from "./hostRiegel";
 const kopf = (h: Record<string, string>) => new Headers(h);
 const anfrage = (h: Record<string, string>) => new Request("https://beliebig.example/x", { headers: h });
 
+/**
+ * ⚠️ DIE TESTSUITE SIEHT DIE PROZESSUMGEBUNG, NICHT `.env.local` — gemessen, nicht
+ * angenommen: in diesem Repo laedt vitest KEINE `.env`-Datei (kein `dotenv` in
+ * `vitest.config.ts`, `vitest.setup.ts` oder `package.json`). Ein lokal in `.env.local`
+ * gesetztes `SUITE_HOST_RADIO` verfaelscht damit kein Tor — ein in der Shell oder in der
+ * CI EXPORTIERTER Wert dagegen schon.
+ *
+ * Deshalb loescht `beforeEach` die Variable VOR jedem Fall, statt sich darauf zu
+ * verlassen, dass der vorige Fall aufgeraeumt hat: sonst laufen die Faelle, die keinen
+ * Prod-Host setzen, unter dem Wert, den die aufrufende Shell zufaellig exportiert hat.
+ * `afterEach` stellt den Ausgangszustand des Prozesses wieder her.
+ */
 const alterWert = process.env.SUITE_HOST_RADIO;
+beforeEach(() => {
+  delete process.env.SUITE_HOST_RADIO;
+});
 afterEach(() => {
   if (alterWert === undefined) delete process.env.SUITE_HOST_RADIO;
   else process.env.SUITE_HOST_RADIO = alterWert;
@@ -1304,7 +1330,13 @@ describe("istRadioHost", () => {
     // Genau dieser Fall macht den „kein Prod-Host konfiguriert -> durchlassen"-Zweig
     // ueberfluessig: moduleForHost trifft <key>.localtest.me VOR und UNABHAENGIG von
     // prodHostsFor. Damit laeuft in Dev, E2E und Produktion derselbe Code-Pfad.
-    delete process.env.SUITE_HOST_RADIO;
+    //
+    // ⚠️ IN DER MUTATIONSDECKUNG TRAEGT IHN HEUTE FALL 6 MIT („ignoriert einen Port"): kein
+    // gefahrener Eingriff faerbt diesen Fall ALLEIN rot, waehrend Fall 6 einen eigenen hat
+    // (Rumpf -> Vergleich gegen die Zeichenkette radio.localtest.me). Er bleibt trotzdem
+    // stehen — Spec:712 verlangt „trifft radio.localtest.me OHNE gesetzte Env" namentlich als
+    // Mindestzusicherung, und ein Gegenbeispiel macht ihn nicht zum eigenstaendigen Riegel.
+    // Das Env-Loeschen leistet das beforeEach oben (kein zweites hier, es waere tot).
     expect(istRadioHost(kopf({ host: "radio.localtest.me" }))).toBe(true);
   });
 
@@ -1347,8 +1379,7 @@ describe("istRadioHost", () => {
   it("hat KEINEN 'kein Prod-Host konfiguriert -> durchlassen'-Zweig", () => {
     // Er waere die Sperre, die sich selbst abschaltet: solange SUITE_HOST_RADIO fehlt —
     // und VOR DEM CUTOVER FEHLT SIE —, waere genau der Zustand offen, gegen den die Datei
-    // gebaut ist (Spec §1.4.5).
-    delete process.env.SUITE_HOST_RADIO;
+    // gebaut ist (Spec §1.4.5). Das Env-Loeschen leistet das beforeEach oben.
     expect(istRadioHost(kopf({ host: "irgendwas.example.org" }))).toBe(false);
     expect(istRadioHost(kopf({}))).toBe(false);
   });
@@ -1387,8 +1418,18 @@ describe("hostAbweisung — die vierte Form (B13), fuer Handler mit eigenem Cont
     const antwort = hostAbweisung(anfrage({ host: "iuk-ue.de" }));
     expect(antwort).not.toBeNull();
     expect(antwort!.status).toBe(404);
-    // Der Koerper ist bewusst Text: eine HTML-Fehlerseite meldete dem Browser
-    // „manifest fetch failed" statt einer sauberen Abweisung (Spec:544-546).
+    // Koerper UND Content-Type sind bewusst Text: eine HTML-Fehlerseite meldete dem Browser
+    // „manifest fetch failed" statt einer sauberen Abweisung (Spec:544-546). Genau diese
+    // Eigenschaft ist der Daseinsgrund der vierten Riegelform (hostRiegel.ts, Kopf) — sie
+    // gehoert deshalb zugesichert, nicht nur begruendet.
+    //
+    // ⛔ POSITIV formuliert, nicht als `not.toContain("text/html")`: die verneinende Form
+    // waere auch ueber einem FEHLENDEN Header wahr (der Getter liefert dann `null`) und damit
+    // die still-gruene Gestalt, gegen die dieser Bauweg antritt. Der Wert kommt heute von
+    // undici, nicht von uns — gemessen: `text/plain;charset=UTF-8` fuer einen String-Koerper;
+    // deshalb bindet das Muster am Anfang und nicht an der ganzen Zeichenkette.
+    expect(antwort!.headers.get("content-type"), "keine HTML-Fehlerseite auf /sw.js")
+      .toMatch(/^text\/plain/);
     await expect(antwort!.text()).resolves.toBe("Not found");
   });
 

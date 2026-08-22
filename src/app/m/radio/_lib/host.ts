@@ -74,6 +74,17 @@ export function radioHostOderNull(headers: Headers): "radio" | null {
  *   (ausleihe)/layout.tsx                  KEINER — das Zugangspraedikat ruft ihn intern
  *   (ausleihe)/geraete|ausleihen|rueckgabe KEINER — dito
  *   admin/(arbeit)/layout.tsx              requireRadioHost, dann requireRadioAdmin   Z6
+ *                                          ⬜ AB PLANTEIL 4 requireRadioVerwaltung STATT
+ *                                          requireRadioAdmin — Betreiberentscheidung C.6/B4,
+ *                                          zwei Rechtestufen wie im Bestand. Spec:4367
+ *                                          schreibt es fuer genau diese Zeile fest; Spec:4368
+ *                                          laesst (druck) auf requireRadioAdmin. Die Tabelle
+ *                                          hier gibt §1.4.3 wieder, also den Stand VOR B4.
+ *                                          ⛔ KEIN TOR FAENGT DIE UMSTELLUNG: riegel.test.ts
+ *                                          Klausel (a) nimmt im Arbeits-Zweig BEIDE Namen an,
+ *                                          ein ODER; typecheck, lint und build sehen nichts.
+ *                                          Bleibt die Zeile stehen, sperrt der Layout-Riegel
+ *                                          jede Updater-Person mit 404, bevor eine Seite laeuft
  *   admin/(druck)/layout.tsx               requireRadioHost, dann requireRadioAdmin   Z6
  *   t/[code]/route.ts                      radioHostOderNull     Planteil 3  <- Tuer mit Datenwirkung
  *   abmelden/route.ts                      radioHostOderNull     Planteil 3
