@@ -180,8 +180,23 @@ describe("istRadioAdmin — das Praedikat", () => {
 
 describe("verwaltungsZiel — absolutes Ziel fuer die callbackUrl", () => {
   it("nimmt den konfigurierten Prod-Host, auch wenn die Anfrage anders kam", () => {
+    /*
+     * ⛔ DIE ERSTE ZUSICHERUNG FRAGT EINEN FREMDEN HOST AN, UND DAS IST DER GANZE FALL.
+     * Der Plan hatte hier zweimal denselben Host stehen — angefragt wie konfiguriert. Dann
+     * liefern BEIDE Zweige der `??`-Kette dieselbe Zeichenkette, und die Zusicherung ist
+     * gegen den Vorrang des Prod-Hosts blind. GEMESSEN (Sonde P11a, 2026-08-22): mit
+     * entfernter Zeile `prodHostsFor(getModule("radio"))[0] ??` lief die Brieffassung
+     * `13 passed` — 0 rot. Die NT11-Form, nur an einer anderen Stelle.
+     *
+     * `iuk-ue.de` gehoert `portal` (`src/core/registry.ts:59`), ist also ein FREMDER
+     * Suite-Host: `istRadioHost` ist dort falsch, und ohne den Prod-Host-Vorrang fiele die
+     * Funktion auf den internen Pfad zurueck. Die zweite Zusicherung haelt zusaetzlich den
+     * Normalfall fest, in dem angefragter und konfigurierter Host uebereinstimmen.
+     */
     try {
       process.env.SUITE_HOST_RADIO = "radio.iuk-ue.de";
+      expect(verwaltungsZiel(kopf({ host: "iuk-ue.de", "x-forwarded-proto": "https" })))
+        .toBe("https://radio.iuk-ue.de/admin");
       expect(verwaltungsZiel(kopf({ host: "radio.iuk-ue.de", "x-forwarded-proto": "https" })))
         .toBe("https://radio.iuk-ue.de/admin");
     } finally { zuruecksetzen(); }
