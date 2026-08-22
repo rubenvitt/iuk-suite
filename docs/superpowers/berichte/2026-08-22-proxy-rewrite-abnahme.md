@@ -84,8 +84,14 @@ auskommentiert. Ohne diese Liste weiß niemand, gegen welche Hosts der Rest miss
 
 #### P1-2 · ⬜ P-L2 — die Zahl der Traefik-Zeilen für EINE Anfrage
 
-Traefik-Accesslog mitlesen (`docker compose logs -f traefik` bzw. `tail -f` auf die Logdatei), dann
-in einem zweiten Fenster **genau eine** externe Anfrage:
+⬜ **Wo liegt das Traefik-Accesslog?** Traefik läuft **nicht** im Suite-Stack — `compose.yaml:127`
+führt `networks: [proxy, av]`, und `proxy` ist `external: true`. Ein `docker compose logs -f traefik`
+aus `$SUITE_STACK_DIR` findet den Dienst deshalb nicht. Ruben trägt den geltenden Weg ein:
+`docker logs -f <traefik-container>` oder `tail -f <pfad-zur-accesslog-datei>`.
+
+**Weg zum Accesslog:** ⬜ ______________________________
+
+Accesslog mitlesen, dann in einem zweiten Fenster **genau eine** externe Anfrage:
 
 ```bash
 rtk curl -sS -o /dev/null -w '%{http_code} %{time_total}\n' https://<modulhost>/

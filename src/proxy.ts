@@ -126,6 +126,25 @@ export const REWRITE_KOPF = "x-middleware-rewrite";
  * Protokoll, in Dev wie in Prod. Es gibt keinen Wert zu raten und keinen zu
  * pflegen.
  *
+ * ⚠️ DAS TRAEGT NUR, WEIL `request.nextUrl.origin` DIESELBEN BAUTEILE HAT WIE
+ * `initUrl`. Nachgemessen am Quelltext, weil ohne diese Gleichheit der ganze
+ * Umbau wirkungslos waere und kein Tor es saehe:
+ *
+ *   - `node_modules/next/dist/server/next-server.js:1136-1142` baut die URL,
+ *     die die Middleware sieht. Der Default-Zweig (`:1142`) setzt sie aus
+ *     `initProtocol`, `this.fetchHostname` und `this.port` zusammen; der
+ *     Zweig fuer `skipProxyUrlNormalize` (`:1137`) nimmt `initURL` direkt.
+ *   - `initProtocol` IST das `protocol`, aus dem `initUrl` gebaut wird —
+ *     dieselbe Variable, zwei Zeilen weiter abgelegt
+ *     (`resolve-routes.js:115`, `:117`, `:122`).
+ *   - `this.fetchHostname` ist `formatHostname(this.hostname)`
+ *     (`base-server.js:352`) — dieselbe Funktion, die `resolve-routes.js:117`
+ *     auf denselben Wert anwendet. `hostname`/`port` reicht
+ *     `router-server.js:601` an `render-server.js:99-102` durch, aus
+ *     demselben `opts`.
+ *
+ * Beide Zweige ergeben also dieselbe Origin wie `initUrl`.
+ *
  * ⛔ `location` wird NIE gelesen und NIE geschrieben. Die Login-Weiterleitung
  * (`case "login"` oben) hat dieselbe Ursache und traegt heute die Apex-Origin —
  * sie bleibt bewusst unangetastet, weil ungemessen ist, wo ein Nutzer danach
