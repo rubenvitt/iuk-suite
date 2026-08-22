@@ -189,6 +189,11 @@ export const MODULES: ModuleDef[] = [
   // App-Umschalter IST der zweite Zugangsweg zur Ausleihe (Betreiberentscheidung
   // 5), auch fuer Personen ohne Verwaltungsgruppe. Ein ["admin"] hier verbaute
   // genau diesen Weg (visibleSwitcherModules, registry.ts:271-279).
+  //
+  // adminGroups ist eine VORGABE, keine feste Zuweisung — SUITE_ADMIN_GROUP_RADIO
+  // ueberschreibt sie (adminGroupsFor, core/groups.ts:102-109). "iuk-radio-admin"
+  // ist der Vorschlag aus Spec:766; der tatsaechliche Gruppenname in Pocket ID ist
+  // offen (⬜ E1, .env.example:74-75) und faellig vor Cut 26.
   { key: "radio", title: "Funkgeräte", icon: "WifiOutlined", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-radio-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
