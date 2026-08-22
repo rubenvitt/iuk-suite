@@ -181,14 +181,14 @@ export const MODULES: ModuleDef[] = [
   // Aufruf in den Login — und zwar sofort beim Umschwenk des Routers, ohne
   // Parallelfenster.
   // Dadurch liest canAccess() requiredGroups hier NIE (frueher Ausstieg,
-  // registry.ts:239), und /m/radio/admin/... erbt KEIN Middleware-Gating.
+  // registry.ts:260), und /m/radio/admin/... erbt KEIN Middleware-Gating.
   // Durchgesetzt wird der Verwaltungszugang modulintern in _lib/zugang.ts, der
   // Host in _lib/host.ts.
   //
   // switcherGroupSources: [] und NICHT ["admin"] wie lagerbuch — die Kachel im
   // App-Umschalter IST der zweite Zugangsweg zur Ausleihe (Betreiberentscheidung
   // 5), auch fuer Personen ohne Verwaltungsgruppe. Ein ["admin"] hier verbaute
-  // genau diesen Weg (visibleSwitcherModules, registry.ts:250-258).
+  // genau diesen Weg (visibleSwitcherModules, registry.ts:271-279).
   { key: "radio", title: "Funkgeräte", icon: "WifiOutlined", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-radio-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },

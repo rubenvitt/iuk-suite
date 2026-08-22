@@ -27,8 +27,8 @@ describe("radio: der Registry-Eintrag", () => {
   it("existiert unter dem Schluessel radio", () => {
     // Der Existenzfall steht vorn, damit die Ursache EINMAL namentlich in der Ausgabe
     // steht statt achtmal — `getModule` wirft `Unknown module: radio`
-    // (`registry.ts:191-195`), es gibt also kein `null`, ueber das die folgenden Faelle
-    // stolperten. Und weil dies die einzige Aussage ueber `findModule` (`:198-200`) ist.
+    // (`registry.ts:212-216`), es gibt also kein `null`, ueber das die folgenden Faelle
+    // stolperten. Und weil dies die einzige Aussage ueber `findModule` (`:219-221`) ist.
     expect(findModule("radio")).not.toBeNull();
   });
 
@@ -52,11 +52,11 @@ describe("radio: der Registry-Eintrag", () => {
   it("hat requiredGroups leer — unter requiresAuth: false waere jeder andere Wert eine Luege", () => {
     /*
      * Spec:191. Der Wert ist unter `requiresAuth: false` fuer das Gating WIRKUNGSLOS:
-     * `canAccess` steigt vorher mit `true` aus (registry.ts:239). Eine gefuellte Liste
+     * `canAccess` steigt vorher mit `true` aus (registry.ts:260). Eine gefuellte Liste
      * behauptete eine Wirkung, die es nicht gibt.
      *
      * Gelesen ueber `requiredGroupsFor`, NICHT ueber `mod.requiredGroups`: nur so faellt
-     * ein gesetztes SUITE_ACCESS_GROUP_RADIO auf (registry.ts:221-223).
+     * ein gesetztes SUITE_ACCESS_GROUP_RADIO auf (registry.ts:242-244).
      */
     expect(requiredGroupsFor(getModule("radio"), OHNE_ENV)).toEqual([]);
   });
@@ -79,7 +79,7 @@ describe("radio: der Registry-Eintrag", () => {
 
   it("ist ohne jede Env unter radio.localtest.me erreichbar", () => {
     // `moduleForHost` trifft `<key>.localtest.me` VOR und UNABHAENGIG von prodHostsFor
-    // (registry.ts:225-232). Genau das macht in Z3 den „kein Prod-Host konfiguriert →
+    // (registry.ts:246-253). Genau das macht in Z3 den „kein Prod-Host konfiguriert →
     // durchlassen"-Zweig ueberfluessig.
     expect(moduleForHost("radio.localtest.me", OHNE_ENV)?.key).toBe("radio");
   });
@@ -103,7 +103,7 @@ describe("radio: der Registry-Eintrag", () => {
     /*
      * Spec:173-176, Betreiberentscheidung 5: die Kachel IST der zweite Zugangsweg zur
      * Ausleihe, auch fuer Personen ohne Verwaltungsgruppe. Ein `["admin"]` wie bei
-     * `lagerbuch` verbaute genau diesen Weg (visibleSwitcherModules, registry.ts:250-258).
+     * `lagerbuch` verbaute genau diesen Weg (visibleSwitcherModules, registry.ts:271-279).
      *
      * Und: `showInSwitcher: true` entscheidet mit, WER die Release-Notizen zum Modul sieht —
      * `auswahl.ts:48` unter `src/app/m/portal/_lib`, im Unterverzeichnis der
@@ -125,7 +125,7 @@ describe("radio: der Registry-Eintrag", () => {
 
   it("hat sein Icon in der ICONS-Map — sonst traegt es STILL das Portal-Icon", () => {
     /*
-     * DIE FALLE, DIE SCHON EINMAL ZUGESCHLAGEN HAT (icons.ts:21-27,
+     * DIE FALLE, DIE SCHON EINMAL ZUGESCHLAGEN HAT (icons.ts:22-28,
      * AppUmschalter.test.tsx:203-215): beim Registry-Eintrag von `files` (2026-07-30)
      * stand `FolderOutlined` nicht in der Map — der Eintrag trug daraufhin still das
      * Portal-Icon. Kein Fehler, kein Log, nur ein falsches Bild in JEDER Kopfzeile und in
