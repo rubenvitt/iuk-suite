@@ -27,6 +27,41 @@ import { CODE_ALPHABET, erzeugeCode, normalisiereCode, istCodeForm } from "./cod
  */
 const KANONISCH = /^[0-9A-HJKMNP-TV-Z]{4}(?:-[0-9A-HJKMNP-TV-Z]{4}){6}$/;
 
+/**
+ * Leert Kommentare inhaltlich, ohne die Zeilenzahl zu aendern.
+ *
+ * ⛔ ABGESCHRIEBEN UND NICHT IMPORTIERT: dieselbe Maschine steht als modul-lokale Funktion
+ * in `src/app/m/radio/riegel.test.ts:163-183`. Ein Import von dort zoege deren
+ * `describe`-Bloecke in diesen Lauf. Die zwoelf Zeilen sind der kleinere Preis; wer sie
+ * aendert, aendert beide Stellen.
+ *
+ * BEWUSST NUR ZWEI FORMEN: Blockkommentare und Zeilen, deren getrimmter Inhalt mit `//`
+ * BEGINNT. Ein nachgestelltes `// …` am Ende einer Codezeile bleibt stehen — ein naiver
+ * Stripper leerte bei `const u = "https://example.org"` den Rest der Zeile und koennte
+ * damit eine Verletzung VERSTECKEN.
+ */
+function ohneKommentare(quelle: string): string {
+  let imBlock = false;
+  return quelle
+    .split("\n")
+    .map((zeile) => {
+      if (imBlock) {
+        const zu = zeile.indexOf("*/");
+        if (zu === -1) return "";
+        imBlock = false;
+        return " ".repeat(zu + 2) + zeile.slice(zu + 2);
+      }
+      const auf = zeile.indexOf("/*");
+      if (auf !== -1 && !zeile.slice(0, auf).includes("*/")) {
+        const zu = zeile.indexOf("*/", auf + 2);
+        if (zu === -1) { imBlock = true; return zeile.slice(0, auf); }
+        return zeile.slice(0, auf) + " ".repeat(zu + 2 - auf) + zeile.slice(zu + 2);
+      }
+      return zeile.trimStart().startsWith("//") ? "" : zeile;
+    })
+    .join("\n");
+}
+
 describe("radio-Code: das Alphabet", () => {
   it("enthaelt kein I, L, O, U", () => {
     /*
@@ -79,16 +114,34 @@ describe("radio-Code: erzeugeCode", () => {
      * richtigen ALPHABET. Jeder Verhaltensfall oben bliebe gruen. Sichtbar wird der Fehler
      * erst, wenn jemand die Ausgabe vorhersagt — also nie in einem Test (Spec:2089-2091).
      *
-     * ⛔ KOMMENTARE WERDEN HIER NICHT GELEERT. `code.ts` darf den Namen auch in einem
-     * Kommentar nicht fuehren: ein „statt <jener Quelle>" waere die naechste Stufe der
-     * Aufweichung. Ein Scan darf falsch-positiv sein und laut, nie falsch-negativ und
-     * still (`riegel.test.ts:159-165`).
+     * ⛔ DIE ZWEI HAELFTEN LESEN VERSCHIEDENE FASSUNGEN DERSELBEN DATEI, UND DAS IST DER
+     * KERN DIESES FALLS.
+     *
+     *   NEGATIV (verbotener Name) → ROHER Quelltext, Kommentare eingeschlossen. `code.ts`
+     *   darf den Namen auch in einem Kommentar nicht fuehren: ein „statt <jener Quelle>"
+     *   waere die naechste Stufe der Aufweichung. Ein Scan darf falsch-positiv sein und
+     *   laut, nie falsch-negativ und still (`riegel.test.ts:159-165`).
+     *
+     *   POSITIV (gebotener Aufruf) → KOMMENTARFREIER Quelltext, und der Aufruf muss
+     *   statement-nah stehen (`(` verlangt). ⛔ GEMESSEN, NICHT VERMUTET: mit der frueheren
+     *   Fassung — `toMatch` auf dem ROHEN Text ohne `(` — genuegte der Doc-Kommentar
+     *   `code.ts:76-78` der Zusicherung. `crypto.getRandomValues(bytes)` liess sich durch
+     *   einen deterministischen Xorshift ersetzen, und alle 19 Faelle blieben gruen
+     *   (Fund F1, `.superpowers/sdd/planteil3/REVIEW-A2.md:79`, hier nachgefahren). Ein
+     *   Waechter, dessen Zusage weiter ist als seine Pruefung, bewacht nichts.
+     *
+     * ⚠️ WAS AUCH JETZT DURCHKAEME, benannt statt verschwiegen: ein Zeichenkettenliteral
+     * `"getRandomValues("` im Quelltext. Das ist keine realistische Regression — die
+     * realistische ist der ersetzte Aufruf oben —, und die staerkere Maschine dafuer steht
+     * mit `ohneKommentareUndZeichenketten` in `riegel.test.ts:185-213` bereit.
      */
     const quelle = readFileSync(join(process.cwd(), "src/app/m/radio/_lib/code.ts"), "utf8");
     expect(quelle, "erzeugeCode muss kryptografisch sein (Spec:2089)")
       .not.toMatch(/Math\s*\.\s*random/);
-    expect(quelle, "die kryptografische Quelle muss benannt sein")
-      .toMatch(/\bgetRandomValues\b|\brandomBytes\b|\brandomInt\b/);
+    expect(
+      ohneKommentare(quelle),
+      "die kryptografische Quelle muss AUFGERUFEN werden, nicht nur im Kommentar benannt",
+    ).toMatch(/\b(?:getRandomValues|randomBytes|randomInt)\s*\(/);
   });
 
   it("verteilt gleichmaessig — kein Modulo-Bias ueber dem 32er-Alphabet", () => {
@@ -156,6 +209,29 @@ describe("radio-Code: normalisiereCode", () => {
       .toBe("A3F7K92MQRTV5X8YB6HN2DPZJ4K");
   });
 
+  it("laesst U stehen — der Filter ist weiter als das Alphabet", () => {
+    /*
+     * `[^0-9A-Z]` (`code.ts:146`) ist BEWUSST weiter als `CODE_ALPHABET`: er entfernt
+     * Bindestriche, Leerzeichen und Trennzeichen jeder Art, laesst aber `U` stehen — ein
+     * Zeichen, das im Alphabet gar nicht vorkommt (Spec:2062-2063). Damit ist die Breite
+     * des Filters eine ENTSCHEIDUNG mit Waechter und keine Fussnote.
+     *
+     * ⛔ DIE ERSTE ZEILE IST DIE TRAGENDE. Verengt jemand den Filter „aufraeumend" auf
+     * `[^0-9A-HJKMNP-TV-Z]`, faellt hier alles weg und die Funktion liefert den leeren
+     * String. GEMESSEN (Fund F5, `.superpowers/sdd/planteil3/REVIEW-A2.md:84`): unter genau
+     * dieser Verengung blieben die 19 Faelle des Vorgangs vollzaehlig gruen.
+     *
+     * ⚠️ DIE ZWEITE ZEILE IST EINE AUSSAGE, KEIN WAECHTER, und das steht hier, statt
+     * verschwiegen zu werden: sie sagt A6 und A10 zu, dass das Ergebnis von
+     * `normalisiereCode` eine SUCHANFRAGE ist und `istCodeForm` es verwerfen kann
+     * (`code.ts:136-138`). Gegen die Verengung oben ist sie blind — dort liefe sie auf
+     * `istCodeForm("")`, und das ist vorher wie nachher `false` (selbst gemessen).
+     */
+    const nurU = "UUUU-UUUU-UUUU-UUUU-UUUU-UUUU-UUUU";
+    expect(normalisiereCode(nurU)).toBe(nurU);
+    expect(istCodeForm(nurU)).toBe(false);
+  });
+
   it.each([
     ["leerer String", ""],
     ["nur Bindestriche", "---"],
@@ -186,6 +262,19 @@ describe("radio-Code: istCodeForm", () => {
     expect(istCodeForm("A3F7K92MQRTV5X8YB6HN2DPZJ4KW")).toBe(false);
     expect(istCodeForm("A3F7-K92M-QRTV-5X8Y-B6HN-2DPZ-J4KI")).toBe(false); // I ist kein Alphabetzeichen
     expect(istCodeForm("")).toBe(false);
+    /*
+     * ⛔ 28 ALPHABETZEICHEN, ABER DIE GRUPPEN SITZEN FALSCH — und das ist der einzige
+     * Zeuge fuer `code.ts:167` (`return wert === gruppiere(ohneTrenner);`). Der Bindestrich
+     * ist TEIL des gespeicherten Werts (Spec:2055-2059); ein Wert mit richtiger Laenge und
+     * falschen Gruppen ist deshalb ein anderer Wert.
+     *
+     * GEMESSEN (Fund F4, `.superpowers/sdd/planteil3/REVIEW-A2.md:82`, hier nachgefahren):
+     * weicht man `code.ts:167` zu `wert.length === gruppiere(ohneTrenner).length` auf,
+     * blieben ohne diese Zeile alle 19 Faelle gruen — beide Ketten sind 34 Zeichen lang.
+     * Der bindestrichlose Fall darueber faengt es NICHT: dort fallen schon die Laengen
+     * auseinander (28 gegen 34), also greift der frueh abweisende Zweig `code.ts:165`.
+     */
+    expect(istCodeForm("A3F7-K92M-QRTV-5X8Y-B6HN-2DP-ZJ4KW")).toBe(false);
   });
 
   it("nimmt jeden erzeugten Code an — die Kopplung zwischen Erzeuger und Praedikat", () => {
