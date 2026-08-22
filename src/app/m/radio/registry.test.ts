@@ -55,8 +55,16 @@ describe("radio: der Registry-Eintrag", () => {
      * `canAccess` steigt vorher mit `true` aus (registry.ts:260). Eine gefuellte Liste
      * behauptete eine Wirkung, die es nicht gibt.
      *
-     * Gelesen ueber `requiredGroupsFor`, NICHT ueber `mod.requiredGroups`: nur so faellt
-     * ein gesetztes SUITE_ACCESS_GROUP_RADIO auf (registry.ts:242-244).
+     * Gelesen ueber `requiredGroupsFor` (registry.ts:242-244), weil das der kanonische
+     * Zugang ist, den `canAccess` selbst nimmt (registry.ts:262).
+     * ⚠️ Mit OHNE_ENV ist der Aufruf VERHALTENSGLEICH zu `mod.requiredGroups`: ein
+     * gesetztes SUITE_ACCESS_GROUP_RADIO faellt hier bewusst NICHT auf, denn
+     * `envAccessGroupsFor` liefert bei `undefined` ein `null` (groups.ts:84-86) und
+     * `requiredGroupsFor` faellt auf das Registry-Feld zurueck. Der Grund fuer `{}` steht
+     * im Kopf (:18-22) und wiegt schwerer: der Test soll die Registry pruefen, nicht die
+     * `.env.local` der Maschine.
+     * ⛔ OHNE_ENV NICHT durch `process.env` ersetzen, um den Fall „scharf" zu machen —
+     * als Gating-Schalter ist SUITE_ACCESS_GROUP_RADIO ohnehin wirkungslos (Spec:191).
      */
     expect(requiredGroupsFor(getModule("radio"), OHNE_ENV)).toEqual([]);
   });
@@ -69,6 +77,12 @@ describe("radio: der Registry-Eintrag", () => {
      * NICHT, weil es seine Karte ausschliesslich aus `envHostsFor` fuellt
      * (lagerbuch/_lib/host.ts:98-104). Deshalb steht hier eine Behauptung ueber `radio`
      * und darunter eine ueber `portal`.
+     *
+     * ⚠️ Die Behauptung darunter („beansprucht iuk-ue.de nicht") ruht auf ZWEI Dingen —
+     * `portal`s `prodHosts` (registry.ts:59) UND der Registry-REIHENFOLGE, denn
+     * `moduleForHost` laeuft `MODULES` der Reihe nach ab (registry.ts:246-253). Allein
+     * ist sie gegen einen Nachruecker blind; was sie traegt, ist das Paar mit DIESEM
+     * Fall. Denselben Satz sagt der Bestand: lagerbuch/_lib/host.ts:102-104.
      */
     expect(prodHostsFor(getModule("radio"), OHNE_ENV)).toEqual([]);
   });
