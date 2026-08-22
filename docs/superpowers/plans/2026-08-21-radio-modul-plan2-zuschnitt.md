@@ -1655,17 +1655,28 @@ import { istRadioHost, requireRadioHost } from "./host";
  *
  * ⚠️ DIE SPEC WIDERSPRICHT SICH HIER UND LOEST ES NICHT AUF. Spec:648 schreibt
  * `RadioViewer` mit `{ sub, name, groups }`; Spec:2794 schreibt `Viewer` mit
- * `{ sub, groups, name, email }`. Kein A- oder B-Punkt behandelt den Unterschied.
+ * `{ sub, groups, name, email }` (Spec:2793 ist der Dateikommentar darueber). Kein A-
+ * oder B-Punkt behandelt den Unterschied.
  *
  * ENTSCHIEDEN ZUGUNSTEN VON KAPITEL 1, aus einem GEMESSENEN Grund und nicht aus
  * Rangfolge: `lagerbuch`s vierfeldriger `Viewer` existiert, weil `merkeNutzer` `name` UND
- * `email` in `users` schreibt (lagerbuch/_lib/zugang.ts:32-38). Die `users`-Tabelle von
- * `radio` hat DREI Spalten und KEINE E-Mail (`_db/schema.ts:113-117`: `sub`, `name`,
- * `lastSeenAt`). Ein `email`-Feld haette in diesem Modul heute keinen Konsumenten — und
- * ein Feld ohne Konsument ist eine Zusage ohne Traeger.
+ * `email` in `users` schreibt (src/app/m/lagerbuch/_lib/zugang.ts:32-38). Die
+ * `users`-Tabelle von `radio` hat DREI Spalten und KEINE E-Mail
+ * (`src/app/m/radio/_db/schema.ts:113-117`: `sub`, `name`, `lastSeenAt`). Ein
+ * `email`-Feld haette in diesem Modul heute keinen Konsumenten — und ein Feld ohne
+ * Konsument ist eine Zusage ohne Traeger.
  *
  * ⬜ Braucht Planteil 4 spaeter eine E-Mail, ist das eine Schema-Aenderung (neue Spalte,
  * neue Migration) UND eine Erweiterung hier — nicht nur hier.
+ *
+ * ⬜ UND EINE ZWEITE, HEUTE SCHON MESSBARE KOLLISION, die Planteil 4 aufloesen muss:
+ * `name` ist hier `string | null`, `radio`s Spalte ist `.notNull()`
+ * (`src/app/m/radio/_db/schema.ts:115`). `lagerbuch` traegt denselben Fall, weil seine
+ * Spalte nullable ist (`src/app/m/lagerbuch/_db/schema.ts:438`: `name: text("name")`) —
+ * `radio` traegt ihn NICHT. Wer in Planteil 4 `merkeNutzer(getDb(), viewer)` nachtraegt
+ * (Spec:4349, Begruendung Spec:4358-4360), braucht deshalb einen BENANNTEN Rueckfall fuer
+ * `name === null` ODER eine Migration, die die Spalte nullable macht. Die Wahl gehoert
+ * Planteil 4, die Kollision nicht: sie steht heute schon da.
  */
 export type RadioViewer = { sub: string; name: string | null; groups: string[] };
 
@@ -1675,7 +1686,7 @@ export type RadioViewer = { sub: string; name: string | null; groups: string[] }
  *
  * Ohne `user.id` gibt es keinen Viewer; ein fehlender `groups`-Claim ist die LEERE MENGE
  * und laeuft damit in den 404 des Riegels, nicht in einen 500 — sonst haenge die
- * Fehlerform an der Token-Version (lagerbuch/_lib/zugang.ts:40-42).
+ * Fehlerform an der Token-Version (src/app/m/lagerbuch/_lib/zugang.ts:40-42).
  */
 export function viewerAusSession(
   session: { user?: { id?: string; groups?: string[]; name?: string | null } } | null,
@@ -1710,7 +1721,7 @@ export async function viewerOderNull(): Promise<RadioViewer | null> {
  *
  * ⛔ BEWUSST NICHT `isModuleAdmin` AUS `core/groups` und keiner seiner drei Verwandten
  * (Kapitel-4-Pflicht 17, docs/radio-portierung-analyse.md:979-997). Alle vier tragen den
- * Suite-Admin-Kurzschluss — `core/groups.ts:125` steigt woertlich mit
+ * Suite-Admin-Kurzschluss — `src/core/groups.ts:125` steigt woertlich mit
  * `if (groups.includes(suiteAdminGroup(env))) return true;` aus. Ein Import saehe wie
  * Wiederverwendung aus.
  *
@@ -1727,9 +1738,10 @@ export async function viewerOderNull(): Promise<RadioViewer | null> {
  * Person nicht hindarf?").
  *
  * `adminGroupsFor(mod)`, NIE `mod.adminGroups` — der direkte Feldzugriff macht
- * SUITE_ADMIN_GROUP_RADIO an genau dieser Stelle wirkungslos (registry.ts:29-35 schreibt
- * dieselbe Falle fuer prodHosts aus). Und NIE `canAccess`: das gewaehrt bei leerer Liste
- * `true` und steigt unter `requiresAuth: false` ohnehin sofort aus.
+ * SUITE_ADMIN_GROUP_RADIO an genau dieser Stelle wirkungslos (src/core/registry.ts:29-35
+ * schreibt dieselbe Falle fuer prodHosts aus). Und NIE `canAccess`: das gewaehrt bei
+ * leerer Liste `true` (`src/core/registry.ts:263`) und steigt unter `requiresAuth: false`
+ * ohnehin sofort aus (`:260`).
  *
  * ⚠️ `.some()` AUF LEERER LISTE GEWAEHRT NICHTS — das ist richtig und es ist Falle 23:
  * ein LEER gesetztes SUITE_ADMIN_GROUP_RADIO sperrt damit JEDEN aus, den Betreiber
@@ -1739,7 +1751,13 @@ export async function viewerOderNull(): Promise<RadioViewer | null> {
  *
  * ⬜ DIE ZWEITE RECHTESTUFE (Updater) WIRD HIER NICHT GEBAUT — ABER SIE IST VORGESEHEN.
  * Entschieden ist sie (C.6 / B4, 2026-08-21: zwei Rollen wie im Bestand); gebaut wird sie
- * in PLANTEIL 4.
+ * in PLANTEIL 4. Spec:191 sagt es ausdruecklich: wer `radio` eine zweite Rolle gibt,
+ * „baut sie modulintern — das ist nicht Sache dieses Kapitels".
+ * ⚠️ DAS ZITAT TRAEGT NUR SO WEIT WIE SEINE FUNDSTELLE (REVIEW-Z4, Fund K5): Spec:191 ist
+ * die `requiredGroups`-Zeile der Registry-Tabelle, der Satz gilt dort EINEM Weg — dem
+ * Zweckentfremden von `SUITE_ACCESS_GROUP_RADIO` —, nicht der Updater-Stufe allgemein. Die
+ * tragende Fundstelle fuer „nicht hier, sondern Planteil 4" ist Spec:4420-4422 — sie steht
+ * in diesem Kommentar wenige Zeilen tiefer, an der GRUPPENQUELLE.
  *
  * ⚠️ ZWEI DINGE, DIE MAN LEICHT VERWECHSELT, UND DIE SPEC TRENNT SIE:
  *   - die GRUPPENQUELLE `SUITE_UPDATER_GROUP_RADIO` samt Feld-Allowlist liegt in einer
@@ -1754,26 +1772,36 @@ export async function viewerOderNull(): Promise<RadioViewer | null> {
  * kommt als ZWEITE FUNKTION dazu (`requireRadioVerwaltung`, `istRadioUpdater`), NICHT als
  * `||` in `istRadioAdmin`. Spec:4367 setzt `admin/(arbeit)/layout.tsx` auf
  * `requireRadioVerwaltung()`, Spec:4368 laesst `admin/(druck)/layout.tsx` bei
- * `requireRadioAdmin()`, und Spec:4369-4375 verteilt die Seiten einzeln. `riegel.test.ts`
- * (Klausel a) ist genau darauf pfadsensitiv gebaut und laesst beide Faelle zu — die
- * Aufweichung dagegen faengt `zugang.test.ts` ab.
+ * `requireRadioAdmin()`, und Spec:4369-4378 verteilt die zehn Seiten einzeln.
+ * ⛔ DABEI BLEIBEN DREI DER ZEHN AUF `requireRadioAdmin()` — `admin/(arbeit)/versionen`
+ * (Spec:4376), `admin/(arbeit)/zugaenge` (Spec:4377) und `admin/(druck)/zugaenge/blatt`
+ * (Spec:4378); sie tragen die Zugangscodes. Wer nur `Spec:4369-4375` liest, setzt
+ * `requireRadioVerwaltung()` auf ALLE zehn und senkt genau die drei Flaechen ab,
+ * derentwegen `riegel.test.ts` (Klausel a) ueberhaupt pfadsensitiv gebaut ist. Klausel (a)
+ * laesst im Arbeits-Zweig beide Namen zu; die Aufweichung dagegen faengt `zugang.test.ts`
+ * ab. ⚠️ Auf der ACTION-Achse gilt dasselbe: Spec:4380 sagt „`requireRadioVerwaltung()`
+ * BZW. `requireRadioAdmin()`", nicht „immer der eine".
  *
  * Der Gruppenname ist ⬜ E1b
- * (docs/superpowers/plans/SPERREN-radio-spec2.md:110), der Bestand nennt als Default `personal`
- * (radio-admin/.env.example:15) — beides ist HIER kein Wert, sondern ein Verweis.
+ * (docs/superpowers/plans/SPERREN-radio-spec2.md:110), der Bestand nennt als Default
+ * `personal` (radio-admin/.env.example:15) — beides ist HIER kein Wert, sondern ein
+ * Verweis.
  *
  * ⛔ UND DIE RICHTUNG, IN DER DIESE FUNKTION NICHT WACHSEN DARF: `istRadioAdmin` bleibt
  * die ADMIN-Stufe. Im Bestand gewinnt `admin` bei Ueberschneidung, und `updater` ist
  * STRIKT WENIGER: `mapGroupsToRole` gibt `admin` vor `updater`
- * (radio-admin/shared/src/role.ts:3-10, Faelle in role.test.ts:4-33); NEUN Routen sind
+ * (radio-admin/shared/src/role.ts:3-10, Faelle in role.test.ts:4-33); ELF Routen sind
  * hart admin-only ueber `requireRole('admin')` — radio-admin/server/src/routes/
- * devices.ts:99,188, softwareVersions.ts:30,40,48,56, loans.ts:28, tokens.ts:22,44 —,
- * und der Rest wird ueber die FELD-Allowlist in shared/src/editable-fields.ts:1-18
- * gefiltert, nicht ueber eine zweite Routensperre. ⚠️ In `role.ts`/`role.test.ts` steht
- * nur die Rangfolge; `requireRole` kommt dort NICHT vor. Wer die Updater-Gruppe
- * hier mit `||` danebenstellt, macht aus einer Verfeinerung eine AUFWEICHUNG: jeder
- * Updater kaeme dann durch jeden Admin-Riegel, und `pnpm typecheck`, `pnpm lint` und
- * `pnpm build` blieben gruen. `zugang.test.ts` haelt diese eine Richtung fest.
+ * devices.ts:99,188, softwareVersions.ts:30,40,48,56, loans.ts:28, tokens.ts:22,44,47,
+ * export.ts:71 —, und der Rest wird ueber die FELD-Allowlist in
+ * shared/src/editable-fields.ts:1-18 gefiltert, nicht ueber eine zweite Routensperre.
+ * ⚠️ Ein `grep` auf `requireRole('admin')` unter `radio-admin/server/src/routes/` liefert
+ * ZWOELF Zeilen; die zwoelfte (export.ts:66) steht in einem Kommentar und ist keine Route.
+ * ⚠️ In `role.ts`/`role.test.ts` steht nur die Rangfolge; `requireRole` kommt dort NICHT
+ * vor. Wer die Updater-Gruppe hier mit `||` danebenstellt, macht aus einer Verfeinerung
+ * eine AUFWEICHUNG: jeder Updater kaeme dann durch jeden Admin-Riegel, und
+ * `pnpm typecheck`, `pnpm lint` und `pnpm build` blieben gruen. `zugang.test.ts` haelt
+ * diese eine Richtung fest.
  */
 export function istRadioAdmin(viewer: RadioViewer | null): boolean {
   if (!viewer) return false;
@@ -1790,15 +1818,16 @@ export function istRadioAdmin(viewer: RadioViewer | null): boolean {
  * sichtbar wird." Die Bauform steht ausgeschrieben in Spec:4348.
  *
  * ⚠️ DER ZUSTAND, DEN SIE SICHTBAR MACHT, IST GUELTIGE KONFIGURATION: ein leer gesetztes
- * SUITE_ADMIN_GROUP_RADIO wird von `validateGroupConfig` NICHT gemeldet (core/groups.ts:156,
- * begruendet :136-140), und `.some()` auf leerer Liste gewaehrt nichts. Kein Test kann das
- * verhindern; ohne diese Zeile gibt es aber auch KEIN Signal — die Verwaltung antwortet
- * dann stumm mit 404, fuer jeden, den Betreiber eingeschlossen.
+ * SUITE_ADMIN_GROUP_RADIO wird von `validateGroupConfig` NICHT gemeldet
+ * (src/core/groups.ts:156, begruendet :136-140), und `.some()` auf leerer Liste gewaehrt
+ * nichts. Kein Test kann das verhindern; ohne diese Zeile gibt es aber auch KEIN Signal —
+ * die Verwaltung antwortet dann stumm mit 404, fuer jeden, den Betreiber eingeschlossen.
  *
- * Form 1:1 aus `lagerbuch/_lib/zugang.ts:135-151` (Begruendung dort ab :125):
- * dedupliziert ueber einen prozess-lokalen Set, damit ein Abweisungssturm das Protokoll
- * nicht flutet. ⛔ KEINE Kennung, keine E-Mail, kein Name in der Zeile — der `sub` dient
- * AUSSCHLIESSLICH als Dedup-Schluessel im Speicher und steht nicht in der Ausgabe.
+ * Form 1:1 aus `src/app/m/lagerbuch/_lib/zugang.ts:135-151` (Begruendung dort
+ * :118-134): dedupliziert ueber einen prozess-lokalen Set, damit ein Abweisungssturm das
+ * Protokoll nicht flutet. ⛔ KEINE Kennung, keine E-Mail, kein Name in der Zeile — der
+ * `sub` dient AUSSCHLIESSLICH als Dedup-Schluessel im Speicher und steht nicht in der
+ * Ausgabe.
  *
  * ⚠️ ANNAHME, wie dort: der Set waechst mit der Zahl abgewiesener PERSONEN, nicht mit der
  * Zahl der Anfragen — bei einer Organisation dieser Groesse eine dreistellige Obergrenze
@@ -1817,8 +1846,20 @@ function meldeFehlendeGruppe(sub: string, gruppen: string[]): void {
   );
 }
 
-/** Nur fuer Tests: den prozess-lokalen Dedup-Speicher leeren (Vorbild
- *  `lagerbuch/_lib/zugang.ts:148-151`). */
+/**
+ * Nur fuer Tests: den prozess-lokalen Dedup-Speicher leeren (Vorbild
+ * `src/app/m/lagerbuch/_lib/zugang.ts:148-151`).
+ *
+ * ⬜ HEUTE OHNE AUFRUFER, UND DAS STEHT HIER BENANNT STATT BEHAUPTET (REVIEW-Z4, Fund K1).
+ * In Planteil 2 faehrt KEIN Fall `requireRadioAdmin` — die Auslassung ist angeordnet und in
+ * `src/app/m/radio/_lib/zugang.test.ts:7-11` ausgeschrieben. Der Konsument kommt mit
+ * PLANTEIL 4, wo die erste Verwaltungsseite steht und die Verhaltensfaelle nach
+ * `lagerbuch`-Vorbild dazukommen: dort braucht der erste Fall ihn ZWISCHEN zwei
+ * Abweisungen, sonst schluckt der Dedup-Speicher die zweite Protokollzeile und der Fall
+ * saehe null statt einem Aufruf. Der Weg ist im Vorbild vorgefuehrt —
+ * `src/app/m/lagerbuch/_lib/zugang.test.ts:41` (Import), `:72` (Aufruf), Begruendung
+ * `:60-71`; dort hat genau dieser Weg einen ECHTEN Fehlschlag gefunden.
+ */
 export function _resetGemeldeteGruppen(): void {
   bereitsGemeldet.clear();
 }
@@ -1830,9 +1871,17 @@ export function _resetGemeldeteGruppen(): void {
  * (Passthrough, Spec:354-358), und ein relatives Ziel loeste sich dort gegen den
  * Anmelde-Host auf, nicht gegen den Radio-Host.
  *
- * Reihenfolge der Herleitung, 1:1 aus `lagerbuch/_lib/zugang.ts:205-214`: der
+ * Reihenfolge der Herleitung, 1:1 aus `src/app/m/lagerbuch/_lib/zugang.ts:205-214`: der
  * konfigurierte Prod-Host gewinnt; fehlt er (vor dem Cutover der Normalfall), gilt der
  * ANGEFRAGTE Host — aber nur, wenn er der Radio-Host ist; sonst bleibt der interne Pfad.
+ *
+ * ⛔ `istRadioHost` IST HIER RICHTIG, `requireRadioHost` WAERE FALSCH. Die Funktion
+ * beantwortet die Frage „darf ich den angefragten Host in eine absolute URL schreiben?",
+ * wirft nicht, und ist deshalb kein Verstoss gegen die Gegenregel aus §1.4.4. Wer hier die
+ * werfende Form einsetzt, macht aus der callbackUrl-Berechnung eine zweite Sperre — und
+ * `requireRadioAdmin` hat seinen Host-Riegel schon eine Zeile vorher. Und wer stattdessen
+ * `resolveHost` ein zweites Mal auswertet, baut die zweite Host-Aufloesung, vor der
+ * `./host.ts` in seinem Kopf warnt.
  *
  * EXPORTIERT, obwohl ausser dem Test und `requireRadioAdmin` niemand sie ruft: nur so ist
  * der Zweig „Prod-Host vs. angefragter Host" pruefbar, ohne einen `redirect()`-Wurf zu
@@ -1840,9 +1889,9 @@ export function _resetGemeldeteGruppen(): void {
  *
  * ⬜ L7 haengt an dieser Funktion UND am `redirect()` unten: der vollstaendige
  * `Location`-Kopf — Statuscode (307 oder 302) sowie Protokoll und Host — wird beim
- * Cutover abgelesen (2026-08-18-plan4-radio-cutover.md:2091), NICHT hier. `redirect()`
- * waehlt den Code zur Laufzeit; ein hier festgeschriebenes „302" waere eine Zusage ueber
- * eine Bauform, die Spec 1 nicht festlegt.
+ * Cutover abgelesen (docs/superpowers/plans/2026-08-18-plan4-radio-cutover.md:2091),
+ * NICHT hier. `redirect()` waehlt den Code zur Laufzeit; ein hier festgeschriebenes „302"
+ * waere eine Zusage ueber eine Bauform, die Spec 1 nicht festlegt.
  */
 export function verwaltungsZiel(headersEingang: Headers): string {
   const angefragt = resolveHost(headersEingang);
@@ -1866,7 +1915,8 @@ export function verwaltungsZiel(headersEingang: Headers): string {
  * host-blind und vollstaendig: eine Admin-Action auf fremdem Host verlangt dieselbe
  * Gruppe wie auf der eigenen Domain), sondern die Vermeidung einer ZWEITEN
  * FUNKTIONIERENDEN HERKUNFT des Moduls. ⛔ Wer sie fuer doppelt haelt und entfernt,
- * oeffnet genau diese Luecke.
+ * oeffnet genau diese Luecke (Kapitel-4-Pflicht 16,
+ * docs/radio-portierung-analyse.md:973-977).
  *
  * ERST DER HOST, DANN DIE PERSON. So verraet ein anonymer Aufruf auf einem fremden Host
  * die Verwaltungsroute nicht ueber einen vorgeschalteten Login-Umweg.
@@ -1884,8 +1934,16 @@ export function verwaltungsZiel(headersEingang: Headers): string {
  *
  * ⚠️ FRISCHE: BIS ZU EINE STUNDE VERZUG. Gruppen im JWT sind nur so frisch wie der letzte
  * erfolgreiche Token-Refresh; der Takt ist die Access-Token-Lebensdauer von Pocket ID,
- * nicht die Sitzungsdauer von 30 Tagen (`CLAUDE.md`, Abschnitt „Zugriffsschutz"; Spec:698
- * zitiert dafuer `CLAUDE.md:151-156`). Der Verzug wird HINGENOMMEN.
+ * nicht die Sitzungsdauer von 30 Tagen (`CLAUDE.md:151-156`, von Spec:698 dafuer zitiert).
+ * Der Verzug wird HINGENOMMEN.
+ *
+ * ⬜ `merkeNutzer` STEHT HIER BEWUSST NICHT (Nachtrag NT-Z5, Nahtstelle NS-Z7). Kapitel 1
+ * §1.5 (Spec:669-673) fuehrt `requireRadioAdmin` in FUENF Schritten ohne den Schreiber,
+ * Kapitel 5 (Spec:4349) in SECHS mit ihm; kein A-/B-Punkt loest das auf. Planteil 2 baut
+ * die Kapitel-1-Fassung, WEIL ES IN DIESEM PLANTEIL KEINEN LESER VON `users` GIBT.
+ * ⛔ Planteil 4 traegt `merkeNutzer(getDb(), viewer)` NACH dem Riegel nach, sonst rendert
+ * jede Ereigniszeile eine nackte UUID (Spec:4358-4360) — und stolpert dabei ueber die
+ * `notNull()`-Kollision, die oben bei `RadioViewer` benannt ist.
  */
 export async function requireRadioAdmin(): Promise<RadioViewer> {
   const kopf = await headers();
@@ -1925,7 +1983,7 @@ seinem Kopf warnt.**
 
 ```ts
 // src/app/m/radio/_lib/zugang.test.ts
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { viewerAusSession, istRadioAdmin, verwaltungsZiel, type RadioViewer } from "./zugang";
 
 /**
@@ -1938,11 +1996,28 @@ import { viewerAusSession, istRadioAdmin, verwaltungsZiel, type RadioViewer } fr
  * Host-Riegels in `viewerOderNull`.
  *
  * ⬜ Ihre WIRKUNG (Statuscode und Location-Kopf) ist ⬜ L7 und wird beim Cutover
- * abgelesen (2026-08-18-plan4-radio-cutover.md:2091), nicht hier.
+ * abgelesen (docs/superpowers/plans/2026-08-18-plan4-radio-cutover.md:2091), nicht hier.
  */
 const viewer = (groups: string[]): RadioViewer => ({ sub: "u-1", name: "Test Person", groups });
 const kopf = (h: Record<string, string>) => new Headers(h);
 
+/**
+ * ⛔ DIE TESTSUITE SIEHT DIE PROZESSUMGEBUNG, NICHT `.env.local` — gemessen, nicht
+ * angenommen: in diesem Repo laedt vitest KEINE `.env`-Datei (kein `dotenv` in
+ * `vitest.config.ts`, `vitest.setup.ts` oder `package.json`). Ein lokal gesetztes
+ * SUITE_ADMIN_GROUP_RADIO verfaelscht damit kein Tor — ein in der Shell oder in der CI
+ * EXPORTIERTER Wert dagegen schon.
+ *
+ * Deshalb loescht `beforeEach` alle drei Variablen VOR jedem Fall, statt sich darauf zu
+ * verlassen, dass der Prozess sie nicht mitbringt. `zuruecksetzen()` in `finally` stellt
+ * den Ausgangszustand des Prozesses wieder her; die Form ist `try/finally` und nicht
+ * `afterEach`, weil hier drei Variablen nebeneinanderstehen und ein Fall, der eine davon
+ * setzt, die anderen nicht in einem Zwischenzustand hinterlassen darf. Vitest faehrt
+ * Dateien parallel, Faelle INNERHALB einer Datei aber seriell.
+ *
+ * (Dieselbe Bauform wie `src/app/m/radio/_lib/host.test.ts:29-36`, dort fuer eine
+ * Variable.)
+ */
 const alterAdmin = process.env.SUITE_ADMIN_GROUP_RADIO;
 const alterUpdater = process.env.SUITE_UPDATER_GROUP_RADIO;
 const alterHost = process.env.SUITE_HOST_RADIO;
@@ -1956,6 +2031,11 @@ const zuruecksetzen = () => {
     else process.env[name] = wert;
   }
 };
+beforeEach(() => {
+  delete process.env.SUITE_ADMIN_GROUP_RADIO;
+  delete process.env.SUITE_UPDATER_GROUP_RADIO;
+  delete process.env.SUITE_HOST_RADIO;
+});
 
 describe("viewerAusSession — reine Abbildung, ohne IO", () => {
   it("ohne user.id gibt es keinen Viewer", () => {
@@ -1966,12 +2046,13 @@ describe("viewerAusSession — reine Abbildung, ohne IO", () => {
 
   it("ein fehlender groups-Claim ist die LEERE MENGE, kein Absturz", () => {
     // Sonst haenge die Fehlerform an der Token-Version: ein alter Token ohne `groups`
-    // ergaebe 500 statt 404 (lagerbuch/_lib/zugang.ts:40-42).
+    // ergaebe 500 statt 404 (src/app/m/lagerbuch/_lib/zugang.ts:40-42).
     expect(viewerAusSession({ user: { id: "u-1" } })).toEqual({ sub: "u-1", name: null, groups: [] });
   });
 
   it("uebernimmt name, aber KEINE E-Mail — die users-Tabelle hat keine Spalte dafuer", () => {
-    // `_db/schema.ts:113-117`: sub, name, last_seen_at. Drei Felder, drei Spalten.
+    // `src/app/m/radio/_db/schema.ts:113-117`: sub, name, last_seen_at. Drei Felder,
+    // drei Spalten.
     const v = viewerAusSession({ user: { id: "u-1", name: "A. Person", groups: ["g"] } });
     expect(v).toEqual({ sub: "u-1", name: "A. Person", groups: ["g"] });
     expect(Object.keys(v!).sort()).toEqual(["groups", "name", "sub"]);
@@ -1984,8 +2065,9 @@ describe("istRadioAdmin — das Praedikat", () => {
   });
 
   it("mit der Registry-Vorgabegruppe: true", () => {
+    // Das Env-Loeschen leistet das beforeEach oben (kein zweites hier, es waere tot).
+    // Die Vorgabe steht in `src/core/registry.ts:193` (`adminGroups: ["iuk-radio-admin"]`).
     try {
-      delete process.env.SUITE_ADMIN_GROUP_RADIO;
       expect(istRadioAdmin(viewer(["iuk-radio-admin"]))).toBe(true);
     } finally { zuruecksetzen(); }
   });
@@ -1995,6 +2077,7 @@ describe("istRadioAdmin — das Praedikat", () => {
      * Der direkte Feldzugriff `mod.adminGroups` machte die Variable an genau dieser
      * Stelle wirkungslos, und der Fehler waere still: eine Instanz mit anders benannten
      * SSO-Gruppen liefe mit einem Riegel, der niemanden durchlaesst.
+     * (`src/core/registry.ts:29-35` schreibt dieselbe Falle fuer `prodHosts` aus.)
      */
     try {
       process.env.SUITE_ADMIN_GROUP_RADIO = "leitung";
@@ -2009,6 +2092,9 @@ describe("istRadioAdmin — das Praedikat", () => {
      * zugleich die stille Aussperrung: SUITE_ADMIN_GROUP_RADIO= (leer) ist eine GUELTIGE
      * Aussage und wird nicht gemeldet (docs/radio-portierung-analyse.md:1547-1576).
      * ⛔ Ein „leer bedeutet alle"-Zweig waere die Sperre, die sich selbst abschaltet.
+     *
+     * ⚠️ DER PRUEFGEGENSTAND IST EINE ABWESENHEIT — dieser Zweig existiert nicht. Die
+     * Mutationssonde dazu ist deshalb eine EINFUEGUNG, keine Entfernung (V-Z2-1).
      */
     try {
       process.env.SUITE_ADMIN_GROUP_RADIO = "";
@@ -2019,18 +2105,19 @@ describe("istRadioAdmin — das Praedikat", () => {
 
   it("ein Viewer mit NUR dashboard-admins: false — der Suite-Admin bekommt keine Radio-Rechte", () => {
     /*
-     * Entscheidung 9 und Kapitel-4-Pflicht 17. `core/groups.ts:125` liesse ihn durch
+     * Entscheidung 9 und Kapitel-4-Pflicht 17. `src/core/groups.ts:125` liesse ihn durch
      * (`if (groups.includes(suiteAdminGroup(env))) return true;`) — deshalb ist
      * `isModuleAdmin` hier NICHT die Quelle. `dashboard-admins` ist der Default von
-     * ADMIN_GROUP (core/groups.ts:96-98).
+     * ADMIN_GROUP (src/core/groups.ts:96-97).
      *
      * ⚠️ OHNE DIESEN FALL waere ein Umbau auf `isModuleAdmin` GRUEN — er sieht wie
      * Wiederverwendung aus und oeffnet /admin fuer jeden Suite-Betreiber. Genau das haelt
-     * `lagerbuch/_lib/bauform.test.ts:230-249` mit einem Quelltext-Scan fest; hier steht
-     * zusaetzlich die VERHALTENSaussage.
+     * `src/app/m/lagerbuch/_lib/bauform.test.ts:230-249` mit einem Quelltext-Scan fest;
+     * hier steht zusaetzlich die VERHALTENSaussage.
+     *
+     * Das Env-Loeschen leistet das beforeEach oben.
      */
     try {
-      delete process.env.SUITE_ADMIN_GROUP_RADIO;
       expect(istRadioAdmin(viewer(["dashboard-admins"]))).toBe(false);
     } finally { zuruecksetzen(); }
   });
@@ -2040,7 +2127,7 @@ describe("istRadioAdmin — das Praedikat", () => {
      * ⛔ DIE NAHT FUER PLANTEIL 4, ALS RIEGEL FORMULIERT (Betreiberentscheidung C.6 / B4,
      * 2026-08-21: zwei Rollen wie im Bestand).
      *
-     * Planteil 4 baut die Updater-Stufe in `_lib/rollen.ts` (Spec:4421), lesend aus
+     * Planteil 4 baut die Updater-Stufe in `_lib/rollen.ts` (Spec:4420-4422), lesend aus
      * SUITE_UPDATER_GROUP_RADIO. Der naheliegende, falsche Weg dorthin ist, die Gruppe
      * HIER mit `||` danebenzustellen — das saehe nach „zwei Rollen" aus und waere eine
      * AUFWEICHUNG: jeder Updater kaeme durch jeden Admin-Riegel, und typecheck, lint und
@@ -2048,23 +2135,29 @@ describe("istRadioAdmin — das Praedikat", () => {
      *
      * Im Bestand ist die Rangfolge eindeutig: `mapGroupsToRole` gibt `admin` VOR
      * `updater` und `null` bei keinem Treffer (radio-admin/shared/src/role.ts:3-10);
-     * `requireRole('admin')` sperrt NEUN Routen hart — radio-admin/server/src/routes/
-     * devices.ts:99,188, softwareVersions.ts:30,40,48,56, loans.ts:28, tokens.ts:22,44 —,
-     * und die eigentliche Differenzierung sitzt im FELD-Filter `filterEditableFields`,
-     * nicht im Routing (radio-admin/shared/src/editable-fields.ts:1-18). ⚠️ `role.ts` und
-     * `role.test.ts` belegen NUR die Rangfolge; `requireRole` kommt dort nicht vor.
+     * `requireRole('admin')` sperrt ELF Routen hart — radio-admin/server/src/routes/
+     * devices.ts:99,188, softwareVersions.ts:30,40,48,56, loans.ts:28, tokens.ts:22,44,47,
+     * export.ts:71 —, und die eigentliche Differenzierung sitzt im FELD-Filter
+     * `filterEditableFields`, nicht im Routing
+     * (radio-admin/shared/src/editable-fields.ts:1-18). ⚠️ `role.ts` und `role.test.ts`
+     * belegen NUR die Rangfolge; `requireRole` kommt dort nicht vor. ⚠️ Ein `grep` auf
+     * `requireRole('admin')` liefert ZWOELF Zeilen — die zwoelfte, export.ts:66, ist ein
+     * Kommentar, keine Route.
      *
      * ⬜ E1b: wie die Gruppe wirklich heisst, weiss nur der Betreiber
      * (docs/superpowers/plans/SPERREN-radio-spec2.md:110 — verfolgtes Dokument, nicht die
      * git-ignorierte Kladde unter `.superpowers/sdd/`). Dieser Fall setzt deshalb einen
      * FREI GEWAEHLTEN Wert und prueft die Richtung, nicht den Namen.
+     *
+     * ⚠️ DER PRUEFGEGENSTAND IST EINE ABWESENHEIT — das `||` existiert nicht. Die
+     * Mutationssonde dazu ist deshalb eine EINFUEGUNG, keine Entfernung (V-Z2-1).
+     * Das Env-Loeschen von SUITE_ADMIN_GROUP_RADIO leistet das beforeEach oben.
      */
     try {
-      delete process.env.SUITE_ADMIN_GROUP_RADIO;
       process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
       expect(istRadioAdmin(viewer(["eine-updater-gruppe"]))).toBe(false);
       // Und die Gegenrichtung: wer BEIDES hat, ist Admin — „admin gewinnt bei
-      // Ueberschneidung" (radio-admin/shared/src/role.test.ts:14-17).
+      // Ueberschneidung" (radio-admin/shared/src/role.test.ts:15-17).
       expect(istRadioAdmin(viewer(["eine-updater-gruppe", "iuk-radio-admin"]))).toBe(true);
     } finally { zuruecksetzen(); }
   });
@@ -2072,16 +2165,82 @@ describe("istRadioAdmin — das Praedikat", () => {
 
 describe("verwaltungsZiel — absolutes Ziel fuer die callbackUrl", () => {
   it("nimmt den konfigurierten Prod-Host, auch wenn die Anfrage anders kam", () => {
+    /*
+     * ⛔ DIE ERSTE ZUSICHERUNG FRAGT EINEN FREMDEN HOST AN, UND DAS IST DER GANZE FALL.
+     * Der Plan hatte hier zweimal denselben Host stehen — angefragt wie konfiguriert. Dann
+     * liefern BEIDE Zweige der `??`-Kette dieselbe Zeichenkette, und die Zusicherung ist
+     * gegen den Vorrang des Prod-Hosts blind. GEMESSEN (Sonde P11a, 2026-08-22): mit
+     * entfernter Zeile `prodHostsFor(getModule("radio"))[0] ??` lief die Brieffassung
+     * `13 passed` — 0 rot. Die NT11-Form, nur an einer anderen Stelle.
+     *
+     * `iuk-ue.de` gehoert `portal` (`src/core/registry.ts:59`), ist also ein FREMDER
+     * Suite-Host: `istRadioHost` ist dort falsch, und ohne den Prod-Host-Vorrang fiele die
+     * Funktion auf den internen Pfad zurueck. Die zweite Zusicherung haelt zusaetzlich den
+     * Normalfall fest, in dem angefragter und konfigurierter Host uebereinstimmen.
+     */
     try {
       process.env.SUITE_HOST_RADIO = "radio.iuk-ue.de";
+      expect(verwaltungsZiel(kopf({ host: "iuk-ue.de", "x-forwarded-proto": "https" })))
+        .toBe("https://radio.iuk-ue.de/admin");
       expect(verwaltungsZiel(kopf({ host: "radio.iuk-ue.de", "x-forwarded-proto": "https" })))
         .toBe("https://radio.iuk-ue.de/admin");
     } finally { zuruecksetzen(); }
   });
 
-  it("faellt ohne Prod-Host auf den ANGEFRAGTEN Host zurueck — aber nur, wenn er radio ist", () => {
+  it("der konfigurierte Prod-Host gewinnt AUCH ueber einen echten Radio-Host", () => {
+    /*
+     * ⛔ DER VORRANG, NICHT DIE ANWESENHEIT — und der Unterschied ist gemessen.
+     *
+     * Fall 1 darueber faengt nur, dass der Prod-Host-Zweig EXISTIERT: sein angefragter Host
+     * (`iuk-ue.de`) ist ein FREMDER, `istRadioHost` ist dort falsch, und ein TAUSCH der
+     * beiden Zweige der `??`-Kette laesst ihn deshalb gruen. GEMESSEN (Sonde P17,
+     * 2026-08-22, REVIEW-Z4 Fund W1): mit vertauschten Zweigen — `istRadioHost` zuerst,
+     * `prodHostsFor` als Rueckfall — lief die ganze Datei `13 passed`, 0 rot. Dieselbe
+     * Familie wie P11a, nur eine Ebene tiefer.
+     *
+     * Dieser Fall fragt einen ECHTEN Radio-Host an, der ein ANDERER ist als der
+     * konfigurierte. Nur so liefern die zwei Zweige verschiedene Zeichenketten, und nur so
+     * ist die Reihenfolge ueberhaupt pruefbar. Ohne den Vorrang schriebe die Anmeldung eine
+     * `callbackUrl` auf den FALSCHEN Host — und typecheck, lint und die uebrigen zwoelf
+     * Faelle blieben alle gruen.
+     *
+     * `radio.localtest.me` trifft `moduleForHost` ueber den Zweig `${m.key}.localtest.me`
+     * (`src/core/registry.ts:249`), also OHNE jede SUITE_HOST_*-Variable: ein in der Shell
+     * oder in der CI exportierter Fremdwert kann diesen Fall nicht kippen.
+     */
     try {
-      delete process.env.SUITE_HOST_RADIO;
+      process.env.SUITE_HOST_RADIO = "radio.iuk-ue.de";
+      expect(verwaltungsZiel(kopf({ host: "radio.localtest.me" })))
+        .toBe("http://radio.iuk-ue.de/admin");
+    } finally { zuruecksetzen(); }
+  });
+
+  it("bildet die URL aus x-forwarded-host, nicht aus host", () => {
+    /*
+     * `resolveHost` nimmt `x-forwarded-host` vor `host` und behaelt den Port
+     * (`src/core/routing.ts:36-41`). Nach dem Rewrite der Middleware ist das die einzig
+     * richtige Reihenfolge, und `radio`s Verkehr kommt durch genau diesen Rewrite.
+     *
+     * ⚠️ FUER DAS PRAEDIKAT IST SIE BELEGT (`src/app/m/radio/_lib/host.test.ts:68-77`), FUER
+     * DIE URL-BILDUNG WAR SIE ES NICHT: aus `angefragt` entstehen Host UND Port der
+     * absoluten URL. GEMESSEN (Sonde P18, 2026-08-22, REVIEW-Z4 Fund K2): `resolveHost`
+     * durch `headersEingang.get("host") ?? ""` ersetzt lief `13 passed`, 0 rot.
+     *
+     * Das Env-Loeschen leistet das beforeEach oben — der Fall laeuft OHNE Prod-Host, damit
+     * er den angefragten Zweig misst und nicht den konfigurierten.
+     */
+    try {
+      expect(
+        verwaltungsZiel(
+          kopf({ "x-forwarded-host": "radio.localtest.me:3000", host: "interner.dienst" }),
+        ),
+      ).toBe("http://radio.localtest.me:3000/admin");
+    } finally { zuruecksetzen(); }
+  });
+
+  it("faellt ohne Prod-Host auf den ANGEFRAGTEN Host zurueck — aber nur, wenn er radio ist", () => {
+    // Das Env-Loeschen leistet das beforeEach oben.
+    try {
       expect(verwaltungsZiel(kopf({ host: "radio.localtest.me:3000" })))
         .toBe("http://radio.localtest.me:3000/admin");
     } finally { zuruecksetzen(); }
@@ -2093,9 +2252,10 @@ describe("verwaltungsZiel — absolutes Ziel fuer die callbackUrl", () => {
      * hier eine erfundene Domain; der interne Pfad ist die einzige ehrliche Antwort.
      * ⚠️ Er ist `/m/radio/admin` und NICHT `/admin` — die callbackUrl wird von der
      * Suite-Anmeldung aufgeloest, und die kennt nur interne Pfade.
+     * `iuk-ue.de` gehoert `portal` (`src/core/registry.ts:59`), ist also ein FREMDER
+     * Suite-Host. Das Env-Loeschen leistet das beforeEach oben.
      */
     try {
-      delete process.env.SUITE_HOST_RADIO;
       expect(verwaltungsZiel(kopf({ host: "iuk-ue.de" }))).toBe("/m/radio/admin");
       expect(verwaltungsZiel(kopf({}))).toBe("/m/radio/admin");
     } finally { zuruecksetzen(); }
@@ -2108,10 +2268,32 @@ describe("verwaltungsZiel — absolutes Ziel fuer die callbackUrl", () => {
         .toBe("https://radio.iuk-ue.de/admin");
       expect(verwaltungsZiel(kopf({ host: "radio.iuk-ue.de" })))
         .toBe("http://radio.iuk-ue.de/admin");
+      /*
+       * ⚠️ UND DAS `.trim()`, DAS SONST UNTESTBAR-GRUEN BLEIBT: Leerzeichen um das Komma
+       * herum ergeben dasselbe Protokoll. GEMESSEN (Sonde P19, 2026-08-22, REVIEW-Z4 Fund
+       * K3): `.split(",")[0].trim()` zu `.split(",")[0]` verkuerzt lief `13 passed`, 0 rot —
+       * das Ziel hiesse dann " https://radio.iuk-ue.de/admin", mit fuehrendem Leerzeichen.
+       * Diese Zusicherung steht ZULETZT, weil ein geworfenes `expect` seinen Fall beendet.
+       */
+      expect(verwaltungsZiel(kopf({ host: "radio.iuk-ue.de", "x-forwarded-proto": " https , http" })))
+        .toBe("https://radio.iuk-ue.de/admin");
     } finally { zuruecksetzen(); }
   });
 });
 ```
+
+⚠️ **Diese zwei Blöcke tragen seit dem 2026-08-22 (Fix-Runde 1 zu Z4) den AUSGELIEFERTEN Stand,
+byte-gleich zu `src/app/m/radio/_lib/zugang.ts` und `…/zugang.test.ts`.** Sie sind es vorher **nicht**
+gewesen: der Bau hatte fünf deklarierte Abweichungen (u. a. ein `beforeEach`, das alle drei
+`SUITE_*`-Variablen vor jedem Fall löscht, und die dadurch toten inline-`delete`s), und der
+Nachbesserungs-Commit `aa68c4c` hatte Fall 1 von `verwaltungsZiel` bereits gerichtet, ohne den Plan
+mitzuziehen. ⛔ **Der Planstand war damit eine Bauanleitung für einen gemessenen `0 rot`** — wer ihn
+für Planteil 4 abgeschrieben hätte, hätte Fall 1 in der Fassung wiederaufgebaut, die den Vorrang des
+Prod-Hosts nicht prüft (Sonde P11a). Dazu kommen die drei Zusicherungen aus dieser Fix-Runde (W1,
+K2, K3) und die berichtigte Routenzahl **elf** statt „neun" (K6). ⚠️ **Teil A unten zitiert weiter
+`Failed to resolve import "./zugang"`; gemessen liefert vitest 4.1.10 `Cannot find module './zugang'
+imported from …`.** Das ist ein Werkzeugbefund, kein Bau-Posten — er bleibt hier stehen, damit die
+nächste Person die Abweichung erwartet statt sie für einen Fehler zu halten.
 
 ⚠️ **`process.env`-Fälle laufen mit `try/finally`, nicht mit `afterEach`** — hier stehen drei
 Variablen nebeneinander, und ein Fall, der eine davon setzt, darf die anderen nicht in einen
@@ -2606,6 +2788,36 @@ describe("(d) die Gegenregel — viewerOderNull ruft den Host-Riegel NICHT", () 
     );
     expect(koerper).not.toBe("");
     expect(koerper).toMatch(/\brequireRadioHost\s*\(/);
+    /*
+     * ⛔ UND DER GANZE KOERPER, NICHT NUR SEINE ERSTE ZEILE (REVIEW-Z4, Fund W2 — gemessen).
+     * Bis hierher sicherte diese Klausel nur zu, dass `requireRadioHost(` VORKOMMT und VOR
+     * `viewerAusSession(` steht. GEMESSEN (Messung 4 des Reviews, 2026-08-22): der ganze
+     * Koerper durch `const viewer = viewerAusSession(await auth()); return viewer as
+     * RadioViewer;` ersetzt liess `zugang.test.ts` mit `13 passed` durchlaufen — 0 rot.
+     * Ausgerechnet die Zeile, die `_lib/zugang.ts` selbst „PFLICHT, NICHT KUER" nennt (die
+     * Protokollzeile aus Spec:206-210), hatte damit in ganz Planteil 2 keinen Waechter.
+     *
+     * ⚠️ DAS IST EINE QUELLTEXT-ZUSICHERUNG, KEIN VERHALTENSNACHWEIS. Sie haelt fest, DASS
+     * die vier tragenden Aufrufe im Koerper stehen — nicht, dass sie wirken. Die
+     * VERHALTENSfaelle nach `lagerbuch`-Vorbild (`src/app/m/lagerbuch/_lib/zugang.test.ts:41`
+     * Import, `:72` Aufruf, Begruendung `:60-71`) gehoeren an PLANTEIL 4, wo die erste
+     * Verwaltungsseite steht und der Next-Anfragekontext echt ist.
+     *
+     * Warum genau diese vier: ohne `istRadioAdmin(` prueft der Riegel keine Gruppe, ohne
+     * `notFound(` weist er nicht ab (403 waere die falsche Form, Spec:691-694), ohne
+     * `meldeFehlendeGruppe(` ist Falle 23 unsichtbar (Spec:206-210, „die einzige Stelle, an
+     * der dieser Zustand ueberhaupt sichtbar wird"), und ohne `redirect(` landet eine
+     * ANONYME Person im 404 statt in der Anmeldung — `viewerAusSession` gibt dort `null`,
+     * und `istRadioAdmin(null)` ist `false`.
+     */
+    expect(koerper, "ohne istRadioAdmin( prueft der Riegel keine Gruppe")
+      .toMatch(/\bistRadioAdmin\s*\(/);
+    expect(koerper, "ohne meldeFehlendeGruppe( ist Falle 23 unsichtbar (Spec:206-210)")
+      .toMatch(/\bmeldeFehlendeGruppe\s*\(/);
+    expect(koerper, "ohne notFound( weist der Riegel nicht ab (Spec:691-694)")
+      .toMatch(/\bnotFound\s*\(/);
+    expect(koerper, "ohne redirect( landet die anonyme Person im 404 statt in der Anmeldung")
+      .toMatch(/\bredirect\s*\(/);
     const host = koerper.search(/\brequireRadioHost\s*\(/);
     const person = koerper.search(/\bviewerAusSession\s*\(/);
     expect(host, "erst der Host, dann die Person (Spec:669-671)").toBeLessThan(person);
@@ -3161,6 +3373,7 @@ gefunden wurden:
 | **NT-Z4** | **Spec:534 und Spec:547 nennen `istRadioHost` als Aufrufziel von `hostAbweisung`**; gebaut wird `radioHostOderNull`, zeichengleich zum Präzedenzfall `lagerbuch/_lib/hostRiegel.ts:33`. Die Prädikatsform gäbe kein `null`, das mit `??` kurzschließbar wäre — und genau das macht „als erste Anweisung" strukturell wahr statt konventionell (Spec:538-540) | Nachtrag am **Spec-Text §1.4.2**. **Der Bau ist richtig.** ⛔ `host.test.ts` und `riegel.test.ts` Klausel (c) binden beide an den gebauten Namen; wer später `Spec:534` wörtlich umsetzt, macht sie rot für eine Datei, die korrekt geriegelt ist |
 | **NT-Z5** | **`merkeNutzer` fehlt in Kapitel 1 und steht in Kapitel 5.** Spec:669-673 führt `requireRadioAdmin` in fünf Schritten **ohne**, Spec:4349 in sechs **mit** — und Spec:4358-4360 nennt die Zeile ausdrücklich „keine Kür": sechs Audit-Spalten speichern den `sub` und werden über `users` in einen Namen aufgelöst; ohne sie rendert jede Ereigniszeile eine **nackte UUID**. Kein A-/B-Punkt löst den Widerspruch auf | **Planteil 2 baut die Kapitel-1-Fassung**, weil es in diesem Planteil **keinen Leser von `users`** gibt — die Tabelle steht seit Planteil 1 (`_db/schema.ts:113-117`), die Ereignisflächen kommen mit Planteil 4. ⛔ **Auflage an Planteil 4:** `merkeNutzer(getDb(), viewer)` **nach** dem Riegel nachtragen. Als Nahtstelle **NS-Z7** geführt |
 | **NT-Z6** | **`Spec:353` verzählt die Unterpfade von `/admin`.** Dort steht wörtlich „`/admin` und alle **acht** Unterpfade — frei."; Tabelle 1.2.2 (`Spec:303-314`) führt `/admin` plus **neun** (ausgezählt am 2026-08-22 in Aufgabe Z2, Fix-Runde 1, Fund K3). Gefunden beim Bau von `_lib/routen.test.ts` | Nachtrag am **Spec-Text §1.2.2**. **Der Bau ist richtig, und die Zahl stammt nicht von dort:** `VERWALTUNG` in `src/app/m/radio/_lib/routen.test.ts` zählt nach **B9** (`Spec:98`, „zehn Seiten-Pfade plus ein Route Handler"), und der ausgelieferte Kommentar über `expect(VERWALTUNG.length).toBe(11)` schließt den Weg, auf dem die Acht einwandern könnte, namentlich aus. ⛔ **Die Spec wird hier NICHT angefasst** — sie ist ein datiertes Belegdokument, ein Teildurchgang verstieße gegen R3; diese Zeile IST die Meldung an den Verfasser |
+| **NT-Z7** | **Der Port des ANGEFRAGTEN Hosts wird an den KONFIGURIERTEN Prod-Host geklebt** (`verwaltungsZiel` in `src/app/m/radio/_lib/zugang.ts`). Steht `SUITE_HOST_RADIO=radio.iuk-ue.de` und kommt die Anfrage lokal auf `radio.localtest.me:3000`, lautet das Ziel `http://radio.iuk-ue.de:3000/admin` — eine Adresse, die es nicht gibt. **Gemessen** am 2026-08-22 (Fix-Runde 1 zu Z4, Fund K4) | **Kein Bau-Posten, und der Grund ist messbar:** die Bauform ist 1:1 aus `src/app/m/lagerbuch/_lib/zugang.ts:205-214`, **vor** dem Cutover ist `prodHostsFor` leer und **nach** ihm kommt kein Port. Die einzige Mischlage, die ein totes Ziel erzeugt, ist **Prod-Host gesetzt UND lokaler Port**. ⛔ Der Satz gehört ins **Cutover-Runbook** (`docs/superpowers/plans/2026-08-18-plan4-radio-cutover.md`) — und **nicht** als Einfügung oberhalb von dessen `:2091`: auf genau diese Zeile zeigt **ausgelieferter** Quelltext (`_lib/zugang.ts` an ⬜ L7 und `_lib/zugang.test.ts`), eine Einfügung darüber verschöbe einen Anker, der in `src/` lebt (R2). Diese Zeile IST die Meldung an den Runbook-Verfasser |
 
 ---
 

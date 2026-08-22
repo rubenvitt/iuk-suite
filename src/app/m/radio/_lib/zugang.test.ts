@@ -202,6 +202,57 @@ describe("verwaltungsZiel — absolutes Ziel fuer die callbackUrl", () => {
     } finally { zuruecksetzen(); }
   });
 
+  it("der konfigurierte Prod-Host gewinnt AUCH ueber einen echten Radio-Host", () => {
+    /*
+     * ⛔ DER VORRANG, NICHT DIE ANWESENHEIT — und der Unterschied ist gemessen.
+     *
+     * Fall 1 darueber faengt nur, dass der Prod-Host-Zweig EXISTIERT: sein angefragter Host
+     * (`iuk-ue.de`) ist ein FREMDER, `istRadioHost` ist dort falsch, und ein TAUSCH der
+     * beiden Zweige der `??`-Kette laesst ihn deshalb gruen. GEMESSEN (Sonde P17,
+     * 2026-08-22, REVIEW-Z4 Fund W1): mit vertauschten Zweigen — `istRadioHost` zuerst,
+     * `prodHostsFor` als Rueckfall — lief die ganze Datei `13 passed`, 0 rot. Dieselbe
+     * Familie wie P11a, nur eine Ebene tiefer.
+     *
+     * Dieser Fall fragt einen ECHTEN Radio-Host an, der ein ANDERER ist als der
+     * konfigurierte. Nur so liefern die zwei Zweige verschiedene Zeichenketten, und nur so
+     * ist die Reihenfolge ueberhaupt pruefbar. Ohne den Vorrang schriebe die Anmeldung eine
+     * `callbackUrl` auf den FALSCHEN Host — und typecheck, lint und die uebrigen zwoelf
+     * Faelle blieben alle gruen.
+     *
+     * `radio.localtest.me` trifft `moduleForHost` ueber den Zweig `${m.key}.localtest.me`
+     * (`src/core/registry.ts:249`), also OHNE jede SUITE_HOST_*-Variable: ein in der Shell
+     * oder in der CI exportierter Fremdwert kann diesen Fall nicht kippen.
+     */
+    try {
+      process.env.SUITE_HOST_RADIO = "radio.iuk-ue.de";
+      expect(verwaltungsZiel(kopf({ host: "radio.localtest.me" })))
+        .toBe("http://radio.iuk-ue.de/admin");
+    } finally { zuruecksetzen(); }
+  });
+
+  it("bildet die URL aus x-forwarded-host, nicht aus host", () => {
+    /*
+     * `resolveHost` nimmt `x-forwarded-host` vor `host` und behaelt den Port
+     * (`src/core/routing.ts:36-41`). Nach dem Rewrite der Middleware ist das die einzig
+     * richtige Reihenfolge, und `radio`s Verkehr kommt durch genau diesen Rewrite.
+     *
+     * ⚠️ FUER DAS PRAEDIKAT IST SIE BELEGT (`src/app/m/radio/_lib/host.test.ts:68-77`), FUER
+     * DIE URL-BILDUNG WAR SIE ES NICHT: aus `angefragt` entstehen Host UND Port der
+     * absoluten URL. GEMESSEN (Sonde P18, 2026-08-22, REVIEW-Z4 Fund K2): `resolveHost`
+     * durch `headersEingang.get("host") ?? ""` ersetzt lief `13 passed`, 0 rot.
+     *
+     * Das Env-Loeschen leistet das beforeEach oben — der Fall laeuft OHNE Prod-Host, damit
+     * er den angefragten Zweig misst und nicht den konfigurierten.
+     */
+    try {
+      expect(
+        verwaltungsZiel(
+          kopf({ "x-forwarded-host": "radio.localtest.me:3000", host: "interner.dienst" }),
+        ),
+      ).toBe("http://radio.localtest.me:3000/admin");
+    } finally { zuruecksetzen(); }
+  });
+
   it("faellt ohne Prod-Host auf den ANGEFRAGTEN Host zurueck — aber nur, wenn er radio ist", () => {
     // Das Env-Loeschen leistet das beforeEach oben.
     try {
@@ -232,6 +283,15 @@ describe("verwaltungsZiel — absolutes Ziel fuer die callbackUrl", () => {
         .toBe("https://radio.iuk-ue.de/admin");
       expect(verwaltungsZiel(kopf({ host: "radio.iuk-ue.de" })))
         .toBe("http://radio.iuk-ue.de/admin");
+      /*
+       * ⚠️ UND DAS `.trim()`, DAS SONST UNTESTBAR-GRUEN BLEIBT: Leerzeichen um das Komma
+       * herum ergeben dasselbe Protokoll. GEMESSEN (Sonde P19, 2026-08-22, REVIEW-Z4 Fund
+       * K3): `.split(",")[0].trim()` zu `.split(",")[0]` verkuerzt lief `13 passed`, 0 rot —
+       * das Ziel hiesse dann " https://radio.iuk-ue.de/admin", mit fuehrendem Leerzeichen.
+       * Diese Zusicherung steht ZULETZT, weil ein geworfenes `expect` seinen Fall beendet.
+       */
+      expect(verwaltungsZiel(kopf({ host: "radio.iuk-ue.de", "x-forwarded-proto": " https , http" })))
+        .toBe("https://radio.iuk-ue.de/admin");
     } finally { zuruecksetzen(); }
   });
 });

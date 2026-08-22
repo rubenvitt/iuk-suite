@@ -124,6 +124,11 @@ export async function viewerOderNull(): Promise<RadioViewer | null> {
  * Entschieden ist sie (C.6 / B4, 2026-08-21: zwei Rollen wie im Bestand); gebaut wird sie
  * in PLANTEIL 4. Spec:191 sagt es ausdruecklich: wer `radio` eine zweite Rolle gibt,
  * „baut sie modulintern — das ist nicht Sache dieses Kapitels".
+ * ⚠️ DAS ZITAT TRAEGT NUR SO WEIT WIE SEINE FUNDSTELLE (REVIEW-Z4, Fund K5): Spec:191 ist
+ * die `requiredGroups`-Zeile der Registry-Tabelle, der Satz gilt dort EINEM Weg — dem
+ * Zweckentfremden von `SUITE_ACCESS_GROUP_RADIO` —, nicht der Updater-Stufe allgemein. Die
+ * tragende Fundstelle fuer „nicht hier, sondern Planteil 4" ist Spec:4420-4422 — sie steht
+ * in diesem Kommentar wenige Zeilen tiefer, an der GRUPPENQUELLE.
  *
  * ⚠️ ZWEI DINGE, DIE MAN LEICHT VERWECHSELT, UND DIE SPEC TRENNT SIE:
  *   - die GRUPPENQUELLE `SUITE_UPDATER_GROUP_RADIO` samt Feld-Allowlist liegt in einer
@@ -212,8 +217,20 @@ function meldeFehlendeGruppe(sub: string, gruppen: string[]): void {
   );
 }
 
-/** Nur fuer Tests: den prozess-lokalen Dedup-Speicher leeren (Vorbild
- *  `src/app/m/lagerbuch/_lib/zugang.ts:148-151`). */
+/**
+ * Nur fuer Tests: den prozess-lokalen Dedup-Speicher leeren (Vorbild
+ * `src/app/m/lagerbuch/_lib/zugang.ts:148-151`).
+ *
+ * ⬜ HEUTE OHNE AUFRUFER, UND DAS STEHT HIER BENANNT STATT BEHAUPTET (REVIEW-Z4, Fund K1).
+ * In Planteil 2 faehrt KEIN Fall `requireRadioAdmin` — die Auslassung ist angeordnet und in
+ * `src/app/m/radio/_lib/zugang.test.ts:7-11` ausgeschrieben. Der Konsument kommt mit
+ * PLANTEIL 4, wo die erste Verwaltungsseite steht und die Verhaltensfaelle nach
+ * `lagerbuch`-Vorbild dazukommen: dort braucht der erste Fall ihn ZWISCHEN zwei
+ * Abweisungen, sonst schluckt der Dedup-Speicher die zweite Protokollzeile und der Fall
+ * saehe null statt einem Aufruf. Der Weg ist im Vorbild vorgefuehrt —
+ * `src/app/m/lagerbuch/_lib/zugang.test.ts:41` (Import), `:72` (Aufruf), Begruendung
+ * `:60-71`; dort hat genau dieser Weg einen ECHTEN Fehlschlag gefunden.
+ */
 export function _resetGemeldeteGruppen(): void {
   bereitsGemeldet.clear();
 }
