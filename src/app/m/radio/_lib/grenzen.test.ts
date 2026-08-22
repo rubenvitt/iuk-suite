@@ -140,9 +140,9 @@ describe("radio-Grenzen: jede Zahl haelt ihre Vorgabe, ihre Unter- und ihre Ober
      * `Number.parseInt("1e7", 10)` die Zahl **1** — es hoert am `e` auf. Eine .env-Zeile
      * `RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE=1e3` faehrt die modulweite Stundenkappe
      * dann bei EINEM Fehlversuch pro Stunde statt bei tausend: das Gate sperrt jeden aus,
-     * ohne Wurf und ohne Meldung. `"abc"` machte den Fall zwar auch rot, benennte aber
-     * die Gefahr nicht — `Number.parseInt("abc", 10)` ist `NaN` und faellt aus der
-     * Bereichspruefung ohnehin heraus.
+     * ohne Wurf und ohne Meldung. `"abc"` machte den Fall zwar auch rot, aber aus einem
+     * ANDEREN Grund: `Number.parseInt("abc", 10)` ist `NaN`, und die Bereichspruefung
+     * faengt `NaN` gerade NICHT — gemessen, ausgeschrieben in DIESER Datei an `:273-277`.
      *
      * Der Einheitentext wird hier mitgeprueft, weil die NICHT-GANZZAHL-Meldung eine
      * zweite, eigene Textstelle ist (`grenzen.ts:143-144`) — die Bereichsmeldung darunter
