@@ -286,8 +286,10 @@ describe("verwaltungsZiel — absolutes Ziel fuer die callbackUrl", () => {
       /*
        * ⚠️ UND DAS `.trim()`, DAS SONST UNTESTBAR-GRUEN BLEIBT: Leerzeichen um das Komma
        * herum ergeben dasselbe Protokoll. GEMESSEN (Sonde P19, 2026-08-22, REVIEW-Z4 Fund
-       * K3): `.split(",")[0].trim()` zu `.split(",")[0]` verkuerzt lief `13 passed`, 0 rot —
-       * das Ziel hiesse dann " https://radio.iuk-ue.de/admin", mit fuehrendem Leerzeichen.
+       * K3): `.split(",")[0].trim()` zu `.split(",")[0]` verkuerzt lief `13 passed`, 0 rot.
+       * Mit dieser Zusicherung faerbt derselbe Eingriff genau diesen Fall rot; das Ziel
+       * hiesse dann (gemessen, nicht gerechnet) " https ://radio.iuk-ue.de/admin" — ein
+       * Leerzeichen VOR dem Protokoll und eines DAHINTER.
        * Diese Zusicherung steht ZULETZT, weil ein geworfenes `expect` seinen Fall beendet.
        */
       expect(verwaltungsZiel(kopf({ host: "radio.iuk-ue.de", "x-forwarded-proto": " https , http" })))
