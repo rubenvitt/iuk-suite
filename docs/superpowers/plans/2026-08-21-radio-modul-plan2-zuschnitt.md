@@ -121,7 +121,7 @@ die Gegenauflage der Abweichung (`:70-79`) und die Planteil-Zeile (`:88`).
   `rtk pnpm lint` **0 Fehler** · **die eigenen Testdateien der Aufgabe grün** · **kein neuer
   Fehlschlag** in einer Datei, die der Diff nicht anfasst. Streitfälle entscheidet die
   **Beiseitelege-Gegenprobe**, nicht der Zählwert. Die vollständige Fassung steht in
-  `.superpowers/sdd/KONTEXT-radio-planteil2.md:52-77` (am 2026-08-22 nachgemessen; der Plan
+  `.superpowers/sdd/KONTEXT-radio-planteil2.md:52-82` (am 2026-08-22 nachgemessen; der Plan
   nannte `:37-52`, dort steht der ratelimit-Nachtrag — Vorabscan-Fund F5).
 * ⚠️ **Die Grundlinie ist seit 2026-08-21 VOLLSTÄNDIG GRÜN** — `441 passed (441)`, `7991 passed
   (7991)`, Exit 0 (`.superpowers/sdd/BASISLINIE-vitest.md`). Die „170 Fehlschläge" aus älteren Plänen
@@ -2853,7 +2853,7 @@ export default async function RadioDruckLayout({
 - [ ] **Schritt 5: ⛔ Den M4-Testfall LÖSCHEN — namentlich, wörtlich, vollständig**
 
 Dieser Schritt ist der Grund, warum die Kontextdatei ihn eigens ausschreibt
-(`KONTEXT-radio-planteil2.md:118-131`). **Lies ihn ganz, bevor du etwas anfasst.**
+(`KONTEXT-radio-planteil2.md:123-136`). **Lies ihn ganz, bevor du etwas anfasst.**
 
 **Zu löschen ist der ZWEITE `describe`-Block in `src/app/m/radio/_db/append.test.ts`, Zeilen
 50–77**, wörtlich:
