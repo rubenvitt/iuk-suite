@@ -1155,7 +1155,7 @@ export function requireRadioHost(headers: Headers): void {
 }
 
 /** Fuer ROUTE HANDLER. Wirft NIE — ein notFound() ist keine brauchbare Antwort auf einen
- *  gescannten QR-Code; der Handler baut seine 404 selbst (Spec:501-503). */
+ *  gescannten QR-Code; der Handler baut seine 404 selbst (Spec:500/525-527). */
 export function radioHostOderNull(headers: Headers): "radio" | null {
   return istRadioHost(headers) ? "radio" : null;
 }
@@ -1174,7 +1174,7 @@ export function radioHostOderNull(headers: Headers): "radio" | null {
  *   abmelden/route.ts                      radioHostOderNull     Planteil 3
  *   admin/(arbeit)/geraete/export/route.ts radioHostOderNull + istRadioAdmin(await viewerOderNull())
  *                                          Planteil 4 — B11 (Spec:100, ausgeschrieben Spec:4379,
- *                                          bestaetigt B17 Spec:120): BEIDE nicht-werfend, der
+ *                                          bestaetigt B17 Spec:117): BEIDE nicht-werfend, der
  *                                          Handler baut seine Antwort selbst, und sie ist 404,
  *                                          nicht 403 (B10). ⛔ NIE requireRadioAdmin() hier — das
  *                                          endet in redirect('/login?…') bzw. notFound(), und ein
@@ -1371,7 +1371,7 @@ describe("requireRadioHost — fuer LAYOUTS UND SEITEN, erste Anweisung", () => 
 describe("radioHostOderNull — fuer ROUTE HANDLER", () => {
   it("wirft NIE", () => {
     // Ein notFound() ist keine brauchbare Antwort auf einen GESCANNTEN QR-Code; der
-    // Handler baut seine 404 selbst (Spec:501-503).
+    // Handler baut seine 404 selbst (Spec:500/525-527).
     expect(radioHostOderNull(kopf({ host: "radio.localtest.me" }))).toBe("radio");
     expect(radioHostOderNull(kopf({ host: "lagerbuch.localtest.me" }))).toBeNull();
     expect(radioHostOderNull(kopf({}))).toBeNull();
@@ -2502,7 +2502,7 @@ describe("(c) jeder Route Handler nimmt die NICHT-werfende Form", () => {
      * eines sauberen 404. Route Handler haben ausserdem KEIN Layout ueber sich.
      *
      * ⛔ UND DIE DRITTE PRUEFUNG, SIE IST B11 (Spec:100, ausgeschrieben Spec:4379,
-     * bestaetigt B17 Spec:120): EIN ROUTE HANDLER RUFT AUCH `requireRadioAdmin` NICHT.
+     * bestaetigt B17 Spec:117): EIN ROUTE HANDLER RUFT AUCH `requireRadioAdmin` NICHT.
      * Der Verwaltungs-Handler `admin/(arbeit)/geraete/export/route.ts` (Planteil 4)
      * riegelt mit `radioHostOderNull` + `istRadioAdmin(await viewerOderNull())` und baut
      * seine 404 selbst. `requireRadioAdmin` endet in `redirect('/login?…')` bzw.
@@ -3239,7 +3239,7 @@ Routenkarte koppelt, gehört ebenfalls dorthin — über einer leeren Liste wär
 **NS-Z10 — der Export-Handler riegelt nicht-werfend (B11).**
 `admin/(arbeit)/geraete/export/route.ts` nimmt `radioHostOderNull` **plus**
 `istRadioAdmin(await viewerOderNull())` und baut seine Antwort selbst — **404, nicht 403** (B10),
-Spec:100/2778/4379, bestätigt in B17 (Spec:120). ⛔ **Kein `requireRadioAdmin()` in diesem Handler**:
+Spec:100/2778/4379, bestätigt in B17 (Spec:117). ⛔ **Kein `requireRadioAdmin()` in diesem Handler**:
 es endet in `redirect('/login?…')` bzw. `notFound()`, und ein anonymer `GET` landete im Login-Umweg.
 `riegel.test.ts` Klausel (c) prüft alle drei Hälften — die geforderte Form, die verbotene werfende
 Host-Form und den verbotenen `requireRadioAdmin`.
@@ -3252,7 +3252,7 @@ Host-Form und den verbotenen `requireRadioAdmin`.
 |---|---|---|
 | 1 | `getModule("radio")` ist auflösbar, `moduleForHost("radio.localtest.me")` liefert das Modul **ohne jede Env**, und `ICONS[mod.icon]` ist definiert | **alle** Planteile |
 | 2 | `requireRadioHost` (wirft) · `radioHostOderNull` (wirft nie) · `hostAbweisung` (`Response \| null`) stehen mit den Signaturen aus Spec §1.4.2, und die Verankerungstabelle steht als Kommentarblock **in `_lib/host.ts`** | **3, 4, 5** |
-| 3 | `requireRadioAdmin` aus `_lib/zugang.ts` ist der einzige Verwaltungsriegel **für Seiten, Layouts und Server Actions**. Jede Server Action ruft ihn als **erste** Anweisung; er ruft `requireRadioHost` **intern**, ebenfalls als erste. ⛔ **Verwaltungs-Route-Handler unter `admin/` NICHT** — sie riegeln mit `radioHostOderNull` + `istRadioAdmin(await viewerOderNull())` und bauen ihre 404 selbst (**B11**, Spec:100/2778/4379, bestätigt B17 Spec:120); ein `requireRadioAdmin` dort erzeugt den Login-Umweg, den B11 abgeschafft hat. `riegel.test.ts` Klausel (c) prüft es | **4** |
+| 3 | `requireRadioAdmin` aus `_lib/zugang.ts` ist der einzige Verwaltungsriegel **für Seiten, Layouts und Server Actions**. Jede Server Action ruft ihn als **erste** Anweisung; er ruft `requireRadioHost` **intern**, ebenfalls als erste. ⛔ **Verwaltungs-Route-Handler unter `admin/` NICHT** — sie riegeln mit `radioHostOderNull` + `istRadioAdmin(await viewerOderNull())` und bauen ihre 404 selbst (**B11**, Spec:100/2778/4379, bestätigt B17 Spec:117); ein `requireRadioAdmin` dort erzeugt den Login-Umweg, den B11 abgeschafft hat. `riegel.test.ts` Klausel (c) prüft es | **4** |
 | 4 | `istRadioAdmin` bleibt die **Admin**-Stufe und wird durch die Updater-Stufe **nicht** aufgeweicht — `zugang.test.ts` hält die Richtung fest | **4** (C.6/B4) |
 | 5 | Die zehn Verwaltungspfade aus §1.2.2 sind **vergeben**, verteilt auf `admin/(arbeit)` (mit Rahmen) und `admin/(druck)` (ohne). Beide Hüllen stehen. ⚠️ **Aber Planteil 4 hängt NICHT nur Seiten hinein:** `admin/(arbeit)/layout.tsx` wechselt seinen Personen-Riegel von `requireRadioAdmin()` auf `requireRadioVerwaltung()` (Spec:4367; `(druck)` bleibt, Spec:4368), und die `nav`-Weitergabe wird umgestellt. Siehe **NS-Z8** und **NS-Z9** | **4** |
 | 6 | `_lib/nav.ts` existiert und ist der Ort der Verwaltungsnavigation. Sie darf `abschnitt:` vergeben (`shell: "full"`). ⛔ **Die FORM ist nicht endgültig:** Spec:4289/4203-4210 verlangt `radioNav(stufe: RadioRolle)` mit **sieben** Einträgen, drei davon nur für die Admin-Stufe. Planteil 4 stellt **Datei UND Aufrufstelle** um (**NS-Z9**) — die Konstante hier ist der Zustand von Planteil 2, weil `RadioRolle` erst mit `_lib/rollen.ts` entsteht | **4** |
