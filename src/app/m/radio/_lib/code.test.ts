@@ -131,9 +131,9 @@ describe("radio-Code: erzeugeCode", () => {
      *   deterministischer Xorshift an `code.ts:96` unentdeckt — 19 bzw. 20 Faelle gruen.
      *
      * ⚠️ Ein Waechter, dessen Zusage weiter ist als seine Pruefung, bewacht nichts. WAS
-     * DURCHKAEME, benannt statt verschwiegen: ein Literal `"getRandomValues("` — der zweite
-     * Schnitt trifft zwar auch Zeichenketten (das macht die Zusicherung nur schwerer
-     * erfuellbar, nie leichter), aber die tiefere Maschine ist `riegel.test.ts:185-213`.
+     * DURCHKAEME, benannt statt verschwiegen: ein Literal `"getRandomValues("` ohne einen
+     * Kommentarbeginn in derselben Zeile. Zeichenkettenliterale GANZ leert erst die Maschine
+     * in `riegel.test.ts:185-213`; der Schnitt hier kappt nur ab dem ersten Kommentarbeginn.
      */
     const quelle = readFileSync(join(process.cwd(), "src/app/m/radio/_lib/code.ts"), "utf8");
     expect(quelle, "erzeugeCode muss kryptografisch sein (Spec:2089)")
