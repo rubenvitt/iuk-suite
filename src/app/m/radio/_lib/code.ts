@@ -126,10 +126,10 @@ export function erzeugeCode(): string {
  *
  * ⛔ DAS `.trim()` UNTEN BLEIBT, OBWOHL ES KEINEN ZEUGEN HABEN KANN — und der Grund steht
  * hier, damit der naechste Leser es nicht „aufraeumt". Jedes Zeichen, das `trim()`
- * entfernt, ist Leerraum, und Leerraum faellt ohnehin am `[^0-9A-Z]`-Filter zwei Zeilen
+ * entfernt, ist Leerraum, und Leerraum faellt ohnehin am `[^0-9A-Z]`-Filter vier Zeilen
  * spaeter: der Filter SUBSUMIERT es. Kein Eingabewert kann seine Anwesenheit von seiner
  * Abwesenheit unterscheiden, also kann auch kein Test es tun (gemessen, Fund F6,
- * `.superpowers/sdd/planteil3/REVIEW-A2.md:83`: die Zeile gestrichen, 19 von 19 gruen).
+ * `.superpowers/sdd/planteil3/REVIEW-A2.md`: die Zeile gestrichen, 19 von 19 gruen).
  * Die Zeile steht allein wegen der WOERTLICHEN Reihenfolge der Spec (Spec:2093-2098), und
  * Spec-Woertlichkeit ist an dieser Stelle der Zweck.
  *

@@ -32,8 +32,8 @@ const KANONISCH = /^[0-9A-HJKMNP-TV-Z]{4}(?:-[0-9A-HJKMNP-TV-Z]{4}){6}$/;
  *
  * ⛔ ABGESCHRIEBEN UND NICHT IMPORTIERT: dieselbe Maschine steht als modul-lokale Funktion
  * in `src/app/m/radio/riegel.test.ts:163-183`. Ein Import von dort zoege deren
- * `describe`-Bloecke in diesen Lauf. Die zwoelf Zeilen sind der kleinere Preis; wer sie
- * aendert, aendert beide Stellen.
+ * `describe`-Bloecke in diesen Lauf. Die 21 Zeilen (`:43-63`, gezaehlt) sind der kleinere
+ * Preis; wer sie aendert, aendert beide Stellen.
  *
  * BEWUSST NUR ZWEI FORMEN: Blockkommentare und Zeilen, deren getrimmter Inhalt mit `//`
  * BEGINNT. Ein nachgestelltes `// …` am Ende einer Codezeile bleibt stehen — ein naiver
@@ -122,24 +122,24 @@ describe("radio-Code: erzeugeCode", () => {
      *   waere die naechste Stufe der Aufweichung. Ein Scan darf falsch-positiv sein und
      *   laut, nie falsch-negativ und still (`riegel.test.ts:159-165`).
      *
-     *   POSITIV (gebotener Aufruf) → KOMMENTARFREIER Quelltext, und der Aufruf muss
-     *   statement-nah stehen (`(` verlangt). ⛔ GEMESSEN, NICHT VERMUTET: mit der frueheren
-     *   Fassung — `toMatch` auf dem ROHEN Text ohne `(` — genuegte der Doc-Kommentar
-     *   `code.ts:76-78` der Zusicherung. `crypto.getRandomValues(bytes)` liess sich durch
-     *   einen deterministischen Xorshift ersetzen, und alle 19 Faelle blieben gruen
-     *   (Fund F1, `.superpowers/sdd/planteil3/REVIEW-A2.md:79`, hier nachgefahren). Ein
-     *   Waechter, dessen Zusage weiter ist als seine Pruefung, bewacht nichts.
+     *   POSITIV (gebotener Aufruf) → Quelltext OHNE JEDEN KOMMENTAR, auch ohne den
+     *   NACHGESTELLTEN, und der Aufruf muss statement-nah stehen (`(` verlangt). ⛔ ZWEIMAL
+     *   GEMESSEN, NICHT VERMUTET (Funde F1 und N1, `.superpowers/sdd/planteil3/REVIEW-A2.md`,
+     *   beide hier nachgefahren): `toMatch` auf dem ROHEN Text ohne `(` liess den
+     *   Doc-Kommentar `code.ts:76-78` genuegen; `ohneKommentare` ALLEIN liess ein
+     *   nachgestelltes `// frueher: <jener Aufruf>` genuegen. Beide Male blieb ein
+     *   deterministischer Xorshift an `code.ts:96` unentdeckt — 19 bzw. 20 Faelle gruen.
      *
-     * ⚠️ WAS AUCH JETZT DURCHKAEME, benannt statt verschwiegen: ein Zeichenkettenliteral
-     * `"getRandomValues("` im Quelltext. Das ist keine realistische Regression — die
-     * realistische ist der ersetzte Aufruf oben —, und die staerkere Maschine dafuer steht
-     * mit `ohneKommentareUndZeichenketten` in `riegel.test.ts:185-213` bereit.
+     * ⚠️ Ein Waechter, dessen Zusage weiter ist als seine Pruefung, bewacht nichts. WAS
+     * DURCHKAEME, benannt statt verschwiegen: ein Literal `"getRandomValues("` — der zweite
+     * Schnitt trifft zwar auch Zeichenketten (das macht die Zusicherung nur schwerer
+     * erfuellbar, nie leichter), aber die tiefere Maschine ist `riegel.test.ts:185-213`.
      */
     const quelle = readFileSync(join(process.cwd(), "src/app/m/radio/_lib/code.ts"), "utf8");
     expect(quelle, "erzeugeCode muss kryptografisch sein (Spec:2089)")
       .not.toMatch(/Math\s*\.\s*random/);
     expect(
-      ohneKommentare(quelle),
+      ohneKommentare(quelle).replace(/\/\/.*$/gm, ""),
       "die kryptografische Quelle muss AUFGERUFEN werden, nicht nur im Kommentar benannt",
     ).toMatch(/\b(?:getRandomValues|randomBytes|randomInt)\s*\(/);
   });
@@ -218,7 +218,7 @@ describe("radio-Code: normalisiereCode", () => {
      *
      * ⛔ DIE ERSTE ZEILE IST DIE TRAGENDE. Verengt jemand den Filter „aufraeumend" auf
      * `[^0-9A-HJKMNP-TV-Z]`, faellt hier alles weg und die Funktion liefert den leeren
-     * String. GEMESSEN (Fund F5, `.superpowers/sdd/planteil3/REVIEW-A2.md:84`): unter genau
+     * String. GEMESSEN (Fund F5, `.superpowers/sdd/planteil3/REVIEW-A2.md`): unter genau
      * dieser Verengung blieben die 19 Faelle des Vorgangs vollzaehlig gruen.
      *
      * ⚠️ DIE ZWEITE ZEILE IST EINE AUSSAGE, KEIN WAECHTER, und das steht hier, statt
@@ -268,7 +268,7 @@ describe("radio-Code: istCodeForm", () => {
      * ist TEIL des gespeicherten Werts (Spec:2055-2059); ein Wert mit richtiger Laenge und
      * falschen Gruppen ist deshalb ein anderer Wert.
      *
-     * GEMESSEN (Fund F4, `.superpowers/sdd/planteil3/REVIEW-A2.md:82`, hier nachgefahren):
+     * GEMESSEN (Fund F4, `.superpowers/sdd/planteil3/REVIEW-A2.md`, hier nachgefahren):
      * weicht man `code.ts:167` zu `wert.length === gruppiere(ohneTrenner).length` auf,
      * blieben ohne diese Zeile alle 19 Faelle gruen — beide Ketten sind 34 Zeichen lang.
      * Der bindestrichlose Fall darueber faengt es NICHT: dort fallen schon die Laengen
