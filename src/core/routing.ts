@@ -55,6 +55,16 @@ export function decideRoute(input: {
   // RSC-/Prefetch-Request eine weitere /m/<key>-Ebene. Gating bleibt hier
   // erhalten (der Matcher schließt /m/* bewusst nicht aus) — aber nach dem
   // Modul aus dem Segment, nicht nach dem Host.
+  //
+  // ⛔ NACHTRAG 2026-08-22, NICHT AUFRÄUMEN: Seit `src/proxy.ts` das
+  // Rewrite-Ziel auf die Origin der Anfrage zurückschreibt, entfällt der
+  // zweite, externe Round-Trip — und damit der zweite Middleware-Durchlauf,
+  // der diesen Zweig bisher bei jeder Modul-Host-Anfrage traf. Der Zweig sieht
+  // seitdem nach totem Code aus. Er ist keiner: er gatet weiterhin den
+  // DIREKTZUGRIFF auf /m/<key>/… von jedem Host — ohne ihn wäre jedes Modul
+  // über den Apex-Pfad erreichbar, ohne dass ein Tor rot würde.
+  // Begründung und Beleg: `docs/superpowers/plans/2026-08-22-modul-host-rewrite-intern.md`,
+  // Kapitel 3.
   const internal = pathname.match(/^\/m\/([^/]+)(?:\/.*)?$/);
   if (internal) {
     const target = findModule(internal[1]);

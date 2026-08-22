@@ -69,6 +69,75 @@ export const weicheMitAuth = Promise.resolve(auth(weiche));
  *  (`node_modules/next/dist/server/web/spec-extension/response.js:118`). */
 export const REWRITE_KOPF = "x-middleware-rewrite";
 
+/**
+ * WARUM DAS REWRITE-ZIEL AUF DIE ORIGIN DER ANFRAGE ZURUECKGESCHRIEBEN WIRD.
+ *
+ * ⛔ Diese Funktion sieht ueberfluessig aus. Sie ist es nicht — ohne sie geht
+ * JEDE Anfrage auf einem Modul-Host (share, drop, qr, da, aufgaben, lagerbuch)
+ * ein zweites Mal EXTERN ueber Cloudflare und Traefik in denselben Container
+ * zurueck. Gemessen am 2026-08-22 gegen `test.iuk-ue.de`:
+ * `docs/superpowers/berichte/2026-08-22-client-ip-hinter-cloudflare.md`,
+ * Befund 4 — zwei Traefik-Zeilen fuer EINEN Aufruf. Der Umbau und seine
+ * Abnahme stehen in
+ * `docs/superpowers/plans/2026-08-22-modul-host-rewrite-intern.md`.
+ *
+ * Der Schaden ist nicht die Latenz, sondern die Client-Adresse: im INNEREN
+ * Request — dort, wo der Modul-Handler laeuft — ist `cf-connecting-ip` die
+ * Egress-IP dieses Servers. `clientIpAus` (`src/core/ratelimit.ts`) liefert
+ * damit auf jedem Modul-Host fuer jeden Nutzer denselben Wert: jedes
+ * IP-Rate-Limit zaehlt gegen EINEN Sammel-Eimer, und die Auditspalte
+ * `client_ip_unbestaetigt` traegt fuer alle Zeilen dieselbe Adresse.
+ *
+ * DIE KETTE, IN VIER SCHRITTEN:
+ *
+ * (a) next-auth tauscht die Origin der Anfrage gegen `AUTH_URL` aus, BEVOR
+ *     unsere Weiche sie klont — `reqWithEnvURL`
+ *     (`node_modules/next-auth/lib/env.js:5-12`), aufgerufen in
+ *     `node_modules/next-auth/lib/index.js:143`. Das Rewrite-Ziel traegt
+ *     danach `https://iuk-ue.de`, die Koepfe bleiben unangetastet.
+ *
+ * (b) Next entscheidet „intern oder extern" an REINER Origin-Gleichheit gegen
+ *     seine eigene `initUrl`
+ *     (`node_modules/next/dist/shared/lib/router/utils/relativize-url.js:29`:
+ *     `const isRelative = relative.origin === baseURL.origin;`, aufgerufen in
+ *     `node_modules/next/dist/server/lib/router-utils/resolve-routes.js:466-472`).
+ *     Und `initUrl` kommt NICHT aus dem `Host`-Kopf, solange
+ *     `trustHostHeader` ungesetzt ist — was es hier ist (`next.config.ts:1-12`
+ *     fuehrt nur `reactCompiler`, `output`, `allowedDevOrigins`). Sie wird aus
+ *     `opts.hostname`/`opts.port` gebaut (`resolve-routes.js:117`), im
+ *     Container also aus `0.0.0.0` und `3000` (`Dockerfile:38-39`).
+ *
+ * (c) Faellt die Gleichheit, ist der Zweig ein ECHTER HTTP-Aufruf:
+ *     `node_modules/next/dist/server/lib/router-server.js:415-417` ruft
+ *     `proxyRequest` — ueber oeffentliches DNS, also Cloudflare, dann Traefik,
+ *     dann zurueck in denselben Container.
+ *
+ * (d) ⛔ EIN PINNEN AUF DEN BEREITS GEPRUEFTEN HOST GENUEGT NICHT. Der
+ *     Messbericht schlaegt genau das vor (`:158-162`: `url.protocol`/`url.host`
+ *     auf `resolveHost`s Ergebnis pinnen) — es waere der Fehler in neuer Form.
+ *     Verglichen wird nach (b) gegen `https://0.0.0.0:3000`, und davon ist ein
+ *     auf `share.iuk-ue.de` gepinntes Ziel genauso verschieden wie
+ *     `https://iuk-ue.de`: der externe Round-Trip bliebe, nur auf einem anderen
+ *     Host.
+ *
+ * Deshalb die Origin DERSELBEN Anfrage, die Next gerade selbst gebaut hat
+ * (`request.nextUrl.origin` in `proxy` unten). Damit ist die Gleichheit in (b)
+ * konstruktionsbedingt wahr — fuer jedes `HOSTNAME`, jedes `PORT`, jedes
+ * Protokoll, in Dev wie in Prod. Es gibt keinen Wert zu raten und keinen zu
+ * pflegen.
+ *
+ * ⛔ `location` wird NIE gelesen und NIE geschrieben. Die Login-Weiterleitung
+ * (`case "login"` oben) hat dieselbe Ursache und traegt heute die Apex-Origin —
+ * sie bleibt bewusst unangetastet, weil ungemessen ist, wo ein Nutzer danach
+ * landen soll. `src/proxy.test.ts` haelt das mit einem eigenen Test fest.
+ *
+ * ⛔ `headers.set` an Ort und Stelle, ohne `try`/`catch`: die `Response`, die
+ * aus der Weiche kommt, ist die aus `node_modules/next-auth/lib/index.js:181`
+ * (`new Response(response?.body, response)`), und next-auth mutiert ihre Koepfe
+ * zwei Zeilen spaeter selbst (`:183-184`). Ein vorsichtshalber gesetztes
+ * `try`/`catch` erzeugte genau den stillen No-Op, gegen den der
+ * Kanarienvogel-Test gebaut ist — nur ohne Waechter.
+ */
 export function rewriteZielAufAnfrageOrigin(antwort: Response, anfrageOrigin: string): Response {
   const ziel = antwort.headers.get(REWRITE_KOPF);
   if (!ziel) return antwort;
