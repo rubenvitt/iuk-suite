@@ -1,7 +1,12 @@
 # Planteil 2 von 5 · Zuschnitt, Registry, Routing und die zwei Riegel — Umsetzungsplan (Spec 1, Kapitel 1)
 
 > **For agentic workers:** Führe diesen Plan mit `superpowers:subagent-driven-development` aus — ein
-> frischer Subagent je Aufgabe, Review dazwischen (Leitplan `2026-08-21-radio-modul-leitplan.md:393-396`).
+> frischer Subagent je Aufgabe, Review dazwischen (Leitplan
+> `2026-08-21-radio-modul-leitplan.md:430-433`; `:393-396` war falsch, dort steht
+> `loans_device_active_uidx` — Vorabscan-Fund F7, korrigiert am 2026-08-22 in Aufgabe Z2).
+> ⚠️ Der Leitplan schreibt dort **„(empfohlen)"**; dieser Plan schaerft das bewusst zu
+> **„Fuehre … aus"**, weil Z5 und Z6 EIN Tor und EINEN Commit teilen und ein Review
+> dazwischen sonst keinen Ort haette.
 > `superpowers:executing-plans` ist die Alternative, wenn kein Subagent zur Verfügung steht.
 > Jeder Schritt trägt `- [ ]`-Syntax und ist ohne Rückfrage ausführbar.
 > ⛔ **Lies zuerst `.superpowers/sdd/KONTEXT-radio-planteil2.md`** — Hausregeln, Werkzeugfallen,
@@ -116,7 +121,8 @@ die Gegenauflage der Abweichung (`:70-79`) und die Planteil-Zeile (`:88`).
   `rtk pnpm lint` **0 Fehler** · **die eigenen Testdateien der Aufgabe grün** · **kein neuer
   Fehlschlag** in einer Datei, die der Diff nicht anfasst. Streitfälle entscheidet die
   **Beiseitelege-Gegenprobe**, nicht der Zählwert. Die vollständige Fassung steht in
-  `.superpowers/sdd/KONTEXT-radio-planteil2.md:37-52`.
+  `.superpowers/sdd/KONTEXT-radio-planteil2.md:52-77` (am 2026-08-22 nachgemessen; der Plan
+  nannte `:37-52`, dort steht der ratelimit-Nachtrag — Vorabscan-Fund F5).
 * ⚠️ **Die Grundlinie ist seit 2026-08-21 VOLLSTÄNDIG GRÜN** — `441 passed (441)`, `7991 passed
   (7991)`, Exit 0 (`.superpowers/sdd/BASISLINIE-vitest.md`). Die „170 Fehlschläge" aus älteren Plänen
   sind überholt. **Folge: jeder Fehlschlag, den du siehst, ist ein NEUER Fehlschlag — du hast ihn
@@ -265,8 +271,8 @@ src/app/m/radio/_db/append.test.ts                Z6  — der ZWEITE describe-Bl
 ⚠️ **Diese zwei Listen sind ABSICHTLICH exakt (`toEqual`, nicht `toContain`) — sie halten fest,
 WELCHE Module eine anonyme Person sieht.** `radio` gehört nach Betreiberentscheidung 5 dort hinein
 (`requiresAuth: false` + `switcherGroupSources: []`, Spec:194-195): `canAccess` steigt bei
-`!requiresAuth` sofort mit `true` aus (`registry.ts:239`), und `visibleSwitcherModules` lässt eine
-leere `switcherGroupSources` unmittelbar durch (`registry.ts:252`). ⛔ **Die Zeilen werden
+`!requiresAuth` sofort mit `true` aus (`registry.ts:260`), und `visibleSwitcherModules` lässt eine
+leere `switcherGroupSources` unmittelbar durch (`registry.ts:273`). ⛔ **Die Zeilen werden
 ERWEITERT, nie auf `toContain` aufgeweicht** — eine Aufweichung machte genau die Zusicherung
 wertlos, die den anonymen Kachelbestand bewacht. Beide Fundstellen sind gemessen, nicht gerechnet.
 
@@ -382,11 +388,11 @@ describe("radio: der Registry-Eintrag", () => {
   it("hat requiredGroups leer — unter requiresAuth: false waere jeder andere Wert eine Luege", () => {
     /*
      * Spec:191. Der Wert ist unter `requiresAuth: false` fuer das Gating WIRKUNGSLOS:
-     * `canAccess` steigt vorher mit `true` aus (registry.ts:239). Eine gefuellte Liste
+     * `canAccess` steigt vorher mit `true` aus (registry.ts:260). Eine gefuellte Liste
      * behauptete eine Wirkung, die es nicht gibt.
      *
      * Gelesen ueber `requiredGroupsFor`, NICHT ueber `mod.requiredGroups`: nur so faellt
-     * ein gesetztes SUITE_ACCESS_GROUP_RADIO auf (registry.ts:221-223).
+     * ein gesetztes SUITE_ACCESS_GROUP_RADIO auf (registry.ts:242-244).
      */
     expect(requiredGroupsFor(getModule("radio"), OHNE_ENV)).toEqual([]);
   });
@@ -409,7 +415,7 @@ describe("radio: der Registry-Eintrag", () => {
 
   it("ist ohne jede Env unter radio.localtest.me erreichbar", () => {
     // `moduleForHost` trifft `<key>.localtest.me` VOR und UNABHAENGIG von prodHostsFor
-    // (registry.ts:225-232). Genau das macht in Z3 den „kein Prod-Host konfiguriert →
+    // (registry.ts:246-253). Genau das macht in Z3 den „kein Prod-Host konfiguriert →
     // durchlassen"-Zweig ueberfluessig.
     expect(moduleForHost("radio.localtest.me", OHNE_ENV)?.key).toBe("radio");
   });
@@ -433,7 +439,7 @@ describe("radio: der Registry-Eintrag", () => {
     /*
      * Spec:173-176, Betreiberentscheidung 5: die Kachel IST der zweite Zugangsweg zur
      * Ausleihe, auch fuer Personen ohne Verwaltungsgruppe. Ein `["admin"]` wie bei
-     * `lagerbuch` verbaute genau diesen Weg (visibleSwitcherModules, registry.ts:250-258).
+     * `lagerbuch` verbaute genau diesen Weg (visibleSwitcherModules, registry.ts:271-279).
      *
      * Und: `showInSwitcher: true` entscheidet mit, WER die Release-Notizen zum Modul sieht
      * (portal/_lib/neuigkeiten/auswahl.ts:48).
@@ -527,14 +533,14 @@ und **vor** `alpha` (`:174`) ein — wörtlich aus Spec:158-179, Zeichen für Ze
   // Aufruf in den Login — und zwar sofort beim Umschwenk des Routers, ohne
   // Parallelfenster.
   // Dadurch liest canAccess() requiredGroups hier NIE (frueher Ausstieg,
-  // registry.ts:239), und /m/radio/admin/... erbt KEIN Middleware-Gating.
+  // registry.ts:260), und /m/radio/admin/... erbt KEIN Middleware-Gating.
   // Durchgesetzt wird der Verwaltungszugang modulintern in _lib/zugang.ts, der
   // Host in _lib/host.ts.
   //
   // switcherGroupSources: [] und NICHT ["admin"] wie lagerbuch — die Kachel im
   // App-Umschalter IST der zweite Zugangsweg zur Ausleihe (Betreiberentscheidung
   // 5), auch fuer Personen ohne Verwaltungsgruppe. Ein ["admin"] hier verbaute
-  // genau diesen Weg (visibleSwitcherModules, registry.ts:250-258).
+  // genau diesen Weg (visibleSwitcherModules, registry.ts:271-279).
   { key: "radio", title: "Funkgeräte", icon: "WifiOutlined", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-radio-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
@@ -665,8 +671,8 @@ src/core/shell/launcherEintraege.test.ts:38-45   "radio" zwischen "lagerbuch" un
 
 ⚠️ **Erweitern, NIE auf `toContain` aufweichen** — die Exaktheit ist die Zusicherung. Der
 Ursachenweg steht im Bestand und ist gemessen: `canAccess(radio, null)` ist `true`, weil
-`registry.ts:239` bei `!requiresAuth` sofort aussteigt, und `visibleSwitcherModules` lässt eine leere
-`switcherGroupSources` bei `registry.ts:252` durch. `modulEintraege` reicht das unverändert weiter
+`registry.ts:260` bei `!requiresAuth` sofort aussteigt, und `visibleSwitcherModules` lässt eine leere
+`switcherGroupSources` bei `registry.ts:273` durch. `modulEintraege` reicht das unverändert weiter
 und filtert nur auf `moduleUrl(mod.key)` (`launcherEintraege.ts:26-28`), das außerhalb von
 `NODE_ENV=production` **immer** `http://<key>.localtest.me:3000` liefert (`moduleUrl.ts:19-26`).
 ⚠️ Der Prod-Fall (`launcherEintraege.test.ts:50-55`) bleibt **unverändert grün**: dort greift
@@ -819,7 +825,7 @@ describe("radio: jeder aeussere Pfad wird ins Modul umgeschrieben", () => {
     /*
      * Spec:715 verlangt `/sw.js` AUSDRUECKLICH in dieser Liste (Kapitel 7 §7.1.4). Der
      * Alt-Kiosk registriert seinen Service Worker mit `scope: '/'`
-     * (radio-inventar/apps/frontend/src/hooks/usePWA.ts:72-73); der Abraeum-Worker der
+     * (radio-inventar/apps/frontend/src/hooks/usePWA.ts:73); der Abraeum-Worker der
      * Suite muss denselben Pfad bedienen, sonst erreicht er die bereits installierten
      * Kopien nicht. Der Handler entsteht in Planteil 5; die WEGENTSCHEIDUNG faellt hier.
      */
@@ -888,7 +894,7 @@ describe("radio: die Luecke, gegen die _lib/host.ts gebaut ist (Falle 61)", () =
      *
      * `decideRoute` gatet einen internen Pfad `/m/<key>/...` NACH DEM MODUL AUS DEM
      * SEGMENT, ohne jeden Hostbezug (routing.ts:58-66), und `canAccess` steigt fuer ein
-     * Modul ohne Auth-Pflicht sofort mit `true` aus (registry.ts:239). JEDER Host, der auf
+     * Modul ohne Auth-Pflicht sofort mit `true` aus (registry.ts:260). JEDER Host, der auf
      * den Suite-Container terminiert, antwortet damit auf /m/radio/*.
      *
      * ⚠️ Kein Gate faengt das: `src/core/routing.test.ts:62-65` schreibt dieses Verhalten
@@ -1022,7 +1028,7 @@ import { resolveHost } from "@/core/routing";
  * WARUM ES IHN GIBT — Falle 61 der lagerbuch-Zaehlung (Spec:458-471). `decideRoute` gatet
  * einen internen Pfad `/m/<key>/...` NACH DEM MODUL AUS DEM SEGMENT, ohne jeden
  * Hostbezug (core/routing.ts:58-66), und `canAccess` steigt fuer ein Modul ohne
- * Auth-Pflicht sofort mit `true` aus (core/registry.ts:239). JEDER Host, der auf den
+ * Auth-Pflicht sofort mit `true` aus (core/registry.ts:260). JEDER Host, der auf den
  * Suite-Container terminiert, antwortet damit auf /m/radio/*.
  *
  * ⚠️ BEI `radio` HAT DAS DATENWIRKUNG, nicht nur Sichtwirkung: das Einloesen unter
@@ -1046,7 +1052,7 @@ import { resolveHost } from "@/core/routing";
  * Ist das der Radio-Host? `moduleForHost(resolveHost(headers))?.key` und NICHT ein
  * direkter Vergleich gegen `prodHostsFor`:
  *
- * - `moduleForHost` (registry.ts:225-232) trifft `radio.localtest.me` VOR und UNABHAENGIG
+ * - `moduleForHost` (registry.ts:246-253) trifft `radio.localtest.me` VOR und UNABHAENGIG
  *   von `prodHostsFor`. Damit laeuft derselbe Code-Pfad in Dev, E2E und Produktion, OHNE
  *   dass SUITE_HOST_RADIO lokal gesetzt sein muss.
  * - `resolveHost` (routing.ts:36-41) wird WIEDERVERWENDET, nicht nachgebaut: seine
@@ -2722,7 +2728,7 @@ export function RadioVerwaltungsRahmen({
  * auf JEDEM Suite-Host (Falle 56 der lagerbuch-Zaehlung).
  *
  * ⚠️ DER ALT-KIOSK HAT EINEN SERVICE WORKER, UND DER UEBERLEBT DEN UMSCHWENK. Er ist
- * unter `scope: '/'` registriert (radio-inventar/apps/frontend/src/hooks/usePWA.ts:72-73)
+ * unter `scope: '/'` registriert (radio-inventar/apps/frontend/src/hooks/usePWA.ts:73)
  * und liegt auf DEMSELBEN Origin. Das ist KEIN Manifest-Thema und gehoert nicht in diese
  * Datei: der Abraeum-Worker unter `/sw.js` ist Kapitel 7 und PLANTEIL 5, und er gehoert
  * zum ERSTEN Deploy, nicht zum Cutover (Leitplan:107-109). Die Wegentscheidung dafuer
@@ -2847,7 +2853,7 @@ export default async function RadioDruckLayout({
 - [ ] **Schritt 5: ⛔ Den M4-Testfall LÖSCHEN — namentlich, wörtlich, vollständig**
 
 Dieser Schritt ist der Grund, warum die Kontextdatei ihn eigens ausschreibt
-(`KONTEXT-radio-planteil2.md:93-106`). **Lies ihn ganz, bevor du etwas anfasst.**
+(`KONTEXT-radio-planteil2.md:118-131`). **Lies ihn ganz, bevor du etwas anfasst.**
 
 **Zu löschen ist der ZWEITE `describe`-Block in `src/app/m/radio/_db/append.test.ts`, Zeilen
 50–77**, wörtlich:
