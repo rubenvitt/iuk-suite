@@ -135,11 +135,11 @@ describe("hostAbweisung — die vierte Form (B13), fuer Handler mit eigenem Cont
     // Eigenschaft ist der Daseinsgrund der vierten Riegelform (hostRiegel.ts, Kopf) — sie
     // gehoert deshalb zugesichert, nicht nur begruendet.
     //
-    // ⛔ POSITIV formuliert, nicht als `not.toContain("text/html")`: die verneinende Form
-    // waere auch ueber einem FEHLENDEN Header wahr (der Getter liefert dann `null`) und damit
-    // die still-gruene Gestalt, gegen die dieser Bauweg antritt. Der Wert kommt heute von
-    // undici, nicht von uns — gemessen: `text/plain;charset=UTF-8` fuer einen String-Koerper;
-    // deshalb bindet das Muster am Anfang und nicht an der ganzen Zeichenkette.
+    // ⛔ POSITIV formuliert, nicht als `not.toContain("text/html")`: die positive Form hat die
+    // echt kleinere Gruen-Menge — ueber `application/json` haelt die verneinende, die positive
+    // faellt. Ueber einem FEHLENDEN Header vergleicht KEINE der beiden: chai weist die
+    // Kombination zurueck, `toMatch` verlangt eine Zeichenkette (vitest 4.1.10, im Laeufer
+    // gemessen). Der Wert kommt von undici (`text/plain;charset=UTF-8`), daher bindet das Muster vorn.
     expect(antwort!.headers.get("content-type"), "keine HTML-Fehlerseite auf /sw.js")
       .toMatch(/^text\/plain/);
     await expect(antwort!.text()).resolves.toBe("Not found");
