@@ -142,10 +142,21 @@ function restMs(schluessel: string, jetzt: number): number {
  * SCHRITT 2 der Reihenfolge aus §3.3.1. LIEST NUR — bucht nichts und oeffnet nichts.
  *
  * Rueckgabe: die verbleibenden SEKUNDEN, aufgerundet und MINDESTENS 1, wenn einer der
- * drei Eimer gesperrt ist; sonst `null`. NIE 0 (Spec:3020-3022): ein
+ * drei Eimer gesperrt ist; sonst `null`. NIE 0 (Spec:3020-3021): ein
  * `if (gateGesperrt(…))` waere sonst in der letzten Sekunde still falsch. Die Aufrufer
  * (A9, A10, A11) pruefen trotzdem ausdruecklich gegen `null` — die Zusage steht im Typ,
  * nicht in der Wahrheitswertumwandlung.
+ *
+ * ⚠️ WO „NIE 0" WIRKLICH HAENGT — im Waechter `ms > 0`, NICHT im `Math.max(1, …)`-Mantel
+ * eine Zeile weiter unten. `ms` ist eine ganzzahlige Millisekundendifferenz (`restMs`
+ * rechnet zwei `Date.now()`-Werte gegeneinander, `:134-139`) und durch diesen Waechter
+ * mindestens 1; `Math.ceil(1 / 1000)` ist bereits 1. Der Mantel ist damit HEUTE
+ * unerreichbar — gemessen (Fund K2 aus `REVIEW-A3.md`: ohne ihn bleiben alle Faelle
+ * gruen, mit `Math.floor` statt `Math.ceil` wird „gateGesperrt liefert nie 0" rot). Er
+ * bleibt trotzdem stehen: er ist Bauform 1:1 aus dem Vorbild
+ * (`src/app/m/lagerbuch/_lib/gateSchranke.ts:109`) und die Rueckfallsicherung fuer den
+ * Tag, an dem `ms` aus einer nicht-ganzzahligen Quelle kaeme. Wer die Zusage „nie 0"
+ * aendern will, aendert den Waechter, nicht den Mantel.
  *
  * Zurueck kommt die GROESSTE der drei Restzeiten: wer den Stundendeckel gerissen hat,
  * soll nicht „noch 12 Sekunden" lesen. Diese Zahl ist das *n* aus dem Text zu
@@ -181,7 +192,7 @@ export function gateGesperrt(absender: string): number | null {
  *
  * DIE KETTE IST KURZSCHLIESSEND — und zwar an JEDER Stufe (Absender, Minute, Stunde)
  * gegen dieselbe FESTE Deadline, die auch `gateGesperrt` liest (`restMs`/`gesperrtBis`),
- * NIE gegen den Rueckgabewert von `RateLimiter.check()` allein (Spec:3023-3028). Der
+ * NIE gegen den Rueckgabewert von `RateLimiter.check()` allein (Spec:3022-3028). Der
  * Unterschied ist keine Kosmetik: `check()` ist ein GLEITENDES Fenster
  * (`src/core/ratelimit.ts:26-37`). Liegt der AELTESTE der Treffer, die zu einer Sperre
  * fuehrten, VOR dem Treffer, der sie AUSGELOEST hat (das ist der Normalfall bei mehr als
