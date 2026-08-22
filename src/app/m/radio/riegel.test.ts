@@ -701,3 +701,38 @@ describe('kein "use client" unter _lib/ und _db/', () => {
     ).toEqual([]);
   });
 });
+
+describe("kein eingebauter Pseudo-Zufall in diesem Modul", () => {
+  it("findet keinen Aufruf der nicht-kryptografischen Standardquelle", () => {
+    /*
+     * ⛔ `KOPF.md:295` fuehrt diesen Namen in der Tafel (Ueberschrift `:281`) „Verbotene Namen und Muster
+     * (modulweit, VON `riegel.test.ts` DURCHGESETZT)" — und bis zur Fix-Runde zu A2 stand
+     * er dort ohne Durchsetzung: `grep -n "random"` auf diese Datei lieferte keinen
+     * Treffer, der einzige Waechter war `_lib/code.test.ts` und der galt nur fuer EINE
+     * Datei (Fund F3, `.superpowers/sdd/planteil3/REVIEW-A2.md:81`). Fiele der aus, haette
+     * das Modul gegen vorhersagbare Codes gar nichts. A6, A8, A9 und A10 legen weitere
+     * Dateien an; diese Klausel deckt sie ab dem ersten Tag.
+     *
+     * Der Schaden ist der aus Spec:2089-2091: die Standardquelle liefert Codes mit der
+     * richtigen LAENGE und dem richtigen ALPHABET. Jeder Verhaltenstest bliebe gruen —
+     * sichtbar wird der Fehler erst, wenn jemand die Ausgabe vorhersagt.
+     *
+     * ⚠️ DIESE KLAUSEL IST SCHWAECHER ALS DER SCAN IN `_lib/code.test.ts`, und das steht
+     * hier, statt verschwiegen zu werden: `trefferAuf` liest ueber `ohneKommentare`, prueft
+     * also nur AUSFUEHRBAREN Code (`riegel.test.ts:215-223`). Der Scan in
+     * `_lib/code.test.ts` liest den ROHEN Quelltext und verbietet den Namen dort auch im
+     * Kommentar. Die beiden ersetzen einander nicht: diese hier ist breit (alle
+     * Modul-Dateien), jene ist tief (eine Datei, Kommentare eingeschlossen).
+     *
+     * Zeilenweise wie alle Scans dieser Datei — ein ueber zwei Zeilen umbrochener Aufruf
+     * kaeme durch. Ein Scan darf falsch-negativ nicht sein wollen, aber er ist hier die
+     * Untergrenze und nicht der Beweis.
+     */
+    expect(quellDateien().length, "leere Dateiliste — der Scan waere leer-gruen")
+      .toBeGreaterThanOrEqual(10);
+    expect(
+      trefferAuf(/\bMath\s*\.\s*random\b/),
+      "Codes und Geheimnisse dieses Moduls kommen aus crypto.getRandomValues (Spec:2089-2091)",
+    ).toEqual([]);
+  });
+});
