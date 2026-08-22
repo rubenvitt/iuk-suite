@@ -183,11 +183,11 @@ function ohneKommentare(quelle: string): string {
 }
 
 /**
- * Wie `ohneKommentare`, zusaetzlich werden Zeichenkettenliterale geleert. Nur fuer die
- * POSITIVEN Nachweise noetig: `toMatch` behauptet, dass ein Muster VORKOMMT, und ein
- * String `"requireRadioAdmin("` als reiner Text erfuellte diese Behauptung sonst, OHNE
- * dass der Riegel je liefe — ein Scan, der still nichts faengt, und das ist die
- * gefaehrliche Richtung (`bauform.test.ts:164-176`).
+ * Wie `ohneKommentare`, zusaetzlich werden Zeichenkettenliterale UND nachgestellte Kommentare
+ * geleert. Nur fuer die POSITIVEN Nachweise noetig: `toMatch` behauptet, dass ein Muster
+ * VORKOMMT — ein String `"requireRadioAdmin("` oder ein `// frueher: requireRadioHost(kopf)`
+ * erfuellte das sonst, OHNE dass der Riegel je liefe (gemessen, Fund N1 aus
+ * `.superpowers/sdd/planteil3/REVIEW-A2.md` uebertragen; `bauform.test.ts:164-176`).
  */
 function ohneKommentareUndZeichenketten(quelle: string): string {
   const bereinigt = ohneKommentare(quelle);
@@ -209,7 +209,7 @@ function ohneKommentareUndZeichenketten(quelle: string): string {
     ergebnis += z;
     i++;
   }
-  return ergebnis;
+  return ergebnis.replace(/\/\/.*$/gm, ""); // ⛔ ZULETZT: davor zerrisse er "https://…"
 }
 
 function trefferAuf(muster: RegExp, dateien = quellDateien()): string[] {
@@ -709,7 +709,7 @@ describe("kein eingebauter Pseudo-Zufall in diesem Modul", () => {
      * (modulweit, VON `riegel.test.ts` DURCHGESETZT)" — und bis zur Fix-Runde zu A2 stand
      * er dort ohne Durchsetzung: `grep -n "random"` auf diese Datei lieferte keinen
      * Treffer, der einzige Waechter war `_lib/code.test.ts` und der galt nur fuer EINE
-     * Datei (Fund F3, `.superpowers/sdd/planteil3/REVIEW-A2.md:81`). Fiele der aus, haette
+     * Datei (Fund F3, `.superpowers/sdd/planteil3/REVIEW-A2.md`). Fiele der aus, haette
      * das Modul gegen vorhersagbare Codes gar nichts. A6, A8, A9 und A10 legen weitere
      * Dateien an; diese Klausel deckt sie ab dem ersten Tag.
      *
@@ -720,9 +720,9 @@ describe("kein eingebauter Pseudo-Zufall in diesem Modul", () => {
      * ⚠️ DIESE KLAUSEL IST SCHWAECHER ALS DER SCAN IN `_lib/code.test.ts`, und das steht
      * hier, statt verschwiegen zu werden: `trefferAuf` liest ueber `ohneKommentare`, prueft
      * also nur AUSFUEHRBAREN Code (`riegel.test.ts:215-223`). Der Scan in
-     * `_lib/code.test.ts` liest den ROHEN Quelltext und verbietet den Namen dort auch im
-     * Kommentar. Die beiden ersetzen einander nicht: diese hier ist breit (alle
-     * Modul-Dateien), jene ist tief (eine Datei, Kommentare eingeschlossen).
+     * `_lib/code.test.ts` liest den ROHEN Quelltext, Kommentare eingeschlossen. Keine
+     * ersetzt die andere: diese hier ist breit (alle AUSGELIEFERTEN Modul-Dateien —
+     * Testdateien und diese Datei selbst sind ausgenommen, `:137`), jene ist tief.
      *
      * Zeilenweise wie alle Scans dieser Datei — ein ueber zwei Zeilen umbrochener Aufruf
      * kaeme durch. Ein Scan darf falsch-negativ nicht sein wollen, aber er ist hier die
