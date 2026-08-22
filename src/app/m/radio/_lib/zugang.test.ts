@@ -216,8 +216,13 @@ describe("verwaltungsZiel — absolutes Ziel fuer die callbackUrl", () => {
      * Dieser Fall fragt einen ECHTEN Radio-Host an, der ein ANDERER ist als der
      * konfigurierte. Nur so liefern die zwei Zweige verschiedene Zeichenketten, und nur so
      * ist die Reihenfolge ueberhaupt pruefbar. Ohne den Vorrang schriebe die Anmeldung eine
-     * `callbackUrl` auf den FALSCHEN Host — und typecheck, lint und die uebrigen zwoelf
-     * Faelle blieben alle gruen.
+     * `callbackUrl` auf den FALSCHEN Host — und typecheck, lint und die uebrigen Faelle
+     * blieben alle gruen.
+     *
+     * ⛔ HIER STEHT ABSICHTLICH KEINE FALLZAHL (REVIEW-Z4 Fund N1, 2026-08-22). Eine
+     * gezaehlte Zahl der uebrigen Faelle altert mit jedem neuen `it` in dieser Datei und
+     * ist dieselbe Klasse wie die Kommentarzahl, die `313f488` an sich selbst gefunden hat.
+     * Was NICHT altert, ist die Messung: sie steht oben als Sonde P17.
      *
      * `radio.localtest.me` trifft `moduleForHost` ueber den Zweig `${m.key}.localtest.me`
      * (`src/core/registry.ts:249`), also OHNE jede SUITE_HOST_*-Variable: ein in der Shell
