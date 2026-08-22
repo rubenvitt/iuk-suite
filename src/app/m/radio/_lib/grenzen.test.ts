@@ -90,6 +90,28 @@ describe("radio-Grenzen: jede Zahl haelt ihre Vorgabe, ihre Unter- und ihre Ober
     delete process.env[name];
     expect((await frisch()).grenzen()[regel.feld]).toBe(regel.vorgabe);
 
+    /*
+     * ⛔ ZWEITE ABWEICHUNG VOM BRIEF, EBENFALLS GEMESSEN. Der Brief kennt drei
+     * Zusicherungen je Zahl, und keine davon erreicht die GANZZAHL-Pruefung: `min - 1`
+     * und `max + 1` sind beide ganze Zahlen und fallen durch bis zur Bereichspruefung.
+     * Die Sonde S-ganzzahl (den ganzen `if (!GANZZAHL.test(roh))`-Block entfernt) ergab
+     * in der Briefform **0 rot** — ein Zweig ohne jeden Waechter.
+     *
+     * ⚠️ WARUM "1e7" UND NICHT "abc": ohne die Pruefung liefert
+     * `Number.parseInt("1e7", 10)` die Zahl **1** — es hoert am `e` auf. Eine .env-Zeile
+     * `RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE=1e3` faehrt die modulweite Stundenkappe
+     * dann bei EINEM Fehlversuch pro Stunde statt bei tausend: das Gate sperrt jeden aus,
+     * ohne Wurf und ohne Meldung. `"abc"` machte den Fall zwar auch rot, benennte aber
+     * die Gefahr nicht — `Number.parseInt("abc", 10)` ist `NaN` und faellt aus der
+     * Bereichspruefung ohnehin heraus.
+     *
+     * Der Einheitentext wird hier mitgeprueft, weil die NICHT-GANZZAHL-Meldung eine
+     * zweite, eigene Textstelle ist (`grenzen.ts:143-144`) — die Bereichsmeldung darunter
+     * (`:150`) deckt sie nicht mit ab.
+     */
+    process.env[name] = "1e7";
+    await expect(frisch().then((m) => m.grenzen())).rejects.toThrow(`(${regel.einheit})`);
+
     process.env[name] = String(regel.min - 1);
     await expect(frisch().then((m) => m.grenzen())).rejects.toThrow(`(${regel.einheit})`);
 
