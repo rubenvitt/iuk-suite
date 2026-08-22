@@ -76,6 +76,39 @@ export class RateLimiter {
  * `cf-connecting-ip: unknown` teilt sich den Sammel-Eimer mit kopflosen
  * Aufrufern — eine akzeptierte Bündelung, keine neue Fälschbarkeit (sie
  * eröffnet keinen frischen Schlüssel je Versuch, anders als CWE-348).
+ *
+ * NACHTRAG, GEMESSEN (Ruben, 2026-08-22, `test.iuk-ue.de`, Cloudflare +
+ * Traefik + `whoami`; voller Befund:
+ * `docs/superpowers/berichte/2026-08-22-client-ip-hinter-cloudflare.md`):
+ *
+ * — `cf-connecting-ip` ist über den Cloudflare-Weg NICHT fälschbar: schickt
+ *   der Client den Kopf selbst, antwortet Cloudflare am Edge mit 403, die
+ *   Anfrage erreicht den Origin nie. Das widerlegt den ursprünglichen
+ *   Verdacht dieses Postens, ein Angreifer könne den Kopf über Cloudflare
+ *   frei rotieren — MIT Vorbehalt: das gilt nur, solange der Direktzugriff
+ *   an Cloudflare vorbei (D6, siehe oben) tatsächlich geschlossen ist. Diese
+ *   Messung prüft nur den Cloudflare-Weg, nicht D6.
+ * — `X-Forwarded-For` bleibt fälschbar (Cloudflare stellt einen
+ *   client-gesetzten Wert nur VORAN, verwirft ihn nicht) — das ist das
+ *   tatsächliche CWE-348-Loch, das dieser Posten schließen sollte.
+ * — ⛔ `True-Client-IP` wird von Cloudflare UNGEFILTERT durchgereicht,
+ *   gemessen (`5.5.5.5` kam unverändert an). Dieser Kopf darf NIE als Quelle
+ *   für diese Funktion dienen — er ist die naheliegendste falsche Abhilfe,
+ *   sobald `cf-connecting-ip` einmal als „unzuverlässig" gilt.
+ * — ⛔ AUF MODUL-HOSTS (jedes Modul mit eigenem `SUITE_HOST_<KEY>` außer
+ *   `portal` — `qr`, `feedback`, `files`, `lagerbuch`, `aufgaben`,
+ *   `src/core/registry.ts:57-186`) ist `cf-connecting-ip` bei jeder Anfrage
+ *   die EGRESS-ADRESSE DIESES SERVERS, nicht die des Clients: der
+ *   Modul-Host-Rewrite (`src/proxy.ts`) erzeugt einen zweiten, externen
+ *   Round-Trip über Cloudflare zurück auf den Apex. **Diese Änderung ist für
+ *   diese Hosts KEIN Rate-Limit-Fix** — der Sammel-Eimer aus K2/W2 des
+ *   Reviews bestand schon vor `7d71b6c`, weil der alte Code
+ *   `cf-connecting-ip` dort ebenfalls Vorrang gab. Die Commit-Botschaft von
+ *   `7d71b6c` („CWE-348 aus clientIpAus entfernen") gilt darum nur für den
+ *   Apex — nicht generell, und ⛔ Planteil 3 des Moduls `radio` darf sich
+ *   NICHT darauf verlassen, solange `radio` selbst auf einem Modul-Host läuft
+ *   (`.superpowers/sdd/KONTEXT-radio-planteil2.md`, Nachtrag). Abhilfe
+ *   geplant, nicht gebaut: `.superpowers/sdd/VORARBEIT-selfhop.md`.
  */
 export function clientIpAus(headers: Headers): string {
   const cfIp = headers.get("cf-connecting-ip");

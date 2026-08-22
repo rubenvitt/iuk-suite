@@ -22,6 +22,26 @@ const IPV4_MAPPED_MARKER = 0xffff;
  * IPv6 auf das /48-Praefix. Ein Wert, der nicht vollstaendig als Adresse
  * verstanden wird, ergibt `null` — NIE der Rohwert und nie ein Teilergebnis
  * (der Rohwert kann ein ganzer `X-Forwarded-For`-Kopf sein).
+ *
+ * ⬜ LEERSTELLE (W3, `.superpowers/sdd/REVIEW-ratelimit.md`, nachtraeglich
+ * verschaerft durch `docs/superpowers/berichte/2026-08-22-client-ip-hinter-cloudflare.md`):
+ * seit der CWE-348-Umstellung (`clientIpAus`, `src/core/ratelimit.ts:80-83`)
+ * liefert `roh` ohne `cf-connecting-ip` den Sammelwert `"unknown"` —
+ * `ipKuerzen("unknown")` ergibt `null`, weder `isIPv4` noch `isIPv6`
+ * erkennen ihn. Auf dem APEX heisst das: die Auditspalten `client_ip_unbestaetigt`
+ * (`src/app/m/files/_db/zaehler.ts:139`, `.../upload/route.ts:581`) werden
+ * flaechendeckend leer, wo vorher (ueber `x-forwarded-for`) das Netz stand —
+ * sichtbar als „—" (`shares/[id]/page.tsx:414`). Auf MODUL-HOSTS (`qr`,
+ * `feedback`, `files`, `lagerbuch`, `aufgaben`) ist die Lage schlimmer als
+ * leer: `roh` ist dort NICHT `"unknown"`, sondern die Egress-IP dieses
+ * Servers (Befund 4 des Berichts oben) — `ipKuerzen` erkennt sie als
+ * gueltige Adresse und kuerzt sie ganz normal. Die Spalte fuellt sich mit
+ * einem einzigen, fuer ALLE Zeilen identischen Netz, das aussieht wie ein
+ * echter Client — der Betreiber kann „drei Downloads aus demselben Netz"
+ * (Zweck der Spalte, s. o.) nicht mehr von „drei Downloads durch denselben
+ * Modul-Host" unterscheiden. Weder der Bauplan der Umstellung noch dieser
+ * Nachtrag beheben das — Abhilfe ist der Self-Hop-Check,
+ * `.superpowers/sdd/VORARBEIT-selfhop.md`, nur beschrieben, nicht gebaut.
  */
 export function ipKuerzen(roh: string | null): string | null {
   if (roh === null) return null;
