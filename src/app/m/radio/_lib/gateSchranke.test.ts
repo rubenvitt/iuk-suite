@@ -468,9 +468,9 @@ describe("radio-Gate-Schranke: die vier Eigenschaften aus Spec:3013-3031", () =>
      * Fassung davor verlangte vor der Zeichenkette ein `from`, ein `import(` oder ein
      * `require(` — ein REINER NEBENWIRKUNGS-IMPORT (`import "@/core/db";`,
      * `import "../_db/client";`) ging daran vorbei, weil er weder das eine noch das andere
-     * traegt. Gemessen als Sonde R9 der Fix-Runde 2 (`.superpowers/sdd/planteil3/
-     * BERICHT-A3.md`, Abschnitt „Fix-Runde 2"): dieselbe Kopie von `gateSchranke.ts` mit
-     * `import "@/core/db";` im Kopf blieb unter der alten Fassung `Tests 10 passed` und
+     * traegt. Gemessen als Sonde R9 der Fix-Runde 2; die Zahlen stehen im Rumpf des Commits
+     * `9880988` — verfolgt, anders als `.superpowers/`. Dieselbe Kopie von `gateSchranke.ts`
+     * mit `import "@/core/db";` im Kopf blieb unter der alten Fassung `Tests 10 passed` und
      * faerbt unter dieser `Tests 1 failed | 9 passed` an genau dieser Zusicherung.
      *
      * ⚠️ WIE GROSS DIE LUECKE WIRKLICH WAR, damit sie hier nicht groesser aussieht als sie
