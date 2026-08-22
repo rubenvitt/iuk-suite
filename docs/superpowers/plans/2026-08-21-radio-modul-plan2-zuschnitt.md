@@ -1452,7 +1452,7 @@ describe("die zwei Quelltext-Zusicherungen ueber die Riegeldateien", () => {
      * Spec:712 verlangt genau diese Zusicherung. Der Zweig saehe wie eine Erleichterung
      * aus („lokal ist ja nichts konfiguriert") und waere die Sperre, die sich selbst
      * abschaltet. Der Test bindet an den FUNKTIONSNAMEN, nicht an eine Formulierung:
-     * `host.ts` darf `prodHostsFor` ueberhaupt nicht nennen, weil es die Frage gar nicht
+     * `host.ts` darf `prodHostsFor` ueberhaupt nicht rufen, weil es die Frage gar nicht
      * stellt — es fragt `moduleForHost`.
      */
     const quelle = readFileSync("src/app/m/radio/_lib/host.ts", "utf8");
