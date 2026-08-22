@@ -65,6 +65,20 @@ const weiche: Weiche = (req) => {
  */
 export const weicheMitAuth = Promise.resolve(auth(weiche));
 
+/** Der Kopf, in den `NextResponse.rewrite()` sein Ziel schreibt
+ *  (`node_modules/next/dist/server/web/spec-extension/response.js:118`). */
+export const REWRITE_KOPF = "x-middleware-rewrite";
+
+export function rewriteZielAufAnfrageOrigin(antwort: Response, anfrageOrigin: string): Response {
+  const ziel = antwort.headers.get(REWRITE_KOPF);
+  if (!ziel) return antwort;
+
+  const alt = new URL(ziel);
+  const neu = new URL(alt.pathname + alt.search + alt.hash, anfrageOrigin);
+  antwort.headers.set(REWRITE_KOPF, neu.toString());
+  return antwort;
+}
+
 /**
  * WARUM HIER EIN `await` STEHT — und warum `export default auth(...)` nicht geht.
  *
