@@ -81,7 +81,7 @@ describe("radio-anzeige: was an einer Uhr haengt, entsteht in Europe/Berlin", ()
   it("schreibt auch den Tag zweistellig, ueber die Tagesgrenze hinweg", () => {
     /*
      * ⛔ DER FALL, DEN DIE FUENF DARUEBER NICHT HABEN — nachgetragen in Fix-Runde 1 zu A12
-     * (`REVIEW-A12.md`, Fund F2). Alle vier Datumswerte der Faelle oben tragen einen
+     * (`REVIEW-A12.md`, Fund F2). Alle vier Datumswerte der uebrigen Faelle tragen einen
      * ZWEISTELLIGEN Tag (15., 16.); dort faellt `day: "numeric"` mit `day: "2-digit"`
      * zusammen. GEMESSEN: mit `day: "numeric"` in `anzeige.ts` blieben vor diesem Fall alle
      * sieben Faelle gruen — die Option war unbewacht, und die Zusicherung „zeichengleich
@@ -158,9 +158,12 @@ describe("radio-anzeige: die Bauform", () => {
     // Verhaltensfall darueber. Diese Datei liest die Umgebung an keiner Stelle (gemessen:
     // `grep -n "process" src/app/m/radio/_lib/anzeige.ts` → kein Treffer), der breite
     // Ausschluss kostet also nichts.
-    expect(quelle, "die Zone darf nicht aus der Umgebung kommen (Leitplan:122)").not.toMatch(
-      /process\s*\.\s*env/,
-    );
+    expect(
+      quelle,
+      "zwei Ursachen: die Zone kommt aus der Umgebung (Leitplan:122), ODER `process.env` " +
+        "steht bloss in einem Kommentar von anzeige.ts — der Ausschluss liest den ganzen " +
+        "Dateitext, Kommentare eingeschlossen",
+    ).not.toMatch(/process\s*\.\s*env/);
   });
 
   it("baut beide Formatierer je Aufruf und keinen auf Modulebene", () => {
@@ -192,5 +195,17 @@ describe("radio-anzeige: die Bauform", () => {
       "ein Vorkommen zu viel: entweder steht ein Formatierer auf Modulebene, oder der " +
         "Konstruktoraufruf ist im Kopf von anzeige.ts in Prosa ausgeschrieben",
     ).toBe(2);
+    // ⛔ UND DIE RESTFORM, DIE DIE ZWEI ZAEHLUNGEN OFFENLIESSEN (`REVIEW-A12.md`, K1): ein
+    // Formatierer, den eine BAUFUNKTION herstellt und den eine Modulebenen-Bindung einmal
+    // beim Laden festhaelt. Beide Zaehlungen bleiben dabei bei 2 (gemessen am 2026-08-23 im
+    // echten Quellbaum: 9 von 9 Faellen gruen), der Formatierer entstuende aber genau einmal
+    // — der Schaden aus dem Kopf von `anzeige.ts`. Dieser Ausschluss trifft eine Bindung auf
+    // MODULEBENE (Zeilenanfang, also uneingerueckt), deren Wert aus einem AUFRUF kommt;
+    // `const ZONE = "Europe/Berlin"` ist ein Literal und faellt nicht darunter.
+    expect(
+      quelle,
+      "ein Modulebenen-Memo ueber einen Funktionsaufruf haelt den Formatierer fest, statt " +
+        "ihn je Aufruf zu bauen (K1 aus REVIEW-A12.md)",
+    ).not.toMatch(/^(?:export\s+)?(?:const|let|var)\s+\w+\s*=\s*[\w.]+\s*\(/m);
   });
 });
