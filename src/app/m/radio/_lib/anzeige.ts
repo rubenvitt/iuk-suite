@@ -27,12 +27,23 @@
  * gebauter `Intl.DateTimeFormat` haette seine Zone aufgeloest, BEVOR jener Fall laeuft,
  * und der Fall waere gruen, ohne etwas zu pruefen. Der Preis ist eine Formatiererinstanz je
  * Zeile einer Liste; die Alternative waere ein Waechter, der nichts bewacht.
+ * ⛔ UND SEIT DER FIX-RUNDE 1 ZU A12 STEHT DIESER SATZ NICHT MEHR ALLEIN DA: der Fall „baut
+ * beide Formatierer je Aufruf und keinen auf Modulebene" (`src/app/m/radio/_lib/anzeige.test.ts`,
+ * zweiter Fall im Block „die Bauform") setzt ihn durch. Bis dahin war die Auflage unbewacht —
+ * gemessen: hochgezogen liefen alle sieben Faelle gruen, und hochgezogen PLUS entfernter
+ * Zonenzeile blieb sogar der New-York-Fall gruen.
+ * ⚠️ JENER WAECHTER ZAEHLT DIE VORKOMMEN DES KONSTRUKTORAUFRUFS IM GANZEN DATEITEXT,
+ * Kommentare eingeschlossen: wer ihn hier in Prosa ausschreibt, macht den Fall rot. Deshalb
+ * steht in diesem Kopf nirgends der ausgeschriebene Aufruf, sondern nur der Typname.
  *
  * ⚠️ EINGABE IST EIN `Date`, KEINE ZAHL. `loans.borrowed_at` und `loans.returned_at`
  * stehen als `integer(..., { mode: "timestamp" })` im Schema
- * (`src/app/m/radio/_db/schema.ts:218-219`); Drizzle gibt dort ein `Date` heraus. Damit
- * ueberquert an dieser Stelle KEINE Einheitengrenze — die Sekunden/Millisekunden-Regel
- * (`src/app/m/lagerbuch/_db/schema.ts:11-16`) betrifft diese Datei nicht.
+ * (`src/app/m/radio/_db/schema.ts:218-219`); Drizzle gibt dort ein `Date` heraus — bei
+ * `returned_at` ein `Date | null`, denn `:219` traegt KEIN `.notNull()`. Der Parametertyp
+ * dieser Datei laesst kein `null` durch; wer eine Rueckgabezeit anzeigt, faltet vorher am
+ * Aufrufort. Damit ueberquert an dieser Stelle KEINE Einheitengrenze — die
+ * Sekunden/Millisekunden-Regel (`src/app/m/lagerbuch/_db/schema.ts:11-16`) betrifft diese
+ * Datei nicht.
  */
 
 /** Die Zone der Flaeche. An genau einer Stelle, damit sie nicht zweimal driften kann. */

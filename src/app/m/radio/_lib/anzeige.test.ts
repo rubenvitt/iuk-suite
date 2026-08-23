@@ -76,6 +76,25 @@ describe("radio-anzeige: was an einer Uhr haengt, entsteht in Europe/Berlin", ()
     expect(uhrzeit(new Date("2026-01-15T06:05:00Z"))).toBe("07:05");
     expect(datumMitUhrzeit(new Date("2026-01-15T06:05:00Z"))).toBe("15.01.2026, 07:05");
   });
+
+  it("schreibt auch den Tag zweistellig, ueber die Tagesgrenze hinweg", () => {
+    /*
+     * ⛔ DER FALL, DEN DIE FUENF DARUEBER NICHT HABEN — nachgetragen in Fix-Runde 1 zu A12
+     * (`REVIEW-A12.md`, Fund F2). Alle vier Datumswerte der Faelle oben tragen einen
+     * ZWEISTELLIGEN Tag (15., 16.); dort faellt `day: "numeric"` mit `day: "2-digit"`
+     * zusammen. GEMESSEN: mit `day: "numeric"` in `anzeige.ts` blieben vor diesem Fall alle
+     * sieben Faelle gruen — die Option war unbewacht, und die Zusicherung „zeichengleich
+     * `dd.MM.yyyy, HH:mm`" (`anzeige.ts`, Kopf von `datumMitUhrzeit`) ohne Durchsetzung.
+     * Betroffen sind die Tage 1 bis 9, also rund ein Drittel des Kalenders — und es ist
+     * dasselbe Argument, mit dem der Fall darueber die zweistellige Stunde begruendet
+     * (Spaltenbuendigkeit der Geraeteliste).
+     *
+     * Der Wert traegt beides auf einmal, einstelliger Tag UND Tagesgrenze: 22:30 UTC am
+     * 04.07. ist in Berlin bereits der 05.07., 00:30 (UTC+2). Gemessen an Node v26.7.0 am
+     * 2026-08-23: `05.07.2026, 00:30`; mit `day: "numeric"` stuende dort `5.07.2026, 00:30`.
+     */
+    expect(datumMitUhrzeit(new Date("2026-07-04T22:30:00Z"))).toBe("05.07.2026, 00:30");
+  });
 });
 
 describe("radio-anzeige: die Zone haengt nicht an der Zone des Prozesses", () => {
@@ -131,7 +150,43 @@ describe("radio-anzeige: die Bauform", () => {
       quelle.match(/timeZone:\s*ZONE/g)?.length,
       "nicht beide Formatierer nageln die Zone fest",
     ).toBe(2);
-    expect(quelle, "die Zone darf nicht aus der Umgebung kommen (Leitplan:122)")
-      .not.toMatch(/process\s*\.\s*env\s*\.\s*TZ|process\s*\.\s*env\s*\[/);
+    // ⛔ DER AUSSCHLUSS IST ABSICHTLICH BREIT: `process.env` UEBERHAUPT, nicht nur
+    // `process.env.TZ` und `process.env[...]`. Die enge Fassung hatte eine Luecke, und sie
+    // ist gemessen (Fix-Runde 1 zu A12, Fund F5): `const { TZ } = process.env;` laeuft an
+    // beiden alten Alternativen vorbei — dieser Fall blieb GRUEN, rot wurde nur der
+    // Verhaltensfall darueber. Diese Datei liest die Umgebung an keiner Stelle (gemessen:
+    // `grep -n "process" src/app/m/radio/_lib/anzeige.ts` → kein Treffer), der breite
+    // Ausschluss kostet also nichts.
+    expect(quelle, "die Zone darf nicht aus der Umgebung kommen (Leitplan:122)").not.toMatch(
+      /process\s*\.\s*env/,
+    );
+  });
+
+  it("baut beide Formatierer je Aufruf und keinen auf Modulebene", () => {
+    /*
+     * ⛔ DIE AUFLAGE AUS DEM KOPF VON `anzeige.ts` HATTE BIS ZUR FIX-RUNDE 1 KEINEN RIEGEL
+     * (`REVIEW-A12.md`, Fund F1). Der Schaden ist nicht die Formatiererinstanz — es ist der
+     * entwaffnete Waechter darueber. ZWEISTUFIG GEMESSEN, im echten Quellbaum, 2026-08-23:
+     *   1. beide Formatierer auf Modulebene hochgezogen (Zone und `timeZone: ZONE` bleiben
+     *      woertlich stehen) → 7 von 7 Faellen GRUEN. Kein Fall dieser Datei sah es.
+     *   2. hochgezogen UND die Zeile `timeZone: ZONE` aus beiden entfernt → nur noch 1 rot,
+     *      naemlich der Quelltext-Fall darueber. Der New-York-Fall (`:94-110`) blieb GRUEN,
+     *      weil ein auf Modulebene gebauter Formatierer seine Zone aufloest, BEVOR jener
+     *      Fall die Prozesszone dreht. Unverschoben ergibt dieselbe Sonde 2 rot.
+     *
+     * ⛔ DER ANKER IST `return new ...` UND NICHT DIE BLOSSE ZAHL: ein `return` kann auf
+     * Modulebene nicht stehen, die erste Zusicherung bindet die zwei Formatierer also
+     * konstruktiv in einen Funktionsrumpf. Die zweite schliesst die Zange — sie laesst
+     * keinen dritten daneben zu, auch keinen hochgezogenen.
+     */
+    const quelle = readFileSync(ANZEIGE, "utf8");
+    expect(
+      quelle.match(/return new Intl\.DateTimeFormat/g)?.length,
+      "nicht beide Formatierer entstehen im return, also je Aufruf",
+    ).toBe(2);
+    expect(
+      quelle.match(/new Intl\.DateTimeFormat/g)?.length,
+      "es steht ein Formatierer ausserhalb eines return, also auf Modulebene",
+    ).toBe(2);
   });
 });
