@@ -8,6 +8,36 @@
 // SCHREIBZUGANG — jemand kann damit ohne Anmeldung Geraete ausleihen und zurueckgeben.
 // Diese Datei laeuft ausschliesslich ueber scripts/seed-lokal.ts.
 //
+// ⛔ DIE ZUSICHERUNG DAZU, AUSGESCHRIEBEN (Falle No. 31,
+// docs/radio-portierung-analyse.md:1740-1749, woertlich): „Fuer `radio` heisst das: ein
+// geseedeter Enrollment-Code waere in der Generalprobe ein GUELTIGER anonymer Zugang zum
+// gesamten Bestand samt Ausleihernamen … Regel fuer die Spec: `seedLokal` legt Geraete und
+// Stammdaten an, NIEMALS eine einloesbare Zugangszeile; die Enrollment-Tabelle bleibt beim
+// Seed leer."
+//
+// ⚠️ UND JETZT DER STAND, WIE ER GEMESSEN IST — NICHT, WIE DIE REGEL IHN BESCHREIBT
+// (2026-08-23, Aufgabe A8): diese Datei legt sehr wohl eine EINLOESBARE Zeile an
+// (`zc-1`, `aktiv: true`, `CODE_AKTIV`, unten). Getragen wird die Zusage deshalb NICHT von
+// der Leere der Tabelle, sondern von EINER Zeile in `core`: `radio` steht in
+// `MODULE_MIGRATIONS` ohne Schema-Import und OHNE Eintrag in `seedAllModules()`
+// (src/core/bootstrap.ts:49-56, mit genau dieser Begruendung). Der Boot-Pfad ruft diesen
+// Seed also nie — und nur deshalb ist `SUITE_SEED=1` in der Generalprobe harmlos.
+//
+// ⛔ DARAUS FOLGT DIE AUFLAGE, UND SIE GILT FUER JEDEN NACHFOLGER: wer `radio` in
+// `seedAllModules()` eintraegt oder `seedLokal` sonstwie an den Boot haengt, MUSS im selben
+// Zug `zc-1` entfernen. Beides zusammen ist ein gueltiger anonymer SCHREIBzugang auf einer
+// Generalproben-Instanz, und kein Tor dieses Repos wuerde es melden.
+// ⚠️ Der Grund, warum das keine Lokal-Frage ist, steht in `CLAUDE.md` unter „Lokale
+// Demodaten": `shouldSeed()` ist `SUITE_SEED === "1" || NODE_ENV === "development"` —
+// `SUITE_SEED=1` ist der GENERALPROBEN-Schalter, nicht der Lokalschalter. Der naheliegende
+// Griff („ein Seed-Code, damit das Gate lokal testbar ist") ist genau die Falle.
+//
+// ⬜ EINE SCAN-ZUSICHERUNG DAZU GEHOERT IN `scripts/seed-lokal.test.ts`, NICHT HIERHER
+// (Nahtstelle NS-A19): dort steht bereits „jedes Modul aus MODULE_MIGRATIONS hat einen
+// Seed" plus der Quelltext-Scan gegen eine Boot-Verdrahtung. Eine zweite Scan-Datei unter
+// `m/radio/` waere ein Scan zu viel ueber derselben Flaeche (B14,
+// docs/superpowers/specs/2026-08-17-radio-modul-design.md:103).
+//
 // IDEMPOTENT PRO ENTITAET und REIN ADDITIV: jede Zeile traegt eine STABILE id und wird mit
 // `onConflictDoNothing()` geschrieben. `$defaultFn(nanoid)` gaebe bei jedem Lauf eine neue
 // id und damit eine Dublette.
