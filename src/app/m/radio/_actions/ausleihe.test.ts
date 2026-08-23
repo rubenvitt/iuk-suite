@@ -573,20 +573,35 @@ describe("radio-_actions/ausleihe: die Sperrgruende am Formular", () => {
      * `ausleihText({ grund })` durch einen zeichengleichen String ersetzen, ohne dass ein
      * Fall rot wuerde — dieselbe Mechanik, die `_lib/meldungen.test.ts` fuer die zwei
      * Statusetiketten mit einem Quelltext-Zaehler abwehrt (Sonde P7, 0 rot, gemessen).
+     *
+     * ⛔ DER SCAN LAEUFT UEBER BEIDE SPERRGRUENDE UND BEIDE FLUESSE — VIER SAETZE, NICHT EINER.
+     * Ein Scan nur auf `sitzung` liesse die Haelfte unbewacht, waehrend der Testname beide
+     * verspricht: die zwei Gleichheitszusicherungen darueber bleiben gegen ein
+     * ZEICHENGLEICHES Literal gruen, und genau dagegen steht dieser Fall. (Die zwei
+     * Sperr-Saetze sind ausserdem in `_lib/meldungen.ts:253-256` je EINMAL geschrieben, der
+     * zu `gesperrt` kommt sogar aus `_lib/gateTexte.ts` — ein Literal HIER waere der dritte
+     * Ort fuer denselben Satz.)
      */
-    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+    for (const grund of ["sitzung", "gesperrt"] as const) {
+      riegel.mockResolvedValue({ ok: false, grund });
 
-    const ausleihe = await ausleiheAnlegen(null, formular({}));
-    const rueckgabe = await rueckgabeBuchen(null, formular({}));
-    if (ausleihe.ok || rueckgabe.ok) throw new Error("unerreicht");
+      const ausleihe = await ausleiheAnlegen(null, formular({}));
+      const rueckgabe = await rueckgabeBuchen(null, formular({}));
+      if (ausleihe.ok || rueckgabe.ok) throw new Error("unerreicht");
 
-    expect(ausleihe.text).toBe(ausleihText({ grund: "sitzung" }));
-    expect(rueckgabe.text).toBe(rueckgabeText({ grund: "sitzung" }));
+      expect(ausleihe.text).toBe(ausleihText({ grund }));
+      expect(rueckgabe.text).toBe(rueckgabeText({ grund }));
+    }
 
     const quelle = readFileSync(AUSLEIHE_QUELLE, "utf8");
-    expect(quelle, "ein zweiter Ort fuer denselben Satz").not.toContain(
-      ausleihText({ grund: "sitzung" }),
-    );
+    for (const grund of ["sitzung", "gesperrt"] as const) {
+      expect(quelle, `ein zweiter Ort fuer den Ausleih-Satz zu ${grund}`).not.toContain(
+        ausleihText({ grund }),
+      );
+      expect(quelle, `ein zweiter Ort fuer den Rueckgabe-Satz zu ${grund}`).not.toContain(
+        rueckgabeText({ grund }),
+      );
+    }
   });
 });
 
