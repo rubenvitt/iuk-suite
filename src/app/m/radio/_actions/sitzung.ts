@@ -86,10 +86,19 @@ export async function erneuereSitzung(rohCode: string): Promise<ErneuerungErgebn
   /*
    * SCHRITT 2 — Sperre, OHNE Datenbankzugriff und OHNE Buchung. Buchte sie hier, verlaengerte
    * jeder Versuch waehrend der Sperre die Sperre.
+   *
+   * ⛔ `!` UND KEIN `?? "…"`: die Texte stehen an GENAU EINER Stelle (Spec:2387), und einen
+   * Rueckfalltext gibt es ausdruecklich NICHT (Spec:2396-2398). `gateMeldung` liefert `null`
+   * nur fuer einen Grund AUSSERHALB des Satzes (`_lib/gateTexte.ts:111`
+   * `if (!istGateGrund(roh)) return null;`); `"zuviele"` steht namentlich darin
+   * (`_lib/gateTexte.ts:37-42`). Der `??`-Zweig waere also tot — und truege doch eine ZWEITE,
+   * verkuerzte Fassung desselben Satzes, die am Tag eines Umbaus an `gateMeldung` still
+   * ausgeliefert wuerde. `_lib/bauform.test.ts` („kein Rueckfalltext hinter gateMeldung")
+   * verbietet die Form modulweit, mit zwei Reichweiten.
    */
   const sperrSekunden = gateGesperrt(absender);
   if (sperrSekunden !== null) {
-    return { ok: false, text: gateMeldung("zuviele", sperrSekunden) ?? "Zu viele Fehlversuche." };
+    return { ok: false, text: gateMeldung("zuviele", sperrSekunden)! };
   }
 
   /*
@@ -108,10 +117,9 @@ export async function erneuereSitzung(rohCode: string): Promise<ErneuerungErgebn
     // SCHRITT 6 — erst jetzt buchen. „unbekannt" und „gesperrt" sind eine einzige Form
     // (Spec:2334-2336).
     gateFehlversuchBuchen(absender);
-    return {
-      ok: false,
-      text: gateMeldung("code", null) ?? "Dieser Code ist unbekannt oder wurde gesperrt.",
-    };
+    // ⛔ `!` und kein Rueckfalltext — derselbe Beleg wie bei Schritt 2 oben; `"code"` steht
+    // ebenfalls namentlich in `GATE_GRUENDE` (`_lib/gateTexte.ts:37-42`).
+    return { ok: false, text: gateMeldung("code", null)! };
   }
 
   /*

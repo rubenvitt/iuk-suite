@@ -32,6 +32,22 @@ const MODUL = join(process.cwd(), "src/app/m/radio");
 const GATE_FLAECHEN = ["t/[code]/route.ts", "_actions/gate.ts", "_actions/sitzung.ts"];
 
 /**
+ * Die zwei AEUSSEREN Route Handler des Moduls (`riegel.test.ts:100`, `HANDLER_ANZAHL = 2`).
+ * Sie tragen die Antwortform, die der Brief „verbindlich" nennt: 303 mit relativem
+ * `Location`. ⛔ Sie sind nicht dieselbe Menge wie `GATE_FLAECHEN`: `abmelden/route.ts` loest
+ * nichts ein, `_actions/*` antwortet nicht mit einem Status.
+ *
+ * ⛔ HIER STEHEN NUR DIE UMLEITENDEN HANDLER, und das ist eine Auflage an die Nachfolger:
+ * `HANDLER_ANZAHL` waechst auf 3 (Planteil 4, `admin/(arbeit)/geraete/export/route.ts`) und 4
+ * (Planteil 5, `sw.js/route.ts`) — `riegel.test.ts:78-79` fuehrt den Fahrplan. KEINER DER
+ * BEIDEN GEHOERT IN DIESE LISTE: ein Export antwortet mit 200 und einem Rumpf, `sw.js`
+ * ebenso. Wer sie hier eintraegt, macht den 303-Fall rot fuer richtigen Code. Diese Liste hat
+ * bewusst keine Vollzaehligkeits-Zusicherung wie `GATE_FLAECHEN` (`toEqual(GATE_FLAECHEN)`) —
+ * sie ist eine Auswahl nach Antwortform, keine Menge, die vollstaendig sein muss.
+ */
+const ROUTE_HANDLER = ["t/[code]/route.ts", "abmelden/route.ts"];
+
+/**
  * ⛔ JE FLAECHE WIRD DER KOERPER EINER BENANNTEN FUNKTION GESCANNT, NICHT DER DATEITEXT.
  * `_actions/sitzung.ts` traegt ZWEI Exporte (E12), und `beenden` traegt nur den
  * Host-Riegel. Ein Scan ueber den Dateitext meldete fuer sie „Sperre fehlt ganz" — bei
@@ -385,7 +401,7 @@ describe("radio-bauform: die drei Gate-Flaechen", () => {
 });
 
 describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann", () => {
-  it("abmelden/route.ts nennt signOut nicht", () => {
+  it("keine Datei dieses Moduls nennt signOut", () => {
     /*
      * ⛔ Spec:2610-2614: „`/abmelden` raeumt AUSSCHLIESSLICH `AUSLEIH_COOKIE`. Kein
      * `signOut()`, kein Auth.js-Cookie — sonst verloere eine angemeldete Person ihre
@@ -394,8 +410,60 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
      * Der Fehler ist maximal naheliegend („abmelden heisst abmelden") und im Betrieb
      * unangenehm: wer ueber die Kachel kam und den Code-Zugang beendet, faende sich aus der
      * ganzen Suite ausgeloggt.
+     *
+     * ⛔ MODULWEIT, NICHT NUR ueber `abmelden/route.ts` (Fix-Runde 1 zu A910, Fund 3, im
+     * Review gemessen): die zweite Stelle, an der derselbe Griff naheliegt, ist
+     * `_actions/sitzung.ts#beenden` — der SICHTBARE Abmeldeknopf, und er heisst „Beenden".
+     * Ein `await signOut()` dort war gegen die dateiweise Fassung dieses Falls unsichtbar
+     * (18 Dateien, 243 Tests, 0 rot), obwohl der Schaden derselbe ist. Dieselbe Reichweite
+     * hat der `cookies().delete`-Fall unten laengst.
+     *
+     * ⛔ ER LOEST SICH DABEI NICHT SELBST AUS, und das ist gemessen: `signOut` steht heute
+     * ausserhalb der Testdateien genau zweimal im Modul — `_actions/sitzung.ts:156` und
+     * `abmelden/route.ts:38` —, BEIDE in Blockkommentaren, und `trefferAuf` leert
+     * Kommentare vor dem Vergleich. Testdateien verwirft `quellDateien()` ohnehin.
      */
-    expect(ohneKommentareUndZeichenketten(lies("abmelden/route.ts"))).not.toMatch(/\bsignOut\b/);
+    expect(trefferAuf(/\bsignOut\b/)).toEqual([]);
+  });
+
+  it("kein Rueckfalltext hinter gateMeldung", () => {
+    /*
+     * ⛔ Spec:2396-2398, woertlich: „**Kein Rueckfalltext.** `gateMeldung` gibt fuer einen
+     * unbekannten Grund `null` zurueck, und die Flaeche zeigt dann KEINE Meldung. Ein ‚Etwas
+     * ist schiefgelaufen' auf einer Seite, auf der nichts schiefgelaufen ist, ist schlechter
+     * als Schweigen." Dazu Spec:2387: „Die Texte stehen an GENAU EINER Stelle."
+     *
+     * ⚠️ DIE FEHLERFORM, GEGEN DIE DIESER FALL GEBAUT IST, IST NICHT „ein Text zu viel",
+     * sondern EIN ZWEITER ORT FUER DENSELBEN SATZ. `gateMeldung("zuviele", n)` kann fuer
+     * einen Grund AUS dem Satz nie `null` liefern (`_lib/gateTexte.ts:111`
+     * `if (!istGateGrund(roh)) return null;`, und `"zuviele"`/`"code"` stehen namentlich in
+     * `GATE_GRUENDE`, `_lib/gateTexte.ts:37-42`) — der `??`-Zweig ist also TOT. Ein toter
+     * Zweig faellt keinem Test auf; was auffiele, waere der Tag, an dem jemand `gateMeldung`
+     * umbaut und die verkuerzte Doppelfassung ploetzlich AUSGELIEFERT wird. Genau das ist in
+     * der ersten Fassung dieses Blocks passiert (Fix-Runde 1 zu A910, Fund 1): dort stand
+     * `?? "Zu viele Fehlversuche."` neben dem echten Satz „Zu viele Fehlversuche. Bitte in
+     * einer Minute erneut versuchen." Die richtige Form ist `gateMeldung(...)!`.
+     *
+     * ⛔ `trefferAuf` reinigt mit `ohneKommentare` — ZEICHENKETTEN BLEIBEN STEHEN, und nur
+     * deshalb kann dieses Muster den Textliteral-Rueckfall ueberhaupt sehen. Mit
+     * `ohneKommentareUndZeichenketten` waere der Fall dauerhaft leer-gruen.
+     *
+     * ⚠️ ES IST DIE LITERAL-FORM, DIE VERBOTEN IST, NICHT JEDES `??`. `_actions/gate.ts`
+     * fuehrt `gateMeldung(...) ?? undefined` — dort ist das Feld `fehler?: string`, und
+     * `undefined` ist KEIN Text, sondern der Typuebergang. Zwei Reichweiten wie beim
+     * `cookies().delete`-Fall darunter: zeilenweise und dateiweit, weil `trefferAuf`
+     * zeilenweise testet und ein Umbruch vor dem `??` sonst durchfiele.
+     */
+    const RUECKFALLTEXT = /gateMeldung\s*\([^)]*\)\s*(?:\?\?|\|\|)\s*["'`]/;
+    expect(trefferAuf(RUECKFALLTEXT)).toEqual([]);
+
+    const mehrzeilig: string[] = [];
+    for (const pfad of quellDateien()) {
+      if (RUECKFALLTEXT.test(ohneKommentare(readFileSync(pfad, "utf8")))) {
+        mehrzeilig.push(relative(process.cwd(), pfad));
+      }
+    }
+    expect(mehrzeilig, "Rueckfalltext hinter gateMeldung — auch ueber einen Zeilenumbruch hinweg").toEqual([]);
   });
 
   it("keine Datei unter admin/ nennt AUSLEIH_COOKIE", () => {
@@ -410,11 +478,27 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
      * anders heisst.
      */
     const dateien = adminDateien();
-    expect(dateien.length, "leere Dateiliste — der Scan waere leer-gruen").toBeGreaterThanOrEqual(2);
+    const kurz = dateien.map((p) => relative(MODUL, p).replace(/\\/g, "/")).sort();
+    /*
+     * ⛔ DIE NICHT-LEER-WACHE NENNT DIE ZWEI HUELLEN BEIM NAMEN (Fix-Runde 1 zu A910, Fund 6,
+     * in der tragenden Haelfte uebernommen). Eine blosse Untergrenze ist bei 0 und 1 rot,
+     * laesst aber offen, ob es die RICHTIGEN zwei Dateien sind: verschoebe jemand die zwei
+     * Verwaltungs-Huellen und legte zwei andere Dateien unter `admin/` ab, bliebe der Fall
+     * gruen und bewachte etwas anderes.
+     *
+     * ⛔ UND KEIN `toBe(2)` AUF DER LAENGE, anders als vom Review vorgeschlagen: Planteil 4
+     * baut die zehn Seiten aus Spec:4369-4378 und einen Export-Handler unter `admin/` — eine
+     * DRITTE Datei dort ist kein Fehler, sondern der Plan. `riegel.test.ts:88-91` faellt fuer
+     * dieselbe Form dasselbe Urteil („eine DRITTE Verwaltungs-Huelle waere kein Fehler"). Was
+     * exakt sein MUSS, ist die Zusicherung darunter — und die ist es: `toEqual([])`.
+     */
+    for (const pflicht of ["admin/(arbeit)/layout.tsx", "admin/(druck)/layout.tsx"]) {
+      expect(kurz, `${pflicht} nicht im Scan — der Fall bewachte etwas anderes`).toContain(pflicht);
+    }
     expect(trefferAuf(/\bAUSLEIH_COOKIE\b|radio_ausleihe/, dateien)).toEqual([]);
   });
 
-  it("keine Gate-Flaeche nennt NextResponse.redirect", () => {
+  it("keine aeussere Flaeche baut eine absolute Umleitung", () => {
     /*
      * ⛔ Spec:2284-2296: `NextResponse.redirect(...)` verlangt eine ABSOLUTE URL, und
      * `req.url` traegt nach dem Modul-Host-Rewrite den INNEREN Pfad (`/m/radio/...`). Der
@@ -424,10 +508,73 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
      *
      * Ein RELATIVES `Location` loest der Browser gegen die URL auf, die ER sah
      * (RFC 7231 §7.1.2).
+     *
+     * ⚠️ DREI FORMEN DERSELBEN FEHLERKLASSE, NICHT EINE (Fix-Runde 1 zu A910, Fund 5, an
+     * genau diesen Mustern nachgemessen):
+     *
+     *   `NextResponse.redirect(new URL(pfad, req.url))`                  — Muster 1
+     *   `Response.redirect(new URL(pfad, req.url), 303)`                 — Muster 1
+     *   `new NextResponse(null, { headers: { Location: new URL(…).toString() } })` — Muster 2
+     *
+     * ⛔ MUSTER 1 TRAEGT KEIN `\b` UND KEIN `(?:Next)?`, und beides ist gemessen (Fix-Runde 1
+     * zu A910, Nachlauf): ein `\b` VOR `Response` greift in „NextResponse" NICHT (`t` und `R`
+     * sind beide Wortzeichen) — `/\b(?:Next)?Response\./` liesse also `MyNextResponse.redirect`
+     * durch, was das alte, anker-lose `/NextResponse\./` gefangen haette. Und ohne `\b` ist
+     * `(?:Next)?` wirkungslos. Das nackte `Response\s*\.\s*redirect` ist ECHTE Obermenge von
+     * beiden Vorgaengern; gemessen an fuenf Faellen, darunter `MyNextResponse.redirect(x)`.
+     *
+     * ⛔ KEIN VERBOT VON `new URL(… req.url …)` ALS SOLCHEM, und das ist gemessen: das im
+     * Review vorgeschlagene `new\s+URL\s*\([^)]*\breq\.url\b` trifft
+     * `abmelden/route.ts:66` — `new URL(req.url).searchParams.get("grund")` —, und das ist
+     * die RICHTIGE Form, den `grund` zu lesen. Der Fall waere damit rot auf korrektem Code.
+     * Muster 2 haengt deshalb am `Location`-Kopf und nicht an `new URL`. `[^,}]*` bindet es
+     * an DIESE eine Objekt-Eigenschaft und laeuft dabei ueber Zeilenumbrueche.
+     *
+     * ⚠️ UND DAMIT IST SEINE GRENZE BENANNT, statt sie zu ueberzeichnen: EINE Indirektion
+     * genuegt, um daran vorbeizukommen — `const ziel = new URL(pfad, req.url).toString();`
+     * eine Zeile ueber `headers: { Location: ziel }` faellt durch, weil das `}` den Scan vor
+     * dem `new URL` beendet. Gefangen ist die INLINE-Form, und die ist die naheliegende. Der
+     * allgemeine Fall gehoert ⬜ A-L9 (ein echter Abruf auf zwei Hosts), nicht einem
+     * Quelltext-Scan — dieselbe Ehrlichkeit wie bei `getDb(` als einzigem gescannten Opener
+     * (Bedenken 4 des Berichts zu A910).
+     *
+     * ⛔ MUSTER 1 BLEIBT OHNE `\(`: ein `const um = NextResponse.redirect;` truege denselben
+     * Fehler eine Zeile spaeter.
      */
+    const ABSOLUTE_UMLEITUNG = /Response\s*\.\s*redirect/;
+    const ABSOLUTES_LOCATION = /\bLocation\s*:[^,}]*\bnew\s+URL\s*\(/;
     for (const f of GATE_FLAECHEN.concat(["abmelden/route.ts"])) {
-      expect(ohneKommentareUndZeichenketten(lies(f)), `${f} nennt NextResponse.redirect`)
-        .not.toMatch(/NextResponse\s*\.\s*redirect/);
+      const q = ohneKommentareUndZeichenketten(lies(f));
+      expect(q, `${f} nennt Response.redirect — das verlangt eine ABSOLUTE URL`)
+        .not.toMatch(ABSOLUTE_UMLEITUNG);
+      expect(q, `${f} baut ein absolutes Location aus new URL(...)`)
+        .not.toMatch(ABSOLUTES_LOCATION);
+    }
+  });
+
+  it("die zwei Route Handler antworten mit 303", () => {
+    /*
+     * ⛔ NACHGETRAGEN IN FIX-RUNDE 1 ZU A910 (Fund 2). Der Brief nennt die Antwortform
+     * „verbindlich" (`briefs/A910.md`, A10 Schritt 2: „303, nicht 302 — die Antwort auf ein
+     * GET soll nach dem Folgen ein GET bleiben"), und bis hierher faerbte sich KEIN Test des
+     * Moduls, wenn beide Handler auf 302 wechselten (im Review gemessen: 18 Dateien,
+     * 243 Tests, 0 rot).
+     *
+     * WAS EIN 302 KOSTET: die Antwort auf ein GET, das eine Wirkung hatte, soll nach dem
+     * Folgen ein GET bleiben. 303 sagt das ausdruecklich; bei 302 ueberlaesst man es dem
+     * Browser. Der Fehler ist typkorrekt, lint-sauber und fuer `pnpm build` unsichtbar —
+     * genau die Klasse, fuer die es diese Datei gibt.
+     *
+     * ⛔ DIE ZWEITE HAELFTE IST DIE TRAGENDE. Ohne sie bliebe ein ZWEITER, falscher Zweig
+     * unentdeckt: eine Datei, die an einer Stelle 303 und an einer anderen 302 antwortet,
+     * erfuellt die erste Zusicherung. `30(?!3)\d` deckt jede 3xx-Umleitung ausser 303 ab —
+     * auch 307 und 308, die ein „modernisierender" Griff naheliegend einsetzte — und kann
+     * `status: 404` (die eigene 404 des Host-Riegels) nicht erreichen.
+     */
+    for (const f of ROUTE_HANDLER) {
+      const q = ohneKommentareUndZeichenketten(lies(f));
+      expect(q, `${f} antwortet nicht mit 303`).toMatch(/status:\s*303\b/);
+      expect(q, `${f} traegt eine Umleitung, die nicht 303 ist`).not.toMatch(/status:\s*30(?!3)\d\b/);
     }
   });
 

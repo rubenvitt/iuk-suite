@@ -14,9 +14,14 @@ export const dynamic = "force-dynamic";
  * gerufen, und das ist eine SERVER COMPONENT. `cookies()` ist dort versiegelt — `delete`,
  * `set` und `clear` sind durch einen Proxy ersetzt, der WIRFT
  * (`next/dist/server/web/spec-extension/adapters/request-cookies.js:53` traegt den Satz
- * „Cookies can only be modified in a Server Action or Route Handler" woertlich, `:171`
- * haengt den Riegel an `cookies().delete`; im Bestand nachgeschlagen und in
- * `src/app/m/lagerbuch/abmelden/route.ts:12-20` ausgeschrieben). Ein `cookies().delete(...)`
+ * „Cookies can only be modified in a Server Action or Route Handler" woertlich, und `:69-72`
+ * haengt den Riegel an: `case 'clear': case 'delete': case 'set': return
+ * ReadonlyRequestCookiesError.callable;` in `RequestCookiesAdapter.seal`. ⚠️ NACHGEMESSEN AN
+ * DER INSTALLIERTEN FASSUNG, `next` 16.3.0 (Fix-Runde 1 zu A910, Fund 4): `:171` — der Anker,
+ * den `lagerbuch/abmelden/route.ts:17` fuer Next 16.2.11 nennt und der hier zuerst
+ * abgeschrieben stand — ist dort das ENDE des SCHREIBENDEN Proxys (`case 'set': return
+ * function(...args) { … target.set(...args) … }`, `:162-171`). Der erlaubt, er riegelt nicht.
+ * Die AUSSAGE des Kommentars stimmt, der Zeilenanker stimmte nicht.) Ein `cookies().delete(...)`
  * an der Stelle, an der der Sperrbefund auffaellt, ist also nicht „unsauber", sondern ein
  * LAUFZEITFEHLER. Der Riegel leitet deshalb per `redirect()` ALS STRING hierher; diese Datei
  * raeumt (Bauform-Zulaessigkeitstafel Zeilen 3 und 7).
