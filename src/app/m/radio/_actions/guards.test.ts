@@ -221,6 +221,64 @@ function ohneKommentareUndZeichenketten(quelle: string): string {
 }
 
 /**
+ * ⛔ REGEXLITERALE WERDEN GELEERT, UND ZWAR VOR JEDER KLAMMERZAEHLUNG. Gemessen am
+ * 2026-08-23, Fix-Runde 1: `ohneKommentareUndZeichenketten` leert Kommentare und
+ * Zeichenketten, aber KEIN Regexliteral. Eine unbalancierte Klammer darin — `/^[A-Z(]+$/`,
+ * `/[}]/`, `/[{]/` — verschiebt jeden Zaehler dahinter, und die Wirkung war STILL: die
+ * Sonde `sondeRegexZuSpaet` (Riegel hinter einem `db`-Zugriff, davor genau so ein
+ * Literal) lief mit LEERER Verstossliste durch. Ein Regexliteral steht in einer Action
+ * nicht theoretisch — `normalisiereCode` (A9) ist genau die Form, die jemand in die
+ * ersten Zeilen eines Rumpfes schreibt.
+ *
+ * Ein `/` beginnt ein Literal, wenn das letzte bedeutsame Zeichen davor keinen WERT
+ * abschliesst (dann waere es eine Division). Die Liste unten ist die uebliche und
+ * bewusst grosszuegig: wird ein Divisionszeichen faelschlich fuer einen Literalanfang
+ * gehalten, verschwindet Quelltext aus der Sicht des Scans, und die naechste Behauptung
+ * darueber schlaegt LAUT fehl — nie still.
+ */
+const REGEX_ERLAUBT =
+  /(?:^|[([{,;:=!&|?+\-*%~^<>]|\breturn|\btypeof|\binstanceof|\bin|\bof|\bnew|\bdelete|\bvoid|\bcase|\bdo|\belse|\byield|\bawait)$/;
+
+function ohneRegexLiterale(q: string): string {
+  let ergebnis = "";
+  let i = 0;
+  while (i < q.length) {
+    const z = q[i]!;
+    if (z === "/" && REGEX_ERLAUBT.test(ergebnis.trimEnd())) {
+      let j = i + 1;
+      let klasse = false;
+      let fertig = false;
+      while (j < q.length) {
+        const y = q[j]!;
+        if (y === "\\") { j += 2; continue; }
+        if (y === "\n") break;
+        if (y === "[") klasse = true;
+        else if (y === "]") klasse = false;
+        else if (y === "/" && !klasse) { fertig = true; break; }
+        j++;
+      }
+      if (fertig) {
+        ergebnis += " ".repeat(j + 1 - i);
+        i = j + 1;
+        while (i < q.length && /[a-z]/.test(q[i]!)) { ergebnis += " "; i++; }
+        continue;
+      }
+    }
+    ergebnis += z;
+    i++;
+  }
+  return ergebnis;
+}
+
+/**
+ * Die eine Bereinigung, die JEDER Scan dieser Datei benutzt: Kommentare, Zeichenketten
+ * UND Regexliterale geleert, Zeilenzahl erhalten.
+ */
+function bereinigt(quelle: string): string {
+  return ohneRegexLiterale(ohneKommentareUndZeichenketten(quelle));
+}
+
+/**
  * DIE GRENZEN DES FUNKTIONSRUMPFES: Index der oeffnenden `{` und Index der zugehoerigen
  * schliessenden `}` — gezaehlt, nicht geraten.
  *
@@ -304,7 +362,7 @@ function rumpfGrenzen(q: string, abParamAuf: number): { auf: number; zu: number 
  * („als erste Anweisung, vor jedem Lesen von `formData`") tragen die schaerfere Zusage —
  * jetzt loest der Code sie ein, statt sie zu behaupten.
  */
-function ersteAnweisung(rumpf: string): string {
+function ersteAnweisung(rumpf: string): string | null {
   let runde = 0;
   let eckig = 0;
   let geschweift = 0;
@@ -323,6 +381,13 @@ function ersteAnweisung(rumpf: string): string {
        * die erste Anweisung eben dieser Block und nicht das, was in ihm steht. Wer beides
        * gleich behandelt, laesst einen Riegel IM zweiten Block als „erste Anweisung"
        * durchgehen — falsch-negativ und still, genau die Richtung, die hier verboten ist.
+       *
+       * ⚠️ DIE LISTE `=`/`const`/`let`/`var` IST BEWUSST KURZ, UND IHRE LUECKEN GEHEN ALLE
+       * IN DIE STRENGE RICHTUNG. Steht vor der Klammer etwas anderes — `return {`, `? {`,
+       * `, {` —, schneidet dieser Zweig FRUEHER ab als noetig. Die erste Anweisung wird
+       * dadurch kuerzer, nie laenger; der Scan meldet also hoechstens einen Riegel als
+       * „nicht erste Anweisung", der es doch war. LAUT, nicht still — und in jedem dieser
+       * Faelle ist die erste Anweisung ohnehin kein Riegelaufruf.
        */
       const davor = rumpf.slice(0, i).trimEnd();
       const bindung = /(?:=|\b(?:const|let|var))$/.test(davor);
@@ -334,7 +399,16 @@ function ersteAnweisung(rumpf: string): string {
       return rumpf.slice(0, i + 1);
     }
   }
-  return rumpf;
+  /*
+   * ⛔ KEIN ABSCHLUSS AUF OBERSTER EBENE GEFUNDEN — UND HIER WIRD DER SCAN LAUT STATT
+   * NACHSICHTIG. Bis zur Fix-Runde 1 gab diese Stelle den GANZEN Rumpf zurueck; ein
+   * beliebig weit hinten stehender Riegel galt damit als „erste Anweisung", und jede
+   * Entgleisung der Zaehler wurde zu einem STILLEN Freispruch (gemessen mit einem
+   * Regexliteral im Rumpf, siehe `ohneRegexLiterale`). `null` heisst: der Aufrufer meldet
+   * einen Verstoss. Ein Rumpf, dessen erste Anweisung sich nicht bestimmen laesst, ist
+   * eine Form, ueber die dieser Scan nichts zusichern kann — und das gehoert gesagt.
+   */
+  return null;
 }
 
 /**
@@ -355,7 +429,7 @@ function ersteAnweisung(rumpf: string): string {
 function exportierteActions(
   quelle: string,
 ): { name: string; koerper: string; rumpf: string | null }[] {
-  const q = ohneKommentareUndZeichenketten(quelle);
+  const q = bereinigt(quelle);
   const treffer = [...q.matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)\s*\(/g)];
   return treffer.map((t) => {
     const grenzen = rumpfGrenzen(q, t.index! + t[0].length);
@@ -441,7 +515,7 @@ describe("radio-_actions: jede exportierte Action traegt ihren Riegel", () => {
      */
     const verstoesse: string[] = [];
     for (const pfad of actionDateien()) {
-      const q = ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8"));
+      const q = bereinigt(readFileSync(pfad, "utf8"));
       for (const treffer of q.matchAll(/\bexport\b/g)) {
         const ausschnitt = q.slice(treffer.index!, treffer.index! + 160).replace(/\s+/g, " ");
         if (!EXPORT_FORM.test(ausschnitt)) {
@@ -475,6 +549,12 @@ describe("radio-_actions: jede exportierte Action traegt ihren Riegel", () => {
           continue;
         }
         const erste = ersteAnweisung(rumpf);
+        if (erste === null) {
+          verstoesse.push(
+            `${schluessel}: erste Anweisung nicht bestimmbar — der Scan kann hier nichts zusichern`,
+          );
+          continue;
+        }
         if ((AUSNAHMEN as readonly string[]).includes(schluessel)) {
           /*
            * ⛔ EINE AUSNAHME IST KEINE FREISTELLUNG. Alle drei Ausnahmen tragen
