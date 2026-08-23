@@ -95,7 +95,7 @@ describe("radio-ikonen: Falle 7 — kein fremdes Zeichenpaket unter m/radio/", (
 
   it("die Zeichenquelle selbst traegt kein use client", () => {
     // Falle 6: `IkonName` ist ein TYP und `IKON_NAMEN` ein WERT, den Server Components
-    // lesen. `riegel.test.ts:921-940` deckt nur `_lib/` und `_db/` ab, nicht `_ui/`.
+    // lesen. `riegel.test.ts:924-977` deckt nur `_lib/` und `_db/` ab, nicht `_ui/`.
     expect(ohneKommentare(readFileSync(QUELLE, "utf8"))).not.toMatch(/["']use client["']/);
   });
 });

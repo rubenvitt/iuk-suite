@@ -7,7 +7,7 @@
  * SERVER Component gelesen (`_ui/StatusChip.tsx`, A16) UND von den Client-Zeilen der
  * Geraeteliste (A18); ein Wert aus einem Client-Modul kaeme in der Server Component nicht
  * an — HTTP 500 fuer die ganze Seite, und Vitest kann es strukturell nicht sehen. Der Scan,
- * der das modulweit durchsetzt, steht in `src/app/m/radio/riegel.test.ts:921-940`.
+ * der das modulweit durchsetzt, steht in `src/app/m/radio/riegel.test.ts:924-977`.
  *
  * ⛔ KEIN ANTD-`Tag`, KEIN `Alert type="error"` — und der Grund ist gemessen:
  * `colorError === colorPrimary === FARBEN.rot` (`src/core/theme/theme.ts:32-33`). Rot ist

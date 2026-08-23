@@ -122,11 +122,11 @@ const ADMIN_SEITEN_ANZAHL = 0;
 const ADMIN_LAYOUTS_MINDESTENS = 2;
 
 /**
- * ⛔ HEUTE EINS (`page.tsx`, das Gate). Angehoben von A18 (3: + `(ausleihe)/layout.tsx`
- * und `(ausleihe)/geraete/page.tsx`), A19 (4) und A20 (5). EXAKT, nicht „mindestens" —
- * dieselbe Begruendung wie bei `HANDLER_ANZAHL` oben.
+ * ⛔ HEUTE DREI: `page.tsx` (das Gate, A11), `(ausleihe)/layout.tsx` und
+ * `(ausleihe)/geraete/page.tsx` (beide A18). Angehoben von A19 (4) und A20 (5). EXAKT,
+ * nicht „mindestens" — dieselbe Begruendung wie bei `HANDLER_ANZAHL` oben.
  */
-const AUSLEIH_FLAECHEN_ANZAHL = 1;
+const AUSLEIH_FLAECHEN_ANZAHL = 3;
 
 /**
  * Alle `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv, OHNE Testdateien.
@@ -798,11 +798,11 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
    *          als erste Anweisung; ein zweiter Aufruf behauptet, es sei host-blind, und
    *          macht aus „hostgebunden durch Konstruktion" eine vergessliche Liste
    *          (Spec:2686-2691, §3.5.5 Spec:2768-2769).
-   *       ⚠️ requireAusleihSchreibend( STEHT HIER BEWUSST NICHT in der Verbotsliste — anders
-   *          als in der Gate-Haelfte oben. Ob eine der drei Ausleihseiten sie legitim ruft,
-   *          entscheiden die Briefe A18-A20; ein vorgezogenes Verbot waere hier
-   *          ROT-BY-CONSTRUCTION, dieselbe Fehlerform, die B7 (Spec:96) schon einmal
-   *          abgeraeumt hat. ⛔ A18 ENTSCHEIDET UND SPIEGELT ODER BEGRUENDET (REVIEW-A11 W1).
+   *       ⛔ UND NICHT requireAusleihSchreibend( — A18 HAT ENTSCHIEDEN UND SPIEGELT DIE
+   *          GATE-HAELFTE (REVIEW-A11 W1). Gepruefte Grundlage, nicht vermutet: die Briefe
+   *          A19 (`:10`, `:90`) und A20 (`:9`) fuehren fuer ihre Seiten ausschliesslich
+   *          requireAusleihZugang(; der SCHREIBENDE Weg sind die Server Actions, und die
+   *          fallen nicht in diese Klausel. Also kein ROT-BY-CONSTRUCTION.
    *
    * ⚠️ WAS SIE NICHT BELEGT: dass ein Riegel bei einem echten Abruf GREIFT (⬜ A-L9,
    * Erbe von Z-L1). Sie belegt, dass eine BAUFORM eingehalten ist.
@@ -864,6 +864,9 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
       if (/\brequireRadioAdmin\s*\(|\brequireRadioVerwaltung\s*\(/.test(q)) {
         verstoesse.push(`${kurz}: ein Verwaltungsriegel auf der anonymen Ausleihflaeche`);
       }
+      if (/\brequireAusleihSchreibend\s*\(/.test(q)) {
+        verstoesse.push(`${kurz}: requireAusleihSchreibend( gibt ein ERGEBNIS zurueck (Tafel Zeile 10)`);
+      }
     }
     expect(verstoesse).toEqual([]);
   });
@@ -918,7 +921,7 @@ describe("Pflicht 17 — dieses Modul nimmt von der Suite-Admin-Abkuerzung Absta
   });
 });
 
-describe('kein "use client" unter _lib/ und _db/', () => {
+describe('keine Bauform-Direktive unter _lib/ und _db/', () => {
   it("findet keine Direktive", () => {
     /*
      * Falle 6 (`CLAUDE.md`): ein WERT aus einem `"use client"`-Modul kommt in einer Server
@@ -935,6 +938,40 @@ describe('kein "use client" unter _lib/ und _db/', () => {
     expect(
       trefferAuf(/^\s*["']use client["']/, dateien),
       'Werte fuer Server Components gehoeren in ein Modul OHNE "use client" (Falle 6)',
+    ).toEqual([]);
+  });
+
+  it('findet auch keine Direktive "use server"', () => {
+    /*
+     * ⬜ A-L16 GESCHLOSSEN. Der Posten steht im Ledger
+     * (`.superpowers/sdd/planteil3/progress.md`, Block „Offen, nachgetragen in der
+     * Fix-Runde 2 zu A14") und benennt als Eigentuemer ausdruecklich „die naechste Aufgabe,
+     * die `riegel.test.ts` ohnehin waechst — dort ist der Ankerdurchgang schon geschuldet
+     * und die Zusicherung kostet nur noch ihre eigenen Zeilen". Das ist A18: die Aufgabe
+     * hebt `AUSLEIH_FLAECHEN_ANZAHL` und spiegelt die Verbotsliste in Klausel (f).
+     *
+     * ⛔ WAS ER FAENGT, UND WARUM DIE GEGENRICHTUNG NICHT GENUEGT: eine `"use server"`-Datei
+     * ist ein Modulgrenzfall, der ausschliesslich asynchrone Funktionen exportieren darf.
+     * `_actions/guards.test.ts:699-716` VERLANGT die Direktive als erste Zeile jeder Datei
+     * unter `_actions/` — das ist die andere Richtung auf einem anderen Ordner und sagt
+     * ueber `_lib/` und `_db/` nichts. Genau dort liegen aber die WERTE, die Server
+     * Components lesen (`GATE_GRUENDE`, `STATUS_HEX`, `AUSLEIH_GRUENDE`, `STATUS_FILTER`);
+     * eine Direktive dort machte aus jedem von ihnen eine Serverreferenz.
+     *
+     * ⚠️ BEWACHT WAR BIS HIERHER GENAU EINE DATEI, und das ist gemessen: `_lib/meldungen.ts`
+     * scannt sich selbst (`_lib/meldungen.test.ts:530-555`, Sonden M-G und M-L je 1 rot).
+     * Jede andere Datei unter `_lib/` und `_db/` durfte die Direktive tragen, ohne dass ein
+     * Tor rot wurde.
+     *
+     * ⚠️ WAS ER NICHT FAENGT: eine Direktive, die nicht am Zeilenanfang steht. Dieselbe
+     * Grenze wie beim `"use client"`-Scan darueber, und dieselbe Antwort — die Direktive
+     * WIRKT nur als erste Anweisung der Datei.
+     */
+    const dateien = quellDateien().filter((p) => /\/(?:_lib|_db)\//.test(kurzPfad(p)));
+    expect(dateien.length, "leere Dateiliste — der Scan waere leer-gruen").toBeGreaterThanOrEqual(4);
+    expect(
+      trefferAuf(/^\s*["']use server["']/, dateien),
+      '"use server" gehoert unter _actions/ — dort setzt guards.test.ts die Gegenrichtung durch',
     ).toEqual([]);
   });
 });

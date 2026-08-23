@@ -375,3 +375,239 @@
   height: 10px;
   border-radius: 50%;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────────────────
+ * DIE GERAETEUEBERSICHT (A18) — Filterleiste, Standortgruppen, Geraetezeile.
+ *
+ * ⛔ NACHBAU, WEIL KEIN ANTD-BAUSTEIN PASST (Entscheidung E8, Spec:3712-3717). Die
+ * Geraetezeile ist kein antd-Bedienelement; `controlHeight` deckt nur die HOEHE von
+ * Bedienelementen ab, und `min-width` setzt antd ohnehin nicht. Eine zweite
+ * `ConfigProvider`-Ebene waere eine Client-Komponente und machte den Server-Rahmen zur
+ * Client-Grenze (`AusleihRahmen.tsx:43-45`).
+ *
+ * ⛔ DIE ZWEI MASSE SIND 44 UND 64, UND SONST KEINES (Spec:3724-3726). 64 traegt die
+ * Geraetezeile — der Haupt-Tap mit Handschuh (Spec:3713, im Bestand 56,
+ * `DeviceRow.tsx:53`); 44 tragen Filterknopf und Gruppenkopf (Spec:3715, `:3717`).
+ * ⛔ 72 STEHT NIRGENDS (das waere `size="large"`, Falle 4), 56 STEHT NIRGENDS — es wird
+ * vom Wurzelprovider geerbt (`src/core/theme/theme.ts:50-51`), weil diese Flaeche ohne
+ * `FullShell` laeuft.
+ * ⛔ `touch-action: manipulation` UND `min-width` SIND DER NACHBAU, fuer den es kein
+ * antd-Token gibt (Spec:3724-3725; Alt-Quelle `components/ui/touch-button.tsx:36` — Spec:3725 nennt `:35`,
+ * dort steht die schliessende Klammer, das `style={{ touchAction }}` steht auf `:36`).
+ *
+ * ⛔ KEINE FARBE FUER DEN FLIESZTEXT UND KEINE FLAECHENFARBE — dieselbe Regel wie im Kopf
+ * dieser Datei. Ein verdrahtetes `color: #000` waere in der Dunkeldarstellung schwarz auf
+ * schwarz, und kein Tor saehe es.
+ *
+ * ⚠️ DER STATUSPUNKT DER ZEILE IST DER CHIP AUS `StatusChip.tsx` — hier entsteht KEINE
+ * zweite Farbtafel. Die acht Werte stehen einmal, oben bei `.chip`.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+
+.liste {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.filterleiste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/*
+ * ⛔ KEINE HOEHE. Das Suchfeld ist ein antd-`Input`; es erbt 56 (`theme.ts:50`). Ein
+ * `size`-Prop waere 72 (Falle 4), eine Hoehe hier waere die zweite Wahrheit daneben.
+ */
+.suchfeld {
+  width: 100%;
+}
+
+.filterreihe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/*
+ * 44 — WCAG 2.5.5 Target Size (Enhanced), im Bestand `DeviceFilterBar.tsx:76`.
+ * ⛔ `min-width` GEHOERT DAZU: antd setzt Hoehen, nie Breiten (Spec:3724-3725). Ein
+ * Filter „Alle" waere sonst ein 40px breites Ziel.
+ */
+.filterknopf {
+  min-height: 44px;
+  min-width: 44px;
+  padding-inline: 1rem;
+  border: 1px solid var(--radio-gate-linie);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.filterknopf[aria-pressed="true"] {
+  border-color: var(--radio-gate-marke);
+  background: var(--radio-gate-flaeche);
+  font-weight: 600;
+}
+
+.trefferzeile {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--radio-gate-gedaempft);
+}
+
+.gruppen,
+.zeilen {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gruppen {
+  gap: 1rem;
+}
+
+.gruppe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* 44 — im Bestand `DeviceGroup.tsx:24`. Bei aktivem Suchtext ist er `disabled`. */
+.gruppenkopf {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding-inline: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--radio-gate-gedaempft);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.gruppenkopf:disabled {
+  cursor: default;
+}
+
+.gruppenZahl {
+  font-weight: 400;
+}
+
+/*
+ * DIE GERAETEZEILE — 64px, der Haupt-Tap (Spec:3713).
+ *
+ * ⛔ SIE IST EIN `a` ODER EIN `div`, JE NACH LEIHSTAND (`GeraeteZeile.tsx`), und beide
+ * tragen dieselbe Klasse: die Aussage „antippbar" haengt am Element und an
+ * `aria-disabled`, nicht an einer Farbe.
+ */
+.zeile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-sizing: border-box;
+  min-height: 64px;
+  min-width: 64px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--radio-gate-linie);
+  border-radius: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+/*
+ * 60 % Deckkraft fuer ein vergebenes Geraet, 1:1 aus `DeviceRow.tsx:57` (`opacity-60`).
+ * ⛔ DECKKRAFT IST NICHT DER TRAEGER DER AUSSAGE — `aria-disabled` und der fehlende
+ * `href` sind es (`DeviceRow.tsx:47`, `:49-50`). Farbe und Deckkraft sind nie der einzige
+ * Traeger (Spec:3696-3697).
+ */
+.zeile[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.zeileText {
+  flex: 1;
+  min-width: 0;
+}
+
+.zeileRufname {
+  overflow: hidden;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zeileNeben {
+  overflow: hidden;
+  font-size: 0.875rem;
+  color: var(--radio-gate-gedaempft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Der Leerzustand der Insel: kein Treffer fuer Suchtext oder Filter. */
+.leerTreffer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  color: var(--radio-gate-gedaempft);
+  text-align: center;
+}
+
+/*
+ * Die Kopfzeile der Uebersicht: Ueberschrift links, Aktualisieren-Knopf rechts.
+ * ⛔ DIE UEBERSCHRIFT IST EIN NACKTES `h1`, kein `Typography.Title` — Compound-Zugriff in
+ * einer Server Component ist HTTP 500 (Falle 1, `CLAUDE.md:11-13`, Spec:3349-3351).
+ */
+.uebersichtKopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.uebersichtTitel {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+/*
+ * DIE ERFOLGSZEILE NACH EINER BUCHUNG (`?gebucht=<n>`, Entscheidung E6: kein Toast).
+ *
+ * ⛔ GRUEN AUS DEM CHIP-SATZ, NICHT `colorSuccess` — ein Farbsystem je Flaeche
+ * (Spec:3754-3776, Entscheidung E6). `--radio-status-frei` steht auf `.chip`; diese Regel
+ * setzt den Wert deshalb SELBST, mit demselben Hell- und Dunkelwert wie dort
+ * (`_lib/status.ts`, ⬜ A-L10). ⛔ NIE `--ant-*` (Falle 2) und nie `colorError` auf einer
+ * Datenflaeche (Falle 3: `colorError === colorPrimary`, `src/core/theme/theme.ts:32-33`).
+ */
+.gebucht {
+  --radio-gebucht-farbe: #22c55e;
+
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--radio-gebucht-farbe);
+  border-radius: 0.5rem;
+  border-left-width: 4px;
+}
+
+:root[data-theme="dark"] .gebucht {
+  --radio-gebucht-farbe: #16a34a;
+}

@@ -24,7 +24,7 @@ import { geraeteZustandAus, type GeraeteStatus } from "../_lib/status";
  * IM SELBEN PROZESS.
  *
  * ⛔ KEIN `"use client"`, KEIN `"use server"` — reine Datenzugriffe (Spec:5014). Die
- * `"use client"`-Haelfte setzt `src/app/m/radio/riegel.test.ts:921-940` modulweit durch; fuer
+ * `"use client"`-Haelfte setzt `src/app/m/radio/riegel.test.ts:924-977` modulweit durch; fuer
  * `"use server"` gibt es keinen modulweiten Scan (⬜ A-L16, `_lib/meldungen.ts:19-24`),
  * deshalb scannt `_db/leihen.test.ts` diese Datei selbst.
  *

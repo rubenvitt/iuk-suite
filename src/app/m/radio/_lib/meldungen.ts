@@ -9,19 +9,19 @@
  * rendern `text`. Ein Wert aus einem Client-Modul kaeme in einer Server Component nicht an
  * — HTTP 500 fuer die ganze Seite, und Vitest kann es strukturell nicht sehen.
  *
- * ⚠️ DIE ZWEI HAELFTEN DIESER ZUSAGE HABEN ZWEI VERSCHIEDENE WAECHTER, und „modulweit" gilt
- * nur fuer die erste — bis zur Fix-Runde 1 stand hier ein Anker fuer beide:
- *   — `"use client"`: `src/app/m/radio/riegel.test.ts:921-940` scannt JEDE Datei unter
- *     `_lib/` und `_db/`; zusaetzlich scannt `_lib/meldungen.test.ts` diese Datei selbst.
- *   — `"use server"`: NUR diese Datei, ueber denselben eigenen Quelltext-Scan. Vorbild:
+ * ⚠️ DIE ZWEI HAELFTEN DIESER ZUSAGE HABEN ZWEI WAECHTER; seit A18 ist „modulweit" fuer
+ * BEIDE richtig (bis dahin galt es nur fuer die erste):
+ *   — modulweit: `src/app/m/radio/riegel.test.ts:924-977` scannt JEDE Datei unter `_lib/`
+ *     und `_db/`, auf `"use client"` UND auf `"use server"`.
+ *   — nur diese Datei: der eigene Quelltext-Scan in `_lib/meldungen.test.ts`. Vorbild:
  *     `src/app/m/lagerbuch/_lib/actionTypen.test.ts:144-145`.
  *
- * ⬜ A-L16 — EINE MODULWEITE ABWESENHEITS-ZUSICHERUNG FUER `"use server"` GIBT ES NICHT.
- * Gemessen: `grep -rn "use server" src/app/m/radio/` findet als einzige Durchsetzung
- * `_actions/guards.test.ts:699-716`, und die VERLANGT die Direktive als erste Zeile jeder
- * Datei unter `_actions/` — die Gegenrichtung, auf einem anderen Ordner. Wer sie modulweit
- * will, erweitert `riegel.test.ts:921-940`; das laesst die Datei wachsen und zieht den
- * Ankerdurchgang nach sich (Ledger-Regel `.superpowers/sdd/planteil3/progress.md:118-132`).
+ * ✅ A-L16 IST GESCHLOSSEN (A18). Bis dahin gab es die Abwesenheits-Zusicherung modulweit
+ * NICHT: einzige Durchsetzung war `_actions/guards.test.ts:699-716`, und die VERLANGT die
+ * Direktive als erste Zeile jeder Datei unter `_actions/` — die Gegenrichtung, auf einem
+ * anderen Ordner. Jetzt scannt `riegel.test.ts` beide Direktiven ueber JEDE Datei unter
+ * `_lib/` und `_db/`. Der eigene Scan dieser Datei bleibt daneben stehen: er liest den
+ * ROHEN Dateitext und ist damit der tiefere, wo jener der breitere ist.
  *
  * ⛔ WARUM DIE TYPEN HIER LIEGEN UND NICHT IN `_actions/ausleihe.ts`, wie Spec:3446-3455 es
  * schreibt: Entscheidung E11 (`.superpowers/sdd/planteil3/briefs/KOPF.md:649-671`). Dort
