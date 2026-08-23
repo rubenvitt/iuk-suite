@@ -254,6 +254,53 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
   });
 });
 
+describe("radio-AusleihRahmen: die Ablaufgrenze rechnet der RAHMEN (§4.2)", () => {
+  /**
+   * ⚠️ BEIDE FAELLE PRUEFEN DAS SERVER-HTML, nicht den gemounteten Baum — und genau darin
+   * liegt ihre Zusage. `Restzeit` setzt ihren Zeitgeber sofort nach dem Mounten; im
+   * gemounteten Baum haette ein fest verdrahtetes `abgelaufenInitial={false}` nach einem
+   * Durchlauf dieselbe Anzeige ergeben wie die richtige Rechnung. `renderToString` fuehrt
+   * keinen Effekt aus — dort ist die Rechnung `zugang.laeuftAb <= jetzt` die EINZIGE
+   * Quelle. Vorbild: `lagerbuch/_ui/HelferRahmen.test.tsx:230-244`.
+   *
+   * ⛔ WARUM ES SIE NEBEN `Restzeit.test.tsx` BRAUCHT: jene Datei reicht
+   * `abgelaufenInitial` als Prop herein und bewacht damit die Insel. Der STARTWERT
+   * entsteht aber HIER, in `AusleihRahmen.tsx` — ohne diese zwei Faelle liesse sich er
+   * auf eine Konstante verdrahten, und alle uebrigen Faelle blieben gruen (gemessen als
+   * Sonden S35 und S36). Der Hydrationsfehler kaeme dann durch den Aufrufer zurueck.
+   *
+   * Die beiden sind keine Kopien voneinander: der erste haelt allein die Richtung „noch
+   * nicht abgelaufen", der zweite allein die Richtung „abgelaufen".
+   */
+  it("weit vor Ablauf traegt das Server-HTML KEINEN Ablaufsatz", async () => {
+    let html = "";
+    await hydrate(
+      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
+        <p />
+      </AusleihRahmen>,
+      (wirt) => {
+        html = wirt.innerHTML;
+      },
+    );
+    expect(serverBaum(html).querySelector("[data-rolle='radio-restzeit']")).not.toBeNull();
+    expect(serverBaum(html).querySelector("[data-rolle='radio-restzeit-abgelaufen']")).toBeNull();
+  });
+
+  it("nach Ablauf traegt es ihn schon — die Gegenrichtung", async () => {
+    const abgelaufen: AusleihZugang = { ...ZUGANG_CODE, laeuftAb: new Date(Date.now() - 60_000) };
+    let html = "";
+    await hydrate(
+      <AusleihRahmen aktiv="uebersicht" zugang={abgelaufen}>
+        <p />
+      </AusleihRahmen>,
+      (wirt) => {
+        html = wirt.innerHTML;
+      },
+    );
+    expect(serverBaum(html).querySelector("[data-rolle='radio-restzeit-abgelaufen']")).not.toBeNull();
+  });
+});
+
 describe("radio-AusleihRahmen: die Fussnavigation", () => {
   it("traegt DREI Ziele auf AEUSSEREN Pfaden", async () => {
     /*

@@ -25,6 +25,13 @@ import s from "./ausleihe.module.css";
  * haelt beides fest — der Fall stand bis dahin in A12s Tabelle und war dort ueber eine
  * Datei, die es noch nicht gab, leer-gruen (`VORABSCAN-A.md:295-304`, Fund F15).
  *
+ * ⛔ ZWEI PROSA-SPERREN LIEGEN AUF DIESER DATEI, UND SIE GELTEN AUCH FUER KOMMENTARE.
+ * `StatusChip.test.tsx` liest fuer zwei Faelle den ROHEN Dateitext: kein sechsstelliger
+ * Hexwert (der gehoert nach `_lib/status.ts`) und kein Rueckfall-Operator (der waere ein
+ * zweiter Faltungsort). Wer einen der beiden im Kopf ausschreibt, macht den Fall rot — das
+ * ist Absicht und kein Kollateralschaden, dieselbe Bauform wie in `_lib/anzeige.ts` und
+ * `_lib/meldungen.ts`. Die Testdatei nennt den Grund an Ort und Stelle.
+ *
  * ⛔ VIER ZUSTAENDE, KEIN FUENFTER. Was eine leere `devices.status`-Spalte bedeutet, ist
  * entschieden und an genau EINER Stelle gefaltet: `geraeteZustandAus` in `_lib/status.ts`
  * (⬜ A-L13, Betreiberentscheidung vom 2026-08-22, `progress.md:22-32`). Dieser Chip nimmt

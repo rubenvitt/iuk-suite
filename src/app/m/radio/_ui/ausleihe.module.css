@@ -258,7 +258,16 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   border-top: 1px solid var(--radio-rahmen-linie);
-  background: inherit;
+  /*
+   * ⛔ `Canvas` UND NICHT `inherit`. `.rahmen` setzt bewusst KEINE Flaechenfarbe (Kopf
+   * dieser Datei: die Vorgabefarben des Browsers folgen `style={{ colorScheme: mode }}`
+   * aus `src/app/layout.tsx:153` von selbst) — ein `inherit` loeste damit auf
+   * `transparent` auf, und gescrollter Inhalt liefe SICHTBAR unter der Leiste durch.
+   * `Canvas` ist das Systemschluesselwort fuer genau diese Vorgabeflaeche und folgt
+   * demselben `color-scheme`; es haelt die Regel des Rahmens ein, statt sie zu brechen.
+   * ⬜ Im Browserlauf vor dem Merge gegenzupruefen, in BEIDEN Farbmodi.
+   */
+  background: Canvas;
 }
 
 .navEintrag {
