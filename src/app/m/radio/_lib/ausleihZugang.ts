@@ -10,7 +10,7 @@ import { viewerAusSession } from "./zugang";
 
 /**
  * DAS ZUGANGSPRAEDIKAT DER AUSLEIHE (Spec 1 §3.5, Zeilen 2632-2786).
- * KEIN "use client" (Falle 6, `CLAUDE.md:27`; durchgesetzt von `riegel.test.ts:684-703`).
+ * KEIN "use client" (Falle 6, `CLAUDE.md:27`; durchgesetzt von `riegel.test.ts:685-704`).
  *
  * ZWEI WEGE, EINE FUNKTION, EIN ERGEBNISTYP (Spec:2636-2638) — nicht zwei Riegel, die
  * jede Flaeche einzeln nebeneinanderstellt. Das waere die Liste, die die naechste Datei
@@ -49,7 +49,7 @@ import { viewerAusSession } from "./zugang";
  *
  * ⚠️ DIESE DREI WOERTER STEHEN HIER ABSICHTLICH AUSGESCHRIEBEN, und sie sind zugleich die
  * LAST des Scans in `ausleihZugang.test.ts`: er liest die Quelle ueber `ohneKommentare`
- * (Kopie aus `riegel.test.ts:163-183`). Ohne diesen Kopf traefe der Scan nichts und
+ * (Kopie aus `riegel.test.ts:164-184`). Ohne diesen Kopf traefe der Scan nichts und
  * bewiese nichts — mit ihm ist gemessen, dass er die Kommentare wirklich leert (Sonde
  * S-A7e). ⛔ Wer den Kopf entschaerft, macht den Scan still wirkungslos; wer den Scan
  * „repariert", schwaecht ihn.

@@ -720,7 +720,7 @@ describe("kein eingebauter Pseudo-Zufall in diesem Modul", () => {
      *
      * ⚠️ DIESE KLAUSEL IST SCHWAECHER ALS DER SCAN IN `_lib/code.test.ts`, und das steht
      * hier, statt verschwiegen zu werden: `trefferAuf` liest ueber `ohneKommentare`, prueft
-     * also nur AUSFUEHRBAREN Code (`riegel.test.ts:215-223`). Der Scan in
+     * also nur AUSFUEHRBAREN Code (`riegel.test.ts:216-224`). Der Scan in
      * `_lib/code.test.ts` liest den ROHEN Quelltext, Kommentare eingeschlossen. Keine
      * ersetzt die andere: diese hier ist breit (alle AUSGELIEFERTEN Modul-Dateien —
      * Testdateien und diese Datei selbst sind ausgenommen, `:137`), jene ist tief.

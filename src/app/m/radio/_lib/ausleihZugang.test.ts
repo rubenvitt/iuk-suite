@@ -523,11 +523,11 @@ describe("radio-Ausleihzugang: keine dritte Quelle", () => {
      * schreibt, faerbt einen Rohtext-Scan auf seiner eigenen Begruendung rot; wer den
      * Scan daraufhin „repariert", schwaecht ihn.
      *
-     * ⛔ DER BESTAND HAT DIESE LEHRE SCHON GEZOGEN, woertlich (`riegel.test.ts:152-155`):
+     * ⛔ DER BESTAND HAT DIESE LEHRE SCHON GEZOGEN, woertlich (`riegel.test.ts:153-156`):
      * „OHNE DAS IST JEDER DIESER SCANS AUF SEINER EIGENEN BEGRUENDUNG ROT." Deshalb
-     * laeuft dort jeder Scan ueber `ohneKommentare(...)` (`riegel.test.ts:218`).
+     * laeuft dort jeder Scan ueber `ohneKommentare(...)` (`riegel.test.ts:219`).
      *
-     * ⛔ `ohneKommentare` WIRD AUS `riegel.test.ts:163-183` KOPIERT, nicht importiert
+     * ⛔ `ohneKommentare` WIRD AUS `riegel.test.ts:164-184` KOPIERT, nicht importiert
      * (vitest laedt Testdateien nicht als Module fuereinander; eine geteilte Helferdatei
      * unter `_lib/` zaehlte der `"use client"`-Scan mit). A9 kopiert dieselbe Funktion
      * noch einmal — das ist gewollt und der Preis der Nicht-Importierbarkeit.
@@ -542,7 +542,7 @@ describe("radio-Ausleihzugang: keine dritte Quelle", () => {
 });
 
 /**
- * Kopie aus `riegel.test.ts:163-183` — Kommentare werden VOR dem Vergleich geleert,
+ * Kopie aus `riegel.test.ts:164-184` — Kommentare werden VOR dem Vergleich geleert,
  * inhaltlich und nicht zeilenweise, damit die `datei:zeile`-Meldung weiter stimmt.
  *
  * BEWUSST NUR ZWEI FORMEN: Blockkommentare und Zeilen, deren getrimmter Inhalt mit `//`

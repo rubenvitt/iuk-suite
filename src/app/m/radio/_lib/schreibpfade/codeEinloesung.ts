@@ -16,7 +16,7 @@ import { createAusleihSitzung } from "../ausleihSitzung";
  * Route Handler (A10); ein WERT aus einem Client-Modul kaeme in einer Server Component
  * nicht an, sondern als Client-Referenz — HTTP 500, fuer `pnpm build` unsichtbar und fuer
  * Vitest strukturell unsichtbar (Falle 6). Durchgesetzt von
- * `src/app/m/radio/riegel.test.ts:684-703`.
+ * `src/app/m/radio/riegel.test.ts:685-704`.
  *
  * ⛔ DER CODE BLEIBT NACH DER EINLOESUNG EINLOESBAR (Spec:2328-2330). Es gibt kein
  * `eingeloestAm` und kein Verbrennen — der Grund ist physisch: der Code steht auf einem

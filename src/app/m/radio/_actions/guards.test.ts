@@ -7,7 +7,7 @@ import { join, relative } from "node:path";
  * DER EINE `_actions/`-SCAN (Spec 1 §3.8 Zeile 3111, praezisiert in Spec:6762 und B7
  * Spec:96; B14 Spec:103 und B19 Spec:119: ES GIBT NUR DIESEN EINEN).
  *
- * ⛔ `riegel.test.ts` FUEHRT KLAUSEL (b) AUSDRUECKLICH NICHT (`riegel.test.ts:364-376`).
+ * ⛔ `riegel.test.ts` FUEHRT KLAUSEL (b) AUSDRUECKLICH NICHT (`riegel.test.ts:365-377`).
  * Zwei Scans ueber dieselbe Flaeche, von denen einer die Ausnahmen nicht kennt, sind ein
  * Scan zu viel — und der naheliegende Gruen-Fix des unwissenden Scans waere, in
  * `einloesenAmGate` einen Sitzungsriegel einzusetzen. Das macht das GATE UNBENUTZBAR
@@ -71,7 +71,7 @@ const ACTION_DATEIEN_ANZAHL = 3;
  * `verstoesse` leer und der Riegelscan LEER-GRUEN, waehrend die Dateizahl weiter stimmt.
  *
  * ⛔ EXAKT, NICHT „MINDESTENS" — dieselbe Begruendung wie oben und wie
- * `riegel.test.ts:60-72`. `riegel.test.ts:697` fuehrt an derselben Stelle eine
+ * `riegel.test.ts:60-72`. `riegel.test.ts:698` fuehrt an derselben Stelle eine
  * Untergrenze; die ist fuer jede nichtleere Liste wahr und hat keine Mutation, die sie
  * rot macht. Hier steht deshalb die schaerfere Form.
  *
@@ -137,13 +137,13 @@ function actionDateien(): string[] {
 }
 
 /*
- * ⛔ HIER STEHEN DIE ZWEI ECHTEN FUNKTIONEN, KOPIERT AUS `riegel.test.ts:148-213`
+ * ⛔ HIER STEHEN DIE ZWEI ECHTEN FUNKTIONEN, KOPIERT AUS `riegel.test.ts:149-214`
  * (`ohneKommentare` und `ohneKommentareUndZeichenketten`, mit ihren Kommentaren).
  *
  * ⚠️ „KOPIERT", NICHT „WOERTLICH" — UND DIE ABWEICHUNG STEHT HIER STATT IN EINER
  * BEHAUPTUNG (REVIEW-A8 S5). Bis zum 2026-08-23 stand an dieser Stelle „WOERTLICH KOPIERT
- * … mit ihren Kommentaren"; gemessen wurde die Kopie gegen `riegel.test.ts:148-213`, und
- * AUSGELASSEN sind `riegel.test.ts:152-156` — ein riegel-spezifischer Absatz ueber den
+ * … mit ihren Kommentaren"; gemessen wurde die Kopie gegen `riegel.test.ts:149-214`, und
+ * AUSGELASSEN sind `riegel.test.ts:153-157` — ein riegel-spezifischer Absatz ueber den
  * Kopfkommentar von `_lib/zugang.ts`. Er redet ueber `_lib/`, nicht ueber `_actions/`; die
  * Auslassung ist richtig, die Behauptung „woertlich" war es nicht. DIE RUMPFE SIND
  * ZEICHENGLEICH — das war die einzige Abweichung. Die Kopie steht unmittelbar unter diesem
@@ -155,7 +155,7 @@ function actionDateien(): string[] {
  *
  * ⛔ KEIN IMPORT AUS `riegel.test.ts` — vitest laedt Testdateien nicht als Module
  * fuereinander, und eine geteilte Helferdatei waere ein `_lib/`-Modul, das der
- * `"use client"`-Scan mitzaehlt (`riegel.test.ts:684-703` filtert auf `/(?:_lib|_db)/`).
+ * `"use client"`-Scan mitzaehlt (`riegel.test.ts:685-704` filtert auf `/(?:_lib|_db)/`).
  * Die Verdoppelung ist der Preis dafuer und gewollt; der Bericht zu A8 fuehrt die
  * verworfene Alternative samt Belegen.
  *
@@ -306,7 +306,7 @@ function bereinigt(quelle: string): string {
  * Annotation, die auf oberster Ebene ein Objektliteral fuehrt (`): { a: number } {`).
  * Der Scan hielte sie fuer den Rumpf und meldete anschliessend „der Riegel ist nicht die
  * erste Anweisung" — er ist dort also FALSCH-POSITIV UND LAUT, nie falsch-negativ und
- * still. Das ist die Richtung, die dieses Haus verlangt (`riegel.test.ts:157-161`).
+ * still. Das ist die Richtung, die dieses Haus verlangt (`riegel.test.ts:158-162`).
  *
  * ⛔ KEIN STILLER RUECKFALL: laesst sich der Rumpf nicht bestimmen, ist das ein VERSTOSS
  * und kein „dann eben bis zum naechsten export". Genau dieser Rueckfall WAR W1.

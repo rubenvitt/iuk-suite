@@ -31,7 +31,7 @@ const KANONISCH = /^[0-9A-HJKMNP-TV-Z]{4}(?:-[0-9A-HJKMNP-TV-Z]{4}){6}$/;
  * Leert Kommentare inhaltlich, ohne die Zeilenzahl zu aendern.
  *
  * ⛔ ABGESCHRIEBEN UND NICHT IMPORTIERT: dieselbe Maschine steht als modul-lokale Funktion
- * in `src/app/m/radio/riegel.test.ts:163-183`. Ein Import von dort zoege deren
+ * in `src/app/m/radio/riegel.test.ts:164-184`. Ein Import von dort zoege deren
  * `describe`-Bloecke in diesen Lauf. Die 21 Zeilen (`:43-63`, gezaehlt) sind der kleinere
  * Preis; wer sie aendert, aendert beide Stellen.
  *
@@ -120,7 +120,7 @@ describe("radio-Code: erzeugeCode", () => {
      *   NEGATIV (verbotener Name) → ROHER Quelltext, Kommentare eingeschlossen. `code.ts`
      *   darf den Namen auch in einem Kommentar nicht fuehren: ein „statt <jener Quelle>"
      *   waere die naechste Stufe der Aufweichung. Ein Scan darf falsch-positiv sein und
-     *   laut, nie falsch-negativ und still (`riegel.test.ts:159-165`).
+     *   laut, nie falsch-negativ und still (`riegel.test.ts:160-166`).
      *
      *   POSITIV (gebotener Aufruf) → Quelltext OHNE JEDEN KOMMENTAR, auch ohne den
      *   NACHGESTELLTEN, und der Aufruf muss statement-nah stehen (`(` verlangt). ⛔ ZWEIMAL
@@ -133,7 +133,7 @@ describe("radio-Code: erzeugeCode", () => {
      * ⚠️ Ein Waechter, dessen Zusage weiter ist als seine Pruefung, bewacht nichts. WAS
      * DURCHKAEME, benannt statt verschwiegen: ein Literal `"getRandomValues("` ohne einen
      * Kommentarbeginn in derselben Zeile. Zeichenkettenliterale GANZ leert erst die Maschine
-     * in `riegel.test.ts:185-213`; der Schnitt hier kappt nur ab dem ersten Kommentarbeginn.
+     * in `riegel.test.ts:186-214`; der Schnitt hier kappt nur ab dem ersten Kommentarbeginn.
      */
     const quelle = readFileSync(join(process.cwd(), "src/app/m/radio/_lib/code.ts"), "utf8");
     expect(quelle, "erzeugeCode muss kryptografisch sein (Spec:2089)")
