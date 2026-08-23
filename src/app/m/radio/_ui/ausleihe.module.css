@@ -126,3 +126,236 @@
   color: var(--radio-gate-marke);
   touch-action: manipulation;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+ * A16 — DER AUSLEIH-RAHMEN, DER STATUS-CHIP UND DIE RESTZEIT.
+ *
+ * ⛔ `.rahmen` IST DER TRAEGER SEINER VARIABLEN, wie `.gate` es fuer den Gate-Teil ist
+ * (Kopf dieser Datei) und wie `helfer.module.css:24-26` es ausschreibt. Eine Regel dieses
+ * Abschnitts greift nie auf einen Wert zu, den nur ein anderer Traeger kennt.
+ * ⚠️ `.chip` ist die eine benannte Ausnahme und traegt seine vier Toene SELBST — siehe
+ * dort. Der Grund ist Falle 2 in ihrer stillsten Gestalt.
+ *
+ * ⛔ KEINE HOEHE AUF EINEM ANTD-BEDIENELEMENT — es gibt hier keins (Entscheidung E9). 56
+ * wird geerbt und nirgends geschrieben, 72 nirgends gesetzt (Falle 4). Was hier steht,
+ * sind die zwei NACHBAU-Masze 44 und 64 aus Spec:3711-3722, je als `min-height` UND
+ * `min-width`, plus `touch-action: manipulation` — fuer beides gibt es kein antd-Token.
+ * ⚠️ ⛔ OB `min-width` GEGEN ANTD DURCHKOMMT, IST HIER NICHT ENTSCHIEDEN: das ist Falle 5,
+ * und sie ist STILL — antd spritzt seine Regeln zur Laufzeit ueber cssinjs ein, sie stehen
+ * in KEINER Datei dieses Repos, und jsdom rechnet keine Zeilenboxen. ⬜ Gemessen wird das
+ * im echten Browser, in BEIDEN Farbmodi, vor dem Merge. Da die Elemente hier alle eigenes
+ * Markup sind (kein antd), ist heute kein Wettstreit zu erwarten — behauptet ist das
+ * nicht.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+.rahmen {
+  --radio-rahmen-linie: var(--iuk-linie);
+  --radio-rahmen-gedaempft: var(--iuk-gedaempft);
+  --radio-rahmen-marke: var(--iuk-marke);
+  --radio-rahmen-flaeche: var(--iuk-flaeche-aktiv);
+  /* Das Tap-Mass der Fussnavigation, Spec:3713 („Fussnavigation je Eintrag 64"). */
+  --radio-tap-nav: 64px;
+  /* WCAG 2.5.5 Stufe AAA, Spec:3714-3716 („Statuschips im Filter 44", „Gruppenkopf 44"). */
+  --radio-tap-klein: 44px;
+
+  box-sizing: border-box;
+  min-height: 100dvh; /* NICHT 100vh: sonst rutscht die Fussleiste unter die Adressleiste */
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-body);
+}
+
+.kopf {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--radio-rahmen-linie);
+}
+
+.kopfEnde {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.marke {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: var(--radio-rahmen-marke);
+}
+
+.etikett {
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  color: var(--radio-rahmen-gedaempft);
+}
+
+.restzeit {
+  display: inline-block;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--radio-rahmen-gedaempft);
+}
+
+/*
+ * Der abgelaufene Zustand traegt die KANTE, nicht die Flaeche — derselbe Grund wie bei
+ * `.meldung` oben: `colorError === colorPrimary === #c8000f`
+ * (`src/core/theme/theme.ts:32-33`), eine rote Flaeche saehe aus wie die Primaeraktion
+ * (Falle 3).
+ */
+.restzeitAbgelaufen {
+  padding-inline-start: 0.5rem;
+  border-inline-start: 3px solid var(--radio-rahmen-marke);
+  color: inherit;
+}
+
+.portalLink {
+  color: var(--radio-rahmen-marke);
+  font-size: 0.9375rem;
+  touch-action: manipulation;
+}
+
+/*
+ * Der Beenden-Knopf ist eigenes Markup und erbt deshalb NICHTS von antd — weder Hoehe noch
+ * Rahmen noch Hintergrund. Der Reset steht hier, damit die 44 wirklich die 44 ist
+ * (Vorbild `helfer.module.css`, Button-Reset).
+ */
+.beenden {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: var(--radio-tap-klein);
+  min-width: var(--radio-tap-klein);
+  padding-inline: 0.75rem;
+  border: 1px solid var(--radio-rahmen-linie);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.inhalt {
+  flex: 1 1 auto;
+  padding: 1rem;
+}
+
+/*
+ * Die Fussleiste steht am unteren Rand und bleibt dort stehen — auf einem Telefon ist sie
+ * der Weg zwischen den drei Flaechen, und eine Leiste, die man erst herunterscrollen muss,
+ * ist keine.
+ */
+.fussnav {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--radio-rahmen-linie);
+  background: inherit;
+}
+
+.navEintrag {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  min-height: var(--radio-tap-nav);
+  min-width: var(--radio-tap-nav);
+  color: inherit;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+/*
+ * ⛔ DIE MARKIERUNG HAENGT AN `aria-current`, NICHT AN EINER ZWEITEN KLASSE. Damit prueft
+ * ein spaeterer e2e dieselbe Sache, die eine Bildschirmleserin hoert
+ * (`lagerbuch/_ui/HelferRahmen.tsx:123-126`).
+ */
+.navEintrag[aria-current="page"] {
+  color: var(--radio-rahmen-marke);
+  background: var(--radio-rahmen-flaeche);
+}
+
+.navText {
+  font-size: 0.8125rem;
+  line-height: 1.2;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────────────────
+ * DER STATUS-CHIP (Entscheidung E3, ⬜ A-L10).
+ *
+ * ⛔ DIE ACHT WERTE STEHEN HIER ALS EIGENE VARIABLEN, NIE ALS `--ant-*` (Falle 2): antd
+ * deklariert seine Variablen auf SEINER Scope-Klasse, eigenes Markup sieht sie nicht — und
+ * der Fehler ist still, die Regel steht richtig da und die Farbe verschwindet einfach.
+ * Abgelesen aus `STATUS_HEX` in `src/app/m/radio/_lib/status.ts`, das sie seinerseits
+ * woertlich aus dem Alt-Kiosk fuehrt (dort mit dem WCAG-AA-Grund). ⛔ NICHT aus
+ * antd-Tokens abgeleitet (Spec:3691-3694).
+ *
+ * ⛔ `.chip` TRAEGT SIE SELBST und nicht `.rahmen`. Der Chip erscheint ab A18 in
+ * Geraetezeilen, Gruppenkoepfen und Filtern; haengte er an einem Vorfahren, faellt er
+ * beim ersten Aufrufort ausserhalb des Rahmens still auf gar keine Farbe zurueck.
+ *
+ * ⛔ DER DUNKELZWEIG HAENGT AN `:root[data-theme="dark"]`, NICHT AN `prefers-color-scheme`.
+ * Der Umschalter der Suite hat drei Zustaende und `data-theme` traegt IMMER den
+ * aufgeloesten Wert (`src/app/globals.css:159`, `src/app/layout.tsx`). Eine Systemabfrage
+ * braeche den Fall „System dunkel, Umschalter hell".
+ * ⚠️ Hier stehen DIESELBEN VIER Namen wie im Hellzweig. Einer, der fehlte, bliebe auf
+ * seinem Hellwert stehen — still, und nur auf dunklen Geraeten sichtbar.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+
+.chip {
+  --radio-status-frei: #22c55e;
+  --radio-status-vergeben: #f59e0b;
+  --radio-status-defekt: #ef4444;
+  --radio-status-wartung: #6b7280;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] .chip {
+  --radio-status-frei: #16a34a;
+  --radio-status-vergeben: #d97706;
+  --radio-status-defekt: #dc2626;
+  --radio-status-wartung: #9ca3af;
+}
+
+.chip[data-ton="frei"] .chipPunkt {
+  background: var(--radio-status-frei);
+}
+
+.chip[data-ton="vergeben"] .chipPunkt {
+  background: var(--radio-status-vergeben);
+}
+
+.chip[data-ton="defekt"] .chipPunkt {
+  background: var(--radio-status-defekt);
+}
+
+.chip[data-ton="wartung"] .chipPunkt {
+  background: var(--radio-status-wartung);
+}
+
+/*
+ * 10px, `aria-hidden` am Element (`StatusChip.tsx`) — ⛔ FARBE IST NIE DER EINZIGE
+ * TRAEGER (Spec:3696-3697). Der Punkt steht NEBEN dem Etikett, nie an seiner Stelle.
+ * `flex: none`, damit er in einer engen Zeile nicht zur Ellipse gedrueckt wird.
+ */
+.chipPunkt {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
