@@ -36,6 +36,16 @@
  * zwei Zahlen fuer denselben Deckel laufen beim ersten Aendern auseinander, und die
  * Oberflaeche nennte dann eine Grenze, die nicht gilt.
  *
+ * ⛔ UND DER DECKEL SCHNEIDET STILL — DAS SICHTBARMACHEN GEHOERT A19, NICHT DIESER DATEI.
+ * `auswahlLesen` liefert nur die gekappte Liste; an ihr ist „genau zwanzig gewaehlt" nicht
+ * von „fuenfundzwanzig uebergeben und fuenf abgeschnitten" zu unterscheiden. Spec:3482-3483
+ * verlangt aber, dass die Flaeche es SAGT. ⚠️ AUFLAGE AN A19: wer den Satz zeigt, braucht
+ * die Erkennung — und holt sie sich NICHT ueber ein zweites Auslesen des rohen Parameters
+ * (das waere der zweite Normalisierungsort, den `normalisiereIds` unten gerade vermeidet),
+ * sondern ueber ein zusaetzliches Rueckgabefeld hier, mit eigenem Testfall und eigener
+ * Sonde. Diese Aufgabe baut es NICHT auf Vorrat: ein Feld ohne Leser waere eine Zusage ohne
+ * Nachweis.
+ *
  * ⛔ UND SIE GEHOERT NICHT IN `_lib/grenzen.ts`: die Datei fuehrt ausschliesslich Zahlen,
  * die ueber eine Umgebungsvariable konfigurierbar sind (`_lib/grenzen.ts:2-3`). Der
  * Deckel ist eine Zusage der Oberflaeche, keine Betriebsgroesse.

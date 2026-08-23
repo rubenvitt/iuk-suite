@@ -132,6 +132,14 @@ describe("radio-filter: die Normalisierung des Suchtextes", () => {
 
     expect(ids(filtereGeraete([geraet], { ...alles, suchtext: "sn-4711" }))).toEqual(["a"]);
 
+    /*
+     * ⚠️ DIESE HAELFTE PRUEFT DIE ZEILENFORM, DIE `zeile()` OBEN BAUT — nicht den Lesepfad.
+     * Sie kann deshalb von keiner Sonde in `filter.ts` rot gemacht werden, und das ist keine
+     * Nachlaessigkeit: der Lesepfad entsteht erst in A15, sein Wirknachweis gehoert dorthin
+     * und nach A18 (Plan
+     * `docs/superpowers/plans/2026-08-22-radio-modul-plan3-zugang-ausleihe.md:5020`).
+     * Was sie hier belegt, ist die ANNAHME, unter der die erste Haelfte etwas aussagt.
+     */
     const felderOhneSchluessel = Object.entries(geraet)
       .filter(([name]) => name !== "suchschluessel")
       .map(([, wert]) => String(wert));
