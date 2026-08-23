@@ -10,7 +10,11 @@ import {
   ZUSTANDSNOTIZ_MAX,
   ausleihText,
   rueckgabeText,
+  type AusleihErgebnis,
   type AusleihMeldung,
+  type BetroffenesGeraet,
+  type KonfliktZustand,
+  type RueckgabeErgebnis,
   type RueckgabeMeldung,
 } from "./meldungen";
 import { gateMeldung } from "./gateTexte";
@@ -107,6 +111,18 @@ const ERWARTET_RUECKGABE: [RueckgabeMeldung, string][] = [
 ];
 
 describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
+  it("der Quelltextscan liest eine nicht-leere Datei", () => {
+    /*
+     * ⛔ OHNE DIESEN FALL WAEREN ALLE NEGATIVEN SCANS DIESER DATEI LEER-GRUEN. Kaeme
+     * `QUELLE` leer zurueck — ein anderes `process.cwd()`, eine umbenannte Datei —, bestuende
+     * jedes `not.toContain`/`not.toMatch` darauf, ohne etwas zu bewachen; die zaehlenden
+     * Zusicherungen fielen dagegen von selbst. Hausform des Moduls: `riegel.test.ts:934`
+     * („leere Dateiliste — der Scan waere leer-gruen").
+     */
+    expect(QUELLE.length, "meldungen.ts ist leer gelesen worden").toBeGreaterThan(2000);
+    expect(QUELLE, "gelesen wurde nicht meldungen.ts").toContain("export function ausleihText");
+  });
+
   it("jeder grund hat genau einen Satz, und keiner nennt einen Schluessel", () => {
     /*
      * Spec:3537-3545 und Spec:5229-5232 („die Union ist die Rueckgabeform beider
@@ -185,7 +201,7 @@ describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
     expect(rueckgabeText({ grund: "schon-zurueck", rufname: "77/03" })).toContain("77/03");
   });
 
-  it("die drei Zustaende des Konflikts tragen drei verschiedene Saetze", () => {
+  it("die vier Zustaende des Konflikts tragen vier verschiedene Saetze", () => {
     /*
      * ⛔ DER BEFUND, GEGEN DEN DIESER FALL STEHT, IST DER BESTAND SELBST: der Alt-Kiosk
      * faltet jeden 409 auf EINEN Satz („Dieses Geraet ist bereits ausgeliehen oder nicht
@@ -193,6 +209,13 @@ describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
      * (Spec:3527-3533). Drei Alt-Codes fallen auf `grund: "nicht-verfuegbar"`
      * (Spec:5205-5207); was sie auseinanderhaelt, ist der `Konflikt`
      * (`VORABSCAN-A.md:192-201`, Fund F4).
+     *
+     * ⚠️ VIER, NICHT DREI. `Konflikt` (`_lib/meldungen.ts`) hat vier Zweige:
+     * `NICHT_FREIGEGEBEN` ist die benannte Neuerung dieser Aufgabe (`loanable = false`,
+     * Spec:5205, ist ein eigenes Feld und kein Wert von `devices.status`). Der Fallname
+     * sagte bis zur Fix-Runde 1 „drei" und die Zusicherung `toBe(4)` — wer den Namen las
+     * und die Zahl nicht, hielt den vierten Zweig fuer unbewacht. ⛔ DIE ZAHL WURDE NICHT
+     * GESENKT, DER NAME WURDE GEHOBEN.
      */
     const saetze = [
       ausleihText({ grund: "nicht-verfuegbar", rufname: RUFNAME, konflikt: { zustand: "ON_LOAN", entleiher: ENTLEIHER } }),
@@ -343,6 +366,24 @@ describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
     expect(rueckgabe, "die Zusage zum Vorgang dieses Flusses fehlt").toContain(
       "Die Rückgabe ist nicht gespeichert.",
     );
+
+    /*
+     * ⛔ UND DIE HAELFTE, DIE DIE KOPPLUNG BEWACHT. Die sechs Zusicherungen darueber bleiben
+     * gruen, wenn jemand die zwei zusammengesetzten Saetze in `_lib/meldungen.ts` durch die
+     * zeichengleichen Literale ersetzt — die Kopplung an `SCHREIBSPERRE` ist dann weg, ohne
+     * dass ein Fall es sieht. Gemessen als Sonde M-E: 0 rot.
+     *
+     * ⛔ GEZAEHLT WIRD IM ROHEN DATEITEXT, KOMMENTARE EINGESCHLOSSEN — dieselbe Prosa-Sperre
+     * wie bei den zwei Statusetiketten. Der Kopf von `SPERRE_BEFUND` nennt deshalb nur
+     * Spec:3809 und nicht den Wortlaut; bis zur Fix-Runde 1 zitierte er ihn und haette den
+     * Zaehler von sich aus rot gemacht.
+     */
+    for (const haelfte of [befund, aufforderung]) {
+      expect(
+        QUELLE.split(haelfte).length - 1,
+        `eine Haelfte des Schreibsperren-Satzes steht mehr als einmal in meldungen.ts: ${haelfte}`,
+      ).toBe(1);
+    }
   });
 
   it("die Zeichengrenze der Zustandsnotiz ist die abgelesene Zahl des Alt-Kiosk", () => {
@@ -358,5 +399,157 @@ describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
      */
     expect(ZUSTANDSNOTIZ_MAX, "die Grenze weicht vom Alt-Kiosk ab").toBe(500);
     expect(rueckgabeText({ grund: "notiz-zu-lang" })).toContain(String(ZUSTANDSNOTIZ_MAX));
+
+    /*
+     * ⛔ UND DIE HAELFTE, DIE DEN FALL ERST TRAGEND MACHT. Die zwei Zusicherungen darueber
+     * bleiben gruen, wenn jemand die Interpolation im Satz durch die zeichengleiche
+     * Ziffernfolge ersetzt: die Erwartungstabelle vergleicht den fertigen Text, `toBe(500)`
+     * prueft die unveraenderte Konstante, und `toContain(String(ZUSTANDSNOTIZ_MAX))` ist
+     * tautologisch, solange beide Zahlen uebereinstimmen. Gemessen als Sonde M-A: 0 rot.
+     * Derselbe Mechanismus und dieselbe Abhilfe wie bei den Sonden P7 und P8.
+     *
+     * ⛔ VERBOTEN IST JEDE AUSGESCHRIEBENE ZAHL VOR DEM WORT, nicht bloss die heutige —
+     * sonst ginge der Scan an dem Tag vorbei, an dem jemand die Konstante aendert und die
+     * alte Zahl im Satz stehen laesst. ⚠️ Der Anker traegt keinen Umlaut (Hausregel).
+     */
+    expect(QUELLE, "die Grenze steht ein zweites Mal als ausgeschriebene Zahl im Satz")
+      .not.toMatch(/\d+ Zeichen/);
+  });
+});
+
+describe("AusleihErgebnis und RueckgabeErgebnis — die Form, nicht der Inhalt", () => {
+  /*
+   * ⛔ DER EINZIGE ⛔ DES AUFTRAGS HATTE BIS ZUR FIX-RUNDE 1 KEINEN EINZIGEN WAECHTER:
+   * „`betroffen[].status` darf dabei nicht verloren gehen"
+   * (`.superpowers/sdd/planteil3/briefs/A14.md:13-14`, Spec:5223-5228, Entscheidung E11).
+   * Kein Fall baute je einen `AusleihErgebnis`, `RueckgabeErgebnis` oder `BetroffenesGeraet`
+   * — die drei Typen waren exportiert und von niemandem gelesen, und A15/A17 gibt es noch
+   * nicht. Gemessen als Sonde M-B (`status: string;` aus `BetroffenesGeraet` geloescht):
+   * `pnpm typecheck` EXIT=0 UND `pnpm vitest run src/app/m/radio` 323 passed — 0 rot in
+   * BEIDEN Toren. Der vom Auftrag namentlich verbotene Verlust war typkorrekt, lint-sauber
+   * und testgruen. Vorbild dieses Blocks:
+   * `src/app/m/lagerbuch/_lib/actionTypen.test.ts:126-141`.
+   *
+   * ⚠️ ZWEI TORE, ZWEI WAECHTER, UND BEIDE WERDEN GEBRAUCHT: die typisierten Fixturen unten
+   * machen den Verlust im `typecheck` rot (eine Annotation lehnt das Ueberschussfeld ab,
+   * TS2353), der Quelltext-Scan macht ihn im Vitest-Lauf rot. ⛔ VITEST STREIFT TYPEN AB —
+   * ein Fixture allein haette in dem Tor, das hier laeuft, 0 rot ergeben. Derselbe Befund
+   * steht in `BERICHT-A14.md` §4a fuer die Typseite von E13.
+   */
+  it("ein betroffenes Geraet traegt Rufname UND Status", () => {
+    const zustand: KonfliktZustand = "ON_LOAN";
+    const betroffenes: BetroffenesGeraet = { rufname: RUFNAME, status: zustand };
+
+    /*
+     * ⚠️ `Object.keys` LIEST DAS LITERAL, NICHT DEN TYP — es schreibt die Form aus und ist
+     * kein Waechter ueber sie. Rot wird bei einem geloeschten Feld die Annotation darueber
+     * und der Scan unten; das hier steht als Lesehilfe fuer A15 und wird im Bericht NICHT
+     * als Deckung gezaehlt.
+     */
+    expect(Object.keys(betroffenes).sort()).toEqual(["rufname", "status"]);
+
+    const ergebnis: AusleihErgebnis = {
+      ok: false,
+      grund: "nicht-verfuegbar",
+      text: ausleihText({
+        grund: "nicht-verfuegbar",
+        rufname: RUFNAME,
+        konflikt: { zustand: "ON_LOAN", entleiher: ENTLEIHER },
+      }),
+      betroffen: [betroffenes],
+    };
+    expect(
+      !ergebnis.ok && ergebnis.betroffen[0].status,
+      "der Grund, WARUM das Geraet nicht verfuegbar ist, ist verloren",
+    ).toBe("ON_LOAN");
+
+    /*
+     * ⛔ DER SCAN, DEN DIESES TOR SIEHT. `[^}]*` statt einer festen Feldreihenfolge, und das
+     * ist die tragende Wahl: er wird rot, wenn `status` verschwindet, und bleibt gruen, wenn
+     * A15 dem Typ ein drittes Feld anfuegt. Ein Anker auf der heutigen Reihenfolge waere ein
+     * Waechter, der beim naechsten legitimen Zuwachs umfaellt.
+     */
+    expect(QUELLE, "BetroffenesGeraet hat sein status-Feld verloren").toMatch(
+      /export interface BetroffenesGeraet \{[^}]*status: string;[^}]*\}/,
+    );
+  });
+
+  it("betroffen ist bei sitzung und gesperrt die leere Liste", () => {
+    /*
+     * `.superpowers/sdd/planteil3/briefs/KOPF.md:774-775`: es gibt kein betroffenes Geraet,
+     * der Vorgang ist am Riegel gescheitert und hat kein Geraet erreicht. ⛔ AUFLAGE AN A15
+     * UND A17 — die Fixture steht hier, damit die zwei sie nicht neu erfinden muessen.
+     */
+    for (const grund of ["sitzung", "gesperrt"] as const) {
+      const ergebnis: AusleihErgebnis = {
+        ok: false,
+        grund,
+        text: ausleihText({ grund }),
+        betroffen: [],
+      };
+      expect(!ergebnis.ok && ergebnis.betroffen, `betroffen ist bei ${grund} nicht leer`).toEqual([]);
+    }
+  });
+
+  it("der Erfolgsfall traegt weder Grund noch Text", () => {
+    /*
+     * Vorbild `src/app/m/lagerbuch/_lib/actionTypen.test.ts:127-131`. Ein `ok: true` mit
+     * Text zwaenge jede Flaeche, zwei Quellen fuer dieselbe Auskunft zu lesen — und die
+     * Rueckgabe traegt im Erfolgsfall den Rufnamen, nicht die Anzahl (Spec:3566-3568).
+     */
+    const ausleihe: AusleihErgebnis = { ok: true, anzahl: 2, entleiher: ENTLEIHER };
+    expect("text" in ausleihe, "der Erfolgsfall der Ausleihe traegt einen Text").toBe(false);
+    expect("grund" in ausleihe, "der Erfolgsfall der Ausleihe traegt einen Grund").toBe(false);
+    expect(ausleihe.ok && ausleihe.anzahl).toBe(2);
+
+    const rueckgabe: RueckgabeErgebnis = { ok: true, rufname: RUFNAME };
+    expect("text" in rueckgabe, "der Erfolgsfall der Rueckgabe traegt einen Text").toBe(false);
+    expect(rueckgabe.ok && rueckgabe.rufname).toBe(RUFNAME);
+  });
+
+  it("die zwei Sperr-Gruende kommen aus SperrGrund statt abgeschrieben zu sein", () => {
+    /*
+     * Entscheidung E13 (`.superpowers/sdd/planteil3/briefs/KOPF.md:732-778`). Vorbild und
+     * dieselbe Fehlerklasse: `src/app/m/lagerbuch/_lib/actionTypen.test.ts:29-39`. Zwei
+     * ausgeschriebene Literal-Unions liefen beim ersten Umbau auseinander, und TypeScript
+     * faende es erst beim dritten Sperrgrund.
+     *
+     * ⚠️ GEZAEHLT STATT GESUCHT: `toMatch` allein bliebe gruen, wenn nur EINE der zwei
+     * Unions ausgeschrieben wuerde — die andere truege den Treffer weiter.
+     */
+    expect(QUELLE, "der Typimport auf SperrGrund fehlt").toMatch(
+      /import type \{ SperrGrund \} from "\.\/ausleihZugang";/,
+    );
+    expect(
+      QUELLE.split("| { grund: SperrGrund };").length - 1,
+      "eine der zwei Unions schreibt die Sperr-Gruende aus statt sie aus SperrGrund zu holen",
+    ).toBe(2);
+  });
+});
+
+describe("Bauform", () => {
+  it("traegt weder use client noch use server als Direktive", () => {
+    /*
+     * ⛔ DIE HALBE ZUSAGE DES DATEIKOPFES, DIE BIS ZUR FIX-RUNDE 1 NIRGENDS BEWACHT WAR.
+     * `riegel.test.ts:921-940` scannt modulweit — aber NUR auf `"use client"`. Fuer
+     * `"use server"` gab es im ganzen Modul keine Abwesenheits-Zusicherung; die einzige
+     * Durchsetzung (`_actions/guards.test.ts:699-716`) VERLANGT die Direktive, als erste
+     * Zeile jeder Datei unter `_actions/` — die Gegenrichtung, auf einem anderen Ordner.
+     * Vorbild dieses Falles: `src/app/m/lagerbuch/_lib/actionTypen.test.ts:144-145`.
+     *
+     * ⚠️ WAS EIN `"use server"` HIER ANRICHTETE: jeder Export wuerde zu einer Server Action
+     * — auch `ZUSTANDSNOTIZ_MAX` und die zwei Satzfunktionen, die die Flaechen A18-A20
+     * SYNCHRON rufen. Eine `"use server"`-Datei darf ausschliesslich asynchrone Funktionen
+     * exportieren (`src/app/m/radio/_ui/GateFormular.tsx:60`).
+     *
+     * ⬜ A-L16 BLEIBT OFFEN: modulweit ist die Abwesenheit weiterhin unbewacht. Der Kopf von
+     * `_lib/meldungen.ts` nennt die Leerstelle und den Preis ihrer Schliessung.
+     */
+    expect(QUELLE, 'diese Datei traegt eine "use server"-Direktive').not.toMatch(
+      /^\s*["']use server["']/m,
+    );
+    expect(QUELLE, 'diese Datei traegt eine "use client"-Direktive').not.toMatch(
+      /^\s*["']use client["']/m,
+    );
   });
 });

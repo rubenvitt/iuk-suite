@@ -7,8 +7,21 @@
  * Flaeche muessen dieselbe Wahrheit lesen: `_db/leihen.ts` (A15) gibt diese Typen zurueck,
  * `_actions/ausleihe.ts` (A17) re-exportiert sie, und die drei Ausleihflaechen (A18-A20)
  * rendern `text`. Ein Wert aus einem Client-Modul kaeme in einer Server Component nicht an
- * — HTTP 500 fuer die ganze Seite, und Vitest kann es strukturell nicht sehen. Der Scan,
- * der das modulweit durchsetzt, steht in `src/app/m/radio/riegel.test.ts:921-940`.
+ * — HTTP 500 fuer die ganze Seite, und Vitest kann es strukturell nicht sehen.
+ *
+ * ⚠️ DIE ZWEI HAELFTEN DIESER ZUSAGE HABEN ZWEI VERSCHIEDENE WAECHTER, und „modulweit" gilt
+ * nur fuer die erste — bis zur Fix-Runde 1 stand hier ein Anker fuer beide:
+ *   — `"use client"`: `src/app/m/radio/riegel.test.ts:921-940` scannt JEDE Datei unter
+ *     `_lib/` und `_db/`; zusaetzlich scannt `_lib/meldungen.test.ts` diese Datei selbst.
+ *   — `"use server"`: NUR diese Datei, ueber denselben eigenen Quelltext-Scan. Vorbild:
+ *     `src/app/m/lagerbuch/_lib/actionTypen.test.ts:144-145`.
+ *
+ * ⬜ A-L16 — EINE MODULWEITE ABWESENHEITS-ZUSICHERUNG FUER `"use server"` GIBT ES NICHT.
+ * Gemessen: `grep -rn "use server" src/app/m/radio/` findet als einzige Durchsetzung
+ * `_actions/guards.test.ts:699-716`, und die VERLANGT die Direktive als erste Zeile jeder
+ * Datei unter `_actions/` — die Gegenrichtung, auf einem anderen Ordner. Wer sie modulweit
+ * will, erweitert `riegel.test.ts:921-940`; das laesst die Datei wachsen und zieht den
+ * Ankerdurchgang nach sich (Ledger-Regel `.superpowers/sdd/planteil3/progress.md:118-132`).
  *
  * ⛔ WARUM DIE TYPEN HIER LIEGEN UND NICHT IN `_actions/ausleihe.ts`, wie Spec:3446-3455 es
  * schreibt: Entscheidung E11 (`.superpowers/sdd/planteil3/briefs/KOPF.md:649-671`). Dort
@@ -228,6 +241,14 @@ export type RueckgabeErgebnis =
  *
  * ⛔ UND ER BIETET KEINE ERNEUERUNG AN (Zusage §3.10 Nr. 8, Spec:3235-3236): derselbe Code
  * scheitert genauso. Die Flaeche liest dafuer `grund`, nicht den Text.
+ *
+ * ⛔ AUFLAGE AN `_lib/gateTexte.ts`, WEIL DIESER AUFRUF AUF MODULEBENE STEHT: er wird beim
+ * LADEN dieser Datei ausgewertet, nicht beim ersten Satz. `_lib/gateTexte.ts` importiert
+ * heute nichts (`grep -n "^import" src/app/m/radio/_lib/gateTexte.ts` liefert keinen
+ * Treffer) — ein Zyklus ist damit ausgeschlossen. Zoege jemand dort einen Import zurueck auf
+ * diese Datei, waere `gateMeldung` beim Auswerten dieser Zeile `undefined`: ein `TypeError`
+ * schon beim Import. Die Abhilfe waere dann, den Aufruf in `ausleihText`/`rueckgabeText`
+ * hineinzuziehen — ⛔ NICHT ein `?? "…"` davorzusetzen (siehe oben).
  */
 const SPERR_SAETZE: Record<SperrGrund, string> = {
   sitzung: "Dein Zugang ist abgelaufen. Gib den Code erneut ein — deine Eingaben bleiben stehen.",
@@ -235,8 +256,14 @@ const SPERR_SAETZE: Record<SperrGrund, string> = {
 };
 
 /*
- * DIE ZWEI HAELFTEN DES SCHREIBSPERREN-SATZES (Spec:3809, woertlich: „Gerade ist zu viel
- * gleichzeitig los. Bitte in einem Moment erneut versuchen.").
+ * DIE ZWEI HAELFTEN DES SCHREIBSPERREN-SATZES. Den Wortlaut fuehrt Spec:3809; er steht hier
+ * NICHT ein zweites Mal in der Prosa, und das ist kein Geschmack:
+ *
+ * ⛔ JEDE HAELFTE STEHT IN DIESER DATEI GENAU EINMAL, KOMMENTARE EINGESCHLOSSEN.
+ * `_lib/meldungen.test.ts` zaehlt beide im rohen Dateitext und laesst je EIN Vorkommen zu.
+ * Ohne diesen Zaehler liessen sich die zwei zusammengesetzten Saetze unten durch die
+ * zeichengleichen Literale ersetzen, ohne dass ein Fall rot wurde — gemessen als Sonde M-E,
+ * 0 rot. Dieselbe Prosa-Sperre wie bei den zwei Statusetiketten (siehe `konfliktSatz`).
  *
  * ⛔ SIE STEHEN GETRENNT, WEIL DER `unbekannt`-SATZ ZWISCHEN SIE SCHREIBT. Spec:3545 fuehrt
  * die Zeile „Verbindung / Server" mit „woertlich uebernommen, ERGAENZT UM ‚Es wurde nichts
@@ -383,8 +410,15 @@ export function rueckgabeText(m: RueckgabeMeldung): string {
     case "notiz-zu-lang":
       /*
        * ⚠️ PLANENTSCHEIDUNG, kein Spec-Zitat — siehe den Absatz an `ausleihText`. Die Zahl
-       * kommt aus `ZUSTANDSNOTIZ_MAX` und nicht aus dem Satz: eine ausgeschriebene „500"
+       * kommt aus `ZUSTANDSNOTIZ_MAX` und nicht aus dem Satz: eine ausgeschriebene Ziffer
        * hier waere die zweite Wahrheit ueber dieselbe Grenze.
+       *
+       * ⛔ DAS IST BEWACHT UND NICHT BLOSS ZUGESICHERT: `_lib/meldungen.test.ts` scannt den
+       * rohen Dateitext auf eine Ziffernfolge vor dem Wort „Zeichen". Ohne den Scan blieb
+       * die zeichengleiche Ersetzung gruen — gemessen als Sonde M-A, 0 rot: die
+       * Erwartungstabelle vergleicht den fertigen Text, `toBe(500)` die unveraenderte
+       * Konstante, und `toContain(String(ZUSTANDSNOTIZ_MAX))` ist tautologisch, solange
+       * beide Zahlen uebereinstimmen.
        */
       return `Die Zustandsnotiz ist zu lang. Höchstens ${ZUSTANDSNOTIZ_MAX} Zeichen.`;
     case "unbekannt":
