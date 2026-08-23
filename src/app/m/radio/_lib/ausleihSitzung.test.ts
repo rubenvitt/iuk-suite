@@ -378,22 +378,33 @@ describe("radio-Ausleihsitzung: die Bauform", () => {
      *     gemessen blieb sie gruen, waehrend der Thunk im Quelltext nur noch als
      *     `// Die erlaubte Form waere: const schluessel = () => …` existierte.
      *
-     *     ⛔ DIE ZWEI SEITEN SIND ABSICHTLICH UNGLEICH STRENG (Fix-Runde 2 zu A4, Fund
-     *     N-a). Hier stand „Modulebene heisst Spalte 0" — das ist fuer JavaScript FALSCH,
+     *     ⛔ WAS SPALTE 0 HIER LEISTET UND WAS NICHT (Fix-Runde 2 zu A4, Fund N-a). Hier
+     *     stand „Modulebene heisst Spalte 0" — das ist fuer JavaScript FALSCH,
      *     Modulebenen-Code darf eingerueckt sein, und `package.json:12-13` fuehrt nur
-     *     `eslint` und `tsc`, keinen Format-Waechter, der es geraderueckte. Gemessen:
-     *     ein eingeruecktes `  const X = new TextEncoder().encode(ausleihSitzungGeheimnis());`
-     *     neben dem richtigen Thunk liess BEIDE verbietenden Muster gruen — nur der
-     *     Laufzeit-Fall daneben wurde rot. Deshalb tragen die verbietenden Muster jetzt
-     *     `^[ \t]*`: sie fangen die eingerueckte Form mit. ⛔ `[ \t]` und NICHT `\s` —
-     *     `\s` schliesst den Zeilenumbruch ein und liesse das Muster unter `m` auf einer
-     *     LEEREN Zeile beginnen und vorwaerts laufen. Ein Prosa-Zitat bleibt trotzdem
-     *     aussen vor, weil eine Kommentarzeile mit `//` oder `*` beginnt und beides in
-     *     `[ \t]*` nicht vorkommt.
+     *     `eslint` und `tsc`, keinen Format-Waechter, der es geraderueckte. Spalte 0 ist
+     *     also ein STELLVERTRETER fuer „Modulebene", kein Beweis.
      *
-     *     Die POSITIVE Zusicherung bleibt an Spalte 0 verankert: sie ist die Zusage ueber
-     *     die eine erlaubte Form, und genau diese Verankerung haelt das Prosa-Zitat oben
-     *     von ihr fern.
+     *     Die Luecke ist gemessen: ein eingeruecktes
+     *     `  const X = new TextEncoder().encode(ausleihSitzungGeheimnis());` neben dem
+     *     richtigen Thunk laesst beide verbietenden Muster gruen — ROT wird dann allein
+     *     der Laufzeit-Fall oben. ⛔ Kein falsches Gruen auf Dateiebene, nur ein Waechter
+     *     weniger auf derselben Fehlerklasse.
+     *
+     *     ⛔ DIE NAHELIEGENDE ABHILFE WURDE GEBAUT, GEMESSEN UND ZURUECKGENOMMEN.
+     *     `^[ \t]*` statt `^` faengt die eingerueckte Form — und faengt zugleich JEDES
+     *     `const` in einem FUNKTIONSRUMPF, denn eine Regex sieht Einzug, nicht Geltungs-
+     *     bereich. Gemessen wurde dieser Fall damit rot auf
+     *     `const geheim = ausleihSitzungGeheimnis();` INNERHALB von `createAusleihSitzung`
+     *     — also auf der spaeten, richtigen Leseform, die diese ganze Regel gerade
+     *     verlangt; die Meldung „kein Modulebenen-const" waere dann schlicht unwahr.
+     *     Ein Waechter, der die richtige Form bestraft, erzieht zum Abschwaechen. Von
+     *     zwei unvollkommenen Mustern ist das mit dem FALSCH-NEGATIV (eine bizarre
+     *     Einrueckung, die der Laufzeit-Fall ohnehin faengt) dem mit dem FALSCH-POSITIV
+     *     auf gewoehnlichem Code vorzuziehen. Deshalb bleibt `^`.
+     *
+     *     Die POSITIVE Zusicherung bleibt aus einem zweiten Grund an Spalte 0: sie ist die
+     *     Zusage ueber die eine erlaubte Form, und genau diese Verankerung haelt das
+     *     Prosa-Zitat oben von ihr fern.
      *
      * (b) Die verbietende Seite zielt auf `ausleihSitzungGeheimnis(` statt auf
      *     `TextEncoder`. Gemessen kam sonst ein `const ROH = ausleihSitzungGeheimnis();`
@@ -422,8 +433,8 @@ describe("radio-Ausleihsitzung: die Bauform", () => {
     expect(quelle, "das Geheimnis gehoert in einen Thunk (Spec:2042-2047)")
       .toMatch(/^(?:export\s+)?const\s+\w+\s*=\s*\(\s*\)\s*=>\s*new\s+TextEncoder\(\)/m);
     expect(quelle, "kein Modulebenen-const auf das Geheimnis")
-      .not.toMatch(/^[ \t]*(?:export\s+)?const\s+\w+\s*=(?!\s*\(\s*\)\s*=>)\s*[^\n]*\bausleihSitzungGeheimnis\s*\(/m);
+      .not.toMatch(/^(?:export\s+)?const\s+\w+\s*=(?!\s*\(\s*\)\s*=>)\s*[^\n]*\bausleihSitzungGeheimnis\s*\(/m);
     expect(quelle, "kein Modulebenen-const auf einen Schluessel")
-      .not.toMatch(/^[ \t]*(?:export\s+)?const\s+\w+\s*=\s*new\s+TextEncoder\(\)/m);
+      .not.toMatch(/^(?:export\s+)?const\s+\w+\s*=\s*new\s+TextEncoder\(\)/m);
   });
 });
