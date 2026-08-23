@@ -61,7 +61,7 @@ export const STATUS_FILTER: readonly StatusFilter[] = [
  * naheliegende Erfindung waere „Defekt/Wartung", und sie waere still falsch.
  *
  * ⚠️ BILDSCHIRMTEXTE MIT UMLAUT — die eine benannte Ausnahme der Hausregel
- * (`.superpowers/sdd/planteil3/briefs/KOPF.md:264-272`).
+ * (`.superpowers/sdd/planteil3/briefs/KOPF.md:265-272`).
  */
 export const STATUS_FILTER_ETIKETT: Record<StatusFilter, string> = {
   ALL: "Alle",
@@ -131,6 +131,14 @@ const PRIORITAET: Record<GeraeteStatus, number> = {
  *
  * ⛔ `every`, NICHT `some` (`device-filter.ts:40`). Wer zwei Begriffe eintippt, meint eine
  * Verengung; mit `some` faende „motorola zelt" jedes Motorola und jedes Zelt.
+ *
+ * ⚠️ ZWEI TOTE PFADE, HIER BENANNT STATT STILL: die Fruehrueckgabe unten und das
+ * `.filter(Boolean)` in `filtereGeraete` aendern am Ergebnis nichts. `normalisiereSuchtext`
+ * trimmt, also liefert `split(/\s+/)` nur bei leerer Eingabe einen Leereintrag — und
+ * `[""].every((b) => s.includes(b))` ist dasselbe `true` wie `[].every(…)`. Beide Zeilen
+ * stehen 1:1 in der Alt-Quelle (`device-filter.ts:34` und `:60`) und bleiben stehen, weil
+ * diese Datei fachlich unveraendert portiert ist (Spec:3600). ⛔ VON KEINEM TEST BEWACHT,
+ * weil sie nichts aendern — gemessen, beide Sonden 0 rot (`REVIEW-A13.md`, Fund K1).
  */
 function trifftSuchtext(geraet: SuchbaresGeraet, begriffe: readonly string[]): boolean {
   if (begriffe.length === 0) return true;
@@ -162,7 +170,7 @@ function trifftStatus(geraet: SuchbaresGeraet, filter: StatusFilter): boolean {
  *
  * ⛔ DIE EINGABE WIRD NIE AN ORT UND STELLE SORTIERT. Sie kommt als Prop aus einer Server
  * Component (A18); ein `sort()` auf ihr veraenderte sie dort still mit. Die Alt-Quelle
- * schreibt denselben Grund aus (`api/devices.ts:144`: „create new array to avoid
+ * schreibt denselben Grund aus (`api/devices.ts:145`: „create new array to avoid
  * mutation").
  *
  * Die Sortierung ist stabil (ECMA-262 verlangt das seit ES2019 fuer `Array#sort`), also
@@ -181,8 +189,14 @@ export function filtereGeraete<T extends SuchbaresGeraet>(
 
 /**
  * Der Schluessel der Sammelgruppe, 1:1 aus `device-filter.ts:16`. ⛔ KEIN Standortname,
- * sondern ein Wert, den kein Standort tragen kann — sonst kollidierte er mit einem echten
- * Standort, der zufaellig so hiesse.
+ * sondern ein Wert, den ein Standort praktisch nicht traegt.
+ *
+ * ⚠️ KONSTRUKTIV AUSGESCHLOSSEN IST DIE KOLLISION ABER NICHT — und dieser Satz sagt es,
+ * statt sie zu behaupten. `_db/schema.ts:31` fuehrt `location: text("location")` als freien
+ * Text, und `gruppiereNachStandort` unten setzt `schluessel: etikett`; ein Geraet mit dem
+ * Standort `__none__` ergaebe zusammen mit einem Geraet ohne Standort zwei Gruppen mit
+ * demselben `schluessel` — in A18 ein doppelter React-Key. Das VERHALTEN ist der Alt-Quelle
+ * treu (`device-filter.ts:88` gegen `:91`); die Grenze steht hier, damit A18 sie kennt.
  */
 export const OHNE_STANDORT_SCHLUESSEL = "__none__";
 

@@ -23,7 +23,7 @@ import {
  * (`docs/radio-portierung-analyse.md:1360-1373`) nennt den Grund: „ohne Umlaut-Testdaten
  * sieht das kein Test." Die Hausregel „keine Umlaute in Bezeichnern, Testnamen und
  * Grep-Ankern" gilt hier unveraendert weiter — sie trifft die NAMEN, nicht die DATEN
- * (`briefs/KOPF.md:264-272`, die benannte Ausnahme).
+ * (`briefs/KOPF.md:265-272`, die benannte Ausnahme).
  *
  * ⚠️ ZWEI ZUSAGEN AUS §4.5.1 STEHEN HIER ABSICHTLICH NICHT: „eine einzige Gruppe flach ohne
  * Kopfzeile" (`radio-inventar/apps/frontend/src/components/features/DeviceGroupedList.tsx:34-36`)
@@ -98,6 +98,20 @@ describe("radio-filter: die Normalisierung des Suchtextes", () => {
     ];
     expect(ids(filtereGeraete(bestand, { ...alles, suchtext: "muller" }))).toEqual(["a"]);
     expect(ids(filtereGeraete(bestand, { ...alles, suchtext: "strasse" }))).toEqual(["a"]);
+
+    /*
+     * ⛔ UND DIESELBE ZUSAGE AUF DER EBENE, AUF DER DER MENSCH TIPPT. Die zwei Zeilen darueber
+     * geben bereits Normalform ein — sie bewachen die Suche, nicht die Normalisierung DER
+     * ANFRAGE. Diese zwei bewachen genau den Aufrufort `filter.ts:184`
+     * (`normalisiereSuchtext(zustand.suchtext)`); ohne ihn faende ein eingetipptes „Müller"
+     * nichts, weil im `suchschluessel` „muller" steht.
+     *
+     * ⚠️ WAS SIE NICHT BEWACHEN: die vier Innenschritte von `normalisiereSuchtext`. Der
+     * `suchschluessel` der Testdaten laeuft durch dieselbe Funktion, eine Mutation IN ihr
+     * bewegt also beide Seiten gleich. Die Innenschritte bewachen `:88-92` oben.
+     */
+    expect(ids(filtereGeraete(bestand, { ...alles, suchtext: "Müller" }))).toEqual(["a"]);
+    expect(ids(filtereGeraete(bestand, { ...alles, suchtext: "  STRASSE  " }))).toEqual(["a"]);
   });
 
   it("verlangt, dass ALLE Begriffe treffen", () => {
@@ -204,7 +218,7 @@ describe("radio-filter: die vier Statusfilter", () => {
     /*
      * Die Grundmenge kommt als Prop aus einer Server Component (A18); ein `sort()` an Ort
      * und Stelle veraenderte sie dort still mit. Die Alt-Quelle schreibt denselben Grund
-     * aus (`radio-inventar/apps/frontend/src/api/devices.ts:144`).
+     * aus (`radio-inventar/apps/frontend/src/api/devices.ts:145`).
      *
      * ⛔ DIE EINGABE IST ABSICHTLICH GEGEN DIE STATUSPRIORITAET GEORDNET. Waere sie schon
      * sortiert, koennte dieser Fall ein `sort()` an Ort und Stelle nicht von einer Kopie
@@ -233,7 +247,7 @@ describe("radio-filter: die vier Statusfilter", () => {
      * und ein Geraet ohne erfassten Zustand nicht durch alle vier Filter faellt.
      *
      * ⛔ DIE FALTUNG SELBST WIRD HIER NICHT NOCHMAL GEPRUEFT — sie hat ihren eigenen Fall
-     * samt Sonde in `_lib/status.test.ts:131-153`. Zwei Prueforte fuer eine Entscheidung
+     * samt Sonde in `_lib/status.test.ts:131-152`. Zwei Prueforte fuer eine Entscheidung
      * waeren zwei Wahrheiten.
      */
     const ohneZustand = zeile({
@@ -262,7 +276,7 @@ describe("radio-filter: die vier Statusfilter", () => {
      * statt sie neu zu erfinden — dieselbe Anordnung, die A12 fuer `STATUS_HEX` und A16
      * getroffen hat (`_lib/status.ts`, Kopf).
      *
-     * ⚠️ BILDSCHIRMTEXTE MIT UMLAUT — die eine benannte Ausnahme (`briefs/KOPF.md:264-272`).
+     * ⚠️ BILDSCHIRMTEXTE MIT UMLAUT — die eine benannte Ausnahme (`briefs/KOPF.md:265-272`).
      */
     expect(STATUS_FILTER).toEqual(["ALL", "AVAILABLE", "ON_LOAN", "UNAVAILABLE"]);
     expect(STATUS_FILTER_ETIKETT.ALL).toBe("Alle");
@@ -320,6 +334,18 @@ describe("radio-filter: die Gruppierung nach Standort", () => {
     const letzte = gruppen.at(-1);
     expect(letzte?.etikett).toBe(OHNE_STANDORT_ETIKETT);
     expect(ids(letzte?.geraete ?? [])).toEqual(["leer", "nichts"]);
+
+    /*
+     * ⛔ DIE ZWEI WERTE SELBST, ALS LITERAL — nicht gegen die importierte Konstante. Die
+     * Zusicherungen darueber vergleichen das Ergebnis gegen DIESELBE Konstante und belegen
+     * damit die Verdrahtung, nie den Wert: eine Umbenennung auf „Kein Standort" liesse sie
+     * gruen (gemessen, `REVIEW-A13.md` Fund W2, zwei Sonden 0 rot). „Ohne Standort" ist ein
+     * Bildschirmtext, den A18 von hier liest (`filter.ts:58-59`), und `__none__` ist der
+     * Schluessel, an dem die Insel die Sammelgruppe erkennt — beide 1:1 aus
+     * `radio-inventar/apps/frontend/src/lib/device-filter.ts:16-17`.
+     */
+    expect(OHNE_STANDORT_SCHLUESSEL).toBe("__none__");
+    expect(OHNE_STANDORT_ETIKETT).toBe("Ohne Standort");
 
     // Ohne Heimatlose gibt es die Gruppe nicht.
     expect(
