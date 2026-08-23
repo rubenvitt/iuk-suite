@@ -22,10 +22,17 @@ beforeEach(() => {
   process.env = { ...UMGEBUNG, RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIMNIS };
 });
 afterEach(() => {
-  // ⛔ ERST DIE STUMMEL, DANN DIE ERSETZUNG. `vi.unstubAllEnvs()` schreibt auf das Objekt,
-  // das `process.env` in diesem Augenblick IST; liefe es nach der Zuweisung, traefe es das
-  // frische Objekt und liesse den Stummel auf dem alten stehen. Gebraucht wird es vom Fall
-  // „secure folgt NODE_ENV" — `NODE_ENV` ist readonly und nur ueber `vi.stubEnv` setzbar.
+  // ERST DIE STUMMEL, DANN DIE ERSETZUNG — die sichere Reihenfolge, weil
+  // `vi.unstubAllEnvs()` auf das Objekt schreibt, das `process.env` in diesem Augenblick
+  // IST. Gebraucht wird der Aufruf vom Fall „secure folgt NODE_ENV": `NODE_ENV` ist
+  // readonly und nur ueber `vi.stubEnv` setzbar.
+  //
+  // ⚠️ WAS HIER NICHT BEHAUPTET WIRD (Fix-Runde 2 zu A4, Fund N-c). Hier stand, die
+  // umgekehrte Reihenfolge traefe das frische Objekt und liesse den Stummel auf dem alten
+  // stehen. Gemessen trifft das NICHT zu: die zwei Zeilen vertauscht, und alle 23 Faelle
+  // bleiben gruen — das alte Objekt wird ohnehin verworfen, und `UMGEBUNG` traegt dasselbe
+  // `NODE_ENV` wie das Objekt aus `beforeEach`. Kein Waechter haelt diese Reihenfolge;
+  // sie steht so, weil sie die robuste ist, nicht weil ein Fall sie erzwingt.
   vi.unstubAllEnvs();
   process.env = { ...UMGEBUNG };
 });
@@ -366,11 +373,27 @@ describe("radio-Ausleihsitzung: die Bauform", () => {
      * ⛔ DREI SCHAERFUNGEN AUS FIX-RUNDE 1 ZU A4 (Fund K3), jede gegen eine gemessene
      * Luecke der ersten Fassung:
      *
-     * (a) BEIDE Muster sind mit `^` an den ZEILENANFANG verankert (`m`-Flag). Ohne das
+     * (a) Alle drei Muster sind mit `^` an den ZEILENANFANG verankert (`m`-Flag). Ohne das
      *     erfuellte ein blosses PROSA-ZITAT in einem Kommentar die positive Zusicherung:
      *     gemessen blieb sie gruen, waehrend der Thunk im Quelltext nur noch als
-     *     `// Die erlaubte Form waere: const schluessel = () => …` existierte. Modulebene
-     *     heisst Spalte 0 — die Verankerung ist zugleich die genauere Zusage.
+     *     `// Die erlaubte Form waere: const schluessel = () => …` existierte.
+     *
+     *     ⛔ DIE ZWEI SEITEN SIND ABSICHTLICH UNGLEICH STRENG (Fix-Runde 2 zu A4, Fund
+     *     N-a). Hier stand „Modulebene heisst Spalte 0" — das ist fuer JavaScript FALSCH,
+     *     Modulebenen-Code darf eingerueckt sein, und `package.json:12-13` fuehrt nur
+     *     `eslint` und `tsc`, keinen Format-Waechter, der es geraderueckte. Gemessen:
+     *     ein eingeruecktes `  const X = new TextEncoder().encode(ausleihSitzungGeheimnis());`
+     *     neben dem richtigen Thunk liess BEIDE verbietenden Muster gruen — nur der
+     *     Laufzeit-Fall daneben wurde rot. Deshalb tragen die verbietenden Muster jetzt
+     *     `^[ \t]*`: sie fangen die eingerueckte Form mit. ⛔ `[ \t]` und NICHT `\s` —
+     *     `\s` schliesst den Zeilenumbruch ein und liesse das Muster unter `m` auf einer
+     *     LEEREN Zeile beginnen und vorwaerts laufen. Ein Prosa-Zitat bleibt trotzdem
+     *     aussen vor, weil eine Kommentarzeile mit `//` oder `*` beginnt und beides in
+     *     `[ \t]*` nicht vorkommt.
+     *
+     *     Die POSITIVE Zusicherung bleibt an Spalte 0 verankert: sie ist die Zusage ueber
+     *     die eine erlaubte Form, und genau diese Verankerung haelt das Prosa-Zitat oben
+     *     von ihr fern.
      *
      * (b) Die verbietende Seite zielt auf `ausleihSitzungGeheimnis(` statt auf
      *     `TextEncoder`. Gemessen kam sonst ein `const ROH = ausleihSitzungGeheimnis();`
@@ -385,6 +408,11 @@ describe("radio-Ausleihsitzung: die Bauform", () => {
      * (c) `export\s+` ist zugelassen. Gemessen kam sonst ein
      *     `export const SCHLUESSEL = new TextEncoder().encode(ausleihSitzungGeheimnis());`
      *     durch, weil das alte Muster `const` unmittelbar am Zeilenanfang verlangte.
+     *     ⛔ Fix-Runde 2 zu A4 (Fund N-b): `(?:export\s+)?` steht jetzt auch in der
+     *     POSITIVEN Zusicherung. Vorher war die Regel widerspruechlich — die verbietenden
+     *     Muster liessen `export` zu, die positive nicht, und ein sachlich unbedenkliches
+     *     `export const schluessel = () => …` machte den Scan gemessen rot. Ein
+     *     Waechter, der die richtige Form bestraft, erzieht zum Abschwaechen.
      *
      * Das alte, auf `TextEncoder` zielende Muster bleibt daneben stehen: es faengt ein
      * Modulebenen-`const`, das das Geheimnis auf einem anderen Weg als ueber
@@ -392,10 +420,10 @@ describe("radio-Ausleihsitzung: die Bauform", () => {
      */
     const quelle = readFileSync(join(process.cwd(), "src/app/m/radio/_lib/ausleihSitzung.ts"), "utf8");
     expect(quelle, "das Geheimnis gehoert in einen Thunk (Spec:2042-2047)")
-      .toMatch(/^const\s+\w+\s*=\s*\(\s*\)\s*=>\s*new\s+TextEncoder\(\)/m);
+      .toMatch(/^(?:export\s+)?const\s+\w+\s*=\s*\(\s*\)\s*=>\s*new\s+TextEncoder\(\)/m);
     expect(quelle, "kein Modulebenen-const auf das Geheimnis")
-      .not.toMatch(/^(?:export\s+)?const\s+\w+\s*=(?!\s*\(\s*\)\s*=>)\s*[^\n]*\bausleihSitzungGeheimnis\s*\(/m);
+      .not.toMatch(/^[ \t]*(?:export\s+)?const\s+\w+\s*=(?!\s*\(\s*\)\s*=>)\s*[^\n]*\bausleihSitzungGeheimnis\s*\(/m);
     expect(quelle, "kein Modulebenen-const auf einen Schluessel")
-      .not.toMatch(/^(?:export\s+)?const\s+\w+\s*=\s*new\s+TextEncoder\(\)/m);
+      .not.toMatch(/^[ \t]*(?:export\s+)?const\s+\w+\s*=\s*new\s+TextEncoder\(\)/m);
   });
 });
