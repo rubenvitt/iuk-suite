@@ -11,6 +11,13 @@ describe("radio-returnTo: nur lokale Pfade", () => {
     ["/geraete", "/geraete"],
     ["/ausleihen?geraete=a,b", "/ausleihen?geraete=a,b"],
     ["/rueckgabe", "/rueckgabe"],
+    /*
+     * ⛔ DER WURZELPFAD IST EIN DURCHLASSFALL, KEIN RANDFALL. Der Bestand fuehrt ihn
+     * (`src/app/m/lagerbuch/_lib/returnTo.test.ts:9`); beim Zuschnitt der zwoelf Faelle des
+     * Briefes ging er verloren. Gemessen als Sonde P6 (`if (raw === "/") return null;` vor
+     * `return raw;` eingefuegt): ohne diese Zeile **0 rot**, mit ihr rot.
+     */
+    ["/", "/"],
   ])("laesst %s durch", (roh, erwartet) => {
     expect(sanitizeReturnTo(roh)).toBe(erwartet);
   });
@@ -30,6 +37,7 @@ describe("radio-returnTo: nur lokale Pfade", () => {
     ["leer", ""],
     ["null", null],
     ["undefined", undefined],
+    ["Nicht-String aus doppeltem Parameter", ["/a", "/b"]],
   ])("verwirft %s", (_n, roh) => {
     /*
      * ⛔ `//boese.example/` IST DER FALL, DEN EIN NAIVES `startsWith("/")` DURCHLAESST —
@@ -67,11 +75,26 @@ describe("radio-returnTo: nur lokale Pfade", () => {
      * „Zeilenumbruch") die Zeile benennt, die der Leser bewacht GLAUBT — nicht die, die
      * beim Lauf tatsaechlich greift. Nur die Sonde unterscheidet das.
      *
+     * ⛔ NACHTRAG DER FIX-RUNDE 1: DIESELBE KLASSE, EINE ZEILE TIEFER — UND SIE HAT SICH
+     * HINTER EINER ZU GROBEN SONDE VERSTECKT. `returnTo.ts:53` ist eine VERBUNDbedingung:
+     * `if (!raw || typeof raw !== "string")`. Sonde S-A5j entfernte die GANZE Zeile und mass
+     * **2 rot** — das sah nach Deckung aus. Beide roten Faelle („verwirft null", „verwirft
+     * undefined") trug aber allein die Haelfte `!raw`. Nur die Haelfte
+     * `typeof raw !== "string"` entfernt (Sonde P2, Fix-Runde 1): **0 rot**. Der Fall
+     * „Nicht-String aus doppeltem Parameter" schliesst das. Er steht so im Bestand
+     * (`src/app/m/lagerbuch/_lib/returnTo.test.ts:37-40`) und ist ohne die typeof-Haelfte
+     * kein `null`, sondern ein GEWORFENER `TypeError: raw.startsWith is not a function`.
+     *
+     * ⚠️ DIE LEHRE, GESCHAERFT: eine Sonde gilt PRO BEDINGUNG, nicht pro Zeile. Eine
+     * Verbundbedingung mit `||` sind ZWEI Sonden, und ihre gemeinsame rote Zahl sagt nicht,
+     * welche der beiden Haelften sie traegt.
+     *
      * ⚠️ DIE TYPZUSICHERUNG UNTEN IST TRAGEND, NICHT KOSMETIK. `it.each` leitet aus der
-     * Tabelle den Typ der Spalte ab; sie enthaelt `null` und `undefined`, und `roh` ist
-     * damit `string | null | undefined` — aber erst die Zusicherung sagt das dem Aufruf.
-     * Die Tabelle SIEHT nach lauter Zeichenketten aus; wer sie „aufraeumt", bekommt
-     * `rtk pnpm typecheck` rot und nicht etwa einen gruenen Lauf mit weniger Deckung.
+     * Tabelle den Typ der Spalte ab; sie enthaelt `null`, `undefined` und (seit dem
+     * Nicht-String-Fall) ein `string[]`, und `roh` ist damit weiter als der Parameter von
+     * `sanitizeReturnTo` — erst die Zusicherung sagt das dem Aufruf. Die Tabelle SIEHT nach
+     * lauter Zeichenketten aus; wer sie „aufraeumt", bekommt `rtk pnpm typecheck` rot und
+     * nicht etwa einen gruenen Lauf mit weniger Deckung.
      */
     expect(sanitizeReturnTo(roh as string | null | undefined)).toBeNull();
   });
