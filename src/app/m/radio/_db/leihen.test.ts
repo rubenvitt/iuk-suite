@@ -788,6 +788,28 @@ describe("radio-leihen: die Rueckgabe", () => {
     expect(ergebnis.grund).toBe("notiz-zu-lang");
     expect(db.select().from(loans).where(eq(loans.id, id)).get()?.returnedAt).toBeNull();
 
+    /*
+     * ⛔ GEMESSEN WIRD DER UNGETRIMMTE WERT — `_db/leihen.ts:599` misst `notiz.length`,
+     * nicht `notiz.trim().length`, und das ist Absicht: gemessen wird, was gespeichert
+     * wird (`_db/leihen.ts:591-592`, die Notiz wird nicht umgeschrieben). Bis zu diesem
+     * Fall war die Grenze zwar bewacht, aber nicht, WELCHEN der zwei Werte sie misst:
+     * kein Fall trug Leerzeichen an den Enden (REVIEW-A17 Fund F6-N).
+     *
+     * ⛔ DIESER FALL GEHOERT VOR DIE GRENZZEILE DARUNTER UND DARF NICHT UNTER SIE WANDERN.
+     * Er traegt nur, solange die Leihe noch aktiv ist — und das ist sie hier, gemessen von
+     * der Zusicherung darueber. Faellt `:599` auf `trim()`, laeuft der Wert durch die
+     * Pruefung und bucht die AKTIVE Leihe zurueck: `ok` wird `true`, der Fall rot. Unter
+     * der Grenzzeile ist die Leihe bereits zurueck, dasselbe `ok: false` kaeme dann aus
+     * `schon-zurueck` (`_db/leihen.ts:619-620`) und der Fall bliebe GRUEN — gemessen, die
+     * Sonde steht im Fix-Bericht zu A17.
+     */
+    // getrimmt genau auf der Grenze, ungetrimmt eine Stelle darueber
+    const knappDrueber = ` ${"x".repeat(ZUSTANDSNOTIZ_MAX)}`;
+    const mitLeerzeichen = bucheRueckgabe(db, id, knappDrueber);
+    expect(mitLeerzeichen.ok).toBe(false);
+    if (mitLeerzeichen.ok) return;
+    expect(mitLeerzeichen.grund).toBe("notiz-zu-lang");
+
     // Genau auf der Grenze geht es durch — sonst waere ein `>=` hier unbemerkt.
     expect(bucheRueckgabe(db, id, "x".repeat(ZUSTANDSNOTIZ_MAX)).ok).toBe(true);
   });

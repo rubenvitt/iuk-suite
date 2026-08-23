@@ -675,7 +675,7 @@ describe("radio-_actions/ausleihe: die Leerstellen dieser Datei", () => {
      *
      * ⚠️ DER WAECHTER GEHOERT IN DEN VERFOLGTEN BAUM UND NICHT IN EINEN BERICHT:
      * `.superpowers/` ist git-ignoriert (`.gitignore:17`) — eine Leerstelle, die nur dort
-     * steht, steht nirgends. Dieselbe Bauform wie `_db/leihen.test.ts:941-960`.
+     * steht, steht nirgends. Dieselbe Bauform wie `_db/leihen.test.ts:963-982`.
      *
      * ⛔ ER BELEGT, DASS DER SATZ DASTEHT, NICHT DASS ER STIMMT. Behauptet wird nichts anderes.
      */
