@@ -10,14 +10,14 @@ import { viewerAusSession } from "./zugang";
 
 /**
  * DAS ZUGANGSPRAEDIKAT DER AUSLEIHE (Spec 1 §3.5, Zeilen 2632-2786).
- * KEIN "use client" (Falle 6, `CLAUDE.md:27`; durchgesetzt von `riegel.test.ts:685-704`).
+ * KEIN "use client" (Falle 6, `CLAUDE.md:27`; durchgesetzt von `riegel.test.ts:786-805`).
  *
  * ZWEI WEGE, EINE FUNKTION, EIN ERGEBNISTYP (Spec:2636-2638) — nicht zwei Riegel, die
  * jede Flaeche einzeln nebeneinanderstellt. Das waere die Liste, die die naechste Datei
  * vergisst.
  *
  * ⬜ A-L9 — DIE GRENZE DIESER DATEI, BENANNT STATT BEHAUPTET: dass diese Riegel bei einem
- * ECHTEN Abruf GREIFEN, ist unbewiesen (Erbe von Z-L1, `riegel.test.ts:45-49`);
+ * ECHTEN Abruf GREIFEN, ist unbewiesen (Erbe von Z-L1, `riegel.test.ts:49-53`);
  * Eigentuemer ist Planteil 5 mit dem ersten e2e-Lauf. Was hier und in
  * `ausleihZugang.test.ts` belegt ist: die LOGIK des Praedikats.
  *
@@ -49,7 +49,7 @@ import { viewerAusSession } from "./zugang";
  *
  * ⚠️ DIESE DREI WOERTER STEHEN HIER ABSICHTLICH AUSGESCHRIEBEN, und sie sind zugleich die
  * LAST des Scans in `ausleihZugang.test.ts`: er liest die Quelle ueber `ohneKommentare`
- * (Kopie aus `riegel.test.ts:164-184`). Ohne diesen Kopf traefe der Scan nichts und
+ * (Kopie aus `riegel.test.ts:181-201`). Ohne diesen Kopf traefe der Scan nichts und
  * bewiese nichts — mit ihm ist gemessen, dass er die Kommentare wirklich leert (Sonde
  * S-A7e). ⛔ Wer den Kopf entschaerft, macht den Scan still wirkungslos; wer den Scan
  * „repariert", schwaecht ihn.

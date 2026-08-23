@@ -54,7 +54,7 @@ const frisch = async () => {
  * als Fund W4 in `REVIEW-A3.md`: ein blosser Beleg-Kommentar faerbte die erste Fassung
  * rot, waehrend ein ECHTER Zugriff mit neutral formuliertem Kommentar gruen blieb.
  *
- * ⛔ ZEICHENGLEICH AUS DEM BESTAND UEBERNOMMEN (`src/app/m/radio/riegel.test.ts:164-184`,
+ * ⛔ ZEICHENGLEICH AUS DEM BESTAND UEBERNOMMEN (`src/app/m/radio/riegel.test.ts:181-201`,
  * Begruendung dort `:148-162`). Testdateien halten in diesem Repo jede ihre eigene Kopie
  * — `riegel.test.ts` und `src/app/m/lagerbuch/_lib/bauform.test.ts:142-162` tun es
  * ebenso (Begruendung dort `:124-141`); ein gemeinsames Modul unter `_lib/` waere eine Nicht-Test-Quelldatei und liefe
@@ -439,7 +439,7 @@ describe("radio-Gate-Schranke: die vier Eigenschaften aus Spec:3013-3031", () =>
      * Anweisungen: ein Kommentar, der eine der Zeichenketten nannte, machte sie rot,
      * OHNE dass die Datei zugriff (gemessen: der Beleg-Kommentar einer Sonde reichte).
      * Deshalb werden die Kommentare jetzt VOR dem Vergleich geleert, mit demselben
-     * Werkzeug, das der Bestand dafuer haelt (`src/app/m/radio/riegel.test.ts:164-184`,
+     * Werkzeug, das der Bestand dafuer haelt (`src/app/m/radio/riegel.test.ts:181-201`,
      * Begruendung dort `:148-162`). ⛔ FOLGE: die Auflage aus A3 Schritt 3.6, der
      * Kopfkommentar von `gateSchranke.ts` duerfe die verbotenen Zeichenketten nicht beim
      * Namen nennen, ist damit GEGENSTANDSLOS — der Scan sieht Kommentare nicht mehr.
@@ -447,7 +447,7 @@ describe("radio-Gate-Schranke: die vier Eigenschaften aus Spec:3013-3031", () =>
      * ⚠️ ZWEI GRENZEN, DIE DIESER SCAN NICHT SCHLIESST, und sie sind hier benannt statt
      * verschwiegen:
      *  (a) `ohneKommentare` laesst einen NACHGESTELLTEN `// …` am Ende einer Codezeile
-     *      bewusst stehen (`riegel.test.ts:158-162`: ein naiver Stripper koennte eine
+     *      bewusst stehen (`riegel.test.ts:175-179`: ein naiver Stripper koennte eine
      *      Verletzung VERSTECKEN). Ein nachgestellter Kommentar, der eine der
      *      Zeichenketten nennt, faerbt den Scan also weiterhin. Das ist die gewollte
      *      Richtung: laut und falsch-positiv, nie still und falsch-negativ.

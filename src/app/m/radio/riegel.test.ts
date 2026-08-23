@@ -23,6 +23,7 @@ import { join, relative } from "node:path";
  *   (c) jedes `route.ts`               exakte Zahl, nicht-werfende Form
  *   (e) jedes `admin/**\/page.tsx`     exakte Zahl, dieselbe Pfadsensitivitaet wie (a)
  *   (d) zwei Funktionskoerper in `_lib/zugang.ts`
+ *   (f) jede `page.tsx`/`layout.tsx` AUSSERHALB `admin/`  exakte Zahl, Form je Art
  *
  * ⬜ Z-L3 — WAS AUCH DANACH UNBEWACHT BLEIBT, und es steht hier, statt verschwiegen zu
  * werden: `page.tsx` UND `layout.tsx` AUSSERHALB von `admin/`. Beide Filter unten sind auf
@@ -36,6 +37,9 @@ import { join, relative } from "node:path";
  * SCHULDET DIE KLAUSEL ZU SEINEM EIGENEN RIEGEL; hier ist sie nicht vorwegzunehmen, weil
  * sie ueber einer heute leeren Menge leer-gruen waere — genau die Fehlerform, gegen die
  * die Untergrenzen unten stehen.
+ * ⛔ GESCHLOSSEN IN PLANTEIL 3, AUFGABE A11, DURCH KLAUSEL (f). Die Messung oben (`12
+ * passed` ohne jeden Riegel) BLEIBT STEHEN — sie ist der Beleg, warum die Klausel
+ * existiert, und Sonde S-A11c ist ihre Gegenprobe an derselben Datei.
  *
  * SIE BELEGT NICHT, DASS ETWAS WIRKT, sondern dass eine BAUFORM eingehalten ist. Genau
  * dafuer ist sie die richtige Ebene — jede Zeile hier faengt einen Fehler, der typkorrekt,
@@ -83,6 +87,12 @@ import { join, relative } from "node:path";
  *   Planteil 4 baut die zehn Seiten aus Spec:4369-4378
  *                                                    -> ADMIN_SEITEN_ANZAHL = 10
  *
+ *   A11 baut `page.tsx` (das Gate)                   -> AUSLEIH_FLAECHEN_ANZAHL = 1
+ *   A18 baut `(ausleihe)/layout.tsx` und
+ *           `(ausleihe)/geraete/page.tsx`            -> AUSLEIH_FLAECHEN_ANZAHL = 3
+ *   A19 baut `(ausleihe)/ausleihen/page.tsx`         -> AUSLEIH_FLAECHEN_ANZAHL = 4
+ *   A20 baut `(ausleihe)/rueckgabe/page.tsx`         -> AUSLEIH_FLAECHEN_ANZAHL = 5
+ *
  * ⚠️ Die Klausel (a) darunter bleibt bei `toBeGreaterThanOrEqual` — dort ist die
  * Untergrenze richtig: sie wird bei 0 oder 1 Layout rot, und eine DRITTE Verwaltungs-Huelle
  * waere kein Fehler. Der Einwand gilt genau der Handler- und der Seitenzahl, nicht dem
@@ -110,6 +120,13 @@ const ADMIN_SEITEN_ANZAHL = 0;
 
 /** Zwei Verwaltungs-Huellen: `admin/(arbeit)/layout.tsx` und `admin/(druck)/layout.tsx` (Z6). */
 const ADMIN_LAYOUTS_MINDESTENS = 2;
+
+/**
+ * ⛔ HEUTE EINS (`page.tsx`, das Gate). Angehoben von A18 (3: + `(ausleihe)/layout.tsx`
+ * und `(ausleihe)/geraete/page.tsx`), A19 (4) und A20 (5). EXAKT, nicht „mindestens" —
+ * dieselbe Begruendung wie bei `HANDLER_ANZAHL` oben.
+ */
+const AUSLEIH_FLAECHEN_ANZAHL = 1;
 
 /**
  * Alle `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv, OHNE Testdateien.
@@ -633,6 +650,90 @@ describe("(d) die Gegenregel — viewerOderNull ruft den Host-Riegel NICHT", () 
   });
 });
 
+describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
+  /*
+   * ⛔ DIESE KLAUSEL SCHLIESST ⬜ Z-L3 (Kopf dieser Datei, Zeilen 28-42). Sie war dort
+   * ausdruecklich NICHT vorwegzunehmen, weil sie ueber einer leeren Menge leer-gruen
+   * gewesen waere. Mit Planteil 3 gibt es die Menge.
+   *
+   * ⛔ `src/app/m/radio/layout.tsx` IST AUSGENOMMEN, UND ZWAR NAMENTLICH. Die
+   * Wurzel-Huelle traegt BEWUSST keinen Riegel (Spec §1.3): sie waere Vorfahr auch des
+   * Ausleih-Zweigs, und ein Riegel dort schickte jeden anonymen Scan in einen 404. Ein
+   * Filter „jede layout.tsx ausserhalb admin/" waere gegen die verbindliche Bauform
+   * ROT-BY-CONSTRUCTION — dieselbe Fehlerform, die B7 (Spec:96) an einem anderen Namen
+   * schon einmal abgeraeumt hat. (Klausel (a) faengt diese Datei aus demselben Grund
+   * nicht; siehe `riegel.test.ts:331-333` — dort steht woertlich, dass Klausel (a)
+   * `src/app/m/radio/layout.tsx` NICHT faengt und ein Treffer dort rot-by-construction
+   * waere. `:315-324` ist nur `inRouteGroup`.)
+   *
+   * ⛔ ZWEI ARTEN, ZWEI FORMEN — und die NEGATIVE Haelfte traegt hier genauso wie die
+   * positive:
+   *
+   *   das GATE (`page.tsx` direkt unter `m/radio/`, AUSSERHALB von `(ausleihe)`):
+   *       requireRadioHost(   UND   ausleihZugangOderNull(
+   *       ⛔ NICHT requireAusleihZugang( — die leitet bei fehlendem Cookie auf `/` um,
+   *          und das IST diese Seite: ein ENDLOSER REDIRECT (Spec:2407-2409, §3.5.5
+   *          Spec:2767).
+   *
+   *   jede Flaeche UNTER `(ausleihe)/` (layout.tsx und page.tsx):
+   *       requireAusleihZugang(
+   *       ⛔ NICHT requireRadioHost( — NS-Z1 und Pflicht 16
+   *          (`docs/radio-portierung-analyse.md:973-977`): das Praedikat ruft ihn INTERN
+   *          als erste Anweisung; ein zweiter Aufruf behauptet, es sei host-blind, und
+   *          macht aus „hostgebunden durch Konstruktion" eine vergessliche Liste
+   *          (Spec:2686-2691, §3.5.5 Spec:2768-2769).
+   *
+   * ⚠️ WAS SIE NICHT BELEGT: dass ein Riegel bei einem echten Abruf GREIFT (⬜ A-L9,
+   * Erbe von Z-L1). Sie belegt, dass eine BAUFORM eingehalten ist.
+   */
+  const AUSLEIH_FLAECHEN = () =>
+    quellDateien().filter((p) => {
+      const kurz = kurzPfad(p);
+      if (/\/admin\//.test(kurz)) return false;                       // (a)/(e) decken das ab
+      if (kurz.endsWith("src/app/m/radio/layout.tsx")) return false;  // die Wurzel-Huelle, Spec §1.3
+      return /\/(?:page|layout)\.tsx$/.test(kurz);
+    });
+
+  it("die Flaechenzahl steht EXAKT auf dem Stand dieses Planteils", () => {
+    expect(
+      AUSLEIH_FLAECHEN().length,
+      "AUSLEIH_FLAECHEN_ANZAHL anheben — der Fahrplan steht im Kopf dieser Datei",
+    ).toBe(AUSLEIH_FLAECHEN_ANZAHL);
+  });
+
+  it("das Gate traegt Host UND Praedikat, und NICHT den umleitenden Riegel", () => {
+    const gate = AUSLEIH_FLAECHEN().filter((p) => !/\/\(ausleihe\)\//.test(kurzPfad(p)));
+    expect(gate.length, "das Gate fehlt — der Fall waere leer-gruen").toBe(1);
+    const q = ohneKommentareUndZeichenketten(readFileSync(gate[0]!, "utf8"));
+    expect(q, "kein requireRadioHost( auf dem Gate").toMatch(/\brequireRadioHost\s*\(/);
+    expect(q, "kein ausleihZugangOderNull( — das Gate braucht das PRAEDIKAT (§3.5.5)")
+      .toMatch(/\bausleihZugangOderNull\s*\(/);
+    expect(q, "requireAusleihZugang( auf dem Gate ist ein ENDLOSER REDIRECT (Spec:2407-2409)")
+      .not.toMatch(/\brequireAusleihZugang\s*\(/);
+    // ERST DER HOST, DANN DAS PRAEDIKAT — zeichengleich zu Klausel (a) und (e).
+    expect(q.search(/\brequireRadioHost\s*\(/))
+      .toBeLessThan(q.search(/\bausleihZugangOderNull\s*\(/));
+  });
+
+  it("jede Flaeche unter (ausleihe)/ traegt requireAusleihZugang und NICHT den Host-Riegel", () => {
+    const verstoesse: string[] = [];
+    for (const pfad of AUSLEIH_FLAECHEN().filter((p) => /\/\(ausleihe\)\//.test(kurzPfad(p)))) {
+      const kurz = kurzPfad(pfad);
+      const q = ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8"));
+      if (!/\brequireAusleihZugang\s*\(/.test(q)) {
+        verstoesse.push(`${kurz}: kein requireAusleihZugang( (§3.5.5, Spec:2768-2769)`);
+      }
+      if (/\brequireRadioHost\s*\(/.test(q)) {
+        verstoesse.push(`${kurz}: ruft requireRadioHost( ein zweites Mal (NS-Z1, Pflicht 16)`);
+      }
+      if (/\brequireRadioAdmin\s*\(|\brequireRadioVerwaltung\s*\(/.test(q)) {
+        verstoesse.push(`${kurz}: ein Verwaltungsriegel auf der anonymen Ausleihflaeche`);
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
+});
+
 describe("Pflicht 17 — dieses Modul nimmt von der Suite-Admin-Abkuerzung Abstand", () => {
   it("findet keinen der vier core-Riegel", () => {
     /*
@@ -720,10 +821,10 @@ describe("kein eingebauter Pseudo-Zufall in diesem Modul", () => {
      *
      * ⚠️ DIESE KLAUSEL IST SCHWAECHER ALS DER SCAN IN `_lib/code.test.ts`, und das steht
      * hier, statt verschwiegen zu werden: `trefferAuf` liest ueber `ohneKommentare`, prueft
-     * also nur AUSFUEHRBAREN Code (`riegel.test.ts:216-224`). Der Scan in
+     * also nur AUSFUEHRBAREN Code (`riegel.test.ts:233-241`). Der Scan in
      * `_lib/code.test.ts` liest den ROHEN Quelltext, Kommentare eingeschlossen. Keine
      * ersetzt die andere: diese hier ist breit (alle AUSGELIEFERTEN Modul-Dateien —
-     * Testdateien und diese Datei selbst sind ausgenommen, `:137`), jene ist tief.
+     * Testdateien und diese Datei selbst sind ausgenommen, `:154`), jene ist tief.
      *
      * Zeilenweise wie alle Scans dieser Datei — ein ueber zwei Zeilen umbrochener Aufruf
      * kaeme durch. Ein Scan darf falsch-negativ nicht sein wollen, aber er ist hier die

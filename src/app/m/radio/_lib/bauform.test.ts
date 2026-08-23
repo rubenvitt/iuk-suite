@@ -32,14 +32,14 @@ const MODUL = join(process.cwd(), "src/app/m/radio");
 const GATE_FLAECHEN = ["t/[code]/route.ts", "_actions/gate.ts", "_actions/sitzung.ts"];
 
 /**
- * Die zwei AEUSSEREN Route Handler des Moduls (`riegel.test.ts:101`, `HANDLER_ANZAHL = 2`).
+ * Die zwei AEUSSEREN Route Handler des Moduls (`riegel.test.ts:111`, `HANDLER_ANZAHL = 2`).
  * Sie tragen die Antwortform, die der Brief „verbindlich" nennt: 303 mit relativem
  * `Location`. ⛔ Sie sind nicht dieselbe Menge wie `GATE_FLAECHEN`: `abmelden/route.ts` loest
  * nichts ein, `_actions/*` antwortet nicht mit einem Status.
  *
  * ⛔ HIER STEHEN NUR DIE UMLEITENDEN HANDLER, und das ist eine Auflage an die Nachfolger:
  * `HANDLER_ANZAHL` waechst auf 3 (Planteil 4, `admin/(arbeit)/geraete/export/route.ts`) und 4
- * (Planteil 5, `sw.js/route.ts`) — `riegel.test.ts:78-79` fuehrt den Fahrplan. KEINER DER
+ * (Planteil 5, `sw.js/route.ts`) — `riegel.test.ts:82-83` fuehrt den Fahrplan. KEINER DER
  * BEIDEN GEHOERT IN DIESE LISTE: ein Export antwortet mit 200 und einem Rumpf, `sw.js`
  * ebenso. Wer sie hier eintraegt, macht den 303-Fall rot fuer richtigen Code. Diese Liste hat
  * bewusst keine Vollzaehligkeits-Zusicherung wie `GATE_FLAECHEN` (`toEqual(GATE_FLAECHEN)`) —
@@ -54,7 +54,7 @@ const ROUTE_HANDLER = ["t/[code]/route.ts", "abmelden/route.ts"];
  * RICHTIGER Implementierung. Fuer `_actions/gate.ts` und `t/[code]/route.ts` gilt derselbe
  * Grund aus dem Kopfkommentar oben.
  *
- * `funktionsKoerper(quelle, name)` ist aus `riegel.test.ts:238-253` kopiert.
+ * `funktionsKoerper(quelle, name)` ist aus `riegel.test.ts:255-270` kopiert.
  */
 const EINLOESE_FUNKTION: Record<string, string> = {
   "t/[code]/route.ts": "GET",
@@ -69,7 +69,7 @@ const EINLOESE_FUNKTION: Record<string, string> = {
  * `null` bekommt und WEITERLAEUFT), ohne dass hier etwas rot wuerde
  * (`lagerbuch/_lib/bauform.test.ts:1358-1368`, dort gemessen).
  *
- * Route Handler nicht-werfend (`riegel.test.ts:441-450` verbietet dort die werfende Form),
+ * Route Handler nicht-werfend (`riegel.test.ts:458-467` verbietet dort die werfende Form),
  * Actions werfend (Spec:2360-2362, Bauform-Zulaessigkeitstafel Zeile 11).
  *
  * ⛔ KEINE VORGABE UND KEIN `??`-RUECKFALL: eine vierte Gate-Flaeche ist eine ENTSCHEIDUNG
@@ -110,7 +110,7 @@ const lies = (pfad: string): string => readFileSync(join(MODUL, pfad), "utf8");
  *
  * ⚠️ HIER WIRD NICHT VORGEREINIGT, und das ist Absicht (Vorabscan-Fund F23):
  * `funktionsKoerper` beginnt selbst mit `ohneKommentareUndZeichenketten(quelle)`
- * (`riegel.test.ts:239`). Eine zweite Anwendung waere idempotent und damit folgenlos — aber
+ * (`riegel.test.ts:256`). Eine zweite Anwendung waere idempotent und damit folgenlos — aber
  * der naechste Leser entfernte spaeter die falsche der beiden und machte den Scan still
  * blind.
  */
@@ -129,14 +129,14 @@ const vorhandeneFlaechen = (): string[] =>
   GATE_FLAECHEN.filter((f) => existsSync(join(MODUL, f)));
 
 /*
- * ⛔ HIER STEHEN DIE FUENF SCAN-HELFER, KOPIERT AUS `riegel.test.ts:114-253`
+ * ⛔ HIER STEHEN DIE FUENF SCAN-HELFER, KOPIERT AUS `riegel.test.ts:131-270`
  * (`quellDateien`, `ohneKommentare`, `ohneKommentareUndZeichenketten`, `trefferAuf`,
  * `funktionsKoerper`) — mit ihren Kommentaren, wo sie hier dieselbe Sache erklaeren.
  *
  * ⛔ KEIN IMPORT AUS `riegel.test.ts`: vitest laedt Testdateien nicht als Module
  * fuereinander. ⚠️ DIE ZWEITE HAELFTE DER UEBLICHEN BEGRUENDUNG TRAEGT NICHT, und sie steht
  * hier trotzdem, statt verschwiegen zu werden (Vorabscan-Fund F22): eine geteilte
- * Helferdatei muesste NICHT unter `src/app/m/radio/` liegen — `riegel.test.ts:697` filtert
+ * Helferdatei muesste NICHT unter `src/app/m/radio/` liegen — `riegel.test.ts:798` filtert
  * fuer den `"use client"`-Scan INNERHALB von `quellDateien()`, und das laeuft ausschliesslich
  * ueber `MODUL`. Ein Modul unter `src/core/testing/` waere fuer jeden Scan dieses Moduls
  * unsichtbar und ganz normal importierbar. Der Preis der Kopie ist benannt: `ohneKommentare`
@@ -269,7 +269,7 @@ function trefferAuf(muster: RegExp, dateien = quellDateien()): string[] {
  * Reihenfolge-Fall vorbei; sie melden „Riegel „Host" fehlt ganz" fuer eine sachlich
  * RICHTIGE Datei. ⛔ DIE BEHEBUNG GEHOERT IN DIE SIGNATUR, NICHT IN DIESE KOPIE: `route.ts`
  * fuehrt `RouteKontext` als benannten Typ, `sitzung.ts` `ErneuerungErgebnis`. Wer stattdessen
- * hier nachbessert, laesst diese Kopie und `riegel.test.ts:238-253` auseinanderlaufen.
+ * hier nachbessert, laesst diese Kopie und `riegel.test.ts:255-270` auseinanderlaufen.
  */
 function funktionsKoerper(quelle: string, name: string): string {
   const bereinigt = ohneKommentareUndZeichenketten(quelle);
@@ -312,7 +312,7 @@ describe("radio-bauform: die drei Gate-Flaechen", () => {
      * Einloesung, gemessen an ihren TEXTPOSITIONEN im Funktionskoerper.
      *
      * ⛔ DIE LEER-ZUSICHERUNG STEHT VORNE UND MELDET FUER SICH (zeichengleich zu
-     * `riegel.test.ts:573`, Vorabscan-Fund F8a). Ohne sie waere der Fall zwar nicht
+     * `riegel.test.ts:590`, Vorabscan-Fund F8a). Ohne sie waere der Fall zwar nicht
      * leer-gruen — ein leerer Ausschnitt laesst alle vier `muster.exec` `null` liefern —,
      * aber die Meldung zeigte auf den FALSCHEN Fehler: „Riegel „Host" fehlt ganz", wo in
      * Wahrheit der Funktionsname nicht gefunden wurde.
@@ -488,7 +488,7 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
      *
      * ⛔ UND KEIN `toBe(2)` AUF DER LAENGE, anders als vom Review vorgeschlagen: Planteil 4
      * baut die zehn Seiten aus Spec:4369-4378 und einen Export-Handler unter `admin/` — eine
-     * DRITTE Datei dort ist kein Fehler, sondern der Plan. `riegel.test.ts:86-89` faellt fuer
+     * DRITTE Datei dort ist kein Fehler, sondern der Plan. `riegel.test.ts:96-99` faellt fuer
      * dieselbe Form dasselbe Urteil („eine DRITTE Verwaltungs-Huelle waere kein Fehler"). Was
      * exakt sein MUSS, ist die Zusicherung darunter — und die ist es: `toEqual([])`.
      */
@@ -589,10 +589,10 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
      * beim Setzen (Spec:2596-2604, `_lib/ausleihSitzung.ts:195-201`).
      *
      * ⛔ ZWEI SCANS, UND DER ZWEITE IST DIE BEHEBUNG VON VORABSCAN-FUND F21. `trefferAuf`
-     * testet ZEILENWEISE (`riegel.test.ts:216-225`) — das `[\s\S]{0,40}` im ersten Muster
+     * testet ZEILENWEISE (`riegel.test.ts:233-242`) — das `[\s\S]{0,40}` im ersten Muster
      * verspricht Mehrzeiligkeit, die es dort nicht bekommt: ein ueber zwei Zeilen
      * umbrochenes `(await cookies())\n  .delete(x)` faellt durch. Das waere
-     * falsch-negativ UND still, die eine Richtung, die `riegel.test.ts:161-162` woertlich
+     * falsch-negativ UND still, die eine Richtung, die `riegel.test.ts:178-179` woertlich
      * verbietet. Der zweite Scan wendet dasselbe Muster DATEIWEIT an und schliesst genau
      * diese Luecke. ⚠️ Kein dritter, schwaecherer Scan daneben — es geht um DENSELBEN Scan
      * in der richtigen Reichweite.

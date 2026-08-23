@@ -5,7 +5,7 @@
  * KEIN "use client" in dieser Datei — Falle 6 (`CLAUDE.md`): ein WERT aus einem
  * Client-Modul kommt in einer Server Component nicht an, sondern als Client-Referenz,
  * HTTP 500 fuer die ganze Seite. `pnpm build` sieht es nicht, und Vitest KANN es
- * strukturell nicht sehen. Durchgesetzt von `src/app/m/radio/riegel.test.ts:685-704`.
+ * strukturell nicht sehen. Durchgesetzt von `src/app/m/radio/riegel.test.ts:786-805`.
  * ⚠️ WER SIE LESEN WIRD, IST ZUKUNFT UND NICHT GEGENWART — heute existiert KEINE dieser
  * Dateien: die Server Actions `_actions/codes.ts` (A8) und `_actions/gate.ts` (A9), der
  * Route Handler `t/[code]/route.ts` (A10), die Formularvalidierung unter `/admin/zugaenge`

@@ -1,0 +1,124 @@
+/*
+ * DAS STYLESHEET DER AUSLEIHFLAECHE — angelegt in A11 mit dem GATE-TEIL; A16 und A18-A20
+ * erweitern dieselbe Datei (`.superpowers/sdd/planteil3/briefs/A11.md:7`).
+ *
+ * ⛔ EIGENE VARIABLEN, NIE `--ant-*` (Falle 2, `CLAUDE.md:14-15`): antd deklariert seine
+ * Variablen auf SEINER Scope-Klasse, eigenes Markup sieht sie nicht — und der Fehler ist
+ * STILL, die Regel steht richtig da und die Linie verschwindet einfach. Die drei
+ * Suite-Variablen unten (`--iuk-marke`, `--iuk-gedaempft`, `--iuk-linie`) stehen dagegen
+ * auf `:root` und tragen ihren Dunkelzweig selbst mit
+ * (`src/app/globals.css:152-164`) — sie sind das einzige Farbvokabular, das eigenes
+ * Markup in dieser Suite lesen darf.
+ *
+ * ⛔ `.gate` IST DER TRAEGER ALLER VARIABLEN dieses Zweigs, nach dem Vorbild
+ * `src/app/m/lagerbuch/_ui/helfer.module.css:24-26` („`.rahmen` IST DER TRAEGER ALLER
+ * VARIABLEN"). Eine Regel dieser Datei greift deshalb nie auf einen Wert zu, den nur ein
+ * anderer Traeger kennt.
+ *
+ * ⛔ KEINE FARBE FUER DEN FLIESZTEXT UND KEINE FLAECHENFARBE. Das Gate laeuft OHNE Shell
+ * (Entscheidung E9) und damit ohne antd-`Layout`; das Wurzel-Layout setzt
+ * `style={{ colorScheme: mode }}` auf `<html>` (`src/app/layout.tsx:153`), und die
+ * Vorgabefarben des Browsers folgen damit dem Hell/Dunkel-Zustand von selbst. Ein
+ * verdrahtetes `color: #000` waere in der Dunkeldarstellung schwarz auf schwarz — und
+ * `pnpm build`, `typecheck` und Vitest saehen davon nichts (Hauslehre
+ * „UI-Abnahme: messen, nicht schauen").
+ *
+ * ⛔ KEINE HOEHE AUF EINEM BEDIENELEMENT. Die Flaeche erbt `controlHeight: TAP = 56` vom
+ * Wurzelprovider (`src/core/theme/theme.ts:51`), weil sie ohne `FullShell` laeuft; 72
+ * (`size="large"`) wird nirgends gesetzt und 56 nirgends geschrieben, nur geerbt
+ * (Entscheidung E8, Falle 4 `CLAUDE.md:18-22`). Die Klassen fuer 44 und 64 entstehen in
+ * A16, nicht hier.
+ */
+
+.gate {
+  --radio-gate-breite: 34rem;
+  --radio-gate-linie: var(--iuk-linie);
+  --radio-gate-gedaempft: var(--iuk-gedaempft);
+  --radio-gate-marke: var(--iuk-marke);
+
+  box-sizing: border-box;
+  max-width: var(--radio-gate-breite);
+  margin-inline: auto;
+  padding: 2rem 1.25rem 3rem;
+  font-family: var(--font-body);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.titel {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: var(--radio-gate-marke);
+}
+
+.hinweis {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--radio-gate-gedaempft);
+}
+
+/*
+ * DER EINE MELDUNGSORT. Er steht in `page.tsx` unter `role="status" aria-live="polite"`
+ * und traegt den Satz aus `_lib/gateTexte.ts` — ⛔ NIE ein antd `Alert type="error"`:
+ * `colorError === colorPrimary === #c8000f` (`src/core/theme/theme.ts:32-33`), eine
+ * Fehlerbox saehe damit aus wie die Primaeraktion (Falle 3, `CLAUDE.md:16-17`; Entscheidungen E3 und E6).
+ * Die Markierung traegt deshalb die KANTE, nicht die Flaeche.
+ */
+.meldung {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-inline-start: 3px solid var(--radio-gate-marke);
+  border-radius: 0 4px 4px 0;
+  background: var(--iuk-flaeche-aktiv);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.formular {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/*
+ * `touch-action: manipulation` auf JEDEM Bedienelement — §4.6.3 fuehrt es als Nachbau,
+ * weil antd dafuer keinen Token hat. Es nimmt dem Browser die 300-ms-Wartezeit auf einen
+ * moeglichen Doppeltipp; auf einer handschuhbedienten Flaeche ist das der Unterschied
+ * zwischen „reagiert" und „haengt".
+ */
+.feld,
+.knopf {
+  touch-action: manipulation;
+}
+
+.feld {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.knopf {
+  min-width: 12rem;
+}
+
+/*
+ * DER VERWALTUNGSWEG IST EIN LINK, KEIN REDIRECT (§3.6.3 Punkt 3 und 4, Spec:2914-2924) — und
+ * er haengt am PRAEDIKAT `istRadioAdmin(await viewerOderNull())`, nicht am werfenden
+ * Riegel. Er steht deshalb optisch nachgeordnet: die Ausleihe ist der Regelfall dieser
+ * Seite, auch fuer eine verwaltende Person.
+ */
+.adminZeile {
+  margin: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--radio-gate-linie);
+  font-size: 0.9375rem;
+}
+
+.adminLink {
+  color: var(--radio-gate-marke);
+  touch-action: manipulation;
+}
