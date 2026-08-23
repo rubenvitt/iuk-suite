@@ -131,16 +131,33 @@ export type AusleihEingabe = {
    * gedeckelt (`_lib/auswahl.ts:53`, Spec:3466-3470).
    * ⬜ DIESE FUNKTION SETZT DEN DECKEL NICHT NOCH EINMAL, und das ist benannt statt still:
    * die Union `AusleihGrund` (`_lib/meldungen.ts:166`) hat keinen Zweig fuer „zu viele",
-   * und einen zu erfinden waere ein achter `grund` gegen Entscheidung E13
-   * (`KOPF.md:775-778`, „die Zahlen bleiben SIEBEN und SECHS"). Wer den Deckel auch hier
-   * durchsetzen will, braucht zuerst eine Betreiberentscheidung ueber den Satz dazu.
+   * und einen zu erfinden waere ein achter `grund` gegen Entscheidung E13, die die
+   * Vollzaehligkeitszahlen auf SIEBEN und SECHS festsetzt (`KOPF.md:775-778`). Wer den
+   * Deckel auch hier durchsetzen will, braucht zuerst eine Betreiberentscheidung ueber den
+   * Satz dazu.
    */
   geraeteIds: string[];
   /**
    * Der Name aus dem Formular, UNVERAENDERT (Spec:3587-3592): `sanitizeForDisplay` wandert
    * NICHT mit, und auch ein `trim()` auf dem Weg IN die Datenbank waere eine dauerhafte
    * Veraenderung der gespeicherten Zeichenkette — bei „Mueller & Sohn" ein Datenschaden,
-   * kein Schutz. Geprueft wird LAENGE UND NICHTLEERE, nicht umgeschrieben.
+   * kein Schutz. ⛔ GEPRUEFT WIRD NUR AUF NICHTLEERE (`trim().length === 0` → `kein-name`),
+   * NICHT UMGESCHRIEBEN — und NICHT auf Laenge.
+   *
+   * ⬜ A-L17 — EINE LAENGENGRENZE FUER DEN ENTLEIHERNAMEN GIBT ES HIER NICHT, und das ist
+   * benannt statt still. Der Alt-Bestand klemmt bei 100: `BORROWER_NAME_MAX: 100` in
+   * `/Users/rubeen/dev/personal/drk/radio-admin/shared/src/loan.ts:5` (gemessen; die
+   * Nachbarzeile `:6` deckelt die Rueckgabenotiz auf 500 — die HAT hier eine Entsprechung,
+   * `ZUSTANDSNOTIZ_MAX` aus `_lib/meldungen.ts:88`). Sie faellt aus DEMSELBEN Grund wie der
+   * Deckel 20 zwei Felder weiter oben: die Union `AusleihGrund` (`_lib/meldungen.ts:166`)
+   * hat keinen Zweig fuer „zu lang", `kein-name` („Kein Name eingetragen") waere der
+   * falsche Satz, und einen achten `grund` zu erfinden verbietet Entscheidung E13: sie
+   * setzt die Vollzaehligkeitszahlen auf SIEBEN und SECHS fest
+   * (`.superpowers/sdd/planteil3/briefs/KOPF.md:775-778`). ⚠️ DER PREIS: dies ist der
+   * einzige ANONYME Schreibpfad des Moduls — ein beliebig langer Name landet ungekuerzt in
+   * `loans.borrower_name` und von dort in jeden Satz, der ihn nennt. Wer die Grenze will,
+   * braucht zuerst eine Betreiberentscheidung ueber den Satz dazu; A17 kann sie auf
+   * FORMULAREBENE abfangen, wo es Feldfehler ohne `grund` gibt.
    */
   entleiher: string;
   /**
@@ -173,6 +190,22 @@ export const VORSCHLAG_MIN_ZEICHEN = 2;
 const RUFNAME_UNBEKANNT = "Ein Gerät";
 
 /**
+ * ⛔ DER RUECKFALL FUER DEN ENTLEIHER IST EINE ZWEITE KONSTANTE, UND ZWAR AUS EINEM
+ * GRAMMATISCHEN GRUND. Der Satz zu `konflikt.zustand === "ON_LOAN"` setzt den Wert in den
+ * PERSONENSLOT: „${rufname} ist inzwischen an ${entleiher} ausgeliehen."
+ * (`_lib/meldungen.ts:375`). `RUFNAME_UNBEKANNT` steht fuer ein GERAET und ergaebe dort
+ * „... ist inzwischen an Ein Gerät ausgeliehen." — ein Bildschirmtext, den kein Mensch so
+ * schreiben wuerde. Dass `bucheRueckgabe` dieselbe Konstante RICHTIG benutzt (dort ist sie
+ * ein Rufname), macht den Fehlgriff schwer sichtbar, nicht kleiner.
+ *
+ * ⚠️ BAU-ENTSCHEIDUNG DIESER AUFGABE, kein Spec-Zitat, und der Zweig ist konstruktiv
+ * unerreichbar — die Unique-Verletzung bedeutet, dass es die aktive Zeile gibt (der
+ * Kommentar unmittelbar an der Fundstelle sagt es aus). Deshalb hat er keinen eigenen Fall
+ * und keine Sonde: eine Zusicherung, die kein Aufruf erreicht, waere ein leerer Waechter.
+ */
+const ENTLEIHER_UNBEKANNT = "jemand anderen";
+
+/**
  * Der Rufname einer Geraetezeile, mit dem Rueckfall der Quelle.
  *
  * ⛔ DIE FALTUNG STEHT AN GENAU EINER STELLE, weil sie BEIDE Pfade betrifft: der Lesepfad
@@ -192,7 +225,7 @@ function rufnameVon(geraet: { rufname: string | null; issi: string }): string {
  * ⛔ DIE SERIENNUMMER GEHT HIER EIN UND NUR HIER (§4.1 Punkt 2, Spec:3346-3352): „die
  * Seriennummer wandert nicht in den Client. Sie bleibt Suchfeld — die Suche laeuft dafuer
  * serverseitig." Der Heuhaufen ist zeichengleich der der Alt-Quelle
- * (`radio-inventar/apps/frontend/src/lib/device-filter.ts:35-37`: Rufname, Geraetetyp,
+ * (`radio-inventar/apps/frontend/src/lib/device-filter.ts:35-38`: Rufname, Geraetetyp,
  * Seriennummer, Standort, mit `filter(Boolean).join(" ")`).
  *
  * ⚠️ DIE NORMALISIERUNG LAEUFT EINMAL JE GERAET, nicht einmal je Tastendruck je Geraet
@@ -294,8 +327,8 @@ export function offeneAusleihen(db: DB): OffeneAusleihe[] {
  * hat, und nennt die Bedingung, unter der das kippt — „wird die Suche in SQL gezogen (LIKE
  * gegen eine gefaltete Spalte oder gegen eine SQLite-Funktion), … braucht `radio` einen
  * eigenen Opener nach lagerbuch-Muster". Der Alt-Bestand faltet in SQL, mit einer
- * registrierten Funktion `lower_u` (`radio-admin/server/src/repos/loanRepo.ts:177`), die es
- * hier nicht gibt; SQLites eingebautes `LIKE` faltet nur ASCII und faende „Mueller" mit
+ * registrierten Funktion `lower_u` (`radio-admin/server/src/repos/loanRepo.ts:179`), die es
+ * hier nicht gibt; SQLites eingebautes `LIKE` faltet nur ASCII und faende „Müller" mit
  * „muller" NIE. `normalisiereSuchtext` (`_lib/filter.ts:108-115`) tut beides.
  *
  * ⛔ DER DECKEL GREIFT NACH DEM FILTERN, NIE ALS `LIMIT` IM SQL. Ein `limit(deckel)` vor dem
@@ -516,7 +549,7 @@ export function bucheAusleihe(db: DB, e: AusleihEingabe): AusleihErgebnis {
               // Konstruktiv vorhanden: die Verletzung bedeutet, dass es die Zeile gibt.
               // Der Rueckfall haelt den Satz grammatisch, falls sie zwischen `INSERT` und
               // `SELECT` zurueckgegeben wird.
-              entleiher: aktiv?.entleiher ?? RUFNAME_UNBEKANNT,
+              entleiher: aktiv?.entleiher ?? ENTLEIHER_UNBEKANNT,
             }),
           );
         }

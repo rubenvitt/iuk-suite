@@ -237,6 +237,55 @@ describe("radio-leihen: das Lesemodell der Geraeteliste", () => {
     expect(geraeteMitLeihstand(db).find((z) => z.id === "g-ohne")?.status).toBe("AVAILABLE");
   });
 
+  it("blendet eine zurueckgegebene Leihe aus und vervielfacht keine Zeile", () => {
+    /*
+     * ⛔ DER WAECHTER UEBER `isNull(loans.returnedAt)` IM `leftJoin`. Ohne diese Bedingung
+     * traegt ein laengst zurueckgegebenes Geraet auf der zentralen Leseflaeche weiter
+     * `ON_LOAN`, den alten Entleihernamen und die alte Uhrzeit — und ein Geraet mit
+     * aktiver UND alter Leihe bekommt ZWEI Zeilen. Beides ist gueltiges Drizzle und
+     * gueltiges SQL; nur ein Fixture mit ZWEI Leihen zum selben Gegenstand sieht es.
+     *
+     * ⛔ DIE ZWEITE HAELFTE IST NICHT DIE ERSTE IN ANDERER SCHREIBWEISE: die erste faengt
+     * das Durchreichen einer toten Leihe, die zweite die Vervielfachung. Ein `leftJoin`
+     * ohne die Bedingung braeche beide, ein falsch gesetztes `distinct` nur die erste.
+     *
+     * ⚠️ DER FELDSATZ WIRD MITGEPRUEFT (`FELDER_FREI`): `entleiher` und `seit` duerfen an
+     * einer freien Zeile nicht nur leer sein, sie duerfen GAR NICHT dastehen
+     * (Spec:4082-4084) — sonst ruecken sie ueber die RSC-Grenze als `undefined` mit.
+     */
+    geraet({ id: "g-zurueck", issi: "1000007" });
+    geraet({ id: "g-beide", issi: "1000008" });
+    leihe({
+      deviceId: "g-zurueck",
+      borrowerName: "Carla Beispiel",
+      returnedAt: new Date("2026-06-15T07:12:00Z"),
+    });
+    leihe({
+      deviceId: "g-beide",
+      borrowerName: "Dora Beispiel",
+      borrowedAt: new Date("2026-06-01T07:12:00Z"),
+      returnedAt: new Date("2026-06-02T07:12:00Z"),
+    });
+    leihe({ deviceId: "g-beide", borrowerName: "Erna Beispiel" });
+
+    const zeilen = geraeteMitLeihstand(db);
+
+    const zurueck = zeilen.filter((z) => z.id === "g-zurueck");
+    expect(zurueck, "die zurueckgegebene Leihe vervielfacht die Geraetezeile").toHaveLength(1);
+    expect(
+      zurueck[0]?.status,
+      "eine zurueckgegebene Leihe haelt das Geraet weiter auf ON_LOAN",
+    ).toBe("AVAILABLE");
+    expect(Object.keys(zurueck[0]!).sort(), "der alte Entleiher reist an der freien Zeile mit")
+      .toEqual([...FELDER_FREI].sort());
+
+    const beide = zeilen.filter((z) => z.id === "g-beide");
+    expect(beide, "das Geraet mit alter UND aktiver Leihe steht mehrfach in der Liste")
+      .toHaveLength(1);
+    expect(beide[0]?.status).toBe("ON_LOAN");
+    expect(beide[0]?.entleiher, "die ALTE Leihe hat die aktive verdraengt").toBe("Erna Beispiel");
+  });
+
   it("nimmt die issi als Rufnamen, wenn das Geraet keinen traegt", () => {
     /*
      * `devices.rufname` ist NULLABLE (`_db/schema.ts:21`), `GeraetMitLeihstand.rufname`
@@ -316,8 +365,32 @@ describe("radio-leihen: die Namensvorschlaege", () => {
     const drei = sucheEntleiher(db, "mustermann", 3);
     expect(drei).toHaveLength(3);
     for (const v of drei) expect(v.name).toContain("Mustermann");
-    // Neueste zuerst (`radio-admin/server/src/repos/loanRepo.ts:180`).
+    // Neueste zuerst (`radio-admin/server/src/repos/loanRepo.ts:181`).
     expect(drei[0]?.name).toBe("Mustermann Dora");
+
+    /*
+     * ⛔ DER VORGABEWERT 10 — DER AUFRUF OHNE DRITTEN PARAMETER. Die Zahl steht „HIER UND
+     * NUR HIER". Der Brief bindet ihn an die Datenfunktion und haelt A17 ausdruecklich
+     * davon ab, einen zweiten daneben zu setzen (`briefs/KOPF.md:487-490`) — sie ist damit
+     * die einzige Grenze der Namensauskunft eines ANONYMEN Aufrufers. Ohne einen
+     * Aufruf, der MEHR passende Namen vorfindet als der Vorgabewert zulaesst, ist sie
+     * unbewacht — mit `deckel = 3` bliebe jeder andere Fall dieser Datei gruen.
+     * ⛔ `toHaveLength(10)`, NICHT `toBeLessThanOrEqual(10)`: eine Obergrenze faengt genau
+     * den Fall nicht, in dem der Vorgabewert nach unten verrutscht.
+     */
+    for (let i = 1; i <= 11; i++) {
+      const zeit = new Date(`2026-05-${String(i).padStart(2, "0")}T10:00:00Z`);
+      leihe({
+        deviceId: "g-v",
+        borrowerName: `Deckelmann ${String(i).padStart(2, "0")}`,
+        borrowedAt: zeit,
+        returnedAt: zeit,
+      });
+    }
+    expect(
+      sucheEntleiher(db, "deckelmann"),
+      "der Vorgabewert des Deckels ist nicht 10",
+    ).toHaveLength(10);
 
     expect(sucheEntleiher(db, "m"), "ein Zeichen genuegt nicht").toEqual([]);
     expect(sucheEntleiher(db, "  "), "Leerraum genuegt nicht").toEqual([]);
@@ -332,6 +405,23 @@ describe("radio-leihen: die Namensvorschlaege", () => {
      * (Spec:5122-5123).
      */
     geraet({ id: "g-v2", issi: "3000002" });
+    /*
+     * ⛔ ZWEI LEIHEN DESSELBEN NAMENS, UND ZWAR ABSICHTLICH — sie tragen die zwei
+     * Zusicherungen unten, die es ohne sie nicht gaebe:
+     *   • `groupBy(loans.borrowerName)` entdoppelt („Distinct borrower-name suggestions",
+     *     `radio-admin/server/src/repos/loanRepo.ts:163-166`). Ohne die Gruppierung
+     *     erscheint derselbe Name so oft, wie die Person geliehen hat, und der Deckel 10
+     *     ist von einem einzigen Vielleiher aufgebraucht.
+     *   • `max(borrowed_at)` nimmt die NEUERE der beiden. Mit `min` stuende in der
+     *     Nebenzeile der aelteste Zeitpunkt — ein stiller Datenfehler, den kein
+     *     Einzelfixture zeigt, weil dort beide Aggregate dasselbe liefern.
+     */
+    leihe({
+      deviceId: "g-v2",
+      borrowerName: "Anna Beispiel",
+      borrowedAt: new Date("2026-03-02T07:12:00Z"),
+      returnedAt: new Date("2026-03-02T09:12:00Z"),
+    });
     leihe({
       deviceId: "g-v2",
       borrowerName: "Anna Beispiel",
@@ -339,12 +429,17 @@ describe("radio-leihen: die Namensvorschlaege", () => {
       returnedAt: AUSGELIEHEN_AM,
     });
 
-    const [vorschlag] = sucheEntleiher(db, "beispiel");
+    const vorschlaege = sucheEntleiher(db, "beispiel");
+    expect(vorschlaege, "derselbe Name erscheint mehrfach — die Entdopplung fehlt").toHaveLength(
+      1,
+    );
+    const [vorschlag] = vorschlaege;
     expect(vorschlag).toBeDefined();
     expect(Object.keys(vorschlag!).sort()).toEqual(["name", "zuletztText"].sort());
     expect(vorschlag!.name).toBe("Anna Beispiel");
     expect(typeof vorschlag!.zuletztText).toBe("string");
-    expect(vorschlag!.zuletztText).toContain(AUSGELIEHEN_DATUM_UHRZEIT);
+    expect(vorschlag!.zuletztText, "die Nebenzeile traegt nicht die JUENGSTE der zwei Leihen")
+      .toContain(AUSGELIEHEN_DATUM_UHRZEIT);
   });
 
   it("findet auch ohne Umlaut, weil die Faltung in JavaScript laeuft", () => {
@@ -352,7 +447,7 @@ describe("radio-leihen: die Namensvorschlaege", () => {
      * Die Suche dieses Moduls faltet in JAVASCRIPT und NICHT in SQL — `_db/client.ts:4-13`
      * schreibt genau das aus und nennt die Folge einer Umkehr: `radio` braeuchte dann
      * einen eigenen Opener nach `lagerbuch`-Muster. Der Alt-Bestand faltet in SQL, mit
-     * einer registrierten Funktion `lower_u` (`loanRepo.ts:177`), die es hier nicht gibt.
+     * einer registrierten Funktion `lower_u` (`loanRepo.ts:179`), die es hier nicht gibt.
      * SQLites eingebautes `LIKE` faltet nur ASCII — „muller" faende „Müller" dort NIE.
      */
     geraet({ id: "g-v3", issi: "3000003" });
@@ -486,11 +581,26 @@ describe("radio-leihen: die vier Riegel des Schreibpfads", () => {
 describe("radio-leihen: eine Transaktion ueber alle gewaehlten Geraete", () => {
   it("bucht vier Geraete in EINER Transaktion", () => {
     for (let i = 1; i <= 4; i++) geraet({ id: `g-t${i}`, issi: `500000${i}` });
+    /*
+     * ⛔ DAS FENSTER UM DEN AUFRUF IST DER EINZIGE WAECHTER UEBER DEM GESCHRIEBENEN
+     * `borrowedAt`. Jede andere Zeitzusicherung dieser Datei laeuft ueber das Fixture
+     * `leihe()` und liest damit einen Wert, den der Test selbst gesetzt hat — ein falscher
+     * Zeitpunkt im Schreibpfad verfaelscht `seit` auf der Uebersicht, `seitText` auf der
+     * Rueckgabeflaeche, die Sortierung von `offeneAusleihen` UND `zuletztText` der
+     * Vorschlaege, und keine davon saehe es.
+     * ⛔ IN SEKUNDEN GERECHNET, NICHT IN MILLISEKUNDEN: `loans.borrowed_at` ist
+     * `integer(..., { mode: "timestamp" })` (`_db/schema.ts:218`) und speichert volle
+     * Sekunden — ein Vergleich in Millisekunden scheiterte, sobald der Aufruf mitten in
+     * einer Sekunde faellt. Und es ist ein FENSTER und keine absolute Schranke: eine
+     * Zahl wie „unter 150 ms" maesse die Auslastung der Maschine, nicht diese Funktion.
+     */
+    const vorher = Math.floor(Date.now() / 1000);
     const ergebnis = bucheAusleihe(db, {
       geraeteIds: ["g-t1", "g-t2", "g-t3", "g-t4"],
       entleiher: "Max Mustermann",
       zugangscodeId: null,
     });
+    const nachher = Math.floor(Date.now() / 1000);
     expect(ergebnis).toEqual({ ok: true, anzahl: 4, entleiher: "Max Mustermann" });
     expect(db.select().from(loans).all()).toHaveLength(4);
     // Der Anzeige-Schnappschuss wird beim Ausleihen KOPIERT (`_db/schema.ts:201-205`).
@@ -498,6 +608,14 @@ describe("radio-leihen: eine Transaktion ueber alle gewaehlten Geraete", () => {
     expect(eine?.snapshotCallSign).toBe("Ruf g-t1");
     expect(eine?.snapshotSerialNumber).toBe("SN-g-t1");
     expect(eine?.snapshotDeviceType).toBe("Motorola MTP3550");
+
+    const geschrieben = Math.floor(eine!.borrowedAt.getTime() / 1000);
+    expect(geschrieben, "der geschriebene Ausleihzeitpunkt liegt VOR dem Aufruf").toBeGreaterThanOrEqual(
+      vorher,
+    );
+    expect(geschrieben, "der geschriebene Ausleihzeitpunkt liegt NACH dem Aufruf").toBeLessThanOrEqual(
+      nachher,
+    );
   });
 
   it("bucht KEIN Geraet, wenn eines inzwischen vergeben ist", () => {
@@ -761,7 +879,11 @@ describe("radio-leihen: WAL und busy_timeout — der Ersatz fuer den gestrichene
         return Date.now() - start;
       };
 
-      expect(messe(sofort), "ohne Wartezeit muss es sofort scheitern").toBeLessThan(150);
+      // ⚠️ DIE OBERGRENZE HAT ABSICHTLICH LUFT (250, nicht 150): sie ist eine ABSOLUTE
+      // Zeitschranke in einer Suite, die Hunderte Dateien parallel faehrt, und misst dort
+      // auch die Zuteilung des Zeitscheibens. Der Kontrast, auf dem die Aussage beruht,
+      // bleibt vollstaendig erhalten — die Wartezeit des geduldigen Handles ist 300 ms.
+      expect(messe(sofort), "ohne Wartezeit muss es sofort scheitern").toBeLessThan(250);
       expect(messe(geduldig), "mit Wartezeit muss es erst nach ihr scheitern").toBeGreaterThanOrEqual(
         200,
       );
@@ -814,6 +936,27 @@ describe("radio-leihen: die Bauform der Datei", () => {
      */
     const quelle = readFileSync(LEIHEN_QUELLE, "utf8");
     expect(quelle).toContain("issi is mutable (a device can be reprogrammed)");
+  });
+
+  it("benennt die fehlende Laengengrenze des Entleihernamens als Leerstelle", () => {
+    /*
+     * ⬜ A-L17. DIESELBE BAUFORM WIE DIE `STALE_GRACE_MS`-ZEILE UNTEN, UND AUS DEMSELBEN GRUND:
+     * eine Grenze des Alt-Bestands, die hier NICHT faellt, muss eine dokumentierte
+     * Entscheidung bleiben und darf keine Auslassung werden, die beim naechsten Blick in
+     * die Alt-App als „vergessen" wiederentdeckt wird. Der Alt-Deckel ist
+     * `BORROWER_NAME_MAX: 100` (`radio-admin/shared/src/loan.ts:5`).
+     *
+     * ⚠️ DER WAECHTER GEHOERT IN DEN VERFOLGTEN BAUM UND NICHT IN EINEN BERICHT:
+     * `.superpowers/` ist git-ignoriert (`.gitignore:17`), eine Leerstelle, die nur dort
+     * steht, steht nirgends. Derselbe Praezedenzfall, aus dem A14 die Leerstelle A-L16
+     * nach `_lib/meldungen.ts:19-24` gehoben hat.
+     *
+     * ⛔ ER BELEGT, DASS DER SATZ DASTEHT, NICHT DASS ER STIMMT — genau wie die zwei
+     * Quelltext-Scans darunter. Behauptet wird nichts anderes.
+     */
+    const quelle = readFileSync(LEIHEN_QUELLE, "utf8");
+    expect(quelle).toContain("BORROWER_NAME_MAX");
+    expect(quelle).toContain("radio-admin/shared/src/loan.ts:5");
   });
 
   it("haelt den gestrichenen Ausfall-Puffer als Zeile im Kopf fest", () => {
