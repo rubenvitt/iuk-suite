@@ -421,7 +421,7 @@ describe("AusleihErgebnis und RueckgabeErgebnis — die Form, nicht der Inhalt",
   /*
    * ⛔ DER EINZIGE ⛔ DES AUFTRAGS HATTE BIS ZUR FIX-RUNDE 1 KEINEN EINZIGEN WAECHTER:
    * „`betroffen[].status` darf dabei nicht verloren gehen"
-   * (`.superpowers/sdd/planteil3/briefs/A14.md:13-14`, Spec:5223-5228, Entscheidung E11).
+   * (`.superpowers/sdd/planteil3/briefs/A14.md:15`, Spec:5223-5228, Entscheidung E11).
    * Kein Fall baute je einen `AusleihErgebnis`, `RueckgabeErgebnis` oder `BetroffenesGeraet`
    * — die drei Typen waren exportiert und von niemandem gelesen, und A15/A17 gibt es noch
    * nicht. Gemessen als Sonde M-B (`status: string;` aus `BetroffenesGeraet` geloescht):
