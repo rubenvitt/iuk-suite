@@ -5,12 +5,12 @@ import { zugangscodes } from "../../_db/schema";
 import { createAusleihSitzung } from "../ausleihSitzung";
 
 /**
- * DER SCHREIBPFAD DER EINLOESUNG (Spec 1 §3.3.2, Zeilen 2309-2332). Sie ist in A9
+ * DER SCHREIBPFAD DER EINLOESUNG (Spec 1 §3.3.2, Zeilen 2309-2336). Sie ist in A9
  * (`_actions/gate.ts`) und in A10 (`t/[code]/route.ts`) jeweils SCHRITT 4 der Reihenfolge
  * aus §3.3.1. Vorbild: `src/app/m/lagerbuch/_lib/schreibpfade/tokenEinloesung.ts:65`.
  *
  * SIE LIEGT UNTER `_lib/schreibpfade/`, WEIL SIE SCHREIBT: `zugangscodes.lastUsedAt`
- * (`src/app/m/radio/_db/schema.ts:192`), und NUR beim Treffer (Spec:2326-2328).
+ * (`src/app/m/radio/_db/schema.ts:192`), und NUR beim Treffer (Spec:2322-2324).
  *
  * ⛔ KEIN "use client" in dieser Datei. Ihre Aufrufer sind eine Server Action (A9) und ein
  * Route Handler (A10); ein WERT aus einem Client-Modul kaeme in einer Server Component
@@ -29,7 +29,7 @@ import { createAusleihSitzung } from "../ausleihSitzung";
  */
 
 /**
- * ⛔ DER NICHT-TREFFER IST EINE EINZIGE FORM (Spec:2330-2332). „unbekannt" und „gesperrt"
+ * ⛔ DER NICHT-TREFFER IST EINE EINZIGE FORM (Spec:2334-2336). „unbekannt" und „gesperrt"
  * sind von aussen NICHT unterscheidbar. Ein Rueckgabewert, der sie traennte — etwa um ein
  * `grund`-Feld erweitert —, waere ein ORAKEL darueber, welche Codes je vergeben waren:
  * jemand mit einer Kandidatenliste erfuehre das, ohne einen gueltigen Code zu besitzen.
@@ -63,7 +63,7 @@ export async function loeseCodeEin(code: string, db: DB): Promise<Einloesung> {
   // irgendwann auseinander, und genau dann entstuende das Orakel oben.
   if (!zeile || !zeile.aktiv) return { ok: false };
 
-  // NACH dem Doppeltest, also NUR beim Treffer (Spec:2326-2328). Ein gesperrter Code
+  // NACH dem Doppeltest, also NUR beim Treffer (Spec:2322-2324). Ein gesperrter Code
   // trueg sonst nach jedem Scanversuch eine frische Spur, und die Verwaltungsliste zeigte
   // Aktivitaet, die es nicht gibt — ausgerechnet an der einen Information, an der die
   // Leitung erkennt, ob ein verschwundenes Kaertchen noch im Umlauf ist.

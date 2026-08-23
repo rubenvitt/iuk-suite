@@ -7,9 +7,9 @@
  * HTTP 500 fuer die ganze Seite. `pnpm build` sieht es nicht, und Vitest KANN es
  * strukturell nicht sehen. Durchgesetzt von `src/app/m/radio/riegel.test.ts:684-703`.
  * ⚠️ WER SIE LESEN WIRD, IST ZUKUNFT UND NICHT GEGENWART — heute existiert KEINE dieser
- * Dateien: `_lib/codeEinloesung.ts` (A6), die Server Actions `_actions/codes.ts` (A8) und
- * `_actions/gate.ts` (A9), der Route Handler `t/[code]/route.ts` (A10) und die
- * Formularvalidierung unter `/admin/zugaenge` (Planteil 4).
+ * Dateien: die Server Actions `_actions/codes.ts` (A8) und `_actions/gate.ts` (A9), der
+ * Route Handler `t/[code]/route.ts` (A10), die Formularvalidierung unter `/admin/zugaenge`
+ * (Planteil 4). ⛔ NICHT `_lib/schreibpfade/codeEinloesung.ts` (A6): sie normalisiert nicht.
  *
  * ⛔ DIE 28 WIRD NICHT VERKUERZT, UND DAS IST KEIN AESTHETIK-ARGUMENT. Spec:3056-3068,
  * woertlich: „Wer … den Coderaum aus 3.2.1 verkuerzt, macht sie [die CWE-348-Umstellung]
