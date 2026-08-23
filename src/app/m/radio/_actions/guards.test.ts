@@ -95,15 +95,15 @@ const HOST_RIEGEL = /\brequireRadioHost\s*\(/;
  * Uebersetzer GELOESCHT und koennen deshalb gar keine Action sein. Das ist der Grund,
  * nicht der Hausstil: `_actions/ausleihe.ts` aus A17 fuehrt `export type { AusleihErgebnis,
  * RueckgabeErgebnis };` (briefs/A17.md:24) und `_actions/gate.ts` aus A9 fuehrt
- * `export type GateZustand = { fehler?: string };` (briefs/A910.md:57) — ein pauschales
+ * `export type GateZustand = { fehler?: string };` (briefs/A910.md:60) — ein pauschales
  * Verbot machte beide Aufgaben rot-by-construction, und der naheliegende Fix waere, diesen
  * Scan abzuschwaechen.
  *
  * ⛔ WARUM VERBIETEN STATT PRUEFEN: `export const x = async () => {}` ist in einer
- * `"use server"`-Datei eine vollwertige Server Action. Gemessen am 2026-08-23 war sie fuer
- * den Scan unsichtbar (REVIEW-A8 Abschnitt 4.3: ungeriegelt angehaengt, `Tests 4 passed`).
- * Die Deckung des Scans um jede weitere Form zu erweitern, hiesse jede kuenftige Form
- * mitzuraten; sie zu VERBIETEN macht die Luecke konstruktiv unmoeglich.
+ * `"use server"`-Datei eine vollwertige Server Action. Gemessen am 2026-08-23: ungeriegelt
+ * angehaengt lief der Scan `Tests 4 passed` gruen — sie war fuer ihn unsichtbar. Die Deckung
+ * des Scans um jede weitere Form zu erweitern, hiesse jede kuenftige Form mitzuraten; sie zu
+ * VERBIETEN macht die Luecke konstruktiv unmoeglich.
  * ⚠️ GEMESSEN, dass das keine Erfindung ist: ein `grep -rn "^export const .* = async"`
  * ueber saemtliche `_actions`-Verzeichnisse der Suite liefert NULL Treffer — die Hausform
  * ist heute ausnahmslos die Deklaration. ⛔ Aber eine Gewohnheit ist kein Riegel, und vor
@@ -288,7 +288,7 @@ function bereinigt(quelle: string): string {
  * zugeschlagen, und ihr Riegel erfuellte die Behauptung fuer die Action. Belegt:
  * `export async function sondeOhneRiegel()` allein faerbte den Scan rot; dieselbe Sonde
  * plus ein `async function hilfsRiegel(){ await requireRadioAdmin(); }` dahinter lief mit
- * `Tests 4 passed (4)` GRUEN durch (REVIEW-A8 Abschnitt 4.2).
+ * `Tests 4 passed (4)` GRUEN durch.
  *
  * `abParamAuf` steht HINTER der oeffnenden `(` der Parameterliste.
  *
@@ -357,8 +357,8 @@ function rumpfGrenzen(q: string, abParamAuf: number): { auf: number; zu: number 
  * ⛔ DAS IST DIE BEHEBUNG VON REVIEW-A8 W3. Der Kommentar an dieser Stelle behauptete
  * „DER RIEGEL IST DIE ERSTE ANWEISUNG (Spec:2770)", geprueft wurde aber nur die
  * Reihenfolge gegen `formData.get`. Gemessen am 2026-08-23: eine Action, die erst
- * SCHREIBT und danach riegelt, lief mit `Tests 4 passed (4)` gruen durch (REVIEW-A8
- * Abschnitt 4.4). Spec:2770 („Rueckgabewert, erste Anweisung") und Spec:3405-3406
+ * SCHREIBT und danach riegelt, lief mit `Tests 4 passed (4)` gruen durch.
+ * Spec:2770 („Rueckgabewert, erste Anweisung") und Spec:3405-3406
  * („als erste Anweisung, vor jedem Lesen von `formData`") tragen die schaerfere Zusage —
  * jetzt loest der Code sie ein, statt sie zu behaupten.
  */
