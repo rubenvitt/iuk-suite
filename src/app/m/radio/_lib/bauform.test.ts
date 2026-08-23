@@ -217,6 +217,25 @@ function ohneKommentare(quelle: string): string {
  * Kommentare geleert. Nur fuer die POSITIVEN Nachweise noetig: `toMatch` behauptet, dass ein
  * Muster VORKOMMT — ein String `"requireRadioHost("` oder ein `// frueher: gateGesperrt(x)`
  * erfuellte das sonst, OHNE dass der Riegel je liefe.
+ *
+ * ⛔ ZWEI SAETZE, DIE HIER STEHEN STATT VERSCHWIEGEN ZU WERDEN — beide am 2026-08-23
+ * gemessen, beide OFFEN (Fund M1, `.superpowers/sdd/planteil3/REVIEW-A2.md`; die Abhilfe
+ * ist in `riegel.test.ts` gebaut und dort ausgeschrieben):
+ *
+ *   1. „Nur fuer die POSITIVEN Nachweise noetig" STIMMT FUER DIESE KOPIE NICHT. Die
+ *      Umleitungs-Klausel und der `cookies().delete`-Scan lesen sie NEGATIV; dort heisst
+ *      weniger Text WENIGER GEFUNDENE VERSTOESSE.
+ *   2. Der Schnitt `replace(/\/\/.*$/gm, "")` unten kennt KEINE Regexliterale. Ein
+ *      `.split(/\//)` traegt zwei Schraegstriche nebeneinander, der Schnitt haelt sie fuer
+ *      einen Kommentarbeginn und loescht den Rest der Zeile. SONDE (Paar, selbst gefahren):
+ *      `Response.redirect("/x")` in `abmelden/route.ts`, davor auf derselben Zeile ein
+ *      `"a".split(/\//)` — `Tests 10 passed`, STILL GRUEN. Dieselbe Zeile ohne das
+ *      Regexliteral: `1 failed | 9 passed`, Fall „keine aeussere Flaeche baut eine absolute
+ *      Umleitung".
+ *
+ * ⚠️ NICHT IN DERSELBEN RUNDE BEHOBEN, weil diese Datei nicht zum Auftrag der Fix-Runde zu
+ * A2 gehoert und ihre Klauseln nicht gemessen sind. Die Abhilfe ist `ohneRegexLiterale` +
+ * `bereinigt` aus `riegel.test.ts`, zeichengleich uebertragbar. ENTSCHEIDUNG OFFEN.
  */
 function ohneKommentareUndZeichenketten(quelle: string): string {
   const bereinigt = ohneKommentare(quelle);
