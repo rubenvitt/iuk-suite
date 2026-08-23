@@ -3,7 +3,7 @@
 // `rtk pnpm typecheck` rot (TS2304), und das ist das erste Torkriterium der Aufgabe.
 // Vorbild: `src/app/m/lagerbuch/_lib/helferZugang.test.ts:1`.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { SignJWT } from "jose";
+import { SignJWT, decodeJwt } from "jose";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { grenzen } from "./grenzen";
@@ -22,6 +22,11 @@ beforeEach(() => {
   process.env = { ...UMGEBUNG, RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIMNIS };
 });
 afterEach(() => {
+  // ⛔ ERST DIE STUMMEL, DANN DIE ERSETZUNG. `vi.unstubAllEnvs()` schreibt auf das Objekt,
+  // das `process.env` in diesem Augenblick IST; liefe es nach der Zuweisung, traefe es das
+  // frische Objekt und liesse den Stummel auf dem alten stehen. Gebraucht wird es vom Fall
+  // „secure folgt NODE_ENV" — `NODE_ENV` ist readonly und nur ueber `vi.stubEnv` setzbar.
+  vi.unstubAllEnvs();
   process.env = { ...UMGEBUNG };
 });
 
@@ -81,6 +86,34 @@ describe("radio-Ausleihsitzung: die Cookie-Attribute", () => {
     expect(o.path).toBe("/");
   });
 
+  it("secure folgt NODE_ENV — production true, development false", async () => {
+    /*
+     * ⛔ DIESE ZEILE WAR VON KEINEM FALL BEWACHT (Fix-Runde 1 zu A4, Fund W1). Gemessen:
+     * `secure: process.env.NODE_ENV === "production"` auf `secure: false` verdrahtet, und
+     * alle 21 Faelle blieben gruen — das ANONYME Cookie ginge dann im Klartext ueber HTTP,
+     * ohne dass ein Tor rot wuerde. Der Loeschen-Fall daneben sieht es strukturell nicht:
+     * sein `toEqual` hat `secure` auf BEIDEN Seiten und ist dafuer tautologisch.
+     *
+     * ⛔ UND EIN `expect(o.secure).toBe(process.env.NODE_ENV === "production")` WAERE
+     * DIESELBE TAUTOLOGIE. Deshalb wird die Variable hier auf beide Werte gesetzt und die
+     * Erwartung ausgeschrieben. Unter vitest ist NODE_ENV "test" — also von sich aus
+     * weder der eine noch der andere Fall.
+     *
+     * `NODE_ENV=production` steht fest im Image (`Dockerfile:36`); genau dort, und nur
+     * dort, muss das Cookie `Secure` tragen.
+     *
+     * ⛔ `vi.stubEnv` UND NICHT `process.env.NODE_ENV = …`: gemessen ist die Zuweisung
+     * `error TS2540: Cannot assign to 'NODE_ENV' because it is a read-only property` —
+     * `NODE_ENV` ist in den Next-Typen `readonly`, anders als die uebrigen Variablen, die
+     * diese Datei setzt. `vi.unstubAllEnvs()` in `afterEach` nimmt den Stummel zurueck.
+     */
+    const { ausleihCookieOptionen } = await import("./ausleihSitzung");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(ausleihCookieOptionen(3600).secure, "im Container gehoert Secure ans Cookie").toBe(true);
+    vi.stubEnv("NODE_ENV", "development");
+    expect(ausleihCookieOptionen(3600).secure, "lokal ueber http waere Secure wirkungslos").toBe(false);
+  });
+
   it("heisst radio_ausleihe — praefigiert, anders als lagerbuch", async () => {
     // Spec:2453-2455: bei `radio` ist ueber den Cutover nichts zu erhalten, also traegt
     // der Name das Modulpraefix. Der Name steht im Cookie-Kopf jedes Aufrufs und ist nach
@@ -105,6 +138,26 @@ describe("radio-Ausleihsitzung: signieren und pruefen", () => {
      * DIESER Zeile, nicht aus der Cookie-Nutzlast."
      */
     expect(Object.keys(s ?? {}).sort()).toEqual(["codeId", "laeuftAb"]);
+    /*
+     * ⛔ UND DIE NUTZLAST SELBST, NICHT NUR DIE RUECKGABE (Fix-Runde 1 zu A4, Fund K1).
+     * Die Zeile darueber prueft, was `verifyAusleihSitzung` HERAUSGIBT — eine Ebene neben
+     * der Zusage. Gemessen: ein `bezeichnung: "Handfunkgeraet 7"` NUR in `SignJWT`, bei
+     * unveraenderter Rueckgabeform, liess alle 21 Faelle gruen. Die Bezeichnung stuende
+     * dann im Cookie eines ANONYMEN Halters, base64url fuer jeden lesbar, und waere bis
+     * zum Ablauf eingefroren — genau der Zustand, den Pflicht 15 verbietet
+     * (`docs/radio-portierung-analyse.md:959-971`).
+     *
+     * `decodeJwt` liest OHNE Signaturpruefung — hier richtig, weil die Frage nicht lautet
+     * „ist das Token gueltig" (das prueft der Fall darueber), sondern „was steht drin".
+     * `iat` und `exp` sind registrierte Claims und kommen von `setIssuedAt()` bzw.
+     * `setExpirationTime()` (`ausleihSitzung.ts`, `createAusleihSitzung`), nicht aus der
+     * uebergebenen Nutzlast.
+     */
+    expect(Object.keys(decodeJwt(wert)).sort(), "die Nutzlast traegt nur codeId").toEqual([
+      "codeId",
+      "exp",
+      "iat",
+    ]);
   });
 
   it.each([
@@ -186,6 +239,30 @@ describe("radio-Ausleihsitzung: signieren und pruefen", () => {
     await expect(verifyAusleihSitzung(ohneExp)).resolves.toBeNull();
   });
 
+  it("lehnt ein ABGELAUFENES Token ab", async () => {
+    /*
+     * ⛔ DER ZWECK VON ENTSCHEIDUNG 8 — „kein QR-Code, der fuer immer gilt" — WAR
+     * UNBEWACHT (Fix-Runde 1 zu A4, Fund W3). Der Fall darueber prueft ein Token OHNE
+     * `exp`; dass ein VORHANDENES, aber verstrichenes `exp` auch wirklich abgelehnt wird,
+     * prueft kein Fall. Gemessen: `{ algorithms: ["HS256"] }` um
+     * `clockTolerance: 999_999_999` ergaenzt (rund 31 Jahre Nachsicht) — alle Faelle
+     * blieben gruen, und eine Sitzung liefe faktisch unbegrenzt.
+     *
+     * Die Ablehnung leistet `jose` selbst (`JWTExpired`), das `catch` in
+     * `verifyAusleihSitzung` macht daraus `null`. Beide Zeilen traegt dieser Fall.
+     *
+     * Sekunden auf BEIDEN Seiten: `exp` ist ein Unix-Zeitstempel in Sekunden, deshalb
+     * steht der Faktor 1000 hier — anders als beim Kopplungsfall weiter unten — nicht im
+     * Ausdruck.
+     */
+    const { verifyAusleihSitzung } = await import("./ausleihSitzung");
+    const abgelaufen = await new SignJWT({ codeId: "zc-1" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setExpirationTime(Math.floor(Date.now() / 1000) - 60)
+      .sign(new TextEncoder().encode(GEHEIMNIS));
+    await expect(verifyAusleihSitzung(abgelaufen)).resolves.toBeNull();
+  });
+
   it.each([
     ["codeId fehlt", {}],
     ["codeId ist leer", { codeId: "" }],
@@ -217,9 +294,20 @@ describe("radio-Ausleihsitzung: signieren und pruefen", () => {
      * Die Kopplung wird GEMESSEN, nicht behauptet: `laeuftAb` aus dem geprueften Token
      * gegen `maxAge` aus den Optionen, mit dem Faktor 1000 SICHTBAR im Ausdruck
      * (Hausregel: nie ueber die Einheitengrenze vergleichen, ohne den Faktor zu zeigen).
+     *
+     * ⛔ DIE VARIABLE WIRD WEG VON DER VORBELEGUNG GESETZT, WIE IM STUNDEN-FALL DARUNTER
+     * (Fix-Runde 1 zu A4, Fund W2). An der Vorbelegung 12 lief dieser Fall ins Leere:
+     * gemessen mit `12 * 3600` fest in die `exp`-Seite verdrahtet blieben ohne gesetzte
+     * Variable alle Faelle gruen, und erst mit `RADIO_AUSLEIH_SITZUNG_STUNDEN=7` wurde er
+     * rot („exp und maxAge laufen auseinander"). Der Waechter KONNTE den Fehler sehen, er
+     * sah ihn nur bei genau der Zahl nicht, die ⬜ A-L1 gerade aendern wird — der Ausfall
+     * im Feld waere Cookie 7 h gegen Token 12 h, also exakt die stille Divergenz, die
+     * dieser Fall zu verhindern vorgibt.
      */
+    process.env.RADIO_AUSLEIH_SITZUNG_STUNDEN = "7";
     const { createAusleihSitzung, verifyAusleihSitzung, ausleihCookieOptionen, ausleihGueltigkeitSekunden } =
       await import("./ausleihSitzung");
+    expect(grenzenStunden(), "die Vorbelegung wuerde diesen Fall ins Leere laufen lassen").toBe(7);
     const sek = ausleihGueltigkeitSekunden();
     expect(ausleihCookieOptionen(sek).maxAge).toBe(sek);
     const vorher = Date.now();
@@ -251,8 +339,17 @@ describe("radio-Ausleihsitzung: die Bauform", () => {
      * `lagerbuch/_lib/helferSitzung.ts:39-49`): `next build` laeuft mit
      * NODE_ENV=production und OHNE Secrets und wertet Modulebene aus.
      *
-     * ⚠️ DER LAUFZEIT-IMPORT ALLEIN GENUEGT NICHT ALS NACHWEIS — vitest cached Module.
-     * Deshalb steht daneben der Quelltext-Scan.
+     * ⚠️ WAS DIESER FALL TRAEGT UND WAS DER SCAN DANEBEN TRAEGT (Fix-Runde 1 zu A4, Fund
+     * K4). Hier stand frueher, der Laufzeit-Import genuege NICHT als Nachweis, weil
+     * vitest Module cache — das ist der Messung entgegengesetzt: `vi.resetModules()`
+     * unten fuehrt das Modul nachweislich NEU aus, und dieser Fall wurde bei JEDER
+     * geprobten Form eines Modulebenen-Lesens rot (ohne `TextEncoder`, als `export const`,
+     * als schlichtes `const`). Er ist der Waechter der WIRKUNG.
+     *
+     * Der Scan daneben sichert die FORM — die eine erlaubte Schreibweise `() =>` — und
+     * faengt damit auch, was zur Laufzeit dieser Datei folgenlos bliebe. In der ersten
+     * Fassung war er der SCHWAECHERE der beiden (er blieb bei zwei der drei Formen gruen);
+     * seit Fund K3 gehen bei allen drei Formen BEIDE Faelle rot.
      */
     delete process.env.RADIO_AUSLEIH_SITZUNG_SECRET;
     vi.resetModules();
@@ -261,14 +358,44 @@ describe("radio-Ausleihsitzung: die Bauform", () => {
 
   it("Quelltext-Scan: das Geheimnis steht in einem Thunk, nicht in einem Modulebenen-const", async () => {
     /*
-     * Der Scan sucht die verbotene Form: ein `const … = new TextEncoder().encode(` auf
-     * Modulebene. Die erlaubte Form ist `const schluessel = () => new TextEncoder()…`.
+     * Der Scan sucht die verbotene Form: ein Modulebenen-`const`, das
+     * `ausleihSitzungGeheimnis()` liest. Die erlaubte Form ist
+     * `const schluessel = () => new TextEncoder().encode(ausleihSitzungGeheimnis())`.
      * ⛔ Der Unterschied ist genau das `() =>`.
+     *
+     * ⛔ DREI SCHAERFUNGEN AUS FIX-RUNDE 1 ZU A4 (Fund K3), jede gegen eine gemessene
+     * Luecke der ersten Fassung:
+     *
+     * (a) BEIDE Muster sind mit `^` an den ZEILENANFANG verankert (`m`-Flag). Ohne das
+     *     erfuellte ein blosses PROSA-ZITAT in einem Kommentar die positive Zusicherung:
+     *     gemessen blieb sie gruen, waehrend der Thunk im Quelltext nur noch als
+     *     `// Die erlaubte Form waere: const schluessel = () => …` existierte. Modulebene
+     *     heisst Spalte 0 — die Verankerung ist zugleich die genauere Zusage.
+     *
+     * (b) Die verbietende Seite zielt auf `ausleihSitzungGeheimnis(` statt auf
+     *     `TextEncoder`. Gemessen kam sonst ein `const ROH = ausleihSitzungGeheimnis();`
+     *     mit nachgeschaltetem Thunk durch — dieselbe `pnpm build`-Falle, nur ohne den
+     *     Namen, auf den das alte Muster sah. Der negative Vorgriff steht UNMITTELBAR
+     *     hinter dem `=` und schliesst den Zwischenraum selbst ein
+     *     (`=(?!\s*\(\s*\)\s*=>)\s*`); stuende er hinter einem eigenen `\s*`, koennte die
+     *     Maschine dieses `\s*` auf null zuruecknehmen und den Vorgriff damit ins Leere
+     *     laufen lassen. Gemessen: in der ersten Fassung war dieser Fall rot AUF DEM
+     *     RICHTIGEN THUNK, weil die Maschine genau diesen Rueckzieher machte.
+     *
+     * (c) `export\s+` ist zugelassen. Gemessen kam sonst ein
+     *     `export const SCHLUESSEL = new TextEncoder().encode(ausleihSitzungGeheimnis());`
+     *     durch, weil das alte Muster `const` unmittelbar am Zeilenanfang verlangte.
+     *
+     * Das alte, auf `TextEncoder` zielende Muster bleibt daneben stehen: es faengt ein
+     * Modulebenen-`const`, das das Geheimnis auf einem anderen Weg als ueber
+     * `ausleihSitzungGeheimnis()` einliest.
      */
     const quelle = readFileSync(join(process.cwd(), "src/app/m/radio/_lib/ausleihSitzung.ts"), "utf8");
     expect(quelle, "das Geheimnis gehoert in einen Thunk (Spec:2042-2047)")
-      .toMatch(/const\s+\w+\s*=\s*\(\s*\)\s*=>\s*new\s+TextEncoder\(\)/);
+      .toMatch(/^const\s+\w+\s*=\s*\(\s*\)\s*=>\s*new\s+TextEncoder\(\)/m);
     expect(quelle, "kein Modulebenen-const auf das Geheimnis")
-      .not.toMatch(/^\s*const\s+\w+\s*=\s*new\s+TextEncoder\(\)/m);
+      .not.toMatch(/^(?:export\s+)?const\s+\w+\s*=(?!\s*\(\s*\)\s*=>)\s*[^\n]*\bausleihSitzungGeheimnis\s*\(/m);
+    expect(quelle, "kein Modulebenen-const auf einen Schluessel")
+      .not.toMatch(/^(?:export\s+)?const\s+\w+\s*=\s*new\s+TextEncoder\(\)/m);
   });
 });

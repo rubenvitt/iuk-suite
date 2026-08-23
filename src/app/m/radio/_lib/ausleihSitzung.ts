@@ -177,7 +177,9 @@ export async function verifyAusleihSitzung(value: string): Promise<AusleihSitzun
  * in A9 (`_lib/bauform.test.ts`).
  *
  * `secure` kommt aus NODE_ENV und nicht aus einer Basis-URL: `NODE_ENV=production` steht
- * fest im Image (`Dockerfile:25`).
+ * fest im Image (`Dockerfile:36`). Bewacht vom Fall „secure folgt NODE_ENV" in
+ * `ausleihSitzung.test.ts` — er setzt die Variable auf BEIDE Werte, weil ein Vergleich
+ * gegen `process.env.NODE_ENV` eine Tautologie waere.
  *
  * ⛔ `gueltigkeitSekunden = 0` IST DAS LOESCHEN, und es steht hier statt in einem eigenen
  * `ausleihCookieLoeschen()` (Spec:2596-2604). Die Attribute muessen beim Loeschen
@@ -186,8 +188,29 @@ export async function verifyAusleihSitzung(value: string): Promise<AusleihSitzun
  * garantieren es nicht. Aus demselben Grund ist `cookies().delete(...)` in diesem Modul
  * ueberall verboten: es setzt kein `Path` und loescht am falschen Scope (Bestand
  * `src/app/m/lagerbuch/abmelden/route.ts:80-91`).
+ *
+ * ⛔ DER RUECKGABETYP STEHT AUSGESCHRIEBEN DA UND WIRD NICHT AUS `as const` ABGELEITET —
+ * er ist der ZWEITE, FRUEHERE Waechter gegen genau den `domain`-Fehler oben, und er
+ * schlaegt vor jedem Testlauf zu. Gemessen am 2026-08-23 mit ergaenztem
+ * `domain: ".iuk-ue.de"`: `tsc` meldet dann
+ *   error TS2353: Object literal may only specify known properties, and 'domain' does
+ *   not exist in type '{ httpOnly: true; sameSite: "lax"; path: "/"; secure: boolean;
+ *   maxAge: number; }'
+ * — ohne die Annotation bleibt `rtk pnpm typecheck` bei derselben Aenderung gruen.
+ *
+ * ⚠️ ER ERSETZT DEN TESTFALL NICHT. Die Ueberschussfeld-Pruefung greift nur, weil hier
+ * ein Objekt-LITERAL zurueckgegeben wird; ein `domain`, das aus einer Variablen in das
+ * Ergebnis kaeme, liesse TypeScript weiterhin durch. Der Test
+ * `not.toHaveProperty("domain")` bleibt der tragende Waechter, die Annotation steht
+ * daneben.
  */
-export function ausleihCookieOptionen(gueltigkeitSekunden: number) {
+export function ausleihCookieOptionen(gueltigkeitSekunden: number): {
+  httpOnly: true;
+  sameSite: "lax";
+  path: "/";
+  secure: boolean;
+  maxAge: number;
+} {
   return {
     httpOnly: true as const,
     sameSite: "lax" as const,
