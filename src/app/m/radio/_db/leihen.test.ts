@@ -880,12 +880,12 @@ describe("radio-leihen: WAL und busy_timeout — der Ersatz fuer den gestrichene
       };
 
       // ⚠️ DIE OBERGRENZE HAT ABSICHTLICH LUFT (250, nicht 150): sie ist eine ABSOLUTE
-      // Zeitschranke in einer Suite, die Hunderte Dateien parallel faehrt, und misst dort
-      // auch die Zuteilung des Zeitscheibens. Der Kontrast, auf dem die Aussage beruht,
-      // bleibt vollstaendig erhalten — die Wartezeit des geduldigen Handles ist 300 ms.
+      // Zeitschranke in einer Suite, die Hunderte Dateien parallel faehrt. ⛔ DIE UNTERGRENZE
+      // IST DIESELBE ZAHL — erst so sind die zwei Schranken eine LUECKENLOSE Teilung, die
+      // KEINE Messung zugleich erfuellt (gemessen, drei volle Laeufe: 343/364/351 ms).
       expect(messe(sofort), "ohne Wartezeit muss es sofort scheitern").toBeLessThan(250);
       expect(messe(geduldig), "mit Wartezeit muss es erst nach ihr scheitern").toBeGreaterThanOrEqual(
-        200,
+        250,
       );
     } finally {
       schreiber.exec("ROLLBACK");
