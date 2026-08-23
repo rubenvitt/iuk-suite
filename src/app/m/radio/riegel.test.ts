@@ -693,6 +693,11 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
    *          als erste Anweisung; ein zweiter Aufruf behauptet, es sei host-blind, und
    *          macht aus „hostgebunden durch Konstruktion" eine vergessliche Liste
    *          (Spec:2686-2691, §3.5.5 Spec:2768-2769).
+   *       ⚠️ requireAusleihSchreibend( STEHT HIER BEWUSST NICHT in der Verbotsliste — anders
+   *          als in der Gate-Haelfte oben. Ob eine der drei Ausleihseiten sie legitim ruft,
+   *          entscheiden die Briefe A18-A20; ein vorgezogenes Verbot waere hier
+   *          ROT-BY-CONSTRUCTION, dieselbe Fehlerform, die B7 (Spec:96) schon einmal
+   *          abgeraeumt hat. ⛔ A18 ENTSCHEIDET UND SPIEGELT ODER BEGRUENDET (REVIEW-A11 W1).
    *
    * ⚠️ WAS SIE NICHT BELEGT: dass ein Riegel bei einem echten Abruf GREIFT (⬜ A-L9,
    * Erbe von Z-L1). Sie belegt, dass eine BAUFORM eingehalten ist.
