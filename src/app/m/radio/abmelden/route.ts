@@ -58,7 +58,7 @@ export async function GET(req: Request) {
   /*
    * `radioHostOderNull`, NICHT `requireRadioHost`: ein `notFound()`-Wurf ist im Antwortweg
    * eines Route Handlers keine brauchbare Antwort (`_lib/host.ts:62-63`,
-   * `riegel.test.ts:458-467`). Der Handler baut seine 404 selbst.
+   * `riegel.test.ts:563-572`). Der Handler baut seine 404 selbst.
    */
   if (!radioHostOderNull(kopf)) return new Response("Not found", { status: 404 });
 

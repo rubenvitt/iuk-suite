@@ -8,7 +8,7 @@ import { grenzen, ausleihSitzungGeheimnis } from "./grenzen";
  * KEIN "use client" in dieser Datei. Ihre Werte lesen Server Components, Server Actions
  * und Route Handler (A6, A7, A9, A10) — ein WERT aus einem Client-Modul kommt in einer
  * Server Component nicht an, sondern als Client-Referenz (Falle 6, `CLAUDE.md`), HTTP 500
- * fuer die ganze Seite. Durchgesetzt von `src/app/m/radio/riegel.test.ts:816-835`.
+ * fuer die ganze Seite. Durchgesetzt von `src/app/m/radio/riegel.test.ts:921-940`.
  *
  * ⛔ KEINE VERLAENGERUNG, weder gleitend noch bei Aktivitaet (§3.4.4, Spec:2548-2570).
  * Gleitend waere in einer Server Component technisch unmoeglich — `cookies()` ist dort

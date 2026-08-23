@@ -525,7 +525,7 @@ describe("radio-Ausleihzugang: keine dritte Quelle", () => {
      *
      * ⛔ DER BESTAND HAT DIESE LEHRE SCHON GEZOGEN, woertlich (`riegel.test.ts:170-173`):
      * „OHNE DAS IST JEDER DIESER SCANS AUF SEINER EIGENEN BEGRUENDUNG ROT." Deshalb
-     * laeuft dort jeder Scan ueber `ohneKommentare(...)` (`riegel.test.ts:236`).
+     * laeuft dort jeder Scan ueber `ohneKommentare(...)` (`riegel.test.ts:341`).
      *
      * ⛔ `ohneKommentare` WIRD AUS `riegel.test.ts:181-201` KOPIERT, nicht importiert
      * (vitest laedt Testdateien nicht als Module fuereinander; eine geteilte Helferdatei

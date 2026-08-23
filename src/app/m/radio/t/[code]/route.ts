@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
 /**
  * ⛔ EIN BENANNTER TYP UND KEIN INLINE-OBJEKT IN DER PARAMETERLISTE, UND DAS IST GEMESSEN,
  * NICHT STIL. `_lib/bauform.test.ts` schneidet den Koerper von `GET` mit `funktionsKoerper`
- * aus (`riegel.test.ts:255-270`), und das sucht die erste `{` NACH dem Funktionsnamen.
+ * aus (`riegel.test.ts:360-375`), und das sucht die erste `{` NACH dem Funktionsnamen.
  * Stuende hier `ctx: { params: Promise<{ code: string }> }`, liese der Scan
  * `{ params: Promise<{ code: string }> }` als „Koerper" — nicht leer, also an der
  * Leer-Zusicherung vorbei, und alle vier Riegel „fehlten ganz" bei RICHTIGER
@@ -50,7 +50,7 @@ export async function GET(req: Request, ctx: RouteKontext) {
    * SCHRITT 1 — Host. Die NICHT-werfende Form, und nicht die werfende: ein `notFound()` ist
    * keine brauchbare Antwort auf einen GESCANNTEN QR-Code — es waere eine HTML-Fehlerseite
    * mit `Content-Type: text/html`. Der Handler baut seine 404 selbst
-   * (`_lib/host.ts:62-63`, `riegel.test.ts:458-467` macht die werfende Form hier rot).
+   * (`_lib/host.ts:62-63`, `riegel.test.ts:563-572` macht die werfende Form hier rot).
    *
    * ⛔ ER STEHT VOR ALLEM ANDEREN, UND DAS HAT DATENWIRKUNG (§3.4.6, Spec:2616-2629):
    * `/m/<modul>/*` antwortet auf JEDEM Host, der auf den Suite-Container terminiert —

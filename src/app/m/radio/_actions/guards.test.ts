@@ -7,7 +7,7 @@ import { join, relative } from "node:path";
  * DER EINE `_actions/`-SCAN (Spec 1 §3.8 Zeile 3111, praezisiert in Spec:6762 und B7
  * Spec:96; B14 Spec:103 und B19 Spec:119: ES GIBT NUR DIESEN EINEN).
  *
- * ⛔ `riegel.test.ts` FUEHRT KLAUSEL (b) AUSDRUECKLICH NICHT (`riegel.test.ts:382-394`).
+ * ⛔ `riegel.test.ts` FUEHRT KLAUSEL (b) AUSDRUECKLICH NICHT (`riegel.test.ts:487-499`).
  * Zwei Scans ueber dieselbe Flaeche, von denen einer die Ausnahmen nicht kennt, sind ein
  * Scan zu viel — und der naheliegende Gruen-Fix des unwissenden Scans waere, in
  * `einloesenAmGate` einen Sitzungsriegel einzusetzen. Das macht das GATE UNBENUTZBAR
@@ -71,7 +71,7 @@ const ACTION_DATEIEN_ANZAHL = 3;
  * `verstoesse` leer und der Riegelscan LEER-GRUEN, waehrend die Dateizahl weiter stimmt.
  *
  * ⛔ EXAKT, NICHT „MINDESTENS" — dieselbe Begruendung wie oben und wie
- * `riegel.test.ts:64-76`. `riegel.test.ts:829` fuehrt an derselben Stelle eine
+ * `riegel.test.ts:64-76`. `riegel.test.ts:934` fuehrt an derselben Stelle eine
  * Untergrenze; die ist fuer jede nichtleere Liste wahr und hat keine Mutation, die sie
  * rot macht. Hier steht deshalb die schaerfere Form.
  *
@@ -137,17 +137,17 @@ function actionDateien(): string[] {
 }
 
 /*
- * ⛔ HIER STEHEN DIE ZWEI ECHTEN FUNKTIONEN, KOPIERT AUS `riegel.test.ts:166-231`
+ * ⛔ HIER STEHEN DIE ZWEI ECHTEN FUNKTIONEN, KOPIERT AUS `riegel.test.ts:166-250`
  * (`ohneKommentare` und `ohneKommentareUndZeichenketten`, mit ihren Kommentaren).
  *
  * ⚠️ „KOPIERT", NICHT „WOERTLICH" — UND DIE ABWEICHUNG STEHT HIER STATT IN EINER
  * BEHAUPTUNG (REVIEW-A8 S5). Bis zum 2026-08-23 stand an dieser Stelle „WOERTLICH KOPIERT
- * … mit ihren Kommentaren"; gemessen wurde die Kopie gegen `riegel.test.ts:166-231`, und
+ * … mit ihren Kommentaren"; gemessen wurde die Kopie gegen `riegel.test.ts:166-250`, und
  * AUSGELASSEN sind `riegel.test.ts:170-174` — ein riegel-spezifischer Absatz ueber den
  * Kopfkommentar von `_lib/zugang.ts`. Er redet ueber `_lib/`, nicht ueber `_actions/`; die
- * Auslassung ist richtig, die Behauptung „woertlich" war es nicht. DIE RUMPFE SIND
- * ZEICHENGLEICH — das war die einzige Abweichung. Die Kopie steht unmittelbar unter diesem
- * Absatz (`ohneKommentare` und `ohneKommentareUndZeichenketten`).
+ * Auslassung ist richtig, die Behauptung „woertlich" war es nicht. ⛔ UND EIN RUMPF WEICHT
+ * SEIT DEM 2026-08-23 AB (Fund M1): dort schneidet `ohneKommentareUndZeichenketten` keine
+ * nachgestellten Kommentare mehr — hier schon; die Kopie steht unmittelbar darunter.
  *
  * ⛔ KEIN `declare function`. Eine reine Typdeklaration hat keinen Rumpf: `typecheck`
  * bliebe GRUEN und der Test stuerbe zur Laufzeit an „is not a function" — die
@@ -155,7 +155,7 @@ function actionDateien(): string[] {
  *
  * ⛔ KEIN IMPORT AUS `riegel.test.ts` — vitest laedt Testdateien nicht als Module
  * fuereinander, und eine geteilte Helferdatei waere ein `_lib/`-Modul, das der
- * `"use client"`-Scan mitzaehlt (`riegel.test.ts:816-835` filtert auf `/(?:_lib|_db)/`).
+ * `"use client"`-Scan mitzaehlt (`riegel.test.ts:921-940` filtert auf `/(?:_lib|_db)/`).
  * Die Verdoppelung ist der Preis dafuer und gewollt; der Bericht zu A8 fuehrt die
  * verworfene Alternative samt Belegen.
  *

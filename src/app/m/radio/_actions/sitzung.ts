@@ -31,7 +31,7 @@ import { loeseCodeEin } from "../_lib/schreibpfade/codeEinloesung";
 /**
  * ⛔ EIN BENANNTER TYP UND KEIN INLINE-OBJEKT IM RUECKGABETYP, UND DAS IST GEMESSEN, NICHT
  * STIL. `_lib/bauform.test.ts` schneidet den Funktionskoerper mit `funktionsKoerper` aus
- * (`riegel.test.ts:255-270`), und das sucht die erste `{` NACH dem Funktionsnamen. Stuende
+ * (`riegel.test.ts:360-375`), und das sucht die erste `{` NACH dem Funktionsnamen. Stuende
  * hier `): Promise<{ ok: true } | { ok: false; text: string }> {`, liese der Scan
  * `{ ok: true }` als „Koerper" — nicht leer, also an der Leer-Zusicherung vorbei, und alle
  * vier Riegel „fehlten ganz" bei RICHTIGER Implementierung (Sonde vom 2026-08-23 ueber genau

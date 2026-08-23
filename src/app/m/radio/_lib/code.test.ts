@@ -133,7 +133,7 @@ describe("radio-Code: erzeugeCode", () => {
      * ⚠️ Ein Waechter, dessen Zusage weiter ist als seine Pruefung, bewacht nichts. WAS
      * DURCHKAEME, benannt statt verschwiegen: ein Literal `"getRandomValues("` ohne einen
      * Kommentarbeginn in derselben Zeile. Zeichenkettenliterale GANZ leert erst die Maschine
-     * in `riegel.test.ts:203-231`; der Schnitt hier kappt nur ab dem ersten Kommentarbeginn.
+     * in `riegel.test.ts:203-250`; der Schnitt hier kappt nur ab dem ersten Kommentarbeginn.
      */
     const quelle = readFileSync(join(process.cwd(), "src/app/m/radio/_lib/code.ts"), "utf8");
     expect(quelle, "erzeugeCode muss kryptografisch sein (Spec:2089)")
