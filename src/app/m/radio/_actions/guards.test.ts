@@ -221,7 +221,10 @@ function ohneKommentareUndZeichenketten(quelle: string): string {
     ergebnis += z;
     i++;
   }
-  return ergebnis.replace(/\/\/.*$/gm, ""); // ⛔ ZULETZT: davor zerrisse er "https://…"
+  // ⛔ KEIN Kommentarschnitt mehr HIER — er ist nach `bereinigt` verlagert, HINTER das
+  // Leeren der Regexliterale. Sonst frisst er `/\//` und kappt den Rest der Zeile
+  // (Fund M1, gemessen; dieselbe Reihenfolge wie in `riegel.test.ts:335`).
+  return ergebnis;
 }
 
 /**
@@ -248,7 +251,12 @@ function ohneRegexLiterale(q: string): string {
   let i = 0;
   while (i < q.length) {
     const z = q[i]!;
-    if (z === "/" && REGEX_ERLAUBT.test(ergebnis.trimEnd())) {
+    // ⛔ `//` IST IMMER EIN KOMMENTARBEGINN, NIE EIN LITERAL — JS kennt kein leeres `//`.
+    // Ohne diese Bedingung frisst der Scanner den Kommentarbeginn (`;` davor steht in
+    // REGEX_ERLAUBT, das zweite `/` schliesst sofort), und der Schnitt in `bereinigt`
+    // findet danach nichts mehr — der Kommentartext bliebe stehen und erfuellte jede
+    // positive Zusicherung. Zeichengleich uebernommen aus `riegel.test.ts:302`.
+    if (z === "/" && q[i + 1] !== "/" && REGEX_ERLAUBT.test(ergebnis.trimEnd())) {
       let j = i + 1;
       let klasse = false;
       let fertig = false;
@@ -279,7 +287,11 @@ function ohneRegexLiterale(q: string): string {
  * UND Regexliterale geleert, Zeilenzahl erhalten.
  */
 function bereinigt(quelle: string): string {
-  return ohneRegexLiterale(ohneKommentareUndZeichenketten(quelle));
+  // ⛔ DIE REIHENFOLGE IST DER GANZE FUND (M1): erst Zeichenketten leeren, dann
+  // Regexliterale, und den Kommentarschnitt ZULETZT. Umgekehrt haelt der Schnitt die zwei
+  // Schraegstriche in `/\//` fuer einen Kommentarbeginn und loescht den Rest der Zeile —
+  // an einer NEGATIVEN Zusicherung heisst das: weniger gefundene Verstoesse, still.
+  return ohneRegexLiterale(ohneKommentareUndZeichenketten(quelle)).replace(/\/\/.*$/gm, "");
 }
 
 /**
@@ -703,5 +715,19 @@ describe("radio-_actions: jede exportierte Action traegt ihren Riegel", () => {
       expect(erste, `${relative(ORDNER, pfad)}: keine "use server"-Direktive`)
         .toMatch(/^["']use server["'];?$/);
     }
+  });
+});
+
+describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
+  const MIT_REGEX = [
+    "export async function sonde(x: string) {",
+    "  const teile = x.split(/\\//); await requireRadioAdmin();",
+    "  return teile;",
+    "}",
+  ].join("\n");
+
+  it("ein Regexliteral mit zwei Schraegstrichen kappt den Rest der Zeile NICHT", () => {
+    expect(bereinigt(MIT_REGEX), "das Regexliteral kappt den Riegelaufruf dahinter")
+      .toMatch(/\brequireRadioAdmin\s*\(/);
   });
 });

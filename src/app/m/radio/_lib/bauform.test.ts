@@ -109,10 +109,10 @@ const lies = (pfad: string): string => readFileSync(join(MODUL, pfad), "utf8");
  * genau die Verwechslung, die dieser Abschnitt vermeiden soll.
  *
  * ⚠️ HIER WIRD NICHT VORGEREINIGT, und das ist Absicht (Vorabscan-Fund F23):
- * `funktionsKoerper` beginnt selbst mit `ohneKommentareUndZeichenketten(quelle)` — die
- * Kopie hier unten, nicht mehr die in `riegel.test.ts` (`:361` ruft dort seit dem
- * 2026-08-23 `bereinigt`). Eine zweite Anwendung waere idempotent und damit folgenlos —
- * aber der naechste Leser entfernte die falsche der beiden und machte den Scan still blind.
+ * `funktionsKoerper` beginnt selbst mit `bereinigt(quelle)` — die Kopie hier unten, und
+ * seit Aufgabe B0 (2026-08-23) zeichengleich zu der in `riegel.test.ts`. Eine zweite
+ * Anwendung waere idempotent und damit folgenlos — aber der naechste Leser entfernte die
+ * falsche der beiden und machte den Scan still blind.
  */
 const scanAbschnitt = (schluessel: string): string =>
   funktionsKoerper(lies(schluessel), EINLOESE_FUNKTION[schluessel]!);
@@ -129,10 +129,13 @@ const vorhandeneFlaechen = (): string[] =>
   GATE_FLAECHEN.filter((f) => existsSync(join(MODUL, f)));
 
 /*
- * ⛔ HIER STEHEN DIE FUENF SCAN-HELFER, KOPIERT AUS `riegel.test.ts:131-375`
- * (`quellDateien`, `ohneKommentare`, `ohneKommentareUndZeichenketten`, `trefferAuf`,
- * `funktionsKoerper`) — mit ihren Kommentaren. ⚠️ ZWEI RUEMPFE WEICHEN SEIT DEM 2026-08-23
- * AB (Fund M1), und die Abweichung ist bei `funktionsKoerper` unten ausgeschrieben.
+ * ⛔ HIER STEHEN DIE SECHS SCAN-HELFER, KOPIERT AUS `riegel.test.ts:131-375`
+ * (`quellDateien`, `ohneKommentare`, `ohneKommentareUndZeichenketten`, `ohneRegexLiterale`,
+ * `bereinigt`, `trefferAuf`, `funktionsKoerper`) — mit ihren Kommentaren. ⚠️ SEIT AUFGABE
+ * B0 (2026-08-23) WEICHT KEIN RUMPF MEHR AB: `ohneRegexLiterale` und `bereinigt` sind in
+ * derselben Runde nachgezogen, in der `riegel.test.ts` sie bekam (Fund M1). Was bleibt, ist
+ * die Signatur-Grenze von `funktionsKoerper` — sie ist dort unten ausgeschrieben und in
+ * beiden Kopien gleich.
  *
  * ⛔ KEIN IMPORT AUS `riegel.test.ts`: vitest laedt Testdateien nicht als Module
  * fuereinander. ⚠️ DIE ZWEITE HAELFTE DER UEBLICHEN BEGRUENDUNG TRAEGT NICHT, und sie steht
@@ -213,29 +216,37 @@ function ohneKommentare(quelle: string): string {
 }
 
 /**
- * Wie `ohneKommentare`, zusaetzlich werden Zeichenkettenliterale UND nachgestellte
- * Kommentare geleert. Nur fuer die POSITIVEN Nachweise noetig: `toMatch` behauptet, dass ein
- * Muster VORKOMMT — ein String `"requireRadioHost("` oder ein `// frueher: gateGesperrt(x)`
- * erfuellte das sonst, OHNE dass der Riegel je liefe.
+ * Wie `ohneKommentare`, zusaetzlich werden Zeichenkettenliterale geleert. Ein String
+ * `"requireRadioHost("` erfuellte eine `toMatch`-Zusicherung sonst als reiner Text, OHNE
+ * dass der Riegel je liefe (gemessen, Fund N1 aus
+ * `.superpowers/sdd/planteil3/REVIEW-A2.md` uebertragen).
  *
- * ⛔ ZWEI SAETZE, DIE HIER STEHEN STATT VERSCHWIEGEN ZU WERDEN — beide am 2026-08-23
- * gemessen, beide OFFEN (Fund M1, `.superpowers/sdd/planteil3/REVIEW-A2.md`; die Abhilfe
- * ist in `riegel.test.ts` gebaut und dort ausgeschrieben):
+ * ⛔ NACHGESTELLTE KOMMENTARE SCHNEIDET SIE SEIT AUFGABE B0 (2026-08-23) NICHT MEHR
+ * SELBST — der Schnitt steht in `bereinigt`, HINTER dem Leeren der Regexliterale. Die
+ * Begruendung steht dort (Fund M1); kurz: davor gelesen, haelt der Schnitt die zwei
+ * Schraegstriche eines Regexliterals fuer einen Kommentarbeginn und loescht den Rest der
+ * Zeile.
  *
- *   1. „Nur fuer die POSITIVEN Nachweise noetig" STIMMT FUER DIESE KOPIE NICHT. Die
- *      Umleitungs-Klausel und der `cookies().delete`-Scan lesen sie NEGATIV; dort heisst
- *      weniger Text WENIGER GEFUNDENE VERSTOESSE.
- *   2. Der Schnitt `replace(/\/\/.*$/gm, "")` unten kennt KEINE Regexliterale. Ein
- *      `.split(/\//)` traegt zwei Schraegstriche nebeneinander, der Schnitt haelt sie fuer
- *      einen Kommentarbeginn und loescht den Rest der Zeile. SONDE (Paar, selbst gefahren):
- *      `Response.redirect("/x")` in `abmelden/route.ts`, davor auf derselben Zeile ein
- *      `"a".split(/\//)` — `Tests 10 passed`, STILL GRUEN. Dieselbe Zeile ohne das
- *      Regexliteral: `1 failed | 9 passed`, Fall „keine aeussere Flaeche baut eine absolute
- *      Umleitung".
+ * ⛔ UND NICHT „NUR FUER DIE POSITIVEN NACHWEISE NOETIG" — DAS STAND HIER BIS ZUM
+ * 2026-08-23 UND WAR FALSCH (Fund M3, `.superpowers/sdd/planteil3/REVIEW-A2.md`; in dieser
+ * Kopie benannt von Commit `7ca9c53`, behoben in B0). Ueber `bereinigt` lesen die
+ * Umleitungs-Klausel, die 303-Klausel und der `cookies().delete`-Scan NEGATIV, und der
+ * Reihenfolge-Fall tut es ueber `funktionsKoerper`. Dort ist jeder zusaetzliche Schnitt die
+ * STILLE Richtung: weniger Text heisst weniger gefundene Verstoesse.
  *
- * ⚠️ NICHT IN DERSELBEN RUNDE BEHOBEN, weil diese Datei nicht zum Auftrag der Fix-Runde zu
- * A2 gehoert und ihre Klauseln nicht gemessen sind. Die Abhilfe ist `ohneRegexLiterale` +
- * `bereinigt` aus `riegel.test.ts`, zeichengleich uebertragbar. ENTSCHEIDUNG OFFEN.
+ * ⛔ DIE SONDE, DIE DAS BELEGT, IST EIN PAAR UND WURDE ZWEIMAL GEFAHREN (7ca9c53, und in
+ * B0 vor der Reparatur nachgestellt): `Response.redirect("/x")` in `abmelden/route.ts`,
+ * davor auf derselben Zeile ein `"a".split(/\//)` — `Tests 10 passed`, STILL GRUEN.
+ * Dieselbe Zeile ohne das Regexliteral: `1 failed | 9 passed`. Nach der Reparatur ist die
+ * Fassung MIT dem Regexliteral `1 failed | 12 passed`. Der letzte `describe`-Block dieser
+ * Datei haelt beide Richtungen ohne Eingriff in den Baum fest.
+ *
+ * ⚠️ `m/lagerbuch` haelt fuer sich die ANDERE Aufteilung fest und schreibt sie aus
+ * (`src/app/m/lagerbuch/_lib/bauform.test.ts:164-176`, woertlich: „Die uebrigen Scans hier
+ * sind alle NEGATIV (`toEqual([])`); dort macht ein Treffer in einem Zeichenkettenliteral
+ * den Test hoechstens fälschlich ROT, nie still gruen, und bleibt deshalb bewusst
+ * ungefiltert"). `m/radio` ist von dieser Aufteilung abgewichen — der Kopf hier war es
+ * nicht.
  */
 function ohneKommentareUndZeichenketten(quelle: string): string {
   const bereinigt = ohneKommentare(quelle);
@@ -257,7 +268,93 @@ function ohneKommentareUndZeichenketten(quelle: string): string {
     ergebnis += z;
     i++;
   }
-  return ergebnis.replace(/\/\/.*$/gm, ""); // ⛔ ZULETZT: davor zerrisse er "https://…"
+  return ergebnis; // ⛔ DER SCHNITT auf nachgestellte Kommentare steht in `bereinigt` — dort
+}
+
+
+/**
+ * ⛔ REGEXLITERALE WERDEN GELEERT, UND ZWAR VOR JEDER KLAMMERZAEHLUNG UND VOR JEDER
+ * NEGATIVEN ZUSICHERUNG. Gemessen am 2026-08-23 (Fund M1,
+ * `.superpowers/sdd/planteil3/REVIEW-A2.md`): `ohneKommentareUndZeichenketten` leert
+ * Kommentare und Zeichenketten, kennt aber KEIN Regexliteral. Ein `.split(/\//)` oder ein
+ * `.replace(/\/\//g, …)` traegt zwei Schraegstriche nebeneinander — der Schnitt am Ende
+ * jener Funktion haelt sie fuer einen Kommentarbeginn und LOESCHT DEN REST DER ZEILE.
+ *
+ * ⛔ AN DEN POSITIVEN ZUSICHERUNGEN IST DAS HARMLOS UND LAUT (weniger Text macht ein
+ * `toMatch` schwerer erfuellbar, nie leichter). AN DEN NEGATIVEN IST ES STILL: Klausel (c),
+ * (e), (f) und (d) lesen ueber denselben Helfer, und dort heisst weniger Text WENIGER
+ * GEFUNDENE VERSTOESSE. Eine unbalancierte Klammer im Literal — `/^[A-Z(]+$/`, `/[}]/` —
+ * verschiebt zusaetzlich jeden Zaehler dahinter; `funktionsKoerper` zaehlt genau auf
+ * diesem Text, und ein verschobener Koerper laesst BEIDE Richtungen eine andere Spanne
+ * pruefen als die gemeinte.
+ *
+ * ⛔ AUS `riegel.test.ts` KOPIERT (Aufgabe B0, 2026-08-23), zeichengleich einschliesslich
+ * der Bedingung `q[i + 1] !== "/"` unten — sie ist noetig, WEIL der Kommentarschnitt hier
+ * seit B0 HINTER dem Leeren der Literale laeuft. KEIN IMPORT: vitest laedt Testdateien
+ * nicht als Module fuereinander, und eine geteilte Helferdatei unter `src/app/m/radio/`
+ * zaehlte der `"use client"`-Scan mit. Die Verdoppelung ist der Preis; sie ist im Kopf
+ * dieser Datei bei den fuenf Scan-Helfern schon benannt.
+ *
+ * ⚠️ UND DIE REIHENFOLGE IST DER GANZE FUND: `ohneKommentareUndZeichenketten` schneidet
+ * nachgestellte Kommentare seit dieser Runde NICHT mehr selbst; der Schnitt steht in
+ * `bereinigt`, hinter dem Leeren der Literale. Zeichenketten muessen VOR den Regexliteralen
+ * geleert werden (ein `/` in `"a:/b"` saehe sonst wie ein Literalanfang aus und der Scanner
+ * frasse bis zum naechsten `/` — ueber ausfuehrbaren Code hinweg, still).
+ *
+ * Ein `/` beginnt ein Literal, wenn das letzte bedeutsame Zeichen davor keinen WERT
+ * abschliesst (dann waere es eine Division). Die Liste unten ist die uebliche und bewusst
+ * grosszuegig: wird ein Divisionszeichen faelschlich fuer einen Literalanfang gehalten,
+ * verschwindet Quelltext aus der Sicht des Scans, und die naechste Behauptung darueber
+ * schlaegt LAUT fehl — nie still.
+ */
+const REGEX_ERLAUBT =
+  /(?:^|[([{,;:=!&|?+\-*%~^<>]|\breturn|\btypeof|\binstanceof|\bin|\bof|\bnew|\bdelete|\bvoid|\bcase|\bdo|\belse|\byield|\bawait)$/;
+
+function ohneRegexLiterale(q: string): string {
+  let ergebnis = "";
+  let i = 0;
+  while (i < q.length) {
+    const z = q[i]!;
+    // ⛔ `//` IST IMMER EIN KOMMENTARBEGINN, NIE EIN LITERAL — JS kennt kein leeres `//`.
+    // Ohne diese Bedingung frisst der Scanner den Kommentarbeginn (`;` davor steht in
+    // REGEX_ERLAUBT, das zweite `/` schliesst sofort), und der Schnitt in `bereinigt`
+    // findet danach nichts mehr — der Kommentartext bliebe stehen und erfuellte jede
+    // positive Zusicherung. GEMESSEN am 2026-08-23: ohne sie ist der Fall
+    // "ein echter nachgestellter Kommentar wird weiterhin geschnitten" rot.
+    if (z === "/" && q[i + 1] !== "/" && REGEX_ERLAUBT.test(ergebnis.trimEnd())) {
+      let j = i + 1;
+      let klasse = false;
+      let fertig = false;
+      while (j < q.length) {
+        const y = q[j]!;
+        if (y === "\\") { j += 2; continue; }
+        if (y === "\n") break;
+        if (y === "[") klasse = true;
+        else if (y === "]") klasse = false;
+        else if (y === "/" && !klasse) { fertig = true; break; }
+        j++;
+      }
+      if (fertig) {
+        ergebnis += " ".repeat(j + 1 - i);
+        i = j + 1;
+        while (i < q.length && /[a-z]/.test(q[i]!)) { ergebnis += " "; i++; }
+        continue;
+      }
+    }
+    ergebnis += z;
+    i++;
+  }
+  return ergebnis;
+}
+
+/**
+ * Die eine Bereinigung, die JEDER Scan dieser Datei benutzt: Kommentare, Zeichenketten UND
+ * Regexliterale geleert, Zeilenzahl erhalten. ⛔ KEIN SCAN RUFT
+ * `ohneKommentareUndZeichenketten` DIREKT — sonst kehrt M1 an genau dieser Stelle zurueck.
+ * Der letzte `describe`-Block dieser Datei haelt das als Zusicherung fest.
+ */
+function bereinigt(quelle: string): string {
+  return ohneRegexLiterale(ohneKommentareUndZeichenketten(quelle)).replace(/\/\/.*$/gm, "");
 }
 
 function trefferAuf(muster: RegExp, dateien = quellDateien()): string[] {
@@ -292,17 +389,17 @@ function trefferAuf(muster: RegExp, dateien = quellDateien()): string[] {
  * hier nachbessert, laesst diese Kopie und `riegel.test.ts:360-375` auseinanderlaufen.
  */
 function funktionsKoerper(quelle: string, name: string): string {
-  const bereinigt = ohneKommentareUndZeichenketten(quelle);
-  const start = bereinigt.search(new RegExp(`\\bfunction\\s+${name}\\s*\\(`));
+  const q = bereinigt(quelle);
+  const start = q.search(new RegExp(`\\bfunction\\s+${name}\\s*\\(`));
   if (start === -1) return "";
-  const auf = bereinigt.indexOf("{", start);
+  const auf = q.indexOf("{", start);
   if (auf === -1) return "";
   let tiefe = 0;
-  for (let i = auf; i < bereinigt.length; i++) {
-    if (bereinigt[i] === "{") tiefe++;
-    else if (bereinigt[i] === "}") {
+  for (let i = auf; i < q.length; i++) {
+    if (q[i] === "{") tiefe++;
+    else if (q[i] === "}") {
       tiefe--;
-      if (tiefe === 0) return bereinigt.slice(auf, i + 1);
+      if (tiefe === 0) return q.slice(auf, i + 1);
     }
   }
   return "";
@@ -398,7 +495,7 @@ describe("radio-bauform: die drei Gate-Flaechen", () => {
      *                     Muster gaebe es dort nicht, und ein Dateitext-Scan meldete sie
      *                     faelschlich als fehlend.
      */
-    const q = ohneKommentareUndZeichenketten(lies("_actions/sitzung.ts"));
+    const q = bereinigt(lies("_actions/sitzung.ts"));
     expect(q).toMatch(/\bexport\s+async\s+function\s+beenden\s*\(/);
     expect(q).toMatch(/\bexport\s+async\s+function\s+erneuereSitzung\s*\(/);
 
@@ -564,7 +661,7 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
     const ABSOLUTE_UMLEITUNG = /Response\s*\.\s*redirect/;
     const ABSOLUTES_LOCATION = /\bLocation\s*:[^,}]*\bnew\s+URL\s*\(/;
     for (const f of GATE_FLAECHEN.concat(["abmelden/route.ts"])) {
-      const q = ohneKommentareUndZeichenketten(lies(f));
+      const q = bereinigt(lies(f));
       expect(q, `${f} nennt Response.redirect — das verlangt eine ABSOLUTE URL`)
         .not.toMatch(ABSOLUTE_UMLEITUNG);
       expect(q, `${f} baut ein absolutes Location aus new URL(...)`)
@@ -592,7 +689,7 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
      * `status: 404` (die eigene 404 des Host-Riegels) nicht erreichen.
      */
     for (const f of ROUTE_HANDLER) {
-      const q = ohneKommentareUndZeichenketten(lies(f));
+      const q = bereinigt(lies(f));
       expect(q, `${f} antwortet nicht mit 303`).toMatch(/status:\s*303\b/);
       expect(q, `${f} traegt eine Umleitung, die nicht 303 ist`).not.toMatch(/status:\s*30(?!3)\d\b/);
     }
@@ -621,11 +718,98 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
 
     const mehrzeilig: string[] = [];
     for (const pfad of quellDateien()) {
-      const q = ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8"));
+      const q = bereinigt(readFileSync(pfad, "utf8"));
       if (/\bcookies\s*\(\s*\)[\s\S]{0,40}\.\s*delete\s*\(/.test(q)) {
         mehrzeilig.push(relative(process.cwd(), pfad));
       }
     }
     expect(mehrzeilig, "cookies().delete( — auch ueber einen Zeilenumbruch hinweg").toEqual([]);
+  });
+});
+
+describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
+  /*
+   * ⛔ DIESER BLOCK PRUEFT NICHT DAS MODUL, SONDERN DEN SCAN. Er ist das Gegenstueck zu
+   * `riegel.test.ts:980-1046` und steht hier, weil dieselbe Blindstelle (Fund M1,
+   * `.superpowers/sdd/planteil3/REVIEW-A2.md`) in DIESER Kopie noch steckte, nachdem sie
+   * dort behoben war — benannt von Commit `7ca9c53`, behoben in Aufgabe B0.
+   *
+   * ⛔ DIE QUELLEN UNTEN SIND SYNTHETISCH UND STEHEN ABSICHTLICH NICHT IM BAUM. Gemessen in
+   * B0 (2026-08-23) ueber alle 28 Quelldateien des Moduls: der Schnitt auf nachgestellte
+   * Kommentare greift an genau 8 Stellen, und alle 8 sind echte nachgestellte Kommentare —
+   * kein einziges Regexliteral kollidiert heute. Ein Fall, der auf eine Datei des Moduls
+   * zeigte, waere also leer-gruen und bewachte nichts. Die Blindstelle ist die
+   * WAECHTERSTAERKE ab der naechsten Flaeche, nicht der Bestand.
+   *
+   * ⚠️ UND DESHALB FINDET DIE REPARATUR HEUTE KEINEN EINZIGEN NEUEN VERSTOSS — das ist
+   * gemessen und steht hier, statt als Wirksamkeit ausgegeben zu werden. Der bereinigte Text
+   * aendert sich in genau drei Dateien (`_lib/code.ts:144-146`, `_lib/grenzen.ts:122`,
+   * `_lib/returnTo.ts:54`), und zwar ausschliesslich, weil dort jetzt Regexliterale geleert
+   * sind; die Klammerbilanz jeder Datei bleibt gleich, und die vier von `funktionsKoerper`
+   * geschnittenen Koerper (`t/[code]/route.ts#GET`, `_actions/gate.ts#einloesenAmGate`,
+   * `_actions/sitzung.ts#erneuereSitzung`, `_actions/sitzung.ts#beenden`) sind
+   * zeichengleich zu vorher. Der Nachweis, dass die Reparatur greift, sind die zwei Faelle
+   * unten und das Sondenpaar am Baum — nicht eine gestiegene Fundzahl.
+   */
+  const SELBST = join(MODUL, "_lib/bauform.test.ts");
+
+  const MIT_REGEX = [
+    "export async function GET(req: Request) {",
+    "  const teile = req.url.split(/\\//); return Response.redirect(teile[0]!);",
+    "}",
+  ].join("\n");
+
+  it("ein Regexliteral mit zwei Schraegstrichen kappt den Rest der Zeile NICHT", () => {
+    /*
+     * DER ROTE FALL VON FUND M1, als Test statt als Sonde am Baum. `/\//` traegt zwei
+     * Schraegstriche nebeneinander (das escapte `\/` und der schliessende Begrenzer); der
+     * Schnitt `replace(/\/\/.*$/gm, "")` haelt sie fuer einen Kommentarbeginn und loescht
+     * alles dahinter — hier die Umleitung selbst.
+     *
+     * ⛔ AN DER UMLEITUNGS-KLAUSEL, DER 303-KLAUSEL UND DEM `cookies().delete`-SCAN LIEST
+     * DIESE DATEI NEGATIV. Dort heisst weniger Text WENIGER GEFUNDENE VERSTOESSE — der
+     * Fall bliebe STILL gruen. Zweimal als Sondenpaar am Baum gemessen (7ca9c53 und in B0
+     * vor der Reparatur nachgestellt): `Response.redirect("/x")` in `abmelden/route.ts`,
+     * davor auf derselben Zeile ein `"a".split(/\//)` — `Tests 10 passed`. Dieselbe Zeile
+     * ohne das Regexliteral: `1 failed | 9 passed`.
+     */
+    expect(bereinigt(MIT_REGEX), "das Regexliteral kappt die Umleitung dahinter")
+      .toMatch(/Response\s*\.\s*redirect/);
+  });
+
+  it("ein echter nachgestellter Kommentar wird weiterhin geschnitten", () => {
+    /*
+     * DIE GEGENRICHTUNG, und sie gehoert unmittelbar daneben: ohne sie liesse sich der Fall
+     * oben erfuellen, indem man den Schnitt ganz entfernt — dann erfuellte ein blosses
+     * `// frueher: Response.redirect(ziel)` jede positive Zusicherung wieder, und die
+     * negativen Klauseln wuerden auf einen Kommentar hin ROT statt auf Code hin.
+     */
+    const mitKommentar = "const antw = new NextResponse(null); // frueher: Response.redirect(ziel)\n";
+    expect(bereinigt(mitKommentar), "der nachgestellte Kommentar steht noch da")
+      .not.toMatch(/Response\s*\.\s*redirect/);
+    expect(bereinigt(mitKommentar), "der ausfuehrbare Teil der Zeile wurde mitgeschnitten")
+      .toMatch(/\bNextResponse\b/);
+  });
+
+  it("die Zeilenzahl bleibt erhalten — sonst luegen alle datei:zeile-Meldungen", () => {
+    const roh = lies("abmelden/route.ts");
+    expect(bereinigt(roh).split("\n").length).toBe(roh.split("\n").length);
+  });
+
+  it("kein Scan dieser Datei liest die ungeschuetzte Fassung direkt", () => {
+    /*
+     * ⛔ DER RIEGEL GEGEN DIE RUECKKEHR VON M1, uebernommen aus `riegel.test.ts:1032-1045`.
+     * `ohneKommentareUndZeichenketten` darf genau zweimal vorkommen: in seiner eigenen
+     * Deklaration und in `bereinigt`. Jede weitere Fundstelle ist ein Scan, der die
+     * Regexliterale wieder ungeleert liest — und das faellt an einer negativen Zusicherung
+     * niemandem auf.
+     */
+    // ⛔ UEBER `ohneKommentare` GELESEN, NICHT UEBER DEN ROHTEXT: eine blosse ERWAEHNUNG des
+    // Namens in einem Kommentar dieser Datei waere sonst eine dritte Fundstelle, und der Fall
+    // waere rot mit einer Meldung, die etwas anderes behauptet. Die Nadel ist zusammengesetzt,
+    // weil das Literal selbst im gescannten Text steht.
+    const nadel = "ohneKommentareUnd" + "Zeichenketten(";
+    const stellen = ohneKommentare(readFileSync(SELBST, "utf8")).split(nadel).length - 1;
+    expect(stellen, "ein Scan liest die ungeschuetzte Fassung direkt").toBe(2);
   });
 });
