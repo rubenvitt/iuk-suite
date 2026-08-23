@@ -24,8 +24,9 @@ import { uhrzeit, datumMitUhrzeit } from "./anzeige";
  * (`docs/superpowers/plans/2026-08-21-radio-modul-leitplan.md:122`) fuehrt
  * `TZ=Europe/Berlin` ausdruecklich als NICHT gesetzt.
  *
- * ⚠️ DIE ERWARTUNGSWERTE SIND GEMESSEN, NICHT GERECHNET. Alle sechs stammen aus einem
- * `node -e`-Lauf gegen Node v26.7.0 am 2026-08-23; sie stehen unten je am Fall.
+ * ⚠️ DIE ERWARTUNGSWERTE SIND GEMESSEN, NICHT GERECHNET. Alle sieben stammen aus einem
+ * `node -e`-Lauf gegen Node v26.7.0 am 2026-08-23; sie stehen unten je am Fall. (Sechs waren
+ * es bis zur Fix-Runde 1 zu A12; der siebte ist der Tagesgrenzenwert mit einstelligem Tag.)
  */
 
 /** Der Anker fuer den Quelltext-Fall am Ende dieser Datei. */
@@ -170,9 +171,11 @@ describe("radio-anzeige: die Bauform", () => {
      *   1. beide Formatierer auf Modulebene hochgezogen (Zone und `timeZone: ZONE` bleiben
      *      woertlich stehen) → 7 von 7 Faellen GRUEN. Kein Fall dieser Datei sah es.
      *   2. hochgezogen UND die Zeile `timeZone: ZONE` aus beiden entfernt → nur noch 1 rot,
-     *      naemlich der Quelltext-Fall darueber. Der New-York-Fall (`:94-110`) blieb GRUEN,
-     *      weil ein auf Modulebene gebauter Formatierer seine Zone aufloest, BEVOR jener
-     *      Fall die Prozesszone dreht. Unverschoben ergibt dieselbe Sonde 2 rot.
+     *      naemlich der Quelltext-Fall darueber. Der Fall aus dem Block „die Zone haengt
+     *      nicht an der Zone des Prozesses" (heute `:114-130`; ⚠️ AUF DEN BLOCKNAMEN LESEN,
+     *      nicht auf die Zahl — jeder neue Fall darueber verschiebt sie) blieb GRUEN, weil
+     *      ein auf Modulebene gebauter Formatierer seine Zone aufloest, BEVOR jener Fall die
+     *      Prozesszone dreht. Unverschoben ergibt dieselbe Sonde 2 rot.
      *
      * ⛔ DER ANKER IST `return new ...` UND NICHT DIE BLOSSE ZAHL: ein `return` kann auf
      * Modulebene nicht stehen, die erste Zusicherung bindet die zwei Formatierer also
@@ -186,7 +189,8 @@ describe("radio-anzeige: die Bauform", () => {
     ).toBe(2);
     expect(
       quelle.match(/new Intl\.DateTimeFormat/g)?.length,
-      "es steht ein Formatierer ausserhalb eines return, also auf Modulebene",
+      "ein Vorkommen zu viel: entweder steht ein Formatierer auf Modulebene, oder der " +
+        "Konstruktoraufruf ist im Kopf von anzeige.ts in Prosa ausgeschrieben",
     ).toBe(2);
   });
 });
