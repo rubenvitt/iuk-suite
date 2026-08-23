@@ -1035,12 +1035,12 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
      * Fundstelle ist ein Scan, der die Regexliterale wieder ungeleert liest — und das faellt
      * an einer negativen Zusicherung niemandem auf.
      */
-    const selbst = readFileSync(SELBST, "utf8");
-    // ⛔ ZUSAMMENGESETZT, NICHT AM STUECK GESCHRIEBEN: ein Literal mit dem ganzen Namen
-    // stuende selbst im gescannten Text und zaehlte als dritte Fundstelle mit.
+    // ⛔ UEBER `ohneKommentare` GELESEN, NICHT UEBER DEN ROHTEXT: eine blosse ERWAEHNUNG des
+    // Namens in einem Kommentar dieser Datei waere sonst eine dritte Fundstelle, und der Fall
+    // waere rot mit einer Meldung, die etwas anderes behauptet — NT11 im Kleinen. Die Nadel
+    // ist zusammengesetzt, weil das Literal selbst im gescannten Text steht.
     const nadel = "ohneKommentareUnd" + "Zeichenketten(";
-    const stellen = selbst.split(nadel).length - 1;
-    expect(stellen, "ein Scan liest die ungeschuetzte Fassung direkt statt bereinigt()")
-      .toBe(2);
+    const stellen = ohneKommentare(readFileSync(SELBST, "utf8")).split(nadel).length - 1;
+    expect(stellen, "ein Scan liest die ungeschuetzte Fassung direkt").toBe(2);
   });
 });
