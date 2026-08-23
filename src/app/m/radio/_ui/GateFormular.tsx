@@ -21,7 +21,7 @@ import s from "./ausleihe.module.css";
  *
  * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`). Das Gate laeuft ohne
  * `FullShell` und erbt damit `controlHeight: TAP = 56` vom Wurzelprovider
- * (`src/core/theme/theme.ts:51`); `size="large"` waere 72. ⛔ KEIN `Form.Item`, kein
+ * (`src/core/theme/theme.ts:50-51`); `size="large"` waere 72. ⛔ KEIN `Form.Item`, kein
  * `Input.TextArea` — Compound-Zugriffe (Falle 1, `CLAUDE.md:11-13`). Ein nacktes `<form>`
  * mit `action={…}` ist ohnehin die Bauform, die `useActionState` verlangt.
  *

@@ -25,7 +25,7 @@
  * „UI-Abnahme: messen, nicht schauen").
  *
  * ⛔ KEINE HOEHE AUF EINEM BEDIENELEMENT. Die Flaeche erbt `controlHeight: TAP = 56` vom
- * Wurzelprovider (`src/core/theme/theme.ts:51`), weil sie ohne `FullShell` laeuft; 72
+ * Wurzelprovider (`src/core/theme/theme.ts:50-51`), weil sie ohne `FullShell` laeuft; 72
  * (`size="large"`) wird nirgends gesetzt und 56 nirgends geschrieben, nur geerbt
  * (Entscheidung E8, Falle 4 `CLAUDE.md:18-22`). Die Klassen fuer 44 und 64 entstehen in
  * A16, nicht hier.
