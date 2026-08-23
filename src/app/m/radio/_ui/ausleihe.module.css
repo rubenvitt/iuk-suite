@@ -318,6 +318,13 @@
  * braeche den Fall „System dunkel, Umschalter hell".
  * ⚠️ Hier stehen DIESELBEN VIER Namen wie im Hellzweig. Einer, der fehlte, bliebe auf
  * seinem Hellwert stehen — still, und nur auf dunklen Geraeten sichtbar.
+ *
+ * ⬜ IM BROWSERLAUF VOR DEM MERGE GEGENZUPRUEFEN, IN BEIDEN FARBMODI — derselbe Posten
+ * wie `:268` und derselbe Eigentuemer, nur fuer den Chip statt fuer die Fussleiste.
+ * Gemessen wird, ob die vier Dunkelwerte auf einem dunklen Geraet wirklich greifen und
+ * lesbar bleiben. Der Textvergleich in `StatusChip.test.tsx:122-154` haelt allein die
+ * Bindung NAME->WERT fest; jsdom rechnet keine Farben (Hauslehre „UI-Abnahme: messen,
+ * nicht schauen", und immer BEIDE Farbmodi).
  * ─────────────────────────────────────────────────────────────────────────────────────── */
 
 .chip {

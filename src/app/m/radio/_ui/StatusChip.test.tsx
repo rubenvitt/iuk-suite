@@ -136,7 +136,7 @@ describe("radio-StatusChip: Farbe ist nie der einzige Traeger", () => {
      * ⛔ VOLLZAEHLIG UEBER `STATUS_TOENE`, nicht ueber eine zweite Liste (dieselbe Regel
      * wie im ersten Fall dieser Datei).
      * ⚠️ Was das NICHT sagt: ob der Dunkelzweig auf einem Bildschirm richtig aussieht. Das
-     * ist der Browserlauf in beiden Farbmodi (⬜, `ausleihe.module.css:315-320`). Hier
+     * ist der Browserlauf in beiden Farbmodi (⬜ `ausleihe.module.css:322`). Hier
      * steht der Textvergleich — und der ist kein Browser-Posten.
      */
     const css = readFileSync(STYLESHEET, "utf8");
