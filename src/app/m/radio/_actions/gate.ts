@@ -53,9 +53,9 @@ export async function einloesenAmGate(
    * einem fremden Host wird nicht verraten (`_lib/host.ts:56-57`).
    *
    * ⛔ ER STEHT ALS ERSTE ANWEISUNG DA, UND ZWAR MIT `await headers()` DARIN — nicht hinter
-   * einem `const kopf = await headers();`. `_actions/guards.test.ts:568-573` prueft fuer
+   * einem `const kopf = await headers();`. `_actions/guards.test.ts:572-577` prueft fuer
    * jeden Eintrag der Ausnahmeliste die ERSTE Anweisung, und die endet am ersten `;` auf
-   * oberster Ebene (`guards.test.ts:366`). Ein vorgezogenes `const kopf = …` schoebe den
+   * oberster Ebene (`guards.test.ts:370`). Ein vorgezogenes `const kopf = …` schoebe den
    * Riegel auf Platz zwei und faerbte den Scan rot. Das zweite `await headers()` unten ist
    * derselbe, anfrage-zwischengespeicherte Wert.
    */

@@ -31,7 +31,7 @@ import { loeseCodeEin } from "../_lib/schreibpfade/codeEinloesung";
 /**
  * ⛔ EIN BENANNTER TYP UND KEIN INLINE-OBJEKT IM RUECKGABETYP, UND DAS IST GEMESSEN, NICHT
  * STIL. `_lib/bauform.test.ts` schneidet den Funktionskoerper mit `funktionsKoerper` aus
- * (`riegel.test.ts:237-252`), und das sucht die erste `{` NACH dem Funktionsnamen. Stuende
+ * (`riegel.test.ts:238-253`), und das sucht die erste `{` NACH dem Funktionsnamen. Stuende
  * hier `): Promise<{ ok: true } | { ok: false; text: string }> {`, liese der Scan
  * `{ ok: true }` als „Koerper" — nicht leer, also an der Leer-Zusicherung vorbei, und alle
  * vier Riegel „fehlten ganz" bei RICHTIGER Implementierung (Sonde vom 2026-08-23 ueber genau
@@ -72,7 +72,7 @@ export type ErneuerungErgebnis = { ok: true } | { ok: false; text: string };
 export async function erneuereSitzung(rohCode: string): Promise<ErneuerungErgebnis> {
   /*
    * SCHRITT 1 — Host-Riegel, werfend (Bauform-Zulaessigkeitstafel Zeile 11, Spec:2360-2362).
-   * ⛔ ERSTE ANWEISUNG, mit `await headers()` DARIN: `_actions/guards.test.ts:568-573` misst
+   * ⛔ ERSTE ANWEISUNG, mit `await headers()` DARIN: `_actions/guards.test.ts:572-577` misst
    * fuer jeden Ausnahme-Eintrag die erste Anweisung, und die endet am ersten `;` auf
    * oberster Ebene. Ein vorgezogenes `const kopf = await headers();` schoebe den Riegel auf
    * Platz zwei.
@@ -155,7 +155,7 @@ export async function erneuereSitzung(rohCode: string): Promise<ErneuerungErgebn
  * „der schlechteste Fall ist ein Cookie, das man nicht loswird"). `radio`s traegt einen:
  * §3.5.5 (Spec:2774) fuehrt sie mit `requireRadioHost`, werfend, und Spec:6762 sagt fuer
  * beide Ausnahmen dieser Datei ausdruecklich „beide tragen `requireRadioHost` und
- * ausdruecklich keinen Sitzungsriegel". `_actions/guards.test.ts:568-573` prueft genau das.
+ * ausdruecklich keinen Sitzungsriegel". `_actions/guards.test.ts:572-577` prueft genau das.
  *
  * ⚠️ ES RAEUMT NUR DAS COOKIE. Serverseitig wird NICHTS widerrufen — wer denselben Code
  * erneut eingibt, ist wieder drin. Das ist gewollt: der Knopf heisst „Beenden", nicht „Code
