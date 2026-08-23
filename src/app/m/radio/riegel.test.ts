@@ -792,7 +792,7 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
    *          lint-sauber, wirkungslos (Bauform-Zulaessigkeitstafel Zeile 10).
    *
    *   jede Flaeche UNTER `(ausleihe)/` (layout.tsx und page.tsx):
-   *       requireAusleihZugang(
+   *       requireAusleihZugang( — UND ZWAR ALS ERSTE ANWEISUNG DES RUMPFS (Fund 3)
    *       ⛔ NICHT requireRadioHost( — NS-Z1 und Pflicht 16
    *          (`docs/radio-portierung-analyse.md:973-977`): das Praedikat ruft ihn INTERN
    *          als erste Anweisung; ein zweiter Aufruf behauptet, es sei host-blind, und
@@ -823,6 +823,36 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
        */
       return /\/(?:page|layout|template|default)\.tsx$/.test(kurz);
     });
+
+  /**
+   * Die ERSTE Anweisung im Rumpf der standard-exportierten Funktion, als getrimmte Zeile.
+   *
+   * ⛔ WARUM NICHT `funktionsKoerper` (`riegel.test.ts:360-375`): jener Helfer nimmt das
+   * ERSTE `{` nach dem Funktionsnamen. Bei einem DESTRUKTURIERTEN Parameter ist das die
+   * Parameterliste selbst — `GeraeteUebersichtPage({ searchParams }: …)` lieferte dort den
+   * Rumpf des Parameterobjekts statt des Funktionsrumpfs, und der Scan verglicht still die
+   * falsche Spanne. Diese Fassung zaehlt deshalb Klammern: der Rumpf beginnt am ersten `{`
+   * auf Klammertiefe 0, NACHDEM die Parameterliste geschlossen ist.
+   *
+   * ⚠️ EINE BENANNTE GRENZE: eine Rueckgabetyp-Annotation mit geschweiften Klammern
+   * (`: Promise<{ a: string }>`) traefe zu frueh. Heute traegt keine der Flaechen eine;
+   * faellt das je an, faellt es LAUT — die Meldung unten druckt die gefundene Zeile aus.
+   */
+  function ersteAnweisungAus(q: string): string {
+    const start = q.search(/\bexport\s+default\s+(?:async\s+)?function\b/);
+    if (start === -1) return "";
+    let tiefe = 0;
+    let parameterGesehen = false;
+    for (let i = start; i < q.length; i++) {
+      const z = q[i];
+      if (z === "(") { tiefe++; parameterGesehen = true; }
+      else if (z === ")") tiefe--;
+      else if (z === "{" && tiefe === 0 && parameterGesehen) {
+        return q.slice(i + 1).split("\n").map((zeile) => zeile.trim()).find((zeile) => zeile !== "") ?? "";
+      }
+    }
+    return "";
+  }
 
   it("die Flaechenzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     expect(
@@ -866,6 +896,29 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
       }
       if (/\brequireAusleihSchreibend\s*\(/.test(q)) {
         verstoesse.push(`${kurz}: requireAusleihSchreibend( gibt ein ERGEBNIS zurueck (Tafel Zeile 10)`);
+      }
+      /*
+       * ⛔ DIE STELLUNG IST DIE ZUSICHERUNG, NICHT NUR DIE ANWESENHEIT (REVIEW-A18, Fund 3).
+       * Bis zur Fix-Runde 1 zu A18 pruefte diese Haelfte nur, DASS der Riegel vorkommt.
+       * Gemessen: `const zugang = await requireAusleihZugang(getDb());` HINTER
+       * `const geraete = geraeteMitLeihstand(getDb());` zu schieben liess alle 435 Faelle des
+       * Moduls gruen — die Seite las dann die Bestandstabelle einer Person, die keinen Zugang
+       * hat, bevor sie abbrach. Die GATE-Haelfte oben fuehrt ihre Stellungspruefung seit A11
+       * (`search(...)` gegen `toBeLessThan`); hier stand nichts Vergleichbares.
+       *
+       * ⛔ GEPRUEFT WIRD DIE ERSTE ANWEISUNG UND NICHT „vor dem ersten `await`": in
+       * `geraete/page.tsx` ist `geraeteMitLeihstand(...)` SYNCHRON — der erste `await` bliebe
+       * auch nach der Verschiebung der Riegelaufruf, und der Waechter waere still gruen. Das
+       * ist eine benannte Abweichung vom Vorschlag des Reviews (Fund 3, zweite Variante).
+       * ⛔ UND KEINE NAMENSLISTE der Lesefunktionen: die veraltete mit jeder neuen Abfrage,
+       * genau die Fehlerform, die Fund 2 derselben Pruefung an einer Dateiliste gemessen hat.
+       * Die Briefe A19 (`:10`) und A20 (`:9`) schreiben „erste Anweisung" woertlich fort.
+       */
+      const erste = ersteAnweisungAus(q);
+      if (!/\brequireAusleihZugang\s*\(/.test(erste)) {
+        verstoesse.push(
+          `${kurz}: requireAusleihZugang( ist nicht die ERSTE Anweisung (§4.2.1) — dort steht: ${erste || "(kein Rumpf gefunden)"}`,
+        );
       }
     }
     expect(verstoesse).toEqual([]);

@@ -140,7 +140,7 @@ const vorhandeneFlaechen = (): string[] =>
  * ⛔ KEIN IMPORT AUS `riegel.test.ts`: vitest laedt Testdateien nicht als Module
  * fuereinander. ⚠️ DIE ZWEITE HAELFTE DER UEBLICHEN BEGRUENDUNG TRAEGT NICHT, und sie steht
  * hier trotzdem, statt verschwiegen zu werden (Vorabscan-Fund F22): eine geteilte
- * Helferdatei muesste NICHT unter `src/app/m/radio/` liegen — `riegel.test.ts:936` filtert
+ * Helferdatei muesste NICHT unter `src/app/m/radio/` liegen — `riegel.test.ts:989` filtert
  * fuer den `"use client"`-Scan INNERHALB von `quellDateien()`, und das laeuft ausschliesslich
  * ueber `MODUL`. Ein Modul unter `src/core/testing/` waere fuer jeden Scan dieses Moduls
  * unsichtbar und ganz normal importierbar. Der Preis der Kopie ist benannt: `ohneKommentare`
@@ -730,7 +730,7 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
 describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
   /*
    * ⛔ DIESER BLOCK PRUEFT NICHT DAS MODUL, SONDERN DEN SCAN. Er ist das Gegenstueck zu
-   * `riegel.test.ts:1017-1083` und steht hier, weil dieselbe Blindstelle (Fund M1,
+   * `riegel.test.ts:1070-1136` und steht hier, weil dieselbe Blindstelle (Fund M1,
    * `.superpowers/sdd/planteil3/REVIEW-A2.md`) in DIESER Kopie noch steckte, nachdem sie
    * dort behoben war — benannt von Commit `7ca9c53`, behoben in Aufgabe B0.
    *
@@ -798,7 +798,7 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
 
   it("kein Scan dieser Datei liest die ungeschuetzte Fassung direkt", () => {
     /*
-     * ⛔ DER RIEGEL GEGEN DIE RUECKKEHR VON M1, uebernommen aus `riegel.test.ts:1069-1082`.
+     * ⛔ DER RIEGEL GEGEN DIE RUECKKEHR VON M1, uebernommen aus `riegel.test.ts:1122-1135`.
      * `ohneKommentareUndZeichenketten` darf genau zweimal vorkommen: in seiner eigenen
      * Deklaration und in `bereinigt`. Jede weitere Fundstelle ist ein Scan, der die
      * Regexliterale wieder ungeleert liest — und das faellt an einer negativen Zusicherung

@@ -20,13 +20,36 @@ import { AusleihRahmen } from "./AusleihRahmen";
 
 const QUELLE = "src/app/m/radio/_ui/AusleihRahmen.tsx";
 const STYLESHEET = "src/app/m/radio/_ui/ausleihe.module.css";
-/** Die vier Flaechen dieser Aufgabe, die aus dem Stylesheet lesen. */
-const FLAECHEN = [
-  QUELLE,
-  "src/app/m/radio/_ui/Restzeit.tsx",
-  "src/app/m/radio/_ui/StatusChip.tsx",
-  "src/app/m/radio/_ui/ikonen.tsx",
-];
+const MODUL = "src/app/m/radio";
+
+/**
+ * ⛔ ERZEUGT, NICHT AUFGEZAEHLT — und das ist die Behebung eines gemessenen Lochs
+ * (REVIEW-A18, Fund 2). Hier stand bis zur Fix-Runde 1 zu A18 eine HARTCODIERTE Liste der
+ * vier Dateien aus A16. A18 legte drei weitere `_ui/`-Flaechen an und hob die Liste nicht;
+ * gemessen: ein `size="large"` am antd-`Button` in `_ui/AktualisierenKnopf.tsx` liess alle
+ * 435 Faelle des Moduls gruen. Eine Liste, die jede spaetere Aufgabe von Hand nachziehen
+ * muss, veraltet still — die erzeugte Menge kann es nicht.
+ *
+ * ⛔ UND SIE REICHT UEBER `_ui/` HINAUS: Falle 4 gilt jeder Flaeche, die ein antd-Element
+ * rendert, nicht nur einer Insel. `(ausleihe)/geraete/page.tsx` rendert `Empty` und liegt
+ * ausserhalb von `_ui/` — ein Scan nur ueber `_ui/*.tsx` liesse genau sie aus.
+ */
+const FALLE4_DATEIEN = () => quellDateien(MODUL).filter((p) => p.endsWith(".tsx"));
+
+/**
+ * Die Teilmenge davon, die `ausleihe.module.css` ueberhaupt liest.
+ *
+ * ⛔ ZWEI ABGELEITETE MENGEN UND NICHT EINE: der Klassenscan darf nur Dateien sehen, die
+ * GENAU DIESES Stylesheet ziehen. Eine gemeinsame Liste waere in dem Moment
+ * rot-by-construction, in dem A19/A20 eine Flaeche mit einem zweiten Modul-Stylesheet
+ * anlegen — deren Klassen stuenden dann zu Recht nicht in `ausleihe.module.css`.
+ */
+const STYLESHEET_LESER = () =>
+  FALLE4_DATEIEN().filter((pfad) =>
+    /\bimport\s+s\s+from\s+["'][^"']*ausleihe\.module\.css["']/.test(
+      ohneKommentare(readFileSync(pfad, "utf8")),
+    ),
+  );
 
 /**
  * ⬜ L10 — DIE ZEICHENKETTE FUER DEN CUTOVER-PRUEFSATZ, HIER ALS ERWARTUNG.
@@ -184,7 +207,9 @@ describe("radio-AusleihRahmen: die Bauform", () => {
     const css = readFileSync(STYLESHEET, "utf8");
     expect(css, "E8: die Fussnavigation misst 64").toMatch(/--radio-tap-nav:\s*64px/);
     expect(css, "E8: WCAG 2.5.5 AAA sind 44").toMatch(/--radio-tap-klein:\s*44px/);
-    for (const pfad of FLAECHEN) {
+    const gescannt = FALLE4_DATEIEN();
+    expect(gescannt.length, "leere Dateiliste — der Scan waere leer-gruen").toBeGreaterThan(9);
+    for (const pfad of gescannt) {
       expect(ohneKommentare(readFileSync(pfad, "utf8")), `${pfad}: Falle 4`).not.toMatch(/\bsize=/);
     }
   });
@@ -210,7 +235,9 @@ describe("radio-AusleihRahmen: die Bauform", () => {
      * die Linie verschwindet einfach. Vorbild `lagerbuch/_ui/rahmen.test.tsx:54-64`.
      */
     const deklariert = deklarierteKlassen();
-    const fehlend = FLAECHEN.flatMap((pfad) =>
+    const leser = STYLESHEET_LESER();
+    expect(leser.length, "leere Dateiliste — der Scan waere leer-gruen").toBeGreaterThan(5);
+    const fehlend = leser.flatMap((pfad) =>
       genutzteKlassen(pfad)
         .filter((name) => !deklariert.has(name))
         .map((name) => `${pfad}: s.${name}`),

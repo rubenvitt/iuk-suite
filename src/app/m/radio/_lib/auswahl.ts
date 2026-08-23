@@ -15,7 +15,7 @@
  * ⛔ KEIN `"use client"`. Gelesen von der RSC-Seite (A19, Plan
  * `docs/superpowers/plans/2026-08-22-radio-modul-plan3-zugang-ausleihe.md:5067`) UND von
  * der Insel, die mit `auswahlSchreiben` ihr `router.replace` baut (A18). Falle 6,
- * durchgesetzt von `src/app/m/radio/riegel.test.ts:924-977`.
+ * durchgesetzt von `src/app/m/radio/riegel.test.ts:977-1030`.
  *
  * ⛔ WAS HIER NICHT GEPRUEFT WIRD: ob eine Kennung zu einem Geraet gehoert, das es gibt und
  * das frei ist. Ungueltige Kennungen werden SERVERSEITIG aussortiert und der Verlust wird

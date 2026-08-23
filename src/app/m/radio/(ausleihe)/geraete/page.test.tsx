@@ -46,7 +46,7 @@ const STYLESHEET = "src/app/m/radio/_ui/ausleihe.module.css";
  * Der Rumpf EINER CSS-Regel. Zeichengleiche Kopie aus
  * `src/app/m/radio/_ui/StatusChip.test.tsx:20-26` — vitest laedt Testdateien nicht als
  * Module fuereinander, und eine geteilte Helferdatei unter `src/app/m/radio/` zaehlte der
- * Direktiven-Scan aus `riegel.test.ts:924-977` mit. Die Verdoppelung ist der Preis.
+ * Direktiven-Scan aus `riegel.test.ts:977-1030` mit. Die Verdoppelung ist der Preis.
  */
 function regelkoerper(css: string, selektor: string): string {
   const auf = css.indexOf(selektor);

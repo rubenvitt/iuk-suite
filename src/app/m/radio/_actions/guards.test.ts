@@ -71,7 +71,7 @@ const ACTION_DATEIEN_ANZAHL = 4;
  * `verstoesse` leer und der Riegelscan LEER-GRUEN, waehrend die Dateizahl weiter stimmt.
  *
  * ⛔ EXAKT, NICHT „MINDESTENS" — dieselbe Begruendung wie oben und wie
- * `riegel.test.ts:64-76`. `riegel.test.ts:937` fuehrt an derselben Stelle eine
+ * `riegel.test.ts:64-76`. `riegel.test.ts:990` fuehrt an derselben Stelle eine
  * Untergrenze; die ist fuer jede nichtleere Liste wahr und hat keine Mutation, die sie
  * rot macht. Hier steht deshalb die schaerfere Form.
  *
@@ -155,7 +155,7 @@ function actionDateien(): string[] {
  *
  * ⛔ KEIN IMPORT AUS `riegel.test.ts` — vitest laedt Testdateien nicht als Module
  * fuereinander, und eine geteilte Helferdatei waere ein `_lib/`-Modul, das der
- * `"use client"`-Scan mitzaehlt (`riegel.test.ts:924-977` filtert auf `/(?:_lib|_db)/`).
+ * `"use client"`-Scan mitzaehlt (`riegel.test.ts:977-1030` filtert auf `/(?:_lib|_db)/`).
  * Die Verdoppelung ist der Preis dafuer und gewollt; der Bericht zu A8 fuehrt die
  * verworfene Alternative samt Belegen.
  *
