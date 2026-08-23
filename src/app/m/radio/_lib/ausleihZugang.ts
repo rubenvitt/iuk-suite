@@ -56,7 +56,7 @@ import { viewerAusSession } from "./zugang";
  *
  * `laeuftAb` ist die einzige Angabe des Code-Wegs, die NICHT aus der Codezeile stammt: die
  * Sperrung wirkt sofort und kommt deshalb aus der Datenbank, der Ablauf steht seit der
- * Ausstellung fest und kommt deshalb aus dem Cookie (`_lib/ausleihSitzung.ts:141-152`).
+ * Ausstellung fest und kommt deshalb aus dem Cookie (`_lib/ausleihSitzung.ts:141-151`).
  */
 export type AusleihZugang =
   | { weg: "code"; codeId: string; bezeichnung: string; laeuftAb: Date }
@@ -100,6 +100,22 @@ async function befund(db: DB): Promise<Befund> {
    * benutzt, ruft `requireRadioHost` NICHT NOCH EINMAL (Pflicht 16, `_lib/host.ts:117-121`).
    * Ein zweiter Aufruf waere keine Haertung, sondern die Behauptung, das Praedikat sei
    * host-blind — und die naechste Person entfernt dann den falschen der beiden.
+   *
+   * ⚠️ EINE EINZIGE AUSNAHME, UND SIE IST ANGEORDNET — `page.tsx`, die Weiche
+   * Gate-oder-Ausleihe (A11): sie traegt `requireRadioHost` ZUSAETZLICH. Spec:2767 schreibt
+   * fuer genau diese Datei „`requireRadioHost` + `ausleihZugangOderNull`", und
+   * `_lib/host.ts:73` sagt dasselbe. Der Grund steht in Spec:2759-2763, und er ist ein
+   * allgemeiner: Route-Group-Grenzen sind KEINE Sicherheitsgrenzen, „ein Layout ist eine
+   * Bequemlichkeit; die tragende Zusage sind die aufrufbaren Funktionen. Deshalb steht der
+   * Riegel in jeder Datei als erste Anweisung, auch wenn ein Layout darueber ihn schon
+   * gerufen hat." Fuer `page.tsx` heisst das: der Riegel steht dort ZUSAETZLICH, obwohl
+   * `befund` ihn intern ohnehin ruft.
+   *
+   * ⛔ FUER JEDEN ANDEREN AUFRUFER GILT DER SATZ OBEN OHNE EINSCHRAENKUNG: Spec:2768-2769
+   * fuehrt `(ausleihe)/layout.tsx` und jede Seite darunter mit `requireAusleihZugang`
+   * ALLEIN, und `_lib/host.ts:74-75` schreibt dort ausdruecklich „KEINER — das
+   * Zugangspraedikat ruft ihn intern". Wer die Ausnahme verallgemeinert, baut die
+   * vergessliche Liste, gegen die Auflage 1 steht.
    */
   requireRadioHost(await headers());
 
@@ -140,7 +156,7 @@ async function befund(db: DB): Promise<Befund> {
 
   /*
    * SCHRITT 4 — die Signatur. `verifyAusleihSitzung` WIRFT NIE, sie gibt `null`
-   * (`_lib/ausleihSitzung.ts:141-152`): der Cookiewert ist Nutzereingabe, und ein Wurf
+   * (`_lib/ausleihSitzung.ts:141-151`): der Cookiewert ist Nutzereingabe, und ein Wurf
    * waere HTTP 500 auf JEDER Ausleihseite (Spec:2508-2513).
    */
   const sitzung = await verifyAusleihSitzung(roh);

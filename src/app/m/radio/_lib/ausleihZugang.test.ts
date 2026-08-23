@@ -57,7 +57,7 @@ vi.mock("./host", async (echt) => ({
   requireRadioHost: (h: Headers) => hostRiegel(h),
 }));
 
-import { createAusleihSitzung } from "./ausleihSitzung";
+import { createAusleihSitzung, verifyAusleihSitzung } from "./ausleihSitzung";
 import {
   ausleihZugangOderNull,
   requireAusleihZugang,
@@ -90,6 +90,13 @@ let db: ReturnType<typeof drizzle<typeof schema>>;
  * ZU EINEM KONSTANTEN GRUEN. Deshalb misst derselbe Fall zusaetzlich die GEGENPROBE auf dem
  * Code-Weg (Delta > 0) — der Praezedenzfall dieses Repos ist eine Abschlusszeile, die
  * „Paritaet gruen" als konstanten Text meldete.
+ *
+ * ⚠️ `toBeGreaterThan(0)` STATT `toBe(1)` IST EINE GEWAEHLTE LOCKERUNG, KEINE NT11-FORM
+ * (Fix-Runde 1, Fund K2). Gemessen kostet der Code-Weg heute GENAU EINE Anweisung je
+ * Aufruf. Zugesichert wird trotzdem nur „> 0", weil die Gegenprobe eine ZAEHLER-Probe ist:
+ * ihre Frage lautet „zaehlt der Zaehler ueberhaupt", nicht „wie viele Anweisungen setzt
+ * `drizzle` ab". Ein `toBe(1)` machte aus einem Detail der Bibliothek eine Zusage — und
+ * faerbte den Fall bei einem Update rot, ohne dass sich das Verhalten geaendert haette.
  */
 let abfragen = 0;
 const zaehleAbfragen = () => abfragen;
@@ -144,6 +151,27 @@ async function legeCodeAn(werte: Partial<typeof zugangscodes.$inferInsert> = {})
   return zeile;
 }
 
+/**
+ * Praegt ein Sitzungs-Cookie, SETZT `cookieWert` und liefert den SOLLWERT fuer `laeuftAb`.
+ *
+ * ⚠️ DER SOLLWERT KOMMT AUS DEMSELBEN DECODER, DEN DIE IMPLEMENTIERUNG BENUTZT
+ * (`verifyAusleihSitzung`, `_lib/ausleihSitzung.ts:141-151`). Das ist Absicht und keine
+ * Nachlaessigkeit: die Frage, die die `laeuftAb`-Zusicherungen entscheiden, lautet „stammt
+ * `laeuftAb` ueberhaupt aus dem `exp` DIESES Cookies" — und genau das faengt Sonde R-A7h
+ * (`laeuftAb: new Date(0)`). Eine zweite, selbst nachgerechnete Zeitspanne belegte nichts,
+ * was diese Zusicherung nicht schon belegt, und waere die Erfindung eines Sollwerts.
+ *
+ * ⛔ KEIN `!`-OPERATOR AUF DEM ERGEBNIS: laesst sich das eben selbst gepraegte Cookie nicht
+ * wieder lesen, ist die Vorbedingung des Falles kaputt und der Fall soll LAUT scheitern,
+ * nicht mit `undefined` gegen `undefined` gruen werden.
+ */
+async function praegeSitzung(codeId: string): Promise<Date> {
+  cookieWert = await createAusleihSitzung({ codeId });
+  const soll = await verifyAusleihSitzung(cookieWert);
+  if (!soll) throw new Error("das selbst gepraegte Cookie liess sich nicht wieder lesen");
+  return soll.laeuftAb;
+}
+
 /*
  * ⛔ DER MOCK DER SUITE-SITZUNG TRAEGT `id`, NICHT `sub`. `viewerAusSession` liest
  * `session.user.id` und gibt `null` zurueck, wenn es fehlt (`_lib/zugang.ts:62-72`);
@@ -181,10 +209,29 @@ describe("radio-Ausleihzugang: die Reihenfolge des Befunds", () => {
   });
 
   it("liest die Kopfzeilen genau einmal je Aufruf", async () => {
-    kopfzeilenGelesen.mockClear();
+    /*
+     * ⛔ BEIDE WEGE, UND DAS IST DER PUNKT DES FALLES (Fix-Runde 1, Fund W4). Die erste
+     * Haelfte faehrt den SUITE-Weg — der steigt bei Schritt 2 aus, und alles ab Schritt 3
+     * waere von ihm unbewacht. Ein ZWEITER `requireRadioHost(await headers())` auf dem
+     * Code-Weg — die naheliegende „Sicherheitsverbesserung", vor der `_lib/host.ts:117-121`
+     * warnt — bliebe damit unentdeckt, obwohl der Name des Falles und der Testauftrag
+     * (Spec:3092) beide Wege versprechen. Sonde R-A7i.
+     *
+     * ⚠️ ZWISCHEN DEN HAELFTEN WIRD DER ZAEHLER GELEERT, NICHT KUMULIERT. Ein `toBe(2)` am
+     * Ende waere eine Aussage ueber DIESEN TESTRUMPF (zwei Aufrufe darin), nicht ueber das
+     * Praedikat (eine Lesung je Aufruf).
+     */
     sitzung = SUITE_SITZUNG;
+    kopfzeilenGelesen.mockClear();
     await ausleihZugangOderNull(db as never);
-    expect(kopfzeilenGelesen).toHaveBeenCalledTimes(1);
+    expect(kopfzeilenGelesen, "Suite-Weg").toHaveBeenCalledTimes(1);
+
+    await legeCodeAn();
+    await praegeSitzung("zc-1");
+    sitzung = null;
+    kopfzeilenGelesen.mockClear();
+    await ausleihZugangOderNull(db as never);
+    expect(kopfzeilenGelesen, "Code-Weg").toHaveBeenCalledTimes(1);
   });
 });
 
@@ -254,14 +301,24 @@ describe("radio-Ausleihzugang: die zwei Wege, und wer wen schlaegt", () => {
   });
 
   it("weg code entsteht nur aus signiertem Cookie PLUS DB-Recheck", async () => {
+    /*
+     * ⛔ `toEqual`, NICHT `toMatchObject` (Fix-Runde 1, Funde W3 und K1). `toMatchObject`
+     * liess den Rest der Vereinigung frei, und `laeuftAb` war damit die eine Angabe des
+     * Code-Wegs, die NIRGENDS geprueft wurde — weder ihr Wert noch ihre Herkunft. Sie ist
+     * laut Spec:2509-2511 der einzige Datenpfad einer Restzeit-Anzeige, und der Kopf der
+     * Implementierung macht ueber ihre Herkunft eine praezise Aussage
+     * (`ausleihZugang.ts:57-59`). Der Suite-Zweig prueft seit jeher mit `toEqual`; die
+     * Datei war in sich uneinheitlich.
+     */
     await legeCodeAn();
-    cookieWert = await createAusleihSitzung({ codeId: "zc-1" });
+    const laeuftAb = await praegeSitzung("zc-1");
     sitzung = null;
     const z = await ausleihZugangOderNull(db as never);
-    expect(z).toMatchObject({
+    expect(z).toEqual({
       weg: "code",
       codeId: "zc-1",
       bezeichnung: "Aufsteller Fahrzeughalle",
+      laeuftAb,
     });
   });
 
@@ -273,13 +330,20 @@ describe("radio-Ausleihzugang: die zwei Wege, und wer wen schlaegt", () => {
      * OHNE das Cookie neu zu praegen; die Flaeche muss den neuen Namen zeigen.
      */
     await legeCodeAn();
-    cookieWert = await createAusleihSitzung({ codeId: "zc-1" });
+    const laeuftAb = await praegeSitzung("zc-1");
     await db
       .update(zugangscodes)
       .set({ bezeichnung: "Umbenannt" })
       .where(eq(zugangscodes.id, "zc-1"));
     const z = await ausleihZugangOderNull(db as never);
-    expect(z).toMatchObject({ bezeichnung: "Umbenannt" });
+    // ⛔ `toEqual` statt `toMatchObject` (Fund K1): der Fall prueft die GANZE Form, nicht
+    // nur das eine Feld, das sein Name nennt.
+    expect(z).toEqual({
+      weg: "code",
+      codeId: "zc-1",
+      bezeichnung: "Umbenannt",
+      laeuftAb,
+    });
   });
 });
 
@@ -372,6 +436,56 @@ describe("radio-Ausleihzugang: die drei Formen unterscheiden sich in ihrem Ausga
     await expect(requireAusleihSchreibend(db as never)).resolves.toEqual({
       ok: false,
       grund: "sitzung",
+    });
+    expect(redirectRuf).not.toHaveBeenCalled();
+  });
+
+  it("requireAusleihZugang gibt bei gueltigem Code den Zugang zurueck und leitet NICHT um", async () => {
+    /*
+     * ⛔ DIE ERFOLGSFORM WAR UNBEWACHT (Fix-Runde 1, Fund W2): alle drei uebrigen Faelle
+     * dieser Funktion sind Redirect-Faelle, und `if (b.ok) return b.zugang;` liess sich
+     * durch eine feste `weg: "suite"`-Ruecklieferung ersetzen, ohne dass ein Fall, der
+     * `typecheck` oder der `lint` rot wurde (Sonde R-A7g). Die Rueckgabe traegt jede Seite
+     * unter `(ausleihe)/` (A18-A20): eine solche Fassung blendete die Bezeichnung des
+     * Aufstellers still aus.
+     *
+     * Die zweite Zusicherung ist die Kehrseite des Namens — auf dem Erfolgsweg wird NICHT
+     * umgeleitet.
+     */
+    await legeCodeAn();
+    const laeuftAb = await praegeSitzung("zc-1");
+    sitzung = null;
+    await expect(requireAusleihZugang(db as never)).resolves.toEqual({
+      weg: "code",
+      codeId: "zc-1",
+      bezeichnung: "Aufsteller Fahrzeughalle",
+      laeuftAb,
+    });
+    expect(redirectRuf).not.toHaveBeenCalled();
+  });
+
+  it("requireAusleihSchreibend gibt auf dem Code-Weg ok true mit codeId und bezeichnung", async () => {
+    /*
+     * ⛔ DIE ERFOLGSFORM WAR UNBEWACHT (Fix-Runde 1, Fund W1): alle drei uebrigen Faelle
+     * dieser Funktion pruefen `ok: false`, und `zugang: b.zugang` liess sich durch eine
+     * erfundene Nutzlast ersetzen, ohne dass ein Fall rot wurde (Sonde R-A7f).
+     *
+     * Die Nutzlast ist TRAGEND und nicht Beiwerk: sie ist der einzige Weg, auf dem `codeId`
+     * in die vier Actions aus A17 und von dort in `loans.zugangscode_id` gelangt. Eine
+     * Fassung, die hier etwas anderes zurueckgibt, liesse eine ganze Spalte tot — typkorrekt
+     * und lint-sauber.
+     */
+    await legeCodeAn();
+    const laeuftAb = await praegeSitzung("zc-1");
+    sitzung = null;
+    await expect(requireAusleihSchreibend(db as never)).resolves.toEqual({
+      ok: true,
+      zugang: {
+        weg: "code",
+        codeId: "zc-1",
+        bezeichnung: "Aufsteller Fahrzeughalle",
+        laeuftAb,
+      },
     });
     expect(redirectRuf).not.toHaveBeenCalled();
   });
