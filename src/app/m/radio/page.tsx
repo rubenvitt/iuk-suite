@@ -139,9 +139,13 @@ export default async function RadioGatePage({
         weiter, und ein zweiter Aufdruck hier waere ein ZWEITER Fehlerort. Der Bestand
         schreibt aus, warum das ein Defekt waere: „Zwei Fehlerorte waeren zwei Zustaende,
         die einander widersprechen koennen" (`src/app/m/lagerbuch/_ui/Gate.tsx:22-25`) —
-        etwa ein `?grund=code` aus der URL neben einem frischeren Satz der Action. Das
-        `role="status" aria-live="polite"` aus dem Brief traegt die Insel; sie wird
-        serverseitig mitgerendert, der Satz steht also auch ohne JavaScript im HTML.
+        etwa ein `?grund=code` aus der URL neben einem frischeren Satz der Action. Die
+        Live-Region traegt die Insel (`_ui/GateFormular.tsx:148`); sie wird serverseitig
+        mitgerendert, der Satz steht also auch ohne JavaScript im HTML. ⚠️ SIE TRAEGT
+        `role="alert"` UND NICHT das `role="status" aria-live="polite"` des Briefs
+        (`briefs/A11.md:180`) — entschieden in der Fix-Runde 1 zu A11 (REVIEW-A11, Fund
+        W3), begruendet an der Zeile selbst und im Bestand
+        (`src/app/m/lagerbuch/_ui/Gate.tsx:187-188`).
       */}
       <GateFormular fehlerText={meldung} returnTo={sauberesZiel ?? ""} />
       {darfVerwalten && (

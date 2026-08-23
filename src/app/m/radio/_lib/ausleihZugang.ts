@@ -10,7 +10,7 @@ import { viewerAusSession } from "./zugang";
 
 /**
  * DAS ZUGANGSPRAEDIKAT DER AUSLEIHE (Spec 1 §3.5, Zeilen 2632-2786).
- * KEIN "use client" (Falle 6, `CLAUDE.md:27`; durchgesetzt von `riegel.test.ts:786-805`).
+ * KEIN "use client" (Falle 6, `CLAUDE.md:27`; durchgesetzt von `riegel.test.ts:811-830`).
  *
  * ZWEI WEGE, EINE FUNKTION, EIN ERGEBNISTYP (Spec:2636-2638) — nicht zwei Riegel, die
  * jede Flaeche einzeln nebeneinanderstellt. Das waere die Liste, die die naechste Datei

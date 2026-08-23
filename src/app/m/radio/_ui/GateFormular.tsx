@@ -121,8 +121,31 @@ export function GateFormular({
         aria-label="Zugangs-Code"
         data-rolle="gate-code"
       />
+      {/*
+        ⛔ `role="alert"` UND NICHT `role="status" aria-live="polite"`. Das ist eine
+        ausgesprochene Abweichung vom Brief (`.superpowers/sdd/planteil3/briefs/A11.md:180`),
+        entschieden in der Fix-Runde 1 zu A11 (REVIEW-A11, Fund W3), weil der Bestand
+        dieselbe Frage GEMESSEN entschieden hat und den Anlass ausschreibt
+        (`src/app/m/lagerbuch/_ui/Gate.tsx:187-188`): „seit dem Netzfall erscheint dieser
+        Ort auch NACHTRAEGLICH — nach einem Antippen, ohne Seitenwechsel"; zementiert als
+        Testfall in `src/app/m/lagerbuch/_ui/Gate.test.tsx:129-135`.
+
+        ⛔ UND GENAU DIESER FALL LEBT HIER: `MELDUNG_AUSNAHME` (`:63-65`) und jedes
+        `zustand.fehler` aus der Action entstehen AUSSCHLIESSLICH nach einem Antippen ohne
+        Seitenwechsel. Eine hoefliche Region, die im selben Augenblick wie ihr Inhalt in den
+        Baum kommt, wird von Bildschirmlesern haeufig nicht angesagt; `alert` uebersteht das
+        spaete Einhaengen.
+
+        ⛔ KEIN `aria-live` DANEBEN: `alert` impliziert `assertive`, ein zusaetzliches
+        `polite` gewaenne bei den meisten Hilfsmitteln und kehrte die Wahl still um.
+
+        ⚠️ DER ZWEITE AUSWEG AUS W3 IST VERWORFEN, nicht uebersehen: die Region unbedingt
+        einzuhaengen und nur ihren Text zu wechseln, hiesse einen leeren Kasten sichtbar
+        stehen zu lassen — `.meldung` traegt Polsterung und Kante
+        (`ausleihe.module.css:78-79`).
+      */}
       {meldung && (
-        <p className={s.meldung} role="status" aria-live="polite" data-rolle="gate-meldung">
+        <p className={s.meldung} role="alert" data-rolle="gate-meldung">
           {meldung}
         </p>
       )}

@@ -674,6 +674,17 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
    *       ⛔ NICHT requireAusleihZugang( — die leitet bei fehlendem Cookie auf `/` um,
    *          und das IST diese Seite: ein ENDLOSER REDIRECT (Spec:2407-2409, §3.5.5
    *          Spec:2767).
+   *       ⛔ UND NICHT requireRadioAdmin( / requireRadioVerwaltung( /
+   *          requireAusleihSchreibend( — die Gate-Haelfte weist DIESELBEN Namen ab wie
+   *          die Ausleih-Haelfte unten. Bis zur Fix-Runde 1 (REVIEW-A11, Fund W1) tat sie
+   *          das nicht, und ein zusaetzliches `await requireRadioAdmin();` vor
+   *          `viewerOderNull()` in `page.tsx` liess diese Datei mit `16 passed (16)`
+   *          durch — selbst gemessen, ebenso mit `requireAusleihSchreibend(getDb())`.
+   *          Ein WERFENDER Riegel schickte jeden anonymen Scan nach `/login`, bevor die
+   *          Person das Gate je saehe (NS-Z6; die Begruendung steht ausgeschrieben in
+   *          `page.tsx:119-123`); `requireAusleihSchreibend` wirft nicht, sondern gibt ein
+   *          ERGEBNIS zurueck, das auf einer Flaeche niemand prueft — typkorrekt,
+   *          lint-sauber, wirkungslos (Bauform-Zulaessigkeitstafel Zeile 10).
    *
    *   jede Flaeche UNTER `(ausleihe)/` (layout.tsx und page.tsx):
    *       requireAusleihZugang(
@@ -691,7 +702,16 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
       const kurz = kurzPfad(p);
       if (/\/admin\//.test(kurz)) return false;                       // (a)/(e) decken das ab
       if (kurz.endsWith("src/app/m/radio/layout.tsx")) return false;  // die Wurzel-Huelle, Spec §1.3
-      return /\/(?:page|layout)\.tsx$/.test(kurz);
+      /*
+       * `template.tsx` und `default.tsx` rendern serverseitig FUER EINE ROUTE wie ein
+       * Layout und gehoeren deshalb in denselben Filter. Heute gibt es unter `src/`
+       * keine (gemessen in der Fix-Runde 1 zu A11: `find src -name 'template.tsx' -o
+       * -name 'default.tsx'` liefert nichts) — ohne sie waere die Zusage „ab hier ist
+       * keine Flaeche dieses Moduls mehr unbewacht" aber um zwei Dateinamen zu weit
+       * (REVIEW-A11, Fund K3). ⚠️ Eine `src/app/m/radio/template.tsx` landete damit in
+       * der GATE-Haelfte und machte sie rot: die erwartet GENAU EINE Wurzelflaeche.
+       */
+      return /\/(?:page|layout|template|default)\.tsx$/.test(kurz);
     });
 
   it("die Flaechenzahl steht EXAKT auf dem Stand dieses Planteils", () => {
@@ -710,6 +730,11 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
       .toMatch(/\bausleihZugangOderNull\s*\(/);
     expect(q, "requireAusleihZugang( auf dem Gate ist ein ENDLOSER REDIRECT (Spec:2407-2409)")
       .not.toMatch(/\brequireAusleihZugang\s*\(/);
+    // Die NEGATIVE Haelfte, symmetrisch zur Ausleih-Haelfte unten (Fix-Runde 1, W1).
+    expect(q, "ein Verwaltungsriegel auf der einzigen anonymen Einstiegsflaeche (NS-Z6)")
+      .not.toMatch(/\brequireRadioAdmin\s*\(|\brequireRadioVerwaltung\s*\(/);
+    expect(q, "requireAusleihSchreibend( gibt ein ERGEBNIS zurueck — auf einer Flaeche prueft es niemand")
+      .not.toMatch(/\brequireAusleihSchreibend\s*\(/);
     // ERST DER HOST, DANN DAS PRAEDIKAT — zeichengleich zu Klausel (a) und (e).
     expect(q.search(/\brequireRadioHost\s*\(/))
       .toBeLessThan(q.search(/\bausleihZugangOderNull\s*\(/));

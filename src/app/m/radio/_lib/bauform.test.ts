@@ -136,7 +136,7 @@ const vorhandeneFlaechen = (): string[] =>
  * ⛔ KEIN IMPORT AUS `riegel.test.ts`: vitest laedt Testdateien nicht als Module
  * fuereinander. ⚠️ DIE ZWEITE HAELFTE DER UEBLICHEN BEGRUENDUNG TRAEGT NICHT, und sie steht
  * hier trotzdem, statt verschwiegen zu werden (Vorabscan-Fund F22): eine geteilte
- * Helferdatei muesste NICHT unter `src/app/m/radio/` liegen — `riegel.test.ts:798` filtert
+ * Helferdatei muesste NICHT unter `src/app/m/radio/` liegen — `riegel.test.ts:823` filtert
  * fuer den `"use client"`-Scan INNERHALB von `quellDateien()`, und das laeuft ausschliesslich
  * ueber `MODUL`. Ein Modul unter `src/core/testing/` waere fuer jeden Scan dieses Moduls
  * unsichtbar und ganz normal importierbar. Der Preis der Kopie ist benannt: `ohneKommentare`

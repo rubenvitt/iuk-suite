@@ -4,11 +4,12 @@
  *
  * ⛔ EIGENE VARIABLEN, NIE `--ant-*` (Falle 2, `CLAUDE.md:14-15`): antd deklariert seine
  * Variablen auf SEINER Scope-Klasse, eigenes Markup sieht sie nicht — und der Fehler ist
- * STILL, die Regel steht richtig da und die Linie verschwindet einfach. Die drei
- * Suite-Variablen unten (`--iuk-marke`, `--iuk-gedaempft`, `--iuk-linie`) stehen dagegen
- * auf `:root` und tragen ihren Dunkelzweig selbst mit
- * (`src/app/globals.css:152-164`) — sie sind das einzige Farbvokabular, das eigenes
- * Markup in dieser Suite lesen darf.
+ * STILL, die Regel steht richtig da und die Linie verschwindet einfach. Die VIER
+ * Suite-Variablen unten (`--iuk-marke`, `--iuk-gedaempft`, `--iuk-linie`,
+ * `--iuk-flaeche-aktiv`) stehen dagegen auf `:root` und tragen ihren Dunkelzweig selbst
+ * mit (`src/app/globals.css:152-164`) — sie sind das einzige Farbvokabular, das eigenes
+ * Markup in dieser Suite lesen darf. ⚠️ Bis zur Fix-Runde 1 zu A11 stand hier „die drei",
+ * waehrend `.meldung` bereits die vierte las (REVIEW-A11, Fund K2).
  *
  * ⛔ `.gate` IST DER TRAEGER ALLER VARIABLEN dieses Zweigs, nach dem Vorbild
  * `src/app/m/lagerbuch/_ui/helfer.module.css:24-26` („`.rahmen` IST DER TRAEGER ALLER
@@ -35,6 +36,7 @@
   --radio-gate-linie: var(--iuk-linie);
   --radio-gate-gedaempft: var(--iuk-gedaempft);
   --radio-gate-marke: var(--iuk-marke);
+  --radio-gate-flaeche: var(--iuk-flaeche-aktiv);
 
   box-sizing: border-box;
   max-width: var(--radio-gate-breite);
@@ -63,8 +65,10 @@
 }
 
 /*
- * DER EINE MELDUNGSORT. Er steht in `page.tsx` unter `role="status" aria-live="polite"`
- * und traegt den Satz aus `_lib/gateTexte.ts` — ⛔ NIE ein antd `Alert type="error"`:
+ * DER EINE MELDUNGSORT. Er steht NICHT in `page.tsx`, sondern in der Insel
+ * `_ui/GateFormular.tsx:148` unter `role="alert"` (die Rollenwahl ist in der Fix-Runde 1
+ * zu A11 entschieden, REVIEW-A11 Fund W3; die Begruendung steht an der Zeile selbst) und
+ * traegt den Satz aus `_lib/gateTexte.ts` — ⛔ NIE ein antd `Alert type="error"`:
  * `colorError === colorPrimary === #c8000f` (`src/core/theme/theme.ts:32-33`), eine
  * Fehlerbox saehe damit aus wie die Primaeraktion (Falle 3, `CLAUDE.md:16-17`; Entscheidungen E3 und E6).
  * Die Markierung traegt deshalb die KANTE, nicht die Flaeche.
@@ -74,7 +78,7 @@
   padding: 0.75rem 1rem;
   border-inline-start: 3px solid var(--radio-gate-marke);
   border-radius: 0 4px 4px 0;
-  background: var(--iuk-flaeche-aktiv);
+  background: var(--radio-gate-flaeche);
   font-size: 1rem;
   line-height: 1.45;
 }
