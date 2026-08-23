@@ -59,10 +59,10 @@ const AUSNAHMEN = [
   "sitzung.ts#erneuereSitzung",
 ] as const;
 
-/** ⛔ HEUTE EINS (`codes.ts`), angehoben von A9 (3: + gate.ts, sitzung.ts) und A17
+/** ⛔ HEUTE DREI (`codes.ts`, `gate.ts`, `sitzung.ts`) — A9 ist erledigt; angehoben von A17
  *  (4: + ausleihe.ts). EXAKT, nicht „mindestens" — dieselbe Begruendung wie bei
  *  `HANDLER_ANZAHL` in `riegel.test.ts:60-72`: `laenge >= 0` ist fuer jede Liste wahr. */
-const ACTION_DATEIEN_ANZAHL = 1;
+const ACTION_DATEIEN_ANZAHL = 3;
 
 /**
  * ⛔ DIE ZWEITE EXISTENZPFLICHT, UND SIE IST NEU (REVIEW-A8 W2, zweite Haelfte): die
@@ -78,12 +78,16 @@ const ACTION_DATEIEN_ANZAHL = 1;
  * DER ANHEBE-FAHRPLAN, eine Auflage an die Nachfolger — die Zahlen sind aus den Briefen
  * abgelesen, nicht geraten:
  *   A8  `codes.ts`:    erstelleCode, setzeCodeAktiv                        -> 2
- *   A9  + `gate.ts`:   einloesenAmGate (briefs/A910.md:62)
+ *   A9  + `gate.ts`:   einloesenAmGate (briefs/A910.md:62)               ERLEDIGT
  *       + `sitzung.ts`: beenden, erneuereSitzung (briefs/A910.md:87-88)    -> 5
  *   A17 + `ausleihe.ts`: ausleiheAnlegen, rueckgabeBuchen,
  *       entleiherVorschlaege, listeAktualisieren (briefs/A17.md:26-29)     -> 9
+ *
+ * ⚠️ NUR DIE FUNKTIONEN ZAEHLEN. `gate.ts` fuehrt zusaetzlich `export type GateZustand`
+ * (Spec:2344) und `sitzung.ts` `export type ErneuerungErgebnis` — beide werden vom
+ * Uebersetzer geloescht und von `exportierteActions` verworfen; sie heben diese Zahl nicht.
  */
-const ACTION_DEKLARATIONEN_ANZAHL = 2;
+const ACTION_DEKLARATIONEN_ANZAHL = 5;
 
 const RIEGEL = /\brequireRadioAdmin\s*\(|\brequireAusleihSchreibend\s*\(/;
 const HOST_RIEGEL = /\brequireRadioHost\s*\(/;
@@ -473,7 +477,7 @@ describe("radio-_actions: jede exportierte Action traegt ihren Riegel", () => {
      *
      * DER ANHEBE-FAHRPLAN, eine Auflage an die Nachfolger:
      *   A8  legt `codes.ts` an                       -> 1
-     *   A9  legt `gate.ts` und `sitzung.ts` an       -> 3
+     *   A9  legt `gate.ts` und `sitzung.ts` an       -> 3   ERLEDIGT (Planteil 3)
      *   A17 legt `ausleihe.ts` an                    -> 4
      */
     expect(actionDateien().length, "ACTION_DATEIEN_ANZAHL anheben — Fahrplan im Kopf dieser Datei")

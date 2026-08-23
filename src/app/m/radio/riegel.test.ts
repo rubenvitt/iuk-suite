@@ -74,7 +74,7 @@ import { join, relative } from "node:path";
  * `toBe` hat er jetzt einen TRAEGER: wer die Flaeche baut, bekommt den Fall rot und muss
  * die Zahl bewusst anheben.
  *
- *   Planteil 3 baut `t/[code]/route.ts` und `abmelden/route.ts`  -> HANDLER_ANZAHL = 2
+ *   Planteil 3 baut `t/[code]/route.ts` und `abmelden/route.ts`  -> ERLEDIGT (Planteil 3)
  *   Planteil 4 baut `admin/(arbeit)/geraete/export/route.ts`     -> HANDLER_ANZAHL = 3
  *   Planteil 5 baut `sw.js/route.ts`                             -> HANDLER_ANZAHL = 4
  *
@@ -93,11 +93,12 @@ const MODUL = join(process.cwd(), "src/app/m/radio");
 const SELBST = join(MODUL, "riegel.test.ts");
 
 /**
- * ⛔ HEUTE NULL — EXAKT, nicht „mindestens". Angehoben von Planteil 3 (2), Planteil 4 (3),
- * Planteil 5 (4). Die Konstante steht hier oben und nicht im Testkoerper, damit die
- * Aenderung EINE Zeile ist und im Diff auffaellt.
+ * ⛔ HEUTE ZWEI — EXAKT, nicht „mindestens". `t/[code]/route.ts` und `abmelden/route.ts`
+ * (Planteil 3, Aufgabe A10); angehoben von Planteil 4 (3) und Planteil 5 (4). Die Konstante
+ * steht hier oben und nicht im Testkoerper, damit die Aenderung EINE Zeile ist und im Diff
+ * auffaellt.
  */
-const HANDLER_ANZAHL = 0;
+const HANDLER_ANZAHL = 2;
 
 /**
  * ⛔ HEUTE NULL — EXAKT, aus demselben Grund wie `HANDLER_ANZAHL`. Planteil 3 laesst sie
@@ -380,8 +381,8 @@ describe("(c) jeder Route Handler nimmt die NICHT-werfende Form", () => {
 
   it("die Handlerzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
-     * ⚠️ HEUTE NULL, UND DAS IST EIN ZUSTAND, KEIN ZIEL. Planteil 2 baut keinen Route
-     * Handler.
+     * ⚠️ HEUTE ZWEI, UND DAS IST EIN ZUSTAND, KEIN ZIEL. Planteil 2 baute keinen Route
+     * Handler; Planteil 3 legt `t/[code]/route.ts` und `abmelden/route.ts` an.
      *
      * ⛔ `toBe`, NICHT `toBeGreaterThanOrEqual`. `laenge >= 0` ist fuer jede Liste wahr —
      * es gaebe KEINE Mutation, die diesen Fall rot macht, und der Fall waere genau die
@@ -433,9 +434,9 @@ describe("(c) jeder Route Handler nimmt die NICHT-werfende Form", () => {
      * werfende Form ist im Antwortweg eines Route Handlers schlicht die falsche Gestalt.
      *
      * ⚠️ Ohne diese dritte Zeile bestuende ein Handler mit `radioHostOderNull(` UND einem
-     * werfenden Riegel den Scan GRUEN. Sie ist heute ueber null Handlern leer-gruen und
-     * laeuft im Anhebe-Fahrplan darueber mit — ab Planteil 3 (`t/[code]/route.ts`,
-     * `abmelden/route.ts`) ist sie scharf.
+     * werfenden Riegel den Scan GRUEN. Sie war bis Planteil 2 ueber null Handlern
+     * leer-gruen; seit Planteil 3 (`t/[code]/route.ts`, `abmelden/route.ts`) ist sie
+     * SCHARF.
      */
     const verstoesse: string[] = [];
     for (const pfad of ROUTE_HANDLER()) {
