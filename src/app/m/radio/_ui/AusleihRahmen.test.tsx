@@ -48,6 +48,12 @@ const ZUGANG_CODE: AusleihZugang = {
   laeuftAb: new Date(Date.now() + 6 * 3600_000),
 };
 const ZUGANG_SUITE: AusleihZugang = { weg: "suite", sub: "pid-1", name: "Rita Roth" };
+/**
+ * Der Suite-Weg OHNE Anzeigenamen — `name` ist dort `string | null`
+ * (`_lib/ausleihZugang.ts:61-63`). Der Rueckfall ist die Anzeigeentscheidung aus
+ * `AusleihRahmen.tsx:107-110`, und ohne diesen Zugang erreicht ihn kein Fall.
+ */
+const ZUGANG_SUITE_OHNE_NAMEN: AusleihZugang = { weg: "suite", sub: "pid-1", name: null };
 
 /**
  * Kopie von `ohneKommentare()` aus `src/app/m/radio/riegel.test.ts:181-201`.
@@ -89,9 +95,19 @@ function genutzteKlassen(pfad: string): string[] {
   return [...new Set([...treffer].map((m) => m[1]!))];
 }
 
-/** Jeder Klassenname, den `ausleihe.module.css` tatsaechlich DEKLARIERT. */
+/**
+ * Jeder Klassenname, den `ausleihe.module.css` tatsaechlich DEKLARIERT.
+ *
+ * ⛔ UEBER `ohneKommentare`, WIE DIE VORLAGE (`lagerbuch/_ui/rahmen.test.tsx:54-64`). Roh
+ * gelesen gelten Datei-Anker in Kommentaren als Deklaration: `\.([a-zA-Z]+)\s*(?=:)` passt
+ * auf das `.md:` in „…A16.md:82-84". Gemessen (Review K5): 28 roh gegen 24 echt, die vier
+ * Zusatznamen sind `md`, `css`, `ts`, `tsx`. Heute nicht ausnutzbar — keine Flaeche schreibt
+ * `s.md` —, aber die Kopie sicherte weniger zu als ihre Vorlage.
+ */
 function deklarierteKlassen(): Set<string> {
-  const treffer = readFileSync(STYLESHEET, "utf8").matchAll(/\.([a-zA-Z][a-zA-Z0-9_]*)\s*(?=[,{:[])/g);
+  const treffer = ohneKommentare(readFileSync(STYLESHEET, "utf8")).matchAll(
+    /\.([a-zA-Z][a-zA-Z0-9_]*)\s*(?=[,{:[])/g,
+  );
   return new Set([...treffer].map((m) => m[1]!));
 }
 
@@ -145,7 +161,32 @@ describe("radio-AusleihRahmen: die Bauform", () => {
      */
     const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
     expect(q).not.toMatch(/\busePathname\b/);
-    expect(q, "kein Hook in einer Server Component").not.toMatch(/\buse(?:State|Effect|Router)\s*\(/);
+    /*
+     * ⛔ JEDER Hook, nicht eine Aufzaehlung von dreien: `useActionState` und
+     * `useFormStatus` sind auf dieser Flaeche die realistischen Faelle (das Gate benutzt
+     * `useActionState` bereits), und `useMemo`/`useCallback`/`useRef` kaemen ebenso durch
+     * (Review K7). Der Ausdruck faengt jeden Bezeichner der Hook-Form.
+     */
+    expect(q, "kein Hook in einer Server Component").not.toMatch(/\buse[A-Z][A-Za-z]*\s*\(/);
+  });
+
+  it("setzt weder size noch eine der beiden Tap-Zahlen anders als E8 sie festlegt", () => {
+    /*
+     * Entscheidung E8 (`briefs/KOPF.md`, A16): 64 fuer die Fussnavigation, 44 fuer die
+     * kleinen Ziele, beides als CSS-Variablen — und ⛔ `size` auf keinem Element
+     * (Falle 4: `size="large"` ist 72). Bis hierher hatte KEINE der beiden Zahlen einen
+     * Waechter: Sonde P8 des Reviews verdrehte 64 auf 48 und 44 auf 24, alle 393 Faelle
+     * blieben gruen.
+     * ⚠️ Das ist NICHT die Falle-5-Messung — ob `min-width` gegen antds cssinjs-Regeln
+     * durchkommt, bleibt der Browserlauf in beiden Farbmodi (⬜ im Stylesheet benannt).
+     * Dies ist der Textteil, den ein Tor halten kann.
+     */
+    const css = readFileSync(STYLESHEET, "utf8");
+    expect(css, "E8: die Fussnavigation misst 64").toMatch(/--radio-tap-nav:\s*64px/);
+    expect(css, "E8: WCAG 2.5.5 AAA sind 44").toMatch(/--radio-tap-klein:\s*44px/);
+    for (const pfad of FLAECHEN) {
+      expect(ohneKommentare(readFileSync(pfad, "utf8")), `${pfad}: Falle 4`).not.toMatch(/\bsize=/);
+    }
   });
 
   it("der Abmeldeweg ist ein form action, kein Link auf /abmelden", () => {
@@ -203,6 +244,42 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
     const etikett = query("[data-rolle='radio-sitzungsetikett']").textContent ?? "";
     expect(etikett).toContain("Rita Roth");
     expect(etikett, "die codeId gehoert nicht auf den Bildschirm").not.toContain("pid-1");
+
+    /*
+     * ⛔ DER DRITTE ZWEIG — der RUECKFALL, wenn der Suite-Weg keinen Anzeigenamen fuehrt.
+     * `AusleihRahmen.tsx:107-110` sichert woertlich zu, `sub` sei „eine undurchsichtige
+     * Kennung, die auf keinen Bildschirm gehoert" — bis hierher setzte das keine Zeile
+     * durch: der Halt `not.toContain("pid-1")` darueber greift nur, SOLANGE `name`
+     * gesetzt ist. Die Fehlerklasse aus `progress.md:441-446`, gemessen als Sonde P4 des
+     * Reviews (`?? zugang.sub` liess alle 46 Faelle gruen).
+     * ⚠️ Der Anker ist umlautfrei ("Angemeldet"), nicht der ganze Satz.
+     */
+    await unmount();
+    await mount(
+      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_SUITE_OHNE_NAMEN}>
+        <p />
+      </AusleihRahmen>,
+    );
+    const rueckfall = query("[data-rolle='radio-sitzungsetikett']").textContent ?? "";
+    expect(rueckfall, "ohne Namen traegt der Rueckfalltext").toContain("Angemeldet");
+    expect(rueckfall, "die Kennung gehoert nicht auf den Bildschirm").not.toContain("pid-1");
+  });
+
+  it("traegt die Wortmarke — der erste Posten von §4.2", async () => {
+    /*
+     * §4.2 (Spec:3374-3384) nennt „Wortmarke + Sitzungsetikett" in einem Atemzug; bis
+     * hierher bewachte kein Fall die Wortmarke (Sonde P3 des Reviews: die Zeile ersatzlos
+     * entfernt, 397 Faelle blieben gruen). Sie traegt zugleich Last in der L10-Begruendung
+     * (`AusleihRahmen.tsx:23-25`, „Er ist ausdruecklich NICHT die Wortmarke") — die
+     * Unterscheidung ist erst dann eine, wenn die Wortmarke auch da ist.
+     * ⚠️ Der Anker ist umlautfrei (Global Constraints): „Funkger", nicht das ganze Wort.
+     */
+    await mount(
+      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
+        <p />
+      </AusleihRahmen>,
+    );
+    expect(query(`[data-rolle='${L10}']`).textContent).toContain("Funkger");
   });
 
   it("ein Code-Zugang bekommt keinen Link ins Portal", async () => {

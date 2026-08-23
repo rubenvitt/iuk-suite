@@ -3,7 +3,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { act } from "react";
 import { readFileSync } from "node:fs";
-import { mount, hydrate, unmount, query, exists } from "@/app/m/qr/_lib/test-dom";
+import { mount, hydrate, rerender, unmount, query, exists } from "@/app/m/qr/_lib/test-dom";
 import { Restzeit } from "./Restzeit";
 
 const QUELLE = "src/app/m/radio/_ui/Restzeit.tsx";
@@ -123,6 +123,82 @@ describe("radio-Restzeit: die Anzeige", () => {
     expect(exists("[data-rolle='radio-restzeit-abgelaufen']")).toBe(true);
   });
 
+  it("nimmt eine ERNEUERTE Grenze an — der Ablaufsatz verschwindet wieder", async () => {
+    /*
+     * ⛔ ENTSCHEIDUNG E12 (`briefs/KOPF.md:675-703`, Zusage §3.10 Nr. 8): die
+     * Inline-Erneuerung ist eine zweite Insel im SELBEN Formular — „ohne Navigation und
+     * ohne die eingetragenen Werte zu verlieren". Der Rahmen bleibt gemountet, und diese
+     * Insel bekommt eine neue Grenze als Prop.
+     *
+     * Vorher blieb der Ablaufsatz DAUERHAFT stehen (`useState` liest nur beim Mounten, und
+     * der Effekt kehrte bei `abgelaufen === true` sofort zurueck) — und er fordert zum
+     * erneuten Scannen des QR-Codes auf, obwohl gerade erneuert wurde.
+     *
+     * ⛔ `rerender` UND KEIN ZWEITES `mount`: ein frischer Baum uebersprang genau den
+     * Uebergang, um den es geht (`_lib/test-dom.tsx` schreibt den Grund aus).
+     * ⚠️ Geprueft wird ueber die Rolle, nicht ueber den Satz — Grep-Anker tragen keine
+     * Umlaute.
+     */
+    vi.useFakeTimers();
+    await mount(
+      <Restzeit
+        uhrzeit="07:31"
+        laeuftAb={new Date(Date.now() + 10 * 60_000)}
+        abgelaufenInitial={false}
+      />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60_000 + 1000);
+    });
+    expect(exists("[data-rolle='radio-restzeit-abgelaufen']"), "die Vorbedingung").toBe(true);
+
+    await rerender(
+      <Restzeit
+        uhrzeit="19:31"
+        laeuftAb={new Date(Date.now() + 12 * 3600_000)}
+        abgelaufenInitial={false}
+      />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(exists("[data-rolle='radio-restzeit-abgelaufen']")).toBe(false);
+    expect(query("[data-rolle='radio-restzeit']").textContent).toContain("19:31");
+  });
+
+  it("und die erneuerte Grenze laeuft ihrerseits ab — kein Zeitgeber geht verloren", async () => {
+    /*
+     * Die Gegenrichtung des Falles darueber, und keine Kopie: jener haelt allein das
+     * ZURUECKschalten fest, dieser allein, dass die NEUE Grenze wieder taktet. Ohne ihn
+     * bliebe „nimmt eine erneuerte Grenze an" auch dann gruen, wenn der Effekt nach der
+     * Erneuerung ueberhaupt keinen Zeitgeber mehr setzte.
+     */
+    vi.useFakeTimers();
+    await mount(
+      <Restzeit
+        uhrzeit="07:31"
+        laeuftAb={new Date(Date.now() - 60_000)}
+        abgelaufenInitial={true}
+      />,
+    );
+    await rerender(
+      <Restzeit
+        uhrzeit="07:41"
+        laeuftAb={new Date(Date.now() + 10 * 60_000)}
+        abgelaufenInitial={true}
+      />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(exists("[data-rolle='radio-restzeit-abgelaufen']"), "die Vorbedingung").toBe(false);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60_000 + 1000);
+    });
+    expect(exists("[data-rolle='radio-restzeit-abgelaufen']")).toBe(true);
+  });
+
   it("raeumt seinen Zeitgeber beim Abbau auf", async () => {
     // Ohne das liefe je Navigation ein weiterer Zeitgeber weiter und schriebe in einen
     // abgebauten Baum.
@@ -155,6 +231,16 @@ describe("radio-Restzeit: die Bauform", () => {
     const quelle = readFileSync(QUELLE, "utf8");
     expect(quelle).not.toMatch(/\bIntl\b/);
     expect(quelle).not.toMatch(/toLocale[A-Za-z]*\s*\(/);
-    expect(quelle).not.toMatch(/\bget(?:Hours|Minutes|FullYear|Month|Date)\s*\(/);
+    /*
+     * ⛔ DIE LISTE IST VOLLZAEHLIG, NICHT BEISPIELHAFT. Sie fuehrte bis hierher fuenf
+     * Namen; `getDay`, `getTimezoneOffset`, `getSeconds` und die zwei `to…String` kamen
+     * durch — gemessen als Sonde P9 des Reviews, die `getDay()` UND `getTimezoneOffset()`
+     * in den Render schrieb und alle 46 Faelle gruen liess. Ein Waechter, der weniger
+     * abdeckt als sein eigener Name verspricht, ist die Fehlerklasse aus NT11.
+     */
+    expect(quelle).not.toMatch(
+      /\bget(?:Hours|Minutes|Seconds|Milliseconds|FullYear|Month|Date|Day|TimezoneOffset)\s*\(/,
+    );
+    expect(quelle).not.toMatch(/\bto(?:Date|Time)String\s*\(/);
   });
 });

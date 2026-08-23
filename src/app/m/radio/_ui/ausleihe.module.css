@@ -153,9 +153,9 @@
   --radio-rahmen-gedaempft: var(--iuk-gedaempft);
   --radio-rahmen-marke: var(--iuk-marke);
   --radio-rahmen-flaeche: var(--iuk-flaeche-aktiv);
-  /* Das Tap-Mass der Fussnavigation, Spec:3713 („Fussnavigation je Eintrag 64"). */
+  /* Das Tap-Mass der Fussnavigation, Spec:3714 („Fussnavigation je Eintrag 64"). */
   --radio-tap-nav: 64px;
-  /* WCAG 2.5.5 Stufe AAA, Spec:3714-3716 („Statuschips im Filter 44", „Gruppenkopf 44"). */
+  /* WCAG 2.5.5 Stufe AAA, Spec:3715,3717 („Statuschips im Filter 44", „Gruppenkopf 44"). */
   --radio-tap-klein: 44px;
 
   box-sizing: border-box;

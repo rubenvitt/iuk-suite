@@ -3,10 +3,27 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { mount, unmount, query, queryAll } from "@/app/m/qr/_lib/test-dom";
-import { GERAETE_STATUS, statusEtikett, statusTon } from "../_lib/status";
+import { GERAETE_STATUS, STATUS_HEX, STATUS_TOENE, statusEtikett, statusTon } from "../_lib/status";
 import { StatusChip } from "./StatusChip";
 
 const QUELLE = "src/app/m/radio/_ui/StatusChip.tsx";
+const STYLESHEET = "src/app/m/radio/_ui/ausleihe.module.css";
+
+/**
+ * Der Rumpf GENAU EINER CSS-Regel, an ihrem Selektor aufgeschlagen.
+ *
+ * ⛔ Ohne die Trennung waere der Fall unten blind gegen ein VERTAUSCHEN der beiden
+ * Zweige: beide Werte staenden weiterhin irgendwo in der Datei. Wirft, wenn der Selektor
+ * fehlt — ein stiller Rueckfall auf die ganze Datei waere genau der Waechter ueber leerer
+ * Menge, gegen den dieser Fall gebaut ist.
+ */
+function regelkoerper(css: string, selektor: string): string {
+  const auf = css.indexOf(selektor);
+  if (auf === -1) throw new Error(`Selektor fehlt in ${STYLESHEET}: ${selektor}`);
+  const zu = css.indexOf("}", auf);
+  if (zu === -1) throw new Error(`Regel ohne Ende in ${STYLESHEET}: ${selektor}`);
+  return css.slice(auf + selektor.length, zu);
+}
 
 /**
  * Kopie von `ohneKommentare()` aus `src/app/m/radio/riegel.test.ts:181-201`.
@@ -88,6 +105,52 @@ describe("radio-StatusChip: Farbe ist nie der einzige Traeger", () => {
     }
     const quelle = readFileSync(QUELLE, "utf8");
     expect(quelle, "eine Hexzahl im Markup — sie gehoert nach _lib/status.ts").not.toMatch(/#[0-9a-fA-F]{6}/);
+    /*
+     * ⛔ UND KEIN INLINE-`style` UEBERHAUPT. Der Hexscan darueber faengt `#22c55e`, aber
+     * NICHT `lime`, `#0f0` oder `rgb(34,197,94)` — gemessen als Sonde P7 des Reviews:
+     * `style={{ background: "lime" }}` am Punkt liess alle 46 Faelle gruen, und der Halt
+     * `getAttribute("style")` oben sieht nur den CHIP, nicht den Punkt, der die Farbe
+     * traegt. Der Chip hat fuer ein Inline-`style` keine Berechtigung; das ist die
+     * Zusicherung, die der Kommentar dieses Falles beschreibt.
+     */
+    expect(
+      ohneKommentare(quelle),
+      "ein Inline-style — die Farbe gehoert ins Stylesheet, mit BEIDEN Zweigen",
+    ).not.toMatch(/style=\{\{/);
+  });
+
+  it("das Stylesheet fuehrt fuer JEDEN Ton BEIDE Werte aus STATUS_HEX", () => {
+    /*
+     * ⛔ DIE ZWEI KOMMENTARE, DIE DIE ABLEITUNG BEHAUPTEN, BEKOMMEN HIER IHRE ZEILE:
+     * `ausleihe.module.css:307-309` („Abgelesen aus `STATUS_HEX` in `_lib/status.ts`") und
+     * `StatusChip.tsx:16-19`. Bis hierher fuehrte sie KEINE Zeile aus — Sonde P5 des
+     * Reviews verdrehte zwei Werte auf `#ff00ff`, Sonde P6 loeschte die Dunkelvariable
+     * `--radio-status-defekt` ersatzlos; beide Male blieben alle 393 Faelle gruen. Genau
+     * die Klasse aus REVIEW-A15 F3, die das Ledger fuer A16-A20 bindet
+     * (`progress.md:441-446`).
+     *
+     * ⛔ GEPRUEFT WIRD DIE BINDUNG NAME->WERT, nicht das blosse Vorkommen einer Hexzahl:
+     * ein `toContain(hex)` waere gruen, sobald der Wert IRGENDWO in der Datei steht — ein
+     * Waechter ueber leerer Menge in neuer Schreibweise.
+     *
+     * ⛔ VOLLZAEHLIG UEBER `STATUS_TOENE`, nicht ueber eine zweite Liste (dieselbe Regel
+     * wie im ersten Fall dieser Datei).
+     * ⚠️ Was das NICHT sagt: ob der Dunkelzweig auf einem Bildschirm richtig aussieht. Das
+     * ist der Browserlauf in beiden Farbmodi (⬜, `ausleihe.module.css:315-320`). Hier
+     * steht der Textvergleich — und der ist kein Browser-Posten.
+     */
+    const css = readFileSync(STYLESHEET, "utf8");
+    const hell = regelkoerper(css, ".chip {");
+    const dunkel = regelkoerper(css, ':root[data-theme="dark"] .chip {');
+    for (const ton of STATUS_TOENE) {
+      const paar = STATUS_HEX[ton];
+      expect(hell, `${ton}: der HELLE Wert aus STATUS_HEX, im Hellzweig`).toMatch(
+        new RegExp(`--radio-status-${ton}:\\s*${paar.hell}\\b`),
+      );
+      expect(dunkel, `${ton}: der DUNKLE Wert aus STATUS_HEX, im Dunkelzweig`).toMatch(
+        new RegExp(`--radio-status-${ton}:\\s*${paar.dunkel}\\b`),
+      );
+    }
   });
 
   it("der Chip zeigt GENAU sein Etikett — kein fuenfter Zustand, kein Rueckfalltext", async () => {

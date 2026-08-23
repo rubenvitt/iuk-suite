@@ -57,7 +57,7 @@ import s from "./ausleihe.module.css";
  * Server Action aus `_actions/sitzung.ts` — ⛔ kein `signOut`, das raeumte die
  * Suite-Sitzung auf ALLEN Modul-Hosts (Spec:2610-2614).
  *
- * ⛔ KEIN `viewport`-Export UND KEIN `manifest.webmanifest` (§4.9.4, Spec:3392).
+ * ⛔ KEIN `viewport`-Export UND KEIN `manifest.webmanifest` (§4.9.4, Spec:3397).
  *
  * ⚠️ DIE DREI ANGABEN SIND PFLICHT-PROPS. Ein Layout kann einer Seite keine Props reichen;
  * deshalb steht der Rahmen in den drei Seiten (A18-A20) und nicht im Layout, und jede
@@ -131,11 +131,15 @@ export function AusleihRahmen({
           </div>
           {zugang.weg === "code" ? (
             /*
-             * Uhrzeit UND Ablaufentscheidung rechnet der SERVER; die Insel zeigt und
-             * wechselt nur. ⚠️ Die Grenze steht hier ausgeschrieben statt aus
-             * `Restzeit.tsx` importiert — DAS IST FALLE 6, nicht Nachlaessigkeit: jene
-             * Datei traegt "use client", ein WERT von dort kaeme hier als Client-Referenz
-             * an. Wandert die Grenze, gehoert sie in ein Modul ohne "use client".
+             * ⛔ UHRZEIT UND ABLAUFENTSCHEIDUNG RECHNET DER SERVER; die Insel zeigt und
+             * wechselt nur. Aus `Restzeit.tsx` kommt deshalb NUR die Komponente selbst und
+             * kein WERT — jene Datei traegt "use client", und ein Wert von dort kaeme hier
+             * als Client-Referenz an (Falle 6, `CLAUDE.md`, Punkt 6).
+             * ⚠️ EINE WARNSCHWELLE GIBT ES NICHT, und das ist entschieden: `lagerbuch`
+             * warnt „ab 30 Minuten", fuer `radio` nennt kein Dokument dieses Wegs eine
+             * solche Zahl. Eine geratene waere eine Erfindung. Die einzige Schwelle, die
+             * dieser Planteil belegen kann, ist der Ablauf selbst — und den rechnet die
+             * Zeile darunter.
              */
             <Restzeit
               uhrzeit={uhrzeit(zugang.laeuftAb)}
