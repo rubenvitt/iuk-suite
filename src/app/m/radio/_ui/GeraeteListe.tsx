@@ -116,6 +116,19 @@ export function GeraeteListe({ geraete }: { geraete: readonly ListenGeraet[] }) 
             (`ausleihe.module.css`, `.filterknopf[aria-pressed="true"]`) — nicht umgekehrt.
             Dieselbe Anordnung wie beim `aria-current` der Fussnavigation
             (`AusleihRahmen.tsx:172-175`).
+
+            ⚠️ HIER STEHEN ZWEI BINDENDE SAETZE GEGENEINANDER, UND DAS STEHT DA, STATT STILL
+            ENTSCHIEDEN ZU WERDEN. `docs/design/README.md:266` verlangt „echte Radiogruppen
+            statt Knopfreihen (ein Tabstop pro Gruppe, Pfeiltasten waehlen nativ)"; die vier
+            Filter sind fachlich genau das — sie schliessen einander aus. Gebaut ist trotzdem
+            die KNOPFREIHE des Bestands (`DeviceFilterBar.tsx:66-85`: `role="group"` plus
+            `aria-pressed`), weil Spec:3600 fuer diesen Fluss „wandert fachlich unveraendert
+            mit" schreibt und `_lib/filter.ts:43-45` die Insel ausdruecklich eine „Knopfreihe"
+            nennt. ⛔ Der Unterschied ist NICHT kosmetisch: eine Radiogruppe braucht rollenden
+            `tabIndex` und Pfeiltasten-Bedienung, also ein anderes Bedienmodell als das
+            portierte. ⬜ WER DAS UMSTELLT, BRAUCHT EINE BETREIBERENTSCHEIDUNG — der Bericht
+            zu A18 fuehrt den Posten; A19 und A20 bauen ihre Auswahlflaechen nach derselben
+            Zeile, damit das Modul nicht zwei Bedienmodelle fuer dieselbe Sache fuehrt.
           */}
           {STATUS_FILTER.map((wert) => (
             <button

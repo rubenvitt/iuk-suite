@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import type Database from "better-sqlite3";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openModuleDatabase } from "@/core/db";
@@ -40,6 +40,21 @@ import { devices, loans } from "../../_db/schema";
  */
 
 const MIGRATIONEN = "src/app/m/radio/_db/migrations";
+const STYLESHEET = "src/app/m/radio/_ui/ausleihe.module.css";
+
+/**
+ * Der Rumpf EINER CSS-Regel. Zeichengleiche Kopie aus
+ * `src/app/m/radio/_ui/StatusChip.test.tsx:20-26` — vitest laedt Testdateien nicht als
+ * Module fuereinander, und eine geteilte Helferdatei unter `src/app/m/radio/` zaehlte der
+ * Direktiven-Scan aus `riegel.test.ts:924-977` mit. Die Verdoppelung ist der Preis.
+ */
+function regelkoerper(css: string, selektor: string): string {
+  const auf = css.indexOf(selektor);
+  if (auf === -1) throw new Error(`Selektor fehlt in ${STYLESHEET}: ${selektor}`);
+  const zu = css.indexOf("}", auf);
+  if (zu === -1) throw new Error(`Regel ohne Ende in ${STYLESHEET}: ${selektor}`);
+  return css.slice(auf + selektor.length, zu);
+}
 
 /** Der Ausleihzeitpunkt der Fixtures: 14.06.2026, 09:12 in Berlin (dort UTC+2). */
 const AUSGELIEHEN_AM = new Date("2026-06-14T07:12:00Z");
@@ -117,6 +132,7 @@ vi.mock("../../_ui/GeraeteListe", () => ({
 }));
 
 import { requireAusleihZugang } from "../../_lib/ausleihZugang";
+import { STATUS_HEX } from "../../_lib/status";
 import GeraeteUebersichtPage, { dynamic } from "./page";
 import { mount, unmount, query, exists, submitForm } from "@/app/m/qr/_lib/test-dom";
 
@@ -423,9 +439,50 @@ describe("die Uebersicht an /geraete", () => {
     await submitForm("form");
     expect(listeAktualisierenMock).toHaveBeenCalledTimes(1);
 
-    const knopf = query('[data-rolle="radio-aktualisieren"]');
+    /*
+     * ⛔ DER SELEKTOR NENNT DEN VORFAHREN, UND DAS IST DIE ZUSAGE, NICHT DIE KOSMETIK:
+     * `useFormStatus()` liest das `<form>`, in dem SEINE Komponente steht — und gibt ohne
+     * Vorfahr klaglos `{ pending: false }` zurueck, statt zu werfen. Wanderte der Knopf aus
+     * dem Formular heraus, waere der sperrende Zustand tot, und JEDES Tor bliebe gruen.
+     * `form ...` macht genau diese Wanderung rot.
+     */
+    const knopf = query('form [data-rolle="radio-aktualisieren"]');
     expect(knopf.textContent).toContain("Aktualisieren");
     expect(knopf.querySelector("svg")).toBe(null);
+  });
+
+  it("die Erfolgszeile fuehrt das GRUEN aus STATUS_HEX, in beiden Farbmodi", () => {
+    /*
+     * ⛔ ENTSCHEIDUNG E6, WOERTLICH: „Erfolgsfarbe GRUEN AUS DEM CHIP-SATZ, nicht
+     * `colorSuccess` — ein Farbsystem je Flaeche" (Spec:3754-3776). Der Chip-Satz ist
+     * `STATUS_HEX` (`_lib/status.ts`, ⬜ A-L10), woertlich aus dem Alt-Kiosk.
+     *
+     * ⛔ OHNE DIESE ZEILE STUENDE DIE ABLEITUNG NUR IM KOMMENTAR. `.gebucht` traegt die zwei
+     * Werte SELBST — es kann sie nicht ueber `var(--radio-status-frei)` holen, weil jene
+     * Variable auf `.chip` deklariert ist und nicht auf einem gemeinsamen Vorfahren
+     * (`ausleihe.module.css`, Kopf des Chip-Blocks: „`.chip` TRAEGT SIE SELBST"). Genau
+     * deshalb ist das ein zweites Vorkommen derselben Zahl, und genau deshalb braucht es
+     * einen Waechter: „die beiden liefen beim ersten Umbau auseinander — ohne dass ein Test
+     * es saehe" (Entscheidung E13). Der Zwilling fuer `.chip` steht in
+     * `_ui/StatusChip.test.tsx`, mit derselben Bauform und derselben Messung im Ruecken
+     * (dort blieben zwei verdrehte Werte ueber 393 Faelle gruen).
+     *
+     * ⛔ GEPRUEFT WIRD DIE BINDUNG REGEL->WERT, nicht das blosse Vorkommen einer Hexzahl: ein
+     * `toContain(hex)` waere gruen, sobald der Wert IRGENDWO in der Datei steht — und er
+     * steht dort, im Chip-Block.
+     *
+     * ⚠️ Was das NICHT sagt: ob das Gruen auf einem Bildschirm lesbar ist. Das ist der
+     * Browserlauf in BEIDEN Farbmodi (Hauslehre „UI-Abnahme: messen, nicht schauen").
+     */
+    const css = readFileSync(STYLESHEET, "utf8");
+    const hell = regelkoerper(css, ".gebucht {");
+    const dunkel = regelkoerper(css, ':root[data-theme="dark"] .gebucht {');
+    expect(hell, "der HELLE Wert aus STATUS_HEX.frei, im Hellzweig").toMatch(
+      new RegExp(`--radio-gebucht-farbe:\\s*${STATUS_HEX.frei.hell}\\b`),
+    );
+    expect(dunkel, "der DUNKLE Wert aus STATUS_HEX.frei, im Dunkelzweig").toMatch(
+      new RegExp(`--radio-gebucht-farbe:\\s*${STATUS_HEX.frei.dunkel}\\b`),
+    );
   });
 
   it("ist force-dynamic", async () => {
