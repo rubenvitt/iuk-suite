@@ -18,9 +18,19 @@ import { join, relative } from "node:path";
  * `pnpm build` unsichtbar — und bei `requireAusleihSchreibend` ist sogar der AUFRUF ohne
  * Ergebnispruefung typkorrekt (Spec:2780-2784). Deshalb prueft dieser Scan BEIDES: dass
  * ein Riegel gerufen wird, UND dass sein Ergebnis nicht verworfen wird.
+ *
+ * ⛔ FIX-RUNDE 1 (2026-08-23, REVIEW-A8 W1/W2/W3): drei gemessene Loecher sind zu. Alle
+ * drei liessen den Scan GRUEN ueber einer ungeriegelten exportierten Action stehen:
+ *   W1 — der `koerper` reichte bis zum NAECHSTEN `export`; eine private Hilfsfunktion
+ *        dahinter, die einen Riegel ruft, wurde der Action zugeschlagen. Jetzt endet der
+ *        `koerper` an der RUMPFKLAMMER (`rumpfGrenzen`).
+ *   W2 — nur die Deklarationsform war sichtbar; `export const x = async () => {}` ist in
+ *        einer `"use server"`-Datei eine gueltige Action und war unsichtbar. Jetzt
+ *        VERBIETET der vierte Fall jede andere Laufzeit-Exportform, statt sie zu pruefen.
+ *   W3 — der Kommentar versprach „der Riegel ist die ERSTE Anweisung", geprueft wurde nur
+ *        die Reihenfolge gegen `formData.get`. Jetzt wird die erste Anweisung geprueft.
  */
 const ORDNER = join(process.cwd(), "src/app/m/radio/_actions");
-const SELBST = join(ORDNER, "guards.test.ts");
 
 /**
  * ⛔ GENAU DREI EINTRAEGE — Planentscheidung E12, und die Abweichung von Spec:6762
@@ -54,20 +64,86 @@ const AUSNAHMEN = [
  *  `HANDLER_ANZAHL` in `riegel.test.ts:60-72`: `laenge >= 0` ist fuer jede Liste wahr. */
 const ACTION_DATEIEN_ANZAHL = 1;
 
+/**
+ * ⛔ DIE ZWEITE EXISTENZPFLICHT, UND SIE IST NEU (REVIEW-A8 W2, zweite Haelfte): die
+ * DATEIzahl buergt fuer Dateien, nicht fuer EXPORTE. Faende `exportierteActions` in jeder
+ * Datei nichts — weil die Hausform sich aendert, weil das Muster bricht —, bliebe
+ * `verstoesse` leer und der Riegelscan LEER-GRUEN, waehrend die Dateizahl weiter stimmt.
+ *
+ * ⛔ EXAKT, NICHT „MINDESTENS" — dieselbe Begruendung wie oben und wie
+ * `riegel.test.ts:60-72`. `riegel.test.ts:697` fuehrt an derselben Stelle eine
+ * Untergrenze; die ist fuer jede nichtleere Liste wahr und hat keine Mutation, die sie
+ * rot macht. Hier steht deshalb die schaerfere Form.
+ *
+ * DER ANHEBE-FAHRPLAN, eine Auflage an die Nachfolger — die Zahlen sind aus den Briefen
+ * abgelesen, nicht geraten:
+ *   A8  `codes.ts`:    erstelleCode, setzeCodeAktiv                        -> 2
+ *   A9  + `gate.ts`:   einloesenAmGate (briefs/A910.md:62)
+ *       + `sitzung.ts`: beenden, erneuereSitzung (briefs/A910.md:87-88)    -> 5
+ *   A17 + `ausleihe.ts`: ausleiheAnlegen, rueckgabeBuchen,
+ *       entleiherVorschlaege, listeAktualisieren (briefs/A17.md:26-29)     -> 9
+ */
+const ACTION_DEKLARATIONEN_ANZAHL = 2;
+
 const RIEGEL = /\brequireRadioAdmin\s*\(|\brequireAusleihSchreibend\s*\(/;
 const HOST_RIEGEL = /\brequireRadioHost\s*\(/;
 
+/**
+ * ⛔ DIE EINZIGE ZULAESSIGE FORM EINES LAUFZEIT-EXPORTS UNTER `_actions/` (REVIEW-A8 W2).
+ *
+ * Erlaubt sind daneben NUR `export type` und `export interface` — beide werden vom
+ * Uebersetzer GELOESCHT und koennen deshalb gar keine Action sein. Das ist der Grund,
+ * nicht der Hausstil: `_actions/ausleihe.ts` aus A17 fuehrt `export type { AusleihErgebnis,
+ * RueckgabeErgebnis };` (briefs/A17.md:24) und `_actions/gate.ts` aus A9 fuehrt
+ * `export type GateZustand = { fehler?: string };` (briefs/A910.md:57) — ein pauschales
+ * Verbot machte beide Aufgaben rot-by-construction, und der naheliegende Fix waere, diesen
+ * Scan abzuschwaechen.
+ *
+ * ⛔ WARUM VERBIETEN STATT PRUEFEN: `export const x = async () => {}` ist in einer
+ * `"use server"`-Datei eine vollwertige Server Action. Gemessen am 2026-08-23 war sie fuer
+ * den Scan unsichtbar (REVIEW-A8 Abschnitt 4.3: ungeriegelt angehaengt, `Tests 4 passed`).
+ * Die Deckung des Scans um jede weitere Form zu erweitern, hiesse jede kuenftige Form
+ * mitzuraten; sie zu VERBIETEN macht die Luecke konstruktiv unmoeglich.
+ * ⚠️ GEMESSEN, dass das keine Erfindung ist: ein `grep -rn "^export const .* = async"`
+ * ueber saemtliche `_actions`-Verzeichnisse der Suite liefert NULL Treffer — die Hausform
+ * ist heute ausnahmslos die Deklaration. ⛔ Aber eine Gewohnheit ist kein Riegel, und vor
+ * dieser Zeile gab es keinen.
+ *
+ * ⚠️ MITVERBOTEN, UND DAS IST ABSICHT: `export default`, `export { x }`, `export * from`
+ * und die generische Form `export async function f<T>(…)`. Die letzte ist heute ebenfalls
+ * unsichtbar (das Muster unten verlangt `(` direkt hinter dem Namen); eine generische
+ * Server Action ist ohnehin keine sinnvolle Form, weil jedes Argument serialisierbar sein
+ * muss.
+ */
+const EXPORT_FORM = /^export\s+(?:type\b|interface\b|(?:async\s+)?function\s+\w+\s*\()/;
+
 function actionDateien(): string[] {
   if (!existsSync(ORDNER)) return [];
+  /*
+   * ⛔ DER ENDUNGSFILTER IST ES, DER „DIE DATEI UEBERSPRINGT SICH SELBST" ERFUELLT
+   * (Auflage des A8-Briefs). Bis zur Fix-Runde 1 stand darunter zusaetzlich ein
+   * `.filter((p) => p !== SELBST)` — ein TOTER PFAD (REVIEW-A8 S1): `guards.test.ts` ist
+   * bereits durch `!/\.(?:test|spec)\.ts$/` verworfen, gemessen am 2026-08-23. Ein toter
+   * Filter liest sich wie ein zweiter Riegel und ist keiner; er ist deshalb raus, und der
+   * verbliebene traegt die Auflage hier namentlich.
+   */
   return readdirSync(ORDNER)
     .filter((d) => /\.ts$/.test(d) && !/\.(?:test|spec)\.ts$/.test(d))
-    .map((d) => join(ORDNER, d))
-    .filter((p) => p !== SELBST);
+    .map((d) => join(ORDNER, d));
 }
 
 /*
- * ⛔ HIER STEHEN DIE ZWEI ECHTEN FUNKTIONEN, WOERTLICH KOPIERT AUS `riegel.test.ts:148-213`
+ * ⛔ HIER STEHEN DIE ZWEI ECHTEN FUNKTIONEN, KOPIERT AUS `riegel.test.ts:148-213`
  * (`ohneKommentare` und `ohneKommentareUndZeichenketten`, mit ihren Kommentaren).
+ *
+ * ⚠️ „KOPIERT", NICHT „WOERTLICH" — UND DIE ABWEICHUNG STEHT HIER STATT IN EINER
+ * BEHAUPTUNG (REVIEW-A8 S5). Bis zum 2026-08-23 stand an dieser Stelle „WOERTLICH KOPIERT
+ * … mit ihren Kommentaren"; gemessen wurde die Kopie gegen `riegel.test.ts:148-213`, und
+ * AUSGELASSEN sind `riegel.test.ts:152-156` — ein riegel-spezifischer Absatz ueber den
+ * Kopfkommentar von `_lib/zugang.ts`. Er redet ueber `_lib/`, nicht ueber `_actions/`; die
+ * Auslassung ist richtig, die Behauptung „woertlich" war es nicht. DIE RUMPFE SIND
+ * ZEICHENGLEICH — das war die einzige Abweichung. Die Kopie steht unmittelbar unter diesem
+ * Absatz (`ohneKommentare` und `ohneKommentareUndZeichenketten`).
  *
  * ⛔ KEIN `declare function`. Eine reine Typdeklaration hat keinen Rumpf: `typecheck`
  * bliebe GRUEN und der Test stuerbe zur Laufzeit an „is not a function" — die
@@ -82,7 +158,6 @@ function actionDateien(): string[] {
  * Ohne das Leeren der Literale erfuellte ein String `"requireRadioAdmin("` als reiner
  * Text die Behauptung, OHNE dass der Riegel je liefe.
  */
-
 /**
  * Kommentare werden VOR dem Vergleich geleert — inhaltlich, nicht zeilenweise: die
  * Zeilenzahl bleibt gleich, damit die `datei:zeile`-Meldung weiter stimmt.
@@ -146,7 +221,124 @@ function ohneKommentareUndZeichenketten(quelle: string): string {
 }
 
 /**
- * Die exportierten FUNKTIONEN einer Datei, je mit ihrem Koerperausschnitt.
+ * DIE GRENZEN DES FUNKTIONSRUMPFES: Index der oeffnenden `{` und Index der zugehoerigen
+ * schliessenden `}` — gezaehlt, nicht geraten.
+ *
+ * ⛔ DAS IST DIE BEHEBUNG VON REVIEW-A8 W1, UND DER FUND WAR GEMESSEN: bis zum 2026-08-23
+ * endete der `koerper` einer Deklaration am NAECHSTEN `export`. Eine NICHT exportierte
+ * Hilfsfunktion HINTER einer ungeriegelten Action wurde damit deren `koerper`
+ * zugeschlagen, und ihr Riegel erfuellte die Behauptung fuer die Action. Belegt:
+ * `export async function sondeOhneRiegel()` allein faerbte den Scan rot; dieselbe Sonde
+ * plus ein `async function hilfsRiegel(){ await requireRadioAdmin(); }` dahinter lief mit
+ * `Tests 4 passed (4)` GRUEN durch (REVIEW-A8 Abschnitt 4.2).
+ *
+ * `abParamAuf` steht HINTER der oeffnenden `(` der Parameterliste.
+ *
+ * Drei Abschnitte, in dieser Reihenfolge:
+ *   1. die Parameterliste ueberspringen (Klammerzaehlung auf `(`/`)`),
+ *   2. die Rueckgabe-Annotation ueberspringen — sie darf `{` enthalten, aber nur INNERHALB
+ *      von `<…>`, `(…)` oder `[…]`; `Promise<{ code: string }>` ist genau dieser Fall,
+ *   3. ab der Rumpfklammer bis zu ihrer Partnerin zaehlen.
+ *
+ * ⚠️ DIE EINE FORM, DIE DIESE ZERLEGUNG NICHT TRIFFT, IST BENANNT: eine Rueckgabe-
+ * Annotation, die auf oberster Ebene ein Objektliteral fuehrt (`): { a: number } {`).
+ * Der Scan hielte sie fuer den Rumpf und meldete anschliessend „der Riegel ist nicht die
+ * erste Anweisung" — er ist dort also FALSCH-POSITIV UND LAUT, nie falsch-negativ und
+ * still. Das ist die Richtung, die dieses Haus verlangt (`riegel.test.ts:157-161`).
+ *
+ * ⛔ KEIN STILLER RUECKFALL: laesst sich der Rumpf nicht bestimmen, ist das ein VERSTOSS
+ * und kein „dann eben bis zum naechsten export". Genau dieser Rueckfall WAR W1.
+ */
+function rumpfGrenzen(q: string, abParamAuf: number): { auf: number; zu: number } | null {
+  let runde = 1;
+  let i = abParamAuf;
+  while (i < q.length && runde > 0) {
+    if (q[i] === "(") runde++;
+    else if (q[i] === ")") runde--;
+    i++;
+  }
+  if (runde !== 0) return null;
+
+  let eckig = 0;
+  let spitz = 0;
+  runde = 0;
+  let auf = -1;
+  while (i < q.length) {
+    const z = q[i]!;
+    if (z === "(") runde++;
+    else if (z === ")") runde--;
+    else if (z === "[") eckig++;
+    else if (z === "]") eckig--;
+    else if (z === "<") spitz++;
+    else if (z === ">" && spitz > 0) spitz--;
+    else if (runde === 0 && eckig === 0 && spitz === 0) {
+      // Eine `;` auf oberster Ebene vor jeder `{` heisst: die Deklaration hat keinen
+      // Rumpf (Ueberladungssignatur). Das ist unter `_actions/` keine gueltige Form.
+      if (z === ";") return null;
+      if (z === "{") { auf = i; break; }
+    }
+    i++;
+  }
+  if (auf === -1) return null;
+
+  let geschweift = 0;
+  for (let j = auf; j < q.length; j++) {
+    if (q[j] === "{") geschweift++;
+    else if (q[j] === "}") {
+      geschweift--;
+      if (geschweift === 0) return { auf, zu: j };
+    }
+  }
+  return null;
+}
+
+/**
+ * Die ERSTE ANWEISUNG eines Rumpfes: alles bis einschliesslich des ersten `;` auf oberster
+ * Ebene, oder — falls eine Blockform (`if`, `try`, `for`) frueher kommt — bis zu deren `{`.
+ *
+ * ⛔ DAS IST DIE BEHEBUNG VON REVIEW-A8 W3. Der Kommentar an dieser Stelle behauptete
+ * „DER RIEGEL IST DIE ERSTE ANWEISUNG (Spec:2770)", geprueft wurde aber nur die
+ * Reihenfolge gegen `formData.get`. Gemessen am 2026-08-23: eine Action, die erst
+ * SCHREIBT und danach riegelt, lief mit `Tests 4 passed (4)` gruen durch (REVIEW-A8
+ * Abschnitt 4.4). Spec:2770 („Rueckgabewert, erste Anweisung") und Spec:3405-3406
+ * („als erste Anweisung, vor jedem Lesen von `formData`") tragen die schaerfere Zusage —
+ * jetzt loest der Code sie ein, statt sie zu behaupten.
+ */
+function ersteAnweisung(rumpf: string): string {
+  let runde = 0;
+  let eckig = 0;
+  let geschweift = 0;
+  for (let i = 0; i < rumpf.length; i++) {
+    const z = rumpf[i]!;
+    if (z === "(") runde++;
+    else if (z === ")") runde--;
+    else if (z === "[") eckig++;
+    else if (z === "]") eckig--;
+    else if (z === "}") geschweift--;
+    else if (z === "{") {
+      /*
+       * ⛔ EINE `{` AUF OBERSTER EBENE IST ZWEIERLEI, UND DIE VERWECHSLUNG WAERE STILL:
+       * bei `const { ok } = await requireAusleihSchreibend(…)` gehoert sie zur BINDUNG und
+       * die Anweisung laeuft weiter; bei `if (…) {` beginnt sie einen BLOCK, und dann ist
+       * die erste Anweisung eben dieser Block und nicht das, was in ihm steht. Wer beides
+       * gleich behandelt, laesst einen Riegel IM zweiten Block als „erste Anweisung"
+       * durchgehen — falsch-negativ und still, genau die Richtung, die hier verboten ist.
+       */
+      const davor = rumpf.slice(0, i).trimEnd();
+      const bindung = /(?:=|\b(?:const|let|var))$/.test(davor);
+      if (geschweift === 0 && runde === 0 && eckig === 0 && !bindung) {
+        return rumpf.slice(0, i + 1);
+      }
+      geschweift++;
+    } else if (runde === 0 && eckig === 0 && geschweift === 0 && z === ";") {
+      return rumpf.slice(0, i + 1);
+    }
+  }
+  return rumpf;
+}
+
+/**
+ * Die exportierten FUNKTIONEN einer Datei, je mit ihrem Koerperausschnitt und ihrem Rumpf.
  *
  * ⛔ `export type` UND `export interface` WERDEN VERWORFEN (Spec:6762). Ohne das waere
  * der Scan auf `AusleihErgebnis` und `RueckgabeErgebnis` rot-by-construction — und der
@@ -155,14 +347,25 @@ function ohneKommentareUndZeichenketten(quelle: string): string {
  * ⛔ GEZAEHLT WIRD JE DATEI JE DEKLARATION, NIE UEBER EIN `Set` DER NAMEN (Spec:6762):
  * zwei gleichnamige Exporte in zwei Dateien fielen sonst zu einem zusammen, und einer
  * bliebe unbewacht.
+ *
+ * ⛔ `koerper` ENDET AN DER RUMPFKLAMMER, NICHT AM NAECHSTEN `export` (W1, oben). Ist der
+ * Rumpf nicht bestimmbar, traegt der Eintrag `rumpf: null` — der Aufrufer meldet das als
+ * Verstoss.
  */
-function exportierteActions(quelle: string): { name: string; koerper: string }[] {
+function exportierteActions(
+  quelle: string,
+): { name: string; koerper: string; rumpf: string | null }[] {
   const q = ohneKommentareUndZeichenketten(quelle);
   const treffer = [...q.matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)\s*\(/g)];
-  return treffer.map((t, i) => ({
-    name: t[1]!,
-    koerper: q.slice(t.index!, treffer[i + 1]?.index ?? q.length),
-  }));
+  return treffer.map((t) => {
+    const grenzen = rumpfGrenzen(q, t.index! + t[0].length);
+    if (!grenzen) return { name: t[1]!, koerper: "", rumpf: null };
+    return {
+      name: t[1]!,
+      koerper: q.slice(t.index!, grenzen.zu + 1),
+      rumpf: q.slice(grenzen.auf + 1, grenzen.zu),
+    };
+  });
 }
 
 /**
@@ -225,28 +428,88 @@ describe("radio-_actions: jede exportierte Action traegt ihren Riegel", () => {
     ]);
   });
 
+  it("jeder Laufzeit-Export unter _actions ist eine export-function-Deklaration", () => {
+    /*
+     * ⛔ DER VIERTE FALL, NEU IN DER FIX-RUNDE 1 (REVIEW-A8 W2). Er PRUEFT die Pfeilform
+     * nicht, er VERBIETET sie — Begruendung an `EXPORT_FORM` im Kopf dieser Datei.
+     *
+     * ⚠️ WARUM DAS NICHT LEER-GRUEN LAUFEN KANN, obwohl hier keine eigene Untergrenze
+     * steht: die Dateiliste ist im ersten Fall EXAKT gezaehlt, und die Zahl der
+     * Deklarationen im dritten. Faende dieser Block nichts, waere spaetestens einer der
+     * beiden rot. Eine dritte Untergrenze hier waere ein zweiter Waechter ueber derselben
+     * Flaeche — die Form, gegen die B14 steht.
+     */
+    const verstoesse: string[] = [];
+    for (const pfad of actionDateien()) {
+      const q = ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8"));
+      for (const treffer of q.matchAll(/\bexport\b/g)) {
+        const ausschnitt = q.slice(treffer.index!, treffer.index! + 160).replace(/\s+/g, " ");
+        if (!EXPORT_FORM.test(ausschnitt)) {
+          verstoesse.push(
+            `${relative(ORDNER, pfad)}: ${ausschnitt.slice(0, 60).trim()} — nur ` +
+              "`export [async] function Name(`, `export type` und `export interface` sind " +
+              "hier zulaessig (REVIEW-A8 W2)",
+          );
+        }
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
+
   it("keine Action ohne Riegel, keine Ausnahme ohne Host-Riegel", () => {
     const verstoesse: string[] = [];
+    let deklarationen = 0;
     for (const pfad of actionDateien()) {
       const datei = relative(ORDNER, pfad);
       const quelle = readFileSync(pfad, "utf8");
-      for (const { name, koerper } of exportierteActions(quelle)) {
+      for (const { name, koerper, rumpf } of exportierteActions(quelle)) {
+        deklarationen++;
         const schluessel = `${datei}#${name}`;
+        if (rumpf === null) {
+          /*
+           * ⛔ KEIN STILLER RUECKFALL AUF „BIS ZUM NAECHSTEN export" — genau der war W1.
+           * Ein unbestimmbarer Rumpf ist ein Verstoss, damit er repariert wird und nicht
+           * durchrutscht.
+           */
+          verstoesse.push(`${schluessel}: Rumpf nicht bestimmbar — der Scan kann hier nichts zusichern`);
+          continue;
+        }
+        const erste = ersteAnweisung(rumpf);
         if ((AUSNAHMEN as readonly string[]).includes(schluessel)) {
           /*
            * ⛔ EINE AUSNAHME IST KEINE FREISTELLUNG. Alle drei Ausnahmen tragen
-           * `requireRadioHost` als erste Anweisung (Spec:6762, §3.5.5 Spec:2774) —
+           * `requireRadioHost` ALS ERSTE ANWEISUNG (Spec:6762, §3.5.5 Spec:2774) —
            * die eine Ausnahme vom Grundsatz „Actions werfen nicht", weil ein Action-POST
            * auf falschem Host kein Betriebsfall ist, sondern ein manipulierter
            * (Spec:2360-2362).
+           *
+           * ⛔ „ERSTE ANWEISUNG" WIRD SEIT DER FIX-RUNDE 1 AUCH HIER GEPRUEFT und nicht
+           * nur behauptet (REVIEW-A8 W3 galt dem Nachbarblock; derselbe Satz stand hier
+           * ungedeckt). Die Briefe der Nachfolger tragen ihn woertlich:
+           * `briefs/A910.md:73` („Erste Anweisung: `requireRadioHost(await headers())`")
+           * und `briefs/A910.md:102` („werfend, erste Anweisung").
            */
-          if (!HOST_RIEGEL.test(koerper)) {
-            verstoesse.push(`${schluessel}: Ausnahme OHNE requireRadioHost( (Spec:6762)`);
+          if (!HOST_RIEGEL.test(erste)) {
+            verstoesse.push(
+              `${schluessel}: Ausnahme OHNE requireRadioHost( als erste Anweisung (Spec:6762)`,
+            );
           }
           continue;
         }
         if (!RIEGEL.test(koerper)) {
           verstoesse.push(`${schluessel}: weder requireRadioAdmin( noch requireAusleihSchreibend(`);
+        } else if (!RIEGEL.test(erste)) {
+          /*
+           * ⛔ DER RIEGEL IST DIE ERSTE ANWEISUNG (REVIEW-A8 W3): Spec:2770
+           * („Rueckgabewert, erste Anweisung") und §4.2.1 Spec:3405-3406 („als erste
+           * Anweisung, vor jedem Lesen von `formData`"). Die Zusage stand bis zum
+           * 2026-08-23 nur im Kommentar; eine Action, die erst SCHREIBT und danach
+           * riegelt, lief gruen durch. `briefs/A17.md:49` bindet alle vier Ausleih-Actions
+           * daran.
+           */
+          verstoesse.push(
+            `${schluessel}: der Riegel ist nicht die ERSTE Anweisung (Spec:2770, §4.2.1)`,
+          );
         }
         /*
          * ⛔ DIE ZWEITE HAELFTE, UND SIE IST DIE GEFAEHRLICHERE (Spec:2780-2784):
@@ -272,17 +535,22 @@ describe("radio-_actions: jede exportierte Action traegt ihren Riegel", () => {
          * ⛔ DER ERSTE KONJUNKT `RIEGEL.test(koerper)` IST HIER RAUS (Vorabscan-Fund F7):
          * `RIEGEL` ENTHAELT `requireAusleihSchreibend\s*\(` — er war vom zweiten
          * impliziert und laese sich spaeter wie eine Absicht.
+         *
+         * ⛔ SEIT DER FIX-RUNDE 1 UEBER DEM RUMPF, NICHT UEBER DEM `koerper` (W1): der
+         * `koerper` reicht nicht mehr in die naechste Deklaration hinein, aber er fuehrt
+         * weiterhin die Signatur, und die Nachverwendung eines Namens ist eine Frage an
+         * den Rumpf.
          */
         const bindung =
           /\b(?:const|let)\s+(\w+|\{[^}]*\})\s*=\s*await\s+requireAusleihSchreibend\s*\(/
-            .exec(koerper);
-        if (/requireAusleihSchreibend\s*\(/.test(koerper) && !bindung) {
+            .exec(rumpf);
+        if (/requireAusleihSchreibend\s*\(/.test(rumpf) && !bindung) {
           verstoesse.push(
             `${schluessel}: requireAusleihSchreibend( ohne Bindung — das Ergebnis wird verworfen (Spec:2780-2784)`,
           );
         }
         if (bindung) {
-          const rest = koerper.slice(bindung.index + bindung[0].length);
+          const rest = rumpf.slice(bindung.index + bindung[0].length);
           const namen = gebundeneNamen(bindung[1]!);
           const gelesen = namen.some((n) => new RegExp(`\\b${n}\\b`).test(rest));
           if (!gelesen) {
@@ -292,23 +560,27 @@ describe("radio-_actions: jede exportierte Action traegt ihren Riegel", () => {
           }
         }
         /*
-         * DER RIEGEL IST DIE ERSTE ANWEISUNG (Spec:2770, §4.2.1 Spec:3405-3406:
-         * „als erste Anweisung, vor jedem Lesen von `formData`"). Gemessen wird ueber die
-         * Textposition.
+         * DIE REIHENFOLGE GEGEN `formData.get` — die SPEZIFISCHERE Meldung fuer den Fall,
+         * den §4.2.1 (Spec:3405-3406) namentlich fuehrt. Sie steht NEBEN der
+         * Erste-Anweisung-Pruefung, nicht statt ihrer: wer `formular.get` vor den Riegel
+         * zieht, bekommt beide Zeilen und weiss damit sofort, WELCHE Zusage er gebrochen
+         * hat. Ein Scan darf zweimal laut sein; still darf er nicht sein.
          *
-         * ⛔ GEMESSEN WIRD IM RUMPF, NICHT IM `koerper`. `koerper` beginnt beim Wort
-         * `export` und enthaelt damit die PARAMETERLISTE. Die bindenden Signaturen aus
-         * A17 fuehren dort `formular: FormData` — ein Vergleich ueber den ganzen
-         * `koerper` meldete fuer `ausleiheAnlegen` und `rueckgabeBuchen` IMMER „liest
-         * formData VOR dem Riegel", bei richtiger Implementierung.
-         * (`ohneKommentareUndZeichenketten` leert nur Kommentare und Literale;
-         * Typannotationen bleiben stehen.)
+         * ⛔ GEMESSEN WIRD IM RUMPF, NICHT IM `koerper`. Der `koerper` fuehrt die
+         * PARAMETERLISTE; die bindenden Signaturen aus A17 tragen dort `formular: FormData`
+         * (`briefs/A17.md:26-27`) — ein Vergleich ueber den ganzen `koerper` meldete fuer
+         * `ausleiheAnlegen` und `rueckgabeBuchen` IMMER „liest formData VOR dem Riegel",
+         * bei richtiger Implementierung.
          *
          * ⛔ ZUSAETZLICH VERENGT AUF LESEZUGRIFFE: nicht der NAME `formular` zaehlt,
          * sondern sein `.get(`. Beides zusammen, damit weder eine Annotation noch eine
          * Weitergabe als Argument faelschlich als „Lesen" gilt.
+         *
+         * ⚠️ REVIEW-A8 S2 IST DAMIT ERLEDIGT: bis zum 2026-08-23 stand hier
+         * `koerper.slice(koerper.indexOf("{"))`, was bei `erstelleCode` die Klammer des
+         * RUECKGABETYPS `Promise<{ code: string }>` traf statt der Rumpfklammer. Der Rumpf
+         * wird jetzt gezaehlt (`rumpfGrenzen`), nicht gesucht.
          */
-        const rumpf = koerper.slice(koerper.indexOf("{"));
         const riegelPos = rumpf.search(RIEGEL);
         const formPos = rumpf.search(/\bform(?:Data|ular)\s*\.\s*get\b/);
         if (riegelPos !== -1 && formPos !== -1 && formPos < riegelPos) {
@@ -317,9 +589,18 @@ describe("radio-_actions: jede exportierte Action traegt ihren Riegel", () => {
       }
     }
     expect(verstoesse).toEqual([]);
+    /*
+     * ⛔ DIE ZWEITE EXISTENZPFLICHT, NACH der Auswertung (REVIEW-A8 W2, zweite Haelfte).
+     * Ohne sie bliebe `verstoesse` leer, wenn `exportierteActions` fuer JEDE Datei nichts
+     * liefert — der Scan liefe leer-gruen, waehrend die Dateizahl weiter stimmt.
+     * Begruendung der EXAKTEN Zahl und der Anhebe-Fahrplan: `ACTION_DEKLARATIONEN_ANZAHL`
+     * im Kopf dieser Datei.
+     */
+    expect(deklarationen, "ACTION_DEKLARATIONEN_ANZAHL anheben — Fahrplan im Kopf dieser Datei")
+      .toBe(ACTION_DEKLARATIONEN_ANZAHL);
   });
 
-  it("jede Datei unter _actions/ traegt use server als erste Direktive", () => {
+  it("jede Datei unter _actions traegt use server als erste Direktive", () => {
     /*
      * Ohne die Direktive ist eine „Server Action" eine gewoehnliche Funktion — der Import
      * aus einer Client-Insel schluege dann fehl oder, schlimmer, zoege den Servercode ins

@@ -26,7 +26,16 @@
 // ⛔ DARAUS FOLGT DIE AUFLAGE, UND SIE GILT FUER JEDEN NACHFOLGER: wer `radio` in
 // `seedAllModules()` eintraegt oder `seedLokal` sonstwie an den Boot haengt, MUSS im selben
 // Zug `zc-1` entfernen. Beides zusammen ist ein gueltiger anonymer SCHREIBzugang auf einer
-// Generalproben-Instanz, und kein Tor dieses Repos wuerde es melden.
+// Generalproben-Instanz.
+// ⚠️ HIER STAND BIS ZUM 2026-08-23 „und kein Tor dieses Repos wuerde es melden". DAS WAR
+// FALSCH (REVIEW-A8 W4), und der Absatz vier Zeilen tiefer sagte bereits das Gegenteil:
+// gemeldet wuerde die naheliegende Verdrahtung, durch scripts/seed-lokal.test.ts:55-56 —
+// `for (const datei of ["src/core/bootstrap.ts", "src/instrumentation.ts"])` gegen
+// `/seedLokal|seed-lokal|seedeLokal/`. Ein `seedLokalRadio(...)` in `seedAllModules()`
+// faerbt diesen Fall rot. NUR EIN UMBENANNTES RE-EXPORT KAEME DURCH — CLAUDE.md:187-188
+// nennt genau diese eine Luecke („er faengt die naheliegende Verdrahtung, nicht jede
+// denkbare"). Was UNGEDECKT bleibt, ist damit nicht der Boot-Scan, sondern allein die
+// Zusicherung „diese Datei legt keine einloesbare Zugangszeile an" (NS-A19, unten).
 // ⚠️ Der Grund, warum das keine Lokal-Frage ist, steht in `CLAUDE.md` unter „Lokale
 // Demodaten": `shouldSeed()` ist `SUITE_SEED === "1" || NODE_ENV === "development"` —
 // `SUITE_SEED=1` ist der GENERALPROBEN-Schalter, nicht der Lokalschalter. Der naheliegende
