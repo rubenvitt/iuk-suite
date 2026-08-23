@@ -433,12 +433,42 @@ describe("radio-_actions/ausleihe: rueckgabeBuchen", () => {
      * Das Feld ist optional (Spec:3560: „Optional: Zustandsnotiz hinterlassen"). Ein
      * nicht ausgefuelltes Feld schickt `""`; als `""` gespeichert waere es spaeter von einer
      * abgegebenen leeren Notiz nicht zu unterscheiden. ⚠️ Das ist die EINZIGE Umformung auf
-     * dem Weg in die Datenbank — kein `trim()`, kein Umschreiben (Spec:3587-3592).
+     * dem Weg in die Datenbank, und sie ersetzt nur den WERT durch `null` — der gespeicherte
+     * Text wird nie umgeschrieben (Spec:3587-3592). ⚠️ Der `trim()` in der BEDINGUNG
+     * (`_actions/ausleihe.ts:250`) trifft diesen Fall nicht, er gilt dem Nachbarfall darunter
+     * („nur Leerzeichen"); getrennt gehalten sind die zwei, weil eine Sonde auf den `trim()`
+     * genau einen von beiden rot machen muss.
      */
     geraet("g-1", "7000001");
     const leiheId = legeLeiheAn("g-1", "Anna Beispiel", "Ruf g-1");
 
     await rueckgabeBuchen(null, formular({ [FELD_AUSLEIHE_ID]: leiheId, [FELD_ZUSTANDSNOTIZ]: "" }));
+
+    expect(db.select().from(loans).where(eq(loans.id, leiheId)).get()?.returnNote).toBeNull();
+  });
+
+  it("eine Zustandsnotiz aus nur Leerzeichen wird zu NULL", async () => {
+    /*
+     * ⛔ DIE ENTSCHEIDUNG LAEUFT AUF DEM GETRIMMTEN TEXT, DER WERT WIRD UNGETRIMMT
+     * GESPEICHERT. Ohne diesen Fall bliebe `"   "` als `"   "` in der Spalte stehen — genau
+     * die Ununterscheidbarkeit, gegen die der Nachbarfall darueber argumentiert: eine
+     * abgegebene Notiz aus drei Leerzeichen ist von „nicht ausgefuellt" fachlich nicht zu
+     * trennen, und `_db/schema.ts` fuehrt die Spalte nullable.
+     *
+     * ⚠️ DER ALT-KIOSK ENTSCHEIDET EBENFALLS AUF DEM GETRIMMTEN WERT
+     * (`radio-inventar/apps/frontend/src/components/features/ReturnDialog.tsx:58`:
+     * `onConfirm(loan.id, trimmedNote === '' ? null : sanitizeForDisplay(trimmedNote))`) —
+     * ⛔ ER SPEICHERT DEN GETRIMMTEN ABER AUCH, und genau das uebernimmt diese Fassung
+     * NICHT: Auflage 6 des Auftrags verbietet das Umschreiben des gespeicherten Wertes,
+     * nicht das Trimmen der Entscheidung.
+     */
+    geraet("g-1", "7000001");
+    const leiheId = legeLeiheAn("g-1", "Anna Beispiel", "Ruf g-1");
+
+    await rueckgabeBuchen(
+      null,
+      formular({ [FELD_AUSLEIHE_ID]: leiheId, [FELD_ZUSTANDSNOTIZ]: "   " }),
+    );
 
     expect(db.select().from(loans).where(eq(loans.id, leiheId)).get()?.returnNote).toBeNull();
   });
@@ -528,6 +558,16 @@ describe("radio-_actions/ausleihe: die Sperrgruende am Formular", () => {
 
     expect(ausleihe.ok).toBe(false);
     expect(rueckgabe.ok).toBe(false);
+    /*
+     * ⛔ DIE ZWEI `grund`-ZEILEN SIND DAS UNTERSCHEIDENDE AN DEN ZWEI `ok`-ZEILEN DARUEBER.
+     * `ok: false` allein waere hier auch ohne jeden Riegel gruen: die Fixture dieses Falles
+     * legt weder `g-1` noch `leihe-1` an, also antwortete der Erfolgspfad mit
+     * `verschwunden` bzw. `unbekannt-geworden` — ebenfalls `ok: false`. Erst `grund` trennt
+     * die Absage AM RIEGEL von der fachlichen Ablehnung DAHINTER.
+     */
+    if (ausleihe.ok || rueckgabe.ok) throw new Error("unerreicht");
+    expect(ausleihe.grund, "ausleiheAnlegen sagt aus einem anderen Grund ab").toBe("sitzung");
+    expect(rueckgabe.grund, "rueckgabeBuchen sagt aus einem anderen Grund ab").toBe("sitzung");
     expect(umgeleitet, "eine Absage am Riegel leitet um und verwirft die Eingaben").toEqual([]);
     expect(revalidiert).toEqual([]);
   });
@@ -574,10 +614,24 @@ describe("radio-_actions/ausleihe: die Sperrgruende am Formular", () => {
      * Fall rot wuerde — dieselbe Mechanik, die `_lib/meldungen.test.ts` fuer die zwei
      * Statusetiketten mit einem Quelltext-Zaehler abwehrt (Sonde P7, 0 rot, gemessen).
      *
-     * ⛔ DER SCAN LAEUFT UEBER BEIDE SPERRGRUENDE UND BEIDE FLUESSE — VIER SAETZE, NICHT EINER.
-     * Ein Scan nur auf `sitzung` liesse die Haelfte unbewacht, waehrend der Testname beide
-     * verspricht: die zwei Gleichheitszusicherungen darueber bleiben gegen ein
-     * ZEICHENGLEICHES Literal gruen, und genau dagegen steht dieser Fall. (Die zwei
+     * ⛔ DER SCAN LAEUFT UEBER BEIDE SPERRGRUENDE UND BEIDE FLUESSE — ZWEI
+     * FLUSSUNABHAENGIGE SAETZE, VIER ZUSICHERUNGEN, ZWEI DAVON DUPLIKATE.
+     * ⚠️ DIE ZAHL IST GEMESSEN, NICHT GESCHAETZT (2026-08-23, Wegwerf-Fall in `_lib/`):
+     * `new Set([ausleihText({grund:"sitzung"}), ausleihText({grund:"gesperrt"}),
+     * rueckgabeText({grund:"sitzung"}), rueckgabeText({grund:"gesperrt"})]).size` →
+     * `expected 2 to be 4`. ES SIND ZWEI SAETZE, NICHT VIER — und das ist Absicht:
+     * `SPERR_SAETZE` ist EIN `Record<SperrGrund, string>` (`_lib/meldungen.ts:253-256`),
+     * beide Textfunktionen geben fuer `sitzung`/`gesperrt` genau diesen einen Satz zurueck
+     * (`_lib/meldungen.ts:349-351` und `:430-432`), und `_lib/meldungen.ts:52-54` schreibt
+     * den Grund aus: „zwei unabhaengige Zweige waeren derselbe Fehler eine Ebene tiefer".
+     * ⛔ HIER ENTSTEHT DESHALB KEIN WAECHTER, DER `rueckgabeText` VON `ausleihText` AUF
+     * DIESEN ZWEI GRUENDEN UNTERSCHEIDBAR MACHTE — er kehrte Entscheidung E13 um.
+     * ⚠️ DAS `rueckgabeText`-PAAR UNTEN IST HEUTE BYTE-GLEICH MIT DEM `ausleihText`-PAAR
+     * und bewacht nichts Eigenes. Es steht trotzdem, weil jede Zusicherung auf die Funktion
+     * verankert ist, die IHR Fluss wirklich ruft; wer es streicht, verliert keine Deckung.
+     * ⚠️ Ein Scan nur auf `sitzung` liesse den Satz zu `gesperrt` unbewacht, waehrend der
+     * Testname beide verspricht: die zwei Gleichheitszusicherungen darueber bleiben gegen
+     * ein ZEICHENGLEICHES Literal gruen, und genau dagegen steht dieser Fall. (Die zwei
      * Sperr-Saetze sind ausserdem in `_lib/meldungen.ts:253-256` je EINMAL geschrieben, der
      * zu `gesperrt` kommt sogar aus `_lib/gateTexte.ts` — ein Literal HIER waere der dritte
      * Ort fuer denselben Satz.)
@@ -628,7 +682,15 @@ describe("radio-_actions/ausleihe: die Leerstellen dieser Datei", () => {
     const quelle = readFileSync(AUSLEIHE_QUELLE, "utf8");
     expect(quelle).toContain("A-L17");
     expect(quelle).toContain("radio-admin/shared/src/loan.ts:5");
-    expect(quelle, "der Posten wird ohne Nachfolger fallen gelassen").toContain("A19");
+    /*
+     * ⛔ VERANKERT AUF DEM UEBERGABESATZ, NICHT AUF DEM BEZEICHNER: „A19" steht in
+     * `_actions/ausleihe.ts` an drei Stellen (`:55` Feldnamen-Auflage, `:143` diese
+     * Uebergabe, `:288` der Aufrufer der Vorschlaege). Ein `toContain("A19")` bliebe gruen,
+     * wenn jemand allein den A-L17-Absatz loeschte.
+     */
+    expect(quelle, "der Posten wird ohne Nachfolger fallen gelassen").toContain(
+      "EIGENTUEMER IST DAMIT A19",
+    );
   });
 
   it("behauptet nirgends, die Ratenbegrenzung dieser vier Actions sei gebaut", () => {

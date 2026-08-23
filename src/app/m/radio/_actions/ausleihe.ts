@@ -223,10 +223,31 @@ export async function rueckgabeBuchen(
    * ein nicht ausgefuelltes optionales Feld (Spec:3560, „Optional: Zustandsnotiz
    * hinterlassen") schickt `""`. Als `""` gespeichert waere es spaeter von einer abgegebenen
    * leeren Notiz nicht zu unterscheiden, und `_db/schema.ts` fuehrt die Spalte nullable.
-   * ⛔ KEIN `trim()`, KEIN `sanitizeForDisplay` (Spec:3587-3592, `ReturnDialog.tsx:58`).
+   *
+   * ⛔ ENTSCHIEDEN WIRD AUF DEM GETRIMMTEN TEXT, GESPEICHERT WIRD DER UNGETRIMMTE — die
+   * zwei Haelften sind getrennt, und das ist der ganze Punkt. Ohne den `trim()` in der
+   * BEDINGUNG landete `"   "` als `"   "` in der Spalte und waere von einer abgegebenen
+   * leeren Notiz genauso wenig zu unterscheiden wie `""`. ⛔ NICHT `roh.trim()` SPEICHERN:
+   * das waere das Umschreiben, das Auflage 6 verbietet (Spec:3587-3592) — dieselbe Klasse
+   * wie `sanitizeForDisplay`, das hier ebenfalls NICHT steht.
+   * ⚠️ DIE ALT-QUELLE MACHT BEIDES, UND NUR DIE EINE HAELFTE WIRD UEBERNOMMEN:
+   * `ReturnDialog.tsx:58` lautet
+   * `onConfirm(loan.id, trimmedNote === '' ? null : sanitizeForDisplay(trimmedNote))` — sie
+   * entscheidet auf dem getrimmten Wert (das uebernehmen wir) und speichert ihn getrimmt
+   * und bereinigt (das nicht).
+   * ⚠️ DIESELBE TRENNUNG GIBT ES IN DIESEM MODUL BEREITS EINE EBENE TIEFER, und sie ist der
+   * naehere Beleg als die Alt-Quelle: `_db/leihen.ts:475` lehnt einen Entleihernamen ueber
+   * `e.entleiher.trim().length === 0` ab — ENTSCHEIDUNG auf dem getrimmten Text — und
+   * speichert ihn trotzdem ungetrimmt, bewacht vom Fall „schreibt den Entleihernamen
+   * unveraendert, ohne Umschreiben" (Testdaten „  Mueller & Sohn  " mit Leerzeichen an
+   * beiden Enden). Diese Zeile wendet die Hausform des Namens auf die Notiz an.
+   * ⚠️ DIE LAENGENPRUEFUNG LAEUFT DAMIT AUF DEM UNGETRIMMTEN WERT (`_db/leihen.ts:599`
+   * misst `notiz.length`, nicht `notiz.trim().length`). Das ist Absicht: gemessen wird, was
+   * gespeichert wird. Wer die zwei angleicht, muss sich entscheiden, welche Seite trimmt —
+   * und die Speicherseite darf es nicht.
    */
   const roh = formular.get(FELD_ZUSTANDSNOTIZ);
-  const notiz = typeof roh === "string" && roh.length > 0 ? roh : null;
+  const notiz = typeof roh === "string" && roh.trim().length > 0 ? roh : null;
 
   const ergebnis = bucheRueckgabe(getDb(), ausleiheId, notiz);
   if (!ergebnis.ok) return ergebnis;
