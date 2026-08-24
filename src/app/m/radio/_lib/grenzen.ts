@@ -185,7 +185,7 @@ export function grenzen(env: EnvLike = process.env): Grenzen {
  * ⛔ ES HEISST `RADIO_AUSLEIH_SITZUNG_SECRET`. Der Kapiteltext schreibt an ZWEI Stellen
  * `RADIO_AUSLEIH_SITZUNG_GEHEIMNIS` (Spec:2042 in §3.1 und Spec:2502 in §3.4.2); B2
  * (Spec:91) sticht ueber beide und setzt die englische Endung nach dem Praezedenzfall
- * `LAGERBUCH_HELFER_SITZUNG_SECRET` (`.env.example:282`).
+ * `LAGERBUCH_HELFER_SITZUNG_SECRET` (`.env.example:300`).
  *
  * WARUM DIE TRENNUNG VON `grenzen()` TRAEGT: alle vier Zahlen haben eine Vorbelegung,
  * `grenzen()` laeuft also auf einer leeren Umgebung klaglos durch — und genau das braucht

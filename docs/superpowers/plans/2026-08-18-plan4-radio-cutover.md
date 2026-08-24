@@ -134,7 +134,7 @@ als Protokollzeile, nicht der Bau. Die Runbook-Stellen tragen deshalb nur noch d
 | Nr. | Was abzulesen / zu entscheiden ist | Quelle | Begründung, warum sie fehlt | Blockiert |
 |---|---|---|---|---|
 | **N2** | Ist die `compose.yaml` **mit** der `radio-admin-alt`-Labelgruppe bereits auf dem Server ausgerollt? Beleg: `docker compose config \| grep -A2 radio-admin-alt` **am Server, vor dem Fenster** | Server | Spec 2 §4.4.4 sagt „die Labels gehören in die Repo-`compose.yaml`", §4.2 beschreibt den früheren Deploy — die **Verbindung** steht nirgends. `scripts/deploy.sh:84-105` diffed `compose.yaml` byteweise und bricht bei Abweichung ab; eine Compose-Änderung am Cutover-Abend ist ein eigener Rollout | ⛔ §C Schritt 9 Nr. 3 (`docker compose config \| grep -A2 radio-admin-alt` trifft sonst nichts, und `SUITE_REDIRECT_RULE_RADIO_ADMIN` hat nichts zu parametrisieren) |
-| **N3** | Die **tatsächliche** numerische Kennung, unter der der Suite-Prozess läuft: `docker inspect <L13> --format '{{.Config.User}}'` bzw. die Zeile `SUITE_USER` der Server-`.env` | Server | Spec 2 §4.5 Schritt 4 Handgriff 0 liest sie aus dem **Image** (`docker run --entrypoint sh "$IMG" -c 'id -u'`). Maßgeblich ist aber `compose.yaml:62` (`user: ${SUITE_USER:-1001:1001}`), und Image und Service weichen dokumentiert ab: `Dockerfile:42-43` legt `nextjs` **ohne** `-G nodejs` an, `USER nextjs` (`Dockerfile:88`) läuft also als 1001:65533(nogroup) — so steht es wörtlich im Docblock `compose.yaml:47-61`, und `.env.example:234` verlangt auf arm64 sogar `SUITE_USER=1001:1000` | ⛔ §C Schritt 4 Handgriff 0/3 und Schritt 7 (die Erwartung „dieselbe Kennung wie die übrigen Modul-DBs" ist mit dem Image-Wert auf einem Standardhost **zwangsläufig rot**) |
+| **N3** | Die **tatsächliche** numerische Kennung, unter der der Suite-Prozess läuft: `docker inspect <L13> --format '{{.Config.User}}'` bzw. die Zeile `SUITE_USER` der Server-`.env` | Server | Spec 2 §4.5 Schritt 4 Handgriff 0 liest sie aus dem **Image** (`docker run --entrypoint sh "$IMG" -c 'id -u'`). Maßgeblich ist aber `compose.yaml:62` (`user: ${SUITE_USER:-1001:1001}`), und Image und Service weichen dokumentiert ab: `Dockerfile:42-43` legt `nextjs` **ohne** `-G nodejs` an, `USER nextjs` (`Dockerfile:88`) läuft also als 1001:65533(nogroup) — so steht es wörtlich im Docblock `compose.yaml:47-61`, und `.env.example:252` verlangt auf arm64 sogar `SUITE_USER=1001:1000` | ⛔ §C Schritt 4 Handgriff 0/3 und Schritt 7 (die Erwartung „dieselbe Kennung wie die übrigen Modul-DBs" ist mit dem Image-Wert auf einem Standardhost **zwangsläufig rot**) |
 | **N5** | Mit welcher Env läuft der Host-Cron `scripts/backup.sh` (`DATA_DIR`, `BLOB_DIR`), und wo landet das Tarball? Abzulesen aus Crontab bzw. Timer-Unit | Betreiber/Server, gleiche Klasse wie U4b | `scripts/backup.sh:7` fällt ohne Env auf `DATA_DIR=/data` zurück — ein Pfad, den es auf dem Host nach der Argumentation dieser Spec gerade **nicht** gibt; `:32-35` bricht dann hart ab (`no *.db in $DATA_DIR — aborting`). §4.6 Nr. 13 ruft das Skript bar auf und nennt den Fundort des Tarballs nicht | §D Nr. 13 |
 | **N1** | Hält der reguläre Stack `radio.db` **nach dem Boot dauerhaft offen**? (Die Re-Kritik hat für dieselbe Lücke die Bezeichnung **L15** vorgeschlagen — es ist **eine** Nummer, hier N1.) | Bau / Abruf | W5 Residuum 2 begründet das Verbot von `immutable=1` im Fenster mit „der reguläre Stack hält `radio.db` offen (Migrationen, Health, Boot-Haken)". Zwei der drei Wege schließen ihr Handle nachweislich wieder — `src/core/bootstrap.ts:99-105` ruft `sqlite.close()`, `src/core/health/index.ts:13-15` schließt im `finally`; der dritte Weg ist ungebaut. L14 fragt nach zwei **bootenden** Prozessen, **nicht** nach Löschen und Ersetzen unter einem laufenden | §C Schritt 4 Handgriff 3 (dort mit der Zwischenlösung aus Aufgabe 7), §C Schritt 5 (a) |
 | **N6** | Der Edge-Proxy: (a) **setzt** er `X-Forwarded-Host` oder reicht er ihn durch, (b) welche **Entrypoints** gibt er an Traefik weiter, (c) ist `radio-admin.iuk-ue.de` dort überhaupt bekannt | Server | §4.2 Nr. 8 und §4.4.4 Punkt 6 verlangen beide eine Server-Ablesung und verweisen auf „die U-Tabelle im Kopf" — dort gibt es **keine passende Zeile**. Ohne (b)/(c) laufen die drei `curl` aus §D Nr. 7 in einen Verbindungs- oder TLS-Fehler, **statt rot zu werden** | §A Nr. 8, §D Nr. 7 |
@@ -656,7 +656,7 @@ Umarbeitung.
 
 - [ ] **Schritt 3: Die Prod-Domain-Zeile ergänzen**
 
-  `.env.example:136` trägt heute `# SUITE_HOST_RADIO=`. Die Zeile bleibt auskommentiert (sie wird
+  `.env.example:154` trägt heute `# SUITE_HOST_RADIO=`. Die Zeile bleibt auskommentiert (sie wird
   erst im Fenster gesetzt) und bekommt **darüber** den Nachsatz:
 
   ```dotenv
@@ -670,7 +670,7 @@ Umarbeitung.
 
 - [ ] **Schritt 4: Den `── Modul radio ──`-Block anlegen**
 
-  Hinter den `lagerbuch`-Block, vor `.env.example:333` (`─── Modul aufgaben ───`). Form nach dem
+  Hinter den `lagerbuch`-Block, vor `.env.example:351` (`─── Modul aufgaben ───`). Form nach dem
   Vorbild `.env.example:255-263`:
 
   ```dotenv
