@@ -1,5 +1,35 @@
 # Der Suite-Admin-Kurzschluss in `core/groups.ts` — Umsetzungsplan
 
+> ## ✅ ENTSCHIEDEN am 2026-08-24 — Weg A gilt, Weg B wird NICHT gebaut
+>
+> **Ruben hat entschieden: es bleibt bei der engen Fassung. An `src/core/groups.ts` wird nichts
+> geändert.** Damit kehrt diese Entscheidung seinen eigenen Auftrag vom 2026-08-21 um — und zwar
+> auf Grundlage dessen, was dieser Plan gemessen hat:
+>
+> 1. **Die Spec verlangt Weg B nicht.** Entscheidung 9 sagt dreimal „modulintern"
+>    (`…radio-modul-design.md:65`, `:682-689`, `:4423`); die Spec schließt den weiten Weg zweimal
+>    aus sich selbst aus (`:70-72`, `:7791`) und nennt in derselben Liste die CWE-348-Umstellung
+>    ausdrücklich „Voraussetzung", diesen Posten dagegen **nicht**.
+> 2. ✅ **Weg A ist bereits gebaut.** `radio` löst seine Rechte über `_lib/zugang.ts` selbst auf,
+>    und `riegel.test.ts:942-944` sichert das wörtlich zu — „unabhaengig davon, was `core` tut".
+>    **Der Posten des Leitplans ist damit erfüllt**, nicht offen.
+> 3. **Weg B hätte drei gemessene Folgen**, die im Auftrag nicht bekannt waren: `portal` verlöre
+>    seine Verwaltung vollständig (`registry.ts:57-59`: `adminGroups: []`), `aufgaben` einen in
+>    zwei Dokumenten beschriebenen Notausgang, und **12 Tests** würden rot — die E2E ohne ein
+>    neues `PORTAL_ENV` unrettbar.
+>
+> ⛔ **Was daraus für den weiteren Weg folgt:** der Leitplan führt „Das Entfernen des
+> Suite-Admin-Kurzschlusses" als **Voraussetzung vor Planteil 4**. Diese Voraussetzung ist
+> **erfüllt** — durch Weg A, nicht durch einen Eingriff in `core`. **Planteil 4 ist dadurch nicht
+> blockiert.**
+>
+> **Weg B bleibt als eigenständige Suite-Entscheidung bestehen** und ist unten vollständig
+> geplant, samt Kompensation und Risikotafel. Wer ihn später fahren will, findet hier alles —
+> einschließlich der Ablesung ⬜ **K-L1**, ohne die er niemanden aussperren darf.
+> ⚠️ Er gehört **nicht** in die Cutover-Nacht: eine Betriebsänderung an der Rechteauflösung
+> **aller** Module hat in einem Fenster nichts zu suchen, das für den Umzug zweier Domains
+> bemessen ist.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
 > checkbox (`- [ ]`) syntax for tracking.
