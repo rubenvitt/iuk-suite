@@ -169,4 +169,104 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
     const ohneZeichen = eintraege.filter((eintrag) => eintrag.ikon === undefined).map((e) => e.key);
     expect(ohneZeichen, "Eintrag ohne ikon — er rendert still ohne Zeichen").toEqual([]);
   });
+
+  /*
+   * ⛔ DIE TAFEL SELBST, ALS EINE ZUSICHERUNG — Fix-Runde 1 zu V4, Funde F1, F2 und F4.
+   * Bis hierher band KEIN Fall dieser Datei einen einzelnen Eintrag an sein Ziel, seinen
+   * Bildschirmtitel oder sein Zeichen. Die Faelle darueber pruefen Mengen, Zahlen und
+   * Eigenschaften der ganzen Liste; die vier Eintraege, die BEIDE Stufen sehen
+   * (`uebersicht`, `geraete`, `ausleihen`, `software`), trugen ueberhaupt keine namentliche
+   * Zusicherung. Drei Mutationen liefen deshalb gemessen durch — jede mit gruenem typecheck,
+   * gruenem lint und gruener Suite:
+   *
+   *   1. `_lib/nav.ts:62` `href: "/admin/geraete"` → `"/admin/geraete/g-1"` — 0 rot. Der Pfad
+   *      steht in `_lib/routen.ts:58`, ist also der Routenkarte bekannt, ist kein Duplikat und
+   *      traegt die aeussere Form: alle drei Scanfaelle bleiben gruen. Der Menuepunkt „Geräte"
+   *      fuehrte damit auf das Detail EINES Geraets.
+   *   2. `_lib/nav.ts:61` `title: "Übersicht"` → `"Startseite"` — 0 rot. Die Titel der drei
+   *      Admin-Eintraege deckt `:86`; die vier gemeinsamen deckte niemand.
+   *   3. `_lib/nav.ts:62` `ikon: "geraete"` → `"tokens"` — 0 rot. `:154` prueft nur, DASS ein
+   *      Zeichen da ist, und `Record<NavIkonName, IconType>` (`core/shell/navIkonen.tsx:22`)
+   *      deckt typseitig nur die Gegenrichtung: dass jeder Name eine Komponente hat.
+   *
+   * ⛔ EIN `toEqual` UEBER DER GANZEN TAFEL UND KEIN `it.each`: die Sperre im Kopf dieser
+   * Datei (`:18-20`) gilt hier besonders, denn `it.each` ueber einer geschrumpften Tafel
+   * erzeugte still weniger Faelle. `toEqual` ueber der Liste ist zugleich der Waechter ueber
+   * die REIHENFOLGE aus `Spec:4199-4202` — es vergleicht stellungsgenau.
+   *
+   * ⛔ DIE TAFEL IST EINE ZWEITSCHRIFT, UND SIE MUSS ES SEIN. Ein Fall, der seine Erwartung
+   * aus `_lib/nav.ts` ableitete, bewachte nichts. Die Quelle ist die Tafel des Auftrags
+   * (`.superpowers/sdd/planteil4/briefs/V4.md`, Abschnitt „Die sieben Eintraege") und
+   * `Spec:4199-4202`.
+   *
+   * ⚠️ DIE TITEL TRAGEN IHRE UMLAUTE: es sind Bildschirmtexte, keine Bezeichner — die
+   * ausdrueckliche Ausnahme der Hausregel (`.superpowers/sdd/planteil4/briefs/KOPF.md:259-261`),
+   * mit Vorbild in derselben Datei auf `:86` („Zugänge").
+   *
+   * ⬜ DIE STAERKERE FORM IST HEUTE NICHT BAUBAR, EIGENTUEMER V20. Das Vorbild des Hauses
+   * schluesselt die Navigation gegen den ECHTEN Seiten-Export und begruendet es woertlich
+   * (`src/app/m/aufgaben/_lib/nav.test.ts:81-86`: ein Schluesseln nach `key` faengt „KEIN
+   * vertauschtes ZIEL"). Dafuer muessten die zehn `page.tsx` existieren; sie entstehen in
+   * V12–V21. Ab V20 sind alle da — wer dort baut, legt diese Tafel daneben. Dieselbe Naht wie
+   * bei `NUR_ADMIN_SEITEN` oben.
+   */
+  it("die sieben Eintraege der Admin-Stufe stehen als Tafel aus Schluessel, Titel, Ziel und Zeichen", () => {
+    expect(
+      radioNav("admin").map((eintrag) => [eintrag.key, eintrag.title, eintrag.href, eintrag.ikon]),
+      "die Tafel ist verschoben — ein Menuepunkt traegt einen fremden Titel oder fuehrt auf ein fremdes Ziel",
+    ).toEqual([
+      ["uebersicht", "Übersicht", "/admin", "uebersicht"],
+      ["geraete", "Geräte", "/admin/geraete", "geraete"],
+      ["ausleihen", "Ausleihen", "/admin/ausleihen", "ausleihen"],
+      ["software", "Update-Modus", "/admin/software", "update"],
+      ["import", "Import", "/admin/import", "import"],
+      ["versionen", "Softwareversionen", "/admin/versionen", "versionen"],
+      ["zugaenge", "Zugänge", "/admin/zugaenge", "tokens"],
+    ]);
+  });
+
+  it("die vier Eintraege der Updater-Stufe stehen als eigene Tafel", () => {
+    /*
+     * ⛔ DIE ZWEITE HAELFTE, UND SIE IST NICHT ABLEITBAR. Heute filtert `radioNav` EINE Liste
+     * (`_lib/nav.ts:94`), also erben die vier Titel und Ziele von der Tafel darueber. Das ist
+     * eine Eigenschaft der heutigen Bauform, keine Zusage: wer `radioNav` spaeter auf zwei
+     * Literale umstellt, bricht genau diese Erbschaft, und der Fall darueber saehe es nicht.
+     *
+     * ⚠️ ER ERSETZT DIE FAELLE `:65` UND `:74` NICHT. `:65` haelt die ZAHL vier ausserhalb
+     * jeder Schleife, `:74` die ABGELEITETE Menge `admin \ updater` namentlich — zwei
+     * Aussagen ueber die Filterung selbst. Dieser Fall haelt die LITERALE Liste. Der Brief
+     * verlangt die beiden Zahlfaelle eigenstaendig (`V4.md`, Testnamentafel).
+     */
+    expect(
+      radioNav("updater").map((eintrag) => [eintrag.key, eintrag.title, eintrag.href, eintrag.ikon]),
+      "die Updater-Tafel ist verschoben — vier Eintraege, dieselben wie in der Admin-Tafel ohne die drei gesperrten",
+    ).toEqual([
+      ["uebersicht", "Übersicht", "/admin", "uebersicht"],
+      ["geraete", "Geräte", "/admin/geraete", "geraete"],
+      ["ausleihen", "Ausleihen", "/admin/ausleihen", "ausleihen"],
+      ["software", "Update-Modus", "/admin/software", "update"],
+    ]);
+  });
+
+  it("radioNav(admin) gibt bei jedem Aufruf eine eigene Liste zurueck", () => {
+    /*
+     * ⛔ DER WAECHTER ZUR ZUSAGE IN `_lib/nav.ts:87-90` („GIBT EINE FLACHE KOPIE ZURUECK,
+     * NICHT `EINTRAEGE` SELBST"). Fix-Runde 1 zu V4, Fund F3: die Zusage stand als
+     * ⛔-Absatz im Quelltext und hatte keinen — `return [...EINTRAEGE];` → `return EINTRAEGE;`
+     * lief gemessen mit 0 rot durch. Dieselbe Klasse, die Commit `98d7505` in diesem Planteil
+     * schon einmal eingesammelt hat.
+     *
+     * ⛔ NUR DIE ADMIN-HAELFTE. Der Updater-Zweig ist ein `filter(...)` (`_lib/nav.ts:94`) und
+     * liefert von sich aus immer ein frisches Feld; dieselbe Zusicherung dort koennte nie rot
+     * werden und waere die NT11-Form, gegen die `riegel.test.ts:64-76` argumentiert.
+     *
+     * ⚠️ WAS DER FALL NICHT ZUSAGT: die EINTRAEGE-Objekte selbst sind in beiden Zweigen
+     * geteilte Referenzen. Der Kommentar an `radioNav` sagt „flache Kopie" und beschoenigt es
+     * nicht.
+     */
+    expect(
+      radioNav("admin"),
+      "radioNav reicht den Modulzustand nach draussen — eine Aenderung am Prop schriebe zurueck",
+    ).not.toBe(radioNav("admin"));
+  });
 });
