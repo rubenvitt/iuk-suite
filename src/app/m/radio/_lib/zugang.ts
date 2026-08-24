@@ -120,8 +120,8 @@ export async function viewerOderNull(): Promise<RadioViewer | null> {
  * `adminGroupsFor(mod)`, NIE `mod.adminGroups` — der direkte Feldzugriff macht
  * SUITE_ADMIN_GROUP_RADIO an genau dieser Stelle wirkungslos (src/core/registry.ts:29-35
  * schreibt dieselbe Falle fuer prodHosts aus). Und NIE `canAccess`: das gewaehrt bei
- * leerer Liste `true` (`src/core/registry.ts:263`) und steigt unter `requiresAuth: false`
- * ohnehin sofort aus (`:260`).
+ * leerer Liste `true` (`src/core/registry.ts:268`) und steigt unter `requiresAuth: false`
+ * ohnehin sofort aus (`:265`).
  *
  * ⚠️ `.some()` AUF LEERER LISTE GEWAEHRT NICHTS — das ist richtig und es ist Falle 23:
  * ein LEER gesetztes SUITE_ADMIN_GROUP_RADIO sperrt damit JEDEN aus, den Betreiber

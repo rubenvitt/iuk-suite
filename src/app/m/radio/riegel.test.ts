@@ -1119,7 +1119,7 @@ describe('keine Bauform-Direktive unter _lib/ und _db/', () => {
 describe("kein eingebauter Pseudo-Zufall in diesem Modul", () => {
   it("findet keinen Aufruf der nicht-kryptografischen Standardquelle", () => {
     /*
-     * ⛔ `KOPF.md:295` fuehrt diesen Namen in der Tafel (Ueberschrift `:281`) „Verbotene Namen und Muster
+     * ⛔ `planteil3/briefs/KOPF.md:295` fuehrt diesen Namen in der Tafel (Ueberschrift `:281`) „Verbotene Namen und Muster
      * (modulweit, VON `riegel.test.ts` DURCHGESETZT)" — und bis zur Fix-Runde zu A2 stand
      * er dort ohne Durchsetzung: `grep -n "random"` auf diese Datei lieferte keinen
      * Treffer, der einzige Waechter war `_lib/code.test.ts` und der galt nur fuer EINE

@@ -19,7 +19,7 @@ import { RadioVerwaltungsRahmen } from "../../_ui/RadioVerwaltungsRahmen";
  * dem gemeinsamen Koerper beider werfenden Riegel (`_lib/zugang.ts`, Entscheidung E-V1).
  *
  * ⚠️ MIT `requiresAuth: false` HAT `/admin` NULL MIDDLEWARE-GATING (Falle 22,
- * docs/radio-portierung-analyse.md:1542-1545): `core/routing.ts:58-66` gatet nach dem
+ * docs/radio-portierung-analyse.md:1542-1545): `core/routing.ts:68-76` gatet nach dem
  * Modul aus dem Segment und unterscheidet `/m/radio/` und `/m/radio/admin/...` NICHT.
  * Diese zwei Zeilen sind der einzige Traeger. `riegel.test.ts` (Klausel a) haelt sie
  * fest, INKLUSIVE ihrer Reihenfolge.

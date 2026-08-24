@@ -9,8 +9,8 @@ import { resolveHost } from "@/core/routing";
  *
  * WARUM ES IHN GIBT — Falle 61 der lagerbuch-Zaehlung (Spec:458-471). `decideRoute` gatet
  * einen internen Pfad `/m/<key>/...` NACH DEM MODUL AUS DEM SEGMENT, ohne jeden
- * Hostbezug (core/routing.ts:58-66), und `canAccess` steigt fuer ein Modul ohne
- * Auth-Pflicht sofort mit `true` aus (core/registry.ts:260). JEDER Host, der auf den
+ * Hostbezug (core/routing.ts:68-76), und `canAccess` steigt fuer ein Modul ohne
+ * Auth-Pflicht sofort mit `true` aus (core/registry.ts:265). JEDER Host, der auf den
  * Suite-Container terminiert, antwortet damit auf /m/radio/*.
  *
  * ⚠️ BEI `radio` HAT DAS DATENWIRKUNG, nicht nur Sichtwirkung: das Einloesen unter
@@ -36,7 +36,7 @@ import { resolveHost } from "@/core/routing";
  * Ist das der Radio-Host? `moduleForHost(resolveHost(headers))?.key` und NICHT ein
  * direkter Vergleich gegen `prodHostsFor`:
  *
- * - `moduleForHost` (registry.ts:246-253) trifft `radio.localtest.me` VOR und UNABHAENGIG
+ * - `moduleForHost` (registry.ts:251-258) trifft `radio.localtest.me` VOR und UNABHAENGIG
  *   von `prodHostsFor`. Damit laeuft derselbe Code-Pfad in Dev, E2E und Produktion, OHNE
  *   dass SUITE_HOST_RADIO lokal gesetzt sein muss.
  * - `resolveHost` (routing.ts:36-41) wird WIEDERVERWENDET, nicht nachgebaut: seine

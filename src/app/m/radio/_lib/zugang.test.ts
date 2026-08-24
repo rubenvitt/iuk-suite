@@ -163,7 +163,7 @@ describe("istRadioAdmin — das Praedikat", () => {
 
   it("mit der Registry-Vorgabegruppe: true", () => {
     // Das Env-Loeschen leistet das beforeEach oben (kein zweites hier, es waere tot).
-    // Die Vorgabe steht in `src/core/registry.ts:193` (`adminGroups: ["iuk-radio-admin"]`).
+    // Die Vorgabe steht in `src/core/registry.ts:198` (`adminGroups: ["iuk-radio-admin"]`).
     try {
       expect(istRadioAdmin(viewer(["iuk-radio-admin"]))).toBe(true);
     } finally { zuruecksetzen(); }
@@ -314,7 +314,7 @@ describe("verwaltungsZiel — absolutes Ziel fuer die callbackUrl", () => {
      * Was NICHT altert, ist die Messung: sie steht oben als Sonde P17.
      *
      * `radio.localtest.me` trifft `moduleForHost` ueber den Zweig `${m.key}.localtest.me`
-     * (`src/core/registry.ts:249`), also OHNE jede SUITE_HOST_*-Variable: ein in der Shell
+     * (`src/core/registry.ts:254`), also OHNE jede SUITE_HOST_*-Variable: ein in der Shell
      * oder in der CI exportierter Fremdwert kann diesen Fall nicht kippen.
      */
     try {
