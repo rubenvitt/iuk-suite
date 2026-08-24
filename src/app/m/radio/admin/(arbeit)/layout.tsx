@@ -1,7 +1,7 @@
 // src/app/m/radio/admin/(arbeit)/layout.tsx
 import { headers } from "next/headers";
 import { requireRadioHost } from "../../_lib/host";
-import { RADIO_NAV } from "../../_lib/nav";
+import { radioNav } from "../../_lib/nav";
 import { requireRadioVerwaltung } from "../../_lib/zugang";
 import { RadioVerwaltungsRahmen } from "../../_ui/RadioVerwaltungsRahmen";
 
@@ -28,13 +28,14 @@ import { RadioVerwaltungsRahmen } from "../../_ui/RadioVerwaltungsRahmen";
  * nicht — die Wirksamkeit der zwei Zeilen ist damit in Planteil 2 UNBEWIESEN. Abgelesen
  * wird sie in Planteil 4, beim ersten echten Abruf gegen `/admin`.
  *
- * ⬜ RADIO_NAV IST HEUTE LEER, UND DIE WEITERGABE WECHSELT ERST MIT AUFGABE V4.
- * V4 fuellt die Navigation mit den Eintraegen aus Spec:4199-4203 und stellt diese Zeile auf
- * `nav={radioNav(rolle)}` um (Spec:4289) — dann, und erst dann, wird aus dem Aufruf unten
- * `const { rolle } = await requireRadioVerwaltung();`. ⛔ HIER IST DAS NICHT VORWEGZUNEHMEN:
- * `radioNav` existiert noch nicht, und eine Bindung `rolle`, die niemand liest, ist ein
- * Lint-Fehler. Bis dahin rendert die Shell eine Verwaltung ohne Modulnavigation — richtig,
- * weil es noch kein Ziel gibt (`_lib/nav.ts`).
+ * ✅ DIE NAVIGATION TRAEGT DIE RECHTESTUFE, SEIT AUFGABE V4 — und die zwei Haelften gehoeren
+ * zusammen (NS-Z9): der Riegel LIEFERT die Stufe (`requireRadioVerwaltung` gibt
+ * `{ viewer, rolle }`, `_lib/zugang.ts`), und `radioNav(rolle)` blendet danach die drei
+ * Menuepunkte aus, die nur die Admin-Stufe erreicht (Spec:4203-4210, Spec:4289). ⛔ WER DIE
+ * DESTRUKTURIERUNG SPAETER FUER UEBERFLUESSIG HAELT und wieder `radioNav("admin")` einsetzt,
+ * zeigt jeder Updater-Person drei Menuepunkte, die in ein `notFound()` fuehren — bei
+ * gruenem typecheck, lint und build. Der Waechter darueber ist `_lib/nav.test.ts`
+ * („radioNav(updater) liefert genau vier Eintraege") zusammen mit dieser Zeile.
  *
  * ✅ DER PERSONEN-RIEGEL DIESER HUELLE IST IN AUFGABE V3 GEWECHSELT (Spec:4367 setzt
  * `admin/(arbeit)/layout.tsx` verbindlich auf `await requireRadioVerwaltung()`). Bis dahin
@@ -57,7 +58,7 @@ export default async function RadioArbeitLayout({
 }) {
   const kopf = await headers();
   requireRadioHost(kopf);
-  await requireRadioVerwaltung();   // Spec:4367 — ⛔ OHNE Destrukturierung, siehe ⬜ zu V4 oben
+  const { rolle } = await requireRadioVerwaltung();   // Spec:4367 — die Stufe traegt die Navigation
 
-  return <RadioVerwaltungsRahmen nav={RADIO_NAV}>{children}</RadioVerwaltungsRahmen>;
+  return <RadioVerwaltungsRahmen nav={radioNav(rolle)}>{children}</RadioVerwaltungsRahmen>;
 }

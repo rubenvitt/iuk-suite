@@ -9,18 +9,27 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { NAV_IKONEN } from "./navIkonen";
 import { LAGERBUCH_NAV } from "@/app/m/lagerbuch/_lib/nav";
+import { radioNav } from "@/app/m/radio/_lib/nav";
+
+/*
+ * ⛔ `radioNav("admin")` UND NICHT `radioNav("updater")`: die Admin-Form ist die
+ * OBERMENGE (sieben Eintraege statt vier). Die Updater-Form liesse genau die drei
+ * Eintraege ungeprueft, die die Admin-Stufe allein sieht — darunter zwei der drei
+ * Zeichen, die mit dem Modul `radio` neu in die Map gekommen sind.
+ */
+const GESETZTE_NAVS = [...LAGERBUCH_NAV, ...radioNav("admin")];
 
 describe("Nav-Zeichen", () => {
-  it("kennt zu jedem im Lagerbuch gesetzten Schluessel eine Komponente", () => {
-    const fehlend = LAGERBUCH_NAV
+  it("kennt zu jedem in einer Modulnavigation gesetzten Schluessel eine Komponente", () => {
+    const fehlend = GESETZTE_NAVS
       .map((eintrag) => eintrag.ikon)
       .filter((schluessel) => schluessel !== undefined)
       .filter((schluessel) => !(schluessel in NAV_IKONEN));
     expect(fehlend).toEqual([]);
   });
 
-  it("setzt fuer jeden Lagerbuch-Eintrag ein Zeichen", () => {
-    const ohne = LAGERBUCH_NAV.filter((e) => e.ikon === undefined).map((e) => e.key);
+  it("setzt fuer jeden Eintrag einer Modulnavigation ein Zeichen", () => {
+    const ohne = GESETZTE_NAVS.filter((e) => e.ikon === undefined).map((e) => e.key);
     expect(ohne).toEqual([]);
   });
 

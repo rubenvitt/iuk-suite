@@ -71,7 +71,7 @@ export type { AusleihErgebnis, RueckgabeErgebnis };
  * `_actions/gate.ts:146` und `_actions/sitzung.ts:186` ihren ausdruecklich benennen);
  * `revalidatePath` spricht mit Nexts Zwischenspeicher und muss den Pfad nennen, unter dem
  * der Eintrag dort liegt — den nach dem Rewrite. Der Rewrite ist gemessen:
- * `_lib/routen.test.ts:29-33` bildet `/geraete` auf `/m/radio/geraete` ab, und die
+ * `_lib/routen.test.ts:98-100` bildet `/geraete` auf `/m/radio/geraete` ab, und die
  * Routentabelle des Builds fuehrt genau `ƒ /m/radio/geraete`. ⛔ WER DIE ZWEI VERTAUSCHT,
  * BEKOMMT KEINEN FEHLER: `revalidatePath` auf einem unbekannten Pfad ist folgenlos, und
  * `typecheck`, `lint` und `build` bleiben gruen.

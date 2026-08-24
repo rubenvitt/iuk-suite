@@ -13,9 +13,9 @@
  */
 import type { IconType } from "react-icons/lib";
 import {
-  PiSquaresFour, PiPackage, PiCalendarX, PiTruck, PiLayout,
-  PiCheckSquare, PiHeartbeat, PiWind, PiCube, PiShoppingCart,
-  PiClipboardText, PiClockCounterClockwise, PiKey, PiQrCode, PiUploadSimple,
+  PiSquaresFour, PiPackage, PiCalendarX, PiTruck, PiLayout, PiCheckSquare, PiHeartbeat,
+  PiWind, PiCube, PiShoppingCart, PiClipboardText, PiClockCounterClockwise, PiKey,
+  PiQrCode, PiUploadSimple, PiArrowsLeftRight, PiArrowsClockwise, PiListNumbers,
 } from "react-icons/pi";
 import type { NavIkonName } from "./types";
 
@@ -35,6 +35,12 @@ export const NAV_IKONEN: Record<NavIkonName, IconType> = {
   tokens: PiKey,
   etiketten: PiQrCode,
   import: PiUploadSimple,
+  // Drei Zeichen fuer die Verwaltung des Moduls `radio` (Spec:4218-4221). Sie stehen in
+  // dieser Map UND in der Union `NavIkonName` — `Record<NavIkonName, IconType>` erzwingt
+  // beide Haelften typseitig, ein Union-Mitglied ohne Eintrag hier ist ein typecheck-Fehler.
+  ausleihen: PiArrowsLeftRight,
+  update: PiArrowsClockwise,
+  versionen: PiListNumbers,
 };
 
 /**

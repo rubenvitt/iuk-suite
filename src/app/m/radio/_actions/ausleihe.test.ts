@@ -374,7 +374,7 @@ describe("radio-_actions/ausleihe: ausleiheAnlegen", () => {
      * ⛔ ZWEI PFADRAEUME IN ZWEI ZEILEN, UND DAS IST DIE AUSSAGE DIESES FALLES (Fund F3 der
      * Schlusspruefung, behoben am 2026-08-24): `revalidatePath` spricht mit Nexts
      * Zwischenspeicher und nennt den INNEREN Pfad nach dem Rewrite
-     * (`_lib/routen.test.ts:29-33`: `/geraete` → `/m/radio/geraete`); der `redirect` geht an
+     * (`_lib/routen.test.ts:98-100`: `/geraete` → `/m/radio/geraete`); der `redirect` geht an
      * den BROWSER und nennt den AEUSSEREN. Werden sie vertauscht, faellt kein Tor: ein
      * `revalidatePath` auf einem unbekannten Pfad ist folgenlos.
      */

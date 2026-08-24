@@ -62,10 +62,10 @@ export default async function RadioGatePage({
   /*
    * DIE WEICHE. Mit gueltigem Zugang gehoert die Person nicht aufs Gate, sondern auf die
    * Uebersicht — die liegt bei `radio` an `/geraete` und NICHT an `/` (Entscheidung E1;
-   * `_lib/routen.test.ts:32` fuehrt beide Pfade als eigene Rewrite-Ziele).
+   * `_lib/routen.ts:30-37` fuehrt beide Pfade als eigene Rewrite-Ziele).
    *
    * ⚠️ ERWARTETER ZWISCHENZUSTAND ZWISCHEN A11 UND A18, kein Mangel: `/geraete` hat heute
-   * noch keine Datei und ist damit eine saubere 404. `_lib/routen.test.ts:14-18` sichert
+   * noch keine Datei und ist damit eine saubere 404. `_lib/routen.test.ts:15-19` sichert
    * den REWRITE zu, nicht die Existenz einer Datei, und schreibt genau das aus.
    *
    * ⛔ NICHT IN EINEM `try`/`catch`. `redirect()` arbeitet ueber einen geworfenen Sentinel;

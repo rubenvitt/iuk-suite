@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { decideRoute } from "@/core/routing";
+import { AUSLEIH_PFADE, VERWALTUNGS_PFADE } from "./routen";
 
 /**
  * DIE `PASSTHROUGH`-PRUEFUNG ALS TEST, NICHT ALS ABSATZ (Spec 1 §1.2.3, Zeilen 345-365,
@@ -29,28 +30,19 @@ const fahre = (pathname: string) => decideRoute({ host: HOST, pathname, groups: 
 /** `rest` ist bei `/` der LEERE String (routing.ts:78) — das Ziel ist `/m/radio`, nicht `/m/radio/`. */
 const ziel = (pfad: string) => `/m/radio${pfad === "/" ? "" : pfad}`;
 
-/** Der Ausleih-Zweig, Spec 1.2.1 (Zeilen 275-284). */
-const AUSLEIHE = ["/", "/t/ABC123", "/abmelden", "/geraete", "/ausleihen", "/rueckgabe"];
-
-/**
- * Der Verwaltungszweig: die ZEHN Seiten aus Spec 1.2.2 (Zeilen 301-314) plus den EINEN
- * Route Handler. ⚠️ Der Handler steht NICHT in 301-314 — er steht in Spec:563 (§1.4.3)
- * und wird erst durch B9 (Spec:98) mitgezaehlt: „Gezaehlt wird jetzt einheitlich: zehn
- * Seiten-Pfade plus ein Route Handler."
+/*
+ * ⛔ DIE ZWEI LISTEN LIEGEN SEIT AUFGABE V4 IN `_lib/routen.ts`, NICHT MEHR HIER — und die
+ * AUSSAGE dieser Datei aendert sich dadurch um nichts. Der Grund fuer den Umzug steht im
+ * Kopf jener Datei: `_lib/nav.test.ts` koppelt jeden `href` der Verwaltungsnavigation gegen
+ * die Verwaltungsliste, und dafuer braucht es sie als WERT. Hier waren sie modul-privat,
+ * und ein Import AUS dieser Testdatei registrierte ihre Suiten ein zweites Mal. Eine
+ * zweite Abschrift der Karte waere genau der Zustand, gegen den der Kopplungsfall antritt.
+ *
+ * ⛔ DIE ZWEI VOLLZAEHLIGKEITS-FAELLE UNTEN BLEIBEN HIER UND BEHALTEN IHR `toBe` — der
+ * Umzug darf sie weder zusammenlegen noch in einen `it.each`-Koerper ziehen.
  */
-const VERWALTUNG = [
-  "/admin",
-  "/admin/geraete",
-  "/admin/geraete/g-1",
-  "/admin/geraete/g-1/ereignisse",
-  "/admin/ausleihen",
-  "/admin/import",
-  "/admin/software",
-  "/admin/versionen",
-  "/admin/zugaenge",
-  "/admin/zugaenge/blatt",
-  "/admin/geraete/export",
-];
+const AUSLEIHE = AUSLEIH_PFADE;
+const VERWALTUNG = VERWALTUNGS_PFADE;
 
 describe("radio: jeder aeussere Pfad wird ins Modul umgeschrieben", () => {
   /*
@@ -61,7 +53,7 @@ describe("radio: jeder aeussere Pfad wird ins Modul umgeschrieben", () => {
    * `"/t/ABC123"` aus AUSLEIHE entfernt -> `Tests 24 passed (24)`, gruen (und das ist
    * der Pfad, den ein GEDRUCKTER QR-Code traegt); `const VERWALTUNG: string[] = []`
    * -> `Tests 14 passed (14)`, gruen und ohne jede Warnung, weil `it.each([])` in
-   * vitest 4.1.10 still NULL Faelle erzeugt.
+   * vitest 4.1.10 still NULL Faelle erzeugt. ⚠️ Seit V4 in `_lib/routen.ts` zu setzen.
    *
    * ⛔ Eine Zusicherung IM `it.each`-Koerper faenge den zweiten Fall nie: ueber der
    * leeren Liste liefe sie kein einziges Mal. Wer diese zwei Faelle spaeter „hinein

@@ -48,9 +48,9 @@ describe("radio-Gate-Texte: der geschlossene Satz", () => {
      * ⛔ DIE VOLLZAEHLIGKEIT STEHT ALS EIGENE ZUSICHERUNG AUSSERHALB DER SCHLEIFE. Eine
      * Schleife ueber `GATE_GRUENDE` bewacht nur, was in der Liste steht: wer einen Eintrag
      * loescht, verliert seinen Prueffall LAUTLOS — die Datei bleibt gruen, nur die Fallzahl
-     * sinkt, und die liest niemand (dieselbe Form wie `_lib/routen.test.ts:87`, wo
+     * sinkt, und die liest niemand (dieselbe Form wie `_lib/routen.test.ts:79`, wo
      * `expect(AUSLEIHE.length, ...).toBe(6)` ausserhalb jeder Schleife steht; die
-     * Begruendung dazu bei `:56-62`).
+     * Begruendung dazu bei `:48-54`).
      */
     expect(GATE_GRUENDE.length, "geschrumpfte Liste — der Riegel waere leer-gruen").toBe(4);
     expect([...GATE_GRUENDE].sort()).toEqual(["abgelaufen", "code", "gesperrt", "zuviele"]);
