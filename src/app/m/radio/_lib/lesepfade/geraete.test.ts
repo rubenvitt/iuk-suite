@@ -607,13 +607,35 @@ describe("geraet — die Geraeteakte", () => {
      * `radio-admin/server/src/repos/userRepo.ts:25-26`, woertlich: „Empty input returns an empty
      * map without touching the db — avoids the invalid `IN ()` SQL that SQLite would reject."
      * Beide Spalten sind nullable (`_db/schema.ts:62-64`), der Fall ist der Normalfall.
+     *
+     * ⛔ DIE ZWEITE HAELFTE DES NAMENS WIRD GEMESSEN, NICHT NUR BEHAUPTET. Die drei
+     * `null`-Zusicherungen gelten unabhaengig davon, ob `users` gefragt wurde — sie allein
+     * machten den Fall zu einem Waechter, der seinen eigenen Namen nicht haelt (Fix-Runde 1 zu
+     * V6, Fund 1: die Sonde auf `geraete.ts:541` ergab 0 rot). Gezaehlt wird deshalb, wie oft
+     * eine Anweisung ueber `users` vorbereitet wird, waehrend `geraet` laeuft — dieselbe
+     * Technik wie in „zaehlt in EINER Abfrage…" (`geraete.test.ts:514-527`).
      */
     lege({ id: "a" });
 
-    const d = geraet(db, "a");
+    const echt = sqlite.prepare.bind(sqlite);
+    let ueberNutzer = 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sqlite as any).prepare = (text: string) => {
+      if (/\busers\b/.test(text)) ueberNutzer++;
+      return echt(text);
+    };
+    let d: ReturnType<typeof geraet>;
+    try {
+      d = geraet(db, "a");
+    } finally {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (sqlite as any).prepare = echt;
+    }
+
     expect(d?.angelegtVon).toBeNull();
     expect(d?.angelegtVonName).toBeNull();
     expect(d?.geaendertVonName).toBeNull();
+    expect(ueberNutzer, "die leere Eingabe fragt die Datenbank trotzdem nach IN ()").toBe(0);
   });
 
   it("liefert null fuer eine unbekannte Id", () => {

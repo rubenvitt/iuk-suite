@@ -35,7 +35,7 @@ import { zielVersion } from "./versionen";
  * ⛔ `db` IST DER ERSTE PARAMETER, IMMER, und keine Funktion hier holt sich die Verbindung
  * selbst — sonst ist sie im Test nicht gegen eine eigene Datei zu haengen, und `getModuleDb()`
  * waere dort ausserdem falsch: sein Cache ist per MODULSCHLUESSEL gekeyt, nicht per `DATA_DIR`
- * (`src/core/db/index.ts:31-35`). Vorbild `_db/leihen.ts:30-35`, `_lib/lesepfade/versionen.ts:15-18`.
+ * (`src/core/db/index.ts:31-35`). Vorbild `_db/leihen.ts:32-35`, `_lib/lesepfade/versionen.ts:15-18`.
  */
 
 /**
@@ -148,6 +148,40 @@ export type GeraetDetail = GeraetZeile & {
   geaendertVon: string | null;
   /** Alt-Name `updatedByName`, dieselbe Rueckfallregel. */
   geaendertVonName: string | null;
+  /**
+   * Der vorformatierte Wert von `devices.updatedAt` — der Zeitpunkt der letzten AENDERUNG des
+   * Datensatzes, nicht der gepflegte Update-Tag.
+   *
+   * ⚠️ DIE ZWEITE VERWECHSLUNG IN DER BESCHRIFTUNG, UND SIE IST SCHAERFER ALS DIE OBEN AM TYP
+   * BENANNTE. Die Alt-Maske beschriftet `updatedAt` mit `Geaendert` (im Alt-Quelltext mit
+   * Umlaut, `radio-admin/client/src/features/devices/DeviceDetailDrawer.tsx:89-90`) und
+   * vergibt `Zuletzt aktualisiert` an `lastUpdatedAt` (`:86-87`, ebenso das Formularfeld
+   * `DeviceFields.tsx:163` und die CSV-Kopfzeile `radio-admin/server/src/routes/export.ts:26`).
+   * ⛔ DIESES FELD TRAEGT ALSO DEN WERT DER ALT-ZEILE `Geaendert`, obwohl sein Name nach der
+   * anderen klingt; der Wert der Alt-Zeile `Zuletzt aktualisiert` steckt in
+   * `letztesUpdateText`. Der Name folgt dem Aufgabentext (`briefs/V6.md`, Feld
+   * `zuletztAktualisiert`; der Anhang `Text` ist Abweichung A1), die Belegung folgt dem
+   * Bestand — beides ist richtig, nur zusammen ist es eine Falle.
+   *
+   * ⛔ WER DIE BEIDEN NACH IHREN NAMEN AN BESCHRIFTUNGEN BINDET, VERTAUSCHT BEIDE ZEILEN AUF
+   * EINMAL, und kein Tor faellt: `typecheck`, `lint`, `build` und jeder Test bleiben gruen.
+   * ⬜ EIGENTUEMER DER BINDUNG SIND V14 UND V9, und ⛔ DIE ZUORDNUNG IST JE VERBRAUCHER EINE
+   * ANDERE — wer sie zu einem Satz zusammenzieht, baut die zweite Wahrheit ueber denselben Tag:
+   * 1. **Die Akte-ANZEIGE** (`.superpowers/sdd/planteil4/briefs/V14.md:22`, die zwei Zeilen
+   *    nebeneinander): `Zuletzt aktualisiert` ← `letztesUpdateText`,
+   *    `Geaendert` ← `zuletztAktualisiertText`. Hier ist der Gedankenstrich richtig.
+   * 2. **Das FORMULAR** (`briefs/V14.md:68`, der Datumswaehler `DeviceFields.tsx:163`) und
+   *    **die CSV-Spalte** (`briefs/V9.md:24`; `formatiereZelle` liest das Feld `lastUpdatedAt`,
+   *    und `geraeteFuerExport` liefert dafuer die ROHE Zeile) nehmen ⛔ NICHT dieses Feld und
+   *    NICHT `letztesUpdateText`, sondern den Spaltenwert `devices.lastUpdatedAt` roh. Der
+   *    Grund steht ausgeschrieben an der ⬜ des Feldes `letztesUpdateText` oben: ein gefalteter
+   *    Gedankenstrich belegt den Datumswaehler bei JEDEM Geraet ohne Tag.
+   *
+   * Dass die Werte hier herum liegen und nicht andersherum, haelt der Fall „traegt die
+   * Akte-Felder, die die Listenzeile NICHT hat" fest (`_lib/lesepfade/geraete.test.ts:672`
+   * gegen `:675`, zwei unterscheidbare Fixture-Werte). Was er NICHT halten kann, ist die
+   * Beschriftung — die entsteht erst in V14/V9.
+   */
   zuletztAktualisiertText: string;
 };
 
