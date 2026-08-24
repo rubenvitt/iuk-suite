@@ -243,7 +243,12 @@ describe("die Ausleihe an /ausleihen", () => {
     /*
      * §4.7 (Spec:3826-3829). ⛔ SIE TRAEGT HIER MEHR ALS AUF DER UEBERSICHT: die Insel
      * schreibt ihre Auswahl mit `router.replace` in `?geraete=` zurueck (Spec:3426), und
-     * jede dieser Adressen muss die serverseitige Pruefung aus §4.3.3 ERNEUT durchlaufen.
+     * eine vorgerenderte Antwort haette die Vorwahl von vorhin geprueft.
+     * ⛔ WAS DIE ERNEUTE PRUEFUNG DABEI TUT UND WAS NICHT, steht ausgeschrieben an der Zeile
+     * selbst (`(ausleihe)/ausleihen/page.tsx`, Kommentar an `export const dynamic`): sie
+     * WARNT, sie KORRIGIERT NICHT. Bis zur Fix-Runde 1 zu A19 stand hier die weitere
+     * Fassung („jede dieser Adressen muss die Pruefung ERNEUT durchlaufen") — zwei
+     * Fassungen derselben Zusicherung laufen beim naechsten Umbau auseinander.
      */
     expect(dynamic).toBe("force-dynamic");
   });

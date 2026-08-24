@@ -73,7 +73,7 @@ export const ENTLEIHER_MIN_ZEICHEN = 2;
  * NICHTLEERE (`_db/leihen.ts:475`); ein achter `grund` fuer „zu lang" verbietet
  * Entscheidung E13, die die Vollzaehligkeitszahlen auf SIEBEN und SECHS festsetzt
  * (`.superpowers/sdd/planteil3/briefs/KOPF.md:775-778`). Das Ledger weist die Feldhaelfte
- * dieser Aufgabe zu (`.superpowers/sdd/planteil3/progress.md:498-511`); die SERVERHAELFTE
+ * dieser Aufgabe zu (`.superpowers/sdd/planteil3/progress.md:518-536`); die SERVERHAELFTE
  * BLEIBT OFFEN — ein Aufruf, der das Formular umgeht, schreibt weiterhin einen beliebig
  * langen Namen in `loans.borrower_name`, und dies ist der einzige ANONYME Schreibpfad des
  * Moduls.

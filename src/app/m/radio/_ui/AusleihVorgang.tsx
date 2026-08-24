@@ -6,7 +6,7 @@ import { Button, Input } from "antd";
 import { ausleiheAnlegen } from "../_actions/ausleihe";
 import { AUSWAHL_MAX, AUSWAHL_PARAMETER, auswahlSchreiben } from "../_lib/auswahl";
 import { filtereGeraete } from "../_lib/filter";
-import { ausleihText, type AusleihErgebnis } from "../_lib/meldungen";
+import { ausleihText, KEINE_GERAETE_ERFASST, type AusleihErgebnis } from "../_lib/meldungen";
 import { statusEtikett, type GeraeteStatus } from "../_lib/status";
 import { EntleiherFeld, ENTLEIHER_MAX } from "./EntleiherFeld";
 import { Ikone } from "./ikonen";
@@ -104,7 +104,11 @@ const DECKEL_SATZ = `Höchstens ${AUSWAHL_MAX} Geräte in einem Vorgang.`;
  */
 const NAME_ZU_LANG = `Der Name ist zu lang. Höchstens ${ENTLEIHER_MAX} Zeichen.`;
 
-/** Die zwei Beschriftungen des Absendeknopfs, 1:1 aus `ConfirmLoanButton.tsx:9-12`, `:68`. */
+/**
+ * Die DREI Beschriftungen des Absendeknopfs. ⛔ 1:1 aus dem Bestand sind die ersten ZWEI
+ * (`ConfirmLoanButton.tsx:9-12`, `:68`); `KNOPF_LAEUFT` weicht um ein Zeichen ab und ist
+ * unten an seinem Ort als Abweichung benannt (Ellipse statt drei Punkten, Spec:3428).
+ */
 const KNOPF_EINS = "Gerät ausleihen";
 const KNOPF_MEHRERE = "Geräte ausleihen";
 const KNOPF_LAEUFT = "Wird gespeichert …";
@@ -344,13 +348,50 @@ export function AusleihVorgang({
         </div>
 
         {treffer.length === 0 && (
-          <p className={s.trefferzeile} data-rolle="radio-auswahl-leer">
-            Keine Treffer für die Suche.
+          /*
+            ⛔ ZWEI LAGEN, ZWEI SAETZE, wie auf der Uebersicht (`_ui/GeraeteListe.tsx:165-179`):
+            „Keine Treffer" gilt, wenn es Geraete gibt und die Suche keines findet; gibt es
+            GAR KEINE, hat niemand gesucht, und der Satz waere eine Auskunft ueber einen
+            Vorgang, den es nicht gab. Der Satz fuer den leeren Bestand ist derselbe wie
+            dort (`KEINE_GERAETE_ERFASST`, `_lib/meldungen.ts`) — kein zweiter Wortlaut.
+            ⚠️ `suchtext.trim() === ""` UND „es gibt gar keine Geraete" FALLEN HIER NUR
+            DESHALB ZUSAMMEN, WEIL DIESE FLAECHE KEINEN STATUSFILTER FUEHRT (siehe Kopf,
+            Abweichung gegenueber `DeviceFilterBar`): ohne Suchtext ist `treffer` genau
+            `geraete`. ⛔ Wer einen Filter nachruest, prueft dann auf `geraete.length === 0`,
+            sonst steht der Erfassungssatz ueber einer vollen, nur weggefilterten Liste.
+            ⛔ `.leerTreffer` UND NICHT `.trefferzeile`: jene kleidet auf der Uebersicht die
+            ZAEHLZEILE (`_ui/GeraeteListe.tsx:158`), diese den Leerzustand
+            (`ausleihe.module.css`) — zwei Flaechen, dieselbe Aussage, dieselbe Gestalt.
+          */
+          <p className={s.leerTreffer} data-rolle="radio-auswahl-leer">
+            {suchtext.trim() === "" ? KEINE_GERAETE_ERFASST : "Keine Treffer für die Suche."}
           </p>
         )}
 
         {deckelErreicht && (
-          <p className={s.deckel} role="status" aria-live="polite" data-rolle="radio-deckel">
+          /*
+            ⛔ `role="alert"` OHNE `aria-live`, und diese Wahl ist BEGRUENDET statt geerbt.
+            Das Ruling (`.superpowers/sdd/planteil3/progress.md:603-634`) trennt nach EINEM
+            Kriterium: wie der Meldungsort in den Baum kommt. Punkt 2 (`status`/`polite`)
+            gilt fuer einen Zaehler, der DAUERHAFT im Baum steht und nur seinen Text
+            wechselt (`_ui/GeraeteListe.tsx:158`), und fuer eine Bestaetigung auf einem
+            FRISCHEN Dokument nach einer Weiterleitung. Dieser Satz ist keines von beidem:
+            er wird beim Antippen des zwanzigsten Geraets EINGEHAENGT und beim Abwaehlen
+            wieder entfernt — also Punkt 1, mit dessen gemessenem Anlass: eine hoefliche
+            Region, die zusammen mit ihrem Inhalt in den Baum kommt, wird haeufig nicht
+            angesagt.
+            ⛔ UND ER IST DIE EINZIGE RUECKMELDUNG AUF EINEN TASTENDRUCK, DER SONST NICHTS
+            TUT: `umschalten` bricht oberhalb des Deckels wortlos ab (`if (!drin &&
+            deckelErreicht) return;`). Wird der Satz verschluckt, tippt eine Person ins
+            Leere, ohne zu erfahren warum.
+            ⛔ DAMIT TRAEGT JEDER MELDUNGSORT DIESER FLAECHE DENSELBEN TON — Verlustsatz
+            (`(ausleihe)/ausleihen/page.tsx`), Deckel, Feldfehler am Namen, Fehlersatz der
+            Action, Fehlersatz der Erneuerung. Einen Punkt-2-Fall gibt es hier gar nicht;
+            ein zweiter Ton waere die Uneinheitlichkeit, gegen die die A11-Zeile steht.
+            ⚠️ DER BETREIBER KANN DAS UMKEHREN — dann faellt genau ein Attribut und je eine
+            Zeile in „nimmt hoechstens AUSWAHL_MAX Geraete an und sagt es".
+          */
+          <p className={s.deckel} role="alert" data-rolle="radio-deckel">
             {DECKEL_SATZ}
           </p>
         )}
@@ -382,7 +423,7 @@ export function AusleihVorgang({
             Aufruf von `message.*` oder `App.useApp()`. Der Fehler steht AM ORT DER AKTION,
             aus dem Ergebnistyp.
             ⛔ `role="alert"` OHNE `aria-live` — dieser Ort entsteht ausschliesslich nach
-            einem Antippen OHNE Seitenwechsel (Ruling `progress.md:163-177`, `:404-435`).
+            einem Antippen OHNE Seitenwechsel (Ruling `progress.md:163-177`, `:603-634`).
             ⛔ UND KEIN `Alert type="error"`: `colorError === colorPrimary`
             (`src/core/theme/theme.ts:32-33`), ein roter Kasten saehe aus wie die
             Primaeraktion (Falle 3).

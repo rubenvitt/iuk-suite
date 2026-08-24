@@ -767,10 +767,24 @@
 /*
  * ⛔ DIE NEBENZEILE „zuletzt am …" IST NACHBAU (Spec:3496-3500 Punkt 2) und der Posten, der
  * beim Port STILL verschwaende — `Vorschlag` ist kein `string` (`_db/leihen.ts:111-120`).
+ *
+ * ⛔ DIE EINZIGE REGEL DIESES ZWEIGS, DIE `--iuk-*` DIREKT LIEST, UND DER GRUND IST DIE
+ * BAUFORM: die drei `.vorschlag*`-Regeln kleiden Markup, das antds `AutoComplete` in ein
+ * PORTAL an `document.body` haengt (`_ui/EntleiherFeld.tsx`) — also AUSSERHALB von
+ * `.rahmen`. `--radio-rahmen-gedaempft` ist ausschliesslich dort deklariert (`:151-155`);
+ * im Portal ist der Wert nicht da, die Erklaerung wird „invalid at computed-value time",
+ * und die gedaempfte Farbe faellt still auf die geerbte zurueck. Das ist Falle 2 eine Stufe
+ * tiefer als der Fund aus A19 §6 (dort las eine Regel die Variable des FALSCHEN Traegers;
+ * hier ist der richtige Traeger schlicht kein Vorfahr). `--iuk-gedaempft` steht auf `:root`
+ * (`src/app/globals.css:152-156`, Dunkelzweig `:159-164`) und ist damit die einzige Quelle,
+ * die JEDER Knoten des Dokuments sieht.
+ * ⛔ BEWACHT, NICHT NUR BEGRUENDET: `_ui/AusleihVorgang.test.tsx`, Fall „keine Regel eines
+ * PORTAL-Bausteins liest eine Variable des Rahmen-Traegers" — er misst die Portallage am
+ * DOM und liest die Klassen dort aus, statt eine Liste zu behaupten.
  */
 .vorschlagZuletzt {
   font-size: 0.875rem;
-  color: var(--radio-rahmen-gedaempft);
+  color: var(--iuk-gedaempft);
   white-space: nowrap;
 }
 

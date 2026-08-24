@@ -114,6 +114,27 @@ function vorschlagsknoten(): HTMLElement[] {
 }
 
 /**
+ * Die Deklarationen ALLER Regeln, deren Selektor diese Klasse als eigenes Wort nennt.
+ *
+ * ⛔ KOMMENTARE WERDEN VORHER ENTFERNT, und das ist keine Zier: das Stylesheet zitiert an
+ * zwei Stellen `style={{ colorScheme: mode }}` (`ausleihe.module.css:21`, `:263`), also
+ * geschweifte Klammern INNERHALB eines Kommentars — eine naive Regelzerlegung liefe daran
+ * auseinander und lieferte stillschweigend die Deklarationen einer anderen Regel.
+ * ⛔ `(?![A-Za-z0-9_-])` HAELT `.vorschlag` VON `.vorschlagZuletzt` AUSEINANDER; ohne die
+ * Nachschau truege `.vorschlag` die Deklarationen von `.vorschlagName` und `.vorschlagZuletzt`
+ * mit, und der Fall meldete den Fund an der falschen Regel.
+ */
+function regelKoerper(css: string, klasse: string): string {
+  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const anker = new RegExp(`\\.${klasse}(?![A-Za-z0-9_-])`);
+  let gefunden = "";
+  for (const regel of ohneKommentare.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (anker.test(regel[1])) gefunden += regel[2];
+  }
+  return gefunden;
+}
+
+/**
  * Die Eingabetaste auf einem Feld, und ⛔ WAS DIESER HELFER MISST, IST DIE ABSAGE — nicht
  * das Ausbleiben einer Absendung.
  *
@@ -211,12 +232,21 @@ describe("radio-AusleihVorgang: die Auswahl", () => {
      * schreibt keine zweite 20.
      * ⛔ ABWAEHLEN GEHT WEITERHIN: ein Deckel, der auch das Entfernen sperrt, sperrt den
      * einzigen Weg wieder unter die Grenze.
+     * ⛔ UND DER MELDUNGSORT TRAEGT `role="alert"` OHNE `aria-live` — Ruling
+     * `.superpowers/sdd/planteil3/progress.md:603-634`, Punkt 1. Die Begruendung steht an
+     * der Zeile (`_ui/AusleihVorgang.tsx`); hier wird sie GEMESSEN, weil sie sonst die
+     * einzige der vier Meldungsstellen dieser Flaeche waere, die niemand haelt.
+     * ⛔ BEIDE HAELFTEN EINZELN: `alert` ohne `aria-live`. Ein `polite` daneben kehrte die
+     * Wahl still um (`_ui/GateFormular.tsx:124-146`), deshalb ist das `toBeNull()` eine
+     * eigene Zusicherung und kein Beiwerk.
      */
     const viele = Array.from({ length: AUSWAHL_MAX + 1 }, (_, i) => geraet({ id: `g-${i}` }));
     const volle = viele.slice(0, AUSWAHL_MAX).map((g) => g.id);
     await rendere(viele, volle);
 
     expect(query(DECKEL).textContent).toContain(`${AUSWAHL_MAX} Ger`);
+    expect(query(DECKEL).getAttribute("role")).toBe("alert");
+    expect(query(DECKEL).getAttribute("aria-live")).toBeNull();
 
     const ueberzaehlig = `g-${AUSWAHL_MAX}`;
     await click(zeile(ueberzaehlig));
@@ -245,6 +275,38 @@ describe("radio-AusleihVorgang: die Auswahl", () => {
 
     expect(await eingabetaste(SUCHE), "die Eingabetaste im Suchfeld wird nicht abgesagt").toBe(true);
     expect(ausleiheAnlegenMock).not.toHaveBeenCalled();
+  });
+
+  it("trennt den leeren Bestand von der erfolglosen Suche", async () => {
+    /*
+     * ⛔ ZWEI LAGEN, ZWEI SAETZE — und die Uebersicht trennt sie bereits ausdruecklich
+     * (`_ui/GeraeteListe.tsx:165-179`): „Es sind noch keine Geraete erfasst" gilt, wenn es
+     * GAR KEINE gibt; „Keine Treffer" gilt, wenn es welche gibt und die Suche keinen
+     * findet. Bis zur Fix-Runde 1 zu A19 stand hier in BEIDEN Lagen der Suchsatz — bei
+     * leerem Bestand also ein Satz ueber eine Suche, die niemand gefuehrt hat.
+     * ⛔ DER SATZ FUER DEN LEEREN BESTAND WIRD NICHT NEU ERFUNDEN: er kommt aus
+     * `KEINE_GERAETE_ERFASST` (`_lib/meldungen.ts`), derselben Konstante, die die
+     * Uebersichtsseite rendert — zwei Wortlaute fuer dieselbe Lage waeren die Fehlerform,
+     * gegen die `_lib/bauform.test.ts` modulweit steht.
+     * ⛔ HIER AUSGESCHRIEBEN und nicht importiert, sonst richtete sich die Zusicherung
+     * gegen denselben Wert, den die Insel rendert.
+     */
+    await rendere([]);
+    expect(query("[data-rolle='radio-auswahl-leer']").textContent).toBe(
+      "Es sind noch keine Geräte erfasst. Das erledigt die Verwaltung.",
+    );
+
+    await unmount();
+    await rendere(DREI);
+    await fill(SUCHE, "gibtesnicht");
+    expect(query("[data-rolle='radio-auswahl-leer']").textContent).toBe("Keine Treffer für die Suche.");
+    /*
+     * ⛔ UND DIE GESTALT IST DIE DES LEERZUSTANDS, NICHT DIE DER ZAEHLZEILE: `.trefferzeile`
+     * kleidet auf der Uebersicht die Zaehlzeile (`_ui/GeraeteListe.tsx:158`), `.leerTreffer`
+     * den Leerzustand. Vitest bildet den Modulschluessel auf `_<name>_<hash>` ab, deshalb
+     * `toContain` — und die zwei Namen sind keine Teilkette voneinander.
+     */
+    expect(query("[data-rolle='radio-auswahl-leer']").className).toContain("leerTreffer");
   });
 
   it("sucht ueber den vorberechneten Suchschluessel und nicht ueber die sichtbaren Felder", async () => {
@@ -581,5 +643,70 @@ describe("radio-AusleihVorgang: das Stylesheet", () => {
       css.slice(traeger),
       "eine Regel unter `.rahmen` liest eine Variable, die nur `.gate` deklariert (Falle 2)",
     ).not.toMatch(/var\(--radio-gate-/);
+  });
+
+  it("keine Regel eines PORTAL-Bausteins liest eine Variable des Rahmen-Traegers", async () => {
+    /*
+     * ⛔ DIESELBE FALLE 2, EINE STUFE TIEFER — und der Fall darueber sieht sie NICHT. Jener
+     * schneidet die Datei am Traeger `.rahmen` und verbietet unterhalb davon `--radio-gate-*`.
+     * Die eigentliche Frage ist aber nicht, WELCHE Variable eine Regel liest, sondern ob ihr
+     * Traeger fuer den Knoten, der die Regel traegt, ueberhaupt VORFAHR ist. Fuer die
+     * Vorschlagszeile ist er es nicht: antds `AutoComplete` rendert seinen Aufklapper in ein
+     * PORTAL an `document.body` (`_ui/EntleiherFeld.tsx`), also ausserhalb von `.rahmen`
+     * (`_ui/AusleihRahmen.tsx`). Dort ist `--radio-rahmen-gedaempft` nicht deklariert, die
+     * Erklaerung wird „invalid at computed-value time", und die gedaempfte Farbe faellt still
+     * auf die geerbte zurueck.
+     * ⛔ GEMESSEN, NICHT ANGENOMMEN: der Fall stellt die Portal-Lage her, prueft SIE zuerst
+     * (der Knoten haengt an `document.body` und NICHT im Formularbaum) und liest die dort
+     * tatsaechlich vorkommenden Klassen des Modulstylesheets aus dem DOM aus — statt eine
+     * Liste zu behaupten. Vitest bildet einen CSS-Modulschluessel auf `_<name>_<hash>` ab
+     * (gemessen an der installierten Fassung: `_vorschlagZuletzt_cacbdf`), daher der Schnitt.
+     * ⛔ ERLAUBT SIND DORT NUR DIE SUITE-VARIABLEN AUF `:root` (`src/app/globals.css:152-156`,
+     * Dunkelzweig `:159-164`) — sie sind die einzigen, die JEDER Knoten des Dokuments sieht.
+     * ⚠️ HEUTE IST `AutoComplete` DER EINZIGE PORTAL-BAUSTEIN DES MODULS (gemessen:
+     * `grep -rn 'from "antd"' src/app/m/radio` nennt sonst nur `Button`, `Input` und `Empty`,
+     * die alle im Wirt bleiben). Kommt ein `Modal`, `Tooltip` oder `Popover` dazu, faellt
+     * seine Flaeche unter dieselbe Regel — dann ist dieser Fall zu ERWEITERN, nicht zu
+     * loeschen.
+     */
+    entleiherVorschlaegeMock.mockResolvedValue([
+      { name: "Anna Beispiel", zuletztText: "zuletzt am 14.06.2026, 09:12" },
+    ]);
+    await rendere();
+    await click(zeile("g-1"));
+    await fill(NAMENSFELD, "an");
+    await warteAufVorschlaege();
+
+    const knoten = vorschlagsknoten();
+    expect(knoten.length, "ohne aufgeklappte Liste waere der Fall leer-gruen").toBeGreaterThan(0);
+    expect(
+      query("[data-rolle='radio-ausleihform']").contains(knoten[0]),
+      "haengt der Vorschlag doch im Wirt, ist die Voraussetzung dieses Falls hinfaellig",
+    ).toBe(false);
+    expect(document.body.contains(knoten[0]), "er haengt am Dokument, nur eben woanders").toBe(true);
+
+    const imPortal = new Set<string>();
+    for (const k of knoten) {
+      for (const el of [k, ...Array.from(k.querySelectorAll<HTMLElement>("*"))]) {
+        for (const klasse of Array.from(el.classList)) {
+          const treffer = /^_([A-Za-z0-9]+)_[0-9a-z]+$/.exec(klasse);
+          if (treffer) imPortal.add(treffer[1]);
+        }
+      }
+    }
+    expect(
+      imPortal.has("vorschlagZuletzt"),
+      "die Nebenzeile ist die Regel, an der es einmal eingetreten ist — fehlt sie, misst der Fall nichts",
+    ).toBe(true);
+
+    const css = readFileSync(STYLESHEET, "utf8");
+    for (const name of imPortal) {
+      const koerper = regelKoerper(css, name);
+      expect(koerper, `zu .${name} gibt es keine Regel — der Schnitt greift ins Leere`).not.toBe("");
+      expect(
+        koerper,
+        `.${name} steht im PORTAL und liest eine Variable, die nur ein Traeger im Wirt deklariert (Falle 2)`,
+      ).not.toMatch(/var\(--radio-/);
+    }
   });
 });

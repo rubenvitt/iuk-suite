@@ -170,7 +170,7 @@ export function SitzungErneuern({ grund }: { grund: AusleihGrund | RueckgabeGrun
           {fehler !== null && (
             /*
               ⛔ `role="alert"` OHNE `aria-live` — Ruling `progress.md:163-177` und
-              `:404-435`, Punkt 1: dieser Ort entsteht AUSSCHLIESSLICH nach einem Antippen
+              `:603-634`, Punkt 1: dieser Ort entsteht AUSSCHLIESSLICH nach einem Antippen
               OHNE Seitenwechsel. Eine hoefliche Region, die zusammen mit ihrem Inhalt in den
               Baum kommt, wird haeufig nicht angesagt; `alert` impliziert `assertive`, und
               ein `polite` daneben kehrte die Wahl still um.

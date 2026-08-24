@@ -114,7 +114,7 @@ describe("radio-SitzungErneuern: was sie mit dem Ergebnis macht", () => {
 
   it("der Fehlerort traegt role alert und kein aria-live", async () => {
     /*
-     * ⛔ RULING AUS DER FIX-RUNDE 1 ZU A11 UND A18 (`progress.md:163-177`, `:404-435`):
+     * ⛔ RULING AUS DER FIX-RUNDE 1 ZU A11 UND A18 (`progress.md:163-177`, `:603-634`):
      * ein Meldungsort, der NACH einem Antippen OHNE Seitenwechsel entsteht, traegt
      * `role="alert"`. Genau das ist dieser: er entsteht erst, wenn die Person auf „Zugang
      * erneuern" getippt hat. ⛔ KEIN `aria-live` DANEBEN — `alert` impliziert `assertive`,
