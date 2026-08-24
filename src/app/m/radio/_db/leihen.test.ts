@@ -1113,11 +1113,23 @@ describe("radio-leihen: die Leihhistorie der Verwaltung", () => {
      * ⛔ UND DIE ZWEI AUSGESCHLOSSENEN ZEILEN WERDEN NAMENTLICH GEPRUEFT, nicht nur die
      * eingeschlossene: ein Fenster, das alle Zeilen umspannt, kann einen Einheitenfehler
      * (Sekunden gegen Millisekunden) nicht von einem richtigen Vergleich unterscheiden.
+     *
+     * ⛔ DIE ZWEI GRENZZEILEN SIND FUND F3 DER FIX-RUNDE ZU V1 UND KEIN SCHMUCK. Bis dahin
+     * lag jeder Fixture-Zeitpunkt ECHT innerhalb oder ECHT ausserhalb des Fensters, und
+     * `gte`/`lte` war von `gt`/`lt` durch keinen Fall zu unterscheiden — gemessen: die
+     * Mutation ergab `42 passed`. Die Einschluss-Semantik ist eine 1:1-Pflicht
+     * (`loanRepo.ts:140-141`), und nach der Betreiberentscheidung zu V-L11
+     * (`progress.md`, „filtert nach Geraet UND Zeitraum") setzt „wer hatte was am
+     * Einsatztag" die Grenze typischerweise GENAU auf einen Tagesrand.
      */
     geraet({ id: "h-innen", issi: "3300001" });
     geraet({ id: "h-rand", issi: "3300002" });
     geraet({ id: "h-spaet", issi: "3300003" });
+    geraet({ id: "h-grenze-von", issi: "3300004" });
+    geraet({ id: "h-grenze-bis", issi: "3300005" });
     leihe({ deviceId: "h-innen", borrowerName: "Innen Ida" });
+    leihe({ deviceId: "h-grenze-von", borrowerName: "Grenze Gerda", borrowedAt: FENSTER_VON });
+    leihe({ deviceId: "h-grenze-bis", borrowerName: "Grenze Gustav", borrowedAt: FENSTER_BIS });
     leihe({
       deviceId: "h-rand",
       borrowerName: "Rand Rita",
@@ -1140,7 +1152,9 @@ describe("radio-leihen: die Leihhistorie der Verwaltung", () => {
     expect(namen, "eine Leihe mit Ausleihe NACH dem Fenster ist hereingerutscht").not.toContain(
       "Spaet Sina",
     );
-    expect(seite.gesamt).toBe(1);
+    expect(namen, "die UNTERE Grenze ist ausschliessend (gt statt gte)").toContain("Grenze Gerda");
+    expect(namen, "die OBERE Grenze ist ausschliessend (lt statt lte)").toContain("Grenze Gustav");
+    expect(seite.gesamt).toBe(3);
   });
 
   it("gesamt zaehlt ueber die gefilterte Menge, nicht ueber die Seite", () => {
@@ -1181,19 +1195,87 @@ describe("radio-leihen: die Leihhistorie der Verwaltung", () => {
   it("seitenGroesse ueber 1000 wird auf 1000 gedeckelt", () => {
     /*
      * ⛔ DER DECKEL STEHT SERVERSEITIG, NICHT IM AUFRUFER (`radio-admin/shared/src/loan.ts:98`,
-     * `.max(1000)`). Beobachtbar ist er am UMSCHLAG: `leihhistorie` gibt den gedeckelten Wert
-     * zurueck, nicht den hereingereichten — und derselbe Wert ist es, der als `limit` in die
-     * Abfrage geht (EINE Variable, kein zweiter Ort). Eine Fixture mit 1001 Zeilen waere die
-     * einzige andere Beobachtung und kostete Sekunden je Lauf.
+     * `.max(1000)`).
+     *
+     * ⛔ DER FALL PRUEFT BEIDE ORTE, UND DAS IST FUND F2 DER FIX-RUNDE ZU V1. Bis dahin las er
+     * nur den UMSCHLAG. Gemessen: den Deckel NUR aus dem `limit` entfernen und den Umschlag
+     * unveraendert lassen ergab `42 passed` — genau die NT11-Klasse, „ein Waechter, der
+     * `>= 5` statt `= 6` prueft, bleibt gruen und bewacht nichts". Der alte Kommentar hielt
+     * eine Fixture mit 1001 Zeilen fuer zu teuer („kostete Sekunden je Lauf"); das gilt nur
+     * fuer 1001 EINZELNE Transaktionen, also 1001 fsyncs. In EINER Transaktion kostet sie
+     * GEMESSEN unter 100 ms: die `tests`-Zeit dieser Datei lag vor der Fixture bei 523 ms
+     * und danach bei 590 ms, bei einem Rauschband von 523/525/539 ms ueber drei Vorlaeufe
+     * (2026-08-24, `rtk pnpm vitest run src/app/m/radio/_db/leihen.test.ts`). ⛔ DIE ZAHL
+     * STEHT HIER UND NICHT NUR IM BERICHT: sie kehrt ein frueheres Urteil um, und der
+     * Bericht liegt unter `.superpowers/`, das git-ignoriert ist (`.gitignore:17`).
+     *
+     * ⛔ EINTAUSENDEINS ZEILEN UND NICHT WENIGER: bei 1000 waere ein fehlender Deckel von
+     * einem wirksamen nicht zu unterscheiden. Und `gesamt` MUSS 1001 sein — die Zahl zeigt,
+     * dass die `count()`-Abfrage die Grenze NICHT geerbt hat (`loanRepo.ts:146` traegt kein
+     * `limit`).
+     *
+     * ⛔ EIN EIGENES GERAET JE ZEILE, weil `loans_device_active_uidx` ein PARTIELLER
+     * Unique-Index auf `device_id` ist, solange `returned_at` NULL ist
+     * (`_db/migrations/0001_loans_aktiv_uidx.sql`). Geraetezeilen braucht der Fall nicht:
+     * `loans.device_id` ist ABSICHTLICH kein Fremdschluessel (`_db/schema.ts:201-205`), und
+     * dieser Lesepfad joint nicht.
      *
      * ⚠️ BENANNTE ABWEICHUNG: der Bestand LEHNT AB (zods `.max` wirft, die Route antwortet
      * 400), dieses Modul DECKELT. Der Grund steht an der Deckelung selbst in `leihen.ts`.
      */
-    geraet({ id: "h-deckel", issi: "3500001" });
-    leihe({ deviceId: "h-deckel" });
+    const ZEILEN = 1001;
+    sqlite.exec("BEGIN");
+    for (let i = 0; i < ZEILEN; i++) {
+      leihe({
+        deviceId: `h-deckel-${i}`,
+        borrowerName: `Person ${i}`,
+        borrowedAt: new Date(HISTORIE_FRUEH.getTime() + i * 60_000),
+      });
+    }
+    sqlite.exec("COMMIT");
 
     const seite = leihhistorie(db, { seite: 1, seitenGroesse: 5000 });
-    expect(seite.seitenGroesse, "der Deckel 1000 steht nicht serverseitig").toBe(1000);
+    expect(seite.seitenGroesse, "der Deckel 1000 fehlt im Umschlag").toBe(1000);
+    expect(seite.zeilen.length, "der Deckel 1000 fehlt in der Abfrage").toBe(1000);
+    expect(seite.gesamt, "gesamt hat die Grenze der Zeilenabfrage geerbt").toBe(ZEILEN);
+  });
+
+  it("die zweite Seite traegt die naechsten Zeilen", () => {
+    /*
+     * ⛔ FUND F1 DER FIX-RUNDE ZU V1: DIE BLAETTERUNG WAR VON KEINEM EINZIGEN FALL BEWACHT.
+     * Alle zwoelf Faelle der Aufgabe riefen effektiv `seite === 1` (1, 0 -> 1, NaN -> 1), also
+     * war der Offset ueberall 0. Gemessen: `.offset(0)` ergab `42 passed`, und die
+     * realistische Variante — die Multiplikation vergessen, `.offset(seite - 1)` — ebenfalls
+     * `42 passed`. Nur die grobe Verschiebung `.offset(seite * seitenGroesse)` fiel auf, weil
+     * dann JEDE Seite leer ist.
+     *
+     * ⛔ DER FALL PRUEFT BEIDE SEITEN NAMENTLICH, nicht nur ihre Laenge. Die bewachte Zeile
+     * ist 1:1 der Bestand (`radio-admin/server/src/repos/loanRepo.ts:155`:
+     * `.offset((page - 1) * pageSize)`). Drei Zeilen bei Seitengroesse 2 trennen alle drei
+     * Fehlformen: `.offset(0)` liefert auf Seite 2 die ERSTEN zwei, `.offset(seite - 1)` die
+     * MITTLEREN zwei, `.offset(seite * seitenGroesse)` gar keine.
+     *
+     * ⚠️ FAELLIG WAR ER VOR V7 (`_lib/lesepfade/ausleihen.ts`) — dem ersten Aufrufer, der
+     * ueberhaupt `seite > 1` schicken wird.
+     */
+    geraet({ id: "h-b1", issi: "3650001" });
+    geraet({ id: "h-b2", issi: "3650002" });
+    geraet({ id: "h-b3", issi: "3650003" });
+    leihe({ deviceId: "h-b2", borrowerName: "Mitte Mia", borrowedAt: AUSGELIEHEN_AM });
+    leihe({ deviceId: "h-b1", borrowerName: "Neu Nora", borrowedAt: HISTORIE_SPAET });
+    leihe({ deviceId: "h-b3", borrowerName: "Alt Alma", borrowedAt: HISTORIE_FRUEH });
+
+    const erste = leihhistorie(db, { seite: 1, seitenGroesse: 2 });
+    expect(erste.zeilen.map((z) => z.entleiher)).toEqual(["Neu Nora", "Mitte Mia"]);
+
+    const zweite = leihhistorie(db, { seite: 2, seitenGroesse: 2 });
+    expect(
+      zweite.zeilen.map((z) => z.entleiher),
+      "die zweite Seite setzt nicht hinter der ersten an",
+    ).toEqual(["Alt Alma"]);
+    expect(zweite.seite).toBe(2);
+    expect(zweite.seitenGroesse).toBe(2);
+    expect(zweite.gesamt, "gesamt zaehlt die Seite statt die gefilterte Menge").toBe(3);
   });
 
   it("seitenGroesse unter 1 und seite unter 1 werden auf 1 gehoben", () => {
@@ -1230,7 +1312,7 @@ describe("radio-leihen: die Leihhistorie der Verwaltung", () => {
      * Erst die 26. Zeile trennt sie.
      *
      * ⚠️ GERAETEZEILEN BRAUCHT DER FALL NICHT: `loans.device_id` ist ABSICHTLICH kein
-     * Fremdschluessel (`_db/schema.ts:200-205`), und dieser Lesepfad joint nicht.
+     * Fremdschluessel (`_db/schema.ts:201-205`), und dieser Lesepfad joint nicht.
      */
     const ZEILEN = 26;
     for (let i = 0; i < ZEILEN; i++) {
@@ -1274,7 +1356,7 @@ describe("radio-leihen: die Leihhistorie der Verwaltung", () => {
      * hier wie dort), deshalb werden BEIDE Seiten ausdruecklich ueberschrieben.
      *
      * Die historische Richtigkeit traegt der unveraenderliche Anzeige-Schnappschuss
-     * (`_db/schema.ts:196-202`): „Ein zusaetzlicher FK waere gueltiges Drizzle, gueltiges SQL
+     * (`_db/schema.ts:201-205`): „Ein zusaetzlicher FK waere gueltiges Drizzle, gueltiges SQL
      * und PARITAETSGRUEN; der Schaden entstuende Monate spaeter, bei der ersten
      * Geraeteausmusterung." Dieselbe Haltung wie bei `offeneAusleihen`.
      */

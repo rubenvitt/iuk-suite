@@ -731,11 +731,17 @@ export type LeihhistorieFilter = {
 };
 
 /**
- * Eine Zeile der Verwaltungs-Ausleihenliste — die acht Felder, die `LoanList.tsx:15-47`
- * anzeigt, in der Form, die ueber die RSC-Grenze darf.
+ * Eine Zeile der Verwaltungs-Ausleihenliste: die SIEBEN Spalten der Alt-Liste
+ * (`LoanList.tsx:16-46`) plus `id`, den Schluessel der Zeile (`LoanList.tsx:77`, `rowKey="id"`)
+ * — acht Felder, in der Form, die ueber die RSC-Grenze darf.
+ *
+ * ⚠️ SIEBEN SPALTEN, NICHT ACHT: `id` ZEIGT DIE ALT-MASKE NICHT AN, sie schluesselt damit nur
+ * die Zeile. Dieselbe Zaehlung fuehrt `KOPF.md:382` (Zeile V-L11). Korrigiert in der
+ * Fix-Runde zu V1 (Fund F4); vorher stand hier „die acht Felder, die `LoanList.tsx:15-47`
+ * anzeigt", und `:15-47` ist die Klammer des `columns`-Arrays, nicht sein Inhalt.
  *
  * ⛔ `rufname` UND `geraetetyp` KOMMEN AUS DEM SCHNAPPSCHUSS, NICHT AUS `devices`
- * (`_db/schema.ts:196-202`): „Die historische Richtigkeit traegt der unveraenderliche
+ * (`_db/schema.ts:201-205`): „Die historische Richtigkeit traegt der unveraenderliche
  * Anzeige-Schnappschuss, der beim Ausleihen kopiert wird, nicht ein lebender Join. Ein
  * zusaetzlicher FK waere gueltiges Drizzle, gueltiges SQL und PARITAETSGRUEN; der Schaden
  * entstuende Monate spaeter, bei der ersten Geraeteausmusterung." Dieselbe Haltung wie bei
@@ -746,8 +752,9 @@ export type LeihhistorieFilter = {
  * und Client an der Tagesgrenze verschieden, und gegen die Zone des Endgeraets systematisch.
  *
  * ⚠️ `geraetetyp` UND `notiz` BLEIBEN `null`, SIE WERDEN HIER NICHT AUF EINEN STRICH GEFALTET.
- * Der Alt-Bestand faltet alle drei Leerwerte an derselben Stelle (`LoanList.tsx:21`, `:44`:
- * `render: (v) => v || '—'`) — hier faellt nur `zurueckText` darunter, weil er als einziger
+ * Der Alt-Bestand faltet alle drei Leerwerte in der Anzeige (`LoanList.tsx:21` fuer den
+ * Geraetetyp, `:34` fuer die Rueckgabe ueber `formatTimestamp`, `:45` fuer die Notiz, die zwei
+ * aeusseren je `render: (v) => v || '—'`) — hier faellt nur `zurueckText` darunter, weil er als einziger
  * ein `string` ist und seine Faltung eine ZEITFORMATIERUNG ist, die auf den Server gehoert
  * (`formatTimestamp(null)` in `radio-admin/client/src/utils/format.ts:2-4` tut beides in einer
  * Funktion). Die zwei uebrigen Striche sind reine Darstellung und gehoeren in die Insel.
@@ -773,7 +780,16 @@ export type LeihhistorieSeite = {
   seitenGroesse: number;
 };
 
-/** Die erste Seite. `loan.ts:97` (`default(1)`), zugleich die Untergrenze der Hebung. */
+/**
+ * Die erste Seite — der VORGABEWERT und nur er. `radio-admin/shared/src/loan.ts:97`
+ * (`default(1)`).
+ *
+ * ⛔ SIE IST NICHT DIE UNTERGRENZE UND NICHT DIE BASIS DER 1-INDIZIERUNG, auch wenn dieselbe
+ * Ziffer dort steht: `min(1)` und `default(1)` sind im Bestand zwei getrennte Klauseln
+ * (`loan.ts:97`), und die Basis des Offsets ist ein Literal (`loanRepo.ts:155`). Wer die drei
+ * an einer Konstanten zusammenzieht, verschiebt beim naechsten Aendern der Vorgabe still die
+ * Blaetterung (Fund F8 der Fix-Runde zu V1).
+ */
 export const SEITE_VORGABE = 1;
 
 /**
@@ -845,14 +861,30 @@ function ganzzahlOderVorgabe(wert: number, vorgabe: number): number {
  * `min(1)`/`max(1000)`), und zod WIRFT — die Route antwortet 400. Diese Funktion hat keinen
  * Antwortweg, auf dem ein 400 ankaeme: sie wird aus einer Server Component gerufen, wo ein
  * Wurf die ganze Seite kostet, und die zwei Zahlen kommen aus einem Suchparameter, den jeder
- * Mensch von Hand veraendern kann. Die angenommene Menge ist dieselbe wie im Bestand; nur
- * ausserhalb davon antwortet dieses Modul mit der naechsten gueltigen Seite statt mit einem
- * Fehler. ⛔ DER GEDECKELTE WERT GEHT ZURUECK IN DEN UMSCHLAG, und zwar als DIESELBE Variable,
+ * Mensch von Hand veraendern kann. Fuer GANZZAHLIGE Werte ist die angenommene Menge dieselbe
+ * wie im Bestand; nur ausserhalb davon antwortet dieses Modul mit der naechsten gueltigen Seite
+ * statt mit einem Fehler.
+ *
+ * ⚠️ ZWEITE BENANNTE ABWEICHUNG, GEMESSEN IN DER FIX-RUNDE ZU V1 (Fund F7): fuer einen
+ * NICHT-ganzzahligen Wert weicht auch die ANGENOMMENE Menge ab. Der Bestand traegt ein
+ * `.int()` (`radio-admin/shared/src/loan.ts:97-98`), das `pageSize=25.5` mit 400 ablehnt
+ * (`radio-admin/server/src/routes/loans.ts:19-20` und `…/routes/loanApi.ts:141-142`, je
+ * `if (!parsed.success) return c.json({ error: 'invalid_query' }, 400)`); `ganzzahlOderVorgabe`
+ * unten faltet ihn mit `Math.trunc` auf 25 und NIMMT ihn an. Das ist dieselbe Wahl wie oben —
+ * diese Funktion hat keinen Antwortweg fuer ein 400 — und sie steht hier, damit sie nicht als
+ * unbelegte Zusage im verfolgten Baum liegt.
+ *
+ * ⛔ DER GEDECKELTE WERT GEHT ZURUECK IN DEN UMSCHLAG, und zwar als DIESELBE Variable,
  * die als `limit` in die Abfrage geht — sonst zeigte die Blaetterung der Flaeche eine andere
  * Zahl an, als die Abfrage benutzt hat.
  */
 export function leihhistorie(db: DB, f: LeihhistorieFilter): LeihhistorieSeite {
-  const seite = Math.max(SEITE_VORGABE, ganzzahlOderVorgabe(f.seite, SEITE_VORGABE));
+  // ⛔ DIE 1 IST HIER DIE UNTERGRENZE AUS `min(1)` (`radio-admin/shared/src/loan.ts:97`) UND
+  // NICHT DIE VORGABE — dieselbe Form wie bei `seitenGroesse` darunter, wo `min(1)` und
+  // `default(25)` ebenfalls zwei verschiedene Zahlen sind. `SEITE_VORGABE` steht nur noch fuer
+  // das `default(1)`. Vorher trug die Konstante Untergrenze, Vorgabe UND die Basis der
+  // 1-Indizierung unten auf einmal (Fund F8 der Fix-Runde zu V1).
+  const seite = Math.max(1, ganzzahlOderVorgabe(f.seite, SEITE_VORGABE));
   const seitenGroesse = Math.min(
     SEITENGROESSE_MAX,
     Math.max(1, ganzzahlOderVorgabe(f.seitenGroesse, SEITENGROESSE_VORGABE)),
@@ -885,7 +917,10 @@ export function leihhistorie(db: DB, f: LeihhistorieFilter): LeihhistorieSeite {
     .where(wo)
     .orderBy(desc(loans.borrowedAt))
     .limit(seitenGroesse)
-    .offset((seite - SEITE_VORGABE) * seitenGroesse)
+    // ⛔ DIE 1 IST DIE BASIS DER 1-INDIZIERUNG, KEIN VORGABEWERT — zeichengleich zum Bestand
+    // (`loanRepo.ts:155`: `.offset((page - 1) * pageSize)`). Bewacht vom Fall „die zweite
+    // Seite traegt die naechsten Zeilen" (`_db/leihen.test.ts`).
+    .offset((seite - 1) * seitenGroesse)
     .all()
     .map((z) => ({
       id: z.id,
