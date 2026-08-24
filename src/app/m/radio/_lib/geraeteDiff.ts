@@ -11,7 +11,7 @@ import type { Geraet } from "../_db/schema";
  * Die drei Namen sind die deutsche Entsprechung von `FieldDiff`
  * (`radio-admin/shared/src/schemas.ts`, gelesen ueber
  * `radio-admin/shared/src/diff-device.ts:20-24`): `field`/`oldValue`/`newValue`. Die
- * SPALTEN der Zieltabelle heissen weiter wie in der Quelle (`_db/schema.ts:126-135`) — nur
+ * SPALTEN der Zieltabelle heissen weiter wie in der Quelle (`_db/schema.ts:130-132`) — nur
  * dieser Zwischenwert ist deutsch benannt, weil er keine Zuordnung des Importers traegt.
  */
 export type FeldDiff = { feld: string; alt: string | null; neu: string | null };
@@ -22,7 +22,7 @@ export type FeldDiff = { feld: string; alt: string | null; neu: string | null };
  *
  * ⛔ 1:1 AUS `radio-admin/shared/src/diff-device.ts:4-6` (`toEventValue`), samt der
  * Doppelpruefung auf `null` UND `undefined`: die Zielspalten `old_value`/`new_value` sind
- * `text` (`_db/schema.ts:132-133`), und `String(null)` ergaebe die Zeichenkette `"null"` —
+ * `text` (`_db/schema.ts:131-132`), und `String(null)` ergaebe die Zeichenkette `"null"` —
  * ein Wert, den kein Leser mehr von einem echten Text „null" unterscheiden kann.
  *
  * ⚠️ ABWEICHUNG IN DER SCHREIBWEISE, NICHT IM VERHALTEN: die Quelle schreibt `v == null`.
@@ -51,8 +51,9 @@ function zuEreignisWert(wert: unknown): string | null {
  * 3. ⛔ ROHER IDENTITAETSVERGLEICH ALS AUSSTIEG (`:19`, woertlich
  *    `if (existing[field] === next) continue;`) — keine Normalisierung, keine Falschheits-
  *    pruefung. Ein `"0"` gegen ein `0` ist damit eine Aenderung, und das ist gewollt: die
- *    Spalten sind `text` (`_db/schema.ts:20-56`), zwei Werte, die verschieden aussehen, SIND
- *    verschieden.
+ *    siebzehn Datenspalten zwischen `_db/schema.ts:21` und `:49` sind `text` (nur
+ *    `alamosIntegrated`, `:50`, und `loanable`, `:55`, sind es nicht) — zwei Werte, die
+ *    verschieden aussehen, SIND verschieden.
  * 4. ⛔ ALT UND NEU WERDEN STRINGIFIZIERT, `null` BLEIBT `null` (`:22-23`, siehe
  *    `zuEreignisWert` oben).
  *

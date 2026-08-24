@@ -18,12 +18,12 @@ import type { Geraet } from "../_db/schema";
  * Aufrufer die leere Liste ueberhaupt zu sehen bekommt.
  *
  * ⚠️ UND `createdAt`/`updatedAt` STEHEN IN KEINEM PATCH DIESER DATEI. Beide sind
- * `mode: "timestamp"` (`_db/schema.ts:57-58`), also `Date`-Objekte; `String(new Date(...))`
+ * `mode: "timestamp"` (`_db/schema.ts:60-61`), also `Date`-Objekte; `String(new Date(...))`
  * ist zeitzonen- und sprachabhaengig und ergaebe einen flackernden Vergleichswert.
  */
 
 /**
- * Ein vollstaendiges Geraet in der Schluesselreihenfolge von `_db/schema.ts:19-63`.
+ * Ein vollstaendiges Geraet in der Schluesselreihenfolge von `_db/schema.ts:20-64`.
  *
  * ⛔ DIE REIHENFOLGE IST HIER TRAGEND, NICHT KOSMETIK: der Fall „diffGeraet iteriert nur die
  * Schluessel des Patches" unten unterscheidet die beiden Schluesselquellen allein an der
@@ -68,11 +68,11 @@ describe("diffGeraet — was KEINE Aenderung ist", () => {
      *
      * ⛔ DER FALL, AN DEM „KEIN EREIGNIS" HAENGT (`.superpowers/sdd/planteil4/briefs/V8.md:63`).
      * Der Aufrufer steigt bei `diffs.length === 0` frueh aus — schreibt kein Ereignis, kein
-     * `updatedAt`, kein `revalidatePath` (`KOPF.md:1251-1257`). Gibt diese Funktion fuer einen
+     * `updatedAt`, kein `revalidatePath` (`.superpowers/sdd/planteil4/briefs/KOPF.md:1251-1257`). Gibt diese Funktion fuer einen
      * unveraenderten Wert eine Zeile zurueck, entsteht bei jedem Speichern eines
      * unveraenderten Formulars eine Auditzeile, und die Historie wird wertlos.
      *
-     * Sonde S-V8e haengt an der Ausstiegszeile `if (bestehend[feld] === next) continue;`.
+     * Sonde S-V8e haengt an der Ausstiegszeile `if (bestehend[feld] === neu) continue;`.
      */
     const bestehend = geraet({ status: "einsatzbereit", rufname: "Alpha" });
     expect(diffGeraet(bestehend, { status: "einsatzbereit" })).toEqual([]);
@@ -122,9 +122,9 @@ describe("diffGeraet — was eine Aenderung ist und wie sie aussieht", () => {
      * Nicht-Zeichenketten-Feld, und die Erhaltung von `null`.
      *
      * ⛔ `loanable` UND `alamosIntegrated` SIND DIE EINZIGEN NICHT-ZEICHENKETTEN, DIE EIN
-     * PATCH FUEHREN KANN (`_db/schema.ts:47`, `:53` — beide `mode: "boolean"`). Ohne
+     * PATCH FUEHREN KANN (`_db/schema.ts:50`, `:55` — beide `mode: "boolean"`). Ohne
      * `String(...)` traegt die Ereigniszeile ein `true` statt `"true"`, und der Spaltentyp
-     * der Zieltabelle ist `text` (`_db/schema.ts:139`). Sonden S-V8f und S-V8g haengen an
+     * der Zieltabelle ist `text` (`_db/schema.ts:131-132`). Sonden S-V8f und S-V8g haengen an
      * den beiden Haelften dieser einen Zeile.
      */
     expect(diffGeraet(geraet({ loanable: false }), { loanable: true })).toEqual([
@@ -145,7 +145,7 @@ describe("diffGeraet — was eine Aenderung ist und wie sie aussieht", () => {
      * gepatchte Feld ab — es kaemen wieder genau zwei Diffs, und ein `toHaveLength(2)` bliebe
      * gruen. Beobachtbar bleibt allein die REIHENFOLGE: aus dem Patch kommt
      * `status` vor `rufname` (Einfuegereihenfolge unten), aus dem Geraet kaeme `rufname` vor
-     * `status` (Schluesselreihenfolge des Fixtures, `_db/schema.ts:20` vor `:28`).
+     * `status` (Schluesselreihenfolge des Fixtures, `_db/schema.ts:21` vor `:30`).
      * Deshalb ist die Zusicherung ein geordnetes `toEqual` und nicht `toContainEqual`.
      *
      * Sonde S-V8h haengt an der Schluesselquelle.

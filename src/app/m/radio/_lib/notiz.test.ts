@@ -33,7 +33,7 @@ describe("haengeNotizAn — anhaengen, nie ueberschreiben", () => {
      * ⛔ DER BESTEHENDE INHALT STEHT WOERTLICH IM ERGEBNIS, EINSCHLIESSLICH SEINES LEERRAUMS.
      * Der Alt-Kommentar sagt es aus (`update-note.ts:17-18`): „the existing value is preserved
      * verbatim". Gepruefte Gegenrichtung in derselben Zusicherung: der NEUE Text wird getrimmt
-     * (`:32`), der bestehende nicht. Die Spalte ist append-only (`_db/schema.ts:54-56`); ein
+     * (`:32`), der bestehende nicht. Die Spalte ist append-only (`_db/schema.ts:56-59`); ein
      * Nachbau, der `bisher` trimmt oder ersetzt, loescht Auditzeilen, ohne dass ein Tor es
      * sieht. Sonden S-V8i (Trim des neuen Textes) und S-V8j (Ueberschreiben) haengen hier.
      */
@@ -50,7 +50,7 @@ describe("haengeNotizAn — anhaengen, nie ueberschreiben", () => {
     /*
      * `radio-admin/shared/src/update-note.ts:34`: `existing && existing.length > 0`. Alt-Fall
      * `update-note.test.ts:7-12`. Alle drei leeren Formen fuehren zur selben Antwort — `null`,
-     * `undefined` (der Spaltenwert ist nullable, `_db/schema.ts:56`) und die leere
+     * `undefined` (der Spaltenwert ist nullable, `_db/schema.ts:59`) und die leere
      * Zeichenkette. Ein `${bisher}\n${zeile}` ohne diese Fallunterscheidung setzte eine
      * leere erste Zeile vor jede erste Notiz, und der Zeilenzaehler des Falls darunter
      * zaehlte fuer immer eins zu viel.
@@ -106,7 +106,7 @@ describe("haengeNotizAn — der Faelschungsschutz, jeder Weg einzeln", () => {
      *
      * ⛔ DER ZWEITE WEG — DER, DEN EIN NACHBAU VERGISST, weil der Autorname „ja vom Server
      * kommt" (`.superpowers/sdd/planteil4/briefs/V8.md:70`). Er kommt aus `users.name`
-     * (`_db/schema.ts:111`), und dort steht, was die Identitaetsquelle geliefert hat. Sonde
+     * (`_db/schema.ts:115`), und dort steht, was die Identitaetsquelle geliefert hat. Sonde
      * S-V8m haengt hier — sie ist die, die `singleLine` NUR auf `text` anwendet.
      *
      * Der `]` im Autornamen faellt in derselben Zusicherung mit weg; das ist der dritte Weg,

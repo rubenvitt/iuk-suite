@@ -10,7 +10,7 @@
  * ⛔ 1:1 AUS `radio-admin/shared/src/update-note.ts:2-4` (`isoDate`), samt der Begruendung des
  * Alt-Kommentars (`:1`): „stable, locale-independent". ⛔ UTC UND NICHT Europe/Berlin — und
  * das ist hier NICHT dieselbe Frage wie bei `devices.last_updated_at`, wo der Import
- * ausdruecklich in Berliner Ortszeit kuerzt (`_db/schema.ts:31-36`). Dort ist der Wert ein
+ * ausdruecklich in Berliner Ortszeit kuerzt (`_db/schema.ts:34-39`). Dort ist der Wert ein
  * erfasstes STAMMDATUM, hier ist er der Zeitstempel eines Ereignisses: die Auditzeile und die
  * Ereigniszeile, die im selben Zug entsteht, muessen dasselbe Datum tragen, und die
  * Ereigniszeile fuehrt einen rohen Zeitstempel (`_db/schema.ts:134`).
@@ -52,7 +52,7 @@ function eineZeile(wert: string): string {
  * 1. Das Datum ist UTC (`isoDatum`, `update-note.ts:2-4`).
  * 2. ⛔ ZEILENUMBRUECHE IN `text` UND IN `autor` WERDEN KOLLABIERT (`eineZeile`, `:11-13`).
  *    Beide Wege einzeln — der zweite ist der, den ein Nachbau vergisst, weil der Autorname
- *    „ja vom Server kommt"; er kommt aus `users.name` (`_db/schema.ts:111`) und traegt, was
+ *    „ja vom Server kommt"; er kommt aus `users.name` (`_db/schema.ts:115`) und traegt, was
  *    die Identitaetsquelle geliefert hat.
  * 3. ⛔ AUS `autor` WIRD JEDES `]` ENTFERNT, NICHT ERSETZT (`:31`). Die schliessende Klammer
  *    beendet eine Auditzeile; ohne dieses Entfernen faelscht ein Autorname einen zweiten
@@ -60,7 +60,7 @@ function eineZeile(wert: string): string {
  * 4. `text` wird getrimmt, `autor` nach der Bereinigung ebenfalls (`:31-32`).
  *
  * ⛔ BESTEHENDER INHALT BLEIBT WOERTLICH ERHALTEN (`:34`), die neue Zeile kommt mit `\n`
- * dahinter. UEBERSCHREIBEN GIBT ES NICHT: die Spalte ist append-only (`_db/schema.ts:54-56`),
+ * dahinter. UEBERSCHREIBEN GIBT ES NICHT: die Spalte ist append-only (`_db/schema.ts:56-59`),
  * und der Alt-Kommentar sagt es aus (`update-note.ts:17-18`): „the existing value is
  * preserved verbatim".
  *
