@@ -609,11 +609,11 @@ describe("geraet — die Geraeteakte", () => {
      * Beide Spalten sind nullable (`_db/schema.ts:62-64`), der Fall ist der Normalfall.
      *
      * ⛔ DIE ZWEITE HAELFTE DES NAMENS WIRD GEMESSEN, NICHT NUR BEHAUPTET. Die drei
-     * `null`-Zusicherungen gelten unabhaengig davon, ob `users` gefragt wurde — sie allein
-     * machten den Fall zu einem Waechter, der seinen eigenen Namen nicht haelt (Fix-Runde 1 zu
-     * V6, Fund 1: die Sonde auf `geraete.ts:541` ergab 0 rot). Gezaehlt wird deshalb, wie oft
-     * eine Anweisung ueber `users` vorbereitet wird, waehrend `geraet` laeuft — dieselbe
-     * Technik wie in „zaehlt in EINER Abfrage…" (`geraete.test.ts:514-527`).
+     * `null`-Zusicherungen gelten unabhaengig davon, ob `users` gefragt wurde — sie allein machten
+     * den Fall zu einem Waechter, der seinen Namen nicht haelt (Fix-Runde 1 zu V6, Fund 1): die
+     * Sonde auf `geraete.ts:541` ergab OHNE die Zaehlung unten 0 rot, MIT ihr 1 rot. Gezaehlt wird
+     * deshalb, wie oft eine Anweisung ueber `users` vorbereitet wird, waehrend `geraet` laeuft —
+     * dieselbe Technik wie in „zaehlt in EINER Abfrage…" (`geraete.test.ts:514-527`).
      */
     lege({ id: "a" });
 
