@@ -90,7 +90,7 @@ export const UPDATER_FELDER = ["softwareVersion", "lastUpdatedAt", "status"] as 
  *
  * ⛔ ITERIERT `Object.keys(patch)`, NICHT `UPDATER_FELDER` (`editable-fields.ts:12`). Ueber die
  * Allowlist zu laufen setzte jedes im Patch FEHLENDE Feld als `undefined` — und `diffGeraet`
- * (V7) schriebe es als Aenderung fort. Der Bestand faengt das eine Ebene tiefer zwar ab
+ * (V8) schriebe es als Aenderung fort. Der Bestand faengt das eine Ebene tiefer zwar ab
  * (`diff-device.ts:18`: `if (next === undefined) continue;`), aber sich darauf zu verlassen
  * waere eine Kopplung ueber zwei Dateien.
  *

@@ -100,7 +100,7 @@ describe("filterSchreibbareFelder", () => {
     /*
      * ⛔ DER `Object.keys(patch)`-ZWEIG (`editable-fields.ts:12`). Wer stattdessen ueber
      * `UPDATER_FELDER` iteriert, schreibt fuer jedes im Patch fehlende Feld ein
-     * `undefined` — und `diffGeraet` (V7) traegt es dann als Aenderung ein.
+     * `undefined` — und `diffGeraet` (V8) traegt es dann als Aenderung ein.
      *
      * ⚠️ Der Bestand faengt das eine Ebene tiefer ab (`diff-device.ts:18`:
      * `if (next === undefined) continue;`) — sich darauf zu verlassen waere aber eine
