@@ -266,7 +266,7 @@ describe("ereignisseFuerGeraet — die Aenderungshistorie eines Geraets", () => 
 
   it("ein unbekannter Quellwert faellt auf den rohen Wert zurueck und stuerzt nicht ab", () => {
     /*
-     * ⛔ DER ENUM-OHNE-DB-CHECK-FALL (`_db/schema.ts:136-138`, woertlich: „Die Datenbank
+     * ⛔ DER ENUM-OHNE-DB-CHECK-FALL (`_db/schema.ts:135-137`, woertlich: „Die Datenbank
      * akzeptiert JEDEN String; ein fuenfter Wert passiert Datenbank und Typpruefung
      * unbeanstandet und bricht erst in einem erschoepfenden Switch der Oberflaeche.")
      *
@@ -309,7 +309,8 @@ describe("ereignisseFuerGeraet — die Aenderungshistorie eines Geraets", () => 
      * Test — nicht die Schluessel der gebauten Abbildung. Sonst schrumpfte die Liste lautlos
      * mit, und die Historie zeigte fuer das verlorene Feld seinen Spaltennamen.
      *
-     * `Spec:4763-4764`: „deutsches Etikett aus DERSELBEN Etikettenliste wie das Formular".
+     * `Spec:4770`, woertlich: „deutsches Etikett aus derselben Etikettenliste, die das
+     * Formular benutzt".
      */
     expect(ETIKETTEN_ERWARTET.length, "die Erwartungstafel selbst").toBe(20);
     expect(Object.keys(FELD_ETIKETTEN).length, "die gebaute Abbildung").toBe(20);
@@ -347,8 +348,9 @@ describe("ereignisseFuerGeraet — die Aenderungshistorie eines Geraets", () => 
 
   it("leere alte und neue Werte werden als Gedankenstrich dargestellt", () => {
     /*
-     * `Spec:4765`. ⛔ BEIDE SEITEN, MIT JE UNTERSCHIEDLICHEM WERT AUF DER ANDEREN — ein Bau,
-     * der nur eine der beiden Seiten faltet, bliebe bei einem symmetrischen Fixture gruen.
+     * `Spec:4771-4772` („leere Werte als `—`"). ⛔ BEIDE SEITEN, MIT JE UNTERSCHIEDLICHEM
+     * WERT AUF DER ANDEREN — ein Bau, der nur eine der beiden Seiten faltet, bliebe bei
+     * einem symmetrischen Fixture gruen.
      *
      * ⚠️ ZWEI LEERFORMEN, BEIDE GEFALTET: `null` (die Spalten tragen kein `.notNull()`,
      * `_db/schema.ts:131-132`) und die leere Zeichenkette (`toEventValue` gibt fuer einen
@@ -387,7 +389,7 @@ describe("ereignisseFuerGeraet — die Aenderungshistorie eines Geraets", () => 
 
   it("der rohe sub steht im title, nicht in der Zelle", () => {
     /*
-     * `Spec:4765` — der aufgeloeste Name in der Zelle, der rohe `sub` nur im `title`. Der
+     * `Spec:4772` — der aufgeloeste Name in der Zelle, der rohe `sub` nur im `title`. Der
      * Fall haelt fest, dass BEIDE Werte da sind und an VERSCHIEDENEN Stellen; ein Bau, der
      * nur einen von beiden fuehrt, kann die Zusage nicht halten.
      *

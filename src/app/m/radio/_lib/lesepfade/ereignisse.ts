@@ -40,10 +40,11 @@ import { datumMitUhrzeit } from "../anzeige";
 /**
  * Die ZWANZIG Feldnamen der Geraetemaske mit ihrem deutschen Etikett.
  *
- * ⛔ DIE ETIKETTEN SIND DIESELBEN WIE IM FORMULAR (`Spec:4763-4764`: „deutsches Etikett aus
- * DERSELBEN Etikettenliste wie das Formular"). Sie stehen woertlich in den `label`-Attributen
- * von `radio-admin/client/src/features/devices/DeviceFields.tsx` — je Eintrag mit eigenem Anker
- * am Zeilenende.
+ * ⛔ DIE ETIKETTEN SIND DIESELBEN WIE IM FORMULAR (`Spec:4770-4771`, woertlich: „deutsches
+ * Etikett aus derselben Etikettenliste, die das Formular benutzt" — und die Zeile darauf nennt
+ * `DeviceFields.tsx` mit seinen `label`-Attributen als den Ort). Sie stehen dort je Eintrag mit
+ * eigenem Anker am Zeilenende, in
+ * `radio-admin/client/src/features/devices/DeviceFields.tsx`.
  *
  * ⛔ DER SCHLUESSEL IST DER WERT, DER IN `device_events.field` LANDET, nicht der Spaltenname der
  * Datenbank: `diffDevice` (`radio-admin/shared/src/diff-device.ts:16-22`) schreibt dort den
@@ -82,11 +83,11 @@ export const FELD_ETIKETTEN: Record<string, string> = {
 };
 
 /**
- * Die VIER Quellwerte mit ihrem Klartextwort (`Spec:4766`).
+ * Die VIER Quellwerte mit ihrem Klartextwort (`Spec:4772-4773`).
  *
  * ⛔ DIE VIER WERTE SIND ABSCHLIESSEND (`radio-admin/server/src/repos/deviceRepo.ts:219`,
  * `_db/schema.ts:139-141`) — und das Schema fuehrt sie als Drizzle-Enum OHNE DB-Check
- * (`_db/schema.ts:136-138`, woertlich): „Die Datenbank akzeptiert JEDEN String; ein fuenfter
+ * (`_db/schema.ts:135-137`, woertlich): „Die Datenbank akzeptiert JEDEN String; ein fuenfter
  * Wert passiert Datenbank und Typpruefung unbeanstandet und bricht erst in einem erschoepfenden
  * Switch der Oberflaeche." Deshalb ist der Rueckfall unten der ROHE Wert und kein Absturz.
  */

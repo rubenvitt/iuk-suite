@@ -106,9 +106,14 @@ export function ausleihenListe(db: DB, p: AusleihenParameter): AusleihenSeite {
     geraeteId: p.geraeteId,
     von: p.von,
     bis: p.bis,
-    // `Number` ist die ganze Umwandlung; was dabei ein `NaN` wird — ein leerer, ein fehlender
-    // oder ein unsinniger Suchparameter — faengt die Datenfunktion mit ihrer Vorgabe ab. Sie
-    // tut es dort, weil „eine Regel, die nur im Client steht, keine Regel ist" (`Spec:3583-3585`).
+    // `Number` ist die ganze Umwandlung, und die unbrauchbaren Werte laufen GEMESSEN ueber
+    // ZWEI VERSCHIEDENE WAECHTER der Datenfunktion, nicht ueber einen: ein FEHLENDER oder ein
+    // unsinniger Suchparameter wird `NaN` und faellt in `ganzzahlOderVorgabe` auf die Vorgabe
+    // zurueck (`_db/leihen.ts:834-836`). Ein LEERER wird `Number("")` === 0 — `Number.isFinite(0)`
+    // ist wahr, die Vorgabe greift also NICHT, und gehoben wird die 0 erst von der Untergrenze
+    // `Math.max(1, ...)` (`_db/leihen.ts:887`). Beide enden auf der ersten Seite. Die Grenzen
+    // stehen dort und nicht hier, weil „eine Regel, die nur im Client steht, keine Regel ist"
+    // (`Spec:3583-3585`).
     seite: Number(p.seite),
     seitenGroesse: AUSLEIHEN_SEITENGROESSE,
   });

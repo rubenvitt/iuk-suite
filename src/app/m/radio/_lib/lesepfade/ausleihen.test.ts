@@ -121,6 +121,12 @@ describe("ausleihenListe — der Umschlag um leihhistorie", () => {
      * Das Fixture trennt beide Achsen einzeln: eine Zeile faellt nur ueber das Geraet heraus,
      * eine nur ueber das Fenster nach oben, eine nur nach unten. Ein Umschlag, der einen der
      * drei Werte verschluckt, faellt an genau einer Zeile auf.
+     *
+     * ⚠️ ZUGESICHERT WIRD DIE `id`, NICHT DER ENTLEIHERNAME. Alle vier Fixture-Zeilen tragen
+     * denselben `borrowerName` (die Vorgabe in `leihe()`, `ausleihen.test.ts:63`) — eine
+     * Zusicherung darauf haette nur die ANZAHL der ueberlebenden Zeilen gemessen und nicht,
+     * WELCHE ueberlebt. Das ist genau die Aussage, die der Absatz darueber verspricht
+     * (Fix-Runde 1 zu V7, Fund 5).
      */
     db.insert(loans)
       .values([
@@ -147,7 +153,10 @@ describe("ausleihenListe — der Umschlag um leihhistorie", () => {
       bis: new Date("2026-07-31T23:59:59Z"),
     });
 
-    expect(seite.zeilen.map((z) => z.entleiher)).toEqual(["Anna Beispiel"]);
+    expect(
+      seite.zeilen.map((z) => z.id),
+      "genau die eine Zeile, die alle drei Filter passiert",
+    ).toEqual(["l-treffer"]);
     expect(seite.gesamt, "gesamt zaehlt die GEFILTERTE Menge").toBe(1);
   });
 
