@@ -33,14 +33,14 @@ importers:
         specifier: ^3.0.3
         version: 3.0.3
       better-sqlite3:
-        specifier: ^13.0.2
-        version: 13.0.2
+        specifier: ^13.0.3
+        version: 13.0.3
       dayjs:
         specifier: ^1.11.21
         version: 1.11.21
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@13.0.2)
+        version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@13.0.3)
       jose:
         specifier: ^6.2.7
         version: 6.2.7
@@ -2022,8 +2022,8 @@ packages:
     resolution: {integrity: sha512-GlF5wPWnSa/X5LKM1o0wz0suXIINz1iHRLvTS+sLyi7XPbe5ycmYI3DlZqVGZZtDgl4DmasFg7gOB3JYbphV5g==}
     hasBin: true
 
-  better-sqlite3@13.0.2:
-    resolution: {integrity: sha512-jW6oufeDhXZaiX9Lw5A+oerVClx4iFrI6uDj1zu7SqUAjak9vbJvA0NEcKLNxHiQHb6kYCoFzzXYV0YOauhV3g==}
+  better-sqlite3@13.0.3:
+    resolution: {integrity: sha512-RbOBxmLBG8uvFUc15X9+9SFemKcQ0WBuISBVkpuiaUB2qblC8UWlHEjdWVoZ8AdhSwmoEgsiXKfopX0CQxaACQ==}
     engines: {node: '>=22'}
 
   bidi-js@1.0.3:
@@ -2525,6 +2525,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -3161,8 +3162,8 @@ packages:
       sass:
         optional: true
 
-  node-addon-api@8.9.1:
-    resolution: {integrity: sha512-4eUQWVPCUUUiBjLnHS3cXWeC6ryoPUc0U3rP7IuzapoGbzMqd/r6KKO0clr0b+snQhsrueFEhCZDdK+LK7hxKg==}
+  node-addon-api@8.9.2:
+    resolution: {integrity: sha512-VijLXbi3UACN69I0JVXJsX4tjACjNoQDgv2gTF6sx2wWEi8tkSg2eX8p5gSIFi8z2+DL3oHmY6OyKce38SDolg==}
     engines: {node: ^18 || ^20 || >= 21}
 
   node-exports-info@1.6.2:
@@ -5656,9 +5657,9 @@ snapshots:
 
   bcryptjs@3.0.3: {}
 
-  better-sqlite3@13.0.2:
+  better-sqlite3@13.0.3:
     dependencies:
-      node-addon-api: 8.9.1
+      node-addon-api: 8.9.2
 
   bidi-js@1.0.3:
     dependencies:
@@ -5886,10 +5887,10 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.23.12
 
-  drizzle-orm@0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@13.0.2):
+  drizzle-orm@0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@13.0.3):
     optionalDependencies:
       '@types/better-sqlite3': 7.6.13
-      better-sqlite3: 13.0.2
+      better-sqlite3: 13.0.3
 
   dunder-proto@1.0.1:
     dependencies:
@@ -6877,7 +6878,7 @@ snapshots:
       - '@types/node'
       - babel-plugin-macros
 
-  node-addon-api@8.9.1: {}
+  node-addon-api@8.9.2: {}
 
   node-exports-info@1.6.2:
     dependencies:
