@@ -134,6 +134,18 @@ describe("radio-Code: erzeugeCode", () => {
      * DURCHKAEME, benannt statt verschwiegen: ein Literal `"getRandomValues("` ohne einen
      * Kommentarbeginn in derselben Zeile. Zeichenkettenliterale GANZ leert erst die Maschine
      * in `riegel.test.ts:203-250`; der Schnitt hier kappt nur ab dem ersten Kommentarbeginn.
+     *
+     * ⛔ UND DER SCHNITT KENNT KEINE REGEXLITERALE — ABSICHTLICH NICHT, DIE POLARITAET IST
+     * HIER UMGEKEHRT (Fund F4 der Schlusspruefung, 2026-08-24). Die drei anderen
+     * Kommentarschnitte des Moduls (`riegel.test.ts:335`, `_actions/guards.test.ts:294`,
+     * `_lib/bauform.test.ts:357`) laufen ueber `ohneRegexLiterale`, weil dort ein `//` IN
+     * einem Regexliteral den Rest der Zeile wegschneiden und einen VERBOTENEN Fund still
+     * verschwinden lassen wuerde. HIER speist der Schnitt ein POSITIVES `toMatch`: ein
+     * Regexliteral in `code.ts` koennte den GEFORDERTEN Aufruf nur wegschneiden und diesen
+     * Fall damit ROT machen — laut, nicht still. Der negative Halbfall darueber liest
+     * ohnehin den rohen Text. ⛔ DIES IST ALSO KEINE VIERTE, UEBERSEHENE KOPIE DER AM
+     * 2026-08-23/24 REPARIERTEN BAUART; wer sie dafuer haelt, „repariert" einen Waechter,
+     * der nichts zu reparieren hat.
      */
     const quelle = readFileSync(join(process.cwd(), "src/app/m/radio/_lib/code.ts"), "utf8");
     expect(quelle, "erzeugeCode muss kryptografisch sein (Spec:2089)")

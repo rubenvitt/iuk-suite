@@ -50,7 +50,7 @@ const AUSLEIHE_ID = "[data-rolle='radio-ausleihe-id']";
  * ⛔ DIE SAETZE STEHEN AUSGESCHRIEBEN und werden nicht aus `_lib/meldungen.ts` importiert:
  * sonst richtete sich die Zusicherung gegen denselben Wert, den der Dialog rendert, und
  * koennte konstruktiv nie fehlschlagen (dieselbe Form wie
- * `_ui/AusleihVorgang.test.tsx:57-62`).
+ * `_ui/AusleihVorgang.test.tsx:58-63`).
  */
 const SATZ_SCHON_ZURUECK = "41/12 wurde zwischenzeitlich von jemand anderem zurückgegeben.";
 const SATZ_SITZUNG =
@@ -308,12 +308,12 @@ describe("radio-RueckgabeDialog: die drei Feinheiten des Bestands", () => {
      * (`.superpowers/sdd/planteil3/progress.md:584-588`, Fix-Runde 2 zu A17): „⬜ A20
      * schuldet dieselbe Frage am FELD. Ob der Zeichenzaehler der Zustandsnotiz den
      * getrimmten oder den ungetrimmten Wert zaehlt, entscheidet A20 — und die Antwort muss
-     * zu `_db/leihen.ts:599` (`notiz.length`, ungetrimmt) passen. Zwei Messseiten fuer
+     * zu `_db/leihen.ts:653` (`notiz.length`, ungetrimmt) passen. Zwei Messseiten fuer
      * dieselbe Grenze liefen sonst auseinander, und die zweite saehe man erst am Feld."
      *
      * ⛔ ZWEI HAELFTEN, BEIDE NOETIG:
      *   1. UNGETRIMMT — fuehrende und nachlaufende Leerzeichen zaehlen mit, wie
-     *      `_db/leihen.ts:599` sie mitzaehlt.
+     *      `_db/leihen.ts:653` sie mitzaehlt.
      *   2. UTF-16-EINHEITEN, NICHT CODEPUNKTE — antds Vorgabestrategie ist
      *      `value => value.length` (gemessen an der installierten Fassung:
      *      `@rc-component/input@1.3.1/es/hooks/useCount.js:30`), also dieselbe Einheit wie
@@ -324,7 +324,7 @@ describe("radio-RueckgabeDialog: die drei Feinheiten des Bestands", () => {
     await rendere();
 
     await fuelle(NOTIZ, "  ab  ");
-    expect(queryPortal(ZAEHLER).textContent, "ungetrimmt wie _db/leihen.ts:599").toBe(
+    expect(queryPortal(ZAEHLER).textContent, "ungetrimmt wie _db/leihen.ts:653").toBe(
       `6 / ${ZUSTANDSNOTIZ_MAX}`,
     );
 
@@ -342,14 +342,14 @@ describe("radio-RueckgabeDialog: die drei Feinheiten des Bestands", () => {
      * ⛔ DIESE HAELFTE IST BEWUSST DEFENSIV UND WIRD NICHT ALS ERREICHBAR AUSGEGEBEN: das
      * `maxLength` am Feld haelt das TIPPEN und das EINFUEGEN an, und die Notiz beginnt leer
      * — anders als das Namensfeld aus A19, dessen Vorbelegung aus `weg: "suite"` die Grenze
-     * ueberschreiten KANN (⬜ A-L17). Im Test ist sie erreichbar, weil ein programmatisch
+     * ueberschreiten KANN (A-L17). Im Test ist sie erreichbar, weil ein programmatisch
      * gesetzter Wert `maxLength` nicht durchlaeuft.
      * ⛔ UND SIE ERSETZT DEN SERVER NICHT: `bucheRueckgabe` prueft erneut
-     * (`_db/leihen.ts:599-601`) — „eine Regel, die nur im Client steht, ist keine Regel"
+     * (`_db/leihen.ts:653-655`) — „eine Regel, die nur im Client steht, ist keine Regel"
      * (Spec:3584).
      * ⚠️ ABWEICHUNG VOM BESTAND, BENANNT: die Alt-Quelle kehrt WORTLOS um (`:54: return;`).
      * Hier steht ein Satz am Feld, in derselben Form wie der Feldfehler des Namensfeldes
-     * (`_ui/AusleihVorgang.tsx:423`) — ein Knopf, der nichts tut und nichts sagt, ist der
+     * (`_ui/AusleihVorgang.tsx:434`) — ein Knopf, der nichts tut und nichts sagt, ist der
      * Fall, gegen den das Ledger beim Deckel ausdruecklich steht
      * (`.superpowers/sdd/planteil3/progress.md:603-634`, Punkt 1).
      */
@@ -443,7 +443,7 @@ describe("radio-RueckgabeDialog: was er an den Aufrufer meldet", () => {
      * ‚41/12 zurueckgegeben.'"
      * ⛔ DER RUFNAME KOMMT AUS DEM ERGEBNIS UND NICHT AUS DER PROP. `rueckgabeBuchen` leitet
      * ausdruecklich NICHT um, damit `rufname` aus dem Rueckgabewert erhalten bleibt
-     * (`_actions/ausleihe.ts:190-197`) — der Wert des Servers ist der Schnappschuss der
+     * (`_actions/ausleihe.ts:222-229`) — der Wert des Servers ist der Schnappschuss der
      * Leihzeile (`_db/leihen.ts`), die Prop nur das, was die Liste zuletzt sah. Der Fall
      * setzt beide bewusst VERSCHIEDEN, sonst belegte er die Herkunft nicht.
      * ⛔ UND `onSchliessen` WIRD DABEI NICHT ZUSAETZLICH GERUFEN: der Erfolg IST der
@@ -461,7 +461,7 @@ describe("radio-RueckgabeDialog: was er an den Aufrufer meldet", () => {
 
   it("schickt Kennung und Notiz unter den Feldnamen der Action mit", async () => {
     /*
-     * ⛔ DIE ZWEI FELDNAMEN SIND DIE DER ACTION (`_actions/ausleihe.ts:66-68`:
+     * ⛔ DIE ZWEI FELDNAMEN SIND DIE DER ACTION (`_actions/ausleihe.ts:91-93`:
      * `FELD_AUSLEIHE_ID = "ausleiheId"`, `FELD_ZUSTANDSNOTIZ = "zustandsnotiz"`). Sie
      * stehen dort MODULPRIVAT, weil `EXPORT_FORM` (`_actions/guards.test.ts:122`) unter
      * `_actions/` kein `export const` zulaesst; die Auflage, hier dieselben zu verwenden,
@@ -488,7 +488,7 @@ describe("radio-RueckgabeDialog: was er an den Aufrufer meldet", () => {
   it("faengt einen Wurf der Action ab und zeigt den Satz des Moduls", async () => {
     /*
      * ⛔ DAS `catch` FAENGT DREI LAGEN MIT EINEM SATZ, zeichengleich zu
-     * `_ui/AusleihVorgang.tsx:119-134`: Verbindungsabbruch beim Absenden, den Wurf von
+     * `_ui/AusleihVorgang.tsx:126-141`: Verbindungsabbruch beim Absenden, den Wurf von
      * `requireRadioHost` in der Riegelkette und jede echte Serverausnahme. Ohne es stiege
      * der Wurf in den Absendeweg hoch, und die Person saehe eine technische Fehlerseite
      * statt eines Satzes an ihrem Formular — mitsamt der getippten Notiz.

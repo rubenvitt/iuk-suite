@@ -267,7 +267,7 @@ describe("die Rueckgabe an /rueckgabe", () => {
   it("zeigt nur OFFENE Ausleihen, neueste zuerst", async () => {
     /*
      * `offeneAusleihen` filtert auf `returned_at IS NULL` und ordnet absteigend
-     * (`_db/leihen.ts:302-320`, Alt-Vorbild `loanRepo.ts:126-135`). ⛔ DIESER FALL MISST DIE
+     * (`_db/leihen.ts:333-351`, Alt-Vorbild `loanRepo.ts:126-135`). ⛔ DIESER FALL MISST DIE
      * SEITE UND NICHT DIE DATENFUNKTION: er belegt, dass die Seite sie UEBERHAUPT benutzt —
      * eine Seite, die `loans` selbst laese, waere typkorrekt und liesse `_db/leihen.test.ts`
      * gruen.
@@ -331,7 +331,7 @@ describe("die Rueckgabe an /rueckgabe", () => {
      * einen Neuaufbau der Seite.
      * ⛔ EINE VORGERENDERTE ANTWORT WAERE HIER BESONDERS TEUER: sie zeigte eine Leihe, die
      * jemand anders vor Minuten zurueckgegeben hat, und der Dialog scheiterte dann an
-     * `schon-zurueck` (`_db/leihen.ts:619-620`).
+     * `schon-zurueck` (`_db/leihen.ts:673-674`).
      */
     expect(dynamic).toBe("force-dynamic");
   });

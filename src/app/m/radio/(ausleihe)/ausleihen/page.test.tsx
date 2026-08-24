@@ -153,6 +153,12 @@ function geraet(werte: {
       deviceType: "Motorola MTP3550",
       status: "Einsatzbereit",
       location: "Fahrzeughalle",
+      // ⛔ OHNE DIESE ZEILE STEHT DAS FIXTURE GAR NICHT IN DER LISTE: `geraeteMitLeihstand`
+      // filtert seit dem 2026-08-24 auf `loanable = true`, und die Spalte ist nullable —
+      // eine nicht gesetzte Spalte ist `NULL` und faellt heraus (Fund F1, gemessen in
+      // `_db/leihen.test.ts`). Die Faelle dieser Datei fragen nach der ANZEIGE eines
+      // verleihbaren Geraets; wer den Filter selbst pruefen will, tut das dort.
+      loanable: true,
       createdAt: new Date("2026-01-01T10:00:00Z"),
       updatedAt: new Date("2026-05-01T10:00:00Z"),
       ...werte,

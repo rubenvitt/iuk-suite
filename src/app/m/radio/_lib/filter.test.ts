@@ -415,7 +415,7 @@ describe("radio-filter: die Suche der Rueckgabe geht ueber ANDERE Felder", () =>
   it("liefert bei leerem Suchtext die Liste UNVERAENDERT und in ihrer Reihenfolge", () => {
     /*
      * ⛔ KEINE SORTIERUNG (anders als `filtereGeraete`, `filter.ts:180-190`): die Reihenfolge
-     * kommt aus `offeneAusleihen` — neueste zuerst (`_db/leihen.ts:302`,
+     * kommt aus `offeneAusleihen` — neueste zuerst (`_db/leihen.ts:333`,
      * `loanRepo.ts:126-135`). Eine zweite Ordnung hier waere eine zweite Wahrheit, und die
      * Alt-Quelle sortiert an dieser Stelle ebenfalls nicht (`loan-filter.ts:6`).
      * ⛔ UND EINE NEUE LISTE, nie an Ort und Stelle: die Eingabe ist eine Prop aus einer

@@ -732,7 +732,7 @@
 }
 
 /*
- * DER FELDFEHLER — am Namensfeld (⬜ A-L17) und am Codefeld der Inline-Erneuerung.
+ * DER FELDFEHLER — am Namensfeld (A-L17) und am Codefeld der Inline-Erneuerung.
  * ⛔ KEINE FARBE AUS `colorError`: Rot ist in dieser Suite die Primaeraktion (Falle 3). Der
  * Traeger der Aussage ist `role="alert"` und die Stellung unter dem Feld, nicht die Farbe.
  */
@@ -766,7 +766,7 @@
 
 /*
  * ⛔ DIE NEBENZEILE „zuletzt am …" IST NACHBAU (Spec:3496-3500 Punkt 2) und der Posten, der
- * beim Port STILL verschwaende — `Vorschlag` ist kein `string` (`_db/leihen.ts:111-120`).
+ * beim Port STILL verschwaende — `Vorschlag` ist kein `string` (`_db/leihen.ts:112-121`).
  *
  * ⛔ DIE EINZIGE REGEL DIESES ZWEIGS, DIE `--iuk-*` DIREKT LIEST, UND DER GRUND IST DIE
  * BAUFORM: die drei `.vorschlag*`-Regeln kleiden Markup, das antds `AutoComplete` in ein

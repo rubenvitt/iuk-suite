@@ -121,7 +121,7 @@ export function erzeugeCode(): string {
  *
  * Der `[^0-9A-Z]`-Filter ist bewusst weiter als das Alphabet: er entfernt Bindestriche,
  * Leerzeichen und Trennzeichen jeder Art, laesst aber ein `U` stehen — ein Zeichen, das
- * im Alphabet gar nicht vorkommt (Spec:2062-2063). `code.test.ts:212-233` haelt diese
+ * im Alphabet gar nicht vorkommt (Spec:2062-2063). `code.test.ts:224-245` haelt diese
  * Breite als Entscheidung fest.
  *
  * ⛔ DAS `.trim()` UNTEN BLEIBT, OBWOHL ES KEINEN ZEUGEN HABEN KANN — und der Grund steht

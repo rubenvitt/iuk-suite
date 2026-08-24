@@ -51,7 +51,7 @@ import s from "../../_ui/ausleihe.module.css";
  * Wird ein Geraet mitten im Vorgang vergeben, erscheint der Verlustsatz unten, waehrend die
  * Insel es weiterhin angetippt zeigt und mitschickt. ⛔ DAS IST KEIN LOCH, SONDERN DIE
  * ARBEITSTEILUNG: der Server lehnt den Vorgang dann mit `grund: "nicht-verfuegbar"` ab und
- * bucht NICHTS (`_db/leihen.ts:515`, eine Transaktion), und ein Zuruecksetzen bei jedem
+ * bucht NICHTS (`_db/leihen.ts:569`, eine Transaktion), und ein Zuruecksetzen bei jedem
  * `replace` verwuerfe genau die eingetragenen Werte, um derentwillen E12 gebaut ist.
  * ⬜ Wer die Auswahl doch angleichen will, braucht dafuer eine Betreiberentscheidung ueber
  * den Preis — und einen Eigentuemer; diese Aufgabe hat keinen.

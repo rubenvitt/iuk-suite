@@ -273,7 +273,7 @@ export function gruppiereNachStandort<T extends VerortetesGeraet>(
  *
  * ⛔ ZWEI FELDER, UND ES SIND ANDERE ALS OBEN. `SuchbaresGeraet` (`:88-91`) traegt einen
  * VORBERECHNETEN `suchschluessel`; eine offene Ausleihe hat keinen — `OffeneAusleihe`
- * (`_db/leihen.ts:104-109`) fuehrt genau `{ id, rufname, entleiher, seitText }`, und die
+ * (`_db/leihen.ts:105-110`) fuehrt genau `{ id, rufname, entleiher, seitText }`, und die
  * Projektion ist in A15 nach Spec:4084 festgelegt. Der Heuhaufen entsteht deshalb hier,
  * bei jedem Tastendruck, aus zwei kurzen Feldern.
  */
@@ -300,7 +300,7 @@ export type SuchbareAusleihe = {
  * zweite Normalisierung waere der stille Bruch des ss- und des Umlautfalls.
  *
  * ⛔ HIER WIRD NICHT SORTIERT. Die Reihenfolge kommt aus `offeneAusleihen`
- * (`_db/leihen.ts:302`, neueste zuerst wie `loanRepo.ts:126-135`); die Alt-Quelle sortiert
+ * (`_db/leihen.ts:333`, neueste zuerst wie `loanRepo.ts:126-135`); die Alt-Quelle sortiert
  * an dieser Stelle ebenfalls nicht (`loan-filter.ts:6`, `:9`). Zwei Ordnungen fuer dieselbe
  * Liste liefen beim ersten Aendern auseinander.
  *

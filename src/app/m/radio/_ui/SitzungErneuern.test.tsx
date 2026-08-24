@@ -70,9 +70,9 @@ describe("radio-SitzungErneuern: wann sie ueberhaupt erscheint", () => {
      * ⛔ DIE ZWEI FAELLE OBEN LIESSEN EINE GLEICHHEITSPRUEFUNG AUF „NICHT gesperrt" durch —
      * die Insel erschiene dann bei `unbekannt`, `nicht-verfuegbar` und jedem anderen
      * fachlichen Ausgang, in dem ein Codefeld nichts zu suchen hat. Die zwei Unions stehen
-     * in `_lib/meldungen.ts:157-163` und `:185-190`; hier stehen ihre Werte AUSGESCHRIEBEN
+     * in `_lib/meldungen.ts:197-204` und `:185-190`; hier stehen ihre Werte AUSGESCHRIEBEN
      * und nicht importiert, damit eine geschrumpfte Union den Fall nicht leer-gruen macht
-     * (dieselbe Lehre wie `_lib/meldungen.test.ts:126-140`).
+     * (dieselbe Lehre wie `_lib/meldungen.test.ts:128-146`).
      */
     for (const grund of [
       "keine-auswahl",

@@ -6,6 +6,7 @@ import { datumMitUhrzeit, uhrzeit } from "../_lib/anzeige";
 import { normalisiereSuchtext } from "../_lib/filter";
 import {
   ausleihText,
+  ENTLEIHER_MAX,
   rueckgabeText,
   ZUSTANDSNOTIZ_MAX,
   type AusleihErgebnis,
@@ -62,7 +63,7 @@ import { geraeteZustandAus, type GeraeteStatus } from "../_lib/status";
  * PROSA: der Scan in `_db/leihen.test.ts` liest den ROHEN Dateitext, Kommentare
  * eingeschlossen — eine Erwaehnung im Kopf macht ihn rot. Gemessen beim ersten Lauf dieser
  * Aufgabe: `1 failed | 25 passed`, allein an diesem Kommentar. Dieselbe Prosa-Sperre tragen
- * `_lib/anzeige.ts` fuer den Namen ihres Formatierers und `_lib/meldungen.ts:384-389` fuer
+ * `_lib/anzeige.ts` fuer den Namen ihres Formatierers und `_lib/meldungen.ts:449-454` fuer
  * die zwei Statusetiketten.
  */
 
@@ -129,35 +130,34 @@ export type AusleihEingabe = {
   /**
    * Aus `auswahlLesen(...)` (`_lib/auswahl.ts:95`), dort auf `AUSWAHL_MAX = 20`
    * gedeckelt (`_lib/auswahl.ts:53`, Spec:3466-3470).
-   * ⬜ DIESE FUNKTION SETZT DEN DECKEL NICHT NOCH EINMAL, und das ist benannt statt still:
-   * die Union `AusleihGrund` (`_lib/meldungen.ts:166`) hat keinen Zweig fuer „zu viele",
-   * und einen zu erfinden waere ein achter `grund` gegen Entscheidung E13, die die
-   * Vollzaehligkeitszahlen auf SIEBEN und SECHS festsetzt (`KOPF.md:775-778`). Wer den
-   * Deckel auch hier durchsetzen will, braucht zuerst eine Betreiberentscheidung ueber den
-   * Satz dazu.
+   * ⛔ DIESE FUNKTION SETZT DEN DECKEL NICHT NOCH EINMAL, UND DAS IST EINE ANDERE LAGE ALS
+   * BEIM NAMEN ZWEI FELDER WEITER UNTEN — nicht dieselbe. `auswahlLesen` NORMALISIERT
+   * (`_lib/auswahl.ts:76-85`): es kuerzt die Liste auf `AUSWAHL_MAX` und laesst den Vorgang
+   * laufen. Eine gekuerzte Auswahl ist wiederherstellbar (man waehlt nach), es wird also
+   * nichts abgelehnt, und was nicht abgelehnt wird, braucht keinen Satz und keinen `grund`.
+   * ⚠️ DER NAME LIEGT ANDERS: kuerzen hiesse dort Datenschaden, also Ablehnung, also ein
+   * Satz — und den gibt es seit dem 2026-08-24 (`name-zu-lang`).
+   * ⬜ WER DEN DECKEL 20 STATTDESSEN ALS ABLEHNUNG WILL, braucht eine Betreiberentscheidung
+   * ueber den Satz dazu; ein neunter `grund` waere die Folge, nicht das Hindernis
+   * (siehe die Nachlese zu E13 in `_lib/meldungen.ts`, `case "name-zu-lang"`).
    */
   geraeteIds: string[];
   /**
    * Der Name aus dem Formular, UNVERAENDERT (Spec:3587-3592): `sanitizeForDisplay` wandert
    * NICHT mit, und auch ein `trim()` auf dem Weg IN die Datenbank waere eine dauerhafte
    * Veraenderung der gespeicherten Zeichenkette — bei „Mueller & Sohn" ein Datenschaden,
-   * kein Schutz. ⛔ GEPRUEFT WIRD NUR AUF NICHTLEERE (`trim().length === 0` → `kein-name`),
-   * NICHT UMGESCHRIEBEN — und NICHT auf Laenge.
+   * kein Schutz. ⛔ GEPRUEFT WIRD, NICHT UMGESCHRIEBEN: auf NICHTLEERE
+   * (`trim().length === 0` → `kein-name`) UND auf LAENGE
+   * (`trim().length > ENTLEIHER_MAX` → `name-zu-lang`). Gespeichert wird in beiden Faellen
+   * der Wert, wie er kam.
    *
-   * ⬜ A-L17 — EINE LAENGENGRENZE FUER DEN ENTLEIHERNAMEN GIBT ES HIER NICHT, und das ist
-   * benannt statt still. Der Alt-Bestand klemmt bei 100: `BORROWER_NAME_MAX: 100` in
-   * `/Users/rubeen/dev/personal/drk/radio-admin/shared/src/loan.ts:5` (gemessen; die
-   * Nachbarzeile `:6` deckelt die Rueckgabenotiz auf 500 — die HAT hier eine Entsprechung,
-   * `ZUSTANDSNOTIZ_MAX` aus `_lib/meldungen.ts:88`). Sie faellt aus DEMSELBEN Grund wie der
-   * Deckel 20 zwei Felder weiter oben: die Union `AusleihGrund` (`_lib/meldungen.ts:166`)
-   * hat keinen Zweig fuer „zu lang", `kein-name` („Kein Name eingetragen") waere der
-   * falsche Satz, und einen achten `grund` zu erfinden verbietet Entscheidung E13: sie
-   * setzt die Vollzaehligkeitszahlen auf SIEBEN und SECHS fest
-   * (`.superpowers/sdd/planteil3/briefs/KOPF.md:775-778`). ⚠️ DER PREIS: dies ist der
-   * einzige ANONYME Schreibpfad des Moduls — ein beliebig langer Name landet ungekuerzt in
-   * `loans.borrower_name` und von dort in jeden Satz, der ihn nennt. Wer die Grenze will,
-   * braucht zuerst eine Betreiberentscheidung ueber den Satz dazu; A17 kann sie auf
-   * FORMULAREBENE abfangen, wo es Feldfehler ohne `grund` gibt.
+   * ✅ A-L17 — GESCHLOSSEN AM 2026-08-24 (Fund F2 der Schlusspruefung, Betreiberentscheidung
+   * desselben Tages): der Deckel 100 des Alt-Bestands ist eine SERVERZUSAGE geworden.
+   * Vorher war er nur eine Feldgrenze, und dies ist der einzige ANONYME Schreibpfad des
+   * Moduls — ein Aufruf am Formular vorbei schrieb einen beliebig langen Namen in
+   * `loans.borrower_name`. Eigentuemer der Zahl ist `ENTLEIHER_MAX` (`_lib/meldungen.ts`,
+   * dort mit Quelle, Messung und der Begruendung fuer `trim().length`); die zugehoerige
+   * Alt-Nachbarzeile ist `RETURN_NOTE_MAX: 500` → `ZUSTANDSNOTIZ_MAX`.
    */
   entleiher: string;
   /**
@@ -179,7 +179,7 @@ export const VORSCHLAG_MIN_ZEICHEN = 2;
 
 /**
  * ⛔ DER RUFNAME EINES GELOESCHTEN GERAETS IST NICHT MEHR ZU HABEN — und der Satz zu
- * `verschwunden` verlangt trotzdem einen (`_lib/meldungen.ts:161`, Regel 1 aus Spec:3547:
+ * `verschwunden` verlangt trotzdem einen (`_lib/meldungen.ts:202`, Regel 1 aus Spec:3547:
  * „der Rufname steht IM SATZ"). Ein Rueckfall auf die Geraete-Id waere die technische
  * Kennung, die Regel 2 verbietet (`_lib/meldungen.ts:36-37`, Spec:3549-3550).
  *
@@ -193,7 +193,7 @@ const RUFNAME_UNBEKANNT = "Ein Gerät";
  * ⛔ DER RUECKFALL FUER DEN ENTLEIHER IST EINE ZWEITE KONSTANTE, UND ZWAR AUS EINEM
  * GRAMMATISCHEN GRUND. Der Satz zu `konflikt.zustand === "ON_LOAN"` setzt den Wert in den
  * PERSONENSLOT: „${rufname} ist inzwischen an ${entleiher} ausgeliehen."
- * (`_lib/meldungen.ts:375`). `RUFNAME_UNBEKANNT` steht fuer ein GERAET und ergaebe dort
+ * (`_lib/meldungen.ts:440`). `RUFNAME_UNBEKANNT` steht fuer ein GERAET und ergaebe dort
  * „... ist inzwischen an Ein Gerät ausgeliehen." — ein Bildschirmtext, den kein Mensch so
  * schreiben wuerde. Dass `bucheRueckgabe` dieselbe Konstante RICHTIG benutzt (dort ist sie
  * ein Rufname), macht den Fehlgriff schwer sichtbar, nicht kleiner.
@@ -244,6 +244,33 @@ function suchschluesselAus(
 /**
  * DIE GERAETELISTE MIT DEM LEIHSTAND — ersetzt `GET /v1/loan-devices` (Spec:5022).
  *
+ * ⛔ SIE FILTERT `loanable`, WEIL DER ERSETZTE ENDPUNKT ES TUT (Fund F1 der
+ * Schlusspruefung, Betreiberentscheidung vom 2026-08-24). Ohne den Filter zeigte die
+ * Ausleihflaeche mehr Geraete als das Original: ein als nicht verleihbar gekennzeichnetes
+ * Geraet erschiene als „Verfuegbar", waere antippbar, und der Vorgang scheiterte erst beim
+ * Absenden an `NICHT_FREIGEGEBEN` (`bucheAusleihe` unten) — genau der Zustand, den
+ * `loanable` verhindern soll. Der Import traegt die Spalte am Tag eins mit
+ * (`scripts/import/radio.ts:279`).
+ *
+ * ⛔ DIE NULL-SEMANTIK IST AM BESTAND GEMESSEN, NICHT GERATEN: eine Zeile mit
+ * `loanable = NULL` FAELLT HERAUS. Der ersetzte Endpunkt lautet
+ * `.where(eq(devices.loanable, true))`
+ * (`radio-admin/server/src/repos/deviceRepo.ts:53-59`, der Filter an `:57`), und die Spalte
+ * steht dort als `integer('loanable', { mode: 'boolean' })`
+ * (`radio-admin/server/src/db/schema.ts:32`) — Drizzle setzt `true` damit auf `1`, und
+ * `NULL = 1` ist in SQLite weder wahr noch falsch, sondern NULL. Der Schreibweg des
+ * Bestands entscheidet gleich (`radio-admin/server/src/routes/loanApi.ts:166`:
+ * `if (!device.loanable)`), und `bucheAusleihe` bildet ihn schon so ab. Gemessen wird die
+ * Semantik in `_db/leihen.test.ts` mit DREI Zeilen (`true`/`false`/`NULL`) — mit zwei
+ * bliebe ein zu „ungleich false" abgeschwaechter Filter gruen.
+ *
+ * ⛔ `offeneAusleihen` FILTERT NICHT MIT, UND DAS IST KEIN VERSEHEN (siehe dort): der
+ * Bestand haelt die zwei ausdruecklich auseinander
+ * (`radio-admin/server/src/routes/loanApi.ts:131-132`, woertlich „Deliberately NOT folded
+ * into /loan-devices, which filters loanable=true and would hide a loan on a since-un-
+ * loanabled device"), damit eine Leihe auf einem nachtraeglich gesperrten Geraet nicht aus
+ * der Rueckgabe verschwindet.
+ *
  * ⛔ `ON_LOAN` KOMMT AUS DER TABELLE `loans`, NIE AUS DER SPALTE `devices.status`
  * (`_lib/status.ts:44-46`; der Bestand trennt genauso, `radio-admin/shared/src/loan.ts:12-14`).
  * Die Faltung des freien Statustextes steht in `geraeteZustandAus` (`_lib/status.ts:177-188`)
@@ -274,6 +301,10 @@ export function geraeteMitLeihstand(db: DB): GeraetMitLeihstand[] {
     // (`_db/migrations/0001_loans_aktiv_uidx.sql`) sichert zu, dass es hoechstens EINE ist —
     // ohne ihn vervielfachte dieser Join Geraetezeilen.
     .leftJoin(loans, and(eq(loans.deviceId, devices.id), isNull(loans.returnedAt)))
+    // ⛔ DER FILTER STEHT IN `where` UND NICHT IN DER `and(...)` DES `leftJoin` — jene
+    // Bedingung steuert den JOIN AUF `loans`; ein `devices`-Praedikat darin waere
+    // typkorrekt, lint-sauber und WIRKUNGSLOS (der `leftJoin` haelt die Geraetezeile).
+    .where(eq(devices.loanable, true))
     .all();
 
   return zeilen.map((z) => {
@@ -394,7 +425,7 @@ export function sucheEntleiher(db: DB, suchtext: string, deckel = 10): Vorschlag
  * ⛔ DER WURF IST DER EINZIGE WEG, DIE TRANSAKTION ZURUECKZUROLLEN. Ein `return` aus dem
  * Rumpf von `db.transaction(...)` BESTAETIGT sie — die schon eingefuegten Leihen der
  * vorherigen Geraete blieben stehen, und die Zusage „Es wurde nichts gebucht."
- * (`_lib/meldungen.ts:348`) waere gebrochen, typkorrekt und lint-sauber. Der Wurf wird
+ * (`_lib/meldungen.ts:413`) waere gebrochen, typkorrekt und lint-sauber. Der Wurf wird
  * unmittelbar ausserhalb wieder eingefangen; nach aussen wirft `bucheAusleihe` nicht.
  */
 class AusleihAbbruch extends Error {
@@ -473,6 +504,29 @@ export function bucheAusleihe(db: DB, e: AusleihEingabe): AusleihErgebnis {
   // steht, ist keine Regel" (Spec:3583-3585).
   if (e.geraeteIds.length === 0) return ausleihAblehnung({ grund: "keine-auswahl" });
   if (e.entleiher.trim().length === 0) return ausleihAblehnung({ grund: "kein-name" });
+  /*
+   * ⛔ DER DECKEL 100 IST SEIT DEM 2026-08-24 EINE SERVERZUSAGE (Fund F2,
+   * Betreiberentscheidung desselben Tages). Eigentuemer der Zahl ist `ENTLEIHER_MAX`
+   * (`_lib/meldungen.ts`); hier steht keine zweite.
+   *
+   * ⛔ GEMESSEN AUF `trim().length`, WEIL DER BESTAND ES SO MISST: zods `.trim()` laeuft VOR
+   * `.max()` (`radio-admin/shared/src/loan.ts:39`), die Annahmegrenze ist dort also die
+   * getrimmte Laenge. ⚠️ GESPEICHERT WIRD TROTZDEM UNVERAENDERT (Spec:3587-3592, Zeile
+   * darueber) — der Bestand speichert getrimmt, dieses Modul nicht, und diese Abweichung
+   * ist an der Eingabeform ausgeschrieben. Die Folge ist benannt statt still: ein
+   * gespeicherter Name kann `ENTLEIHER_MAX` um Randleerzeichen ueberschreiten, um nichts
+   * sonst.
+   *
+   * ⛔ ABGEWIESEN, NICHT GEKUERZT — und das ist NICHT dieselbe Wahl wie beim Deckel 20 zwei
+   * Felder weiter oben. `auswahlLesen` NORMALISIERT (`_lib/auswahl.ts:76-85`): eine auf 20
+   * gekuerzte Auswahlliste ist wiederherstellbar, es gibt nichts zu melden und darum
+   * braucht sie keinen Satz. Ein gekuerzter NAME ist ein Datenschaden, den niemand mehr
+   * sieht — bei „Mueller & Sohn" derselbe Fall wie beim verbotenen `sanitizeForDisplay`.
+   * Also Ablehnung, also ein Satz, und den gab es bereits (`_lib/meldungen.ts`).
+   */
+  if (e.entleiher.trim().length > ENTLEIHER_MAX) {
+    return ausleihAblehnung({ grund: "name-zu-lang" });
+  }
 
   const jetzt = new Date();
   try {
@@ -564,7 +618,7 @@ export function bucheAusleihe(db: DB, e: AusleihEingabe): AusleihErgebnis {
      * Stoerungssatz statt als Absturz. Der Gegenwert ist die Zusage aus Spec:3458-3459 —
      * ein Wurf aus einer Server Action kommt in Produktion als anonymisierte Meldung an.
      * Der Fall, der ihn WIRKLICH ausloest, ist die Schreibsperre auf SQLite
-     * (`_lib/meldungen.ts:341-348`), und die Zusage „Es wurde nichts gebucht." haelt, weil
+     * (`_lib/meldungen.ts:406-413`), und die Zusage „Es wurde nichts gebucht." haelt, weil
      * der Wurf die Transaktion zurueckgerollt hat.
      */
     return ausleihAblehnung({ grund: "unbekannt" });
@@ -630,7 +684,7 @@ export function bucheRueckgabe(
     return { ok: true, rufname: zeile?.rufname ?? RUFNAME_UNBEKANNT };
   } catch {
     // Dieselbe Abwaegung wie bei `bucheAusleihe`; der Satz sagt hier zusaetzlich, dass die
-    // RUECKGABE nicht gespeichert ist (`_lib/meldungen.ts:424-429`).
+    // RUECKGABE nicht gespeichert ist (`_lib/meldungen.ts:489-494`).
     return rueckgabeAblehnung({ grund: "unbekannt" });
   }
 }

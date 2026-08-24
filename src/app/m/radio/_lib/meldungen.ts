@@ -88,6 +88,46 @@ import type { SperrGrund } from "./ausleihZugang";
 export const ZUSTANDSNOTIZ_MAX = 500;
 
 /**
+ * DIE LAENGENGRENZE DES ENTLEIHERNAMENS, ABGELESEN STATT GERATEN — und ab dem 2026-08-24
+ * eine SERVERZUSAGE, nicht mehr nur eine Feldgrenze (Fund F2 der Schlusspruefung,
+ * Betreiberentscheidung desselben Tages).
+ *
+ * Quelle, selbst nachgeschlagen: `BORROWER_NAME_MAX: 100` in
+ * `/Users/rubeen/dev/personal/drk/radio-admin/shared/src/loan.ts:5`, durchgesetzt im
+ * `createLoanSchema` DES SERVERS an `:39`
+ * (`z.string().trim().min(1).max(LOAN_FIELD_LIMITS.BORROWER_NAME_MAX)`). Dieselbe Zahl an
+ * derselben Stelle im Kiosk-Bestand
+ * (`/Users/rubeen/dev/personal/drk/radio-inventar/packages/shared/src/schemas/loan.schema.ts:29`,
+ * durchgesetzt `:91` und `:107`). Die Nachbarzeile deckelt die Rueckgabenotiz auf 500 —
+ * das ist `ZUSTANDSNOTIZ_MAX` direkt darueber.
+ *
+ * ⛔ ABGEWIESEN, NICHT GEKUERZT — am Bestand gemessen: `z...max(100)` laesst einen zu langen
+ * Namen scheitern (`invalid_body`, HTTP 400, `loanApi.ts:161`), es gibt dort NIRGENDS ein
+ * `slice`. Kuerzen waere ausserdem genau die dauerhafte Veraenderung der gespeicherten
+ * Zeichenkette, die Spec:3587-3592 fuer dieses Feld verbietet.
+ *
+ * ⛔ SIE STEHT HIER UND NUR HIER. Bis zum 2026-08-24 stand sie in `_ui/EntleiherFeld.tsx`,
+ * und jene Datei schrieb den Umzug selbst vor: „FAELLT DIE BETREIBERENTSCHEIDUNG UEBER DEN
+ * SATZ, wandert diese Konstante zu `ZUSTANDSNOTIZ_MAX` … und verschwindet hier — ⛔ NICHT
+ * beides, sonst gibt es zwei Zahlen fuer dieselbe Grenze." Sie war die EINZIGE Grenze des
+ * Moduls ohne genau einen Eigentuemer; damit ist die Ausnahme geschlossen.
+ *
+ * ⚠️ NICHT IN `_lib/grenzen.ts`, aus demselben Grund wie `ZUSTANDSNOTIZ_MAX`: jene Datei
+ * fuehrt ausschliesslich Zahlen aus der UMGEBUNG mit einer Vorbelegung (`grenzen(env)`,
+ * `_lib/grenzen.ts:172`). Diese kommt aus dem Alt-Bestand und ist kein Betriebsschalter.
+ *
+ * ⚠️ DIE DURCHSETZUNG LIEGT AN ZWEI ORTEN MIT ZWEI VERSCHIEDENEN GEWICHTEN, und das ist der
+ * Punkt: `bucheAusleihe` (`_db/leihen.ts`) ist die ZUSAGE — sie misst wie der Bestand auf
+ * `trim().length`, damit die Annahmegrenze zeichengleich dieselbe ist, speichert aber
+ * weiter UNVERAENDERT. Das `maxLength` am Feld (`_ui/EntleiherFeld.tsx`) und der
+ * Feldfehler (`_ui/AusleihVorgang.tsx`) sind die BEQUEMLICHKEIT: sie messen die rohe
+ * Laenge und sind damit um Randleerzeichen strenger als der Server — strenger darf eine
+ * Bequemlichkeit sein, schwaecher nicht. „Eine Regel, die nur im Client steht, ist keine
+ * Regel" (Spec:3583-3585) — bis zum 2026-08-24 war genau das hier der Fall.
+ */
+export const ENTLEIHER_MAX = 100;
+
+/**
  * WARUM EIN GERAET NICHT AUSGELIEHEN WERDEN KANN — die drei Pruefungen des Servers, als
  * geschlossener Satz.
  *
@@ -157,6 +197,7 @@ export interface BetroffenesGeraet {
 export type AusleihMeldung =
   | { grund: "keine-auswahl" }
   | { grund: "kein-name" }
+  | { grund: "name-zu-lang" }
   | { grund: "nicht-verfuegbar"; rufname: string; konflikt: Konflikt }
   | { grund: "verschwunden"; rufname: string }
   | { grund: "unbekannt" }
@@ -174,6 +215,7 @@ export type AusleihGrund = AusleihMeldung["grund"];
 export const AUSLEIH_GRUENDE: readonly AusleihGrund[] = [
   "keine-auswahl",
   "kein-name",
+  "name-zu-lang",
   "nicht-verfuegbar",
   "verschwunden",
   "unbekannt",
@@ -315,15 +357,16 @@ export const KEINE_GERAETE_ERFASST =
 /**
  * DER SATZ ZU EINEM AUSLEIH-AUSGANG. Genau einer je `grund` (Spec:3537-3545).
  *
- * ⚠️ DREI DER SIEBEN SAETZE SIND EINE PLANENTSCHEIDUNG DIESER AUFGABE UND KEIN SPEC-ZITAT:
+ * ⚠️ DREI DER ACHT SAETZE SIND EINE PLANENTSCHEIDUNG VON A14 UND KEIN SPEC-ZITAT:
  * `keine-auswahl`, `kein-name` (hier) und `notiz-zu-lang` (unten). Spec:5203 sagt zu ihnen
  * nur, sie seien „Feldfehler am Formularfeld, nicht als Seitenmeldung" — einen Wortlaut gibt
  * weder Spec noch Plan, und der Alt-Kiosk hat keinen: er schaltet den Knopf bloss ab
  * (`ConfirmLoanButton.tsx:45-46`). ⛔ EINEN SATZ BRAUCHEN SIE TROTZDEM, weil `text: string`
  * im `ok: false`-Zweig nicht optional ist und Spec:5229-5232 verlangt: „JEDER `grund`
  * braucht dort einen Text." Gewaehlt ist damit die erste der zwei zulaessigen Formen aus
- * `VORABSCAN-A.md:201` (Fund F4) — die Zahlen bleiben SIEBEN und SECHS, wie Entscheidung E13
- * sie setzt (`KOPF.md:775-778`).
+ * `VORABSCAN-A.md:201` (Fund F4). ⚠️ Die Zahlen waren damit SIEBEN und SECHS (Entscheidung
+ * E13, `KOPF.md:775-778`); seit dem 2026-08-24 sind es ACHT und SECHS — `name-zu-lang` kam
+ * mit Fund F2 hinzu, und der vierte dieser Saetze steht bei seinem `case`.
  *
  * ⛔ WO SIE ERSCHEINEN, ENTSCHEIDET DIE FLAECHE, NICHT DIESE DATEI: die drei feldnahen
  * Gruende gehoeren ans Feld (Spec:5203), die uebrigen an den Meldungsort. A19/A20 bauen das.
@@ -334,6 +377,28 @@ export function ausleihText(m: AusleihMeldung): string {
       return "Kein Gerät ausgewählt. Wähle mindestens ein Gerät aus.";
     case "kein-name":
       return "Kein Name eingetragen. Trag ein, wer die Geräte mitnimmt.";
+    case "name-zu-lang":
+      /*
+       * ⛔ DER ACHTE `grund`, HINZUGEFUEGT AM 2026-08-24 (Fund F2), UND DER WORTLAUT IST
+       * KEINE ERFINDUNG: er stand seit A19 zeichengleich in `_ui/AusleihVorgang.tsx` als
+       * `NAME_ZU_LANG` und war der Satz, den der Mensch am Feld schon sah. Er ist hierher
+       * gewandert, weil jene Datei den Grund fuer ihren eigenen Standort selbst benannt
+       * hatte: „die Union `AusleihGrund` hat keinen Zweig ‚zu lang'". Den gibt es jetzt.
+       *
+       * ⚠️ ENTSCHEIDUNG E13 STEHT DEM NICHT ENTGEGEN — im Wortlaut nachgelesen, nicht aus
+       * den vier Kommentaren uebernommen, die es behaupteten: E13 fuegt `SperrGrund` HINZU
+       * und begruendet die Zahlen ausdruecklich als Schutz gegen eine GESCHRUMPFTE Menge
+       * („eine Schleife ueber eine geschrumpfte Menge ist leer-gruen",
+       * `.superpowers/sdd/planteil3/briefs/KOPF.md:775-778`). Sie ist eine Sperre gegen
+       * das VERLIEREN eines Grundes, keine Obergrenze. Die Zahl in
+       * `_lib/meldungen.test.ts` wandert deshalb mit — laut, nicht still.
+       *
+       * ⚠️ DIE ZAHL KOMMT AUS `ENTLEIHER_MAX` UND STEHT NICHT AUSGESCHRIEBEN DA, aus
+       * demselben Grund wie bei `notiz-zu-lang`: zwei Wahrheiten ueber dieselbe Grenze
+       * laufen beim ersten Aendern auseinander. Der Quelltext-Scan dieser Datei macht eine
+       * ausgeschriebene Zahl vor dem Wort rot.
+       */
+      return `Der Name ist zu lang. Höchstens ${ENTLEIHER_MAX} Zeichen.`;
     case "nicht-verfuegbar":
       return konfliktSatz(m.rufname, m.konflikt);
     case "verschwunden":

@@ -38,8 +38,8 @@ import s from "./ausleihe.module.css";
 /**
  * Was die Insel von einer offenen Ausleihe braucht.
  *
- * ⛔ EIGENER SATZ, KEIN BEZUG AUF `OffeneAusleihe` (`_db/leihen.ts:104-109`) — dieselbe
- * Begruendung wie an `AuswahlGeraet` (`_ui/AusleihVorgang.tsx:61-69`): waechst das
+ * ⛔ EIGENER SATZ, KEIN BEZUG AUF `OffeneAusleihe` (`_db/leihen.ts:105-110`) — dieselbe
+ * Begruendung wie an `AuswahlGeraet` (`_ui/AusleihVorgang.tsx:66-74`): waechst das
  * Lesemodell um ein Feld, kommt es hier nicht von selbst an, sondern erst, wenn jemand es
  * HIER hinschreibt. Und `_db/leihen.ts` zoege ueber seine Importe Drizzle und die
  * Moduldatenbank in das Client-Bundle.
@@ -90,7 +90,7 @@ export function RueckgabeListe({ ausleihen }: { readonly ausleihen: readonly Lis
    * ⛔ NACH DEM ERFOLG WIRD BEIDES ABGERAEUMT (1:1 `routes/return.tsx:44-45`): die Leihzeile
    * existiert nicht mehr, ein Dialog darauf haette keinen Gegenstand.
    * ⛔ DER RUFNAME KOMMT AUS DEM RUECKGABEWERT DES SERVERS, nicht aus der Karte
-   * (`_actions/ausleihe.ts:190-197` leitet ausdruecklich NICHT um, damit er erhalten bleibt).
+   * (`_actions/ausleihe.ts:222-229` leitet ausdruecklich NICHT um, damit er erhalten bleibt).
    */
   function erledigt(rufname: string): void {
     setErfolg(`${rufname} zurückgegeben.`);
@@ -171,7 +171,7 @@ export function RueckgabeListe({ ausleihen }: { readonly ausleihen: readonly Lis
               fuer Enter und Leertaste) — ein Nachbau dessen, was ein `<button>` mitbringt.
               Das Ledger bindet die Auswahlflaechen dieses Moduls auf EIN Bedienmodell
               (`.superpowers/sdd/planteil3/progress.md:675-684`), und A19 hat dieselbe Wahl
-              schon getroffen (`_ui/AusleihVorgang.tsx:332-345`).
+              schon getroffen (`_ui/AusleihVorgang.tsx:343-356`).
               ⛔ DIE BESCHRIFTUNG NENNT DEN VORGANG (`LoanedDeviceCard.tsx:55`): „41/12"
               allein sagt einer Bildschirmleserin nicht, was ein Antippen tut.
               ⛔ DAS WORT „Uhr" HAENGT HIER UND NICHT IN `datumMitUhrzeit`

@@ -30,7 +30,7 @@ import s from "../../_ui/ausleihe.module.css";
  * ⛔ KEINE `<Shell>` (Entscheidung E9): der Rahmen ist `_ui/AusleihRahmen.tsx`.
  *
  * ⛔ KEINE SEITENBLAETTERUNG (§4.9.6): `offeneAusleihen` kennt weder `take` noch `skip`
- * (`_db/leihen.ts:302`), obwohl die Alt-API beides kann — die Oberflaeche benutzt es nicht,
+ * (`_db/leihen.ts:333`), obwohl die Alt-API beides kann — die Oberflaeche benutzt es nicht,
  * und unter hundert Leihen waere Blaetterwerk Mechanik ohne Anlass.
  */
 
@@ -44,7 +44,7 @@ import s from "../../_ui/ausleihe.module.css";
  * (Spec:3562, Schritt 5).
  * ⛔ EINE VORGERENDERTE ANTWORT WAERE HIER BESONDERS TEUER: sie zeigte eine Leihe, die
  * jemand anders vor Minuten zurueckgegeben hat, und der Dialog scheiterte dann an
- * `schon-zurueck` (`_db/leihen.ts:619-620`) — der Konflikt aus §4.3.2 in seiner
+ * `schon-zurueck` (`_db/leihen.ts:673-674`) — der Konflikt aus §4.3.2 in seiner
  * Rueckgabe-Gestalt.
  */
 export const dynamic = "force-dynamic";
@@ -67,7 +67,7 @@ export default async function RueckgabePage() {
   /*
    * DIE FERTIGEN ZEILEN (§4.1 Punkt 1, Spec:3336-3341; Projektion Spec:4084). ⛔ KEIN `Date`
    * IN DEN CLIENT: `seitText` kommt als Zeichenkette aus `datumMitUhrzeit`
-   * (`_db/leihen.ts:302-320`), in der festgenagelten Zone Europe/Berlin — ein `Date` truege
+   * (`_db/leihen.ts:333-351`), in der festgenagelten Zone Europe/Berlin — ein `Date` truege
    * im Browser dessen Zeitzone, und die Flaeche zeigte je nach Geraet eine andere Uhrzeit
    * fuer denselben Vorgang.
    * ⛔ HIER WIRD NICHT SORTIERT UND NICHT GEFILTERT: die Ordnung („neueste zuerst") und der

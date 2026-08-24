@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   AUSLEIH_GRUENDE,
+  ENTLEIHER_MAX,
   RUECKGABE_GRUENDE,
   KEINE_GERAETE_ERFASST,
   KEINE_VERBINDUNG,
@@ -61,6 +62,7 @@ const QUELLE = readFileSync(join(process.cwd(), "src/app/m/radio/_lib/meldungen.
 const ERWARTET_AUSLEIHE: [AusleihMeldung, string][] = [
   [{ grund: "keine-auswahl" }, "Kein Gerät ausgewählt. Wähle mindestens ein Gerät aus."],
   [{ grund: "kein-name" }, "Kein Name eingetragen. Trag ein, wer die Geräte mitnimmt."],
+  [{ grund: "name-zu-lang" }, `Der Name ist zu lang. Höchstens ${ENTLEIHER_MAX} Zeichen.`],
   [
     { grund: "nicht-verfuegbar", rufname: RUFNAME, konflikt: { zustand: "ON_LOAN", entleiher: ENTLEIHER } },
     "41/12 ist inzwischen an Anna Beispiel ausgeliehen. Es wurde nichts gebucht.",
@@ -128,13 +130,17 @@ describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
      * Spec:3537-3545 und Spec:5229-5232 („die Union ist die Rueckgabeform beider
      * Schreib-Actions, und JEDER `grund` braucht dort einen Text").
      *
-     * ⛔ DIE ZWEI ZAHLEN STEHEN AUSSERHALB JEDER SCHLEIFE, und sie sind durch Entscheidung
-     * E13 gesetzt: SIEBEN Ausleihgruende, SECHS Rueckgabegruende
+     * ⛔ DIE ZWEI ZAHLEN STEHEN AUSSERHALB JEDER SCHLEIFE. Entscheidung E13 setzte sie auf
+     * SIEBEN und SECHS; die Ausleihseite steht seit dem 2026-08-24 auf ACHT — der Grund
+     * `name-zu-lang` kam mit Fund F2 hinzu, und die Zahl wandert LAUT mit statt still.
+     * ⚠️ E13 verbietet das nicht: im Wortlaut nachgelesen begruendet sie die Zahlen als
+     * Schutz gegen eine GESCHRUMPFTE Menge, nicht als Obergrenze. Bisher: SIEBEN
+     * Ausleihgruende, SECHS Rueckgabegruende
      * (`.superpowers/sdd/planteil3/briefs/KOPF.md:775-778`). Eine Schleife ueber eine
      * geschrumpfte Menge ist leer-gruen — wer einen Grund loescht, verliert seinen Prueffall
      * LAUTLOS, und die Fallzahl liest niemand.
      */
-    expect(AUSLEIH_GRUENDE.length, "geschrumpfte Ausleih-Union — die Schleife waere leer-gruen").toBe(7);
+    expect(AUSLEIH_GRUENDE.length, "geschrumpfte Ausleih-Union — die Schleife waere leer-gruen").toBe(8);
     expect(RUECKGABE_GRUENDE.length, "geschrumpfte Rueckgabe-Union — dieselbe Falle").toBe(6);
 
     /*
@@ -162,7 +168,7 @@ describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
      * Keine faengt, was die andere faengt. Eine Sonde, die beide traefe, bewiese ueber keine
      * von beiden etwas.
      */
-    expect(ERWARTET_AUSLEIHE.length, "Zeile aus der Ausleih-Tabelle verloren").toBe(10);
+    expect(ERWARTET_AUSLEIHE.length, "Zeile aus der Ausleih-Tabelle verloren").toBe(11);
     expect(ERWARTET_RUECKGABE.length, "Zeile aus der Rueckgabe-Tabelle verloren").toBe(6);
 
     expect(

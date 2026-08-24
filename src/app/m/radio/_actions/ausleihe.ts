@@ -23,10 +23,10 @@ import type { AusleihErgebnis, RueckgabeErgebnis } from "../_lib/meldungen";
  * (Entscheidung E11, `.superpowers/sdd/planteil3/briefs/KOPF.md:649-671`). Spec:3446-3455
  * und Spec:3566-3568 schreiben sie in DIESE Datei; das ergaebe einen Zyklus, sobald man
  * beide Seiten aufschreibt: `_db/leihen.ts#bucheAusleihe` GIBT `AusleihErgebnis` zurueck
- * (`_db/leihen.ts:470`) und diese Datei IMPORTIERT `bucheAusleihe`. Ihr Wortlaut steht
- * einmal, in `_lib/meldungen.ts:217-224`.
+ * (`_db/leihen.ts:501`) und diese Datei IMPORTIERT `bucheAusleihe`. Ihr Wortlaut steht
+ * einmal, in `_lib/meldungen.ts:259-266`.
  *
- * ⛔ B12 (Spec:101): die DATENFUNKTION heisst `sucheEntleiher` (`_db/leihen.ts:342`), die
+ * ⛔ B12 (Spec:101): die DATENFUNKTION heisst `sucheEntleiher` (`_db/leihen.ts:373`), die
  * SERVER ACTION `entleiherVorschlaege`. Diese Datei importiert die eine und exportiert die
  * andere — gleiche Namen kollidierten in derselben Datei.
  *
@@ -61,6 +61,31 @@ import type { AusleihErgebnis, RueckgabeErgebnis } from "../_lib/meldungen";
  */
 export type { AusleihErgebnis, RueckgabeErgebnis };
 
+/*
+ * ⛔ DIE ZWEI PFADE FUER `revalidatePath` SIND INNERE (Next-Routen-)PFADE, NICHT DIE
+ * AEUSSEREN DES MODUL-HOSTS — Fund F3 der Schlusspruefung, gemessen und behoben am
+ * 2026-08-24. Bis dahin stand hier `/geraete` bzw. `/rueckgabe`.
+ *
+ * ⛔ UND ES IST NICHT DERSELBE PFADRAUM WIE BEIM `redirect` ZWEI ZEILEN WEITER. Der
+ * `redirect` geht an den BROWSER und muss deshalb den AEUSSEREN Pfad nennen (so wie
+ * `_actions/gate.ts:146` und `_actions/sitzung.ts:186` ihren ausdruecklich benennen);
+ * `revalidatePath` spricht mit Nexts Zwischenspeicher und muss den Pfad nennen, unter dem
+ * der Eintrag dort liegt — den nach dem Rewrite. Der Rewrite ist gemessen:
+ * `_lib/routen.test.ts:29-33` bildet `/geraete` auf `/m/radio/geraete` ab, und die
+ * Routentabelle des Builds fuehrt genau `ƒ /m/radio/geraete`. ⛔ WER DIE ZWEI VERTAUSCHT,
+ * BEKOMMT KEINEN FEHLER: `revalidatePath` auf einem unbekannten Pfad ist folgenlos, und
+ * `typecheck`, `lint` und `build` bleiben gruen.
+ *
+ * ⚠️ HEUTE WAERE AUCH DER ALTE WERT FOLGENLOS GEWESEN, und das ist kein Gegenargument: die
+ * drei Flaechen tragen `force-dynamic` (es gibt keinen Serverzwischenspeicher zu
+ * entwerten), und den Client-Router-Cache leert Next bei JEDER Revalidierung ganz. Die
+ * Zeile war damit eine Falle fuer den naechsten Umbau, keine gebrochene Zusage — und der
+ * Hausbestand ist einstimmig anders (`lagerbuch/_actions/geraete.ts:19` und die uebrigen
+ * `LISTENPFAD`-Konstanten dort nennen alle den INNEREN Pfad).
+ */
+const LISTENPFAD = "/m/radio/geraete";
+const RUECKGABEPFAD = "/m/radio/rueckgabe";
+
 const FELD_ENTLEIHER = "entleiher";
 const FELD_AUSLEIHE_ID = "ausleiheId";
 const FELD_ZUSTANDSNOTIZ = "zustandsnotiz";
@@ -83,7 +108,7 @@ const FELD_ZUSTANDSNOTIZ = "zustandsnotiz";
  * ⛔ RUECKGABEWERT STATT WURF (Spec:3458-3459): ein Wurf aus einer Server Action erreicht
  * die Flaeche als generischer Fehler und verliert genau die Auskunft, die der Mensch
  * braucht — „Ruf 41/12 ist inzwischen an Anna Beispiel ausgeliehen. Es wurde nichts
- * gebucht." Die Saetze stehen in `_lib/meldungen.ts:331-362`, nie hier.
+ * gebucht." Die Saetze stehen in `_lib/meldungen.ts:374-427`, nie hier.
  *
  * ⚠️ `getDb()` WIRD ZWEIMAL GERUFEN, UND ZWAR ABSICHTLICH. Ein vorgezogenes
  * `const db = getDb();` schoebe den Riegel auf Platz zwei und faerbte
@@ -128,23 +153,27 @@ export async function ausleiheAnlegen(
    * ⛔ DER NAME WIRD UNVERAENDERT DURCHGEREICHT (Spec:3587-3592, §4.12 Nr. 9 Spec:4095):
    * `sanitizeForDisplay` wandert NICHT mit (`ConfirmLoanButton.tsx:52`), und auch ein
    * `trim()` waere eine dauerhafte Veraenderung der gespeicherten Zeichenkette — bei
-   * „Mueller & Sohn" ein Datenschaden, kein Schutz. Geprueft wird auf NICHTLEERE, und zwar
-   * in `bucheAusleihe` (`_db/leihen.ts:474`): „Der Server prueft erneut — eine Regel, die
-   * nur im Client steht, ist keine Regel" (Spec:3583-3585).
+   * „Mueller & Sohn" ein Datenschaden, kein Schutz. Geprueft wird — auf NICHTLEERE UND auf
+   * LAENGE —, und zwar in `bucheAusleihe` (`_db/leihen.ts`): „Der Server prueft erneut —
+   * eine Regel, die nur im Client steht, ist keine Regel" (Spec:3583-3585).
    *
-   * ⬜ A-L17 — EINE LAENGENGRENZE FUER DEN ENTLEIHERNAMEN GIBT ES WEITERHIN NICHT, und sie
-   * faellt auch hier NICHT. Der Alt-Bestand klemmt bei 100 (`BORROWER_NAME_MAX` in
-   * `radio-admin/shared/src/loan.ts:5`, ausgeschrieben an `_db/leihen.ts:147-161`). Das
-   * Ledger weist den Posten dieser Aufgabe zu, mit dem Hinweis, auf FORMULAREBENE gebe es
-   * Feldfehler ohne `grund`. ⛔ EINE SERVER ACTION HAT DIESE EBENE NICHT: ihr einziger
-   * Fehlerkanal ist `AusleihErgebnis`, dessen `grund`-Union keinen Zweig fuer „zu lang"
-   * traegt (`_lib/meldungen.ts:157-166`), `kein-name` waere der falsche Satz, und einen
-   * achten `grund` verbietet Entscheidung E13 — sie setzt die Vollzaehligkeitszahlen auf
-   * SIEBEN und SECHS fest (`KOPF.md:775-778`). ⬜ EIGENTUEMER IST DAMIT A19: das Namensfeld
-   * traegt die Grenze als `maxLength` plus einen Feldfehler neben dem Feld, so wie A20 es
-   * fuer die Zustandsnotiz tut. ⚠️ DER PREIS BLEIBT BENANNT: dies ist der einzige ANONYME
-   * Schreibpfad des Moduls — bis dahin landet ein beliebig langer Name ungekuerzt in
-   * `loans.borrower_name`.
+   * ✅ A-L17 — GESCHLOSSEN AM 2026-08-24 (Fund F2 der Schlusspruefung, Betreiberentscheidung
+   * desselben Tages). ⛔ DIESE ZEILE HAT BIS DAHIN DAS GEGENTEIL BEHAUPTET und stand damit
+   * gegen `_db/leihen.ts` — zwei Belegzeilen desselben Postens duerfen einander nicht
+   * widersprechen; das war die eigentliche Haelfte von F2, die vor den Merge gehoerte. Was
+   * jetzt gilt: der Deckel 100 des Alt-Bestands (`BORROWER_NAME_MAX`,
+   * `radio-admin/shared/src/loan.ts:5`, durchgesetzt `:39`) ist eine SERVERZUSAGE. Sie
+   * haengt an `ENTLEIHER_MAX` (`_lib/meldungen.ts`) und wird in `bucheAusleihe`
+   * durchgesetzt, mit dem `grund` `name-zu-lang` und dem Satz, den A19 dem Feld schon gab.
+   * ⚠️ A19 HAT DIE FELDHAELFTE GEBAUT (das `maxLength` und den Feldfehler) — die
+   * Serverhaelfte war offen und ist es nicht mehr. ⛔ HIER FAELLT SIE WEITERHIN NICHT: der
+   * Ort der Durchsetzung ist der Schreibpfad, nicht diese Action; hier stuende sonst eine
+   * zweite Zahl.
+   *
+   * ⚠️ WAS NICHT GESCHLOSSEN IST UND WEM ES GEHOERT: dies bleibt der einzige ANONYME
+   * Schreibpfad des Moduls, und er hat KEINE RATENBEGRENZUNG (⬜ A-L6, Zusage §4.12 Nr. 4,
+   * ausgeschrieben oben in dieser Datei). Der Deckel nimmt die unbegrenzte Feldlaenge weg,
+   * nicht die unbegrenzte Zahl der Aufrufe.
    */
   const entleiher = String(formular.get(FELD_ENTLEIHER) ?? "");
 
@@ -169,7 +198,8 @@ export async function ausleiheAnlegen(
    * zusaetzlich den ROUTER-CACHE DES CLIENTS, den der `redirect` unmittelbar danach
    * benutzt. Ein spaeterer Leser streicht sonst den, den er fuer ueberfluessig haelt.
    *
-   * ⛔ `/geraete` UND NICHT `/` (Entscheidung E1, `KOPF.md:416-455`): Spec:3429 schreibt
+   * ⛔ `/geraete` UND NICHT `/` (Entscheidung E1, `KOPF.md:416-455`) — die Wahl der
+   * FLAECHE; die Wahl des PFADRAUMS steht am Kopf von `LISTENPFAD` oben. Spec:3429 schreibt
    * `revalidatePath` auf `/` und `redirect("/?gebucht=2")` — `/` ist in dieser Suite aber
    * das GATE, und die Uebersicht liegt an `/geraete`. Zwei Dateien auf demselben Pfad
    * lehnt Next beim Build ab, und ein Riegel-Layout ueber `/` liefe in einen endlosen
@@ -181,8 +211,10 @@ export async function ausleiheAnlegen(
    * nur fuer `page.tsx`/`layout.tsx` aus; sie gilt fuer eine Server Action genauso
    * (`VORABSCAN-A.md:140`, Fund F20c), und deshalb steht sie hier.
    */
-  revalidatePath("/geraete");
-  revalidatePath("/rueckgabe");
+  revalidatePath(LISTENPFAD);
+  revalidatePath(RUECKGABEPFAD);
+  // ⛔ DER `redirect` NENNT DEN AEUSSEREN PFAD — er geht an den Browser (siehe den Kopf der
+  // zwei Konstanten oben).
   redirect(`/geraete?gebucht=${ergebnis.anzahl}`);
 }
 
@@ -197,7 +229,7 @@ export async function ausleiheAnlegen(
  * hier ausserdem keine Entsprechung: es geht um EINE Ausleihe.
  *
  * ⛔ DIE ZEICHENGRENZE HAT GENAU EINEN EIGENTUEMER: `ZUSTANDSNOTIZ_MAX`
- * (`_lib/meldungen.ts:88`), geprueft in `bucheRueckgabe` (`_db/leihen.ts:599-601`). Hier
+ * (`_lib/meldungen.ts:88`), geprueft in `bucheRueckgabe` (`_db/leihen.ts:653-655`). Hier
  * steht KEINE zweite Zahl und KEINE Kuerzung — eine Kuerzung liesse die Rueckgabe gelingen,
  * wo sie abgelehnt gehoert, und das `maxLength` am Feld (A20) ist eine Bequemlichkeit,
  * keine Zusage (Spec:3583-3585).
@@ -236,12 +268,12 @@ export async function rueckgabeBuchen(
    * entscheidet auf dem getrimmten Wert (das uebernehmen wir) und speichert ihn getrimmt
    * und bereinigt (das nicht).
    * ⚠️ DIESELBE TRENNUNG GIBT ES IN DIESEM MODUL BEREITS EINE EBENE TIEFER, und sie ist der
-   * naehere Beleg als die Alt-Quelle: `_db/leihen.ts:475` lehnt einen Entleihernamen ueber
+   * naehere Beleg als die Alt-Quelle: `_db/leihen.ts:506` lehnt einen Entleihernamen ueber
    * `e.entleiher.trim().length === 0` ab — ENTSCHEIDUNG auf dem getrimmten Text — und
    * speichert ihn trotzdem ungetrimmt, bewacht vom Fall „schreibt den Entleihernamen
    * unveraendert, ohne Umschreiben" (Testdaten „  Mueller & Sohn  " mit Leerzeichen an
    * beiden Enden). Diese Zeile wendet die Hausform des Namens auf die Notiz an.
-   * ⚠️ DIE LAENGENPRUEFUNG LAEUFT DAMIT AUF DEM UNGETRIMMTEN WERT (`_db/leihen.ts:599`
+   * ⚠️ DIE LAENGENPRUEFUNG LAEUFT DAMIT AUF DEM UNGETRIMMTEN WERT (`_db/leihen.ts:653`
    * misst `notiz.length`, nicht `notiz.trim().length`). Das ist Absicht: gemessen wird, was
    * gespeichert wird. Wer die zwei angleicht, muss sich entscheiden, welche Seite trimmt —
    * und die Speicherseite darf es nicht.
@@ -254,8 +286,8 @@ export async function rueckgabeBuchen(
 
   // Beide Flaechen, aus demselben Grund wie oben (Spec:3562; `/` → `/geraete` nach E1): ein
   // zurueckgegebenes Geraet steht auf der Uebersicht wieder frei.
-  revalidatePath("/geraete");
-  revalidatePath("/rueckgabe");
+  revalidatePath(LISTENPFAD);
+  revalidatePath(RUECKGABEPFAD);
   return ergebnis;
 }
 
@@ -268,7 +300,7 @@ export async function rueckgabeBuchen(
  *
  * ⛔ ZWEI SCHWELLEN, BEIDE MIT GENAU EINEM EIGENTUEMER, UND KEINE DAVON HIER:
  * `VORSCHLAG_MIN_ZEICHEN = 2` (`_db/leihen.ts:178`) und der Deckel `10` als Vorgabewert an
- * `sucheEntleiher` (`_db/leihen.ts:342`, Spec:4084). ⛔ HIER STEHT KEINE DRITTE ZAHL —
+ * `sucheEntleiher` (`_db/leihen.ts:373`, Spec:4084). ⛔ HIER STEHT KEINE DRITTE ZAHL —
  * zwei Zahlen fuer dieselbe Grenze laufen auseinander, und der Testname „liefert
  * HOECHSTENS zehn" ist eine Obergrenze, unter der ein zweiter, kleinerer Deckel unsichtbar
  * bliebe.
@@ -310,5 +342,5 @@ export async function entleiherVorschlaege(suchtext: string): Promise<Vorschlag[
 export async function listeAktualisieren(): Promise<void> {
   const schreibend = await requireAusleihSchreibend(getDb());
   if (!schreibend.ok) return;
-  revalidatePath("/geraete");
+  revalidatePath(LISTENPFAD);
 }

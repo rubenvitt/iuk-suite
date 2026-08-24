@@ -59,7 +59,7 @@ export const dynamic = "force-dynamic";
  *
  * ⛔ ER NENNT DIE ZAHL UND NICHT DEN NAMEN — eine benannte Abweichung vom Wortlaut der Spec
  * (`:3429`: „2 Geräte an Max Mustermann ausgeliehen."). `?gebucht=<n>` traegt nur die Zahl
- * (`_actions/ausleihe.ts:186`), und einen Entleihernamen ueber die URL zu reichen hiesse,
+ * (`_actions/ausleihe.ts:218`), und einen Entleihernamen ueber die URL zu reichen hiesse,
  * ihn in den Verlauf eines geteilten Telefons zu schreiben — genau der Grund, aus dem der
  * Suchtext dort nicht steht (Spec:3633-3635).
  *

@@ -49,7 +49,7 @@ import s from "./ausleihe.module.css";
  * Was die Insel von einer Zeile braucht: was die ZEILE zeigt, plus den vorberechneten
  * Suchschluessel.
  *
- * ⛔ EIGENER SATZ, KEIN BEZUG AUF `GeraetMitLeihstand` (`_db/leihen.ts:92-101`) — dieselbe
+ * ⛔ EIGENER SATZ, KEIN BEZUG AUF `GeraetMitLeihstand` (`_db/leihen.ts:93-102`) — dieselbe
  * Begruendung wie an `ZeilenGeraet` (`GeraeteZeile.tsx`): ein neues Feld des Lesemodells
  * kommt hier nicht von selbst an. ⛔ Und `_db/leihen.ts` zoege ueber seine Importe Drizzle
  * und die Moduldatenbank in das Client-Bundle.
@@ -165,7 +165,7 @@ export function GeraeteListe({ geraete }: { geraete: readonly ListenGeraet[] }) 
       {treffer.length === 0 ? (
         /*
           ⛔ EIN ANDERER LEERZUSTAND ALS DER DER SEITE. „Es sind noch keine Geräte erfasst"
-          (`_lib/meldungen.ts:312-313`) gilt, wenn es GAR KEINE Geraete gibt, und steht als
+          (`_lib/meldungen.ts:354-355`) gilt, wenn es GAR KEINE Geraete gibt, und steht als
           antd `Empty` auf der Server-Seite; hier gibt es welche, nur keinen Treffer — und
           nur hier gibt es etwas zurueckzusetzen (`DeviceGroupedList.tsx:17-28`).
           ⛔ DER SATZ NENNT DEN SUCHTEXT (`DeviceGroupedList.tsx:22`): „Keine Treffer" ueber

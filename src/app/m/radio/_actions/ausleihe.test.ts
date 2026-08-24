@@ -110,7 +110,7 @@ beforeEach(() => {
    * ueber den Code OHNE die zugehoerige Zeile gibt es im Betrieb nicht — `befund` schlaegt sie
    * bei JEDEM Aufruf nach (`_lib/ausleihZugang.ts:180-181`). ⚠️ Gemessen am 2026-08-23: ohne
    * sie scheitert jede Ausleihe am FK und `bucheAusleihe` faltet den Fehler auf `unbekannt`
-   * (`_db/leihen.ts:559-570`) — der Fall waere rot mit einer Meldung, die auf die falsche
+   * (`_db/leihen.ts:613-624`) — der Fall waere rot mit einer Meldung, die auf die falsche
    * Ursache zeigt.
    */
   db.insert(zugangscodes)
@@ -234,7 +234,7 @@ describe("radio-_actions/ausleihe: ausleiheAnlegen", () => {
      * ⛔ DER TRAGENDE FALL: alles oder nichts (§4.3.2) plus Regel 1 der Konfliktsprache
      * („der Rufname steht IM SATZ", Spec:3547). Ein `Promise.all` ueber Einzelbuchungen
      * liesse die ersten beiden stehen — typkorrekt, lint-sauber, und die Zusage
-     * „Es wurde nichts gebucht." (`_lib/meldungen.ts:348`) waere gebrochen.
+     * „Es wurde nichts gebucht." (`_lib/meldungen.ts:413`) waere gebrochen.
      */
     for (let i = 1; i <= 4; i++) geraet(`g-${i}`, `700000${i}`);
     legeLeiheAn("g-3", "Bea Beispiel", "Ruf g-3");
@@ -297,7 +297,7 @@ describe("radio-_actions/ausleihe: ausleiheAnlegen", () => {
      * das Zeichen, das jede HTML-Bereinigung anfasst, der Umlaut das, das eine
      * Normalisierung anfasst. Der Auftrag schreibt ihn woertlich vor
      * (`.superpowers/sdd/planteil3/briefs/A17.md`, Testtabelle); Hauspraezedenz fuer einen
-     * Umlaut im FIXTURE-WERT: `_db/leihen.test.ts:456`.
+     * Umlaut im FIXTURE-WERT: `_db/leihen.test.ts:497`.
      */
     geraet("g-1", "7000001");
 
@@ -320,7 +320,7 @@ describe("radio-_actions/ausleihe: ausleiheAnlegen", () => {
      * §3.2.4 (Spec:2218-2220, „Beides oder nichts") verloere die Haelfte, die ihm Wirkung
      * gibt.
      *
-     * ⚠️ DER FALL STEHT AUCH IN `_db/leihen.test.ts:650` — dort auf der Ebene, die SCHREIBT.
+     * ⚠️ DER FALL STEHT AUCH IN `_db/leihen.test.ts:691` — dort auf der Ebene, die SCHREIBT.
      * Hier steht er auf der Ebene, die den Wert AUS DEM ZUGANG HOLT; das ist die Haelfte,
      * die A15 nicht pruefen kann.
      */
@@ -370,8 +370,17 @@ describe("radio-_actions/ausleihe: ausleiheAnlegen", () => {
       ),
     ).rejects.toThrow("REDIRECT:/geraete?gebucht=2");
 
-    expect(revalidiert).toEqual(["/geraete", "/rueckgabe"]);
-    expect(umgeleitet).toEqual(["/geraete?gebucht=2"]);
+    /*
+     * ⛔ ZWEI PFADRAEUME IN ZWEI ZEILEN, UND DAS IST DIE AUSSAGE DIESES FALLES (Fund F3 der
+     * Schlusspruefung, behoben am 2026-08-24): `revalidatePath` spricht mit Nexts
+     * Zwischenspeicher und nennt den INNEREN Pfad nach dem Rewrite
+     * (`_lib/routen.test.ts:29-33`: `/geraete` → `/m/radio/geraete`); der `redirect` geht an
+     * den BROWSER und nennt den AEUSSEREN. Werden sie vertauscht, faellt kein Tor: ein
+     * `revalidatePath` auf einem unbekannten Pfad ist folgenlos.
+     */
+    expect(revalidiert).toEqual(["/m/radio/geraete", "/m/radio/rueckgabe"]);
+    expect(umgeleitet, "der redirect nennt den INNEREN Pfad — er geht an den Browser")
+      .toEqual(["/geraete?gebucht=2"]);
   });
 });
 
@@ -382,7 +391,7 @@ describe("radio-_actions/ausleihe: rueckgabeBuchen", () => {
      * Client steht, ist keine Regel." Das `maxLength` am Feld (A20) ist eine Bequemlichkeit.
      *
      * ⚠️ DIE GRENZE HAT GENAU EINEN EIGENTUEMER: `ZUSTANDSNOTIZ_MAX` (`_lib/meldungen.ts:88`),
-     * geprueft in `bucheRueckgabe` (`_db/leihen.ts:599-601`). Die Action setzt KEINE zweite
+     * geprueft in `bucheRueckgabe` (`_db/leihen.ts:653-655`). Die Action setzt KEINE zweite
      * Zahl daneben und kuerzt NICHT — sie reicht die Notiz unveraendert durch, und genau das
      * misst dieser Fall: eine Kuerzung in der Action liesse die Rueckgabe GELINGEN.
      */
@@ -424,7 +433,7 @@ describe("radio-_actions/ausleihe: rueckgabeBuchen", () => {
     expect(db.select().from(loans).where(eq(loans.id, leiheId)).get()?.returnNote).toBe(
       "  Antenne locker  ",
     );
-    expect(revalidiert).toEqual(["/geraete", "/rueckgabe"]);
+    expect(revalidiert).toEqual(["/m/radio/geraete", "/m/radio/rueckgabe"]);
     expect(umgeleitet, "eine Rueckgabe leitet nicht um").toEqual([]);
   });
 
@@ -435,7 +444,7 @@ describe("radio-_actions/ausleihe: rueckgabeBuchen", () => {
      * abgegebenen leeren Notiz nicht zu unterscheiden. ⚠️ Das ist die EINZIGE Umformung auf
      * dem Weg in die Datenbank, und sie ersetzt nur den WERT durch `null` — der gespeicherte
      * Text wird nie umgeschrieben (Spec:3587-3592). ⚠️ Der `trim()` in der BEDINGUNG
-     * (`_actions/ausleihe.ts:250`) trifft diesen Fall nicht, er gilt dem Nachbarfall darunter
+     * (`_actions/ausleihe.ts:282`) trifft diesen Fall nicht, er gilt dem Nachbarfall darunter
      * („nur Leerzeichen"); getrennt gehalten sind die zwei, weil eine Sonde auf den `trim()`
      * genau einen von beiden rot machen muss.
      */
@@ -479,7 +488,7 @@ describe("radio-_actions/ausleihe: die zwei lesenden Actions", () => {
     /*
      * §4.3.4 (Spec:3506-3512). ⚠️ DEN DECKEL SETZT DIE DATENFUNKTION, NICHT DIESE ACTION:
      * `sucheEntleiher(db, suchtext, deckel = 10)` traegt die 10 als Vorgabewert
-     * (`_db/leihen.ts:342`, Spec:4084), und `entleiherVorschlaege` setzt KEINEN eigenen
+     * (`_db/leihen.ts:373`, Spec:4084), und `entleiherVorschlaege` setzt KEINEN eigenen
      * daneben — zwei Zahlen fuer dieselbe Grenze laufen auseinander.
      *
      * ⛔ DIE ANTWORT TRAEGT NUR `{ name, zuletztText }` — kein Geraet, keine Millisekunden,
@@ -536,7 +545,7 @@ describe("radio-_actions/ausleihe: die zwei lesenden Actions", () => {
       "die Action liefert auch mit Zugang nichts — der Fall oben ist leer",
     ).toEqual(["Anna Beispiel"]);
     await listeAktualisieren();
-    expect(revalidiert).toEqual(["/geraete"]);
+    expect(revalidiert).toEqual(["/m/radio/geraete"]);
   });
 });
 
@@ -607,7 +616,7 @@ describe("radio-_actions/ausleihe: die Sperrgruende am Formular", () => {
     /*
      * Spec:5229-5232: „die Union ist die Rueckgabeform beider Schreib-Actions, und JEDER
      * `grund` braucht dort einen Text." Der Text ist NICHT die Sache dieser Datei — er
-     * kommt aus `ausleihText`/`rueckgabeText` (`_lib/meldungen.ts:331`, `:404`).
+     * kommt aus `ausleihText`/`rueckgabeText` (`_lib/meldungen.ts:374`, `:404`).
      *
      * ⛔ WAS DIESER FALL FAENGT: ein Literal in der Action. Ohne ihn liesse sich
      * `ausleihText({ grund })` durch einen zeichengleichen String ersetzen, ohne dass ein
@@ -620,9 +629,9 @@ describe("radio-_actions/ausleihe: die Sperrgruende am Formular", () => {
      * `new Set([ausleihText({grund:"sitzung"}), ausleihText({grund:"gesperrt"}),
      * rueckgabeText({grund:"sitzung"}), rueckgabeText({grund:"gesperrt"})]).size` →
      * `expected 2 to be 4`. ES SIND ZWEI SAETZE, NICHT VIER — und das ist Absicht:
-     * `SPERR_SAETZE` ist EIN `Record<SperrGrund, string>` (`_lib/meldungen.ts:253-256`),
+     * `SPERR_SAETZE` ist EIN `Record<SperrGrund, string>` (`_lib/meldungen.ts:295-298`),
      * beide Textfunktionen geben fuer `sitzung`/`gesperrt` genau diesen einen Satz zurueck
-     * (`_lib/meldungen.ts:349-351` und `:430-432`), und `_lib/meldungen.ts:52-54` schreibt
+     * (`_lib/meldungen.ts:414-416` und `:430-432`), und `_lib/meldungen.ts:52-54` schreibt
      * den Grund aus: „zwei unabhaengige Zweige waeren derselbe Fehler eine Ebene tiefer".
      * ⛔ HIER ENTSTEHT DESHALB KEIN WAECHTER, DER `rueckgabeText` VON `ausleihText` AUF
      * DIESEN ZWEI GRUENDEN UNTERSCHEIDBAR MACHTE — er kehrte Entscheidung E13 um.
@@ -632,7 +641,7 @@ describe("radio-_actions/ausleihe: die Sperrgruende am Formular", () => {
      * ⚠️ Ein Scan nur auf `sitzung` liesse den Satz zu `gesperrt` unbewacht, waehrend der
      * Testname beide verspricht: die zwei Gleichheitszusicherungen darueber bleiben gegen
      * ein ZEICHENGLEICHES Literal gruen, und genau dagegen steht dieser Fall. (Die zwei
-     * Sperr-Saetze sind ausserdem in `_lib/meldungen.ts:253-256` je EINMAL geschrieben, der
+     * Sperr-Saetze sind ausserdem in `_lib/meldungen.ts:295-298` je EINMAL geschrieben, der
      * zu `gesperrt` kommt sogar aus `_lib/gateTexte.ts` — ein Literal HIER waere der dritte
      * Ort fuer denselben Satz.)
      */
@@ -660,36 +669,39 @@ describe("radio-_actions/ausleihe: die Sperrgruende am Formular", () => {
 });
 
 describe("radio-_actions/ausleihe: die Leerstellen dieser Datei", () => {
-  it("benennt A-L17 als weiterhin offen und uebergibt sie namentlich an A19", () => {
+  it("weist A-L17 als geschlossen aus und benennt die verbleibende Luecke", () => {
     /*
-     * ⬜ A-L17 — DIE LAENGENGRENZE DES ENTLEIHERNAMENS FAELLT AUCH HIER NICHT, und das
-     * Ledger weist den Posten AUSDRUECKLICH DIESER AUFGABE zu
-     * (`.superpowers/sdd/planteil3/progress.md`, Block „Fix-Runde 1 zu A15"): „Auf
-     * Formularebene gibt es Feldfehler ohne `grund`; dort ist die Grenze ohne E13-Bruch zu
-     * haben. Faellt sie dort nicht, bleibt der Posten offen."
+     * A-L17 — GESCHLOSSEN AM 2026-08-24 (Fund F2 der Schlusspruefung). Bis dahin behauptete
+     * die Belegzeile dieser Datei, die Grenze falle NICHT, waehrend `_db/leihen.ts` den
+     * Posten als offen fuehrte und A19 bereits die Feldhaelfte gebaut hatte — zwei
+     * Belegzeilen desselben Postens, die einander widersprachen. GENAU DAS bewacht dieser
+     * Fall jetzt: dass die Zeile sagt, was der Code tut.
      *
-     * ⛔ EINE SERVER ACTION HAT DIESE EBENE NICHT: ihr einziger Fehlerkanal ist
-     * `AusleihErgebnis`, dessen `grund`-Union keinen Zweig fuer „zu lang" traegt, und einen
-     * achten `grund` verbietet Entscheidung E13. Der Eigentuemer wandert damit an A19 — das
-     * Namensfeld, wo A20 dasselbe fuer die Zustandsnotiz tut.
+     * ⛔ UND ER BEWACHT DIE ZWEITE HAELFTE MIT: ein geschlossener Posten darf den
+     * NICHT geschlossenen daneben nicht mitverschwinden lassen. Der Schreibpfad ist
+     * weiterhin anonym UND ohne Ratenbegrenzung (⬜ A-L6) — der Deckel nimmt die
+     * unbegrenzte Feldlaenge weg, nicht die unbegrenzte Zahl der Aufrufe.
      *
      * ⚠️ DER WAECHTER GEHOERT IN DEN VERFOLGTEN BAUM UND NICHT IN EINEN BERICHT:
-     * `.superpowers/` ist git-ignoriert (`.gitignore:17`) — eine Leerstelle, die nur dort
-     * steht, steht nirgends. Dieselbe Bauform wie `_db/leihen.test.ts:963-982`.
+     * `.superpowers/` ist git-ignoriert (`.gitignore:17`) — was nur dort steht, steht
+     * nirgends. Dieselbe Bauform wie in `_db/leihen.test.ts`.
      *
-     * ⛔ ER BELEGT, DASS DER SATZ DASTEHT, NICHT DASS ER STIMMT. Behauptet wird nichts anderes.
+     * ⛔ ER BELEGT, DASS DER SATZ DASTEHT, NICHT DASS ER STIMMT. Dass der Deckel WIRKT,
+     * belegt `_db/leihen.test.ts` („weist einen zu langen Entleihernamen ab").
      */
     const quelle = readFileSync(AUSLEIHE_QUELLE, "utf8");
     expect(quelle).toContain("A-L17");
     expect(quelle).toContain("radio-admin/shared/src/loan.ts:5");
     /*
-     * ⛔ VERANKERT AUF DEM UEBERGABESATZ, NICHT AUF DEM BEZEICHNER: „A19" steht in
-     * `_actions/ausleihe.ts` an drei Stellen (`:55` Feldnamen-Auflage, `:143` diese
-     * Uebergabe, `:288` der Aufrufer der Vorschlaege). Ein `toContain("A19")` bliebe gruen,
-     * wenn jemand allein den A-L17-Absatz loeschte.
+     * ⛔ VERANKERT AUF DER AUSSAGE, NICHT AUF DEM BEZEICHNER — dieselbe Lehre wie zuvor:
+     * „A19" steht in dieser Datei mehrfach, ein `toContain("A19")` bliebe gruen, wenn
+     * jemand allein den A-L17-Absatz loeschte.
      */
-    expect(quelle, "der Posten wird ohne Nachfolger fallen gelassen").toContain(
-      "EIGENTUEMER IST DAMIT A19",
+    expect(quelle, "die Zeile behauptet die Grenze wieder als offen").toContain(
+      "A-L17 — GESCHLOSSEN AM 2026-08-24",
+    );
+    expect(quelle, "die verbleibende Luecke faellt mit dem geschlossenen Posten weg").toContain(
+      "KEINE RATENBEGRENZUNG",
     );
   });
 

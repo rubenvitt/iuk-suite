@@ -11,7 +11,7 @@ import { openModuleDatabase } from "@/core/db";
 import * as schema from "./schema";
 import { devices, loans, zugangscodes } from "./schema";
 import { normalisiereSuchtext } from "../_lib/filter";
-import { ZUSTANDSNOTIZ_MAX } from "../_lib/meldungen";
+import { ENTLEIHER_MAX, ZUSTANDSNOTIZ_MAX } from "../_lib/meldungen";
 import {
   geraeteMitLeihstand,
   offeneAusleihen,
@@ -172,6 +172,47 @@ describe("radio-leihen: das Lesemodell der Geraeteliste", () => {
         verboten,
       );
     }
+  });
+
+  it("zeigt nur freigegebene Geraete — loanable false und loanable NULL fallen heraus", () => {
+    /*
+     * ⛔ FUND F1 DER SCHLUSSPRUEFUNG, BETREIBERENTSCHEIDUNG VOM 2026-08-24: dieser Lesepfad
+     * filtert `loanable`, wie der ersetzte Endpunkt. Ohne den Filter erscheint ein als nicht
+     * verleihbar gekennzeichnetes Geraet auf der Ausleihflaeche als „Verfuegbar", ist
+     * antippbar, und der Vorgang scheitert erst beim Absenden (`bucheAusleihe` →
+     * `NICHT_FREIGEGEBEN`, unten in dieser Datei). Der Import traegt die Spalte am Tag eins
+     * mit (`scripts/import/radio.ts:279`).
+     *
+     * ⛔ DIE NULL-SEMANTIK IST GEMESSEN, NICHT GERATEN — und dieser Fall ist die Messung.
+     * Der ersetzte Endpunkt lautet `.where(eq(devices.loanable, true))`
+     * (`radio-admin/server/src/repos/deviceRepo.ts:53-59`, der Filter an `:57`); die Spalte
+     * steht dort als `integer('loanable', { mode: 'boolean' })`
+     * (`radio-admin/server/src/db/schema.ts:32`), Drizzle setzt `true` also auf `1`. In
+     * SQLite ist `NULL = 1` weder wahr noch falsch, sondern NULL — DIE NULL-ZEILE FAELLT
+     * ALSO HERAUS. Der Schreibweg des Bestands entscheidet gleich
+     * (`radio-admin/server/src/routes/loanApi.ts:166`: `if (!device.loanable)`), und
+     * `bucheAusleihe` bildet genau das schon ab.
+     *
+     * ⛔ DREI ZEILEN UND NICHT ZWEI: ohne die NULL-Zeile bliebe dieser Fall gruen, wenn
+     * jemand den Filter zu „ungleich false" abschwaecht — die eine Form, die die gemessene
+     * Semantik verfehlt, ohne dass es auffiele.
+     *
+     * ⚠️ `offeneAusleihen` FILTERT BEWUSST NICHT MIT (siehe dort): der Bestand haelt die zwei
+     * ausdruecklich auseinander (`loanApi.ts:131-132`), damit eine Leihe auf einem
+     * nachtraeglich gesperrten Geraet nicht aus der Rueckgabe verschwindet.
+     */
+    geraet({ id: "g-loanable-ja", issi: "1100001", loanable: true });
+    geraet({ id: "g-loanable-nein", issi: "1100002", loanable: false });
+    geraet({ id: "g-loanable-null", issi: "1100003", loanable: null });
+
+    const ids = geraeteMitLeihstand(db).map((z) => z.id);
+    expect(ids, "das freigegebene Geraet fehlt in der Liste").toContain("g-loanable-ja");
+    expect(ids, "loanable = false erscheint auf der Ausleihflaeche").not.toContain(
+      "g-loanable-nein",
+    );
+    expect(ids, "loanable = NULL erscheint auf der Ausleihflaeche").not.toContain(
+      "g-loanable-null",
+    );
   });
 
   it("traegt die Seriennummer im Suchschluessel und in keinem Feld der Zeile", () => {
@@ -730,6 +771,62 @@ describe("radio-leihen: eine Transaktion ueber alle gewaehlten Geraete", () => {
     ).toBe(true);
     expect(db.select().from(loans).get()?.borrowerName).toBe("  Max Mustermann  ");
   });
+
+  it("weist einen zu langen Entleihernamen ab, misst auf trim und speichert unveraendert", () => {
+    /*
+     * ⛔ FUND F2 DER SCHLUSSPRUEFUNG, BETREIBERENTSCHEIDUNG VOM 2026-08-24: der einzige
+     * ANONYME Schreibpfad des Moduls nahm einen unbegrenzt langen Entleihernamen an. Der
+     * Bestand deckelt SERVERSEITIG bei 100
+     * (`radio-admin/shared/src/loan.ts:5` und `:39`,
+     * `z.string().trim().min(1).max(LOAN_FIELD_LIMITS.BORROWER_NAME_MAX)`), und
+     * `_ui/EntleiherFeld.tsx` hielt bis dahin nur die Client-Haelfte — „eine Regel, die nur
+     * im Client steht, ist keine Regel" (Spec:3583-3585).
+     *
+     * ⛔ ABGEWIESEN, NICHT GEKUERZT — am Bestand gemessen: `.max(100)` laesst den Vorgang
+     * scheitern (`invalid_body`, `loanApi.ts:161`), es gibt dort kein `slice`. Und ein
+     * `slice` waere hier die dauerhafte Veraenderung der gespeicherten Zeichenkette, die
+     * Spec:3587-3592 fuer dieses Feld verbietet.
+     *
+     * ⛔ DIE GRENZE WIRD AUF `trim().length` GEMESSEN, WEIL DER BESTAND ES TUT: zods
+     * `.trim()` laeuft VOR `.max()`. Deshalb der dritte Fall — genau `ENTLEIHER_MAX`
+     * Zeichen mit Randleerzeichen wird ANGENOMMEN und UNVERAENDERT gespeichert. Ohne ihn
+     * bliebe eine Messung auf der rohen Laenge gruen, und sie waere um Randleerzeichen
+     * strenger als das Original.
+     */
+    geraet({ id: "g-lang", issi: "8000002" });
+
+    const zuLang = bucheAusleihe(db, {
+      geraeteIds: ["g-lang"],
+      entleiher: "L".repeat(ENTLEIHER_MAX + 1),
+      zugangscodeId: null,
+    });
+    expect(zuLang.ok, "ein Name ueber der Grenze wird angenommen").toBe(false);
+    if (zuLang.ok) return;
+    expect(zuLang.grund).toBe("name-zu-lang");
+    expect(zuLang.text, `die Zahl ${ENTLEIHER_MAX} fehlt im Satz`).toContain(
+      String(ENTLEIHER_MAX),
+    );
+    expect(zuLang.betroffen, "eine Feldgrenze hat kein betroffenes Geraet").toEqual([]);
+    expect(db.select().from(loans).all(), "trotz Ablehnung wurde gebucht").toEqual([]);
+
+    const gerade = "G".repeat(ENTLEIHER_MAX);
+    expect(
+      bucheAusleihe(db, { geraeteIds: ["g-lang"], entleiher: gerade, zugangscodeId: null }).ok,
+      "genau ENTLEIHER_MAX Zeichen wird abgewiesen — die Grenze ist um eins verschoben",
+    ).toBe(true);
+    expect(db.select().from(loans).get()?.borrowerName).toBe(gerade);
+
+    db.delete(loans).run();
+    const mitRand = `  ${"R".repeat(ENTLEIHER_MAX)}  `;
+    expect(
+      bucheAusleihe(db, { geraeteIds: ["g-lang"], entleiher: mitRand, zugangscodeId: null }).ok,
+      "gemessen wird die ROHE Laenge — der Bestand misst nach trim()",
+    ).toBe(true);
+    expect(
+      db.select().from(loans).get()?.borrowerName,
+      "der Name wurde auf dem Weg in die Datenbank beschnitten",
+    ).toBe(mitRand);
+  });
 });
 
 describe("radio-leihen: die Rueckgabe", () => {
@@ -789,9 +886,9 @@ describe("radio-leihen: die Rueckgabe", () => {
     expect(db.select().from(loans).where(eq(loans.id, id)).get()?.returnedAt).toBeNull();
 
     /*
-     * ⛔ GEMESSEN WIRD DER UNGETRIMMTE WERT — `_db/leihen.ts:599` misst `notiz.length`,
+     * ⛔ GEMESSEN WIRD DER UNGETRIMMTE WERT — `_db/leihen.ts:653` misst `notiz.length`,
      * nicht `notiz.trim().length`, und das ist Absicht: gemessen wird, was gespeichert
-     * wird (`_db/leihen.ts:591-592`, die Notiz wird nicht umgeschrieben). Bis zu diesem
+     * wird (`_db/leihen.ts:645-646`, die Notiz wird nicht umgeschrieben). Bis zu diesem
      * Fall war die Grenze zwar bewacht, aber nicht, WELCHEN der zwei Werte sie misst:
      * kein Fall trug Leerzeichen an den Enden (REVIEW-A17 Fund F6-N).
      *
@@ -800,7 +897,7 @@ describe("radio-leihen: die Rueckgabe", () => {
      * der Zusicherung darueber. Faellt `:599` auf `trim()`, laeuft der Wert durch die
      * Pruefung und bucht die AKTIVE Leihe zurueck: `ok` wird `true`, der Fall rot. Unter
      * der Grenzzeile ist die Leihe bereits zurueck, dasselbe `ok: false` kaeme dann aus
-     * `schon-zurueck` (`_db/leihen.ts:619-620`) und der Fall bliebe GRUEN — gemessen, die
+     * `schon-zurueck` (`_db/leihen.ts:673-674`) und der Fall bliebe GRUEN — gemessen, die
      * Sonde steht im Fix-Bericht zu A17.
      */
     // getrimmt genau auf der Grenze, ungetrimmt eine Stelle darueber
@@ -925,7 +1022,7 @@ describe("radio-leihen: die Bauform der Datei", () => {
      * Der modulweite `"use client"`-Scan steht in `riegel.test.ts:977-1030`; fuer
      * `"use server"` gibt es ihn nicht (⬜ A-L16, `_lib/meldungen.ts:19-24`), deshalb
      * scannt diese Datei sich hier selbst — dieselbe Bauform wie
-     * `_lib/meldungen.test.ts:530-555`.
+     * `_lib/meldungen.test.ts:536-561`.
      *
      * ⛔ UND KEIN VERWEIS AUF DIE ALTE HTTP-GRENZE (Entscheidung 15, Spec:5453): sie steht
      * noch, `radio-admin` behaelt seine sechs Version-1-Routen. Der Abnahmebefehl des
@@ -938,7 +1035,7 @@ describe("radio-leihen: die Bauform der Datei", () => {
      * muss NICHTS liefern. Ein Waechter, der seine eigene Nadel ausschreibt, macht genau
      * diesen Befehl rot — gemessen in dieser Aufgabe: drei Treffer, alle in dieser Datei.
      * Zusammengesetzt prueft er dasselbe und faellt dem Befehl nicht auf. Dieselbe
-     * Prosa-Sperre tragen `_lib/anzeige.ts` und `_lib/meldungen.ts:384-389`.
+     * Prosa-Sperre tragen `_lib/anzeige.ts` und `_lib/meldungen.ts:449-454`.
      */
     const ANKER_ALT_HOST = ["RADIO_ADMIN", ""].join("_");
     const ANKER_ALT_ROUTE = ["api", "v1", ""].join("/");
@@ -960,25 +1057,32 @@ describe("radio-leihen: die Bauform der Datei", () => {
     expect(quelle).toContain("issi is mutable (a device can be reprogrammed)");
   });
 
-  it("benennt die fehlende Laengengrenze des Entleihernamens als Leerstelle", () => {
+  it("nennt die Herkunft der Laengengrenze des Entleihernamens", () => {
     /*
-     * ⬜ A-L17. DIESELBE BAUFORM WIE DIE `STALE_GRACE_MS`-ZEILE UNTEN, UND AUS DEMSELBEN GRUND:
-     * eine Grenze des Alt-Bestands, die hier NICHT faellt, muss eine dokumentierte
-     * Entscheidung bleiben und darf keine Auslassung werden, die beim naechsten Blick in
-     * die Alt-App als „vergessen" wiederentdeckt wird. Der Alt-Deckel ist
-     * `BORROWER_NAME_MAX: 100` (`radio-admin/shared/src/loan.ts:5`).
+     * A-L17, GESCHLOSSEN AM 2026-08-24 (Fund F2). Bis dahin belegte dieser Fall die
+     * fehlende Grenze als DOKUMENTIERTE LEERSTELLE; jetzt belegt er ihre HERKUNFT — die
+     * Bauform bleibt dieselbe wie bei der `STALE_GRACE_MS`-Zeile unten, und der Grund auch:
+     * eine Zahl aus dem Alt-Bestand darf nicht zu einer Zahl ohne Quelle werden, die beim
+     * naechsten Blick in die Alt-App als „ausgedacht" gilt.
+     *
+     * ⛔ DIE ZAHL SELBST STEHT NICHT HIER, sondern in `_lib/meldungen.ts` — dieser Fall
+     * verankert deshalb auf dem ALT-NAMEN und dem ALT-PFAD, nicht auf „100". Ein Anker auf
+     * der Ziffernfolge waere eine zweite Wahrheit ueber dieselbe Grenze.
      *
      * ⚠️ DER WAECHTER GEHOERT IN DEN VERFOLGTEN BAUM UND NICHT IN EINEN BERICHT:
-     * `.superpowers/` ist git-ignoriert (`.gitignore:17`), eine Leerstelle, die nur dort
-     * steht, steht nirgends. Derselbe Praezedenzfall, aus dem A14 die Leerstelle A-L16
-     * nach `_lib/meldungen.ts:19-24` gehoben hat.
+     * `.superpowers/` ist git-ignoriert (`.gitignore:17`), was nur dort steht, steht
+     * nirgends. Derselbe Praezedenzfall wie bei A-L16 (`_lib/meldungen.ts`).
      *
-     * ⛔ ER BELEGT, DASS DER SATZ DASTEHT, NICHT DASS ER STIMMT — genau wie die zwei
-     * Quelltext-Scans darunter. Behauptet wird nichts anderes.
+     * ⛔ ER BELEGT, DASS DER SATZ DASTEHT, NICHT DASS ER STIMMT — dass der Deckel WIRKT,
+     * belegt der Fall „weist einen zu langen Entleihernamen ab" weiter oben.
      */
     const quelle = readFileSync(LEIHEN_QUELLE, "utf8");
-    expect(quelle).toContain("BORROWER_NAME_MAX");
-    expect(quelle).toContain("radio-admin/shared/src/loan.ts:5");
+    expect(quelle, "die Leerstelle A-L17 wird ohne Spur ihrer Aufloesung gestrichen")
+      .toContain("A-L17");
+    expect(quelle).toContain("ENTLEIHER_MAX");
+    const meldungen = readFileSync("src/app/m/radio/_lib/meldungen.ts", "utf8");
+    expect(meldungen).toContain("BORROWER_NAME_MAX");
+    expect(meldungen).toContain("radio-admin/shared/src/loan.ts:5");
   });
 
   it("haelt den gestrichenen Ausfall-Puffer als Zeile im Kopf fest", () => {

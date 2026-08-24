@@ -179,6 +179,12 @@ function geraet(werte: {
       deviceType: "Motorola MTP3550",
       status: "Einsatzbereit",
       location: "Fahrzeughalle",
+      // ⛔ OHNE DIESE ZEILE STEHT DAS FIXTURE GAR NICHT IN DER LISTE: `geraeteMitLeihstand`
+      // filtert seit dem 2026-08-24 auf `loanable = true`, und die Spalte ist nullable —
+      // eine nicht gesetzte Spalte ist `NULL` und faellt heraus (Fund F1, gemessen in
+      // `_db/leihen.test.ts`). Die Faelle dieser Datei fragen nach der ANZEIGE eines
+      // verleihbaren Geraets; wer den Filter selbst pruefen will, tut das dort.
+      loanable: true,
       createdAt: new Date("2026-01-01T10:00:00Z"),
       updatedAt: new Date("2026-05-01T10:00:00Z"),
       ...werte,
@@ -333,7 +339,7 @@ describe("die Uebersicht an /geraete", () => {
   it("zeigt nach einer Buchung eine Zeile in role=status aria-live=polite", async () => {
     /*
      * Entscheidung E6 (`briefs/KOPF.md`): KEIN Toast. Der Erfolg wandert als
-     * Ergebnisparameter durch den `redirect` (`_actions/ausleihe.ts:186`) und wird von der
+     * Ergebnisparameter durch den `redirect` (`_actions/ausleihe.ts:218`) und wird von der
      * SEITE gerendert (Spec:3429).
      *
      * ⛔ `role="status" aria-live="polite"` UND NICHT `role="alert"` — die Abweichung von der
@@ -346,7 +352,7 @@ describe("die Uebersicht an /geraete", () => {
      *
      * ⛔ DER SATZ NENNT DIE ZAHL UND NICHT DEN NAMEN, und das ist eine Abweichung vom
      * Wortlaut der Spec (`:3429`: „2 Geräte an Max Mustermann ausgeliehen."): `?gebucht=<n>`
-     * traegt nur die Zahl (`_actions/ausleihe.ts:186`). Einen Entleihernamen in die URL zu
+     * traegt nur die Zahl (`_actions/ausleihe.ts:218`). Einen Entleihernamen in die URL zu
      * schreiben, hiesse ihn in den Verlauf eines geteilten Telefons zu schreiben — genau der
      * Grund, aus dem der Suchtext dort nicht steht (Spec:3633-3635).
      *
@@ -400,7 +406,7 @@ describe("die Uebersicht an /geraete", () => {
      * `docs/design/README.md:420`.
      *
      * ⛔ DER TEST VERANKERT AUF DEM FEHLEN EINES PFADES, nicht auf dem Wort „Verwaltung" —
-     * das steht im Satz selbst und waere rot-by-construction (`_lib/meldungen.ts:308-310`).
+     * das steht im Satz selbst und waere rot-by-construction (`_lib/meldungen.ts:350-352`).
      *
      * ⛔ UND DIE INSEL ERSCHEINT DANN GAR NICHT: eine leere Filterleiste ueber nichts ist
      * eine Bedienfläche ohne Gegenstand.

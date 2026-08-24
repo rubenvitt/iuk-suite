@@ -26,7 +26,7 @@ import { Button } from "antd";
  * (`radio-inventar/apps/frontend/src/components/features/DeviceList.tsx:19`, `:35-49`,
  * `:143-165`): ein fehlgeschlagenes Neuladen ist genau der Fall, den man nicht nach fuenf
  * Sekunden verstecken sollte. `listeAktualisieren` hat ausserdem keinen Fehlerkanal — bei
- * fehlendem Zugang tut sie NICHTS (`_actions/ausleihe.ts:310-314`).
+ * fehlendem Zugang tut sie NICHTS (`_actions/ausleihe.ts:342-346`).
  *
  * ⛔ KEIN ZEICHEN, SONDERN EINE BESCHRIFTUNG (Entscheidung E5, Spec:3750-3752): `RefreshCw`
  * faellt weg. ⛔ Und kein `@ant-design/icons` — in KEINER Datei dieses Moduls (Falle 7,

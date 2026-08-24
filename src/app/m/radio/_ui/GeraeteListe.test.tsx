@@ -64,7 +64,7 @@ function ohneKommentare(quelle: string): string {
 }
 
 /**
- * Eine Zeile, wie der Lesepfad sie liefert (`_db/leihen.ts:92-101`).
+ * Eine Zeile, wie der Lesepfad sie liefert (`_db/leihen.ts:93-102`).
  *
  * ⚠️ DER `suchschluessel` WIRD HIER GEBAUT, UND DAS IST DIE GRENZE DIESES HELFERS: er ist
  * eine Prop der Insel, also muss der Test ihn setzen. Die Zusicherung, dass der ECHTE
@@ -340,7 +340,7 @@ describe("die Geraeteliste — Trefferzeile, Gruppen, Zeilen", () => {
   it("zeigt ohne Treffer den Leerzustand und setzt ihn ueber den Knopf zurueck", async () => {
     /*
      * `DeviceGroupedList.tsx:17-28`. ⛔ ER IST EIN ANDERER LEERZUSTAND ALS DER DER SEITE:
-     * dort heisst es „Es sind noch keine Geräte erfasst" (`_lib/meldungen.ts:312-313`,
+     * dort heisst es „Es sind noch keine Geräte erfasst" (`_lib/meldungen.ts:354-355`,
      * antd `Empty`, Server), hier „kein Treffer fuer DIESEN Filter" — und nur hier gibt es
      * etwas zurueckzusetzen. Die zwei zu einem zusammenzuziehen waere „der Posten, der beim
      * Port still verschwindet".

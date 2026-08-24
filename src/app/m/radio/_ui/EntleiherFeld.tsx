@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AutoComplete } from "antd";
 import { entleiherVorschlaege } from "../_actions/ausleihe";
+import { ENTLEIHER_MAX } from "../_lib/meldungen";
 import s from "./ausleihe.module.css";
 
 /**
@@ -61,29 +62,6 @@ import s from "./ausleihe.module.css";
 export const ENTLEIHER_MIN_ZEICHEN = 2;
 
 /**
- * ⬜ A-L17 — DIE LAENGENGRENZE DES ENTLEIHERNAMENS, ABGELESEN STATT GERATEN.
- *
- * Quelle: `BORROWER_NAME_MAX: 100` in
- * `/Users/rubeen/dev/personal/drk/radio-admin/shared/src/loan.ts:5` (selbst nachgeschlagen;
- * die Nachbarzeile `:6` deckelt die Rueckgabenotiz auf 500 — jene hat in
- * `_lib/meldungen.ts:88` ihre Entsprechung).
- *
- * ⛔ SIE IST EINE FELDGRENZE UND KEINE SERVERZUSAGE, und genau deshalb steht sie HIER und
- * nicht in `_lib/meldungen.ts`. `bucheAusleihe` prueft den Namen ausschliesslich auf
- * NICHTLEERE (`_db/leihen.ts:475`); ein achter `grund` fuer „zu lang" verbietet
- * Entscheidung E13, die die Vollzaehligkeitszahlen auf SIEBEN und SECHS festsetzt
- * (`.superpowers/sdd/planteil3/briefs/KOPF.md:775-778`). Das Ledger weist die Feldhaelfte
- * dieser Aufgabe zu (`.superpowers/sdd/planteil3/progress.md:518-536`); die SERVERHAELFTE
- * BLEIBT OFFEN — ein Aufruf, der das Formular umgeht, schreibt weiterhin einen beliebig
- * langen Namen in `loans.borrower_name`, und dies ist der einzige ANONYME Schreibpfad des
- * Moduls.
- * ⛔ FAELLT DIE BETREIBERENTSCHEIDUNG UEBER DEN SATZ, wandert diese Konstante zu
- * `ZUSTANDSNOTIZ_MAX` in `_lib/meldungen.ts:88` und verschwindet hier — ⛔ NICHT beides,
- * sonst gibt es zwei Zahlen fuer dieselbe Grenze.
- */
-export const ENTLEIHER_MAX = 100;
-
-/**
  * Die Entprellung vor dem Abruf.
  *
  * ⚠️ ABWEICHUNG VOM BESTAND, BENANNT: dort entprellt `useDeferredValue` (`:63`), hier ein
@@ -125,7 +103,7 @@ export function EntleiherFeld({
 
     /*
      * ⛔ DIE SCHWELLE WIRD AUF DEM GETRIMMTEN ROHTEXT GEMESSEN, wie am Server
-     * (`_db/leihen.ts:346`, „auf dem NORMALISIERTEN gemessen waere die Schwelle fuer ‚ß'
+     * (`_db/leihen.ts:377`, „auf dem NORMALISIERTEN gemessen waere die Schwelle fuer ‚ß'
      * eine andere"). ⛔ UND SIE BRICHT VOR DEM ABRUF AB, nicht danach: ein Abruf, dessen
      * Ergebnis man wegwirft, ist derselbe anonyme Lesezugriff.
      */
@@ -163,15 +141,19 @@ export function EntleiherFeld({
       disabled={gesperrt}
       onChange={aendern}
       /*
-       * ⛔ DIE LAENGENGRENZE AM FELD (⬜ A-L17, siehe `ENTLEIHER_MAX` oben). Sie kommt am
+       * ⛔ DIE LAENGENGRENZE AM FELD. Die Zahl gehoert `ENTLEIHER_MAX` in
+       * `_lib/meldungen.ts` und wird hier NICHT neu deklariert (dieselbe Form wie
+       * `ZUSTANDSNOTIZ_MAX` in `_ui/RueckgabeDialog.tsx:6`). Sie kommt am
        * DOM-Feld an und nicht nur am Typ — gemessen an der installierten Fassung:
        * `SingleContent.js:95` reicht `maxLength` genau im Combobox-Modus durch
        * (`node_modules/.pnpm/@rc-component+select@1.8.2_.../es/SelectInput/Content/SingleContent.js`),
        * und `AutoComplete` setzt genau diesen Modus
        * (`node_modules/antd/es/auto-complete/AutoComplete.js:152`).
        * ⛔ SIE IST EINE BEQUEMLICHKEIT, KEINE ZUSAGE: sie begrenzt das TIPPEN, nicht einen
-       * VORBELEGTEN Wert (§3.5.4, `defaultValue` aus `weg: "suite"`) und keinen Aufruf, der
-       * das Formular umgeht. Den sichtbaren Feldfehler dazu setzt `_ui/AusleihVorgang.tsx`.
+       * VORBELEGTEN Wert (§3.5.4, `defaultValue` aus `weg: "suite"`). Den sichtbaren
+       * Feldfehler dazu setzt `_ui/AusleihVorgang.tsx`. ⛔ DIE ZUSAGE IST SEIT DEM
+       * 2026-08-24 `bucheAusleihe` (`_db/leihen.ts`): ein Aufruf, der das Formular
+       * umgeht, wird dort abgewiesen — vorher lief er durch (Fund F2).
        */
       maxLength={ENTLEIHER_MAX}
       /*
@@ -191,7 +173,7 @@ export function EntleiherFeld({
       /*
        * jsdom kennt keine Elementhoehen; mit Virtualisierung rendert die Liste in Tests nie
        * (`feedback/_ui/Zuordnung.tsx:408-410`). Der Verzicht kostet bei hoechstens zehn
-       * Eintraegen nichts — den Deckel setzt `sucheEntleiher` (`_db/leihen.ts:342`).
+       * Eintraegen nichts — den Deckel setzt `sucheEntleiher` (`_db/leihen.ts:373`).
        */
       virtual={false}
       placeholder="Name eingeben"
@@ -201,7 +183,7 @@ export function EntleiherFeld({
         value: v.name,
         /*
          * ⛔ DIE NEBENZEILE IST DER POSTEN, DER BEIM PORT STILL VERSCHWAENDE (Spec:3498,
-         * `_db/leihen.ts:111-120`): `Vorschlag` ist kein `string`, sondern
+         * `_db/leihen.ts:112-121`): `Vorschlag` ist kein `string`, sondern
          * `{ name, zuletztText }`. `zuletztText` ist eine FERTIGE Zeichenkette vom Server —
          * kein Zeitstempel in Millisekunden verlaesst ihn (Spec:5122-5123), und im Browser
          * gerechnet entschieden Server und Client an der Tagesgrenze verschieden.

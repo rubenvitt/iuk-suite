@@ -43,7 +43,7 @@ import s from "./ausleihe.module.css";
 
 /**
  * Was die Zeile zeigt — nicht mehr. Strukturell eine Teilmenge von `GeraetMitLeihstand`
- * (`_db/leihen.ts:92-101`), aber bewusst ohne Bezug darauf: der Bezug machte jedes neue
+ * (`_db/leihen.ts:93-102`), aber bewusst ohne Bezug darauf: der Bezug machte jedes neue
  * Feld des Lesemodells still zu einem Feld dieser Zeile.
  */
 export type ZeilenGeraet = {

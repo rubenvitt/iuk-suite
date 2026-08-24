@@ -6,9 +6,14 @@ import { Button, Input } from "antd";
 import { ausleiheAnlegen } from "../_actions/ausleihe";
 import { AUSWAHL_MAX, AUSWAHL_PARAMETER, auswahlSchreiben } from "../_lib/auswahl";
 import { filtereGeraete } from "../_lib/filter";
-import { ausleihText, KEINE_GERAETE_ERFASST, type AusleihErgebnis } from "../_lib/meldungen";
+import {
+  ausleihText,
+  ENTLEIHER_MAX,
+  KEINE_GERAETE_ERFASST,
+  type AusleihErgebnis,
+} from "../_lib/meldungen";
 import { statusEtikett, type GeraeteStatus } from "../_lib/status";
-import { EntleiherFeld, ENTLEIHER_MAX } from "./EntleiherFeld";
+import { EntleiherFeld } from "./EntleiherFeld";
 import { Ikone } from "./ikonen";
 import { SitzungErneuern } from "./SitzungErneuern";
 import { StatusChip } from "./StatusChip";
@@ -59,7 +64,7 @@ import s from "./ausleihe.module.css";
 /**
  * Was die Insel von einer Zeile braucht.
  *
- * ⛔ EIGENER SATZ, KEIN BEZUG AUF `GeraetMitLeihstand` (`_db/leihen.ts:92-101`) — dieselbe
+ * ⛔ EIGENER SATZ, KEIN BEZUG AUF `GeraetMitLeihstand` (`_db/leihen.ts:93-102`) — dieselbe
  * Begruendung wie an `ZeilenGeraet` (`_ui/GeraeteZeile.tsx`): waechst das Lesemodell um ein
  * Feld, kommt es hier nicht von selbst an, sondern erst, wenn jemand es HIER hinschreibt.
  * Das ist die tragende Haelfte der Datenschutz-Zusage aus §4.1 Punkt 2 (Spec:3343-3348).
@@ -94,15 +99,17 @@ export type AuswahlGeraet = {
 const DECKEL_SATZ = `Höchstens ${AUSWAHL_MAX} Geräte in einem Vorgang.`;
 
 /**
- * Der Feldfehler zur Laengengrenze (⬜ A-L17, `_ui/EntleiherFeld.tsx`).
+ * Der Feldfehler zur Laengengrenze.
  *
- * ⚠️ ER STEHT HIER UND NICHT IN `_lib/meldungen.ts` — dieselbe Begruendung wie bei
- * `MELDUNG_AUSNAHME` (`_ui/GateFormular.tsx:57-65`): jene Datei fuehrt die Saetze zu den
- * dreizehn `grund`-Werten der zwei Ergebnistypen, und dies ist keiner davon. Die Union
- * `AusleihGrund` hat keinen Zweig „zu lang", und einen achten zu erfinden verbietet
- * Entscheidung E13 (`.superpowers/sdd/planteil3/briefs/KOPF.md:775-778`).
+ * ⛔ ER WIRD SEIT DEM 2026-08-24 NICHT MEHR HIER GESCHRIEBEN, SONDERN GEHOLT (Fund F2). Bis
+ * dahin stand er hier, weil „die Union `AusleihGrund` keinen Zweig ‚zu lang'" hatte — den
+ * gibt es jetzt, die Grenze ist eine Serverzusage geworden (`bucheAusleihe`,
+ * `_db/leihen.ts`), und damit gilt fuer diesen Satz wieder die Hausform: die Saetze zu den
+ * `grund`-Werten fuehrt `_lib/meldungen.ts`, und niemand schreibt sie ein zweites Mal ab.
+ * ⚠️ Stuende hier ein eigenes Literal, saehe der Mensch am Feld das eine und in der
+ * Seitenmeldung nach einem Aufruf am Formular vorbei das andere.
  */
-const NAME_ZU_LANG = `Der Name ist zu lang. Höchstens ${ENTLEIHER_MAX} Zeichen.`;
+const NAME_ZU_LANG = ausleihText({ grund: "name-zu-lang" });
 
 /**
  * Die DREI Beschriftungen des Absendeknopfs. ⛔ 1:1 aus dem Bestand sind die ersten ZWEI
@@ -119,7 +126,7 @@ const KNOPF_LAEUFT = "Wird gespeichert …";
  * in `_ui/GateFormular.tsx:32-62` ausgeschrieben:
  *
  *   1. `?? null` IST DER ERFOLGSPFAD, NICHT DEFENSIVE ZIER. `ausleiheAnlegen` endet im
- *      Erfolg mit `redirect("/geraete?gebucht=<n>")` (`_actions/ausleihe.ts:186`); der
+ *      Erfolg mit `redirect("/geraete?gebucht=<n>")` (`_actions/ausleihe.ts:218`); der
  *      Client-Aufruf lehnt dafuer NICHT ab, sondern loest mit `undefined` auf. React
  *      rendert danach noch einmal, und ein `zustand.ok` auf `undefined` risse den Baum ab.
  *   2. DAS `catch` FAENGT DREI LAGEN MIT EINEM SATZ: Verbindungsabbruch beim Absenden, den
@@ -197,9 +204,13 @@ export function AusleihVorgang({
   const auswahlWert = auswahlSchreiben([...auswahl]);
   const deckelErreicht = auswahl.length >= AUSWAHL_MAX;
   /*
-   * ⬜ A-L17, die Feldhaelfte. Sie ist ERREICHBAR und nicht bloss defensiv: `maxLength`
+   * A-L17, die Feldhaelfte. Sie ist ERREICHBAR und nicht bloss defensiv: `maxLength`
    * begrenzt das TIPPEN, nicht den vorbelegten Wert aus `weg: "suite"` (§3.5.4). Ein
    * Anzeigename ueber der Grenze stuende sonst absendebereit im Feld.
+   * ⚠️ SIE MISST DIE ROHE LAENGE, DER SERVER MISST NACH `trim()` (`bucheAusleihe`,
+   * `_db/leihen.ts`) — die Bequemlichkeit ist damit um Randleerzeichen STRENGER als die
+   * Zusage. Strenger darf sie sein, schwaecher nicht; die Serverhaelfte ist seit dem
+   * 2026-08-24 gebaut (Fund F2), vorher war dies die einzige Haelfte.
    */
   const nameZuLang = name.length > ENTLEIHER_MAX;
   const nameLeer = name.trim().length === 0;
@@ -438,7 +449,7 @@ export function AusleihVorgang({
             (`src/core/theme/theme.ts:32-33`), ein roter Kasten saehe aus wie die
             Primaeraktion (Falle 3).
             ⛔ `betroffen` WIRD NICHT GERENDERT: seine `status`-Werte sind die technischen
-            Schluessel aus `KonfliktZustand` (`_lib/meldungen.ts:108-118`), und ein
+            Schluessel aus `KonfliktZustand` (`_lib/meldungen.ts:148-158`), und ein
             Schluessel gehoert nie auf den Bildschirm (Spec:3549-3550). Der Rufname steht
             bereits IM Satz (Regel 1, Spec:3547).
           */}
@@ -463,7 +474,7 @@ export function AusleihVorgang({
         (Spec:3428, Schritt 6) und die Hausform fuer Auslassungspunkte; der Alt-Wortlaut
         (`ConfirmLoanButton.tsx:10`) traegt drei Punkte.
         ⛔ `disabled` DECKT DREI LAGEN: kein Geraet, kein Name, Name zu lang — die ersten
-        zwei 1:1 aus `ConfirmLoanButton.tsx:46`, die dritte ist ⬜ A-L17.
+        zwei 1:1 aus `ConfirmLoanButton.tsx:46`, die dritte ist A-L17.
         ⛔ KEIN `size` (Falle 4); `min-width` und `touch-action: manipulation` sind Nachbau
         im CSS-Modul (Entscheidung E8, Spec:3724-3725).
       */}

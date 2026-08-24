@@ -38,7 +38,8 @@ import { mount, unmount, query, exists, fill, click, submitForm } from "@/app/m/
 import { AUSWAHL_MAX } from "../_lib/auswahl";
 import { VORSCHLAG_MIN_ZEICHEN } from "../_db/leihen";
 import { AusleihVorgang, type AuswahlGeraet } from "./AusleihVorgang";
-import { ENTLEIHER_MAX, ENTLEIHER_MIN_ZEICHEN } from "./EntleiherFeld";
+import { ENTLEIHER_MAX } from "../_lib/meldungen";
+import { ENTLEIHER_MIN_ZEICHEN } from "./EntleiherFeld";
 
 const STYLESHEET = "src/app/m/radio/_ui/ausleihe.module.css";
 const KNOPF = "[data-rolle='radio-ausleihen']";
@@ -373,7 +374,7 @@ describe("radio-AusleihVorgang: der Absendeknopf", () => {
      * ⛔ DER NAME WIRD NICHT UMGESCHRIEBEN (Spec:3587-3592, §4.12 Nr. 9): kein `trim()`,
      * kein `sanitizeForDisplay` — bei „Mueller & Sohn" waere das ein Datenschaden, kein
      * Schutz. ENTSCHIEDEN wird auf dem getrimmten Wert (der Knopf oben), GESCHICKT wird der
-     * rohe; dieselbe Trennung wie in `_actions/ausleihe.ts:249-250` fuer die Zustandsnotiz.
+     * rohe; dieselbe Trennung wie in `_actions/ausleihe.ts:281-282` fuer die Zustandsnotiz.
      * ⛔ UND DAS SICHTBARE FELD TRAEGT DEN NAMEN NICHT: was das innere Suchfeld eines
      * antd-`AutoComplete` an ein `FormData` liefert, ist kein Vertrag.
      */
@@ -410,7 +411,7 @@ describe("radio-AusleihVorgang: das Namensfeld", () => {
     /*
      * ⚠️ DIE ZAHL STEHT AN ZWEI ORTEN, und das ist benannt statt still
      * (`_ui/EntleiherFeld.tsx`): der Server setzt sie in `sucheEntleiher`
-     * (`_db/leihen.ts:346`), die Insel bricht schon davor ab. Importieren laesst sie sich
+     * (`_db/leihen.ts:377`), die Insel bricht schon davor ab. Importieren laesst sie sich
      * dort nicht, ohne Drizzle und die Moduldatenbank in das Client-Bundle zu ziehen.
      * ⛔ DIESER FALL IST DIE KLAMMER: laufen die zwei auseinander, wird er rot.
      */
@@ -419,7 +420,7 @@ describe("radio-AusleihVorgang: das Namensfeld", () => {
 
   it("zeigt die Nebenzeile mit dem letzten Ausleihdatum", async () => {
     /*
-     * ⛔ DER POSTEN, DER BEIM PORT STILL VERSCHWAENDE (Spec:3498, `_db/leihen.ts:111-120`):
+     * ⛔ DER POSTEN, DER BEIM PORT STILL VERSCHWAENDE (Spec:3498, `_db/leihen.ts:112-121`):
      * `Vorschlag` ist kein `string`, sondern `{ name, zuletztText }`. Eine Signatur
      * `string[]` haette denselben Testnamen bestanden, solange nur der Name erscheint —
      * deshalb prueft dieser Fall die NEBENZEILE und nicht den Namen.
@@ -471,13 +472,13 @@ describe("radio-AusleihVorgang: das Namensfeld", () => {
 
   it("der zu lange Name sperrt den Knopf und steht als Feldfehler am Feld", async () => {
     /*
-     * ⬜ A-L17, die FELDHAELFTE (`.superpowers/sdd/planteil3/progress.md:518-536`): „das
+     * A-L17, die FELDHAELFTE (`.superpowers/sdd/planteil3/progress.md:518-536`): „das
      * Namensfeld traegt die Grenze als `maxLength` PLUS einen Feldfehler neben dem Feld".
      * ⛔ DER FALL IST ERREICHBAR UND NICHT BLOSS DEFENSIV: `maxLength` begrenzt das TIPPEN,
      * nicht den VORBELEGTEN Wert aus `weg: "suite"` (§3.5.4). Genau dieser Weg wird hier
      * gefahren.
      * ⛔ DIE SERVERHAELFTE BLEIBT OFFEN — `bucheAusleihe` prueft weiterhin nur auf
-     * Nichtleere (`_db/leihen.ts:475`); dieser Fall behauptet nichts anderes.
+     * Nichtleere (`_db/leihen.ts:506`); dieser Fall behauptet nichts anderes.
      */
     await rendere(DREI, ["g-1"], "L".repeat(ENTLEIHER_MAX + 1));
 
@@ -551,7 +552,7 @@ describe("radio-AusleihVorgang: das Ergebnis der Action", () => {
     /*
      * Die VERDRAHTUNG der Zusage §3.10 Nr. 8 (Spec:3235-3236). Ob die Insel selbst richtig
      * entscheidet, misst `_ui/SitzungErneuern.test.tsx`; hier wird gemessen, dass dieses
-     * Formular ihr den UNVERAENDERTEN `grund` reicht — `_actions/ausleihe.ts:111-116` gibt
+     * Formular ihr den UNVERAENDERTEN `grund` reicht — `_actions/ausleihe.ts:136-141` gibt
      * ihn ausdruecklich durch, statt ihn auf `"unbekannt"` einzufalten.
      */
     ausleiheAnlegenMock.mockResolvedValue({

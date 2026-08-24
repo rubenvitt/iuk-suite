@@ -46,8 +46,8 @@ import s from "./ausleihe.module.css";
 /**
  * Was der Dialog von einer offenen Ausleihe braucht.
  *
- * ⛔ EIGENER SATZ, KEIN BEZUG AUF `OffeneAusleihe` (`_db/leihen.ts:104-109`) — dieselbe
- * Begruendung wie an `AuswahlGeraet` (`_ui/AusleihVorgang.tsx:61-69`): waechst das
+ * ⛔ EIGENER SATZ, KEIN BEZUG AUF `OffeneAusleihe` (`_db/leihen.ts:105-110`) — dieselbe
+ * Begruendung wie an `AuswahlGeraet` (`_ui/AusleihVorgang.tsx:66-74`): waechst das
  * Lesemodell um ein Feld, kommt es hier nicht von selbst an. Und `_db/leihen.ts` zoege ueber
  * seine Importe Drizzle und die Moduldatenbank in das Client-Bundle.
  * ⛔ KEIN `entleiher` UND KEIN `seitText`: der Dialog fragt „dieses Geraet zurueckgeben?" —
@@ -64,7 +64,7 @@ export type DialogAusleihe = {
  * ⚠️ „Wird zurückgegeben …" statt „Wird zurückgegeben..." ist die Hausform fuer
  * Auslassungspunkte und die Schreibweise der Spec (`:3561`); der Alt-Wortlaut traegt drei
  * Punkte. Dieselbe, benannte Abweichung wie bei `KNOPF_LAEUFT` in
- * `_ui/AusleihVorgang.tsx:114`.
+ * `_ui/AusleihVorgang.tsx:121`.
  */
 const KNOPF = "Zurückgeben";
 const KNOPF_LAEUFT = "Wird zurückgegeben …";
@@ -75,7 +75,7 @@ const PLATZHALTER = "z. B. Akku schwach, Kratzer am Gehäuse …";
 
 /**
  * ⚠️ WARUM EIN OERTLICHER UMSCHLAG UM DIE ACTION UND KEIN DIREKTES
- * `useActionState(rueckgabeBuchen, null)` — zeichengleich zu `_ui/AusleihVorgang.tsx:116-146`
+ * `useActionState(rueckgabeBuchen, null)` — zeichengleich zu `_ui/AusleihVorgang.tsx:123-153`
  * und `_ui/GateFormular.tsx:32-62`:
  *
  *   1. DAS `catch` FAENGT DREI LAGEN MIT EINEM SATZ: Verbindungsabbruch beim Absenden, den
@@ -89,9 +89,9 @@ const PLATZHALTER = "z. B. Akku schwach, Kratzer am Gehäuse …";
  *      genau einmal je Absendung.
  *
  * ⛔ KEIN `?? null` HINTER DEM AUFRUF, anders als bei `ausleiheAnlegen`
- * (`_ui/AusleihVorgang.tsx:142`): dort ist es der Erfolgspfad, weil die Action mit
+ * (`_ui/AusleihVorgang.tsx:149`): dort ist es der Erfolgspfad, weil die Action mit
  * `redirect()` endet und der Client-Aufruf mit `undefined` aufloest. `rueckgabeBuchen`
- * leitet ausdruecklich NICHT um (`_actions/ausleihe.ts:190-197`) und gibt immer ein
+ * leitet ausdruecklich NICHT um (`_actions/ausleihe.ts:222-229`) und gibt immer ein
  * Ergebnis zurueck — ein Rueckfall hier waere eine Behauptung ueber einen Ausgang, den es
  * nicht gibt.
  *
@@ -171,7 +171,7 @@ export function RueckgabeDialog({
      * (`data-rolle="radio-notiz-fehler"`, unten), und ihn zusaetzlich in den Zustand zu
      * schreiben zeigte ihn zweimal. Zurueckgegeben wird deshalb der VORZUSTAND, unveraendert.
      * ⛔ GEMESSEN WIRD `notiz`, ALSO DER WERT DES GESTEUERTEN FELDES — genau der, den das
-     * `FormData` traegt; und ungetrimmt, wie `_db/leihen.ts:599` misst.
+     * `FormData` traegt; und ungetrimmt, wie `_db/leihen.ts:653` misst.
      */
     if (notiz.length > ZUSTANDSNOTIZ_MAX) return vorher;
 
@@ -194,11 +194,11 @@ export function RueckgabeDialog({
    * Feinheit 2 (Spec:3583-3585, `ReturnDialog.tsx:52-55`). ⛔ SIE IST BEWUSST DEFENSIV — der
    * Alt-Kommentar sagt es selbst: „Defensive: should never happen due to maxLength, but be
    * safe". Das Feld beginnt leer und `maxLength` haelt Tippen und Einfuegen an; anders als
-   * beim Namensfeld aus A19 (⬜ A-L17) gibt es hier keinen vorbelegten Wert, der die Grenze
+   * beim Namensfeld aus A19 (A-L17) gibt es hier keinen vorbelegten Wert, der die Grenze
    * mitbringen koennte.
    * ⛔ UND SIE ERSETZT DEN SERVER NICHT: `bucheRueckgabe` prueft erneut
-   * (`_db/leihen.ts:599-601`) — „eine Regel, die nur im Client steht, ist keine Regel".
-   * ⛔ UNGETRIMMT GEMESSEN, wie `_db/leihen.ts:599` (`notiz.length`) misst. Zwei Messseiten
+   * (`_db/leihen.ts:653-655`) — „eine Regel, die nur im Client steht, ist keine Regel".
+   * ⛔ UNGETRIMMT GEMESSEN, wie `_db/leihen.ts:653` (`notiz.length`) misst. Zwei Messseiten
    * fuer dieselbe Grenze liefen sonst auseinander, und die zweite saehe man erst am Feld
    * (`.superpowers/sdd/planteil3/progress.md:584-588`). Denselben Massstab legt antds
    * Zaehler an: seine Vorgabestrategie ist `value => value.length`
@@ -248,7 +248,7 @@ export function RueckgabeDialog({
     >
       <form className={s.dialogForm} action={formAction} data-rolle="radio-rueckgabeform">
         {/*
-          ⛔ DIE ZWEI FELDNAMEN SIND DIE DER ACTION (`_actions/ausleihe.ts:66-68`:
+          ⛔ DIE ZWEI FELDNAMEN SIND DIE DER ACTION (`_actions/ausleihe.ts:91-93`:
           `FELD_AUSLEIHE_ID = "ausleiheId"`, `FELD_ZUSTANDSNOTIZ = "zustandsnotiz"`, beide
           woertlich in Spec:3572). Sie stehen dort MODULPRIVAT, weil `EXPORT_FORM`
           (`_actions/guards.test.ts:122`) unter `_actions/` kein `export const` zulaesst; die

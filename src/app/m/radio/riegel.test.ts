@@ -1012,7 +1012,7 @@ describe('keine Bauform-Direktive unter _lib/ und _db/', () => {
      * eine Direktive dort machte aus jedem von ihnen eine Serverreferenz.
      *
      * ⚠️ BEWACHT WAR BIS HIERHER GENAU EINE DATEI, und das ist gemessen: `_lib/meldungen.ts`
-     * scannt sich selbst (`_lib/meldungen.test.ts:530-555`, Sonden M-G und M-L je 1 rot).
+     * scannt sich selbst (`_lib/meldungen.test.ts:536-561`, Sonden M-G und M-L je 1 rot).
      * Jede andere Datei unter `_lib/` und `_db/` durfte die Direktive tragen, ohne dass ein
      * Tor rot wurde.
      *
@@ -1048,7 +1048,7 @@ describe("kein eingebauter Pseudo-Zufall in diesem Modul", () => {
      * hier, statt verschwiegen zu werden: `trefferAuf` liest ueber `ohneKommentare`, prueft
      * also nur AUSFUEHRBAREN Code (`riegel.test.ts:338-346`). Der Scan in
      * `_lib/code.test.ts` VERBIETET den Namen im ROHEN Quelltext, Kommentare
-     * eingeschlossen (`_lib/code.test.ts:139-140`) — seine POSITIVE Haelfte liest dort
+     * eingeschlossen (`_lib/code.test.ts:151-152`) — seine POSITIVE Haelfte liest dort
      * dagegen kommentarfrei (`:141-144`), und ohne diesen Halbsatz beschriebe der Satz
      * genau die Haelfte, die die Fix-Runde zu A2 nicht angefasst hat (Fund M2). Keine
      * ersetzt die andere: diese hier ist breit (alle AUSGELIEFERTEN Modul-Dateien —

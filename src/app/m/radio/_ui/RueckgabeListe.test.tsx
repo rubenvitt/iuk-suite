@@ -79,7 +79,7 @@ describe("radio-RueckgabeListe: die Karten", () => {
      * (`_lib/anzeige.ts:52-58` schreibt genau das aus) — sonst stuende an jedem zweiten Ort
      * „Uhr Uhr".
      * ⛔ UND `seitText` IST EINE FERTIGE ZEICHENKETTE VOM SERVER (§4.1 Punkt 1,
-     * `_db/leihen.ts:104-109`): kein `Date` ueberquert die RSC-Grenze.
+     * `_db/leihen.ts:105-110`): kein `Date` ueberquert die RSC-Grenze.
      */
     await rendere();
     const erste = query(karte("l-1"));
@@ -95,7 +95,7 @@ describe("radio-RueckgabeListe: die Karten", () => {
      * Leertaste) — ein Nachbau dessen, was ein `<button>` mitbringt. Das Ledger bindet die
      * Auswahlflaechen dieses Moduls auf EIN Bedienmodell
      * (`.superpowers/sdd/planteil3/progress.md:675-684`), und A19 hat dieselbe Wahl schon
-     * getroffen (`_ui/AusleihVorgang.tsx:332-345`).
+     * getroffen (`_ui/AusleihVorgang.tsx:343-356`).
      * ⛔ DIE BESCHRIFTUNG NENNT DEN VORGANG, nicht nur den Rufnamen (`:55`: „`${callSign}`
      * zurueckgeben") — „41/12" allein sagt einer Bildschirmleserin nicht, was ein Antippen tut.
      * ⛔ `type="button"`: die Karten stehen zwar in keinem Formular, aber der Dialog bringt
@@ -214,7 +214,7 @@ describe("radio-RueckgabeListe: der Erfolg und das Schliessen", () => {
      * (`routes/return.tsx:43`), das hier nicht existiert.
      * ⛔ UND KEIN ERGEBNISPARAMETER IN DER ADRESSE wie bei der Ausleihe
      * (`/geraete?gebucht=<n>`): `rueckgabeBuchen` leitet ausdruecklich NICHT um, damit die
-     * getippte Notiz einen Fehlerschluss ueberlebt (`_actions/ausleihe.ts:190-197`). Der Satz
+     * getippte Notiz einen Fehlerschluss ueberlebt (`_actions/ausleihe.ts:222-229`). Der Satz
      * lebt deshalb im Zustand dieser Insel.
      * ⛔ `role="status" aria-live="polite"` UND NICHT `alert`: das Ruling
      * (`.superpowers/sdd/planteil3/progress.md:603-634`) regelt ausdruecklich
