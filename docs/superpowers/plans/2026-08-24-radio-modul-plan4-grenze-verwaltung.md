@@ -2523,7 +2523,7 @@ export type EreignisZeile = {
 
 ⚠️ **`quelle` UND `quelleWort`, und das ist kein Ballast.** Die Insel faerbt den `Tag` ueber einen
 **erschoepfenden** Switch auf den vier bekannten Werten; das Schema fuehrt sie als Drizzle-Enum
-**ohne DB-Check** (`_db/schema.ts:136-138`: „Die Datenbank akzeptiert JEDEN String"). Traege die
+**ohne DB-Check** (`_db/schema.ts:135-137`: „Die Datenbank akzeptiert JEDEN String"). Traege die
 Zeile **nur** das Wort, koennte die Insel einen fuenften Wert nicht mehr von den vier bekannten
 unterscheiden — der Rueckfall waere still in den Lesepfad gewandert, und der `toBe(4)`-Fall haette
 sein Pruefobjekt verloren.
@@ -2563,11 +2563,11 @@ export function ereignisseFuerGeraet(db: DB, geraeteId: string, grenze?: number)
 | Spalte | Was | Beleg |
 |---|---|---|
 | Zeit | ⛔ **vorformatiert** | `_lib/anzeige.ts:75` |
-| Feld | ⛔ **deutsches Etikett aus DERSELBEN Etikettenliste wie das Formular** — `DeviceFields.tsx`s `label`-Attribute | `Spec:4763-4764`; die 20 Etiketten stehen gemessen in `DeviceFields.tsx:63`, `:71`, `:76`, `:77`, `:79`, `:84`, `:95`, `:99`, `:102`, `:107`, `:116`, `:121`, `:124`, `:129`, `:138`, `:143`, `:152`, `:163`, `:177`, `:186` |
-| Aenderung | „alt → neu", ⛔ **leere Werte als `—`** | `Spec:4765` |
-| Wer | aufgeloester Name aus `users`, ⛔ **roher `sub` nur im `title`** | `Spec:4765`; Alt-Rueckfall `devices.ts:70-78` |
+| Feld | ⛔ **deutsches Etikett aus derselben Etikettenliste, die das Formular benutzt** — `DeviceFields.tsx`s `label`-Attribute | `Spec:4770-4771`; die 20 Etiketten stehen gemessen in `DeviceFields.tsx:63`, `:71`, `:76`, `:77`, `:79`, `:84`, `:95`, `:99`, `:102`, `:107`, `:116`, `:121`, `:124`, `:129`, `:138`, `:143`, `:152`, `:163`, `:177`, `:186` |
+| Aenderung | „alt → neu", ⛔ **leere Werte als `—`** | `Spec:4771-4772` |
+| Wer | aufgeloester Name aus `users`, ⛔ **roher `sub` nur im `title`** | `Spec:4772`; Alt-Rueckfall `devices.ts:70-78` |
 
-⛔ **`source` als `Tag`, mit den VIER WOERTERN IM KLARTEXT** (`Spec:4766`): „von Hand",
+⛔ **`source` als `Tag`, mit den VIER WOERTERN IM KLARTEXT** (`Spec:4772-4773`): „von Hand",
 „CSV-Import", „angelegt", „Abweichung". ⛔ **Die vier Werte sind abschliessend**
 (`deviceRepo.ts:219`, `_db/schema.ts:139-141`) — und das Schema fuehrt sie als **Drizzle-Enum ohne
 DB-Check**: „Die Datenbank akzeptiert JEDEN String; ein fuenfter Wert passiert Datenbank und
@@ -2607,11 +2607,11 @@ Durchreichen kostet nichts und ist umkehrbar.
 | „liefert KEIN Ereignis eines anderen Geraets" | `eq(deviceId, …)` — der Fall, der einen fehlenden `where` faengt |
 | „deckelt bei zweihundert" | ⛔ **Fixture mit 201 Zeilen.** Der Fall traegt ⬜ V-L7 im Text |
 | „jedes der vier Quellwoerter hat ein Klartextwort" | ⛔ **`toBe(4)` ausserhalb der Schleife**, sonst schrumpft die Menge lautlos |
-| „ein unbekannter Quellwert faellt auf den rohen Wert zurueck und stuerzt nicht ab" | Der Enum-ohne-DB-Check-Fall (`_db/schema.ts:136-138`) |
+| „ein unbekannter Quellwert faellt auf den rohen Wert zurueck und stuerzt nicht ab" | Der Enum-ohne-DB-Check-Fall (`_db/schema.ts:135-137`) |
 | „jedes Feld der Etikettenliste hat ein deutsches Etikett" | ⛔ **Die Zahl steht ausserhalb der Schleife.** Fixture: alle 20 Feldnamen |
 | „ein Feld ohne Etikett faellt auf den rohen Feldnamen zurueck" | Damit ein neues Feld nicht eine leere Spalte erzeugt |
-| „leere alte und neue Werte werden als Gedankenstrich dargestellt" | `Spec:4765`. ⛔ **Beide Seiten, mit je unterschiedlichem Wert auf der anderen** |
-| „der rohe sub steht im title, nicht in der Zelle" | `Spec:4765` — der Fall haelt fest, dass beide Werte da sind und an **verschiedenen** Stellen |
+| „leere alte und neue Werte werden als Gedankenstrich dargestellt" | `Spec:4771-4772`. ⛔ **Beide Seiten, mit je unterschiedlichem Wert auf der anderen** |
+| „der rohe sub steht im title, nicht in der Zelle" | `Spec:4772` — der Fall haelt fest, dass beide Werte da sind und an **verschiedenen** Stellen |
 | „ausleihenListe ruft leihhistorie und baut keine eigene Abfrage" | ⛔ **Quelltext-Scan ueber `_lib/lesepfade/ausleihen.ts`:** die Datei nennt `leihhistorie` und **nicht** `loans` aus dem Schema. NS-A1 als Test, nicht als Vorsatz |
 | „ausleihenListe reicht Geraete-Id und Zeitfenster durch" | Der Durchreichfall |
 
@@ -3545,11 +3545,11 @@ gebaut in V3) hier faellig geworden.** Ohne sie rendert jede Zeile eine nackte U
 | Testname (`EreignisTabelle.test.tsx`) | Aussage |
 |---|---|
 | „leere Werte werden als Gedankenstrich dargestellt" | ⛔ **Der Fall, den `Spec:4864-4869` namentlich nennt.** Beide Seiten |
-| „die Aenderung liest sich als alt Pfeil neu" | `Spec:4765` |
-| „das Feld traegt sein deutsches Etikett, nicht seinen Spaltennamen" | `Spec:4763-4764`. ⚠️ **Hier wird nur geprueft, dass die Insel `feldEtikett` RENDERT** — dass die Abbildung stimmt und vollzaehlig ist, prueft **V7** am Lesepfad |
-| „der aufgeloeste Name steht in der Zelle, der rohe sub im title" | `Spec:4765`. ⛔ **Beide, an verschiedenen Stellen** |
-| „jeder der vier Quellwerte bekommt seinen eigenen Ton, und der Tag zeigt das WORT, nicht den Rohwert" | `Spec:4766`. ⛔ **`toBe(4)` ausserhalb der Schleife.** ⚠️ **Die Insel liest `quelle` (roh) fuer den Ton und `quelleWort` fuer den Text** — die **Vollzaehligkeit der Woerter** prueft V7 am Lesepfad, hier steht die **Tonzuordnung** |
-| „ein fuenfter, unbekannter Quellwert bekommt KEINEN Ton und stuerzt nicht ab" | `_db/schema.ts:136-138` (Enum ohne DB-Check). ⛔ **Der Fall, der den erschoepfenden Switch beweist** — er braucht `quelle` als Rohwert in der Zeile |
+| „die Aenderung liest sich als alt Pfeil neu" | `Spec:4771-4772` |
+| „das Feld traegt sein deutsches Etikett, nicht seinen Spaltennamen" | `Spec:4770-4771`. ⚠️ **Hier wird nur geprueft, dass die Insel `feldEtikett` RENDERT** — dass die Abbildung stimmt und vollzaehlig ist, prueft **V7** am Lesepfad |
+| „der aufgeloeste Name steht in der Zelle, der rohe sub im title" | `Spec:4772`. ⛔ **Beide, an verschiedenen Stellen** |
+| „jeder der vier Quellwerte bekommt seinen eigenen Ton, und der Tag zeigt das WORT, nicht den Rohwert" | `Spec:4772-4773`. ⛔ **`toBe(4)` ausserhalb der Schleife.** ⚠️ **Die Insel liest `quelle` (roh) fuer den Ton und `quelleWort` fuer den Text** — die **Vollzaehligkeit der Woerter** prueft V7 am Lesepfad, hier steht die **Tonzuordnung** |
+| „ein fuenfter, unbekannter Quellwert bekommt KEINEN Ton und stuerzt nicht ab" | `_db/schema.ts:135-137` (Enum ohne DB-Check). ⛔ **Der Fall, der den erschoepfenden Switch beweist** — er braucht `quelle` als Rohwert in der Zeile |
 | „ohne Ereignisse steht ein Leertext statt einer leeren Tabelle" | Sonst sieht die Seite kaputt aus |
 | (riegel.test.ts) Seitenzahl | ⛔ **3 → 4** |
 
@@ -4382,7 +4382,7 @@ nicht-werfend) sind eingeloest.
 * ⛔ **Die vier `quelle`-Werte sind abschliessend**, und §5.8 listet vollstaendig, welche Action
   welchen setzt: `geraetAnlegenAction → create`, `geraetAendernAction → manual`,
   `notizAnfuegenAction → update-note`, `importSchreibenAction → csv-import`. ⛔ **Ein fuenfter Wert
-  ist ein Datenmodellbruch** — und die DB faengt ihn nicht (`_db/schema.ts:136-138`).
+  ist ein Datenmodellbruch** — und die DB faengt ihn nicht (`_db/schema.ts:135-137`).
 * ⛔ **`GeraetZeile` fuehrt genau die zwanzig Felder aus `Spec:4542-4553`** — keine Audit-, keine
   weitere Spalte.
 * ⬜ **V-L6 (Loeschen bei aktiver Leihe) ist mit einer Vorbelegung entschieden, nicht offen
