@@ -482,6 +482,40 @@ describe("(a) jede Verwaltungs-Huelle traegt BEIDE Riegel, in dieser Reihenfolge
     }
     expect(verstoesse).toEqual([]);
   });
+
+  it("die zwei Huellen tragen JE IHRE Stufe, namentlich — die ODER-Klausel oben faengt das nicht", () => {
+    /*
+     * ⛔ ZUSAETZLICH ZU KLAUSEL (a), NICHT STATT IHRER — und der Grund ist die benannte
+     * Blindstelle dieses ganzen Planteils (`KONTEXT.md`, „Die zwei Sperren", und
+     * `personenRiegelFuer` oben): der Scan laesst im `(arbeit)`-Zweig `requireRadioAdmin(`
+     * UND `requireRadioVerwaltung(` zu, und zwar ABSICHTLICH — ohne das ODER waere er gegen
+     * Spec:4367 rot-by-construction. Damit faengt er eine faelschlich ABGESENKTE oder
+     * ANGEHOBENE Huelle strukturell NICHT.
+     *
+     * ⛔ FUER DIE ZWEI HUELLEN IST DIE STUFE ABER EINZELN VERBINDLICH: Spec:4367 setzt
+     * `(arbeit)/layout.tsx` auf `requireRadioVerwaltung()`, Spec:4368 laesst
+     * `(druck)/layout.tsx` bei `requireRadioAdmin()` — dort liegen die Zugangscodes im
+     * Klartext. Stuende in `(arbeit)` wieder der strengere Name, sperrte das Layout JEDE
+     * Updater-Person mit 404, BEVOR eine Seite laeuft, und typecheck, lint und build blieben
+     * gruen. Genau dieser Zustand bestand bis Aufgabe V3.
+     *
+     * ⚠️ NACHGETRAGEN IN V3 UND UEBER DEN BRIEF HINAUS (dort steht die namentliche
+     * Zusicherung nur fuer die drei Admin-SEITEN, V18/V19/V20). Sie kostet diese Zeilen und
+     * schliesst die einzige Stelle, an der der Riegelwechsel dieser Aufgabe sonst ohne jeden
+     * Waechter stuende. ⛔ Sie WEICHT KEINE bestehende Klausel AUF: sie ist additiv und
+     * strenger.
+     */
+    const arbeit = bereinigt(readFileSync(join(MODUL, "admin/(arbeit)/layout.tsx"), "utf8"));
+    const druck = bereinigt(readFileSync(join(MODUL, "admin/(druck)/layout.tsx"), "utf8"));
+    expect(arbeit, "(arbeit)/layout.tsx: Spec:4367 verlangt requireRadioVerwaltung()")
+      .toMatch(/\brequireRadioVerwaltung\s*\(/);
+    expect(arbeit, "(arbeit)/layout.tsx auf die Admin-Stufe angehoben — jede Updater-Person bekaeme 404")
+      .not.toMatch(/\brequireRadioAdmin\s*\(/);
+    expect(druck, "(druck)/layout.tsx: Spec:4368 laesst das Blatt mit den Zugangscodes auf der Admin-Stufe")
+      .toMatch(/\brequireRadioAdmin\s*\(/);
+    expect(druck, "(druck)/layout.tsx auf die Verwaltungs-Stufe abgesenkt — Zugangscodes im Klartext")
+      .not.toMatch(/\brequireRadioVerwaltung\s*\(/);
+  });
 });
 
 /*
@@ -697,17 +731,31 @@ describe("(d) die Gegenregel — viewerOderNull ruft den Host-Riegel NICHT", () 
       .not.toMatch(/\brequireRadioHost\b/);
   });
 
-  it("requireRadioAdmin ruft ihn dagegen sehr wohl, und als ERSTE Anweisung", () => {
+  it("riegelAufStufe ruft ihn dagegen sehr wohl, und als ERSTE Anweisung", () => {
     /*
      * DIE GEGENPROBE ZUR GEGENREGEL, und sie gehoert unmittelbar daneben: ohne sie liesse
      * sich Klausel (d) erfuellen, indem man den Riegel aus BEIDEN Funktionen entfernt.
      * Server Actions haben kein Layout ueber sich (Spec:669-673, Kapitel-4-Pflicht 16).
+     *
+     * ⛔ UMGEZOGEN IN AUFGABE V3 (Planteil 4), GENAU WIE DIE AUFLAGE UNTEN ES VORSCHREIBT.
+     * Bis dahin las dieser Fall den Koerper von `requireRadioAdmin`. Seit V3 tragen BEIDE
+     * werfenden Riegel — `requireRadioAdmin` (Admin-Stufe) und `requireRadioVerwaltung`
+     * (Verwaltungs-Stufe, Spec:4287-4288) — denselben privaten Helfer `riegelAufStufe`
+     * (Entscheidung E-V1), und die vier Zusicherungen sind mit ihm GEWANDERT: nicht
+     * geloescht, nicht zu einem dateiweiten `toMatch` aufgeweicht.
+     * ⛔ `istRadioAdmin(` IST DABEI ZU `erlaubt(` GEWORDEN — das ist der Parameter, ueber den
+     * die beiden Riegel ihre Stufe hineinreichen. Ein Helfer ohne diesen Aufruf prueft gar
+     * keine Gruppe mehr.
      */
-    const koerper = funktionsKoerper(
-      readFileSync(join(MODUL, "_lib/zugang.ts"), "utf8"),
-      "requireRadioAdmin",
-    );
-    expect(koerper).not.toBe("");
+    const quelle = readFileSync(join(MODUL, "_lib/zugang.ts"), "utf8");
+    const koerper = funktionsKoerper(quelle, "riegelAufStufe");
+    /*
+     * ⛔ DIE LEER-GRUEN-PROBE IST HIER DIE TRAGENDE ZEILE, nicht eine Formalie: benennt
+     * jemand den Helfer um, ohne diese Klausel nachzuziehen, liefert `funktionsKoerper` `""`
+     * — und JEDES `toMatch` darunter waere dann rot, aber aus dem falschen Grund; ein
+     * `not.toMatch` waere still gruen. Diese Zeile sagt, WAS kaputt ist.
+     */
+    expect(koerper, "riegelAufStufe nicht gefunden — der Scan waere leer-gruen").not.toBe("");
     expect(koerper).toMatch(/\brequireRadioHost\s*\(/);
     /*
      * ⛔ UND DER GANZE KOERPER, NICHT NUR SEINE ERSTE ZEILE (REVIEW-Z4, Fund W2 — gemessen).
@@ -721,17 +769,20 @@ describe("(d) die Gegenregel — viewerOderNull ruft den Host-Riegel NICHT", () 
      * ⚠️ DAS IST EINE QUELLTEXT-ZUSICHERUNG, KEIN VERHALTENSNACHWEIS. Sie haelt fest, DASS
      * die vier tragenden Aufrufe im Koerper stehen — nicht, dass sie wirken. Die
      * VERHALTENSfaelle nach `lagerbuch`-Vorbild (`src/app/m/lagerbuch/_lib/zugang.test.ts:41`
-     * Import, `:72` Aufruf, Begruendung `:60-71`) gehoeren an PLANTEIL 4, wo die erste
-     * Verwaltungsseite steht und der Next-Anfragekontext echt ist.
+     * Import, `:72` Aufruf, Begruendung `:60-71`) gehoerten an PLANTEIL 4 — ✅ GEBAUT in
+     * Aufgabe V3, sie stehen in `src/app/m/radio/_lib/zugang.test.ts` im Block
+     * „requireRadioVerwaltung — die zweite Stufe, werfend". ⛔ Was AUCH DORT nicht steht, ist
+     * die Wirkung bei einem ECHTEN Abruf: das ist ⬜ V-L3 und wird in Aufgabe V23 abgelesen.
      *
-     * Warum genau diese vier: ohne `istRadioAdmin(` prueft der Riegel keine Gruppe, ohne
+     * Warum genau diese vier: ohne `erlaubt(` prueft der Riegel keine Gruppe, ohne
      * `notFound(` weist er nicht ab (403 waere die falsche Form, Spec:691-694), ohne
      * `meldeFehlendeGruppe(` ist Falle 23 unsichtbar (Spec:206-210, „die einzige Stelle, an
      * der dieser Zustand ueberhaupt sichtbar wird"), und ohne `redirect(` landet eine
      * ANONYME Person im 404 statt in der Anmeldung — `viewerAusSession` gibt dort `null`,
-     * und `istRadioAdmin(null)` ist `false`.
+     * und beide Praedikate sind auf `null` `false`.
      *
-     * ⛔ AUFLAGE AN PLANTEIL 4, DAMIT DIESE VIER NICHT ROT-BY-CONSTRUCTION WERDEN: Spec:4287-4288
+     * ⛔ AUFLAGE AN PLANTEIL 4 — ✅ EINGELOEST IN V3, der Wortlaut bleibt als BEGRUENDUNG stehen
+     * und ist damit auch die Auflage an jeden, der den Helfer noch einmal umbaut: Spec:4287-4288
      * fuehrt `requireRadioAdmin` UND `requireRadioVerwaltung` in derselben Datei. Zwei werfende
      * Riegel mit fast gleichem Koerper sind der Lehrbuchfall, in dem jemand den gemeinsamen Teil
      * in einen Helfer zieht — und in dem Augenblick verlassen die vier Aufrufe den Koerper von
@@ -741,8 +792,8 @@ describe("(d) die Gegenregel — viewerOderNull ruft den Host-Riegel NICHT", () 
      * dateiweites `toMatch` waere ueber jeder Datei wahr, die die Namen irgendwo nennt, und das
      * ist genau die NT11-Form. (Dieselbe Richtung wie die `||`-Auflage in `_lib/zugang.ts`.)
      */
-    expect(koerper, "ohne istRadioAdmin( prueft der Riegel keine Gruppe")
-      .toMatch(/\bistRadioAdmin\s*\(/);
+    expect(koerper, "ohne erlaubt( prueft der Riegel keine Gruppe — der Parameter TRAEGT die Stufe")
+      .toMatch(/\berlaubt\s*\(/);
     expect(koerper, "ohne meldeFehlendeGruppe( ist Falle 23 unsichtbar (Spec:206-210)")
       .toMatch(/\bmeldeFehlendeGruppe\s*\(/);
     expect(koerper, "ohne notFound( weist der Riegel nicht ab (Spec:691-694)")
@@ -752,6 +803,42 @@ describe("(d) die Gegenregel — viewerOderNull ruft den Host-Riegel NICHT", () 
     const host = koerper.search(/\brequireRadioHost\s*\(/);
     const person = koerper.search(/\bviewerAusSession\s*\(/);
     expect(host, "erst der Host, dann die Person (Spec:669-671)").toBeLessThan(person);
+    /*
+     * ⛔ NEU IN V3, UND ES IST NS-Z7: `merkeNutzer(` steht NACH `erlaubt(`. Stuende die Zeile
+     * davor, schriebe der Riegel fuer JEDE angemeldete Person der Suite eine `users`-Zeile —
+     * auch fuer die, die er gleich darauf abweist. Der Verhaltensfall dazu steht in
+     * `_lib/zugang.test.ts` („merkeNutzer wird NICHT gerufen, wenn der Riegel abweist");
+     * diese Zeile haelt die BAUFORM, die er voraussetzt.
+     */
+    const merke = koerper.search(/\bmerkeNutzer\s*\(/);
+    expect(merke, "ohne merkeNutzer( rendert jede Ereigniszeile eine nackte UUID (Spec:4358-4360)")
+      .toBeGreaterThan(-1);
+    expect(
+      koerper.search(/\berlaubt\s*\(/),
+      "merkeNutzer( steht VOR der Gruppenpruefung (NS-Z7)",
+    ).toBeLessThan(merke);
+  });
+
+  it("beide werfenden Riegel gehen durch riegelAufStufe — keiner baut den Koerper zweimal", () => {
+    /*
+     * ⛔ DIE ZWEITE HAELFTE DES UMZUGS, und ohne sie waere der Fall darueber ein Waechter
+     * ueber einer Funktion, die niemand mehr ruft. `funktionsKoerper` liest je einen
+     * FUNKTIONSKOERPER — ein dateiweites `toMatch` waere ueber jeder Datei wahr, die den
+     * Namen irgendwo nennt (NT11-Form, `riegel.test.ts:739-742`).
+     *
+     * ⚠️ DESHALB TRAEGT `requireRadioVerwaltung` EINEN BENANNTEN RUECKGABETYP UND KEINE
+     * INLINE-OBJEKTFORM: `funktionsKoerper` sucht die erste `{` nach dem Funktionsnamen
+     * (`riegel.test.ts:364`). Bei `Promise<{ viewer: …; rolle: … }>` waere das die Klammer
+     * des TYPS, und der Scan las den Typ statt des Rumpfs — rot-by-construction, und der
+     * billige Gruen-Fix waere die Aufweichung.
+     */
+    const quelle = readFileSync(join(MODUL, "_lib/zugang.ts"), "utf8");
+    for (const name of ["requireRadioAdmin", "requireRadioVerwaltung"]) {
+      const k = funktionsKoerper(quelle, name);
+      expect(k, `${name} nicht gefunden — der Scan waere leer-gruen`).not.toBe("");
+      expect(k, `${name} baut den Riegelkoerper selbst, statt riegelAufStufe zu rufen`)
+        .toMatch(/\briegelAufStufe\s*\(/);
+    }
   });
 });
 

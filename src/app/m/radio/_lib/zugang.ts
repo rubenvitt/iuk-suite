@@ -4,7 +4,11 @@ import { auth } from "@/core/auth";
 import { adminGroupsFor } from "@/core/groups";
 import { getModule, prodHostsFor } from "@/core/registry";
 import { resolveHost } from "@/core/routing";
+import { getDb } from "../_db/client";
+import type { DB } from "../_db/client";
+import { users } from "../_db/schema";
 import { istRadioHost, requireRadioHost } from "./host";
+import type { RadioRolle } from "./rollen";
 
 /**
  * DER ZUGANG ZUR VERWALTUNG (Spec 1 §1.5, Zeilen 637-701). KEIN "use client" (Falle 6).
@@ -40,14 +44,19 @@ import { istRadioHost, requireRadioHost } from "./host";
  * ⬜ Braucht Planteil 4 spaeter eine E-Mail, ist das eine Schema-Aenderung (neue Spalte,
  * neue Migration) UND eine Erweiterung hier — nicht nur hier.
  *
- * ⬜ UND EINE ZWEITE, HEUTE SCHON MESSBARE KOLLISION, die Planteil 4 aufloesen muss:
+ * ✅ DIE ZWEITE KOLLISION IST AUFGELOEST — ENTSCHIEDEN IN PLANTEIL 4, AUFGABE V3.
  * `name` ist hier `string | null`, `radio`s Spalte ist `.notNull()`
- * (`src/app/m/radio/_db/schema.ts:115`). `lagerbuch` traegt denselben Fall, weil seine
- * Spalte nullable ist (`src/app/m/lagerbuch/_db/schema.ts:438`: `name: text("name")`) —
- * `radio` traegt ihn NICHT. Wer in Planteil 4 `merkeNutzer(getDb(), viewer)` nachtraegt
- * (Spec:4349, Begruendung Spec:4358-4360), braucht deshalb einen BENANNTEN Rueckfall fuer
- * `name === null` ODER eine Migration, die die Spalte nullable macht. Die Wahl gehoert
- * Planteil 4, die Kollision nicht: sie steht heute schon da.
+ * (`src/app/m/radio/_db/schema.ts:115`). `lagerbuch` traegt denselben Fall nicht, weil seine
+ * Spalte nullable ist (`src/app/m/lagerbuch/_db/schema.ts:438`: `name: text("name")`).
+ * Zur Wahl standen ein BENANNTER Rueckfall oder eine Migration, die die Spalte nullable macht.
+ * ⛔ GEWAEHLT IST DER BENANNTE RUECKFALL, und sein Wert ist der ROHE `sub` — er steht an der
+ * Zeile selbst (`merkeNutzer` unten). Zwei Gruende, in dieser Reihenfolge: (1) eine Migration
+ * ist in diesem Planteil verboten, Migrationen sind append-only und eine ueberfluessige ist
+ * eine Absturzschleife im Container; (2) der `sub` ist genau der Wert, den der Bestand auf der
+ * LESEseite einsetzt — `resolveUserNames` faellt beim Aufloesen von `changedBy` auf den rohen
+ * `sub` zurueck, „so the field is never blank"
+ * (radio-admin/server/src/routes/devices.ts:70-78). Ein `""` oder ein „Unbekannt" waere ein
+ * dritter, erfundener Wert.
  */
 export type RadioViewer = { sub: string; name: string | null; groups: string[] };
 
@@ -120,9 +129,11 @@ export async function viewerOderNull(): Promise<RadioViewer | null> {
  * Die Abhilfe ist eine Runbook-Zeile, kein Zweig hier: ein „leer bedeutet alle"-Zweig
  * waere die Sperre, die sich selbst abschaltet.
  *
- * ⬜ DIE ZWEITE RECHTESTUFE (Updater) WIRD HIER NICHT GEBAUT — ABER SIE IST VORGESEHEN.
- * Entschieden ist sie (C.6 / B4, 2026-08-21: zwei Rollen wie im Bestand); gebaut wird sie
- * in PLANTEIL 4. Spec:191 sagt es ausdruecklich: wer `radio` eine zweite Rolle gibt,
+ * ✅ DIE ZWEITE RECHTESTUFE (Updater) IST GEBAUT — PLANTEIL 4, AUFGABE V3, und sie steht
+ * unmittelbar unter dieser Funktion (`updaterGruppe`, `istInUpdaterGruppe`, `istRadioUpdater`).
+ * ⛔ DIE AUFLAGE DARUNTER BLEIBT BINDEND: sie ist eine ZWEITE FUNKTION, kein `||` hier.
+ * Entschieden ist sie (C.6 / B4, 2026-08-21: zwei Rollen wie im Bestand). Spec:191 sagt es
+ * ausdruecklich: wer `radio` eine zweite Rolle gibt,
  * „baut sie modulintern — das ist nicht Sache dieses Kapitels".
  * ⚠️ DAS ZITAT TRAEGT NUR SO WEIT WIE SEINE FUNDSTELLE (REVIEW-Z4, Fund K5): Spec:191 ist
  * die `requiredGroups`-Zeile der Registry-Tabelle, der Satz gilt dort EINEM Weg — dem
@@ -181,6 +192,67 @@ export function istRadioAdmin(viewer: RadioViewer | null): boolean {
 }
 
 /**
+ * DIE GRUPPENQUELLE DER ZWEITEN STUFE — und sie liegt HIER und nicht in `_lib/rollen.ts`.
+ *
+ * ⚠️ BENANNTE ABWEICHUNG VON `Spec:4415-4425` und `Spec:4843-4845`, die beide die
+ * Gruppenquelle in `_lib/rollen.ts` fuehren. Der Grund ist gemessen und steht im
+ * Kopfkommentar dort (`_lib/rollen.ts:7-19`): dieselbe Datei liefert `UPDATER_FELDER` als
+ * WERT an eine `"use client"`-Insel und liegt damit im Browser-Bundle. Eine
+ * Umgebungsvariable ohne den Praefix, den Next in den Browser reicht, ist dort schlicht
+ * nicht gesetzt — die Stufenpruefung gaebe still `false`. Diese Datei wird ausschliesslich
+ * serverseitig gelesen.
+ *
+ * ⛔ EIN EIGENER MECHANISMUS, KEINE REGISTRY-UEBERSCHREIBUNG: `src/core/registry.ts` kennt je
+ * Modul genau zwei, `SUITE_HOST_<KEY>` und `SUITE_ADMIN_GROUP_<KEY>` (`CLAUDE.md:139-140`).
+ * Eine zweite Gruppe ist dort nicht vorgesehen.
+ *
+ * ⛔ LEER, FEHLEND ODER NUR LEERRAUM SCHLIESST DIE STUFE (`Spec:4420-4422`, ausgeliefert in
+ * `.env.example:107-114`): dann ist NIEMAND Updater. Das ist hier die richtige Richtung —
+ * anders als bei SUITE_ADMIN_GROUP_RADIO, wo leer eine stille Aussperrung ALLER ist
+ * (Falle 23). Einen „leer bedeutet alle"-Zweig gibt es in keinem der beiden Faelle.
+ *
+ * ⛔ GETRIMMT WIRD DIE VARIABLE, NICHT DIE GRUPPENLISTE: ein Tippfehler in der `.env`
+ * (` name `) truege sonst eine Gruppe, in der niemand ist — still. Der Vergleich selbst
+ * bleibt ZEICHENGLEICH, 1:1 aus `radio-admin/shared/src/role.ts:8`
+ * (`groups.includes(cfg.updaterGroup)`); ein normalisierender Vergleich waere eine
+ * Rechteerweiterung, die kein Tor sieht.
+ *
+ * ⬜ V-L1 / E1b — wie die Gruppe in PRODUKTION heisst, weiss nur der Betreiber; faellig vor
+ * Cut 26 (`docs/superpowers/plans/SPERREN-radio-spec2.md:110`). Hier steht deshalb KEIN
+ * Gruppenname, sondern nur der Zugriff; `.env.example:114` traegt einen auskommentierten
+ * Vorschlag.
+ */
+export function updaterGruppe(): string | null {
+  const roh = process.env.SUITE_UPDATER_GROUP_RADIO?.trim();
+  return roh ? roh : null;
+}
+
+/** Nur die Gruppenliste, ohne Sitzung — der pruefbare Kern von `istRadioUpdater`. */
+export function istInUpdaterGruppe(gruppen: string[]): boolean {
+  const gruppe = updaterGruppe();
+  if (!gruppe) return false;
+  return gruppen.includes(gruppe);
+}
+
+/**
+ * DAS PRAEDIKAT DER ZWEITEN STUFE — neben `istRadioAdmin`, NICHT in ihm.
+ *
+ * ⛔ ES RUFT `requireRadioHost` NICHT (Gegenregel §1.4.4, Spec:595-607) — dieselbe Richtung
+ * wie bei `viewerOderNull` (`_lib/zugang.ts:77-81`): ein Praedikat beantwortet eine FRAGE und
+ * baut keine Sperre; der Host-Riegel steht EINMAL, im werfenden Riegel `riegelAufStufe`.
+ * `_lib/zugang.test.ts` haelt die Abwesenheit als Rumpf-Scan fest.
+ *
+ * ⛔ `admin` BLEIBT STRIKT STRENGER ALS `updater`. Im Bestand gewinnt `admin` bei
+ * Ueberschneidung, WEIL DIE PRUEFUNG ZUERST STEHT (`radio-admin/shared/src/role.ts:7-8`);
+ * die Rangfolge wird in `requireRadioVerwaltung` unten genauso gebildet. Wer die zwei
+ * Praedikate hier mit `||` verschmilzt, macht aus einer Verfeinerung eine AUFWEICHUNG.
+ */
+export function istRadioUpdater(viewer: RadioViewer | null): boolean {
+  if (!viewer) return false;
+  return istInUpdaterGruppe(viewer.groups);
+}
+
+/**
  * DIE EINZIGE STELLE, AN DER FALLE 23 UEBERHAUPT SICHTBAR WIRD.
  *
  * Spec:206-210 verlangt sie ausdruecklich und nennt sie so: „Das gehoert als Zeile in die
@@ -221,13 +293,12 @@ function meldeFehlendeGruppe(sub: string, gruppen: string[]): void {
  * Nur fuer Tests: den prozess-lokalen Dedup-Speicher leeren (Vorbild
  * `src/app/m/lagerbuch/_lib/zugang.ts:148-151`).
  *
- * ⬜ HEUTE OHNE AUFRUFER, UND DAS STEHT HIER BENANNT STATT BEHAUPTET (REVIEW-Z4, Fund K1).
- * In Planteil 2 faehrt KEIN Fall `requireRadioAdmin` — die Auslassung ist angeordnet und in
- * `src/app/m/radio/_lib/zugang.test.ts:7-11` ausgeschrieben. Der Konsument kommt mit
- * PLANTEIL 4, wo die erste Verwaltungsseite steht und die Verhaltensfaelle nach
- * `lagerbuch`-Vorbild dazukommen: dort braucht der erste Fall ihn ZWISCHEN zwei
- * Abweisungen, sonst schluckt der Dedup-Speicher die zweite Protokollzeile und der Fall
- * saehe null statt einem Aufruf. Der Weg ist im Vorbild vorgefuehrt —
+ * ✅ SEIT PLANTEIL 4 / V3 HAT SIE IHREN AUFRUFER (bis dahin ⬜, REVIEW-Z4 Fund K1): das
+ * `beforeEach` der Verhaltensfaelle in `src/app/m/radio/_lib/zugang.test.ts` ruft sie vor
+ * JEDEM Fall. Der vorhergesagte Fehlschlag ist genau der Grund: `bereitsGemeldet` ist
+ * prozess-lokal und ueberlebt jeden Fall der Datei — ohne die Zeile saehe der Fall, der die
+ * Protokollzeile PRUEFT, null Aufrufe, sobald ein frueherer Fall denselben `sub` abgewiesen
+ * hat. Der Weg ist im Vorbild vorgefuehrt —
  * `src/app/m/lagerbuch/_lib/zugang.test.ts:41` (Import), `:72` (Aufruf), Begruendung
  * `:60-71`; dort hat genau dieser Weg einen ECHTEN Fehlschlag gefunden.
  */
@@ -308,22 +379,126 @@ export function verwaltungsZiel(headersEingang: Headers): string {
  * nicht die Sitzungsdauer von 30 Tagen (`CLAUDE.md:151-156`, von Spec:698 dafuer zitiert).
  * Der Verzug wird HINGENOMMEN.
  *
- * ⬜ `merkeNutzer` STEHT HIER BEWUSST NICHT (Nachtrag NT-Z5, Nahtstelle NS-Z7). Kapitel 1
- * §1.5 (Spec:669-673) fuehrt `requireRadioAdmin` in FUENF Schritten ohne den Schreiber,
- * Kapitel 5 (Spec:4349) in SECHS mit ihm; kein A-/B-Punkt loest das auf. Planteil 2 baut
- * die Kapitel-1-Fassung, WEIL ES IN DIESEM PLANTEIL KEINEN LESER VON `users` GIBT.
- * ⛔ Planteil 4 traegt `merkeNutzer(getDb(), viewer)` NACH dem Riegel nach, sonst rendert
- * jede Ereigniszeile eine nackte UUID (Spec:4358-4360) — und stolpert dabei ueber die
- * `notNull()`-Kollision, die oben bei `RadioViewer` benannt ist.
+ * ✅ `merkeNutzer` STEHT SEIT PLANTEIL 4 / V3 IM RIEGEL — und zwar NACH ihm (NS-Z7).
+ * Kapitel 1 §1.5 (Spec:669-673) fuehrt den Riegel in FUENF Schritten ohne den Schreiber,
+ * Kapitel 5 (Spec:4349) in SECHS mit ihm; Planteil 2 baute die Kapitel-1-Fassung, WEIL ES
+ * DORT KEINEN LESER VON `users` GAB. Den gibt es ab V15 (`/admin/geraete/[id]/ereignisse`),
+ * und ohne die Zeile rendert jede Ereigniszeile eine nackte UUID (Spec:4358-4360).
+ *
+ * ⛔ DER GEMEINSAME KOERPER LIEGT IN `riegelAufStufe`, NICHT ZWEIMAL ABGESCHRIEBEN
+ * (Entscheidung E-V1). `riegel.test.ts` Klausel (d) Fall 2 ist in V3 mit ihm GEWANDERT und
+ * haelt dort die fuenf tragenden Aufrufe samt ihrer Reihenfolge fest; die Auflage dazu steht
+ * ausgeschrieben in `riegel.test.ts:734-748`. Wer den Helfer umbenennt, zieht die Klausel im
+ * SELBEN Commit nach — sonst laeuft sie leer-gruen.
  */
-export async function requireRadioAdmin(): Promise<RadioViewer> {
+
+/**
+ * DER UPSERT AUF `users` — additiv, nie loeschend, und er laeuft NACH dem Riegel.
+ *
+ * ⛔ DER BENANNTE RUECKFALL FUER `name === null` IST DER ROHE `sub`, und er ist eine
+ * ENTSCHEIDUNG dieses Planteils, kein stiller `??`: `users.name` ist `.notNull()`
+ * (`_db/schema.ts:115`), `RadioViewer.name` ist `string | null` (`_lib/zugang.ts:52`) — der
+ * Insert uebersetzt ohne ihn nicht. Die zwei Wege standen im Kopfkommentar dieser Datei
+ * ausgeschrieben (benannter Rueckfall ODER Migration); gewaehlt ist der Rueckfall, weil eine
+ * neue Migration in diesem Planteil verboten ist (append-only; eine ueberfluessige ist eine
+ * Absturzschleife im Container) und weil der `sub` genau der Wert ist, den der Bestand auf
+ * der LESEseite einsetzt — „so the field is never blank"
+ * (radio-admin/server/src/routes/devices.ts:70-78). Damit macht die Schreibseite dieselbe
+ * Zusage wie die Leseseite; ein `""` oder ein „Unbekannt" waere ein dritter, erfundener Wert.
+ *
+ * ⛔ `onConflictDoUpdate`, NIE `onConflictDoNothing`: sonst traegt die Tabelle den Namen vom
+ * allerersten Aufruf, und eine spaetere Umbenennung im Verzeichnisdienst kaeme nie an —
+ * still, denn die Zeile existiert ja.
+ *
+ * ⚠️ EIN LEERER ODER AUS LEERRAUM BESTEHENDER NAME IST KEIN NAME (`?.trim()`), dieselbe
+ * Lesart wie `src/app/m/lagerbuch/_lib/konto.ts:80-100`. ⚠️ ANDERS ALS DORT frischt dieser
+ * Upsert `name` BEDINGUNGSLOS auf: der Rueckfallwert ist der `sub` und damit nie leer, der
+ * Defektzustand „bekannten Klarnamen mit NICHTS ueberschrieben" kann hier also nicht
+ * entstehen — wohl aber „Klarname mit `sub` ueberschrieben", wenn eine spaetere Sitzung
+ * keinen `name`-Claim mehr traegt.
+ *
+ * ⛔ `lastSeenAt` IST `integer(..., { mode: "timestamp" })` (`_db/schema.ts:116`) — Drizzle
+ * nimmt dort ein `Date`, keine Zahl. Dieselbe Einheitengrenze wie bei `leihhistorie`.
+ *
+ * EIN FEHLSCHLAG WIRD PROTOKOLLIERT, NICHT GEWORFEN: der Zugang funktioniert auch ohne den
+ * Satz — nur die Ereignisliste zeigt dann die rohe Kennung (Form 1:1 aus
+ * `src/app/m/lagerbuch/_lib/konto.ts:118-123`).
+ */
+export function merkeNutzer(db: DB, viewer: RadioViewer): void {
+  const jetzt = new Date();
+  // ⛔ Der benannte Rueckfall. Begruendung im Kopf dieser Funktion und bei `RadioViewer`.
+  const name = viewer.name?.trim() ? viewer.name : viewer.sub;
+  try {
+    db.insert(users)
+      .values({ sub: viewer.sub, name, lastSeenAt: jetzt })
+      .onConflictDoUpdate({ target: users.sub, set: { name, lastSeenAt: jetzt } })
+      .run();
+  } catch (e) {
+    console.warn(
+      "[radio] users-Upsert fehlgeschlagen — die Ereignisliste zeigt fuer diese Person die " +
+        "rohe Kennung statt eines Namens:",
+      e,
+    );
+  }
+}
+
+/**
+ * ⛔ NICHT EXPORTIERT. Der gemeinsame Koerper beider werfenden Riegel (Entscheidung E-V1) —
+ * und er traegt die fuenf Zusicherungen aus `riegel.test.ts` Klausel (d) Fall 2.
+ *
+ * ⛔ WARUM EIN HELFER UND NICHT ZWEI ABSCHRIFTEN: zwei fast gleiche Riegelkoerper sind der
+ * Ort, an dem eine Korrektur nur an einem von beiden ankommt — und die schwaechere ist die,
+ * auf die sich der naechste Leser beruft (derselbe Gedanke in
+ * `admin/(druck)/layout.tsx:16-20`). `riegel.test.ts:734-748` schreibt den Weg selbst aus:
+ * die Zusicherungen WANDERN in den Koerper des Helfers, sie werden NICHT geloescht und NICHT
+ * zu einem dateiweiten Scan aufgeweicht.
+ *
+ * ⛔ DIE STUFE KOMMT ALS PARAMETER HEREIN, NICHT ALS `||` IN EINEM PRAEDIKAT. `istRadioAdmin`
+ * bleibt die Admin-Stufe — sie wird an den drei Admin-Seiten, im Export-Handler und am
+ * /admin-Link der Ausleihflaeche so gebraucht.
+ */
+async function riegelAufStufe(erlaubt: (v: RadioViewer) => boolean): Promise<RadioViewer> {
   const kopf = await headers();
   requireRadioHost(kopf);                       // erst der Host, dann die Person
   const viewer = viewerAusSession(await auth());
   if (!viewer) redirect(`/login?callbackUrl=${encodeURIComponent(verwaltungsZiel(kopf))}`);
-  if (!istRadioAdmin(viewer)) {
+  if (!erlaubt(viewer)) {
     meldeFehlendeGruppe(viewer.sub, viewer.groups);   // Spec:206-210 — die einzige Sicht
     notFound();                                       // NICHT 403
   }
+  merkeNutzer(getDb(), viewer);                       // ⛔ NACH dem Riegel (NS-Z7)
   return viewer;
+}
+
+/** Die ADMIN-Stufe. Sie bleibt strikt strenger als die Verwaltungs-Stufe. */
+export async function requireRadioAdmin(): Promise<RadioViewer> {
+  return riegelAufStufe(istRadioAdmin);
+}
+
+/**
+ * ⛔ EIN BENANNTER RUECKGABETYP, KEINE INLINE-OBJEKTFORM — und das ist keine Stilfrage:
+ * `funktionsKoerper` in `riegel.test.ts:360-375` nimmt die erste `{` nach dem Funktionsnamen.
+ * Bei `Promise<{ viewer: …; rolle: … }>` waere das die Klammer des TYPS, und der Scan laese
+ * den Typ statt des Rumpfs — die Klausel waere rot-by-construction, und der billige
+ * Gruen-Fix waere ihre Aufweichung.
+ */
+export type RadioVerwaltungsZugang = { viewer: RadioViewer; rolle: RadioRolle };
+
+/**
+ * DIE VERWALTUNGS-STUFE: Admin ODER Updater — und sie LIEFERT DIE STUFE MIT (Spec:4351-4353).
+ *
+ * ⛔ OHNE die mitgelieferte Stufe muesste jede der zehn Seiten sie ein zweites Mal ableiten,
+ * und die zweite Ableitung ist die, die auseinanderlaeuft.
+ *
+ * ⛔ `admin` GEWINNT BEI UEBERSCHNEIDUNG, WEIL DIE PRUEFUNG ZUERST STEHT — 1:1 aus
+ * `radio-admin/shared/src/role.ts:7-8` (`if (groups.includes(cfg.adminGroup)) return 'admin';`
+ * vor der Updater-Zeile). Ein `istRadioUpdater(v) ? "updater" : "admin"` kehrte das still um
+ * und zeigte einer Admin-Person die Verwaltung in der Updater-Fassung.
+ *
+ * ⛔ DAS `||` STEHT IM ARGUMENT, NICHT IN `istRadioAdmin`: dort waere es die Aufweichung, die
+ * jede Updater-Person durch JEDEN Admin-Riegel liesse (`_lib/zugang.ts:142-144`).
+ */
+export async function requireRadioVerwaltung(): Promise<RadioVerwaltungsZugang> {
+  const viewer = await riegelAufStufe((v) => istRadioAdmin(v) || istRadioUpdater(v));
+  return { viewer, rolle: istRadioAdmin(viewer) ? "admin" : "updater" };
 }

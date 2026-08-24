@@ -73,18 +73,21 @@ export function radioHostOderNull(headers: Headers): "radio" | null {
  *   page.tsx (Gate)                        requireRadioHost      Planteil 3
  *   (ausleihe)/layout.tsx                  KEINER — das Zugangspraedikat ruft ihn intern
  *   (ausleihe)/geraete|ausleihen|rueckgabe KEINER — dito
- *   admin/(arbeit)/layout.tsx              requireRadioHost, dann requireRadioAdmin   Z6
- *                                          ⬜ AB PLANTEIL 4 requireRadioVerwaltung STATT
- *                                          requireRadioAdmin — Betreiberentscheidung C.6/B4,
- *                                          zwei Rechtestufen wie im Bestand. Spec:4367
- *                                          schreibt es fuer genau diese Zeile fest; Spec:4368
- *                                          laesst (druck) auf requireRadioAdmin. Die Tabelle
- *                                          hier gibt §1.4.3 wieder, also den Stand VOR B4.
- *                                          ⛔ KEIN TOR FAENGT DIE UMSTELLUNG: riegel.test.ts
+ *   admin/(arbeit)/layout.tsx              requireRadioHost, dann requireRadioVerwaltung
+ *                                          ✅ UMGESTELLT IN PLANTEIL 4, AUFGABE V3 —
+ *                                          Betreiberentscheidung C.6/B4, zwei Rechtestufen wie
+ *                                          im Bestand. Spec:4367 schreibt es fuer genau diese
+ *                                          Zeile fest; Spec:4368 laesst (druck) auf
+ *                                          requireRadioAdmin. Die Tabelle in §1.4.3 gibt den
+ *                                          Stand VOR B4 wieder.
+ *                                          ⛔ KEIN SCAN FAENGT DIE RICHTUNG: riegel.test.ts
  *                                          Klausel (a) nimmt im Arbeits-Zweig BEIDE Namen an,
  *                                          ein ODER; typecheck, lint und build sehen nichts.
- *                                          Bleibt die Zeile stehen, sperrt der Layout-Riegel
- *                                          jede Updater-Person mit 404, bevor eine Seite laeuft
+ *                                          Der Waechter ist die namentliche Zusicherung „die
+ *                                          zwei Huellen tragen JE IHRE Stufe" (V3). Faellt sie
+ *                                          zurueck auf requireRadioAdmin, sperrt der
+ *                                          Layout-Riegel jede Updater-Person mit 404, bevor
+ *                                          eine Seite laeuft
  *   admin/(druck)/layout.tsx               requireRadioHost, dann requireRadioAdmin   Z6
  *   t/[code]/route.ts                      radioHostOderNull     Planteil 3  <- Tuer mit Datenwirkung
  *   abmelden/route.ts                      radioHostOderNull     Planteil 3
@@ -96,7 +99,8 @@ export function radioHostOderNull(headers: Headers): "radio" | null {
  *                                          endet in redirect('/login?…') bzw. notFound(), und ein
  *                                          anonymer GET landete im Login-Umweg
  *   sw.js/route.ts                         hostAbweisung (Response | null)  Planteil 5
- *   requireRadioAdmin                      requireRadioHost als ERSTE Anweisung  — in zugang.ts
+ *   requireRadioAdmin / requireRadioVerwaltung  requireRadioHost als ERSTE Anweisung — in
+ *                                          zugang.ts, im gemeinsamen Koerper riegelAufStufe (V3)
  *   Zugangspraedikat der Ausleihe          requireRadioHost als ERSTE Anweisung  Planteil 3
  *   viewerOderNull                         ABSICHTLICH KEINER — Gegenregel, Spec §1.4.4
  *
