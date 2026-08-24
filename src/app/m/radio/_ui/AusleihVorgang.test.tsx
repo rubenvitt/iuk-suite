@@ -5,7 +5,7 @@ import { act } from "react";
 import { readFileSync } from "node:fs";
 
 /**
- * DIE INSEL DES AUSLEIHVORGANGS (Spec 1 §4.3, `:3417-3516`).
+ * DIE INSEL DES AUSLEIHVORGANGS (Spec 1 §4.3, `:3417-3553`).
  *
  * ⛔ DREI ACTION-MODULE WERDEN ERSETZT, und aus demselben Grund wie in
  * `_ui/AusleihRahmen.test.tsx:7-15`: `_actions/ausleihe.ts` und `_actions/sitzung.ts`

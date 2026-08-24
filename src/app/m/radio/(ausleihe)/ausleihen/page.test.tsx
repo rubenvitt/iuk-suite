@@ -12,7 +12,7 @@ import * as schema from "../../_db/schema";
 import { devices, loans } from "../../_db/schema";
 
 /**
- * DIE AUSLEIHE AN `/ausleihen` (Spec 1 §4.3, `:3417-3516`).
+ * DIE AUSLEIHE AN `/ausleihen` (Spec 1 §4.3, `:3417-3553`).
  *
  * ⛔ WARUM DIE SEITENFUNKTION DIREKT GERUFEN UND IHR ERGEBNIS DANACH GEMOUNTET WIRD: sie ist
  * eine ASYNC Server Component; `mount()` treibt eine solche nicht an, und `redirect()`

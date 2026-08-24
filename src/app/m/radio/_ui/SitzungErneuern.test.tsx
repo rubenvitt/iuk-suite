@@ -156,6 +156,21 @@ describe("radio-SitzungErneuern: was sie mit dem Ergebnis macht", () => {
 
     expect(exists(CODEFELD), "nach dem Erfolg ist das Feld weg").toBe(false);
     expect(exists(ERLEDIGT)).toBe(true);
+    /*
+     * ⛔ DER ERFOLGSSATZ TRAEGT `role="status" aria-live="polite"` — Punkt 2 des Rulings
+     * (`.superpowers/sdd/planteil3/progress.md:603-634`): eine BESTAETIGUNG ist kein
+     * Fehler-Meldungsort, und die Kopfzeile des Rulings verengt die A11-Zeile ausdruecklich
+     * auf jene. Der Fehlerort unten traegt `alert`, gemessen im Fall darunter.
+     * ⛔ BEIDE HAELFTEN, weil das Paar die Zusage ist und nicht eines seiner Attribute
+     * (`progress.md:632-634`). Bis zur Fix-Runde 1 zu A19 war hier nur die EXISTENZ
+     * gemessen — dieselbe Luecke, die REVIEW-A19 am Deckel-Satz fand.
+     * ⬜ WAS DIESE WAHL NICHT BELEGT: dass ein `polite` hier ankommt. Die Region wird
+     * zusammen mit ihrem Inhalt eingehaengt, und genau dafuer nennt Punkt 1 den gemessenen
+     * Verschluckungsfall. Der Betreiber kann sie umkehren — dann faellt ein Attribut, diese
+     * zwei Zeilen und dieselbe Zusicherung im Rueckgabedialog (A20 benutzt DIESE Insel).
+     */
+    expect(query(ERLEDIGT).getAttribute("role")).toBe("status");
+    expect(query(ERLEDIGT).getAttribute("aria-live")).toBe("polite");
     expect(abgesendet, "die Insel sendet das umgebende Formular NICHT ab").not.toHaveBeenCalled();
   });
 

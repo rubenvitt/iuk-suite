@@ -8,7 +8,7 @@ import { AusleihVorgang, type AuswahlGeraet } from "../../_ui/AusleihVorgang";
 import s from "../../_ui/ausleihe.module.css";
 
 /**
- * DIE AUSLEIHE — der aeussere Pfad `/ausleihen` (Spec 1 §4.3, Zeilen 3417-3516; Routenkarte
+ * DIE AUSLEIHE — der aeussere Pfad `/ausleihen` (Spec 1 §4.3, Zeilen 3417-3553; Routenkarte
  * Kapitel 1 §1.2.1, Spec:273-284).
  *
  * ⛔ DER RIEGEL IST DIE ERSTE ANWEISUNG, obwohl `(ausleihe)/layout.tsx` ihn ebenfalls ruft

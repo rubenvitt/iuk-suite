@@ -15,7 +15,7 @@ import { StatusChip } from "./StatusChip";
 import s from "./ausleihe.module.css";
 
 /**
- * DIE INSEL DES AUSLEIHVORGANGS (Spec 1 §4.3, `:3417-3516`).
+ * DIE INSEL DES AUSLEIHVORGANGS (Spec 1 §4.3, `:3417-3553`).
  *
  * ⛔ `"use client"`, und die Gruende sind aufzaehlbar: `useActionState` auf
  * `ausleiheAnlegen`, das Umschalten der Auswahl mit `router.replace`, und das Namensfeld
