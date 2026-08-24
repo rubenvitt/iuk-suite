@@ -78,18 +78,31 @@ describe("ausleihenListe — der Umschlag um leihhistorie", () => {
      * ein „frueher fragten wir hier selbst"-Kommentar nicht zum Bauplan fuer den naechsten
      * Leser wird. Dieselbe Bauform wie die Prosa-Sperre in `_db/leihen.ts:57-64`.
      *
-     * Drei Klauseln, und jede faengt eine andere Haelfte:
+     * Drei Klauseln, und ⛔ ZWEI UND DREI FANGEN VERSCHIEDENE MUTATIONEN — gemessen, nicht
+     * angenommen (Sonde S-V7d dieser Aufgabe, in beiden Fassungen gefahren):
      *   1. Die Datei NENNT `leihhistorie` — ohne das waere sie kein Umschlag.
-     *   2. Sie nennt die Schematabelle NICHT — ohne deren Namen ist keine zweite Abfrage
-     *      formulierbar.
-     *   3. Sie importiert NICHTS aus `_db/schema` — der andere Weg an denselben Namen.
+     *   2. Der Name der Schematabelle steht hier NICHT, auch nicht in Prosa. Sie faengt die
+     *      Fassung der Sonde OHNE Import: ohne Klausel 2 blieb der Fall gruen.
+     *   3. Es gibt KEINEN Import aus dem Schema. Sie faengt die Fassung MIT Import — also die
+     *      einzige, die ueberhaupt uebersetzt: ohne Klausel 2, aber mit Import, wurde der Fall
+     *      ueber Klausel 3 rot.
+     *
+     * ⚠️ KLAUSEL 2 IST DAMIT AUCH EINE PROSA-SPERRE, und das ist Absicht — aber sie hat einen
+     * Preis, den der naechste Leser kennen muss: eine BELEGZEILE, die den Namen enthaelt,
+     * faerbt den Fall rot, obwohl nichts abgefragt wird. Der Alt-Routenpfad traegt ihn
+     * (V16 zitiert ihn), und `radio-admin/client/src/features/…` ebenso. ⛔ Die Antwort ist
+     * NICHT, die Klausel abzuschwaechen, sondern den Beleg als blossen Dateinamen zu zitieren
+     * — `LoanList.tsx:8` statt des ganzen Pfades. Dieselbe Auflage und derselbe Umgang wie bei
+     * der Prosa-Sperre in `_db/leihen.ts:57-64`.
      */
     const text = readFileSync(QUELLE, "utf8");
     expect(text.length, "leerer Dateitext — der Scan waere leer-gruen").toBeGreaterThan(200);
     expect(text, "der Umschlag muss die Datenfunktion nennen").toMatch(/\bleihhistorie\b/);
     expect(
       /\bloans\b/.test(text),
-      "die Schematabelle darf hier nicht vorkommen (NS-A1: keine zweite Abfrage)",
+      "der Name der Schematabelle steht hier nicht — auch nicht in einer Belegzeile oder in " +
+        "Prosa (NS-A1). Alt-Pfade mit diesem Namen als blossen Dateinamen zitieren, nicht mit " +
+        "ganzem Pfad; die Klausel NICHT abschwaechen.",
     ).toBe(false);
     expect(
       /_db\/schema/.test(text),
