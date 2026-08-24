@@ -903,6 +903,19 @@
  * dem Waechter stillgelegt: `--radio-rueckgabe-farbe` in BEIDEN Zweigen auf den Defekt-Ton
  * gedreht (`#ef4444`/`#dc2626`) — also genau das Rot, das Falle 3 auf einer Datenflaeche
  * verbietet — und der Modullauf blieb bei 518 gruen, 0 rot.
+ *
+ * ⬜ WAS DER WAECHTER NICHT ZUSAMMENLEGT, UND WARUM ES HIER STEHEN BLEIBT (REVIEW-A20,
+ * Fix-Runde 2, der Restposten zu Fund F3). Das Gruenpaar `#22c55e`/`#16a34a` steht in dieser
+ * Datei DREIMAL: auf `.chip` als `--radio-status-frei` (`:331`, `:345`), auf `.gebucht` als
+ * `--radio-gebucht-farbe` (`:602`, `:612`) und hier. Der Waechter bindet die zweite und die
+ * dritte Kopie; die erste haengt an der ANDEREN Schreibweise und an ihrem eigenen Fall
+ * (`StatusChip.test.tsx:122-154`). ⛔ ZUSAMMENLEGEN HIESSE, `.chip`s DEKLARATIONSORT
+ * ANZUFASSEN (`:311-313`: „`.chip` TRAEGT SIE SELBST und nicht `.rahmen`" — der Chip
+ * erscheint auch AUSSERHALB des Rahmens und fiele sonst still auf gar keine Farbe zurueck),
+ * und damit jenen Fall. Das ist ein eigener Umbau und keine Zeile dieser Aufgabe.
+ * ⚠️ EINEN EIGENTUEMER INNERHALB VON PLANTEIL 3 HAT ER NICHT MEHR — A15 und A19 sind gebaut,
+ * A20 ist die letzte Aufgabe. Er ist deshalb HIER benannt, im verfolgten Baum, und nicht nur
+ * in einem Bericht unter `.superpowers/` (git-ignoriert, `.gitignore:17`).
  */
 .rueckgabeErfolg {
   --radio-rueckgabe-farbe: #22c55e;

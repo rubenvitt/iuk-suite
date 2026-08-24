@@ -3,6 +3,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { act } from "react";
 import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 /**
  * DER RUECKGABEDIALOG (Spec 1 §4.4, `:3554-3594`).
@@ -377,7 +378,7 @@ describe("radio-RueckgabeDialog: die drei Feinheiten des Bestands", () => {
      * diese ganze Aufgabe gebaut ist.
      * ⛔ ZWEI ATTRIBUTE, ZWEI ZUSICHERUNGEN, weil das Ledger es fuer A18 verlangt („Das Paar
      * ist die Zusage, nicht eines seiner beiden Attribute",
-     * `.superpowers/sdd/planteil3/progress.md:630-632`): `keyboard` deckt Escape,
+     * `.superpowers/sdd/planteil3/progress.md:631-633`): `keyboard` deckt Escape,
      * `mask.closable` den Klick daneben. Gemessen, je einzeln entfernt: ohne `keyboard`
      * schliesst Escape (1 Aufruf), ohne `mask.closable` der Maskenklick (1 Aufruf) — die
      * andere Haelfte bleibt dabei jeweils bei 0. Eine gemeinsame Zusicherung haette den
@@ -599,6 +600,27 @@ function ohneKommentare(quelle: string): string {
  * `SitzungErneuern.tsx`. Rendert der Dialog spaeter eine dritte Flaeche, kommt sie von
  * selbst mit.
  *
+ * ⛔ DER GANG KENNT MEHR ALS EINE IMPORTFORM, UND DAS IST NACHGETRAGEN (REVIEW-A20,
+ * Fix-Runde 2, Fund N1). Bis dahin traf er nur `from "./Name"`; `from "../_ui/Name"`,
+ * `from "./unter/Name"`, eine mitgeschriebene Endung und ein `import("./Name")` fielen aus
+ * der Menge. ⚠️ DIE ZUSICHERUNG AUF `SitzungErneuern` FING DAS NUR FUER SIE SELBST: eine
+ * DRITTE Insel in einer dieser Formen waere still verschwunden, und F1s Loch waere wieder
+ * offen gewesen. ⛔ SELBST GEMESSEN, als BEDINGTES PAAR — heute ist die Verbreiterung inert,
+ * weil `RueckgabeDialog.tsx:7` die getroffene Form benutzt: der Import auf
+ * `"../_ui/SitzungErneuern"` gedreht ergab mit der SCHMALEN Fassung 1 rot („der Gang ueber
+ * die Importe erreicht die mitbenutzte Insel nicht mehr"), mit dieser Fassung 16/16 gruen;
+ * dasselbe mit `"./SitzungErneuern.tsx"` (Endung mitgeschrieben) → 16/16 gruen.
+ * ⛔ AUFGELOEST WIRD GEGEN `dirname(pfad)`, NICHT GEGEN `UI`: `${UI}` traegt nur, solange
+ * jede erreichte Datei unmittelbar in `_ui/` liegt — bei `./unter/Name` loesen deren eigene
+ * Importe gegen `_ui/unter/` auf. `join` normalisiert dabei `..`, also faellt dieselbe Datei
+ * unter zwei Schreibweisen auf EINEN Eintrag zusammen.
+ * ⚠️ UND DIE VERBREITERUNG BLEIBT ENG GENUG: die uebrigen relativen Importe der beiden
+ * Quellen zeigen auf `../_actions/*.ts`, `../_lib/*.ts` und `./ausleihe.module.css`
+ * (`RueckgabeDialog.tsx:5-8`, `SitzungErneuern.tsx:5-7`) — keiner davon hat ein `.tsx`
+ * daneben, `existsSync` weist sie ab. Das ist die Bedingung dafuer, dass hier keine Datei
+ * eintritt, die NICHT im Portal haengt: eine solche duerfte `--radio-rahmen-*` lesen und
+ * machte die Schleife unten falsch rot.
+ *
  * ⛔ DAS IST DIE BEHEBUNG EINES GEMESSENEN LOCHS (REVIEW-A20, Fund 1). Bis zur Fix-Runde 1
  * baute dieser Fall seine Klassenmenge ALLEIN aus dem DOM, nachdem er GENAU EINE Lage
  * hergestellt hatte (`grund: "sitzung"`, Notiz kurz, Erneuerung offen). Klassen, die nur in
@@ -618,8 +640,8 @@ function portalQuellen(): string[] {
     if (gesehen.has(pfad)) continue;
     gesehen.add(pfad);
     const quelle = ohneKommentare(readFileSync(pfad, "utf8"));
-    for (const treffer of quelle.matchAll(/from\s+["']\.\/([A-Za-z0-9_-]+)["']/g)) {
-      const nachbar = `${UI}/${treffer[1]!}.tsx`;
+    for (const treffer of quelle.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*)["'](\.[^"']*)["']/g)) {
+      const nachbar = `${join(dirname(pfad), treffer[1]!.replace(/\.tsx$/, ""))}.tsx`;
       if (existsSync(nachbar)) rand.push(nachbar);
     }
   }
