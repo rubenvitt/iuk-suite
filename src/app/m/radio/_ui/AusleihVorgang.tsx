@@ -384,10 +384,20 @@ export function AusleihVorgang({
             TUT: `umschalten` bricht oberhalb des Deckels wortlos ab (`if (!drin &&
             deckelErreicht) return;`). Wird der Satz verschluckt, tippt eine Person ins
             Leere, ohne zu erfahren warum.
-            ⛔ DAMIT TRAEGT JEDER MELDUNGSORT DIESER FLAECHE DENSELBEN TON — Verlustsatz
-            (`(ausleihe)/ausleihen/page.tsx`), Deckel, Feldfehler am Namen, Fehlersatz der
-            Action, Fehlersatz der Erneuerung. Einen Punkt-2-Fall gibt es hier gar nicht;
-            ein zweiter Ton waere die Uneinheitlichkeit, gegen die die A11-Zeile steht.
+            ⛔ DAMIT TRAEGT JEDER MELDUNGSORT DIESER FLAECHE, DER EINE ABSAGE IST, DENSELBEN
+            TON — Verlustsatz (`(ausleihe)/ausleihen/page.tsx:161`), Deckel (hier), Feldfehler
+            am Namen (`data-rolle="radio-name-fehler"`), Fehlersatz der Action
+            (`data-rolle="radio-ausleih-fehler"`), Fehlersatz der Erneuerung
+            (`_ui/SitzungErneuern.tsx:178`). Ein zweiter Ton UNTER DIESEN FUENF waere die
+            Uneinheitlichkeit, gegen die die A11-Zeile steht.
+            ⛔ EINEN PUNKT-2-FALL GIBT ES AUF DIESER FLAECHE SEHR WOHL, UND ZWAR GENAU EINEN:
+            den Erfolgssatz der Inline-Erneuerung (`_ui/SitzungErneuern.tsx:124`, `role="status"
+            aria-live="polite"`), den DIESE Insel selbst rendert (`<SitzungErneuern>` weiter
+            unten). Er wird NICHT mitgedreht, und der Grund ist die Kopfzeile des Rulings
+            (`.superpowers/sdd/planteil3/progress.md:603-605`): es regelt FEHLER-Meldungsorte,
+            nicht jede `role`-Region — eine Bestaetigung ist keiner. Die Zaehlzeile oben
+            (`_ui/GeraeteListe.tsx:158`) ist dagegen der Punkt-2-Fall einer ANDEREN Flaeche,
+            der Uebersicht.
             ⚠️ DER BETREIBER KANN DAS UMKEHREN — dann faellt genau ein Attribut und je eine
             Zeile in „nimmt hoechstens AUSWAHL_MAX Geraete an und sagt es".
           */
