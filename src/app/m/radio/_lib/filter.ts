@@ -267,3 +267,56 @@ export function gruppiereNachStandort<T extends VerortetesGeraet>(
 
   return gruppen;
 }
+
+/**
+ * Was `filtereAusleihen` von einer offenen Ausleihe braucht.
+ *
+ * ⛔ ZWEI FELDER, UND ES SIND ANDERE ALS OBEN. `SuchbaresGeraet` (`:88-91`) traegt einen
+ * VORBERECHNETEN `suchschluessel`; eine offene Ausleihe hat keinen — `OffeneAusleihe`
+ * (`_db/leihen.ts:104-109`) fuehrt genau `{ id, rufname, entleiher, seitText }`, und die
+ * Projektion ist in A15 nach Spec:4084 festgelegt. Der Heuhaufen entsteht deshalb hier,
+ * bei jedem Tastendruck, aus zwei kurzen Feldern.
+ */
+export type SuchbareAusleihe = {
+  readonly rufname: string;
+  readonly entleiher: string;
+};
+
+/**
+ * Die offenen Ausleihen, die ALLE Begriffe treffen — 1:1 aus
+ * `radio-inventar/apps/frontend/src/lib/loan-filter.ts:4-11`.
+ *
+ * ⛔ DIE RUECKGABE SUCHT UEBER ANDERE FELDER ALS DIE UEBERSICHT, und das ist Falle № 10 der
+ * Analyse (`docs/radio-portierung-analyse.md:1370-1374`), woertlich: „in der Rueckgabe wird
+ * ueber `device.callSign` UND `borrowerName` gesucht … in der Uebersicht ueber `callSign`,
+ * `deviceType`, `serialNumber`, `location` — dort kommt der Entleiher NICHT vor, obwohl er
+ * in der Zeile steht." ⛔ „Wer beim Port eine EINZIGE Suche baut, aendert beide Verhalten"
+ * (ebd. `:1377`). Deshalb steht hier eine zweite Funktion und nicht ein zweiter Aufruf von
+ * `filtereGeraete` — der Alt-Bestand fuehrt sie aus demselben Grund als eigenes Modul
+ * (`lib/loan-filter.ts` neben `lib/device-filter.ts`).
+ *
+ * ⛔ GETEILT WIRD GENAU EINE SACHE: `normalisiereSuchtext` (`:108`). Der Alt-Bestand teilt
+ * dieselbe und nur diese (`loan-filter.ts:2` importiert sie aus `device-filter.ts`). Eine
+ * zweite Normalisierung waere der stille Bruch des ss- und des Umlautfalls.
+ *
+ * ⛔ HIER WIRD NICHT SORTIERT. Die Reihenfolge kommt aus `offeneAusleihen`
+ * (`_db/leihen.ts:302`, neueste zuerst wie `loanRepo.ts:126-135`); die Alt-Quelle sortiert
+ * an dieser Stelle ebenfalls nicht (`loan-filter.ts:6`, `:9`). Zwei Ordnungen fuer dieselbe
+ * Liste liefen beim ersten Aendern auseinander.
+ *
+ * ⚠️ DER TOTE PFAD IST DERSELBE WIE OBEN und steht aus demselben Grund da: `terms.length
+ * === 0` (`loan-filter.ts:6`) aendert am Ergebnis nichts, weil `[""].every(...)` fuer einen
+ * bereits getrimmten Text dasselbe `true` liefert wie `[].every(...)`. Hier ist er als
+ * FRUEHRUECKGABE gebaut, weil er dann die unveraenderte Reihenfolge ohne Umweg liefert.
+ */
+export function filtereAusleihen<T extends SuchbareAusleihe>(
+  ausleihen: readonly T[],
+  suchtext: string,
+): T[] {
+  const begriffe = normalisiereSuchtext(suchtext).split(/\s+/).filter(Boolean);
+  if (begriffe.length === 0) return [...ausleihen];
+  return ausleihen.filter((a) => {
+    const heuhaufen = normalisiereSuchtext(`${a.rufname} ${a.entleiher}`);
+    return begriffe.every((begriff) => heuhaufen.includes(begriff));
+  });
+}

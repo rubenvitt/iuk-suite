@@ -663,11 +663,11 @@ describe("radio-AusleihVorgang: das Stylesheet", () => {
      * (gemessen an der installierten Fassung: `_vorschlagZuletzt_cacbdf`), daher der Schnitt.
      * ⛔ ERLAUBT SIND DORT NUR DIE SUITE-VARIABLEN AUF `:root` (`src/app/globals.css:152-156`,
      * Dunkelzweig `:159-164`) — sie sind die einzigen, die JEDER Knoten des Dokuments sieht.
-     * ⚠️ HEUTE IST `AutoComplete` DER EINZIGE PORTAL-BAUSTEIN DES MODULS (gemessen:
-     * `grep -rn 'from "antd"' src/app/m/radio` nennt sonst nur `Button`, `Input` und `Empty`,
-     * die alle im Wirt bleiben). Kommt ein `Modal`, `Tooltip` oder `Popover` dazu, faellt
-     * seine Flaeche unter dieselbe Regel — dann ist dieser Fall zu ERWEITERN, nicht zu
-     * loeschen.
+     * ⚠️ SEIT A20 GIBT ES ZWEI PORTAL-BAUSTEINE: `AutoComplete` (hier) und das `Modal` der
+     * Rueckgabe. Fuer dessen Flaeche traegt `_ui/RueckgabeDialog.test.tsx` den zeichengleichen
+     * Fall — die ERWEITERUNG, die dieser Absatz bis dahin verlangt hat. Kommt ein `Tooltip`
+     * oder `Popover` dazu, faellt seine Flaeche unter dieselbe Regel; dann ist wieder zu
+     * ERWEITERN und nicht zu loeschen.
      */
     entleiherVorschlaegeMock.mockResolvedValue([
       { name: "Anna Beispiel", zuletztText: "zuletzt am 14.06.2026, 09:12" },

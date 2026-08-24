@@ -789,21 +789,23 @@
 }
 
 /*
- * DIE INLINE-ERNEUERUNG (Entscheidung E12). Sie steht INNERHALB des Formulars, unterhalb
- * des Fehlersatzes — ⛔ kein Modal, kein Redirect (Spec:2563-2570).
+ * DIE INLINE-ERNEUERUNG (E12, Spec:2563-2570) — sie ist selbst kein Modal und kein Redirect.
+ * Sie steht in ZWEI Wirten: unter `.rahmen` (A19) und im Rueckgabe-`Modal`, das in einem
+ * PORTAL an `document.body` haengt (A20). Deshalb liest sie nur `--iuk-*` von `:root`, nie
+ * `--radio-rahmen-*` — dort ist es nicht deklariert (Falle 2, `RueckgabeDialog.test.tsx`).
  */
 .erneuern {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.75rem;
-  border: 1px dashed var(--radio-rahmen-linie);
+  border: 1px dashed var(--iuk-linie);
   border-radius: 0.5rem;
 }
 
 .erneuernLabel {
   font-size: 0.875rem;
-  color: var(--radio-rahmen-gedaempft);
+  color: var(--iuk-gedaempft);
 }
 
 .erneuernZeile {
@@ -847,5 +849,181 @@
  */
 .absenden {
   min-width: 12.5rem;
+  touch-action: manipulation;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+ * A20 — DIE RUECKGABE: KARTENLISTE IM WIRT, DIALOG IM PORTAL.
+ *
+ * ⛔ DIESER ABSCHNITT HAT ZWEI HAELFTEN MIT VERSCHIEDENEN TRAEGERN, und das ist keine
+ * Ordnungsfrage. Die Kartenliste haengt unter `.rahmen` (`_ui/AusleihRahmen.tsx`) und darf
+ * `--radio-rahmen-*` lesen. Der Dialog haengt in einem PORTAL an `document.body`
+ * (antd `Modal`) — dort ist WEDER `.rahmen` NOCH `.gate` Vorfahr, und jede Erklaerung, die
+ * eine ihrer Variablen liest, wird „invalid at computed-value time": die Farbe faellt still
+ * auf die geerbte zurueck (Falle 2, `CLAUDE.md:14-15`). Kein Tor sieht das — `typecheck`,
+ * `lint` und jsdom rechnen keine Kaskade; `_ui/RueckgabeDialog.test.tsx` liest deshalb die
+ * im Portal TATSAECHLICH vorkommenden Klassen aus dem DOM und prueft ihre Regelkoerper.
+ * ⚠️ DERSELBE FALL HAT A19 SCHON EINMAL GETROFFEN (`_ui/AusleihVorgang.test.tsx`, der
+ * Vorschlags-Aufklapper) und traf mit dieser Aufgabe zwei Regeln der Inline-Erneuerung
+ * (`.erneuern`, `.erneuernLabel`) — sie lesen seither `--iuk-*`, weil ihre Insel in BEIDEN
+ * Wirten steht.
+ *
+ * ⛔ `.dialogForm` IST DER TRAEGER ALLER VARIABLEN DIESER HAELFTE, nach demselben Vorbild wie
+ * `.gate` und `.rahmen` (Kopf dieser Datei). Er liest ausschliesslich die vier
+ * Suite-Variablen von `:root` (`src/app/globals.css:153-156`, Dunkelzweig `:160-163`) — sie
+ * sind die einzigen, die JEDER Knoten des Dokuments sieht.
+ *
+ * ⛔ KEINE HOEHE AUF EINEM ANTD-BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): 56 wird geerbt
+ * und nirgends geschrieben, 72 nirgends gesetzt. Spec:3720 fuehrt die Dialogknoepfe
+ * ausdruecklich als „geerbt (56)"; was hier steht, sind `min-width` und
+ * `touch-action: manipulation`, fuer die es kein antd-Token gibt (Entscheidung E8).
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+.rueckgabe {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/*
+ * DIE ERFOLGSZEILE NACH EINER RUECKGABE (§4.4 Schritt 5, Spec:3562).
+ *
+ * ⛔ GRUEN AUS DEM CHIP-SATZ, NICHT `colorSuccess` — ein Farbsystem je Flaeche
+ * (Spec:3754-3776, Entscheidung E6), und `colorError === colorPrimary` macht Rot auf einer
+ * Datenflaeche ohnehin unbrauchbar (Falle 3, `src/core/theme/theme.ts:32-33`). Die zwei
+ * Werte sind dieselben wie bei `.gebucht` — dieselbe Aussage auf der Nachbarflaeche, und
+ * `--radio-status-frei` steht auf `.chip`, also nicht hier.
+ */
+.rueckgabeErfolg {
+  --radio-rueckgabe-farbe: #22c55e;
+
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--radio-rueckgabe-farbe);
+  border-radius: 0.5rem;
+  border-left-width: 4px;
+}
+
+:root[data-theme="dark"] .rueckgabeErfolg {
+  --radio-rueckgabe-farbe: #16a34a;
+}
+
+.leihkarten {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/*
+ * DIE KARTE EINER OFFENEN AUSLEIHE — ⛔ 64 IST NACHBAU, wie bei der Geraetezeile. Spec:3711
+ * hebt die Zeile des Bestands von 56 auf 64 („der Haupt-Tap mit Handschuh"); die Alt-Karte
+ * traegt dieselben 56 (`LoanedDeviceCard.tsx:48`, `min-h-[56px]`) und ist auf dieser Flaeche
+ * derselbe Haupt-Tap. ⛔ `min-width` UND `touch-action: manipulation` gehoeren dazu — fuer
+ * beides gibt es kein antd-Token (Spec:3724-3725).
+ * ⛔ EIN ECHTER `<button>` BRAUCHT DEN KNOPF-RESET: `text-align`, `font` und `background`
+ * kommen sonst vom Browser (`src/app/globals.css` setzt den Reset fuer nackte Knoepfe, die
+ * Kante und die Flaeche stehen hier).
+ */
+.leihkarte {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  min-height: 64px;
+  min-width: 44px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--radio-rahmen-linie);
+  border-radius: 0.5rem;
+  text-align: start;
+  touch-action: manipulation;
+}
+
+/* ⛔ „Rufname FETT" ist die Zusage aus Spec:3558 (`LoanedDeviceCard.tsx:59`). */
+.leihkarteRufname {
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.leihkarteZeit {
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--radio-rahmen-gedaempft);
+}
+
+/*
+ * ⛔ AB HIER STEHT ALLES IM PORTAL. Der Traeger deklariert die drei Werte, die der Dialog
+ * braucht, aus den Suite-Variablen auf `:root` — nie aus `--radio-rahmen-*`/`--radio-gate-*`.
+ */
+.dialogForm {
+  --radio-dialog-linie: var(--iuk-linie);
+  --radio-dialog-gedaempft: var(--iuk-gedaempft);
+  --radio-dialog-marke: var(--iuk-marke);
+  --radio-dialog-flaeche: var(--iuk-flaeche-aktiv);
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* „Optional: Zustandsnotiz hinterlassen" — 1:1 aus `ReturnDialog.tsx:84`. */
+.dialogHinweis {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  color: var(--radio-dialog-gedaempft);
+}
+
+/*
+ * ⛔ KEINE HOEHE AM BEDIENELEMENT, aber eine MINDESTHOEHE am Textfeld: der Bestand setzt
+ * `min-h-[120px]` (`ReturnDialog.tsx:94`), und ein Notizfeld, das eine Zeile hoch beginnt,
+ * laedt nicht zum Schreiben ein. Das ist keine `controlHeight`-Frage — antds `rows` setzt
+ * Zeilen, nicht Pixel.
+ */
+.dialogNotiz {
+  min-height: 120px;
+}
+
+/*
+ * DER FELDFEHLER IM DIALOG (die zu lange Notiz) UND DER SATZ DES SERVERS.
+ * ⛔ KEINE FARBE AUS `colorError`: Rot ist in dieser Suite die Primaeraktion (Falle 3). Der
+ * Traeger der Aussage ist `role="alert"` und die Stellung, nicht die Farbe — zeichengleich
+ * zu `.feldFehler` und `.meldung`, nur mit dem Traeger dieses Portals.
+ */
+.dialogFeldFehler {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.dialogFehler {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-inline-start: 3px solid var(--radio-dialog-marke);
+  border-radius: 0 4px 4px 0;
+  background: var(--radio-dialog-flaeche);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+/*
+ * ⛔ DIE ZWEI KNOEPFE STEHEN NEBENEINANDER UND UMBRECHEN AUF SCHMALEM SCHIRM
+ * (`ReturnDialog.tsx:103`, `gap-2 sm:gap-0`). ⛔ „Zurueckgeben" steht RECHTS, wie im Bestand
+ * (`:112`) — die bestaetigende Handlung ist die letzte in der Lesereihenfolge.
+ */
+.dialogFuss {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--radio-dialog-linie);
+}
+
+/* ⛔ `min-width` IST NACHBAU: antd setzt Hoehen, nie Breiten (Spec:3724-3725). */
+.dialogKnopf {
+  min-width: 9rem;
   touch-action: manipulation;
 }

@@ -6,6 +6,7 @@ import {
   OHNE_STANDORT_SCHLUESSEL,
   STATUS_FILTER,
   STATUS_FILTER_ETIKETT,
+  filtereAusleihen,
   filtereGeraete,
   gruppiereNachStandort,
   normalisiereSuchtext,
@@ -353,5 +354,78 @@ describe("radio-filter: die Gruppierung nach Standort", () => {
         (g) => g.schluessel,
       ),
     ).toEqual(["Zelt"]);
+  });
+});
+
+describe("radio-filter: die Suche der Rueckgabe geht ueber ANDERE Felder", () => {
+  /**
+   * Eine offene Ausleihe, wie `_db/leihen.ts` sie liefert — hier auf die zwei Felder
+   * verkuerzt, die `filtereAusleihen` liest.
+   */
+  const leihe = (rufname: string, entleiher: string) => ({ rufname, entleiher });
+
+  const OFFEN = [
+    leihe("41/12", "Anna Beispiel"),
+    leihe("41/13", "Björn Müller"),
+    leihe("Wache 7", "Anna Straße"),
+  ];
+
+  it("sucht ueber Rufname UND Entleihername", () => {
+    /*
+     * ⛔ FALLE № 10 DER ANALYSE (`docs/radio-portierung-analyse.md:1370-1374`), woertlich:
+     * „in der Rueckgabe wird ueber `device.callSign` UND `borrowerName` gesucht
+     * (`lib/loan-filter.ts:5-9`) … in der Uebersicht ueber `callSign`, `deviceType`,
+     * `serialNumber`, `location` — dort kommt der Entleiher NICHT vor."
+     * ⛔ WER EINE EINZIGE SUCHE BAUT, AENDERT BEIDE VERHALTEN — genau der Satz, der dort
+     * unter „Kein Gate" steht. Dieser Fall misst beide Richtungen an EINER Zeile: der
+     * Rufname findet, der Name findet, und keiner der beiden faellt dabei weg.
+     */
+    expect(filtereAusleihen(OFFEN, "41/12").map((a) => a.rufname)).toEqual(["41/12"]);
+    expect(filtereAusleihen(OFFEN, "beispiel").map((a) => a.rufname)).toEqual(["41/12"]);
+  });
+
+  it("verknuepft mehrere Begriffe mit UND, ueber beide Felder hinweg", () => {
+    /*
+     * `loan-filter.ts:5` zerlegt an Leerzeichen, `:9` verlangt `every`. ⛔ MIT `some` faende
+     * „41/12 mueller" beide Zeilen — die Verengung, die eine zweite Eingabe meint, waere
+     * eine Erweiterung.
+     * ⛔ UND DER HEUHAUFEN IST EINE ZEICHENKETTE AUS BEIDEN FELDERN (`loan-filter.ts:8`):
+     * ein Begriff aus dem Rufnamen und einer aus dem Namen treffen zusammen.
+     */
+    expect(filtereAusleihen(OFFEN, "41/12 anna").map((a) => a.rufname)).toEqual(["41/12"]);
+    expect(filtereAusleihen(OFFEN, "41/12 mueller")).toEqual([]);
+  });
+
+  it("ist akzent- und eszett-tolerant, weil sie dieselbe Normalisierung benutzt", () => {
+    /*
+     * ⛔ DIESELBE `normalisiereSuchtext` WIE DIE UEBERSICHT (`filter.ts:108`), nicht eine
+     * zweite: der Alt-Bestand teilt sie ebenso (`loan-filter.ts:2` importiert sie aus
+     * `device-filter.ts`). ⛔ OHNE UMLAUT-TESTDATEN SIEHT DAS KEIN TEST
+     * (`docs/radio-portierung-analyse.md:1377-1378`).
+     * ⚠️ DIE UE/AE-ERSATZSCHREIBUNG IST AUSDRUECKLICH NICHT GELEISTET (ebd. `:1366-1368`):
+     * „Muelheim" findet „Mühlheim" nicht. Der zweite Ausdruck haelt genau das fest, damit
+     * niemand sie spaeter fuer einen Fehler haelt.
+     */
+    expect(filtereAusleihen(OFFEN, "bjorn").map((a) => a.rufname)).toEqual(["41/13"]);
+    expect(filtereAusleihen(OFFEN, "strasse").map((a) => a.rufname)).toEqual(["Wache 7"]);
+    expect(filtereAusleihen(OFFEN, "muller").map((a) => a.rufname)).toEqual(["41/13"]);
+    expect(filtereAusleihen(OFFEN, "mueller"), "ue ist KEIN kombinierendes Zeichen").toEqual([]);
+  });
+
+  it("liefert bei leerem Suchtext die Liste UNVERAENDERT und in ihrer Reihenfolge", () => {
+    /*
+     * ⛔ KEINE SORTIERUNG (anders als `filtereGeraete`, `filter.ts:180-190`): die Reihenfolge
+     * kommt aus `offeneAusleihen` — neueste zuerst (`_db/leihen.ts:302`,
+     * `loanRepo.ts:126-135`). Eine zweite Ordnung hier waere eine zweite Wahrheit, und die
+     * Alt-Quelle sortiert an dieser Stelle ebenfalls nicht (`loan-filter.ts:6`).
+     * ⛔ UND EINE NEUE LISTE, nie an Ort und Stelle: die Eingabe ist eine Prop aus einer
+     * Server Component (A20).
+     */
+    expect(filtereAusleihen(OFFEN, "   ").map((a) => a.rufname)).toEqual([
+      "41/12",
+      "41/13",
+      "Wache 7",
+    ]);
+    expect(filtereAusleihen(OFFEN, "")).not.toBe(OFFEN);
   });
 });
