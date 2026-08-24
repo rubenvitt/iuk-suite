@@ -114,6 +114,24 @@ export function RueckgabeDialog({
 }) {
   const [notiz, setNotiz] = useState("");
   const [zuletzt, setZuletzt] = useState(ausleihe.id);
+  /*
+   * ⛔ DER TORWAECHTER UEBER DEM ERGEBNISBEREICH, und er ist noetig, weil `useActionState`
+   * seinen Zustand NICHT zuruecksetzt — dieselbe Eigenschaft, wegen der der Erfolg im
+   * Umschlag gemeldet wird und nicht in einem Effekt. Ohne ihn ueberlebte der Fehlersatz
+   * einer Ausleihe den Wechsel auf die naechste: die Kopfzeile naennte 41/13, der Satz
+   * darunter 41/12 — eine falsche Aussage ueber ein anderes Geraet. Bei
+   * `grund === "sitzung"` bliebe zusaetzlich die Erneuerungs-Insel samt ihrem eigenen
+   * `erledigt`-Zustand stehen.
+   * ⚠️ DIE ALT-QUELLE HAT DAS PROBLEM NICHT, UND DESHALB FAELLT ES BEIM ZEILENWEISEN
+   * VERGLEICH NICHT AUF: ihre Fehler sind TOASTS (`routes/return.tsx:48`), die von selbst
+   * verschwinden und keinem Dialog gehoeren. Der Port erbt eine Lebensdauer, die es dort
+   * nie gab.
+   * ⛔ UND NICHT UEBER EIN `key` AM DIALOG: ein Neuaufbau je Auswahl leerte das Notizfeld
+   * durch Konstruktion und machte die zwei Notiz-Zusagen leer-gruen — genau die Form, gegen
+   * die dieser ganze Dialog gebaut ist. Fuer den zweiten Weg (dieselbe Ausleihe erneut
+   * geoeffnet) taete er ohnehin nichts, weil der Schluessel derselbe bliebe.
+   */
+  const [zeigeErgebnis, setZeigeErgebnis] = useState(false);
 
   /*
    * ⛔ DIE NOTIZ GEHOERT ZU EINER AUSLEIHE (Feinheit 1, Spec:3576-3580; Alt-Quelle
@@ -136,6 +154,7 @@ export function RueckgabeDialog({
   if (zuletzt !== ausleihe.id) {
     setZuletzt(ausleihe.id);
     setNotiz("");
+    setZeigeErgebnis(false);
   }
 
   async function amFormular(
@@ -156,6 +175,7 @@ export function RueckgabeDialog({
      */
     if (notiz.length > ZUSTANDSNOTIZ_MAX) return vorher;
 
+    setZeigeErgebnis(true);
     try {
       const ergebnis = await rueckgabeBuchen(vorher, formular);
       if (ergebnis.ok) onErledigt(ergebnis.rufname);
@@ -194,6 +214,7 @@ export function RueckgabeDialog({
    */
   function abbrechen(): void {
     setNotiz("");
+    setZeigeErgebnis(false);
     onSchliessen();
   }
 
@@ -267,7 +288,7 @@ export function RueckgabeDialog({
           </p>
         )}
 
-        {zustand !== null && !zustand.ok && (
+        {zeigeErgebnis && zustand !== null && !zustand.ok && (
           <>
             {/*
               ⛔ KEIN TOAST (Entscheidung E6, Spec:3754-3776): in `src/app` gibt es keinen

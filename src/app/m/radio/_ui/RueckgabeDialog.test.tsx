@@ -169,6 +169,63 @@ describe("radio-RueckgabeDialog: die drei Feinheiten des Bestands", () => {
     expect(queryPortal(AUSLEIHE_ID).getAttribute("value")).toBe("l-2");
   });
 
+  it("nimmt den Fehlersatz beim Wechsel auf eine andere Ausleihe zurueck", async () => {
+    /*
+     * ⛔ EINE LEBENSDAUER, DIE DIE ALT-QUELLE NIE HATTE — und genau deshalb faellt sie beim
+     * zeilenweisen Vergleich mit `ReturnDialog.tsx` nicht auf: dort sind die Fehler
+     * TOASTS (`routes/return.tsx:48`, `toast.error`), sie verschwinden von selbst und
+     * gehoeren keinem Dialog. Hier steht der Satz IM Dialog, und `useActionState` haelt
+     * seinen Zustand ueber jeden Prop-Wechsel hinweg (genau die Eigenschaft, wegen der der
+     * Erfolg im Umschlag gemeldet wird und nicht in einem Effekt).
+     * ⛔ DIE FOLGE OHNE DIESEN FALL IST EINE FALSCHE AUSSAGE UEBER EIN ANDERES GERAET: die
+     * Kopfzeile liest „41/13 zurueckgeben", darunter steht „41/12 wurde zwischenzeitlich von
+     * jemand anderem zurueckgegeben." Der Fall „leert die Notiz beim Wechsel" sieht das
+     * NICHT — er prueft den Feldwert und die Kennung.
+     * ⛔ UND DIE ERNEUERUNGS-INSEL HAENGT MIT DARAN: bei `grund === "sitzung"` bliebe sie
+     * samt ihrem eigenen `erledigt`-Zustand stehen.
+     */
+    rueckgabeBuchenMock.mockResolvedValue({
+      ok: false,
+      grund: "sitzung",
+      text: SATZ_SITZUNG,
+    });
+    await rendere(EINS);
+    await absenden();
+    expect(existsPortal(FEHLER), "ohne den Fehlersatz misst der Fall nichts").toBe(true);
+    expect(existsPortal(ERNEUERN)).toBe(true);
+
+    await erneutRendern(ZWEI);
+
+    expect(existsPortal(FEHLER), "der Satz nannte 41/12 — die Kopfzeile nennt jetzt 41/13").toBe(false);
+    expect(existsPortal(ERNEUERN), "die Erneuerungs-Insel gehoert zu jenem Vorgang").toBe(false);
+  });
+
+  it("nimmt den Fehlersatz zurueck, wenn der Dialog geschlossen und neu geoeffnet wird", async () => {
+    /*
+     * ⛔ DER ZWEITE WEG IN DENSELBEN ZUSTAND, und der Wechsel-Fall darueber faengt ihn NICHT:
+     * wird DIESELBE Ausleihe erneut geoeffnet, aendert sich `ausleihe.id` nicht, und die
+     * Angleichung im Rumpf laeuft gar nicht erst. Deshalb raeumt `abbrechen()` beides —
+     * dieselbe Stelle, an der auch die Notiz faellt (`ReturnDialog.tsx:61-64`, `:70-72`).
+     * ⛔ WAS HIER NICHT STEHEN DARF, IST EIN `key` AM DIALOG: ein Neuaufbau je Auswahl
+     * leerte das Feld durch Konstruktion und machte die zwei Notiz-Faelle leer-gruen — und
+     * fuer diesen Fall taete er ohnehin nichts, weil der Schluessel derselbe bliebe.
+     */
+    rueckgabeBuchenMock.mockResolvedValue({
+      ok: false,
+      grund: "schon-zurueck",
+      text: SATZ_SCHON_ZURUECK,
+    });
+    await rendere(EINS);
+    await absenden();
+    expect(existsPortal(FEHLER)).toBe(true);
+
+    await clickPortal(ABBRECHEN);
+    await erneutRendern(EINS, false);
+    await erneutRendern(EINS, true);
+
+    expect(existsPortal(FEHLER), "derselbe Vorgang faengt von vorn an").toBe(false);
+  });
+
   it("leert die Notiz auch, wenn der Mensch den Dialog selbst schliesst", async () => {
     /*
      * ⛔ ZWEI RUECKSETZ-ANLAESSE, NICHT EINER. Der Bestand setzt zurueck beim Wechsel
