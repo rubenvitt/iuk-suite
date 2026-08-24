@@ -50,7 +50,7 @@ export type VersionZeile = {
  *
  * Drei Regeln wandern 1:1 mit:
  *  - Sortierung `desc(sortOrder)`, dann `desc(createdAt)` (`:150`) — die zweite Haelfte
- *    wandert 1:1 mit (`:150`), NICHT weil Gleichstaende haeufig waeren: `sortOrder` KANN
+ *    wandert 1:1 mit, NICHT weil Gleichstaende haeufig waeren: `sortOrder` KANN
  *    kollidieren, weil die Spalte die Vorgabe 0 traegt (`_db/schema.ts:83`), waehrend jeder
  *    bekannte Schreibweg sie ausdruecklich und verschieden setzt
  *    (`softwareVersionRepo.ts:19-25` `MAX(sortOrder) + 1`, `:131` `ids.length - index`;

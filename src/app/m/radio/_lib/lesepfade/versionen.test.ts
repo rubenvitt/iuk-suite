@@ -221,6 +221,13 @@ describe("zielVersion — die eine Marke", () => {
      * bliebe dieser Fall gruen, wenn `where(eq(isTarget, true))` ERSATZLOS ENTFIELE
      * (gemessen an der Fassung davor: Sonde S-V5o war 1 rot, und dieser Fall war nicht
      * dabei). So waehlt allein die Marke, und die Anzeigeordnung zeigt in die Gegenrichtung.
+     *
+     * ⚠️ UND WAS DIE DREHUNG KOSTET, DAMIT ES GEBUCHT IST: vorher fiel dieser Fall auch beim
+     * Fehlweg „Marke = oberste Zeile" (`where` entfernt, `asc(sortOrder)` als `desc`) — jetzt
+     * ist die markierte Zeile dort genau die erste, und er bleibt gruen. Ein Fixture kann
+     * nicht beides zugleich toeten. Diesen Fehlweg halten die zwei Ordnungsfaelle dieser
+     * Datei: `antwortet bei zwei Marken deterministisch` (:242) und `aktuell wird nie aus dem
+     * Anlegedatum abgeleitet` (:284) — gemessen, beide rot.
      */
     db.insert(softwareVersions)
       .values([
