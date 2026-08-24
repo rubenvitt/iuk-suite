@@ -295,12 +295,12 @@ function meldeFehlendeGruppe(sub: string, gruppen: string[]): void {
  *
  * ✅ SEIT PLANTEIL 4 / V3 HAT SIE IHREN AUFRUFER (bis dahin ⬜, REVIEW-Z4 Fund K1): das
  * `beforeEach` der Verhaltensfaelle in `src/app/m/radio/_lib/zugang.test.ts` ruft sie vor
- * JEDEM Fall. Der vorhergesagte Fehlschlag ist genau der Grund: `bereitsGemeldet` ist
- * prozess-lokal und ueberlebt jeden Fall der Datei — ohne die Zeile saehe der Fall, der die
- * Protokollzeile PRUEFT, null Aufrufe, sobald ein frueherer Fall denselben `sub` abgewiesen
- * hat. Der Weg ist im Vorbild vorgefuehrt —
- * `src/app/m/lagerbuch/_lib/zugang.test.ts:41` (Import), `:72` (Aufruf), Begruendung
- * `:60-71`; dort hat genau dieser Weg einen ECHTEN Fehlschlag gefunden.
+ * JEDEM Fall. ⛔ IHR TRAEGER IST GENAU EIN FALL, und er entstand erst in Fix-Runde 1 zu V3:
+ * „meldet die fehlende Gruppe EINMAL JE PERSON" (`zugang.test.ts:754`) weist ABSICHTLICH
+ * denselben `sub` ab wie der Fall auf `:597`; ohne diese Zeile saehe er NULL statt EINEM
+ * Aufruf. ⛔ GEMESSEN (Sonde E8): solange jeder Fall seinen EIGENEN `sub` trug, lief die
+ * Datei ohne den Reset `55 passed`, 0 rot — die Zeile war inert. Vorbild und ECHTER
+ * Fehlschlag: `src/app/m/lagerbuch/_lib/zugang.test.ts:41` / `:72` / Begruendung `:60-71`.
  */
 export function _resetGemeldeteGruppen(): void {
   bereitsGemeldet.clear();
@@ -420,9 +420,9 @@ export function verwaltungsZiel(headersEingang: Headers): string {
  * ⛔ `lastSeenAt` IST `integer(..., { mode: "timestamp" })` (`_db/schema.ts:116`) — Drizzle
  * nimmt dort ein `Date`, keine Zahl. Dieselbe Einheitengrenze wie bei `leihhistorie`.
  *
- * EIN FEHLSCHLAG WIRD PROTOKOLLIERT, NICHT GEWORFEN: der Zugang funktioniert auch ohne den
- * Satz — nur die Ereignisliste zeigt dann die rohe Kennung (Form 1:1 aus
- * `src/app/m/lagerbuch/_lib/konto.ts:118-123`).
+ * DER UPSERT DARF FEHLSCHLAGEN, ER WIRD PROTOKOLLIERT UND NICHT GEWORFEN — nur die
+ * Ereignisliste zeigt dann die rohe Kennung (Form 1:1 aus `konto.ts:118-123`). ⚠️ NUR ER:
+ * `getDb()` wertet der Aufrufer aus (`_lib/zugang.ts:469`), sein Fehler faellt durch den Riegel.
  */
 export function merkeNutzer(db: DB, viewer: RadioViewer): void {
   const jetzt = new Date();

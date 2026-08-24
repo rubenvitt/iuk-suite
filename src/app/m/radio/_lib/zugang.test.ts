@@ -525,9 +525,9 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
   /**
    * ⛔ `_resetGemeldeteGruppen()` GEHOERT IN DAS `beforeEach`, UND DER GRUND STEHT SEIT
    * PLANTEIL 2 IM QUELLTEXT (`_lib/zugang.ts:296-303`): `bereitsGemeldet` ist prozess-lokal
-   * und ueberlebt jeden Fall dieser Datei. Ohne die Zeile saehe der Fall, der die
-   * Protokollzeile PRUEFT, null Aufrufe, sobald ein frueherer Fall denselben `sub` bereits
-   * abgewiesen hat. Zusaetzlich traegt jeder Fall seinen EIGENEN `sub`.
+   * und ueberlebt jeden Fall dieser Datei. ⛔ SEIN TRAEGER IST GENAU EIN FALL: „meldet die
+   * fehlende Gruppe EINMAL JE PERSON" (`:754`) weist ABSICHTLICH denselben `sub` ab wie der
+   * Fall auf `:597`. Jeder ANDERE Fall traegt seinen eigenen — ohne jenen waere die Zeile inert.
    *
    * Der WARN-Spy steht hier, weil die Abweisungsfaelle sonst je eine echte Zeile in die
    * Suitenausgabe schreiben; der Fall, der das Protokoll PRUEFT, legt seinen eigenen Spy
@@ -670,6 +670,8 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
       expect(zeilen[0]!.sub).toBe("sub-a2");
       expect(zeilen[0]!.name).toBe("Anna Beispiel");
       expect(zeilen[0]!.lastSeenAt).toBeInstanceOf(Date);
+      // ⛔ DER WERT, NICHT NUR DER TYP: ein `new Date(0)` truege `toBeInstanceOf` ebenso.
+      expect(zeilen[0]!.lastSeenAt.getTime()).toBeGreaterThan(Date.now() - 60_000);
     } finally { zuruecksetzen(); }
   });
 
@@ -694,7 +696,7 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
        * `55 passed`, 0 rot — die Falsy-Pruefung deckt `null` ab, `"   "` ist TRUTHY. Ohne
        * das `.trim()` stuende der Leerraum danach als Anzeigename in jeder Ereigniszeile,
        * und die Zeile saehe leer aus, ohne leer zu sein. Dieselbe Lesart wie
-       * `src/app/m/lagerbuch/_lib/konto.ts:80-100` und `lagerbuch/_db/quelle.ts:38`
+       * `src/app/m/lagerbuch/_lib/konto.ts:80-100` und `lagerbuch/_db/quelle.ts:37`
        * („EIN NAME AUS LEERZEICHEN IST KEIN NAME").
        */
       sitzung = { user: { id: "sub-a3b", name: "   ", groups: ["iuk-radio-admin"] } };
@@ -746,6 +748,36 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
       // Und die Gegenprobe am selben Riegel: die Admin-Gruppe kommt durch.
       sitzung = { user: { id: "sub-a6", name: "Anna Beispiel", groups: ["iuk-radio-admin"] } };
       expect((await requireRadioAdmin()).sub).toBe("sub-a6");
+    } finally { zuruecksetzen(); }
+  });
+
+  it("meldet die fehlende Gruppe EINMAL JE PERSON, nicht einmal je Anfrage", async () => {
+    /*
+     * ⛔ ZWEI ZEILEN AUF EINMAL BEWACHT, und der Fall ist der Nachzug zu REVIEW-V3 F2.
+     * Vorbild: `src/app/m/lagerbuch/_lib/zugang.test.ts:55-73`, wo derselbe Fall denselben
+     * Dienst tut („Der Fehlschlag ist echt und wurde gesehen").
+     *
+     * 1. DER DEDUP-ZWEIG `if (bereitsGemeldet.has(sub)) return;` (`_lib/zugang.ts:282`):
+     *    ohne ihn schriebe ein Abweisungssturm je ANFRAGE eine Protokollzeile, und dieser
+     *    Fall saehe ZWEI Aufrufe statt einem.
+     * 2. ⛔ `_resetGemeldeteGruppen()` IM `beforeEach` OBEN: dieser Fall traegt ABSICHTLICH
+     *    denselben `sub` wie „ohne beide Gruppen endet requireRadioVerwaltung im notFound"
+     *    (`_lib/zugang.test.ts:597`). Der Speicher ist prozess-lokal und ueberlebt jeden Fall
+     *    dieser Datei — ohne den Reset stuende `sub-n1` beim Betreten hier schon drin, und
+     *    dieser Fall saehe NULL statt EINEM Aufruf. ⛔ GEMESSEN (Fix-Runde 1, Sonde E8):
+     *    VOR diesem Fall lief die Datei ohne den Reset `55 passed`, **0 rot** — jeder
+     *    abweisende Fall trug seinen eigenen `sub`, die Zeile im `beforeEach` war inert, und
+     *    die Zusage in `_lib/zugang.ts:296-303` hatte keinen Traeger.
+     */
+    try {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      sitzung = { user: { id: "sub-n1", name: "Nora Beispiel", groups: ["irgendwas"] } };
+      await expect(requireRadioVerwaltung()).rejects.toThrow("NEXT_NOT_FOUND");
+      await expect(requireRadioVerwaltung()).rejects.toThrow("NEXT_NOT_FOUND");
+      expect(
+        warn,
+        "einmal je PERSON, nicht je Anfrage — sonst flutet ein Abweisungssturm das Protokoll",
+      ).toHaveBeenCalledTimes(1);
     } finally { zuruecksetzen(); }
   });
 });

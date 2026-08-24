@@ -82,7 +82,7 @@ export function merkeNutzer(db: DB, viewer: Viewer): void {
    * `?.trim()` als ueberfluessig wegraeumt, weil im Plan `viewer.name` steht,
    * stellt den Fehler wieder her.
    *
-   * `_db/quelle.ts:38` liest mit `u.name?.trim() || u.email?.trim() || u.id` und
+   * `_db/quelle.ts:37` liest mit `u.name?.trim() || u.email?.trim() || u.id` und
    * haelt damit fest: EIN NAME AUS LEERZEICHEN IST KEIN NAME. Der Plan schreibt
    * an derselben Sache hier eine Falsy-Pruefung vor und kommt zum gegenteiligen
    * Ergebnis; beide Formen stehen woertlich da und koennen nicht beide gelten.

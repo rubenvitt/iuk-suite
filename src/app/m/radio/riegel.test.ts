@@ -657,14 +657,14 @@ describe("(e) jede Verwaltungsseite traegt den Personen-Riegel ihrer Stufe", () 
      * prueft niemand (Klausel (a) fuehrt nur eine GLOBALE Untergrenze, keine je Group).
      * Gemessen (REVIEW-Z56 Messung 4c): eine `admin/(neu)/page.tsx` OHNE
      * `admin/(neu)/layout.tsx` lief `12 passed`. Dass daraus heute kein Loch wird, traegt
-     * der ZWEITE Halter: `requireRadioAdmin` ruft `requireRadioHost(kopf)` als ERSTE
-     * ANWEISUNG selbst (Spec:669-671), und Klausel (d) Fall 2 unten sichert genau das zu.
-     * Der Host wird also ENTWEDER vom Group-Layout (Spec:4367-4368) ODER vom werfenden
-     * Personen-Riegel selbst gehalten.
-     * ⛔ AUFLAGE AN PLANTEIL 4: fuer `requireRadioVerwaltung` (Spec:4287) gilt diese
-     * zweite Haelfte heute NICHT — Klausel (d) Fall 2 prueft ausschliesslich
-     * `requireRadioAdmin`. Wer den zweiten werfenden Riegel baut, schuldet ihm dieselben
-     * Koerper-Zusicherungen, sonst wird aus dieser ODER-Aussage ein echtes Loch.
+     * der ZWEITE Halter: beide werfenden Riegel rufen `requireRadioHost(kopf)` als ERSTE
+     * ANWEISUNG (Spec:669-671) — seit V3 im gemeinsamen Helfer `riegelAufStufe`, und
+     * Klausel (d) Fall 2 unten sichert genau das zu. Der Host wird also ENTWEDER vom
+     * Group-Layout (Spec:4367-4368) ODER vom werfenden Personen-Riegel selbst gehalten.
+     * ⛔ AUFLAGE AN PLANTEIL 4 — ✅ EINGELOEST IN V3: solange Klausel (d) Fall 2 nur
+     * `requireRadioAdmin` las, galt diese zweite Haelfte fuer `requireRadioVerwaltung`
+     * (Spec:4287) NICHT. Der Wortlaut bleibt als Auflage an JEDEN, der den Helfer noch einmal
+     * umbaut: er schuldet ihm dieselben Koerper-Zusicherungen (heute `riegel.test.ts:822-842`).
      *
      * ⚠️ AUSSERHALB EINER ROUTE-GROUP KEHRT SICH DAS UM. Eine `admin/page.tsx` oder eine
      * `admin/irgendwas/page.tsx` hat KEIN Group-Layout ueber sich; sie muss den
