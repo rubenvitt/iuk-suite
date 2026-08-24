@@ -2,7 +2,7 @@
 // src/app/m/radio/_ui/RueckgabeDialog.test.tsx
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { act } from "react";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 /**
  * DER RUECKGABEDIALOG (Spec 1 §4.4, `:3554-3594`).
@@ -30,10 +30,11 @@ vi.mock("../_actions/ausleihe", () => ({ rueckgabeBuchen: rueckgabeBuchenMock })
 vi.mock("../_actions/sitzung", () => ({ erneuereSitzung: erneuereSitzungMock }));
 
 import { mount, unmount, rerender, queryPortal, existsPortal, clickPortal } from "@/app/m/qr/_lib/test-dom";
-import { ZUSTANDSNOTIZ_MAX } from "../_lib/meldungen";
+import { ZUSTANDSNOTIZ_MAX, type RueckgabeErgebnis } from "../_lib/meldungen";
 import { RueckgabeDialog, type DialogAusleihe } from "./RueckgabeDialog";
 
 const STYLESHEET = "src/app/m/radio/_ui/ausleihe.module.css";
+const UI = "src/app/m/radio/_ui";
 const FORMULAR = "[data-rolle='radio-rueckgabeform']";
 const NOTIZ = "#radio-zustandsnotiz";
 const ZAEHLER = ".ant-input-data-count";
@@ -110,12 +111,45 @@ async function absenden(): Promise<void> {
   await act(async () => {});
 }
 
+/**
+ * Der Klick NEBEN den Dialog — das ist der Weg, den `mask.closable` freigibt oder sperrt.
+ *
+ * ⛔ DIE DREI EREIGNISSE GEHOEREN ZUSAMMEN: rc-dialog merkt sich an `mousedown`/`mouseup`,
+ * ob der Zug auf der Maske BEGANN, und wertet erst dann den `click` als „daneben". Ein
+ * einzelner `click` ist der haeufige stille Fehlgriff — er wuerde auch bei ausgehaengter
+ * Sperre nichts ausloesen, und die Zusicherung waere gruen aus dem falschen Grund.
+ * ⛔ `.ant-modal-wrap` UND NICHT `.ant-modal-mask`: die Maske selbst ist nur die Farbe, die
+ * Ereignisse nimmt der Umschlag entgegen. Gemessen: mit diesen drei Ereignissen ruft der
+ * ruhende Dialog `onCancel`; ohne sie nie.
+ */
+function maskenklick(): void {
+  const umschlag = document.body.querySelector(".ant-modal-wrap");
+  if (umschlag === null) throw new Error("Kein .ant-modal-wrap im Dokument");
+  umschlag.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  umschlag.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  umschlag.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
 beforeEach(() => {
   rueckgabeBuchenMock.mockResolvedValue({ ok: true, rufname: "41/12" });
   erneuereSitzungMock.mockResolvedValue({ ok: true });
 });
 
+/**
+ * ⛔ EIN NIE AUFGELOESTER FLUG WIRD HIER ABGERAEUMT, und das ist kein Komfort: bricht der
+ * Fall „laesst sich waehrend des Absendens … nicht schliessen" VOR seiner Aufloesung ab,
+ * haengt die Attrappe als offenes Versprechen in Reacts Uebergang — gemessen kostete das
+ * VIER weitere Faelle, die mit der Sonde nichts zu tun hatten. Eine Sonde soll den Fall
+ * roetten, den sie meint, und keine Kaskade ausloesen.
+ */
+let offenerFlug: (() => void) | null = null;
+
 afterEach(async () => {
+  if (offenerFlug !== null) {
+    const abraeumen = offenerFlug;
+    offenerFlug = null;
+    await act(async () => abraeumen());
+  }
   await unmount();
   vi.clearAllMocks();
 });
@@ -332,6 +366,73 @@ describe("radio-RueckgabeDialog: die drei Feinheiten des Bestands", () => {
     expect(existsPortal(NOTIZFEHLER), "genau auf der Grenze ist sie zulaessig").toBe(false);
     expect(queryPortal<HTMLButtonElement>(SENDEN).disabled).toBe(false);
   });
+
+  it("laesst sich waehrend des Absendens weder mit Escape noch neben dem Dialog schliessen", async () => {
+    /*
+     * ⛔ DIE SCHLIESSSPERRE IST DIE LETZTE VERTEIDIGUNG VON FEINHEIT 1, und bis zur
+     * Fix-Runde 1 hatte sie keinen Waechter (REVIEW-A20, Fund 2). `abbrechen()` raeumt die
+     * Notiz UND `zeigeErgebnis`; laeuft die Action noch, landet ein danach eintreffendes
+     * `ok: false` hinter einem geschlossenen Torwaechter. Die Rueckgabe scheitert, die
+     * getippte Notiz ist weg, und es steht NIRGENDS ein Satz — genau der Verlust, gegen den
+     * diese ganze Aufgabe gebaut ist.
+     * ⛔ ZWEI ATTRIBUTE, ZWEI ZUSICHERUNGEN, weil das Ledger es fuer A18 verlangt („Das Paar
+     * ist die Zusage, nicht eines seiner beiden Attribute",
+     * `.superpowers/sdd/planteil3/progress.md:630-632`): `keyboard` deckt Escape,
+     * `mask.closable` den Klick daneben. Gemessen, je einzeln entfernt: ohne `keyboard`
+     * schliesst Escape (1 Aufruf), ohne `mask.closable` der Maskenklick (1 Aufruf) — die
+     * andere Haelfte bleibt dabei jeweils bei 0. Eine gemeinsame Zusicherung haette den
+     * Ausfall EINES Attributs nicht gesehen.
+     * ⛔ DIE POSITIVKONTROLLE STEHT VORNE UND IST KEIN SCHMUCK: in RUHE loesen beide Wege
+     * `onSchliessen` aus (gemessen: Escape 1, Maskenklick der zweite Aufruf). Ohne sie waere
+     * „nicht geschlossen" moeglicherweise nur eine Aussage darueber, dass jsdom den
+     * Schliessweg gar nicht kennt — eine Zusage, die die Bauform nicht haelt.
+     * ⛔ UND DER FLUG MUSS BELEGT SEIN: der Knopftext ist `KNOPF_LAEUFT`, sonst misst der
+     * Fall den ruhenden Dialog.
+     */
+    let aufloesen: (ergebnis: RueckgabeErgebnis) => void = () => {};
+    rueckgabeBuchenMock.mockImplementation(
+      () => new Promise<RueckgabeErgebnis>((res) => { aufloesen = res; }),
+    );
+    offenerFlug = () => aufloesen({ ok: false, grund: "unbekannt", text: "abgeraeumt" });
+    await rendere();
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(schliessen, "Positivkontrolle: in Ruhe schliesst Escape").toHaveBeenCalledTimes(1);
+    await act(async () => {
+      maskenklick();
+    });
+    expect(schliessen, "Positivkontrolle: in Ruhe schliesst der Klick daneben").toHaveBeenCalledTimes(2);
+    schliessen.mockClear();
+
+    await fuelle(NOTIZ, "Akku schwach");
+    await absenden();
+    expect(queryPortal(SENDEN).textContent, "ohne laufende Action misst der Fall nichts").toBe(
+      "Wird zurückgegeben …",
+    );
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(schliessen, "Escape waehrend des Absendens").not.toHaveBeenCalled();
+    await act(async () => {
+      maskenklick();
+    });
+    expect(schliessen, "Klick neben den Dialog waehrend des Absendens").not.toHaveBeenCalled();
+    expect(queryPortal<HTMLTextAreaElement>(NOTIZ).value).toBe("Akku schwach");
+
+    await act(async () => {
+      aufloesen({ ok: false, grund: "schon-zurueck", text: SATZ_SCHON_ZURUECK });
+    });
+    await act(async () => {});
+
+    expect(queryPortal(FEHLER).textContent, "der Satz erreicht seinen Torwaechter").toBe(
+      SATZ_SCHON_ZURUECK,
+    );
+    expect(queryPortal<HTMLTextAreaElement>(NOTIZ).value).toBe("Akku schwach");
+    expect(schliessen).not.toHaveBeenCalled();
+  });
 });
 
 describe("radio-RueckgabeDialog: was er an den Aufrufer meldet", () => {
@@ -471,6 +572,66 @@ describe("radio-RueckgabeDialog: die Inline-Erneuerung (Zusage 3.10 Nr. 8)", () 
   });
 });
 
+/**
+ * Kommentare weg, bevor `s.<name>` gesucht wird.
+ *
+ * ⛔ DRITTE KOPIE, UND SIE BRAUCHT IHRE BEGRUENDUNG: `riegel.test.ts:181-201` exportiert
+ * nichts, `_ui/AusleihRahmen.test.tsx:90-113` ist ein anderer Testkoerper. Diese Fassung ist
+ * die KURZE — ein Blockschnitt ueber die ganze Datei plus die Zeilen, die mit `//` beginnen.
+ * ⚠️ SIE IST GEMESSEN GLEICHWERTIG, NICHT GERATEN: gegen die zeilenweise Fassung aus
+ * `AusleihRahmen.test.tsx` ergibt sie fuer beide Portal-Quellen dieselbe Klassenmenge. Der
+ * Unterschied traegt erst, wenn ein `/*` in einem Zeichenkettenliteral steht; in
+ * `RueckgabeDialog.tsx` und `SitzungErneuern.tsx` kommt keines vor.
+ */
+function ohneKommentare(quelle: string): string {
+  return quelle
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((zeile) => (zeile.trimStart().startsWith("//") ? "" : zeile))
+    .join("\n");
+}
+
+/**
+ * Jede Quelldatei, deren Markup IM PORTAL landet — ⛔ ERZEUGT, NICHT AUFGEZAEHLT.
+ *
+ * Der Gang beginnt beim Dialog und folgt seinen RELATIVEN Importen, solange sie auf eine
+ * `_ui/*.tsx` zeigen; heute sind das `RueckgabeDialog.tsx` und die mitbenutzte Insel
+ * `SitzungErneuern.tsx`. Rendert der Dialog spaeter eine dritte Flaeche, kommt sie von
+ * selbst mit.
+ *
+ * ⛔ DAS IST DIE BEHEBUNG EINES GEMESSENEN LOCHS (REVIEW-A20, Fund 1). Bis zur Fix-Runde 1
+ * baute dieser Fall seine Klassenmenge ALLEIN aus dem DOM, nachdem er GENAU EINE Lage
+ * hergestellt hatte (`grund: "sitzung"`, Notiz kurz, Erneuerung offen). Klassen, die nur in
+ * den anderen Lagen erscheinen, fielen aus dem Scan — `.dialogFeldFehler` (die zu lange
+ * Notiz), `.feldFehler` und `.erneuernErledigt` (beide aus `SitzungErneuern.tsx`).
+ * ⛔ SELBST GEMESSEN, in dieser Reihenfolge: `.dialogFeldFehler` um ein
+ * `color: var(--radio-rahmen-gedaempft)` ergaenzt liess den Fall in seiner ALTEN Fassung
+ * gruen (15/15); mit der erzeugten Menge ist dieselbe Sonde 1 rot, und `.feldFehler` und
+ * `.erneuernErledigt` sind es ebenso (je 1 rot). Der alte Waechter griff also — er sah nur
+ * die Haelfte des Dialogs nicht.
+ */
+function portalQuellen(): string[] {
+  const gesehen = new Set<string>();
+  const rand = [`${UI}/RueckgabeDialog.tsx`];
+  while (rand.length > 0) {
+    const pfad = rand.pop()!;
+    if (gesehen.has(pfad)) continue;
+    gesehen.add(pfad);
+    const quelle = ohneKommentare(readFileSync(pfad, "utf8"));
+    for (const treffer of quelle.matchAll(/from\s+["']\.\/([A-Za-z0-9_-]+)["']/g)) {
+      const nachbar = `${UI}/${treffer[1]!}.tsx`;
+      if (existsSync(nachbar)) rand.push(nachbar);
+    }
+  }
+  return [...gesehen];
+}
+
+/** Jeder Klassenname, den eine Quelldatei als `s.name` aus dem Stylesheet zieht. */
+function genutzteKlassen(pfad: string): string[] {
+  const treffer = ohneKommentare(readFileSync(pfad, "utf8")).matchAll(/\bs\.([A-Za-z][A-Za-z0-9_]*)/g);
+  return [...new Set([...treffer].map((m) => m[1]!))];
+}
+
 describe("radio-RueckgabeDialog: das Stylesheet im Portal", () => {
   it("keine Regel des Dialogs liest eine Variable, die nur ein Traeger im Wirt deklariert", async () => {
     /*
@@ -486,11 +647,21 @@ describe("radio-RueckgabeDialog: das Stylesheet im Portal", () => {
      * von beiden als Vorfahr; die Erklaerung wuerde „invalid at computed-value time", und
      * die Farbe fiele still auf die geerbte zurueck. Kein Tor sieht das — `typecheck`,
      * `lint` und jsdom rechnen keine Kaskade.
-     * ⛔ DIE KLASSEN WERDEN AUS DEM DOM AUSGELESEN, NICHT BEHAUPTET (dieselbe Bauart wie in
-     * A19): Vitest bildet einen CSS-Modulschluessel auf `_<name>_<hash>` ab, daher der
-     * Schnitt. ⛔ ERLAUBT SIND DORT NUR DIE SUITE-VARIABLEN AUF `:root`
+     * ⛔ ERLAUBT SIND DORT NUR DIE SUITE-VARIABLEN AUF `:root`
      * (`src/app/globals.css:153-156`, Dunkelzweig `:160-163`) — sie sind die einzigen, die
      * JEDER Knoten des Dokuments sieht.
+     *
+     * ⛔ GEPRUEFT WIRD DIE ERZEUGTE MENGE `portalQuellen()`/`genutzteKlassen()`, NICHT DIE
+     * DES DOM. Ein Anstrich zeigt nur die Lage, die er gerade herstellt; die Klassen der
+     * uebrigen Lagen fielen aus dem Scan (REVIEW-A20, Fund 1 — die Messung steht an
+     * `portalQuellen()`).
+     * ⛔ UND DIE DOM-MENGE BLEIBT TROTZDEM STEHEN, ALS TEILMENGENPROBE: sie ist der
+     * ANTI-LEER-WAECHTER der erzeugten Menge. Liefe der Gang ueber die Importe ins Leere —
+     * umbenannte Datei, geaenderte Importform —, waere die Schleife unten ueber einer leeren
+     * Menge still gruen; gegen eine DOM-Menge, die Vitest gerade selbst gerendert hat, kann
+     * sie es nicht sein. ⛔ DIESE PROBE NICHT „VEREINFACHEN".
+     * ⛔ DIE DOM-KLASSEN WERDEN AUSGELESEN, NICHT BEHAUPTET (dieselbe Bauart wie in A19):
+     * Vitest bildet einen CSS-Modulschluessel auf `_<name>_<hash>` ab, daher der Schnitt.
      */
     rueckgabeBuchenMock.mockResolvedValue({ ok: false, grund: "sitzung", text: SATZ_SITZUNG });
     await rendere();
@@ -512,9 +683,22 @@ describe("radio-RueckgabeDialog: das Stylesheet im Portal", () => {
     ).toBe(true);
     expect(imPortal.size, "leere Klassenmenge — der Fall waere leer-gruen").toBeGreaterThan(3);
 
+    const quellen = portalQuellen();
+    const imPortalMoeglich = new Set(quellen.flatMap(genutzteKlassen));
+    expect(
+      quellen.some((p) => p.endsWith("/SitzungErneuern.tsx")),
+      "der Gang ueber die Importe erreicht die mitbenutzte Insel nicht mehr",
+    ).toBe(true);
+    for (const name of imPortal) {
+      expect(
+        imPortalMoeglich.has(name),
+        `.${name} steht im Portal, aber in keiner der ${quellen.length} Quellen — der Gang ueber die Importe ist unvollstaendig`,
+      ).toBe(true);
+    }
+
     const css = readFileSync(STYLESHEET, "utf8");
     const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-    for (const name of imPortal) {
+    for (const name of imPortalMoeglich) {
       const anker = new RegExp(`\\.${name}(?![A-Za-z0-9_-])`);
       let koerper = "";
       for (const regel of ohneKommentare.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {

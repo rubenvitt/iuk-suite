@@ -118,7 +118,7 @@ export function RueckgabeDialog({
    * ⛔ DER TORWAECHTER UEBER DEM ERGEBNISBEREICH, und er ist noetig, weil `useActionState`
    * seinen Zustand NICHT zuruecksetzt — dieselbe Eigenschaft, wegen der der Erfolg im
    * Umschlag gemeldet wird und nicht in einem Effekt. Ohne ihn ueberlebte der Fehlersatz
-   * einer Ausleihe den Wechsel auf die naechste: die Kopfzeile naennte 41/13, der Satz
+   * einer Ausleihe den Wechsel auf die naechste: die Kopfzeile nennte 41/13, der Satz
    * darunter 41/12 — eine falsche Aussage ueber ein anderes Geraet. Bei
    * `grund === "sitzung"` bliebe zusaetzlich die Erneuerungs-Insel samt ihrem eigenen
    * `erledigt`-Zustand stehen.
@@ -224,6 +224,24 @@ export function RueckgabeDialog({
       onCancel={abbrechen}
       title={`${ausleihe.rufname} zurückgeben`}
       footer={null}
+      /*
+       * ⛔ DIE ZWEI NAECHSTEN ATTRIBUTE SIND KEIN antd-BEIWERK, SONDERN DIE LETZTE
+       * VERTEIDIGUNG VON FEINHEIT 1. Sie sperren waehrend des Absendens die zwei Wege, die
+       * `Modal` auf `onCancel` fuehrt: die Escape-Taste (`keyboard`) und den Klick neben den
+       * Dialog (`mask.closable`). `abbrechen()` raeumt `notiz` UND `zeigeErgebnis` (`:215-219`)
+       * — ein danach eintreffendes `ok: false` landete hinter einem geschlossenen
+       * Torwaechter.
+       * ⛔ SELBST GEMESSEN, MIT BEIDEN SPERREN AUSGEHAENGT: Notiz getippt,
+       * abgesendet, Escape im Flug, dann `ok: false` — `{ schliessen: 1, notiz: "",
+       * fehlerSichtbar: false }`. Die Rueckgabe scheitert, die getippte Notiz ist weg, und es
+       * steht NIRGENDS ein Satz. Mit den Sperren: `{ schliessen: 0, notiz: "Akku schwach",
+       * fehlerSichtbar: true }`.
+       * ⛔ BEIDE EINZELN BEWACHT, im Fall „laesst sich waehrend des Absendens weder mit
+       * Escape noch neben dem Dialog schliessen" — wer nur eines entfernt, dreht ihn ebenso
+       * rot (je 1 rot gemessen).
+       * ⚠️ `mask={{ closable }}` UND NICHT `maskClosable`: antd 6 warnt zur Laufzeit
+       * („`maskClosable` is deprecated. Please use `mask.closable` instead.").
+       */
       mask={{ closable: !laeuft }}
       keyboard={!laeuft}
       data-rolle="radio-rueckgabedialog"
@@ -325,8 +343,16 @@ export function RueckgabeDialog({
           am `Modal`, weil sein Vorgabefuss „OK"/„Abbrechen" heisst und seine Knoepfe nicht
           im Formular stehen. Ein `htmlType="submit"` ausserhalb des `<form>` loeste nichts
           aus.
-          ⛔ `htmlType="button"` AM ABBRECHEN-KNOPF: der Vorgabetyp eines Knopfes in einem
-          Formular ist `submit`, und „Abbrechen" buchte dann die Rueckgabe.
+          ⛔ `htmlType="button"` AM ABBRECHEN-KNOPF STEHT AUSDRUECKLICH DA, OBWOHL antd ES
+          VORBELEGT. Der Baustein setzt selbst `htmlType = 'button'` als Vorgabewert
+          (`antd@6.5.3/es/button/button.js:63`) und reicht ihn als `type` an das `<button>`
+          durch (`:297`) — der Schaden, den ein nacktes `<button>` hier anrichtete (Vorgabetyp
+          `submit`, „Abbrechen" buchte die Rueckgabe), kann mit DIESEM Baustein also nicht
+          eintreten. ⚠️ ER STEHT TROTZDEM, UND DESHALB: ein Umbau auf ein nacktes `<button>`
+          oder auf einen Baustein ohne diese Vorbelegung fuehrte den Formularschluss sonst
+          STILL wieder ein. Das Attribut ist heute ein No-Op — selbst gemessen: entfernt,
+          blieben alle 519 Faelle des Moduls gruen —, und genau deshalb bewacht es kein Fall.
+          Ein Fall darueber pruefte antds Vorgabewert, nicht diese Datei.
           ⛔ `disabled` DECKT ZWEI LAGEN: der laufende Vorgang (1:1 `:114`, `isPending`) und
           die zu lange Notiz (Feinheit 2). ⛔ KEIN `size` (Falle 4); `min-width` und
           `touch-action: manipulation` sind Nachbau im CSS-Modul (Entscheidung E8).

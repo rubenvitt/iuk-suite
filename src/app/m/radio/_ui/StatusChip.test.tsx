@@ -153,6 +153,55 @@ describe("radio-StatusChip: Farbe ist nie der einzige Traeger", () => {
     }
   });
 
+  it("jede --radio-*-farbe traegt den ERFOLGSTON aus STATUS_HEX, in BEIDEN Zweigen", () => {
+    /*
+     * ⛔ DIE BEHEBUNG EINES GEMESSENEN LOCHS (REVIEW-A20, Fund 3). `.gebucht` (A19) und
+     * `.rueckgabeErfolg` (A20) schreiben den Chip-Gruenton ein zweites und drittes Mal ins
+     * Stylesheet und behaupten in ihrem Kommentar „GRUEN AUS DEM CHIP-SATZ, NICHT
+     * `colorSuccess`" — bis hierher fuehrte diese Behauptung KEINE Zeile aus. Der Fall
+     * darueber bindet nur `.chip`. ⛔ SELBST GEMESSEN, mit diesem Fall stillgelegt:
+     * `--radio-rueckgabe-farbe` in BEIDEN Zweigen auf den DEFEKT-Ton gedreht
+     * (`#ef4444`/`#dc2626`) — also genau das Rot, das Falle 3 und Entscheidung E6 auf einer
+     * Datenflaeche verbieten — und der Modullauf blieb bei 518 gruen, 0 rot.
+     *
+     * ⛔ DIE TRAEGER WERDEN ERZEUGT, NICHT AUFGEZAEHLT: gebunden wird an die SCHREIBWEISE
+     * `--radio-<flaeche>-farbe`, damit die vierte Kopie von selbst mitkommt. Die Schreibweise
+     * steht am Deklarationsort ausgeschrieben (`ausleihe.module.css`, ueber
+     * `.rueckgabeErfolg`) — ohne das waere sie eine Falle statt einer Hilfe.
+     * ⛔ EIN HEXWERT-VERGLEICH „liegt in STATUS_HEX" TAETE ES NICHT: `#ef4444`/`#dc2626` sind
+     * ein gueltiges Paar (der Defekt-Ton), die Sonde oben bliebe gruen. Gebunden wird gegen
+     * GENAU `frei` — die Erfolgszeile ist die Aussage „das Geraet ist wieder frei".
+     * ⛔ DER ANTI-LEER-WAECHTER NENNT DIE ZWEI HEUTIGEN TRAEGER: liefe der Schnitt ins Leere
+     * (umbenannte Variable, geaenderte Schreibweise), waere die Schleife still gruen.
+     * ⚠️ Was das NICHT sagt: ob der Ton auf einem Bildschirm richtig aussieht — das ist der
+     * Browserlauf in beiden Farbmodi (⬜ `ausleihe.module.css:322`).
+     */
+    const css = ohneKommentare(readFileSync(STYLESHEET, "utf8"));
+    const DUNKELZWEIG = ':root[data-theme="dark"]';
+    const hell = new Map<string, string>();
+    const dunkel = new Map<string, string>();
+    const traeger = new Set<string>();
+    for (const regel of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selektor = regel[1]!.trim();
+      for (const erklaerung of regel[2]!.matchAll(/(--radio-[a-z-]+-farbe)\s*:\s*(#[0-9a-fA-F]{3,8})/g)) {
+        traeger.add(selektor);
+        (selektor.startsWith(DUNKELZWEIG) ? dunkel : hell).set(erklaerung[1]!, erklaerung[2]!);
+      }
+    }
+
+    expect(traeger, "leere Traegermenge — der Schnitt greift ins Leere").toContain(".gebucht");
+    expect(traeger, "leere Traegermenge — der Schnitt greift ins Leere").toContain(".rueckgabeErfolg");
+
+    const erfolg = STATUS_HEX.frei;
+    for (const [name, wert] of hell) {
+      expect(wert, `${name}: der HELLE Erfolgston ist STATUS_HEX.frei`).toBe(erfolg.hell);
+      expect(dunkel.get(name), `${name}: ohne Dunkelzweig steht der Hellwert auf dunklem Grund`).toBe(
+        erfolg.dunkel,
+      );
+    }
+    expect([...dunkel.keys()].sort(), "ein Dunkelzweig ohne Hellzweig").toEqual([...hell.keys()].sort());
+  });
+
   it("der Chip zeigt GENAU sein Etikett — kein fuenfter Zustand, kein Rueckfalltext", async () => {
     /*
      * ⛔ ⬜ A-L13, Betreiberentscheidung vom 2026-08-22 (`progress.md:22-32`):

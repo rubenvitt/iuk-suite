@@ -893,6 +893,16 @@
  * Datenflaeche ohnehin unbrauchbar (Falle 3, `src/core/theme/theme.ts:32-33`). Die zwei
  * Werte sind dieselben wie bei `.gebucht` — dieselbe Aussage auf der Nachbarflaeche, und
  * `--radio-status-frei` steht auf `.chip`, also nicht hier.
+ *
+ * ⛔ DIE SCHREIBWEISE `--radio-<flaeche>-farbe` IST VERBINDLICH UND KEIN GESCHMACK. An ihr
+ * haengt der Waechter `StatusChip.test.tsx` („jede --radio-*-farbe traegt den ERFOLGSTON aus
+ * STATUS_HEX, in BEIDEN Zweigen"): er sammelt JEDE so benannte Variable ein und bindet sie
+ * gegen `STATUS_HEX.frei` (`_lib/status.ts`) — heute `--radio-gebucht-farbe` (`.gebucht`) und
+ * `--radio-rueckgabe-farbe` hier. Wer die vierte Kopie `--radio-erfolg-ton` nennt, faellt aus
+ * dem Schnitt, und die drei Kopien laufen wieder still auseinander. ⛔ SELBST GEMESSEN, mit
+ * dem Waechter stillgelegt: `--radio-rueckgabe-farbe` in BEIDEN Zweigen auf den Defekt-Ton
+ * gedreht (`#ef4444`/`#dc2626`) — also genau das Rot, das Falle 3 auf einer Datenflaeche
+ * verbietet — und der Modullauf blieb bei 518 gruen, 0 rot.
  */
 .rueckgabeErfolg {
   --radio-rueckgabe-farbe: #22c55e;
