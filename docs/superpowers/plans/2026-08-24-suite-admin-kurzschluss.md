@@ -148,7 +148,7 @@ holt die siebte.
 | ⬜ **K-L2** | **Ist diese Gruppe in Pocket ID besetzt, und mit wem?** Namentlich, nicht als Zahl | **Ruben**, in Pocket ID (`id.iuk-ue.de`) → Groups → die Gruppe aus K-L1 → Mitglieder, vor K2 | „Ablesungen", K1 Schritt 2 |
 | ⬜ **K-L3** | Steht `SUITE_ADMIN_GROUP_PORTAL=` in der Produktions-`.env`? **Erwartung: nein** — die Variable kommt in `.env.example` nirgends vor | **Ruben**, `rtk grep '^SUITE_ADMIN_GROUP_PORTAL=' .env`, vor K2 | „Ablesungen", K1 Schritt 3 |
 | ⬜ **K-L4** | Ist **jede** Person aus K-L2 auch in der `qr`-Admin-Gruppe? (Registry-Vorgabe `iuk-qr-admin`, `src/core/registry.ts:64`; überschreibbar per `SUITE_ADMIN_GROUP_QR`, `.env.example:71`) | **Ruben**, Pocket ID + `rtk grep '^SUITE_ADMIN_GROUP_QR=' .env`, vor K2 | „Ablesungen", K1 Schritt 4 |
-| ⬜ **K-L5** | Ist **jede** Person aus K-L2 auch in der `aufgaben`-Koordinationsgruppe? (`SUITE_ADMIN_GROUP_AUFGABEN`, Vorschlag `aufgaben_koordination`, `.env.example:388`) | **Ruben**, Pocket ID + `rtk grep '^SUITE_ADMIN_GROUP_AUFGABEN=' .env`, vor K2 | „Ablesungen", K1 Schritt 5 |
+| ⬜ **K-L5** | Ist **jede** Person aus K-L2 auch in der `aufgaben`-Koordinationsgruppe? (`SUITE_ADMIN_GROUP_AUFGABEN`, Vorschlag `aufgaben_koordination`, `.env.example:406`) | **Ruben**, Pocket ID + `rtk grep '^SUITE_ADMIN_GROUP_AUFGABEN=' .env`, vor K2 | „Ablesungen", K1 Schritt 5 |
 | ⬜ **K-L6** | **Die Wegwahl.** A (Riegel bleibt) oder B (Schnitt) — nach Vorlage von K-L1..K-L5 und Kapitel 3 | **Ruben**, nach K1 Schritt 6, **schriftlich** | „Ablesungen", K1 Schritt 6. ⛔ Ohne sie beginnt K3 nicht |
 | ⬜ **K-L7** | Nur auf Weg B: **wie heißt die neue Portal-Admin-Gruppe in Pocket ID**, und wer steht drin? Sie muss **angelegt und besetzt** sein, bevor der Schnitt ausgerollt wird | **Ruben**, in Pocket ID, vor K3 | „Ablesungen", K1 Schritt 7 |
 
@@ -344,7 +344,7 @@ gültige, vom Boot akzeptierte Variable**, die `adminGroupsFor` (`:104-108`) lie
 
 ### 2.3 ⛔ Der Sonderfall `aufgaben`: der Kurzschluss ist dort ein **dokumentierter Notausgang**
 
-`.env.example:358-365` — nicht als Nebenwirkung, sondern als Betriebsanweisung:
+`.env.example:376-383` — nicht als Nebenwirkung, sondern als Betriebsanweisung:
 
 > „Drei Folgen, alle betrieblich:
 >   1. EIN TIPPFEHLER SPERRT JEDE KOORDINATION AUS — nicht nur `/personen`. Niemand kann dann noch
@@ -419,7 +419,7 @@ letzten fünf sind Begründungen dafür, warum vier Module um etwas herumbauen.
 | `src/app/m/portal/layout.tsx:34-38` | „hier die Suite-Admin-Gruppe, weil `portal` keine eigene fuehrt" |
 | `.env.example:67-69` | „Der Suite-Admin oben darf immer überall … leer gesetzt heißt ‚nur der Suite-Admin'" |
 | `.env.example:92-95` | ⚠️ „Der Satz aus Zeile 68-69 gilt fuer radio NICHT …" — **wird gegenstandslos**, weil der Satz aus 68-69 selbst entfällt |
-| `.env.example:360-364` | Der `aufgaben`-Notausgang (2.3) |
+| `.env.example:378-382` | Der `aufgaben`-Notausgang (2.3) |
 | `docs/runbooks/aufgaben-inbetriebnahme.md:35-36` | Derselbe Notausgang |
 | `src/app/m/feedback/_lib/access.ts:10-13` · `src/app/m/files/_lib/access.ts:62` · `src/app/m/lagerbuch/_lib/zugang.ts:79` · `src/app/m/radio/_lib/zugang.ts:93-99` | Vier „BEWUSST NICHT `isModuleAdmin`"-Begründungen, die dann erklären, warum ein Modul um etwas herumbaut, das es nicht mehr gibt |
 | `e2e/launcher.spec.ts:57-60` · `e2e/mobil-admin.spec.ts:92-95` | Zwei e2e-Docblocks, die den Weg über `dashboard-admins` beschreiben |
@@ -628,12 +628,12 @@ Produktionsserver und in Pocket ID.
 
 - [ ] **5 — ⬜ K-L5: `aufgaben`.** Ebenso:
       `rtk grep '^SUITE_ADMIN_GROUP_AUFGABEN=' .env` — Vorschlag der Vorlage ist
-      `aufgaben_koordination` (`.env.example:388`), Registry-Vorgabe wäre
-      `iuk-aufgaben-koordination` (`src/core/registry.ts:172`). ⚠️ `.env.example:373-377` sagt
+      `aufgaben_koordination` (`.env.example:406`), Registry-Vorgabe wäre
+      `iuk-aufgaben-koordination` (`src/core/registry.ts:172`). ⚠️ `.env.example:391-395` sagt
       ausdrücklich, dass die produktiven Namen **von der Registry abweichen** — hier nicht raten.
       Dann in Pocket ID: steht **jede** Person aus K-L2 auch dort?
       **Wer fehlt, verliert die gesamte Koordinationsrolle**, nicht nur `/personen`
-      (`.env.example:348-365`).
+      (`.env.example:366-383`).
 
 - [ ] **6 — ⬜ K-L6: die Wegwahl, schriftlich.** Ruben bekommt das Entscheidungsdiagramm aus
       Kapitel 4 zusammen mit den Ergebnissen aus 1–5 und den drei Sätzen aus Kapitel 3.4 vorgelegt.
@@ -817,7 +817,7 @@ dann „die roten Tests repariert", hat nichts bewiesen, sondern nur aufgeräumt
         ⛔ **Für `portal` ist genau dieser Fehlerfall der wahrscheinlichste dieses Plans**, weil das
         erwartete Ergebnis vor und nach dem Schnitt in mehreren Specs ein 404 ist.
       * ⚠️ **Der Wert von `PORTAL_ADMIN_GRUPPE` ist der Vorschlag aus `.env.example` (K3 Schritt 3),
-        NICHT ⬜ K-L7.** Dieselbe Trennung, die `.env.example:373-377` für `aufgaben` ausschreibt:
+        NICHT ⬜ K-L7.** Dieselbe Trennung, die `.env.example:391-395` für `aufgaben` ausschreibt:
         die produktiven Gruppennamen weichen bewusst ab, und die E2E-Literale bleiben unverändert.
 
 - [ ] **4 — Die vier Playwright-Specs.** In jeder den Dev-Login um `PORTAL_ADMIN_GRUPPE` erweitern —
@@ -1045,7 +1045,7 @@ zu eine Stunde (`CLAUDE.md`, „Zugriffsschutz"). Eine offene Sitzung misst den 
       Koordinationsflächen für die, die in der Koordinationsgruppe stehen (K-L5); normale
       Personenansicht für die anderen. ⚠️ **Der teuerste Fall dieses Plans:** hier hängt nicht eine
       Seite, sondern Verteilen, Personenverwaltung, Freigaben und der Einstieg auf `/` an **einem**
-      Wert (`.env.example:348-365`).
+      Wert (`.env.example:366-383`).
       **Ergebnis, je Person:** ⬜ ______
 - [ ] **B8 — Die vier unberührten Module gegenprüfen.** Je ein Verwaltungsaufruf in `feedback`,
       `files`, `lagerbuch` und (sobald vorhanden) `radio` mit einem Konto, das dort berechtigt ist.

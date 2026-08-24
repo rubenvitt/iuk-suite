@@ -142,8 +142,8 @@ describe("istRadioAdmin — das Praedikat", () => {
      * ⛔ DIE NAHT FUER PLANTEIL 4, ALS RIEGEL FORMULIERT (Betreiberentscheidung C.6 / B4,
      * 2026-08-21: zwei Rollen wie im Bestand).
      *
-     * Planteil 4 baut die Updater-Stufe in `_lib/rollen.ts` (Spec:4420-4422), lesend aus
-     * SUITE_UPDATER_GROUP_RADIO. Der naheliegende, falsche Weg dorthin ist, die Gruppe
+     * Planteil 4 baut die FELD-ALLOWLIST in `_lib/rollen.ts` (V2, gebaut), die
+     * GRUPPENQUELLE SUITE_UPDATER_GROUP_RADIO dagegen in DIESE Datei (V3). Falsch waere, sie
      * HIER mit `||` danebenzustellen — das saehe nach „zwei Rollen" aus und waere eine
      * AUFWEICHUNG: jeder Updater kaeme durch jeden Admin-Riegel, und typecheck, lint und
      * build blieben alle drei gruen.

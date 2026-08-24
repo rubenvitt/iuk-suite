@@ -131,9 +131,9 @@ export async function viewerOderNull(): Promise<RadioViewer | null> {
  * in diesem Kommentar wenige Zeilen tiefer, an der GRUPPENQUELLE.
  *
  * ⚠️ ZWEI DINGE, DIE MAN LEICHT VERWECHSELT, UND DIE SPEC TRENNT SIE:
- *   - die GRUPPENQUELLE `SUITE_UPDATER_GROUP_RADIO` samt Feld-Allowlist liegt in einer
- *     EIGENEN Datei mit eigenem Test — `_lib/rollen.ts` / `_lib/rollen.test.ts`
- *     (Spec:4420-4422). Das ist Planteil 4.
+ *   - die FELD-ALLOWLIST liegt in einer EIGENEN Datei mit eigenem Test (`_lib/rollen.ts` /
+ *     `_lib/rollen.test.ts`, gebaut in Planteil 4 / V2). ⚠️ Die GRUPPENQUELLE dagegen kommt
+ *     HIERHER, nicht dorthin — Grund gemessen in `_lib/rollen.ts:7-19`; Spec:4420-4422.
  *   - der ZUGRIFFSRIEGEL beider Stufen liegt in DIESER Datei: Spec:4287-4288 fuehrt
  *     `requireRadioAdmin` UND `requireRadioVerwaltung` (werfend) sowie `istRadioAdmin`
  *     UND `istRadioUpdater` (Praedikate) unter `zugang.ts`. Planteil 4 traegt sie HIER

@@ -28,10 +28,18 @@ const ROLLEN_QUELLE = "src/app/m/radio/_lib/rollen.ts";
  *
  * FUENF Felder, davon ZWEI ausserhalb der Allowlist (`issi`, `notes`) — beides Feldnamen des
  * Bestands (`radio-admin/shared/src/schemas.ts:50-99`).
+ *
+ * ⚠️ `lastUpdatedAt` IST EINE ZAHL, KEINE DATUMSZEICHENKETTE — der Bestand fuehrt das Feld als
+ * `z.number().int().nullable().optional()` (`radio-admin/shared/src/schemas.ts:87`, gleiche
+ * Form im Anlege-Schema `:61`). ⛔ OHNE WIRKUNG AUF DIESEN TEST, und deshalb steht der Grund
+ * hier: `filterSchreibbareFelder` ist generisch ueber `Record<string, unknown>` und sieht den
+ * Typ nie — die Zahl steht da fuer den NAECHSTEN, der die Fixture uebernimmt (V10 schreibt
+ * gegen dieses Feld). ⛔ WELCHE EINHEIT sie traegt, behauptet dieser Test NICHT: der Wert ist
+ * ein Fixture-Platzhalter, keine Messung am Bestand.
  */
 const PATCH_FUENF = {
   softwareVersion: "wert-software",
-  lastUpdatedAt: "2026-08-24",
+  lastUpdatedAt: 1234567890,
   status: "wert-status",
   issi: "wert-issi",
   notes: "wert-notiz",
@@ -83,7 +91,7 @@ describe("filterSchreibbareFelder", () => {
     const ergebnis = filterSchreibbareFelder("updater", PATCH_FUENF);
     expect(ergebnis).toEqual({
       softwareVersion: "wert-software",
-      lastUpdatedAt: "2026-08-24",
+      lastUpdatedAt: 1234567890,
       status: "wert-status",
     });
   });
@@ -153,13 +161,24 @@ describe("Bauform", () => {
      * der Zug in das Client-Bundle waere derselbe. Deshalb traegt diese Datei GAR KEINEN
      * Import. ⚠️ Wer hier spaeter einen Typ braucht, deklariert ihn in `rollen.ts`, statt
      * ihn zu holen.
+     *
+     * ⛔ DIE WORTGRENZE `\b` IST GEMESSEN, NICHT GEWAEHLT (Fix-Runde 1 zu REVIEW-V2, Fund 3).
+     * Beide engeren Formen sind an derselben Sonde gruen geblieben, mit der Zeile
+     * `import*as ns from"node:path";` als erster Zeile von `rollen.ts`:
+     *   - `/^\s*import\s/m` verlangt Leerraum hinter dem Wort: blind fuer die geschweifte
+     *     Form (REVIEW-V2, Sonde M10) und hier gemessen blind fuer `import*as` — `6 passed (6)`.
+     *   - `/^\s*import[\s{("']/m` (der Vorschlag der Kritik) schliesst die geschweifte Form,
+     *     verfehlt aber weiter den Namensraum-Import `import*as` — gemessen `6 passed (6)`.
+     *   - `/^\s*import\b/m` faengt ihn: gemessen `1 failed | 5 passed (6)`.
+     * ⚠️ `\b` OEFFNET NICHTS NACH UNTEN: `importiert` und `import_x` tragen an derselben
+     * Stelle ein Wortzeichen, dort gibt es keine Grenze — beide bleiben unbeanstandet.
      */
     const quelle = readFileSync(ROLLEN_QUELLE, "utf8");
     expect(quelle, "die Gruppenquelle gehoert nach _lib/zugang.ts (V3)").not.toContain(
       "process.env",
     );
     expect(quelle, "diese Datei traegt keinen Import — auch keinen Typimport").not.toMatch(
-      /^\s*import\s/m,
+      /^\s*import\b/m,
     );
   });
 });
