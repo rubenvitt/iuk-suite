@@ -194,10 +194,10 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
    * erzeugte still weniger Faelle. `toEqual` ueber der Liste ist zugleich der Waechter ueber
    * die REIHENFOLGE aus `Spec:4199-4202` — es vergleicht stellungsgenau.
    *
-   * ⛔ DIE TAFEL IST EINE ZWEITSCHRIFT, UND SIE MUSS ES SEIN. Ein Fall, der seine Erwartung
-   * aus `_lib/nav.ts` ableitete, bewachte nichts. Die Quelle ist die Tafel des Auftrags
-   * (`.superpowers/sdd/planteil4/briefs/V4.md`, Abschnitt „Die sieben Eintraege") und
-   * `Spec:4199-4202`.
+   * ⛔ DIE TAFEL IST EINE ZWEITSCHRIFT, UND SIE MUSS ES SEIN. Ein Fall, der seine Erwartung aus
+   * `_lib/nav.ts` ableitete, bewachte nichts. Quelle fuer Titel, Ziel, Zeichen und Reihenfolge:
+   * `.superpowers/sdd/planteil4/briefs/V4.md:19-27` und `Spec:4199-4202`. ⚠️ AUSGENOMMEN `key`:
+   * keine der beiden fuehrt Schluessel — die erste Spalte ist Abschrift aus `_lib/nav.ts:60-82`.
    *
    * ⚠️ DIE TITEL TRAGEN IHRE UMLAUTE: es sind Bildschirmtexte, keine Bezeichner — die
    * ausdrueckliche Ausnahme der Hausregel (`.superpowers/sdd/planteil4/briefs/KOPF.md:259-261`),
