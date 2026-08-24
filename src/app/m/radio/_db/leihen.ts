@@ -1,5 +1,5 @@
 // src/app/m/radio/_db/leihen.ts
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNull, lte, sql, type SQL } from "drizzle-orm";
 import type { DB } from "./client";
 import { devices, loans } from "./schema";
 import { datumMitUhrzeit, uhrzeit } from "../_lib/anzeige";
@@ -19,7 +19,7 @@ import {
 import { geraeteZustandAus, type GeraeteStatus } from "../_lib/status";
 
 /**
- * DIE FUENF LESE- UND SCHREIBPFADE DER AUSLEIHE (Spec 1 §6.1,
+ * DIE SECHS LESE- UND SCHREIBPFADE DER AUSLEIHE UND DER VERWALTUNG (Spec 1 §6.1,
  * `docs/superpowers/specs/2026-08-17-radio-modul-design.md:5014-5027`; Feldform §4.12 Nr. 6,
  * `:4082-4088`). Sie ersetzen die sechs `/v1`-Routen des Alt-Masters durch Drizzle-Aufrufe
  * IM SELBEN PROZESS.
@@ -38,9 +38,12 @@ import { geraeteZustandAus, type GeraeteStatus } from "../_lib/status";
  * (`src/app/m/radio/_db/client.ts:26`), und ein Alias dafuer waere ein zweiter Name fuer
  * dieselbe Sache.
  *
- * ⛔ DIE SECHSTE FUNKTION `leihhistorie` STEHT HIER NICHT. Sie speist ausschliesslich die
- * Verwaltungsansicht `/admin/ausleihen` (Spec:5024) und gehoert Planteil 4 (Entscheidung E2,
- * `.superpowers/sdd/planteil3/briefs/KOPF.md:539-542`).
+ * ✅ DIE SECHSTE FUNKTION `leihhistorie` STEHT SEIT AUFGABE V1 (Planteil 4) HIER, UNTEN IN
+ * DIESER DATEI. Sie speist ausschliesslich die Verwaltungsansicht `/admin/ausleihen`
+ * (Spec:5024). Mit ihr ist Bauabschnitt B der Reihenfolge-Auflage geschlossen (Spec:5441-5486):
+ * ALLE SECHS Ersatzfunktionen sind Drizzle-Aufrufe im selben Prozess, keine fuenf. ⛔ SIE LIEGT
+ * IN DIESER DATEI UND NICHT IN EINER ZWEITEN (NS-A1) — eine zweite Datei haette die
+ * Prosa-Sperre unten nicht getragen und den Feldsatz ein zweites Mal deklariert.
  *
  * ⛔ DER GESTRICHENE AUSFALL-PUFFER — DIE STREICHUNG IST EINE ENTSCHEIDUNG, KEINE
  * AUSLASSUNG (Spec:5410-5415, Auflage 6). Der Alt-Kiosk hielt seinen Geraete-Cache nach dem
@@ -687,4 +690,216 @@ export function bucheRueckgabe(
     // RUECKGABE nicht gespeichert ist (`_lib/meldungen.ts:489-494`).
     return rueckgabeAblehnung({ grund: "unbekannt" });
   }
+}
+
+/**
+ * ⛔ DIE GRENZEN STEHEN AUF `borrowedAt`, NICHT AUF `returnedAt` (`radio-admin/server/src/repos/loanRepo.ts:140-141`).
+ * Eine Leihe, die VOR dem Fenster ausgeliehen und IM Fenster zurueckgegeben wurde, faellt
+ * heraus — das ist die haeufigste Verwechslung dieser Signatur und hat einen eigenen Fall
+ * (`_db/leihen.test.ts`, „filtert auf ein Zeitfenster ueber borrowedAt, nicht ueber returnedAt").
+ *
+ * ⛔ `Date`, NICHT `number` — und der Grund ist eine Einheitengrenze, die es hier gar nicht
+ * erst geben soll. In der Quelle sind `from`/`to` epoch-MILLISEKUNDEN
+ * (`radio-admin/shared/src/loan.ts:95-96`), im Ziel ist `loans.borrowed_at`
+ * `integer(..., { mode: "timestamp" })` (`_db/schema.ts:218`), wo Drizzle ein `Date` nimmt und
+ * gibt. Dieselbe Wahl wie B16 fuer den Importer (Spec:105): „`sekundenAusMs` liefert eine Zahl,
+ * und eine Zahl ist in eine `mode: "timestamp"`-Spalte nicht einfuegbar." Damit steht der
+ * Faktor nirgends im Ausdruck, weil er nirgends gebraucht wird.
+ *
+ * ⚠️ `geraeteId` WIRKT AUF WAHRHEIT, NICHT AUF `!== undefined` — 1:1 aus `loanRepo.ts:139`
+ * (`if (params.deviceId)`), wo das Schema die leere Zeichenkette ohnehin ausschliesst
+ * (`loan.ts:94`, `min(1)`). Eine leere Id filtert also nicht, statt nichts zu finden.
+ *
+ * ⛔ `seite` UND `seitenGroesse` SIND ZAHLEN, KEINE ZEICHENKETTEN — der Aufrufer faltet, bevor
+ * er ruft. Der Aufrufer ist der Lesepfad aus Aufgabe V7, und dort kommen die zwei Werte aus
+ * einem Suchparameter, also aus einer Zeichenkette. ⚠️ WAS EIN UNBRAUCHBARER WERT HIER TUT, IST
+ * GEMESSEN UND NICHT VERMUTET (Sonde dieser Aufgabe, 2026-08-24, `BERICHT-V1.md`): vor der
+ * Faltung unten lieferte `Number("zwei")` einen `NaN`-Deckel, better-sqlite3 band ihn als NULL,
+ * und SQLite liest `LIMIT NULL` als KEINE GRENZE — die Antwort trug ALLE Zeilen der gefilterten
+ * Menge in einer einzigen Seite. Deshalb faengt `ganzzahlOderVorgabe` unten den Fall, statt ihn
+ * dem Aufrufer zu ueberlassen: „eine Regel, die nur im Client steht, ist keine Regel"
+ * (Spec:3583-3585).
+ */
+export type LeihhistorieFilter = {
+  geraeteId?: string;
+  von?: Date;
+  bis?: Date;
+  /** 1-basiert. Vorgabe `SEITE_VORGABE`; kleinere Werte werden auf 1 gehoben. */
+  seite: number;
+  /** Vorgabe `SEITENGROESSE_VORGABE`, Deckel `SEITENGROESSE_MAX`. */
+  seitenGroesse: number;
+};
+
+/**
+ * Eine Zeile der Verwaltungs-Ausleihenliste — die acht Felder, die `LoanList.tsx:15-47`
+ * anzeigt, in der Form, die ueber die RSC-Grenze darf.
+ *
+ * ⛔ `rufname` UND `geraetetyp` KOMMEN AUS DEM SCHNAPPSCHUSS, NICHT AUS `devices`
+ * (`_db/schema.ts:196-202`): „Die historische Richtigkeit traegt der unveraenderliche
+ * Anzeige-Schnappschuss, der beim Ausleihen kopiert wird, nicht ein lebender Join. Ein
+ * zusaetzlicher FK waere gueltiges Drizzle, gueltiges SQL und PARITAETSGRUEN; der Schaden
+ * entstuende Monate spaeter, bei der ersten Geraeteausmusterung." Dieselbe Haltung wie bei
+ * `offeneAusleihen` oben.
+ *
+ * ⛔ `ausgeliehenText` UND `zurueckText` SIND FERTIGE ZEICHENKETTEN, KEIN `Date` (§4.1 Punkt 1,
+ * Spec:3338-3342): was an einer Uhr haengt, entsteht auf dem Server — sonst entscheiden Server
+ * und Client an der Tagesgrenze verschieden, und gegen die Zone des Endgeraets systematisch.
+ *
+ * ⚠️ `geraetetyp` UND `notiz` BLEIBEN `null`, SIE WERDEN HIER NICHT AUF EINEN STRICH GEFALTET.
+ * Der Alt-Bestand faltet alle drei Leerwerte an derselben Stelle (`LoanList.tsx:21`, `:44`:
+ * `render: (v) => v || '—'`) — hier faellt nur `zurueckText` darunter, weil er als einziger
+ * ein `string` ist und seine Faltung eine ZEITFORMATIERUNG ist, die auf den Server gehoert
+ * (`formatTimestamp(null)` in `radio-admin/client/src/utils/format.ts:2-4` tut beides in einer
+ * Funktion). Die zwei uebrigen Striche sind reine Darstellung und gehoeren in die Insel.
+ */
+export type LeihZeile = {
+  id: string;
+  rufname: string;
+  geraetetyp: string | null;
+  entleiher: string;
+  ausgeliehenText: string;
+  zurueckText: string;
+  aktiv: boolean;
+  notiz: string | null;
+};
+
+/** Der Umschlag, 1:1 aus `ListLoansResult` (`loanRepo.ts:159`: `{ rows, total, page, pageSize }`). */
+export type LeihhistorieSeite = {
+  zeilen: LeihZeile[];
+  gesamt: number;
+  /** ⛔ DER GEHOBENE Wert, nicht der hereingereichte — siehe `leihhistorie`. */
+  seite: number;
+  /** ⛔ DER GEDECKELTE Wert, nicht der hereingereichte — siehe `leihhistorie`. */
+  seitenGroesse: number;
+};
+
+/** Die erste Seite. `loan.ts:97` (`default(1)`), zugleich die Untergrenze der Hebung. */
+export const SEITE_VORGABE = 1;
+
+/**
+ * Die Vorgabe-Seitengroesse. `radio-admin/shared/src/loan.ts:98` (`default(25)`).
+ *
+ * ⚠️ SIE STEHT HIER UND NUR HIER. Die Alt-Verwaltungsflaeche setzt daneben ihre eigene 20
+ * (`LoanList.tsx:8`, `PAGE_SIZE`) und schickt sie mit (`useLoans.ts:18-23`) — die 25 ist die
+ * Vorgabe des Servers fuer jeden Aufrufer, der KEINE schickt. Wer die 20 der Flaeche will,
+ * reicht sie durch; eine zweite Zahl an einer zweiten Stelle laeuft auseinander.
+ */
+export const SEITENGROESSE_VORGABE = 25;
+
+/**
+ * Der Deckel der Seitengroesse. `radio-admin/shared/src/loan.ts:98` (`.max(1000)`), mit der
+ * Begruendung woertlich an `loan.ts:89-91`: „The page-size ceiling matches radio-inventar's
+ * existing history page size (1000) so the thin-client consumer is never rejected."
+ */
+export const SEITENGROESSE_MAX = 1000;
+
+/**
+ * Die Leerwert-Darstellung einer noch nicht erfolgten Rueckgabe. 1:1 aus `formatTimestamp`
+ * (`radio-admin/client/src/utils/format.ts:2-4`: `if (!ms) return '—';`), das die Alt-Liste an
+ * genau dieser Spalte ruft (`LoanList.tsx:34`).
+ *
+ * ⚠️ SIE STEHT HIER UND NICHT IN DER INSEL, weil sie an derselben Stelle entsteht wie die
+ * Zeitformatierung daneben — `zurueckText` ist ein `string`, kein `string | null`, und ein
+ * Aufrufer, der ihn ungeprueft anzeigt, bekommt nie ein leeres Feld. ⛔ FUER `geraetetyp` UND
+ * `notiz` GILT DAS NICHT: die bleiben `null` und werden in der Flaeche gefaltet.
+ */
+const ZURUECK_OFFEN = "—";
+
+/**
+ * Ein Zahlenwert des Aufrufers, auf eine brauchbare Ganzzahl gebracht.
+ *
+ * ⛔ DER RUECKFALL IST DIE VORGABE, NICHT NULL UND NICHT DER ROHE WERT. `Math.trunc(NaN)` ist
+ * `NaN`, `Math.max(1, NaN)` ebenfalls — die ganze Deckelkette laesst einen `NaN` unveraendert
+ * durch, und das Ergebnis ist GEMESSEN eine unbegrenzte Abfrage (siehe `LeihhistorieFilter`
+ * oben). Der Bestand loest dasselbe eine Ebene hoeher, mit `z.coerce.number().int().default(...)`
+ * (`radio-admin/shared/src/loan.ts:97-98`); diese Ebene gibt es hier nicht mehr, also steht die
+ * Faltung hier.
+ */
+function ganzzahlOderVorgabe(wert: number, vorgabe: number): number {
+  return Number.isFinite(wert) ? Math.trunc(wert) : vorgabe;
+}
+
+/**
+ * DIE LEIHHISTORIE DER VERWALTUNG — die SECHSTE und letzte Ersatzfunktion (Spec:5024,
+ * Entscheidung E-V10). Mit ihr ist Bauabschnitt B der Reihenfolge-Auflage geschlossen
+ * (Spec:5441-5486).
+ *
+ * ⛔ SIE ERSETZT ZWEI ALT-WEGE AUF EINMAL, und darum traegt sie den VOLLEN Vertrag, obwohl die
+ * Alt-Verwaltungsflaeche heute nur `page`/`pageSize` schickt (`useLoans.ts:18-23`): der
+ * Alt-Kiosk und die Alt-Verwaltung rufen DIESELBE Repo-Funktion `listLoans` mit DEMSELBEN
+ * Schema (`radio-admin/server/src/routes/loans.ts:19-21` gegen
+ * `radio-admin/server/src/routes/loanApi.ts:140-144`). Eine auf zwei Parameter verkuerzte
+ * Signatur haette den Rest still verloren.
+ *
+ * ⛔ DAS FENSTER IST „AKTIV UND ZURUECKGEGEBEN" (`loanRepo.ts:136`) — anders als
+ * `offeneAusleihen` oben, das auf `returned_at IS NULL` steht. Und ⛔ LESEN PURGT NICHT: die
+ * Retention ist ein Job (`_lib/boot.ts:62`, `raeumeLeihhistorie`), kein Nebeneffekt eines
+ * Lesepfads.
+ *
+ * ⛔ SORTIERT WIRD IMMER `desc(loans.borrowedAt)`, OHNE PARAMETER (`loanRepo.ts:153`). Eine
+ * Sortierwahl waere eine Erweiterung ueber den Bestand hinaus und gehoert nicht in einen
+ * 1:1-Posten.
+ *
+ * ⚠️ BENANNTE ABWEICHUNG VOM BESTAND: `seite` und `seitenGroesse` werden GEDECKELT UND
+ * GEHOBEN, nicht abgelehnt. Der Bestand prueft sie in zod (`radio-admin/shared/src/loan.ts:97-98`,
+ * `min(1)`/`max(1000)`), und zod WIRFT — die Route antwortet 400. Diese Funktion hat keinen
+ * Antwortweg, auf dem ein 400 ankaeme: sie wird aus einer Server Component gerufen, wo ein
+ * Wurf die ganze Seite kostet, und die zwei Zahlen kommen aus einem Suchparameter, den jeder
+ * Mensch von Hand veraendern kann. Die angenommene Menge ist dieselbe wie im Bestand; nur
+ * ausserhalb davon antwortet dieses Modul mit der naechsten gueltigen Seite statt mit einem
+ * Fehler. ⛔ DER GEDECKELTE WERT GEHT ZURUECK IN DEN UMSCHLAG, und zwar als DIESELBE Variable,
+ * die als `limit` in die Abfrage geht — sonst zeigte die Blaetterung der Flaeche eine andere
+ * Zahl an, als die Abfrage benutzt hat.
+ */
+export function leihhistorie(db: DB, f: LeihhistorieFilter): LeihhistorieSeite {
+  const seite = Math.max(SEITE_VORGABE, ganzzahlOderVorgabe(f.seite, SEITE_VORGABE));
+  const seitenGroesse = Math.min(
+    SEITENGROESSE_MAX,
+    Math.max(1, ganzzahlOderVorgabe(f.seitenGroesse, SEITENGROESSE_VORGABE)),
+  );
+
+  // Jede Bedingung einzeln und nur, wenn sie gesetzt ist — 1:1 aus `loanRepo.ts:137-142`.
+  const bedingungen: SQL[] = [];
+  if (f.geraeteId) bedingungen.push(eq(loans.deviceId, f.geraeteId));
+  if (f.von !== undefined) bedingungen.push(gte(loans.borrowedAt, f.von));
+  if (f.bis !== undefined) bedingungen.push(lte(loans.borrowedAt, f.bis));
+  const wo = bedingungen.length > 0 ? and(...bedingungen) : undefined;
+
+  // ⛔ DASSELBE `where` WIE DIE ZEILENABFRAGE (`loanRepo.ts:146`). `gesamt` zaehlt die
+  // GEFILTERTE Menge, nicht die Seite und nicht die Tabelle — die Blaetterung der Flaeche
+  // haengt an dieser Zahl.
+  const gesamtZeile = db.select({ anzahl: count() }).from(loans).where(wo).get();
+
+  const zeilen = db
+    .select({
+      id: loans.id,
+      // Der unveraenderliche Anzeige-Schnappschuss, kein Join auf `devices`.
+      rufname: loans.snapshotCallSign,
+      geraetetyp: loans.snapshotDeviceType,
+      entleiher: loans.borrowerName,
+      ausgeliehen: loans.borrowedAt,
+      zurueck: loans.returnedAt,
+      notiz: loans.returnNote,
+    })
+    .from(loans)
+    .where(wo)
+    .orderBy(desc(loans.borrowedAt))
+    .limit(seitenGroesse)
+    .offset((seite - SEITE_VORGABE) * seitenGroesse)
+    .all()
+    .map((z) => ({
+      id: z.id,
+      rufname: z.rufname,
+      geraetetyp: z.geraetetyp,
+      entleiher: z.entleiher,
+      ausgeliehenText: datumMitUhrzeit(z.ausgeliehen),
+      // ⛔ `aktiv` IST GENAU `returnedAt === null` (`LoanList.tsx:11-13`, woertlich „derived
+      // purely from `returnedAt`") — nie die Spalte `devices.status` und nie ein zweiter
+      // Zustandsbegriff.
+      zurueckText: z.zurueck === null ? ZURUECK_OFFEN : datumMitUhrzeit(z.zurueck),
+      aktiv: z.zurueck === null,
+      notiz: z.notiz,
+    }));
+
+  return { zeilen, gesamt: gesamtZeile?.anzahl ?? 0, seite, seitenGroesse };
 }

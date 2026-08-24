@@ -18,6 +18,7 @@ import {
   sucheEntleiher,
   bucheAusleihe,
   bucheRueckgabe,
+  leihhistorie,
 } from "./leihen";
 
 /**
@@ -1011,6 +1012,335 @@ describe("radio-leihen: WAL und busy_timeout — der Ersatz fuer den gestrichene
       schreiber.close();
       sofort.close();
       geduldig.close();
+    }
+  });
+});
+
+/**
+ * Die Vergleichszeitpunkte der Historie-Faelle. `AUSGELIEHEN_AM` oben ist der 14.06.2026;
+ * diese liegen davor und danach, damit die Fenstergrenzen etwas zu schneiden haben.
+ */
+const HISTORIE_FRUEH = new Date("2026-06-01T07:12:00Z");
+const HISTORIE_SPAET = new Date("2026-06-20T07:12:00Z");
+const HISTORIE_RUECKGABE = new Date("2026-06-15T07:12:00Z");
+const HISTORIE_RUECKGABE_TEXT = "15.06.2026, 09:12";
+/** Das Fenster der Zeitfenster-Faelle: 10.06.2026 bis 18.06.2026. */
+const FENSTER_VON = new Date("2026-06-10T00:00:00Z");
+const FENSTER_BIS = new Date("2026-06-18T00:00:00Z");
+
+/** Der exakte Feldsatz einer Historienzeile (Vertrag E-V10, `briefs/V1.md`). */
+const FELDER_LEIHZEILE = [
+  "id",
+  "rufname",
+  "geraetetyp",
+  "entleiher",
+  "ausgeliehenText",
+  "zurueckText",
+  "aktiv",
+  "notiz",
+];
+
+describe("radio-leihen: die Leihhistorie der Verwaltung", () => {
+  it("liefert aktive und zurueckgegebene Leihen in einer Seite", () => {
+    /*
+     * ⛔ DAS FENSTER IST „aktiv UND zurueckgegeben", 1:1 aus `listLoans`
+     * (`radio-admin/server/src/repos/loanRepo.ts:136`, woertlich „Paginated loan list
+     * (active + returned)"). Der Fall braucht BEIDE Sorten in der Fixture — ueber einer
+     * einseitigen Menge waere er auch dann gruen, wenn jemand `isNull(loans.returnedAt)`
+     * aus `offeneAusleihen` hierher abschriebe.
+     *
+     * ⛔ UND LESEN PURGT NICHT: die Retention ist ein Job (`_lib/boot.ts:62`,
+     * `raeumeLeihhistorie`), kein Nebeneffekt dieses Lesepfads.
+     */
+    geraet({ id: "h-1", issi: "3000001" });
+    geraet({ id: "h-2", issi: "3000002" });
+    leihe({ deviceId: "h-1", borrowerName: "Aktiv Anna" });
+    leihe({ deviceId: "h-2", borrowerName: "Zurueck Zita", returnedAt: HISTORIE_RUECKGABE });
+
+    const seite = leihhistorie(db, { seite: 1, seitenGroesse: 25 });
+    expect(seite.zeilen.map((z) => z.entleiher).sort()).toEqual(["Aktiv Anna", "Zurueck Zita"]);
+    expect(seite.gesamt).toBe(2);
+  });
+
+  it("sortiert neueste Ausleihe zuerst", () => {
+    /*
+     * `desc(loans.borrowedAt)`, IMMER und ohne Parameter (`loanRepo.ts:153`). Die
+     * Einfuegereihenfolge ist ABSICHTLICH verwuerfelt (Mitte, spaet, frueh): ueber einer
+     * bereits geordneten Fixture bliebe der Fall auch ohne jedes `ORDER BY` gruen, weil
+     * SQLite die Einfuegereihenfolge dann zufaellig richtig zurueckgibt.
+     */
+    geraet({ id: "h-a", issi: "3100001" });
+    geraet({ id: "h-b", issi: "3100002" });
+    geraet({ id: "h-c", issi: "3100003" });
+    leihe({ deviceId: "h-a", borrowerName: "Mitte", borrowedAt: AUSGELIEHEN_AM });
+    leihe({ deviceId: "h-b", borrowerName: "Spaet", borrowedAt: HISTORIE_SPAET });
+    leihe({ deviceId: "h-c", borrowerName: "Frueh", borrowedAt: HISTORIE_FRUEH });
+
+    const seite = leihhistorie(db, { seite: 1, seitenGroesse: 25 });
+    expect(seite.zeilen.map((z) => z.entleiher)).toEqual(["Spaet", "Mitte", "Frueh"]);
+  });
+
+  it("filtert auf eine Geraete-Id", () => {
+    /*
+     * `eq(loans.deviceId, ...)` (`loanRepo.ts:139`). Die Fixture fuehrt ZWEI Geraete —
+     * ueber einem einzigen waere ein wirkungsloser Filter nicht von einem wirksamen zu
+     * unterscheiden.
+     */
+    geraet({ id: "h-ziel", issi: "3200001" });
+    geraet({ id: "h-fremd", issi: "3200002" });
+    leihe({
+      deviceId: "h-ziel",
+      borrowerName: "Ziel Zwei",
+      borrowedAt: HISTORIE_FRUEH,
+      returnedAt: HISTORIE_RUECKGABE,
+    });
+    leihe({ deviceId: "h-ziel", borrowerName: "Ziel Eins" });
+    leihe({ deviceId: "h-fremd", borrowerName: "Fremd Frida" });
+
+    const seite = leihhistorie(db, { geraeteId: "h-ziel", seite: 1, seitenGroesse: 25 });
+    expect(seite.zeilen.map((z) => z.entleiher)).toEqual(["Ziel Eins", "Ziel Zwei"]);
+    expect(seite.gesamt).toBe(2);
+  });
+
+  it("filtert auf ein Zeitfenster ueber borrowedAt, nicht ueber returnedAt", () => {
+    /*
+     * ⛔ DER FALL, DER DIE HAEUFIGSTE VERWECHSLUNG FAENGT (`loanRepo.ts:140-141`: `gte`/`lte`
+     * stehen auf `borrowedAt`). „Rand Rita" liegt mit ihrer AUSLEIHE ausserhalb und mit ihrer
+     * RUECKGABE innerhalb des Fensters — sie faellt heraus. Haengte jemand die zwei Grenzen
+     * an `returnedAt`, kaeme sie herein und „Innen Ida" (returnedAt NULL, also weder groesser
+     * noch kleiner) fiele heraus.
+     *
+     * ⛔ UND DIE ZWEI AUSGESCHLOSSENEN ZEILEN WERDEN NAMENTLICH GEPRUEFT, nicht nur die
+     * eingeschlossene: ein Fenster, das alle Zeilen umspannt, kann einen Einheitenfehler
+     * (Sekunden gegen Millisekunden) nicht von einem richtigen Vergleich unterscheiden.
+     */
+    geraet({ id: "h-innen", issi: "3300001" });
+    geraet({ id: "h-rand", issi: "3300002" });
+    geraet({ id: "h-spaet", issi: "3300003" });
+    leihe({ deviceId: "h-innen", borrowerName: "Innen Ida" });
+    leihe({
+      deviceId: "h-rand",
+      borrowerName: "Rand Rita",
+      borrowedAt: HISTORIE_FRUEH,
+      returnedAt: HISTORIE_RUECKGABE,
+    });
+    leihe({ deviceId: "h-spaet", borrowerName: "Spaet Sina", borrowedAt: HISTORIE_SPAET });
+
+    const seite = leihhistorie(db, {
+      von: FENSTER_VON,
+      bis: FENSTER_BIS,
+      seite: 1,
+      seitenGroesse: 25,
+    });
+    const namen = seite.zeilen.map((z) => z.entleiher);
+    expect(namen, "die Ausleihe im Fenster fehlt").toContain("Innen Ida");
+    expect(namen, "eine Leihe mit Ausleihe VOR dem Fenster ist hereingerutscht").not.toContain(
+      "Rand Rita",
+    );
+    expect(namen, "eine Leihe mit Ausleihe NACH dem Fenster ist hereingerutscht").not.toContain(
+      "Spaet Sina",
+    );
+    expect(seite.gesamt).toBe(1);
+  });
+
+  it("gesamt zaehlt ueber die gefilterte Menge, nicht ueber die Seite", () => {
+    /*
+     * `count()` mit DEMSELBEN `where` wie die Zeilenabfrage (`loanRepo.ts:146`). Die Fixture
+     * prueft beide Haelften auf einmal: fuenf Zeilen insgesamt, drei nach dem Filter, zwei
+     * auf der Seite. `gesamt` ist damit weder 5 (Filter vergessen) noch 2 (ueber die Seite
+     * gezaehlt).
+     */
+    geraet({ id: "h-z", issi: "3400001" });
+    geraet({ id: "h-fremd", issi: "3400002" });
+    leihe({
+      deviceId: "h-z",
+      borrowerName: "Zaehl Eins",
+      borrowedAt: HISTORIE_SPAET,
+      returnedAt: HISTORIE_SPAET,
+    });
+    leihe({
+      deviceId: "h-z",
+      borrowerName: "Zaehl Zwei",
+      borrowedAt: AUSGELIEHEN_AM,
+      returnedAt: HISTORIE_RUECKGABE,
+    });
+    leihe({ deviceId: "h-z", borrowerName: "Zaehl Drei", borrowedAt: HISTORIE_FRUEH });
+    leihe({
+      deviceId: "h-fremd",
+      borrowerName: "Fremd Eins",
+      borrowedAt: HISTORIE_FRUEH,
+      returnedAt: HISTORIE_RUECKGABE,
+    });
+    leihe({ deviceId: "h-fremd", borrowerName: "Fremd Zwei" });
+
+    const seite = leihhistorie(db, { geraeteId: "h-z", seite: 1, seitenGroesse: 2 });
+    expect(seite.zeilen.map((z) => z.entleiher)).toEqual(["Zaehl Eins", "Zaehl Zwei"]);
+    expect(seite.gesamt, "gesamt zaehlt die Seite oder die ungefilterte Menge").toBe(3);
+  });
+
+  it("seitenGroesse ueber 1000 wird auf 1000 gedeckelt", () => {
+    /*
+     * ⛔ DER DECKEL STEHT SERVERSEITIG, NICHT IM AUFRUFER (`radio-admin/shared/src/loan.ts:98`,
+     * `.max(1000)`). Beobachtbar ist er am UMSCHLAG: `leihhistorie` gibt den gedeckelten Wert
+     * zurueck, nicht den hereingereichten — und derselbe Wert ist es, der als `limit` in die
+     * Abfrage geht (EINE Variable, kein zweiter Ort). Eine Fixture mit 1001 Zeilen waere die
+     * einzige andere Beobachtung und kostete Sekunden je Lauf.
+     *
+     * ⚠️ BENANNTE ABWEICHUNG: der Bestand LEHNT AB (zods `.max` wirft, die Route antwortet
+     * 400), dieses Modul DECKELT. Der Grund steht an der Deckelung selbst in `leihen.ts`.
+     */
+    geraet({ id: "h-deckel", issi: "3500001" });
+    leihe({ deviceId: "h-deckel" });
+
+    const seite = leihhistorie(db, { seite: 1, seitenGroesse: 5000 });
+    expect(seite.seitenGroesse, "der Deckel 1000 steht nicht serverseitig").toBe(1000);
+  });
+
+  it("seitenGroesse unter 1 und seite unter 1 werden auf 1 gehoben", () => {
+    /*
+     * `min(1)` auf beiden (`radio-admin/shared/src/loan.ts:97-98`). Der Fall prueft nicht nur
+     * den Umschlag, sondern auch die WIRKUNG: mit einer ungehobenen `seitenGroesse` von 0
+     * liefert SQLite `LIMIT 0` — also NULL Zeilen statt der einen neuesten.
+     */
+    geraet({ id: "h-u1", issi: "3600001" });
+    geraet({ id: "h-u2", issi: "3600002" });
+    leihe({ deviceId: "h-u1", borrowerName: "Neu Nora", borrowedAt: HISTORIE_SPAET });
+    leihe({ deviceId: "h-u2", borrowerName: "Alt Alma", borrowedAt: HISTORIE_FRUEH });
+
+    const seite = leihhistorie(db, { seite: 0, seitenGroesse: 0 });
+    expect(seite.seite).toBe(1);
+    expect(seite.seitenGroesse).toBe(1);
+    expect(seite.zeilen.map((z) => z.entleiher)).toEqual(["Neu Nora"]);
+    expect(seite.gesamt).toBe(2);
+  });
+
+  it("faellt bei einem unbrauchbaren Zahlenwert auf die Vorgabe zurueck, nicht auf eine unbegrenzte Abfrage", () => {
+    /*
+     * ⛔ ABWEICHUNG VOM BRIEF, WEIL DER GEMESSENE AUSFALL SCHLIMMER IST ALS DER GEDECKELTE
+     * FALL. Die reine Deckelkette laesst einen `NaN` unveraendert durch (`Math.trunc(NaN)` ist
+     * `NaN`, `Math.max(1, NaN)` ebenfalls). GEMESSEN am 2026-08-24 mit einer Wegwerf-Sonde
+     * gegen eine echte Datei-DB, fuenf Zeilen, `seite: NaN, seitenGroesse: NaN`:
+     * `{"zeilen":5,"gesamt":5,"seite":null,"seitenGroesse":null}` — also ALLE Zeilen in EINER
+     * Seite. better-sqlite3 bindet den `NaN` als NULL, und SQLite liest `LIMIT NULL` als KEINE
+     * GRENZE. Auf einer Produktionstabelle waere das ein unbegrenzter Volltabellen-Lauf, den
+     * ein von Hand veraenderter Suchparameter ausloest.
+     *
+     * ⛔ SECHSUNDZWANZIG ZEILEN UND NICHT FUENF: unter `SEITENGROESSE_VORGABE` (25) waere die
+     * unbegrenzte Abfrage von der richtigen nicht zu unterscheiden — beide lieferten alles.
+     * Erst die 26. Zeile trennt sie.
+     *
+     * ⚠️ GERAETEZEILEN BRAUCHT DER FALL NICHT: `loans.device_id` ist ABSICHTLICH kein
+     * Fremdschluessel (`_db/schema.ts:200-205`), und dieser Lesepfad joint nicht.
+     */
+    const ZEILEN = 26;
+    for (let i = 0; i < ZEILEN; i++) {
+      leihe({
+        deviceId: `h-nan-${i}`,
+        borrowerName: `Person ${i}`,
+        borrowedAt: new Date(HISTORIE_FRUEH.getTime() + i * 60_000),
+      });
+    }
+
+    const seite = leihhistorie(db, { seite: Number.NaN, seitenGroesse: Number.NaN });
+    expect(seite.seite).toBe(1);
+    expect(seite.seitenGroesse).toBe(25);
+    expect(seite.gesamt).toBe(ZEILEN);
+    expect(
+      seite.zeilen.length,
+      "eine unbrauchbare Seitengroesse liefert die ganze gefilterte Menge in einer Seite",
+    ).toBe(25);
+  });
+
+  it("aktiv ist genau returnedAt === null", () => {
+    /*
+     * 1:1 aus `StatusTag` der Alt-Liste (`radio-admin/client/src/features/loans/LoanList.tsx:11-13`,
+     * woertlich „Active vs. returned status, derived purely from `returnedAt`"). ⛔ JE ZUSTAND
+     * EINE ZEILE — mit nur einer waere ein konstantes `true` oder `false` gruen.
+     */
+    geraet({ id: "h-akt", issi: "3700001" });
+    geraet({ id: "h-ret", issi: "3700002" });
+    leihe({ deviceId: "h-akt", borrowerName: "Aktiv Anna" });
+    leihe({ deviceId: "h-ret", borrowerName: "Zurueck Zita", returnedAt: HISTORIE_RUECKGABE });
+
+    const zeilen = leihhistorie(db, { seite: 1, seitenGroesse: 25 }).zeilen;
+    expect(zeilen.find((z) => z.entleiher === "Aktiv Anna")?.aktiv).toBe(true);
+    expect(zeilen.find((z) => z.entleiher === "Zurueck Zita")?.aktiv).toBe(false);
+  });
+
+  it("rufname kommt aus dem Schnappschuss, nicht aus devices", () => {
+    /*
+     * ⛔ DER FALL BRAUCHT EIN `devices`-OBJEKT MIT ABWEICHENDEM RUFNAMEN — sonst beweist er
+     * nichts. Die beiden Fixture-Helfer setzen ihre Vorgaben aus derselben Id (`Ruf h-snap`
+     * hier wie dort), deshalb werden BEIDE Seiten ausdruecklich ueberschrieben.
+     *
+     * Die historische Richtigkeit traegt der unveraenderliche Anzeige-Schnappschuss
+     * (`_db/schema.ts:196-202`): „Ein zusaetzlicher FK waere gueltiges Drizzle, gueltiges SQL
+     * und PARITAETSGRUEN; der Schaden entstuende Monate spaeter, bei der ersten
+     * Geraeteausmusterung." Dieselbe Haltung wie bei `offeneAusleihen`.
+     */
+    geraet({ id: "h-snap", issi: "3800001", rufname: "LEBEND 99/1", deviceType: "Lebend-Typ" });
+    leihe({
+      deviceId: "h-snap",
+      snapshotCallSign: "SCHNAPPSCHUSS 41/12",
+      snapshotDeviceType: "Schnappschuss-Typ",
+    });
+
+    const zeile = leihhistorie(db, { seite: 1, seitenGroesse: 25 }).zeilen[0];
+    expect(zeile?.rufname, "der Rufname kommt aus einem lebenden Join auf devices").toBe(
+      "SCHNAPPSCHUSS 41/12",
+    );
+    expect(zeile?.geraetetyp, "der Geraetetyp kommt aus einem lebenden Join auf devices").toBe(
+      "Schnappschuss-Typ",
+    );
+  });
+
+  it("zurueckText ist ein Gedankenstrich, solange nicht zurueckgegeben", () => {
+    /*
+     * Leerwert-Darstellung 1:1 aus `LoanList.tsx:34` (`formatTimestamp(null)`), und
+     * `formatTimestamp` liefert fuer einen leeren Wert genau diesen Strich
+     * (`radio-admin/client/src/utils/format.ts:2-4`).
+     *
+     * ⛔ BEIDE TEXTE SIND AUF DEM SERVER FERTIG GEBAUT (`_lib/anzeige.ts:75`,
+     * `datumMitUhrzeit`) — sonst entscheiden Server und Client an der Tagesgrenze
+     * verschieden, und zwar systematisch gegen die Zone des Endgeraets.
+     */
+    geraet({ id: "h-offen", issi: "3900001" });
+    geraet({ id: "h-zu", issi: "3900002" });
+    leihe({ deviceId: "h-offen", borrowerName: "Offen Olga" });
+    leihe({ deviceId: "h-zu", borrowerName: "Zu Zita", returnedAt: HISTORIE_RUECKGABE });
+
+    const zeilen = leihhistorie(db, { seite: 1, seitenGroesse: 25 }).zeilen;
+    const offen = zeilen.find((z) => z.entleiher === "Offen Olga");
+    const zu = zeilen.find((z) => z.entleiher === "Zu Zita");
+    expect(offen?.zurueckText).toBe("—");
+    expect(zu?.zurueckText).toBe(HISTORIE_RUECKGABE_TEXT);
+    expect(offen?.ausgeliehenText).toBe(AUSGELIEHEN_DATUM_UHRZEIT);
+  });
+
+  it("liefert keine Zeile ausserhalb der acht Felder von LeihZeile", () => {
+    /*
+     * ⛔ EXAKTER FELDSATZABGLEICH, KEINE TEILMENGENPRUEFUNG — dieselbe Form wie der
+     * Lesemodell-Fall bei `geraeteMitLeihstand` oben (Spec:5254-5258, woertlich: „eine
+     * Teilmengenpruefung faengt genau den Fall nicht, gegen den der Test steht"). Die
+     * Quellzeile hat zwoelf Spalten (`_db/schema.ts:210-232`), die Zeile hat acht Felder.
+     *
+     * ⛔ UND `LeihZeile` HAT KEIN OPTIONALES FELD: anders als `GeraetMitLeihstand` gibt es
+     * hier nur EINE Gestalt, also auch nur einen Sollsatz.
+     */
+    geraet({ id: "h-felder", issi: "4000001" });
+    leihe({ deviceId: "h-felder", returnNote: "Akku leer", returnedAt: HISTORIE_RUECKGABE });
+
+    const seite = leihhistorie(db, { seite: 1, seitenGroesse: 25 });
+    expect(Object.keys(seite).sort()).toEqual(
+      ["zeilen", "gesamt", "seite", "seitenGroesse"].sort(),
+    );
+    expect(Object.keys(seite.zeilen[0]!).sort()).toEqual([...FELDER_LEIHZEILE].sort());
+    expect(seite.zeilen[0]?.notiz).toBe("Akku leer");
+    for (const verboten of ["deviceId", "snapshotSerialNumber", "zugangscodeId", "createdAt"]) {
+      expect(
+        Object.keys(seite.zeilen[0]!),
+        `${verboten} reist in die Verwaltungsliste mit`,
+      ).not.toContain(verboten);
     }
   });
 });
