@@ -122,11 +122,11 @@ const ADMIN_SEITEN_ANZAHL = 0;
 const ADMIN_LAYOUTS_MINDESTENS = 2;
 
 /**
- * ⛔ HEUTE DREI: `page.tsx` (das Gate, A11), `(ausleihe)/layout.tsx` und
- * `(ausleihe)/geraete/page.tsx` (beide A18). Angehoben von A19 (4) und A20 (5). EXAKT,
- * nicht „mindestens" — dieselbe Begruendung wie bei `HANDLER_ANZAHL` oben.
+ * ⛔ HEUTE VIER: `page.tsx` (das Gate, A11), `(ausleihe)/layout.tsx` und
+ * `(ausleihe)/geraete/page.tsx` (beide A18), `(ausleihe)/ausleihen/page.tsx` (A19).
+ * Angehoben von A20 (5). EXAKT, nicht „mindestens" — wie bei `HANDLER_ANZAHL` oben.
  */
-const AUSLEIH_FLAECHEN_ANZAHL = 3;
+const AUSLEIH_FLAECHEN_ANZAHL = 4;
 
 /**
  * Alle `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv, OHNE Testdateien.
