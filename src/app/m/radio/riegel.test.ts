@@ -825,7 +825,7 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
     });
 
   /**
-   * Die ERSTE Anweisung im Rumpf der standard-exportierten Funktion, als getrimmte Zeile.
+   * Die ERSTE Anweisung im Rumpf der standard-exportierten Funktion — getrimmt, bis zum ersten `;`.
    *
    * ⛔ WARUM NICHT `funktionsKoerper` (`riegel.test.ts:360-375`): jener Helfer nimmt das
    * ERSTE `{` nach dem Funktionsnamen. Bei einem DESTRUKTURIERTEN Parameter ist das die
@@ -834,9 +834,9 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
    * falsche Spanne. Diese Fassung zaehlt deshalb Klammern: der Rumpf beginnt am ersten `{`
    * auf Klammertiefe 0, NACHDEM die Parameterliste geschlossen ist.
    *
-   * ⚠️ EINE BENANNTE GRENZE: eine Rueckgabetyp-Annotation mit geschweiften Klammern
-   * (`: Promise<{ a: string }>`) traefe zu frueh. Heute traegt keine der Flaechen eine;
-   * faellt das je an, faellt es LAUT — die Meldung unten druckt die gefundene Zeile aus.
+   * ⚠️ ZWEI GRENZEN: (1) eine Rueckgabetyp-Annotation mit `{` traefe zu frueh; heute traegt keine
+   * Flaeche eine, faellt das je an, faellt es LAUT (die Meldung unten druckt den Fund). (2) ZEILE
+   * IST NICHT ANWEISUNG — zwei auf EINER waren 0 rot (REVIEW-A18, Fund N1): daher der `;`-Schnitt.
    */
   function ersteAnweisungAus(q: string): string {
     const start = q.search(/\bexport\s+default\s+(?:async\s+)?function\b/);
@@ -848,7 +848,7 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
       if (z === "(") { tiefe++; parameterGesehen = true; }
       else if (z === ")") tiefe--;
       else if (z === "{" && tiefe === 0 && parameterGesehen) {
-        return q.slice(i + 1).split("\n").map((zeile) => zeile.trim()).find((zeile) => zeile !== "") ?? "";
+        return (q.slice(i + 1).split("\n").map((r) => r.trim()).find((r) => r !== "") ?? "").split(";")[0]!.trim();
       }
     }
     return "";
