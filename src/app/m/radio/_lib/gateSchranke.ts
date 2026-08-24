@@ -9,7 +9,7 @@ import { grenzen } from "./grenzen";
  * KEIN "use client" in dieser Datei — Falle 6 (`CLAUDE.md`): ein WERT aus einem
  * Client-Modul kommt in einer Server Component nicht an, sondern als Client-Referenz,
  * HTTP 500 fuer die ganze Seite. `pnpm build` sieht es nicht, und Vitest KANN es
- * strukturell nicht sehen. Durchgesetzt von `src/app/m/radio/riegel.test.ts:977-1030`.
+ * strukturell nicht sehen. Durchgesetzt von `src/app/m/radio/riegel.test.ts:1064-1117`.
  *
  * ⛔ UND KEIN DATENBANKZUGRIFF, IN KEINER FORM — weder ein Import noch ein Aufruf.
  * `gateGesperrt` ist die Vorpruefung, die den Datenbankzugriff des Einloeseweges

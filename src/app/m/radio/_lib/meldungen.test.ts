@@ -118,7 +118,7 @@ describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
      * ⛔ OHNE DIESEN FALL WAEREN ALLE NEGATIVEN SCANS DIESER DATEI LEER-GRUEN. Kaeme
      * `QUELLE` leer zurueck — ein anderes `process.cwd()`, eine umbenannte Datei —, bestuende
      * jedes `not.toContain`/`not.toMatch` darauf, ohne etwas zu bewachen; die zaehlenden
-     * Zusicherungen fielen dagegen von selbst. Hausform des Moduls: `riegel.test.ts:990`
+     * Zusicherungen fielen dagegen von selbst. Hausform des Moduls: `riegel.test.ts:1077`
      * („leere Dateiliste — der Scan waere leer-gruen").
      */
     expect(QUELLE.length, "meldungen.ts ist leer gelesen worden").toBeGreaterThan(2000);
@@ -537,7 +537,7 @@ describe("Bauform", () => {
   it("traegt weder use client noch use server als Direktive", () => {
     /*
      * ⛔ DIE HALBE ZUSAGE DES DATEIKOPFES, DIE BIS ZUR FIX-RUNDE 1 NIRGENDS BEWACHT WAR.
-     * `riegel.test.ts:977-1030` scannt modulweit — aber NUR auf `"use client"`. Fuer
+     * `riegel.test.ts:1064-1117` scannt modulweit — aber NUR auf `"use client"`. Fuer
      * `"use server"` gab es im ganzen Modul keine Abwesenheits-Zusicherung; die einzige
      * Durchsetzung (`_actions/guards.test.ts:699-716`) VERLANGT die Direktive, als erste
      * Zeile jeder Datei unter `_actions/` — die Gegenrichtung, auf einem anderen Ordner.

@@ -11,7 +11,7 @@
 >    aus sich selbst aus (`:70-72`, `:7791`) und nennt in derselben Liste die CWE-348-Umstellung
 >    ausdrücklich „Voraussetzung", diesen Posten dagegen **nicht**.
 > 2. ✅ **Weg A ist bereits gebaut.** `radio` löst seine Rechte über `_lib/zugang.ts` selbst auf,
->    und `riegel.test.ts:942-944` sichert das wörtlich zu — „unabhaengig davon, was `core` tut".
+>    und `riegel.test.ts:1029-1031` sichert das wörtlich zu — „unabhaengig davon, was `core` tut".
 >    **Der Posten des Leitplans ist damit erfüllt**, nicht offen.
 > 3. **Weg B hätte drei gemessene Folgen**, die im Auftrag nicht bekannt waren: `portal` verlöre
 >    seine Verwaltung vollständig (`registry.ts:57-59`: `adminGroups: []`), `aufgaben` einen in
@@ -78,14 +78,14 @@ Und dieselbe Spec schließt den weiten Weg **aus sich selbst aus**, zwei Absätz
 **Die Spec verlangt also die enge Lösung, und nur sie.** Ausführlich in Kapitel 3.
 
 **2. ⛔ Die enge Lösung ist **bereits gebaut**, und der gebaute Code sagt selbst, dass der Schnitt
-für `radio` optional ist.** `src/app/m/radio/riegel.test.ts:942-944` — im Repo, heute, grün:
+für `radio` optional ist.** `src/app/m/radio/riegel.test.ts:1029-1031` — im Repo, heute, grün:
 
 > „⚠️ DER KURZSCHLUSS SELBST WIRD SPAETER ENTFERNT — als eigene kleine Vorarbeit vor Planteil 4
 > (KONTEXT-radio-planteil2.md:32-35). **Dieser Scan bleibt trotzdem: er sagt, dass `radio` seine
 > Rechte SELBST aufloest, unabhaengig davon, was `core` tut.**"
 
-Das Prädikat steht in `src/app/m/radio/_lib/zugang.ts:93-127` (`adminGroupsFor(getModule("radio"))`
-+ `.some()`), der Scan gegen alle vier core-Riegel in `src/app/m/radio/riegel.test.ts:928-948`.
+Das Prädikat steht in `src/app/m/radio/_lib/zugang.ts:102-138` (`adminGroupsFor(getModule("radio"))`
++ `.some()`), der Scan gegen alle vier core-Riegel in `src/app/m/radio/riegel.test.ts:1015-1035`.
 **Für `radio` ist der Posten damit erledigt, egal wie K1 ausgeht.**
 
 **3. ⛔ `portal` verliert seine Verwaltung vollständig — das ist eine Gewissheit, kein Risiko.**
@@ -283,7 +283,7 @@ Rechte selbst über `adminGroupsFor` auf:
 | `feedback` | `src/app/m/feedback/_lib/access.ts:2` (`adminGroupsFor`) | `:10-13` |
 | `files` | `src/app/m/files/_lib/access.ts:4` | `:62` |
 | `lagerbuch` | `src/app/m/lagerbuch/_lib/zugang.ts:4` | `:79` |
-| `radio` | `src/app/m/radio/_lib/zugang.ts:4` | `:93-127`, Scan in `riegel.test.ts:928-948` |
+| `radio` | `src/app/m/radio/_lib/zugang.ts:4` | `:93-127`, Scan in `riegel.test.ts:1015-1035` |
 
 ---
 
@@ -310,8 +310,8 @@ merkt nichts (dazu 2.3).
 | **aufgaben** | `src/app/m/aufgaben/actions.ts:1169` (`personenSucheAction`) | Verzeichnis-Autofill | ❌ `Forbidden`, außer K-L5 |
 | **feedback** | — | Nichts (`isFeedbackAdmin` ignoriert den Kurzschluss, `_lib/access.ts:10-13`) | **unverändert** |
 | **files** | — | Nichts (`_lib/access.ts:62`) | **unverändert** |
-| **lagerbuch** | — | Nichts (`_lib/zugang.ts:79`) | **unverändert** |
-| **radio** | — | Nichts (`_lib/zugang.ts:93-127`) | **unverändert** |
+| **lagerbuch** | — | Nichts (`_lib/zugang.ts:88`) | **unverändert** |
+| **radio** | — | Nichts (`_lib/zugang.ts:102-138`) | **unverändert** |
 | suiteweit | `src/core/auth/config.ts:205` | `session.user.isAdmin === true` | **unverändert** — `:125` ist nicht die Quelle (1.2) |
 | suiteweit | `src/core/auth/devGroups.ts:40` | Die Suite-Admin-Gruppe steht in der Dev-Login-Auswahl | **unverändert** — reine Formularliste, „keine Rechtequelle" (`devGroups.ts:31-36`) |
 
@@ -421,7 +421,7 @@ letzten fünf sind Begründungen dafür, warum vier Module um etwas herumbauen.
 | `.env.example:92-95` | ⚠️ „Der Satz aus Zeile 68-69 gilt fuer radio NICHT …" — **wird gegenstandslos**, weil der Satz aus 68-69 selbst entfällt |
 | `.env.example:378-382` | Der `aufgaben`-Notausgang (2.3) |
 | `docs/runbooks/aufgaben-inbetriebnahme.md:35-36` | Derselbe Notausgang |
-| `src/app/m/feedback/_lib/access.ts:10-13` · `src/app/m/files/_lib/access.ts:62` · `src/app/m/lagerbuch/_lib/zugang.ts:79` · `src/app/m/radio/_lib/zugang.ts:93-99` | Vier „BEWUSST NICHT `isModuleAdmin`"-Begründungen, die dann erklären, warum ein Modul um etwas herumbaut, das es nicht mehr gibt |
+| `src/app/m/feedback/_lib/access.ts:10-13` · `src/app/m/files/_lib/access.ts:62` · `src/app/m/lagerbuch/_lib/zugang.ts:79` · `src/app/m/radio/_lib/zugang.ts:102-108` | Vier „BEWUSST NICHT `isModuleAdmin`"-Begründungen, die dann erklären, warum ein Modul um etwas herumbaut, das es nicht mehr gibt |
 | `e2e/launcher.spec.ts:57-60` · `e2e/mobil-admin.spec.ts:92-95` | Zwei e2e-Docblocks, die den Weg über `dashboard-admins` beschreiben |
 
 ⚠️ **Diese Tabelle ist das konkrete Maß für „mehr Risiko als Auftrag" (Kapitel 3.4).** Sie ist
@@ -444,7 +444,7 @@ Ausgeschrieben in Kapitel 1.5, `:682-689`:
 
 > „* **`isModuleAdmin` wird modulintern ignoriert** (Entscheidung 9): es lässt die Suite-Admin-Gruppe
 > durch (`core/groups.ts:125`, Vorgabe `dashboard-admins`). `feedback`
-> (`m/feedback/_lib/access.ts:10-34`) und `lagerbuch` (`_lib/zugang.ts:79-115`) nehmen davon
+> (`m/feedback/_lib/access.ts:10-34`) und `lagerbuch` (`_lib/zugang.ts:88-124`) nehmen davon
 > ausdrücklich Abstand, weil sie Betrieb und Einsicht trennen (`core/registry.ts:46`). **`radio`
 > gehört in dieselbe Menge, mit eigenem Anlass** … **Folge: wer `radio` verwalten soll, gehört in
 > `SUITE_ADMIN_GROUP_RADIO` — auch der Betreiber selbst.**"
@@ -474,7 +474,7 @@ Voraussetzung" und „eigener Posten, Punkt".
 
 ### 3.3 ⛔ Und der gebaute Code sagt dasselbe — das ist das stärkste Argument
 
-Die enge Lösung existiert. `src/app/m/radio/_lib/zugang.ts:93-99`:
+Die enge Lösung existiert. `src/app/m/radio/_lib/zugang.ts:102-108`:
 
 ```
  * ⛔ BEWUSST NICHT `isModuleAdmin` AUS `core/groups` und keiner seiner drei Verwandten
@@ -484,7 +484,7 @@ Die enge Lösung existiert. `src/app/m/radio/_lib/zugang.ts:93-99`:
  * Wiederverwendung aus.
 ```
 
-Sie ist bewacht: `src/app/m/radio/riegel.test.ts:928-948` scannt das ganze Modulverzeichnis gegen
+Sie ist bewacht: `src/app/m/radio/riegel.test.ts:1015-1035` scannt das ganze Modulverzeichnis gegen
 `/\b(?:isModuleAdmin|requireModuleAdmin|moduleAdminPageOrNotFound|canAdminModule)\b/` und verlangt
 `[]`. Und der Test sagt in seinem eigenen Kommentar (`:942-944`), was für diesen Plan entscheidend
 ist:
@@ -494,7 +494,7 @@ ist:
 > Rechte SELBST aufloest, unabhaengig davon, was `core` tut.**"
 
 **„unabhängig davon, was `core` tut" ist die Antwort auf die Frage dieses Kapitels.** `radio`
-braucht den Schnitt nicht. Der zweite Test daneben (`riegel.test.ts:951-960`) riegelt zusätzlich
+braucht den Schnitt nicht. Der zweite Test daneben (`riegel.test.ts:1038-1047`) riegelt zusätzlich
 `isAdmin` ab. Beide sind heute grün.
 
 ### 3.4 ⚠️ Warum die weite Lösung mehr Risiko trägt als Auftrag
@@ -518,7 +518,7 @@ gehört auf eine Ablesung gestützt, nicht auf eine Frist.
 
 `docs/superpowers/plans/2026-08-21-radio-modul-leitplan.md:123` begründet die Frist mit „ohne den
 Posten trägt Planteil 2 die Umgehung selbst". **Das trifft zu — und ist genau der Zustand, den
-`riegel.test.ts:942-944` als dauerhaft gewollt beschreibt.** Planteil 4 baut auf
+`riegel.test.ts:1029-1031` als dauerhaft gewollt beschreibt.** Planteil 4 baut auf
 `requireRadioAdmin`/`istRadioAdmin` aus `src/app/m/radio/_lib/zugang.ts`, nicht auf `core/groups`;
 die zweite Rechtestufe kommt laut Spec:4420-4422 ohnehin in ein eigenes `_lib/rollen.ts`.
 
@@ -662,7 +662,7 @@ blockiert. Kein Produktivcode.
 - [ ] **1 — Den Riegel selbst prüfen, nicht behaupten.**
       `rtk pnpm vitest run src/app/m/radio/riegel.test.ts src/app/m/radio/_lib/zugang.test.ts`
       Beide Dateien müssen grün sein. Der tragende Fall heißt „findet keinen der vier core-Riegel"
-      (`src/app/m/radio/riegel.test.ts:929-948`).
+      (`src/app/m/radio/riegel.test.ts:1016-1035`).
 
 - [ ] **2 — Die Mutation fahren, die den Nachweis erst zu einem macht.** In
       `src/app/m/radio/_lib/zugang.ts` das Prädikat `istRadioAdmin` versuchsweise auf
@@ -692,8 +692,8 @@ blockiert. Kein Produktivcode.
       1. Die Spec verlangt die enge Lösung — `:65`, `:682-689`.
       2. Sie schließt die weite aus sich selbst aus — `:70-72` und `:7791`; ⚠️ und sie nennt die
          CWE-348-Umstellung in derselben Liste „Voraussetzung", diesen Posten **nicht**.
-      3. Die enge Lösung ist gebaut und bewacht — `src/app/m/radio/_lib/zugang.ts:93-127`,
-         `riegel.test.ts:928-948`, mit dem Zitat aus `:942-944`.
+      3. Die enge Lösung ist gebaut und bewacht — `src/app/m/radio/_lib/zugang.ts:102-138`,
+         `riegel.test.ts:1015-1035`, mit dem Zitat aus `:942-944`.
       4. **Folge: Planteil 4 ist technisch nicht blockiert.** Der Posten bleibt beauftragt
          (`.superpowers/sdd/KONTEXT-radio-planteil2.md`) und wird über K-L6 entschieden.
       ⛔ **Nicht** „die Frist war falsch" schreiben (Kapitel 3.5).
@@ -931,7 +931,7 @@ Notausgang, den es nicht mehr gibt.
         Suite-Admin'" sind beide falsch.
       * `:92-95` — ⚠️ **der `radio`-Block verweist auf `:68-69`** („Der Satz aus Zeile 68-69 gilt
         fuer radio NICHT"). Fällt der Satz weg, hängt der Verweis in der Luft. Umschreiben zu: `radio`
-        löst seine Rechte modulintern auf (`_lib/zugang.ts:93-127`), was seit 2026-08-24 der
+        löst seine Rechte modulintern auf (`_lib/zugang.ts:102-138`), was seit 2026-08-24 der
         suiteweiten Regel entspricht. ⛔ **Den `radio`-Block nicht löschen** — Entscheidung 9 und die
         Falle-23-Warnung (`:83-91`) gelten unverändert.
       * `:348-365` — der `aufgaben`-Block. ⛔ **Folge 2 („DER RUECKWEG IST DIE SUITE-ADMIN-GRUPPE")
@@ -946,7 +946,7 @@ Notausgang, den es nicht mehr gibt.
       `src/app/m/feedback/_lib/access.ts:10-13` · `src/app/m/files/_lib/access.ts:62` ·
       `src/app/m/lagerbuch/_lib/zugang.ts:79`. ⛔ **`src/app/m/radio/_lib/zugang.ts` bleibt
       unverändert** (Kapitel „Was dieser Plan anlegt"); sein Kommentar `:93-99` zitiert `:125`
-      wörtlich und wird dadurch historisch — das ist hinnehmbar, `riegel.test.ts:942-944` sagt
+      wörtlich und wird dadurch historisch — das ist hinnehmbar, `riegel.test.ts:1029-1031` sagt
       ausdrücklich, dass der Riegel unabhängig von `core` steht.
       Je Datei **ein Satz**: die Entscheidung galt einmal modulweit, seit 2026-08-24 gilt sie
       suiteweit; das Prädikat bleibt trotzdem modul-eigen, weil `isModuleAdmin` weiterhin die
@@ -954,7 +954,7 @@ Notausgang, den es nicht mehr gibt.
       ⚠️ **`files` hat einen Quelltext-Scan**, der `suiteAdminGroup`/`isModuleAdmin` im ganzen
       Modulverzeichnis verbietet (`src/app/m/files/_lib/access.test.ts:39-41`) — die neuen
       Kommentare dürfen die Namen dort **nicht** enthalten. Dasselbe für `lagerbuch`
-      (`_lib/bauform.test.ts:233-245`) und `radio` (`riegel.test.ts:946`).
+      (`_lib/bauform.test.ts:233-245`) und `radio` (`riegel.test.ts:1033`).
       ⛔ **Nach diesem Schritt `rtk pnpm vitest run src/app/m/files src/app/m/lagerbuch src/app/m/radio`**
       — die drei Scans sind der einzige Weg, diesen Fehler zu bemerken.
 
@@ -1091,7 +1091,7 @@ zu eine Stunde (`CLAUDE.md`, „Zugriffsschutz"). Eine offene Sitzung misst den 
 | R6 | ⚠️ **`SUITE_ADMIN_GROUP_PORTAL` LEER gesetzt** | **Nichts.** Die Leer-Prüfung greift nur für ACCESS (`groups.ts:156`). `portal` ist gesperrt, still | ⛔ Genau die Falle 23, die `.env.example:83-91` für `radio` ausschreibt. Wert eintragen, **nicht** die Zeile löschen |
 | R6b | ⛔ **K5 gefahren, ohne `...PORTAL_ENV` in `playwright.config.ts`** | K7 Schritt 5 rot in `portal.spec.ts`, `launcher.spec.ts`, `mobil-admin.spec.ts` — und zwar **egal welcher Gruppenname** im `devLogin` steht, weil `adminGroupsFor(portal)` in E2E `[]` liefert | K4 Schritt 3 nachholen. ⚠️ **Die gefährlichere Variante ist die umgekehrte:** Gruppenname im Spec ≠ Wert in `PORTAL_ENV` — dann ist der Lauf **grün und bezeugt den 404**, wörtlich der Fall aus `playwright.config.ts:286-288` |
 | R7 | **Ein Kommentar aus 2.5 bleibt stehen** | Kein Tor merkt es. Der nächste Leser setzt `:125` aus derselben Überlegung wieder ein, aus der sie einmal entstand | K6, und der Datumsverweis auf diesen Plan in `groups.ts:12-20` |
-| R8 | **Ein neuer Kommentar in `files`/`lagerbuch`/`radio` nennt `isModuleAdmin` wörtlich** | ⚠️ **Roter Quelltext-Scan** (`files/_lib/access.test.ts:39-41`, `lagerbuch/_lib/bauform.test.ts:233-245`, `radio/riegel.test.ts:946`) — die einzige Stelle, wo ein Tor eine Kommentaränderung sieht | Namen aus dem Kommentar nehmen, umschreiben |
+| R8 | **Ein neuer Kommentar in `files`/`lagerbuch`/`radio` nennt `isModuleAdmin` wörtlich** | ⚠️ **Roter Quelltext-Scan** (`files/_lib/access.test.ts:39-41`, `lagerbuch/_lib/bauform.test.ts:233-245`, `radio/riegel.test.ts:1033`) — die einzige Stelle, wo ein Tor eine Kommentaränderung sieht | Namen aus dem Kommentar nehmen, umschreiben |
 | R9 | ⚠️ **Weg B gefahren, obwohl K-L2 unbesetzt ist** | Nichts geht schief — aber es wurden acht Tests, vier Specs und dreizehn Kommentare für null Wirkung geändert | Kein Rückweg nötig; **das ist der Grund für K1 Schritt 2** |
 
 ---

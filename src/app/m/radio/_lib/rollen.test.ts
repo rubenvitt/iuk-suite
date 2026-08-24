@@ -64,7 +64,7 @@ describe("filterSchreibbareFelder", () => {
     /*
      * Der `{ ...patch }`-Zweig aus `editable-fields.ts:9`. Die Admin-Stufe filtert NICHT —
      * die Feld-Allowlist ist die Verfeinerung der Updater-Stufe, nicht eine zweite Sperre
-     * ueber allen (`_lib/zugang.ts:161-168`).
+     * ueber allen (`_lib/zugang.ts:172-179`).
      */
     const ergebnis = filterSchreibbareFelder("admin", PATCH_FUENF);
     expect(ergebnis).toEqual(PATCH_FUENF);

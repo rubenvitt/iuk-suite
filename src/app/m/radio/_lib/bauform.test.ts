@@ -69,7 +69,7 @@ const EINLOESE_FUNKTION: Record<string, string> = {
  * `null` bekommt und WEITERLAEUFT), ohne dass hier etwas rot wuerde
  * (`lagerbuch/_lib/bauform.test.ts:1358-1368`, dort gemessen).
  *
- * Route Handler nicht-werfend (`riegel.test.ts:563-572` verbietet dort die werfende Form),
+ * Route Handler nicht-werfend (`riegel.test.ts:597-606` verbietet dort die werfende Form),
  * Actions werfend (Spec:2360-2362, Bauform-Zulaessigkeitstafel Zeile 11).
  *
  * ⛔ KEINE VORGABE UND KEIN `??`-RUECKFALL: eine vierte Gate-Flaeche ist eine ENTSCHEIDUNG
@@ -140,7 +140,7 @@ const vorhandeneFlaechen = (): string[] =>
  * ⛔ KEIN IMPORT AUS `riegel.test.ts`: vitest laedt Testdateien nicht als Module
  * fuereinander. ⚠️ DIE ZWEITE HAELFTE DER UEBLICHEN BEGRUENDUNG TRAEGT NICHT, und sie steht
  * hier trotzdem, statt verschwiegen zu werden (Vorabscan-Fund F22): eine geteilte
- * Helferdatei muesste NICHT unter `src/app/m/radio/` liegen — `riegel.test.ts:989` filtert
+ * Helferdatei muesste NICHT unter `src/app/m/radio/` liegen — `riegel.test.ts:1076` filtert
  * fuer den `"use client"`-Scan INNERHALB von `quellDateien()`, und das laeuft ausschliesslich
  * ueber `MODUL`. Ein Modul unter `src/core/testing/` waere fuer jeden Scan dieses Moduls
  * unsichtbar und ganz normal importierbar. Der Preis der Kopie ist benannt: `ohneKommentare`
@@ -429,7 +429,7 @@ describe("radio-bauform: die drei Gate-Flaechen", () => {
      * Einloesung, gemessen an ihren TEXTPOSITIONEN im Funktionskoerper.
      *
      * ⛔ DIE LEER-ZUSICHERUNG STEHT VORNE UND MELDET FUER SICH (zeichengleich zu
-     * `riegel.test.ts:695`, Vorabscan-Fund F8a). Ohne sie waere der Fall zwar nicht
+     * `riegel.test.ts:729`, Vorabscan-Fund F8a). Ohne sie waere der Fall zwar nicht
      * leer-gruen — ein leerer Ausschnitt laesst alle vier `muster.exec` `null` liefern —,
      * aber die Meldung zeigte auf den FALSCHEN Fehler: „Riegel „Host" fehlt ganz", wo in
      * Wahrheit der Funktionsname nicht gefunden wurde.
@@ -730,7 +730,7 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
 describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
   /*
    * ⛔ DIESER BLOCK PRUEFT NICHT DAS MODUL, SONDERN DEN SCAN. Er ist das Gegenstueck zu
-   * `riegel.test.ts:1070-1136` und steht hier, weil dieselbe Blindstelle (Fund M1,
+   * `riegel.test.ts:1157-1223` und steht hier, weil dieselbe Blindstelle (Fund M1,
    * `.superpowers/sdd/planteil3/REVIEW-A2.md`) in DIESER Kopie noch steckte, nachdem sie
    * dort behoben war — benannt von Commit `7ca9c53`, behoben in Aufgabe B0.
    *
@@ -798,7 +798,7 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
 
   it("kein Scan dieser Datei liest die ungeschuetzte Fassung direkt", () => {
     /*
-     * ⛔ DER RIEGEL GEGEN DIE RUECKKEHR VON M1, uebernommen aus `riegel.test.ts:1122-1135`.
+     * ⛔ DER RIEGEL GEGEN DIE RUECKKEHR VON M1, uebernommen aus `riegel.test.ts:1209-1222`.
      * `ohneKommentareUndZeichenketten` darf genau zweimal vorkommen: in seiner eigenen
      * Deklaration und in `bereinigt`. Jede weitere Fundstelle ist ein Scan, der die
      * Regexliterale wieder ungeleert liest — und das faellt an einer negativen Zusicherung

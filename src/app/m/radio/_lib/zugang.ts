@@ -238,7 +238,7 @@ export function istInUpdaterGruppe(gruppen: string[]): boolean {
  * DAS PRAEDIKAT DER ZWEITEN STUFE — neben `istRadioAdmin`, NICHT in ihm.
  *
  * ⛔ ES RUFT `requireRadioHost` NICHT (Gegenregel §1.4.4, Spec:595-607) — dieselbe Richtung
- * wie bei `viewerOderNull` (`_lib/zugang.ts:77-81`): ein Praedikat beantwortet eine FRAGE und
+ * wie bei `viewerOderNull` (`_lib/zugang.ts:86-90`): ein Praedikat beantwortet eine FRAGE und
  * baut keine Sperre; der Host-Riegel steht EINMAL, im werfenden Riegel `riegelAufStufe`.
  * `_lib/zugang.test.ts` haelt die Abwesenheit als Rumpf-Scan fest.
  *
@@ -388,7 +388,7 @@ export function verwaltungsZiel(headersEingang: Headers): string {
  * ⛔ DER GEMEINSAME KOERPER LIEGT IN `riegelAufStufe`, NICHT ZWEIMAL ABGESCHRIEBEN
  * (Entscheidung E-V1). `riegel.test.ts` Klausel (d) Fall 2 ist in V3 mit ihm GEWANDERT und
  * haelt dort die fuenf tragenden Aufrufe samt ihrer Reihenfolge fest; die Auflage dazu steht
- * ausgeschrieben in `riegel.test.ts:734-748`. Wer den Helfer umbenennt, zieht die Klausel im
+ * ausgeschrieben in `riegel.test.ts:784-799`. Wer den Helfer umbenennt, zieht die Klausel im
  * SELBEN Commit nach — sonst laeuft sie leer-gruen.
  */
 
@@ -397,7 +397,7 @@ export function verwaltungsZiel(headersEingang: Headers): string {
  *
  * ⛔ DER BENANNTE RUECKFALL FUER `name === null` IST DER ROHE `sub`, und er ist eine
  * ENTSCHEIDUNG dieses Planteils, kein stiller `??`: `users.name` ist `.notNull()`
- * (`_db/schema.ts:115`), `RadioViewer.name` ist `string | null` (`_lib/zugang.ts:52`) — der
+ * (`_db/schema.ts:115`), `RadioViewer.name` ist `string | null` (`_lib/zugang.ts:61`) — der
  * Insert uebersetzt ohne ihn nicht. Die zwei Wege standen im Kopfkommentar dieser Datei
  * ausgeschrieben (benannter Rueckfall ODER Migration); gewaehlt ist der Rueckfall, weil eine
  * neue Migration in diesem Planteil verboten ist (append-only; eine ueberfluessige ist eine
@@ -449,7 +449,7 @@ export function merkeNutzer(db: DB, viewer: RadioViewer): void {
  * ⛔ WARUM EIN HELFER UND NICHT ZWEI ABSCHRIFTEN: zwei fast gleiche Riegelkoerper sind der
  * Ort, an dem eine Korrektur nur an einem von beiden ankommt — und die schwaechere ist die,
  * auf die sich der naechste Leser beruft (derselbe Gedanke in
- * `admin/(druck)/layout.tsx:16-20`). `riegel.test.ts:734-748` schreibt den Weg selbst aus:
+ * `admin/(druck)/layout.tsx:16-20`). `riegel.test.ts:784-799` schreibt den Weg selbst aus:
  * die Zusicherungen WANDERN in den Koerper des Helfers, sie werden NICHT geloescht und NICHT
  * zu einem dateiweiten Scan aufgeweicht.
  *
@@ -496,7 +496,7 @@ export type RadioVerwaltungsZugang = { viewer: RadioViewer; rolle: RadioRolle };
  * und zeigte einer Admin-Person die Verwaltung in der Updater-Fassung.
  *
  * ⛔ DAS `||` STEHT IM ARGUMENT, NICHT IN `istRadioAdmin`: dort waere es die Aufweichung, die
- * jede Updater-Person durch JEDEN Admin-Riegel liesse (`_lib/zugang.ts:142-144`).
+ * jede Updater-Person durch JEDEN Admin-Riegel liesse (`_lib/zugang.ts:153-155`).
  */
 export async function requireRadioVerwaltung(): Promise<RadioVerwaltungsZugang> {
   const viewer = await riegelAufStufe((v) => istRadioAdmin(v) || istRadioUpdater(v));

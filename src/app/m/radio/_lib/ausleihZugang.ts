@@ -10,7 +10,7 @@ import { viewerAusSession } from "./zugang";
 
 /**
  * DAS ZUGANGSPRAEDIKAT DER AUSLEIHE (Spec 1 §3.5, Zeilen 2632-2786).
- * KEIN "use client" (Falle 6, `CLAUDE.md:27`; durchgesetzt von `riegel.test.ts:977-1030`).
+ * KEIN "use client" (Falle 6, `CLAUDE.md:27`; durchgesetzt von `riegel.test.ts:1064-1117`).
  *
  * ZWEI WEGE, EINE FUNKTION, EIN ERGEBNISTYP (Spec:2636-2638) — nicht zwei Riegel, die
  * jede Flaeche einzeln nebeneinanderstellt. Das waere die Liste, die die naechste Datei
@@ -97,7 +97,7 @@ async function befund(db: DB): Promise<Befund> {
    * Liste, die die naechste Action vergisst — Server Actions haben kein Layout ueber sich.
    *
    * ⛔ DIE UMKEHRUNG IST GLEICH STARK UND DIE HAEUFIGERE FEHLERQUELLE: wer diese Datei
-   * benutzt, ruft `requireRadioHost` NICHT NOCH EINMAL (Pflicht 16, `_lib/host.ts:117-121`).
+   * benutzt, ruft `requireRadioHost` NICHT NOCH EINMAL (Pflicht 16, `_lib/host.ts:121-125`).
    * Ein zweiter Aufruf waere keine Haertung, sondern die Behauptung, das Praedikat sei
    * host-blind — und die naechste Person entfernt dann den falschen der beiden.
    *
@@ -142,7 +142,7 @@ async function befund(db: DB): Promise<Befund> {
    * Vorgang OHNE JEDE ANMELDUNG per QR-Code erlaubt ist.
    *
    * ⚠️ `viewerAusSession`, NICHT `viewerOderNull()`: letztere ruft `requireRadioHost`
-   * absichtlich nicht (`_lib/zugang.ts:86-88`) und ist die SICHTBARKEITSform fuer den
+   * absichtlich nicht (`_lib/zugang.ts:95-97`) und ist die SICHTBARKEITSform fuer den
    * /admin-Link, nicht die Zugangsform.
    */
   const viewer = viewerAusSession(await auth());

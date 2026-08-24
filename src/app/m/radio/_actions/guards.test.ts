@@ -7,7 +7,7 @@ import { join, relative } from "node:path";
  * DER EINE `_actions/`-SCAN (Spec 1 §3.8 Zeile 3111, praezisiert in Spec:6762 und B7
  * Spec:96; B14 Spec:103 und B19 Spec:119: ES GIBT NUR DIESEN EINEN).
  *
- * ⛔ `riegel.test.ts` FUEHRT KLAUSEL (b) AUSDRUECKLICH NICHT (`riegel.test.ts:487-499`).
+ * ⛔ `riegel.test.ts` FUEHRT KLAUSEL (b) AUSDRUECKLICH NICHT (`riegel.test.ts:521-533`).
  * Zwei Scans ueber dieselbe Flaeche, von denen einer die Ausnahmen nicht kennt, sind ein
  * Scan zu viel — und der naheliegende Gruen-Fix des unwissenden Scans waere, in
  * `einloesenAmGate` einen Sitzungsriegel einzusetzen. Das macht das GATE UNBENUTZBAR
@@ -71,7 +71,7 @@ const ACTION_DATEIEN_ANZAHL = 4;
  * `verstoesse` leer und der Riegelscan LEER-GRUEN, waehrend die Dateizahl weiter stimmt.
  *
  * ⛔ EXAKT, NICHT „MINDESTENS" — dieselbe Begruendung wie oben und wie
- * `riegel.test.ts:64-76`. `riegel.test.ts:990` fuehrt an derselben Stelle eine
+ * `riegel.test.ts:64-76`. `riegel.test.ts:1077` fuehrt an derselben Stelle eine
  * Untergrenze; die ist fuer jede nichtleere Liste wahr und hat keine Mutation, die sie
  * rot macht. Hier steht deshalb die schaerfere Form.
  *
@@ -155,7 +155,7 @@ function actionDateien(): string[] {
  *
  * ⛔ KEIN IMPORT AUS `riegel.test.ts` — vitest laedt Testdateien nicht als Module
  * fuereinander, und eine geteilte Helferdatei waere ein `_lib/`-Modul, das der
- * `"use client"`-Scan mitzaehlt (`riegel.test.ts:977-1030` filtert auf `/(?:_lib|_db)/`).
+ * `"use client"`-Scan mitzaehlt (`riegel.test.ts:1064-1117` filtert auf `/(?:_lib|_db)/`).
  * Die Verdoppelung ist der Preis dafuer und gewollt; der Bericht zu A8 fuehrt die
  * verworfene Alternative samt Belegen.
  *

@@ -824,7 +824,7 @@ describe("(d) die Gegenregel — viewerOderNull ruft den Host-Riegel NICHT", () 
      * ⛔ DIE ZWEITE HAELFTE DES UMZUGS, und ohne sie waere der Fall darueber ein Waechter
      * ueber einer Funktion, die niemand mehr ruft. `funktionsKoerper` liest je einen
      * FUNKTIONSKOERPER — ein dateiweites `toMatch` waere ueber jeder Datei wahr, die den
-     * Namen irgendwo nennt (NT11-Form, `riegel.test.ts:739-742`).
+     * Namen irgendwo nennt (NT11-Form, `riegel.test.ts:790-793`).
      *
      * ⚠️ DESHALB TRAEGT `requireRadioVerwaltung` EINEN BENANNTEN RUECKGABETYP UND KEINE
      * INLINE-OBJEKTFORM: `funktionsKoerper` sucht die erste `{` nach dem Funktionsnamen

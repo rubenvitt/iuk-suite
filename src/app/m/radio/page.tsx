@@ -120,7 +120,7 @@ export default async function RadioGatePage({
    * Riegel schickte JEDEN anonymen Scan nach `/login`, bevor die Person das Gate je saehe —
    * genau der Ausfall, den `requiresAuth: false` verhindern soll, und er waere typkorrekt,
    * lint-sauber und fuer `pnpm build` unsichtbar. `viewerOderNull` ruft den Host-Riegel
-   * ihrerseits bewusst nicht (`_lib/zugang.ts:77-88`, Klausel (d) in `riegel.test.ts`).
+   * ihrerseits bewusst nicht (`_lib/zugang.ts:86-97`, Klausel (d) in `riegel.test.ts`).
    */
   const viewer = await viewerOderNull();
   const darfVerwalten = istRadioAdmin(viewer);

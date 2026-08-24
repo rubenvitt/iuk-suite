@@ -14,7 +14,7 @@ import { users } from "../_db/schema";
  *
  * 1. DIE REINEN FUNKTIONEN — ohne jeden Mock (Spec:650). Sie stehen unveraendert unten.
  * 2. ⛔ DIE VERHALTENSFAELLE DER WERFENDEN RIEGEL. Bis Planteil 3 waren sie hier
- *    ABSICHTLICH ausgelassen, weil es keine Verwaltungsseite gab; `riegel.test.ts:722-724`
+ *    ABSICHTLICH ausgelassen, weil es keine Verwaltungsseite gab; `riegel.test.ts:770-772`
  *    benennt Planteil 4 woertlich als ihren Ort („dort, wo die erste Verwaltungsseite steht
  *    und der Next-Anfragekontext echt ist") und verweist auf das Vorbild
  *    `src/app/m/lagerbuch/_lib/zugang.test.ts:41` (Import), `:72` (Aufruf), Begruendung
@@ -147,8 +147,18 @@ describe("viewerAusSession — reine Abbildung, ohne IO", () => {
 });
 
 describe("istRadioAdmin — das Praedikat", () => {
-  it("ohne Viewer: false", () => {
+  it("ohne Viewer: false — BEIDE Praedikate, nicht nur das strengere", () => {
+    /*
+     * ⛔ DIE ZWEITE ZEILE KAM MIT V3, UND SIE HAT IHREN EIGENEN GRUND. GEMESSEN (Sonde
+     * S-V3o): mit entferntem `if (!viewer) return false;` in `istRadioUpdater` lief die
+     * Fassung ohne sie `55 passed`, 0 rot — kein Fall reichte je `null` hinein, und jeder
+     * heutige Aufrufer haelt einen Viewer in der Hand.
+     * Die Signatur `RadioViewer | null` ist aber eine ZUSAGE an den naechsten Aufrufer: wer
+     * `istRadioUpdater(await viewerOderNull())` schreibt — die naheliegende Frage einer
+     * Sichtbarkeitsweiche —, bekaeme sonst einen TypeError statt eines `false`.
+     */
     expect(istRadioAdmin(null)).toBe(false);
+    expect(istRadioUpdater(null)).toBe(false);
   });
 
   it("mit der Registry-Vorgabegruppe: true", () => {
@@ -496,7 +506,7 @@ describe("updaterGruppe / istInUpdaterGruppe — die Gruppenquelle der zweiten S
     /*
      * DIE GEGENREGEL §1.4.4 (Spec:595-607) FUER DAS ZWEITE PRAEDIKAT, als Rumpf-Scan.
      * `istRadioUpdater` ist eine FRAGE, keine Sperre — dieselbe Begruendung wie bei
-     * `viewerOderNull` (`_lib/zugang.ts:77-81`). Ein Host-Riegel darin machte aus der
+     * `viewerOderNull` (`_lib/zugang.ts:86-90`). Ein Host-Riegel darin machte aus der
      * Sichtbarkeitsfrage eine zweite Sperre, und zwar an einer Stelle, an der der Aufrufer
      * die Header gar nicht hat.
      *
@@ -514,7 +524,7 @@ describe("updaterGruppe / istInUpdaterGruppe — die Gruppenquelle der zweiten S
 describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
   /**
    * ⛔ `_resetGemeldeteGruppen()` GEHOERT IN DAS `beforeEach`, UND DER GRUND STEHT SEIT
-   * PLANTEIL 2 IM QUELLTEXT (`_lib/zugang.ts:224-232`): `bereitsGemeldet` ist prozess-lokal
+   * PLANTEIL 2 IM QUELLTEXT (`_lib/zugang.ts:296-303`): `bereitsGemeldet` ist prozess-lokal
    * und ueberlebt jeden Fall dieser Datei. Ohne die Zeile saehe der Fall, der die
    * Protokollzeile PRUEFT, null Aufrufe, sobald ein frueherer Fall denselben `sub` bereits
    * abgewiesen hat. Zusaetzlich traegt jeder Fall seinen EIGENEN `sub`.
@@ -665,7 +675,7 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
 
   it("eine Sitzung ohne name schreibt den sub als Namen, nicht null", async () => {
     /*
-     * ⛔ DER FALL ZUR AUFGELOESTEN KOLLISION (`_lib/zugang.ts:43-50`): `users.name` ist
+     * ⛔ DER FALL ZUR AUFGELOESTEN KOLLISION (`_lib/zugang.ts:47-59`): `users.name` ist
      * `.notNull()` (`_db/schema.ts:115`), `RadioViewer.name` ist `string | null`. V3 hat den
      * BENANNTEN RUECKFALL gewaehlt, und sein Wert ist der rohe `sub` — genau der Wert, den der
      * Bestand auf der LESEseite einsetzt („so the field is never blank",
@@ -677,6 +687,20 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
       sitzung = { user: { id: "sub-a3", groups: ["iuk-radio-admin"] } };
       await requireRadioVerwaltung();
       expect(nutzerZeilen()[0]!.name).toBe("sub-a3");
+      /*
+       * ⛔ UND EIN NAME AUS LEERRAUM IST KEIN NAME — die zweite Haelfte desselben
+       * Rueckfalls, und sie hat ihren EIGENEN Traeger. GEMESSEN (Sonde S-V3n): allein das
+       * `.trim()` aus `merkeNutzer` entfernt lief die Fassung ohne diese Zusicherung
+       * `55 passed`, 0 rot — die Falsy-Pruefung deckt `null` ab, `"   "` ist TRUTHY. Ohne
+       * das `.trim()` stuende der Leerraum danach als Anzeigename in jeder Ereigniszeile,
+       * und die Zeile saehe leer aus, ohne leer zu sein. Dieselbe Lesart wie
+       * `src/app/m/lagerbuch/_lib/konto.ts:80-100` und `lagerbuch/_db/quelle.ts:38`
+       * („EIN NAME AUS LEERZEICHEN IST KEIN NAME").
+       */
+      sitzung = { user: { id: "sub-a3b", name: "   ", groups: ["iuk-radio-admin"] } };
+      await requireRadioVerwaltung();
+      const leerraum = nutzerZeilen().find((z) => z.sub === "sub-a3b");
+      expect(leerraum!.name).toBe("sub-a3b");
     } finally { zuruecksetzen(); }
   });
 

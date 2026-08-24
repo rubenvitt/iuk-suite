@@ -17,7 +17,7 @@ import { requireRadioAdmin } from "../../_lib/zugang";
  * Riegel in DERSELBEN Reihenfolge — dieselben Funktionen, nicht zwei Abschriften. Die
  * beiden ANWEISUNGEN unten sind zeichengleich zu denen in `(arbeit)/layout.tsx`; die
  * ZEILEN sind es nicht (dort haengt am Personen-Riegel ein ⬜-Kommentar,
- * `(arbeit)/layout.tsx:54`), und ab Planteil 4 wechselt dort ausserdem der Name auf
+ * `(arbeit)/layout.tsx:60`), und ab Planteil 4 wechselt dort ausserdem der Name auf
  * `requireRadioVerwaltung()` (Spec:4367) — DIESER Zweig bleibt bei `requireRadioAdmin()`
  * (Spec:4368).
  *

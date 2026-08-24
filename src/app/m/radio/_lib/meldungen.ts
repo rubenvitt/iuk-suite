@@ -11,7 +11,7 @@
  *
  * ⚠️ DIE ZWEI HAELFTEN DIESER ZUSAGE HABEN ZWEI WAECHTER; seit A18 ist „modulweit" fuer
  * BEIDE richtig (bis dahin galt es nur fuer die erste):
- *   — modulweit: `src/app/m/radio/riegel.test.ts:977-1030` scannt JEDE Datei unter `_lib/`
+ *   — modulweit: `src/app/m/radio/riegel.test.ts:1064-1117` scannt JEDE Datei unter `_lib/`
  *     und `_db/`, auf `"use client"` UND auf `"use server"`.
  *   — nur diese Datei: der eigene Quelltext-Scan in `_lib/meldungen.test.ts`. Vorbild:
  *     `src/app/m/lagerbuch/_lib/actionTypen.test.ts:144-145`.

@@ -5,7 +5,7 @@
  * ⛔ KEIN `"use client"` — Falle 6 (`CLAUDE.md`, Punkt 6). Die drei Ausleihseiten sind
  * Server Components und brauchen die WERTE, nicht eine Client-Referenz; die Client-Zeilen
  * aus A18 bekommen die fertigen Zeichenketten als Prop. Der Scan, der das modulweit
- * durchsetzt, steht in `src/app/m/radio/riegel.test.ts:977-1030`.
+ * durchsetzt, steht in `src/app/m/radio/riegel.test.ts:1064-1117`.
  *
  * ⛔ WARUM SERVERSEITIG, WOERTLICH AUS DER SPEC (`:3341-3342`): „Sonst entscheiden Server
  * und Client an der Tagesgrenze verschieden, und gegen die Zone des Endgeraets

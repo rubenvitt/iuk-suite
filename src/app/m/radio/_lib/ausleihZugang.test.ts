@@ -174,7 +174,7 @@ async function praegeSitzung(codeId: string): Promise<Date> {
 
 /*
  * ⛔ DER MOCK DER SUITE-SITZUNG TRAEGT `id`, NICHT `sub`. `viewerAusSession` liest
- * `session.user.id` und gibt `null` zurueck, wenn es fehlt (`_lib/zugang.ts:62-72`);
+ * `session.user.id` und gibt `null` zurueck, wenn es fehlt (`_lib/zugang.ts:71-81`);
  * `sub` ist ihr AUSGABEname, nicht ihr Eingabename. Mit `{ user: { sub: … } }` faellt
  * `befund` in den Code-Zweig, und der wichtigste Fall dieser Datei („Suite-Sitzung
  * schlaegt ein gesperrtes Code-Cookie") liefert `null` statt `{ weg: "suite", … }` —
@@ -213,7 +213,7 @@ describe("radio-Ausleihzugang: die Reihenfolge des Befunds", () => {
      * ⛔ BEIDE WEGE, UND DAS IST DER PUNKT DES FALLES (Fix-Runde 1, Fund W4). Die erste
      * Haelfte faehrt den SUITE-Weg — der steigt bei Schritt 2 aus, und alles ab Schritt 3
      * waere von ihm unbewacht. Ein ZWEITER `requireRadioHost(await headers())` auf dem
-     * Code-Weg — die naheliegende „Sicherheitsverbesserung", vor der `_lib/host.ts:117-121`
+     * Code-Weg — die naheliegende „Sicherheitsverbesserung", vor der `_lib/host.ts:121-125`
      * warnt — bliebe damit unentdeckt, obwohl der Name des Falles und der Testauftrag
      * (Spec:3092) beide Wege versprechen. Sonde R-A7i.
      *

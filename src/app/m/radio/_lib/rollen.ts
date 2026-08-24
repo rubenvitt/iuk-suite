@@ -36,7 +36,7 @@
  *
  * ⛔ KEIN `"use client"` UND KEIN `"use server"`. Falle 6 (`CLAUDE.md`): ein Wert aus einem
  * als Client markierten Modul kommt in einer Server Component nicht an — HTTP 500 fuer die
- * ganze Seite, und Vitest kann es strukturell nicht sehen. `riegel.test.ts:977-1030` setzt
+ * ganze Seite, und Vitest kann es strukturell nicht sehen. `riegel.test.ts:1064-1117` setzt
  * beide Richtungen modulweit durch.
  *
  * ⬜ V-L1 / E1b — wie die Updater-Gruppe in PRODUKTION heisst, weiss nur der Betreiber;
@@ -53,7 +53,7 @@
  * ⛔ `admin` IST STRIKT STRENGER ALS `updater`, nicht daneben: im Bestand gewinnt `admin` bei
  * Ueberschneidung (`radio-admin/shared/src/role.ts:7-8`, Faelle in `role.test.ts:4-33`). Wer
  * die zweite Stufe als `||` in `istRadioAdmin` hineinfaltet, macht aus einer Verfeinerung eine
- * Aufweichung (`_lib/zugang.ts:142-144`).
+ * Aufweichung (`_lib/zugang.ts:153-155`).
  *
  * ⚠️ NAMENSDIVERGENZ, BENANNT STATT STILL: `Spec:4290` schreibt den Traeger als `RADIO_ROLLE`.
  * Verbindlich ist die Typform `RadioRolle` — so fuehren ihn `Spec:4203`

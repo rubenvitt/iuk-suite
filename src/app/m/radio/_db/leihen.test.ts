@@ -1431,7 +1431,7 @@ describe("radio-leihen: die Bauform der Datei", () => {
   it("traegt keine Direktive und keinen Verweis auf die alte HTTP-Grenze", () => {
     /*
      * ⛔ KEIN `"use client"`, KEIN `"use server"` — reine Datenzugriffe (Spec:5014).
-     * Der modulweite `"use client"`-Scan steht in `riegel.test.ts:977-1030`; fuer
+     * Der modulweite `"use client"`-Scan steht in `riegel.test.ts:1064-1117`; fuer
      * `"use server"` gibt es ihn nicht (⬜ A-L16, `_lib/meldungen.ts:19-24`), deshalb
      * scannt diese Datei sich hier selbst — dieselbe Bauform wie
      * `_lib/meldungen.test.ts:536-561`.

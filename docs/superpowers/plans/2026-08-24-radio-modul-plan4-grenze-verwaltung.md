@@ -101,7 +101,7 @@ Die fuenf Abschnitte und wo Planteil 4 in ihnen steht:
 | Block | Aufgaben | Was er liefert | Warum er dort steht (6.7) |
 |---|---|---|---|
 | **V-A — Abschnitt B schliessen** | V1 | `leihhistorie(db, f)` in `_db/leihen.ts` | ⛔ **B verlangt ALLE SECHS**, nicht fuenf. Solange die sechste fehlt, ist B offen — und C kann nicht fertig sein, weil `/admin/ausleihen` (eine C-Flaeche) ihr einziger Verbraucher ist. **Deshalb zuerst.** |
-| **V-B — die zweite Stufe und die Naht** | V2, V3, V4 | `_lib/rollen.ts`, `requireRadioVerwaltung`, `istRadioUpdater`, `merkeNutzer`, der Layout-Wechsel, `radioNav(stufe)` | Kein 6.7-Abschnitt, sondern die **Vorbedingung von C**: jede der zehn Seiten traegt eine Rechtestufe als **erste Anweisung** (`Spec:4362-4380`). Solange `admin/(arbeit)/layout.tsx` auf `requireRadioAdmin()` steht, sperrt es **jede Updater-Person mit 404, bevor irgendeine Seite laeuft** — und typecheck, lint und build bleiben gruen (`admin/(arbeit)/layout.tsx:36-46`). |
+| **V-B — die zweite Stufe und die Naht** | V2, V3, V4 | `_lib/rollen.ts`, `requireRadioVerwaltung`, `istRadioUpdater`, `merkeNutzer`, der Layout-Wechsel, `radioNav(stufe)` | Kein 6.7-Abschnitt, sondern die **Vorbedingung von C**: jede der zehn Seiten traegt eine Rechtestufe als **erste Anweisung** (`Spec:4362-4380`). Solange `admin/(arbeit)/layout.tsx` auf `requireRadioAdmin()` steht, sperrt es **jede Updater-Person mit 404, bevor irgendeine Seite laeuft** — und typecheck, lint und build bleiben gruen (`admin/(arbeit)/layout.tsx:39-52`). |
 | **V-C — Lesepfade und Fachlogik** | V5–V9 | `_lib/lesepfade/*`, `_lib/updateStand.ts`, `_lib/geraeteDiff.ts`, `_lib/notiz.ts`, `_lib/csv/*` | 6.7-C verlangt „rufen **ausschliesslich** die internen Pfade". Die Pfade muessen also **vor** den Flaechen stehen, sonst greift eine Flaeche zum naechstbesten — und der Abnahmebefehl fuer C (`rg -n "RADIO_ADMIN_\|api/v1/" src/app/m/radio` → nichts) faengt genau **das** nicht, weil ein Direktzugriff auf `db` keinen Alt-Namen nennt. |
 | **V-D — die Actions und ihr Waechter** | V10, V11 | `admin/actions.ts` (**neun** Actions, E-V16) und **`admin/actions.test.ts`** | Der Scan ist laut `Spec:4853-4857` „**der einzige Waechter der Aufruftabelle aus §5.4** — kein anderes Gate sieht eine vergessene Zeile". Er muss **mit der ersten Action** entstehen, nie danach. |
 | **V-E — die zehn Seiten und die acht Inseln** | V12–V21 | die zehn `page.tsx` und die acht `"use client"`-Inseln | **Das ist Abschnitt C.** |
@@ -114,7 +114,7 @@ Die fuenf Abschnitte und wo Planteil 4 in ihnen steht:
 alle 23 Aufgaben, und das ist **nicht selbstverstaendlich**, sondern eine Folge davon, wie die zwei
 Zaehlwaechter gebaut sind:
 
-* `ADMIN_SEITEN_ANZAHL` in `riegel.test.ts:119` zaehlt mit **`toBe`** (`riegel.test.ts:604-610`).
+* `ADMIN_SEITEN_ANZAHL` in `riegel.test.ts:119` zaehlt mit **`toBe`** (`riegel.test.ts:638-644`).
   Jede Seitenaufgabe hebt die Zahl um **genau das, was sie gebaut hat** — 0→1→2→…→10. Damit ist
   jede fuer sich gruen.
 * `HANDLER_ANZAHL` in `riegel.test.ts:111` ebenso, **2 → 3 → 4**, in **zwei** Aufgaben (V18 legt
@@ -146,7 +146,7 @@ Zaehlwaechter gebaut sind:
 | Zeichenpaket | `react-icons/pi` (Hausform seit 12.08.2026) | `src/core/shell/navIkonen.tsx:15-20`, `src/app/m/lagerbuch/_ui/ikonen.tsx:1-30` |
 | Playwright `baseURL` | `http://portal.localtest.me:3100` — **genau einer** | `playwright.config.ts:64` |
 | Modulregistrierung `radio` | `key: "radio"`, `shell: "full"`, `requiresAuth: false`, `adminGroups: ["iuk-radio-admin"]` | `src/core/registry.ts:197-198` |
-| Suite-Riegel des Moduls | `istRadioAdmin` ueber `adminGroupsFor(getModule("radio"))`, **bewusst nicht** `isModuleAdmin` | `src/app/m/radio/_lib/zugang.ts:177-181`, Begruendung `:93-97` |
+| Suite-Riegel des Moduls | `istRadioAdmin` ueber `adminGroupsFor(getModule("radio"))`, **bewusst nicht** `isModuleAdmin` | `src/app/m/radio/_lib/zugang.ts:188-192`, Begruendung `:93-97` |
 | CSV-Neutralisierung im Haus | `neutralizeFormula` in `src/app/m/feedback/_lib/csv.ts:10-21`, `buildCsv` joint **hart mit `,`** (`:6-8`) | gemessen — siehe Entscheidung **E-V12** |
 
 ---
@@ -279,16 +279,16 @@ Sie gelten fuer **jede** Aufgabe und werden dort nicht wiederholt.
 | Verboten | Warum | Beleg |
 |---|---|---|
 | `RADIO_ADMIN_` und `api/v1/` als Zeichenkette **irgendwo unter `src/app/m/radio/`** — auch im Kommentar, auch in Prosa | Der Abnahmebefehl fuer 6.7-C ist `rg -n "RADIO_ADMIN_\|api/v1/" src/app/m/radio` → **nichts**. `_db/leihen.test.ts` scannt den **rohen** Dateitext | `Spec:5453`, gemessen `_db/leihen.ts:57-64` („`1 failed \| 25 passed`, allein an diesem Kommentar") |
-| `requireRadioAdmin(` / `requireRadioVerwaltung(` in einem **Route Handler** | B11 — ein werfender Riegel endet in `redirect('/login?…')`; ein anonymer `GET` auf `/admin/geraete/export` landete im Login-Umweg | `riegel.test.ts:568-573`, `Spec:100/4379/117` |
+| `requireRadioAdmin(` / `requireRadioVerwaltung(` in einem **Route Handler** | B11 — ein werfender Riegel endet in `redirect('/login?…')`; ein anonymer `GET` auf `/admin/geraete/export` landete im Login-Umweg | `riegel.test.ts:602-607`, `Spec:100/4379/117` |
 | `403` als Statuscode irgendwo unter `admin/` | B10 — ein 403 macht den Bestand an Verwaltungspfaden aufzaehlbar, waehrend die Seiten daneben schweigen | `Spec:99`, `Spec:4379` |
-| `\|\|` in `istRadioAdmin`, um die Updater-Stufe hineinzufalten | Die zweite Stufe kommt als **zweite Funktion**. `admin` bleibt strikt strenger als `updater` | `_lib/zugang.ts:142-144`, `:161-175`; Alt-Vorbild `radio-admin/shared/src/role.ts:7-8` |
-| `isModuleAdmin` / `canAdminModule` unter `src/app/m/radio/` | Entscheidung 9 — `radio` ignoriert den Suite-Admin-Kurzschluss **modulintern** | `Spec:65`, `_lib/zugang.ts:93-97`, `riegel.test.ts:929-948` |
+| `\|\|` in `istRadioAdmin`, um die Updater-Stufe hineinzufalten | Die zweite Stufe kommt als **zweite Funktion**. `admin` bleibt strikt strenger als `updater` | `_lib/zugang.ts:153-155`, `:161-175`; Alt-Vorbild `radio-admin/shared/src/role.ts:7-8` |
+| `isModuleAdmin` / `canAdminModule` unter `src/app/m/radio/` | Entscheidung 9 — `radio` ignoriert den Suite-Admin-Kurzschluss **modulintern** | `Spec:65`, `_lib/zugang.ts:102-106`, `riegel.test.ts:1016-1035` |
 | `size="small"` / `size="large"` auf einem antd-Bedienelement | Falle 4 — `FullShell` traegt `controlHeight: 44` | `CLAUDE.md`, Falle 4 |
 | `@ant-design/icons` in **irgendeiner** Datei dieses Moduls | Falle 7 — HTTP 500 **beim Import**, `"use client"` behebt es nicht | `CLAUDE.md`, Falle 7; `src/core/shell/icons.test.ts` |
 | ein **zweiter** Hexsatz fuer die Statustoene unter `admin/` | NS-A8b, Zusage §4.12 Nr. 11 woertlich: „Die Verwaltung darf sie mitbenutzen; **sie darf ihre Statusfarben nicht ein zweites Mal definieren.**" | `_lib/status.ts:125` (`STATUS_HEX`) |
 | ein **zweites** Ikonenmodul neben `_ui/ikonen.tsx` | NS-A8b | `_ui/ikonen.tsx:55-68` |
 | ein **zweites** DOM-Test-Harness | `CLAUDE.md:259` | `src/app/m/qr/_lib/test-dom.tsx` |
-| `ohneKommentareUndZeichenketten(...)` **direkt** in einem neuen Scan | Der Kommentarschnitt-Fehler. **Nur `bereinigt` schneidet** | `riegel.test.ts:229`, `:291`, `:334` — ⛔ **ab V11 stehen die drei in `_lib/quelltextScan.ts`** (E-V13), und der Waechter darueber ist `riegel.test.ts:1121-1134` (`toBe(2)`), der im selben Commit mitzieht |
+| `ohneKommentareUndZeichenketten(...)` **direkt** in einem neuen Scan | Der Kommentarschnitt-Fehler. **Nur `bereinigt` schneidet** | `riegel.test.ts:229`, `:291`, `:334` — ⛔ **ab V11 stehen die drei in `_lib/quelltextScan.ts`** (E-V13), und der Waechter darueber ist `riegel.test.ts:1208-1221` (`toBe(2)`), der im selben Commit mitzieht |
 
 ### Das Tor je Aufgabe — es ist NICHT „volle Suite gruen"
 
@@ -322,11 +322,11 @@ voll laufen lassen, zuruecklegen) — nicht der Zaehlwert allein.
 | 9 | `requireRadioAdmin()` in einem **Route Handler** | ⛔ **NEIN** | B11/B17. Er nimmt `radioHostOderNull(request.headers)` + `istRadioAdmin(await viewerOderNull())` und baut seine **404** selbst |
 | 10 | `notFound()` / `redirect()` im Antwortweg eines Route Handlers | ⛔ **NEIN** | `Spec:4723-4729`: keine brauchbare Antwort auf einen Dateiabruf |
 | 11 | `403` statt `404` im Export-Handler | ⛔ **NEIN** | B10 (`Spec:99`), bestaetigt B17 (`Spec:117`) |
-| 12 | `requireRadioHost` **vor** dem Personen-Riegel in einem Layout | ✅ **JA — Reihenfolge ist Pflicht** | `riegel.test.ts:667-672`, `Spec:429-437` |
-| 13 | `requireRadioHost` in einer Seite **innerhalb** einer Route-Group | ⛔ **NEIN** | `Spec:4369-4378` gibt jeder Seite **genau eine** erste Anweisung. Eine Klausel, die den Host auch dort verlangte, waere rot-by-construction (`riegel.test.ts:612-619`) |
-| 14 | `requireRadioHost` in einer Seite **ausserhalb** jeder Route-Group | ✅ **JA — Pflicht, und vor der Person** | `riegel.test.ts:641-672`. ⛔ Dieser Planteil legt **keine** solche Seite an — alle zehn liegen in `(arbeit)` oder `(druck)` |
+| 12 | `requireRadioHost` **vor** dem Personen-Riegel in einem Layout | ✅ **JA — Reihenfolge ist Pflicht** | `riegel.test.ts:701-706`, `Spec:429-437` |
+| 13 | `requireRadioHost` in einer Seite **innerhalb** einer Route-Group | ⛔ **NEIN** | `Spec:4369-4378` gibt jeder Seite **genau eine** erste Anweisung. Eine Klausel, die den Host auch dort verlangte, waere rot-by-construction (`riegel.test.ts:646-653`) |
+| 14 | `requireRadioHost` in einer Seite **ausserhalb** jeder Route-Group | ✅ **JA — Pflicht, und vor der Person** | `riegel.test.ts:675-706`. ⛔ Dieser Planteil legt **keine** solche Seite an — alle zehn liegen in `(arbeit)` oder `(druck)` |
 | 15 | `merkeNutzer(...)` **vor** `istRadioAdmin` im Riegelkoerper | ⛔ **NEIN** | NS-Z7: die Zeile steht **nach** dem Riegel. Klausel (d) liest denselben Funktionskoerper mit |
-| 16 | Den gemeinsamen Teil von `requireRadioAdmin`/`requireRadioVerwaltung` in einen Helfer ziehen | ✅ **JA — aber nur mit umgezogenen Zusicherungen** | `riegel.test.ts:734-748` schreibt es aus: „die vier Zusicherungen **WANDERN** in den Koerper dieses Helfers … Sie werden NICHT geloescht und NICHT zu einem dateiweiten Scan aufgeweicht" |
+| 16 | Den gemeinsamen Teil von `requireRadioAdmin`/`requireRadioVerwaltung` in einen Helfer ziehen | ✅ **JA — aber nur mit umgezogenen Zusicherungen** | `riegel.test.ts:784-799` schreibt es aus: „die vier Zusicherungen **WANDERN** in den Koerper dieses Helfers … Sie werden NICHT geloescht und NICHT zu einem dateiweiten Scan aufgeweicht" |
 | 17 | Eine `page.tsx` oder `layout.tsx` **ausserhalb** von `admin/` anlegen | ⛔ **NEIN** | NS-A4: `AUSLEIH_FLAECHEN_ANZAHL = 5` bleibt bei 5. „Legt er doch eine an, ist Klausel (f) rot — und das ist gewollt" |
 | 18 | Eine **vierte** Ausnahme in `_actions/guards.test.ts`s `AUSNAHMEN` | ⛔ **NEIN** | NS-A5: „Eine VIERTE Ausnahme ist ein roter Test, keine Zeile im Diff" (`guards.test.ts:513`) |
 | 19 | `admin/actions.ts` unter `_actions/` legen, damit `guards.test.ts` sie mitsieht | ⛔ **NEIN** | `Spec:4243` legt sie nach `admin/actions.ts`. Der Preis ist der **vierte** Scan — siehe eigenes Kapitel. ⬜ **V-L9** |
@@ -345,7 +345,7 @@ voll laufen lassen, zuruecklegen) — nicht der Zaehlwert allein.
 |---|---|---|---|
 | **V1** | Planteil 3 gebaut und schlussgeprueft | ✅ **erfuellt** | `KONTEXT.md`, Nachtrag 2026-08-24: 479/479 Dateien, 8509/8509 Tests, typecheck 0, lint 0, build 0, playwright 333 passed |
 | **V2** | `_db/leihen.ts` mit fuenf von sechs Funktionen | ✅ **erfuellt** | `_db/leihen.ts:285`, `:333`, `:373`, `:501`, `:648` |
-| **V3** | `_lib/zugang.ts` mit der **Naht** fuer die zweite Stufe | ✅ **erfuellt** (die Naht, nicht die Stufe) | ausgeschriebener Kommentarblock `_lib/zugang.ts:123-176` |
+| **V3** | `_lib/zugang.ts` mit der **Naht** fuer die zweite Stufe | ✅ **erfuellt** (die Naht, nicht die Stufe) | ausgeschriebener Kommentarblock `_lib/zugang.ts:132-187` |
 | **V4** | Die zwei Verwaltungs-Huellen stehen, beide mit Host- und Personenriegel | ✅ **erfuellt** | `admin/(arbeit)/layout.tsx`, `admin/(druck)/layout.tsx` |
 | **V5** | Der Suite-Admin-Kurzschluss (`src/core/groups.ts:125`) | ⏳ **offen — blockiert NICHT** | Eigener Plan `docs/superpowers/plans/2026-08-24-suite-admin-kurzschluss.md`, Aufgabe **K2** belegt es namentlich: „Folge: **Planteil 4 ist technisch nicht blockiert.**" Siehe eigenes Kapitel |
 | **V6** | Die CWE-348-Umstellung in `core/ratelimit.ts` | ✅ **gebaut** (`7d71b6c`) — und fuer diesen Planteil **gegenstandslos** | `Spec:4922-4925`: „Voraussetzung fuer den Code-Endpunkt in Kapitel 3, **nicht** fuer `/admin`" |
@@ -364,7 +364,7 @@ Fenster ueberhaupt noch entschieden, und auch der blockiert nicht.
 | **E1** (`SPERREN-radio-spec2.md:112`) | Wie heisst `SUITE_ADMIN_GROUP_RADIO` in Produktion? | **Betreiber**, vor **Cut 26** — ⛔ **nicht** vor der Generalprobe | 6.7-D. Ohne sie sperrt der Cutover „alle oder niemanden" (`Spec:4427-4430`) |
 | **E1b** (`SPERREN-radio-spec2.md:110`) | Wie heisst `SUITE_UPDATER_GROUP_RADIO` in Produktion? | **Betreiber**, vor **Cut 26** | dito. **Dieser Planteil macht sie ueberhaupt erst fragbar**, indem er die Stufe baut |
 | **Z-L1 / A-L9** (`riegel.test.ts:49-53`) | Greift der Riegel einer Verwaltungs-Huelle bei einem **echten** Abruf? Fuehrt Next das Layout einer Route-Group aus? | ⛔ **Planteil 4 selbst, Aufgabe V23** — der erste echte Abruf gegen `/admin`. Bis dahin steht nur der Quelltext-Scan | 6.7-D. „Kein Fall des Planteil-4-Wegs darf ‚der Riegel steht da' mit ‚der Riegel greift' verwechseln" |
-| ~~**A-L16**~~ | ⛔ **GESTRICHEN — sie ist bereits GESCHLOSSEN, gemessen.** `_lib/meldungen.ts:19` sagt woertlich „✅ **A-L16 IST GESCHLOSSEN (A18).**", und `:22-23` nennt den Grund: „Jetzt scannt `riegel.test.ts` beide Direktiven ueber JEDE Datei unter `_lib/` und `_db/`" — bestaetigt am Scan selbst (`riegel.test.ts:997`, `it('findet auch keine Direktive "use server"')`). ⛔ **Dieser Planteil hat dort nichts abzulesen**; `admin/actions.test.ts` ist eine **zusaetzliche** Zusicherung fuer `admin/`, kein Ersatz und keine Verkleinerung | — | — |
+| ~~**A-L16**~~ | ⛔ **GESTRICHEN — sie ist bereits GESCHLOSSEN, gemessen.** `_lib/meldungen.ts:19` sagt woertlich „✅ **A-L16 IST GESCHLOSSEN (A18).**", und `:22-23` nennt den Grund: „Jetzt scannt `riegel.test.ts` beide Direktiven ueber JEDE Datei unter `_lib/` und `_db/`" — bestaetigt am Scan selbst (`riegel.test.ts:1084`, `it('findet auch keine Direktive "use server"')`). ⛔ **Dieser Planteil hat dort nichts abzulesen**; `admin/actions.test.ts` ist eine **zusaetzliche** Zusicherung fuer `admin/`, kein Ersatz und keine Verkleinerung | — | — |
 
 ### 3. Leerstellen, die dieser Planteil NEU benennt
 
@@ -390,12 +390,12 @@ Fenster ueberhaupt noch entschieden, und auch der blockiert nicht.
 ### Entscheidung E-V1 — Die zweite Stufe kommt als zweite Funktion, mit einem gemeinsamen Helfer, und die vier Zusicherungen ziehen mit
 
 **Befund.** `Spec:4287-4288` legt `requireRadioVerwaltung` und `istRadioUpdater` in **dieselbe
-Datei** wie `requireRadioAdmin`. `_lib/zugang.ts:142-144` verbietet ausdruecklich, die zweite Stufe
+Datei** wie `requireRadioAdmin`. `_lib/zugang.ts:153-155` verbietet ausdruecklich, die zweite Stufe
 als `||` in `istRadioAdmin` hineinzufalten. `Spec:4351-4353` beschreibt `requireRadioVerwaltung`
 als „identisch, aber `istRadioAdmin(viewer)` **ODER** `istRadioUpdater(viewer)`; liefert die Stufe
 mit". Zwei werfende Riegel mit fast gleichem Koerper.
 
-⛔ **Und hier steht eine Falle, die der Waechter selbst benennt.** `riegel.test.ts:734-748`:
+⛔ **Und hier steht eine Falle, die der Waechter selbst benennt.** `riegel.test.ts:784-799`:
 
 > „Zwei werfende Riegel mit fast gleichem Koerper sind der Lehrbuchfall, in dem jemand den
 > gemeinsamen Teil in einen Helfer zieht — und in dem Augenblick verlassen die vier Aufrufe den
@@ -407,14 +407,14 @@ und nicht zu einem dateiweiten `toMatch` aufgeweicht.
 
 Gruende:
 
-1. Der Waechter schreibt den Weg selbst aus (`riegel.test.ts:738-739`): „die vier Zusicherungen
+1. Der Waechter schreibt den Weg selbst aus (`riegel.test.ts:789-790`): „die vier Zusicherungen
    WANDERN in den Koerper dieses Helfers (`funktionsKoerper(quelle, "<helfer>")`)".
 2. Zwei Abschriften desselben Riegels sind der Ort, an dem eine Korrektur nur an einer von beiden
    ankommt — und die schwaechere ist die, auf die sich der naechste Leser beruft. Derselbe
    Gedanke steht in `admin/(druck)/layout.tsx:16-20` („dieselben Funktionen, nicht zwei
    Abschriften").
 3. ⛔ **NS-A7 verlangt es ohnehin:** „Wer `requireRadioVerwaltung` baut, **schuldet ihm dieselben
-   Koerper-Zusicherungen**" (`riegel.test.ts:630-633` — ⚠️ der Anker `:524-527` aus dem
+   Koerper-Zusicherungen**" (`riegel.test.ts:664-667` — ⚠️ der Anker `:524-527` aus dem
    Uebergabezettel ist tot, Fund F5 der Schlusspruefung). Ohne den Helfer waeren es zwei
    Zusicherungsbloecke; mit ihm ist es einer, und er deckt beide Riegel.
 
@@ -462,7 +462,7 @@ und der naheliegende Gruen-Fix waere, ihn zu loeschen.
 ### Entscheidung E-V2 — `ADMIN_SEITEN_ANZAHL` wird ZEHNMAL um eins angehoben, nicht einmal um zehn
 
 **Befund.** `riegel.test.ts:81-95` nennt als Fahrplan „Planteil 4 baut die zehn Seiten aus
-Spec:4369-4378 → `ADMIN_SEITEN_ANZAHL = 10`". Der Zaehler ist `toBe` (`riegel.test.ts:604-610`).
+Spec:4369-4378 → `ADMIN_SEITEN_ANZAHL = 10`". Der Zaehler ist `toBe` (`riegel.test.ts:638-644`).
 Woertlich gelesen hiesse das: eine Aufgabe setzt die Zahl auf 10 — und dann sind neun Aufgaben
 lang alle Tore rot.
 
@@ -885,7 +885,7 @@ vom Import weg:**
    **ohne Erklaerung**. ⚠️ Gegenprobe: `rtk grep -n "from \"…\.test\"" src/ e2e/` findet **keine**
    Testdatei dieses Repos, die aus einer anderen importiert — und `riegel.test.ts` exportiert heute
    **nichts** (`grep -c "^export"` → 0).
-2. ✅ **Der zweite Grund traegt nicht mehr.** `riegel.test.ts:989-994` scannt `_lib/`/`_db/` nur auf
+2. ✅ **Der zweite Grund traegt nicht mehr.** `riegel.test.ts:1076-1081` scannt `_lib/`/`_db/` nur auf
    **Direktiven** (`"use client"`, `"use server"`); eine direktivenfreie Helferdatei besteht ihn, und
    die Untergrenze `:990` ist `toBeGreaterThanOrEqual(4)` — eine **zusaetzliche** Datei macht sie
    nicht rot. Der Satz stammt aus der Zeit vor diesem Scan.
@@ -896,7 +896,7 @@ sie von dort — im SELBEN Commit (V11). ⛔ Kein Import aus einer `.test.ts`, u
 Kopie.**
 
 ⛔ **UND EINE ZWEITE ZUSICHERUNG ZIEHT ZWINGEND MIT — sie ist der Teil, den man vergisst.**
-`riegel.test.ts:1121-1134` fuehrt den Fall „**kein Scan dieser Datei liest die ungeschuetzte Fassung
+`riegel.test.ts:1208-1221` fuehrt den Fall „**kein Scan dieser Datei liest die ungeschuetzte Fassung
 direkt**": er zaehlt die Nadel `"ohneKommentareUnd" + "Zeichenketten("` im **eigenen** Dateitext
 (`SELBST`) und verlangt `toBe(2)` — „in seiner eigenen Deklaration und in `bereinigt`". ⛔ **Wandern
 die Funktionen aus der Datei, faellt dieser Zaehler auf 0 bzw. 1 und der Fall ist ROT.** Er wird im
@@ -929,7 +929,7 @@ Gruende fuer die Uebernahme der Reparatur ueberhaupt:
    `_lib/quelltextScan.ts` ist eine.
 
 ⛔ **Und `admin/actions.test.ts` traegt seinen eigenen Selbsttest** — den Waechter ueber dem
-Waechter, Vorbild `riegel.test.ts:1070` (`describe("die Bereinigung selbst")`): ein Fall, der
+Waechter, Vorbild `riegel.test.ts:1157` (`describe("die Bereinigung selbst")`): ein Fall, der
 belegt, dass ein `/\//` in einer Actionsdatei den Schnitt **nicht** ueberlebt und die Zeile
 dahinter **noch** gelesen wird. Ohne ihn ist die Uebernahme eine Behauptung.
 
@@ -1373,7 +1373,7 @@ Insel ein Playwright-Fall Pflichtbestandteil, nicht Nachbesserung.
 2. ⛔ **Server Actions duerfen als einzige ueber die Grenze — DIREKT importiert, nicht als Prop
    durchgereicht** (`Spec:4495-4497`; Vorbild `aufgaben/_ui/RoutinenTabelle.tsx:4`).
 3. ⛔ **`_lib/` traegt KEIN `"use client"`** (`Spec:4305-4307`, Falle 6) — dort liegen Werte, die
-   Server Components lesen. `riegel.test.ts:977-1030` setzt das modulweit durch.
+   Server Components lesen. `riegel.test.ts:1064-1117` setzt das modulweit durch.
 4. ⛔ **`updateStand` wandert als WORT, nicht als Farbe** (`Spec:4555-4561`, Falle 3):
    „veraltet" `color="warning"`, „aktuell" `color="success"`, „unbekannt" `default`. Rot bleibt
    allein den zerstoerenden Knoepfen (`danger` auf Loeschen).
@@ -1453,9 +1453,9 @@ Abnahme:
    Zweck: „belegen, dass die Spec-Auflage aus Entscheidung 9 **erfuellt** ist und **Planteil 4
    nicht blockiert**." Ihr Schritt 4 traegt den Satz als Nachtragspflicht in den Leitplan:
    „**Folge: Planteil 4 ist technisch nicht blockiert.**"
-   Der Beleg dafuer liegt in **diesem** Repo: `_lib/zugang.ts:177-181` baut `istRadioAdmin` ueber
+   Der Beleg dafuer liegt in **diesem** Repo: `_lib/zugang.ts:188-192` baut `istRadioAdmin` ueber
    `adminGroupsFor(getModule("radio"))` und **bewusst nicht** ueber `isModuleAdmin`/`canAdminModule`
-   (`:93-97`); `riegel.test.ts:929-948` („findet keinen der vier core-Riegel") haelt das fest.
+   (`:93-97`); `riegel.test.ts:1016-1035` („findet keinen der vier core-Riegel") haelt das fest.
    `radio` erreicht dasselbe Ziel **modulintern** — wie `feedback` und `lagerbuch`.
 2. ⛔ **Und die Spec schliesst den weiten Weg aus sich selbst aus.** `Spec:73-75` fuehrt unter
    „**Ausdrücklich nicht Teil dieser Spec** (eigene Suite-Posten)" auch „das Entfernen des
@@ -1464,7 +1464,7 @@ Abnahme:
    steht in **derselben** Liste; unterschieden werden die beiden **nur** durch den Klammerzusatz
    „(**Voraussetzung** für das Gate, siehe Kapitel 3)" beim einen und dessen Fehlen beim anderen.
    ⛔ **Der eigentliche Beleg ist deshalb nicht der Kontrast, sondern Punkt 1** — `radio` umgeht den
-   Kurzschluss modulintern, nachgewiesen an `_lib/zugang.ts:177-181` und `riegel.test.ts:929-948`.
+   Kurzschluss modulintern, nachgewiesen an `_lib/zugang.ts:188-192` und `riegel.test.ts:1016-1035`.
 3. ⛔ **Jener Plan fasst `src/app/m/radio/**` in keinem Weg und in keinem Schritt an** (er sagt es
    selbst unter „Was dieser Plan NICHT tut"). Umgekehrt gilt dasselbe: **keine Aufgabe dieses Plans
    aendert `src/core/groups.ts`.**
@@ -1516,10 +1516,10 @@ zurueck."
 `_lib/quelltextScan.ts`, und beide Scans importieren sie von dort** — ⛔ **nicht** aus
 `riegel.test.ts` (dessen Kopfkommentar `:272-274` den Import ausgeschlossen hat, und eine Sonde hat
 den Schaden gemessen: die 21 Faelle wuerden ein zweites Mal registriert). ⛔ **Und
-`riegel.test.ts:1121-1134` zieht im selben Commit mit** — die Begruendung steht dort.
+`riegel.test.ts:1208-1221` zieht im selben Commit mit** — die Begruendung steht dort.
 
 ⛔ **Und der Scan braucht seinen eigenen Selbsttest** — den Waechter ueber dem Waechter, Vorbild
-`riegel.test.ts:1070` (`describe("die Bereinigung selbst — der Waechter ueber dem Waechter")`).
+`riegel.test.ts:1157` (`describe("die Bereinigung selbst — der Waechter ueber dem Waechter")`).
 
 ### Was `admin/actions.test.ts` zusichert — die vollstaendige Liste
 
@@ -1570,8 +1570,8 @@ leer-gruener Fall nicht.
 | Datei | Was |
 |---|---|
 | `src/app/m/radio/_lib/zugang.ts` | `requireRadioVerwaltung`, `istRadioUpdater`, der gemeinsame Helfer `riegelAufStufe`, `merkeNutzer` (NS-Z7) |
-| `src/app/m/radio/_lib/zugang.test.ts` | die neuen Faelle **plus** die **Verhaltensfaelle**, die `riegel.test.ts:722-724` ausdruecklich an Planteil 4 adressiert (Vorbild `lagerbuch/_lib/zugang.test.ts:41`, `:72`, Begruendung `:60-71`) |
-| `src/app/m/radio/riegel.test.ts` | ⛔ **nur DREI Sorten Aenderung:** die Zaehlkonstanten (`ADMIN_SEITEN_ANZAHL` zehnmal um eins, `HANDLER_ANZAHL` einmal) und die Klausel-(d)-Zusicherungen, die auf `riegelAufStufe` umziehen (NS-A7). ⛔ **Keine Klausel wird aufgeweicht.** Und **drittens** (V11, E-V13): die drei Bereinigungsfunktionen **wandern nach `_lib/quelltextScan.ts`** und werden von dort importiert — ⛔ **dabei zieht der Fall `riegel.test.ts:1121-1134** („kein Scan dieser Datei liest die ungeschuetzte Fassung direkt", `toBe(2)`) **im selben Commit auf die neue Datei um**, sonst ist er rot |
+| `src/app/m/radio/_lib/zugang.test.ts` | die neuen Faelle **plus** die **Verhaltensfaelle**, die `riegel.test.ts:770-772` ausdruecklich an Planteil 4 adressiert (Vorbild `lagerbuch/_lib/zugang.test.ts:41`, `:72`, Begruendung `:60-71`) |
+| `src/app/m/radio/riegel.test.ts` | ⛔ **nur DREI Sorten Aenderung:** die Zaehlkonstanten (`ADMIN_SEITEN_ANZAHL` zehnmal um eins, `HANDLER_ANZAHL` einmal) und die Klausel-(d)-Zusicherungen, die auf `riegelAufStufe` umziehen (NS-A7). ⛔ **Keine Klausel wird aufgeweicht.** Und **drittens** (V11, E-V13): die drei Bereinigungsfunktionen **wandern nach `_lib/quelltextScan.ts`** und werden von dort importiert — ⛔ **dabei zieht der Fall `riegel.test.ts:1208-1221** („kein Scan dieser Datei liest die ungeschuetzte Fassung direkt", `toBe(2)`) **im selben Commit auf die neue Datei um**, sonst ist er rot |
 | `src/app/m/radio/_lib/nav.ts` | `RADIO_NAV` → `radioNav(stufe: RadioRolle)`, sieben Eintraege, drei nur fuer die Admin-Stufe |
 | `src/app/m/radio/_lib/routen.test.ts` | ⛔ **bezieht die zwei Pfadlisten aus dem neuen `_lib/routen.ts`** (B3) — ⛔ **die zwei Vollzaehligkeits-Faelle bleiben, mit `toBe`**; in **V18** waechst `VERWALTUNGS_PFADE` um `/admin/import/hochladen` (E-V16) |
 | `src/app/m/radio/admin/(arbeit)/layout.tsx` | `requireRadioAdmin()` → **`requireRadioVerwaltung()`** und `nav={RADIO_NAV}` → `nav={radioNav(rolle)}` — ⛔ **beide Haelften, NS-Z9** |
@@ -1779,7 +1779,7 @@ als `RADIO_ROLLE`. ⛔ **Verbindlich ist die Typform `RadioRolle`** — so fuehr
 `Spec:4508`. `Spec:4290` ist die **einzige** abweichende Stelle.
 
 ⛔ **KEIN `"use client"`** (Falle 6). Diese Datei exportiert **Werte**, die Server Components lesen
-— `riegel.test.ts:977-1030` setzt das modulweit durch.
+— `riegel.test.ts:1064-1117` setzt das modulweit durch.
 
 ### ⛔ Die Datei ist REIN — die Gruppenquelle liegt NICHT hier, sondern in `_lib/zugang.ts` (V3)
 
@@ -1922,13 +1922,13 @@ Dinge muessen zusammen richtig sein, und **zwei davon sieht kein Tor**.
 Die Form steht in **E-V1** ausgeschrieben. Drei Auflagen darueber hinaus:
 
 * ⛔ **Die zweite Stufe kommt als ZWEITE FUNKTION, nie als `||` in `istRadioAdmin`**
-  (`_lib/zugang.ts:142-144`, `:161-175`). `admin` bleibt strikt strenger als `updater` — 1:1 aus
+  (`_lib/zugang.ts:153-155`, `:161-175`). `admin` bleibt strikt strenger als `updater` — 1:1 aus
   `radio-admin/shared/src/role.ts:7-8`, wo `admin` bei Ueberschneidung gewinnt, **weil die
   Pruefung zuerst steht**.
 * ⛔ **`requireRadioVerwaltung` liefert die Stufe MIT** (`Spec:4351-4353`), sonst muesste jede
   Seite sie ein zweites Mal ableiten — und die zweite Ableitung ist die, die auseinanderlaeuft.
 * ⛔ **`istRadioUpdater` ist ein Praedikat und ruft `requireRadioHost` NICHT** — dieselbe
-  Gegenregel wie bei `viewerOderNull` (`_lib/zugang.ts:77-81`, §1.4.4).
+  Gegenregel wie bei `viewerOderNull` (`_lib/zugang.ts:86-90`, §1.4.4).
 
 ### 2. `merkeNutzer` — NS-Z7, und ohne sie rendert jede Ereigniszeile eine nackte UUID
 
@@ -1967,8 +1967,8 @@ export function merkeNutzer(db: DB, viewer: RadioViewer): void;
 ⛔ **DIE KOLLISION, UND DIE WAHL GEHOERT DIESEM PLANTEIL — sie wird hier getroffen.**
 `radio`s Spalte ist `name: text("name").notNull()` (`src/app/m/radio/_db/schema.ts:115`), der
 Sitzungstraeger ist `RadioViewer = { sub: string; name: string | null; groups: string[] }`
-(`_lib/zugang.ts:52`). ⛔ **Der Insert uebersetzt nicht.** Der Bestandskommentar sagt es woertlich
-und gibt genau zwei Wege (`_lib/zugang.ts:43-50`):
+(`_lib/zugang.ts:61`). ⛔ **Der Insert uebersetzt nicht.** Der Bestandskommentar sagt es woertlich
+und gibt genau zwei Wege (`_lib/zugang.ts:47-59`):
 
 > „Wer in Planteil 4 `merkeNutzer(getDb(), viewer)` nachtraegt …, braucht deshalb einen **BENANNTEN
 > Rueckfall** fuer `name === null` **ODER** eine Migration, die die Spalte nullable macht. **Die
@@ -1985,7 +1985,7 @@ dieser Reihenfolge:
    rohen `sub` zurueck, **„so the field is never blank"**. Der Rueckfall macht damit **dieselbe**
    Zusage auf der Schreib- wie auf der Leseseite — ein `""` oder ein `"Unbekannt"` waere ein
    dritter, erfundener Wert.
-3. ⛔ **Er steht als Kommentar an der Zeile, mit `_db/schema.ts:115`, `_lib/zugang.ts:43-50` und
+3. ⛔ **Er steht als Kommentar an der Zeile, mit `_db/schema.ts:115`, `_lib/zugang.ts:47-59` und
    `devices.ts:70-78`** — nicht als stiller `?? viewer.sub`.
 
 **Die Schreibform:** `onConflictDoUpdate` auf `sub` — `name` und `lastSeenAt` werden aufgefrischt.
@@ -1996,7 +1996,7 @@ Zahl** (dieselbe Einheitengrenze wie bei B16/`leihhistorie`).
 
 ### 3. Der Layout-Wechsel — beide Haelften, NS-Z9
 
-`admin/(arbeit)/layout.tsx:53-54` traegt heute `await requireRadioAdmin();` mit einem
+`admin/(arbeit)/layout.tsx:59-60` traegt heute `await requireRadioAdmin();` mit einem
 ⬜-Kommentar. ⛔ **Zwei Aenderungen, in derselben Aufgabe:**
 
 **V3 schreibt GENAU DIESE Form:**
@@ -2028,7 +2028,7 @@ Kommentar dort sagt es bereits (`(druck)/layout.tsx:19-22`).
 
 ### 4. Klausel (d) Fall 2 zieht auf den Helfer um — im SELBEN Commit
 
-`riegel.test.ts:734-748` schreibt es aus, und NS-A7 verlangt es:
+`riegel.test.ts:784-799` schreibt es aus, und NS-A7 verlangt es:
 
 * `funktionsKoerper(quelle, "requireRadioAdmin")` → `funktionsKoerper(quelle, "riegelAufStufe")`
 * Die **vier** Zusicherungen wandern mit: `istRadioAdmin(` — ⛔ **wird zu `erlaubt(`** (der
@@ -2043,7 +2043,7 @@ die NT11-Form."
 
 ### 5. Die VERHALTENSfaelle — sie sind hier faellig, namentlich
 
-`riegel.test.ts:722-724` woertlich: „Die **VERHALTENSfaelle** nach `lagerbuch`-Vorbild
+`riegel.test.ts:770-772` woertlich: „Die **VERHALTENSfaelle** nach `lagerbuch`-Vorbild
 (`src/app/m/lagerbuch/_lib/zugang.test.ts:41` Import, `:72` Aufruf, Begruendung `:60-71`) gehoeren
 an **PLANTEIL 4**, wo die erste Verwaltungsseite steht und der Next-Anfragekontext echt ist."
 
@@ -2187,7 +2187,7 @@ export const VERWALTUNGS_PFADE = [ /* … 1:1 aus routen.test.ts:41-53 … */ ];
 2. ⛔ **`VERWALTUNGS_PFADE` waechst mit E-V16 um `/admin/import/hochladen`** — der zweite neue Route
    Handler. Die Zahl im Vollzaehligkeitsfall wird **bewusst** angehoben, in **V18**, im selben
    Commit wie der Handler. ⛔ **Nicht in V4 vorwegnehmen und nicht auf `>=` aufweichen.**
-3. ⛔ **`_lib/routen.ts` traegt keine Direktive** — `riegel.test.ts:989-994` scannt jede Datei unter
+3. ⛔ **`_lib/routen.ts` traegt keine Direktive** — `riegel.test.ts:1076-1081` scannt jede Datei unter
    `_lib/`/`_db/` darauf; die Untergrenze `:990` ist `toBeGreaterThanOrEqual(4)` und wird durch eine
    zusaetzliche Datei nicht rot.
 
@@ -3073,11 +3073,11 @@ rtk git commit -m "feat(radio): die zehn Verwaltungs-Server-Actions"
   `riegel.test.ts` bezogen** (E-V13 — der Import aus einer `.test.ts` ist ausgeschlossen, gemessen).
   ⛔ **Diese Aufgabe legt die Hilfsdatei an und stellt `riegel.test.ts` im SELBEN Commit darauf um** —
   ⛔ **niemals eine dritte Kopie.**
-* ⛔ **UND `riegel.test.ts:1121-1134` zieht mit** („kein Scan dieser Datei liest die ungeschuetzte
+* ⛔ **UND `riegel.test.ts:1208-1221` zieht mit** („kein Scan dieser Datei liest die ungeschuetzte
   Fassung direkt", `toBe(2)`): der Fall zaehlt die Nadel im **eigenen** Dateitext und ist rot, sobald
   die Funktionen die Datei verlassen. Er wird auf `_lib/quelltextScan.ts` gerichtet und behaelt
   `toBe(2)`. ⛔ **Nicht loeschen, und die Zahl nicht anpassen, bevor gemessen ist, dass sie stimmt.**
-* ⛔ **Der Selbsttest ist Pflicht**, Vorbild `riegel.test.ts:1070`.
+* ⛔ **Der Selbsttest ist Pflicht**, Vorbild `riegel.test.ts:1157`.
 
 Die **elf** Zusicherungen stehen vollstaendig in jenem Kapitel und werden hier nicht wiederholt.
 Drei Punkte zur Ausfuehrung:
@@ -3130,7 +3130,7 @@ Damit es nicht zehnmal dasteht:
    urspruenglich **nicht**, waehrend V12 und V18–V21 es taten — und die Asymmetrie liest sich fuer
    einen Subagenten wie „hier ist nichts verlangt". `riegel.test.ts` Klausel (a)/(e) faengt eine
    **fehlende** Zeile; sie faengt eine **faelschlich abgesenkte** strukturell nicht. ⛔ **KEIN `requireRadioHost` in einer Seite innerhalb einer Route-Group**
-   (`riegel.test.ts:612-619`, `Spec:4369-4378`).
+   (`riegel.test.ts:646-653`, `Spec:4369-4378`).
 2. ⛔ **`ADMIN_SEITEN_ANZAHL` in `riegel.test.ts:119` wird um genau eins angehoben** —
    Entscheidung **E-V2**. ⛔ **Niemals `toBe` → `>=`.**
 3. ⛔ **Seite und ihre Insel(n) landen in DERSELBEN Aufgabe** (Architecture-Kapitel, Schnitt 1).
@@ -3235,7 +3235,7 @@ rtk git commit -m "feat(radio): die Verwaltungsuebersicht — vier Kennzahlen in
 `.../NeuGeraetModal.tsx`, `.../GeraeteTabelle.test.tsx`, ⛔ **`src/app/m/radio/_lib/suchparameter.ts` +
 Test** (⛔ **unter `_lib/`, NICHT unter `geraete/` — die Datei stand hier zweimal in zwei
 Verzeichnissen; die Wahl ist nicht kosmetisch: unter `_lib/` gilt fuer sie `riegel.test.ts`s
-Direktivenscan, `riegel.test.ts:977`, unter `geraete/` nicht, und der Vorbildverweis auf
+Direktivenscan, `riegel.test.ts:1064`, unter `geraete/` nicht, und der Vorbildverweis auf
 `lagerbuch/.../journalFilterLogik.ts` stuetzt dieselbe Seite**) ·
 Modify `riegel.test.ts` (**1 → 2**), `e2e/radio-verwaltung.spec.ts`
 
@@ -3739,7 +3739,7 @@ Modify `riegel.test.ts` (**`ADMIN_SEITEN_ANZAHL` 6 → 7 UND `HANDLER_ANZAHL` 2 
 
 **Interfaces:** Consumes `importSchreibenAction` (V10), `IMPORTIERBARE_FELDER`,
 `KLASSEN_WOERTER` (V9), `EINLESEN`/Kodierungserkennung (V9), `radioHostOderNull`
-(`_lib/host.ts:64`), `istRadioAdmin`/`viewerOderNull` (`_lib/zugang.ts:177`, `:86`).
+(`_lib/host.ts:64`), `istRadioAdmin`/`viewerOderNull` (`_lib/zugang.ts:188`, `:86`).
 
 ⛔ **DIESE AUFGABE IST DIE EINZIGE SEITENAUFGABE MIT ZWEI ZAEHLERN.** Beide werden in **derselben**
 Aufgabe angehoben, aus demselben Grund wie in Schnitt 2 des Architecture-Kapitels: der Handler ohne
@@ -3761,7 +3761,7 @@ export async function POST(request: Request) {
 ```
 
 ⛔ **Dieselben drei Haelften wie beim Export-Handler**, und `riegel.test.ts` Klausel (c) prueft sie
-einzeln (`riegel.test.ts:565-576`): `radioHostOderNull(` ja · `requireRadioHost(` nein · werfender
+einzeln (`riegel.test.ts:599-610`): `radioHostOderNull(` ja · `requireRadioHost(` nein · werfender
 Personen-Riegel nein. ⛔ **404, nie 403** (B10). ⛔ **`istRadioAdmin`, nicht die Verwaltungsstufe**
 (Rechtetafel: „CSV-Import — Admin ja, Updater **nein**", `Spec:4451`).
 
@@ -4111,11 +4111,11 @@ Modify `riegel.test.ts` (**`HANDLER_ANZAHL` 3 → 4**), `admin/(arbeit)/geraete/
 (der Ausloeser), `e2e/radio-verwaltung.spec.ts`
 
 **Interfaces:** Consumes `geraeteFuerExport` (**V6**), `EXPORT_SPALTEN`, `formatiereZelle` (V9),
-`radioHostOderNull` (`_lib/host.ts:64`), `istRadioAdmin`/`viewerOderNull` (`_lib/zugang.ts:177`,
+`radioHostOderNull` (`_lib/host.ts:64`), `istRadioAdmin`/`viewerOderNull` (`_lib/zugang.ts:188`,
 `:86`).
 
 ⛔ **DIE AUSNAHME VON ALLEM DARUEBER, UND SIE HAT DREI HAELFTEN, DIE `riegel.test.ts` KLAUSEL (c)
-EINZELN PRUEFT** (`riegel.test.ts:565-576`):
+EINZELN PRUEFT** (`riegel.test.ts:599-610`):
 
 ```ts
 export async function GET(request: Request) {
@@ -4131,11 +4131,11 @@ export async function GET(request: Request) {
 
 | Auflage | Warum | Beleg |
 |---|---|---|
-| ⛔ **`radioHostOderNull`, NICHT `requireRadioHost`** | Die werfende Form ist im Antwortweg eines Handlers die falsche Gestalt | `riegel.test.ts:569-571`, `Spec:4379` |
-| ⛔ **`istRadioAdmin(await viewerOderNull())`, NICHT `requireRadioAdmin()`** | ⛔ **B11 (`Spec:100`), bestaetigt B17 (`Spec:117`):** `requireRadioAdmin` endet in `redirect('/login?…')` bzw. `notFound()`; woertlich umgesetzt landete ein anonymer `GET` auf `/admin/geraete/export` in einem **Login-Umweg** — typkorrekt, lint-sauber. ⚠️ **Und der falsche Griff ist der naheliegende:** der Handler liegt unter `admin/(arbeit)/`, wo alles andere auf `requireRadioVerwaltung` steht. **Gemessen (Fix-Runde 1, Sonde S1): derselbe Handler mit `requireRadioVerwaltung()` lief `12 passed`** — die dritte Zeile der Klausel wurde deshalb nachgetragen | `riegel.test.ts:539-561` |
+| ⛔ **`radioHostOderNull`, NICHT `requireRadioHost`** | Die werfende Form ist im Antwortweg eines Handlers die falsche Gestalt | `riegel.test.ts:603-605`, `Spec:4379` |
+| ⛔ **`istRadioAdmin(await viewerOderNull())`, NICHT `requireRadioAdmin()`** | ⛔ **B11 (`Spec:100`), bestaetigt B17 (`Spec:117`):** `requireRadioAdmin` endet in `redirect('/login?…')` bzw. `notFound()`; woertlich umgesetzt landete ein anonymer `GET` auf `/admin/geraete/export` in einem **Login-Umweg** — typkorrekt, lint-sauber. ⚠️ **Und der falsche Griff ist der naheliegende:** der Handler liegt unter `admin/(arbeit)/`, wo alles andere auf `requireRadioVerwaltung` steht. **Gemessen (Fix-Runde 1, Sonde S1): derselbe Handler mit `requireRadioVerwaltung()` lief `12 passed`** — die dritte Zeile der Klausel wurde deshalb nachgetragen | `riegel.test.ts:573-595` |
 | ⛔ **404, NIE 403** | ⛔ **B10 (`Spec:99`):** „Der Preis der Abweichung waere, dass `GET /admin/geraete/export` den Bestand an Verwaltungspfaden **aufzaehlbar** macht, waehrend die Seiten daneben schweigen; **kein Tor sieht es, beide Zweige sind gueltiges HTTP**" | `Spec:4379` |
 | ⛔ **`istRadioAdmin`, NICHT die Verwaltungsstufe** | Rechtetafel: „CSV-Export — Admin ja, Updater **nein**" (`Spec:4451`); Alt-Beleg `export.ts:71` (`requireRole('admin')`) | `Spec:4444-4454` |
-| ⛔ **`hostAbweisung` waere hier FALSCH** | B13 laesst beide Formen zu, aber `Spec:4379` zeigt fuer **diesen** Handler `radioHostOderNull`. Die vierte Form gehoert `sw.js` (Planteil 5) | `Spec:102`, `riegel.test.ts:522-527` |
+| ⛔ **`hostAbweisung` waere hier FALSCH** | B13 laesst beide Formen zu, aber `Spec:4379` zeigt fuer **diesen** Handler `radioHostOderNull`. Die vierte Form gehoert `sw.js` (Planteil 5) | `Spec:102`, `riegel.test.ts:556-561` |
 
 ⚠️ **`Spec:4728` sagt woertlich noch „baut seine `403` selbst"** — ⛔ **das ist die von B17
 ausdruecklich als veraltet benannte Formulierung. Lies sie als 404.**
@@ -4338,7 +4338,7 @@ rtk git commit -m "test(radio): der Abschluss von Planteil 4 — Z-L1 abgelesen,
 | **NS-V3** | ⛔ **`AUSLEIH_FLAECHEN_ANZAHL` steht unveraendert auf `5`, Klausel (f) steht.** | Planteil 4 hat **keine** Flaeche ausserhalb `admin/` angelegt. Legt Planteil 5 eine an, hebt er die Zahl — ⛔ **im selben Commit.** |
 | **NS-V4** | ⛔ **`_lib/rollen.ts` fuehrt `SUITE_UPDATER_GROUP_RADIO`, und `radioBootFehler()` gibt es nicht.** | ⛔ **Planteil 5 baut die SECHSTE Boot-Pruefung** (C.6/B4): ein **gesetzter, aber leerer** Wert ist eine gueltige Aussage („niemand ist Updater") und **darf nicht abbrechen**; ein **Tippfehler** ist von aussen nicht unterscheidbar. ⛔ **Deshalb prueft der Boot-Helfer NICHT den Inhalt, sondern meldet den Zustand LAUT beim Start** — dieselbe Richtung wie Falle 23s zweite Haelfte („die zweite ist still und wird von keiner Pruefung gemeldet"). ⬜ **V-L1** bleibt davon unberuehrt |
 | **NS-V5** | ⛔ **`admin/actions.test.ts` fuehrt `ACTION_ANZAHL = 9`, `toBe`, und die vier namentlichen Seiten-Zusicherungen.** | ⛔ **Eine elfte Verwaltungs-Action hebt die Zahl bewusst.** ⛔ **Und eine vierte `requireRadioAdmin`-Seite bricht Fall 10 (`toBe(3)`)** — das ist gewollt: sie waere eine Rechteverschiebung und keine Zeile im Diff |
-| **NS-V6** | ⛔ **Die dreiteilige Reparatur des Kommentarschnitts wird ab jetzt aus EINER Quelle bezogen** (E-V13). | ⛔ **Wer einen FUENFTEN Scan anlegt, importiert sie — er kopiert sie nicht.** Und er bringt seinen eigenen Selbsttest mit (Vorbild `riegel.test.ts:1070`) |
+| **NS-V6** | ⛔ **Die dreiteilige Reparatur des Kommentarschnitts wird ab jetzt aus EINER Quelle bezogen** (E-V13). | ⛔ **Wer einen FUENFTEN Scan anlegt, importiert sie — er kopiert sie nicht.** Und er bringt seinen eigenen Selbsttest mit (Vorbild `riegel.test.ts:1157`) |
 | **NS-V7** | ⛔ **⬜ V-L3 ist in V23 abgelesen und steht im Kopfkommentar von `riegel.test.ts`.** | ⛔ **Ist Probe E negativ (das Layout traegt NICHT), haengt der Verwaltungsriegel an zehn einzelnen Seitenzeilen** — dann ist die Klausel (e) der einzige Waechter, und **Planteil 5 darf sie unter keinen Umstaenden aufweichen** |
 | **NS-V8** | ⛔ **`_ui/ikonen.tsx` ist um die Verwaltungszeichen gewachsen, `NavIkonName` um drei.** | ⛔ **Kein zweites Ikonenmodul** (NS-A8b), ⛔ **kein Zeichenpaket-Import ohne `"use client"`** (Falle 7), ⛔ **`src/core/shell/types.ts` bleibt frei von jedem Zeichen-Wert** (`types.ts:8-13`) |
 | **NS-V9** | ⛔ **6.7-Abschnitt C ist geschlossen; D ist MOEGLICH, nicht faellig.** | Planteil 5 und Spec 2 entscheiden **nicht**, wann D laeuft — ⛔ **das ist eine Betreiberentscheidung**, und sie verlangt beide Domains im selben Fenster |
