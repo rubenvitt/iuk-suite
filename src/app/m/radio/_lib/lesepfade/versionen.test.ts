@@ -20,9 +20,11 @@ import { versionenMitGeraetezahl, zielVersion } from "./versionen";
  * (`.superpowers/sdd/planteil4/briefs/KOPF.md:268-270`): dessen Cache ist per
  * MODULSCHLUESSEL gekeyt, nicht per `DATA_DIR` (`src/core/db/index.ts:31-35`) — ein Test, der
  * ihn benutzt, bekaeme die Datenbank des vorigen Tests. Vorbild ist
- * `src/app/m/radio/_db/migrations.test.ts:29-37`, das der Plan namentlich als Hausform
- * fuehrt; die vier Pragmas aus `openModuleDatabase` braucht dieser Test nicht — er misst
- * Abfrageergebnisse, keine Nebenlaeufigkeit.
+ * `src/app/m/radio/_db/migrations.test.ts:29-37`, das seinerseits
+ * `src/app/m/lagerbuch/_db/migrations.test.ts:29-37` folgt — die Datei, die
+ * `.superpowers/sdd/planteil4/briefs/KOPF.md:270` namentlich als Hausform fuehrt; die vier
+ * Pragmas aus `openModuleDatabase` braucht dieser Test nicht — er misst Abfrageergebnisse,
+ * keine Nebenlaeufigkeit.
  *
  * ⚠️ EINE FRISCHE DATENBANK JE FALL (`beforeEach`, nicht `beforeAll`): jeder Fall unten
  * setzt seinen eigenen Bestand, und `software_versions.value` ist unique
@@ -99,6 +101,12 @@ describe("versionenMitGeraetezahl — die Zeilen der Verwaltungstabelle", () => 
      *
      * ⛔ DIE EINFUEGEREIHENFOLGE IST ABSICHTLICH EINE DRITTE. Ohne `orderBy` antwortet
      * SQLite in rowid-Ordnung; faellt die mit der Erwartung zusammen, misst der Fall nichts.
+     *
+     * ⚠️ DER GLEICHSTAND IST HERGESTELLT UND NICHT DER NORMALFALL. Jeder bekannte
+     * Schreibweg setzt `sortOrder` verschieden (`softwareVersionRepo.ts:19-25`, `:131`);
+     * der Gleichstandsbrecher wandert trotzdem 1:1 mit (`:150`), weil die Spalte die
+     * Vorgabe 0 traegt (`_db/schema.ts:83`) und ein Schreibweg, der sie ausliesse, sofort
+     * Gleichstaende erzeugte.
      */
     db.insert(softwareVersions)
       .values([
@@ -205,21 +213,29 @@ describe("zielVersion — die eine Marke", () => {
   });
 
   it("liefert den Wert der gesetzten Marke", () => {
-    // `softwareVersionRepo.ts:63-70`: `where(eq(isTarget, true))`.
+    /*
+     * `softwareVersionRepo.ts:63-70`: `where(eq(isTarget, true))`.
+     *
+     * ⛔ DIE MARKIERTE ZEILE TRAEGT DEN GROESSEREN `sortOrder`, UND DAS IST DER PUNKT DES
+     * FIXTURES. Umgekehrt herum waere sie zugleich die erste in `asc(sortOrder)` — dann
+     * bliebe dieser Fall gruen, wenn `where(eq(isTarget, true))` ERSATZLOS ENTFIELE
+     * (gemessen an der Fassung davor: Sonde S-V5o war 1 rot, und dieser Fall war nicht
+     * dabei). So waehlt allein die Marke, und die Anzeigeordnung zeigt in die Gegenrichtung.
+     */
     db.insert(softwareVersions)
       .values([
-        version({ value: "FW 12.3", sortOrder: 2 }),
-        version({ value: "FW 11.0", sortOrder: 1, isTarget: true }),
+        version({ value: "FW 12.3", sortOrder: 1 }),
+        version({ value: "FW 11.0", sortOrder: 2, isTarget: true }),
       ])
       .run();
 
     expect(zielVersion(db)).toBe("FW 11.0");
   });
 
-  it("antwortet bei zwei Marken deterministisch — die Schwaeche ohne Constraint steht in _db/schema.ts:83-91", () => {
+  it("antwortet bei zwei Marken deterministisch — die Schwaeche ohne Constraint steht in _db/schema.ts:84-92", () => {
     /*
      * ⛔ DIE EINE BENANNTE ABWEICHUNG DIESER AUFGABE. Es gibt KEINEN DB-Constraint, der
-     * genau eine Ziel-Marke erzwingt (`src/app/m/radio/_db/schema.ts:83-91`, dort mit der
+     * genau eine Ziel-Marke erzwingt (`src/app/m/radio/_db/schema.ts:84-92`, dort mit der
      * Begruendung: ein partieller Index verwandelte das Setzen der Marke von einer
      * Zweischritt-Transaktion in einen Konflikt und braeche den bestehenden Schreibweg).
      * Der Alt-Leser hat dazu KEIN `ORDER BY` (`softwareVersionRepo.ts:63-70`) — bei zwei
@@ -237,11 +253,19 @@ describe("zielVersion — die eine Marke", () => {
      * GROESSEREN `sortOrder` wird deshalb ZUERST eingefuegt: nur so antwortet die Fassung
      * ohne `orderBy` messbar anders (Sonde S-V5c). Bei umgekehrter Einfuegereihenfolge
      * waere derselbe Fall gruen, ohne etwas zu pruefen.
+     *
+     * ⛔ DIE DRITTE ZEILE IST UNMARKIERT UND LIEGT GANZ UNTEN. Beide Marken allein
+     * machen das `where` zu einer Leerbedingung — es zu entfernen aenderte am Ergebnis
+     * nichts, und der Fall bewachte nur das `orderBy`. Mit `FW 1.0` auf `sortOrder` 0
+     * greift `asc(sortOrder)` ohne `where` auf eine Zeile OHNE Marke, und beide Haelften
+     * der Abfrage sind einzeln sondierbar (S-V5c und S-V5o). Sie steht ZULETZT, damit die
+     * rowid-Ordnung der beiden Marken unberuehrt bleibt.
      */
     db.insert(softwareVersions)
       .values([
         version({ value: "FW 20.0", sortOrder: 9, isTarget: true }),
         version({ value: "FW 5.0", sortOrder: 1, isTarget: true }),
+        version({ value: "FW 1.0", sortOrder: 0 }),
       ])
       .run();
 
@@ -267,6 +291,15 @@ describe("die Ziel-Marke und das Anlegedatum", () => {
      * ⚠️ DIESER FALL LIEGT HIER UND NICHT IN `_lib/updateStand.test.ts`: die Rechnung dort
      * kennt kein Datum, ihre beiden Parameter sind Zeichenketten. Ein Anlegedatum gibt es
      * erst dort, wo die Marke herkommt.
+     *
+     * ⛔ DIE DRITTE ZEILE IST DIE, DIE DAS `where` BEWACHT: unmarkiert, mit dem
+     * KLEINSTEN `sortOrder` und dem AELTESTEN Anlegedatum. Ohne sie waere die markierte
+     * `FW 9.0` zugleich die erste in `asc(sortOrder)`, und der Fall bliebe gruen, wenn
+     * `where(eq(isTarget, true))` ersatzlos entfiele. ⛔ SIE WIRD NICHT DURCH EIN DREHEN
+     * DER `sortOrder` VON `FW 9.0` ERSETZT: dann truege die MARKE die oberste
+     * Anzeigeordnung, und genau die Ableitung „Marke = oberste Zeile", gegen die dieser
+     * Fall steht, waere wieder gruen. Mit der dritten Zeile sind alle drei Fehlwege rot —
+     * Marke aus `desc(sortOrder)`, Marke aus `desc(createdAt)`, Marke ohne `where`.
      */
     db.insert(softwareVersions)
       .values([
@@ -280,6 +313,11 @@ describe("die Ziel-Marke und das Anlegedatum", () => {
           value: "FW 12.3",
           sortOrder: 9,
           createdAt: new Date("2026-06-01T10:00:00Z"),
+        }),
+        version({
+          value: "FW 8.0",
+          sortOrder: 0,
+          createdAt: new Date("2025-11-01T10:00:00Z"),
         }),
       ])
       .run();

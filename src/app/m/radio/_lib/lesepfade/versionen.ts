@@ -49,9 +49,13 @@ export type VersionZeile = {
  * (`radio-admin/server/src/repos/softwareVersionRepo.ts:139-151`).
  *
  * Drei Regeln wandern 1:1 mit:
- *  - Sortierung `desc(sortOrder)`, dann `desc(createdAt)` (`:150`) — die zweite Haelfte ist
- *    kein Beiwerk: `sortOrder` hat eine Vorgabe von 0 (`_db/schema.ts:83`), Gleichstaende sind
- *    also der Normalfall, und ohne den Gleichstandsbrecher antwortete dieselbe Liste je nach
+ *  - Sortierung `desc(sortOrder)`, dann `desc(createdAt)` (`:150`) — die zweite Haelfte
+ *    wandert 1:1 mit (`:150`), NICHT weil Gleichstaende haeufig waeren: `sortOrder` KANN
+ *    kollidieren, weil die Spalte die Vorgabe 0 traegt (`_db/schema.ts:83`), waehrend jeder
+ *    bekannte Schreibweg sie ausdruecklich und verschieden setzt
+ *    (`softwareVersionRepo.ts:19-25` `MAX(sortOrder) + 1`, `:131` `ids.length - index`;
+ *    auch der Suite-Seed, `_lib/seedLokal.ts:120-125`, setzt 0/1/2). Wo ein Gleichstand
+ *    doch entsteht, antwortete dieselbe Liste ohne den Gleichstandsbrecher je nach
  *    Speicherlage verschieden.
  *  - `deviceCount` als Unterabfrage ueber `devices.software_version = software_versions.value`
  *    (`:147`) — sie zaehlt den ROHEN Versionswert des Geraets, ohne Normalisierung, genau wie
@@ -86,7 +90,7 @@ export function versionenMitGeraetezahl(db: DB): VersionZeile[] {
  *
  * ⛔ DIE EINE BENANNTE ABWEICHUNG DIESER AUFGABE — SIE IST KEINE 1:1-UEBERNAHME, UND SIE
  * STEHT HIER, DAMIT SIE NICHT ALS VERSEHEN GELESEN WIRD. Es gibt KEINEN DB-Constraint, der
- * genau eine Ziel-Marke erzwingt (`src/app/m/radio/_db/schema.ts:83-91`, dort mit der
+ * genau eine Ziel-Marke erzwingt (`src/app/m/radio/_db/schema.ts:84-92`, dort mit der
  * Begruendung: ein partieller Index verwandelte das Setzen der Marke von einer
  * Zweischritt-Transaktion in einen Konflikt und braeche den bestehenden Schreibweg). ⛔ DIESE
  * SCHWAECHE WANDERT 1:1 MIT, INKLUSIVE DES FEHLENDEN CONSTRAINTS. Der Alt-Leser hat dazu
