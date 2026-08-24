@@ -41,9 +41,20 @@ import s from "../../_ui/ausleihe.module.css";
  * dass die SERVERANTWORT vorgerendert ist; `revalidatePath("/geraete")` in
  * `_actions/ausleihe.ts:184` entwertet zusaetzlich den ROUTER-CACHE DES CLIENTS.
  * ⚠️ SIE TRAEGT HIER MEHR ALS AUF DER UEBERSICHT: die Insel schreibt ihre Auswahl mit
- * `router.replace` in `?geraete=` zurueck (Spec:3426), und jede dieser Adressen muss die
- * SERVERSEITIGE Pruefung aus §4.3.3 erneut durchlaufen. Eine vorgerenderte Antwort haette
- * die Vorwahl von vorhin geprueft.
+ * `router.replace` in `?geraete=` zurueck (Spec:3426), und diese WEICHE Navigation laesst
+ * den Server die Pruefung aus §4.3.3 erneut fahren. Eine vorgerenderte Antwort haette die
+ * Vorwahl von vorhin geprueft.
+ *
+ * ⛔ WAS DIE ERNEUTE PRUEFUNG DABEI TUT UND WAS NICHT — sonst stuende hier eine Zusicherung
+ * ohne Deckung: sie WARNT, sie KORRIGIERT NICHT. `_ui/AusleihVorgang.tsx` haelt die Auswahl
+ * in `useState(vorauswahl)`, und React behaelt diesen Zustand ueber eine weiche Navigation.
+ * Wird ein Geraet mitten im Vorgang vergeben, erscheint der Verlustsatz unten, waehrend die
+ * Insel es weiterhin angetippt zeigt und mitschickt. ⛔ DAS IST KEIN LOCH, SONDERN DIE
+ * ARBEITSTEILUNG: der Server lehnt den Vorgang dann mit `grund: "nicht-verfuegbar"` ab und
+ * bucht NICHTS (`_db/leihen.ts:515`, eine Transaktion), und ein Zuruecksetzen bei jedem
+ * `replace` verwuerfe genau die eingetragenen Werte, um derentwillen E12 gebaut ist.
+ * ⬜ Wer die Auswahl doch angleichen will, braucht dafuer eine Betreiberentscheidung ueber
+ * den Preis — und einen Eigentuemer; diese Aufgabe hat keinen.
  */
 export const dynamic = "force-dynamic";
 

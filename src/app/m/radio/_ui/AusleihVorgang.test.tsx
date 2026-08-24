@@ -113,6 +113,28 @@ function vorschlagsknoten(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>(".ant-select-item-option"));
 }
 
+/**
+ * Die Eingabetaste auf einem Feld, und ⛔ WAS DIESER HELFER MISST, IST DIE ABSAGE — nicht
+ * das Ausbleiben einer Absendung.
+ *
+ * ⚠️ JSDOM KENNT DIE IMPLIZITE FORMULARABSENDUNG NICHT: eine Eingabetaste in einem Textfeld
+ * loest dort KEIN `submit` aus, auch ohne jeden Riegel. Ein Fall, der bloss
+ * `expect(action).not.toHaveBeenCalled()` prueft, waere deshalb konstruktiv gruen und
+ * bewachte nichts — genau die Fehlerform, gegen die dieses Repo antritt. Gemessen wird
+ * stattdessen, dass der Handler das Ereignis ABBRICHT (`defaultPrevented`); im Browser ist
+ * genau das der Unterschied zwischen „gesucht" und „gebucht".
+ * ⛔ `key: "Enter"` und nicht `keyCode`: `@rc-component/input/es/Input.js:112` vergleicht
+ * `e.key`.
+ */
+async function eingabetaste(selektor: string): Promise<boolean> {
+  const feld = query(selektor);
+  const ereignis = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+  await act(async () => {
+    feld.dispatchEvent(ereignis);
+  });
+  return ereignis.defaultPrevented;
+}
+
 beforeEach(() => {
   ausleiheAnlegenMock.mockResolvedValue(undefined);
   entleiherVorschlaegeMock.mockResolvedValue([]);
@@ -204,6 +226,25 @@ describe("radio-AusleihVorgang: die Auswahl", () => {
     await click(zeile("g-0"));
     expect(query<HTMLInputElement>(AUSWAHLWERT).value.split(",")).toHaveLength(AUSWAHL_MAX - 1);
     expect(exists(DECKEL), "unter dem Deckel verschwindet der Satz wieder").toBe(false);
+  });
+
+  it("die Eingabetaste im Suchfeld bucht nichts", async () => {
+    /*
+     * ⛔ DAS SUCHFELD STEHT IN EINEM FORMULAR, DESSEN ABSENDEN EINE AUSLEIHE BUCHT. Ohne den
+     * `preventDefault` an `onPressEnter` (`_ui/AusleihVorgang.tsx`) buchte die Eingabetaste
+     * im Suchfeld den Vorgang — im Browser die implizite Formularabsendung, die HTML fuer
+     * jedes Textfeld in einem `<form>` vorsieht.
+     * ⚠️ WAS HIER GEMESSEN WIRD, STEHT AM HELFER `eingabetaste` oben: die ABSAGE des
+     * Ereignisses. jsdom sendet ohnehin nicht ab, ein Fall auf „die Action wurde nicht
+     * gerufen" waere leer-gruen.
+     * ⚠️ DIE LAGE IST ERREICHBAR: der Fall stellt sie her — ein Geraet gewaehlt, ein Name
+     * getippt, der Knopf also ENTSPERRT.
+     */
+    await rendere(DREI, ["g-1"], "Max Mustermann");
+    expect(query<HTMLButtonElement>(KNOPF).disabled, "sonst waere die Lage nicht erreichbar").toBe(false);
+
+    expect(await eingabetaste(SUCHE), "die Eingabetaste im Suchfeld wird nicht abgesagt").toBe(true);
+    expect(ausleiheAnlegenMock).not.toHaveBeenCalled();
   });
 
   it("sucht ueber den vorberechneten Suchschluessel und nicht ueber die sichtbaren Felder", async () => {

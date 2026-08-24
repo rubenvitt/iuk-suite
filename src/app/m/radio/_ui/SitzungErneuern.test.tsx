@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // src/app/m/radio/_ui/SitzungErneuern.test.tsx
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { act } from "react";
 
 /**
  * DIE INLINE-ERNEUERUNG DER SITZUNG — Entscheidung E12
@@ -156,6 +157,34 @@ describe("radio-SitzungErneuern: was sie mit dem Ergebnis macht", () => {
     expect(exists(CODEFELD), "nach dem Erfolg ist das Feld weg").toBe(false);
     expect(exists(ERLEDIGT)).toBe(true);
     expect(abgesendet, "die Insel sendet das umgebende Formular NICHT ab").not.toHaveBeenCalled();
+  });
+
+  it("die Eingabetaste im Codefeld sagt das umgebende Formular ab", async () => {
+    /*
+     * ⛔ DIESES FELD STEHT IN EINEM FREMDEN FORMULAR — im Ausleihvorgang (A19) und im
+     * Rueckgabedialog (A20). Ohne den `preventDefault` an `onPressEnter` loeste die
+     * Eingabetaste dessen Absenden aus: also genau den Vorgang, der eben am Riegel
+     * gescheitert ist, und noch dazu mit der abgelaufenen Sitzung.
+     * ⚠️ GEMESSEN WIRD DIE ABSAGE DES EREIGNISSES, nicht das Ausbleiben einer Absendung:
+     * jsdom kennt die implizite Formularabsendung nicht, ein Fall darauf waere leer-gruen.
+     * ⛔ UND DIE ZWEITE HAELFTE: die Eingabetaste loest die Erneuerung AUS — sonst waere ein
+     * blosses `preventDefault` eine tote Taste.
+     */
+    erneuereSitzungMock.mockResolvedValue({ ok: true });
+    await mount(
+      <form>
+        <SitzungErneuern grund="sitzung" />
+      </form>,
+    );
+    await fill(CODEFELD, CODE);
+
+    const ereignis = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    await act(async () => {
+      query(CODEFELD).dispatchEvent(ereignis);
+    });
+
+    expect(ereignis.defaultPrevented, "die Eingabetaste wird nicht abgesagt").toBe(true);
+    expect(erneuereSitzungMock).toHaveBeenCalledWith(CODE);
   });
 
   it("faengt einen Wurf der Action ab, statt den Baum abzureissen", async () => {
