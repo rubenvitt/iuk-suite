@@ -64,7 +64,12 @@ function geraet(ueberschreibungen: Partial<Geraet> = {}): Geraet {
 describe("diffGeraet — was KEINE Aenderung ist", () => {
   it("gleicher Wert ergibt eine leere Diff-Liste", () => {
     /*
-     * `Spec:4837`. Alt-Fall `radio-admin/shared/src/diff-device.test.ts:51-55`.
+     * `Spec:4846` benennt diesen Fall namentlich als den dieser Datei („gleicher Wert ⇒ leere
+     * Diff-Liste ⇒ kein Ereignis"); die Regel selbst steht auf `Spec:4671-4672`. Alt-Fall
+     * `radio-admin/shared/src/diff-device.test.ts:51-55`.
+     *
+     * ⚠️ NICHT `Spec:4837` — dieser Anker steht im Brief (`V8.md:63`) und trifft die
+     * Ueberschrift von Kapitel 5.13 samt der `_lib/rollen.test.ts`-Zeile, nicht diese Zusage.
      *
      * ⛔ DER FALL, AN DEM „KEIN EREIGNIS" HAENGT (`.superpowers/sdd/planteil4/briefs/V8.md:63`).
      * Der Aufrufer steigt bei `diffs.length === 0` frueh aus — schreibt kein Ereignis, kein
