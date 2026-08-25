@@ -62,9 +62,17 @@ vi.mock("next/navigation", () => ({
 }));
 
 let entwertetePfade: string[] = [];
+/**
+ * ⛔ DER PFAD, AUF DEM `revalidatePath` WERFEN SOLL — das Messwerkzeug fuer Review-V10 Fund
+ * F13. Nexts eigenes `revalidatePath` wirft ausserhalb einer Anfrage; ein Erfolgsabschluss
+ * INNERHALB eines `try` machte daraus die Meldung „Import fehlgeschlagen" fuer einen
+ * vollstaendig geschriebenen Import.
+ */
+let entwertungWirftAuf: string | null = null;
 vi.mock("next/cache", () => ({
   revalidatePath: (pfad: string) => {
     entwertetePfade.push(pfad);
+    if (pfad === entwertungWirftAuf) throw new Error("revalidatePath ausserhalb einer Anfrage");
   },
 }));
 
@@ -114,6 +122,7 @@ beforeEach(() => {
   db = drizzle(sqlite, { schema });
   testDb = db;
   entwertetePfade = [];
+  entwertungWirftAuf = null;
   hostKopf = new Headers({ host: "radio.localtest.me" });
   sitzung = ADMIN_SITZUNG;
   delete process.env.SUITE_ADMIN_GROUP_RADIO;
@@ -124,6 +133,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   testDb = null;
   sqlite.close();
   rmSync(tmp, { recursive: true, force: true });
@@ -136,6 +146,43 @@ afterEach(() => {
     else process.env[name] = wert;
   }
 });
+
+/**
+ * ⛔ EINE UHR, DIE BEI JEDEM ARGUMENTLOSEN `new Date()` EINEN TAG WEITERSPRINGT — das
+ * Werkzeug fuer die zwei Zusagen „EIN Zeitstempel", die sonst nur in Produktion rot werden
+ * koennen (Review V10 Funde F1 und F5).
+ *
+ * ⛔ WARUM NICHT `vi.useFakeTimers()`: eine GEPINNTE Uhr macht zwei Lesungen IDENTISCHER,
+ * nicht unterscheidbarer — der Waechter waere danach noch schwaecher als vorher. Was die
+ * eine Lesung von zwei trennt, ist eine Uhr, die WEITERLAEUFT.
+ *
+ * ⛔ WARUM EIN GANZER TAG UND NICHT EINE SEKUNDE: `haengeNotizAn` formt ueber `isoDatum` nur
+ * `YYYY-MM-DD` (`_lib/notiz.ts:18-20`, `:82-86`), und `changedAt` liegt in einer
+ * `mode: "timestamp"`-Spalte, die SEKUNDEN speichert (`_db/schema.ts:134`). Ein Sprung
+ * unterhalb eines Tages faerbt die erste Zusage gemessen NICHT — genau das ist die
+ * Mitternachtsgrenze, vor der der Alt-Kommentar warnt
+ * (`radio-admin/server/src/routes/devices.ts:172-176`: „so they can never diverge across a
+ * midnight-UTC boundary").
+ *
+ * ⚠️ `Date.now()` BLEIBT ECHT, und Aufrufe MIT Argument gehen unveraendert durch: drizzle
+ * liest jeden Zeitstempel als `new Date(ms)` zurueck, und eine Attrappe, die das verbiegt,
+ * machte die Datenbank unlesbar statt die Zusage messbar.
+ */
+const UHR_BASIS = Date.UTC(2026, 5, 14, 23, 59, 59, 500);
+function springendeUhr(): void {
+  const echt = Date;
+  let n = 0;
+  class Springend extends echt {
+    constructor(...args: unknown[]) {
+      if (args.length === 0) super(UHR_BASIS + n++ * 86_400_000);
+      else super(...(args as [number]));
+    }
+    static now(): number {
+      return echt.now();
+    }
+  }
+  vi.stubGlobal("Date", Springend);
+}
 
 /** Ein Geraet mit den Feldern, die die Faelle unten anfassen. */
 function geraet(werte: Partial<typeof devices.$inferInsert> & { id: string; issi: string }) {
@@ -174,6 +221,14 @@ describe("geraetAnlegenAction", () => {
     expect(zeilen.map((z) => z.field).sort()).toEqual(["issi", "rufname"]);
     expect(zeilen.every((z) => z.source === "create")).toBe(true);
     expect(zeilen.every((z) => z.oldValue === null)).toBe(true);
+    // ⛔ REVIEW-V10 FUND F6: die DREI Pfade dieses Wegs waren unbewacht (1:1-Tafel
+    // Abschnitt D, `briefs/KOPF.md:1313`, abgeleitet aus `useCreateDevice.ts:11-13`).
+    // ⛔ INNERE FORM — ein aeusserer Pfad hier ist folgenlos und still.
+    expect(entwertetePfade).toEqual([
+      "/m/radio/admin/geraete",
+      "/m/radio/admin",
+      "/m/radio/admin/versionen",
+    ]);
   });
 
   it("lehnt eine LEERE ISSI ab, statt sie einzufuegen", async () => {
@@ -210,6 +265,34 @@ describe("geraetAnlegenAction", () => {
     const zeile = geraeteZeilen()[0];
     expect(zeile.id).not.toBe("g-fremdbestimmt");
     expect(zeile.createdBy).toBe("sub-admin");
+  });
+
+  it("lehnt einen Wert der FALSCHEN ART ab, statt ihn zu wandeln", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F2. Der Alt-Bestand fuehrt seine Feldgrenzen als zod-Schema, und das
+     * traegt nicht nur `.strip()` und `min(1)`, sondern auch TYPPRAEDIKATE:
+     * `alamosIntegrated: z.boolean().nullable().optional()` und
+     * `status: z.string().nullable().optional()` (`radio-admin/shared/src/schemas.ts:58`,
+     * `:59`). Ein Verstoss ist dort 400 `invalid` fuer die GANZE Anfrage (`devices.ts:102`).
+     *
+     * ⛔ DIE TYPSIGNATUR TRAEGT DAS NICHT: eine Server Action bekommt ihre Argumente ueber die
+     * Leitung, `GeraetEingabe` ist beim Aufruf eine Zusage des Aufrufers.
+     * ⛔ UND DIE FOLGE IST EINE BEDEUTUNGSUMKEHR, KEIN SCHOENHEITSFEHLER: better-sqlite3
+     * bindet fuer eine `mode: "boolean"`-Spalte jeden wahrheitswertigen Wert, und aus dem
+     * Text „nein" wird `true`.
+     *
+     * ⚠️ DIESER FALL VERLETZT NUR DIE BOOLEAN-GRENZE, der Aenderweg unten nur die
+     * STRING-Grenze — und das ist Absicht: verletzte EIN Fall beide, deckte jedes der zwei
+     * Praedikate das andere ab, und beide Sonden ergaeben 0 rot (gemessen in Fix-Runde 1,
+     * bevor die Faelle getrennt waren).
+     */
+    const ergebnis = await geraetAnlegenAction({
+      issi: "1000001",
+      alamosIntegrated: "nein",
+    } as unknown as Parameters<typeof geraetAnlegenAction>[0]);
+
+    expect(ergebnis).toEqual({ ok: false, fehler: "Anlegen fehlgeschlagen" });
+    expect(geraeteZeilen()).toEqual([]);
   });
 
   it("rollt bei einer ISSI-Kollision die Softwareversion mit zurueck", async () => {
@@ -286,6 +369,45 @@ describe("geraetAendernAction", () => {
     expect(geraeteZeilen().find((z) => z.id === "g-1")?.issi).toBe("1000001");
   });
 
+  it("gibt allen Ereigniszeilen EINER Aenderung denselben changedAt", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F5, dieselbe Klasse wie F1 und eine Ebene tiefer: „EIN EINZIGER
+     * `changedAt` FUER ALLE" ist 1:1 aus `writeEvents`
+     * (`radio-admin/server/src/repos/deviceRepo.ts:222-245`) und war unbewacht. Ohne die
+     * Zusage fielen die Felder EINER Aenderung in der nach `changedAt` sortierten
+     * Ereignisliste auseinander.
+     *
+     * ⛔ DIE SPRINGENDE UHR IST HIER DAS GANZE MESSWERKZEUG: ein `new Date()` JE ZEILE liegt
+     * an einer echten Uhr in derselben Millisekunde, und die Spalte speichert ohnehin nur
+     * Sekunden — die naheliegende Sonde „Zeile entfernen" ist ausserdem keine gueltige
+     * (`ReferenceError`, sie faerbt neun Faelle und misst nichts).
+     */
+    geraet({ id: "g-1", issi: "1000001", rufname: "Florian 1", status: "Einsatzbereit" });
+    springendeUhr();
+
+    expect(await geraetAendernAction("g-1", { rufname: "Florian 2", status: "Defekt" })).toEqual({
+      ok: true,
+    });
+
+    const zeilen = ereignisse();
+    expect(zeilen).toHaveLength(2);
+    const zeitpunkte = new Set(zeilen.map((z) => z.changedAt.getTime()));
+    expect(zeitpunkte.size, "die zwei Ereigniszeilen tragen verschiedene changedAt").toBe(1);
+  });
+
+  it("lehnt eine unbekannte Geraete-Id ab, statt eine Zeile anzulegen", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F10, zweite Haelfte. Der Bestand antwortet 404
+     * (`devices.ts:128-129`); der Alt-Client bildet ihn auf den allgemeinen Satz ab.
+     */
+    expect(await geraetAendernAction("g-unbekannt", { rufname: "Florian 2" })).toEqual({
+      ok: false,
+      fehler: "Speichern fehlgeschlagen",
+    });
+    expect(geraeteZeilen()).toEqual([]);
+    expect(entwertetePfade).toEqual([]);
+  });
+
   it("lehnt eine LEERE ISSI im Patch ab, laesst eine fehlende aber durch", async () => {
     /*
      * ⛔ `devicePatchSchema` fuehrt `issi: z.string().min(1).optional()` (`schemas.ts:76`):
@@ -326,6 +448,31 @@ describe("geraetAendernAction", () => {
     expect(zeile.id).toBe("g-1");
     expect(zeile.createdBy).toBeNull();
     expect(ereignisse().map((z) => z.field)).toEqual(["rufname"]);
+  });
+
+  it("lehnt einen Wert der FALSCHEN ART im Patch ab", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F2, zweite Haelfte: dieselbe Luecke im Patchweg
+     * (`radio-admin/shared/src/schemas.ts:72-98`), und hier ist es die STRING-Grenze
+     * (`status: z.string().nullable().optional()`, `:59`). ⛔ ABGELEHNT WIRD DIE GANZE ANFRAGE, das
+     * Feld wird NICHT still weggeschnitten — der Bestand antwortet 400 `invalid`
+     * (`devices.ts:102`), und ein stilles Wegschneiden waere eine NEUE Bedeutung: der
+     * Bedienende bekaeme „gespeichert" fuer etwas, das nicht gespeichert wurde.
+     */
+    geraet({ id: "g-1", issi: "1000001", rufname: "Florian 1", status: "Einsatzbereit" });
+
+    const ergebnis = await geraetAendernAction("g-1", {
+      rufname: "Florian 2",
+      status: 42,
+    } as unknown as Parameters<typeof geraetAendernAction>[1]);
+
+    expect(ergebnis).toEqual({ ok: false, fehler: "Speichern fehlgeschlagen" });
+    const zeile = geraeteZeilen()[0];
+    expect(zeile.rufname).toBe("Florian 1");
+    // ⛔ GEMESSEN, WAS OHNE DIE GRENZE PASSIERT: better-sqlite3 schriebe die Zahl als
+    // `"42.0"` in die Textspalte — ein Status, den es in keiner Auswahlliste gibt.
+    expect(zeile.status).toBe("Einsatzbereit");
+    expect(ereignisse()).toEqual([]);
   });
 
   it("entwertet die drei INNEREN Pfade, nie die aeusseren", async () => {
@@ -426,6 +573,51 @@ describe("geraetLoeschenAction — ⬜ V-L6", () => {
     expect(entwertetePfade).toEqual([]);
   });
 
+  it("bricht ab, wenn die Rueckgabe fehlschlaegt — das Geraet bleibt stehen", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F3. Der Quelltext behauptet neben der Zeile ausdruecklich, das
+     * Ergebnis der Rueckgabe werde GEPRUEFT („ohne die Pruefung liefe die Loeschung weiter
+     * und die Leihe bliebe offen") — und die Zusage war unbewacht. Sie ist Punkt 4 der
+     * Betreiberentscheidung ⬜ V-L6: ein Abbruch dazwischen hinterliesse genau den verwaisten
+     * Zustand, den die Entscheidung vermeiden soll.
+     *
+     * ⛔ DER FEHLSCHLAG WIRD ECHT ERZEUGT, NICHT WEGGEMOCKT: ein `BEFORE UPDATE`-Ausloeser mit
+     * `RAISE(ABORT, …)` laesst das `SELECT` von `offeneLeiheZuGeraet` durch und bringt genau
+     * das `UPDATE` von `bucheRueckgabe` zu Fall (`_db/leihen.ts:686-693`), das seinen Fehler
+     * selbst faengt und `{ ok: false }` liefert. ⚠️ `RAISE(ABORT)` rollt NUR DIE ANWEISUNG
+     * zurueck, nicht die umschliessende Transaktion — gemessen, sonst waere dieser Fall
+     * rot-by-construction. Eine Attrappe auf `../_db/leihen` haette zugleich die zweite,
+     * bereits bewachte Zusage abgeschaltet, dass `bucheRueckgabe(db, …)` mit der AEUSSEREN
+     * Verbindung INNERHALB der offenen Transaktion laeuft.
+     */
+    geraet({ id: "g-1", issi: "1000001" });
+    db.insert(loans)
+      .values({
+        id: "l-1",
+        deviceId: "g-1",
+        snapshotCallSign: "Ruf g-1",
+        borrowerName: "Bea Beispiel",
+        borrowedAt: new Date("2026-06-14T07:12:00Z"),
+        createdAt: new Date("2026-06-14T07:12:00Z"),
+        updatedAt: new Date("2026-06-14T07:12:00Z"),
+      })
+      .run();
+    sqlite.exec(
+      "CREATE TRIGGER sonde_rueckgabe BEFORE UPDATE ON loans BEGIN SELECT RAISE(ABORT, 'sonde'); END",
+    );
+
+    const ergebnis = await geraetLoeschenAction("g-1");
+
+    expect(ergebnis).toEqual({ ok: false, fehler: "Löschen fehlgeschlagen" });
+    expect(
+      geraeteZeilen(),
+      "das Geraet wurde geloescht, obwohl die Rueckgabe fehlschlug",
+    ).toHaveLength(1);
+    const leihe = db.select().from(loans).where(eq(loans.id, "l-1")).get();
+    expect(leihe?.returnedAt).toBeNull();
+    expect(entwertetePfade).toEqual([]);
+  });
+
   it("entwertet auch die Ausleihenliste — sie mutiert seit V-L6 mit", async () => {
     /*
      * ⛔ VORABSCAN-FUND F2, PUNKT (d): die 1:1-Tafel (`briefs/KOPF.md:1315`) fuehrt fuer
@@ -459,13 +651,54 @@ describe("notizAnfuegenAction", () => {
      * gespeicherten Anmerkung ist.
      */
     geraet({ id: "g-1", issi: "1000001", updateNote: "[2026-01-01 · Alt] frueher" });
+    /*
+     * ⛔ OHNE DIE SPRINGENDE UHR PRUEFT DIESER FALL DIE ZUSAGE NICHT (Review V10 Fund F1,
+     * gemessen: die natuerliche Mutation „zwei Uhrenlesungen" ergab 0 rot). `isoDatum` formt
+     * nur `YYYY-MM-DD` — zwei Lesungen derselben Millisekunde sind zeichengleich, und die
+     * EINZIGE rote Bedingung ist die Mitternachtsgrenze. Die Uhr stellt genau sie her.
+     */
+    springendeUhr();
 
     const ergebnis = await notizAnfuegenAction("g-1", "Antenne getauscht");
 
     expect(ergebnis).toEqual({ ok: true });
     const notiz = geraeteZeilen()[0].updateNote ?? "";
     const letzte = notiz.split("\n").at(-1);
-    expect(ereignisse()[0].newValue).toBe(letzte);
+    expect(
+      ereignisse()[0].newValue,
+      "Zeile und Ereignis liefen ueber die Mitternachtsgrenze auseinander",
+    ).toBe(letzte);
+  });
+
+  it("faellt fuer den Autor auf den rohen sub zurueck, wenn kein Name da ist", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F7: der BENANNTE Rueckfall in `autorName` war unbewacht, weil beide
+     * Testsitzungen einen Namen tragen. Er ist derselbe wie in `merkeNutzer`
+     * (`_lib/zugang.ts:427-430`) und derselbe, den der Bestand auf der Leseseite einsetzt,
+     * „so the field is never blank" (`radio-admin/server/src/routes/devices.ts:70-78`).
+     * ⛔ EIN NAME AUS LEERRAUM IST KEIN NAME — deshalb `?.trim()` und nicht `?? `.
+     */
+    sitzung = { user: { id: "sub-namenlos", name: "   ", groups: ["iuk-radio-admin"] } };
+    geraet({ id: "g-1", issi: "1000001" });
+
+    expect(await notizAnfuegenAction("g-1", "Antenne getauscht")).toEqual({ ok: true });
+
+    expect(geraeteZeilen()[0].updateNote).toContain("· sub-namenlos]");
+  });
+
+  it("lehnt eine unbekannte Geraete-Id ab, statt sie anzulegen", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F10: `if (!bestehend) return …` war in BEIDEN Actions unbewacht.
+     * Der Bestand antwortet hier 404 (`devices.ts:167-168`), und der 404 faellt im Alt-Client
+     * in den allgemeinen Zweig — deshalb derselbe Satz wie bei einem fehlgeschlagenen
+     * Schreibvorgang und kein dritter, neu erfundener.
+     */
+    expect(await notizAnfuegenAction("g-unbekannt", "Antenne getauscht")).toEqual({
+      ok: false,
+      fehler: "Anmerkung fehlgeschlagen",
+    });
+    expect(ereignisse()).toEqual([]);
+    expect(entwertetePfade).toEqual([]);
   });
 
   it("lehnt einen leeren oder nur aus Leerraum bestehenden Text ab", async () => {
@@ -504,6 +737,10 @@ describe("notizAnfuegenAction", () => {
     expect(zeile.newValue).toContain("Antenne getauscht");
     // Die gespeicherte Anmerkung behaelt den alten Inhalt WOERTLICH (`update-note.ts:34`).
     expect(geraeteZeilen()[0].updateNote).toContain("frueher");
+    // ⛔ REVIEW-V10 FUND F6: die ZWEI Pfade dieses Wegs (1:1-Tafel Abschnitt D,
+    // `briefs/KOPF.md:1316`) waren unbewacht — INNERE Form, und die Uebersicht steht NICHT
+    // dabei, weil eine Anmerkung keine Kennzahl der Uebersichtsseite bewegt.
+    expect(entwertetePfade).toEqual(["/m/radio/admin/geraete/g-1", "/m/radio/admin/geraete"]);
   });
 });
 
@@ -514,12 +751,57 @@ describe("die vier Versions-Actions", () => {
      * (`softwareVersionRepo.ts:54-59`), nicht ein `SELECT` davor.
      */
     await versionAnlegenAction("FW 12.3");
+    // ⛔ REVIEW-V10 FUND F6: die DREI Pfade dieses Wegs waren unbewacht (1:1-Tafel
+    // Abschnitt D, `briefs/KOPF.md:1317`). ⚠️ ABGELESEN VOR DEM ZWEITEN AUFRUF — der Mock
+    // SAMMELT ueber den ganzen Fall hinweg, und eine Zusicherung danach saehe beide Listen
+    // aneinandergehaengt.
+    expect(entwertetePfade).toEqual([
+      "/m/radio/admin/versionen",
+      "/m/radio/admin/geraete",
+      "/m/radio/admin",
+    ]);
+    entwertetePfade = [];
+
     const zweiter = await versionAnlegenAction("FW 12.3");
 
     expect(zweiter).toEqual({ ok: false, fehler: "Diese Version existiert bereits" });
     expect(versionen()).toHaveLength(1);
     // ⛔ Eine neu angelegte Version wird NIE automatisch zum Ziel (`_db/schema.ts:80-82`).
     expect(versionen()[0].isTarget).toBe(false);
+    // ⛔ EINE ABGELEHNTE ANLAGE ENTWERTET NICHTS — sie hat nichts geaendert.
+    expect(entwertetePfade).toEqual([]);
+  });
+
+  it("versionAnlegenAction setzt die neue Version an die SPITZE der Reihenfolge", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F8: `naechsteReihenfolge` — „eine neu gesehene Version landet oben"
+     * (1:1 aus `nextSortOrder`, `softwareVersionRepo.ts:19-25`) — war unbewacht; kein Fall
+     * las `sortOrder` nach dem Anlegen. Die Anzeige sortiert `desc(sortOrder)` (`:150`), also
+     * entscheidet diese eine Zahl die Position.
+     */
+    db.insert(softwareVersions)
+      .values({ id: "v-1", value: "FW 12.3", createdAt: new Date(), sortOrder: 5 })
+      .run();
+
+    expect(await versionAnlegenAction("FW 12.4")).toEqual({ ok: true });
+
+    expect(versionen().find((z) => z.value === "FW 12.4")?.sortOrder).toBe(6);
+  });
+
+  it("versionAnlegenAction lehnt einen Wert aus reinem Leerraum ab", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F9: `value` getrimmt, min 1
+     * (`radio-admin/server/src/routes/softwareVersions.ts:13`). Die Fassung im Client prueft
+     * dasselbe (`SoftwareVersionsPage.tsx:28-29`) — „eine Regel, die nur im Client steht, ist
+     * keine Regel" (Spec:3583-3585). Ohne sie entstuende eine Version namens „   ", die in
+     * jeder Liste als leere Zeile erscheint und nie wieder zuzuordnen ist.
+     */
+    expect(await versionAnlegenAction("   ")).toEqual({
+      ok: false,
+      fehler: "Version konnte nicht angelegt werden",
+    });
+    expect(versionen()).toEqual([]);
+    expect(entwertetePfade).toEqual([]);
   });
 
   it("versionZielSetzenAction raeumt bei unbekannter Id keine Marke ab", async () => {
@@ -552,6 +834,12 @@ describe("die vier Versions-Actions", () => {
 
     const nach = Object.fromEntries(versionen().map((z) => [z.id, z.isTarget]));
     expect(nach).toEqual({ "v-1": false, "v-2": true });
+    // ⛔ REVIEW-V10 FUND F6, INNERE Form (1:1-Tafel Abschnitt D, `briefs/KOPF.md:1317`).
+    expect(entwertetePfade).toEqual([
+      "/m/radio/admin/versionen",
+      "/m/radio/admin/geraete",
+      "/m/radio/admin",
+    ]);
   });
 
   it("versionLoeschenAction lehnt ab, solange Geraete die Version tragen", async () => {
@@ -571,6 +859,27 @@ describe("die vier Versions-Actions", () => {
 
     expect(ergebnis).toEqual({ ok: false, fehler: "Version wird noch von 2 Gerät(en) genutzt" });
     expect(versionen()).toHaveLength(1);
+    // ⛔ EINE ABGELEHNTE LOESCHUNG ENTWERTET NICHTS.
+    expect(entwertetePfade).toEqual([]);
+  });
+
+  it("versionLoeschenAction loescht eine ungenutzte Version und entwertet die drei Pfade", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F6: dieser Weg hatte ueberhaupt keinen Erfolgsfall, und damit war
+     * seine Pfadliste unbewacht (1:1-Tafel Abschnitt D, `briefs/KOPF.md:1317`).
+     */
+    db.insert(softwareVersions)
+      .values({ id: "v-1", value: "FW 12.3", createdAt: new Date() })
+      .run();
+
+    expect(await versionLoeschenAction("v-1")).toEqual({ ok: true });
+
+    expect(versionen()).toEqual([]);
+    expect(entwertetePfade).toEqual([
+      "/m/radio/admin/versionen",
+      "/m/radio/admin/geraete",
+      "/m/radio/admin",
+    ]);
   });
 
   it("versionenSortierenAction gibt der ERSTEN Id den hoechsten sortOrder", async () => {
@@ -592,6 +901,12 @@ describe("die vier Versions-Actions", () => {
     const nach = Object.fromEntries(versionen().map((z) => [z.id, z.sortOrder]));
     expect(nach).toEqual({ "v-1": 2, "v-2": 3 });
     expect(versionen().find((z) => z.id === "v-1")?.isTarget).toBe(true);
+    // ⛔ REVIEW-V10 FUND F6, INNERE Form (1:1-Tafel Abschnitt D, `briefs/KOPF.md:1317`).
+    expect(entwertetePfade).toEqual([
+      "/m/radio/admin/versionen",
+      "/m/radio/admin/geraete",
+      "/m/radio/admin",
+    ]);
   });
 });
 
@@ -643,6 +958,111 @@ describe("importSchreibenAction", () => {
      * (`devices.ts:106-108`); beide Wege sind hier 1:1 abgebildet, samt ihrer Divergenz.
      */
     expect(ereignisse().map((z) => z.field).sort()).toEqual(["rufname", "rufname"]);
+    // ⛔ REVIEW-V10 FUND F6: die DREI Pfade dieses Wegs waren unbewacht (1:1-Tafel
+    // Abschnitt D, `briefs/KOPF.md:1318`). ⛔ INNERE Form.
+    expect(entwertetePfade).toEqual([
+      "/m/radio/admin/geraete",
+      "/m/radio/admin",
+      "/m/radio/admin/versionen",
+    ]);
+  });
+
+  it("registriert eine neue Softwareversion auch auf dem AENDERUNGS-Zweig", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F12: `registriereVersion` stand auf dem Aenderungszweig unbewacht —
+     * der einzige Importfall ordnete keine `softwareVersion` zu. Ohne die Zeile traegt ein
+     * Geraet nach dem Import eine Versionszeichenkette, die in der Versionsliste gar nicht
+     * vorkommt: die Zielversion liesse sich nie darauf setzen, und der Update-Stand jedes
+     * Geraets haengt allein an dieser Marke (`_db/schema.ts:84-92`).
+     * ⛔ 1:1 AUS `apply-commit.ts:62-64`, wo dieselbe Registrierung im Aenderungszweig steht.
+     */
+    geraet({ id: "g-1", issi: "1000001", softwareVersion: "FW 12.3" });
+
+    const ergebnis = await importSchreibenAction({ issi: 0, softwareVersion: 1 }, [
+      ["1000001", "FW 12.4"],
+    ]);
+
+    expect(ergebnis.ok).toBe(true);
+    expect(geraeteZeilen()[0].softwareVersion).toBe("FW 12.4");
+    expect(versionen().map((z) => z.value)).toEqual(["FW 12.4"]);
+  });
+
+  it("schneidet ein NICHT IMPORTIERBARES Feld schon aus der Zuordnung — Neuanlage", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F4, Fall (a). `Spaltenzuordnung` ist eine Typzusage des Aufrufers,
+     * und `zeileZuEingehend` schreibt JEDEN Schluessel der Zuordnung in die Zeile
+     * (`_lib/csv/klassifizieren.ts:186-201`). Bis zur Fix-Runde schnitt die Action das
+     * SCHREIBEN zurecht, den KLASSIFIKATOR aber nicht — die Ereignisliste einer Neuanlage
+     * trug dadurch `{ feld: "id", alt: "", neu: "g-fremdbestimmt" }`: ⛔ EINE AUDITZEILE
+     * UEBER EINE AENDERUNG, DIE NIE STATTFAND.
+     *
+     * ⛔ DER SCHNITT LIEGT DESHALB AN DER ZUORDNUNG, dem Eintrittsort der fremden Daten, und
+     * nicht an zwei Stellen dahinter: so speisen sich Ereignis, Schreibvorgang, Bilanz und
+     * Vorschauzeile aus EINER Filterung — wie im Bestand, wo `row.changes` und `patch` aus
+     * demselben `filterEditableFields` kommen (`apply-commit.ts:53-57`). Die Grenze ist
+     * `IMPORTIERBARE_FELDER` (`_lib/csv/kopfzeilen.ts:32-52`, 1:1 aus
+     * `auto-map-headers.ts:2-22`: „no system/identity-internal fields").
+     */
+    const ergebnis = await importSchreibenAction(
+      { issi: 0, id: 1, rufname: 2 } as unknown as Parameters<typeof importSchreibenAction>[0],
+      [["1000002", "g-fremdbestimmt", "Frisch"]],
+    );
+
+    expect(ergebnis.ok).toBe(true);
+    if (!ergebnis.ok) return;
+    expect(ergebnis.zusammenfassung.created).toBe(1);
+    const zeile = geraeteZeilen()[0];
+    expect(zeile.id).not.toBe("g-fremdbestimmt");
+    expect(zeile.rufname).toBe("Frisch");
+    expect(ereignisse().map((z) => z.field).sort()).toEqual(["rufname"]);
+    expect(ergebnis.zeilen[0].aenderungen.map((a) => a.feld).sort()).toEqual(["rufname"]);
+  });
+
+  it("schneidet ein NICHT IMPORTIERBARES Feld schon aus der Zuordnung — Aenderung", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F4, Fall (b), und er ist der teurere: `zuSetzen[feld] = erlaubt[feld]
+     * ?? null` machte aus dem weggeschnittenen `id` ein EXPLIZITES `NULL` im `UPDATE` — die
+     * `NOT NULL`-Verletzung riss den GANZEN Stapel mit, und der Import meldete
+     * „Import fehlgeschlagen", obwohl an den Daten nichts falsch war.
+     */
+    geraet({ id: "g-1", issi: "1000001", rufname: "Alt" });
+
+    const ergebnis = await importSchreibenAction(
+      { issi: 0, id: 1, rufname: 2 } as unknown as Parameters<typeof importSchreibenAction>[0],
+      [["1000001", "g-fremdbestimmt", "Neu"]],
+    );
+
+    expect(ergebnis.ok, "der ganze Stapel fiel wegen eines weggeschnittenen Feldes").toBe(true);
+    if (!ergebnis.ok) return;
+    expect(ergebnis.zusammenfassung.updated).toBe(1);
+    const zeile = geraeteZeilen()[0];
+    expect(zeile.id).toBe("g-1");
+    expect(zeile.rufname).toBe("Neu");
+    expect(ereignisse().map((z) => z.field)).toEqual(["rufname"]);
+  });
+
+  it("meldet einen VOLLSTAENDIG geschriebenen Import nicht als fehlgeschlagen", async () => {
+    /*
+     * ⛔ REVIEW-V10 FUND F13, ein Formunterschied mit Wirkung: in `geraetAnlegenAction` und
+     * `geraetAendernAction` stehen `revalidatePath` und der Erfolgsfall AUSSERHALB des
+     * `try`, hier standen sie darin. Wirft die Entwertung, bekam der Bedienende
+     * „Import fehlgeschlagen" fuer Zeilen, die in der Datenbank stehen — und fuhr den Import
+     * ein zweites Mal.
+     *
+     * ⛔ WAS DIE HAUSFORM STATTDESSEN TUT, IST DER WURF: er kommt beim Aufrufer als Stoerung
+     * an, nicht als fachliche Ablehnung, und ist damit von einem echten Fehlschlag
+     * unterscheidbar. ⚠️ DIESER FALL ZUSICHERT DESHALB NICHT „ok: true", SONDERN DASS DER
+     * FALSCHE SATZ NICHT FAELLT — eine Zusage „ok: true" haette die Bauform gar nicht halten
+     * koennen, und der billige Weg dorthin waere ein `catch` gewesen, das die Stoerung
+     * verschluckt.
+     */
+    entwertungWirftAuf = "/m/radio/admin/versionen";
+
+    await expect(
+      importSchreibenAction({ issi: 0, rufname: 1 }, [["1000002", "Frisch"]]),
+    ).rejects.toThrow("revalidatePath ausserhalb einer Anfrage");
+
+    expect(geraeteZeilen(), "die Zeile war geschrieben").toHaveLength(1);
   });
 
   it("lehnt ohne zugeordnete ISSI-Spalte mit dem woertlichen Satz ab", async () => {

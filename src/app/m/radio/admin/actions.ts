@@ -9,6 +9,7 @@ import { bucheRueckgabe, offeneLeiheZuGeraet } from "../_db/leihen";
 import { deviceEvents, devices, softwareVersions } from "../_db/schema";
 import type { Geraet } from "../_db/schema";
 import { klassifiziereZeilen, zeileZuEingehend } from "../_lib/csv/klassifizieren";
+import { IMPORTIERBARE_FELDER } from "../_lib/csv/kopfzeilen";
 import type {
   KlassifizierteZeile,
   Spaltenzuordnung,
@@ -41,6 +42,14 @@ import { requireRadioAdmin, requireRadioVerwaltung } from "../_lib/zugang";
  * ist." SIEBEN auf `requireRadioAdmin`, ZWEI auf `requireRadioVerwaltung`
  * (`geraetAendernAction`, `notizAnfuegenAction`) — `Spec:4655-4664`, um `importVorschau`
  * gekuerzt.
+ *
+ * ⛔ AUFLAGE AN DEN WAECHTER IN V11 (Review V10 Fund F14): DER BEZEICHNER
+ * `requireRadioAdmin` STEHT ZEHNMAL IN DIESER DATEI (gemessen mit rohem `/usr/bin/grep -c`)
+ * — siebenmal als Aufruf, einmal in der Importzeile und zweimal in den Kopfkommentaren. Ein
+ * naiver Vorkommenszaehler ergibt also **10** und nicht **7**, und eine falsche Zahl in einem
+ * `toBe` ist rot-by-construction oder wird
+ * auf den falschen Wert „repariert" — genau die NT11-Klasse. Der Scan muss auf
+ * `await require…(` NACH der Kommentarbereinigung zaehlen, nicht auf den blossen Bezeichner.
  *
  * ⚠️ DIESE DATEI HAT IHREN QUELLTEXT-WAECHTER NOCH NICHT. ⛔ IHR UNMITTELBARER NACHFOLGER IST
  * **AUFGABE V11** (`admin/actions.test.ts`), und die Reihenfolge ist Absicht: der Scan braucht
@@ -228,6 +237,61 @@ function nurSchreibbareFelder<T extends Record<string, unknown>>(eingabe: T): Pa
 }
 
 /**
+ * ⛔ DIE ART JEDER SCHREIBBAREN SPALTE, ABGELEITET AUS DER TABELLE — der 1:1-Ersatz fuer die
+ * TYPPRAEDIKATE der zod-Schemata des Bestands (`radio-admin/shared/src/schemas.ts:50-99`:
+ * `z.string()`, `z.boolean()`, jeweils `.nullable().optional()`).
+ *
+ * ⛔ WARUM DAS NICHT DIE TYPSIGNATUR ERLEDIGT — derselbe Grund wie bei `SCHREIBBARE_FELDER`
+ * oben: eine Server Action bekommt ihre Argumente ueber die Leitung, `GeraetPatch` ist beim
+ * Aufruf eine Zusage des Aufrufers, keine Pruefung. ⛔ UND DIE FOLGE IST EINE
+ * BEDEUTUNGSUMKEHR, KEIN SCHOENHEITSFEHLER (gemessen, Review V10 Fund F2): better-sqlite3
+ * bindet fuer eine `mode: "boolean"`-Spalte (`_db/schema.ts:48`, `:53`) jeden
+ * wahrheitswertigen Wert — aus dem Text „nein" wird `true`. Eine Zahl in einer Textspalte
+ * kommt als `"42.0"` an.
+ *
+ * ⚠️ DIE ARTEN KOMMEN AUS DRIZZLES `dataType`, NICHT AUS EINER ZWEITEN ABSCHRIFT (gemessen:
+ * `string` fuer jede Textspalte, `boolean` fuer `alamosIntegrated`/`loanable`, `date` fuer
+ * `createdAt`/`updatedAt`). Eine handgepflegte Liste waere die Stelle, an der eine neue
+ * Spalte still ungeprueft bleibt.
+ */
+const FELD_ART = new Map<string, string>(
+  Object.entries(getTableColumns(devices)).map(([feld, spalte]) => [feld, spalte.dataType]),
+);
+
+/**
+ * ⛔ WAHR, SOBALD EIN UEBERGEBENER WERT NICHT DIE ART SEINER SPALTE HAT. `null` und
+ * `undefined` kommen durch: jede schreibbare Spalte ist nullbar, und `undefined` heisst
+ * „nicht mitgeschickt" (`schemas.ts:50-99`, durchgehend `.nullable().optional()`).
+ *
+ * ⛔ DER AUFRUFER LEHNT DIE GANZE ANFRAGE AB UND SCHNEIDET DAS FELD NICHT STILL WEG — so
+ * antwortet der Bestand (400 `invalid`, `radio-admin/server/src/routes/devices.ts:102`). Ein
+ * stilles Wegschneiden waere eine NEUE Bedeutung: der Bedienende bekaeme „gespeichert" fuer
+ * etwas, das nicht gespeichert wurde.
+ *
+ * ⚠️ EINE ART, DIE HIER NICHT AUFGEFUEHRT IST, WIRD NICHT GEPRUEFT — `devices` fuehrt heute
+ * gemessen nur `string`, `boolean` und `date`, und die drei stehen alle da. Der Satz steht
+ * hier, damit niemand die Luecke fuer eine Zusage haelt: wer eine `number`-Spalte einfuehrt,
+ * bekommt von dieser Funktion kein Signal.
+ *
+ * ⚠️ DER `date`-ZWEIG IST HEUTE STRUKTURELL UNERREICHT UND DESHALB UNBEWACHT: die einzigen
+ * `date`-Spalten von `devices` sind `createdAt` und `updatedAt`, und die schneidet
+ * `nurSchreibbareFelder` VOR jedem Aufruf dieser Funktion weg (`SERVEREIGENE_FELDER`). Er
+ * steht trotzdem da, weil er die Zeile ist, die fehlte, sobald eine schreibbare Datumsspalte
+ * entstuende — und ein Fall, der ihn heute faerbt, koennte nur an dieser Funktion
+ * vorbeigebaut werden. ⛔ BENANNT STATT SCHEINBEWACHT.
+ */
+function artFalsch(eingabe: Record<string, unknown>): boolean {
+  for (const [feld, wert] of Object.entries(eingabe)) {
+    if (wert === null || wert === undefined) continue;
+    const art = FELD_ART.get(feld);
+    if (art === "string" && typeof wert !== "string") return true;
+    if (art === "boolean" && typeof wert !== "boolean") return true;
+    if (art === "date" && !(wert instanceof Date)) return true;
+  }
+  return false;
+}
+
+/**
  * ⛔ DIE ISSI IST DAS EINZIGE PFLICHTFELD, UND SIE DARF NICHT LEER SEIN —
  * `z.string().min(1)` im Anlegeschema (`radio-admin/shared/src/schemas.ts:52`) und
  * `z.string().min(1).optional()` im Patchschema (`:76`). ⛔ NICHT GETRIMMT, anders als beim
@@ -252,6 +316,13 @@ function issiUnbrauchbar(issi: unknown): boolean {
  * ⛔ AUF `devices` HEISST ER EINDEUTIG „DIE ISSI IST SCHON VERGEBEN": `issi` traegt den einzigen
  * `unique()` dieser Tabelle (`_db/schema.ts:22`), `tei` ausdruecklich nicht (`:23-27`), und die
  * Primaerschluesselverletzung meldet `SQLITE_CONSTRAINT_PRIMARYKEY`.
+ *
+ * ⚠️ DER `cause`-ZWEIG IST AUF DIESEM WEG HEUTE UNERREICHT UND DESHALB UNBEWACHT (Review V10
+ * Fund F11, Sonde P38: `return false;` → 0 rot). Er steht trotzdem da, weil er 1:1 aus
+ * `_db/leihen.ts:470-475` kommt, wo eigene Faelle ihn tragen — und weil drizzle eine
+ * geworfene Ausnahme umhuellen kann, sobald ein Aufrufer sie durch eine weitere Schicht
+ * reicht. ⛔ EIN KUENSTLICH UMHUELLTER FEHLER WAERE EIN FALL UEBER DEN TEST, NICHT UEBER DEN
+ * BESTAND; die Zeile bleibt benannt statt scheinbewacht.
  */
 function istUniqueVerletzung(fehler: unknown): boolean {
   if (!(fehler instanceof Error)) return false;
@@ -356,6 +427,9 @@ export async function geraetAnlegenAction(werte: GeraetEingabe): Promise<Ergebni
 
   if (issiUnbrauchbar(werte.issi)) return { ok: false, fehler: ANLEGEN_FEHLER };
   const sauber = { ...nurSchreibbareFelder(werte), issi: werte.issi };
+  // ⛔ DIE TYPPRAEDIKATE DES ANLEGESCHEMAS (`schemas.ts:50-70`), siehe `artFalsch`. Sie
+  // stehen NACH dem Feldschnitt: was `.strip()` ohnehin entfernt, braucht keine Artpruefung.
+  if (artFalsch(sauber)) return { ok: false, fehler: ANLEGEN_FEHLER };
 
   const db = getDb();
   const jetzt = new Date();
@@ -418,11 +492,17 @@ export async function geraetAendernAction(id: string, patch: GeraetPatch): Promi
     return { ok: false, fehler: SPEICHERN_FEHLER };
   }
 
+  // ⛔ DIE TYPPRAEDIKATE DES PATCHSCHEMAS (`schemas.ts:72-98`), siehe `artFalsch`. Sie stehen
+  // VOR dem Lesen, weil der Bestand die Anfrage schon an der Validierung abweist
+  // (400 `invalid`, `devices.ts:102`) und gar nicht erst in die Datenbank sieht.
+  const eingang = nurSchreibbareFelder(patch);
+  if (artFalsch(eingang)) return { ok: false, fehler: SPEICHERN_FEHLER };
+
   const db = getDb();
   const bestehend = db.select().from(devices).where(eq(devices.id, id)).get();
   if (!bestehend) return { ok: false, fehler: SPEICHERN_FEHLER };
 
-  const erlaubt = filterSchreibbareFelder(rolle, nurSchreibbareFelder(patch)) as GeraetPatch;
+  const erlaubt = filterSchreibbareFelder(rolle, eingang) as GeraetPatch;
   const diffs = diffGeraet(bestehend, erlaubt);
   if (diffs.length === 0) return { ok: true };
 
@@ -777,36 +857,64 @@ export async function importSchreibenAction(
 ): Promise<Ergebnis<ImportBilanz>> {
   const viewer = await requireRadioAdmin();
 
+  /*
+   * ⛔ DER SCHNITT LIEGT AN DER ZUORDNUNG, DEM EINTRITTSORT DER FREMDEN DATEN — und nicht
+   * zwei Stellen dahinter. `Spaltenzuordnung` ist beim Aufruf eine Typzusage des Aufrufers,
+   * keine Pruefung, und `zeileZuEingehend` schreibt JEDEN ihrer Schluessel in die Zeile
+   * (`_lib/csv/klassifizieren.ts:186-201`).
+   *
+   * ⛔ WARUM HIER UND NICHT AM SCHREIBVORGANG (Review V10 Fund F4, beide Faelle gemessen):
+   * der Klassifikator und der Schreibvorgang muessen aus DERSELBEN Filterung speisen, so wie
+   * im Bestand, wo `row.changes` und `patch` beide aus `filterEditableFields` kommen
+   * (`apply-commit.ts:53-57`). Fiel der Schnitt nur am Schreibvorgang, dann (a) trug die
+   * Ereignisliste einer Neuanlage `{ feld: "id", … }` — eine Auditzeile ueber eine Aenderung,
+   * die nie stattfand —, und (b) machte `zuSetzen[feld] = erlaubt[feld] ?? null` aus dem
+   * weggeschnittenen Feld ein EXPLIZITES `NULL`, dessen `NOT NULL`-Verletzung den GANZEN
+   * Stapel mitriss.
+   *
+   * ⛔ DIE GRENZE IST `IMPORTIERBARE_FELDER` UND NICHT `SCHREIBBARE_FELDER`: sie ist die
+   * engere und die gemessene (`_lib/csv/kopfzeilen.ts:32-52`, 1:1 aus
+   * `radio-admin/shared/src/import/auto-map-headers.ts:2-22`, woertlich „Device columns a CSV
+   * may target (no system/identity-internal fields)"). `updateNote` faellt damit ebenfalls
+   * heraus — es ist append-only und hat einen eigenen Schreibpfad.
+   */
+  const zuordnungSauber: Spaltenzuordnung = {};
+  for (const feld of IMPORTIERBARE_FELDER) {
+    const spalte = zuordnung[feld];
+    if (spalte !== undefined) zuordnungSauber[feld] = spalte;
+  }
+
   // ⛔ OHNE ZUGEORDNETE ISSI-SPALTE GIBT ES KEINEN SCHLUESSEL (`ImportWizard.tsx:109`, `:211`).
-  const issiSpalte = zuordnung.issi;
+  const issiSpalte = zuordnungSauber.issi;
   if (issiSpalte === undefined) return { ok: false, fehler: ISSI_SPALTE_FEHLT };
 
   const rolle: RadioRolle = "admin";
   const db = getDb();
 
+  let klassifiziert: KlassifizierteZeile[];
+  let zusammenfassung: Zusammenfassung;
   try {
     const bestehendNachIssi = new Map<string, Geraet>();
     for (const geraet of db.select().from(devices).all()) {
       bestehendNachIssi.set(geraet.issi, geraet);
     }
 
-    const { zeilen: klassifiziert, zusammenfassung } = klassifiziereZeilen({
+    ({ zeilen: klassifiziert, zusammenfassung } = klassifiziereZeilen({
       zeilen,
-      zuordnung,
+      zuordnung: zuordnungSauber,
       bestehendNachIssi,
       rolle,
-    });
+    }));
 
     db.transaction((tx) => {
       klassifiziert.forEach((zeile) => {
-        const eingehend = zeileZuEingehend(zeilen[zeile.zeilenNummer] ?? [], zuordnung);
+        const eingehend = zeileZuEingehend(zeilen[zeile.zeilenNummer] ?? [], zuordnungSauber);
         const { issi: _issi, ...uebrige } = eingehend;
-        // ⛔ AUCH HIER GESTRIPPT: `Spaltenzuordnung` ist eine Typzusage des Aufrufers, und
-        // `zeileZuEingehend` schreibt JEDEN Schluessel der Zuordnung in die Zeile
-        // (`_lib/csv/klassifizieren.ts:186-201`). Ueber die Leitung kaeme sonst `id` mit.
+        // ⛔ HIER STEHT KEIN ZWEITER FELDSCHNITT: `zuordnungSauber` oben ist der EINE, und
+        // ein zweiter daneben waere genau die Asymmetrie, gegen die er gebaut ist.
         const erlaubt = filterSchreibbareFelder(
           rolle,
-          nurSchreibbareFelder(uebrige as Record<string, unknown>),
+          uebrige as Record<string, unknown>,
         ) as GeraetPatch;
         const jetzt = new Date();
 
@@ -865,12 +973,18 @@ export async function importSchreibenAction(
         // `unchanged` | `error` | `skipped-no-permission` schreiben nichts (`apply-commit.ts:69`).
       });
     });
-
-    revalidatePath(GERAETELISTE);
-    revalidatePath(UEBERSICHT);
-    revalidatePath(VERSIONSLISTE);
-    return { ok: true, zusammenfassung, zeilen: klassifiziert };
   } catch {
     return { ok: false, fehler: IMPORT_FEHLER };
   }
+
+  /*
+   * ⛔ DER ERFOLGSABSCHLUSS STEHT AUSSERHALB DES `try`, WIE IN `geraetAnlegenAction` UND
+   * `geraetAendernAction` (Review V10 Fund F13). Innerhalb machte ein Wurf aus
+   * `revalidatePath` aus einem VOLLSTAENDIG GESCHRIEBENEN Import die Meldung
+   * „Import fehlgeschlagen" — und der Bedienende faehrt ihn ein zweites Mal.
+   */
+  revalidatePath(GERAETELISTE);
+  revalidatePath(UEBERSICHT);
+  revalidatePath(VERSIONSLISTE);
+  return { ok: true, zusammenfassung, zeilen: klassifiziert };
 }
