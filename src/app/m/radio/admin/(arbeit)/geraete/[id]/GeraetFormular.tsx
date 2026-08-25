@@ -1,7 +1,7 @@
 "use client";
 
 // src/app/m/radio/admin/(arbeit)/geraete/[id]/GeraetFormular.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dayjs, { type Dayjs } from "dayjs";
 import { AutoComplete, Button, Checkbox, Col, DatePicker, Divider, Form, Input, Row, Select, Tag } from "antd";
 import { geraetAendernAction } from "../../../actions";
@@ -254,7 +254,7 @@ const STAND_WORT: Record<UpdateStand, string> = {
  * ⚠️ `titlePlacement="start"` IST DIE ANTD-6-SCHREIBWEISE VON `orientation="left"`
  * (`DeviceFields.tsx:56`, `:91`, `:119`, `:149`, `:174`) — benannte Abweichung im Namen, nicht
  * in der Wirkung: in antd 6 traegt `orientation` die Achse (`horizontal`/`vertical`), und die
- * Ausrichtung des Titels heisst `titlePlacement` (`node_modules/antd/es/divider/index.d.ts:21-24`,
+ * Ausrichtung des Titels heisst `titlePlacement` (`node_modules/antd/es/divider/index.d.ts:22-25`,
  * aufgeschlagen). Ohne sie stuenden die fuenf Abschnittsueberschriften ZENTRIERT.
  *
  * Die Spaltenbreite des Bestands (`DeviceFields.tsx:27`).
@@ -313,10 +313,12 @@ function VorschlagFeld({
 }
 
 export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: GeraetFormularProps) {
+  const [form] = Form.useForm<FormularWerte>();
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
 
   const gesperrt = gesperrtFuer(rolle);
+  const notizImFormular = !gesperrt("updateNote");
 
   /*
    * ⛔ DIE ZWEI FALTUNGEN DES BESTANDS (`DeviceEditForm.tsx:39-47`): der Datumswaehler bekommt
@@ -346,6 +348,44 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
     updateNote: geraet.updateNote,
   };
 
+  /*
+   * ⛔ DIE APPEND-ONLY-SPALTE WIRD NACHGEZOGEN, WENN DER SERVER SIE FORTGESCHRIEBEN HAT.
+   * `NotizFeld` haengt ueber `notizAnfuegenAction` an und stoesst danach `revalidatePath` auf
+   * genau diese Seite an (`admin/actions.ts:655-657`); die Seite reicht das frische `geraet`
+   * herein. ⛔ ANTDS `Form` UEBERNIMMT GEAENDERTE `initialValues` BEI EINEM NEU-RENDERN NICHT
+   * (gemessen: der Fall „eine angehaengte Anmerkung ueberlebt ein spaeteres Speichern des
+   * Formulars" war ohne diese Zeile rot) — ohne den Abgleich traegt das Feld weiter den Stand
+   * VOR dem Anhaengen, `baueGeaenderteFelder` macht daraus einen Patcheintrag (`:225`), und der
+   * Server schreibt ihn fuer die Admin-Stufe ungefiltert (`_lib/rollen.ts:105`,
+   * `admin/actions.ts:513`). Die soeben angehaengte Zeile waere weg, still, auf einer
+   * ausdruecklich append-only gefuehrten Spalte (`_db/schema.ts:56-59`).
+   *
+   * ⛔ NUR DIESES EINE FELD, UND DAS IST DER GANZE UNTERSCHIED ZU EINEM `key` AN DER INSEL: ein
+   * Neuaufbau des ganzen Formulars verwuerfe JEDE noch nicht gespeicherte Eingabe. `updateNote`
+   * ist das einzige Feld, das eine ANDERE Insel derselben Seite fortschreibt.
+   *
+   * ⚠️ WAS DAS KOSTET, BENANNT: tippt eine Admin-Person gerade im Formularfeld und haengt
+   * gleichzeitig ueber `NotizFeld` an, ersetzt der Abgleich den ungespeicherten Text durch den
+   * Serverstand. Das ist die richtige Richtung — der ungespeicherte Text haette die angehaengte
+   * Zeile beim Speichern geloescht.
+   *
+   * ⛔ NICHT FUER DIE UPDATER-STUFE: dort wird das Feld gar nicht gerendert
+   * (`DeviceFields.tsx:181-190`, unten im Rumpf am `!gesperrt("updateNote")`), und ein
+   * `setFieldValue` legte den Schluessel erst im Speicher an.
+   * ⚠️ DIESE EINE ZEILE IST HEUTE NICHT BEWACHT, UND DAS STEHT HIER STATT VERSCHWIEGEN ZU SEIN:
+   * ihr Wegfall ist **gemessen 0 rot** (Sonde P2 der Fix-Runde 1). Der Grund ist strukturell —
+   * antds Speicher gibt einen Schluessel, dessen `Form.Item` nie gerendert wurde, ueber
+   * `onFinish` nicht heraus, und fuer die Updater-Stufe faenge der serverseitige Feldriegel ihn
+   * ohnehin (`_lib/rollen.ts:105`: `updateNote` steht nicht in `UPDATER_FELDER`). Sie bleibt als
+   * SPERRE gegen eine kuenftige Aenderung dieser antd-Eigenschaft stehen, ⛔ nicht als tragender
+   * Zweig. Der Fall „ein Speichern durch die Updater-Stufe ruehrt die Anmerkung nicht an" misst
+   * die ZUSAGE (nichts Veraltetes geht ueber die Grenze), nicht diese Zeile.
+   */
+  useEffect(() => {
+    if (!notizImFormular) return;
+    form.setFieldValue("updateNote", geraet.updateNote);
+  }, [form, geraet.updateNote, notizImFormular]);
+
   const absenden = async (eingabe: FormularWerte) => {
     const patch = baueGeaenderteFelder(geraet, eingabe);
     /*
@@ -366,6 +406,7 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
 
   return (
     <Form<FormularWerte>
+      form={form}
       layout="vertical"
       initialValues={anfangswerte}
       onFinish={absenden}

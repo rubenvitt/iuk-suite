@@ -53,6 +53,12 @@ function inselDateien(): string[] {
 /** ⛔ Die Sollwerttafel steht NUR auf der rechten Seite — sie ist der Prueffling der Messung. */
 const INSEL_SOLL = ["GeraetFormular.tsx", "GeraetLoeschen.tsx", "NotizFeld.tsx"];
 
+/**
+ * Das Etikett des EINEN `Form.Item` ohne `name` (`DeviceFields.tsx:169`) — der reine
+ * Anzeige-Slot. Er zaehlt weder in `FORMULAR_FELDER` noch in `FELD_ETIKETTEN` mit.
+ */
+const ANZEIGE_SLOT_ETIKETT = "Update-Stand";
+
 /*
  * ⛔ `admin/actions.ts` WIRD ERSETZT, NICHT GELADEN. Die Datei traegt `"use server"` als erste
  * Zeile und zieht ueber `getDb`/`next/headers` den ganzen Serverbaum nach — in einer
@@ -83,6 +89,7 @@ import {
   mount,
   query,
   queryPortal,
+  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import { ohneKommentare } from "../../../../_lib/quelltextScan";
@@ -241,6 +248,31 @@ describe("radio-Geraetakte: der Feldriegel der Updater-Stufe", () => {
     const imMarkup = [...quelle.matchAll(/\bname="([a-zA-Z]+)"/g)].map((t) => t[1]!);
     expect(new Set(imMarkup).size, "ein Feldname steht doppelt im Markup").toBe(imMarkup.length);
     expect(imMarkup.sort()).toEqual([...FORMULAR_FELDER].sort());
+
+    /*
+     * ⛔ UND DIE TEXTE, NICHT NUR DIE NAMEN (Review-Fund 5). Der Spec-Satz, auf den F11 sich
+     * beruft, verlangt „deutsches Etikett aus DERSELBEN Etikettenliste wie das Formular"
+     * (`Spec:4763-4764`) — eine Bindung ueber die Namensmenge allein liesse ein an EINER der
+     * beiden Stellen geaendertes Etikett unbemerkt.
+     *
+     * ⛔ DER ANZEIGE-SLOT WIRD ABGEZOGEN, NICHT AUFGENOMMEN: „Update-Stand"
+     * (`DeviceFields.tsx:169`) traegt kein `name`, schreibt nichts und steht deshalb in keiner
+     * der beiden Listen — dieselbe Grenze wie bei `FORMULAR_FELDER`.
+     *
+     * ⚠️ KEIN ETIKETT STEHT ALS LITERAL IM ANKER (Hausregel: kein Umlaut in einem zitierten
+     * Wert) — die Texte kommen aus der Quelle und aus `FELD_ETIKETTEN`, verglichen werden
+     * MENGEN.
+     */
+    const imMarkupEtiketten = [...quelle.matchAll(/\blabel="([^"]+)"/g)]
+      .map((t) => t[1]!)
+      .filter((etikett) => etikett !== ANZEIGE_SLOT_ETIKETT);
+    expect(
+      new Set(imMarkupEtiketten).size,
+      "ein Etikett steht doppelt im Markup",
+    ).toBe(imMarkupEtiketten.length);
+    expect(imMarkupEtiketten.sort(), "die Etikettentexte laufen auseinander (F11)").toEqual(
+      Object.values(FELD_ETIKETTEN).sort(),
+    );
   });
 });
 
@@ -481,7 +513,9 @@ describe("radio-Geraetakte: die Loeschflaeche und die Warnung aus V-L6", () => {
      * ENTLEIHER und sagt, dass die Leihe beim Loeschen als zurueckgegeben gebucht wird."
      *
      * ⚠️ SIE ERSETZT DIE ABLEHNUNG, DIE DER BRIEF NOCH SCHREIBT (`briefs/V14.md:99-101`,
-     * `KOPF.md:378`) — das Ledger ueberholt den Plan (Vorabscan-Fund F2).
+     * `planteil4/briefs/KOPF.md:378`) — das Ledger ueberholt den Plan (Vorabscan-Fund F2).
+     * ⛔ DER PLANTEIL STEHT IM PFAD (Ruling R-V3-1, Auflage 3): jeder Planteil fuehrt einen
+     * eigenen `briefs/KOPF.md`, und `KOPF.md:N` allein trifft in jedem eine andere Zeile.
      */
     await mount(<GeraetLoeschen geraetId="g-1" offeneLeiheEntleiher="Anna Beispiel" />);
     /*
@@ -623,7 +657,7 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
      * `_lib/rollen.ts`, `_lib/geraeteFelder.ts`, `_lib/csv/spalten.ts` und `admin/actions.ts`
      * als Graphgrenze. Die Untergrenze ist bewusst KEINE exakte Zahl.
      */
-    expect(gesehen.size, "der Walker ist dem Importgraphen nicht gefolgt").toBeGreaterThanOrEqual(6);
+    expect(gesehen.size, "der Walker ist dem Importgraphen nicht gefolgt").toBeGreaterThanOrEqual(7);
     expect(verstoesse).toEqual([]);
   });
 
@@ -635,7 +669,7 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
      * (`riegel.test.ts:253-262`). Diese Zeile ist der einzige Waechter dagegen.
      *
      * ⛔ UND EIN FEHLENDES GERAET IST `notFound()`, NICHT EINE FEHLERSEITE
-     * (`radio-admin/server/src/routes/devices.ts:84`, `_lib/lesepfade/geraete.ts:566-591`).
+     * (`radio-admin/server/src/routes/devices.ts:84`, `_lib/lesepfade/geraete.ts:566-590`).
      *
      * ⛔ Ueber `ohneKommentare`: der Kopfkommentar der Seite nennt beide Riegelnamen, um die
      * Stufenwahl zu begruenden.
@@ -654,9 +688,17 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
      * Insel-Grenze gehen nur serialisierbare, VORFORMATIERTE Werte. Eine Server Action wird
      * DIREKT importiert, nie durchgereicht.
      */
+    /*
+     * ⛔ DIE MUSTER ZIELEN AUF DIE KLASSE, NICHT AUF EINE SCHREIBWEISE (Review-Fund 6): die
+     * Tafel verbietet JEDE Server Action und JEDES `Date` ueber die Grenze. Ein Muster, das nur
+     * `=\{…Action\}` faengt, liesse `aktion={geraetAendernAction}` und
+     * `onDelete={() => geraetLoeschenAction(id)}` durch; eines, das nur `=\{new Date\(` faengt,
+     * liesse `const jetzt = new Date(); … wann={jetzt}` durch.
+     */
     const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
-    expect(quelle, "eine Action als Prop").not.toMatch(/=\{[a-zA-Z]*Action\}/);
-    expect(quelle, "ein Date ueber die Grenze").not.toMatch(/=\{new Date\(/);
+    expect(quelle, "eine Action als Prop").not.toMatch(/=\{[^}]*Action\b/);
+    expect(quelle, "eine Pfeilfunktion als Prop").not.toMatch(/=\{[^}]*=>/);
+    expect(quelle, "ein Date in der Seite").not.toMatch(/\bnew Date\(/);
   });
 
   it("die Versionsliste erreicht die Insel", () => {
@@ -714,8 +756,35 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
       /akte\.rufname \|\| akte\.opta \|\| akte\.issi/,
     );
     expect(quelle, "die ISSI fehlt in Klammern hinter dem Titel").toMatch(/\(\$\{akte\.issi\}\)/);
-    expect(quelle, "die Hiorg-ID wird immer zum Link").toMatch(/startsWith\("https:\/\/"\)/);
+    /*
+     * ⛔ BEIDE ZWEIGE DER HIORG-REGEL, NICHT NUR EINER (Review-Fund 3): der Bestand prueft
+     * `http://` UND `https://` (`DeviceDetailDrawer.tsx:32`). Gemessen: mit nur dem
+     * `https`-Anker liess sich der `http`-Zweig ersatzlos streichen, ohne dass ein Fall rot
+     * wurde. Zwei Anker statt eines Musters ueber die ganze Bedingung, damit eine reine
+     * Umformatierung nicht falsch-rot wird.
+     */
+    expect(quelle, "der Hiorg-Link entsteht nicht bei https").toMatch(/startsWith\("https:\/\/"\)/);
+    expect(quelle, "der Hiorg-Link entsteht nicht bei http").toMatch(/startsWith\("http:\/\/"\)/);
     expect(quelle, "der Hiorg-Link ohne noreferrer").toMatch(/rel="noreferrer"/);
+
+    /*
+     * ⛔ DIE ZWEI ZEITANGABEN SIND AN IHREN WERT GEBUNDEN, NICHT NUR AN IHREN NAMEN
+     * (Review-Fund 2). Der Kopfkommentar der Seite warnt genau davor: „Wer sie nach ihren
+     * NAMEN bindet, vertauscht beide Zeilen auf einmal, und kein Tor faellt." Gemessen: ein
+     * Tausch der beiden Ausdruecke war vor diesen zwei Zeilen **0 rot**.
+     *
+     * ⚠️ KEIN UMLAUT IM ANKER (Hausregel): die zweite Zeile wird ueber ihren NACHBARN
+     * gebunden — der aufgeloeste Name steht 1:1 wie im Bestand direkt hinter dem Zeitpunkt
+     * der letzten Datensatzaenderung (`DeviceDetailDrawer.tsx:89-94`).
+     */
+    expect(
+      quelle,
+      "der gepflegte Update-Tag steht nicht in der Zeile Zuletzt aktualisiert",
+    ).toMatch(/etikett="Zuletzt aktualisiert">\{akte\.letztesUpdateText\}/);
+    expect(
+      quelle,
+      "der Zeitpunkt der Datensatzaenderung traegt nicht den aufgeloesten Namen",
+    ).toMatch(/\{akte\.zuletztAktualisiertText\}\s*\n\s*\{akte\.geaendertVonName/);
   });
 
   it("die Stelle fuer den Ereignis-Link bleibt frei und nennt V15", () => {
@@ -762,13 +831,19 @@ describe("radio-Geraetakte: das Formular im DOM", () => {
     /*
      * ⛔ UND ALLE FUENF LINKSBUENDIG (`DeviceFields.tsx:56`, `:91`, `:119`, `:149`, `:174`:
      * `orientation="left"`). In antd 6 heisst das `titlePlacement`, weil `orientation` dort die
-     * ACHSE traegt (`node_modules/antd/es/divider/index.d.ts:21-24`) — ohne das Attribut stehen
-     * die fuenf Ueberschriften zentriert, und die gerenderte Zahl darueber bleibt 5. Gemessen:
-     * die Sonde ohne `titlePlacement` war vor diesem Fall **0 rot**.
+     * ACHSE traegt (`node_modules/antd/es/divider/index.d.ts:25`) — ohne das Attribut stehen die
+     * fuenf Ueberschriften zentriert, und die gerenderte Zahl darueber bleibt 5. Gemessen: die
+     * Sonde ohne `titlePlacement` war vor diesem Fall **0 rot**.
+     *
+     * ⛔ GEMESSEN WIRD DIE WIRKUNG, NICHT DIE SCHREIBWEISE (Review-Fund 4): antd stempelt
+     * `ant-divider-with-text-<placement>` an den Knoten
+     * (`node_modules/antd/es/divider/index.js:71-72`), und die Vorgabe ohne das Attribut ist
+     * `center` (`:48`). Eine Zaehlung der Zeichenkette `<Divider titlePlacement="start">` in der
+     * Quelle war dagegen gemessen FALSCH-ROT, sobald jemand ein Attribut auf eine eigene Zeile
+     * umbrach — bei null Verhaltensaenderung.
      */
-    const quelleFormular = ohneKommentare(readFileSync(QUELLE_FORMULAR, "utf8"));
     expect(
-      (quelleFormular.match(/<Divider titlePlacement="start">/g) ?? []).length,
+      document.querySelectorAll(".ant-divider-with-text-start").length,
       "eine Abschnittsueberschrift steht zentriert statt linksbuendig",
     ).toBe(5);
     /*
@@ -795,6 +870,114 @@ describe("radio-Geraetakte: das Formular im DOM", () => {
     await fill("#tei", "TEI-4711");
     await click('[data-rolle="radio-formular-speichern"]');
     expect(query('[data-rolle="radio-formular-fehler"]').textContent).toBe("ISSI bereits vergeben");
+  });
+
+  it("eine angehaengte Anmerkung ueberlebt ein spaeteres Speichern des Formulars", async () => {
+    /*
+     * ⛔ DER STILLE DATENVERLUST AUF EINER APPEND-ONLY-SPALTE (`_db/schema.ts:56-59`),
+     * Review-Fund 1. Der Weg entsteht erst in der Suite: der Bestand rendert das ganze Panel
+     * fuer Admins gar nicht (`DeviceDetailDrawer.tsx:109`, `{!isAdmin && <UpdateNotePanel …>}`),
+     * hier steht das Eingabefeld fuer BEIDE Stufen (`briefs/V14.md:92-96`). Haengt eine
+     * Admin-Person ueber `NotizFeld` an und speichert DANACH das Formular, ohne die Seite
+     * dazwischen neu zu laden, dann traegt das Formular noch den ALTEN Wert — antds `Form`
+     * uebernimmt geaenderte `initialValues` bei einem Neu-Rendern NICHT —, und
+     * `baueGeaenderteFelder` macht daraus einen Patcheintrag, den der Server fuer die
+     * Admin-Stufe ungefiltert schreibt (`_lib/rollen.ts:105`, `admin/actions.ts:513`).
+     *
+     * ⛔ GEMESSEN WIRD DER UEBERGANG, NICHT ZWEI GETRENNTE BAEUME: `rerender`
+     * (`qr/_lib/test-dom.tsx:69-75`) rendert denselben Wurzelknoten erneut — ein zweites
+     * `mount` waere ein frischer Baum und ueberspraenge genau den Uebergang, um den es geht.
+     *
+     * ⚠️ WAS DER UEBERGANG NACHSTELLT: `notizAnfuegenAction` ruft `revalidatePath` auf genau
+     * diese Seite (`admin/actions.ts:655`), und die Seite reicht das frische `geraet` an die
+     * Insel. ⛔ NICHT GEMESSEN IST, OB NEXT DIE INSEL DABEI AN ORT UND STELLE NEU RENDERT
+     * ODER SIE NEU AUFBAUT — ⬜ Eigentuemer **V23**. Die Zusicherung hier traegt in BEIDEN
+     * Faellen: baut Next neu auf, greifen die frischen `initialValues`; rendert er an Ort und
+     * Stelle, greift der Abgleich in `GeraetFormular.tsx`.
+     */
+    aendernMock.mockResolvedValue({ ok: true });
+    const vorher = werte({ updateNote: "[2026-08-01 Anna] ALT" });
+    const nachher = werte({ updateNote: "[2026-08-01 Anna] ALT\n[2026-08-02 Anna] NEU" });
+    await mount(
+      <GeraetFormular
+        geraet={vorher}
+        rolle="admin"
+        vorschlaege={LEERE_VORSCHLAEGE}
+        versionen={[]}
+      />,
+    );
+    await rerender(
+      <GeraetFormular
+        geraet={nachher}
+        rolle="admin"
+        vorschlaege={LEERE_VORSCHLAEGE}
+        versionen={[]}
+      />,
+    );
+
+    expect(
+      query<HTMLTextAreaElement>("#updateNote").value,
+      "das Feld steht noch auf dem Stand VOR dem Anhaengen",
+    ).toBe(nachher.updateNote);
+
+    await fill("#tei", "TEI-4711");
+    await click('[data-rolle="radio-formular-speichern"]');
+    expect(
+      aendernMock,
+      "das Speichern schreibt die angehaengte Zeile wieder weg",
+    ).toHaveBeenCalledWith("g-1", { tei: "TEI-4711" });
+  });
+
+  it("ein Speichern durch die Updater-Stufe ruehrt die Anmerkung nicht an", async () => {
+    /*
+     * ⛔ DIE ANDERE HAELFTE VON FUND 1, UND SIE IST BISHER UNBEWACHT: der Fall „die
+     * Update-Anmerkung fehlt im Formular, wenn die Rolle updater ist" ruft
+     * `baueGeaenderteFelder` als REINE FUNKTION mit geloeschtem Schluessel. Ob antds Speicher
+     * den Wert fuer eine Stufe, die das Feld nie rendert, trotzdem fuehrt und ueber `onFinish`
+     * herausgibt, kann er strukturell nicht sehen — das misst nur ein echtes Formular.
+     *
+     * ⛔ DER ANGRIFFSPUNKT IST DERSELBE UEBERGANG: nach einem Anhaengen ueber `NotizFeld`
+     * (`Spec:4448`, „Notiz anfuegen | ja | ja" fuer BEIDE Stufen) traegt der Speicher den alten
+     * Text. Kein Feld dieser Stufe hat sich geaendert, also darf GAR NICHTS gesendet werden —
+     * ein leerer Patch laeuft in `GeraetFormular.tsx` gar nicht erst los
+     * (`DeviceEditForm.tsx:87-90`).
+     */
+    aendernMock.mockResolvedValue({ ok: true });
+    const vorher = werte({ updateNote: "[2026-08-01 Anna] ALT" });
+    const nachher = werte({ updateNote: "[2026-08-01 Anna] ALT\n[2026-08-02 Anna] NEU" });
+    await mount(
+      <GeraetFormular
+        geraet={vorher}
+        rolle="updater"
+        vorschlaege={LEERE_VORSCHLAEGE}
+        versionen={[]}
+      />,
+    );
+    expect(exists("#updateNote"), "das Feld steht fuer die Updater-Stufe im Markup").toBe(false);
+
+    await rerender(
+      <GeraetFormular
+        geraet={nachher}
+        rolle="updater"
+        vorschlaege={LEERE_VORSCHLAEGE}
+        versionen={[]}
+      />,
+    );
+    await click('[data-rolle="radio-formular-speichern"]');
+    expect(
+      aendernMock,
+      "die Updater-Stufe schickt die veraltete Anmerkung mit",
+    ).not.toHaveBeenCalled();
+
+    /*
+     * ⛔ DIE GEGENPROBE, OHNE DIE DIE ZUSICHERUNG DARUEBER VAKUUM-GRUEN WAERE: ein Absendeweg,
+     * der gar nicht laeuft, ruft die Action auch nicht. `softwareVersion` ist eines der drei
+     * Felder der Updater-Stufe (`editable-fields.ts:3`), also offen — und der Patch traegt
+     * danach GENAU dieses eine Feld.
+     */
+    await fill("#softwareVersion", "FW 9");
+    await click('[data-rolle="radio-formular-speichern"]');
+    expect(aendernMock).toHaveBeenCalledWith("g-1", { softwareVersion: "FW 9" });
   });
 });
 

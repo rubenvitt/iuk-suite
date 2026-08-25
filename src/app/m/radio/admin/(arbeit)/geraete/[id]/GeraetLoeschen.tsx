@@ -21,10 +21,10 @@ import s from "../../../../_ui/verwaltung.module.css";
  *
  * ⛔ DIE WARNUNG AUS ⬜ **V-L6** — Betreiberentscheidung vom 2026-08-24
  * (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L6"). ⚠️ SIE UEBERHOLT DEN PLAN:
- * `briefs/V14.md:99-101` und `KOPF.md:378` schreiben noch, das Loeschen werde bei offener Leihe
- * ABGELEHNT. Das Ledger entscheidet anders — die offene Leihe wird beim Loeschen automatisch
- * als zurueckgegeben gebucht (`admin/actions.ts`, `geraetLoeschenAction`), und der Bedienende
- * bekommt eine WARNUNG.
+ * `briefs/V14.md:99-101` und `planteil4/briefs/KOPF.md:378` schreiben noch, das Loeschen
+ * werde bei offener Leihe ABGELEHNT. Das Ledger entscheidet anders — die offene Leihe wird
+ * beim Loeschen automatisch als zurueckgegeben gebucht (`admin/actions.ts`,
+ * `geraetLoeschenAction`), und der Bedienende bekommt eine WARNUNG.
  *
  * ⛔ SIE STEHT VOR DEM LOESCHEN, ALS BESTAETIGUNGSSCHRITT (Ausformung 1 der Entscheidung):
  * „sonst ist sie keine Warnung, sondern eine Meldung ueber etwas bereits Geschehenes". Deshalb
@@ -34,6 +34,14 @@ import s from "../../../../_ui/verwaltung.module.css";
  * ⛔ SIE NENNT DEN ENTLEIHER (Ausformung 1). Er kommt als vorformatierter, serialisierbarer
  * Prop ueber die Grenze (`offeneLeiheZuGeraet`, `_db/leihen.ts:379`) — Vorabscan-Fund F2
  * Punkt c: „Ohne den Namen als serialisierten Prop kann die Warnung ihn nicht nennen."
+ *
+ * ⚠️ BENANNTE ABWEICHUNG: DER KNOPF TRAEGT KEIN MUELLEIMERZEICHEN. Der Bestand setzt
+ * `icon={<FiTrash2 />}` (`DeviceDetailDrawer.tsx:119`). Die eine Zeichenquelle des Moduls ist
+ * `_ui/ikonen.tsx` (Entscheidung E-V7, NS-A8b) und auf ZWOELF Namen festgenagelt
+ * (`_ui/ikonen.tsx:55-67`, festgehalten von `_ui/ikonen.test.tsx:108`); ein Muelleimer ist dort
+ * nicht dabei. ⛔ Ein `react-icons`-Import an dieser Stelle waere Falle 7 und eine dreizehnte
+ * Zeichenquelle. Die Beschriftung „Gerät löschen" plus `danger` traegt die Aussage — dieselbe
+ * Behandlung wie beim Warndreieck der Abweichungszeile (`page.tsx`, Abweichung A9).
  *
  * ⛔ KEIN TOAST — Entscheidung E6: das „Gerät gelöscht" aus `DeviceDetailDrawer.tsx:54` faellt
  * als benannte Abweichung weg. Es waere ohnehin unsichtbar: die Action endet in einem

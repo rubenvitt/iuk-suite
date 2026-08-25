@@ -146,7 +146,7 @@ export default async function RadioGeraetAktePage({
           {/*
             1:1 `DeviceDetailDrawer.tsx:89-94`: der Zeitpunkt, und NUR wenn ein Name oder ein
             roher `sub` bekannt ist, dahinter „ · <Name>". Der Rueckfall auf den rohen `sub`
-            steckt bereits in `geaendertVonName` (`_lib/lesepfade/geraete.ts:566-591`).
+            steckt bereits in `geaendertVonName` (`_lib/lesepfade/geraete.ts:566-590`).
           */}
           {akte.zuletztAktualisiertText}
           {akte.geaendertVonName ? ` · ${akte.geaendertVonName}` : ""}
@@ -176,6 +176,16 @@ export default async function RadioGeraetAktePage({
         `briefs/V14.md:33-36`). V15 setzt ihn an diese Stelle, im selben Commit wie die Seite.
       */}
 
+      {/*
+        ⚠️ BENANNTE ABWEICHUNG: KEINE ZWISCHENUEBERSCHRIFT „Bearbeiten". Der Bestand setzt sie
+        (`DeviceDetailDrawer.tsx:104-106`, `Typography.Title level={5}`), weil dort Kopfdaten,
+        Formular, Notizfeld und Loeschknopf UEBEREINANDER IN EINEM DRAWER stehen und der
+        Bearbeitungsteil sonst nicht vom Lesekopf zu trennen waere. Hier ist die Akte eine
+        eigene Seite mit eigener Ueberschrift (`Spec:4183-4186`); das Formular gliedert sich
+        ausserdem selbst in fuenf `Divider`-Abschnitte. Eine sechste Ueberschrift ueber der
+        ersten waere doppelt. ⛔ `Typography.Title` waere hier ohnehin Falle 1
+        (Bauform-Zulaessigkeitstafel Nr. 3) — der Ersatz waere ein `<h2>`, nicht das Bauteil.
+      */}
       <div className={s.abstand}>
         <GeraetFormular
           geraet={formWerte}
