@@ -1220,7 +1220,7 @@ describe("(g) auf jeder Verwaltungsseite steht der Riegel als ERSTE Anweisung", 
      * beides erfuellen — zeichengleich die Fehlerform, die Klausel (e) und Klausel (f) im
      * Kopf beide benennen. Ausserhalb einer Group ist die erste Anweisung deshalb der
      * HOST-Riegel; die Reihenfolge der beiden haelt Klausel (e) weiterhin ueber `search(...)`.
-     * ⚠️ Heute liegt jede der fuenf Seiten in einer Group; der zweite Zweig ist damit
+     * ⚠️ Heute liegt jede Admin-Seite in einer Group; der zweite Zweig ist damit
      * ungemessen und faellt LAUT, sobald ihn jemand betritt (die Meldung druckt den Fund).
      *
      * ⬜ UND ER SCHLIESST DIE LUECKE DORT NUR HALB — das steht hier, statt eine Reichweite zu
@@ -1240,7 +1240,7 @@ describe("(g) auf jeder Verwaltungsseite steht der Riegel als ERSTE Anweisung", 
      * neuen Abfrage (REVIEW-A18, Fund 2).
      *
      * ⚠️ LEER-GRUEN IST AUSGESCHLOSSEN, OHNE DASS HIER EINE ZWEITE ZAEHLUNG STEHT: Klausel
-     * (e) haelt `ADMIN_SEITEN().length` auf `ADMIN_SEITEN_ANZAHL` (heute 5) ueber DERSELBEN
+     * (e) haelt `ADMIN_SEITEN().length` auf `ADMIN_SEITEN_ANZAHL` (`:121`) ueber DERSELBEN
      * Menge. Faende der Filter nichts, waere jener Fall rot, bevor dieser leer laeuft.
      */
     const verstoesse: string[] = [];

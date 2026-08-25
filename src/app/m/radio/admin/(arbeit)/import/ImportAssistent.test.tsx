@@ -405,11 +405,21 @@ describe("radio-Import: die vier Schritte", () => {
      *
      * ⛔ DESHALB JETZT DER RUECKGABEWERT SELBST: die Weiche ist als benannte Funktion
      * `ablegeWeiche` aus der Insel exportiert, dieser Fall RUFT sie und liest ihr Ergebnis.
-     * ⚠️ WARUM NICHT DER KOERPERSCHNITT, den die Pruefung als Weg (a) nannte:
-     * `_lib/quelltextScan.ts` exportiert genau `ohneKommentare` und `bereinigt` — ein
-     * `funktionsKoerper` gibt es dort nicht, und ein vierter Schneider waere die Bauart, vor
-     * der `KONTEXT.md` („Wer eine vierte Kopie dieser Bauart anlegt, baut den Fehler neu")
-     * ausdruecklich warnt.
+     * ⚠️ WARUM NICHT DER KOERPERSCHNITT, den die Pruefung als Weg (a) nannte — und der
+     * tragende Grund ist NICHT der naheliegende. ⛔ `funktionsKoerper` GIBT ES SEHR WOHL:
+     * `riegel.test.ts:206-220`, zweite Ausfertigung `_lib/bauform.test.ts:391` (deren
+     * Kopfkommentar `:57` die Herkunft selbst nennt). Nur `_lib/quelltextScan.ts` fuehrt ihn
+     * nicht — der exportiert `ohneKommentare` (`:61`) und `bereinigt` (`:208`).
+     * ⛔ DER SCHNITT HAETTE DIE ALTE FORM STRUKTURELL NICHT FASSEN KOENNEN, und DAS traegt:
+     * er sucht `\bfunction\s+<name>\s*\(` (`riegel.test.ts:208`) und findet damit nur
+     * FUNKTIONSDEKLARATIONEN. Die alte Weiche war ein anonymer Pfeil in einem JSX-Attribut —
+     * Weg (a) war auf sie gar nicht anwendbar; erst Weg (b) macht sie schneidbar, und dann
+     * braucht es den Schnitt nicht mehr.
+     * ⚠️ UND DIE ZWEITE HAELFTE DER FRUEHEREN BEGRUENDUNG TRUG NUR SINNGEMAESS: die Warnung
+     * „Wer eine vierte Kopie dieser Bauart anlegt, baut den Fehler neu" (`KONTEXT.md:244-247`)
+     * zielt ausweislich ihres Wortlauts auf die BEREINIGUNGS-Bauart
+     * (`ohneKommentareUndZeichenketten`, `ohneRegexLiterale`, `bereinigt`), nicht auf
+     * `funktionsKoerper`.
      *
      * ⛔ UND DIE VERDRAHTUNG WIRD MITGEPRUEFT: ein gemessener Rueckgabewert nuetzt nichts,
      * wenn antd die Funktion gar nicht bekommt. Der Scan darunter nagelt `beforeUpload` auf
