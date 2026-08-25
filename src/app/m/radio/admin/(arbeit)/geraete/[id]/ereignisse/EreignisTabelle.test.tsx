@@ -361,10 +361,10 @@ describe("radio-Ereignisse: die Bauform der Insel und ihrer Seite", () => {
      *
      * ⛔ ER FOLGT DEM IMPORTGRAPHEN, ER LIEST NICHT NUR DIE WURZELN (Ruling R-V11-3: „Ein
      * Gegen-`grep` mit Dateiliste prueft die Liste, nicht die Klasse"). ⚠️ Die Untergrenze
-     * ist hier die WURZELZAHL und nicht mehr: im gruenen Zustand zieht die Insel gar keinen
-     * relativen Wert, es gibt also nichts zu laufen. Genau das ist die Aussage — faellt das
-     * `type` weg, waechst die Menge um `_lib/lesepfade/ereignisse.ts`, und der Walker findet
-     * dort `drizzle-orm`.
+     * unten prueft ZUGEHOERIGKEIT statt einer ZAHL (Begruendung dort, `:441-450` dieser Datei):
+     * jede Wurzel muss gelesen sein, mehr ist im gruenen Zustand nicht zu holen — die Insel
+     * zieht gar keinen relativen Wert. Genau das ist die Aussage: faellt das `type` weg,
+     * waechst die Menge um `_lib/lesepfade/ereignisse.ts`, und der Walker findet dort `drizzle-orm`.
      *
      * ⚠️ ER IST DIE UNTERGRENZE, NICHT DER BEWEIS: keine dynamischen Importe, kein
      * Seiteneffekt-Import. Was das Bundle wirklich enthaelt, zeigt erst `pnpm build` (V23).

@@ -763,9 +763,9 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
    * waere genau die Fehlerform, gegen die R-V11-1 steht. Er ist unveraendert; nur sein Ort
    * hat sich geaendert, und Klausel (f) unten ruft ihn weiterhin.
    *
-   * ⛔ WARUM AN DAS ENDE UND NICHT HIER NACH OBEN: 42 Belegzeilen unter `src`/`e2e` zeigen
-   * mit `riegel.test.ts:N` in diese Datei (roher `/usr/bin/grep -rnoE`, 2026-08-25), dazu
-   * Dutzende in den Plaenen. Ein Block, der oben einzieht, verschiebt sie alle. Der Ersatz
+   * ⛔ WARUM AN DAS ENDE UND NICHT HIER NACH OBEN: Belegzeilen unter `src` und in den Plaenen
+   * zeigen mit `riegel.test.ts:N` in diese Datei — ein Block, der oben einzieht, verschiebt sie
+   * alle (WIE VIELE, steht bewusst nicht hier: REVIEW-V15, Fund N1). Der Ersatz
    * hier ist deshalb ZEILENZAHL-NEUTRAL — dieselbe Bauform, die R-V11-3 fuer eine Reparatur
    * in einer viel zitierten Datei vorschreibt (`progress.md`, Ruling R-V11-3, Schluss).
    * ⚠️ Dass das TRAEGT, ist eine Sprachaussage und keine Hoffnung: `function`-Deklarationen
@@ -1131,9 +1131,9 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
  * ============================================================================================
  * DER SCHLUSSBLOCK — ZWEI HELFER UND EINE KLAUSEL, ANGEHAENGT IN DER FIX-RUNDE 1 ZU V15.
  *
- * ⛔ WARUM UNTEN UND NICHT OBEN BEI IHREN GESCHWISTERN: 42 Belegzeilen unter `src`/`e2e` und
- * Dutzende in den Plaenen zeigen mit `riegel.test.ts:N` in diese Datei. Anhaengen verschiebt
- * keine einzige davon; ein Einzug oben verschoebe alle. Dieselbe Bauform, die R-V11-3 fuer
+ * ⛔ WARUM UNTEN UND NICHT OBEN BEI IHREN GESCHWISTERN: Belegzeilen unter `src` und in den
+ * Plaenen zeigen mit `riegel.test.ts:N` in diese Datei; WIE VIELE, steht hier bewusst nicht
+ * (REVIEW-V15, Fund N1) — Anhaengen verschiebt keine, ein Einzug oben alle. Dieselbe Bauform, die R-V11-3 fuer
  * eine Reparatur in einer viel zitierten Datei vorschreibt — die beiden Ersaetze weiter oben
  * (Klausel (e), Zeile des Filters; Klausel (f), Rumpf des Helfers) sind ZEILENZAHL-NEUTRAL.
  * ============================================================================================
