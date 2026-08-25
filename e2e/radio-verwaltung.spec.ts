@@ -329,4 +329,76 @@ test.describe("radio-Verwaltung", () => {
       "das gewoehnliche Feld wurde gar nicht gespeichert — der Fall misst nichts",
     ).toHaveValue(marke);
   });
+
+  test("Fall 4: /admin/geraete/<id>/ereignisse zeigt die Aenderungshistorie", async ({ page }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V15, NICHT NACHBESSERUNG
+     * (`Spec:4880`, Fall 4). Er ist der EINZIGE Waechter ueber **Falle 9** an Insel 5: die
+     * vier Spalten fuehren vier `render`-Funktionen, und eine `render`-Funktion, die in einer
+     * Server Component entstuende, ist
+     * `Error: Functions cannot be passed directly to Client Components`. In jsdom gibt es
+     * keine RSC-Grenze — `EreignisTabelle.test.tsx` bleibt unter dieser Mutation gruen und
+     * schreibt das in seinem Kopf selbst aus.
+     *
+     * ⛔ DER GRIFF IST DIE FLAECHE DER INSEL, NICHT DER TABELLENKOPF, und das ist hier der
+     * Unterschied: die Insel hat ZWEI Zweige — Tabelle und Leertext (`EreignisTabelle.tsx`,
+     * „ohne Ereignisse wird die Tabelle gar nicht erst gebaut"). Ein Griff auf `table thead th`
+     * meldete eine Historie ohne Zeilen als gebrochene Insel. `[data-rolle="radio-ereignis-flaeche"]`
+     * steht in BEIDEN Zweigen und fehlt genau dann, wenn die Insel an der Grenze bricht.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    /*
+     * ⬜ **V13-L2 — HEUTE SEEDET DER E2E-LAUF `radio` NICHT** (`core/bootstrap.ts:49-54`,
+     * `playwright.config.ts:142`; Eigentuemer V23). Ohne Geraet gibt es keine Akte-Adresse und
+     * damit auch keine Ereignisadresse; eine erfundene Id waere ein 404, den dieser Fall dann
+     * als „Insel gebrochen" meldete. Deshalb faellt die Vorbedingung LAUT und mit eigener
+     * Begruendung aus, statt die Zusicherung darunter stillschweigend zahnlos zu machen.
+     */
+    await page.goto(radioUrl("/admin/geraete"));
+    const zeilen = page.locator("table tbody tr.ant-table-row");
+    expect(
+      await zeilen.count(),
+      "⬜ V13-L2: ohne Geraet gibt es keine Ereignisadresse, die dieser Fall abrufen koennte",
+    ).toBeGreaterThan(0);
+
+    /*
+     * ⛔ KEIN ZEILENKLICK — Falle 12 (`CLAUDE.md`), dieselbe Begruendung wie in Fall 3. Die Id
+     * steht am Knoten: antds `Table` stempelt `data-row-key` aus `rowKey="id"`.
+     */
+    const geraeteId = await zeilen.first().getAttribute("data-row-key");
+    expect(geraeteId, "die Tabellenzeile traegt kein data-row-key (rowKey=id)").toBeTruthy();
+
+    /*
+     * ⛔ ERST UEBER DIE AKTE, DENN DER TEXTLINK IST DIE EINZIGE VERBINDUNG ZUR FLAECHE
+     * (`Spec:4774`, `_lib/nav.ts` fuehrt keinen Menuepunkt). Ein Fall, der die Ereignisadresse
+     * direkt abriefe, bliebe gruen, waehrend die Seite fuer jede Person unerreichbar ist.
+     */
+    await page.goto(radioUrl(`/admin/geraete/${geraeteId}`));
+    const link = page.locator('a[href$="/ereignisse"]');
+    await expect(link, "der Textlink „Änderungen anzeigen“ fehlt auf der Akte").toHaveCount(1);
+    const ziel = await link.getAttribute("href");
+    expect(
+      ziel,
+      "der Link traegt die innere Pfadform — auf dem Verwaltungshost ein 404",
+    ).toBe(`/admin/geraete/${geraeteId}/ereignisse`);
+
+    const antwort = await page.goto(radioUrl(`/admin/geraete/${geraeteId}/ereignisse`));
+    expect(antwort?.status(), "/admin/geraete/<id>/ereignisse auf dem radio-Host").toBe(200);
+
+    await expect(
+      page.locator('[data-rolle="radio-ereignis-flaeche"]'),
+      "die Insel ist an der RSC-Grenze gebrochen (Falle 9)",
+    ).toHaveCount(1);
+
+    /*
+     * ⛔ UND EINE ERFUNDENE ID IST 404, NICHT EINE LEERE HISTORIE. Der Lesepfad prueft die
+     * Existenz des Geraets bewusst nicht (`_lib/lesepfade/ereignisse.ts`, Kopf der Funktion);
+     * die Pruefung steht in der Seite. Ohne sie antwortete jede erfundene Adresse mit 200 und
+     * einem Leertext — die Verwaltung behauptete damit die Existenz eines Geraets, das es
+     * nicht gibt.
+     */
+    const erfunden = await page.goto(radioUrl("/admin/geraete/gibt-es-nicht/ereignisse"));
+    expect(erfunden?.status(), "eine erfundene Geraete-Id antwortet nicht mit 404").toBe(404);
+  });
 });

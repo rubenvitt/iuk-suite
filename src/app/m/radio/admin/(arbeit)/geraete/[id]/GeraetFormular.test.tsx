@@ -824,22 +824,37 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
     ).toMatch(/\{akte\.zuletztAktualisiertText\}\s*\n\s*\{akte\.geaendertVonName/);
   });
 
-  it("die Stelle fuer den Ereignis-Link bleibt frei und nennt V15", () => {
+  it("der Textlink auf die Aenderungshistorie steht, in der aeusseren Pfadform", () => {
     /*
-     * ⛔ EIN LINK AUF EINE 404 IST SCHLIMMER ALS KEIN LINK (`briefs/V14.md:33-36`, Vorbild
-     * `qr/layout.tsx:16-18`): `/admin/geraete/<id>/ereignisse` entsteht erst in V15. Die Stelle
-     * bleibt mit einem ⬜-Kommentar frei, der den Nachfolger NAMENTLICH nennt — ein
-     * auskommentierter Link ohne Eigentuemer waere eine Auslassung, keine Leerstelle.
+     * ⚠️ DIESER FALL IST IN V15 UMGEKEHRT WORDEN, und die Umkehr ist die Aussage. Solange die
+     * Zielseite fehlte, hielt er die Stelle FREI („⛔ ein Link auf eine 404 ist schlimmer als
+     * kein Link", `briefs/V14.md:33-36`, Vorbild `qr/layout.tsx:16-18`) und verlangte, dass
+     * der ⬜-Vermerk den Nachfolger NAMENTLICH nennt. V15 hat
+     * `admin/(arbeit)/geraete/[id]/ereignisse/page.tsx` gebaut; ⛔ der Vermerk ist damit
+     * eingeloest, und derselbe Fall bewacht jetzt den Link.
      *
-     * ⛔ ROH GELESEN, NICHT UEBER `ohneKommentare`: gepruefte Aussage ist gerade, dass der
-     * Vermerk ein KOMMENTAR ist.
+     * ⛔ DER LINK IST DIE EINZIGE VERBINDUNG ZUR FLAECHE: `_lib/nav.ts` fuehrt keinen
+     * Menuepunkt „Ereignisse" (`radioNav`), und `Spec:4774` benennt genau diesen Weg. Faellt
+     * er weg, ist die Seite gebaut und unerreichbar — bei gruenem typecheck, lint und build.
+     *
+     * ⛔ KEIN REITER (`Spec:4775-4776`): „nicht als Reiter, weil `Tabs` eine Insel erzwingen
+     * wuerde, die die Detailseite sonst nicht braucht" — und `Tabs` waere in dieser Server
+     * Component ausserdem Falle 1.
+     *
+     * ⛔ DIE AEUSSERE PFADFORM, NICHT DIE INNERE: ein `href="/m/radio/admin/..."` fuehrte auf
+     * dem Verwaltungshost auf `/m/radio/m/radio/...` — 404, gemessen in
+     * `_lib/nav.test.ts:134-152`, und typecheck wie lint bleiben gruen.
      */
-    const roh = readFileSync(QUELLE_SEITE, "utf8");
-    expect(roh, "der Nachfolger steht nicht namentlich in der Leerstelle").toMatch(/V15/);
-    expect(
-      ohneKommentare(roh),
-      "ein Link auf die Ereignisseite, die es noch nicht gibt (404)",
-    ).not.toMatch(/ereignisse/);
+    const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
+    expect(quelle, "der Textlink auf die Aenderungshistorie fehlt").toMatch(
+      /href=\{`\/admin\/geraete\/\$\{akte\.id\}\/ereignisse`\}/,
+    );
+    expect(quelle, "die Historie steht als Reiter statt als Textlink (Spec:4775-4776)").not.toMatch(
+      /<Tabs\b/,
+    );
+    expect(quelle, "innere Pfadform im href — sie gehoert allein revalidatePath").not.toMatch(
+      /href=\{?["'`]?\/m\/radio/,
+    );
   });
 });
 

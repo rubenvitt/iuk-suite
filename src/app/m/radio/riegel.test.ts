@@ -112,12 +112,12 @@ const SELBST = join(MODUL, "riegel.test.ts");
 const HANDLER_ANZAHL = 2;
 
 /**
- * ⛔ HEUTE DREI — EXAKT, aus demselben Grund wie `HANDLER_ANZAHL`. V12 legte die Uebersicht
+ * ⛔ HEUTE VIER — EXAKT, aus demselben Grund wie `HANDLER_ANZAHL`. V12 legte die Uebersicht
  * `admin/(arbeit)/page.tsx` an (0 auf 1), V13 die Geraeteliste (1 auf 2), V14 die Geraetakte
- * `admin/(arbeit)/geraete/[id]/page.tsx` und sie von 2 auf 3 — je im SELBEN Commit; so weiter
- * um genau eins bis 10 (Spec:4369-4378: neun unter `(arbeit)`, eine unter `(druck)`).
+ * (2 auf 3), V15 die Aenderungshistorie `geraete/[id]/ereignisse/page.tsx` (3 auf 4) — je im
+ * SELBEN Commit; so weiter bis 10 (Spec:4369-4378: neun unter `(arbeit)`, eine unter `(druck)`).
  */
-const ADMIN_SEITEN_ANZAHL = 3;
+const ADMIN_SEITEN_ANZAHL = 4;
 
 /** Zwei Verwaltungs-Huellen: `admin/(arbeit)/layout.tsx` und `admin/(druck)/layout.tsx` (Z6). */
 const ADMIN_LAYOUTS_MINDESTENS = 2;
@@ -477,10 +477,10 @@ describe("(e) jede Verwaltungsseite traegt den Personen-Riegel ihrer Stufe", () 
 
   it("die Seitenzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
-     * ⚠️ HEUTE DREI, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe Grund
-     * wie bei `HANDLER_ANZAHL`. Er hat DREIMAL GEMESSEN gewirkt: in V12 („expected 1 to be
-     * +0"), in V13 („expected 2 to be 1") und in V14 („expected 3 to be 2") — erst die
-     * Anhebung im selben Commit machte ihn jeweils wieder gruen.
+     * ⚠️ HEUTE VIER, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe Grund
+     * wie bei `HANDLER_ANZAHL`. Er hat VIERMAL GEMESSEN gewirkt: in V12 („expected 1 to be
+     * +0"), V13 („expected 2 to be 1"), V14 („expected 3 to be 2") und V15 („expected 4 to
+     * be 3") — erst die Anhebung im selben Commit machte ihn jeweils wieder gruen.
      */
     expect(
       ADMIN_SEITEN().length,

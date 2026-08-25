@@ -1,5 +1,6 @@
 // src/app/m/radio/admin/(arbeit)/geraete/[id]/page.tsx
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Tag } from "antd";
 import { getDb } from "../../../../_db/client";
@@ -168,13 +169,20 @@ export default async function RadioGeraetAktePage({
       </div>
 
       {/*
-        ⬜ HIER FEHLT DER TEXTLINK „Änderungen anzeigen" AUF `/admin/geraete/<id>/ereignisse`
-        (`Spec:4767-4776`) — ⛔ KEIN REITER, „weil `Tabs` eine Insel erzwingen wuerde, die die
-        Detailseite sonst nicht braucht".
-        ⛔ EIGENTUEMER IST **V15**, NICHT DIESE AUFGABE: die Zielseite entsteht dort, und ⛔ ein
-        Link auf eine 404 ist schlimmer als kein Link (`qr/layout.tsx:16-18`,
-        `briefs/V14.md:33-36`). V15 setzt ihn an diese Stelle, im selben Commit wie die Seite.
+        DER TEXTLINK AUF DIE AENDERUNGSHISTORIE (`Spec:4774-4776`), eingetragen in V15 im
+        selben Commit wie die Zielseite — bis dahin stand hier eine ⬜ mit demselben
+        Eigentuemer, weil ⛔ ein Link auf eine 404 schlimmer ist als kein Link
+        (`qr/layout.tsx:16-18`).
+        ⛔ KEIN REITER: „nicht als Reiter, weil `Tabs` eine Insel erzwingen wuerde, die die
+        Detailseite sonst nicht braucht" (`Spec:4775-4776`) — und `Tabs` waere in dieser
+        Server Component ausserdem Falle 1 (Compound-Zugriff, HTTP 500).
+        ⛔ DIE AEUSSERE PFADFORM `/admin/...`, nie `/m/radio/admin/...`: ein innerer Pfad
+        fuehrt auf dem Verwaltungshost auf `/m/radio/m/radio/...` — 404, bei gruenem
+        typecheck und lint (`_lib/nav.test.ts:134-152`, dort echt gemessen).
       */}
+      <p className={s.abstand}>
+        <Link href={`/admin/geraete/${akte.id}/ereignisse`}>Änderungen anzeigen</Link>
+      </p>
 
       {/*
         ⚠️ BENANNTE ABWEICHUNG: KEINE ZWISCHENUEBERSCHRIFT „Bearbeiten". Der Bestand setzt sie
