@@ -24,9 +24,9 @@ import { RadioVerwaltungsRahmen } from "../../_ui/RadioVerwaltungsRahmen";
  * Diese zwei Zeilen sind der einzige Traeger. `riegel.test.ts` (Klausel a) haelt sie
  * fest, INKLUSIVE ihrer Reihenfolge.
  *
- * ⬜ Z-L1: solange unter dieser Group KEINE `page.tsx` liegt, rendert Next dieses Layout
- * nicht — die Wirksamkeit der zwei Zeilen ist damit in Planteil 2 UNBEWIESEN. Abgelesen
- * wird sie in Planteil 4, beim ersten echten Abruf gegen `/admin`.
+ * ⬜ Z-L1: seit V12 liegt mit `admin/(arbeit)/page.tsx` eine Seite unter dieser Group — das
+ * Ablesen ist damit MOEGLICH, die Wirksamkeit der zwei Zeilen aber weiterhin UNBEWIESEN.
+ * Abgelesen wird sie in Aufgabe V23, beim ersten echten Abruf gegen `/admin` (⬜ V-L3).
  *
  * ✅ DIE NAVIGATION TRAEGT DIE RECHTESTUFE, SEIT AUFGABE V4 — und die zwei Haelften gehoeren
  * zusammen (NS-Z9): der Riegel LIEFERT die Stufe (`requireRadioVerwaltung` gibt

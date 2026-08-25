@@ -1,0 +1,89 @@
+/*
+ * DAS STYLESHEET DES VERWALTUNGSZWEIGS — angelegt in V12 mit der Uebersicht; die Flaechen
+ * V13 bis V21 erweitern dieselbe Datei (`.superpowers/sdd/planteil4/briefs/V12.md`, Files).
+ * Das Gegenstueck des Ausleih-Zweigs ist `_ui/ausleihe.module.css`; zwei Zweige, zwei
+ * Stylesheets, weil sie unter zwei verschiedenen Bediendichten laufen (`FullShell` mit
+ * `controlHeight: 44` hier, 56/72 dort — `_ui/RadioVerwaltungsRahmen.tsx:18-21`).
+ *
+ * ⛔ EIGENE KLASSEN, NIE `--ant-*` (Falle 2, `CLAUDE.md:14-15`): antd deklariert seine
+ * Variablen auf SEINER Scope-Klasse, eigenes Markup sieht sie nicht — und der Fehler ist
+ * STILL, die Regel steht richtig da und die Linie verschwindet einfach. Lesbar sind allein
+ * die vier Suite-Variablen auf `:root` (`src/app/globals.css:152-164`), die ihren
+ * Dunkelzweig selbst mittragen; hier genutzt: `--iuk-linie` und `--iuk-gedaempft`.
+ *
+ * ⛔ KEINE FLAECHEN- UND KEINE FLIESZTEXTFARBE. Der Verwaltungszweig laeuft IN der Shell,
+ * und antds `Layout` setzt beides je Hell/Dunkel. Ein verdrahtetes `color: #000` waere in
+ * der Dunkeldarstellung schwarz auf schwarz — und `pnpm build`, `typecheck` und Vitest
+ * saehen davon nichts (Hauslehre „UI-Abnahme: messen, nicht schauen").
+ *
+ * ⛔ KEINE HOEHE UND KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): 44
+ * wird geerbt, nicht geschrieben.
+ */
+
+/*
+ * Die Seitenueberschrift. Ein nacktes `<h1>` statt `Typography.Title` — Compound-Zugriff
+ * in einer Server Component ist HTTP 500 (Falle 1, `CLAUDE.md:11`).
+ */
+.titel {
+  margin: 0 0 16px;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/*
+ * Die Huelle einer klickbaren Kennzahlkarte. Sie ist ein LINK und kein `onClick`
+ * (Entscheidung E-V15) — deshalb muss die Linkfarbe hier heraus, sonst faerbt sie den
+ * ganzen Kartentext blau. `display: block` gibt der Karte die volle Spaltenbreite zurueck,
+ * die ihr das inline-Verhalten eines `<a>` sonst nimmt.
+ */
+.kartenLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Der Abstand zwischen den Kennzahlen und der Liste darunter — 1:1 zu `Space size="large"`
+   im Bestand (`radio-admin/client/src/features/dashboard/Dashboard.tsx:56`). */
+.abstand {
+  margin-block-start: 24px;
+}
+
+/* Die fuenf veralteten Geraete als schlichte Liste: kein `List.Item.Meta` (Falle 1) und
+   kein `renderItem` (Falle 9) — E-V15. */
+.veralteteListe {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.veralteteZeile {
+  border-block-end: 1px solid var(--iuk-linie);
+}
+
+.veralteteZeile:last-child {
+  border-block-end: none;
+}
+
+/* Die ganze Zeile ist das Ziel, nicht nur das Wort — der Bestand macht dasselbe ueber
+   `onClick` auf dem `List.Item` (`Dashboard.tsx:89-92`). */
+.geraetLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 0;
+}
+
+.geraetName {
+  font-weight: 600;
+}
+
+.geraetIssi {
+  color: var(--iuk-gedaempft);
+  font-size: 0.875rem;
+}
+
+/* Der Leertext des Bestands (`Dashboard.tsx:87`), gedaempft wie jede Leermeldung. */
+.leer {
+  margin: 0;
+  color: var(--iuk-gedaempft);
+}

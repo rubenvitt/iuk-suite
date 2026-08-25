@@ -6,6 +6,7 @@ import { defineConfig } from "@playwright/test";
 import { AV_MODUS_DATEI } from "./e2e/helpers/avModus";
 import { AUFGABEN_ENV } from "./e2e/helpers/aufgaben";
 import { LAGERBUCH_ENV } from "./e2e/helpers/lagerbuch";
+import { RADIO_ENV } from "./e2e/helpers/radio";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -295,6 +296,18 @@ export default defineConfig({
          * Kopplungspruefungen aus §10.5 greifen sonst, bevor ein Test laeuft.
          */
         ...LAGERBUCH_ENV,
+        /*
+         * Die zwei radio-Gruppenzeilen, aus derselben Quelle wie die
+         * `devLogin(…, { groups })` der radio-Specs (`e2e/helpers/radio.ts`).
+         *
+         * ⛔ OHNE `SUITE_UPDATER_GROUP_RADIO` IST DIE UPDATER-STUFE IM LAUF FUER
+         * JEDE IDENTITAET ZU — ein leerer oder fehlender Wert SCHLIESST sie
+         * (`src/app/m/radio/_lib/zugang.ts:225-227`). Die zwei Wirkproben der
+         * zweiten Rechtestufe in Aufgabe V23 bekaemen ihren 404 dann aus dem
+         * falschen Grund. Gemessener Befund:
+         * `.superpowers/sdd/planteil4/VORABSCAN.md`, Fund F24.
+         */
+        ...RADIO_ENV,
       },
     },
   ],

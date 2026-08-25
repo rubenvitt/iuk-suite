@@ -499,10 +499,10 @@ describe("radio-admin/actions: die Rechtestufe je Verwaltungsseite", () => {
    * ebenfalls auf die ADMIN-Stufe und ueberholt damit `Spec:4375`. Der Zaehlfall unten steht
    * deshalb auf VIER, nicht auf drei (Vorabscan-Fund F1).
    *
-   * ⛔ SIE SIND `it.todo` UND KEINE GRUENEN FAELLE UEBER `null`. Heute existiert unter
-   * `admin/` KEINE `page.tsx`; ein Fall, der das schweigend hinnaehme, waere leer-gruen und
-   * bewachte nichts — dieselbe NT11-Klasse, gegen die `ACTION_ANZAHL` oben steht. Eine
-   * `it.todo` meldet sich dagegen in JEDER Ausgabe.
+   * ⛔ SIE SIND `it.todo` UND KEINE GRUENEN FAELLE UEBER `null`. KEINE der vier unten
+   * genannten Seiten gibt es heute (V12 legte nur die Uebersicht an, Verwaltungs-Stufe);
+   * ein Fall ueber `null` waere leer-gruen und bewachte nichts — dieselbe NT11-Klasse,
+   * gegen die `ACTION_ANZAHL` oben steht. Eine `it.todo` meldet sich in JEDER Ausgabe.
    *
    * ⛔ AUFLAGE AN DIE NACHFOLGER — je Aufgabe genau ein Fall, im SELBEN Commit wie die Seite:
    *

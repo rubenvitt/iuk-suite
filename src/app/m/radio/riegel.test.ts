@@ -59,8 +59,8 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  *   Untergrenze. Heute nur Klausel (a): ZWEI `admin/**\/layout.tsx` (Z6).
  *
  *   EIGENSCHAFTSFORM — der Scan toleriert, dass es die Dateien noch nicht gibt, und sagt
- *   nur etwas ueber die, die da sind. Heute Klausel (c) und (e): es gibt NULL Route
- *   Handler und NULL Verwaltungsseiten.
+ *   nur etwas ueber die, die da sind. Heute Klausel (c) und (e): ZWEI Route Handler
+ *   (Planteil 3) und EINE Verwaltungsseite (V12) — die Form bleibt, die Zahlen wachsen.
  *
  * ⛔ EINE KLAUSEL OHNE UNTERGRENZE UEBER EINER LEEREN MENGE IST LEER-GRUEN UND BEWACHT
  * NICHTS. Das ist dieselbe Fehlerklasse wie NT11 („ein Waechter, der `>= 5` statt `= 6`
@@ -112,12 +112,12 @@ const SELBST = join(MODUL, "riegel.test.ts");
 const HANDLER_ANZAHL = 2;
 
 /**
- * ⛔ HEUTE NULL — EXAKT, aus demselben Grund wie `HANDLER_ANZAHL`. Planteil 3 laesst sie
- * bei 0 (sein Gate liegt auf `src/app/m/radio/page.tsx`, AUSSERHALB von `admin/`),
- * Planteil 4 hebt sie auf 10 (Spec:4369-4378: neun unter `(arbeit)`, eine unter
- * `(druck)`).
+ * ⛔ HEUTE EINS — EXAKT, aus demselben Grund wie `HANDLER_ANZAHL`. Aufgabe V12 hat die
+ * Uebersicht `admin/(arbeit)/page.tsx` angelegt und die Zahl im SELBEN Commit gehoben;
+ * jede weitere Seitenaufgabe hebt sie um genau eins, bis auf 10 (Spec:4369-4378: neun
+ * unter `(arbeit)`, eine unter `(druck)`).
  */
-const ADMIN_SEITEN_ANZAHL = 0;
+const ADMIN_SEITEN_ANZAHL = 1;
 
 /** Zwei Verwaltungs-Huellen: `admin/(arbeit)/layout.tsx` und `admin/(druck)/layout.tsx` (Z6). */
 const ADMIN_LAYOUTS_MINDESTENS = 2;
@@ -477,10 +477,10 @@ describe("(e) jede Verwaltungsseite traegt den Personen-Riegel ihrer Stufe", () 
 
   it("die Seitenzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
-     * ⚠️ HEUTE NULL, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe
-     * Grund wie bei `HANDLER_ANZAHL`. Ohne diese Zeile waere der Fall darunter ueber der
-     * leeren Menge leer-gruen, und der Nachfolger, der die erste Verwaltungsseite baut,
-     * bekaeme kein Signal.
+     * ⚠️ HEUTE EINS, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe
+     * Grund wie bei `HANDLER_ANZAHL`. Er hat in V12 GEMESSEN gewirkt: die erste
+     * Verwaltungsseite machte ihn rot („expected 1 to be +0"), und erst die Anhebung im
+     * selben Commit machte ihn wieder gruen.
      */
     expect(
       ADMIN_SEITEN().length,
