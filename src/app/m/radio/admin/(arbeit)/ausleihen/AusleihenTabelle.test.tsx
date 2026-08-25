@@ -162,6 +162,13 @@ function texte(rolle: string): string[] {
  */
 beforeEach(() => {
   replaceMock.mockReset();
+  /*
+   * ⛔ UND DIE ADRESSZEILE GEHOERT EBENSO ZURUECKGESETZT. `schreibeUrl` liest den BESTAND aus
+   * `window.location.search` (`AusleihenTabelle.tsx`, „Er legt IMMER den vollstaendigen Patch
+   * auf die bestehende Abfrage"); jsdom teilt ein `window` ueber die ganze Datei, ein Fall, der
+   * die Adresse setzt, reichte sie sonst an alle folgenden weiter.
+   */
+  window.history.replaceState({}, "", "/admin/ausleihen");
 });
 
 afterEach(async () => {
@@ -179,6 +186,13 @@ afterEach(async () => {
  *
  * ⚠️ NACHGEBAUT UND NICHT IMPORTIERT: `testFelder.ts` gehoert dem Modul `aufgaben`; ein
  * modulfremder Testimport waere eine Bindung, die dieses Modul nirgends sonst eingeht.
+ *
+ * ⚠️ DIE OPTIONSSUCHE GREIFT GLOBAL AUF `document.body` — sie gilt, SOLANGE GENAU EIN
+ * Auswahlfeld auf der Flaeche steht. Kommt ein zweites dazu, trifft sie still das falsche
+ * Portal; dann bekommt sie ihre Einschraenkung (Beobachtung B2 der Nachpruefung). ⛔ Und der
+ * Weg dahin ist NICHT „wie `testFelder.ts`": das Hausvorbild greift bei `:74` gemessen
+ * ebenso global auf `document.body` zu; seine Id fuehrt bei `:62` zur HUELLE, und die sucht
+ * dieser Helfer bereits genauso.
  */
 async function waehleGeraet(anzeigetext: string): Promise<void> {
   const huelle = query('[data-rolle="radio-ausleihen-geraetefeld"]').closest(".ant-select");
@@ -381,7 +395,24 @@ describe("radio-Ausleihen: Blaetterung und Filter", () => {
      * Geraetefilter loeschte, bestuende ein Fixture mit nur einem gesetzten Wert. Das Ziel ist
      * die NACKTE Adresse — `ausleihenSuchparameterZu` fuehrt alle vier Schluessel als leere
      * Zeichenkette, und `angewandt` loescht genau die.
+     *
+     * ⛔ UND DIE VIER WERTE STEHEN AUCH IN DER ADRESSZEILE, NICHT NUR IN DEN PROPS — sonst
+     * misst dieser Fall seinen eigenen Namen nicht (Nachpruefung der Fix-Runde 1, Beobachtung
+     * B1). Gemessen: ohne diese Zeile ist `window.location.search` in jsdom LEER (weder
+     * `vitest.setup.ts` noch `src/app/m/qr/_lib/test-dom.tsx` setzen eine Adresse), also hat
+     * `schreibeUrl` gar keinen Bestand, aus dem etwas zu loeschen waere — ein
+     * `ausleihenSuchparameterZu`, das die leeren Schluessel WEGLIESSE, blieb hier gruen
+     * (Sonde vor dem Fix: 18 passed, 0 rot). ⛔ UND DIE VIER SCHLUESSELNAMEN SIND DIE DES
+     * LESEWEGS, nicht des Schreibewegs: `page.tsx:76` reicht `await searchParams` an
+     * `ausleihenParameterAus` (`_lib/suchparameter.ts:505-519`, `roh.geraet` · `roh.von` ·
+     * `roh.bis` · `roh.seite`), und `page.tsx:87-89` baut daraus genau die Props dieses
+     * Falls. Die Adresszeile hier ist also die Lage, die der Server herstellt.
      */
+    window.history.replaceState(
+      {},
+      "",
+      "/admin/ausleihen?geraet=g-1&von=2026-06-01&bis=2026-06-30&seite=2",
+    );
     await mount(
       <AusleihenTabelle
         {...props({
