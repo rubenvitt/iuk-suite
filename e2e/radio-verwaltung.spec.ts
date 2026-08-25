@@ -73,4 +73,47 @@ test.describe("radio-Verwaltung", () => {
       "die Kennzahl „Veraltet“ traegt einen Rotton (Falle 3, Spec:4877)",
     ).toEqual([]);
   });
+
+  test("Fall 2: /admin/geraete zeigt die Tabelle, und ein Filter landet in der URL", async ({ page }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V13, NICHT NACHBESSERUNG
+     * (`Spec:4878`). Er ist der EINZIGE Waechter ueber ZWEI Fehlern, die Vitest strukturell
+     * nicht sehen kann — beide sind in `.superpowers/sdd/planteil4/BERICHT-V13.md` als
+     * Sonden mit 0 rot protokolliert:
+     *
+     *   S-V13a  `COLUMN_DEFS` wandert aus der Insel nach `_lib/`. Die achtzehn Spalten
+     *           fuehren fuenfzehn `render`-FUNKTIONEN (`deviceColumns.tsx:16-35`); ueber eine
+     *           RSC-Grenze gereicht ist das
+     *           `Error: Functions cannot be passed directly to Client Components` (Falle 9).
+     *           In jsdom gibt es keine RSC-Grenze — dort bleibt jeder Fall gruen.
+     *   S-V13d  `pagination` an der Tabelle eingeschaltet. Die Blaetterung laeuft ueber die
+     *           URL (Regime B); ein eingeschaltetes `pagination` legte eine zweite,
+     *           rein clientseitige Blaetterung ueber die bereits geschnittenen zwanzig
+     *           Zeilen. Kein Vitest-Fall faerbt sich.
+     *
+     * ⛔ DIE KOPFZEILE IST DER GRIFF FUER S-V13a: bricht die Insel an der Grenze, rendert die
+     * Seite gar nicht, und `thead` fehlt. Ein Blick auf „irgendein Text ist da" saehe das
+     * nicht.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const antwort = await page.goto(radioUrl("/admin/geraete"));
+    expect(antwort?.status(), "/admin/geraete auf dem radio-Host").toBe(200);
+
+    await expect(
+      page.locator('table thead th').first(),
+      "keine Tabellenkopfzeile — die Insel ist an der RSC-Grenze gebrochen (Falle 9)",
+    ).toBeVisible();
+
+    /*
+     * ⛔ DIE ADRESSZEILE TRAEGT DEN FILTER (Regime B). Gefahren wird der Weg, den auch der
+     * Vitest-Fall „ein gesetzter Filter landet in der URL" faehrt — hier aber gegen den
+     * echten Router, der die Seite danach WIRKLICH neu liest.
+     */
+    await page.locator('[data-rolle="radio-filterknopf"]').click();
+    await page.locator('[data-rolle="radio-filter-ausleihbar"] button').click();
+    await page.locator('[data-rolle="radio-filter-anwenden"]').click();
+
+    await expect(page).toHaveURL(/[?&]ausleihbar=1\b/);
+  });
 });

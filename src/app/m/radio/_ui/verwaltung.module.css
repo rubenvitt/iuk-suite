@@ -87,3 +87,121 @@
   margin: 0;
   color: var(--iuk-gedaempft);
 }
+
+/*
+ * ── Die Geraeteliste (V13) ───────────────────────────────────────────────────
+ *
+ * ⛔ HIER STEHT KEINE HOEHE UND KEIN `size` — Falle 4, wie im Kopf. Die Werkzeugleiste ersetzt
+ * `Space wrap style={{ width:'100%', justifyContent:'space-between' }}`
+ * (`radio-admin/client/src/features/devices/DeviceList.tsx:133`); ein `size` waere dort im
+ * Bestand nicht gesetzt und ist es hier auch nicht.
+ */
+.werkzeugleiste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-end: 16px;
+}
+
+/* `Space.Compact style={{ width: 360, maxWidth: '100%' }}` (`DeviceList.tsx:135`). */
+.suchfeld {
+  width: 360px;
+  max-width: 100%;
+}
+
+/*
+ * Die Liste im Aufklapper der Spalten- und der Suchfeldwahl — 1:1 zur Polsterung aus
+ * `CheckboxDropdown.tsx:41`, `:47`. ⛔ OHNE `max-height`: der Kopf dieser Datei verbietet
+ * jede Hoehenangabe, und `overflow-y` ohne Deckel waere ohnehin wirkungslos. Die Flaeche
+ * bekommt Hintergrund und Rundung von antds `Dropdown`-Huelle, nicht von hier — ein eigener
+ * Flaechenton waere Falle 2 (`--ant-*` ist ausserhalb von antds Scope nicht lesbar).
+ */
+.wahlListe {
+  padding: 4px;
+  overflow-y: auto;
+}
+
+.wahlZeile {
+  padding: 6px 12px;
+}
+
+/* Ein beschriftetes Feld der Filterschublade — statt `Form.Item` (siehe FilterSchublade.tsx). */
+.filterFeld {
+  margin-block-end: 16px;
+}
+
+.filterEtikett {
+  display: block;
+  margin-block-end: 4px;
+}
+
+/* `style={{ width: '100%' }}` an den Auswahlfeldern (`DeviceFilterDrawer.tsx:53`). */
+.filterWeit {
+  width: 100%;
+}
+
+/* Die drei Schalter: Beschriftung links, Schalter rechts (`DeviceFilterDrawer.tsx:92-94`). */
+.filterSchalter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-end: 16px;
+}
+
+/* Der Fehler im Anlegen-Dialog — gedaempft, ⛔ NICHT rot (Falle 3). */
+.dialogFehler {
+  margin: 8px 0 0;
+  color: var(--iuk-gedaempft);
+}
+
+/* Die URL-schreibende Blaetterung (Regime B) — sie ersetzt antds `pagination`. */
+.blaetterung {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-block-start: 16px;
+}
+
+.blaetterungText {
+  color: var(--iuk-gedaempft);
+}
+
+/* Die ganze Tabellenzeile fuehrt auf die Geraeteakte (`DeviceList.tsx:182-185`). */
+.tabelleZeile {
+  cursor: pointer;
+}
+
+/* Der mobile Zweig — 1:1 zu `DeviceList.tsx:198-229`, ohne `Space size` (Falle 4). */
+.mobilKarte {
+  display: block;
+  width: 100%;
+}
+
+.mobilKopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mobilName {
+  font-weight: 600;
+}
+
+.mobilNeben {
+  display: block;
+  margin-block-start: 4px;
+  color: var(--iuk-gedaempft);
+}
+
+.mobilMarken {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-block-start: 8px;
+}

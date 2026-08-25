@@ -27,8 +27,8 @@ import type { ImportierbaresFeld } from "./kopfzeilen";
  * und ihre Dateiliste geschlossen ist. ⬜ Aufgabe V14 baut die Geraetefunktions-Auswahl des
  * Formulars und liest die Liste von hier (ihr Testfall dazu nennt `constants.ts:4`
  * namentlich, `.superpowers/sdd/planteil4/briefs/V14.md:114`) — ⛔ sie legt KEINE zweite
- * Kopie an. Dasselbe gilt fuer `STATUS_OPTIONS` (`constants.ts:10-16`), das noch keinen
- * Leser hat und deshalb hier auch nicht vorweggenommen wird.
+ * Kopie an. ⚠️ `STATUS_OPTIONS` (`constants.ts:10-16`) liegt seit V13 NICHT hier, sondern in
+ * `_lib/suchparameter.ts` — die gemessene Begruendung steht dort ueber der Liste.
  */
 export const GERAETE_MODI = ["TMO", "DMO", "REP", "GAT"] as const;
 
