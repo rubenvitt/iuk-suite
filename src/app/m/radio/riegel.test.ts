@@ -701,7 +701,7 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
    * schon einmal abgeraeumt hat. (Klausel (a) faengt diese Datei aus demselben Grund
    * nicht; siehe `riegel.test.ts:281-283` — dort steht woertlich, dass Klausel (a)
    * `src/app/m/radio/layout.tsx` NICHT faengt und ein Treffer dort rot-by-construction
-   * waere. `:420-429` ist nur `inRouteGroup`.)
+   * waere. `riegel.test.ts:265-274` ist nur `inRouteGroup`.)
    *
    * ⛔ ZWEI ARTEN, ZWEI FORMEN — und die NEGATIVE Haelfte traegt hier genauso wie die
    * positive:
@@ -1046,8 +1046,49 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
   });
 
   it("die Zeilenzahl bleibt erhalten — sonst luegen alle datei:zeile-Meldungen", () => {
+    /*
+     * ⛔ DIE ZUSICHERUNG UEBER DEM ECHTEN TEXT IST HEUTE ZAHNLOS — GEMESSEN in der Fix-Runde 1
+     * zu V11 (Fund 1, dort an `admin/actions.test.ts` erhoben; DIESER Fall ist sein Zwilling
+     * und war ebenso blind). `_lib/zugang.ts` fuehrt kein mehrzeiliges Zeichenketten- oder
+     * Template-Literal und keine Zeile, auf der ein `/` als Literalanfang gilt und dort nicht
+     * schliesst. Es gibt in `_lib/quelltextScan.ts` genau ZWEI Zeilen, die die Zeilenzahl
+     * ueberhaupt verschieben koennen — `_lib/quelltextScan.ts:122` und
+     * `_lib/quelltextScan.ts:183` —, und beide Mutationen liefen ueber
+     * dem echten Text GRUEN, ueber alle Testdateien des Moduls.
+     *
+     * ⛔ DESHALB DIESELBE SYNTHETISCHE SONDE WIE IN `admin/actions.test.ts`, Fall „die
+     * Zeilenzahl bleibt erhalten". ⚠️ SIE IST EINE ZWEITE KOPIE, UND DAS IST BENANNT: die
+     * zwei Scans koennen einander nichts importieren (vitest laedt Testdateien nicht als
+     * Module fuereinander, E-V13), und die Sonde in die Hilfsdatei zu legen machte eine
+     * Testvorlage zu Produktionscode. Zusammenlegen ist ⬜ **V-L9**.
+     *
+     *   1. ein Template-Literal ueber ZWEI Zeilen — `_lib/quelltextScan.ts:122` rettet
+     *      dessen Zeilenumbruch beim Leeren;
+     *   2. `x! / 2` — gueltiges TypeScript: `!` steht in `REGEX_ERLAUBT`
+     *      (`_lib/quelltextScan.ts:162-163`), die Division gilt dem Scanner also als
+     *      Literalanfang und schliesst auf ihrer Zeile nicht. Ohne
+     *      `_lib/quelltextScan.ts:183` frisst er den Zeilenumbruch bis zum naechsten `/`.
+     */
     const roh = readFileSync(join(MODUL, "_lib/zugang.ts"), "utf8");
-    expect(bereinigt(roh).split("\n").length).toBe(roh.split("\n").length);
+    expect(
+      bereinigt(roh).split("\n").length,
+      "_lib/zugang.ts: die Bereinigung verschiebt die Zeilenzahl",
+    ).toBe(roh.split("\n").length);
+
+    const SONDE_ZEILEN = [
+      "export async function sondeZeilen(x: number, y: number): Promise<void> {",
+      "  await requireRadioAdmin();",
+      "  const text = `mehrzeilig",
+      "  und weiter`;",
+      "  const a = x! / 2;",
+      "  const b = y! / 3;",
+      "  await schreibe(text, a, b);",
+      "}",
+    ].join("\n");
+    expect(
+      bereinigt(SONDE_ZEILEN).split("\n").length,
+      "die Sonde verliert eine Zeile — mehrzeiliges Literal oder Regexscanner ueber den Umbruch",
+    ).toBe(SONDE_ZEILEN.split("\n").length);
   });
 
   it("kein Scan liest die ungeschuetzte Fassung direkt", () => {

@@ -1,6 +1,6 @@
 // src/app/m/radio/admin/actions.test.ts
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { bereinigt, ohneKommentare } from "../_lib/quelltextScan";
 
@@ -104,6 +104,49 @@ const EXPORT_FORM = /^export\s+(?:type\b|interface\b|(?:async\s+)?function\s+\w+
 function quelle(): string {
   return readFileSync(DATEI, "utf8");
 }
+
+/**
+ * ALLE `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv — ⛔ EINSCHLIESSLICH DER
+ * TESTDATEIEN, und genau darin unterscheidet sie sich von `quellDateien` in
+ * `riegel.test.ts:144-159`. Dort sind Testdateien mit Grund ausgenommen (sie nennen jeden
+ * verbotenen Namen in ihren eigenen Mustern); HIER sind sie der Gegenstand: die zwei
+ * unabhaengigen Kopien der Bereinigung liegen in `_lib/bauform.test.ts` und
+ * `_actions/guards.test.ts`, und eine fuenfte Kopie entstuende wieder in einer Testdatei.
+ *
+ * ⛔ GEFUNDEN STATT AUFGEZAEHLT — das ist der ganze Zweck (Fix-Runde 1 zu V11, Fund 2). Die
+ * Vorgaengerfassung hielt eine fest verdrahtete Vierertafel; eine FUENFTE Scandatei mit
+ * eigener Kopie war fuer sie unsichtbar. Gemessen: eine solche Datei angelegt →
+ * `Test Files 55 passed (55)`, kein einziger Fall rot.
+ */
+function alleModulDateien(wurzel: string = MODUL): string[] {
+  if (!existsSync(wurzel)) return [];
+  const treffer: string[] = [];
+  for (const eintrag of readdirSync(wurzel)) {
+    const pfad = join(wurzel, eintrag);
+    if (statSync(pfad).isDirectory()) {
+      if (eintrag === "migrations") continue; // erzeugtes SQL/JSON, kein TypeScript
+      treffer.push(...alleModulDateien(pfad));
+      continue;
+    }
+    if (!/\.tsx?$/.test(eintrag)) continue;
+    treffer.push(pfad);
+  }
+  return treffer;
+}
+
+/**
+ * ⛔ DIE UNTERGRENZE BELEGT NUR, DASS DER BAUM UEBERHAUPT GELESEN WURDE. Ohne sie liefe die
+ * Tafel unten ueber einer leeren Fundmenge — und `toEqual` gegen eine nicht leere Sollliste
+ * waere dann zwar rot, aber ein Walker, der nur die obersten zwei Ebenen laeuft, faende die
+ * drei Sollstellen trotzdem (sie liegen alle auf Ebene 1 und 2) und uebersaehe eine tiefer
+ * liegende fuenfte Kopie STILL.
+ *
+ * ⚠️ SIE IST BEWUSST KEINE EXAKTE ZAHL: gemessen sind am 2026-08-25 **120** Dateien, und
+ * jede Seitenaufgabe V12..V23 legt weitere an. Eine exakte Zahl waere eine Konstante, die
+ * zehnmal ohne Erkenntnisgewinn angehoben wuerde; die Vollzaehligkeit traegt die Tafel
+ * unten, nicht diese Zeile.
+ */
+const MODUL_DATEIEN_MINDESTENS = 100;
 
 /**
  * DIE GRENZEN DES FUNKTIONSRUMPFES: Index der oeffnenden `{` und Index der zugehoerigen
@@ -377,10 +420,19 @@ describe("radio-admin/actions: die Aufruftabelle aus Spec 1 §5.4", () => {
      * `Spec:4655-4664` (um `importVorschauAction` gekuerzt, E-V16); ein pfad- oder
      * namensgenerischer Scan kann sie nicht erzeugen.
      *
-     * ⛔ DIE ZWEI ZAHLEN WERDEN AUS DER DATEI GEZAEHLT, NICHT AUS DEN LISTEN OBEN. Ein
-     * `expect(ADMIN_ACTIONS.length).toBe(7)` waere eine Tautologie und bliebe gruen, wenn
-     * eine Action in der DATEI abgesenkt wird. Gezaehlt wird die ERSTE ANWEISUNG — dieselbe
-     * Ebene, auf der die Kernzusicherung liest.
+     * ⛔ DIE ZWEI ZAHLEN WERDEN AUS DER DATEI GEZAEHLT, NICHT AUS DEN LISTEN OBEN — ein
+     * `expect(ADMIN_ACTIONS.length).toBe(7)` waere gegen JEDE Absenkung blind. Gezaehlt wird
+     * die ERSTE ANWEISUNG, dieselbe Ebene, auf der die Kernzusicherung liest.
+     *
+     * ⚠️ UND WAS SIE TROTZDEM NICHT SIND: eine eigene Deckung. GEGEBEN die Zusicherungen
+     * darueber sind die zwei `toBe` REDUNDANT — das ist bewiesen und nicht vermutet
+     * (Fix-Runde 1 zu V11, Fund 8): die Vollzaehligkeitszeile erzwingt neun Namen, jeden
+     * genau einmal; die zwei Schleifen darunter erzwingen fuer jeden der sieben
+     * `toMatch(RIEGEL_ADMIN)` UND `not.toMatch(RIEGEL_VERWALTUNG)` und fuer die zwei das
+     * Umgekehrte. Damit MUSS `aufAdmin` 7 und `aufVerwaltung` 2 sein; es gibt keinen Zustand,
+     * in dem eine der zwei Zeilen rot wird und alles darueber gruen bleibt. Sie stehen hier,
+     * weil `briefs/V11.md` sie woertlich verlangt und weil sie die Zahl im Diff SICHTBAR
+     * halten — ⛔ nicht, weil sie eine eigene Mutationsklasse faengen.
      *
      * ⛔ UND DIE VOLLZAEHLIGKEIT: die Vereinigung beider Listen muss die exportierten Namen
      * ZEICHENGLEICH treffen. Ohne sie koennte eine zehnte Action an beiden Listen vorbei
@@ -392,6 +444,15 @@ describe("radio-admin/actions: die Aufruftabelle aus Spec 1 §5.4", () => {
       [...ADMIN_ACTIONS, ...VERWALTUNGS_ACTIONS].slice().sort(),
     );
 
+    /*
+     * ⚠️ DIE `Map` FASST GLEICHNAMIGE DEKLARATIONEN ZUSAMMEN — sie ist damit die eine Stelle
+     * dieser Datei, an der der Satz aus dem Kopf von `exportierteActions` — „GEZAEHLT WIRD JE
+     * DEKLARATION, NIE UEBER EIN `Set` DER NAMEN" — nicht gilt. Dass es keine gleichnamigen
+     * gibt, halten der Zaehlfall ganz oben und die Vollzaehligkeitszeile darueber: GEMESSEN
+     * (Fix-Runde 1 zu V11, Fund 10) macht eine zehnte, korrekt geriegelte Deklaration
+     * desselben Namens beide rot (`expected 10 to be 9` und die Namensliste), diese Zeile
+     * dagegen nicht.
+     */
     const ersteVon = new Map<string, string>();
     for (const { name, rumpf } of actions) {
       const erste = rumpf === null ? null : ersteAnweisung(rumpf);
@@ -427,7 +488,7 @@ describe("radio-admin/actions: die Rechtestufe je Verwaltungsseite", () => {
   /*
    * ⛔ WARUM DIESE VIER FAELLE HIER STEHEN UND NICHT IN `riegel.test.ts`: dessen Klauseln (a)
    * und (e) lassen im `(arbeit)`-Zweig `requireRadioAdmin(` ODER `requireRadioVerwaltung(`
-   * zu, und zwar ABSICHTLICH (`riegel.test.ts:225-251`, Auswertung in `:408-417`) — ohne das
+   * zu, und zwar ABSICHTLICH (`riegel.test.ts:225-251`, Auswertung in `riegel.test.ts:253-262`) — ohne das
    * ODER waeren sie gegen `Spec:4367` rot-by-construction. Damit faengt der Scan eine
    * fehlende Zeile, aber eine faelschlich ABGESENKTE Seite STRUKTURELL NICHT. Diese vier
    * Faelle sind der einzige Waechter dagegen.
@@ -450,9 +511,15 @@ describe("radio-admin/actions: die Rechtestufe je Verwaltungsseite", () => {
    *   V20 baut `admin/(arbeit)/zugaenge/page.tsx`       -> Fall 3 scharf stellen
    *   V21 baut `admin/(druck)/zugaenge/blatt/page.tsx`  -> Fall 4 UND den Zaehlfall
    *
-   * ⚠️ V18, V19, V20 UND V21 MUESSEN DIESE DATEI IN IHRE Files-ZEILE UND IHREN `rtk git add`
-   * AUFNEHMEN — heute tut das keine von ihnen (Vorabscan-Fund F1, Punkt 4). Ohne das kann
-   * kein Nachfolger seinen eigenen Fall scharf stellen.
+   * ⚠️ JEDE DER VIER MUSS DIESE DATEI IN IHRER Files-ZEILE UND IHREM `rtk git add` FUEHREN —
+   * sonst kann sie ihren eigenen Fall nicht scharf stellen. ⛔ ES FEHLT NUR BEI **V18**, und
+   * das ist nachgemessen (Fix-Runde 1 zu V11, Fund 6; roher `/usr/bin/grep -n` ueber die vier
+   * Briefe): `briefs/V19.md:5` und `briefs/V19.md:78`,
+   * `briefs/V20.md:5` und `briefs/V20.md:77`, `briefs/V21.md:5` und `briefs/V21.md:68`
+   * fuehren sie bereits in beiden Bloecken; `briefs/V18.md` nennt sie NULLMAL. Die
+   * Quelle sagt genau das — `.superpowers/sdd/planteil4/VORABSCAN.md:56-58` (F1, Punkt 4)
+   * nennt ausschliesslich V18. ⚠️ `BERICHT-V11.md`s Auflage 1 verallgemeinerte den Fund auf
+   * alle vier; richtiggestellt im Anhang „Fix-Runde 1" desselben Berichts.
    *
    * ⛔ DIE FORM JEDES SCHARFEN FALLES, damit sie nicht viermal auseinanderlaeuft — der
    * LITERALE Pfad, BEIDE Haelften, und die erste Anweisung, nicht „kommt vor":
@@ -541,8 +608,27 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
      * stehen — der Riegelaufruf im Kommentar erfuellte dann die Zusicherung, und die Action
      * liefe ohne jeden Riegel.
      *
-     * ⛔ DIESER FALL MUSS ROT SEIN, WENN DIE REPARATUR FEHLT. Bleibt er gruen, ist die
-     * dreiteilige Reparatur nicht angekommen.
+     * ⛔ UND WELCHE MUTATION IHN ROT MACHT — GEMESSEN, nicht behauptet (Fix-Runde 1 zu V11,
+     * Fund 3; bis dahin stand hier „dieser Fall muss rot sein, wenn die Reparatur fehlt",
+     * und das war falsch):
+     *
+     *   Kommentarschnitt VOR das Leeren der Literale gezogen (M1 neu gebaut) -> HIER GRUEN,
+     *       rot wird der Fall „ein Regexliteral … kappt den Rest der Zeile NICHT"
+     *   `ohneRegexLiterale` ganz ausgehaengt                                 -> HIER GRUEN,
+     *       rot wird derselbe Fall
+     *   Kommentarschnitt GANZ entfernt                                       -> HIER ROT,
+     *       zusammen mit „ein echter nachgestellter Kommentar wird geschnitten"
+     *
+     * ⛔ DER GRUND IST RECHNERISCH UND KEIN MANGEL DIESES FALLES: das Literal `/\//` endet auf
+     * ZWEI benachbarte Schraegstriche. Ein vorgezogener Kommentarschnitt frisst deshalb die
+     * ganze Zeile ab dem Literal — den Riegelaufruf IM Kommentar eingeschlossen —, und der
+     * Verstoss wird weiterhin gefunden. M1s Schadensrichtung ist die andere: sie loescht
+     * ausfuehrbaren Code HINTER dem Literal, und dagegen steht der Fall darueber.
+     *
+     * ⛔ WAS DIESER FALL DAFUER ALS EINZIGER HAELT: die ganze Kette (`exportierteActions` →
+     * `rumpfGrenzen` → `ersteAnweisung` → `riegelVerstoesse`) ueber einer Zeile, die BEIDE
+     * Formen zugleich traegt. Er ist die Bestehensbedingung von Sonde **S-V11e** aus
+     * `briefs/V11.md` — dort lautet sie „der Fall MUSS ROT BLEIBEN", nicht „rot werden".
      */
     const SONDE_KOMMENTAR = [
       "export async function sondeKommentar(): Promise<void> {",
@@ -556,41 +642,126 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
   });
 
   it("die Zeilenzahl bleibt erhalten — sonst luegen alle datei:zeile-Meldungen", () => {
+    /*
+     * ⛔ DIE ZUSICHERUNG UEBER DEM ECHTEN TEXT IST HEUTE ZAHNLOS, UND DAS STEHT HIER, WEIL ES
+     * GEMESSEN IST (Fix-Runde 1 zu V11, Fund 1): `admin/actions.ts` fuehrt kein mehrzeiliges
+     * Zeichenketten- oder Template-Literal und keine Zeile, auf der ein `/` als Literalanfang
+     * gilt und dort nicht schliesst. Es gibt in `_lib/quelltextScan.ts` genau ZWEI Zeilen, die
+     * die Zeilenzahl ueberhaupt verschieben koennen — `_lib/quelltextScan.ts:122`
+     * (`ergebnis += "\n"` im Zeichenkettenscanner) und `_lib/quelltextScan.ts:183`
+     * (`if (y === "\n") break;` im Regexscanner) —, und
+     * BEIDE Mutationen liefen ueber dem echten Text GRUEN, ueber alle Testdateien des Moduls.
+     * `ohneKommentare` haelt die Zeilenzahl ohnehin strukturell ueber `split`/`map`/`join`.
+     *
+     * ⛔ DESHALB EINE SYNTHETISCHE SONDE DANEBEN — dieselbe Form wie Fall 4 und Fall 14, und
+     * aus demselben Grund: der Bestand traegt die Fehlerform heute nicht, die Zusage gilt
+     * trotzdem. Sie traegt genau die zwei Formen:
+     *
+     *   1. ein Template-Literal ueber ZWEI Zeilen — `_lib/quelltextScan.ts:122` ist die
+     *      einzige Stelle, die dessen Zeilenumbruch beim Leeren rettet;
+     *   2. `x! / 2` — ⚠️ KEIN erfundener Sonderfall, sondern gueltiges TypeScript: `!` steht
+     *      in `REGEX_ERLAUBT` (`_lib/quelltextScan.ts:162-163`), eine Nicht-Null-Behauptung
+     *      vor einer Division gilt dem Scanner also als Literalanfang. Sie schliesst auf
+     *      ihrer Zeile nicht; erst die NAECHSTE Zeile traegt wieder ein `/`. Ohne
+     *      `_lib/quelltextScan.ts:183` frisst der Scanner alles dazwischen, den
+     *      Zeilenumbruch eingeschlossen.
+     *
+     * ⛔ WARUM DAS ZAEHLT: jede Meldung dieses Scans nennt `datei:zeile`. Verschiebt die
+     * Bereinigung die Zeilenzahl, zeigt jede davon auf die falsche Zeile — STILL.
+     */
     const roh = quelle();
-    expect(bereinigt(roh).split("\n").length).toBe(roh.split("\n").length);
+    expect(
+      bereinigt(roh).split("\n").length,
+      "admin/actions.ts: die Bereinigung verschiebt die Zeilenzahl",
+    ).toBe(roh.split("\n").length);
+
+    const SONDE_ZEILEN = [
+      "export async function sondeZeilen(x: number, y: number): Promise<void> {",
+      "  await requireRadioAdmin();",
+      "  const text = `mehrzeilig",
+      "  und weiter`;",
+      "  const a = x! / 2;",
+      "  const b = y! / 3;",
+      "  await schreibe(text, a, b);",
+      "}",
+    ].join("\n");
+    expect(
+      bereinigt(SONDE_ZEILEN).split("\n").length,
+      "die Sonde verliert eine Zeile — mehrzeiliges Literal oder Regexscanner ueber den Umbruch",
+    ).toBe(SONDE_ZEILEN.split("\n").length);
   });
 
   it("kein Scan dieses Moduls liest die ungeschuetzte Fassung direkt", () => {
     /*
-     * ⛔ DER RIEGEL GEGEN DIE RUECKKEHR VON M1, ueber ALLE VIER Scandateien des Moduls
-     * (Vorabscan-Funde F7 und F16). Nach dem Umzug nach `_lib/quelltextScan.ts` zaehlt
-     * `riegel.test.ts` die Nadel nur noch in der HILFSDATEI — ein Scan, der die
-     * Zwischenstufe importierte und direkt riefe, liesse jenen Zaehler bei 2 und den Fall
-     * gruen. Dieser Fall schliesst die Luecke und macht ⬜ V-L9 sichtbar bewacht.
+     * ⛔ DER RIEGEL GEGEN DIE RUECKKEHR VON M1 (Vorabscan-Funde F7 und F16). Nach dem Umzug
+     * nach `_lib/quelltextScan.ts` zaehlt `riegel.test.ts` die Nadel nur noch in der
+     * HILFSDATEI — ein Scan, der die Zwischenstufe nachbaute und direkt riefe, liesse jenen
+     * Zaehler bei 2 und den Fall gruen. Dieser Fall schliesst die Luecke und macht ⬜ V-L9
+     * sichtbar bewacht.
      *
-     *   riegel.test.ts        0 — beziehen `bereinigt` aus der Hilfsdatei; die zwei
-     *   admin/actions.test.ts 0   Zwischenstufen sind dort nicht exportiert
-     *   _lib/bauform.test.ts  2 — eigene, bereits reparierte Kopie (`6331e77`, `4ed3410`):
-     *   _actions/guards.test.ts 2  Deklaration und der eine Aufruf in ihrem `bereinigt`
+     * ⛔ GEFUNDEN STATT AUFGEZAEHLT — Fix-Runde 1 zu V11, Fund 2, und der Grund ist GEMESSEN.
+     * Die Vorgaengerfassung las eine fest verdrahtete Vierertafel (`riegel.test.ts`,
+     * `admin/actions.test.ts`, `_lib/bauform.test.ts`, `_actions/guards.test.ts`) und hatte
+     * KEINE Vollzaehligkeitsklausel. Eine FUENFTE Scandatei mit eigener Kopie — genau ⬜ V-L9s
+     * Klasse, gegen die dieser Fall gebaut ist — war fuer sie unsichtbar: `_lib/probe5.test.ts`
+     * mit eigener Deklaration UND eigenem Aufruf angelegt → `Test Files 55 passed (55)` ·
+     * `Tests 755 passed | 5 todo (760)`, kein einziger Fall rot. Gezaehlt wird deshalb ueber
+     * `alleModulDateien()`, und die Tafel unten ist die SOLL-Fundmenge, nicht die Leseliste.
      *
-     * ⚠️ DIE VIER ZAHLEN SIND GEMESSEN, NICHT ANGENOMMEN — mit rohem `/usr/bin/grep -c`
-     * gegen den Stand von V11.
+     * ⛔ DIE SOLLWERTTAFEL, jede Zahl mit rohem `/usr/bin/grep -c` gemessen:
+     *
+     *   _actions/guards.test.ts 2 — eigene, bereits reparierte Kopie (`6331e77`, `4ed3410`):
+     *   _lib/bauform.test.ts    2   Deklaration und der eine Aufruf in ihrem `bereinigt`
+     *   _lib/quelltextScan.ts   2 — das Original: Deklaration und der Aufruf in `bereinigt`
+     *
+     * ⚠️ `_lib/quelltextScan.ts` STEHT DAMIT DOPPELT BEWACHT: `riegel.test.ts` haelt dieselbe
+     * Zahl noch einmal mit `toBe(2)`. Das ist Absicht und hier benannt, damit sich niemand
+     * wundert, wenn EIN Umbau ZWEI Dateien rot macht — jener Fall bewacht die Hilfsdatei
+     * namentlich, dieser die Vollzaehligkeit ueber dem ganzen Modul.
+     *
+     * ⛔ `riegel.test.ts` UND DIESE DATEI KOMMEN IN DER TAFEL NICHT VOR, UND DAS IST DIE
+     * ZUSICHERUNG, NICHT IHRE AUSLASSUNG: sie beziehen `bereinigt` aus der Hilfsdatei, deren
+     * Zwischenstufen nicht exportiert sind. Die zwei Zeilen unter der Tafel halten das in
+     * BEIDE Richtungen fest — die Messung darf sie nicht finden, und die Tafel darf sie nicht
+     * aufnehmen (sonst waere „gruen machen" ein Eintrag statt einer Reparatur).
      */
     // ⛔ UEBER `ohneKommentare` GELESEN, NICHT UEBER DEN ROHTEXT: eine blosse ERWAEHNUNG des
     // Namens in einem Kommentar der gelesenen Datei waere sonst eine weitere Fundstelle. Die
     // Nadel ist zusammengesetzt, weil das Literal selbst im gescannten Text steht.
     const nadel = "ohneKommentareUnd" + "Zeichenketten(";
     const SOLL: [string, number][] = [
-      ["riegel.test.ts", 0],
-      ["admin/actions.test.ts", 0],
-      ["_lib/bauform.test.ts", 2],
       ["_actions/guards.test.ts", 2],
+      ["_lib/bauform.test.ts", 2],
+      ["_lib/quelltextScan.ts", 2],
     ];
-    const gemessen = SOLL.map(([pfad]) => {
-      const text = ohneKommentare(readFileSync(join(MODUL, pfad), "utf8"));
-      return [pfad, text.split(nadel).length - 1] as [string, number];
-    });
-    expect(gemessen, "ein Scan liest die ungeschuetzte Fassung direkt").toEqual(SOLL);
+    const NIE = ["riegel.test.ts", "admin/actions.test.ts"];
+
+    const dateien = alleModulDateien();
+    expect(dateien.length, "der Modulbaum wurde nicht gelesen — die Tafel darunter waere blind")
+      .toBeGreaterThanOrEqual(MODUL_DATEIEN_MINDESTENS);
+
+    const gefunden = dateien
+      .map(
+        (pfad) =>
+          [
+            relative(MODUL, pfad).replace(/\\/g, "/"),
+            ohneKommentare(readFileSync(pfad, "utf8")).split(nadel).length - 1,
+          ] as [string, number],
+      )
+      .filter(([, anzahl]) => anzahl > 0)
+      .sort((links, rechts) => links[0].localeCompare(rechts[0]));
+
+    expect(gefunden, "ein Scan dieses Moduls liest die ungeschuetzte Fassung direkt")
+      .toEqual(SOLL);
+    expect(
+      SOLL.map(([pfad]) => pfad).filter((pfad) => NIE.includes(pfad)),
+      "die Sollwerttafel duldet eine Fundstelle in einem Scan, der die Nadel nie fuehren darf",
+    ).toEqual([]);
+    expect(
+      gefunden.map(([pfad]) => pfad).filter((pfad) => NIE.includes(pfad)),
+      "ein Scan, der `bereinigt` importiert, ruft die ungeschuetzte Fassung direkt",
+    ).toEqual([]);
+
     expect(relative(MODUL, SELBST), "der Selbstbezug oben zeigt nicht mehr auf diese Datei")
       .toBe("admin/actions.test.ts");
   });

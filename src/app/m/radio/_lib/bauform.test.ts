@@ -730,7 +730,7 @@ describe("radio-bauform: die Zusagen, die kein Typ und kein Riegel halten kann",
 describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
   /*
    * ⛔ DIESER BLOCK PRUEFT NICHT DAS MODUL, SONDERN DEN SCAN. Er ist das Gegenstueck zu
-   * `riegel.test.ts:1002-1087` und steht hier, weil dieselbe Blindstelle (Fund M1,
+   * `riegel.test.ts:1002-1128` und steht hier, weil dieselbe Blindstelle (Fund M1,
    * `.superpowers/sdd/planteil3/REVIEW-A2.md`) in DIESER Kopie noch steckte, nachdem sie
    * dort behoben war — benannt von Commit `7ca9c53`, behoben in Aufgabe B0.
    *
@@ -798,7 +798,7 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
 
   it("kein Scan dieser Datei liest die ungeschuetzte Fassung direkt", () => {
     /*
-     * ⛔ DER RIEGEL GEGEN DIE RUECKKEHR VON M1, uebernommen aus `riegel.test.ts:1054-1086`.
+     * ⛔ DER RIEGEL GEGEN DIE RUECKKEHR VON M1, uebernommen aus `riegel.test.ts:1095-1127`.
      * `ohneKommentareUndZeichenketten` darf genau zweimal vorkommen: in seiner eigenen
      * Deklaration und in `bereinigt`. Jede weitere Fundstelle ist ein Scan, der die
      * Regexliterale wieder ungeleert liest — und das faellt an einer negativen Zusicherung
