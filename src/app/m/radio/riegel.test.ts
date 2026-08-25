@@ -112,10 +112,10 @@ const SELBST = join(MODUL, "riegel.test.ts");
 const HANDLER_ANZAHL = 2;
 
 /**
- * ⛔ HEUTE VIER — EXAKT, aus demselben Grund wie `HANDLER_ANZAHL`. V12 legte die Uebersicht
- * `admin/(arbeit)/page.tsx` an (0 auf 1), V13 die Geraeteliste (1 auf 2), V14 die Geraetakte
- * (2 auf 3), V15 die Aenderungshistorie `geraete/[id]/ereignisse/page.tsx` (3 auf 4) — je im
- * SELBEN Commit; so weiter bis 10 (Spec:4369-4378: neun unter `(arbeit)`, eine unter `(druck)`).
+ * ⛔ HEUTE VIER — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die
+ * Geraeteliste (1 auf 2), V14 die Geraetakte (2 auf 3), V15 die Aenderungshistorie (3 auf 4),
+ * je im SELBEN Commit; so weiter bis 10 (Spec:4369-4378). ⚠️ `ADMIN_SEITEN()` (Dateiende)
+ * zaehlt seit der Fix-Runde 1 zu V15 AUCH `template.tsx`/`default.tsx` — heute gibt es keine.
  */
 const ADMIN_SEITEN_ANZAHL = 4;
 
@@ -1215,6 +1215,16 @@ describe("(g) auf jeder Verwaltungsseite steht der Riegel als ERSTE Anweisung", 
      * HOST-Riegel; die Reihenfolge der beiden haelt Klausel (e) weiterhin ueber `search(...)`.
      * ⚠️ Heute liegt jede der vier Seiten in einer Group; der zweite Zweig ist damit
      * ungemessen und faellt LAUT, sobald ihn jemand betritt (die Meldung druckt den Fund).
+     *
+     * ⬜ UND ER SCHLIESST DIE LUECKE DORT NUR HALB — das steht hier, statt eine Reichweite zu
+     * behaupten, die nicht gemessen ist: ausserhalb einer Group sichert diese Klausel den
+     * HOST-Riegel als erste Anweisung, Klausel (e) die REIHENFOLGE von Host und Person. Eine
+     * Seite, die dazwischen liest (`requireRadioHost(kopf);` — `const akte = geraet(db, id);`
+     * — `await requireRadioAdmin();`), bestuende beide. Das ist zeichengleich die Fehlerform
+     * dieser Klausel, eine Ebene tiefer. ⚠️ HEUTE UNERREICHBAR: alle zehn Seiten, die
+     * Spec:4369-4378 vorsieht, liegen in einer Route-Group (neun unter `(arbeit)`, eine unter
+     * `(druck)`), und dort greift der erste Zweig vollstaendig. Wer je eine Seite ausserhalb
+     * einer Group anlegt, schuldet dieser Klausel die zweite Anweisung. Eigentuemer: Planhalter.
      *
      * ⛔ GEPRUEFT WIRD DIE ERSTE ANWEISUNG UND NICHT „vor dem ersten `await`" — dieselbe
      * benannte Abweichung wie in Klausel (f): `geraet(db, id)` ist SYNCHRON, der erste

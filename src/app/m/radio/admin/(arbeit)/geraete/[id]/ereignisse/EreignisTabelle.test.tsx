@@ -437,11 +437,17 @@ describe("radio-Ereignisse: die Bauform der Insel und ihrer Seite", () => {
      * ⛔ `gelesen` WIRD ERST IM SCHLEIFENKOERPER GEFUELLT, HINTER DEM `istServerModul`-
      * AUSSTIEG: eine Datei, die der Walker uebersprungen hat, hat er nicht gelesen. Zaehlte
      * man an der Leseoperation IN `istServerModul`, waere die Tautologie nur umgezogen.
+     *
+     * ⛔ UND GEPRUEFT WIRD ZUGEHOERIGKEIT, NICHT ANZAHL. Ein `gelesen.size >= WURZELN.length`
+     * waere bei mehreren Wurzeln erneut stumpf: eine uebersprungene Wurzel und eine dafuer
+     * mitgelesene transitive Datei ergaeben dieselbe Zahl. Heute ist die Insel EINE Datei und
+     * beide Formen faellen zusammen — die schaerfere steht hier, damit sie es auch bleibt,
+     * wenn die Insel waechst.
      */
     expect(
-      gelesen.size,
-      "der Walker hat weniger Dateien gelesen, als es Wurzeln gibt — er ist nicht gelaufen",
-    ).toBeGreaterThanOrEqual(WURZELN.length);
+      WURZELN.filter((wurzel) => !gelesen.has(wurzel)),
+      "der Walker hat eine Wurzel nicht gelesen — er ist nicht gelaufen",
+    ).toEqual([]);
     expect(verstoesse).toEqual([]);
   });
 
