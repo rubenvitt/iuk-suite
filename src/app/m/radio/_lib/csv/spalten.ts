@@ -7,9 +7,15 @@
 // durchsetzt, steht in `src/app/m/radio/riegel.test.ts:1064-1117`.
 //
 // ⛔ DIESE DATEI ZIEHT NICHTS AUS `node:*`, AUS `_db/` ODER AUS EINER KODIERUNGSBIBLIOTHEK.
-// Sie liegt im selben Ordner wie `_lib/csv/einlesen.ts`, das genau das tut — und ein
-// versehentlicher Wertimport ueber jene Datei zoege Node-Bausteine ins Browser-Bundle.
-// Der einzige Import hier ist ein TYPimport (`import type`), der zur Laufzeit verschwindet.
+// Der einzige Import hier ist ein TYPimport (`import type`), der zur Laufzeit verschwindet —
+// ein WERTimport aus `_db/` zoege Drizzle und `better-sqlite3` ins Browser-Bundle, und weder
+// typecheck noch lint noch build saehen es.
+//
+// ⚠️ ZU `_lib/csv/einlesen.ts` IM SELBEN ORDNER: sie fasst als einzige des Ordners Bytes an,
+// zieht aber HEUTE ebenfalls nichts Fremdes (gemessen: kein `import`, kein `node:`;
+// `TextDecoder` und `Uint8Array` sind Web-Globals). Der frueher hier stehende Satz behauptete
+// das Gegenteil und war ein Vorgriff. Die Grenze steht trotzdem schon jetzt — ⬜ A1
+// (`chardet`/`iconv-lite`, Eigentuemer Betreiber) macht jene Datei serverseitig.
 import type { Geraet } from "../../_db/schema";
 
 /**

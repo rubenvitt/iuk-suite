@@ -3,8 +3,16 @@
 // ein WERT, den sowohl Server Components als auch die Client-Insel des Import-Assistenten
 // (V18, Insel 4) lesen. Der Scan darueber steht in `src/app/m/radio/riegel.test.ts:1064-1117`.
 //
-// ⛔ DIESE DATEI HAT KEINEN IMPORT. Sie liegt im selben Ordner wie `_lib/csv/einlesen.ts`,
-// das Node-Bausteine benutzt; ein Wertimport ueber jene Datei zoege sie ins Browser-Bundle.
+// ⛔ DIESE DATEI HAT KEINEN IMPORT — gemessen am 2026-08-25: `grep -c "^import"
+// src/app/m/radio/_lib/csv/kopfzeilen.ts` -> `0`. Sie liegt im selben Ordner wie
+// `_lib/csv/einlesen.ts`, der einzigen des Ordners, die Bytes anfasst.
+//
+// ⚠️ WAS HIER FRUEHER STAND, WAR EIN VORGRIFF: jene Datei zieht HEUTE nichts Fremdes (kein
+// `node:`-Import, `TextDecoder` und `Uint8Array` sind Web-Globals) und ist damit heute
+// browsertauglich. Die Grenze steht trotzdem schon jetzt — ⬜ A1 (`chardet`/`iconv-lite`,
+// Eigentuemer Betreiber, siehe den Kopf von `einlesen.ts`) macht sie serverseitig, sobald die
+// zwei Abhaengigkeiten entschieden sind, und ein Wertimport von hier ueber jene Datei zoege sie
+// dann ins Browser-Bundle. Weder typecheck noch lint noch build saehen das.
 
 /**
  * Die neunzehn Geraetefelder, die eine CSV-Spalte ansprechen darf.
@@ -16,7 +24,10 @@
  * hat einen eigenen Schreibpfad (`_db/schema.ts:56-58`, `_lib/notiz.ts`).
  *
  * ⚠️ DIE REIHENFOLGE IST DIE DER QUELLE und deckt sich mit `EXPORT_SPALTEN`
- * (`_lib/csv/spalten.ts`). Das ist kein Zufall, sondern der Rundlauf-Vertrag.
+ * (`_lib/csv/spalten.ts`). Das ist kein Zufall, sondern der Rundlauf-Vertrag — und seit
+ * Fix-Runde 1 auch bewacht (`rundlauf.test.ts`, „die neunzehn Exportspalten und die neunzehn
+ * importierbaren Felder stehen in derselben Reihenfolge"; vorher war der Satz unbelegt,
+ * Review V9 Fund F7 Punkt 7).
  */
 export const IMPORTIERBARE_FELDER = [
   "issi",
@@ -78,8 +89,20 @@ function normalisiere(kopf: string): string {
  * hardware identity and has its own column — it is NOT an issi alias (it mapped to issi only
  * while no tei field existed)." Wer ihn zurueckdreht, schreibt Hardware-Kennungen in die
  * umprogrammierbare Funkkennung.
+ *
+ * ⛔ SIE IST EXPORTIERT, UND ZWAR FUER DEN WAECHTER. Der Bestand exportiert sie nicht
+ * (`auto-map-headers.ts:36`), und das ist der einzige Punkt, an dem diese Datei von ihm
+ * abweicht. Der Grund ist gemessen (Review V9, Fund F1/F2): ein Waechter, der die Tabelle nur
+ * ueber `automatischeSpaltenzuordnung` je Synonym abtastet, sieht einen HINZUGEFUEGTEN Eintrag
+ * nicht — er kennt die Menge nicht, die er pruefen muesste. `kopfzeilen.test.ts` haelt die
+ * neunundvierzig Paare deshalb literal gegen diese Konstante.
+ *
+ * ⚠️ `SYNONYME[n]` LIEST UEBER DAS PROTOTYP: der Kopf „Constructor" normalisiert zu
+ * `constructor`, und `feld !== undefined` ist dann wahr. ⛔ 1:1 MIT DEM BESTAND, der mit
+ * `if (field)` genauso durchlaesst (`auto-map-headers.ts:109-111`) — 1:1 hat Vorrang, deshalb
+ * hier nur vermerkt und nicht geheilt (Review V9, Fund F7 Punkt 10).
  */
-const SYNONYME: Record<string, ImportierbaresFeld> = {
+export const SYNONYME: Record<string, ImportierbaresFeld> = {
   issi: "issi",
   tei: "tei",
   kennung: "issi",

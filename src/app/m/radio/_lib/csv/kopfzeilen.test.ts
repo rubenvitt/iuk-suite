@@ -1,29 +1,81 @@
 // src/app/m/radio/_lib/csv/kopfzeilen.test.ts
 import { describe, it, expect } from "vitest";
-import { IMPORTIERBARE_FELDER, automatischeSpaltenzuordnung } from "./kopfzeilen";
+import { IMPORTIERBARE_FELDER, SYNONYME, automatischeSpaltenzuordnung } from "./kopfzeilen";
 
 /**
- * Die neunundvierzig normalisierten Synonyme, 1:1 aus `auto-map-headers.ts:36-89` und in
- * derselben Reihenfolge.
+ * Die neunundvierzig normalisierten Synonyme MIT IHREM ZIELFELD, 1:1 aus
+ * `auto-map-headers.ts:36-89` und in derselben Reihenfolge.
  *
  * ⛔ SIE STEHEN HIER EIN ZWEITES MAL, UND DAS IST ABSICHT. Ein Test, der die Liste aus der
  * Datei laese, die er prueft, waere gegen jede Aenderung immun — dieselbe Fehlerform wie ein
  * Waechter, der seine eigene Erwartung aus dem Pruefling zieht.
+ *
+ * ⛔ UND SIE STEHEN HIER MIT ZIELFELD, NICHT NUR ALS NAMEN. Bis Fix-Runde 1 pruefte der
+ * Waechter je Synonym nur, DASS es abbildet, nicht WOHIN — gemessen (Review V9, Fund F1):
+ * vierundzwanzig der neunundvierzig liessen sich still auf ein fremdes Feld umbiegen, ohne
+ * dass eine der drei Testdateien rot wurde.
+ *
+ * ⚠️ DREI PAARE SEHEN WIE EIN FEHLER AUS UND SIND KEINER — wer sie „repariert", aendert den
+ * Bestand und nicht diesen Test:
+ *
+ *   - `letztesupdate -> softwareVersion` (`auto-map-headers.ts:81`). Es klingt nach
+ *     `lastUpdatedAt`, und genau das ist die Falle: eine Kundendatei mit der Spalte
+ *     „Letztes Update" schriebe dann ein Datum in die Softwareversion.
+ *   - `ausleihe` und `leihbar -> loanable` (`:70-71`) — beide sind Verleihbarkeit, keine Leihe.
+ *   - `zustaendig -> assignedTo` (`:74`) mit „ae": „Zuständig" zerfaellt unter NFD zu
+ *     `zustandig` und bleibt UNZUGEORDNET. Der Fall dazu steht weiter unten.
  */
-const ALLE_SYNONYME = [
-  "issi", "tei", "kennung", "funkrufnameissi", "rufname", "funkrufname",
-  "seriennummer", "seriennr", "inventarnummer", "serial",
-  "geraetetyp", "geraet", "gerat", "typ", "modell",
-  "status", "zustand",
-  "standort", "lagerort", "ort", "location",
-  "hiorgid", "opta", "funktion", "hersteller", "bedieneinheit",
-  "alamos", "alamosintegriert", "alamosintegration",
-  "ausleihbar", "ausleihe", "leihbar",
-  "zuordnung", "zugeordnet", "zustaendig", "assignedto",
-  "softwareversion", "swversion", "firmware", "fwversion", "version", "letztesupdate",
-  "zuletztaktualisiert", "updatedatum", "aktualisiertam",
-  "notizen", "notiz", "bemerkung", "notes",
-] as const;
+const ERWARTETE_SYNONYME: Record<string, string> = {
+  issi: "issi",
+  tei: "tei",
+  kennung: "issi",
+  funkrufnameissi: "issi",
+  rufname: "rufname",
+  funkrufname: "rufname",
+  seriennummer: "serialNumber",
+  seriennr: "serialNumber",
+  inventarnummer: "serialNumber",
+  serial: "serialNumber",
+  geraetetyp: "deviceType",
+  geraet: "deviceType",
+  gerat: "deviceType",
+  typ: "deviceType",
+  modell: "deviceType",
+  status: "status",
+  zustand: "status",
+  standort: "location",
+  lagerort: "location",
+  ort: "location",
+  location: "location",
+  hiorgid: "hiorgId",
+  opta: "opta",
+  funktion: "funktion",
+  hersteller: "hersteller",
+  bedieneinheit: "bedieneinheit",
+  alamos: "alamosIntegrated",
+  alamosintegriert: "alamosIntegrated",
+  alamosintegration: "alamosIntegrated",
+  ausleihbar: "loanable",
+  ausleihe: "loanable",
+  leihbar: "loanable",
+  zuordnung: "assignedTo",
+  zugeordnet: "assignedTo",
+  zustaendig: "assignedTo",
+  assignedto: "assignedTo",
+  softwareversion: "softwareVersion",
+  swversion: "softwareVersion",
+  firmware: "softwareVersion",
+  fwversion: "softwareVersion",
+  version: "softwareVersion",
+  letztesupdate: "softwareVersion",
+  zuletztaktualisiert: "lastUpdatedAt",
+  updatedatum: "lastUpdatedAt",
+  aktualisiertam: "lastUpdatedAt",
+  notizen: "notes",
+  notiz: "notes",
+  bemerkung: "notes",
+  notes: "notes",
+};
 
 /**
  * DIE AUTOMATISCHE SPALTENERKENNUNG, 1:1 aus
@@ -53,30 +105,40 @@ describe("radio-csv: die importierbaren Felder", () => {
 });
 
 describe("radio-csv: die Synonymtabelle", () => {
-  it("sie traegt genau die neunundvierzig Eintraege des Bestands", () => {
+  it("sie traegt genau die neunundvierzig Paare des Bestands, Ziel fuer Ziel", () => {
     /*
-     * ⛔ DIE ZAHL MACHT DIE 1:1-BEHAUPTUNG MESSBAR. `auto-map-headers.ts:36-89` fuehrt
-     * neunundvierzig Eintraege (gezaehlt); ohne diese Zusicherung koennte einer
-     * verschwinden, und nur die drei Faelle unten faenden es — der Rest der Tabelle waere
-     * unbewacht.
+     * ⛔ DIE TAFEL WIRD ALS GANZES GEHALTEN, NICHT ABGETASTET. `toEqual` ueber der ganzen
+     * Konstanten faengt alle drei Aenderungsformen, und jede einzeln nachgemessen
+     * (Fix-Runde 1 zu Review V9, Funde F1/F2/F3):
      *
-     * ⛔ UND SIE DECKT EINE FALLE AB, DIE DER ALT-KOMMENTAR NENNT UND DIE SPRACHE NICHT
-     * HAELT: `:35` sagt „Order matters for 'first wins'", aber ein Objektliteral kennt kein
-     * „first wins" — ein doppelter Schluessel UEBERSCHREIBT still. Der Bestand hat heute
-     * keinen (neunundvierzig Schluessel, neunundvierzig eindeutig, nachgemessen); ein
-     * kuenftiger Doppeleintrag saenke die Zahl hier um eins und faerbt diesen Fall.
+     *   - ein Synonym auf ein fremdes Feld umgebogen (`letztesupdate -> lastUpdatedAt`),
+     *   - ein Eintrag HINZUGEFUEGT (`inventarnr` als fuenfzigster),
+     *   - ein Schluessel DOPPELT vergeben (`typ` ein zweites Mal).
+     *
+     * ⛔ DER DOPPELTE SCHLUESSEL IST DER UNSCHEINBARSTE, UND SEIN MECHANISMUS IST NICHT DER,
+     * DEN DER KOMMENTAR HIER FRUEHER BEHAUPTETE. `auto-map-headers.ts:35` sagt „Order matters
+     * for 'first wins'", aber ein Objektliteral kennt kein „first wins" — der zweite Eintrag
+     * UEBERSCHREIBT still den ersten. Die Tafel traegt danach ACHTUNDVIERZIG Schluessel statt
+     * neunundvierzig, und genau diese Mengendifferenz faerbt `toEqual`. Die frueher hier
+     * behauptete Faerbung ueber eine Zahl war gemessen falsch: sie zaehlte das Array DIESES
+     * Tests, nicht die Tafel.
      */
-    const alleZiele = new Set<string>();
-    let anzahl = 0;
-    for (const kopf of ALLE_SYNONYME) {
-      const feld = automatischeSpaltenzuordnung([kopf])[kopf];
-      expect(feld, `Synonym "${kopf}" bildet auf nichts ab`).toBeDefined();
-      if (feld !== undefined) alleZiele.add(feld);
-      anzahl += 1;
+    expect(SYNONYME, "neunundvierzig Paare (auto-map-headers.ts:36-89)").toEqual(ERWARTETE_SYNONYME);
+    expect(Object.keys(SYNONYME).length, "neunundvierzig Schluessel, keiner doppelt").toBe(49);
+  });
+
+  it("jedes der neunundvierzig Synonyme kommt durch die Zuordnung auf SEIN Feld", () => {
+    /*
+     * ⛔ DER ZWEITE HALBE SCHRITT: die Tafel oben belegt den INHALT, dieser Fall die
+     * VERDRAHTUNG. Ohne ihn koennte `automatischeSpaltenzuordnung` die Tafel gar nicht mehr
+     * lesen und beide Zusicherungen blieben gruen.
+     */
+    for (const [kopf, ziel] of Object.entries(ERWARTETE_SYNONYME)) {
+      expect(automatischeSpaltenzuordnung([kopf])[kopf], `Synonym "${kopf}" bildet nicht auf ${ziel} ab`).toBe(
+        ziel,
+      );
     }
 
-    expect(anzahl, "neunundvierzig Synonyme (auto-map-headers.ts:36-89)").toBe(49);
-    expect(new Set(ALLE_SYNONYME).size, "ein doppelter Schluessel ueberschreibt still").toBe(49);
     /*
      * ⛔ ACHTZEHN DER NEUNZEHN FELDER. Das fehlende ist `deviceModes` — es hat als einziges
      * KEINEN Tabelleneintrag und kommt ausschliesslich ueber die Praefixregel
@@ -84,6 +146,7 @@ describe("radio-csv: die Synonymtabelle", () => {
      * die Praefixregel entfernte und dafuer einen Tabelleneintrag setzte — der Kundenkopf
      * `Gerätefunktionen-TMO/DMO/REP/GAT` fiele dann still aus der Zuordnung.
      */
+    const alleZiele = new Set(Object.values(SYNONYME));
     expect(alleZiele.size, "achtzehn der neunzehn Felder; deviceModes laeuft ueber den Praefix").toBe(18);
     expect(alleZiele.has("deviceModes"), "deviceModes hat KEINEN Tabelleneintrag").toBe(false);
   });

@@ -5,9 +5,17 @@
 // ⛔ DIESE DATEI IST DIE EINZIGE DES ORDNERS, DIE BYTES ANFASST — und deshalb die einzige,
 // die eine Client-Insel NICHT importieren darf. `spalten.ts`, `kopfzeilen.ts` und
 // `klassifizieren.ts` liefern reine Werte und laufen in beide Richtungen; hier laeuft die
-// Kodierungserkennung, und ein versehentlicher Wertimport von hier aus einer Insel zoege sie
-// ins Browser-Bundle. Die Aufrufer sind serverseitig: der Hochladen-Handler (V18) und die
+// Kodierungserkennung. Die Aufrufer sind serverseitig: der Hochladen-Handler (V18) und die
 // Import-Actions (V10).
+//
+// ⚠️ UND DIE BEGRUENDUNG DAFUER IST HEUTE EINE ANDERE ALS MORGEN — der frueher hier stehende
+// Satz („ein Wertimport zoege Node-Bausteine ins Browser-Bundle") war ein Vorgriff und ist
+// gemessen falsch: `grep -c "^import" src/app/m/radio/_lib/csv/einlesen.ts` -> `0`, kein
+// `node:`-Import, und `TextDecoder` wie `Uint8Array` sind Web-Globals (WHATWG Encoding). Die
+// Datei ist HEUTE browsertauglich. ⛔ DIE GRENZE STEHT TROTZDEM SCHON JETZT: ⬜ A1 unten
+// (`chardet`/`iconv-lite`, Eigentuemer Betreiber) macht sie serverseitig, sobald der Betreiber
+// die zwei Abhaengigkeiten entscheidet — und eine Grenze, die erst mit der Abhaengigkeit
+// gezogen wird, zieht niemand mehr.
 
 /**
  * ⬜ BENANNTE ABWEICHUNG MIT EIGENTUEMER — `chardet` UND `iconv-lite` SIND IM REPO NICHT
@@ -134,6 +142,14 @@ export function dekodiereCsv(bytes: Uint8Array): DekodierteCsv | null {
      * liefert fuer die Bytes `EF BB BF 49 53 53 49` bereits `"ISSI"`. Ein toter Zweig, der
      * wie eine Zusicherung aussieht, ist in diesem Haus ein eigener Fehler
      * (`_lib/bauform.test.ts`, „kein Rueckfalltext hinter gateMeldung").
+     *
+     * ⚠️ WAS DAS PAAR AUS FLAG UND ABSTREIFUNG HEUTE NICHT IST: eine Aussenzusicherung.
+     * Gemessen (Review V9, Fund F7 Punkt 6): nimmt man BEIDE zusammen heraus, bleibt alles
+     * gruen — der schlichte Dekodierer schluckt das BOM selbst, das Ergebnis ist dasselbe.
+     * Die Sonde S-V9h bewacht also eine SELBSTGESCHAFFENE Kopplung. ⛔ Sie wird erst mit
+     * ⬜ A1 tragend: `iconv.decode` gibt das BOM heraus, und `decode-csv.ts:21-24` streift es
+     * genau deshalb selbst ab. Wer A1 verwirft, baut hier auf den schlichten Dekodierer
+     * zurueck — und nimmt die Abstreifung mit.
      */
     text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
   } catch {
@@ -254,6 +270,14 @@ export function lesEinCsv(bytes: Uint8Array, erzwungen?: Trennzeichen): LeseErge
   const trennzeichen = erzwungen ?? erkenneTrennzeichen(dekodiert.text);
   const saetze = zerlege(dekodiert.text, trennzeichen);
   const [spalten, ...zeilen] = saetze;
+  /*
+   * ⚠️ `spalten.length === 0` IST GEMESSEN UNERREICHBAR und bleibt als bewusste Gurtung stehen
+   * (Review V9, Fund F7 Punkt 3): `zerlege` schiebt nie eine Zeile der Laenge 0 — jedes
+   * `zeileAbschliessen` legt ueber `feldAbschliessen` mindestens ein Feld ab, und eine Zeile
+   * aus genau einem leeren Feld faellt vorher unter `skip_empty_lines` heraus. Der lebende
+   * Zweig ist `spalten === undefined`. ⛔ Die Bedingung ist damit KEINE Zusicherung, und
+   * niemand darf sie fuer eine halten; entfernt man sie, wird kein Test rot.
+   */
   if (spalten === undefined || spalten.length === 0) {
     return { ok: false, fehler: LESE_FEHLER };
   }

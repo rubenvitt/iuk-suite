@@ -11,7 +11,7 @@ import {
   wertAusTag,
   type ExportFeld,
 } from "./spalten";
-import { automatischeSpaltenzuordnung } from "./kopfzeilen";
+import { IMPORTIERBARE_FELDER, automatischeSpaltenzuordnung } from "./kopfzeilen";
 import { dekodiereCsv, erkenneTrennzeichen, lesEinCsv } from "./einlesen";
 import { zeileZuEingehend, type Spaltenzuordnung } from "./klassifizieren";
 
@@ -186,6 +186,31 @@ describe("radio-csv: der Rundlauf-Vertrag", () => {
     expect(kopfzeile.split(",").length, "kein Komma als Trennzeichen").toBe(1);
   });
 
+  it("die Zeilen enden mit einem blossen Zeilenumbruch, nicht mit CR-LF", () => {
+    /*
+     * `export.ts:57-62` ueber `csv-stringify`, dessen Vorgabe `\n` ist — gemessen am Alt-Test
+     * `radio-admin/server/test/deviceTei.test.ts:76`, der das Ergebnis an `'\n'` teilt. Bis
+     * Fix-Runde 1 stand das nur im Kommentar (Review V9, Fund F7 Punkt 8): auf `\r\n`
+     * umgestellt blieb alles gruen, weil der Wiedereinleser das CR ohnehin verwirft — der
+     * Rundlauf kann diese Zusicherung also strukturell nicht tragen.
+     */
+    const csv = baueExportCsv([GERAET_VOLL, GERAET_DUENN]);
+
+    expect(csv.includes("\r"), "kein CR im Exporttext").toBe(false);
+    expect(csv.endsWith("\n"), "ein Zeilenende auch nach der letzten Zeile").toBe(true);
+    expect(csv.split("\n").length, "Kopfzeile, zwei Datenzeilen und der leere Rest").toBe(4);
+  });
+
+  it("die neunzehn Exportspalten und die neunzehn importierbaren Felder stehen in derselben Reihenfolge", () => {
+    /*
+     * ⛔ DER RUNDLAUF-VERTRAG VON DER ANDEREN SEITE. `kopfzeilen.ts` behauptet im Kommentar an
+     * `IMPORTIERBARE_FELDER`, die Reihenfolge decke sich mit `EXPORT_SPALTEN` — bis Fix-Runde 1
+     * war der Satz unbewacht (Review V9, Fund F7 Punkt 7): `issi` und `tei` in der einen Liste
+     * getauscht liess alles gruen.
+     */
+    expect(EXPORT_SPALTEN.map((spalte) => spalte.feld)).toEqual([...IMPORTIERBARE_FELDER]);
+  });
+
   it("ein wahrer Wahrheitswert wird x, ein falscher und ein leerer werden leer", () => {
     // `export.ts:46-48`, alle drei Lagen.
     expect(formatiereZelle("loanable", true)).toBe("x");
@@ -291,6 +316,16 @@ describe("radio-csv: die eine Tagesumrechnung", () => {
     expect(tagAusWert(Date.UTC(2026, 0, 15, 23, 30))).toBe("2026-01-16");
   });
 
+  it("ein Date-Objekt nimmt denselben Weg wie die Millisekundenzahl", () => {
+    /*
+     * Der Zweig `wert instanceof Date` in `tagAusWert` — das Geraeteformular (V14) liefert
+     * seinen Wert so. Bis Fix-Runde 1 hatte er keinen Fall (Review V9, Fund F7 Punkt 9), und
+     * er traegt dieselbe E-V11-Entscheidung: gekuerzt wird in `Europe/Berlin`, nicht in UTC.
+     */
+    expect(tagAusWert(new Date(Date.UTC(2026, 5, 30, 23, 30)))).toBe("2026-07-01");
+    expect(tagAusWert(new Date(Number.NaN)), "ein ungueltiges Date wird null, nie NaN").toBeNull();
+  });
+
   it("ein Kalendertag geht unveraendert durch die Zelle", () => {
     /*
      * E-V11 Punkt 3: `formatiereZelle` fuer `lastUpdatedAt` RECHNET NICHT. Die Spalte ist
@@ -321,6 +356,14 @@ describe("radio-csv: das Einlesen ohne Fremdbibliothek", () => {
 
     expect(ergebnis.ok).toBe(false);
     expect(ergebnis.ok ? "" : ergebnis.fehler).toBe("Leere oder ungültige Datei");
+    /*
+     * ⛔ UND DIE LEERPRUEFUNG SELBST, DIREKT. Sie ist 1:1 der Wurf des Bestands
+     * (`decode-csv.ts:15-17`, `throw new Error('Leere Datei')`) und der einzige Fall, in dem
+     * `dekodiereCsv` `null` liefert. Ueber `lesEinCsv` allein waere sie unbewacht: ein leerer
+     * Text erzeugt gar keine Zeile und faellt ohnehin in dieselbe Meldung (gemessen, Review V9
+     * Fund F7 Punkt 4 — der sie deshalb faelschlich fuer redundant hielt).
+     */
+    expect(dekodiereCsv(new Uint8Array(0)), "die Leerpruefung aus decode-csv.ts:15-17").toBeNull();
   });
 
   it("eine Datei ohne Kopfzeile ergibt dieselbe Meldung", () => {
@@ -344,8 +387,32 @@ describe("radio-csv: das Einlesen ohne Fremdbibliothek", () => {
   });
 
   it("die erste NICHT-LEERE Zeile entscheidet das Trennzeichen", () => {
-    // `parse-csv.ts:12` (`.find((l) => l.trim() !== '')`).
-    expect(erkenneTrennzeichen("\n\n a;b;c\n")).toBe(";");
+    /*
+     * `parse-csv.ts:12` (`.find((l) => l.trim() !== '')`).
+     *
+     * ⛔ DIE FIXTURE ERWARTET DAS KOMMA, NICHT DAS SEMIKOLON, UND DAS IST DER GANZE FALL.
+     * `;` ist zugleich der RUECKFALL der Leiter (`einlesen.ts`, letzte Zeile von
+     * `erkenneTrennzeichen`); eine Fixture, die `;` erwartet, kann die Zusicherung nicht von
+     * ihrem Gegenteil unterscheiden. Gemessen (Review V9, Fund F4): mit `a;b;c` blieb der Fall
+     * auch dann gruen, wenn die Suche nach der ersten nicht-leeren Zeile durch `[0]` ersetzt
+     * wurde — er war der EINZIGE der dreiundfuenfzig ohne faerbende Mutation.
+     */
+    expect(erkenneTrennzeichen("\n\na,b,c\n"), "die leere Zeile wird uebersprungen").toBe(",");
+    // Und die zweite Haelfte der Vorschrift: `.trim() !== ''`, nicht `!== ''`.
+    expect(erkenneTrennzeichen("\n   \na,b,c\n"), "auch die nur-Leerraum-Zeile").toBe(",");
+  });
+
+  it("das erzwungene Trennzeichen ueberstimmt die Erkennung", () => {
+    /*
+     * `parse-csv.ts:35-36`: die Oberflaeche darf das erkannte Trennzeichen ueberstimmen. Die
+     * Fixture ist so gewaehlt, dass Erkennung und Vorgabe SICH WIDERSPRECHEN — `;` gewinnt die
+     * Leiter bei jedem Vorkommen, das Komma kommt also nur durch, wenn der Parameter wirkt.
+     * Bis Fix-Runde 1 hatte er keinen Fall (Review V9, Fund F7 Punkt 5).
+     */
+    const ergebnis = lesEinCsv(new TextEncoder().encode("a,b;c\n"), ",");
+
+    expect(ergebnis.ok ? ergebnis.daten.trennzeichen : "").toBe(",");
+    expect(ergebnis.ok ? ergebnis.daten.spalten : []).toEqual(["a", "b;c"]);
   });
 
   it("eine kuerzere Zeile ist kein Fehler, sondern eine kurze Zeile", () => {
@@ -375,6 +442,25 @@ describe("radio-csv: das Einlesen ohne Fremdbibliothek", () => {
     const ergebnis = lesEinCsv(new TextEncoder().encode('ISSI;Notizen\n1001; "zitiert" mehr\n'));
 
     expect(ergebnis.ok ? ergebnis.daten.zeilen : []).toEqual([["1001", '"zitiert" mehr']]);
+  });
+
+  it("ein maskiertes Feld behaelt seinen Leerraum, und das CR einer CRLF-Datei faellt weg", () => {
+    /*
+     * ZWEI Zusicherungen, die bis Fix-Runde 1 nur im Kommentar standen (Review V9, Fund F7
+     * Punkte 1 und 2) — eine Fixture faerbt beide:
+     *
+     * 1. ⛔ `trim` WIRKT NUR AUF UNMASKIERTE FELDER, genau wie bei `csv-parse`
+     *    (`parse-csv.ts:40`). Ein bewusst gesetzter Abstand in Anfuehrungszeichen bleibt.
+     *    Ohne die Unterscheidung (`zeile.push(warMaskiert ? feld : feld.trim())` -> immer
+     *    `trim()`) verschwaende er still.
+     * 2. ⛔ DAS CR EINER CRLF-DATEI FAELLT WEG. Ausserhalb der Maskierung erledigt das ohnehin
+     *    der Feldschnitt; im maskiert GEWESENEN Feld nicht — dort haengte das CR am Wert.
+     *    Deshalb steht der Fall auf einer CRLF-Datei MIT maskiertem Feld, sonst prueft er
+     *    wieder nur den Feldschnitt.
+     */
+    const ergebnis = lesEinCsv(new TextEncoder().encode('ISSI;Notizen\r\n1001;" Abstand "\r\n'));
+
+    expect(ergebnis.ok ? ergebnis.daten.zeilen : []).toEqual([["1001", " Abstand "]]);
   });
 
   it("eine Windows-1252-Datei wird als solche gelesen, nicht als kaputtes UTF-8", () => {
