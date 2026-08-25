@@ -224,5 +224,53 @@ test.describe("radio-Verwaltung", () => {
       page.locator('[data-rolle="radio-notiz-eingabe"]'),
       "das Notizfeld fehlt — es steht fuer BEIDE Stufen (Spec:4448)",
     ).toBeVisible();
+
+    /*
+     * ⛔ ANHAENGEN, DANN SPEICHERN — DIE EINE REIHENFOLGE, DIE EINE APPEND-ONLY-SPALTE
+     * VERLIEREN KANN, und sie ist HIER der einzige echte Waechter (⬜ **V-L3**, Aufgabe **V23**,
+     * REVIEW-V14 Fund 1). Der Weg entsteht erst in der Suite: der Bestand rendert das
+     * Notizpanel fuer Admins gar nicht (`DeviceDetailDrawer.tsx:109`), hier steht das
+     * Eingabefeld fuer BEIDE Stufen (`briefs/V14.md:92-96`, `Spec:4448`).
+     *
+     * ⛔ WAS NUR HIER MESSBAR IST, UND WARUM DER FALL NICHT WEGKUERZBAR IST: `notizAnfuegenAction`
+     * stoesst `revalidatePath` auf genau diese Seite an (`admin/actions.ts:655-657`). ⛔ OB NEXT
+     * DIE INSEL DABEI AN ORT UND STELLE NEU RENDERT ODER SIE NEU AUFBAUT, ist in Vitest
+     * strukturell nicht zu sehen — es gibt dort keinen Server. Beide Wege muessen dieselbe
+     * Zusage halten, und genau das misst dieser Abschnitt.
+     *
+     * ⛔ DER PATCH MUSS NICHT LEER SEIN, sonst laeuft das Speichern gar nicht erst los
+     * (`GeraetFormular.tsx`, `DeviceEditForm.tsx:87-90`) und der Fall waere vakuum-gruen.
+     * Deshalb aendert er ZUERST ein gewoehnliches Feld.
+     */
+    const marke = `E2E-${Date.now()}`;
+    await page.locator("#tei").fill(marke);
+    await page.locator('[data-rolle="radio-notiz-eingabe"]').fill(`Sonde ${marke}`);
+    await page.locator('[data-rolle="radio-notiz-anhaengen"]').click();
+
+    /*
+     * ⛔ ERST WENN DIE ANGEHAENGTE ZEILE IM FORMULARFELD STEHT, ist der Serverstand
+     * angekommen — fuer die Admin-Stufe zeigt das Formular die Anmerkung, nicht das Panel
+     * (`DeviceFields.tsx:181-190`, `NotizFeld.tsx`).
+     */
+    await expect(page.locator("#updateNote")).toHaveValue(new RegExp(`Sonde ${marke}`));
+
+    await page.locator('[data-rolle="radio-formular-speichern"]').click();
+    await expect(page.locator('[data-rolle="radio-formular-fehler"]')).toHaveCount(0);
+
+    /*
+     * ⛔ DIE ZUSAGE STEHT NACH EINEM ECHTEN NEULADEN, NICHT AM BILDSCHIRMZUSTAND: nur so ist
+     * gemessen, was in der SPALTE steht (`_db/schema.ts:56-59`, append-only). Bliebe das
+     * Formular auf seinem alten `updateNote` stehen und schriebe es mit, waere die angehaengte
+     * Zeile hier weg — still, ohne Fehlermeldung, ohne rotes Tor.
+     */
+    await page.reload();
+    await expect(
+      page.locator("#updateNote"),
+      "die angehaengte Zeile ist beim Speichern verloren gegangen (append-only!)",
+    ).toHaveValue(new RegExp(`Sonde ${marke}`));
+    await expect(
+      page.locator("#tei"),
+      "das gewoehnliche Feld wurde gar nicht gespeichert — der Fall misst nichts",
+    ).toHaveValue(marke);
   });
 });

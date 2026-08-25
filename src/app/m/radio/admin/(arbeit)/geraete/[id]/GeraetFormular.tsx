@@ -157,6 +157,21 @@ export function modiZuListe(wert: string | null | undefined): string[] {
 /**
  * Die Gegenrichtung — 1:1 aus `deviceModes.ts:24-31`. ⛔ Die LEERE Auswahl wird `null`, damit
  * sie mit der nullable Spalte rund laeuft (`_db/schema.ts:49`).
+ *
+ * ⬜ **V14-L2 — DER RUNDLAUF IST KEINE IDENTITAET, WENN DER GESPEICHERTE WERT NICHT KANONISCH
+ * GEORDNET IST.** Gemessen: `"DMO,TMO"` geht als `["TMO","DMO"]` in das Formular und als
+ * `"TMO,DMO"` zurueck — ein Patcheintrag beim blossen Oeffnen-und-Speichern, also eine
+ * Ereigniszeile, die niemand eingegeben hat. ⚠️ 1:1 aus dem Bestand geerbt
+ * (`deviceModes.ts:8-17`, `:24-31`; `DeviceEditForm.tsx:68` faehrt denselben Rundlauf), deshalb
+ * KEIN Bauwert im 1:1-Rahmen.
+ * ⛔ ALLE SCHREIBWEGE DER SUITE NORMALISIEREN — gemessen: der CSV-Weg ueber `normalisiereModi`
+ * (`_lib/csv/klassifizieren.ts:193`, Reihenfolge aus der Konstanten und nicht aus der Zelle),
+ * dieser Weg ueber `listeZuModi`, `_lib/seedLokal.ts:141` kanonisch, und `NeuGeraetModal` setzt
+ * die Spalte gar nicht. ⛔ ES BLEIBT GENAU EINE QUELLE: die CUTOVER-DATENUEBERNAHME der
+ * Alt-Zeilen. **Eigentuemer: Generalprobe / Cutover (Spec 2)**, zusammen mit ⬜ V-L8. Die
+ * Abhilfe waere eine Zeile (die Spalte beim Uebernehmen durch dieselbe Normalisierung fuehren);
+ * ⛔ wie viele Zeilen betroffen sind, hat NIEMAND gemessen, und eine Zahl zu raten waere die
+ * Erfindung, gegen die dieser Planteil steht.
  */
 export function listeZuModi(modi: string[] | null | undefined): string | null {
   if (!modi || modi.length === 0) return null;
