@@ -13,24 +13,24 @@ import { diffGeraet } from "../geraeteDiff";
 import { filterSchreibbareFelder, type RadioRolle } from "../rollen";
 import { tagAusWert } from "./spalten";
 import type { ImportierbaresFeld } from "./kopfzeilen";
+import { GERAETE_MODI } from "../geraeteFelder";
 
 /**
- * Die vier Geraetefunktionen, in der Reihenfolge des Bestands.
+ * Die vier Geraetefunktionen — ⛔ 1:1 aus `radio-admin/shared/src/constants.ts:4`
+ * (`DEVICE_MODES`), gehalten von `constants.test.ts:6` und `index.test.ts:19`. ⛔ DIE
+ * REIHENFOLGE IST DIE KANONISCHE AUSGABEREIHENFOLGE — sie wird NICHT sortiert. Ein `sort()`
+ * in `normalisiereModi` unten machte aus „TMO,DMO" ein „DMO,TMO", und die Zelle saehe fuer
+ * jeden Leser anders aus als im Bestand.
  *
- * ⛔ 1:1 AUS `radio-admin/shared/src/constants.ts:4` (`DEVICE_MODES`), gehalten von
- * `constants.test.ts:6` und `index.test.ts:19`. ⛔ DIE REIHENFOLGE HIER IST DIE KANONISCHE
- * AUSGABEREIHENFOLGE — sie wird NICHT sortiert. Ein `sort()` in `normalisiereModi` unten
- * machte aus „TMO,DMO" ein „DMO,TMO", und die Zelle saehe fuer jeden Leser anders aus als im
- * Bestand.
- *
- * ⚠️ SIE STEHT HIER UND NICHT IN EINER EIGENEN DATEI, weil diese Aufgabe der erste Leser ist
- * und ihre Dateiliste geschlossen ist. ⬜ Aufgabe V14 baut die Geraetefunktions-Auswahl des
- * Formulars und liest die Liste von hier (ihr Testfall dazu nennt `constants.ts:4`
- * namentlich, `.superpowers/sdd/planteil4/briefs/V14.md:114`) — ⛔ sie legt KEINE zweite
- * Kopie an. ⚠️ `STATUS_OPTIONS` (`constants.ts:10-16`) liegt seit V13 NICHT hier, sondern in
- * `_lib/suchparameter.ts` — die gemessene Begruendung steht dort ueber der Liste.
+ * ⛔ SIE STEHT SEIT DEM NACHTRAG ZU V13 IN `_lib/geraeteFelder.ts` UND WIRD VON HIER NUR
+ * WEITERGEREICHT. Grund: die Filterschublade der Insel 1 (`admin/(arbeit)/geraete/`) liest
+ * die vier Zeichenketten, und ueber DIESE Datei haengt daran der ganze CSV-Teilbaum
+ * (`geraeteDiff`, `rollen`, `csv/spalten`) — unnoetiges Gewicht im Browser-Bundle. ⬜ Aufgabe
+ * V14 baut die Geraetefunktions-Auswahl des Formulars und liest die Liste ebenfalls von dort
+ * (ihr Testfall nennt `constants.ts:4` namentlich, `briefs/V14.md:114`) — ⛔ keine zweite
+ * Kopie. ⚠️ `STATUS_OPTIONS` (`constants.ts:10-16`) liegt seit V13 ebenfalls dort.
  */
-export const GERAETE_MODI = ["TMO", "DMO", "REP", "GAT"] as const;
+export { GERAETE_MODI };
 
 /**
  * Die FUENF Klassen einer Importzeile.

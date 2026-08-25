@@ -70,42 +70,6 @@ export const FILTER_SCHALTER = ["ausleihbar", "alamos", "hatAbweichung"] as cons
 /** Die drei Werte des Update-Stands (`DeviceFilterDrawer.tsx:26-30`). */
 export const UPDATE_STAND_WERTE: readonly UpdateStand[] = ["aktuell", "veraltet", "unbekannt"];
 
-/**
- * Die FUENF festen Statuswerte der Rohspalte, in der Reihenfolge des Bestands — ⛔ 1:1 aus
- * `radio-admin/shared/src/constants.ts:10-16` (`STATUS_OPTIONS`).
- *
- * ⛔ SIE SIND EINE ANZEIGE-OPTIONSLISTE UND KEINE SCHEMAGRENZE: weder der Alt-Bestand noch
- * die Suite begrenzen die Spalte serverseitig auf sie (`radio-admin/shared/src/schemas.ts:50-99`;
- * `admin/actions.ts:92-96` schreibt denselben Befund aus, und der Alt-Kommentar
- * `constants.ts:7-9` sagt es woertlich: „the `status` field is NOT constrained to these
- * values at the schema level"). Wer daraus einen Riegel machte, verlore jeden im Bestand
- * gewachsenen Wert beim naechsten Speichern.
- *
- * ⚠️ SIE SIND NICHT DIE VIER ZUSTAENDE AUS `_lib/status.ts:48`. Jene sind die abgeleitete
- * KIOSK-Sicht (`geraeteZustandAus`, `_lib/status.ts:177-188`); dies hier ist die Rohspalte,
- * die die Verwaltung pflegt (Entscheidung E-V14,
- * `.superpowers/sdd/planteil4/briefs/KOPF.md:938-957`).
- *
- * ⚠️ WARUM SIE HIER STEHT UND NICHT NEBEN `GERAETE_MODI` (`_lib/csv/klassifizieren.ts:33`),
- * wo ihr Schwesterblatt aus derselben Alt-Datei liegt — die Antwort ist GEMESSEN und nicht
- * geschmacklich: eine Einfuegung dort verschiebt jede Zeile ab `:33`, und `klassifizieren.ts`
- * wird aus dem Quelltext heraus SECHSMAL mit `datei:zeile` zitiert
- * (`admin/actions.ts:418`, `:864`, `:950`, `:960`; `admin/actions.verhalten.test.ts:971`,
- * `:1009` — roh gemessen mit `/usr/bin/grep -rnoE`). Der Nachzug waere nach Ruling R-V3-1
- * Pflicht und beruehrte zwei Dateien, die die Aufgabenliste dieser Aufgabe nicht fuehrt;
- * Ruling R-V11-3 nennt die zeilenzahl-neutrale Ablage ausdruecklich den billigeren Weg.
- * Fachlich passt sie hier: es ist der Wertebereich des Suchparameters `status`, und
- * `UPDATE_STAND_WERTE` daneben ist die zweite feste Optionsliste derselben Schublade.
- * ⛔ SIE IST DIE EINE KOPIE. ⬜ Aufgabe V14 baut die Statusauswahl des Formulars und liest
- * sie VON HIER — sie legt keine zweite an.
- */
-export const STATUS_OPTIONEN = [
-  "Einsatzbereit",
-  "Defekt",
-  "Ausgeliehen",
-  "Wartung",
-  "Sonstiges",
-] as const;
 
 /**
  * Die ZEHN Filter der Geraeteliste, je einzeln benannt — 1:1 zu `DeviceFilters`

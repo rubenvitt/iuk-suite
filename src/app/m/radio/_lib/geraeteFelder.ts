@@ -114,3 +114,47 @@ export type Sortierspalte = (typeof SORTIER_SPALTEN)[number];
  * Sortierung taete einfach nichts.
  */
 export const SORTIER_SCHLUESSEL: readonly string[] = [...SORTIER_SPALTEN, "updateStand"];
+
+/**
+ * Die VIER Geraetefunktionen, in der Reihenfolge des Bestands — ⛔ 1:1 aus
+ * `radio-admin/shared/src/constants.ts:4` (`DEVICE_MODES`), gehalten von `constants.test.ts:6`
+ * und `index.test.ts:19`.
+ *
+ * ⛔ DIE REIHENFOLGE HIER IST DIE KANONISCHE AUSGABEREIHENFOLGE — sie wird NICHT sortiert. Ein
+ * `sort()` in `normalisiereModi` (`_lib/csv/klassifizieren.ts:203-215`) machte aus „TMO,DMO"
+ * ein „DMO,TMO", und die Zelle saehe fuer jeden Leser anders aus als im Bestand.
+ *
+ * ⚠️ SIE STAND BIS ZUM NACHTRAG ZU V13 IN `_lib/csv/klassifizieren.ts:33` und wird VON DORT
+ * weiterexportiert — jeder bestehende Leser und jede Belegzeile bleibt gueltig. Der Umzug hat
+ * denselben Grund wie der der Schluessellisten oben: die Filterschublade der Insel 1 liest die
+ * vier Zeichenketten, und ueber `klassifizieren.ts` haenge daran der ganze CSV-Teilbaum
+ * (`geraeteDiff`, `rollen`, `csv/spalten`). Das war kein Bruch, aber unnoetiges Gewicht im
+ * Browser-Bundle — und dieselbe Klasse eine Stufe milder.
+ */
+export const GERAETE_MODI = ["TMO", "DMO", "REP", "GAT"] as const;
+
+/**
+ * Die FUENF festen Statuswerte der Rohspalte, in der Reihenfolge des Bestands — ⛔ 1:1 aus
+ * `radio-admin/shared/src/constants.ts:10-16` (`STATUS_OPTIONS`).
+ *
+ * ⛔ SIE SIND EINE ANZEIGE-OPTIONSLISTE UND KEINE SCHEMAGRENZE: weder der Alt-Bestand noch die
+ * Suite begrenzen die Spalte serverseitig auf sie (`radio-admin/shared/src/schemas.ts:50-99`;
+ * `admin/actions.ts:92-96` schreibt denselben Befund aus, und der Alt-Kommentar
+ * `constants.ts:7-9` sagt es woertlich: „the `status` field is NOT constrained to these values
+ * at the schema level"). Wer daraus einen Riegel machte, verlore jeden im Bestand gewachsenen
+ * Wert beim naechsten Speichern.
+ *
+ * ⚠️ SIE SIND NICHT DIE VIER ZUSTAENDE AUS `_lib/status.ts:48`. Jene sind die abgeleitete
+ * KIOSK-Sicht (`geraeteZustandAus`, `_lib/status.ts:177-188`); dies hier ist die Rohspalte, die
+ * die Verwaltung pflegt (Entscheidung E-V14, `.superpowers/sdd/planteil4/briefs/KOPF.md:938-957`).
+ *
+ * ⛔ SIE IST DIE EINE KOPIE. ⬜ Aufgabe V14 baut die Statusauswahl des Formulars und liest sie
+ * VON HIER — sie legt keine zweite an.
+ */
+export const STATUS_OPTIONEN = [
+  "Einsatzbereit",
+  "Defekt",
+  "Ausgeliehen",
+  "Wartung",
+  "Sonstiges",
+] as const;

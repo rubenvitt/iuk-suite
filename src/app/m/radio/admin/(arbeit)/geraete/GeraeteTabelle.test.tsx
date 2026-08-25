@@ -57,7 +57,6 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { click, clickPortal, exists, mount, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
-import { GERAETE_MODI } from "../../../_lib/csv/klassifizieren";
 import { ohneKommentare } from "../../../_lib/quelltextScan";
 import {
   SORTIER_SCHLUESSEL,
@@ -65,7 +64,8 @@ import {
   SUCHFELDER_VORGABE,
   type GeraetZeile,
 } from "../../../_lib/lesepfade/geraete";
-import { LEERE_FILTER, STATUS_OPTIONEN, type GeraetFilterWerte } from "../../../_lib/suchparameter";
+import { GERAETE_MODI, STATUS_OPTIONEN } from "../../../_lib/geraeteFelder";
+import { LEERE_FILTER, type GeraetFilterWerte } from "../../../_lib/suchparameter";
 import { aktiveFilterZahl } from "./FilterSchublade";
 import { SUCHFELD_ETIKETTEN } from "./GeraeteWerkzeugleiste";
 import {
@@ -292,13 +292,11 @@ describe("radio-Geraeteliste: Suchfelder, Filterzaehler und Wertelisten", () => 
     /*
      * 1:1 aus `radio-admin/shared/src/constants.ts:4` und `:10-16`. ⛔ REIHENFOLGEERHALTEND,
      * nicht sortiert — `GERAETE_MODI` ist zugleich die kanonische AUSGABEreihenfolge der
-     * Zelle (`_lib/csv/klassifizieren.ts:17-33`), und `STATUS_OPTIONEN` die Reihenfolge des
-     * Auswahlfeldes.
+     * Zelle, und `STATUS_OPTIONEN` die Reihenfolge des Auswahlfeldes.
      *
-     * ⚠️ DIE ZWEI LISTEN LIEGEN IN ZWEI DATEIEN, und der Grund ist gemessen, nicht
-     * geschmacklich: er steht bei `STATUS_OPTIONEN` in `_lib/suchparameter.ts`
-     * ausgeschrieben. Dieser Fall haelt beide zusammen, damit die Trennung nicht zur Drift
-     * wird.
+     * ⛔ BEIDE LIEGEN IN `_lib/geraeteFelder.ts` — dem einen Blattmodul, aus dem eine Insel
+     * lesen darf, ohne `drizzle-orm` oder den CSV-Teilbaum mitzunehmen.
+     * `_lib/csv/klassifizieren.ts:33` reicht `GERAETE_MODI` fuer seine Alt-Leser weiter.
      */
     expect([...STATUS_OPTIONEN]).toEqual([
       "Einsatzbereit",
@@ -446,9 +444,11 @@ describe("radio-Geraeteliste: die Bauform der Insel", () => {
      * zwischen `import type { GeraetZeile } from "…/lesepfade/geraete"` (erlaubt, und die
      * Insel tut es) und einem Wertimport derselben Datei (verboten).
      *
-     * ⚠️ UND ER IST DIE UNTERGRENZE, NICHT DER BEWEIS: er sieht keine dynamischen Importe und
-     * keine Nicht-Relativpfade ausser `drizzle-orm` selbst. Was er sieht, sieht er
-     * mechanisch — was das Bundle wirklich enthaelt, zeigt erst `pnpm build` (V23).
+     * ⚠️ UND ER IST DIE UNTERGRENZE, NICHT DER BEWEIS. Drei benannte Grenzen: er sieht keine
+     * DYNAMISCHEN Importe; er sieht keinen Nicht-Relativpfad ausser den vier verbotenen
+     * Namen; und sein Muster verlangt ein `from`, ein blosser Seiteneffekt-Import
+     * (`import "./x";`) ist ihm unsichtbar. Was das Bundle wirklich enthaelt, zeigt erst
+     * `pnpm build` (V23).
      */
     const WURZELN = [
       "GeraeteTabelle.tsx",
@@ -500,7 +500,16 @@ describe("radio-Geraeteliste: die Bauform der Insel", () => {
         const nurTyp = treffer[1] !== undefined;
         const spezifizierer = treffer[3]!;
         if (nurTyp) continue;
-        if (/^drizzle-orm(?:\/|$)/.test(spezifizierer)) {
+        /*
+         * ⛔ VIER NAMEN, NICHT ZWEI. `drizzle-orm` und `_db/` sind der gemessene Fall;
+         * `node:*` und `better-sqlite3` sind DIESELBE Klasse und heute nur durch eine
+         * handgepflegte Trennung fern (`_lib/csv/klassifizieren.ts:6-9`: „Aus demselben Grund
+         * importiert diese Datei NICHTS aus `_lib/csv/einlesen.ts` — dort laufen die
+         * Node-Bausteine"). Der Insel-Graph erreicht `csv/klassifizieren.ts` seit V13; eine
+         * handgepflegte Trennung im Innern eines findenden Walkers ist genau die Blindstelle
+         * aus Ruling R-V11-3.
+         */
+        if (/^(?:drizzle-orm|node:|better-sqlite3)(?:\/|$)|^node:/.test(spezifizierer)) {
           verstoesse.push(`${datei}: Wertimport von ${spezifizierer}`);
           continue;
         }
@@ -520,12 +529,15 @@ describe("radio-Geraeteliste: die Bauform der Insel", () => {
     /*
      * ⛔ DIE UNTERGRENZE DES WALKERS (Ruling R-V11-1, Auflage 1): ohne sie waere `toEqual([])`
      * ueber einer Menge von fuenf Wurzeln gruen, auch wenn die Aufloesung gar nichts findet.
-     * Gemessen am 2026-08-25 mit DIESEM Walker: 12 Module (die fuenf Wurzeln, `_lib/`s
-     * `geraeteFelder`, `suchparameter`, `rollen`, `geraeteDiff`, `csv/klassifizieren`,
-     * `csv/spalten` und `admin/actions.ts` als Graphgrenze). Die Zahl ist bewusst KEINE
-     * exakte — sie belegt nur, dass der Graph gelaufen ist.
+     * Gemessen am 2026-08-25 mit DIESEM Walker: **8** Module — die fuenf Wurzeln,
+     * `_lib/geraeteFelder.ts`, `_lib/suchparameter.ts` und `admin/actions.ts` als Graphgrenze.
+     * ⚠️ Es waren 12, solange die Filterschublade `GERAETE_MODI` aus
+     * `_lib/csv/klassifizieren.ts` las und damit den ganzen CSV-Teilbaum (`geraeteDiff`,
+     * `rollen`, `csv/spalten`) mitzog; der Umzug ins Blattmodul hat vier Module aus dem
+     * Client-Graphen genommen. Die Untergrenze ist bewusst KEINE exakte Zahl — sie belegt nur,
+     * dass der Graph ueber die fuenf Wurzeln hinaus gelaufen ist.
      */
-    expect(gesehen.size, "der Walker ist dem Importgraphen nicht gefolgt").toBeGreaterThanOrEqual(10);
+    expect(gesehen.size, "der Walker ist dem Importgraphen nicht gefolgt").toBeGreaterThanOrEqual(7);
     expect(verstoesse).toEqual([]);
   });
 

@@ -3,11 +3,15 @@
 // src/app/m/radio/admin/(arbeit)/geraete/FilterSchublade.tsx
 import { useState } from "react";
 import { Button, Drawer, Select, Space, Switch } from "antd";
-import { GERAETE_MODI } from "../../../_lib/csv/klassifizieren";
 import type { Vorschlagsfeld } from "../../../_lib/lesepfade/geraete";
+/*
+ * ⛔ DIE ZWEI FESTEN WERTELISTEN KOMMEN AUS DEM BLATTMODUL `_lib/geraeteFelder.ts`, NICHT AUS
+ * `_lib/csv/klassifizieren.ts` (das `GERAETE_MODI` nur noch weiterreicht, `:33`): ueber jene
+ * Datei haengt der ganze CSV-Teilbaum, und diese hier ist eine `"use client"`-Datei.
+ */
+import { GERAETE_MODI, STATUS_OPTIONEN } from "../../../_lib/geraeteFelder";
 import {
   LEERE_FILTER,
-  STATUS_OPTIONEN,
   UPDATE_STAND_WERTE,
   type GeraetFilterWerte,
 } from "../../../_lib/suchparameter";
