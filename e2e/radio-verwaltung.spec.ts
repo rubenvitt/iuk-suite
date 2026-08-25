@@ -10,7 +10,7 @@ import { RADIO_ADMIN_GRUPPE, RADIO_HOST, radioUrl } from "./helpers/radio";
  * kann beide STRUKTURELL nicht sehen — dort gibt es keine RSC-Grenze
  * (`Spec:4870-4871`, `CLAUDE.md`, Falle 9).
  *
- * ⛔ JEDER AUFRUF GEHT UEBER `radioUrl(...)`, NIE RELATIV: `playwright.config.ts:64` fuehrt
+ * ⛔ JEDER AUFRUF GEHT UEBER `radioUrl(...)`, NIE RELATIV: `playwright.config.ts:65` fuehrt
  * genau EINEN `baseURL`, und der zeigt auf `http://portal.localtest.me:3100`. Ein relativer
  * Aufruf landete dort — und `portal` traegt `requiresAuth: true`, also im Login. Dieselbe
  * Bauform wie `e2e/lagerbuch-hosts.spec.ts` (`e2e/helpers/lagerbuch.ts:86-91`).

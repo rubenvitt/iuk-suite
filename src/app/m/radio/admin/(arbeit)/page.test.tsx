@@ -197,7 +197,7 @@ describe("die Verwaltungsuebersicht an /admin", () => {
      * 1:1 aus `radio-admin/client/src/features/dashboard/Dashboard.tsx:27-53`: „Geräte
      * gesamt" · „Aktuell" · „Veraltet" · „Unbekannt". Die Zahlen kommen aus
      * `geraeteKennzahlen` — EINE Abfrage mit `GROUP BY` statt vier Rundlaeufen
-     * (`_lib/lesepfade/geraete.ts:615`, `Spec:4780-4784`).
+     * (`_lib/lesepfade/geraete.ts:615-621`, `Spec:4780-4784`).
      */
     sechsVeraltete();
     expect(kennzahlen(await seite())).toEqual([
@@ -255,7 +255,7 @@ describe("die Verwaltungsuebersicht an /admin", () => {
     /*
      * 1:1 aus `Dashboard.tsx:21` (`{ page: 1, pageSize: 5, updateStatus: 'veraltet' }`) —
      * ⛔ OHNE eigene Sortierangabe, damit die Vorgabe `desc(createdAt)` des Lesepfads greift
-     * (`_lib/lesepfade/geraete.ts:501`). „Juengste" heisst genau das.
+     * (`_lib/lesepfade/geraete.ts:505`). „Juengste" heisst genau das.
      *
      * ⛔ DER TITEL FAELLT ZURUECK: `rufname || opta || issi` (`Dashboard.tsx:94`), und alle
      * drei Stufen kommen in dieser Liste vor. Darunter die ISSI-Zeile (`Dashboard.tsx:95`).
@@ -299,6 +299,13 @@ describe("die Verwaltungsuebersicht an /admin", () => {
     expect(verweise(baum).filter((v) => v.href.startsWith("/admin/geraete/"))).toEqual([]);
     expect(text(baum)).toContain("Keine veralteten Geräte");
     expect(kennzahlen(baum)).toHaveLength(4);
+    // ⛔ Die zwei uebrigen 1:1-Werte der Flaeche, bis hierher unbewacht (Aussenpruefung, F6):
+    // der Kartentitel (`Dashboard.tsx:77`) und die Ueberschrift (`_lib/nav.ts:61`). Der Titel
+    // steht in einem PROP, nicht in `children` — `text(baum)` allein saehe ihn nie.
+    expect(text(baum)).toContain("Übersicht");
+    expect(
+      elementeVomTyp(baum, Card).map((el) => text((el.props as { title?: ReactNode }).title)),
+    ).toContain("Veraltete Geräte");
   });
 
   it("traegt den Verweis „Alle veralteten anzeigen“ auf dieselbe gefilterte Liste", async () => {
@@ -342,5 +349,25 @@ describe("die Verwaltungsuebersicht an /admin", () => {
     const quelle = ohneKommentare(readFileSync(QUELLE, "utf8"));
     expect(quelle.match(/#[0-9a-fA-F]{3,8}\b/g), "ein Farbwert in der Uebersicht (Falle 3)")
       .toBeNull();
+  });
+
+  it("traegt die VERWALTUNGS-Stufe namentlich, nicht die Admin-Stufe", () => {
+    /*
+     * ⛔ DIE ZUSAGE DES BRIEFES, DIE BIS HIERHER NIRGENDS STAND (Aussenpruefung, F5).
+     * `riegel.test.ts`s Klausel (e) laesst im `(arbeit)`-Zweig BEIDE werfenden Riegel zu, und
+     * zwar absichtlich (`riegel.test.ts:253-262`, `personenRiegelFuer`) — eine faelschlich
+     * ANGEHOBENE Seite faellt ihr strukturell nicht auf. Dass die Faelle oben trotzdem rot
+     * werden, ist ein NEBENEFFEKT des `vi.mock`: das Ersatzmodul exportiert
+     * `requireRadioAdmin` nicht. Ein spaeterer Umbau auf `importOriginal`/Spread naehme diesen
+     * Waechter still weg; die Meldungen nennten dann den Mock und nicht die Stufe.
+     * ⛔ Die Stufe selbst kommt aus `Spec:4369`: die Uebersicht ist eine der sieben Flaechen,
+     * die auch eine Updater-Person sieht.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE, "utf8"));
+    expect(quelle, "die Uebersicht traegt requireRadioVerwaltung (Spec:4369)").toMatch(
+      /\brequireRadioVerwaltung\s*\(/,
+    );
+    expect(quelle, "angehoben auf die Admin-Stufe — Spec:4369 setzt die Verwaltungsstufe")
+      .not.toMatch(/\brequireRadioAdmin\s*\(/);
   });
 });

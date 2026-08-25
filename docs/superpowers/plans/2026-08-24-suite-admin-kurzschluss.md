@@ -808,9 +808,9 @@ dann „die roten Tests repariert", hat nichts bewiesen, sondern nur aufgeräumt
         und `e2e/helpers/aufgaben.ts:49,51`: eine Konstante `PORTAL_ADMIN_GRUPPE` und ein
         `export const PORTAL_ENV: Record<string, string> = { SUITE_ADMIN_GROUP_PORTAL: PORTAL_ADMIN_GRUPPE }`.
       * **`playwright.config.ts`**: importieren (neben `:7-8`) und als `...PORTAL_ENV` in
-        `webServer.env` spreaden, neben `...AUFGABEN_ENV` (`:281`).
+        `webServer.env` spreaden, neben `...AUFGABEN_ENV` (`:282`).
       * ⚠️ **Die Begründung im Kommentar ist Pflicht und steht schon geschrieben** —
-        `playwright.config.ts:283-288` sagt für `lagerbuch` genau, warum EINE Quelle:
+        `playwright.config.ts:284-289` sagt für `lagerbuch` genau, warum EINE Quelle:
         „`devLogin(…, { groups })` in jedem Verwaltungs-Spec liest DIESELBE Konstante wie
         SUITE_ADMIN_GROUP_LAGERBUCH hier. **Zwei Literale liefen auseinander, ohne dass ein Lauf rot
         wuerde — er waere GEGENTEILIG gruen**: ohne passende Gruppe bezeugt der Spec den 404".
@@ -1089,7 +1089,7 @@ zu eine Stunde (`CLAUDE.md`, „Zugriffsschutz"). Eine offene Sitzung misst den 
 | R4 | ⚠️ **Der `aufgaben`-Notausgang wird gebraucht, nachdem er entfernt wurde** | Niemand kommt in die Koordination; das Runbook nennt einen Rückweg, den es nicht mehr gibt | ⛔ **Deshalb K6 Schritt 6.** Ohne ihn ist die einzige Abhilfe ein direkter Datenbankeingriff |
 | R5 | **Tippfehler in `SUITE_ADMIN_GROUP_PORTAL`** | **Lauter Startabbruch** (`groups.ts:152-154` → `bootstrap.ts:90-100`). Der Container startet nicht | Das gutartigste Risiko der Tafel: es meldet sich selbst. `.env` korrigieren |
 | R6 | ⚠️ **`SUITE_ADMIN_GROUP_PORTAL` LEER gesetzt** | **Nichts.** Die Leer-Prüfung greift nur für ACCESS (`groups.ts:156`). `portal` ist gesperrt, still | ⛔ Genau die Falle 23, die `.env.example:83-91` für `radio` ausschreibt. Wert eintragen, **nicht** die Zeile löschen |
-| R6b | ⛔ **K5 gefahren, ohne `...PORTAL_ENV` in `playwright.config.ts`** | K7 Schritt 5 rot in `portal.spec.ts`, `launcher.spec.ts`, `mobil-admin.spec.ts` — und zwar **egal welcher Gruppenname** im `devLogin` steht, weil `adminGroupsFor(portal)` in E2E `[]` liefert | K4 Schritt 3 nachholen. ⚠️ **Die gefährlichere Variante ist die umgekehrte:** Gruppenname im Spec ≠ Wert in `PORTAL_ENV` — dann ist der Lauf **grün und bezeugt den 404**, wörtlich der Fall aus `playwright.config.ts:286-288` |
+| R6b | ⛔ **K5 gefahren, ohne `...PORTAL_ENV` in `playwright.config.ts`** | K7 Schritt 5 rot in `portal.spec.ts`, `launcher.spec.ts`, `mobil-admin.spec.ts` — und zwar **egal welcher Gruppenname** im `devLogin` steht, weil `adminGroupsFor(portal)` in E2E `[]` liefert | K4 Schritt 3 nachholen. ⚠️ **Die gefährlichere Variante ist die umgekehrte:** Gruppenname im Spec ≠ Wert in `PORTAL_ENV` — dann ist der Lauf **grün und bezeugt den 404**, wörtlich der Fall aus `playwright.config.ts:287-289` |
 | R7 | **Ein Kommentar aus 2.5 bleibt stehen** | Kein Tor merkt es. Der nächste Leser setzt `:125` aus derselben Überlegung wieder ein, aus der sie einmal entstand | K6, und der Datumsverweis auf diesen Plan in `groups.ts:12-20` |
 | R8 | **Ein neuer Kommentar in `files`/`lagerbuch`/`radio` nennt `isModuleAdmin` wörtlich** | ⚠️ **Roter Quelltext-Scan** (`files/_lib/access.test.ts:39-41`, `lagerbuch/_lib/bauform.test.ts:233-245`, `radio/riegel.test.ts:1033`) — die einzige Stelle, wo ein Tor eine Kommentaränderung sieht | Namen aus dem Kommentar nehmen, umschreiben |
 | R9 | ⚠️ **Weg B gefahren, obwohl K-L2 unbesetzt ist** | Nichts geht schief — aber es wurden acht Tests, vier Specs und dreizehn Kommentare für null Wirkung geändert | Kein Rückweg nötig; **das ist der Grund für K1 Schritt 2** |

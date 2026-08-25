@@ -8,7 +8,7 @@
  * falschem `groups` bezeugte der Lauf den Riegel-404 und saehe dabei aus wie ein
  * bestandener Test. Derselbe Absatz steht fuer `lagerbuch` in
  * `e2e/helpers/lagerbuch.ts:5-13` und fuer `aufgaben` in
- * `playwright.config.ts:228-247`.
+ * `playwright.config.ts:229-248`.
  */
 
 /** Der Modul-Host. Wildcard-DNS loest jeden `*.localtest.me` auf 127.0.0.1 auf. */
@@ -18,7 +18,7 @@ export const RADIO_HOST = "radio.localtest.me";
  * Der ZWEITE erreichbare Suite-Host fuer die „fremder Host"-Zusage (Spec:4891,
  * Fall 8).
  *
- * ⚠️ ER EXISTIERT BEREITS: `playwright.config.ts:155` wartet heute schon auf
+ * ⚠️ ER EXISTIERT BEREITS: `playwright.config.ts:156` wartet heute schon auf
  * `http://feedback.localtest.me:3100/login`. Es wird KEIN dritter Host
  * eingefuehrt — und `feedback` ist die schaerfere Probe, weil `moduleForHost`
  * dort tatsaechlich ein Modul liefert (`e2e/helpers/lagerbuch.ts:23-27`).
@@ -66,7 +66,7 @@ export const RADIO_UPDATER_GRUPPE = "iuk-radio-updater";
  * Repo-Wurzelverzeichnis und liest `.env.local` mit; wer dort den produktiven
  * Namen eintraegt, verschoebe still die Gruppe des E2E-Servers, und der Lauf
  * waere nicht rot, sondern gegenteilig gruen. Die Begruendung steht fuer
- * `aufgaben` ausgeschrieben in `playwright.config.ts:233-246`; ein in
+ * `aufgaben` ausgeschrieben in `playwright.config.ts:234-247`; ein in
  * `webServer.env` gesetzter Wert hat Vorrang vor jeder `.env`-Datei.
  *
  * ⚠️ `SUITE_HOST_RADIO` STEHT BEWUSST NICHT DARUNTER — anders als bei
@@ -82,7 +82,7 @@ export const RADIO_ENV: Record<string, string> = {
 
 /**
  * Absolute Per-Host-URL: `baseURL` zeigt auf den PORTAL-Host
- * (`playwright.config.ts:64`), und `portal` traegt `requiresAuth: true` — jeder
+ * (`playwright.config.ts:65`), und `portal` traegt `requiresAuth: true` — jeder
  * RELATIVE Aufruf landete dort im Login (`e2e/helpers/lagerbuch.ts:86-91`).
  */
 export function radioUrl(pfad: string): string {

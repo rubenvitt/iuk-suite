@@ -7,7 +7,7 @@ import {
   RADIO_UPDATER_GRUPPE,
   radioUrl,
 } from "../../../../../e2e/helpers/radio";
-import { updaterGruppe, istInUpdaterGruppe } from "./zugang";
+import { istRadioAdmin, updaterGruppe, istInUpdaterGruppe } from "./zugang";
 
 /**
  * DIE ZWEI ENV-ZEILEN DES E2E-SERVERS, GEGEN DAS MODUL GEKOPPELT.
@@ -35,10 +35,19 @@ import { updaterGruppe, istInUpdaterGruppe } from "./zugang";
  */
 
 const VORHER = process.env.SUITE_UPDATER_GROUP_RADIO;
+/*
+ * ⛔ AUCH DIE ADMIN-VARIABLE WIRD GESICHERT, und das ist keine Symmetrie um ihrer selbst
+ * willen: der Fall unten LOESCHT sie, um die Registry-Vorgabe zu erzwingen. Ein
+ * durchgelassenes `delete` traefe jede weitere Testdatei im selben Worker-Prozess und
+ * meldete sich als „neuer Fehlschlag" ganz woanders.
+ */
+const VORHER_ADMIN = process.env.SUITE_ADMIN_GROUP_RADIO;
 
 afterEach(() => {
   if (VORHER === undefined) delete process.env.SUITE_UPDATER_GROUP_RADIO;
   else process.env.SUITE_UPDATER_GROUP_RADIO = VORHER;
+  if (VORHER_ADMIN === undefined) delete process.env.SUITE_ADMIN_GROUP_RADIO;
+  else process.env.SUITE_ADMIN_GROUP_RADIO = VORHER_ADMIN;
 });
 
 /** Der `next dev`-Eintrag aus `playwright.config.ts` (Vorbild `files/_lib/devAufbau.test.ts:68-84`). */
@@ -80,6 +89,30 @@ describe("RADIO_ENV — die zwei Gruppenzeilen des E2E-Servers", () => {
     expect(updaterGruppe()).toBe(RADIO_UPDATER_GRUPPE);
     expect(istInUpdaterGruppe([RADIO_UPDATER_GRUPPE])).toBe(true);
   });
+
+  it("nennt auch fuer die ADMIN-Stufe die Gruppe, die der Riegel wirklich akzeptiert", () => {
+    /*
+     * ⛔ DIE ASYMMETRIE, DIE HIER GESCHLOSSEN WIRD (Aussenpruefung zu V12, Fund F3): der Fall
+     * oben koppelt den UPDATER-Namen an seinen Leser, der erste Fall dieser Datei vergleicht
+     * `RADIO_ENV` dagegen nur mit DENSELBEN Konstanten, aus denen es gebaut ist — er faengt
+     * einen Schluesseltippfehler, aber keinen falschen WERT. Gemessen: `RADIO_ADMIN_GRUPPE`
+     * auf `"iuk-radio-admins"` verdreht liess alle 57 Testdateien gruen.
+     *
+     * ⛔ OHNE `SUITE_ADMIN_GROUP_RADIO` GEMESSEN, UND DAS IST DIE GANZE SCHAERFE. Mit gesetzter
+     * Variable stuenden beide Seiten des Vergleichs auf derselben Konstante und wanderten
+     * gemeinsam — genau die Tautologie, gegen die dieser Fall steht. Geloescht faellt
+     * `adminGroupsFor` auf die Registry-Vorgabe zurueck (`src/core/registry.ts:198`, gelesen
+     * ueber `_lib/zugang.ts:188-192`), und die ist der Wert, den der E2E-Lauf auch dann
+     * traegt, wenn `RADIO_ENV` ihn spiegelt.
+     *
+     * ⚠️ WAS ER NICHT BELEGT: dass der Riegel im echten Abruf 404 liefert. Das ist ⬜ V-L3
+     * und gehoert V23; hier steht nur das Praedikat.
+     */
+    delete process.env.SUITE_ADMIN_GROUP_RADIO;
+    const person = (gruppen: string[]) => ({ sub: "pid-1", name: "Testperson", groups: gruppen });
+    expect(istRadioAdmin(person([RADIO_ADMIN_GRUPPE]))).toBe(true);
+    expect(istRadioAdmin(person(["iuk-irgendetwas-anderes"]))).toBe(false);
+  });
 });
 
 describe("playwright.config.ts — der radio-Teil (Vorabscan-Fund F24)", () => {
@@ -98,7 +131,7 @@ describe("playwright.config.ts — der radio-Teil (Vorabscan-Fund F24)", () => {
 
   it("faehrt die radio-Faelle ueber eine ABSOLUTE URL auf den Modul-Host", () => {
     /*
-     * ⛔ `baseURL` ZEIGT AUF DEN PORTAL-HOST (`playwright.config.ts:64`), und `portal`
+     * ⛔ `baseURL` ZEIGT AUF DEN PORTAL-HOST (`playwright.config.ts:65`), und `portal`
      * traegt `requiresAuth: true` — ein RELATIVER Aufruf landete im Login statt auf
      * `/admin`, und der Fall bezeugte den Login. ⬜ V-L4 ist deshalb gestrichen: es braucht
      * keinen zweiten `baseURL`, sondern die absolute Form (`e2e/helpers/lagerbuch.ts:86-91`).

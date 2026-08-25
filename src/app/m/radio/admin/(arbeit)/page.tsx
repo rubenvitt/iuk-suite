@@ -40,7 +40,7 @@ import s from "../../_ui/verwaltung.module.css";
  *      `<ul>`. `renderItem` ist Falle 9, `List.Item.Meta` ist Falle 1.
  *
  * ⛔ DIE VIER ZAHLEN ENTSTEHEN IN EINER ABFRAGE mit `GROUP BY`
- * (`_lib/lesepfade/geraete.ts:615`), nicht in vier Rundlaeufen mit `pageSize: 1` wie im
+ * (`_lib/lesepfade/geraete.ts:615-621`), nicht in vier Rundlaeufen mit `pageSize: 1` wie im
  * Bestand (`radio-admin/client/src/hooks/useDashboardStats.ts:17-20`). `Spec:4780-4784`
  * nennt den Grund: die vier Rundlaeufe waren eine Folge der HTTP-Grenze, nicht der
  * Fachlichkeit.
@@ -76,7 +76,7 @@ import s from "../../_ui/verwaltung.module.css";
  * (`useDevices({ page: 1, pageSize: 5, updateStatus: 'veraltet' })`).
  *
  * ⛔ OHNE EIGENE SORTIERANGABE. Der Alt-Client schickt keine, und damit greift die Vorgabe
- * des Lesepfads: `desc(createdAt)` (`_lib/lesepfade/geraete.ts:501`, 1:1 zu
+ * des Lesepfads: `desc(createdAt)` (`_lib/lesepfade/geraete.ts:505`, 1:1 zu
  * `radio-admin/server/src/repos/deviceRepo.ts:195`). „Juengste" heisst genau das — wer hier
  * `sortierung` setzte, aenderte die Auswahl der fuenf, nicht nur ihre Reihenfolge.
  */
