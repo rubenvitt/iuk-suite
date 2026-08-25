@@ -106,6 +106,46 @@ test.describe("radio-Verwaltung", () => {
     ).toBeVisible();
 
     /*
+     * ⛔ HIER, UND NUR HIER, WIRD S-V13d GEFANGEN — nachgetragen in Fix-Runde 1 zu V13
+     * (`.superpowers/sdd/planteil4/REVIEW-V13.md:99`, Fund W3). Die drei Zusicherungen des
+     * Falles waren VORHER alle drei unempfindlich gegen ein eingeschaltetes `pagination`:
+     * der Status bleibt 200, die Kopfzeile steht unveraendert, und die Adresszeile aendert
+     * sich nicht. Die Sonde hatte damit in KEINEM der beiden Werkzeuge einen Waechter.
+     *
+     * ⛔ DAS UNTERSCHEIDENDE PAAR, NICHT EINE EINZELNE NADEL: antds eigene Blaetterung ist
+     * ABWESEND (`.ant-table-pagination`, `antd/es/table/InternalTable.js:374`) UND die
+     * URL-schreibende Blaetterung der Insel ist DA. Eine Insel ohne jede Blaetterung bestuende
+     * die erste Haelfte und faellt an der zweiten.
+     *
+     * ⛔ UND DIE VORBEDINGUNG STEHT DANEBEN, WEIL SIE DIE ZUSICHERUNG SONST STILL ENTWERTET:
+     * antd rendert die Blaetterung nur bei `pagination !== false && mergedPagination?.total`
+     * (`antd/es/table/InternalTable.js:368`, aufgeschlagen). Bei NULL Datenzeilen waere
+     * `.ant-table-pagination` also auch UNTER der Mutation abwesend — die Zusicherung waere
+     * gruen aus dem falschen Grund, genau die Fehlerform aus Ruling R-V11-1, Fund 1.
+     * ⚠️ `tbody tr.ant-table-row` und nicht `tbody tr`: die Leerdarstellung ist selbst ein
+     * `<tr class="ant-table-placeholder">` (`@rc-component/table/es/Body/index.js:99`).
+     *
+     * ⬜ **V13-L2 — HEUTE SEEDET DER E2E-LAUF `radio` NICHT.** `core/bootstrap.ts:49-54`
+     * nimmt das Modul bewusst vom Boot-Seed aus, und `playwright.config.ts:142` ruft
+     * `scripts/seed-lokal.ts` nur mit `aufgaben`. ⛔ **Eigentuemer: V23** — dessen Faelle 3, 4,
+     * 6 und 7 brauchen ohnehin ein vorhandenes Geraet (`briefs/V23.md`). Bis dahin ist diese
+     * Zeile die LAUTE Form des Befunds: sie faellt mit ihrer eigenen Begruendung aus, statt
+     * die Zusicherung darunter stillschweigend zahnlos zu machen.
+     */
+    expect(
+      await page.locator("table tbody tr.ant-table-row").count(),
+      "⬜ V13-L2: ohne Datenzeile kann diese Flaeche S-V13d nicht fangen (InternalTable.js:368)",
+    ).toBeGreaterThan(0);
+    await expect(
+      page.locator(".ant-table-pagination"),
+      "antds Vorgabe-Blaetterung ist an — Regime B verlangt pagination={false} (Sonde S-V13d)",
+    ).toHaveCount(0);
+    await expect(
+      page.locator('[data-rolle="radio-blaetterung"]'),
+      "die URL-schreibende Blaetterung der Insel fehlt",
+    ).toHaveCount(1);
+
+    /*
      * ⛔ DIE ADRESSZEILE TRAEGT DEN FILTER (Regime B). Gefahren wird der Weg, den auch der
      * Vitest-Fall „ein gesetzter Filter landet in der URL" faehrt — hier aber gegen den
      * echten Router, der die Seite danach WIRKLICH neu liest.

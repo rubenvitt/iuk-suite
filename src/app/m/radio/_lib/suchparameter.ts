@@ -28,10 +28,10 @@ import type { UpdateStand } from "./updateStand";
  * `src/app/m/lagerbuch/_ui/useUrlFilter.ts:16-27`.
  *
  * ⛔ DIESE DATEI SCHREIBT KEINE SCHLUESSELLISTE ZWEITMAL. Die zwoelf Suchfelder, die sieben
- * Vorgabefelder und die acht Sortierschluessel stehen in `_lib/lesepfade/geraete.ts`
- * (`:224`, `:231-240`, `:273`) — mit der Begruendung dort: schriebe die Flaeche `location`
- * und der Lesepfad `lagerort`, blieben typecheck, lint, build und jeder Test gruen, und die
- * Liste waere fuer diese Auswahl dauerhaft leer.
+ * Vorgabefelder und die acht Sortierschluessel stehen in `_lib/geraeteFelder.ts` und werden
+ * von `_lib/lesepfade/geraete.ts` nur WEITERexportiert (`:224`, `:239`, `:273`) — mit der
+ * Begruendung dort: schriebe die Flaeche `location` und der Lesepfad `lagerort`, blieben
+ * typecheck, lint, build und jeder Test gruen, und die Liste waere dauerhaft leer.
  */
 
 /**
@@ -225,7 +225,7 @@ export function geraeteParameterAus(roh: RohSuchparameter): {
     hatAbweichung: schalter(roh.hatAbweichung),
   };
 
-  const werte: GeraeteSuchWerte = { q, sf: sfRoh.length ? sfRoh : sf, seite, sortierung, filter: filterWerte };
+  const werte: GeraeteSuchWerte = { q, sf, seite, sortierung, filter: filterWerte };
 
   const filter: GeraetFilter = {
     q: q || undefined,

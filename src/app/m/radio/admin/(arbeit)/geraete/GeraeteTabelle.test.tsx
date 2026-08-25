@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // src/app/m/radio/admin/(arbeit)/geraete/GeraeteTabelle.test.tsx
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
 
 /**
@@ -29,8 +29,45 @@ import { dirname, join, normalize } from "node:path";
  * (`baueSpalten`), nicht am gerenderten Tabellenkopf. Der Kopf ist V23s Fall.
  */
 
-const QUELLE_TABELLE = "src/app/m/radio/admin/(arbeit)/geraete/GeraeteTabelle.tsx";
-const QUELLE_SEITE = "src/app/m/radio/admin/(arbeit)/geraete/page.tsx";
+const INSEL_ORDNER = "src/app/m/radio/admin/(arbeit)/geraete";
+const QUELLE_TABELLE = `${INSEL_ORDNER}/GeraeteTabelle.tsx`;
+const QUELLE_SEITE = `${INSEL_ORDNER}/page.tsx`;
+
+/**
+ * DIE FUENF DATEIEN DER INSEL — ⛔ GEFUNDEN, NICHT AUFGEZAEHLT (Ruling **R-V11-1**,
+ * `.superpowers/sdd/planteil4/progress.md`, Abschnitt „Rulings").
+ *
+ * ⛔ WARUM DAS DER UNTERSCHIED IST, DER ZAEHLT — gemessen in der Schlusspruefung zu V13
+ * (`.superpowers/sdd/planteil4/REVIEW-V13.md:101`, Fund M2): eine SECHSTE Datei in diesem
+ * Verzeichnis, ohne Bauform-Direktive UND mit einem Wertimport aus `_db/schema`, liess
+ * `Test Files 59 passed (59)` · `Tests 802 passed | 5 todo (807)` stehen — beide Scans
+ * dieser Datei lasen damals eine handgeschriebene Fuenfernamen-Liste und sahen sie nicht.
+ *
+ * ⛔ DER AUSSCHLUSS STEHT AM BLATT UND NICHT AM AST (Ruling **R-V11-3**): gefiltert wird
+ * ueber Endung und Dateinamen, nicht ueber ein uebersprungenes Verzeichnis. Ausgenommen sind
+ * genau die Namen, die Next selbst als SERVER-Einstiege fuehrt (`page.tsx`, `layout.tsx`,
+ * `template.tsx`, `route.ts`) und die Testdateien. Alles Uebrige in diesem Verzeichnis ist
+ * per E-V6 Teil von Insel 1 — legt jemand dort eine Server-Hilfsdatei ab, ist dieser Fall
+ * rot, und das ist gewollt.
+ */
+const SERVER_EINSTIEGE = ["page.tsx", "layout.tsx", "template.tsx", "route.ts"];
+
+function inselDateien(): string[] {
+  return readdirSync(INSEL_ORDNER)
+    .filter((name) => /\.tsx?$/.test(name))
+    .filter((name) => !/\.test\.tsx?$/.test(name))
+    .filter((name) => !SERVER_EINSTIEGE.includes(name))
+    .sort();
+}
+
+/** ⛔ Die Sollwerttafel steht NUR auf der rechten Seite — sie ist der Prueffling der Messung. */
+const INSEL_SOLL = [
+  "FilterSchublade.tsx",
+  "GeraeteTabelle.tsx",
+  "GeraeteWerkzeugleiste.tsx",
+  "NeuGeraetModal.tsx",
+  "SpaltenWahl.tsx",
+];
 
 /**
  * ⛔ `admin/actions.ts` WIRD ERSETZT, NICHT GELADEN. Die Datei traegt `"use server"` als
@@ -56,7 +93,16 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/geraete",
 }));
 
-import { click, clickPortal, exists, mount, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
+import { act } from "react";
+import {
+  click,
+  clickPortal,
+  exists,
+  existsPortal,
+  mount,
+  queryPortal,
+  unmount,
+} from "@/app/m/qr/_lib/test-dom";
 import { ohneKommentare } from "../../../_lib/quelltextScan";
 import {
   SORTIER_SCHLUESSEL,
@@ -395,9 +441,168 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
      * naheliegende „Reparatur" waere, sie zu loeschen — dieselbe Falle, die
      * `riegel.test.ts:183-191` beschreibt.
      */
+    /*
+     * ⛔ ZWEIMAL, NICHT „IRGENDWO" — UND DAS IST DIE TRAGENDE HAELFTE DIESES FALLES. Die
+     * Zieladresse steht an ZWEI Stellen: `onRow` am Tabellenzweig (`GeraeteTabelle.tsx:497-500`)
+     * und `onClick` an der Karte des mobilen Zweigs (`:517`). Ein `toMatch` allein fand den
+     * mobilen Treffer und blieb gruen, wenn der GANZE `onRow`-Block verschwand — gemessen in
+     * der Schlusspruefung (`.superpowers/sdd/planteil4/REVIEW-V13.md:98`, Fund W2: Block
+     * entfernt, `Test Files 59 passed (59)` · `Tests 802 passed | 5 todo (807)`, 0 rot).
+     * ⚠️ Und Vitest kann es hier auch nicht am DOM sehen: `vitest.setup.ts` stubt `matchMedia`
+     * mit `matches: false`, es rendert ausschliesslich der mobile Zweig. Der Klick auf eine
+     * echte Tabellenzeile ist V23s Fall.
+     */
     const quelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
     expect(quelle, "eine innere Pfadform in der Insel").not.toMatch(/["'`]\/m\/radio\//);
-    expect(quelle).toMatch(/\/admin\/geraete\/\$\{/);
+    expect(
+      (quelle.match(/\/admin\/geraete\/\$\{/g) ?? []).length,
+      "die Detailadresse steht nicht an BEIDEN Stellen (Tabellenzweig und mobiler Zweig)",
+    ).toBe(2);
+    expect(quelle, "der Tabellenzweig traegt kein onRow mehr").toMatch(/onRow=\{/);
+  });
+});
+
+/**
+ * DER ANLEGEN-DIALOG (`NeuGeraetModal.tsx`) — nachgetragen in Fix-Runde 1 zu V13.
+ *
+ * ⛔ ER WAR VOLLSTAENDIG UNBEWACHT, und zwei Sonden der Schlusspruefung haben es gemessen
+ * (`.superpowers/sdd/planteil4/REVIEW-V13.md:97`, Fund W1): den ISSI-Pflichtfeldriegel
+ * entfernt → `Test Files 59 passed (59)` · `Tests 802 passed | 5 todo (807)`, **0 rot**; den
+ * Aufruf von `geraetAnlegenAction` durch ein festes `{ ok: true }` ersetzt → dieselbe Ausgabe,
+ * **0 rot**. `anlegenMock` wurde aufgesetzt und nie ausgewertet.
+ *
+ * ⛔ DIE ABFRAGEN LAUFEN UEBER `queryPortal`: antds `Modal` rendert durch ein PORTAL an
+ * `document.body` (`@/app/m/qr/_lib/test-dom:174-186`) — der Dialog ist ein GESCHWISTER des
+ * Mount-Wirts, `query()` faende ihn nie. Dieselbe Bauform wie `_ui/RueckgabeDialog.test.tsx:23-25`.
+ */
+const ANLEGEN_KNOPF = '[data-rolle="radio-geraet-anlegen"]';
+const NEU_ISSI = '[data-rolle="radio-neu-issi"]';
+const NEU_FEHLER = '[data-rolle="radio-neu-fehler"]';
+
+/**
+ * `fill` aus dem Harness sucht im WIRT (`test-dom:109-112`) und findet im Portal nichts.
+ * ⛔ KEIN ZWEITES HARNESS: dieser Helfer ist zeichengleich zu `test-dom:139-147`, nur mit
+ * `queryPortal` — dasselbe Vorgehen wie `_ui/RueckgabeDialog.test.tsx:88-100`.
+ */
+async function fuellePortal(selektor: string, wert: string): Promise<void> {
+  const feld = queryPortal<HTMLInputElement>(selektor);
+  const setzer = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(feld), "value")?.set;
+  if (!setzer) throw new Error(`Kein value-Setter am Prototyp von ${feld.tagName}`);
+  await act(async () => {
+    setzer.call(feld, wert);
+    feld.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+/**
+ * Der Bestaetigungsknopf des Dialogs — ⛔ UEBER SEINEN TEXT UND NICHT UEBER `.ant-btn-primary`.
+ * Die Werkzeugleiste traegt selbst einen `type="primary"`-Knopf („Gerät anlegen"), und
+ * `queryPortal` sucht ueber `document.body`, also ueber Wirt UND Portal: eine Abfrage auf
+ * `.ant-btn-primary` fände den Ausloeser statt der Bestaetigung.
+ */
+function bestaetigen(): HTMLElement {
+  const fuss = queryPortal(".ant-modal-footer");
+  const knopf = Array.from(fuss.querySelectorAll("button")).find(
+    (b) => b.textContent?.trim() === "Anlegen",
+  );
+  if (!knopf) throw new Error("Kein Knopf „Anlegen“ im Dialogfuss");
+  return knopf;
+}
+
+async function oeffneDialog(): Promise<void> {
+  await mount(<GeraeteTabelle {...eigenschaften()} />);
+  expect(existsPortal(NEU_ISSI), "der Dialog haengt schon vor dem Klick").toBe(false);
+  await click(ANLEGEN_KNOPF);
+}
+
+async function bestaetige(): Promise<void> {
+  const knopf = bestaetigen();
+  await act(async () => {
+    knopf.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  // Der zweite Durchlauf loest das Versprechen der Action auf, bevor abgelesen wird.
+  await act(async () => {});
+}
+
+describe("radio-Geraeteliste: der Anlegen-Dialog", () => {
+  it("geht erst auf Klick auf und traegt genau das eine Pflichtfeld", async () => {
+    /*
+     * ⛔ „GENAU EINS" IST DER WAECHTER UEBER ⬜ V13-L1, NICHT EINE ZUSAGE UEBER DEN BESTAND.
+     * Der Bestand fuehrt hier zwanzig benannte Felder (`DeviceFields.tsx`, 21 gerenderte
+     * `Form.Item`); die Suite fuehrt in V13 nur die ISSI — benannte Abweichung A4, und die
+     * Datei hat heute KEINEN Eigentuemer (`briefs/V14.md:3-5` fuehrt sie nicht).
+     * ⛔ Wer den Feldsatz nachtraegt, macht diesen Fall rot — und genau das soll er tun: eine
+     * Datei ohne Eigentuemer UND ohne Test ist die, die still veraltet.
+     */
+    await oeffneDialog();
+    /* `.ant-modal-body` und nicht der ganze Dialog: der Rumpf ohne Kopf und Fuss ist der
+       Feldsatz (`@rc-component/dialog/es/Dialog/Content/Panel.js:105`). */
+    const rumpf = queryPortal(".ant-modal-body");
+    expect(rumpf.querySelectorAll("input").length, "⬜ V13-L1: der Feldsatz ist gewachsen").toBe(1);
+    expect(existsPortal(NEU_ISSI), "das ISSI-Feld fehlt").toBe(true);
+    expect(existsPortal(NEU_FEHLER), "ein Fehler steht schon vor der ersten Eingabe").toBe(false);
+  });
+
+  it("meldet die fehlende ISSI und ruft die Action NICHT", async () => {
+    /*
+     * ⛔ DAS EINZIGE PFLICHTFELD DES BESTANDS (`DeviceFields.tsx:64`, `shared/src/schemas.ts:52`
+     * — `issi: z.string().min(1)`), und der Text ist zeichengleich seiner.
+     * ⛔ BEIDE HAELFTEN SIND TRAGEND: der Text erscheint UND die Action bleibt ungerufen. Ohne
+     * die zweite Haelfte waere ein Riegel gruen, der die Meldung zeigt und trotzdem schreibt.
+     * ⛔ UND DER LEERRAUM-FALL GEHOERT DAZU: der Riegel prueft `issi.trim()`
+     * (`NeuGeraetModal.tsx:66-71`) — ein Blindtext aus drei Leerzeichen ist keine ISSI.
+     */
+    await oeffneDialog();
+    await bestaetige();
+
+    expect(queryPortal(NEU_FEHLER).textContent).toBe("ISSI ist erforderlich");
+    expect(anlegenMock, "die Action lief trotz leerer ISSI").not.toHaveBeenCalled();
+
+    await fuellePortal(NEU_ISSI, "   ");
+    await bestaetige();
+    expect(queryPortal(NEU_FEHLER).textContent).toBe("ISSI ist erforderlich");
+    expect(anlegenMock, "drei Leerzeichen sind durchgegangen").not.toHaveBeenCalled();
+  });
+
+  it("ruft die Action mit der GETRIMMTEN ISSI und schliesst danach", async () => {
+    /*
+     * ⛔ DIE ACTION WIRD DIREKT IMPORTIERT, NICHT ALS PROP GEREICHT (Bauform-Tafel Nr. 6) —
+     * deshalb ist `../../actions` hier das Mock-Ziel und nicht eine Eigenschaft der Insel.
+     * ⛔ GETRIMMT: `NeuGeraetModal.tsx:66` schickt `issi.trim()`. Eine ISSI mit Leerraum am
+     * Rand waere in der Datenbank ein zweites, unauffindbares Geraet — die Spalte traegt einen
+     * `unique`-Riegel, und „1000042 " verletzt ihn nicht.
+     */
+    anlegenMock.mockResolvedValue({ ok: true, id: "g-9" });
+    await oeffneDialog();
+
+    await fuellePortal(NEU_ISSI, "  1000042  ");
+    await bestaetige();
+
+    expect(anlegenMock).toHaveBeenCalledTimes(1);
+    expect(anlegenMock).toHaveBeenCalledWith({ issi: "1000042" });
+    expect(existsPortal(NEU_ISSI), "der Dialog blieb nach dem Erfolg offen").toBe(false);
+  });
+
+  it("zeigt bei ok:false den Satz DER ACTION und bleibt offen", async () => {
+    /*
+     * ⛔ DER TEXT KOMMT AUS DER ACTION (`admin/actions.ts:131-132`), NICHT AUS EINER ZWEITEN
+     * LISTE IM DIALOG. Deshalb steht hier ein Satz, den der Dialog selbst nirgends kennt —
+     * und ausdruecklich NICHT „ISSI ist erforderlich": sonst koennte der Fall auch dann gruen
+     * sein, wenn er in Wahrheit den Pflichtfeldzweig gemessen hat.
+     * ⛔ OFFEN BLEIBEN IST DIE ZWEITE HAELFTE: `aufSchliessen` laeuft nur im `ok`-Zweig
+     * (`NeuGeraetModal.tsx:76-79`). Ein Dialog, der bei einem Fehler schliesst, wirft die
+     * Eingabe weg — dieselbe Feinheit, die `_ui/RueckgabeDialog.test.tsx` fuer die Rueckgabe
+     * fuehrt.
+     */
+    anlegenMock.mockResolvedValue({ ok: false, fehler: "ISSI bereits vergeben" });
+    await oeffneDialog();
+
+    await fuellePortal(NEU_ISSI, "1000042");
+    await bestaetige();
+
+    expect(anlegenMock).toHaveBeenCalledTimes(1);
+    expect(queryPortal(NEU_FEHLER).textContent).toBe("ISSI bereits vergeben");
+    expect(existsPortal(NEU_ISSI), "der Dialog schloss trotz Fehler").toBe(true);
   });
 });
 
@@ -408,15 +613,15 @@ describe("radio-Geraeteliste: die Bauform der Insel", () => {
      * Insel fuehrt `render`-Funktionen, `Grid.useBreakpoint()`, `Input.Search` und
      * `Space.Compact`. Fehlte die Direktive an EINER der fuenf, waere es HTTP 500 beim
      * ersten Abruf — und typecheck, lint und build saehen nichts.
+     *
+     * ⛔ DIE MENGE WIRD GEFUNDEN, NICHT AUFGEZAEHLT (R-V11-1, siehe `inselDateien`): eine
+     * sechste Datei ohne Direktive war fuer die alte Literal-Liste unsichtbar — gemessen,
+     * `.superpowers/sdd/planteil4/REVIEW-V13.md:101`.
      */
-    for (const datei of [
-      "GeraeteTabelle.tsx",
-      "GeraeteWerkzeugleiste.tsx",
-      "SpaltenWahl.tsx",
-      "FilterSchublade.tsx",
-      "NeuGeraetModal.tsx",
-    ]) {
-      const quelle = readFileSync(`src/app/m/radio/admin/(arbeit)/geraete/${datei}`, "utf8");
+    const gefunden = inselDateien();
+    expect(gefunden, "eine Datei ist dazugekommen oder verschwunden").toEqual(INSEL_SOLL);
+    for (const datei of gefunden) {
+      const quelle = readFileSync(`${INSEL_ORDNER}/${datei}`, "utf8");
       expect(quelle.trimStart().split("\n")[0]!.trim(), `${datei}: keine Direktive`).toMatch(
         /^["']use client["'];?$/,
       );
@@ -450,13 +655,15 @@ describe("radio-Geraeteliste: die Bauform der Insel", () => {
      * (`import "./x";`) ist ihm unsichtbar. Was das Bundle wirklich enthaelt, zeigt erst
      * `pnpm build` (V23).
      */
-    const WURZELN = [
-      "GeraeteTabelle.tsx",
-      "GeraeteWerkzeugleiste.tsx",
-      "SpaltenWahl.tsx",
-      "FilterSchublade.tsx",
-      "NeuGeraetModal.tsx",
-    ].map((datei) => `src/app/m/radio/admin/(arbeit)/geraete/${datei}`);
+    /*
+     * ⛔ AUCH DIE WURZELMENGE WIRD GEFUNDEN (R-V11-1, siehe `inselDateien`). Der Walker folgte
+     * dem Graphen bereits richtig, seine EINSTIEGE waren aber handgepflegt: eine sechste Datei
+     * mit einem Wertimport aus `_db/schema` blieb ihm unsichtbar
+     * (`.superpowers/sdd/planteil4/REVIEW-V13.md:101`, Fund M2, gemessen).
+     */
+    const gefunden = inselDateien();
+    expect(gefunden, "eine Datei ist dazugekommen oder verschwunden").toEqual(INSEL_SOLL);
+    const WURZELN = gefunden.map((datei) => `${INSEL_ORDNER}/${datei}`);
 
     /** Ein `import`/`export … from` mit seiner Typ-Markierung und seinem Modulpfad. */
     const BEZUG = /\b(?:import|export)\s+(type\s+)?([^;]*?)\s*from\s*["']([^"']+)["']/g;

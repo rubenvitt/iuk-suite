@@ -108,6 +108,21 @@ export function GeraeteWerkzeugleiste({
     }
   }, [suchtext]);
 
+  /*
+   * ⚠️ BENANNTE ABWEICHUNG A10 (nachgetragen in Fix-Runde 1 zu V13, Fund G4 der
+   * Schlusspruefung): DIESE ENTPRELLUNG TRAEGT NUR DEN SUCHTEXT. Der Bestand entprellt in
+   * DEMSELBEN Effekt auch die Suchfelder — `searchFields` steht dort in der
+   * Abhaengigkeitsliste und in der Zuweisung
+   * (`radio-admin/client/src/features/devices/DeviceList.tsx:66-75`, Zuweisung `:71`,
+   * selbst aufgeschlagen). Die Suite reicht `aufSuchfelder` dagegen direkt durch
+   * (`GeraeteTabelle.tsx`, Eigenschaft `aufSuchfelder`), also ein `router.replace` je Haken.
+   *
+   * ⛔ ES IST KEIN SPEC-BRUCH: `Spec:4631-4645` und `briefs/V13.md` nennen die 300 ms
+   * ausdruecklich nur fuer `q`. Es ist aber eine messbare Abweichung vom 1:1-Posten, und sie
+   * steht deshalb hier und nicht nur im Bericht. ⚠️ Der Aufklapper bleibt beim Umschalten
+   * offen (`SpaltenWahl.tsx`, 1:1 `CheckboxDropdown.tsx:17-21`) — wer drei Felder waehlt,
+   * loest drei Rundlaeufe aus.
+   */
   useEffect(() => {
     const begriff = getipptes.trim();
     if (begriff === uebernommen.current) return;

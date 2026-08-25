@@ -23,7 +23,7 @@
  * ⛔ DIE RICHTUNG IST DAMIT UMGEDREHT, UND DAS IST DIE VERBESSERUNG: frueher war die
  * Spaltenabbildung die Wahrheit und die Liste ihr Abfall; jetzt ist die Liste die Wahrheit und
  * die Abbildung wird gegen sie GEPRUEFT (`satisfies Record<Suchfeld, SQLiteColumn>` bzw.
- * `Record<Sortierspalte, SQLiteColumn>` in `_lib/lesepfade/geraete.ts:197`, `:254`). Ein
+ * `Record<Sortierspalte, SQLiteColumn>` in `_lib/lesepfade/geraete.ts:210`, `:262`). Ein
  * fehlender ODER ein ueberzaehliger Eintrag dort ist seitdem ein TYPFEHLER — vorher war beides
  * still moeglich.
  *
