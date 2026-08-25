@@ -3,6 +3,29 @@ import { describe, it, expect } from "vitest";
 import { IMPORTIERBARE_FELDER, automatischeSpaltenzuordnung } from "./kopfzeilen";
 
 /**
+ * Die neunundvierzig normalisierten Synonyme, 1:1 aus `auto-map-headers.ts:36-89` und in
+ * derselben Reihenfolge.
+ *
+ * ⛔ SIE STEHEN HIER EIN ZWEITES MAL, UND DAS IST ABSICHT. Ein Test, der die Liste aus der
+ * Datei laese, die er prueft, waere gegen jede Aenderung immun — dieselbe Fehlerform wie ein
+ * Waechter, der seine eigene Erwartung aus dem Pruefling zieht.
+ */
+const ALLE_SYNONYME = [
+  "issi", "tei", "kennung", "funkrufnameissi", "rufname", "funkrufname",
+  "seriennummer", "seriennr", "inventarnummer", "serial",
+  "geraetetyp", "geraet", "gerat", "typ", "modell",
+  "status", "zustand",
+  "standort", "lagerort", "ort", "location",
+  "hiorgid", "opta", "funktion", "hersteller", "bedieneinheit",
+  "alamos", "alamosintegriert", "alamosintegration",
+  "ausleihbar", "ausleihe", "leihbar",
+  "zuordnung", "zugeordnet", "zustaendig", "assignedto",
+  "softwareversion", "swversion", "firmware", "fwversion", "version", "letztesupdate",
+  "zuletztaktualisiert", "updatedatum", "aktualisiertam",
+  "notizen", "notiz", "bemerkung", "notes",
+] as const;
+
+/**
  * DIE AUTOMATISCHE SPALTENERKENNUNG, 1:1 aus
  * `radio-admin/shared/src/import/auto-map-headers.ts`.
  *
@@ -26,6 +49,43 @@ describe("radio-csv: die importierbaren Felder", () => {
     for (const verboten of ["id", "createdAt", "updatedAt", "createdBy", "updatedBy", "updateNote"]) {
       expect(felder, `${verboten} ist ein System- oder Identitaetsfeld`).not.toContain(verboten);
     }
+  });
+});
+
+describe("radio-csv: die Synonymtabelle", () => {
+  it("sie traegt genau die neunundvierzig Eintraege des Bestands", () => {
+    /*
+     * ⛔ DIE ZAHL MACHT DIE 1:1-BEHAUPTUNG MESSBAR. `auto-map-headers.ts:36-89` fuehrt
+     * neunundvierzig Eintraege (gezaehlt); ohne diese Zusicherung koennte einer
+     * verschwinden, und nur die drei Faelle unten faenden es — der Rest der Tabelle waere
+     * unbewacht.
+     *
+     * ⛔ UND SIE DECKT EINE FALLE AB, DIE DER ALT-KOMMENTAR NENNT UND DIE SPRACHE NICHT
+     * HAELT: `:35` sagt „Order matters for 'first wins'", aber ein Objektliteral kennt kein
+     * „first wins" — ein doppelter Schluessel UEBERSCHREIBT still. Der Bestand hat heute
+     * keinen (neunundvierzig Schluessel, neunundvierzig eindeutig, nachgemessen); ein
+     * kuenftiger Doppeleintrag saenke die Zahl hier um eins und faerbt diesen Fall.
+     */
+    const alleZiele = new Set<string>();
+    let anzahl = 0;
+    for (const kopf of ALLE_SYNONYME) {
+      const feld = automatischeSpaltenzuordnung([kopf])[kopf];
+      expect(feld, `Synonym "${kopf}" bildet auf nichts ab`).toBeDefined();
+      if (feld !== undefined) alleZiele.add(feld);
+      anzahl += 1;
+    }
+
+    expect(anzahl, "neunundvierzig Synonyme (auto-map-headers.ts:36-89)").toBe(49);
+    expect(new Set(ALLE_SYNONYME).size, "ein doppelter Schluessel ueberschreibt still").toBe(49);
+    /*
+     * ⛔ ACHTZEHN DER NEUNZEHN FELDER. Das fehlende ist `deviceModes` — es hat als einziges
+     * KEINEN Tabelleneintrag und kommt ausschliesslich ueber die Praefixregel
+     * (`auto-map-headers.ts:104-107`). Ohne diese Zahl fiele es niemandem auf, wenn jemand
+     * die Praefixregel entfernte und dafuer einen Tabelleneintrag setzte — der Kundenkopf
+     * `Gerätefunktionen-TMO/DMO/REP/GAT` fiele dann still aus der Zuordnung.
+     */
+    expect(alleZiele.size, "achtzehn der neunzehn Felder; deviceModes laeuft ueber den Praefix").toBe(18);
+    expect(alleZiele.has("deviceModes"), "deviceModes hat KEINEN Tabelleneintrag").toBe(false);
   });
 });
 

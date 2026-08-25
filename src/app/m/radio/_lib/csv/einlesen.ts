@@ -199,7 +199,17 @@ function zerlege(text: string, trennzeichen: Trennzeichen): string[][] {
       continue;
     }
 
-    if (zeichen === '"' && feld.trim() === "") {
+    /*
+     * ⛔ NUR ALS ERSTES ZEICHEN DES FELDES (`feld === ""`), NICHT NACH LEERRAUM. `csv-parse`
+     * geht ebenfalls nur dann in den maskierten Zustand; ein `feld.trim() === ""` waere
+     * grosszuegiger, und der Unterschied ist gemessen: die Zelle ` "zitiert" mehr` ergaebe
+     * dort `zitiert mehr` statt woertlich `"zitiert" mehr`.
+     *
+     * ⚠️ DARAUS FOLGT EINE KOPPLUNG: ein nicht abgestreiftes BOM stuende als erstes Zeichen
+     * im Feld und verhinderte den maskierten Zustand der ERSTEN Zelle. Die Abstreifung in
+     * `dekodiereCsv` ist also nicht nur Kosmetik; Sonde S-V9h bewacht sie.
+     */
+    if (zeichen === '"' && feld === "") {
       maskiert = true;
       warMaskiert = true;
       feld = "";

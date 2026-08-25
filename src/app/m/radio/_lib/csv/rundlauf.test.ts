@@ -364,6 +364,19 @@ describe("radio-csv: das Einlesen ohne Fremdbibliothek", () => {
     expect(ergebnis.ok ? ergebnis.daten.zeilen : []).toEqual([["1001", "Florian"]]);
   });
 
+  it("ein Anfuehrungszeichen mitten im Feld maskiert nicht, es ist ein Zeichen", () => {
+    /*
+     * `csv-parse` geht nur dann in den maskierten Zustand, wenn das Anfuehrungszeichen das
+     * ERSTE Zeichen des Feldes ist. Eine grosszuegigere Bedingung (`feld.trim() === ""`)
+     * schluckt die Anfuehrungszeichen einer Zelle wie ` "zitiert" mehr` und liefert
+     * `zitiert mehr` — gemessen, bevor die Bedingung auf `feld === ""` verschaerft wurde.
+     * Der Unterschied traefe jedes Notizfeld, in dem jemand ein Zitat setzt.
+     */
+    const ergebnis = lesEinCsv(new TextEncoder().encode('ISSI;Notizen\n1001; "zitiert" mehr\n'));
+
+    expect(ergebnis.ok ? ergebnis.daten.zeilen : []).toEqual([["1001", '"zitiert" mehr']]);
+  });
+
   it("eine Windows-1252-Datei wird als solche gelesen, nicht als kaputtes UTF-8", () => {
     /*
      * ⬜ BENANNTE ABWEICHUNG, EIGENTUEMER BETREIBER: `chardet` und `iconv-lite` sind im Repo
