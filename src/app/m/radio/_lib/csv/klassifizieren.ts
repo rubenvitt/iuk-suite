@@ -165,6 +165,18 @@ function normalisiereModi(zelle: string): string | null {
  * `typeof raw === 'string' ? raw.trim() : ''`). `diffGeraet` steigt bei `undefined` aus
  * (`_lib/geraeteDiff.ts:73`); eine kurze Zeile wuerde sonst je nach Feld einmal als „nicht
  * angefasst" und einmal als „geleert" gelesen.
+ *
+ * ⚠️ WELCHE HAELFTE DIESER ZEILE BEWACHT IST — gemessen am 2026-08-25 (Fix-Runde 1 zu
+ * Review V9, Fund F5), weil die Sondentabelle des V9-Berichts hier eine unverdiente Zeile
+ * fuehrte:
+ *
+ *   - die TYPPRUEFUNG ist ein nachgewiesener No-op. `const wert = roh?.trim() ?? "";` ergibt
+ *     `59 passed` — 0 rot. Beide Schreibungen sind fuer die heutigen Aufrufer Identitaeten.
+ *   - das `.trim()` IST die Zusicherung. `const wert = roh ?? "";` ergibt **1 rot**.
+ *
+ * ⛔ Wer die Zeile also zur optionalen Kette „aufraeumt", bekommt vom Tor kein Signal, und
+ * das ist in Ordnung — wer dabei das `.trim()` mitnimmt, bekommt eines. Der Satz steht hier,
+ * damit niemand die Nullmessung fuer eine Testschwaeche haelt und den falschen Fall baut.
  */
 export function zeileZuEingehend(
   zeile: readonly string[],

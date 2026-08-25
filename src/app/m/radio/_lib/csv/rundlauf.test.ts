@@ -398,7 +398,11 @@ describe("radio-csv: das Einlesen ohne Fremdbibliothek", () => {
      * wurde — er war der EINZIGE der dreiundfuenfzig ohne faerbende Mutation.
      */
     expect(erkenneTrennzeichen("\n\na,b,c\n"), "die leere Zeile wird uebersprungen").toBe(",");
-    // Und die zweite Haelfte der Vorschrift: `.trim() !== ''`, nicht `!== ''`.
+    /*
+     * Und die zweite Haelfte der Vorschrift: `.trim() !== ''`, nicht `!== ''`. Eigene Sonde,
+     * gemessen: `find((zeile) => zeile !== "")` -> **1 rot**, und rot wird genau diese Zeile
+     * („auch die nur-Leerraum-Zeile: expected ';' to be ','"), nicht die darueber.
+     */
     expect(erkenneTrennzeichen("\n   \na,b,c\n"), "auch die nur-Leerraum-Zeile").toBe(",");
   });
 
