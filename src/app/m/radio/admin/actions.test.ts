@@ -721,9 +721,19 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
      *
      * ⛔ `riegel.test.ts` UND DIESE DATEI KOMMEN IN DER TAFEL NICHT VOR, UND DAS IST DIE
      * ZUSICHERUNG, NICHT IHRE AUSLASSUNG: sie beziehen `bereinigt` aus der Hilfsdatei, deren
-     * Zwischenstufen nicht exportiert sind. Die zwei Zeilen unter der Tafel halten das in
-     * BEIDE Richtungen fest — die Messung darf sie nicht finden, und die Tafel darf sie nicht
-     * aufnehmen (sonst waere „gruen machen" ein Eintrag statt einer Reparatur).
+     * Zwischenstufen nicht exportiert sind. Die zwei Zeilen unter der Tafel halten das fest,
+     * ⚠️ ABER SIE TRAGEN UNGLEICH VIEL, und das steht hier, statt eine Symmetrie zu behaupten,
+     * die es nicht gibt (Fix-Runde 1 zu V11, dieselbe Pruefung wie Fund 8):
+     *
+     *   ueber SOLL      ⛔ der eigentliche Riegel. Er sperrt den naheliegenden „Gruen-Fix" —
+     *                   die eigene Datei mit ihrer neuen Zahl einfach in die Tafel eintragen.
+     *                   Diesen Zustand weist KEINE andere Zeile ab. ⚠️ Er ist ueber einer
+     *                   Konstanten formuliert und damit nur durch eine Aenderung AN DIESER
+     *                   DATEI ausloesbar; eine Mutationssonde am Pruefling gibt es fuer ihn
+     *                   nicht, und es kann keine geben.
+     *   ueber `gefunden` ⚠️ vom `toEqual` darueber DOMINIERT: taucht die Nadel in einer der
+     *                   zwei Dateien auf, ist jenes bereits rot. Diese Zeile steht fuer ihre
+     *                   MELDUNG, nicht fuer eine eigene Fehlerklasse.
      */
     // ⛔ UEBER `ohneKommentare` GELESEN, NICHT UEBER DEN ROHTEXT: eine blosse ERWAEHNUNG des
     // Namens in einem Kommentar der gelesenen Datei waere sonst eine weitere Fundstelle. Die
