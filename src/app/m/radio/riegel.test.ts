@@ -472,8 +472,8 @@ describe("(e) jede Verwaltungsseite traegt den Personen-Riegel ihrer Stufe", () 
    * ALLE `page.tsx` des Moduls maesse eine Zahl ohne Aussage, weil die Ausleihflaechen
    * bewusst keinen Verwaltungsriegel tragen (⬜ Z-L3 im Kopf dieser Datei).
    */
-  const ADMIN_SEITEN = () =>
-    quellDateien().filter((p) => /\/admin\/(?:.*\/)?page\.tsx$/.test(kurzPfad(p)));
+  // ⛔ `ADMIN_SEITEN()` STEHT SEIT DER FIX-RUNDE 1 ZU V15 AM DATEIENDE, module-scope: Klausel
+  // (g) dort braucht denselben Filter. Warum am ENDE — der Schlussblock dieser Datei sagt es.
 
   it("die Seitenzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
@@ -756,35 +756,35 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
       return /\/(?:page|layout|template|default)\.tsx$/.test(kurz);
     });
 
-  /**
-   * Die ERSTE Anweisung im Rumpf der standard-exportierten Funktion — getrimmt, bis zum ersten `;`.
+  /*
+   * ⛔ `ersteAnweisungAus(...)` — DIE ERSTE ANWEISUNG IM RUMPF DER STANDARD-EXPORTIERTEN
+   * FUNKTION, getrimmt bis zum ersten `;`. Der Helfer ist in der Fix-Runde 1 zu V15 AN DAS
+   * DATEIENDE GEZOGEN, weil Klausel (g) dort denselben Schnitt braucht — eine zweite Kopie
+   * waere genau die Fehlerform, gegen die R-V11-1 steht. Er ist unveraendert; nur sein Ort
+   * hat sich geaendert, und Klausel (f) unten ruft ihn weiterhin.
+   *
+   * ⛔ WARUM AN DAS ENDE UND NICHT HIER NACH OBEN: 42 Belegzeilen unter `src`/`e2e` zeigen
+   * mit `riegel.test.ts:N` in diese Datei (roher `/usr/bin/grep -rnoE`, 2026-08-25), dazu
+   * Dutzende in den Plaenen. Ein Block, der oben einzieht, verschiebt sie alle. Der Ersatz
+   * hier ist deshalb ZEILENZAHL-NEUTRAL — dieselbe Bauform, die R-V11-3 fuer eine Reparatur
+   * in einer viel zitierten Datei vorschreibt (`progress.md`, Ruling R-V11-3, Schluss).
+   * ⚠️ Dass das TRAEGT, ist eine Sprachaussage und keine Hoffnung: `function`-Deklarationen
+   * werden an den Modulanfang gehoben, `const` nicht. Der Helfer unten ist deshalb eine
+   * `function` — als Pfeilkonstante laege er hier in der TDZ, und (f) liefe vor ihm.
    *
    * ⛔ WARUM NICHT `funktionsKoerper` (`riegel.test.ts:205-220`): jener Helfer nimmt das
    * ERSTE `{` nach dem Funktionsnamen. Bei einem DESTRUKTURIERTEN Parameter ist das die
    * Parameterliste selbst — `GeraeteUebersichtPage({ searchParams }: …)` lieferte dort den
    * Rumpf des Parameterobjekts statt des Funktionsrumpfs, und der Scan verglicht still die
-   * falsche Spanne. Diese Fassung zaehlt deshalb Klammern: der Rumpf beginnt am ersten `{`
-   * auf Klammertiefe 0, NACHDEM die Parameterliste geschlossen ist.
+   * falsche Spanne. Die Fassung am Dateiende zaehlt deshalb Klammern: der Rumpf beginnt am
+   * ersten `{` auf Klammertiefe 0, NACHDEM die Parameterliste geschlossen ist.
    *
-   * ⚠️ ZWEI GRENZEN: (1) eine Rueckgabetyp-Annotation mit `{` traefe zu frueh; heute traegt keine
-   * Flaeche eine, faellt das je an, faellt es LAUT (die Meldung unten druckt den Fund). (2) ZEILE
-   * IST NICHT ANWEISUNG — zwei auf EINER waren 0 rot (REVIEW-A18, Fund N1): daher der `;`-Schnitt.
+   * ⚠️ ZWEI GRENZEN: (1) eine Rueckgabetyp-Annotation mit `{` traefe zu frueh; heute traegt
+   * keine Flaeche eine; faellt das je an, faellt es LAUT (die Meldung druckt den Fund).
+   * (2) ZEILE IST NICHT ANWEISUNG — zwei auf EINER waren 0 rot (REVIEW-A18, Fund N1): daher
+   * der `;`-Schnitt. Beide Grenzen gelten fuer Klausel (f) UND fuer Klausel (g), die den
+   * Helfer seit der Fix-Runde 1 zu V15 teilen.
    */
-  function ersteAnweisungAus(q: string): string {
-    const start = q.search(/\bexport\s+default\s+(?:async\s+)?function\b/);
-    if (start === -1) return "";
-    let tiefe = 0;
-    let parameterGesehen = false;
-    for (let i = start; i < q.length; i++) {
-      const z = q[i];
-      if (z === "(") { tiefe++; parameterGesehen = true; }
-      else if (z === ")") tiefe--;
-      else if (z === "{" && tiefe === 0 && parameterGesehen) {
-        return (q.slice(i + 1).split("\n").map((r) => r.trim()).find((r) => r !== "") ?? "").split(";")[0]!.trim();
-      }
-    }
-    return "";
-  }
 
   it("die Flaechenzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     expect(
@@ -1124,5 +1124,122 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
      */
     const hier = ohneKommentare(readFileSync(SELBST, "utf8")).split(nadel).length - 1;
     expect(hier, "diese Datei ruft die ungeschuetzte Fassung direkt").toBe(0);
+  });
+});
+
+/*
+ * ============================================================================================
+ * DER SCHLUSSBLOCK — ZWEI HELFER UND EINE KLAUSEL, ANGEHAENGT IN DER FIX-RUNDE 1 ZU V15.
+ *
+ * ⛔ WARUM UNTEN UND NICHT OBEN BEI IHREN GESCHWISTERN: 42 Belegzeilen unter `src`/`e2e` und
+ * Dutzende in den Plaenen zeigen mit `riegel.test.ts:N` in diese Datei. Anhaengen verschiebt
+ * keine einzige davon; ein Einzug oben verschoebe alle. Dieselbe Bauform, die R-V11-3 fuer
+ * eine Reparatur in einer viel zitierten Datei vorschreibt — die beiden Ersaetze weiter oben
+ * (Klausel (e), Zeile des Filters; Klausel (f), Rumpf des Helfers) sind ZEILENZAHL-NEUTRAL.
+ * ============================================================================================
+ */
+
+/**
+ * Alle Verwaltungsflaechen unter `admin/**` — ⛔ GEFUNDEN, NICHT AUFGEZAEHLT (R-V11-1).
+ * Bis zur Fix-Runde 1 zu V15 stand dieser Filter in Klausel (e); er speist jetzt AUCH
+ * Klausel (g) unten, und eine zweite Kopie waere die Fehlerform, gegen die R-V11-1 steht.
+ *
+ * ⛔ SEIT DIESER RUNDE FASST ER AUCH `template.tsx` UND `default.tsx` (REVIEW-V15, Fund 3).
+ * Gemessen: eine riegellose `admin/(arbeit)/geraete/[id]/ereignisse/template.tsx` lief unter
+ * `riegel.test.ts`, `EreignisTabelle.test.tsx` und `_lib/bauform.test.ts` zusammen
+ * `49 passed` — von KEINEM Waechter gedeckt, weil Klausel (a) `layout.tsx` filtert, diese
+ * Menge `page.tsx` filterte und Klausel (f) `/admin/` ausschliesst. Klausel (f) fuehrt beide
+ * Namen seit der Fix-Runde 1 zu A11 aus genau diesem Grund; fuer den `admin/`-Zweig wurde
+ * dieselbe Erweiterung nie gemacht.
+ *
+ * ⛔ DER FILTER SPEIST DREI FAELLE — den Zaehlfall der Klausel (e), ihre Riegelschleife und
+ * Klausel (g). Er verlangt damit auch von einem `template.tsx` den Personen-Riegel; das ist
+ * unter der Zwei-Linien-Doktrin (Spec:4382-4386) richtig und eine bewusste Verschaerfung,
+ * keine Kosmetik. ⚠️ `ADMIN_SEITEN_ANZAHL` BLEIBT DABEI 4, und zwar GEMESSEN:
+ * `/usr/bin/find src/app/m/radio -name 'template.tsx' -o -name 'default.tsx'` ist leer
+ * (2026-08-25). Der Zaehlfall bleibt gruen, weil es heute keine solche Datei gibt — nicht,
+ * weil der Filter sie nicht faende.
+ */
+function ADMIN_SEITEN(): string[] {
+  return quellDateien().filter((p) =>
+    /\/admin\/(?:.*\/)?(?:page|template|default)\.tsx$/.test(kurzPfad(p)),
+  );
+}
+
+/**
+ * Die ERSTE Anweisung im Rumpf der standard-exportierten Funktion — getrimmt, bis zum ersten
+ * `;`. ⛔ Unveraendert aus Klausel (f) hierher gezogen; die Begruendung, warum nicht
+ * `funktionsKoerper`, und die zwei Grenzen stehen dort, wo er stand (Klausel (f), oben).
+ */
+function ersteAnweisungAus(q: string): string {
+  const start = q.search(/\bexport\s+default\s+(?:async\s+)?function\b/);
+  if (start === -1) return "";
+  let tiefe = 0;
+  let parameterGesehen = false;
+  for (let i = start; i < q.length; i++) {
+    const z = q[i];
+    if (z === "(") { tiefe++; parameterGesehen = true; }
+    else if (z === ")") tiefe--;
+    else if (z === "{" && tiefe === 0 && parameterGesehen) {
+      return (q.slice(i + 1).split("\n").map((r) => r.trim()).find((r) => r !== "") ?? "").split(";")[0]!.trim();
+    }
+  }
+  return "";
+}
+
+describe("(g) auf jeder Verwaltungsseite steht der Riegel als ERSTE Anweisung", () => {
+  it("keine Verwaltungsseite liest, bevor sie riegelt", () => {
+    /*
+     * ⛔ DIESE KLAUSEL EXISTIERT WEGEN EINER MESSUNG, NICHT WEGEN EINER SORGE (REVIEW-V15,
+     * Fund 1). `await requireRadioVerwaltung();` in
+     * `admin/(arbeit)/geraete/[id]/ereignisse/page.tsx` HINTER `const akte = geraet(db, id);`
+     * zu schieben liess `riegel.test.ts` und `EreignisTabelle.test.tsx` zusammen
+     * `35 passed (35)` — kein einziger Fall rot. Die Seite laese dann den Datensatz eines
+     * fremden Geraets, bevor sie abbricht. Klausel (e) prueft die ANWESENHEIT des Riegels,
+     * diese hier seine STELLUNG.
+     *
+     * ⛔ DIE FEHLERFORM IST IN DIESEM HAUS SCHON EINMAL TEUER GEMESSEN WORDEN, und die
+     * Behebung stand seit A18 sechzig Zeilen weiter oben in DERSELBEN Datei: Klausel (f)
+     * schreibt sie woertlich aus (`const zugang = await requireAusleihZugang(getDb());`
+     * hinter `const geraete = geraeteMitLeihstand(getDb());` liess alle 435 Faelle gruen).
+     * Klausel (e) hatte nichts Vergleichbares — dieselbe Zusage an zwei Stellen UNGLEICH
+     * STRENG, und die schwaechere ist die, auf die sich ein Nachfolger beruft (REVIEW-Z56,
+     * Fund N1). ⚠️ Die Luecke war GEERBT: V12, V13 und V14 trugen sie ebenso.
+     *
+     * ⛔ ZWEI ZWEIGE, UND DIE TEILUNG IST KEINE BEQUEMLICHKEIT — sonst waere die Klausel
+     * ROT-BY-CONSTRUCTION. Klausel (e) verlangt von einer Seite AUSSERHALB jeder Route-Group
+     * `requireRadioHost(` VOR dem Personen-Riegel (Spec:429-437). Verlangte diese Klausel
+     * dort zugleich den Personen-Riegel als erste Anweisung, koennte keine solche Seite
+     * beides erfuellen — zeichengleich die Fehlerform, die Klausel (e) und Klausel (f) im
+     * Kopf beide benennen. Ausserhalb einer Group ist die erste Anweisung deshalb der
+     * HOST-Riegel; die Reihenfolge der beiden haelt Klausel (e) weiterhin ueber `search(...)`.
+     * ⚠️ Heute liegt jede der vier Seiten in einer Group; der zweite Zweig ist damit
+     * ungemessen und faellt LAUT, sobald ihn jemand betritt (die Meldung druckt den Fund).
+     *
+     * ⛔ GEPRUEFT WIRD DIE ERSTE ANWEISUNG UND NICHT „vor dem ersten `await`" — dieselbe
+     * benannte Abweichung wie in Klausel (f): `geraet(db, id)` ist SYNCHRON, der erste
+     * `await` bliebe auch nach der Verschiebung der Riegelaufruf, und der Waechter waere
+     * still gruen. ⛔ UND KEINE NAMENSLISTE der Lesefunktionen: die veraltete mit jeder
+     * neuen Abfrage (REVIEW-A18, Fund 2).
+     *
+     * ⚠️ LEER-GRUEN IST AUSGESCHLOSSEN, OHNE DASS HIER EINE ZWEITE ZAEHLUNG STEHT: Klausel
+     * (e) haelt `ADMIN_SEITEN().length` auf `ADMIN_SEITEN_ANZAHL` (heute 4) ueber DERSELBEN
+     * Menge. Faende der Filter nichts, waere jener Fall rot, bevor dieser leer laeuft.
+     */
+    const verstoesse: string[] = [];
+    for (const pfad of ADMIN_SEITEN()) {
+      const kurz = kurzPfad(pfad);
+      const q = bereinigt(readFileSync(pfad, "utf8"));
+      const erste = ersteAnweisungAus(q);
+      const erwartet = inRouteGroup(kurz)
+        ? { muster: personenRiegelFuer(kurz).muster, was: "der Personen-Riegel" }
+        : { muster: /\brequireRadioHost\s*\(/, was: "requireRadioHost(" };
+      if (!erwartet.muster.test(erste)) {
+        verstoesse.push(
+          `${kurz}: ${erwartet.was} ist nicht die ERSTE Anweisung (Spec:4369-4378) — dort steht: ${erste || "(kein Rumpf gefunden)"}`,
+        );
+      }
+    }
+    expect(verstoesse).toEqual([]);
   });
 });

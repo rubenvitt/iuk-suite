@@ -190,11 +190,11 @@ describe("radio-Ereignisse: die vier Spalten der Insel", () => {
 
     const zellen = queryAll('[data-rolle="radio-ereignis-wer"]');
     expect(zellen.length, "die Wer-Spalte fehlt").toBe(2);
+    // ⛔ DIE GLEICHHEIT TRAEGT BEIDE HAELFTEN. Hier stand bis zur Fix-Runde 1 zu V15 zusaetzlich
+    // ein `not includes("sub-anna")` — STRUKTURELL TOT (REVIEW-V15, Fund 4): ein Text, der
+    // `toBe("Anna Beispiel")` erfuellt, kann den `sub` nicht enthalten, die Zeile konnte also nie
+    // die erste rote sein. Ersatzlos gestrichen; wer sie zurueckholt, schuldet ihre Mutation.
     expect((zellen[0]!.textContent ?? "").trim()).toBe("Anna Beispiel");
-    expect(
-      (zellen[0]!.textContent ?? "").includes("sub-anna"),
-      "der rohe sub steht in der Zelle statt im title",
-    ).toBe(false);
     expect(zellen[0]!.getAttribute("title")).toBe("sub-anna");
     expect(
       zellen[1]!.getAttribute("title"),
@@ -254,10 +254,10 @@ describe("radio-Ereignisse: die vier Spalten der Insel", () => {
       expect((marke.textContent ?? "").trim(), `${wert}: der Tag zeigt nicht das Wort`).toBe(
         woerter[wert]!,
       );
-      expect(
-        (marke.textContent ?? "").includes(wert),
-        `${wert}: der Tag zeigt den Rohwert statt des Klartextworts`,
-      ).toBe(false);
+      // ⛔ Auch hier stand bis zur Fix-Runde 1 zu V15 ein `not includes(wert)` — STRUKTURELL TOT
+      // (REVIEW-V15, Fund 4): keines der vier Klartextwoerter enthaelt seinen eigenen Rohschluessel
+      // (`von Hand`/`manual`, `CSV-Import`/`csv-import` — zeichengenau), die Gleichheit darueber
+      // schliesst den Rohwert also bereits aus. Ersatzlos gestrichen.
       expect(
         marke.classList.contains(`ant-tag-${QUELLE_TON[wert]!}`),
         `${wert}: der Tag traegt seinen Ton nicht (antd/es/tag/index.js:94)`,
@@ -388,6 +388,8 @@ describe("radio-Ereignisse: die Bauform der Insel und ihrer Seite", () => {
     const gesehen = new Set<string>(WURZELN);
     const offen = [...WURZELN];
     const verstoesse: string[] = [];
+    /** ⛔ Die TATSAECHLICH gelesenen Dateien — die Untergrenze unten haengt an ihnen. */
+    const gelesen = new Set<string>();
 
     /*
      * ⛔ AN EINER `"use server"`-DATEI ENDET DER GRAPH, UND DAS IST DIE GRENZE SELBST: Next
@@ -400,6 +402,7 @@ describe("radio-Ereignisse: die Bauform der Insel und ihrer Seite", () => {
       const datei = offen.pop()!;
       if (istServerModul(datei)) continue;
       const quelle = ohneKommentare(readFileSync(datei, "utf8"));
+      gelesen.add(datei);
       for (const treffer of quelle.matchAll(BEZUG)) {
         const nurTyp = treffer[1] !== undefined;
         const spezifizierer = treffer[3]!;
@@ -421,9 +424,24 @@ describe("radio-Ereignisse: die Bauform der Insel und ihrer Seite", () => {
       }
     }
 
-    expect(gesehen.size, "der Walker hat die Wurzeln nicht gelesen").toBeGreaterThanOrEqual(
-      WURZELN.length,
-    );
+    /*
+     * ⛔ DIE UNTERGRENZE ZAEHLT DIE GELESENEN DATEIEN, NICHT DIE VORBELEGTE MENGE
+     * (REVIEW-V15, Fund 2). Bis zur Fix-Runde 1 zu V15 stand hier `gesehen.size`, und
+     * `gesehen` wird oben als `new Set(WURZELN)` angelegt — die Zusicherung war damit eine
+     * TAUTOLOGIE und konnte strukturell nicht fallen. Gemessen: `const offen: string[] = []`
+     * (der Walker laeuft gar nicht) liess die Datei `12 passed`, und ZUSAMMEN mit dem
+     * Wertimport, gegen den dieser Fall gebaut ist, ebenfalls `12 passed` — die Stilllegung
+     * verdeckte einen echten Verstoss. Das ist genau die Form, die R-V11-1 Auflage 1
+     * verlangt („Der Walker braucht eine eigene Untergrenze").
+     *
+     * ⛔ `gelesen` WIRD ERST IM SCHLEIFENKOERPER GEFUELLT, HINTER DEM `istServerModul`-
+     * AUSSTIEG: eine Datei, die der Walker uebersprungen hat, hat er nicht gelesen. Zaehlte
+     * man an der Leseoperation IN `istServerModul`, waere die Tautologie nur umgezogen.
+     */
+    expect(
+      gelesen.size,
+      "der Walker hat weniger Dateien gelesen, als es Wurzeln gibt — er ist nicht gelaufen",
+    ).toBeGreaterThanOrEqual(WURZELN.length);
     expect(verstoesse).toEqual([]);
   });
 
