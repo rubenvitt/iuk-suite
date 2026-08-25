@@ -2,7 +2,7 @@
 // KEIN "use client" und KEIN "use server" (Falle 6, `CLAUDE.md`): `haengeNotizAn` ist eine
 // reine Rechnung, die Server Actions und ihre Tests rufen; eine Direktive machte daraus eine
 // Modulreferenz. Der Scan, der das fuer `_lib/` und `_db/` modulweit durchsetzt, steht in
-// `src/app/m/radio/riegel.test.ts:1064-1117`.
+// `src/app/m/radio/riegel.test.ts:909-962`.
 
 /**
  * Formt ein `Date` als `YYYY-MM-DD` in UTC (stabil, sprach- und ortsunabhaengig).

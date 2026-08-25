@@ -388,7 +388,7 @@ export function verwaltungsZiel(headersEingang: Headers): string {
  * ⛔ DER GEMEINSAME KOERPER LIEGT IN `riegelAufStufe`, NICHT ZWEIMAL ABGESCHRIEBEN
  * (Entscheidung E-V1). `riegel.test.ts` Klausel (d) Fall 2 ist in V3 mit ihm GEWANDERT und
  * haelt dort die fuenf tragenden Aufrufe samt ihrer Reihenfolge fest; die Auflage dazu steht
- * ausgeschrieben in `riegel.test.ts:784-799`. Wer den Helfer umbenennt, zieht die Klausel im
+ * ausgeschrieben in `riegel.test.ts:629-644`. Wer den Helfer umbenennt, zieht die Klausel im
  * SELBEN Commit nach — sonst laeuft sie leer-gruen.
  */
 
@@ -449,7 +449,7 @@ export function merkeNutzer(db: DB, viewer: RadioViewer): void {
  * ⛔ WARUM EIN HELFER UND NICHT ZWEI ABSCHRIFTEN: zwei fast gleiche Riegelkoerper sind der
  * Ort, an dem eine Korrektur nur an einem von beiden ankommt — und die schwaechere ist die,
  * auf die sich der naechste Leser beruft (derselbe Gedanke in
- * `admin/(druck)/layout.tsx:16-20`). `riegel.test.ts:784-799` schreibt den Weg selbst aus:
+ * `admin/(druck)/layout.tsx:16-20`). `riegel.test.ts:629-644` schreibt den Weg selbst aus:
  * die Zusicherungen WANDERN in den Koerper des Helfers, sie werden NICHT geloescht und NICHT
  * zu einem dateiweiten Scan aufgeweicht.
  *
@@ -477,7 +477,7 @@ export async function requireRadioAdmin(): Promise<RadioViewer> {
 
 /**
  * ⛔ EIN BENANNTER RUECKGABETYP, KEINE INLINE-OBJEKTFORM — und das ist keine Stilfrage:
- * `funktionsKoerper` in `riegel.test.ts:360-375` nimmt die erste `{` nach dem Funktionsnamen.
+ * `funktionsKoerper` in `riegel.test.ts:205-220` nimmt die erste `{` nach dem Funktionsnamen.
  * Bei `Promise<{ viewer: …; rolle: … }>` waere das die Klammer des TYPS, und der Scan laese
  * den Typ statt des Rumpfs — die Klausel waere rot-by-construction, und der billige
  * Gruen-Fix waere ihre Aufweichung.

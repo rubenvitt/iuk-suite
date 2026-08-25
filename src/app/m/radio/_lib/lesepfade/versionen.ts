@@ -1,6 +1,6 @@
 // src/app/m/radio/_lib/lesepfade/versionen.ts
 // KEIN "use client" und KEIN "use server" (Falle 6, `CLAUDE.md`): ein reiner Lesepfad, den
-// Server Components rufen. `src/app/m/radio/riegel.test.ts:1064-1117` setzt beides fuer
+// Server Components rufen. `src/app/m/radio/riegel.test.ts:909-962` setzt beides fuer
 // `_lib/` und `_db/` modulweit durch.
 import { asc, desc, eq, sql } from "drizzle-orm";
 import type { DB } from "../../_db/client";

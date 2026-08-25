@@ -1,7 +1,7 @@
 // src/app/m/radio/_lib/lesepfade/ausleihen.ts
 // KEIN "use client" und KEIN "use server" (Falle 6, `CLAUDE.md`): reine Datenzugriffe, deren
 // WERTE Server Components lesen. Der Scan, der beides fuer `_lib/` und `_db/` modulweit
-// durchsetzt, steht in `src/app/m/radio/riegel.test.ts:1064-1117`.
+// durchsetzt, steht in `src/app/m/radio/riegel.test.ts:909-962`.
 //
 // ⛔ NUR DER TYP DER VERBINDUNG, NIE EIN WERT-IMPORT: `_db/client.ts:19` zieht `@/core/db`, und
 // das zieht `better-sqlite3` und `node:fs` (`src/core/db/index.ts:2-4`). Ein Wert-Import ist die

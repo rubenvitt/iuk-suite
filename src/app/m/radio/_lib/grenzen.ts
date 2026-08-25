@@ -8,7 +8,7 @@
  * Server Component nicht an, sondern als Client-Referenz (Falle 6, `CLAUDE.md`).
  * HTTP 500 fuer die ganze Seite, das `pnpm build` nicht sieht und Vitest strukturell
  * nicht sehen KANN, weil "use client" dort ein wirkungsloser String ist. Durchgesetzt
- * wird das von `src/app/m/radio/riegel.test.ts:1064-1117`.
+ * wird das von `src/app/m/radio/riegel.test.ts:909-962`.
  *
  * DIESE DATEI HAELT KEINE BOOT-PRUEFUNG. `radioBootFehler()` gehoert Kapitel 7 und damit
  * Planteil 5 (B8, Spec:97). `lagerbuch` fuehrt die Entsprechung als `grenzenFehler()`

@@ -79,7 +79,7 @@ const ZUGANG_SUITE: AusleihZugang = { weg: "suite", sub: "pid-1", name: "Rita Ro
 const ZUGANG_SUITE_OHNE_NAMEN: AusleihZugang = { weg: "suite", sub: "pid-1", name: null };
 
 /**
- * Kopie von `ohneKommentare()` aus `src/app/m/radio/riegel.test.ts:181-201`.
+ * Kopie von `ohneKommentare()` aus `src/app/m/radio/_lib/quelltextScan.ts:61-81`.
  *
  * ⚠️ OHNE SIE SIND DREI DER SCANS UNTEN AUF IHRER EIGENEN BEGRUENDUNG ROT:
  * `AusleihRahmen.tsx` schreibt „KEIN `usePathname`", „kein `<Link href="/abmelden">`" und

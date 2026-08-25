@@ -14,7 +14,7 @@ import { users } from "../_db/schema";
  *
  * 1. DIE REINEN FUNKTIONEN — ohne jeden Mock (Spec:650). Sie stehen unveraendert unten.
  * 2. ⛔ DIE VERHALTENSFAELLE DER WERFENDEN RIEGEL. Bis Planteil 3 waren sie hier
- *    ABSICHTLICH ausgelassen, weil es keine Verwaltungsseite gab; `riegel.test.ts:770-772`
+ *    ABSICHTLICH ausgelassen, weil es keine Verwaltungsseite gab; `riegel.test.ts:615-617`
  *    benennt Planteil 4 woertlich als ihren Ort („dort, wo die erste Verwaltungsseite steht
  *    und der Next-Anfragekontext echt ist") und verweist auf das Vorbild
  *    `src/app/m/lagerbuch/_lib/zugang.test.ts:41` (Import), `:72` (Aufruf), Begruendung

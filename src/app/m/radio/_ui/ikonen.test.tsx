@@ -19,7 +19,7 @@ const MODUL = "src/app/m/radio";
 const NACKTER_SPEZIFIZIERER = "@ant-design" + "/icons";
 
 /**
- * Kopie von `ohneKommentare()` aus `src/app/m/radio/riegel.test.ts:181-201`
+ * Kopie von `ohneKommentare()` aus `src/app/m/radio/_lib/quelltextScan.ts:61-81`
  * (Hausform; `lagerbuch/_ui/HelferRahmen.test.tsx:40-60` haelt es genauso).
  *
  * ⚠️ OHNE SIE IST DER SCAN AUF SEINER EIGENEN BEGRUENDUNG ROT: `ikonen.tsx` schreibt
@@ -53,7 +53,7 @@ function ohneKommentare(quelle: string): string {
     .join("\n");
 }
 
-/** Alle ausgelieferten `.ts`/`.tsx` des Moduls — Testdateien ausgenommen, wie `riegel.test.ts:143-157`. */
+/** Alle ausgelieferten `.ts`/`.tsx` des Moduls — Testdateien ausgenommen, wie `riegel.test.ts:144-158`. */
 function quellDateien(wurzel: string = MODUL, treffer: string[] = []): string[] {
   for (const eintrag of readdirSync(wurzel)) {
     const pfad = join(wurzel, eintrag);
@@ -95,7 +95,7 @@ describe("radio-ikonen: Falle 7 — kein fremdes Zeichenpaket unter m/radio/", (
 
   it("die Zeichenquelle selbst traegt kein use client", () => {
     // Falle 6: `IkonName` ist ein TYP und `IKON_NAMEN` ein WERT, den Server Components
-    // lesen. `riegel.test.ts:1064-1117` deckt nur `_lib/` und `_db/` ab, nicht `_ui/`.
+    // lesen. `riegel.test.ts:909-962` deckt nur `_lib/` und `_db/` ab, nicht `_ui/`.
     expect(ohneKommentare(readFileSync(QUELLE, "utf8"))).not.toMatch(/["']use client["']/);
   });
 });

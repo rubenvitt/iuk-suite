@@ -51,7 +51,7 @@ const ENTLEIHER = "Anna Beispiel";
  * Mal". Schriebe jemand einen geholten Wert als zeichengleiches Literal aus, bliebe jeder
  * Vergleich gruen und die Kopplung waere trotzdem weg — genau der Umbau, den Fund F25
  * (`.superpowers/sdd/planteil3/VORABSCAN-A.md:402-411`) beschreibt. Hausform des Moduls:
- * `src/app/m/radio/riegel.test.ts:102` liest ueber `process.cwd()`.
+ * `src/app/m/radio/riegel.test.ts:103` liest ueber `process.cwd()`.
  *
  * ⚠️ KOMMENTARE SIND MITGELESEN, und das ist Absicht: eine Erwaehnung des Satzes im Kopf
  * der Datei macht diese Faelle rot. Sie nennt deshalb nur die Fundstelle
@@ -118,7 +118,7 @@ describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
      * ⛔ OHNE DIESEN FALL WAEREN ALLE NEGATIVEN SCANS DIESER DATEI LEER-GRUEN. Kaeme
      * `QUELLE` leer zurueck — ein anderes `process.cwd()`, eine umbenannte Datei —, bestuende
      * jedes `not.toContain`/`not.toMatch` darauf, ohne etwas zu bewachen; die zaehlenden
-     * Zusicherungen fielen dagegen von selbst. Hausform des Moduls: `riegel.test.ts:1077`
+     * Zusicherungen fielen dagegen von selbst. Hausform des Moduls: `riegel.test.ts:922`
      * („leere Dateiliste — der Scan waere leer-gruen").
      */
     expect(QUELLE.length, "meldungen.ts ist leer gelesen worden").toBeGreaterThan(2000);
@@ -537,7 +537,7 @@ describe("Bauform", () => {
   it("traegt weder use client noch use server als Direktive", () => {
     /*
      * ⛔ DIE HALBE ZUSAGE DES DATEIKOPFES, DIE BIS ZUR FIX-RUNDE 1 NIRGENDS BEWACHT WAR.
-     * `riegel.test.ts:1064-1117` scannt modulweit — aber NUR auf `"use client"`. Fuer
+     * `riegel.test.ts:909-962` scannt modulweit — aber NUR auf `"use client"`. Fuer
      * `"use server"` gab es im ganzen Modul keine Abwesenheits-Zusicherung; die einzige
      * Durchsetzung (`_actions/guards.test.ts:699-716`) VERLANGT die Direktive, als erste
      * Zeile jeder Datei unter `_actions/` — die Gegenrichtung, auf einem anderen Ordner.

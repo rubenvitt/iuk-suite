@@ -1,7 +1,7 @@
 // src/app/m/radio/_lib/csv/kopfzeilen.ts
 // KEIN "use client" UND KEIN "use server" (Falle 6, `CLAUDE.md`): `IMPORTIERBARE_FELDER` ist
 // ein WERT, den sowohl Server Components als auch die Client-Insel des Import-Assistenten
-// (V18, Insel 4) lesen. Der Scan darueber steht in `src/app/m/radio/riegel.test.ts:1064-1117`.
+// (V18, Insel 4) lesen. Der Scan darueber steht in `src/app/m/radio/riegel.test.ts:909-962`.
 //
 // ⛔ DIESE DATEI HAT KEINEN IMPORT — gemessen am 2026-08-25: `grep -c "^import"
 // src/app/m/radio/_lib/csv/kopfzeilen.ts` -> `0`. Sie liegt im selben Ordner wie

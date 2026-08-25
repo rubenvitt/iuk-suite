@@ -7,7 +7,7 @@ import { join, relative } from "node:path";
  * DER EINE `_actions/`-SCAN (Spec 1 §3.8 Zeile 3111, praezisiert in Spec:6762 und B7
  * Spec:96; B14 Spec:103 und B19 Spec:119: ES GIBT NUR DIESEN EINEN).
  *
- * ⛔ `riegel.test.ts` FUEHRT KLAUSEL (b) AUSDRUECKLICH NICHT (`riegel.test.ts:521-533`).
+ * ⛔ `riegel.test.ts` FUEHRT KLAUSEL (b) AUSDRUECKLICH NICHT (`riegel.test.ts:366-378`).
  * Zwei Scans ueber dieselbe Flaeche, von denen einer die Ausnahmen nicht kennt, sind ein
  * Scan zu viel — und der naheliegende Gruen-Fix des unwissenden Scans waere, in
  * `einloesenAmGate` einen Sitzungsriegel einzusetzen. Das macht das GATE UNBENUTZBAR
@@ -61,7 +61,7 @@ const AUSNAHMEN = [
 
 /** ⛔ HEUTE VIER (`codes.ts`, `gate.ts`, `sitzung.ts`, `ausleihe.ts`) — A9 und A17 sind
  *  erledigt, der Fahrplan ist damit abgearbeitet. EXAKT, nicht „mindestens" — dieselbe
- *  Begruendung wie `HANDLER_ANZAHL` in `riegel.test.ts:64-76`: `laenge >= 0` ist immer wahr. */
+ *  Begruendung wie `HANDLER_ANZAHL` in `riegel.test.ts:65-77`: `laenge >= 0` ist immer wahr. */
 const ACTION_DATEIEN_ANZAHL = 4;
 
 /**
@@ -71,7 +71,7 @@ const ACTION_DATEIEN_ANZAHL = 4;
  * `verstoesse` leer und der Riegelscan LEER-GRUEN, waehrend die Dateizahl weiter stimmt.
  *
  * ⛔ EXAKT, NICHT „MINDESTENS" — dieselbe Begruendung wie oben und wie
- * `riegel.test.ts:64-76`. `riegel.test.ts:1077` fuehrt an derselben Stelle eine
+ * `riegel.test.ts:65-77`. `riegel.test.ts:922` fuehrt an derselben Stelle eine
  * Untergrenze; die ist fuer jede nichtleere Liste wahr und hat keine Mutation, die sie
  * rot macht. Hier steht deshalb die schaerfere Form.
  *
@@ -137,13 +137,13 @@ function actionDateien(): string[] {
 }
 
 /*
- * ⛔ HIER STEHEN DIE ZWEI ECHTEN FUNKTIONEN, KOPIERT AUS `riegel.test.ts:166-250`
+ * ⛔ HIER STEHEN DIE ZWEI ECHTEN FUNKTIONEN, KOPIERT AUS `_lib/quelltextScan.ts:46-132`
  * (`ohneKommentare` und `ohneKommentareUndZeichenketten`, mit ihren Kommentaren).
  *
  * ⚠️ „KOPIERT", NICHT „WOERTLICH" — UND DIE ABWEICHUNG STEHT HIER STATT IN EINER
  * BEHAUPTUNG (REVIEW-A8 S5). Bis zum 2026-08-23 stand an dieser Stelle „WOERTLICH KOPIERT
- * … mit ihren Kommentaren"; gemessen wurde die Kopie gegen `riegel.test.ts:166-250`, und
- * AUSGELASSEN sind `riegel.test.ts:170-174` — ein riegel-spezifischer Absatz ueber den
+ * … mit ihren Kommentaren"; gemessen wurde die Kopie gegen `_lib/quelltextScan.ts:46-132`, und
+ * AUSGELASSEN sind `_lib/quelltextScan.ts:50-54` — ein riegel-spezifischer Absatz ueber den
  * Kopfkommentar von `_lib/zugang.ts`. Er redet ueber `_lib/`, nicht ueber `_actions/`; die
  * Auslassung ist richtig, die Behauptung „woertlich" war es nicht. ⛔ UND EIN RUMPF WEICHT
  * SEIT DEM 2026-08-23 AB (Fund M1): dort schneidet `ohneKommentareUndZeichenketten` keine
@@ -155,7 +155,7 @@ function actionDateien(): string[] {
  *
  * ⛔ KEIN IMPORT AUS `riegel.test.ts` — vitest laedt Testdateien nicht als Module
  * fuereinander, und eine geteilte Helferdatei waere ein `_lib/`-Modul, das der
- * `"use client"`-Scan mitzaehlt (`riegel.test.ts:1064-1117` filtert auf `/(?:_lib|_db)/`).
+ * `"use client"`-Scan mitzaehlt (`riegel.test.ts:909-962` filtert auf `/(?:_lib|_db)/`).
  * Die Verdoppelung ist der Preis dafuer und gewollt; der Bericht zu A8 fuehrt die
  * verworfene Alternative samt Belegen.
  *
@@ -223,7 +223,7 @@ function ohneKommentareUndZeichenketten(quelle: string): string {
   }
   // ⛔ KEIN Kommentarschnitt mehr HIER — er ist nach `bereinigt` verlagert, HINTER das
   // Leeren der Regexliterale. Sonst frisst er `/\//` und kappt den Rest der Zeile
-  // (Fund M1, gemessen; dieselbe Reihenfolge wie in `riegel.test.ts:335`).
+  // (Fund M1, gemessen; dieselbe Reihenfolge wie in `_lib/quelltextScan.ts:209`).
   return ergebnis;
 }
 
@@ -255,7 +255,7 @@ function ohneRegexLiterale(q: string): string {
     // Ohne diese Bedingung frisst der Scanner den Kommentarbeginn (`;` davor steht in
     // REGEX_ERLAUBT, das zweite `/` schliesst sofort), und der Schnitt in `bereinigt`
     // findet danach nichts mehr — der Kommentartext bliebe stehen und erfuellte jede
-    // positive Zusicherung. Zeichengleich uebernommen aus `riegel.test.ts:302`.
+    // positive Zusicherung. Zeichengleich uebernommen aus `_lib/quelltextScan.ts:176`.
     if (z === "/" && q[i + 1] !== "/" && REGEX_ERLAUBT.test(ergebnis.trimEnd())) {
       let j = i + 1;
       let klasse = false;
@@ -318,7 +318,7 @@ function bereinigt(quelle: string): string {
  * Annotation, die auf oberster Ebene ein Objektliteral fuehrt (`): { a: number } {`).
  * Der Scan hielte sie fuer den Rumpf und meldete anschliessend „der Riegel ist nicht die
  * erste Anweisung" — er ist dort also FALSCH-POSITIV UND LAUT, nie falsch-negativ und
- * still. Das ist die Richtung, die dieses Haus verlangt (`riegel.test.ts:175-179`).
+ * still. Das ist die Richtung, die dieses Haus verlangt (`_lib/quelltextScan.ts:55-59`).
  *
  * ⛔ KEIN STILLER RUECKFALL: laesst sich der Rumpf nicht bestimmen, ist das ein VERSTOSS
  * und kein „dann eben bis zum naechsten export". Genau dieser Rueckfall WAR W1.

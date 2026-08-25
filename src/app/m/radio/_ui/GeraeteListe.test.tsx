@@ -31,7 +31,7 @@ const QUELLE_ZEILE = "src/app/m/radio/_ui/GeraeteZeile.tsx";
 const QUELLE_SEITE = "src/app/m/radio/(ausleihe)/geraete/page.tsx";
 
 /**
- * Kopie von `ohneKommentare()` aus `src/app/m/radio/riegel.test.ts:181-201` — dieselbe
+ * Kopie von `ohneKommentare()` aus `src/app/m/radio/_lib/quelltextScan.ts:61-81` — dieselbe
  * Bauform und derselbe Grund wie in `_ui/AusleihRahmen.test.tsx:82-89`: die drei
  * gescannten Dateien schreiben ihre Begruendung („die Seriennummer wandert nicht in den
  * Client") in ihren Kopfkommentar, und das sind genau die Saetze, die der Scan konserviert

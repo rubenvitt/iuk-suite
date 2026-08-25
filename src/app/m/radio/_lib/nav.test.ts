@@ -57,7 +57,7 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
      *
      * ⛔ `toBe` UND NICHT `toBeGreaterThanOrEqual`: die Liste ist vollstaendig und stabil.
      * Eine Untergrenze waere die NT11-Form — ein Waechter, der gruen bleibt und nichts
-     * bewacht (`riegel.test.ts:64-76`).
+     * bewacht (`riegel.test.ts:65-77`).
      */
     expect(radioNav("admin").length, "geschrumpfte Liste — jeder Scan darunter waere leer-gruen").toBe(7);
   });
@@ -258,7 +258,7 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
      *
      * ⛔ NUR DIE ADMIN-HAELFTE. Der Updater-Zweig ist ein `filter(...)` (`_lib/nav.ts:94`) und
      * liefert von sich aus immer ein frisches Feld; dieselbe Zusicherung dort koennte nie rot
-     * werden und waere die NT11-Form, gegen die `riegel.test.ts:64-76` argumentiert.
+     * werden und waere die NT11-Form, gegen die `riegel.test.ts:65-77` argumentiert.
      *
      * ⚠️ WAS DER FALL NICHT ZUSAGT: die EINTRAEGE-Objekte selbst sind in beiden Zweigen
      * geteilte Referenzen. Der Kommentar an `radioNav` sagt „flache Kopie" und beschoenigt es

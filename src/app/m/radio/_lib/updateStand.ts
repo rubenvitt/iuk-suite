@@ -2,7 +2,7 @@
 // KEIN "use client" und KEIN "use server" (Falle 6, `CLAUDE.md`): `UpdateStand` ist ein WERT,
 // den Server Components und Lesepfade lesen; eine Direktive machte daraus eine Modulreferenz.
 // Der Scan, der das fuer `_lib/` und `_db/` modulweit durchsetzt, steht in
-// `src/app/m/radio/riegel.test.ts:1064-1117`.
+// `src/app/m/radio/riegel.test.ts:909-962`.
 
 /**
  * DER UPDATE-STAND EINES GERAETS — EINE RECHNUNG, NICHT ZWEI (Entscheidung E-V8,

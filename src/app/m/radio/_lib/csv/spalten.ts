@@ -4,7 +4,7 @@
 // Client-Insel des Import-Assistenten (V18) lesen. Eine Direktive machte daraus in der einen
 // Richtung eine Client-Referenz (HTTP 500 in einer Server Component), in der anderen eine
 // Serverreferenz. Der Scan, der beide Richtungen fuer `_lib/` und `_db/` modulweit
-// durchsetzt, steht in `src/app/m/radio/riegel.test.ts:1064-1117`.
+// durchsetzt, steht in `src/app/m/radio/riegel.test.ts:909-962`.
 //
 // ⛔ DIESE DATEI ZIEHT NICHTS AUS `node:*`, AUS `_db/` ODER AUS EINER KODIERUNGSBIBLIOTHEK.
 // Der einzige Import hier ist ein TYPimport (`import type`), der zur Laufzeit verschwindet —

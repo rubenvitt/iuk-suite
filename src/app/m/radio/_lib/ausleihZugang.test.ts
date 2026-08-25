@@ -21,7 +21,7 @@ import { zugangscodes } from "../_db/schema";
  *   `@/core/auth`    — `auth()` liest das Suite-JWT.
  *
  * ⛔ WAS DIESE DATEI DAMIT NICHT BELEGT: dass die Riegel bei einem ECHTEN Abruf GREIFEN
- * (⬜ A-L9, Erbe von Z-L1, `riegel.test.ts:49-53`). Sie belegt die LOGIK des Praedikats.
+ * (⬜ A-L9, Erbe von Z-L1, `riegel.test.ts:50-54`). Sie belegt die LOGIK des Praedikats.
  * Kein Fall hier darf etwas anderes behaupten.
  */
 const hostRiegel = vi.fn();
@@ -523,11 +523,11 @@ describe("radio-Ausleihzugang: keine dritte Quelle", () => {
      * schreibt, faerbt einen Rohtext-Scan auf seiner eigenen Begruendung rot; wer den
      * Scan daraufhin „repariert", schwaecht ihn.
      *
-     * ⛔ DER BESTAND HAT DIESE LEHRE SCHON GEZOGEN, woertlich (`riegel.test.ts:170-173`):
+     * ⛔ DER BESTAND HAT DIESE LEHRE SCHON GEZOGEN, woertlich (`_lib/quelltextScan.ts:50-53`):
      * „OHNE DAS IST JEDER DIESER SCANS AUF SEINER EIGENEN BEGRUENDUNG ROT." Deshalb
-     * laeuft dort jeder Scan ueber `ohneKommentare(...)` (`riegel.test.ts:341`).
+     * laeuft dort jeder Scan ueber `ohneKommentare(...)` (`riegel.test.ts:186`).
      *
-     * ⛔ `ohneKommentare` WIRD AUS `riegel.test.ts:181-201` KOPIERT, nicht importiert
+     * ⛔ `ohneKommentare` WIRD AUS `_lib/quelltextScan.ts:61-81` KOPIERT, nicht importiert
      * (vitest laedt Testdateien nicht als Module fuereinander; eine geteilte Helferdatei
      * unter `_lib/` zaehlte der `"use client"`-Scan mit). A9 kopiert dieselbe Funktion
      * noch einmal — das ist gewollt und der Preis der Nicht-Importierbarkeit.
@@ -542,7 +542,7 @@ describe("radio-Ausleihzugang: keine dritte Quelle", () => {
 });
 
 /**
- * Kopie aus `riegel.test.ts:181-201` — Kommentare werden VOR dem Vergleich geleert,
+ * Kopie aus `_lib/quelltextScan.ts:61-81` — Kommentare werden VOR dem Vergleich geleert,
  * inhaltlich und nicht zeilenweise, damit die `datei:zeile`-Meldung weiter stimmt.
  *
  * BEWUSST NUR ZWEI FORMEN: Blockkommentare und Zeilen, deren getrimmter Inhalt mit `//`

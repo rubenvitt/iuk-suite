@@ -1,6 +1,6 @@
 // src/app/m/radio/_lib/csv/einlesen.ts
 // KEIN "use client" UND KEIN "use server" (Falle 6, `CLAUDE.md`); der Scan darueber steht in
-// `src/app/m/radio/riegel.test.ts:1064-1117`.
+// `src/app/m/radio/riegel.test.ts:909-962`.
 //
 // ⛔ DIESE DATEI IST DIE EINZIGE DES ORDNERS, DIE BYTES ANFASST — und deshalb die einzige,
 // die eine Client-Insel NICHT importieren darf. `spalten.ts`, `kopfzeilen.ts` und

@@ -26,7 +26,7 @@ function regelkoerper(css: string, selektor: string): string {
 }
 
 /**
- * Kopie von `ohneKommentare()` aus `src/app/m/radio/riegel.test.ts:181-201`.
+ * Kopie von `ohneKommentare()` aus `src/app/m/radio/_lib/quelltextScan.ts:61-81`.
  *
  * ⚠️ OHNE SIE IST DER LETZTE SCAN AUF SEINER EIGENEN BEGRUENDUNG ROT (gemessen, erster
  * Lauf dieser Datei): `StatusChip.tsx` schreibt die Falle-6-Begruendung in seinen

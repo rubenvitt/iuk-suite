@@ -62,7 +62,7 @@ function geraet(id: string) {
 }
 
 /**
- * Ein Zaehler fuer die Ereignis-Ids. ⛔ KEINE ZUFALLSQUELLE — `riegel.test.ts:1150-1153`
+ * Ein Zaehler fuer die Ereignis-Ids. ⛔ KEINE ZUFALLSQUELLE — `riegel.test.ts:995-998`
  * verbietet die eingebaute Standardquelle modulweit, und ein Test, der die Regel des Moduls
  * umginge, waere ein schlechtes Vorbild fuer die naechste Datei.
  */

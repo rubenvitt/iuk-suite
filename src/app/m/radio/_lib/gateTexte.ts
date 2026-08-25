@@ -4,7 +4,7 @@
  *
  * ⛔ KEIN `"use client"` — Falle 6 (`CLAUDE.md`, Punkt 6): die Gate-Seite ist eine Server
  * Component und braucht die WERTE, nicht eine Client-Referenz. Der Scan, der das modulweit
- * durchsetzt, steht in `src/app/m/radio/riegel.test.ts:1064-1117`.
+ * durchsetzt, steht in `src/app/m/radio/riegel.test.ts:909-962`.
  *
  * ⛔ DIESE DATEI KONSUMIERT NICHTS. Sie hat keinen einzigen Import, und das ist eine
  * Auflage, keine Zufaelligkeit: der Brief `.superpowers/sdd/planteil3/briefs/A5.md:8`

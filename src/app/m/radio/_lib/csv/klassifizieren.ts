@@ -1,7 +1,7 @@
 // src/app/m/radio/_lib/csv/klassifizieren.ts
 // KEIN "use client" UND KEIN "use server" (Falle 6, `CLAUDE.md`): `KLASSEN_WOERTER` ist ein
 // WERT, den die Vorschau-Insel des Import-Assistenten (V18, Insel 4) UND die Server
-// Components lesen. Der Scan darueber steht in `src/app/m/radio/riegel.test.ts:1064-1117`.
+// Components lesen. Der Scan darueber steht in `src/app/m/radio/riegel.test.ts:909-962`.
 //
 // ⛔ JEDER SCHEMA-BEZUG HIER IST EIN TYPIMPORT. `import type` verschwindet zur Laufzeit; ein
 // Wertimport aus `_db/` zoege Drizzle und `better-sqlite3` ins Browser-Bundle, und weder

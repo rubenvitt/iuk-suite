@@ -36,7 +36,7 @@
  *
  * ⛔ KEIN `"use client"` UND KEIN `"use server"`. Falle 6 (`CLAUDE.md`): ein Wert aus einem
  * als Client markierten Modul kommt in einer Server Component nicht an — HTTP 500 fuer die
- * ganze Seite, und Vitest kann es strukturell nicht sehen. `riegel.test.ts:1064-1117` setzt
+ * ganze Seite, und Vitest kann es strukturell nicht sehen. `riegel.test.ts:909-962` setzt
  * beide Richtungen modulweit durch.
  *
  * ⬜ V-L1 / E1b — wie die Updater-Gruppe in PRODUKTION heisst, weiss nur der Betreiber;

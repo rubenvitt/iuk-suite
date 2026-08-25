@@ -11,7 +11,7 @@
  * Client-Modul kommt in einer Server Component nicht an, sondern als Client-Referenz —
  * HTTP 500 fuer die ganze Seite, das `pnpm build` nicht sieht und Vitest strukturell nicht
  * sehen KANN (Falle 6, `CLAUDE.md`). Durchgesetzt von
- * `src/app/m/radio/riegel.test.ts:1064-1117`.
+ * `src/app/m/radio/riegel.test.ts:909-962`.
  *
  * ⛔ DIE SUCHE LAEUFT IM CLIENT, DIE GRUNDMENGE KOMMT VOM SERVER (§4.5.2, Spec:3620-3637).
  * Unter hundert Geraeten ist eine Filterung im Browser sofort und netzlos; ein

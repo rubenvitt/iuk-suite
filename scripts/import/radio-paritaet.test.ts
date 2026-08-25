@@ -82,14 +82,14 @@ const SICHTEN = [
  * `zugangscodes`, `loans`.
  *
  * ⚠️ SIE HEISST NICHT `..._MINDESTENS`, UND DAS IST DERSELBE GRUND WIE BEI
- * `HANDLER_ANZAHL` (src/app/m/radio/riegel.test.ts:68-71): eine Untergrenze ist fuer jede
+ * `HANDLER_ANZAHL` (src/app/m/radio/riegel.test.ts:69-72): eine Untergrenze ist fuer jede
  * Liste wahr und hat keine Mutation, die sie rot macht — und der naechste Leser
  * „repariert" einen Namen mit `MINDESTENS` darin zurueck auf `>=`.
  *
  * ⛔ WER EINE TABELLE ANLEGT, HEBT DIESE ZAHL AN — bewusst, in derselben Aenderung. Das ist
  * der Preis, der unten bei der Sonde ausgeschrieben steht.
  * (Nachgetragen in der Fix-Runde 1 zu A8, REVIEW-A8 S4: die Haertung uebernahm das
- * Argument aus `riegel.test.ts:60-72`, aber nicht seine Form — die Zahl stand nackt im
+ * Argument aus `riegel.test.ts:61-73`, aber nicht seine Form — die Zahl stand nackt im
  * `toBe`, waehrend `_actions/guards.test.ts:65` es im selben Commit richtig machte.)
  */
 const ZIEL_TABELLEN_ANZAHL = 6;
@@ -165,7 +165,7 @@ describe("Das Zielschema haelt die Zeiteinheit der Suite ein", () => {
    * ⚠️ DER PREIS IST BENANNT UND ANGENOMMEN, und er kehrt einen frueheren Satz hier um:
    * eine SIEBTE Tabelle im Ziel bekommt die Probe NICHT MEHR "automatisch" — sie faerbt
    * diesen Fall rot, bis jemand die Zahl bewusst anhebt. Das ist gewollt (dieselbe
-   * Begruendung wie bei `HANDLER_ANZAHL` in src/app/m/radio/riegel.test.ts:60-72: eine
+   * Begruendung wie bei `HANDLER_ANZAHL` in src/app/m/radio/riegel.test.ts:61-73: eine
    * Untergrenze ist fuer jede Liste wahr und hat keine Mutation, die sie rot macht).
    */
   it("KEINE radio-Zeitspalte ist mode:'timestamp_ms' — der Faktor-1000-Fehler waere paritaetsgruen", () => {
