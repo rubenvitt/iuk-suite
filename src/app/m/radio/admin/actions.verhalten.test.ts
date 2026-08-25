@@ -1002,10 +1002,22 @@ describe("importSchreibenAction", () => {
      * demselben `filterEditableFields` kommen (`apply-commit.ts:53-57`). Die Grenze ist
      * `IMPORTIERBARE_FELDER` (`_lib/csv/kopfzeilen.ts:32-52`, 1:1 aus
      * `auto-map-headers.ts:2-22`: „no system/identity-internal fields").
+     *
+     * ⛔ `updateNote` STEHT MIT IN DER ZUORDNUNG, UND DAS IST DIE ZWEITE HAELFTE DES FUNDES:
+     * die Spalte ist SCHREIBBAR (sie gehoert keinem Server), aber NICHT IMPORTIERBAR — sie ist
+     * append-only und hat einen eigenen Schreibpfad ueber `haengeNotizAn`
+     * (`_db/schema.ts:56-59`, `_lib/notiz.ts`). Ein Feldschnitt entlang `SCHREIBBARE_FELDER`
+     * liesse sie durch, und ein Import ueberschriebe die gezeichnete Auditspur eines Geraets
+     * mit rohem CSV-Text. ⛔ NUR DIE ENGERE GRENZE FAENGT DAS.
      */
     const ergebnis = await importSchreibenAction(
-      { issi: 0, id: 1, rufname: 2 } as unknown as Parameters<typeof importSchreibenAction>[0],
-      [["1000002", "g-fremdbestimmt", "Frisch"]],
+      {
+        issi: 0,
+        id: 1,
+        rufname: 2,
+        updateNote: 3,
+      } as unknown as Parameters<typeof importSchreibenAction>[0],
+      [["1000002", "g-fremdbestimmt", "Frisch", "gefaelschte Auditspur"]],
     );
 
     expect(ergebnis.ok).toBe(true);
@@ -1014,6 +1026,7 @@ describe("importSchreibenAction", () => {
     const zeile = geraeteZeilen()[0];
     expect(zeile.id).not.toBe("g-fremdbestimmt");
     expect(zeile.rufname).toBe("Frisch");
+    expect(zeile.updateNote, "die append-only Auditspur kam aus der CSV").toBeNull();
     expect(ereignisse().map((z) => z.field).sort()).toEqual(["rufname"]);
     expect(ergebnis.zeilen[0].aenderungen.map((a) => a.feld).sort()).toEqual(["rufname"]);
   });
@@ -1025,11 +1038,21 @@ describe("importSchreibenAction", () => {
      * `NOT NULL`-Verletzung riss den GANZEN Stapel mit, und der Import meldete
      * „Import fehlgeschlagen", obwohl an den Daten nichts falsch war.
      */
-    geraet({ id: "g-1", issi: "1000001", rufname: "Alt" });
+    geraet({
+      id: "g-1",
+      issi: "1000001",
+      rufname: "Alt",
+      updateNote: "[2026-01-01 · Alt] frueher",
+    });
 
     const ergebnis = await importSchreibenAction(
-      { issi: 0, id: 1, rufname: 2 } as unknown as Parameters<typeof importSchreibenAction>[0],
-      [["1000001", "g-fremdbestimmt", "Neu"]],
+      {
+        issi: 0,
+        id: 1,
+        rufname: 2,
+        updateNote: 3,
+      } as unknown as Parameters<typeof importSchreibenAction>[0],
+      [["1000001", "g-fremdbestimmt", "Neu", "gefaelschte Auditspur"]],
     );
 
     expect(ergebnis.ok, "der ganze Stapel fiel wegen eines weggeschnittenen Feldes").toBe(true);
@@ -1038,6 +1061,8 @@ describe("importSchreibenAction", () => {
     const zeile = geraeteZeilen()[0];
     expect(zeile.id).toBe("g-1");
     expect(zeile.rufname).toBe("Neu");
+    // ⛔ DIE APPEND-ONLY SPALTE BLEIBT WOERTLICH STEHEN — ein Import schreibt sie nie.
+    expect(zeile.updateNote).toBe("[2026-01-01 · Alt] frueher");
     expect(ereignisse().map((z) => z.field)).toEqual(["rufname"]);
   });
 
