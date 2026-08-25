@@ -57,8 +57,20 @@ import s from "../../../_ui/verwaltung.module.css";
  * ⛔ KEIN TOAST — Entscheidung E6 (`Spec:3754-3776`), dieselbe Linie wie in
  * `geraete/[id]/NotizFeld.tsx:35-38`: die `message.success`/`message.error`-Paare des Bestands
  * (`UpdateDeviceCard.tsx:25`, `:27`, `:35`, `:39`) entfallen als benannte Abweichung. Der
- * Fehlertext kommt aus der Action; nach dem Erfolg schreibt sie `revalidatePath` auf diese
- * Seite, und der neu gerechnete Update-Stand steht im naechsten Server-Rendering auf der Karte.
+ * Fehlertext kommt aus der Action.
+ *
+ * ⛔ WAS AN DER RUECKMELDUNG GEMESSEN IST UND WAS NICHT — hier stand bis zur Fix-Runde 1 zu
+ * V17 EIN Satz fuer beides, und seine erste Haelfte war schlicht falsch (REVIEW-V17, Fund F1:
+ * es gab den Aufruf nicht).
+ *   * ⛔ GEMESSEN: beide Actions entwerten `/m/radio/admin/software` — `admin/actions.ts`,
+ *     `SOFTWARE`, gerufen in `geraetAendernAction` und `notizAnfuegenAction`. Der Waechter
+ *     dagegen sind die zwei Pfad-Pins in `admin/actions.verhalten.test.ts`
+ *     („entwertet die vier INNEREN Pfade, nie die aeusseren", „schreibt als newValue NUR die
+ *     neue Zeile"); ohne die Zeile sind sie rot.
+ *   * ⬜ NICHT GEMESSEN, BENANNTE LEERSTELLE, EIGENTUEMER V23: dass der neu gerechnete
+ *     Update-Stand danach SICHTBAR auf der Karte steht. Das haengt an Nexts Reconciliation
+ *     und ist in Vitest strukturell nicht messbar — es gibt dort keinen Server. Der Fall
+ *     steht schon: `e2e/radio-verwaltung.spec.ts`, Fall 6.
  *
  * ⚠️ ZWEI WEITERE BENANNTE ABWEICHUNGEN, BEIDE AUS DER HAUSFORM:
  *   * ⛔ KEIN `size="small"` an der Karte (`UpdateDeviceCard.tsx:44`) — Falle 4: `FullShell`
@@ -73,9 +85,10 @@ import s from "../../../_ui/verwaltung.module.css";
 /**
  * DIE BILDSCHIRMTEXTE DIESER FLAECHE, in EINER benannten Liste und nicht inline verstreut
  * (`Spec:4815-4832`, 1:1-Tafel Abschnitt E). ⚠️ Sie tragen ihre Umlaute — es sind
- * Bildschirmtexte, keine Bezeichner.
+ * Bildschirmtexte, keine Bezeichner. ⛔ NICHT EXPORTIERT (REVIEW-V17, Fund F4): es gibt keinen
+ * Verbraucher — der Test schreibt die Texte bewusst aus, ein Import waere tautologisch.
  */
-export const UPDATE_TEXTE = {
+const UPDATE_TEXTE = {
   /** ⛔ Woertlich `UpdateMode.tsx:40`. */
   hinweis:
     "Gerät suchen, mit einem Tap auf die Zielversion setzen. Nur die Geräte, die du wirklich aktualisiert hast.",
@@ -326,7 +339,7 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
      * der Fall „ein Tap sendet genau YYYY-MM-DD, keine Uhrzeit".
      *
      * ⛔ `tagAusWert` RECHNET IN `Europe/Berlin` UND NICHT IN DER SYSTEMZONE
-     * (`_lib/csv/spalten.ts:125`, `:139-152`: `Intl.DateTimeFormat` mit ausdruecklicher Zone).
+     * (`_lib/csv/spalten.ts:125`, `:140-154`: `Intl.DateTimeFormat` mit ausdruecklicher Zone).
      * Genau deshalb darf die Zeile hier im Browser stehen: sie liefert denselben Tag,
      * gleichgueltig wie der Rechner des Bedienenden gestellt ist.
      */

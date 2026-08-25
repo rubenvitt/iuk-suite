@@ -242,7 +242,7 @@ test.describe("radio-Verwaltung", () => {
      * ebenfalls V23, der Ablageort ist dieser Fall.
      *
      * ⛔ WAS NUR HIER MESSBAR IST, UND WARUM DER FALL NICHT WEGKUERZBAR IST: `notizAnfuegenAction`
-     * stoesst `revalidatePath` auf genau diese Seite an (`admin/actions.ts:655-657`). ⛔ OB NEXT
+     * stoesst `revalidatePath` auf genau diese Seite an (`admin/actions.ts:677-679`). ⛔ OB NEXT
      * DIE INSEL DABEI AN ORT UND STELLE NEU RENDERT ODER SIE NEU AUFBAUT, ist in Vitest
      * strukturell nicht zu sehen — es gibt dort keinen Server. Beide Wege muessen dieselbe
      * Zusage halten, und genau das misst dieser Abschnitt.

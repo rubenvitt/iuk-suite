@@ -271,6 +271,50 @@ describe("radio-Update-Modus: Zielversion und Fortschritt", () => {
     expect(texte("radio-update-tap")).toEqual(["Auf 3.1.0 aktualisiert"]);
   });
 
+  it("die Vorschlagsliste traegt GENAU die uebergebenen Versionen", async () => {
+    /*
+     * ⛔ NACHGETRAGEN IN FIX-RUNDE 1 (REVIEW-V17, Fund F3): der Prop `versionen` — einer der
+     * vier aus `Spec:4509` — erreichte die Vorschlagsliste UNGEMESSEN. Gemessen: die
+     * Verdrehung `options={versionen.map(…)}` → `options={[]}` liess alle 24 Faelle gruen.
+     *
+     * ⛔ UND DIE FOLGE IST NICHT KOSMETISCH. Der `AutoComplete` nimmt bewusst Freitext
+     * (`UpdateSuche.tsx`, Kommentar am Feld; 1:1 `UpdateMode.tsx:49`), und
+     * `geraetAendernAction` legt bei JEDEM nicht leeren `softwareVersion` eine Version an
+     * (`admin/actions.ts`, `registriereVersion` mit `insert(softwareVersions) …
+     * onConflictDoNothing`). Ein Tippfehler in einer von Hand geschriebenen Version erzeugt
+     * damit STILL eine neue Zeile in `software_versions` und stellt das Geraet auf eine
+     * Phantomversion — die Vorschlagsliste ist die einzige Abwehr. Der Bestand fuellt sie
+     * aus `useSoftwareVersions` (`UpdateMode.tsx:46`).
+     *
+     * ⛔ DIE ABFRAGE LAEUFT UEBER DAS PORTAL, NICHT UEBER DEN WIRT: antd rendert die Liste
+     * nach `document.body` (`_ui/RueckgabeDialog.test.tsx:23-33`). Und sie rendert in jsdom
+     * ueberhaupt nur, weil `virtual={false}` gesetzt ist (`UpdateSuche.tsx` am Feld,
+     * derselbe Grund wie in `_ui/EntleiherFeld.tsx`) — jsdom kennt keine Elementhoehen.
+     * ⛔ AUFGEKLAPPT WIRD UEBER `mousedown` AUF DER HUELLE, nicht ueber einen Klick auf das
+     * `input`: dieselbe Hausform wie `ausleihen/AusleihenTabelle.test.tsx:200-203`.
+     *
+     * ⛔ `toEqual` UND NICHT `toContain`: eine Fassung, die eine feste Liste hinschreibt oder
+     * eine fremde Quelle anzapft, bestuende ein Enthaltensein.
+     */
+    await mount(<UpdateSuche {...props({ versionen: ["3.1.0", "2.0.0", "1.9.7"] })} />);
+    const huelle = query(ZIELFELD).closest(".ant-select");
+    if (!(huelle instanceof HTMLElement)) throw new Error("das Zielfeld steckt in keinem antd-Select");
+    await act(async () => {
+      huelle.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      huelle.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const vorschlaege = Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
+    ).map((o) => (o.textContent ?? "").trim());
+
+    expect(vorschlaege, "die Vorschlagsliste kommt nicht aus dem Prop").toEqual([
+      "3.1.0",
+      "2.0.0",
+      "1.9.7",
+    ]);
+  });
+
   it("die Zielversion ist aenderbar", async () => {
     /*
      * ⛔ DIE GEGENPROBE ZUR VORBELEGUNG — ohne sie waere die Vorbelegung eine SPERRE. Der
@@ -350,13 +394,37 @@ describe("radio-Update-Modus: was ein Tap schreibt", () => {
      *
      * ⛔ REGEXFORM AUF DEM GESENDETEN WERT, NICHT `toBeTruthy` — „2026-08-24T08:30:00.000Z"
      * ist ebenso wahr wie „2026-08-24".
+     *
+     * ⛔ UND DIE ZWEITE HAELFTE, NACHGETRAGEN IN FIX-RUNDE 1 (REVIEW-V17, Fund F2): DIE ZONE.
+     * Die Regexform allein liess die naheliegende „Aufraeum"-Fassung
+     * `new Date().toISOString().slice(0, 10)` gemessen durch — 24/24 gruen, typecheck 0,
+     * lint 0. Sie rechnet in UTC, und ein Tap zwischen 00:00 und 02:00 MESZ schriebe damit
+     * den VORTAG in `last_updated_at`. `tagAusWert` rechnet in `Europe/Berlin`
+     * (`_lib/csv/spalten.ts:125`, `:140-154`), und genau das ist der Grund, aus dem die Zeile
+     * im Browser stehen darf (`UpdateSuche.tsx`, Kopf von `anwenden`).
+     *
+     * ⛔ DER ZEITPUNKT IST MIT ABSICHT 22:30 UTC: in `Europe/Berlin` ist das der 25. um
+     * 00:30 (MESZ = UTC+2), in UTC noch der 24. Die zwei Fassungen liefern hier
+     * VERSCHIEDENE Tage — an jedem anderen Zeitpunkt lieferten sie denselben, und der Fall
+     * waere 0 rot by construction.
+     *
+     * ⚠️ `vi.useFakeTimers()` VOR `vi.setSystemTime` (Hausform `_lib/gateSchranke.test.ts:200-202`).
+     * Das ist hier gefahrlos: beim Aufbau gilt `getipptes === uebernommen.current`, die
+     * Entprellung stellt also gar keine Uhr; und `afterEach` legt die echten Uhren zurueck.
      */
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-24T22:30:00Z"));
+
     await mount(<UpdateSuche {...props()} />);
     await click('[data-rolle="radio-update-tap"]');
 
     expect(aendernMock, "der Tap hat nichts gesendet").toHaveBeenCalledTimes(1);
     expect(aendernMock.mock.calls[0]![0], "der Tap trifft das falsche Geraet").toBe("g-1");
     expect(gesendeterPatch().lastUpdatedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(
+      gesendeterPatch().lastUpdatedAt,
+      "in UTC gekuerzt — ein Tap kurz nach Mitternacht schriebe den Vortag",
+    ).toBe("2026-08-25");
   });
 
   it("ein Tap schreibt NUR Felder, die auch eine Updater-Person schreiben darf", async () => {
@@ -615,8 +683,25 @@ describe("radio-Update-Modus: die Bauform der Insel und ihrer Seite", () => {
     expect(quelle, "die Seitengroesse erreicht den Lesepfad nicht").toMatch(
       /seitenGroesse:\s*UPDATE_SEITENGROESSE/,
     );
+    /*
+     * ⛔ ZWEI ANKER, NACHGESCHAERFT IN FIX-RUNDE 1 (REVIEW-V17, Fund F6).
+     *   * `\b25\b` BLEIBT — es ist die BREITERE Zusicherung und faengt eine hingeschriebene
+     *     25 an JEDER Stelle der Seite. Der zweite Anker kommt DANEBEN und nicht an ihre
+     *     Stelle: `seitenGroesse:\s*\d` benennt den Ort, an dem der Fehler entstuende, und
+     *     faengt auch eine andere Zahl als 25.
+     *   * Der Feldname wird ueber eine ZEICHENKLASSE aller drei Anfuehrungsformen gesucht.
+     *     `/"issi"/` allein liess `'issi'` und die Schraegstrich-Form durch; dass Prettier
+     *     im Haus doppelte Anfuehrungszeichen erzwingt, ist ein Deckel und keine Zusage.
+     * ⚠️ WAS DER FUND UEBER `\b25\b` BEHAUPTETE, TRAEGT NUR ZUR HAELFTE: `ohneKommentare`
+     * entfernt Blockkommentare und ganze `//`-Zeilen, aber BEWUSST kein nachgestelltes
+     * `// …` am Zeilenende (`_lib/quelltextScan.ts`, Kopf von `ohneKommentare`). Eine
+     * Belegzeile `…:25` faerbte die Seite also nur dann rot, wenn sie NACHGESTELLT stuende.
+     */
     expect(quelle, "die Seite schreibt die Seitengroesse selbst hin").not.toMatch(/\b25\b/);
-    expect(quelle, "die Seite schreibt einen Feldnamen selbst hin").not.toMatch(/"issi"/);
+    expect(quelle, "die Seitengroesse steht als Literal am Lesepfad").not.toMatch(
+      /seitenGroesse:\s*\d/,
+    );
+    expect(quelle, "die Seite schreibt einen Feldnamen selbst hin").not.toMatch(/['"`]issi['"`]/);
   });
 
   it("die Seite reicht KEINE Funktion und KEIN Date ueber die Grenze", () => {

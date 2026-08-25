@@ -366,13 +366,13 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
   /*
    * ⛔ DIE APPEND-ONLY-SPALTE WIRD NACHGEZOGEN, WENN DER SERVER SIE FORTGESCHRIEBEN HAT.
    * `NotizFeld` haengt ueber `notizAnfuegenAction` an und stoesst danach `revalidatePath` auf
-   * genau diese Seite an (`admin/actions.ts:655-657`); die Seite reicht das frische `geraet`
+   * genau diese Seite an (`admin/actions.ts:677-679`); die Seite reicht das frische `geraet`
    * herein. ⛔ ANTDS `Form` UEBERNIMMT GEAENDERTE `initialValues` BEI EINEM NEU-RENDERN NICHT
    * (gemessen: der Fall „eine angehaengte Anmerkung ueberlebt ein spaeteres Speichern des
    * Formulars" war ohne diese Zeile rot) — ohne den Abgleich traegt das Feld weiter den Stand
    * VOR dem Anhaengen, `baueGeaenderteFelder` macht daraus einen Patcheintrag (`:225`), und der
    * Server schreibt ihn fuer die Admin-Stufe ungefiltert (`_lib/rollen.ts:105`,
-   * `admin/actions.ts:513`). Die soeben angehaengte Zeile waere weg, still, auf einer
+   * `admin/actions.ts:534`). Die soeben angehaengte Zeile waere weg, still, auf einer
    * ausdruecklich append-only gefuehrten Spalte (`_db/schema.ts:56-59`).
    *
    * ⛔ NUR DIESES EINE FELD, UND DAS IST DER GANZE UNTERSCHIED ZU EINEM `key` AN DER INSEL: ein

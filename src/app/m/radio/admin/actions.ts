@@ -180,6 +180,27 @@ const UEBERSICHT = "/m/radio/admin";
 const GERAETELISTE = "/m/radio/admin/geraete";
 const VERSIONSLISTE = "/m/radio/admin/versionen";
 const AUSLEIHENLISTE = "/m/radio/admin/ausleihen";
+/**
+ * ⛔ DER UPDATE-MODUS — NACHGETRAGEN IN FIX-RUNDE 1 ZU V17 (REVIEW-V17, Fund F1).
+ *
+ * ⚠️ Die 1:1-Tafel Abschnitt D (`.superpowers/sdd/planteil4/briefs/KOPF.md:1300-1318` — der
+ * Planteil gehoert in den Pfad, R-V3-1 Auflage 3) fuehrt ihn NICHT: sie entstand, bevor
+ * `/admin/software` unter Regime B eine geraetefuehrende Flaeche wurde (E-V17,
+ * `.superpowers/sdd/planteil4/VORABSCAN.md:158-196`). ⛔ Das ist keine Erweiterung der Tafel,
+ * sondern ihre Ableitungsregel zu Ende gefuehrt: die Tafel bildet den `invalidateQueries`-
+ * Faecher des Bestands ab, `useUpdateDevice.ts:39` und `useUpdateNote.ts:16` invalidieren
+ * `['devices']`, und der Listenschluessel des Update-Modus ist `['devices', params]`
+ * (`useDevices.ts:62`) — die Karte lud im Bestand nach.
+ *
+ * ⛔ ER STEHT AN GENAU ZWEI STELLEN: `geraetAendernAction` und `notizAnfuegenAction` — die
+ * zwei Wege, die ein Tap auf dieser Flaeche ausloest
+ * (`admin/(arbeit)/software/UpdateSuche.tsx`, `anwenden` und `anhaengen`). ⬜ **BENANNTE
+ * LEERSTELLE, EIGENTUEMER PLANHALTER:** die vier Versions-Actions bewegen `zielVersion` und
+ * `versionen` — beides PROPS dieser Seite (`admin/(arbeit)/software/page.tsx`) —, entwerten
+ * sie aber nicht. Ob die Tafel dort ebenfalls nachzuziehen ist, ist eine Planentscheidung
+ * und keine des Bauenden; gemessen ist bisher nur der Tap-Weg.
+ */
+const SOFTWARE = "/m/radio/admin/software";
 
 /**
  * ⛔ DER AEUSSERE PFAD DER GERAETELISTE — er geht an den Browser, nicht an den Zwischenspeicher.
@@ -522,6 +543,7 @@ export async function geraetAendernAction(id: string, patch: GeraetPatch): Promi
   revalidatePath(`${GERAETELISTE}/${id}`);
   revalidatePath(GERAETELISTE);
   revalidatePath(UEBERSICHT);
+  revalidatePath(SOFTWARE);
   return { ok: true };
 }
 
@@ -654,6 +676,7 @@ export async function notizAnfuegenAction(id: string, text: string): Promise<Erg
 
   revalidatePath(`${GERAETELISTE}/${id}`);
   revalidatePath(GERAETELISTE);
+  revalidatePath(SOFTWARE);
   return { ok: true };
 }
 

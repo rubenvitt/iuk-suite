@@ -475,13 +475,22 @@ describe("geraetAendernAction", () => {
     expect(ereignisse()).toEqual([]);
   });
 
-  it("entwertet die drei INNEREN Pfade, nie die aeusseren", async () => {
+  it("entwertet die vier INNEREN Pfade, nie die aeusseren", async () => {
     /*
      * ⛔ `revalidatePath` adressiert Nexts Zwischenspeicher, nicht die Adresszeile
      * (`Spec:4212-4216`). Ein aeusserer Pfad dort ist FOLGENLOS und still — Fund F3 der
      * Planteil-3-Schlusspruefung war genau dieser Fehler.
      * Die Liste steht in der 1:1-Tafel Abschnitt D (`briefs/KOPF.md:1314`), abgeleitet aus
      * `useUpdateDevice.ts:38-39`.
+     *
+     * ⛔ DER VIERTE PFAD IST `/m/radio/admin/software` UND KAM MIT DER FIX-RUNDE 1 ZU V17
+     * DAZU (REVIEW-V17 Fund F1). Er ist KEINE Erweiterung der Tafel, sondern ihre
+     * Vervollstaendigung: der Alt-Faecher invalidiert `['devices']`
+     * (`useUpdateDevice.ts:39`), und der Listenschluessel des Update-Modus ist
+     * `['devices', params]` (`useDevices.ts:62`) — die Karte lud im Bestand nach. Der
+     * Update-Modus ist die EINZIGE Flaeche, von der aus diese Action ueberhaupt getappt
+     * wird (`admin/(arbeit)/software/UpdateSuche.tsx`, `anwenden`), und ohne die Zeile
+     * entwertete sie jede Geraeteflaeche AUSSER ihrer eigenen.
      */
     geraet({ id: "g-1", issi: "1000001", rufname: "Florian 1" });
 
@@ -491,6 +500,7 @@ describe("geraetAendernAction", () => {
       "/m/radio/admin/geraete/g-1",
       "/m/radio/admin/geraete",
       "/m/radio/admin",
+      "/m/radio/admin/software",
     ]);
   });
 });
@@ -752,10 +762,19 @@ describe("notizAnfuegenAction", () => {
     expect(zeile.newValue).toContain("Antenne getauscht");
     // Die gespeicherte Anmerkung behaelt den alten Inhalt WOERTLICH (`update-note.ts:34`).
     expect(geraeteZeilen()[0].updateNote).toContain("frueher");
-    // ⛔ REVIEW-V10 FUND F6: die ZWEI Pfade dieses Wegs (1:1-Tafel Abschnitt D,
+    // ⛔ REVIEW-V10 FUND F6: die Pfade dieses Wegs (1:1-Tafel Abschnitt D,
     // `briefs/KOPF.md:1316`) waren unbewacht — INNERE Form, und die Uebersicht steht NICHT
     // dabei, weil eine Anmerkung keine Kennzahl der Uebersichtsseite bewegt.
-    expect(entwertetePfade).toEqual(["/m/radio/admin/geraete/g-1", "/m/radio/admin/geraete"]);
+    // ⛔ `/m/radio/admin/software` KAM MIT DER FIX-RUNDE 1 ZU V17 DAZU (Fund F1): die
+    // gespeicherte Anmerkung steht auf der Update-Karte (`UpdateKarteZeile.updateAnmerkung`,
+    // `_lib/lesepfade/geraete.ts`), und der zweite Knopf der Karte ruft genau diese Action
+    // (`admin/(arbeit)/software/UpdateSuche.tsx`, `anhaengen`). Im Bestand lud die Karte
+    // nach, weil `useUpdateNote.ts:16` `['devices']` invalidiert.
+    expect(entwertetePfade).toEqual([
+      "/m/radio/admin/geraete/g-1",
+      "/m/radio/admin/geraete",
+      "/m/radio/admin/software",
+    ]);
   });
 });
 

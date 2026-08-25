@@ -414,7 +414,7 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
     /*
      * 1:1 aus `DeviceList.tsx:150` (`{isAdmin && (…)}`). ⛔ UND ES IST EINE
      * ANZEIGE-ENTSCHEIDUNG, KEINE SPERRE: die Sperre ist `requireRadioAdmin()` als erste
-     * Anweisung von `geraetAnlegenAction` (`admin/actions.ts:426`). Wer diesen Fall fuer den
+     * Anweisung von `geraetAnlegenAction` (`admin/actions.ts:447`). Wer diesen Fall fuer den
      * Riegel haelt, hat die Luecke gebaut, gegen die der Riegel steht.
      */
     await mount(<GeraeteTabelle {...eigenschaften({ darfAnlegen: false, darfExportieren: false })} />);

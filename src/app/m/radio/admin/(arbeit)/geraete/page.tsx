@@ -30,7 +30,7 @@ import { GeraeteTabelle } from "./GeraeteTabelle";
  * Ableitung derselben Aussage ist die, die auseinanderlaeuft.
  * ⛔ UND SIE SIND EINE ANZEIGE-ENTSCHEIDUNG, KEINE SPERRE — die Sperre ist
  * `requireRadioAdmin()` als erste Anweisung von `geraetAnlegenAction`
- * (`admin/actions.ts:426`) und der eigene Riegel des Export-Handlers (V22, `Spec:4379`).
+ * (`admin/actions.ts:447`) und der eigene Riegel des Export-Handlers (V22, `Spec:4379`).
  *
  * ⛔ EINE INSEL, EINE GRENZE (Entscheidung E-V6): alles ab der Werkzeugleiste liegt in
  * `GeraeteTabelle.tsx`. Diese Datei reicht ausschliesslich VORFORMATIERTE, serialisierbare
