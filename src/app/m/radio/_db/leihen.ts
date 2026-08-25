@@ -353,6 +353,38 @@ export function offeneAusleihen(db: DB): OffeneAusleihe[] {
     }));
 }
 
+/** Die offene Leihe eines Geraets, so wie der Loeschweg sie braucht (⬜ V-L6). */
+export type OffeneLeiheAmGeraet = { id: string; entleiher: string };
+
+/**
+ * DIE OFFENE LEIHE ZU EINEM GERAET — der Lesehalbsatz der Betreiberentscheidung ⬜ V-L6
+ * (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L6"): beim Loeschen eines aktiv
+ * verliehenen Geraets wird die offene Leihe automatisch als zurueckgegeben gebucht, und die
+ * Warnung davor NENNT DEN ENTLEIHER. Beides braucht die Zeile, bevor das Geraet verschwindet.
+ *
+ * ⛔ SIE LIEGT HIER UND NICHT IN `admin/actions.ts`, UND DAS IST NS-A1: `loans` hat genau EINEN
+ * Zugriffsort. Ein `select` auf `loans` in der Action waere ein zweiter Lese- und in seiner
+ * Nachbarschaft schnell ein zweiter Schreibweg — genau die Klasse, die `_lib/lesepfade/`
+ * per Quelltext-Scan fernhaelt (`_lib/lesepfade/ausleihen.ts` nennt `leihhistorie` und nicht
+ * `loans`).
+ *
+ * ⛔ `returned_at IS NULL` HEISST „AKTIVE LEIHE" (`_db/schema.ts:199`), und der partielle
+ * Unique-Index `loans_device_active_uidx` (`_db/migrations/0001_loans_aktiv_uidx.sql`) sichert
+ * zu, dass es HOECHSTENS EINE ist — deshalb `.get()` und kein `.all()` mit Auswahl danach.
+ *
+ * ⚠️ KEIN JOIN AUF `devices`: der Entleihername steht in `loans.borrower_name`
+ * (`_db/schema.ts:217`), das Geraet wird gleich geloescht, und `device_id` traegt bewusst
+ * keinen Fremdschluessel (`_db/schema.ts:201-205`).
+ */
+export function offeneLeiheZuGeraet(db: DB, geraeteId: string): OffeneLeiheAmGeraet | null {
+  const zeile = db
+    .select({ id: loans.id, entleiher: loans.borrowerName })
+    .from(loans)
+    .where(and(eq(loans.deviceId, geraeteId), isNull(loans.returnedAt)))
+    .get();
+  return zeile ?? null;
+}
+
 /**
  * DIE NAMENSVORSCHLAEGE — ersetzt `GET /v1/borrowers/suggestions` (Spec:5025, §4.3.4).
  *

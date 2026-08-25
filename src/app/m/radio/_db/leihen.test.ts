@@ -19,6 +19,7 @@ import {
   bucheAusleihe,
   bucheRueckgabe,
   leihhistorie,
+  offeneLeiheZuGeraet,
 } from "./leihen";
 
 /**
@@ -1424,6 +1425,54 @@ describe("radio-leihen: die Leihhistorie der Verwaltung", () => {
         `${verboten} reist in die Verwaltungsliste mit`,
       ).not.toContain(verboten);
     }
+  });
+});
+
+describe("radio-leihen: die offene Leihe zu einem Geraet (V-L6)", () => {
+  it("findet die aktive Leihe des Geraets mit Id und Entleiher", () => {
+    /*
+     * Der Lesehalbsatz der Betreiberentscheidung ⬜ V-L6: der Loeschweg braucht die
+     * Ausleih-Id, um `bucheRueckgabe` zu rufen, und den Entleihernamen fuer die Warnung
+     * VOR dem Loeschen (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L6",
+     * Punkt 1).
+     */
+    geraet({ id: "g-1", issi: "1000001" });
+    leihe({ deviceId: "g-1", id: "l-1", borrowerName: "Bea Beispiel" });
+
+    expect(offeneLeiheZuGeraet(db, "g-1")).toEqual({ id: "l-1", entleiher: "Bea Beispiel" });
+  });
+
+  it("liefert null, wenn die Leihe des Geraets bereits zurueckgegeben ist", () => {
+    /*
+     * ⛔ DIE TRAGENDE ZEILE IST `isNull(loans.returnedAt)`. Ohne sie faende der Loeschweg
+     * eine LAENGST zurueckgegebene Leihe, riefe `bucheRueckgabe` darauf — das dortige
+     * `returned_at IS NULL` in der `WHERE`-Klausel liefert 0 geaenderte Zeilen
+     * (`_db/leihen.ts:665`) — und der Loeschvorgang braeche mit einer Fehlermeldung ab,
+     * obwohl gar nichts offen ist.
+     */
+    geraet({ id: "g-2", issi: "1000002" });
+    leihe({ deviceId: "g-2", id: "l-2", returnedAt: new Date("2026-06-15T08:00:00Z") });
+
+    expect(offeneLeiheZuGeraet(db, "g-2")).toBeNull();
+  });
+
+  it("liefert null fuer ein Geraet ohne jede Leihzeile", () => {
+    geraet({ id: "g-3", issi: "1000003" });
+
+    expect(offeneLeiheZuGeraet(db, "g-3")).toBeNull();
+  });
+
+  it("nimmt nicht die offene Leihe eines ANDEREN Geraets", () => {
+    /*
+     * ⛔ DIE ZWEITE TRAGENDE ZEILE IST `eq(loans.deviceId, geraeteId)`. Ohne sie loeschte
+     * die Verwaltung ein freies Geraet und buchte dabei die Leihe eines fremden Geraets
+     * als zurueckgegeben — ein Datenschaden ohne Fehlermeldung.
+     */
+    geraet({ id: "g-4", issi: "1000004" });
+    geraet({ id: "g-5", issi: "1000005" });
+    leihe({ deviceId: "g-5", id: "l-5" });
+
+    expect(offeneLeiheZuGeraet(db, "g-4")).toBeNull();
   });
 });
 
