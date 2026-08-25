@@ -4,11 +4,17 @@
 // `GeraeteTabelle.tsx` lesen. Eine Direktive machte aus jedem von ihnen eine Modulreferenz
 // statt eines Wertes — HTTP 500 fuer die ganze Seite, und weder typecheck noch lint noch
 // build saehen etwas. Der Scan darueber steht in `src/app/m/radio/riegel.test.ts:909-962`.
-import {
-  SORTIER_SCHLUESSEL,
-  SUCHFELDER_VORGABE,
-  type GeraetFilter,
-} from "./lesepfade/geraete";
+/*
+ * ⛔ DIE DREI SCHLUESSELLISTEN KOMMEN AUS DEM BLATTMODUL `_lib/geraeteFelder.ts` UND NICHT AUS
+ * `_lib/lesepfade/geraete.ts`, obwohl jenes sie weiterexportiert: diese Datei wird von der
+ * Client-Insel gelesen, und `lesepfade/geraete.ts` importiert `drizzle-orm` und `_db/schema`
+ * als WERTE. Ein Wertimport von dort zoege beides in das Browser-Bundle —
+ * `_lib/csv/klassifizieren.ts:6-9` schreibt es aus: „weder `typecheck` noch `lint` noch
+ * `build` saehen es."
+ * ⛔ `GeraetFilter` DAGEGEN IST EIN `import type` UND VERSCHWINDET ZUR LAUFZEIT.
+ */
+import { SORTIER_SCHLUESSEL, SUCHFELDER_VORGABE } from "./geraeteFelder";
+import type { GeraetFilter } from "./lesepfade/geraete";
 import type { UpdateStand } from "./updateStand";
 
 /**

@@ -21,6 +21,7 @@ import type { DB } from "../../_db/client";
 import { devices, users, type Geraet } from "../../_db/schema";
 import { datumMitUhrzeit } from "../anzeige";
 import { berechneUpdateStand, type UpdateStand } from "../updateStand";
+import { SORTIER_SCHLUESSEL, SUCHFELDER, SUCHFELDER_VORGABE, type Sortierspalte, type Suchfeld } from "../geraeteFelder";
 import { zielVersion } from "./versionen";
 
 /**
@@ -28,8 +29,7 @@ import { zielVersion } from "./versionen";
  *
  * Sie ersetzen `listDevices` (`radio-admin/server/src/repos/deviceRepo.ts:147-217`),
  * `getDeviceById` hinter `GET /devices/:id` (`radio-admin/server/src/routes/devices.ts:82-97`),
- * `listAllDevices` (`deviceRepo.ts:63-65`), den Vorschlags-Endpunkt
- * (`radio-admin/server/src/routes/suggestions.ts:20-34`) und die vier Kennzahl-Rundlaeufe der
+ * `listAllDevices` (`deviceRepo.ts:63-65`), den Vorschlags-Endpunkt (`radio-admin/server/src/routes/suggestions.ts:20-34`) und die vier Kennzahl-Rundlaeufe der
  * Uebersicht (`radio-admin/client/src/hooks/useDashboardStats.ts:17-20`).
  *
  * ⛔ `db` IST DER ERSTE PARAMETER, IMMER, und keine Funktion hier holt sich die Verbindung
@@ -207,7 +207,7 @@ const SUCHBARE_FELDER: Record<string, SQLiteColumn | undefined> = {
   hersteller: devices.hersteller, // hersteller
   bedieneinheit: devices.bedieneinheit, // bedieneinheit
   hiorgId: devices.hiorgId, // hiorgId — kein Feld in `GeraetZeile`, deshalb der Quellname
-};
+} satisfies Record<Suchfeld, SQLiteColumn>;
 
 /**
  * Die zwoelf waehlbaren Suchfelder als LESBARE Liste — ⛔ die EINE Wahrheit, aus der die
@@ -221,22 +221,22 @@ const SUCHBARE_FELDER: Record<string, SQLiteColumn | undefined> = {
  * diese Datei `lagerort`, blieben typecheck, lint, build und jeder Test gruen, und die
  * Geraeteliste waere fuer diese Auswahl dauerhaft leer.
  */
-export const SUCHFELDER: readonly string[] = Object.keys(SUCHBARE_FELDER);
+export { SUCHFELDER };
 
 /**
  * ⛔ DIE SIEBEN VORGEWAEHLTEN SUCHFELDER, 1:1 aus `deviceRepo.ts:140` (und zeichengleich zur
  * Client-Kopie `SearchFieldPicker.tsx:21`, die der Alt-Kommentar `deviceRepo.ts:139`
  * ausdruecklich synchron halten will). In der Suite gibt es nur noch DIESE eine Liste.
+ * ⛔ SIE STEHT SEIT V13 IN `_lib/geraeteFelder.ts` UND WIRD VON HIER NUR WEITERGEREICHT —
+ * zusammen mit `SUCHFELDER` (`:224`) und `SORTIER_SCHLUESSEL` (`:273`). Der Grund ist der
+ * Client: die Feldauswahl der Insel 1 und der Suchparameter-Vertrag lesen diese Listen aus
+ * `"use client"`-Dateien; solange sie hier aus `Object.keys(...)` ueber DRIZZLE-Spalten
+ * entstanden, zog jeder solche Leser `drizzle-orm` und `_db/schema.ts` ins Browser-Bundle —
+ * „und weder `typecheck` noch `lint` noch `build` saehen es" (`_lib/csv/klassifizieren.ts:6-9`).
+ * ⛔ Die WAHRHEIT ist damit die Liste, die Spaltenabbildung ihr Pruefling: `:210` und `:262`
+ * tragen ein `satisfies`, das einen fehlenden ODER ueberzaehligen Eintrag zum TYPFEHLER macht.
  */
-export const SUCHFELDER_VORGABE = [
-  "rufname",
-  "issi",
-  "tei",
-  "seriennummer",
-  "zuordnung",
-  "opta",
-  "funktion",
-] as const;
+export { SUCHFELDER_VORGABE };
 
 /**
  * Die Spalten-Sortierschluessel, 1:1 aus `deviceRepo.ts:113-121` — SIEBEN. Zusammen mit dem
@@ -259,7 +259,7 @@ const SORTIERBAR: Record<string, SQLiteColumn | undefined> = {
   softwareVersion: devices.softwareVersion,
   lastUpdatedAt: devices.lastUpdatedAt,
   createdAt: devices.createdAt,
-};
+} satisfies Record<Sortierspalte, SQLiteColumn>;
 
 /**
  * Die acht annehmbaren Sortierschluessel als LESBARE Liste — ⛔ die EINE Wahrheit, aus der V13
@@ -270,7 +270,7 @@ const SORTIERBAR: Record<string, SQLiteColumn | undefined> = {
  * die Flaeche `location` und diese Datei `lagerort`, blieben typecheck, lint, build und jeder
  * Test gruen — und die Sortierung taete einfach nichts.
  */
-export const SORTIER_SCHLUESSEL: readonly string[] = [...Object.keys(SORTIERBAR), "updateStand"];
+export { SORTIER_SCHLUESSEL };
 
 /**
  * ⛔ DIE ACHT VORSCHLAGSFELDER, DIE EINE FLAECHE WIRKLICH BRAUCHT.

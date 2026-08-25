@@ -114,6 +114,15 @@ test.describe("radio-Verwaltung", () => {
     await page.locator('[data-rolle="radio-filter-ausleihbar"] button').click();
     await page.locator('[data-rolle="radio-filter-anwenden"]').click();
 
-    await expect(page).toHaveURL(/[?&]ausleihbar=1\b/);
+    /*
+     * ⛔ PFAD UND ABFRAGE, NICHT NUR DIE ABFRAGE. Ein Muster allein auf `ausleihbar=1` kann
+     * die Frage nicht beantworten, die `_lib/nav.test.ts:135-150` als echten 404 gemessen
+     * hat: liefert `usePathname()` auf dem Modul-Host die AEUSSERE Form? Schriebe die Insel
+     * `/m/radio/m/radio/admin/geraete?ausleihbar=1`, traefe ein reines Abfragemuster
+     * trotzdem — und der Vitest-Fall daneben kann es erst recht nicht sagen, weil er
+     * `usePathname` MOCKT. Hier steht die einzige Messung dieser Zusage.
+     */
+    await expect(page).toHaveURL(/^http:\/\/radio\.localtest\.me:3100\/admin\/geraete\?/);
+    expect(new URL(page.url()).searchParams.get("ausleihbar")).toBe("1");
   });
 });

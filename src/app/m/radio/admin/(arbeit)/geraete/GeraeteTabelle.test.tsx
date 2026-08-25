@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // src/app/m/radio/admin/(arbeit)/geraete/GeraeteTabelle.test.tsx
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, normalize } from "node:path";
 
 /**
  * INSEL 1 — DIE GERAETELISTE (`Spec:4490-4553`, §5.6.1; Aufgabe V13).
@@ -422,6 +423,110 @@ describe("radio-Geraeteliste: die Bauform der Insel", () => {
         /^["']use client["'];?$/,
       );
     }
+  });
+
+  it("keine Datei der Insel zieht _db/ oder drizzle-orm in den Browser", () => {
+    /*
+     * ⛔ DER FEHLER, DEN DIESER FALL FAENGT, WAR IN V13 EINMAL GEBAUT — und alle fuenf Tore
+     * blieben gruen. `GeraeteWerkzeugleiste.tsx` las `SUCHFELDER` aus
+     * `_lib/lesepfade/geraete.ts`, und jene Datei importiert `drizzle-orm` und `_db/schema`
+     * als WERTE. Schlimmer noch: `SUCHFELDER` entstand dort aus `Object.keys(...)` ueber die
+     * SPALTENOBJEKTE — es ist also nicht wegoptimierbar, die Tabellendefinitionen MUESSEN im
+     * Browser laufen, damit die Liste entsteht. Die Regel steht im Modul woertlich
+     * (`_lib/csv/klassifizieren.ts:6-9`): „ein Wertimport aus `_db/` zoege Drizzle und
+     * `better-sqlite3` ins Browser-Bundle, und weder `typecheck` noch `lint` noch `build`
+     * saehen es." Genau deshalb ein Quelltext-Scan und kein Verhaltenstest.
+     *
+     * ⛔ ER FOLGT DEM IMPORTGRAPHEN, ER LIEST NICHT NUR DIE FUENF DATEIEN. Der Fund lag eine
+     * Ebene tiefer (Insel -> `_lib/suchparameter.ts` -> `_lib/lesepfade/geraete.ts`); ein Scan
+     * ueber die Dateiliste allein haette ihn nicht gesehen. Dieselbe Lehre wie Ruling R-V11-3
+     * („Ein Gegen-`grep` mit Dateiliste prueft die Liste, nicht die Klasse").
+     *
+     * ⛔ `import type` ZAEHLT NICHT — es verschwindet zur Laufzeit. Das ist der Unterschied
+     * zwischen `import type { GeraetZeile } from "…/lesepfade/geraete"` (erlaubt, und die
+     * Insel tut es) und einem Wertimport derselben Datei (verboten).
+     *
+     * ⚠️ UND ER IST DIE UNTERGRENZE, NICHT DER BEWEIS: er sieht keine dynamischen Importe und
+     * keine Nicht-Relativpfade ausser `drizzle-orm` selbst. Was er sieht, sieht er
+     * mechanisch — was das Bundle wirklich enthaelt, zeigt erst `pnpm build` (V23).
+     */
+    const WURZELN = [
+      "GeraeteTabelle.tsx",
+      "GeraeteWerkzeugleiste.tsx",
+      "SpaltenWahl.tsx",
+      "FilterSchublade.tsx",
+      "NeuGeraetModal.tsx",
+    ].map((datei) => `src/app/m/radio/admin/(arbeit)/geraete/${datei}`);
+
+    /** Ein `import`/`export … from` mit seiner Typ-Markierung und seinem Modulpfad. */
+    const BEZUG = /\b(?:import|export)\s+(type\s+)?([^;]*?)\s*from\s*["']([^"']+)["']/g;
+
+    function aufloesen(vonDatei: string, spezifizierer: string): string | null {
+      if (!spezifizierer.startsWith(".")) return null;
+      /*
+       * ⛔ NORMALISIERT, SONST BESUCHT DER WALKER DASSELBE MODUL MEHRFACH: `./FilterSchublade`
+       * und `././FilterSchublade` sind verschiedene Zeichenketten und derselbe Pfad. Gemessen
+       * ohne `normalize`: 33 „Module" statt 10 — und bei einem Importzyklus liefe die
+       * Schleife gar nicht mehr aus, weil jeder Umlauf ein weiteres `./` anhaengte.
+       */
+      const basis = normalize(join(dirname(vonDatei), spezifizierer));
+      for (const kandidat of [`${basis}.ts`, `${basis}.tsx`, join(basis, "index.ts")]) {
+        if (existsSync(kandidat)) return kandidat;
+      }
+      return null;
+    }
+
+    const gesehen = new Set<string>(WURZELN);
+    const offen = [...WURZELN];
+    const verstoesse: string[] = [];
+
+    /*
+     * ⛔ AN EINER `"use server"`-DATEI ENDET DER GRAPH, UND DAS IST KEINE AUSNAHME, SONDERN DIE
+     * GRENZE SELBST. Eine Server Action wird nie in das Client-Bundle kopiert — Next ersetzt
+     * den Import durch eine Referenz; genau deshalb duerfen Actions als einzige ueber die
+     * Grenze (Bauform-Zulaessigkeitstafel Nr. 6, `Spec:4495-4497`). Ohne diese Zeile waere der
+     * Fall rot-by-construction, sobald eine Insel eine Action ruft — und der naheliegende
+     * Gruen-Fix waere, den Aufruf zu entfernen. Gemessen: `admin/actions.ts` und ueber sie
+     * `_lib/zugang.ts` erzeugten sechs Scheinfunde.
+     */
+    const istServerModul = (datei: string): boolean =>
+      /^["']use server["'];?$/.test(readFileSync(datei, "utf8").trimStart().split("\n")[0]!.trim());
+
+    while (offen.length > 0) {
+      const datei = offen.pop()!;
+      if (istServerModul(datei)) continue;
+      const quelle = ohneKommentare(readFileSync(datei, "utf8"));
+      for (const treffer of quelle.matchAll(BEZUG)) {
+        const nurTyp = treffer[1] !== undefined;
+        const spezifizierer = treffer[3]!;
+        if (nurTyp) continue;
+        if (/^drizzle-orm(?:\/|$)/.test(spezifizierer)) {
+          verstoesse.push(`${datei}: Wertimport von ${spezifizierer}`);
+          continue;
+        }
+        const ziel = aufloesen(datei, spezifizierer);
+        if (ziel === null) continue;
+        if (/[/\\]_db[/\\]/.test(ziel)) {
+          verstoesse.push(`${datei}: Wertimport aus _db/ (${spezifizierer})`);
+          continue;
+        }
+        if (!gesehen.has(ziel)) {
+          gesehen.add(ziel);
+          offen.push(ziel);
+        }
+      }
+    }
+
+    /*
+     * ⛔ DIE UNTERGRENZE DES WALKERS (Ruling R-V11-1, Auflage 1): ohne sie waere `toEqual([])`
+     * ueber einer Menge von fuenf Wurzeln gruen, auch wenn die Aufloesung gar nichts findet.
+     * Gemessen am 2026-08-25 mit DIESEM Walker: 12 Module (die fuenf Wurzeln, `_lib/`s
+     * `geraeteFelder`, `suchparameter`, `rollen`, `geraeteDiff`, `csv/klassifizieren`,
+     * `csv/spalten` und `admin/actions.ts` als Graphgrenze). Die Zahl ist bewusst KEINE
+     * exakte — sie belegt nur, dass der Graph gelaufen ist.
+     */
+    expect(gesehen.size, "der Walker ist dem Importgraphen nicht gefolgt").toBeGreaterThanOrEqual(10);
+    expect(verstoesse).toEqual([]);
   });
 
   it("die Seite traegt force-dynamic und den Riegel der Verwaltungs-Stufe", () => {

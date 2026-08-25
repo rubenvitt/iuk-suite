@@ -3,7 +3,7 @@
 // src/app/m/radio/admin/(arbeit)/geraete/GeraeteWerkzeugleiste.tsx
 import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Input, Space } from "antd";
-import { SUCHFELDER } from "../../../_lib/lesepfade/geraete";
+import { SUCHFELDER } from "../../../_lib/geraeteFelder";
 import type { GeraetFilterWerte } from "../../../_lib/suchparameter";
 import s from "../../../_ui/verwaltung.module.css";
 import { aktiveFilterZahl } from "./FilterSchublade";
@@ -26,8 +26,8 @@ import { SpaltenWahl, type SpaltenOption } from "./SpaltenWahl";
 /**
  * Die Etiketten der zwoelf waehlbaren Suchfelder — 1:1 aus `SearchFieldPicker.tsx:5-18`.
  *
- * ⛔ DIE SCHLUESSEL KOMMEN AUS `SUCHFELDER` (`_lib/lesepfade/geraete.ts:224`) UND STEHEN HIER
- * NICHT ZWEITMAL. Die Datei dort schreibt den Grund aus (`:216-223`): waehlt jemand
+ * ⛔ DIE SCHLUESSEL KOMMEN AUS `SUCHFELDER` (`_lib/geraeteFelder.ts:52-65`) UND STEHEN HIER
+ * NICHT ZWEITMAL. Die Datei dort schreibt den Grund aus (`_lib/geraeteFelder.ts:35-42`): waehlt jemand
  * ausschliesslich ein Feld, dessen Name der Lesepfad nicht kennt, greift der
  * Sicherheitszweig `sql\`0\`` und die Liste bleibt fuer diese Auswahl dauerhaft LEER —
  * bei gruenem typecheck, lint, build und Test. Der Fall
