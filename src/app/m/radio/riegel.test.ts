@@ -80,8 +80,8 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  * die Zahl bewusst anheben.
  *
  *   Planteil 3 baut `t/[code]/route.ts` und `abmelden/route.ts`  -> ERLEDIGT (Planteil 3)
- *   Planteil 4 baut `admin/(arbeit)/geraete/export/route.ts`     -> HANDLER_ANZAHL = 3
- *   Planteil 5 baut `sw.js/route.ts`                             -> HANDLER_ANZAHL = 4
+ *   V18 `import/hochladen` (E-V16) -> 3 · V22 `geraete/export` -> 4 (beide Planteil 4)
+ *   Planteil 5 baut `sw.js/route.ts`                             -> HANDLER_ANZAHL = 5
  *
  *   Planteil 3 baut `page.tsx` und den Ausleihzweig — beide AUSSERHALB von `admin/`,
  *                                                    -> ADMIN_SEITEN_ANZAHL bleibt 0
@@ -104,21 +104,21 @@ const MODUL = join(process.cwd(), "src/app/m/radio");
 const SELBST = join(MODUL, "riegel.test.ts");
 
 /**
- * ⛔ HEUTE ZWEI — EXAKT, nicht „mindestens". `t/[code]/route.ts` und `abmelden/route.ts`
- * (Planteil 3, Aufgabe A10); angehoben von Planteil 4 (3) und Planteil 5 (4). Die Konstante
- * steht hier oben und nicht im Testkoerper, damit die Aenderung EINE Zeile ist und im Diff
- * auffaellt.
+ * ⛔ HEUTE DREI — EXAKT, nicht „mindestens". `t/[code]/route.ts` und `abmelden/route.ts`
+ * (Planteil 3, Aufgabe A10) plus `admin/(arbeit)/import/hochladen/route.ts` (V18, E-V16);
+ * angehoben von V22 (`geraete/export`, 4) und Planteil 5 (`sw.js`, 5). Die Konstante steht
+ * hier oben, damit die Aenderung EINE Zeile ist und im Diff auffaellt.
  */
-const HANDLER_ANZAHL = 2;
+const HANDLER_ANZAHL = 3;
 
 /**
- * ⛔ HEUTE SECHS — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die Liste
+ * ⛔ HEUTE SIEBEN — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die Liste
  * (1 auf 2), V14 die Akte (2 auf 3), V15 die Historie (3 auf 4), V16 die Ausleihen (4 auf 5),
- * V17 der Update-Modus (5 auf 6), je im SELBEN Commit; so weiter bis 10 (Spec:4369-4378).
+ * V17 der Update-Modus (5 auf 6), V18 der Import (6 auf 7); so weiter bis 10 (Spec:4369-4378).
  * ⚠️ `ADMIN_SEITEN()` (Dateiende) zaehlt seit der Fix-Runde 1 zu V15 AUCH
  * `template.tsx`/`default.tsx` — heute gibt es keine.
  */
-const ADMIN_SEITEN_ANZAHL = 6;
+const ADMIN_SEITEN_ANZAHL = 7;
 
 /** Zwei Verwaltungs-Huellen: `admin/(arbeit)/layout.tsx` und `admin/(druck)/layout.tsx` (Z6). */
 const ADMIN_LAYOUTS_MINDESTENS = 2;
@@ -478,11 +478,11 @@ describe("(e) jede Verwaltungsseite traegt den Personen-Riegel ihrer Stufe", () 
 
   it("die Seitenzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
-     * ⚠️ HEUTE FUENF, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe Grund
-     * wie bei `HANDLER_ANZAHL`. Er hat FUENFMAL GEMESSEN gewirkt: in V12 („expected 1 to be
-     * +0"), V13 („expected 2 to be 1"), V14 („expected 3 to be 2"), V15 („expected 4 to
-     * be 3") und V16 („expected 5 to be 4") — erst die Anhebung im selben Commit machte ihn
-     * jeweils wieder gruen.
+     * ⚠️ HEUTE SIEBEN, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe Grund
+     * wie bei `HANDLER_ANZAHL`. Er hat bei jeder Seitenaufgabe GEMESSEN gewirkt: in V12
+     * („expected 1 to be +0"), V13 („expected 2 to be 1"), V14 („expected 3 to be 2"),
+     * V15 („expected 4 to be 3"), V16 („expected 5 to be 4") und V18 („expected 7 to be 6")
+     * — erst die Anhebung im selben Commit machte ihn jeweils wieder gruen.
      */
     expect(
       ADMIN_SEITEN().length,
@@ -1161,7 +1161,7 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
  * GEMESSEN: `/usr/bin/find src/app/m/radio -name 'template.tsx' -o -name 'default.tsx'` ist
  * leer (nachgemessen in V16, 2026-08-25). Der Zaehlfall bleibt gruen, weil es heute keine
  * solche Datei gibt — nicht, weil der Filter sie nicht faende. ⚠️ Die Zahl selbst steht am
- * Dateianfang und ist mit V16 auf FUENF gestiegen; sie hier ein zweites Mal auszuschreiben
+ * Dateianfang und waechst mit jeder Seitenaufgabe; sie hier ein zweites Mal auszuschreiben
  * hiesse, sie bei jeder Anhebung an zwei Stellen zu pflegen.
  */
 function ADMIN_SEITEN(): string[] {

@@ -1135,4 +1135,66 @@ describe("importSchreibenAction", () => {
     expect(ergebnis).toEqual({ ok: false, fehler: "ISSI-Spalte muss zugeordnet sein" });
     expect(geraeteZeilen()).toEqual([]);
   });
+
+  it("ein Probelauf schreibt keine Zeile und entwertet keinen Pfad", async () => {
+    /*
+     * ⛔ DIE ERSTE PHASE DES ZWEIPHASIGEN IMPORTS — `probelauf`, nachgetragen in V18 als
+     * benannte Abweichung von V10 (die Begruendung steht am Parameter in `admin/actions.ts`).
+     * 1:1 aus `import.ts:56-58`: `if (dryRun) return c.json({ dryRun: true, summary, rows })`.
+     *
+     * ⛔ ZWEI ZUSICHERUNGEN, UND DIE ZWEITE IST DIE, DIE SONST NIEMAND HAELT: kein
+     * `revalidatePath`. Ein Probelauf, der entwertet, behauptet eine Aenderung, die es nicht
+     * gab — und wirft bei jedem Blick in die Vorschau den Zwischenspeicher jeder
+     * Verwaltungsflaeche weg. Der Fehler ist typkorrekt, lint-sauber und im Browser nur als
+     * Langsamkeit sichtbar.
+     */
+    geraet({ id: "g-1", issi: "1000001", rufname: "Alt", status: "Einsatzbereit" });
+
+    const ergebnis = await importSchreibenAction(
+      { issi: 0, rufname: 1 },
+      [
+        ["1000001", "Neu"], // updated
+        ["1000002", "Frisch"], // created
+        ["", "ohne Kennung"], // error
+      ],
+      true,
+    );
+
+    expect(ergebnis.ok).toBe(true);
+    if (!ergebnis.ok) return;
+    expect(ergebnis.zusammenfassung).toEqual({
+      created: 1,
+      updated: 1,
+      unchanged: 0,
+      error: 1,
+      "skipped-no-permission": 0,
+    });
+    expect(ergebnis.zeilen.map((z) => z.klasse)).toEqual(["updated", "created", "error"]);
+
+    expect(geraeteZeilen().map((z) => z.rufname), "der Probelauf hat geschrieben").toEqual(["Alt"]);
+    expect(ereignisse(), "der Probelauf hat eine Ereigniszeile geschrieben").toEqual([]);
+    expect(entwertetePfade, "der Probelauf entwertet den Zwischenspeicher").toEqual([]);
+  });
+
+  it("der Probelauf und der Schreiblauf liefern dieselbe Zusammenfassung", async () => {
+    /*
+     * ⛔ DIE ZUSAGE, DIE DEN VORSCHAUSCHRITT ERST BRAUCHBAR MACHT: was die Vorschau zeigt,
+     * ist das, was danach passiert — solange sich der Bestand nicht bewegt. ⚠️ SIE IST
+     * BEWUSST NICHT ALS „derselbe Rueckgabewert" GESCHRIEBEN: `zeilen` traegt bei einem
+     * `created` dieselbe Klassifikation, aber der Schreiblauf legt die Zeile dabei an — ein
+     * zweiter Probelauf DANACH saehe `unchanged`. Genau deshalb klassifiziert der
+     * Schreiblauf erneut, statt das Ergebnis der Vorschau weiterzureichen
+     * (`ImportWizard.tsx:107`, `:123`).
+     */
+    const zuordnung = { issi: 0, rufname: 1 };
+    const zeilen = [["1000003", "Frisch"]];
+
+    const vorschau = await importSchreibenAction(zuordnung, zeilen, true);
+    const geschrieben = await importSchreibenAction(zuordnung, zeilen, false);
+
+    expect(vorschau.ok && geschrieben.ok).toBe(true);
+    if (!vorschau.ok || !geschrieben.ok) return;
+    expect(vorschau.zusammenfassung).toEqual(geschrieben.zusammenfassung);
+    expect(geraeteZeilen(), "der Schreiblauf hat NACH der Vorschau nichts angelegt").toHaveLength(1);
+  });
 });

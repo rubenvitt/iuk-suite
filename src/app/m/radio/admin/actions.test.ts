@@ -533,9 +533,33 @@ describe("radio-admin/actions: die Rechtestufe je Verwaltungsseite", () => {
    * Seite mit `requireRadioVerwaltung()` als erster Anweisung und einem `requireRadioAdmin()`
    * irgendwo darunter bestuende ihn.
    */
-  it.todo(
-    "V18: admin/(arbeit)/import/page.tsx nennt requireRadioAdmin und NICHT requireRadioVerwaltung (V-L5)",
-  );
+  it("V18: admin/(arbeit)/import/page.tsx nennt requireRadioAdmin und NICHT requireRadioVerwaltung (V-L5)", () => {
+    /*
+     * ⛔ SCHARF GESTELLT IN V18, IM SELBEN COMMIT WIE DIE SEITE. Der literale Pfad steht als
+     * Zeichenkette hier; eine pfadgenerische Form kann diese Aussage nicht erzeugen (die
+     * Begruendung steht im Kopf dieses Blocks).
+     *
+     * ⛔ DIE STUFE IST DIE BETREIBERENTSCHEIDUNG ⬜ V-L5 vom 2026-08-24
+     * (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „V-L5": „Nur Admin, nicht
+     * Updater") und ueberholt `Spec:4375` (dort `requireRadioVerwaltung()`) samt der
+     * Entscheidung E-V4 des Plans. Der fachliche Grund steht dort woertlich: „ein CSV-Import
+     * schreibt viele Datensaetze auf einmal und ist schwer rueckgaengig zu machen."
+     * ⚠️ Die Spec widerspricht sich selbst — `Spec:4207-4208` (Menuepunkt ausgeblendet) und
+     * `Spec:4451` (Rechtetafel „CSV-Import | ja | nein") sagen „nur Admin", `Spec:4375` sagt
+     * „Verwaltung". Zwei von drei tragen die Entscheidung.
+     *
+     * ⛔ DIE NEGATIVE HAELFTE IST DIE, DIE NIEMAND SONST HAELT: `personenRiegelFuer`s
+     * `(arbeit)`-Zweig prueft nur die ANWESENHEIT von `requireRadioAdmin(`
+     * (`riegel.test.ts:253-262`) — eine Seite mit `requireRadioVerwaltung()` als erster
+     * Anweisung und einem `requireRadioAdmin()` irgendwo darunter bestuende ihn.
+     */
+    const pfad = "admin/(arbeit)/import/page.tsx";
+    const q = bereinigt(readFileSync(join(MODUL, pfad), "utf8"));
+    expect(q, `${pfad}: die Admin-Stufe fehlt (V-L5)`).toMatch(RIEGEL_ADMIN);
+    expect(q, `${pfad}: faelschlich auf die Verwaltungs-Stufe abgesenkt (V-L5)`).not.toMatch(
+      RIEGEL_VERWALTUNG,
+    );
+  });
   it.todo(
     "V19: admin/(arbeit)/versionen/page.tsx nennt requireRadioAdmin und NICHT requireRadioVerwaltung",
   );

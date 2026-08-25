@@ -37,20 +37,20 @@ export const AUSLEIH_PFADE = [
 ];
 
 /**
- * Der Verwaltungszweig: die ZEHN Seiten aus Spec 1 §1.2.2 (`Spec:301-314`) plus den EINEN
+ * Der Verwaltungszweig: die ZEHN Seiten aus Spec 1 §1.2.2 (`Spec:301-314`) plus die ZWEI
  * Route Handler.
  *
- * ⚠️ Der Handler steht NICHT in `Spec:301-314` — er steht in `Spec:563` (§1.4.3) und wird
- * erst durch B9 (`Spec:98`) mitgezaehlt: „Gezaehlt wird jetzt einheitlich: zehn
+ * ⚠️ Der ERSTE Handler steht NICHT in `Spec:301-314` — er steht in `Spec:563` (§1.4.3) und
+ * wird erst durch B9 (`Spec:98`) mitgezaehlt: „Gezaehlt wird jetzt einheitlich: zehn
  * Seiten-Pfade plus ein Route Handler."
  *
  * ⚠️ `/admin/versionen` UND NICHT `/admin/einstellungen` — ebenfalls B9 (Kapiteltext
  * `Spec:326-331`).
  *
- * ⬜ DIESE LISTE WAECHST NOCH EINMAL, UND ZWAR GENAU EINMAL: der zweite neue Route Handler
- * `/admin/import/hochladen` (Entscheidung E-V16) kommt in Aufgabe V18 dazu, im selben
- * Commit wie der Handler selbst, zusammen mit der Zahl im Vollzaehligkeitsfall von
- * `_lib/routen.test.ts`. ⛔ Nicht vorwegnehmen.
+ * ✅ DER ZWEITE HANDLER IST DA — `/admin/import/hochladen` (Entscheidung E-V16), angelegt in
+ * Aufgabe V18 im selben Commit wie `admin/(arbeit)/import/hochladen/route.ts` und wie die
+ * Zahl im Vollzaehligkeitsfall von `_lib/routen.test.ts`. ⛔ Damit ist die Liste
+ * vollstaendig; die naechste Anhebung braucht einen neuen benannten Grund.
  */
 export const VERWALTUNGS_PFADE = [
   "/admin",
@@ -64,4 +64,5 @@ export const VERWALTUNGS_PFADE = [
   "/admin/zugaenge",
   "/admin/zugaenge/blatt",
   "/admin/geraete/export",
+  "/admin/import/hochladen",
 ];

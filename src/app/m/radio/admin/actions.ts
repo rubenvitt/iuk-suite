@@ -873,10 +873,23 @@ export async function versionenSortierenAction(ids: string[]): Promise<Ergebnis>
  * ⬜ V-L12 bleibt offen: ob die Rohzeilen einer Produktions-CSV unter der suiteweiten
  * 1-MB-Grenze einer Server Action bleiben, misst die Generalprobe. Reisst die Grenze, bekommt
  * diese Action dieselbe Handler-Bauform wie `hochladen` — eine Datei, kein Umbau.
+ *
+ * ⛔ `probelauf` IST DER DRITTE PARAMETER, UND ER IST DIE ZWEITE PHASE — nachgetragen in V18.
+ * Der Bestand ruft SEINEN Endpunkt zweimal: `POST /import/commit` mit `dryRun: true` fuer die
+ * Vorschau (`ImportWizard.tsx:107`) und mit `dryRun: false` fuer das Schreiben (`:123`); das
+ * Feld steht in `importCommitSchema` und wird in `import.ts:46`, `:56-58` ausgewertet.
+ * ⚠️ V10 hat die Action ohne diesen Parameter gebaut — nicht als Entscheidung, sondern weil
+ * ihr Brief den Vorschauschritt nicht fuehrte (`briefs/V10.md:101-118` nennt zweiphasig,
+ * ohne den Probelauf zu verorten). ⛔ OHNE IHN GAEBE ES DEN VORSCHAUSCHRITT NICHT: die
+ * Klassifikation braucht den Bestand aus `devices`, den weder die Insel noch der
+ * Hochladen-Handler lesen darf — und eine ZEHNTE Action ist ausgeschlossen
+ * (`ACTION_ANZAHL = 9` mit `toBe`, `admin/actions.test.ts`). Der Probelauf ist damit
+ * dieselbe Aktion in derselben Datei, genau wie im Bestand.
  */
 export async function importSchreibenAction(
   zuordnung: Spaltenzuordnung,
   zeilen: string[][],
+  probelauf = false,
 ): Promise<Ergebnis<ImportBilanz>> {
   const viewer = await requireRadioAdmin();
 
@@ -928,6 +941,17 @@ export async function importSchreibenAction(
       bestehendNachIssi,
       rolle,
     }));
+
+    /*
+     * ⛔ DER PROBELAUF ENDET HIER — VOR DER TRANSAKTION UND VOR JEDEM `revalidatePath`.
+     * 1:1 aus `import.ts:56-58` (`if (dryRun) return c.json({ dryRun: true, summary, rows })`).
+     * ⛔ EINE ENTWERTUNG WAERE HIER EINE LUEGE: es hat sich nichts geaendert, und der
+     * Zwischenspeicher jeder Verwaltungsflaeche fiele bei jedem Blick in die Vorschau.
+     * ⛔ UND DIE KLASSIFIKATION LAEUFT VOR DEM SCHREIBEN NOCH EINMAL — der Bestand kann sich
+     * zwischen Vorschau und Schreiben veraendert haben; deshalb ruft der Bestand denselben
+     * Endpunkt zweimal statt das Ergebnis der Vorschau weiterzureichen.
+     */
+    if (probelauf) return { ok: true, zusammenfassung, zeilen: klassifiziert };
 
     db.transaction((tx) => {
       klassifiziert.forEach((zeile) => {

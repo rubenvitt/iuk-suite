@@ -541,4 +541,132 @@ test.describe("radio-Verwaltung", () => {
       "die Insel bricht mit gesetztem Suchtext",
     ).toHaveCount(1);
   });
+
+  test("Fall 7: /admin/import fuehrt den zweiphasigen Import bis in die Datenbank", async ({ page }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V18, NICHT NACHBESSERUNG
+     * (`Spec:4881-4882` fuer die Flaeche, `Spec:4887-4888` fuer den ECHTEN Schreibvorgang).
+     *
+     * ⛔ ER IST DER EINZIGE WAECHTER UEBER **FALLE 1 UND FALLE 9** AN INSEL 4:
+     * `Upload.Dragger` und `Typography.Text` sind Compound-Zugriffe, die Vorschautabelle
+     * traegt zwei `render`-Funktionen. Aus einer Server Component ist beides HTTP 500 bzw.
+     * ein Serialisierungsfehler BEIM ABRUF; in jsdom gibt es keine RSC-Grenze, und
+     * `ImportAssistent.test.tsx` bliebe unter dieser Mutation gruen.
+     *
+     * ⛔ UND ER IST DER EINZIGE, DER DIE ZWEI SERVERWEGE ZUSAMMEN FAEHRT: den Route Handler
+     * `POST /admin/import/hochladen` (Entscheidung **E-V16**) und die Server Action
+     * `importSchreibenAction`. Ein Vitest-Fall kann das nicht — dort gibt es weder Middleware
+     * noch Action-Grenze.
+     *
+     * ⛔ **FALLE 10 (`CLAUDE.md`) GILT HIER AB DER ERSTEN ZEILE**, und zwar fuer den ROUTE
+     * HANDLER: `next dev`/Turbopack uebersetzt ihn beim ERSTEN Treffer; landet der eigentliche
+     * POST in diesem Fenster, loest der HMR-Kanal einen vollen Reload aus und der Browser
+     * bricht die laufende Anfrage ab — `net::ERR_ABORTED`, NIE eine Antwort, und der Test
+     * laeuft mit einer Meldung ins Zeitbudget, die nach etwas ganz anderem klingt. Abhilfe:
+     * ein WARMLAUF-GET auf dieselbe Route vor dem ersten echten POST. ⚠️ Die Antwort des
+     * Warmlaufs ist ein 405 (der Handler kennt nur `POST`) — das ist der ERWARTETE Zustand
+     * und genau das, was er beweisen soll: die Route ist uebersetzt und antwortet.
+     *
+     * ⛔ UND DIE ZWEITE TESTREGEL AUS FALLE 10: wer eine Anfrage ausloest, PRUEFT IHRE
+     * ANTWORT (`page.waitForResponse`), statt auf eine spaetere Zustandsaenderung zu warten —
+     * sonst laeuft jede abgelehnte Antwort (404, 405, 413, abgebrochen) still ins Zeitbudget.
+     *
+     * ⚠️ ER BRAUCHT KEINEN BESTAND (⬜ V13-L2): der Import LEGT AN. Das ist der eine Fall
+     * dieser Datei, der ohne `radio`-Seed einen echten Schreibvorgang zeigen kann.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    // Der Warmlauf — Falle 10. Die 405 ist die Antwort eines UEBERSETZTEN POST-Handlers.
+    const warmlauf = await page.request.get(radioUrl("/admin/import/hochladen"));
+    expect(
+      warmlauf.status(),
+      "der Hochladen-Handler antwortet nicht — der erste echte POST liefe in Falle 10",
+    ).toBe(405);
+
+    const antwort = await page.goto(radioUrl("/admin/import"));
+    expect(antwort?.status(), "/admin/import auf dem radio-Host").toBe(200);
+    await expect(
+      page.locator('[data-rolle="radio-import"]'),
+      "die Insel ist an der RSC-Grenze gebrochen (Falle 1 / Falle 9)",
+    ).toHaveCount(1);
+    await expect(page.locator('[data-rolle="radio-import"]')).toHaveAttribute(
+      "data-schritt",
+      "upload",
+    );
+
+    /*
+     * ⛔ EINE ISSI, DIE KEIN SEED UND KEIN ANDERER FALL DIESER DATEI FUEHRT — der Import muss
+     * ANLEGEN koennen, und ein Zusammenstoss mit einem Bestand aus einem frueheren Lauf
+     * machte aus `created` ein `unchanged`, ohne dass etwas rot wuerde.
+     */
+    const issi = `9${Date.now().toString().slice(-6)}`;
+    const csv = `ISSI;Rufname\n${issi};V18-Probe\n`;
+
+    const hochgeladen = page.waitForResponse(
+      (a) => a.url().includes("/admin/import/hochladen") && a.request().method() === "POST",
+    );
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "v18-probe.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv, "utf8"),
+    });
+    const hochladeAntwort = await hochgeladen;
+    expect(hochladeAntwort.status(), "der Dateischritt wurde abgewiesen").toBe(200);
+    expect(
+      (await hochladeAntwort.json()).ok,
+      "der Handler konnte die CSV nicht lesen",
+    ).toBe(true);
+
+    await expect(page.locator('[data-rolle="radio-import"]')).toHaveAttribute(
+      "data-schritt",
+      "mapping",
+    );
+    /* Die Kopfzeile „ISSI" trifft die Synonymtabelle — der Uebergang ist damit offen. */
+    await expect(page.locator('[data-rolle="radio-import-hinweis"]')).toHaveText(
+      "ISSI ist zugeordnet.",
+    );
+
+    /*
+     * ⛔ DER PROBELAUF — `importSchreibenAction(..., true)`. Er ist eine Server Action und
+     * damit ein POST auf DIESE Seite; `page.waitForResponse` haengt deshalb am Seitenpfad und
+     * nicht am Handlerpfad.
+     */
+    const probelauf = page.waitForResponse(
+      (a) => a.url().includes("/admin/import") && a.request().method() === "POST",
+    );
+    await page.locator('[data-rolle="radio-import-weiter"]').click();
+    expect((await probelauf).status(), "der Probelauf wurde abgewiesen").toBe(200);
+
+    await expect(page.locator('[data-rolle="radio-import"]')).toHaveAttribute(
+      "data-schritt",
+      "preview",
+    );
+    await expect(
+      page.locator('[data-rolle="radio-import-kennzahl"]'),
+      "fuenf Klassen, nicht drei (Entscheidung in V9)",
+    ).toHaveCount(5);
+
+    const schreiblauf = page.waitForResponse(
+      (a) => a.url().includes("/admin/import") && a.request().method() === "POST",
+    );
+    await page.locator('[data-rolle="radio-import-ausfuehren"]').click();
+    expect((await schreiblauf).status(), "der Schreiblauf wurde abgewiesen").toBe(200);
+
+    await expect(page.locator('[data-rolle="radio-import-fertig"]')).toContainText(
+      "Import abgeschlossen",
+    );
+    await expect(page.locator('[data-rolle="radio-import-bilanz"]')).toContainText("Neu: 1");
+
+    /*
+     * ⛔ DIE ZEILE STEHT WIRKLICH IN DER DATENBANK — und das ist die Haelfte, die kein
+     * Vitest-Fall haben kann. Ohne sie bewiese der Abschnitt oben nur, dass der Assistent
+     * seinen vierten Schritt zeigt.
+     */
+    const liste = await page.goto(radioUrl(`/admin/geraete?q=${issi}`));
+    expect(liste?.status(), "die Geraeteliste nach dem Import").toBe(200);
+    await expect(
+      page.locator("table"),
+      "das importierte Geraet steht nicht in der Liste",
+    ).toContainText(issi);
+  });
 });

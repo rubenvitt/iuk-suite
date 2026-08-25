@@ -79,12 +79,18 @@ describe("radio: jeder aeussere Pfad wird ins Modul umgeschrieben", () => {
     expect(AUSLEIHE.length, "geschrumpfte Liste — der Riegel waere leer-gruen").toBe(6);
   });
 
-  it("die Verwaltungsliste ist vollzaehlig — zehn Seiten plus EIN Route Handler", () => {
+  it("die Verwaltungsliste ist vollzaehlig — zehn Seiten plus ZWEI Route Handler", () => {
     /*
-     * Elf, gezaehlt nach B9 (Spec:98, woertlich: „Gezaehlt wird jetzt einheitlich: zehn
-     * Seiten-Pfade plus ein Route Handler"). Die zehn Seiten stehen in Tabelle 1.2.2
+     * Zwoelf. ELF davon zaehlt B9 (Spec:98, woertlich: „Gezaehlt wird jetzt einheitlich:
+     * zehn Seiten-Pfade plus ein Route Handler"). Die zehn Seiten stehen in Tabelle 1.2.2
      * (Spec:303-314; `:303` und `:313` sind die zwei Layouts ohne aeusseren Pfad), der
-     * Route Handler in Spec:563.
+     * erste Route Handler in Spec:563.
+     *
+     * ⛔ DER ZWOELFTE IST `/admin/import/hochladen` UND STEHT IN KEINER SPEC-TABELLE: er
+     * entsteht erst durch Entscheidung **E-V16** (Aufgabe V18), die `Spec:4657`s
+     * `importVorschauAction` von einer Server Action zu einem Route Handler macht — die
+     * suiteweite 1-MB-Grenze fuer Server Actions traegt keine hochgeladene Datei. Die
+     * Zaehlung waechst damit ueber B9 hinaus, und das ist eine benannte Abweichung.
      *
      * ⛔ Die Zahl ist NICHT aus Spec:353 genommen. Dort steht „`/admin` und alle acht
      * Unterpfade — frei.", und das ist einer zu wenig: Tabelle 1.2.2 fuehrt `/admin`
@@ -92,7 +98,7 @@ describe("radio: jeder aeussere Pfad wird ins Modul umgeschrieben", () => {
      * Kapiteltext, der ihm widerspricht — und hier ist der Kapiteltext nachweislich
      * verzaehlt.
      */
-    expect(VERWALTUNG.length, "geschrumpfte Liste — der Riegel waere leer-gruen").toBe(11);
+    expect(VERWALTUNG.length, "geschrumpfte Liste — der Riegel waere leer-gruen").toBe(12);
   });
 
   it.each(AUSLEIHE)("Ausleihe: %s", (pfad) => {
