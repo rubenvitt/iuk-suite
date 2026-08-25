@@ -272,8 +272,8 @@ describe("geraetAnlegenAction", () => {
      * ⛔ REVIEW-V10 FUND F2. Der Alt-Bestand fuehrt seine Feldgrenzen als zod-Schema, und das
      * traegt nicht nur `.strip()` und `min(1)`, sondern auch TYPPRAEDIKATE:
      * `alamosIntegrated: z.boolean().nullable().optional()` und
-     * `status: z.string().nullable().optional()` (`radio-admin/shared/src/schemas.ts:58`,
-     * `:59`). Ein Verstoss ist dort 400 `invalid` fuer die GANZE Anfrage (`devices.ts:102`).
+     * `status: z.string().nullable().optional()` (`radio-admin/shared/src/schemas.ts:69`,
+     * `:57`). Ein Verstoss ist dort 400 `invalid` fuer die GANZE Anfrage (`devices.ts:102`).
      *
      * ⛔ DIE TYPSIGNATUR TRAEGT DAS NICHT: eine Server Action bekommt ihre Argumente ueber die
      * Leitung, `GeraetEingabe` ist beim Aufruf eine Zusage des Aufrufers.
@@ -410,7 +410,7 @@ describe("geraetAendernAction", () => {
 
   it("lehnt eine LEERE ISSI im Patch ab, laesst eine fehlende aber durch", async () => {
     /*
-     * ⛔ `devicePatchSchema` fuehrt `issi: z.string().min(1).optional()` (`schemas.ts:76`):
+     * ⛔ `devicePatchSchema` fuehrt `issi: z.string().min(1).optional()` (`schemas.ts:78`):
      * fehlen darf sie, leer sein nicht. Eine Pruefung OHNE das `!== undefined` machte jede
      * gewoehnliche Aenderung unmoeglich; eine ohne die Leerpruefung schriebe eine
      * kennungslose Zeile.
@@ -453,8 +453,8 @@ describe("geraetAendernAction", () => {
   it("lehnt einen Wert der FALSCHEN ART im Patch ab", async () => {
     /*
      * ⛔ REVIEW-V10 FUND F2, zweite Haelfte: dieselbe Luecke im Patchweg
-     * (`radio-admin/shared/src/schemas.ts:72-98`), und hier ist es die STRING-Grenze
-     * (`status: z.string().nullable().optional()`, `:59`). ⛔ ABGELEHNT WIRD DIE GANZE ANFRAGE, das
+     * (`radio-admin/shared/src/schemas.ts:76-99`), und hier ist es die STRING-Grenze
+     * (`status: z.string().nullable().optional()`, `:83`). ⛔ ABGELEHNT WIRD DIE GANZE ANFRAGE, das
      * Feld wird NICHT still weggeschnitten — der Bestand antwortet 400 `invalid`
      * (`devices.ts:102`), und ein stilles Wegschneiden waere eine NEUE Bedeutung: der
      * Bedienende bekaeme „gespeichert" fuer etwas, das nicht gespeichert wurde.
@@ -583,12 +583,22 @@ describe("geraetLoeschenAction — ⬜ V-L6", () => {
      *
      * ⛔ DER FEHLSCHLAG WIRD ECHT ERZEUGT, NICHT WEGGEMOCKT: ein `BEFORE UPDATE`-Ausloeser mit
      * `RAISE(ABORT, …)` laesst das `SELECT` von `offeneLeiheZuGeraet` durch und bringt genau
-     * das `UPDATE` von `bucheRueckgabe` zu Fall (`_db/leihen.ts:686-693`), das seinen Fehler
+     * das `UPDATE` von `bucheRueckgabe` zu Fall (`_db/leihen.ts:694-698`), das seinen Fehler
      * selbst faengt und `{ ok: false }` liefert. ⚠️ `RAISE(ABORT)` rollt NUR DIE ANWEISUNG
      * zurueck, nicht die umschliessende Transaktion — gemessen, sonst waere dieser Fall
      * rot-by-construction. Eine Attrappe auf `../_db/leihen` haette zugleich die zweite,
      * bereits bewachte Zusage abgeschaltet, dass `bucheRueckgabe(db, …)` mit der AEUSSEREN
      * Verbindung INNERHALB der offenen Transaktion laeuft.
+     *
+     * ⛔ DER AUFRUF STEHT IN EINEM `try`, UND DAS IST DIE ZUSICHERUNG DIESES FALLES, NICHT
+     * BEQUEMLICHKEIT (Review-V10 Fund N2). Im gruenen Lauf wirft die Action nicht — sie bricht
+     * vor dem `redirect()` ab und liefert `{ ok: false }`. Faellt der Riegel weg, laeuft die
+     * Loeschung durch bis zum `redirect()`, und dessen Attrappe wirft (`:56-58`): ohne das
+     * `try` faerbte die Sonde ueber den UMLEITUNGS-SENTINEL, und „das Geraet bleibt stehen"
+     * aus dem Fallnamen bliebe im Sondenlauf ungeprueft. ⛔ DESHALB STEHEN DIE ZUSTANDS-
+     * ZUSICHERUNGEN VOR DER ZUSICHERUNG AUF `ergebnis` — die erste rote Zeile soll die sein,
+     * die der Fallname nennt. ⚠️ `rejects` traegt hier NICHT: der gruene Lauf wirft ja gerade
+     * nicht.
      */
     geraet({ id: "g-1", issi: "1000001" });
     db.insert(loans)
@@ -606,16 +616,21 @@ describe("geraetLoeschenAction — ⬜ V-L6", () => {
       "CREATE TRIGGER sonde_rueckgabe BEFORE UPDATE ON loans BEGIN SELECT RAISE(ABORT, 'sonde'); END",
     );
 
-    const ergebnis = await geraetLoeschenAction("g-1");
+    let ergebnis: Awaited<ReturnType<typeof geraetLoeschenAction>> | undefined;
+    try {
+      ergebnis = await geraetLoeschenAction("g-1");
+    } catch {
+      // Der Umleitungs-Sentinel. Er faellt NUR im Sondenlauf; siehe den Kopf dieses Falles.
+    }
 
-    expect(ergebnis).toEqual({ ok: false, fehler: "Löschen fehlgeschlagen" });
     expect(
       geraeteZeilen(),
       "das Geraet wurde geloescht, obwohl die Rueckgabe fehlschlug",
     ).toHaveLength(1);
     const leihe = db.select().from(loans).where(eq(loans.id, "l-1")).get();
-    expect(leihe?.returnedAt).toBeNull();
+    expect(leihe?.returnedAt, "die Rueckgabe blieb gebucht, obwohl die Transaktion fiel").toBeNull();
     expect(entwertetePfade).toEqual([]);
+    expect(ergebnis).toEqual({ ok: false, fehler: "Löschen fehlgeschlagen" });
   });
 
   it("entwertet auch die Ausleihenliste — sie mutiert seit V-L6 mit", async () => {
@@ -689,7 +704,7 @@ describe("notizAnfuegenAction", () => {
   it("lehnt eine unbekannte Geraete-Id ab, statt sie anzulegen", async () => {
     /*
      * ⛔ REVIEW-V10 FUND F10: `if (!bestehend) return …` war in BEIDEN Actions unbewacht.
-     * Der Bestand antwortet hier 404 (`devices.ts:167-168`), und der 404 faellt im Alt-Client
+     * Der Bestand antwortet hier 404 (`devices.ts:164-165`), und der 404 faellt im Alt-Client
      * in den allgemeinen Zweig — deshalb derselbe Satz wie bei einem fehlgeschlagenen
      * Schreibvorgang und kein dritter, neu erfundener.
      */

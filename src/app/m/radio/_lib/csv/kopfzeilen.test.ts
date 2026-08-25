@@ -1,6 +1,8 @@
 // src/app/m/radio/_lib/csv/kopfzeilen.test.ts
 import { describe, it, expect } from "vitest";
+import { getTableColumns } from "drizzle-orm";
 import { IMPORTIERBARE_FELDER, SYNONYME, automatischeSpaltenzuordnung } from "./kopfzeilen";
+import { devices } from "../../_db/schema";
 
 /**
  * Die neunundvierzig normalisierten Synonyme MIT IHREM ZIELFELD, 1:1 aus
@@ -101,6 +103,26 @@ describe("radio-csv: die importierbaren Felder", () => {
     for (const verboten of ["id", "createdAt", "updatedAt", "createdBy", "updatedBy", "updateNote"]) {
       expect(felder, `${verboten} ist ein System- oder Identitaetsfeld`).not.toContain(verboten);
     }
+  });
+
+  it("jedes davon ist eine echte devices-Spalte", () => {
+    /*
+     * ⛔ ABGELEITET AUS DER TABELLE STATT ABGESCHRIEBEN — dieselbe Bauform wie
+     * `SCHREIBBARE_FELDER` in `admin/actions.ts`.
+     *
+     * ⚠️ WARUM DIESER FALL SEIT REVIEW-V10 FUND N3 GEBRAUCHT WIRD: `importSchreibenAction`
+     * schneidet die Spaltenzuordnung seit der Fix-Runde 1 GENAU an dieser Liste und hat den
+     * zweiten Feldschnitt im Rumpf dafuer verloren. Damit haengt „jeder Schluessel im
+     * `.set(...)` ist eine echte Spalte" allein an ihr. ⛔ DER FALL DARUEBER FAENGT DAS NICHT:
+     * er haelt die ZAHL und verbietet die sechs benannten System-/Identitaetsfelder, prueft
+     * aber nicht, dass jeder Eintrag eine Spalte IST. Ein vertippter Eintrag liesse den ganzen
+     * Import mit `IMPORT_FEHLER` fallen — typkorrekt, lint-sauber und bis heute unbewacht.
+     */
+    const spalten = new Set(Object.keys(getTableColumns(devices)));
+    expect(
+      (IMPORTIERBARE_FELDER as readonly string[]).filter((feld) => !spalten.has(feld)),
+      "kein Eintrag ohne gleichnamige devices-Spalte",
+    ).toEqual([]);
   });
 });
 

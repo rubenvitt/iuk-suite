@@ -24,7 +24,7 @@ import { requireRadioAdmin, requireRadioVerwaltung } from "../_lib/zugang";
 
 /**
  * DIE NEUN SERVER ACTIONS DER VERWALTUNG (Spec 1 §5.8,
- * `docs/superpowers/specs/2026-08-17-radio-modul-design.md:4643-4666`).
+ * `docs/superpowers/specs/2026-08-17-radio-modul-design.md:4647-4666`).
  *
  * ⛔ `"use server";` STEHT IN ZEILE 1, OHNE PFADKOMMENTAR DAVOR — dieselbe Hausform wie
  * `_actions/ausleihe.ts:1` und aus demselben gemessenen Grund: der Scan liest
@@ -206,7 +206,7 @@ type SchreibDB = DB | Parameters<Parameters<DB["transaction"]>[0]>[0];
  * ⛔ DIE SERVEREIGENEN SPALTEN, DIE KEINE EINGABE SETZEN DARF — die Laufzeitfassung von
  * `SchreibbaresGeraetFeld` oben, und der 1:1-Ersatz fuer zods `.strip()`
  * (`radio-admin/shared/src/schemas.ts:49`, woertlich: „server-owned fields
- * (id/createdAt/updatedAt/...) are NOT accepted (strip unknown keys)", durchgesetzt in `:72`
+ * (id/createdAt/updatedAt/...) are NOT accepted (strip unknown keys)", durchgesetzt in `:73`
  * und `:99`).
  *
  * ⛔ DIE TYPSIGNATUR ALLEIN TRAEGT DAS NICHT. Eine Server Action bekommt ihre Argumente ueber
@@ -245,7 +245,7 @@ function nurSchreibbareFelder<T extends Record<string, unknown>>(eingabe: T): Pa
  * oben: eine Server Action bekommt ihre Argumente ueber die Leitung, `GeraetPatch` ist beim
  * Aufruf eine Zusage des Aufrufers, keine Pruefung. ⛔ UND DIE FOLGE IST EINE
  * BEDEUTUNGSUMKEHR, KEIN SCHOENHEITSFEHLER (gemessen, Review V10 Fund F2): better-sqlite3
- * bindet fuer eine `mode: "boolean"`-Spalte (`_db/schema.ts:48`, `:53`) jeden
+ * bindet fuer eine `mode: "boolean"`-Spalte (`_db/schema.ts:50`, `:55`) jeden
  * wahrheitswertigen Wert — aus dem Text „nein" wird `true`. Eine Zahl in einer Textspalte
  * kommt als `"42.0"` an.
  *
@@ -294,7 +294,7 @@ function artFalsch(eingabe: Record<string, unknown>): boolean {
 /**
  * ⛔ DIE ISSI IST DAS EINZIGE PFLICHTFELD, UND SIE DARF NICHT LEER SEIN —
  * `z.string().min(1)` im Anlegeschema (`radio-admin/shared/src/schemas.ts:52`) und
- * `z.string().min(1).optional()` im Patchschema (`:76`). ⛔ NICHT GETRIMMT, anders als beim
+ * `z.string().min(1).optional()` im Patchschema (`:78`). ⛔ NICHT GETRIMMT, anders als beim
  * Anmerkungstext (`:103`): der Bestand misst hier die ROHE Laenge, und ein `" "` kommt dort
  * durch. Diese Funktion misst dasselbe.
  *
@@ -311,7 +311,7 @@ function issiUnbrauchbar(issi: unknown): boolean {
 
 /**
  * better-sqlite3 meldet eine Unique-Verletzung mit diesem Code — 1:1 aus
- * `_db/leihen.ts:470-475`, dieselbe Doppelpruefung auf `cause`.
+ * `_db/leihen.ts:502-507`, dieselbe Doppelpruefung auf `cause`.
  *
  * ⛔ AUF `devices` HEISST ER EINDEUTIG „DIE ISSI IST SCHON VERGEBEN": `issi` traegt den einzigen
  * `unique()` dieser Tabelle (`_db/schema.ts:22`), `tei` ausdruecklich nicht (`:23-27`), und die
@@ -319,7 +319,7 @@ function issiUnbrauchbar(issi: unknown): boolean {
  *
  * ⚠️ DER `cause`-ZWEIG IST AUF DIESEM WEG HEUTE UNERREICHT UND DESHALB UNBEWACHT (Review V10
  * Fund F11, Sonde P38: `return false;` → 0 rot). Er steht trotzdem da, weil er 1:1 aus
- * `_db/leihen.ts:470-475` kommt, wo eigene Faelle ihn tragen — und weil drizzle eine
+ * `_db/leihen.ts:502-507` kommt, wo eigene Faelle ihn tragen — und weil drizzle eine
  * geworfene Ausnahme umhuellen kann, sobald ein Aufrufer sie durch eine weitere Schicht
  * reicht. ⛔ EIN KUENSTLICH UMHUELLTER FEHLER WAERE EIN FALL UEBER DEN TEST, NICHT UEBER DEN
  * BESTAND; die Zeile bleibt benannt statt scheinbewacht.
@@ -427,7 +427,7 @@ export async function geraetAnlegenAction(werte: GeraetEingabe): Promise<Ergebni
 
   if (issiUnbrauchbar(werte.issi)) return { ok: false, fehler: ANLEGEN_FEHLER };
   const sauber = { ...nurSchreibbareFelder(werte), issi: werte.issi };
-  // ⛔ DIE TYPPRAEDIKATE DES ANLEGESCHEMAS (`schemas.ts:50-70`), siehe `artFalsch`. Sie
+  // ⛔ DIE TYPPRAEDIKATE DES ANLEGESCHEMAS (`schemas.ts:50-73`), siehe `artFalsch`. Sie
   // stehen NACH dem Feldschnitt: was `.strip()` ohnehin entfernt, braucht keine Artpruefung.
   if (artFalsch(sauber)) return { ok: false, fehler: ANLEGEN_FEHLER };
 
@@ -486,13 +486,13 @@ export async function geraetAnlegenAction(werte: GeraetEingabe): Promise<Ergebni
 export async function geraetAendernAction(id: string, patch: GeraetPatch): Promise<Ergebnis> {
   const { viewer, rolle } = await requireRadioVerwaltung();
 
-  // ⛔ `issi` DARF FEHLEN, ABER NICHT LEER SEIN (`schemas.ts:76`) — deshalb `!== undefined`
+  // ⛔ `issi` DARF FEHLEN, ABER NICHT LEER SEIN (`schemas.ts:78`) — deshalb `!== undefined`
   // vor der Pruefung und nicht statt ihr.
   if (patch.issi !== undefined && issiUnbrauchbar(patch.issi)) {
     return { ok: false, fehler: SPEICHERN_FEHLER };
   }
 
-  // ⛔ DIE TYPPRAEDIKATE DES PATCHSCHEMAS (`schemas.ts:72-98`), siehe `artFalsch`. Sie stehen
+  // ⛔ DIE TYPPRAEDIKATE DES PATCHSCHEMAS (`schemas.ts:76-99`), siehe `artFalsch`. Sie stehen
   // VOR dem Lesen, weil der Bestand die Anfrage schon an der Validierung abweist
   // (400 `invalid`, `devices.ts:102`) und gar nicht erst in die Datenbank sieht.
   const eingang = nurSchreibbareFelder(patch);
@@ -543,7 +543,7 @@ class LoeschAbbruch extends Error {}
  *    (`GeraetLoeschen.tsx`, Aufgabe V14) und speist sich aus `offeneLeiheZuGeraet`
  *    (`_db/leihen.ts`). Diese Action ist der Vollzug, nicht die Warnung.
  * 2. Die Rueckgabe traegt den Zeitpunkt des Loeschens — `bucheRueckgabe` liest die Uhr selbst
- *    (`_db/leihen.ts:660`), und der Aufruf steht in DIESEM Vorgang. ⛔ Kein `new Date(0)`:
+ *    (`_db/leihen.ts:692`), und der Aufruf steht in DIESEM Vorgang. ⛔ Kein `new Date(0)`:
  *    der vernarbte Praezedenzfall (B7) haette jede aktive Leihe zu einer 1970 zurueckgegebenen
  *    gemacht, und der naechste Retention-Lauf haette sie geloescht.
  * 3. Erkennbar in der Historie ueber `return_note` — siehe `RUECKGABE_BEIM_LOESCHEN` oben.
@@ -552,7 +552,7 @@ class LoeschAbbruch extends Error {}
  *
  * ⛔ DIE RUECKGABE LAEUFT DURCH `bucheRueckgabe` UND NICHT DURCH EIN EIGENES `UPDATE`
  * (NS-A1): `loans` hat genau einen Schreibort. ⚠️ Und ihr Ergebnis wird GEPRUEFT — sie faengt
- * jeden Fehler selbst ab und liefert `{ ok: false }` (`_db/leihen.ts:688-692`); ohne die
+ * jeden Fehler selbst ab und liefert `{ ok: false }` (`_db/leihen.ts:720-724`); ohne die
  * Pruefung liefe die Loeschung weiter und die Leihe bliebe offen, in derselben Transaktion,
  * die das gerade verhindern soll.
  *
@@ -841,7 +841,7 @@ export async function versionenSortierenAction(ids: string[]): Promise<Ergebnis>
  * wegnimmt.
  *
  * ⚠️ `quelle` IST `csv-import` FUER JEDE GESCHRIEBENE EREIGNISZEILE — so schreibt es
- * `briefs/V10.md:115` und die 1:1-Tafel (`KOPF.md:1297`) vor. ⛔ GEMESSEN WEICHT DER BESTAND
+ * `briefs/V10.md:115` und die 1:1-Tafel (`KOPF.md:1281`) vor. ⛔ GEMESSEN WEICHT DER BESTAND
  * DAVON AB: `apply-commit.ts:50` schreibt fuer eine NEU ANGELEGTE Zeile `'create'` und erst
  * `:67` fuer eine geaenderte `'csv-import'`. Die Abweichung ist hier BENANNT statt still; sie
  * betrifft weder Filter noch Sortierung noch eine Feldgrenze, und beide Werte stehen im
