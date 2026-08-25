@@ -145,6 +145,22 @@ describe("radio-csv: die Synonymtabelle", () => {
      * (`auto-map-headers.ts:104-107`). Ohne diese Zahl fiele es niemandem auf, wenn jemand
      * die Praefixregel entfernte und dafuer einen Tabelleneintrag setzte — der Kundenkopf
      * `Gerätefunktionen-TMO/DMO/REP/GAT` fiele dann still aus der Zuordnung.
+     *
+     * ⛔ UND `SYNONYME` IST HIER RICHTIG, NICHT `ERWARTETE_SYNONYME` — Review V9 (Nachpruefung
+     * der Fix-Runde 1) schlug das Gegenteil vor (Sammelposten N2), und die Sonde hat den
+     * Vorschlag widerlegt. Der Dateikopf (`:9-11`) warnt vor einer ERWARTUNG aus dem
+     * Pruefling; hier ist der Pruefling der GEGENSTAND und die Erwartung die literale 18.
+     * Gemessen in Fix-Runde 2, EINE Mutation (`kopfzeilen.ts`: `geraetefunktionen:
+     * "deviceModes"` als fuenfzigster Eintrag eingefuegt):
+     *
+     *   - heutige Fassung `Object.values(SYNONYME)`     -> 2 rot (`2 failed | 9 passed`),
+     *     Meldung an `:166`: „achtzehn der neunzehn Felder; deviceModes laeuft ueber den
+     *     Praefix: expected 19 to be 18",
+     *   - Vorschlag `Object.values(ERWARTETE_SYNONYME)` -> 1 rot (`1 failed | 10 passed`);
+     *     rot wird nur noch das `toEqual` in `:126`.
+     *
+     * Der Vorschlag naehme also Deckung weg und machte diese zwei Zeilen zu einer Aussage
+     * ueber die Testkonstante statt ueber die Tabelle. Er ist deshalb begruendet verworfen.
      */
     const alleZiele = new Set(Object.values(SYNONYME));
     expect(alleZiele.size, "achtzehn der neunzehn Felder; deviceModes laeuft ueber den Praefix").toBe(18);
