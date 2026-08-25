@@ -563,9 +563,14 @@ test.describe("radio-Verwaltung", () => {
      * POST in diesem Fenster, loest der HMR-Kanal einen vollen Reload aus und der Browser
      * bricht die laufende Anfrage ab — `net::ERR_ABORTED`, NIE eine Antwort, und der Test
      * laeuft mit einer Meldung ins Zeitbudget, die nach etwas ganz anderem klingt. Abhilfe:
-     * ein WARMLAUF-GET auf dieselbe Route vor dem ersten echten POST. ⚠️ Die Antwort des
-     * Warmlaufs ist ein 405 (der Handler kennt nur `POST`) — das ist der ERWARTETE Zustand
-     * und genau das, was er beweisen soll: die Route ist uebersetzt und antwortet.
+     * ein WARMLAUF-GET auf dieselbe Route vor dem ersten echten POST.
+     *
+     * ⬜ **V18-L1, EIGENTUEMER V23:** dass Next auf ein GET gegen einen Handler, der nur
+     * `POST` ausfuehrt, mit **405** antwortet, ist hier ANGENOMMEN und NICHT GEMESSEN — der
+     * Playwright-Lauf faellt erst in V23. Liest V23 einen anderen Code ab, ist das KEIN
+     * Fehler dieser Aufgabe, sondern der abzulesende Wert; die Zeile wird dann dort auf ihn
+     * gestellt. ⛔ Der ZWECK des Warmlaufs haengt nicht an der Zahl: er ist die Uebersetzung
+     * der Route, und dass ueberhaupt eine Antwort kommt, ist die Aussage.
      *
      * ⛔ UND DIE ZWEITE TESTREGEL AUS FALLE 10: wer eine Anfrage ausloest, PRUEFT IHRE
      * ANTWORT (`page.waitForResponse`), statt auf eine spaetere Zustandsaenderung zu warten —
@@ -580,7 +585,7 @@ test.describe("radio-Verwaltung", () => {
     const warmlauf = await page.request.get(radioUrl("/admin/import/hochladen"));
     expect(
       warmlauf.status(),
-      "der Hochladen-Handler antwortet nicht — der erste echte POST liefe in Falle 10",
+      "⬜ V18-L1: der Hochladen-Handler antwortet nicht — der erste echte POST liefe in Falle 10",
     ).toBe(405);
 
     const antwort = await page.goto(radioUrl("/admin/import"));
@@ -602,8 +607,15 @@ test.describe("radio-Verwaltung", () => {
     const issi = `9${Date.now().toString().slice(-6)}`;
     const csv = `ISSI;Rufname\n${issi};V18-Probe\n`;
 
+    /*
+     * ⛔ DER PFAD WIRD VERANKERT UND NICHT MIT `includes` GESUCHT: `/admin/import` ist ein
+     * ECHTES PRAEFIX von `/admin/import/hochladen`, und die zwei Server-Action-Wartestellen
+     * weiter unten haengen an eben jenem `/admin/import`. Ein `includes` liesse die
+     * Reihenfolge der Aufrufe darueber entscheiden, welche Antwort welcher Wartestelle
+     * zufaellt — heute richtig, morgen still falsch.
+     */
     const hochgeladen = page.waitForResponse(
-      (a) => a.url().includes("/admin/import/hochladen") && a.request().method() === "POST",
+      (a) => new URL(a.url()).pathname === "/admin/import/hochladen" && a.request().method() === "POST",
     );
     await page.locator('input[type="file"]').setInputFiles({
       name: "v18-probe.csv",
@@ -632,7 +644,7 @@ test.describe("radio-Verwaltung", () => {
      * nicht am Handlerpfad.
      */
     const probelauf = page.waitForResponse(
-      (a) => a.url().includes("/admin/import") && a.request().method() === "POST",
+      (a) => new URL(a.url()).pathname === "/admin/import" && a.request().method() === "POST",
     );
     await page.locator('[data-rolle="radio-import-weiter"]').click();
     expect((await probelauf).status(), "der Probelauf wurde abgewiesen").toBe(200);
@@ -647,7 +659,7 @@ test.describe("radio-Verwaltung", () => {
     ).toHaveCount(5);
 
     const schreiblauf = page.waitForResponse(
-      (a) => a.url().includes("/admin/import") && a.request().method() === "POST",
+      (a) => new URL(a.url()).pathname === "/admin/import" && a.request().method() === "POST",
     );
     await page.locator('[data-rolle="radio-import-ausfuehren"]').click();
     expect((await schreiblauf).status(), "der Schreiblauf wurde abgewiesen").toBe(200);
@@ -664,9 +676,16 @@ test.describe("radio-Verwaltung", () => {
      */
     const liste = await page.goto(radioUrl(`/admin/geraete?q=${issi}`));
     expect(liste?.status(), "die Geraeteliste nach dem Import").toBe(200);
+    /*
+     * ⛔ AUF DIE DATENZEILE GEGRIFFEN, NICHT AUF `table`: antd rendert bei gesetztem `scroll`
+     * Kopf und Rumpf als ZWEI `<table>`-Elemente, und Playwrights strict mode faellt ueber
+     * einen Griff, der zwei Knoten trifft. Dieselbe Form wie Fall 2
+     * (`table tbody tr.ant-table-row`), dort mit derselben Begruendung fuer den
+     * `.ant-table-placeholder`-Ausschluss.
+     */
     await expect(
-      page.locator("table"),
+      page.locator("table tbody tr.ant-table-row").filter({ hasText: issi }),
       "das importierte Geraet steht nicht in der Liste",
-    ).toContainText(issi);
+    ).toHaveCount(1);
   });
 });

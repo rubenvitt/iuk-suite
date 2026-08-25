@@ -18,6 +18,16 @@ import {
   type Zusammenfassung,
 } from "../../../_lib/csv/klassifizieren";
 import s from "../../../_ui/verwaltung.module.css";
+/*
+ * ⛔ EIN TYPIMPORT AUS DEM HANDLER, UND ZWAR ABSICHTLICH: die Antwortform von
+ * `hochladen/route.ts` waere sonst hier ein ZWEITES Mal abgeschrieben — genau die
+ * Doppelabschrift, gegen die dieses Haus seine Scans hat. `import type` verschwindet zur
+ * Laufzeit und legt keine Modulkante an; der Bundle-Waechter in `ImportAssistent.test.tsx`
+ * ueberspringt ihn deshalb ausdruecklich (`if (nurTyp) continue;`). Vorbild:
+ * `software/UpdateSuche.tsx` zieht `UpdateKarteZeile` aus einem Modul, das `_db/schema` als
+ * WERT liest.
+ */
+import type { HochladenAntwort } from "./hochladen/route";
 
 /**
  * INSEL 4 — DER ZWEIPHASIGE CSV-IMPORT (`Spec:4506`, §5.7; Aufgabe V18).
@@ -198,8 +208,8 @@ const GERAETELISTE = "/admin/geraete";
 /** Feld -> gewaehlte Kopfzeile der Datei. 1:1 `columnMapping.ts:4` (`ColumnMapping`). */
 type Spaltenwahl = Partial<Record<ImportierbaresFeld, string>>;
 
-/** Was der Hochladen-Handler zurueckgibt (`hochladen/route.ts`, `HochladenAntwort`). */
-type Gelesen = { spalten: string[]; zeilen: string[][] };
+/** Die gelesene Datei — die Erfolgshaelfte der Handlerantwort, ABGELEITET statt abgeschrieben. */
+type Gelesen = Omit<Extract<HochladenAntwort, { ok: true }>, "ok">;
 
 /** Die Bilanz eines Laufs — `ImportBilanz` aus `admin/actions.ts:117`, hier ohne Importzwang. */
 type Bilanz = { zusammenfassung: Zusammenfassung; zeilen: KlassifizierteZeile[] };
@@ -274,10 +284,8 @@ export function ImportAssistent() {
       rumpf.set("datei", datei);
       const antwort = await fetch(HOCHLADEN, { method: "POST", body: rumpf });
       if (!antwort.ok) throw new Error(String(antwort.status));
-      const daten = (await antwort.json()) as { ok: boolean; spalten?: string[]; zeilen?: string[][] };
-      if (!daten.ok || daten.spalten === undefined || daten.zeilen === undefined) {
-        throw new Error("unlesbar");
-      }
+      const daten = (await antwort.json()) as HochladenAntwort;
+      if (!daten.ok) throw new Error(daten.fehler);
       setGelesen({ spalten: daten.spalten, zeilen: daten.zeilen });
       setWahl(vorschlag(daten.spalten));
       setSchritt("mapping");
