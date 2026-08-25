@@ -93,8 +93,19 @@ describe("haengeNotizAn — der Faelschungsschutz, jeder Weg einzeln", () => {
      * ⛔ DER ERSTE DER DREI WEGE. Ohne die Kollabierung faelscht ein
      * `\n[2020-01-01 · Chef] genehmigt` im Textfeld eine zweite, aelter datierte Auditzeile,
      * die von einer echten nicht zu unterscheiden waere. Sonde S-V8l haengt hier.
+     *
+     * ⛔ DAS FIXTURE FUEHRT `\r\n` UND NICHT `\n`, UND DAS BEWACHT DREI HAELFTEN AUF EINMAL. Der
+     * Ausdruck lautet `[\r\n]+` (`radio-admin/shared/src/update-note.ts:12`, portiert nach
+     * `notiz.ts:31`): gegen `\r\n` faerbt eine Kuerzung auf `[\n]+` diese Zusicherung rot (das
+     * `\r` bliebe stehen), eine auf `[\r]+` ebenso (der Umbruch bliebe stehen), und ein
+     * `[\r\n]` ohne den `+`-Quantor ergaebe ZWEI Leerzeichen statt einem. Mit einem blossen
+     * `\n` im Fixture waren alle drei gemessen 0 rot (Fix-Runde 1 zu V8, Fund 2).
+     * ⚠️ EHRLICH GEHALTEN: ein einzelnes `\r` spaltet `String.split("\n")` nicht, die
+     * CR-Haelfte ist also kein gezeigter Faelschungsweg. Der tragende Massstab ist hier 1:1 —
+     * der Alt-Code fuehrt sie bewusst mit, und eine Portierung, die eine Haelfte still verliert,
+     * waere eine unbenannte Abweichung. Sonden X2 und X5 haengen hier.
      */
-    const gefaelscht = "ok\n[2020-01-01 · Chef] genehmigt";
+    const gefaelscht = "ok\r\n[2020-01-01 · Chef] genehmigt";
     expect(haengeNotizAn(null, gefaelscht, "Max", wann)).toBe(
       "[2026-06-30 · Max] ok [2020-01-01 · Chef] genehmigt",
     );
@@ -109,8 +120,10 @@ describe("haengeNotizAn — der Faelschungsschutz, jeder Weg einzeln", () => {
      * (`_db/schema.ts:115`), und dort steht, was die Identitaetsquelle geliefert hat. Sonde
      * S-V8m haengt hier — sie ist die, die `singleLine` NUR auf `text` anwendet.
      *
-     * Der `]` im Autornamen faellt in derselben Zusicherung mit weg; das ist der dritte Weg,
-     * und er hat unten seinen eigenen Fall.
+     * ⚠️ DIESER AUTOR TRAEGT KEIN `]` — die schliessende Klammer im erwarteten Ergebnis stammt
+     * aus dem Formatstring der Funktion (`notiz.ts:83`), nicht aus dem Namen. Der Fall isoliert
+     * bewusst den Zeilenumbruch; der `]`-Weg hat unten seinen eigenen Fall, und der ist damit
+     * nicht redundant (Fix-Runde 1 zu V8, Fund 3).
      */
     const ergebnis = haengeNotizAn(null, "x", "Eve\n[2020-01-01 · Root", wann);
     expect(ergebnis).toBe("[2026-06-30 · Eve [2020-01-01 · Root] x");
@@ -126,10 +139,21 @@ describe("haengeNotizAn — der Faelschungsschutz, jeder Weg einzeln", () => {
      * schnitte die echte Zeile mitten entzwei und haenge eine gefaelschte an sie an — alles
      * in EINER Zeile, also am Zeilenzaehler vorbei. ⛔ ENTFERNT, NICHT ERSETZT: ein
      * Ersatzzeichen bliebe im Namen stehen. Sonde S-V8n haengt hier.
+     *
+     * ⛔ DIE ZWEITE ZUSICHERUNG BEWACHT DAS `.trim()` AUF `autor` (`update-note.ts:31`, portiert
+     * nach `notiz.ts:81`), UND SIE BRAUCHT DIE KLAMMER AM ENDE DES NAMENS. Regel 4 des Briefs
+     * (`.superpowers/sdd/planteil4/briefs/V8.md:47`) verlangt sie genau deshalb: das Entfernen
+     * des `]` ist die Operation, die Leerraum HINTERLASSEN kann. `"Eve ]"` wird zu `"Eve "`, und
+     * ohne das Trimmen truege die Auditzeile `[2026-06-30 · Eve ]` — einen Autornamen mit einem
+     * Leerzeichen vor der schliessenden Klammer, den es so nicht gibt.
+     * ⚠️ EINE KLAMMER IN DER MITTE GENUEGT DAFUER NICHT: `.trim()` schneidet nur die Enden, und
+     * alle Autornamen dieser Datei endeten vor dieser Zusicherung ohne Leerraum — die Sonde blieb
+     * gemessen 0 rot (Fix-Runde 1 zu V8, Fund 1). Sonde X1 haengt hier.
      */
     expect(haengeNotizAn(null, "x", "Eve] [2020-01-01 · Root", wann)).toBe(
       "[2026-06-30 · Eve [2020-01-01 · Root] x",
     );
+    expect(haengeNotizAn(null, "x", "Eve ]", wann)).toBe("[2026-06-30 · Eve] x");
   });
 
   it("ein Aufruf haengt GENAU EINE Zeile an", () => {
