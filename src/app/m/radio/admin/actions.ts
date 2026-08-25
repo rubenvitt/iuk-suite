@@ -193,12 +193,12 @@ const AUSLEIHENLISTE = "/m/radio/admin/ausleihen";
  * (`useDevices.ts:62`) — die Karte lud im Bestand nach.
  *
  * ⛔ ER STEHT AN GENAU ZWEI STELLEN: `geraetAendernAction` und `notizAnfuegenAction` — die zwei
- * Wege eines Taps hier (`admin/(arbeit)/software/UpdateSuche.tsx`, `anwenden` und `anhaengen`).
- * ⬜ **BENANNTE LEERSTELLE, EIGENTUEMER PLANHALTER:** die vier Versions-Actions bewegen
- * `zielVersion` und `versionen` — PROPS dieser Seite (`admin/(arbeit)/software/page.tsx`) —,
- * entwerten sie nicht; ebenso `geraetAnlegenAction` und `geraetLoeschenAction`, deren Alt-Haken
- * `useCreateDevice.ts:11` und `useDeleteDevice.ts:15` `['devices']` invalidieren. Mehr nicht:
- * `useImportCommit.ts` invalidiert nichts; gemessen ist nur der Tap-Weg.
+ * Wege eines Taps (`admin/(arbeit)/software/UpdateSuche.tsx`, `anwenden`/`anhaengen`). ⬜
+ * **BENANNTE LEERSTELLE, EIGENTUEMER PLANHALTER:** die SIEBEN uebrigen Actions entwerten sie
+ * nicht, obwohl der Alt-Faecher aus jeder `['devices']` invalidiert — `geraetAnlegenAction`
+ * (`useCreateDevice.ts:11`), `geraetLoeschenAction` (`useDeleteDevice.ts:15`), die vier
+ * Versions-Actions (`useSoftwareVersions.ts:32`) und `importSchreibenAction` (⛔ am Aufrufer,
+ * nicht im Haken: `ImportWizard.tsx:128`). Ob die Tafel nachzieht, ist die Planentscheidung.
  */
 const SOFTWARE = "/m/radio/admin/software";
 
