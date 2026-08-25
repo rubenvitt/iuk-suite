@@ -165,4 +165,58 @@ test.describe("radio-Verwaltung", () => {
     await expect(page).toHaveURL(/^http:\/\/radio\.localtest\.me:3100\/admin\/geraete\?/);
     expect(new URL(page.url()).searchParams.get("ausleihbar")).toBe("1");
   });
+
+  test("Fall 3: /admin/geraete/<id> zeigt das Formular", async ({ page }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V14, NICHT NACHBESSERUNG
+     * (`Spec:4879`, Fall 3). Er ist der EINZIGE Waechter ueber **Falle 1** — dem Fehler, den
+     * Vitest strukturell nicht sehen kann und den `.superpowers/sdd/planteil4/BERICHT-V14.md`
+     * als Sonde **S-V14d** mit 0 rot protokolliert: `DeviceFields.tsx` ist fast ausschliesslich
+     * `Form.Item`, und Compound-Zugriff in einer Server Component ist HTTP 500. In jsdom gibt
+     * es keine RSC-Grenze — dort rendert dasselbe Markup klaglos.
+     *
+     * ⛔ DER GRIFF IST DAS PFLICHTFELD, NICHT „irgendein Text ist da": bricht die Insel an der
+     * Grenze, rendert die Seite gar nicht, und `#issi` fehlt.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    /*
+     * ⬜ **V13-L2 — HEUTE SEEDET DER E2E-LAUF `radio` NICHT** (`core/bootstrap.ts:49-54`,
+     * `playwright.config.ts:142`; Eigentuemer V23). Die Akte-Adresse gibt es nur zu einem
+     * vorhandenen Geraet, und eine erfundene Id waere ein 404, den dieser Fall dann als
+     * „Formular fehlt" meldete. Deshalb faellt die Vorbedingung LAUT und mit eigener
+     * Begruendung aus, statt die Zusicherung darunter stillschweigend zahnlos zu machen.
+     */
+    await page.goto(radioUrl("/admin/geraete"));
+    const zeilen = page.locator("table tbody tr.ant-table-row");
+    expect(
+      await zeilen.count(),
+      "⬜ V13-L2: ohne Geraet gibt es keine Akte-Adresse, die dieser Fall abrufen koennte",
+    ).toBeGreaterThan(0);
+
+    /*
+     * ⛔ DIE ZEILE FUEHRT UEBER `router.push` UND NICHT UEBER EIN `href`
+     * (`GeraeteTabelle.tsx`, `onRow`) — es gibt also keinen Link, dessen Ziel man auslesen
+     * koennte. Der Klick ist zugleich die einzige Messung, dass der Tabellenzweig navigiert;
+     * `vitest.setup.ts` stubt `matchMedia` mit `matches: false` und rendert nur den mobilen.
+     */
+    await zeilen.first().click();
+    await expect(page).toHaveURL(/^http:\/\/radio\.localtest\.me:3100\/admin\/geraete\/[^/?]+$/);
+
+    const antwort = await page.goto(page.url());
+    expect(antwort?.status(), "/admin/geraete/<id> auf dem radio-Host").toBe(200);
+
+    await expect(
+      page.locator("#issi"),
+      "kein ISSI-Feld — die Insel ist an der RSC-Grenze gebrochen (Falle 1)",
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-rolle="radio-update-stand"]'),
+      "der Anzeige-Slot Update-Stand fehlt",
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-rolle="radio-notiz-eingabe"]'),
+      "das Notizfeld fehlt — es steht fuer BEIDE Stufen (Spec:4448)",
+    ).toBeVisible();
+  });
 });

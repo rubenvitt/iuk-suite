@@ -205,3 +205,90 @@
   gap: 4px;
   margin-block-start: 8px;
 }
+
+/*
+ * DIE GERAETEAKTE (V14) — die Kopfdaten als schlichtes Markup.
+ *
+ * ⛔ SIE ERSETZEN `Descriptions`/`Descriptions.Item` (`DeviceDetailDrawer.tsx:77-102`), weil
+ * Compound-Zugriff in einer Server Component HTTP 500 ist (Falle 1) und eine Insel fuer fuenf
+ * Lesefelder Ballast waere.
+ */
+.kopfListe {
+  display: grid;
+  gap: 8px;
+  margin-block-end: 24px;
+}
+
+.kopfZeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding-block-end: 8px;
+  border-block-end: 1px solid var(--iuk-linie);
+}
+
+.kopfZeile:last-child {
+  border-block-end: none;
+  padding-block-end: 0;
+}
+
+.kopfEtikett {
+  flex: 0 0 12rem;
+  color: var(--iuk-gedaempft);
+}
+
+.kopfWert {
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
+}
+
+/* Der Datumswaehler fuellt seine Spalte (`DeviceFields.tsx:164`, `style={{ width: '100%' }}`). */
+.feldWeit {
+  width: 100%;
+}
+
+/*
+ * Das Notizfeld (`UpdateNotePanel.tsx:28`, `style={{ width: '100%' }}`).
+ *
+ * ⛔ DER ABSTAND VON 8 STEHT HIER UND NICHT ALS `size={8}` AM BAUTEIL: `size=` ist auf jedem
+ * antd-Bauteil dieses Moduls verboten (Falle 4, `_ui/AusleihRahmen.test.tsx:196-215`).
+ */
+.notizFeld {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/*
+ * ⛔ `pre-wrap` 1:1 aus `UpdateNotePanel.tsx:31`: die Anmerkung ist eine zeilenweise Historie,
+ * und ohne den Umbruchserhalt liefe sie zu einem Absatz zusammen.
+ */
+.notizText {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notizZeile {
+  width: 100%;
+}
+
+/* Die Loeschflaeche steht abgesetzt unter der Akte (`DeviceDetailDrawer.tsx:111-123`). */
+.loeschZeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-block-start: 24px;
+}
+
+/*
+ * Die Warnung aus ⬜ V-L6 im `Popconfirm`-Zweig. ⛔ OHNE EIGENE FARBE: `colorError` ist die
+ * Markenfarbe (Falle 3), und die Warnung soll gelesen, nicht wie eine Primaeraktion aussehen.
+ */
+.loeschWarnung {
+  display: block;
+  max-inline-size: 28rem;
+}

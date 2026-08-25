@@ -678,3 +678,74 @@ export function vorschlaege(db: DB): Record<Vorschlagsfeld, string[]> {
 export function geraeteFuerExport(db: DB): Geraet[] {
   return db.select().from(devices).orderBy(desc(devices.createdAt)).all();
 }
+
+/**
+ * DIE FORMULARWERTE DER GERAETEAKTE — der ROHE Spaltenwert je schreibbarem Feld, dazu `id` und
+ * der berechnete `updateStand` fuer den reinen Anzeige-Slot des Formulars
+ * (`DeviceFields.tsx:169`).
+ *
+ * ⛔ SIE IST DIE ANTWORT AUF DIE ⬜ AN `GeraetZeile.letztesUpdateText`
+ * (`_lib/lesepfade/geraete.ts:113-122`), die V14 namentlich als Eigentuemer benennt: „wer ihre
+ * Werte aus `letztesUpdateText` zieht, belegt den Datumswaehler bei JEDEM Geraet ohne Tag mit
+ * dem Gedankenstrich. ⛔ V14 traegt `GeraetFormWerte` und holt den Rohwert dort, wo er roh
+ * steht — dieser Typ wird dafuer NICHT verbreitert." Genau das steht hier: ein ZWEITER
+ * Projektionstyp, nicht ein breiterer erster.
+ *
+ * ⛔ DER FELDSATZ IST ABGELEITET, NICHT ABGESCHRIEBEN — dieselbe Begruendung wie bei
+ * `SchreibbaresGeraetFeld` (`src/app/m/radio/admin/actions.ts:100-104`): eine handgepflegte
+ * Liste ist die Stelle, an der eine neue Spalte still unschreibbar bleibt. Was hier fehlt, ist
+ * genau der Schluessel und die vier Auditspalten (`_db/schema.ts:19-65`).
+ *
+ * ⚠️ `updateStand` STEHT MIT DRIN UND IST KEIN SCHREIBBARES FELD. Er ist der einzige Wert des
+ * Formulars, den niemand eintippt: der Alt-Bestand reicht ihn als `updateStatusSlot` hinein
+ * (`DeviceEditForm.tsx:115`), und die Insel bekommt ihn deshalb im selben Prop statt in einem
+ * zweiten. ⛔ Er darf in keinen Patch geraten — `admin/actions.ts` nimmt ihn ueber
+ * `nurSchreibbareFelder` ohnehin nicht an.
+ */
+export type GeraetFormWerte = Omit<
+  Geraet,
+  "createdAt" | "updatedAt" | "createdBy" | "updatedBy"
+> & { updateStand: UpdateStand };
+
+/**
+ * Die Formularwerte EINES Geraets, oder `null`, wenn es das Geraet nicht gibt (dann ruft die
+ * Seite `notFound()`, `devices.ts:84`).
+ *
+ * ⛔ ZWEITE ABFRAGE DERSELBEN ZEILE NEBEN `geraet(db, id)`, UND DAS IST ABSICHT: die Akte-Anzeige
+ * braucht die aufgeloesten Namen und die vorformatierten Zeitpunkte, das Formular den Rohwert.
+ * Die zwei Sichten in EINE zu falten hiesse, `GeraetDetail` zu verbreitern — was die ⬜ oben
+ * ausdruecklich verbietet, weil `Spec:4542-4553` seinen Feldsatz abschliessend aufzaehlt und
+ * `geraete.test.ts:679-714` ihn misst.
+ *
+ * ⛔ NAMENTLICH GESETZT, NICHT ueber einen Rest-Operator: `alamos_integrated` und `loanable`
+ * sind zwei 0/1-Integer, die sich verwechseln lassen, ohne dass es auffaellt (`_db/schema.ts:50`, `:55`).
+ */
+export function geraetFormWerte(db: DB, id: string): GeraetFormWerte | null {
+  const d = db.select().from(devices).where(eq(devices.id, id)).get();
+  if (!d) return null;
+  return {
+    id: d.id,
+    issi: d.issi,
+    rufname: d.rufname,
+    tei: d.tei,
+    serialNumber: d.serialNumber,
+    deviceType: d.deviceType,
+    status: d.status,
+    location: d.location,
+    assignedTo: d.assignedTo,
+    softwareVersion: d.softwareVersion,
+    // ⛔ ROH, NICHT ueber `letztesUpdateText`: dort ist der Nullwert bereits ein Gedankenstrich.
+    lastUpdatedAt: d.lastUpdatedAt,
+    notes: d.notes,
+    hiorgId: d.hiorgId,
+    opta: d.opta,
+    funktion: d.funktion,
+    hersteller: d.hersteller,
+    bedieneinheit: d.bedieneinheit,
+    deviceModes: d.deviceModes,
+    alamosIntegrated: d.alamosIntegrated,
+    loanable: d.loanable,
+    updateNote: d.updateNote,
+    updateStand: berechneUpdateStand(d.softwareVersion, zielVersion(db)),
+  };
+}

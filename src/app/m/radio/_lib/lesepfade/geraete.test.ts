@@ -11,6 +11,7 @@ import { devices, softwareVersions, users } from "../../_db/schema";
 import { berechneUpdateStand } from "../updateStand";
 import {
   geraet,
+  geraetFormWerte,
   geraeteFuerExport,
   geraeteKennzahlen,
   geraeteListe,
@@ -754,5 +755,76 @@ describe("geraeteFuerExport", () => {
 
     const alle = geraeteFuerExport(db);
     expect(alle.map((d) => d.id)).toEqual(["nein", "leer", "ja"]);
+  });
+});
+
+describe("geraetFormWerte", () => {
+  it("liefert den ROHEN Update-Tag, nicht den Gedankenstrich der Listenzeile", () => {
+    /*
+     * ⛔ DER FALL, DEN DIE ⬜ AN `letztesUpdateText` VORHERSAGT
+     * (`_lib/lesepfade/geraete.ts:113-122`): „wer ihre Werte aus `letztesUpdateText` zieht,
+     * belegt den Datumswaehler bei JEDEM Geraet ohne Tag mit dem Gedankenstrich". Ein Formular,
+     * das `"—"` in seinen `DatePicker` legte, waere typkorrekt und lint-sauber — und schriebe
+     * beim naechsten Speichern einen Diff auf einen Tag, den niemand eingegeben hat.
+     *
+     * ⛔ BEIDE LAGEN, sonst bestuende ein fest verdrahtetes `null` den Fall.
+     */
+    lege(
+      { id: "ohne", lastUpdatedAt: null },
+      { id: "mit", lastUpdatedAt: "2026-08-03", softwareVersion: "FW 2" },
+    );
+
+    expect(geraetFormWerte(db, "ohne")?.lastUpdatedAt, "der Gedankenstrich im Datumswaehler")
+      .toBeNull();
+    expect(geraeteListe(db, {}).zeilen.find((z) => z.id === "ohne")?.letztesUpdateText)
+      .toBe("—");
+    expect(geraetFormWerte(db, "mit")?.lastUpdatedAt).toBe("2026-08-03");
+  });
+
+  it("traegt genau die zwanzig schreibbaren Felder plus id und updateStand", () => {
+    /*
+     * ⛔ EXAKTER FELDSATZABGLEICH AN EINER ECHTEN ZEILE, wie beim Feldsatz von `GeraetZeile`
+     * (`geraete.test.ts:679-714`): der Waechter dagegen, dass eine Auditspalte
+     * (`createdBy`, `updatedBy`, `createdAt`, `updatedAt`) in das Formular wandert. Gegen den
+     * TYP allein waere das nicht pruefbar — ein Typ hat zur Laufzeit keine Felder.
+     *
+     * ⛔ UND DER STAND WIRD BERECHNET, NICHT GELESEN (E-V8): dieselbe Rechnung wie in `geraet()`.
+     */
+    db.insert(softwareVersions).values(version("FW 2", true)).run();
+    lege({ id: "a", softwareVersion: "FW 2" });
+
+    const w = geraetFormWerte(db, "a");
+    expect(w).not.toBeNull();
+    expect(Object.keys(w!).sort()).toEqual([
+      "alamosIntegrated",
+      "assignedTo",
+      "bedieneinheit",
+      "deviceModes",
+      "deviceType",
+      "funktion",
+      "hersteller",
+      "hiorgId",
+      "id",
+      "issi",
+      "lastUpdatedAt",
+      "loanable",
+      "location",
+      "notes",
+      "opta",
+      "rufname",
+      "serialNumber",
+      "softwareVersion",
+      "status",
+      "tei",
+      "updateNote",
+      "updateStand",
+    ]);
+    expect(Object.keys(w!)).toHaveLength(22);
+    expect(w!.updateStand, "der Stand wird berechnet, nicht gelesen").toBe("aktuell");
+  });
+
+  it("liefert null, wenn es das Geraet nicht gibt", () => {
+    /* Die Seite antwortet darauf mit `notFound()` (`devices.ts:84`), nicht mit einer Fehlerseite. */
+    expect(geraetFormWerte(db, "gibtsNicht")).toBeNull();
   });
 });
