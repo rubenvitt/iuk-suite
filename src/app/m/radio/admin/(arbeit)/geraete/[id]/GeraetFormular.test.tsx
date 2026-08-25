@@ -659,6 +659,27 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
     expect(quelle, "ein Date ueber die Grenze").not.toMatch(/=\{new Date\(/);
   });
 
+  it("die Versionsliste erreicht die Insel", () => {
+    /*
+     * ⛔ DER WAECHTER UEBER DEM VIERTEN PROP. `versionen` steht ueber `Spec:4508` hinaus, weil
+     * der Bestand das Feld „Letztes Update" an einen `Combobox allowCreate` ueber
+     * `useSoftwareVersions()` bindet (`DeviceFields.tsx:152-160`) und ein ersatzloses
+     * Weglassen ein stiller Verlust an einem Feld waere. ⛔ Genau deshalb schuldet die
+     * Wiederherstellung ihren eigenen Fall: ein weggefallenes `versionen={versionen}` oder
+     * eine leere Liste waere sonst eine Mutation ohne Waechter — Ruling **R-V11-1**.
+     *
+     * ⛔ BEIDE HAELFTEN: die Quelle der Liste (V5) UND ihr Weg ueber die Grenze.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
+    expect(quelle, "die Liste wird gar nicht erst gelesen").toMatch(/versionenMitGeraetezahl\(db\)/);
+    expect(quelle, "die Versionsliste erreicht die Insel nicht").toMatch(/versionen=\{versionen\}/);
+
+    const insel = ohneKommentare(readFileSync(QUELLE_FORMULAR, "utf8"));
+    expect(insel, "die Insel bietet die Versionen nicht an").toMatch(
+      /options=\{versionen\.map\(/,
+    );
+  });
+
   it("die Kopfdaten tragen die fuenf Alt-Felder, den Titel und die Hiorg-Regel", () => {
     /*
      * ⛔ 1:1 AUS `DeviceDetailDrawer.tsx:61` UND `:77-102`. Die Seite ist eine Server Component
@@ -738,6 +759,18 @@ describe("radio-Geraetakte: das Formular im DOM", () => {
     );
 
     expect(document.querySelectorAll(".ant-divider").length, "fuenf Abschnitte").toBe(5);
+    /*
+     * ⛔ UND ALLE FUENF LINKSBUENDIG (`DeviceFields.tsx:56`, `:91`, `:119`, `:149`, `:174`:
+     * `orientation="left"`). In antd 6 heisst das `titlePlacement`, weil `orientation` dort die
+     * ACHSE traegt (`node_modules/antd/es/divider/index.d.ts:21-24`) — ohne das Attribut stehen
+     * die fuenf Ueberschriften zentriert, und die gerenderte Zahl darueber bleibt 5. Gemessen:
+     * die Sonde ohne `titlePlacement` war vor diesem Fall **0 rot**.
+     */
+    const quelleFormular = ohneKommentare(readFileSync(QUELLE_FORMULAR, "utf8"));
+    expect(
+      (quelleFormular.match(/<Divider titlePlacement="start">/g) ?? []).length,
+      "eine Abschnittsueberschrift steht zentriert statt linksbuendig",
+    ).toBe(5);
     /*
      * ⛔ GEFUELLT WIRD EIN SCHLICHTES `Input` (`tei`), NICHT EIN VORSCHLAGSFELD: antds
      * `AutoComplete` ist ein `Select` im Combobox-Modus (`_ui/EntleiherFeld.tsx:39-41`), und

@@ -195,15 +195,21 @@ test.describe("radio-Verwaltung", () => {
     ).toBeGreaterThan(0);
 
     /*
-     * ⛔ DIE ZEILE FUEHRT UEBER `router.push` UND NICHT UEBER EIN `href`
-     * (`GeraeteTabelle.tsx`, `onRow`) — es gibt also keinen Link, dessen Ziel man auslesen
-     * koennte. Der Klick ist zugleich die einzige Messung, dass der Tabellenzweig navigiert;
-     * `vitest.setup.ts` stubt `matchMedia` mit `matches: false` und rendert nur den mobilen.
+     * ⛔ KEIN ZEILENKLICK, UND DAS IST FALLE 12 (`CLAUDE.md`, gemessen im Modul `lagerbuch`,
+     * CI-Lauf 31951787232): der erste Klick nach `goto` faellt in genau das Fenster, in dem
+     * `SessionProvider` `/api/auth/session` nachholt und die Huelle von der Platzhalter- auf
+     * die volle Spalte umbricht — der Inhalt rutscht ~240 px, `mouseup` trifft den Vorfahren,
+     * und die Navigation wird NIE angestossen. Kein Zeitbudget und keine Wiederholung heilt
+     * das. Die Id steht ohnehin am Knoten: antds `Table` stempelt `data-row-key` aus
+     * `rowKey="id"` (`GeraeteTabelle.tsx:468`).
+     * ⚠️ DASS DIE ZEILE SELBST NAVIGIERT, bleibt Fall 2s Gebiet (`onRow`, `router.push`); der
+     * Vitest-Fall „jede Zeile fuehrt auf die AEUSSERE Detailadresse" haelt ihre Anwesenheit an
+     * BEIDEN Stellen fest.
      */
-    await zeilen.first().click();
-    await expect(page).toHaveURL(/^http:\/\/radio\.localtest\.me:3100\/admin\/geraete\/[^/?]+$/);
+    const geraeteId = await zeilen.first().getAttribute("data-row-key");
+    expect(geraeteId, "die Tabellenzeile traegt kein data-row-key (rowKey=id)").toBeTruthy();
 
-    const antwort = await page.goto(page.url());
+    const antwort = await page.goto(radioUrl(`/admin/geraete/${geraeteId}`));
     expect(antwort?.status(), "/admin/geraete/<id> auf dem radio-Host").toBe(200);
 
     await expect(

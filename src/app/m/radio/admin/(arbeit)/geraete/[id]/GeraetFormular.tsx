@@ -250,7 +250,15 @@ const STAND_WORT: Record<UpdateStand, string> = {
   unbekannt: "Unbekannt",
 };
 
-/** Die Spaltenbreite des Bestands (`DeviceFields.tsx:27`). */
+/**
+ * ⚠️ `titlePlacement="start"` IST DIE ANTD-6-SCHREIBWEISE VON `orientation="left"`
+ * (`DeviceFields.tsx:56`, `:91`, `:119`, `:149`, `:174`) — benannte Abweichung im Namen, nicht
+ * in der Wirkung: in antd 6 traegt `orientation` die Achse (`horizontal`/`vertical`), und die
+ * Ausrichtung des Titels heisst `titlePlacement` (`node_modules/antd/es/divider/index.d.ts:21-24`,
+ * aufgeschlagen). Ohne sie stuenden die fuenf Abschnittsueberschriften ZENTRIERT.
+ *
+ * Die Spaltenbreite des Bestands (`DeviceFields.tsx:27`).
+ */
 const SPALTE = { xs: 24, sm: 12 } as const;
 
 export type GeraetFormularProps = {
@@ -363,7 +371,7 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
       onFinish={absenden}
       requiredMark
     >
-      <Divider>Identität</Divider>
+      <Divider titlePlacement="start">Identität</Divider>
       <Row gutter={[16, 8]}>
         <Col {...SPALTE}>
           <Form.Item
@@ -406,7 +414,7 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
         </Col>
       </Row>
 
-      <Divider>Gerät</Divider>
+      <Divider titlePlacement="start">Gerät</Divider>
       <Row gutter={[16, 8]}>
         <VorschlagFeld
           name="hersteller"
@@ -444,7 +452,7 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
         />
       </Row>
 
-      <Divider>Einsatz</Divider>
+      <Divider titlePlacement="start">Einsatz</Divider>
       <Row gutter={[16, 8]}>
         <VorschlagFeld
           name="location"
@@ -479,7 +487,7 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
         </Col>
       </Row>
 
-      <Divider>Update</Divider>
+      <Divider titlePlacement="start">Update</Divider>
       <Row gutter={[16, 8]}>
         <Col {...SPALTE}>
           <Form.Item name="softwareVersion" label="Letztes Update">
@@ -515,7 +523,7 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
         </Col>
       </Row>
 
-      <Divider>Bemerkung</Divider>
+      <Divider titlePlacement="start">Bemerkung</Divider>
       <Row gutter={[16, 8]}>
         <Col xs={24}>
           <Form.Item name="notes" label="Bemerkung">
