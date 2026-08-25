@@ -99,7 +99,10 @@ describe("haengeNotizAn — der Faelschungsschutz, jeder Weg einzeln", () => {
      * `notiz.ts:31`): gegen `\r\n` faerbt eine Kuerzung auf `[\n]+` diese Zusicherung rot (das
      * `\r` bliebe stehen), eine auf `[\r]+` ebenso (der Umbruch bliebe stehen), und ein
      * `[\r\n]` ohne den `+`-Quantor ergaebe ZWEI Leerzeichen statt einem. Mit einem blossen
-     * `\n` im Fixture waren alle drei gemessen 0 rot (Fix-Runde 1 zu V8, Fund 2).
+     * `\n` im Fixture waren ZWEI DER DREI gemessen 0 rot — `[\n]+` und `[\r\n]` ohne `+`
+     * (Fix-Runde 1 zu V8, Fund 2). ⚠️ `[\r]+` NICHT: die Kuerzung faerbte schon gegen das alte
+     * `\n`-Fixture drei Faelle rot (`3 failed | 4 passed (7)`, Fix-Runde 2 zu V8, Fund N1) — das
+     * `\r\n` kauft also ZWEI der drei Haelften, nicht alle drei.
      * ⚠️ EHRLICH GEHALTEN: ein einzelnes `\r` spaltet `String.split("\n")` nicht, die
      * CR-Haelfte ist also kein gezeigter Faelschungsweg. Der tragende Massstab ist hier 1:1 —
      * der Alt-Code fuehrt sie bewusst mit, und eine Portierung, die eine Haelfte still verliert,
