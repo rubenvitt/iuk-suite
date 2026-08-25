@@ -10,6 +10,7 @@ import {
   angewandt,
   ausleihenSuchparameterZu,
   istKalendertag,
+  LEERER_AUSLEIHEN_FILTER,
   type AusleihenFilterWerte,
   type AusleihenSuchWerte,
 } from "../../../_lib/suchparameter";
@@ -238,7 +239,13 @@ function Filterleiste({
       {gesetzt && (
         <Button
           data-rolle="radio-ausleihen-filter-zuruecksetzen"
-          onClick={() => aufFilter({ geraet: "", von: "", bis: "" })}
+          /*
+           * ⛔ DER LEERE FILTER STEHT AN EINER STELLE (`_lib/suchparameter.ts`,
+           * `LEERER_AUSLEIHEN_FILTER`) UND NICHT ZWEIMAL. Ein hier von Hand hingeschriebenes
+           * Literal liefe beim naechsten Filterfeld auseinander — und keine Messung hielte die
+           * beiden Fassungen zusammen (Schlusspruefung V16, Fund 2).
+           */
+          onClick={() => aufFilter(LEERER_AUSLEIHEN_FILTER)}
         >
           Zurücksetzen
         </Button>

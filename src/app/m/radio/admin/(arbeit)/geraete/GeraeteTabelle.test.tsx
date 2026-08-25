@@ -715,8 +715,13 @@ describe("radio-Geraeteliste: die Bauform der Insel", () => {
          * Node-Bausteine"). Der Insel-Graph erreicht `csv/klassifizieren.ts` seit V13; eine
          * handgepflegte Trennung im Innern eines findenden Walkers ist genau die Blindstelle
          * aus Ruling R-V11-3.
+         * ⛔ `next/headers` KAM IN DER SCHLUSSPRUEFUNG ZU V16 DAZU (Fund 4) — gemessen: als
+         * Wertimport in eine Insel gesetzt, blieb jeder Scan gruen. ⚠️ `server-only` steht
+         * bewusst NICHT hier: seine kanonische Form ist `import "server-only";` ohne `from`,
+         * und `BEZUG` oben faende sie nie. Die Zusammenlegung der beiden Insel-Walker zu EINER
+         * Stelle bleibt ⬜ **V-L9** (Eigentuemer: Planhalter).
          */
-        if (/^(?:drizzle-orm|node:|better-sqlite3)(?:\/|$)|^node:/.test(spezifizierer)) {
+        if (/^(?:drizzle-orm|node:|better-sqlite3|next\/headers)(?:\/|$)|^node:/.test(spezifizierer)) {
           verstoesse.push(`${datei}: Wertimport von ${spezifizierer}`);
           continue;
         }

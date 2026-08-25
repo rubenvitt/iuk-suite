@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // src/app/m/radio/admin/(arbeit)/ausleihen/AusleihenTabelle.test.tsx
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
 
@@ -76,7 +76,16 @@ function inselDateien(): string[] {
 /** ⛔ Die Sollwerttafel steht NUR auf der rechten Seite — sie ist der Prueffling der Messung. */
 const INSEL_SOLL = ["AusleihenTabelle.tsx"];
 
-import { queryAll, exists, mount, unmount } from "@/app/m/qr/_lib/test-dom";
+import { act } from "react";
+import {
+  click,
+  clickElement,
+  exists,
+  mount,
+  query,
+  queryAll,
+  unmount,
+} from "@/app/m/qr/_lib/test-dom";
 import { ohneKommentare } from "../../../_lib/quelltextScan";
 import type { AusleihZeile } from "../../../_lib/lesepfade/ausleihen";
 import { AusleihenTabelle, SPALTEN } from "./AusleihenTabelle";
@@ -145,9 +154,57 @@ function texte(rolle: string): string[] {
   return queryAll(`[data-rolle="${rolle}"]`).map((el) => (el.textContent ?? "").trim());
 }
 
+/**
+ * ⛔ OHNE DIESE ZEILE ZAEHLEN DIE URL-FAELLE UEBEREINANDER. `vi.hoisted` legt `replaceMock`
+ * EINMAL fuer die ganze Datei an; ein zweiter Fall saehe die Aufrufe des ersten mit, und
+ * `toHaveBeenCalledTimes(1)` waere von der Reihenfolge der Faelle abhaengig statt von der
+ * Sache. Dieselbe Vorkehrung und derselbe Grund wie in `GeraeteTabelle.test.tsx`.
+ */
+beforeEach(() => {
+  replaceMock.mockReset();
+});
+
 afterEach(async () => {
   await unmount();
 });
+
+/**
+ * Das Auswahlfeld des Geraetefilters bedienen.
+ *
+ * ⛔ `mousedown` AUF DER HUELLE, NICHT `click` AUF DEM FELD — gemessen im Haus
+ * (`src/app/m/aufgaben/_ui/testFelder.ts:56-59`): rc-select oeffnet am `onMouseDown` seines
+ * Wrapper-`<div>` (`.ant-select`); ein Klick auf das innere `<input>` liess die Liste leer,
+ * ohne dass irgendetwas fehlschlug. ⛔ Und die Optionen haengen in einem PORTAL an
+ * `document.body`, nicht im Mount-Wirt.
+ *
+ * ⚠️ NACHGEBAUT UND NICHT IMPORTIERT: `testFelder.ts` gehoert dem Modul `aufgaben`; ein
+ * modulfremder Testimport waere eine Bindung, die dieses Modul nirgends sonst eingeht.
+ */
+async function waehleGeraet(anzeigetext: string): Promise<void> {
+  const huelle = query('[data-rolle="radio-ausleihen-geraetefeld"]').closest(".ant-select");
+  if (!(huelle instanceof HTMLElement)) throw new Error("das Geraetefeld steckt in keinem antd-Select");
+  await act(async () => {
+    huelle.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    huelle.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  const optionen = Array.from(
+    document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
+  );
+  const treffer = optionen.find((o) => (o.textContent ?? "").trim() === anzeigetext);
+  if (!treffer) {
+    throw new Error(
+      `Option nicht gefunden — da stand: ${optionen.map((o) => o.textContent).join(", ")}`,
+    );
+  }
+  await clickElement(treffer);
+}
+
+/** Das Ziel des einzigen `router.replace`-Aufrufs, zerlegt. */
+function geschriebenesZiel(): { pfad: string; abfrage: URLSearchParams } {
+  const ziel = String(replaceMock.mock.calls[0]![0]);
+  const [pfad, roh] = ziel.split("?");
+  return { pfad: pfad!, abfrage: new URLSearchParams(roh ?? "") };
+}
 
 describe("radio-Ausleihen: die sieben Spalten", () => {
   it("sieben Spalten, in dieser Reihenfolge", async () => {
@@ -257,6 +314,89 @@ describe("radio-Ausleihen: Blaetterung und Filter", () => {
     await mount(<AusleihenTabelle {...props({ gesamt: 45, seite: 2, seitenGroesse: 20 })} />);
 
     expect(texte("radio-blaetterung-text")).toEqual(["Seite 2 von 3 · 45 Ausleihen"]);
+  });
+
+  it("eine Filteraenderung schreibt die Adresszeile und setzt auf Seite 1 zurueck", async () => {
+    /*
+     * ⛔ DER GANZE URL-SCHREIBWEG DER INSEL WAR UNBEWACHT (Schlusspruefung V16, Fund 1):
+     * `replaceMock` wurde angelegt und eingehaengt, aber in keinem Fall zugesichert. Zwei
+     * Mutationen gleichzeitig — die Seite-1-Ruecksetzung entfernt UND `replace` zu `push`
+     * gedreht — liessen das GANZE Modul gruen (62 Dateien, 882 Faelle). Bauform 1:1 aus
+     * `GeraeteTabelle.test.tsx` („ein gesetzter Filter landet in der URL").
+     *
+     * ⛔ DER FALL MUSS MIT `seite: 3` MONTIEREN UND NICHT MIT DER VORBELEGUNG, und das ist
+     * gemessen, nicht vermutet: `ausleihenSuchparameterZu` faltet die Seite 1 zur LEEREN
+     * Zeichenkette (`_lib/suchparameter.ts`, „Seite 1 ist die Vorgabe"), und `angewandt`
+     * loescht leere Schluessel. Auf der Vorbelegung schrieben die richtige Fassung und die
+     * Fehlform `{ ...naechster, seite }` DIESELBE Adresse — der Fall waere 0 rot by
+     * construction, genau die Klasse aus Ruling R-V11-1.
+     *
+     * ⛔ `toHaveBeenCalledTimes(1)` AUF `replaceMock` IST DIE HAELFTE, DIE `push` FAENGT: der
+     * Ersatz reicht fuer `push` ein frisch gebautes `vi.fn()` heraus, das niemand abgreift —
+     * eine Insel, die `push` benutzte, liesse den Zaehler hier auf 0 fallen
+     * (`AusleihenTabelle.tsx`: „`replace`, NICHT `push`").
+     */
+    await mount(<AusleihenTabelle {...props({ seite: 3, gesamt: 100 })} />);
+    await waehleGeraet("41/12");
+
+    expect(replaceMock, "der Filter hat die URL nicht geschrieben").toHaveBeenCalledTimes(1);
+    const { pfad, abfrage } = geschriebenesZiel();
+    expect(pfad, "die Insel schreibt einen fremden Pfad").toBe("/admin/ausleihen");
+    expect(abfrage.get("geraet"), "der gewaehlte Filter steht nicht in der Adresszeile").toBe("g-1");
+    expect(abfrage.get("seite"), "die Filteraenderung bleibt auf der alten Seite stehen").toBe(null);
+  });
+
+  it("die Blaetterung schreibt die Adresszeile, ohne den Filter zu verlieren", async () => {
+    /*
+     * ⛔ DIE ZWEITE HAELFTE DESSELBEN SCHREIBWEGS. `schreibeUrl({ ...stand, seite })` traegt
+     * den bestehenden Filter mit; ein Blaettern, das ihn fallen liesse, spraenge auf Seite 2
+     * der UNGEFILTERTEN Liste — und die Zeilen darunter waeren stillschweigend andere.
+     *
+     * ⛔ UND DIE SEITE MUSS HIER STEHENBLEIBEN, sie ist die Aussage: die Ruecksetzung aus dem
+     * Fall darueber gilt fuer die FILTER-Aenderung, nicht fuer die Blaetterung.
+     */
+    await mount(
+      <AusleihenTabelle
+        {...props({ gesamt: 45, seite: 1, filter: { geraet: "g-1", von: "2026-06-01", bis: "" } })}
+      />,
+    );
+    await click('[data-rolle="radio-blaettern-vor"]');
+
+    expect(replaceMock, "die Blaetterung hat die URL nicht geschrieben").toHaveBeenCalledTimes(1);
+    const { pfad, abfrage } = geschriebenesZiel();
+    expect(pfad).toBe("/admin/ausleihen");
+    expect(abfrage.get("seite"), "die Blaetterung blaettert nicht").toBe("2");
+    expect(abfrage.get("geraet"), "die Blaetterung verliert den Geraetefilter").toBe("g-1");
+    expect(abfrage.get("von"), "die Blaetterung verliert den Zeitraum").toBe("2026-06-01");
+  });
+
+  it("der Zuruecksetzen-Knopf leert JEDEN Filterwert in der Adresszeile", async () => {
+    /*
+     * ⛔ DER MESSENDE LESER VON `LEERER_AUSLEIHEN_FILTER` (Schlusspruefung V16, Fund 2): die
+     * Konstante war exportiert und wurde NIRGENDS gelesen, waehrend die Filterleiste das
+     * Literal von Hand hinschrieb — „der leere Filter" stand an zwei Stellen, und keine
+     * Messung hielt sie zusammen.
+     *
+     * ⛔ DREI GESETZTE WERTE UND EINE SEITE GROESSER EINS: ein Zuruecksetzen, das nur den
+     * Geraetefilter loeschte, bestuende ein Fixture mit nur einem gesetzten Wert. Das Ziel ist
+     * die NACKTE Adresse — `ausleihenSuchparameterZu` fuehrt alle vier Schluessel als leere
+     * Zeichenkette, und `angewandt` loescht genau die.
+     */
+    await mount(
+      <AusleihenTabelle
+        {...props({
+          seite: 2,
+          gesamt: 45,
+          filter: { geraet: "g-1", von: "2026-06-01", bis: "2026-06-30" },
+        })}
+      />,
+    );
+    await click('[data-rolle="radio-ausleihen-filter-zuruecksetzen"]');
+
+    expect(replaceMock, "das Zuruecksetzen hat die URL nicht geschrieben").toHaveBeenCalledTimes(1);
+    expect(String(replaceMock.mock.calls[0]![0]), "ein Rest steht noch in der Adresszeile").toBe(
+      "/admin/ausleihen",
+    );
   });
 
   it("der Zeitraumfilter heisst nach dem, worauf er wirkt", async () => {
@@ -398,7 +538,16 @@ describe("radio-Ausleihen: die Bauform der Insel und ihrer Seite", () => {
         const nurTyp = treffer[1] !== undefined;
         const spezifizierer = treffer[3]!;
         if (nurTyp) continue;
-        if (/^(?:drizzle-orm|node:|better-sqlite3)(?:\/|$)/.test(spezifizierer)) {
+        /*
+         * ⛔ `next/headers` GEHOERT IN DIESE LISTE, UND DAS IST GEMESSEN (Schlusspruefung V16,
+         * Fund 4): `import { headers } from "next/headers";` als Wertimport in die Insel
+         * gesetzt liess drei Scandateien gruen (53 Faelle). Es ist dieselbe Klasse wie
+         * `drizzle-orm` — ein Server-Baustein, den kein Browser-Bundle tragen kann.
+         * ⚠️ `server-only` steht hier BEWUSST NICHT: seine kanonische Form ist der
+         * NEBENWIRKUNGS-Import `import "server-only";`, und der traegt kein `from` — `BEZUG`
+         * oben faende ihn nie. Ein Eintrag dafuer waere ein Waechter, der nichts kauft.
+         */
+        if (/^(?:drizzle-orm|node:|better-sqlite3|next\/headers)(?:\/|$)/.test(spezifizierer)) {
           verstoesse.push(`${datei}: Wertimport von ${spezifizierer}`);
           continue;
         }
