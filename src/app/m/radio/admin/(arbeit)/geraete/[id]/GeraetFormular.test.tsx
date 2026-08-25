@@ -706,7 +706,7 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
      * (`riegel.test.ts:253-262`). Diese Zeile ist der einzige Waechter dagegen.
      *
      * ⛔ UND EIN FEHLENDES GERAET IST `notFound()`, NICHT EINE FEHLERSEITE
-     * (`radio-admin/server/src/routes/devices.ts:84`, `_lib/lesepfade/geraete.ts:566-590`).
+     * (`radio-admin/server/src/routes/devices.ts:84`, `_lib/lesepfade/geraete.ts:629-653`).
      *
      * ⛔ Ueber `ohneKommentare`: der Kopfkommentar der Seite nennt beide Riegelnamen, um die
      * Stufenwahl zu begruenden.

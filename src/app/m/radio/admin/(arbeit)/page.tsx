@@ -40,7 +40,7 @@ import s from "../../_ui/verwaltung.module.css";
  *      `<ul>`. `renderItem` ist Falle 9, `List.Item.Meta` ist Falle 1.
  *
  * ⛔ DIE VIER ZAHLEN ENTSTEHEN IN EINER ABFRAGE mit `GROUP BY`
- * (`_lib/lesepfade/geraete.ts:615-621`), nicht in vier Rundlaeufen mit `pageSize: 1` wie im
+ * (`_lib/lesepfade/geraete.ts:678-684`), nicht in vier Rundlaeufen mit `pageSize: 1` wie im
  * Bestand (`radio-admin/client/src/hooks/useDashboardStats.ts:17-20`). `Spec:4780-4784`
  * nennt den Grund: die vier Rundlaeufe waren eine Folge der HTTP-Grenze, nicht der
  * Fachlichkeit.

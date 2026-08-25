@@ -178,9 +178,9 @@ export type GeraetDetail = GeraetZeile & {
    *    Gedankenstrich belegt den Datumswaehler bei JEDEM Geraet ohne Tag.
    *
    * Dass die Werte hier herum liegen und nicht andersherum, haelt der Fall „traegt die
-   * Akte-Felder, die die Listenzeile NICHT hat" fest (`_lib/lesepfade/geraete.test.ts:672`
-   * gegen `:675`, zwei unterscheidbare Fixture-Werte). Was er NICHT halten kann, ist die
-   * Beschriftung — die entsteht erst in V14/V9.
+   * Akte-Felder, die die Listenzeile NICHT hat" fest (`_lib/lesepfade/geraete.test.ts:674`
+   * gegen `:677`; ⚠️ das Paar stand seit V6 um EINS daneben — es traf `hiorgId` und
+   * `updateStand` — und ist in V17 richtiggestellt). Nicht halten kann er die Beschriftung.
    */
   zuletztAktualisiertText: string;
 };
@@ -527,6 +527,69 @@ export function geraeteListe(db: DB, p: GeraetFilter): GeraeteSeite {
 }
 
 /**
+ * Eine Karte des Update-Modus: die Listenzeile PLUS die gespeicherte Update-Anmerkung.
+ *
+ * ⛔ BENANNTE ERWEITERUNG **E-V17b** (Aufgabe V17), UND SIE STEHT GEGEN DIE F1-FEHLERKLASSE.
+ * Die Alt-Karte zeigt die gespeicherte Anmerkung unter den zwei Knoepfen
+ * (`radio-admin/client/src/features/update/UpdateDeviceCard.tsx:74-78`), weil sie den Bestand
+ * einer bereits erfassten ISSI-Abweichung sichtbar macht; ohne sie schriebe der Bedienende
+ * dieselbe Abweichung ein zweites Mal auf. Die Alt-Zeile kann das, weil `DeviceListItem` der
+ * VOLLE Datensatz ist (`radio-admin/client/src/hooks/useDevices.ts:5`: `DeviceRecord & {
+ * updateStatus }`).
+ *
+ * ⛔ `GeraetZeile` WIRD DAFUER NICHT VERBREITERT. Sie fuehrt genau die zwanzig Felder aus
+ * `Spec:4542-4553`, und `_lib/lesepfade/geraete.test.ts:682` misst den Feldsatz einer ECHTEN
+ * Zeile exakt. Der Update-Modus bekommt deshalb eine EIGENE Projektion — dieselbe Form, in der
+ * `GeraetDetail` (`:139`) und `GeraetFormWerte` (`:705`) danebenstehen.
+ *
+ * ⚠️ NUR `updateAnmerkung` KOMMT DAZU, nicht der ganze Datensatz: `GeraetZeile` ist bewusst
+ * frei von Audit-Spalten, und die Karte braucht sie nicht.
+ */
+export type UpdateKarteZeile = GeraetZeile & {
+  /** Die append-only Update-Anmerkung (`_db/schema.ts:56-59`), roh — `null`, wenn keine steht. */
+  updateAnmerkung: string | null;
+};
+
+/**
+ * Die Karten des Update-Modus zu einem Suchparametersatz.
+ *
+ * ⛔ SIE RUFT `geraeteListe` UND BAUT KEINE ZWEITE ABFRAGE. Filter, Freitextsuche, Sortierung
+ * und Blaetterung sind der 1:1-Posten aus `listDevices` (`deviceRepo.ts:147-217`); eine zweite
+ * Abschrift waere genau die Stelle, an der eine Regel nur an einer von beiden ankommt.
+ *
+ * ⛔ DIE REIHENFOLGE IST DIE VON `geraeteListe` — die Anmerkungen werden ueber `inArray`
+ * NACHgeschlagen und den Zeilen zugeordnet, nicht neu sortiert. Ein `ORDER BY` in der zweiten
+ * Abfrage waere eine zweite Ordnung, die die erste still ueberschriebe.
+ *
+ * ⚠️ KEIN KURZSCHLUSS AUF DIE LEERE TREFFERLISTE, UND DAS IST GEMESSEN, NICHT VERGESSEN. Die
+ * naheliegende Zeile waere `if (zeilen.length === 0) return [];` — dieselbe Regel, die
+ * `namenFuer` (`userRepo.ts:25-26`) aus dem Alt-Bestand mitbringt, weil dort ein ungueltiges
+ * `IN ()` entstuende. ⛔ Sonde S-V17aa (die Zeile entfernt): `33 passed`, **0 rot** — die hier
+ * eingesetzte Drizzle-Fassung uebersetzt `inArray(spalte, [])` in eine falsche Konstante und
+ * wirft nicht. Sie stuende damit als unbewachte Zeile da, und `_lib/lesepfade/geraete.test.ts`
+ * haelt den Befund im Fall „liefert bei leerer Trefferliste eine leere Liste" fest.
+ */
+export function updateKarten(db: DB, p: GeraetFilter): UpdateKarteZeile[] {
+  const { zeilen } = geraeteListe(db, p);
+
+  const anmerkungen = new Map<string, string | null>();
+  for (const z of db
+    .select({ id: devices.id, anmerkung: devices.updateNote })
+    .from(devices)
+    .where(
+      inArray(
+        devices.id,
+        zeilen.map((z) => z.id),
+      ),
+    )
+    .all()) {
+    anmerkungen.set(z.id, z.anmerkung);
+  }
+
+  return zeilen.map((z) => ({ ...z, updateAnmerkung: anmerkungen.get(z.id) ?? null }));
+}
+
+/**
  * `sub` → Anzeigename fuer die bekannten `sub`s — 1:1 aus `resolveUserNames`
  * (`radio-admin/server/src/repos/userRepo.ts:28-40`).
  *
@@ -715,7 +778,7 @@ export type GeraetFormWerte = Omit<
  * braucht die aufgeloesten Namen und die vorformatierten Zeitpunkte, das Formular den Rohwert.
  * Die zwei Sichten in EINE zu falten hiesse, `GeraetDetail` zu verbreitern — was die ⬜ oben
  * ausdruecklich verbietet, weil `Spec:4542-4553` seinen Feldsatz abschliessend aufzaehlt und
- * `geraete.test.ts:679-714` ihn misst.
+ * `geraete.test.ts:680-715` ihn misst.
  *
  * ⛔ NAMENTLICH GESETZT, NICHT ueber einen Rest-Operator: `alamos_integrated` und `loanable`
  * sind zwei 0/1-Integer, die sich verwechseln lassen, ohne dass es auffaellt (`_db/schema.ts:50`, `:55`).

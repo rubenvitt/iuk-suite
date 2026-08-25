@@ -197,7 +197,7 @@ describe("die Verwaltungsuebersicht an /admin", () => {
      * 1:1 aus `radio-admin/client/src/features/dashboard/Dashboard.tsx:27-53`: „Geräte
      * gesamt" · „Aktuell" · „Veraltet" · „Unbekannt". Die Zahlen kommen aus
      * `geraeteKennzahlen` — EINE Abfrage mit `GROUP BY` statt vier Rundlaeufen
-     * (`_lib/lesepfade/geraete.ts:615-621`, `Spec:4780-4784`).
+     * (`_lib/lesepfade/geraete.ts:678-684`, `Spec:4780-4784`).
      */
     sechsVeraltete();
     expect(kennzahlen(await seite())).toEqual([

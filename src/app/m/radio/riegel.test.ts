@@ -112,13 +112,13 @@ const SELBST = join(MODUL, "riegel.test.ts");
 const HANDLER_ANZAHL = 2;
 
 /**
- * ⛔ HEUTE FUENF — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die
- * Geraeteliste (1 auf 2), V14 die Geraetakte (2 auf 3), V15 die Aenderungshistorie (3 auf 4),
- * V16 die Ausleihenliste (4 auf 5), je im SELBEN Commit; so weiter bis 10 (Spec:4369-4378).
+ * ⛔ HEUTE SECHS — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die Liste
+ * (1 auf 2), V14 die Akte (2 auf 3), V15 die Historie (3 auf 4), V16 die Ausleihen (4 auf 5),
+ * V17 der Update-Modus (5 auf 6), je im SELBEN Commit; so weiter bis 10 (Spec:4369-4378).
  * ⚠️ `ADMIN_SEITEN()` (Dateiende) zaehlt seit der Fix-Runde 1 zu V15 AUCH
  * `template.tsx`/`default.tsx` — heute gibt es keine.
  */
-const ADMIN_SEITEN_ANZAHL = 5;
+const ADMIN_SEITEN_ANZAHL = 6;
 
 /** Zwei Verwaltungs-Huellen: `admin/(arbeit)/layout.tsx` und `admin/(druck)/layout.tsx` (Z6). */
 const ADMIN_LAYOUTS_MINDESTENS = 2;

@@ -485,7 +485,7 @@ describe("ereignisseFuerGeraet — die Aenderungshistorie eines Geraets", () => 
      * ⛔ DIE LEERE EINGABE FRAEGT DIE DATENBANK NICHT — sonst entstuende das ungueltige
      * `IN ()`, das SQLite zurueckweist. Der Alt-Kommentar nennt genau diesen Grund
      * (`radio-admin/server/src/repos/userRepo.ts:25-26`), und dieselbe Vorkehrung traegt
-     * `_lib/lesepfade/geraete.ts:538-548`.
+     * `_lib/lesepfade/geraete.ts:601-611`.
      *
      * ⚠️ HIER IST ES KEIN RANDFALL: eine per CSV importierte Historie traegt `changed_by`
      * durchgehend als `null` — die leere Eingabe ist der Normalfall dieser Flaeche, nicht ihr

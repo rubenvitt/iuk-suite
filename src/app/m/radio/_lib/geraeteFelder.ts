@@ -158,3 +158,34 @@ export const STATUS_OPTIONEN = [
   "Wartung",
   "Sonstiges",
 ] as const;
+
+/**
+ * DIE ZWEI KONSTANTEN DES UPDATE-MODUS (`/admin/software`, Aufgabe V17) — ⛔ 1:1 aus
+ * `radio-admin/client/src/features/update/UpdateMode.tsx:8` und `:29`.
+ *
+ * ⛔ WARUM SIE HIER STEHEN UND NICHT IN `admin/(arbeit)/software/page.tsx`: seit Entscheidung
+ * **E-V17** entscheidet die SEITE ueber Suchfelder und Seitengroesse (Regime B), waehrend die
+ * 1:1-Zusage aus dem Bestand an der INSEL haengt. Zwei Abschriften waeren die Stelle, an der
+ * eine vierte Spalte oder eine geaenderte Seitengroesse nur an einer von beiden ankommt — und
+ * `admin/(arbeit)/software/UpdateSuche.test.tsx` misst sie deshalb HIER und prueft daneben,
+ * dass die Seite sie liest statt sie hinzuschreiben.
+ *
+ * ⛔ JEDER DER DREI NAMEN STEHT IN `SUCHFELDER`, UND DAS IST GEPRUEFT, NICHT ANGENOMMEN. Der
+ * Grund steht oben an jener Liste ausgeschrieben: ein Name, den `SUCHBARE_FELDER`
+ * (`_lib/lesepfade/geraete.ts:198-209`) nicht kennt, laesst den Sicherheitszweig `sql\`0\``
+ * greifen — die Suche liefert fuer JEDEN Begriff KEINE Zeile, bei gruenem typecheck, lint,
+ * build und Test.
+ */
+export const UPDATE_SUCHFELDER = ["issi", "rufname", "opta"] as const;
+
+/**
+ * ⛔ FUENFUNDZWANZIG, UND NICHT DIE ZWANZIG DER GERAETELISTE (`SEITEN_GROESSE`,
+ * `_lib/suchparameter.ts:49`, 1:1 `DeviceList.tsx:28`). Die zwei Flaechen haben im Bestand
+ * verschiedene Zahlen (`UpdateMode.tsx:29` gegen `DeviceList.tsx:28`); sie stehen deshalb als
+ * zwei benannte Konstanten da und nicht als eine geteilte.
+ *
+ * ⚠️ DER UPDATE-MODUS BLAETTERT NICHT — der Bestand zeigt genau die erste Seite
+ * (`UpdateMode.tsx:29`, `page: 1`, ohne Blaetterung). Die Zahl ist damit ein DECKEL, keine
+ * Seitengroesse im Sinne von Regime B.
+ */
+export const UPDATE_SEITENGROESSE = 25;

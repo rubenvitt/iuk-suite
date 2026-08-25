@@ -15,6 +15,7 @@ import {
   geraeteFuerExport,
   geraeteKennzahlen,
   geraeteListe,
+  updateKarten,
   vorschlaege,
   SORTIER_SCHLUESSEL,
   SUCHFELDER,
@@ -612,9 +613,9 @@ describe("geraet — die Geraeteakte", () => {
      * ⛔ DIE ZWEITE HAELFTE DES NAMENS WIRD GEMESSEN, NICHT NUR BEHAUPTET. Die drei
      * `null`-Zusicherungen gelten unabhaengig davon, ob `users` gefragt wurde — sie allein machten
      * den Fall zu einem Waechter, der seinen Namen nicht haelt (Fix-Runde 1 zu V6, Fund 1): die
-     * Sonde auf `geraete.ts:541` ergab OHNE die Zaehlung unten 0 rot, MIT ihr 1 rot. Gezaehlt wird
+     * Sonde auf `geraete.ts:604` ergab OHNE die Zaehlung unten 0 rot, MIT ihr 1 rot. Gezaehlt wird
      * deshalb, wie oft eine Anweisung ueber `users` vorbereitet wird, waehrend `geraet` laeuft —
-     * dieselbe Technik wie in „zaehlt in EINER Abfrage…" (`geraete.test.ts:514-527`).
+     * dieselbe Technik wie in „zaehlt in EINER Abfrage…" (`geraete.test.ts:515-528`).
      */
     lege({ id: "a" });
 
@@ -784,7 +785,7 @@ describe("geraetFormWerte", () => {
   it("traegt genau die zwanzig schreibbaren Felder plus id und updateStand", () => {
     /*
      * ⛔ EXAKTER FELDSATZABGLEICH AN EINER ECHTEN ZEILE, wie beim Feldsatz von `GeraetZeile`
-     * (`geraete.test.ts:679-714`): der Waechter dagegen, dass eine Auditspalte
+     * (`geraete.test.ts:680-715`): der Waechter dagegen, dass eine Auditspalte
      * (`createdBy`, `updatedBy`, `createdAt`, `updatedAt`) in das Formular wandert. Gegen den
      * TYP allein waere das nicht pruefbar — ein Typ hat zur Laufzeit keine Felder.
      *
@@ -826,5 +827,140 @@ describe("geraetFormWerte", () => {
   it("liefert null, wenn es das Geraet nicht gibt", () => {
     /* Die Seite antwortet darauf mit `notFound()` (`devices.ts:84`), nicht mit einer Fehlerseite. */
     expect(geraetFormWerte(db, "gibtsNicht")).toBeNull();
+  });
+});
+
+describe("updateKarten — die Karten des Update-Modus (E-V17b)", () => {
+  it("traegt die gespeicherte Update-Anmerkung, die GeraetZeile nicht hat", () => {
+    /*
+     * ⛔ DER GRUND, AUS DEM ES DIESE FUNKTION UEBERHAUPT GIBT. Die Alt-Karte zeigt die
+     * gespeicherte Anmerkung (`radio-admin/client/src/features/update/UpdateDeviceCard.tsx:74-78`),
+     * weil sie eine bereits erfasste ISSI-Abweichung sichtbar macht; ohne sie schriebe der
+     * Bedienende dieselbe Abweichung ein zweites Mal auf. `GeraetZeile` fuehrt dafuer nur
+     * `hatAbweichung: boolean` — der Feldsatzfall oben haelt ihre zwanzig Felder exakt, sie
+     * darf also NICHT verbreitert werden.
+     *
+     * ⛔ BEIDE RICHTUNGEN, sonst bestuende eine Fassung, die immer `null` zurueckgibt.
+     */
+    lege(
+      { id: "mit", updateNote: "2026-08-01: echte ISSI 7654321" },
+      { id: "ohne", updateNote: null },
+    );
+
+    const nachId = new Map(updateKarten(db, {}).map((k) => [k.id, k.updateAnmerkung]));
+    expect(nachId.get("mit")).toBe("2026-08-01: echte ISSI 7654321");
+    expect(nachId.get("ohne")).toBeNull();
+  });
+
+  it("uebernimmt Suche, Seitengroesse und Reihenfolge von geraeteListe", () => {
+    /*
+     * ⛔ SIE BAUT KEINE ZWEITE ABFRAGE — Filter, Freitextsuche, Sortierung und Blaetterung sind
+     * der 1:1-Posten aus `listDevices` (`deviceRepo.ts:147-217`). Eine zweite Abschrift waere
+     * die Stelle, an der eine Regel nur an einer von beiden ankommt.
+     *
+     * ⛔ DIE REIHENFOLGE IST DIE AUSSAGE, NICHT DIE MENGE: die Anmerkungen werden ueber
+     * `inArray` NACHgeschlagen, und ein `ORDER BY` in jener zweiten Abfrage haette die erste
+     * Ordnung still ueberschrieben. Deshalb `toEqual` auf der Id-Folge und nicht `sort()`.
+     */
+    lege(
+      { id: "alt", rufname: "41/12", createdAt: new Date("2026-01-01T00:00:00Z") },
+      { id: "neu", rufname: "41/13", createdAt: new Date("2026-03-01T00:00:00Z") },
+      { id: "fremd", rufname: "99/99", createdAt: new Date("2026-02-01T00:00:00Z") },
+    );
+
+    const gesucht = updateKarten(db, { q: "41/1", suchfelder: ["rufname"] });
+    expect(gesucht.map((k) => k.id), "die Suche greift nicht oder ordnet anders").toEqual([
+      "neu",
+      "alt",
+    ]);
+    expect(updateKarten(db, { seitenGroesse: 1 }).map((k) => k.id)).toEqual(["neu"]);
+  });
+
+  it("ordnet jede Anmerkung IHREM Geraet zu, auch wenn die Reihenfolgen auseinanderlaufen", () => {
+    /*
+     * ⛔ DIE SONDE, DIE DIESEN FALL ERZWUNGEN HAT (S-V17z, Fix-Runde im Bau von V17): eine
+     * erste Fassung verglich nur die Id-FOLGE, und eine Zuordnung ueber den INDEX statt ueber
+     * die Id war fuer sie unsichtbar — `33 passed`, 0 rot. Der Nachschlag ueber `inArray` hat
+     * KEIN `ORDER BY` und liefert in der Ordnung der Tabelle, waehrend `geraeteListe` mit
+     * `desc(createdAt)` sortiert. Wo beide auseinanderlaufen, bekaeme jedes Geraet die
+     * Anmerkung eines anderen — und auf dem Bildschirm stuende eine ISSI-Abweichung am
+     * falschen Funkgeraet.
+     *
+     * ⛔ DAS FIXTURE MUSS DIE ZWEI ORDNUNGEN GEGENEINANDER STELLEN: eingefuegt wird alt vor
+     * neu, gelistet wird neu vor alt. Bei gleichem `createdAt` fielen beide zusammen, und der
+     * Fall waere 0 rot by construction.
+     */
+    lege(
+      { id: "alt", updateNote: "A", createdAt: new Date("2026-01-01T00:00:00Z") },
+      { id: "neu", updateNote: "N", createdAt: new Date("2026-03-01T00:00:00Z") },
+    );
+
+    expect(updateKarten(db, {}).map((k) => [k.id, k.updateAnmerkung])).toEqual([
+      ["neu", "N"],
+      ["alt", "A"],
+    ]);
+  });
+
+  it("liefert bei leerer Trefferliste eine leere Liste", () => {
+    /*
+     * ⚠️ GEMESSEN, UND DIE ERWARTUNG WAR FALSCH: eine erste Fassung dieses Falls behauptete,
+     * ohne einen Kurzschluss WERFE die Abfrage am ungueltigen `IN ()` — dieselbe Begruendung,
+     * die `namenFuer` (`userRepo.ts:25-26`) aus dem Alt-Bestand mitgebracht hat. Sonde S-V17aa
+     * (den Kurzschluss entfernt): `33 passed`, **0 rot**. Die hier eingesetzte Drizzle-Fassung
+     * uebersetzt `inArray(spalte, [])` in eine falsche Konstante und wirft nicht. ⛔ Der
+     * Kurzschluss ist deshalb ERSATZLOS ENTFALLEN, statt als unbewachte Zeile stehenzubleiben
+     * — eine Zusicherung ueber einer Fehlerform, die der Bestand gar nicht traegt, ist genau
+     * die Klasse aus Ruling **R-V11-1**.
+     */
+    expect(updateKarten(db, { q: "gibtesnicht" })).toEqual([]);
+  });
+
+  it("traegt jedes Feld der Listenzeile weiter — genau eines kommt dazu", () => {
+    /*
+     * ⛔ DER WAECHTER GEGEN EINE ZWEITE PROJEKTION: `updateKarten` darf `GeraetZeile` nicht
+     * beschneiden (dann fehlte der Karte der Update-Stand oder die ISSI) und nicht um Audit-
+     * oder Rohspalten verbreitern (dann waere sie die Geraeteakte, `Spec:4542-4553`).
+     * Gemessen an einer ECHTEN Zeile, nicht am Typ — ein Typ hat zur Laufzeit keine Felder.
+     *
+     * ⛔ JEDES FELD TRAEGT EINEN EIGENEN, NICHT LEEREN WERT — und das ist erzwungen, nicht
+     * ordentlich: Sonde S-V17ab (`tei` auf den Vorgabewert gesetzt) blieb ueber einem Fixture
+     * aus lauter Vorgaben **0 rot**, weil richtig und falsch dort dasselbe sind. Ein
+     * Weitergabefall ueber einem symmetrischen Fixture misst seinen eigenen Namen nicht.
+     */
+    db.insert(softwareVersions).values(version("FW 9", true)).run();
+    lege({
+      id: "a",
+      issi: "1234567",
+      tei: "TEI-1",
+      rufname: "41/12",
+      opta: "HE FD 41/12",
+      funktion: "Zugfuehrer",
+      deviceType: "MTP3550",
+      status: "Einsatzbereit",
+      location: "Funkraum",
+      hersteller: "Motorola",
+      bedieneinheit: "TMR",
+      deviceModes: "TMO,DMO",
+      assignedTo: "Zug 1",
+      serialNumber: "SN-1",
+      loanable: true,
+      alamosIntegrated: true,
+      softwareVersion: "FW 9",
+      updateNote: "Abweichung",
+      lastUpdatedAt: "2026-08-03",
+    });
+
+    const zeile = geraeteListe(db, {}).zeilen[0]!;
+    const karte = updateKarten(db, {})[0]!;
+    expect(Object.keys(karte).sort()).toEqual([...Object.keys(zeile), "updateAnmerkung"].sort());
+    /*
+     * ⛔ UND DIE WERTE DAZU, NICHT NUR DIE SCHLUESSELNAMEN. Sonde S-V17ab (`tei: undefined`
+     * ueber die Zeile gelegt): `33 passed`, **0 rot** — `Object.keys` sieht einen auf
+     * `undefined` gesetzten Schluessel weiterhin. Ein Feldsatzabgleich allein bewacht also die
+     * NAMEN und nicht die Weitergabe.
+     */
+    for (const [feld, wert] of Object.entries(zeile)) {
+      expect(karte[feld as keyof typeof karte], `${feld} kommt nicht durch`).toEqual(wert);
+    }
   });
 });

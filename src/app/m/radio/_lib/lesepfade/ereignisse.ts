@@ -162,7 +162,7 @@ export type EreignisZeile = {
  * RANDFALL — jede per CSV importierte Historie traegt `changed_by` durchgehend als `null`
  * (`_db/schema.ts:133`, nullable), die leere Eingabe ist also der Normalfall dieser Flaeche.
  *
- * ⚠️ DIESELBEN ZWOELF ZEILEN STEHEN EIN ZWEITES MAL IN `_lib/lesepfade/geraete.ts:538-548`.
+ * ⚠️ DIESELBEN ZWOELF ZEILEN STEHEN EIN ZWEITES MAL IN `_lib/lesepfade/geraete.ts:601-611`.
  * Das ist bewusst so gelassen: eine gemeinsame Datei waere ein fuenfter Baustein in einer
  * Aufgabe, die vier vorsieht, und die Wiederholung ist mechanisch — beide Fassungen bilden
  * denselben Alt-Rumpf ab und haben keinen eigenen Ermessensspielraum, der auseinanderlaufen

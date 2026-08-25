@@ -483,4 +483,62 @@ test.describe("radio-Verwaltung", () => {
     const mitZeitraum = await page.goto(radioUrl("/admin/ausleihen?von=2026-06-14&bis=2026-06-14"));
     expect(mitZeitraum?.status(), "ein gesetzter Zeitraum wirft die Seite ab").toBe(200);
   });
+
+  test("Fall 6: /admin/software zeigt den Update-Modus", async ({ page }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V17, NICHT NACHBESSERUNG
+     * (`Spec:4881-4882`, Fall 5s Bauform, hier auf `/admin/software` — B9 (`Spec:98`) gibt der
+     * Route ihren Namen; §5.6.1 traegt noch `update/` und ist ueberholt).
+     *
+     * ⛔ ER IST DER EINZIGE WAECHTER UEBER **FALLE 1** AN INSEL 7: `Typography.Title`,
+     * `Input.Search` und `Space.Compact` sind Compound-Zugriffe — aus einer Server Component
+     * gerendert ist das HTTP 500 BEIM ABRUF. In jsdom gibt es keine RSC-Grenze;
+     * `UpdateSuche.test.tsx` bleibt unter dieser Mutation gruen und schreibt das in seinem Kopf
+     * selbst aus.
+     *
+     * ⛔ DER GRIFF IST DIE FLAECHE DER INSEL UND NICHT EINE KARTE: ohne Suchtext gibt es
+     * keine (1:1 `UpdateMode.tsx:67-68`), und ⬜ V13-L2 laesst den e2e-Lauf ohnehin ohne
+     * `radio`-Bestand fahren (`core/bootstrap.ts:49-54`, `playwright.config.ts:142`;
+     * Eigentuemer V23). `[data-rolle="radio-update-flaeche"]` steht in JEDEM Zweig und fehlt
+     * genau dann, wenn die Insel an der Grenze bricht.
+     *
+     * ⚠️ DIE SEITE IST FUER BEIDE STUFEN OFFEN (`Spec:4374`, Rechtetafel `Spec:4444-4454`) —
+     * und sie ist die Flaeche, um deretwillen es die Updater-Stufe gibt. Der Abruf hier laeuft
+     * mit der ADMIN-Gruppe, wie jeder Fall dieser Datei; dass eine UPDATER-Person sie ebenfalls
+     * erreicht, ist bis heute UNGEMESSEN — ⬜ **V-L3** haengt daran mit, und der namentliche
+     * Quelltext-Waechter ist `UpdateSuche.test.tsx` („die Seite traegt force-dynamic und den
+     * Riegel der Verwaltungs-Stufe"). ⛔ Kein Satz hier behauptet etwas anderes.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const antwort = await page.goto(radioUrl("/admin/software"));
+    expect(antwort?.status(), "/admin/software auf dem radio-Host").toBe(200);
+
+    await expect(
+      page.locator('[data-rolle="radio-update-flaeche"]'),
+      "die Insel ist an der RSC-Grenze gebrochen (Falle 1)",
+    ).toHaveCount(1);
+
+    /*
+     * ⛔ OHNE SUCHTEXT STEHT DER LEERTEXT, NICHT EINE LEERE LISTE (1:1 `UpdateMode.tsx:68`).
+     * Das ist zugleich die Abnahme der SERVERSEITIGEN Haelfte von E-V17: die Seite hat nichts
+     * geladen, und die Flaeche fordert zum Suchen auf.
+     */
+    await expect(
+      page.locator('[data-rolle="radio-update-leer"]'),
+      "der Leertext ohne Suchtext fehlt",
+    ).toHaveText("Gerät suchen, um es zu aktualisieren");
+
+    /*
+     * ⛔ REGIME B (E-V17): der Suchtext steht in der ADRESSZEILE, und der Server liest ihn.
+     * Ein Aufruf mit gesetztem `q` darf die Seite nicht abwerfen — er ist der Weg, auf dem ein
+     * geteilter Link und der Zurueck-Knopf funktionieren.
+     */
+    const mitSuche = await page.goto(radioUrl("/admin/software?q=41"));
+    expect(mitSuche?.status(), "ein gesetzter Suchtext wirft die Seite ab").toBe(200);
+    await expect(
+      page.locator('[data-rolle="radio-update-flaeche"]'),
+      "die Insel bricht mit gesetztem Suchtext",
+    ).toHaveCount(1);
+  });
 });

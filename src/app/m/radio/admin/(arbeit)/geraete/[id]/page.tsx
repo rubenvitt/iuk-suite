@@ -147,7 +147,7 @@ export default async function RadioGeraetAktePage({
           {/*
             1:1 `DeviceDetailDrawer.tsx:89-94`: der Zeitpunkt, und NUR wenn ein Name oder ein
             roher `sub` bekannt ist, dahinter „ · <Name>". Der Rueckfall auf den rohen `sub`
-            steckt bereits in `geaendertVonName` (`_lib/lesepfade/geraete.ts:566-590`).
+            steckt bereits in `geaendertVonName` (`_lib/lesepfade/geraete.ts:629-653`).
           */}
           {akte.zuletztAktualisiertText}
           {akte.geaendertVonName ? ` · ${akte.geaendertVonName}` : ""}
