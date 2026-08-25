@@ -46,8 +46,20 @@
  * Datei nicht.
  */
 
-/** Die Zone der Flaeche. An genau einer Stelle, damit sie nicht zweimal driften kann. */
-const ZONE = "Europe/Berlin";
+/**
+ * Die Zone der Flaeche. An genau einer Stelle, damit sie nicht zweimal driften kann.
+ *
+ * ⛔ SEIT AUFGABE V16 EXPORTIERT, UND GENAU DESHALB: `_lib/suchparameter.ts` rechnet fuer den
+ * Zeitraumfilter der Ausleihenliste (⬜ V-L11) Tagesraender in DERSELBEN Zone. Ein zweites
+ * `const ZONE = ...` dort waere die zweite Stelle, die dieser Satz ausschliesst.
+ * ⚠️ Der Waechter darueber bleibt unberuehrt: `_lib/anzeige.test.ts` verankert auf der
+ * DEKLARATION (`const ZONE = "Europe/Berlin"`), die das `export` davor unveraendert enthaelt.
+ * ⛔ UND ER ZAEHLT DIE FESTNAGELUNGEN DER ZONE IN DIESER DATEI AUF ZWEI — je eine je
+ * Formatierer. Der ausgeschriebene Ausdruck steht hier deshalb NICHT: gemessen beim ersten
+ * Lauf zu V16 faerbte er den Fall rot („expected 3 to be 2"), allein an diesem Kommentar.
+ * Dieselbe Prosa-Sperre wie beim Konstruktoraufruf zwei Absaetze weiter oben.
+ */
+export const ZONE = "Europe/Berlin";
 
 /**
  * Die reine Uhrzeit, `HH:mm`, zweistellig — z. B. `14:20`.

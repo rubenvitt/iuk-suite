@@ -14,6 +14,8 @@ import {
   sortierungLesen,
   sortierungZeichenkette,
   suchparameterZu,
+  ausleihenParameterAus,
+  ausleihenSuchparameterZu,
 } from "./suchparameter";
 
 /**
@@ -246,5 +248,159 @@ describe("radio-suchparameter: der Vertrag der Geraeteliste", () => {
     const quelle = readFileSync(QUELLE, "utf8");
     expect(quelle).not.toMatch(/^\s*["']use client["']/m);
     expect(quelle).not.toMatch(/^\s*["']use server["']/m);
+  });
+});
+
+describe("radio-suchparameter: der Vertrag der Ausleihenliste (V-L11)", () => {
+  /*
+   * ⛔ ER STEHT IN DERSELBEN DATEI WIE DER DER GERAETELISTE UND NICHT IN EINER ZWEITEN —
+   * Vorabscan-Fund F3 (`.superpowers/sdd/planteil4/VORABSCAN.md:146-148`, woertlich: „die
+   * Normalisierung in `_lib/suchparameter.ts` (V13) mitfuehren, ⛔ nicht in einer zweiten
+   * Datei"). Zwei Vertragsdateien nebeneinander liefen bei der naechsten gemeinsamen Regel
+   * auseinander.
+   *
+   * ⛔ WARUM ES IHN UEBERHAUPT GIBT: Betreiberentscheidung ⬜ **V-L11** vom 2026-08-24
+   * (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L11": „Beides."). Der Plan
+   * sah an drei Stellen ausdruecklich KEIN Bedienelement vor; die Entscheidung ueberholt ihn.
+   */
+  const TAG_SOMMER = "2026-06-14";
+  const TAG_WINTER = "2026-01-15";
+
+  it("der Geraetefilter wirkt nur, wenn er gesetzt ist", () => {
+    /*
+     * ⛔ 1:1 DIE WAHRHEITSPRUEFUNG DER DATENFUNKTION (`_db/leihen.ts`, `if (f.geraeteId)`,
+     * uebernommen aus `loanRepo.ts:139`): eine LEERE Id filtert nicht, statt nichts zu
+     * finden. Ein `!== undefined` an dieser Stelle ergaebe fuer `?geraet=` eine dauerhaft
+     * leere Liste ohne Fehlermeldung.
+     */
+    expect(ausleihenParameterAus({ geraet: "g-1" }).parameter.geraeteId).toBe("g-1");
+    expect(ausleihenParameterAus({ geraet: "  " }).parameter.geraeteId).toBeUndefined();
+    expect(ausleihenParameterAus({}).parameter.geraeteId).toBeUndefined();
+  });
+
+  it("von ist der Anfang und bis das ENDE des Kalendertags", () => {
+    /*
+     * ⛔ DER FALL, DER DIESE UMRECHNUNG UEBERHAUPT RECHTFERTIGT. `leihhistorie` vergleicht
+     * `lte(borrowedAt, bis)` gegen einen Zeitstempel (`_db/leihen.ts`). Waere `bis` der
+     * TAGESANFANG, fiele jede Leihe heraus, die an diesem Tag nach Mitternacht ausgeliehen
+     * wurde — `von = bis = heute` ergaebe eine leere Liste, und kein Typ, kein Lint und kein
+     * Build saehe es.
+     */
+    const { parameter } = ausleihenParameterAus({ von: TAG_SOMMER, bis: TAG_SOMMER });
+    // Berlin liegt im Juni auf UTC+2.
+    expect(parameter.von?.toISOString()).toBe("2026-06-13T22:00:00.000Z");
+    expect(parameter.bis?.toISOString()).toBe("2026-06-14T21:59:59.999Z");
+  });
+
+  it("die Tagesraender rechnen in Berlin und nicht in UTC", () => {
+    /*
+     * ⛔ `new Date("2026-01-15")` WAERE UTC-MITTERNACHT und damit 01:00 Berliner Zeit — eine
+     * Stunde des gewaehlten Tages fiele vorne heraus und eine Stunde des Vortags herein.
+     * Der Winterfall misst den anderen Versatz (+1) und faengt damit einen fest verdrahteten
+     * Sommerversatz.
+     */
+    const { parameter } = ausleihenParameterAus({ von: TAG_WINTER, bis: TAG_WINTER });
+    expect(parameter.von?.toISOString()).toBe("2026-01-14T23:00:00.000Z");
+    expect(parameter.bis?.toISOString()).toBe("2026-01-15T22:59:59.999Z");
+  });
+
+  it("an den zwei Umstellungstagen tragen die beiden Tagesraender VERSCHIEDENE Versaetze", () => {
+    /*
+     * ⛔ DER FALL, DER DIE ZWEI-KANDIDATEN-FORM RECHTFERTIGT. An diesen zwei Tagen ist der
+     * Zonenversatz innerhalb DESSELBEN Tages verschieden: ein einmal (etwa zur Mittagszeit)
+     * abgelesener Versatz, auf beide Raender angewandt, liegt an EINEM der beiden um eine
+     * Stunde daneben — und zwar still.
+     *
+     * 29.03.2026 ist der letzte Maerzsonntag (Beginn der Sommerzeit): der Tag beginnt mit
+     * UTC+1 und endet mit UTC+2. 25.10.2026 ist der letzte Oktobersonntag: umgekehrt.
+     */
+    const fruehjahr = ausleihenParameterAus({ von: "2026-03-29", bis: "2026-03-29" }).parameter;
+    expect(fruehjahr.von?.toISOString(), "Tagesanfang noch in der Winterzeit (UTC+1)").toBe(
+      "2026-03-28T23:00:00.000Z",
+    );
+    expect(fruehjahr.bis?.toISOString(), "Tagesende schon in der Sommerzeit (UTC+2)").toBe(
+      "2026-03-29T21:59:59.999Z",
+    );
+
+    const herbst = ausleihenParameterAus({ von: "2026-10-25", bis: "2026-10-25" }).parameter;
+    expect(herbst.von?.toISOString(), "Tagesanfang noch in der Sommerzeit (UTC+2)").toBe(
+      "2026-10-24T22:00:00.000Z",
+    );
+    expect(herbst.bis?.toISOString(), "Tagesende schon in der Winterzeit (UTC+1)").toBe(
+      "2026-10-25T22:59:59.999Z",
+    );
+  });
+
+  it("die Zone haengt nicht an der Zone des Prozesses", () => {
+    /*
+     * Dieselbe Bauform und derselbe Grund wie in `_lib/anzeige.test.ts` („die Zone haengt
+     * nicht an der Zone des Prozesses"): auf einer deutschen Entwicklungsmaschine waere ein
+     * Rueckfall auf die Systemzone von der richtigen Fassung nicht zu unterscheiden und im
+     * Container (UTC) um ein bis zwei Stunden falsch.
+     */
+    const vorher = process.env.TZ;
+    try {
+      process.env.TZ = "America/New_York";
+      const { parameter } = ausleihenParameterAus({ von: TAG_SOMMER });
+      expect(parameter.von?.toISOString()).toBe("2026-06-13T22:00:00.000Z");
+    } finally {
+      process.env.TZ = vorher;
+    }
+  });
+
+  it("ein unmoeglicher Kalendertag wird verworfen — in der Adresse UND im Filter", () => {
+    /*
+     * ⛔ „2026-02-31" IST FORMATGERECHT UND EXISTIERT NICHT. Eine blosse Formatpruefung
+     * liesse ihn durch, und die Rechnung landete beim 3. Maerz — der Filter zeigte still zu
+     * viel. Dieselbe Strenge wie in `lagerbuch/_lib/format.ts` (`grenze`: Format UND echter
+     * Kalendertag).
+     *
+     * ⛔ UND DER WERT VERSCHWINDET AUCH AUS `werte`: sonst zeigte das Datumsfeld einen
+     * Zeitraum an, nach dem gar nicht gefiltert wird — genau der stille Ausgang, den
+     * `lagerbuch/_lib/format.ts:106-116` ausschreibt.
+     */
+    const { werte, parameter } = ausleihenParameterAus({ von: "2026-02-31", bis: "kein Datum" });
+    expect(parameter.von).toBeUndefined();
+    expect(parameter.bis).toBeUndefined();
+    expect(werte.von).toBe("");
+    expect(werte.bis).toBe("");
+  });
+
+  it("die Seitenzahl faellt bei jedem unbrauchbaren Wert auf eins", () => {
+    expect(ausleihenParameterAus({ seite: "3" }).werte.seite).toBe(3);
+    for (const wert of ["0", "-2", "zwei", "", undefined]) {
+      expect(ausleihenParameterAus({ seite: wert }).werte.seite, `Seite aus ${wert}`).toBe(1);
+    }
+  });
+
+  it("die Seitengroesse steht im Lesepfad und NICHT in diesem Vertrag", () => {
+    /*
+     * ⛔ SIE IST EINE ANDERE ZAHL ALS DIE DER GERAETELISTE UND HAT EINEN ANDEREN BELEG
+     * (`LoanList.tsx:8` gegen `DeviceList.tsx:28`). Sie steht in
+     * `_lib/lesepfade/ausleihen.ts` (`AUSLEIHEN_SEITENGROESSE`); schriebe dieser Vertrag sie
+     * ein zweites Mal hin, zeigte die Flaeche eine andere Zahl an, als die Abfrage benutzt.
+     */
+    const quelle = readFileSync(QUELLE, "utf8");
+    const werte = ausleihenParameterAus({});
+    expect(Object.keys(werte.parameter).includes("seitenGroesse")).toBe(false);
+    expect(quelle, "die Ausleihen-Seitengroesse steht hier ein zweites Mal").not.toMatch(
+      /AUSLEIHEN_SEITENGROESSE/,
+    );
+  });
+
+  it("der Patch fuehrt ALLE vier Schluessel, auch die leeren", () => {
+    /*
+     * ⛔ DERSELBE GRUND WIE BEI `suchparameterZu` OBEN (`DeviceList.tsx:77-78`: „so that
+     * clearing a filter actually removes it from params"): die Insel schreibt in eine
+     * BESTEHENDE Adresszeile. Ein Patch, der nur die gesetzten Werte fuehrt, liesse den
+     * geleerten Filter dort stehen.
+     */
+    expect(
+      ausleihenSuchparameterZu({ geraet: "", von: "", bis: "", seite: 1 }),
+    ).toEqual({ geraet: "", von: "", bis: "", seite: "" });
+
+    expect(
+      ausleihenSuchparameterZu({ geraet: "g-1", von: TAG_SOMMER, bis: TAG_WINTER, seite: 4 }),
+    ).toEqual({ geraet: "g-1", von: TAG_SOMMER, bis: TAG_WINTER, seite: "4" });
   });
 });

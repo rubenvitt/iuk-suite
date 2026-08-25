@@ -45,6 +45,13 @@ import { geraeteZustandAus, type GeraeteStatus } from "../_lib/status";
  * IN DIESER DATEI UND NICHT IN EINER ZWEITEN (NS-A1) — eine zweite Datei haette die
  * Prosa-Sperre unten nicht getragen und den Feldsatz ein zweites Mal deklariert.
  *
+ * ⚠️ UND SEIT AUFGABE V16 STEHT EINE SIEBTE FUNKTION AM DATEIENDE, `geraeteMitLeihen` — ⛔
+ * SIE IST KEINE ACHTE ERSATZFUNKTION UND ZAEHLT NICHT IN DIE SECHS. Sie ersetzt keinen
+ * Alt-Endpunkt, sondern fuellt das Auswahlfeld des Geraetefilters, den die
+ * Betreiberentscheidung ⬜ V-L11 vom 2026-08-24 verlangt
+ * (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L11"). Der Bestand hat dafuer
+ * kein Gegenstueck; die Begruendung steht bei der Funktion.
+ *
  * ⛔ DER GESTRICHENE AUSFALL-PUFFER — DIE STREICHUNG IST EINE ENTSCHEIDUNG, KEINE
  * AUSLASSUNG (Spec:5410-5415, Auflage 6). Der Alt-Kiosk hielt seinen Geraete-Cache nach dem
  * Ablauf noch fuenf Minuten weiter vor, wenn `radio-admin` unerreichbar war:
@@ -969,4 +976,57 @@ export function leihhistorie(db: DB, f: LeihhistorieFilter): LeihhistorieSeite {
     }));
 
   return { zeilen, gesamt: gesamtZeile?.anzahl ?? 0, seite, seitenGroesse };
+}
+
+/** Ein Geraet, wie es im Auswahlfeld der Verwaltungs-Ausleihenliste steht. */
+export type GeraetMitLeihe = {
+  id: string;
+  /** Der Anzeige-Schnappschuss der JUENGSTEN Leihe dieses Geraets, nicht der Rufname von heute. */
+  rufname: string;
+};
+
+/**
+ * DER OPTIONSVORRAT DES GERAETEFILTERS AUF `/admin/ausleihen` — ⛔ KEINE SIEBTE
+ * ERSATZFUNKTION. Die sechs oben ersetzen je einen Alt-Endpunkt; diese hier hat im Bestand
+ * kein Gegenstueck, weil der Bestand gemessen gar keinen Filter fuehrt
+ * (`useLoans.ts:18-23` schickt nur `page`/`pageSize`). Sie entsteht allein aus der
+ * Betreiberentscheidung ⬜ **V-L11** vom 2026-08-24
+ * (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L11": „Beides." — nach Geraet
+ * UND Zeitraum), und die Auflage dort bindet sie: „die Grundliste, ihre Sortierung und ihre
+ * Spalten bleiben, wie der Bestand sie hat; der Filter kommt HINZU."
+ *
+ * ⛔ SIE LIEST DIE LEIHEN UND NICHT `devices`, UND DAS IST DIE TRAGENDE ZEILE: der Filter
+ * wirkt auf `loans.device_id` (`leihhistorie` oben, `eq(loans.deviceId, f.geraeteId)`). Eine
+ * Auswahl aus der Geraetetabelle boete zwei falsche Mengen auf einmal an —
+ *   * ein nie verliehenes Geraet, dessen Wahl garantiert NULL Zeilen ergibt, und
+ *   * KEIN geloeschtes Geraet, dessen Leihzeilen es weiterhin gibt: Leihen tragen keinen
+ *     Fremdschluessel (`_db/schema.ts:207-211`), und das Loeschen ist seit ⬜ V-L6 erlaubt
+ *     (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L6").
+ * Das ist zeichengleich die Fehlerklasse des Praezedenzfalls dieses Planteils: ein Lesepfad,
+ * der „ersetzt GET /…-devices" hiess und den `loanable`-Filter wegliess.
+ *
+ * ⛔ DER RUFNAME KOMMT AUS DER JUENGSTEN LEIHE. In SQLite nimmt eine blosse Spalte neben
+ * GENAU EINEM `max()`/`min()` den Wert aus der Zeile, die das Aggregat geliefert hat; hier
+ * ist das die Zeile mit dem groessten `borrowed_at`. ⚠️ GEMESSEN UND NICHT ANGENOMMEN — der
+ * Fall „nennt jedes Geraet genau einmal, mit dem Rufnamen der JUENGSTEN Leihe"
+ * (`_db/leihen.test.ts`) faerbt sich rot, sobald die Zuordnung kippt.
+ *
+ * ⚠️ SORTIERT WIRD IN JAVASCRIPT UND NICHT IN SQL: SQLites `order by` kennt fuer Text nur
+ * `binary`/`nocase`, und die Rufnamen dieses Bestands sind gemischt (`41/12`, `HE DRK …`).
+ * `localeCompare` mit `de` ist die Reihenfolge, die ein Mensch in der Auswahlliste erwartet.
+ * Die Menge ist die Zahl der je verliehenen Geraete — dieselbe Groessenordnung wie die
+ * Geraeteliste selbst (⬜ V-L8), also eine Sortierung ohne Blaetterung.
+ */
+export function geraeteMitLeihen(db: DB): GeraetMitLeihe[] {
+  return db
+    .select({
+      id: loans.deviceId,
+      rufname: loans.snapshotCallSign,
+      juengste: sql<number>`max(${loans.borrowedAt})`,
+    })
+    .from(loans)
+    .groupBy(loans.deviceId)
+    .all()
+    .map((z) => ({ id: z.id, rufname: z.rufname }))
+    .sort((a, b) => a.rufname.localeCompare(b.rufname, "de"));
 }

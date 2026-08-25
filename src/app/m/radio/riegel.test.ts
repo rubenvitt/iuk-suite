@@ -112,12 +112,13 @@ const SELBST = join(MODUL, "riegel.test.ts");
 const HANDLER_ANZAHL = 2;
 
 /**
- * ⛔ HEUTE VIER — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die
+ * ⛔ HEUTE FUENF — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die
  * Geraeteliste (1 auf 2), V14 die Geraetakte (2 auf 3), V15 die Aenderungshistorie (3 auf 4),
- * je im SELBEN Commit; so weiter bis 10 (Spec:4369-4378). ⚠️ `ADMIN_SEITEN()` (Dateiende)
- * zaehlt seit der Fix-Runde 1 zu V15 AUCH `template.tsx`/`default.tsx` — heute gibt es keine.
+ * V16 die Ausleihenliste (4 auf 5), je im SELBEN Commit; so weiter bis 10 (Spec:4369-4378).
+ * ⚠️ `ADMIN_SEITEN()` (Dateiende) zaehlt seit der Fix-Runde 1 zu V15 AUCH
+ * `template.tsx`/`default.tsx` — heute gibt es keine.
  */
-const ADMIN_SEITEN_ANZAHL = 4;
+const ADMIN_SEITEN_ANZAHL = 5;
 
 /** Zwei Verwaltungs-Huellen: `admin/(arbeit)/layout.tsx` und `admin/(druck)/layout.tsx` (Z6). */
 const ADMIN_LAYOUTS_MINDESTENS = 2;
@@ -477,10 +478,11 @@ describe("(e) jede Verwaltungsseite traegt den Personen-Riegel ihrer Stufe", () 
 
   it("die Seitenzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
-     * ⚠️ HEUTE VIER, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe Grund
-     * wie bei `HANDLER_ANZAHL`. Er hat VIERMAL GEMESSEN gewirkt: in V12 („expected 1 to be
-     * +0"), V13 („expected 2 to be 1"), V14 („expected 3 to be 2") und V15 („expected 4 to
-     * be 3") — erst die Anhebung im selben Commit machte ihn jeweils wieder gruen.
+     * ⚠️ HEUTE FUENF, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe Grund
+     * wie bei `HANDLER_ANZAHL`. Er hat FUENFMAL GEMESSEN gewirkt: in V12 („expected 1 to be
+     * +0"), V13 („expected 2 to be 1"), V14 („expected 3 to be 2"), V15 („expected 4 to
+     * be 3") und V16 („expected 5 to be 4") — erst die Anhebung im selben Commit machte ihn
+     * jeweils wieder gruen.
      */
     expect(
       ADMIN_SEITEN().length,
@@ -1155,10 +1157,12 @@ describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {
  * ⛔ DER FILTER SPEIST DREI FAELLE — den Zaehlfall der Klausel (e), ihre Riegelschleife und
  * Klausel (g). Er verlangt damit auch von einem `template.tsx` den Personen-Riegel; das ist
  * unter der Zwei-Linien-Doktrin (Spec:4382-4386) richtig und eine bewusste Verschaerfung,
- * keine Kosmetik. ⚠️ `ADMIN_SEITEN_ANZAHL` BLEIBT DABEI 4, und zwar GEMESSEN:
- * `/usr/bin/find src/app/m/radio -name 'template.tsx' -o -name 'default.tsx'` ist leer
- * (2026-08-25). Der Zaehlfall bleibt gruen, weil es heute keine solche Datei gibt — nicht,
- * weil der Filter sie nicht faende.
+ * keine Kosmetik. ⚠️ `ADMIN_SEITEN_ANZAHL` ZAEHLT DESHALB NUR DIE `page.tsx` MIT — und zwar
+ * GEMESSEN: `/usr/bin/find src/app/m/radio -name 'template.tsx' -o -name 'default.tsx'` ist
+ * leer (nachgemessen in V16, 2026-08-25). Der Zaehlfall bleibt gruen, weil es heute keine
+ * solche Datei gibt — nicht, weil der Filter sie nicht faende. ⚠️ Die Zahl selbst steht am
+ * Dateianfang und ist mit V16 auf FUENF gestiegen; sie hier ein zweites Mal auszuschreiben
+ * hiesse, sie bei jeder Anhebung an zwei Stellen zu pflegen.
  */
 function ADMIN_SEITEN(): string[] {
   return quellDateien().filter((p) =>
@@ -1213,7 +1217,7 @@ describe("(g) auf jeder Verwaltungsseite steht der Riegel als ERSTE Anweisung", 
      * beides erfuellen — zeichengleich die Fehlerform, die Klausel (e) und Klausel (f) im
      * Kopf beide benennen. Ausserhalb einer Group ist die erste Anweisung deshalb der
      * HOST-Riegel; die Reihenfolge der beiden haelt Klausel (e) weiterhin ueber `search(...)`.
-     * ⚠️ Heute liegt jede der vier Seiten in einer Group; der zweite Zweig ist damit
+     * ⚠️ Heute liegt jede der fuenf Seiten in einer Group; der zweite Zweig ist damit
      * ungemessen und faellt LAUT, sobald ihn jemand betritt (die Meldung druckt den Fund).
      *
      * ⬜ UND ER SCHLIESST DIE LUECKE DORT NUR HALB — das steht hier, statt eine Reichweite zu
@@ -1233,7 +1237,7 @@ describe("(g) auf jeder Verwaltungsseite steht der Riegel als ERSTE Anweisung", 
      * neuen Abfrage (REVIEW-A18, Fund 2).
      *
      * ⚠️ LEER-GRUEN IST AUSGESCHLOSSEN, OHNE DASS HIER EINE ZWEITE ZAEHLUNG STEHT: Klausel
-     * (e) haelt `ADMIN_SEITEN().length` auf `ADMIN_SEITEN_ANZAHL` (heute 4) ueber DERSELBEN
+     * (e) haelt `ADMIN_SEITEN().length` auf `ADMIN_SEITEN_ANZAHL` (heute 5) ueber DERSELBEN
      * Menge. Faende der Filter nichts, waere jener Fall rot, bevor dieser leer laeuft.
      */
     const verstoesse: string[] = [];

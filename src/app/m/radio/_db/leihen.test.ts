@@ -20,6 +20,7 @@ import {
   bucheRueckgabe,
   leihhistorie,
   offeneLeiheZuGeraet,
+  geraeteMitLeihen,
 } from "./leihen";
 
 /**
@@ -1555,5 +1556,72 @@ describe("radio-leihen: die Bauform der Datei", () => {
     const quelle = readFileSync(LEIHEN_QUELLE, "utf8");
     expect(quelle).toContain("STALE_GRACE_MS");
     expect(quelle).toContain("radio-admin.service.ts:43-48");
+  });
+});
+
+describe("radio-leihen: die Geraetewahl der Ausleihenliste (V-L11)", () => {
+  /*
+   * ⛔ SIE IST KEINE ERSATZFUNKTION EINER /v1-ROUTE, SONDERN DER OPTIONSVORRAT EINES
+   * BEDIENELEMENTS, das die Betreiberentscheidung ⬜ V-L11 vom 2026-08-24 verlangt
+   * (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L11": „Beides." — nach Geraet
+   * UND Zeitraum). Der Alt-Bestand hat sie nicht; er hat gemessen gar keinen Filter
+   * (`useLoans.ts:18-23` schickt nur `page`/`pageSize`).
+   *
+   * ⛔ DIE MENGE KOMMT AUS DEN LEIHEN UND NICHT AUS DER GERAETETABELLE, und das ist die
+   * tragende Zeile dieses Blocks: der Filter wirkt auf `device_id` DER LEIHZEILE. Eine
+   * Auswahl aus `devices` boete Geraete an, die nie verliehen waren (leere Trefferliste
+   * ohne Grund) und liesse ein geloeschtes Geraet weg, dessen Leihzeilen es weiterhin gibt
+   * — Leihen tragen KEINEN Fremdschluessel (`_db/schema.ts:207-211`), und Loeschen ist seit
+   * ⬜ V-L6 erlaubt. Beide Ausgaenge waeren die stille falsche Menge, gegen die die
+   * 1:1-Pflicht dieses Planteils steht.
+   */
+  it("bietet jedes Geraet an, das eine Leihzeile hat — und nur diese", () => {
+    geraet({ id: "g-1", issi: "1000001", rufname: "41/12" });
+    geraet({ id: "g-2", issi: "1000002", rufname: "41/13" });
+    // ⛔ Ein Geraet OHNE Leihe: es darf NICHT in der Auswahl stehen.
+    geraet({ id: "g-nie", issi: "1000003", rufname: "41/99" });
+    leihe({ deviceId: "g-1", snapshotCallSign: "41/12" });
+    leihe({ deviceId: "g-2", snapshotCallSign: "41/13" });
+
+    expect(geraeteMitLeihen(db).map((g) => g.id)).toEqual(["g-1", "g-2"]);
+  });
+
+  it("fuehrt ein geloeschtes Geraet weiter, solange seine Leihzeile steht", () => {
+    /*
+     * ⛔ DER FALL, DEN ⬜ V-L6 AUFMACHT: das Geraet ist fort, die Leihzeile bleibt (kein
+     * Fremdschluessel, `_db/schema.ts:207-211`). Eine Auswahl aus `devices` verloere hier
+     * genau die Zeilen, die jemand sucht.
+     */
+    leihe({ deviceId: "g-fort", snapshotCallSign: "41/44" });
+
+    expect(geraeteMitLeihen(db)).toEqual([{ id: "g-fort", rufname: "41/44" }]);
+  });
+
+  it("nennt jedes Geraet genau einmal, mit dem Rufnamen der JUENGSTEN Leihe", () => {
+    /*
+     * ⚠️ GEMESSEN, NICHT ANGENOMMEN: der Schnappschuss wird beim Ausleihen kopiert
+     * (`_db/schema.ts:198-205`) und kann sich zwischen zwei Leihen desselben Geraets
+     * geaendert haben. Die Auswahl zeigt den JUENGSTEN — der aeltere Name stuende sonst
+     * neben einem Geraet, das heute anders heisst.
+     */
+    // ⚠️ Die aeltere Leihe MUSS zurueckgegeben sein: `0001_loans_aktiv_uidx.sql` laesst je
+    // Geraet nur EINE offene Leihe zu.
+    leihe({
+      deviceId: "g-1",
+      snapshotCallSign: "alt 41/12",
+      borrowedAt: new Date("2026-06-01T08:00:00Z"),
+      returnedAt: new Date("2026-06-02T08:00:00Z"),
+    });
+    leihe({ deviceId: "g-1", snapshotCallSign: "neu 41/12", borrowedAt: new Date("2026-06-20T08:00:00Z") });
+
+    expect(geraeteMitLeihen(db)).toEqual([{ id: "g-1", rufname: "neu 41/12" }]);
+  });
+
+  it("sortiert nach Rufname, damit die Liste nicht bei jedem Aufruf anders steht", () => {
+    leihe({ deviceId: "g-b", snapshotCallSign: "41/13" });
+    leihe({ deviceId: "g-a", snapshotCallSign: "41/12" });
+    leihe({ deviceId: "g-c", snapshotCallSign: "40/01" });
+
+    expect(geraeteMitLeihen(db).map((g) => g.rufname)).toEqual(["40/01", "41/12", "41/13"]);
   });
 });

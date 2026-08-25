@@ -7,8 +7,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as schema from "../../_db/schema";
-import { loans } from "../../_db/schema";
-import { ausleihenListe, AUSLEIHEN_SEITENGROESSE } from "./ausleihen";
+import { devices, loans } from "../../_db/schema";
+import { ausleihenListe, geraeteAuswahl, AUSLEIHEN_SEITENGROESSE } from "./ausleihen";
 
 /**
  * DER UMSCHLAG UM DIE LEIHHISTORIE (Planteil 4, Aufgabe V7).
@@ -224,5 +224,46 @@ describe("ausleihenListe — der Umschlag um leihhistorie", () => {
       expect(seite.seite, `Seitenzahl aus ${JSON.stringify(wert)}`).toBe(1);
       expect(seite.zeilen.length, `Grenze bei ${JSON.stringify(wert)}`).toBe(20);
     }
+  });
+});
+
+describe("geraeteAuswahl — der Optionsvorrat des Geraetefilters (V-L11)", () => {
+  /*
+   * ⛔ EIN DURCHREICHER UND KEINE ZWEITE ABFRAGE, genau wie `ausleihenListe` darueber. Der
+   * Scan des ersten Falls dieser Datei (kein `_db/schema`-Import, der Tabellenname steht
+   * hier nirgends) gilt fuer die GANZE Datei und deckt ihn damit mit ab.
+   */
+  it("liefert die Geraete der Datenfunktion unveraendert weiter", () => {
+    db.insert(loans)
+      .values([
+        leihe({ id: "l-1", deviceId: "g-b", snapshotCallSign: "41/13" }),
+        leihe({ id: "l-2", deviceId: "g-a", snapshotCallSign: "41/12" }),
+      ])
+      .run();
+
+    expect(geraeteAuswahl(db)).toEqual([
+      { id: "g-a", rufname: "41/12" },
+      { id: "g-b", rufname: "41/13" },
+    ]);
+  });
+
+  it("bietet KEIN Geraet an, dessen Wahl garantiert null Zeilen ergaebe", () => {
+    /*
+     * ⛔ DIE INVARIANTE DES BEDIENELEMENTS: jede Option muss mindestens eine Zeile erzeugen
+     * koennen. Sie ist die eigentliche Zusage dieses Vorrats — eine Auswahl aus `devices`
+     * boete Geraete an, die nie verliehen waren.
+     *
+     * ⛔ DAS GERAET OHNE LEIHZEILE IST DER GANZE FALL. Die erste Fassung dieses Falles pruefte
+     * `geraeteAuswahl(db)` auf einer LEEREN Datenbank gegen `[]` — und war damit 0 rot BY
+     * CONSTRUCTION: die genannte Fehlform (aus `devices` lesen) haette dort ebenfalls `[]`
+     * geliefert, weil auch jene Tabelle leer war. Richtiggestellt in der Fix-Runde zu V16;
+     * genau die Klasse, die Ruling **R-V11-1** Fund 1 benennt („Wer eine Zusicherung ueber dem
+     * Bestand schreibt, schuldet die Mutation, die sie rot macht").
+     */
+    db.insert(devices)
+      .values({ id: "g-nie", issi: "1000009", rufname: "41/99", createdAt: new Date(), updatedAt: new Date() })
+      .run();
+
+    expect(geraeteAuswahl(db), "ein nie verliehenes Geraet steht in der Auswahl").toEqual([]);
   });
 });

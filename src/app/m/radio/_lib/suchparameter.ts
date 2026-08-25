@@ -13,7 +13,9 @@
  * `build` saehen es."
  * ⛔ `GeraetFilter` DAGEGEN IST EIN `import type` UND VERSCHWINDET ZUR LAUFZEIT.
  */
+import { ZONE } from "./anzeige";
 import { SORTIER_SCHLUESSEL, SUCHFELDER_VORGABE } from "./geraeteFelder";
+import type { AusleihenParameter } from "./lesepfade/ausleihen";
 import type { GeraetFilter } from "./lesepfade/geraete";
 import type { UpdateStand } from "./updateStand";
 
@@ -312,4 +314,240 @@ export function angewandt(
     else naechste.delete(name);
   }
   return naechste;
+}
+
+/* ============================================================================================
+ * DER SUCHPARAMETER-VERTRAG DER AUSLEIHENLISTE — `/admin/ausleihen`, Aufgabe V16.
+ *
+ * ⛔ ER STEHT IN DIESER DATEI UND NICHT IN EINER ZWEITEN — Vorabscan-Fund F3
+ * (`.superpowers/sdd/planteil4/VORABSCAN.md:146-148`, woertlich: „die Normalisierung in
+ * `_lib/suchparameter.ts` (V13) mitfuehren, ⛔ nicht in einer zweiten Datei").
+ *
+ * ⛔ WARUM ES IHN GIBT — UND DASS ER KEIN 1:1-POSTEN IST: Betreiberentscheidung ⬜ **V-L11**
+ * vom 2026-08-24 (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L11": „Beides."),
+ * die den Plan an drei Stellen ueberholt, wo er ausdruecklich KEIN Bedienelement vorsah. Die
+ * Auflage dort bindet: „die Grundliste, ihre Sortierung und ihre Spalten bleiben, wie der
+ * Bestand sie hat; der Filter kommt HINZU." Der Alt-Bestand schickt gemessen nur
+ * `page`/`pageSize` (`useLoans.ts:18-23`).
+ *
+ * ⬜ **V16-L1 — WAS DER ZEITRAUMFILTER NICHT BEANTWORTET.** Die Betreiberentscheidung nennt
+ * als zweite Rueckfrage „wer hatte was am Einsatztag". Das Fenster steht aber auf
+ * `borrowedAt` und nicht auf einer Ueberlappung — 1:1 aus `loanRepo.ts:140-141`, ausdruecklich
+ * festgehalten in `_db/leihen.ts` („DIE GRENZEN STEHEN AUF `borrowedAt`, NICHT AUF
+ * `returnedAt`"). Eine Leihe, die am Vortag begann und am Einsatztag noch lief, faellt heraus.
+ * ⛔ DIE ABFRAGE WIRD DAFUER NICHT AUFGEBOHRT: das braeche die 1:1-Deckung von `leihhistorie`
+ * mit `listLoans`. Die Bedienelemente heissen deshalb „Ausgeliehen von"/„Ausgeliehen bis" und
+ * sagen, was sie tun. Eigentuemer der Frage, ob ein Ueberlappungsfenster gebraucht wird:
+ * **Betreiber**, vor dem Rollout.
+ * ========================================================================================= */
+
+/**
+ * Die skalaren Werte, die ueber die Insel-Grenze gehen und in der Adresszeile stehen.
+ *
+ * ⛔ `von` UND `bis` SIND ZEICHENKETTEN `YYYY-MM-DD`, KEIN `Date`
+ * (Bauform-Zulaessigkeitstafel Nr. 7, `Spec:4536-4539`). Dieselbe Form wie im Hausvorbild
+ * `lagerbuch/verwaltung/(arbeit)/journal/JournalFilter.tsx`, wo `dayjs` erst IN der Insel
+ * lebt. Das `Date` entsteht ausschliesslich auf dem Server, unten.
+ */
+export type AusleihenFilterWerte = {
+  /** Die Id des Geraets aus `geraeteAuswahl`, oder leer. */
+  geraet: string;
+  von: string;
+  bis: string;
+};
+
+/** Die Anzeigewerte der Flaeche: der Filter plus die Seitenzahl. */
+export type AusleihenSuchWerte = AusleihenFilterWerte & { seite: number };
+
+/** Der leere Filter — der Zustand des Zuruecksetzen-Knopfes. */
+export const LEERER_AUSLEIHEN_FILTER: AusleihenFilterWerte = { geraet: "", von: "", bis: "" };
+
+/** Format eines Kalendertags in der Adresszeile. */
+const TAG_MUSTER = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Format UND echter Kalendertag.
+ *
+ * ⛔ DIE ZWEITE HAELFTE IST DIE TRAGENDE: `2026-02-31` ist formatgerecht und existiert nicht.
+ * Eine blosse Formatpruefung liesse ihn durch, die Rechnung landete beim 3. Maerz, und der
+ * Filter zeigte still zu viel. Dieselbe Strenge und dieselbe Begruendung wie in
+ * `src/app/m/lagerbuch/_lib/format.ts` (`grenze`).
+ */
+export function istKalendertag(tag: string): boolean {
+  if (!TAG_MUSTER.test(tag)) return false;
+  const [jahr, monat, tagZahl] = tag.split("-").map(Number) as [number, number, number];
+  if (monat < 1 || monat > 12 || tagZahl < 1) return false;
+  // `Date.UTC(jahr, monat, 0)` ist der letzte Tag des Monats `monat` (1-basiert).
+  return tagZahl <= new Date(Date.UTC(jahr, monat, 0)).getUTCDate();
+}
+
+type Zivil = { jahr: number; monat: number; tag: number; std: number; min: number; sek: number };
+
+/**
+ * Absoluter Zeitpunkt → Zivilzeit in `ZONE`.
+ *
+ * ⛔ DER FORMATIERER ENTSTEHT JE AUFRUF UND NICHT AUF MODULEBENE — dieselbe Auflage und
+ * derselbe gemessene Grund wie in `_lib/anzeige.ts`: ein auf Modulebene gebauter
+ * `Intl.DateTimeFormat` haette seine Zone aufgeloest, BEVOR der Fall „die Zone haengt nicht an
+ * der Zone des Prozesses" (`_lib/suchparameter.test.ts`) die Prozesszone dreht — der Fall
+ * waere gruen, ohne etwas zu pruefen.
+ */
+function zonenTeile(at: Date): Zivil {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: ZONE,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(at)
+      .map((t) => [t.type, t.value]),
+  ) as Record<string, string>;
+  return {
+    jahr: Number(p.year),
+    monat: Number(p.month),
+    tag: Number(p.day),
+    // `% 24` ist Guertel und Hosentraeger: manche ICU-Fassungen liefern trotz `hourCycle: "h23"`
+    // fuer Mitternacht die 24 (Vorbild `src/app/m/lagerbuch/_lib/zeit.ts`).
+    std: Number(p.hour) % 24,
+    min: Number(p.minute),
+    sek: Number(p.second),
+  };
+}
+
+/** Versatz der Zone zum Zeitpunkt `at`, in Minuten (positiv = oestlich von UTC). */
+function zonenVersatzMinuten(at: Date): number {
+  const t = zonenTeile(at);
+  const alsUtc = Date.UTC(t.jahr, t.monat - 1, t.tag, t.std, t.min, t.sek);
+  const ohneMs = at.getTime() - (((at.getTime() % 1000) + 1000) % 1000);
+  return Math.round((alsUtc - ohneMs) / 60000);
+}
+
+/**
+ * Zivilzeit in `ZONE` → absoluter Zeitpunkt.
+ *
+ * ⛔ ZWEI KANDIDATEN, NICHT EINE EINSTUFIGE NAEHERUNG. Der Versatz haengt vom Ergebnis ab, und
+ * an den zwei Umstellungstagen ist er innerhalb DESSELBEN Tages verschieden: ein Versatz, der
+ * einmal (etwa zur Mittagszeit) abgelesen und auf beide Tagesraender angewandt wird, liegt am
+ * letzten Maerz- und am letzten Oktobersonntag um eine Stunde daneben. Die Form ist die des
+ * Hauses (`src/app/m/lagerbuch/_lib/zeit.ts`, `ausZivilzeit`) — ⛔ sie wird NACHGEBAUT und
+ * nicht importiert: ein modulfremder `_lib/`-Import waere die Bindung, die `_lib/anzeige.ts`
+ * fuer dieselbe Frage (die Zone) bereits nicht eingegangen ist.
+ *
+ * ⚠️ Fuer 00:00:00 und 23:59:59.999 ist die Wahl zwischen den Kandidaten folgenlos — keiner
+ * der beiden faellt je in den Berliner Umstellungsrand. Der Rueckfall auf den GROESSEREN
+ * Kandidaten steht trotzdem da, damit die Funktion fuer jede Eingabe einen Wert hat.
+ */
+function ausZivilzeit(
+  jahr: number,
+  monat1bis12: number,
+  tag: number,
+  std: number,
+  min: number,
+  sek: number,
+  ms: number,
+): Date {
+  const naiv = Date.UTC(jahr, monat1bis12 - 1, tag, std, min, sek, ms);
+  const kandidaten = [
+    naiv - zonenVersatzMinuten(new Date(naiv - 86_400_000)) * 60_000,
+    naiv - zonenVersatzMinuten(new Date(naiv + 86_400_000)) * 60_000,
+  ].sort((a, b) => a - b);
+  for (const k of kandidaten) {
+    const t = zonenTeile(new Date(k));
+    if (
+      t.jahr === jahr &&
+      t.monat === monat1bis12 &&
+      t.tag === tag &&
+      t.std === std &&
+      t.min === min &&
+      t.sek === sek
+    ) {
+      return new Date(k);
+    }
+  }
+  return new Date(kandidaten[kandidaten.length - 1]!);
+}
+
+/**
+ * Die INKLUSIVEN Raender eines Kalendertags `YYYY-MM-DD` als absolute Zeitpunkte.
+ *
+ * ⛔ `bis` IST DAS TAGESENDE UND NICHT DER TAGESANFANG. `leihhistorie` vergleicht
+ * `lte(borrowedAt, bis)` gegen einen Zeitstempel (`_db/leihen.ts`); waere `bis` Mitternacht,
+ * fiele jede Leihe heraus, die an diesem Tag ueberhaupt ausgeliehen wurde — `von = bis =
+ * heute` ergaebe eine leere Liste, und kein Typ, kein Lint und kein Build saehe es.
+ */
+export function tagesGrenzen(tag: string): { von: Date; bis: Date } {
+  const [jahr, monat, tagZahl] = tag.split("-").map(Number) as [number, number, number];
+  return {
+    von: ausZivilzeit(jahr, monat, tagZahl, 0, 0, 0, 0),
+    bis: ausZivilzeit(jahr, monat, tagZahl, 23, 59, 59, 999),
+  };
+}
+
+/**
+ * Die rohen Parameter der Adresszeile in die skalaren Anzeigewerte UND den Lesefilter
+ * trennen — dieselbe Zweiteilung wie `geraeteParameterAus` oben.
+ *
+ * ⛔ EIN VERWORFENES DATUM VERSCHWINDET AUS BEIDEN HAELFTEN. Bliebe die rohe Zeichenkette in
+ * `werte` stehen, zeigte das Datumsfeld einen Zeitraum an, nach dem gar nicht gefiltert wird —
+ * der stille Ausgang, den `src/app/m/lagerbuch/_lib/format.ts` fuer denselben Fall
+ * ausschreibt („ein gespeicherter Link mit defektem `von` liefert die Seite OHNE Fehlermeldung
+ * und UNGEFILTERT").
+ *
+ * ⛔ `seitenGroesse` STEHT HIER NICHT. Sie ist eine andere Zahl als die der Geraeteliste und
+ * hat einen anderen Beleg (`LoanList.tsx:8` gegen `DeviceList.tsx:28`); sie lebt im Lesepfad
+ * (`_lib/lesepfade/ausleihen.ts`), und eine zweite Fassung hier liefe auseinander.
+ */
+export function ausleihenParameterAus(roh: RohSuchparameter): {
+  werte: AusleihenSuchWerte;
+  parameter: AusleihenParameter;
+} {
+  const geraet = skalar(roh.geraet);
+
+  const vonRoh = skalar(roh.von);
+  const bisRoh = skalar(roh.bis);
+  const von = istKalendertag(vonRoh) ? vonRoh : "";
+  const bis = istKalendertag(bisRoh) ? bisRoh : "";
+
+  const seiteZahl = Number.parseInt(skalar(roh.seite), 10);
+  const seite = Number.isFinite(seiteZahl) && seiteZahl >= 1 ? seiteZahl : 1;
+
+  const werte: AusleihenSuchWerte = { geraet, von, bis, seite };
+
+  const parameter: AusleihenParameter = {
+    // ⛔ `|| undefined`, NICHT `?? undefined`: die Datenfunktion prueft auf WAHRHEIT
+    // (`_db/leihen.ts`, `if (f.geraeteId)`, 1:1 aus `loanRepo.ts:139`) — eine leere Id darf
+    // sie gar nicht erst erreichen.
+    geraeteId: geraet || undefined,
+    von: von ? tagesGrenzen(von).von : undefined,
+    bis: bis ? tagesGrenzen(bis).bis : undefined,
+    seite,
+  };
+
+  return { werte, parameter };
+}
+
+/**
+ * Die Werte als Patch fuer die Adresszeile — ⛔ MIT ALLEN VIER SCHLUESSELN, auch den leeren.
+ * Derselbe Grund wie bei `suchparameterZu` oben (`DeviceList.tsx:77-78`): die Insel schreibt
+ * in eine BESTEHENDE Adresszeile, und ein Patch nur der gesetzten Werte liesse den geleerten
+ * Filter dort stehen.
+ */
+export function ausleihenSuchparameterZu(werte: AusleihenSuchWerte): Record<string, string> {
+  // ⛔ DIE VIER SCHLUESSEL STEHEN HIER UND IN `ausleihenParameterAus` — und der Waechter
+  // darueber ist NICHT eine dritte, exportierte Liste (die waere selbst die dritte
+  // handgepflegte Aufzaehlung, Ruling R-V11-1), sondern der Fall „der Patch fuehrt ALLE vier
+  // Schluessel, auch die leeren" in `_lib/suchparameter.test.ts`: er prueft das Ergebnis mit
+  // `toEqual`, nicht die Liste.
+  return {
+    geraet: werte.geraet,
+    von: werte.von,
+    bis: werte.bis,
+    // Seite 1 ist die Vorgabe und gehoert nicht in die Adresszeile.
+    seite: werte.seite > 1 ? String(werte.seite) : "",
+  };
 }

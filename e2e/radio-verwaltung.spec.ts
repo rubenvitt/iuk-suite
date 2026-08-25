@@ -416,4 +416,71 @@ test.describe("radio-Verwaltung", () => {
     const erfunden = await page.goto(radioUrl("/admin/geraete/gibt-es-nicht/ereignisse"));
     expect(erfunden?.status(), "eine erfundene Geraete-Id antwortet nicht mit 404").toBe(404);
   });
+
+  test("Fall 5: /admin/ausleihen zeigt die Ausleihenliste", async ({ page }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V16, NICHT NACHBESSERUNG
+     * (`Spec:4881-4882`, Fall 5). Er ist der EINZIGE Waechter ueber **Falle 9** an Insel 2:
+     * die sieben Spalten fuehren sieben `render`-Funktionen, und eine `render`-Funktion, die
+     * in einer Server Component entstuende, ist
+     * `Error: Functions cannot be passed directly to Client Components`. In jsdom gibt es
+     * keine RSC-Grenze — `AusleihenTabelle.test.tsx` bleibt unter dieser Mutation gruen und
+     * schreibt das in seinem Kopf selbst aus.
+     *
+     * ⛔ ER IST ZUGLEICH DER WAECHTER UEBER **FALLE 1** AM FILTER: `Select` und `DatePicker`
+     * stehen in der Insel, nicht in der Seite — ein Compound-Zugriff aus einer Server
+     * Component waere HTTP 500 beim Rendern.
+     *
+     * ⛔ DER GRIFF IST DIE FLAECHE DER INSEL UND NICHT DAS TABELLENMARKUP: die Insel hat ZWEI
+     * Zweige (Tabelle und mobile Liste), und ⬜ V13-L2 laesst die Liste heute ohnehin leer —
+     * der e2e-Lauf seedet `radio` nicht (`core/bootstrap.ts:49-54`,
+     * `playwright.config.ts:142`; Eigentuemer V23). `[data-rolle="radio-ausleihen-flaeche"]`
+     * steht in BEIDEN Zweigen und fehlt genau dann, wenn die Insel an der Grenze bricht.
+     * Dieselbe Lehre wie in Fall 4 oben.
+     *
+     * ⚠️ DIE SEITE IST FUER BEIDE STUFEN OFFEN (`Spec:4373`, Rechtetafel `Spec:4444-4454`).
+     * Der Abruf hier laeuft mit der ADMIN-Gruppe, wie jeder Fall dieser Datei; dass eine
+     * UPDATER-Person sie ebenfalls erreicht, ist bis heute UNGEMESSEN — ⬜ **V-L3** haengt
+     * daran mit, und der namentliche Quelltext-Waechter ist
+     * `AusleihenTabelle.test.tsx` („die Seite traegt force-dynamic und den Riegel der
+     * Verwaltungs-Stufe"). ⛔ Kein Satz hier behauptet etwas anderes.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const antwort = await page.goto(radioUrl("/admin/ausleihen"));
+    expect(antwort?.status(), "/admin/ausleihen auf dem radio-Host").toBe(200);
+
+    await expect(
+      page.locator('[data-rolle="radio-ausleihen-flaeche"]'),
+      "die Insel ist an der RSC-Grenze gebrochen (Falle 9)",
+    ).toHaveCount(1);
+
+    /*
+     * ⛔ DIE SIEBEN SPALTENKOEPFE IN IHRER REIHENFOLGE — 1:1 `LoanList.tsx:15-47`. Der
+     * Vitest-Fall daneben prueft dieselbe Liste REIN (`SPALTEN.map(...)`), weil jsdom den
+     * mobilen Zweig rendert; ⛔ NUR HIER ENTSTEHT DER TABELLENKOPF UEBERHAUPT, und nur hier
+     * ist gemessen, dass die Spaltendefinitionen die RSC-Grenze heil ueberstanden haben.
+     */
+    await expect(page.locator("table thead th")).toHaveText([
+      "Gerät",
+      "Typ",
+      "Ausleihende:r",
+      "Ausgeliehen",
+      "Zurückgegeben",
+      "Status",
+      "Notiz",
+    ]);
+
+    /*
+     * ⛔ DER FILTER AUS ⬜ V-L11 IST DA UND SCHREIBT IN DIE ADRESSZEILE (Regime B). Ein
+     * Bedienelement, das seinen Wert nur im Client haelt, waere fuer den Server unsichtbar —
+     * die Liste bliebe ungefiltert, und kein Vitest-Fall saehe es.
+     */
+    await expect(
+      page.locator('[data-rolle="radio-ausleihen-filter"]'),
+      "die Filterleiste fehlt (V-L11)",
+    ).toHaveCount(1);
+    const mitZeitraum = await page.goto(radioUrl("/admin/ausleihen?von=2026-06-14&bis=2026-06-14"));
+    expect(mitZeitraum?.status(), "ein gesetzter Zeitraum wirft die Seite ab").toBe(200);
+  });
 });

@@ -7,7 +7,7 @@
 // das zieht `better-sqlite3` und `node:fs` (`src/core/db/index.ts:2-4`). Ein Wert-Import ist die
 // Klasse, die `build` MAL faengt und mal nicht — und im Zweifel erst im echten Abruf.
 import type { DB } from "../../_db/client";
-import { leihhistorie, type LeihZeile } from "../../_db/leihen";
+import { geraeteMitLeihen, leihhistorie, type GeraetMitLeihe, type LeihZeile } from "../../_db/leihen";
 
 /**
  * DIE AUSLEIHENLISTE DER VERWALTUNG (Planteil 4, Aufgabe V7).
@@ -35,6 +35,12 @@ import { leihhistorie, type LeihZeile } from "../../_db/leihen";
  * Feld auseinander.
  */
 export type AusleihZeile = LeihZeile;
+
+/**
+ * Ein Eintrag des Geraetefilters. ⛔ DERSELBE TYP wie der der Datenfunktion — ein eigener
+ * mit eigenen Feldnamen waere eine zweite Abschrift und liefe beim naechsten Feld auseinander.
+ */
+export type GeraetWahl = GeraetMitLeihe;
 
 /**
  * Die Seitengroesse der Verwaltungsflaeche: ⛔ ZWANZIG, UND OHNE GROESSENWECHSLER
@@ -66,12 +72,13 @@ export const AUSLEIHEN_SEITENGROESSE = 20;
  * aussehende Erfindung, die dieser Planteil verbietet; die Normalisierung des Suchparameters
  * baut die Flaeche (V13/V16), die auch ihr Bedienelement traegt.
  *
- * ⚠️ DIE DREI FILTER SIND HEUTE OHNE BEDIENELEMENT, und sie stehen trotzdem hier: die
- * Datenfunktion fuehrt sie ohnehin (E-V10), das Durchreichen kostet nichts und ist umkehrbar.
- * ⬜ V-L11 ist am 2026-08-24 entschieden — „Beides", nach Geraet UND Zeitraum
- * (`.superpowers/sdd/planteil4/progress.md`); die Datenseite ist damit fertig, die Flaeche baut
- * V16. ⛔ Die 1:1-Untergrenze bleibt unangetastet: Grundliste, Sortierung und Spalten bleiben,
- * wie der Bestand sie hat, der Filter kommt HINZU.
+ * ✅ DIE DREI FILTER HABEN SEIT AUFGABE V16 IHR BEDIENELEMENT. ⬜ V-L11 ist am 2026-08-24
+ * entschieden — „Beides", nach Geraet UND Zeitraum
+ * (`.superpowers/sdd/planteil4/progress.md`); die Flaeche traegt ein Auswahlfeld und zwei
+ * Datumsfelder (`admin/(arbeit)/ausleihen/AusleihenTabelle.tsx`), die Normalisierung der
+ * rohen Suchparameter steht in `_lib/suchparameter.ts` (`ausleihenParameterAus`) und NICHT in
+ * einer zweiten Datei (Vorabscan-Fund F3). ⛔ Die 1:1-Untergrenze bleibt unangetastet:
+ * Grundliste, Sortierung und Spalten bleiben, wie der Bestand sie hat, der Filter kommt HINZU.
  */
 export type AusleihenParameter = {
   /** 1-basiert; roh aus der Adresse. Unbrauchbare Werte fallen auf die erste Seite. */
@@ -89,9 +96,19 @@ export type AusleihenSeite = {
   /** ⛔ DER GEHOBENE Wert, nicht der hereingereichte. */
   seite: number;
   /**
-   * ⛔ DER BENUTZTE Wert. Insel 2 nimmt ihn nicht entgegen (ihr Props-Vertrag ist bei drei
-   * geschlossen, `Spec:4504`), die Seite darunter braucht ihn aber fuer ihre Blaetterung —
-   * sonst zeigte sie eine andere Zahl an, als die Abfrage benutzt hat.
+   * ⛔ DER BENUTZTE Wert — er geht in die Blaetterung, sonst zeigte sie eine andere Zahl an,
+   * als die Abfrage benutzt hat.
+   *
+   * ⚠️ RICHTIGGESTELLT IN AUFGABE V16: hier stand „Insel 2 nimmt ihn nicht entgegen (ihr
+   * Props-Vertrag ist bei drei geschlossen, `Spec:4504`)". Das gilt nicht mehr. Die
+   * Betreiberentscheidung ⬜ V-L11 vom 2026-08-24
+   * (`.superpowers/sdd/planteil4/progress.md`) verlangt einen Filter nach Geraet UND
+   * Zeitraum; der Dreiervertrag kann ihn nicht tragen (Vorabscan-Fund F3,
+   * `.superpowers/sdd/planteil4/VORABSCAN.md:126-150`). Insel 2 bekommt deshalb sechs Props,
+   * `seitenGroesse` darunter — und die Blaetterung bleibt IN der Insel, weil dort der EINE
+   * Schreibweg in die Adresszeile liegt (Vorbild `geraete/GeraeteTabelle.tsx`). Zwei
+   * unabhaengige Schreiber derselben Adresse haetten keinen Eigentuemer fuer das
+   * Zuruecksetzen auf Seite 1.
    */
   seitenGroesse: number;
 };
@@ -117,4 +134,21 @@ export function ausleihenListe(db: DB, p: AusleihenParameter): AusleihenSeite {
     seite: Number(p.seite),
     seitenGroesse: AUSLEIHEN_SEITENGROESSE,
   });
+}
+
+/**
+ * DER OPTIONSVORRAT DES GERAETEFILTERS — ⛔ EIN DURCHREICHER, KEINE ZWEITE ABFRAGE. Dieselbe
+ * Auflage wie bei `ausleihenListe` darueber (NS-A1), und derselbe Scan haelt sie: der erste
+ * Fall in `_lib/lesepfade/ausleihen.test.ts` liest den ROHEN Dateitext dieser Datei.
+ *
+ * ⛔ ER STEHT HIER UND NICHT IN DER SEITE, damit die Verwaltungsflaeche ihre Daten wie jede
+ * andere ueber `_lib/lesepfade/` bezieht (Vorbild `geraete/page.tsx`, das `geraeteListe` und
+ * `vorschlaege` aus `_lib/lesepfade/geraete.ts` nimmt).
+ *
+ * ⛔ WARUM ES IHN GIBT: ⬜ **V-L11**, entschieden am 2026-08-24
+ * (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L11"). Die Begruendung, warum die
+ * Menge aus den Leihzeilen und nicht aus der Geraetetabelle kommt, steht bei der Datenfunktion.
+ */
+export function geraeteAuswahl(db: DB): GeraetWahl[] {
+  return geraeteMitLeihen(db);
 }
