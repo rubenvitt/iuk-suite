@@ -94,6 +94,13 @@ export const QUELLE_TON: Record<string, string> = {
   manual: "blue",
   "csv-import": "purple",
   create: "green",
+  // ⚠️ DRITTE STELLE DESSELBEN TONS, UND ES GIBT KEINEN WAECHTER DARUEBER: `warning` heisst in
+  // diesem Modul „Abweichung" — an der Kopfzeile der Akte
+  // (`admin/(arbeit)/geraete/[id]/page.tsx`, `<Tag color="warning">gemeldet</Tag>`) und in der
+  // Abweichungsspalte der Liste (`admin/(arbeit)/geraete/GeraeteTabelle.tsx`). Hier heisst er
+  // „die Aenderung kam aus dem Abweichungsfeld". Derselbe Sachverhalt aus zwei Blickwinkeln,
+  // also kein Widerspruch — aber eine Kopplung, die NIEMAND mehr sieht, wenn eine der drei
+  // Stellen den Ton wechselt. Wer eine davon aendert, aendert die anderen von Hand mit.
   "update-note": "warning",
 };
 

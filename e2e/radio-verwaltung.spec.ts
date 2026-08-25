@@ -390,14 +390,29 @@ test.describe("radio-Verwaltung", () => {
       page.locator('[data-rolle="radio-ereignis-flaeche"]'),
       "die Insel ist an der RSC-Grenze gebrochen (Falle 9)",
     ).toHaveCount(1);
+  });
 
+  test("Fall 4a: eine erfundene Geraete-Id antwortet mit 404", async ({ page }) => {
     /*
-     * ⛔ UND EINE ERFUNDENE ID IST 404, NICHT EINE LEERE HISTORIE. Der Lesepfad prueft die
-     * Existenz des Geraets bewusst nicht (`_lib/lesepfade/ereignisse.ts`, Kopf der Funktion);
-     * die Pruefung steht in der Seite. Ohne sie antwortete jede erfundene Adresse mit 200 und
-     * einem Leertext — die Verwaltung behauptete damit die Existenz eines Geraets, das es
-     * nicht gibt.
+     * ⛔ EIGENER `test()`, UND DAS IST KEINE KOSMETIK. Fall 4 oben faellt heute an seiner
+     * ⬜ V13-L2-Vorbedingung aus (der e2e-Lauf seedet `radio` nicht); ein `expect(...)` WIRFT,
+     * und alles danach in DEMSELBEN `test()` laeuft nie. Stuende diese Zusicherung dort unten,
+     * waere sie bis V23 unerreichbar — und ein Bericht, der sie als „traegt auch ohne Seed"
+     * fuehrte, behauptete Gruen als konstanten Text. ⛔ Genau diese Fehlerklasse ist in diesem
+     * Haus vernarbt. Hier braucht sie nur eine Anmeldung und eine ausgedachte Id und laeuft
+     * deshalb SCHON HEUTE.
+     * ⚠️ Die 4/4a-Teilung ist dieselbe Form, die `Spec:4880-4886` fuer Fall 5/5a selbst waehlt.
+     *
+     * ⛔ WAS SIE MISST: der Lesepfad prueft die Existenz des Geraets bewusst NICHT
+     * (`_lib/lesepfade/ereignisse.ts`, Kopf der Funktion: „hier ist der Aufrufer die Server
+     * Component aus V15, die das Geraet ohnehin schon geladen hat"). Die Pruefung steht in der
+     * SEITE. Ohne sie antwortete jede erfundene Adresse mit 200 und einem Leertext — die
+     * Verwaltung behauptete damit die Existenz eines Geraets, das es nicht gibt, und der
+     * Alt-Handler antwortet an derselben Stelle mit 404
+     * (`radio-admin/server/src/routes/devices.ts:68`).
      */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
     const erfunden = await page.goto(radioUrl("/admin/geraete/gibt-es-nicht/ereignisse"));
     expect(erfunden?.status(), "eine erfundene Geraete-Id antwortet nicht mit 404").toBe(404);
   });
