@@ -262,8 +262,17 @@ describe("radio-Geraetakte: der Feldriegel der Updater-Stufe", () => {
      * ⚠️ KEIN ETIKETT STEHT ALS LITERAL IM ANKER (Hausregel: kein Umlaut in einem zitierten
      * Wert) — die Texte kommen aus der Quelle und aus `FELD_ETIKETTEN`, verglichen werden
      * MENGEN.
+     *
+     * ⛔ `(?<![-\w])label="` UND NICHT `\blabel="`: zwischen `-` und `l` steht eine Wortgrenze,
+     * ein `\b` fasst also auch `aria-label="…"` mit. Heute traegt `GeraetFormular.tsx` kein
+     * `aria-label`, der Fall waere aber am ERSTEN falsch-rot geworden — GEMESSEN, nicht
+     * gefolgert: mit einem versuchsweise gesetzten `aria-label="Sonde"` am Speichern-Knopf war
+     * der Fall unter `\blabel="` **1 rot** („expected [ …(20) ] to deeply equal [ …(19) ]"),
+     * unter dem Ausdruck von heute **gruen**; die Sonde ist zurueckgenommen. Dieselbe Klasse,
+     * gegen die Fund 4 der Runde 1 die Quelltextzaehlung ersetzt hat: eine Zusicherung, die
+     * die SCHREIBWEISE mitmisst statt der Aussage.
      */
-    const imMarkupEtiketten = [...quelle.matchAll(/\blabel="([^"]+)"/g)]
+    const imMarkupEtiketten = [...quelle.matchAll(/(?<![-\w])label="([^"]+)"/g)]
       .map((t) => t[1]!)
       .filter((etikett) => etikett !== ANZEIGE_SLOT_ETIKETT);
     expect(
@@ -361,6 +370,34 @@ describe("radio-Geraetakte: der Diff des Formulars", () => {
     const roh = formularWerte(gespeichert);
     const gleich: FormularWerte = { ...roh, lastUpdatedAt: dayjsAus("2026-08-03") };
     expect(baueGeaenderteFelder(gespeichert, gleich)).toEqual({});
+  });
+
+  it("ein nicht kanonisch geordnetes deviceModes laeuft NICHT rund durch den Diff", () => {
+    /*
+     * ⛔ DER WAECHTER UEBER ⬜ **V14-L2** (`GeraetFormular.tsx:161`), und er haelt die HEUTE
+     * GEMESSENE Lage fest — er segnet sie NICHT ab. `GERAETE_MODI` ist die kanonische Ordnung
+     * (`_lib/geraeteFelder.ts:134`); ein gespeichertes `"DMO,TMO"` faellt ueber
+     * `modiZuListe` → `listeZuModi` auf `"TMO,DMO"` zurueck, und der Diff macht daraus einen
+     * Patcheintrag, den niemand eingegeben hat.
+     *
+     * ⛔ WARUM DIE ZWEI EINZELFAELLE WEITER OBEN DAS NICHT FANGEN: sie messen jede Umrechnung
+     * fuer sich, und jede stellt die kanonische Ordnung fuer sich her. Erst der DURCHLAUF durch
+     * `baueGeaenderteFelder` zeigt, dass der Rundlauf keine Identitaet ist.
+     *
+     * ⛔ DIE GEGENPROBE STEHT DANEBEN: ein KANONISCH gespeicherter Wert laeuft rund. Ohne sie
+     * maesse der Fall nur „der Diff meldet irgendetwas".
+     */
+    const schief = werte({ deviceModes: "DMO,TMO" });
+    expect(
+      baueGeaenderteFelder(schief, formularWerte(schief)),
+      "V14-L2: der Rundlauf ist keine Identitaet",
+    ).toEqual({ deviceModes: "TMO,DMO" });
+
+    const kanonisch = werte({ deviceModes: "TMO,DMO" });
+    expect(
+      baueGeaenderteFelder(kanonisch, formularWerte(kanonisch)),
+      "ein kanonisch gespeicherter Wert laeuft rund",
+    ).toEqual({});
   });
 
   it("ein unangehakter Wahrheitswert ueber einem gespeicherten null erzeugt keinen Patcheintrag", () => {

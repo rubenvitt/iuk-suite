@@ -227,10 +227,19 @@ test.describe("radio-Verwaltung", () => {
 
     /*
      * ⛔ ANHAENGEN, DANN SPEICHERN — DIE EINE REIHENFOLGE, DIE EINE APPEND-ONLY-SPALTE
-     * VERLIEREN KANN, und sie ist HIER der einzige echte Waechter (⬜ **V-L3**, Aufgabe **V23**,
-     * REVIEW-V14 Fund 1). Der Weg entsteht erst in der Suite: der Bestand rendert das
+     * VERLIEREN KANN, und sie ist HIER der einzige echte Waechter (⬜ **V14-L3**, Aufgabe
+     * **V23**, REVIEW-V14 Fund 1). Der Weg entsteht erst in der Suite: der Bestand rendert das
      * Notizpanel fuer Admins gar nicht (`DeviceDetailDrawer.tsx:109`), hier steht das
      * Eingabefeld fuer BEIDE Stufen (`briefs/V14.md:92-96`, `Spec:4448`).
+     *
+     * ⛔ **V14-L3, NICHT V-L3** — die Nummer ist in Fix-Runde 2 richtiggestellt (REVIEW-V14,
+     * NEU-2). ⬜ V-L3 ist eine ANDERE Frage mit einem ANDEREN Ablageort: „Greift der
+     * Verwaltungs-Riegel bei einem echten Abruf?", und ihre Antwort gehoert in den
+     * Kopfkommentar von `riegel.test.ts` (`planteil4/briefs/KOPF.md:375`). Wer in V23 V-L3
+     * abliest, beantwortet die Riegelfrage — und haette diese hier stillschweigend mit
+     * abgehakt. ⬜ V14-L3 fragt statt dessen: haelt die append-only-Spalte den Durchlauf
+     * Anhaengen → Speichern → Neuladen, in BEIDEN Reconciliation-Zweigen? Eigentuemer ist
+     * ebenfalls V23, der Ablageort ist dieser Fall.
      *
      * ⛔ WAS NUR HIER MESSBAR IST, UND WARUM DER FALL NICHT WEGKUERZBAR IST: `notizAnfuegenAction`
      * stoesst `revalidatePath` auf genau diese Seite an (`admin/actions.ts:655-657`). ⛔ OB NEXT
@@ -239,11 +248,11 @@ test.describe("radio-Verwaltung", () => {
      * Zusage halten, und genau das misst dieser Abschnitt.
      *
      * ⛔ DER PATCH MUSS NICHT LEER SEIN, sonst laeuft das Speichern gar nicht erst los
-     * (`GeraetFormular.tsx`, `DeviceEditForm.tsx:87-90`) und der Fall waere vakuum-gruen.
-     * Deshalb aendert er ZUERST ein gewoehnliches Feld.
+     * (`GeraetFormular.tsx:411-414`, `DeviceEditForm.tsx:87-90`) und der Fall waere
+     * vakuum-gruen. Deshalb aendert er ausserdem ein gewoehnliches Feld — ⛔ **NACH** dem
+     * Anstoss, siehe unten.
      */
     const marke = `E2E-${Date.now()}`;
-    await page.locator("#tei").fill(marke);
     await page.locator('[data-rolle="radio-notiz-eingabe"]').fill(`Sonde ${marke}`);
     await page.locator('[data-rolle="radio-notiz-anhaengen"]').click();
 
@@ -254,8 +263,55 @@ test.describe("radio-Verwaltung", () => {
      */
     await expect(page.locator("#updateNote")).toHaveValue(new RegExp(`Sonde ${marke}`));
 
-    await page.locator('[data-rolle="radio-formular-speichern"]').click();
-    await expect(page.locator('[data-rolle="radio-formular-fehler"]')).toHaveCount(0);
+    /*
+     * ⛔ DAS GEWOEHNLICHE FELD WIRD ERST HIER GEFUELLT, UND DAS IST KEINE KOSMETIK (REVIEW-V14,
+     * NEU-1). Zwischen Klick und dieser Zeile laeuft der `revalidatePath`-Anstoss, dessen
+     * Verhalten dieser Fall selbst ausdruecklich als NICHT GEMESSEN fuehrt. Baute Next die
+     * Insel dabei NEU AUF, waere eine VORHER eingetippte `#tei` weg, `baueGeaenderteFelder`
+     * lieferte `{}`, und `absenden` stiege frueh aus (`GeraetFormular.tsx:411-414`) — es wuerde
+     * gar nichts gespeichert, und der Fall fiele unten auf `#tei` mit der FALSCHEN Begruendung
+     * („wurde gar nicht gespeichert"), waehrend die append-only-Zusage ungemessen bliebe.
+     * Nach dem Anstoss gefuellt, misst er in BEIDEN Zweigen, was sein Kommentar behauptet.
+     */
+    await page.locator("#tei").fill(marke);
+
+    /*
+     * ⛔ GEWARTET WIRD AUF DIE ANTWORT DER SERVER ACTION, NICHT AUF EIN ABWESENDES ELEMENT
+     * (REVIEW-V14, NEU-1). Der Fehlerabsatz entsteht NUR bei `ergebnis.ok === false`
+     * (`GeraetFormular.tsx:419`, `:615-621`); im Erfolgsfall und waehrend der noch LAUFENDEN
+     * Action ist er gleichermassen abwesend. Ein `toHaveCount(0)` darauf trifft deshalb sofort
+     * zu, faengt kein fehlgeschlagenes Speichern — und ist vor allem KEINE Wartestelle: das
+     * `page.reload()` darunter koennte die laufende Action abbrechen.
+     * ⛔ DIESELBE BAUFORM WIE `e2e/aufgaben.spec.ts:1619-1623`, und dieselbe Lehre wie Falle 10
+     * in `CLAUDE.md`: wer eine Anfrage ausloest, prueft ihre ANTWORT.
+     * ⚠️ HAENGT DIESE STELLE JE, ist die Gleichheit `r.url() === seite` der Verdaechtige (eine
+     * Server Action postet auf die Adresse der Seite), nicht die Action — dann auf die Methode
+     * allein verengen, ⛔ nicht die Wartestelle streichen.
+     */
+    const speichern = page.locator('[data-rolle="radio-formular-speichern"]');
+    const seite = page.url();
+    const [speicherAntwort] = await Promise.all([
+      page.waitForResponse((r) => r.request().method() === "POST" && r.url() === seite),
+      speichern.click(),
+    ]);
+    expect(
+      speicherAntwort.ok(),
+      `Speichern abgelehnt: HTTP ${speicherAntwort.status()}`,
+    ).toBe(true);
+
+    /*
+     * ⛔ UND DANN AUF DAS ENDE DES LADEZUSTANDS, weil `setLaeuft(false)` und `setFehler(...)`
+     * unmittelbar nacheinander stehen (`GeraetFormular.tsx:418-419`): erst wenn der Knopf
+     * seinen Ladezustand verloren hat, ist ein etwaiger Fehlerabsatz gerendert. antd stempelt
+     * dafuer `ant-btn-loading` (`node_modules/antd/es/button/button.js:243`).
+     * ⚠️ DIESE ZWEI ZEILEN SIND DIE ABSICHERUNG, NICHT DIE ZUSAGE — die Zusage steht nach dem
+     * Neuladen.
+     */
+    await expect(speichern).not.toHaveClass(/ant-btn-loading/);
+    await expect(
+      page.locator('[data-rolle="radio-formular-fehler"]'),
+      "das Formular meldet einen Fehler statt zu speichern",
+    ).toHaveCount(0);
 
     /*
      * ⛔ DIE ZUSAGE STEHT NACH EINEM ECHTEN NEULADEN, NICHT AM BILDSCHIRMZUSTAND: nur so ist
