@@ -11,7 +11,7 @@ function sammleQuellen(verzeichnis: string, treffer: string[] = []): string[] {
   for (const eintrag of readdirSync(verzeichnis)) {
     const pfad = join(verzeichnis, eintrag);
     if (statSync(pfad).isDirectory()) {
-      if (eintrag === "migrations") continue; // SQL und Snapshots, kein TypeScript
+      // KEINE Ausnahme mehr (V11 Fix-Runde 2, N1): _db/append.test.ts:16 wirft SQL/JSON weg.
       sammleQuellen(pfad, treffer);
     } else if (eintrag.endsWith(".ts") || eintrag.endsWith(".tsx")) {
       treffer.push(pfad);

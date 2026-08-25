@@ -172,7 +172,7 @@ function quellDateien(wurzel: string = MODUL): string[] {
   for (const eintrag of readdirSync(wurzel)) {
     const pfad = join(wurzel, eintrag);
     if (statSync(pfad).isDirectory()) {
-      if (eintrag === "migrations") continue; // erzeugtes SQL/JSON, kein TypeScript
+      // KEINE Ausnahme mehr (V11 Fix-Runde 2, N1): _lib/bauform.test.ts:179 wirft SQL/JSON weg.
       treffer.push(...quellDateien(pfad));
       continue;
     }
