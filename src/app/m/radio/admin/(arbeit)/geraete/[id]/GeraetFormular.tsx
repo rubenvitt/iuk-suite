@@ -366,7 +366,7 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
   /*
    * ⛔ DIE APPEND-ONLY-SPALTE WIRD NACHGEZOGEN, WENN DER SERVER SIE FORTGESCHRIEBEN HAT.
    * `NotizFeld` haengt ueber `notizAnfuegenAction` an und stoesst danach `revalidatePath` auf
-   * genau diese Seite an (`admin/actions.ts:677-679`); die Seite reicht das frische `geraet`
+   * genau diese Seite an (`admin/actions.ts:677`); die Seite reicht das frische `geraet`
    * herein. ⛔ ANTDS `Form` UEBERNIMMT GEAENDERTE `initialValues` BEI EINEM NEU-RENDERN NICHT
    * (gemessen: der Fall „eine angehaengte Anmerkung ueberlebt ein spaeteres Speichern des
    * Formulars" war ohne diese Zeile rot) — ohne den Abgleich traegt das Feld weiter den Stand

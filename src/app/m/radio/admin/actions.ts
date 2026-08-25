@@ -192,13 +192,13 @@ const AUSLEIHENLISTE = "/m/radio/admin/ausleihen";
  * `['devices']`, und der Listenschluessel des Update-Modus ist `['devices', params]`
  * (`useDevices.ts:62`) — die Karte lud im Bestand nach.
  *
- * ⛔ ER STEHT AN GENAU ZWEI STELLEN: `geraetAendernAction` und `notizAnfuegenAction` — die
- * zwei Wege, die ein Tap auf dieser Flaeche ausloest
- * (`admin/(arbeit)/software/UpdateSuche.tsx`, `anwenden` und `anhaengen`). ⬜ **BENANNTE
- * LEERSTELLE, EIGENTUEMER PLANHALTER:** die vier Versions-Actions bewegen `zielVersion` und
- * `versionen` — beides PROPS dieser Seite (`admin/(arbeit)/software/page.tsx`) —, entwerten
- * sie aber nicht. Ob die Tafel dort ebenfalls nachzuziehen ist, ist eine Planentscheidung
- * und keine des Bauenden; gemessen ist bisher nur der Tap-Weg.
+ * ⛔ ER STEHT AN GENAU ZWEI STELLEN: `geraetAendernAction` und `notizAnfuegenAction` — die zwei
+ * Wege eines Taps hier (`admin/(arbeit)/software/UpdateSuche.tsx`, `anwenden` und `anhaengen`).
+ * ⬜ **BENANNTE LEERSTELLE, EIGENTUEMER PLANHALTER:** die vier Versions-Actions bewegen
+ * `zielVersion` und `versionen` — PROPS dieser Seite (`admin/(arbeit)/software/page.tsx`) —,
+ * entwerten sie nicht; ebenso `geraetAnlegenAction` und `geraetLoeschenAction`, deren Alt-Haken
+ * `useCreateDevice.ts:11` und `useDeleteDevice.ts:15` `['devices']` invalidieren. Mehr nicht:
+ * `useImportCommit.ts` invalidiert nichts; gemessen ist nur der Tap-Weg.
  */
 const SOFTWARE = "/m/radio/admin/software";
 
