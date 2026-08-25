@@ -2,7 +2,7 @@
 
 // src/app/m/radio/admin/(arbeit)/import/ImportAssistent.tsx
 import { useState } from "react";
-import { Button, Card, Col, Result, Row, Select, Space, Statistic, Steps, Table, Tag, Tooltip, Typography, Upload } from "antd";
+import { Alert, Button, Card, Col, Result, Row, Select, Space, Statistic, Steps, Table, Tag, Tooltip, Typography, Upload } from "antd";
 import { importSchreibenAction } from "../../actions";
 import {
   IMPORTIERBARE_FELDER,
@@ -79,7 +79,10 @@ import type { HochladenAntwort } from "./hochladen/route";
  * werden zu EINER gedaempften Fehlerzeile; ⛔ IHRE TEXTE WANDERN WOERTLICH MIT, nur ihre
  * Darreichung nicht. Kein `Alert type="error"` und kein Rotton: `colorError === colorPrimary`
  * (`src/core/theme/theme.ts:32-33`) — ein roter Kasten saehe aus wie die Primaeraktion
- * (Falle 3, dieselbe Begruendung wie `GeraetFormular.tsx:615-620`).
+ * (Falle 3, dieselbe Begruendung wie `GeraetFormular.tsx:615-620`). ⚠️ DER
+ * ZUORDNUNGSHINWEIS IST DAVON NICHT BERUEHRT: er traegt `success`/`warning` (1:1
+ * `ImportWizard.tsx:170-178`), und `colorWarning`/`colorSuccess` sind eigene Toene
+ * (`theme.ts:34-35`). Die Begruendung steht an der Stelle selbst.
  *
  * ⛔ KEIN `size=` — Falle 4 (`FullShell` traegt `controlHeight: 44`,
  * `src/core/theme/theme.ts:207-209`), modulweit durchgesetzt von
@@ -260,6 +263,31 @@ function zusammenfassungText(zusammenfassung: Zusammenfassung): string {
   ).join(" · ");
 }
 
+/**
+ * DIE ABLEGE-WEICHE — sie nimmt die abgelegte Datei an und gibt antd IMMER `false` zurueck.
+ *
+ * ⛔ 1:1 `ImportWizard.tsx:154-157`, dessen Kommentar den Grund woertlich nennt: „prevent
+ * antd auto-POST; we upload via useImportParse". Gaebe sie `true` zurueck, liefe je Datei
+ * ein ZWEITER, stiller Hochladeversuch — rc-uploads eigener, ueber `XMLHttpRequest` auf
+ * antds Vorgabeadresse (`@rc-component/upload/es/AjaxUploader.js:175-192`, `:236`).
+ *
+ * ⛔ SIE STEHT ALS BENANNTE, EXPORTIERTE FUNKTION HIER UND NICHT ALS PFEIL IM JSX, UND DAS
+ * IST DER FUND F2 DER SCHLUSSPRUEFUNG (`REVIEW-V18.md`). Der Quelltext-Scan, der bis dahin
+ * die tragende Zusicherung war, belegte nur, dass die Zeichenfolge `return false;` im
+ * Pfeilkoerper steht — ein `if (datei.size < 0) return false; return true;` kam durch alle
+ * Tore (dort gemessen als Sonde M1: `Tests 14 passed`, typecheck 0). Als benannte Funktion
+ * ist ihr RUECKGABEWERT messbar, und `ImportAssistent.test.tsx` misst ihn.
+ *
+ * ⚠️ `uebernimm` gibt `unknown` zurueck und nicht `void`: `handhabeDatei` ist `async`, und
+ * eine Zusage auf `void` liefe in `@typescript-eslint/no-misused-promises`.
+ */
+export function ablegeWeiche(uebernimm: (datei: File) => unknown): (datei: unknown) => false {
+  return (datei) => {
+    void uebernimm(datei as File);
+    return false;
+  };
+}
+
 export function ImportAssistent() {
   const [schritt, setSchritt] = useState<Schritt>("upload");
   const [gelesen, setGelesen] = useState<Gelesen | null>(null);
@@ -270,11 +298,9 @@ export function ImportAssistent() {
   const [laeuft, setLaeuft] = useState(false);
 
   /**
-   * ⛔ DIE DATEI GEHT AN DEN ROUTE HANDLER, NICHT IN EINE SERVER ACTION (E-V16) — und
-   * `beforeUpload` gibt `false` zurueck, damit antd nicht zusaetzlich SELBST hochlaedt
-   * (`ImportWizard.tsx:156`, woertlich „prevent antd auto-POST"). Ohne das `false` liefe je
-   * Datei ein ZWEITER POST auf antds Vorgabeadresse — still, und im Netzwerkteil des Browsers
-   * sichtbar erst, wenn jemand hinsieht.
+   * ⛔ DIE DATEI GEHT AN DEN ROUTE HANDLER, NICHT IN EINE SERVER ACTION (E-V16). Dass antd
+   * daneben nicht SELBST hochlaedt, haelt `ablegeWeiche` oben — samt der Messung, die das
+   * belegt.
    */
   const handhabeDatei = async (datei: File) => {
     setLaeuft(true);
@@ -366,26 +392,57 @@ export function ImportAssistent() {
             accept=".csv,text/csv"
             maxCount={1}
             showUploadList={false}
-            beforeUpload={(datei) => {
-              void handhabeDatei(datei as unknown as File);
-              return false; // ⛔ 1:1 `ImportWizard.tsx:156` — kein zweiter, stiller POST von antd.
-            }}
-            data-rolle="radio-import-ablegen"
+            /* ⛔ KEIN PFEIL HIER — die Weiche steht oben, damit ihr Rueckgabewert
+               messbar ist (Fund F2 der Schlusspruefung). */
+            beforeUpload={ablegeWeiche(handhabeDatei)}
           >
+            {/* ⛔ OHNE `data-rolle` AM ABLEGEFELD UND AN DER VERARBEITUNGSMELDUNG: beide
+                Griffe hatten seit dem Bau KEINEN Verbraucher — weder in dieser Datei noch in
+                `e2e/radio-verwaltung.spec.ts` (`REVIEW-V18.md`, Fund F6). Ein Griff ohne
+                Verbraucher sieht aus wie ein Waechter und ist keiner. Wer die
+                Verarbeitungsmeldung messen will, braucht einen haengenden `fetch`; wer sie
+                braucht, legt den Griff mit seinem Fall zusammen wieder an. */}
             <p>{IMPORT_TEXTE.ablegen}</p>
-            {laeuft && <p data-rolle="radio-import-laeuft">{IMPORT_TEXTE.laeuft}</p>}
+            {laeuft && <p>{IMPORT_TEXTE.laeuft}</p>}
           </Upload.Dragger>
         </div>
       )}
 
       {schritt === "mapping" && gelesen !== null && (
         <Card title={IMPORT_TEXTE.zuordnenTitel} className={s.abstand}>
-          <p data-rolle="radio-import-hinweis">
-            {issiZugeordnet ? IMPORT_TEXTE.issiZugeordnet : IMPORT_TEXTE.issiOffen}
-          </p>
+          {/*
+            ⛔ EIN `Alert`, KEIN NACKTES `<p>` — 1:1 `ImportWizard.tsx:170-178`
+            (`<Alert type={issiMapped ? 'success' : 'warning'} showIcon>`). Der TON ist hier
+            die halbe Aussage: er sagt vor dem Lesen, ob der Uebergang offen ist.
+            ⛔ DIE HAUSREGEL AUS FALLE 3 TRIFFT DIESEN KASTEN NICHT — sie gilt
+            `Alert type="error"` und dem Rotton, weil `colorError === colorPrimary`
+            (`src/core/theme/theme.ts:32-33`); `colorWarning` (gelb) und `colorSuccess`
+            (gruen) sind davon nicht beruehrt (`:34-35`). Das Vorbild im Modul steht eine
+            Aufgabe zurueck: `software/UpdateSuche.tsx:229-233` (V17) — ⚠️ DORT ABER
+            `type="info"`: `warning` und `success` sind die ERSTEN gelben und gruenen Flaechen
+            dieses Moduls.
+            ⬜ V18-L2 — WIE SIE IN BEIDEN FARBMODI AUSSEHEN, IST UNGEMESSEN. Vitest kann es
+            strukturell nicht (`ant-alert-warning` ist ein Klassenname, kein Ton), und die
+            Lehre des Hauses ist vernarbt: „UI-Abnahme: messen, nicht schauen — und immer
+            beide Farbmodi". Eigentuemer ist der Browserlauf in **V23**, dieselbe Stelle wie
+            die uebrige Abnahme dieser Flaeche. ⛔ Kein Kommentar hier behauptet etwas
+            anderes.
+            ⛔ DER GRIFF SITZT AM INNEREN `<span>`, wie dort: so liest
+            `text("radio-import-hinweis")` und der Playwright-Fall den blanken Satz, waehrend
+            der Ton am aeusseren Kasten haengt.
+          */}
+          <Alert
+            type={issiZugeordnet ? "success" : "warning"}
+            showIcon
+            message={
+              <span data-rolle="radio-import-hinweis">
+                {issiZugeordnet ? IMPORT_TEXTE.issiZugeordnet : IMPORT_TEXTE.issiOffen}
+              </span>
+            }
+          />
           {IMPORTIERBARE_FELDER.map((feld) => (
             /* ⛔ `Row`/`Col` mit `span={8}`/`span={16}` — 1:1 `ImportWizard.tsx:180-205`. */
-            <Row key={feld} align="middle" gutter={8} className={s.filterFeld}>
+            <Row key={feld} align="middle" gutter={8} className={s.importZeile}>
               <Col span={8}>
                 <Typography.Text>
                   {FELD_ETIKETTEN[feld]}
@@ -414,7 +471,11 @@ export function ImportAssistent() {
             </Row>
           ))}
           <Space>
-            <Button onClick={() => setSchritt("mapping")} data-rolle="radio-import-zurueck">
+            {/* ⛔ ZURUECK FUEHRT IN DEN DATEISCHRITT, NICHT AUF DIESEN — 1:1
+                `ImportWizard.tsx:208`. ⛔ DAS ZIEL IST EIN ANDERES ALS BEI DER
+                Vorschau-Taste (`:226` -> `mapping`); wer beide einebnet, macht aus dieser
+                hier eine TOTE TASTE und laesst nur noch das Neuladen der Seite. */}
+            <Button onClick={() => setSchritt("upload")} data-rolle="radio-import-zurueck">
               {IMPORT_TEXTE.zurueck}
             </Button>
             {/* ⛔ GESPERRT, SOLANGE DIE ISSI-SPALTE FEHLT — 1:1 `ImportWizard.tsx:211`. */}

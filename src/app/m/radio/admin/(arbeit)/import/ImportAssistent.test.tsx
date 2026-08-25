@@ -70,7 +70,7 @@ import { ohneKommentare } from "../../../_lib/quelltextScan";
 import { IMPORTIERBARE_FELDER } from "../../../_lib/csv/kopfzeilen";
 import { IMPORTKLASSEN } from "../../../_lib/csv/klassifizieren";
 import type { KlassifizierteZeile, Zusammenfassung } from "../../../_lib/csv/klassifizieren";
-import { ImportAssistent } from "./ImportAssistent";
+import { ImportAssistent, ablegeWeiche } from "./ImportAssistent";
 
 /** Der aeussere Pfad des Hochladen-Handlers — er steht in `_lib/routen.ts`. */
 const HOCHLADEN = "/admin/import/hochladen";
@@ -150,6 +150,20 @@ function schritt(): string {
 
 function text(rolle: string): string {
   return (query(`[data-rolle="${rolle}"]`).textContent ?? "").trim();
+}
+
+/**
+ * Die Klassen des `Alert`, in dem der Zuordnungshinweis steckt.
+ *
+ * ⛔ UEBER `closest(".ant-alert")` UND NICHT UEBER DEN GRIFF SELBST: der Griff sitzt am
+ * inneren `<span>` der `message` — dieselbe Form wie `UpdateSuche.tsx:229-233` —, damit
+ * `text("radio-import-hinweis")` und der Playwright-Fall (`e2e/radio-verwaltung.spec.ts:637`)
+ * den blanken Satz lesen und nicht das Zeichen daneben. Der TON haengt am aeusseren Kasten.
+ */
+function hinweisKasten(): string {
+  const kasten = query('[data-rolle="radio-import-hinweis"]').closest(".ant-alert");
+  if (!(kasten instanceof HTMLElement)) throw new Error("der Hinweis steckt in keinem antd-Alert");
+  return kasten.className;
 }
 
 /**
@@ -257,6 +271,14 @@ describe("radio-Import: die vier Schritte", () => {
 
     await click('[data-rolle="radio-import-ausfuehren"]');
     expect(schritt(), "die Vorschau fuehrt nicht in den Abschluss").toBe("done");
+    /* ⛔ UND DER ABSCHLUSSKNOPF ZEIGT AUF DIE AEUSSERE GERAETELISTE — eine benannte
+       Abweichung von `ImportWizard.tsx:237` (`navigate('/devices')`), weil die Suite aeussere
+       Pfade fuehrt (`_lib/nav.ts:9-11`). Bis zur Schlusspruefung war dieses Ziel von keinem
+       Fall und keinem Playwright-Schritt geprueft (`REVIEW-V18.md`, Fund F6). */
+    expect(
+      query('[data-rolle="radio-import-zu-geraeten"]').getAttribute("href"),
+      "der Abschluss fuehrt nicht auf die aeussere Geraeteliste",
+    ).toBe("/admin/geraete");
 
     expect(schreibenMock.mock.calls.length, "commit wird nicht zweimal gerufen").toBe(2);
     expect(schreibenMock.mock.calls[0]![2], "der erste Lauf ist KEIN Probelauf").toBe(true);
@@ -287,6 +309,16 @@ describe("radio-Import: die vier Schritte", () => {
     expect(text("radio-import-hinweis")).toBe(
       "Die ISSI-Spalte muss zugeordnet werden, um fortzufahren.",
     );
+    /*
+     * ⛔ UND DER TON WECHSELT MIT — 1:1 `ImportWizard.tsx:170-178`
+     * (`<Alert type={issiMapped ? 'success' : 'warning'} showIcon>`). Ohne diese zwei Zeilen
+     * traegt der Fall auch ein nacktes `<p>` oder einen fest verdrahteten Ton: der Satz
+     * stuende richtig da, und der Kasten sagte immer dasselbe. Der Fund F3 der
+     * Schlusspruefung (`REVIEW-V18.md`) ist genau diese Luecke.
+     */
+    expect(hinweisKasten(), "der offene Zustand traegt nicht den Warnton").toContain(
+      "ant-alert-warning",
+    );
     const weiter = query<HTMLButtonElement>('[data-rolle="radio-import-weiter"]');
     expect(weiter.disabled, "der Uebergang ist ohne ISSI-Spalte offen").toBe(true);
 
@@ -297,6 +329,9 @@ describe("radio-Import: die vier Schritte", () => {
     // Von Hand zugeordnet — derselbe Weg, den eine bedienende Person nimmt (`:188-203`).
     await waehleSpalte("issi", "Spalte A");
     expect(text("radio-import-hinweis")).toBe("ISSI ist zugeordnet.");
+    expect(hinweisKasten(), "der zugeordnete Zustand traegt nicht den Erfolgston").toContain(
+      "ant-alert-success",
+    );
     expect(
       query<HTMLButtonElement>('[data-rolle="radio-import-weiter"]').disabled,
       "der Uebergang bleibt gesperrt, obwohl die ISSI-Spalte zugeordnet ist",
@@ -319,6 +354,30 @@ describe("radio-Import: die vier Schritte", () => {
     expect(text("radio-import-hinweis")).toBe("ISSI ist zugeordnet.");
   });
 
+  it("ein Zurueck aus der Zuordnung fuehrt in den Dateischritt", async () => {
+    /*
+     * ⛔ 1:1 `ImportWizard.tsx:208` (`<Button onClick={() => setStep('upload')}>Zurück</Button>`).
+     * ⛔ ZWEI ZURUECK-TASTEN, ZWEI VERSCHIEDENE ZIELE — und der Unterschied ist der ganze
+     * Punkt: aus der VORSCHAU geht es in die Zuordnung (`:226`), aus der ZUORDNUNG in den
+     * Dateischritt (`:208`). Wer beide auf dasselbe Ziel einebnet, baut aus der einen eine
+     * TOTE TASTE: wer die falsche Datei abgelegt hat, kaeme nur ueber einen Neuladen der
+     * Seite zurueck.
+     *
+     * ⚠️ BEIDE TASTEN TRAGEN DENSELBEN GRIFF `radio-import-zurueck` — sie stehen nie
+     * gleichzeitig im Dokument (die zwei `Card` haengen an `schritt === "mapping"` bzw.
+     * `=== "preview"`). Die Zeile davor prueft deshalb den Schritt, sonst maesse dieser Fall
+     * unbemerkt wieder die Vorschau-Taste.
+     */
+    await mount(<ImportAssistent />);
+    await legeDateiAb();
+    expect(schritt(), "der Fall steht nicht auf der Zuordnung — er misst die falsche Taste").toBe(
+      "mapping",
+    );
+
+    await click('[data-rolle="radio-import-zurueck"]');
+    expect(schritt(), "das Zurueck der Zuordnung fuehrt nicht in den Dateischritt").toBe("upload");
+  });
+
   it("die Datei wird nicht automatisch hochgeladen", async () => {
     /*
      * ⛔ DER FALL GEGEN EINEN STILLEN DOPPEL-POST — 1:1 `ImportWizard.tsx:154-157`, dessen
@@ -328,19 +387,39 @@ describe("radio-Import: die vier Schritte", () => {
      * Vorgabeadresse (`@rc-component/upload/es/request.js:22`). Er faellt in keinem Tor auf:
      * die Flaeche verhaelt sich gleich.
      *
-     * ⛔ DIE TRAGENDE ZUSICHERUNG IST HIER DER QUELLTEXT-SCAN, UND DAS IST EINE MESSUNG UND
-     * KEINE BEQUEMLICHKEIT. Die erste Fassung dieses Falles hing allein am XHR-Spion
-     * darunter; Sonde S-V18b (`return true` statt `return false`) ergab damit ⛔ **0 rot** —
-     * auch mit einem echten Zeitschritt von 50 ms und mit Aufzeichnung im KONSTRUKTOR:
+     * ⛔ DIE ZUSICHERUNG STEHT AUF ZWEI HAELFTEN, UND DAS IST EINE MESSUNG UND KEINE
+     * BEQUEMLICHKEIT. Die erste Fassung dieses Falles hing allein am XHR-Spion darunter;
+     * Sonde S-V18b (`return true` statt `return false`) ergab damit ⛔ **0 rot** — auch mit
+     * einem echten Zeitschritt von 50 ms und mit Aufzeichnung im KONSTRUKTOR:
      * `new XMLHttpRequest()` wurde nie erreicht. rc-uploads eigener Postweg laeuft in jsdom
      * gemessen NICHT an (`AjaxUploader.js:142-165` -> `:235`), und ein Fall, der auf einem
-     * Zweig steht, den die Umgebung gar nicht betritt, bewacht nichts. Der Scan darunter ist
-     * die Fassung, die die Sonde rot macht.
+     * Zweig steht, den die Umgebung gar nicht betritt, bewacht nichts.
+     *
+     * ⛔ DIE ZWEITE FASSUNG WAR EIN QUELLTEXT-SCAN AUF DIE ZEICHENFOLGE `return false;`, UND
+     * SIE TRUG EBENSO WENIG. Gemessen in der Schlusspruefung zu V18 (REVIEW-V18, Fund F2,
+     * Sonde M1): ein `beforeUpload`, das
+     * `{ void handhabeDatei(...); if (datei.size < 0) return false; return true; }` schrieb —
+     * semantisch IMMER `true`, also genau der Defekt —, lief `Tests 14 passed (14)` durch,
+     * bei typecheck 0. Das alte Muster belegte nur, dass die Zeichenfolge irgendwo vor der
+     * ersten `}` steht, ⛔ NICHT, dass der RUECKGABEWERT `false` ist.
+     *
+     * ⛔ DESHALB JETZT DER RUECKGABEWERT SELBST: die Weiche ist als benannte Funktion
+     * `ablegeWeiche` aus der Insel exportiert, dieser Fall RUFT sie und liest ihr Ergebnis.
+     * ⚠️ WARUM NICHT DER KOERPERSCHNITT, den die Pruefung als Weg (a) nannte:
+     * `_lib/quelltextScan.ts` exportiert genau `ohneKommentare` und `bereinigt` — ein
+     * `funktionsKoerper` gibt es dort nicht, und ein vierter Schneider waere die Bauart, vor
+     * der `KONTEXT.md` („Wer eine vierte Kopie dieser Bauart anlegt, baut den Fehler neu")
+     * ausdruecklich warnt.
+     *
+     * ⛔ UND DIE VERDRAHTUNG WIRD MITGEPRUEFT: ein gemessener Rueckgabewert nuetzt nichts,
+     * wenn antd die Funktion gar nicht bekommt. Der Scan darunter nagelt `beforeUpload` auf
+     * genau diesen Aufruf fest — und faengt damit die Mutationsform M1 (ein Pfeil im JSX mit
+     * totem `return false;` davor).
      *
      * ⚠️ DIE ZWEI VERHALTENSZEILEN BLEIBEN TROTZDEM STEHEN, mit ihrer benannten Reichweite:
      * `fetchAufrufe` haelt fest, dass der EINE bewusste POST an den Handler geht (und nur
      * einer), `xhrAufrufe` faengt einen `customRequest` oder einen von Hand gebauten
-     * XHR-Weg, den der Scan nicht saehe. Keine der beiden ersetzt die andere.
+     * XHR-Weg, den keiner der beiden anderen Teile saehe. Keine ersetzt die andere.
      */
     await mount(<ImportAssistent />);
     await legeDateiAb();
@@ -353,11 +432,22 @@ describe("radio-Import: die vier Schritte", () => {
       await new Promise((weiter) => setTimeout(weiter, 50));
     });
 
+    /* ⛔ HAELFTE 1 — DER GEMESSENE RUECKGABEWERT. */
+    const gesehen: File[] = [];
+    const probe = new File(["ISSI;Rufname\n"], "probe.csv", { type: "text/csv" });
+    expect(
+      ablegeWeiche((datei) => gesehen.push(datei))(probe),
+      "die Ablege-Weiche gibt nicht false zurueck — antd laedt die Datei ein zweites Mal hoch",
+    ).toBe(false);
+    /* Sie reicht die Datei trotzdem weiter — ohne diese Zeile waere ein `return false;` allein gruen. */
+    expect(gesehen, "die Weiche reicht die abgelegte Datei nicht weiter").toEqual([probe]);
+
+    /* ⛔ HAELFTE 2 — DIE VERDRAHTUNG. */
     const insel = ohneKommentare(readFileSync(QUELLE_INSEL, "utf8"));
     expect(
       insel,
-      "beforeUpload gibt nicht false zurueck — antd laedt die Datei ein zweites Mal hoch",
-    ).toMatch(/beforeUpload=\{\([^)]*\)\s*=>\s*\{[^}]*\breturn false;/);
+      "beforeUpload haengt nicht an der gemessenen Weiche — ein Pfeil im JSX ist ungeprueft",
+    ).toMatch(/beforeUpload=\{\s*ablegeWeiche\(/);
 
     expect(xhrAufrufe, "ein zweiter Hochladeweg ueber XMLHttpRequest").toEqual([]);
     expect(fetchAufrufe, "der Dateischritt geht nicht als EIN POST an den Handler").toEqual([

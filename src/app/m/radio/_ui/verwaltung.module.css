@@ -161,6 +161,24 @@
   width: 100%;
 }
 
+/*
+ * Die Zeile darum — Beschriftung links, Auswahlfeld rechts, neunzehnmal untereinander.
+ * ⛔ EIGENE KLASSE UND NICHT `.filterFeld`, obwohl der Wert heute derselbe ist: `.filterFeld`
+ * ist namentlich an die Filterschublade gebunden (siehe ihren Kommentar oben), und dieselbe
+ * Begruendung hat in V18 schon `.filterWeit` ausgeschlossen (Abweichung A5). Zwei Flaechen an
+ * EINER Klasse heisst, dass die naechste Massaenderung an der einen die andere still mitzieht.
+ * ⛔ UND SIE IST KEIN 1:1-WERT, SONDERN EIN ERSATZ: im Bestand kommt der Abstand aus
+ * `Space direction="vertical" size="middle"` (`ImportWizard.tsx:169`) — `size=` ist im Modul
+ * verboten (Falle 4, `_ui/AusleihRahmen.test.tsx:196-214`). ⛔ DIE 16 PX SIND NACHGESCHLAGEN
+ * UND NICHT GESCHAETZT: `antd/es/space/style/index.js:73` setzt `spaceGapMiddleSize` auf
+ * `token.padding`, `antd/es/theme/util/alias.js:98` bildet `padding` auf `size` ab, und
+ * `antd/es/theme/themes/shared/genSizeMapToken.js:17` rechnet `sizeUnit * sizeStep` = 4 * 4
+ * (`antd/es/theme/themes/seed.js:54-55`). `src/core/theme/theme.ts` uebersteuert keinen davon.
+ */
+.importZeile {
+  margin-block-end: 16px;
+}
+
 /* Der Fehler im Anlegen-Dialog — gedaempft, ⛔ NICHT rot (Falle 3). */
 .dialogFehler {
   margin: 8px 0 0;

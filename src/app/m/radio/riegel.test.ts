@@ -383,8 +383,10 @@ describe("(c) jeder Route Handler nimmt die NICHT-werfende Form", () => {
 
   it("die Handlerzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
-     * ⚠️ HEUTE ZWEI, UND DAS IST EIN ZUSTAND, KEIN ZIEL. Planteil 2 baute keinen Route
-     * Handler; Planteil 3 legt `t/[code]/route.ts` und `abmelden/route.ts` an.
+     * ⚠️ HEUTE DREI, UND DAS IST EIN ZUSTAND, KEIN ZIEL. Planteil 2 baute keinen Route
+     * Handler; Planteil 3 legte `t/[code]/route.ts` und `abmelden/route.ts` an, V18
+     * `admin/(arbeit)/import/hochladen/route.ts` (E-V16). Der Fahrplan im Kopf dieser Datei
+     * fuehrt sie weiter: V22 auf 4, Planteil 5 auf 5.
      *
      * ⛔ `toBe`, NICHT `toBeGreaterThanOrEqual`. `laenge >= 0` ist fuer jede Liste wahr —
      * es gaebe KEINE Mutation, die diesen Fall rot macht, und der Fall waere genau die
@@ -481,8 +483,9 @@ describe("(e) jede Verwaltungsseite traegt den Personen-Riegel ihrer Stufe", () 
      * ⚠️ HEUTE SIEBEN, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe Grund
      * wie bei `HANDLER_ANZAHL`. Er hat bei jeder Seitenaufgabe GEMESSEN gewirkt: in V12
      * („expected 1 to be +0"), V13 („expected 2 to be 1"), V14 („expected 3 to be 2"),
-     * V15 („expected 4 to be 3"), V16 („expected 5 to be 4") und V18 („expected 7 to be 6")
-     * — erst die Anhebung im selben Commit machte ihn jeweils wieder gruen.
+     * V15 („expected 4 to be 3"), V16 („expected 5 to be 4"), V17 („expected 6 to be 5") und
+     * V18 („expected 7 to be 6") — erst die Anhebung im selben Commit machte ihn jeweils
+     * wieder gruen.
      */
     expect(
       ADMIN_SEITEN().length,
