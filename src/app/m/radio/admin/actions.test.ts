@@ -560,9 +560,36 @@ describe("radio-admin/actions: die Rechtestufe je Verwaltungsseite", () => {
       RIEGEL_VERWALTUNG,
     );
   });
-  it.todo(
-    "V19: admin/(arbeit)/versionen/page.tsx nennt requireRadioAdmin und NICHT requireRadioVerwaltung",
-  );
+  it("V19: admin/(arbeit)/versionen/page.tsx nennt requireRadioAdmin und NICHT requireRadioVerwaltung", () => {
+    /*
+     * ⛔ SCHARF GESTELLT IN V19, IM SELBEN COMMIT WIE DIE SEITE. Der literale Pfad steht als
+     * Zeichenkette hier; eine pfadgenerische Form kann diese Aussage nicht erzeugen (die
+     * Begruendung steht im Kopf dieses Blocks).
+     *
+     * ⛔ DIE STUFE STEHT IN `Spec:4376` — die Aufruftabelle aus §5.4, die die Spec selbst als
+     * „verbindlich" bezeichnet. Der fachliche Grund steht daneben in der Rechtetafel
+     * (`Spec:4444-4454`): „Softwareversionen anlegen / Ziel setzen / loeschen / sortieren |
+     * ja | NEIN". Die Zielversion bestimmt, welches Geraet als „aktuell" gilt
+     * (`_db/schema.ts:84-92`) — wer sie verstellt, verstellt den Update-Stand des ganzen
+     * Bestands auf einmal, und genau das gehoert nicht der Updater-Stufe.
+     *
+     * ⛔ DIE NEGATIVE HAELFTE IST DIE, DIE NIEMAND SONST HAELT: `personenRiegelFuer`s
+     * `(arbeit)`-Zweig prueft nur die ANWESENHEIT von `requireRadioAdmin(`
+     * (`riegel.test.ts:253-262`) — eine Seite mit `requireRadioVerwaltung()` als erster
+     * Anweisung und einem `requireRadioAdmin()` irgendwo darunter bestuende ihn.
+     *
+     * ⛔ DIE WIRKPROBE IST GEFAHREN, NICHT BEHAUPTET (Sonde **S-V19a**, 2026-08-26): den
+     * Aufruf in `versionen/page.tsx` auf `requireRadioVerwaltung()` gedreht →
+     * `riegel.test.ts` blieb GRUEN (`24 passed`), dieser Fall wurde ROT. Das ist die Messung,
+     * um derentwillen dieser Block ueberhaupt existiert.
+     */
+    const pfad = "admin/(arbeit)/versionen/page.tsx";
+    const q = bereinigt(readFileSync(join(MODUL, pfad), "utf8"));
+    expect(q, `${pfad}: die Admin-Stufe fehlt (Spec:4376)`).toMatch(RIEGEL_ADMIN);
+    expect(q, `${pfad}: faelschlich auf die Verwaltungs-Stufe abgesenkt (Spec:4376)`).not.toMatch(
+      RIEGEL_VERWALTUNG,
+    );
+  });
   it.todo(
     "V20: admin/(arbeit)/zugaenge/page.tsx nennt requireRadioAdmin und NICHT requireRadioVerwaltung",
   );

@@ -112,13 +112,13 @@ const SELBST = join(MODUL, "riegel.test.ts");
 const HANDLER_ANZAHL = 3;
 
 /**
- * ⛔ HEUTE SIEBEN — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die Liste
+ * ⛔ HEUTE ACHT — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die Liste
  * (1 auf 2), V14 die Akte (2 auf 3), V15 die Historie (3 auf 4), V16 die Ausleihen (4 auf 5),
- * V17 der Update-Modus (5 auf 6), V18 der Import (6 auf 7); so weiter bis 10 (Spec:4369-4378).
- * ⚠️ `ADMIN_SEITEN()` (Dateiende) zaehlt seit der Fix-Runde 1 zu V15 AUCH
- * `template.tsx`/`default.tsx` — heute gibt es keine.
+ * V17 der Update-Modus (5 auf 6), V18 der Import (6 auf 7), V19 die Versionen (7 auf 8); so
+ * weiter bis 10 (Spec:4369-4378). ⚠️ `ADMIN_SEITEN()` (Dateiende) zaehlt seit der Fix-Runde 1
+ * zu V15 AUCH `template.tsx`/`default.tsx` — heute gibt es keine.
  */
-const ADMIN_SEITEN_ANZAHL = 7;
+const ADMIN_SEITEN_ANZAHL = 8;
 
 /** Zwei Verwaltungs-Huellen: `admin/(arbeit)/layout.tsx` und `admin/(druck)/layout.tsx` (Z6). */
 const ADMIN_LAYOUTS_MINDESTENS = 2;
@@ -480,12 +480,12 @@ describe("(e) jede Verwaltungsseite traegt den Personen-Riegel ihrer Stufe", () 
 
   it("die Seitenzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
-     * ⚠️ HEUTE SIEBEN, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe Grund
+     * ⚠️ HEUTE ACHT, UND DAS IST EIN ZUSTAND, KEIN ZIEL — dieselbe Form und derselbe Grund
      * wie bei `HANDLER_ANZAHL`. Er hat bei jeder Seitenaufgabe GEMESSEN gewirkt: in V12
      * („expected 1 to be +0"), V13 („expected 2 to be 1"), V14 („expected 3 to be 2"),
-     * V15 („expected 4 to be 3"), V16 („expected 5 to be 4"), V17 („expected 6 to be 5") und
-     * V18 („expected 7 to be 6") — erst die Anhebung im selben Commit machte ihn jeweils
-     * wieder gruen.
+     * V15 („expected 4 to be 3"), V16 („expected 5 to be 4"), V17 („expected 6 to be 5"),
+     * V18 („expected 7 to be 6") und V19 („expected 8 to be 7") — erst die Anhebung im selben
+     * Commit machte ihn jeweils wieder gruen.
      */
     expect(
       ADMIN_SEITEN().length,

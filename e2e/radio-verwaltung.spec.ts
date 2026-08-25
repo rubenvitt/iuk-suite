@@ -688,4 +688,119 @@ test.describe("radio-Verwaltung", () => {
       "das importierte Geraet steht nicht in der Liste",
     ).toHaveCount(1);
   });
+  test("Fall 8: /admin/versionen zeigt die Tabelle und legt eine Version wirklich an", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V19, NICHT NACHBESSERUNG
+     * (`Spec:4881-4882` fuer die Flaeche, `Spec:4887-4888` fuer den ECHTEN Schreibvorgang).
+     *
+     * ⛔ ER IST DER EINZIGE WAECHTER UEBER **FALLE 1 UND FALLE 9** AN INSEL 3: `Space.Compact`
+     * ist ein Compound-Zugriff, und die Tabelle traegt vier `render`-Funktionen
+     * (`SoftwareVersionsPage.tsx:89`, `:110`, `:116`, `:139`). Aus einer Server Component ist
+     * das erste HTTP 500 und das zweite `Functions cannot be passed directly to Client
+     * Components` — BEIM ABRUF. In jsdom gibt es keine RSC-Grenze, und
+     * `VersionenTabelle.test.tsx` bliebe unter dieser Mutation gruen.
+     *
+     * ⛔ UND ER IST DER ERSTE ECHTE ABRUF EINER SEITE AUF DER **ADMIN-STUFE**
+     * (`Spec:4376`). Der Quelltext-Scan in `admin/actions.test.ts` sagt, dass die Zeile
+     * DASTEHT; dass sie GREIFT, ist ⬜ **V-L3** und wird hier gemessen — der Abruf laeuft mit
+     * der Admin-Gruppe wie jeder Fall dieser Datei. ⚠️ Dass eine UPDATER-Person hier 404
+     * bekaeme, misst dieser Fall NICHT; dafuer braeuchte er eine zweite Anmeldung.
+     *
+     * ⛔ DER WARMLAUF IST DER `page.goto` SELBST — Falle 10 (`CLAUDE.md`): `next dev`
+     * uebersetzt die Route beim ERSTEN Treffer. Anders als in Fall 7 gibt es hier keinen
+     * eigenen Route Handler; die Server Action postet auf DIESELBE Adresse, die der Abruf
+     * gerade uebersetzt hat. ⛔ UND DIE ZWEITE TESTREGEL AUS FALLE 10 GILT UNVERAENDERT: wer
+     * eine Anfrage ausloest, PRUEFT IHRE ANTWORT (`page.waitForResponse`), statt auf eine
+     * spaetere Zustandsaenderung zu warten.
+     *
+     * ⚠️ ER BRAUCHT KEINEN BESTAND (⬜ V13-L2): das Anlegen LEGT AN. Zusammen mit Fall 7 ist
+     * er der zweite Fall dieser Datei, der einen echten Schreibvorgang zeigen kann.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const antwort = await page.goto(radioUrl("/admin/versionen"));
+    expect(antwort?.status(), "/admin/versionen auf dem radio-Host").toBe(200);
+    await expect(
+      page.locator('[data-rolle="radio-versionen-flaeche"]'),
+      "die Insel ist an der RSC-Grenze gebrochen (Falle 1 / Falle 9)",
+    ).toHaveCount(1);
+
+    /*
+     * ⛔ DIE FUENF SPALTENUEBERSCHRIFTEN SIND DER BEWEIS, DASS DIE `render`-FUNKTIONEN
+     * ANGEKOMMEN SIND — und sie stehen auch ohne eine einzige Zeile da (⬜ V13-L2 seedet
+     * `radio` nicht). ⛔ AUF `thead th` GEGRIFFEN, NICHT AUF `table`: antd rendert bei
+     * gesetztem `scroll` Kopf und Rumpf als ZWEI `<table>`-Elemente, und Playwrights strict
+     * mode faellt ueber einen Griff, der zwei Knoten trifft (dieselbe Begruendung wie in
+     * Fall 2 und Fall 7).
+     */
+    await expect(page.locator("thead th")).toHaveText([
+      "Version",
+      "Geräte",
+      "Angelegt",
+      "Reihenfolge",
+      "Aktionen",
+    ]);
+
+    /*
+     * ⛔ DER ERKLAERENDE HINWEIS STEHT WOERTLICH DA (`SoftwareVersionsPage.tsx:185`,
+     * 1:1-Tafel Abschnitt E). Er ist die einzige Stelle, an der die Flaeche sagt, dass eine
+     * neu angelegte Version NICHT automatisch zum Ziel wird — und der Schreibvorgang darunter
+     * ist genau der Fall, in dem jemand das Gegenteil erwartet.
+     */
+    await expect(page.locator('[data-rolle="radio-versionen-hinweis"]')).toContainText(
+      "Neu angelegte Versionen werden nicht automatisch zum Ziel",
+    );
+
+    /*
+     * ⛔ EIN WERT, DEN KEIN SEED UND KEIN ANDERER FALL DIESER DATEI FUEHRT — `value` traegt
+     * einen Unique-Index (`_db/schema.ts`), und ein Zusammenstoss mit einem Bestand aus einem
+     * frueheren Lauf machte aus „angelegt" ein „Diese Version existiert bereits", ohne dass
+     * etwas rot wuerde.
+     */
+    const wert = `E2E FW ${Date.now()}`;
+    await page.locator('[data-rolle="radio-neuversion-eingabe"]').fill(wert);
+
+    /*
+     * ⛔ GEWARTET WIRD AUF DIE ANTWORT DER SERVER ACTION. Sie postet auf die Adresse DIESER
+     * Seite; deshalb haengt die Wartestelle am Seitenpfad und nicht an einem Handlerpfad —
+     * dieselbe Bauform wie in Fall 3 und im Probelauf von Fall 7.
+     */
+    const angelegt = page.waitForResponse(
+      (a) => new URL(a.url()).pathname === "/admin/versionen" && a.request().method() === "POST",
+    );
+    await page.locator('[data-rolle="radio-neuversion-anlegen"]').click();
+    expect((await angelegt).status(), "das Anlegen wurde abgewiesen").toBe(200);
+
+    await expect(
+      page.locator('[data-rolle="radio-neuversion-fehler"]'),
+      "das Anlegefeld meldet einen Fehler statt anzulegen",
+    ).toHaveCount(0);
+
+    /*
+     * ⛔ DIE ZEILE STEHT WIRKLICH IN DER DATENBANK — und das ist die Haelfte, die kein
+     * Vitest-Fall haben kann. ⛔ NACH EINEM ECHTEN NEULADEN, nicht am Bildschirmzustand: nur
+     * so ist gemessen, was `versionAnlegenAction` geschrieben hat und was
+     * `versionenMitGeraetezahl` zurueckliest.
+     */
+    await page.reload();
+    const neueZeile = page.locator("table tbody tr.ant-table-row").filter({ hasText: wert });
+    await expect(neueZeile, "die angelegte Version steht nicht in der Liste").toHaveCount(1);
+
+    /*
+     * ⛔ UND SIE IST NICHT ZUM ZIEL GEWORDEN (`_db/schema.ts:80-82`, `admin/actions.ts`,
+     * `versionAnlegenAction`; der Hinweistext oben sagt es dem Bedienenden). Waere sie es,
+     * haette ein blosses Anlegen den Update-Stand JEDES Geraets umgestellt — genau der
+     * Schaden, gegen den die Zeile steht.
+     */
+    await expect(
+      neueZeile.locator('[data-rolle="radio-version-zielmarke"]'),
+      "eine neu angelegte Version wurde automatisch zum Ziel",
+    ).toHaveCount(0);
+    await expect(
+      neueZeile.locator('[data-rolle="radio-version-alsziel"]'),
+      "die Zeile bietet den Knopf Als Ziel nicht an",
+    ).toHaveCount(1);
+  });
 });
