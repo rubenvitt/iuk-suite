@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, ne, sql } from "drizzle-orm";
+import { eq, getTableColumns, ne, sql } from "drizzle-orm";
 import { getDb } from "../_db/client";
 import type { DB } from "../_db/client";
 import { bucheRueckgabe, offeneLeiheZuGeraet } from "../_db/leihen";
@@ -194,6 +194,58 @@ const GERAETELISTE_AUSSEN = "/admin/geraete";
 type SchreibDB = DB | Parameters<Parameters<DB["transaction"]>[0]>[0];
 
 /**
+ * ⛔ DIE SERVEREIGENEN SPALTEN, DIE KEINE EINGABE SETZEN DARF — die Laufzeitfassung von
+ * `SchreibbaresGeraetFeld` oben, und der 1:1-Ersatz fuer zods `.strip()`
+ * (`radio-admin/shared/src/schemas.ts:49`, woertlich: „server-owned fields
+ * (id/createdAt/updatedAt/...) are NOT accepted (strip unknown keys)", durchgesetzt in `:72`
+ * und `:99`).
+ *
+ * ⛔ DIE TYPSIGNATUR ALLEIN TRAEGT DAS NICHT. Eine Server Action bekommt ihre Argumente ueber
+ * die Leitung; `GeraetPatch` ist beim Aufruf eine Zusage des Aufrufers, keine Pruefung. Ein
+ * mitgeschicktes `id` waere in drizzles `.set(...)`/`.values(...)` eine echte Spalte — der
+ * Primaerschluessel liesse sich umschreiben, `createdAt`/`createdBy` faelschen. ⚠️ Der
+ * Rollenfilter faengt das NICHT: fuer die Admin-Stufe ist er eine flache Kopie
+ * (`_lib/rollen.ts:105`).
+ *
+ * ⛔ DIE LISTE WIRD AUS DER TABELLE ABGELEITET, NICHT ABGESCHRIEBEN (`getTableColumns`): eine
+ * handgepflegte zweite Fassung waere die Stelle, an der eine neue Spalte still unschreibbar
+ * bleibt — oder, schlimmer, still schreibbar wird.
+ */
+const SERVEREIGENE_FELDER = new Set(["id", "createdAt", "updatedAt", "createdBy", "updatedBy"]);
+const SCHREIBBARE_FELDER = new Set(
+  Object.keys(getTableColumns(devices)).filter((feld) => !SERVEREIGENE_FELDER.has(feld)),
+);
+
+/** Schneidet aus einer eingehenden Nutzlast alles heraus, was keine schreibbare Spalte ist. */
+function nurSchreibbareFelder<T extends Record<string, unknown>>(eingabe: T): Partial<T> {
+  const ergebnis: Partial<T> = {};
+  for (const feld of Object.keys(eingabe)) {
+    if (SCHREIBBARE_FELDER.has(feld)) {
+      (ergebnis as Record<string, unknown>)[feld] = eingabe[feld];
+    }
+  }
+  return ergebnis;
+}
+
+/**
+ * ⛔ DIE ISSI IST DAS EINZIGE PFLICHTFELD, UND SIE DARF NICHT LEER SEIN —
+ * `z.string().min(1)` im Anlegeschema (`radio-admin/shared/src/schemas.ts:52`) und
+ * `z.string().min(1).optional()` im Patchschema (`:76`). ⛔ NICHT GETRIMMT, anders als beim
+ * Anmerkungstext (`:103`): der Bestand misst hier die ROHE Laenge, und ein `" "` kommt dort
+ * durch. Diese Funktion misst dasselbe.
+ *
+ * ⛔ `notNull()` IN DER SPALTE ERSETZT DAS NICHT (`_db/schema.ts:22`): SQLite nimmt die leere
+ * Zeichenkette an. Die erste leere ISSI ginge durch, die zweite kollidierte auf dem
+ * Unique-Index — und die Meldung spraeche von einer vergebenen ISSI, also von einem ganz
+ * anderen Problem. Die Regel steht im Alt-Formular ebenfalls („ISSI ist erforderlich",
+ * `DeviceFields.tsx:64`); „eine Regel, die nur im Client steht, ist keine Regel"
+ * (Spec:3583-3585).
+ */
+function issiUnbrauchbar(issi: unknown): boolean {
+  return typeof issi !== "string" || issi.length === 0;
+}
+
+/**
  * better-sqlite3 meldet eine Unique-Verletzung mit diesem Code — 1:1 aus
  * `_db/leihen.ts:470-475`, dieselbe Doppelpruefung auf `cause`.
  *
@@ -302,20 +354,23 @@ function autorName(viewer: { sub: string; name: string | null }): string {
 export async function geraetAnlegenAction(werte: GeraetEingabe): Promise<Ergebnis<{ id: string }>> {
   const viewer = await requireRadioAdmin();
 
+  if (issiUnbrauchbar(werte.issi)) return { ok: false, fehler: ANLEGEN_FEHLER };
+  const sauber = { ...nurSchreibbareFelder(werte), issi: werte.issi };
+
   const db = getDb();
   const jetzt = new Date();
-  const diffs: FeldDiff[] = Object.entries(werte)
+  const diffs: FeldDiff[] = Object.entries(sauber)
     .filter(([, wert]) => wert !== null && wert !== undefined)
     .map(([feld, wert]) => ({ feld, alt: null, neu: String(wert) }));
 
   let id: string;
   try {
     id = db.transaction((tx) => {
-      if (werte.softwareVersion) registriereVersion(tx, werte.softwareVersion, viewer.sub);
+      if (sauber.softwareVersion) registriereVersion(tx, sauber.softwareVersion, viewer.sub);
       const zeile = tx
         .insert(devices)
         .values({
-          ...werte,
+          ...sauber,
           createdAt: jetzt,
           updatedAt: jetzt,
           createdBy: viewer.sub,
@@ -357,11 +412,17 @@ export async function geraetAnlegenAction(werte: GeraetEingabe): Promise<Ergebni
 export async function geraetAendernAction(id: string, patch: GeraetPatch): Promise<Ergebnis> {
   const { viewer, rolle } = await requireRadioVerwaltung();
 
+  // ⛔ `issi` DARF FEHLEN, ABER NICHT LEER SEIN (`schemas.ts:76`) — deshalb `!== undefined`
+  // vor der Pruefung und nicht statt ihr.
+  if (patch.issi !== undefined && issiUnbrauchbar(patch.issi)) {
+    return { ok: false, fehler: SPEICHERN_FEHLER };
+  }
+
   const db = getDb();
   const bestehend = db.select().from(devices).where(eq(devices.id, id)).get();
   if (!bestehend) return { ok: false, fehler: SPEICHERN_FEHLER };
 
-  const erlaubt = filterSchreibbareFelder(rolle, patch) as GeraetPatch;
+  const erlaubt = filterSchreibbareFelder(rolle, nurSchreibbareFelder(patch)) as GeraetPatch;
   const diffs = diffGeraet(bestehend, erlaubt);
   if (diffs.length === 0) return { ok: true };
 
@@ -477,6 +538,12 @@ export async function geraetLoeschenAction(id: string): Promise<Ergebnis> {
  */
 export async function notizAnfuegenAction(id: string, text: string): Promise<Ergebnis> {
   const { viewer } = await requireRadioVerwaltung();
+
+  // ⛔ `z.string().trim().min(1)` (`schemas.ts:103`) — GETRIMMT, anders als bei der ISSI. Ohne
+  // die Zeile haengt ein leerer Text eine dauerhafte Auditzeile ohne Inhalt an
+  // (`[YYYY-MM-DD · Autor] `), die niemand mehr entfernen kann: die Spalte ist append-only
+  // (`_db/schema.ts:56-59`).
+  if (text.trim().length === 0) return { ok: false, fehler: ANMERKUNG_FEHLER };
 
   const db = getDb();
   const bestehend = db.select().from(devices).where(eq(devices.id, id)).get();
@@ -734,7 +801,13 @@ export async function importSchreibenAction(
       klassifiziert.forEach((zeile) => {
         const eingehend = zeileZuEingehend(zeilen[zeile.zeilenNummer] ?? [], zuordnung);
         const { issi: _issi, ...uebrige } = eingehend;
-        const erlaubt = filterSchreibbareFelder(rolle, uebrige as Record<string, unknown>) as GeraetPatch;
+        // ⛔ AUCH HIER GESTRIPPT: `Spaltenzuordnung` ist eine Typzusage des Aufrufers, und
+        // `zeileZuEingehend` schreibt JEDEN Schluessel der Zuordnung in die Zeile
+        // (`_lib/csv/klassifizieren.ts:186-201`). Ueber die Leitung kaeme sonst `id` mit.
+        const erlaubt = filterSchreibbareFelder(
+          rolle,
+          nurSchreibbareFelder(uebrige as Record<string, unknown>),
+        ) as GeraetPatch;
         const jetzt = new Date();
 
         if (zeile.klasse === "created") {

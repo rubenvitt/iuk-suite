@@ -176,6 +176,42 @@ describe("geraetAnlegenAction", () => {
     expect(zeilen.every((z) => z.oldValue === null)).toBe(true);
   });
 
+  it("lehnt eine LEERE ISSI ab, statt sie einzufuegen", async () => {
+    /*
+     * ⛔ `deviceCreateSchema` fuehrt `issi: z.string().min(1)`
+     * (`radio-admin/shared/src/schemas.ts:52`) — das einzige Pflichtfeld der Maske
+     * („ISSI ist erforderlich", `DeviceFields.tsx:64`).
+     * ⛔ `notNull()` IN DER SPALTE ERSETZT DAS NICHT: SQLite nimmt `""` an. Die erste leere
+     * ISSI ginge durch, die zweite kollidierte auf dem Unique-Index — und die Meldung
+     * spraeche von einer VERGEBENEN ISSI, also von einem ganz anderen Problem.
+     */
+    const ergebnis = await geraetAnlegenAction({ issi: "", rufname: "Ohne Kennung" });
+
+    expect(ergebnis).toEqual({ ok: false, fehler: "Anlegen fehlgeschlagen" });
+    expect(geraeteZeilen()).toEqual([]);
+  });
+
+  it("nimmt keine servereigenen Felder aus der Nutzlast an", async () => {
+    /*
+     * ⛔ DER 1:1-ERSATZ FUER ZODS `.strip()` (`schemas.ts:49`, `:72`: „server-owned fields
+     * (id/createdAt/updatedAt/...) are NOT accepted"). Eine Server Action bekommt ihre
+     * Argumente ueber die Leitung — die Typsignatur ist beim Aufruf eine Zusage des
+     * Aufrufers, keine Pruefung; deshalb steht hier ein `as`, das die Grenze nachbaut.
+     * ⛔ Ohne den Schnitt schriebe drizzle `id` als echte Spalte, und der Primaerschluessel
+     * eines Geraets liesse sich von aussen bestimmen.
+     */
+    const ergebnis = await geraetAnlegenAction({
+      issi: "1000001",
+      id: "g-fremdbestimmt",
+      createdBy: "sub-gefaelscht",
+    } as unknown as Parameters<typeof geraetAnlegenAction>[0]);
+
+    expect(ergebnis.ok).toBe(true);
+    const zeile = geraeteZeilen()[0];
+    expect(zeile.id).not.toBe("g-fremdbestimmt");
+    expect(zeile.createdBy).toBe("sub-admin");
+  });
+
   it("rollt bei einer ISSI-Kollision die Softwareversion mit zurueck", async () => {
     /*
      * ⛔ `devices.ts:110-111`, woertlich: „a duplicate-ISSI throw rolls back the whole write".
@@ -248,6 +284,48 @@ describe("geraetAendernAction", () => {
     expect(versionen()).toEqual([]);
     expect(ereignisse()).toEqual([]);
     expect(geraeteZeilen().find((z) => z.id === "g-1")?.issi).toBe("1000001");
+  });
+
+  it("lehnt eine LEERE ISSI im Patch ab, laesst eine fehlende aber durch", async () => {
+    /*
+     * ⛔ `devicePatchSchema` fuehrt `issi: z.string().min(1).optional()` (`schemas.ts:76`):
+     * fehlen darf sie, leer sein nicht. Eine Pruefung OHNE das `!== undefined` machte jede
+     * gewoehnliche Aenderung unmoeglich; eine ohne die Leerpruefung schriebe eine
+     * kennungslose Zeile.
+     */
+    geraet({ id: "g-1", issi: "1000001", rufname: "Florian 1" });
+
+    expect(await geraetAendernAction("g-1", { issi: "" })).toEqual({
+      ok: false,
+      fehler: "Speichern fehlgeschlagen",
+    });
+    expect(geraeteZeilen()[0].issi).toBe("1000001");
+
+    expect(await geraetAendernAction("g-1", { rufname: "Florian 2" })).toEqual({ ok: true });
+    expect(geraeteZeilen()[0].rufname).toBe("Florian 2");
+  });
+
+  it("nimmt keine servereigenen Felder aus dem Patch an", async () => {
+    /*
+     * ⛔ Dieselbe Grenze wie beim Anlegen (`schemas.ts:99`), und hier waere der Schaden
+     * groesser: ein durchgereichtes `createdAt` faelschte die Bestandsgeschichte, ein `id`
+     * verschoebe die Zeile unter jeder Ereigniszeile weg, die per Cascade-FK an ihr haengt.
+     * ⚠️ Der Rollenfilter faengt das NICHT — fuer die Admin-Stufe ist er eine flache Kopie
+     * (`_lib/rollen.ts:105`).
+     */
+    geraet({ id: "g-1", issi: "1000001", rufname: "Florian 1" });
+
+    const ergebnis = await geraetAendernAction("g-1", {
+      rufname: "Florian 2",
+      id: "g-fremdbestimmt",
+      createdBy: "sub-gefaelscht",
+    } as unknown as Parameters<typeof geraetAendernAction>[1]);
+
+    expect(ergebnis).toEqual({ ok: true });
+    const zeile = geraeteZeilen()[0];
+    expect(zeile.id).toBe("g-1");
+    expect(zeile.createdBy).toBeNull();
+    expect(ereignisse().map((z) => z.field)).toEqual(["rufname"]);
   });
 
   it("entwertet die drei INNEREN Pfade, nie die aeusseren", async () => {
@@ -388,6 +466,23 @@ describe("notizAnfuegenAction", () => {
     const notiz = geraeteZeilen()[0].updateNote ?? "";
     const letzte = notiz.split("\n").at(-1);
     expect(ereignisse()[0].newValue).toBe(letzte);
+  });
+
+  it("lehnt einen leeren oder nur aus Leerraum bestehenden Text ab", async () => {
+    /*
+     * ⛔ `updateNoteSchema` fuehrt `text: z.string().trim().min(1)` (`schemas.ts:103`) —
+     * GETRIMMT, anders als bei der ISSI (`:52`, rohe Laenge). Ohne die Pruefung haengt ein
+     * leerer Text eine dauerhafte Auditzeile OHNE INHALT an, und niemand kann sie mehr
+     * entfernen: die Spalte ist append-only (`_db/schema.ts:56-59`).
+     */
+    geraet({ id: "g-1", issi: "1000001", updateNote: "[2026-01-01 · Alt] frueher" });
+
+    expect(await notizAnfuegenAction("g-1", "   ")).toEqual({
+      ok: false,
+      fehler: "Anmerkung fehlgeschlagen",
+    });
+    expect(geraeteZeilen()[0].updateNote).toBe("[2026-01-01 · Alt] frueher");
+    expect(ereignisse()).toEqual([]);
   });
 
   it("schreibt als newValue NUR die neue Zeile", async () => {
