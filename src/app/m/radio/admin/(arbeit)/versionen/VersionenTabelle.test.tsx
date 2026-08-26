@@ -90,8 +90,36 @@ function inselDateien(): string[] {
  */
 const INSEL_SOLL = ["NeuVersion.tsx", "VersionenTabelle.tsx"];
 
+/**
+ * DIE ACTIONS, DIE DIE INSEL WIRKLICH RUFT — ⛔ GEFUNDEN, NICHT AUFGEZAEHLT (Ruling
+ * **R-V11-1**, `.superpowers/sdd/planteil4/progress.md`): „Wo ein Scan eine Fehlerklasse
+ * bewacht, die in einer NEUEN Datei entstehen kann, muss er die Menge FINDEN, nicht
+ * auflisten." Der Fehlerpfad-Fall darunter haelt seine Tafel gegen diese Messung; eine
+ * fuenfte Action ohne eigenen Fehlerpfad-Fall faellt damit auf, statt still unbewacht zu
+ * bleiben (REVIEW-V19, Fund **F2**).
+ */
+function actionsDerInsel(): string[] {
+  const namen = new Set<string>();
+  for (const datei of inselDateien()) {
+    const quelle = ohneKommentare(readFileSync(`${INSEL_ORDNER}/${datei}`, "utf8"));
+    for (const treffer of quelle.matchAll(/\b([a-zA-Z][A-Za-z0-9]*Action)\b/g)) {
+      namen.add(treffer[1]!);
+    }
+  }
+  return [...namen].sort();
+}
+
 import { act } from "react";
-import { click, fill, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import {
+  click,
+  clickElement,
+  clickPortal,
+  fill,
+  mount,
+  query,
+  queryAll,
+  unmount,
+} from "@/app/m/qr/_lib/test-dom";
 import { ohneKommentare } from "../../../_lib/quelltextScan";
 import type { VersionZeile } from "../../../_lib/lesepfade/versionen";
 import { NeuVersion } from "./NeuVersion";
@@ -350,24 +378,6 @@ describe("radio-Versionen: die fuenf Spalten und ihre zwei Sperren", () => {
     expect(query('[data-rolle="radio-version-angelegt"]').textContent).toBe("01.02.2026, 08:00");
   });
 
-  it("ein Fehlschlag einer Action zeigt IHREN Text, nicht einen erfundenen", async () => {
-    /*
-     * ⛔ DIE TEXTE DER FEHLSCHLAEGE STEHEN IN `admin/actions.ts` (`VERSION_VORHANDEN`,
-     * `VERSION_LOESCHEN_FEHLER`, …) UND WERDEN HIER NICHT EIN ZWEITES MAL GESCHRIEBEN. Zwei
-     * Fassungen desselben Satzes ohne Waechter laufen beim ersten Umbau auseinander
-     * (Entscheidung E13, `planteil3/briefs/KOPF.md`).
-     */
-    zielMock.mockResolvedValue({ ok: false, fehler: "Zielversion konnte nicht gesetzt werden" });
-    await mount(<VersionenTabelle zeilen={[zeile({ isTarget: false })]} />);
-
-    await act(async () => {
-      query<HTMLButtonElement>('[data-rolle="radio-version-alsziel"]').click();
-    });
-
-    expect(query('[data-rolle="radio-versionen-fehler"]').textContent).toBe(
-      "Zielversion konnte nicht gesetzt werden",
-    );
-  });
 });
 
 describe("radio-Versionen: das Anlegefeld", () => {
@@ -429,6 +439,143 @@ describe("radio-Versionen: das Anlegefeld", () => {
     );
     expect(query<HTMLInputElement>('[data-rolle="radio-neuversion-eingabe"]').value).toBe("FW 12.3");
   });
+
+  it("Enter im Eingabefeld legt an — der Hauptweg auf einer Tastaturflaeche", async () => {
+    /*
+     * ⛔ `onPressEnter={anlegen}` (`NeuVersion.tsx`, 1:1 `SoftwareVersionsPage.tsx:193`) war
+     * bis REVIEW-V19, Fund **F3**, UNBEWACHT: die Zeile entfernt → `Test Files 1 passed (1)` ·
+     * `Tests 19 passed (19)`, gemessen am 2026-08-26. Auf einer Tastaturflaeche ist Enter der
+     * Hauptweg des Anlegens, und sein Verlust waere fuer typecheck, lint und build unsichtbar.
+     *
+     * ⚠️ `keydown` MIT `bubbles: true`: Reacts synthetisches Ereignis entsteht am Wurzelknoten
+     * des Baums, ein nicht steigendes Ereignis erreicht die Komponente nie. `keyCode` steht
+     * neben `key`, weil antds `onPressEnter` ueber die Versionen beide Formen gelesen hat.
+     */
+    await mount(<NeuVersion />);
+    await fill('[data-rolle="radio-neuversion-eingabe"]', "FW 12.3");
+    await act(async () => {
+      query<HTMLInputElement>('[data-rolle="radio-neuversion-eingabe"]').dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true }),
+      );
+    });
+
+    expect(anlegenMock, "Enter im Feld legt nicht an").toHaveBeenCalledTimes(1);
+    expect(anlegenMock.mock.calls[0]![0], "Enter sendet einen anderen Wert als der Knopf").toBe(
+      "FW 12.3",
+    );
+  });
+});
+
+describe("radio-Versionen: die VIER Fehlerpfade der Flaeche", () => {
+  /*
+   * ⛔ ALLE VIER, NICHT EINER — REVIEW-V19, Fund **F2**, und der Beleg ist eine Messung vom
+   * 2026-08-26: der frueher hier stehende Einzelfall setzte ausschliesslich `zielMock` auf
+   * `{ ok: false }`. Wer `if (!ergebnis.ok) setFehler(ergebnis.fehler);` aus `loeschen` ODER
+   * aus `verschieben` entfernte, bekam `Test Files 1 passed (1)` · `Tests 19 passed (19)` —
+   * ⛔ NULL ROT, ein still fehlschlagender Loesch- und Sortiervorgang, und die Flaeche
+   * quittierte nichts.
+   *
+   * ⛔ DER SCHADEN IST KONKRET UND NICHT HYPOTHETISCH: `versionLoeschenAction` gibt bei einem
+   * Wettlauf „Version wird noch von N Gerät(en) genutzt" zurueck — ebenfalls ein Text der
+   * 1:1-Tafel Abschnitt E (`.superpowers/sdd/planteil4/briefs/KOPF.md:1327`,
+   * `SoftwareVersionsPage.tsx:60`). Genau der Fall, um dessentwillen die Loeschsperre
+   * ueberhaupt existiert, war unbewacht.
+   *
+   * ⛔ DIE TEXTE DER FEHLSCHLAEGE STEHEN IN `admin/actions.ts` UND WERDEN HIER NICHT EIN
+   * ZWEITES MAL GESCHRIEBEN — die Tafel unten setzt sie als MOCK-Antwort und prueft, dass
+   * genau sie ankommen (Entscheidung E13, `planteil3/briefs/KOPF.md`).
+   *
+   * ⚠️ DIE VIER PFADE SIND NICHT SYMMETRISCH, und deshalb traegt jeder seinen EIGENEN
+   * Ausloeser statt eines gemeinsamen Klicks: `loeschen` sitzt hinter einem `Popconfirm` (ein
+   * Griff auf den Knopf OEFFNET nur die Rueckfrage, die Action laeuft erst am Ja-Knopf im
+   * Portal), `verschieben` braucht MINDESTENS ZWEI Zeilen (sonst sind beide
+   * Reihenfolge-Knoepfe am Rand deaktiviert und nichts laeuft los), und `anlegen` lebt in
+   * `NeuVersion` mit eigenem Fehlerabsatz.
+   */
+  type Fehlerpfad = {
+    /** Der Name der Action — er wird gegen die GEFUNDENE Menge geprueft, siehe unten. */
+    action: string;
+    mock: typeof zielMock;
+    fehler: string;
+    griff: string;
+    ausloesen: () => Promise<void>;
+  };
+
+  const FEHLERPFADE: Fehlerpfad[] = [
+    {
+      action: "versionZielSetzenAction",
+      mock: zielMock,
+      fehler: "Zielversion konnte nicht gesetzt werden",
+      griff: '[data-rolle="radio-versionen-fehler"]',
+      ausloesen: async () => {
+        await mount(<VersionenTabelle zeilen={[zeile({ isTarget: false })]} />);
+        await click('[data-rolle="radio-version-alsziel"]');
+      },
+    },
+    {
+      action: "versionLoeschenAction",
+      /** ⛔ Woertlich der Text, den `versionLoeschenAction` bei haengenden Geraeten zurueckgibt
+       *  (1:1-Tafel Abschnitt E, `SoftwareVersionsPage.tsx:60`). */
+      mock: loeschenMock,
+      fehler: "Version wird noch von 2 Gerät(en) genutzt",
+      griff: '[data-rolle="radio-versionen-fehler"]',
+      ausloesen: async () => {
+        await mount(<VersionenTabelle zeilen={[zeile({ deviceCount: 0 })]} />);
+        await click('[data-rolle="radio-version-loeschen"]');
+        await clickPortal(".ant-popconfirm .ant-btn-primary");
+      },
+    },
+    {
+      action: "versionenSortierenAction",
+      mock: sortierenMock,
+      fehler: "Reihenfolge konnte nicht gespeichert werden",
+      griff: '[data-rolle="radio-versionen-fehler"]',
+      ausloesen: async () => {
+        await mount(
+          <VersionenTabelle
+            zeilen={[zeile({ id: "v-1", wert: "FW 12.3" }), zeile({ id: "v-2", wert: "FW 12.0" })]}
+          />,
+        );
+        await clickElement(queryAll<HTMLButtonElement>('[data-rolle="radio-version-runter"]')[0]!);
+      },
+    },
+    {
+      action: "versionAnlegenAction",
+      mock: anlegenMock,
+      fehler: "Diese Version existiert bereits",
+      griff: '[data-rolle="radio-neuversion-fehler"]',
+      ausloesen: async () => {
+        await mount(<NeuVersion />);
+        await fill('[data-rolle="radio-neuversion-eingabe"]', "FW 12.3");
+        await click('[data-rolle="radio-neuversion-anlegen"]');
+      },
+    },
+  ];
+
+  it.each(FEHLERPFADE)(
+    "$action: ein Fehlschlag zeigt IHREN Text, nicht einen erfundenen",
+    async (pfad) => {
+      pfad.mock.mockResolvedValue({ ok: false, fehler: pfad.fehler });
+      await pfad.ausloesen();
+      expect(query(pfad.griff).textContent, `${pfad.action}: der Fehlschlag bleibt stumm`).toBe(
+        pfad.fehler,
+      );
+    },
+  );
+
+  it("die Tafel deckt JEDE Action der Insel — die Menge ist gefunden, nicht aufgezaehlt", () => {
+    /*
+     * ⛔ RULING **R-V11-1**: die Sollwerttafel steht auf der EINEN Seite, die GEMESSENE Menge
+     * auf der anderen. Eine fuenfte Action in einer der Inseldateien — oder eine fuenfte
+     * Datei, die eine ruft — macht diesen Fall rot, statt lautlos ohne Fehlerpfad-Fall zu
+     * bleiben. ⚠️ Das ist die Klasse, an der F2 entstanden ist: der alte Einzelfall LISTETE
+     * einen Mock, statt die Menge zu durchlaufen.
+     */
+    expect(
+      FEHLERPFADE.map((pfad) => pfad.action).sort(),
+      "eine Action der Insel hat keinen Fehlerpfad-Fall",
+    ).toEqual(actionsDerInsel());
+  });
 });
 
 describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
@@ -447,6 +594,51 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
         /^["']use client["'];?$/,
       );
     }
+  });
+
+  it("die Bildschirmtexte stehen in EINER benannten Liste je Datei, nicht inline", () => {
+    /*
+     * ⛔ **GLOBAL CONSTRAINT, 1:1-TAFEL ABSCHNITT E** (`Spec:4815-4832`;
+     * `.superpowers/sdd/planteil4/briefs/KOPF.md:1340`, woertlich): „Sie liegen in EINER
+     * benannten Konstantenliste je Flaeche, nicht inline verstreut — sonst ist die naechste
+     * Formulierungsaenderung eine Suche ueber neun Dateien."
+     *
+     * ⛔ DIESER FALL IST NEU (REVIEW-V19, Fund **F1**) UND DER ERSTE SEINER ART IM MODUL. Die
+     * zwei Schwesterinseln FUEHREN ihre Liste (`software/UpdateSuche.tsx:91` `UPDATE_TEXTE`,
+     * `import/ImportAssistent.tsx:113` `IMPORT_TEXTE`), aber ⛔ KEINE Testdatei des Moduls
+     * BEWACHT die Bauform — gemessen am 2026-08-26 mit rohem `/usr/bin/grep -n "TEXTE"` ueber
+     * `software/UpdateSuche.test.tsx` und `import/ImportAssistent.test.tsx`: NULL Treffer.
+     * ⚠️ Genau in dieser Luecke stand der Satz der E-Tafel hier inline im JSX: der WORTLAUT
+     * war bewacht (der Sperrfall oben prueft ihn zeichengleich), die BAUFORM nicht. Ruling
+     * **R-V11-1**: wer eine Zusicherung ueber dem Bestand schreibt, schuldet die Mutation, die
+     * sie rot macht.
+     *
+     * ⚠️ ER LAEUFT UEBER DIE GEFUNDENE DATEIMENGE PLUS DIE SEITE: die Seite liegt jenseits der
+     * RSC-Grenze und traegt ihre eigene Liste (`SEITEN_TEXTE`), sie ist aber dieselbe Flaeche
+     * fuer den, der eine Formulierung aendert.
+     */
+    const flaechen = [...inselDateien().map((datei) => `${INSEL_ORDNER}/${datei}`), QUELLE_SEITE];
+    for (const pfad of flaechen) {
+      const quelle = ohneKommentare(readFileSync(pfad, "utf8"));
+      expect(
+        quelle.match(/const [A-Z][A-Z0-9_]*_TEXTE = \{/g) ?? [],
+        `${pfad}: keine ODER mehr als eine benannte Textliste`,
+      ).toHaveLength(1);
+    }
+
+    /*
+     * ⛔ UND DER SATZ DER E-TAFEL STEHT WIRKLICH IN DER LISTE, NICHT DANEBEN: genau einmal in
+     * der Datei, und VOR dem `} as const;`, das die Liste schliesst. Wer ihn zurueck ins JSX
+     * schreibt, landet hinter dieser Klammer — dann ist dieser Fall rot. ⚠️ Gelesen wird der
+     * KOMMENTARFREIE Quelltext, sonst zaehlte eine Begruendung, die den Satz zitiert, mit.
+     */
+    const tabelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
+    const stellen = [...tabelle.matchAll(/Wird von /g)].map((treffer) => treffer.index);
+    expect(stellen, "der Satz der 1:1-Tafel Abschnitt E steht nicht genau einmal").toHaveLength(1);
+    expect(
+      stellen[0]! < tabelle.indexOf("} as const;"),
+      "der Satz steht ausserhalb der benannten Liste — inline im JSX",
+    ).toBe(true);
   });
 
   it("kein Bedienelement traegt size", () => {

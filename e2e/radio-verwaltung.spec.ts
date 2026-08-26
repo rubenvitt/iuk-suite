@@ -728,12 +728,21 @@ test.describe("radio-Verwaltung", () => {
     ).toHaveCount(1);
 
     /*
-     * ⛔ DIE FUENF SPALTENUEBERSCHRIFTEN SIND DER BEWEIS, DASS DIE `render`-FUNKTIONEN
-     * ANGEKOMMEN SIND — und sie stehen auch ohne eine einzige Zeile da (⬜ V13-L2 seedet
-     * `radio` nicht). ⛔ AUF `thead th` GEGRIFFEN, NICHT AUF `table`: antd rendert bei
-     * gesetztem `scroll` Kopf und Rumpf als ZWEI `<table>`-Elemente, und Playwrights strict
-     * mode faellt ueber einen Griff, der zwei Knoten trifft (dieselbe Begruendung wie in
-     * Fall 2 und Fall 7).
+     * ⛔ DIE FUENF SPALTENUEBERSCHRIFTEN SIND DIE 1:1-SPALTENPFLICHT
+     * (`SoftwareVersionsPage.tsx:84-175`), ⛔ **NICHT der Falle-9-Beleg** — und diese
+     * Unterscheidung ist gemessen, nicht formal: Ueberschriften entstehen aus `title`, nicht
+     * aus `render`, und ohne Seed (⬜ V13-L2 seedet `radio` nicht) steht hier KEINE Zeile,
+     * also ist an dieser Stelle noch keine einzige `render`-Funktion gelaufen.
+     *
+     * ⛔ DER BEWEIS FUER FALLE 1 UND FALLE 9 STEHT ZWEI ZUSICHERUNGEN WEITER OBEN: eine ueber
+     * die RSC-Grenze gereichte `render`-Funktion wirft BEIM ABRUF, die Seite antwortete also
+     * gar nicht erst mit 200 (`expect(antwort?.status()).toBe(200)`), und ein Compound-Zugriff
+     * in einer Server Component ist HTTP 500. Die `render`-Funktionen selbst LAUFEN erst
+     * unten, nach `page.reload()`, an den Zeilengriffen der angelegten Version.
+     *
+     * ⛔ AUF `thead th` GEGRIFFEN, NICHT AUF `table`: antd rendert bei gesetztem `scroll` Kopf
+     * und Rumpf als ZWEI `<table>`-Elemente, und Playwrights strict mode faellt ueber einen
+     * Griff, der zwei Knoten trifft (dieselbe Begruendung wie in Fall 2 und Fall 7).
      */
     await expect(page.locator("thead th")).toHaveText([
       "Version",

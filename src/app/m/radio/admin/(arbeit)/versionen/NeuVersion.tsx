@@ -39,6 +39,27 @@ import s from "../../../_ui/verwaltung.module.css";
  * Waechter laufen beim ersten Umbau auseinander — die Flaeche zeigt, was der Server sagt.
  */
 
+/**
+ * DIE BILDSCHIRMTEXTE DIESER FLAECHE, in EINER benannten Liste und nicht inline verstreut
+ * (1:1-Tafel Abschnitt E, `Spec:4815-4832`; Global Constraint
+ * `.superpowers/sdd/planteil4/briefs/KOPF.md:1340`). ⚠️ Sie tragen ihre Umlaute — es sind
+ * Bildschirmtexte, keine Bezeichner. ⛔ NICHT EXPORTIERT (REVIEW-V17, Fund F4): es gibt keinen
+ * Verbraucher, der Test schreibt die Texte bewusst aus.
+ *
+ * ⚠️ EIGENE LISTE NEBEN DER DER TABELLE, aus demselben Grund, aus dem diese Datei ueberhaupt
+ * eine eigene ist (Vorabscan-Fund **F22**): die zwei teilen keinen Zustand. ⛔ KEIN SATZ STEHT
+ * ZWEIMAL — die zwei FEHLERtexte dieser Flaeche stehen ohnehin in `admin/actions.ts:136`/`:137`
+ * und kommen als `Ergebnis.fehler` herueber.
+ */
+const NEUVERSION_TEXTE = {
+  /** ⛔ Woertlich `SoftwareVersionsPage.tsx:190`. */
+  platzhalter: "Neue Version, z. B. FW 12.3",
+  /** ⛔ Woertlich `SoftwareVersionsPage.tsx:194` (dort wie hier ein `aria-label`). */
+  feldName: "Neue Version",
+  /** ⛔ Woertlich `SoftwareVersionsPage.tsx:197`. */
+  anlegen: "Anlegen",
+} as const;
+
 export function NeuVersion() {
   const [wert, setWert] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
@@ -72,8 +93,8 @@ export function NeuVersion() {
       <Space.Compact className={s.suchfeld}>
         <Input
           /* ⛔ Beschriftung und Platzhalter woertlich `:190` und `:194`. */
-          placeholder="Neue Version, z. B. FW 12.3"
-          aria-label="Neue Version"
+          placeholder={NEUVERSION_TEXTE.platzhalter}
+          aria-label={NEUVERSION_TEXTE.feldName}
           value={wert}
           onChange={(e) => setWert(e.target.value)}
           onPressEnter={anlegen}
@@ -91,7 +112,7 @@ export function NeuVersion() {
           onClick={anlegen}
           data-rolle="radio-neuversion-anlegen"
         >
-          Anlegen
+          {NEUVERSION_TEXTE.anlegen}
         </Button>
       </Space.Compact>
       {fehler !== null && (

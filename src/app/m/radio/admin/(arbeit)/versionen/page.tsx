@@ -23,7 +23,7 @@ import { VersionenTabelle } from "./VersionenTabelle";
  *
  * ⛔ **UND HIER STEHT DIE LUECKE, DIE KEIN SCAN SCHLIESST.** `riegel.test.ts` laesst im
  * `(arbeit)`-Zweig `requireRadioAdmin(` **oder** `requireRadioVerwaltung(` zu, und zwar
- * ABSICHTLICH (`riegel.test.ts:236-262`) — ohne das ODER waere die Klausel gegen `Spec:4367`
+ * ABSICHTLICH (`riegel.test.ts:237-244`) — ohne das ODER waere die Klausel gegen `Spec:4367`
  * rot-by-construction, sobald das Group-Layout auf die Verwaltungs-Stufe stellt. Ein
  * pfadsensitiver Scan kann innerhalb DERSELBEN Route-Group „richtig auf der
  * Verwaltungsstufe" nicht von „faelschlich von der Admin-Stufe abgesenkt" unterscheiden.
@@ -61,11 +61,19 @@ import { VersionenTabelle } from "./VersionenTabelle";
  * (`Spec:4815-4832`, 1:1-Tafel Abschnitt E). ⚠️ Sie tragen ihre Umlaute und ihre
  * typografischen Anfuehrungszeichen — es sind Bildschirmtexte, keine Bezeichner.
  *
- * ⚠️ DIE TEXTE DER INSEL STEHEN NICHT HIER: sie leben in `VersionenTabelle.tsx` bzw. kommen
- * als `fehler` aus `admin/actions.ts`. Eine gemeinsame Liste muesste in einer Datei ohne
- * Bauform-Direktive liegen und waere damit ein Wert, den beide Seiten der RSC-Grenze lesen —
- * moeglich, aber eine Datei mehr, als diese Aufgabe fuehrt. ⛔ KEIN Satz steht deshalb
- * ZWEIMAL; jeder hat genau einen Ort.
+ * ⚠️ DIE TEXTE DER INSEL STEHEN NICHT HIER: sie leben in `VERSIONEN_TEXTE`
+ * (`VersionenTabelle.tsx`) und `NEUVERSION_TEXTE` (`NeuVersion.tsx`) bzw. kommen als `fehler`
+ * aus `admin/actions.ts:136`/`:137`. ⛔ DREI LISTEN, JE DATEI EINE, und der Grund ist zweimal
+ * ein anderer: gegen die INSEL trennt die RSC-Grenze (eine gemeinsame Liste muesste in einer
+ * Datei ohne Bauform-Direktive liegen — moeglich, aber eine Datei mehr, als diese Aufgabe
+ * fuehrt), und INNERHALB der Insel trennt Vorabscan-Fund **F22**: `NeuVersion.tsx` teilt mit
+ * `VersionenTabelle.tsx` keinen Zustand und waere nach E-V6s Kriterium eine eigene Insel; eine
+ * gemeinsame Liste brauchte einen Export ohne zweiten Verbraucher (gegen REVIEW-V17, Fund F4).
+ *
+ * ⛔ KEIN SATZ STEHT DESHALB ZWEIMAL; jeder hat genau einen Ort. ⚠️ Die EINE benannte Ausnahme
+ * ist das Wort „Softwareversionen": es steht hier als Ueberschrift der SEITE und in
+ * `VERSIONEN_TEXTE.tabelleName` als zugaenglicher Name der TABELLE — zwei verschiedene Rollen,
+ * und ein anderes Wort machte fuer eine Vorlesesoftware aus einer Flaeche zwei Themen.
  */
 const SEITEN_TEXTE = {
   titel: "Softwareversionen",
