@@ -291,8 +291,8 @@ export function grenzenFehler(env: EnvLike = process.env): string[] {
   // ⛔ DIE LAENGENPRUEFUNG STEHT IM `else`-ZWEIG, und das ist tragend: die leere
   // Zeichenkette ist auch „kuerzer als 32". Ausserhalb des `else` meldete eine fehlende
   // Variable ZWEI Zeilen statt einer — nachgezaehlt an der Sonde S-G1f, nicht geschaetzt.
-  // Fuer den AUTH_SECRET-Vergleich traegt NICHT dieser Zweig, sondern die Wache
-  // `authSecret !== ""` darunter. Vorbild: `lagerbuch/_lib/grenzen.ts:334-365`.
+  // Der AUTH_SECRET-Vergleich haengt am SELBEN Zweig; die Wache darunter ist dort
+  // redundant (Begruendung an ihr). Vorbild: `lagerbuch/_lib/grenzen.ts:334-365`.
   const geheim = env.RADIO_AUSLEIH_SITZUNG_SECRET?.trim() ?? "";
   const authSecret = env.AUTH_SECRET?.trim() ?? "";
   if (geheim === "") {
@@ -308,9 +308,9 @@ export function grenzenFehler(env: EnvLike = process.env): string[] {
           `openssl rand -base64 32`,
       );
     }
-    // ⛔ `authSecret !== ""` IST DIE WACHE, NICHT DIE HOEFLICHKEIT: ohne sie waere auf einer
-    // Umgebung ohne beide Variablen `"" === ""` wahr, und eine fehlende Suite-Variable
-    // erzeugte eine radio-Meldung. Der `else`-Zweig deckt nur die eine Seite ab.
+    // ⚠️ `authSecret !== ""` IST HIER KEINE WACHE, SONDERN REDUNDANT: im `else` gilt
+    // `geheim !== ""`, also ist `geheim === authSecret` bei leerem AUTH_SECRET ohnehin
+    // falsch. Sie bleibt aus Formgleichheit mit `lagerbuch/_lib/grenzen.ts:357` stehen.
     if (authSecret !== "" && geheim === authSecret) {
       fehler.push(
         `RADIO_AUSLEIH_SITZUNG_SECRET ist identisch mit AUTH_SECRET. Damit gaebe es keine ` +

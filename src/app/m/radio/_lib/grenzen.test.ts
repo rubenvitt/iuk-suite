@@ -392,11 +392,12 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
      * leeren Umgebung klaglos durch — das Geheimnis hat keine und wird VERLANGT
      * (`grenzen.ts:204-205`). Genau EINE Meldung ist die Zusage.
      *
-     * ⛔ ZWEI BAUFORMEN MACHEN DARAUS STILL ZWEI MELDUNGEN, und beide sind naheliegend:
-     * eine Laengenpruefung AUSSERHALB des `else`-Zweigs (die leere Zeichenkette ist auch
-     * „kuerzer als 32"), und ein `AUTH_SECRET`-Vergleich ohne die Wache `authSecret !== ""`
-     * (`"" === ""` ist wahr). Das Vorbild traegt beides richtig:
-     * `src/app/m/lagerbuch/_lib/grenzen.ts:334-365` (Datei 368 Zeilen).
+     * ⛔ EINE BAUFORM MACHT DARAUS STILL ZWEI MELDUNGEN, und sie ist naheliegend: eine
+     * Laengenpruefung AUSSERHALB des `else`-Zweigs (die leere Zeichenkette ist auch
+     * „kuerzer als 32"). Beim `AUTH_SECRET`-Vergleich braeuchte es BEIDES — ihn aus dem
+     * `else` zu ziehen UND die Wache `authSecret !== ""` zu streichen; solange er im
+     * `else` steht, ist sie redundant (nachgemessen, `grenzen.ts:311-313`). Das Vorbild
+     * traegt beides: `src/app/m/lagerbuch/_lib/grenzen.ts:334-365` (Datei 368 Zeilen).
      *
      * ⛔ UND DIE GATING-FRAGE GEHOERT NICHT HIERHER. `lagerbuch` beginnt seine Entsprechung
      * mit `if (prodHostsFor(...).length === 0) return [];` (`lagerbuch/_lib/grenzen.ts:283`);
@@ -484,6 +485,43 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
     expect(fehler[0]).toContain("nicht gesetzt oder leer");
   });
 
+  it("nur Leerraum im Sitzungsgeheimnis gilt als LEER, nicht als zu kurz", () => {
+    /*
+     * ⛔ DIE TRAGENDE ZUSAGE IST DIE ZWEITE, NICHT DIE ERSTE. Ohne das `?.trim()`
+     * (`grenzen.ts:296`) meldete diese Umgebung EBENFALLS genau eine Zeile — nur eben
+     * „ist 3 Zeichen lang". `toHaveLength(1)` bliebe gruen; rot wird erst
+     * `toContain("nicht gesetzt oder leer")`. Gemessen, nicht erwogen.
+     *
+     * ⛔ WARUM DAS ZAEHLT: `ausleihSitzungGeheimnis()` trimmt und wirft bei reinem
+     * Leerraum „nicht gesetzt oder leer" (`grenzen.ts:235-238`). Liefen die zwei Wege
+     * auseinander, meldete der Start eine LAENGE und das erste Einloesen ein FEHLEN —
+     * zwei Wahrheiten ueber dieselbe `.env`-Zeile, genau die Klasse, gegen die die
+     * geteilte Konstante `GEHEIMNIS_FEHLT` (`grenzen.ts:189-192`) gebaut ist.
+     *
+     * Reiner Leerraum war fuer den Wurfweg „DIE STILLE LUECKE" (Fund 6, Sonde P7,
+     * Testfall bei `:344`); der Boot-Weg hatte sie bis zu diesem Fund noch.
+     */
+    const fehler = grenzenFehler({ RADIO_AUSLEIH_SITZUNG_SECRET: "   " });
+    expect(fehler).toHaveLength(1);
+    expect(fehler[0]).toContain("nicht gesetzt oder leer");
+  });
+
+  it("die Boot-Meldung und der Wurf tragen DENSELBEN Satz", () => {
+    /*
+     * ⛔ GEPRUEFT WIRD WEG GEGEN WEG, NICHT WEG GEGEN LITERAL. Ein Literal hier waere eine
+     * DRITTE Kopie desselben Satzes und damit selbst das Problem. Zerfiele die geteilte
+     * Konstante `GEHEIMNIS_FEHLT` (`grenzen.ts:189-192`, geworfen `:237`, gemeldet `:299`)
+     * spaeter in zwei Absaetze, bliebe jeder Literal-Test gruen — und der Betreiber suchte
+     * je nach Weg (Startprotokoll oder 500 beim Einloesen) nach einem anderen Satz. Genau
+     * den Betriebsfall verhindert die Konstante, und bis zu diesem Fund war sie eine
+     * Bauentscheidung ohne Zusage: ein zweiter Wortlaut in `:299` blieb gruen (gemessen).
+     *
+     * `toThrow(<string>)` prueft auf Teilzeichenkette; beide Seiten sind hier derselbe
+     * ganze Satz, die Pruefung ist also so scharf wie eine Gleichheit.
+     */
+    expect(() => ausleihSitzungGeheimnis({})).toThrow(grenzenFehler({})[0]);
+  });
+
   it("zu kurzes Sitzungsgeheimnis nennt die LAENGE, nicht den Wert", () => {
     /*
      * ⛔ NIE DER WERT SELBST. Diese Meldung landet im Docker-Protokoll, und das Protokoll
@@ -498,7 +536,16 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
     expect(fehler).toHaveLength(1);
     expect(fehler[0]).toContain("RADIO_AUSLEIH_SITZUNG_SECRET");
     expect(fehler[0]).toContain("31");
+    // ⛔ Fund G2: die geforderte Mindestlaenge braucht eine EIGENE Zusage. Ohne sie ritte
+    // die 32 im `openssl rand -base64 32` mit, und ein Streichen von
+    // „${GEHEIMNIS_MINDESTLAENGE} sind gefordert" bliebe gruen (gemessen).
+    expect(fehler[0]).toContain("mindestens 32 sind gefordert");
     expect(fehler[0]).not.toContain(GEHEIM_ZU_KURZ);
+    // ⛔ Fund G3: die Zeile darueber faengt nur den GANZEN Wert. Die Zusage des Codes ist
+    // aber „kein PRAEFIX" (`grenzen.ts:302-304`) — ein `geheim.slice(0, 8)` in der Meldung
+    // passierte sie. Das Muster wird AUS der Konstanten abgeleitet und nicht abgeschrieben:
+    // ein Literal `/k{4}/` waere eine zweite Wahrheit ueber GEHEIM_ZU_KURZ.
+    expect(fehler[0]).not.toMatch(new RegExp(GEHEIM_ZU_KURZ.slice(0, 4)));
     expect(fehler[0]).toContain("openssl rand -base64 32");
   });
 
@@ -536,6 +583,23 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
       RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "30",
     });
     expect(fehler).toHaveLength(1);
+    /*
+     * ⛔ FUND W4: DIE VIER `toContain` DARUNTER PRUEFEN SICH SELBST. Die Schluss-Kette
+     * jeder Meldung (`KETTE`, `grenzen.ts:339-343`) nennt ohnehin alle drei Namen mit
+     * Wert — kuerzte man die Meldung auf `KETTE` allein, oder vertauschte man die Texte
+     * der beiden Glieder, blieben sie gruen (gemessen). Die ANKERNDE Zusage ist deshalb
+     * die erste: der Satzanfang unterscheidet die zwei Glieder.
+     */
+    expect(fehler[0]).toMatch(
+      /^RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN=40 ist groesser als RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN=30\./,
+    );
+    // Der DRITTE Name mit seiner Vorbelegung — die Zusage aus Bericht A8, dass jede
+    // Kettenmeldung alle drei Zahlen traegt und nicht nur die zwei verglichenen.
+    expect(fehler[0]).toContain("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE=300");
+    // ⛔ UND DER ERKLAERSATZ, nicht nur der Satzanfang: gemessen (Sonde M9) blieb ein
+    // Vertauschen der beiden BEGRUENDUNGEN unter richtigem Kopf gruen. Der Betreiber laese
+    // dann den richtigen Namen mit dem falschen Grund.
+    expect(fehler[0]).toContain("fuellt ein einzelner Absender die modulweite Bremse");
     expect(fehler[0]).toContain("RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN");
     expect(fehler[0]).toContain("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN");
     expect(fehler[0]).toContain("40");
@@ -553,10 +617,47 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
       RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "50",
     });
     expect(fehler).toHaveLength(1);
+    // ⛔ Fund W4, zweite Haelfte: ohne diese Zusage waere ein Vertauschen der beiden
+    // Meldungstexte gruen geblieben.
+    expect(fehler[0]).toMatch(
+      /^RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN=100 ist groesser als RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE=50\./,
+    );
+    expect(fehler[0]).toContain("RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN=5");
+    expect(fehler[0]).toContain("Stundendeckel wirkungslos");
     expect(fehler[0]).toContain("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN");
     expect(fehler[0]).toContain("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE");
     expect(fehler[0]).toContain("100");
     expect(fehler[0]).toContain("50");
+  });
+
+  it("eine Kettenmeldung nennt einen unlesbaren Wert als <nicht lesbar>", () => {
+    /*
+     * ⛔ DIE BENANNTE LEERSTELLE, UND SIE WAR BIS ZU DIESEM FUND UNERREICHT. Der Ternaer
+     * (`grenzen.ts:337-338`) auf `${name}=${werte[name]}` reduziert blieb gruen — kein
+     * Fall liess eine Kettenmeldung entstehen, WAEHREND eine der drei Zahlen unlesbar war.
+     * Ohne ihn stuende `...GESAMT_PRO_STUNDE=undefined` im Startprotokoll: eine Zahl, die
+     * niemand gesetzt hat, und der Betreiber suchte die falsche `.env`-Zeile.
+     *
+     * Die Umgebung ist so gewaehlt, dass beides zugleich gilt: 40/30 bricht Glied 1
+     * (beide Werte fuer sich gueltig), "abc" macht die dritte Zahl unlesbar.
+     *
+     * ⚠️ UND WAS DIESER FALL NICHT DECKT: die `!== undefined`-Waechter selbst
+     * (`grenzen.ts:349`, `:357`) bleiben durch KEINE Mutation beobachtbar — `undefined > 30`
+     * und `30 > undefined` sind beide `false`, ein Weglassen aendert also kein Verhalten.
+     * Sie sind vom Typsystem erzwungen, nicht vom Verhalten. Dieser Fall macht nur die
+     * WIRKUNG des Zustands sichtbar (die Leerstelle in der Meldung), nicht die Waechter.
+     *
+     * Die zwei Zeilen unten sichern nebenbei die Reihenfolge Teil 1 vor Teil 5 zu.
+     */
+    const fehler = grenzenFehler({
+      RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG,
+      RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "40",
+      RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "30",
+      RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "abc",
+    });
+    expect(fehler).toHaveLength(2);
+    expect(fehler[0]).toContain("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE");
+    expect(fehler[1]).toContain("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE=<nicht lesbar>");
   });
 
   it("eine gueltige Kette meldet nichts", () => {
@@ -596,9 +697,10 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
     /*
      * ⛔ SIE DARF NICHT WERFEN, UND ZWAR AUS EINEM GRUND AUSSERHALB DIESER DATEI:
      * `radioBootFehler()` (G2) haengt als `...(await radioBootFehler())` in
-     * `assertHostConfig` (`src/core/bootstrap.ts:90-103`). Ein Wurf von hier naehme
-     * portal, qr, feedback, files, lagerbuch und aufgaben mit — sechs Module faenden ihr
-     * Ende in einer radio-Konfigurationszeile (Bauform-Tafel Nr. 3).
+     * `assertHostConfig` (`src/core/bootstrap.ts:90-103`). Ein Wurf von hier naehme den
+     * GANZEN PROZESS mit — alle elf Eintraege in `src/core/registry.ts:53-213` (selbst
+     * gezaehlt, nicht uebernommen) faenden ihr Ende in einer radio-Konfigurationszeile
+     * (Bauform-Tafel Nr. 3).
      *
      * Nachgezaehlt: vier kaputte Zahlen + das fehlende Geheimnis = FUENF. Die Kette
      * schweigt, weil keiner ihrer drei Werte gelesen werden konnte — genau die Zusage von
@@ -612,6 +714,14 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
       RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "99999",
     };
     expect(() => grenzenFehler(kaputt)).not.toThrow();
-    expect(grenzenFehler(kaputt)).toHaveLength(5);
+    const fehler = grenzenFehler(kaputt);
+    expect(fehler).toHaveLength(5);
+    /*
+     * ⛔ FUND G1 (gering): DIE REIHENFOLGE DER TEILE IST EINE ZUSAGE DER VERTRAGSTAFEL
+     * („Sie liefert, in dieser Reihenfolge"), und bis hierhin bewachte sie nichts —
+     * `return fehler.reverse()` blieb gruen (gemessen). Die vier Zahlmeldungen kommen aus
+     * Teil 1, die Geheimnismeldung aus Teil 2; sie steht also HINTER ihnen.
+     */
+    expect(fehler[4]).toContain("nicht gesetzt oder leer");
   });
 });

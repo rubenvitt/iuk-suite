@@ -70,8 +70,8 @@ export type AusleihSitzung = AusleihPayload & { laeuftAb: Date };
  * ⛔ ES HEISST `RADIO_AUSLEIH_SITZUNG_SECRET`, nicht `…_GEHEIMNIS`. Der Kapiteltext
  * schreibt die deutsche Endung an ZWEI Stellen (Spec:2042 in §3.1 und Spec:2502 in
  * §3.4.2 — genau dem Abschnitt, der dieser Datei zugrunde liegt); B2 (Spec:91) sticht
- * ueber beide. Der Name wird hier nicht wiederholt, sondern aus `_lib/grenzen.ts:93-103`
- * gelesen — zwei Schreibweisen waeren zwei Wahrheiten.
+ * ueber beide. Der Name wird hier nicht wiederholt, sondern aus `_lib/grenzen.ts:235`
+ * gelesen (Begruendung dort `:207-210`) — zwei Schreibweisen waeren zwei Wahrheiten.
  *
  * ⬜ A-L7 — ABGELESEN in Planteil 5, Aufgabe G1. Die Pruefung auf
  * `RADIO_AUSLEIH_SITZUNG_SECRET` ist gebaut: `_lib/grenzen.ts#grenzenFehler()` meldet
