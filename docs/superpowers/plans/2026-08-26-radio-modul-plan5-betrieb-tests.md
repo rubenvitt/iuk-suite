@@ -340,7 +340,7 @@ läuft je Aufgabe — aber immer **nach** `vitest`, und nie mit einem parallelen
 |---|---|---|---|
 | 1 | `"use client"` in `_lib/boot.ts`, `_lib/sw-quelle.ts`, `_lib/grenzen.ts` | ⛔ **nein** | Falle 6: ein WERT aus einem Client-Modul kommt in einer Server-Datei als Client-Referenz an, HTTP 500. `_lib/boot.ts:2` schreibt es bereits aus. |
 | 2 | Icon-Import in einer dieser Dateien | ⛔ **nein** | Falle 7; die Dateien laufen im Instrumentation-Hook, bevor irgendetwas rendert |
-| 3 | `throw` aus `radioBootFehler()` | ⛔ **nein** — sie **liefert** Meldungen | `Spec:5909-5911`; ein Wurf nähme portal, qr, feedback, files, lagerbuch und aufgaben mit |
+| 3 | `throw` aus `radioBootFehler()` | ⛔ **nein** — sie **liefert** Meldungen | `Spec:5909-5911`; ein Wurf nähme den **ganzen Prozess** mit — alle **elf** Einträge in `src/core/registry.ts:53-213` (⚠️ **Spec-Abweichung R-G1-1**, Ledger `progress.md`: die Spec zählt hier sechs — Stand ihrer Abfassung 17.08.; die Auflage „kein `throw`" bleibt unberührt, nur ihre Zahl war zu klein) |
 | 4 | `throw` aus `starteRadioHintergrund()` | ⛔ **nein** — synchron und wirft nie | `Spec:6015`; Vorbild `starteAufgabenScanArbeiter` |
 | 5 | `async` bei `radioBootFehler()`, obwohl nichts darin asynchron ist | ✅ **ja, Pflicht** | die Naht daneben ist `...(await xBootFehler())`; eine synchrone Funktion lädt ein, das `await` zu vergessen — aus einem Startabbruch würde eine unbehandelte Rejection |
 | 6 | `prodHostsFor(getModule("radio"), env).length === 0` als **erste** Anweisung von `radioBootFehler()` | ✅ **ja, Pflicht** | `Spec:5915-5917`; Vorbild `lagerbuch/_lib/boot.ts:43` |
@@ -1290,8 +1290,8 @@ nichts geprüft wurde."
 — zur Laufzeit hieße er entweder „Tabelle existiert nicht" beim allerersten Start oder, schlimmer,
 ein still angelegtes leeres Schema.
 
-⛔ **SIE WIRFT NIE.** Ein `throw` von hier nähme portal, qr, feedback, files, lagerbuch und aufgaben
-mit, „und die Meldung nennte nicht einmal das auslösende Modul" (`Spec:5909-5911`).
+⛔ **SIE WIRFT NIE.** Ein `throw` von hier nähme den **ganzen Prozess** mit — alle **elf** Einträge in `src/core/registry.ts:53-213` (⚠️ **R-G1-1**: `Spec:5909-5911` zählt hier sechs, selbst nachgezählt sind es elf; die Auflage selbst ist unberührt),
+„und die Meldung nennte nicht einmal das auslösende Modul" (`Spec:5909-5911`).
 
 ### Der Vertrag
 
