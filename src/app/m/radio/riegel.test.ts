@@ -183,7 +183,7 @@ function quellDateien(wurzel: string = MODUL): string[] {
   for (const eintrag of readdirSync(wurzel)) {
     const pfad = join(wurzel, eintrag);
     if (statSync(pfad).isDirectory()) {
-      // KEINE Ausnahme mehr (V11 Fix-Runde 2, N1): riegel.test.ts:154 wirft SQL/JSON ohnehin weg.
+      // KEINE Ausnahme mehr (V11 Fix-Runde 2, N1): riegel.test.ts:190 wirft SQL/JSON ohnehin weg.
       treffer.push(...quellDateien(pfad));
       continue;
     }

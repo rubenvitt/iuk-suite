@@ -53,12 +53,12 @@ function ohneKommentare(quelle: string): string {
     .join("\n");
 }
 
-/** Alle ausgelieferten `.ts`/`.tsx` des Moduls — Testdateien ausgenommen, wie `riegel.test.ts:144-158`. */
+/** Alle ausgelieferten `.ts`/`.tsx` des Moduls — Testdateien ausgenommen, wie `riegel.test.ts:168-196`. */
 function quellDateien(wurzel: string = MODUL, treffer: string[] = []): string[] {
   for (const eintrag of readdirSync(wurzel)) {
     const pfad = join(wurzel, eintrag);
     if (statSync(pfad).isDirectory()) {
-      if (eintrag === "migrations") continue;
+      // KEINE Ausnahme mehr (V11 Fix-Runde 2, N2): _ui/ikonen.test.tsx:65 wirft SQL/JSON weg.
       quellDateien(pfad, treffer);
       continue;
     }
