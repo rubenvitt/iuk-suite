@@ -112,9 +112,9 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  * `toBe` hat er jetzt einen TRAEGER: wer die Flaeche baut, bekommt den Fall rot und muss
  * die Zahl bewusst anheben.
  *
- *   Planteil 3 baut `t/[code]/route.ts` und `abmelden/route.ts`  -> ERLEDIGT (Planteil 3)
- *   V18 `import/hochladen` -> 3 · V22 `geraete/export` -> 4  -> ERLEDIGT (Planteil 4)
- *   Planteil 5 baut `sw.js/route.ts`                             -> HANDLER_ANZAHL = 5
+ *   Planteil 3 (`t/[code]/route.ts`, `abmelden/route.ts`) -> 2 · V18 `import/hochladen`
+ *   -> 3 · V22 `geraete/export` -> 4 · G5 `sw.js/route.ts` -> 5 — ⛔ ALLE ERLEDIGT; FUER
+ *   DIESE ZAHL braucht die naechste Anhebung einen NEUEN EINTRAG HIER, keine stille Zahl.
  *
  *   Planteil 3 baut `page.tsx` und den Ausleihzweig — beide AUSSERHALB von `admin/`,
  *                                                    -> ADMIN_SEITEN_ANZAHL bleibt 0
@@ -137,12 +137,12 @@ const MODUL = join(process.cwd(), "src/app/m/radio");
 const SELBST = join(MODUL, "riegel.test.ts");
 
 /**
- * ⛔ HEUTE VIER — EXAKT, nicht „mindestens". `t/[code]/route.ts` und `abmelden/route.ts`
- * (Planteil 3, Aufgabe A10), `admin/(arbeit)/import/hochladen/route.ts` (V18, E-V16) und
- * `admin/(arbeit)/geraete/export/route.ts` (V22); angehoben von Planteil 5 (`sw.js`, 5).
- * Die Konstante steht hier oben, damit die Aenderung EINE Zeile ist und im Diff auffaellt.
+ * ⛔ HEUTE FUENF — EXAKT, nicht „mindestens". `t/[code]/route.ts`, `abmelden/route.ts`
+ * (Planteil 3, Aufgabe A10), `admin/(arbeit)/import/hochladen/route.ts` (V18, E-V16),
+ * `admin/(arbeit)/geraete/export/route.ts` (V22) und `sw.js/route.ts` (Planteil 5, G5) —
+ * DER FAHRPLAN OBEN IST ABGEARBEITET. Die Konstante steht hier, damit es EINE Zeile ist.
  */
-const HANDLER_ANZAHL = 4;
+const HANDLER_ANZAHL = 5;
 
 /**
  * ⛔ HEUTE ZEHN — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die Liste

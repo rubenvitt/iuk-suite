@@ -32,16 +32,16 @@ const MODUL = join(process.cwd(), "src/app/m/radio");
 const GATE_FLAECHEN = ["t/[code]/route.ts", "_actions/gate.ts", "_actions/sitzung.ts"];
 
 /**
- * Die zwei AEUSSEREN Route Handler des Moduls (`riegel.test.ts:112`, `HANDLER_ANZAHL = 2`).
- * Sie tragen die Antwortform, die der Brief „verbindlich" nennt: 303 mit relativem
- * `Location`. ⛔ Sie sind nicht dieselbe Menge wie `GATE_FLAECHEN`: `abmelden/route.ts` loest
- * nichts ein, `_actions/*` antwortet nicht mit einem Status.
+ * Die zwei AEUSSEREN Route Handler des Moduls. ⛔ DIE ZWEI IST DIE LAENGE DIESER LISTE UND
+ * NICHT `HANDLER_ANZAHL` (`riegel.test.ts:145`, heute 5). Sie tragen die Antwortform, die
+ * der Brief „verbindlich" nennt: 303 mit relativem `Location`. ⛔ Sie sind nicht dieselbe
+ * Menge wie `GATE_FLAECHEN`: `abmelden` loest nichts ein, `_actions/*` liefert keinen Status.
  *
  * ⛔ HIER STEHEN NUR DIE UMLEITENDEN HANDLER, und das ist eine Auflage an die Nachfolger:
- * `HANDLER_ANZAHL` waechst auf 3 (Planteil 4, `admin/(arbeit)/geraete/export/route.ts`) und 4
- * (Planteil 5, `sw.js/route.ts`) — `riegel.test.ts:83-84` fuehrt den Fahrplan. KEINER DER
- * BEIDEN GEHOERT IN DIESE LISTE: ein Export antwortet mit 200 und einem Rumpf, `sw.js`
- * ebenso. Wer sie hier eintraegt, macht den 303-Fall rot fuer richtigen Code. Diese Liste hat
+ * `HANDLER_ANZAHL` ist mit V22 (`admin/(arbeit)/geraete/export/route.ts`) auf 4 und mit
+ * Planteil 5 (`sw.js/route.ts`, G5) auf 5 gewachsen — `riegel.test.ts:115-117` fuehrt den
+ * Fahrplan, `:145` die Zahl. KEINER DER BEIDEN GEHOERT IN DIESE LISTE: ein Export antwortet
+ * mit 200 und einem Rumpf, `sw.js` ebenso. Wer sie eintraegt, macht den 303-Fall rot. Sie hat
  * bewusst keine Vollzaehligkeits-Zusicherung wie `GATE_FLAECHEN` (`toEqual(GATE_FLAECHEN)`) —
  * sie ist eine Auswahl nach Antwortform, keine Menge, die vollstaendig sein muss.
  */
