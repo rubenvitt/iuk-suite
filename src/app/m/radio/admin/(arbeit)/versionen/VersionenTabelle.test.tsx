@@ -481,9 +481,13 @@ describe("radio-Versionen: die VIER Fehlerpfade der Flaeche", () => {
    * `SoftwareVersionsPage.tsx:60`). Genau der Fall, um dessentwillen die Loeschsperre
    * ueberhaupt existiert, war unbewacht.
    *
-   * ⛔ DIE TEXTE DER FEHLSCHLAEGE STEHEN IN `admin/actions.ts` UND WERDEN HIER NICHT EIN
-   * ZWEITES MAL GESCHRIEBEN — die Tafel unten setzt sie als MOCK-Antwort und prueft, dass
-   * genau sie ankommen (Entscheidung E13, `planteil3/briefs/KOPF.md`).
+   * ⛔ DIE TEXTE DER FEHLSCHLAEGE GEHOEREN `admin/actions.ts`, UND DIE FLAECHE ERFINDET KEINEN
+   * ZWEITEN — das ist der Pruefgegenstand (Entscheidung E13, `planteil3/briefs/KOPF.md`): die
+   * Tafel setzt jeden Text als MOCK-Antwort und misst, dass GENAU ER an der Flaeche ankommt.
+   * ⚠️ DASS DIE TEXTE HIER AUSGESCHRIEBEN STEHEN, IST HAUSFORM UND KEIN ZWEITER WAHRHEITSORT:
+   * ein Import waere tautologisch (dieselbe Wahl und derselbe Grund wie am Sperrfall oben, der
+   * „Wird von 3 Gerät(en) genutzt — erst umstellen" ebenfalls ausschreibt, und wie im Kopf von
+   * `UPDATE_TEXTE`, `software/UpdateSuche.tsx:87-90`).
    *
    * ⚠️ DIE VIER PFADE SIND NICHT SYMMETRISCH, und deshalb traegt jeder seinen EIGENEN
    * Ausloeser statt eines gemeinsamen Klicks: `loeschen` sitzt hinter einem `Popconfirm` (ein
@@ -606,8 +610,11 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
      * ⛔ DIESER FALL IST NEU (REVIEW-V19, Fund **F1**) UND DER ERSTE SEINER ART IM MODUL. Die
      * zwei Schwesterinseln FUEHREN ihre Liste (`software/UpdateSuche.tsx:91` `UPDATE_TEXTE`,
      * `import/ImportAssistent.tsx:113` `IMPORT_TEXTE`), aber ⛔ KEINE Testdatei des Moduls
-     * BEWACHT die Bauform — gemessen am 2026-08-26 mit rohem `/usr/bin/grep -n "TEXTE"` ueber
-     * `software/UpdateSuche.test.tsx` und `import/ImportAssistent.test.tsx`: NULL Treffer.
+     * BEWACHT die Bauform. ⛔ DIE MESSUNG DAZU LIEF UEBER DIE KLASSE UND NICHT UEBER EINE
+     * DATEILISTE (Ruling **R-V11-3**: „Ein Gegen-`grep` mit Dateiliste prueft die Liste, nicht
+     * die Klasse") — am 2026-08-26, roh:
+     * `/usr/bin/grep -rn "_TEXTE" src/app/m/radio --include="*.test.ts" --include="*.test.tsx"`
+     * → die EINZIGEN Treffer im ganzen Modul stehen in DIESER Datei, in diesem Fall.
      * ⚠️ Genau in dieser Luecke stand der Satz der E-Tafel hier inline im JSX: der WORTLAUT
      * war bewacht (der Sperrfall oben prueft ihn zeichengleich), die BAUFORM nicht. Ruling
      * **R-V11-1**: wer eine Zusicherung ueber dem Bestand schreibt, schuldet die Mutation, die
