@@ -15,7 +15,7 @@ import { CSV_BOM, CSV_TRENNZEICHEN, EXPORT_SPALTEN } from "../../../../_lib/csv/
 /**
  * DER CSV-EXPORT — `GET /admin/geraete/export`, Aufgabe V22 (`Spec:4379`, `Spec:4728`).
  *
- * ⛔ ER IST DER EINE LESE-HANDLER DER VERWALTUNG UND ERSETZT `export.ts:66-79`. Ein Route
+ * ⛔ ER IST DER EINE LESE-HANDLER DER VERWALTUNG UND ERSETZT `export.ts:69-78`. Ein Route
  * Handler und keine Seite, weil die Antwort eine Datei ist und kein Dokument — `notFound()`
  * oder `redirect()` waeren im Antwortweg keine brauchbare Antwort auf einen Dateiabruf
  * (`Spec:4723-4729`, Bauform-Zulaessigkeitstafel Nr. 10).
@@ -27,7 +27,7 @@ import { CSV_BOM, CSV_TRENNZEICHEN, EXPORT_SPALTEN } from "../../../../_lib/csv/
  * diese Datei prueft das VERHALTEN. Zwei Fragen, zwei Dateien.
  *
  * ⛔ `istRadioAdmin`, NICHT DIE VERWALTUNGSSTUFE. Rechtetafel `Spec:4444-4454`, Zeile
- * „CSV-Export": Admin ja, Updater **nein** (`Spec:4451`); Alt-Beleg `export.ts:71`
+ * „CSV-Export": Admin ja, Updater **nein** (`Spec:4452`); Alt-Beleg `export.ts:71`
  * (`requireRole('admin')`). ⚠️ UND DER FALSCHE GRIFF IST DER NAHELIEGENDE: der Handler liegt
  * unter `admin/(arbeit)/`, wo `Spec:4367`/`:4369-4375` alles andere auf
  * `requireRadioVerwaltung` setzt. Der Fall „als Updater … 404" ist der einzige, den ein
@@ -83,7 +83,7 @@ const alterHost = process.env.SUITE_HOST_RADIO;
 /**
  * ⛔ DREI GERAETE, UND DAS MITTLERE IST NICHT AUSLEIHBAR. Es ist der Gegenfall zum
  * `loanable`-Filter: `geraeteFuerExport` ersetzt `listAllDevices`
- * (`deviceRepo.ts:63-65`, „All devices, newest-first. Backs the full CSV export") und darf
+ * (`deviceRepo.ts:62-65`, „All devices, newest-first. Backs the full CSV export") und darf
  * NICHT filtern, waehrend `geraeteMitLeihstand` daneben filtern MUSS
  * (`deviceRepo.ts:53-59`). Ein Export, der stillschweigend nur die ausleihbaren Geraete
  * traegt, ist ein unvollstaendiger Datenbestand ohne Fehlermeldung.
@@ -226,7 +226,7 @@ describe("GET /admin/geraete/export — der Riegel, alles IN der Route (B11)", (
   it("als Updater antwortet der Handler 404", async () => {
     /*
      * ⛔ DER FALL, DEN EIN VERWALTUNGS-PRAEDIKAT STILL GRUEN LIESSE. Rechtetafel
-     * `Spec:4451`: „CSV-Export — Admin ja, Updater **nein**"; Alt-Beleg `export.ts:71`
+     * `Spec:4452`: „CSV-Export — Admin ja, Updater **nein**"; Alt-Beleg `export.ts:71`
      * (`requireRole('admin')`). ⛔ ER IST HIER DER TRAGENDE WAECHTER UND NICHT DER SCAN:
      * ein `istRadioVerwaltung`-artiges Praedikat traegt keinen der beiden werfenden Namen,
      * `riegel.test.ts` Klausel (c) bliebe darueber gruen. Gemessen als Sonde S-V22c in
@@ -346,7 +346,7 @@ describe("GET /admin/geraete/export — die Bauform, die kein Typ haelt", () => 
      * Datei. Sie ist keine Doppelung, sondern die Haelfte, die ueberlebt, wenn jemand den
      * Filter der Klausel (c) enger fasst — und sie nennt den literalen Pfad, den ein
      * pfadgenerischer Scan nicht erzeugen kann (dieselbe Begruendung wie in
-     * `admin/(arbeit)/import/hochladen/route.test.ts:243-249`).
+     * `admin/(arbeit)/import/hochladen/route.test.ts:253-257`).
      */
     const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
     expect(q, "kein radioHostOderNull( — der Handler hat kein Layout ueber sich").toMatch(
@@ -361,8 +361,35 @@ describe("GET /admin/geraete/export — die Bauform, die kein Typ haelt", () => 
     expect(q, "403 statt 404 macht den Bestand an Verwaltungspfaden aufzaehlbar (B10)").not.toMatch(
       /\b403\b/,
     );
-    expect(q, "istRadioAdmin( fehlt — der Handler prueft dann keine Stufe (Spec:4451)").toMatch(
+    expect(q, "istRadioAdmin( fehlt — der Handler prueft dann keine Stufe (Spec:4452)").toMatch(
       /\bistRadioAdmin\s*\(/,
+    );
+  });
+
+  it("die Route ist als force-dynamic ausgewiesen", () => {
+    /*
+     * ⛔ DIE ZEILE, DIE `route.ts:59-67` ALS „PFLICHT" AUSSCHREIBT — und sie war bis zur
+     * Fix-Runde 1 zu V22 unbewacht: `REVIEW-V22.md` F3 hat sie geloescht und suiteweit
+     * `Tests 1044 passed (1044)`, **0 rot**, gemessen. ⛔ **R-V11-1** (`progress.md`,
+     * Rulings) bindet genau das: wer eine Zusicherung ueber dem Bestand schreibt, schuldet
+     * die Mutation, die sie rot macht.
+     *
+     * ⛔ HEUTE IST DIE ZEILE WIRKUNGSLOS, UND DAS IST DER GRUND FUER DEN WAECHTER, NICHT
+     * DAGEGEN: `node_modules/next/dist/docs/01-app/01-getting-started/15-route-handlers.md:51`
+     * sagt „Route Handlers are not cached by default", und `next.config.ts` schaltet Cache
+     * Components nicht ein. Faellt eine der beiden Bedingungen, lieferte eine vorgerenderte
+     * CSV die Geraeteliste des Bauzeitpunkts — still, typkorrekt, lint-sauber. Kein Tor
+     * ausser diesem Fall saehe das Verschwinden der Zeile.
+     *
+     * ⛔ UEBER `ohneKommentare`, NICHT UEBER DEN ROHEN TEXT: sonst bliebe eine
+     * AUSKOMMENTIERTE Zeile gruen — dieselbe Hausform wie `GeraeteTabelle.test.tsx:821-822`,
+     * `../ausleihen/AusleihenTabelle.test.tsx:631-632` und
+     * `../software/UpdateSuche.test.tsx:650-651` (⚠️ jene liegt unter `software/`, nicht
+     * unter `update/`).
+     */
+    const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
+    expect(q, "ohne force-dynamic darf Next die CSV des Bauzeitpunkts ausliefern").toMatch(
+      /export const dynamic = "force-dynamic";/,
     );
   });
 });

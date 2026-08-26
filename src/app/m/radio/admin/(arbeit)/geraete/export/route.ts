@@ -7,7 +7,7 @@ import { geraeteFuerExport } from "../../../../_lib/lesepfade/geraete";
 
 /**
  * DER CSV-EXPORT DER GERAETELISTE — aeusserer Pfad `/admin/geraete/export`
- * (Routenkarte `_lib/routen.ts:66`), Aufgabe V22. Er ersetzt `export.ts:66-79`.
+ * (Routenkarte `_lib/routen.ts:66`), Aufgabe V22. Er ersetzt `export.ts:69-78`.
  *
  * ⛔ EIN ROUTE HANDLER UND KEINE SEITE, und das ist bauformbedingt: die Antwort ist eine
  * DATEI. `notFound()` oder `redirect()` waeren im Antwortweg keine brauchbare Antwort auf
@@ -19,7 +19,7 @@ import { geraeteFuerExport } from "../../../../_lib/lesepfade/geraete";
  * `riegel.test.ts:406-465`):
  *
  *   `radioHostOderNull(request.headers)`  ja  — die nicht-werfende Form (`_lib/host.ts:64`)
- *   `requireRadioHost(`                   nein — sie wirft `notFound()` (`_lib/host.ts:62-63`)
+ *   `requireRadioHost(`                   nein — sie wirft `notFound()` (`_lib/host.ts:58-59`)
  *   werfender Personen-Riegel             nein — `requireRadioAdmin` endet in
  *                                              `redirect('/login?…')` bzw. `notFound()`;
  *                                              woertlich umgesetzt landete ein anonymer GET
@@ -32,20 +32,20 @@ import { geraeteFuerExport } from "../../../../_lib/lesepfade/geraete";
  * ⚠️ `Spec:4728` sagt woertlich noch „baut seine 403 selbst" — das ist die von B17
  * ausdruecklich als veraltet benannte Formulierung und wird als 404 gelesen.
  *
- * Ein Route Handler hat KEIN Layout ueber sich; beide Riegel stehen deshalb hier, in dieser
- * Reihenfolge — erst der Host, dann die Person, damit ein anonymer Aufruf auf einem fremden
- * Host die Verwaltungsroute nicht ueber einen vorgeschalteten Umweg verraet
- * (`Spec:429-437`).
+ * Ein Route Handler hat KEIN Layout ueber sich; beide Riegel stehen deshalb hier — erst der Host,
+ * dann die Person. ⚠️ HAUSFORM OHNE WIRKUNG: beide Zweige geben dieselbe leere 404, kein Umweg ist
+ * zu verraten (`REVIEW-V22.md` F8: getauscht → `35 passed`, 0 rot). Geerbt aus der WERFENDEN Form
+ * `admin/(arbeit)/layout.tsx` (`Spec:429-437`), wo der vorgeschaltete Login-Umweg echt ist.
  *
  * ⛔ `istRadioAdmin`, NICHT DIE VERWALTUNGSSTUFE. Rechtetafel `Spec:4444-4454`, Zeile
- * „CSV-Export": Admin ja, Updater **nein** (`Spec:4451`); Alt-Beleg `export.ts:71`
+ * „CSV-Export": Admin ja, Updater **nein** (`Spec:4452`); Alt-Beleg `export.ts:71`
  * (`requireRole('admin')`). ⚠️ UND DER FALSCHE GRIFF IST DER NAHELIEGENDE: diese Datei liegt
  * unter `admin/(arbeit)/`, wo `Spec:4367`/`:4369-4375` alles andere auf
  * `requireRadioVerwaltung` setzt. ⛔ Der Waechter dagegen ist NICHT der Quelltext-Scan — ein
  * nicht-werfendes Verwaltungs-Praedikat traegt keinen der beiden werfenden Namen —, sondern
  * der Verhaltensfall „als Updater antwortet der Handler 404" in `route.test.ts`.
  *
- * ⛔ ALLE GERAETE, `desc(createdAt)`, KEIN `loanable`-FILTER (`deviceRepo.ts:63-65`,
+ * ⛔ ALLE GERAETE, `desc(createdAt)`, KEIN `loanable`-FILTER (`deviceRepo.ts:62-65`,
  * „All devices, newest-first. Backs the full CSV export"). Der Filter waere hier der Fehler
  * und ist der Gegenfall zu `geraeteMitLeihstand` (`deviceRepo.ts:53-59`), wo sein Fehlen der
  * Fehler waere. Die Begruendung steht ausgeschrieben in `_lib/lesepfade/geraete.ts:726-739`.
@@ -58,7 +58,7 @@ import { geraeteFuerExport } from "../../../../_lib/lesepfade/geraete";
 
 /**
  * ⛔ PFLICHT, OBWOHL DIE VOREINSTELLUNG HEUTE SCHON TRAEGT — dieselbe Form wie
- * `admin/(arbeit)/import/hochladen/route.ts:63`. `node_modules/next/dist/docs/01-app/
+ * `admin/(arbeit)/import/hochladen/route.ts:62`. `node_modules/next/dist/docs/01-app/
  * 01-getting-started/15-route-handlers.md:51` sagt „Route Handlers are not cached by
  * default", und `next.config.ts` schaltet Cache Components nicht ein. Die Zeile ist der
  * Riegel gegen den Tag, an dem eine dieser beiden Bedingungen umschlaegt: eine
