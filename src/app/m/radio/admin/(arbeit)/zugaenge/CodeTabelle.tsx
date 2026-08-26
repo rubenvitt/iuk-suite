@@ -116,8 +116,20 @@ const CODE_TEXTE = {
   /**
    * ⛔ WANN UND VON WEM, IN EINEM SATZ (`_db/schema.ts:184-187`: die zwei Felder existieren,
    * „WEIL die Zeile dauerhaft in der Liste steht und erklaeren muss, warum sie tot ist").
+   *
+   * ⛔ **DREI FASSUNGEN, WEIL DAS SCHEMA DREI ZUSTAENDE ZULAESST.** `gesperrt_am` und
+   * `gesperrt_von` sind EINZELN nullable (`_db/schema.ts:186-187`); kein heutiger Schreibweg
+   * fuellt nur eines (`_actions/codes.ts:129-133` schreibt beide, `_lib/seedLokal.ts:183-185`
+   * ebenso), eine Datenuebernahme kann es. ⛔ DANN WIRD DIE BEKANNTE HAELFTE GEZEIGT UND NICHT
+   * DIE GANZE ZEILE VERSCHWIEGEN — „gesperrt am 22.06.2026" sagt mehr als nichts, und ein
+   * Satz mit einer offenen Luecke („von ") saehe nach einem Fehler der Flaeche aus statt nach
+   * einer Luecke im Bestand. ⚠️ Der Waechter darueber ist der Fall „eine halb gefuellte
+   * Sperrangabe zeigt die bekannte Haelfte" in `CodeTabelle.test.tsx`; er entstand aus einer
+   * Sonde, die 0 rot ergab (S-V20-I24, 2026-08-26).
    */
   gesperrtSeit: (wann: string, wer: string) => `gesperrt am ${wann} von ${wer}`,
+  gesperrtAm: (wann: string) => `gesperrt am ${wann}`,
+  gesperrtVon: (wer: string) => `gesperrt von ${wer}`,
   /** ⛔ EIN Knopf mit ZWEI Beschriftungen — `setzeCodeAktiv(id, aktiv)` ist EINE Action. */
   sperren: "Sperren",
   entsperren: "Entsperren",
@@ -140,6 +152,26 @@ const CODE_TEXTE = {
   fehlerAnlegen: "Der Zugang konnte nicht ausgestellt werden.",
   fehlerSchalten: "Der Zustand konnte nicht gespeichert werden.",
 } as const;
+
+/**
+ * DIE SPERRANGABE EINER ZEILE — ⛔ DREI ZWEIGE UND EIN `null`, weil das Schema genau vier
+ * Zustaende zulaesst (`_db/schema.ts:186-187`, beide Spalten einzeln nullable).
+ *
+ * ⛔ SIE STEHT AUSSERHALB DER KOMPONENTE, WEIL SIE KEINEN ZUSTAND BRAUCHT — und ⛔ NICHT unter
+ * `_lib/`: sie liest `CODE_TEXTE`, und das ist ein Wert aus einer `"use client"`-Datei
+ * (Falle 6, `CLAUDE.md`). Ein Bildschirmtext gehoert ohnehin auf diese Seite der Grenze.
+ *
+ * ⛔ DIE REIHENFOLGE DER ZWEIGE IST TRAGEND: der vollstaendige Satz zuerst, sonst faenge der
+ * Zeit-Zweig ihn ab und die Person verschwaende still.
+ */
+function sperrangabe(z: CodeZeile): string | null {
+  if (z.gesperrtAmText !== "" && z.gesperrtVonText !== "") {
+    return CODE_TEXTE.gesperrtSeit(z.gesperrtAmText, z.gesperrtVonText);
+  }
+  if (z.gesperrtAmText !== "") return CODE_TEXTE.gesperrtAm(z.gesperrtAmText);
+  if (z.gesperrtVonText !== "") return CODE_TEXTE.gesperrtVon(z.gesperrtVonText);
+  return null;
+}
 
 export type CodeTabelleProps = {
   /** ⛔ Der ganze Vertrag, `Spec:4510`. Alles darin ist skalar und vorformatiert. */
@@ -241,30 +273,34 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
        * Ton wie die Primaeraktion (`src/core/theme/theme.ts:32-33`). Ein gesperrter Zugang ist
        * kein Fehler, sondern ein absichtlicher Zustand.
        *
-       * ⛔ UND DIE ZWEI ANGABEN STEHEN DABEI, WENN ES SIE GIBT (`_db/schema.ts:184-187`).
-       * Fehlen sie — das Schema laesst beide Spalten `NULL` zu —, steht die Marke allein da;
+       * ⛔ UND DIE ANGABEN STEHEN DABEI, SOWEIT ES SIE GIBT (`_db/schema.ts:184-187`). Fehlen
+       * BEIDE — das Schema laesst beide Spalten `NULL` zu —, steht die Marke allein da;
        * ⛔ NICHTS WIRD ERFUNDEN (die Leerstellenregel, und der `new Date(0)`-Praezedenzfall
-       * steht im Ledger unter V-L6).
+       * steht im Ledger unter V-L6). Fehlt nur EINES, steht die bekannte Haelfte da: die
+       * Begruendung und ihre Sonde stehen an `CODE_TEXTE.gesperrtSeit`.
        */
-      render: (_: unknown, z: CodeZeile) => (
-        <Space direction="vertical">
-          <Tag color={z.aktiv ? "success" : "default"} data-rolle="radio-code-zustand">
-            {z.aktiv ? CODE_TEXTE.aktiv : CODE_TEXTE.gesperrt}
-          </Tag>
-          {z.gesperrtAmText !== "" && z.gesperrtVonText !== "" && (
-            /* ⛔ DER ROHE `sub` IM `title`, NICHT IN DER ZELLE — dieselbe Bauform wie in der
-               Ereignisliste (`geraete/[id]/ereignisse/EreignisTabelle.tsx`). Ohne ihn waeren
-               zwei gleichnamige Personen nicht zu unterscheiden; in der Zelle waere er Laerm. */
-            <small
-              className={s.codeNeben}
-              title={z.gesperrtVonSub}
-              data-rolle="radio-code-gesperrt"
-            >
-              {CODE_TEXTE.gesperrtSeit(z.gesperrtAmText, z.gesperrtVonText)}
-            </small>
-          )}
-        </Space>
-      ),
+      render: (_: unknown, z: CodeZeile) => {
+        const sperrText = sperrangabe(z);
+        return (
+          <Space direction="vertical">
+            <Tag color={z.aktiv ? "success" : "default"} data-rolle="radio-code-zustand">
+              {z.aktiv ? CODE_TEXTE.aktiv : CODE_TEXTE.gesperrt}
+            </Tag>
+            {sperrText !== null && (
+              /* ⛔ DER ROHE `sub` IM `title`, NICHT IN DER ZELLE — dieselbe Bauform wie in der
+                 Ereignisliste (`geraete/[id]/ereignisse/EreignisTabelle.tsx`). Ohne ihn waeren
+                 zwei gleichnamige Personen nicht zu unterscheiden; in der Zelle waere er Laerm. */
+              <small
+                className={s.codeNeben}
+                title={z.gesperrtVonSub}
+                data-rolle="radio-code-gesperrt"
+              >
+                {sperrText}
+              </small>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: CODE_TEXTE.spalteZuletzt,

@@ -313,6 +313,43 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
     expect(angabe.getAttribute("title"), "der rohe sub fehlt am title").toBe("sub-berta");
   });
 
+  it("eine halb gefuellte Sperrangabe zeigt die bekannte Haelfte", async () => {
+    /*
+     * ⛔ **DIESER FALL ENTSTAND AUS EINER SONDE, DIE 0 ROT ERGAB** (S-V20-I24, 2026-08-26):
+     * das `&&` im Zustandszweig auf `||` gedreht liess `Tests 28 passed` stehen. Jede Vorlage
+     * dieser Datei trug BEIDE Angaben oder KEINE — die Verzweigung, die der Bau entscheidet,
+     * war strukturell unbewacht. ⛔ Nach der Regel dieses Hauses wurde der TEST gerichtet, und
+     * mit ihm die Richtung, die der Bau nimmt.
+     *
+     * ⛔ DIE ENTSCHEIDUNG: die BEKANNTE Haelfte wird gezeigt, nicht die ganze Zeile
+     * verschwiegen. `_db/schema.ts:186-187` laesst beide Spalten EINZELN `NULL` zu; kein
+     * heutiger Schreibweg fuellt nur eine (`_actions/codes.ts:129-133`,
+     * `_lib/seedLokal.ts:183-185` schreiben beide), eine Datenuebernahme kann es. „gesperrt am
+     * 22.06.2026" sagt mehr als nichts — und ein Satz mit offener Luecke („von ") saehe nach
+     * einem Fehler der Flaeche aus statt nach einer Luecke im Bestand.
+     *
+     * ⛔ BEIDE HALBEN ZUSTAENDE, nicht einer: mit nur einem bestuende der Fall auch ueber
+     * einer Fassung, die den anderen Zweig verschluckt.
+     */
+    await mount(
+      <CodeTabelle
+        zeilen={[
+          gesperrteZeile({ id: "zc-a", gesperrtVonText: "", gesperrtVonSub: "" }),
+          gesperrteZeile({ id: "zc-b", gesperrtAmText: "" }),
+        ]}
+      />,
+    );
+
+    const angaben = queryAll('[data-rolle="radio-code-gesperrt"]');
+    expect(angaben.length, "eine halb gefuellte Zeile verschweigt ihre Sperrangabe").toBe(2);
+    expect(angaben[0]!.textContent, "der bekannte Zeitpunkt fehlt").toBe(
+      "gesperrt am 22.06.2026, 07:00",
+    );
+    expect(angaben[1]!.textContent, "die bekannte Person fehlt").toBe(
+      "gesperrt von Berta Beispiel",
+    );
+  });
+
   it("ein aktiver Code traegt keine Sperrangabe", async () => {
     /*
      * DIE GEGENPROBE ZUM FALL DARUEBER. Ohne sie bestuende „zeigt, wann und von wem" auch

@@ -280,6 +280,47 @@ describe("codesListe — die Zeilen der Zugangsverwaltung", () => {
     expect(zeile?.gesperrtVonSub).toBe("");
   });
 
+  it("ein gesperrter Zugang mit nur EINEM der beiden Felder liefert genau dieses", () => {
+    /*
+     * ⛔ DAS SCHEMA LAESST DIE ZWEI SPALTEN EINZELN `NULL` (`_db/schema.ts:186-187`). Der Fall
+     * darueber misst „beide fehlen", der davor „beide da" — ⛔ DIE ZWEI HALBEN ZUSTAENDE
+     * DAZWISCHEN WAREN UNBEWACHT, und die Flaeche entscheidet ueber sie (Sonde S-V20-I24,
+     * 2026-08-26: das `&&` der Insel auf `||` gedreht liess alles gruen).
+     *
+     * ⛔ DER LESEPFAD REICHT SIE EINZELN DURCH UND FASST SIE NICHT ZUSAMMEN. Ein
+     * `gesperrtAmText`, das leer wird, weil die PERSON fehlt, waere ein zweiter Ort, an dem
+     * ueber die Anzeige entschieden wird — und der zweite Ort ist der, der auseinanderlaeuft.
+     */
+    db.insert(zugangscodes)
+      .values([
+        code({
+          id: "zc-1",
+          code: "CODE-1",
+          aktiv: false,
+          gesperrtAm: GESPERRT_AM,
+          gesperrtVon: null,
+        }),
+        code({
+          id: "zc-2",
+          code: "CODE-2",
+          aktiv: false,
+          gesperrtAm: null,
+          gesperrtVon: "sub-anna",
+        }),
+      ])
+      .run();
+
+    const nachId = new Map(codesListe(db).map((z) => [z.id, z]));
+    expect(
+      [nachId.get("zc-1")?.gesperrtAmText, nachId.get("zc-1")?.gesperrtVonText],
+      "der bekannte Zeitpunkt ging verloren, weil die Person fehlt",
+    ).toEqual([GESPERRT_TEXT, ""]);
+    expect(
+      [nachId.get("zc-2")?.gesperrtAmText, nachId.get("zc-2")?.gesperrtVonText],
+      "die bekannte Person ging verloren, weil der Zeitpunkt fehlt",
+    ).toEqual(["", "sub-anna"]);
+  });
+
   it("ein aktiver Zugang traegt keine Sperrangaben", () => {
     /*
      * DIE GEGENPROBE ZUM FALL DARUEBER. Ohne sie bestuende „erfindet keinen" auch ueber einer

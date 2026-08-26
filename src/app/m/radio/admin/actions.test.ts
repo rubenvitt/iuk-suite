@@ -499,10 +499,15 @@ describe("radio-admin/actions: die Rechtestufe je Verwaltungsseite", () => {
    * ebenfalls auf die ADMIN-Stufe und ueberholt damit `Spec:4375`. Der Zaehlfall unten steht
    * deshalb auf VIER, nicht auf drei (Vorabscan-Fund F1).
    *
-   * ⛔ SIE SIND `it.todo` UND KEINE GRUENEN FAELLE UEBER `null`. KEINE der vier unten
-   * genannten Seiten gibt es heute (V12 legte nur die Uebersicht an, Verwaltungs-Stufe);
-   * ein Fall ueber `null` waere leer-gruen und bewachte nichts — dieselbe NT11-Klasse,
-   * gegen die `ACTION_ANZAHL` oben steht. Eine `it.todo` meldet sich in JEDER Ausgabe.
+   * ⛔ WAS NOCH OFFEN IST, STEHT ALS `it.todo` UND NICHT ALS GRUENER FALL UEBER `null`. Ein
+   * Fall ueber einer Seite, die es nicht gibt, waere leer-gruen und bewachte nichts —
+   * dieselbe NT11-Klasse, gegen die `ACTION_ANZAHL` oben steht. Eine `it.todo` meldet sich
+   * in JEDER Ausgabe.
+   * ⚠️ STAND 2026-08-26: DREI der vier Faelle sind SCHARF — `import` (V18), `versionen`
+   * (V19) und `zugaenge` (V20); die drei Seiten stehen. ⛔ OFFEN BLEIBT NUR V21s
+   * `admin/(druck)/zugaenge/blatt/page.tsx`, und mit ihm der Zaehlfall auf VIER. ⛔ Die
+   * Regel darueber gilt unveraendert: wer die Seite baut, stellt ihren Fall im SELBEN
+   * Commit scharf.
    *
    * ⛔ AUFLAGE AN DIE NACHFOLGER — je Aufgabe genau ein Fall, im SELBEN Commit wie die Seite:
    *
