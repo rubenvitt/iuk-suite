@@ -369,9 +369,27 @@ describe("das Druckblatt ist KEINE Insel — die Bauform, die kein Tor sonst pru
      * Fallen strukturell auszuschliessen, ist: gar kein antd hier."
      * ⛔ `@ant-design/icons` ist modulweit verboten, auch in Client-Inseln (`CLAUDE.md`,
      * Falle 7): HTTP 500 BEIM IMPORT, waehrend typecheck und build gruen bleiben.
+     *
+     * ⛔ UEBER DIE SPEZIFIZIERER, NICHT UEBER EINE IMPORTFORM (Fix-Runde 1 zu V21, aus Fund
+     * F1 mitgezogen): die erste Fassung suchte `from\s+["']antd` und war damit blind fuer
+     * `await import("antd")`. Der Sammler unten ist WORTGLEICH die Hausform aus
+     * `src/core/shell/icons.test.ts:134-137`, deren Kopf dieselbe Messung fuehrt
+     * (`:122-127`: `await import(…)`, `import "…"` und `require(…)` liessen den Vorgaenger
+     * GRUEN). `\b` vor jedem Schluesselwort ist Absicht — sonst faengt `reimport("x")` mit.
      */
-    expect(quelle(), "ein antd-Import auf einer Druckseite").not.toMatch(/from\s+["']antd/);
-    expect(quelle(), "ein Zeichenpaket-Import").not.toMatch(/@ant-design\/icons|react-icons|lucide/);
+    const spezifizierer = [
+      ...quelle().matchAll(/(?:\bfrom|\bimport|\brequire)\s*\(?\s*["']([^"']+)["']/g),
+    ].map((m) => m[1]!);
+    expect(spezifizierer.length, "kein einziger Import gefunden — der Scan waere leer-gruen")
+      .toBeGreaterThanOrEqual(3);
+    expect(
+      spezifizierer.filter((s) => s === "antd" || s.startsWith("antd/")),
+      "ein antd-Import auf einer Druckseite",
+    ).toEqual([]);
+    expect(
+      spezifizierer.filter((s) => /^(?:@ant-design\/icons|react-icons|lucide)/.test(s)),
+      "ein Zeichenpaket-Import",
+    ).toEqual([]);
   });
 
   it("erzeugt den QR-Code serverseitig ueber @/core/qr und nicht ueber ein zweites Verfahren", () => {
