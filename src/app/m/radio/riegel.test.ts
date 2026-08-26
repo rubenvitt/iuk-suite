@@ -418,10 +418,10 @@ describe("(c) jeder Route Handler nimmt die NICHT-werfende Form", () => {
 
   it("die Handlerzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
-     * ⚠️ HEUTE VIER, UND DAS IST EIN ZUSTAND, KEIN ZIEL. Planteil 2 baute keinen Route
+     * ⚠️ HEUTE FUENF, UND DAS IST EIN ZUSTAND, KEIN ZIEL. Planteil 2 baute keinen Route
      * Handler; Planteil 3 legte `t/[code]/route.ts` und `abmelden/route.ts` an, V18
-     * `admin/(arbeit)/import/hochladen/route.ts` (E-V16), V22 `geraete/export/route.ts`.
-     * Der Fahrplan im Kopf dieser Datei fuehrt sie weiter: Planteil 5 auf 5.
+     * `import/hochladen/route.ts` (E-V16), V22 `geraete/export/route.ts`, G5 `sw.js/route.ts`.
+     * Der Fahrplan im Kopf dieser Datei (`:115-117`) ist damit ABGEARBEITET; die naechste Anhebung braucht dort einen NEUEN EINTRAG.
      *
      * ⛔ `toBe`, NICHT `toBeGreaterThanOrEqual`. `laenge >= 0` ist fuer jede Liste wahr —
      * es gaebe KEINE Mutation, die diesen Fall rot macht, und der Fall waere genau die

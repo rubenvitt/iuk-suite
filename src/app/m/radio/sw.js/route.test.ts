@@ -61,6 +61,11 @@ describe("GET /sw.js — der Riegel, alles IN der Route", () => {
      * ⚠️ DER GEMESSENE WERT STEHT MIT, NICHT NUR DIE VERNEINUNG: eine Zusage ueber einen
      * FEHLENDEN Kopf waere leer-gruen. `text/plain;charset=UTF-8` ist undicis Vorgabe fuer
      * einen Zeichenketten-Rumpf, abgelesen am 2026-08-26 unter Node v26.7.0.
+     *
+     * ⛔ ZUGESICHERT WIRD ABER NUR DER PRAEFIX, UND DAS IST DIE HAUSFORM DERSELBEN ANTWORT:
+     * `_lib/host.test.ts:142-144` prueft dieselbe `hostAbweisung`-404 und schreibt dort aus,
+     * warum das Muster vorn bindet. Ein exaktes `toBe` auf die undici-Schreibweise machte den
+     * Fall bei einem Node-Sprung rot AUS EINEM GRUND, DEN ER NICHT BEHAUPTET (REVIEW-G5 H2).
      */
     const antwort = GET(anfrage(FREMDER_HOST));
     expect(antwort.status).toBe(404);
@@ -68,7 +73,7 @@ describe("GET /sw.js — der Riegel, alles IN der Route", () => {
 
     const typ = antwort.headers.get("content-type");
     expect(typ, "ohne Kopfzeile waere die Verneinung darunter leer-gruen").not.toBeNull();
-    expect(typ).toBe("text/plain;charset=UTF-8");
+    expect(typ).toMatch(/^text\/plain/);
     expect(typ?.startsWith("text/html")).toBe(false);
   });
 

@@ -93,7 +93,21 @@ function starte(namen: string[] = DREI_FREMDE) {
         event.waited.push(p);
       },
     };
-    listener.get(typ)?.(event);
+    /*
+     * ⛔ KEIN `?.` — GENAU DAS WAR DIE LEER-GRUEN-LUECKE (REVIEW-G5 W2, selbst nachgemessen).
+     * Mit `listener.get(typ)?.(event)` geschah bei FEHLENDEM Listener nichts, `aufrufe` blieb
+     * leer, und `expect(beimActivate.aufrufe).not.toContain("skipWaiting")` (`:186`) war wahr,
+     * WEIL NICHTS ZU PRUEFEN DA WAR — die Klasse, die dieser Planteil jagt.
+     * ⛔ GEMESSEN, NICHT VERMUTET: `"activate"` in `_lib/sw-quelle.ts:61` nach
+     * `"XXaktivierenXX"` umbenannt ergab VOR dieser Zeile `4 failed | 1 passed (5)`, und der
+     * einzige gruene Fall war eben jener. Die Zusicherung schliesst die Luecke fuer JEDEN
+     * Aufrufer von `feuere`, nicht nur fuer den einen Fall.
+     */
+    const fn = listener.get(typ);
+    expect(fn, `kein ${typ}-Listener angemeldet — der Fall waere leer-gruen`).toBeTypeOf(
+      "function",
+    );
+    fn!(event);
     await Promise.all(event.waited);
   }
 
