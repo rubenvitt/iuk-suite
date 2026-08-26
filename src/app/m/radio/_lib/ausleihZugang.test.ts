@@ -21,7 +21,7 @@ import { zugangscodes } from "../_db/schema";
  *   `@/core/auth`    — `auth()` liest das Suite-JWT.
  *
  * ⛔ WAS DIESE DATEI DAMIT NICHT BELEGT: dass die Riegel bei einem ECHTEN Abruf GREIFEN
- * (⬜ A-L9, Erbe von Z-L1, `riegel.test.ts:50-54`). Sie belegt die LOGIK des Praedikats.
+ * (⬜ A-L9, Erbe von Z-L1, `riegel.test.ts:50-55`). Sie belegt die LOGIK des Praedikats.
  * Kein Fall hier darf etwas anderes behaupten.
  */
 const hostRiegel = vi.fn();

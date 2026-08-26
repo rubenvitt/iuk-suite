@@ -441,7 +441,7 @@ test.describe("radio-Verwaltung", () => {
   test("Fall 4a: eine erfundene Geraete-Id antwortet mit 404", async ({ page }) => {
     /*
      * ⛔ EIGENER `test()`, UND DAS IST KEINE KOSMETIK. Fall 4 oben fiel bis zum 2026-08-26 an
-     * seiner Vorbedingung aus (⬜ V13-L2 — ✅ seither GESCHLOSSEN, `playwright.config.ts:141`
+     * seiner Vorbedingung aus (⬜ V13-L2 — ✅ seither GESCHLOSSEN, `playwright.config.ts:158`
      * seedet `radio` jetzt im Serverstart); ein `expect(...)` WIRFT, und alles danach in
      * DEMSELBEN `test()` laeuft nie. Stuende diese Zusicherung dort unten, waere sie bis V23
      * unerreichbar gewesen — und ein Bericht, der sie als „traegt auch ohne Seed" fuehrte,
@@ -480,7 +480,7 @@ test.describe("radio-Verwaltung", () => {
      * ⛔ DER GRIFF IST DIE FLAECHE DER INSEL UND NICHT DAS TABELLENMARKUP: die Insel hat ZWEI
      * Zweige (Tabelle und mobile Liste). ⚠️ HIER STAND BIS ZUM 2026-08-26 „⬜ V13-L2 laesst die
      * Liste heute ohnehin leer" — ✅ die Leerstelle ist in V23 GESCHLOSSEN, der e2e-Lauf seedet
-     * `radio` jetzt (`playwright.config.ts:141`; VIER Leihen, `_lib/seedLokal.ts:204-226`).
+     * `radio` jetzt (`playwright.config.ts:158`; VIER Leihen, `_lib/seedLokal.ts:204-226`).
      * An der Wahl des Griffs aendert das nichts: `[data-rolle="radio-ausleihen-flaeche"]` steht
      * in BEIDEN Zweigen und fehlt genau dann, wenn die Insel bricht. Wie in Fall 4 oben.
      *
@@ -545,7 +545,7 @@ test.describe("radio-Verwaltung", () => {
      * ⛔ DER GRIFF IST DIE FLAECHE DER INSEL UND NICHT EINE KARTE: ohne Suchtext gibt es
      * keine (1:1 `UpdateMode.tsx:67-68`). ⚠️ HIER STAND BIS ZUM 2026-08-26 „⬜ V13-L2 laesst den
      * e2e-Lauf ohnehin ohne `radio`-Bestand fahren" — ✅ GESCHLOSSEN in V23
-     * (`playwright.config.ts:141`). `[data-rolle="radio-update-flaeche"]` steht in JEDEM Zweig
+     * (`playwright.config.ts:158`). `[data-rolle="radio-update-flaeche"]` steht in JEDEM Zweig
      * und fehlt genau dann, wenn die Insel an der Grenze bricht.
      *
      * ⚠️ DIE SEITE IST FUER BEIDE STUFEN OFFEN (`Spec:4374`, Rechtetafel `Spec:4444-4454`) —
@@ -622,8 +622,8 @@ test.describe("radio-Verwaltung", () => {
      * ANTWORT (`page.waitForResponse`), statt auf eine spaetere Zustandsaenderung zu warten —
      * sonst laeuft jede abgelehnte Antwort (404, 405, 413, abgebrochen) still ins Zeitbudget.
      *
-     * ⚠️ ER BRAUCHT KEINEN BESTAND (⬜ V13-L2): der Import LEGT AN. Das ist der eine Fall
-     * dieser Datei, der ohne `radio`-Seed einen echten Schreibvorgang zeigen kann.
+     * ⚠️ ✅ ⬜ V13-L2 IST IN V23 GESCHLOSSEN (`playwright.config.ts:158`) — ER BRAUCHT DEN SEED
+     * TROTZDEM NICHT: der Import LEGT AN und setzt keine Bestandszeile voraus.
      */
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
 
@@ -761,8 +761,8 @@ test.describe("radio-Verwaltung", () => {
      * eine Anfrage ausloest, PRUEFT IHRE ANTWORT (`page.waitForResponse`), statt auf eine
      * spaetere Zustandsaenderung zu warten.
      *
-     * ⚠️ ER BRAUCHT KEINEN BESTAND (⬜ V13-L2): das Anlegen LEGT AN. Zusammen mit Fall 7 ist
-     * er der zweite Fall dieser Datei, der einen echten Schreibvorgang zeigen kann.
+     * ⚠️ ✅ ⬜ V13-L2 IST IN V23 GESCHLOSSEN (`playwright.config.ts:158`) — ER BRAUCHT DEN SEED
+     * TROTZDEM NICHT: das Anlegen LEGT AN, wie der Import auf `/admin/import`.
      */
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
 

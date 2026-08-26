@@ -13,7 +13,7 @@ import { createElement } from "react";
  *
  * ⛔ WAS DIESE DATEI NICHT BELEGT — und das ist die Grenze, nicht eine Auslassung: sie sagt
  * NICHTS darueber, ob Next ein Group-Layout ueberhaupt ausfuehrt und ob der Riegel bei einem
- * ECHTEN Abruf GREIFT (⬜ A-L9, Erbe von ⬜ Z-L1, `riegel.test.ts:50-54`). Das liest Planteil 5
+ * ECHTEN Abruf GREIFT (⬜ A-L9, Erbe von ⬜ Z-L1, `riegel.test.ts:50-55`). Das liest Planteil 5
  * beim ersten e2e-Lauf ab. Hier laeuft die exportierte Funktion, mehr nicht — und genau das
  * war die Luecke.
  *

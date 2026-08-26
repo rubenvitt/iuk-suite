@@ -476,7 +476,7 @@ describe("radio-Ausleihen: Blaetterung und Filter", () => {
     /*
      * ⛔ DER GRIFF DES PLAYWRIGHT-FALLS (V23, `Spec:4881-4882`) — und er darf nicht am
      * `<table>` haengen: die Insel hat zwei Zweige. (⚠️ Hier stand „⬜ V13-L2 laesst die Liste
-     * dort heute leer" — seit V23 seedet der e2e-Lauf, `playwright.config.ts:141`.) Ein Griff
+     * dort heute leer" — seit V23 seedet der e2e-Lauf, `playwright.config.ts:158`.) Ein Griff
      * auf Tabellenmarkup meldete den mobilen Zweig als gebrochene Insel. Fall 4 sagt dasselbe.
      */
     await mount(<AusleihenTabelle {...props({ zeilen: [], gesamt: 0 })} />);

@@ -17,7 +17,7 @@ import { viewerAusSession } from "./zugang";
  * vergisst.
  *
  * ⬜ A-L9 — DIE GRENZE DIESER DATEI, BENANNT STATT BEHAUPTET: dass diese Riegel bei einem
- * ECHTEN Abruf GREIFEN, ist unbewiesen (Erbe von Z-L1, `riegel.test.ts:50-54`);
+ * ECHTEN Abruf GREIFEN, ist unbewiesen (Erbe von Z-L1, `riegel.test.ts:50-55`);
  * Eigentuemer ist Planteil 5 mit dem ersten e2e-Lauf. Was hier und in
  * `ausleihZugang.test.ts` belegt ist: die LOGIK des Praedikats.
  *

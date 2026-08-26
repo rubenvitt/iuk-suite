@@ -36,7 +36,7 @@ import { requireAusleihZugang } from "../_lib/ausleihZugang";
  * steht deshalb IN den drei Seiten.
  *
  * ⬜ A-L9 — OB DIESER RIEGEL BEI EINEM ECHTEN ABRUF GREIFT, ist bis heute unbewiesen
- * (Erbe von ⬜ Z-L1, `riegel.test.ts:50-54`). Belegt ist, dass die Zeile hier steht
+ * (Erbe von ⬜ Z-L1, `riegel.test.ts:50-55`). Belegt ist, dass die Zeile hier steht
  * (Quelltext-Scan), nicht dass sie wirkt; abgelesen wird das in Planteil 5, beim ersten
  * e2e-Lauf. Kein Test dieses Planteils darf etwas anderes behaupten.
  */

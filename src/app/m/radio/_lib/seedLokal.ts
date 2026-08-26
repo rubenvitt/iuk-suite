@@ -6,7 +6,7 @@
 // GENERALPROBEN-Schalter. Fuer `radio` ist der Ausschluss schaerfer als fuer die anderen
 // Module: eine geseedete Zeile in `zugangscodes` ist ein gueltiger ANONYMER
 // SCHREIBZUGANG — jemand kann damit ohne Anmeldung Geraete ausleihen und zurueckgeben.
-// Diese Datei laeuft nur ueber scripts/seed-lokal.ts (seit V23 auch aus `playwright.config.ts:141`).
+// Diese Datei laeuft nur ueber scripts/seed-lokal.ts (seit V23 auch aus `playwright.config.ts:158`).
 //
 // ⛔ DIE ZUSICHERUNG DAZU, AUSGESCHRIEBEN (Falle No. 31,
 // docs/radio-portierung-analyse.md:1740-1749, woertlich): „Fuer `radio` heisst das: ein
