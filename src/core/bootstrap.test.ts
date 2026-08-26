@@ -584,10 +584,11 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * ⛔ `toBe`, nie `toBeGreaterThanOrEqual`. Woertlich, und nur so weit reicht
      * das Zitat: „ein Waechter, der `>= 5` statt `= 6` prueft, bleibt gruen"
      * (`src/app/m/radio/riegel.test.ts:99-100`). Der Halbsatz „und bewacht
-     * nichts" steht dort im UMGEBENDEN Satz (`:98-99`: „eine Klausel ohne
-     * Untergrenze ueber einer leeren Menge ist leer-gruen und bewacht nichts"),
-     * nicht in der Klammer — hier getrennt, damit die Anfuehrungszeichen keine
-     * Woertlichkeit behaupten, die nicht besteht.
+     * nichts" steht dort nicht in der Klammer, sondern im UMGEBENDEN Satz
+     * (`:98-99`, im Original in Versalien: eine Klausel ohne Untergrenze ueber
+     * einer leeren Menge sei leer-gruen und bewache nichts) — hier getrennt und
+     * ohne Anfuehrungszeichen, damit nichts eine Woertlichkeit behauptet, die
+     * nicht besteht.
      */
     expect(bootHaken.length).toBe(3);
   });

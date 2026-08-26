@@ -1531,7 +1531,7 @@ und keine geteilte Mechanik.)
 
 | Testname | Aussage |
 |---|---|
-| `jeder Modul-Boot-Haken ist in assertHostConfig eingehaengt` | Klausel (I), über die abgeleitete Menge |
+| `jeder Modul-Boot-Haken kommt in bootstrap.ts ueberhaupt vor` | Klausel (I), über die abgeleitete Menge |
 | `jeder Haken steht WIRKSAM AWAITET im errors-Array, nicht irgendwo` | bestehender Fall, jetzt über die abgeleitete Menge |
 | `die Zahl der Boot-Haken steht EXAKT auf dem Stand dieses Planteils` | Klausel (III) für (I) — `toBe(3)` nach G2 (files, lagerbuch, radio); ⛔ **die Zahl wird gemessen, nicht aus diesem Plan abgeschrieben** |
 | `jeder Hintergrundstarter aus einer _lib/boot.ts ist in startBackgroundWork eingehaengt` | Klausel (IIa). ⛔ **Der Testname sagt „aus einer `_lib/boot.ts`"** — er behauptet damit **keine** Vollzähligkeit über alle Starter |
