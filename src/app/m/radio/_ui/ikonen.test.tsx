@@ -58,7 +58,7 @@ function quellDateien(wurzel: string = MODUL, treffer: string[] = []): string[] 
   for (const eintrag of readdirSync(wurzel)) {
     const pfad = join(wurzel, eintrag);
     if (statSync(pfad).isDirectory()) {
-      // KEINE Ausnahme mehr (V11 Fix-Runde 2, N2): _ui/ikonen.test.tsx:65 wirft SQL/JSON weg.
+      // NACHGEZOGEN am 2026-08-26 (REVIEW-V11 N2): dda52fb2 liess diesen FUENFTEN Walker aus, behauptete in seiner Botschaft aber "alle vier sind behandelt" — die Klasse war groesser. Ausnahme raus, _ui/ikonen.test.tsx:65 wirft SQL/JSON weg.
       quellDateien(pfad, treffer);
       continue;
     }
