@@ -623,7 +623,7 @@ describe("Planteil 5 / G2 — radioBootFehler, historieMonate, historieMonateFeh
 // `retentionGrenze(jetzt, 2)`. Das Wort "ueberfaellig" aus dem Kapiteltext waere hier
 // falsch: "ueberfaellig" heisst im Leihwesen NOCH NICHT ZURUECKGEGEBEN, also
 // `returned_at IS NULL` — und genau so eine Leihe wird NIE geloescht
-// (`_lib/boot.ts:71-78`, `and(isNotNull(returnedAt), lt(returnedAt, grenze))`; der
+// (`_lib/boot.ts:76-83`, `and(isNotNull(returnedAt), lt(returnedAt, grenze))`; der
 // Bestandsfall dazu heisst `eine AKTIVE Leihe bleibt, egal wie alt ihr borrowed_at ist`).
 // Wer das Wort woertlich naehme, baute die Regressionssperre gruen aus dem falschen Grund.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -631,7 +631,7 @@ describe("Planteil 5 / G2 — radioBootFehler, historieMonate, historieMonateFeh
 describe("Planteil 5 / G4 — der Retention-Takt", () => {
   /*
    * ⛔ EIN FESTES DATUM IN DER MONATSMITTE, und es ist tragend, nicht kosmetisch.
-   * `retentionGrenze` rechnet in KALENDERMONATEN (`_lib/boot.ts:49-53`,
+   * `retentionGrenze` rechnet in KALENDERMONATEN (`_lib/boot.ts:54-58`,
    * `d.setUTCMonth(d.getUTCMonth() - monate)`). Auf einer Basis nahe dem Monatsende
    * verschiebt sich die Grenze ueber 24 Stunden NICHT um 24 Stunden — der Bestandsfall
    * `retentionGrenze auf 2026-04-30 ergibt 2026-03-02` haelt genau diese Klemmung fest.
@@ -659,10 +659,10 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
 
   /*
    * DER LAUFZAEHLER, und warum er ueber `db.delete` geht statt ueber eine Protokollzeile:
-   * ein Lauf ist genau ein `db.delete(loans)` (`_lib/boot.ts:71-78`), und der Zaehler
+   * ein Lauf ist genau ein `db.delete(loans)` (`_lib/boot.ts:76-83`), und der Zaehler
    * misst damit die LAEUFE, nicht die geloeschten Zeilen. Ueber geloeschte Zeilen waere
    * er blind: zwei Laeufe im selben Vorspulschritt loeschen dieselbe Menge, der zweite
-   * findet nichts mehr — genau die Idempotenz, die `_lib/boot.ts:58-60` ausschreibt.
+   * findet nichts mehr — genau die Idempotenz, die `_lib/boot.ts:63-65` ausschreibt.
    * Und eine eigene Protokollzeile je Lauf waere eine fuenfte Melde-Zeile, die der Plan
    * nicht bestellt hat (Melde-Zeilen-Tafel, `briefs/KOPF.md:832-837`).
    */
@@ -740,7 +740,8 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
     try {
       taktSqlite.close();
     } catch {
-      // In `ein Fehler im Lauf …` ist das Handle absichtlich schon zu.
+      // Zwei Faelle schliessen das Handle absichtlich selbst: `ein Fehler im Lauf …`
+      // und `ein Fehler der Bestandswarnung …`.
     }
     rmSync(taktTmp, { recursive: true, force: true });
   });
@@ -749,7 +750,7 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
     /*
      * ⛔ GEMESSEN, NICHT ANGENOMMEN. Der Fall `der Cutoff wird bei jedem Lauf neu
      * gerechnet` haengt vollstaendig daran, dass `new Date()` in `retentionGrenze`
-     * (`_lib/boot.ts:49`) der gefaelschten Uhr folgt — `raeumeLeihhistorie(getDb(),
+     * (`_lib/boot.ts:54`) der gefaelschten Uhr folgt — `raeumeLeihhistorie(getDb(),
      * undefined, …)` reicht KEIN `jetzt` durch. Faelscht `vi.useFakeTimers()` in dieser
      * vitest-Fassung `Date` nicht, ist jener Fall gruen oder rot aus Zufall und bewacht
      * nichts. Diese Zeile ist die Sonde, die das entscheidet, und sie steht im Test statt
@@ -833,7 +834,10 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
     // Eine geschlossene Verbindung — der Lauf scheitert, der Takt nicht.
     taktSqlite.close();
     expect(() => vi.advanceTimersByTime(ERSTLAUF_MS)).not.toThrow();
-    expect(fehlerText()).toContain("[radio]");
+    // Auf `Retention-Lauf` verankert, nicht auf `[radio]`: dieser Diff legt ZWEI
+    // `[radio]`-Fehlerzeilen an (`_lib/boot.ts:544-549` und `:585-589`); ein Anker auf dem
+    // blossen Praefix truege die Unterscheidung nicht (REVIEW-G4 H4).
+    expect(fehlerText()).toContain("Retention-Lauf");
     expect(vi.getTimerCount()).toBe(1);
 
     /*
@@ -849,6 +853,33 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
     expect(zeilen().n).toBe(0);
   });
 
+  it("ein Fehler der Bestandswarnung nimmt den Takt nicht mit", () => {
+    /*
+     * ⛔ DER UNBEWACHTE ZWEIG AUS FIX-RUNDE 1 (REVIEW-G4 W3). `bestandswarnung()` hat ein
+     * EIGENES `try`/`catch` (`_lib/boot.ts:574-590`), und die Zusage darueber lautet: „ein
+     * gescheiterter Bestandsblick darf den Takt nicht mitnehmen — er ist die weniger
+     * wichtige der drei Aufgaben". Ohne diesen Fall war das eine Zusage ohne Waechter:
+     * gemessen blieben 56/56 gruen, als das `catch` durch `throw grund;` ersetzt wurde.
+     * Faellt sie, faellt mit einem Lesefehler auf `devices` der Retention-Timer aus — der
+     * stille Verlust der Loeschrichtlinie, gegen den diese ganze Aufgabe gebaut ist.
+     *
+     * ⚠️ WAS DIESER FALL VON „WIRFT NIE" (Bauform 4) DECKT UND WAS NICHT: er deckt die
+     * Bahn ueber den gescheiterten Tabellenblick. Er deckt NICHT
+     * `prodHostsFor(getModule("radio"), env)` (`_lib/boot.ts:573`) — die steht VOR dem
+     * einzigen `try`, und `getModule` wirft bei unbekanntem Schluessel
+     * (`src/core/registry.ts:217-221`). Das ist eine BENANNTE GRENZE, kein Loch: `radio`
+     * steht unbedingt in `src/core/registry.ts:53-213` (R-G1-1: elf Eintraege), der Zweig
+     * ist also unerreichbar, solange das Modul registriert ist.
+     */
+    // Dieselbe Mechanik wie im Fall darueber: ein geschlossenes Handle laesst den
+    // Lesezugriff auf `devices` werfen.
+    taktSqlite.close();
+
+    expect(() => starteRadioHintergrund(TAKT_ENV)).not.toThrow();
+    expect(fehlerText()).toContain("Bestandswarnung uebersprungen");
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
   it("die console.info-Zeile steht bei JEDEM Start, nicht nur beim ersten", () => {
     /*
      * ⛔ SONST IST EIN NACH DEM CUTOVER-FENSTER VERGESSENES `RADIO_HISTORIE_PURGE=0` ein
@@ -859,10 +890,20 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
      * die Retention VORGESCHRIEBEN ab (Runbook §4.6 Nr. 9); ein `warn` machte diesen
      * vorgeschriebenen Zustand zur eigenen Stopp-Bedingung des Runbooks.
      */
+    /*
+     * ⛔ HIER STEHT KEIN `stoppeRadioHintergrund()` ZWISCHEN DEN ZWEI STARTS, UND DAS IST
+     * DIE SCHAERFERE FASSUNG — nicht die bequemere (REVIEW-G4 W2, Ruling R-G4-1). Unter
+     * `RADIO_HISTORIE_PURGE=0` kehrt `starteRadioHintergrund()` zurueck, BEVOR eine Uhr
+     * registriert wird (`_lib/boot.ts:634`); ein `stoppe…` dazwischen raeumte also nichts
+     * weg, was je entstanden waere. Es oeffnete aber genau den Weg, den dieser Fall
+     * schliessen soll: eine `schonGemeldet`-Flagge, die in `stoppeRadioHintergrund()`
+     * mit zurueckgesetzt wird — was naheliegt, die Funktion setzt bereits drei
+     * Modulvariablen zurueck —, liesse den Fall GRUEN. Gemessen: mit den zwei Aufrufen
+     * 31/31 gruen, ohne sie 1 rot, genau dieser Fall. ⛔ WER SIE AUS SYMMETRIE WIEDER
+     * EINSETZT, MACHT DEN WAECHTER STILL WIRKUNGSLOS.
+     */
     const env = { ...TAKT_ENV, RADIO_HISTORIE_PURGE: "0" };
-    stoppeRadioHintergrund();
     starteRadioHintergrund(env);
-    stoppeRadioHintergrund();
     starteRadioHintergrund(env);
 
     expect(infoZeilen("Retention abgeschaltet")).toHaveLength(2);

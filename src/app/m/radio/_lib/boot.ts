@@ -425,7 +425,7 @@ export async function radioBootFehler(env: EnvLike = process.env): Promise<strin
 //            Praefix `[radio] ` davor — Ruling R-G2-1: der Bestand traegt ausschliesslich
 //            die eckige Form, NICHT `radio:`).
 //   ⬜ G-L2  ENTSCHIEDEN und NICHT hier: die Zeile „`radio.db` existierte vor diesem Start
-//            nicht" steht in `radioBootFehler()` (`:389-397`), weil sie hier gemessen NIE
+//            nicht" steht in `radioBootFehler()` (`:394-402`), weil sie hier gemessen NIE
 //            feuern koennte — `migrateAllModules()` legt die Datei vorher an.
 //   ⬜ G-L3  Signatur und Verhalten von `stoppeRadioHintergrund()`. Die Spec nennt nur den
 //            Namen (Spec:1555). ABGELESEN AM BESTAND, nicht erfunden: `stoppeAufraeumTimer()`
@@ -492,7 +492,7 @@ let purgeLaeuft = false;
  * ist fuer diese Variable ausdruecklich verboten, und der Rueckfall geht auf den
  * VORGESCHRIEBENEN Wert — es geht also keine Richtlinie verloren, nur eine Wunschfrist.
  *
- * `GANZZAHL` (`:114`) statt `Number()`: `Number("0x10")` waere 16, und die geltende
+ * `GANZZAHL` (`:119`) statt `Number()`: `Number("0x10")` waere 16, und die geltende
  * Verzoegerung waere eine andere als die, die in der .env steht.
  */
 function erstlaufMinuten(env: EnvLike): number {
@@ -508,16 +508,32 @@ function erstlaufMinuten(env: EnvLike): number {
  * EIN LAUF. Wirft nie — ein Fehler im Lauf darf nicht aus dem Takt herausfliegen.
  *
  * ⛔ DER CUTOFF WIRD HIER GERECHNET, NICHT BEIM REGISTRIEREN. `raeumeLeihhistorie` bekommt
- * `jetzt = undefined` und rechnet mit `new Date()` (`:71-78`, `:49`). Ein Prozess laeuft
+ * `jetzt = undefined` und rechnet mit `new Date()` (`:76-83`, `:54`). Ein Prozess laeuft
  * wochenlang; ein gemerkter Cutoff bliebe auf dem Startzeitpunkt stehen, und die Richtlinie
  * liefe still aus dem Takt. Auch `historieMonate(env)` wird bei JEDEM Lauf neu gelesen.
+ * ⚠️ BEWACHT IST NUR DIE ZEIT-HAELFTE (`boot.test.ts`, `der Cutoff wird bei jedem Lauf neu
+ * gerechnet`); fuer die `monate`-Haelfte gibt es KEINEN Waechter — ein einmal gemerktes
+ * `historieMonate(env)` bleibt gemessen gruen (REVIEW-G4 H2). Hier steht deshalb keine
+ * Waechterbehauptung, sondern die benannte Grenze: `RADIO_HISTORIE_MONATE` aendert sich
+ * innerhalb einer Prozesslaufzeit nicht, die Uhr schon.
  *
  * ⛔ DIESE FUNKTION IMPORTIERT DIE PURGE-ABFRAGE, SIE DEFINIERT SIE NICHT (Zusage an
- * Kapitel 2): `raeumeLeihhistorie` steht oben auf `:71` und hat ihre eigenen Faelle.
+ * Kapitel 2): `raeumeLeihhistorie` steht oben auf `:76` und hat ihre eigenen Faelle.
  *
- * ⛔ DIE UEBERLAPPUNGSWACHE (`purgeLaeuft`) ist kein Luxus, und die Begruendung ist woertlich
- * die des Hausvorbilds (`src/app/m/files/_lib/boot.ts:188-207`): ein Lauf, der laenger
- * dauert als der Takt, liefe sonst gegen sich selbst.
+ * ⛔ DIE UEBERLAPPUNGSWACHE (`purgeLaeuft`) STEHT, WEIL DER PLAN SIE VERLANGT
+ * (`briefs/G4.md:74-76`) — UND SIE KANN IN DIESER FASSUNG NICHT GREIFEN. Gemessen
+ * (REVIEW-G4 W1): dieser Lauf ist VOLLSTAENDIG SYNCHRON — `raeumeLeihhistorie` (`:76-83`)
+ * ist better-sqlite3, es gibt kein `await` und kein `void`. Zwischen `purgeLaeuft = true`
+ * und dem `finally` kann der Ereignisschleife nichts dazwischenkommen; `if (purgeLaeuft)
+ * return;` ist heute unerreichbar, und seine Mutationssonde ergibt 0 rot.
+ * ⛔ DIE BEGRUENDUNG DES HAUSVORBILDS TRAEGT HIER AUSDRUECKLICH NICHT: dort ist
+ * `taktLauf()` `async` und faehrt `await fuehreAufraeumLaufAus()`
+ * (`src/app/m/files/_lib/boot.ts:194`, `:197`) — erst das macht die Ueberlappung moeglich,
+ * gegen die die Wache dort schuetzt. Wer diesen Satz hierher kopiert, verspricht einen
+ * Fang, den der Code nicht leisten MUSS und nicht leisten KANN — die Richtung, die
+ * `_lib/quelltextScan.ts:55-59` verbietet und die Ruling R-G2-2 in diesem Planteil schon
+ * einmal zurueckgenommen hat. Sie bleibt als Vorsorge stehen: wird `raeumeLeihhistorie`
+ * je asynchron, greift sie ab derselben Zeile.
  */
 function purgeLauf(env: EnvLike): void {
   if (purgeLaeuft) return;

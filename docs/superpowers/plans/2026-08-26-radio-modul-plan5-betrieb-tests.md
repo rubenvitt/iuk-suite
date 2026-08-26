@@ -1708,7 +1708,7 @@ mit `...echt` gespreadet, damit `radioBootFehler` **echt** bleibt (G2/G3 hängen
 
 | Testname | Aussage |
 |---|---|
-| `die console.info-Zeile steht bei JEDEM Start, nicht nur beim ersten` | zweimal `stoppeRadioHintergrund()` + `starteRadioHintergrund()` → zwei `info`-Zeilen. ⛔ Sonst ist ein vergessenes `RADIO_HISTORIE_PURGE=0` ein **stiller** Verlust der Retention |
+| `die console.info-Zeile steht bei JEDEM Start, nicht nur beim ersten` | zweimal `starteRadioHintergrund()`, ⛔ **OHNE `stoppe…` dazwischen** (Ruling R-G4-1) → zwei `info`-Zeilen. Sonst ist ein vergessenes `RADIO_HISTORIE_PURGE=0` ein **stiller** Verlust der Retention |
 | `der Cutoff wird bei jedem Lauf neu gerechnet` | Zeit zwischen zwei Takten vorspulen; eine Leihe, die beim ersten Lauf noch **innerhalb** der Frist lag, ist nach dem zweiten weg |
 | `die Bestandswarnung steht hinter dem Host-Schalter, der Timer NICHT` | ohne `SUITE_HOST_RADIO`: **keine** `warn`-Zeile, **aber** der Timer läuft und löscht nach dem Erstlauf. ⛔ **Die Sonde für B5** |
 | `stoppeRadioHintergrund macht einen erneuten Start wieder moeglich` | sonst überlebt der Modulzustand den Testlauf und die vier Fälle oben sind reihenfolgeabhängig |
