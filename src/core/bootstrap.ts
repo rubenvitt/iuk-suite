@@ -12,6 +12,7 @@ import * as feedbackSchema from "@/app/m/feedback/_db/schema";
 import { seedFeedback } from "@/app/m/feedback/_lib/seed";
 import { filesBootFehler, starteFilesHintergrund } from "@/app/m/files/_lib/boot";
 import { lagerbuchBootFehler } from "@/app/m/lagerbuch/_lib/boot";
+import { radioBootFehler } from "@/app/m/radio/_lib/boot";
 import { starteAufgabenScanArbeiter } from "@/app/m/aufgaben/_lib/scan";
 
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
@@ -96,6 +97,10 @@ export async function assertHostConfig(): Promise<void> {
     // lagerbuch: greift nur bei gesetztem SUITE_HOST_LAGERBUCH und WIRFT NIE (Spec §10.5).
     // Ein Wurf naehme den GANZEN Prozess mit — alle elf Eintraege in `registry.ts:53-213`.
     ...(await lagerbuchBootFehler()),
+    // radio: greift nur bei gesetztem SUITE_HOST_RADIO und WIRFT NIE (Spec §7.3.2).
+    // Sie läuft VOR migrateAllModules() (`src/instrumentation.ts:55` vor `:56`) und liest
+    // deshalb KEINE Tabelle — bewacht in `src/app/m/radio/_lib/boot.test.ts`.
+    ...(await radioBootFehler()),
   ];
   if (errors.length > 0) {
     throw new Error(`Ungültige Host-Konfiguration:\n  - ${errors.join("\n  - ")}`);
