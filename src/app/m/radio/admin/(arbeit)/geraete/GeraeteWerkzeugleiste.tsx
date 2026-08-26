@@ -187,7 +187,7 @@ export function GeraeteWerkzeugleiste({
         {/*
           ⛔ EINE ANZEIGE-ENTSCHEIDUNG, KEINE SPERRE (1:1 `DeviceList.tsx:150`,
           `{isAdmin && …}`): die Sperren sind `requireRadioAdmin()` in `geraetAnlegenAction`
-          (`admin/actions.ts:447`) und der Riegel des Export-Handlers (V22, `Spec:4379`).
+          (`admin/actions.ts:447`) und der eigene Riegel von `geraete/export/route.ts` (V22).
         */}
         {darfExportieren && (
           <Button data-rolle="radio-geraete-export" href="/admin/geraete/export" download>

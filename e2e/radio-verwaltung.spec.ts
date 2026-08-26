@@ -958,4 +958,63 @@ test.describe("radio-Verwaltung", () => {
       "der Bogen selbst fehlt — die zwei Abwesenheitszusagen messen dann nichts",
     ).toHaveCount(1);
   });
+
+  test("Fall 6: /admin/geraete/export liefert text/csv und beginnt mit dem BOM", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V22, NICHT NACHBESSERUNG
+     * (`Spec:4886`, Fall 6; `.superpowers/sdd/planteil4/briefs/V22.md:67-68`).
+     *
+     * ⚠️ ZWEI FALL-NUMMERIERUNGEN LAUFEN IN DIESER DATEI NEBENEINANDER, und das steht hier,
+     * statt zu verwirren: die Spec zaehlt elf Faelle und fuehrt den Export als **6**
+     * (`Spec:4886`), waehrend diese Datei den Spec-Fall 5 („fuenf Seiten je 200") in die
+     * Faelle 5 bis 9 aufgeteilt hat — je einer pro Seite, angelegt von V16 bis V20. Der
+     * Name „Fall 6" ist deshalb ZWEIMAL vergeben; die tragende Adressierung ist der PFAD im
+     * Titel, nicht die Nummer. Dieselbe bewusst stehen gelassene Doppelzaehlung wie in
+     * Ruling **R-V11-2** (`.superpowers/sdd/planteil4/progress.md`), und aus demselben
+     * Grund: vier Faelle umzunummerieren waere Aufwand ohne Zugewinn und eine neue
+     * Fehlerquelle.
+     *
+     * ⛔ ER IST DER EINZIGE ECHTE ABRUF EINES ROUTE HANDLERS DIESES ZWEIGS. Was Vitest an
+     * ihm strukturell nicht sehen kann, ist das Zusammenspiel mit Next selbst: ob die
+     * Antwort ueberhaupt AUSGELIEFERT wird, wie sie hier gebaut ist — eine
+     * vorgerenderte Route lieferte den Bestand des Bauzeitpunkts, und `route.ts`s
+     * `export const dynamic = "force-dynamic"` ist der Riegel dagegen.
+     *
+     * ⛔ WARMLAUF-GET VOR DEM ECHTEN ABRUF (Falle 10, `CLAUDE.md`): `next dev` uebersetzt
+     * einen Route Handler beim ERSTEN Treffer. Der erste Aufruf hier tut nichts weiter, als
+     * dieses Fenster zu verbrauchen; gemessen wird der zweite.
+     *
+     * ⛔ DAS BOM WIRD ALS BYTEFOLGE GEPRUEFT, NICHT ALS TEXT. Playwrights `text()` dekodiert
+     * mit eingeschaltetem BOM-Schnitt — der Fall pruefte dann seine eigene Dekodierung
+     * statt der Antwort, und das ist die Familie der Testfallen 10 bis 12: ein Test, der
+     * etwas anderes misst, als sein Name sagt.
+     *
+     * ⚠️ DASS DIE LISTE LEER IST, SCHWAECHT DEN FALL NICHT (⬜ V13-L2: der e2e-Lauf seedet
+     * `radio` nicht). Kopfzeile und BOM entstehen unabhaengig vom Bestand
+     * (`_lib/csv/spalten.ts:296-306`); die Zeilen selbst misst `route.test.ts`.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    // DER WARMLAUF — seine Antwort wird bewusst nicht gemessen (Falle 10).
+    await page.request.get(radioUrl("/admin/geraete/export"));
+
+    const antwort = await page.request.get(radioUrl("/admin/geraete/export"));
+    expect(antwort.status(), "/admin/geraete/export auf dem radio-Host").toBe(200);
+    expect(
+      antwort.headers()["content-type"],
+      "ohne charset oeffnet deutsches Excel die Datei in seiner Systemkodierung",
+    ).toBe("text/csv; charset=utf-8");
+    expect(
+      antwort.headers()["content-disposition"],
+      "ohne Dateinamen speichert der Browser sie als `export` ohne Endung",
+    ).toBe('attachment; filename="funkgeraete-export.csv"');
+
+    const bytes = await antwort.body();
+    expect(
+      [bytes[0], bytes[1], bytes[2]],
+      "das fuehrende UTF-8-BOM fehlt (Spec:4886)",
+    ).toEqual([0xef, 0xbb, 0xbf]);
+  });
 });

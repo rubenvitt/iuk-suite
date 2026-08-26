@@ -80,7 +80,7 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  * die Zahl bewusst anheben.
  *
  *   Planteil 3 baut `t/[code]/route.ts` und `abmelden/route.ts`  -> ERLEDIGT (Planteil 3)
- *   V18 `import/hochladen` (E-V16) -> 3 · V22 `geraete/export` -> 4 (beide Planteil 4)
+ *   V18 `import/hochladen` -> 3 · V22 `geraete/export` -> 4  -> ERLEDIGT (Planteil 4)
  *   Planteil 5 baut `sw.js/route.ts`                             -> HANDLER_ANZAHL = 5
  *
  *   Planteil 3 baut `page.tsx` und den Ausleihzweig — beide AUSSERHALB von `admin/`,
@@ -104,12 +104,12 @@ const MODUL = join(process.cwd(), "src/app/m/radio");
 const SELBST = join(MODUL, "riegel.test.ts");
 
 /**
- * ⛔ HEUTE DREI — EXAKT, nicht „mindestens". `t/[code]/route.ts` und `abmelden/route.ts`
- * (Planteil 3, Aufgabe A10) plus `admin/(arbeit)/import/hochladen/route.ts` (V18, E-V16);
- * angehoben von V22 (`geraete/export`, 4) und Planteil 5 (`sw.js`, 5). Die Konstante steht
- * hier oben, damit die Aenderung EINE Zeile ist und im Diff auffaellt.
+ * ⛔ HEUTE VIER — EXAKT, nicht „mindestens". `t/[code]/route.ts` und `abmelden/route.ts`
+ * (Planteil 3, Aufgabe A10), `admin/(arbeit)/import/hochladen/route.ts` (V18, E-V16) und
+ * `admin/(arbeit)/geraete/export/route.ts` (V22); angehoben von Planteil 5 (`sw.js`, 5).
+ * Die Konstante steht hier oben, damit die Aenderung EINE Zeile ist und im Diff auffaellt.
  */
-const HANDLER_ANZAHL = 3;
+const HANDLER_ANZAHL = 4;
 
 /**
  * ⛔ HEUTE ZEHN — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die Liste
@@ -385,10 +385,10 @@ describe("(c) jeder Route Handler nimmt die NICHT-werfende Form", () => {
 
   it("die Handlerzahl steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
-     * ⚠️ HEUTE DREI, UND DAS IST EIN ZUSTAND, KEIN ZIEL. Planteil 2 baute keinen Route
+     * ⚠️ HEUTE VIER, UND DAS IST EIN ZUSTAND, KEIN ZIEL. Planteil 2 baute keinen Route
      * Handler; Planteil 3 legte `t/[code]/route.ts` und `abmelden/route.ts` an, V18
-     * `admin/(arbeit)/import/hochladen/route.ts` (E-V16). Der Fahrplan im Kopf dieser Datei
-     * fuehrt sie weiter: V22 auf 4, Planteil 5 auf 5.
+     * `admin/(arbeit)/import/hochladen/route.ts` (E-V16), V22 `geraete/export/route.ts`.
+     * Der Fahrplan im Kopf dieser Datei fuehrt sie weiter: Planteil 5 auf 5.
      *
      * ⛔ `toBe`, NICHT `toBeGreaterThanOrEqual`. `laenge >= 0` ist fuer jede Liste wahr —
      * es gaebe KEINE Mutation, die diesen Fall rot macht, und der Fall waere genau die

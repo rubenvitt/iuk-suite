@@ -34,6 +34,13 @@ const QUELLE_TABELLE = `${INSEL_ORDNER}/GeraeteTabelle.tsx`;
 const QUELLE_SEITE = `${INSEL_ORDNER}/page.tsx`;
 
 /**
+ * Die AEUSSERE Adresse des CSV-Exports (V22). ⛔ Sie steht hier als Literal und wird gegen
+ * `VERWALTUNGS_PFADE` (`_lib/routen.ts:66`) gehalten — ein Vergleich, der den Wert AUS der
+ * Karte zieht, waere gegen sich selbst wahr und faenge eine Umbenennung nicht.
+ */
+const EXPORT_PFAD = "/admin/geraete/export";
+
+/**
  * DIE FUENF DATEIEN DER INSEL — ⛔ GEFUNDEN, NICHT AUFGEZAEHLT (Ruling **R-V11-1**,
  * `.superpowers/sdd/planteil4/progress.md`, Abschnitt „Rulings").
  *
@@ -100,6 +107,7 @@ import {
   exists,
   existsPortal,
   mount,
+  query,
   queryPortal,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
@@ -112,6 +120,7 @@ import {
 } from "../../../_lib/lesepfade/geraete";
 import { GERAETE_MODI, STATUS_OPTIONEN } from "../../../_lib/geraeteFelder";
 import { LEERE_FILTER, type GeraetFilterWerte } from "../../../_lib/suchparameter";
+import { VERWALTUNGS_PFADE } from "../../../_lib/routen";
 import { aktiveFilterZahl } from "./FilterSchublade";
 import { SUCHFELD_ETIKETTEN } from "./GeraeteWerkzeugleiste";
 import {
@@ -425,6 +434,48 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
     await mount(<GeraeteTabelle {...eigenschaften()} />);
     expect(exists('[data-rolle="radio-geraet-anlegen"]')).toBe(true);
     expect(exists('[data-rolle="radio-geraete-export"]')).toBe(true);
+  });
+
+  it("der Export-Ausloeser ist ein Anker auf die AEUSSERE Adresse und traegt download", async () => {
+    /*
+     * ⛔ AUFGABE V22. Bis der Handler stand, sicherte diese Datei nur zu, dass der Knopf DA
+     * ist (`GeraeteTabelle.test.tsx`, Fall „der Anlegen-Knopf fehlt …"). Drei Mutationen
+     * waren damit gemessen 0 rot — sie sind als Sonden S-V22e, S-V22f und S-V22g in
+     * `.superpowers/sdd/planteil4/BERICHT-V22.md` protokolliert:
+     *
+     *   `href` entfernt      — der Knopf rendert, laedt aber nichts herunter
+     *   `download` entfernt  — der Browser NAVIGIERT auf die CSV, statt sie zu speichern
+     *   `href` auf die INNERE Form `/m/radio/admin/geraete/export`
+     *
+     * ⛔ DIE DRITTE IST DIE TEUERSTE UND GEMESSEN BELEGT (`_lib/nav.test.ts:135-150`): ein
+     * innerer Pfad fuehrt auf dem Verwaltungshost auf eine doppelte Modulstrecke — 404, und
+     * typecheck, lint und build bleiben gruen. Dieselbe Zusage traegt der Fall „jede Zeile
+     * fuehrt auf die AEUSSERE Detailadresse" fuer die Zeilenlinks.
+     *
+     * ⛔ 1:1 EIN ANKER, KEIN KNOPF MIT `onClick` (`DeviceList.tsx:104-111`): der Bestand
+     * baut einen „programmatic same-origin GET anchor", weil nur er das Sitzungs-Cookie
+     * mitfuehrt und `download` dem Browser das Speichern statt des Navigierens nahelegt.
+     * antds `Button` rendert bei gesetztem `href` ein `<a>` und reicht die uebrigen
+     * Eigenschaften daran durch (`node_modules/antd/es/button/button.js:281-293`) — deshalb
+     * greift dieser Fall auf `tagName`, nicht nur auf das Attribut.
+     *
+     * ⛔ UND DER PFAD WIRD GEGEN DIE ROUTENKARTE GEHALTEN (`_lib/routen.ts:66`): eine
+     * umbenannte Route ohne nachgezogenen Ausloeser waere sonst ein stiller 404.
+     */
+    await mount(<GeraeteTabelle {...eigenschaften()} />);
+    const anker = query('[data-rolle="radio-geraete-export"]');
+    expect(anker.tagName, "der Ausloeser ist kein Anker — ein Knopf laedt nichts herunter").toBe(
+      "A",
+    );
+    expect(anker.getAttribute("href")).toBe(EXPORT_PFAD);
+    expect(
+      VERWALTUNGS_PFADE.includes(EXPORT_PFAD),
+      "die Routenkarte kennt den Export-Pfad nicht mehr",
+    ).toBe(true);
+    expect(
+      anker.hasAttribute("download"),
+      "ohne download NAVIGIERT der Browser auf die CSV, statt sie zu speichern",
+    ).toBe(true);
   });
 
   it("jede Zeile fuehrt auf die AEUSSERE Detailadresse", async () => {
