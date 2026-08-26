@@ -228,8 +228,8 @@ const GEHEIMNIS_MINDESTLAENGE = 32;
  * ⬜ A-L7 — ABGELESEN in Planteil 5 (G1). Die Boot-Pruefung auf das Geheimnis ist gebaut:
  * `grenzenFehler()` am Dateiende meldet fehlend, kuerzer als 32 Zeichen und gleich
  * `AUTH_SECRET` als drei getrennte Zeilen. Dieser Absatz bleibt stehen, weil er erklaert,
- * warum sie NICHT hier sitzt. ⛔ ZUM STARTABBRUCH IST SIE GEWORDEN, seit `radioBootFehler()`
- * sie ruft (G2, `_lib/boot.ts:218`) — eine fehlende Variable haelt den Container jetzt an.
+ * warum sie NICHT hier sitzt. ⛔ ZUM STARTABBRUCH WIRD SIE ERST, WENN `radioBootFehler()`
+ * sie ruft (G2) — bis dahin faellt eine fehlende Variable erst beim ersten Einloesen auf.
  */
 export function ausleihSitzungGeheimnis(env: EnvLike = process.env): string {
   const wert = env.RADIO_AUSLEIH_SITZUNG_SECRET?.trim();

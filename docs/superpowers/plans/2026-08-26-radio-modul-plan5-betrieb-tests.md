@@ -46,7 +46,7 @@ Zusagen der vier Vorgänger sind **nachgewiesen** statt behauptet.
 * **Der Start prüft sich selbst.** `radioBootFehler()` läuft **vor** den Migrationen, liest **keine**
   Tabelle und meldet jede Fehlkonfiguration, die im Repo oder in der `.env` behebbar ist — als
   gesammelte Liste, nie als Wurf. Alles, was erst am Server sichtbar wird, **meldet** statt zu
-  werfen: eine `radio:`-Warnung im Startprotokoll ist ein Stopp-Punkt für das Runbook.
+  werfen: eine `[radio]`-Warnung im Startprotokoll ist ein Stopp-Punkt für das Runbook.
 * **Die Löschrichtlinie läuft von selbst.** `starteRadioHintergrund()` registriert den
   Retention-Takt **nach** den Migrationen, purgt beim Start **nichts**, ist gegen Hot-Reload
   idempotent und hat mit `RADIO_HISTORIE_PURGE=0` einen bewussten, bei jedem Start lauten
@@ -818,7 +818,7 @@ wird und dort behoben werden muss, meldet — sonst steht die Suite am Cutover-A
 Traefik-Zeile fehlt."
 
 **Zusage an Spec 2:** das Runbook liest nach dem Start einmal
-`docker compose logs --since 2m suite` und erwartet **keine** `radio:`-**Warnung**. Eine gefundene
+`docker compose logs --since 2m suite` und erwartet **keine** `[radio]`-**Warnung**. Eine gefundene
 Warnung ist ein **Stopp-Punkt, kein Hinweis.**
 
 ### C. Die vier Melde-Zeilen — sie sind keine Prüfungen
@@ -1214,7 +1214,7 @@ Kette einen Wert, den `zahl()` gerade abgelehnt hat, gegen eine Vorbelegung, und
 irreführend. Der Zustand wird **im Code sichtbar gemacht**, nicht durch Reihenfolge angedeutet.
 
 ⛔ **Kein Umlaut in einer Meldung, die als Grep-Anker taugen könnte.** Das Runbook greift
-`radio:`-Zeilen aus dem Docker-Log; Umlaute in einer Meldung sind zulässig (es ist Bildschirmtext),
+`[radio]`-Zeilen aus dem Docker-Log; Umlaute in einer Meldung sind zulässig (es ist Bildschirmtext),
 aber der **Anker** — der Präfix `[radio]` und der Variablenname — trägt keine.
 
 ### Die Testtabelle
@@ -2862,7 +2862,7 @@ aktiv. Höchstens ein `hinweis` je Notiz. Kein Markdown im Text.** Der Stil ist 
 | Vorher | Ab jetzt |
 |---|---|
 | Der Container startete mit einer halben `.env` und meldete nichts | ⛔ Er **startet nicht**, wenn `SUITE_ADMIN_GROUP_RADIO` fehlt, `SUITE_ACCESS_GROUP_RADIO` gesetzt ist, das Sitzungsgeheimnis fehlt/zu kurz/gleich `AUTH_SECRET` ist, eine Zahl außerhalb ihres Bereichs liegt, die Gate-Kette verletzt ist oder `RADIO_HISTORIE_MONATE` ungültig ist |
-| Eine fehlende Traefik-Zeile fiel erst am Abend auf | Sie steht als `radio:`-**Warnung** im Startprotokoll — und das Runbook liest es (`docker compose logs --since 2m suite`) |
+| Eine fehlende Traefik-Zeile fiel erst am Abend auf | Sie steht als `[radio]`-**Warnung** im Startprotokoll — und das Runbook liest es (`docker compose logs --since 2m suite`) |
 | Die Löschrichtlinie war eine Absicht | Sie **läuft**, mit 1440 Minuten Verzögerung nach dem Start, täglich, HMR-idempotent, und ihr Abschalter meldet sich bei **jedem** Start |
 | Der Alt-Service-Worker hätte den Umschwenk überlebt | ⛔ Der Abräum-Worker liegt unter `/sw.js`, ist **vor** dem Schwenk ausgeliefert, und `curl` beweist im Image, dass er der richtige ist (V5), auf fremdem Host nicht ausgeliefert wird (V6) und keinen `fetch`-Handler hat |
 | „`radio` baut keine PWA" war ein Satz in der Spec | Es ist ein **Test im Repo** (V8/R36 im Bau statt als immer grüner `curl`) |
@@ -2899,7 +2899,7 @@ V9–V16 prüfen Login, Geräteliste, Druckblatt, Ausleihen/Rückgabe, hell/dunk
 Zusagen liegen, die `Spec:6309-6311` und `Spec:6355` wörtlich verlangen (13, 14, 15); dazu kommt
 die aus ⬜ G-L2 entstandene Zeile 16 und die bisher außerhalb der Liste stehende Zeile 17.
 
-1. Nach dem Start einmal `docker compose logs --since 2m suite` lesen. ⛔ **Jede `radio:`-Warnung ist
+1. Nach dem Start einmal `docker compose logs --since 2m suite` lesen. ⛔ **Jede `[radio]`-Warnung ist
    ein Stopp-Punkt, kein Hinweis.**
 2. Der externe Monitor fragt `https://radio.iuk-ue.de/api/health/radio` — ⛔ **nie `/api/health`**.
    **200 = im Image, 503 = falsches Image.**

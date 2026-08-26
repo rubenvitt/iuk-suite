@@ -316,10 +316,10 @@ export async function radioBootFehler(env: EnvLike = process.env): Promise<strin
 
     /*
      * `radioHosts` ist bereits kleingeschrieben — `envHostsFor` senkt beim Lesen
-     * (`src/core/hosts.ts:44`). Das `.toLowerCase()` hier ist trotzdem kein toter Code: es
-     * haelt die Zusage an DIESER Stelle fest, statt sie aus einer fremden Datei zu leihen,
-     * und der Registry-Rueckfall `mod.prodHosts` (`src/core/registry.ts:199`) laeuft durch
-     * `envHostsFor` gar nicht erst hindurch.
+     * (`src/core/hosts.ts:44`). ⚠️ Das `.toLowerCase()` hier ist damit HEUTE UNERREICHBAR:
+     * der Registry-Rueckfall `mod.prodHosts` ist fuer radio `[]` (`src/core/registry.ts:199`),
+     * und bei leerer Liste ist die Funktion schon auf `:238` ausgestiegen. Es steht als
+     * REGRESSIONSSPERRE, falls dieser Rueckfall je gefuellt wird — nicht als eigener Zweig.
      */
     const fehlende = radioHosts.filter((h) => !genanntKlein.includes(h.toLowerCase()));
     if (fehlende.length > 0) {
