@@ -109,6 +109,115 @@ function actionsDerInsel(): string[] {
   return [...namen].sort();
 }
 
+/**
+ * DIE BENANNTE TEXTLISTE EINER FLAECHENDATEI, AUFGESCHLAGEN — Kopf, Rumpf und die
+ * Zeichenketten darin (REVIEW-V19, Fund **F7**).
+ *
+ * ⛔ SIE IST DER PRUEFLING VON DREI FAELLEN und deshalb die lasttragendste Funktion dieser
+ * Datei: driftet ihr Anker, wird `block` leer, `werte` leer — und zwei negative Zusicherungen
+ * darueber waeren GRUEN UEBER NICHTS. Genau die Gestalt, die dieses Repo einmal teuer bezahlt
+ * hat (eine Abschlusszeile meldete „Paritaet gruen" als konstanten Text, drei Sonden ergaben
+ * 0 rot). ⛔ DESHALB MELDET SIE `gefunden` UND JEDER FALL PRUEFT ES, bevor er etwas anderes
+ * behauptet.
+ *
+ * ⚠️ Der Fuss ist `} as const;` WOERTLICH — dieselbe Zeichenkette, die der Fall darueber
+ * schon fuer den Satz der E-Tafel benutzt. Wer das Semikolon weglaesst oder einen Kommentar
+ * dahinterhaengt, macht `gefunden` falsch und den Fall ROT, nicht still gruen.
+ */
+const TEXTLISTE_KOPF = /const [A-Z][A-Z0-9_]*_TEXTE = \{/;
+const TEXTLISTE_FUSS = "} as const;";
+
+/**
+ * Ein Zeichenkettenliteral im Quelltext — doppelte Anfuehrungszeichen ODER ein Schablonentext.
+ * ⚠️ Einfache Anfuehrungszeichen kommen hier nicht vor (`eslint`/`prettier` des Hauses setzen
+ * doppelte); ein `'…'` faenge dieser Ausdruck NICHT, und das ist die bewusst laute Richtung —
+ * er wuerde dann als JSX-Textkind oder als textfuehrendes Attribut auffallen.
+ */
+const ZEICHENKETTE = /"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g;
+
+function textListe(quelle: string): { gefunden: boolean; block: string; werte: string[] } {
+  const beginn = quelle.search(TEXTLISTE_KOPF);
+  const fuss = beginn === -1 ? -1 : quelle.indexOf(TEXTLISTE_FUSS, beginn);
+  if (beginn === -1 || fuss === -1) return { gefunden: false, block: "", werte: [] };
+  const block = quelle.slice(beginn, fuss + TEXTLISTE_FUSS.length);
+  return { gefunden: true, block, werte: [...block.matchAll(ZEICHENKETTE)].map((t) => t[0]) };
+}
+
+/**
+ * DIE FLAECHE, WIE DER LESER SIE SIEHT: die GEFUNDENEN Inseldateien PLUS die Seite. Die
+ * RSC-Grenze trennt sie fuer den Bau, nicht fuer den, der eine Formulierung aendert — und
+ * `page.tsx` traegt mit `SEITEN_TEXTE` eine eigene der drei Listen.
+ *
+ * ⛔ GEFUNDEN, NICHT AUFGEZAEHLT (Ruling **R-V11-1**) — dieselbe Menge wie in den zwei
+ * Bauform-Faellen darunter; ein handgeschriebenes Tripel hier waere der naechste Fund.
+ */
+function flaechenDateien(): string[] {
+  return [...inselDateien().map((datei) => `${INSEL_ORDNER}/${datei}`), QUELLE_SEITE];
+}
+
+/**
+ * WORAN MAN EINEM LITERAL ANSIEHT, DASS ES EIN BILDSCHIRMTEXT IST (REVIEW-V19, Fund **F7**):
+ * ein Leerzeichen, ein Zeichen ausserhalb des druckbaren ASCII-Satzes (Umlaut, Gedankenstrich,
+ * typografische Anfuehrungszeichen) ODER ein Grossbuchstabe am Anfang.
+ *
+ * ⛔ DIE DREI SIND AM BESTAND GEMESSEN, NICHT GERATEN (2026-08-26): ausserhalb der drei Listen
+ * traegt diese Flaeche genau 56 Literale — Importpfade, Spaltenschluessel (`"wert"`,
+ * `"deviceCount"`, `"aktionen"`), antd-Werte (`"right"`, `"center"`, `"success"`, `"primary"`,
+ * `"max-content"`, `"info"`, `"alert"`, `"id"`) und die `data-rolle`-Griffe. ⛔ KEINES davon
+ * erfuellt einen der drei Zweige; die EINE Ausnahme ist die Bauform-Direktive.
+ */
+const BILDSCHIRMVERDACHT = /[ ]|[^ -~]|^\p{Lu}/u;
+
+/**
+ * ⛔ DIE EINE BENANNTE AUSNAHME. `"use client"` traegt ein Leerzeichen und ist trotzdem kein
+ * Bildschirmtext, sondern die Bauform-Direktive — sie steht als erste Zeile und wird vom Fall
+ * „jede Datei der Insel traegt use client als erste Zeile" bewacht. `"use server"` steht hier
+ * vorsorglich mit; keine Datei dieser Flaeche traegt sie (die Actions liegen in
+ * `admin/actions.ts`).
+ */
+const BAUFORM_DIREKTIVEN = ['"use client"', '"use server"'];
+
+/**
+ * EIN TEXTFUEHRENDES ATTRIBUT ODER OBJEKTFELD MIT EINEM LITERAL. ⛔ `\{?` IST NICHT ZIERRAT:
+ * ohne es liefe `title={"Anlegen"}` durch — gueltiges JSX, das den Text ebenso auf den
+ * Bildschirm bringt wie `title="Anlegen"`.
+ *
+ * ⚠️ Die Liste ist die der antd-Bauteile dieser Flaeche (`Tooltip`/`Alert`/`Table`-`title`,
+ * `Input`-`placeholder`, `Popconfirm`-`okText`/`cancelText`, `locale.emptyText`) plus die
+ * zugaenglichen Namen (`aria-label`) und die drei, die beim naechsten Bauteil dazukaemen
+ * (`label`, `message`, `description`, `alt`). ⛔ SIE IST EINE UNTERGRENZE, kein Beweis — der
+ * Zweig darueber faengt auch ein Attribut, das hier fehlt, solange sein Text mehrwortig,
+ * gross geschrieben oder nicht-ASCII ist.
+ */
+const TEXTFUEHRENDES_FELD =
+  /\b(?:title|placeholder|aria-label|okText|cancelText|emptyText|label|message|description|alt)\s*[=:]\s*\{?\s*["'`]/g;
+
+/**
+ * EIN JSX-TEXTKIND, DAS BLANKER TEXT IST: zwischen einem `>` und dem naechsten `<` steht
+ * mindestens ein Buchstabe und weder eine geschweifte noch eine spitze Klammer.
+ *
+ * ⛔ ER IST DER EINZIGE ZWEIG, DER `<Button>Anlegen</Button>` FAENGT — dort gibt es kein
+ * Literal (Zweig 1 sieht nichts) und kein Attribut (Zweig 2 sieht nichts).
+ *
+ * ⛔ **UND ER DARF DAS ZEILENENDE NICHT AUSSCHLIESSEN — GEMESSEN, NICHT UEBERLEGT.** Die
+ * erste Fassung dieses Ausdrucks trug `\n` in beiden Zeichenklassen. Die Sonde dazu
+ * (2026-08-26): `{NEUVERSION_TEXTE.anlegen}` durch blankes `Anlegen` ersetzt UND den
+ * Listeneintrag geloescht — die Form, die KEIN anderer Zweig sieht — ergab
+ * `Tests 27 passed (27)`, ⛔ NULL ROT. Grund: `prettier` bricht ein mehrzeiliges Bauteil
+ * um, der Text steht auf einer EIGENEN Zeile zwischen `>` und `</Button>`, und der Ausdruck
+ * suchte nur innerhalb einer Zeile. Der Fall haette genau das nicht gefunden, wofuer er
+ * gebaut wurde.
+ *
+ * ⚠️ Ohne `\n` traegt allein der Ausschluss `{`/`}`/`<`/`>`, und er traegt: er laesst
+ * `{VERSIONEN_TEXTE.nachOben}` und `{z.wert}` durch, und im Rumpfcode steht zwischen zwei
+ * `>` immer eine geschweifte Klammer oder der Pfeil der naechsten Funktion (`ziel >=
+ * zeilen.length) return;` … `(z) => z.id`). ⛔ Am Bestand gemessen: null Treffer in allen drei
+ * Dateien, ⛔ und ausdruecklich NICHT auf Kosten der Fundrate — ein zusaetzlicher Ausschluss
+ * (`;`, `=`) machte den Scan still falsch-negativ statt laut falsch-positiv
+ * (`_lib/quelltextScan.ts:58-59`).
+ */
+const JSX_TEXTKIND = />([^<>{}]*\p{L}[^<>{}]*)</gu;
+
 import { act } from "react";
 import {
   click,
@@ -448,14 +557,23 @@ describe("radio-Versionen: das Anlegefeld", () => {
      * Hauptweg des Anlegens, und sein Verlust waere fuer typecheck, lint und build unsichtbar.
      *
      * ⚠️ `keydown` MIT `bubbles: true`: Reacts synthetisches Ereignis entsteht am Wurzelknoten
-     * des Baums, ein nicht steigendes Ereignis erreicht die Komponente nie. `keyCode` steht
-     * neben `key`, weil antds `onPressEnter` ueber die Versionen beide Formen gelesen hat.
+     * des Baums, ein nicht steigendes Ereignis erreicht die Komponente nie.
+     *
+     * ⛔ NUR `key`, KEIN `keyCode` — und das ist AUFGESCHLAGEN, nicht angenommen (REVIEW-V19,
+     * Fund **F8**): das Bauteil hinter antds `Input` liest ausschliesslich `e.key`
+     * (`node_modules/…/@rc-component/input/es/Input.js:112`,
+     * `if (onPressEnter && e.key === 'Enter' && !keyLockRef.current && !e.nativeEvent.isComposing)`),
+     * gemessen an der installierten Fassung `@rc-component/input@1.3.1` unter `antd@6.5.3`.
+     * ⚠️ Bis zum 2026-08-26 stand hier zusaetzlich `keyCode: 13` mit der Begruendung, antd habe
+     * „ueber die Versionen beide Formen gelesen" — eine Behauptung OHNE `datei:zeile` und ohne
+     * Last: `keyCode: 13` entfernt ergab `Tests 25 passed (25)`, null rot. Was hier fuer diese
+     * Fassung gemessen ist, steht jetzt da; ueber aeltere antd-Versionen sagt dieser Fall nichts.
      */
     await mount(<NeuVersion />);
     await fill('[data-rolle="radio-neuversion-eingabe"]', "FW 12.3");
     await act(async () => {
       query<HTMLInputElement>('[data-rolle="radio-neuversion-eingabe"]').dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true }),
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
       );
     });
 
@@ -600,7 +718,7 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
     }
   });
 
-  it("die Bildschirmtexte stehen in EINER benannten Liste je Datei, nicht inline", () => {
+  it("jede Datei der Flaeche traegt GENAU EINE benannte Textliste, und der Satz der E-Tafel steht darin", () => {
     /*
      * ⛔ **GLOBAL CONSTRAINT, 1:1-TAFEL ABSCHNITT E** (`Spec:4815-4832`;
      * `.superpowers/sdd/planteil4/briefs/KOPF.md:1340`, woertlich): „Sie liegen in EINER
@@ -614,23 +732,33 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
      * DATEILISTE (Ruling **R-V11-3**: „Ein Gegen-`grep` mit Dateiliste prueft die Liste, nicht
      * die Klasse") — am 2026-08-26, roh:
      * `/usr/bin/grep -rn "_TEXTE" src/app/m/radio --include="*.test.ts" --include="*.test.tsx"`
-     * → die EINZIGEN Treffer im ganzen Modul stehen in DIESER Datei, in diesem Fall.
+     * → die EINZIGEN Treffer im ganzen Modul stehen in DIESER Datei, in diesem Block.
      * ⚠️ Genau in dieser Luecke stand der Satz der E-Tafel hier inline im JSX: der WORTLAUT
      * war bewacht (der Sperrfall oben prueft ihn zeichengleich), die BAUFORM nicht. Ruling
      * **R-V11-1**: wer eine Zusicherung ueber dem Bestand schreibt, schuldet die Mutation, die
      * sie rot macht.
      *
+     * ⛔ **WAS DIESER FALL MISST, STEHT IN SEINEM NAMEN — UND NICHT MEHR** (REVIEW-V19, Fund
+     * **F7**). Er misst die STRUKTUR (genau eine Liste je Datei) und EINEN Satz. Bis zum
+     * 2026-08-26 hiess er „die Bildschirmtexte stehen in EINER benannten Liste je Datei, nicht
+     * inline" und behauptete damit alle EINUNDZWANZIG Eintraege der drei Listen; gemessen und
+     * belegt: `title: VERSIONEN_TEXTE.spalteVersion` → `title: "Version"`, Liste unangetastet,
+     * ergab `Tests 25 passed (25)` — NULL ROT. Die Klasse bewachen die zwei Faelle darunter.
+     *
      * ⚠️ ER LAEUFT UEBER DIE GEFUNDENE DATEIMENGE PLUS DIE SEITE: die Seite liegt jenseits der
      * RSC-Grenze und traegt ihre eigene Liste (`SEITEN_TEXTE`), sie ist aber dieselbe Flaeche
      * fuer den, der eine Formulierung aendert.
      */
-    const flaechen = [...inselDateien().map((datei) => `${INSEL_ORDNER}/${datei}`), QUELLE_SEITE];
-    for (const pfad of flaechen) {
+    for (const pfad of flaechenDateien()) {
       const quelle = ohneKommentare(readFileSync(pfad, "utf8"));
       expect(
-        quelle.match(/const [A-Z][A-Z0-9_]*_TEXTE = \{/g) ?? [],
+        quelle.match(new RegExp(TEXTLISTE_KOPF.source, "g")) ?? [],
         `${pfad}: keine ODER mehr als eine benannte Textliste`,
       ).toHaveLength(1);
+      expect(
+        textListe(quelle).gefunden,
+        `${pfad}: die Liste hat keinen Fuss \`${TEXTLISTE_FUSS}\` — die zwei Faelle darunter laesen ins Leere`,
+      ).toBe(true);
     }
 
     /*
@@ -643,9 +771,103 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
     const stellen = [...tabelle.matchAll(/Wird von /g)].map((treffer) => treffer.index);
     expect(stellen, "der Satz der 1:1-Tafel Abschnitt E steht nicht genau einmal").toHaveLength(1);
     expect(
-      stellen[0]! < tabelle.indexOf("} as const;"),
+      stellen[0]! < tabelle.indexOf(TEXTLISTE_FUSS),
       "der Satz steht ausserhalb der benannten Liste — inline im JSX",
     ).toBe(true);
+  });
+
+  it("kein Wert der Textliste steht ein zweites Mal im Quelltext", () => {
+    /*
+     * ⛔ **DIE ERSTE DER ZWEI KLASSEN-HAELFTEN ZU FUND F7** (REVIEW-V19). Der Fall darueber
+     * bewacht EINEN von einundzwanzig Texten; dieser bewacht ALLE — und zwar ueber die
+     * gefundene Menge der Werte, nicht ueber eine Aufzaehlung (Ruling **R-V11-1**).
+     *
+     * ⛔ DIE FORM IST BILLIG UND FINDET DENNOCH: jeder Wert der Liste kommt im
+     * kommentarfreien Quelltext seiner Datei GENAU EINMAL vor — naemlich in der Liste. Wer
+     * einen davon inline ins JSX zurueckschreibt und den Listeneintrag stehen laesst
+     * (der dann TOTE Eintrag faellt weder `typecheck` noch `lint` auf, weil das Objekt als
+     * ganzes weiter benutzt wird), macht daraus ZWEI.
+     *
+     * ⛔ GEZAEHLT WIRD DAS LITERAL MITSAMT SEINEN ANFUEHRUNGSZEICHEN, nicht der blosse Text —
+     * sonst zaehlte `"Version"` auch in `"Version wirklich löschen?"` mit und der Fall waere
+     * auf dem korrekten Bestand rot.
+     *
+     * ⚠️ DIE ZWEI ZAEHLUNGEN DIESES BLOCKS SIND SEINE SICHERUNG GEGEN „GRUEN UEBER NICHTS":
+     * ohne `gefunden` und ohne die Untergrenze an `werte` liefe eine gedriftete Listengrenze
+     * still durch.
+     */
+    for (const pfad of flaechenDateien()) {
+      const quelle = ohneKommentare(readFileSync(pfad, "utf8"));
+      const { werte, gefunden } = textListe(quelle);
+      expect(gefunden, `${pfad}: keine benannte Textliste gefunden`).toBe(true);
+      expect(werte.length, `${pfad}: die Textliste ist leer — dieser Fall liefe ins Leere`).toBeGreaterThan(0);
+      for (const wert of werte) {
+        expect(
+          quelle.split(wert).length - 1,
+          `${pfad}: ${wert} steht auch AUSSERHALB der benannten Liste — inline zurueckgeschrieben`,
+        ).toBe(1);
+      }
+    }
+  });
+
+  it("kein Bildschirmtext steht ausserhalb der Textliste — auch kein neu erfundener", () => {
+    /*
+     * ⛔ **DIE ZWEITE KLASSEN-HAELFTE ZU FUND F7** (REVIEW-V19), und sie faengt, was der Fall
+     * darueber strukturell NICHT fangen kann: einen NEU hinzugefuegten Bildschirmtext, der nie
+     * einen Listeneintrag hatte. Gemessen am 2026-08-26 an drei Formen, alle mit stehender
+     * Liste und alle vorher NULL ROT: `title: "Version"`, `{NEUVERSION_TEXTE.anlegen}` →
+     * blankes `Anlegen` als JSX-Textkind, `SEITEN_TEXTE.hinweis` inline in den `Alert`.
+     *
+     * ⛔ DREI ZWEIGE, WEIL EIN TEXT AUF DREI WEGEN INS JSX KOMMT — und jeder Zweig hat seine
+     * eigene Sonde:
+     *   1. ein LITERAL, das nach Bildschirmtext aussieht: es traegt ein Leerzeichen, ein
+     *      Zeichen ausserhalb des ASCII-Satzes (Umlaut, Gedankenstrich, typografische
+     *      Anfuehrungszeichen) ODER einen Grossbuchstaben am Anfang. ⛔ AM 2026-08-26 GEMESSEN:
+     *      ausserhalb der drei Listen steht in dieser Flaeche KEIN einziges solches Literal —
+     *      Importpfade, Spaltenschluessel (`"wert"`, `"aktionen"`), antd-Werte (`"right"`,
+     *      `"success"`, `"max-content"`) und die Griffe (`data-rolle="radio-…"`) sind
+     *      allesamt klein geschrieben und rein ASCII. Die EINE Ausnahme ist die
+     *      Bauform-Direktive, und sie steht namentlich unten.
+     *   2. ein TEXTFUEHRENDES Attribut oder Feld mit einem Literal — auch in der Form
+     *      `title={"…"}`, die ohne das `\{?` durchschluepfte.
+     *   3. ein JSX-TEXTKIND, das blanker Text ist statt `{LISTE.schluessel}` — die Form, die
+     *      weder Zweig 1 (keine Anfuehrungszeichen) noch Zweig 2 (kein Attribut) sieht.
+     *
+     * ⚠️ **WAS AUCH DIESE DREI ZWEIGE NICHT FANGEN**, benannt statt verschwiegen: ein
+     * einwortiger, klein geschriebener ASCII-Text in Anfuehrungszeichen an einer Stelle, die
+     * kein textfuehrendes Attribut ist — `<Button>{"ok"}</Button>`. Er ist von einem
+     * Spaltenschluessel nicht zu unterscheiden, und ein Zweig darueber waere auf dem heutigen,
+     * KORREKTEN Bestand rot (er traegt `"wert"`, `"right"`, `"id"`). ⬜ Offen und ohne
+     * Eigentuemer in diesem Fenster.
+     */
+    for (const pfad of flaechenDateien()) {
+      const quelle = ohneKommentare(readFileSync(pfad, "utf8"));
+      const { block, gefunden } = textListe(quelle);
+      expect(gefunden, `${pfad}: keine benannte Textliste gefunden`).toBe(true);
+      const aussen = quelle.replace(block, "");
+      expect(
+        aussen.length,
+        `${pfad}: der Listenblock deckt die ganze Datei — der Fall liefe ins Leere`,
+      ).toBeGreaterThan(0);
+
+      const verdacht = [...aussen.matchAll(ZEICHENKETTE)]
+        .map((treffer) => treffer[0])
+        .filter((literal) => BILDSCHIRMVERDACHT.test(literal.slice(1, -1)))
+        .filter((literal) => !BAUFORM_DIREKTIVEN.includes(literal));
+      expect(verdacht, `${pfad}: ein Bildschirmtext steht ausserhalb der benannten Liste`).toEqual(
+        [],
+      );
+
+      expect(
+        [...aussen.matchAll(TEXTFUEHRENDES_FELD)].map((treffer) => treffer[0]),
+        `${pfad}: ein textfuehrendes Attribut traegt ein Literal statt eines Listeneintrags`,
+      ).toEqual([]);
+
+      expect(
+        [...aussen.matchAll(JSX_TEXTKIND)].map((treffer) => treffer[1]!.trim()),
+        `${pfad}: ein JSX-Textkind ist blanker Text statt eines Listeneintrags`,
+      ).toEqual([]);
+    }
   });
 
   it("kein Bedienelement traegt size", () => {
