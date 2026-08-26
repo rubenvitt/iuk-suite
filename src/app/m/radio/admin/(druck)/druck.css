@@ -1,0 +1,172 @@
+/* src/app/m/radio/admin/(druck)/druck.css
+ *
+ * DAS DRUCKSTYLESHEET DES ZUGANGSBLATTS (Aufgabe V21; `Spec:314`, `Spec:316-320`).
+ *
+ * ALLE KLASSEN TRAGEN DAS PRAEFIX `rd-`: dies ist ein GEWOEHNLICHES Stylesheet, kein
+ * CSS-Modul — die Namen sind global. `lagerbuch` praefixt aus demselben Grund mit `lb-`
+ * (`lagerbuch/verwaltung/(druck)/druck.css:3-6`), `feedback` mit `.fb-aushang-*`. ⛔ DER
+ * PRAEFIX IST GEMESSEN FREI: `/usr/bin/grep -rn "\.rd-"` ueber `src` liefert am 2026-08-26
+ * ausser dieser Datei und ihrer Seite NICHTS. Eine Kollision restylte still die Druckseite
+ * eines anderen Moduls — das ist die Form von Falle 43.
+ *
+ * ⛔ WAS HIER AUSDRUECKLICH NICHT STEHT: `body * { visibility: hidden }`. Die
+ * Sichtbarkeitsumkehr wird ersatzlos durch die eigene Route-Group ersetzt: ohne Shell gibt
+ * es nichts auszublenden. Damit entfaellt auch die zweite Haelfte des Problems —
+ * `Layout{minHeight:100vh}` (`core/shell/SuiteRahmen.tsx:50`) bliebe unter
+ * `visibility:hidden` im Fluss und erzeugte leere Folgeseiten hinter dem Bogen. Dieselbe
+ * Begruendung in `lagerbuch/verwaltung/(druck)/druck.css:8-15`.
+ * ⚠️ DIE REGEL SELBST IST HEUTE FORT, UND DAS IST GEMESSEN (2026-08-26):
+ * `/usr/bin/grep -rn "visibility *: *hidden" src` und `/usr/bin/grep -rn "body \*" src`
+ * finden sie in KEINEM Stylesheet — nur noch in Prosa. Die drei `lagerbuch`-Stellen, die auf
+ * `globals.css:277` zeigen, sind damit veraltete Anker (`globals.css` hat 231 Zeilen); sie
+ * bleiben unangetastet, weil sie einen historischen Stand festhalten. ⛔ DAS VERBOT BLEIBT
+ * TROTZDEM: es sperrt die Rueckkehr der Form, nicht eine bestehende Zeile.
+ *
+ * ⛔ ES GREIFT NIE AUF `input` UND NIE AUF `.ant-*`. Eine Regel gegen einen antd-internen
+ * Klassennamen waere eine Kopplung, die ein antd-Major still bricht; die Suite geht sie an
+ * genau EINER Stelle bewusst ein (`globals.css`, `:root .ant-select-selector`, „der Bruch
+ * waere still"). ⛔ Auf diesem Bogen gibt es ohnehin kein antd — er ist ohne Insel gebaut
+ * (`blatt/page.tsx`, Kopf).
+ *
+ * EIN BLATT PAPIER HAT KEINEN DUNKELMODUS. Alle Farben sind LITERALE, kein `var(--ant-*)`
+ * und kein `var(--iuk-*)`: antd deklariert seine Variablen auf der Scope-Klasse SEINER
+ * Bauteile (Falle 2), auf eigenem Markup waeren sie still leer — und ein Suite-Token
+ * druckte aus einer dunkel eingestellten Sitzung helle Schrift auf weisses Papier.
+ */
+
+@page {
+  /* Derselbe Satzspiegel wie beim Etikettenbogen nebenan
+   * (`lagerbuch/verwaltung/(druck)/druck.css:33-35`). */
+  margin: 8mm;
+}
+
+.rd-bogen {
+  background: #ffffff;
+  color: #000000;
+  font-family: var(--font-body);
+}
+
+.rd-titel {
+  margin: 0 0 1mm;
+  font-size: 14pt;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.rd-hinweis {
+  margin: 0 0 4mm;
+  font-size: 9pt;
+  color: #333b42;
+}
+
+/* DIE KARTEN ALS GITTER. `auto-fill` statt einer festen Spaltenzahl: auf A4 hoch passen
+ * zwei Bahnen zu 92mm nebeneinander, auf quer drei — ohne dass hier eine Papierlage
+ * vorausgesetzt werden muesste. */
+.rd-karte {
+  box-sizing: border-box;
+  display: inline-flex;
+  vertical-align: top;
+  align-items: center;
+  gap: 4mm;
+  width: 92mm;
+  padding: 4mm;
+  margin: 0 2mm 2mm 0;
+  border: 1px dashed #c9ced4;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #000000;
+  /* EINE KARTE, DIE UEBER DEN SEITENRAND BRICHT, IST EIN TOTER QR-CODE: die halbe Matrix
+   * auf Seite 1, die andere auf Seite 2. Das faellt erst am Drucker auf. */
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* DAS `qrcode`-SVG BRINGT NUR EINE `viewBox` MIT, KEINE BREITE UND KEINE HOEHE.
+ * `globals.css:178-182` faengt das heute nur fuer `[data-testid="qr-display"]` ab (Anker
+ * selbst nachgeschlagen 2026-08-26) — ohne die zwei Zeilen unten faellt der Code auf die
+ * Ersatzgroesse des Browsers zurueck und wird winzig, OHNE dass ein Test anschlaegt
+ * (gemessen bei `lagerbuch`, `lagerbuch/verwaltung/(druck)/druck.css:69-73`).
+ *
+ * ⚠️ `flex: none` SITZT AUF DEM UMSCHLAG, NICHT AUF DEM SVG. Flexbox wirkt auf die
+ * FLEX-ITEMS, und das ist hier `.rd-qr`; steht es am SVG, kann der Umschlag weiter
+ * schrumpfen und eine lange Bezeichnung draengt den Code unter sein Mindestmass
+ * (`lagerbuch/verwaltung/(druck)/druck.css:74-78`). */
+.rd-qr {
+  flex: none;
+}
+
+.rd-qr > svg {
+  display: block;
+  width: 30mm;
+  height: 30mm;
+}
+
+.rd-text {
+  min-width: 0;
+  display: block;
+}
+
+.rd-bezeichnung {
+  display: block;
+  font-size: 11pt;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* DER CODE IST DIE TIPP-VARIANTE DES QR (`Spec:2180-2182`) und deshalb das zweitgroesste
+ * Element der Karte. `var(--font-mono)` und `word-break`, weil er 34 Zeichen mit
+ * Bindestrichen traegt (`Spec:2057`) und in 58mm sonst ueber den Rand liefe.
+ *
+ * ⚠️ 10pt IST KEIN VERSTOSS GEGEN DIE 16px-REGEL — die gilt fuer EINGABEelemente
+ * (`CLAUDE.md`, Falle 8); das hier ist ein Textknoten auf Papier. */
+.rd-code {
+  display: block;
+  margin-top: 1.5mm;
+  font-family: var(--font-mono);
+  font-size: 10pt;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.rd-url {
+  display: block;
+  margin-top: 1mm;
+  font-family: var(--font-mono);
+  font-size: 7pt;
+  color: #4a545d;
+  word-break: break-all;
+}
+
+@media print {
+  /* ⛔ `!important` IST HIER DER KANONISCHE ORT UND KEINE KOSMETIK: ein Druck-Stylesheet hat
+   * genau eine Aufgabe und keinen Gegenspieler, den es ungewollt ueberstimmen koennte. Der
+   * Praezedenzfall daneben ist gemessen (`lagerbuch/verwaltung/(druck)/druck.css:480-497`,
+   * Fund in T167): ohne `!important` erreichte die Regel einen Inline-Style nicht, und die
+   * Bedienleiste wurde auf Etikettenmaterial mitgedruckt. */
+  .rd-nichtDrucken {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    /* PFLICHT: ohne sie schluckt der Browser Flaechen — beim Sparen von Farbe faengt er
+     * genau bei grossen und bei kleinen an, und der QR waere ein grauer Kasten
+     * (`lagerbuch/verwaltung/(druck)/druck.css:504-509`). */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Am Bildschirm zeigt der gestrichelte Rahmen die Schnittkante; auf Papier bleibt er, weil
+   * die Karten AUSGESCHNITTEN und an den Aufsteller geklebt werden (`Spec:316-317`: „ein
+   * Kaertchen am Regal, ein Blatt an der Tuer"). Er ist damit Schnittlinie, nicht Dekor —
+   * und deshalb steht hier KEINE `border: none`-Regel wie beim Etikettenbogen, dessen
+   * Material die Kante schon mitbringt. */
+  .rd-bogen {
+    /* Der Bogen selbst darf im Druck keine Flaeche mehr setzen — sonst druckte der Browser
+     * bei `print-color-adjust: exact` eine vollflaechige weisse Ebene ueber jede Seite.
+     * Harmlos auf Papier, teuer im PDF (`lagerbuch/verwaltung/(druck)/druck.css:561-566`). */
+    background: transparent;
+  }
+}

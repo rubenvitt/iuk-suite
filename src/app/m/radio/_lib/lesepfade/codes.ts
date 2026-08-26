@@ -58,14 +58,14 @@ import { datumMitUhrzeit } from "../anzeige";
  * namentliche Waechter darueber ist der Fall „V20: admin/(arbeit)/zugaenge/page.tsx nennt
  * requireRadioAdmin und NICHT requireRadioVerwaltung" in `admin/actions.test.ts`.
  *
- * ⬜ **V20-L2 — DIESER SATZ IST HEUTE NUR EIN SATZ, UND DAS IST GEMESSEN** (REVIEW-V20, N6,
- * Fix-Runde 1): `/usr/bin/grep -rn "codesListe" src e2e` liefert genau EINEN Aufrufer,
- * `admin/(arbeit)/zugaenge/page.tsx`. Der genannte Waechter prueft den LITERALEN Pfad dieser
- * einen Seite — ⛔ NICHT DIE AUFRUFERKLASSE. Eine kuenftige `(arbeit)`-Flaeche, die
- * `codesListe` zoege, faellt durch kein Tor; nur V21s Druckblatt waere gedeckt, weil
- * `riegel.test.ts` fuer `(druck)` den strengen Zweig fuehrt (`riegel.test.ts:256-266`).
- * **Eigentuemer: V21** — dort entsteht der zweite Aufrufer, und die Zusicherung heisst dann
- * „wer `codesListe` importiert, nennt `requireRadioAdmin`".
+ * ✅ **⬜ V20-L2 IST GESCHLOSSEN (V21).** Der Satz war bis dahin nur ein Satz, gemessen
+ * (REVIEW-V20, N6): `/usr/bin/grep -rn "codesListe" src e2e` lieferte genau EINEN Aufrufer,
+ * und der genannte Waechter prueft den LITERALEN Pfad dieser einen Seite — ⛔ NICHT DIE
+ * AUFRUFERKLASSE. Mit dem zweiten Aufrufer (dem Druckblatt) traegt `riegel.test.ts` jetzt
+ * die Klausel **(h)** „wer `codesListe` importiert, nennt `requireRadioAdmin`" — ueber dem
+ * WERT-Import GESUCHT, nicht aufgezaehlt. Gemessen (Sonde P17, 2026-08-26): eine neue
+ * Serverdatei mit `codesListe` ohne Riegel faerbt sie rot. ⚠️ Die NEGATIVE Haelfte bleibt je
+ * Seite in `admin/actions.test.ts` — eine Aussage ueber die Stufe einer benannten Seite.
  */
 
 /**

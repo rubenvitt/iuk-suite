@@ -503,11 +503,11 @@ describe("radio-admin/actions: die Rechtestufe je Verwaltungsseite", () => {
    * Fall ueber einer Seite, die es nicht gibt, waere leer-gruen und bewachte nichts —
    * dieselbe NT11-Klasse, gegen die `ACTION_ANZAHL` oben steht. Eine `it.todo` meldet sich
    * in JEDER Ausgabe.
-   * ⚠️ STAND 2026-08-26: DREI der vier Faelle sind SCHARF — `import` (V18), `versionen`
-   * (V19) und `zugaenge` (V20); die drei Seiten stehen. ⛔ OFFEN BLEIBT NUR V21s
-   * `admin/(druck)/zugaenge/blatt/page.tsx`, und mit ihm der Zaehlfall auf VIER. ⛔ Die
-   * Regel darueber gilt unveraendert: wer die Seite baut, stellt ihren Fall im SELBEN
-   * Commit scharf.
+   * ✅ STAND 2026-08-26, NACH V21: ALLE VIER Faelle sind SCHARF — `import` (V18),
+   * `versionen` (V19), `zugaenge` (V20) und das Druckblatt (V21) —, und der Zaehlfall
+   * darunter steht auf VIER. ⛔ Es ist kein `it.todo` mehr offen; eine FUENFTE Seite auf der
+   * Admin-Stufe ist ab jetzt ein roter Zaehlfall, nicht eine Zeile im Diff. ⛔ Die Regel
+   * darueber gilt unveraendert: wer die Seite baut, stellt ihren Fall im SELBEN Commit scharf.
    *
    * ⛔ AUFLAGE AN DIE NACHFOLGER — je Aufgabe genau ein Fall, im SELBEN Commit wie die Seite:
    *
@@ -627,12 +627,127 @@ describe("radio-admin/actions: die Rechtestufe je Verwaltungsseite", () => {
       RIEGEL_VERWALTUNG,
     );
   });
-  it.todo(
-    "V21: admin/(druck)/zugaenge/blatt/page.tsx liegt in (druck) und nennt requireRadioAdmin, NICHT requireRadioVerwaltung",
-  );
-  it.todo(
-    "V21: genau VIER Verwaltungsseiten nennen requireRadioAdmin — toBe(4), nie >= (V-L5, Vorabscan-Fund F1)",
-  );
+  it("V21: admin/(druck)/zugaenge/blatt/page.tsx liegt in (druck) und nennt requireRadioAdmin, NICHT requireRadioVerwaltung", () => {
+    /*
+     * ⛔ SCHARF GESTELLT IN V21, IM SELBEN COMMIT WIE DIE SEITE. Der literale Pfad steht als
+     * Zeichenkette hier; eine pfadgenerische Form kann diese Aussage nicht erzeugen (die
+     * Begruendung steht im Kopf dieses Blocks).
+     *
+     * ⛔ DIE STUFE STEHT IN `Spec:4378`, und der Grund ist die Nutzlast des Blattes selbst:
+     * es zeigt die ZUGANGSCODES IM KLARTEXT (`admin/(druck)/layout.tsx:14-18`,
+     * `Spec:2180-2182`; `Spec:2249-2250`: „die Codeliste IST das Geheimnis").
+     *
+     * ⛔ DIE LAGEPRUEFUNG IST DER TEIL, DER NICHT SELBSTVERSTAENDLICH IST, und sie steht
+     * VOR den zwei Riegelhaelften. `riegel.test.ts` liefert fuer alles AUSSERHALB von
+     * `admin/(arbeit)/` den strengen Zweig (`personenRiegelFuer`, `riegel.test.ts:256-266`)
+     * — die Seite waere dort also gedeckt, ⛔ ABER NUR, SOLANGE SIE IN `(druck)` LIEGT.
+     * Verschoebe sie jemand nach `admin/(arbeit)/zugaenge/blatt/`, faellt sie in den
+     * ODER-Zweig, das `(arbeit)`-Layout legte Kopfzeile und App-Umschalter auf das Papier
+     * (`Spec:316-320`), und KEIN Scan wuerde rot. ⛔ GEMESSEN (Sonde **S-V21a**, 2026-08-26):
+     * die Seite nach `admin/(arbeit)/zugaenge/blatt/` verschoben → `riegel.test.ts` blieb
+     * GRUEN (`24 passed`), dieser Fall wurde ROT.
+     *
+     * ⛔ GEFUNDEN STATT BEHAUPTET (R-V11-1, `.superpowers/sdd/planteil4/progress.md`): die
+     * Lage wird ueber `alleModulDateien()` GESUCHT und gegen die Sollmenge gehalten, nicht
+     * ueber ein blosses `existsSync` des Sollpfades. Eine ZWEITE `zugaenge/blatt/page.tsx`
+     * unter `(arbeit)` — die Fehlerform, die beim Verschieben durch Kopieren entsteht —
+     * waere fuer ein `existsSync` unsichtbar und ist hier rot.
+     *
+     * ⛔ DIE NEGATIVE HAELFTE IST DIE, DIE NIEMAND SONST HAELT: der strenge Zweig von
+     * `personenRiegelFuer` prueft nur die ANWESENHEIT von `requireRadioAdmin(`
+     * (`riegel.test.ts:253-262`). ⛔ GEMESSEN (Sonde **S-V21c'**, 2026-08-26): ein
+     * zusaetzliches `requireRadioVerwaltung()` UNTER dem `requireRadioAdmin()` der ersten
+     * Anweisung liess `riegel.test.ts` GRUEN (`24 passed`) — beide Klauseln (e) und (g) sind
+     * erfuellt — und faerbte allein diesen Fall rot.
+     * ⚠️ DIE VARIANTE AUS DEM AUFTRAGSBRIEF IST EINE ANDERE UND IHRE VORHERSAGE UEBERHOLT:
+     * `requireRadioVerwaltung()` als ERSTE Anweisung faerbt `riegel.test.ts` sehr wohl rot,
+     * naemlich in Klausel (g) („der Personen-Riegel ist nicht die ERSTE Anweisung") — die
+     * Klausel entstand erst in der Fix-Runde 1 zu V15, nach dem Brief. Gemessen als Sonde
+     * **S-V21c**, beide Ergebnisse in `.superpowers/sdd/planteil4/BERICHT-V21.md`.
+     */
+    const pfad = "admin/(druck)/zugaenge/blatt/page.tsx";
+
+    const dateien = alleModulDateien();
+    expect(dateien.length, "der Modulbaum wurde nicht gelesen — die Lagepruefung waere blind")
+      .toBeGreaterThanOrEqual(MODUL_DATEIEN_MINDESTENS);
+    expect(
+      dateien
+        .map((p) => relative(MODUL, p).replace(/\\/g, "/"))
+        .filter((p) => /zugaenge\/blatt\/page\.tsx$/.test(p))
+        .sort(),
+      "das Druckblatt liegt nicht (oder nicht nur) in der Route-Group (druck)",
+    ).toEqual([pfad]);
+
+    const q = bereinigt(readFileSync(join(MODUL, pfad), "utf8"));
+    expect(q, `${pfad}: die Admin-Stufe fehlt (Spec:4378)`).toMatch(RIEGEL_ADMIN);
+    expect(q, `${pfad}: faelschlich auf die Verwaltungs-Stufe abgesenkt (Spec:4378)`).not.toMatch(
+      RIEGEL_VERWALTUNG,
+    );
+  });
+  it("V21: genau VIER Verwaltungsseiten nennen requireRadioAdmin — toBe(4), nie >= (V-L5, Vorabscan-Fund F1)", () => {
+    /*
+     * ⛔ DER ZAEHLFALL, UND ER IST DIE VOLLZAEHLIGKEITSKLAUSEL UEBER DEN VIER FAELLEN DARUEBER.
+     * Ohne ihn bewachten sie vier NAMENTLICHE Seiten und nicht die MENGE: eine FUENFTE
+     * Verwaltungsseite, die sich still auf die Admin-Stufe hebt, waere fuer jeden von ihnen
+     * unsichtbar — und eine Seite auf der Admin-Stufe ist fuer jede Updater-Person ein 404,
+     * ohne dass ein Tor rot wuerde. ⛔ Dieselbe Regel wie R-V11-1
+     * (`.superpowers/sdd/planteil4/progress.md`): wo ein Scan eine Fehlerklasse bewacht, die
+     * in einer NEUEN Datei entstehen kann, muss er die Menge FINDEN, nicht auflisten.
+     *
+     * ⛔ VIER, NICHT DREI. Betreiberentscheidung **V-L5** vom 2026-08-24
+     * (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L5") stellt `/admin/import`
+     * ebenfalls auf die Admin-Stufe und ueberholt `Spec:4375`; `VORABSCAN.md:53-55` (F1,
+     * Punkt 3) verlangt den vierten namentlichen Fall. Die uebrigen SECHS der zehn Seiten aus
+     * `Spec:4369-4378` tragen `requireRadioVerwaltung()`.
+     *
+     * ⛔ ZWEI ZUSICHERUNGEN, UND DIE ZWEITE IST NICHT DIE ERSTE: `toBe(4)` faengt eine
+     * hinzugekommene Seite, `toEqual` faengt den TAUSCH — eine Seite faellt auf die
+     * Verwaltungs-Stufe, eine andere steigt auf die Admin-Stufe, und die Zahl bleibt vier.
+     * Genau dieser Tausch ist die Fehlerform, gegen die die vier namentlichen Faelle stehen.
+     *
+     * ⛔ GEMESSEN (Sonde **S-V21b**, 2026-08-26): eine FUENFTE Seite auf `requireRadioAdmin`
+     * gehoben → dieser Fall rot, `riegel.test.ts` gruen.
+     * ⚠️ DER BRIEF SAGT „eine vierte Seite" (`briefs/V21.md:48-50`) — das ist der Stand VOR
+     * V-L5, als es drei waren. Mit V-L5 sind es vier, und die Sonde ist die fuenfte.
+     *
+     * ⚠️ KEINE ZWEITE SEITENZAHL HIER: dass der Filter ueberhaupt alle zehn Seiten findet,
+     * haelt `riegel.test.ts`s `ADMIN_SEITEN_ANZAHL` (`riegel.test.ts:121`) ueber DERSELBEN
+     * Dateiform. Eine zweite Konstante waere eine Zahl, die bei jeder Seitenaufgabe an zwei
+     * Stellen zu pflegen waere.
+     */
+    const SOLL_ADMIN_SEITEN = [
+      "admin/(arbeit)/import/page.tsx",
+      "admin/(arbeit)/versionen/page.tsx",
+      "admin/(arbeit)/zugaenge/page.tsx",
+      "admin/(druck)/zugaenge/blatt/page.tsx",
+    ];
+
+    const dateien = alleModulDateien();
+    expect(dateien.length, "der Modulbaum wurde nicht gelesen — die Tafel darunter waere blind")
+      .toBeGreaterThanOrEqual(MODUL_DATEIEN_MINDESTENS);
+
+    /*
+     * ⛔ `page.test.tsx` FAELLT AM ANKER `\/page\.tsx$` HERAUS, ohne eine eigene Ausnahme:
+     * die Zeichenkette endet auf `test.tsx`. Eine Verzeichnisausnahme waere hier genau die
+     * Blindstelle, die R-V11-3 abgeraeumt hat.
+     */
+    const adminSeiten = dateien
+      .map((p) => relative(MODUL, p).replace(/\\/g, "/"))
+      .filter((p) => /^admin\/(?:.*\/)?page\.tsx$/.test(p));
+
+    const aufAdminStufe = adminSeiten
+      .filter((p) => RIEGEL_ADMIN.test(bereinigt(readFileSync(join(MODUL, p), "utf8"))))
+      .sort();
+
+    expect(
+      aufAdminStufe.length,
+      "die Zahl der Verwaltungsseiten auf der Admin-Stufe hat sich geaendert (V-L5)",
+    ).toBe(4);
+    expect(
+      aufAdminStufe,
+      "eine andere Seite traegt die Admin-Stufe als die vier namentlich zugesicherten",
+    ).toEqual(SOLL_ADMIN_SEITEN);
+  });
 });
 
 describe("die Bereinigung selbst — der Waechter ueber dem Waechter", () => {

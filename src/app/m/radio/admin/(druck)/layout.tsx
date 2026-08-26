@@ -4,8 +4,8 @@ import { requireRadioHost } from "../../_lib/host";
 import { requireRadioAdmin } from "../../_lib/zugang";
 
 /**
- * HUELLE 2 — der Druckzweig (Spec:438-441). Heute liegt darunter genau ein kuenftiger
- * Pfad: `/admin/zugaenge/blatt`, das Blatt mit den Zugangscodes (Planteil 4).
+ * HUELLE 2 — der Druckzweig (Spec:438-441). Darunter liegt genau ein Pfad, und seit
+ * Aufgabe V21 steht er: `/admin/zugaenge/blatt`, das Blatt mit den Zugangscodes.
  *
  * EIGENE ROUTE-GROUP OHNE SHELL: laege das Blatt unter `(arbeit)`, druckte die Shell
  * Kopfzeile und App-Umschalter mit, und ihr `minHeight: 100vh` erzeugte leere
@@ -30,11 +30,11 @@ import { requireRadioAdmin } from "../../_lib/zugang";
  * fehlt, weil das Blatt in den Drucker geht und nicht in ein Browserfenster.
  * Route-Group-Grenzen sind KEINE Sicherheitsgrenzen (Spec:569-571).
  *
- * ⚠️ ZWEI LINIEN SIND PFLICHT, sobald die Seite steht: der Riegel in diesem Layout UND
- * derselbe Riegel in der Seite. Die zweite Linie ist Sache von PLANTEIL 4 — sie steht
- * hier als Auflage, nicht als erledigt. ⚠️ `riegel.test.ts` Klausel (e) haelt sie ab
- * dann mechanisch fest; heute ist sie ueber null Seiten leer-gruen und laeuft im
- * Anhebe-Fahrplan (`ADMIN_SEITEN_ANZAHL`) mit.
+ * ✅ ZWEI LINIEN SIND PFLICHT, UND DIE ZWEITE STEHT SEIT V21: der Riegel in diesem Layout
+ * UND derselbe Riegel in `zugaenge/blatt/page.tsx`. Die Auflage ist damit eingeloest, nicht
+ * mehr geschuldet. `riegel.test.ts` Klausel (e) haelt die Anwesenheit fest, Klausel (g) die
+ * Stellung als ERSTE Anweisung; `ADMIN_SEITEN_ANZAHL` steht auf 10, und diese Spur des
+ * Anhebe-Fahrplans ist abgearbeitet (`riegel.test.ts:113-121`).
  *
  * KEIN Stylesheet-Import: `lagerbuch` zieht hier `./druck.css`. Das Druckbild von `radio`
  * gehoert zu Planteil 4, MIT dem Blatt.

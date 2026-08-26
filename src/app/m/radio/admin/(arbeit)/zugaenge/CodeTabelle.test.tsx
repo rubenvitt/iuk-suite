@@ -1028,31 +1028,43 @@ describe("radio-Zugaenge: die Bauform der Insel und ihrer Seite", () => {
     }
   });
 
-  it("die Stelle fuer den Blatt-Link steht als benannte Leerstelle mit Nachfolger da", () => {
+  it("die Seite verlinkt das Druckblatt, und die Leerstelle ist fort", () => {
     /*
-     * ⛔ **V20 LAESST DIE STELLE FREI, V21 TRAEGT EIN**
-     * (`.superpowers/sdd/planteil4/briefs/V20.md:45-47`): „ein Link auf eine 404 ist schlimmer
-     * als kein Link" — dieselbe Regel wie bei V14/V15. `admin/(druck)/zugaenge/blatt/page.tsx`
-     * gibt es heute nicht, und `riegel.test.ts` zaehlt neun Seiten, nicht zehn.
+     * ⛔ **DIE UMKEHRUNG DES V20-FALLES, EINGETRAGEN IN V21** — beide Haelften haben die
+     * Richtung gewechselt, und beide waren rot, bevor die Zeile stand. V20 hielt hier die
+     * Leerstelle fest („ein Link auf eine 404 ist schlimmer als kein Link",
+     * `.superpowers/sdd/planteil4/briefs/V20.md:45-47`), weil es
+     * `admin/(druck)/zugaenge/blatt/page.tsx` noch nicht gab. ⛔ Jetzt gibt es sie, und der
+     * Fall bewacht das Gegenteil: der Link steht, das ⬜ mit dem Nachfolgernamen ist fort.
      *
-     * ⛔ DIESER FALL IST DIE UEBERGABE, NICHT EINE NOTIZ. Ohne ihn haengt sie an einem
-     * Kommentar, den eine Umformatierung mitnimmt; mit ihm faellt sein Verschwinden auf.
-     * ⚠️ GELESEN WIRD DER ROHE DATEITEXT — der Anker IST der Kommentar.
+     * ⚠️ **DIESE DATEI STEHT NICHT IN V21s Files-ZEILE** (`briefs/V21.md:3-5`), und das ist
+     * eine benannte Abweichung, keine Nachlaessigkeit: die zwei Zusicherungen der
+     * V20-Fassung waeren mit Schritt 3 des Briefes („den ⬜-Kommentar entfernen") BEIDE
+     * rot geworden. Derselbe Fall wie `admin/(arbeit)/page.test.tsx:28-34` („obwohl der
+     * Aufgabenbrief sie nicht fuehrt").
      *
-     * ⚠️ DIE SPANNE GEHT UEBER ZEILENGRENZEN, UND DAS IST GEMESSEN (2026-08-26): eine erste
-     * Fassung suchte `⬜[^\n]*V21` und war ROT ueber der korrekten Seite — `prettier` und die
-     * Zeilenbreite dieses Hauses brechen den Kommentar, und die zwei Anker stehen auf
-     * verschiedenen Zeilen. ⛔ DIE OBERGRENZE VON 600 ZEICHEN BLEIBT: ohne sie faende der
-     * Ausdruck ein ⬜ irgendwo oben in der Datei und ein `V21` irgendwo unten und waere gruen
-     * ueber zwei Dingen, die nichts miteinander zu tun haben.
+     * ⛔ **DIE POSITIVE HAELFTE LIEST DEN BEREINIGTEN TEXT UND GREIFT AM `href`**, nicht am
+     * blossen Pfad: ein auskommentierter oder bloss erwaehnter Pfad erfuellte sonst die
+     * Zusage, und der Link fehlte trotzdem. ⛔ GEMESSEN (Sonde **P18a**, 2026-08-26): mit
+     * dem Muster `/\/admin\/zugaenge\/blatt/` blieb dieser Fall GRUEN, als der `<Link>`
+     * aus der Seite entfernt wurde — die Konstante mit dem Pfad stand ja noch da. Der Pfad
+     * ist jetzt ein Literal am `href`, und das Muster greift dort. Die NEGATIVE Haelfte liest den ROHEN Text — der ⬜-Anker IST ein
+     * Kommentar, und nur dort ist er sichtbar.
+     *
+     * ⚠️ DIE 600-ZEICHEN-SPANNE DER V20-FASSUNG BLEIBT IN DER NEGATIVEN HAELFTE ERHALTEN und
+     * ist gemessen (2026-08-26, V20): eine Fassung mit `⬜[^\n]*V21` war ROT ueber der
+     * korrekten Seite, weil `prettier` den Kommentar umbricht. Ohne die Obergrenze faende der
+     * Ausdruck ein ⬜ irgendwo oben und ein `V21` irgendwo unten und waere gruen ueber zwei
+     * Dingen, die nichts miteinander zu tun haben.
      */
     const roh = readFileSync(QUELLE_SEITE, "utf8");
-    expect(roh, "die Leerstelle fuer das Druckblatt fehlt in der Seite").toMatch(
-      /⬜[\s\S]{0,600}V21/,
-    );
     expect(
       ohneKommentare(roh),
-      "die Seite verlinkt das Druckblatt bereits — es gibt es noch nicht (V21)",
-    ).not.toMatch(/\/admin\/zugaenge\/blatt/);
+      "die Seite verlinkt das Druckblatt nicht — der Weg dorthin ist unauffindbar (V21)",
+    ).toMatch(/href\s*=\s*["']\/admin\/zugaenge\/blatt["']/);
+    expect(
+      roh,
+      "die Leerstelle mit dem Nachfolgernamen V21 steht noch da, obwohl V21 gebaut ist",
+    ).not.toMatch(/⬜[\s\S]{0,600}V21/);
   });
 });

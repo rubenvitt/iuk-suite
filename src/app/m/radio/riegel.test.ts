@@ -86,7 +86,7 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  *   Planteil 3 baut `page.tsx` und den Ausleihzweig — beide AUSSERHALB von `admin/`,
  *                                                    -> ADMIN_SEITEN_ANZAHL bleibt 0
  *   Planteil 4 baut die zehn Seiten aus Spec:4369-4378
- *                                                    -> ADMIN_SEITEN_ANZAHL = 10
+ *                                    -> ERLEDIGT (V21), ADMIN_SEITEN_ANZAHL = 10
  *
  *   A11 baut `page.tsx` (das Gate)                   -> AUSLEIH_FLAECHEN_ANZAHL = 1
  *   A18 baut `(ausleihe)/layout.tsx` und
@@ -112,15 +112,15 @@ const SELBST = join(MODUL, "riegel.test.ts");
 const HANDLER_ANZAHL = 3;
 
 /**
- * ⛔ HEUTE NEUN — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die Liste
+ * ⛔ HEUTE ZEHN — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die Liste
  * (1 auf 2), V14 die Akte (2 auf 3), V15 die Historie (3 auf 4), V16 die Ausleihen (4 auf 5),
  * V17 der Update-Modus (5 auf 6), V18 der Import (6 auf 7), V19 die Versionen (7 auf 8), V20
- * die Zugaenge (8 auf 9); ⛔ ES FEHLT GENAU EINE: V21 das Druckblatt
- * `admin/(druck)/zugaenge/blatt/page.tsx` (9 auf 10, Spec:4369-4378).
+ * die Zugaenge (8 auf 9), V21 das Druckblatt (9 auf 10, Spec:4378) — ⛔ DER ANHEBE-FAHRPLAN
+ * IST FUER DIESE ZAHL ABGEARBEITET, die naechste Anhebung braucht einen neuen Grund.
  * ⚠️ `ADMIN_SEITEN()` (Dateiende) zaehlt seit der Fix-Runde 1 zu V15 AUCH
  * `template.tsx`/`default.tsx` — heute gibt es keine.
  */
-const ADMIN_SEITEN_ANZAHL = 9;
+const ADMIN_SEITEN_ANZAHL = 10;
 
 /** Zwei Verwaltungs-Huellen: `admin/(arbeit)/layout.tsx` und `admin/(druck)/layout.tsx` (Z6). */
 const ADMIN_LAYOUTS_MINDESTENS = 2;
@@ -1259,6 +1259,102 @@ describe("(g) auf jeder Verwaltungsseite steht der Riegel als ERSTE Anweisung", 
         );
       }
     }
+    expect(verstoesse).toEqual([]);
+  });
+});
+
+describe("(h) wer die Codeliste im Klartext liest, traegt die Admin-Stufe", () => {
+  /*
+   * ⛔ DIESE KLAUSEL SCHLIESST ⬜ **V20-L2**, und der Eigentuemer war namentlich V21
+   * (`_lib/lesepfade/codes.ts:61-68`; `.superpowers/sdd/planteil4/BERICHT-V20.md:653-654`).
+   * Der Wortlaut der Uebergabe steht dort: „wer `codesListe` importiert, nennt
+   * `requireRadioAdmin`".
+   *
+   * ⛔ WARUM SIE GEBRAUCHT WIRD — GEMESSEN, NICHT GESORGT (REVIEW-V20, N6):
+   * `/usr/bin/grep -rn "codesListe" src e2e` lieferte bis V21 genau EINEN Aufrufer. Der
+   * Waechter darueber ist der Fall „V20: admin/(arbeit)/zugaenge/page.tsx nennt
+   * requireRadioAdmin …" in `admin/actions.test.ts` — er prueft den LITERALEN Pfad DIESER
+   * EINEN Seite, ⛔ NICHT DIE AUFRUFERKLASSE. Eine kuenftige `(arbeit)`-Flaeche, die
+   * `codesListe` zoege, faellt durch kein Tor: `personenRiegelFuer` laesst dort
+   * `requireRadioVerwaltung(` zu (`riegel.test.ts:256-266`), und damit saehe jede
+   * Updater-Person jeden Zugangscode im Klartext.
+   *
+   * ⛔ WAS AUF DEM SPIEL STEHT, STEHT IN DER SPEC: der Code „wird EINMAL zurueckgegeben und
+   * danach in der Verwaltungsliste im Klartext angezeigt und gedruckt" (`Spec:2180-2182`),
+   * und `Spec:2249-2250` zieht die Folge — „die Codeliste IST das Geheimnis".
+   *
+   * ⛔ GEFUNDEN STATT AUFGEZAEHLT (R-V11-1): die Leser werden ueber den Modulbaum GESUCHT.
+   * Eine feste Zweiertafel waere fuer genau die dritte Flaeche blind, gegen die diese
+   * Klausel gebaut ist.
+   *
+   * ⚠️ DIE NEGATIVE HAELFTE GEHOERT NICHT HIERHER, und das ist eine Abgrenzung, keine
+   * Auslassung: „nennt NICHT `requireRadioVerwaltung`" ist eine Aussage ueber die STUFE
+   * einer benannten Seite und steht je Seite in `admin/actions.test.ts`. Diese Klausel sagt,
+   * dass die Admin-Stufe ueberhaupt vorkommt — die Zusage aus ⬜ V20-L2, woertlich.
+   */
+  /**
+   * ⛔ DER WERT-IMPORT VON `codesListe`, NICHT JEDER IMPORT AUS DEM MODUL — und das ist eine
+   * GEMESSENE Verschaerfung des Zuschnitts, keine Bequemlichkeit (2026-08-26, zweiter Lauf
+   * dieser Klausel). Die erste Fassung suchte `from ".../lesepfade/codes"` und meldete
+   * `admin/(arbeit)/zugaenge/CodeTabelle.tsx` als Verstoss: die Insel zieht von dort NUR den
+   * Typ `CodeZeile`. ⛔ EIN TYP IST KEIN LESER — er wird vom Uebersetzer geloescht, ruehrt
+   * keine Datenbank an und kann in einer `"use client"`-Datei gar keinen Riegel rufen. Die
+   * Zeilen bekommt die Insel als Props von der Server-Seite, und DIE traegt den Riegel.
+   * ⚠️ Der Ausdruck faengt deshalb `import { codesListe }` und `import { codesListe, type … }`,
+   * aber nicht `import type { CodeZeile }`.
+   */
+  const WERT_IMPORT_CODES =
+    /import\s+(?!type\b)\{([^}]*)\}\s*from\s*["'][^"']*_lib\/lesepfade\/codes["']/g;
+
+  /** Nennt die Klammerliste eines Import-Ausdrucks `codesListe` als WERT (nicht als Typ)? */
+  function liestCodesListe(quelle: string): boolean {
+    for (const treffer of quelle.matchAll(WERT_IMPORT_CODES)) {
+      const namen = treffer[1]!.split(",").map((teil) => teil.trim());
+      if (namen.some((n) => /^codesListe\b/.test(n))) return true;
+    }
+    return false;
+  }
+
+  /**
+   * ⛔ EINE UNTERGRENZE, KEINE EXAKTE ZAHL. Sie belegt nur, dass der Scan ueberhaupt Leser
+   * findet — ohne sie waere `toEqual([])` unten ueber einer leeren Menge leer-gruen, die
+   * NT11-Fehlerklasse. ⛔ EXAKT waere hier falsch: ein dritter Leser ist erlaubt, solange er
+   * die Stufe traegt. Heute sind es zwei: `admin/(arbeit)/zugaenge/page.tsx` (V20) und
+   * `admin/(druck)/zugaenge/blatt/page.tsx` (V21).
+   */
+  const CODE_LESER_MINDESTENS = 2;
+
+  it("jede Datei, die codesListe importiert, nennt requireRadioAdmin", () => {
+    /*
+     * ⛔ UEBER DEN IMPORT GESUCHT, NICHT UEBER DEN NAMEN: `_lib/lesepfade/codes.ts` selbst
+     * traegt `codesListe` als DEKLARATION und wuerde sich sonst selbst als Leser melden —
+     * ein Lesepfad ruft aber keinen Riegel (Falle 6, und `riegel.test.ts` verbietet unter
+     * `_lib/` ohnehin beide Bauform-Direktiven). Der Import ist die Aufruferklasse.
+     *
+     * ⛔ ZWEI BEREINIGUNGSSTUFEN, UND DIE TEILUNG IST GEMESSEN: der IMPORT wird ueber
+     * `ohneKommentare` gesucht, weil `bereinigt` jede Zeichenkette LEERT — mit ihm fand der
+     * Scan NULL Leser und der Fall war rot-by-construction (2026-08-26, erster Lauf dieser
+     * Klausel). Der RIEGEL wird ueber `bereinigt` geprueft, damit ein blosses
+     * `"requireRadioAdmin("` in einer Zeichenkette die Zusage nicht erfuellt.
+     *
+     * ⚠️ TESTDATEIEN SIND UEBER `quellDateien()` AUSGENOMMEN (`riegel.test.ts:144-159`):
+     * `_lib/lesepfade/codes.test.ts` importiert `codesListe` und nennt keinen Riegel — als
+     * Leser gezaehlt waere diese Klausel rot-by-construction. Testdateien werden nicht
+     * ausgeliefert.
+     */
+    const leser = quellDateien().filter((pfad) =>
+      liestCodesListe(ohneKommentare(readFileSync(pfad, "utf8"))),
+    );
+
+    expect(
+      leser.length,
+      "kein Leser von codesListe gefunden — die Klausel darunter waere leer-gruen",
+    ).toBeGreaterThanOrEqual(CODE_LESER_MINDESTENS);
+
+    const verstoesse = leser
+      .filter((pfad) => !/\brequireRadioAdmin\s*\(/.test(bereinigt(readFileSync(pfad, "utf8"))))
+      .map((pfad) => `${kurzPfad(pfad)}: liest die Codeliste im Klartext ohne requireRadioAdmin( (Spec:2249-2250)`);
+
     expect(verstoesse).toEqual([]);
   });
 });

@@ -1,5 +1,6 @@
 // src/app/m/radio/admin/(arbeit)/zugaenge/page.tsx
 import { Alert } from "antd";
+import Link from "next/link";
 import { getDb } from "../../../_db/client";
 import { codesListe } from "../../../_lib/lesepfade/codes";
 import { requireRadioAdmin } from "../../../_lib/zugang";
@@ -95,7 +96,14 @@ const SEITEN_TEXTE = {
    */
   hinweis:
     "Ein Zugang wird nie gelöscht — sperren ist der einzige Widerruf, und die gesperrte Zeile bleibt mit Zeitpunkt und Person stehen. Eine Sperre wirkt beim nächsten Aufruf des Codes, auch mitten in einer laufenden Sitzung.",
+  /**
+   * ⛔ ER NENNT, WAS AUF DEM BOGEN STEHT, und nicht bloss „Drucken": das Blatt zeigt nur die
+   * AKTIVEN Zugaenge (`admin/(druck)/zugaenge/blatt/page.tsx`, der Filter mit seiner
+   * Begruendung). Wer eine gesperrte Zeile darauf sucht, soll es hier schon lesen.
+   */
+  blattLink: "Druckblatt mit den QR-Codes der aktiven Zugänge",
 } as const;
+
 
 export default async function RadioZugaengeSeite() {
   await requireRadioAdmin();
@@ -124,14 +132,27 @@ export default async function RadioZugaengeSeite() {
         className={s.abstand}
       />
       {/*
-        ⬜ DIE STELLE FUER DEN LINK AUF DAS DRUCKBLATT — sie bleibt in V20 FREI und wird von
-        **V21** gefuellt, zusammen mit `admin/(druck)/zugaenge/blatt/page.tsx`
-        (`.superpowers/sdd/planteil4/briefs/V20.md:45-47`; dieselbe Regel wie bei V14/V15).
-        ⛔ EIN LINK AUF EINE 404 IST SCHLIMMER ALS KEIN LINK: die Zielseite gibt es heute
-        nicht, `riegel.test.ts` zaehlt neun Seiten und nicht zehn. Der Waechter dieser
-        Uebergabe ist der Fall „die Stelle fuer den Blatt-Link steht als benannte Leerstelle
-        mit Nachfolger da" in `CodeTabelle.test.tsx`.
+        ✅ DER LINK AUF DAS DRUCKBLATT — eingetragen in **V21**, im SELBEN Commit wie
+        `admin/(druck)/zugaenge/blatt/page.tsx` (`.superpowers/sdd/planteil4/briefs/V21.md:26-27`).
+        V20 liess die Stelle frei, weil „ein Link auf eine 404 schlimmer ist als kein Link"
+        (`.superpowers/sdd/planteil4/briefs/V20.md:45-47`) — die Zielseite steht jetzt, und
+        `riegel.test.ts` zaehlt zehn Seiten. Der Waechter dieser Uebergabe ist der Fall „die
+        Seite verlinkt das Druckblatt" in `CodeTabelle.test.tsx`.
+
+        ⛔ DER AEUSSERE PFAD, NICHT DER INNERE: `(druck)` ist eine Route-Group und in der URL
+        unsichtbar (`Spec:320-322`). Der Pfad steht in der Routenkarte (`_lib/routen.ts:65`).
+        ⛔ ER STEHT ALS LITERAL AM `href` UND NICHT IN EINER KONSTANTEN DARUEBER, und das ist
+        eine GEMESSENE Korrektur (Sonde **P18a**, 2026-08-26): mit der Konstanten blieb der
+        Fall in `CodeTabelle.test.tsx` gruen, als der `<Link>` entfernt wurde — die Konstante
+        allein erfuellte den Quelltext-Scan. Dieselbe Form wie in `admin/(arbeit)/page.tsx:158`.
+
+        ⛔ EIN `next/link`, KEIN KNOPF UND KEIN `window.print()`: ein Druckknopf braeuchte eine
+        Client-Insel, und die Zielseite ist ausdruecklich ohne (`briefs/KOPF.md:1386-1389`).
+        Gedruckt wird auf dem Blatt selbst, mit dem Druckbefehl des Browsers.
       */}
+      <p className={s.abstand}>
+        <Link href="/admin/zugaenge/blatt">{SEITEN_TEXTE.blattLink}</Link>
+      </p>
       <CodeTabelle zeilen={zeilen} />
     </>
   );

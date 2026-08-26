@@ -886,4 +886,76 @@ test.describe("radio-Verwaltung", () => {
       "sperren ist der einzige Widerruf",
     );
   });
+
+  test("Fall 5a: /admin/zugaenge/blatt druckt OHNE Kopfzeile und OHNE Navigationsleiste", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V21, NICHT NACHBESSERUNG
+     * (`Spec:4883-4885`, Fall 5a, woertlich): „das ist die einzige Pruefung, die die
+     * Route-Group `(druck)` von `(arbeit)` unterscheidet; ohne sie druckt das Blatt still
+     * mit Suite-Kopfzeile und `controlHeight: 44`."
+     *
+     * ⛔ ER PRUEFT DIE ABWESENHEIT ZWEIER ELEMENTE — nicht die Anwesenheit des Blatts
+     * (`.superpowers/sdd/planteil4/briefs/V21.md:58-59`). Was auf dem Papier steht, misst
+     * `blatt/page.test.tsx`; was NICHT darauf steht, kann nur ein echter Abruf sagen.
+     *
+     * ⛔ DIE KONTROLLE STEHT VORNE, UND DAS IST KEINE REIHENFOLGE-KOSMETIK:
+     * `toHaveCount(0)` geht auch dann durch, wenn es den Anker gar nicht gibt — die Lehre
+     * steht ausgeschrieben in `e2e/lagerbuch-checklisten.spec.ts:112-123` („DIE KONTROLLE
+     * ZUR VORIGEN ZEILE, und ohne sie waere jene ein NO-OP"). ⛔ STUENDE SIE HINTEN, killte
+     * eine fehlschlagende Abwesenheitszusage sie mit, und der Lauf saegte nichts ueber den
+     * Anker — dieselbe Ueberlegung, die Fall 4a zu einem eigenen `test()` gemacht hat.
+     *
+     * ⛔ DIE ANKER SIND SUITE-ANKER, KEINE MODULANKER: `suite-header` sitzt am `<Header>`
+     * (`src/core/shell/SuiteHeader.tsx:75`), `modulleiste` an der `<nav>`
+     * (`src/core/shell/Modulleiste.tsx:31`). Beide entstehen im `SuiteRahmen`
+     * (`src/core/shell/SuiteRahmen.tsx:49-61`), den das `(arbeit)`-Layout ueber
+     * `RadioVerwaltungsRahmen` zieht und das `(druck)`-Layout bewusst NICHT
+     * (`admin/(druck)/layout.tsx:10-12`).
+     *
+     * ⛔ UND `minHeight: 100vh` IST DER ZWEITE HALBSATZ DES SCHADENS
+     * (`src/core/shell/SuiteRahmen.tsx:50`): mit Shell erzeugte er leere Folgeseiten hinter
+     * dem Bogen (`lagerbuch/verwaltung/(druck)/layout.tsx:10-12`). Der Anker dafuer ist
+     * derselbe — ohne Kopfzeile gibt es keinen `Layout`-Rahmen, der ihn setzt.
+     *
+     * ⛔ DER WARMLAUF IST DER `page.goto` SELBST — Falle 10 (`CLAUDE.md`). Diese Seite loest
+     * ohne Griff keine Anfrage aus.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    // DIE KONTROLLE: auf einer (arbeit)-Seite sind beide Anker da. Ohne sie waeren die drei
+    // Zusicherungen darunter drei NO-OPs.
+    const kontrolle = await page.goto(radioUrl("/admin/zugaenge"));
+    expect(kontrolle?.status(), "/admin/zugaenge auf dem radio-Host").toBe(200);
+    await expect(
+      page.getByTestId("suite-header"),
+      "der Kopfzeilen-Anker existiert nicht mehr — die Abwesenheitszusagen waeren blind",
+    ).toHaveCount(1);
+    await expect(
+      page.getByTestId("modulleiste"),
+      "der Navigations-Anker existiert nicht mehr — die Abwesenheitszusagen waeren blind",
+    ).toHaveCount(1);
+
+    const antwort = await page.goto(radioUrl("/admin/zugaenge/blatt"));
+    expect(antwort?.status(), "/admin/zugaenge/blatt auf dem radio-Host").toBe(200);
+    await expect(
+      page.getByTestId("suite-header"),
+      "das Blatt druckt mit Suite-Kopfzeile (Spec:4883-4885)",
+    ).toHaveCount(0);
+    await expect(
+      page.getByTestId("modulleiste"),
+      "das Blatt druckt mit Navigationsleiste (Spec:4883-4885)",
+    ).toHaveCount(0);
+
+    /*
+     * ⛔ DER DRITTE GRIFF BELEGT, DASS DIE ABWESENHEIT VON DER SEITE KOMMT UND NICHT VON
+     * EINER 404 MIT STATUS 200: ohne ihn bestuenden die zwei Zusicherungen oben auch ueber
+     * einer leeren Antwort.
+     */
+    await expect(
+      page.locator('[data-rolle="radio-blatt"]'),
+      "der Bogen selbst fehlt — die zwei Abwesenheitszusagen messen dann nichts",
+    ).toHaveCount(1);
+  });
 });
