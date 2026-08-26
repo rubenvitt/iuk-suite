@@ -23,6 +23,20 @@ import { datumMitUhrzeit } from "../anzeige";
  * ⛔ ES GIBT HIER ALSO KEINE 1:1-VORLAGE — die Zusagen dieser Datei stammen aus dem
  * DATENMODELL (`_db/schema.ts:147-192`) und aus Spec 1 §3.2.3/§3.2.4 (`Spec:2172-2250`).
  *
+ * ⚠️ **DIE AUSSAGE IST AUF `zugangscodes` BEGRENZT, UND DIESE EINGRENZUNG IST EINE KORREKTUR
+ * AUS FIX-RUNDE 1** (REVIEW-V20, N4). Der Messanker oben sucht nach dem BEGRIFF; eine
+ * STRUKTURELL verwandte Alt-Maske findet er damit nicht. Die naechstgelegene ist
+ * `radio-admin/client/src/features/settings/ApiTokensPage.tsx` — eine Liste ausgestellter
+ * Zugangsmittel mit Name, Praefix, Erstellt, Zuletzt genutzt, Status und Aktionen, mit
+ * `Popconfirm`, in der WIDERRUFENE ZEILEN STEHEN BLEIBEN, und ihr Leser sortiert
+ * `desc(createdAt)` (`radio-admin/server/src/repos/apiTokenRepo.ts:88`).
+ * ⛔ SIE IST TROTZDEM KEINE 1:1-VORLAGE: anderes Objekt (die Token-Tabelle des Alt-Bestands,
+ * GEHASHT gespeichert), und `Spec:4510` traegt fuer Insel 8 „erbt von Kapitel 3".
+ * ⚠️ SIE STUETZT DIE WAHLEN DIESER DATEI ABER, statt ihnen zu widersprechen — Sortierung und
+ * Verbleib der widerrufenen Zeile decken sich. Die zwei Abweichungen sind erklaert: der
+ * Alt-Knopf traegt `danger` UND `size="small"`, beides in der Suite gesperrt (Falle 3,
+ * Falle 4).
+ *
  * ⛔ `db` IST DER ERSTE PARAMETER, IMMER, und diese Datei holt sich die Verbindung nie selbst
  * — sonst waere sie im Test nicht gegen eine eigene Datei zu haengen, und `getModuleDb()`
  * waere dort ausserdem falsch: sein Cache ist per MODULSCHLUESSEL gekeyt, nicht per
@@ -35,7 +49,7 @@ import { datumMitUhrzeit } from "../anzeige";
  * ⛔ **DER KLARTEXT-CODE STEHT IN DER ZEILE — UND DAS IST DER GRUND FUER DIE ADMIN-STUFE DER
  * SEITE, NICHT IHRE KUER.** `Spec:2180-2182`: der Code „wird EINMAL zurueckgegeben und danach
  * in der Verwaltungsliste im Klartext angezeigt und gedruckt — er ist kein Einmalgeheimnis,
- * sondern ein Dauerausweis", und `Spec:2251-2253` zieht die Folge: „die Codeliste IST das
+ * sondern ein Dauerausweis", und `Spec:2249-2250` zieht die Folge: „die Codeliste IST das
  * Geheimnis." ⚠️ Der Vorabscan hat den GROESSTEN Traeger benannt (Fund **F23**,
  * `.superpowers/sdd/planteil4/VORABSCAN.md:542-556`): nicht die Protokollzeile und nicht die
  * Fehlermeldung, sondern die **Props-Grenze** — die Zeilen werden als RSC-Nutzlast
@@ -43,6 +57,15 @@ import { datumMitUhrzeit } from "../anzeige";
  * DARF DIESE FUNKTION VON KEINER FLAECHE AUF EINER ANDEREN STUFE GERUFEN WERDEN; der
  * namentliche Waechter darueber ist der Fall „V20: admin/(arbeit)/zugaenge/page.tsx nennt
  * requireRadioAdmin und NICHT requireRadioVerwaltung" in `admin/actions.test.ts`.
+ *
+ * ⬜ **V20-L2 — DIESER SATZ IST HEUTE NUR EIN SATZ, UND DAS IST GEMESSEN** (REVIEW-V20, N6,
+ * Fix-Runde 1): `/usr/bin/grep -rn "codesListe" src e2e` liefert genau EINEN Aufrufer,
+ * `admin/(arbeit)/zugaenge/page.tsx`. Der genannte Waechter prueft den LITERALEN Pfad dieser
+ * einen Seite — ⛔ NICHT DIE AUFRUFERKLASSE. Eine kuenftige `(arbeit)`-Flaeche, die
+ * `codesListe` zoege, faellt durch kein Tor; nur V21s Druckblatt waere gedeckt, weil
+ * `riegel.test.ts` fuer `(druck)` den strengen Zweig fuehrt (`riegel.test.ts:256-266`).
+ * **Eigentuemer: V21** — dort entsteht der zweite Aufrufer, und die Zusicherung heisst dann
+ * „wer `codesListe` importiert, nennt `requireRadioAdmin`".
  */
 
 /**
@@ -61,7 +84,7 @@ const NIE_EINGELOEST = "nie eingelöst";
 
 /**
  * Eine Zeile der Zugangsverwaltung — FUENF SPALTEN
- * (`.superpowers/sdd/planteil4/briefs/V20.md:38-40`): Bezeichnung, Code, Zustand, zuletzt
+ * (`.superpowers/sdd/planteil4/briefs/V20.md:33-34`): Bezeichnung, Code, Zustand, zuletzt
  * benutzt, Aktionen.
  *
  * ⛔ VORFORMATIERT UND SERIALISIERBAR, KEIN `Date` (Bauform-Zulaessigkeitstafel Nr. 7,
@@ -108,13 +131,16 @@ export type CodeZeile = {
  * einer Aufgabe, die vier vorsieht (die Begruendung steht seit V7 an der ersten Kopie,
  * `_lib/lesepfade/ereignisse.ts:165-170`), und die Wiederholung ist mechanisch — alle drei
  * bilden denselben Alt-Rumpf ab und haben keinen eigenen Ermessensspielraum, der
- * auseinanderlaufen koennte. ⛔ DIE ZWEI BESTEHENDEN KOPIEN BLEIBEN UNANGETASTET: sie
- * behaupten „ein zweites Mal in `geraete.ts:601-611`", also eine Aussage ueber JENE Datei,
- * keine Vollzaehligkeitsaussage — die vollstaendige Zahl steht hier.
+ * auseinanderlaufen koennte.
+ * ⚠️ **DIE ZAEHLUNG IN DER ERSTEN KOPIE IST IN FIX-RUNDE 1 NACHGEZOGEN** (REVIEW-V20, N3):
+ * `_lib/lesepfade/ereignisse.ts:165` sagte „EIN ZWEITES MAL" und meinte damit zwei; sie nennt
+ * jetzt beide Nachbarn. ⛔ NUR DIESE EINE STELLE TRUG DIE ZAHL — gemessen mit
+ * `/usr/bin/grep -n "ZWEITES MAL" _lib/lesepfade/geraete.ts` → kein Treffer am Kopf von
+ * `nutzernamen` (`geraete.ts:592-599`), REVIEW-V20s N3 nennt faelschlich beide Kopien.
  *
  * ⛔ UND WARUM DIE AUFLOESUNG HIER UEBERHAUPT ETWAS KAUFT, anders als bei den per CSV
  * importierten Ereigniszeilen: `gesperrt_von` traegt den `sub` einer LEBENDEN Suite-Sitzung
- * (`_actions/codes.ts:121-135`), und derselbe Aufruf hat die Person eine Anweisung vorher in
+ * (`_actions/codes.ts:121-133`), und derselbe Aufruf hat die Person eine Anweisung vorher in
  * `users` eingetragen — `setzeCodeAktiv` ruft als erste Anweisung `requireRadioAdmin()`, und
  * `riegelAufStufe` schreibt `merkeNutzer(getDb(), viewer)` (`_lib/zugang.ts:459-470`). Der
  * lokale Seed legt die Zeile ausdruecklich an, „damit die sechs Auditspalten einen Namen
@@ -152,10 +178,10 @@ function nutzernamen(db: DB, subs: string[]): Map<string, string> {
  *
  * ⛔ SORTIERUNG: `desc(createdAt)`, Gleichstand ueber `asc(id)`. ⚠️ SIE IST EINE BENANNTE
  * WAHL DIESER AUFGABE UND KEIN PORT — es gibt keine Alt-Liste (siehe Dateikopf), und der
- * Auftragsbrief nennt keine (`.superpowers/sdd/planteil4/briefs/V20.md:26-36`). Der neueste
+ * Auftragsbrief nennt keine (`.superpowers/sdd/planteil4/briefs/V20.md:20-29`). Der neueste
  * Zugang steht oben, weil er der ist, den jemand gerade ausgestellt hat und sucht.
  * ⛔ DER ZWEITE SCHLUESSEL KAUFT DETERMINISMUS, NICHT RICHTIGKEIT: `created_at` ist ein
- * SEKUNDENstempel (`_db/schema.ts:188`), zwei in derselben Sekunde ausgestellte Zugaenge sind
+ * SEKUNDENstempel (`_db/schema.ts:187`), zwei in derselben Sekunde ausgestellte Zugaenge sind
  * moeglich, und ohne den Gleichstandsbrecher antwortete derselbe Bestand je nach
  * Speicherlage verschieden. Dieselbe Unterscheidung und dieselbe Formulierung wie im Kopf von
  * `zielVersion` (`_lib/lesepfade/versionen.ts`).

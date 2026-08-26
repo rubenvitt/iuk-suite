@@ -817,7 +817,7 @@ test.describe("radio-Verwaltung", () => {
     /*
      * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V20, NICHT NACHBESSERUNG
      * (`Spec:4881-4882`, dieselbe Bauform wie Fall 5; der Auftragsbrief nennt ihn namentlich,
-     * `.superpowers/sdd/planteil4/briefs/V20.md:64`).
+     * `.superpowers/sdd/planteil4/briefs/V20.md:59`).
      *
      * ⛔ ER IST DER EINZIGE WAECHTER UEBER **FALLE 9** AN INSEL 8: die Tabelle traegt fuenf
      * `render`-Funktionen. Aus einer Server Component ist das `Functions cannot be passed
@@ -826,7 +826,7 @@ test.describe("radio-Verwaltung", () => {
      *
      * ⛔ UND ER IST DER ZWEITE ECHTE ABRUF EINER SEITE AUF DER **ADMIN-STUFE**
      * (`Spec:4377`) — der schaerfste der drei, weil diese Seite jeden Zugangscode im Klartext
-     * zeigt (`Spec:2180-2182`, `Spec:2251-2253`). Der Quelltext-Scan in `admin/actions.test.ts`
+     * zeigt (`Spec:2180-2182`, `Spec:2249-2250`). Der Quelltext-Scan in `admin/actions.test.ts`
      * sagt, dass die Zeile DASTEHT; dass sie GREIFT, ist ⬜ **V-L3** und wird hier gemessen —
      * der Abruf laeuft mit der Admin-Gruppe wie jeder Fall dieser Datei. ⚠️ Dass eine
      * UPDATER-Person hier 404 bekaeme, misst dieser Fall NICHT; dafuer braeuchte er eine
@@ -837,7 +837,7 @@ test.describe("radio-Verwaltung", () => {
      * `zugangscodes` wird NIEMALS geloescht (NS-A6, `Spec:2204-2221`, `_actions/codes.ts:20-52`)
      * — jeder Lauf hinterliesse dauerhaft eine Zeile, und nach dem Cutover stuenden sie in der
      * Liste des Betreibers. Der Auftragsbrief verlangt genau das nicht: „200 mit sichtbarer
-     * Tabelle" (`.superpowers/sdd/planteil4/briefs/V20.md:64`).
+     * Tabelle" (`.superpowers/sdd/planteil4/briefs/V20.md:59`).
      *
      * ⛔ DASS DIE TABELLE LEER IST, SCHWAECHT DEN FALLE-9-BEWEIS NICHT (⬜ V13-L2: der
      * e2e-Lauf seedet `radio` nicht). Die Ueberschriften entstehen aus `title`, nicht aus

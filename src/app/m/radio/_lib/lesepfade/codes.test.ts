@@ -32,11 +32,11 @@ import { codesListe } from "./codes";
  * `_lib/lesepfade/versionen.test.ts:19-27`.
  *
  * ⚠️ EINE FRISCHE DATENBANK JE FALL (`beforeEach`, nicht `beforeAll`): `zugangscodes.code`
- * traegt einen UNIQUE-Index (`_db/schema.ts:170`), und die Faelle unten setzen ihren eigenen
+ * traegt einen UNIQUE-Index (`_db/schema.ts:171`), und die Faelle unten setzen ihren eigenen
  * Bestand — geteilte Zeilen liessen sie einander bedingen.
  *
  * ⚠️ ZEIT IST EIN `Date`, KEINE ZAHL. `created_at`, `gesperrt_am` und `last_used_at` stehen
- * als `integer(..., { mode: "timestamp" })` im Schema (`_db/schema.ts:186`, `:188`, `:191`);
+ * als `integer(..., { mode: "timestamp" })` im Schema (`_db/schema.ts:187`, `:185`, `:192`);
  * Drizzle rechnet die Sekundengrenze selbst, und in dieser Datei taucht keine rohe
  * Epochenzahl auf.
  */
@@ -98,7 +98,7 @@ describe("codesListe — die Zeilen der Zugangsverwaltung", () => {
     /*
      * ⛔ DIE SORTIERUNG IST EINE BENANNTE WAHL DIESER AUFGABE UND KEIN PORT — es gibt keine
      * Alt-Liste zum Abschreiben (siehe Dateikopf). Der Brief nennt sie nicht
-     * (`.superpowers/sdd/planteil4/briefs/V20.md:26-36`); ⛔ OHNE `orderBy` antwortete SQLite
+     * (`.superpowers/sdd/planteil4/briefs/V20.md:20-29`); ⛔ OHNE `orderBy` antwortete SQLite
      * in rowid-Ordnung, und dieser Fall maesse nichts, sobald sie zufaellig mit der Erwartung
      * zusammenfiele.
      *
@@ -114,7 +114,7 @@ describe("codesListe — die Zeilen der Zugangsverwaltung", () => {
      * WIDERSPRECHEN.
      *
      * ⛔ UND DER GLEICHSTAND IST HERGESTELLT, NICHT DER NORMALFALL: `created_at` ist ein
-     * Sekundenstempel (`_db/schema.ts:188`), zwei in derselben Sekunde ausgestellte Zugaenge
+     * Sekundenstempel (`_db/schema.ts:187`), zwei in derselben Sekunde ausgestellte Zugaenge
      * sind also moeglich. Ohne den zweiten Schluessel antwortete derselbe Bestand je nach
      * Speicherlage verschieden — der Gleichstandsbrecher kauft Determinismus, ⛔ NICHT
      * Richtigkeit (dieselbe Unterscheidung wie im Kopf von `zielVersion`,
@@ -142,7 +142,7 @@ describe("codesListe — die Zeilen der Zugangsverwaltung", () => {
      * Einmalgeheimnis, sondern ein Dauerausweis".
      *
      * ⛔ UND GENAU DAS IST DER GRUND FUER DIE ADMIN-STUFE DER SEITE, nicht ihre Kuer:
-     * `Spec:2251-2253` („die Codeliste IST das Geheimnis"). Der Vorabscan hat den groessten
+     * `Spec:2249-2250` („die Codeliste IST das Geheimnis"). Der Vorabscan hat den groessten
      * Traeger benannt (Fund **F23**, `.superpowers/sdd/planteil4/VORABSCAN.md:542-556`): die
      * Zeile ueberquert die RSC-Grenze und steht im ausgelieferten Payload jeder
      * `/admin/zugaenge`-Antwort. Waere diese Zeile ohne den Klartext, waere das Druckblatt aus
@@ -193,11 +193,11 @@ describe("codesListe — die Zeilen der Zugangsverwaltung", () => {
      * ⛔ `_db/schema.ts:184-187` woertlich: „Sie existieren, WEIL die Zeile dauerhaft in der
      * Liste steht und erklaeren muss, warum sie tot ist; `aktiv = false` allein verlangte vom
      * Betreiber, sich das zu merken." ⛔ BEIDE FELDER, nicht eines
-     * (`.superpowers/sdd/planteil4/briefs/V20.md:44-47`).
+     * (`.superpowers/sdd/planteil4/briefs/V20.md:41-43`).
      *
      * ⛔ DER NAME WIRD AUFGELOEST, UND DAS IST HIER VERDIENT — anders als bei den
      * CSV-importierten Ereigniszeilen. `gesperrt_von` traegt den `sub` einer LEBENDEN
-     * Suite-Sitzung (`_actions/codes.ts:121-135`, `viewer.sub`), und derselbe Aufruf hat die
+     * Suite-Sitzung (`_actions/codes.ts:121-133`, `viewer.sub`), und derselbe Aufruf hat die
      * Person eine Zeile vorher in `users` eingetragen: `setzeCodeAktiv` ruft als erste
      * Anweisung `requireRadioAdmin()`, das ueber `riegelAufStufe` `merkeNutzer(getDb(),
      * viewer)` schreibt (`_lib/zugang.ts:459-470`). Der Seed legt die `users`-Zeile
@@ -257,7 +257,7 @@ describe("codesListe — die Zeilen der Zugangsverwaltung", () => {
      * `.superpowers/sdd/planteil4/progress.md`, Abschnitt „V-L6", Punkt 2): ein
      * `?? new Date(0)` auf einem Rueckgabezeitpunkt haette jede aktive Leihe zu einer 1970
      * zurueckgegebenen gemacht. ⛔ HIER IST DIE GLEICHE FALLE: `gesperrt_am` und
-     * `gesperrt_von` sind nullable (`_db/schema.ts:186-187`), und ein Rueckfall auf
+     * `gesperrt_von` sind nullable (`_db/schema.ts:185-186`), und ein Rueckfall auf
      * `new Date(0)` schriebe „gesperrt am 01.01.1970" an eine Zeile, ueber die niemand das
      * weiss.
      *
@@ -282,7 +282,7 @@ describe("codesListe — die Zeilen der Zugangsverwaltung", () => {
 
   it("ein gesperrter Zugang mit nur EINEM der beiden Felder liefert genau dieses", () => {
     /*
-     * ⛔ DAS SCHEMA LAESST DIE ZWEI SPALTEN EINZELN `NULL` (`_db/schema.ts:186-187`). Der Fall
+     * ⛔ DAS SCHEMA LAESST DIE ZWEI SPALTEN EINZELN `NULL` (`_db/schema.ts:185-186`). Der Fall
      * darueber misst „beide fehlen", der davor „beide da" — ⛔ DIE ZWEI HALBEN ZUSTAENDE
      * DAZWISCHEN WAREN UNBEWACHT, und die Flaeche entscheidet ueber sie (Sonde S-V20-I24,
      * 2026-08-26: das `&&` der Insel auf `||` gedreht liess alles gruen).

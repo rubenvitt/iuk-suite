@@ -20,7 +20,7 @@ import { CodeTabelle } from "./CodeTabelle";
  * „die Updater-Stufe erreicht die Code-Verwaltung **nicht**. Jede codebezogene Seite/Action
  * ruft `requireRadioAdmin()`, **nicht** `requireRadioVerwaltung()`, weil Ausstellen/Sperren
  * laut Betreiberantwort 6 allein den radio-admins gehoeren." ⛔ UND DIE LISTE SELBST IST DAS
- * GEHEIMNIS (`Spec:2251-2253`): sie zeigt jeden Zugangscode im Klartext.
+ * GEHEIMNIS (`Spec:2249-2250`): sie zeigt jeden Zugangscode im Klartext.
  *
  * ⛔ **UND HIER STEHT DIE LUECKE, DIE KEIN SCAN SCHLIESST.** `riegel.test.ts` laesst im
  * `(arbeit)`-Zweig `requireRadioAdmin(` **oder** `requireRadioVerwaltung(` zu, und zwar
@@ -38,7 +38,7 @@ import { CodeTabelle } from "./CodeTabelle";
  * RSC-Nutzlast serialisiert und steht im ausgelieferten HTML JEDER Antwort dieser Route.
  * ⛔ DIE ADMIN-STUFE DIESER SEITE IST DESHALB IHR RIEGEL, NICHT IHRE KUER. Der Auftragsbrief
  * verlangt zusaetzlich, dass der Code „in keiner Protokollzeile und keiner Fehlermeldung"
- * landet (`.superpowers/sdd/planteil4/briefs/V20.md:35`) — das haelt die Insel, indem sie
+ * landet (`.superpowers/sdd/planteil4/briefs/V20.md:29`) — das haelt die Insel, indem sie
  * jede gefangene Ausnahme ungelesen verwirft (`CodeTabelle.tsx`, die zwei `catch`-Zweige).
  *
  * ⛔ KEIN `requireRadioHost(` DANEBEN: `Spec:4369-4378` gibt jeder der zehn Seiten GENAU EINE
@@ -126,7 +126,7 @@ export default async function RadioZugaengeSeite() {
       {/*
         ⬜ DIE STELLE FUER DEN LINK AUF DAS DRUCKBLATT — sie bleibt in V20 FREI und wird von
         **V21** gefuellt, zusammen mit `admin/(druck)/zugaenge/blatt/page.tsx`
-        (`.superpowers/sdd/planteil4/briefs/V20.md:59-62`; dieselbe Regel wie bei V14/V15).
+        (`.superpowers/sdd/planteil4/briefs/V20.md:45-47`; dieselbe Regel wie bei V14/V15).
         ⛔ EIN LINK AUF EINE 404 IST SCHLIMMER ALS KEIN LINK: die Zielseite gibt es heute
         nicht, `riegel.test.ts` zaehlt neun Seiten und nicht zehn. Der Waechter dieser
         Uebergabe ist der Fall „die Stelle fuer den Blatt-Link steht als benannte Leerstelle

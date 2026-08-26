@@ -2,7 +2,7 @@
 // src/app/m/radio/admin/(arbeit)/zugaenge/CodeTabelle.test.tsx
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join, normalize } from "node:path";
+import { dirname, join, normalize, sep } from "node:path";
 
 /**
  * INSEL 8 — DIE ZUGANGSVERWALTUNG (`Spec:4510`, §5.13; Aufgabe V20).
@@ -76,14 +76,64 @@ const QUELLE_SEITE = `${INSEL_ORDNER}/page.tsx`;
  * Namensliste voellig unbeeindruckt.
  *
  * ⛔ DER AUSSCHLUSS STEHT AM BLATT UND NICHT AM AST (Ruling **R-V11-3**).
+ *
+ * ⛔ **UND ER LIEST REKURSIV — DAS IST DIE KORREKTUR AUS FIX-RUNDE 1 ZU V20** (REVIEW-V20,
+ * Fund 4). ⚠️ GEMESSEN, ZWEIMAL: `zugaenge/unter/Heimlich.tsx` angelegt, mit ALLEN DREI
+ * Verstoessen zugleich — kein `"use client"` trotz `useState`, ein WERTIMPORT aus
+ * `../../../../_db/schema`, ein `size="small"` und der Bildschirmtext „Zugang loeschen".
+ * Mit dem alten, NICHT rekursiven `readdirSync`: `Tests 29 passed`, ⛔ NULL ROT — die vier
+ * Faelle ueber dieser Menge sahen die Datei nicht. Die Auslassung war wieder AM AST, nur als
+ * fehlende Rekursion statt als `continue` (Ruling R-V11-3).
+ *
+ * ⛔ **DIE GRENZE DER INSEL IST DIE NAECHSTE ROUTE, NICHT DIE VERZEICHNISTIEFE.** Ein
+ * Unterverzeichnis mit einem EIGENEN Server-Einstieg ist eine eigene Flaeche mit einem
+ * eigenen Inseltest — so liegt `geraete/[id]/` unter `geraete/`
+ * (`admin/(arbeit)/geraete/[id]/GeraetFormular.test.tsx`). Ohne diesen Schnitt zoege der
+ * Finder fremde Inseln herein und `INSEL_SOLL` waere rot ueber korrektem Bestand.
+ * ⚠️ AUCH DIESER SCHNITT STEHT AM BLATT: er wird je GEFUNDENER Datei ueber ihre Vorfahren
+ * entschieden, nicht als Abbruch beim Absteigen.
+ *
+ * ⛔ **UND ER OEFFNET KEIN NEUES LOCH — DAS IST GEMESSEN, NICHT GESCHLOSSEN.** Was hinter
+ * einem Server-Einstieg liegt, faellt nicht durch, sondern an einen SCHAERFEREN Waechter:
+ * `zugaenge/fremd/{page.tsx,FremdInsel.tsx}` angelegt →
+ * `rtk pnpm vitest run src/app/m/radio/riegel.test.ts` = `Tests 3 failed | 21 passed (24)`,
+ * naemlich „die Seitenzahl steht EXAKT auf dem Stand dieses Planteils" (`expected 10 to be
+ * 9`), „jede nennt den Riegel ihrer Group" und „keine Verwaltungsseite liest, bevor sie
+ * riegelt". ⛔ EINE HEIMLICHE ROUTE IST ALSO UNMOEGLICH; eine ABSICHTLICHE bringt nach
+ * `briefs/KOPF.md:111-135` ihren eigenen Inseltest mit („Seite und Insel(n) einer Flaeche
+ * liegen immer in derselben Aufgabe").
+ *
+ * ⬜ **V20-L1 — die anderen SIEBEN Kopien dieses Finders sind weiterhin nicht rekursiv.**
+ * Gemessen mit `/usr/bin/grep -rln "function inselDateien" src` (2026-08-26): ausser dieser
+ * Datei tragen ihn `geraete/GeraeteTabelle.test.tsx`, `geraete/[id]/GeraetFormular.test.tsx`,
+ * `geraete/[id]/ereignisse/EreignisTabelle.test.tsx`, `ausleihen/AusleihenTabelle.test.tsx`,
+ * `software/UpdateSuche.test.tsx`, `versionen/VersionenTabelle.test.tsx` und
+ * `import/ImportAssistent.test.tsx`. ⛔ EIN WORTGLEICHES NACHZIEHEN GENUEGT DORT NICHT — die
+ * `geraete/`-Kopie braucht den Routenschnitt oben, sonst zieht sie `[id]/` herein.
+ * **Eigentuemer: ClickUp-Board** (kein Bauwert in V20s Fenster; V20 fasst keine fremde
+ * Inseldatei an, und ein Wachstum von `VersionenTabelle.test.tsx` verschoebe SECHS
+ * Belegzeilen: `:24-30`, `:101-107`, `:110-144`, `:157-173` und `:729` von hier,
+ * `:611-620` aus `_lib/lesepfade/codes.test.ts`).
  */
 const SERVER_EINSTIEGE = ["page.tsx", "layout.tsx", "template.tsx", "route.ts"];
 
+/** Traegt ein Verzeichnis ZWISCHEN der Insel und dieser Datei einen eigenen Server-Einstieg? */
+function inFremderRoute(relativ: string): boolean {
+  let pfad = INSEL_ORDNER;
+  for (const teil of relativ.split("/").slice(0, -1)) {
+    pfad = `${pfad}/${teil}`;
+    if (SERVER_EINSTIEGE.some((name) => existsSync(`${pfad}/${name}`))) return true;
+  }
+  return false;
+}
+
 function inselDateien(): string[] {
-  return readdirSync(INSEL_ORDNER)
-    .filter((name) => /\.tsx?$/.test(name))
-    .filter((name) => !/\.(?:test|spec)\.tsx?$/.test(name))
-    .filter((name) => !SERVER_EINSTIEGE.includes(name))
+  return readdirSync(INSEL_ORDNER, { recursive: true })
+    .map((eintrag) => String(eintrag).split(sep).join("/"))
+    .filter((pfad) => /\.tsx?$/.test(pfad))
+    .filter((pfad) => !/\.(?:test|spec)\.tsx?$/.test(pfad))
+    .filter((pfad) => !SERVER_EINSTIEGE.includes(pfad.split("/").pop()!))
+    .filter((pfad) => !inFremderRoute(pfad))
     .sort();
 }
 
@@ -276,7 +326,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
   it("ein gesperrter Code bleibt in der Liste", async () => {
     /*
      * ⛔ **DIE ZUSICHERUNG DES LOESCHVERBOTS AUF DER FLAECHE**
-     * (`.superpowers/sdd/planteil4/briefs/V20.md:52`). `_db/schema.ts:180-183`: „DER EINZIGE
+     * (`.superpowers/sdd/planteil4/briefs/V20.md:51`). `_db/schema.ts:180-183`: „DER EINZIGE
      * WIDERRUF, DEN ES GIBT." Ein Filter auf `aktiv` in der Flaeche oder im Lesepfad machte
      * die gesperrten Zeilen unsichtbar — und damit `gesperrt_am`/`gesperrt_von` sinnlos, die
      * genau deshalb existieren, „WEIL die Zeile dauerhaft in der Liste steht" (`:184-187`).
@@ -296,7 +346,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
 
   it("ein gesperrter Code zeigt, wann und von wem", async () => {
     /*
-     * ⛔ BEIDE FELDER (`.superpowers/sdd/planteil4/briefs/V20.md:44-47`;
+     * ⛔ BEIDE FELDER (`.superpowers/sdd/planteil4/briefs/V20.md:41-43`;
      * `_db/schema.ts:184-187`): „`aktiv = false` allein verlangte vom Betreiber, sich das zu
      * merken."
      *
@@ -322,7 +372,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * mit ihm die Richtung, die der Bau nimmt.
      *
      * ⛔ DIE ENTSCHEIDUNG: die BEKANNTE Haelfte wird gezeigt, nicht die ganze Zeile
-     * verschwiegen. `_db/schema.ts:186-187` laesst beide Spalten EINZELN `NULL` zu; kein
+     * verschwiegen. `_db/schema.ts:185-186` laesst beide Spalten EINZELN `NULL` zu; kein
      * heutiger Schreibweg fuellt nur eine (`_actions/codes.ts:129-133`,
      * `_lib/seedLokal.ts:183-185` schreiben beide), eine Datenuebernahme kann es. „gesperrt am
      * 22.06.2026" sagt mehr als nichts — und ein Satz mit offener Luecke („von ") saehe nach
@@ -379,7 +429,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
   it("es gibt keinen Loeschknopf", async () => {
     /*
      * ⛔ **EINE NEGATIVE ZUSICHERUNG, UND SIE IST DER PUNKT** (NS-A6,
-     * `.superpowers/sdd/planteil4/briefs/V20.md:55`). `_actions/codes.ts:20-52` schreibt die
+     * `.superpowers/sdd/planteil4/briefs/V20.md:54`). `_actions/codes.ts:20-52` schreibt die
      * drei Gruende aus: ein geloeschter Code GIBT SEINEN WERT FREI, er ist der
      * ANZEIGESCHLUESSEL DER LEIHHISTORIE ueber `loans.zugangscode_id`, und die zwei Haelften
      * tragen nur zusammen. `Spec:2166-2169`: „Aus `zugangscodes` wird nach 3.2.4 NIEMALS
@@ -407,9 +457,29 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
       ).toBe(1);
     }
 
-    const quelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
+    /*
+     * ⛔ **`normalize("NFC")` VOR DEM SCAN — UND KEIN UMLAUT IM ANKER.** Beides ist die
+     * Korrektur aus Fix-Runde 1 zu V20 (REVIEW-V20, Fund 5), und beides ist gemessen:
+     *   1. Ein DEKOMPONIERTES „Lo" + U+0308 + „schen" (auf dem Bildschirm nicht von der
+     *      komponierten Form zu unterscheiden) in `CODE_TEXTE` liess den alten Anker
+     *      `Tests 1 passed` melden — ⛔ NULL ROT, STILL, an einer NEGATIVEN Zusicherung.
+     *      `normalize("NFC")` faltet beide Formen zusammen, bevor gesucht wird.
+     *   2. Ein Umlaut in einem Grep-Anker ist im Haus verboten
+     *      (`.superpowers/sdd/planteil4/KONTEXT.md`, „Hausregeln des Repos"). Der Anker
+     *      traegt ihn deshalb als Codepunkt-Escape, nicht als Zeichen.
+     *
+     * ⛔ STAMM-PRAEFIX STATT VOLLFORM: der alte Anker war stamm-EXAKT — „löscht",
+     * „Löschung", „löschbar", „entfernt", „verwerfen" und „entsorgen" liefen durch. Unter
+     * `/i` waren `Löschen` und `Entfernen` ausserdem TOTE Alternativen.
+     *
+     * ⚠️ GELESEN WIRD NUR DIE INSEL, NICHT DIE GANZE FLAECHE — und das ist Absicht:
+     * `page.tsx` sagt in `SEITEN_TEXTE.hinweis` zu Recht „wird nie gelöscht" (der Satz, der
+     * den fehlenden Knopf erklaert). Ein Scan ueber `flaechenDateien()` waere rot ueber
+     * korrektem Bestand.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8")).normalize("NFC");
     expect(quelle, "ein Loeschwort in der Insel (NS-A6)").not.toMatch(
-      /löschen|loeschen|entfernen|Löschen|Entfernen/i,
+      /l(?:\u00F6|oe)sch|entfern|verwerf|entsorg|\bremove\b/i,
     );
     expect(quelle, "ein Loeschweg in der Insel (NS-A6)").not.toMatch(/\bdelete\b/);
   });
@@ -417,7 +487,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
   it("Sperren und Entsperren sind derselbe Knopf mit zwei Beschriftungen", async () => {
     /*
      * ⛔ SONST GIBT ES ZWEI WEGE IN DENSELBEN ZUSTAND
-     * (`.superpowers/sdd/planteil4/briefs/V20.md:56`) — und zwei Wege heissen: einer wird
+     * (`.superpowers/sdd/planteil4/briefs/V20.md:55`) — und zwei Wege heissen: einer wird
      * beim naechsten Umbau vergessen. `setzeCodeAktiv(codeId, aktiv)` ist EINE Action mit
      * einem Wahrheitswert (`_actions/codes.ts:121`); die Flaeche bildet das 1:1 ab.
      *
@@ -432,7 +502,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * geoeffneten `Popconfirm` an `document.body` stehen, und `clickPortal` nimmt den ERSTEN
      * Treffer (`qr/_lib/test-dom.tsx:187-191`). Der zweite Griff bestaetigte deshalb die
      * Rueckfrage der ERSTEN Zeile — der Fall meldete `['zc-1', false]` statt
-     * `['zc-2', true]`. ⛔ `unmount()` raeumt genau das weg (`test-dom.tsx:77-100`).
+     * `['zc-2', true]`. ⛔ `unmount()` raeumt genau das weg (`test-dom.tsx:77-107`).
      */
     await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
 
@@ -474,7 +544,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
 
   it("die fuenf Spalten stehen in dieser Reihenfolge", async () => {
     /*
-     * ⛔ `.superpowers/sdd/planteil4/briefs/V20.md:38-40` woertlich: „Bezeichnung · Code ·
+     * ⛔ `.superpowers/sdd/planteil4/briefs/V20.md:33-34` woertlich: „Bezeichnung · Code ·
      * Zustand (aktiv/gesperrt) · zuletzt benutzt · Aktionen". Es gibt keine Alt-Maske, an der
      * sich die Reihenfolge messen liesse (siehe `_lib/lesepfade/codes.ts`, Dateikopf) — der
      * Brief IST hier die Vorlage.
@@ -519,7 +589,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
 describe("radio-Zugaenge: das Anlegefeld", () => {
   it("ein leerer oder nur aus Leerraum bestehender Wert laeuft gar nicht los", async () => {
     /*
-     * ⛔ `zugangscodes.bezeichnung` ist `.notNull()` (`_db/schema.ts:174`), aber NICHT gegen
+     * ⛔ `zugangscodes.bezeichnung` ist `.notNull()` (`_db/schema.ts:177`), aber NICHT gegen
      * die leere Zeichenkette geschuetzt — ein leerer Anzeigename erzeugte eine Zeile, die in
      * der Liste als leerer Streifen steht und die niemand mehr zuordnen kann.
      *
@@ -587,7 +657,7 @@ describe("radio-Zugaenge: die ZWEI Fehlerpfade — und der Klartext bleibt draus
    * Flaeche zeigt deshalb ihren EIGENEN Text — es gibt keinen Servertext zum Durchreichen.
    *
    * ⛔ **UND SIE ZEIGT DIE GEFANGENE MELDUNG NICHT.** Das ist die Umsetzung der Auflage
-   * `.superpowers/sdd/planteil4/briefs/V20.md:35`: „Er darf in keiner Protokollzeile und
+   * `.superpowers/sdd/planteil4/briefs/V20.md:29`: „Er darf in keiner Protokollzeile und
    * keiner Fehlermeldung landen." Eine geworfene Server Action erreicht den Browser in
    * Produktion nur als Digest, unter `next dev` aber mit ihrem Text — und der naechste, der
    * `_actions/codes.ts` erweitert, koennte einen Code hineinschreiben, ohne dass hier etwas
@@ -961,7 +1031,7 @@ describe("radio-Zugaenge: die Bauform der Insel und ihrer Seite", () => {
   it("die Stelle fuer den Blatt-Link steht als benannte Leerstelle mit Nachfolger da", () => {
     /*
      * ⛔ **V20 LAESST DIE STELLE FREI, V21 TRAEGT EIN**
-     * (`.superpowers/sdd/planteil4/briefs/V20.md:59-62`): „ein Link auf eine 404 ist schlimmer
+     * (`.superpowers/sdd/planteil4/briefs/V20.md:45-47`): „ein Link auf eine 404 ist schlimmer
      * als kein Link" — dieselbe Regel wie bei V14/V15. `admin/(druck)/zugaenge/blatt/page.tsx`
      * gibt es heute nicht, und `riegel.test.ts` zaehlt neun Seiten, nicht zehn.
      *

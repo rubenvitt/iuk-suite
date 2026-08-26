@@ -606,7 +606,7 @@ describe("radio-admin/actions: die Rechtestufe je Verwaltungsseite", () => {
      * Seite/Action ruft `requireRadioAdmin()`, NICHT `requireRadioVerwaltung()`, weil
      * Ausstellen/Sperren laut Betreiberantwort 6 allein den radio-admins gehoeren."
      * ⛔ UND DIE FLAECHE IST DER SCHARFSTE FALL DER DREI: sie zeigt JEDEN Zugangscode im
-     * KLARTEXT (`Spec:2180-2182`), und `Spec:2251-2253` zieht die Folge — „die Codeliste IST
+     * KLARTEXT (`Spec:2180-2182`), und `Spec:2249-2250` zieht die Folge — „die Codeliste IST
      * das Geheimnis". Eine Absenkung auf die Verwaltungs-Stufe gaebe jeder Updater-Person das
      * Geheimnis jedes Aufstellers, ohne dass ein Tor rot wuerde.
      *

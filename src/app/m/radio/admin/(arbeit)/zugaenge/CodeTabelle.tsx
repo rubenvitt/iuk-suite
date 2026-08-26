@@ -16,7 +16,7 @@ import s from "../../../_ui/verwaltung.module.css";
  * (`.superpowers/sdd/planteil4/E1-spec-kapitel5.md:434`), und der Alt-Bestand kennt die
  * Zugangscodes nicht (die Messung steht im Kopf von `_lib/lesepfade/codes.ts`). ⛔ ES GIBT
  * HIER ALSO KEINE 1:1-SPALTENPFLICHT ZUM ABSCHREIBEN — die fuenf Spalten und ihre Reihenfolge
- * stammen aus dem Auftragsbrief (`.superpowers/sdd/planteil4/briefs/V20.md:38-40`), und die
+ * stammen aus dem Auftragsbrief (`.superpowers/sdd/planteil4/briefs/V20.md:33-34`), und die
  * Regeln dahinter aus `_db/schema.ts:147-192`.
  *
  * ⛔ WARUM CLIENT — **Falle 9** (Bauform-Zulaessigkeitstafel Nr. 1, `CLAUDE.md`): jede der
@@ -55,7 +55,7 @@ import s from "../../../_ui/verwaltung.module.css";
  * ⛔ **DIE ZWEI AKTIONEN LIEFERN KEIN `{ ok, fehler }`.** `erstelleCode` liefert `{ code }`
  * und WIRFT (`_actions/codes.ts:99-103`), `setzeCodeAktiv` liefert `void`. Die Flaeche faengt
  * also und zeigt ihren EIGENEN Text — ⛔ UND NIEMALS DIE GEFANGENE MELDUNG. Das ist die
- * Umsetzung von `.superpowers/sdd/planteil4/briefs/V20.md:35` („Er darf in keiner
+ * Umsetzung von `.superpowers/sdd/planteil4/briefs/V20.md:29` („Er darf in keiner
  * Protokollzeile und keiner Fehlermeldung landen"): eine geworfene Server Action erreicht den
  * Browser in Produktion nur als Digest, unter `next dev` aber mit ihrem Text, und der
  * naechste, der `_actions/codes.ts` erweitert, koennte einen Code hineinschreiben. Der
@@ -104,7 +104,7 @@ import s from "../../../_ui/verwaltung.module.css";
  * (`VERSIONEN_TEXTE`).
  */
 const CODE_TEXTE = {
-  /** Die fuenf Spaltenueberschriften, in der Reihenfolge des Auftragsbriefs (`V20.md:38-40`). */
+  /** Die fuenf Spaltenueberschriften, in der Reihenfolge des Auftragsbriefs (`V20.md:33-34`). */
   spalteBezeichnung: "Bezeichnung",
   spalteCode: "Code",
   spalteZustand: "Zustand",
@@ -118,7 +118,7 @@ const CODE_TEXTE = {
    * „WEIL die Zeile dauerhaft in der Liste steht und erklaeren muss, warum sie tot ist").
    *
    * ⛔ **DREI FASSUNGEN, WEIL DAS SCHEMA DREI ZUSTAENDE ZULAESST.** `gesperrt_am` und
-   * `gesperrt_von` sind EINZELN nullable (`_db/schema.ts:186-187`); kein heutiger Schreibweg
+   * `gesperrt_von` sind EINZELN nullable (`_db/schema.ts:185-186`); kein heutiger Schreibweg
    * fuellt nur eines (`_actions/codes.ts:129-133` schreibt beide, `_lib/seedLokal.ts:183-185`
    * ebenso), eine Datenuebernahme kann es. ⛔ DANN WIRD DIE BEKANNTE HAELFTE GEZEIGT UND NICHT
    * DIE GANZE ZEILE VERSCHWIEGEN — „gesperrt am 22.06.2026" sagt mehr als nichts, und ein
@@ -155,7 +155,7 @@ const CODE_TEXTE = {
 
 /**
  * DIE SPERRANGABE EINER ZEILE — ⛔ DREI ZWEIGE UND EIN `null`, weil das Schema genau vier
- * Zustaende zulaesst (`_db/schema.ts:186-187`, beide Spalten einzeln nullable).
+ * Zustaende zulaesst (`_db/schema.ts:185-186`, beide Spalten einzeln nullable).
  *
  * ⛔ SIE STEHT AUSSERHALB DER KOMPONENTE, WEIL SIE KEINEN ZUSTAND BRAUCHT — und ⛔ NICHT unter
  * `_lib/`: sie liest `CODE_TEXTE`, und das ist ein Wert aus einer `"use client"`-Datei
@@ -183,12 +183,22 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
   const [name, setName] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [legtAn, setLegtAn] = useState(false);
+  /*
+   * ⛔ EIN SAMMELZUSTAND FUER DIE GANZE TABELLE, UND DAS IST GEWOLLT (REVIEW-V20, N5,
+   * benannt in Fix-Runde 1): waehrend eine Zeile schaltet, zeigt JEDE Zeile den Spinner und
+   * ist gesperrt. Das ist eine SCHREIBSPERRE AUF DER FLAECHE, keine Ungenauigkeit — die
+   * Liste laedt danach als Ganzes neu (`router.refresh()`), und ein zweiter Griff waehrend
+   * des offenen Rundlaufs schaltete gegen einen Stand, der gleich ersetzt wird.
+   * ⚠️ Ein zeilengenauer Zustand (`useState<string | null>`) waere die Alternative; er
+   * kostet eine zweite Zusicherung und kauft auf einer Liste in der Groessenordnung „Zahl
+   * der Aufsteller" (`_db/schema.ts:193-195`) nichts.
+   */
   const [schaltet, setSchaltet] = useState(false);
 
   const anlegen = async () => {
     /*
      * ⛔ GETRIMMT, und ein leerer Wert laeuft gar nicht erst los: `bezeichnung` ist
-     * `.notNull()` (`_db/schema.ts:174`), aber NICHT gegen die leere Zeichenkette geschuetzt —
+     * `.notNull()` (`_db/schema.ts:177`), aber NICHT gegen die leere Zeichenkette geschuetzt —
      * ein leerer Anzeigename erzeugte eine Zeile, die niemand mehr zuordnen kann.
      * ⚠️ DIE WAHRHEIT WAERE DIE SERVERSEITIGE PRUEFUNG („eine Regel, die nur im Client steht,
      * ist keine Regel", `Spec:3583-3585`). ⛔ SIE IST HEUTE NICHT GEBAUT: `erstelleCode`
@@ -208,7 +218,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
     } catch {
       /*
        * ⛔ OHNE BINDUNG. Die gefangene Ausnahme wird NICHT gelesen, NICHT protokolliert und
-       * NICHT angezeigt — sie koennte einen Klartext-Code tragen (`V20.md:35`). Der Haustext
+       * NICHT angezeigt — sie koennte einen Klartext-Code tragen (`V20.md:29`). Der Haustext
        * sagt, was zu tun ist; was schiefging, steht im Serverprotokoll.
        */
       setFehler(CODE_TEXTE.fehlerAnlegen);
@@ -232,7 +242,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
   };
 
   /**
-   * DIE FUENF SPALTEN (`.superpowers/sdd/planteil4/briefs/V20.md:38-40`) — in dieser
+   * DIE FUENF SPALTEN (`.superpowers/sdd/planteil4/briefs/V20.md:33-34`) — in dieser
    * Reihenfolge.
    *
    * ⛔ SIE ENTSTEHEN IM RUMPF UND NICHT AUF MODULEBENE: die Aktionsspalte faengt den laufenden
@@ -259,7 +269,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
        * ein Dauerausweis. Ohne ihn koennte niemand ein verlorenes Kaertchen der richtigen
        * Zeile zuordnen — und genau das ist der Weg, auf dem ein Zugang gesperrt wird.
        * ⛔ ER IST ZUGLEICH DER GRUND, WARUM DIESE SEITE AUF DER ADMIN-STUFE LIEGT
-       * (`Spec:2251-2253`: „die Codeliste IST das Geheimnis"), nicht ihre Kuer.
+       * (`Spec:2249-2250`: „die Codeliste IST das Geheimnis"), nicht ihre Kuer.
        */
       render: (_: unknown, z: CodeZeile) => <code data-rolle="radio-code-wert">{z.code}</code>,
     },
