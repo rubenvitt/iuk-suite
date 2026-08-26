@@ -64,7 +64,7 @@ import { grenzen } from "./grenzen";
  * faehrt als die, die in der .env steht (`./grenzen.ts:132-135`).
  *
  * ⚠️ AUSDRUECKLICH NICHT auf Modulebene gelesen wird das Sitzungsgeheimnis: es ist
- * Pflicht OHNE Vorgabe und braeche `next build` (`./grenzen.ts:190-198`).
+ * Pflicht OHNE Vorgabe und braeche `next build` (`./grenzen.ts:212-220`).
  *
  * FOLGE, die man kennen muss (Spec:3029-3031): die drei Grenzen sind ab dem ersten
  * Import EINGEFROREN. Eine geaenderte .env wirkt erst nach einem Neustart. Das ist

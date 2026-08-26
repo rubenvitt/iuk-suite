@@ -10,9 +10,9 @@
  * nicht sehen KANN, weil "use client" dort ein wirkungsloser String ist. Durchgesetzt
  * wird das von `src/app/m/radio/riegel.test.ts:909-962`.
  *
- * DIESE DATEI HAELT KEINE BOOT-PRUEFUNG. `radioBootFehler()` gehoert Kapitel 7 und damit
- * Planteil 5 (B8, Spec:97). `lagerbuch` fuehrt die Entsprechung als `grenzenFehler()`
- * (`src/app/m/lagerbuch/_lib/grenzen.ts:282-368`); hier gibt es sie heute NICHT.
+ * DIESE DATEI HAELT SEIT PLANTEIL 5 (G1) `grenzenFehler()` — die Boot-Meldungen aus der
+ * Zahlentabelle, ganz unten, Entsprechung zu `lagerbuch/_lib/grenzen.ts:282-368` (368
+ * Zeilen). EINGEHAENGT wird sie dort nicht, sondern von `radioBootFehler()` (G2, B8).
  */
 
 /** Wie in `src/app/m/lagerbuch/_lib/grenzen.ts:26-27`: nur „String rein, String oder
@@ -163,11 +163,11 @@ function zahl(name: ZahlName, env: EnvLike): number {
  * Die Folge, die man kennen muss: eine geaenderte .env wirkt erst nach einem Neustart
  * (`src/app/m/lagerbuch/_lib/gateSchranke.ts:16-20`).
  *
- * KEINE KOPPLUNGSPRUEFUNG hier. Die Gate-Ungleichungskette (Absender <= gesamt/min <=
- * gesamt/h) ist eine BOOT-Pruefung und gehoert zu `radioBootFehler()` in Planteil 5 (B8,
- * Spec:97): der Boot will ALLE Fehler auf einmal melden, nicht den ersten, und `grenzen()`
- * muss dieselbe Auswertung ohne Gate liefern koennen — sonst gaebe es zwei Auswertungen
- * und damit zwei Wahrheiten.
+ * KEINE KOPPLUNGSPRUEFUNG hier — SIE STEHT IN `grenzenFehler()` AM DATEIENDE. Die
+ * Gate-Ungleichungskette (Absender <= gesamt/min <= gesamt/h) ist eine BOOT-Pruefung: der
+ * Boot will ALLE Fehler auf einmal melden, nicht den ersten, und `grenzen()` muss dieselbe
+ * Auswertung ohne Gate liefern koennen — sonst gaebe es zwei Auswertungen und damit zwei
+ * Wahrheiten. Gebaut in Planteil 5, Aufgabe G1 (B8, Spec:97).
  */
 export function grenzen(env: EnvLike = process.env): Grenzen {
   return {
@@ -177,6 +177,28 @@ export function grenzen(env: EnvLike = process.env): Grenzen {
     gateGesamtProStunde: zahl("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE", env),
   };
 }
+
+/**
+ * Der Wortlaut fuer „fehlt oder ist leer" — EINE Zeichenkette fuer ZWEI Leser.
+ *
+ * ⛔ SIE STAND FRUEHER NUR IM WURF von `ausleihSitzungGeheimnis()`. `grenzenFehler()`
+ * meldet denselben Betriebsfall zur Startzeit; zwei Formulierungen waeren zwei Wahrheiten,
+ * und der Betreiber suchte je nach Weg (Startprotokoll oder 500 beim Einloesen) nach einem
+ * anderen Satz. Deshalb die Konstante und nicht zweimal derselbe Absatz.
+ */
+const GEHEIMNIS_FEHLT =
+  `RADIO_AUSLEIH_SITZUNG_SECRET ist nicht gesetzt oder leer. Ohne das Geheimnis kann ` +
+  `keine Ausleih-Sitzung ausgestellt oder geprueft werden. Der Wert gehoert ueber ` +
+  `env_file in den Container, nicht als \${VAR:?}-Zeile in die compose.yaml.`;
+
+/**
+ * Die Mindestlaenge des Sitzungsgeheimnisses, in ZEICHEN.
+ *
+ * 32 wie im Vorbild (`src/app/m/lagerbuch/_lib/grenzen.ts:252`) und wie der Erzeugungs-
+ * hinweis, den die Meldung mitgibt: `openssl rand -base64 32` liefert 44 Zeichen Base64
+ * aus 32 Byte Zufall und liegt damit sicher darueber.
+ */
+const GEHEIMNIS_MINDESTLAENGE = 32;
 
 /**
  * Das Sitzungsgeheimnis — PFLICHT, und deshalb ausdruecklich KEINE Zeile in `ZAHLEN` und
@@ -203,20 +225,142 @@ export function grenzen(env: EnvLike = process.env): Grenzen {
  * Ungleichheit zu `AUTH_SECRET` sind BOOT-Pruefungen (Vorbild
  * `src/app/m/lagerbuch/_lib/grenzen.ts:331-365`).
  *
- * ⬜ A-L7 — ES GIBT FUER DIESES MODUL HEUTE KEINE BOOT-PRUEFUNG AUF DAS GEHEIMNIS.
- * `radioBootFehler()` ist Kapitel 7 und damit Planteil 5 (B8, Spec:97). Fehlt die
- * Variable, faellt das erst beim ersten Einloesen auf — nicht beim Start des Containers.
- * Abgelesen wird die Leerstelle von Planteil 5 beim Bau von `radioBootFehler()`; ueber die
- * Gestalt der Meldung, die ein Nutzer dann saehe, steht hier ausdruecklich nichts.
+ * ⬜ A-L7 — ABGELESEN in Planteil 5 (G1). Die Boot-Pruefung auf das Geheimnis ist gebaut:
+ * `grenzenFehler()` am Dateiende meldet fehlend, kuerzer als 32 Zeichen und gleich
+ * `AUTH_SECRET` als drei getrennte Zeilen. Dieser Absatz bleibt stehen, weil er erklaert,
+ * warum sie NICHT hier sitzt. ⛔ ZUM STARTABBRUCH WIRD SIE ERST, WENN `radioBootFehler()`
+ * sie ruft (G2) — bis dahin faellt eine fehlende Variable erst beim ersten Einloesen auf.
  */
 export function ausleihSitzungGeheimnis(env: EnvLike = process.env): string {
   const wert = env.RADIO_AUSLEIH_SITZUNG_SECRET?.trim();
   if (!wert) {
-    throw new GrenzenUngueltig(
-      `RADIO_AUSLEIH_SITZUNG_SECRET ist nicht gesetzt oder leer. Ohne das Geheimnis kann ` +
-        `keine Ausleih-Sitzung ausgestellt oder geprueft werden. Der Wert gehoert ueber ` +
-        `env_file in den Container, nicht als \${VAR:?}-Zeile in die compose.yaml.`,
-    );
+    throw new GrenzenUngueltig(GEHEIMNIS_FEHLT);
   }
   return wert;
+}
+
+/**
+ * Alle Boot-Meldungen dieses Moduls, die aus der Grenzen-Tabelle stammen. WIRFT NIE.
+ *
+ * ⛔ SIE LIEST DIE TABELLE VON INNEN, ueber die modul-private `zahl()`. `ZAHLEN` wird
+ * ausdruecklich NICHT exportiert (der Grund steht oben beim Kopfkommentar von
+ * `ZAHL_NAMEN`: „Wer `ZAHLEN` exportierte, machte aus dem Test eine Tautologie"), und
+ * `grenzen.ts:53-56` schreibt aus, warum es nur EINE Tabelle geben darf: „zwei Tabellen
+ * waeren zwei Wahrheiten, und der Boot pruefte etwas anderes als das, was zur Laufzeit
+ * gilt."
+ *
+ * ⛔ DESHALB ENTSTEHT KEIN `zahlFehler` IN `_lib/boot.ts` (Entscheidung E-G1). Der
+ * Kapiteltext (§7.3.3) schreibt dort einen Helfer mit `min`/`max`-Parametern aus; der
+ * braeuchte die Grenzen entweder als Import aus `ZAHLEN` (verboten) oder zweitgeschrieben
+ * (die zwei Wahrheiten). Wer `zahlFehler` sucht, findet diese Funktion und diesen Absatz.
+ *
+ * ⛔ JE VARIABLE EIN EIGENER AUFRUF-UND-FANG, nicht ein einzelnes `try { grenzen(env) }`.
+ * `grenzen()` wertet alle vier Namen in EINEM Objektliteral aus (siehe dort), und der
+ * erste Wurf aus `zahl()` beendet den Aufruf — bei vier kaputten `.env`-Zeilen saehe der
+ * Betreiber drei davon erst nach drei weiteren Neustarts. Die Schleife laeuft ueber
+ * `ZAHL_NAMEN` und nicht ueber eine handgeschriebene Namensliste: eine fuenfte Zeile in
+ * `ZAHLEN` ist damit ohne Zutun mitgeprueft.
+ *
+ * ⛔ KEIN HOST-SCHALTER HIER. `lagerbuch` beginnt seine Entsprechung mit
+ * `if (prodHostsFor(...).length === 0) return [];` (`lagerbuch/_lib/grenzen.ts:283`);
+ * fuer `radio` steht dieser Schalter als ERSTE Anweisung von `radioBootFehler()`
+ * (Aufgabe G2, Bauform-Tafel Nr. 6). Hier waere er zweimal dieselbe Gating-Logik — und
+ * machte diese Funktion fuer jeden zweiten Aufrufer unbrauchbar.
+ *
+ * ⬜ A-L7 ist mit dieser Funktion ABGELESEN (Teile 2 bis 4).
+ */
+export function grenzenFehler(env: EnvLike = process.env): string[] {
+  const fehler: string[] = [];
+
+  // ── Teil 1: die vier Zahlen, jede EINZELN, damit ein kaputter Wert die uebrigen nicht
+  // verdeckt. Die Meldung kommt woertlich aus `zahl()` und traegt deshalb Name, gelesenen
+  // Wert, Bereich und Einheit, ohne dass hier ein zweiter Text entsteht.
+  const werte: Partial<Record<ZahlName, number>> = {};
+  for (const name of ZAHL_NAMEN) {
+    try {
+      werte[name] = zahl(name, env);
+    } catch (e) {
+      fehler.push(e instanceof GrenzenUngueltig ? e.message : String(e));
+    }
+  }
+
+  // ── Teile 2 bis 4: das Geheimnis. Die Bedingung ist dieselbe wie im Wurf von
+  // `ausleihSitzungGeheimnis()` (`?.trim()`, dann „leer"), damit beide Wege denselben
+  // Betriebsfall meinen.
+  //
+  // ⛔ DIE LAENGENPRUEFUNG STEHT IM `else`-ZWEIG, und das ist tragend: die leere
+  // Zeichenkette ist auch „kuerzer als 32". Ausserhalb des `else` meldete eine fehlende
+  // Variable ZWEI Zeilen statt einer — nachgezaehlt an der Sonde S-G1f, nicht geschaetzt.
+  // Fuer den AUTH_SECRET-Vergleich traegt NICHT dieser Zweig, sondern die Wache
+  // `authSecret !== ""` darunter. Vorbild: `lagerbuch/_lib/grenzen.ts:334-365`.
+  const geheim = env.RADIO_AUSLEIH_SITZUNG_SECRET?.trim() ?? "";
+  const authSecret = env.AUTH_SECRET?.trim() ?? "";
+  if (geheim === "") {
+    fehler.push(GEHEIMNIS_FEHLT);
+  } else {
+    if (geheim.length < GEHEIMNIS_MINDESTLAENGE) {
+      // ⛔ DIE LAENGE, NIE DER WERT. Diese Meldung landet im Startprotokoll des Containers,
+      // und das liest beim Cutover mehr als eine Person; ein mitgeliefertes Praefix des
+      // Geheimnisses machte aus einem Konfigurationsfehler einen Geheimnisverlust.
+      fehler.push(
+        `RADIO_AUSLEIH_SITZUNG_SECRET ist ${geheim.length} Zeichen lang, mindestens ` +
+          `${GEHEIMNIS_MINDESTLAENGE} sind gefordert. Ein tauglicher Wert entsteht mit: ` +
+          `openssl rand -base64 32`,
+      );
+    }
+    // ⛔ `authSecret !== ""` IST DIE WACHE, NICHT DIE HOEFLICHKEIT: ohne sie waere auf einer
+    // Umgebung ohne beide Variablen `"" === ""` wahr, und eine fehlende Suite-Variable
+    // erzeugte eine radio-Meldung. Der `else`-Zweig deckt nur die eine Seite ab.
+    if (authSecret !== "" && geheim === authSecret) {
+      fehler.push(
+        `RADIO_AUSLEIH_SITZUNG_SECRET ist identisch mit AUTH_SECRET. Damit gaebe es keine ` +
+          `Domaenentrennung mehr zwischen Suite-Sitzung und Ausleih-Sitzung: dieselbe ` +
+          `Signatur truege zwei Bedeutungen, und aus einer Ausleih-Sitzung waere eine ` +
+          `Suite-Sitzung. Zu aendern ist RADIO_AUSLEIH_SITZUNG_SECRET — AUTH_SECRET ` +
+          `gehoert der Suite und bleibt unveraendert, ein Wechsel dort meldet jede ` +
+          `angemeldete Person ab.`,
+      );
+    }
+  }
+
+  // ── Teil 5: die Gate-Ungleichungskette Absender/min <= gesamt/min <= gesamt/h.
+  //
+  // ⛔ SIE LAEUFT JE GLIED NUR, WENN BEIDE BETEILIGTEN WERTE GELESEN WERDEN KONNTEN — und
+  // dieser Zustand steht als `!== undefined` IM CODE, nicht als Reihenfolge zwischen den
+  // Absaetzen. Sonst verglichen wir einen Wert, den `zahl()` gerade abgelehnt hat, gegen
+  // eine Vorbelegung: die Meldung behauptete eine Kette, die so nirgends steht, und
+  // schickte den Betreiber an die falsche `.env`-Zeile.
+  //
+  // ⚠️ Jede Meldung nennt ALLE DREI Namen mit ihrem gelesenen Wert, nicht nur die zwei
+  // verglichenen: die Kette ist eine Aussage ueber drei Zahlen, und wer sie reparieren
+  // soll, braucht die dritte, um nicht das naechste Glied zu brechen.
+  const gelesen = (name: ZahlName): string =>
+    werte[name] === undefined ? `${name}=<nicht lesbar>` : `${name}=${werte[name]}`;
+  const KETTE =
+    `Gefordert ist die Kette Absender/min <= gesamt/min <= gesamt/h. Gelesen: ` +
+    `${gelesen("RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN")}, ` +
+    `${gelesen("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN")}, ` +
+    `${gelesen("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE")}.`;
+
+  const absender = werte.RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN;
+  const proMin = werte.RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN;
+  const proStunde = werte.RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE;
+
+  if (absender !== undefined && proMin !== undefined && absender > proMin) {
+    fehler.push(
+      `RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN=${absender} ist groesser als ` +
+        `RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN=${proMin}. Dann fuellt ein einzelner ` +
+        `Absender die modulweite Bremse, bevor sein eigener Eimer leer ist — die ` +
+        `Reihenfolge der Bremsen waere umgekehrt zur Absicht. ${KETTE}`,
+    );
+  }
+  if (proMin !== undefined && proStunde !== undefined && proMin > proStunde) {
+    fehler.push(
+      `RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN=${proMin} ist groesser als ` +
+        `RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE=${proStunde}. Dann ist der ` +
+        `Stundendeckel wirkungslos — und er ist der tragende Zaehler. ${KETTE}`,
+    );
+  }
+
+  return fehler;
 }

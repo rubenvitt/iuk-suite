@@ -1,6 +1,6 @@
 // src/app/m/radio/_lib/grenzen.test.ts
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { grenzen, ausleihSitzungGeheimnis, GrenzenUngueltig } from "./grenzen";
+import { grenzen, grenzenFehler, ausleihSitzungGeheimnis, GrenzenUngueltig } from "./grenzen";
 
 /**
  * ZWEI ZUGAENGE ZU DERSELBEN DATEI, UND BEIDE WERDEN GEBRAUCHT.
@@ -8,7 +8,7 @@ import { grenzen, ausleihSitzungGeheimnis, GrenzenUngueltig } from "./grenzen";
  * `frisch()` unten laedt das Modul je Fall NEU und laesst es `process.env` lesen — das ist
  * der Waechter gegen einen spaeteren Modulebenen-Cache und gegen ein Lesen des Geheimnisses
  * beim Import. Der STATISCHE Import hier reicht `grenzen()` und `ausleihSitzungGeheimnis()`
- * dagegen eine eigene Umgebung als Parameter (`grenzen.ts:172`, `:212`); das erlaubt
+ * dagegen eine eigene Umgebung als Parameter (`grenzen.ts:172`, `:234`); das erlaubt
  * synchrone Faelle ohne `await`, und vor allem: die geworfene Klasse stammt aus DERSELBEN
  * Modulinstanz wie das hier importierte `GrenzenUngueltig`.
  *
@@ -321,14 +321,14 @@ describe("radio-Grenzen: das Sitzungsgeheimnis", () => {
   it("liefert den gesetzten Wert — und schneidet Leerraum ab", () => {
     /*
      * ⛔ WAS DIE FUNKTION ZURUECKGIBT, PRUEFTE NICHTS (Fund 2). Die beiden Faelle darueber
-     * pruefen nur, DASS sie wirft und dass der Import gelingt. Sonde P2a (`grenzen.ts:221`
+     * pruefen nur, DASS sie wirft und dass der Import gelingt. Sonde P2a (`grenzen.ts:239`
      * `return wert;` -> `return "SONDE-P2";`): vorher 0 rot. Ein fest verdrahteter, in
      * diesem Repository nachlesbarer HMAC-Schluessel fuer JEDE Ausleih-Sitzung passierte
      * damit Test, Typecheck und Lint (Vorbild
      * `src/app/m/lagerbuch/_lib/grenzen.test.ts:212-215`).
      *
      * ⛔ DIE ZWEITE ZEILE IST DER WAECHTER FUER DAS `?.trim()` (Fund 6, Sonde P7 an
-     * `grenzen.ts:213`: vorher 0 rot) — und sie ist die schaerfere Haelfte, weil sie die
+     * `grenzen.ts:235`: vorher 0 rot) — und sie ist die schaerfere Haelfte, weil sie die
      * WIRKUNG des Abschnitts belegt und nicht nur seine Torwaechterrolle.
      */
     expect(ausleihSitzungGeheimnis({ RADIO_AUSLEIH_SITZUNG_SECRET: "sonde-wert-1" })).toBe(
@@ -343,12 +343,12 @@ describe("radio-Grenzen: das Sitzungsgeheimnis", () => {
     /*
      * ⛔ REINER LEERRAUM WAR DIE STILLE LUECKE (Fund 6). `RADIO_AUSLEIH_SITZUNG_SECRET=" "`
      * in einer `env_file` ergaebe ohne das `?.trim()` einen Ein-Zeichen-HMAC-Schluessel —
-     * ohne Wurf und ohne Meldung. ⚠️ Und es gibt fuer `radio` heute KEINE Boot-Pruefung,
-     * die es spaeter faenge: `radioBootFehler()` ist Planteil 5 (⬜ A-L7,
-     * `grenzen.ts:206-210`). Der Fall faellt also nirgends sonst auf.
+     * ohne Wurf und ohne Meldung. ⚠️ Und es faengt ihn heute AM START noch nichts:
+     * `grenzenFehler()` ist seit G1 gebaut, aber bis G2 ungerufen — `radioBootFehler()`
+     * haengt sie erst dort ein (⬜ A-L7, `grenzen.ts:228-232`).
      *
      * ⛔ `toThrow(GrenzenUngueltig)` deckt hier zusaetzlich die dritte Wurfstelle der Datei
-     * (`grenzen.ts:215`) gegen Sonde P8 ab; die beiden anderen deckt der Ganzzahl-Block
+     * (`grenzen.ts:237`) gegen Sonde P8 ab; die beiden anderen deckt der Ganzzahl-Block
      * weiter oben. Vorbild: `src/app/m/lagerbuch/_lib/grenzen.test.ts:218-227`.
      */
     for (const env of [
@@ -359,5 +359,259 @@ describe("radio-Grenzen: das Sitzungsgeheimnis", () => {
       expect(() => ausleihSitzungGeheimnis(env)).toThrow(GrenzenUngueltig);
       expect(() => ausleihSitzungGeheimnis(env)).toThrow(/RADIO_AUSLEIH_SITZUNG_SECRET/);
     }
+  });
+});
+
+/**
+ * ── PLANTEIL 5, AUFGABE G1: `grenzenFehler()` ─────────────────────────────────────────────
+ *
+ * Die Sammelform derselben Tabelle. `grenzen()` wirft beim ERSTEN ungueltigen Wert;
+ * `grenzenFehler()` will ALLE Fehler auf einmal, weil der Betreiber sonst vier Neustarts
+ * fahren muss (`grenzen.ts:166-170`, dort ausgeschrieben).
+ *
+ * ⛔ JEDER FALL REICHT SEINE UMGEBUNG ALS PARAMETER — NIE `process.env`. Sonst entschiede
+ * ein gesetztes `AUTH_SECRET` der Entwicklungsmaschine ueber den Vergleichsfall (Teil 4),
+ * und jede ZAEHLZUSAGE haenge an einer Datei ausserhalb dieses Repos.
+ *
+ * ⛔ UND JEDER ZAEHLFALL SETZT DAS GEHEIMNIS. Es ist PFLICHT und hat keine Vorbelegung
+ * (`grenzen.ts:58-60`, `:204-205`): eine Umgebung ohne `RADIO_AUSLEIH_SITZUNG_SECRET`
+ * traegt IMMER eine Meldung mehr, als der Fall meint. Wer das vergisst, misst 2 statt 1
+ * und richtet dann die Implementierung nach dem falschen Messwert.
+ */
+
+/** 40 Zeichen — ueber der Mindestlaenge 32, damit die Zaehlfaelle nur zaehlen, was sie meinen. */
+const GEHEIM_GUELTIG = "g".repeat(40);
+/** 31 Zeichen — genau EINS unter der Mindestlaenge. Der Randwert, nicht irgendein kurzer Wert. */
+const GEHEIM_ZU_KURZ = "k".repeat(31);
+
+describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
+  it("ohne jede RADIO_-Variable meldet grenzenFehler NUR das fehlende Geheimnis", () => {
+    /*
+     * ⛔ DIESER FALL HEISST NICHT „meldet nichts", UND DAS IST DER PUNKT. Alle vier Zahlen
+     * haben eine Vorbelegung (`grenzen.ts:76`, `:82`, `:86`, `:91`) und laufen auf einer
+     * leeren Umgebung klaglos durch — das Geheimnis hat keine und wird VERLANGT
+     * (`grenzen.ts:204-205`). Genau EINE Meldung ist die Zusage.
+     *
+     * ⛔ ZWEI BAUFORMEN MACHEN DARAUS STILL ZWEI MELDUNGEN, und beide sind naheliegend:
+     * eine Laengenpruefung AUSSERHALB des `else`-Zweigs (die leere Zeichenkette ist auch
+     * „kuerzer als 32"), und ein `AUTH_SECRET`-Vergleich ohne die Wache `authSecret !== ""`
+     * (`"" === ""` ist wahr). Das Vorbild traegt beides richtig:
+     * `src/app/m/lagerbuch/_lib/grenzen.ts:334-365` (Datei 368 Zeilen).
+     *
+     * ⛔ UND DIE GATING-FRAGE GEHOERT NICHT HIERHER. `lagerbuch` beginnt seine Entsprechung
+     * mit `if (prodHostsFor(...).length === 0) return [];` (`lagerbuch/_lib/grenzen.ts:283`);
+     * fuer `radio` steht dieser Schalter in `radioBootFehler()` (G2). Zoege ihn jemand
+     * hierher, liefe dieser Fall auf `[]` — und `grenzenFehler()` waere fuer jeden zweiten
+     * Aufrufer unbrauchbar.
+     */
+    const fehler = grenzenFehler({});
+    expect(fehler).toHaveLength(1);
+    expect(fehler[0]).toContain("RADIO_AUSLEIH_SITZUNG_SECRET");
+  });
+
+  it("eine ungueltige Zahl meldet genau eine Zeile mit Name und Bereich", () => {
+    /*
+     * Die Meldung kommt WOERTLICH aus `zahl()` (`grenzen.ts:142-145`) — sie wird nicht
+     * zweitgeschrieben. Deshalb traegt sie Name, gelesenen Wert, Bereich und Einheit,
+     * ohne dass `grenzenFehler()` davon etwas wissen muss.
+     */
+    const fehler = grenzenFehler({
+      RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG,
+      RADIO_AUSLEIH_SITZUNG_STUNDEN: "abc",
+    });
+    expect(fehler).toHaveLength(1);
+    expect(fehler[0]).toContain("RADIO_AUSLEIH_SITZUNG_STUNDEN");
+    expect(fehler[0]).toContain("1 bis 24");
+  });
+
+  it("RADIO_AUSLEIH_SITZUNG_STUNDEN=25 wird abgewiesen", () => {
+    /*
+     * ⛔ EIGENER FALL, KEINE RANDNOTIZ — er ist die Sonde fuer Entscheidung E-G2.
+     * Kapitel 7 §7.3.3 Nr. 5 schrieb `1..168` aus; gebaut und ausgeliefert ist `1..24`
+     * (`grenzen.ts:76`, Begruendung `:63`: „eine Feldsitzung darf nie laenger dauern als
+     * eine Schicht plus Puffer"). E-G2 haelt 24 fest, weil das die STRENGERE, bereits
+     * geltende Zusage ist und ein Boot-Bereich neben einem Laufzeit-Bereich genau die zwei
+     * Wahrheiten waeren, die `grenzen.ts:53-56` verbietet.
+     *
+     * Ohne diesen Fall stuende die Entscheidung nur im Kommentar. Sonde S-G1e (`max: 24`
+     * auf `168` gehoben) macht ihn rot — und nur ihn.
+     */
+    const fehler = grenzenFehler({
+      RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG,
+      RADIO_AUSLEIH_SITZUNG_STUNDEN: "25",
+    });
+    expect(fehler).toHaveLength(1);
+    expect(fehler[0]).toContain("RADIO_AUSLEIH_SITZUNG_STUNDEN");
+    expect(fehler[0]).toContain("25");
+    expect(fehler[0]).toContain("1 bis 24");
+  });
+
+  it("vier ungueltige Zahlen ergeben VIER Zeilen, nicht eine", () => {
+    /*
+     * ⛔ DER GRUND, WARUM EIN EINZELNES `try { grenzen(env) } catch` NICHT GENUEGT.
+     * `grenzen()` wertet alle vier Namen in EINEM Objektliteral aus (`grenzen.ts:173-178`),
+     * und der erste Wurf aus `zahl()` (`:142`, `:149`) beendet den Aufruf — die drei
+     * uebrigen Fehler saehe der Betreiber erst nach dem naechsten Neustart. Vier kaputte
+     * Zeilen kosteten ihn vier Neustarts.
+     *
+     * Sonde S-G1a (die Schleife ueber `ZAHL_NAMEN` durch ein einzelnes
+     * `try { grenzen(env) }` ersetzt) macht genau diesen Fall rot.
+     */
+    const fehler = grenzenFehler({
+      RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG,
+      RADIO_AUSLEIH_SITZUNG_STUNDEN: "abc",
+      RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "abc",
+      RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "abc",
+      RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "abc",
+    });
+    expect(fehler).toHaveLength(4);
+  });
+
+  it("fehlendes Sitzungsgeheimnis ist eine Meldung", () => {
+    /*
+     * ⬜ A-L7 ABGELESEN. Der Absatz `grenzen.ts:228-232` hielt bis zu dieser Aufgabe fest:
+     * „ES GIBT FUER DIESES MODUL HEUTE KEINE BOOT-PRUEFUNG AUF DAS GEHEIMNIS" — mit
+     * Planteil 5 namentlich als Eigentuemer. Hier ist sie.
+     *
+     * ⛔ DER WORTLAUT WIRD UEBERNOMMEN, NICHT NEU FORMULIERT: derselbe Text traegt den Wurf
+     * aus `ausleihSitzungGeheimnis()` — genauer: aus der Konstanten `GEHEIMNIS_FEHLT`
+     * (`grenzen.ts:189-192`), die dort geworfen (`:237`) und hier gemeldet wird. Zwei
+     * Formulierungen fuer denselben Betriebsfall waeren zwei Wahrheiten, und der Betreiber
+     * suchte je nach Weg nach einem anderen Satz.
+     */
+    const fehler = grenzenFehler({});
+    expect(fehler[0]).toContain("RADIO_AUSLEIH_SITZUNG_SECRET");
+    expect(fehler[0]).toContain("nicht gesetzt oder leer");
+  });
+
+  it("zu kurzes Sitzungsgeheimnis nennt die LAENGE, nicht den Wert", () => {
+    /*
+     * ⛔ NIE DER WERT SELBST. Diese Meldung landet im Docker-Protokoll, und das Protokoll
+     * liest beim Cutover mehr als eine Person. Eine Meldung, die das halbe Geheimnis
+     * mitliefert, macht aus einem Konfigurationsfehler einen Geheimnisverlust.
+     *
+     * ⚠️ 31 IST DER RANDWERT, nicht irgendein kurzer Wert: die zweite Zeile unten waere
+     * bei einem beliebigen kurzen Wert genauso gruen, die ERSTE nur bei genau 31.
+     * Sonde S-G1b (Mindestlaenge von 32 auf 8 gesenkt) macht den Fall rot.
+     */
+    const fehler = grenzenFehler({ RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_ZU_KURZ });
+    expect(fehler).toHaveLength(1);
+    expect(fehler[0]).toContain("RADIO_AUSLEIH_SITZUNG_SECRET");
+    expect(fehler[0]).toContain("31");
+    expect(fehler[0]).not.toContain(GEHEIM_ZU_KURZ);
+    expect(fehler[0]).toContain("openssl rand -base64 32");
+  });
+
+  it("Sitzungsgeheimnis gleich AUTH_SECRET nennt BEIDE Namen", () => {
+    /*
+     * ⛔ BEIDE NAMEN, weil der Betreiber sonst nicht weiss, WELCHE der beiden Zeilen er
+     * aendern soll — und die falsche Antwort („`AUTH_SECRET` neu setzen") wirft jede
+     * angemeldete Person der ganzen Suite aus ihrer Sitzung.
+     *
+     * Ein geteiltes Geheimnis hoebe die Domaenentrennung auf: dieselbe Signatur truege
+     * zwei Bedeutungen, und aus einer Ausleih-Sitzung waere eine Suite-Sitzung
+     * (Vorbild `src/app/m/lagerbuch/_lib/grenzen.ts:357-364`).
+     *
+     * Sonde S-G1c (den `AUTH_SECRET`-Vergleich entfernt) macht ihn rot.
+     */
+    const fehler = grenzenFehler({
+      RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG,
+      AUTH_SECRET: GEHEIM_GUELTIG,
+    });
+    expect(fehler).toHaveLength(1);
+    expect(fehler[0]).toContain("RADIO_AUSLEIH_SITZUNG_SECRET");
+    expect(fehler[0]).toContain("AUTH_SECRET");
+  });
+
+  it("die Gate-Kette Absender <= gesamt pro min wird geprueft", () => {
+    /*
+     * Bricht das erste Glied, fuellt ein einzelner Absender die modulweite Bremse, bevor
+     * sein eigener Eimer leer ist — die Reihenfolge der Bremsen waere umgekehrt zur
+     * Absicht. Beide Werte sind fuer sich GUELTIG (40 <= 60, 30 <= 600); erst ihr
+     * Verhaeltnis ist falsch, und genau deshalb kann `zahl()` das nicht sehen.
+     */
+    const fehler = grenzenFehler({
+      RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG,
+      RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "40",
+      RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "30",
+    });
+    expect(fehler).toHaveLength(1);
+    expect(fehler[0]).toContain("RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN");
+    expect(fehler[0]).toContain("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN");
+    expect(fehler[0]).toContain("40");
+    expect(fehler[0]).toContain("30");
+  });
+
+  it("die Gate-Kette gesamt pro min <= gesamt pro Stunde wird geprueft", () => {
+    /*
+     * Bricht das zweite Glied, ist der Stundendeckel wirkungslos — und er ist der
+     * tragende Zaehler (`grenzen.ts:88-91`).
+     */
+    const fehler = grenzenFehler({
+      RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG,
+      RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "100",
+      RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "50",
+    });
+    expect(fehler).toHaveLength(1);
+    expect(fehler[0]).toContain("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN");
+    expect(fehler[0]).toContain("RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE");
+    expect(fehler[0]).toContain("100");
+    expect(fehler[0]).toContain("50");
+  });
+
+  it("eine gueltige Kette meldet nichts", () => {
+    /*
+     * ⛔ DIE ERSTE ZEILE IST DIE TRAGENDE, UND DIE ZWEITE IST ES NICHT. Nachgemessen,
+     * nicht vermutet: Sonde S-G1d (`<=` in der Kette auf `<` verschaerft, also die
+     * Bedingung von `>` auf `>=`) laesst 5/30/300 voellig unberuehrt — `5 >= 30` und
+     * `30 >= 300` sind beide falsch, der Fall bliebe gruen, und die Sonde ergaebe 0 rot.
+     * Nur der GLEICHHEITSRAND unterscheidet die beiden Fassungen: 30/30/30 ist unter
+     * `<=` erlaubt und unter `<` ein Fehler.
+     *
+     * 30 liegt in allen drei Bereichen (max 60, 600, 3600), der Fall misst also
+     * ausschliesslich die Kette und nicht nebenbei eine Bereichsgrenze.
+     *
+     * Die zweite Zeile steht trotzdem: sie sichert zu, dass die AUSGELIEFERTEN
+     * Vorbelegungen (5/30/300, `grenzen.ts:82`, `:86`, `:91`) die eigene Kette einhalten.
+     */
+    expect(
+      grenzenFehler({
+        RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG,
+        RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "30",
+        RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "30",
+        RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "30",
+      }),
+    ).toEqual([]);
+    expect(
+      grenzenFehler({
+        RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG,
+        RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "5",
+        RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "30",
+        RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "300",
+      }),
+    ).toEqual([]);
+  });
+
+  it("grenzenFehler wirft nie", () => {
+    /*
+     * ⛔ SIE DARF NICHT WERFEN, UND ZWAR AUS EINEM GRUND AUSSERHALB DIESER DATEI:
+     * `radioBootFehler()` (G2) haengt als `...(await radioBootFehler())` in
+     * `assertHostConfig` (`src/core/bootstrap.ts:90-103`). Ein Wurf von hier naehme
+     * portal, qr, feedback, files, lagerbuch und aufgaben mit — sechs Module faenden ihr
+     * Ende in einer radio-Konfigurationszeile (Bauform-Tafel Nr. 3).
+     *
+     * Nachgezaehlt: vier kaputte Zahlen + das fehlende Geheimnis = FUENF. Die Kette
+     * schweigt, weil keiner ihrer drei Werte gelesen werden konnte — genau die Zusage von
+     * Teil 5, dass eine Ketten-Meldung nie einen Wert vergleicht, den `zahl()` gerade
+     * abgelehnt hat.
+     */
+    const kaputt = {
+      RADIO_AUSLEIH_SITZUNG_STUNDEN: "abc",
+      RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "-1",
+      RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "1e7",
+      RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "99999",
+    };
+    expect(() => grenzenFehler(kaputt)).not.toThrow();
+    expect(grenzenFehler(kaputt)).toHaveLength(5);
   });
 });

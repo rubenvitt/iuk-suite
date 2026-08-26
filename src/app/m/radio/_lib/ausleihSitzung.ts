@@ -73,12 +73,12 @@ export type AusleihSitzung = AusleihPayload & { laeuftAb: Date };
  * ueber beide. Der Name wird hier nicht wiederholt, sondern aus `_lib/grenzen.ts:93-103`
  * gelesen — zwei Schreibweisen waeren zwei Wahrheiten.
  *
- * ⬜ A-L7 — ES GIBT FUER DIESES MODUL HEUTE KEINE BOOT-PRUEFUNG AUF
- * `RADIO_AUSLEIH_SITZUNG_SECRET`. `radioBootFehler()` gehoert Kapitel 7 und damit
- * Planteil 5 (B8, Spec:97). Fehlt die Variable, faellt das erst beim ersten Einloesen
- * auf — nicht beim Start des Containers. Abgelesen wird die Leerstelle von Planteil 5
- * beim Bau von `radioBootFehler()`; ueber die Gestalt der Meldung, die ein Mensch dann
- * saehe, steht hier ausdruecklich nichts.
+ * ⬜ A-L7 — ABGELESEN in Planteil 5, Aufgabe G1. Die Pruefung auf
+ * `RADIO_AUSLEIH_SITZUNG_SECRET` ist gebaut: `_lib/grenzen.ts#grenzenFehler()` meldet
+ * fehlend, kuerzer als 32 Zeichen und gleich `AUTH_SECRET` als drei getrennte Zeilen.
+ * ⛔ ZUM STARTABBRUCH WIRD DAS ERST, WENN `radioBootFehler()` (`_lib/boot.ts`) SIE RUFT —
+ * das baut Aufgabe G2. Bis dahin gilt der alte Befund weiter: fehlt die Variable, faellt
+ * das erst beim ersten Einloesen auf, nicht beim Start des Containers.
  */
 const schluessel = () => new TextEncoder().encode(ausleihSitzungGeheimnis());
 
