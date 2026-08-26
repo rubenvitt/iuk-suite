@@ -677,7 +677,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
       ["Rumpf von startBackgroundWork()", hintergrundRumpf],
     ] as const;
     for (const [wo, ausschnitt] of ausschnitte) {
-      for (const marke of ["/" + "*", "*" + "/"]) {
+      for (const marke of ["/*", "*/"]) {
         expect(
           ausschnitt,
           `${wo}: Blockkommentar-Marke ${marke} gefunden — der Zeilenfilter dieses Blocks kennt sie nicht, ein so stillgelegter Aufruf wuerde still als wirksam durchgehen`,
@@ -690,7 +690,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
    * ⛔ WAS DIESER BLOCK BEWUSST NICHT FAENGT, damit es niemand fuer eine Luecke
    * haelt: eine UMBENENNUNG INNERHALB DER NAMENSKONVENTION. Heisst
    * `radioBootFehler` morgen `funkBootFehler` und wird die Einhaengung in
-   * `src/core/bootstrap.ts` mitgezogen, bleiben alle 23 Faelle dieser Datei gruen
+   * `src/core/bootstrap.ts` mitgezogen, bleiben alle 24 Faelle dieser Datei gruen
    * — gemessen am 2026-08-26, nicht angenommen. Das ist Absicht: der Waechter
    * prueft die KOPPLUNG zwischen Export und Einhaengung, nicht die Namenswahl.
    *
