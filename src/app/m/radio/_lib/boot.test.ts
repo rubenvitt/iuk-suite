@@ -834,10 +834,10 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
     // Eine geschlossene Verbindung — der Lauf scheitert, der Takt nicht.
     taktSqlite.close();
     expect(() => vi.advanceTimersByTime(ERSTLAUF_MS)).not.toThrow();
-    // Auf `Retention-Lauf` verankert, nicht auf `[radio]`: dieser Diff legt ZWEI
-    // `[radio]`-Fehlerzeilen an (`_lib/boot.ts:544-549` und `:585-589`); ein Anker auf dem
-    // blossen Praefix truege die Unterscheidung nicht (REVIEW-G4 H4).
-    expect(fehlerText()).toContain("Retention-Lauf");
+    // Anker auf Praefix UND Meldung: dieser Diff legt ZWEI `[radio]`-Fehlerzeilen an
+    // (`_lib/boot.ts:544-548` und `:585-588`) — die MELDUNG trennt die beiden (REVIEW-G4 H4),
+    // der PRAEFIX ist die Form, die R-G2-1 gegen `radio:` haelt und sonst niemand bewacht (N2).
+    expect(fehlerText()).toContain("[radio] Retention-Lauf");
     expect(vi.getTimerCount()).toBe(1);
 
     /*
@@ -856,7 +856,7 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
   it("ein Fehler der Bestandswarnung nimmt den Takt nicht mit", () => {
     /*
      * ⛔ DER UNBEWACHTE ZWEIG AUS FIX-RUNDE 1 (REVIEW-G4 W3). `bestandswarnung()` hat ein
-     * EIGENES `try`/`catch` (`_lib/boot.ts:574-590`), und die Zusage darueber lautet: „ein
+     * EIGENES `try`/`catch` (`_lib/boot.ts:574-589`), und die Zusage darueber lautet: „ein
      * gescheiterter Bestandsblick darf den Takt nicht mitnehmen — er ist die weniger
      * wichtige der drei Aufgaben". Ohne diesen Fall war das eine Zusage ohne Waechter:
      * gemessen blieben 56/56 gruen, als das `catch` durch `throw grund;` ersetzt wurde.
