@@ -127,16 +127,16 @@ import { ohneKommentare } from "./quelltextScan";
  * wuerde dann abgeschaltet statt repariert. Der Verlust ist klein und benannt: eine Verletzung
  * AUSSCHLIESSLICH in einer Testdatei bleibt unentdeckt; Testdateien werden nicht ausgeliefert.
  *
- * ⛔ ACHT FAELLE, NICHT SIEBEN — UND DER ACHTE IST DER GRUND, WARUM DIE MUSTERLISTE UEBERHAUPT
- * BEWACHT IST. Der Brief zaehlt sieben (`briefs/G6.md`, „Die sieben Faelle schreiben"); die
- * fuenf Sonden decken davon aber nur `serviceWorker.register` (S-G6a) und eine Zeichenkette im
- * Literal (S-G6b) ab. Ein Tippfehler in einem der vier UEBRIGEN Muster — etwa
- * `beforeinstalprompt` — waere ueber den 98 echten Dateien STUMM GRUEN, weil dort ohnehin kein
- * Treffer erwartet wird. `jedes der fuenf Muster meldet an einer synthetischen Quelle`
- * schliesst das, und zwar dauerhaft statt durch eine zurueckgenommene Sonde. Die Form ist die
- * des Falls „eine verbotene Zeichenkette INNERHALB eines Literals wird gefunden" — also die
- * Architektur, die diese Datei schon traegt, keine neue. Praezedenzfall fuer eine ZUSAETZLICHE
- * Zusicherung gegenueber dem Plan: **R-G3-2** (`.superpowers/sdd/planteil5/progress.md`).
+ * ⛔ ACHT FAELLE IM PWA-SCAN, NICHT SIEBEN — UND DER ACHTE IST DER GRUND, WARUM DIE MUSTERLISTE
+ * UEBERHAUPT BEWACHT IST. ⚠️ DIE DATEI TRAEGT SEIT AUFGABE G7 EINEN NEUNTEN, ABER IN EINEM
+ * ZWEITEN `describe` AM DATEIENDE (`:433`) UND AUSSERHALB DIESES SCANS (E-G7). Der Brief zaehlt
+ * sieben (`briefs/G6.md`, „Die sieben Faelle schreiben"); die fuenf Sonden decken davon aber
+ * nur `serviceWorker.register` (S-G6a) und eine Zeichenkette im Literal (S-G6b) ab. Ein
+ * Tippfehler in einem der vier UEBRIGEN Muster — etwa `beforeinstalprompt` — waere ueber den 98
+ * echten Dateien STUMM GRUEN, weil dort ohnehin kein Treffer erwartet wird. `jedes der fuenf
+ * Muster meldet an einer synthetischen Quelle` schliesst das dauerhaft statt durch eine
+ * zurueckgenommene Sonde. Die Form ist die des Falls „eine verbotene Zeichenkette INNERHALB
+ * eines Literals wird gefunden" — also keine neue. Praezedenzfall: **R-G3-2** (`progress.md`).
  *
  * ⚠️ WAS DIESE DATEI NICHT BELEGT: was `https://radio.iuk-ue.de/manifest.webmanifest` im
  * Betrieb tatsaechlich ANTWORTET. Das ist die Server-Haelfte und bleibt ⬜ G-L6; hier steht die
@@ -369,5 +369,72 @@ describe("keine PWA unter m/radio", () => {
       quellDateien().map(kurzPfad),
       "der Endungsfilter steht vor isDirectory() — sw.js/ faellt aus dem Scan (Bauform 28)",
     ).toContain("sw.js/route.ts");
+  });
+});
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════════════════
+ * ⛔ DER NEUNTE FALL — AUFGABE G7, ENTSCHEIDUNG E-G7. ER GEHOERT NICHT ZUM PWA-SCAN, UND
+ * GENAU DESHALB STEHT ER IN EINEM ZWEITEN `describe`
+ * ════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * ⛔ WARUM UEBERHAUPT IN DIESER DATEI: sie prueft bereits eine ABWESENHEIT im Repo — der Fall
+ * „es gibt kein manifest.webmanifest-Verzeichnis unter radio" (`:316-321`). Eine zweite Datei
+ * fuer einen einzigen Fall waere Laerm (Brief G7: „dieselbe Datei, weil sie bereits
+ * Abwesenheiten im Repo prueft und eine zweite Datei fuer einen Fall Laerm waere").
+ * ⚠️ ER IST ABER KEIN PWA-FALL. Der Scan oben liest Quelltext unter `src/app/m/radio`; dieser
+ * hier sieht in den KERN, `src/app/api/health`. Ein gemeinsames `describe` behauptete eine
+ * Verwandtschaft, die es nicht gibt. Zwei Beschreibungsorte in einer Datei sind die Hausform
+ * (`_lib/boot.test.ts`: „eine Datei, drei Beschreibungsorte, keine Zeile doppelt").
+ *
+ * ⛔ WAS ER ZUSAGT: `/api/health/radio` bekommt KEINE eigene Datei. Der generische Handler
+ * beantwortet den Pfad heute schon — `src/app/api/health/[modul]/route.ts:5` liest `modul` aus
+ * `ctx.params`, `:6` ruft `checkModuleHealth`, und die Funktion ist modul-agnostisch
+ * (`src/core/health/index.ts:1-16`; `:10` liefert `{ status: "ok", module: key }`). `radio`
+ * steht in der Registry (`src/core/registry.ts:197-199`), und `/api/health` ist Passthrough
+ * (`src/core/routing.ts:12`) — die Route antwortet damit hostunabhaengig.
+ *
+ * ⛔ EIN ZWEITER HANDLER WAERE EINE ZWEITE WAHRHEIT UEBER DENSELBEN PFAD — und keine
+ * gleichwertige: der generische traegt `revision`
+ * (`src/app/api/health/[modul]/route.ts:23-26`), ein handgeschriebener trueg sie nicht. Genau
+ * `revision` ist aber der einzige Beleg, dass nach `docker compose up -d` auch WIRKLICH der
+ * neue Stand antwortet und nicht der alte Container weiterlaeuft (Kommentar ebendort,
+ * `:7-22`).
+ * ⚠️ WELCHE VON ZWEI DATEIEN NEXT DANN GEWAENNE, IST HIER NICHT BEHAUPTET — ungemessen. Die
+ * Zusage ist, dass die Frage gar nicht erst entsteht.
+ *
+ * ⛔ DIE WURZEL IST NICHT `MODUL`, UND DAS IST DER GANZE GRUND FUER DIE EIGENE KONSTANTE
+ * UNTEN. Der Nachbarfall `:316-321` baut seinen Pfad ueber `join(MODUL, …)`
+ * (`MODUL` = `src/app/m/radio`, `:146`). Wer diese Form aus Gewohnheit uebernimmt, prueft
+ * `src/app/m/radio/api/health/radio` — einen Pfad, den niemand je anlegen wird — und hat einen
+ * Fall, der FUER IMMER GRUEN ist. Dieselbe Klasse wie die leere Wurzel aus Sonde S-G6c
+ * (Kopf dieser Datei).
+ *
+ * ⛔ DIE ZUSICHERUNG STEHT AUF DEM VERZEICHNIS, NICHT AUF `radio/route.ts`, und auch das ist
+ * kein Geschmack: Sonde S-G7a legt ein LEERES Verzeichnis `src/app/api/health/radio/` an
+ * (Brief G7, Schritt 2). Auf `route.ts` gerichtet koennte diese Sonde den Fall nicht rot
+ * machen — sie waere 0 rot PER KONSTRUKTION, also genau die Bauart von Testluege, gegen die
+ * dieser Planteil antritt. ⚠️ Der Verlust ist klein und benannt: ein leeres Verzeichnis meldet
+ * dieser Fall mit. Das ist die laute Richtung (`_lib/quelltextScan.ts:55-59`).
+ *
+ * ⚠️ „ROT ZUERST" GEHT HIER NICHT, UND DAS IST KEIN VERSAEUMNIS. Eine Abwesenheitszusage ueber
+ * eine Flaeche, die es nie gab, ist in dem Augenblick gruen, in dem sie geschrieben wird; ein
+ * erster roter Lauf liesse sich nur durch eine erfundene Ausgabe behaupten. Der rote Beleg ist
+ * die Sonde S-G7a — gemessen am 2026-08-27, 1 rot, protokolliert in
+ * `.superpowers/sdd/planteil5/BERICHT-G7.md`.
+ *
+ * ⚠️ WAS DIESER FALL NICHT BELEGT: was `/api/health/radio` im BETRIEB antwortet. Der Rumpf ist
+ * ⬜ G-L5 und wird am laufenden Container abgelesen — das Rezept steht im verfolgten Artefakt
+ * `docs/superpowers/berichte/2026-08-26-radio-betriebsablesungen.md`. Den Wirknachweis im Lauf
+ * liefert T4 (`e2e/radio-hosts.spec.ts`, Fall 11), nicht diese Datei.
+ */
+const API_HEALTH_VERZEICHNIS = join(process.cwd(), "src/app/api/health");
+
+describe("keine zweite Wahrheit ueber /api/health/radio", () => {
+  it("radio bringt keinen eigenen Health-Handler mit", () => {
+    expect(
+      existsSync(join(API_HEALTH_VERZEICHNIS, "radio")),
+      "unter src/app/api/health/ ist ein radio-eigener Handler entstanden — der generische [modul]-Handler beantwortet den Pfad bereits und traegt als einziger revision (E-G7)",
+    ).toBe(false);
   });
 });
