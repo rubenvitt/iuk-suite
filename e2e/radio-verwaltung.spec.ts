@@ -1,6 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { devLogin } from "./fixtures";
-import { RADIO_ADMIN_GRUPPE, RADIO_HOST, radioUrl } from "./helpers/radio";
+import {
+  FREMDER_HOST,
+  RADIO_ADMIN_GRUPPE,
+  RADIO_HOST,
+  RADIO_UPDATER_GRUPPE,
+  fremdUrl,
+  radioUrl,
+} from "./helpers/radio";
 
 /**
  * DIE ELF FAELLE DER VERWALTUNG (`Spec:4874-4892`, §5.13).
@@ -15,9 +22,17 @@ import { RADIO_ADMIN_GRUPPE, RADIO_HOST, radioUrl } from "./helpers/radio";
  * Aufruf landete dort — und `portal` traegt `requiresAuth: true`, also im Login. Dieselbe
  * Bauform wie `e2e/lagerbuch-hosts.spec.ts` (`e2e/helpers/lagerbuch.ts:86-91`).
  *
- * ⛔ DIESE DATEI WAECHST MIT JEDER FLAECHE UND WIRD EINMAL GEFAHREN — in Aufgabe V23, vor
- * dem Merge (`.superpowers/sdd/planteil4/briefs/KOPF.md:306`). ⛔ Bis dahin behauptet KEIN
- * Kommentar dieses Wegs, dass ein Riegel bei einem echten Abruf GREIFT; das ist ⬜ V-L3.
+ * ✅ SEIT DEM 2026-08-26 IST DIE LISTE VOLLSTAENDIG (Aufgabe V23, der Abschluss von
+ * Planteil 4): Fall 8 („fremder Suite-Host antwortet 404") kam dazu, und mit ihm die vier
+ * Wirkproben „V-L3 A" bis „V-L3 D" unten. ⛔ Damit ist ⬜ **V-L3 abgelesen** — die Messwerte
+ * stehen im Kopfkommentar von `src/app/m/radio/riegel.test.ts`, weil dort die Behauptung
+ * stand, die sie ersetzen. ⚠️ Sie stehen dort und NICHT in einem Bericht: der
+ * Berichtsordner ist git-ignoriert (`.gitignore:17`), und eine Messung, die nur in einer
+ * nicht verfolgten Datei steht, findet der naechste Leser nicht.
+ *
+ * ⛔ DIE VIER WIRKPROBEN SIND DAUERFAELLE, KEINE EINMALIGE ABLESUNG. Fuer „V-L3 D" ist das
+ * tragend: `riegel.test.ts` faengt eine faelschlich abgesenkte Seite im `(arbeit)`-Zweig
+ * strukturell nicht.
  */
 
 /**
@@ -125,16 +140,17 @@ test.describe("radio-Verwaltung", () => {
      * ⚠️ `tbody tr.ant-table-row` und nicht `tbody tr`: die Leerdarstellung ist selbst ein
      * `<tr class="ant-table-placeholder">` (`@rc-component/table/es/Body/index.js:99`).
      *
-     * ⬜ **V13-L2 — HEUTE SEEDET DER E2E-LAUF `radio` NICHT.** `core/bootstrap.ts:49-54`
-     * nimmt das Modul bewusst vom Boot-Seed aus, und `playwright.config.ts:142` ruft
-     * `scripts/seed-lokal.ts` nur mit `aufgaben`. ⛔ **Eigentuemer: V23** — dessen Faelle 3, 4,
-     * 6 und 7 brauchen ohnehin ein vorhandenes Geraet (`briefs/V23.md`). Bis dahin ist diese
-     * Zeile die LAUTE Form des Befunds: sie faellt mit ihrer eigenen Begruendung aus, statt
-     * die Zusicherung darunter stillschweigend zahnlos zu machen.
+     * ✅ ⬜ **V13-L2 IST IN V23 GESCHLOSSEN.** `core/bootstrap.ts:49-56` nimmt das Modul
+     * weiterhin bewusst vom BOOT-Seed aus (ein geseedeter Zugangscode waere in der
+     * Generalprobe ein gueltiger anonymer Schreibzugang) — geschlossen wurde die Luecke
+     * stattdessen in `playwright.config.ts`s `webServer.command`, der seit dieser Aufgabe
+     * `scripts/seed-lokal.ts radio` mitruft. Die Zeile bleibt stehen und ist ab jetzt der
+     * Waechter ueber dem Seed selbst: ohne Datenzeile kann diese Flaeche S-V13d nicht fangen
+     * (`InternalTable.js:368`).
      */
     expect(
       await page.locator("table tbody tr.ant-table-row").count(),
-      "⬜ V13-L2: ohne Datenzeile kann diese Flaeche S-V13d nicht fangen (InternalTable.js:368)",
+      "ohne Datenzeile kann diese Flaeche S-V13d nicht fangen (InternalTable.js:368)",
     ).toBeGreaterThan(0);
     await expect(
       page.locator(".ant-table-pagination"),
@@ -181,17 +197,33 @@ test.describe("radio-Verwaltung", () => {
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
 
     /*
-     * ⬜ **V13-L2 — HEUTE SEEDET DER E2E-LAUF `radio` NICHT** (`core/bootstrap.ts:49-54`,
-     * `playwright.config.ts:142`; Eigentuemer V23). Die Akte-Adresse gibt es nur zu einem
-     * vorhandenen Geraet, und eine erfundene Id waere ein 404, den dieser Fall dann als
-     * „Formular fehlt" meldete. Deshalb faellt die Vorbedingung LAUT und mit eigener
-     * Begruendung aus, statt die Zusicherung darunter stillschweigend zahnlos zu machen.
+     * ✅ ⬜ **V13-L2 IST IN V23 GESCHLOSSEN.** `playwright.config.ts`s `webServer.command` ruft
+     * seit dieser Aufgabe zusaetzlich `scripts/seed-lokal.ts radio` (acht Geraete, gemessen
+     * am 2026-08-26). Die Vorbedingung bleibt trotzdem stehen — sie ist ab jetzt der
+     * Waechter darueber, dass der Seed WIRKT: faellt er still weg, meldet diese Zeile es
+     * namentlich, statt die Zusicherungen darunter zahnlos zu machen.
+     *
+     * ⛔ UND DIE WARTESTELLE DAVOR IST KEINE KOSMETIK — sie ist ein am 2026-08-26 GEMESSENER
+     * Befund, im ersten Lauf mit Seed: `GeraeteTabelle.tsx:400` entscheidet ueber
+     * `Grid.useBreakpoint()` zwischen Tabelle und Kartenliste, und `useBreakpoint` liefert im
+     * Serverrender UND im ersten Client-Render ein leeres Objekt. `breit` ist dann `false`,
+     * und die ausgelieferte Seite traegt eine `<ul>` statt einer `<table>`. `page.goto` kehrt
+     * bei `load` zurueck, also VOR dem Umschlag; das sofortige `count()` las deshalb **0**,
+     * obwohl acht Geraete in der Datenbank standen (Ablaufverfolgung
+     * `test-results/…-raete-id-zeigt-das-Formular/error-context.md`, Knoten `- list`).
+     * ⛔ `count()` WIEDERHOLT NICHT — nur eine `expect(...)`-Zusicherung tut das. Fall 2 hat
+     * die Wartestelle ohnehin (`table thead th` sichtbar) und war deshalb gruen; hier fehlte
+     * sie, und der Fehlschlag benannte die falsche Ursache.
      */
     await page.goto(radioUrl("/admin/geraete"));
     const zeilen = page.locator("table tbody tr.ant-table-row");
+    await expect(
+      zeilen.first(),
+      "die Tabelle ist nicht erschienen — Grid.useBreakpoint hat nicht umgeschlagen (GeraeteTabelle.tsx:400)",
+    ).toBeVisible();
     expect(
       await zeilen.count(),
-      "⬜ V13-L2: ohne Geraet gibt es keine Akte-Adresse, die dieser Fall abrufen koennte",
+      "der radio-Seed hat kein Geraet angelegt (playwright.config.ts, webServer.command)",
     ).toBeGreaterThan(0);
 
     /*
@@ -240,6 +272,16 @@ test.describe("radio-Verwaltung", () => {
      * abgehakt. ⬜ V14-L3 fragt statt dessen: haelt die append-only-Spalte den Durchlauf
      * Anhaengen → Speichern → Neuladen, in BEIDEN Reconciliation-Zweigen? Eigentuemer ist
      * ebenfalls V23, der Ablageort ist dieser Fall.
+     *
+     * ✅ **AM 2026-08-26 ZUR HAELFTE GEMESSEN (V23), und die andere Haelfte ist von aussen
+     * strukturell nicht messbar.** Seit `webServer.command` `radio` mitseedet, laeuft dieser
+     * Abschnitt gegen ein echtes Geraet und ist gruen: die angehaengte Zeile steht nach
+     * `page.reload()` noch in `#updateNote`, und `#tei` traegt die Marke. ⛔ **WAS DAS NICHT
+     * SAGT:** welchen der beiden Reconciliation-Zweige Next in diesem Lauf genommen hat — das
+     * ist von aussen nicht zu unterscheiden. Die Vorkehrung dagegen ist die REIHENFOLGE unten
+     * (`#tei` wird erst NACH dem `revalidatePath`-Anstoss gefuellt, REVIEW-V14 NEU-1); sie
+     * macht den Fall in beiden Zweigen aussagekraeftig, belegt aber nicht, dass beide gelaufen
+     * sind. ⬜ **Der Rest bleibt offen; Eigentuemer: Generalprobe.**
      *
      * ⛔ WAS NUR HIER MESSBAR IST, UND WARUM DER FALL NICHT WEGKUERZBAR IST: `notizAnfuegenAction`
      * stoesst `revalidatePath` auf genau diese Seite an (`admin/actions.ts:677`). ⛔ OB NEXT
@@ -349,17 +391,21 @@ test.describe("radio-Verwaltung", () => {
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
 
     /*
-     * ⬜ **V13-L2 — HEUTE SEEDET DER E2E-LAUF `radio` NICHT** (`core/bootstrap.ts:49-54`,
-     * `playwright.config.ts:142`; Eigentuemer V23). Ohne Geraet gibt es keine Akte-Adresse und
-     * damit auch keine Ereignisadresse; eine erfundene Id waere ein 404, den dieser Fall dann
-     * als „Insel gebrochen" meldete. Deshalb faellt die Vorbedingung LAUT und mit eigener
-     * Begruendung aus, statt die Zusicherung darunter stillschweigend zahnlos zu machen.
+     * ✅ ⬜ **V13-L2 IST IN V23 GESCHLOSSEN** — dieselbe Zeile in `webServer.command` wie bei
+     * Fall 3, und dieselbe Wartestelle aus demselben gemessenen Grund
+     * (`GeraeteTabelle.tsx:400`, `Grid.useBreakpoint()` liefert im Serverrender ein leeres
+     * Objekt; die Begruendung steht ausgeschrieben in Fall 3). Die Vorbedingung bleibt als
+     * Waechter ueber dem Seed stehen.
      */
     await page.goto(radioUrl("/admin/geraete"));
     const zeilen = page.locator("table tbody tr.ant-table-row");
+    await expect(
+      zeilen.first(),
+      "die Tabelle ist nicht erschienen — Grid.useBreakpoint hat nicht umgeschlagen (GeraeteTabelle.tsx:400)",
+    ).toBeVisible();
     expect(
       await zeilen.count(),
-      "⬜ V13-L2: ohne Geraet gibt es keine Ereignisadresse, die dieser Fall abrufen koennte",
+      "der radio-Seed hat kein Geraet angelegt (playwright.config.ts, webServer.command)",
     ).toBeGreaterThan(0);
 
     /*
@@ -991,9 +1037,12 @@ test.describe("radio-Verwaltung", () => {
      * statt der Antwort, und das ist die Familie der Testfallen 10 bis 12: ein Test, der
      * etwas anderes misst, als sein Name sagt.
      *
-     * ⚠️ DASS DIE LISTE LEER IST, SCHWAECHT DEN FALL NICHT (⬜ V13-L2: der e2e-Lauf seedet
-     * `radio` nicht). Kopfzeile und BOM entstehen unabhaengig vom Bestand
-     * (`_lib/csv/spalten.ts:296-306`); die Zeilen selbst misst `route.test.ts`.
+     * ⚠️ HIER STAND BIS ZUM 2026-08-26 „dass die Liste leer ist, schwaecht den Fall nicht
+     * (⬜ V13-L2)". ✅ **Die Liste ist nicht mehr leer** — V23 hat `scripts/seed-lokal.ts
+     * radio` in `webServer.command` gezogen. An der Aussage aendert das nichts: Kopfzeile und
+     * BOM entstehen unabhaengig vom Bestand (`_lib/csv/spalten.ts:296-306`), und die Zeilen
+     * selbst misst `route.test.ts`. Der Satz steht hier nur richtiggestellt, damit der
+     * naechste Leser den Fall nicht fuer schwaecher haelt, als er ist.
      */
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
 
@@ -1016,5 +1065,203 @@ test.describe("radio-Verwaltung", () => {
       [bytes[0], bytes[1], bytes[2]],
       "das fuehrende UTF-8-BOM fehlt (Spec:4886)",
     ).toEqual([0xef, 0xbb, 0xbf]);
+  });
+  test("Fall 8: /m/radio/admin antwortet auf einem fremden Suite-Host mit 404", async ({ page }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V23, NICHT NACHBESSERUNG
+     * (`Spec:4887-4891`, Fall 8; `.superpowers/sdd/planteil4/briefs/V23.md`, Zeile „Fall 8").
+     *
+     * ⛔ ER IST EIN GRUENER FALL UND KEIN `test.skip`. ⬜ V-L4 („erfordert einen zweiten
+     * `baseURL`") ist am 2026-08-24 durch Messung gestrichen: das Repo faehrt genau diesen
+     * Fall heute schon ueber eine ABSOLUTE URL mit demselben EINEN `baseURL`
+     * (`e2e/lagerbuch-hosts.spec.ts:151-152`, `e2e/helpers/lagerbuch.ts:94`). Damit ist auch
+     * `Spec:4889-4891` („nicht pruefbar") ueberholt — benannte Abweichung, gemessen.
+     *
+     * ⛔ DIE ANMELDUNG MIT DER RADIO-GRUPPE IST DIE VORAUSSETZUNG, DIE DEN FALL ERST
+     * TRAGFAEHIG MACHT (woertlich `e2e/lagerbuch-hosts.spec.ts:145-149`): „sonst waere der 404
+     * der GRUPPENRIEGEL und nicht der HOSTRIEGEL, und der Test bewiese das Falsche".
+     * `AUTH_COOKIE_DOMAIN=".localtest.me"` (`playwright.config.ts`, `webServer.env`) traegt
+     * die Sitzung vom `radio`-Host auf den fremden mit.
+     *
+     * ⛔ DER AEUSSERE PFAD IST `/m/radio/admin`, NICHT `/admin`. Auf dem fremden Host gibt es
+     * keinen Modul-Rewrite; erreichbar ist die Flaeche dort nur ueber die suiteweite
+     * Segmentform — und genau sie ist die Luecke, gegen die der Host-Riegel steht
+     * (`core/routing.ts:68-76` gatet nach dem SEGMENT, nicht nach dem Host; ausgeschrieben in
+     * `admin/(arbeit)/layout.tsx:20-24`).
+     *
+     * ⛔ DIE GEGENPROBE AUF DEM EIGENEN HOST STEHT DANEBEN, und ohne sie unterschiede der Fall
+     * „404 weil der Riegel griff" nicht von „404 weil an der Adresse gar nichts liegt"
+     * (Review-Befund 1 zu `e2e/lagerbuch-hosts.spec.ts:122-131`). Sie geht ueber DENSELBEN
+     * aeusseren Pfad, nicht ueber `/admin` — eine Gegenprobe auf einer anderen Adresse
+     * bewiese die Erreichbarkeit einer anderen Adresse.
+     *
+     * `page.request` und nicht `page.goto`: derselbe Cookie-Kontext, der Statuscode direkt,
+     * und kein `net::ERR_ABORTED` (dieselbe Begruendung wie `lagerbuch-hosts.spec.ts:133-139`).
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const fremd = await page.request.get(fremdUrl("/m/radio/admin"));
+    expect(fremd.status(), `/m/radio/admin auf ${FREMDER_HOST}`).toBe(404);
+
+    const eigen = await page.request.get(radioUrl("/m/radio/admin"));
+    expect(
+      eigen.status(),
+      `/m/radio/admin auf ${RADIO_HOST} — ohne diese Zeile misst der 404 oben nichts`,
+    ).not.toBe(404);
+  });
+
+  /*
+   * ⬜ V-L3 — DIE VIER WIRKPROBEN DES VERWALTUNGSRIEGELS (`briefs/V23.md`, Schritte A bis D;
+   * Ablageort der Antwort: der Kopfkommentar von `src/app/m/radio/riegel.test.ts`).
+   *
+   * ⛔ SIE SIND DER EIGENTLICHE ZWECK DIESER AUFGABE. `riegel.test.ts` ist ein
+   * QUELLTEXT-Scan; er belegt eine Bauform, nicht eine Wirkung. Ob ein Riegel bei einem
+   * ECHTEN Abruf greift, kann nur ein laufender Server sagen — und bis diese vier Faelle
+   * existierten, sagte es niemand.
+   *
+   * ⛔ SIE BLEIBEN ALS DAUERFAELLE STEHEN UND SIND KEINE EINMALIGE ABLESUNG. Fuer D ist das
+   * die tragende Auflage: `riegel.test.ts`s Klausel (a)/(e) lassen im `(arbeit)`-Zweig
+   * `requireRadioAdmin(` UND `requireRadioVerwaltung(` zu, sie faengt eine faelschlich
+   * ABGESENKTE Seite also strukturell nicht (`KONTEXT.md`, Nachtrag Planteil 4). Die
+   * namentliche Zusicherung in `riegel.test.ts` haelt den QUELLTEXT der drei
+   * Admin-Stufen-Seiten; Fall D haelt ihre WIRKUNG.
+   */
+
+  test("V-L3 A: /admin ohne Sitzung leitet auf den Suite-Login mit callbackUrl", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ KEIN `devLogin` — DAS IST DER FALL. Ein anonymer Aufruf trifft
+     * `_lib/zugang.ts:464`: `redirect(/login?callbackUrl=<absolutes Ziel>)`.
+     *
+     * ⛔ `maxRedirects: 0`, WEIL DIE ZUSAGE DER `Location`-KOPF IST UND NICHT DAS ENDZIEL.
+     * Mit gefolgtem Umweg landete die Anfrage auf der Anmeldeseite, und die antwortet mit
+     * 200 — der Fall bliebe dann auch dann gruen, wenn `/admin` selbst eine Anmeldemaske
+     * rendern wuerde statt weiterzuleiten.
+     *
+     * ⛔ DER STATUSCODE STEHT ALS MENGE UND NICHT ALS ZAHL, und das ist die Auflage aus
+     * ⬜ L7 (`_lib/zugang.ts:332-336`, woertlich): „`redirect()` waehlt den Code zur
+     * Laufzeit; ein hier festgeschriebenes ‚302' waere eine Zusage ueber eine Bauform, die
+     * Spec 1 nicht festlegt." Abgelesen wird er beim Cutover
+     * (`docs/superpowers/plans/2026-08-18-plan4-radio-cutover.md:2091`), nicht hier.
+     */
+    const antwort = await page.request.get(radioUrl("/admin"), { maxRedirects: 0 });
+    expect(
+      [301, 302, 303, 307, 308],
+      `/admin ohne Sitzung antwortete mit ${antwort.status()} statt einer Weiterleitung`,
+    ).toContain(antwort.status());
+    expect(
+      antwort.headers()["location"],
+      "die Weiterleitung fuehrt nicht auf den Suite-Login mit callbackUrl",
+    ).toMatch(/^\/login\?callbackUrl=/);
+    /*
+     * ⛔ UND DAS ZIEL DER `callbackUrl` IST DER RADIO-HOST, NICHT DER ANMELDE-HOST: ein
+     * relatives Ziel loeste sich gegen `/login` auf und schickte die angemeldete Person auf
+     * die falsche Domain zurueck (`_lib/zugang.ts:310-315`).
+     */
+    expect(
+      decodeURIComponent(antwort.headers()["location"] ?? ""),
+      "die callbackUrl zeigt nicht absolut auf den radio-Host",
+    ).toContain(`http://${RADIO_HOST}:`);
+  });
+
+  test("V-L3 B: /admin mit Sitzung, aber ohne beide Gruppen, antwortet 404 — nicht 403", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ 404 UND NICHT 403 IST DIE ZUSAGE, NICHT IHRE NEBENSACHE (`Spec:691-694`, §1.5;
+     * `_lib/zugang.ts:366-370`): was nicht freigegeben ist, sieht in dieser Suite aus wie
+     * nicht vorhanden. Ein 403 verriete die Existenz der Verwaltungsroute an jede
+     * angemeldete Person der Suite.
+     *
+     * ⛔ DIE LEERE GRUPPENLISTE IST DER FALL, und sie ist echt: `devLogin` fuellt das
+     * `groups`-Feld mit `""` (`e2e/fixtures.ts:18`). Die Sitzung ist damit gueltig — der
+     * anonyme Zweig aus Fall A greift also gerade NICHT, und was hier misst, ist der
+     * Gruppenriegel.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: "" });
+
+    const antwort = await page.request.get(radioUrl("/admin"));
+    expect(
+      antwort.status(),
+      "/admin ohne beide Gruppen — 403 statt 404 verriete die Route (Spec:691-694)",
+    ).toBe(404);
+  });
+
+  test("V-L3 C: /admin mit der Updater-Gruppe antwortet 200 und zeigt vier Menuepunkte", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ DIE ZWEITE RECHTESTUFE, UND DIES IST IHRE EINZIGE WIRKPROBE. Betreiberentscheidung
+     * C.6/B4 vom 2026-08-21 (`KONTEXT.md`): Admin verwaltet, Updater pflegt Geraetestaende.
+     * `admin/(arbeit)/layout.tsx:62` traegt dafuer `requireRadioVerwaltung()` — die MILDERE
+     * Form; stuende dort `requireRadioAdmin()`, saehe jede Updater-Person 404, bevor
+     * irgendeine Seite liefe, bei gruenem typecheck, lint und build.
+     *
+     * ⛔ VIER MENUEPUNKTE, NICHT SIEBEN: `radioNav("updater")` blendet Import,
+     * Softwareversionen und Zugaenge aus (`_lib/nav.ts:53`, `Spec:4202-4203`). Ohne diese
+     * Zahl bliebe die Zusicherung „200" auch dann gruen, wenn das Layout wieder
+     * `radioNav("admin")` einsetzte — und dann zeigte die Navigation drei Punkte, die in ein
+     * `notFound()` fuehren.
+     *
+     * ⛔ GEZAEHLT WIRD INNERHALB DER MODULLEISTE. `nav-link` vergibt auch der Drawer
+     * (`core/shell/SuiteNav.tsx:151`); eine freie Zaehlung ueber der ganzen Seite maesse
+     * beide Ausprägungen zusammen und traefe die Vier nie.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_UPDATER_GRUPPE });
+
+    const antwort = await page.goto(radioUrl("/admin"));
+    expect(antwort?.status(), "/admin mit der Updater-Gruppe").toBe(200);
+
+    await expect(
+      page.getByTestId("modulleiste").getByTestId("nav-link"),
+      "die Navigation zeigt nicht genau vier Eintraege (radioNav(updater), _lib/nav.ts:53)",
+    ).toHaveCount(4);
+  });
+
+  test("V-L3 D: /admin/versionen antwortet der Updater-Gruppe mit 404, der Admin-Gruppe mit 200", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ DAS IST DIE WIRKPROBE DER NAMENTLICHEN ZUSICHERUNG (`briefs/V23.md`, Schritt D;
+     * `KONTEXT.md`, Nachtrag Planteil 4, Abschnitt 2). `riegel.test.ts` faengt eine
+     * faelschlich ABGESENKTE Seite im `(arbeit)`-Zweig STRUKTURELL NICHT: Klausel (a) und (e)
+     * lassen dort beide Riegelnamen zu, weil sie sonst gegen `Spec:4367` rot-by-construction
+     * waeren. Drei Seiten haengen daran — `/admin/versionen` (V19), `/admin/zugaenge` (V20)
+     * und seit der Betreiberentscheidung ⬜ V-L5 auch `/admin/import` (V18).
+     *
+     * ⛔ DIE ZWEITE HAELFTE IST DIE, DIE DEN FALL TRAEGT. Ohne sie ist der 404 oben
+     * mehrdeutig: er saehe genauso aus, wenn die Seite gar nicht existierte, wenn der
+     * Host-Riegel griffe oder wenn die Updater-Gruppe im Serverprozess unbekannt waere
+     * (⬜ V-L1 / Vorabscan-Fund F24 — ein fehlender `SUITE_UPDATER_GROUP_RADIO` SCHLIESST
+     * die Stufe). Erst „mit Admin 200, mit Updater 404, auf derselben Adresse" benennt die
+     * STUFE als Ursache.
+     *
+     * ⚠️ ZWEI ANMELDUNGEN IN EINEM FALL, und das ist Absicht: die zwei Haelften muessen
+     * dieselbe Adresse in derselben Serverinstanz treffen. Zwei getrennte `test()` liessen
+     * einen davon still ausfallen, ohne dass die Aussage rot wuerde.
+     *
+     * ⛔ `clearCookies()` VOR DER ZWEITEN ANMELDUNG, UND DAS IST GEMESSEN (2026-08-26, erster
+     * Lauf dieses Falles): ohne sie leitet `/login` eine bereits angemeldete Person sofort
+     * weiter, das E-Mail-Feld erscheint nie, und `devLogin` lief in die vollen 90 s
+     * Zeitbudget — mit einer Meldung („waiting for getByLabel('email')"), die nach einer
+     * kaputten Anmeldemaske klingt statt nach einer bestehenden Sitzung. Dieselbe Lehre und
+     * dieselbe Abhilfe wie `e2e/aufgaben.spec.ts:1644-1656` und
+     * `e2e/lagerbuch-checklisten.spec.ts:375-377`.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_UPDATER_GRUPPE });
+    const alsUpdater = await page.request.get(radioUrl("/admin/versionen"));
+    expect(
+      alsUpdater.status(),
+      "/admin/versionen ist fuer die Updater-Stufe offen — die Absenkung ist wirksam geworden",
+    ).toBe(404);
+
+    await page.context().clearCookies();
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+    const alsAdmin = await page.request.get(radioUrl("/admin/versionen"));
+    expect(
+      alsAdmin.status(),
+      "/admin/versionen antwortet auch der Admin-Stufe nicht — der 404 oben misst dann nichts",
+    ).toBe(200);
   });
 });

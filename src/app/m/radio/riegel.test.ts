@@ -47,11 +47,44 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  * lint-sauber und fuer `pnpm build` unsichtbar waere (Vorbild:
  * `lagerbuch/_lib/bauform.test.ts:6-11`, `src/core/shell/icons.test.ts`).
  *
- * ⚠️ WAS SIE AUSDRUECKLICH NICHT BELEGT: dass ein Riegel bei einem echten Abruf GREIFT.
- * Am Ende von Planteil 2 liegt unter den beiden Verwaltungs-Huellen KEINE `page.tsx`;
- * Next rendert sie also nicht. Ob das Layout einer Route-Group ohne Seite darunter
- * ueberhaupt ausgefuehrt wird, ist ⬜ Z-L1 und wird in Planteil 4 beim ersten echten
- * Abruf abgelesen. ⛔ Kein Fall in dieser Datei darf etwas anderes behaupten.
+ * ✅ ⬜ Z-L1 / ⬜ V-L3 IST AM 2026-08-26 ABGELESEN — mit Messwerten, nicht als „geprueft".
+ * Bis dahin stand hier: „⚠️ WAS SIE AUSDRUECKLICH NICHT BELEGT: dass ein Riegel bei einem
+ * echten Abruf GREIFT. Am Ende von Planteil 2 liegt unter den beiden Verwaltungs-Huellen
+ * KEINE `page.tsx`; Next rendert sie also nicht." Der zweite Satz ist seit V12 ueberholt,
+ * der erste bleibt fuer DIESE DATEI wahr: sie ist ein QUELLTEXT-Scan und belegt eine
+ * Bauform, keine Wirkung. Gemessen hat es Aufgabe V23 mit einem laufenden `next dev` auf
+ * `radio.localtest.me:3100`; die Faelle stehen als DAUERFAELLE in
+ * `e2e/radio-verwaltung.spec.ts` („V-L3 A" bis „V-L3 D") und laufen bei jedem
+ * Playwright-Lauf mit:
+ *
+ *   A  `/admin` OHNE Sitzung          -> HTTP 307, `Location: /login?callbackUrl=
+ *                                       http%3A%2F%2Fradio.localtest.me%3A3100%2Fadmin`
+ *      ⚠️ Die 307 steht hier als MESSWERT, nicht als Zusage: `redirect()` waehlt den Code
+ *      zur Laufzeit, und ⬜ L7 (`_lib/zugang.ts:332-336`) liest ihn beim Cutover ab. Der
+ *      Dauerfall prueft deshalb eine Menge von Umleitungscodes, nicht die Zahl.
+ *   B  `/admin` MIT Sitzung, ohne beide Gruppen        -> HTTP 404 (nicht 403), dazu die
+ *      Protokollzeile aus `_lib/zugang.ts` im Serverstrom: „[radio] Zugriff auf /admin
+ *      abgelehnt: keine der Gruppen [ iuk-radio-admin ] in den Token-Gruppen [ ]".
+ *   C  `/admin` mit der Updater-Gruppe -> HTTP 200, und die Modulleiste traegt genau VIER
+ *      `nav-link`-Knoten (`_lib/nav.ts:53` blendet Import, Versionen, Zugaenge aus).
+ *   D  `/admin/versionen` mit der Updater-Gruppe -> HTTP 404, mit der Admin-Gruppe -> 200.
+ *      ⛔ Das ist die WIRKPROBE der namentlichen Zusicherung weiter unten: eine faelschlich
+ *      abgesenkte Seite im `(arbeit)`-Zweig faengt Klausel (a)/(e) strukturell nicht.
+ *   E  ⛔ TRAEGT DAS LAYOUT ODER DIE SEITE? Probe: `await requireRadioVerwaltung();` in
+ *      `admin/(arbeit)/page.tsx:91` von Hand entfernt und Fall B wiederholt.
+ *      ERGEBNIS: **weiterhin 404**, mit derselben Protokollzeile. ✅ **Das Layout traegt.**
+ *      Der Verwaltungsriegel haengt also NICHT an zehn einzelnen Seitenzeilen; die Zeile in
+ *      der Seite ist der zweite Riegel, den `Spec:569-571` verlangt („Route-Group-Grenzen
+ *      sind keine Sicherheitsgrenzen"), nicht der einzige. Die Sonde ist zurueckgenommen,
+ *      der Arbeitsbaum danach byteweise gleich.
+ *
+ * ⛔ WAS DAS NICHT HEISST, und es steht hier, statt verschwiegen zu werden: A bis E messen
+ * den `(arbeit)`-Zweig. Fuer `admin/(druck)` gibt es keine eigene Wirkprobe des
+ * PERSONEN-Riegels — die einzige Messung dort ist Fall 5a („das Blatt druckt ohne Kopfzeile
+ * und ohne Navigationsleiste"), und die betrifft die Huelle, nicht die Stufe. ⬜ Eine
+ * Wirkprobe fuer `requireRadioAdmin()` in `admin/(druck)/layout.tsx` fehlt; Eigentuemer ist
+ * die Schlusspruefung von Planteil 4.
+ * ⛔ Kein Fall in dieser Datei darf mehr behaupten als das hier Abgelesene.
  *
  * ⚠️ ZWEI FORMEN, UND DER UNTERSCHIED IST TRAGEND (Vorbild `bauform.test.ts:13-37`):
  *
