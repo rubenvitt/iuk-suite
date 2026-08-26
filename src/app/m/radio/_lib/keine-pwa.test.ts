@@ -410,12 +410,12 @@ describe("keine PWA unter m/radio", () => {
  * Fall, der FUER IMMER GRUEN ist. Dieselbe Klasse wie die leere Wurzel aus Sonde S-G6c
  * (Kopf dieser Datei).
  *
- * ⛔ DIE ZUSICHERUNG STEHT AUF DEM VERZEICHNIS, NICHT AUF `radio/route.ts`, und auch das ist
- * kein Geschmack: Sonde S-G7a legt ein LEERES Verzeichnis `src/app/api/health/radio/` an
- * (Brief G7, Schritt 2). Auf `route.ts` gerichtet koennte diese Sonde den Fall nicht rot
- * machen — sie waere 0 rot PER KONSTRUKTION, also genau die Bauart von Testluege, gegen die
- * dieser Planteil antritt. ⚠️ Der Verlust ist klein und benannt: ein leeres Verzeichnis meldet
- * dieser Fall mit. Das ist die laute Richtung (`_lib/quelltextScan.ts:55-59`).
+ * ⛔ DER FALL TRAEGT ZWEI ZUSICHERUNGEN, UND SIE STEHEN MIT ABSICHT AUF VERSCHIEDENEN DINGEN.
+ * Die ABWESENHEITS-Zusicherung steht auf dem VERZEICHNIS `radio/`, nicht auf `radio/route.ts`:
+ * Sonde S-G7a legt ein LEERES Verzeichnis an (Brief G7, Schritt 2), und auf `route.ts` gerichtet
+ * waere sie 0 rot PER KONSTRUKTION. Die WURZEL-Zusicherung darueber steht dagegen auf
+ * `[modul]/route.ts` (REVIEW-G7, W1; Begruendung im Fall selbst). ⚠️ Der Verlust ist klein und
+ * benannt: ein leeres Verzeichnis meldet der Fall mit — die laute Richtung (`quelltextScan.ts:55-59`).
  *
  * ⚠️ „ROT ZUERST" GEHT HIER NICHT, UND DAS IST KEIN VERSAEUMNIS. Eine Abwesenheitszusage ueber
  * eine Flaeche, die es nie gab, ist in dem Augenblick gruen, in dem sie geschrieben wird; ein
@@ -432,6 +432,25 @@ const API_HEALTH_VERZEICHNIS = join(process.cwd(), "src/app/api/health");
 
 describe("keine zweite Wahrheit ueber /api/health/radio", () => {
   it("radio bringt keinen eigenen Health-Handler mit", () => {
+    // ⛔ W1 (REVIEW-G7, Fix-Runde 1): die WURZEL braucht einen positiven Anker, sonst ist die
+    // Zusicherung darunter nur so viel wert wie das Literal in `API_HEALTH_VERZEICHNIS` (`:431`).
+    // GEMESSEN am 2026-08-27, vor dieser Zeile (Sonde S-G7-R1): das Literal auf
+    // `src/app/api/health-XYZ` gestellt ergab `Test Files 1 passed (1)` · `Tests 9 passed (9)` —
+    // KEINE Mutation der Wurzel machte den Fall rot. Ein Umbau zur Routengruppe
+    // (`src/app/(api)/health/…`) oder eine Umbenennung liesse ihn FUER IMMER GRUEN zurueck.
+    // ⚠️ Der Nachbarfall `:316-321` hat diese Klasse nicht: seine Wurzel `MODUL` (`:146`) ist
+    // ueber `QUELLDATEIEN_ANZAHL = 98` (`:211`) laut gepinnt — ein falsches `MODUL` ist LAUT,
+    // ein falsches `API_HEALTH_VERZEICHNIS` war STILL. Dieselbe Klasse wie die leere Wurzel aus
+    // Sonde S-G6c (Kopf dieser Datei).
+    // ⚠️ WAS DIESE ZEILE NICHT SCHLIESST, benannt statt behauptet: ein Handler unter einer
+    // Routengruppe — `src/app/api/health/(x)/radio/route.ts` — beantwortet `/api/health/radio`
+    // genauso, denn Routengruppen aendern die URL nicht, und die Zusicherung unten bliebe
+    // `false`. Der Fall bleibt eine VERZEICHNISzusage, keine Pfadzusage. Den Wirknachweis im
+    // Lauf liefert T4 Fall 11 (`e2e/radio-hosts.spec.ts`), nicht diese Datei.
+    expect(
+      existsSync(join(API_HEALTH_VERZEICHNIS, "[modul]", "route.ts")),
+      "die Wurzel src/app/api/health/ traegt den generischen [modul]-Handler nicht mehr — verschoben oder umbenannt. Die Zusicherung darunter pruefte dann ein Verzeichnis, das es gar nicht gibt, und waere fuer immer gruen (REVIEW-G7, Fund W1)",
+    ).toBe(true);
     expect(
       existsSync(join(API_HEALTH_VERZEICHNIS, "radio")),
       "unter src/app/api/health/ ist ein radio-eigener Handler entstanden — der generische [modul]-Handler beantwortet den Pfad bereits und traegt als einziger revision (E-G7)",

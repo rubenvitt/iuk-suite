@@ -4,7 +4,7 @@ Planteil 5 von 5, Aufgabe G7. Diese Datei ist **kein Bericht über einen Bau**, 
 **verfolgte Gefäß** für drei Werte, die erst der laufende Server, der erste Deploy und ein echtes
 Gerät hergeben — ⬜ **G-L5**, ⬜ **G-L6**, ⬜ **G-L7**. **Spec 2 (Cutover-Runbook) füllt sie.**
 In dieser Aufgabe entstand **kein Modul-Code**; der einzige Quelltext ist ein
-Abwesenheitsfall (`src/app/m/radio/_lib/keine-pwa.test.ts:433-440`).
+Abwesenheitsfall samt seinem Wurzelanker (`src/app/m/radio/_lib/keine-pwa.test.ts:433-459`).
 
 ⛔ **Warum diese Datei hier liegt und nicht im SDD-Arbeitsordner:** `.gitignore:17` ignoriert
 `.superpowers/`. Abnahme-Messungen, die dort stehen, sind nach dem Merge weg — die Gedächtnisnotiz
@@ -150,11 +150,11 @@ nicht nötig, weil die Freigabe nach dem Cutover ohnehin ein Mensch mit `sqlite3
 
 #### Die verbindliche Liste: **fünf** Paritäts-Sollwerte, **nicht sechs**
 
-⛔ **Hier weicht dieses Artefakt vom Wortlaut des Briefs ab, und die Abweichung ist blockierend
-belegt.** `briefs/G7.md` und `Spec:5828-5830` sprechen von **„den sechs `COUNT(*)`"** und zählen
-`api_tokens` mit. Das ist die Zählreihe der **Analyse**
-(`docs/radio-portierung-analyse.md:752-753`, „sechs Paritäts-Sollwerte"), und sie beschreibt die
-**Quell**seite.
+⛔ **Die Zählreihe „sechs" beschreibt die QUELLseite, und der Weg vom Beschreiben zum Anweisen war
+der Fehler.** `Spec:5828-5829` sagt beschreibend „die erste liefert **sechs** Zahlen" — die Reihe der
+**Analyse** (`docs/radio-portierung-analyse.md:752-753`) — und reicht die Entscheidung ausdrücklich
+weiter: `Spec:5830`, „**die verbindliche Liste fuehrt das Import-Kapitel**". Plan und Briefe machten
+daraus eine Anweisung; sie sind am 2026-08-27 auf **fünf** berichtigt (Ruling **R-G7**).
 
 ⛔ **Gegen das **Ziel** gefahren scheitert diese Abfrage.** `api_tokens` existiert im Suite-Schema
 **nicht** — gemessen: `grep -n "sqliteTable(" src/app/m/radio/_db/schema.ts` liefert `devices`,
@@ -245,7 +245,7 @@ compose-Berührung ist `SUITE_TRAEFIK_RULE`, und die lebt in der `.env`.
 
 | Was | Warum nicht |
 |---|---|
-| `src/app/api/health/radio/route.ts` | ⛔ **eine zweite Wahrheit über denselben Pfad.** Der `[modul]`-Handler beantwortet `/api/health/radio` bereits (`src/app/api/health/[modul]/route.ts:5-6`), `checkModuleHealth` ist modul-agnostisch (`src/core/health/index.ts:1-16`), `radio` steht in der Registry (`src/core/registry.ts:197-199`). Und die zwei wären **nicht gleichwertig**: nur der generische trägt `revision` (`:23-26`). **Zugesagt** durch `src/app/m/radio/_lib/keine-pwa.test.ts:433-440` |
+| `src/app/api/health/radio/route.ts` | ⛔ **eine zweite Wahrheit über denselben Pfad.** Der `[modul]`-Handler beantwortet `/api/health/radio` bereits (`src/app/api/health/[modul]/route.ts:5-6`), `checkModuleHealth` ist modul-agnostisch (`src/core/health/index.ts:1-16`), `radio` steht in der Registry (`src/core/registry.ts:197-199`). Und die zwei wären **nicht gleichwertig**: nur der generische trägt `revision` (`:23-26`). **Zugesagt** durch `src/app/m/radio/_lib/keine-pwa.test.ts:433-459` — die **erste** Zusicherung dort pinnt die Wurzel `src/app/api/health/` selbst (der `[modul]`-Handler muss dort liegen), weil eine falsch geschriebene Wurzel den Fall sonst **für immer grün** liesse (gemessen, `REVIEW-G7` Fund W1) |
 | ein radio-Fall in `src/core/health/index.test.ts` | die Funktion ist modul-agnostisch; ein Test je Modul wäre eine Liste, die das nächste Modul vergisst (`Spec:5848-5849`) |
 | ein zweiter, **zählender** HTTP-Endpunkt | siehe 2.2 — der Gegenzug ist ein Runbook-Schritt, kein Code |
 
@@ -263,7 +263,7 @@ zurückkorrigiert.
 
 | Anker der Vorlage | Gemessen | Folge |
 |---|---|---|
-| `briefs/G7.md` / `Spec:5828-5829`: „die **sechs** Zahlen" | im Ziel existieren **fünf** dieser Tabellen; `api_tokens` fehlt im Schema | ⛔ **blockierend** — sechs gegen das Ziel gefahren heißt `no such table: api_tokens` mitten im Cutover. Aufgelöst nach `Spec:5361-5370` (fünf Sollwerte + eine Protokollzeile) |
+| `Spec:5826-5829`: „die erste liefert **sechs** Zahlen" — Brief und Plan machten daraus „die Freigabe braucht die **sechs** `COUNT(*)`" | im Ziel existieren **fünf** dieser Tabellen; `api_tokens` fehlt im Schema | ⛔ **blockierend** — sechs gegen das Ziel gefahren heißt `no such table: api_tokens` mitten im Cutover. Aufgelöst nach `Spec:5361-5370` (fünf Sollwerte + eine Protokollzeile). ⛔ **Plan und Briefe sind am 2026-08-27 auf fünf berichtigt** (Ruling **R-G7**), die Spec **nicht** (Hausform R-G1-1) — sie deckt sich selbst: `Spec:5830` sagt „**die verbindliche Liste fuehrt das Import-Kapitel**" |
 | `briefs/G7.md`: `compose.yaml:141-146` — `Spec:5799` sagt `:140-144` | der `healthcheck`-Block steht auf `:140-145` (`healthcheck:` auf `:140`, `start_period` auf `:145`), die URL-Zeile auf `:141` | Anker berichtigt zitiert; **beide** Vorlagen weichen ab, in verschiedene Richtungen |
 | `Spec:5785-5786`: „`src/app/api/health/[modul]/route.ts:27-30`" | die Datei hat **27** Zeilen; die Statusverzweigung steht auf `:25` | Anker berichtigt zitiert |
 | `Spec:5815`: „`src/core/health/index.ts:4-17`" | die Datei hat **16** Zeilen; die drei Schritte stehen auf `:7-9` | Anker berichtigt zitiert |

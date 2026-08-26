@@ -649,7 +649,7 @@ Tor misst.
 * **keine** Datei `src/app/api/health/radio/route.ts`;
 * **kein** radio-spezifischer Fall in `src/core/health/index.test.ts`;
 * **kein** zweiter Endpunkt gegen Analyse-Falle 29 („health grün, null Geräte") — der Gegenzug ist
-  ein **Runbook-Schritt** mit sechs `COUNT(*)`, nicht Code (`Spec:5775-5836`);
+  ein **Runbook-Schritt** mit **fünf** `COUNT(*)`, nicht Code (`Spec:5775-5836`; ⛔ **nicht sechs** — `api_tokens` fehlt im Ziel, `Spec:5361-5370`);
 * stattdessen: ein e2e-Fall, der die Route auf dem **radio-Host** trifft (T4), plus das
   Ablese-Rezept für ⬜ G-L5 in G7.
 
@@ -2106,8 +2106,8 @@ sie einen Ort haben, der älter ist als das Runbook):
   `openModuleDatabase` legt Verzeichnis und Datei bei Bedarf **neu an** — ein vertipptes `DATA_DIR`
   oder ein nicht gemountetes Volume ergibt „health grün, null Geräte". **Der Gegenzug ist kein
   zweiter Endpunkt, sondern ein Runbook-Schritt:** die Zähl-Abfragen aus Pflicht 4 der Analyse,
-  **sechs** Zahlen aus der ersten Abfrage — `devices`, `software_versions`, `api_tokens`, `users`,
-  `device_events`, `loans`. ⛔ **Die Freigabe braucht die sechs `COUNT(*)`, nie `status:"ok"`.**
+  **fünf** verglichene Zahlen — `devices`, `software_versions`, `users`, `device_events`, `loans`;
+  ⛔ **`api_tokens` NICHT** (fehlt im Ziel, `Spec:5361-5370`). ⛔ **Die Freigabe braucht sie, nie `status:"ok"`.**
   ⚠️ **NT8 dazu:** `sqlite3 -readonly` scheitert gegen eine frisch importierte `radio.db` (WAL ohne
   `-shm`) — das Runbook braucht die Zählung ohne `-readonly` oder mit mitgegebener `-shm`.
 
@@ -2903,8 +2903,8 @@ die aus ⬜ G-L2 entstandene Zeile 16 und die bisher außerhalb der Liste stehen
    ein Stopp-Punkt, kein Hinweis.**
 2. Der externe Monitor fragt `https://radio.iuk-ue.de/api/health/radio` — ⛔ **nie `/api/health`**.
    **200 = im Image, 503 = falsches Image.**
-3. ⛔ **Health ist grün gegen eine leere `radio.db`.** Die Freigabe braucht die **sechs** `COUNT(*)`
-   (`devices`, `software_versions`, `api_tokens`, `users`, `device_events`, `loans`), nie
+3. ⛔ **Health ist grün gegen eine leere `radio.db`.** Die Freigabe braucht die **fünf** `COUNT(*)`
+   (`devices`, `software_versions`, `users`, `device_events`, `loans`) — ⛔ **`api_tokens` NICHT**, es fehlt im Ziel (`Spec:5361-5370`; fertiger Handgriff: `docs/superpowers/berichte/2026-08-26-radio-betriebsablesungen.md` §2.2) —, nie
    `status:"ok"`. ⚠️ NT8: `sqlite3 -readonly` scheitert gegen eine frisch importierte WAL-Datenbank.
 4. ⛔ **Der Abräum-Worker ist im Deploy aus §4.2 Nr. 1, nicht im Cutover.**
 5. Die drei `curl`-Zeilen aus V5 gegen `/sw.js`; ⛔ **kommt HTML oder Portal-Inhalt, greift der
