@@ -479,10 +479,10 @@ test.describe("radio-Verwaltung", () => {
      *
      * ⛔ DER GRIFF IST DIE FLAECHE DER INSEL UND NICHT DAS TABELLENMARKUP: die Insel hat ZWEI
      * Zweige (Tabelle und mobile Liste). ⚠️ HIER STAND BIS ZUM 2026-08-26 „⬜ V13-L2 laesst die
-     * Liste heute ohnehin leer" — ✅ die Leerstelle ist in V23 GESCHLOSSEN
-     * (`playwright.config.ts:141`), die Liste traegt Bestand. An der Wahl des Griffs aendert das
-     * nichts: `[data-rolle="radio-ausleihen-flaeche"]` steht in BEIDEN Zweigen und fehlt genau
-     * dann, wenn die Insel an der Grenze bricht. Dieselbe Lehre wie in Fall 4 oben.
+     * Liste heute ohnehin leer" — ✅ die Leerstelle ist in V23 GESCHLOSSEN, der e2e-Lauf seedet
+     * `radio` jetzt (`playwright.config.ts:141`; VIER Leihen, `_lib/seedLokal.ts:204-226`).
+     * An der Wahl des Griffs aendert das nichts: `[data-rolle="radio-ausleihen-flaeche"]` steht
+     * in BEIDEN Zweigen und fehlt genau dann, wenn die Insel bricht. Wie in Fall 4 oben.
      *
      * ⚠️ DIE SEITE IST FUER BEIDE STUFEN OFFEN (`Spec:4373`, Rechtetafel `Spec:4444-4454`).
      * Der Abruf hier laeuft mit der ADMIN-Gruppe, wie jeder Fall dieser Datei; dass eine
