@@ -590,9 +590,38 @@ describe("radio-admin/actions: die Rechtestufe je Verwaltungsseite", () => {
       RIEGEL_VERWALTUNG,
     );
   });
-  it.todo(
-    "V20: admin/(arbeit)/zugaenge/page.tsx nennt requireRadioAdmin und NICHT requireRadioVerwaltung",
-  );
+  it("V20: admin/(arbeit)/zugaenge/page.tsx nennt requireRadioAdmin und NICHT requireRadioVerwaltung", () => {
+    /*
+     * ⛔ SCHARF GESTELLT IN V20, IM SELBEN COMMIT WIE DIE SEITE. Der literale Pfad steht als
+     * Zeichenkette hier; eine pfadgenerische Form kann diese Aussage nicht erzeugen (die
+     * Begruendung steht im Kopf dieses Blocks).
+     *
+     * ⛔ DIE STUFE STEHT IN `Spec:4377`, und der fachliche Grund daneben in `Spec:4456-4459`,
+     * woertlich: „die Updater-Stufe erreicht die Code-Verwaltung NICHT. Jede codebezogene
+     * Seite/Action ruft `requireRadioAdmin()`, NICHT `requireRadioVerwaltung()`, weil
+     * Ausstellen/Sperren laut Betreiberantwort 6 allein den radio-admins gehoeren."
+     * ⛔ UND DIE FLAECHE IST DER SCHARFSTE FALL DER DREI: sie zeigt JEDEN Zugangscode im
+     * KLARTEXT (`Spec:2180-2182`), und `Spec:2251-2253` zieht die Folge — „die Codeliste IST
+     * das Geheimnis". Eine Absenkung auf die Verwaltungs-Stufe gaebe jeder Updater-Person das
+     * Geheimnis jedes Aufstellers, ohne dass ein Tor rot wuerde.
+     *
+     * ⛔ DIE NEGATIVE HAELFTE IST DIE, DIE NIEMAND SONST HAELT: `personenRiegelFuer`s
+     * `(arbeit)`-Zweig prueft nur die ANWESENHEIT von `requireRadioAdmin(`
+     * (`riegel.test.ts:253-262`) — eine Seite mit `requireRadioVerwaltung()` als erster
+     * Anweisung und einem `requireRadioAdmin()` irgendwo darunter bestuende ihn.
+     *
+     * ⛔ DIE WIRKPROBE IST GEFAHREN, NICHT BEHAUPTET (Sonde **S-V20a**, 2026-08-26): den
+     * Aufruf in `zugaenge/page.tsx` auf `requireRadioVerwaltung()` gedreht →
+     * `riegel.test.ts` blieb GRUEN (`24 passed`), dieser Fall wurde ROT. Das ist die Messung,
+     * um derentwillen dieser Block ueberhaupt existiert.
+     */
+    const pfad = "admin/(arbeit)/zugaenge/page.tsx";
+    const q = bereinigt(readFileSync(join(MODUL, pfad), "utf8"));
+    expect(q, `${pfad}: die Admin-Stufe fehlt (Spec:4377)`).toMatch(RIEGEL_ADMIN);
+    expect(q, `${pfad}: faelschlich auf die Verwaltungs-Stufe abgesenkt (Spec:4377)`).not.toMatch(
+      RIEGEL_VERWALTUNG,
+    );
+  });
   it.todo(
     "V21: admin/(druck)/zugaenge/blatt/page.tsx liegt in (druck) und nennt requireRadioAdmin, NICHT requireRadioVerwaltung",
   );

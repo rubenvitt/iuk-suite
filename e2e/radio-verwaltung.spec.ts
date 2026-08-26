@@ -812,4 +812,78 @@ test.describe("radio-Verwaltung", () => {
       "die Zeile bietet den Knopf Als Ziel nicht an",
     ).toHaveCount(1);
   });
+
+  test("Fall 9: /admin/zugaenge zeigt die Zugangsliste", async ({ page }) => {
+    /*
+     * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V20, NICHT NACHBESSERUNG
+     * (`Spec:4881-4882`, dieselbe Bauform wie Fall 5; der Auftragsbrief nennt ihn namentlich,
+     * `.superpowers/sdd/planteil4/briefs/V20.md:64`).
+     *
+     * ⛔ ER IST DER EINZIGE WAECHTER UEBER **FALLE 9** AN INSEL 8: die Tabelle traegt fuenf
+     * `render`-Funktionen. Aus einer Server Component ist das `Functions cannot be passed
+     * directly to Client Components` — BEIM ABRUF. In jsdom gibt es keine RSC-Grenze, und
+     * `CodeTabelle.test.tsx` bliebe unter dieser Mutation gruen.
+     *
+     * ⛔ UND ER IST DER ZWEITE ECHTE ABRUF EINER SEITE AUF DER **ADMIN-STUFE**
+     * (`Spec:4377`) — der schaerfste der drei, weil diese Seite jeden Zugangscode im Klartext
+     * zeigt (`Spec:2180-2182`, `Spec:2251-2253`). Der Quelltext-Scan in `admin/actions.test.ts`
+     * sagt, dass die Zeile DASTEHT; dass sie GREIFT, ist ⬜ **V-L3** und wird hier gemessen —
+     * der Abruf laeuft mit der Admin-Gruppe wie jeder Fall dieser Datei. ⚠️ Dass eine
+     * UPDATER-Person hier 404 bekaeme, misst dieser Fall NICHT; dafuer braeuchte er eine
+     * zweite Anmeldung.
+     *
+     * ⛔ **ER LEGT KEINEN ZUGANG AN, UND DAS IST EINE BEGRUENDETE ABWEICHUNG VON FALL 8.** Dort
+     * schreibt der Fall wirklich (`Spec:4887-4888`). ⛔ HIER GINGE DAS NICHT ZURUECK: aus
+     * `zugangscodes` wird NIEMALS geloescht (NS-A6, `Spec:2204-2221`, `_actions/codes.ts:20-52`)
+     * — jeder Lauf hinterliesse dauerhaft eine Zeile, und nach dem Cutover stuenden sie in der
+     * Liste des Betreibers. Der Auftragsbrief verlangt genau das nicht: „200 mit sichtbarer
+     * Tabelle" (`.superpowers/sdd/planteil4/briefs/V20.md:64`).
+     *
+     * ⛔ DASS DIE TABELLE LEER IST, SCHWAECHT DEN FALLE-9-BEWEIS NICHT (⬜ V13-L2: der
+     * e2e-Lauf seedet `radio` nicht). Die Ueberschriften entstehen aus `title`, nicht aus
+     * `render` — der Beweis ist der Status 200 selbst: eine ueber die RSC-Grenze gereichte
+     * `render`-Funktion wirft BEIM ABRUF, die Seite antwortete also gar nicht erst mit 200.
+     * Dieselbe Begruendung, wortgleich, wie in Fall 8.
+     *
+     * ⛔ DER WARMLAUF IST DER `page.goto` SELBST — Falle 10 (`CLAUDE.md`). Diese Seite loest
+     * ohne Griff keine Anfrage aus; es gibt hier nichts, worauf `page.waitForResponse` warten
+     * muesste.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const antwort = await page.goto(radioUrl("/admin/zugaenge"));
+    expect(antwort?.status(), "/admin/zugaenge auf dem radio-Host").toBe(200);
+    await expect(
+      page.locator('[data-rolle="radio-zugaenge-flaeche"]'),
+      "die Insel ist an der RSC-Grenze gebrochen (Falle 9)",
+    ).toHaveCount(1);
+
+    /*
+     * ⛔ AUF `thead th` GEGRIFFEN, NICHT AUF `table`: antd rendert bei gesetztem `scroll` Kopf
+     * und Rumpf als ZWEI `<table>`-Elemente, und Playwrights strict mode faellt ueber einen
+     * Griff, der zwei Knoten trifft (dieselbe Begruendung wie in den Faellen 2, 7 und 8).
+     */
+    await expect(page.locator("thead th")).toHaveText([
+      "Bezeichnung",
+      "Code",
+      "Zustand",
+      "Zuletzt benutzt",
+      "Aktionen",
+    ]);
+
+    /*
+     * ⛔ DAS ANLEGEFELD GEHOERT ZUR SELBEN INSEL und ist der einzige Teil der Flaeche, den ein
+     * leerer Bestand sichtbar laesst — ohne es bewiese der Fall nur, dass ein `<div>` da ist.
+     */
+    await expect(page.locator('[data-rolle="radio-neucode-eingabe"]')).toHaveCount(1);
+
+    /*
+     * ⛔ DER HINWEIS ERKLAERT DEN FEHLENDEN LOESCHKNOPF (NS-A6). Er ist die einzige Stelle, an
+     * der die Flaeche sagt, dass Sperren der einzige Widerruf ist — ohne ihn sucht eine
+     * bedienende Person nach einer Loeschung, die es absichtlich nicht gibt.
+     */
+    await expect(page.locator('[data-rolle="radio-zugaenge-hinweis"]')).toContainText(
+      "sperren ist der einzige Widerruf",
+    );
+  });
 });

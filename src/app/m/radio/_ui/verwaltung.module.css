@@ -320,3 +320,17 @@
   display: block;
   max-inline-size: 28rem;
 }
+
+/*
+ * ── Die Zugangsverwaltung (V20) ──────────────────────────────────────────────
+ *
+ * Die Nebenzeile unter der Zustandsmarke: „gesperrt am … von …" (`_db/schema.ts:184-187`).
+ * ⛔ OHNE EIGENE FARBE AUS EINEM HEXWERT — `--iuk-gedaempft` ist die Suite-Variable, die auch
+ * `.geraetIssi` und `.leer` benutzen; ein zweiter Hexsatz waere NS-A8b (`_lib/status.ts:125`).
+ * ⚠️ Sie traegt KEINE eigene Schriftgroesse: `<small>` bringt sie mit, und eine Zahl daneben
+ * waere ein zweiter Wahrheitsort.
+ */
+.codeNeben {
+  display: block;
+  color: var(--iuk-gedaempft);
+}
