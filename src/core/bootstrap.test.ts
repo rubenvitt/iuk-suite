@@ -359,7 +359,7 @@ describe("die Reihenfolge im Boot (src/instrumentation.ts)", () => {
 });
 
 /**
- * DIE NAHT OHNE NETZ (§10.5, Plan Teil 3 / T38).
+ * DIE NAHT OHNE NETZ (§10.5, Plan Teil 3 / T38 — seit Planteil 5 auch Spec §7.3.7).
  *
  * `bootstrap.test.ts` koppelt bisher NUR das Migrations-Dreieck. Die Boot-Haken
  * koppelt es nicht — und ohne diesen Block koennte `lagerbuchBootFehler()`
@@ -373,9 +373,92 @@ describe("die Reihenfolge im Boot (src/instrumentation.ts)", () => {
  * vollstaendige, gueltige Umgebung fuer ALLE Module — dann prueft er das
  * Zusammenspiel und nicht mehr die Naht. Der Scan haelt genau die eine Aussage
  * fest, um die es geht: DER AUFRUF STEHT DA, UND ER STEHT IM errors-ARRAY.
+ *
+ * ⛔ WARUM HIER SEIT DEM 2026-08-26 KEINE HANDGEPFLEGTE NAMENSLISTE MEHR STEHT.
+ * Bis dahin fuehrten die zwei Faelle unten zweimal das Literal
+ * `["filesBootFehler", "lagerbuchBootFehler"]`. Ein dritter Haken, der nie
+ * eingehaengt wuerde, bliebe darin GRUEN — eine Liste bewacht nur, was jemand
+ * daran denkt einzutragen. (Genau der Fall stand an: `radioBootFehler` kam mit
+ * Planteil 5 dazu, `src/core/bootstrap.ts:15` und `:103`, Datei 145 Zeilen.)
+ * Spec §7.3.7 verlangt deshalb die ABGELEITETE Form: die Hakenmenge wird aus
+ * `src/app/m/<modul>/_lib/boot.ts` gelesen, nicht aufgezaehlt.
+ *
+ * ⛔ UND DER ZEILENFILTER UNTEN IST NICHT DIE VERGESSENE DREITEILIGE REPARATUR.
+ * Die vier Quelltext-Scans des Moduls `radio` tragen seit `6331e77`/`4ed3410`
+ * einen dreiteiligen Kommentarschnitt, weil ihr alter Schnitt Regexliterale
+ * (`/\//` traegt zwei Schraegstriche) fuer einen Kommentarbeginn hielt. Hier
+ * bleibt es bewusst beim einfachen Zeilenfilter, aus zwei gemessenen Gruenden:
+ *   (a) `src/core/bootstrap.ts` traegt KEIN Regexliteral (selbst nachgesehen am
+ *       2026-08-26 ueber alle 145 Zeilen — die einzigen `/`-Paare stehen in
+ *       Importpfaden, `migrationsFolder`-Zeichenketten und Kommentaren);
+ *       die Reparatur haette hier also nichts zu reparieren.
+ *   (b) Alle Zusicherungen dieses Blocks sind POSITIV („der Aufruf steht da").
+ *       Ein zu aggressiver Schnitt entfernte echte Zeilen und machte den Test
+ *       ROT, nicht still gruen — das ist der UMGEKEHRTE Fall zu jener
+ *       Blindstelle, die an NEGATIVEN Zusicherungen still weniger fand.
+ *
+ * ⛔ UND DIESER BLOCK IMPORTIERT NICHTS AUS `src/app/m/radio/_lib/quelltextScan.ts`.
+ * Ein Kern-Test, der seine Mechanik aus EINEM Modul zieht, machte diesen Helfer
+ * zum Kern-Bestandteil, ohne dass es jemand entschieden hat. (Der `ZAHL_NAMEN`-
+ * Import oben, `:14`, ist ein DATUM des Moduls `files`, keine geteilte Mechanik.)
  */
 describe("Boot-Haken der Module sind verdrahtet", () => {
   const QUELLE = readFileSync("src/core/bootstrap.ts", "utf8");
+  const MODUL_DIR = "src/app/m";
+
+  /**
+   * Die abgeleitete Menge, Klausel (I) und (IIa) — der Glob stammt aus Spec
+   * §7.3.7 (`src/app/m/<modul>/_lib/boot.ts`) und wird NICHT geweitet.
+   *
+   * ⛔ WAS DIESE ABLEITUNG ERKENNT, GEMESSEN UND NICHT BEHAUPTET: die Form
+   * `export function` / `export async function`. Die drei heute vorhandenen
+   * Dateien (`files`, `lagerbuch`, `radio`) tragen ausschliesslich sie —
+   * nachgesehen am 2026-08-26; eine Sammelform `export { … }` kommt in keiner
+   * vor, ein `export const name = () => …` ebenfalls nicht (`radio`s einziger
+   * `export const` ist `RETENTION_MONATE_VORGABE`, `_lib/boot.ts:34`, ein Wert).
+   * Eine Regexbranche fuer eine Form, die es nirgends gibt, waere unpruefbar
+   * und damit selbst leer-gruen — sie steht deshalb bewusst NICHT hier.
+   * ⬜ BENANNTE GRENZE: wer einen Boot-Haken kuenftig als const-Pfeilfunktion
+   * oder ueber `export { … }` exportiert, wird von dieser Menge nicht gesehen —
+   * und die Zahl unten faengt es NICHT, weil sie mitschrumpft. Wer eine solche
+   * Form einfuehrt, weitet zuerst diese Regex und probt sie.
+   */
+  const exportierteFunktionen = readdirSync(MODUL_DIR, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => `${MODUL_DIR}/${e.name}/_lib/boot.ts`)
+    .filter((pfad) => existsSync(pfad))
+    .flatMap((pfad) =>
+      [
+        ...readFileSync(pfad, "utf8").matchAll(
+          /^export\s+(?:async\s+)?function\s+([A-Za-z][A-Za-z0-9_]*)/gm,
+        ),
+      ].map((treffer) => treffer[1]),
+    );
+
+  /** Klausel (I): jede exportierte `*BootFehler`-Funktion. Heute drei. */
+  const bootHaken = exportierteFunktionen.filter((name) => name.endsWith("BootFehler"));
+
+  /**
+   * Klausel (IIa): die Hintergrundstarter — ABER NUR DIE AUS EINER `_lib/boot.ts`.
+   *
+   * ⛔ DAS IST AUSDRUECKLICH EINE TEILMENGE, UND DIE AUSNAHME WIRD NAMENTLICH
+   * GEFUEHRT: `starteAufgabenScanArbeiter` liegt in
+   * `src/app/m/aufgaben/_lib/scan.ts:324`, wird von `src/core/bootstrap.ts:16`
+   * importiert und laeuft im Rumpf von `startBackgroundWork()` — vom Glob oben
+   * ist sie STRUKTURELL nicht sichtbar. Eine reine Vorwaertsableitung stuende
+   * damit auf einer zu kleinen Zahl und VERDECKTE die Luecke, statt sie zu melden.
+   *
+   * ⛔ UND DER NAHELIEGENDE GEGENVORSCHLAG IST GEMESSEN FALSCH: den Glob auf
+   * `src/app/m/<modul>/_lib/<datei>.ts` zu weiten zoege `starteAvArbeiter`
+   * (`src/app/m/files/_lib/av.ts:505`) mit herein — die steht NICHT im Rumpf von
+   * `startBackgroundWork()`, sondern wird von `starteFilesHintergrund` gerufen
+   * (`src/app/m/files/_lib/boot.ts:139`). Diese Klausel waere rot by construction.
+   * Die Ausnahme faengt stattdessen Klausel (IIb) unten, ohne die Menge zu weiten.
+   */
+  const hintergrundStarter = exportierteFunktionen.filter(
+    (name) =>
+      name.startsWith("starte") && (name.endsWith("Hintergrund") || name.endsWith("Arbeiter")),
+  );
 
   /**
    * Nur der `errors`-Array-Block, und darin nur die WIRKSAMEN (nicht
@@ -395,8 +478,40 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
       .join("\n");
   })();
 
-  it("assertHostConfig ruft jeden Modul-Boot-Haken", () => {
-    for (const haken of ["filesBootFehler", "lagerbuchBootFehler"]) {
+  /**
+   * Der Rumpf von `startBackgroundWork()`, wieder nur die wirksamen Zeilen.
+   *
+   * Der Anker ist bewusst `function startBackgroundWork(` und nicht die volle
+   * Signatur: ein spaeter ergaenztes `async` oder ein geaenderter Rueckgabetyp
+   * liesse `indexOf` sonst `-1` liefern, und `slice(-1, …)` gaebe einen
+   * Restschwanz der Datei — beide Klauseln darunter waeren still leer-gruen.
+   * Deshalb wirft die Suche, statt still weiterzulaufen (dieselbe Form wie im
+   * `errorsBlock` darueber).
+   */
+  const hintergrundRumpf = (() => {
+    const von = QUELLE.indexOf("function startBackgroundWork(");
+    if (von === -1) throw new Error("function startBackgroundWork( ... nicht gefunden");
+    const auf = QUELLE.indexOf("{", von);
+    const zu = QUELLE.indexOf("\n}", auf);
+    if (auf === -1 || zu === -1) throw new Error("Rumpf von startBackgroundWork() nicht gefunden");
+    return QUELLE.slice(auf, zu)
+      .split("\n")
+      .filter((zeile) => !zeile.trim().startsWith("//"))
+      .join("\n");
+  })();
+
+  /** Klausel (IIb), rueckwaerts: jeder `starte…(`-Aufruf IM Rumpf. Heute zwei. */
+  const starterAufrufe = [...hintergrundRumpf.matchAll(/\b(starte[A-Za-z0-9_]*)\s*\(/g)].map(
+    (treffer) => treffer[1],
+  );
+
+  /** Die Namen aus den benannten Importen von `bootstrap.ts` (`:1-16`). */
+  const importierteNamen = [...QUELLE.matchAll(/^import\s*\{([^}]*)\}\s*from/gm)].flatMap(
+    (treffer) => treffer[1].split(",").map((teil) => teil.trim()),
+  );
+
+  it("jeder Modul-Boot-Haken ist in assertHostConfig eingehaengt", () => {
+    for (const haken of bootHaken) {
       expect(QUELLE, `${haken} fehlt in bootstrap.ts`).toContain(haken);
     }
   });
@@ -408,9 +523,93 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
     // von assertHostConfig fuer `files` ausschreibt. Geprueft wird gegen
     // `errorsBlock`, nicht gegen `QUELLE`: ein auskommentierter Aufruf ist im
     // Quelltext lesbar, aber wirkungslos, und darf hier nicht bestehen.
-    for (const haken of ["filesBootFehler", "lagerbuchBootFehler"]) {
+    for (const haken of bootHaken) {
       expect(errorsBlock, `${haken}: kein wirksames "...(await ${haken}())" im errors-Array`)
         .toContain(`...(await ${haken}())`);
     }
   });
+
+  it("die Zahl der Boot-Haken steht EXAKT auf dem Stand dieses Planteils", () => {
+    /*
+     * ⛔ DIE LEER-GRUEN-PROBE. Eine Ableitung, die auf NULL Dateien laeuft —
+     * falscher Glob, geaenderte Endung, verschobenes Verzeichnis — liefert eine
+     * leere Menge, und beide Faelle darueber sind dann gruen, ohne irgendetwas
+     * zu bewachen. Diese Zahl ist das Einzige, was das faengt.
+     *
+     * Der Stand am 2026-08-26, selbst nachgezaehlt und nicht aus dem Plan
+     * abgeschrieben: `filesBootFehler` (`src/app/m/files/_lib/boot.ts:82`),
+     * `lagerbuchBootFehler` (`src/app/m/lagerbuch/_lib/boot.ts:42`),
+     * `radioBootFehler` (`src/app/m/radio/_lib/boot.ts:226`).
+     *
+     * ⛔ `toBe`, nie `toBeGreaterThanOrEqual`: „ein Waechter, der `>= 5` statt
+     * `= 6` prueft, bleibt gruen und bewacht nichts"
+     * (`src/app/m/radio/riegel.test.ts:98-100`).
+     */
+    expect(bootHaken.length).toBe(3);
+  });
+
+  it("jeder Hintergrundstarter aus einer _lib/boot.ts ist in startBackgroundWork eingehaengt", () => {
+    // Der Testname sagt „aus einer `_lib/boot.ts`" und behauptet damit
+    // ausdruecklich KEINE Vollzaehligkeit ueber alle Starter der Suite — die
+    // Begruendung steht bei `hintergrundStarter` oben.
+    for (const starter of hintergrundStarter) {
+      expect(
+        hintergrundRumpf,
+        `${starter}: kein wirksamer Aufruf im Rumpf von startBackgroundWork()`,
+      ).toContain(`${starter}()`);
+    }
+  });
+
+  it("die Zahl dieser Hintergrundstarter steht EXAKT auf dem Stand dieses Planteils", () => {
+    /*
+     * Heute EINS: `starteFilesHintergrund` (`src/app/m/files/_lib/boot.ts:113`).
+     *
+     * ⛔ DASS `radio` HIER NOCH FEHLT, IST KEIN FEHLER: `starteRadioHintergrund()`
+     * entsteht erst in Aufgabe G4 dieses Planteils. Der Waechter ist ab jetzt
+     * scharf — G4 kann seine Funktion nicht mehr bauen, ohne sie einzuhaengen.
+     * ⛔ EIGENTUEMER DIESER ZAHL IST G4: sie geht im selben Commit auf `2`,
+     * zusammen mit der `3` im Fall darunter. Wird sie rot, wird sie ANGEHOBEN,
+     * nicht geloescht.
+     */
+    expect(hintergrundStarter.length).toBe(1);
+  });
+
+  it("jeder starte-Aufruf in startBackgroundWork hat einen Import, und es sind genau so viele", () => {
+    /*
+     * ⛔ DIE RUECKWAERTSRICHTUNG, KLAUSEL (IIb) — und sie ist die einzige Zeile
+     * dieses Blocks, die `starteAufgabenScanArbeiter` ueberhaupt SIEHT
+     * (`src/app/m/aufgaben/_lib/scan.ts:324`, importiert
+     * `src/core/bootstrap.ts:16`, gerufen `:138`; Datei 145 Zeilen). Der Glob
+     * aus Spec §7.3.7 findet sie strukturell nicht — siehe `hintergrundStarter`.
+     *
+     * Sie faengt ausserdem einen GELOESCHTEN Aufruf, den Klausel (IIa) nach dem
+     * Loeschen der zugehoerigen Datei ebenfalls nicht mehr faende: dort
+     * schrumpfte die abgeleitete Menge lautlos mit.
+     *
+     * ⛔ EIGENTUEMER DER ZAHL IST G4: sie geht im selben Commit auf `3`.
+     */
+    for (const name of starterAufrufe) {
+      expect(importierteNamen, `${name}: kein benannter Import in bootstrap.ts`).toContain(name);
+    }
+    expect(starterAufrufe.length).toBe(2);
+  });
+
+  /*
+   * ⛔ WAS DIESER BLOCK BEWUSST NICHT FAENGT, damit es niemand fuer eine Luecke
+   * haelt: eine UMBENENNUNG INNERHALB DER NAMENSKONVENTION. Heisst
+   * `radioBootFehler` morgen `funkBootFehler` und wird die Einhaengung in
+   * `src/core/bootstrap.ts` mitgezogen, bleiben alle 23 Faelle dieser Datei gruen
+   * — gemessen am 2026-08-26, nicht angenommen. Das ist Absicht: der Waechter
+   * prueft die KOPPLUNG zwischen Export und Einhaengung, nicht die Namenswahl.
+   *
+   * ⚠️ DIE GRENZE DIESER AUSSAGE IST ENGER, ALS SIE KLINGT, und auch das ist
+   * gemessen: verlaesst die Umbenennung das Suffix `BootFehler` (Probe
+   * `radioBootFehler` -> `radioStartFehler`, Einhaengung mitgezogen), schrumpft
+   * die abgeleitete Menge auf zwei und `die Zahl der Boot-Haken …` wird ROT. Fuer
+   * diesen Waechter waere der Haken dann kein Boot-Haken mehr. Wer so umbenennt,
+   * entscheidet ueber die Konvention und zieht die Zahl bewusst nach.
+   *
+   * Eine Umbenennung OHNE mitgezogene Einhaengung faengt er dagegen sofort
+   * (gemessen: die ersten beiden Faelle oben rot).
+   */
 });
