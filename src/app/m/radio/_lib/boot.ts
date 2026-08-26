@@ -7,17 +7,22 @@
 //   * Kapitel 7 (Planteil 5, G2 — GEBAUT, am Dateiende): `radioBootFehler()`, das VOR den
 //     Migrationen laeuft und keine Tabelle liest, samt `historieMonate()`/
 //     `historieMonateFehler()` fuer RADIO_HISTORIE_MONATE.
-//   * Kapitel 7 (Planteil 5, G4 — NOCH NICHT GEBAUT): `starteRadioHintergrund()`/
+//   * Kapitel 7 (Planteil 5, G4 — GEBAUT, dahinter): `starteRadioHintergrund()`/
 //     `stoppeRadioHintergrund()` samt RADIO_HISTORIE_PURGE/_ERSTLAUF_MINUTEN, die DANACH
 //     laufen und die Tabelle brauchen.
+// ⛔ NAHT NS-M1 IST DAMIT ERLEDIGT: beide Gruppen stehen, in dieser Reihenfolge, in DIESER
+// Datei. Die Auflage bleibt woertlich in Kraft — `radioBootFehler()` VOR den Migrationen
+// und ohne Tabellenzugriff, `starteRadioHintergrund()` DANACH und mit. Wer die zwei
+// vertauscht, bekommt einen Fehler, den kein Typecheck sieht.
 // Zwei Ruempfe fuer denselben Takt waeren zwei Timer in einer Datei und zwei Laeufe je
-// Takt — deshalb steht der Takt hier NICHT, auch nicht "vorlaeufig".
-import { and, isNotNull, lt } from "drizzle-orm";
+// Takt — deshalb hat Planteil 1 den Takt bewusst NICHT "vorlaeufig" gebaut, und deshalb
+// gibt es ihn genau einmal, hier.
+import { and, count, isNotNull, lt } from "drizzle-orm";
 import { existsSync } from "node:fs";
 import { moduleDbPath } from "@/core/db";
 import { getModule, prodHostsFor } from "@/core/registry";
-import type { DB } from "../_db/client";
-import { loans } from "../_db/schema";
+import { getDb, type DB } from "../_db/client";
+import { devices, loans } from "../_db/schema";
 import { grenzenFehler } from "./grenzen";
 
 type EnvLike = Record<string, string | undefined>;
@@ -397,4 +402,274 @@ export async function radioBootFehler(env: EnvLike = process.env): Promise<strin
   }
 
   return fehler;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KAPITEL 7 (PLANTEIL 5, G4) — DER RETENTION-TAKT (§7.3.5, §2.7.2).
+//
+// ⛔ NAHT NS-M1, DIE ZWEITE HAELFTE — HIER GESCHLOSSEN. Die Reihenfolge der zwei
+// Boot-Exporte dieser Datei ist Pflicht (Spec 1 B8), und sie ist es jetzt GEBAUT:
+//   * `radioBootFehler()` (oben) laeuft VOR den Migrationen und liest KEINE Tabelle.
+//   * `starteRadioHintergrund()` (hier) laeuft DANACH und BRAUCHT die Tabelle.
+// Gemessen an `src/instrumentation.ts:55` (`await assertHostConfig()`) vor `:56`
+// (`migrateAllModules()`) vor `:60` (`startBackgroundWork()`). Beides vertauscht ist ein
+// Fehler, den KEIN Typecheck sieht — bewacht von den zwei Faellen
+// `radioBootFehler liest KEINE Tabelle` und `starteRadioHintergrund loescht beim Start
+// NICHTS` in `_lib/boot.test.ts`.
+//
+// ⬜ DIE VIER LEERSTELLEN, DIE HIER ABGELESEN WERDEN — namentlich, damit niemand sie fuer
+// erfunden haelt:
+//   ⬜ G-L1  Der Wortlaut der `console.info`-Zeile fuer `RADIO_HISTORIE_PURGE=0`. Die Spec
+//            sagt nur „meldet ‚Retention abgeschaltet‘" (Spec:5986). FESTGELEGT unten; der
+//            Grep-Anker fuer Spec 2 ist `Retention abgeschaltet` (umlautfrei, mit dem
+//            Praefix `[radio] ` davor — Ruling R-G2-1: der Bestand traegt ausschliesslich
+//            die eckige Form, NICHT `radio:`).
+//   ⬜ G-L2  ENTSCHIEDEN und NICHT hier: die Zeile „`radio.db` existierte vor diesem Start
+//            nicht" steht in `radioBootFehler()` (`:389-397`), weil sie hier gemessen NIE
+//            feuern koennte — `migrateAllModules()` legt die Datei vorher an.
+//   ⬜ G-L3  Signatur und Verhalten von `stoppeRadioHintergrund()`. Die Spec nennt nur den
+//            Namen (Spec:1555). ABGELESEN AM BESTAND, nicht erfunden: `stoppeAufraeumTimer()`
+//            in `src/app/m/files/_lib/boot.ts:182-186` — `(): void`, wirft nie, setzt Uhr
+//            und Laufflagge zurueck.
+//   ⬜ G-L4  Der Parameterstil. Die Spec schreibt fuer `starteRadioHintergrund()` KEINE
+//            Signatur aus. Entschieden: derselbe `EnvLike`-Stil wie `radioBootFehler()`,
+//            aus Testbarkeit. ⛔ KEIN DB-Parameter — der Test mockt `../_db/client`
+//            statt eine Naht zu bekommen, die nur er benutzt.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Die Verzoegerung des ERSTEN Laufs in Minuten (B5). 1440 = 24 Stunden.
+ *
+ * ⛔ „NIE 0" IST EINE PROSA-REGEL UND AUSDRUECKLICH KEINE BOOT-PRUEFUNG (Verbotstafel des
+ * Planteils): §7.3.3 zaehlt fuenf werfende Pruefungen, und keine davon gilt dieser
+ * Variable. Eine Pruefung, die niemand bestellt hat, waere am Cutover-Abend ein
+ * Startabbruch, den kein Kapiteltext rechtfertigt.
+ */
+export const RADIO_HISTORIE_ERSTLAUF_MINUTEN_VORGABE = 1440;
+
+/** Der Takt: 24 Stunden. Exportiert, weil die Takt-Faelle in `boot.test.ts` ihn brauchen. */
+export const RADIO_HISTORIE_TAKT_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * DIE HMR-WACHE, und beide Uhren gehoeren ihr.
+ *
+ * ⛔ WAS SIE LEISTET: sie faengt wiederholte Aufrufe IN DERSELBEN MODULINSTANZ — genau das
+ * misst der Fall `zweimaliger Aufruf startet nur einen Timer`. Zwei Timer waeren zwei
+ * Laeufe je Takt, und weil jeder Lauf ein LOESCHEREIGNIS ist, heisst „mehrfach
+ * registriert" hier „mehrfach geloescht".
+ *
+ * ⛔ WAS SIE NICHT LEISTET: einen Hot Reload, der das Modul NEU instanziiert. Danach sind
+ * beide `let` wieder `undefined`. Dafuer gibt es in diesem Repo KEINE Messung, und das
+ * Gegenindiz steht im Bestand: `src/core/db/index.ts:25` haelt den DB-Cache bewusst auf
+ * `globalThis.__suiteDb`, WEIL Modulzustand hier nicht verlaesslich ueberlebt.
+ * ⛔ DIE HAUSFORM (`src/app/m/files/_lib/boot.ts:174`) WIRD UEBERNOMMEN, WEIL SIE DIE
+ * GESETZTE IST — nicht, weil sie gemessen HMR-fest waere. Eine `globalThis`-Wache waere die
+ * staerkere Form; sie wird nicht gewaehlt, um nicht als einziges Modul eine abweichende
+ * Bauart einzufuehren. Dieser Satz steht hier und nicht nur im Plan, sonst liest der
+ * naechste Bauende die Wache als HMR-Beweis.
+ *
+ * ⛔ ZWEI UHREN, EINE WACHE. Der verzoegerte Erstlauf ist ein `setTimeout`, der DANACH den
+ * `setInterval` setzt. Deckte die Wache nur `purgeUhr`, hinterliesse ein zweiter Aufruf im
+ * Fenster zwischen Timeout und Interval eine verwaiste Uhr — und weil Erstlauf und Takt
+ * beide 24 Stunden sind, liegt genau dieses Fenster im Weg jedes zweiten Aufrufs.
+ */
+let purgeUhr: ReturnType<typeof setInterval> | undefined;
+let erstlaufUhr: ReturnType<typeof setTimeout> | undefined;
+let purgeLaeuft = false;
+
+/**
+ * Die geltende Verzoegerung des ersten Laufs, in Minuten.
+ *
+ * ⛔ DER RUECKFALL AUF DIE VORGABE IST TRAGEND, NICHT DEFENSIVE KOSMETIK — und der Grund
+ * ist der Zweck dieser ganzen Aufgabe: `Number.parseInt("abc")` ist `NaN`, und
+ * `setTimeout(fn, NaN)` feuert in Node nach ~1 ms. Ein vertippter Wert waere damit ein
+ * SOFORT-PURGE durch die Hintertuer — genau die Regression, gegen die der Fall
+ * `starteRadioHintergrund loescht beim Start NICHTS` steht. Derselbe Grund schliesst `0`
+ * und negative Werte aus.
+ *
+ * ⚠️ DER RUECKFALL IST STILL, und das ist die bewusst gewaehlte Seite: die Melde-Zeilen
+ * dieses Moduls sind eine geschlossene Liste von vier (Melde-Zeilen-Tafel), eine Pruefung
+ * ist fuer diese Variable ausdruecklich verboten, und der Rueckfall geht auf den
+ * VORGESCHRIEBENEN Wert — es geht also keine Richtlinie verloren, nur eine Wunschfrist.
+ *
+ * `GANZZAHL` (`:114`) statt `Number()`: `Number("0x10")` waere 16, und die geltende
+ * Verzoegerung waere eine andere als die, die in der .env steht.
+ */
+function erstlaufMinuten(env: EnvLike): number {
+  const roh = env.RADIO_HISTORIE_ERSTLAUF_MINUTEN?.trim();
+  if (roh === undefined || roh === "" || !GANZZAHL.test(roh)) {
+    return RADIO_HISTORIE_ERSTLAUF_MINUTEN_VORGABE;
+  }
+  const wert = Number.parseInt(roh, 10);
+  return wert > 0 ? wert : RADIO_HISTORIE_ERSTLAUF_MINUTEN_VORGABE;
+}
+
+/**
+ * EIN LAUF. Wirft nie — ein Fehler im Lauf darf nicht aus dem Takt herausfliegen.
+ *
+ * ⛔ DER CUTOFF WIRD HIER GERECHNET, NICHT BEIM REGISTRIEREN. `raeumeLeihhistorie` bekommt
+ * `jetzt = undefined` und rechnet mit `new Date()` (`:71-78`, `:49`). Ein Prozess laeuft
+ * wochenlang; ein gemerkter Cutoff bliebe auf dem Startzeitpunkt stehen, und die Richtlinie
+ * liefe still aus dem Takt. Auch `historieMonate(env)` wird bei JEDEM Lauf neu gelesen.
+ *
+ * ⛔ DIESE FUNKTION IMPORTIERT DIE PURGE-ABFRAGE, SIE DEFINIERT SIE NICHT (Zusage an
+ * Kapitel 2): `raeumeLeihhistorie` steht oben auf `:71` und hat ihre eigenen Faelle.
+ *
+ * ⛔ DIE UEBERLAPPUNGSWACHE (`purgeLaeuft`) ist kein Luxus, und die Begruendung ist woertlich
+ * die des Hausvorbilds (`src/app/m/files/_lib/boot.ts:188-207`): ein Lauf, der laenger
+ * dauert als der Takt, liefe sonst gegen sich selbst.
+ */
+function purgeLauf(env: EnvLike): void {
+  if (purgeLaeuft) return;
+  purgeLaeuft = true;
+  try {
+    raeumeLeihhistorie(getDb(), undefined, historieMonate(env));
+  } catch (grund) {
+    console.error(
+      `[radio] Retention-Lauf fehlgeschlagen — der Takt laeuft weiter, aber die ` +
+        `Loeschrichtlinie hat diesen Lauf ausgelassen: ` +
+        `${grund instanceof Error ? grund.message : String(grund)}`,
+    );
+  } finally {
+    purgeLaeuft = false;
+  }
+}
+
+/**
+ * DIE BESTANDSWARNUNG (§7.3.6, E-G10) — `devices` ist leer.
+ *
+ * ⛔ SIE STEHT HINTER DEM HOST-SCHALTER, UND NUR SIE. „Eine Warnung ueber einen Bestand,
+ * den dieser Container gar nicht bedient, ist Laerm" (Spec:6015-6020). Der Retention-Timer
+ * steht DAVOR, unbedingt (B5) — wer beide hinter denselben Schalter legt, schaltet mit
+ * einer vergessenen `SUITE_HOST_RADIO` STILL die Loeschrichtlinie ab, die der DSGVO-Grund
+ * fuer `borrower_name` ist. Bewacht von `die Bestandswarnung steht hinter dem
+ * Host-Schalter, der Timer NICHT`.
+ *
+ * ⛔ SIE LIEST EINE TABELLE — und darf das, weil sie NACH den Migrationen laeuft
+ * (`src/instrumentation.ts:56` vor `:60`). In `radioBootFehler()` waere derselbe Zugriff
+ * ein Fehler (B8).
+ *
+ * ⚠️ EIGENES `try`/`catch`: `starteRadioHintergrund()` wirft nie (Bauform 4). Ein
+ * gescheiterter Bestandsblick darf den Takt nicht mitnehmen — er ist die weniger wichtige
+ * der drei Aufgaben.
+ */
+function bestandswarnung(env: EnvLike): void {
+  if (prodHostsFor(getModule("radio"), env).length === 0) return;
+  try {
+    const zeile = getDb().select({ anzahl: count() }).from(devices).get();
+    if ((zeile?.anzahl ?? 0) > 0) return;
+    console.warn(
+      `[radio] devices ist leer — dieser Container bedient einen radio-Host, hat aber ` +
+        `keinen Geraetebestand. VOR dem Import ist das der Normalfall (Generalprobe, ` +
+        `Entwicklung). NACH dem Import heisst diese Zeile, dass der Import nicht gelaufen ` +
+        `ist oder in eine andere Datei geschrieben hat: der Kiosk zeigte dann eine leere ` +
+        `Geraeteliste, und niemand koennte etwas ausleihen.`,
+    );
+  } catch (grund) {
+    console.error(
+      `[radio] Bestandswarnung uebersprungen — devices konnte nicht gelesen werden: ` +
+        `${grund instanceof Error ? grund.message : String(grund)}`,
+    );
+  }
+}
+
+/**
+ * DER TAKT. Registriert die Loeschrichtlinie und schreibt die Bestandswarnung. Synchron,
+ * WIRFT NIE (Bauform 4; Vorbild `starteAufgabenScanArbeiter`).
+ *
+ * SIE TUT GENAU DREI DINGE, UND DIE REIHENFOLGE IST DIE ZUSAGE:
+ *   1. Die Bestandswarnung — HINTER dem Host-Schalter (E-G10).
+ *   2. Der Abschalter `RADIO_HISTORIE_PURGE=0` — kein Timer, `console.info` bei JEDEM Start.
+ *   3. Den Retention-Timer registrieren — ⛔ OHNE Host-Schalter davor (B5).
+ *
+ * ⛔ DER ERSTE LAUF LIEGT NICHT BEI t=0 (§2.7.2, Fall 1). Er ist ein LOESCHEREIGNIS und
+ * soll nicht mit dem Deploy zusammenfallen: der Betreiber startet am Cutover-Abend die
+ * Suite, und die erste Handlung des Moduls waere sonst ein DELETE auf der gerade
+ * importierten Historie. Diese Zusage ist die Regressionssperre gegen einen frueher
+ * gebauten und zurueckgebauten Sofort-Purge.
+ */
+export function starteRadioHintergrund(env: EnvLike = process.env): void {
+  bestandswarnung(env);
+
+  /*
+   * ⛔ DER ABSCHALTER, UND ER IST BEI JEDEM START LAUT (⬜ G-L1). `info` und nicht `warn`:
+   * `warn` = Stopp, `info` = Zustand. Der Cutover schaltet die Retention VORGESCHRIEBEN ab
+   * (Runbook §4.6 Nr. 9) und wieder ein (Nr. 14); ein `warn` machte diesen vorgeschriebenen
+   * Zustand zur eigenen Stopp-Bedingung des Runbooks, das nach dem Start auf „KEINE
+   * [radio]-WARNUNG" prueft.
+   *
+   * ⛔ BEI JEDEM START, NICHT NUR BEIM ERSTEN: ein nach dem Cutover-Fenster vergessenes
+   * `RADIO_HISTORIE_PURGE=0` waere sonst ein STILLER Verlust der Loeschrichtlinie. Ihre
+   * Alarmwirkung holt das Runbook, indem es diese Zeile nach Nr. 14 NICHT mehr sehen darf.
+   *
+   * ⛔ GREP-ANKER FUER SPEC 2: `Retention abgeschaltet`, mit dem Praefix `[radio] ` davor.
+   * Umlautfrei, damit ein Filter ihn zeichengleich treffen kann. Ruling R-G2-1: der
+   * Bestand traegt ausschliesslich die eckige Praefixform, NICHT `radio:`.
+   */
+  if ((env.RADIO_HISTORIE_PURGE?.trim() ?? "") === "0") {
+    console.info(
+      `[radio] RADIO_HISTORIE_PURGE=0 — Retention abgeschaltet: es laeuft KEIN Loeschtakt. ` +
+        `Abgeschlossene Leihen samt borrower_name bleiben unbegrenzt stehen. Diese Zeile ` +
+        `ist ein ZUSTAND, kein Stopp-Punkt — waehrend des Cutover-Fensters ist sie ` +
+        `vorgeschrieben. Wieder einschalten: RADIO_HISTORIE_PURGE aus der .env entfernen ` +
+        `(oder auf 1 setzen) und die Suite neu starten; danach darf diese Zeile im Log ` +
+        `NICHT mehr stehen.`,
+    );
+    return;
+  }
+
+  /*
+   * ⛔ KEIN HOST-SCHALTER VOR DIESER ZEILE (B5, Bauform 7). Der Takt braucht keine
+   * Konfiguration, nur die Tabelle. „Ein Riegel auf `SUITE_HOST_RADIO` waere hier sogar
+   * schaedlich" — eine vergessene Variable schaltete still die Loeschrichtlinie ab.
+   */
+  registriereTakt(env);
+}
+
+/**
+ * Die zwei Uhren. ⛔ Die Wache ist die ERSTE Anweisung und deckt BEIDE.
+ *
+ * `setTimeout` fuer den Erstlauf, `setInterval` danach — die Form ist frei, die Zusage
+ * nicht: kein Lauf bei t=0, dann alle 24 Stunden.
+ *
+ * ⛔ `.unref()` AUF JEDER UHR, damit ein Skript-Aufruf (`scripts/import/*.ts`), das die
+ * Suite nur laedt, nicht am Timer haengt und nie endet. ⚠️ KEIN Testfall wird rot, wenn
+ * diese zwei Aufrufe verschwinden, und das ist bekannt: der Schaden zeigt sich erst an
+ * einem Skript, das haengen bleibt. Es wird deshalb hier auch KEIN Waechter dafuer
+ * behauptet — die Zeile steht mit ihrer Begruendung im Quelltext, und das ist alles, was
+ * hier traegt. `unref?.()` und nicht `unref()`: dieselbe Hausform wie
+ * `src/app/m/files/_lib/boot.ts:179`, weil der Rueckgabetyp unter gefaelschten Uhren nicht
+ * garantiert ein Node-`Timeout` ist.
+ */
+function registriereTakt(env: EnvLike): void {
+  if (purgeUhr !== undefined || erstlaufUhr !== undefined) return;
+
+  erstlaufUhr = setTimeout(
+    () => {
+      erstlaufUhr = undefined;
+      purgeUhr = setInterval(() => {
+        purgeLauf(env);
+      }, RADIO_HISTORIE_TAKT_MS);
+      purgeUhr.unref?.();
+      purgeLauf(env);
+    },
+    erstlaufMinuten(env) * 60_000,
+  );
+  erstlaufUhr.unref?.();
+}
+
+/**
+ * Nimmt den Takt zurueck. ⬜ G-L3, abgelesen an `stoppeAufraeumTimer()`
+ * (`src/app/m/files/_lib/boot.ts:182-186`) — das ist eine Ablesung am Bestand, keine
+ * Erfindung; die Spec nennt fuer diese Funktion nur den Namen (Spec:1555).
+ *
+ * Exportiert, weil ein Modulzustand sonst den Test ueberlebt: ohne sie waeren die
+ * Takt-Faelle reihenfolgeabhaengig, weil der zweite Aufruf stumm in die HMR-Wache liefe.
+ */
+export function stoppeRadioHintergrund(): void {
+  if (erstlaufUhr !== undefined) clearTimeout(erstlaufUhr);
+  if (purgeUhr !== undefined) clearInterval(purgeUhr);
+  erstlaufUhr = undefined;
+  purgeUhr = undefined;
+  purgeLaeuft = false;
 }

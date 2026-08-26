@@ -25,8 +25,16 @@ import { ZAHL_NAMEN } from "@/app/m/files/_lib/grenzen";
  *   öffnet Sockets und liest Tabellen. Gebraucht wird hier allein die Naht
  *   „`startBackgroundWork()` startet ihn" — ohne sie wäre ein leerer Rumpf von
  *   `starteFilesHintergrund` grün, und die Warteschlange arbeitete niemand ab.
+ *
+ * Und seit G4 ein DRITTER, aus derselben Begründung wie der zweite:
+ * `starteRadioHintergrund` würde hier ECHT laufen — `startBackgroundWork()` wird
+ * in dieser Datei zweimal wirklich gerufen. Der echte Takt öffnet über `getDb()`
+ * eine echte `radio.db` unter `./.data/bootstrap-test` und registriert einen
+ * echten 24-Stunden-Timer in einem Testprozess. Der Spion ersetzt NUR den
+ * Starter; `radioBootFehler` bleibt über den `...echt`-Spread ECHT, weil die
+ * abgeleitete Hakenmenge weiter unten daran hängt.
  */
-const spione = vi.hoisted(() => ({ hostPruefung: 0, avArbeiter: 0 }));
+const spione = vi.hoisted(() => ({ hostPruefung: 0, avArbeiter: 0, radioHintergrund: 0 }));
 
 vi.mock("@/app/m/files/_lib/hostRolle", async (importOriginal) => {
   const echt = await importOriginal<typeof import("@/app/m/files/_lib/hostRolle")>();
@@ -45,6 +53,16 @@ vi.mock("@/app/m/files/_lib/av", async (importOriginal) => {
     ...echt,
     starteAvArbeiter: () => {
       spione.avArbeiter += 1;
+    },
+  };
+});
+
+vi.mock("@/app/m/radio/_lib/boot", async (importOriginal) => {
+  const echt = await importOriginal<typeof import("@/app/m/radio/_lib/boot")>();
+  return {
+    ...echt,
+    starteRadioHintergrund: () => {
+      spione.radioHintergrund += 1;
     },
   };
 });
@@ -356,6 +374,28 @@ describe("die Reihenfolge im Boot (src/instrumentation.ts)", () => {
       process.env = vorher;
     }
   });
+
+  it("startBackgroundWork startet den radio-Takt", () => {
+    /*
+     * DIE NAHT AUS G4, und sie ist zugleich Klausel (II) von G3 im VERHALTEN: der
+     * Quelltext-Scan weiter unten sieht den Aufruf im Rumpf stehen, dieser Fall
+     * sieht ihn WIRKEN.
+     *
+     * ⛔ OHNE EINHAENGUNG LIEFE DIE LOESCHRICHTLINIE NIE. `starteRadioHintergrund()`
+     * koennte gebaut, gruen getestet und nie gerufen sein — kein Typecheck, kein
+     * Lint, kein Build und keine Vitest-Datei ausserhalb dieser hier wuerde rot.
+     * Der Purge ist der DSGVO-Grund dafuer, dass `borrower_name` ueberhaupt
+     * gespeichert werden darf (`src/app/m/radio/_lib/boot.ts:25-33`).
+     *
+     * ⚠️ KEINE ENV NOETIG, anders als beim AV-Arbeiter darueber: der radio-Takt hat
+     * KEINEN Host-Schalter vor sich (B5) — nur seine Bestandswarnung hat einen.
+     * Genau diese Asymmetrie ist der Punkt, und sie wird in
+     * `src/app/m/radio/_lib/boot.test.ts` gemessen; hier zaehlt allein der Aufruf.
+     */
+    spione.radioHintergrund = 0;
+    startBackgroundWork();
+    expect(spione.radioHintergrund).toBe(1);
+  });
 });
 
 /**
@@ -607,16 +647,19 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
 
   it("die Zahl dieser Hintergrundstarter steht EXAKT auf dem Stand dieses Planteils", () => {
     /*
-     * Heute EINS: `starteFilesHintergrund` (`src/app/m/files/_lib/boot.ts:113`).
+     * Heute ZWEI, selbst nachgezaehlt und nicht aus dem Plan abgeschrieben:
+     * `starteFilesHintergrund` (`src/app/m/files/_lib/boot.ts:113`) und
+     * `starteRadioHintergrund` (`src/app/m/radio/_lib/boot.ts`, Kapitel-7-Abschnitt
+     * am Dateiende).
      *
-     * ⛔ DASS `radio` HIER NOCH FEHLT, IST KEIN FEHLER: `starteRadioHintergrund()`
-     * entsteht erst in Aufgabe G4 dieses Planteils. Der Waechter ist ab jetzt
-     * scharf — G4 kann seine Funktion nicht mehr bauen, ohne sie einzuhaengen.
-     * ⛔ EIGENTUEMER DIESER ZAHL IST G4: sie geht im selben Commit auf `2`,
-     * zusammen mit der `3` im Fall darunter. Wird sie rot, wird sie ANGEHOBEN,
-     * nicht geloescht.
+     * ⛔ ANGEHOBEN VON `1` DURCH G4, im selben Commit wie die `3` im Fall darunter
+     * und wie die Einhaengung selbst — der Waechter war zwischen G3 und G4
+     * ausdruecklich scharf gestellt, damit G4 seine Funktion nicht bauen kann, ohne
+     * sie einzuhaengen. Wird die Zahl rot, wird sie ANGEHOBEN, nicht geloescht.
+     * ⚠️ `stoppeRadioHintergrund` faellt NICHT in diese Menge: der Filter verlangt
+     * einen Namen, der mit `starte` beginnt.
      */
-    expect(hintergrundStarter.length).toBe(1);
+    expect(hintergrundStarter.length).toBe(2);
   });
 
   it("jeder starte-Aufruf in startBackgroundWork hat einen Import, und es sind genau so viele", () => {
@@ -631,12 +674,13 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * Loeschen der zugehoerigen Datei ebenfalls nicht mehr faende: dort
      * schrumpfte die abgeleitete Menge lautlos mit.
      *
-     * ⛔ EIGENTUEMER DER ZAHL IST G4: sie geht im selben Commit auf `3`.
+     * ⛔ ANGEHOBEN VON `2` AUF `3` DURCH G4, im selben Commit wie die `2` darueber:
+     * `starteFilesHintergrund`, `starteAufgabenScanArbeiter`, `starteRadioHintergrund`.
      */
     for (const name of starterAufrufe) {
       expect(importierteNamen, `${name}: kein benannter Import in bootstrap.ts`).toContain(name);
     }
-    expect(starterAufrufe.length).toBe(2);
+    expect(starterAufrufe.length).toBe(3);
   });
 
   it("kein Blockkommentar in den zwei gelesenen Ausschnitten, denn der Filter kennt nur //", () => {

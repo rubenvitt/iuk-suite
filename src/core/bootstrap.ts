@@ -12,7 +12,7 @@ import * as feedbackSchema from "@/app/m/feedback/_db/schema";
 import { seedFeedback } from "@/app/m/feedback/_lib/seed";
 import { filesBootFehler, starteFilesHintergrund } from "@/app/m/files/_lib/boot";
 import { lagerbuchBootFehler } from "@/app/m/lagerbuch/_lib/boot";
-import { radioBootFehler } from "@/app/m/radio/_lib/boot";
+import { radioBootFehler, starteRadioHintergrund } from "@/app/m/radio/_lib/boot";
 import { starteAufgabenScanArbeiter } from "@/app/m/aufgaben/_lib/scan";
 
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
@@ -136,6 +136,12 @@ export function startBackgroundWork(): void {
   // Wiederaufnahme liegen gebliebener `offen`-Dateien nach einem Absturz
   // (Aufgabe 18) — synchron und wirft nie, siehe `_lib/scan.ts`.
   starteAufgabenScanArbeiter();
+  // radio: Retention-Timer + Bestandswarnung. Purgt NICHT bei t=0 (§7.3.5) — der erste
+  // Lauf liegt RADIO_HISTORIE_ERSTLAUF_MINUTEN spaeter, weil jeder Lauf ein Loeschereignis
+  // ist und nicht mit dem Deploy zusammenfallen soll. Synchron und wirft nie.
+  // Kein Blockkommentar in diesem Rumpf: `bootstrap.test.ts` sichert das zu, weil sein
+  // Zeilenfilter nur die Form `//` kennt.
+  starteRadioHintergrund();
 }
 
 export async function seedAllModules(): Promise<void> {

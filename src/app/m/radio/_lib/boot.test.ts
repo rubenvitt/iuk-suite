@@ -7,22 +7,55 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as schema from "../_db/schema";
-import { loans } from "../_db/schema";
+import { devices, loans } from "../_db/schema";
 import { moduleDbPath } from "@/core/db";
+import type { DB } from "../_db/client";
 import {
   retentionGrenze,
   raeumeLeihhistorie,
   radioBootFehler,
   historieMonate,
   historieMonateFehler,
+  starteRadioHintergrund,
+  stoppeRadioHintergrund,
+  RADIO_HISTORIE_ERSTLAUF_MINUTEN_VORGABE,
+  RADIO_HISTORIE_TAKT_MS,
 } from "./boot";
+
+/**
+ * ⛔ DIE VERBINDLICHE TESTMECHANIK DES TAKTS (G4): `getDb()` WIRD GEMOCKT, und der Mock
+ * zeigt auf ein im Test SELBST geoeffnetes und migriertes Handle (Vorbild
+ * `src/app/m/lagerbuch/_db/migrations.test.ts:29-37`).
+ *
+ * ⛔ WARUM NICHT EIN GESETZTES `DATA_DIR`: `getDb()` IST `getModuleDb("radio", schema)`
+ * (`src/app/m/radio/_db/client.ts:22-24`), und dessen Cache haengt an
+ * `globalThis.__suiteDb[key]`, NICHT an `DATA_DIR` (`src/core/db/index.ts:25-36`). Ein
+ * `DATA_DIR`, das nach dem ersten Zugriff irgendeiner Testdatei gesetzt wird, wirkt nicht
+ * mehr. Bauform 26 des Planteils verbietet `getModuleDb()` in einer Testdatei ausdruecklich
+ * AUCH MITTELBAR ueber `getDb()`.
+ *
+ * ⛔ WARUM KEINE INJEKTIONSNAHT: die verbindliche Signatur aus ⬜ G-L4 lautet
+ * `starteRadioHintergrund(env: EnvLike = process.env): void` und hat keinen DB-Parameter.
+ * Eine Naht, die nur der Test benutzt, waere eine zweite Bauform fuer denselben Zugriff.
+ *
+ * ⚠️ KEIN `importOriginal`/`...echt`-SPREAD: der Spread ist fuer den bootstrap-Spion
+ * vorgeschrieben (dort muss `radioBootFehler` echt bleiben), hier zoege er `@/core/db`
+ * hinter Bauform 26 wieder herein. Die Datei exportiert nur `getDb` und den Typ `DB`;
+ * `DB` ist typ-only und ueberlebt das Mocken ohne Laufzeitanteil.
+ *
+ * ⚠️ DIE BESTANDSFAELLE BLEIBEN UNBERUEHRT, gemessen: keiner von ihnen importiert
+ * `../_db/client` zur Laufzeit, und `_lib/boot.ts` zieht daraus im Kapitel-2-Teil nur
+ * `import type { DB }`.
+ */
+const dbHalter = vi.hoisted(() => ({ db: undefined as unknown as DB, deleteZugriffe: 0 }));
+vi.mock("../_db/client", () => ({ getDb: (): DB => dbHalter.db }));
 
 /**
  * EINE DATEI, DREI BESCHREIBENDE ORTE, KEINE ZEILE DOPPELT (Spec 1 B5): hier stehen die
  * REINEN Faelle ueber `retentionGrenze` und die DB-Faelle ueber `raeumeLeihhistorie`
- * (§8.2.5 / §2.7.3). Die fuenf TAKT-Faelle mit `vi.useFakeTimers()` (§2.7.2) und die
- * Boot-Pruefungen (§7.3.7) kommen mit Planteil 5 in DIESE Datei — nicht in eine zweite.
- * Es gibt KEIN `_lib/retention.test.ts`.
+ * (§8.2.5 / §2.7.3), die Boot-Pruefungen (§7.3.7, Planteil 5 / G2) und die TAKT-Faelle mit
+ * `vi.useFakeTimers()` (§2.7.2, Planteil 5 / G4). Alle drei Orte stehen jetzt hier —
+ * nicht in einer zweiten Datei. Es gibt KEIN `_lib/retention.test.ts`.
  */
 let tmp: string;
 let sqlite: Database.Database;
@@ -576,5 +609,352 @@ describe("Planteil 5 / G2 — radioBootFehler, historieMonate, historieMonateFeh
       expect(infoText().split("\n").filter((z) => z.includes("radio.db"))).toHaveLength(0);
       expect(warnText()).not.toContain("radio.db");
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLANTEIL 5 / G4 — DER RETENTION-TAKT (§2.7.2, §7.3.5).
+//
+// DER DRITTE BESCHREIBENDE ORT DIESER DATEI. Die fuenf Takt-Faelle aus §2.7.2 stehen
+// hier, weil sie den Timer brauchen; die Rechnung darunter (`raeumeLeihhistorie`) hat
+// ihre eigenen Faelle weiter oben, und keine Zeile steht doppelt.
+//
+// ⛔ DIE FIXTUR IST EINE ABGESCHLOSSENE LEIHE, deren `returned_at` AELTER ist als
+// `retentionGrenze(jetzt, 2)`. Das Wort "ueberfaellig" aus dem Kapiteltext waere hier
+// falsch: "ueberfaellig" heisst im Leihwesen NOCH NICHT ZURUECKGEGEBEN, also
+// `returned_at IS NULL` — und genau so eine Leihe wird NIE geloescht
+// (`_lib/boot.ts:71-78`, `and(isNotNull(returnedAt), lt(returnedAt, grenze))`; der
+// Bestandsfall dazu heisst `eine AKTIVE Leihe bleibt, egal wie alt ihr borrowed_at ist`).
+// Wer das Wort woertlich naehme, baute die Regressionssperre gruen aus dem falschen Grund.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Planteil 5 / G4 — der Retention-Takt", () => {
+  /*
+   * ⛔ EIN FESTES DATUM IN DER MONATSMITTE, und es ist tragend, nicht kosmetisch.
+   * `retentionGrenze` rechnet in KALENDERMONATEN (`_lib/boot.ts:49-53`,
+   * `d.setUTCMonth(d.getUTCMonth() - monate)`). Auf einer Basis nahe dem Monatsende
+   * verschiebt sich die Grenze ueber 24 Stunden NICHT um 24 Stunden — der Bestandsfall
+   * `retentionGrenze auf 2026-04-30 ergibt 2026-03-02` haelt genau diese Klemmung fest.
+   * Der Fall `der Cutoff wird bei jedem Lauf neu gerechnet` waere ohne feste Basis
+   * rennabhaengig rot oder gruen, also kein Waechter.
+   */
+  const BASIS = new Date("2026-08-15T12:00:00Z");
+  const ERSTLAUF_MS = RADIO_HISTORIE_ERSTLAUF_MINUTEN_VORGABE * 60_000;
+
+  /** Der Schalter, den `radio` einschaltet — dieselbe Variable wie in `radioBootFehler()`. */
+  const TAKT_ENV: Record<string, string | undefined> = {
+    SUITE_HOST_RADIO: "radio.example.test",
+  };
+
+  let taktTmp: string;
+  let taktSqlite: Database.Database;
+
+  /** Ein migriertes Handle auf eine eigene Datei — nie `getModuleDb()` (Bauform 26). */
+  function frischeDb(datei: string): { sqlite: Database.Database; db: DB } {
+    const roh = new Database(datei);
+    roh.pragma("foreign_keys = ON");
+    migrate(drizzle(roh), { migrationsFolder: "src/app/m/radio/_db/migrations" });
+    return { sqlite: roh, db: drizzle(roh, { schema }) as unknown as DB };
+  }
+
+  /*
+   * DER LAUFZAEHLER, und warum er ueber `db.delete` geht statt ueber eine Protokollzeile:
+   * ein Lauf ist genau ein `db.delete(loans)` (`_lib/boot.ts:71-78`), und der Zaehler
+   * misst damit die LAEUFE, nicht die geloeschten Zeilen. Ueber geloeschte Zeilen waere
+   * er blind: zwei Laeufe im selben Vorspulschritt loeschen dieselbe Menge, der zweite
+   * findet nichts mehr — genau die Idempotenz, die `_lib/boot.ts:58-60` ausschreibt.
+   * Und eine eigene Protokollzeile je Lauf waere eine fuenfte Melde-Zeile, die der Plan
+   * nicht bestellt hat (Melde-Zeilen-Tafel, `briefs/KOPF.md:832-837`).
+   */
+  function mitLaufzaehler(db: DB): DB {
+    return new Proxy(db as object, {
+      get(ziel, name, empfaenger) {
+        if (name === "delete") dbHalter.deleteZugriffe += 1;
+        return Reflect.get(ziel, name, empfaenger);
+      },
+    }) as DB;
+  }
+
+  const laeufe = () => dbHalter.deleteZugriffe;
+
+  const infoZeilen = (anker: string) =>
+    vi
+      .mocked(console.info)
+      .mock.calls.flat()
+      .map((a) => String(a))
+      .filter((z) => z.includes(anker));
+
+  const warnText = () =>
+    vi
+      .mocked(console.warn)
+      .mock.calls.flat()
+      .map((a) => String(a))
+      .join("\n");
+
+  const fehlerText = () =>
+    vi
+      .mocked(console.error)
+      .mock.calls.flat()
+      .map((a) => String(a))
+      .join("\n");
+
+  const zeilen = () => taktSqlite.prepare("select count(*) as n from loans").get() as { n: number };
+
+  /** Eine ABGESCHLOSSENE Leihe — `returned_at` gesetzt und aelter als die Grenze. */
+  function schreibeAbgeschlosseneLeihe(id: string, zurueck: Date): void {
+    const db = dbHalter.db;
+    db.insert(loans)
+      .values({
+        id,
+        deviceId: "g-1",
+        snapshotCallSign: "Muehlheim 1/83",
+        borrowerName: "Seed Person",
+        borrowedAt: new Date("2026-01-01T10:00:00Z"),
+        returnedAt: zurueck,
+        createdAt: new Date("2026-01-01T10:00:00Z"),
+        updatedAt: new Date("2026-01-01T10:00:00Z"),
+      })
+      .run();
+  }
+
+  /** Aelter als jede Grenze, die in diesen Faellen vorkommt. */
+  const LAENGST_FAELLIG = new Date("2026-05-01T10:00:00Z");
+
+  beforeEach(() => {
+    taktTmp = mkdtempSync(join(tmpdir(), "radio-takt-"));
+    const frisch = frischeDb(join(taktTmp, "radio.db"));
+    taktSqlite = frisch.sqlite;
+    dbHalter.deleteZugriffe = 0;
+    dbHalter.db = mitLaufzaehler(frisch.db);
+    vi.useFakeTimers();
+    vi.setSystemTime(BASIS);
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    stoppeRadioHintergrund();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    try {
+      taktSqlite.close();
+    } catch {
+      // In `ein Fehler im Lauf …` ist das Handle absichtlich schon zu.
+    }
+    rmSync(taktTmp, { recursive: true, force: true });
+  });
+
+  it("die gefaelschte Uhr faelscht auch Date — sonst misst der Cutoff-Fall nichts", () => {
+    /*
+     * ⛔ GEMESSEN, NICHT ANGENOMMEN. Der Fall `der Cutoff wird bei jedem Lauf neu
+     * gerechnet` haengt vollstaendig daran, dass `new Date()` in `retentionGrenze`
+     * (`_lib/boot.ts:49`) der gefaelschten Uhr folgt — `raeumeLeihhistorie(getDb(),
+     * undefined, …)` reicht KEIN `jetzt` durch. Faelscht `vi.useFakeTimers()` in dieser
+     * vitest-Fassung `Date` nicht, ist jener Fall gruen oder rot aus Zufall und bewacht
+     * nichts. Diese Zeile ist die Sonde, die das entscheidet, und sie steht im Test statt
+     * in einem Bericht, weil ein Versionswechsel sie sonst still ueberholt.
+     */
+    expect(new Date().toISOString()).toBe("2026-08-15T12:00:00.000Z");
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+    expect(new Date().toISOString()).toBe("2026-08-16T12:00:00.000Z");
+  });
+
+  it("starteRadioHintergrund loescht beim Start NICHTS", () => {
+    /*
+     * ⛔ DIE REGRESSIONSSPERRE gegen den zurueckgebauten Sofort-Purge. Sie ist seit
+     * Planteil 1 ausdruecklich offen gefuehrt („das ist bewusst und steht hier, damit es
+     * niemand fuer vergessen haelt") und schliesst hier.
+     *
+     * ⚠️ Die Fixtur ist ABGESCHLOSSEN und laengst ueberfaellig — waere sie aktiv
+     * (`returned_at IS NULL`), bliebe sie ohnehin stehen und dieser Fall waere gruen,
+     * ohne irgendetwas zu messen. Der Gegenbeweis steht im Fall darunter: DIESELBE Leihe
+     * ist nach dem Erstlauf weg.
+     */
+    schreibeAbgeschlosseneLeihe("l-alt", LAENGST_FAELLIG);
+    starteRadioHintergrund(TAKT_ENV);
+    vi.advanceTimersByTime(0);
+    expect(laeufe()).toBe(0);
+    expect(zeilen().n).toBe(1);
+  });
+
+  it("nach RADIO_HISTORIE_ERSTLAUF_MINUTEN laeuft der erste Lauf", () => {
+    schreibeAbgeschlosseneLeihe("l-alt", LAENGST_FAELLIG);
+    starteRadioHintergrund(TAKT_ENV);
+    vi.advanceTimersByTime(ERSTLAUF_MS);
+    expect(laeufe()).toBe(1);
+    expect(zeilen().n).toBe(0);
+  });
+
+  it("RADIO_HISTORIE_PURGE=0 registriert gar keinen Timer", () => {
+    schreibeAbgeschlosseneLeihe("l-alt", LAENGST_FAELLIG);
+    starteRadioHintergrund({ ...TAKT_ENV, RADIO_HISTORIE_PURGE: "0" });
+
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(ERSTLAUF_MS + 30 * RADIO_HISTORIE_TAKT_MS);
+    expect(laeufe()).toBe(0);
+    expect(zeilen().n).toBe(1);
+    expect(infoZeilen("Retention abgeschaltet")).toHaveLength(1);
+  });
+
+  it("zweimaliger Aufruf startet nur einen Timer", () => {
+    /*
+     * ⛔ ZWEI FENSTER, UND DER PLAN NENNT NUR EINS. Zwischen Registrierung und Erstlauf
+     * haelt die ERSTLAUF-Uhr die Wache; danach die TAKT-Uhr. Weil Erstlauf (1440 min) und
+     * Takt (24 h) gleich lang sind, laegen "zwei Aufrufe und ein Takt" beide im ersten
+     * Fenster — die Wache ueber `purgeUhr` bliebe ungeprueft, und ihre Mutationssonde
+     * ergaebe 0 rot. Genau die ist die gefaehrlichere: die Takt-Uhr lebt den ganzen
+     * Prozess, und jeder Lauf ist ein LOESCHEREIGNIS.
+     *
+     * ⛔ WAS DIESE WACHE NICHT LEISTET: sie faengt wiederholte Aufrufe in DERSELBEN
+     * Modulinstanz. Ein Hot Reload, der das Modul NEU instanziiert, setzt die beiden
+     * Modul-`let` wieder auf `undefined` und ist davon NICHT gedeckt — siehe den
+     * Quelltextkommentar bei der Wache.
+     */
+    // Fenster 1 — die Erstlauf-Uhr.
+    starteRadioHintergrund(TAKT_ENV);
+    starteRadioHintergrund(TAKT_ENV);
+    expect(vi.getTimerCount()).toBe(1);
+
+    vi.advanceTimersByTime(ERSTLAUF_MS);
+    expect(laeufe()).toBe(1);
+
+    // Fenster 2 — jetzt haelt die Takt-Uhr die Wache.
+    starteRadioHintergrund(TAKT_ENV);
+    expect(vi.getTimerCount()).toBe(1);
+
+    vi.advanceTimersByTime(RADIO_HISTORIE_TAKT_MS);
+    expect(laeufe()).toBe(2);
+  });
+
+  it("ein Fehler im Lauf wirft nicht aus dem Takt heraus", () => {
+    starteRadioHintergrund(TAKT_ENV);
+
+    // Eine geschlossene Verbindung — der Lauf scheitert, der Takt nicht.
+    taktSqlite.close();
+    expect(() => vi.advanceTimersByTime(ERSTLAUF_MS)).not.toThrow();
+    expect(fehlerText()).toContain("[radio]");
+    expect(vi.getTimerCount()).toBe(1);
+
+    /*
+     * ⛔ DER TAKT LAEUFT WEITER, und das ist die eigentliche Zusage: ein Fehler in EINEM
+     * Lauf darf die Loeschrichtlinie nicht fuer den Rest der Prozesslaufzeit anhalten.
+     * Gemessen an einem frischen Handle und einem zweiten Takt.
+     */
+    const zweit = frischeDb(join(taktTmp, "radio-zwei.db"));
+    taktSqlite = zweit.sqlite;
+    dbHalter.db = mitLaufzaehler(zweit.db);
+    schreibeAbgeschlosseneLeihe("l-alt", LAENGST_FAELLIG);
+    vi.advanceTimersByTime(RADIO_HISTORIE_TAKT_MS);
+    expect(zeilen().n).toBe(0);
+  });
+
+  it("die console.info-Zeile steht bei JEDEM Start, nicht nur beim ersten", () => {
+    /*
+     * ⛔ SONST IST EIN NACH DEM CUTOVER-FENSTER VERGESSENES `RADIO_HISTORIE_PURGE=0` ein
+     * STILLER Verlust der Loeschrichtlinie — und die ist der DSGVO-Grund dafuer, dass
+     * `borrower_name` ueberhaupt gespeichert werden darf.
+     *
+     * ⛔ `info` UND NICHT `warn`: `warn` = Stopp, `info` = Zustand. Der Cutover schaltet
+     * die Retention VORGESCHRIEBEN ab (Runbook §4.6 Nr. 9); ein `warn` machte diesen
+     * vorgeschriebenen Zustand zur eigenen Stopp-Bedingung des Runbooks.
+     */
+    const env = { ...TAKT_ENV, RADIO_HISTORIE_PURGE: "0" };
+    stoppeRadioHintergrund();
+    starteRadioHintergrund(env);
+    stoppeRadioHintergrund();
+    starteRadioHintergrund(env);
+
+    expect(infoZeilen("Retention abgeschaltet")).toHaveLength(2);
+    expect(warnText()).not.toContain("Retention abgeschaltet");
+  });
+
+  it("der Cutoff wird bei jedem Lauf neu gerechnet", () => {
+    /*
+     * ⛔ EIN PROZESS LAEUFT WOCHENLANG. Ein beim Registrieren gemerkter Cutoff bliebe auf
+     * dem Startzeitpunkt stehen, und die Richtlinie liefe still aus dem Takt: nach einem
+     * Monat Laufzeit loeschte der Takt Leihen, die einen Monat zu alt sind, statt zwei.
+     *
+     * Die Rechnung, gegen `BASIS` = 2026-08-15T12:00Z:
+     *   Erstlauf  t+24h = 2026-08-16T12:00Z -> Grenze 2026-06-16T12:00Z
+     *   Zweiter   t+48h = 2026-08-17T12:00Z -> Grenze 2026-06-17T12:00Z
+     * Die Fixtur liegt mit 2026-06-16T18:00Z dazwischen: beim ersten Lauf INNERHALB der
+     * Frist, beim zweiten davor.
+     */
+    schreibeAbgeschlosseneLeihe("l-knapp", new Date("2026-06-16T18:00:00Z"));
+    starteRadioHintergrund(TAKT_ENV);
+
+    vi.advanceTimersByTime(ERSTLAUF_MS);
+    expect(laeufe()).toBe(1);
+    expect(zeilen().n).toBe(1);
+
+    vi.advanceTimersByTime(RADIO_HISTORIE_TAKT_MS);
+    expect(laeufe()).toBe(2);
+    expect(zeilen().n).toBe(0);
+  });
+
+  it("die Bestandswarnung steht hinter dem Host-Schalter, der Timer NICHT", () => {
+    /*
+     * ⛔ DIE SONDE FUER B5, und sie ist die schaerfste Stelle dieser Aufgabe. Eine
+     * vergessene `SUITE_HOST_RADIO` darf die Bestandswarnung verstummen lassen — eine
+     * Warnung ueber einen Bestand, den dieser Container gar nicht bedient, ist Laerm.
+     * Sie darf aber NIEMALS die Loeschrichtlinie mit abschalten: der Takt braucht keine
+     * Konfiguration, nur die Tabelle, und ein Riegel darauf waere ein STILLER Verlust
+     * genau der Richtlinie, die `borrower_name` rechtfertigt. Der Abschalter heisst
+     * `RADIO_HISTORIE_PURGE=0` und ist bei jedem Start laut.
+     */
+    // Haelfte 1 — MIT Host: die Warnung steht. Ohne diesen Anker misst Haelfte 2 nichts.
+    starteRadioHintergrund(TAKT_ENV);
+    expect(warnText()).toContain("devices");
+    stoppeRadioHintergrund();
+    vi.mocked(console.warn).mockClear();
+
+    // Haelfte 2 — OHNE Host: keine Warnung, aber der Takt loescht trotzdem.
+    schreibeAbgeschlosseneLeihe("l-alt", LAENGST_FAELLIG);
+    starteRadioHintergrund({});
+    expect(warnText()).toBe("");
+
+    vi.advanceTimersByTime(ERSTLAUF_MS);
+    expect(laeufe()).toBe(1);
+    expect(zeilen().n).toBe(0);
+  });
+
+  it("stoppeRadioHintergrund macht einen erneuten Start wieder moeglich", () => {
+    /*
+     * Ohne diese Zusage ueberlebte der Modulzustand den einzelnen Fall, und alle Faelle
+     * oben waeren reihenfolgeabhaengig — der zweite Aufruf liefe stumm in die HMR-Wache.
+     */
+    starteRadioHintergrund(TAKT_ENV);
+    expect(vi.getTimerCount()).toBe(1);
+
+    stoppeRadioHintergrund();
+    expect(vi.getTimerCount()).toBe(0);
+
+    schreibeAbgeschlosseneLeihe("l-alt", LAENGST_FAELLIG);
+    starteRadioHintergrund(TAKT_ENV);
+    vi.advanceTimersByTime(ERSTLAUF_MS);
+    expect(laeufe()).toBe(1);
+    expect(zeilen().n).toBe(0);
+  });
+
+  it("die Bestandswarnung schweigt, sobald ein Geraet im Bestand steht", () => {
+    /*
+     * Die Gegenrichtung zu Haelfte 1 oben — ohne sie waere die Warnung eine Konstante,
+     * die bei JEDEM Start feuert, und der Runbook-Blick auf „keine [radio]-WARNUNG"
+     * koennte nie bestehen. `devices` ist die Tabelle, die der Import fuellt.
+     */
+    dbHalter.db
+      .insert(devices)
+      .values({
+        id: "g-1",
+        issi: "1234567",
+        rufname: "Muehlheim 1/83",
+        createdAt: new Date("2026-01-01T10:00:00Z"),
+        updatedAt: new Date("2026-01-01T10:00:00Z"),
+      })
+      .run();
+
+    starteRadioHintergrund(TAKT_ENV);
+    expect(warnText()).toBe("");
   });
 });
