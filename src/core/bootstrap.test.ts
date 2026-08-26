@@ -393,9 +393,20 @@ describe("die Reihenfolge im Boot (src/instrumentation.ts)", () => {
  *       Importpfaden, `migrationsFolder`-Zeichenketten und Kommentaren);
  *       die Reparatur haette hier also nichts zu reparieren.
  *   (b) Alle Zusicherungen dieses Blocks sind POSITIV („der Aufruf steht da").
- *       Ein zu aggressiver Schnitt entfernte echte Zeilen und machte den Test
+ *       Ein zu AGGRESSIVER Schnitt entfernte echte Zeilen und machte den Test
  *       ROT, nicht still gruen — das ist der UMGEKEHRTE Fall zu jener
  *       Blindstelle, die an NEGATIVEN Zusicherungen still weniger fand.
+ *
+ * ⚠️ (a) UND (b) SAGEN, WARUM DER EINFACHE FILTER HIER ERLAUBT IST — SIE SAGEN
+ * NICHT, DASS ER AUSREICHT, UND GEMESSEN TUT ER DAS NICHT. Sie decken nur die
+ * zu aggressive Richtung ab. Die zu WENIG aggressive bleibt offen: der Filter
+ * kennt allein die Zeilenform `//`. Ein Aufruf, der mit den zwei Block-Marken
+ * stillgelegt wird, ueberlebt ihn und geht als wirksam durch — nachgemessen am
+ * 2026-08-26 (Fix-Runde 1 zu G3), zweimal 23/23 GRUEN, an
+ * `src/core/bootstrap.ts:103` und an `:138`.
+ * ⛔ DESHALB WIRD DIESE LUECKE UNTEN NICHT BESCHRIEBEN, SONDERN ZUGESICHERT WEG:
+ * der letzte Fall dieses Blocks verbietet in den zwei gelesenen Ausschnitten
+ * jeden Blockkommentar. Der Schnitt bleibt der einfache, die Luecke wird laut.
  *
  * ⛔ UND DIESER BLOCK IMPORTIERT NICHTS AUS `src/app/m/radio/_lib/quelltextScan.ts`.
  * Ein Kern-Test, der seine Mechanik aus EINEM Modul zieht, machte diesen Helfer
@@ -454,6 +465,26 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
    * `startBackgroundWork()`, sondern wird von `starteFilesHintergrund` gerufen
    * (`src/app/m/files/_lib/boot.ts:139`). Diese Klausel waere rot by construction.
    * Die Ausnahme faengt stattdessen Klausel (IIb) unten, ohne die Menge zu weiten.
+   *
+   * ⬜ BENANNTE GRENZE, ZWEITE HAELFTE — DAS SUFFIX. Diese Menge sieht nur, was
+   * auf `Hintergrund` oder `Arbeiter` endet. Ein exportierter Starter mit einem
+   * DRITTEN Suffix, der NIRGENDS eingehaengt wird, ist fuer alle Klauseln
+   * unsichtbar: (IIa) findet ihn nicht, und (IIb) zaehlt nur, was ohnehin schon
+   * im Rumpf steht. Gemessen am 2026-08-26 (Fix-Runde 1 zu G3): ein
+   * `export function starteRadioTimer(): void {}` in
+   * `src/app/m/radio/_lib/boot.ts`, NICHT eingehaengt, laesst alle Faelle gruen.
+   *
+   * ⛔ UND WARUM DIE VERENGUNG TROTZDEM BLEIBT — auch das gemessen, nicht
+   * angenommen. Die naheliegende Weitung „alles, was mit `starte` beginnt"
+   * waere heute gruen (ueber die drei `_lib/boot.ts` ist `starteFilesHintergrund`
+   * der EINZIGE exportierte `starte*`-Name), aber sie stuende einen `export` weit
+   * von rot BY CONSTRUCTION: `starteAufraeumTimer`
+   * (`src/app/m/files/_lib/boot.ts:173`) liegt in einer GESCANNTEN Datei und wird
+   * NICHT aus `startBackgroundWork()` gerufen, sondern aus `starteFilesHintergrund`
+   * (`:140`). Heute rettet uns allein, dass sie nicht exportiert ist — also
+   * dieselbe Falle, wegen der schon der Gegenvorschlag `_lib/<datei>.ts` oben
+   * verworfen wurde. Wer die Konvention um ein Suffix erweitert, weitet ZUERST
+   * diesen Filter und probt ihn mit einer nicht eingehaengten Funktion.
    */
   const hintergrundStarter = exportierteFunktionen.filter(
     (name) =>
@@ -510,7 +541,14 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
     (treffer) => treffer[1].split(",").map((teil) => teil.trim()),
   );
 
-  it("jeder Modul-Boot-Haken ist in assertHostConfig eingehaengt", () => {
+  it("jeder Modul-Boot-Haken kommt in bootstrap.ts ueberhaupt vor", () => {
+    // ⚠️ DIESER FALL HAT KEINE EIGENE TRENNSCHAERFE, und der Name sagt es jetzt:
+    // geprueft wird `QUELLE`, also die ganze Datei, nicht `assertHostConfig()`.
+    // Weil `errorsBlock` ein Ausschnitt von `QUELLE` ist, gilt „Fall unten gruen
+    // ⟹ dieser Fall gruen" — er kann nie ALLEIN fehlschlagen. Er bleibt, weil er
+    // bei einem GANZ fehlenden Haken die lesbarere Meldung liefert; die
+    // eigentliche Zusage traegt der Fall darunter. (Der alte Name behauptete
+    // „ist in assertHostConfig eingehaengt" und pruefte das nicht.)
     for (const haken of bootHaken) {
       expect(QUELLE, `${haken} fehlt in bootstrap.ts`).toContain(haken);
     }
@@ -523,6 +561,8 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
     // von assertHostConfig fuer `files` ausschreibt. Geprueft wird gegen
     // `errorsBlock`, nicht gegen `QUELLE`: ein auskommentierter Aufruf ist im
     // Quelltext lesbar, aber wirkungslos, und darf hier nicht bestehen.
+    // ⚠️ Der Filter dahinter kennt nur die Zeilenform `//`; die Blockform faengt
+    // der letzte Fall dieses Blocks, nicht dieser hier.
     for (const haken of bootHaken) {
       expect(errorsBlock, `${haken}: kein wirksames "...(await ${haken}())" im errors-Array`)
         .toContain(`...(await ${haken}())`);
@@ -541,9 +581,13 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * `lagerbuchBootFehler` (`src/app/m/lagerbuch/_lib/boot.ts:42`),
      * `radioBootFehler` (`src/app/m/radio/_lib/boot.ts:226`).
      *
-     * ⛔ `toBe`, nie `toBeGreaterThanOrEqual`: „ein Waechter, der `>= 5` statt
-     * `= 6` prueft, bleibt gruen und bewacht nichts"
-     * (`src/app/m/radio/riegel.test.ts:98-100`).
+     * ⛔ `toBe`, nie `toBeGreaterThanOrEqual`. Woertlich, und nur so weit reicht
+     * das Zitat: „ein Waechter, der `>= 5` statt `= 6` prueft, bleibt gruen"
+     * (`src/app/m/radio/riegel.test.ts:99-100`). Der Halbsatz „und bewacht
+     * nichts" steht dort im UMGEBENDEN Satz (`:98-99`: „eine Klausel ohne
+     * Untergrenze ueber einer leeren Menge ist leer-gruen und bewacht nichts"),
+     * nicht in der Klammer — hier getrennt, damit die Anfuehrungszeichen keine
+     * Woertlichkeit behaupten, die nicht besteht.
      */
     expect(bootHaken.length).toBe(3);
   });
@@ -592,6 +636,53 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
       expect(importierteNamen, `${name}: kein benannter Import in bootstrap.ts`).toContain(name);
     }
     expect(starterAufrufe.length).toBe(2);
+  });
+
+  it("kein Blockkommentar in den zwei gelesenen Ausschnitten, denn der Filter kennt nur //", () => {
+    /*
+     * ⛔ DIE LUECKE DES ZEILENFILTERS — ZUGESICHERT WEG STATT BESCHRIEBEN.
+     * `errorsBlock` und `hintergrundRumpf` schneiden Kommentare ueber
+     * `zeile.trim().startsWith("//")`. Der Schnitt kennt damit NUR die
+     * Zeilenform. Ein Aufruf, der mit den zwei Block-Marken stillgelegt wird,
+     * ueberlebt ihn: die Zeichenkette steht weiter im Ausschnitt, die Klauseln
+     * (I), (IIa) und (IIb) finden sie und melden GRUEN, obwohl der Aufruf
+     * wirkungslos ist. Gemessen am 2026-08-26 (Fix-Runde 1 zu G3), zweimal
+     * 23/23 gruen: `src/core/bootstrap.ts:103` und `:138` je als Blockkommentar.
+     *
+     * ⛔ WARUM NICHT DER SCHNITT ERWEITERT WIRD: der Auftrag laesst hier
+     * ausdruecklich den einfachen Zeilenfilter (siehe Kopfkommentar (a)/(b)),
+     * und ein selbst gebauter Kommentarschnitt in einem KERN-Test waere genau
+     * der Nachbau, den `briefs/KOPF.md:203-215` verbietet — der geteilte
+     * Baustein liegt in `src/app/m/radio/_lib/quelltextScan.ts` und darf von
+     * hier nicht importiert werden. Diese Zusicherung loest es andersherum: der
+     * Ausschnitt DARF ueberhaupt keinen Blockkommentar tragen. Wer einen
+     * einfuegt, bekommt einen LAUTEN Fehlschlag statt eines stillen Durchlaufs
+     * — die Richtung aus `quelltextScan.ts:55-59` („ein Scan darf
+     * falsch-positiv sein und laut, nie falsch-negativ und still").
+     *
+     * ⛔ UND ER IST NICHT LEER-GRUEN. Beide Ausschnitte kommen aus `QUELLE`
+     * (`src/core/bootstrap.ts`, unmittelbar gelesen) und ihre Anker WERFEN,
+     * wenn sie nicht treffen. Ein falscher Glob — die Mutation, die die Mengen
+     * oben leert — laesst sie unberuehrt.
+     *
+     * ⬜ BENANNTE GRENZE: geprueft werden die zwei AUSSCHNITTE, nicht die ganze
+     * Datei. Ein Blockkommentar ausserhalb von `const errors = [ … ];` und
+     * ausserhalb des Rumpfs von `startBackgroundWork()` bleibt erlaubt — dort
+     * steht heute die Mehrzahl der Kommentare dieser Datei, etwa der JSDoc-Kopf
+     * auf `src/core/bootstrap.ts:125-133`.
+     */
+    const ausschnitte = [
+      ["errors-Array in assertHostConfig()", errorsBlock],
+      ["Rumpf von startBackgroundWork()", hintergrundRumpf],
+    ] as const;
+    for (const [wo, ausschnitt] of ausschnitte) {
+      for (const marke of ["/" + "*", "*" + "/"]) {
+        expect(
+          ausschnitt,
+          `${wo}: Blockkommentar-Marke ${marke} gefunden — der Zeilenfilter dieses Blocks kennt sie nicht, ein so stillgelegter Aufruf wuerde still als wirksam durchgehen`,
+        ).not.toContain(marke);
+      }
+    }
   });
 
   /*
