@@ -61,7 +61,7 @@ import "../../druck.css";
  * ⬜ **UND HIER STEHT EINE BENANNTE LEERSTELLE STATT EINES ERFUNDENEN HOSTS.**
  * `moduleUrl("radio")` liest ueber `prodHostsFor()` aus `SUITE_HOST_RADIO`
  * (`src/core/shell/moduleUrl.ts:11-13`), und die Registry fuehrt fuer `radio`
- * `prodHosts: []` (`src/core/registry.ts:198`). ⛔ **In Produktion und VOR dem Cutover ist
+ * `prodHosts: []` (`src/core/registry.ts:199`). ⛔ **In Produktion und VOR dem Cutover ist
  * der Wert deshalb `null`** — dann zeigt diese Seite den benannten Zustand unten, statt einen
  * plausibel aussehenden Host in die Pixel eines QR-Codes zu schreiben. Der Wert selbst ist
  * ⬜ **V-L2 / E1** (Betreiber, vor Cut 26; `.superpowers/sdd/planteil4/progress.md`).
@@ -82,9 +82,9 @@ const BLATT_TEXTE = {
   titel: "Zugänge zur Funkgeräte-Ausleihe",
   /**
    * ⛔ ER STEHT AUF DEM PAPIER UND ERKLAERT DEN BOGEN DEM, DER IHN AUFHAENGT. Ohne ihn ist ein
-   * QR-Code ohne Kontext, und der Alt-Kiosk hat genau daran gelitten: seine Codes trugen den
-   * geteilten Token als URL-Parameter und niemand wusste, welcher Aufsteller welchen fuehrt
-   * (`Spec:7025`).
+   * QR-Code ohne Kontext. ⚠️ Was am Alt-Kiosk BELEGT ist, ist die Papierseite des Problems,
+   * und nur sie: seine Codes trugen den geteilten Token als URL-Parameter, und „Nichts im
+   * Repo weiß, wie viele Kärtchen im Umlauf sind" (`Spec:7025`, woertlich).
    */
   anleitung:
     "QR-Code scannen oder den Code auf der Startseite eingeben. Ein gesperrter Zugang steht nicht auf diesem Bogen.",

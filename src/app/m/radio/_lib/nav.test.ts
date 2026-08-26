@@ -36,11 +36,11 @@ import { VERWALTUNGS_PFADE } from "./routen";
  * steht hier nur der Vollstaendigkeit halber: die Zusage lautet „kein sichtbarer Eintrag
  * fuehrt auf eine Seite der hoeheren Stufe", nicht „kein Eintrag ist das Blatt".
  *
- * ⚠️ DIESE LISTE IST EINE ZWEITSCHRIFT DER RECHTESTUFEN-TAFEL, und sie ist es bewusst:
- * die zehn `page.tsx` entstehen erst in V12–V21, es gibt heute keine Datei, gegen die
- * man scannen koennte. Der Waechter ueber der Tafel selbst ist die namentliche
- * Zusicherung in `riegel.test.ts` (Klausel (a), „die zwei Huellen tragen JE IHRE Stufe")
- * und, ab V18/V19/V20, je Seite eine weitere.
+ * ⚠️ DIESE LISTE IST EINE ZWEITSCHRIFT DER RECHTESTUFEN-TAFEL, und sie bleibt es bewusst.
+ * ⛔ IHRE ALTE BEGRUENDUNG („die zehn `page.tsx` entstehen erst in V12–V21, es gibt heute
+ * keine Datei, gegen die man scannen koennte") IST SEIT V21 UEBERHOLT: alle zehn stehen,
+ * und `admin/actions.test.ts` FINDET die Admin-Stufen-Menge mechanisch (Fall „genau VIER
+ * Verwaltungsseiten nennen requireRadioAdmin"). ⬜ Die Kopplung der zwei Tafeln: ClickUp.
  */
 const NUR_ADMIN_SEITEN = [
   "/admin/import",

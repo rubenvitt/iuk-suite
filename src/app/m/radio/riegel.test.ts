@@ -1293,26 +1293,46 @@ describe("(h) wer die Codeliste im Klartext liest, traegt die Admin-Stufe", () =
    * dass die Admin-Stufe ueberhaupt vorkommt — die Zusage aus ⬜ V20-L2, woertlich.
    */
   /**
-   * ⛔ DER WERT-IMPORT VON `codesListe`, NICHT JEDER IMPORT AUS DEM MODUL — und das ist eine
-   * GEMESSENE Verschaerfung des Zuschnitts, keine Bequemlichkeit (2026-08-26, zweiter Lauf
-   * dieser Klausel). Die erste Fassung suchte `from ".../lesepfade/codes"` und meldete
-   * `admin/(arbeit)/zugaenge/CodeTabelle.tsx` als Verstoss: die Insel zieht von dort NUR den
-   * Typ `CodeZeile`. ⛔ EIN TYP IST KEIN LESER — er wird vom Uebersetzer geloescht, ruehrt
-   * keine Datenbank an und kann in einer `"use client"`-Datei gar keinen Riegel rufen. Die
-   * Zeilen bekommt die Insel als Props von der Server-Seite, und DIE traegt den Riegel.
-   * ⚠️ Der Ausdruck faengt deshalb `import { codesListe }` und `import { codesListe, type … }`,
-   * aber nicht `import type { CodeZeile }`.
+   * ⛔ ZWEI FRAGEN NACHEINANDER, NICHT EINE IMPORTFORM — und das ist eine GEMESSENE
+   * Verschaerfung (Fix-Runde 1 zu V21, Fund F1). Die erste Fassung zaehlte die IMPORTFORM
+   * auf (`import\s+(?!type)\{…\}\s*from\s*"…codes"`) und war damit dieselbe Fehlerklasse
+   * eine Ebene tiefer, gegen die R-V11-1 steht. ⛔ GEMESSEN AM 2026-08-26, je eine neue
+   * Serverdatei OHNE jeden Riegel: `import * as lesepfad from "./_lib/lesepfade/codes"` +
+   * `lesepfad.codesListe(db)` → `riegel.test.ts` **25 passed, 0 rot**; derselbe Zugriff ueber
+   * `const { codesListe } = await import("./_lib/lesepfade/codes")` → ebenfalls **0 rot**.
+   * Die mehrzeilige benannte Form war die einzige, die die alte Fassung fing.
+   *
+   * ⛔ FRAGE 1 — MEINT DIE DATEI DIESEN LESEPFAD? Der Modul-Spezifizierer wird ueber
+   * `ohneKommentare` gesucht, denn er IST eine Zeichenkette und `bereinigt` leerte ihn.
+   * `from`, ein nacktes `import "…"`, `import("…")` und `require("…")` sind damit in EINEM
+   * Ausdruck gefangen, ohne dass die Klammerform je gelesen wird.
+   *
+   * ⛔ FRAGE 2 — NENNT SIE DEN WERT? `codesListe` wird ueber `bereinigt` gesucht, damit ein
+   * blosses Vorkommen in einer Zeichenkette nicht zaehlt. ⛔ HIER FAELLT DER TYP-IMPORT
+   * HERAUS, OHNE IHN AUSNEHMEN ZU MUESSEN: `admin/(arbeit)/zugaenge/CodeTabelle.tsx` zieht
+   * `import type { CodeZeile }` — der Spezifizierer trifft, der Bezeichner `codesListe`
+   * kommt in der Datei nicht vor. EIN TYP IST KEIN LESER (er wird vom Uebersetzer geloescht,
+   * ruehrt keine Datenbank an und kann in einer `"use client"`-Datei gar keinen Riegel
+   * rufen); die Zeilen bekommt die Insel als Props von der Server-Seite, und DIE riegelt.
+   *
+   * ⚠️ WAS AUCH DIESE FASSUNG NICHT SIEHT, benannt statt verschwiegen:
+   *   1. `export * from "./codes"` — ein Weiterreichen OHNE den Bezeichner zu nennen.
+   *   2. Ein `_lib`-Baustein, der `codesListe` KAPSELT und unter eigenem Namen anbietet:
+   *      die aufrufende Flaeche nennt dann weder Spezifizierer noch Bezeichner. Das ist die
+   *      transitive Klasse; die Zusage aus ⬜ V20-L2 lautet woertlich „wer `codesListe`
+   *      IMPORTIERT", und mehr behauptet dieser Fall nicht.
+   *   3. Ein Geschwister in `_lib/lesepfade/` mit `from "./codes"` (ohne `_lib/` im Pfad).
+   *      ⛔ Absichtlich: eine Datei unter `_lib/` KANN diese Klausel gar nicht erfuellen —
+   *      sie ruft keinen Riegel (Falle 6) —, ein Treffer dort waere ein unbehebbarer
+   *      Verstoss statt eines Fundes. Sie faellt unter Punkt 2.
    */
-  const WERT_IMPORT_CODES =
-    /import\s+(?!type\b)\{([^}]*)\}\s*from\s*["'][^"']*_lib\/lesepfade\/codes["']/g;
+  const SPEZIFIZIERER_CODES =
+    /(?:\bfrom|\bimport|\brequire)\s*\(?\s*["'][^"']*_lib\/lesepfade\/codes["']/;
 
-  /** Nennt die Klammerliste eines Import-Ausdrucks `codesListe` als WERT (nicht als Typ)? */
-  function liestCodesListe(quelle: string): boolean {
-    for (const treffer of quelle.matchAll(WERT_IMPORT_CODES)) {
-      const namen = treffer[1]!.split(",").map((teil) => teil.trim());
-      if (namen.some((n) => /^codesListe\b/.test(n))) return true;
-    }
-    return false;
+  /** Meint die Datei den Lesepfad UND nennt sie `codesListe` als Wert? */
+  function liestCodesListe(roh: string): boolean {
+    if (!SPEZIFIZIERER_CODES.test(ohneKommentare(roh))) return false;
+    return /\bcodesListe\b/.test(bereinigt(roh));
   }
 
   /**
@@ -1331,20 +1351,18 @@ describe("(h) wer die Codeliste im Klartext liest, traegt die Admin-Stufe", () =
      * ein Lesepfad ruft aber keinen Riegel (Falle 6, und `riegel.test.ts` verbietet unter
      * `_lib/` ohnehin beide Bauform-Direktiven). Der Import ist die Aufruferklasse.
      *
-     * ⛔ ZWEI BEREINIGUNGSSTUFEN, UND DIE TEILUNG IST GEMESSEN: der IMPORT wird ueber
-     * `ohneKommentare` gesucht, weil `bereinigt` jede Zeichenkette LEERT — mit ihm fand der
-     * Scan NULL Leser und der Fall war rot-by-construction (2026-08-26, erster Lauf dieser
-     * Klausel). Der RIEGEL wird ueber `bereinigt` geprueft, damit ein blosses
-     * `"requireRadioAdmin("` in einer Zeichenkette die Zusage nicht erfuellt.
+     * ⛔ ZWEI BEREINIGUNGSSTUFEN, UND DIE TEILUNG IST GEMESSEN — sie steht jetzt in
+     * `liestCodesListe` oben: der SPEZIFIZIERER braucht `ohneKommentare`, weil `bereinigt`
+     * jede Zeichenkette LEERT (mit ihm fand der Scan NULL Leser und der Fall war
+     * rot-by-construction, 2026-08-26, erster Lauf). Der RIEGEL unten laeuft ueber
+     * `bereinigt`, damit ein `"requireRadioAdmin("` in einer Zeichenkette nichts erfuellt.
      *
      * ⚠️ TESTDATEIEN SIND UEBER `quellDateien()` AUSGENOMMEN (`riegel.test.ts:144-159`):
      * `_lib/lesepfade/codes.test.ts` importiert `codesListe` und nennt keinen Riegel — als
      * Leser gezaehlt waere diese Klausel rot-by-construction. Testdateien werden nicht
      * ausgeliefert.
      */
-    const leser = quellDateien().filter((pfad) =>
-      liestCodesListe(ohneKommentare(readFileSync(pfad, "utf8"))),
-    );
+    const leser = quellDateien().filter((pfad) => liestCodesListe(readFileSync(pfad, "utf8")));
 
     expect(
       leser.length,

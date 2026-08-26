@@ -104,7 +104,6 @@ const SEITEN_TEXTE = {
   blattLink: "Druckblatt mit den QR-Codes der aktiven Zugänge",
 } as const;
 
-
 export default async function RadioZugaengeSeite() {
   await requireRadioAdmin();
 

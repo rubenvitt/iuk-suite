@@ -71,7 +71,7 @@ vi.mock("../../../../_db/client", () => ({
 /*
  * ⛔ `moduleUrl` WIRD ERSETZT, WEIL BEIDE ZWEIGE GEPRUEFT WERDEN MUESSEN: mit gesetzter
  * Basis und ohne. Der `null`-Zweig ist KEIN Randfall, sondern der Zustand VOR dem Cutover —
- * die Registry fuehrt fuer `radio` `prodHosts: []` (`src/core/registry.ts:198`), und in
+ * die Registry fuehrt fuer `radio` `prodHosts: []` (`src/core/registry.ts:199`), und in
  * Produktion liefert `moduleUrl` dann `null` (`src/core/shell/moduleUrl.ts:19-22`).
  */
 vi.mock("@/core/shell/moduleUrl", () => ({
@@ -146,6 +146,27 @@ function zieleImBaum(wert: ReactNode): string[] {
   const eigen = typeof props.href === "string" ? [props.href] : [];
   const kinder = Object.values(props) as ReactNode[];
   return [...eigen, ...kinder.flatMap(zieleImBaum)];
+}
+
+/**
+ * JEDES Element des Baumes, die Wurzel eingeschlossen. ⛔ UEBER ALLE PROPS, wie oben.
+ *
+ * ⛔ ER TRAEGT DIE DREI ZUSICHERUNGEN, DIE MARKUP UND STYLESHEET ANEINANDER BINDEN
+ * (Fix-Runde 1 zu V21, Funde F2 und F3). Ohne sie steht jede `className` dieser Seite an
+ * NICHTS: `druck.css` nennt zehn `.rd-*`-Namen, das Markup nennt zehn — und keine Messung
+ * hielt die zwei Listen zusammen.
+ */
+function alleElemente(wert: ReactNode): ReactElement[] {
+  if (Array.isArray(wert)) return wert.flatMap(alleElemente);
+  if (!isValidElement(wert)) return [];
+  const kinder = Object.values(wert.props as Record<string, unknown>) as ReactNode[];
+  return [wert, ...kinder.flatMap(alleElemente)];
+}
+
+/** Die Einzelnamen der `className` eines Elements. */
+function klassenVon(element: ReactElement): string[] {
+  const wert = (element.props as { className?: unknown }).className;
+  return typeof wert === "string" ? wert.split(/\s+/).filter(Boolean) : [];
 }
 
 /** Der reine Text eines Teilbaums. */
@@ -238,7 +259,7 @@ describe("das Druckblatt an /admin/zugaenge/blatt", () => {
     /*
      * ⬜ DIE BENANNTE LEERSTELLE ⬜ V-L2 / E1 IN IHRER GEBAUTEN FORM. `moduleUrl("radio")`
      * liest aus `SUITE_HOST_RADIO` (`src/core/shell/moduleUrl.ts:11-13`), die Registry fuehrt
-     * `prodHosts: []` (`src/core/registry.ts:198`) — vor dem Cutover ist der Wert in
+     * `prodHosts: []` (`src/core/registry.ts:199`) — vor dem Cutover ist der Wert in
      * Produktion `null`.
      *
      * ⛔ EIN RUECKFALL AUF DEN ANGEFRAGTEN HOST WAERE DIE ERFINDUNG, GEGEN DIE DIE EISERNE
@@ -289,6 +310,38 @@ describe("das Druckblatt an /admin/zugaenge/blatt", () => {
     const ziele = zieleImBaum(baum);
     expect(ziele, "der Rueckweg ist kein anklickbares Ziel").toContain("/admin/zugaenge");
     expect(text(baum)).toContain("Zurück zur Zugangsverwaltung");
+  });
+
+  it("der Rueckweg steht im nicht druckenden Block — und der verschluckt nichts anderes", async () => {
+    /*
+     * ⛔ FUND **F2** DER FIX-RUNDE 1 ZU V21, UND ER IST DIE AUFLAGE, AN DER DER BRIEF DIE
+     * GANZE AUFGABE AUFHAENGT: „KEINE Insel — braeuchte sie eine, waere das ein Zeichen, dass
+     * etwas Interaktives auf dem Papier gelandet ist" (`briefs/V21.md:14-15`). Das
+     * Stylesheet blendet `.rd-nichtDrucken` im Druck aus (Fall unten,
+     * `.rd-nichtDrucken{display:none!important}`) — aber NICHTS band diese Regel an das
+     * Markup. ⛔ GEMESSEN AM 2026-08-26, je vor dieser Zusicherung:
+     *   X1  `className="rd-nichtDrucken"` am `<p>` ENTFERNT          → 58 passed, 0 rot
+     *   X3  dieselbe Klasse auf das `<h1 class="rd-titel">` VERSCHOBEN → 58 passed, 0 rot
+     * Beide Male druckt der Rueckweg-Link auf dem Bogen mit, X3 zusaetzlich ohne Titel.
+     *
+     * ⛔ DREI HAELFTEN, UND JEDE FAENGT EINE ANDERE MUTATION: GENAU EIN Traeger (Loeschung),
+     * der Rueckweg-Link LIEGT DARIN (Verschiebung nach oben), und Titel wie Karten liegen
+     * NICHT darin (Verschiebung auf die Wurzel — dann bliebe der ganze Bogen ungedruckt).
+     */
+    zugang({ id: "z1", code: "AAAA-1111", bezeichnung: "Halle", createdAt: new Date("2026-05-01T10:00:00Z") });
+
+    const baum = await seite();
+    const versteckt = alleElemente(baum).filter((el) => klassenVon(el).includes("rd-nichtDrucken"));
+    expect(versteckt.length, "nicht genau ein Traeger von rd-nichtDrucken").toBe(1);
+    expect(
+      zieleImBaum(versteckt[0]!),
+      "der Rueckweg-Link liegt NICHT im nicht druckenden Block — er druckt mit",
+    ).toContain("/admin/zugaenge");
+    const verschluckt = alleElemente(versteckt[0]!).flatMap(klassenVon);
+    expect(
+      verschluckt.filter((k) => k === "rd-titel" || k === "rd-karte"),
+      "der nicht druckende Block verschluckt Titel oder Karten — der Bogen bliebe leer",
+    ).toEqual([]);
   });
 });
 
@@ -450,7 +503,7 @@ describe("druck.css: die vier Verbote und die zwei Zeilen, die den QR retten", (
     expect(blatt(), "ein nackter input-Selektor").not.toMatch(/(^|[\s,>+~])input\s*[,{]/m);
   });
 
-  it("gibt dem qrcode-SVG eine Breite und eine Hoehe", () => {
+  it("gibt dem qrcode-SVG eine Breite und eine Hoehe — und das SVG haengt an dieser Regel", async () => {
     /*
      * ⛔ GEMESSEN BEIM NACHBARN: das `qrcode`-SVG bringt nur eine `viewBox` mit, KEINE
      * Breite und keine Hoehe (`lagerbuch/verwaltung/(druck)/druck.css:69-73`). Ohne diese
@@ -458,11 +511,33 @@ describe("druck.css: die vier Verbote und die zwei Zeilen, die den QR retten", (
      * — OHNE dass ein Test anschlaegt. `globals.css` faengt das nur fuer
      * `[data-testid="qr-display"]` ab (`globals.css:178-182`, selbst nachgeschlagen), und
      * dieses Markup traegt es nicht.
+     *
+     * ⛔ FUND **F3** DER FIX-RUNDE 1 ZU V21: DIESER FALL WAR SELBST DER TEST, DER NICHT
+     * ANSCHLUG. Er las nur das Stylesheet; die Regel `.rd-qr > svg` verwaiste still, sobald
+     * die Klasse im MARKUP wegging. ⛔ GEMESSEN AM 2026-08-26, je vor dieser Zusicherung:
+     *   X2  `className="rd-qr"` → `"rd-qrcode"` (Umbenennung)          → 58 passed, 0 rot
+     *   X4  `rd-qr` vom `<span>` auf das `<div class="rd-text">` gehoben → 58 passed, 0 rot
+     * X4 ist der schlimmere Fall: beide Namenslisten bleiben vollzaehlig, `> svg` waehlt
+     * trotzdem nichts mehr aus, weil das SVG kein KIND von `.rd-qr` mehr ist.
+     *
+     * ⛔ DIE ZWEITE HAELFTE GREIFT AM `dangerouslySetInnerHTML`, NICHT AN DER KLASSE: das
+     * eingebettete SVG ist die Sache, die eine Groesse braucht — wer es umhaengt, muss die
+     * Klasse mitnehmen.
      */
     const regel = blatt().match(/\.rd-qr\s*>\s*svg\s*\{([^}]*)\}/);
     expect(regel, "es gibt keine Groessenregel fuer das QR-SVG").not.toBeNull();
     expect(regel![1], "das QR-SVG hat keine Breite").toMatch(/width\s*:\s*\d/);
     expect(regel![1], "das QR-SVG hat keine Hoehe").toMatch(/height\s*:\s*\d/);
+
+    zugang({ id: "z1", code: "AAAA-1111", bezeichnung: "Halle", createdAt: new Date("2026-05-01T10:00:00Z") });
+    const traeger = alleElemente(await seite()).filter(
+      (el) => (el.props as Record<string, unknown>).dangerouslySetInnerHTML !== undefined,
+    );
+    expect(traeger.length, "nicht genau ein Element traegt das eingebettete SVG").toBe(1);
+    expect(
+      klassenVon(traeger[0]!),
+      "das SVG haengt nicht unmittelbar an .rd-qr — die Groessenregel greift ins Leere",
+    ).toContain("rd-qr");
   });
 
   it("erzwingt im Druck die Farbwiedergabe, sonst wird der QR ein grauer Kasten", () => {
@@ -506,5 +581,36 @@ describe("druck.css: die vier Verbote und die zwei Zeilen, die den QR retten", (
     const klassen = [...blatt().matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]!);
     expect(klassen.length, "leere Klassenliste — der Scan waere leer-gruen").toBeGreaterThanOrEqual(5);
     expect([...new Set(klassen.filter((n) => !n.startsWith("rd-")))]).toEqual([]);
+  });
+
+  it("Markup und Stylesheet fuehren DIESELBEN Klassennamen — keine Seite verwaist", async () => {
+    /*
+     * ⛔ DIE GEMEINSAME WURZEL VON **F2** UND **F3** (Fix-Runde 1 zu V21): die zwei Faelle
+     * oben binden je EIN Paar. Dieser haelt die ganzen LISTEN zusammen — er faengt jede
+     * Umbenennung, in beide Richtungen, und jede Regel, die auf einen Namen zielt, den es im
+     * Markup nicht gibt. ⛔ Ohne ihn ist `druck.css` ein Stylesheet ohne Pruefling: der
+     * Uebersetzer sieht Klassennamen nicht, `pnpm build` sieht sie nicht, und der Fehler
+     * zeigt sich erst auf Papier.
+     *
+     * ⛔ NICHT ROT-BY-CONSTRUCTION, NACHGEZAEHLT AM 2026-08-26: beide Seiten fuehren heute
+     * dieselben ZEHN Namen (`rd-bogen`, `rd-nichtDrucken`, `rd-titel`, `rd-hinweis`,
+     * `rd-karte`, `rd-qr`, `rd-text`, `rd-bezeichnung`, `rd-code`, `rd-url`).
+     *
+     * ⚠️ EIN AKTIVER ZUGANG IST PFLICHT, sonst fehlten die fuenf Kartenklassen im Markup und
+     * der Fall waere rot-by-construction. Die drei Zustandszweige teilen sich `rd-hinweis`.
+     *
+     * ⚠️ WAS DIESER FALL BEWUSST ERZWINGT: eine Klasse ohne Regel und eine Regel ohne Klasse
+     * sind beide rot. Wer eine reine Markierungsklasse braucht, nimmt ein `data-`-Attribut —
+     * die Hausform dieser Seite (`data-rolle`), und der Grund ist genau diese Kopplung.
+     */
+    zugang({ id: "z1", code: "AAAA-1111", bezeichnung: "Halle", createdAt: new Date("2026-05-01T10:00:00Z") });
+    const imStylesheet = [
+      ...new Set([...blatt().matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]!)),
+    ].sort();
+
+    const imMarkup = [...new Set(alleElemente(await seite()).flatMap(klassenVon))].sort();
+    expect(imMarkup.length, "kein Klassenname im Markup — der Abgleich waere leer-gruen")
+      .toBeGreaterThanOrEqual(5);
+    expect(imMarkup, "Markup und Stylesheet laufen auseinander").toEqual(imStylesheet);
   });
 });
