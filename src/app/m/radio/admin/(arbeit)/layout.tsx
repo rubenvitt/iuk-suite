@@ -24,9 +24,9 @@ import { RadioVerwaltungsRahmen } from "../../_ui/RadioVerwaltungsRahmen";
  * Diese zwei Zeilen sind der einzige Traeger. `riegel.test.ts` (Klausel a) haelt sie
  * fest, INKLUSIVE ihrer Reihenfolge.
  *
- * ⬜ Z-L1: seit V12 liegt mit `admin/(arbeit)/page.tsx` eine Seite unter dieser Group — das
- * Ablesen ist damit MOEGLICH, die Wirksamkeit der zwei Zeilen aber weiterhin UNBEWIESEN.
- * Abgelesen wird sie in Aufgabe V23, beim ersten echten Abruf gegen `/admin` (⬜ V-L3).
+ * ✅ ⬜ Z-L1 / ⬜ V-L3 IST AM 2026-08-26 ABGELESEN (Aufgabe V23, `riegel.test.ts:50-88`): die
+ * zwei Zeilen unten sind WIRKSAM. Schritt E hat den Riegel in `admin/(arbeit)/page.tsx:91`
+ * entfernt und `/admin` blieb fuer eine gruppenlose Sitzung 404 — DIESES Layout traegt.
  *
  * ✅ DIE NAVIGATION TRAEGT DIE RECHTESTUFE, SEIT AUFGABE V4 — und die zwei Haelften gehoeren
  * zusammen (NS-Z9): der Riegel LIEFERT die Stufe (`requireRadioVerwaltung` gibt

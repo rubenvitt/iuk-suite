@@ -731,9 +731,9 @@ describe("radio-Update-Modus: die Bauform der Insel und ihrer Seite", () => {
   it("die Flaeche traegt ihre Rolle, auch ohne ein einziges Geraet", async () => {
     /*
      * ⛔ DER GRIFF DES PLAYWRIGHT-FALLS (V23, `Spec:4881-4882`) — und er darf nicht an einer
-     * Karte haengen: ohne Suchtext gibt es keine, und ⬜ V13-L2 laesst den e2e-Lauf ohnehin
-     * ohne `radio`-Bestand fahren. `[data-rolle="radio-update-flaeche"]` fehlt genau dann,
-     * wenn die Insel an der RSC-Grenze bricht.
+     * Karte haengen: ohne Suchtext gibt es keine. (⚠️ Hier stand „⬜ V13-L2 laesst den e2e-Lauf
+     * ohne `radio`-Bestand fahren" — seit V23 seedet er, `playwright.config.ts:141`.)
+     * `[data-rolle="radio-update-flaeche"]` fehlt genau dann, wenn die Insel an der Grenze bricht.
      */
     await mount(<UpdateSuche {...props({ suchtext: "", zeilen: [] })} />);
     expect(queryAll('[data-rolle="radio-update-flaeche"]').length).toBe(1);

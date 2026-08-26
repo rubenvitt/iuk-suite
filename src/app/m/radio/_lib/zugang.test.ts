@@ -23,10 +23,10 @@ import { users } from "../_db/schema";
  * `viewerOderNull` bleibt ungeprueft: ihre einzige Aussage ist eine ABWESENHEIT
  * (kein Host-Riegel), und die haelt `riegel.test.ts` Klausel (d) als Quelltext-Zusicherung.
  *
- * ⬜ Die WIRKUNG der Riegel bei einem echten Abruf (Statuscode und Location-Kopf) ist
- * ⬜ V-L3 und wird in Aufgabe V23 im ersten Playwright-Lauf gegen `/admin` abgelesen —
- * NICHT hier. Ein Mock von `next/navigation` belegt, DASS und WOHIN geworfen wird, nicht
- * was Next daraus macht.
+ * ✅ Die WIRKUNG der Riegel bei einem echten Abruf (Statuscode und Location-Kopf) war
+ * ⬜ V-L3 und ist am 2026-08-26 in V23 abgelesen (`riegel.test.ts:50-88`, Dauerfaelle
+ * „V-L3 A" bis „V-L3 D") — NICHT hier. Ein Mock von `next/navigation` belegt, DASS und
+ * WOHIN geworfen wird, nicht was Next daraus macht.
  *
  * VIER MOCKS, UND JEDER HAT EINEN GRUND (Form 1:1 aus
  * `src/app/m/lagerbuch/_lib/zugang.test.ts:6-36`):

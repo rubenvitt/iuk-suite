@@ -36,9 +36,9 @@ import { ohneKommentare } from "../../_lib/quelltextScan";
  * ⚠️ EIGENE DATEI-DB, NICHT `getModuleDb()` (`.superpowers/sdd/planteil4/briefs/KOPF.md:268-270`):
  * dessen Cache ist per MODULSCHLUESSEL gekeyt, nicht per `DATA_DIR` (`src/core/db/index.ts:31-35`).
  *
- * ⛔ WAS DIESE DATEI NICHT BELEGT: dass der Riegel bei einem ECHTEN Abruf GREIFT. Das ist
- * ⬜ V-L3 und wird in Aufgabe V23 abgelesen. Sie belegt, dass die Seite ihn selbst ruft und
- * dass VOR ihm keine Datenbank gelesen wird.
+ * ⛔ WAS DIESE DATEI NICHT BELEGT: dass der Riegel bei einem ECHTEN Abruf GREIFT — das war
+ * ⬜ V-L3, am 2026-08-26 in V23 abgelesen (`riegel.test.ts:50-88`). Sie belegt, dass die
+ * Seite ihn selbst ruft und dass VOR ihm keine Datenbank gelesen wird.
  */
 
 const MIGRATIONEN = "src/app/m/radio/_db/migrations";

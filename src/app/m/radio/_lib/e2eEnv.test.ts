@@ -30,8 +30,8 @@ import { istRadioAdmin, updaterGruppe, istInUpdaterGruppe } from "./zugang";
  * `e2e/**` aus (dort liegen die Playwright-Specs), ein Test dort liefe nie. Vorbild:
  * `lagerbuch/_lib/e2eEnv.test.ts:33-37` und `files/_lib/devAufbau.test.ts:5`.
  *
- * ⚠️ WAS SIE NICHT BELEGT: dass die Stufe im echten Abruf greift. Das ist ⬜ V-L3 und wird
- * in Aufgabe V23 abgelesen.
+ * ⚠️ WAS SIE NICHT BELEGT: dass die Stufe im echten Abruf greift. Das war ⬜ V-L3 und ist am
+ * 2026-08-26 in V23 abgelesen (`riegel.test.ts:50-88`, Dauerfall „V-L3 C").
  */
 
 const VORHER = process.env.SUITE_UPDATER_GROUP_RADIO;
@@ -105,8 +105,8 @@ describe("RADIO_ENV — die zwei Gruppenzeilen des E2E-Servers", () => {
      * ueber `_lib/zugang.ts:188-192`), und die ist der Wert, den der E2E-Lauf auch dann
      * traegt, wenn `RADIO_ENV` ihn spiegelt.
      *
-     * ⚠️ WAS ER NICHT BELEGT: dass der Riegel im echten Abruf 404 liefert. Das ist ⬜ V-L3
-     * und gehoert V23; hier steht nur das Praedikat.
+     * ⚠️ WAS ER NICHT BELEGT: dass der Riegel im echten Abruf 404 liefert. Das war ⬜ V-L3
+     * und ist in V23 abgelesen (`riegel.test.ts:50-88`, „V-L3 B"); hier steht das Praedikat.
      */
     delete process.env.SUITE_ADMIN_GROUP_RADIO;
     const person = (gruppen: string[]) => ({ sub: "pid-1", name: "Testperson", groups: gruppen });

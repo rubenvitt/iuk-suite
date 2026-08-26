@@ -66,7 +66,7 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  *      Protokollzeile aus `_lib/zugang.ts` im Serverstrom: „[radio] Zugriff auf /admin
  *      abgelehnt: keine der Gruppen [ iuk-radio-admin ] in den Token-Gruppen [ ]".
  *   C  `/admin` mit der Updater-Gruppe -> HTTP 200, und die Modulleiste traegt genau VIER
- *      `nav-link`-Knoten (`_lib/nav.ts:53` blendet Import, Versionen, Zugaenge aus).
+ *      `nav-link`-Knoten (`_lib/nav.ts:94` filtert `NUR_ADMIN` aus, die Liste steht `:51`).
  *   D  `/admin/versionen` mit der Updater-Gruppe -> HTTP 404, mit der Admin-Gruppe -> 200.
  *      ⛔ Das ist die WIRKPROBE der namentlichen Zusicherung weiter unten: eine faelschlich
  *      abgesenkte Seite im `(arbeit)`-Zweig faengt Klausel (a)/(e) strukturell nicht.
@@ -81,9 +81,9 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  * ⛔ WAS DAS NICHT HEISST, und es steht hier, statt verschwiegen zu werden: A bis E messen
  * den `(arbeit)`-Zweig. Fuer `admin/(druck)` gibt es keine eigene Wirkprobe des
  * PERSONEN-Riegels — die einzige Messung dort ist Fall 5a („das Blatt druckt ohne Kopfzeile
- * und ohne Navigationsleiste"), und die betrifft die Huelle, nicht die Stufe. ⬜ Eine
- * Wirkprobe fuer `requireRadioAdmin()` in `admin/(druck)/layout.tsx` fehlt; Eigentuemer ist
- * die Schlusspruefung von Planteil 4.
+ * und ohne Navigationsleiste"), und die betrifft die Huelle, nicht die Stufe. ⬜ **V-L14** —
+ * die Wirkprobe fuer `requireRadioAdmin()` in `admin/(druck)/layout.tsx` fehlt (eigene Nummer
+ * seit dem 2026-08-26); Eigentuemer ist die Schlusspruefung von Planteil 4.
  * ⛔ Kein Fall in dieser Datei darf mehr behaupten als das hier Abgelesene.
  *
  * ⚠️ ZWEI FORMEN, UND DER UNTERSCHIED IST TRAGEND (Vorbild `bauform.test.ts:13-37`):
@@ -657,7 +657,7 @@ describe("(d) die Gegenregel — viewerOderNull ruft den Host-Riegel NICHT", () 
      * Import, `:72` Aufruf, Begruendung `:60-71`) gehoerten an PLANTEIL 4 — ✅ GEBAUT in
      * Aufgabe V3, sie stehen in `src/app/m/radio/_lib/zugang.test.ts` im Block
      * „requireRadioVerwaltung — die zweite Stufe, werfend". ⛔ Was AUCH DORT nicht steht, ist
-     * die Wirkung bei einem ECHTEN Abruf: das ist ⬜ V-L3 und wird in Aufgabe V23 abgelesen.
+     * die Wirkung bei einem ECHTEN Abruf: das war ⬜ V-L3 — ABGELESEN in V23, siehe `:50-88`.
      *
      * Warum genau diese vier: ohne `erlaubt(` prueft der Riegel keine Gruppe, ohne
      * `notFound(` weist er nicht ab (403 waere die falsche Form, Spec:691-694), ohne

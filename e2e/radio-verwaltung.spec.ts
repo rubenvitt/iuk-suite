@@ -440,13 +440,13 @@ test.describe("radio-Verwaltung", () => {
 
   test("Fall 4a: eine erfundene Geraete-Id antwortet mit 404", async ({ page }) => {
     /*
-     * ⛔ EIGENER `test()`, UND DAS IST KEINE KOSMETIK. Fall 4 oben faellt heute an seiner
-     * ⬜ V13-L2-Vorbedingung aus (der e2e-Lauf seedet `radio` nicht); ein `expect(...)` WIRFT,
-     * und alles danach in DEMSELBEN `test()` laeuft nie. Stuende diese Zusicherung dort unten,
-     * waere sie bis V23 unerreichbar — und ein Bericht, der sie als „traegt auch ohne Seed"
-     * fuehrte, behauptete Gruen als konstanten Text. ⛔ Genau diese Fehlerklasse ist in diesem
-     * Haus vernarbt. Hier braucht sie nur eine Anmeldung und eine ausgedachte Id und laeuft
-     * deshalb SCHON HEUTE.
+     * ⛔ EIGENER `test()`, UND DAS IST KEINE KOSMETIK. Fall 4 oben fiel bis zum 2026-08-26 an
+     * seiner Vorbedingung aus (⬜ V13-L2 — ✅ seither GESCHLOSSEN, `playwright.config.ts:141`
+     * seedet `radio` jetzt im Serverstart); ein `expect(...)` WIRFT, und alles danach in
+     * DEMSELBEN `test()` laeuft nie. Stuende diese Zusicherung dort unten, waere sie bis V23
+     * unerreichbar gewesen — und ein Bericht, der sie als „traegt auch ohne Seed" fuehrte,
+     * behauptete Gruen als konstanten Text. ⛔ Diese Fehlerklasse ist in diesem Haus vernarbt,
+     * und deshalb bleibt die Teilung: hier genuegen eine Anmeldung und eine ausgedachte Id.
      * ⚠️ Die 4/4a-Teilung ist dieselbe Form, die `Spec:4880-4886` fuer Fall 5/5a selbst waehlt.
      *
      * ⛔ WAS SIE MISST: der Lesepfad prueft die Existenz des Geraets bewusst NICHT
@@ -478,18 +478,18 @@ test.describe("radio-Verwaltung", () => {
      * Component waere HTTP 500 beim Rendern.
      *
      * ⛔ DER GRIFF IST DIE FLAECHE DER INSEL UND NICHT DAS TABELLENMARKUP: die Insel hat ZWEI
-     * Zweige (Tabelle und mobile Liste), und ⬜ V13-L2 laesst die Liste heute ohnehin leer —
-     * der e2e-Lauf seedet `radio` nicht (`core/bootstrap.ts:49-54`,
-     * `playwright.config.ts:142`; Eigentuemer V23). `[data-rolle="radio-ausleihen-flaeche"]`
-     * steht in BEIDEN Zweigen und fehlt genau dann, wenn die Insel an der Grenze bricht.
-     * Dieselbe Lehre wie in Fall 4 oben.
+     * Zweige (Tabelle und mobile Liste). ⚠️ HIER STAND BIS ZUM 2026-08-26 „⬜ V13-L2 laesst die
+     * Liste heute ohnehin leer" — ✅ die Leerstelle ist in V23 GESCHLOSSEN
+     * (`playwright.config.ts:141`), die Liste traegt Bestand. An der Wahl des Griffs aendert das
+     * nichts: `[data-rolle="radio-ausleihen-flaeche"]` steht in BEIDEN Zweigen und fehlt genau
+     * dann, wenn die Insel an der Grenze bricht. Dieselbe Lehre wie in Fall 4 oben.
      *
      * ⚠️ DIE SEITE IST FUER BEIDE STUFEN OFFEN (`Spec:4373`, Rechtetafel `Spec:4444-4454`).
      * Der Abruf hier laeuft mit der ADMIN-Gruppe, wie jeder Fall dieser Datei; dass eine
-     * UPDATER-Person sie ebenfalls erreicht, ist bis heute UNGEMESSEN — ⬜ **V-L3** haengt
-     * daran mit, und der namentliche Quelltext-Waechter ist
-     * `AusleihenTabelle.test.tsx` („die Seite traegt force-dynamic und den Riegel der
-     * Verwaltungs-Stufe"). ⛔ Kein Satz hier behauptet etwas anderes.
+     * UPDATER-Person sie ebenfalls erreicht, ist UNGEMESSEN — das ist seit dem 2026-08-26
+     * ⬜ **V-L13** und NICHT mehr ⬜ V-L3: jene Nummer ist abgelesen (`riegel.test.ts:50-88`)
+     * und traegt diese Frage nicht mit. Der namentliche Quelltext-Waechter ist
+     * `AusleihenTabelle.test.tsx` („force-dynamic und den Riegel der Verwaltungs-Stufe").
      */
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
 
@@ -543,17 +543,17 @@ test.describe("radio-Verwaltung", () => {
      * selbst aus.
      *
      * ⛔ DER GRIFF IST DIE FLAECHE DER INSEL UND NICHT EINE KARTE: ohne Suchtext gibt es
-     * keine (1:1 `UpdateMode.tsx:67-68`), und ⬜ V13-L2 laesst den e2e-Lauf ohnehin ohne
-     * `radio`-Bestand fahren (`core/bootstrap.ts:49-54`, `playwright.config.ts:142`;
-     * Eigentuemer V23). `[data-rolle="radio-update-flaeche"]` steht in JEDEM Zweig und fehlt
-     * genau dann, wenn die Insel an der Grenze bricht.
+     * keine (1:1 `UpdateMode.tsx:67-68`). ⚠️ HIER STAND BIS ZUM 2026-08-26 „⬜ V13-L2 laesst den
+     * e2e-Lauf ohnehin ohne `radio`-Bestand fahren" — ✅ GESCHLOSSEN in V23
+     * (`playwright.config.ts:141`). `[data-rolle="radio-update-flaeche"]` steht in JEDEM Zweig
+     * und fehlt genau dann, wenn die Insel an der Grenze bricht.
      *
      * ⚠️ DIE SEITE IST FUER BEIDE STUFEN OFFEN (`Spec:4374`, Rechtetafel `Spec:4444-4454`) —
      * und sie ist die Flaeche, um deretwillen es die Updater-Stufe gibt. Der Abruf hier laeuft
      * mit der ADMIN-Gruppe, wie jeder Fall dieser Datei; dass eine UPDATER-Person sie ebenfalls
-     * erreicht, ist bis heute UNGEMESSEN — ⬜ **V-L3** haengt daran mit, und der namentliche
-     * Quelltext-Waechter ist `UpdateSuche.test.tsx` („die Seite traegt force-dynamic und den
-     * Riegel der Verwaltungs-Stufe"). ⛔ Kein Satz hier behauptet etwas anderes.
+     * erreicht, ist UNGEMESSEN — das ist seit dem 2026-08-26 ⬜ **V-L13** und NICHT mehr
+     * ⬜ V-L3 (jene ist abgelesen, `riegel.test.ts:50-88`). Der namentliche Quelltext-Waechter
+     * ist `UpdateSuche.test.tsx` („force-dynamic und den Riegel der Verwaltungs-Stufe").
      */
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
 
@@ -751,8 +751,8 @@ test.describe("radio-Verwaltung", () => {
      * ⛔ UND ER IST DER ERSTE ECHTE ABRUF EINER SEITE AUF DER **ADMIN-STUFE**
      * (`Spec:4376`). Der Quelltext-Scan in `admin/actions.test.ts` sagt, dass die Zeile
      * DASTEHT; dass sie GREIFT, ist ⬜ **V-L3** und wird hier gemessen — der Abruf laeuft mit
-     * der Admin-Gruppe wie jeder Fall dieser Datei. ⚠️ Dass eine UPDATER-Person hier 404
-     * bekaeme, misst dieser Fall NICHT; dafuer braeuchte er eine zweite Anmeldung.
+     * der Admin-Gruppe wie jeder Fall dieser Datei. ⛔ Dass eine UPDATER-Person hier 404 bekaeme,
+     * misst „V-L3 D" unten (`clearCookies` und zweite Anmeldung), seit dem 2026-08-26.
      *
      * ⛔ DER WARMLAUF IST DER `page.goto` SELBST — Falle 10 (`CLAUDE.md`): `next dev`
      * uebersetzt die Route beim ERSTEN Treffer. Anders als in Fall 7 gibt es hier keinen
@@ -776,15 +776,15 @@ test.describe("radio-Verwaltung", () => {
     /*
      * ⛔ DIE FUENF SPALTENUEBERSCHRIFTEN SIND DIE 1:1-SPALTENPFLICHT
      * (`SoftwareVersionsPage.tsx:84-175`), ⛔ **NICHT der Falle-9-Beleg** — und diese
-     * Unterscheidung ist gemessen, nicht formal: Ueberschriften entstehen aus `title`, nicht
-     * aus `render`, und ohne Seed (⬜ V13-L2 seedet `radio` nicht) steht hier KEINE Zeile,
-     * also ist an dieser Stelle noch keine einzige `render`-Funktion gelaufen.
+     * Unterscheidung ist gemessen, nicht formal: Ueberschriften entstehen aus `title` und
+     * nicht aus `render`; sie stuenden auch ueber einer leeren Tabelle.
      *
-     * ⛔ DER BEWEIS FUER FALLE 1 UND FALLE 9 STEHT ZWEI ZUSICHERUNGEN WEITER OBEN: eine ueber
-     * die RSC-Grenze gereichte `render`-Funktion wirft BEIM ABRUF, die Seite antwortete also
-     * gar nicht erst mit 200 (`expect(antwort?.status()).toBe(200)`), und ein Compound-Zugriff
-     * in einer Server Component ist HTTP 500. Die `render`-Funktionen selbst LAUFEN erst
-     * unten, nach `page.reload()`, an den Zeilengriffen der angelegten Version.
+     * ⚠️ HIER STAND BIS ZUM 2026-08-26 „ohne Seed (⬜ V13-L2) steht hier KEINE Zeile, also ist
+     * noch keine `render`-Funktion gelaufen" — ✅ V23 hat den Seed gezogen, und er legt DREI
+     * Softwareversionen an (`_lib/seedLokal.ts:117-128`). ⛔ DER BEWEIS FUER FALLE 1 UND FALLE 9
+     * STEHT DAVON UNBERUEHRT ZWEI ZUSICHERUNGEN WEITER OBEN: eine ueber die RSC-Grenze
+     * gereichte `render`-Funktion wirft BEIM ABRUF, die Seite antwortete also gar nicht erst
+     * mit 200 (`expect(antwort?.status()).toBe(200)`), und ein Compound-Zugriff ist HTTP 500.
      *
      * ⛔ AUF `thead th` GEGRIFFEN, NICHT AUF `table`: antd rendert bei gesetztem `scroll` Kopf
      * und Rumpf als ZWEI `<table>`-Elemente, und Playwrights strict mode faellt ueber einen
@@ -885,11 +885,11 @@ test.describe("radio-Verwaltung", () => {
      * Liste des Betreibers. Der Auftragsbrief verlangt genau das nicht: „200 mit sichtbarer
      * Tabelle" (`.superpowers/sdd/planteil4/briefs/V20.md:59`).
      *
-     * ⛔ DASS DIE TABELLE LEER IST, SCHWAECHT DEN FALLE-9-BEWEIS NICHT (⬜ V13-L2: der
-     * e2e-Lauf seedet `radio` nicht). Die Ueberschriften entstehen aus `title`, nicht aus
-     * `render` — der Beweis ist der Status 200 selbst: eine ueber die RSC-Grenze gereichte
-     * `render`-Funktion wirft BEIM ABRUF, die Seite antwortete also gar nicht erst mit 200.
-     * Dieselbe Begruendung, wortgleich, wie in Fall 8.
+     * ⛔ DER FALLE-9-BEWEIS HAENGT NICHT AM BESTAND DER TABELLE (⚠️ hier stand bis zum 2026-08-26
+     * „dass sie leer ist", ⬜ V13-L2 — der Seed aus V23 legt ZWEI Zugangszeilen an,
+     * `_lib/seedLokal.ts:187-197`). Ueberschriften entstehen aus `title`, nicht aus `render` —
+     * der Beweis ist der Status 200 selbst: eine ueber die RSC-Grenze gereichte `render`-Funktion
+     * wirft BEIM ABRUF, die Seite antwortete gar nicht erst mit 200. Wie in Fall 8 (Versionen).
      *
      * ⛔ DER WARMLAUF IST DER `page.goto` SELBST — Falle 10 (`CLAUDE.md`). Diese Seite loest
      * ohne Griff keine Anfrage aus; es gibt hier nichts, worauf `page.waitForResponse` warten
@@ -1092,8 +1092,8 @@ test.describe("radio-Verwaltung", () => {
      * ⛔ DIE GEGENPROBE AUF DEM EIGENEN HOST STEHT DANEBEN, und ohne sie unterschiede der Fall
      * „404 weil der Riegel griff" nicht von „404 weil an der Adresse gar nichts liegt"
      * (Review-Befund 1 zu `e2e/lagerbuch-hosts.spec.ts:122-131`). Sie geht ueber DENSELBEN
-     * aeusseren Pfad, nicht ueber `/admin` — eine Gegenprobe auf einer anderen Adresse
-     * bewiese die Erreichbarkeit einer anderen Adresse.
+     * aeusseren Pfad, nicht ueber `/admin`. ⛔ UND SIE PRUEFT DIE GLATTE 200 STATT `not.toBe(404)`:
+     * ein 500 (Ausnahme im Layout) bestuende die weite Form — gemessen 2026-08-26, Sonde S-F1.
      *
      * `page.request` und nicht `page.goto`: derselbe Cookie-Kontext, der Statuscode direkt,
      * und kein `net::ERR_ABORTED` (dieselbe Begruendung wie `lagerbuch-hosts.spec.ts:133-139`).
@@ -1107,7 +1107,7 @@ test.describe("radio-Verwaltung", () => {
     expect(
       eigen.status(),
       `/m/radio/admin auf ${RADIO_HOST} — ohne diese Zeile misst der 404 oben nichts`,
-    ).not.toBe(404);
+    ).toBe(200);
   });
 
   /*
@@ -1194,13 +1194,13 @@ test.describe("radio-Verwaltung", () => {
     /*
      * ⛔ DIE ZWEITE RECHTESTUFE, UND DIES IST IHRE EINZIGE WIRKPROBE. Betreiberentscheidung
      * C.6/B4 vom 2026-08-21 (`KONTEXT.md`): Admin verwaltet, Updater pflegt Geraetestaende.
-     * `admin/(arbeit)/layout.tsx:62` traegt dafuer `requireRadioVerwaltung()` — die MILDERE
+     * `admin/(arbeit)/layout.tsx:61` traegt dafuer `requireRadioVerwaltung()` — die MILDERE
      * Form; stuende dort `requireRadioAdmin()`, saehe jede Updater-Person 404, bevor
      * irgendeine Seite liefe, bei gruenem typecheck, lint und build.
      *
      * ⛔ VIER MENUEPUNKTE, NICHT SIEBEN: `radioNav("updater")` blendet Import,
-     * Softwareversionen und Zugaenge aus (`_lib/nav.ts:53`, `Spec:4202-4203`). Ohne diese
-     * Zahl bliebe die Zusicherung „200" auch dann gruen, wenn das Layout wieder
+     * Softwareversionen und Zugaenge aus (`_lib/nav.ts:94`, Liste `:51`; `Spec:4202-4203`).
+     * Ohne diese Zahl bliebe die Zusicherung „200" auch dann gruen, wenn das Layout wieder
      * `radioNav("admin")` einsetzte — und dann zeigte die Navigation drei Punkte, die in ein
      * `notFound()` fuehren.
      *
@@ -1215,7 +1215,7 @@ test.describe("radio-Verwaltung", () => {
 
     await expect(
       page.getByTestId("modulleiste").getByTestId("nav-link"),
-      "die Navigation zeigt nicht genau vier Eintraege (radioNav(updater), _lib/nav.ts:53)",
+      "die Navigation zeigt nicht genau vier Eintraege (radioNav(updater), _lib/nav.ts:94)",
     ).toHaveCount(4);
   });
 

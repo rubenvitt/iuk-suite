@@ -31,9 +31,9 @@ import { AusleihenTabelle } from "./AusleihenTabelle";
  * (`_db/leihen.ts`, Aufgabe V1) wird ueber `ausleihenListe` (V7) gelesen, und keine
  * Oberflaeche des Moduls spricht mehr ueber eine HTTP-Grenze. ⚠️ DAS SCHLIESST 6.7-ABSCHNITT
  * C AUF DER DATENSEITE, NICHT AUF DER FLAECHENSEITE: `software`, `import`, `versionen`,
- * `zugaenge`, das Blatt und der Export-Handler stehen noch aus (V17–V22), und der
- * hinreichende Beweis ist erst V23s echter Abruf (⬜ **V-L3**). Vorabscan-Fund F17
- * (`.superpowers/sdd/planteil4/VORABSCAN.md:434-449`) benennt genau diese Verwechslung.
+ * `zugaenge`, das Blatt und der Export-Handler standen damals aus (V17–V22); der hinreichende
+ * Beweis ist V23s echter Abruf — ✅ gefahren, ⬜ **V-L3** ist am 2026-08-26 abgelesen
+ * (`riegel.test.ts:50-88`). F17 (`.superpowers/sdd/planteil4/VORABSCAN.md:434-449`) nennt sie.
  *
  * ⬜ **V16-L2 — DER ABNAHMEBEFEHL VON 6.7-C IST HEUTE NICHT LEER, UND DAS IST KEIN VERSTOSS.**
  * Gemessen in Aufgabe V16 (2026-08-25): sein zweites Muster trifft NICHTS (Exit 1), sein erstes

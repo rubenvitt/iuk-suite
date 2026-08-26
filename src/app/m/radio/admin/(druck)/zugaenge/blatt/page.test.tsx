@@ -34,9 +34,9 @@ import { ohneKommentare } from "../../../../_lib/quelltextScan";
  * (`.superpowers/sdd/planteil4/briefs/KOPF.md:268-270`): dessen Cache ist per
  * MODULSCHLUESSEL gekeyt, nicht per `DATA_DIR` (`src/core/db/index.ts:31-35`).
  *
- * ⛔ WAS DIESE DATEI NICHT BELEGT: dass der Riegel bei einem ECHTEN Abruf GREIFT (⬜ V-L3,
- * abzulesen in V23), und dass das Druckbild stimmt. Papier sieht kein Test — was messbar
- * ist, ist die BAUFORM des Stylesheets, und die steht im zweiten Block dieser Datei.
+ * ⛔ WAS DIESE DATEI NICHT BELEGT: dass der Riegel bei einem ECHTEN Abruf GREIFT — ⬜ V-L3 ist
+ * abgelesen, misst aber nur den `(arbeit)`-Zweig (`riegel.test.ts:50-88`); die Wirkprobe DIESES
+ * `(druck)`-Zweigs ist ⬜ **V-L14**. Auch nicht das Druckbild — messbar ist die BAUFORM unten.
  */
 
 const MIGRATIONEN = "src/app/m/radio/_db/migrations";
