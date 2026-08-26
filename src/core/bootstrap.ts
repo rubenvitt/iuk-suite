@@ -94,7 +94,7 @@ export async function assertHostConfig(): Promise<void> {
     ...validateGroupConfig(keys),
     ...(await filesBootFehler()),
     // lagerbuch: greift nur bei gesetztem SUITE_HOST_LAGERBUCH und WIRFT NIE (Spec §10.5).
-    // Ein Wurf von dort naehme den GANZEN Prozess mit — alle elf `registry.ts:53-213`.
+    // Ein Wurf naehme den GANZEN Prozess mit — alle elf Eintraege in `registry.ts:53-213`.
     ...(await lagerbuchBootFehler()),
   ];
   if (errors.length > 0) {

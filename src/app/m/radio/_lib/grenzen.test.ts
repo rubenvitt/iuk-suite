@@ -516,10 +516,27 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
      * den Betriebsfall verhindert die Konstante, und bis zu diesem Fund war sie eine
      * Bauentscheidung ohne Zusage: ein zweiter Wortlaut in `:299` blieb gruen (gemessen).
      *
-     * `toThrow(<string>)` prueft auf Teilzeichenkette; beide Seiten sind hier derselbe
-     * ganze Satz, die Pruefung ist also so scharf wie eine Gleichheit.
+     * ⛔ FUND N2: `toThrow(<string>)` PRUEFT AUF TEILZEICHENKETTE, NICHT AUF GLEICHHEIT.
+     * Die fruehere Fassung dieses Kommentars behauptete das Gegenteil („so scharf wie eine
+     * Gleichheit") und war damit selbst die Klasse Fehler, gegen die K1 dieser Aufgabe
+     * antrat. Gemessen (Sonde M12): haengt man dem WURFWEG (`grenzen.ts:237`) einen Zusatz
+     * an und laesst die Boot-Zeile stehen, blieb `toThrow(...)` GRUEN — der laengere
+     * Wurftext enthaelt den kuerzeren Boot-Text. Die eine Zerfallsrichtung war bewacht
+     * (Sonde M4, Boot-Text weicht ab), die andere nicht, und der Betreiber laese wieder
+     * je nach Weg einen anderen Satz.
+     *
+     * Deshalb `toBe` auf die ABGEFANGENE Meldung statt `toThrow`. Eine zusaetzliche Zusage
+     * „es wurde ueberhaupt geworfen" steht bewusst NICHT hier: sie koennte nie allein rot
+     * werden, weil `grenzenFehler({})[0]` ein nicht-leerer Satz ist und ein ausbleibender
+     * Wurf `""` gegen ihn stellte — also schon am `toBe` scheiterte.
      */
-    expect(() => ausleihSitzungGeheimnis({})).toThrow(grenzenFehler({})[0]);
+    let geworfen = "";
+    try {
+      ausleihSitzungGeheimnis({});
+    } catch (e) {
+      geworfen = (e as Error).message;
+    }
+    expect(geworfen).toBe(grenzenFehler({})[0]);
   });
 
   it("zu kurzes Sitzungsgeheimnis nennt die LAENGE, nicht den Wert", () => {
@@ -584,11 +601,20 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
     });
     expect(fehler).toHaveLength(1);
     /*
-     * ⛔ FUND W4: DIE VIER `toContain` DARUNTER PRUEFEN SICH SELBST. Die Schluss-Kette
-     * jeder Meldung (`KETTE`, `grenzen.ts:339-343`) nennt ohnehin alle drei Namen mit
-     * Wert — kuerzte man die Meldung auf `KETTE` allein, oder vertauschte man die Texte
-     * der beiden Glieder, blieben sie gruen (gemessen). Die ANKERNDE Zusage ist deshalb
-     * die erste: der Satzanfang unterscheidet die zwei Glieder.
+     * ⛔ FUND W4, NACHGEZAEHLT (Fund N1): UNTER DIESEM BLOCK STEHEN SECHS `toContain`.
+     * ⛔ Die VIER LETZTEN pruefen sich selbst — gemessen (Sonde P1b): loescht man sie alle
+     * vier, bleiben 39 gruen. Die Schluss-Kette jeder Meldung (`KETTE`,
+     * `grenzen.ts:339-343`) nennt ohnehin alle drei Namen mit Wert, und kuerzte man die
+     * Meldung auf `KETTE` allein, blieben sie gruen.
+     * ⛔ Die ZWEI ERSTEN sind TRAGEND und duerfen nicht als Vakuum mitgestrichen werden —
+     * jede ist einzeln gemessen: `…GESAMT_PRO_STUNDE=300` (Zusage A8) faellt mit Sonde
+     * P1a (dritter Name aus `KETTE` entfernt → 2 rot), der Erklaersatz mit Sonde M9/P1c
+     * (Begruendung der zwei Glieder vertauscht, Kopf bleibt → 1 rot). Hier stand vor N1
+     * „DIE VIER `toContain`", waehrend der W4-Fix bereits sechs daraus gemacht hatte.
+     *
+     * Die ANKERNDE Zusage ist die erste (`toMatch(/^…/)`) — sie unterscheidet die zwei
+     * Glieder am Satzanfang. ⚠️ Sie allein genuegt nicht: M9 ist genau die Mutation, die
+     * unter richtigem Kopf die falsche Begruendung stehen laesst.
      */
     expect(fehler[0]).toMatch(
       /^RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN=40 ist groesser als RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN=30\./,
