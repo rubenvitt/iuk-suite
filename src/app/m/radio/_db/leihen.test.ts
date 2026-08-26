@@ -342,6 +342,30 @@ describe("radio-leihen: das Lesemodell der Geraeteliste", () => {
     geraet({ id: "g-namenlos", issi: "1000006", rufname: null });
     expect(geraeteMitLeihstand(db).find((z) => z.id === "g-namenlos")?.rufname).toBe("1000006");
   });
+
+  it("ordnet die Grundmenge neueste zuerst, wie der ersetzte Endpunkt", () => {
+    /*
+     * ⛔ FUND F1 DER SCHLUSSPRUEFUNG (`.superpowers/sdd/planteil4/SCHLUSSPRUEFUNG.md`): der
+     * ersetzte Endpunkt `listLoanableDevices` traegt `.orderBy(desc(devices.createdAt))`
+     * (`radio-admin/server/src/repos/deviceRepo.ts:53-59`). Der Alt-Kiosk sortiert darueber
+     * NUR nach Status, stabil (`radio-inventar/apps/frontend/src/api/devices.ts:145-155`),
+     * und `filtereGeraete` tut hier dasselbe (`_lib/filter.ts:185-187`) — die Grundordnung
+     * bleibt also `desc(createdAt)`, sichtbar innerhalb EINES Status.
+     *
+     * ⛔ DIE FIXTURES STEHEN ABSICHTLICH IN DER FALSCHEN EINFUEGEREIHENFOLGE: `g-alt` zuerst
+     * angelegt (aeltere `createdAt`, kleinere `rowid`), `g-neu` danach (juengere `createdAt`,
+     * groessere `rowid`). Ohne `ORDER BY` liefert SQLite die rohe Scanordnung — in der Praxis
+     * `rowid` aufsteigend, also `g-alt` VOR `g-neu`. Dieser Fall verlangt das Gegenteil und
+     * wird deshalb ROT, wenn das `orderBy` fehlt.
+     */
+    geraet({ id: "g-alt", issi: "1000010", createdAt: new Date("2026-01-01T10:00:00Z") });
+    geraet({ id: "g-neu", issi: "1000011", createdAt: new Date("2026-06-01T10:00:00Z") });
+
+    const ids = geraeteMitLeihstand(db).map((z) => z.id);
+    expect(ids.indexOf("g-neu"), "das juengere Geraet steht nicht vor dem aelteren").toBeLessThan(
+      ids.indexOf("g-alt"),
+    );
+  });
 });
 
 describe("radio-leihen: die offenen Ausleihen", () => {

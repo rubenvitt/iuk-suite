@@ -289,8 +289,26 @@ function suchschluesselAus(
  * ⛔ KEIN ZWEITES `ORDER BY` NACH STATUS (`_lib/filter.ts:26-31`). Die Sortierung nach
  * Statusprioritaet hat ihren einzigen Ort in `filtereGeraete`; zwei Sortierorte waeren zwei
  * Wahrheiten, und die zweite saehe man erst, wenn sie auseinanderlaufen. Diese Funktion
- * sortiert deshalb GAR NICHT — die Reihenfolge ist die der Tabelle, und `Array#sort` in
+ * traegt nur die GRUNDORDNUNG — `desc(devices.createdAt)`, 1:1 zu `listLoanableDevices`
+ * (`radio-admin/server/src/repos/deviceRepo.ts:53-59`) — und `Array#sort` in
  * `filtereGeraete` ist stabil, haelt sie also innerhalb eines Zustands.
+ *
+ * ⚠️ FUND F1 DER SCHLUSSPRUEFUNG PLANTEIL 4 (`.superpowers/sdd/planteil4/SCHLUSSPRUEFUNG.md`):
+ * bis 2026-08-26 fehlte dieses `orderBy`, und dieser Absatz behauptete „die Reihenfolge ist
+ * die der Tabelle" — eine Zusage, die SQLite ohne `ORDER BY` NICHT gibt (die Reihenfolge war
+ * UNSPEZIFIZIERT, nicht bloss umgekehrt). Wirkung war ausschliesslich die Grundordnung der
+ * Kiosk-Liste, kein Datenverlust.
+ *
+ * ⚠️ GLEICHSTAND BEI `createdAt` IST KEIN Hypothetikum: die Spalte traegt keinen
+ * `$defaultFn`, jede Insert-Stelle setzt sie selbst, und der CSV-Import
+ * (`admin/actions.ts`, `importSchreibenAction`) ruft `new Date()` JE ZEILE in einer
+ * synchronen `forEach`-Schleife — bei `mode: "timestamp"` (Sekundenaufloesung, nicht ms)
+ * teilen sich mehrere in einem Importlauf angelegte Geraete real dieselbe Sekunde. Der
+ * ersetzte Endpunkt hat fuer diesen Fall EBENFALLS keine zweite Sortierstufe
+ * (`deviceRepo.ts:53-59`: nur `orderBy(desc(devices.createdAt))`, kein weiteres Kriterium) —
+ * die Reihenfolge unter Gleichstand ist dort GENAUSO unspezifiziert. Ein zweites Kriterium
+ * HIER waere kein 1:1-Abgleich mehr, sondern eine staerkere Zusage als das Original je gab;
+ * es bleibt deshalb bei genau einem `ORDER BY`.
  */
 export function geraeteMitLeihstand(db: DB): GeraetMitLeihstand[] {
   const zeilen = db
@@ -315,6 +333,7 @@ export function geraeteMitLeihstand(db: DB): GeraetMitLeihstand[] {
     // Bedingung steuert den JOIN AUF `loans`; ein `devices`-Praedikat darin waere
     // typkorrekt, lint-sauber und WIRKUNGSLOS (der `leftJoin` haelt die Geraetezeile).
     .where(eq(devices.loanable, true))
+    .orderBy(desc(devices.createdAt))
     .all();
 
   return zeilen.map((z) => {
