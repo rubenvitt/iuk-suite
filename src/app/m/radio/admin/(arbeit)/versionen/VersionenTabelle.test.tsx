@@ -165,6 +165,14 @@ function flaechenDateien(): string[] {
  * `"deviceCount"`, `"aktionen"`), antd-Werte (`"right"`, `"center"`, `"success"`, `"primary"`,
  * `"max-content"`, `"info"`, `"alert"`, `"id"`) und die `data-rolle`-Griffe. ⛔ KEINES davon
  * erfuellt einen der drei Zweige; die EINE Ausnahme ist die Bauform-Direktive.
+ *
+ * ⛔ **UND JEDES DER DREI MERKMALE HAT SEINE EIGENE SONDE** — sonst waere hier eine Aufzaehlung
+ * behauptet, von der nur ein Glied bewiesen ist (genau die Gestalt von Fund F7). Alle drei an
+ * einem `data-hinweis="…"` am aeusseren `<div>` gefahren, also an einer Stelle, die WEDER ein
+ * textfuehrendes Attribut (Zweig 2) noch ein JSX-Textkind (Zweig 3) ist, und jede einzeln
+ * zurueckgenommen: `"Neu erfundener Text"` (Leerzeichen) → **1 rot**; `"Anlegen"` (einwortig,
+ * ASCII, Grossbuchstabe am Anfang) → **1 rot**; `"löschen"` (einwortig, klein, aber nicht
+ * ASCII) → **1 rot**. Jede meldete `ein Bildschirmtext steht ausserhalb der benannten Liste`.
  */
 const BILDSCHIRMVERDACHT = /[ ]|[^ -~]|^\p{Lu}/u;
 
