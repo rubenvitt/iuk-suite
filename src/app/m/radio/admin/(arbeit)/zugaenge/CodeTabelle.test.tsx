@@ -40,7 +40,7 @@ import { dirname, join, normalize, sep } from "node:path";
  *
  * ⛔ UND SIE HABEN EINE ANDERE RUECKGABEFORM ALS DIE NEUN `…Action`-FUNKTIONEN:
  * `erstelleCode` liefert `{ code }` und WIRFT im Fehlerfall (`_actions/codes.ts:78-104`),
- * `setzeCodeAktiv` liefert `void` (`:121-135`). Es gibt hier also kein `{ ok, fehler }` —
+ * `setzeCodeAktiv` liefert `void` (`:121-133`). Es gibt hier also kein `{ ok, fehler }` —
  * die Flaeche faengt und zeigt ihren EIGENEN Text. Das ist der Pruefgegenstand des
  * Fehlerpfad-Blocks unten.
  */
@@ -77,31 +77,31 @@ const QUELLE_SEITE = `${INSEL_ORDNER}/page.tsx`;
  *
  * ⛔ DER AUSSCHLUSS STEHT AM BLATT UND NICHT AM AST (Ruling **R-V11-3**).
  *
- * ⛔ **UND ER LIEST REKURSIV — DAS IST DIE KORREKTUR AUS FIX-RUNDE 1 ZU V20** (REVIEW-V20,
- * Fund 4). ⚠️ GEMESSEN, ZWEIMAL: `zugaenge/unter/Heimlich.tsx` angelegt, mit ALLEN DREI
- * Verstoessen zugleich — kein `"use client"` trotz `useState`, ein WERTIMPORT aus
- * `../../../../_db/schema`, ein `size="small"` und der Bildschirmtext „Zugang loeschen".
- * Mit dem alten, NICHT rekursiven `readdirSync`: `Tests 29 passed`, ⛔ NULL ROT — die vier
- * Faelle ueber dieser Menge sahen die Datei nicht. Die Auslassung war wieder AM AST, nur als
- * fehlende Rekursion statt als `continue` (Ruling R-V11-3).
+ * ⛔ **UND ER LIEST REKURSIV — DIE KORREKTUR AUS FIX-RUNDE 1 ZU V20** (REVIEW-V20, Fund 4).
+ * ⚠️ GEMESSEN, ZWEIMAL: `zugaenge/unter/Heimlich.tsx` mit ALLEN DREI Verstoessen zugleich — kein
+ * `"use client"` trotz `useState`, WERTIMPORT aus `../../../../_db/schema`, `size="small"`,
+ * Bildschirmtext „Zugang loeschen". Mit dem alten, NICHT rekursiven `readdirSync`: `29 passed`,
+ * ⛔ NULL ROT — die vier Faelle sahen die Datei nicht; die Auslassung war AM AST (R-V11-3).
  *
  * ⛔ **DIE GRENZE DER INSEL IST DIE NAECHSTE ROUTE, NICHT DIE VERZEICHNISTIEFE.** Ein
- * Unterverzeichnis mit einem EIGENEN Server-Einstieg ist eine eigene Flaeche mit einem
- * eigenen Inseltest — so liegt `geraete/[id]/` unter `geraete/`
- * (`admin/(arbeit)/geraete/[id]/GeraetFormular.test.tsx`). Ohne diesen Schnitt zoege der
- * Finder fremde Inseln herein und `INSEL_SOLL` waere rot ueber korrektem Bestand.
- * ⚠️ AUCH DIESER SCHNITT STEHT AM BLATT: er wird je GEFUNDENER Datei ueber ihre Vorfahren
- * entschieden, nicht als Abbruch beim Absteigen.
+ * Unterverzeichnis mit einem EIGENEN Server-Einstieg ist eine eigene Flaeche mit eigenem
+ * Inseltest — so liegt `geraete/[id]/` unter `geraete/` (dort `GeraetFormular.test.tsx`). Ohne
+ * diesen Schnitt zoege der Finder fremde Inseln herein und `INSEL_SOLL` waere rot ueber
+ * korrektem Bestand. ⚠️ AUCH DIESER SCHNITT STEHT AM BLATT: er wird je GEFUNDENER Datei ueber
+ * ihre Vorfahren entschieden, nicht als Abbruch beim Absteigen.
+ * ⚠️ **UND ER SCHNEIDET WEITER, ALS NEXT.JS ROUTET:** fuer ZWEI der vier Namen unten traegt der
+ * Satz „eigene Flaeche mit eigenem Inseltest" NICHT — ein Ordner mit nur `layout.tsx`/
+ * `template.tsx` ist fuer sich keine Route, ein `_`-Privatordner wird gar nicht geroutet
+ * (`node_modules/next/dist/docs/01-app/01-getting-started/02-project-structure.md:225`, `:261`);
+ * beider `page.tsx` schneidet hier trotzdem. Zu ENG waere rot ueber korrektem Bestand, zu WEIT
+ * laesst nur Dateien aus, die dann ein anderer Waechter tragen muss.
  *
- * ⛔ **UND ER OEFFNET KEIN NEUES LOCH — DAS IST GEMESSEN, NICHT GESCHLOSSEN.** Was hinter
- * einem Server-Einstieg liegt, faellt nicht durch, sondern an einen SCHAERFEREN Waechter:
- * `zugaenge/fremd/{page.tsx,FremdInsel.tsx}` angelegt →
- * `rtk pnpm vitest run src/app/m/radio/riegel.test.ts` = `Tests 3 failed | 21 passed (24)`,
- * naemlich „die Seitenzahl steht EXAKT auf dem Stand dieses Planteils" (`expected 10 to be
- * 9`), „jede nennt den Riegel ihrer Group" und „keine Verwaltungsseite liest, bevor sie
- * riegelt". ⛔ EINE HEIMLICHE ROUTE IST ALSO UNMOEGLICH; eine ABSICHTLICHE bringt nach
- * `briefs/KOPF.md:111-135` ihren eigenen Inseltest mit („Seite und Insel(n) einer Flaeche
- * liegen immer in derselben Aufgabe").
+ * ⛔ **UND ER OEFFNET KEIN NEUES LOCH — DAS IST GEMESSEN, NICHT GESCHLOSSEN.** Was hinter einem
+ * Server-Einstieg liegt, faellt nicht durch, sondern an einen SCHAERFEREN Waechter: der
+ * Unterordner `fremd/` mit `page.tsx` + `FremdInsel.tsx` → `riegel.test.ts` meldet
+ * `Tests 3 failed | 21 passed (24)`: „die Seitenzahl steht EXAKT …" (`expected 10 to be 9`),
+ * „jede nennt den Riegel ihrer Group", „keine Verwaltungsseite liest, bevor sie riegelt".
+ * ⛔ HEIMLICHE ROUTE UNMOEGLICH; eine ABSICHTLICHE bringt ihren Inseltest mit (`briefs/KOPF.md:111-135`).
  *
  * ⬜ **V20-L1 — die anderen SIEBEN Kopien dieses Finders sind weiterhin nicht rekursiv.**
  * Gemessen mit `/usr/bin/grep -rln "function inselDateien" src` (2026-08-26): ausser dieser
