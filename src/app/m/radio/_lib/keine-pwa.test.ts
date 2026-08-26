@@ -10,15 +10,24 @@ import { ohneKommentare } from "./quelltextScan";
  *
  * ⛔ DIE VIER VORGAENGER SIND `riegel.test.ts`, `_lib/bauform.test.ts`,
  * `_actions/guards.test.ts` und `admin/actions.test.ts`. Diese Datei ist der FUENFTE.
- * ⚠️ SIE IST ABER NICHT DER FUENFTE KONSUMENT VON `_lib/quelltextScan.ts`, und der Brief
- * (`.superpowers/sdd/planteil5/briefs/G6.md`, „fuenfter Scan, fuenfter Konsument") irrt an
- * dieser Stelle. GEMESSEN am 2026-08-26 mit `grep -rn 'from ".*quelltextScan"' src/app/m/radio`:
- * **15** Dateien importieren den Baustein bereits (u. a. `riegel.test.ts:5`,
- * `admin/actions.test.ts:5`, `_ui/verwaltung-css.test.ts:5`,
- * `admin/(arbeit)/geraete/export/route.test.ts:12`, `admin/(druck)/zugaenge/blatt/page.test.tsx:13`).
+ * ⚠️ DIESE VIER SIND DEFINITORISCH, NICHT GEZAEHLT — sie sind die Liste aus `KONTEXT.md:389-390`
+ * („Vier Quelltext-Scans bewachen das Modul … und der vierte aus Planteil 4"), nicht das Ergebnis
+ * eines `grep`. GEMESSEN am 2026-08-27 liefert `grep -rl "readdirSync" src/app/m/radio` ZWANZIG
+ * Dateien, darunter `_ui/verwaltung-css.test.ts` (Planteil 4, V12): ein modulweiter Walker mit
+ * eigener Rekursion (`:56-68`), demselben Endungs- und Namensfilter und einer Untergrenzenwache
+ * (`MODUL_DATEIEN_MINDESTENS = 60`, `:47`) — er ist in dieser VIER NICHT enthalten. Die
+ * Ordinalzahl steht hier also als DEFINITION; GEZAEHLT ist allein die Importeurszahl darunter
+ * (REVIEW-G6, Hinweis H1).
+ * ⚠️ SIE IST ABER NICHT DER FUENFTE KONSUMENT VON `_lib/quelltextScan.ts`. Der Brief verlangte
+ * urspruenglich „fuenfter Scan, fuenfter Konsument" und irrte in der zweiten Haelfte; die
+ * Plandokumente sind in der FIX-RUNDE 1 berichtigt (Ruling R-G6-1) und tragen jetzt die gezaehlte
+ * Zahl. GEMESSEN mit `grep -rln 'from ".*quelltextScan"' src/app/m/radio`: am 2026-08-26 **15**
+ * Dateien VOR dieser hier (u. a. `riegel.test.ts:5`, `admin/actions.test.ts:5`,
+ * `_ui/verwaltung-css.test.ts:5`, `admin/(arbeit)/geraete/export/route.test.ts:12`,
+ * `admin/(druck)/zugaenge/blatt/page.test.tsx:13`), am 2026-08-27 mit ihr **16**.
  * ⛔ DIESE DATEI IST DER **SECHZEHNTE** IMPORTEUR. Eine Vollzaehligkeitsbehauptung, die nicht
  * traegt, ist schlimmer als keine (`KONTEXT.md`, zweite Lehre aus Planteil 4: „Wer ‚alle‘
- * schreibt, zaehlt vorher") — deshalb steht hier die gezaehlte Zahl und nicht die aus dem Brief.
+ * schreibt, zaehlt vorher") — deshalb steht hier die gezaehlte Zahl.
  *
  * ⛔ DIE ABGRENZUNG, DAMIT DIE ZAEHLUNG NICHT VERRUTSCHT: `_lib/quelltextScan.ts` ist NICHT
  * einer der Scans, sondern ihr gemeinsamer HELFER (E-G6). Diese Datei hier ist der fuenfte
@@ -153,11 +162,23 @@ const MODUL = join(process.cwd(), "src/app/m/radio");
  * wiederholtem `test()` abwechselnd `true`/`false` — ueber 98 Dateien waere das genau die
  * stille Richtung.
  *
- * ⛔ EINE AUFLAGE AN DIE NACHFOLGER, wie sie die Zahl der gescannten Dateien schon traegt: WER
- * EIN SECHSTES MUSTER EINTRAEGT, TRAEGT SEINE NADEL IN `SONDE_ALLE_FUENF` NACH — der Fall
- * „jedes der fuenf Muster meldet an einer synthetischen Quelle" haelt die Sollmenge ueber
- * `VERBOTE` selbst und wird sonst rot. Das ist gewollt und keine Ueberraschung: ein Muster
- * ohne Nadel ist genau die stumm gruene Form, gegen die der Fall steht.
+ * ⛔ EINE AUFLAGE AN DIE NACHFOLGER, wie sie die Zahl der gescannten Dateien schon traegt — UND
+ * ZWEI VERSCHIEDENE MECHANISMEN TRAGEN SIE, je einer je Richtung. Beide am 2026-08-27 gemessen:
+ *
+ *   HINZUFUEGEN  Wer ein sechstes Muster eintraegt, traegt seine Nadel in `SONDE_ALLE_FUENF`
+ *                (`:290-296`) nach. Sonst ist die Sollmenge des Falls „jedes der fuenf Muster
+ *                meldet an einer synthetischen Quelle" um einen Eintrag groesser als die
+ *                Fundmenge — und ausserdem stimmt `VERBOTE_ANZAHL` nicht mehr.
+ *   ENTFERNEN    ⛔ DAFUER TRUG DER FALL BIS ZUR FIX-RUNDE 1 GAR NICHTS: seine Sollmenge leitet
+ *                sich aus `VERBOTE` SELBST ab (`:352`), also schrumpfen BEIDE Seiten des
+ *                Vergleichs mit. GEMESSEN: mit getilgtem `["serviceWorker.register", …]`
+ *                (`:184`) lief die Datei `Tests 8 passed (8)` — das ERSTE Verbot der Brieftafel,
+ *                und das einzige mit `Spec:5673-5678`, liess sich STILL streichen. Der Zaehler
+ *                `VERBOTE_ANZAHL` unten ist die Wache dagegen.
+ *
+ * ⚠️ WAS HIER BIS ZUR FIX-RUNDE 1 UNQUALIFIZIERT STAND, und es war fuer eine der zwei
+ * Richtungen gemessen FALSCH: „der Fall haelt die Sollmenge ueber `VERBOTE` selbst und wird sonst
+ * rot" (`REVIEW-G6.md`, Fund W1). Fuer das Hinzufuegen traegt der Satz, fuer das Entfernen nicht.
  */
 const VERBOTE: [string, RegExp][] = [
   ["serviceWorker.register", /serviceWorker\s*\.\s*register/],
@@ -166,6 +187,19 @@ const VERBOTE: [string, RegExp][] = [
   ["metadata-Feld manifest:", /\bmanifest\s*:/],
   ["beforeinstallprompt", /beforeinstallprompt/],
 ];
+
+/**
+ * ⛔ DIE MUSTERLISTE BEKOMMT DIESELBE WACHE WIE DIE DATEIMENGE (Fix-Runde 1 zu G6, Fund W1).
+ * Global Constraint 7 des Planteils
+ * (`docs/superpowers/plans/2026-08-26-radio-modul-plan5-betrieb-tests.md:219-223`): „Wer ‚alle'
+ * schreibt, zaehlt vorher. Eine Vollzaehligkeitsbehauptung, die nicht traegt, ist schlimmer als
+ * keine … steht als `toBe`, NIE als `toBeGreaterThanOrEqual`." Der Testname sagt „jedes der
+ * FUENF Muster" — ohne diese Zahl war das eine Behauptung ohne Traeger.
+ * ⚠️ DER NAME ENDET AUF `_ANZAHL` UND NICHT AUF `_MINDESTENS`, aus dem Grund, den
+ * `riegel.test.ts:98-108` ausschreibt: bei `toBe` waere „mindestens" eine Luege, und der naechste
+ * Leser „repariert" den Namen zurueck auf `>=`.
+ */
+const VERBOTE_ANZAHL = 5;
 
 /**
  * ⛔ BEIM BAU GEMESSEN, NICHT GESCHAETZT (2026-08-26, Aufgabe G6): der erste Lauf dieser Datei
@@ -308,6 +342,10 @@ describe("keine PWA unter m/radio", () => {
   });
 
   it("jedes der fuenf Muster meldet an einer synthetischen Quelle", () => {
+    expect(
+      VERBOTE.length,
+      "die Verbotsliste hat eine andere Laenge als beim Bau — ein GETILGTER Eintrag ist hier still, weil die Sollmenge unten aus VERBOTE selbst kommt (REVIEW-G6, Fund W1)",
+    ).toBe(VERBOTE_ANZAHL);
     expect(
       verstoesse("sonde-alle.tsx", SONDE_ALLE_FUENF).sort(),
       "ein Muster der Verbotsliste kann nicht mehr treffen und ist ueber den echten Dateien stumm gruen",

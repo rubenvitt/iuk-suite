@@ -633,7 +633,7 @@ Commit).
 
 ⚠️ **Zur Einordnung, damit die Zählung in `KONTEXT.md` nicht verrutscht:** `_lib/quelltextScan.ts`
 ist **nicht** einer der vier Scans, sondern ihr gemeinsamer Helfer. `keine-pwa.test.ts` ist der
-**fünfte Scan** und der **fünfte Konsument** des Helfers. `_lib/bauform.test.ts` und
+**fünfte Scan** und der **sechzehnte Konsument** des Helfers. `_lib/bauform.test.ts` und
 `_actions/guards.test.ts` tragen die reparierte Bereinigung heute noch als eigene Kopie
 (⬜ **V-L9**, „kein Bauwert in diesem Fenster", steht auf dem ClickUp-Board) — ⛔ **dieser Planteil
 stellt sie nicht um.** Das wäre eine Änderung an drei fremden Wächtern für einen Nutzen, den kein
@@ -2047,7 +2047,7 @@ Funktionsnamen.
       **S-G6e**: ⛔ **die Verzeichnisfalle-Sonde.** Den Endungsfilter **vor** `isDirectory()` ziehen
       → `sw.js/route.ts steht in der gescannten Liste` rot **und** der Zählfall rot. Bleibt der
       Zählfall allein grün, wurde die Zahl am kaputten Lauf gemessen.
-- [ ] **Schritt 3** — Die Datei bauen. Kopfkommentar: **fünfter Scan, fünfter Konsument**;
+- [ ] **Schritt 3** — Die Datei bauen. Kopfkommentar: **fünfter Scan, sechzehnter Konsument**;
       ⛔ **E-G6a mit ihrer Begründung** (warum `ohneKommentare` und nicht `bereinigt`, und warum das
       Auflage 6 **einhält** statt sie zu brechen — `quelltextScan.ts:55-59` wörtlich);
       die beabsichtigte Falsch-Positiv-Richtung; Bauform 28 mit `bauform.test.ts:174-181`;
