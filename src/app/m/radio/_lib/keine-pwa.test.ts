@@ -170,11 +170,11 @@ const MODUL = join(process.cwd(), "src/app/m/radio");
  *                meldet an einer synthetischen Quelle" um einen Eintrag groesser als die
  *                Fundmenge — und ausserdem stimmt `VERBOTE_ANZAHL` nicht mehr.
  *   ENTFERNEN    ⛔ DAFUER TRUG DER FALL BIS ZUR FIX-RUNDE 1 GAR NICHTS: seine Sollmenge leitet
- *                sich aus `VERBOTE` SELBST ab (`:352`), also schrumpfen BEIDE Seiten des
- *                Vergleichs mit. GEMESSEN: mit getilgtem `["serviceWorker.register", …]`
- *                (`:184`) lief die Datei `Tests 8 passed (8)` — das ERSTE Verbot der Brieftafel,
- *                und das einzige mit `Spec:5673-5678`, liess sich STILL streichen. Der Zaehler
- *                `VERBOTE_ANZAHL` unten ist die Wache dagegen.
+ *                sich aus `VERBOTE` SELBST ab (`:364`), also schrumpfen BEIDE Seiten des
+ *                Vergleichs mit. GEMESSEN: mit getilgtem `["serviceWorker.register", …]` (`:184`)
+ *                lief die Datei VOR DIESEM ZAEHLER `Tests 8 passed (8)` — das ERSTE Verbot der
+ *                Brieftafel, das einzige mit `Spec:5673-5678`, liess sich STILL streichen. HEUTE
+ *                meldet dieselbe Tilgung `expected 4 to be 5` (`VERBOTE_ANZAHL`, `:202`).
  *
  * ⚠️ WAS HIER BIS ZUR FIX-RUNDE 1 UNQUALIFIZIERT STAND, und es war fuer eine der zwei
  * Richtungen gemessen FALSCH: „der Fall haelt die Sollmenge ueber `VERBOTE` selbst und wird sonst
@@ -346,6 +346,18 @@ describe("keine PWA unter m/radio", () => {
       VERBOTE.length,
       "die Verbotsliste hat eine andere Laenge als beim Bau — ein GETILGTER Eintrag ist hier still, weil die Sollmenge unten aus VERBOTE selbst kommt (REVIEW-G6, Fund W1)",
     ).toBe(VERBOTE_ANZAHL);
+    // ⛔ N1 (REVIEW-G6, Runde 2): die Zahl oben faengt das TILGEN nur, solange niemand
+    // `VERBOTE_ANZAHL` im selben Zug MITSENKT. GEMESSEN am 2026-08-27 (Sonde P1): Eintrag `:184`
+    // getilgt UND `VERBOTE_ANZAHL = 4` ergab wieder `Tests 8 passed (8)` — und die zugehoerige
+    // Nadel in `SONDE_ALLE_FUENF` (`:291`) blieb verwaist, ohne dass irgendetwas sie noch zaehlte.
+    // Diese Zeile zaehlt sie: ALLE DREI Zahlen fallen ab jetzt gemeinsam (Sonde S-G6j, 1 rot).
+    // ⚠️ SIE SETZT EINE NADEL JE ZEILE VORAUS. Eine Nadel mit eingebettetem Zeilenumbruch
+    // machte den Fall falsch rot — dann gehoert die Nadelquelle umgebaut, nicht diese Zeile
+    // gestrichen. Das ist die laute Richtung (`_lib/quelltextScan.ts:55-59`).
+    expect(
+      SONDE_ALLE_FUENF.split("\n"),
+      "die Nadelquelle SONDE_ALLE_FUENF und VERBOTE sind auseinandergelaufen — eine verwaiste Nadel zaehlt niemand (REVIEW-G6 Runde 2, Hinweis N1)",
+    ).toHaveLength(VERBOTE_ANZAHL);
     expect(
       verstoesse("sonde-alle.tsx", SONDE_ALLE_FUENF).sort(),
       "ein Muster der Verbotsliste kann nicht mehr treffen und ist ueber den echten Dateien stumm gruen",
