@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect, afterEach } from "vitest";
 import konfigImport from "../../../../../playwright.config";
 import {
@@ -7,10 +9,11 @@ import {
   RADIO_UPDATER_GRUPPE,
   radioUrl,
 } from "../../../../../e2e/helpers/radio";
+import { ausleihSitzungGeheimnis } from "./grenzen";
 import { istRadioAdmin, updaterGruppe, istInUpdaterGruppe } from "./zugang";
 
 /**
- * DIE ZWEI ENV-ZEILEN DES E2E-SERVERS, GEGEN DAS MODUL GEKOPPELT.
+ * DIE DREI ENV-ZEILEN DES E2E-SERVERS, GEGEN DAS MODUL GEKOPPELT.
  *
  * ⛔ WARUM ES DIESE DATEI GIBT, UND SIE IST DIE ANTWORT AUF EINEN BAU-ANHALTENDEN FUND.
  * `.superpowers/sdd/planteil4/VORABSCAN.md`, Fund **F24**: `playwright.config.ts`s
@@ -25,6 +28,18 @@ import { istRadioAdmin, updaterGruppe, istInUpdaterGruppe } from "./zugang";
  * noch Wert; ein Tippfehler (`SUITE_UPDATER_GROUPE_RADIO`) waere gueltiges TypeScript, das
  * Modul fiele auf „Stufe geschlossen" zurueck, und KEIN Lauf wuerde rot — er waere
  * gegenteilig gruen. Dieselbe Begruendung fuehrt `lagerbuch/_lib/e2eEnv.test.ts:10-26`.
+ *
+ * ⛔ DIE DRITTE ZEILE IST KEINE GRUPPENZEILE, SONDERN DAS SITZUNGSGEHEIMNIS — und sie steht
+ * hier, weil ihr Fehlen erst zur ANFRAGEZEIT auffaellt und dann nach etwas ganz anderem
+ * klingt: `ausleihSitzungGeheimnis()` wirft `GrenzenUngueltig`, sobald sie ohne
+ * `RADIO_AUSLEIH_SITZUNG_SECRET` laeuft (`_lib/grenzen.ts:234-240`, Datei 366 Zeilen), und
+ * das ist genau die erste Einloesung eines Codes am Gate. Die Boot-Pruefungen desselben
+ * Werts (>= 32 Zeichen, != `AUTH_SECRET`) feuern im e2e-Lauf NICHT: `radioBootFehler()`
+ * kehrt am Host-Schalter zurueck, weil `RADIO_ENV` `SUITE_HOST_RADIO` bewusst nicht setzt
+ * (`e2e/helpers/radio.ts:80-84`). Anders als bei `lagerbuch`, dessen `LAGERBUCH_ENV` den
+ * Host setzt (`e2e/helpers/lagerbuch.ts:67`) und dessen Fall `:99-111` deshalb
+ * `grenzenFehler` fahren darf — hier waere derselbe Fall eine Zusage ueber einen Weg, den
+ * der Lauf nie geht.
  *
  * ⚠️ DIESE DATEI LIEGT UNTER `src/`, NICHT UNTER `e2e/`: `vitest.config.ts` schliesst
  * `e2e/**` aus (dort liegen die Playwright-Specs), ein Test dort liefe nie. Vorbild:
@@ -61,12 +76,64 @@ function nextEintrag(): { command: string; env?: Record<string, string> } {
   return treffer[0];
 }
 
-describe("RADIO_ENV — die zwei Gruppenzeilen des E2E-Servers", () => {
-  it("traegt beide Namen mit ihren Konstanten und keinen dritten", () => {
+/**
+ * Die Vorlage, gegen die der E2E-Wert des Geheimnisses gehalten wird.
+ *
+ * ⛔ OHNE ZEILENNUMMER, UND DAS IST DIE LEHRE AUS EINER GEMESSENEN DRIFT: der Wert stand
+ * einmal auf `.env.example:453`, heute auf `:546` (Datei 647 Zeilen) — eine Aufgabe
+ * dieses Planteils hat 174 Zeilen darueber eingefuegt. Ein Textanker findet die Zeile nach
+ * jeder weiteren Verschiebung, eine Zahl nicht. Bauform 1:1 aus
+ * `src/app/m/files/_lib/devAufbau.test.ts:87-88` und `:225`.
+ */
+const WURZEL = path.resolve(__dirname, "../../../../..");
+const envZeilen = readFileSync(path.join(WURZEL, ".env.example"), "utf8")
+  .split("\n")
+  .map((z) => z.trim());
+
+describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E-Servers", () => {
+  it("traegt beide Namen mit ihren Konstanten, das Geheimnis und keinen vierten", () => {
+    /*
+     * ⛔ DAS GEHEIMNIS STEHT HIER ALS LITERAL UND NICHT ALS IMPORTIERTE KONSTANTE. Die zwei
+     * Gruppennamen haben eine, weil die Specs sie fuer `devLogin(…, { groups })` brauchen —
+     * das Geheimnis verbraucht kein Test, es geht nur an den Serverprozess. Eine geteilte
+     * Konstante machte diese Zeile zur Tautologie (beide Seiten wanderten gemeinsam), genau
+     * die Klasse, gegen die der Fall „nennt auch fuer die ADMIN-Stufe …" weiter unten steht
+     * (dort gemessen: `RADIO_ADMIN_GRUPPE` auf `iuk-radio-admins` verdreht liess alle 57
+     * Testdateien gruen). Vorbild: `lagerbuch` haelt seinen
+     * `LAGERBUCH_HELFER_SITZUNG_SECRET` ebenfalls inline (`e2e/helpers/lagerbuch.ts:71`).
+     */
     expect(RADIO_ENV).toEqual({
       SUITE_ADMIN_GROUP_RADIO: RADIO_ADMIN_GRUPPE,
       SUITE_UPDATER_GROUP_RADIO: RADIO_UPDATER_GRUPPE,
+      RADIO_AUSLEIH_SITZUNG_SECRET: "e2e-radio-ausleih-secret-nicht-produktiv-32z",
     });
+  });
+
+  it("haelt das Geheimnis zeichengleich gegen die Vorlage `.env.example`", () => {
+    /*
+     * ⛔ DIE GANZE ZEILE, NICHT NUR DER SCHLUESSEL. `.env.example` fuehrt denselben Namen
+     * ZWEIMAL: einmal produktiv als Platzhalter (`# RADIO_AUSLEIH_SITZUNG_SECRET=<eigener
+     * Wert, nicht aus dieser Vorlage>`) und einmal im E2E-Block mit dem fertigen Wert. Eine
+     * Pruefung nur auf den Namen traefe den Platzhalter und bliebe auch bei einem FALSCHEN
+     * E2E-Wert gruen — gruen und wirkungslos. Ohne diesen Fall waere die Kopplung, die
+     * `RADIO_ENV` selbst als Kopplung benennt, unbewacht: eine geaenderte Vorlage und ein
+     * stehengebliebener Wert waeren beide gruen.
+     */
+    expect(envZeilen, ".env.example fuehrt den E2E-Wert nicht zeichengleich").toContain(
+      `# RADIO_AUSLEIH_SITZUNG_SECRET=${RADIO_ENV.RADIO_AUSLEIH_SITZUNG_SECRET}`,
+    );
+  });
+
+  it("nennt den Namen, den der Ausleihzweig wirklich liest — ein Tippfehler faellt hier auf", () => {
+    /*
+     * ⛔ DIE KOPPLUNG AN DEN LESER, nicht an eine zweite Namensliste — dieselbe Bauform wie
+     * der Updater-Fall unten. `ausleihSitzungGeheimnis()` liest
+     * `env.RADIO_AUSLEIH_SITZUNG_SECRET` und WIRFT bei fehlendem oder leerem Wert
+     * (`_lib/grenzen.ts:234-240`). Ein verschriebener Schluessel in `RADIO_ENV` liesse den
+     * Aufruf hier werfen — und im Lauf beim ersten Einloesen eines Codes am Gate, mit einer
+     * Meldung, die nach etwas ganz anderem klingt.
+     */
+    expect(ausleihSitzungGeheimnis(RADIO_ENV)).toBe(RADIO_ENV.RADIO_AUSLEIH_SITZUNG_SECRET);
   });
 
   it("setzt einen NICHT-LEEREN Updater-Wert — leer schliesst die Stufe", () => {
