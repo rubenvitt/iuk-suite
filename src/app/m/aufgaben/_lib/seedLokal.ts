@@ -340,7 +340,25 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
     ],
   });
 
-  // Überfällig: faelligAm in der Vergangenheit, Status nicht abgeschlossen.
+  /*
+   * Überfällig: faelligAm in der Vergangenheit, Status nicht abgeschlossen.
+   *
+   * ⛔ DER ANKER IST `montag`, NICHT `heute` — UND DAS IST KEINE STILFRAGE (gemessen 2026-08-27).
+   * Mit `tagePlus(heute, -3)` wanderte diese Fixtur mit dem Wochentag IN die laufende Woche
+   * hinein und landete dort auf einem Tag, den Bendix schon belegt hat — ohne expliziten
+   * `planRang`, also auf dem Schema-Vorgabewert 0, und damit im Rangzusammenstoss:
+   *   · DONNERSTAG: `heute - 3` ist der Wochenmontag → drei Einträge auf Bendix' Montag, zwei
+   *     davon auf Rang 0 neben „Materialtransport Kreisverband". `e2e/aufgaben.spec.ts:1048`
+   *     und `:1594` waren an jedem Donnerstag rot (Hoch-Knopf `disabled`).
+   *   · FREITAG: `heute - 3` ist der Wochendienstag → Zusammenstoss mit „Eigene Fortbildung"
+   *     auf Rang 0. Ein zweiter, unabhängiger Tag derselben Fehlerklasse.
+   * Der Kommentar unten bei „Blutdruckmessgeräte kalibrieren" und die Fußzeile der Achse aus
+   * der Spec („N Aufgaben liegen außerhalb dieser Woche", `ohnePlatzInDerAchse`) setzen beide
+   * voraus, dass diese Aufgabe AUSSERHALB des Mo–Fr-Gitters liegt; an vier von sieben
+   * Wochentagen war das still falsch. `tagePlus(montag, -3)` ist der Freitag der Vorwoche:
+   * immer vor `heute` (also weiterhin überfällig) und immer vor `montag` (also nie im Gitter),
+   * an JEDEM Wochentag. Zugesichert in `seedLokal.test.ts`, über alle sieben Wochentage.
+   */
   legeAufgabeAn(db, zeilen, {
     titel: "Sanitätswache Stadtfest vorbereiten",
     beschreibung: "Material und Personaleinteilung für die Wache abstimmen.",
@@ -349,8 +367,8 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
     zugewiesenAn: ids.bendix,
     prueferId: ids.tomke,
     status: "in_arbeit",
-    faelligAm: tagePlus(heute, -3),
-    planDatum: tagePlus(heute, -3),
+    faelligAm: tagePlus(montag, -3),
+    planDatum: tagePlus(montag, -3),
     dauerMinuten: 180,
     verlauf: [
       { ereignis: "eingestellt", akteurId: ids.tomke },
@@ -529,8 +547,8 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
 
   // EINE in_arbeit-AUFGABE INNERHALB DER AKTUELLEN WOCHE (Aufgabe 20, e2e-Beleg fuer „in_arbeit ist
   // ziehbar, ohne Sonderfall“, Spec-Nachtrag `72ef235`): die einzige bisherige in_arbeit-Demo-
-  // Aufgabe („Sanitätswache Stadtfest vorbereiten“ oben) liegt drei Tage VOR heute und damit
-  // planDatum-maessig ausserhalb der Standard-Wochenansicht (sie ist die Ueberfaellig-Fixture,
+  // Aufgabe („Sanitätswache Stadtfest vorbereiten“ oben) liegt drei Tage VOR dem Wochenmontag und
+  // damit planDatum-maessig ausserhalb der Standard-Wochenansicht (sie ist die Ueberfaellig-Fixture,
   // absichtlich in der Vergangenheit) — fuer einen echten Zug in `e2e/aufgaben.spec.ts` ohne
   // Wochenwaehler-Navigation nicht erreichbar. Carla traegt sie, nicht Alina/Bendix, damit sie
   // keiner der beiden bestehenden Montags-Konstellationen (Alinas Standwache, Bendix' Ueberbuchung)

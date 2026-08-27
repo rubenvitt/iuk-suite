@@ -4290,11 +4290,55 @@ ausgefuehrt wird, ist ⬜ **Z-L1** und wird **in Planteil 4** beim ersten echten
       `rtk proxy find src/app/m/radio -type d -name _lib` → **muss treffen**.
       ⛔ **Trifft eine der beiden nicht, sind die Befehle 1 und 2 wertlos** — dann ist der Pfad, das
       Werkzeug oder das Arbeitsverzeichnis falsch, und das ist der Fund.
-- [ ] **1 —** `rtk proxy rg -n "RADIO_ADMIN_|api/v1/" src/app/m/radio` → ⛔ **nichts** (Exit 1).
+- [ ] **1 —** ⛔ **DIE GESCHAERFTE FASSUNG — DIESE, NICHT DIE AUS DER SPEC:**
+
+      ```bash
+      rtk proxy rg -n --pcre2 "RADIO_ADMIN_(?!GRUPPE\b)|api/v1/" src/app/m/radio
+      ```
+
+      → ⛔ **nichts** (Exit 1).
       ⛔ **`rtk proxy`, nicht `rtk grep`:** der Regex-Dialekt des Filters ist nicht festgeschrieben,
       und ein woertlich genommenes `|` machte diesen Befehl **dauerhaft gruen**. ⛔ **Alternativ
       zwei Einzelmuster.**
       ⚠️ **Notwendig, nicht hinreichend.**
+
+      ⛔ **WARUM DIE SPEC-FASSUNG HIER NICHT MEHR STEHT.** `Spec:5453` (= `6-grenze.md:518`) fuehrt
+      den Befehl als `rg -n "RADIO_ADMIN_|api/v1/" src/app/m/radio` → „liefert **nichts**". **Er
+      liefert heute FUENF Treffer, und alle fuenf sind harmlos:** `RADIO_ADMIN_GRUPPE` in
+      `_lib/e2eEnv.test.ts` (`:6, 112, 125, 227, 242`) ist ein **Suite-Gruppenname** fuer die
+      e2e-Umgebung, kein Alt-System-Bezug. ⛔ **Wer die Spec-Fassung am Cutover-Abend 1:1 faehrt,
+      nimmt einen gruenen Zustand ROT ab** — und bricht im schlimmsten Fall einen Cutover ab, der
+      in Ordnung ist. Die Sachaussage von Abschnitt C steht unveraendert; nur der Befehl war zu
+      weit. ⛔ **Die Spec bleibt, wie sie ist** — sie ist der Vertrag, dies hier ist der
+      Handgriff. Gemessen am **2026-08-27** (Schlusspruefung `radio`-Gesamt, Fund 2).
+
+      ⛔ **Das Ausschlussmuster ist ENG, nicht `RADIO_ADMIN_URL|RADIO_ADMIN_TOKEN`.** Es nimmt
+      **genau einen** bekannten Namen heraus und laesst das weite Netz stehen: ein neu
+      hinzugekommenes `RADIO_ADMIN_HOST` oder `RADIO_ADMIN_BASE` faengt es weiterhin. Eine
+      Positivliste der zwei heute bekannten Namen taete das **nicht**.
+
+      ⛔ **KEINE ROHRFORM UEBER GANZE ZEILEN.** `… | rg -v "RADIO_ADMIN_GRUPPE"` sieht gleichwertig
+      aus und ist es nicht: eine Zeile, die den harmlosen Gruppennamen **und** einen echten
+      Verstoss traegt, faellt dort **still** heraus. **Gemessen am 2026-08-27** an einer
+      kuenstlichen Sondendatei mit drei Verstoessen (P1 `RADIO_ADMIN_URL`, P2 `api/v1/`,
+      P3 beide Namen in **derselben** Zeile), danach zurueckgenommen:
+
+      | Fassung | P1 | P2 | **P3** | Urteil |
+      |---|---|---|---|---|
+      | Spec 1:1 `rg -n "RADIO_ADMIN_\|api/v1/"` | ✅ | ✅ | ✅ | ⛔ **faengt zusaetzlich die 5 harmlosen** (8 Treffer statt 3) |
+      | ⛔ **geschaerft, Lookahead** (oben) | ✅ | ✅ | ✅ | ✅ **3 Treffer, keine harmlosen** |
+      | Ersatzform ohne PCRE2 (unten) | ✅ | ✅ | ✅ | ✅ gleichwertig |
+      | ~~`… \| rg -v "RADIO_ADMIN_GRUPPE"`~~ | ✅ | ✅ | ❌ **verloren** | ⛔ **nicht benutzen** |
+
+      **Gegenprobe am heutigen Stand nach Ruecknahme der Sonde: Exit 1, keine Treffer.**
+
+      ⚠️ **Wenn `rg` ohne PCRE2 gebaut ist** (`rg --version` nennt `+pcre2` — hier 15.2.0 mit),
+      ist dies die gleichwertige Ersatzform; `-o` stellt jeden Treffer auf eine **eigene** Zeile
+      und rettet damit den P3-Fall:
+
+      ```bash
+      rtk proxy rg -o -n "RADIO_ADMIN_\w+|api/v1/" src/app/m/radio | rg -v "RADIO_ADMIN_GRUPPE"
+      ```
 - [ ] **2 —** `rtk proxy find src/app/m/radio -type d -name api` → ⛔ **nichts** (§6.4).
 - [ ] **3 —** ⛔ **Alle sechs Ersatzfunktionen stehen in `_db/leihen.ts`** — `rtk grep -c "^export
       function" src/app/m/radio/_db/leihen.ts` und die Namen einzeln nachsehen.
@@ -4416,7 +4460,7 @@ zuletzt.** Und er bringt seinen eigenen Selbsttest mit.
 | Vorher (Ende Planteil 3) | Ab Ende Planteil 4 |
 |---|---|
 | **6.7-Abschnitt B war offen** — fuenf von sechs Ersatzfunktionen | ⛔ **B ist geschlossen.** Alle sechs stehen als Drizzle-Aufrufe **im selben Prozess**, in **einer** Datei, mit Tests |
-| **6.7-Abschnitt C war offen** — die Ausleihe rief die internen Pfade, die Verwaltung existierte nicht | ⛔ **C ist geschlossen.** **Beide** Oberflaechen rufen ausschliesslich die internen Pfade. Der Abnahmebefehl liefert nichts, es gibt keinen Pfad unter `.../api/`, und `/admin/ausleihen` hat `leihhistorie` ihren Verbraucher gegeben |
+| **6.7-Abschnitt C war offen** — die Ausleihe rief die internen Pfade, die Verwaltung existierte nicht | ⛔ **C ist geschlossen.** **Beide** Oberflaechen rufen ausschliesslich die internen Pfade. Der Abnahmebefehl **in seiner geschaerften Fassung** (s. „Die Abnahmebefehle fuer 6.7-Abschnitt C", Schritt 1) liefert nichts — die Spec-Fassung faengt seit dem 2026-08-27 fuenf **harmlose** `RADIO_ADMIN_GRUPPE`-Treffer mit; es gibt keinen Pfad unter `.../api/`, und `/admin/ausleihen` hat `leihhistorie` ihren Verbraucher gegeben |
 | ⛔ **Der Router-Schwenk war NICHT MOEGLICH.** Ein Schwenk haette den Alt-Kiosk ohne Bestand gelassen oder die Verwaltung von ihrer Datenquelle getrennt — „Beides ist Datenverlust ohne Fehlermeldung" | ⛔ **D ist MOEGLICH.** Beide Domains koennen im **selben Fenster** umziehen, weil beide Flaechen auf demselben Datenbestand im selben Prozess stehen. ⚠️ **Moeglich, nicht faellig** — das Ausloesen ist eine Betreiberentscheidung |
 | Es gab **keine Verwaltungsflaeche** — zwei Layouts ohne Seite darunter | ⛔ **Zehn Seiten, acht Inseln, ein Route Handler.** Alles, was `radio-admin` heute kann, liegt unter `radio.iuk-ue.de/admin` |
 | ⛔ **Der Verwaltungsriegel war UNBEWIESEN.** Nur der Quelltext-Scan lief; „ob das Layout einer Route-Group ohne Seite darunter ueberhaupt ausgefuehrt wird", war ⬜ Z-L1 | ⛔ **Abgelesen, in V23, an einem echten Abruf** — mit Datum und Messwert im Kopfkommentar von `riegel.test.ts`. ⚠️ **Und wenn die Antwort „das Layout traegt nicht" lautet, ist das ein FUND** und keine Fussnote |

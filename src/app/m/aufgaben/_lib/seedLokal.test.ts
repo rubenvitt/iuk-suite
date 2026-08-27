@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TestDb } from "../_db/testdb";
 import { migrierteTestDb } from "../_db/testdb";
 import { personen, aufgaben, routinen, verlauf, STATUS_WERTE } from "../_db/schema";
-import { isoTag } from "./datum";
+import { isoTag, montagDerWoche, wochenTage } from "./datum";
 import { istUeberfaellig } from "./anzeige";
 import { seedLokalAufgaben } from "./seedLokal";
 
@@ -233,4 +233,146 @@ describe("seedLokalAufgaben — relativ statt fest", () => {
       t2.schliessen();
     }
   });
+});
+
+/*
+ * DER WOCHENTAG IST EINE EINGABE DES SEEDS, ALSO WIRD ER GESETZT UND NICHT ABGEWARTET.
+ *
+ * GEMESSEN (2026-08-27, Donnerstag): `e2e/aufgaben.spec.ts:1048` und `:1594` waren rot, weil die
+ * Ueberfaellig-Fixtur ihr `planDatum` auf `tagePlus(heute, -3)` trug — OHNE expliziten `planRang`,
+ * also auf dem Schema-Vorgabewert 0. `heute - 3` ist der Wochenmontag GENAU DANN, wenn heute
+ * Donnerstag ist; dann trug Bendix' Montag DREI Eintraege statt zwei, zwei davon auf Rang 0, und
+ * der Hoch-Knopf des zweiten Eintrags war `disabled`.
+ *
+ * ⛔ UND EIN ZWEITER, UNABHAENGIGER TAG: an einem FREITAG ist `heute - 3` der Wochendienstag, wo
+ * Bendix' „Eigene Fortbildung" ebenfalls auf dem Vorgabewert 0 liegt. Dieselbe Fehlerklasse, ein
+ * anderer Tag — die Reparatur der Aufgabe 20 hatte sie fuer das Montags-PAAR geschlossen und beide
+ * Faelle der Ueberfaellig-Fixtur uebersehen.
+ *
+ * ⛔ DIESER BLOCK LAEUFT DESHALB ALLE SIEBEN WOCHENTAGE AB. Ein Fall, der nur donnerstags rot
+ * werden kann, ist am Freitag kein Beweis mehr. Die sieben Daten sind literal und decken Mo–So.
+ */
+const SIEBEN_WOCHENTAGE = [
+  "2026-08-24", // Montag
+  "2026-08-25", // Dienstag
+  "2026-08-26", // Mittwoch
+  "2026-08-27", // Donnerstag
+  "2026-08-28", // Freitag
+  "2026-08-29", // Samstag
+  "2026-08-30", // Sonntag
+];
+
+const BENDIX_SUB = "dev:bendix@localtest.me";
+
+interface Planzeile {
+  titel: string;
+  planDatum: string;
+  planRang: number;
+  zugewiesenAn: string;
+}
+
+/** Seedet eine frische Datenbank mit gesetzter Systemzeit und liest ihre Planzeilen aus. */
+async function planzeilenAm(tag: string): Promise<Planzeile[]> {
+  vi.setSystemTime(new Date(`${tag}T10:00:00Z`));
+  const eigene = migrierteTestDb();
+  try {
+    await seedLokalAufgaben(eigene.db);
+    const allePersonen = eigene.db.select().from(personen).all();
+    const subVonId = new Map(allePersonen.map((p) => [p.id, p.sub]));
+    return eigene.db
+      .select()
+      .from(aufgaben)
+      .all()
+      .filter((a) => a.planDatum !== null && a.zugewiesenAn !== null)
+      .map((a) => ({
+        titel: a.titel,
+        planDatum: a.planDatum as string,
+        planRang: a.planRang,
+        zugewiesenAn: subVonId.get(a.zugewiesenAn as string) ?? "?",
+      }));
+  } finally {
+    eigene.schliessen();
+  }
+}
+
+describe("seedLokalAufgaben — kein Rangzusammenstoss, an KEINEM Wochentag", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  it.each(SIEBEN_WOCHENTAGE)(
+    "am %s traegt keine Person zwei Aufgaben desselben Tages auf demselben planRang",
+    async (tag) => {
+      const zeilen = await planzeilenAm(tag);
+      const raengeProPersonUndTag = new Map<string, Planzeile[]>();
+      for (const z of zeilen) {
+        const schluessel = `${z.zugewiesenAn}|${z.planDatum}`;
+        raengeProPersonUndTag.set(schluessel, [
+          ...(raengeProPersonUndTag.get(schluessel) ?? []),
+          z,
+        ]);
+      }
+      for (const [schluessel, gruppe] of raengeProPersonUndTag) {
+        const raenge = gruppe.map((z) => z.planRang);
+        const beschreibung = gruppe
+          .map((z) => `${z.titel} (Rang ${z.planRang})`)
+          .join(" + ");
+        expect(
+          new Set(raenge).size,
+          `Rangzusammenstoss bei ${schluessel}: ${beschreibung}`,
+        ).toBe(raenge.length);
+      }
+      // Nicht triviale Nullpruefung: es muss ueberhaupt eine Person mit zwei Eintraegen an einem
+      // Tag geben, sonst prueft die Schleife oben nichts.
+      const mehrfachTage = [...raengeProPersonUndTag.values()].filter((g) => g.length >= 2);
+      expect(mehrfachTage.length).toBeGreaterThan(0);
+    },
+  );
+
+  /*
+   * DIE ZUSAGE, DIE DIE ZWEI PLAYWRIGHT-FAELLE VERBRAUCHEN (`e2e/aufgaben.spec.ts:1048`, `:1594`):
+   * Bendix' Montag traegt GENAU ZWEI Eintraege, in dieser Reihenfolge. Die Klausel oben allein
+   * liesse einen dritten Eintrag mit Rang 2 durch — der waere zusammenstossfrei und braeche
+   * `:1048` trotzdem, weil dort die ersten zwei Zeilen namentlich abgelesen werden.
+   */
+  it.each(SIEBEN_WOCHENTAGE)(
+    "am %s traegt Bendix' Wochenmontag genau die zwei gestaffelten Materialtransport-Eintraege",
+    async (tag) => {
+      const zeilen = await planzeilenAm(tag);
+      const montag = montagDerWoche(isoTag(new Date(`${tag}T10:00:00Z`)));
+      const bendixMontag = zeilen
+        .filter((z) => z.zugewiesenAn === BENDIX_SUB && z.planDatum === montag)
+        .sort((a, b) => a.planRang - b.planRang);
+      expect(
+        bendixMontag.map((z) => `${z.planRang} ${z.titel}`),
+        "Bendix' Wochenmontag",
+      ).toEqual(["0 Materialtransport Kreisverband", "1 Nachbereitung Materialtransport"]);
+    },
+  );
+
+  /*
+   * DIE URSACHE DIREKT: die Ueberfaellig-Fixtur liegt VOR dem Wochenmontag, an jedem Wochentag.
+   * `seedLokal.ts` sagt das im Kommentar zu, und die Spec baut darauf ihre Fusszeile „N Aufgaben
+   * liegen ausserhalb dieser Woche" auf. Solange ihr Datum an `heute` haengt, ist beides an zwei
+   * von sieben Tagen still falsch — auch dann, wenn sie zufaellig keinen Rang mehr trifft.
+   */
+  it.each(SIEBEN_WOCHENTAGE)(
+    "am %s liegt jedes Plandatum von Bendix entweder im Wochengitter oder VOR dem Wochenmontag",
+    async (tag) => {
+      const zeilen = await planzeilenAm(tag);
+      const heute = isoTag(new Date(`${tag}T10:00:00Z`));
+      const montag = montagDerWoche(heute);
+      const gitter = wochenTage(montag);
+      const bendix = zeilen.filter((z) => z.zugewiesenAn === BENDIX_SUB);
+      expect(bendix.length).toBeGreaterThanOrEqual(3);
+      const imGitter = bendix.filter((z) => gitter.includes(z.planDatum));
+      expect(
+        imGitter.map((z) => z.planDatum).sort(),
+        "Bendix im Wochengitter",
+      ).toEqual([gitter[0], gitter[0], gitter[1]]);
+      for (const z of bendix.filter((n) => !gitter.includes(n.planDatum))) {
+        expect(z.planDatum < montag, `${z.titel} liegt nicht vor dem Wochenmontag`).toBe(true);
+      }
+    },
+  );
 });
