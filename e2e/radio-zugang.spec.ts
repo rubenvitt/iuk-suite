@@ -12,10 +12,39 @@ import { E2E_CODE_GESPERRT, RADIO_HOST, radioUrl } from "./helpers/radio";
  * ⬜ A-L9 genannt) sagt: dass die Ausleih-Riegel bei einem ECHTEN Abruf greifen, ist nicht
  * belegt. Belegt war bisher nur, dass die Zeilen im Quelltext STEHEN —
  * `src/app/m/radio/riegel.test.ts` ist ein Quelltext-Scan, und
- * `src/app/m/radio/(ausleihe)/layout.tsx:38-41` (Datei 46 Zeilen) schreibt die Luecke selbst
- * aus: „Belegt ist, dass die Zeile hier steht (Quelltext-Scan), nicht dass sie wirkt;
- * abgelesen wird das in Planteil 5, beim ersten e2e-Lauf." Diese Datei ist jene Ablesung
- * fuer den Ausleihzweig; T2 (`e2e/radio-kiosk.spec.ts`) hat den Ast selbst getragen.
+ * `src/app/m/radio/(ausleihe)/layout.tsx` schrieb die Luecke selbst aus: „Belegt ist, dass
+ * die Zeile hier steht (Quelltext-Scan), nicht dass sie wirkt; abgelesen wird das in
+ * Planteil 5, beim ersten e2e-Lauf." ⚠️ DIESER SATZ STEHT DORT NICHT MEHR ALS OFFENER
+ * POSTEN: die Fix-Runde 1 hat ihn durch das Ergebnis unten ersetzt, samt dem alten Wortlaut
+ * als Zitat (`layout.tsx:38-68`, Datei 73 Zeilen).
+ *
+ * ⛔ UND HIER STEHT GENAU, WIE WEIT DIESE DATEI JENE ABLESUNG IST — NICHT WEITER
+ * (Fix-Runde 1, Fund W1). Was die vier Faelle unten belegen: die Ausleih-Riegel GREIFEN bei
+ * einem echten Abruf, im Lesepfad (Fall 4) wie im Schreibpfad (Fall 5) und am Gate (Fall 3).
+ * ⛔ WAS SIE NICHT BELEGEN: WELCHE der zwei Zeilen den Lesepfad traegt. Jede der drei
+ * Flaechen unter `(ausleihe)/` ruft den Riegel SELBST noch einmal
+ * (`geraete/page.tsx:86`, `ausleihen/page.tsx:79`, `rueckgabe/page.tsx:65`), und kein Fall
+ * unterscheidet Layout von Seite. Die Trennung ist deshalb VON HAND gemessen, in der Form
+ * der Probe E aus `riegel.test.ts:73-79`, am 2026-08-27 an diesem Arbeitsstand:
+ *
+ *   P1  `(ausleihe)/layout.tsx:71` (`await requireAusleihZugang(getDb());`; bei der Messung
+ *       war es `:44`, der Kommentar darueber ist seither gewachsen) auskommentiert
+ *       -> `4 passed (17.6s)`, KEIN Fall rot. Also: die Seitenzeilen allein tragen.
+ *   P2  die SEITENZEILE `geraete/page.tsx:86` neutralisiert (`const zugang` durch ein
+ *       Literal derselben Form ersetzt, damit die Seite uebersetzt und NICHT riegelt),
+ *       Layout unveraendert -> `4 passed (12.2s)`; Fall 4 Hop 1 auf `/geraete` antwortet
+ *       weiterhin `307` mit `Location: /abmelden?grund=gesperrt`. Also: das LAYOUT traegt
+ *       ebenfalls, und zwar allein.
+ *
+ * ✅ ⬜ A-L9 IST DAMIT FUER DEN AUSLEIHZWEIG ABGELESEN: Next fuehrt das Group-Layout aus, und
+ * beide Riegel greifen UNABHAENGIG voneinander — genau die Doppelung, die Spec:2759-2763
+ * verlangt („Route-Group-Grenzen sind keine Sicherheitsgrenzen"). ⛔ Beide Sonden sind
+ * zurueckgenommen; `rtk git status --short` und `rtk git diff --stat` waren danach leer.
+ * ⛔ DIE MESSUNG IST EINE PROBE, KEIN DAUERFALL — ein automatischer Test kann die Seitenzeile
+ * nicht entfernen. Wer eine der beiden Zeilen loescht, faengt das an `riegel.test.ts`
+ * Klausel (f) (`riegel.test.ts:855-892`), nicht hier.
+ *
+ * T2 (`e2e/radio-kiosk.spec.ts`) hat den Ast selbst getragen.
  *
  * ⛔ DIE DREI NAMEN SIND DIE GEBAUTEN (B7), NICHT DIE VERWORFENEN. Das Praedikat heisst
  * `ausleihZugangOderNull`, die Layout-/Seitenform `requireAusleihZugang`, die Action-Form
@@ -43,8 +72,34 @@ import { E2E_CODE_GESPERRT, RADIO_HOST, radioUrl } from "./helpers/radio";
  * die gesperrt wurden, weil ein Kaertchen verschwunden ist." Liefe Fall 3 gegen einen
  * AKTIVEN `E2E_CODE_GESPERRT`, waere er gruen aus dem falschen Grund: das Gate zeigte dann
  * gar keine Meldung, sondern leitete weiter — und ein Test, der nur „keine
- * Server-Exception" pruefte, saehe das nicht. Deshalb traegt JEDER Fall unten seine
+ * Server-Exception" pruefte, saehe das nicht. Deshalb traegt jeder Fall unten seine
  * Vorbedingung als eigenes `expect` mit eigener Meldung.
+ *
+ * ⛔ UND DIE VORBEDINGUNGEN SIND NICHT ALLE GLEICH SCHARF — das steht hier, statt eine
+ * pauschale Zusage zu behaupten (Fix-Runde 1, Fund G2). Sie zerfallen in DREI Klassen, und
+ * nur die erste faengt eine Regression im Produktcode:
+ *
+ *   1. GEGEN DEN BESTAND, ALSO TRAGEND. Fall 3: `E2E_CODE_GESPERRT` ist `aktiv = 0` — die
+ *      Zeile kommt aus dem SEED (`_lib/seedLokal.ts:192-194`, Datei 235 Zeilen), und ein
+ *      Seed, der alles aktiv anlegt, faerbt genau hier — das ist die Lage, vor der
+ *      `_db/schema.ts:178-180` woertlich warnt. Ebenso Fall 2, Vorbedingung 2 („das Geraet
+ *      fuehrt keine aktive Leihe"): sie liest den Bestand, den der Seed schreibt. Ebenso
+ *      Fall 4, `vorSperre`
+ *      (`/geraete` antwortet 200, BEVOR gesperrt wird) — sie liest den Server.
+ *   2. GEGEN DIESE DATEI SELBST. Die Rundlaeufe `legeCodeAn -> aktiv = 1` und
+ *      `setzeAktiv(id, false) -> aktiv = 0` schreiben und lesen dieselbe Datei, ohne
+ *      Produktcode dazwischen; KEIN Produktcode-Wechsel kann sie faerben. ⚠️ Leer sind sie
+ *      trotzdem nicht: sie bewachen die Haertung in `legeCodeAn` (das `update … set
+ *      aktiv = 1` hinter dem `insert or ignore`) — ohne die waere der zweite Durchgang unter
+ *      `--repeat-each` oder `retries` still auf einem GESPERRTEN Code gruen.
+ *   3. GEGEN DIE PLAYWRIGHT-KONFIGURATION. Fall 2, „kein `radio_ausleihe` im Kontext":
+ *      `playwright.config.ts` setzt KEIN `storageState` (nachgemessen: `grep -n
+ *      "storageState" playwright.config.ts` ist leer), jeder Test bekommt also einen
+ *      frischen Kontext. Die Zeile dokumentiert die Voraussetzung des Falls; rot wuerde sie
+ *      erst, wenn jemand die Konfiguration umstellt.
+ *
+ * ⛔ KEINE ZUSAGE DIESER DATEI HAENGT AN KLASSE 2 ODER 3 — fuer jeden der vier Faelle gibt es
+ * eine Sonde auf Produktcode, und die Tafel weiter unten nennt sie mit der roten Zeile.
  *
  * ────────────────────────────────────────────────────────────────────────────
  * ⛔ FALL 4 WIRD UEBER DAS ANTWORTPROTOKOLL GEPRUEFT, NICHT UEBER DIE ENDADRESSE
@@ -79,8 +134,15 @@ import { E2E_CODE_GESPERRT, RADIO_HOST, radioUrl } from "./helpers/radio";
  *     GRUND, WARUM HIER KEIN `E2E_CODE_AKTIV` STEHT: T2 (`e2e/radio-kiosk.spec.ts`) braucht
  *     ihn einloesbar, und `workers: 1` heisst EINE gemeinsame Datei, nicht eine gemeinsame
  *     Reihenfolgezusage.
- *   - ZWEI `loans`-ZEILEN aus Fall 2 (eine gebuchte) — Fall 5 bucht NICHTS, das ist seine
- *     Zusage.
+ *   - GENAU EINE `loans`-ZEILE, und zwar aus Fall 2 — NACHGEZAEHLT AM 2026-08-27, nicht
+ *     geschaetzt (Fix-Runde 1, Fund W2; bis dahin stand hier faelschlich „ZWEI"):
+ *     `sqlite3 ./.data/e2e/radio.db "select count(*) from loans where borrower_name like
+ *     '%T3%'"` -> **1**, `zugangscode_id` NULL, `returned_at` NULL; `loans` insgesamt **5**
+ *     (4 aus dem Seed + 1 aus dieser Datei). Strukturell ebenso: Fall 2 klickt
+ *     `AUSWAHLZEILE_FREI.first()`, also EIN Geraet, und `bucheAusleihe` legt eine Zeile je
+ *     Geraet an. ⛔ Fall 5 bucht NICHTS, das ist seine Zusage. ⚠️ T4 grenzt seine eigene
+ *     Datenwirkung gegen diese Liste ab — eine zu hohe Zahl hier ist dort ein falscher
+ *     Bestand.
  *   - `zugangscodes.last_used_at` von `CODE_FALL4` und `CODE_FALL5`: bei der Einloesung
  *     gesetzt (`_lib/schreibpfade/codeEinloesung.ts:70`, Datei 77 Zeilen). `E2E_CODE_AKTIV`
  *     bleibt unberuehrt.
@@ -92,10 +154,27 @@ import { E2E_CODE_GESPERRT, RADIO_HOST, radioUrl } from "./helpers/radio";
  *     Fehlversuche") zu ersetzen — dieselbe Auflage schreibt `lagerbuch-helfer.spec.ts:32-36`
  *     fuer sich aus. Eine ERFOLGREICHE Einloesung kostet nichts: die drei Zaehler liegen
  *     HINTER der Codepruefung (`_actions/gate.ts:119-124`, Datei 155 Zeilen).
+ *     ⛔ UND DIE GRENZE IST EINE PRO-MINUTE-GRENZE, KEINE LAUF-GRENZE — die Unterscheidung
+ *     entscheidet, was T4 aus diesem Absatz mitnimmt (Fix-Runde 1, Fund G4; der Erstbericht
+ *     schrieb faelschlich „genau ein Fehlversuch ist im ganzen Lauf noch frei"). Das
+ *     Zeitfenster steht im Namen und in der Regel: `einheit: "Anzahl/min"`
+ *     (`grenzen.ts:82`). Daneben liegen zwei weitere Zaehler, ebenfalls zeitfensterbasiert:
+ *     `RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN` (`:86`, Vorgabe 30) und
+ *     `RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE` (`:91`, Vorgabe 300). ⚠️ Die Auflage
+ *     bleibt also: nicht sorglos einen zweiten Fehlversuch-Fall anlegen, weil er in
+ *     DERSELBEN MINUTE wie Fall 3 laufen kann — nicht: „der Lauf ist nach zwei
+ *     Fehlversuchen verbraucht".
  *
  * ────────────────────────────────────────────────────────────────────────────
  * ⛔ WELCHE ZEILE WELCHEN FALL TRAEGT — GEMESSEN AM 2026-08-27, NICHT ABGELEITET
  * ────────────────────────────────────────────────────────────────────────────
+ * ⛔ ZWEI VERSCHIEDENE ARTEN VON MESSUNG, UND SIE WERDEN NICHT ZUSAMMENGEZAEHLT
+ * (Fix-Runde 1): **SECHS Mutationssonden** auf Produktcode (Tafel gleich unten) und
+ * **ZWEI Wirkproben** zu ⬜ A-L9 (P1/P2, ganz oben im Kopf). Die Sonden fragen „faerbt ein
+ * Fall, wenn diese Zeile fehlt"; die Wirkproben fragen „WELCHE von zwei gleichwertigen
+ * Zeilen traegt" — und ihr Ergebnis ist zweimal `4 passed`, also KEIN roter Lauf. Zusammen
+ * gezaehlt ergaeben sie „acht Sonden, zwei mit 0 rot", und das waere zweimal falsch.
+ *
  * SECHS Mutationssonden — nachgezaehlt, nicht geschaetzt —, je eine Zeile im Produktcode
  * entfernt und danach ein Lauf dieser Datei. ⛔ KEINE ergab 0 rot:
  *
@@ -292,8 +371,16 @@ const AUSLEIH_FEHLER = "[data-rolle='radio-ausleih-fehler']";
 
 /**
  * DER SATZ ZU `gesperrt`, EINMAL — und er steht in dieser Datei als Literal, weil er
- * BILDSCHIRMTEXT ist und deshalb seine Umlaute behaelt (Ausnahme der Hausregel). Seine
- * Quelle ist `src/app/m/radio/_lib/gateTexte.ts:71` (Datei 113 Zeilen); `_lib/meldungen.ts:297`
+ * BILDSCHIRMTEXT ist: er wird ZEICHENGLEICH mit der Quelle verglichen, nicht sinngemaess.
+ * ⚠️ DIE HAUSREGEL („keine Umlaute in einem zitierten Wert") IST HIER NICHT BERUEHRT, und
+ * bis zur Fix-Runde 1 stand an dieser Stelle die unbelegte Behauptung, das Literal behalte
+ * „seine Umlaute" (Fund G3): NACHGEMESSEN am 2026-08-27 traegt keiner der beiden Saetze
+ * einen — `gateTexte.ts:70` und `:71` sind umlautfrei, `grep -n "[Umlautklasse]"` ueber die
+ * Zeichenketten dieser Datei ist leer. Der dritte Satz derselben Quelle (`:73`,
+ * „abgelaufen") traegt einen (nachgezaehlt: genau ein `u`-Umlaut), und genau deshalb wird
+ * er hier NICHT zitiert.
+ *
+ * Die Quelle ist `src/app/m/radio/_lib/gateTexte.ts:71` (Datei 113 Zeilen); `_lib/meldungen.ts:297`
  * (Datei 503 Zeilen) schreibt ihn ausdruecklich NICHT ab, sondern holt ihn ueber
  * `gateMeldung("gesperrt", null)!` — deshalb ist derselbe Satz die Zusage an BEIDEN
  * Meldungsorten dieser Datei (Gate und Ausleihformular).
@@ -474,7 +561,8 @@ test.describe("radio-Zugang", () => {
     ).not.toContain(kennung);
     /*
      * ⛔ ZWEITE HAELFTE: `zugangscode_id` ist die HERKUNFT des Zugangs, nicht die Identitaet
-     * der Person (`_db/schema.ts:225-233`). Fuer den Suite-Weg ist sie `NULL`
+     * der Person (`_db/schema.ts:221-230` — Kommentar `:221-229`, die Spalte selbst `:230`).
+     * Fuer den Suite-Weg ist sie `NULL`
      * (`_actions/ausleihe.ts:190`). Diese Zeile ist zugleich der Beleg, dass der Vorgang
      * WIRKLICH ueber Weg 2 lief und nicht ueber ein liegengebliebenes Code-Cookie.
      */
