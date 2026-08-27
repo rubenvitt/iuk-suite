@@ -135,8 +135,9 @@ describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E
      * hier NICHT „dieselbe Bauform wie der Updater-Fall unten". Der haelt `updaterGruppe()`
      * gegen die UNABHAENGIGE Konstante `RADIO_UPDATER_GRUPPE`; dieser Fall haelt den Leser
      * gegen DENSELBEN `RADIO_ENV`-Eintrag, den er ihm reicht — beide Seiten wandern
-     * gemeinsam, ein verdrehter WERT liesse ihn gruen — abzulesen an der Zusicherung zwei
-     * Zeilen tiefer, deren beide Seiten denselben `RADIO_ENV`-Eintrag holen. Zusaetzlich
+     * gemeinsam, ein verdrehter WERT liesse ihn gruen — abzulesen an der Zusicherung
+     * DIESES Falls unten, deren beide Seiten denselben `RADIO_ENV`-Eintrag holen (ohne
+     * Zeilenabstand, denn genau den hat der Absatz darunter verschoben). Zusaetzlich
      * gemessen in `.superpowers/sdd/planteil5/REVIEW-T1.md`, Fund F-T1-3 (Mutation D: nur
      * der Wert verdreht, dieser Fall blieb gruen).
      *
@@ -148,7 +149,7 @@ describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E
      * zeichengleich gegen die Vorlage `.env.example`". Eine verdrehte VORLAGENZEILE faerbt
      * dagegen NUR den zweiten — das Literal kennt `.env.example` nicht. Beides in Fix-Runde 2
      * selbst gemessen (Sondentafel in `.superpowers/sdd/planteil5/BERICHT-T1.md`:
-     * Mutation D → beide rot, Mutation A → nur der Vorlagenfall rot).
+     * Mutation D′ → beide rot, Mutation A′ → nur der Vorlagenfall rot).
      * ⛔ WER DAS LITERAL SPAETER GEGEN `RADIO_ENV.RADIO_AUSLEIH_SITZUNG_SECRET` TAUSCHT, baut
      * die erste der zwei Wachen zurueck.
      */
