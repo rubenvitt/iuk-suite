@@ -21,11 +21,27 @@ import { loeseCodeEin } from "../../_lib/schreibpfade/codeEinloesung";
  * React-Referenz und aus einem Kamera-Scan nicht ausloesbar. Es gibt hier keine Wahl,
  * sondern nur die Frage, ob man sie richtig trifft.
  *
- * ⚠️ DIESE DATEI HAT HEUTE NULL E2E, und der Mehrhost-Fall ist in Vitest NICHT darstellbar:
- * es gibt dort keinen zweiten Host, gegen den ein relatives `Location` anders aufloeste als
- * ein absolutes — DER BRUCH IST PER KONSTRUKTION UNSICHTBAR (⬜ A-L9; der Nachweis gehoert
- * Planteil 5). Was diese Datei liefert, ist die PRUEFBARE FORM: 303, relatives `Location` in
- * JEDEM Zweig, Cookie auf DERSELBEN Antwort.
+ * ✅ ⬜ A-L9 IST FUER DIESE DATEI ABGELESEN — am 2026-08-27, Planteil 5, Aufgabe T4. Bis dahin
+ * stand hier woertlich: „DIESE DATEI HAT HEUTE NULL E2E, und der Mehrhost-Fall ist in Vitest
+ * NICHT darstellbar: es gibt dort keinen zweiten Host, gegen den ein relatives `Location`
+ * anders aufloeste als ein absolutes — DER BRUCH IST PER KONSTRUKTION UNSICHTBAR (⬜ A-L9; der
+ * Nachweis gehoert Planteil 5)."
+ *
+ * DER NACHWEIS LIEGT JETZT VOR: `e2e/radio-hosts.spec.ts` faehrt den Zwei-Host-Aufbau und
+ * prueft diese Route auf BEIDEN Hosts — der Fall „verbraucht einen Code vom fremden Host aus
+ * nicht — bleibt auf dem eigenen einloesbar" sichert `zugangscodes.last_used_at` nach dem
+ * Fremdversuch DIFFERENZIELL unveraendert zu und danach, auf dem eigenen Host, verschieden.
+ *
+ * ⛔ UND ER IST FALSIFIZIERT, NICHT NUR GRUEN. Sonde S-T4b hat den Host-Abgleich unten
+ * probehalber entfernt: der Fall wurde rot — „der Riegel muss VOR jeder Wirkung greifen",
+ * `Expected: 1787646656 / Received: 1787819470`. ⚠️ UND DABEI IST ETWAS GEMESSEN WORDEN, DAS
+ * NIRGENDS SONST STEHT: der FREMDE Host antwortete auch OHNE den Riegel weiterhin mit 404 —
+ * der Handler liefert dann seinen relativen 303 nach `/`, die Navigation folgt ihm auf
+ * `feedback.localtest.me/`, und DIESE Wurzel liefert ihrerseits 404. ⛔ Der Statuscode allein
+ * bewiese hier also nichts; die tragende Zeile ist die differenzielle auf `last_used_at`.
+ *
+ * Was diese Datei selbst liefert, bleibt unveraendert die PRUEFBARE FORM: 303, relatives
+ * `Location` in JEDEM Zweig, Cookie auf DERSELBEN Antwort.
  */
 export const dynamic = "force-dynamic";
 

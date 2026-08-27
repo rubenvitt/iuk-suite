@@ -27,9 +27,16 @@ import { resolveHost } from "@/core/routing";
  * Spec-Zeile, nicht die Datei.)
  *
  * ⚠️ KEIN GATE FAENGT DAS: `src/core/routing.test.ts:62-65` schreibt das Middleware-Verhalten
- * ausdruecklich FEST, und Playwright faehrt gegen genau einen baseURL — ein zweiter Host
- * existiert im Lauf nicht (Spec:717, Falle 12 der Portierungsanalyse,
- * docs/radio-portierung-analyse.md:1384-1387).
+ * ausdruecklich FEST. Fuer `typecheck`, `lint` und `pnpm build` bleibt der Bruch unsichtbar.
+ *
+ * ✅ DIE ZWEITE HAELFTE DIESES ABSATZES IST SEIT DEM 2026-08-27 UEBERHOLT (Planteil 5, T4).
+ * Bis dahin stand hier woertlich: „und Playwright faehrt gegen genau einen baseURL — ein
+ * zweiter Host existiert im Lauf nicht (Spec:717, Falle 12 der Portierungsanalyse,
+ * docs/radio-portierung-analyse.md:1384-1387)." Gemessen gilt: `e2e/radio-hosts.spec.ts`
+ * faehrt BEIDE Hosts ueber ABSOLUTE URLs (`e2e/helpers/radio.ts`, `radioUrl` und `fremdUrl`)
+ * und prueft fuenf Einstiege je in beide Richtungen — der `baseURL` der Konfiguration ist
+ * dafuer gar nicht der Griff. ⛔ Der Riegel dieser Datei hat damit seinen Wirknachweis bei
+ * einem ECHTEN Abruf, und nicht nur den Quelltext-Scan.
  */
 
 /**
