@@ -172,12 +172,12 @@ const ERWARTETE_SITZUNG_SEKUNDEN = Number(RADIO_ENV.RADIO_AUSLEIH_SITZUNG_STUNDE
  * ⛔ WARUM ES DIE VERBLEIB-ZUSICHERUNG UEBERHAUPT GIBT, und sie ist die tragende Haelfte
  * von Zusage 3: `page.goto` FOLGT Umleitungen und liefert die Antwort des LETZTEN
  * Dokuments. Wiese der `(ausleihe)`-Riegel die Sitzung ab und leitete auf `/` um
- * (`_lib/ausleihZugang.ts`, der Umweg bei fehlendem Cookie), lieferte `status()` die
- * **200 des Gates** — und die Station bliebe gruen, obwohl sie nie gerendert hat. Ein so
- * eingesammelter Statuscode ist genau das, was Bauform-Zulaessigkeitstafel Nr. 22
- * „Folgewirkung statt Antwort" nennt. ⛔ Erst Status UND Verbleib zusammen halten den
- * Rundgang-Anspruch aus E-G9; ohne den Verbleib saehe der Kommentar zu Sonde S-T2c oben
- * mehr zu, als die vier Zeilen halten.
+ * (`src/app/m/radio/_lib/ausleihZugang.ts:239`, Datei 267 Zeilen — der Umweg bei fehlendem
+ * Cookie), lieferte `status()` die **200 des Gates** — und die Station bliebe gruen, obwohl
+ * sie nie gerendert hat. Ein so eingesammelter Statuscode ist genau das, was die
+ * Bauform-Zulaessigkeitstafel Nr. 22 „Folgewirkung statt Antwort" nennt. ⛔ Erst Status UND
+ * Verbleib zusammen halten den Rundgang-Anspruch aus E-G9; ohne den Verbleib saehe der
+ * Kommentar zu Sonde S-T2c oben mehr zu, als die vier Zeilen halten.
  */
 const PFAD_GATE = "/";
 const PFAD_GERAETE = "/geraete";
@@ -264,9 +264,16 @@ test.describe("radio-Kiosk", () => {
      * ⛔ RELATIV, UND MIT GENAU EINEM SCHRAEGSTRICH. Ein blosses `/^\//` liesse ein
      * protokoll-relatives `//fremder-host/pfad` durch — das ist keine relative Adresse,
      * sondern eine offene Weiterleitung. Dieselbe Form prueft `e2e/lagerbuch-helfer.spec.ts:214`.
+     *
+     * ⛔ UND DESHALB STEHT HIER KEINE ZWEITE ZEILE `not.toMatch(/^https?:/)` (Fix-Runde 1,
+     * Fund G1): eine absolute Adresse beginnt mit `h` und faellt schon an dieser Zeile —
+     * eine nachgestellte Zusicherung koennte STRUKTURELL nie die erste rote Zeile sein und
+     * bewachte damit nichts. ⚠️ GEMESSEN, nicht geschlossen: Sonde F1 hat der Einloese-Route
+     * ein absolutes `Location` untergeschoben (`src/app/m/radio/t/[code]/route.ts:161` in
+     * `antwort()`, Datei 162 Zeilen), und rot wurde genau DIESE Zeile, mit dem empfangenen
+     * Wert `https://radio.localtest.me/` in der Meldung.
      */
     expect(ziel, "Zusage 1 — das Location ist nicht relativ").toMatch(/^\/(?!\/)/);
-    expect(ziel, "Zusage 1 — das Location ist absolut").not.toMatch(/^https?:/);
     /*
      * ⬜ T-L2, gemessen: das Ziel ist `/` und NICHT `/geraete`. Die Route kennt kein
      * hinterlegtes Codeziel; ohne `?returnTo=` leitet sie auf `/`
