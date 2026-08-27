@@ -138,9 +138,19 @@ describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E
      * gemeinsam, ein verdrehter WERT liesse ihn gruen — abzulesen an der Zusicherung zwei
      * Zeilen tiefer, deren beide Seiten denselben `RADIO_ENV`-Eintrag holen. Zusaetzlich
      * gemessen in `.superpowers/sdd/planteil5/REVIEW-T1.md`, Fund F-T1-3 (Mutation D: nur
-     * der Wert verdreht, dieser Fall blieb gruen). ⛔ Die Wert-Klasse haelt
-     * der Fall „haelt das Geheimnis zeichengleich gegen die Vorlage `.env.example`"
-     * darueber, und nur er.
+     * der Wert verdreht, dieser Fall blieb gruen).
+     *
+     * ⛔ DIE WERT-KLASSE HALTEN ZWEI FAELLE DARUEBER, UND ZWAR UNGLEICH. Hier stand einmal
+     * „und nur er" — das war falsch (`REVIEW-T1.md`, Fund F-T1-6). Ein verdrehter Wert IN
+     * `RADIO_ENV` faerbt BEIDE: den Fall „traegt beide Namen mit ihren Konstanten, das
+     * Geheimnis und keinen vierten", weil dessen `toEqual` den Wert als UNABHAENGIGES
+     * Literal fuehrt (Grund im Kommentar jenes Falls), UND den Fall „haelt das Geheimnis
+     * zeichengleich gegen die Vorlage `.env.example`". Eine verdrehte VORLAGENZEILE faerbt
+     * dagegen NUR den zweiten — das Literal kennt `.env.example` nicht. Beides in Fix-Runde 2
+     * selbst gemessen (Sondentafel in `.superpowers/sdd/planteil5/BERICHT-T1.md`:
+     * Mutation D → beide rot, Mutation A → nur der Vorlagenfall rot).
+     * ⛔ WER DAS LITERAL SPAETER GEGEN `RADIO_ENV.RADIO_AUSLEIH_SITZUNG_SECRET` TAUSCHT, baut
+     * die erste der zwei Wachen zurueck.
      */
     expect(ausleihSitzungGeheimnis(RADIO_ENV)).toBe(RADIO_ENV.RADIO_AUSLEIH_SITZUNG_SECRET);
   });
@@ -192,17 +202,25 @@ describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E
 });
 
 describe("playwright.config.ts — der radio-Teil (Vorabscan-Fund F24)", () => {
-  it("reicht JEDE RADIO_ENV-Zeile an den next-dev-Server durch, auch das Sitzungsgeheimnis", () => {
+  it("traegt JEDE RADIO_ENV-Zeile in die webServer.env des next-dev-Eintrags, auch das Sitzungsgeheimnis", () => {
     /*
      * ⛔ DIE EIGENTLICHE ZUSAGE DIESER DATEI: `RADIO_ENV` zu haben genuegt nicht, es muss
      * auch eingespreizt sein. Ohne `...RADIO_ENV` in `webServer.env` waere jede Zusicherung
      * darueber wahr und der Serverprozess kennte die Variablen trotzdem nicht.
      *
      * ⛔ DER NAME SAGT „JEDE" UND NICHT „BEIDE GRUPPENZEILEN", weil die Schleife unten ueber
-     * `Object.entries(RADIO_ENV)` laeuft und seit T1 DREI Schluessel abfaehrt — einer davon
-     * (`RADIO_AUSLEIH_SITZUNG_SECRET`) ist gerade KEINE Gruppenzeile. Der alte Name
-     * beschrieb den Fall falsch; ein Testname, der weniger zusagt als der Fall haelt, ist
-     * derselbe Fehlfall wie einer, der mehr zusagt.
+     * `Object.entries(RADIO_ENV)` laeuft und seit T1 mehr als die zwei Gruppenzeilen
+     * abfaehrt — einer der Schluessel (`RADIO_AUSLEIH_SITZUNG_SECRET`) ist gerade KEINE
+     * Gruppenzeile. ⛔ OHNE ZAHL, UND DAS IST DIESELBE LEHRE WIE OBEN: ein vierter Schluessel
+     * faerbte das `toEqual` des ersten Falls dieser Datei rot und wuerde dort nachgezogen —
+     * eine Zahl an DIESER Stelle bliebe still falsch stehen (`REVIEW-T1.md`, Fund F-T1-7).
+     *
+     * ⛔ UND ER SAGT „webServer.env" UND NICHT „next-dev-Server": gelesen wird
+     * `konfigImport.webServer` ueber `nextEintrag()` weiter oben — eine
+     * KONFIGURATIONSSTRUKTUR, kein laufender Prozess (`REVIEW-T1.md`, Fund F-T1-9). Beide
+     * alten Namensteile sagten anderes zu, als der Fall haelt; ein Testname, der weniger
+     * oder anderes zusagt als der Fall haelt, ist derselbe Fehlfall wie einer, der mehr
+     * zusagt.
      *
      * ⚠️ WAS ER NICHT BELEGT: dass ein WERT im Serverprozess ankommt. Beide Seiten des
      * Vergleichs stammen aus `RADIO_ENV` (`playwright.config.ts` spreizt es ein), sie
