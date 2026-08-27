@@ -179,7 +179,10 @@ export function historieMonate(env: EnvLike = process.env): number {
  * Die Hostnamen, die in einer Traefik-Regel stehen — als Tokens, nicht als Teilzeichenkette.
  *
  * `SUITE_TRAEFIK_RULE` sieht so aus: ``Host(`iuk-ue.de`) || Host(`radio.iuk-ue.de`)``
- * (`compose.yaml:152-153`, `.env.example:457-458`). Backtick, Klammer und `|` gehoeren nicht
+ * (`compose.yaml:152-153`, `.env.example:565-580` — der Erweiterungshinweis samt
+ * radio-Beispiel `:567`/`:569`, die gesetzte Zeile `:580`; die Datei hat 647 Zeilen.
+ * ⚠️ NACHGEMESSEN NACH G8: die frueheren `:457-458` sind mit den acht Ergaenzungen jener
+ * Aufgabe nach unten gewandert). Backtick, Klammer und `|` gehoeren nicht
  * zu einem Hostnamen, also trennt genau ihr Gegenzeichensatz die Tokens.
  *
  * ⛔ WARUM NICHT `regel.includes(host)`: ein Vergleich auf Teilzeichenketten haelt
