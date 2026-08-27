@@ -48,8 +48,8 @@ Zeile unten ist **am eigenen Stand neu gesucht**; wo sie abweicht, steht beides.
 | **5** | Retention-Auswahl | `src/app/m/radio/_lib/boot.ts:80` — `and(isNotNull(loans.returnedAt), lt(...))` **→** `lt(...)` *(Planangabe `:62-69`, **überholt**)* | `rtk pnpm vitest run src/app/m/radio/_lib/boot.test.ts` | 🟢 **GRÜN — `32 passed (32)`.** ⛔ **0 rot, und der Grund ist gemessen, nicht gemutmaßt** — siehe **Lauf 5-II** und Abweichung **A1** | ✅ leer |
 | **5-II** | dasselbe Pflichtstück, die Mutation, die die Zusage **wirklich** aufhebt | `src/app/m/radio/_lib/boot.ts:80` — **→** `or(isNull(loans.returnedAt), lt(loans.returnedAt, grenze))` | `rtk pnpm vitest run src/app/m/radio/_lib/boot.test.ts` | 🔴 **`eine AKTIVE Leihe bleibt, egal wie alt ihr borrowed_at ist`** — `expected 1 to be +0`, `boot.test.ts:153`. Zählzeile: **`1 failed \| 31 passed (32)`** — **einziger** Fehlschlag. ⛔ **Damit ist der Test nicht vakuös, und das Pflichtstück ist falsifiziert** | ✅ leer |
 | **6a** | Lesen während offenem Schreibvorgang — **Produktmutation** | `src/core/db/index.ts:18` — `sqlite.pragma("journal_mode = WAL");` **gestrichen** *(Planangabe `:18-20`, **trifft**)* | `rtk pnpm vitest run src/app/m/radio/_db/leihen.test.ts` | 🔴 **`liest die Geraeteliste waehrend eines offenen Schreibvorgangs`** — Zählzeile: **`1 failed \| 51 passed (52)`**, **einziger** Fehlschlag. ⚠️ Gemeldet wird `SqliteError: cannot rollback - no transaction is active` (`leihen.test.ts:982`), **nicht** die auslösende Pragma-Zusicherung — siehe Bedenken **B2** | ✅ leer |
-| **6b** | dasselbe — **Konstruktionsprobe**, kein Produktcode | `src/app/m/radio/_db/leihen.test.ts:951-953`, `:957`, `:984` — die **zwei** Handles auf **eines** zusammengezogen | `rtk pnpm vitest run src/app/m/radio/_db/leihen.test.ts` | 🔴 **`liest die Geraeteliste waehrend eines offenen Schreibvorgangs`** — `expected 'ON_LOAN' to be 'AVAILABLE'`, `leihen.test.ts:979`. Zählzeile: **`1 failed \| 51 passed (52)`**. ⛔ **Der Plan sagt „bleibt grün" — gemessen ist rot.** Abweichung **A3**; die Schlussfolgerung trägt trotzdem, siehe **6b-II** | ✅ leer |
-| **6b-II** | dieselbe Konstruktionsprobe, **eine Bearbeitung weiter** | zusätzlich `leihen.test.ts:979` — `toBe("AVAILABLE")` **→** `toBe("ON_LOAN")` | `rtk pnpm vitest run src/app/m/radio/_db/leihen.test.ts` | 🟢 **GRÜN — `52 passed (52)`.** ⛔ **DAS ist die vakuöse Fassung, die der Plan meint**, und sie liegt **eine** naheliegende Bearbeitung von 6b entfernt. Sie misst über **eine** Verbindung nichts Nebenläufiges mehr | ✅ leer |
+| **6b** | dasselbe — **Konstruktionsprobe**, kein Produktcode | `src/app/m/radio/_db/leihen.test.ts:952` — `const leserSqlite = openModuleDatabase(pfad);` **→** `const leserSqlite = schreiber;`, **und** `:984` (`leserSqlite.close();`) **gestrichen**. ⛔ **Genau zwei Zeilen; `:951`, `:953` und `:957` bleiben unberuehrt** — am 2026-08-27 nachgestellt *(Berichtigung B-1; die fruehere Angabe `:951-953`, `:957`, `:984` nannte drei Zeilen zu viel)* | `rtk pnpm vitest run src/app/m/radio/_db/leihen.test.ts` | 🔴 **`liest die Geraeteliste waehrend eines offenen Schreibvorgangs`** — `expected 'ON_LOAN' to be 'AVAILABLE'`, `leihen.test.ts:980:33`. Zählzeile: **`1 failed \| 51 passed (52)`**. ⛔ **Der Plan sagt „bleibt grün" — gemessen ist rot.** Abweichung **A3**; die Schlussfolgerung trägt trotzdem, siehe **6b-II** | ✅ leer |
+| **6b-II** | dieselbe Konstruktionsprobe, **eine Bearbeitung weiter** | zusätzlich `leihen.test.ts:980` — `expect(zeilen[0]?.status).toBe("AVAILABLE")` **→** `… .toBe("ON_LOAN")` ⛔ *(am Inhalt verankert, nicht an der Nummer; Berichtigung **B-1**)* | `rtk pnpm vitest run src/app/m/radio/_db/leihen.test.ts` | 🟢 **GRÜN — `52 passed (52)`.** ⛔ **DAS ist die vakuöse Fassung, die der Plan meint**, und sie liegt **eine** naheliegende Bearbeitung von 6b entfernt. Sie misst über **eine** Verbindung nichts Nebenläufiges mehr | ✅ leer |
 | **7a** | Guard-Scan der Actions — **der Scan** | `src/app/m/radio/_actions/ausleihe.ts:342-346` — `const schreibend = await requireAusleihSchreibend(getDb()); if (!schreibend.ok) return;` **gestrichen**, `AUSNAHMEN` **unberührt** | `rtk pnpm vitest run src/app/m/radio/_actions/guards.test.ts` | 🔴 **`keine Action ohne Riegel, keine Ausnahme ohne Host-Riegel`** — `expected [ Array(1) ] to deeply equal []`, Inhalt `"ausleihe.ts#listeAktualisieren: weder requireRadioAdmin( noch requireAusleihSchreibend("`, `guards.test.ts:687`. Zählzeile: **`1 failed \| 5 passed (6)`** | ✅ leer |
 | **7b** | dasselbe Pflichtstück — **die Zählzusage** | `src/app/m/radio/_actions/guards.test.ts:56-60` — **vierter**, erfundener Eintrag `"codes.ts#gibtEsNicht"` *(Planangabe `:56`, **trifft**)* | `rtk pnpm vitest run src/app/m/radio/_actions/guards.test.ts` | 🔴 **`die Ausnahmeliste hat GENAU DREI Eintraege`** — `eine vierte Ausnahme ist eine ENTSCHEIDUNG, kein Diff: expected 4 to be 3`, `guards.test.ts:514`. Zählzeile: **`1 failed \| 5 passed (6)`** | ✅ leer |
 
@@ -124,12 +124,12 @@ Funktionsnamen (`not.toMatch(/\bprodHostsFor\s*\(/)`, `:180`) und ist damit ein 
 ### A3 — Probe 6b: die einhändige Fassung bleibt **nicht** grün
 
 Der Plan schreibt für 6b: „die einhändige Fassung bleibt **grün** — das macht sie **vakuös**".
-⛔ **Gemessen ist sie rot** (`expected 'ON_LOAN' to be 'AVAILABLE'`, `leihen.test.ts:979`): auf
+⛔ **Gemessen ist sie rot** (`expected 'ON_LOAN' to be 'AVAILABLE'`, `leihen.test.ts:980`): auf
 **einer** Verbindung ist der noch nicht bestätigte `INSERT` für den Leser sichtbar, weil er
 derselbe Verbindungskontext ist.
 
 ⛔ **Die Schlussfolgerung des Plans trägt trotzdem, und sie wird durch 6b-II sogar schärfer.** Was
-rot wird, ist die **Isolations**hälfte (`:979`), nicht die Nebenläufigkeitshälfte — und wer diesen
+rot wird, ist die **Isolations**hälfte (`:980`), nicht die Nebenläufigkeitshälfte — und wer diesen
 Rotstand auf die naheliegende Art beruhigt (`toBe("ON_LOAN")`), hat einen Lauf mit **`52 passed
 (52)`** und einen Test, der über eine einzige Verbindung **nichts** Nebenläufiges mehr misst:
 `geraeteMitLeihstand` kann an einem offenen Schreibvorgang gar nicht mehr hängenbleiben, weil es
@@ -264,3 +264,53 @@ tragende Zeile entstand").
 
 ⛔ **Kein Produktcode und keine Testdatei geändert** — auch nicht die, die eine Probe hätte
 „reparieren" wollen. Die Begründung dafür steht vollständig in **A1**.
+
+---
+
+## Berichtigungen — Fix-Runde 1 (2026-08-27)
+
+**B-1 — die Zusicherung von Probe 6b steht auf `:980`, nicht auf `:979`.** `:979` ist die zweite
+Zeile eines Kommentars („die andere Haelfte derselben Zusage."); die Zusicherung
+`expect(zeilen[0]?.status).toBe("AVAILABLE")` steht eine Zeile darunter. Berichtigt an **vier**
+Stellen dieser Datei (Tafelzeilen **6b** und **6b-II**, sowie zweimal in **A3**) und an **zwei**
+Stellen des nicht verfolgten SDD-Berichts. ⛔ **Am eigenen Stand nachgemessen, nicht übernommen:**
+der Lauf meldet `❯ src/app/m/radio/_db/leihen.test.ts:980:33`.
+
+⚠️ **Wie weit der Fehlgriff trug — eigens gemessen statt geschätzt, und er trägt WEITER, als der
+erste Lauf aussah.** Wer dem alten Rezept folgte und `:979` anfasste, änderte einen Kommentar; das
+Ergebnis hängt daran, wie er die Zeile **6b-II** liest, und **beide** Lesarten sind gefahren:
+
+* **kumulativ** — die Mutation von 6b liegt noch im Baum, so wie das Wort „zusätzlich" es
+  vorschreibt: `1 failed | 51 passed (52)`. Der Widerspruch zur versprochenen Zahl ist sichtbar.
+* ⛔ **isoliert** — der Baum ist vorher zurückgesetzt, so wie das Verfahren oben es für **jede**
+  Probe verlangt, und nur der Kommentar wird angefasst: **`52 passed (52)`** — **genau** die Zahl,
+  die die Zeile verspricht, ohne dass **irgendetwas** mutiert worden wäre.
+
+⛔ **Auf dem zweiten Weg täuscht der Fehlgriff eine bestandene Nachstellung vor**, und das ist die
+Fehlerklasse, vor der `briefs/T6.md` warnt. Kein Messwert und keine Schlussfolgerung dieser Datei
+sind davon berührt — die Berichtigung ist es trotzdem, und zwar zwingend.
+
+**B-2 — das Rezept von 6b nennt jetzt genau die zwei Zeilen, die wirklich mutiert werden.** Die
+frühere Angabe (`:951-953`, `:957`, `:984`) führte drei Zeilen zu viel: `:957`
+(`pragma("journal_mode")`) braucht **keine** Änderung, weil das eine verbliebene Handle den
+WAL-Modus weiterhin trägt, und von `:951-953` fällt nur `:952`. Nachgestellt mit ausschließlich
+`:952` und `:984`: `1 failed | 51 passed (52)`, `expected 'ON_LOAN' to be 'AVAILABLE'` — Zeichen für
+Zeichen dasselbe Ergebnis wie oben. Die Anweisung für **6b-II** ist zusätzlich **am Inhalt**
+verankert (`expect(zeilen[0]?.status)`), nicht mehr allein an der Zeilennummer; das ist dieselbe
+Auflage, die der Kopf dieser Datei (`:35-36`) für die Plantafel erhebt. Nachgestellt: `52 passed (52)`.
+
+⛔ **Baum vor und nach jeder dieser drei Nachstellungen:** `rtk proxy git status --porcelain` →
+**leer**, `rtk proxy git diff HEAD --stat` → **leer**. Kein Produktcode und keine Testdatei bleibt
+verändert.
+
+### Zwei Posten, die hier benannt und NICHT hier gelöst werden
+
+1. ⛔ **Der Retention-TAKT hat keine Mutationsprobe.** Die neun Proben decken mit Probe 5 die
+   **Rechnung** (`raeumeLeihhistorie`), nicht den **Takt** (`starteRadioHintergrund`) — die
+   Regressionssperre gegen den Sofort-Purge ist damit unfalsifiziert. ⚠️ **Leer-grün ist sie
+   nachweislich nicht:** die Fixtur von `boot.test.ts:764-780` ist eine abgeschlossene, längst
+   überfällige Leihe, und der Nachbarfall `:782-788` löscht genau sie. Es fehlt eine Zeile der
+   **Plantafel**, keine gefahrene Probe. **Posten für den Schluss.**
+2. ⛔ **Die zwei `e2e/aufgaben.spec.ts`-Fehlschläge bleiben eigentümerlos**, unverändert seit T3.
+   `REVIEW-T3.md:150` führt sie als Posten **vor den Merge des Planteils**; T6 hat sie dreifach
+   abgegrenzt und ⛔ **nicht** gelöst. **Posten für den Schluss.**
