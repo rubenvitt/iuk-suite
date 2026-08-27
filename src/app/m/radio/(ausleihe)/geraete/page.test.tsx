@@ -429,20 +429,28 @@ describe("die Uebersicht an /geraete", () => {
      * ⚠️ NACHGESCHNITTEN IN L3 (Posten 10 der Messung), UND DIE ZUSAGE IST ENGER GEWORDEN,
      * NICHT WEITER. Bis zum 2026-08-27 hiess der Fall „ohne Weg in die Verwaltung" und las
      * sich als Aussage ueber die ganze Flaeche. Das ist sie nicht und war sie nie: ab
-     * `:119-126` ist `AusleihRahmen` durch eine ATTRAPPE ersetzt, dieser Baum enthaelt also
+     * `:134-140` ist `AusleihRahmen` durch eine ATTRAPPE ersetzt, dieser Baum enthaelt also
      * nur, was `page.tsx` SELBST baut. Seit L3 traegt der ECHTE Rahmen einen Link nach
      * `/admin` — fuer Berechtigte, und NUR fuer sie. Dass er Anonymen fehlt, haelt
      * `_ui/AusleihRahmen.test.tsx` („die ANONYME Ausleihflaeche zeigt ihn NICHT"); dieser
      * Fall hier haelt die andere Haelfte: EINEN Weg, und er liegt im Rahmen, nicht im
      * Seitenkoerper. Zwei Wege waeren zwei Wahrheiten.
      *
-     * ⛔ DESHALB DIE ZWEITE LAGE MIT EINEM ADMIN-VIEWER. Sie ist die Stufen-
-     * Fallunterscheidung, die der alten Fassung fehlte: der Seitenkoerper darf den Link
-     * auch dann nicht bauen, wenn die aufrufende Person ihn sehen DUERFTE. Sie folgt der
-     * Bauform des `next/headers`-Mocks (`:76-80`): ⚠️ `_lib/zugang` WIRD GEMOCKT, OBWOHL
-     * DIE SEITE ES NICHT IMPORTIERT — genau deshalb. Wer hier eine zweite,
-     * stufenabhaengige Verwaltungszeile ergaenzt, macht diese Lage rot; die anonyme bliebe
-     * gruen und meldete nichts (gemessen als Sonde P5 zu L3).
+     * ⛔ DESHALB DIE ZWEITE LAGE MIT EINEM ADMIN-VIEWER — UND SIE IST EIN PROSPEKTIVER
+     * WAECHTER, KEINE HEUTE MESSENDE FALLUNTERSCHEIDUNG. Das steht so da, weil dieser
+     * Kommentar bis zur Fix-Runde 1 zu L3 staerker las, als die Lage traegt (REVIEW-L3
+     * Fund 2): `page.tsx` importiert `_lib/zugang` NICHT, und keiner ihrer fuenf
+     * UNGEMOCKTEN Importe zieht es nach — die Mock-Fabrik `:114-117` laeuft heute also nie,
+     * und `viewerMock` wird nie gelesen. ⛔ GEMESSEN, NICHT GESCHLOSSEN: mit einem
+     * WERFENDEN `viewerOderNull` in jener Fabrik bleiben es `10 passed`.
+     * Ihre Zusicherung gilt trotzdem, und sie ist der Zweck: wer hier eine stufenabhaengige
+     * Verwaltungszeile ergaenzt, macht DIESE Lage rot, waehrend die anonyme gruen bliebe und
+     * nichts meldete (Sonde P5 zu L3). ⚠️ UND P5 ALLEIN REICHTE NICHT — sie roetete nur die
+     * unbeschriftete `querySelector("a")`-Zeile, dieselbe Gestalt wie in der ersten Lage;
+     * erst P5b, dieselbe Zeile AUSSERHALB des Leerbestands, erreichte die beschriftete
+     * `/admin`-Zusicherung darunter. Wer die Lage kuenftig prueft, prueft sie mit P5b.
+     * Sie folgt der Bauform des `next/headers`-Mocks (`:85-90`): ⚠️ `_lib/zugang` WIRD
+     * GEMOCKT, OBWOHL DIE SEITE ES NICHT IMPORTIERT — genau deshalb.
      */
     await rendere();
 

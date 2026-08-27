@@ -21,7 +21,11 @@ vi.mock("../_actions/sitzung", () => ({ beenden: beendenMock }));
  * braeuchte sonst eine Sitzung. Das PRAEDIKAT dagegen muss echt bleiben — waere es
  * mitgemockt, maesse der Updater-Fall unten die Attrappe und nicht die
  * Betreiberentscheidung vom 2026-08-27 („der Link zeigt sich BEIDEN Stufen").
- * Dieselbe Teilmocken-Bauform wie `_lib/host.test.ts` sie fuer `_lib/zugang` vorgibt.
+ * Dieselbe Teilmocken-Bauform wie `_lib/ausleihZugang.test.ts:55`
+ * (`vi.mock("./host", async (echt) => …)`) und `(ausleihe)/geraete/page.test.tsx:100-103`.
+ * ⚠️ Hier stand bis zur Fix-Runde 1 zu L3 `_lib/host.test.ts` als Vorbild — jene Datei
+ * kennt weder einen Teilmock noch `_lib/zugang` (ihr einziges `vi.mock` ist ein VOLLmock
+ * auf `next/navigation`, `:7`). Gemessen, REVIEW-L3 Fund 3.
  */
 const viewerMock = vi.hoisted(() => vi.fn());
 vi.mock("../_lib/zugang", async (echt) => ({

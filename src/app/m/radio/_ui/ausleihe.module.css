@@ -213,6 +213,14 @@
  * Zwei Wege aus dem Kopf heraus, EIN Aussehen: „Zur Verwaltung" (L3, nur fuer Berechtigte)
  * und „Zur Suite" (nur mit Suite-Sitzung). Sie stehen nebeneinander in `.kopfEnde` und
  * sind gleichrangig — zwei Regeln waeren zwei Wahrheiten ueber dieselbe Gestalt.
+ *
+ * ⬜ UNGEMESSEN, UND DAS STEHT HIER STATT ZWISCHEN ZWEI PRUEFUNGEN ZU VERSCHWINDEN
+ * (REVIEW-L3 Fund 6): die Verwalterin MIT Suite-Sitzung sieht DREI Elemente in `.kopfEnde`
+ * (Verwaltungslink · Portallink · Beenden-Knopf), wo bisher zwei standen. Typografie und
+ * Farbe sind bestandsgeprueft, weil beide Wege DIESE Regel teilen; neu und ungemessen ist
+ * die ANORDNUNG. ⛔ Kein Tor findet das (Falle 8, `CLAUDE.md`: „Kein Gate findet das" —
+ * antd spritzt die Kopfzeilen-`line-height` zur Laufzeit ein, jsdom rechnet keine
+ * Zeilenboxen). Gehoert an die UI-Abnahme, in BEIDEN Farbmodi und am Telefonumbruch.
  */
 .portalLink,
 .verwaltungsLink {

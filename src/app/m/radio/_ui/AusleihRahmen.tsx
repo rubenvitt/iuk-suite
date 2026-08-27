@@ -157,6 +157,14 @@ export async function AusleihRahmen({
    * bliebe der Updater ohne sichtbaren Weg auf eine Seite, die er vollberechtigt oeffnet.
    * ⛔ Deshalb `istRadioVerwaltung` — das DRITTE Praedikat neben den zweien, kein `||` in
    * einem von ihnen (`_lib/zugang.ts:299-302`).
+   *
+   * ⚠️ DER PREIS IST DIE ZWEITE `auth()`-LESUNG, NICHT DIE ERSTE (Fix-Runde 1 zu L3,
+   * REVIEW-L3 Fund 1): `_lib/ausleihZugang.ts:148` liest sie unbedingt und VOR dem
+   * Cookie-Zweig — auf JEDEM Ausleihaufruf, auch dem anonymen Kiosk-Weg — und wirft den
+   * Viewer SAMT GRUPPEN weg (`:149-150` reicht nur `{ sub, name }` weiter). ⛔ Eine
+   * `cache()`-Huelle um `viewerOderNull` behebt das nicht: jene Zeile ruft `auth()` DIREKT,
+   * und `src/core/auth/index.ts:11` memoisiert nichts (gemessen). ⬜ Der billigere Weg
+   * waere, `AusleihZugang` das fertige Praedikat mitzufuehren — eigener Posten, nicht L3.
    */
   const darfVerwalten = istRadioVerwaltung(await viewerOderNull());
 
