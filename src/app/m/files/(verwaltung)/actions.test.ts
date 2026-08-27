@@ -327,7 +327,31 @@ describe("anlegenAction — Zahl der gemeldeten Dateien", () => {
 // Punkt 5 — der Erfolgsfall
 // ---------------------------------------------------------------------------
 
-describe("anlegenAction — der Erfolgsfall", () => {
+/*
+ * DREI SUITEN DIESER DATEI TRAGEN EINEN EIGENEN TIMEOUT — jede genau die, in der
+ * ein Passwort gesetzt oder geprueft wird.
+ *
+ * Die Zeit ist `bcryptHash`/`bcryptVerify` mit cost 12 (`_lib/passwort.ts`): lokal
+ * gemessen 223 ms je Hash und 226 ms je Vergleich. Alle acht langsamen Faelle
+ * dieser Datei liegen genau dort, alle uebrigen unter 61 ms. Die Laufzeit ist
+ * sachlich begruendet: cost 12 ist der Produktivparameter, und mehrere Faelle
+ * sagen die Praefixform `$2b$12$` ausdruecklich zu — ein kleinerer cost machte
+ * die Zusage inhaltsleer. Es gibt hier auch nichts zu klammern; die Datenbank
+ * schreibt je Fall eine Handvoll Zeilen.
+ *
+ * GEMESSEN (27.08.2026, lokal, macOS/APFS):
+ *   – langsamster Fall unter VOLLER Suitenlast: 371 ms; einzeln 246 ms
+ *   – ganze Datei einzeln: 2,86 s auf 109 Faelle
+ *   – Faktor dieser Datei CI/lokal: 7,1 (PR #80, Lauf 33090214227) — der HOECHSTE
+ *     unter den nicht commit-lastigen Dateien; die Datei kostet dort 22 s
+ *   – Projektion: 371 ms × 7,1 = 2634 ms. Das reisst die 5 s heute NICHT, aber der
+ *     Abstand ist nur 1,9-fach, und dieselbe Projektion lag bei PR #80 schon
+ *     einmal zu niedrig (2462 ms projiziert, real ueber 5000 ms).
+ *
+ * ⛔ Die Zahl gilt NUR fuer diese drei Suiten. Der globale `testTimeout` bleibt bei
+ * 5 s; ihn heraufzusetzen wuerde jeden kuenftigen Fall derselben Art verdecken.
+ */
+describe("anlegenAction — der Erfolgsfall", { timeout: 15_000 }, () => {
   it("legt die Datei-Zeilen im Zwischenzustand „Zeile ohne Bytes“ an", async () => {
     const ergebnis = angenommen(
       await anlegenAction(formular(GUELTIG, ["bericht.pdf", "lage.png"])),
@@ -556,7 +580,8 @@ function ablageWurzelEintraege(): string[] {
 // Punkt 1 — bearbeiten aendert NUR, was mitgeschickt wurde
 // ---------------------------------------------------------------------------
 
-describe("bearbeitenAction — nur das Mitgeschickte aendert sich", () => {
+/* Timeout: Begruendung und Messung stehen ueber `anlegenAction — der Erfolgsfall`. */
+describe("bearbeitenAction — nur das Mitgeschickte aendert sich", { timeout: 15_000 }, () => {
   it("nur der Titel geaendert → JEDE andere Spalte steht unveraendert", async () => {
     // Der Alt-Defekt: `useState(1)` im Formular plus bedingungsloses Senden in
     // `updateShare` verkuerzte den Share auf 24 h, sobald jemand den Titel
@@ -674,7 +699,8 @@ describe("bearbeitenAction — der Ablauf", () => {
 // Punkt 5 — Passwort setzen und entfernen
 // ---------------------------------------------------------------------------
 
-describe("bearbeitenAction — Passwort", () => {
+/* Timeout: Begruendung und Messung stehen ueber `anlegenAction — der Erfolgsfall`. */
+describe("bearbeitenAction — Passwort", { timeout: 15_000 }, () => {
   it("ein neu gesetztes Passwort liegt als $2b$12$ in der Zeile, nie im Klartext", async () => {
     const { shareId } = await legeAn();
     bestaetigt(

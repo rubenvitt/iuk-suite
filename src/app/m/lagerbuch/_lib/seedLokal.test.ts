@@ -87,9 +87,15 @@ afterEach(() => { t.schliessen(); });
  *
  * Der Seed schreibt in 16 Tabellen, und er tut es zu grossen Teilen mit
  * einzelnen `.run()`-Aufrufen (`seedLokal.ts`; nur die Schreibpfade um Zeile
- * 392/406/443/509/537 klammern selbst). Auf einer Datei-SQLite ohne WAL — und
- * genau die gibt `_db/testdb.ts` zurueck — ist jeder davon ein eigener Commit
- * mit fsync.
+ * 392/406/443/509/537 klammern selbst). Jeder davon ist ein eigener Commit.
+ *
+ * ⚠️ NACHTRAG: `_db/testdb.ts` setzt inzwischen `journal_mode = WAL` und
+ * `synchronous = NORMAL` (dort Punkt 4 des Kopfkommentars, mit der Messung).
+ * Damit kostet ein Einzel-Commit lokal 0,009 ms statt 0,254 ms, und diese Datei
+ * faellt einzeln von 619 ms auf 225 ms — Faktor 2,7. DER TIMEOUT BLEIBT
+ * TROTZDEM: der Gewinn ist lokal gemessen, die Grenze reisst in der CI, und die
+ * dortige Zahl war ABGESCHNITTEN (siehe unten). Wer ihn entfernen will, braucht
+ * dafuer einen CI-Lauf mit WAL, der die echte Rumpfdauer zeigt.
  *
  * GEMESSEN (PR #80, Lauf 33090214227, `ubuntu-24.04`):
  *   – ein Fall lokal unter voller Suitenlast: 57 ms; einzeln 61 ms; auf `main`
